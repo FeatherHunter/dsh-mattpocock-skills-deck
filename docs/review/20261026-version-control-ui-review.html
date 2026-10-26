@@ -1,0 +1,971 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>版本管理页 UI/UX 对抗审查 · 改动视图</title>
+<style>
+  :root {
+    --bg: #f6f8fa; --panel: #ffffff; --ink: #1f2328; --muted: #59636e; --line: #d1d9e0;
+    --del-bg: #ffebe9; --del-ink: #82071e; --del-line: #cf222e;
+    --add-bg: #e6ffec; --add-ink: #116329; --add-line: #2da44e;
+    --warn-bg: #fff8c5; --warn-ink: #7d4e00; --warn-line: #d4a72c;
+    --accent: #0969da; --badge-bg: #eff2f5;
+    --mono: ui-monospace, SFMono-Regular, Consolas, "Cascadia Mono", "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --panel: #161b22; --ink: #e6edf3; --muted: #9198a1; --line: #30363d;
+      --del-bg: #2d1214; --del-ink: #ffb3ad; --del-line: #f85149;
+      --add-bg: #12261e; --add-ink: #7ee2a8; --add-line: #3fb950;
+      --warn-bg: #2d2405; --warn-ink: #d4a72c; --warn-line: #9e6a03;
+      --accent: #4493f8; --badge-bg: #21262d;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.7 var(--sans); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: var(--mono); font-size: 12.5px; background: var(--badge-bg); padding: 1px 5px; border-radius: 4px; }
+  h2 { font-size: 22px; margin: 0 0 6px; letter-spacing: -.01em; }
+  h3 { margin: 0; }
+  p { margin: 0; }
+
+  /* ── 页头 ─────────────────────── */
+  .hero { padding: 48px 0 6px; }
+  .kicker { font-size: 12px; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+  h1 { font-size: 31px; line-height: 1.25; margin: 10px 0 12px; letter-spacing: -.015em; }
+  .lede { max-width: 820px; color: var(--muted); font-size: 14.5px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  .stat { font-size: 12.5px; color: var(--muted); border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 3px 11px; }
+  .stat b { color: var(--ink); font-weight: 600; }
+
+  /* ── 导航 ─────────────────────── */
+  .toolbar { position: sticky; top: 0; z-index: 20; margin-top: 24px; padding: 9px 0; border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  .toolbar .row { display: flex; align-items: center; gap: 14px; overflow-x: auto; }
+  .toolbar a { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .toolbar a:hover { color: var(--ink); }
+  .toolbar .sp { flex: 1; }
+  .toolbar .hint { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+  /* ── 区块 ─────────────────────── */
+  .block { margin-top: 44px; }
+  .block > .hint { color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .lead { color: var(--muted); font-size: 14.5px; margin-top: 8px; max-width: 880px; }
+
+  /* ── 判据 ─────────────────────── */
+  .questions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+  .q { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+  .q b { display: block; font-size: 14.5px; margin-bottom: 4px; }
+  .q b i { font-style: normal; color: var(--accent); margin-right: 6px; }
+  .q span { font-size: 13px; color: var(--muted); }
+  .ruler-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  .ruler { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+  .ruler b { font-size: 14px; }
+  .ruler b em { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--accent); border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; margin-right: 7px; }
+  .ruler p { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .ruler .now { font-size: 12.5px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); color: var(--del-ink); }
+  .ruler .now b { color: var(--del-ink); font-weight: 600; }
+  .verdict { margin-top: 16px; border: 1px solid var(--warn-line); background: var(--warn-bg); color: var(--warn-ink); border-radius: var(--radius); padding: 14px 18px; font-size: 14px; }
+  .verdict b { color: var(--warn-ink); }
+
+  /* ── 场景 ─────────────────────── */
+  .scene { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); margin-top: 22px; overflow: hidden; }
+  .scene-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--line); }
+  .scene-no { font: 600 11.5px var(--mono); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+  .scene-head h3 { font-size: 19px; margin: 4px 0 6px; }
+  .scene-goal { font-size: 13.5px; color: var(--muted); }
+  .scene-goal b { color: var(--ink); }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .sev { font: 600 11px/1.6 var(--mono); border-radius: 999px; padding: 1px 9px; border: 1px solid; }
+  .sev.p0 { color: #82071e; background: #ffebe9; border-color: #ffcecb; }
+  .sev.p1 { color: #7d4e00; background: #fff8c5; border-color: #eed888; }
+  .sev.p2 { color: #57606a; background: #eff2f5; border-color: #d1d9e0; }
+  @media (prefers-color-scheme: dark) {
+    .sev.p0 { color: #ffb3ad; background: #2d1214; border-color: #6e1c22; }
+    .sev.p1 { color: #d4a72c; background: #2d2405; border-color: #5c4a06; }
+    .sev.p2 { color: #9198a1; background: #21262d; border-color: #30363d; }
+  }
+  .scene-body { padding: 18px 20px 20px; }
+  .pair-cap { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; color: var(--muted); margin: 16px 0 6px; }
+  .pair-cap b { font-size: 13px; }
+  .pair-cap .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .pair-cap .dot.now { background: var(--del-line); }
+  .pair-cap .dot.after { background: var(--add-line); }
+  .pair-cap:first-child { margin-top: 0; }
+
+  /* ── 产品界面复刻（深色，与真实页面一致） ── */
+  .mock { background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 8px; padding: 12px 14px; font: 12.5px/1.6 var(--sans); overflow: hidden; }
+  .mock .m-id { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
+  .mock .repo { color: #3fb950; font-weight: 600; }
+  .mock .br { color: #7ee2a8; }
+  .mock .m-path { color: #8b949e; font: 11px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 520px; }
+  .mock .m-sync { color: #8b949e; font-size: 11px; text-align: right; white-space: nowrap; }
+  .mock .m-tabs { display: flex; gap: 16px; border-bottom: 1px solid #21262d; margin: 10px 0 8px; padding-bottom: 6px; font-size: 12px; color: #8b949e; }
+  .mock .m-tabs b { color: #e6edf3; font-weight: 600; border-bottom: 2px solid #2f81f7; padding-bottom: 6px; margin-bottom: -7px; }
+  .mock .m-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0 10px; }
+  .mock .m-stat { background: #161b22; border: 1px solid #30363d; border-radius: 7px; padding: 7px 10px; font-size: 11px; color: #8b949e; }
+  .mock .m-stat b { display: block; font: 600 17px/1.2 var(--mono); color: #e6edf3; margin-bottom: 2px; }
+  .mock .m-stat.red b { color: #f85149; } .mock .m-stat.green b { color: #3fb950; } .mock .m-stat.blue b { color: #2f81f7; }
+  .mock .m-panel { border: 1px dashed #3d444d; border-radius: 7px; padding: 9px 10px; margin: 8px 0 10px; }
+  .mock .m-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .mock .m-btn { background: #21262d; border: 1px solid #30363d; color: #e6edf3; border-radius: 5px; padding: 2px 9px; font-size: 11.5px; line-height: 1.6; }
+  .mock .m-btn.green { background: #238636; border-color: #2ea043; color: #fff; }
+  .mock .m-btn.dim { opacity: .45; }
+  .mock .m-btn.warn { border-color: #9e6a03; color: #e3b341; }
+  .mock .m-btn.primary { background: #238636; border-color: #2ea043; color: #fff; font-weight: 600; }
+  .mock .m-hint { font-size: 11px; color: #8b949e; }
+  .mock .m-sep { width: 1px; height: 14px; background: #30363d; }
+  .mock .m-input { flex: 1; min-width: 120px; background: #0d1117; border: 1px solid #30363d; border-radius: 5px; color: #8b949e; font: 11.5px var(--sans); padding: 4px 9px; }
+  .mock .m-lbl { font-size: 11px; color: #8b949e; }
+  .mock .m-group { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: #e6edf3; padding: 4px 2px 5px; }
+  .mock .m-group .tools { display: flex; gap: 6px; color: #8b949e; font-size: 11px; }
+  .mock .m-frow { display: flex; align-items: center; gap: 8px; padding: 5px 4px; border-top: 1px solid #21262d; }
+  .mock .m-frow .chk { width: 12px; height: 12px; border: 1px solid #484f58; border-radius: 3px; flex: 0 0 auto; }
+  .mock .m-frow .chk.on { background: #238636; border-color: #2ea043; }
+  .mock .m-frow .b { flex: 0 0 15px; text-align: center; font: 600 10px var(--mono); border: 1px solid #30363d; border-radius: 3px; color: #8b949e; }
+  .mock .m-frow .b.m { color: #2f81f7; border-color: #1f6feb; }
+  .mock .m-frow .p { flex: 1; min-width: 0; font: 11.5px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mock .m-frow .p .dir { color: #8b949e; }
+  .mock .m-frow .num { font: 10.5px var(--mono); color: #8b949e; white-space: nowrap; }
+  .mock .m-frow .num .add { color: #3fb950; } .mock .m-frow .num .del { color: #f85149; }
+  .mock .m-frow .size { font: 10.5px var(--mono); color: #d29922; white-space: nowrap; }
+  .mock .m-frow .st { font-size: 10.5px; color: #8b949e; white-space: nowrap; }
+  .mock .m-btn.small { padding: 0 7px; font-size: 11px; }
+  .mock .m-gap { display: flex; align-items: center; gap: 8px; color: #484f58; font-size: 10.5px; margin: 7px 2px; }
+  .mock .m-gap::before, .mock .m-gap::after { content: ""; flex: 1; border-top: 1px dashed #30363d; }
+  .mock .m-result { display: flex; align-items: center; gap: 8px; border-top: 1px solid #30363d; margin-top: 8px; padding-top: 8px; font-size: 11.5px; color: #3fb950; }
+  .mock .m-result .x { margin-left: auto; color: #8b949e; }
+  .mock .m-chip { display: inline-flex; align-items: center; gap: 6px; background: #12261e; border: 1px solid #1f6f3f; color: #7ee2a8; border-radius: 999px; padding: 1px 10px; font-size: 11px; }
+  .mock .m-chip.warn { background: #2d2405; border-color: #5c4a06; color: #e3b341; }
+  .mock .m-field { border: 1px solid #30363d; border-radius: 7px; padding: 8px 9px; margin: 8px 0 4px; }
+  .mock .m-field .fl { font-size: 10.5px; color: #8b949e; display: block; margin-bottom: 4px; }
+  .mock .m-ta { width: 100%; background: #0d1117; border: 1px solid #30363d; border-radius: 5px; color: #c9d1d9; font: 11.5px/1.7 var(--sans); padding: 5px 9px; min-height: 54px; }
+  .mock .m-note { font-size: 10.5px; color: #8b949e; margin-top: 4px; }
+  .mock .m-focus { outline: 2px solid #d29922; outline-offset: 1px; }
+  .mock .m-menu { background: #161b22; border: 1px solid #30363d; border-radius: 7px; padding: 4px; margin: 6px 0 0 24px; max-width: 240px; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+  .mock .m-menu .mi { padding: 4px 9px; border-radius: 5px; font-size: 11.5px; color: #e6edf3; }
+  .mock .m-menu .mi.danger { color: #ffb3ad; }
+  .mock .m-menu .mi .k { float: right; color: #8b949e; font-size: 10px; }
+  .mock .m-menu .mi.sep { border-top: 1px solid #21262d; margin: 3px 0; padding: 0; }
+  .mock .m-narrow { max-width: 430px; }
+  .mock .m-ann { outline: 1px dashed #f85149; outline-offset: 2px; border-radius: 5px; position: relative; }
+  .mock .m-ann.good { outline-color: #3fb950; }
+  .mock .mk { display: inline-block; font: 700 9px/1.4 var(--mono); color: #fff; background: #f85149; border-radius: 999px; padding: 0 4px; margin-right: 4px; vertical-align: 1px; }
+  .mock .mk.g { background: #2ea043; }
+  .mock .mk.warn { background: #d29922; }
+  .mock .m-ann.warn { outline-color: #d29922; }
+  .mock .m-stat { position: relative; }
+  .mock .m-stat > .mk { position: absolute; top: -7px; right: -7px; margin: 0; box-shadow: 0 0 0 2px #0d1117; }
+
+  /* ── 行为 diff ─────────────────── */
+  .bdiff { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 16px; }
+  .bdiff .d { display: flex; gap: 10px; padding: 8px 12px; font-size: 13px; border-top: 1px solid var(--line); }
+  .bdiff .d:first-child { border-top: 0; }
+  .bdiff .d .sg { flex: 0 0 auto; font: 700 13px/1.6 var(--mono); }
+  .bdiff .d.del { background: var(--del-bg); color: var(--del-ink); }
+  .bdiff .d.add { background: var(--add-bg); color: var(--add-ink); }
+  .bdiff .d code { background: rgba(127,127,127,.14); color: inherit; }
+
+  /* ── 问题与验收 ─────────────────── */
+  .pts { margin: 14px 0 0; padding-left: 22px; font-size: 13.5px; }
+  .pts li { margin-top: 7px; }
+  .pts li b { color: var(--del-ink); }
+  .pts li code { font-size: 12px; }
+  .verify { margin-top: 14px; border-left: 3px solid var(--add-line); background: var(--add-bg); color: var(--add-ink); padding: 9px 14px; border-radius: 0 8px 8px 0; font-size: 13px; }
+  .verify b { color: inherit; }
+  .evidence { margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+  .evidence code { font-size: 11.5px; }
+
+  /* ── 问题总表 ─────────────────── */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 10px; }
+  .chip { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 999px; padding: 5px 12px; font: 13px/1.2 var(--sans); cursor: pointer; }
+  .chip:hover { color: var(--ink); }
+  .chip.is-on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .chip i { font-style: normal; font-family: var(--mono); font-size: 11px; opacity: .8; margin-left: 5px; }
+  .tblwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--panel); }
+  .tbl th, .tbl td { text-align: left; padding: 8px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+  .tbl thead th { border-top: 0; background: var(--badge-bg); font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+  .tbl td.id { font: 600 11.5px var(--mono); white-space: nowrap; }
+  .tbl tr[hidden] { display: none; }
+  .tbl td .where { color: var(--muted); font-size: 12px; }
+  .tbl td code { font-size: 11px; white-space: nowrap; }
+
+  /* ── 落地建议 ─────────────────── */
+  .tier { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; margin-top: 14px; }
+  .tier h3 { font-size: 16px; display: flex; align-items: center; gap: 9px; }
+  .tier h3 .tag { font: 600 10.5px/1.7 var(--mono); border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; color: var(--muted); }
+  .tier h3 .tag.p0 { color: var(--del-ink); border-color: var(--del-line); }
+  .tier h3 .tag.p1 { color: var(--warn-ink); border-color: var(--warn-line); }
+  .tier > p { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .tier ol { margin: 12px 0 0; padding-left: 20px; }
+  .tier li { font-size: 13.5px; margin-top: 7px; }
+  .tier li b { font-weight: 600; }
+  .tier li code { font-size: 11.5px; }
+  .tier li .acc { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+
+  /* ── 代价 ─────────────────────── */
+  .cost { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 14px; }
+  .cost > div { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+  .cost b { font-size: 14px; } .cost p, .cost li { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .cost ul { margin: 6px 0 0; padding-left: 18px; }
+
+  footer { margin: 44px auto 60px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 16px; }
+  footer p { margin-top: 8px; }
+
+  @media (max-width: 860px) {
+    .questions, .ruler-grid, .cost { grid-template-columns: 1fr; }
+    h1 { font-size: 26px; }
+    .mock .m-path { max-width: 260px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero wrap">
+  <div class="kicker">版本管理页 · UI/UX 对抗审查 · 2026-10-26</div>
+  <h1>这页现在像 git 命令面板，不像任务面板</h1>
+  <p class="lede">
+    审查对象是 DSH Web GUI 的「版本管理 → 改动」页，依据是两张真实截图与逐行源码核对。
+    下面把 8 个真实使用场景拆成前后对照：<b>红行是现在的行为与证据，绿行是建议的行为</b>；
+    每个场景给出可执行的验收口径，最后一节给出三档落地建议与改动代价。证据里行号以当前工作树为准。
+  </p>
+  <div class="stats">
+    <span class="stat"><b>8</b> 个使用场景</span>
+    <span class="stat"><b>24</b> 处具体问题</span>
+    <span class="stat">P0 <b>5</b> · P1 <b>12</b> · P2 <b>7</b></span>
+    <span class="stat"><b>6</b> 条第一性判据</span>
+    <span class="stat"><b>3</b> 档落地建议</span>
+  </div>
+</header>
+
+<nav class="toolbar" aria-label="页面导航">
+  <div class="wrap row">
+    <a href="#ruler">判据</a>
+    <a href="#scenes">场景 diff</a>
+    <a href="#issues">问题总表</a>
+    <a href="#plan">落地建议</a>
+    <a href="#cost">验收与代价</a>
+    <span class="sp"></span>
+    <span class="hint">图例：红 = 现在；绿 = 改后；虚线框 = 被标注的区域</span>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <section class="block" id="ruler">
+    <h2>先把尺子立起来</h2>
+    <p class="lead">
+      版本管理页本质上只回答三个问题。先定判据，再逐场景量，避免把「看着不顺眼」当成结论。
+    </p>
+    <div class="questions">
+      <div class="q"><b><i>问一</i>我现在改了什么</b><span>哪些是我要的、哪些是垃圾。判断依据是体积、类型、来源和差异，不是文件名猜。</span></div>
+      <div class="q"><b><i>问二</i>下一步做什么</b><span>暂存、提交、丢弃、同步；一屏一个主操作，每个写操作都有对称的撤销。</span></div>
+      <div class="q"><b><i>问三</i>做完怎么确认</b><span>结果落在触发点旁边，写清对象、数量与时间；没发生的事不说「完成」。</span></div>
+    </div>
+    <div class="ruler-grid">
+      <div class="ruler"><b><em>1</em>可判定</b>
+        <p>决定「要不要写进历史」之前，先看得到体积、类型和差异入口。</p>
+        <div class="now"><b>现在：</b>未跟踪的 21.8 MB 视频与 1 KB 脚本同列，唯一动作是「add」。</div>
+      </div>
+      <div class="ruler"><b><em>2</em>可逆</b>
+        <p>写操作有对称的撤销；代价高的动作二次确认，代价低的不要拦。</p>
+        <div class="now"><b>现在：</b>只有逐行「撤回」；没有丢弃、忽略、删除，「add 全部」也没有「撤回全部」。</div>
+      </div>
+      <div class="ruler"><b><em>3</em>可归因</b>
+        <p>结果必须贴住触发点，说清对象、数量、耗时，否则用户无法判断是否重试。</p>
+        <div class="now"><b>现在：</b>结果固定在整页末尾，与按钮隔整张列表；无时间、无远端名、无提交号。</div>
+      </div>
+      <div class="ruler"><b><em>4</em>一致口径</b>
+        <p>数字、文案、状态使用同一口径；口径不同的数字并排放，就是在制造误读。</p>
+        <div class="now"><b>现在：</b>12 是条目数、50 是已加载数、14 是其他工作树棵数，并排展示成同一种计数。</div>
+      </div>
+      <div class="ruler"><b><em>5</em>可达</b>
+        <p>鼠标、键盘、读屏、触摸四路都要能完成同一件事，并收到同样的状态通知。</p>
+        <div class="now"><b>现在：</b>文件行不可聚焦，禁用原因只在鼠标悬停里，结果与忙态没有 aria-live。</div>
+      </div>
+      <div class="ruler"><b><em>6</em>诚实</b>
+        <p>按钮可用就等于「点了有意义」；报告结果必须真的发生过。</p>
+        <div class="now"><b>现在：</b>超前 0 时「推送」仍亮绿可点，成功后统一说「推送完成」；脏工作区拉取可点，提示却写「请先提交再拉取」。</div>
+      </div>
+    </div>
+    <div class="verdict">
+      <b>结论先行：</b>如果只改三处，就把力气花在这三处——① 结果回到触发点旁边；② 三类文件分开，并补上「丢弃 / 忽略」；③ 无提交可推与拉取风险做成按钮状态，而不是句子。
+      这三处改完，这页才配叫「提交前的检查台」。
+    </div>
+  </section>
+
+  <section class="block" id="scenes">
+    <h2>场景 diff</h2>
+    <p class="lead">
+      每个场景按「用户在做什么 → 现在（截图复刻 + 源码）→ 改后（建议）→ 行为 diff → 验收」展开。
+      界面缩略图只表达结构，不是最终视觉稿。
+    </p>
+
+    <article class="scene" id="s1">
+      <header class="scene-head">
+        <div class="scene-no">场景 1 / 8</div>
+        <h3>刚打开：我到底改了什么？</h3>
+        <p class="scene-goal"><b>用户目标：</b>5 秒内判断——哪些改动是我要的、哪些是垃圾、下一步先做什么。</p>
+        <div class="badges"><span class="sev p0">P0 ×1</span><span class="sev p1">P1 ×3</span><span class="sev p2">P2 ×1</span></div>
+      </header>
+      <div class="scene-body">
+        <div class="pair-cap"><span class="dot now"></span><b>现在</b><span>截图复刻：身份行、页签、三数字卡、未暂存列表</span></div>
+        <div class="mock">
+          <div class="m-id">
+            <div>
+              <span class="repo">dsh-mattpocock-skills-deck</span> <span class="br">/ main</span>
+              <div class="m-path">D:/dsh-plugin/dsh-mattpocock-skills-deck</div>
+            </div>
+            <div class="m-sync">超前 0 · 落后 0<br><span class="m-hint">读取于 刚刚 · 远端信息更新于 1 分钟前</span></div>
+          </div>
+          <div class="m-tabs"><b>改动 12</b><span>提交历史 50</span><span>工作树 14</span></div>
+          <div class="m-stats">
+            <div class="m-stat red m-ann"><span class="mk">1</span><b>0</b>存在冲突</div>
+            <div class="m-stat green m-ann"><span class="mk">2</span><b>0</b>已暂存</div>
+            <div class="m-stat blue"><b>12</b>未暂存</div>
+          </div>
+          <div class="m-group"><span>未暂存 12</span><span class="tools">（无筛选、无搜索、无批量选择）</span></div>
+          <div class="m-frow m-ann"><span class="mk">3</span><span class="b">?</span><span class="p">assets/video/中文-implement需求-大量并发-落地.mp4</span><span class="size">21.8 MB</span><span class="st">未跟踪</span><span class="m-btn small">add</span></div>
+          <div class="m-frow"><span class="b">?</span><span class="p">docs/review/202610…complete-prompt-review.html</span><span class="st">未跟踪</span><span class="m-btn small">add</span></div>
+          <div class="m-frow"><span class="b">M</span><span class="p">src/client/views/shared/workRouteTable.ts</span><span class="num"><span class="add">+53</span> <span class="del">−8</span></span><span class="m-btn small">add</span></div>
+          <div class="m-frow m-ann"><span class="mk">4</span><span class="b">?</span><span class="p">undefined/probe2.mjs</span><span class="st">未跟踪</span><span class="m-btn small">add</span></div>
+          <div class="m-gap">其余 8 行略</div>
+          <div class="m-hint">「工作树 14」不包含当前工作树；「提交历史 50」只是已加载条数。</div>
+        </div>
+
+        <div class="pair-cap"><span class="dot after"></span><b>改后</b><span>建议：分区 + 口径写清 + 身份行说清「相对谁、多旧」</span></div>
+        <div class="mock">
+          <div class="m-id">
+            <div>
+              <span class="repo">dsh-mattpocock-skills-deck</span> <span class="br">/ main</span>
+              <div class="m-path">D:/dsh-plugin/dsh-mattpocock-skills-deck</div>
+            </div>
+            <div class="m-sync m-ann good"><span class="mk g">✓</span>相对 origin/main：0 领先 / 0 落后<br><span class="m-hint">本地信息更新于 1 分钟前 · [刷新]</span></div>
+          </div>
+          <div class="m-tabs"><b>12 处改动</b><span>50+ 个提交</span><span>14 个其他工作树</span></div>
+          <div class="m-group"><span>已暂存 0</span><span class="tools">暂无已暂存文件</span></div>
+          <div class="m-group"><span>未暂存 7</span><span class="tools">[全选] [暂存所选]</span></div>
+          <div class="m-frow"><span class="chk"></span><span class="b">M</span><span class="p">src/client/views/shared/workRouteTable.ts</span><span class="num"><span class="add">+53</span> <span class="del">−8</span></span><span class="m-btn small">add</span></div>
+          <div class="m-frow"><span class="chk"></span><span class="b">M</span><span class="p">src/refresh/rooms/host/outbound-admission.ts</span><span class="num"><span class="add">+23</span> <span class="del">−1</span></span><span class="m-btn small">add</span></div>
+          <div class="m-group m-ann good"><span><span class="mk g">✓</span>未跟踪 5（默认折叠）</span><span class="tools">[展开]</span></div>
+          <div class="m-frow"><span class="chk"></span><span class="b">?</span><span class="p">assets/video/…落地.mp4</span><span class="size">21.8 MB · 视频</span><span class="st">建议忽略</span><span class="m-btn small">⋯</span></div>
+          <div class="m-frow"><span class="chk"></span><span class="b">?</span><span class="p">undefined/probe2.mjs</span><span class="st">1.1 KB</span><span class="m-btn small">⋯</span></div>
+        </div>
+
+        <div class="bdiff">
+          <div class="d del"><span class="sg">−</span><span>现在：12 行平铺，已修改、未暂存、从未跟踪三类状态混在一起；行上只有「add」，没有体积、没有忽略/删除。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：拆成「已暂存 / 未暂存 / 未跟踪」三区，未跟踪默认折叠；未跟踪行显示体积与类型，行内菜单可忽略/删除；已暂存区常驻（空态一行说明）。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：页签显示「改动 12」「提交历史 50」「工作树 14」三个裸数字，量纲不同却并排。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：数字自带单位与口径——「12 处改动」「50+ 个提交」「14 个其他工作树」。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：身份行只写「超前 0 · 落后 0」，不写上游是谁；「读取于 刚刚」与「远端信息更新于 1 分钟前」两个时间源并排。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：写成「相对 origin/main：0 领先 / 0 落后 · 本地信息 1 分钟前更新」；陈旧超过阈值给黄色提示。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：长路径保留目录前缀、丢掉文件名中段；截断后悬停没有完整路径。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：优先保文件名、目录折中段（<code>docs/…/20261026-…review.html</code>）；悬停或聚焦可看完整路径并复制。</span></div>
+        </div>
+
+        <ol class="pts">
+          <li><b>三类文件同权。</b>「已修改但未暂存」「已暂存」「从未跟踪」被塞进同一张表，行上只有「add」和单击展开差异 <code>vcRows.ts:69</code>、<code>VersionControlTab.ts:264-291</code>；21.8 MB 视频与 <code>undefined/</code> 下 5 个 1–8 KB 临时脚本和正式改动受到完全相同对待。</li>
+          <li><b>零值卡片占位却不给入口。</b>「已暂存 0」常驻，但正文没有已暂存分组（分组为空不渲染，<code>vcBlocks.ts:176-181</code>）；三张数字卡是纯 div、不可点击筛选 <code>vcViews.ts:66-85</code>。</li>
+          <li><b>数字口径不可比。</b>「改动 12」= 冲突+已暂存+未暂存条目数，同一文件可计两次 <code>vcViews.ts:25</code>；「提交历史 50」= 已加载条数，首屏 50<code>versionControl.ts:57</code>，可继续分批加载 <code>vcData.ts:30</code>；「工作树 14」= 其他工作树棵数、不含当前 <code>vcViews.ts:28</code>。</li>
+          <li><b>身份与新鲜度说不清。</b>不写上游名；「远端信息更新于 1 分钟前」与「读取于 刚刚」是不同时间源 <code>versionControlBasis.ts:51-77</code>；面板说明还写着「仅在命令行中执行 git fetch 后才会更新」（<code>config/copy/panel.yaml:246</code>），与页面自带的「更新」按钮矛盾。</li>
+          <li><b>路径截断策略反直觉。</b>按码点折成 46 码点的「前 40% + … + 后 60%」<code>vcRows.ts:77</code>、<code>vcText.ts:68-78</code>；截断后悬停不含完整路径 <code>VersionControlTab.ts:277</code>。</li>
+        </ol>
+        <div class="verify"><b>验收：</b>打开页面 5 秒内能说清——三个分区各几条、哪几条未跟踪、上游分支名、本地信息多久前更新；DOM 检查页签文案带单位与「不含当前」。</div>
+      </div>
+    </article>
+
+    <article class="scene" id="s2">
+      <header class="scene-head">
+        <div class="scene-no">场景 2 / 8</div>
+        <h3>只提交一个文件，别把垃圾带上</h3>
+        <p class="scene-goal"><b>用户目标：</b>改了 12 处，只想提交其中 1 个；一次点错不能把 21.8 MB 视频和临时脚本带进历史。</p>
+        <div class="badges"><span class="sev p1">P1 ×4</span><span class="sev p2">P2 ×1</span></div>
+      </header>
+      <div class="scene-body">
+        <div class="pair-cap"><span class="dot now"></span><b>现在</b><span>截图复刻：虚线提交工具条 + 未暂存列表</span></div>
+        <div class="mock">
+          <div class="m-panel">
+            <div class="m-row">
+              <span class="m-btn">拉取</span><span class="m-btn">更新</span><span class="m-btn green">推送</span>
+              <span class="m-hint m-ann"><span class="mk">1</span>工作区存在未提交的变更，请先提交再拉取</span>
+              <span class="m-sep"></span>
+              <span class="m-btn m-ann"><span class="mk">2</span>add 全部</span>
+              <span style="flex:1"></span>
+              <span class="m-lbl">提交说明</span>
+            </div>
+            <div class="m-row" style="margin-top:6px">
+              <input class="m-input" placeholder="写一句提交说明" />
+              <span class="m-btn primary dim m-ann"><span class="mk">3</span>提交 0 个文件</span>
+            </div>
+          </div>
+          <div class="m-group"><span>未暂存 12</span><span class="tools">无「仅提交暂存区内容」说明</span></div>
+          <div class="m-frow"><span class="b">M</span><span class="p">src/client/views/shared/workRouteTable.ts</span><span class="num"><span class="add">+53</span> <span class="del">−8</span></span><span class="m-btn small">add</span></div>
+          <div class="m-frow"><span class="b">M</span><span class="p">src/refresh/rooms/host/outbound-admission.ts</span><span class="num"><span class="add">+23</span> <span class="del">−1</span></span><span class="m-btn small">add</span></div>
+          <div class="m-gap">其余 10 行，每行一个 add</div>
+        </div>
+
+        <div class="pair-cap"><span class="dot after"></span><b>改后</b><span>建议：多选 + 带范围的批量动作 + 常驻说明</span></div>
+        <div class="mock">
+          <div class="m-panel">
+            <div class="m-row">
+              <span class="m-btn">刷新 ▾</span><span class="m-btn">拉取</span><span class="m-btn m-ann good"><span class="mk g">✓</span>推送（无提交可推）</span>
+              <span class="m-hint">相对 origin/main：0 领先 / 0 落后</span>
+            </div>
+            <div class="m-field">
+              <span class="fl">提交说明 · 只提交已暂存的文件；未暂存不会被提交</span>
+              <input class="m-input" value="修复版本管理页结果区不显示（#1518）" />
+              <div class="m-note">标题 18 字 ✓ · 建议正文写清原因与验证</div>
+            </div>
+            <div class="m-row" style="margin-top:6px">
+              <span class="m-note">已暂存 1 个文件 · +23 −1</span>
+              <span style="flex:1"></span>
+              <span class="m-btn primary">提交已暂存的 1 个文件</span>
+            </div>
+          </div>
+          <div class="m-group"><span>未暂存 11</span><span class="tools">已选 1 · [暂存所选 (1)] · [撤回全部暂存]</span></div>
+          <div class="m-frow"><span class="chk on"></span><span class="b">M</span><span class="p">src/client/views/shared/workRouteTable.ts</span><span class="num"><span class="add">+53</span> <span class="del">−8</span></span><span class="m-btn small">⋯</span></div>
+          <div class="m-frow"><span class="chk"></span><span class="b">M</span><span class="p">src/refresh/rooms/host/outbound-admission.ts</span><span class="num"><span class="add">+23</span> <span class="del">−1</span></span><span class="m-btn small">⋯</span></div>
+        </div>
+
+        <div class="bdiff">
+          <div class="d del"><span class="sg">−</span><span>现在：「add 全部」一次静默暂存全部未暂存非冲突路径，包含 21.8 MB 视频与 <code>undefined/</code> 垃圾；与三个远端按钮同排同权重。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：按钮写明范围与数量（「暂存全部 10 个文件」），有未跟踪文件时二次确认并列出清单；同时提供「撤回全部暂存」。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：没有勾选、没有多选；单文件路径 = 逐行点「add」。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：行首多选 + 批量「暂存所选 (1)」；提交按钮文案跟着已暂存数量走。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：「仅提交暂存区内容；未暂存的文件不会被提交」这句说明算了没渲染，用户可能以为提交 = 提交全部。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：这句常驻在输入框上方，与按钮状态一起出现。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：0 个文件时按钮变淡但文案仍写「提交 0 个文件」，禁用原因只在悬停里。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：0 个文件时写「先暂存要提交的文件」，原因常驻，不只靠颜色和悬停。</span></div>
+        </div>
+
+        <ol class="pts">
+          <li><b>批量动作不可见范围、不可撤销。</b>「add 全部」暂存全部未暂存非冲突路径 <code>vcWriteUi.ts:107-113</code>，无确认；与远端三按钮同容器同排 <code>vcWriteView.ts:125-129</code>；暂存后只能逐行撤回 <code>vcWriteUi.ts:34-42</code>。</li>
+          <li><b>没有选择模型。</b>整页只有「单文件 add」和「全部 add」两档，缺少最常用的「暂存这几个」。</li>
+          <li><b>关键解释缺失。</b>「仅提交暂存区内容」的 hint 在 <code>vcWriteUi.ts:124</code> 有值，但视图条只画 label/input/按钮 <code>vcWriteView.ts:117-143</code>，hint 没有渲染入口。</li>
+          <li><b>禁用态与文案错位。</b>提交按钮文案 = 已暂存数 <code>vcWriteUi.ts:118</code>；禁用条件含 staged=0、信息为空 <code>vcWriteUi.ts:121-124</code>；原因只在自定义悬停提示里，<code>disabled</code> 按钮不可聚焦。</li>
+        </ol>
+        <div class="verify"><b>验收：</b>从 12 条里勾 1 条 → 暂存 → 按钮写「提交已暂存的 1 个文件」→ 提交后提交历史只多 1 条；「暂存全部」在执行前能看到完整文件清单。</div>
+      </div>
+    </article>
+
+    <article class="scene" id="s3">
+      <header class="scene-head">
+        <div class="scene-no">场景 3 / 8</div>
+        <h3>写提交说明：一句还是两段？</h3>
+        <p class="scene-goal"><b>用户目标：</b>按仓库规范写清「改了什么、为什么改、怎么验证」，而不是挤在一行里。</p>
+        <div class="badges"><span class="sev p1">P1 ×4</span></div>
+      </header>
+      <div class="scene-body">
+        <div class="pair-cap"><span class="dot now"></span><b>现在</b><span>截图复刻：单行输入 + 标签在另一行</span></div>
+        <div class="mock">
+          <div class="m-panel">
+            <div class="m-row">
+              <span class="m-btn">拉取</span><span class="m-btn">更新</span><span class="m-btn green">推送</span>
+              <span style="flex:1"></span>
+              <span class="m-lbl m-ann"><span class="mk">2</span>提交说明</span>
+            </div>
+            <div class="m-row" style="margin-top:6px">
+              <input class="m-input m-ann" placeholder="写一句提交说明" />
+              <span class="m-btn primary dim">提交 0 个文件</span>
+            </div>
+            <div class="m-hint m-ann" style="margin-top:5px"><span class="mk">1</span>type=text：只能写标题，没有正文；没有字数提示，也没有规范示例。</div>
+          </div>
+        </div>
+
+        <div class="pair-cap"><span class="dot after"></span><b>改后</b><span>建议：标题 + 正文同一个字段块，标签贴输入框</span></div>
+        <div class="mock">
+          <div class="m-field">
+            <span class="fl">提交说明 · 只提交已暂存的文件，未暂存不会被提交</span>
+            <input class="m-input" value="修复版本管理页结果区不显示（#1518）" />
+            <div class="m-note">标题 21 字 · 规范示例：动作 + 影响的页面 + 票号；超过 200 字前先提示。</div>
+            <div style="height:6px"></div>
+            <span class="fl">正文（可选）· 为什么改、验证了什么</span>
+            <textarea class="m-ta">结果原先固定挂在整页末尾，用户看不到按钮反馈；改为贴回视图条，并补 aria-live。验证：npm run verify:changed 通过。</textarea>
+            <div class="m-note">正文 54 字 · 上限 5000 字</div>
+          </div>
+          <div class="m-row">
+            <span class="m-note">已暂存 1 个文件 · +23 −1</span>
+            <span style="flex:1"></span>
+            <span class="m-btn primary">提交已暂存的 1 个文件</span>
+          </div>
+        </div>
+
+        <div class="bdiff">
+          <div class="d del"><span class="sg">−</span><span>现在：<code>input type="text"</code> 单行，placeholder「写一句提交说明」；git 侧只拼一条 <code>-m</code>。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：标题单行 + 正文多行；标题必填、正文可选；字数和规范样例常驻。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：标签「提交说明」挂在按钮行末尾，输入框在下一行；窄屏换行后两者分离，不知道标签配谁。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：标签、输入、字数、说明包进同一个字段块，窄屏也一起换行。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：提交区是一座固定两行的常驻面板，不能收起；列表在 1280 宽下首屏只剩约 7 行。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：默认收起成一行摘要「提交说明 + 已暂存 1 · 展开」，需要写时展开，写时保持展开。</span></div>
+        </div>
+
+        <ol class="pts">
+          <li><b>单行输入装不下规范。</b><code>vcWriteView.ts:134-138</code> 是 <code>input[type=text]</code>，唯一文案是 placeholder「写一句提交说明」；命令侧 <code>commands.ts:124</code> 只 <code>return ['commit', '-m', message]</code>。仓库规范要求标题至少 10 个字、正文写清原因与验证（<code>docs/agents/commit-convention.md:3,7,8</code>）——界面没有任何对应结构。</li>
+          <li><b>标签与输入框分家。</b>标签在动作行末尾 <code>vcWriteView.ts:131</code>，输入在下一行 <code>:133-143</code>；两者之间只靠视觉顺序，DOM 上还是两个兄弟行。</li>
+          <li><b>提交区不可折叠。</b>视图条固定两行常驻 <code>vcWriteView.ts:116-145</code>，没有收起状态，占掉列表高度。</li>
+          <li><b>「仅提交已暂存」的解释没画出来。</b>模型里有 hint（<code>vcWriteUi.ts:124</code>），视图条只画 label、输入和按钮，hint 没有渲染入口。</li>
+        </ol>
+        <div class="verify"><b>验收：</b>能只填标题提交；也能填两段并在提交历史里看到正文；标题为空或超长时按钮旁直接说明原因，不需要悬停。</div>
+        <div class="evidence">相关证据：<code>vcWriteView.ts:116-145</code>、<code>vcWriteUi.ts:118-124</code>、<code>commands.ts:124</code>、<code>docs/agents/commit-convention.md:3,7,8</code>。</div>
+      </div>
+    </article>
+
+    <article class="scene" id="s4">
+      <header class="scene-head">
+        <div class="scene-no">场景 4 / 8</div>
+        <h3>点完「更新」，眼睛往下找结果</h3>
+        <p class="scene-goal"><b>用户目标：</b>操作后立刻确认结果——成功没有、影响了什么、什么时候的事。</p>
+        <div class="badges"><span class="sev p0">P0 ×2</span><span class="sev p1">P1 ×2</span><span class="sev p2">P2 ×1</span></div>
+      </header>
+      <div class="scene-body">
+        <div class="pair-cap"><span class="dot now"></span><b>现在</b><span>截图 2 复刻：按钮在上，结果在整张列表之后的页尾</span></div>
+        <div class="mock">
+          <div class="m-id"><div><span class="repo">dsh-mattpocock-skills-deck</span> <span class="br">/ main</span></div><div class="m-sync">超前 0 · 落后 0</div></div>
+          <div class="m-panel">
+            <div class="m-row">
+              <span class="m-btn">拉取</span><span class="m-btn m-focus m-ann"><span class="mk">1</span>更新</span><span class="m-btn green">推送</span>
+              <span class="m-hint">工作区存在未提交的变更，请先提交再拉取</span>
+            </div>
+          </div>
+          <div class="m-gap">整张未暂存列表（10 行）在这里</div>
+          <div class="m-result m-ann"><span class="mk">2</span>✓ 执行完成　更新完成</div>
+          <div class="m-hint m-ann" style="margin-top:4px"><span class="mk">2</span>结果无时间、无远端名、无提交号；只在下次写操作或重挂载时清掉。</div>
+        </div>
+
+        <div class="pair-cap"><span class="dot after"></span><b>改后</b><span>建议：结果内联在触发按钮旁，带时间与对象</span></div>
+        <div class="mock">
+          <div class="m-id"><div><span class="repo">dsh-mattpocock-skills-deck</span> <span class="br">/ main</span></div><div class="m-sync">相对 origin/main：超前 0 · 落后 0</div></div>
+          <div class="m-panel">
+            <div class="m-row">
+              <span class="m-btn">拉取</span><span class="m-btn">更新</span><span class="m-btn green">推送</span>
+              <span class="m-chip m-ann good"><span class="mk g">✓</span>已更新 origin · 无新提交 · 刚刚</span>
+              <span class="m-hint">role=status aria-live=polite</span>
+            </div>
+            <div class="m-row" style="margin-top:6px">
+              <span class="m-hint">执行中：按钮文案变「正在更新…」并 aria-busy；完成后这句话收起，可点「详情」看远端名与耗时。</span>
+            </div>
+          </div>
+          <div class="m-gap">未暂存列表</div>
+        </div>
+
+        <div class="bdiff">
+          <div class="d del"><span class="sg">−</span><span>现在：结果节点是 <code>writeTail</code>，永远装配在整页最末 <code>VersionControlTab.ts:460</code>；与触发它的按钮之间隔了页签、列表和所有分组。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：结果内联在视图条/按钮旁（同一容器内），按钮下方 8px 内即可读到。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：成功后不自动消失，只在下次写操作、重挂载、换工作区时清（<code>vcWriteOps.ts:46,55,118,140,176</code>、<code>VersionControlTab.ts:108</code>）；没有关闭按钮。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：5 秒后收起成一行小徽标，可手动关闭；再次操作时复用同一行，不叠加。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：结果只有「动作词 + 主句」两个字段（<code>vcWriteView.ts:155-158</code>），无时间、无远端、无提交号可点；远端名只藏在悬停 tip 里（<code>vcWriteRun.ts:69</code>）。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：结果带「对象 · 数量 · 时间 · 远端」；推送/提交成功带短 hash 链接，可跳提交历史。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：结果、执行中两句都是普通 <code>div</code>，没有 <code>role=status</code>、<code>aria-live</code>、<code>aria-busy</code>；读屏用户听不到任何完成通知。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：结果区 <code>role=status aria-live=polite</code>；执行中给按钮 <code>aria-busy=true</code>；错误用 <code>role=alert</code>。</span></div>
+        </div>
+
+        <ol class="pts">
+          <li><b>结果离触发点太远。</b>整页装配序把 <code>writeTail</code> 放在所有块之后 <code>VersionControlTab.ts:460</code>，结果结构 <code>vcWriteView.ts:150-165</code>；用户点完「更新」必须滚过整张列表才能确认。</li>
+          <li><b>结果不可追溯、不会收。</b>成功/失败只换主句（<code>vcWriteRun.ts:56-80</code>），无时间、无对象数、无 hash；清空时机散在 5 个写入口与重挂载 <code>vcWriteOps.ts:46,55,118,140,176</code>、<code>VersionControlTab.ts:108</code>。</li>
+          <li><b>忙态与结果都不进无障碍树。</b>执行中只有 <code>dsws-fb-busy</code> 与 spinner（<code>vcWriteView.ts:12-22</code>、<code>vcWriteUi.ts:102-106</code>），按钮文本不变；结果区无 <code>role=status</code>。</li>
+          <li><b>两套时间说法并存。</b>「读取于」用本地读数时间 <code>readAtMs</code>（<code>vcData.ts:97</code>），「远端信息更新于」用依据时间 <code>basisMs</code>（<code>versionControlBasis.ts:69-76</code>）；页面没有解释两者区别。</li>
+        </ol>
+        <div class="verify"><b>验收：</b>按「更新」后不移动视线就能看到结果；结果里读得到远端名、时间与「没有新提交」；键盘/读屏能收到同一条通知；5 秒后自动收起且不遮挡列表。</div>
+        <div class="evidence">相关证据：<code>VersionControlTab.ts:399,460</code>、<code>vcWriteView.ts:150-165</code>、<code>vcWriteRun.ts:56-80</code>、<code>vcWriteOps.ts:46,55,118,140,176</code>、<code>vcData.ts:97</code>、<code>versionControlBasis.ts:69-76</code>。</div>
+      </div>
+    </article>
+
+    <article class="scene" id="s5">
+      <header class="scene-head">
+        <div class="scene-no">场景 5 / 8</div>
+        <h3>「拉取」到底该不该点</h3>
+        <p class="scene-goal"><b>用户目标：</b>工作区有未提交改动时，知道拉取会不会冲突、点了会发生什么。</p>
+        <div class="badges"><span class="sev p0">P0 ×1</span><span class="sev p1">P1 ×1</span></div>
+      </header>
+      <div class="scene-body">
+        <div class="pair-cap"><span class="dot now"></span><b>现在</b><span>截图 1 复刻：按钮可点，警告写在「推送」后面</span></div>
+        <div class="mock">
+          <div class="m-panel">
+            <div class="m-row">
+              <span class="m-btn m-ann"><span class="mk">1</span>拉取</span><span class="m-btn">更新</span><span class="m-btn green">推送</span>
+              <span class="m-hint m-ann"><span class="mk">2</span>工作区存在未提交的变更，请先提交再拉取</span>
+            </div>
+          </div>
+          <div class="m-hint" style="margin-top:4px">按钮没有警示标记；提示的位置读起来像「推送」的说明；没有列出哪些文件会被影响。</div>
+        </div>
+
+        <div class="pair-cap"><span class="dot after"></span><b>改后</b><span>建议：警告贴按钮，先给影响范围再确认</span></div>
+        <div class="mock">
+          <div class="m-panel">
+            <div class="m-row">
+              <span class="m-btn warn m-ann warn"><span class="mk warn">!</span>拉取 · 有未提交改动</span>
+              <span class="m-btn">更新</span><span class="m-btn green">推送</span>
+            </div>
+            <div class="m-hint" style="margin-top:5px">只快进的拉取会保留未提交改动；若远端新提交与这些文件相交，命令会点名拒绝。<b>[查看会影响哪些文件]</b></div>
+            <div class="m-hint" style="margin-top:3px">确认气泡里列出受影响文件；失败时保留 git 原话，并给「先暂存」「先丢弃」两个下一步。</div>
+          </div>
+        </div>
+
+        <div class="bdiff">
+          <div class="d del"><span class="sg">−</span><span>现在：脏工作区只降级为 <code>warn</code>（<code>rules.ts:66-70</code>），拉取按钮仍然可点；文案却写「请先提交再拉取」，与可用状态自相矛盾。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：按钮保持可点（因为只快进的拉取常常能成功），但按钮上带警示标记、提示写在按钮下方，并先给出影响文件。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：拉取的 hint 节点画在「拉取」之后，视觉上紧跟「推送」（<code>vcWriteView.ts:123</code>），主语被误读。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：提示贴住它描述的按钮；确认气泡复用同一句话（<code>vcWriteUi.ts:132</code> 已有 warnText 通道）。</span></div>
+        </div>
+
+        <ol class="pts">
+          <li><b>可点与文案矛盾。</b>工作区脏时拉取判定是 <code>warn</code> 不是 <code>block</code>（<code>rules.ts:66-70</code>），但提示语「工作区存在未提交的变更，请先提交再拉取」暗示被拦住；用户点下去可能成功，也可能遇到 git 的拒绝，文案没有区分。</li>
+          <li><b>警告位置与主语错位。</b>提示 span 紧跟在拉取按钮之后渲染（<code>vcWriteView.ts:123</code>），但按钮行里后面还有「更新」「推送」，视觉上像给推送的备注。</li>
+        </ol>
+        <div class="verify"><b>验收：</b>脏工作区打开页面，「拉取」上能看到警示；点击前能看到受影响文件数与清单；拉取成功和失败都读得到「保留了什么/拒绝了什么」。</div>
+        <div class="evidence">相关证据：<code>rules.ts:66-70</code>、<code>vcWriteView.ts:120-124</code>、<code>vcWriteUi.ts:132</code>、<code>config/copy/vcwrite.yaml</code> 的 <code>block.dirtyTree</code>。</div>
+      </div>
+    </article>
+
+    <article class="scene" id="s6">
+      <header class="scene-head">
+        <div class="scene-no">场景 6 / 8</div>
+        <h3>没有新提交，却点得下「推送」</h3>
+        <p class="scene-goal"><b>用户目标：</b>按钮能不能点，应该等于「点了有没有意义」；点了之后别骗我。</p>
+        <div class="badges"><span class="sev p0">P0 ×1</span><span class="sev p2">P2 ×1</span></div>
+      </header>
+      <div class="scene-body">
+        <div class="pair-cap"><span class="dot now"></span><b>现在</b><span>截图 1 复刻：超前 0，推送仍是可用主按钮</span></div>
+        <div class="mock">
+          <div class="m-id"><div><span class="repo">dsh-mattpocock-skills-deck</span> <span class="br">/ main</span></div><div class="m-sync">超前 0 · 落后 0</div></div>
+          <div class="m-panel">
+            <div class="m-row">
+              <span class="m-btn">拉取</span><span class="m-btn">更新</span><span class="m-btn green m-ann"><span class="mk">1</span>推送</span>
+              <span class="m-hint">已与远端一致，但按钮仍高亮可用</span>
+            </div>
+            <div class="m-row" style="margin-top:6px">
+              <span class="m-btn primary dim m-ann"><span class="mk">2</span>提交 0 个文件</span>
+              <span class="m-hint">两颗绿色主按钮同屏，主次不分</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pair-cap"><span class="dot after"></span><b>改后</b><span>建议：状态决定主按钮；没有可推就明说</span></div>
+        <div class="mock">
+          <div class="m-id"><div><span class="repo">dsh-mattpocock-skills-deck</span> <span class="br">/ main</span></div><div class="m-sync">已与 origin/main 同步（超前 0 · 落后 0）</div></div>
+          <div class="m-panel">
+            <div class="m-row">
+              <span class="m-btn">拉取</span><span class="m-btn">更新</span>
+              <span class="m-btn m-ann good"><span class="mk g">✓</span>推送 · 没有新提交</span>
+              <span class="m-hint">hover 写明「本地与远端一致，点击不会有变化」</span>
+            </div>
+            <div class="m-row" style="margin-top:6px">
+              <span class="m-hint">暂存 1 个文件后，主按钮才变成「提交已暂存的 1 个文件」。</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bdiff">
+          <div class="d del"><span class="sg">−</span><span>现在：推送判定只在「落后远端」时拦（<code>rules.ts:75-89</code>），超前 0 仍然 <code>allow</code>；按钮是 <code>primary</code> 绿色（<code>vcWriteView.ts:122</code>）。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：超前 0 时推送禁用并常驻原因；有提交时按钮带数量，如「推送 2 个提交」。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：推送成功一律报「推送完成」（<code>vcWriteRun.ts:78-80</code>），不区分「推上去了」和「本来就没东西可推」。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：成功文案分两档——「已推送 2 个提交」/「远端已是最新，没有需要推送的提交」。</span></div>
+        </div>
+
+        <ol class="pts">
+          <li><b>可用的按钮不代表有意义。</b><code>judgePush</code> 拦裸仓库、游离头、无上游、冲突、进行中、落后（<code>rules.ts:75-89</code>），唯独不拦「本地没有新提交」；按钮照样绿色可点，点了也「成功」。</li>
+          <li><b>两颗主按钮打架。</b>视图条上推送是 <code>primary</code>（<code>vcWriteView.ts:122</code>），提交按钮也是 <code>primary</code>（<code>:140</code>），同屏两个绿色主按钮；按钮样式定义见 <code>vcStyles.ts:108</code>。</li>
+        </ol>
+        <div class="verify"><b>验收：</b>超前 0 时推送不可点且原因可见；推送成功后文案带数量或说明「无需推送」；同屏最多一个 primary。</div>
+        <div class="evidence">相关证据：<code>rules.ts:75-89</code>、<code>vcWriteView.ts:120-142</code>、<code>vcWriteRun.ts:78-80</code>、<code>vcStyles.ts:108</code>。</div>
+      </div>
+    </article>
+
+    <article class="scene" id="s7">
+      <header class="scene-head">
+        <div class="scene-no">场景 7 / 8</div>
+        <h3>这两份改动，哪份该进历史？</h3>
+        <p class="scene-goal"><b>用户目标：</b>逐个判断、逐个决定：看差异、暂存、丢弃、加入忽略——而不是只有「add」一条路。</p>
+        <div class="badges"><span class="sev p0">P0 ×1</span><span class="sev p1">P1 ×2</span><span class="sev p2">P2 ×1</span></div>
+      </header>
+      <div class="scene-body">
+        <div class="pair-cap"><span class="dot now"></span><b>现在</b><span>截图复刻：每行只有一个「add」</span></div>
+        <div class="mock">
+          <div class="m-group"><span>未暂存 12</span><span class="tools">无差异入口、无丢弃、无忽略</span></div>
+          <div class="m-frow m-ann"><span class="mk">1</span><span class="b">M</span><span class="p">src/client/views/shared/workRouteTable.ts</span><span class="num"><span class="add">+53</span> <span class="del">−8</span></span><span class="m-btn small">add</span></div>
+          <div class="m-frow m-ann"><span class="mk">2</span><span class="b">?</span><span class="p">undefined/probe2.mjs</span><span class="st">未跟踪 · 1.1 KB</span><span class="m-btn small">add</span></div>
+          <div class="m-frow m-ann"><span class="mk">3</span><span class="b">!</span><span class="p">src/refresh/rooms/host/outbound-admission.ts</span><span class="st">冲突</span><span class="m-btn small">提交</span></div>
+          <div class="m-hint" style="margin-top:5px">点行展开差异是隐藏交互；没有右键菜单；冲突行只提示去命令行。</div>
+        </div>
+
+        <div class="pair-cap"><span class="dot after"></span><b>改后</b><span>建议：行菜单 + 批量条 + 危险动作二次确认</span></div>
+        <div class="mock">
+          <div class="m-group"><span>未暂存 11</span><span class="tools">已选 2 · [暂存所选 (2)] · [撤回全部暂存]</span></div>
+          <div class="m-frow"><span class="chk on"></span><span class="b">M</span><span class="p">src/client/views/shared/workRouteTable.ts</span><span class="num"><span class="add">+53</span> <span class="del">−8</span></span><span class="m-btn small">⋯</span></div>
+          <div class="m-menu">
+            <div class="mi">查看差异 <span class="k">Enter</span></div>
+            <div class="mi">复制完整路径</div>
+            <div class="mi">在编辑器中打开</div>
+            <div class="mi sep"></div>
+            <div class="mi danger">丢弃这些修改…</div>
+            <div class="mi">加入 .gitignore…</div>
+          </div>
+          <div class="m-frow"><span class="chk on"></span><span class="b">?</span><span class="p">undefined/probe2.mjs</span><span class="st">未跟踪 · 1.1 KB</span><span class="m-btn small">⋯</span></div>
+          <div class="m-frow"><span class="chk"></span><span class="b">!</span><span class="p">src/refresh/rooms/host/outbound-admission.ts</span><span class="st" style="color:#f85149">冲突 · 已解决？</span><span class="m-btn small">标记为已解决</span></div>
+          <div class="m-group"><span>已暂存 1（常驻分组）</span><span class="tools">[撤回暂存]</span></div>
+        </div>
+
+        <div class="bdiff">
+          <div class="d del"><span class="sg">−</span><span>现在：每行唯一动作是「add / 撤回」（<code>vcWriteUi.ts:22-42</code>）；没有查看差异、复制路径、打开文件、丢弃、忽略。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：行尾「⋯」菜单装下五个动作；丢弃/忽略走确认对话框并列出将被影响的文件。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：未跟踪文件只显示路径和「未跟踪」，不显示体积与类型（<code>vcRows.ts:69</code>）；21.8 MB 视频看起来和 1 KB 脚本一样。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：未跟踪行显示体积与类型，超大文件直接提示「建议加入 .gitignore」。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：冲突行只给一句「请在命令行中处理」（<code>vcWriteView.ts:23-37</code>），面板点不动。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：冲突行标红，给「标记为已解决（git add）」入口，并说明解决后状态如何变化。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：「已暂存 0」只在数字卡里出现，正文没有已暂存分组（空分组不渲染，<code>vcBlocks.ts:176-181</code>）。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：已暂存分组常驻，空态一行「还没有暂存的文件」。</span></div>
+        </div>
+
+        <ol class="pts">
+          <li><b>逐行动作只有两档。</b><code>vcWriteUi.ts:22-42</code> 只有暂存与撤回；<code>vcWriteView.ts:23-37</code> 的冲突提示是纯文本。没有丢弃、忽略、打开、复制路径——这些恰好是「清理未跟踪垃圾」的必备动作。</li>
+          <li><b>未跟踪文件没有判断依据。</b>行模型只有路径、状态、差异数（<code>vcRows.ts:69</code>）；体积与二进制标记缺失，用户无法区分「该提交的文档」与「21.8 MB 视频」。</li>
+          <li><b>空态无处安放。</b>已暂存分组在为空时不渲染（<code>vcBlocks.ts:176-181</code>），用户只看到「0 已暂存」的卡片，找不到「暂存区在哪」。</li>
+          <li><b>路径截断不保文件名。</b>按 46 码点取「前 40% + 后 60%」（<code>vcRows.ts:77</code>、<code>vcText.ts:68-78</code>），结果把目录留在前面、文件名被吃掉中段；截断后悬停不含完整路径（<code>VersionControlTab.ts:277</code>）。</li>
+        </ol>
+        <div class="verify"><b>验收：</b>能在行内看到体积并区分二进制；能对一个文件查看差异、复制路径、丢弃（二次确认）、加入忽略；能对勾选的两个文件一次暂存；冲突行能给「标记为已解决」。</div>
+        <div class="evidence">相关证据：<code>vcWriteUi.ts:22-42</code>、<code>vcWriteView.ts:23-37</code>、<code>vcRows.ts:69,77</code>、<code>vcBlocks.ts:176-181</code>、<code>vcText.ts:68-78</code>、<code>VersionControlTab.ts:264-291</code>。</div>
+      </div>
+    </article>
+
+    <article class="scene" id="s8">
+      <header class="scene-head">
+        <div class="scene-no">场景 8 / 8</div>
+        <h3>窄屏和键盘：这个页面还能用吗</h3>
+        <p class="scene-goal"><b>用户目标：</b>窗口只有一半宽、或者不用鼠标时，同一条提交路径仍然走得通。</p>
+        <div class="badges"><span class="sev p1">P1 ×3</span><span class="sev p2">P2 ×1</span></div>
+      </header>
+      <div class="scene-body">
+        <div class="pair-cap"><span class="dot now"></span><b>现在</b><span>窄窗口复刻：动作簇换行、标签甩到右边、行不可聚焦</span></div>
+        <div class="mock">
+          <div class="m-narrow">
+            <div class="m-panel">
+              <div class="m-row">
+                <span class="m-btn">拉取</span><span class="m-btn">更新</span><span class="m-btn green">推送</span>
+                <span class="m-btn">add 全部</span>
+                <span style="flex:1"></span>
+                <span class="m-lbl m-ann"><span class="mk">1</span>提交说明</span>
+              </div>
+              <div class="m-row" style="margin-top:6px">
+                <input class="m-input m-focus" placeholder="写一句提交说明" />
+                <span class="m-btn primary dim">提交 0 个文件</span>
+              </div>
+            </div>
+            <div class="m-frow m-ann"><span class="mk">2</span><span class="b">M</span><span class="p">src/client/views/shared/workRouteTable.ts</span><span class="m-btn small">add</span></div>
+            <div class="m-frow"><span class="b">M</span><span class="p">src/refresh/rooms/host/outbound-admission.ts</span><span class="m-btn small">add</span></div>
+            <div class="m-hint m-ann" style="margin-top:4px"><span class="mk">3</span>焦点环只在输入框上；文件行点得动却 Tab 不到；禁用原因只在悬停。</div>
+          </div>
+        </div>
+
+        <div class="pair-cap"><span class="dot after"></span><b>改后</b><span>建议：字段块不拆、行可聚焦、焦点与原因常驻</span></div>
+        <div class="mock">
+          <div class="m-narrow">
+            <div class="m-panel">
+              <div class="m-row">
+                <span class="m-btn">拉取</span><span class="m-btn">更新</span><span class="m-btn green">推送</span>
+              </div>
+              <div class="m-field">
+                <span class="fl">提交说明 · 只提交已暂存的文件</span>
+                <input class="m-input" placeholder="写一句提交说明" />
+              </div>
+            </div>
+            <div class="m-frow m-ann good"><span class="mk g">✓</span><span class="chk"></span><span class="b">M</span><span class="p">src/client/views/shared/workRouteTable.ts</span><span class="m-btn small">add</span></div>
+            <div class="m-hint" style="margin-top:4px">Tab 能进到每一行；Enter 展开差异，Space 勾选；焦点环统一 2px；禁用原因写成文字并在 <code>aria-describedby</code> 里。</div>
+          </div>
+        </div>
+
+        <div class="bdiff">
+          <div class="d del"><span class="sg">−</span><span>现在：视图条两行靠 <code>flex-wrap</code> 硬换行（<code>vcStyles.ts:143-144</code>），窄屏时标签被挤到行尾、按钮簇散成两三行。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：动作簇、字段块各自成组；窄屏按「动作 / 输入 / 列表」三段堆叠，标签跟随输入框。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：文件行是带 <code>onClick</code> 的 <code>div</code>，没有 <code>tabIndex</code>、<code>role</code>、键盘处理（<code>VersionControlTab.ts:264-291</code>）。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：行是 <code>role=button tabindex=0</code>，Enter 展开差异、Space 勾选；行内动作按钮可达。</span></div>
+          <div class="d del"><span class="sg">−</span><span>现在：禁用原因只放进自定义 tip（悬停才显示），键盘用户拿不到；焦点样式只给输入框（<code>vcStyles.ts:113</code>）。</span></div>
+          <div class="d add"><span class="sg">+</span><span>改后：禁用原因常驻在按钮旁，并写进 <code>aria-describedby</code>；全站统一 <code>:focus-visible</code> 环。</span></div>
+        </div>
+
+        <ol class="pts">
+          <li><b>窄屏靠换行救场。</b>视图条两组 <code>dsws-vc-viewbar-row</code> 用 <code>flex-wrap</code> 允许任意换行（<code>vcStyles.ts:143-144</code>），标签和输入框分属不同行，宽度一窄就失去配对关系。</li>
+          <li><b>键盘不可达。</b>文件行没有 <code>tabIndex</code> 与键盘事件（<code>VersionControlTab.ts:264-291</code>）；禁用按钮的 <code>tip</code> 是自定义悬停层，<code>disabled</code> 元素又不可聚焦，键盘用户既点不到也读不到原因。</li>
+          <li><b>焦点样式不统一。</b>只有输入框有明确焦点样式（<code>vcStyles.ts:113</code>），标签页与按钮的焦点环依赖浏览器默认值。</li>
+          <li><b>禁用原因不可发现。</b>「提交 0 个文件」这类文案是唯一线索，且原因藏在悬停层；复述一次：可达性不是加个 aria 属性，而是「不用鼠标也能知道为什么点不了」。</li>
+        </ol>
+        <div class="verify"><b>验收：</b>窗口缩到 640px 宽时标签与输入框不分离；全流程可只用键盘完成（Tab 进列表 → Enter 展开差异 → Space 勾选 → 输入说明 → 提交）；读屏能听到结果与禁用原因。</div>
+        <div class="evidence">相关证据：<code>vcStyles.ts:113,143-144</code>、<code>VersionControlTab.ts:264-291</code>、<code>vcWriteView.ts:120-145</code>、<code>vcViews.ts:58</code>。</div>
+      </div>
+    </article>
+  </section>
+
+  <section class="block" id="issues">
+    <h2>问题总表</h2>
+    <p class="lead">按严重度排序，编号与场景图里的红色标注一一对应。P0 = 影响「安全地提交/同步」的正确性；P1 = 影响日常效率与可理解性；P2 = 一致性、清洁度与无障碍细节。证据行号以当前工作树为准。</p>
+    <div class="chips" role="group" aria-label="按严重度筛选">
+      <button class="chip is-on" type="button" data-sev="all" aria-pressed="true">全部<i>24</i></button>
+      <button class="chip" type="button" data-sev="p0" aria-pressed="false">P0<i>5</i></button>
+      <button class="chip" type="button" data-sev="p1" aria-pressed="false">P1<i>12</i></button>
+      <button class="chip" type="button" data-sev="p2" aria-pressed="false">P2<i>7</i></button>
+    </div>
+    <div class="tblwrap">
+      <table class="tbl">
+        <thead>
+          <tr><th>编号</th><th>级别</th><th>问题</th><th>证据</th><th>场景</th></tr>
+        </thead>
+        <tbody id="issueBody">
+          <tr data-sev="p0"><td class="id">P0-1</td><td><span class="sev p0">P0</span></td><td>操作结果固定装配在整页末尾，与触发按钮之间隔着页签与整张列表；没有时间、对象数，清空时机散落。</td><td><code>VersionControlTab.ts:460</code>；<code>vcWriteView.ts:150-165</code>；<code>vcWriteOps.ts:46,55,118,140,176</code></td><td><a href="#s4">S4</a></td></tr>
+          <tr data-sev="p0"><td class="id">P0-2</td><td><span class="sev p0">P0</span></td><td>超前为 0 时「推送」仍是可用主按钮；点下去照样报「推送完成」，不区分「推上去了」和「本来没东西可推」。</td><td><code>rules.ts:75-89</code>；<code>vcWriteRun.ts:78-80</code>；<code>vcWriteView.ts:122</code></td><td><a href="#s6">S6</a></td></tr>
+          <tr data-sev="p0"><td class="id">P0-3</td><td><span class="sev p0">P0</span></td><td>工作区有未提交改动时「拉取」仍可点（只给 warn），提示语却写「请先提交再拉取」，状态与文案互相否定。</td><td><code>rules.ts:66-70</code>；<code>vcWriteView.ts:120-124</code>；<code>vcwrite.yaml</code> 的 <code>block.dirtyTree</code></td><td><a href="#s5">S5</a></td></tr>
+          <tr data-sev="p0"><td class="id">P0-4</td><td><span class="sev p0">P0</span></td><td>已修改、已暂存、从未跟踪三类文件同表同权；未跟踪的 21.8 MB 视频与 1 KB 脚本只有「add」，没有丢弃、忽略、删除。</td><td><code>vcRows.ts:69</code>；<code>vcBlocks.ts:176-181</code>；<code>VersionControlTab.ts:264-291</code></td><td><a href="#s1">S1</a> · <a href="#s7">S7</a></td></tr>
+          <tr data-sev="p0"><td class="id">P0-5</td><td><span class="sev p0">P0</span></td><td>结果不可追溯：没有时间、对象数、远端名与提交号；远端名只藏在悬停 tip 里，触屏与键盘都拿不到。</td><td><code>vcWriteRun.ts:56-80</code>；<code>vcWriteRun.ts:69</code>；<code>vcWriteView.ts:155-158</code></td><td><a href="#s4">S4</a></td></tr>
+
+          <tr data-sev="p1"><td class="id">P1-1</td><td><span class="sev p1">P1</span></td><td>提交说明只有单行 <code>input[type=text]</code>，命令侧只拼一条 <code>-m</code>；仓库规范要求的标题 + 正文无处填写。</td><td><code>vcWriteView.ts:134-138</code>；<code>commands.ts:124</code>；<code>docs/agents/commit-convention.md:3,7,8</code></td><td><a href="#s2">S2</a> · <a href="#s3">S3</a></td></tr>
+          <tr data-sev="p1"><td class="id">P1-2</td><td><span class="sev p1">P1</span></td><td>「提交说明」标签挂在动作行末尾，输入框在下一行；窄屏换行后标签与输入框分离，不知道谁配谁。</td><td><code>vcWriteView.ts:131,133-143</code>；<code>vcStyles.ts:143-144</code></td><td><a href="#s3">S3</a> · <a href="#s8">S8</a></td></tr>
+          <tr data-sev="p1"><td class="id">P1-3</td><td><span class="sev p1">P1</span></td><td>提交区是一座常驻两行面板，不能收起；窄窗口下进一步吃掉列表首屏。</td><td><code>vcWriteView.ts:116-145</code></td><td><a href="#s3">S3</a></td></tr>
+          <tr data-sev="p1"><td class="id">P1-4</td><td><span class="sev p1">P1</span></td><td>「只提交已暂存的文件，未暂存不会被提交」这句说明在模型里有值，但视图没有渲染入口，用户可能误以为提交=提交全部。</td><td><code>vcWriteUi.ts:124</code>；<code>vcWriteView.ts:116-143</code></td><td><a href="#s2">S2</a> · <a href="#s3">S3</a></td></tr>
+          <tr data-sev="p1"><td class="id">P1-5</td><td><span class="sev p1">P1</span></td><td>逐行动作只有暂存/撤回：没有查看差异、复制路径、在编辑器中打开、丢弃、加入忽略；冲突行只给命令行提示。</td><td><code>vcWriteUi.ts:22-42</code>；<code>vcWriteView.ts:23-37</code></td><td><a href="#s7">S7</a></td></tr>
+          <tr data-sev="p1"><td class="id">P1-6</td><td><span class="sev p1">P1</span></td><td>没有选择模型：只有单文件「add」与「add 全部」两档；「add 全部」静默暂存全部非冲突路径，无确认、无「撤回全部」。</td><td><code>vcWriteUi.ts:107-113</code>；<code>vcWriteView.ts:125-129</code></td><td><a href="#s2">S2</a></td></tr>
+          <tr data-sev="p1"><td class="id">P1-7</td><td><span class="sev p1">P1</span></td><td>未跟踪行没有体积与二进制标记，无法区分文档与 21.8 MB 视频；路径按码点截断，保留目录、吃掉文件名中段。</td><td><code>vcRows.ts:69,77</code>；<code>vcText.ts:68-78</code></td><td><a href="#s1">S1</a> · <a href="#s7">S7</a></td></tr>
+          <tr data-sev="p1"><td class="id">P1-8</td><td><span class="sev p1">P1</span></td><td>文件行是带 onClick 的 div，没有 tabIndex/role/键盘事件；禁用按钮的原因只在自定义悬停层里，键盘用户拿不到。</td><td><code>VersionControlTab.ts:264-291</code>；<code>vcWriteUi.ts:121-124</code></td><td><a href="#s8">S8</a></td></tr>
+          <tr data-sev="p1"><td class="id">P1-9</td><td><span class="sev p1">P1</span></td><td>三个数字口径不同却并排：「改动 12」= 条目数（同文件可计两次）、「提交历史 50」= 已加载条数、「工作树 14」= 其他工作树棵数；三张卡还不可点击筛选。</td><td><code>vcViews.ts:21-28,66-85</code>；<code>vcData.ts:30</code></td><td><a href="#s1">S1</a></td></tr>
+          <tr data-sev="p1"><td class="id">P1-10</td><td><span class="sev p1">P1</span></td><td>视图条靠 flex-wrap 任意换行，窄屏时动作簇散成两三行、标签被挤到行尾。</td><td><code>vcStyles.ts:143-144</code></td><td><a href="#s8">S8</a></td></tr>
+          <tr data-sev="p1"><td class="id">P1-11</td><td><span class="sev p1">P1</span></td><td>忙态只有 spinner 与禁用，按钮文案不变、无 aria-busy；结果区无 role=status/aria-live，读屏听不到完成或失败。</td><td><code>vcWriteView.ts:12-22</code>；<code>vcWriteUi.ts:102-106</code></td><td><a href="#s4">S4</a></td></tr>
+          <tr data-sev="p1"><td class="id">P1-12</td><td><span class="sev p1">P1</span></td><td>「读取于」（本地读数时间）与「远端信息更新于」（依据时间）两套时间并存且无解释；面板说明还写着「仅在命令行执行 git fetch 后才会更新」，与页面自带的「更新」按钮矛盾。</td><td><code>vcData.ts:97</code>；<code>versionControlBasis.ts:69-76</code>；<code>panel.yaml:238,246</code></td><td><a href="#s1">S1</a> · <a href="#s4">S4</a></td></tr>
+
+          <tr data-sev="p2"><td class="id">P2-1</td><td><span class="sev p2">P2</span></td><td>行内动作叫「add」「add 全部」，与页面其余中文（拉取/推送/撤回）脱节；git 语义与用户语言都对不上。</td><td><code>config/copy/vcwrite.yaml</code> 的 <code>vc.action.stage</code>、<code>stageAll</code></td><td><a href="#s2">S2</a></td></tr>
+          <tr data-sev="p2"><td class="id">P2-2</td><td><span class="sev p2">P2</span></td><td>「已暂存 0」只在数字卡出现，正文没有已暂存分组（空分组不渲染），用户找不到「暂存区」这个概念。</td><td><code>vcBlocks.ts:176-181</code>；<code>vcViews.ts:66-85</code></td><td><a href="#s7">S7</a></td></tr>
+          <tr data-sev="p2"><td class="id">P2-3</td><td><span class="sev p2">P2</span></td><td>页签与卡片文案不写单位与口径；「提交历史 50」看起来像全部提交数，实际只是已加载的一页。</td><td><code>vcViews.ts:25,28</code>；<code>vcData.ts:30</code></td><td><a href="#s1">S1</a></td></tr>
+          <tr data-sev="p2"><td class="id">P2-4</td><td><span class="sev p2">P2</span></td><td>结果不会自动收起、没有关闭按钮，只能等下一次写操作或重挂载才清；连续操作时会长时间占住页尾。</td><td><code>vcWriteOps.ts:46,55,118,140,176</code>；<code>VersionControlTab.ts:108</code></td><td><a href="#s4">S4</a></td></tr>
+          <tr data-sev="p2"><td class="id">P2-5</td><td><span class="sev p2">P2</span></td><td>焦点样式只明确给了输入框，按钮与页签依赖浏览器默认值；键盘用户的焦点位置不统一。</td><td><code>vcStyles.ts:113</code></td><td><a href="#s8">S8</a></td></tr>
+          <tr data-sev="p2"><td class="id">P2-6</td><td><span class="sev p2">P2</span></td><td>视图条上「推送」与「提交」同为 primary 绿色主按钮，同屏两个主操作，视觉主次不分。</td><td><code>vcWriteView.ts:122,140</code>；<code>vcStyles.ts:108</code></td><td><a href="#s6">S6</a></td></tr>
+          <tr data-sev="p2"><td class="id">P2-7</td><td><span class="sev p2">P2</span></td><td>代码里存在三个未被使用的渲染节点，与现行视图条各画一套提交区，后续改动容易只改一边。</td><td><code>vcWriteView.ts:51,76,87</code></td><td>代码</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="evidence" id="issueCount">显示 24 / 24 条</p>
+  </section>
+
+  <section class="block" id="plan">
+    <h2>落地建议：分三档，先止血再改结构</h2>
+    <p class="lead">排序原则只有一个：先修「会让人提交错东西」的地方，再修效率，最后做体系。每档都给出验收口径，改完可以直接对照场景 diff 检查。</p>
+
+    <div class="tier">
+      <h3><span class="tag p0">P0</span>第一档 · 止血（1–2 天，5 项）</h3>
+      <p>不改布局骨架，只把「结果在哪、按钮是否可用、什么文件危险」这三件事摆正。</p>
+      <ol>
+        <li><b>A1 结果贴回触发点，并进无障碍树。</b>把结果行从 <code>writeTail</code> 提到视图条内（或锚定按钮的浮层），成功后 5 秒收起、可手动关闭；结果带对象、数量、时间；结果区 <code>role=status aria-live=polite</code>，执行中按钮 <code>aria-busy</code>。
+          <span class="acc">改动面：<code>vcWriteView.ts:150-165</code>、<code>VersionControlTab.ts:399,460</code>、<code>vcWriteUi.ts:75-95</code>。验收：S4 的四条 diff 全绿。</span></li>
+        <li><b>A2 推送态与成功文案。</b>超前 0 时禁用推送并常驻原因；成功文案分「已推送 N 个提交」与「远端已是最新」。<span class="acc">改动面：<code>rules.ts:75-89</code>、<code>vcWriteRun.ts:78-80</code>、<code>vcwrite.yaml</code>。验收：S6。</span></li>
+        <li><b>A3 拉取风险贴按钮。</b>把警告渲染进拉取按钮下方，按钮带警示标记；确认气泡列出受影响文件；失败时保留 git 原话并给「先暂存 / 先丢弃」两个下一步。<span class="acc">改动面：<code>vcWriteView.ts:120-124</code>、<code>vcWriteUi.ts:132</code>。验收：S5。</span></li>
+        <li><b>A4 未跟踪区独立，先显示体积。</b>增加「未跟踪」分组（默认折叠），折叠行写「未跟踪 5 · 共 22.4 MB」；展开时逐行显示体积与二进制标记。体积需要宿主额外 <code>stat</code>，建议展开时懒加载，避免首屏多次系统调用。<span class="acc">改动面：<code>vcRows.ts:69</code>、<code>vcBlocks.ts</code>、状态回包。验收：S1、S7 的未跟踪部分。</span></li>
+        <li><b>A5 忙态与失败可见。</b>按钮文案切「正在更新…」；失败结果用 <code>role=alert</code>；重试入口常驻而不是只在可重试时闪。<span class="acc">改动面：<code>vcWriteView.ts:12-22</code>、<code>vcWriteUi.ts:102-106</code>。验收：S4。</span></li>
+      </ol>
+    </div>
+
+    <div class="tier">
+      <h3><span class="tag p1">P1</span>第二档 · 结构（约一周，7 项）</h3>
+      <p>把「只有一条路径」补成「可以选、可以撤回、可以写清」的工作台。</p>
+      <ol>
+        <li><b>B1 选择模型。</b>行勾选 + 批量条「已选 N · 暂存所选 · 撤回全部暂存」；「add 全部」改为「暂存全部（N 个文件）」，有未跟踪文件时先确认并列出清单。<span class="acc">验收：S2。</span></li>
+        <li><b>B2 提交字段块。</b>标题单行 + 正文多行；标签、字数、规范样例与输入框同组；按钮文案带已暂存数与「只提交已暂存」说明。<span class="acc">验收：S3。</span></li>
+        <li><b>B3 提交区可折叠。</b>默认一行摘要，展开后保持；未暂存时不占用列表高度。<span class="acc">验收：S3 的折叠 diff。</span></li>
+        <li><b>B4 数字卡变成筛选入口。</b>三张卡可点击筛选列表；文案写清单位与口径（≥ 就是已加载）。<span class="acc">验收：S1 的数字口径与 P1-9。</span></li>
+        <li><b>B5 行菜单。</b>查看差异 / 复制完整路径 / 在编辑器中打开 / 丢弃（二次确认）/ 加入 .gitignore；冲突行给「标记为已解决」。<span class="acc">验收：S7。</span></li>
+        <li><b>B6 路径保真。</b>截断时优先保文件名、目录折中段；悬停与聚焦都能看到完整路径并可复制。<span class="acc">验收：S1、S7 的路径行。</span></li>
+        <li><b>B7 键盘与无障碍。</b>行用 <code>role=button tabindex=0</code>，Enter 展开差异、Space 勾选；统一 <code>:focus-visible</code>；禁用原因常驻并挂 <code>aria-describedby</code>。<span class="acc">验收：S8。</span></li>
+      </ol>
+    </div>
+
+    <div class="tier">
+      <h3><span class="tag p2">P2</span>第三档 · 体系（按排期，6 项）</h3>
+      <p>一致性与清洁度：不改行为，但决定这页以后会不会继续长歪。</p>
+      <ol>
+        <li><b>C1 动词表统一。</b>暂存 / 撤回 / 提交 / 更新（= fetch）/ 拉取 / 推送；去掉「add」，图标与动作对齐。<span class="acc">验收：全页 grep 不到 <code>add</code> 动作词。</span></li>
+        <li><b>C2 时间与来源统一。</b>把「读取于」与「远端信息更新于」合成两个可解释字段并给 tooltip；删掉面板说明里与「更新」按钮矛盾的那句（<code>panel.yaml:246</code>）。<span class="acc">验收：S1、S4。</span></li>
+        <li><b>C3 结果可追溯。</b>结果行带 hash 链接跳提交历史；保留最近 5 条操作记录（默认折叠）。<span class="acc">验收：S4。</span></li>
+        <li><b>C4 空态与常驻分组。</b>已暂存分组常驻、空态一行说明；未跟踪折叠；每个分组都有空态。<span class="acc">验收：S7。</span></li>
+        <li><b>C5 响应式回归。</b>640 / 1024 / 1440 三档截图断言；窄屏按「动作 / 输入 / 列表」三段堆叠。<span class="acc">验收：S8。</span></li>
+        <li><b>C6 清死代码。</b>删除或接线 <code>vcWriteView.ts:51,76,87</code> 的三个未使用节点，避免两套提交区渲染并行。<span class="acc">验收：<code>tsc</code> 无未使用符号；页面行为不变。</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="block" id="cost">
+    <h2>验收与代价</h2>
+    <p class="lead">动手前先确认边界：这页的写操作有一条已经定好的安全线，改动不要顺手越过。</p>
+    <div class="cost">
+      <div>
+        <b>改动边界</b>
+        <ul>
+          <li>只动 <code>src/client/views/versionControl/**</code> 与 <code>config/copy/*.yaml</code>；文案改完用 <code>node scripts/generate-locale-config.mts</code> 重新生成 <code>src/client/kernel/locale-data.ts</code>。</li>
+          <li>首屏不联网、写动作走宿主的票与预检：这是 ADR 1002 / ADR 1004 定下的边界，本页改造不改变它。</li>
+          <li>结果区位置涉及 854 布局 C 的结构，若真要挪，先出两版视觉对比再定。</li>
+        </ul>
+      </div>
+      <div>
+        <b>门禁怎么跑</b>
+        <ul>
+          <li>单点改动：<code>node --import ./scripts/ts-hook.mts tests/verify-xxx.ts</code>；一个模块写完：<code>npm run verify:changed</code>。</li>
+          <li>提交前：<code>npm run verify:parallel</code>（Node ≥ 24.15）。动到 <code>tests/**</code>、<code>scripts/**</code>、<code>docs/**</code> 或任何 <code>*.md</code> 时，挑选规则会要求全链。</li>
+          <li>相关门禁：可点控件（<code>data-press</code>/<code>data-log</code>）与写界面断言、文案词汇断言；新增键盘/aria 断言时并入对应测试，不要只靠人工点。</li>
+        </ul>
+      </div>
+      <div>
+        <b>视觉与人工验收</b>
+        <ul>
+          <li>每档落地前后各出三张截图：默认宽、窄屏（640 上下）、键盘焦点态；贴进对应票，本页的 mock 只是结构示意。</li>
+          <li>读屏验收用真实 AT 走一遍：更新成功、推送失败、按钮禁用原因三处必须听得到。</li>
+          <li>未跟踪体积涉及宿主额外系统调用，Windows 与 macOS 各测一次大文件目录，避免展开慢。</li>
+        </ul>
+      </div>
+      <div>
+        <b>风险与依赖</b>
+        <ul>
+          <li>P0 改动会动结果区结构，可能影响既有写界面门禁的定位名，先跑门禁再改文案。</li>
+          <li>「丢弃」是唯一会丢文件的动作，必须二次确认并写明影响；确认文案本身要过一遍人类可读性检查。</li>
+          <li>本页是评审输入，不是实施票；建议按三档各开一张票，贴对应场景截图作为验收物。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="verdict" style="margin-top:18px">
+      <b>如果只做三件事：</b>① 把结果放回按钮旁边并说清对象与时间；② 把「未跟踪」从列表里分出来，给它体积、忽略和丢弃；③ 让按钮能不能点严格等于「点了有没有意义」。这三件事做完，这页才算从 git 命令面板变成任务面板。
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <p>证据来源：<code>src/client/views/versionControl/</code>（vcWriteView.ts、vcWriteUi.ts、vcViews.ts、vcBlocks.ts、vcStyles.ts、VersionControlTab.ts、vcWriteOps.ts、vcWriteRun.ts）、宿主 <code>rules.ts</code> 与 <code>versionControlBasis.ts</code>；文案 <code>config/copy/vcwrite.yaml</code>、<code>config/copy/panel.yaml</code> 与生成物 <code>src/client/kernel/locale-data.ts</code>；规范 <code>docs/agents/commit-convention.md</code>；ADR 854 / 1002 / 1004。截图两张，2026-10-26。</p>
+  <p>本页是评审文档，不是插件界面；界面缩略图为结构示意，最终视觉以落地实现为准。</p>
+</footer>
+
+<script>
+(function () {
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.chip[data-sev]'));
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#issueBody tr'));
+  var out = document.getElementById('issueCount');
+  function apply(sev) {
+    var shown = 0;
+    rows.forEach(function (tr) {
+      var hit = sev === 'all' || tr.getAttribute('data-sev') === sev;
+      tr.hidden = !hit;
+      if (hit) shown += 1;
+    });
+    chips.forEach(function (c) {
+      var on = c.getAttribute('data-sev') === sev;
+      if (on) { c.classList.add('is-on'); } else { c.classList.remove('is-on'); }
+      c.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    if (out) out.textContent = '显示 ' + shown + ' / ' + rows.length + ' 条';
+  }
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () { apply(c.getAttribute('data-sev')); });
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="1678" viewBox="0 0 1560 1678">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#cbd5e1"/></marker></defs>
+<rect width="1560" height="1678" fill="#ffffff"/>
+<rect x="0.0" y="0.0" width="1560.0" height="156.0" rx="10" fill="#fff"/>
+<rect x="0" y="0" width="1560" height="6" fill="#2563eb"/>
+<text x="60.0" y="58.0" font-size="32" font-weight="bold" fill="#1f2937" font-family="'Microsoft YaHei','Segoe UI',sans-serif">md 环境检查链（按检查顺序）</text>
+<text x="60.0" y="92.0" font-size="15" font-weight="normal" fill="#4b5563" font-family="'Microsoft YaHei','Segoe UI',sans-serif">灰色 = 通用段（不变）　　绿色 = md 段　　红色 = 删掉的旧检查</text>
+<line x1="60.0" y1="125.0" x2="66.0" y2="131.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="66.0" y1="131.0" x2="77.0" y2="117.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<text x="84.0" y="130.0" font-size="15" font-weight="normal" fill="#4b5563" font-family="'Microsoft YaHei','Segoe UI',sans-serif">通过</text>
+<line x1="149.0" y1="117.0" x2="163.0" y2="131.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="163.0" y1="117.0" x2="149.0" y2="131.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="172.0" y="130.0" font-size="15" font-weight="normal" fill="#4b5563" font-family="'Microsoft YaHei','Segoe UI',sans-serif">失败</text>
+<circle cx="244.0" cy="124.0" r="7" fill="#6b7280"/>
+<text x="260.0" y="130.0" font-size="15" font-weight="normal" fill="#4b5563" font-family="'Microsoft YaHei','Segoe UI',sans-serif">量不出来</text>
+<rect x="60.0" y="178.0" width="1440.0" height="96.0" rx="12" fill="#f9fafb" stroke="#9ca3af" stroke-width="1.6"/>
+<text x="84.0" y="210.0" font-size="16" font-weight="bold" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">通用段（4 项，所有后端都一样）</text>
+<rect x="84.0" y="228.0" width="84.0" height="32.0" rx="8" fill="#fff" stroke="#9ca3af" stroke-width="1.3"/>
+<text x="96.0" y="250.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">后端已选</text>
+<rect x="180.0" y="228.0" width="150.0" height="32.0" rx="8" fill="#fff" stroke="#9ca3af" stroke-width="1.3"/>
+<text x="192.0" y="250.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">tracker 已初始化</text>
+<rect x="342.0" y="228.0" width="115.5" height="32.0" rx="8" fill="#fff" stroke="#9ca3af" stroke-width="1.3"/>
+<text x="354.0" y="250.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">3 个技能已装</text>
+<rect x="469.5" y="228.0" width="99.0" height="32.0" rx="8" fill="#fff" stroke="#9ca3af" stroke-width="1.3"/>
+<text x="481.5" y="250.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">主目录可用</text>
+<line x1="780.0" y1="274.0" x2="780.0" y2="304.0" stroke="#cbd5e1" stroke-width="2.4" marker-end="url(#ah)"/>
+<text x="60.0" y="328.0" font-size="18" font-weight="bold" fill="#1f2937" font-family="'Microsoft YaHei','Segoe UI',sans-serif">md 段：按顺序查三项</text>
+<text x="306.0" y="328.0" font-size="14" font-weight="normal" fill="#4b5563" font-family="'Microsoft YaHei','Segoe UI',sans-serif">（三项都通过才算 md 环境健康；其它形状问题不做检查）</text>
+<line x1="780.0" y1="328.0" x2="780.0" y2="348.0" stroke="#cbd5e1" stroke-width="2.4" marker-end="url(#ah)"/>
+<rect x="60.0" y="350.0" width="1440.0" height="168.0" rx="12" fill="#fff" stroke="#16a34a" stroke-width="1.6"/>
+<rect x="60.0" y="350.0" width="1440.0" height="56.0" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.6"/>
+<circle cx="94" cy="378" r="17" fill="#16a34a"/>
+<text x="94.0" y="384.0" font-size="16" font-weight="bold" fill="#fff" text-anchor="middle" font-family="'Microsoft YaHei','Segoe UI',sans-serif">1</text>
+<text x="126.0" y="375.0" font-size="17" font-weight="bold" fill="#065f46" font-family="'Microsoft YaHei','Segoe UI',sans-serif">md:workspace</text>
+<text x="126.0" y="395.0" font-size="14" font-weight="normal" fill="#047857" font-family="'Microsoft YaHei','Segoe UI',sans-serif">工作区可用</text>
+<text x="1400.0" y="387.0" font-size="14" font-weight="normal" fill="#4b5563" text-anchor="end" font-family="'Microsoft YaHei','Segoe UI',sans-serif">问：这里有没有能用的票 / 地图 / 规格？</text>
+<rect x="84.0" y="415.0" width="28.0" height="28.0" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.3"/>
+<line x1="90.0" y1="430.0" x2="96.0" y2="436.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="96.0" y1="436.0" x2="107.0" y2="422.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<text x="126.0" y="434.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">有工作单元（列出找到的规格 / 地图 / 普通票）</text>
+<rect x="84.0" y="451.0" width="28.0" height="28.0" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.3"/>
+<line x1="90.0" y1="466.0" x2="96.0" y2="472.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="96.0" y1="472.0" x2="107.0" y2="458.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<text x="126.0" y="470.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">空工作区（建第一张票时自动创建）</text>
+<rect x="84.0" y="487.0" width="28.0" height="28.0" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="1.3"/>
+<line x1="91.0" y1="494.0" x2="105.0" y2="508.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="105.0" y1="494.0" x2="91.0" y2="508.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="126.0" y="506.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">.scratch 读不出来</text>
+<line x1="780.0" y1="518.0" x2="780.0" y2="546.0" stroke="#cbd5e1" stroke-width="2.4" marker-end="url(#ah)"/>
+<rect x="60.0" y="548.0" width="1440.0" height="204.0" rx="12" fill="#fff" stroke="#16a34a" stroke-width="1.6"/>
+<rect x="60.0" y="548.0" width="1440.0" height="56.0" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.6"/>
+<circle cx="94" cy="576" r="17" fill="#16a34a"/>
+<text x="94.0" y="582.0" font-size="16" font-weight="bold" fill="#fff" text-anchor="middle" font-family="'Microsoft YaHei','Segoe UI',sans-serif">2</text>
+<text x="126.0" y="573.0" font-size="17" font-weight="bold" fill="#065f46" font-family="'Microsoft YaHei','Segoe UI',sans-serif">md:scratchWritable</text>
+<text x="126.0" y="593.0" font-size="14" font-weight="normal" fill="#047857" font-family="'Microsoft YaHei','Segoe UI',sans-serif">数据目录可写</text>
+<text x="1400.0" y="585.0" font-size="14" font-weight="normal" fill="#4b5563" text-anchor="end" font-family="'Microsoft YaHei','Segoe UI',sans-serif">问：现在能不能写票？</text>
+<rect x="84.0" y="613.0" width="28.0" height="28.0" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.3"/>
+<line x1="90.0" y1="628.0" x2="96.0" y2="634.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="96.0" y1="634.0" x2="107.0" y2="620.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<text x="126.0" y="632.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">.scratch 可写</text>
+<rect x="84.0" y="649.0" width="28.0" height="28.0" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.3"/>
+<line x1="90.0" y1="664.0" x2="96.0" y2="670.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="96.0" y1="670.0" x2="107.0" y2="656.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<text x="126.0" y="668.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">没有 .scratch，但仓库根可写（首票自动创建）</text>
+<rect x="84.0" y="685.0" width="28.0" height="28.0" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="1.3"/>
+<line x1="91.0" y1="692.0" x2="105.0" y2="706.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="105.0" y1="692.0" x2="91.0" y2="706.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="126.0" y="704.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">目录不可写，或仓库根不可写</text>
+<rect x="84.0" y="721.0" width="28.0" height="28.0" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.3"/>
+<circle cx="98.0" cy="735.0" r="7" fill="#6b7280"/>
+<text x="126.0" y="740.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">当前会话的沙箱拦住写探测</text>
+<line x1="780.0" y1="752.0" x2="780.0" y2="780.0" stroke="#cbd5e1" stroke-width="2.4" marker-end="url(#ah)"/>
+<rect x="60.0" y="782.0" width="1440.0" height="204.0" rx="12" fill="#fff" stroke="#16a34a" stroke-width="1.6"/>
+<rect x="60.0" y="782.0" width="1440.0" height="56.0" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.6"/>
+<circle cx="94" cy="810" r="17" fill="#16a34a"/>
+<text x="94.0" y="816.0" font-size="16" font-weight="bold" fill="#fff" text-anchor="middle" font-family="'Microsoft YaHei','Segoe UI',sans-serif">3</text>
+<text x="126.0" y="807.0" font-size="17" font-weight="bold" fill="#065f46" font-family="'Microsoft YaHei','Segoe UI',sans-serif">md:containersReadable</text>
+<text x="126.0" y="827.0" font-size="14" font-weight="normal" fill="#047857" font-family="'Microsoft YaHei','Segoe UI',sans-serif">容器文件可读</text>
+<text x="1400.0" y="819.0" font-size="14" font-weight="normal" fill="#4b5563" text-anchor="end" font-family="'Microsoft YaHei','Segoe UI',sans-serif">问：现有的地图 / 规格文件读得动吗？</text>
+<rect x="84.0" y="847.0" width="28.0" height="28.0" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.3"/>
+<line x1="90.0" y1="862.0" x2="96.0" y2="868.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="96.0" y1="868.0" x2="107.0" y2="854.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<text x="126.0" y="866.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">没有容器文件（只有普通票）</text>
+<rect x="84.0" y="883.0" width="28.0" height="28.0" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.3"/>
+<line x1="90.0" y1="898.0" x2="96.0" y2="904.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="96.0" y1="904.0" x2="107.0" y2="890.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<text x="126.0" y="902.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">所有 map.md / spec.md 都读得动，版本是 md-v1</text>
+<rect x="84.0" y="919.0" width="28.0" height="28.0" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="1.3"/>
+<line x1="91.0" y1="926.0" x2="105.0" y2="940.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="105.0" y1="926.0" x2="91.0" y2="940.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="126.0" y="938.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">某个文件读不出来</text>
+<rect x="84.0" y="955.0" width="28.0" height="28.0" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="1.3"/>
+<line x1="91.0" y1="962.0" x2="105.0" y2="976.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="105.0" y1="962.0" x2="91.0" y2="976.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="126.0" y="974.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">版本不是 md-v1</text>
+<line x1="780.0" y1="986.0" x2="780.0" y2="1014.0" stroke="#cbd5e1" stroke-width="2.4" marker-end="url(#ah)"/>
+<rect x="60.0" y="1016.0" width="1440.0" height="100.0" rx="12" fill="#fff" stroke="#d1d5db" stroke-width="1.6"/>
+<text x="84.0" y="1050.0" font-size="16" font-weight="bold" fill="#1f2937" font-family="'Microsoft YaHei','Segoe UI',sans-serif">结果怎么显示</text>
+<rect x="84.0" y="1068.0" width="177.5" height="34.0" rx="9" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.4"/>
+<line x1="98.0" y1="1086.0" x2="104.0" y2="1092.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="104.0" y1="1092.0" x2="115.0" y2="1078.0" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/>
+<text x="124.0" y="1090.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">全部通过 → 绿色</text>
+<rect x="273.5" y="1068.0" width="237.5" height="34.0" rx="9" fill="#fffbeb" stroke="#d97706" stroke-width="1.4"/>
+<line x1="288.5" y1="1078.0" x2="302.5" y2="1092.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="302.5" y1="1078.0" x2="288.5" y2="1092.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="313.5" y="1090.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">失败但有修复按钮 → 橙色</text>
+<rect x="523.0" y="1068.0" width="222.5" height="34.0" rx="9" fill="#fef2f2" stroke="#dc2626" stroke-width="1.4"/>
+<line x1="538.0" y1="1078.0" x2="552.0" y2="1092.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="552.0" y1="1078.0" x2="538.0" y2="1092.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="563.0" y="1090.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">失败且没有按钮 → 红色</text>
+<rect x="757.5" y="1068.0" width="177.5" height="34.0" rx="9" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>
+<circle cx="779.5" cy="1085.0" r="7" fill="#6b7280"/>
+<text x="797.5" y="1090.0" font-size="15" font-weight="normal" fill="#374151" font-family="'Microsoft YaHei','Segoe UI',sans-serif">量不出来 → 灰色</text>
+<line x1="780.0" y1="1116.0" x2="780.0" y2="1134.0" stroke="#cbd5e1" stroke-width="2.4" marker-end="url(#ah)"/>
+<rect x="60.0" y="1154.0" width="1440.0" height="62.0" rx="12" fill="#ecfdf5" stroke="#16a34a" stroke-width="2.0"/>
+<text x="88.0" y="1193.0" font-size="19" font-weight="bold" fill="#065f46" font-family="'Microsoft YaHei','Segoe UI',sans-serif">结论：三项都通过 = md 环境健康（不再要求先有 map.md）</text>
+<rect x="60.0" y="1250.0" width="1440.0" height="388.0" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="1.8" stroke-dasharray="7 5"/>
+<text x="82.0" y="1286.0" font-size="18" font-weight="bold" fill="#991b1b" font-family="'Microsoft YaHei','Segoe UI',sans-serif">删掉的旧检查</text>
+<line x1="93.0" y1="1321.0" x2="84.0" y2="1329.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="84.0" y1="1329.0" x2="102.0" y2="1317.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="114.0" y="1326.0" font-size="15" font-weight="normal" fill="#7f1d1d" font-family="'Microsoft YaHei','Segoe UI',sans-serif">必须找到 .scratch/map.md 才算健康</text>
+<line x1="93.0" y1="1357.0" x2="84.0" y2="1365.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="84.0" y1="1365.0" x2="102.0" y2="1353.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="114.0" y="1362.0" font-size="15" font-weight="normal" fill="#7f1d1d" font-family="'Microsoft YaHei','Segoe UI',sans-serif">.scratch 不存在就判红</text>
+<line x1="93.0" y1="1393.0" x2="84.0" y2="1401.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="84.0" y1="1401.0" x2="102.0" y2="1389.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="114.0" y="1398.0" font-size="15" font-weight="normal" fill="#7f1d1d" font-family="'Microsoft YaHei','Segoe UI',sans-serif">提示「先执行本地 Markdown 初始化」</text>
+<line x1="93.0" y1="1429.0" x2="84.0" y2="1437.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="84.0" y1="1437.0" x2="102.0" y2="1425.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="114.0" y="1434.0" font-size="15" font-weight="normal" fill="#7f1d1d" font-family="'Microsoft YaHei','Segoe UI',sans-serif">按钮「执行 wayfinder 构造地图」</text>
+<line x1="93.0" y1="1465.0" x2="84.0" y2="1473.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="84.0" y1="1473.0" x2="102.0" y2="1461.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="114.0" y="1470.0" font-size="15" font-weight="normal" fill="#7f1d1d" font-family="'Microsoft YaHei','Segoe UI',sans-serif">preflight 与检查链各用一套判据</text>
+<line x1="93.0" y1="1501.0" x2="84.0" y2="1509.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="84.0" y1="1509.0" x2="102.0" y2="1497.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="114.0" y="1506.0" font-size="15" font-weight="normal" fill="#7f1d1d" font-family="'Microsoft YaHei','Segoe UI',sans-serif">多单元只报第一个</text>
+<line x1="93.0" y1="1537.0" x2="84.0" y2="1545.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="84.0" y1="1545.0" x2="102.0" y2="1533.0" stroke="#dc2626" stroke-width="2.6" stroke-linecap="round"/>
+<text x="114.0" y="1542.0" font-size="15" font-weight="normal" fill="#7f1d1d" font-family="'Microsoft YaHei','Segoe UI',sans-serif">编号重复 / 无编号的检测（呈现机制已兜住）</text>
+<text x="96.0" y="1578.0" font-size="15" font-weight="bold" fill="#991b1b" font-family="'Microsoft YaHei','Segoe UI',sans-serif">双容器、旧布局、容器结构深度 —— 一律不做检查（已定）</text>
+<text x="82.0" y="1622.0" font-size="14" font-weight="normal" fill="#64748b" font-family="'Microsoft YaHei','Segoe UI',sans-serif">保留不动：四态契约、逐项独立求值、修复合约、全绿才缓存、sessionScoped</text>
+</svg>

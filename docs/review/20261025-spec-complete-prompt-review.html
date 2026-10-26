@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>规格收尾提示词逐句评审 · specComplete</title>
+<style>
+  :root {
+    --bg: #f6f8fa;
+    --panel: #ffffff;
+    --ink: #1f2328;
+    --muted: #59636e;
+    --line: #d1d9e0;
+    --del-bg: #ffebe9; --del-ink: #82071e; --del-line: #cf222e;
+    --add-bg: #e6ffec; --add-ink: #116329; --add-line: #2da44e;
+    --ctx-bg: #f6f8fa; --ctx-ink: #57606a;
+    --badge-bg: #eff2f5;
+    --opt-bg: #fff8c5; --opt-ink: #7d4e00;
+    --merge-bg: #fbefff; --merge-ink: #8250df;
+    --mono: ui-monospace, SFMono-Regular, Consolas, "Cascadia Mono", "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --panel: #161b22; --ink: #e6edf3; --muted: #9198a1; --line: #30363d;
+      --del-bg: #2d1214; --del-ink: #ffb3ad; --del-line: #f85149;
+      --add-bg: #12261e; --add-ink: #7ee2a8; --add-line: #3fb950;
+      --ctx-bg: #161b22; --ctx-ink: #8b949e;
+      --badge-bg: #21262d;
+      --opt-bg: #2d2405; --opt-ink: #d4a72c;
+      --merge-bg: #26173a; --merge-ink: #d2a8ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.65 var(--sans); -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+
+  /* ── 页头 ───────────────────────────── */
+  .hero { padding: 52px 0 0; }
+  .kicker { font-size: 12px; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+  h1 { font-size: 30px; line-height: 1.25; margin: 10px 0 12px; letter-spacing: -.01em; }
+  .lede { margin: 0; max-width: 780px; color: var(--muted); font-size: 14.5px; }
+  .lede code, .gates code, .ruler code { font-family: var(--mono); font-size: 12.5px; background: var(--badge-bg); padding: 1px 5px; border-radius: 4px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 0; }
+  .stat { font-size: 12.5px; color: var(--muted); border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 3px 11px; }
+  .stat b { color: var(--ink); font-weight: 600; }
+
+  details.original { margin-top: 26px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  details.original summary { cursor: pointer; padding: 12px 16px; font-size: 13.5px; color: var(--muted); }
+  details.original summary:hover { color: var(--ink); }
+  details.original pre { margin: 0; padding: 4px 18px 18px; font: 12px/1.75 var(--mono); white-space: pre-wrap; color: var(--muted); }
+
+  /* ── 筛选条 ─────────────────────────── */
+  .toolbar {
+    position: sticky; top: 0; z-index: 20;
+    margin-top: 30px; padding: 10px 0;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .toolbar .row { display: flex; align-items: center; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+  .tb-label { font-size: 12px; color: var(--muted); flex: 0 0 auto; margin-right: 2px; }
+  .chip {
+    flex: 0 0 auto; border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+    border-radius: 999px; padding: 5px 12px; font: 13px/1.2 var(--sans); cursor: pointer;
+    transition: background .12s ease, color .12s ease, border-color .12s ease;
+  }
+  .chip i { font-style: normal; font-size: 11px; opacity: .7; margin-left: 4px; }
+  .chip:hover { color: var(--ink); border-color: var(--muted); }
+  .chip.is-on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .chip:focus-visible { outline: 2px solid var(--del-line); outline-offset: 2px; }
+
+  /* ── 正文区块 ───────────────────────── */
+  main { padding-bottom: 90px; }
+  .block { margin-top: 44px; }
+  .block > h2 { font-size: 17px; margin: 0 0 14px; }
+  .block > .hint { margin: -6px 0 16px; font-size: 13px; color: var(--muted); }
+
+  .ruler-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 10px; }
+  .ruler { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 13px 15px; }
+  .ruler b { display: block; font-size: 13.5px; margin-bottom: 4px; }
+  .ruler b span { font-family: var(--mono); color: var(--muted); font-weight: 400; margin-right: 6px; }
+  .ruler p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  .hurts { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: hurt; }
+  .hurts li {
+    counter-increment: hurt; position: relative;
+    background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--del-line);
+    border-radius: 8px; padding: 12px 15px 12px 46px; font-size: 14px;
+  }
+  .hurts li::before {
+    content: counter(hurt); position: absolute; left: 14px; top: 13px;
+    font: 600 12px/1 var(--mono); color: var(--del-ink);
+    background: var(--del-bg); border-radius: 6px; padding: 4px 6px;
+  }
+  .hurts a { color: inherit; text-decoration: none; border-bottom: 1px dashed var(--muted); }
+  .hurts a:hover { border-bottom-style: solid; }
+  .hurts b { color: var(--ink); }
+
+  .group { margin-top: 38px; }
+  .group > h2 {
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    font-size: 17px; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  .group > h2 .range { margin-left: auto; font: 12px var(--mono); color: var(--muted); font-weight: 400; }
+  .group > h2 .cnt { font-size: 12px; color: var(--muted); font-weight: 400; }
+
+  /* ── diff 卡片 ──────────────────────── */
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    margin: 12px 0; overflow: hidden; scroll-margin-top: 76px;
+    box-shadow: 0 1px 0 rgba(31, 35, 40, .03);
+  }
+  .chead { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding: 10px 15px; border-bottom: 1px solid var(--line); }
+  .badge { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; letter-spacing: .02em; }
+  .badge.keep  { background: var(--badge-bg); color: var(--muted); }
+  .badge.opt   { background: var(--opt-bg);   color: var(--opt-ink); }
+  .badge.add   { background: var(--add-bg);   color: var(--add-ink); }
+  .badge.del   { background: var(--del-bg);   color: var(--del-ink); }
+  .badge.merge { background: var(--merge-bg); color: var(--merge-ink); }
+  .num { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .where { font: 12px var(--mono); color: var(--muted); }
+  .spacer { flex: 1 1 auto; }
+  .copy {
+    font: 12px var(--sans); color: var(--muted); background: transparent;
+    border: 1px solid var(--line); border-radius: 6px; padding: 2px 9px; cursor: pointer;
+  }
+  .copy:hover { color: var(--ink); border-color: var(--muted); }
+  .copy.done { color: var(--add-ink); border-color: var(--add-line); }
+
+  .diff { font: 13px/1.75 var(--mono); padding: 6px 0; }
+  .ln { display: flex; align-items: stretch; border-left: 3px solid transparent; padding: 3px 0; }
+  .ln .sign { flex: 0 0 36px; text-align: center; user-select: none; opacity: .7; }
+  .ln .txt { flex: 1 1 auto; padding-right: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ln.del { background: var(--del-bg); border-left-color: var(--del-line); color: var(--del-ink); }
+  .ln.add { background: var(--add-bg); border-left-color: var(--add-line); color: var(--add-ink); }
+  .ln.ctx { background: var(--ctx-bg); border-left-color: var(--line); color: var(--ctx-ink); }
+  .hot { font-style: normal; border-bottom: 1px solid currentColor; background: rgba(207, 34, 46, .13); padding: 0 1px; }
+  .add .hot { background: rgba(45, 164, 78, .16); }
+  @media (prefers-color-scheme: dark) {
+    .hot { background: rgba(248, 81, 73, .2); }
+    .add .hot { background: rgba(63, 185, 80, .22); }
+  }
+
+  .why { margin: 0; padding: 11px 15px 13px; font-size: 13.5px; border-top: 1px dashed var(--line); line-height: 1.65; }
+  .why b { font-size: 11.5px; letter-spacing: .08em; color: var(--muted); margin-right: 8px; font-weight: 600; }
+  .hide { display: none !important; }
+
+  /* ── 结构建议 / 门禁 / 方案 ─────────── */
+  .plain { margin: 0; padding: 0; list-style: none; display: grid; gap: 9px; }
+  .plain li { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 11px 15px; font-size: 14px; }
+  .plain li b { color: var(--ink); }
+
+  .gates ul { margin: 0; padding: 0 0 0 20px; display: grid; gap: 8px; font-size: 14px; }
+  .gates li::marker { color: var(--muted); }
+
+  .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; }
+  .opt-card { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 15px 16px; }
+  .opt-card h3 { margin: 0 0 6px; font-size: 14.5px; }
+  .opt-card p { margin: 0; font-size: 13px; color: var(--muted); }
+  .opt-card .tag { position: absolute; top: 12px; right: 12px; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--add-bg); color: var(--add-ink); }
+  .opt-card.rec { border-color: var(--add-line); box-shadow: inset 0 0 0 1px var(--add-line); }
+
+  footer { border-top: 1px solid var(--line); padding: 22px 0 40px; margin-top: 60px; font-size: 12.5px; color: var(--muted); }
+  footer p { margin: 4px 0; }
+
+  @media print {
+    .toolbar, .copy { display: none !important; }
+    body { background: #fff; }
+    .card, .ruler, .plain li { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero wrap">
+  <div class="kicker">逐句评审 · 2026-10-25</div>
+  <h1>规格收尾提示词（specComplete）</h1>
+  <p class="lede">
+    真源：<code>config/prompts/map-advancement.yaml:295–379</code>（zh / en 两份）。这里的 diff 就是评审结论本身：
+    红行是原句，绿行是建议；绿色下划线是新加或改实的地方，灰色行是原样保留。28 句拆成 29 张判定卡（⑳㉑ 合并成一张）。
+  </p>
+  <div class="stats">
+    <span class="stat"><b>29</b> 张判定卡</span>
+    <span class="stat">保留 <b>10</b></span>
+    <span class="stat">优化 <b>15</b></span>
+    <span class="stat">增加 <b>2</b></span>
+    <span class="stat">删减 <b>1</b></span>
+    <span class="stat">合并 <b>1</b></span>
+  </div>
+
+  <details class="original">
+    <summary>展开原提示词全文（zh 段，yaml 303–340 行）</summary>
+    <pre>这张规格 issue（{url}）下面的实施 issue 已经全部关闭（{closed}/{total}）。先核对，再决定能不能关。关规格是向以后的人保证：这批改动已经在仓库长期保留的那条分支上、在你写下的提交上可复现地全绿、遗留都已处置——不只是子票都关了。
+
+## 一、先认这次是怎么做的
+- [ ] 读仓库自己的说明（例如 AGENTS.md、docs/agents 下的约定）和近期同类规格的收尾记录，认这次属于哪种做法：每张实施票分别用 /implement 实现；直接对这张规格跑过 /implement-spec（会产出集成分支，可能还有草稿 PR）；这个工作区没有版本库。
+- [ ] 找到这次的分支、工作区副本和提交：散在多处的改动先合到同一条分支再往下核对；找不到、或改动只在临时目录里，先问用户改动在哪，不要假定已经交付。
+- [ ] 确认要交出去的代码：每张实施票的改动是不是都已合进同一条长期分支（通常是 main，以仓库自己的叫法为准）。走 PR 的仓库，只认已合并且提交落在长期分支；草稿、待评审、合进别的分支都不算。实施票当初在集成分支上验完就关，是正常做法；规格不一样，要等集成分支也进了长期分支（本仓库的惯例是与 main 同一提交）才算交付完成。
+- [ ] 读不到分支或 PR 状态时，判不了就不关，把情况交回用户。
+
+## 二、核对（三种做法都要做）
+- [ ] 逐张打开实施 issue，对照验收判据看代码、测试或运行结果，确认真的做到；只看关闭状态和票面自述不算数。
+- [ ] 在最终交给仓库的那份代码上跑仓库规定的测试、类型检查和构建，记下分支名与提交号。在没含这些改动的主分支、有未提交改动的树、或别人的分支上跑出的绿不算数。
+- [ ] 多张票改同一模块或接口时，合起来再核一遍：各自绿不等于一起绿。
+- [ ] 收干净实施过程留下的临时物：实施工作区副本、已合并的临时分支、未提交改动、临时文件。没合并的分支不要删，把里面独有的提交列给用户。
+- [ ] 规格正文与评论里的「待定」「后续再说」逐条处置：这次做完；转成新票并写下票号；用户确认不做。只把字眼找出来不算处置。
+
+## 三、把改动交给仓库（没有版本库就跳过这一节）
+- [ ] 按仓库自己的落地方式走，不要为了关票硬造 PR：用 PR 合入的仓库，没有 PR 就建（标题用一句中文说清这次交付了什么，引用规格与实施票），草稿改成可评审；正文用 /pr 技能写（Summary / Evidence / Merge Danger），写清逐票结论与检查证据。/pr 只写正文，不建 PR、不合并 PR。
+- [ ] 等 PR 合入长期分支后再关；只建了 PR、只改成可评审都不算。需要人合并就停下来，把 PR 链接和结论交给用户，并说明合入后再点「完成」。这是等待，不是失败；未经用户当场授权不要替人合并。
+- [ ] 不用 PR 的仓库（本仓库的常态）：把这条分支合入长期分支并推送，确认长期分支包含这次的全部提交。PR 不是结案方式；只有长期分支里真的有了这些提交，才算交付完成。
+- [ ] 改动还没提交就先提交并推送，只提交这次动过的路径，提交信息按仓库规范写清改了什么、为什么。
+- [ ] 合入后拉回长期分支的最新提交，在上面重跑第二遍检查：合入会带进交叉影响，合入前的绿不能当结论。
+- [ ] 不要让合并 PR 的关闭引用替你把票关掉（有的后端会按关键词自动关）；票一律走 deck_issue_patch 的核对评论后关闭。
+- [ ] 长期分支还没含改动、PR 没合、只合了一部分：不关闭，写清差哪条与下一步，不要为这件事重开实施票。
+
+## 四、没有版本库的工作区
+- [ ] 没有分支、提交历史和 PR 可做：以当前工作区为要交出去的代码，确认改动确实在这里（不是只在临时目录或子代理的副本里），检查照跑。
+- [ ] 关闭评论注明「本工作区没有版本库，以上结论以当前工作区文件为准」，并写清检查命令与结果、改了哪些文件。
+
+## 五、关闭规格（核对与交付都通过之后）
+- [ ] 全部通过 → 在同一次 deck_issue_patch 调用里带 comment 和 close:true：评论写清逐票核对结论、这次是怎么做的、分支名与提交号（或 PR 合并提交、没有版本库的说明）、跑了哪些检查与结果、遗留项的新票号；工具会先发评论再关，缺评论或还有实施 issue 没关都会被挡下来。
+- [ ] 有任何一条没通过 → 不关闭：改动还没交出去就说卡在哪一步、下一步由谁做（如「等 PR #N 合并」）；验收没做到就说缺什么、建议重开哪张实施 issue 或补一张。
+- [ ] 没有「实施 issue 都关了顺手关」的旁路：关规格只有上面这一条路，先核对、再带核对评论关。
+- [ ] 人随时可以重开这张规格；重开只能由人在后端做，AI 的工具面上只允许关、不允许重开。
+
+## 工具
+- [ ] issue 相关操作优先使用 deck_ 开头的工具处理
+- [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+- [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。</pre>
+  </details>
+</header>
+
+<nav class="toolbar" aria-label="按判定筛选">
+  <div class="wrap row">
+    <span class="tb-label">筛选</span>
+    <button class="chip is-on" data-v="all" aria-pressed="true">全部<i>29</i></button>
+    <button class="chip" data-v="keep" aria-pressed="false">保留<i>10</i></button>
+    <button class="chip" data-v="opt" aria-pressed="false">优化<i>15</i></button>
+    <button class="chip" data-v="add" aria-pressed="false">增加<i>2</i></button>
+    <button class="chip" data-v="del" aria-pressed="false">删减<i>1</i></button>
+    <button class="chip" data-v="merge" aria-pressed="false">合并<i>1</i></button>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <section class="block" id="ruler">
+    <h2>先把尺子立起来</h2>
+    <p class="hint">这个动作的本质是<b>把一句断言写进仓库历史</b>——「这张规格承诺的东西已经做完、交付、可复核」。由此推出六条判据，下面的每张卡都按它们量。</p>
+    <div class="ruler-grid">
+      <div class="ruler"><b><span>1</span>真值只能来自交付物</b><p>长期分支上的提交 + 在该提交上复现的检查 + 规格承诺真的实现。票的关闭状态是过去的人写下的断言，拿它推结论是循环论证。</p></div>
+      <div class="ruler"><b><span>2</span>成本不对称</b><p>误关是沉默的（票从在办列表消失，没人再看；AI 不能重开，纠正要人动手）；该关没关是可见的、一点就关。所以判不了就不关。</p></div>
+      <div class="ruler"><b><span>3</span>断言要带指纹</b><p>分支、提交、命令、结果。没有指纹的收尾评论 = 无法复核 = 等于没核对。</p></div>
+      <div class="ruler"><b><span>4</span>绿只对跑它的那棵树有效</b><p>干净树、明确提交、合入后重跑；合入会带进交叉影响。</p></div>
+      <div class="ruler"><b><span>5</span>分解有固有缺口</b><p>逐票满足判据 ≠ 合起来满足规格承诺——判据是拆票时写的局部条件。</p></div>
+      <div class="ruler"><b><span>6</span>有些动作是人的</b><p>评审门上的合并、重开、丢弃工作，不能替人做。</p></div>
+    </div>
+  </section>
+
+  <section class="block" id="hurts">
+    <h2>四处硬伤（按价值排）</h2>
+    <ol class="hurts">
+      <li><b>缺整体验收。</b>三节核的都是「逐票有没有做到」，没有一处回到规格正文看整体——而「不只是子票都关了」正是这张提示词的立身之本。<a href="#add-a">→ 增A</a></li>
+      <li><b>「与 main 同一提交」是事实错误。</b>本仓库的交付是合并提交：<code>bf4e88c3</code>（#1460 的交付）两个父提交，一个是 main <code>3304e1f0</code>、一个是集成分支 <code>e0d6f1d2</code>——合并后必然不在同一提交。按字面判，本仓库最常见的形态反而判不出来。<a href="#c6">→ ⑥</a></li>
+      <li><b>「收干净未提交改动」与仓库安全规定冲突。</b>AGENTS.md 明令不许 <code>reset --hard</code> / <code>checkout .</code> / <code>clean -f</code>；工作区里还可能有别的会话的活。<a href="#c11">→ ⑪</a></li>
+      <li><b>收尾评论只要求「写清」，而闸不验内容。</b>闸只检查评论存在且非空（spec-close-guard.ts:96），「已核对、通过」能过闸。<a href="#c22">→ ㉒</a></li>
+    </ol>
+  </section>
+
+  <div id="cards"></div>
+
+  <section class="block" id="structure">
+    <h2>结构上再收一刀</h2>
+    <ul class="plain">
+      <li><b>开头第③句扩成四条编号谓词后，第五节「全部通过」才有明确的指代对象</b>——现在它指的是前面挑着做的结果。</li>
+      <li><b>第四节不是并列的第五节，是第三节的第三条路</b>：交付只有三态（PR / 直接合 / 无版本库），判据相同；29 张卡可以压到 20 条左右。</li>
+      <li><b>第二节标题「三种做法都要做」容易被读成「三种流程全做」</b>，其实那三种只是交付形态，改「不管哪种做法都要做」。</li>
+      <li><b>顺序「核对 → 交付 → 合完再跑 → 关」是立的，别动。</b></li>
+    </ul>
+  </section>
+
+  <section class="block gates" id="gates">
+    <h2>改的话要付出的代价</h2>
+    <ul>
+      <li>中英两份要同步：en 段从 <code>map-advancement.yaml:342</code> 起。</li>
+      <li><code>version</code> 6 → 7；<code>tests/verify-1407-next-steps-reminders.ts:57</code> 的期望版本表要一起改。</li>
+      <li><code>tests/verify-1298-spec-close.ts:343-353</code> 锁了这些词：<code>deck_issue_patch</code>、<code>close:true</code>、<code>旁路</code>、<code>重开</code>、<code>长期分支</code>、<code>PR</code>、<code>没有版本库</code>、<code>提交号</code>、<code>等待</code>——改写时保留（「重开」正好留在开头第③句），或同步改判据。</li>
+      <li><code>tests/verify-1281-entries.ts:73</code> 锁首句开头，第①句不动就没事。</li>
+      <li>重新生成：<code>node scripts/generate-prompt-config.mts</code>（写出 <code>src/client/kernel/prompt-data.ts</code>，产物不入库）；门禁按仓库说明选档，动了 <code>config/prompts</code> 大概率判全链。</li>
+    </ul>
+  </section>
+
+  <section class="block" id="next">
+    <h2>下一步：可以按三种范围动手</h2>
+    <div class="opts">
+      <div class="opt-card">
+        <h3>A · 全量</h3>
+        <p>按本页全部判定改，含中英同步、升版、门禁同步。净改动约 20 条。</p>
+      </div>
+      <div class="opt-card">
+        <h3>B · 只改四处硬伤</h3>
+        <p>③⑥⑪㉒。改动面最小，先把「判不出交付」「可能丢工作」「空话过闸」这三个洞补上。</p>
+      </div>
+      <div class="opt-card rec">
+        <span class="tag">推荐</span>
+        <h3>C · 硬伤 + 整体验收</h3>
+        <p>B 再加「增A」（增B 可选）。补上「子票全绿 ≠ 规格完成」这个逻辑缺口，收益最高。</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <p>评审依据：<code>config/prompts/map-advancement.yaml</code>、<code>src/deck/shell/spec-close-guard.ts</code>、<code>src/deck/tools/issue-patch.ts</code>，以及近期真实收尾评论（#1415 记录了提交、合并提交、改动文件与测试条数）。</p>
+  <p>本页是评审文档，不是插件界面；diff 里的绿行可直接复制（卡片右上角「复制改法」）。</p>
+</footer>
+
+<script>
+const GROUPS = [
+  {
+    name: '开头', range: 'yaml L303',
+    cards: [
+      {
+        id: 'c1', n: '①', v: 'keep', ref: 'yaml L303',
+        why: '只是界面给的前提事实，不构成证据；第②句接住了。',
+        lines: [['ctx', '这张规格 issue（{url}）下面的实施 issue 已经全部关闭（{closed}/{total}）。']]
+      },
+      {
+        id: 'c2', n: '②', v: 'keep', ref: 'yaml L303',
+        why: '全篇最短的正确指令，等价于第一条尺子：真值只能来自交付物。',
+        lines: [['ctx', '先核对，再决定能不能关。']]
+      },
+      {
+        id: 'c3', n: '③', v: 'opt', ref: 'yaml L303',
+        why: '这条定义漏了第一条谓词：它定义的是「交付完成」，不是「规格完成」。另把「关错了要人重开」并进来，替掉第㉕句。',
+        lines: [
+          ['del', '关规格是向以后的人保证：这批改动已经在仓库长期保留的那条分支上、在你写下的提交上可复现地全绿、遗留都已处置——不只是子票都关了。'],
+          ['add', '关规格是向以后的人保证四件事：**①规格正文承诺的东西（用户故事、验收标准）真的做到了**；②这批改动已经在仓库长期保留的那条分支上；③在你写下的提交上，仓库检查可复现全绿；④遗留（待定、临时物、没合并的分支）都已处置——不只是子票都关了。**判不了就不关：关错了 AI 不能重开，要人手动纠正。**']
+        ]
+      }
+    ]
+  },
+  {
+    name: '一、先认这次是怎么做的', range: 'yaml L306–309',
+    cards: [
+      {
+        id: 'c4', n: '④', v: 'opt', ref: 'yaml L306',
+        why: '分类不是目的，目的是「这批改动在哪、该从哪条交出去」。三种做法只是举例（实际还有：早就合了、别人交的、拆成子树）；而且点这个按钮的会话常常不是实施它的那条。',
+        lines: [
+          ['del', '读仓库自己的说明（例如 AGENTS.md、docs/agents 下的约定）和近期同类规格的收尾记录，认这次属于哪种做法：每张实施票分别用 /implement 实现；直接对这张规格跑过 /implement-spec（会产出集成分支，可能还有草稿 PR）；这个工作区没有版本库。'],
+          ['add', '**先确定这批改动现在在哪：分支、工作区副本、提交。**读仓库自己的说明（例如 AGENTS.md、docs/agents 下的约定）和近期同类规格的收尾记录，判断该从哪条分支交出去、走不走 PR。常见做法例如：每张实施票分别用 /implement 实现；直接对这张规格跑过 /implement-spec（会产出集成分支，可能还有草稿 PR）；这个工作区没有版本库；改动早就合进长期分支、或由别人交的。**不是实施它的那条会话时，不要凭印象认。**']
+        ]
+      },
+      {
+        id: 'c5', n: '⑤', v: 'opt', ref: 'yaml L307',
+        why: '主体保留；补一条纪律：合并冲突出现在哪里，就是哪张票的改动没真正落地——冲突不能猜着解。',
+        lines: [
+          ['del', '找到这次的分支、工作区副本和提交：散在多处的改动先合到同一条分支再往下核对；找不到、或改动只在临时目录里，先问用户改动在哪，不要假定已经交付。'],
+          ['add', '找到这次的分支、工作区副本和提交：散在多处的改动先合到同一条分支再往下核对；找不到、或改动只在临时目录里，先问用户改动在哪，不要假定已经交付。**要合并才能核对时，冲突出现在哪里，就是哪张票的改动没真正落地；查清再合，不许猜着解冲突。**']
+        ]
+      },
+      {
+        id: 'c6', n: '⑥', v: 'opt', ref: 'yaml L308',
+        why: '事实错误：本仓库的交付是合并提交（#1460 的交付 bf4e88c3 两个父提交），合并后 main 与集成分支必然不在同一提交。判据要改成「提交在长期分支的历史里」。',
+        lines: [
+          ['del', '确认要交出去的代码：每张实施票的改动是不是都已合进同一条长期分支（通常是 main，以仓库自己的叫法为准）。走 PR 的仓库，只认已合并且提交落在长期分支；草稿、待评审、合进别的分支都不算。实施票当初在集成分支上验完就关，是正常做法；规格不一样，要等集成分支也进了长期分支**（本仓库的惯例是与 main 同一提交）**才算交付完成。'],
+          ['add', '确认要交出去的代码：这次的全部提交是不是都进了同一条长期分支（通常是 main，以仓库自己的叫法为准）。**判据是提交在长期分支的历史里：合并提交（集成分支作为父提交）算，压缩成一条的提交也算**；走 PR 的仓库只认已合并且落在长期分支上的；草稿、待评审、合进别的分支都不算。实施票当初在集成分支上验完就关，是正常做法；规格不一样，要等集成分支也进了长期分支才算交付完成。']
+        ]
+      },
+      {
+        id: 'c7', n: '⑦', v: 'keep', ref: 'yaml L309',
+        why: '成本不对称的出口：判不了就不关。建议提为全篇通则，别只留在这一节。',
+        lines: [['ctx', '读不到分支或 PR 状态时，判不了就不关，把情况交回用户。']]
+      }
+    ]
+  },
+  {
+    name: '二、核对', range: 'yaml L312–316',
+    cards: [
+      {
+        id: 'c8', n: '⑧', v: 'keep', ref: 'yaml L312',
+        why: '第一条尺子的直译：票面自述不算证据。',
+        lines: [['ctx', '逐张打开实施 issue，对照验收判据看代码、测试或运行结果，确认真的做到；只看关闭状态和票面自述不算数。']]
+      },
+      {
+        id: 'c9', n: '⑨', v: 'keep', ref: 'yaml L313',
+        why: '第四条尺子：绿只对跑它的那棵树有效。可补一句「跑不了（缺依赖、缺权限）→ 不关」。',
+        lines: [['ctx', '在最终交给仓库的那份代码上跑仓库规定的测试、类型检查和构建，记下分支名与提交号。在没含这些改动的主分支、有未提交改动的树、或别人的分支上跑出的绿不算数。']]
+      },
+      {
+        id: 'c10', n: '⑩', v: 'keep', ref: 'yaml L314',
+        why: '模块交叉不等于规格整体，两条都要。',
+        lines: [['ctx', '多张票改同一模块或接口时，合起来再核一遍：各自绿不等于一起绿。']]
+      },
+      {
+        id: 'c11', n: '⑪', v: 'opt', ref: 'yaml L315',
+        why: '与仓库安全规定冲突：AGENTS.md 明令不许 reset --hard / checkout . / clean -f；工作区里还可能有别的会话的活。清理由「删掉」改成「定性 + 归属」。',
+        lines: [
+          ['del', '收干净实施过程留下的临时物：实施工作区副本、已合并的临时分支、**未提交改动**、临时文件。没合并的分支不要删，把里面独有的提交列给用户。'],
+          ['add', '收干净实施过程留下的临时物：实施工作区副本、已合并的临时分支、临时文件。**未提交改动先弄清属于哪张票：属于这次的提交进对应分支，不属于的留给用户处理——不许直接丢弃，也不许 git add -A 一把卷走（工作区里可能有别的会话的活）。**没合并的分支不要删，把里面独有的提交列给用户。']
+        ]
+      },
+      {
+        id: 'c12', n: '⑫', v: 'opt', ref: 'yaml L316',
+        why: '处置结果要写回规格正文原处；否则未来读规格的人看到的仍是「后续再说」，新票号只活在收尾评论里。',
+        lines: [
+          ['del', '规格正文与评论里的「待定」「后续再说」逐条处置：这次做完；转成新票并写下票号；用户确认不做。只把字眼找出来不算处置。'],
+          ['add', '规格正文与评论里的「待定」「后续再说」逐条处置，**处置结果写回规格正文原处**：这次做完的删掉该条并注明；转成新票的改成指向新票号；用户确认不做的写明「确认不做」及确认人。只把字眼找出来、或只写进收尾评论，都不算处置。']
+        ]
+      },
+      {
+        id: 'add-a', n: '增A', v: 'add', ref: '新增 · 放在第⑩句之后',
+        why: '唯一的逻辑缺口：逐票满足判据 ≠ 合起来满足规格承诺；以「不做/重复」关掉的票也要交代。',
+        lines: [['add', '回到规格正文的用户故事与「不在范围内」，对着最终代码整体过一遍：**每一条都有对应实现或测试，不在范围内的确实没做**；有票是以「不做/重复」关掉的，要说明规格承诺怎么被满足或削减，并经用户确认。**逐票通过不等于规格通过——每张票的判据是局部的，规格承诺是整体的。**']]
+      },
+      {
+        id: 'add-b', n: '增B', v: 'add', ref: '新增 · 放在第⑧句之后',
+        why: '小洞：agent 为了全绿可能把判据解释宽，这得交回人。',
+        lines: [['add', '某张票的验收判据缺失、或核对时发现判据本身写错了：**不私自把判据解释宽**，把情况交回用户，由用户决定补判据、补票还是接受现状。']]
+      }
+    ]
+  },
+  {
+    name: '三、把改动交给仓库', range: 'yaml L319–325',
+    cards: [
+      {
+        id: 'c13', n: '⑬', v: 'opt', ref: 'yaml L319',
+        why: '「一句中文」是某次约定写死成通用规则；语言按仓库约定，要求本身（说清交付了什么、引用规格与实施票）保留。',
+        lines: [
+          ['del', '按仓库自己的落地方式走，不要为了关票硬造 PR：用 PR 合入的仓库，没有 PR 就建（标题用一句中文说清这次交付了什么，引用规格与实施票），草稿改成可评审；正文用 /pr 技能写（Summary / Evidence / Merge Danger），写清逐票结论与检查证据。/pr 只写正文，不建 PR、不合并 PR。'],
+          ['add', '按仓库自己的落地方式走，不要为了关票硬造 PR：用 PR 合入的仓库，没有 PR 就建（标题用一句话说清这次交付了什么、引用规格与实施票，**语言按仓库约定**），草稿改成可评审；正文用 /pr 技能写（Summary / Evidence / Merge Danger），写清逐票结论与检查证据。/pr 只写正文，不建 PR、不合并 PR。']
+        ]
+      },
+      {
+        id: 'c14', n: '⑭', v: 'keep', ref: 'yaml L320',
+        why: '「当场授权」是关键，历史授权不算。',
+        lines: [['ctx', '等 PR 合入长期分支后再关；只建了 PR、只改成可评审都不算。需要人合并就停下来，把 PR 链接和结论交给用户，并说明合入后再点「完成」。这是等待，不是失败；未经用户当场授权不要替人合并。']]
+      },
+      {
+        id: 'c15', n: '⑮', v: 'opt', ref: 'yaml L321',
+        why: '与⑭重复：两条路的判据只有一个。且「本仓库的常态」要能容纳 PR——近 60 条 main 里有 10 条 Merge pull request。',
+        lines: [
+          ['del', '不用 PR 的仓库**（本仓库的常态）**：把这条分支合入长期分支并推送，确认长期分支包含这次的全部提交。PR 不是结案方式；只有长期分支里真的有了这些提交，才算交付完成。'],
+          ['add', '不用 PR 的仓库（本仓库多数改动直接合入 main）：把这条分支合入长期分支并推送，确认长期分支包含这次的全部提交。**有 PR 的按上一条走；两条路的判据只有一个：长期分支里真的有了这些提交。**']
+        ]
+      },
+      {
+        id: 'c16', n: '⑯', v: 'keep', ref: 'yaml L322',
+        why: '与 AGENTS.md 一致：只提交这次动过的路径，防止把别的会话的活卷走。',
+        lines: [['ctx', '改动还没提交就先提交并推送，只提交这次动过的路径，提交信息按仓库规范写清改了什么、为什么。']]
+      },
+      {
+        id: 'c17', n: '⑰', v: 'keep', ref: 'yaml L323',
+        why: '第四条尺子：合入会带进交叉影响，合入前的绿不能当结论。',
+        lines: [['ctx', '合入后拉回长期分支的最新提交，在上面重跑第二遍检查：合入会带进交叉影响，合入前的绿不能当结论。']]
+      },
+      {
+        id: 'c18', n: '⑱', v: 'opt', ref: 'yaml L324',
+        why: '点名机制：原文只说了「不要让关闭引用替你把票关掉」，没告诉 agent 具体别写什么。',
+        lines: [
+          ['del', '不要让合并 PR 的关闭引用替你把票关掉（有的后端会按关键词自动关）；票一律走 deck_issue_patch 的核对评论后关闭。'],
+          ['add', '不要让合并 PR 的关闭引用替你把票关掉（有的后端会按关键词自动关）：**PR 正文和提交信息里不写 Closes #规格号 这类关键词**；这张规格的关闭只走 deck_issue_patch 的核对评论。']
+        ]
+      },
+      {
+        id: 'c19', n: '⑲', v: 'opt', ref: 'yaml L325',
+        why: '与㉓的「建议重开实施票」措辞打架：要把「没交付」与「验收没做到」分成两类，各自的动作不同。',
+        lines: [
+          ['del', '长期分支还没含改动、PR 没合、只合了一部分：不关闭，写清差哪条与下一步，**不要为这件事重开实施票**。'],
+          ['add', '长期分支还没含改动、PR 没合、只合了一部分：不关闭，写清差哪条与下一步；**这类是「没交付」，不要为它重开实施票**。验收没做到才谈重开或补票（见第五节）。']
+        ]
+      }
+    ]
+  },
+  {
+    name: '四、没有版本库的工作区', range: 'yaml L328–329',
+    cards: [
+      {
+        id: 'c2021', n: '⑳㉑', v: 'merge', ref: 'yaml L328–329',
+        why: '这不是并列的第五节，是第三条交付路（PR / 直接合 / 无版本库），判据相同。合并成一条。',
+        lines: [
+          ['del', '没有分支、提交历史和 PR 可做：以当前工作区为要交出去的代码，确认改动确实在这里（不是只在临时目录或子代理的副本里），检查照跑。'],
+          ['del', '关闭评论注明「本工作区没有版本库，以上结论以当前工作区文件为准」，并写清检查命令与结果、改了哪些文件。'],
+          ['add', '没有分支、提交历史和 PR 可做：以当前工作区为要交出去的代码，确认改动确实在这里（不是只在临时目录或子代理的副本里），检查照跑。**收尾评论里注明「本工作区没有版本库，以上结论以当前工作区文件为准」，并写清检查命令与结果、改了哪些文件**——没有提交号，文件清单和命令就是这棵树的指纹。']
+        ]
+      }
+    ]
+  },
+  {
+    name: '五、关闭规格', range: 'yaml L332–335',
+    cards: [
+      {
+        id: 'c22', n: '㉒', v: 'opt', ref: 'yaml L332',
+        why: '最要紧的一条：闸只验「评论存在且非空」，不验内容（spec-close-guard.ts:96），「已核对、通过」能过闸。评论要升级成能照着重核的证据包。',
+        lines: [
+          ['del', '全部通过 → 在同一次 deck_issue_patch 调用里带 comment 和 close:true：评论写清逐票核对结论、这次是怎么做的、分支名与提交号（或 PR 合并提交、没有版本库的说明）、跑了哪些检查与结果、遗留项的新票号；工具会先发评论再关，缺评论或还有实施 issue 没关都会被挡下来。'],
+          ['add', '全部通过 → 在同一次 deck_issue_patch 调用里带 comment 和 close:true。**评论是留给没参加这次会话的人的证据包，要能照着重核**：逐票一行写你查了什么（文件/测试名/命令）；这次是怎么做的、分支名与提交号（或 PR 合并提交、没有版本库的说明）；跑了哪些检查、结果如何；遗留项的新票号。**不要写「已核对、通过」这类空话——闸只检查评论在不在，不检查里面有没有东西。**']
+        ]
+      },
+      {
+        id: 'c23', n: '㉓', v: 'opt', ref: 'yaml L333',
+        why: '分两种不通过：交付没完成 vs 验收没做到，下一步动作不同。',
+        lines: [
+          ['del', '有任何一条没通过 → 不关闭：改动还没交出去就说卡在哪一步、下一步由谁做（如「等 PR #N 合并」）；验收没做到就说缺什么、建议重开哪张实施 issue 或补一张。'],
+          ['add', '有任何一条没通过 → 不关闭，并分清是哪类：**交付没完成**（PR 没合、分支没进长期分支、没权限）就说卡在哪、下一步由谁做（如「等 PR #N 合并」），不重开实施票；**验收没做到**（代码没实现判据）就说缺什么，建议重开该实施票或补一张，并经用户同意。']
+        ]
+      },
+      {
+        id: 'c24', n: '㉔', v: 'opt', ref: 'yaml L334',
+        why: '真正的旁路是「写一句空评论过闸」；「顺手关」已经被闸挡住了。',
+        lines: [
+          ['del', '没有「实施 issue 都关了顺手关」的旁路：关规格只有上面这一条路，先核对、再带核对评论关。'],
+          ['add', '没有「实施 issue 都关了顺手关」的旁路，**也没有「写一句空评论过闸」的旁路：闸只看评论在不在，内容由上面那条负责**。']
+        ]
+      },
+      {
+        id: 'c25', n: '㉕', v: 'del', ref: 'yaml L335',
+        why: '工具事实，已写在 deck_issue_patch 的说明里；有用的只剩「关错了要人手动重开」，已并进第③句。删它要动 verify-1298 的锁点（它把「重开」当锁点）——接受现状也行，但价值最低。',
+        lines: [['del', '人随时可以重开这张规格；重开只能由人在后端做，AI 的工具面上只允许关、不允许重开。']]
+      }
+    ]
+  },
+  {
+    name: '工具', range: 'yaml L338–340',
+    cards: [
+      {
+        id: 'c26', n: '㉖', v: 'opt', ref: 'yaml L338',
+        why: '「优先」太软：这张规格的评论与关闭必须走 deck_，gh 会绕过收口闸。',
+        lines: [
+          ['del', 'issue 相关操作优先使用 deck_ 开头的工具处理'],
+          ['add', '这张规格的评论与关闭**只走 deck_ 工具（gh 会绕过收口闸）**；其它 issue 操作优先用 deck_。']
+        ]
+      },
+      {
+        id: 'c27', n: '㉗', v: 'keep', ref: 'yaml L339',
+        why: '技能要求，保留。',
+        lines: [['ctx', '及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号']]
+      },
+      {
+        id: 'c28', n: '㉘', v: 'opt', ref: 'yaml L340',
+        why: '自相矛盾（判断 + 无条件调用）；而最常见结局恰是「等 PR 合并」「等用户回答」，这两类按规则都不该推荐。',
+        lines: [
+          ['del', '回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。'],
+          ['add', '回复前最后一步，按 /ask-matt 的规则判断现在有没有明确可推荐的下一步：**有才调 suggest_next_steps**；在等 PR 合并、等用户回答、或刚关完没有后续动作时**不要调**。']
+        ]
+      }
+    ]
+  }
+];
+
+const V = {
+  keep: { label: '保留' },
+  opt: { label: '优化' },
+  add: { label: '增加' },
+  del: { label: '删减' },
+  merge: { label: '合并' }
+};
+
+const byId = {};
+GROUPS.forEach(g => g.cards.forEach(c => { byId[c.id] = c; }));
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function fmt(s) {
+  return esc(s).replace(/\*\*(.+?)\*\*/g, '<em class="hot">$1</em>');
+}
+function lineHtml(line) {
+  const k = line[0], t = line[1];
+  const sign = k === 'add' ? '+' : (k === 'del' ? '-' : ' ');
+  return '<div class="ln ' + k + '"><span class="sign" aria-hidden="true">' + sign + '</span><span class="txt">' + fmt(t) + '</span></div>';
+}
+function cardHtml(c) {
+  const label = V[c.v] ? V[c.v].label : c.v;
+  const hasAdd = c.lines.some(l => l[0] === 'add');
+  const copy = hasAdd ? '<span class="spacer"></span><button class="copy" data-copy="' + c.id + '">复制改法</button>' : '<span class="spacer"></span>';
+  return '<article class="card" id="' + c.id + '" data-v="' + c.v + '">'
+    + '<div class="chead"><span class="badge ' + c.v + '">' + label + '</span>'
+    + '<span class="num">' + esc(c.n) + '</span>'
+    + '<span class="where">' + esc(c.ref || '') + '</span>' + copy + '</div>'
+    + '<div class="diff">' + c.lines.map(lineHtml).join('') + '</div>'
+    + '<p class="why"><b>为什么</b>' + fmt(c.why) + '</p>'
+    + '</article>';
+}
+
+document.getElementById('cards').innerHTML = GROUPS.map(g => {
+  const changes = g.cards.filter(c => c.v !== 'keep').length;
+  const cnt = changes ? '改动 ' + changes : '原样保留';
+  return '<section class="group" data-group="' + esc(g.name) + '">'
+    + '<h2>' + esc(g.name) + '<span class="cnt">' + cnt + '</span><span class="range">' + esc(g.range) + '</span></h2>'
+    + g.cards.map(cardHtml).join('')
+    + '</section>';
+}).join('');
+
+function applyFilter(v) {
+  document.querySelectorAll('.card').forEach(card => {
+    card.classList.toggle('hide', v !== 'all' && card.dataset.v !== v);
+  });
+  document.querySelectorAll('.group').forEach(group => {
+    const anyVisible = Array.prototype.some.call(group.querySelectorAll('.card'), c => !c.classList.contains('hide'));
+    group.classList.toggle('hide', !anyVisible);
+  });
+  document.querySelectorAll('.chip').forEach(btn => {
+    const on = btn.dataset.v === v;
+    btn.classList.toggle('is-on', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+document.addEventListener('click', event => {
+  const chip = event.target.closest('.chip');
+  if (chip) { applyFilter(chip.dataset.v); return; }
+
+  const btn = event.target.closest('.copy');
+  if (!btn) return;
+  const card = byId[btn.dataset.copy];
+  if (!card) return;
+  const text = card.lines.filter(l => l[0] === 'add').map(l => l[1].replace(/\*\*/g, '')).join('\n');
+  const done = () => {
+    btn.textContent = '已复制';
+    btn.classList.add('done');
+    setTimeout(() => { btn.textContent = '复制改法'; btn.classList.remove('done'); }, 1600);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, fallback);
+  } else {
+    fallback();
+  }
+  function fallback() {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { /* 浏览器拒绝复制时静默 */ }
+    document.body.removeChild(ta);
+  }
+});
+</script>
+</body>
+</html>
