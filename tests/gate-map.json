@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-26T16:07:18.297Z",
+  "generatedAt": "2026-10-26T16:15:50.963Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 401,
-  "gateCount": 401,
-  "attributedGates": 358,
+  "chainLength": 402,
+  "gateCount": 402,
+  "attributedGates": 359,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 16,
@@ -3799,6 +3799,23 @@
       ],
       "dirs": [
         "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1565-workroute-first-col-browser.ts",
+      "file": "tests/verify-1565-workroute-first-col-browser.ts",
+      "guards": [
+        "src/client/kernel/ticket-label.ts",
+        "src/client/views/shared/workRouteTable.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views/shared"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -9889,6 +9906,7 @@
       "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-1519-detail-comments.ts",
       "node tests/verify-1548-map-row-nav.ts",
+      "node tests/verify-1565-workroute-first-col-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -10087,6 +10105,7 @@
       "node tests/verify-1519-detail-comments.ts",
       "node tests/verify-1545-workroute-row-nav.ts",
       "node tests/verify-1548-map-row-nav.ts",
+      "node tests/verify-1565-workroute-first-col-browser.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",

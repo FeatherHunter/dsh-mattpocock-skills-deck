@@ -56,11 +56,14 @@ async function main(): Promise<void> {
 
   // ── 一点五、B 方案的分段写法：目录前缀可省略、编号尾巴绝不缩小 ──────────────────
   // 同一串编号只在这里拆一次：前缀（含 `#` 与结尾的 `/`）走省略号那一段，编号尾巴（`flex: none`）
-  // 永远完整显示；上限宽度同样只在这里定一个值（`136px`），五处显示点都读它。
+  // 永远完整显示；上限宽度同样只在这里定一个值（`TICKET_LABEL_MAX_WIDTH_PX = 136`），五处显示点都读它，
+  // 在办表首列分档的封顶也由它推出（#1565：格子与徽标不再一宽一窄）。
   // 取 136px 的原因：11px 字下 `#wayfinder-capability-test/00` 内容约 150px，上限 180px 时它碰不到线看着和没改一样。
   check(typeof mod.ticketLabelPartsOf === 'function', 'kernel/ticket-label.ts 导出 ticketLabelPartsOf')
   check(typeof mod.ticketLabelNodesOf === 'function', 'kernel/ticket-label.ts 导出 ticketLabelNodesOf')
-  check(mod.TICKET_LABEL_MAX_WIDTH === '136px', '上限宽度是 136px（#1553 的 192px 首列仍装得下、最长的那批目录能碰到线）')
+  check(mod.TICKET_LABEL_MAX_WIDTH === '136px', '上限宽度是 136px（最长的那批目录能碰到线，长目录才会真的省略）')
+  // #1565：上限先写成像素数，CSS 写法与在办表首列分档的封顶都由它推出来 —— 改宽度只改这一个数。
+  check(mod.TICKET_LABEL_MAX_WIDTH_PX === 136 && mod.TICKET_LABEL_MAX_WIDTH === mod.TICKET_LABEL_MAX_WIDTH_PX + 'px', '上限有两个形态（136 与 136px）且同源：分档封顶不会另写一个数')
   const parts = mod.ticketLabelPartsOf
   const p1 = parts('01', DIR)
   check(p1.full === '#' + DIR + '/01' && p1.prefix === '#' + DIR + '/' && p1.number === '01', '正常票拆成 #目录/ + 01')

@@ -52,7 +52,8 @@ declare function ownWorkRouteSlotOf(...args: any[]): any;
 declare function ticketLabelOf(...args: any[]): any;
 // B 方案：同一颗控件的两段子节点走那一份（目录前缀可省略、编号尾巴绝不缩小）。
 declare function ticketLabelNodesOf(...args: any[]): any;
-// B 方案：首列票号控件的上限宽度同样读那一份（180px），与列表行、详情页、胶囊是同一颗控件。
+// B 方案 + #1565：首列票号控件的上限宽度读同一份（TICKET_LABEL_MAX_WIDTH），与列表行、详情页、胶囊是同一颗控件；
+// 首列分档的封顶也是同一个数推出来的（kernel/ticket-label.ts 的 WORK_ROUTE_FIRST_COL_TIERS_PX）。
 declare const TICKET_LABEL_MAX_WIDTH: string;
 // #1545：行点击要调的三个函数（findMapByIdentity 按票号找容器、containerKindOf 认它是地图还是规格、
 //   pushNav 跳到目标页）由打包时拼进同一闭包的更早片段提供，这里只声明名字与参数形状，不参与转译。
@@ -236,7 +237,8 @@ export const workRouteNavOf = function (st: any, r: WorkRouteTableRow): any {
  * 现在这四列收窄（动作时间那列还改写缩写，见 workRouteTableStamp），省下的宽度全给了那两列。
  * 表头与数据行是两个 grid，必须用同一份模板（列宽要逐字对齐），所以把它导出来给两边共用。
  */
-/* 首列按本表实际行自适应（#1553）：短编号 56px，长编号按内容分档放宽（目录不缩写），超长封顶 192px。
+/* 首列按本表实际行自适应（#1553）：短编号 56px，长编号按内容分档放宽（目录尽量不缩写），
+ * 封顶就是票号徽标上限（#1565 起两处由同一个数推出，格子不会再比徽标宽）。
  * 分几档、怎么估宽，收在 ticket-label.ts 那一份里（估宽直接调真写法，形状想跑偏都跑偏不了）；
  * 这里只管用：WorkRouteTable 用算出来的那一份同时画表头与每一行（对齐不变），行内容未知时用默认。 */
 declare function workRouteCellsFor(rows: any): string
@@ -386,9 +388,11 @@ export const WorkRouteTable = ({ st, onNavigate }: any) => {
   ])
 }
 
-/** 浮层的最小宽度：标题保底 150px、会话保底 104px，加上首列最宽那一档，至少要 680 才不挤出横向滚动。
+/** 浮层的最小宽度：首列最宽一档（徽标上限 136px）+ 标题保底 150px + 会话保底 104px + 三个定宽列 48/36/36
+ * + 五个 6px 列间距 + 内外边距，不出横向滚动只要 576px。这里仍取 680px：多出来的那一段按 grid 的余量分配规则
+ * 分给标题与会话两列 —— #1565 把首列从 192px 收到徽标上限后，省下的 56px 正是这样还给它们的。
  * 弹窗是咱们自己画的，窄了只会把标题和会话压成省略号 —— 宁可一开始就给够。面板更宽时浮层跟面板同宽（下）。 */
-const WORK_ROUTE_POPOVER_MIN_WIDTH = 680
+export const WORK_ROUTE_POPOVER_MIN_WIDTH = 680
 
 /**
  * 面板头部那一行右端的「在办表」入口（#1285）。

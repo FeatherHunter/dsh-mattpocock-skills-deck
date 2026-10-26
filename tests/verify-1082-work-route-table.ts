@@ -35,10 +35,15 @@ import { spliceableJs, sourceText, sourcePath } from './lib/source-text.ts'
 // #1511：编号写成「#目录/编号」的真实现住在 kernel/ticket-label.ts。本门禁按文本/模块单独加载视图叶子，
 // 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
 // #1553 的首列自适应三件套同样住在那一份里，一并补上。
-;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
-;(globalThis as any).ticketLabelNodesOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelNodesOf
-;(globalThis as any).TICKET_LABEL_MAX_WIDTH = (await import('../src/client/kernel/ticket-label.js')).TICKET_LABEL_MAX_WIDTH
-;(globalThis as any).workRouteCellsFor = (await import('../src/client/kernel/ticket-label.js')).workRouteCellsFor
+const ticketLabelKernel: any = await import('../src/client/kernel/ticket-label.js')
+// #1565：分档封顶与徽标上限是同一个数；下面用这两个真身断言，不另抄字面量。
+const TICKET_LABEL_MAX_WIDTH: string = ticketLabelKernel.TICKET_LABEL_MAX_WIDTH
+const TICKET_LABEL_MAX_WIDTH_PX: number = ticketLabelKernel.TICKET_LABEL_MAX_WIDTH_PX
+const WORK_ROUTE_FIRST_COL_TIERS_PX: number[] = ticketLabelKernel.WORK_ROUTE_FIRST_COL_TIERS_PX
+;(globalThis as any).ticketLabelOf = ticketLabelKernel.ticketLabelOf
+;(globalThis as any).ticketLabelNodesOf = ticketLabelKernel.ticketLabelNodesOf
+;(globalThis as any).TICKET_LABEL_MAX_WIDTH = TICKET_LABEL_MAX_WIDTH
+;(globalThis as any).workRouteCellsFor = ticketLabelKernel.workRouteCellsFor
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
@@ -293,7 +298,11 @@ async function main() {
   check(tracks[0] === '56px' && tracks[3] === '48px' && tracks[4] === '36px' && tracks[5] === '36px', '默认模板：票号 56px，动作、动作时间、是否在办定宽不变')
   check(workRouteCellsFor([{ ticketKey: '101' }]).split(' ')[0] === '56px', '自适应：短编号行仍是 56px')
   check(workRouteCellsFor([{ ticketKey: '00', effortId: 'demo' }]).split(' ')[0] === '96px', '自适应：「#demo/00」这类放宽到 96px，目录不缩写')
-  check(workRouteCellsFor([{ ticketKey: '00', effortId: 'undefined-wf1089-bodies-20261021' }]).split(' ')[0] === '192px', '自适应：32 字超长目录封顶 192px（再长走省略号+悬停，不无限撑）')
+  // #1565：分档封顶不再另写 192px，就是徽标上限（136px，同一个数推出来）—— 最宽一档不再比徽标宽 56px。
+  check(WORK_ROUTE_FIRST_COL_TIERS_PX[WORK_ROUTE_FIRST_COL_TIERS_PX.length - 1] === TICKET_LABEL_MAX_WIDTH_PX, '分档表最后一档等于徽标上限（' + TICKET_LABEL_MAX_WIDTH_PX + 'px，两处同源）')
+  check(WORK_ROUTE_FIRST_COL_TIERS_PX.every(function (t: number) { return t <= TICKET_LABEL_MAX_WIDTH_PX }), '分档表每一档都不超过徽标上限（格子不会比徽标宽）')
+  check(workRouteCellsFor([{ ticketKey: '00', effortId: 'undefined-wf1089-bodies-20261021' }]).split(' ')[0] === TICKET_LABEL_MAX_WIDTH, '自适应：32 字超长目录封顶在徽标上限 ' + TICKET_LABEL_MAX_WIDTH + '（#1565：不再白留 56px；再长走省略号+悬停）')
+  check(workRouteCellsFor([{ ticketKey: '00', effortId: 'notes-inbox' }]).split(' ')[0] === TICKET_LABEL_MAX_WIDTH, '自适应：中等目录「#notes-inbox/02」仍拿最宽一档 ' + TICKET_LABEL_MAX_WIDTH + '（不因收窄被误截）')
   check(pxOf(tracks[4]) < 72 && pxOf(tracks[5]) < 48, '「动作时间」与「是否在办」两列比改版前窄（72→36、48→36），省下的宽度让给标题与会话')
   // #1553 维护者口径：六列每一列都设计最大宽度，内容自适应变宽、到上限不再变宽。
   // 标题 150~320px（10 个汉字保底，约 29 个字到顶）、会话 104~200px（约 9 字保底、18 字到顶）。
@@ -312,6 +321,9 @@ async function main() {
   const gridTemplates: string[] = []
   gridNodes.forEach((n: any) => { if (gridTemplates.indexOf(n.props.style.gridTemplateColumns) < 0) gridTemplates.push(n.props.style.gridTemplateColumns) })
   check(gridTemplates.length === 1 && gridTemplates[0] === leaf.WORK_ROUTE_TABLE_CELLS, '表头与每一行用同一份列宽模板（列要逐字对齐，实得 ' + gridTemplates.length + ' 种）')
+  // #1565：首列票号控件真的带着上限宽度（与分档封顶同一个数）；几何效果（格子不再白留）由 verify-1565 真浏览器门禁量。
+  const badgeCaps = findAll(treeOk, (n: any) => n.props && n.props.style && n.props.style.maxWidth === TICKET_LABEL_MAX_WIDTH)
+  check(badgeCaps.length >= 2, '首列票号控件带 maxWidth = 徽标上限（两行各一处，实得 ' + badgeCaps.length + ' 处）')
 
   const okSt = { snapshot: { workRouteTable: { ok: true, readout: okReadout } } }
   const openPos = { right: 12, top: 100, width: 520, maxHeight: 400 }
