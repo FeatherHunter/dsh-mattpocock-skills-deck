@@ -5,6 +5,7 @@
 //      最容易做假的几条也在这里量：读数未知时**不许冒出 0**、**不许上红档**；只有真耗尽才说
 //      truth.failQuota；离网后端说的是「不需要额度」而不是「还没同步」。
 //   二、快照编排器：带 budgetReadout 时 refresh.backend 字段齐全（只增不改旧四格）；
+//      后台同步失败的结论（sync，#1006）原样透传，坏形状整块丢掉且不动读数原有字段；
 //      不带、回 null、抛错时 refresh 保持今天那份四格形状（不写 backend）。
 //   三、快照信封：refresh 整块透传到 wf.snapshot 的回包，backend 跟着走。
 //
@@ -18,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import { createSnapshotComposer } from '../src/host/tracker/snapshot.js'
 import { createBudgetState } from '../src/refresh/rooms/host/budget-state.js'
+import { createQuotaSyncStatus } from '../src/refresh/rooms/host/quota-sync-status.js'
 import { createSnapshotEnvelope } from '../src/host/snapshotEnvelope.js'
 import { freshnessLevel, lagPromiseFor, tierFor } from '../src/refresh/kernel/host-budget.js'
 import { L_PAGES } from '../src/client/kernel/locale-data.ts'
@@ -157,12 +159,77 @@ console.log('#1446 面板额度读数（纯函数 / 快照编排器 / 信封透�
   const newKind = truth.budgetNoticeLines({ backend: { budgetKind: 'something-new', readKnown: true, offNetwork: false } })
   check(newKind.length === 1 && keysOf(newKind) === 'truth.budgetUnknownModel', '没见过的 budgetKind 不猜格式、也不念数字，但如实说「未知」（实得 ' + keysOf(newKind) + '）')
 
-  ;['truth.budgetGraphql', 'truth.budgetRest', 'truth.budgetRequests', 'truth.budgetOffNetwork', 'truth.budgetUnknown', 'truth.budgetUnknownModel'].forEach(function (k: string): void {
+  ;['truth.budgetGraphql', 'truth.budgetRest', 'truth.budgetRequests', 'truth.budgetOffNetwork', 'truth.budgetUnknown', 'truth.budgetUnknownModel', 'truth.budgetSyncFailedHard', 'truth.budgetSyncFailedSoft'].forEach(function (k: string): void {
     check(!!zh[k] && !!en[k], '词条中英两面都在：' + k + '（zh=' + JSON.stringify(zh[k]) + '）')
   })
 })()
 
-// ---------- 一之二、并进面板那一行：truthNoticeLines 读得到额度那句 ----------
+// ---------- 一之二、后台同步失败（#1006）：记事本语义 + 面板那句原因 ----------
+// 期望⑤：后台同步失败不能让面板永远只说「还没同步上来」。记事本记下最近一次失败的类别，
+// 面板据此说「环境没准备好（hard）/ 刚才没连上（soft）」；模型未知仍排第一优先。
+;(function checkQuotaSyncFailure() {
+  const store = createQuotaSyncStatus()
+  check(store.view('demo') === null, '没记过失败的后端，记事本回 null（界面仍说中性的「还没同步」）')
+  store.note('demo', { ok: false, failKind: 'hard', reason: 'tool-missing', at: 1712345678000 })
+  const first = store.view('demo')
+  check(!!first && first.lastFailAt === 1712345678000 && first.lastFailKind === 'hard', '失败记下最近一次的时刻与类别（hard）')
+  store.note('demo', { ok: false, failKind: 'soft', at: 1712345679000 })
+  check(store.view('demo').lastFailKind === 'soft', '更新的结论覆盖旧的（后来是 soft 就说 soft）')
+  store.note('demo', { ok: false, failKind: 'hard', at: 1712345670000 })
+  const older = store.view('demo')
+  check(older.lastFailKind === 'soft' && older.lastFailAt === 1712345679000, '晚到的更旧结论不覆盖（按 at 比，不按调用先后）')
+  store.note('demo', { ok: true, at: 1712345680000 })
+  check(store.view('demo') === null, '同步成功清掉这个后端的失败记录（恢复了就不再报故障）')
+  store.note('demo', { ok: false, failKind: 'fatal', at: 1712345681000 })
+  store.note('demo', { ok: false, at: 1712345682000 })
+  store.note('demo', { ok: false, failKind: 'hard', at: Number.NaN })
+  check(store.view('demo') === null, '类别不在白名单、或时刻不是有限正数的结论整条丢掉（不猜类别）')
+  store.note('', { ok: false, failKind: 'hard', at: 1712345683000 })
+  check(store.view('') === null, '空后端编号的结论不记（没有后端可挂）')
+  // 上限 32 个后端：满了淘汰最久没更新的那条；更新过一条会让它排到最新。
+  const capped = createQuotaSyncStatus()
+  for (let i = 1; i <= 32; i++) capped.note('b' + i, { ok: false, failKind: 'hard', at: 1712345000000 + i })
+  check(capped.view('b1') !== null && capped.view('b32') !== null, '记满 32 个后端时都在')
+  capped.note('b33', { ok: false, failKind: 'soft', at: 1712346000000 })
+  check(capped.view('b1') === null && capped.view('b32') !== null && capped.view('b33') !== null, '第 33 个后端进来时淘汰最久没更新的那条（b1），其余还在')
+  capped.note('b2', { ok: false, failKind: 'hard', at: 1712346001000 })
+  capped.note('b34', { ok: false, failKind: 'soft', at: 1712346002000 })
+  check(capped.view('b3') === null && capped.view('b2') !== null, '更新过的后端排到最新：再淘汰时轮到 b3，而不是刚更新过的 b2')
+  const copy = capped.view('b2')
+  copy.lastFailKind = 'soft'
+  check(capped.view('b2').lastFailKind === 'hard', 'view 回一份拷贝，调用方改不到记事本里存的那条')
+
+  // 界面那半：读数未知 + 记事本里有失败 → 按类别说清原因。
+  const unknownWith = function (lastFailKind: string): any[] {
+    return truth.budgetNoticeLines({ backend: { budgetKind: 'two-buckets', readKnown: false, offNetwork: false, reason: 'not-measured', sync: { lastFailAt: 1712345678000, lastFailKind: lastFailKind } } })
+  }
+  const hardLines = unknownWith('hard')
+  check(hardLines.length === 1 && hardLines[0].key === 'truth.budgetSyncFailedHard', '读数未知 + 环境没准备好：说 truth.budgetSyncFailedHard（实得 ' + keysOf(hardLines) + '）')
+  check(hardLines[0] && hardLines[0].tone === 'yellow', '环境没准备好要人处理：黄档（既不是红档的「失败/耗尽」，也不装没事）')
+  const softLines = unknownWith('soft')
+  check(softLines.length === 1 && softLines[0].key === 'truth.budgetSyncFailedSoft', '读数未知 + 刚才没连上：说 truth.budgetSyncFailedSoft（实得 ' + keysOf(softLines) + '）')
+  check(softLines[0] && softLines[0].tone === 'fresh', '刚才没连上是等它自己重试：绿档（不吓人）')
+  check(hardLines[0] && !/[0-9]/.test(JSON.stringify(hardLines[0])) && softLines[0] && !/[0-9]/.test(JSON.stringify(softLines[0])), '两句失败原因整行一个数字都没有')
+  const hardText = say('truth.budgetSyncFailedHard')
+  const softText = say('truth.budgetSyncFailedSoft')
+  check(hardText.indexOf('还没同步上来') >= 0 && softText.indexOf('还没同步上来') >= 0, '两句开头都是「额度读数还没同步上来」：说的是不知道，不是用完了')
+  check(hardText.indexOf('没准备好') >= 0 && hardText.indexOf('重试') >= 0, 'hard 那句说清「命令行工具没准备好、后台继续重试」：' + hardText)
+  check(softText.indexOf('没连上') >= 0 && softText.indexOf('重试') >= 0, 'soft 那句说清「刚才没连上、后台继续重试」：' + softText)
+  check(hardText !== softText && hardText !== say('truth.budgetUnknown') && softText !== say('truth.budgetUnknown'), '两种失败与中性那句是不同的话（说不出类别时才用中性句）')
+  check(hardText.indexOf('用完') < 0 && softText.indexOf('用完') < 0 && hardText.indexOf('耗尽') < 0 && softText.indexOf('耗尽') < 0, '两句都不把「不知道」说成「用完了 / 耗尽」')
+  check(!!en['truth.budgetSyncFailedHard'] && !!en['truth.budgetSyncFailedSoft'] && !/[0-9]/.test(en['truth.budgetSyncFailedHard']) && !/[0-9]/.test(en['truth.budgetSyncFailedSoft']), '两句英文文案也在，且同样不出现数字')
+  // 模型未知仍第一优先：sync 说什么都不该把「模型不知道」改口成「同步失败」。
+  const modelWithFail = truth.budgetNoticeLines({ backend: { budgetKind: 'unknown', readKnown: false, offNetwork: false, reason: 'unsupported', sync: { lastFailAt: 1712345678000, lastFailKind: 'hard' } } })
+  check(modelWithFail.length === 1 && modelWithFail[0].key === 'truth.budgetUnknownModel', '模型未知仍是第一优先（实得 ' + keysOf(modelWithFail) + '）')
+  // 承上：形状不对的 sync（绕过宿主校验直接喂）也不换口，仍说中性那句。
+  const bogusSync = truth.budgetNoticeLines({ backend: { budgetKind: 'two-buckets', readKnown: false, offNetwork: false, sync: { lastFailAt: -1, lastFailKind: 'fatal' } } })
+  check(bogusSync.length === 1 && bogusSync[0].key === 'truth.budgetUnknown', '形状不对的 sync 不猜类别：仍说中性的「还没同步上来」（实得 ' + keysOf(bogusSync) + '）')
+  // 离网后端不受影响：没有额度这回事，不说同步失败。
+  const offWithFail = truth.budgetNoticeLines({ backend: { budgetKind: 'none', readKnown: false, offNetwork: true, sync: { lastFailAt: 1712345678000, lastFailKind: 'hard' } } })
+  check(offWithFail.length === 1 && offWithFail[0].key === 'truth.budgetOffNetwork', '离网后端即使记过失败，说的仍是「不需要额度」（实得 ' + keysOf(offWithFail) + '）')
+})()
+
+// ---------- 一之三、并进面板那一行：truthNoticeLines 读得到额度那句 ----------
 ;(function checkPanelMerge() {
   const stWith = function (backend: any, extra?: any): any {
     return Object.assign({ snapshot: { generatedMs: 1, refresh: { tier: null, deferred: false, paused: false, notRefreshing: false, backend: backend } }, snapMode: 'real', snapError: null }, extra || {})
@@ -249,16 +316,96 @@ await (async function checkComposer() {
   const e2eLines = truth.truthNoticeLines({ snapshot: { generatedMs: 1, refresh: e2eSnap.snapshot.refresh }, snapMode: 'real', snapError: null }, 1)
   check(e2eLines.length === 1 && e2eLines[0].key === 'truth.budgetUnknownModel', 'unknown 模型从注册表一路走到面板那一行「未知」（实得 ' + keysOf(e2eLines) + '）')
   check(!!e2eSnap.snapshot.refresh.backend && e2eSnap.snapshot.refresh.backend.reason === 'unsupported', '回执（wf.snapshot 回包）里带着 unknown 模型的原因')
+
+  // #1006：后台同步失败的结论随读数一起进快照，面板才有话可说。形状只认两种类别 + 有限正数时刻，
+  // 坏形状只丢 sync，绝不动读数本身的格子（不因为解释不清就把整格读数一起扔掉）。
+  const syncReadout = { budgetKind: 'two-buckets', readKnown: false, offNetwork: false, reason: 'not-measured', sync: { lastFailAt: 1712345678000, lastFailKind: 'hard' } }
+  const withSync = await makeComposer({ budgetReadout: function (): any { return syncReadout } }).composeSnapshot(REF.backend, REF, {}, { force: true })
+  const sBackend = withSync.snapshot && withSync.snapshot.refresh && withSync.snapshot.refresh.backend
+  check(!!sBackend && !!sBackend.sync && sBackend.sync.lastFailAt === 1712345678000 && sBackend.sync.lastFailKind === 'hard', 'backend.sync 原样进快照（lastFailAt / lastFailKind 不变形）')
+  check(!!sBackend && sBackend.budgetKind === 'two-buckets' && sBackend.readKnown === false && sBackend.reason === 'not-measured', '带上 sync 不改变读数本身的字段')
+  const syncPanel = truth.budgetNoticeLines(withSync.snapshot.refresh)
+  check(syncPanel.length === 1 && syncPanel[0].key === 'truth.budgetSyncFailedHard', '快照里的 sync 让面板说出失败类别（实得 ' + keysOf(syncPanel) + '）')
+
+  const noSync = await makeComposer({ budgetReadout: function (): any { return { budgetKind: 'two-buckets', readKnown: false, offNetwork: false, reason: 'not-measured' } } }).composeSnapshot(REF.backend, REF, {}, { force: true })
+  check(!!noSync.snapshot.refresh.backend && noSync.snapshot.refresh.backend.sync === undefined, '读数里没有 sync 时快照不补一格（不编一个失败）')
+
+  const badSyncs = [
+    { label: '类别不在白名单', sync: { lastFailAt: 1712345678000, lastFailKind: 'fatal' } },
+    { label: '时刻是 NaN', sync: { lastFailAt: Number.NaN, lastFailKind: 'hard' } },
+    { label: '时刻不是正数', sync: { lastFailAt: 0, lastFailKind: 'soft' } },
+    { label: '时刻是字符串', sync: { lastFailAt: '1712345678000', lastFailKind: 'soft' } },
+  ]
+  for (const bad of badSyncs) {
+    const badSnap = await makeComposer({ budgetReadout: function (): any { return { budgetKind: 'two-buckets', readKnown: false, offNetwork: false, reason: 'not-measured', sync: bad.sync } } }).composeSnapshot(REF.backend, REF, {}, { force: true })
+    const b = badSnap.snapshot.refresh.backend
+    check(!!b && b.sync === undefined && b.reason === 'not-measured' && b.budgetKind === 'two-buckets', '坏形状的 sync 整块丢掉（' + bad.label + '），读数原有字段不受影响')
+  }
+
+  // #1006 整条链：记事本记下失败 → budget-state 的面板读数带着它 → 快照原样透传 → 界面说「为什么还没同步」。
+  // 前面几条都是手搓对象；这一条让生产者自己的输出走完全程，防「每段都对、接起来断」。
+  const makeRegistry = function (kind: string): any {
+    return { modules: function (): any[] { return [{ id: 'fake', budget: { kind: kind, countsRequests: false, countsPoints: false, independentBuckets: false } }] } }
+  }
+  const chainStore = createQuotaSyncStatus()
+  chainStore.note('fake', { ok: false, failKind: 'hard', reason: 'tool-missing', at: 1712345678000 })
+  const chainState = createBudgetState({
+    getTrackerRegistry: function (): any { return makeRegistry('two-buckets') },
+    ledger: { view: function (): any { return null } },
+    syncStatus: function (id: string): any { return chainStore.view(id) },
+  })
+  const chainPanel = chainState('fake')
+  check(!!chainPanel && chainPanel.readKnown === false && !!chainPanel.sync && chainPanel.sync.lastFailKind === 'hard', '生产者把后台同步失败带到面板状态上（读数未知时带 sync）')
+  const chainSnap = await makeComposer({ budgetReadout: function (): any { return chainPanel } }).composeSnapshot(REF.backend, REF, {}, { force: true })
+  check(!!chainSnap.snapshot.refresh.backend && !!chainSnap.snapshot.refresh.backend.sync, '快照把面板状态的 sync 原样带到 refresh.backend')
+  const chainLines = truth.truthNoticeLines({ snapshot: { generatedMs: 1, refresh: chainSnap.snapshot.refresh }, snapMode: 'real', snapError: null }, 1)
+  check(chainLines.length === 1 && chainLines[0].key === 'truth.budgetSyncFailedHard' && chainLines[0].tone === 'yellow', '整条链走到界面说的是「环境没准备好」（实得 ' + keysOf(chainLines) + '）')
+  // 同一条链换成 soft：说的换成「刚才没连上」那句。
+  const softStore = createQuotaSyncStatus()
+  softStore.note('fake', { ok: false, failKind: 'soft', reason: 'network', at: 1712345678000 })
+  const softPanel = createBudgetState({
+    getTrackerRegistry: function (): any { return makeRegistry('two-buckets') },
+    ledger: { view: function (): any { return null } },
+    syncStatus: function (id: string): any { return softStore.view(id) },
+  })('fake')
+  const softSnap = await makeComposer({ budgetReadout: function (): any { return softPanel } }).composeSnapshot(REF.backend, REF, {}, { force: true })
+  const softChainLines = truth.truthNoticeLines({ snapshot: { generatedMs: 1, refresh: softSnap.snapshot.refresh }, snapMode: 'real', snapError: null }, 1)
+  check(softChainLines.length === 1 && softChainLines[0].key === 'truth.budgetSyncFailedSoft' && softChainLines[0].tone === 'fresh', 'soft 失败走完整条链说的是「刚才没连上」（实得 ' + keysOf(softChainLines) + '）')
+  // 同步成功之后：面板状态不再带 sync，界面退回中性的那句。
+  chainStore.note('fake', { ok: true, at: 1712345680000 })
+  const recovered = chainState('fake')
+  const recoveredLines = truth.budgetNoticeLines({ backend: recovered })
+  check(!!recovered && recovered.sync === undefined && keysOf(recoveredLines) === 'truth.budgetUnknown', '同步成功之后面板不再报失败，退回中性的「还没同步上来」')
+  // 离网后端不带 sync：没有额度这回事，不能说「同步坏了」。
+  const offPanel = createBudgetState({
+    getTrackerRegistry: function (): any { return makeRegistry('off-network') },
+    ledger: { view: function (): any { return null } },
+    syncStatus: function (): any { return { lastFailAt: 1712345678000, lastFailKind: 'hard' } },
+  })('fake')
+  check(!!offPanel && offPanel.offNetwork === true && offPanel.sync === undefined, '离网后端不带 sync（没有额度这回事，不说同步失败）')
+  // syncStatus 自己回坏形状或抛错：面板状态不带 sync，不猜类别。
+  const weirdSync = createBudgetState({
+    getTrackerRegistry: function (): any { return makeRegistry('two-buckets') },
+    ledger: { view: function (): any { return null } },
+    syncStatus: function (): any { return { lastFailAt: Number.NaN, lastFailKind: 'hard' } },
+  })('fake')
+  const throwingSync = createBudgetState({
+    getTrackerRegistry: function (): any { return makeRegistry('two-buckets') },
+    ledger: { view: function (): any { return null } },
+    syncStatus: function (): any { throw new Error('status down') },
+  })('fake')
+  check(!!weirdSync && weirdSync.sync === undefined && !!throwingSync && throwingSync.sync === undefined, 'syncStatus 回坏形状或抛错时不带 sync（面板不猜失败类别，也不连累读数）')
 })()
 
 // ---------- 三、快照信封：refresh 整块透传，backend 跟着走 ----------
 ;(function checkEnvelope() {
   const env = createSnapshotEnvelope({ getGhPath: function (): null { return null }, getGhLastError: function (): null { return null } })
-  const backend = { id: 'fake', budgetKind: 'requests', readKnown: true, offNetwork: false, requests: { remaining: 3000, limit: 5000 } }
+  const backend = { id: 'fake', budgetKind: 'requests', readKnown: true, offNetwork: false, requests: { remaining: 3000, limit: 5000 }, sync: { lastFailAt: 1712345678000, lastFailKind: 'soft' } }
   const refresh = { tier: null, deferred: false, paused: false, notRefreshing: false, backend: backend }
   const snap = env.buildSnap({ deck: null, refresh: refresh } as any)
   check(!!snap.refresh && snap.refresh.backend && snap.refresh.backend.id === 'fake', 'wf.snapshot 回包把 refresh.backend 带出去了（宿主写了、界面读得到）')
   check(!!snap.refresh && JSON.stringify(snap.refresh.backend) === JSON.stringify(backend), 'backend 整块原样透传（这一层不拆字段、不补默认值）')
+  check(!!snap.refresh && !!snap.refresh.backend.sync && snap.refresh.backend.sync.lastFailKind === 'soft', '后台同步失败的结论也随 wf.snapshot 回包带出去（#1006）')
   check(!!snap.refresh && snap.refresh.tier === null && snap.refresh.deferred === false && snap.refresh.paused === false && snap.refresh.notRefreshing === false, '信封透传不改变旧四格的值')
   const snapNoBackend = env.buildSnap({ deck: null, refresh: { tier: null, deferred: false, paused: false, notRefreshing: false } } as any)
   check(!!snapNoBackend.refresh && !('backend' in snapNoBackend.refresh), '老形状的 refresh 过信封之后仍然没有 backend（不凭空补一格）')

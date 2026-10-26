@@ -9,11 +9,21 @@
 //    （two-buckets / requests / none），不许按 backendId 猜。翻译只在这一处做：面板生产者说注册表词、
 //    面板消费者说面板词，两个词表在 #1447 之前没有接上，GitLab 的 requests-only 会被消费方当成不认识的口径整格丢掉。
 
+// 「后台同步最近一次失败」的形状只有一处定义：quota-sync-status 的失败出口。这里用别名而不是再抄一份
+// 字段 —— 两处各写一份时，改一处漏一处的形状校验最难发现，ADR 20261021 要求同一件事只留一处定义。
+import type { QuotaSyncFailure } from './quota-sync-status.js'
+
 /** 一个桶的水位：limit 是这条桶的额度上限（读数没给上限时退化成 remaining，不编造）。 */
 export interface BudgetBucketLevel {
   readonly remaining: number
   readonly limit: number
 }
+
+/**
+ * 后台同步最近一次失败的结论（#1006 期望⑤）：读数还没同步上来时，界面靠它说清是哪一种失败
+ * （环境没准备好要人处理 / 刚才没连上等自己重试）。形状与 quota-sync-status 的 view 出口一致。
+ */
+export type BudgetSyncFailure = QuotaSyncFailure
 
 /** 面板侧额度状态：与 src/host/tracker/snapshot.ts 的 RefreshBackendBudget 同一形状（那边是消费方）。 */
 export interface BudgetPanelState {
@@ -24,6 +34,8 @@ export interface BudgetPanelState {
   readonly buckets?: { readonly rest?: BudgetBucketLevel; readonly graphql?: BudgetBucketLevel }
   readonly requests?: BudgetBucketLevel
   readonly reason?: string
+  /** 后台同步最近一次失败；只在查得到失败且不是离网后端时才带（没有失败就不写这一格）。 */
+  readonly sync?: BudgetSyncFailure
 }
 
 export interface BudgetStateDeps {
@@ -31,6 +43,11 @@ export interface BudgetStateDeps {
   readonly getTrackerRegistry?: () => any
   /** 账本；只读 view，不在这里记账。 */
   readonly ledger: any
+  /**
+   * 后台同步结论的出口（#1006）：给后端编号，回它最近一次失败；没有失败或没接这个口子就回 null。
+   * 不接 = 旧行为（面板状态不带 sync），老调用点一个都不用改。
+   */
+  readonly syncStatus?: (backendId: string) => BudgetSyncFailure | null
 }
 
 /** 从注册表里取某个后端的预算口径（拿不到回 null：不编一个口径出来）。 */
@@ -70,6 +87,29 @@ function ledgerLevelOf(ledger: any, backendId: string, bucket: string): BudgetBu
   } catch (eV: any) { return null }
 }
 
+/**
+ * 问后台同步记事本「这个后端最近一次失败是什么」：只认形状完整的结论（有限正数时刻 + 两种类别之一）。
+ * 判别不了就回 null —— 面板宁可说中性的「还没同步上来」，也不编一个可能错的失败类别。
+ */
+function syncFailureOf(deps: BudgetStateDeps, backendId: string): BudgetSyncFailure | null {
+  try {
+    const f: any = (typeof deps.syncStatus === 'function') ? deps.syncStatus(backendId) : null
+    if (!f || typeof f !== 'object') return null
+    if (typeof f.lastFailAt !== 'number' || !isFinite(f.lastFailAt) || f.lastFailAt <= 0) return null
+    if (f.lastFailKind !== 'hard' && f.lastFailKind !== 'soft') return null
+    return { lastFailAt: f.lastFailAt, lastFailKind: f.lastFailKind }
+  } catch (eS: any) { return null }
+}
+
+/**
+ * 把失败结论挂到面板状态上（没有就原样返回）。离网后端不调这个：离网没有额度这回事，
+ * 在它身上说「还没同步」会把「不需要额度」误导成「同步坏了」。
+ */
+function withSync(state: BudgetPanelState, sync: BudgetSyncFailure | null): BudgetPanelState {
+  if (!sync) return state
+  return { ...state, sync: sync }
+}
+
 /** 造一个「按后端编号取面板额度状态」的读数口；后端编号为空或模型不认识就回 null，调用方据此不写这一格。 */
 export function createBudgetState(deps: BudgetStateDeps): (backendId: any) => BudgetPanelState | null {
   return function budgetState(backendId: any): BudgetPanelState | null {
@@ -81,19 +121,21 @@ export function createBudgetState(deps: BudgetStateDeps): (backendId: any) => Bu
     if (kind === 'off-network') {
       return { id: id, budgetKind: panelKindOf(kind), readKnown: true, offNetwork: true }
     }
+    // 后台同步最近一次失败：三种非离网口径都挂在状态上（读数未知时界面会用到；读数已知时界面不看它）。
+    const sync: BudgetSyncFailure | null = syncFailureOf(deps, id)
     if (kind === 'requests-only') {
       const lv = ledgerLevelOf(deps.ledger, id, 'requests')
-      return lv
+      return withSync(lv
         ? { id: id, budgetKind: panelKindOf(kind), readKnown: true, offNetwork: false, requests: lv }
-        : { id: id, budgetKind: panelKindOf(kind), readKnown: false, offNetwork: false, reason: 'not-measured' }
+        : { id: id, budgetKind: panelKindOf(kind), readKnown: false, offNetwork: false, reason: 'not-measured' }, sync)
     }
     if (kind === 'two-buckets') {
       const rest = ledgerLevelOf(deps.ledger, id, 'rest')
       const graphql = ledgerLevelOf(deps.ledger, id, 'graphql')
-      return (rest && graphql)
+      return withSync((rest && graphql)
         ? { id: id, budgetKind: panelKindOf(kind), readKnown: true, offNetwork: false, buckets: { rest: rest, graphql: graphql } }
-        : { id: id, budgetKind: panelKindOf(kind), readKnown: false, offNetwork: false, reason: 'not-measured' }
+        : { id: id, budgetKind: panelKindOf(kind), readKnown: false, offNetwork: false, reason: 'not-measured' }, sync)
     }
-    return { id: id, budgetKind: 'unknown', readKnown: false, offNetwork: false, reason: 'unsupported' }
+    return withSync({ id: id, budgetKind: 'unknown', readKnown: false, offNetwork: false, reason: 'unsupported' }, sync)
   }
 }
