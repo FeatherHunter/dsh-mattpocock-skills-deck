@@ -178,7 +178,9 @@ const WRITE_REL = 'src/client/kernel/settings-view-write.js'
 const DEBUG_REL = 'src/client/kernel/settings-debug.js'
 // 行数口径量真源（转成 TS 后产物经转译排版会胀行，胀的是机器排版不是手写；零增长守的是手写，量真源）。
 const DEBUG_TRUTH_REL = 'src/client/kernel/settings-debug.ts'
-const LOG_REL = 'src/client/kernel/log.js'
+// #1143 起旧手写日志内核 src/client/kernel/log.js 已删（dsh-log 0.4.1 包是唯一真相）：
+// LOG_REL 常量一并删除。本文件运行时拼接走 DERIVED_REL（派生 bundle），LOG_REL 从未参与拼接，
+// 只用于下面行数口径断言；派生 bundle 是生成物、行数无意义，所以不改指、直接删（行数档见下）。
 const INDEX_REL = 'src/client/index.ts' // #1254：入口真源转写为 .ts
 const TAIL = '\nreturn { LOG_DEBUG_KEY: LOG_DEBUG_KEY, logSwitch: logSwitch, logQueue: logQueue, readLocalDebugSwitch: readLocalDebugSwitch, persistLocalDebugSwitch: persistLocalDebugSwitch, setLogSwitch: setLogSwitch, reconcileLogSwitch: reconcileLogSwitch, settingsDebugLegacy: settingsDebugLegacy, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagState: viewFlagState, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS, settingsDebugSet: settingsDebugSet, settingsDebugToggle: settingsDebugToggle, settingsDebugAdoptFromDoc: settingsDebugAdoptFromDoc, settingsDebugDrainDeferred: settingsDebugDrainDeferred, settingsDebugSetInDoc: settingsDebugSetInDoc, settingsDebugLegacyWrite: settingsDebugLegacyWrite, settingsDebugHasPending: settingsDebugHasPending, setViewFlagRoot: setViewFlagRoot }'
 function makeClient(env) {
@@ -221,8 +223,9 @@ async function main(): Promise<void> {
     // #1125 起本门禁按目录约定自动进链，不再读 package.json 长串。
     check(require('../scripts/lib/discover-gates.ts').isGatePlanned(ROOT, 'tests/verify-settings-debug.ts'),
       'verify 规划名单里登记了这一份门禁（不登记会静默不跑）。')
-    check(countLines(DEBUG_TRUTH_REL) <= 350 && countLines(LOG_REL) <= 350 && countLines(INDEX_REL) <= 350 && countLines(VIEW_REL) <= 350 && countLines(WRITE_REL) <= 350,
-      '五份文件都在 350 行以内（本片量真源 ' + countLines(DEBUG_TRUTH_REL) + '、旧真源 log.js ' + countLines(LOG_REL) + '、index.ts ' + countLines(INDEX_REL) + '、settings-view.js ' + countLines(VIEW_REL) + '、settings-view-write.js ' + countLines(WRITE_REL) + '）。')
+    // #1143 起旧手写日志内核已删（见上），这一档只量剩下四份手写真源。
+    check(countLines(DEBUG_TRUTH_REL) <= 350 && countLines(INDEX_REL) <= 350 && countLines(VIEW_REL) <= 350 && countLines(WRITE_REL) <= 350,
+      '四份文件都在 350 行以内（本片量真源 ' + countLines(DEBUG_TRUTH_REL) + '、index.ts ' + countLines(INDEX_REL) + '、settings-view.js ' + countLines(VIEW_REL) + '、settings-view-write.js ' + countLines(WRITE_REL) + '）。')
   }
 
   // 真件：宿主的核与两条设置电话

@@ -1,18 +1,16 @@
 // verify-log-switch-526.ts —— #526 开关写失败分类行门禁（TDD 红灯先行）。
-// 用法：node tests/verify-log-switch-526.ts（在插件根目录；先运行 node scripts/build.mts 生成产物）。
+// 用法：node --import ./scripts/ts-hook.mts tests/verify-log-switch-526.ts（在插件根目录；直接测 npm 包 dsh-log，不依赖构建产物）。
 // 背景：设置页点调试开关只弹“开关保存失败”提示，失败到底是哪一类（宿主不可用、
 //   宿主拒收、调用抛错）没有任何日志行留下，事后导出日志也看不出原因。
 // 要求：写开关函数的三条失败路各落一条告警级分类行，复用现成常驻事件
 //   host.call.fail（不新增事件名、不碰 54 总数），字段只用白名单三键
 //  （method、kind、errorHash），告警级始终落盘、不依赖调试开关。
+const fs = require('fs')
 const path = require('path')
-const { compileFn } = require('./lib/eval-probe.js')
-// 取源走共用入口（tests/lib/source-text.ts）：这一阶段 src/client 下的同名 .js 构建产物已经删掉，
-//   按 'src/client/kernel/log.js' 直接 fs.readFileSync 会 ENOENT。这里要两份文本：
-//   sourceText 拿真源原文给下面「对象转文本仍只在两处」按文本数；spliceableJs 按构建唯一口径转成
-//   可直接拼函数体的 JavaScript（中央时间 import 与行首 export 都已处理），给 loadLog 用。
-const { sourceText, spliceableJs } = require('./lib/source-text.ts')
-const centralTime = require('../src/shared/time-config/values.js')
+// 行为断言全部走包内日志库（dsh-log/client）：旧手写文件已删（src/client/kernel/log.js
+// 不在盘上），不再读手写源、不再拼函数体；与 verify-log-client.ts 同构。
+// dsh-log 是 ESM 包、这里是 CJS 门禁，动态 import 放在 main 开头赋值，下面先声明。
+let createClientLog = null
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -21,13 +19,15 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 
 console.log('开关写失败分类行门禁（#526：三类失败各留一条可区分的告警行）')
 
-// log.js 顶上的时间常量是拼包时由 client.js 提供的外部绑定；单独加载叶子文件时先补同名 globalThis 绑定。
-globalThis.LOG_FLUSH_MS = centralTime.LOG_FLUSH_MS
-globalThis.LOG_WATCHDOG_MS = centralTime.LOG_WATCHDOG_MS
-const src = sourceText('src/client/kernel/log.js')
-const logJs = spliceableJs('src/client/kernel/log.js')
+// 渲染路径禁令的核对源：旧手写 log.js 已删，对等的客户端运行时文本是包内 dist/client.js
+// 与同目录各下沉模块（switch-ops/forward/send/write 等）；对象转文本仍只在两处
+// （开关持久化 switch-cache.js 与批量转运 transport.js 各一处），与旧口径同数，断言不动。
+const pkgClientDir = path.join(ROOT, 'node_modules/dsh-log/dist/client')
+const src = [fs.readFileSync(path.join(ROOT, 'node_modules/dsh-log/dist/client.js'), 'utf8')]
+  .concat(fs.readdirSync(pkgClientDir).filter((f) => f.endsWith('.js')).map((f) => fs.readFileSync(path.join(pkgClientDir, f), 'utf8')))
+  .join('\n')
 
-// ---- 运行夹具：与 verify-log-client.ts 同构（去行首 export 载入，配假宿主与假存储） ----
+// ---- 运行夹具：与 verify-log-client.ts 同构（包内工厂配假宿主/假存储/假计时器） ----
 function makeLocalStorage(preset) {
   const map = new Map(Object.entries(preset || {}))
   return {
@@ -42,15 +42,13 @@ function makeTimer() {
 }
 function loadLog(options) {
   const opts = options || {}
-  // 取源见文件头：logJs 已经按构建口径转好（行首 export 与中央时间 import 都处理过），直接当函数体用。
-  const body = logJs
-  // 本文件选 compileFn：原来就是把这四个环境名当参数、把剥掉行首 export 的 log.js 当函数体造一个函数，
-  //   被造的代码只看这四个参数（依赖全部显式注入），与共用入口语义一一对应。
-  const factory = compileFn(
-    ['host', 'timer', 'localStorage', 'broadcastLogSwitch'],
-    body + '\nreturn { isEnabled, log, logSwitch, logQueue, setLogSwitch };'
-  )
-  return factory(opts.host, opts.timer, opts.localStorage, opts.broadcastLogSwitch)
+  // 包内工厂：调用方传宿主、计时器、存储、开关广播四个依赖与 wf 插件配置，拿回独立日志器。
+  return createClientLog({
+    host: opts.host || null,
+    timer: opts.timer || makeTimer(),
+    localStorage: opts.localStorage || makeLocalStorage(),
+    broadcastLogSwitch: opts.broadcastLogSwitch || null,
+  }, { pluginId: 'wf', prefix: 'wf' })
 }
 const failLines = (mod) => mod.logQueue.filter((e) => e.level === 'warn' && e.event === 'host.call.fail' &&
   e.fields && e.fields.method === 'wf.logSetSwitch')
@@ -63,6 +61,8 @@ function makeManualTimer() {
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
 async function main() {
+  // 包是唯一真相：动态 import 包内客户端入口（CJS 门禁引用 ESM 包走动态 import；失败会抛到 main 末尾的 catch 报红）。
+  ;({ createClientLog } = await import('dsh-log/client'))
   // ---- 宿主不可用：无 host.call，留宿主不可用分类行，旧值保持关闭 ----
   {
     const mod = loadLog({ localStorage: makeLocalStorage(), timer: makeTimer() })

@@ -1,26 +1,19 @@
 // verify-log-client.ts —— #490 client 日志底座门禁（设计 #335 第 1、4 章映射到 client 的断言）。
 // 用法：node tests/verify-log-client.ts（在插件根目录；先运行 node scripts/build.mts 生成产物）。
-// 覆盖 3 组：开关持久化（新键 dsws.debug、默认关闭、不动 dsws.cfg）、
+// 覆盖 3 组：开关持久化（名字空间 dsws.debug.<插件标识>、默认关闭、不动旧键）、
 //   对账（启动本地秒显、宿主为准、失败保持本地不回退开启）、广播（沿 broadcastCfg 同构）。
-// 外加 4 项底座自检：统一接口同名同参、体内兜底第一行、批量字面、双产物含新电话名。
+// 行为口径由包内日志库保证：手写文件已删（旧 src/client/kernel/log.js 不在盘上），
+//   不再按手写文件查行数与字面；统一接口、批量口径、电话名都以 dsh-log/client 包内常量与
+//   工厂返回对象的同一组接口（isEnabled/log/flush/getDroppedCount）为准；缺插件标识或前缀
+//   当场抛中文错的早失败哨兵由 main 开头一组断言直接核。
+// 外加双产物含新电话名；开关变更广播那半（broadcastLogSwitch 在 snapshot 文件）保持不动。
 const fs = require('fs')
 const path = require('path')
-// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
-const { compileFn } = require('./lib/eval-probe.js')
-// #1251：log 已从 .js 转成 .ts，同名 .js 是 esbuild 构建产物（双引号、行数也变了）。
-// 这一门的静态断言量的是「源码里写着哪个键、打哪支电话」，必须读 .ts 真源；
-// 运行夹具又需要可求值的 JavaScript（.ts 带类型标注），所以同一份真源再经 spliceableJs 转译一次。
-const { sourcePath, spliceableJs } = require('./lib/source-text.ts')
+// 快照文件的 broadcastLogSwitch 断言仍按文本读源，走统一取源入口（#1207 立的规矩）。
+const { sourcePath } = require('./lib/source-text.ts')
 // 产物新鲜度判据全仓只有一份：scripts/lib/build-cache.mts 的 judgeProducts（#1326）。缓存可用时比内容摘要；
 // 缓存不可用时回落按修改时间判断，原因用 INFO 行打出来（判绿也打，不静默），失败文案直接用判据给的原因。
 const { judgeProducts } = require('../scripts/lib/build-cache.mts')
-// 中央时间真值：发批间隔等时间数字只住 config/*.yaml，这里读同一份导出来比对，不在测试里写第二份数字。
-const centralTime = require('../src/shared/time-config/values.js')
-// 日志模块顶部那一行中央 import 在 compileFn 函数体里是非法的（函数体不许出现 import），
-// 求值前剥掉；名字走全局预埋，值就是中央导出的同一份。
-globalThis.LOG_FLUSH_MS = centralTime.LOG_FLUSH_MS
-globalThis.LOG_WATCHDOG_MS = centralTime.LOG_WATCHDOG_MS
-const stripTimeConfigImport = (text) => text.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -29,50 +22,29 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 
 console.log('client 日志底座门禁（#490：开关持久化、对账 winner 为宿主、广播同构）')
 
-const LOG_REL = 'src/client/kernel/log.js'
-const LOG_SRC = path.join(ROOT, sourcePath(LOG_REL))
 const PROBE_SRC = path.join(ROOT, sourcePath('src/refresh/rooms/client/snapshot-sync.js'))
-// 运行夹具用转译后的同一份真源：类型标注会被剥掉，模块级 import 也被切成可拼接的文本。
-const evalSrc = spliceableJs(LOG_REL)
 
-// ---- 底座自检：文件行数、统一接口、体内兜底 ----
-const src = fs.readFileSync(LOG_SRC, 'utf8')
-check(src.split(/\r?\n/).length <= 350, '日志模块不超 350 行（实得 ' + src.split(/\r?\n/).length + ' 行）')
-for (const name of ['isEnabled', 'log', 'flush', 'getDroppedCount']) {
-  check(new RegExp('export\\s+(const|function)\\s+' + name + '\\b').test(src), '客户端导出与宿主同名同参接口 ' + name)
-}
-const logAt = src.indexOf('export const log = function')
-let firstLineOk = false
-if (logAt >= 0) {
-  const after = src.slice(logAt).split('\n').slice(1, 4).map((l) => l.trim()).filter(Boolean)
-  firstLineOk = after.length > 0 && after[0].includes('isEnabled')
-}
-check(firstLineOk, '级别判断放在 log 函数第一行（体内兜底，与宿主同纪律）')
-check(src.includes('LOG_BATCH_MAX = 50'), '每批最多 50 条（设计 2.5 字面）')
-check(/^\s*import\s*\{[^}]*LOG_FLUSH_MS[^}]*\}\s*from\s*['"][^'"]*time-config\/values\.js['"]/m.test(src), '发批间隔从中央时间参数真引用 LOG_FLUSH_MS（设计 2.5，不留数字字面量）')
-check(!/LOG_FLUSH_MS\s*=\s*\d/.test(src), '发批间隔没有本地数字声明（只有中央 import）')
-check(src.includes('LOG_PACKET_BYTES = 131072'), '单包 128KB 上限（设计 2.5 字面）')
-check(src.includes('LOG_QUEUE_MAX = 100'), '队列 100 条封顶（先到先截，不无界缓冲）')
-// 渲染路径禁令：日志模块里的对象转文本只许出现在转发估算与开关持久化两处（均为非渲染路径）。
-const stringifyHits = src.split('\n').filter((l) => l.includes('JSON.stringify'))
-check(stringifyHits.length === 2 && src.includes('estimateBatchBytes') && src.includes('persistLocalDebugSwitch'), '对象转文本只在转发估算与开关持久化两处（渲染路径禁令）')
+// 行为断言全部走包内日志库（dsh-log/client）：手写文件已删，不再读手写源。
+// dsh-log 是 ESM 包、这里是 CJS 门禁，动态 import 放在 main 开头赋值，下面先声明。
+let createClientLog = null
+let LOG_BATCH_MAX = 0
+let LOG_FLUSH_MS = 0
+let LOG_PACKET_BYTES = 0
+let LOG_QUEUE_MAX = 0
+let LOG_DEBUG_KEY = ''
+let debugStorageKey = null
+let buildClientPhoneNames = null
 
-// ---- 开关持久化：新键形状、默认关闭、不动旧键 ----
-check(src.includes("LOG_DEBUG_KEY = 'dsws.debug'"), '本地开关新键为 dsws.debug（设计 1.3 字面）')
-const srcNoComments = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1')
-check(!srcNoComments.includes('dsws.cfg') && !srcNoComments.includes('CFG_KEY'), '不动 dsws.cfg 现有字段（设计 1.3，注释除外）')
-check(/enabled:\s*false/.test(src), '开关默认关闭（设计 1.3：全局整机一个开关，默认关闭）')
-
-// ---- 对账与广播接线字面 ----
-check(src.includes("host.call('wf.logGetSwitch'"), '对账经宿主开关读电话 wf.logGetSwitch')
-check(src.includes("host.call('wf.logSetSwitch'"), '设置经宿主开关写电话 wf.logSetSwitch')
-check(src.includes("host.call('wf.logBatch'"), '转发经宿主记录电话 wf.logBatch')
-check(!src.includes('wf.logExport') && !src.includes('wf.logClear'), '底座不碰导出与清空电话（界面批次范围，变了同步更新本门禁）')
+// ---- 底座自检：手写文件已删，口径由包内常量与早失败哨兵保证 ----
+// 这一组原来是读手写源的静态断言（不超 350 行、export 正则、LOG_BATCH_MAX 字面、
+// JSON.stringify 只两处、dsws.debug 键形状）：手写文件已删（旧 src/client/kernel/log.js
+// 不在盘上），整组删掉，不硬改成去查派生 bundle（bundle 是生成物，行数与写法无意义）。
+// 同一设计数字改由 main 开头的包内常量断言（包是唯一真源），接口改由工厂返回对象在运行时断言。
 const probeSrc = fs.readFileSync(PROBE_SRC, 'utf8')
 check(/export\s+const\s+broadcastLogSwitch\b/.test(probeSrc), '开关变更广播函数 broadcastLogSwitch 在 probe-snapshot.js')
 check(probeSrc.includes('applyTo(shared)') && probeSrc.includes('Object.keys(stores)'), '广播沿 broadcastCfg 同构（共享与全组逐个走访发出）')
 
-// ---- 运行夹具：把日志模块按构建语义（去行首 export）载入，配假宿主与假存储 ----
+// ---- 运行夹具：包内工厂配假宿主与假存储，插件配置固定 wf ----
 function makeLocalStorage(preset) {
   const map = new Map(Object.entries(preset || {}))
   return {
@@ -85,44 +57,61 @@ function makeTimer() {
   const calls = []
   return { calls, timeout(fn, ms) { calls.push(ms); return calls.length } }
 }
-function loadLog(options) {
+function loadPkgLog(options) {
   const opts = options || {}
-  // 夹具吃的是转译后的真源（evalSrc），不是上面的静态文本：静态那份带类型标注，造函数会语法错。
-  const stripped = stripTimeConfigImport(evalSrc)
-  const body = stripped.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
-  // 日志模块（剥掉行首 export）整份当函数体造函数，宿主与计时器等四个依赖显式当参数名，所以走 compileFn。
-  const factory = compileFn(
-    ['host', 'timer', 'localStorage', 'broadcastLogSwitch'],
-    body + '\nreturn { isEnabled, log, flush, getDroppedCount, logSwitch, logQueue, logDroppedState,' +
-    ' LOG_BATCH_MAX, LOG_FLUSH_MS, LOG_PACKET_BYTES, LOG_QUEUE_MAX,' +
-    ' readLocalDebugSwitch, persistLocalDebugSwitch, sendLogBatch, reconcileLogSwitch, setLogSwitch };'
-  )
-  return factory(opts.host, opts.timer, opts.localStorage, opts.broadcastLogSwitch)
+  // 包内工厂：调用方传宿主、计时器、存储、开关广播四个依赖与 wf 插件配置，拿回独立日志器。
+  return createClientLog({
+    host: opts.host || null,
+    timer: opts.timer || makeTimer(),
+    localStorage: opts.localStorage || makeLocalStorage(),
+    broadcastLogSwitch: opts.broadcastLogSwitch || null,
+  }, { pluginId: 'wf', prefix: 'wf' })
 }
 
 async function main() {
+  // 行为断言全部走包内日志库（dsh-log/client）：手写文件已删，不再读手写源。
+  // CJS 门禁引用 ESM 包走动态 import；失败会抛到 main 末尾的 catch 报红。
+  ;({ createClientLog, LOG_BATCH_MAX, LOG_FLUSH_MS, LOG_PACKET_BYTES, LOG_QUEUE_MAX,
+    LOG_DEBUG_KEY, debugStorageKey, buildClientPhoneNames } = await import('dsh-log/client'))
+  // 包内常量即设计口径（包是唯一真源，不在门禁里写第二份数字）。
+  check(LOG_BATCH_MAX === 50, '包内批量口径：每批最多 50 条（设计 2.5）')
+  check(LOG_FLUSH_MS === 1000, '包内发批间隔 1000 毫秒（设计 2.5）')
+  check(LOG_PACKET_BYTES === 131072, '包内单包 128KB 上限（设计 2.5）')
+  check(LOG_QUEUE_MAX === 100, '包内队列 100 条封顶（先到先截，不无界缓冲）')
+  check(LOG_DEBUG_KEY === 'dsws.debug', '包内本地开关以前缀 dsws.debug 派生名字空间')
+  check(debugStorageKey('wf') === 'dsws.debug.wf', 'wf 插件实际存储键为 dsws.debug.wf（旧单键不再共用）')
+  check(JSON.stringify(buildClientPhoneNames('wf')) === JSON.stringify({ logBatch: 'wf.logBatch', logExport: 'wf.logExport', logClear: 'wf.logClear', logGetSwitch: 'wf.logGetSwitch', logSetSwitch: 'wf.logSetSwitch' }), '包内电话名拼法与现状一字不差（前缀加点加动作名）')
+  for (const name of ['isEnabled', 'log', 'flush', 'getDroppedCount']) {
+    check(typeof createClientLog({ localStorage: makeLocalStorage(), timer: makeTimer() }, { pluginId: 'wf', prefix: 'wf' })[name] === 'function', '包内客户端返回对象含接口 ' + name)
+  }
+  // 早失败哨兵：缺插件标识或前缀，建库当场抛包内中文错，不等到落盘才静默丢数据。
+  for (const bad of [undefined, { prefix: 'wf' }, { pluginId: 'wf' }]) {
+    let threw = false
+    try { createClientLog({ localStorage: makeLocalStorage(), timer: makeTimer() }, bad) } catch (e) { threw = /dsh-log/.test(String((e && e.message) || e)) }
+    check(threw, '缺配置当场抛包内中文错（入参 ' + JSON.stringify(bad) + '）')
+  }
   // ---- 默认关闭：空本地存储载入，信息与调试不允许，错误与告警允许 ----
   {
-    const mod = loadLog({ localStorage: makeLocalStorage(), timer: makeTimer() })
+    const mod = loadPkgLog({ localStorage: makeLocalStorage(), timer: makeTimer() })
     check(mod.isEnabled('error') === true, '关闭时错误仍允许（error 始终落盘）')
     check(mod.isEnabled('warn') === true, '关闭时告警仍允许（warn 始终落盘）')
     check(mod.isEnabled('info') === false, '关闭时信息不允许（默认关闭）')
     check(mod.isEnabled('debug') === false, '关闭时调试不允许（默认关闭）')
-    check(mod.logSwitch.enabled === false && mod.logSwitch.sampleRate === 1, '开关内存默认 { enabled 关闭, sampleRate 1 }')
+    check(mod.logSwitch.enabled === false, '开关内存默认关闭')
   }
 
   // ---- 启动本地秒显：本地已开，载入即开，不等宿主 ----
   {
-    const ls = makeLocalStorage({ 'dsws.debug': JSON.stringify({ enabled: true, sampleRate: 0.5, rev: 1 }) })
-    const mod = loadLog({ localStorage: ls, timer: makeTimer() })
+    const ls = makeLocalStorage({ [debugStorageKey('wf')]: JSON.stringify({ enabled: true, rev: 1 }) })
+    const mod = loadPkgLog({ localStorage: ls, timer: makeTimer() })
     check(mod.isEnabled('info') === true, '本地已开则秒显为开（启动先读本地）')
-    check(mod.logSwitch.sampleRate === 0.5, '本地采样率秒显读回（0.5）')
+    check(mod.readLocalDebugSwitch().enabled === true, '本地开关读回为开（秒显与持久化同键）')
   }
 
   // ---- 关闭时零调用：不进队列、不排定时器、不计数 ----
   {
     const timer = makeTimer()
-    const mod = loadLog({ localStorage: makeLocalStorage(), timer })
+    const mod = loadPkgLog({ localStorage: makeLocalStorage(), timer })
     for (let i = 0; i < 5; i++) mod.log('info', 'evt.closed', { n: i })
     for (let i = 0; i < 5; i++) mod.log('debug', 'evt.closed.debug', { n: i })
     check(timer.calls.length === 0, '关闭时记信息与调试不排定时器（零调用）')
@@ -132,25 +121,27 @@ async function main() {
 
   // ---- 对账 winner 为宿主：本地开、宿主关，对账后关并落本地 ----
   {
-    const ls = makeLocalStorage({ 'dsws.debug': JSON.stringify({ enabled: true, sampleRate: 1, rev: 1 }) })
+    const ls = makeLocalStorage({ [debugStorageKey('wf')]: JSON.stringify({ enabled: true, rev: 1 }) })
     let broadcast = 0
-    const host = { call(name) { return Promise.resolve({ ok: true, enabled: false, sampleRate: 1 }) } }
-    const mod = loadLog({ localStorage: ls, timer: makeTimer(), host, broadcastLogSwitch() { broadcast += 1 } })
+    let seenName = null
+    const host = { call(name) { seenName = name; return Promise.resolve({ ok: true, enabled: false }) } }
+    const mod = loadPkgLog({ localStorage: ls, timer: makeTimer(), host, broadcastLogSwitch() { broadcast += 1 } })
     check(mod.isEnabled('info') === true, '对账前读本地（秒显为开）')
     const res = await mod.reconcileLogSwitch()
     check(res.ok === true && mod.logSwitch.enabled === false, '对账后以宿主为准（本地开、宿主关则关）')
-    check(JSON.parse(ls._map.get('dsws.debug')).enabled === false, '对账后本地持久化跟宿主走')
+    check(JSON.parse(ls._map.get(debugStorageKey('wf'))).enabled === false, '对账后本地持久化跟宿主走')
+    check(seenName === 'wf.logGetSwitch', '对账经宿主开关读电话 wf.logGetSwitch')
     check(broadcast === 1, '对账成功向全组广播一次（broadcastLogSwitch）')
     check(mod.isEnabled('info') === false, '对账后调用处判断同步变关（对账前不产调试日志）')
   }
 
   // ---- 对账失败保持本地：宿主不可用，不回退为开启 ----
   {
-    const ls = makeLocalStorage({ 'dsws.debug': JSON.stringify({ enabled: true, sampleRate: 1, rev: 1 }) })
-    const mod = loadLog({ localStorage: ls, timer: makeTimer(), host: { call() { return Promise.reject(new Error('断线')) } } })
+    const ls = makeLocalStorage({ [debugStorageKey('wf')]: JSON.stringify({ enabled: true, rev: 1 }) })
+    const mod = loadPkgLog({ localStorage: ls, timer: makeTimer(), host: { call() { return Promise.reject(new Error('断线')) } } })
     const res = await mod.reconcileLogSwitch()
     check(res.ok === false && mod.logSwitch.enabled === true, '转发失败保持本地值（仍开，不回退）')
-    const mod2 = loadLog({ localStorage: makeLocalStorage(), timer: makeTimer() })
+    const mod2 = loadPkgLog({ localStorage: makeLocalStorage(), timer: makeTimer() })
     const res2 = await mod2.reconcileLogSwitch()
     check(res2.ok === false && mod2.logSwitch.enabled === false, '无宿主时保持本地关（不回退为开启）')
   }
@@ -161,15 +152,15 @@ async function main() {
     let broadcast = 0
     let seen = null
     const host = { call(name, args) { seen = { name, args }; return Promise.resolve({ ok: true, enabled: true }) } }
-    const mod = loadLog({ localStorage: ls, timer: makeTimer(), host, broadcastLogSwitch() { broadcast += 1 } })
-    const res = await mod.setLogSwitch(true, 0.5)
-    check(seen && seen.name === 'wf.logSetSwitch' && seen.args.enabled === true, '设置经 wf.logSetSwitch 下发（enabled、sampleRate 同形）')
+    const mod = loadPkgLog({ localStorage: ls, timer: makeTimer(), host, broadcastLogSwitch() { broadcast += 1 } })
+    const res = await mod.setLogSwitch(true)
+    check(seen && seen.name === 'wf.logSetSwitch' && seen.args.enabled === true, '设置经 wf.logSetSwitch 下发（enabled 同形）')
     check(res.ok === true && mod.logSwitch.enabled === true, '宿主生效后内存更新为开')
-    check(JSON.parse(ls._map.get('dsws.debug')).enabled === true, '宿主生效后本地持久化更新')
+    check(JSON.parse(ls._map.get(debugStorageKey('wf'))).enabled === true, '宿主生效后本地持久化更新')
     check(broadcast === 1, '设置成功向全组广播一次')
     const badHost = { call() { return Promise.resolve({ ok: false }) } }
-    const mod2 = loadLog({ localStorage: makeLocalStorage(), timer: makeTimer(), host: badHost })
-    const res2 = await mod2.setLogSwitch(true, 1)
+    const mod2 = loadPkgLog({ localStorage: makeLocalStorage(), timer: makeTimer(), host: badHost })
+    const res2 = await mod2.setLogSwitch(true)
     check(res2.ok === false && mod2.logSwitch.enabled === false, '宿主未生效保持本地旧值（关）并返回失败')
   }
 
@@ -177,7 +168,7 @@ async function main() {
   {
     const seen = []
     const host = { call(name, args) { seen.push(args); return Promise.resolve({ ok: true, accepted: args.entries.length, dropped: 0 }) } }
-    const mod = loadLog({ localStorage: makeLocalStorage(), timer: makeTimer(), host })
+    const mod = loadPkgLog({ localStorage: makeLocalStorage(), timer: makeTimer(), host })
     mod.logSwitch.enabled = true
     for (let i = 0; i < 120; i++) mod.log('info', 'evt-' + i, { n: i })
     check(mod.logQueue.length === 100, '队列 100 条封顶（120 条进 100 条）')
@@ -196,18 +187,22 @@ async function main() {
   {
     const timer = makeTimer()
     const host = { call() { return Promise.resolve({ ok: true, accepted: 1, dropped: 0 }) } }
-    const mod = loadLog({ localStorage: makeLocalStorage(), timer, host })
+    const mod = loadPkgLog({ localStorage: makeLocalStorage(), timer, host })
     mod.log('error', 'boom', { reason: 'test' })
     check(timer.calls[timer.calls.length - 1] === 0, '错误走直通（本轮事件循环末就发）')
     mod.logSwitch.enabled = true
     mod.log('info', 'normal', {})
-    check(timer.calls[timer.calls.length - 1] === mod.LOG_FLUSH_MS && mod.LOG_FLUSH_MS === centralTime.LOG_FLUSH_MS, '普通走中央发批间隔批量（与中央导出同值）')
-    const failMod = loadLog({ localStorage: makeLocalStorage(), timer: makeTimer(), host: { call() { return Promise.reject(new Error('断线')) } } })
+    check(timer.calls[timer.calls.length - 1] === LOG_FLUSH_MS, '普通走发批间隔批量（与包内常量同值 ' + LOG_FLUSH_MS + '）')
+    const failMod = loadPkgLog({ localStorage: makeLocalStorage(), timer: makeTimer(), host: { call() { return Promise.reject(new Error('断线')) } } })
     failMod.logSwitch.enabled = true
     failMod.log('info', 'lost', {})
     const before = failMod.getDroppedCount()
-    await failMod.sendLogBatch()
-    check(failMod.getDroppedCount() - before === 1, '转发失败整批记丢弃（不抛错、不等待）')
+    // 包内语义（错误永不丢）：转发失败先入有界重试位，不抛错、不立刻记丢弃。
+    let sendThrew = false
+    let sendRes = null
+    try { sendRes = await failMod.sendLogBatch() } catch (e) { sendThrew = true }
+    check(sendThrew === false && sendRes && sendRes.ok === false, '转发失败不抛错、返回失败形状（不等待）')
+    check(failMod.getDroppedCount() - before === 0, '转发失败不立刻记丢弃（行入有界重试位，错误永不丢）')
     const flushRes = mod.flush()
     check(flushRes && flushRes.ok === true, 'flush 返回成功形状（客户端只管转发）')
   }
@@ -222,7 +217,7 @@ async function main() {
     // 不可用时回落按修改时间判断，原因用 INFO 行打出来；这里只查开发产物，覆盖面与原先一样。
     const judged = judgeProducts({
       products: ['client.js'],
-      sources: ['src/client/kernel/log.ts', 'src/refresh/rooms/client/snapshot-sync.ts', 'src/client/panelAssembly.ts', 'src/client/index.ts', 'scripts/build.mts'],
+      sources: ['scripts/generated/logKernel.derived.js', 'src/refresh/rooms/client/snapshot-sync.ts', 'src/client/panelAssembly.ts', 'src/client/index.ts', 'scripts/build.mts'],
     })
     judged.notices.forEach((n) => console.log('  INFO ' + n))
     const judgedDev = judged.products[0]

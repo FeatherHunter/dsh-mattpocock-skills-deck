@@ -85,7 +85,8 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MAX_BUDGET_MS', gen: 'GIT_CREDENTIAL_MAX_BUDGET_MS', key: 'gitCredentialMaxBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'GIT_LOW_SPEED_TIMEOUT_MS', gen: 'GIT_LOW_SPEED_TIMEOUT_MS', key: 'gitLowSpeedTimeoutMs' },
   { file: 'src/host/workspaceKey.ts', access: 'WORKSPACE_ROOT_TTL_MS', gen: 'WORKSPACE_ROOT_TTL_MS', key: 'workspaceRootTtlMs' },
-  { file: 'src/host/logStore.ts', access: 'LOG_DEBOUNCE_MS', gen: 'LOG_WRITE_DEBOUNCE_MS', key: 'logWriteDebounceMs' },
+  // #1143：src/host/logStore.ts 已删（日志落盘搬进 dsh-log 包），本 REFERENCES 行删除；
+  // logWriteDebounceMs 另有引用（verify-log-store），键保留（包自带常量，中央键待另票清理）。
   { file: 'src/host/platform/namingSummary.ts', access: 'SUMMARY_TIMEOUT_MS', gen: 'NAMING_SUMMARY_TIMEOUT_MS', key: 'namingSummaryTimeoutMs' },
   { file: 'src/host/namingGuardian.ts', access: 'NAMING_FALLBACK_MS', gen: 'NAMING_FALLBACK_INTERVAL_MS', key: 'namingFallbackIntervalMs' },
   { file: 'src/host/skillProbeCache.ts', access: 'SKILL_PROBE_CACHE_MS', gen: 'SKILL_PROBE_CACHE_MS', key: 'skillProbeCacheMs' },
@@ -183,8 +184,8 @@ const REFERENCES: RefRow[] = [
   { file: 'src/deck/shell/work-path-readout.ts', access: 'WORK_ROUTE_COLLISION_WINDOW_MS', gen: 'WORK_ROUTE_COLLISION_WINDOW_MS', key: 'workRouteCollisionWindowMs' },
   { file: 'src/refresh/registry/deck-tool-bridge.ts', access: 'DECK_ASSEMBLY_TIMEOUT_MS', gen: 'DECK_ASSEMBLY_TIMEOUT_MS', key: 'deckAssemblyMs' },
   // —— 界面半边：门禁把它当模块直接 import 跑，引用是真的（构建拼进闭包时剥掉 import 行） ——
-  { file: 'src/client/kernel/log.ts', access: 'LOG_FLUSH_MS', gen: 'LOG_FLUSH_MS', key: 'logFlushMs' },
-  { file: 'src/client/kernel/log.ts', access: 'LOG_WATCHDOG_MS', gen: 'LOG_WATCHDOG_MS', key: 'logWatchdogMs' },
+  // #1143：src/client/kernel/log.ts 已删（包自带常量，中央键待另票清理），两行 REFERENCES 删除；
+  // logFlushMs / logWatchdogMs 另有引用（生成器与包内常量），YAML 键保留。
   { file: 'src/refresh/rooms/client/snapshot-sync.ts', access: 'SNAP_WAIT_MS', gen: 'SNAP_WAIT_MS', key: 'snapWaitMs' },
   { file: 'src/client/kernel/settings-view-write.ts', access: 'VIEW_FLAG_WRITE_DEBOUNCE_MS', gen: 'VIEW_FLAG_WRITE_DEBOUNCE_MS', key: 'viewFlagWriteDebounceMs' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', access: 'ATTENTION_EXPIRY_MS', gen: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs' },
@@ -404,7 +405,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: 'lingerMs', reason: '同上，真值由刷新预算的 PROBE_INTERVAL_LINGER_MS 注入' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: 'atMs', reason: '心跳时刻的初值字段（0 = 还没跳过），不是可调参数' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: 'latencyMs', reason: '测量用局部变量（一次回话的耗时），不是可调参数' },
-  { file: 'src/client/kernel/log.ts', name: 'windowMs', reason: '算出来的时间差（距上次汇总过了多久），不是可调参数' },
+  // #1143：旧 src/client/kernel/log.ts 已删（包是唯一真相），上面这条 EXEMPTS 随文件一起退役。
   { file: 'src/refresh/rooms/client/refresh-timer.ts', name: 'gateMs', reason: '派生变量，缺省接本文件顶部的 FOCUS_PROBE_MIN_MS（拼进闭包的中央常量），不是新参数' },
   { file: 'src/refresh/rooms/client/probe-scope-selection.ts', name: '_incMs', reason: '从快照里读出的时刻（那份快照是什么时候生成的），不是可调参数' },
   { file: 'src/refresh/rooms/client/probe-scope-selection.ts', name: '_curMs', reason: '同上' },

@@ -36,7 +36,7 @@ async function main() {
   const lfp = readSrc('src/host/logFromPackage.ts')
   const settingsPhones = readSrc('src/host/settingsPhones.ts')
   const hostIndex = readSrc('src/host/index.ts')
-  const logStore = readSrc('src/host/logStore.ts')
+  // #1143 起旧实现三件套已删（src/host/logStore.ts 不存在），唯一真相是 dsh-log 包：不再读已删文件。
 
   // ① 开关来源真的递进了日志包的建库调用（只写注释不算）。
   check(/storeDeps\.switchSource\s*=\s*input\.switchSource/.test(lfp), 'logFromPackage 把 switchSource 装进递给日志包的那份依赖（storeDeps.switchSource = input.switchSource）')
@@ -50,7 +50,8 @@ async function main() {
   check(/raw\.value\.debug/.test(settingsPhones) && /debug\.enabled/.test(settingsPhones), '它只读文件里 debug.enabled 这一格')
   check(!/log-switch\.json/.test(settingsPhones), '开关来源里没有出现旧开关文件名（不再存第二份）')
   check(/_settings\(\)/.test(hostIndex) && /readDebugSwitchEnabled/.test(hostIndex), 'index.ts 的 _log() 从 settingsPhones 拿开关来源')
-  check((hostIndex.match(/switchSource:/g) || []).length >= 2, 'index.ts 把同一份 switchSource 同时递给日志包与旧回退实现')
+  // #1143 起旧回退实现已删，同一份 switchSource 只给包：文件里不再有 switchSource 是正常的，只断言至少出现一次。
+  check((hostIndex.match(/switchSource:/g) || []).length >= 1, 'index.ts 把 switchSource 只给包（旧回退实现已删，文件里不再有 switchSource 是正常的）')
 
   // ③ src/ 生产代码不再读写旧开关文件：只有 logFromPackage 里那一条「开机清理」还认得这个文件名。
   const all = walkSrc(path.join(ROOT, 'src'), [])
@@ -68,10 +69,8 @@ async function main() {
   })
   check(legacyOk, 'logFromPackage 里的旧文件名只出现在迁移清理的代码与注释里（别处不再出现）')
 
-  // ④ 旧回退实现不再当第二处真源：不读不写旧开关文件，开关改成问递进来的 switchSource。
-  check(!/log-switch\.json/.test(logStore), '旧回退实现（logStore.ts）里不再出现旧开关文件名')
-  check(!/persistSwitch/.test(logStore), '旧回退实现删掉了自己写开关文件的 persistSwitch')
-  check(/switchSource/.test(logStore) && /switchSource\.get/.test(logStore) && /switchSource\.set/.test(logStore), '旧回退实现的读开关与拨开关都改成问 switchSource')
+  // ④ 旧回退实现已删（#1143）：src/host/index.ts 不再引用 logStore（读 index.ts 文本确认无 logStore 引用）。
+  check(!/logStore/.test(hostIndex), '旧回退实现已删，index.ts 不再引用 logStore（唯一真相是 dsh-log 包）')
 
   // ⑤ 开机清理逻辑存在，且失败不抛（只记一条既有口径的 warn）。
   check(/function removeLegacySwitchFile\s*\(/.test(lfp), 'logFromPackage 里有开机清理遗留开关文件的函数')

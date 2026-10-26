@@ -209,10 +209,10 @@ async function main() {
   }
 
   // ---- 四、整条回路走一遍：开关打开 → 起外部命令 → 落盘 → 从日志文件里读出次数与每次耗时 ----
-  // 这一段用的是真的日志库（src/host/logStore.js）与真的落盘文件，只是把子进程与文件位置换成临时的，
+  // 这一段用的是真的包内日志库（dsh-log/host 的 createHostLog）与真的落盘文件，只是把子进程与文件位置换成临时的，
   // 所以它给出的数字就是「打开调试开关后，日志里到底看得到什么」。
   {
-    const logStoreMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'logStore.js')).href)
+    const { createHostLog, formatLogFileName } = await import('dsh-log/host')
     const tmpDir = nodeFs.mkdtempSync(path.join(os.tmpdir(), 'dsws-606-'))
     const fsSvc = {
       async readText(p) { try { return nodeFs.readFileSync(p, 'utf8') } catch (e) { return '' } },
@@ -220,10 +220,10 @@ async function main() {
       async mkdir(p) { try { nodeFs.mkdirSync(p, { recursive: true }) } catch (e) {} },
       async resolve(p) { return p },
     }
-    const store = logStoreMod.createLogStore({
+    const { store } = createHostLog({
       fs: fsSvc, timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
       getCacheDir: async () => tmpDir, getPlatform: async () => null, DEFAULT_CWD: tmpDir,
-    })
+    }, { pluginId: 'wf', prefix: 'wf' })
     await store.setSwitch(true, 1)
     const logCtx = {
       isEnabled: (level) => store.isEnabled(level),
@@ -241,7 +241,7 @@ async function main() {
     store.flush()
     await new Promise((r) => setTimeout(r, 50))
 
-    const logFile = path.join(tmpDir, 'logs', logStoreMod.formatLogFileName(new Date()))
+    const logFile = path.join(tmpDir, 'logs', formatLogFileName(new Date()))
     const exist = nodeFs.existsSync(logFile)
     check(exist, '开关打开后日志真的落到盘上（' + (exist ? logFile.replace(tmpDir, '<临时目录>') : '没找到 ' + logFile.replace(tmpDir, '<临时目录>')) + '）')
     let rows = []

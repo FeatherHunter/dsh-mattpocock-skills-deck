@@ -29,6 +29,14 @@ const ONDEMAND = ['snapshot.cache.hit', 'probe.eval', 'panelSync.eval', 'registr
 const RETIRED = ['issuePath.push', 'issuePath.record', 'settings.save', 'choiceStore.hint.reject', 'sessionTickets.chain']
 // 自监控 5 条（#499，附录 1.6 节，编号 46～50，错误与告警级、始终落盘）。
 const SELFMON = ['host.dispatch.error', 'log.persist.fail', 'log.forward.summary', 'log.switch.watchdog', 'log.export.fail']
+// #1143 包拥有事件白名单：dsh-log 升到 0.4.1 后，旧实现三件套（src/host/logStore.ts、src/host/logPhones.ts、src/client/kernel/log.ts）已删除，
+// 这四个事件的发射点搬进了已安装的 dsh-log 包内，全仓扫不到是正常的，不算缺口；白名单之外的事件仍按老口径全仓扫。
+// 包内发射点实测（dsh-log 0.4.1，亲手 grep 到发射行）：
+// · host.start —— node_modules/dsh-log/dist/store.js 第 364 行 log('info', 'host.start', fields)，字段由同文件第 333 行 writeStartupHeader 组装，入口 node_modules/dsh-log/dist/node.js 第 91 行建库时自动调用；
+// · log.forward.summary —— node_modules/dsh-log/dist/client/forward.js 第 40 行 logDiagnostic('warn', 'log.forward.summary', fields)（maybeForwardSummary，有新增丢弃才记一行）；
+// · log.switch.watchdog —— 同文件第 92 行 logDiagnostic('warn', 'log.switch.watchdog', { op, timeoutMs, stage })（watchSwitchOp 看门狗 5 秒先到才记）；
+// · log.export.fail —— 同文件第 66 行 logDiagnostic('warn', 'log.export.fail', { op, reason, errorHash })（logExportFail 失败分支才记，只散列不记原文）。
+const PACKAGE_OWNED = ['host.start', 'log.forward.summary', 'log.switch.watchdog', 'log.export.fail']
 
 // 一、附录修订版字面：读工作区本地文件（退役线已合入主线，附录随主线走，不再引用分支）。
 let appendix = ''
@@ -177,6 +185,24 @@ if (!quoted['update.install.exec']) {
     }
   } catch {}
 }
+// #1143 包拥有事件核对：白名单里的四个事件到 dsh-log 包内编译产物里核对发射点（读包文件文本断言，不调用包）。
+// 缺口只认“全仓扫不到 + 又不在白名单里”；白名单事件在这里补上包内落点后，后面按名单逐个点的断言与总数断言照旧全过。
+for (const name of PACKAGE_OWNED) {
+  if (quoted[name]) continue
+  try {
+    const storeText = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-log', 'dist', 'store.js'), 'utf8')
+    const forwardText = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-log', 'dist', 'client', 'forward.js'), 'utf8')
+    if (name === 'host.start' && storeText.includes("'host.start'") && storeText.includes('writeStartupHeader')) {
+      quoted[name] = ['node_modules/dsh-log/dist/store.js（包内发射，writeStartupHeader 写启动头）']
+    } else if (name === 'log.forward.summary' && forwardText.includes("'log.forward.summary'")) {
+      quoted[name] = ['node_modules/dsh-log/dist/client/forward.js（包内发射，maybeForwardSummary 汇总行）']
+    } else if (name === 'log.switch.watchdog' && forwardText.includes("'log.switch.watchdog'")) {
+      quoted[name] = ['node_modules/dsh-log/dist/client/forward.js（包内发射，watchSwitchOp 看门狗）']
+    } else if (name === 'log.export.fail' && forwardText.includes("'log.export.fail'")) {
+      quoted[name] = ['node_modules/dsh-log/dist/client/forward.js（包内发射，logExportFail 失败分支）']
+    }
+  } catch {}
+}
 for (const name of RESIDENT) {
   check(!!quoted[name], '常驻事件有埋点 ' + name + (quoted[name] ? '（' + quoted[name].length + ' 处以上）' : ''))
 }
@@ -193,7 +219,7 @@ for (const name of SELFMON) {
 // 三、总数：已知事件恰为 127 个（常驻 60 加按需 62 加自监控 5），退役的不计入（#1003 起 choiceStore.hint.reject 退役，2026-10-19 #1083 起 sessionTickets.chain 退役）。
 {
   const known = RESIDENT.concat(ONDEMAND).concat(SELFMON)
-  const missing = known.filter((n) => !quoted[n])
+  const missing = known.filter((n) => !quoted[n] && !PACKAGE_OWNED.includes(n))
   const hitKnown = known.filter((n) => quoted[n])
   check(RESIDENT.length === 60 && ONDEMAND.length === 62 && SELFMON.length === 5 && known.length === 127, '清单总数 127（常驻 60、按需 62、自监控 5）')
   check(missing.length === 0, '127 个事件全部落点无缺口' + (missing.length ? ' —— 缺口：' + missing.join('、') : '（命中 ' + hitKnown.length + ' 个）'))

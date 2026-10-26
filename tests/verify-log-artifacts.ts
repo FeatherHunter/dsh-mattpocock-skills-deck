@@ -130,10 +130,10 @@ const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
 // 四、构建接线：日志模块在内核清单里，叶子登记覆盖四个渲染落点文件。
 {
   const build = fs.readFileSync(path.join(ROOT, 'scripts', 'build.mts'), 'utf8')
-  // 日志模块的两种合法落点：派生文件（#564 起沿用）或新真源 log.ts（#1251 把旧手写真源 log.js 删了，
-  //   读源由 readSpliceFragmentSource 按扩展名分派，.ts 先转译再拼）。两种都算接线在；条目被删、
-  //   路径换成别处、或指向的文件不在盘上，都掀红。
-  const LOG_KERNEL_FILES = ['scripts/generated/logKernel.derived.js', 'src/client/kernel/log.ts']
+  // 日志模块的合法落点只有派生文件（#564 起沿用，内容与已安装日志包一致，人手不改）。
+  // 旧手写源 src/client/kernel/log.ts 已删，不再列入；条目被删、路径换成别处、
+  // 或指向的文件不在盘上，都掀红。
+  const LOG_KERNEL_FILES = ['scripts/generated/logKernel.derived.js']
   const logEntry = /\{\s*name:\s*'log'\s*,\s*file:\s*'([^']+)'\s*\}/.exec(build)
   const logEntryFile = logEntry ? logEntry[1] : ''
   check(LOG_KERNEL_FILES.indexOf(logEntryFile) >= 0 && exists(logEntryFile),

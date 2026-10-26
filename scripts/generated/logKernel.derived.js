@@ -1,6 +1,6 @@
 // 派生文件（#564）：由已安装日志包的 dist/client.js（含配置面与客户端分面）打包生成，内容与日志包 0.4.1 一致，人手不改。
-// 旧模块（src/client/kernel/log.js）原地只读留存；构建时本文件拼入原来日志模块的位置（kernel:log 标记处）。
-// 共存关系：旧文件只读、新文件派生，真搬迁或真删除旧文件另开票。重新生成：node scripts/derive-log-from-package.mts。
+// 旧模块（src/client/kernel/log.ts）已随 #1143 删除；构建时本文件拼入原来日志模块的位置（kernel:log 标记处）。
+// 重新生成：node scripts/derive-log-from-package.mts。
 // ---- 作用域隔离（0.3.x）：包体多文件打包的顶层声明与下面 tail 同名，包进 IIFE 藏起来，只留三个外面要用的 ----
 const __pkgLogScope = (() => {
   // packages/dsh-log/dist/core/row.js
@@ -1140,7 +1140,7 @@ const debugStorageKey = __pkgLogScope.debugStorageKey;
 const LOG_DEBUG_KEY = __pkgLogScope.LOG_DEBUG_KEY;
 
 // ---- 实例化（#564）：用闭包里现成的四个名字建日志器，插件标识 wf，默认配置与旧行为一致 ----
-// 旧模块（src/client/kernel/log.js）原地只读留存；运行时走本派生文件。共存关系见本文件头，真删除旧文件另开票。
+// 旧模块（src/client/kernel/log.ts）已随 #1143 删除；运行时走本派生文件。
 // 注意：broadcastLogSwitch 的声明在 probeSnapshot 分块里，拼入位置在本分块之后；这里若直接写名字，
 // 加载时就会因先用后声明而抛错（渲染冒烟实测）。所以包一层转发函数，调用时（模块早已加载完）再解析，行为与直传一致。
 const __broadcastLogSwitchLate = function () { try { if (typeof broadcastLogSwitch === 'function') return broadcastLogSwitch.apply(null, arguments) } catch (e) {} }

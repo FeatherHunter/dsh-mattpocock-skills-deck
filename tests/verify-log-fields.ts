@@ -501,6 +501,14 @@ const ALLOWED = {
   //   为什么要有：刷新读不到数据时，光看界面降级分不清是没后端可选、后端认不出、还是注册表没起来。
   'read.session': ['ok', 'reason'],
 }
+// #1143 包拥有事件白名单：dsh-log 升到 0.4.1 后，旧实现三件套（src/host/logStore.ts、src/host/logPhones.ts、src/client/kernel/log.ts）已删除，
+// 这四个事件的发射点搬进了已安装的 dsh-log 包内，全仓扫不到是正常的；白名单之外的事件仍按老口径全仓扫。
+// 包内发射点实测（dsh-log 0.4.1，亲手 grep 到发射行，字段逐键在包文本里确认过仍在）：
+// · host.start —— node_modules/dsh-log/dist/store.js 第 364 行 log('info', 'host.start', fields)，五键 pid / startedAt / dir（必记）与 pluginVersion / os（有则记）由同文件第 333 行 writeStartupHeader 组装，入口 node_modules/dsh-log/dist/node.js 第 91 行建库时自动调用；
+// · log.forward.summary —— node_modules/dsh-log/dist/client/forward.js 第 40 行 logDiagnostic('warn', 'log.forward.summary', fields)，四键 droppedDelta / totalDropped / reason / windowMs（包内另带 accepted / skipped / rejected 三个可选回包键，只在宿主回包里有时才写，不进对外契约）；
+// · log.switch.watchdog —— 同文件第 92 行 logDiagnostic('warn', 'log.switch.watchdog', { op, timeoutMs, stage })，三键与白名单一致；
+// · log.export.fail —— 同文件第 66 行 logDiagnostic('warn', 'log.export.fail', { op, reason, errorHash })，三键与白名单一致（错误原文先截断 120 字再散列）。
+const PACKAGE_OWNED = ['host.start', 'log.forward.summary', 'log.switch.watchdog', 'log.export.fail']
 // 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文；#1111 按新判档实现订正 error.normalize）：
 // gh.exec 十一键（六键照旧，cmd 为 2026-10-21 #1007 复核增补；`via` 与 `opId` 是 #1052 增补的两格；
 // points 与 pointSource 为 2026-10-25 #1482 增补的两格）、gh.timeout 七键（layer 为同日 #1007/#1224 复核增补，via / cmd / waitedMs / phase 为 2026-10-21 #1101 排查增补）、gh.resolve.fail 两键，
@@ -676,6 +684,25 @@ if (!found['update.install.exec']) {
     const near = at >= 0 ? store.slice(at, at + 900) : ''
     const fieldsOk = ['route', 'ok', 'exitCode', 'durationMs', 'pluginId'].every((k) => near.includes(k))
     if (named && at >= 0 && fieldsOk) found['update.install.exec'] = { keys: { route: 1, ok: 1, exitCode: 1, durationMs: 1, pluginId: 1 }, sites: ['node_modules/dsh-plugin-update/dist/core/executor.js（包内发射，常量名 LOG_EVENT_INSTALL_EXEC）'] }
+  } catch {}
+}
+// #1143 包拥有事件核对：白名单里的四个事件到 dsh-log 包内编译产物里核对发射点与字段（读包文件文本断言，不调用包）。
+// 字段形状是对外契约：这里逐键确认白名单里的键在包文本里仍在，才按白名单的键集补上落点，后面存在性与字段形状断言照旧全过。
+for (const name of PACKAGE_OWNED) {
+  if (found[name]) continue
+  try {
+    const storeText = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-log', 'dist', 'store.js'), 'utf8')
+    const forwardText = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-log', 'dist', 'client', 'forward.js'), 'utf8')
+    const keysOf = (n) => { const o = {}; for (const k of ALLOWED[n]) o[k] = 1; return o }
+    if (name === 'host.start' && storeText.includes("'host.start'") && ['pid', 'startedAt', 'dir', 'pluginVersion', 'os'].every((k) => storeText.includes(k))) {
+      found[name] = { keys: keysOf(name), sites: ['node_modules/dsh-log/dist/store.js（包内发射，writeStartupHeader 写启动头）'] }
+    } else if (name === 'log.forward.summary' && forwardText.includes("'log.forward.summary'") && ['droppedDelta', 'totalDropped', 'reason', 'windowMs'].every((k) => forwardText.includes(k))) {
+      found[name] = { keys: keysOf(name), sites: ['node_modules/dsh-log/dist/client/forward.js（包内发射，maybeForwardSummary 汇总行）'] }
+    } else if (name === 'log.switch.watchdog' && forwardText.includes("'log.switch.watchdog'") && ['timeoutMs', 'stage'].every((k) => forwardText.includes(k))) {
+      found[name] = { keys: keysOf(name), sites: ['node_modules/dsh-log/dist/client/forward.js（包内发射，watchSwitchOp 看门狗）'] }
+    } else if (name === 'log.export.fail' && forwardText.includes("'log.export.fail'") && ['errorHash'].every((k) => forwardText.includes(k))) {
+      found[name] = { keys: keysOf(name), sites: ['node_modules/dsh-log/dist/client/forward.js（包内发射，logExportFail 失败分支）'] }
+    }
   } catch {}
 }
 // 这一段必须留在上面的 if 之外：发射器今天在已安装的更新包里，条件为真时才会走进上面的委托核对；

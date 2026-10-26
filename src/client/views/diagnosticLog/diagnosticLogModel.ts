@@ -14,7 +14,7 @@
  * 这种形式，`export {…}` / `export default` 在这里拼出来是语法错的文本，构建会当场拦住。
  */
 
-/** 写开关失败时底座回的机器码（与 npm 包 dsh-log 里那份分类同形，见 kernel/log.js 的 setLogSwitch）。 */
+/** 写开关失败时底座回的机器码（与 npm 包 dsh-log 里那份分类同形，见包客户端的 setLogSwitch）。 */
 export type LogFailureCode =
   | 'host-unavailable'
   | 'throw-connection'

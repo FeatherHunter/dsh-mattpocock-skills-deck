@@ -453,7 +453,7 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // 本次界面反馈需求：全客户端唯一的按压委托与点击日志口（ui.action），必须排在 log 之后、页面组件之前。
   { name: 'uiFeedback', file: 'src/client/kernel/ui-feedback.ts' },
   // 构建内核清单含日志模块（运行时拼上面的派生文件，#564 留派生不搬；
-  //   #1251：旧手写真源 log.js 已删，同内容住在 src/client/kernel/log.ts，只供门禁经钩子直读）。
+  //   #1143：旧手写源 log.ts 已删，门禁改测包与派生文件，不再读旧文件）。
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'storePrefs', file: 'src/client/kernel/store-prefs.ts' },

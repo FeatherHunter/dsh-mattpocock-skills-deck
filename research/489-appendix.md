@@ -292,7 +292,7 @@
 | 41 | chain.derive.error | 告警（纠偏纳入） | stepId 步骤标识、errorHash 错误散列 | H_ERR、T120 | R_TOKEN_BEARER | kernel/probe.js:61 链派生 |
 | 42 | fallback.chain | 信息 | in 从哪种、out 到哪种、latencyMs | — | — | index.js:903、988、791 |
 | 55 | client.snapshot.miss | 信息（#498 新增） | keyHash 工作区键散列、reason 未命中原因（枚举 empty） | H_CWD | — | kernel/probe-snapshot.js 内存加磁盘都未命中才记 |
-| 51 | host.start | 信息（#498 新增收录，#1332 订正） | pid 进程标识、startedAt 日志实例建库时刻（不是进程启动时刻，见 3.3）、dir 实际目录（3.3 启动头所需，记原文）、pluginVersion 插件版本号（可选，有则记）、os 系统环境名（可选，有则记） | —（启动头诊断所需；启动时刻不能用来数进程启动次数） | — | host/logStore.js 启动头、日志包建库时写启动头 |
+| 51 | host.start | 信息（#498 新增收录，#1332 订正） | pid 进程标识、startedAt 日志实例建库时刻（不是进程启动时刻，见 3.3）、dir 实际目录（3.3 启动头所需，记原文）、pluginVersion 插件版本号（可选，有则记）、os 系统环境名（可选，有则记） | —（启动头诊断所需；启动时刻不能用来数进程启动次数） | — | dsh-log 包内：dist/store.js 第 364 行 writeStartupHeader 写启动头（入口 dist/node.js 第 91 行建库时自动调用） |
 | 60 | labelColors.write | 信息（#618 新增） | cwdHash 工作区键散列、count 这次文件里有多少行标签、ok 这一次写入或放置有没有成功（成功 true、失败 false——文件读不出来被挡下、写失败、选定后端时放置失败，都会记成 false，不是「只记成功」）、reason 原因枚举（placed 首建成功 / saved 保存成功 / refused-read-fail 文件读不出来、拒绝放置也不改写 / write-fail 写失败 / place-fail 用户选定后端时那次放置失败）、via 发布方式枚举（rename 临时文件加改名 / write-text 一次写完整份），只有真写成的那两条成功记录才带 via | H_CWD | — | 本地 Markdown 房间的工作区配色文件写入：首建默认文件与用户保存改色（src/host/tracker/backends/markdown/label-colors.js）；另有一处落点 src/host/workspaceCwd.js 的 handleBind（用户选定后端时那次放置失败记一条） |
 | 57 | update.install.exec | 信息（#548 新增） | route 路由枚举（desktop-service 桌面服务、cli-process 自己起进程、none 没拿到配方）、ok 是否成功、exitCode 退出码（拿不到为 null）、durationMs 执行多久、pluginId 插件标识（#583 起必填，旧实现暂不带，门禁只许少记） | —（只记枚举与数字加标识，不记命令、路径、使用范围名） | — | host/updateStore.js 安装执行器（跨进程边界调用与结果，用户点按钮才发生，低频）；更新包执行器 packages/dsh-plugin-update/src/store.ts |
 | 65 | guide.inject | 信息（#663 新增） | step 哪一步（首开引导链的步骤 id，与 src/shared/tracker/guide-steps.js 里的 id 一致）、outcome 这次给出去的是哪一类（text 注入了一段文案 / none 没有文案可注入 / action 交给弹窗那类端点动作） | —（只记枚举，不记注入正文） | — | client/statusbar/bannerChain.js 的 logGuideInject：状态栏那颗横幅按钮的注入处（用户点一次落一行；不经过初始化那条漏斗，是独立一条事件） |
@@ -421,9 +421,9 @@ exec.run 的 via 取值表（枚举写死在这里）：snapshot 面板快照组
 |---|---|---|---|---|---|---|---|
 | 46 | host.dispatch.error | 错误 | method 电话名、argsHash 入参散列、errorKind 归一类别 | H_ERR（入参只记散列） | — | 无外层判断（错误直通）；业务性失败回参不触发，只记未捕获抛错 | src/host/rpcChannel.js 分发 catch（#596 由 src/host/index.js 搬来；通道路径注册失败也记在此，method 写通道路径、errorKind 见 1.6 末尾枚举注） |
 | 47 | log.persist.fail | 告警 | op 操作枚举、reason 原因枚举、dirHash 目录散列 | H_CWD（目录只记散列） | — | 无外层判断（告警直通）；同轮合并、同一行在途未落定不再追加，避免失败自我繁殖 | src/host/logStore.js 写盘与开关持久化失败分支 |
-| 48 | log.forward.summary | 告警 | droppedDelta 新增丢弃数、totalDropped 累计丢弃数、reason 原因枚举、windowMs 统计窗口毫秒 | —（只记数字与枚举） | — | 无外层判断；只在批量发送完成后、有新增丢弃时记一行，不逐条 | src/client/kernel/log.js 转发完成后 |
-| 49 | log.switch.watchdog | 告警 | op 操作枚举、timeoutMs 超时毫秒、stage 所处阶段枚举 | —（只记枚举与数字） | — | 无外层判断；单次操作只记一行，超时后迟到的回包不补记 | src/client/kernel/log.js 开关写与对账的竞跑计时 |
-| 50 | log.export.fail | 告警 | op 操作枚举、reason 原因枚举、errorHash 错误散列 | H_ERR、T120（先 120 字截断再散列） | — | 无外层判断；用户手势触发才可能记，无轮询无后台自发 | 状态栏菜单与设置页导出链路失败分支 |
+| 48 | log.forward.summary | 告警 | droppedDelta 新增丢弃数、totalDropped 累计丢弃数、reason 原因枚举、windowMs 统计窗口毫秒 | —（只记数字与枚举） | — | 无外层判断；只在批量发送完成后、有新增丢弃时记一行，不逐条 | dsh-log 包内：dist/client/forward.js 第 40 行 maybeForwardSummary（有新增丢弃才记） |
+| 49 | log.switch.watchdog | 告警 | op 操作枚举、timeoutMs 超时毫秒、stage 所处阶段枚举 | —（只记枚举与数字） | — | 无外层判断；单次操作只记一行，超时后迟到的回包不补记 | dsh-log 包内：dist/client/forward.js 第 92 行 watchSwitchOp（5 秒看门狗先到才记） |
+| 50 | log.export.fail | 告警 | op 操作枚举、reason 原因枚举、errorHash 错误散列 | H_ERR、T120（先 120 字截断再散列） | — | 无外层判断；用户手势触发才可能记，无轮询无后台自发 | dsh-log 包内：dist/client/forward.js 第 66 行 logExportFail（失败分支才记） |
 
 枚举取值（写死在这张表里，实现与门禁逐字锁死）：op 在 47 取 writeBatch、persistSwitch、readBack，在 49 取 set、reconcile，在 50 取 export、openDir、copyPath、resolve；reason 在 47 取 no-dir、read-fail、write-fail（建目录失败无法与目录已存在区分，仍走静默吞，由随后的写结果说话），在 48 取 queue-full、packet-trim、send-fail、host-reject，在 50 取 host-unavailable、export-not-ok、path-missing、open-fail、copy-fail；stage 在 49 取 waiting-host；errorKind 在 46 取 auth、network、notfound、exit，归不上记 internal（#596 起：客户端与宿主之间那条通话通道注册失败也记在 46，原因归不上上面四类，一律记 internal，是哪种失败写在 method 尾巴里）。
 

@@ -4,7 +4,7 @@
  *
  * 作用：把已安装的日志包（node_modules/dsh-log，#892 起不再读本地 packages/dsh-log）的已构建产物，原样派生为插件运行时真正使用的文件。
  * 宿主两份旧文件（src/host/logStore.js、src/host/logPhones.js）已被 #1247 删除，本脚本从不读它们；
- * 客户端 src/client/kernel/log.js 仍是 .js/.ts 双存（产物侧，另行处理）。运行时走这里生成的新文件。
+ * 客户端旧文件（src/client/kernel/log.ts）已随 #1143 删除，本脚本从不读它；运行时走这里生成的新文件。
  *
  * 早失败哨兵（日志包 0.3.x 已落地，核对项随新版产物更新）：写文件之前，本脚本会把「自己与客户端 tail 依赖包的那些名字」
  * 逐个核一遍（工厂名、返回对象上要用到的名字、五个电话字段名、包顶层名字、注释归一的两个字面、客户端那三条自监控事件名），
@@ -201,7 +201,7 @@ export function deriveClient(): void {
   const tail =
     '\n' +
     '// ---- 实例化（#564）：用闭包里现成的四个名字建日志器，插件标识 wf，默认配置与旧行为一致 ----\n' +
-    '// 旧模块（src/client/kernel/log.js）原地只读留存；运行时走本派生文件。共存关系见本文件头，真删除旧文件另开票。\n' +
+    '// 旧模块（src/client/kernel/log.ts）已随 #1143 删除；运行时走本派生文件。\n' +
     '// 注意：broadcastLogSwitch 的声明在 probeSnapshot 分块里，拼入位置在本分块之后；这里若直接写名字，\n' +
     '// 加载时就会因先用后声明而抛错（渲染冒烟实测）。所以包一层转发函数，调用时（模块早已加载完）再解析，行为与直传一致。\n' +
     'const __broadcastLogSwitchLate = function () { try { if (typeof broadcastLogSwitch === \'function\') return broadcastLogSwitch.apply(null, arguments) } catch (e) {} }\n' +
@@ -244,8 +244,8 @@ export function deriveClient(): void {
     'void (__pkgLog.phoneNames.logBatch === \'wf.logBatch\' && __pkgLog.phoneNames.logExport === \'wf.logExport\' && __pkgLog.phoneNames.logClear === \'wf.logClear\' && __pkgLog.phoneNames.logGetSwitch === \'wf.logGetSwitch\' && __pkgLog.phoneNames.logSetSwitch === \'wf.logSetSwitch\')\n'
   const header =
     '// 派生文件（#564）：由已安装日志包的 dist/client.js（含配置面与客户端分面）打包生成，内容与日志包 ' + installedVersion() + ' 一致，人手不改。\n' +
-    '// 旧模块（src/client/kernel/log.js）原地只读留存；构建时本文件拼入原来日志模块的位置（kernel:log 标记处）。\n' +
-    '// 共存关系：旧文件只读、新文件派生，真搬迁或真删除旧文件另开票。重新生成：node scripts/derive-log-from-package.mts。\n'
+    '// 旧模块（src/client/kernel/log.ts）已随 #1143 删除；构建时本文件拼入原来日志模块的位置（kernel:log 标记处）。\n' +
+    '// 重新生成：node scripts/derive-log-from-package.mts。\n'
   mkdirSync(dirname(CLIENT_OUT), { recursive: true })
   writeFileSync(CLIENT_OUT, header + body + tail, 'utf8')
   console.log('[derive-log] dist/client.js -> scripts/generated/logKernel.derived.js')

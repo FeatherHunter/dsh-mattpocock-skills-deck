@@ -20,7 +20,7 @@
  *     有时日志挂在 input 上、形状标在它外面的 label 上（调试开关就是这种），那时候形状要往外找一层。
  *     调试开关关着时 isEnabled('debug') 第一行就早退，不拼字段、不产生任何日志开销。
  *
- * 日志字段纪律（见 src/client/kernel/log.ts 与 research/489-appendix.md）：
+ * 日志字段纪律（见 dsh-log 包客户端入口与 research/489-appendix.md）：
  *   - target：稳定英文枚举，最长 96 字符；只写枚举，不写按钮上的文字、不写标题、不写路径。
  *   - kind：按压形状枚举（button / chip / tab / row / icon），最长 16 字符。
  *   两件都是用户主动点击的低频动作，定按需（调试级）。
