@@ -60,8 +60,10 @@ globalThis.DswsCtx = DswsCtx
 globalThis.renderIssueDetailComments = renderIssueDetailComments
 // #1511：编号写成「#目录/编号」的规则住在 kernel/ticket-label.ts；叶子单独加载时闭包里没有这个名字，
 // 这里接真实现（同构接线，不抄一份假规则，否则门禁会跟着实现一起漂）。
-const { ticketLabelOf } = await import('../src/client/kernel/ticket-label.js')
+const { ticketLabelOf, ticketLabelNodesOf, TICKET_LABEL_MAX_WIDTH } = await import('../src/client/kernel/ticket-label.js')
 globalThis.ticketLabelOf = ticketLabelOf
+globalThis.ticketLabelNodesOf = ticketLabelNodesOf
+globalThis.TICKET_LABEL_MAX_WIDTH = TICKET_LABEL_MAX_WIDTH
 
 let failures = 0
 let total = 0

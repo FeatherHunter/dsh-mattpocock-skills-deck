@@ -40,6 +40,50 @@ export function ticketLabelOf(key: unknown, effortId: unknown): string {
   return '#' + effort + '/' + id
 }
 
+/** B 方案共用的上限宽度：`#目录/编号` 这一颗控件在任何一处都不许超过它（#1553 的 192px 首列仍装得下）。 */
+export const TICKET_LABEL_MAX_WIDTH = '180px'
+
+/** 同一串编号拆成两段：目录前缀（含 `#` 与结尾的 `/`）与绝不缩小的编号尾巴。 */
+export interface TicketLabelParts {
+  /** `#目录/`；没有目录时就是 `#`（退化身份按第一个 `/` 切，同样是这个形状）。 */
+  readonly prefix: string
+  /** `/` 后面的编号本身；空编号时为空串。 */
+  readonly number: string
+  /** 完整写法（与 ticketLabelOf 同一串，悬停与无障碍名直接用它）。 */
+  readonly full: string
+}
+
+/**
+ * 把同一串编号拆成「可省略的目录前缀」与「绝不缩小的编号尾巴」：目录再长也只压前缀这一段，
+ * 编号尾巴（`/13`、`01-文件名` 这类认票的那一截）永远完整显示。
+ *
+ * 拆法与上面那份真写法同一条口径：空编号返回空三件；没有 `/` 时前缀是 `#`；有 `/` 时按第一个 `/` 切
+ * （`#目录/01-文件名` 切成 `#目录/` + `01-文件名`，退化身份同样是目录可压、编号保住）。
+ */
+export function ticketLabelPartsOf(key: unknown, effortId: unknown): TicketLabelParts {
+  const full = ticketLabelOf(key, effortId)
+  if (full === '') return { prefix: '', number: '', full: '' }
+  const slash = full.indexOf('/')
+  if (slash < 0) return { prefix: '#', number: full.slice(1), full: full }
+  return { prefix: full.slice(0, slash + 1), number: full.slice(slash + 1), full: full }
+}
+
+/**
+ * 同一颗 `#目录/编号` 控件的两段子节点：目录前缀可省略、编号尾巴绝不缩小。
+ *
+ * 为什么收在这里：四处显示点（列表行、详情页头、在办表首列、状态栏胶囊）都要同一套「目录末尾变省略号」
+ * 的写法，散在各处迟早长岔；这里只拼两段 span，外层的上限宽度与悬停仍由调用方按原样写（Tip 的 content
+ * 与无障碍名都用上面的完整写法，不另起一串）。
+ */
+export const ticketLabelNodesOf = function (h: any, key: unknown, effortId: unknown): any[] {
+  const p = ticketLabelPartsOf(key, effortId)
+  if (p.full === '') return []
+  return [
+    h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: '1 1 auto' } }, p.prefix),
+    h('span', { style: { flex: 'none' } }, p.number),
+  ]
+}
+
 /** 在办表里一行要带的行形状（估宽只读这两段，其余不管）。 */
 export interface WorkRouteWidthRow {
   /** 后端的票号（容器行是 00 这类）。 */

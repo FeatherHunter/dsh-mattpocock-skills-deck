@@ -67,6 +67,8 @@ async function main() {
   // #1511：编号写法住在 kernel/ticket-label.ts，本门禁按文本/模块单独加载视图叶子时
   // 构建闭包里才有的名字在这里不存在，补上真身（与 verify-1082 同一做法，不另抄规则）。
   ;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
+  ;(globalThis as any).ticketLabelNodesOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelNodesOf
+  ;(globalThis as any).TICKET_LABEL_MAX_WIDTH = (await import('../src/client/kernel/ticket-label.js')).TICKET_LABEL_MAX_WIDTH
   ;(globalThis as any).workRouteCellsFor = (await import('../src/client/kernel/ticket-label.js')).workRouteCellsFor // #1553：表组件按行算首列，叶子单测里同样补真身
   // 探针替身：容器判定只认自带 type 的两类；导航记下实参不真跳。
   const pushCalls: any[] = []
@@ -158,6 +160,8 @@ async function main() {
     if (total === 0) check(false, '一条断言都没跑')
   } finally {
     delete (globalThis as any).ticketLabelOf
+    delete (globalThis as any).ticketLabelNodesOf
+    delete (globalThis as any).TICKET_LABEL_MAX_WIDTH
     delete (globalThis as any).findMapByIdentity
     delete (globalThis as any).containerKindOf
     delete (globalThis as any).pushNav

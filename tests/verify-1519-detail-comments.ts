@@ -179,6 +179,8 @@ const identityMod = await imp('src/tracker/kernel/identity-keys.ts')
 ;(globalThis as any).effortOf = identityMod.effortOf
 ;(globalThis as any).idOfParts = identityMod.idOfParts
 ;(globalThis as any).ticketLabelOf = (await imp('src/client/kernel/ticket-label.ts')).ticketLabelOf
+;(globalThis as any).ticketLabelNodesOf = (await imp('src/client/kernel/ticket-label.ts')).ticketLabelNodesOf
+;(globalThis as any).TICKET_LABEL_MAX_WIDTH = (await imp('src/client/kernel/ticket-label.ts')).TICKET_LABEL_MAX_WIDTH
 // 动态导入必须在全局量齐备之后（ctx.js 顶层就要读 React，静态 import 会先于赋值执行）
 const { DswsCtx, createCx } = await imp('src/client/kernel/ctx.ts')
 ;(globalThis as any).DswsCtx = DswsCtx

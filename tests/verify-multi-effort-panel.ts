@@ -28,6 +28,8 @@ import esbuild from 'esbuild'
 // #1511：编号写成「#目录/编号」的真实现住在 kernel/ticket-label.ts。本门禁按文本/模块单独加载视图叶子，
 // 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
 ;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
+;(globalThis as any).ticketLabelNodesOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelNodesOf
+;(globalThis as any).TICKET_LABEL_MAX_WIDTH = (await import('../src/client/kernel/ticket-label.js')).TICKET_LABEL_MAX_WIDTH
 
 const ROOT = resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 let failed = false
@@ -172,7 +174,7 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
   check(!hasEffortBadge(flat), '多 effort 上下文也不再渲染 effort 徽标（徽标已先整体隐藏，代码保留）')
   // 徽标藏起来之后，目录名只能靠编号带出来：这一条守住 #1511 的显示规则不被顺手改掉。
   const texts = flat.filter((n) => n.text).map((n) => n.text)
-  check(texts.indexOf('#beta/01') >= 0, `编号仍然带着目录 #beta/01（实际文本片段：${texts.join('|').slice(0, 120)}）`)
+  check(texts.join('').indexOf('#beta/01') >= 0, `编号仍然带着目录 #beta/01（B 方案后目录与编号是相邻两段，拼起来读；实际文本片段：${texts.join('|').slice(0, 120)}）`)
   const flat2 = walkAll(listIssueRow(h, { snapshot }, ticket, true, false, {}, {}, false))
   check(!hasEffortBadge(flat2), '单 effort 上下文不渲染徽标（界面与原来一致）')
 }

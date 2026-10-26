@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-26T11:07:00.522Z",
+  "generatedAt": "2026-10-26T12:51:45.288Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 399,
   "gateCount": 399,
@@ -1926,6 +1926,7 @@
         "src/client/kernel/ctx.ts",
         "src/client/kernel/link.ts",
         "src/client/kernel/store-derived.ts",
+        "src/client/kernel/ticket-label.ts",
         "src/client/views/DetailActionBar.ts",
         "src/client/views/MapDetail.ts",
         "src/client/views/MapDetailHead.ts",
@@ -1945,7 +1946,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 10 条；静态 import 说明符 1 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 11 条；静态 import 说明符 1 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-1286-list.ts",
@@ -3551,6 +3552,7 @@
         "src/client/statusbar/SessionChainCapsule.ts",
         "src/client/views/IssueDetail.ts",
         "src/client/views/ListTabRow.ts",
+        "src/client/views/MapDetailHead.ts",
         "src/client/views/shared/workRouteTable.ts",
         "src/deck/shell/work-path-readout.ts"
       ],
@@ -3565,7 +3567,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
       "step": "node tests/verify-1512-md-chain.ts",

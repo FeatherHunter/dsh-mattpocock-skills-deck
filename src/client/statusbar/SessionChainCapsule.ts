@@ -48,6 +48,8 @@ declare function workRouteTableClock(...args: any[]): any;
 declare function workRouteTableOf(...args: any[]): any;
 // #1511：编号写成「#目录/编号」的显示规则住在 kernel/ticket-label.ts，本文件只调用（文字通道与徽标共用同一条）。
 declare function ticketLabelOf(...args: any[]): any;
+// B 方案：单子里徽章的两段子节点与上限宽度同样走那一份（目录可省略、编号绝不缩小）。
+declare function ticketLabelNodesOf(...args: any[]): any; declare const TICKET_LABEL_MAX_WIDTH: any;
 // 值引用的组件与字段名（弹层、悬停提示）。
 declare const PortalOverlay: any;
 declare const Tip: any;
@@ -507,9 +509,8 @@ export const SessionChainCapsule = function (props: any) {
         },
       }, [
         // #780 / #1518 / #1553：容器（探索地图与规格）那行的号徽章是「地图图标 + 完整编号」，普通票那行仍是 `#号`
-        h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '0 6px', borderRadius: 99, border: '1px solid ' + badgeBorder, color: badgeColor } }, rKind
-          ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3 } }, [chainContainerIconOf(rKind, 11), h('span', null, chainKeyTextOf(rKind, r.ticketKey, r.effortId))])
-          : chainKeyTextOf(rKind, r.ticketKey, r.effortId)),
+        // B 方案：徽章上限宽度 + 目录前缀可省略、编号尾巴绝不缩小；悬停读完整写法那一串。
+        h(Tip, { content: chainKeyTextOf(rKind, r.ticketKey, r.effortId) }, h('span', { style: { flex: 'none', display: 'inline-flex', alignItems: 'center', maxWidth: TICKET_LABEL_MAX_WIDTH, overflow: 'hidden', fontSize: 11, lineHeight: '16px', padding: '0 6px', borderRadius: 99, border: '1px solid ' + badgeBorder, color: badgeColor } }, rKind ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 0, overflow: 'hidden' } }, [chainContainerIconOf(rKind, 11), h('span', { style: { display: 'inline-flex', alignItems: 'center', minWidth: 0, overflow: 'hidden' } }, ticketLabelNodesOf(h, r.ticketKey, r.effortId))]) : ticketLabelNodesOf(h, r.ticketKey, r.effortId))),
         // #907：查不到标题就留白（一个字都不写），不再拿票号顶上 —— 那会让同一行出现两遍同一个号；
         //   「标题未取到」那句话只在文字通道里（上面 spoken 与 line 两处无障碍名）。
         h('span', { style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.ticketTitle),
@@ -541,7 +542,10 @@ export const SessionChainCapsule = function (props: any) {
       //   原因不是环画错了——环（悬停的内画描边与键盘焦点 outline）一直是跟着元素自己的边界形状走的，
       //   这一颗原先没写圆角，所以环四四方方。补一个轻微圆角（4px，与菜单项、折叠条一致），环自然跟着变圆。
       style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: eColor, cursor: 'pointer', borderRadius: 4 },
-    }, [Ic({ n: 'pin', size: 12 }), chainContainerIconOf(eKind, 12), h('span', { 'data-fold-priority': 12, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, chainKeyTextOf(eKind, e.ticketKey, e.effortId))]),
+      // 主胶囊例外：这一颗挂着 data-fold-priority 12，阶梯机直接往里面写 textContent（见 capFoldMachine.ts），
+      //   两段 span 放进去第一次折叠就会被拍平；所以这里保持纯文本 + 上限宽度 + 悬停完整写法，
+      //   目录与编号都长时从末尾收（窄到极窄时编号也会让位，这是状态栏让位必须的）。
+    }, [Ic({ n: 'pin', size: 12 }), chainContainerIconOf(eKind, 12), h(Tip, { content: chainKeyTextOf(eKind, e.ticketKey, e.effortId) }, h('span', { 'data-fold-priority': 12, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: TICKET_LABEL_MAX_WIDTH } }, chainKeyTextOf(eKind, e.ticketKey, e.effortId)))]),
     menu,
   ])
 }

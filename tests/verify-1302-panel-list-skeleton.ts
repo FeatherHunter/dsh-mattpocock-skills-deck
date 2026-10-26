@@ -134,8 +134,10 @@ G.saveListPrefs = () => {}
 const rowMod: any = await import('../src/client/views/ListTabRow.js')
 // #1511：编号写成「#目录/编号」的规则住在 kernel/ticket-label.ts；叶子单独加载时闭包里没有这个名字，
 // 这里接真实现（同构接线，不抄一份假规则，否则门禁会跟着实现一起漂）。
-const { ticketLabelOf } = await import('../src/client/kernel/ticket-label.js')
+const { ticketLabelOf, ticketLabelNodesOf, TICKET_LABEL_MAX_WIDTH } = await import('../src/client/kernel/ticket-label.js')
 G.ticketLabelOf = ticketLabelOf
+G.ticketLabelNodesOf = ticketLabelNodesOf
+G.TICKET_LABEL_MAX_WIDTH = TICKET_LABEL_MAX_WIDTH
 const listMod: any = await import('../src/client/views/ListTab.js')
 // 本次界面反馈需求：筛选药丸那一行搬成了独立叶子（要接三块液态墨块，ListTab 放不下）。
 // 这里直接加载真叶子；墨块钩子用空实现——这几道门禁只看行与按钮的形状，不测墨块对位。

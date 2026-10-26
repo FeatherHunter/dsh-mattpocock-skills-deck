@@ -19,6 +19,7 @@
 // 门禁归属: src/client/views/shared/workRouteTable.ts
 // 门禁归属: src/client/statusbar/SessionChainCapsule.ts
 // 门禁归属: src/client/views/IssueDetail.ts
+// 门禁归属: src/client/views/MapDetailHead.ts
 // 门禁归属: src/deck/shell/work-path-readout.ts
 //
 // 用法（在插件根目录，先 node scripts/build.mts）：
@@ -53,12 +54,35 @@ async function main(): Promise<void> {
   check(label(null, DIR) === '', '编号为 null 也不画')
   check(label(undefined, undefined) === '', '两个参数都缺席时返回空串')
 
-  // ── 二、四处显示点都调这份实现，不各拼一遍 ──────────────────────────────────────
+  // ── 一点五、B 方案的分段写法：目录前缀可省略、编号尾巴绝不缩小 ──────────────────
+  // 同一串编号只在这里拆一次：前缀（含 `#` 与结尾的 `/`）走省略号那一段，编号尾巴（`flex: none`）
+  // 永远完整显示；上限宽度同样只在这里定一个值（`180px`），五处显示点都读它。
+  check(typeof mod.ticketLabelPartsOf === 'function', 'kernel/ticket-label.ts 导出 ticketLabelPartsOf')
+  check(typeof mod.ticketLabelNodesOf === 'function', 'kernel/ticket-label.ts 导出 ticketLabelNodesOf')
+  check(mod.TICKET_LABEL_MAX_WIDTH === '180px', '上限宽度是 180px（#1553 的 192px 首列仍装得下）')
+  const parts = mod.ticketLabelPartsOf
+  const p1 = parts('01', DIR)
+  check(p1.full === '#' + DIR + '/01' && p1.prefix === '#' + DIR + '/' && p1.number === '01', '正常票拆成 #目录/ + 01')
+  const p2 = parts('01', '')
+  check(p2.full === '#01' && p2.prefix === '#' && p2.number === '01', '没有目录时拆成 # + 01')
+  const p3 = parts(DIR + '/01-买咖啡', DIR)
+  check(p3.full === '#' + DIR + '/01-买咖啡' && p3.prefix === '#' + DIR + '/' && p3.number === '01-买咖啡', '退化身份同样按第一个 / 切（目录可压、编号保住）')
+  const p4 = parts('', DIR)
+  check(p4.full === '' && p4.prefix === '' && p4.number === '', '空编号返回空三件（不画空徽标）')
+  const fakeH = function (tag: any, props: any) { return { tag: tag, props: props } }
+  const nodes = mod.ticketLabelNodesOf(fakeH, '01', DIR)
+  check(Array.isArray(nodes) && nodes.length === 2, '两段子节点：目录一段 + 编号一段')
+  check(nodes[0] && nodes[0].props && nodes[0].props.style && nodes[0].props.style.textOverflow === 'ellipsis' && nodes[0].props.style.whiteSpace === 'nowrap', '目录那段走省略号（末尾变…）')
+  check(nodes[1] && nodes[1].props && nodes[1].props.style && nodes[1].props.style.flex === 'none', '编号那段绝不缩小（flex: none）')
+  check(mod.ticketLabelNodesOf(fakeH, '', DIR).length === 0, '空编号不画子节点')
+
+  // ── 二、五处显示点都调这份实现，不各拼一遍 ──────────────────────────────────────
   const sites: Array<{ file: string; why: string }> = [
     { file: 'src/client/views/ListTabRow.ts', why: '列表行的编号徽标' },
     { file: 'src/client/views/shared/workRouteTable.ts', why: '在办表首列票号' },
     { file: 'src/client/statusbar/SessionChainCapsule.ts', why: '状态栏链徽标的文字通道与朗读' },
     { file: 'src/client/views/IssueDetail.ts', why: '详情页头部的编号徽标' },
+    { file: 'src/client/views/MapDetailHead.ts', why: '地图详情头部的编号徽标' },
   ]
   for (const s of sites) {
     const src = sourceText(s.file)
@@ -66,12 +90,24 @@ async function main(): Promise<void> {
     check(src.indexOf('ticketLabelOf(') >= 0, s.file + ' 真的调用 ticketLabelOf（' + s.why + '）')
   }
   // 票号徽标这一格最要紧：它必须走共用实现，不许再写回 `'#' + 票号`。
-  // 列表行与详情页的徽标都叫 dsws-idnum，各取第一处（那是票本身的编号，不是某个引用里的小号）。
-  for (const file of ['src/client/views/ListTabRow.ts', 'src/client/views/IssueDetail.ts']) {
+  // 列表行、详情页与地图头的徽标都叫 dsws-idnum，各取第一处（那是票本身的编号，不是某个引用里的小号）。
+  for (const file of ['src/client/views/ListTabRow.ts', 'src/client/views/IssueDetail.ts', 'src/client/views/MapDetailHead.ts']) {
     const badge = sourceText(file).split('\n').filter((l) => l.indexOf("'dsws-idnum'") >= 0)[0] || ''
     check(badge.indexOf('ticketLabelOf(') >= 0, file + ' 的票号徽标走 ticketLabelOf：' + badge.trim().slice(0, 60))
     check(!/'#'\s*\+/.test(badge), file + ' 的票号徽标里没有自己拼的 #')
   }
+  // ── 二点五、B 方案的五处控件：上限宽度 + 目录可省略、编号绝不缩小 + 悬停完整写法 ──
+  for (const file of ['src/client/views/ListTabRow.ts', 'src/client/views/IssueDetail.ts', 'src/client/views/MapDetailHead.ts', 'src/client/views/shared/workRouteTable.ts', 'src/client/statusbar/SessionChainCapsule.ts']) {
+    const src = sourceText(file)
+    check(src.indexOf('ticketLabelNodesOf(') >= 0, file + ' 用两段子节点画徽标（目录可省略、编号绝不缩小）')
+    check(src.indexOf('TICKET_LABEL_MAX_WIDTH') >= 0 || src.indexOf('180px') >= 0, file + ' 给了上限宽度（180px 或那份常量）')
+  }
+  for (const file of ['src/client/views/ListTabRow.ts', 'src/client/views/IssueDetail.ts', 'src/client/views/MapDetailHead.ts']) {
+    const src = sourceText(file)
+    check(/h\(Tip, \{ content: ticketLabelOf\(/.test(src), file + ' 悬停读完整写法那一串（Tip 的 content）')
+  }
+  const capsuleSrc = sourceText('src/client/statusbar/SessionChainCapsule.ts')
+  check(/h\(Tip, \{ content: chainKeyTextOf\(/.test(capsuleSrc), '胶囊单子与主胶囊悬停读完整写法那一串')
 
   // ── 三、接线：内核片段登记进构建、并写进 index 的拼接标记 ─────────────────────────────
   const buildSrc = sourceText('scripts/build.mts')

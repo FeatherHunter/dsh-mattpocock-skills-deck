@@ -233,8 +233,10 @@ G.fetchMapTickets = () => {}
 const rowMod: any = await import('../src/client/views/ListTabRow.js')
 // #1511：编号写成「#目录/编号」的规则住在 kernel/ticket-label.ts；叶子单独加载时闭包里没有这个名字，
 // 这里接真实现（同构接线，不抄一份假规则，否则门禁会跟着实现一起漂）。
-const { ticketLabelOf } = await import('../src/client/kernel/ticket-label.js')
+const { ticketLabelOf, ticketLabelNodesOf, TICKET_LABEL_MAX_WIDTH } = await import('../src/client/kernel/ticket-label.js')
 G.ticketLabelOf = ticketLabelOf
+G.ticketLabelNodesOf = ticketLabelNodesOf
+G.TICKET_LABEL_MAX_WIDTH = TICKET_LABEL_MAX_WIDTH
 const listMod: any = await import('../src/client/views/ListTab.js')
 // 本次界面反馈需求：筛选药丸那一行搬成了独立叶子（要接三块液态墨块，ListTab 放不下）。
 // 这里直接加载真叶子；墨块钩子用空实现——这几道门禁只看行与按钮的形状，不测墨块对位。
@@ -431,7 +433,7 @@ for (const rc of listFx.rows) {
     failText(what + ' 左侧色条颜色', 'border-left:3px solid ' + e.bar, (html.match(/border-left:[^;"]+/) || [''])[0]))
   check(html.indexOf(e.tint) >= 0,
     failText(what + ' 行底色是身份色的薄底', e.tint, (html.match(/background:rgba\([^)]*\)/) || [''])[0]))
-  const badgeNeedle = 'class="dsws-idnum" style="color:' + e.badgeColor + ';border-color:' + e.badgeColor + '"'
+  const badgeNeedle = 'class="dsws-idnum" style="color:' + e.badgeColor + ';border-color:' + e.badgeColor
   check(html.indexOf(badgeNeedle) >= 0,
     failText(what + ' 编号徽章颜色', badgeNeedle, (html.match(/class="dsws-idnum"[^>]*/) || [''])[0]))
   if (e.primaryText) {
@@ -455,7 +457,7 @@ for (const rc of listFx.rows) {
     what + ' 没有容器角标、没有容器类名（实际：' + (noChip ? '没有' : '出现了容器类名') + '）')
   check(html.indexOf('border-left:3px solid') < 0,
     what + ' 没有容器行的左侧色条', '不含 border-left:3px solid', (html.match(/border-left:[^;"]+/) || ['没有色条'])[0])
-  const badgeNeedle = 'class="dsws-idnum" style="color:' + e.badgeColor + ';border-color:' + e.badgeColor + '"'
+  const badgeNeedle = 'class="dsws-idnum" style="color:' + e.badgeColor + ';border-color:' + e.badgeColor
   check(html.indexOf(badgeNeedle) >= 0,
     failText(what + ' 编号徽章仍是普通票的按标签取色', badgeNeedle, (html.match(/class="dsws-idnum"[^>]*/) || [''])[0]))
   const btns = primaryButtons(html)

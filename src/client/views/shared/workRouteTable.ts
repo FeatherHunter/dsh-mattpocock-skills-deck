@@ -50,6 +50,10 @@ declare function h(...args: any[]): any;
 declare function ownWorkRouteSlotOf(...args: any[]): any;
 // #1511：首列票号写成「#目录/编号」的显示规则住在 kernel/ticket-label.ts，本文件只调用。
 declare function ticketLabelOf(...args: any[]): any;
+// B 方案：同一颗控件的两段子节点走那一份（目录前缀可省略、编号尾巴绝不缩小）。
+declare function ticketLabelNodesOf(...args: any[]): any;
+// B 方案：首列票号控件的上限宽度同样读那一份（180px），与列表行、详情页、胶囊是同一颗控件。
+declare const TICKET_LABEL_MAX_WIDTH: string;
 // #1545：行点击要调的三个函数（findMapByIdentity 按票号找容器、containerKindOf 认它是地图还是规格、
 //   pushNav 跳到目标页）由打包时拼进同一闭包的更早片段提供，这里只声明名字与参数形状，不参与转译。
 declare function findMapByIdentity(...args: any[]): any;
@@ -324,7 +328,8 @@ export const WorkRouteRow = ({ r, nowMs, st, onNavigate, cells }: any) => {
     }
   }
   const row = h('div', rowProps, [
-    h('span', { ref: numberRef, style: Object.assign({ fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary,#e6e6eb)' }, workRouteCellStyle) }, fullLabel),
+    // B 方案：首列同样是上限宽度 + 目录前缀可省略、编号尾巴绝不缩小；完整写法仍走悬停补（见 tipContent）。
+    h('span', { ref: numberRef, style: Object.assign({ fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary,#e6e6eb)', display: 'inline-flex', alignItems: 'center', maxWidth: TICKET_LABEL_MAX_WIDTH }, workRouteCellStyle) }, ticketLabelNodesOf(h, r.ticketKey, r.effortId)),
     h('span', { style: Object.assign({ color: r.title ? 'inherit' : 'var(--dsw-alias-label-caption,#8b8b95)' }, workRouteCellStyle) }, r.title || tr('workRouteTable.titleMissing')),
     h('span', { style: Object.assign({ display: 'inline-flex', alignItems: 'center', gap: 4 }, workRouteCellStyle) }, [
       h('span', { key: 's', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.sessionLabel),

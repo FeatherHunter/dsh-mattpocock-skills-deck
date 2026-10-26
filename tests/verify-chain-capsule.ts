@@ -22,6 +22,8 @@ import { sourcePath, spliceableJs } from './lib/source-text.ts'
 // #1511：编号写成「#目录/编号」的真实现住在 kernel/ticket-label.ts。本门禁按文本/模块单独加载视图叶子，
 // 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
 ;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
+;(globalThis as any).ticketLabelNodesOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelNodesOf
+;(globalThis as any).TICKET_LABEL_MAX_WIDTH = (await import('../src/client/kernel/ticket-label.js')).TICKET_LABEL_MAX_WIDTH
 // #1518：容器身份（探索地图 / 规格 / 普通票）的判据真源住在 kernel/container-view.ts。本门禁按模块单独加载视图叶子，
 //   构建闭包里才有的名字这里也要补真身 —— 不另抄一份判定，否则门禁会跟着实现一起漂。
 const realContainerKindOf = (await import('../src/client/kernel/container-view.js')).containerKindOf
@@ -167,7 +169,7 @@ console.log('B) 版面纪律：真渲染出来的版面上没有内部行话与�
     if (typeof n === 'object') { (n.c || []).forEach(walk2) }
   })(open)
   check(flat2.indexOf('[menu]') >= 0, '悬停打开的是同一套悬浮单子（与 BUG / 可接菜单同形）')
-  check(flat2.some(function (s) { return s.indexOf('#951') >= 0 }) && flat2.some(function (s) { return s.indexOf('#950') >= 0 }), '单子里是当前会话的记录（两张都在，带标题）')
+  check(flat2.join('').indexOf('#951') >= 0 && flat2.join('').indexOf('#950') >= 0, '单子里是当前会话的记录（两张都在，带标题；B 方案后目录与编号是相邻两段，拼起来读）')
   check(flat2.some(function (s) { return s.indexOf('sess-mine-aaa') >= 0 }) === false, '单子里没有会话原文（只计数、不泄标识）')
   const findRows = function (root) {
     const out = []
@@ -342,9 +344,9 @@ console.log('E) 容器那一条（地图与规格）：认身份换图标，文�
   const mapPill = mapRow ? pillOf(mapRow) : null
   const plainPill = plainRow ? pillOf(plainRow) : null
   const specPill = specRow ? pillOf(specRow) : null
-  check(!!mapPill && hasIcon(mapPill, 'map') && textsIn(mapPill).indexOf('#40') >= 0, '#1553 单子里地图那行的号徽章是「地图图标 + 完整编号 #40」')
-  check(!!plainPill && textsIn(plainPill).indexOf('#780') >= 0, '单子里普通票那行的号徽章仍是 #780')
-  check(!!specPill && hasIcon(specPill, 'map') && textsIn(specPill).indexOf('#1460') >= 0, '#1553 单子里规格容器那行的号徽章也是「地图图标 + 完整编号 #1460」')
+  check(!!mapPill && hasIcon(mapPill, 'map') && textsIn(mapPill).join('').indexOf('#40') >= 0, '#1553 单子里地图那行的号徽章是「地图图标 + 完整编号 #40」（B 方案后目录与编号是相邻两段，拼起来读）')
+  check(!!plainPill && textsIn(plainPill).join('').indexOf('#780') >= 0, '单子里普通票那行的号徽章仍是 #780（B 方案后目录与编号是相邻两段，拼起来读）')
+  check(!!specPill && hasIcon(specPill, 'map') && textsIn(specPill).join('').indexOf('#1460') >= 0, '#1553 单子里规格容器那行的号徽章也是「地图图标 + 完整编号 #1460」（B 方案后目录与编号是相邻两段，拼起来读）')
   check(!!mapRow && String(mapRow.p['aria-label']).indexOf('#40') >= 0 && String(mapRow.p['aria-label']).indexOf('type.map') >= 0, '地图那行的无障碍名里仍是 #40 且带上类型词')
   check(!!plainRow && String(plainRow.p['aria-label']).indexOf('type.map') < 0, '普通票那行不冒充地图')
   check(!!specRow && String(specRow.p['aria-label']).indexOf('#1460') >= 0 && String(specRow.p['aria-label']).indexOf('type.spec') >= 0, '#1518 规格容器那行的无障碍名里仍是 #1460 且带上「规格」类型词')
@@ -494,8 +496,8 @@ console.log('G) #1553 容器 00 行：完整编号可点，不再静默没反应
   }
   const mapRow00 = rowNodes00.filter(function (r: any) { return String(r.p['aria-label'] || '').indexOf('#demo/00') >= 0 })[0] || null
   const specRow00 = rowNodes00.filter(function (r: any) { return String(r.p['aria-label'] || '').indexOf('#demo2/00') >= 0 })[0] || null
-  check(!!mapRow00 && pillTexts00(mapRow00).indexOf('#demo/00') >= 0, '#1553 地图 00 行徽章写完整编号 #demo/00（实得 ' + JSON.stringify(pillTexts00(mapRow00)) + '）')
-  check(!!specRow00 && pillTexts00(specRow00).indexOf('#demo2/00') >= 0, '#1553 规格 00 行徽章写完整编号 #demo2/00（实得 ' + JSON.stringify(pillTexts00(specRow00)) + '）')
+  check(!!mapRow00 && pillTexts00(mapRow00).join('').indexOf('#demo/00') >= 0, '#1553 地图 00 行徽章写完整编号 #demo/00（B 方案后目录与编号是相邻两段，拼起来读；实得 ' + JSON.stringify(pillTexts00(mapRow00)) + '）')
+  check(!!specRow00 && pillTexts00(specRow00).join('').indexOf('#demo2/00') >= 0, '#1553 规格 00 行徽章写完整编号 #demo2/00（B 方案后目录与编号是相邻两段，拼起来读；实得 ' + JSON.stringify(pillTexts00(specRow00)) + '）')
   nav00.length = 0
   mapRow00.p.onClick({ stopPropagation: function () {} })
   check(nav00.length === 1 && nav00[0].kind === 'map' && nav00[0].num === 0, '#1553 点地图 00 进容器详情，不再静默没反应（实得 ' + JSON.stringify(nav00) + '）')

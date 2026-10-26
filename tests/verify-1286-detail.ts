@@ -106,6 +106,11 @@ G.issueUrlFor = linkMod.issueUrlFor
 G.effortOf = identityMod.effortOf
 G.idOf = identityMod.idOf
 G.idOfParts = identityMod.idOfParts
+// #1511 / B 方案：地图头编号同样走 kernel/ticket-label.ts（上限宽度 + 两段子节点）；单测按闭包环境挂真身。
+const ticketLabelModForBadge = await import('../src/client/kernel/ticket-label.js')
+G.ticketLabelOf = ticketLabelModForBadge.ticketLabelOf
+G.ticketLabelNodesOf = ticketLabelModForBadge.ticketLabelNodesOf
+G.TICKET_LABEL_MAX_WIDTH = ticketLabelModForBadge.TICKET_LABEL_MAX_WIDTH
 G.effortNamesOf = () => ['default']
 G.findMapByIdentity = () => null
 G.pushNav = () => {}

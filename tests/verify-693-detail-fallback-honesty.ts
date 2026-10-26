@@ -32,6 +32,8 @@ import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 // #1511：编号写成「#目录/编号」的真实现住在 kernel/ticket-label.ts。本门禁按文本/模块单独加载视图叶子，
 // 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
 ;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
+;(globalThis as any).ticketLabelNodesOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelNodesOf
+;(globalThis as any).TICKET_LABEL_MAX_WIDTH = (await import('../src/client/kernel/ticket-label.js')).TICKET_LABEL_MAX_WIDTH
 
 // Node 里 global 就是 globalThis；这里声明一次，是为了保住原文件「往 global 上挂浏览器环境」的写法，
 // 行为与原来一模一样（不是新造的对象）。

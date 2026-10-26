@@ -27,6 +27,8 @@ const { sourceText, spliceableJs } = require('./lib/source-text.js')
 // #1511：编号写成「#目录/编号」的真实现住在 kernel/ticket-label.ts。本门禁按文本单独加载视图叶子，
 // 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
 ;(globalThis as any).ticketLabelOf = require('../src/client/kernel/ticket-label.js').ticketLabelOf
+;(globalThis as any).ticketLabelNodesOf = require('../src/client/kernel/ticket-label.js').ticketLabelNodesOf
+;(globalThis as any).TICKET_LABEL_MAX_WIDTH = require('../src/client/kernel/ticket-label.js').TICKET_LABEL_MAX_WIDTH
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false

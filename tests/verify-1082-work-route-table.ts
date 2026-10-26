@@ -36,6 +36,8 @@ import { spliceableJs, sourceText, sourcePath } from './lib/source-text.ts'
 // 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
 // #1553 的首列自适应三件套同样住在那一份里，一并补上。
 ;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
+;(globalThis as any).ticketLabelNodesOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelNodesOf
+;(globalThis as any).TICKET_LABEL_MAX_WIDTH = (await import('../src/client/kernel/ticket-label.js')).TICKET_LABEL_MAX_WIDTH
 ;(globalThis as any).workRouteCellsFor = (await import('../src/client/kernel/ticket-label.js')).workRouteCellsFor
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -268,7 +270,8 @@ async function main() {
 
   const treeOk = leaf.WorkRouteTable({ st: { snapshot: { workRouteTable: { ok: true, readout: okReadout } } } })
   const okText = textOf(treeOk)
-  check(okText.indexOf('#101') >= 0 && okText.indexOf('#102') >= 0, '逐条版面：两条票号都在')
+  // B 方案后票号是「目录 + 编号」相邻两段，假 React 摊平时在两段之间补空格；去空格再认票号（与可见字符一致）。
+  check(okText.replace(/ /g, '').indexOf('#101') >= 0 && okText.replace(/ /g, '').indexOf('#102') >= 0, '逐条版面：两条票号都在')
   check(okText.indexOf('甲票') >= 0 && okText.indexOf(trZh('workRouteTable.col.title')) >= 0, '逐条版面：标题与列名都在')
   check(okText.indexOf('会话 甲') >= 0 && okText.indexOf('会话 乙') >= 0, '逐条版面：两个会话标签都在')
   check(okText.indexOf(trZh('workRouteTable.thisSession')) >= 0, '当前会话那一条带「本会话」标记')
@@ -316,7 +319,7 @@ async function main() {
   const tableNodes = popNodes.length === 1 ? findAll(popNodes[0], (n: any) => n.type === leafOpen.WorkRouteTable) : []
   check(tableNodes.length === 1, '浮层里挂的就是那张在办表')
   const popText = tableNodes.length === 1 ? textOf(leafOpen.WorkRouteTable(tableNodes[0].props)) : ''
-  check(popText.indexOf('#101') >= 0 && popText.indexOf('#102') >= 0, '浮层里逐条画出了票号')
+  check(popText.replace(/ /g, '').indexOf('#101') >= 0 && popText.replace(/ /g, '').indexOf('#102') >= 0, '浮层里逐条画出了票号')
   // 默认不弹：没点开时页面上只有那颗图标，看不到表里的行。
   const closedTree = compileLeaf(makeReact()).WorkRouteTrigger({ st: okSt })
   check(findAll(closedTree, (n: any) => n.props && n.props['data-work-route-popover'] === 1).length === 0, '默认不弹浮层（点开才画）')

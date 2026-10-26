@@ -39,6 +39,10 @@ globalThis.issueUrlFor = linkMod.issueUrlFor
 globalThis.effortOf = identityMod.effortOf
 globalThis.idOf = identityMod.idOf
 globalThis.idOfParts = identityMod.idOfParts
+// #1511 / B 方案：地图头编号走 kernel/ticket-label.ts（上限宽度 + 两段子节点）；单测按闭包环境挂真身。
+globalThis.ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
+globalThis.ticketLabelNodesOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelNodesOf
+globalThis.TICKET_LABEL_MAX_WIDTH = (await import('../src/client/kernel/ticket-label.js')).TICKET_LABEL_MAX_WIDTH
 globalThis.effortNamesOf = () => ['default']
 globalThis.findMapByIdentity = () => null
 globalThis.containerKindOf = cvMod.containerKindOf
@@ -176,8 +180,9 @@ function renderMap(tickets: any[], copyFlash: any, kind?: any) {
   const iBadge = html.indexOf('dsws-idnum')
   const iTitle = html.indexOf('dsws-mtitle')
   check(iBadge >= 0 && iTitle > iBadge, 'E1 编号徽章画在标题之前（行首那颗）')
-  const badge = html.slice(iBadge, html.indexOf('</span>', iBadge))
-  check(badge.includes('#1228'), 'E2 徽章文本是 # 加编号（实得 ' + badge.replace(/<[^>]*>/g, '') + '）')
+  const badge = html.slice(iBadge, iBadge + 600)
+  const badgeText = badge.replace(/<[^>]*>/g, '')
+  check(badgeText.includes('#default/1228'), 'E2 徽章文本是 #目录/编号（B 方案后目录与编号分两段，拼起来读；实得 ' + badgeText.slice(0, 200) + '）')
   check(/color:\s*#c084fc/i.test(badge) && /flex:\s*none/i.test(badge), 'E3 探索地图徽章用中央色表的探索紫且不参与伸缩（flex:none）')
   // #1296 按容器类型分支：规格容器（type: 'spec'）的编号徽章必须改用规格蓝。
   //   以前这里只断一种紫色，中央化后若哪边写死一套色，另一种容器就会露馅。

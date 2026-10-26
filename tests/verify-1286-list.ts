@@ -140,8 +140,10 @@ G.saveListPrefs = () => {}
 const rowMod: any = await import('../src/client/views/ListTabRow.js')
 // #1511：编号写成「#目录/编号」的规则住在 kernel/ticket-label.ts；叶子单独加载时闭包里没有这个名字，
 // 这里接真实现（同构接线，不抄一份假规则，否则门禁会跟着实现一起漂）。
-const { ticketLabelOf } = await import('../src/client/kernel/ticket-label.js')
+const { ticketLabelOf, ticketLabelNodesOf, TICKET_LABEL_MAX_WIDTH } = await import('../src/client/kernel/ticket-label.js')
 G.ticketLabelOf = ticketLabelOf
+G.ticketLabelNodesOf = ticketLabelNodesOf
+G.TICKET_LABEL_MAX_WIDTH = TICKET_LABEL_MAX_WIDTH
 const listMod: any = await import('../src/client/views/ListTab.js')
 // 本次界面反馈需求：筛选药丸那一行搬成了独立叶子（要接三块液态墨块，ListTab 放不下）。
 // 这里直接加载真叶子；墨块钩子用空实现——这几道门禁只看行与按钮的形状，不测墨块对位。
@@ -209,7 +211,7 @@ function bgOf(style: string) {
   check(html.indexOf('dsws-chip-container') >= 0, 'A2 规格行角标带容器标记类 dsws-chip-container（列表页靠它认出容器行）')
   check(html.indexOf('规格') >= 0, 'A3 规格行角标文字是「规格」')
   check(/border-left:3px solid #1D4ED8/.test(html), 'A4 规格行左侧色条是贵族蓝 #1D4ED8')
-  check(/class="dsws-idnum" style="color:#1D4ED8;border-color:#1D4ED8"/.test(html), 'A5 规格行编号徽章在「有未关」态是蓝 #1D4ED8')
+  check(/class="dsws-idnum" style="color:#1D4ED8;border-color:#1D4ED8[^"]*"/.test(html), 'A5 规格行编号徽章在「有未关」态是蓝 #1D4ED8')
   check(html.indexOf('rgba(29,78,216,.10)') >= 0, 'A6 规格行底色是贵族蓝那层薄底')
 }
 // 回归：探索地图那一行一个字都不许变（角标「地图」、紫色色条）
