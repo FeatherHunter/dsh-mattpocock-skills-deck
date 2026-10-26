@@ -43,6 +43,10 @@ zh:
   truth.budgetOffNetwork: 本后端不出站，不需要额度
   truth.budgetUnknown: 额度读数还没同步上来
   truth.budgetUnknownModel: 额度未知：这个后端没有可用的预算模型
+  truth.budgetSyncFailedHard: 额度读数还没同步上来：这台机器上的命令行工具还没准备好（没装或没登录），要人检查一下；后台会继续重试
+  truth.budgetSyncFailedSoft: 额度读数还没同步上来：刚才没连上服务，后台会继续重试
+  truth.budgetStaleSyncFailedHard: 额度数字可能不是最新的：最近一次后台同步没成功，这台机器上的命令行工具还没准备好（没装或没登录），要人检查一下；之后会隔久一点再试
+  truth.budgetStaleSyncFailedSoft: 额度数字可能不是最新的：最近一次后台同步没连上服务，之后会继续重试
   list.restFallbackNonQuota: 这次取数走了 REST 通道（数据可能略旧）
   list.restFallbackStaleNonQuota: 上次取数走的 REST 通道（{n} 分钟前）—— 数据可能略旧
   chainView.title: 每个会话在处理哪些票
@@ -122,6 +126,10 @@ en:
   truth.budgetOffNetwork: This backend makes no outbound calls; no quota needed
   truth.budgetUnknown: Quota reading has not synced yet
   truth.budgetUnknownModel: "Quota unknown: this backend has no usable budget model"
+  truth.budgetSyncFailedHard: "Quota reading has not synced yet: the command-line tool this needs is not ready on this machine (not installed or not signed in), so someone needs to check it; retrying in the background"
+  truth.budgetSyncFailedSoft: "Quota reading has not synced yet: could not reach the service just now; retrying in the background"
+  truth.budgetStaleSyncFailedHard: "Quota numbers may be out of date: the last background sync did not succeed — the command-line tool this needs is not ready on this machine (not installed or not signed in), so someone needs to check it; it will retry after a longer wait"
+  truth.budgetStaleSyncFailedSoft: "Quota numbers may be out of date: the last background sync could not reach the service; it will keep retrying"
   list.restFallbackNonQuota: This fetch went through the REST channel (data may be slightly stale)
   list.restFallbackStaleNonQuota: Last fetch went through the REST channel ({n} min ago) — data may be slightly stale
   chainView.title: Which tickets each session is working on

@@ -4,7 +4,7 @@
 // 这条门禁只验账本本体（src/refresh/rooms/host/quota-ledger.ts），不经过闸、不经过刷新运行时：
 // 换轨之后账本的每一条口径都在这里单独钉一遍，闸与装配那边改坏了也不会把这里带红。
 //
-// 钉住的是这些行为（按正文的八节顺序；票面验收逐条对应）：
+// 钉住的是这些行为（按正文的九节顺序；票面验收逐条对应）：
 //   ① 键是「后端/桶」：同一轮里 GitHub 的 rest 与 GitLab 的 requests 各记各的，互不污染；
 //      空账如实说「还没量」——没读数时 remaining/tier 是 null，不拿 0 冒充；
 //   ② ensureBackend：按口径建桶（双桶两个、只计请求一个、离网不建），同一口径再调是幂等的；
@@ -16,7 +16,9 @@
 //      quota-read 只进 free，不扣 used（读剩余额度服务端不收费）；
 //   ⑥ 限流信号：撞上限流降红档，Retry-After 秒数过去自己回来；缺秒数或记到不存在的桶当场抛；
 //   ⑦ rollHour：清本小时用量与 free，但不动读数与「同步之后已花」；
-//   ⑧ 总览与 hour 的键：总览按档位分账、每一档按桶键给计数；hour 认桶键，也认后端名（不分桶）。
+//   ⑧ 总览与 hour 的键：总览按档位分账、每一档按桶键给计数；hour 认桶键，也认后端名（不分桶）；
+//   ⑨ 后台同步的读数只接受更新的：桶里已有读数、而这次取数时刻不比已记的新时跳过该桶（#1006 验收⑤），
+//      该桶的读数、额度、同步时刻、恢复时刻与「同步之后已花」都不动，也不进 applied；第一次读数永远接受。
 //
 // 本门禁不硬编码额度数字：35% 与写保底都从 host-budget.js 取，账本里写死一个数时这里立刻能看出来。
 const path = require('path')
@@ -131,7 +133,8 @@ async function main() {
   check(reqView.remaining === 321, 'requests 桶的剩余仍取保守下界（读数 remaining，实得 ' + reqView.remaining + '）')
   check(reqView.reserve === 0, 'requests 桶没有「留给写操作」这回事，写保底恒 0（实得 ' + reqView.reserve + '）')
   // 额度为 0 时不算档位：读数 limit 是 0，allowance 为 0，tier 必须是 null 而不是红档。
-  l4.syncServer('github', { rest: { limit: 0, remaining: 0 } }, clock)
+  // #1006 起不比上次新的读数会被拒，所以取数时刻往后挪一格再落这份读数（这里要验的不是新旧判定）。
+  l4.syncServer('github', { rest: { limit: 0, remaining: 0 } }, clock + 1)
   check(l4.view('github', 'rest').allowance === 0 && l4.view('github', 'rest').tier === null,
     '额度还没量出来（allowance 为 0）时不算档位（tier=' + show(l4.view('github', 'rest').tier) + '）')
 
@@ -230,6 +233,38 @@ async function main() {
   check(throws(() => l8.hour('plugin', 'rest')).indexOf('后端/桶名') >= 0, 'hour 只认桶键，旧的裸桶名当场抛（键是「后端/桶名」）')
   check(l8.hourOf('plugin', 'markdown').requests === 0 && l8.hourOf('plugin', 'markdown').points === 0,
     '没有桶的后端合计是零，不是抛错（离网后端本来就不花）')
+
+  // ---------- ⑨ 后台同步：只接受比上一次更新的读数（#1006 验收⑤） ----------
+  // 同步挪到后台之后，一次慢读数可能晚于快读数才落账；账本必须拒绝旧读数盖掉新读数。
+  const l9 = newLedger()
+  l9.ensureBackend('github', gh)
+  // ① 第一次读数永远接受；at 缺省时回退 now()（旧行为不变）。
+  const firstReading = l9.syncServer('github', { rest: { limit: 5000, remaining: 4000 } })
+  const afterFirst = l9.view('github', 'rest')
+  check(firstReading.applied.join(',') === 'rest' && afterFirst.synced === true && afterFirst.syncedAt === clock && afterFirst.serverRemaining === 4000,
+    '第一次读数照常落账（at 缺省取 now()；applied=' + firstReading.applied.join(',') + '，syncedAt=' + afterFirst.syncedAt + '，服务端剩余=' + afterFirst.serverRemaining + '）')
+  l9.spend({ account: 'plugin', backendId: 'github', bucket: 'rest', requests: 3 })
+  const beforeOld = l9.view('github', 'rest')
+  // ② 更旧的 at 被拒：reading、syncedAt、spentSinceSync 都不变，也不进 applied。
+  //    服务端剩余是「读数 remaining − 同步之后已花」，它仍等于 4000 − 3 = 3997 就说明 spentSinceSync 没被清零。
+  const oldReading = l9.syncServer('github', { rest: { limit: 5000, remaining: 111 } }, clock - 1000)
+  const afterOld = l9.view('github', 'rest')
+  check(oldReading.applied.length === 0 && show(afterOld) === show(beforeOld) && afterOld.serverRemaining === 3997 && afterOld.syncedAt === clock,
+    '更旧的读数被拒：整份账一格没动，也不进 applied（applied=' + oldReading.applied.length + '，服务端剩余=' + afterOld.serverRemaining + '，syncedAt=' + afterOld.syncedAt + '）')
+  // ③ 相同 at 同样被拒：「不晚于」就算旧，不许拿同一时刻的读数反复冲掉已花的记号。
+  const sameReading = l9.syncServer('github', { rest: { limit: 5000, remaining: 111 } }, clock)
+  check(sameReading.applied.length === 0 && show(l9.view('github', 'rest')) === show(beforeOld),
+    '相同 at 的读数也被拒，账本一格没动（applied=' + sameReading.applied.length + '）')
+  // ④ 更新的 at 接受：读数与同步时刻一起换新，spentSinceSync 清零（服务端剩余回到读数本身）。
+  const newReading = l9.syncServer('github', { rest: { limit: 5000, remaining: 900 } }, clock + 1000)
+  const afterNew = l9.view('github', 'rest')
+  check(newReading.applied.join(',') === 'rest' && afterNew.syncedAt === clock + 1000 && afterNew.serverRemaining === 900,
+    '更新的读数接受：applied=' + newReading.applied.join(',') + '，syncedAt=' + afterNew.syncedAt + '，服务端剩余=' + afterNew.serverRemaining)
+  // ⑤ 新旧判定是逐桶做的：这次读数比 rest 桶已记的旧，但 graphql 桶还没有读数 —— 只拒 rest，照收 graphql。
+  const mixed = l9.syncServer('github', { rest: { limit: 5000, remaining: 5 }, graphql: { limit: 5000, remaining: 3000 } }, clock + 500)
+  const restMixed = l9.view('github', 'rest')
+  check(mixed.applied.join(',') === 'graphql' && restMixed.serverRemaining === 900 && restMixed.syncedAt === clock + 1000 && l9.view('github', 'graphql').serverRemaining === 3000,
+    '只跳过已经有更新读数的桶：applied=' + mixed.applied.join(',') + '，rest 仍是 900 那次（syncedAt=' + restMixed.syncedAt + '），graphql 第一次读数 3000')
 
   console.log(failed ? '\n存在失败 — verify-1446-backend-ledger 未通过' : '\n全部通过 — 账本按后端分键门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)

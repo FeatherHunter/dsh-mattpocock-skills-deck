@@ -80,7 +80,7 @@ export const myBudget = {
 { ok: true, data: { known: true, kind: 'off-network' } }
 ```
 
-- 三个 reason 的分工：`not-measured` 是还没测到（例如命令不在本机）；`unavailable` 是测到了但这次取不到（鉴权失败、网络错误、解析失败）；`unsupported` 是这个后端根本没有这项能力。
+- 三个 reason 的分工，判的是「等一等会不会自己好」：`not-measured` 是这台机器没准备好（例如命令不在本机、没登录、凭证坏了），要人去处理、短期不会自己好；`unavailable` 是这次取不到（网络错误、超时、读数解析失败），下一次可能就好；`unsupported` 是这个后端根本没有这项能力。额度同步按这组分法选退避档位：前一种等得久，后一种等得短（#1006）。能分辨的房源把鉴权失败归 `not-measured`（GitHub 拿得到鉴权错误档）；只能拿到退出码的房源（GitLab）分不出「没登录」与「网络错」，仍归 `unavailable`、等得短，不会把一次网络抖动误判成永久故障。
 - `unsupported` 由会话管线补出来：后端模块没实现 `readBudget` 时，注册表在装配时给它补一个「不支持」桩（`src/tracker/registry/shape.ts`），房间回的是失败信封；会话管线认出这一档后翻成 `{ ok: true, data: { known: false, reason: 'unsupported' } }`。对读数来说这不算失败——看不到额度是一个事实，调用方照常往下走。只有装配错（会话实例上连桩都没有）才回失败信封。
 - 参考实现：GitHub 在 `src/tracker/rooms/github/budget.ts`（REST 与 GraphQL 两个桶）、GitLab 在 `src/tracker/rooms/gitlab/budget.ts`（读 `RateLimit-Limit`/`RateLimit-Remaining` 响应头）、Markdown 在 `src/tracker/rooms/markdown/budget.ts`（恒离网）。
 - 参考测试：`tests/verify-tracker-session.ts`（四种读数形状、后端没实现时回 `unsupported`，以及读预算不裁决不记账）、`tests/verify-1443-github-readbudget.ts`、`tests/verify-1446-gitlab-budget.ts`、`tests/verify-1447-gitlab-e2e.ts`。

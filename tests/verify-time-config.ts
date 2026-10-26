@@ -91,6 +91,8 @@ const REFERENCES: RefRow[] = [
   { file: 'src/host/skillProbeCache.ts', access: 'SKILL_PROBE_CACHE_MS', gen: 'SKILL_PROBE_CACHE_MS', key: 'skillProbeCacheMs' },
   { file: 'src/refresh/rooms/host/chain-coalescing.ts', access: 'CHAIN_RIDE_MAX_AGE_MS', gen: 'CHAIN_RIDE_MAX_AGE_MS', key: 'chainRideMaxAgeMs' },
   { file: 'src/refresh/rooms/host/refresh-runtime.ts', access: 'DECK_ENSURE_TIMEOUT_MS', gen: 'DECK_ENSURE_TIMEOUT_MS', key: 'deckEnsureMs' },
+  { file: 'src/refresh/registry/quota-sync-bridge.ts', access: 'QUOTA_SYNC_HARD_COOLDOWN_MS', gen: 'QUOTA_SYNC_HARD_COOLDOWN_MS', key: 'quotaSyncHardCooldownMs' },
+  { file: 'src/refresh/registry/quota-sync-bridge.ts', access: 'QUOTA_SYNC_MAX_COOLDOWN_MS', gen: 'QUOTA_SYNC_MAX_COOLDOWN_MS', key: 'quotaSyncMaxCooldownMs' },
   { file: 'src/refresh/registry/deck-tool-bridge.ts', access: 'DECK_LOCAL_READ_TIMEOUT_MS', gen: 'DECK_LOCAL_READ_TIMEOUT_MS', key: 'deckLocalReadMs' },
   { file: 'src/refresh/registry/deck-tool-bridge.ts', access: 'SHELL_RESOLVE_TIMEOUT_MS', gen: 'SHELL_RESOLVE_TIMEOUT_MS', key: 'shellResolveMs' },
   { file: 'src/refresh/rooms/host/refresh-gate.ts', access: 'FAILURE_HALF_OPEN_DELAY_MS', gen: 'FAILURE_HALF_OPEN_DELAY_MS', key: 'failureHalfOpenDelayMs' },

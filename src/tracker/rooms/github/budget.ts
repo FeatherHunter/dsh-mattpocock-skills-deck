@@ -4,8 +4,10 @@
  * 这一件只回答一件事：这台机器上的 gh 还剩多少可用额度（REST 与 GraphQL 两桶）。
  * 调用方是额度同步（经 Tracker 会话调 readBudget），不是人 —— 所以三条坏路（gh 缺失、
  * 未登录、网络失败）都回「读数未知」并带原因，不回 0、不抛异常：回 0 会让裁决以为额度用完，
- * 抛异常会让同步记一次本不该记的失败。未知分两种：没量过（not-measured，机器没装 gh，
- * 不是额度用完）与量了但拿不到（unavailable，未登录、网络失败、读数解析不出）。
+ * 抛异常会让同步记一次本不该记的失败。未知分两种，分组看「等一等会不会自己好」：
+ * not-measured = 这台机器没准备好（没装 gh、没登录、凭证坏了），要人去处理，短期不会自己好；
+ * unavailable = 这次取不到（网络断开、超时、读数解析不出），下一次可能就好了。
+ * 这组分法直接决定额度同步的退避档位（硬失败等得久、软失败等得短，见 #1006）。
  * 成功时原样交回两桶水位（剩多少与上限分开，不编数）。
  *
  * 两桶解析是桥里旧 parseRateLimit 的唯一后继：旧解析随 #1443 改道删掉，以后只认这一份。
@@ -55,8 +57,9 @@ export async function readGithubBudget(ctx: OpContext): Promise<OpResult<BudgetR
     const r = await c.execGh(['api', 'rate_limit'], { cwd: (ctx && ctx.cwd) || undefined, via: 'readBudget.rate-limit' })
     if (!r.ok) {
       const kind = (r.error && r.error.kind) || ERROR_KIND.NETWORK;
-      // 环境档是没有量过（gh 缺失、出站没接上），不是额度用完；其余（未登录、网络失败、超时取消）都是量了但拿不到。
-      if (kind === ERROR_KIND.ENV) return { ok: true, data: { known: false, reason: 'not-measured' } }
+      // 环境档与鉴权档都是「这台机器没准备好」（gh 缺失、未登录、凭证坏了），不是额度用完、也不是临时故障：
+      // 归 not-measured，让额度同步按硬失败退避（等得久、要人去处理）；其余（网络失败、超时取消）是这次取不到，归 unavailable。
+      if (kind === ERROR_KIND.ENV || kind === ERROR_KIND.AUTH) return { ok: true, data: { known: false, reason: 'not-measured' } }
       return { ok: true, data: { known: false, reason: 'unavailable' } }
     }
     const buckets = parseRateLimit(r.data.stdout)
