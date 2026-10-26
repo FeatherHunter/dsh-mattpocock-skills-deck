@@ -560,7 +560,7 @@ const wait = (env) => realSleep(300)
     check(env.mod.setViewFlag(cwd, 'bannerFolded', false) === true, '手机答 ok:false 之前，这一笔先按能写接下来。')
     await wait(env)
     const oldMap = JSON.parse(env.ls.getItem('dsws.bannerFold') || '{}')
-    check(oldMap[KEY_OF(cwd)] === undefined, '宿主说写不成之后，取消这一笔写了回旧键（旧键那把折叠记录被删掉，与改动前取消收起的做法一致）。', JSON.stringify(oldMap))
+    check(oldMap[KEY_OF(cwd)] === 0, '宿主说写不成之后，取消这一笔写了回旧键（横幅折叠记 0 是点过展开，缺席留给没点过、读时按收起算）。', JSON.stringify(oldMap))
     check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '内存里这一格是刚点的那一下（false）——不假装写成功了，也不把用户刚做的动作弹回去。')
     check(env.logs.some((l) => l.event === 'host.call.fail' && l.fields && l.fields.method === 'wf.setSettings'), '被宿主拒绝的那一次留下一行日志。', JSON.stringify(env.logs))
   }
@@ -952,7 +952,7 @@ const wait = (env) => realSleep(300)
     check(env.calls.filter((c) => c.method === 'wf.setSettings').length === 0, '认不出工作区根时一次写电话都没发出去。', JSON.stringify(env.calls.map((c) => c.method)))
     check(fs.existsSync(settingsPathIn(env.home)) === false, '设置文件一个字节都没写（不会留下一条读不回来、也永远不会被合并的孤儿记录）。')
     check(env.ls.getItem('dsws.bannerFold') === null, '这一片自己也不写旧键（旧键由调用方按老办法写，这一片不替它写）。')
-    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '读这一侧照旧答得出来（文档里没有这一条，回旧表里的 false）。')
+    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '读这一侧照旧答得出来（文档里没有这一条，旧表里也没有，按默认收起算）。')
     // 根认出来之后（同一台机器上 wf.cwd 回过话），键就是根的可读路径，记录落在根上而不是会话目录上。
     env.st.sessionWorkspaceRoot = 'd:\\scratch\\no-repo'
     check(env.mod.viewFlagWriteKeyOf(cwd) === 'D:\\scratch\\no-repo', '根认出来之后，写这一侧的键就是根的可读路径。', JSON.stringify(env.mod.viewFlagWriteKeyOf(cwd)))
@@ -1013,8 +1013,8 @@ const wait = (env) => realSleep(300)
     check(env.mod.viewFlagDocKeyOf(cwd) === 'D:\\ilife' && env.mod.viewFlagWriteKeyOf(cwd) === 'D:\\ilife',
       '读与写对这把键给同一个答案：都是那条工作区根（表里认得出来，就不许写口再说认不出）。',
       JSON.stringify([env.mod.viewFlagDocKeyOf(cwd), env.mod.viewFlagWriteKeyOf(cwd)]))
-    // 先问一次读：这一次会把懒读起起来（文档到手之前，读这一侧先答旧表里的 false，这是过渡期的老行为）。
-    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '文档还没到手时读这一侧先答旧表里的 false（过渡期的老行为）。')
+    // 先问一次读：这一次会把懒读起起来（文档到手之前，读这一侧先答旧表；旧表里没有按默认收起算）。
+    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '文档还没到手时读这一侧先答旧表，旧表里没有按默认收起算。')
     const ready = await waitFor(() => env.mod.viewFlagReadyNow() === true)
     check(ready, '这份设置文档读到手了（读这一侧要按真源判，不能还没问到就下结论）。')
     check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '文档到手后读这一侧答文件里那条记录：横幅是收起的。')

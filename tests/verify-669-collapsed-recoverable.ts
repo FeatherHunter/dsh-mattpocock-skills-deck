@@ -317,7 +317,9 @@ const runSweep = async function (code: string) {
       const t0 = Date.now()
       let live: any = null
       try { live = await mountLive(code) } catch (e: any) { out.push({ label: label, want: want, err: '挂载就抛错：' + ((e && e.message) || e) }); continue }
-      const before = stateOf(live.container, live.dict)
+      let before = stateOf(live.container, live.dict)
+      // 默认收起：新挂载从收起态起步，先点开展开再走这一轮点击（量的是「点下去会不会消失」，起点必须是展开态）。
+      if (!before.banner && before.recover) { await live.clickNode(before.recover); before = stateOf(live.container, live.dict) }
       if (!before.banner || !before.capsule) { live.dispose(); out.push({ label: label, want: want, err: '挂载后横幅或胶囊就不在（前置不成立）' }); continue }
       let clickErr = null
       const hit = await live.click(sel).catch((e) => { clickErr = (e && e.message) || String(e); return false })
@@ -383,6 +385,7 @@ console.log('== C 真产物行为层：逐个点一遍，看谁会让整条状�
   check(!!primary && /GitHub/.test(primary.cardText || ''), 'C：卡上只读地写着这次用哪个后端（实得文字里有 GitHub：' + /GitHub/.test((primary && primary.cardText) || '') + '）')
   {
     const live0 = await mountLive(code)
+    { const s0 = stateOf(live0.container, live0.dict); if (!s0.banner && s0.recover) await live0.clickNode(s0.recover) }
     const wip = String(live0.dict['gate.wipNotice'] || 'Markdown 预览，GitLab 筹备中')
     await live0.click('.dsws-banner button.dsws-btn')
     const cardText = String(live0.container.textContent || '')
@@ -405,6 +408,7 @@ console.log('== C 真产物行为层：逐个点一遍，看谁会让整条状�
   }
   // 那颗叉身上一个字都没有（还原的就是图形叉），但悬停与无障碍名仍是全称（与界面同源）。
   const live = await mountLive(code)
+  { const s1 = stateOf(live.container, live.dict); if (!s1.banner && s1.recover) await live.clickNode(s1.recover) }
   const btn = live.container.querySelector('.dsws-banner-fold-x')
   const wantName = String(live.dict['banner.foldDeck'] || '收起MattSkillsDeck')
   check(!!btn && String(btn.textContent || '').trim() === '',

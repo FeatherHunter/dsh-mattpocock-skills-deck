@@ -185,14 +185,14 @@ export const ISSUE_CACHE_TTL: number = ((typeof SYNC === 'object' && SYNC && SYN
 export const selectionByCwd: any = {}
 export const repositoryByCwd: any = {}
 export const SELECTION_BY_CWD_KEY: string = 'dsws.selectionByCwd'
-// #422 · 提示横幅按工作区收起记忆（默认全部展开；各类提示横幅都可收，由调用方横幅决定是否给收起入口）。
-//   存法沿用选择集同例：归一键 → 1（收起），缺席即展开；localStorage 不可用时降级为仅内存。
+// #422 · 提示横幅按工作区收起记忆（默认全部收起；用户点过展开才展开，各类提示横幅都可收，由调用方横幅决定是否给收起入口）。
+//   存法：归一键 → 1（收起）或 0（用户点过展开），缺席是没点过、按收起算；localStorage 不可用时降级为仅内存。
 export const BANNER_FOLD_KEY: string = 'dsws.bannerFold'
 export const bannerFoldByCwd: any = {}
 ;(function (): void {
   try {
     const raw: any = localStorage.getItem(BANNER_FOLD_KEY)
-    if (raw) { const m: any = JSON.parse(raw); if (m && typeof m === 'object') { for (const k of Object.keys(m)) { const nk: any = (typeof keyOf === 'function' ? keyOf(k) : k); if (m[k] && !(nk in bannerFoldByCwd)) bannerFoldByCwd[nk] = 1 } } }
+    if (raw) { const m: any = JSON.parse(raw); if (m && typeof m === 'object') { for (const k of Object.keys(m)) { const nk: any = (typeof keyOf === 'function' ? keyOf(k) : k); if ((nk in bannerFoldByCwd)) continue; if (m[k]) bannerFoldByCwd[nk] = 1; else if (m[k] === 0 || m[k] === false) bannerFoldByCwd[nk] = 0 } } }
   } catch (e) { /* 存储不可用降级为仅内存 */ }
 })()
 const persistBannerFold = function (): void { try { localStorage.setItem(BANNER_FOLD_KEY, JSON.stringify(bannerFoldByCwd)) } catch (e) { /* 忽略 */ } }
@@ -204,7 +204,8 @@ const persistBannerFold = function (): void { try { localStorage.setItem(BANNER_
 //   写失败时把这一格留在待写队列里，下一趟写再试一次（见 kernel/settings-view-write.js）。
 export const isBannerFolded = function (cwd: any): boolean {
   try { const v: any = (typeof viewFlagOf === 'function') ? viewFlagOf(cwd, 'bannerFolded') : undefined; if (typeof v === 'boolean') return v } catch (eN) {}
-  try { if (!cwd) return false; const k: any = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || '')); return !!bannerFoldByCwd[k] } catch (e) { return false }
+  // 新模块不在（老产物、渲染替身）时才走旧表：记得 1 是收起、0 是点过展开，缺席是没点过、按收起算。
+  try { if (!cwd) return true; const k: any = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || '')); if (k in bannerFoldByCwd) return !!bannerFoldByCwd[k]; return true } catch (e) { return true }
 }
 // 把这一次折叠交给新模块（写本机设置文件那条路）：回 true 表示它接下了，旧表一个字都不动；
 //   回 false 表示它接不下（认不出工作区根、文档问不到、文件只读、文档在手却写不进这一格）或根本不在，调用方照老办法写旧表。
@@ -228,7 +229,7 @@ export const setBannerFolded = function (cwd: any, folded: any): void {
     const k: any = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || ''))
     if (!cwd || !k) return
     if (folded) bannerFoldByCwd[k] = 1
-    else delete bannerFoldByCwd[k]
+    else bannerFoldByCwd[k] = 0
     persistBannerFold()
   } catch (e) { /* 忽略 */ }
   emitBannerFold(cwd)

@@ -118,7 +118,7 @@ export function parseSettings(doc: unknown): ConfigParseResult {
     clicks[name] = n
   }
 
-  // workspaces 节：键是工作区根的可读路径（动态），值里只认三个开关（缺了默认关）。
+  // workspaces 节：键是工作区根的可读路径（动态），值里只认三个开关（横幅折叠缺了默认收起，其余缺了默认关）。
   const wsRaw = doc['workspaces'] === undefined ? {} : doc['workspaces']
   if (!isRecord(wsRaw)) return fail('bad-shape', '本机设置文件里的 workspaces 必须是一组「工作区根 → 开关」')
   const workspaces: Record<string, unknown> = {}
@@ -131,7 +131,7 @@ export function parseSettings(doc: unknown): ConfigParseResult {
     if (entryStrange.length > 0) {
       return fail('unknown-keys', '本机设置文件 workspaces 节里「' + root + '」有多出来的名字：' + entryStrange.join('、'), entryStrange)
     }
-    const norm: Record<string, unknown> = { bannerFolded: false, noRepoDismissed: false, subwsMarkAutoShown: false }
+    const norm: Record<string, unknown> = { bannerFolded: true, noRepoDismissed: false, subwsMarkAutoShown: false }
     for (const k of WS_KEYS) {
       if (entry[k] === undefined) continue
       if (typeof entry[k] !== 'boolean') {

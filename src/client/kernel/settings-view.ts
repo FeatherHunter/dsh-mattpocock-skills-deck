@@ -21,7 +21,8 @@
  *   src/shared/config-store/settings.js）里 workspaces 那一节，是按工作区记住的观看状态的唯一真源。
  *   localStorage 那两个旧键（dsws.bannerFold、dsws.subwsAutoShown）从此只是过渡：文档缺席、读失败、
  *   手机不通这三种情况才读它；只有写不进文件（或文件是更高版本、不许写回去）时才把这一次的值写回旧键；
- *   写成功那条路上一个字都不写旧键 —— 那不是双写，是过渡。
+ *   写成功那条路上一个字都不写旧键 —— 那不是双写，是过渡。旧键里也没有（或旧键不可用）时，
+ *   横幅折叠按收起算，其余按关算。
  *   这一手过渡能兜住什么、兜不住什么必须说准（#1012 后续修复按实测改准）：文件里**已经有**这个工作区的
  *   记录时，写进旧键的这一份读不回来 —— 读侧的口径是「文件里这条记录有值就以它为准」，所以它只在本次
  *   窗口内充当记性（用户当场再点一下，看到的是刚点的那一下），页面一关就只剩文件里那一份。真正让一次改动
@@ -81,15 +82,15 @@ declare const process: any;
       bannerFolded: { key: 'dsws.bannerFold', by: 'cwd' },
       subwsMarkAutoShown: { key: 'dsws.subwsAutoShown', by: 'root' },
     }
-    // 新建一条工作区记录时要顺手种上的那两格：与核（src/shared/config-store/settings.js 第 16 行的 WS_KEYS
-    //   与第 93 行的默认值）一字对齐，值取旧表里还知道的那一份 —— 新建的那一刻别顺手把用户原来收起过的
-    //   横幅重新展开，那不是双写，只是别把已经知道的事忘掉。
+    // 新建一条工作区记录时要顺手种上的那两格：与核（src/shared/config-store/src/settings.ts 的 WS_KEYS
+    //   与归一默认值：横幅折叠默认收起、其余默认关）一字对齐，值取旧表里还知道的那一份 —— 新建的那一刻
+    //   别顺手把用户原来点过展开的横幅重新收起，那不是双写，只是别把已经知道的事忘掉。
     //   为什么这张表里没有 noRepoDismissed（#1012 后续修复的 A4）：无仓库红卡那张卡要退役，本窗口替它写一个
     //   false，等以后红卡的记录也搬进这份文件时，就会拿这个 false 当「用户没收起过」，把人家早就收起的红卡
     //   重新弹出来。所以这一格不由本窗口种。
-    //   说清这一手管得到哪，不许夸大：核在写盘时会把缺的那一格按 false 补上（settings.js 第 93 行的默认值，
-    //   stringifySettings 每次都写全三格），所以文件里那一行照旧出现 —— 这里改掉的只是「本窗口不主动替用户
-    //   答这一格」。真正决定以后红卡弹不弹的是核里那个默认值，不在这里；要真治它得动核或等红卡搬过来那票。
+    //   说清这一手管得到哪，不许夸大：核在写盘时会把缺的那一格按默认值补上（settings.ts 归一：横幅折叠补
+    //   收起、其余补关，stringifySettings 每次都写全三格），所以文件里那一行照旧出现 —— 这里改掉的只是
+    //   「本窗口不主动替用户答这一格」。真正决定以后红卡弹不弹的是核里那个默认值，不在这里；要真治它得动核或等红卡搬过来那票。
     const VIEW_FLAG_SEED_NAMES = ['bannerFolded', 'subwsMarkAutoShown']
     // 折算到同一把键再比较：这一片一律走闭包里那把 keyOf（与仓库其余位置同口径），拿不到时才退回本地写法。
     const viewFlagNormOf = function (p: any): any {
@@ -190,26 +191,29 @@ declare const process: any;
         return viewFlagNormOf(meta.by === 'root' ? viewFlagDocKeyOf(cwd) : cwd)
       } catch (e) { return '' }
     }
-    // 读旧表：旧表两种记法都是「归一键 → 1」，读的时候两边都折算过再比（旧版本可能把原样路径写进去过）。
+    // 读旧表：横幅折叠那把键记 1 是收起、记 0 是用户点过展开，缺席是没点过、按默认收起算；
+    //   红文件夹标志沿用老记法（记 1 是展示过，缺席即没展示过）。读的时候两边都折算过再比
+    //   （旧版本可能把原样路径写进去过）。
     const viewFlagLegacyRead = function (cwd: any, name: any): any {
       try {
         const meta = VIEW_FLAG_LEGACY[name]
         if (!meta) return false
-        if (typeof localStorage === 'undefined' || !localStorage) return false
+        if (typeof localStorage === 'undefined' || !localStorage) return name === 'bannerFolded'
         const raw = localStorage.getItem(meta.key)
-        if (!raw) return false
+        if (!raw) return name === 'bannerFolded'
         const map = JSON.parse(raw)
-        if (!map || typeof map !== 'object' || Array.isArray(map)) return false
+        if (!map || typeof map !== 'object' || Array.isArray(map)) return name === 'bannerFolded'
         const key = viewFlagLegacyKeyOf(cwd, name)
-        if (!key) return false
-        if (map[key]) return true
+        if (!key) return name === 'bannerFolded'
+        if (Object.prototype.hasOwnProperty.call(map, key)) return !!map[key]
         const ks = Object.keys(map)
-        for (let i = 0; i < ks.length; i++) { if (viewFlagNormOf(ks[i]) === key && map[ks[i]]) return true }
-      } catch (e) { return false }
-      return false
+        for (let i = 0; i < ks.length; i++) { if (viewFlagNormOf(ks[i]) === key) return !!map[ks[i]] }
+      } catch (e) { return name === 'bannerFolded' }
+      return name === 'bannerFolded'
     }
     // 写旧表：只在这一条路接不下这一次改动时才走（写文件失败、文件只读、或认不出工作区根）。
-    //   置上就是那把键记 1，取消就是把它删掉（与 src/client/kernel/store-prefs.ts 的横幅折叠表同一种做法）；
+    //   横幅折叠记 1 是收起、记 0 是展开（缺席留给没点过、读时按收起算）；红文件夹标志沿用老做法
+    //   （置上记 1，取消删掉，与 src/client/kernel/store-prefs.ts 的旧记法同源）；
     //   表里别的键原样保留，所以只动这一次涉及的那一条。
     //   写旧表本身失败时补一行 storage.fail（既有事件名，字段只有 key 与 op 两个，与全库其余位置一致），
     //   不再一口吞掉：兜不住这件事要在日志里看见，不然排查时只剩「用户点了、什么都没发生」。
@@ -231,8 +235,8 @@ declare const process: any;
         if (!map) map = {}
         let hit = Object.prototype.hasOwnProperty.call(map, key) ? key : ''
         if (!hit) { const ks = Object.keys(map); for (let i = 0; i < ks.length; i++) { if (viewFlagNormOf(ks[i]) === key) { hit = ks[i]; break } } }
-        if (on) map[hit || key] = 1
-        else if (hit) delete map[hit]
+        if (name === 'bannerFolded') { if (on) map[hit || key] = 1; else map[hit || key] = 0 }
+        else { if (on) map[hit || key] = 1; else if (hit) delete map[hit] }
         localStorage.setItem(meta.key, JSON.stringify(map))
         return true
       } catch (e) {
@@ -358,14 +362,15 @@ declare const process: any;
         const entry = hit ? viewFlagState.doc.workspaces[hit] : null
         if (entry && typeof entry === 'object' && typeof entry[name] === 'boolean') return { known: true, value: entry[name] }
       } catch (e) {}
-      return { known: false, value: false }
+      // 问不出时的默认值按名字走：横幅折叠默认收起，其余默认关。
+      return { known: false, value: name === 'bannerFolded' }
     }
     // 按所选目录那条路读一格：先按认出来的根问上面那个口子，问不出才回退旧 localStorage 键（这一手兜不住
-    //   「文件里已经有这个工作区的记录」那种情形，见文件头那段）。
+    //   「文件里已经有这个工作区的记录」那种情形，见文件头那段）。旧键里也没有时横幅折叠按收起算（见旧键读法）。
     export const viewFlagOf = function (cwd: any, name: any): any {
       try {
         const ans = viewFlagOfRoot(viewFlagDocKeyOf(cwd), name)
         if (ans.known) return ans.value
         return viewFlagLegacyRead(cwd, name)
-      } catch (e) { return false }
+      } catch (e) { return name === 'bannerFolded' }
     }

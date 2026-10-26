@@ -316,7 +316,7 @@ export const StatusBar = (props: any) => {
       dswsBannerLast.at = now
     } catch (e) {}
   }, [_bannerLogKey])
-  // #422 · 收起整个功能区：横幅上的叉收起横幅与胶囊状态栏（打破胶囊永不隐藏旧规）；默认展开，按工作区记住。
+  // #422 · 收起整个功能区：横幅上的叉收起横幅与胶囊状态栏（打破胶囊永不隐藏旧规）；默认收起，用户点过展开才展开，按工作区记住。
   const deckFolded = isBannerFolded(s.cwd)
   const foldBanner = function () { try { setBannerFolded(s.cwd, true) } catch (e) {} }
   const expandBanner = function () { try { setBannerFolded(s.cwd, false) } catch (e) {} }
