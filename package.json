@@ -18,7 +18,7 @@
     "smoke": "node --import ./scripts/ts-hook.mts tests/smoke-client.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-host-dispatch.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-render.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-naming-persistence.test.ts && node --import ./scripts/ts-hook.mts tests/smoke-comment-passthrough.test.ts",
     "test:smoke": "node scripts/verify-chain.ts --script smoke",
     "test:nobuild": "node scripts/verify-chain.ts && npm run test:smoke",
-    "verify:parallel": "node scripts/verify-parallel.mts --keep-going",
+    "verify:parallel": "node scripts/verify-parallel.mts --keep-going --json node_modules/.cache/dsh-verify-last.json",
     "verify:fast": "node scripts/verify-parallel.mts --tier fast",
     "verify:changed": "node scripts/verify-parallel.mts --changed",
     "verify": "node scripts/verify-chain.ts",

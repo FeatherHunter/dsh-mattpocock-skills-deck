@@ -253,6 +253,11 @@ node scripts/lib/select-gates.mts <改了哪些文件...>
 
 ## 六、门禁红了先看哪里
 
+- **大面积红、而且很多行都是 `Cannot find module '<三方包名>'`**：这是 `node_modules` 坏了，
+  不是代码问题（同一条缺件出现在两扇以上门禁时，并行入口会自己停下来并说明）。
+  修法是删掉整个 `node_modules` 重新装：`pnpm install --frozen-lockfile`，本机实测十几秒。
+  **不要**只删 `node_modules/.pnpm` 下的某个子目录：`pnpm install` 会回「Already up to date」，
+  目录装不回来，人会误以为已经修好，实际只是把下一次运行也变成红的。
 - **`tests/verify-gate-map.ts` 报「归属表过期」**：重跑 `node scripts/gate-map.mts`，
   然后看 `git diff tests/gate-map.json` 里变了什么——变的地方通常就是这次真正动到的归属关系。
 - **报「某个文件既没有门禁也没有理由」**：说明 `src/` 下多了一个没人守的文件。

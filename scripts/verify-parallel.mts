@@ -359,22 +359,64 @@ console.log(
 )
 console.log('[并行门禁] 完成证据判据：链上 ' + evidenceSteps.length + ' 步带期望（tests/gate-map.json 里 completionRecord 为 true 的那几扇）')
 
+// 记录这次跑的是哪一棵树：产物要用它自证「检查跑在我说的那个提交上」。
+function headShaOf(): string {
+  try {
+    return String(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' })).trim()
+  } catch (e) {
+    return ''
+  }
+}
+// 「裸包名缺件」的签名：三方依赖整包没装上时，Node 报的是 Cannot find module '<包名>'，包名里没有路径分隔符。
+//   为什么只认裸包名：仓内夹具缺件、构建产物没生成时，报的模块名都带路径或盘符（反例见
+//   tests/verify-683-host-wiring.ts 里「那是夹具缺件，不是实现错」那一条），那些是代码/构建问题。
+//   为什么还要「两扇以上门禁」：单独一扇门禁自己写错依赖名时也报裸包名；环境坏了是几百扇一起报同一个包。
+const INFRA_MISSING_RE: RegExp = /Cannot find module '([^'\/\\]+)'/g
+function bareMissingNamesOf(r: StepResult): string[] {
+  const text: string = String(r.out || '') + '\n' + String(r.err || '')
+  const names: string[] = []
+  INFRA_MISSING_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = INFRA_MISSING_RE.exec(text)) !== null) {
+    if (m[1] && names.indexOf(m[1]) < 0) names.push(m[1])
+  }
+  return names
+}
+// 记下这一扇报的缺件；同一个包名被两扇以上门禁报过时返回它（= 环境坏了），否则空串。
+function recordInfraMissing(r: StepResult, acc: Map<string, Set<string>>): string {
+  let broke: string = ''
+  for (const name of bareMissingNamesOf(r)) {
+    let files: Set<string> | undefined = acc.get(name)
+    if (!files) {
+      files = new Set<string>()
+      acc.set(name, files)
+    }
+    files.add(r.file)
+    if (files.size >= 2 && !broke) broke = name
+  }
+  return broke
+}
 const started: number = Date.now()
 const results: StepResult[] = []
 let stop: boolean = false
+// 环境损坏时用的硬停，与 --keep-going 无关：--keep-going 的意思是「代码红也继续跑完、一次收齐」，
+//   前提是这些红有意义；node_modules 坏了以后每一扇的结果都不作数，继续跑只是再烧掉一分钟。
+let stopAll: boolean = false
+const infraMissing: Map<string, Set<string>> = new Map()
 // 一段一段跑：段内用工人池并发，段间等上一段跑完（遇红即停时后面整段都不跑）。
 for (const g of stageGroups) {
+  if (stopAll) break
   if (stop && !has('--keep-going')) break
   console.log('[并行门禁] —— ' + g.stage + ' 段（' + g.steps.length + ' 步） ——')
   const tasks = g.tasks!!
   let cursor: number = 0
   async function worker(): Promise<void> {
     for (;;) {
-      if (stop) return
+      if (stop || stopAll) return
       const i: number = cursor++
       if (i >= tasks.length) return
       for (const step of tasks[i].steps) {
-        if (stop) return
+        if (stop || stopAll) return
         const r = await runStepJudged(step)
         r.optional = !!step.optional
         results.push(r)
@@ -384,6 +426,18 @@ for (const g of stageGroups) {
         if (r.code !== 0 && !step.optional && !has('--keep-going')) {
           // 与串行链一样：遇红就停（已在跑的等它跑完再报；后面整段都不跑）。
           stop = true
+          return
+        }
+        // 环境坏了和代码红了是两件事：环境坏了以后继续跑毫无信息量，所以这里不看 --keep-going。
+        const brokeName: string = recordInfraMissing(r, infraMissing)
+        if (brokeName) {
+          // 只在第一次判定时喊一声：并发下会有好几个工人同时看到环境坏了，重复刷屏没有用。
+          if (stopAll) return
+          stopAll = true
+          const hitFiles: Set<string> | undefined = infraMissing.get(brokeName)
+          console.log('  [环境] 多扇门禁报同一个缺件：' + brokeName + '（' + (hitFiles ? hitFiles.size : 2) + ' 扇已报）')
+          console.log('  [环境] 这不像代码问题，像 node_modules 坏了：停掉剩余步骤，不再浪费轮次。')
+          console.log('  [环境] 修法：删掉整个 node_modules 重新 pnpm install --frozen-lockfile；不要只删 .pnpm 下的子目录（pnpm 会以为一切正常，目录装不回来）。见 docs/agents/verification.md 第六节。')
           return
         }
       }
@@ -449,6 +503,39 @@ for (const f of failed) {
 
 if (has('--json')) {
   const outPath: string = optOf('--json', '')
-  if (outPath) fs.writeFileSync(path.resolve(ROOT, outPath), JSON.stringify({ wallMs: wall, jobs, tier, results: results.map((r) => ({ file: r.file, code: r.code, ms: r.ms, at: r.at, exitCode: r.exitCode != null ? r.exitCode : r.code, evidence: r.evidence || '' })) }, null, 2))
+  if (outPath) {
+    // 产物是证据，不是裁决：写不出来只能是警告，绝不许把一次全绿变成红。
+    //   （原先这里直接 writeFileSync，目录不在时会抛未捕获异常，把退出码改成 1，而摘要还写着「真红 0 步」。）
+    try {
+      const abs: string = path.resolve(ROOT, outPath)
+      fs.mkdirSync(path.dirname(abs), { recursive: true })
+      fs.writeFileSync(
+        abs,
+        JSON.stringify(
+          {
+            // 身份栏：树（head）、时刻、进程、Node 版本。并发跑同一棵树时靠 pid 与 at 分清是哪一次。
+            at: Date.now(),
+            head: headShaOf(),
+            node: process.version,
+            pid: process.pid,
+            wallMs: wall,
+            jobs,
+            tier,
+            stepsRan: chainRan,
+            stepsTotal: steps.length,
+            red: failed.length,
+            flaky: flaky.length,
+            results: results.map((r) => ({ file: r.file, code: r.code, ms: r.ms, at: r.at, exitCode: r.exitCode != null ? r.exitCode : r.code, evidence: r.evidence || '' })),
+          },
+          null,
+          2
+        )
+      )
+      console.log('[并行门禁] 结果另存一份（含 HEAD 与逐扇结果）：' + outPath)
+    } catch (e) {
+      const msg: string = e instanceof Error ? e.message : String(e)
+      console.log('[并行门禁] 结果没写成（不影响上面的判定）：' + msg)
+    }
+  }
 }
 process.exit(failed.length ? 1 : 0)
