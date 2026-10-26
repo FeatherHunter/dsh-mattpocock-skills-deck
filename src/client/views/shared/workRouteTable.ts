@@ -50,6 +50,11 @@ declare function h(...args: any[]): any;
 declare function ownWorkRouteSlotOf(...args: any[]): any;
 // #1511：首列票号写成「#目录/编号」的显示规则住在 kernel/ticket-label.ts，本文件只调用。
 declare function ticketLabelOf(...args: any[]): any;
+// #1545：行点击要调的三个函数（findMapByIdentity 按票号找容器、containerKindOf 认它是地图还是规格、
+//   pushNav 跳到目标页）由打包时拼进同一闭包的更早片段提供，这里只声明名字与参数形状，不参与转译。
+declare function findMapByIdentity(...args: any[]): any;
+declare function containerKindOf(...args: any[]): any;
+declare function pushNav(...args: any[]): any;
 
 /** 快照里这个字段的名字；宿主读数模块用的是同一个名字。 */
 export const WORK_ROUTE_TABLE_FIELD = 'workRouteTable'
@@ -199,6 +204,26 @@ export const workRouteTableOf = function (st: any): WorkRouteTableView {
 }
 
 /**
+ * #1545 · 在办表行点击去哪：按票号加工作单元在快照容器表里找容器，找得到且认得出种类
+ *   就进容器详情，否则回落普通票详情（与子票/阻塞票分流 enterSubDetail 同一条口径：
+ *   有字可看，不静默没反应）。导航函数不在（打包单文件求值时外层没拼进来）或票号取不到
+ *   时回空，调用方不挂点击，不跳错地方。
+ */
+export const workRouteNavOf = function (st: any, r: WorkRouteTableRow): any {
+  if (!r || typeof r.ticketKey !== 'string' || r.ticketKey.trim() === '' || typeof pushNav !== 'function') return null
+  const effort = typeof r.effortId === 'string' ? r.effortId : ''
+  let kind = ''
+  try {
+    const maps = st && st.snapshot && st.snapshot.maps
+    if (typeof findMapByIdentity === 'function' && typeof containerKindOf === 'function' && Array.isArray(maps)) {
+      const c = findMapByIdentity(maps, r.ticketKey, effort)
+      if (c) kind = containerKindOf(c) || ''
+    }
+  } catch (e) { /* 容器表损坏时按未知容器处理：回落票详情，不断渲染。 */ }
+  return { kind: kind === 'map' || kind === 'spec' ? 'map' : 'issue', n: r.ticketKey, effortId: effort }
+}
+
+/**
  * 六列的列宽模板：票号、动作、动作时间、是否在办这四列按格子里的内容定固定宽度；
  * 标题与会话两列吃掉全部富余宽度 —— 面板拉宽时先让这两列长出来，票标题和会话名才显示得全。
  * 反例（#1287 以前的写法）：那四列各留着一大片空白（「动作时间」72 像素里只写着 27 像素的时分，
@@ -244,7 +269,7 @@ const workRouteTipGroup = function (h: any, icon: string, text: string, key: str
  * 才知道动作词有没有被省略号截掉（workRouteIsCut）。
  * 反例（#1287 以前的写法）：提示只挂在标题那一格、只写标题 —— 会话名被截掉时没人说得清是谁在办这张票。
  */
-export const WorkRouteRow = ({ r, nowMs }: any) => {
+export const WorkRouteRow = ({ r, nowMs, st, onNavigate }: any) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   const actionRef = React.useRef(null)
@@ -265,11 +290,32 @@ export const WorkRouteRow = ({ r, nowMs }: any) => {
       ]),
     ])
   }
-  const row = h('div', {
+  // #1545：行可点才挂点击——导航目标由 workRouteNavOf 定（容器进容器页、其余进票详情）；
+  //   点后调 onNavigate（浮层靠它收起）。导航能力不在时保持今天的纯展示行。
+  const nav = workRouteNavOf(st, r)
+  const openRow = function () {
+    if (!nav) return
+    try { pushNav(st, nav.kind, nav.n, nav.effortId) } catch (e) { /* 跳转失败就停在当前页，不把人带错地方。 */ }
+    if (typeof onNavigate === 'function') { try { onNavigate() } catch (e2) { /* 收浮层失败不影响已发生的跳转。 */ } }
+  }
+  const rowProps: any = {
     'data-work-route-row': 1,
     'data-work-route-active': r.active ? 1 : 0,
-    style: { display: 'grid', gridTemplateColumns: WORK_ROUTE_TABLE_CELLS, gap: 6, alignItems: 'center', padding: '3px 0', borderTop: '1px solid rgba(255,255,255,.045)' },
-  }, [
+    style: { display: 'grid', gridTemplateColumns: WORK_ROUTE_TABLE_CELLS, gap: 6, alignItems: 'center', padding: '3px 0', borderTop: '1px solid rgba(255,255,255,.045)', cursor: nav ? 'pointer' : undefined },
+  }
+  if (nav) {
+    rowProps.tabIndex = 0
+    rowProps.role = 'button'
+    rowProps['aria-label'] = ticketLabelOf(r.ticketKey, r.effortId) + ' ' + (r.title || '')
+    rowProps['data-press'] = 'row'
+    rowProps['data-log'] = 'workroute.row.' + r.ticketKey
+    rowProps.onClick = openRow
+    rowProps.onKeyDown = function (e: any) {
+      if (!e || e.target !== e.currentTarget) return
+      if (e.key === 'Enter' || e.key === ' ') { if (typeof e.preventDefault === 'function') e.preventDefault(); openRow() }
+    }
+  }
+  const row = h('div', rowProps, [
     h('span', { style: Object.assign({ fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary,#e6e6eb)' }, workRouteCellStyle) }, ticketLabelOf(r.ticketKey, r.effortId)),
     h('span', { style: Object.assign({ color: r.title ? 'inherit' : 'var(--dsw-alias-label-caption,#8b8b95)' }, workRouteCellStyle) }, r.title || tr('workRouteTable.titleMissing')),
     h('span', { style: Object.assign({ display: 'inline-flex', alignItems: 'center', gap: 4 }, workRouteCellStyle) }, [
@@ -283,8 +329,8 @@ export const WorkRouteRow = ({ r, nowMs }: any) => {
   return h(Tip, { content: tipContent, placement: 'above', maxWidth: 520, offset: { x: 0, y: 12 } }, row)
 }
 
-/** 面板里这张表：标题行 + 表头 + 逐条行；空态与读不到也画在这一块里。 */
-export const WorkRouteTable = ({ st }: any) => {
+/** 面板里这张表：标题行 + 表头 + 逐条行；空态与读不到也画在这一块里。点行后调 onNavigate（浮层靠它收起）。 */
+export const WorkRouteTable = ({ st, onNavigate }: any) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   // #1440：与胶囊同一条选路 —— 本机只读读数优先，快照里挂的那张兜底（304 回包可能挂一张坏表）。
@@ -316,7 +362,7 @@ export const WorkRouteTable = ({ st }: any) => {
     ])
   }
   const rows = view.rows.map(function (r: WorkRouteTableRow) {
-    return h(WorkRouteRow, { key: r.ticketKey + ':' + r.sessionLabel + ':' + r.actionAt, r: r, nowMs: nowMs })
+    return h(WorkRouteRow, { key: r.ticketKey + ':' + r.sessionLabel + ':' + r.actionAt, r: r, nowMs: nowMs, st: st, onNavigate: onNavigate })
   })
   return h('section', { 'data-work-route-table': 'ok', style: boxStyle }, [
     titleRow,
@@ -405,7 +451,7 @@ export const WorkRouteTrigger = ({ st }: any) => {
     ? (reading
         ? h('div', { 'data-work-route-loading': 1, style: { color: 'var(--dsw-alias-label-caption,#8b8b95)', fontSize: 11, padding: '4px 2px' } }, tr('chainView.ownRouteLoading'))
         : h('div', { 'data-work-route-idle': 1, style: { color: 'var(--dsw-alias-label-caption,#8b8b95)', fontSize: 11, padding: '4px 2px' } }, tr('workRouteTable.idle')))
-    : h(WorkRouteTable, { st: st })
+    : h(WorkRouteTable, { st: st, onNavigate: close })
   const pop = (ui.open && ui.pos) ? portalTop(h('div', {
     ref: popRef,
     'data-work-route-popover': 1,
