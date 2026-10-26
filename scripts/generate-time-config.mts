@@ -402,6 +402,13 @@ function renderDts(values: Record<string, any>): string {
   const lines: string[] = []
   lines.push('// values.d.ts —— 中央时间参数的类型声明（#1215 单源头改造补，构建时现场生成、不入库）。')
   lines.push('//')
+  lines.push('// 人手不改：本文件由 scripts/generate-time-config.mts 按 config/ 下的三份时间参数文件写出；')
+  lines.push('// 想调时间请改 YAML 再跑生成器，不要手改这里（手改会被下一次构建覆盖，--check 也会判红）。')
+  lines.push('//')
+  lines.push('// 上面「人手不改」这一行不只是提醒人：scripts/lib/build-cache.mts 的 looksDerived() 见到它，')
+  lines.push('// 就把本文件排除在构建输入之外（#1530：生成器在构建中段重写它时，输入摘要才不会被搅动）。')
+  lines.push('// 判据的细节以那个函数为准，别在这份生成物里另抄一份，免得两处说法对不上。')
+  lines.push('//')
   lines.push('// 为什么多这一份：调用方 import 的是域表层的 values.js（转译产物，没有类型），')
   lines.push('// tsc 按同名兄弟只能找到表层的 values.ts——而真源住在 src/ 下。没有这份声明，')
   lines.push('// 严格模式下所有 import values.js 的 .ts 都报 TS7016。内容与 values.ts 同源。')

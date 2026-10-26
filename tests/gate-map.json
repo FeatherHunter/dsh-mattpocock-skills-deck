@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-26T05:27:47.862Z",
+  "generatedAt": "2026-10-26T05:34:21.067Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 395,
-  "gateCount": 395,
+  "chainLength": 396,
+  "gateCount": 396,
   "attributedGates": 355,
-  "unattributedGates": 40,
+  "unattributedGates": 41,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 16,
   "smokeLength": 5,
@@ -3643,6 +3643,27 @@
       "completionRecord": true,
       "expectedAssertions": 51,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
+    },
+    {
+      "step": "node tests/verify-1530-generated-outputs-not-inputs.ts",
+      "file": "tests/verify-1530-generated-outputs-not-inputs.ts",
+      "guards": [
+        "scripts/build.mts",
+        "scripts/generate-locale-config.mts",
+        "scripts/generate-md-format-config.mts",
+        "scripts/generate-prompt-config.mts",
+        "scripts/generate-time-config.mts",
+        "scripts/lib/build-cache.mts"
+      ],
+      "dirs": [
+        "scripts",
+        "scripts/lib"
+      ],
+      "unattributed": true,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-1532-github-close-reason.ts",
@@ -9629,6 +9650,7 @@
       "node tests/verify-1409-suggest-stream.ts",
       "node tests/verify-1411-suggest-appearance.ts",
       "node tests/verify-1411-suggest-bubble.ts",
+      "node tests/verify-1530-generated-outputs-not-inputs.ts",
       "node tests/verify-640-dock-width-browser.ts",
       "node tests/verify-bundled-skills-zh.ts",
       "node tests/verify-ctx.ts",
@@ -9683,6 +9705,7 @@
       "node tests/verify-1323-build-lock.ts",
       "node tests/verify-1438-banner-recheck-button.ts",
       "node tests/verify-1446-panel.ts",
+      "node tests/verify-1530-generated-outputs-not-inputs.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-596-rpc-carrier.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
