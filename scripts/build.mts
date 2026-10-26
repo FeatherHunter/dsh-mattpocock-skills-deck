@@ -94,7 +94,7 @@ const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 // 界面就跟着反复闪烁——验证链跑一次要命中十几回，面板就闪十几回。判据换成内容摘要后（#1326），
 // 除缓存不可用时的回落判据外，全仓没有别处再看 mtime；这里也就不需要再动任何 mtime。
 //
-// 强制重建：node scripts/build.mts --force，或设 DSH_BUILD_NO_CACHE=1。
+// 强制重建：node scripts/build.mts --force，或设 DSH_BUILD_NO_CACHE=1。两者都只跳过命中判断，构建成功后照常写回实际构建的那一档（--force 本身不参与档位命名，见 buildModeKey，#1539）。
 // 缓存文件落在 node_modules/.cache/ 下（不进版本库，不会被提交）。
 
 function printArtifactSizes(devOnly: boolean, pkgOnly: boolean): void {

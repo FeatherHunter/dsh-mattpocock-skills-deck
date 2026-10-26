@@ -134,9 +134,19 @@ export function listOutputs(root: string = REPO_ROOT): string[] {
   return Array.from(new Set(out)).sort()
 }
 
-/** 从命令行参数推出这次构建属于哪一档：--dev-only / --pkg-only / --force 等按字母排序拼接，不带参数就是 full。 */
+/** 不改变构建产物内容的开关：只影响本次运行的行为，不参与缓存档位命名（#1539）。
+ *
+ * 为什么要单列这份名单：档名决定缓存条目写到哪里；行为类开关一旦进档名，
+ * 构建就会写出门禁永远不查的一次性条目（例如 --force 写出 entries['--force']，
+ * 而门禁与下一次普通构建查的都是 entries.full），导致强制重建后门禁仍判旧、
+ * 下一次普通构建还要再重建一次。名单用「拒绝名单」而不是「只认 --dev-only
+ * 这类档名」：漏掉一个行为开关，最坏只是多重建一次（多花一次构建，方向是安全的）；
+ * 反过来漏掉一个真正的档名，不同档的构建就会共用同一条记录（会用错缓存，方向是危险的）。 */
+const NON_MODE_FLAGS: string[] = ['--force', '--break-stale-lock']
+
+/** 从命令行参数推出这次构建属于哪一档：--dev-only / --pkg-only 按字母排序拼接，不带参数就是 full。 */
 export function buildModeKey(argv: string[] = process.argv.slice(2)): string {
-  const flags: string[] = argv.filter((a) => a.startsWith('--')).sort()
+  const flags: string[] = argv.filter((a) => a.startsWith('--') && !NON_MODE_FLAGS.includes(a)).sort()
   return flags.length ? flags.join(' ') : 'full'
 }
 
