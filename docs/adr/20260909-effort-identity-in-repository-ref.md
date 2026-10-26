@@ -42,6 +42,10 @@
 - 面板必须显示 effort 归属（同一屏里同号票要靠 effort 名区分）；面板按 `idOf` 做 React key / 查找 / 导航栈 / 差异索引。
   呈现方式经四版样张对照后定版：**每行 effort 徽标 + 顶部 effort 筛选**（可多选、可清空，KPI 跟随筛选）；
   「按 effort 分组折叠」「顶部 effort 切换器」两种备选未采纳。样张见 `docs/prototype/effort-display-variants.html`。
+  > 2026-10-26 补记：编号从 #1511 起自己就带目录（`#目录/01`），行上那枚 effort 徽标写的目录名与编号里的目录名
+  > 重复，同一段文字一行里出现两次。三个显示位（列表行、票详情顶栏、地图详情头部）已先整体隐藏，
+  > 代码保留在各自文件里的 `SHOW_EFFORT_BADGE` 开关后面；顶部 effort 筛选不受影响。等确认这些页面
+  > 都不再需要徽标，再删代码并把这一条改写成新口径。
 - 快照与依赖边缓存键、探针索引、详情缓存都要把 effort 计入，否则两个 effort 会互相顶掉（同一份实现见 `idOfParts`）。
 - 跨 effort 的同号引用**不成立**：`Blocked by: #01` 只在同一 effort 内解析；要跨 effort 引用就得先有 effort 标识语法（本期不做，诚实留白）。
 - 建票必须指定 effort（多 effort 仓库里不给就 `conflict`），编号在该 effort 内取 `max+1`。

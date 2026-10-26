@@ -18,6 +18,9 @@
 declare const host: any;
 declare function log(...args: any[]): any;
 declare function emit(...args: any[]): any;
+// 失败重试的两档等待来自中央时间参数（config/intervals.yaml 的 ownRouteRetryMs）：
+// 构建拼接时这一行会被剥掉，名字由闭包里的 timeConfig 片提供；门禁 CLIENTS 表与此处双向对账。
+import { OWN_ROUTE_RETRY_MS } from '../../shared/time-config/src/values.js'
 
 // #1355 · 把一份快照交给「别的会话」之前剥掉工作路线读数：表是按请求它的那个会话算的（每行是否本会话），
 //   跟着快照走就会让接收方把别人的行当自己的。返回浅拷贝，不改调用方那一份（它可能正是首发会话手上那份）。
@@ -57,7 +60,7 @@ export const ownWorkRouteSlotOf = function (st: any): any {
 // 失败后自己再试的两次等待（毫秒）：第一次 1.2 秒后再试，第二次 2.5 秒后再试。
 //   为什么不让用户点：读的是本机一份存档，失败几乎都是「晚一点文件就能读」这类瞬时原因，把重试做成按钮
 //   等于把我们自己的重活推给用户；两次都不成就安静停手（库存在旧路上继续显示旧表），下次打开/切会话自然再试。
-const OWN_ROUTE_RETRY_MS = [1200, 2500]
+//   两档数值的真源是 config/intervals.yaml 的 ownRouteRetryMs（本文件顶部已从中央时间参数引入）。
 
 /** #1436 · 错误归类用的短散列（5381）：日志只记散列，不把报错原文写进常驻日志。 */
 const ownRouteHash8 = function (s: any): string {

@@ -24,7 +24,7 @@
 // 相对引用保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts；判定全在纯函数那一侧，
 // 本文件只做翻译与台账，所以类型只收依赖形状，不收任何判定规则。）
 import * as budget from '../../kernel/host-budget.js'
-import { ACTIVE_LINGER_MS, ATTENTION_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, ATTENTION_HEARTBEAT_MS } from '../../../shared/time-config/src/values.js'
+import { ACTIVE_LINGER_MS, ATTENTION_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, ATTENTION_HEARTBEAT_MS, ATTENTION_REPORT_DEDUPE_MS } from '../../../shared/time-config/src/values.js'
 import { createAttentionState, report, collect, heartbeatIntervalMs } from '../../kernel/attention-model.js'
 import type { AttentionSignalKind } from '../../kernel/attention-model.js'
 
@@ -134,7 +134,8 @@ export function createAttention(deps?: AttentionDeps | null): Attention {
   // window-blur 会在同一秒成批到达（25 秒 28 条），每条都要把工作区根重新归一
   // （workspaceRoot.resolve → workspaceKey.canonical → workspaceStore.miss → wf.namingPlan），而归一结果
   // 与状态推进与上一条完全相同 —— 纯属重复劳动。去重放在 rootOf 之前，省掉的正是这趟归一化。
-  const REPORT_DEDUPE_MS = 1000
+  // 去重窗的真源在 config/ttl.yaml 的 attentionReportDedupeMs：调它只改 YAML，不在这里写第二份数字。
+  const REPORT_DEDUPE_MS = ATTENTION_REPORT_DEDUPE_MS
   const lastReport = new Map<string, any>()
   const stats = { deduped: 0 }
 

@@ -130,6 +130,10 @@ export const listSkeletonNode = function (h: any, count: any) {
 }
 
 export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narrow: any, blockOf: any, colorOf: any, multiEffort: any) {
+      // 2026-10-26 维护者要求：effort 徽标先整体隐藏，代码保留、不删除。
+      //   背景：#1511 起编号已经写成「#目录/01」，这枚徽标里写的目录名与同一行编号里的目录名重复，
+      //   一行里同一段文字出现两次。改回 true 即恢复显示（三处同名开关：ListTabRow、IssueDetail、MapDetailHead）。
+      const SHOW_EFFORT_BADGE = false
       const has = function (x: any, nm: any) { return (x.labels || []).some(function (l: any) { return l.name === nm }) }
       // #949 瞬间底座：行内可点小药丸（+N 更多、被阻塞跳转）也要能被键盘走到。
       //   #956 评审修正：本地那份键盘处理退役，改调共享层的 chipKeyDown（同图收敛只留一处）；
@@ -335,7 +339,7 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
             //   末尾那个标记类让列表页认出「这一行是容器」（两种容器共用一个类名，不按颜色猜）。
             isContainer ? h('span', { className: 'dsws-chip ' + chipClassOf(kind) + ' ' + containerMarkerClass, style: { fontSize: 11, fontWeight: 600, lineHeight: 1.7, padding: '0 8px' } }, [Ic({ n: 'map', size: 11 }), h('span', null, tr(chipLabelKeyOf(kind)))]) : null,
             // effort 维度：一个仓库多个 effort 时，每行标出它属于哪个 effort（同号票靠这一眼区分）
-            (multiEffort && effortOf(x)) ? h(Tip, { content: effortOf(x) }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': effortOf(x), style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, effortOf(x))) : null,
+            (SHOW_EFFORT_BADGE && multiEffort && effortOf(x)) ? h(Tip, { content: effortOf(x) }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': effortOf(x), style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, effortOf(x))) : null,
             // #1511：编号带上目录（#买咖啡积分/01）；容器同样是「#目录/00」。
             h('span', { className: 'dsws-idnum', style: { color: numColor, borderColor: numColor } }, ticketLabelOf(x.key != null ? x.key : x.number, effortOf(x))),
             // #715：写入窗口期给这一行加一枚极轻的「更新中」标记 —— 不改状态、不改布局：

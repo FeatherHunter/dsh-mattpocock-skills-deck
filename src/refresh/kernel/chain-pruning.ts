@@ -21,11 +21,15 @@
  * 为什么不按「每个会话留 20 张」：会话长短差得很远，20 张对一次长会话不够、对一次短会话又太多；
  * 而且那个上限把「时间」这个真正的判据排除在外，一个三天没动的会话和一个刚开五分钟的会话被同样对待。
  *
- * 本文件是纯工具：不读时钟（时间由调用方传进来）、不碰磁盘、不发日志。数字要改只改这里。
+ * 本文件是纯工具：不读时钟（时间由调用方传进来）、不碰磁盘、不发日志。留存量的时间线
+ * （CHAIN_KEEP_MS）真源在 config/ttl.yaml 的 chainKeepMs；体积线（CHAIN_MAX_BYTES）是这份
+ * 纯逻辑自己的取值，改它就改这里。
  */
 
-/** 留存量的一条线：超过 30 天的条目在下一次落盘时清掉。 */
-export const CHAIN_KEEP_MS = 30 * 24 * 60 * 60 * 1000
+import { CHAIN_KEEP_MS } from '../../shared/time-config/src/values.js'
+
+/** 留存量的一条线：超过 30 天的条目在下一次落盘时清掉（真源 config/ttl.yaml 的 chainKeepMs）。 */
+export { CHAIN_KEEP_MS }
 
 /** 留存量的另一条线：整份落盘超过 2MB 就按时间从旧到新裁，裁到 2MB 以下为止。 */
 export const CHAIN_MAX_BYTES = 2 * 1024 * 1024

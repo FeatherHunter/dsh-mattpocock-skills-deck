@@ -12,7 +12,7 @@
 //
 // 本门禁量四件事：
 //   A. 宿主电话：四种如实的失败理由各回对、先规整工作区再读、读存档抛错与形状不对分得开、日志只记散列；
-//   B. 客户端读取：读到置 ready、在途只发一次、失败按 1.2s/2.5s 再试两次后标 off、宿主旧版不空转、
+//   B. 客户端读取：读到置 ready、在途只发一次、失败按中央两档等待再试两次后标 off、宿主旧版不空转、
 //      迟到回包按「会话号 + 目录」丢弃、重读期间旧数据先顶着；
 //   C. 胶囊取数：电话读数优先于旧快照表、读取中画转圈不画空白、有旧表时继续显示旧表；
 //   D. 快照决策：缺表不再是强制整份刷新的理由（老行为仍由 verify-1355 守着）。
@@ -25,10 +25,15 @@
 // 门禁归属: src/client/views/shared/workRouteTable.ts
 // 门禁归属: src/refresh/rooms/client/refresh-timer.ts
 //
-// 用法（在插件根目录；不需要先构建，本门禁跑的是真源码）：
+// 用法（在插件根目录；跑的是真源码，但与中央时间参数有关的断言要先有生成物——
+// 先跑一次 `node scripts/generate-time-config.mts` 或一次构建；npm test / verify:parallel 会自动生成）：
 //   node --import ./scripts/ts-hook.mts tests/verify-1436-own-work-route.ts
 import { compileFn } from './lib/eval-probe.js'
 import { spliceableJs, sourceText } from './lib/source-text.ts'
+// 闭包拼接时 OWN_ROUTE_RETRY_MS 由 timeConfig 片提供（真源 config/intervals.yaml 的 ownRouteRetryMs）。
+// 门禁把剥掉 import 行之后的源码当函数跑，这个名字成了自由变量，所以作用域里补的是中央导出的同一份值；
+// B3 的两档等待断言也按它算，不在门禁里手抄第二份数字。
+import { OWN_ROUTE_RETRY_MS } from '../src/shared/time-config/src/values.js'
 let failed = false
 let total = 0
 const check = function (ok: any, msg: string): void {
@@ -174,6 +179,7 @@ const loadOwnModule = function (): any {
       return id
     },
     clearTimeout: function (id: any): void { if (id) id.cleared = true },
+    OWN_ROUTE_RETRY_MS: OWN_ROUTE_RETRY_MS,
   }
   const mod: any = loadSpliced('src/client/kernel/work-route-own.js',
     ['loadOwnWorkRoute', 'ownWorkRouteSlotOf', 'ownWorkRouteKeyOf', 'snapshotRequestPlan'], scope)
@@ -233,16 +239,16 @@ const partB = async function (): Promise<void> {
   b3.calls[0].res({ ok: false, error: { message: 'EACCES' } })
   await tick()
   let slot: any = b3.mod.ownWorkRouteSlotOf(st3)
-  check(!!slot && slot.state === 'loading' && slot.tries === 1 && b3.pending().length === 1 && b3.pending()[0].ms === 1200,
-    '第一次失败先保持读取中，1.2 秒后自己再试（实得 ' + JSON.stringify({ state: slot && slot.state, ms: b3.pending()[0] && b3.pending()[0].ms }) + '）')
+  check(!!slot && slot.state === 'loading' && slot.tries === 1 && b3.pending().length === 1 && b3.pending()[0].ms === OWN_ROUTE_RETRY_MS[0],
+    '第一次失败先保持读取中，按中央第一档等待后自己再试（实得 ' + JSON.stringify({ state: slot && slot.state, ms: b3.pending()[0] && b3.pending()[0].ms, want: OWN_ROUTE_RETRY_MS[0] }) + '）')
   b3.runTimers()
   await tick()
   check(b3.calls.length === 2, '等待到点后自己再读一次（实得 ' + b3.calls.length + ' 次）')
   b3.calls[1].res({ ok: false, error: { message: 'EACCES' } })
   await tick()
   slot = b3.mod.ownWorkRouteSlotOf(st3)
-  check(!!slot && slot.state === 'loading' && slot.tries === 2 && b3.pending().length === 1 && b3.pending()[0].ms === 2500,
-    '第二次失败再等 2.5 秒试最后一次（实得 ' + JSON.stringify({ tries: slot && slot.tries, ms: b3.pending()[0] && b3.pending()[0].ms }) + '）')
+  check(!!slot && slot.state === 'loading' && slot.tries === 2 && b3.pending().length === 1 && b3.pending()[0].ms === OWN_ROUTE_RETRY_MS[1],
+    '第二次失败再按中央第二档等一次（实得 ' + JSON.stringify({ tries: slot && slot.tries, ms: b3.pending()[0] && b3.pending()[0].ms, want: OWN_ROUTE_RETRY_MS[1] }) + '）')
   b3.runTimers()
   await tick()
   b3.calls[2].res({ ok: false, error: { message: 'EACCES' } })

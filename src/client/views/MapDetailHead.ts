@@ -32,6 +32,12 @@ declare function containerCountKey(...args: any[]): any;
 declare const CONTAINER_ACCENT: any;
 
 export const MapDetailHead = ({ st, m, mt, multiEffort, kind }: any) => {
+  // 2026-10-26 维护者要求：effort 徽标先整体隐藏，代码保留、不删除。
+  //   注意这一屏与列表行不同：上面的编号只画「#0」，不带工作单元目录；隐藏徽标后，地图详情头部就不再显示
+  //   这张地图属于哪个工作单元。若以后要恢复这层信息，更合适的做法是把那枚编号也改成
+  //   ticketLabelOf(m.key != null ? m.key : m.number, effortOf(m)) 带上目录，而不是把徽标改回 true。
+  //   改回 true 即恢复显示（三处同名开关：ListTabRow、IssueDetail、本文件）。
+  const SHOW_EFFORT_BADGE = false
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   const mode = (mt && mt.mode) || ''
@@ -72,7 +78,7 @@ export const MapDetailHead = ({ st, m, mt, multiEffort, kind }: any) => {
       h('span', { className: 'dsws-idnum', style: { color: accent, borderColor: accent, flex: 'none' } }, '#' + m.number),
       h(Tip, { className: 'dsws-tip', content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, m.title)]) }, h('div', { className: 'dsws-mtitle dsws-tt-wrap', style: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 } }, [
         // effort 维度：地图属于哪个 effort 一眼可见（多个 effort 时同号地图不再分不清）
-        (multiEffort && effortOf(m)) ? h(Tip, { content: effortOf(m) }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': effortOf(m), style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', flex: 'none', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, effortOf(m))) : null,
+        (SHOW_EFFORT_BADGE && multiEffort && effortOf(m)) ? h(Tip, { content: effortOf(m) }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': effortOf(m), style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', flex: 'none', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, effortOf(m))) : null,
         h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis' } }, m.title),
       ])),
     ]),

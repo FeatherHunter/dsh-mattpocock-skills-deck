@@ -349,6 +349,14 @@ console.log('── B. 档位字面量只许出现在真源文件里')
       why: '这两个词是降级原因码（graphql.fallback 事件的 reason 字段），不是 TrackerError 的档位；rate-limit 与档位词同形纯属巧合',
     },
     {
+      // #1007：出站通路失败的三个原因词（超时 / 被杀 / 进程没起来）住在 outbound-tiers.ts，
+      // 因为准入闸、房间 client 与宿主 runGh 三处都要用同一份分类；它们描述的是「这一趟怎么断的」，
+      // 不是 TrackerError 的档位，与 timeout 档位词同形纯属巧合，只放行这一个词、面不扩大。
+      file: 'src/tracker/kernel/outbound-tiers.ts',
+      values: ['timeout'],
+      why: '通路失败原因词不是 TrackerError 档位；同一个文件里以后新冒出来的档位词照样判红，只放行 timeout 这一个词',
+    },
+    {
       file: 'src/tracker/rooms/github/issues-write.ts',
       values: ['unknown'],
       why: '票上的 parentError 子字段（挂父票失败的原因），不是 TrackerError 的档位；unknown 表示这次异常连原因都没拿到',

@@ -6,7 +6,8 @@
 // #1161：内置房间清单从前写在本文件里（三段 try 各 import 一间房），现在只认装配点
 //   src/tracker/registry/builtins.ts —— 宿主侧不再认识任何具体房间（规则 rooms-imported-only-by-assembly）。
 import type { HostTimerService } from '../refresh/contract/host-timer-ports.js'
-import { timeoutForGhArgs, isWriteGhArgs, reportGhOutbound, noteGhGraphqlCorrection } from '../tracker/kernel/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, reportGhOutbound, noteGhGraphqlCorrection, ghCooldownReply, reportGhSpawnFailure, reportGhOutcome } from '../tracker/kernel/outbound-tiers.js'
+// #1007：这一层的 gh 出站结局上报与冷却回话都走 tracker/kernel/outbound-tiers.ts（界面口径、日志口径与宿主两路共用一份）。
 import { getGhLane } from '../refresh/rooms/host/outbound-admission.js'
 // #1159：给房间的那份后端上下文要挂上出站控制面（实现见 outbound-control.ts，只做转发）。
 import { createOutboundControl } from '../refresh/rooms/host/outbound-control.js'
@@ -341,13 +342,18 @@ export function createPlatformChannel(deps: Deps) {
       const deIsGlab = /^glab(\.exe)?$/i.test(cmdBase)
       const deIsOutbound = deIsGh || deIsGlab
       const deBucket = (deIsGh && isWriteGhArgs(args)) ? 'write' : 'read'
+      // #1007：失败回话与日志要说得出是哪条命令，所有上报共用一个短标签（只记枚举式短标签，不记命令原文）。
+      const deCmd = ghCommandLabel(args)
       // 报闸的实例留到事后再用一次（#1482）：真实点数在回包里，起进程前只够按 1 点估。
       // 报闸与补差的口径住在 tracker/kernel/outbound-tiers.ts，这个文件只留「拿到闸、调用两次」。
       let deGate: OutboundGate | null = null
       let deRelease: (() => void) | null = null
       if (deIsOutbound) {
-        try { deRelease = await getGhLane().acquire({ bucket: deBucket, signal: (opts && opts.signal) || undefined }) }
+        try { deRelease = await getGhLane().acquire({ bucket: deBucket, signal: (opts && opts.signal) || undefined, cmd: deIsGh ? deCmd : undefined }) }
         catch (eDeQ) {
+          // #1007：冷却窗口里的拒绝不是「排队取消」，要如实说成「通路不通」，否则调用方会以为只是排队被人喊停。
+          const deCoolText = ghCooldownReply(eDeQ, deCmd || cmdBase || 'gh')
+          if (deCoolText) return { stdout: '', stderr: deCoolText, code: -1 }
           return { stdout: '', stderr: 'cancelled while queued for gh admission', code: -1 }
         }
       }
@@ -365,6 +371,9 @@ export function createPlatformChannel(deps: Deps) {
           graceMs: PROC_GRACE_MS,
         })
       } catch (e) {
+        // #1007：gh 进程根本没起来也是 transport 级失败（spawn-failed），同一只桶进入冷却。
+        // glab 走的不是 GitHub 的通路，不在这里上报，免得 GitLab 的故障把 GitHub 的调用一起挡掉。
+        if (deIsGh) reportGhSpawnFailure(getGhLane(), deBucket, deCmd)
         if (deIsOutbound) { try { if (deRelease) deRelease() } catch {} }
         throw new Error('exec spawn failed: ' + String((e && (e as { message?: unknown }).message) || e))
       }
@@ -393,6 +402,8 @@ export function createPlatformChannel(deps: Deps) {
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
       try { if (execT0 && logCtx!.isEnabled('debug')) logCtx!.fire('debug', 'exec.run', { argv0: progName(argv[0]), cwdHash: hash8(c || DEFAULT_CWD), latencyMs: Date.now() - execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
+      // #1007：这一趟的结局回写给同一只准入桶（三条口径见 tracker/kernel/outbound-tiers.ts 末尾那一节）。
+      if (deIsGh) reportGhOutcome(getGhLane(), { bucket: deBucket, cmd: deCmd, outcome: outcome, stdout: out.text, stderr: err.text })
       if (deIsOutbound) { try { if (deRelease) deRelease() } catch {} }
       // #1482：GraphQL 的真实点数只有拿到回包才知道，成功之后在这里补差；补差口径住 outbound-tiers.ts。
       // 这条通道本身就是起进程的那一层，补差只补这一层；房间的 client.ts 那是另一条报账路，两边不重叠。
