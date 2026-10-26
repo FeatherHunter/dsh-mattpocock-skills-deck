@@ -190,9 +190,9 @@ async function main() {
   const clipExact = facts.suggestClipText('abc', 3)
   check(clipExact.text === 'abc' && clipExact.clipped === false, '正好等于上限不算截断')
   const clipLong = facts.suggestClipText('abcdef', 3)
-  check(clipLong.text === 'ab…' && clipLong.clipped === true, '超长切到上限以内并在末尾补省略号')
+  check(clipLong.text === 'abc…' && clipLong.clipped === true, '超长保留前 3 个码点并另加省略号（#1540）')
   const clipEmoji = facts.suggestClipText('😀😀😀', 2)
-  check(clipEmoji.text === '😀…' && clipEmoji.clipped === true, '按 Unicode 码点截断，不切坏代理对')
+  check(clipEmoji.text === '😀😀…' && clipEmoji.clipped === true, '按 Unicode 码点截断，不切坏代理对（#1540 保留前 2 个码点并另加省略号）')
   check(facts.suggestClipText(123, 5).text === '', '不是字符串按空串收（不抛）')
 
   // ── 5. 参数解析与钳制：能救的救，救不了整次不出结果 ──
@@ -235,8 +235,8 @@ async function main() {
     { prompt: '/ok', reason: 'fine' },
   ] }))
   check(parsedClipped.ok === true && parsedClipped.clipped === 1, '一条里提示词与理由都超长只算「被截断一条」')
-  check(parsedClipped.items[0].prompt.length === 500 && parsedClipped.items[0].prompt.slice(-1) === '…', '提示词截到 500 个码点以内并补省略号')
-  check(parsedClipped.items[0].reason.length === 200 && parsedClipped.items[0].reason.slice(-1) === '…', '理由截到 200 个码点以内并补省略号')
+  check(parsedClipped.items[0].prompt.length === 501 && parsedClipped.items[0].prompt.slice(-1) === '…', '提示词保留前 500 个码点并另加省略号（#1540）')
+  check(parsedClipped.items[0].reason.length === 201 && parsedClipped.items[0].reason.slice(-1) === '…', '理由保留前 200 个码点并另加省略号（#1540）')
   const parsedNoReason = facts.suggestItemsOf(JSON.stringify({ items: [{ prompt: '/a' }, { prompt: '/b' }] }))
   check(parsedNoReason.ok === true && parsedNoReason.items[0].reason === '', '缺理由的条目按空理由收（不因少一句解释丢掉整条提示词）')
   // #1451 起每条多带一句十字以内的简介；旧事件里没有这一格，按空串收，界面只显示提示词。
@@ -287,8 +287,8 @@ async function main() {
     { intro: '简'.repeat(30), prompt: '/a', reason: 'r' },
     { prompt: '/b', reason: 'r2' },
   ] }))
-  check(parsedIntroLong.ok === true && parsedIntroLong.clipped === 1 && parsedIntroLong.items[0].intro.length === 10 && parsedIntroLong.items[0].intro.slice(-1) === '…',
-    '超长简介截到 10 个码点并补省略号，只算「被截断一条」')
+  check(parsedIntroLong.ok === true && parsedIntroLong.clipped === 1 && parsedIntroLong.items[0].intro.length === 11 && parsedIntroLong.items[0].intro.slice(-1) === '…' && parsedIntroLong.items[0].intro.slice(0, 10) === '简'.repeat(10),
+    '超长简介保留前 10 个码点并另加省略号，只算「被截断一条」（#1540）')
 
   // ── 6. 事件识别：只认 durable 的调用事件（tool/call 与 tool/ptc-dispatch-start）与 turn/start、turn/end ──
   const foundCall = facts.suggestEventOf(callEvent('call_A', 3, GOOD_ARGS))
