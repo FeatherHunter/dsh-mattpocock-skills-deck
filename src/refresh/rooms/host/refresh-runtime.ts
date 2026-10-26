@@ -39,6 +39,7 @@ import { createDeckQuotaSync } from '../../registry/quota-sync-bridge.js'
 import { ledgerReadingsOf } from '../../kernel/budget-readings.js' // #1446：读数 → 账本格的唯一换算处
 import { createAccountPort, normalizeBudgetDeclaration } from '../../kernel/backend-accounting.js' // #1439：账本唯一写入口；面板/强制刷新经闸把真实用量交给它
 import { createBudgetState } from './budget-state.js' // #1446：面板要的额度状态（模型 + 水位 → 读数），单独一件免得本文件顶破行数上限
+import { createQuotaSyncStatus } from './quota-sync-status.js' // #1006：后台同步失败的记事本，面板把「还没同步上来」说清是哪一种失败
 import { createSessionOpener } from './session-opener.js' // #1444 读路径 / #1445 写路径：刷新后台开会话的唯一装配口（六个取数文件与写路径共用这一份）
 import { createOutboundControl } from './outbound-control.js'
 import { hostTimers } from '../../contract/host-timer-ports.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
@@ -152,6 +153,9 @@ export function createRefreshWiring(deps: any): any {
   // #758 剩余额度读数接线：动手前先保一次读数（差就经会话读一次，不差不打）；失败只影响这一次调用。
   // #1443 改道：不再经闸打免费的 gh 直调，读数走 Tracker 会话的 readBudget（房间自己读 gh，读预算本身不花额度）。
   let deckQuotaSync: any = null
+  // #1006 期望⑤：后台同步失败要在面板上说出来。桥落定一次同步就把结论记进来（成功清掉该后端的旧失败），
+  // 面板读数口 createBudgetState 再把它挂到对应后端的额度状态上。
+  const quotaSyncStatus: any = createQuotaSyncStatus()
   // 会话读数要的那份后端上下文：平台、文件、计时器、起进程、日志、出站控制面各一件，
   // 与桥段装配的那一份同源（生产里同一套宿主出口），只在这里为同步现拼一份（同步不经过工具装配）。
   let syncBackendObj: any = null
@@ -235,7 +239,7 @@ export function createRefreshWiring(deps: any): any {
         // 桥仍然按「一条读数」调这两个口，后端编号由本文件记着的那一个补上；没读过后端就不写（不编一格）。
         deckQuotaSync = createDeckQuotaSync({
           syncDue: function (): any { try { return currentBackendId ? ledger.syncDue(currentBackendId) : false } catch (eS: any) { return false } },
-          syncServer: function (readings: any): any {
+          syncServer: function (readings: any, at: any): any {
             try {
               if (!currentBackendId) return null
               // 桥递进来两种形状都认：裸读数（带 known）走统一换算；已经分好格的老形状直接用。
@@ -252,10 +256,14 @@ export function createRefreshWiring(deps: any): any {
                 if (isFinite(limit) && isFinite(remaining)) clean[name] = { limit: limit, remaining: remaining }
               }
               if (!Object.keys(clean).length) return null
-              return ledger.syncServer(currentBackendId, clean)
+              // #1006 验收⑤：把「取数开始的时刻」带给账本，账本只接受比上一次更新的读数；
+              // 慢请求迟到时它手里的时刻早于后来那次，落账会被账本拒绝，不会用旧读数盖掉新读数。
+              return ledger.syncServer(currentBackendId, clean, at)
             } catch (eW: any) { return null }
           },
           readBudget: function (cwd: any): any { return readSessionBudget(cwd) },
+          // #1006 期望⑤：把每次落定的结论交给面板记事本；note 只认带类别的失败与成功，坏形状自己丢弃。
+          onSettled: function (info: any): any { quotaSyncStatus.note(currentBackendId, info) },
           logCtx: logCtx,
         })
       } catch (eC: any) { deckQuotaSync = null }
@@ -459,7 +467,12 @@ export function createRefreshWiring(deps: any): any {
   function patchOf(): any { return patchWiring.patchOf() }
 
   // #1446 验收第 4 条：面板要的额度状态（模型在注册表、水位在账本，换算搬到 budget-state.ts，免得本文件顶破 350 行）。
-  const budgetState = createBudgetState({ getTrackerRegistry: d.getTrackerRegistry, ledger: ledger })
+  const budgetState = createBudgetState({
+    getTrackerRegistry: d.getTrackerRegistry,
+    ledger: ledger,
+    // #1006 期望⑤：读数还没同步上来时，面板按这里记的失败类别选一句更具体的话（不接则退回中性的「还没同步」）。
+    syncStatus: function (id: any): any { return quotaSyncStatus.view(id) },
+  })
 
   /**
    * 跑一次行级增量，回 patch.run 的原话（见 src/refresh/rooms/host/row-patch.js 文件头那一张表）。
