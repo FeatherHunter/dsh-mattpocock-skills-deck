@@ -36,6 +36,8 @@ import { pickFallbackReason } from './fallback-reason.js'
 // 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
 import { debugOn, guardEmit } from '../../kernel/log-emit.js'
 import { PAGINATION } from '../../contract/pagination.js'
+// REST 读走 30 秒档（中央 githubRestReadMs，与读档 12 秒分开）：慢网下备路翻页不被房内到点砍断。
+import { GITHUB_REST_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 /** 仓库坐标：拥有者与仓库名，refId 形不对就回 null 而不是抛。 */
 interface ParsedRepo {
@@ -110,7 +112,7 @@ async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext): Promise<O
   const startsAt = Date.now()
   for (let p = 1; p <= MAX_PAGES; p++) {
     // 这是 GraphQL 主路失败之后的 REST 降级翻页：标签与主路分开，事后一眼看出走的是哪条路。
-    const r = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=all&per_page=${PAGE}&page=${p}`], { cwd: ctx && ctx.cwd, via: 'list.rest' })
+    const r = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=all&per_page=${PAGE}&page=${p}`], { cwd: ctx && ctx.cwd, via: 'list.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
     if (!r.ok) {
       if (!out.length) return { ok: false, error: r.error }
       // 尾页失败按已得数据截断上报（本函数一贯的口径）：回的是成功，可翻到第 p 页就断了。
@@ -203,7 +205,7 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
     let seenIssues = 0
     let droppedPulls = 0
     let seenPulls = 0
-    // 分页先取 100，超量分页
+    // 分页按契约页大小取（一页 50，配合列表去评论把单查询压回 1.5 秒线内），超量分页
     while (hasNext) {
       // 构造带变量查询：gh api graphql -f query -F owner -F name -F first -F after
       const query = LIST_QUERY
@@ -394,7 +396,7 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
       // 为什么用收窄式：r 在这里可能是成功也可能是失败，直接读 error 编译器不认；失败分支读 error、成功分支用 r 本身，与原来短路式的取值一字不差。
       emitRestFallback(ctx, '单票', Date.now() - t0, pickFallbackReason(getCause || (!r.ok ? r.error : r), ctx))
       emitReadDegraded(ctx, 'get', 'get:degraded', Date.now() - tGet)
-      const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${num}`], { cwd: ctx && ctx.cwd, via: 'get.rest' })
+      const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${num}`], { cwd: ctx && ctx.cwd, via: 'get.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
       if (rr.ok) {
         let jr = null
         try { jr = JSON.parse(rr.data.stdout || '') } catch (e) {
@@ -410,7 +412,7 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
         emitReadDegraded(ctx, 'get', 'get:shape', Date.now() - tGet)
       }
       // /issues 不中（404 或坏形状）→ 试 /pulls 直取拉取请求单票
-      const prr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/pulls/${num}`], { cwd: ctx && ctx.cwd, via: 'get.rest-pr' })
+      const prr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/pulls/${num}`], { cwd: ctx && ctx.cwd, via: 'get.rest-pr', timeout: GITHUB_REST_READ_TIMEOUT_MS })
       if (prr.ok) {
         let prj = null
         try { prj = JSON.parse(prr.data.stdout || '') } catch (e) {

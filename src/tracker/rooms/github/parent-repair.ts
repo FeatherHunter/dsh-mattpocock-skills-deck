@@ -8,6 +8,8 @@ import type { OpContext } from '../../contract/contexts.js';
 // 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
 import { debugOn, guardEmit } from '../../kernel/log-emit.js'
 import { PAGINATION } from '../../contract/pagination.js'
+// REST 读走 30 秒档（中央 githubRestReadMs，与读档 12 秒分开）：慢网下备路不被房内到点砍断。
+import { GITHUB_REST_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 /** 仓库坐标：拥有者与仓库名，由调用方（issues 的 REST 兜底）保证形状。 */
 interface ParsedRepo {
@@ -52,7 +54,7 @@ export async function repairParentLinksREST(raws: unknown, parsed: ParsedRepo, c
   await Promise.all(maps.map(async (m: unknown) => {
     const mb = (m && typeof m === 'object' ? m : {}) as RawRow;
     try {
-      const r = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${String(mb.number)}/sub_issues?per_page=${PAGINATION.github.restPageSize}`], { cwd: ctx && ctx.cwd })
+      const r = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${String(mb.number)}/sub_issues?per_page=${PAGINATION.github.restPageSize}`], { cwd: ctx && ctx.cwd, timeout: GITHUB_REST_READ_TIMEOUT_MS })
       if (!r.ok) { failed += 1; return }
       let j: unknown
       try { j = JSON.parse(r.data.stdout || '') } catch { failed += 1; return }

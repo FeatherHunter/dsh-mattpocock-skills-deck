@@ -18,6 +18,8 @@ import type { OpResult } from '../../contract/results.js';
 import { fail } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
 import { PAGINATION } from '../../contract/pagination.js'
+// REST 读走 30 秒档（中央 githubRestReadMs，与读档 12 秒分开）：慢网下备路不被房内到点砍断。
+import { GITHUB_REST_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 /** 仓库坐标：拥有者与仓库名，由调用方（issues 的 REST 兜底）保证形状。 */
 interface ParsedRepo {
@@ -34,7 +36,7 @@ export async function fetchAllPullsREST(parsed: ParsedRepo, ctx: OpContext): Pro
   const PAGE = PAGINATION.github.restPageSize
   for (let p = 1; p <= MAX_PAGES; p++) {
     // 这一笔是列表富化的 REST 翻页：标签写 pulls.rest，跟同一次读里的 list.rest 分得开。
-    const r = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls?state=all&per_page=' + PAGE + '&page=' + p], { cwd: ctx && ctx.cwd, via: 'pulls.rest' })
+    const r = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls?state=all&per_page=' + PAGE + '&page=' + p], { cwd: ctx && ctx.cwd, via: 'pulls.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
     if (!r.ok) {
       if (!out.length) return { ok: false, error: r.error }
       return { ok: true, data: out }
@@ -92,7 +94,7 @@ export async function enrichSinglePR(jr: unknown, parsed: ParsedRepo, ctx: OpCon
     const c = ghClient(ctx)
     if (jb && typeof jb.merged_at !== 'string') {
       try {
-        const pr = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + (jb.number as unknown)], { cwd: ctx && ctx.cwd, via: 'pulls.detail' })
+        const pr = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + (jb.number as unknown)], { cwd: ctx && ctx.cwd, via: 'pulls.detail', timeout: GITHUB_REST_READ_TIMEOUT_MS })
         if (pr.ok) {
           const pj: unknown = JSON.parse(pr.data.stdout || 'null')
           const pjb = (pj && typeof pj === 'object' ? pj : null) as Record<string, unknown> | null;
@@ -102,7 +104,7 @@ export async function enrichSinglePR(jr: unknown, parsed: ParsedRepo, ctx: OpCon
     }
     if (jb && !Array.isArray(jb.reviews)) {
       try {
-        const rv = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + (jb.number as unknown) + '/reviews?per_page=' + PAGINATION.github.restPageSize], { cwd: ctx && ctx.cwd, via: 'pulls.reviews' })
+        const rv = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + (jb.number as unknown) + '/reviews?per_page=' + PAGINATION.github.restPageSize], { cwd: ctx && ctx.cwd, via: 'pulls.reviews', timeout: GITHUB_REST_READ_TIMEOUT_MS })
         if (rv.ok) {
           const arr: unknown = JSON.parse(rv.data.stdout || 'null')
           if (Array.isArray(arr)) jb.reviews = arr

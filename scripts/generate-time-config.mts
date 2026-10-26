@@ -74,6 +74,7 @@ const KEYS: Array<[string, string, string]> = [
   ['outboundTransportCooldownMs', 'OUTBOUND_TRANSPORT_COOLDOWN_MS', 'timeouts'],
   ['ghQueueWaitTimeoutMs', 'GH_QUEUE_WAIT_TIMEOUT_MS', 'timeouts'],
   ['githubClientTimeoutMs', 'GITHUB_CLIENT_TIMEOUT_MS', 'timeouts'],
+  ['githubRestReadMs', 'GITHUB_REST_READ_TIMEOUT_MS', 'timeouts'],
   ['githubProbeMs', 'GITHUB_PROBE_TIMEOUT_MS', 'timeouts'],
   ['gitProbeMs', 'GIT_PROBE_TIMEOUT_MS', 'timeouts'],
   ['githubInitTimeoutMs', 'GITHUB_INIT_TIMEOUT_MS', 'timeouts'],
