@@ -6,11 +6,11 @@
 sharedTools:
   zh: |-
     ## 工具
-    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理
-    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号
+    - [ ] issue 相关操作优先使用 deck_ 开头的工具处理，如果deck_工具异常，根据当前工作区选择合适方式处理。
+    - [ ] 及时使用 deck_issue_report 工具上报处理过、处理中的 issue 编号。
     - [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。
   en: |-
     ## Tools
-    - [ ] Prefer the deck_ tools for issue operations
-    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner
+    - [ ] Prefer the deck_ tools for issue operations; if the deck_ tools fail, choose a suitable approach for the current workspace.
+    - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner.
     - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
