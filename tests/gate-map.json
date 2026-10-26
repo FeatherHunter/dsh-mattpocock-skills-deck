@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-26T05:01:39.867Z",
+  "generatedAt": "2026-10-26T05:27:47.862Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 394,
-  "gateCount": 394,
-  "attributedGates": 354,
+  "chainLength": 395,
+  "gateCount": 395,
+  "attributedGates": 355,
   "unattributedGates": 40,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 16,
@@ -3677,6 +3677,21 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1545-workroute-row-nav.ts",
+      "file": "tests/verify-1545-workroute-row-nav.ts",
+      "guards": [
+        "src/client/views/shared/workRouteTable.ts"
+      ],
+      "dirs": [
+        "src/client/views/shared"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -9990,6 +10005,7 @@
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-1519-detail-comments.ts",
+      "node tests/verify-1545-workroute-row-nav.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
