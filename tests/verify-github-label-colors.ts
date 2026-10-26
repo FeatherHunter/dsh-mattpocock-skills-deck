@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
+import { resetGhLaneForTest } from '../src/refresh/rooms/host/outbound-admission.ts'
 /**
  * tests/verify-github-label-colors.ts —— GitHub 房间「列标签 / 批量改色」两条契约操作的门禁（#620）。
  *
@@ -372,6 +373,10 @@ const SEED = [
   check(!!whyNoCode && whyNoCode.kind === 'env' && String(whyNoCode.message).includes('这是插件运行环境的问题，不是你的操作有误'), '拿不到退出码时落环境档并说清责任在插件这边（实得 ' + JSON.stringify(whyNoCode) + '）')
   check(gh0NoCode(noCode), '拿不到退出码那次确实发过命令、也确实没改到东西（假仓库里 bug 还是老色）')
   function gh0NoCode(gh) { return edits(gh).length === 1 && gh.labels.find((x) => x.name === 'bug').color === 'D73A4A' }
+  // #1007：这一笔没拿到退出码，按 transport 级失败（被杀）给写桶设了冷却；冷却挂在进程级单例闸上，
+  //   不清掉会挡住后面几段本来要发命令的场景。这里清掉再往下走 —— 模拟的只是一次执行器异常，
+  //   不是真的「到 GitHub 的通路断了」。
+  resetGhLaneForTest()
 
   // D4：重名按归一化后的名字判（大小写、首尾空格都算同一个标签），不许对同一个标签发两次命令
   const dupGh = makeGh({ labels: SEED })

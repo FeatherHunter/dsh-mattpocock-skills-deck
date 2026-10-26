@@ -3,7 +3,7 @@
  *
  * 与 verify-multi-effort.js（宿主数据层）互补。本文件跑的是**面板源码里原文截出来的真函数**：
  *  ① ListTabRow 的 findMap：两张地图编号相同时，每张票各自解析到自己 effort 的地图；
- *  ② ListTabRow 的 listIssueRow：多 effort 时行上渲染 effort 徽标（写着 effort 名），单 effort 不渲染。
+ *  ② ListTabRow 的 listIssueRow：effort 徽标已先整体隐藏（#1511 起编号写成「#目录/01」，徽标里的目录名与编号重复），多 effort 时也不再渲染。
  * 快照由真后端 + 真编排器生成（不是手写 JSON），所以「点第二张地图打开第二张」这条
  * 在客户端一侧是可执行的断言，而不是照着源码另写一份仿品。
  *
@@ -131,7 +131,7 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
 // 断的是代码写法，改个变量名、换个取 snapshot 的方式就会红，已按维护者口径删掉。
 // 这些视图确实要调共享函数这件事，由下面第 ③ 节从真源码截出 findMapByIdentity 跑真数据来看着。
 
-// ---------- ③ listIssueRow：行上渲染 effort 徽标 ----------
+// ---------- ③ listIssueRow：effort 徽标已隐藏、编号仍带目录 ----------
 {
   const rowFnSrc = extractConst(rowSrc, 'listIssueRow')
   const h = (type, props, children) => ({ type, props: props || {}, children: children === undefined ? [] : (Array.isArray(children) ? children : [children]) })
@@ -167,12 +167,14 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
     return flat
   }
   const flat = walkAll(listIssueRow(h, { snapshot }, ticket, true, false, {}, {}, true))
-  const badge = flat.find((n) => n.props && typeof n.props.className === 'string' && n.props.className.indexOf('dsws-eff') >= 0)
-  check(!!badge, '行上渲染了 effort 徽标（className 含 dsws-eff）')
+  // 2026-10-26 维护者要求：effort 徽标先整体隐藏（代码保留），所以多 effort 上下文里也不再有 dsws-eff。
+  const hasEffortBadge = (nodes) => nodes.some((n) => n.props && typeof n.props.className === 'string' && n.props.className.indexOf('dsws-eff') >= 0)
+  check(!hasEffortBadge(flat), '多 effort 上下文也不再渲染 effort 徽标（徽标已先整体隐藏，代码保留）')
+  // 徽标藏起来之后，目录名只能靠编号带出来：这一条守住 #1511 的显示规则不被顺手改掉。
   const texts = flat.filter((n) => n.text).map((n) => n.text)
-  check(texts.indexOf('beta') >= 0, `徽标里写着 effort 名 beta（实际文本片段：${texts.join('|').slice(0, 90)}）`)
+  check(texts.indexOf('#beta/01') >= 0, `编号仍然带着目录 #beta/01（实际文本片段：${texts.join('|').slice(0, 120)}）`)
   const flat2 = walkAll(listIssueRow(h, { snapshot }, ticket, true, false, {}, {}, false))
-  check(!flat2.some((n) => n.props && typeof n.props.className === 'string' && n.props.className.indexOf('dsws-eff') >= 0), '单 effort 上下文不渲染徽标（界面不变）')
+  check(!hasEffortBadge(flat2), '单 effort 上下文不渲染徽标（界面与原来一致）')
 }
 
 // ---------- ④ 阻断表按 effort 作用域 + 列表接线（筛选 chips / KPI 跟随） ----------
@@ -206,4 +208,4 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
 
 fs.rmSync(tmp, { recursive: true, force: true })
 if (failed) { console.log('\n存在失败 — verify-multi-effort-panel 未通过'); process.exit(1) }
-console.log('\n全部通过 — 面板层多 effort 成立（同号各自定位、行上可辨 effort、单 effort 界面不变）')
+console.log('\n全部通过 — 面板层多 effort 成立（同号各自定位、编号带目录可辨工作单元、单 effort 界面不变）')

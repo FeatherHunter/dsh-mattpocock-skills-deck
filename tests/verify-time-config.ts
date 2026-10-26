@@ -15,9 +15,9 @@
 //   旧版锁的是“两份数字相等”（IMPORT 表的 literal 行 + TEXT 表的片段行）：源码里写一份数字，
 //   门禁核对它等于 YAML。改造后源码里不再有第二份数字，所以这两张表整个删掉，换成：
 //   ② 的引用相等断言（REFERENCES 表：模块拿到的就是生成的那一份，不是抄的），
-//   ④ 的无字面量扫描（数字出现在时间味的位置就判红，唯一的出口是 PERMANENT 表）。
+//   ④ 的无字面量扫描（数字出现在时间味的位置就判红，出口是 PERMANENT 表与样式类的 STYLE 表）。
 //   以后加一个时间参数的动作是：YAML 里加键 → 文件里 import 生成常量 → REFERENCES 里加一行。
-//   删一行同理。三张表（REFERENCES / CLIENTS / PERMANENT）与 EXEMPTS 的行数只许增不许减式的维护：
+//   删一行同理。四张表（REFERENCES / CLIENTS / PERMANENT / STYLE）与 EXEMPTS 的行数只许增不许减式的维护：
 //   加参数加行，删参数删行，不许为了让门禁变绿而删行（那等于把参数放回源码里写数字）。
 //
 // 为什么有些文件是动态 import 或闭包拼接，而不是一律静态 import：
@@ -34,11 +34,17 @@
 //   ③ 非时间的数字（点数、条数、比例、字节、个数：覆盖率判据看名字，它们由 EXEMPTS 表认领）；
 //   ④ 除法里的 1000（毫秒换算成秒给只认秒的 git 选项：除数不是时长）。
 //   除此四种，时间味的名字后面不许出现数字。理由写不清的就不该出现在表里。
+//
+// 样式类时长（STYLE 表）是另一回事：`docs/adr/20261016-time-config-yaml.md` 第 5 节定了
+// 「动画演多久、过渡用多长」与「等多久算失败」不是一个验收口径，它们将来归 #1236 的独立配置；
+// 在 #1236 落地之前，它们只许住在外观旋钮文件（src/client/statusbar/suggestAppearance.ts）里，
+// 由 STYLE 表逐行锁死「文件 + 片段 + 理由」。这张表不是永久豁免：#1236 落地后应逐行删掉。
 
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL, fileURLToPath } from 'node:url'
+import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const TIME_CONFIG_JS = '../src/shared/time-config/src/values.js'
@@ -99,9 +105,16 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/rooms/host/host-attention.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
   { file: 'src/refresh/rooms/host/host-attention.ts', access: 'PROBE_INTERVAL_LINGER_MS', gen: 'PROBE_INTERVAL_LINGER_MS', key: 'probeIntervalLingerMs' },
   { file: 'src/refresh/rooms/host/host-attention.ts', access: 'ATTENTION_HEARTBEAT_MS', gen: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
+  { file: 'src/refresh/rooms/host/host-attention.ts', access: 'ATTENTION_REPORT_DEDUPE_MS', gen: 'ATTENTION_REPORT_DEDUPE_MS', key: 'attentionReportDedupeMs' },
   { file: 'src/refresh/rooms/host/quota-ledger.ts', access: 'QUOTA_SYNC_INTERVAL_MS', gen: 'QUOTA_SYNC_INTERVAL_MS', key: 'quotaSyncIntervalMs' },
   { file: 'src/refresh/rooms/host/write-event-subscription.ts', access: 'PATCH_MERGE_WINDOW_MS', gen: 'PATCH_MERGE_WINDOW_MS', key: 'patchMergeWindowMs' },
   { file: 'src/refresh/rooms/host/write-event-subscription.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
+  // —— 写事件补丁的短存与出站排队段的日志节流（2026-10-26 门禁重新入链时收编的裸数字）——
+  { file: 'src/refresh/rooms/host/write-event-fetch.ts', access: 'WRITE_PATCH_TTL_MS', gen: 'WRITE_PATCH_TTL_MS', key: 'writePatchTtlMs' },
+  { file: 'src/refresh/rooms/host/outbound-admission.ts', access: 'LANE_LONG_WAIT_LOG_MS', gen: 'LANE_LONG_WAIT_LOG_MS', key: 'laneLongWaitLogMs' },
+  { file: 'src/refresh/rooms/host/outbound-admission.ts', access: 'LANE_WAIT_LOG_INTERVAL_MS', gen: 'LANE_WAIT_LOG_INTERVAL_MS', key: 'laneWaitLogIntervalMs' },
+  // —— 会话链缓存保留期（refresh 纯逻辑层直接引中央常量：本文件是纯工具，不读钟不碰盘）——
+  { file: 'src/refresh/kernel/chain-pruning.ts', access: 'CHAIN_KEEP_MS', gen: 'CHAIN_KEEP_MS', key: 'chainKeepMs' },
   // —— 动态 import（发布包里源码树不在时允许取不到，由调用方照旧求值）：名字走 central 命名空间，门禁认动态 import 行 ——
   { file: 'src/refresh/rooms/host/chain-backoff.ts', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
   { file: 'src/refresh/rooms/host/chain-backoff.ts', access: 'CHAIN_ALL_GREEN_TTL_MS', gen: 'CHAIN_ALL_GREEN_TTL_MS', key: 'chainAllGreenTtlMs' },
@@ -112,6 +125,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'WRITE_TIMEOUT_MS', gen: 'OUTBOUND_WRITE_TIMEOUT_MS', key: 'outboundWriteMs' },
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'PROBE_TIMEOUT_MS', gen: 'OUTBOUND_PROBE_TIMEOUT_MS', key: 'outboundProbeMs' },
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'DEFAULT_TIMEOUT_MS', gen: 'OUTBOUND_DEFAULT_TIMEOUT_MS', key: 'outboundDefaultMs' },
+  { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'TRANSPORT_COOLDOWN_MS', gen: 'OUTBOUND_TRANSPORT_COOLDOWN_MS', key: 'outboundTransportCooldownMs' },
+  // #1007 复核补的排队上限：代码里只夹排队段（gh-queue-race.ts），起进程之后的等待仍按本档超时。
+  { file: 'src/refresh/rooms/host/gh-queue-race.ts', access: 'GH_QUEUE_WAIT_TIMEOUT_MS', gen: 'GH_QUEUE_WAIT_TIMEOUT_MS', key: 'ghQueueWaitTimeoutMs' },
   { file: 'src/tracker/registry/core.ts', access: 'MATCHES_TIMEOUT_MS', gen: 'MATCHES_TIMEOUT_MS', key: 'matchesTimeoutMs' },
   { file: 'src/tracker/rooms/github/client.ts', access: 'TIMEOUT_MS', gen: 'GITHUB_CLIENT_TIMEOUT_MS', key: 'githubClientTimeoutMs' },
   // —— 共享层：整份转出（budget）与直接引用 ——
@@ -159,6 +175,10 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/rooms/host/tool-call-budget-enforcement.ts', access: 'DEFAULT_PER_OP_TIMEOUT_MS', gen: 'PER_OP_TIMEOUT_MS', key: 'perOpTimeoutMs' },
   { file: 'src/deck/rules/anchor.ts', access: 'ANCHOR_WINDOW_MS', gen: 'ANCHOR_WINDOW_MS', key: 'anchorWindowMs' },
   { file: 'src/deck/shell/write-mutex.ts', access: 'DEFAULT_KEY_LOCK_TIMEOUT_MS', gen: 'KEY_LOCK_TIMEOUT_MS', key: 'keyLockMs' },
+  // —— 工作路线回执的三个时间窗（#1259 的口径；真源 config/ttl.yaml 的 workRoute*WindowMs）——
+  { file: 'src/deck/shell/work-path-readout.ts', access: 'WORK_ROUTE_IN_PROGRESS_WINDOW_MS', gen: 'WORK_ROUTE_IN_PROGRESS_WINDOW_MS', key: 'workRouteInProgressWindowMs' },
+  { file: 'src/deck/shell/work-path-readout.ts', access: 'WORK_ROUTE_ACTIVE_WINDOW_MS', gen: 'WORK_ROUTE_ACTIVE_WINDOW_MS', key: 'workRouteActiveWindowMs' },
+  { file: 'src/deck/shell/work-path-readout.ts', access: 'WORK_ROUTE_COLLISION_WINDOW_MS', gen: 'WORK_ROUTE_COLLISION_WINDOW_MS', key: 'workRouteCollisionWindowMs' },
   { file: 'src/refresh/registry/deck-tool-bridge.ts', access: 'DECK_ASSEMBLY_TIMEOUT_MS', gen: 'DECK_ASSEMBLY_TIMEOUT_MS', key: 'deckAssemblyMs' },
   // —— 界面半边：门禁把它当模块直接 import 跑，引用是真的（构建拼进闭包时剥掉 import 行） ——
   { file: 'src/client/kernel/log.ts', access: 'LOG_FLUSH_MS', gen: 'LOG_FLUSH_MS', key: 'logFlushMs' },
@@ -232,6 +252,8 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/client/views/primitives/Tip.ts', name: 'TIP_HIDE_DELAY_MS', key: 'tipHideDelayMs' },
   { file: 'src/client/views/versionControl/vcText.ts', name: 'VC_RELATIVE_WINDOW_MS', key: 'vcRelativeWindowMs' },
   { file: 'src/client/kernel/api-io.ts', name: 'DRAFT_REFOCUS_RETRY_MS', key: 'draftRefocusRetryMs' },
+  // 「下一步建议」读自己那份工作路线的两档重试等待（work-route-own.ts）：数组常量同样由拼接片段提供。
+  { file: 'src/client/kernel/work-route-own.ts', name: 'OWN_ROUTE_RETRY_MS', key: 'ownRouteRetryMs' },
   // —— 拼进闭包的共享文件：它们自己不能 import（闭包里没有模块系统），import 行剥掉之后，
   // 下面这些名字由 timeConfig 片段提供声明。file 填的是真源（.ts/.js 源码），门禁只查“文件里确实在用”，
   // 值的一致性由表一（REFERENCES）那几行管——两张表各管一头。
@@ -293,6 +315,31 @@ const PERMANENT: PermanentRow[] = [
 ]
 
 // ---------------------------------------------------------------------------
+// 表五 STYLE：界面动画与过渡的时长（样式类，不归三份时间 YAML）。
+// 为什么单列一张表：`docs/adr/20261016-time-config-yaml.md` 第 5 节定了样式类时长与毫秒超时
+// 不是一个验收口径，将来由 #1236 的独立配置收走；在那一件事落地之前，它们集中写在外观旋钮文件
+// （src/client/statusbar/suggestAppearance.ts，#1411 定的“气泡所有看得见的数字集中一处”），
+// 由本表逐行锁死「文件 + 片段 + 理由」：改了数字、改了写法、片段从源码里消失都判红。
+// 这不是永久豁免——#1236 落地后应逐行删掉，改用那份样式配置。
+// ---------------------------------------------------------------------------
+interface StyleDurationRow {
+  file: string
+  snippet: string
+  reason: string
+}
+const STYLE_DURATIONS: StyleDurationRow[] = [
+  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'bubbleDelayMaxMs: 560', reason: '出场小泡的每颗出发延迟上限（动画出场节奏），不是“等多久算失败”' },
+  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'bubbleTravelMinMs: 500', reason: '出场小泡的飞行时长下限（动画出场节奏），不是“等多久算失败”' },
+  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'bubbleTravelMaxMs: 1030', reason: '出场小泡的飞行时长上限（动画出场节奏），不是“等多久算失败”' },
+  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'bubbleCleanupDelayMs: 400', reason: '全部小泡落完后清节点的收尾延时（动画收尾），不是“等多久算失败”' },
+  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'pickBubbleDelayMaxMs: 70', reason: '选中后第一批退场小泡的出发延迟上限（动画退场节奏）' },
+  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'pickBubbleTravelMinMs: 400', reason: '退场小泡的飞行时长下限（动画退场节奏）' },
+  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'pickBubbleTravelMaxMs: 500', reason: '退场小泡的飞行时长上限（动画退场节奏）' },
+  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'pickBubbleTailMs: 60', reason: '退场小泡飘完后收起整组前的收尾延时（动画收尾）' },
+  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'fadeMs: 170', reason: '关闭与第二组覆盖用的整组淡出时长（动画退场节奏）' },
+]
+
+// ---------------------------------------------------------------------------
 // 表四 EXEMPT：覆盖率扫描认出来、但不是“本文件自己决定的可调时长”的名字。
 // 每一行都要有理由，理由写不清的就不该出现在这里——那是漏登记的参数，不是豁免。
 // 注意：这里只认“名字”，名字后面挂着数字由上一张 PERMANENT 表管（两张表各管一头）。
@@ -331,6 +378,11 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/deck/rules/anchor.ts', name: 'windowMs', reason: '透传变量，缺省接 ANCHOR_WINDOW_MS（已登记）' },
   { file: 'src/deck/tools/map-link.ts', name: 'lockTimeoutMs', reason: '透传变量，缺省走 DEFAULT_KEY_LOCK_TIMEOUT_MS（已登记，见 write-mutex.ts:86）' },
   { file: 'src/refresh/registry/quota-sync-bridge.ts', name: 'cooldownMs', reason: '透传变量，缺省走 QUOTA_SYNC_COOLDOWN_MS（已登记）' },
+  // #1007：通路冷却的窗口长度与状态字段（派生值，不是第二份可调参数）。
+  { file: 'src/refresh/rooms/host/outbound-admission.ts', name: 'cooldownMs', reason: '冷却窗口长度：缺省取已登记的 outboundTransportCooldownMs，测试可传短值；不是第二份参数' },
+  { file: 'src/refresh/rooms/host/outbound-admission.ts', name: 'cooldown', reason: '每只桶的冷却状态记录（到点时刻、上次原因、连续失败数），不是可调时长' },
+  { file: 'src/refresh/rooms/host/outbound-admission.ts', name: 'remainingMs', reason: '算出来的剩余冷却（到点时刻减当前时刻），不是输入参数' },
+  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'remainingMs', reason: '算出来的剩余冷却（拼回话文案用），不是输入参数' },
   { file: 'src/refresh/rooms/host/check-chain-evaluation.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
   { file: 'src/refresh/rooms/host/check-chain-evaluation.ts', name: 'waitMs', reason: '透传 backoff 的 verdict 结论，不是输入参数' },
   { file: 'src/host/platformChannel.ts', name: 'timeoutMs', reason: '透传变量，接注入的 TIMEOUT_MS（调用方按已登记的 hostTimeoutMs 装进来）' },
@@ -401,6 +453,31 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/deck/shell/session-workdir.ts', name: 'sleep', reason: '同上，等待函数名' },
   { file: 'src/deck/shell/table-cell.ts', name: 'sleep', reason: '同上，等待函数名' },
   { file: 'src/deck/shell/write-mutex.ts', name: 'sleep', reason: '同上，等待函数名' },
+  // —— 2026-10-26 门禁重新入链时补的定性：覆盖率扫描之前没跑，这些名字一直没人登记 ——
+  // 读钟时刻与测量值：值由 Date.now() 或调用方时钟算出来，调 YAML 改不了它。
+  { file: 'src/client/statusbar/SessionChainCapsule.ts', name: 'nowMs', reason: '读钟时刻（渲染这一帧时的 Date.now()），不是可调参数' },
+  { file: 'src/client/views/shared/workRouteTable.ts', name: 'nowMs', reason: '读钟时刻：Date.now() 算出来的“现在”，只用来把时间差折成人话，不是可调参数' },
+  { file: 'src/refresh/rooms/host/gh-execution.ts', name: 'rkWaitedMs', reason: '测量用局部变量：排队段从开始等到现在过了多久，不是可调参数' },
+  { file: 'src/refresh/rooms/host/issue-list-fetch.ts', name: 'sinceMs', reason: '由调用方给的起点时刻算出来的时间戳，不是可调参数' },
+  { file: 'src/refresh/rooms/host/write-event-subscription.ts', name: 'waitedMs', reason: '算出来的等待时长（现在减上次动作时刻），不是输入参数' },
+  { file: 'src/tracker/rooms/github/client.ts', name: 'waitedMs', reason: '测量用耗时：这一笔在名额队列里等了多久，不是可调参数' },
+  { file: 'src/refresh/rooms/host/outbound-admission.ts', name: 'waitedMs', reason: '算出来的等待时长（放行时刻减排队开始时刻），日志字段，不是输入参数' },
+  // 透传与派生：值来自调用方或已登记的中央常量，本文件不决定时长。
+  { file: 'src/refresh/rooms/client/refresh-timer.ts', name: 'baseMs', reason: '透传变量：调用方给这一拍的正常间隔（上游是已登记的 probeIntervalMs 一类），不是新参数' },
+  { file: 'src/refresh/rooms/host/chain-backoff.ts', name: 'capMs', reason: '透传变量：取注入的 limits.setupPendingCapMs（YAML 已登记为 chainSetupPendingCapMs），不是新参数' },
+  { file: 'src/refresh/rooms/host/chain-backoff.ts', name: 'waitedMs', reason: '算出来的等待时长（现在减上次求值时刻），退避结论的输入，不是可调参数' },
+  { file: 'src/deck/registration/suggest-steps-register.ts', name: 'waitMs', reason: '派生变量：调用方可传，缺省取 SUGGEST_REGISTER_WAIT_MS（等于已登记的 REGISTER_RETRY_WAIT_MS），不是新参数' },
+  { file: 'src/refresh/kernel/write-event-detection.ts', name: 'waitMs', reason: '计划结论里的等待长度字段：0 表示不用等，其它值来自已登记的窗口 / 间隔（mergeWindowMs、probeIntervalMs），不是新参数' },
+  { file: 'src/refresh/rooms/host/refusal-messages.ts', name: 'wait', reason: '拼回话用的文案片段（“多久以后可以再试”那一句），不是时长参数' },
+  // 算出来的动画时间轴：每颗小泡的出发延迟 / 飞行时长 / 结束时刻，按随机数与外观旋钮现算。
+  { file: 'src/client/statusbar/suggestEngine.ts', name: 'wait', reason: '派生变量：退场等待取外观旋钮 SUGGEST_APPEARANCE.fadeMs（样式类时长，STYLE 表已认领），不是新参数' },
+  { file: 'src/client/statusbar/suggestTimeline.ts', name: 'delayMs', reason: '算出来的动画时间轴值（每颗小泡的出发延迟），不是可调参数' },
+  { file: 'src/client/statusbar/suggestTimeline.ts', name: 'durationMs', reason: '算出来的动画时间轴值（每颗小泡的飞行时长），不是可调参数' },
+  { file: 'src/client/statusbar/suggestTimeline.ts', name: 'endMs', reason: '算出来的动画时间轴值（每颗小泡的落点时刻），不是可调参数' },
+  // 名字里带时间词但不是时长：状态对象与函数名。
+  { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: '_probeBackoff', reason: '退避状态对象（第几档、上次什么时候、上次哪个目录、基数），不是时长参数' },
+  { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: 'logProbeBackoff', reason: '函数名：退避档位变化时记日志，不是时长参数' },
+  { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: 'resetProbeBackoff', reason: '函数名：把退避档位清零，不是时长参数' },
 ]
 
 // 时间味判定，两类都认：
@@ -445,8 +522,13 @@ function countOccurrences(haystack: string, needle: string): number {
 
 async function main(): Promise<void> {
   // —— 第零节：本门禁在验证链上有位置（改了链却没带上自己，等于没看门） ——
-  const stages = fs.readFileSync(path.join(ROOT, 'scripts', 'verify-stages.json'), 'utf8')
-  check(stages.includes('tests/verify-time-config.ts'), '本门禁已挂进验证链（scripts/verify-stages.json）')
+  // 判据问规划函数（scripts/lib/discover-gates.ts 的 isGatePlanned），不自己解析排除表：
+  // 旧写法数的是 verify-stages.json 原文里有没有本文件路径——但排除表那条记录同样含这个路径，
+  // 于是「被排除出链」被误判成「在链上」。2026-10-26 复核时真撞上了：本门禁在排除表里躺了十天，
+  // 自己却一直报「已挂进验证链」，58 处违例没人看见。isGatePlanned 回答的正是「今天跑不跑」，
+  // 与三个执行器读的是同一份规划函数；另外 tests/verify-1125-gate-coverage.ts 也点名断言本文件在规划里，
+  // 两道一起才堵住「再被静默排除」。
+  check(isGatePlanned(ROOT, 'tests/verify-time-config.ts'), '本门禁在规划里（没有被排除表挡住；被排除 = 今天不跑，等于没看门）')
 
   // —— 第一节：生成新鲜度（调了 YAML 忘跑生成器，在这里判红） ——
   const gen = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'generate-time-config.mts'), '--check'], { encoding: 'utf8' })
@@ -540,11 +622,30 @@ async function main(): Promise<void> {
     check(clientUsed.has(name), '拼接名单里的 ' + name + ' 有界面文件在用（名单多一个名字，就是把没人用的常量白拼进闭包）')
   }
 
-  // —— 第四节：无字面量（时间味的位置上不许出现数字，PERMANENT 表是唯一出口） ——
+  // —— 第四节：无字面量（时间味的位置上不许出现数字；唯一出口是 PERMANENT 表与样式类的 STYLE 表） ——
   const permanentByFile = new Map<string, string[]>()
   for (const row of PERMANENT) {
     if (!permanentByFile.has(row.file)) permanentByFile.set(row.file, [])
     permanentByFile.get(row.file)!.push(row.snippet)
+  }
+  // 样式类时长单独一张表（理由见文件头与 STYLE_DURATIONS 的注释）：判法相同，只是认领来源不同。
+  const styleByFile = new Map<string, string[]>()
+  for (const row of STYLE_DURATIONS) {
+    if (!styleByFile.has(row.file)) styleByFile.set(row.file, [])
+    styleByFile.get(row.file)!.push(row.snippet)
+  }
+  // 表的健全性：STYLE 表只许指向外观旋钮文件——否则它会变成任意源码的万能出口。
+  // 三张逐行登记的表（PERMANENT / STYLE / EXEMPTS）每一行都必须写明理由；理由空白就是漏登记的参数。
+  const STYLE_ONLY_FILE = 'src/client/statusbar/suggestAppearance.ts'
+  for (const row of STYLE_DURATIONS) {
+    check(row.file === STYLE_ONLY_FILE, 'STYLE 表只指向外观旋钮文件 ' + STYLE_ONLY_FILE + '（这一行指向 ' + row.file + '；要放宽先改本门禁的约定与 ADR）')
+    check(row.reason.trim().length > 0, 'STYLE 行写明了理由（' + row.file + '：“' + row.snippet + '”）')
+  }
+  for (const row of PERMANENT) {
+    check(row.reason.trim().length > 0, 'PERMANENT 行写明了理由（' + row.file + '：“' + row.snippet + '”）')
+  }
+  for (const row of EXEMPTS) {
+    check(row.reason.trim().length > 0, 'EXEMPTS 行写明了理由（' + row.file + ' 的 ' + row.name + '）')
   }
   // 五种数字藏法：声明挂数字、属性挂数字、对象里藏数字、定时器参数位、缺省回落位。
   // 前三种沿用覆盖率扫描的正则（只认“值是数字”的）；后两种是单源头改造新加的
@@ -620,19 +721,43 @@ async function main(): Promise<void> {
       if (timeishLike(m[1].split('.').pop()!)) hits.push('缺省回落是数字：' + m[1] + ' ' + m[2] + ' ' + m[3])
     }
     if (hits.length === 0) continue
-    // 命中了先看 PERMANENT 表：片段对得上才放行，对不上（改了数字、改了写法）就判红。
+    // 命中了先看 PERMANENT 表与 STYLE 表：片段对得上才放行，对不上（改了数字、改了写法）就判红。
     const raws = fs.readFileSync(path.join(ROOT, file), 'utf8')
     const allowed = permanentByFile.get(file) || []
+    const styleAllowed = styleByFile.get(file) || []
     for (const hit of hits) {
-      const cover = allowed.find((s) => {
-        const n = countOccurrences(raws, s)
-        return n > 0 && hitCovers(s, hit)
-      })
-      check(!!cover, file + ' ' + hit + (cover ? '（PERMANENT 表已认领）' : '——源码里不许写时间数字：入 YAML 走 import，或收入 PERMANENT 并写明理由'))
+      const cover = allowed.find((s) => countOccurrences(raws, s) > 0 && hitCovers(s, hit))
+      const styleCover = styleAllowed.find((s) => countOccurrences(raws, s) > 0 && hitCovers(s, hit))
+      const where = cover ? 'PERMANENT' : (styleCover ? 'STYLE' : '')
+      check(!!cover || !!styleCover, file + ' ' + hit + (where
+        ? '（' + where + ' 表已认领）'
+        : '——源码里不许写时间数字：入 YAML 走 import，或收入 PERMANENT / STYLE 并写明理由'))
     }
-    // PERMANENT 片段自身也要存在，否则这张表就是空头支票。
-    for (const s of allowed) {
-      check(countOccurrences(raws, s) > 0, file + ' 的 PERMANENT 片段还在源码里（“' + s + '”）：表与源码必须同步增减')
+  }
+
+  // 两张表的片段自身也要存在，否则这两张表就是空头支票。
+  // 这段放在扫描循环之外：文件当次没有命中（#1236 把样式时长搬走、写法改了）、甚至文件被删了，
+  // 都要在这里判红。放进循环会被上面的 if (hits.length === 0) continue 整段跳过，等于没查。
+  const tablePairs: Array<[string, Map<string, string[]>]> = [['PERMANENT', permanentByFile], ['STYLE', styleByFile]]
+  const tableFiles = new Map<string, Array<{ table: string; snippets: string[] }>>()
+  for (const pair of tablePairs) {
+    for (const [file, snippets] of pair[1]) {
+      if (!tableFiles.has(file)) tableFiles.set(file, [])
+      tableFiles.get(file)!.push({ table: pair[0], snippets: snippets })
+    }
+  }
+  for (const [file, entries] of tableFiles) {
+    let raws = ''
+    try {
+      raws = fs.readFileSync(path.join(ROOT, file), 'utf8')
+    } catch (e) {
+      check(false, file + ' 读不到：' + entries.map((t) => t.table).join(' / ') + ' 表里的片段无从核对（文件被删或路径写错）')
+      continue
+    }
+    for (const entry of entries) {
+      for (const s of entry.snippets) {
+        check(countOccurrences(raws, s) > 0, file + ' 的 ' + entry.table + ' 片段还在源码里（“' + s + '”）：表与源码必须同步增减')
+      }
     }
   }
 
@@ -652,6 +777,12 @@ async function main(): Promise<void> {
   for (const row of CLIENTS) addKnown(row.file, row.name)
   // PERMANENT 表里的名字：数字在上一节管过了，这里只认“这个名字出现过”。
   for (const row of PERMANENT) {
+    for (const mt of row.snippet.matchAll(/([A-Za-z_$][A-Za-z0-9_$]*)/g)) {
+      if (timeishLike(mt[1])) addKnown(row.file, mt[1])
+    }
+  }
+  // STYLE 表里的名字同理：数字已由第四节认领，覆盖率这节只认名字出现过。
+  for (const row of STYLE_DURATIONS) {
     for (const mt of row.snippet.matchAll(/([A-Za-z_$][A-Za-z0-9_$]*)/g)) {
       if (timeishLike(mt[1])) addKnown(row.file, mt[1])
     }

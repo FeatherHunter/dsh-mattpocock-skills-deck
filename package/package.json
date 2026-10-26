@@ -1,6 +1,6 @@
 {
   "name": "dsh-mattpocock-skills-deck",
-  "version": "1.9.0-beta.20",
+  "version": "1.9.0-beta.21",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/FeatherHunter/dsh-mattpocock-skills-deck.git"
@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "dsh-log": "0.4.1",
-    "dsh-plugin-update": "^0.18.38",
+    "dsh-plugin-update": "^0.18.39",
     "yaml": "^2.9.1"
   },
   "files": [

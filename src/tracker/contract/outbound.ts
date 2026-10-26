@@ -2,11 +2,14 @@
  * src/tracker/contract/outbound.ts —— 出站控制面：房间要的宿主能力，这里只声明形状
  *
  * ── 这一件为什么在契约层 ──────────────────────────────────────────────────────
- * 房间不许 import 宿主模块（`cross-room-import` 那条纪律）。但房间真的需要宿主的三样本事：
+ * 房间不许 import 宿主模块（`cross-room-import` 那条纪律）。但房间真的需要宿主的五样本事：
  *   一、**名额闸**：出站并发有进程级上限，读写分桶排队，排满了就等，等待中被取消要能认出来；
  *   二、**取消判定**：一个错误是不是「排队时被取消」——这只有闸自己说得清；
- *   三、**搭车账本**：写成功记一笔，之后来的探测不搭旧车。
- * 三样都是**运行时能力**（有状态、要宿主实现），不是判定件，所以不能进 `kernel/`；而房间又
+ *   三、**搭车账本**：写成功记一笔，之后来的探测不搭旧车；
+ *   四、**通路失败上报**：一次 transport 级失败（超时、被杀、进程没起来）之后，同一只桶在冷却窗口里
+ *       不再起新进程，调用方立刻收到「通路不通」的回话，而不是各自再赔满一次超时；
+ *   五、**成功清零**：任何一条命令跑完拿到退出码，就说明通路是通的，冷却立刻清掉。
+ * 五样都是**运行时能力**（有状态、要宿主实现），不是判定件，所以不能进 `kernel/`；而房间又
  * 必须能声明「我需要它」。契约层正是放这种「公共形状、没有实现」的地方：本文件只有类型，
  * 一行实现都没有 —— 与契约层「纯类型与数据、没有运行时实现」的定义一致。
  *
@@ -26,6 +29,7 @@
  * 出站分桶：读、写、探活各一桶。
  * 与 `src/tracker/kernel/outbound-tiers.ts` 的档位一一对应（读 12 秒 / 写 30 秒 / 探活 15 秒），
  * 两处名字必须一致 —— 改名要一起改，否则档位会静默对不上。
+ * 冷却窗口只分读、写两档：探活与读走同一只准入桶，因此也按读档冷却。
  */
 export type OutboundBucket = 'read' | 'write' | 'probe'
 
@@ -42,11 +46,25 @@ export interface OutboundControl {
    * 等待期间 `signal` 中止 → 抛「排队时被取消」的错误（不占名额、不记失败），
    * 由 `isCancelled` 认出来，调用方按取消返回、可以重试。
    */
-  acquire(req: { bucket: OutboundBucket; signal?: AbortSignal }): Promise<() => void>
+  acquire(req: { bucket: OutboundBucket; signal?: AbortSignal; cmd?: string }): Promise<() => void>
 
   /** 这个错误是不是「出站准入等待中被取消」。只有闸自己说得清，房间不猜。 */
   isCancelled(err: unknown): boolean
 
   /** 写成功记一笔搭车账（写过东西之后来的探测不搭旧车）。记账是尽力而为，不改变本次调用的结果。 */
   noteWrite(): void
+
+  /**
+   * 上报一次 transport 级失败：准入闸据此给同一只桶设（或续）冷却窗口。
+   * `reason` 只收三个短枚举（timeout / killed / spawn-failed）；`cmd` 是命令短标签（`ghCommandLabel`），
+   * 只用于日志里指认是哪条命令没跑成，不许传命令原文。
+   * 这个上报只影响之后的调用，不改变本次回执。
+   */
+  reportTransportFailure(failure: { bucket: OutboundBucket; reason: string; cmd?: string }): void
+
+  /**
+   * 上报「这条命令跑完了，拿到了退出码」：冷却窗口立刻清零，不必等窗口自己过期。
+   * 退出码非零也算通路通（命令跑到了、有回话），调用方照常按失败处理这一条命令。
+   */
+  reportSuccess(req: { bucket: OutboundBucket }): void
 }

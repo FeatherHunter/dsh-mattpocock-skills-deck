@@ -1853,6 +1853,9 @@ const CLIENT_TIME_NAMES: string[] = [
   'SKILL_DETAIL_COPIED_FLASH_MS',
   'NATIVE_TAB_RETRY_INTERVAL_MS',
   'SKILL_SKELETON_DELAY_MS',
+  // 「下一步建议」读自己那份工作路线的两档重试等待（work-route-own.ts 剥掉 import 行之后，名字由这一片提供）。
+  // 数组常量与标量一样摘一行：生成物里这个常量就是一条带方括号的 export const 声明。
+  'OWN_ROUTE_RETRY_MS',
 ]
 function buildTimeConfigClientFragment(): void {
   // 读构建产物而不是源码树：中央时间参数的域产物（values.js）从 2026-10-19 起落在 .build/shared/ 下，

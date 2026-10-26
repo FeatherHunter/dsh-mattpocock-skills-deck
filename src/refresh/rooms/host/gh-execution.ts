@@ -49,8 +49,10 @@
 // 路径走域构建产物写法（与 src/refresh/rooms/host/chain-coalescing.ts 引 values.js 同例），值由 tests/verify-time-config.ts 看守一致。
 import { GIT_CREDENTIAL_CALL_BUDGET_MS as CALL_BUDGET_MS, GIT_CREDENTIAL_MIN_BUDGET_MS as MIN_BUDGET_MS, GIT_CREDENTIAL_MAX_BUDGET_MS as MAX_BUDGET_MS, GIT_CREDENTIAL_PROBE_TIMEOUT_MS, GIT_CREDENTIAL_LS_REMOTE_BUDGET_MS, GIT_CREDENTIAL_FETCH_BUDGET_MS, GIT_CREDENTIAL_PULL_BUDGET_MS, GIT_CREDENTIAL_PUSH_BUDGET_MS, GIT_CREDENTIAL_DEFAULT_BUDGET_MS, GIT_LOW_SPEED_TIMEOUT_MS, PROC_PROBE_GRACE_MS, PROC_GRACE_MS, GH_VERSION_PROBE_MS } from '../../../shared/time-config/src/values.js'
 
-import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields } from '../../../tracker/kernel/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields, outboundCooldownOf, transportFailureReasonOf, ghCooldownReply } from '../../../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound-admission.js'
+import { raceGhQueue, queueTimeoutForTier } from './gh-queue-race.js'
+import { reportGhRunOutcome } from './gh-run-report.js'
 import { getChainRide } from './chain-coalescing.js'
 import { onceRelease, abandonCommand, startWaitTimeout, DISPOSED_MESSAGE } from '../../../shared/command-cleanup/src/command-cleanup.js'
 /** 每类操作的默认预算（毫秒）：写操作要联网，给得比只读命令宽；到点一律强杀。
@@ -378,8 +380,51 @@ export function createGhExecution(deps: GhExecutionDeps): { resolveGh: () => Pro
     // #960 复核：排队段单独计时。gh.exec 的 latencyMs 含排队（从进函数算起），waitedMs 只记排队这一段，
     //   两者一减就是命令自己的耗时 —— 票面问「是命令慢还是守在门口」时靠这两个数分辨。
     const rkWaitT0 = Date.now()
+    // 这一条是哪一类 gh 命令（#1007）：所有日志行、冷却回话与失败上报共用一个短标签。
+    const rkCmd = ghCommandLabel(args)
+    // #1007 评论四补的边界：排队拿名额这一段也要有一只表，而且必须可取消。
+    //   从前这里直接 await acquire({bucket})，不传信号、不与到点赛跑：名额被慢调用占满时，
+    //   面板调用会把整段分档预算花在排队上，最后却以「命令超时」返回，命令一次都没执行。
+    //   现在把「拿名额」与「本档毫秒数到点」赛跑；到点就中止排队、立刻说清「还在排队、没跑起来」。
+    //   超时值从进函数前就开始算（与 gh.exec 的 latencyMs 同一个起点），排队与执行共用这一份预算；
+    //   排队这一段另有上限：取「本档预算」与中央配置 ghQueueWaitTimeoutMs 里更小的那个
+    //   （数值与理由见 config/timeouts.yaml）。只夹排队段 —— 拿到名额之后起进程的等待仍按本档超时算。
+    const rkQueueCtrl = (typeof AbortController === 'function') ? new AbortController() : null
+    const rkQueueTimeout = queueTimeoutForTier(rkTimeout)
+    // 赛跑机制住在 gh-queue-race.ts（那里同时写明 #1392 的计时器建表异常怎么退化、迟到名额怎么归还），这里只把参数递过去。
+    const rkQueue = raceGhQueue({
+      lane: getGhLane(logCtx),
+      timer: timer,
+      timeoutMs: rkQueueTimeout,
+      bucket: rkBucket,
+      cmd: rkCmd,
+      signal: rkQueueCtrl ? rkQueueCtrl.signal : undefined,
+    })
+    const rkFirst = await rkQueue.result
+    if (rkFirst.timedOut || rkFirst.disposed) {
+      // 中止排队；晚一步拿到的那一个名额由 gh-queue-race.ts 当场归还（细节见那里的 acquire 分支）。
+      rkQueue.abandon(rkQueueCtrl)
+      const rkWaitedMs = Date.now() - rkWaitT0
+      if (rkFirst.disposed) {
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: rkCmd, cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'disposed', exitCode: -1 }) } catch (eL) {}
+        return { ok: false, kind: 'disposed', error: DISPOSED_MESSAGE }
+      }
+      // 到点是排队的表掐的（host-queue），不是命令自己慢：日志把这一层写清楚，回话也说清一次没跑起来。
+      try { if (logCtx) logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: rkQueueTimeout, layer: 'host-queue', via: String(via || ''), cmd: rkCmd, waitedMs: rkWaitedMs, phase: 'queue' }) } catch (eL) {}
+      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: rkCmd, cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'network', exitCode: -1 }) } catch (eL) {}
+      return { ok: false, kind: 'network', code: -1, error: 'gh 在 ' + rkQueueTimeout + ' 毫秒内没等到出站名额（命令 ' + (rkCmd || 'gh') + '；排队上限 ' + rkQueueTimeout + ' 毫秒，本档预算 ' + rkTimeout + ' 毫秒；到点时它还在排队，一次都没有跑起来）。这一笔已经中止。' }
+    }
+    if (rkFirst.failed) {
+      // 冷却期间拿名额会被准入闸直接拒绝（code=admission-cooldown）：这一笔没有起进程，
+      // 回一句「通路不通」比笼统的「限时没回来」有用；这句和房间 client、平台通道共用 outbound-tiers 的口径。
+      if (outboundCooldownOf(rkFirst.failed)) {
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: rkCmd, cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: Date.now() - rkWaitT0, kind: 'network', exitCode: -1 }) } catch (eL) {}
+        return { ok: false, kind: 'network', code: -1, error: ghCooldownReply(rkFirst.failed, rkCmd) }
+      }
+      throw rkFirst.failed
+    }
     // #1392：归还包成幂等，下面每条退出路径都调 releaseSlot()，保证恰好一次。
-    const releaseSlot = onceRelease(await getGhLane(logCtx).acquire({ bucket: rkBucket }))
+    const releaseSlot = onceRelease(rkFirst.release)
     const rkWaitedMs = Date.now() - rkWaitT0
     const exe = await resolveGh()
     if (!exe) { releaseSlot(); return { ok: false, kind: 'env', error: getGhLastError() } }
@@ -395,7 +440,10 @@ export function createGhExecution(deps: GhExecutionDeps): { resolveGh: () => Pro
         graceMs: PROC_GRACE_MS,
       })
     } catch (e) {
-      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
+      // #1007：进程根本没起来也是 transport 级失败（spawn-failed）：同一只桶进入冷却窗口，
+      // 随后调用立刻回「通路不通」，不再一次一次重新赔满超时。
+      try { getGhLane(logCtx).reportTransportFailure({ bucket: rkBucket, reason: 'spawn-failed', cmd: rkCmd }) } catch (eR) {}
+      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: rkCmd, cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
       releaseSlot()
       return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
     }
@@ -418,7 +466,9 @@ export function createGhExecution(deps: GhExecutionDeps): { resolveGh: () => Pro
       //   落定，race 跟着拒绝。收尾与销毁那一档相同；失败类别仍按原行为报 spawn：这一路也可能是
       //   子进程自己失败，两种错误形状在这里分不开，不新增 kind 值。
       abandonCommand(handle, releaseSlot)
-      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
+      // 这一路可能是子进程自己失败，也可能是计时器被销毁连累到 race；认得出是 transport 类才设冷却。
+      try { const rkR = transportFailureReasonOf(String((e && (e as { message?: unknown }).message) || e)); if (rkR) getGhLane(logCtx).reportTransportFailure({ bucket: rkBucket, reason: rkR, cmd: rkCmd }) } catch (eR) {}
+      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: rkCmd, cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
       return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
     }
     const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
@@ -457,8 +507,10 @@ export function createGhExecution(deps: GhExecutionDeps): { resolveGh: () => Pro
       // #1101：超时那一行补上 via / cmd / waitedMs —— 面板「所有功能超时」只能靠这三格分清
       //   是哪个入口（探测、面板读、写票）在排队还是命令本身跑不完；同族 gh.exec 行也带 via。
       try { if (logCtx && rkTimedOut) logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: rkTimeout, layer: 'host-clamp', via: String(via || ''), cmd: ghCommandLabel(args), waitedMs: rkWaitedMs }) } catch (eL) {}
-      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
+      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: rkCmd, cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
       try { if (logCtx && logCtx.isEnabled('debug') && kind !== lastNormKind) { lastNormKind = kind; logCtx.fire('debug', 'error.normalize', function () { return { rawKind: 'exit:' + String((outcome && outcome.exitCode) || -1), mappedKind: kind } }) } } catch (eL) {}
+      // #1007：这一趟的结局要回写给同一只准入桶；三条口径（谁能清零、谁算 transport 失败）见 gh-run-report.ts。
+      reportGhRunOutcome({ lane: getGhLane(logCtx), bucket: rkBucket, cmd: rkCmd, timedOut: rkTimedOut, outcome: outcome, text: all })
       releaseSlot()
       return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400), text: out.text || '' }
     }
@@ -475,7 +527,9 @@ export function createGhExecution(deps: GhExecutionDeps): { resolveGh: () => Pro
         try { if (typeof getChainBackoff === 'function') getChainBackoff().then(function (b) { try { if (b) b.noteWriteActivity() } catch (e) {} }).catch(function () {}) } catch (eWr) {}
       }
     } catch (e) {}
-    try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: ghCommandLabel(args), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'ok', exitCode: 0 }) } catch (eL) {}
+    try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: rkCmd, cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'ok', exitCode: 0 }) } catch (eL) {}
+    // #1007：跑完拿到退出码 0，通路是通的 —— 冷却窗口立刻清零（没有冷却时这里什么也不做、不记事件）。
+    try { getGhLane(logCtx).reportSuccess({ bucket: rkBucket }) } catch (eS) {}
     // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
     try { if (isWriteGhArgs(args)) getChainRide().markWrite() } catch {}
     releaseSlot()

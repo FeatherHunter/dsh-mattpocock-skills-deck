@@ -19,6 +19,7 @@
 //
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-916-ghauth-crosscheck.ts
 import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
+import { resetGhLaneForTest } from '../src/refresh/rooms/host/outbound-admission.ts'
 import { ghPreflight } from '../src/tracker/rooms/github/preflight.ts'
 import { probeChainEnv, ghAuthVerdict } from '../src/refresh/rooms/host/chain-env-map.ts'
 import { GUIDE_STEPS, guideBannerOf, guideMissingOf, guideStepState } from '../src/shared/tracker/guide-steps.ts'
@@ -64,6 +65,10 @@ function check(ok: unknown, label: string, detail?: unknown): void {
  * 于是房间判档（execGh 的退出码 + 原文 → 档位表）走的都是生产代码；执行器换成按参数回样本的假 gh。
  */
 async function runChain(handler: FakeGh) {
+  // #1007：每一段场景都从干净的准入闸开始。场景四模拟「auth status 本地超时」，这会按 transport 失败
+  //   给读桶设 30 秒冷却；不在这里清掉，后面几段（五、六）就全部被挡回「通路不通」，测的不再是各自场景。
+  //   真实插件里冷却本来就会自然过期、且进程重启即清零，这里只是把「每段独立」这件事写明。
+  resetGhLaneForTest()
   const calls: string[][] = []
   const events: Array<{ level: string; event: string; fields: Record<string, unknown> }> = []
   const outbound = createOutboundControl()

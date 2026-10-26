@@ -216,8 +216,12 @@ export const IssueDetail = function (props: any): any {
       const stateColor = isOpen ? '#3fb950' : (isMerged ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : '#8b949e')
       const stateLabel = isOpen ? tr('list.state.open') : (isMerged ? tr('list.state.merged') : tr('list.state.closed'))
       const title = src.title || ('#' + issueNumber)
+      // 2026-10-26 维护者要求：effort 徽标先整体隐藏，代码保留、不删除。
+      //   背景：#1511 起顶栏标题行的编号已经写成「#目录/01」，这枚徽标写的目录名与它重复。
+      //   改回 true 即恢复显示（三处同名开关：ListTabRow、本文件、MapDetailHead）。
+      const SHOW_EFFORT_BADGE = false
       // effort 维度：详情页标出这张票属于哪个 effort（只在多 effort 仓库出现，单 effort 界面不变）
-      const effortChip = (issueEffort && effortNamesOf(st).length > 1) ? h(Tip, { content: issueEffort }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': issueEffort, style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', flex: 'none', maxWidth: 140, overflow: 'hidden', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, issueEffort)) : null
+      const effortChip = (SHOW_EFFORT_BADGE && issueEffort && effortNamesOf(st).length > 1) ? h(Tip, { content: issueEffort }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': issueEffort, style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', flex: 'none', maxWidth: 140, overflow: 'hidden', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, issueEffort)) : null
       // #693 正文格：**只有详情回来了才能说「无描述」**。详情没回来时说加载中，取不到时说「还没拿到」。
       //   取数失败的失败原因与重试在页面顶部那条横幅上（这里不重复放一个按钮）。
       const bodySlot = detail
