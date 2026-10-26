@@ -149,9 +149,17 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
       const listed = (kids && kids.ok === true && Array.isArray(kids.data)) ? kids.data : []
       const picked = childrenOf(listed, key)
       const children = picked.children
+      // 子票清单走没走降级也要摆出来：日志里按 opId 查 read.degraded 就是同一趟，不用再猜。
+      const kidsFallback = String((kids as { fallback?: unknown } | null | undefined)?.fallback || '')
+      const kidsFallbackReason = String((kids as { fallbackReason?: unknown } | null | undefined)?.fallbackReason || '')
+      const opId = String(((opCtx as Record<string, unknown> | null | undefined) || {}).opId || '')
       const notes = []
       if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
-      if (!kids || kids.ok !== true) notes.push('子票没取全（后端原话：' + String((kids && kids.error && kids.error.message) || '').slice(0, 200) + '）：下面的进度是手上这几张票算出来的，偏乐观。')
+      if (!kids || kids.ok !== true) notes.push('子票没取全（后端原话：' + String((kids && kids.error && kids.error.message) || '').slice(0, 200) + '，opId ' + (opId || '未知') + '）：下面的进度是手上这几张票算出来的，偏乐观。')
+      else if (kidsFallback === 'rest') {
+        if (kidsFallbackReason === 'quota') notes.push('子票清单这次因配额耗尽走了 REST 降级通道（opId ' + (opId || '未知') + '）：只回已经拿到的，数偏乐观，收窄再查一次。')
+        else notes.push('子票清单这次走了 REST 降级通道（原因 ' + (kidsFallbackReason || 'other') + '，opId ' + (opId || '未知') + '，日志里按 opId 查 read.degraded 就是同一趟）：只回已经拿到的，数偏乐观。')
+      }
       if (picked.note) notes.push(picked.note)
       // 进度统计走共享层同一份投影：把它当成只有这一张地图的 deck 来算。
       const projection = deriveDeck({ maps: [Object.assign({}, map, { tickets: children })], issues: [] })

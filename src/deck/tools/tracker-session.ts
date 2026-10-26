@@ -27,6 +27,13 @@ function hash8(text: unknown): string {
   return ('0000000' + h.toString(16)).slice(-8);
 }
 
+/** deck 工具每趟操作的编号：时间转 36 进制加自增序号，保证同一毫秒内也不重。房间日志里的 opId 就是这一格，工具回执里也带上它，两边才能对上。 */
+let deckOpSeq = 0;
+function newDeckOpId(nowFn: () => number): string {
+  deckOpSeq += 1;
+  try { return String(nowFn()).toString() + '-' + deckOpSeq.toString(36); } catch { return 'op-' + deckOpSeq.toString(36); }
+}
+
 /** 打开会话要齐的东西（工具把自己手头现成的递进来，本层不替工具算估算、不探沙箱）。 */
 export interface DeckSessionRequest {
   /** 工具的依赖袋（判定出口、闸、账本读口、裁决记账三件都从这里取，缺席各退默认）。 */
@@ -381,13 +388,14 @@ export async function callDeckSession(req: DeckCallRequest, work: (ctx: unknown)
   const sbM = (req.sandbox && typeof req.sandbox === 'object') ? (req.sandbox as UnknownRecord) : {} as UnknownRecord;
   const sbPolicy = sbM.policy;
   const sessionId = (typeof sbM.sessionId === 'string' && sbM.sessionId) ? sbM.sessionId : str(s.sessionId);
+  const opId = newDeckOpId(nowFn);
   const ctx: UnknownRecord = {
     session: s,
     pick: { backendId: backendId, source: opened.source, ref: opened.ref },
     repo: req.repo,
     now: nowFn,
     tracker: adaptSession(opened.session),
-    opCtx: Object.assign({}, backendCtxNow(d), { cwd: str(s.cwd), signal: undefined, caller: DECK_TOOL_KIND, sandboxPolicy: sbPolicy, sessionId: sessionId }),
+    opCtx: Object.assign({}, backendCtxNow(d), { cwd: str(s.cwd), signal: undefined, caller: DECK_TOOL_KIND, sandboxPolicy: sbPolicy, sessionId: sessionId, opId: opId }),
     admit: opened.admit,
   };
   let value: unknown = null;
