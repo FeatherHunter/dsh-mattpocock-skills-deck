@@ -282,7 +282,10 @@ const ALLOWED = {
   //   用来把它自己的阶段推进与「打开面板那一路的阶段」分开）；面板打开那一路（kernel/router.js 的
   //   logPanelStage）自 2026-09-21 起不再记 mode —— 面板只有一条路之后它没有第二种取值。
   'panel.render': ['stage', 'ms', 'mode'],
-  'host.start': ['pid', 'startedAt', 'dir'],
+  // #1332 订正：启动头实际是五键 —— 三个必记（进程标识、建库时刻、实际目录），
+  //   两个可选（插件版本号、系统环境名，有则记、无则不记）；建库时刻不是进程启动时刻，
+  //   不能用来数进程启动次数（见附录 51 行与 3.3 节）。旧回退实现只发三个键，仍是子集，照旧放行。
+  'host.start': ['pid', 'startedAt', 'dir', 'pluginVersion', 'os'],
   'update.install.exec': ['route', 'ok', 'exitCode', 'durationMs', 'pluginId'],
   // 2026-10-01 新增一条常驻事件（附录 1.4 节）：装更新返回后，代码横幅版本已是目标版本而身份证还旧时，把身份证补成真实版本；只记标识与两个版本号。
   'update.install.manifestSync': ['pluginId', 'fromVersion', 'toVersion'],
