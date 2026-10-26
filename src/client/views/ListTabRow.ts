@@ -295,8 +295,9 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
         return mkRowAction(st, x, narrow, colorOf)
       })()
       // #1286：新会话按钮与主按钮永远同色实心（背景色取主按钮那个色，字色按对比度择优）。
-      const primaryColor = (isSpec && containerTri) ? containerTri.color : (mapEmpty ? emptyColor() : mapDone ? doneColor() : actionColorOf(x, colorOf))
-      const primaryText = (isSpec && containerTri) ? (isLightHex(primaryColor) ? '#140a1e' : '#ffffff')
+      //   #1558：探索进行中态漏了容器色，走了标签色（紫对黄）。容器行一律取 containerTri.color。
+      const primaryColor = (isContainer && containerTri) ? containerTri.color : (mapEmpty ? emptyColor() : mapDone ? doneColor() : actionColorOf(x, colorOf))
+      const primaryText = (isContainer && containerTri) ? (isLightHex(primaryColor) ? '#140a1e' : '#ffffff')
         : (mapEmpty ? '#140a1e' : mapDone ? '#0c1a10' : (isLightHex(actionColorOf(x, colorOf)) ? '#140a1e' : '#ffffff'))
       // v1.3.3 UI：全部标签渲染（渲染后贪心折叠，放不下的隐藏进 +N；+N 弹窗显示全部）
       const labels = x.labels || []
