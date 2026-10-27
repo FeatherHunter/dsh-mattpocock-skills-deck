@@ -2,15 +2,15 @@
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-suggest-next-steps.ts，可独立运行。
 //
 // 为什么要有这一扇：这颗工具的参数里就直接带着给界面用的建议清单——界面从这次工具调用的参数本身
-// 读走建议、画成气泡，工具只校验、钳制、截断、回执，不写票、不落任何状态；它又必须留在九个追踪器
-// 工具之外单独登记，九工具的参数表、回执表、点数表、装配顺序一个字都不能动。两件事都很容易在后续
+// 读走建议、画成气泡，工具只校验、钳制、截断、回执，不写票、不落任何状态；它又必须留在十个追踪器
+// 工具之外单独登记，十工具的参数表、回执表、点数表、装配顺序一个字都不能动。两件事都很容易在后续
 // 改动里被顺手破坏，
 // 所以这里逐条钉住：
 //   ① 参数：2~4 条合法；可选的推荐优先级（0~10）决定先后，分高靠左、没打分的排最后，多于 4 条
 //     时按分留前 4 条；少于 2 条或条目缺必填字段整次拒绝（不补编建议）；
 //   ② 超长文本按 Unicode 码点截断并补省略号，不报错；
-//   ③ 回执沿用九工具那套统一回执壳（工具名、会话、耗时、结论）与既有日志事件、字段白名单；
-//   ④ 工具在 agent 工具列表里、不在 DECK_TOOL_ORDER；九工具的装配顺序与文件清单仍是冻结的九条；
+//   ③ 回执沿用十工具那套统一回执壳（工具名、会话、耗时、结论）与既有日志事件、字段白名单；
+//   ④ 工具在 agent 工具列表里、不在 DECK_TOOL_ORDER；十工具的装配顺序与文件清单仍是冻结的十条；
 //   ⑤ 负向自检：把建议工具塞进装配顺序时，本门禁用的判据必须判红——只跑正向的门禁守不住任何东西。
 const path = require('path')
 const fs = require('fs')
@@ -27,8 +27,8 @@ function check(ok, message) {
 }
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
 
-// 九工具的冻结顺序与日志字段白名单：本文件按字面量再写一遍，改动必须两边一起改（这样才有门禁的意义）。
-const ORDER = ['deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_list', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch', 'deck_issue_report']
+// 十工具的冻结顺序与日志字段白名单：本文件按字面量再写一遍，改动必须两边一起改（这样才有门禁的意义）。
+const ORDER = ['deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_list', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch', 'deck_issue_report', 'deck_work_route']
 const ALLOWED_HOST_CALL = ['method', 'latencyMs', 'ok', 'kind', 'pluginId', 'opId', 'cwdHash', 'reason']
 const ALLOWED_HOST_CALL_FAIL = ['method', 'kind', 'errorHash', 'pluginId', 'errorKind', 'opId', 'cwdHash']
 const EXEC = { agent: { session: { cwd: '/ws/proj', id: 'sess-7' } } }
@@ -56,12 +56,12 @@ function keysWithin(fields, allowed) {
   return Object.keys(fields || {}).every((k) => allowed.indexOf(k) >= 0)
 }
 
-// 九工具冻结判据：本门禁自己的实现，也被负向自检用来证明「塞进去就会红」。
+// 十工具冻结判据：本门禁自己的实现，也被负向自检用来证明「塞进去就会红」。
 function orderGateHolds(order, factories, files) {
   if (!Object.isFrozen(order) || !Object.isFrozen(factories) || !Object.isFrozen(files)) return false
-  if (!Array.isArray(order) || order.length !== 9) return false
-  if (!Array.isArray(factories) || factories.length !== 9) return false
-  if (!Array.isArray(files) || files.length !== 9) return false
+  if (!Array.isArray(order) || order.length !== 10) return false
+  if (!Array.isArray(factories) || factories.length !== 10) return false
+  if (!Array.isArray(files) || files.length !== 10) return false
   if (order.join(',') !== ORDER.join(',')) return false
   if (order.indexOf('suggest_next_steps') >= 0) return false
   if (files.some((f) => String(f).indexOf('suggest') >= 0)) return false
@@ -267,7 +267,7 @@ async function main() {
   check(!brokenCrashed && brokenEnv && brokenEnv.ok === true, '日志口抛错也不影响工具回执（不向对话冒泡）')
 
   // ── 5b. 真机会话目录在 header 里：本工具自己的回退（#1406 真机缺口回归） ──
-  // 九颗追踪器工具由宿主代执行，代执行那层会先造一个带 cwd 的 exec；本工具在行里本地执行，
+  // 十颗追踪器工具由宿主代执行，代执行那层会先造一个带 cwd 的 exec；本工具在行里本地执行，
   // exec 是平台原生形状——桌面真机上会话顶层没有目录，目录住在 exec.agent.session.header 里。
   // 这里按真机形状复现：只有 header.cwd 时必须成功，且回执与日志都能对上目录与会话号。
   const keyMod = await imp('src/refresh/contract/workspace-keys.ts')
@@ -304,7 +304,7 @@ async function main() {
     '拒绝正文用本工具的口径（不写票）')
   check(noCtxLog.fired[0] && noCtxLog.fired[0].fields.reason === 'no-session-context', 'header 也取不到时仍落一行日志')
 
-  // ── 6. 独立登记：agent 工具列表里有它，九工具顺序表里没有它 ──
+  // ── 6. 独立登记：agent 工具列表里有它，十工具顺序表里没有它 ──
   const row = await imp('src/deck/registration/agent-row.ts')
   const registered = []
   const rowSvc = {
@@ -318,9 +318,9 @@ async function main() {
   try { row.apply({ tools: rowSvc }) } catch (e) { rowCrashed = e }
   check(!rowCrashed, '行模块应用不抛')
   const rowNames = registered.map((t) => t.name)
-  check(rowNames.length === 11, '行模块交出十一个工具（九个追踪器 + 探针 + 建议）')
-  check(rowNames.slice(0, 9).join(',') === ORDER.join(','), '前九个工具的名字与顺序仍是冻结的 DECK_TOOL_ORDER')
-  check(rowNames[9] === 'deck_probe' && rowNames[10] === 'suggest_next_steps', '探针与建议工具排在九工具之后，各自独立登记')
+  check(rowNames.length === 12, '行模块交出十二个工具（十个追踪器 + 探针 + 建议）')
+  check(rowNames.slice(0, 10).join(',') === ORDER.join(','), '前十个工具的名字与顺序仍是冻结的 DECK_TOOL_ORDER')
+  check(rowNames[10] === 'deck_probe' && rowNames[11] === 'suggest_next_steps', '探针与建议工具排在十工具之后，各自独立登记')
   const suggestReg = registered.filter((t) => t.name === 'suggest_next_steps')[0]
   check(!!suggestReg && typeof suggestReg.execute === 'function', '建议工具交出了可执行的注册数据')
   check(!!suggestReg && suggestReg.timeoutMs === 300000, '建议工具的调用上限沿用工具超时（300000 毫秒）')
@@ -411,17 +411,17 @@ async function main() {
   check(wiringCallAt >= 0, '宿主接线里仍在调用建议工具登记钩子')
   check(wiringTail.indexOf('.catch(') >= 0, '宿主接线给登记钩子的 Promise 挂了 .catch 兜底（异步异常不会逃逸）')
 
-  // ── 9. 锁九：DECK_TOOL_ORDER / 工厂表 / 文件清单仍是冻结的九条 ──
+  // ── 9. 锁十：DECK_TOOL_ORDER / 工厂表 / 文件清单仍是冻结的十条 ──
   const orderMod = await imp('src/deck/rules/tool-order.ts')
   const assembleMod = await imp('src/deck/registration/host-assemble.ts')
-  check(orderMod.DECK_TOOL_ORDER.length === 9 && orderMod.DECK_TOOL_ORDER.join(',') === ORDER.join(','), 'DECK_TOOL_ORDER 仍是冻结的九条顺序')
+  check(orderMod.DECK_TOOL_ORDER.length === 10 && orderMod.DECK_TOOL_ORDER.join(',') === ORDER.join(','), 'DECK_TOOL_ORDER 仍是冻结的十条顺序')
   check(orderMod.DECK_TOOL_ORDER.indexOf('suggest_next_steps') < 0, '建议工具没有被塞进 DECK_TOOL_ORDER')
   check(orderMod.DECK_TOOL_ORDER.indexOf('deck_probe') < 0, '探针也不在 DECK_TOOL_ORDER（单独登记的先例没变）')
   check(Object.isFrozen(orderMod.DECK_TOOL_ORDER), 'DECK_TOOL_ORDER 仍是冻结数组')
-  check(assembleMod.DECK_TOOL_FACTORIES.length === 9 && Object.isFrozen(assembleMod.DECK_TOOL_FACTORIES), 'DECK_TOOL_FACTORIES 仍是九个冻结工厂')
-  check(assembleMod.DECK_TOOL_FILES.length === 9 && Object.isFrozen(assembleMod.DECK_TOOL_FILES), 'DECK_TOOL_FILES 仍是九个冻结文件')
-  check(assembleMod.DECK_TOOL_FILES.every((f) => String(f).indexOf('suggest') < 0), '文件清单里没有建议工具（不进九工具装配）')
-  check(orderGateHolds(orderMod.DECK_TOOL_ORDER, assembleMod.DECK_TOOL_FACTORIES, assembleMod.DECK_TOOL_FILES), '锁九判据对真实数据成立')
+  check(assembleMod.DECK_TOOL_FACTORIES.length === 10 && Object.isFrozen(assembleMod.DECK_TOOL_FACTORIES), 'DECK_TOOL_FACTORIES 仍是十个冻结工厂')
+  check(assembleMod.DECK_TOOL_FILES.length === 10 && Object.isFrozen(assembleMod.DECK_TOOL_FILES), 'DECK_TOOL_FILES 仍是十个冻结文件')
+  check(assembleMod.DECK_TOOL_FILES.every((f) => String(f).indexOf('suggest') < 0), '文件清单里没有建议工具（不进十工具装配）')
+  check(orderGateHolds(orderMod.DECK_TOOL_ORDER, assembleMod.DECK_TOOL_FACTORIES, assembleMod.DECK_TOOL_FILES), '锁十判据对真实数据成立')
 
   // ── 10. 负向自检：把建议工具塞进装配顺序 / 打乱顺序 / 少一个工厂时，判据必须红 ──
   const fakeOrderAppended = Object.freeze(ORDER.concat(['suggest_next_steps']))
@@ -429,8 +429,8 @@ async function main() {
     '负向自检：建议工具被塞进装配顺序时判据必须红')
   const fakeOrderSwapped = Object.freeze(['deck_issue_get', 'deck_context'].concat(ORDER.slice(2)))
   check(!orderGateHolds(fakeOrderSwapped, assembleMod.DECK_TOOL_FACTORIES, assembleMod.DECK_TOOL_FILES),
-    '负向自检：九工具顺序被打乱时判据必须红')
-  check(!orderGateHolds(orderMod.DECK_TOOL_ORDER, Object.freeze(assembleMod.DECK_TOOL_FACTORIES.slice(0, 8)), assembleMod.DECK_TOOL_FILES),
+    '负向自检：十工具顺序被打乱时判据必须红')
+  check(!orderGateHolds(orderMod.DECK_TOOL_ORDER, Object.freeze(assembleMod.DECK_TOOL_FACTORIES.slice(0, 9)), assembleMod.DECK_TOOL_FILES),
     '负向自检：工厂少一个时判据必须红')
   check(!orderGateHolds(orderMod.DECK_TOOL_ORDER, assembleMod.DECK_TOOL_FACTORIES, Object.freeze(assembleMod.DECK_TOOL_FILES.concat(['src/deck/tools/suggest-next-steps.js']))),
     '负向自检：建议工具混进文件清单时判据必须红')

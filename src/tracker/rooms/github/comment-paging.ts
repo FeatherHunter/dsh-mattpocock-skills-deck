@@ -40,9 +40,11 @@ export function commentsWantOf(opts: GetOpts | undefined): number | null {
     : null
 }
 
-/** 第一页问多少条：要 0 条就不问（0）；否则至少要 1 条，且不超过一页上限。 */
+/** 第一页问多少条：没指定就不问（0，走旧查询）；要 0 条问 1 条（只为拿总数，节点随后截掉）；否则按要的条数、不超过一页上限。 */
 export function firstPageSizeOf(want: number | null): number {
-  return want === null ? 0 : Math.max(1, Math.min(want, COMMENTS_PAGE_MAX))
+  if (want === null) return 0
+  if (want === 0) return 1
+  return Math.max(1, Math.min(want, COMMENTS_PAGE_MAX))
 }
 
 /** 翻页要的输入：客户端、工作目录、仓库坐标、票号、第一页回包、要多少条、没取全时落日志的回调。 */
@@ -103,9 +105,9 @@ export async function appendCommentPages(input: CommentPagesInput): Promise<void
   }
 }
 
-/** 截到调用方要的条数：最后一页是整页取回的，可能比要的多，契约说 first 是多少就交多少。 */
+/** 截到调用方要的条数：最后一页是整页取回的，可能比要的多，契约说 first 是多少就交多少。总数不碰：归一时写在 commentCount 里的总数是全量，截评论只截数组。 */
 export function trimCommentsToWant(issue: any, want: number | null): void {
-  if (want !== null && issue.comments && issue.comments.length > want) {
+  if (want !== null && issue && Array.isArray(issue.comments) && issue.comments.length > want) {
     issue.comments = issue.comments.slice(0, want)
   }
 }

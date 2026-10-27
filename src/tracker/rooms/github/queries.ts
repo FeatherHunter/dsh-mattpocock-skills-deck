@@ -29,7 +29,7 @@ const COMMENT_NODE_FIELDS = 'id author{login avatarUrl __typename ... on User{na
 function commentsField(first: number, opts?: { after?: boolean; pageInfo?: boolean }): string {
   const after = opts && opts.after ? ', after:$after' : ''
   const pageInfo = opts && opts.pageInfo ? ' pageInfo{hasNextPage endCursor}' : ''
-  return `comments(first:${first}${after}){nodes{${COMMENT_NODE_FIELDS}}${pageInfo}}`
+  return `comments(first:${first}${after}){totalCount nodes{${COMMENT_NODE_FIELDS}}${pageInfo}}`
 }
 
 /** 单票字段清单：core 与能力字段来源固定，评论那一栏由调用方给（单票给条数、没有分页信息）。 */
@@ -275,7 +275,7 @@ export const PULL_REQUEST_FRAGMENT = [
   'assignees(first:50){nodes{login name avatarUrl __typename}}',
   'labels(first:50){nodes{name color description}}',
   'milestone{title description state dueOn}',
-  'comments(first:20){nodes{id author{login avatarUrl __typename ... on User{name} ... on Organization{name}} authorAssociation body createdAt updatedAt lastEditedAt}}',
+  'comments(first:20){totalCount nodes{id author{login avatarUrl __typename ... on User{name} ... on Organization{name}} authorAssociation body createdAt updatedAt lastEditedAt}}',
   'reviews(first:20){nodes{state author{login} submittedAt}}',
 ].join(' ')
 

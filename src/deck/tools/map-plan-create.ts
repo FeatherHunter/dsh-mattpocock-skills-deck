@@ -77,7 +77,6 @@ export const definition = {
         },
       },
       labels: { type: 'array', items: { type: 'string' } },
-      workRouteDetail: { type: 'string', enum: ['core', 'standard'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）' },
       ...MD_SCOPE_CREATE,
     },
     required: ['title', 'children'],
@@ -210,6 +209,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
     const children = Array.isArray(a.children) ? a.children.filter((c: Record<string, unknown>) => c && c.key && c.title) : []
     const edges = Array.isArray(a.edges) ? a.edges.filter((e: Record<string, unknown>) => e && e.from && e.to) : []
     const est = shell.estimateFor('deck_map_plan_create', a)
+    if (Object.prototype.hasOwnProperty.call(a, 'workRouteDetail') && a.workRouteDetail !== undefined) return shell.unsupported('deck_map_plan_create', REFUSAL_REASONS.BAD_ARGS, 'workRouteDetail 参数已退役（#1561）：在办表不再跟在写回执里，要看就调 deck_work_route（默认只看近 24 小时在办，带 includeStale:true 看近 30 天）。这次什么都没做：没选后端、没花点数、没写盘。', { cost: { estimated: est } })
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 是会话壳里的运行时布尔，那一层还没标类型，
     // 见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
@@ -493,7 +493,6 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
         value: {
           status: status,
           reason: status === DECK_STATUS.OK ? '' : REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-          workRouteDetail: a.workRouteDetail,
           text: text,
           data: {
             planId: planId, mapKey: state.mapKey, durable: storeDurable,

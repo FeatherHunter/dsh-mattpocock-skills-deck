@@ -13,14 +13,14 @@
 
 - 每一层都给出「谁调用谁 / 传什么 / 失败长什么样」，并指到真实文件与行号。
 - 行号是写这份文档时的仓库状态（基线提交 `f1dc6376`）。代码改动之后行号会漂，改代码的人顺手改这一份。
-- 九个工具**共用**前面这条主干（进门 → 取会话 → 判参数 → 选后端 → 取沙箱策略 → 过闸 → 进房间），只在「进房间之后调哪一个契约操作」和「最后落到哪个底层」上分叉。所以先读第 1 到第 6 层，再看第 8 层的九张索引卡。
-- 三座底层：**gh 进程**（GitHub 房间，第 7.1 节）、**工作区里的 Markdown 票文件**（本地房间，第 7.2 节）、**宿主侧的缓存快照**（第 7.3 节）。第三座要先看清：它服务的是面板与会话刷新，**不在这九个工具的路上**；两者只靠「写完一票就作废」打交道。
+- 十个工具**共用**前面这条主干（进门 → 取会话 → 判参数 → 选后端 → 取沙箱策略 → 过闸 → 进房间），只在「进房间之后调哪一个契约操作」和「最后落到哪个底层」上分叉。所以先读第 1 到第 6 层，再看第 8 层的九张索引卡。
+- 三座底层：**gh 进程**（GitHub 房间，第 7.1 节）、**工作区里的 Markdown 票文件**（本地房间，第 7.2 节）、**宿主侧的缓存快照**（第 7.3 节）。第三座要先看清：它服务的是面板与会话刷新，**不在这十个工具的路上**；两者只靠「写完一票就作废」打交道。
 
 ## 一眼看全的总图
 
 ```
 对话里的 AI
-  │ ① 工具从哪来：装机补丁装上宿主与「工具行」；宿主先装好那张表，工具行把九个工具注册进工具服务
+  │ ① 工具从哪来：装机补丁装上宿主与「工具行」；宿主先装好那张表，工具行把十个工具注册进工具服务
   ▼
 工具服务（DSH 的 tools 服务）   package/cordis.patch.yml:8-14
                                 → 宿主装表 src/refresh/registry/deck-tool-bridge.ts:93-104
@@ -33,7 +33,7 @@ makeDelegatedExecute              src/deck/registration/agent-row.ts:313-391
   │    ② 宿主电话 wf.deckExec → handleDeckExec（同一张表）  src/deck/registration/host-delegate.ts:68-113
   │    ③ 同源请求（与面板同一套调用面）                      agent-row.ts:384-388
   ▼
-九个工具各自的 run                src/deck/tools/*.ts
+十个工具各自的 run                src/deck/tools/*.ts
   │ ④ 取会话目录   sessionContextOfAsync   src/deck/shell/session-workdir.ts:143
   │ ⑤ 判参数够不够 + 选后端 openDeckSession src/deck/tools/tracker-session.ts:102
   │ ⑥ 取沙箱策略 → 过闸 + 真干活 callDeckSession  src/deck/tools/tracker-session.ts:373
@@ -48,14 +48,14 @@ makeDelegatedExecute              src/deck/registration/agent-row.ts:313-391
 最底层：
   · gh 进程              src/tracker/rooms/github/client.ts:372   exec('gh', args, …)
   · 工作区 Markdown 文件  src/tracker/rooms/markdown/write.ts:33   fs.resolve + fs.writeText
-  · 宿主侧缓存快照（不服务这九个工具）  src/host/tracker/snapshot.ts:215  composeSnapshot
+  · 宿主侧缓存快照（不服务这十个工具）  src/host/tracker/snapshot.ts:215  composeSnapshot
 ```
 
 ---
 
-## 第 1 层：AI 手上的九个工具是从哪来的
+## 第 1 层：AI 手上的十个工具是从哪来的
 
-这一层发生在**装机与宿主启动时**，不在 AI 调用时——但后面所有事情都建立在它上面。四段：装机补丁插两条插件条目 → 宿主把那张表装出来 → 表放进同进程共享格 → **agent 层的「工具行」**把九个工具注册给工具服务。
+这一层发生在**装机与宿主启动时**，不在 AI 调用时——但后面所有事情都建立在它上面。四段：装机补丁插两条插件条目 → 宿主把那张表装出来 → 表放进同进程共享格 → **agent 层的「工具行」**把十个工具注册给工具服务。
 
 **1. 装机时，装配补丁插两条插件条目**（`package/cordis.patch.yml:8-14`；这份补丁由 `dsh plugin add` 自动装配，包声明在 `package/package.json` 的 `dsh.bundle.patch`）：
 
@@ -68,15 +68,15 @@ makeDelegatedExecute              src/deck/registration/agent-row.ts:313-391
 
 ```
 src/refresh/registry/deck-tool-bridge.ts:93-104（createDeckToolBridge、deckToolsForHost，内调 :47 的 createDeckToolsForHost）
-  → src/deck/registration/host-assemble.ts（九个工厂的读入点与竞速 helper，装表机已搬进桥里）
+  → src/deck/registration/host-assemble.ts（十个工厂的读入点与竞速 helper，装表机已搬进桥里）
   → src/deck/rules/tool-table.ts:59-77（createDeckTools）
 ```
 
-表里每个工具是 `{ definition, run }`，键是工具名；哪个工厂装不起来就少哪个，缺的如实列在 `missing` 里，**不补假桩**（`src/deck/rules/tool-table.ts:74-76`）。九个名字与顺序钉在 `src/deck/rules/tool-order.ts:12-14`（`DECK_TOOL_ORDER`）：`deck_context` / `deck_issue_get` / `deck_map_snapshot` / `deck_issue_list` / `deck_issue_create` / `deck_map_plan_create` / `deck_map_link` / `deck_issue_patch` / `deck_issue_report`。
+表里每个工具是 `{ definition, run }`，键是工具名；哪个工厂装不起来就少哪个，缺的如实列在 `missing` 里，**不补假桩**（`src/deck/rules/tool-table.ts:74-76`）。十个名字与顺序钉在 `src/deck/rules/tool-order.ts:12-14`（`DECK_TOOL_ORDER`）：`deck_context` / `deck_issue_get` / `deck_map_snapshot` / `deck_issue_list` / `deck_issue_create` / `deck_map_plan_create` / `deck_map_link` / `deck_issue_patch` / `deck_issue_report`。
 
 装好之后放进**同进程共享格**（给工具行直接取用，不经任何调用面）：`src/refresh/registry/deck-tool-bridge.ts:222` → `src/deck/shell/table-cell.ts` 的 `publishDeckTable`。这一格的生命周期与原因写在 `src/deck/shell/table-cell.ts:1-7`：行与宿主同进程时格里有货，跨进程时永远是空的。
 
-**3. 工具行把九个工具注册给工具服务**（`src/deck/registration/agent-row.ts`）：它声明自己要用工具服务（`name` 与 `inject: ['tools']` 在 `:52-53`），`apply` 里逐条 `ctx.tools.register`（`:398-404`；服务不在就直接抛、行起不来，`:393-397`），每个工具经 `toRawRegistration`（`:173-186`）交出 `{ name, description, parameters, timeoutMs, output, execute }`，其中 `execute = makeDelegatedExecute(工具名, ctx)`（`:313-391`），`timeoutMs` 用 `AGENT_TOOL_TIMEOUT_MS`（值 300000，定义在 `src/deck/registration/register-options.ts:39`）。它同时注册一个自查用的探针工具 `deck_probe`（`:409-416`，定义在 `src/deck/registration/register-options.ts:267-271`）——这一条**不走** `makeDelegatedExecute`，`execute` 直接回一串 JSON（`:415`）。
+**3. 工具行把十个工具注册给工具服务**（`src/deck/registration/agent-row.ts`）：它声明自己要用工具服务（`name` 与 `inject: ['tools']` 在 `:52-53`），`apply` 里逐条 `ctx.tools.register`（`:398-404`；服务不在就直接抛、行起不来，`:393-397`），每个工具经 `toRawRegistration`（`:173-186`）交出 `{ name, description, parameters, timeoutMs, output, execute }`，其中 `execute = makeDelegatedExecute(工具名, ctx)`（`:313-391`），`timeoutMs` 用 `AGENT_TOOL_TIMEOUT_MS`（值 300000，定义在 `src/deck/registration/register-options.ts:39`）。它同时注册一个自查用的探针工具 `deck_probe`（`:409-416`，定义在 `src/deck/registration/register-options.ts:267-271`）——这一条**不走** `makeDelegatedExecute`，`execute` 直接回一串 JSON（`:415`）。
 
 **4. 宿主插件那侧还留着一条兼容钩子**（`src/refresh/rooms/host/refresh-runtime.ts:306`）：`hookDeckAgentTools(…)` 调向 `src/deck/registration/register-options.ts:430-477`，等两样东西都就绪、各等最多五轮每轮两秒——先要那张表（`table(retries)`，:451-452），再要工具服务（`attempt(left)`，:454-474），就绪后由 `registerDeckAgentTools`（:336-398）逐条注册，每个工具包一层 `makeExecute`（:302-324），注册时同样带 `timeoutMs`（:367）。
 
@@ -85,7 +85,7 @@ src/refresh/registry/deck-tool-bridge.ts:93-104（createDeckToolBridge、deckToo
 **这一层失败长什么样**
 
 - **工具服务**一直不就绪：工具行起不来（服务不在就抛，`agent-row.ts:393-397`），AI 手上根本没有这些工具（对话里看不到）。兼容钩子那条路同样要求两样都就绪，否则只记日志、不抛。
-- **只有表没装好**（服务在）：九个工具**照样看得见**——注册不依赖那张表；调用时走到占位，回 `not-wired`「…的执行通道还没接通（列表可见是第一步）：请先用面板操作，进展见仓库的 BUG 单。」（`src/deck/registration/register-options.ts:254-259`）。
+- **只有表没装好**（服务在）：十个工具**照样看得见**——注册不依赖那张表；调用时走到占位，回 `not-wired`「…的执行通道还没接通（列表可见是第一步）：请先用面板操作，进展见仓库的 BUG 单。」（`src/deck/registration/register-options.ts:254-259`）。
 - 注册成功与否落两条既有日志，不新增事件名：`src/deck/registration/register-options.ts:402-417`（`host.call` / `host.call.fail`，`method: 'deck.agentRegister'`）。
 - **想在本机确认执行时落在哪条路由**：调探针 `deck_probe`。它回的键有二十来个（`agent-row.ts:86-170`），先看这三样：`bridgeLastPath`（上一次调用落在哪条路由：`cell` / `connection` / `fetch` / `fallback`）、`bridgeTools`（宿主那张表里有哪些工具名）、`bridgeDryRun`（拿当前会话目录干跑一次 `deck_context` 的结果：`ok` / `no-hint` / `no-table` / `no-run` / `threw` / `bad-shape`）。
 
@@ -127,7 +127,7 @@ src/host/index.ts:252     harness.handle('wf.deckExec', …)（注释写着「ag
 
 | 情形 | 行号（`src/deck/registration/host-delegate.ts`） | AI 看到的 |
 | --- | --- | --- |
-| 工具名不在 `DECK_TOOL_ORDER` 里 | :77-80 | `bad-args`、「工具名不对，我没法做：请按九个 deck 工具的名字重调一次。」 |
+| 工具名不在 `DECK_TOOL_ORDER` 里 | :77-80 | `bad-args`、「工具名不对，我没法做：请按十个 deck 工具的名字重调一次。」 |
 | 参数不是对象 | :81-84 | `bad-args`、「参数不是一个对象，我没法做：请按这个工具的参数说明重调一次。」 |
 | 没拿到会话目录 | :85-88 | `no-session-context`、「这次没拿到当前会话的工作区目录，所以我不动任何票。请换一个会话再来。」 |
 | 表或 `run` 不在 | :90-97 | `not-wired`、「〈工具名〉的执行通道还没接通（宿主那张表不在）：请先用面板操作，进展见仓库的 BUG 单。」 |
@@ -138,7 +138,7 @@ src/host/index.ts:252     harness.handle('wf.deckExec', …)（注释写着「ag
 
 ---
 
-## 第 3 层：九个工具的入口（进门后的共同几步）
+## 第 3 层：十个工具的入口（进门后的共同几步）
 
 每个 `run` 的前半段都是同一套顺序；**会话判不过就不往下走，而这一步在参数校验之前**：
 
@@ -149,7 +149,7 @@ src/host/index.ts:252     harness.handle('wf.deckExec', …)（注释写着「ag
 5. **取沙箱策略**：`d.sandboxPolicyFor`（细节见本节末尾）。
 6. **进预算壳**：`shell.call({ tool, kind, session, pick, repo, estimate, sandbox }, work)`（第 5 层；有的工具还多传一个 `signal`，例如 `src/deck/tools/map-snapshot.ts:114`）。
 
-九个工具的落点（行号为基线提交状态）：
+十个工具的落点（行号为基线提交状态）：
 
 | 工具 | 入口文件 | `definition` | `run` | 干什么用 | 参数校验 | `shell.call` |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -163,7 +163,7 @@ src/host/index.ts:252     harness.handle('wf.deckExec', …)（注释写着「ag
 | `deck_issue_patch` | [issue-patch.ts](../../src/deck/tools/issue-patch.ts) | :67-87 | :154-403 | 写：改票 | :164 key；:181-182 至少点一件事 | :187 |
 | `deck_issue_report` | [issue-report.ts](../../src/deck/tools/issue-report.ts) | :78-91 | :121-220 | 写：上报当前在办哪张票 | :131 key 必填 | :148 |
 
-第 5 步那次沙箱策略在九个文件里写法一致：`d.sandboxPolicyFor` 包在 `withCap(…, SANDBOX_TIMEOUT_MS)` 里，5 秒上限；拿不到按 `null` 走，不拦事（例 `src/deck/tools/issue-get.ts:168-170`）。
+第 5 步那次沙箱策略在十个文件里写法一致：`d.sandboxPolicyFor` 包在 `withCap(…, SANDBOX_TIMEOUT_MS)` 里，5 秒上限；拿不到按 `null` 走，不拦事（例 `src/deck/tools/issue-get.ts:168-170`）。
 
 ### 第 3.1 步：会话目录怎么取出来（`sessionContextOfAsync`）
 
@@ -176,7 +176,7 @@ src/host/index.ts:252     harness.handle('wf.deckExec', …)（注释写着「ag
 
 **失败长什么样**：`sessionContextOf` 六个候选都没值 → `reason: 'no-session-context'`，`text` 是「这次没拿到当前会话的工作区目录，所以我不动任何票。」（:133）。归一失败是「这次没能把工作区目录归一到工作区根，所以我不动任何票。」
 
-九个工具都在拿到会话之后立刻判它成不成，不成就不往下走，例如 `src/deck/tools/context.ts:94`、`src/deck/tools/issue-get.ts:151-155`。
+十个工具都在拿到会话之后立刻判它成不成，不成就不往下走，例如 `src/deck/tools/context.ts:94`、`src/deck/tools/issue-get.ts:151-155`。
 
 ---
 
@@ -321,7 +321,7 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 | 退出码归一 | :376-381 | 拿不到整数退出码按 `-1` 记失败，不再当 0（:377-379 讲了为什么） |
 | 错误分类 | :399 | `ghVerdictOf({code, text})`：先本家前置扩展表 `GH_ERROR_RULES`（`src/tracker/rooms/github/errors.ts:65-128`，数组顺序即判档顺序，层次只许 `fact` → `errcode` → `phrase` → `vague` → `fallback`，见 :63），再通用表（:137-139）；`classifyGhError`（:155）是只要档位的简写版 |
 
-**九个工具在 GitHub 房间各发什么命令**
+**十个工具在 GitHub 房间各发什么命令**
 
 | 工具 | 契约操作 | 房间函数 | 实际发出的命令 |
 | --- | --- | --- | --- |
@@ -406,7 +406,7 @@ writeTextFile(ctx, fullPath, content, sandboxPolicy)
 - 沙箱拒绝写：换成 `sandboxDenyError`，调用方按「策略不让写」处理（:15-19）。
 - 改票时旧正文没读回来：**宁可不写**。`src/deck/tools/issue-patch.ts:330-331` 那条原话是「旧正文没读回来，不敢拿半截正文覆盖：这次进度没写，等能读回旧正文再写（若急用，改传整段 body）。」——因为空写一次会把整张票冲成只剩进度段。
 
-### 7.3 宿主侧的缓存快照：服务面板，不服务这九个工具
+### 7.3 宿主侧的缓存快照：服务面板，不服务这十个工具
 
 **先分清同名不同物**：这一节的「快照」是宿主**缓存**起来的一整份工作区视图（TTL 默认 5000 毫秒、最多留 20 份），给面板与会话刷新读。第 8 层那个 `deck_map_snapshot` 工具名字里虽然有 snapshot，但它**不读这份缓存**——它是当场按需取数、再自己投影（`shell.call` → 房间的 `get` / `list` → `src/tracker/deck-derive.ts:269` 的 `deriveDeck`）。两者唯一的接触是「写完一票把这份缓存作废」（本节末尾）。
 
@@ -431,7 +431,7 @@ writeTextFile(ctx, fullPath, content, sandboxPolicy)
 
 ---
 
-## 第 8 层：九个工具各一条路（索引卡）
+## 第 8 层：十个工具各一条路（索引卡）
 
 每张卡的读法：**入口 → 后半段调了哪些契约操作 → 最底层是谁 → 失败时 AI 看到什么**。
 
@@ -544,7 +544,7 @@ run                  src/deck/tools/issue-create.ts:115-281
 
 ### 8.6 `deck_map_plan_create` — 建整张地图骨架
 
-这是九个里最长的一条（`src/deck/tools/map-plan-create.ts:202-514`），因为它要能**续跑**。
+这是十个里最长的一条（`src/deck/tools/map-plan-create.ts:202-514`），因为它要能**续跑**。
 
 ```
 run                        :202-514
@@ -706,12 +706,12 @@ run                  src/deck/tools/issue-report.ts:121-207
 **改完怎么自查**（2026-10-12 加：这一版走过一轮对抗式复核，下面三个动作就是那轮用的，照做即可）
 
 1. **逐条核行号**：把全文的「文件:行号」抽出来，写成一张断言表（每条给「文件 + 行号 + 这一行该出现的片段」），跑一遍；再故意塞一条错的进去，确认脚本真能抓出来——抓不出来说明断言太松，等于没查。
-2. **扫旧说法残留**：全文搜 `三段路`、`共同三步`、`面板那条路`、`没有第二个起进程的地方` 这类词。它们是这一版改掉的说法，回来一个就说明哪一处的叙事又滑回旧理解。另外搜 `七个`：正文自己叙述时一律说**九个**，只有引用代码注释或工具文案的原话时才会出现「七个」（例如 `src/deck/registration/host-delegate.ts:79` 那句），看到就先确认它是不是在原话里。
+2. **扫旧说法残留**：全文搜 `三段路`、`共同三步`、`面板那条路`、`没有第二个起进程的地方` 这类词。它们是这一版改掉的说法，回来一个就说明哪一处的叙事又滑回旧理解。另外搜 `七个`：正文自己叙述时一律说**十个**，只有引用代码注释或工具文案的原话时才会出现「七个」（例如 `src/deck/registration/host-delegate.ts:79` 那句），看到就先确认它是不是在原话里。
 3. **找一个没读过前文的人**：把改后的文档单独给他，让他从头讲一遍这条链路，并列出「没有行号支撑的结论」和「读起来与代码相悖的结论」。**行号断言抓不出「讲反了」**——这一版最大的错就是讲反，所以这一步不能省。
 
 **复核记录**
 
-- 2026-10-12 第一轮（三批独立核对，按层分）：改掉的主要是**叙事讲反**的地方——第 1、2 层原来把「谁给 AI 注册工具」写成了宿主启动时的注册、把 `wf.deckExec` 写成了「面板那条路」；第 3 层原来把「取会话」写在参数校验之后（实际在前）；第 7.3 节原来把快照与工具说成一条因果链（这九个工具根本不经过那份缓存）；补齐了索引卡缺的参数项与报错数字。**产品代码一行未改。**
+- 2026-10-12 第一轮（三批独立核对，按层分）：改掉的主要是**叙事讲反**的地方——第 1、2 层原来把「谁给 AI 注册工具」写成了宿主启动时的注册、把 `wf.deckExec` 写成了「面板那条路」；第 3 层原来把「取会话」写在参数校验之后（实际在前）；第 7.3 节原来把快照与工具说成一条因果链（这十个工具根本不经过那份缓存）；补齐了索引卡缺的参数项与报错数字。**产品代码一行未改。**
 - 2026-10-12 第二轮（两个没读过前文的人各自从头讲一遍，再逐条回代码核对）：又改了七处，其中三处是**第一轮自己改出来的错**，记在这里当教训——
   1. 第一轮把 `deck_map_snapshot` 取子票写成 GraphQL，**这是错的**，第二轮改成「契约 `list` → 整仓拉一遍 + 内存按 `parentKey` 过滤」（`src/deck/tools/map-snapshot.ts:122`、`src/tracker/rooms/github/backend.ts:112`、`src/tracker/rooms/github/issues.ts:155-157`）。GraphQL 那条 `listSubIssues` 只服务宿主电话 `wf.mapTickets`（`src/tracker/rooms/github/backend.ts:118-120`），REST `sub_issues` 那条只用于列表修树边（`src/tracker/rooms/github/parent-repair.ts:54`）——三条名字像、去向完全不同，**改行号之前先把「谁调这条命令」查清楚**。
   2. 第一轮写的「落到哪条路由取决于行与宿主是不是同一个进程」，判据其实更朴素：**本进程里那张表放了没**（`peekDeckTable` 的模块状态，`src/deck/shell/table-cell.ts:75-80`）；`bridgeSameProcess` 只是给探针看的诊断值，不参与判定。

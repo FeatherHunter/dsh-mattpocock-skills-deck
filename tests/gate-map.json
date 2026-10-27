@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T04:48:19.852Z",
+  "generatedAt": "2026-10-27T06:09:12.584Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 403,
-  "gateCount": 403,
-  "attributedGates": 360,
+  "chainLength": 404,
+  "gateCount": 404,
+  "attributedGates": 361,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 17,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 594,
+  "graphFileCount": 598,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -537,8 +537,10 @@
       "step": "node tests/verify-deck-thin-reads.ts",
       "file": "tests/verify-deck-thin-reads.ts",
       "guards": [
+        "src/deck/shell/body-digest.ts",
         "src/deck/tools/issue-get.ts",
         "src/deck/tools/issue-list.ts",
+        "src/deck/tools/issue-patch.ts",
         "src/deck/tools/map-snapshot.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
@@ -546,6 +548,7 @@
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
+        "src/deck/shell",
         "src/deck/tools",
         "src/refresh/kernel",
         "src/refresh/rooms/host",
@@ -555,7 +558,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-deck-tools-agent-register.ts",
@@ -572,7 +575,8 @@
         "src/deck/tools/issue-report.ts",
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
-        "src/deck/tools/map-snapshot.ts"
+        "src/deck/tools/map-snapshot.ts",
+        "src/deck/tools/work-route.ts"
       ],
       "dirs": [
         "src/deck/registration",
@@ -583,7 +587,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 12 条"
+      "reason": "归属来自：源码里的路径字面量 13 条"
     },
     {
       "step": "node tests/verify-deck-tools-matrix.ts",
@@ -677,6 +681,7 @@
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
         "src/deck/tools/tracker-session.ts",
+        "src/deck/tools/work-route.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/refresh-chain.ts",
         "src/refresh/kernel/tool-call-budget.ts",
@@ -684,7 +689,8 @@
         "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
-        "tests/lib/deck-decide-stub.ts"
+        "tests/lib/deck-decide-stub.ts",
+        "tests/lib/json-lossless.ts"
       ],
       "dirs": [
         "src/deck/registration",
@@ -700,7 +706,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 23 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 25 条"
     },
     {
       "step": "node tests/verify-dependency-rules.ts",
@@ -1413,17 +1419,19 @@
       "file": "tests/verify-1129-markdown-claim.ts",
       "guards": [
         "docs/agents/issue-tracker.md",
+        "src/tracker/kernel/issue-tracker-declaration.ts",
         "src/tracker/rooms/markdown/index.ts"
       ],
       "dirs": [
         "docs/agents",
+        "src/tracker/kernel",
         "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1130-gitlab-marker-read.ts",
@@ -3795,6 +3803,8 @@
       "file": "tests/verify-1555-session-uses-decision.ts",
       "guards": [
         "src/refresh/rooms/host/comment-thread-fetch.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
+        "src/refresh/rooms/host/session-decision.ts",
         "src/refresh/rooms/host/session-opener.ts"
       ],
       "dirs": [
@@ -3804,7 +3814,22 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1559-deck-output-lossless.ts",
+      "file": "tests/verify-1559-deck-output-lossless.ts",
+      "guards": [
+        "src/deck/tools"
+      ],
+      "dirs": [
+        "src/deck/tools"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-1565-workroute-first-col-browser.ts",
@@ -6892,6 +6917,7 @@
       "file": "tests/verify-github-gh-via.ts",
       "guards": [
         "src/refresh/rooms/host/outbound-control.ts",
+        "src/tracker/rooms/github/client-support.ts",
         "src/tracker/rooms/github/client.ts",
         "src/tracker/rooms/github/comment-paging.ts",
         "src/tracker/rooms/github/counts.ts",
@@ -6914,7 +6940,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 12 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 13 条"
     },
     {
       "step": "node tests/verify-github-label-colors.ts",
@@ -6997,6 +7023,7 @@
         "src/deck/tools/map-link.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
+        "src/deck/tools/work-route.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/tool-call-budget.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
@@ -7022,7 +7049,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 18 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 19 条"
     },
     {
       "step": "node tests/verify-handoff-isolation-787.ts",
@@ -8800,6 +8827,7 @@
         "src/deck/shell/work-path-readout.ts",
         "src/deck/shell/write-mutex.ts",
         "src/deck/tools/map-link.ts",
+        "src/deck/tools/work-route.ts",
         "src/host/namingGuardian.ts",
         "src/host/platform/namingSummary.ts",
         "src/host/platformChannel.ts",
@@ -8831,7 +8859,6 @@
         "src/refresh/rooms/host/chain-coalescing.ts",
         "src/refresh/rooms/host/check-chain-evaluation.ts",
         "src/refresh/rooms/host/gh-execution.ts",
-        "src/refresh/rooms/host/gh-queue-race.ts",
         "src/refresh/rooms/host/host-attention.ts",
         "src/refresh/rooms/host/issue-index-scan.ts",
         "src/refresh/rooms/host/issue-list-fetch.ts",
@@ -10185,6 +10212,7 @@
     "src/deck/shell": [
       "node tests/verify-deck-exec-phone.ts",
       "node tests/verify-deck-parallel.ts",
+      "node tests/verify-deck-thin-reads.ts",
       "node tests/verify-deck-tools-agent-register.ts",
       "node tests/verify-deck-tools.ts",
       "node tests/verify-dependency-rules.ts",
@@ -10245,6 +10273,7 @@
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1487-map-plan.ts",
       "node tests/verify-1495-deck-close-reason.ts",
+      "node tests/verify-1559-deck-output-lossless.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -10814,6 +10843,7 @@
     "src/tracker/kernel": [
       "node tests/verify-no-mixed-session.ts",
       "node tests/verify-1007-transport-cooldown.ts",
+      "node tests/verify-1129-markdown-claim.ts",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1182-log-emit-single-source.ts",
       "node tests/verify-1199-row-closed-link.ts",
@@ -11261,9 +11291,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 615,
+    "fileCount": 619,
     "dirCount": 74,
-    "coveredFileCount": 615,
+    "coveredFileCount": 619,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11478,6 +11508,7 @@
       "src/deck/rules/tool-table.ts",
       "src/deck/rules/workspace-file.ts",
       "src/deck/shell/backend-transport.ts",
+      "src/deck/shell/body-digest.ts",
       "src/deck/shell/body-write.ts",
       "src/deck/shell/call-memo.ts",
       "src/deck/shell/call-shell-types.ts",
@@ -11519,6 +11550,7 @@
       "src/deck/tools/suggest-next-steps.ts",
       "src/deck/tools/tool-order.ts",
       "src/deck/tools/tracker-session.ts",
+      "src/deck/tools/work-route.ts",
       "src/deck/tsconfig.json",
       "src/host/bootstrap.ts",
       "src/host/choiceStore.ts",
@@ -11754,6 +11786,7 @@
       "src/tracker/detection/explicitDetector.ts",
       "src/tracker/detection/parseIssueTracker.ts",
       "src/tracker/detection/preflightScope.ts",
+      "src/tracker/detection/readEvidenceLayers.ts",
       "src/tracker/detection/selection-precedence.ts",
       "src/tracker/detection/workspaceStore.ts",
       "src/tracker/fix-contract.ts",
@@ -11778,6 +11811,7 @@
       "src/tracker/rooms/github/budget.ts",
       "src/tracker/rooms/github/capability-register.ts",
       "src/tracker/rooms/github/checks.ts",
+      "src/tracker/rooms/github/client-support.ts",
       "src/tracker/rooms/github/client.ts",
       "src/tracker/rooms/github/close-reason.ts",
       "src/tracker/rooms/github/comment-paging.ts",

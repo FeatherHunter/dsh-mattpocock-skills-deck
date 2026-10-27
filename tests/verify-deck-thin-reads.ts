@@ -3,10 +3,14 @@
 //
 // 为什么要这一段：单票读的反向边要扫全仓、快照的全量行带正文进度，回包大、慢、
 // 票多时还被截断。按需参数让调用方少拿：blocking=false 跳过反向扫描，
-// detail=thin 只要薄行。但三条诚实线一寸不让：
-//   ① 缺省全量：不传参就是今天的全量，老调用方形状一字不动；
+// detail=thin 只要薄行，body excerpt/full 与 comments=N 控制正文与评论的量。
+// 但三条诚实线一寸不让：
+//   ① 缺省口径：blocking 与快照缺省仍是全量；正文缺省只回前 2000 字、评论缺省 0 条只回总数
+//      （#1562：缺省省上下文，要全文或评论正文再按需取一次）；
 //   ② 跳过必注记：没取的记空不记 0，正文里不写“0 条”这种假话，注记写清怎么拿全量；
 //   ③ 统计不变：thin 只薄行，统计与进度表用全量行算好再薄，数字与 full 一字不差。
+// 全文交付可验完整：body='full' 按 7000 字分块、带全文 SHA-256 指纹，拼回去逐字节相同；
+// 写整段正文凭指纹验旧，对不上一个字不动。
 // 本文件不联网：后端全是桩，只验“调没调、记没记、数对不对”。
 const path = require('path')
 const { pathToFileURL } = require('url')
@@ -73,7 +77,7 @@ function stubRegistry(tracker) {
 const demoIssue = { key: '7', title: '演练票', state: 'open', type: 'issue', labels: [], assignees: [], updatedAt: '', closedAt: '', url: '', body: '# 演练票\n\n## 进度\n\n- 第一步\n', parentKey: '3', blockedBy: [{ key: '5' }] }
 
 async function main() {
-  console.log('按需取数诚实门禁（缺省全量、跳过注记、统计不变）')
+  console.log('按需取数诚实门禁（缺省口径、跳过注记、统计不变）')
   const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
   const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
@@ -200,6 +204,73 @@ async function main() {
     check(typeof getMod.definition.description === 'string' && getMod.definition.description.indexOf('\n') < 0, '单票读介绍仍是一行')
     check(getMod.definition.parameters.properties.blocking.description.indexOf('反向边查询') >= 0, 'blocking 参数说清代价')
     check(snapMod.definition.parameters.properties.detail.description.indexOf('thin') >= 0, 'detail 参数说清两档')
+  }
+
+  // ⑧ 正文与评论按需取（#1562）：缺省摘要 + 评论 0 条；全文分块可验；写正文凭指纹验旧
+  {
+    const { bodyDigest, chunkBody, joinChunks } = await imp('src/deck/shell/body-digest.ts')
+    // 指纹算法：空串与 'abc' 都是 SHA-256 公认值，分块拼回去逐字节相同。
+    check(bodyDigest('') === 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '空正文指纹是空串的 SHA-256')
+    check(bodyDigest('abc') === 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad', '指纹是 SHA-256 公认值（abc）')
+    const rt = '甲'.repeat(8000)
+    check(joinChunks(chunkBody(rt)) === rt, '分块拼回去逐字节相同')
+    check(chunkBody(rt).every((c) => c.length <= 7000), '每块不超 7000 字（渲染上限 8000 留余量）')
+    check(chunkBody('').length === 0, '空正文不分块')
+    // 中文与表情走 UTF-8 多字节：与运行环境的标准库对拍，错一个字节都会红。
+    {
+      const { createHash } = await import('node:crypto')
+      const sample = '甲乙丙\u{1F600}混合 mixed 123'
+      check(bodyDigest(sample) === createHash('sha256').update(sample, 'utf8').digest('hex'), '中文与表情的指纹与标准库一致')
+    }
+    const bigBody = '# 大正文\n\n' + '甲'.repeat(5000) + '\n'
+    const cmts = [0, 1, 2].map((i) => ({ author: { login: 'u' + i }, body: '评论' + i, createdAt: '', updatedAt: '' }))
+    const bodyTracker = {
+      get: async (_repo, _key, opts) => {
+        const want = (opts && opts.comments && typeof opts.comments.first === 'number') ? opts.comments.first : 0
+        return { ok: true, data: Object.assign({}, demoIssue, { body: bigBody, comments: cmts.slice(0, want), commentCount: cmts.length }) }
+      },
+      getDependencies: async () => ({ ok: true, data: { blockedBy: [], blocking: [] } }),
+    }
+    // 缺省：摘要 + 评论 0 条只给总数。
+    {
+      const g = stubGateLedger(gateMod, ledgerMod)
+      const tool = getMod.createDeckIssueGet(baseDeps(g.gate, stubRegistry(bodyTracker), budget))
+      const r = await tool.run(execFor(), { key: '7' })
+      check(r && r.status === 'ok' && r.data.body.mode === 'excerpt', '缺省正文走摘要档')
+      check(r && r.data.body.length === bigBody.length && r.data.body.text.length === 2000, '摘要档长度诚实（全文长度 + 前 2000 字）')
+      check(r && r.data.ticket.body.length === 2000, '票面正文缺省只带前 2000 字')
+      check(r && r.data.body.digest === bodyDigest(bigBody), '摘要档指纹即全文指纹')
+      check(r && Array.isArray(r.data.comments) && r.data.comments.length === 0 && r.data.commentCount === 3, '缺省评论 0 条、总数照给')
+      const notes = JSON.stringify(r.notes || [])
+      check(notes.indexOf("body='full'") >= 0 && notes.indexOf('comments=N') >= 0, '注记写清拿全文与评论正文的办法')
+    }
+    // 全文：分块 + 指纹，拼回去逐字节相同。
+    {
+      const g = stubGateLedger(gateMod, ledgerMod)
+      const tool = getMod.createDeckIssueGet(baseDeps(g.gate, stubRegistry(bodyTracker), budget))
+      const r = await tool.run(execFor(), { key: '7', body: 'full' })
+      check(r && r.status === 'ok' && r.data.body.mode === 'full', 'body=full 走全文档')
+      check(r && joinChunks(r.data.body.chunks) === bigBody, '全文分块拼回去逐字节相同')
+      check(r && r.data.body.digest === bodyDigest(bigBody), '全文指纹对得上')
+    }
+    // 按需评论：传几回几。
+    {
+      const g = stubGateLedger(gateMod, ledgerMod)
+      const tool = getMod.createDeckIssueGet(baseDeps(g.gate, stubRegistry(bodyTracker), budget))
+      const r = await tool.run(execFor(), { key: '7', comments: 2 })
+      check(r && r.status === 'ok' && r.data.comments.length === 2 && r.data.commentCount === 3, '传几条回几条、总数不变')
+    }
+    // 写整段正文：没带指纹、指纹对不上，都一个字不动。
+    {
+      const patchMod = await imp('src/deck/tools/issue-patch.ts')
+      const g = stubGateLedger(gateMod, ledgerMod)
+      const mkPatch = () => patchMod.createDeckIssuePatch(baseDeps(g.gate, stubRegistry(bodyTracker), budget))
+      const noDigest = await mkPatch().run(execFor(), { key: '7', body: bigBody + '改' })
+      const noDigestText = JSON.stringify(noDigest)
+      check(noDigestText.indexOf('bodyDigest') >= 0 && noDigest.data && noDigest.data.ticket && noDigest.data.ticket.body === bigBody, '没带指纹写正文：一个字不动并告诉怎么取指纹')
+      const wrong = await mkPatch().run(execFor(), { key: '7', body: bigBody + '改', bodyDigest: '0'.repeat(64) })
+      check(JSON.stringify(wrong).indexOf('指纹对不上') >= 0, '指纹对不上：一个字不动并提示重读')
+    }
   }
 
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))

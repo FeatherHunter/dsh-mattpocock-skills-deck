@@ -1,8 +1,10 @@
 // tests/verify-1082-work-route-table.ts —— 门禁：面板「跨会话在办表」（#1082）。
 //
 // 这张表要同时盯住两半，任何一半坏了都不能算完成：
-//   一、宿主读数：同一次写票在工具回执 data.workRoute 里看到的那份读数，与面板快照字段
-//      workRouteTable 里拿到的是**同一份**（同一存档、同一读出口、同一时刻算出来逐字相同）；
+//   一、宿主读数：写票收口只记条目、回执不再带表（#1561：要看在办表调 deck_work_route）；
+//      面板快照字段 workRouteTable 与读工具回执同源（同一存档、同一读出口、同一时刻）：
+//      读工具回的总数与分组展平后，和面板条目逐条对得上（票号、标题、会话标签、动作、
+//      动作时刻、在办与当前会话标记、来源一致），当前会话的组排第一；
 //      同一张票被两个会话先后动过时是两条、不合并；原始会话 id 不进回执；
 //      没有存档文件时是「读到了、就是空的」；25 小时前动的条目算陈旧；超过 30 天的条目不再出现；
 //      回包没有工作区根、读盘失败时如实说读不到。
@@ -14,7 +16,8 @@
 //      动作词与完整动作时刻在格子里被截掉时补在末尾。
 //
 // 手法：主缝用真的工作路线存储（临时家目录 + 固定时钟），从工具壳写票收口处（recordWorkRoute）
-// 一路跑到面板快照挂载口；次缝把真源码按构建同一套做法装进假 React 渲染，看真实版面文字。
+// 一路跑到面板快照挂载口，中间真跑一次读工具 deck_work_route（同一家目录、同一读口），两边回来的
+// 值逐条对上；次缝把真源码按构建同一套做法装进假 React 渲染，看真实版面文字。
 //
 // 门禁归属: src/refresh/rooms/host/work-route-readout.ts
 // 门禁归属: src/host/snapshotEnvelope.ts
@@ -54,7 +57,9 @@ const check = (ok: any, msg: string) => { total += 1; console.log((ok ? '  PASS 
 const T0 = 1700000000000
 const MINUTE = 60 * 1000
 const DAY = 24 * 60 * MINUTE
-const ROOT_CWD = 'D:/proj/workspace-1082'
+// 读工具要过后端会话（openDeckSession 落到本地 Markdown 房），工作区必须是真目录：
+// main 开头建一个带 .scratch/demo 底图的临时工作区再把这一格换过去（面板与快照只认字符串，照样走通）。
+let ROOT_CWD = 'D:/proj/workspace-1082'
 const SID_A = 'sess-1082-alpha-1a2b3c4d'
 const SID_B = 'sess-1082-bravo-5e6f7a8b'
 const quietLog = { fire: function () {}, isEnabled: function () { return false } }
@@ -130,6 +135,13 @@ function findAll(node: any, pred: (n: any) => boolean, out: any[] = []): any[] {
 
 async function main() {
   console.log('#1082 跨会话在办表：宿主读数与工具回执同源，界面逐条画出来')
+  // 真工作区：读工具的后端会话要落在真目录上（本地 Markdown 房读 .scratch 下的底图）。
+  // 面板挂载口与写票收口只认工作区根字符串，换成真目录后两边走的还是同一把钥匙。
+  const wsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1082ws-'))
+  const demoDir = path.join(wsDir, '.scratch', 'demo')
+  fs.mkdirSync(path.join(demoDir, 'issues'), { recursive: true })
+  fs.writeFileSync(path.join(demoDir, 'map.md'), '# 在办表底图\n\nStatus: ready-for-agent\n\n## Destination\n\n门禁 1082 用底图\n\n## Notes\n\n## Decisions so far\n\n## Not yet specified\n\n## Out of scope\n', 'utf8')
+  ROOT_CWD = String(wsDir).replace(/\\/g, '/')
   const bindingsMod = await imp('src/deck/shell/work-path-bindings.ts') as any
   const recordMod = await imp('src/deck/shell/work-path-record.js') as any
   const keyMod = await imp('src/refresh/contract/workspace-keys.js') as any
@@ -148,30 +160,89 @@ async function main() {
   const sessB = { sessionId: SID_B, workspaceKey: rootKey, cwd: ROOT_CWD }
   const callWrite = async (s: any, tool: string, value: any) => {
     clock += 5 * MINUTE
-    // #1303 起门禁收口的在办表缺省只带 core；这一段比的是「面板读数与回执逐字相同」，而面板读的是全量细节
-    //（#1352 起这一档叫 standard，旧的 full 已退役），所以这里的探针值统一显式要 standard，比的是同一档。
-    if (value && typeof value === 'object' && value.workRouteDetail === undefined) value.workRouteDetail = 'standard'
+    // #1561 起写票收口不再往回执里注表：探针值里不带 workRouteDetail（壳里那一格已退役），
+    // 回执里有没有表由下面那条断言钉死；要看在办表就调 deck_work_route，读的是同一份存档。
     await recordMod.recordWorkRoute(deps, tool, s, 'markdown', value)
     return value
   }
   const fileOf = home + '/.dsh/mattskillsdeck/work-path/' + chainMod.chainRootHash(rootKey) + '.json'
 
-  // ── 一、宿主读数：写票收口 → 存档 → 面板字段，与回执同源 ──
+  // ── 一、宿主读数：写票收口 → 存档 → 面板字段，与读工具回执同源 ──
   const rA101 = await callWrite(sessA, 'deck_issue_report', { status: 'ok', notes: [], data: { key: '101', title: '甲票' } })
   const rB102 = await callWrite(sessB, 'deck_issue_report', { status: 'ok', notes: [], data: { key: '102', title: '乙票' } })
   const rA103 = await callWrite(sessA, 'deck_issue_create', { status: 'ok', notes: [], touched: ['103'], data: { ticket: { key: '103', title: '丙票' } } })
   // 同一张票（101）先后被两个会话动过：面板必须显示两条、不合并。
   const rB101 = await callWrite(sessB, 'deck_issue_patch', { status: 'ok', notes: [], touched: ['101'], data: { ticket: { key: '101', title: '甲票改' } } })
   check(fs.existsSync(fileOf), '工作路线存档落在 <家目录>/.dsh/mattskillsdeck/work-path/<根散列>.json')
-  check(!!(rA101.data && rA101.data.workRoute) && !!(rB101.data && rB101.data.workRoute), '四个写工具都成功收口并带回执 data.workRoute')
+  check([rA101, rB102, rA103, rB101].every((r: any) => r && r.data && !('workRoute' in r.data)), '四个写工具回执都不再带 data.workRoute（#1561：写一次不再把整份在办清单塞进上下文，要看调 deck_work_route）')
 
   const attach = tableMod.createWorkRouteTableReadout({ read: (i: any) => store.read(i), rootKeyOf: keyMod.workspaceKeyOf, now: () => clock })
   const reply: any = { ok: true, workspaceRoot: ROOT_CWD, revision: 7 }
   const field: any = await attach(reply, { sessionId: SID_B })
   check(reply.workRouteTable === field, '挂载口把同一格写进回包并交回给信封')
   check(!!field && field.ok === true && field.readout && Array.isArray(field.readout.entries), '快照回包挂上了 workRouteTable 字段（ok:true + 读数）')
-  check(JSON.stringify(field.readout) === JSON.stringify(rB101.data.workRoute), '面板读数与工具回执 data.workRoute 逐字相同（同一存档、同一读出口）')
   const entries = field.readout.entries as any[]
+  // 读工具真跑：与面板读的是同一份存档（同一家目录、同一个根散列文件、同一个读出口）。
+  // 装配照金标准夹具那一套（真闸、真账本、真注册表、本地 Markdown 房），只是读口绑到这一段的 store 上。
+  const budgetMod: any = await imp('src/refresh/kernel/host-budget.js')
+  const ledgerMod: any = await imp('src/refresh/rooms/host/quota-ledger.ts')
+  const gateMod: any = await imp('src/refresh/rooms/host/refresh-gate.ts')
+  const registryMod: any = await imp('src/tracker/registry/core.ts')
+  const markdownModule: any = (await imp('src/tracker/rooms/markdown/index.ts') as any).markdownModule
+  const toolCostMod: any = await imp('src/refresh/kernel/tool-call-budget.js')
+  const decideStubMod: any = await imp('tests/lib/deck-decide-stub.js')
+  const chooseWorkspaceFn: any = decideStubMod.chooseWorkspace || (decideStubMod.default && decideStubMod.default.chooseWorkspace)
+  const makeDecideStubFn: any = decideStubMod.makeDecideStub || (decideStubMod.default && decideStubMod.default.makeDecideStub)
+  const workRouteMod: any = await imp('src/deck/tools/work-route.ts')
+  const posixSep = (p: string): string => String(p).replace(/\\/g, '/')
+  const plat = {
+    path: path.posix,
+    fs: {
+      async resolve(p: string): Promise<string> { return posixSep(p) },
+      async readText(t: string): Promise<string> { return fs.readFileSync(t, 'utf8') },
+      async writeText(t: string, c: string): Promise<void> { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
+      async lstat(t: string): Promise<unknown> { try { return fs.statSync(t) } catch { return null } },
+      async listDir(t: string): Promise<unknown> { try { return fs.readdirSync(t) } catch { return [] } },
+      async stat(t: string): Promise<unknown> { try { return fs.statSync(t) } catch { return null } },
+    },
+  }
+  const rootPosix = posixSep(ROOT_CWD)
+  const wsCtx = { platform: plat, fs: (plat as any).fs, cwd: rootPosix, get(name: string): unknown { return name === 'fs' ? (plat as any).fs : undefined } }
+  const ledger = ledgerMod.createLedger({ now: () => clock })
+  const gate = gateMod.createGate({ ledger, now: () => clock })
+  const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, wsCtx), { matchesTimeout: 200 })
+  const toolRegDisposer = registry.register(markdownModule)
+  chooseWorkspaceFn(rootPosix, 'markdown')
+  ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  const toolDeps = {
+    gate: gate, registry: registry, budget: budgetMod,
+    estimate: toolCostMod.estimateToolCost, costInputFrom: toolCostMod.toolCostInputFrom,
+    backendCtx: wsCtx, handleFor: () => ({ cwd: rootPosix, refId: '.scratch/demo' }),
+    decideBackend: makeDecideStubFn(registry),
+    log: { fire: () => {} },
+    now: () => clock,
+    invalidate: () => {},
+    workRouteNote: (i: any) => store.note(i), workRouteRelease: (i: any) => store.release(i),
+    workRouteRead: (i: any) => store.read(i),
+    workspaceKeyOf: keyMod.workspaceKeyOf,
+    planStore: (() => { const table = new Map<string, unknown>(); return { durable: true, load(id: string): unknown { return table.get(String(id)) || null }, save(id: string, s: unknown): void { table.set(String(id), s) } } })(),
+  }
+  const workRouteTool = workRouteMod.createDeckWorkRoute(toolDeps)
+  const toolOut: any = await workRouteTool.run({ agent: { session: { id: SID_B, cwd: ROOT_CWD } } }, {})
+  check(toolOut && toolOut.status === 'ok' && toolOut.data && toolOut.data.total === 4, '读工具真跑成功、回总数 4（与面板条目数一致，同一存档、同一读口）')
+  check(toolOut.data.source === 'local-archive' && toolOut.data.limits && toolOut.data.limits.retentionDays === 30 && toolOut.data.limits.activeHours === 24, '读工具如实说来源是本机存档（30 天保留、24 小时在办）')
+  check(toolOut.data.at === field.readout.at, '读工具回执的更新时刻与面板读数相同（同一时刻读的同一份存档）')
+  const flat: any[] = []
+  for (const g of toolOut.data.groups) for (const it of (g as any).items) flat.push(it)
+  check(toolOut.data.groups.length === 2 && toolOut.data.groups[0].currentSession === true, '读工具按会话分两组，当前会话的组排第一')
+  const keyOf = (e: any) => e.ticketKey + '|' + e.sessionLabel
+  const panelByKey = new Map<string, any>(entries.map((e: any) => [keyOf(e), e]))
+  check(flat.length === entries.length && flat.every((it: any) => {
+    const p = panelByKey.get(keyOf(it))
+    return !!p && p.title === it.title && p.action === it.action && p.actionAt === it.actionAt && p.active === it.active && p.currentSession === it.currentSession && p.source === it.source
+  }), '读工具分组展平后与面板条目逐条相同（票号、标题、会话标签、动作、动作时刻、在办、当前会话、来源）')
+  check(JSON.stringify(toolOut).indexOf(SID_A) < 0 && JSON.stringify(toolOut).indexOf(SID_B) < 0, '读工具回执同样不带原始会话 id（只出会话标签）')
+  toolRegDisposer.dispose()
   check(entries.length === 4, '四条在办条目全在（实得 ' + entries.length + ' 条）')
   const t101 = entries.filter((e: any) => e.ticketKey === '101')
   check(t101.length === 2 && t101[0].sessionLabel !== t101[1].sessionLabel, '同一张票被两个会话动过：显示两条、两个会话标签，不合并')

@@ -177,7 +177,7 @@ async function main() {
 
   writeWorkspaceFile(ws.root, 'markdown')
   const first = await assemble(ws, logs)
-  check(first.table && first.table.names && first.table.names.length === 9, '宿主里装出九条工具：' + JSON.stringify(first.table && first.table.names))
+  check(first.table && first.table.names && first.table.names.length === 10, '宿主里装出十条工具：' + JSON.stringify(first.table && first.table.names))
   check(first.table && first.table.missing && first.table.missing.length === 0, '一条都不缺（missing = ' + JSON.stringify(first.table && first.table.missing) + '）')
 
   const exec = { agent: { session: { id: 's-1150', cwd: ws.rootPosix } } }

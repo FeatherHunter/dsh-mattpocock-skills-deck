@@ -170,6 +170,15 @@ function normalizeMilestone(raw: unknown): Milestone | undefined {
   return out
 }
 
+/** 评论总数：有连接总数用总数（零条时也要能说出共有几条），否则按实际节点数；本地数组形状没有总数，按数组长度。REST 单票的 comments 是数字（就是总数），这时按这个数。 */
+function deriveCommentCount(raw: unknown, comments: Comment[]): number {
+  const bag = asBag(raw)
+  if (bag && typeof bag.comments === 'number' && isFinite(bag.comments) && bag.comments >= 0) return Math.floor(bag.comments)
+  const conn = bag && bag.comments && typeof bag.comments === 'object' ? (bag.comments as RawBag) : null
+  if (conn && typeof conn.totalCount === 'number' && isFinite(conn.totalCount) && conn.totalCount >= 0) return Math.floor(conn.totalCount)
+  return comments.length
+}
+
 function normalizeComments(raw: unknown): Comment[] {
   const bag = asBag(raw);
   let nodes: unknown = null
@@ -390,6 +399,7 @@ export function normalizeIssue(raw: unknown): Issue {
     key,
     effortId: '',
     type,
+    commentCount: deriveCommentCount(raw, comments),
     title: bag && typeof bag.title === 'string' ? bag.title : '',
     state,
     body: bag && typeof bag.body === 'string' ? bag.body : '',

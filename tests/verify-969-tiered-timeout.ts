@@ -229,5 +229,76 @@ if (tiers) {
   check(r3 && r3.ok === false && r3.error && r3.error.cancelled === true, '六、调用方取消仍按「取消」返回（不算失败、可重试）', JSON.stringify(r3 && r3.error))
 }
 
+// —— 七、房内排队只等上限（#1560）：名额满时不等整档，上限到点报「还在排队、一次没跑」——
+{
+  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
+  const { getGhLane, resetGhLaneForTest } = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/outbound-admission.ts')).href)
+  const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
+  const tiers7 = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/kernel/outbound-tiers.ts')).href)
+  const { GH_QUEUE_WAIT_TIMEOUT_MS } = await import(pathToFileURL(nodePath.join(ROOT, 'src/shared/time-config/values.js')).href)
+
+  // 上限算式住在共用 kernel：读档取中央 3 秒，本档预算比上限还短时取本档。
+  check(tiers7.queueTimeoutForTier(READ_BUDGET_MS) === GH_QUEUE_WAIT_TIMEOUT_MS && GH_QUEUE_WAIT_TIMEOUT_MS === 3000, '七、读档的排队上限是中央 3 秒（不是整档 ' + READ_BUDGET_MS / 1000 + ' 秒）', String(tiers7.queueTimeoutForTier(READ_BUDGET_MS)))
+  check(tiers7.queueTimeoutForTier(500) === 500, '七、本档预算比上限还短时排队只等本档', String(tiers7.queueTimeoutForTier(500)))
+  const roomSource = readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts'), 'utf8')
+  check(roomSource.indexOf('queueTimeoutForTier') >= 0 && roomSource.indexOf('queueWon') >= 0 && roomSource.indexOf('clearQueueTimer') >= 0, '七、房内 execGh 排队段经共用算式与上限表赛跑（赢了中止排队）', '')
+
+  // 名额占满：读档默认预算下约 3 秒即报「还在排队」，不等 12 秒整档。
+  try { resetGhLaneForTest() } catch (eReset7) {}
+  const lane7 = getGhLane()
+  const maxRead7 = lane7.limits().readMax
+  const held7 = []
+  for (let i = 0; i < maxRead7; i++) held7.push(await lane7.acquire({ bucket: 'read' }))
+  const hangExec7 = (): Promise<never> => new Promise(() => {})
+  const hangCtx7 = {
+    outbound,
+    platform: { resolveExecutable: async () => 'gh' },
+    exec: hangExec7,
+    cwd: '.',
+    logEvent: () => {},
+    isEnabled: () => false,
+  }
+  const queueClient = ghClient(hangCtx7)
+  const t7 = Date.now()
+  const r7 = await queueClient.execGh(['issue', 'list'], { cwd: '.' })
+  const took7 = Date.now() - t7
+  for (const rel of held7) { try { rel() } catch (eR7) {} }
+  const msg7 = String((r7 && r7.error && r7.error.message) || '')
+  check(r7 && r7.ok === false && r7.error && r7.error.kind === ERROR_KIND.NETWORK && r7.error.timedOut === true, '七、名额满时上限到点按超时返回（不等整档）', JSON.stringify(r7 && r7.error))
+  check(msg7.indexOf('一次都没跑') >= 0 && /排队上限 3000 毫秒/.test(msg7), '七、回话说清「一次没跑」与排队上限（不报「命令超时」）', msg7.slice(0, 200))
+  check(took7 >= 2500 && took7 < 10000, '七、上限到点即返回（约 3 秒，不等 12 秒整档）', '实耗 ' + took7 + 'ms')
+
+  // 拿到名额后到点（Q3）：回话写「排队 X 毫秒 / 拿到名额后又等了 Y 毫秒」，不把后一段叫成命令运行时长。
+  try { resetGhLaneForTest() } catch (eReset7c) {}
+  const lane7c = getGhLane()
+  const held7c = []
+  for (let i = 0; i < maxRead7; i++) held7c.push(await lane7c.acquire({ bucket: 'read' }))
+  setTimeout(() => { for (const rel of held7c) { try { rel() } catch (eR7c) {} } }, 100)
+  const slowClient = ghClient(Object.assign({}, hangCtx7, { exec: hangExec7 }))
+  const r7c = await slowClient.execGh(['issue', 'list'], { cwd: '.', timeout: 500 })
+  const msg7c = String((r7c && r7c.error && r7c.error.message) || '')
+  check(/拿到名额后又等了 \d+ 毫秒/.test(msg7c) && msg7c.indexOf('一次都没跑') < 0, '七、拿到名额后到点分开写两段（不叫命令运行时长）', msg7c.slice(0, 260))
+  const held7c2 = []
+  const full7c = await Promise.race([
+    (async () => { for (let i = 0; i < maxRead7; i++) held7c2.push(await lane7c.acquire({ bucket: 'read' })); return 'ok' })(),
+    new Promise((res) => setTimeout(() => res('stuck'), 5000)),
+  ])
+  for (const rel of held7c2) { try { rel() } catch (eR7c2) {} }
+  check(full7c === 'ok', '七、拿到名额后到点不漏名额（仍能拿满）', String(full7c))
+
+  // 被排队挤占过的到点不设冷却、不漏名额：占位已放，下一笔成功执行不受影响，且名额能拿满。
+  const okExec7 = async () => ({ stdout: '[]', stderr: '', code: 0 })
+  const okClient7 = ghClient(Object.assign({}, hangCtx7, { exec: okExec7 }))
+  const r7b = await okClient7.execGh(['issue', 'list'], { cwd: '.' })
+  check(r7b && r7b.ok === true, '七、排队到点不设冷却（下一笔照常发出，不被误判通路断）', JSON.stringify(r7b && r7b.error))
+  const held7b = []
+  const full7 = await Promise.race([
+    (async () => { for (let i = 0; i < maxRead7; i++) held7b.push(await lane7.acquire({ bucket: 'read' })); return 'ok' })(),
+    new Promise((res) => setTimeout(() => res('stuck'), 5000)),
+  ])
+  for (const rel of held7b) { try { rel() } catch (eR7b) {} }
+  check(full7 === 'ok', '七、排队到点不漏名额（占位释放后仍能拿满）', String(full7))
+}
+
 console.log('\n共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
 process.exit(failed ? 1 : 0)

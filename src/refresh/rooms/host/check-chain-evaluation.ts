@@ -5,8 +5,8 @@ import { refreshSourceOf } from '../../contract/trigger-classification.js'
 import { workspaceKeyOf } from '../../contract/workspace-keys.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
 import { getChainRide } from './chain-coalescing.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
 import { PREDICATE_TIMEOUT_MS, GH_LOGIN_PREFETCH_MS, PREDICATE_LOG_SAMPLE_MS } from '../../../shared/time-config/src/values.js'   // #1215 时间参数住中央 YAML（predicateTimeoutMs / ghLoginPrefetchMs / predicateLogSampleMs），本文件只读不写
-import { ghAuthVerdict, glabAuthVerdict, glabRepoAccessVerdict, probeChainEnv, repoAccessVerdict } from './chain-env-map.js'
-import type { OpenSessionReply } from './chain-env-map.js'
+import { createRepoIdentityEvidence, ghAuthVerdict, glabAuthVerdict, glabRepoAccessVerdict, probeChainEnv, repoAccessVerdict } from './chain-env-map.js'
+import type { OpenSessionReply, RepoIdentityEvidence } from './chain-env-map.js'
 // #1483：「判定 → 步骤行 / 快照」三件套搬到 chain-step-rows.ts，正常求值与缓存命中重算共用同一套口径；行为逐字保留。
 // 九个形状（判定表、步骤行、单段与拼接快照）也从那里取：两处各写一份时，形状一改就会漂移（审阅指出过）。
 import { assembleFullSnapshot, enrichSnap, stepEvalParallel } from './chain-step-rows.js'
@@ -76,6 +76,9 @@ type ChainBackoff = {
   note(key: string, snap: unknown, at: number, result: unknown): Promise<unknown>
 }
 
+// #1566：仓库身份证据（宿主 getRepoIdentity 的返回形状）与它的读法搬到 chain-env-map.ts 的
+// createRepoIdentityEvidence；这里只用，形状见那边的 RepoIdentityEvidence。
+
 /** 依赖：接线对象在 src/host/index.ts 里现拼，这里只列本文件用到的那些。 */
 type DetectChainDeps = {
   canonicalKey(cwdIn: string): Promise<string>
@@ -84,6 +87,8 @@ type DetectChainDeps = {
   getPlatform(): Promise<Platform>
   getTrackerRegistry(): Promise<RegistryView>
   getRepoKey(cwd: string): Promise<{ owner: string; name: string } | null>
+  /** #1566：仓库身份证据（可选；旧接线没给这一格时退回 getRepoKey 的单值结论，行为不变）。 */
+  getRepoIdentity?(cwd: string): Promise<RepoIdentityEvidence | null>
   timer: { timeout(ms: number): Promise<unknown> }
   probeSkill(skillName: string, lang: string, cwd: string): Promise<unknown>
   /** 本地 Markdown 三项判据的取用口（#1513）：按检查项 id 调同一份房间判据，sandboxPolicy 供写探测用。 */
@@ -119,7 +124,7 @@ type DetectChainDeps = {
  * 反例：若把插件挂载时的自动链求值也当成 `user-recheck` 身份送进退避器，每次重渲染都会击穿退避窗口并发起外部 `gh` 子进程调用，瞬间耗尽配额。
  */
 export function createDetectChain(deps: DetectChainDeps) {
-  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, timer, probeSkill, mdPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, sandboxPolicyFor, openSession } = deps
+  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, getRepoIdentity, timer, probeSkill, mdPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, sandboxPolicyFor, openSession } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
   function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   const chainInflight = getChainRide({ now: (deps && deps.now) || undefined }) // #696搭车表用进程单例（写信号由出站路记进来）；测试注钟时建隔离新账
@@ -141,6 +146,10 @@ export function createDetectChain(deps: DetectChainDeps) {
   // #1187：探针必须等 detect 定下后端才建——GitLab 的仓库身份要经会话 getRepoKey 问房间（宿主那份只认 GitHub），
   // 而探针把 refId 缓存进这一次求值，先建再定后端就会拿 GitHub 的空结果去问 GitLab。
   const createChainEnvProbe = (probeCwd: string, backendId: string | null | undefined) => probeChainEnv({ getRepoKey: getRepoKey, openSession: openSession }, probeCwd, { backendId: backendId || 'github' })
+
+  // #1566：仓库身份证据的读法与两条谓词共用的话术在 chain-env-map.ts 的 createRepoIdentityEvidence
+  // （那边写清了为什么两条谓词共用一份结论、null 与 none 的区别）；这里只把它接上本文件的两条读法。
+  const repoIdentity = createRepoIdentityEvidence({ getRepoKey: getRepoKey, getRepoIdentity: getRepoIdentity })
 
   // #1483：把「按当前会话解析沙箱许可」收成一处。正常求值与缓存命中后的重算都用这一处解析：
   //   缺省会话号（空串）与「接线没给 sandboxPolicyFor」都不算错，照旧返回空政策，让谓词按平台默认量。
@@ -355,17 +364,21 @@ export function createDetectChain(deps: DetectChainDeps) {
           try {
             // 2026-08-29（审查 S1）：detail 双语——中文界面不出现英文黑话行
             const zh = (pctx && pctx.lang) !== 'en'
-            const rk = await getRepoKey(pctx && pctx.cwd || cwd)
-            if (rk && rk.owner && rk.name) return { status: 'pass', detail: rk.owner + '/' + rk.name }
-            return { status: 'fail', detail: zh ? '未找到 GitHub 仓库关联（git remote 未指向 GitHub）' : 'repo not located' }
+            // #1566：身份证据是「origin 之外还有 GitHub 远端」也能认出来的那种（三态 + 读不到），不再只问 origin。
+            const ev = await repoIdentity.forEval(pctx, pctx && pctx.cwd || cwd)
+            if (!ev) return { status: 'pending', detail: repoIdentity.unknownDetail(zh) }
+            if (ev.kind === 'identity') return { status: 'pass', detail: ev.owner + '/' + ev.name }
+            return { status: 'fail', detail: repoIdentity.failDetail(ev, zh) }
           } catch (e) { return { status: 'pending', detail: String((e && (e as CaughtError).message) || e) } }
         }) } catch (e) {}
         try { registry.register('backend:github:repoAccess', async function (check, pctx: PredicateCtx) {
           try {
             // 2026-08-29（审查 S1/S2）：detail 双语；pending 文案如实说明「网络/登录态未知」，不与 fail 混淆
             const zh = (pctx && pctx.lang) !== 'en'
-            const rk = await getRepoKey(pctx && pctx.cwd || cwd)
-            if (!rk || !rk.owner || !rk.name) return { status: 'fail', detail: zh ? '未找到 GitHub 仓库关联' : 'repo not located' }
+            // #1566：判定身份用的是与上一行同一份证据（同一次求值里只扫一遍）；失败话术也同一套，不另说一句。
+            const ev = await repoIdentity.forEval(pctx, pctx && pctx.cwd || cwd)
+            if (!ev) return { status: 'pending', detail: repoIdentity.unknownDetail(zh) }
+            if (ev.kind !== 'identity') return { status: 'fail', detail: repoIdentity.failDetail(ev, zh) }
             // #1444：仓库可达问会话 preflight 的第三关（api repos/o/n）；与登录态那一项共用一次调用。
             // #1444：档位分派与话术在 chain-env-map.ts 的 repoAccessVerdict 里（那边有整段说明）。
             return repoAccessVerdict(await envProbe.preflightOnce(), zh)

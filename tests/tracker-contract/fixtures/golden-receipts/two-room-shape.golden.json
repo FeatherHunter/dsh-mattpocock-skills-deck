@@ -23,6 +23,7 @@
     "blockedBy",
     "body",
     "closedAt",
+    "commentCount",
     "comments",
     "createdAt",
     "effortId",

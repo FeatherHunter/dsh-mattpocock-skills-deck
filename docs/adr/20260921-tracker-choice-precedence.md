@@ -119,4 +119,4 @@ GitLab 后端今天能力不全；「迁移」「清空」两个选项今天**�
 
 第 5 节落地时只把“面板、快照、链、工具”接到了统一判定。刷新后台的详情与评论在 #1444 之后改经“只读会话”取数，而开会话那一步直接问注册表各家 matches，没有把这份顺序带过去。于是：工作区文件或声明文件已经定了后端（面板上的芯片也是它），只要有两家同时举手，详情与评论就判 multi-match、整批读不到（#1555 的真机现场）。
 
-修法：开会话的装配口 `src/refresh/rooms/host/session-opener.ts` 在没有显式选择时先问统一判定（新增 `src/refresh/rooms/host/session-decision.ts`），判定层缺席或抛错才退回裸问注册表；判定自己带 multi-hit 时照旧交回 `openTracker` 拒绝。这样“这个工作区用哪个后端”在所有取数路径上都只有一份答案，与本文件第 2 节的排序一致。回归门禁：`tests/verify-1555-session-uses-decision.ts`。
+修法：开会话的装配口 `src/refresh/rooms/host/session-opener.ts` 在没有显式选择时先问统一判定（新增 `src/refresh/rooms/host/session-decision.ts`），判定层缺席或抛错才退回裸问注册表；判定自己带 multi-hit 时照旧交回 `openTracker` 拒绝。这样“这个工作区用哪个后端”在所有取数路径上都只有一份答案，与本文件第 2 节的排序一致。判定出口的写权限结论（canWrite / reason）也随选择一起交回会话，写会话不再在会话这一层另判一次。回归门禁：`tests/verify-1555-session-uses-decision.ts`（含装配链路与写会话的断言）。

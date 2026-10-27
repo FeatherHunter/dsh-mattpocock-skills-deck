@@ -387,3 +387,48 @@ export function probeChainEnv(deps: ChainEnvProbeDeps, probeCwd: string, opts?: 
   }
   return { preflightOnce: preflightOnce, viewer: viewerOnce, asked: function () { return asked }, reused: function () { return reused } }
 }
+
+// ── #1566 仓库身份证据：两条检查谓词共用的一份结论 ────────────────────────────────────
+// 为什么住在这里：「已关联 GitHub 仓库」与「仓库在 GitHub 上可访问」都要先回答「这个工作区的 GitHub
+// 仓库是哪一个」。从前两条各自拿单值的 getRepoKey（只认 origin），origin 是自建 GitLab、GitHub 只是第二个
+// 远端时必然判成「没有」。这份读法把宿主的 getRepoIdentity（三级本地证据、会扫全部远端）收成一次求值只读
+// 一份结论：两个谓词并行跑也拿到同一个答案，不会一行说成功一行说失败。
+// 约定（改之前先读）：1. 只读本地证据，不起进程、不发请求；2. 不跨求值缓存结论（人改完远端配置，下一次
+// 重新检查必须看到新的）；3. 回 null 是「两条读远端的路都不可用」，调用方把它落 pending 并照实说
+// 暂时确认不了，不许说成「一个 GitHub 远端都没有」。
+/** 仓库身份证据的形状与宿主 getRepoIdentity 的返回一致：唯一身份 / 多个不同地址（不猜） / 一个都没有；null 另表读不到。 */
+export type RepoIdentityEvidence = { kind: 'identity'; owner: string; name: string } | { kind: 'ambiguous'; candidates: Array<{ owner: string; name: string }> } | { kind: 'none' }
+
+/** 把宿主的两条仓库身份读法收成一个按次求值缓存的小口子；调用方只需 forEval / failDetail / unknownDetail。 */
+export function createRepoIdentityEvidence(deps: { getRepoKey(cwd: string): Promise<{ owner: string; name: string } | null>; getRepoIdentity?(cwd: string): Promise<RepoIdentityEvidence | null> }) {
+  const { getRepoKey, getRepoIdentity } = deps
+  /** 读一次身份证据：新接线先问 getRepoIdentity（它会扫全部远端），旧接线退回 getRepoKey 的单值结论。 */
+  async function read(at: string): Promise<RepoIdentityEvidence | null> {
+    if (typeof getRepoIdentity === 'function') { const ev = await getRepoIdentity(at); if (ev) return ev }
+    const rk = await getRepoKey(at)
+    if (rk && rk.owner && rk.name) return { kind: 'identity', owner: rk.owner, name: rk.name }
+    // 新接线里 getRepoIdentity 回 null 就是「读不到」；旧接线（没有这一格）里 getRepoKey 回空才是「没有」。
+    return typeof getRepoIdentity === 'function' ? null : { kind: 'none' }
+  }
+  // 键是这次求值的谓词上下文对象（一次求值一个，求值结束即可回收）：并行跑的两条谓词共用同一份 promise。
+  const byEval = new WeakMap<object, Promise<RepoIdentityEvidence | null>>()
+  function forEval(pctx: object | undefined, at: string): Promise<RepoIdentityEvidence | null> {
+    const key = pctx && typeof pctx === 'object' ? pctx : null
+    if (!key) return read(at)
+    const hit = byEval.get(key)
+    if (hit) return hit
+    const pending = read(at)
+    byEval.set(key, pending)
+    return pending
+  }
+  /** 两条谓词共用的失败话术：「没有远端」与「有多个、不猜」必须能区分，后者还要告诉人怎么收口。 */
+  function failDetail(ev: RepoIdentityEvidence, zh: boolean) {
+    if (ev.kind === 'ambiguous') { const list = ev.candidates.map(function (c) { return c.owner + '/' + c.name }).join('、'); return zh ? '本地有多个不同的 GitHub 远端（' + list + '），无法确定用哪一个；请把主仓库的远端命名为 origin，或删掉多余的远端' : 'multiple GitHub remotes found (' + list + '); name the main repository remote origin, or remove the extra remotes' }
+    return zh ? '本地没有指向 GitHub 的远端（git remote 与 .git/config 都查过）' : 'no GitHub remote in this workspace (checked git remote and .git/config)'
+  }
+  /** 连远端列表都读不到时的待定话术：不冒充「没有」，也不冒充出站失败。 */
+  function unknownDetail(zh: boolean) {
+    return zh ? '读不到本地仓库信息（没有 git，也读不到 .git/config），暂时确认不了' : 'cannot read local repository info (no git, and .git/config unreadable); cannot confirm yet'
+  }
+  return { forEval: forEval, failDetail: failDetail, unknownDetail: unknownDetail }
+}

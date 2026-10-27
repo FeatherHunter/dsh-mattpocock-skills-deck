@@ -10,6 +10,9 @@
  * #1519 起追加一条形状判据：详情回包里的 comments 必须是 {nodes, pageInfo} 连接（修前这里是数组透传，
  * 界面读 comments.nodes 读不到，评论区永远「评论 (0)」）。数组形状在这一层就不再算预期。
  *
+ * #1572 起开会话失败的文案按原因分档：multi-match / no-backend 引导去面板选定后端，pending 说明还在确认，
+ * 其余保留原来的重试口径；写会话那一句仍带「写会话没开成」，调用方靠它判断是环境问题而不是票不存在。
+ *
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-1444-comments.ts
  */
 import { resolve, dirname } from 'node:path'
@@ -59,6 +62,7 @@ function issueFor (opts) {
 }
 
 let openMode = 'ok' // ok / open-fail / get-fail
+let openFailReason = 'workspace-not-ready' // open-fail 交给调用方看的原因（测文案分档用）
 let openCalls = 0
 const sessionCalls = []
 const writeCalls = []
@@ -94,7 +98,7 @@ async function openSession (cwd, opts) {
   openCalls++
   const write = !!(opts && opts.write === true)
   if (write) { writeOpenCalls++; lastWriteOpts = opts }
-  if (openMode === 'open-fail') return { ok: false, reason: 'workspace-not-ready', detail: '还没认出工作区' }
+  if (openMode === 'open-fail') return { ok: false, reason: openFailReason, detail: '还没认出工作区' }
   return {
     ok: true,
     backendId: 'github',
@@ -208,6 +212,26 @@ check(openFailDetail && openFailDetail.ok === false && openFailDetail.error && o
 const openFailComments = await handlers.handleIssueComments({ number: 5, cwd: CWD })
 check(openFailComments && openFailComments.ok === false && openFailComments.error && openFailComments.error.kind === 'env', '会话开不成：评论回 {ok:false,error.kind=env}')
 check(sessionCalls.length === 0, '会话开不成：不再退回直调 gh（会话 get 零调用）')
+
+// #1572：开会话失败的原因直接决定下一步 —— multi-match / no-backend 要人先去面板选定后端，
+// pending 是还没定下来要等，其余（没认出工作区、没接上、开的当口抛了）保留原来的重试口径。
+// 详情与评论两条路共用同一句文案，这里两路各问一次，顺带钉住它们说的是同一句。
+for (const [reason, must, forbidden] of [
+  ['multi-match', ['面板', '多个后端'], []],
+  ['no-backend', ['面板', '还没有选定后端'], []],
+  ['pending', ['还在确认中'], ['面板']],
+  ['workspace-not-ready', ['等会话可用后再试'], ['面板']],
+] as Array<[string, string[], string[]]>) {
+  openFailReason = reason
+  const d = await handlers.handleIssueDetail({ number: 5, cwd: CWD })
+  const msg = String(d && d.error && d.error.message)
+  check(must.every((s2) => msg.indexOf(s2) >= 0) && forbidden.every((s2) => msg.indexOf(s2) < 0),
+    '会话开不成文案按原因分档（' + reason + '）：' + msg)
+  const cc = await handlers.handleIssueComments({ number: 5, cwd: CWD })
+  const msg2 = String(cc && cc.error && cc.error.message)
+  check(msg2 === msg, '详情与评论共用同一句失败文案（' + reason + '）')
+}
+openFailReason = 'workspace-not-ready'
 
 // ⑤ 写评论（#1445）：只经写会话 —— openSession(cwd,{write:true}) → session.comment，票据与正文原样交房，
 // 仓库引用用会话回包，执行口按 'comment-write' 档；失败档沿用本文件既有形状（env / not-found / unsupported / network）。

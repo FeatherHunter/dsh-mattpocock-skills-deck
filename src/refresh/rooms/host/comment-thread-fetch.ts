@@ -70,10 +70,22 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
   }
   // 会话开不成时的失败形状：沿用本文件读路径原来的 {ok:false,error}。kind 归到 env ——
   // 这是环境没就绪（没认出工作区、没有可用后端、会话还在等），不是这张票不存在。
-  function readSessionFailure(opened: any): any {
+  // #1572：会话为什么没开成，直接决定下一步该做什么 —— multi-match / no-backend 的下一步是
+  // 在面板里选定这个工作区使用的后端，不是干等重试；pending 是还没定下来，等会话可用再试；
+  // 其余（没认出工作区、没接上、开的时候抛了）保留原来的重试口径。文案只在这一处拼，读写共用。
+  function sessionFailureAdvice(reason: string): string {
+    if (reason === 'multi-match') return '。同时有多个后端认领这个工作区，请在面板里选定这个工作区使用的后端，再重试。'
+    if (reason === 'no-backend') return '。这个工作区还没有选定后端，请在面板里选定这个工作区使用的后端，再重试。'
+    if (reason === 'pending') return '。后端还在确认中，等会话可用后再试。'
+    return '，等会话可用后再试。'
+  }
+  function sessionFailure(opened: any, sessionKind: '只读' | '写'): any {
     const reason: string = opened && opened.reason ? String(opened.reason) : 'unknown'
     const detail: string = opened && opened.detail ? '：' + String(opened.detail) : ''
-    return { ok: false, error: { kind: 'env', message: '这个工作区的只读会话没开成（' + reason + '）' + detail + '，等会话可用后再试。' } }
+    return { ok: false, error: { kind: 'env', message: '这个工作区的' + sessionKind + '会话没开成（' + reason + '）' + detail + sessionFailureAdvice(reason) } }
+  }
+  function readSessionFailure(opened: any): any {
+    return sessionFailure(opened, '只读')
   }
   // 会话回包可能缺 data：缺了也按失败交回去，不让调用点读到 undefined 再炸。
   function getFailure(r: any): any {
@@ -115,9 +127,7 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
   // 写会话开不成时的失败形状：与读路径同一个形状（{ok:false,error}）。kind 归 env ——
   // 没认出工作区、没有后端认领、认领未决、多家同时认领，都是环境还没就绪，不是这张票不存在。
   function writeSessionFailure(opened: any): any {
-    const reason: string = opened && opened.reason ? String(opened.reason) : 'unknown'
-    const detail: string = opened && opened.detail ? '：' + String(opened.detail) : ''
-    return { ok: false, error: { kind: 'env', message: '这个工作区的写会话没开成（' + reason + '）' + detail + '，等会话可用后再试。' } }
+    return sessionFailure(opened, '写')
   }
   async function handleIssueDetail(args: any): Promise<any> {
     const n: any = args && args.number

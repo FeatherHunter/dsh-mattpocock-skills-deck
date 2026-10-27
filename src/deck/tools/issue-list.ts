@@ -236,11 +236,25 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       }
       else if (backendTruncated) notes.push('后端这次只翻到自己的上限就停了（工单 500 条、拉取请求 1000 条），这份清单可能不全：收窄过滤再查一次。')
       if (truncated) notes.push('只回前 ' + sliced.length + ' 行（共 ' + total + ' 行符合）：收窄过滤或调大 limit 再取一次。')
+      // #1559：宿主收工具返回值时要求无损 JSON，data 上不许出现 undefined。缺省的键就不出现
+      // （不用 null 顶替：金标准 03-deck_issue_list.golden.json 里本来就没有这两个键，序列化后的形状与它一致）；
+      // opId 正常总有值，恒为字符串。
+      const data: Record<string, unknown> = {
+        total: total,
+        returned: sliced.length,
+        truncated: truncated,
+        issues: sliced,
+        opId: opId,
+      }
+      if (backendFallback) {
+        data.fallback = 'rest'
+        data.fallbackReason = fallbackReason || 'other'
+      }
       return {
         value: {
           status: DECK_STATUS.OK,
           text: 'ISSUE 列表：共 ' + total + ' 行符合（' + cond.join('，') + '），回 ' + sliced.length + ' 行。',
-          data: { total: total, returned: sliced.length, truncated: truncated, issues: sliced, fallback: backendFallback ? 'rest' : undefined, fallbackReason: backendFallback ? (fallbackReason || 'other') : undefined, opId: opId || undefined },
+          data: data,
           notes: notes,
           touched: [],
         },

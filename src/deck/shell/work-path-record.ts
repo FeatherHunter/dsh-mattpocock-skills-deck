@@ -1,17 +1,17 @@
-// work-path-record.ts —— 工具壳成功收口处的那一步「记一笔或释放一条，再带回执」（#1261 建；#1086 加释放；#1262 铺满五个写工具）。
+// work-path-record.ts —— 工具壳成功收口处的那一步「记一笔或释放一条」（#1261 建；#1086 加释放；#1262 铺满五个写工具；#1561 起不再带回执）。
 //
 // 为什么单列一份而不是写进 call-shell.ts：壳文件有效行已到 321，离 350 上限只剩 29 行，
 // 这一步的分支（认哪些工具、认哪些票、失败写备注）展开要五十多行，会把壳顶超标。
-// 本文件除一个运行时值导入（chainTicketKey，见下）外只 import 类型；记、读、释放三支能力
-// 都由调用方以依赖注入（DeckShellDeps 的 workRouteNote / workRouteRead / workRouteRelease）。
+// 本文件除一个运行时值导入（chainTicketKey，见下）外只 import 类型；记与释放两支能力
+// 由调用方以依赖注入（DeckShellDeps 的 workRouteNote / workRouteRelease）。读在办表走 deck_work_route，不在这里。
 //
 // 谁记、谁不记（规格 #1259 第 5、6、8 条，本票 #1262 铺满）：
 //   写工具：deck_issue_report（动作 report、来源 reported）、deck_issue_create（create / auto）、
 //           deck_issue_patch（edit / auto）、deck_map_plan_create（plan / auto）、deck_map_link（link / auto）。
 //   读工具：deck_context、deck_issue_get、deck_issue_list、deck_map_snapshot —— 一次都不记。
-//   失败、被闸推迟、参数里认不出票号的调用——不记，回执里也不带 data.workRoute。
+//   失败、被闸推迟、参数里认不出票号的调用——不记。
 //   只认 status 为 ok 的回执：partial 的回执在信封里 ok 也是 false（部分写成功不等于成功），
-//   规格把 data.workRoute 限定在 ok 回执的 data 内，失败的票不能冒充在办，所以 partial 一律不记。
+//   失败的票不能冒充在办，所以 partial 一律不记。#1561 起写回执里不再带在办表。
 //
 // 记哪几张票：规格写「按工具返回的 touched 票号」，一次调用里每个票号各一笔。
 //   report 的 touched 恒为空（它写的是评论与进度，不碰票面），票号在 data.key；
@@ -22,23 +22,20 @@
 //
 // 带 release=true 的上报走释放那一支（#1086；#1349 收紧）：只撤销从没实际处理过的误报，删掉本会话
 // 对这张票的那一条工作条目，不记动作，票本身的状态与认领人不碰（工具只把票读回来证明它存在）。
-// 建过、改过、关过、建过计划或挂过边的票不许释放，备注说明路径保留。释放处理完照样读一遍在办表
-// 放进回执，所以回执形状与正常上报一致，data.workRoute 照旧带出。
+// 建过、改过、关过、建过计划或挂过边的票不许释放，备注说明路径保留。释放处理完只留备注，
+// 不再读在办表放进回执（#1561 起要看在办表就调 deck_work_route）。
 //
-// 输入输出的形状（与 DeckShellDeps 里 workRouteNote / workRouteRead / workRouteRelease 那三处注释同源）：
+// 输入输出的形状（与 DeckShellDeps 里 workRouteNote / workRouteRelease 那两处注释同源；读形状见 work-route.ts）：
 //   note 输入 { rootKey, sessionId, sessionLabel?, backend?, ticketKey, effortId?, title?, action, source }
 //        输出 { ok: true, ticketKey, count, warnings? } | { ok: false, reason }
 //        warnings 是「这次落上了、但有件事要告诉人」的备注（#1083：盘上旧文件读不出来按空账重写、
 //        工作区换了后端旧记录改名留档），调用方原样拼进回执 notes，不改其他格。
-//   read 输入 { sessionId, rootKey, at, detail? }（detail 是 core / standard，缺省 standard；老调用传 full 按 standard 处理）
-//        输出 { ok: true, readout, summary } | { ok: false, reason }
-//        其中 readout 已按 detail 投过影：工具回执那一支显式传 core，直接读出口不给就是全量细节。
 //   release 输入 { rootKey, sessionId, ticketKey }
 //        输出 { ok: true, ticketKey, removed, count, blocked? } | { ok: false, reason }
 //        其中 removed=false 表示没删：本来就不在本会话的工作路线里，或这张票干过实事
 //        （blocked='has-work'，按 #1349 只许撤销误报），都不算失败。
 // 其中 rootKey 是 workspace.key（工作区键），落到哪一份文件由存储按 chainRootHash 换算。
-// 其中 readout 就是回执里 data.workRoute 的对象，summary 是 notes 里那句摘要（没有在办时为 null）。
+// #1561 起写回执里不再带在办表，notes 里也不再带摘要与撞车提醒，只留记不上、释放失败这类实话。
 // #1352 起上报不再带 progress：工作条目不再新增这一格，旧存档里已经记下的原样保留（不回溯删除）。
 //
 // 标题与工作单元是锦上添花：能从这次回执里认出来就写进去，认不出就省略键——
@@ -51,7 +48,6 @@
 // 与依赖规则门禁里登记的跨层方向一致，不新增豁免。
 
 import { chainTicketKey } from '../../refresh/kernel/refresh-chain.js';
-import { workPathDetailOf } from './work-path-readout.js';
 import type { DeckShellDeps, ShellSession, UnknownRecord } from './call-shell-types.js';
 
 /** 一张票这次要写进工作路线的标题与工作单元；认不出就给空串，调用方据此省略键。 */
@@ -163,9 +159,10 @@ const WRITE_TOOLS: Record<string, WriteToolRule> = {
 };
 
 /**
- * 写工具成功收口处调一次：逐张票记一笔（上报带 release=true 时改走释放一支）→ 读在办表 → 写进回执。
+ * 写工具成功收口处调一次：逐张票记一笔（上报带 release=true 时改走释放一支），不再读在办表、不写回执。
  * 不是写工具、回执不是成功（partial 也不算）、一个票号都认不出、依赖缺席，都直接返回，不碰回执；
- * 记、释放或读任一步失败时，在 notes 末尾留一句实话，不抛错、不改回执其他格。
+ * 记或释放失败时，在 notes 末尾留一句实话，不抛错、不改回执其他格。
+ * 要看在办表就调 deck_work_route（#1561 起写回执里不再带 data.workRoute、notes 里不再带摘要与撞车提醒）。
  */
 export async function recordWorkRoute(
   deps: Pick<DeckShellDeps, 'workRouteNote' | 'workRouteRead' | 'workRouteRelease'> & { now?: () => number },
@@ -177,7 +174,6 @@ export async function recordWorkRoute(
   const spec = WRITE_TOOLS[tool];
   if (!spec) return;
   const note = deps ? deps.workRouteNote : undefined;
-  const read = deps ? deps.workRouteRead : undefined;
   const releaseFn = deps ? deps.workRouteRelease : undefined;
   const vRec = obj(value);
   if (!vRec) return;
@@ -186,12 +182,8 @@ export async function recordWorkRoute(
   // 不注入；partial 的信封 ok 是 false（只写成了一部分），按失败办，宁可这次少记也不把没写成
   // 的票冒充在办。
   if (str(vRec.status) !== 'ok') return;
-  const data = obj(vRec.data);
   const tickets = spec.ticketKeys(vRec);
   if (tickets.length === 0) return;
-  // 回执里在办表要多细（#1303）：五个写工具的 value 顶层可带 workRouteDetail（core / standard），缺省 core。
-  // 这个信号与 release 一样只走工具 value，信封不拷它，所以不会漏进回执。
-  const detail = workPathDetailOf(vRec.workRouteDetail, 'core');
   // 释放是工具 value 顶层的内部信号（信封只拷固定那几格，不会漏进回执）：只有上报会带它。
   const releaseMode = spec.action === 'report' && vRec.release === true;
   if (!Array.isArray(vRec.notes)) vRec.notes = [];
@@ -203,15 +195,9 @@ export async function recordWorkRoute(
       return;
     }
   } else if (typeof note !== 'function') return;
-  if (typeof read !== 'function') {
-    // 读这一支缺席时也要说一声：否则回执安静地缺 data.workRoute，看不出是装配问题还是这次没读到。
-    notes.push('工作路线这次带不出在办表（no-read-binding）：当前装配没接上读这一支，回执里缺 data.workRoute 这一格。');
-    return;
-  }
-  // 上面按模式各放行一支，这里把三支的可调用形状收窄一次：TS 不会把上一个 if 里的收窄带进下面的新分支。
+  // 上面按模式各放行一支，这里把可调用形状收窄一次：TS 不会把上一个 if 里的收窄带进下面的新分支。
   const callRelease = releaseFn as NonNullable<typeof releaseFn>;
   const callNote = note as NonNullable<typeof note>;
-  const callRead = read as NonNullable<typeof read>;
   // 两句失败备注分开写，是为了不说假话：记这一步失败时盘上可能是旧内容，但换后端那一刻旧文件已经被
   // 改名留档、主文件这次可能根本不在；读回核对失败时盘上其实已经是这次写的新内容。原来一句
   // 「盘上还是上一次的样子」在两种情形下都不成立。逐张票写时还多一种「记了几张、剩下的没记上」，
@@ -220,32 +206,24 @@ export async function recordWorkRoute(
     const tail = reason === 'readback-failed'
       ? '写下去了，但读回来核对没通过，下一次写票会重新读盘再补上。'
       : '这次没写成功；盘上可能还是旧内容（换后端时旧文件已单独留档），下一次写票会重新读盘再补上。';
-    notes.push('工作路线这次没落上（' + reason + '）：在办表这次没带出来，' + tail);
+    notes.push('工作路线这次没落上（' + reason + '）：' + tail + '要看在办表就调 deck_work_route。');
   };
   const partialNote = function (reason: string): void {
     notes.push('工作路线这次没记全（' + reason + '）：已经记下的不会丢，下一次写票会把缺的补上。');
   };
-  const readFailNote = function (reason: string): void {
-    notes.push('工作路线这次读不出来（' + reason + '）：在办表这次没带出来，下一次写票会重新读盘再试。');
-  };
-  // 释放失败与「带不出在办表」分开说：前者要人知道票的工作条目还留着，后者说的是释放已经生效、只缺回执那一格。
+  // 释放失败要人知道票的工作条目还留着。
   // 读回核对失败是释放里的特例：写盘那一步已经成了，删除大概率已经落盘，这时说「条目还留着」是假话
   // （与 noteFailNote 里分两句同一个理由）。
   const releaseFailNote = function (reason: string): void {
     if (reason === 'readback-failed') {
-      notes.push('工作路线这次释放没核对上（readback-failed）：删除已经写进盘里了，但写回后读回来核对没通过；回执这次没带出在办表，下一次释放或上报会重新读盘确认。');
+      notes.push('工作路线这次释放没核对上（readback-failed）：删除已经写进盘里了，但写回后读回来核对没通过；下一次释放或上报会重新读盘确认。');
       return;
     }
     notes.push('工作路线这次没释放掉（' + reason + '）：这张票在本会话的工作条目还留着，下一次释放或上报会照常处理。');
   };
-  const releaseReadFailNote = function (reason: string): void {
-    notes.push('工作路线这次带不出在办表（' + reason + '）：释放已经处理，只是回执里缺 data.workRoute 这一格。');
-  };
-  const clock = deps && typeof deps.now === 'function' ? deps.now : Date.now;
   const rootKey = str(s && s.workspaceKey);
   const sessionId = str(s && s.sessionId);
   let recorded = 0;
-  let phase = 'write';
   try {
     if (releaseMode) {
       // 释放只针对上报那一张票（data.key 归一后的 tickets[0]）。工具已经把票读回来证明它存在，
@@ -299,32 +277,8 @@ export async function recordWorkRoute(
         recorded += 1;
       }
     }
-    phase = 'read';
-    const ro = (await callRead({
-      sessionId: sessionId,
-      rootKey: rootKey,
-      at: clock(),
-      detail: detail,
-    })) as UnknownRecord | null;
-    const readout = ro ? ro.readout : null;
-    if (!ro || ro.ok !== true || !readout || typeof readout !== 'object') {
-      const reason = str(ro && ro.reason) || 'read-failed';
-      if (releaseMode) releaseReadFailNote(reason);
-      else readFailNote(reason);
-      return;
-    }
-    if (!data) return;
-    data.workRoute = readout;
-    const summary = str(ro.summary);
-    if (summary !== '') notes.push(summary);
-    // 撞车提醒只用上面这份在办表里的 collisions，不另读盘；没有撞车时这一句是空的，不进回执。
-    const collisionNote = str(ro.collisionNote);
-    if (collisionNote !== '') notes.push(collisionNote);
   } catch {
-    if (phase === 'read') {
-      if (releaseMode) releaseReadFailNote('threw');
-      else readFailNote('threw');
-    } else if (releaseMode) {
+    if (releaseMode) {
       releaseFailNote('threw');
     } else if (recorded > 0) {
       partialNote('threw');

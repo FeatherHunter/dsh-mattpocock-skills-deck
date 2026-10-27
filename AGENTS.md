@@ -6,7 +6,9 @@ This file gives an agent working in this repo the context it needs to operate we
 
 ### Issue tracker
 
-Issues live as GitHub issues, driven through the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues live as GitHub issues; read and write them through the deck tools (`deck_*`), not hand-written tracker commands. See `docs/agents/issue-tracker.md`.
+
+升级插件后、或 deck 工具报错 / 回执被判非法 / 整体不可用时，先跑自检并照 `docs/agents/issue-tracker.md` 的「工具故障」一节处理。
 
 ### Triage labels
 
@@ -108,6 +110,8 @@ node --import ./scripts/ts-hook.mts tests/你的测试.ts
 手工跑命令用 DSH 原生的侧栏终端（右侧栏那颗「终端」标签页，标签标题写成 `<票号>-<用途>`，方便事后回看）。这套终端由 DSH 自带，与 better-sidebar 无关——better-sidebar 从 0.21 版起已经把自己带的那套终端删掉了。
 
 AI 这边没有可用的终端工具（better-sidebar 删掉了它自带的 `terminal_*` 工具，DSH 侧对应的 `dsh-tool-terminal` 本机也没安装），开不出侧栏终端，所以 AI 的命令一律用系统原生的 `pwsh` 工具跑；跑什么、为什么跑，在对话正文里写清楚。
+
+工具入参里不能有 `undefined`（可选参数要么不传、要么给值）；报 `lossless JSON` 时去掉该参数或给值，再重试一次同样的工具调用。
 
 ### Release 发布
 

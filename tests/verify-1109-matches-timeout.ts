@@ -222,7 +222,7 @@ async function main() {
     setCache: () => {},
   })
   const table = await wiring.deckToolsForHost()
-  check(!!table && Array.isArray(table.names) && table.names.length === 9, '宿主接线装出九条 deck 工具（实得 ' + JSON.stringify(table && table.names) + '）')
+  check(!!table && Array.isArray(table.names) && table.names.length === 10, '宿主接线装出十条 deck 工具（实得 ' + JSON.stringify(table && table.names) + '）')
   // 给账本一份「额度管够」的读数：不喂的话第一笔读就被闸推迟（gate-defer），
   // 根本走不到选后端那一步，这条门禁就白盯了。
   const quota = () => ({ rest: { limit: 5000, remaining: 5000, reset: Date.now() + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: Date.now() + 3600000 } })

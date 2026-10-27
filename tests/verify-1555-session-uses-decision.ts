@@ -18,19 +18,29 @@
  *   ⑤ 判定层缺席或抛错时，退回裸问注册表（与改动前一致，不把老宿主带崩）；
  *   ⑥ 判定与裸认领不一致时听判定的；
  *   ⑦ 判定出口拿得到宿主补充的现场能力（autodetectContext），自动识别仍由判定出口自己跑
- *      —— 刷新机制一处 registry.select 都不写（#1443 静态门禁的纪律）。
+ *      —— 刷新机制一处 registry.select 都不写（#1443 静态门禁的纪律）；
+ *   ⑧ 装配链路真的把判定函数递进来：只给 getDecisionFn（不注入 decideSelection）时会话也要走判定；
+ *      刷新接线与宿主入口缺了这一段，修复会静默退回裸问 —— 所以行为加静态两条都要钉；
+ *   ⑨ 写会话的“能不能写”跟着判定走：判定说能写就是 true，说不能写就是 false；
+ *      调用方显式说这份写操作不看判定（评论那种）时仍按调用方给的 true。
  *
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-1555-session-uses-decision.ts
  *
  * 门禁归属: src/refresh/rooms/host/session-opener.ts
+ * 门禁归属: src/refresh/rooms/host/session-decision.ts
  * 门禁归属: src/refresh/rooms/host/comment-thread-fetch.ts
+ * 门禁归属: src/refresh/rooms/host/refresh-runtime.ts
  */
+import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createSessionOpener } from '../src/refresh/rooms/host/session-opener.ts'
 import { createCommentThreads } from '../src/refresh/rooms/host/comment-thread-fetch.ts'
 import { createSessionDecisionResolver } from '../src/refresh/rooms/host/session-decision.ts'
 import { decideBackend } from '../src/tracker/detection/backendDecision.ts'
 import { planGates } from '../scripts/lib/discover-gates.ts'
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 let failed = false
 const check = (ok: boolean, msg: string) => {
@@ -127,6 +137,30 @@ function makeCommentThreads(opener: any) {
     issueIndexFromSnapshot: () => null,
     logCtx: null,
   } as never)
+}
+
+/** 只给 getDecisionFn 的装配口：用来钉“判定函数真的能一路递到 session-opener”。 */
+function makeOpenerWithDecision(decideFn: () => Promise<any>) {
+  const mdRoom = makeRoom('markdown', DETAIL_ISSUE)
+  const registry = {
+    has: () => true,
+    get: (id: string) => (id === 'markdown' ? mdRoom : undefined),
+    modules: () => [{ id: 'markdown', budget: BUDGET_MD }],
+    select: async () => { throw new Error('只给 getDecisionFn 时不该去裸问注册表') },
+  }
+  return createSessionOpener({
+    getTrackerRegistry: async () => registry,
+    ledger: { spend: () => {}, ensureBackend: () => {} },
+    backendCtx: () => ({
+      cwd: '/ws',
+      platform: { fs: { resolve: async (r: string) => r, readText: async () => { throw new Error('no-file') } } },
+      fs: null,
+      timers: { setTimeout, clearTimeout },
+      exec: async () => ({ stdout: '', stderr: '', code: 0 }),
+    }),
+    logCtx: null,
+    getDecisionFn: async () => ({ decideBackend: decideFn }),
+  })
 }
 
 async function main() {
@@ -251,11 +285,55 @@ async function main() {
     }
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  console.log('\n== ⑧ 装配链路真的把判定函数递进来（行为 + 静态）==')
+  {
+    let decideCalls = 0
+    let selectCalls = 0
+    const mdRoom = makeRoom('markdown', DETAIL_ISSUE)
+    const registry = {
+      has: () => true,
+      get: (id: string) => (id === 'markdown' ? mdRoom : undefined),
+      modules: () => [{ id: 'markdown', budget: BUDGET_MD }],
+      select: async () => { selectCalls += 1; return { backendId: 'markdown', source: 'matches', multiHit: ['markdown', 'gitlab'], ref: null } },
+    }
+    const opener = createSessionOpener({
+      getTrackerRegistry: async () => registry,
+      ledger: { spend: () => {}, ensureBackend: () => {} },
+      backendCtx: () => ({ cwd: '/ws', platform: { fs: { resolve: async (r: string) => r, readText: async () => { throw new Error('no-file') } } }, fs: null, timers: { setTimeout, clearTimeout }, exec: async () => ({ stdout: '', stderr: '', code: 0 }) }),
+      logCtx: null,
+      getDecisionFn: async () => { decideCalls += 1; return { decideBackend: async () => ({ backendId: 'markdown', source: 'explicit', canWrite: true, reason: '', ref: { backend: 'markdown', refId: '/ws', name: 'ws', url: '' } }) } },
+    })
+    const opened: any = await opener('/ws', {})
+    check(opened && opened.ok === true && opened.backendId === 'markdown', '只给 getDecisionFn（不注入 decideSelection）时，会话也走判定')
+    check(decideCalls === 1, '装配口现造的判定函数被问了一次（实得 ' + decideCalls + ' 次）')
+    check(selectCalls === 0, '装配链路下裸认领一次都不问（实得 ' + selectCalls + ' 次）')
+  }
+  {
+    const runtimeSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/refresh-runtime.ts'), 'utf8')
+    check(/getDecisionFn:\s*function/.test(runtimeSrc) && runtimeSrc.indexOf('createSessionOpener') >= 0,
+      '刷新接线把 getDecisionFn 递给了 createSessionOpener（缺了它，修复会静默退回裸问）')
+    const hostSrc = fs.readFileSync(path.join(ROOT, 'src/host/index.ts'), 'utf8')
+    check(/makeRefreshLoader\(/.test(hostSrc) && /getDecisionFn:\s*function/.test(hostSrc),
+      '宿主入口把 getDecisionFn 交给刷新装配（链路首段）')
+    const openerSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/session-opener.ts'), 'utf8')
+    check(/createSessionDecisionResolver\(\{\s*getDecisionFn: deps\.getDecisionFn/.test(openerSrc),
+      'session-opener 用装配方给的判定函数现造 decideSelection（链路末段）')
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  console.log('\n== ⑨ 写会话的“能不能写”跟着判定走 ==')
+  {
+    const w1: any = await makeOpenerWithDecision(async () => ({ backendId: 'markdown', source: 'explicit', canWrite: true, reason: '' }))('/ws', { write: true })
+    check(w1 && w1.ok === true && w1.canWrite === true, '写会话：判定说能写（工作区文件选过）→ opened.canWrite=true')
+    const w2: any = await makeOpenerWithDecision(async () => ({ backendId: 'markdown', source: 'declaration', canWrite: false, reason: 'needs-generate' }))('/ws', { write: true })
+    check(w2 && w2.ok === true && w2.canWrite === false, '写会话：判定说不能写（只有声明/自动识别）→ opened.canWrite=false，不编造能写')
+    const w3: any = await makeOpenerWithDecision(async () => ({ backendId: 'markdown', source: 'declaration', canWrite: false, reason: 'needs-generate' }))('/ws', { write: true, canWrite: true })
+    check(w3 && w3.ok === true && w3.canWrite === true, '写会话：调用方显式说这份写操作不看判定（评论那种）→ 仍按调用方给的 true')
+  }
+
   // ── 本门禁必须在 verify 链里（不挂进链就等于没跑）──
   {
-    const { fileURLToPath } = await import('node:url')
-    const path = await import('node:path')
-    const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
     const mine = planGates(ROOT).filter((s: { file: string }) => s.file.indexOf('verify-1555-session-uses-decision') >= 0)
     check(mine.length === 1, '本门禁挂在 verify 链里且只挂一次（实得 ' + mine.length + ' 次）')
   }

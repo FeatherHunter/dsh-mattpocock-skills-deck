@@ -316,9 +316,10 @@ type GetIssueOpts = GetOpts & { effortId?: string | null }
  *  本房不产出它），只有先后顺序；拿序号当游标是这里唯一说得清、也不依赖额外状态的做法。
  *  没给 `comments` 就一条不截，与改动之前的行为一样。 */
 function sliceComments(iss: Issue, opts: GetIssueOpts): Issue {
-  const want=opts&&opts.comments
-  if(!want)return iss
   const all=Array.isArray(iss.comments)?iss.comments:[]
+  const total=all.length
+  const want=opts&&opts.comments
+  if(!want)return {...iss,commentCount:typeof iss.commentCount==='number'?iss.commentCount:total}
   const rawFirst=(want as {first?: unknown}).first
   const first=typeof rawFirst==='number'&&isFinite(rawFirst)&&rawFirst>=0?Math.floor(rawFirst):all.length
   const rawAfter=(want as {after?: unknown}).after
@@ -327,7 +328,7 @@ function sliceComments(iss: Issue, opts: GetIssueOpts): Issue {
     const n=Number(rawAfter.trim())
     start=isFinite(n)&&n>0?Math.floor(n):0
   }
-  return {...iss,comments:all.slice(start,start+first)}
+  return {...iss,comments:all.slice(start,start+first),commentCount:total}
 }
 
 /** 单票读取补引用标题与状态（#1537）：`Blocked by` 行只存 key，标题与状态要在读时按被引文件回填。

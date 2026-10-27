@@ -1,8 +1,8 @@
-# 九个 deck 工具对外的样子（地图04 规格 · 票 #1106）
+# 十个 deck 工具对外的样子（地图04 规格 · 票 #1106）
 
-这份文档只回答一句话：**九个对外工具「长什么样」——哪些不许动，哪些可以动。**
+这份文档只回答一句话：**十个对外工具「长什么样」——哪些不许动，哪些可以动。**
 
-读它的人有两类：准备改这九个工具的人（先看这里，再动代码）；以及以后接手的人（想知道某个键为什么死活不能改名）。
+读它的人有两类：准备改这十个工具的人（先看这里，再动代码）；以及以后接手的人（想知道某个键为什么死活不能改名）。
 
 可执行的那一份是 `tests/verify-1106-deck-surface.ts`：同一套对照面写成断言，参数改一个键、说明改一个字、缺省改一个数、回执少一格、点数动一条，它就红。文档给人读，测试给机器盯，两边说的是同一件事。
 
@@ -18,7 +18,7 @@
 
 ---
 
-## 一、表一 · 参数表（九个工具的入参）
+## 一、表一 · 参数表（十个工具的入参）
 
 | 工具 | 必填 | 可选参数（类型 · 取值 · 缺省） |
 | --- | --- | --- |
@@ -26,11 +26,12 @@
 | `deck_issue_get` | `key` | `comments`（数字，最多带回几条评论，缺省 50，钳在 0–200）· `section`（字符串，只回正文里这一节，`##` 标题的子串；缺省回全文前 2000 字）· `blocking`（布尔，要不要反向阻塞边；**缺省要**，只有显式传 `false` 才跳过一次反向边查询）· `effort` · `feature` |
 | `deck_map_snapshot` | `key` | `frontierOnly`（布尔，只回可接的子票；缺省回全部）· `detail`（枚举 `full` / `thin`，缺省 `full`；`thin` 只回薄行，统计与进度表照算）· `effort` · `feature` |
 | `deck_issue_list` | 无 | `state`（枚举 `open` / `closed` / `all`，缺省 `open`）· `type`（枚举 `issue` / `map` / `all`，缺省 `all`）· `labels`（字符串数组，必须同时带上，AND）· `assignee` · `query`（标题与正文的子串）· `limit`（数字，缺省 50，钳在 1–200）· `effort` · `feature` |
-| `deck_issue_create` | `title`、`kind` | `body`（缺省按种类补最小骨架）· `kind`（必填，枚举 `map` / `map-ticket` / `spec` / `spec-ticket` / `bug` / `issue`；map 与 spec 是顶层容器，其余位置各有父票规则）· `label`（枚举 `wayfinder:research` / `wayfinder:prototype` / `wayfinder:grilling` / `wayfinder:task`；只在 kind=map-ticket 时必填，其他 kind 传了直接拒绝）· `parentKey` · `labels`（除 issue 外不许再放类型标签）· `assignees` · `idempotencyKey` · `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effort` · `feature` |
-| `deck_map_plan_create` | `title`、`children` | `body`（缺省自动补五个区块）· `planId`（同一个值重跑就接着上次没做完的继续；想建第二张内容相同的计划时传一个不同的值，否则按重试复用旧票；它会原样当幂等键写进票面，字符集由后端定——只能用字母、数字、点、下划线、连字符、冒号与斜杠，写中文会被后端挡下并回 `backend-unsupported`）· `labels` · `edges`（每项必填 `from`、`to`；`type` 枚举 `blocked-by` / `parent`，省略按 `blocked-by`。**`from` 是这条边写进哪张票（写的是它的字段），`to` 是这条边指向的另一张票**：阻塞边是 `from` 的 Blocked by 里加上 `to`（即 `from` 被 `to` 阻塞），父子边是 `from` 的父票为 `to`；`@map` 指本次计划建的地图票，`from` 与 `to` 都可以写，父子边的常规写法是 `to` 写 `@map`；`type` 写成不认识的值整批拒写、回 `bad-args`、一张票都不动（#1421））· `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effort` · `feature`；`children` 每项必填 `key`、`title`、`kind`（枚举 `map-ticket` / `bug` / `issue`），可选 `body`、`label`（kind=map-ticket 时必填，四选一）、`labels`、`assignees` |
-| `deck_map_link` | 无 | `key` 与 `edges` 二选一，两个都不给回 `bad-args`。`key`：要改的那张子票 · `parentKey`：要挂到的父票 · `blockedBy`：这张票被哪些票阻塞（**整批替换**，给空数组就是清空）· `edges`（一次改多张票，每项必填 `key`，其余同左）· `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effort` · `feature` |
-| `deck_issue_patch` | `key` | `comment` · `addLabels` · `removeLabels` · `assignees`（整批替换，给空数组就是取掉认领）· `title` · `body` · `progress`（只改「## 进度」那一段）· `close`（布尔，`true` 关闭、`false` 重新打开）· `closeReason`（字符串，和 `close:true` 一起用：地图子票写进 Answer 段并在地图补指针；实施票追加成评论；旧布局写 Close reason 行；容器忽略；单独带它不关票）· `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effort` · `feature` |
-| `deck_issue_report` | `key` | `note`（一句备注，只回显、不进调用链）· `workRouteDetail`（枚举 `core` / `standard`，缺省 `core`；`standard` 给全部条目再加标题、动作、来源与是否本会话）· `effort` · `feature` · `release`（布尔，传 `true` 尝试撤销本会话对这个 ISSUE 的一条误报工作条目：只在从没实际处理过这张票时删得掉，建过、改过、关过、建过计划或挂过边的票不能释放、路径保留；票本身的状态与认领人不动） |
+| `deck_issue_create` | `title`、`kind` | `body`（缺省按种类补最小骨架）· `kind`（必填，枚举 `map` / `map-ticket` / `spec` / `spec-ticket` / `bug` / `issue`；map 与 spec 是顶层容器，其余位置各有父票规则）· `label`（枚举 `wayfinder:research` / `wayfinder:prototype` / `wayfinder:grilling` / `wayfinder:task`；只在 kind=map-ticket 时必填，其他 kind 传了直接拒绝）· `parentKey` · `labels`（除 issue 外不许再放类型标签）· `assignees` · `idempotencyKey` · `effort` · `feature` |
+| `deck_map_plan_create` | `title`、`children` | `body`（缺省自动补五个区块）· `planId`（同一个值重跑就接着上次没做完的继续；想建第二张内容相同的计划时传一个不同的值，否则按重试复用旧票；它会原样当幂等键写进票面，字符集由后端定——只能用字母、数字、点、下划线、连字符、冒号与斜杠，写中文会被后端挡下并回 `backend-unsupported`）· `labels` · `edges`（每项必填 `from`、`to`；`type` 枚举 `blocked-by` / `parent`，省略按 `blocked-by`。**`from` 是这条边写进哪张票（写的是它的字段），`to` 是这条边指向的另一张票**：阻塞边是 `from` 的 Blocked by 里加上 `to`（即 `from` 被 `to` 阻塞），父子边是 `from` 的父票为 `to`；`@map` 指本次计划建的地图票，`from` 与 `to` 都可以写，父子边的常规写法是 `to` 写 `@map`；`type` 写成不认识的值整批拒写、回 `bad-args`、一张票都不动（#1421））· `effort` · `feature`；`children` 每项必填 `key`、`title`、`kind`（枚举 `map-ticket` / `bug` / `issue`），可选 `body`、`label`（kind=map-ticket 时必填，四选一）、`labels`、`assignees` |
+| `deck_map_link` | 无 | `key` 与 `edges` 二选一，两个都不给回 `bad-args`。`key`：要改的那张子票 · `parentKey`：要挂到的父票 · `blockedBy`：这张票被哪些票阻塞（**整批替换**，给空数组就是清空）· `edges`（一次改多张票，每项必填 `key`，其余同左）· `effort` · `feature` |
+| `deck_issue_patch` | `key` | `comment` · `addLabels` · `removeLabels` · `assignees`（整批替换，给空数组就是取掉认领）· `title` · `body` · `progress`（只改「## 进度」那一段）· `close`（布尔，`true` 关闭、`false` 重新打开）· `closeReason`（字符串，和 `close:true` 一起用：地图子票写进 Answer 段并在地图补指针；实施票追加成评论；旧布局写 Close reason 行；容器忽略；单独带它不关票）· `effort` · `feature` |
+| `deck_issue_report` | `key` | `note`（一句备注，只回显、不进调用链）· `effort` · `feature` · `release`（布尔，传 `true` 尝试撤销本会话对这个 ISSUE 的一条误报工作条目：只在从没实际处理过这张票时删得掉，建过、改过、关过、建过计划或挂过边的票不能释放、路径保留；票本身的状态与认领人不动） |
+| `deck_work_route` | 无 | `includeStale`（布尔，是否展开陈旧条目；缺省 `false` 只看 24 小时内在办，传 `true` 回 30 天内全部含陈旧）· `limit`（数字，最多回多少条，缺省 100，钳在 1–200） |
 
 三条口径写在表外，但同样冻着：
 
@@ -39,6 +40,8 @@
 - **`effort` 与 `feature` 一律可选、互斥**：只有本地（Markdown）后端需要它们，分别填探索地图目录名（原文 `<effort>`）与规格体系目录名（原文 `<feature-slug>`）；都不填时建票按父票或标题决定目录，读票全仓库找；远端后端忽略。
 
 **上报的 `progress` 已退役（#1352）**：`deck_issue_report` 的定义里不再有它；老调用带着这个键时，工具在选后端之前就以 `bad-args` 拒绝，并在回执里指路 `deck_issue_patch` 的 `progress`（写票面「## 进度」区）。拒绝不花点数、不写盘。`workRouteDetail` 的 `full` 档同步退役：它原先唯一的增量就是工作条目里的进度自评；老调用传 `full` 时按 `standard` 处理。
+
+**写工具的 `workRouteDetail` 已退役（#1561）**：五个写工具（`deck_issue_create`、`deck_map_plan_create`、`deck_map_link`、`deck_issue_patch`、`deck_issue_report`）的定义里不再有它；老调用带着这个键时，工具在选后端之前就以 `bad-args` 拒绝，并在回执里指路 `deck_work_route`（要看在办表就调这只读工具）。拒绝不花点数、不写盘、不记路线。
 
 表里的**缺省值与钳制范围**不是摆设，它们和参数名一样冻着。做法不是去抄源码里的数字（那只是把同一份东西抄第二遍），而是从外面撞：给工具换一个「只记录、不真读」的后端，看它不传这个参数时交下去的是什么、按哪个数截断——例如列票不传条数时回 50 行、传 500 时回 200 行（多出来的行被上限截掉）。改一个数就红。
 
@@ -72,6 +75,10 @@
 - **失败永远是值，不是异常。** 后端实现抛错、闸拒绝、没后端、会话取不到、参数稀奇古怪（`null`、数字、字符串、数组、对象当票号），一律变成一张回执。抛出去的话，AI 会退回去用它熟悉的 `gh`，两条写路径同时开火。
 - **记账数不上信封。** 工具交给闸的那个「我这次打算花几条、几点」不放在回执里（`consumers` 只看 `cost.actual`），所以回执里没有 `claimed` 这一格。讨论票 #1034 的结论里把 `claimed` 和信封字段列在一起讲，这里按代码与金标准回执对齐：它是工具与闸之间的交回数，不是回执的一格。
 
+### 在办表独立读工具 `deck_work_route`（#1561）
+
+写工具的成功回执里**不再带在办表**：`data.workRoute` 这一格不再出现，`notes` 里也不再带工作路线摘要与撞车提醒；要看当前工作区哪些会话在处理哪些票，就调 `deck_work_route`。它的回执仍走上面两种信封形状，`data` 里放的是在办表的读数：`at`（这次读的是什么时候）· `total`（符合的有多少条）· `returned`（这次回了多少条）· `omitted`（符合但没带的还有多少条）· `includeStale`（这次是不是展开的那一档）· `limit`（这次按多少条截断）· `groups`（按会话分组，当前会话的第一组）· `source`（固定 `local-archive`：数据来自本机工作区存档，只含本工作区 30 天内动过的条目）· `limits`（三条上限原样写清：保留 30 天、在办 24 小时、存档 2MB）。组里的每一项带 `ticketKey` · `title`（标题快照）· `sessionLabel`（会话名，原始会话号永不进回执）· `action` · `actionAt` · `active`（是不是 24 小时内在办）· `currentSession`（是不是这次调用所在的会话）· `source`（上报或自动），本地后端还可能带 `effortId`。`notes` 如实说来源与三条上限，条数被截断时说清共多少条、没带多少条，陈旧条目只计数、默认不列（传 `includeStale:true` 才展开）。这一笔工具自己报 1 条、3 点。
+
 ---
 
 ## 三、表三 · 点数表（每一笔记多少账）
@@ -104,6 +111,7 @@
 | `deck_issue_patch` | 成功 | 与估算相同 | 估算 + 1 条 |
 | `deck_issue_report` | 还没选后端就失败 | 不记 | 0 / 0 |
 | `deck_issue_report` | 成功 / 票读不回来（同价） | 1 / 3 | 2 / 3 |
+| `deck_work_route` | 成功 / 读不出来（同价） | 1 / 3 | 2 / 3 |
 
 「与估算相同」的那三支，用的是同一份价目（`src/shared/refresh/src/tool-cost.ts`）：
 
@@ -122,7 +130,7 @@
 3. 工作区与仓库从会话上下文取（`exec.agent.session`），不接受调用方传参；解析不出来就如实说做不到。
 4. 工具永不抛异常（同上，失败一律变成三态回执）。
 
-**装配顺序**：九个工具按固定顺序装表——`deck_context`、`deck_issue_get`、`deck_map_snapshot`、`deck_issue_list`、`deck_issue_create`、`deck_map_plan_create`、`deck_map_link`、`deck_issue_patch`、`deck_issue_report`。宿主装配与展示都按这个顺序。
+**装配顺序**：十个工具按固定顺序装表——`deck_context`、`deck_issue_get`、`deck_map_snapshot`、`deck_issue_list`、`deck_issue_create`、`deck_map_plan_create`、`deck_map_link`、`deck_issue_patch`、`deck_issue_report`、`deck_work_route`。宿主装配与展示都按这个顺序。
 
 **另外三件**（它们也是对照面的一部分，因为回执里会出现它们）：
 
@@ -138,14 +146,14 @@
 - 沙箱策略怎么等、等不到怎么办（现在的口径：等不到按「没有」往下走）。
 - 内部写法：函数怎么拆、文件怎么分、近似重复的判断怎么抽。
 - 日志与注释：加什么埋点、怎么写注释。
-- 类型怎么标（只要不改对外形状）：`#1040` 之后这九件在严格类型检查下，类型只放契约层、定义是唯一事实。
+- 类型怎么标（只要不改对外形状）：`#1040` 之后这十件在严格类型检查下，类型只放契约层、定义是唯一事实。
 - 缺省值、钳制范围、给模型看的说明文案：**可以改**，但改了门禁会红——那是提醒你把这份规格与 `tests/verify-1106-deck-surface.ts` 里冻着的值一起改，不是不让你改。
 
 ## 六、越界判据（出现即算破了「薄工具厚壳」）
 
-九个工具文件（`src/deck/tools/**`）里不该出现直连外面的写法：起进程、发网络请求、走命令行 `gh`、读环境、读写文件、动态求值，以及任何后端 id 的等值比较（`=== 'github'` 这种——那样工具就在自己判后端了）。要做这些事，一律经注入进来的依赖或壳。
+十个工具文件（`src/deck/tools/**`）里不该出现直连外面的写法：起进程、发网络请求、走命令行 `gh`、读环境、读写文件、动态求值，以及任何后端 id 的等值比较（`=== 'github'` 这种——那样工具就在自己判后端了）。要做这些事，一律经注入进来的依赖或壳。
 
-时间这一类单独说，不能一禁了之：**`Date.now` / `new Date` 只能当那个可换时钟的缺省值**（同一行必须写着 `typeof d.now === 'function'`），**`setTimeout` 只能当超时钳制的那一支**（同一行必须写着 `Promise`）。这两件事本来就在可动清单里，九份工具各写了一份；超出这两种形状——比如直接拿它们读真实时间做业务判断——同样算出界。
+时间这一类单独说，不能一禁了之：**`Date.now` / `new Date` 只能当那个可换时钟的缺省值**（同一行必须写着 `typeof d.now === 'function'`），**`setTimeout` 只能当超时钳制的那一支**（同一行必须写着 `Promise`）。这两件事本来就在可动清单里，十份工具各写了一份；超出这两种形状——比如直接拿它们读真实时间做业务判断——同样算出界。
 
 ---
 
@@ -159,14 +167,14 @@
 | 参数说明的长度与两处关键文案 | `tests/verify-deck-tools.js`（描述 ≤350 字）、`tests/verify-deck-thin-reads.js` |
 | 信封表（14 格 / 6 格、三态、七个原因码、失败不抛） | `tests/verify-1106-deck-surface.ts`；记账数不外露另有 `tests/verify-deck-exec-phone.js` |
 | 点数表 | `tests/verify-1106-deck-surface.ts` |
-| 九个工具的整条来回（正例、负例、过闸、永不抛） | `tests/verify-deck-tools.js` |
+| 十个工具的整条来回（正例、负例、过闸、永不抛） | `tests/verify-deck-tools.js` |
 | 逐字节零变化（金标准回执） | `tests/verify-golden-receipts.ts`（基准在 `tests/tracker-contract/fixtures/golden-receipts/`） |
 | 装配顺序 | `tests/verify-1106-deck-surface.ts` 与 `tests/verify-1039-rules-pure.ts`（顺序表在 `src/deck/rules/tool-order.ts`） |
 | 必备标签、五个区块、幂等锚 | `tests/verify-1039-rules-pure.ts` |
 | 越界判据（工具里不许直连外部；时间只许那两种形状） | `tests/verify-1106-deck-surface.ts`；不判后端另有 `tests/verify-deck-tools.js` 的静态扫描 |
 | 契约层只放类型、不出现运行时实现 | `tests/verify-dependency-rules.ts`（依赖规则）、`tests/verify-deck-tools-row-zero-dep.js` |
 
-这一扇已经挂在 `package.json` 的 `scripts.verify` 链上（第 54 步，紧跟九个工具那几扇），`tests/gate-map.json` 也重算过：以后谁动了九个工具的参数形状、回执形状、点数或越界写法，`npm run verify:changed` 就会把它挑出来跑，不用等人记得。
+这一扇已经挂在 `package.json` 的 `scripts.verify` 链上（第 54 步，紧跟十个工具那几扇），`tests/gate-map.json` 也重算过：以后谁动了十个工具的参数形状、回执形状、点数或越界写法，`npm run verify:changed` 就会把它挑出来跑，不用等人记得。
 
 ---
 

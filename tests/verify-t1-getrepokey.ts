@@ -2,7 +2,9 @@ const { createOutboundControl } = require('../src/refresh/rooms/host/outbound-co
 // verify-t1-getrepokey.ts — #41 T1 修复验证：getRepoKey 显式解析 origin
 // 多远程下（旧实现 → `gh repo view` 命中 upstream；新实现 → `git remote get-url origin` 命中 Fork）
 // #1453 起宿主这一层只剩本地证据：origin 与 .git/config 都答不上来时回 null，不再起 gh repo view ——
-// 那一级搬进会话的 getRepoKey 能力（开会话之后先裁决再记账），所以场景 4 的口径跟着改成 null。
+// 那一级搬进会话的 getRepoKey 能力（开会话之后先裁决再记账）。
+// #1566 起补第三级：origin 不是 GitHub 时扫 .git/config 里的全部远端，唯一 GitHub 远端即认它；
+// 有多个不同的 GitHub 远端时判歧义、不猜（检查面板把「没有」与「有多个」分开说）。
 // 用法：node tests/verify-t1-getrepokey.ts
 // 依赖：node + 本机 git（PATH）。不依赖 gh（gh 走 mock，可控返回 upstream 模拟 gh 旧 bug）
 //
@@ -203,9 +205,9 @@ async function main() {
   const h4 = await loadPlugin({ subprocess, timer, fs: fsSvc, skills: makeSkills() })
   ghCalls.length = 0
   const snap4 = await h4('snapshot', { cwd: noOriginDir })
-  // 为什么不再是 upstream：从前这一级退到 `gh repo view`（mock 回 upstream-org/upstream-repo），那是出站、会花额度；
-  // #1453 把那一级搬进会话能力，只在开会话之后才问。宿主这一层只读本地证据，答不上来就如实回 null。
-  expect('场景4 · 只有 upstream 时 snapshot.repo 为 null（宿主不再起 gh 兜底）', snap4.repo === null, JSON.stringify(snap4.repo))
+  // 为什么现在是 upstream：origin 缺失时，#1566 的第三级会扫 .git/config 里全部远端，
+  // 只有一个 GitHub 地址就认它（不猜）；宿主仍只读本地证据、不起 gh —— 那一级留在会话能力里。
+  expect('场景4 · 只有 upstream 时仍认得唯一 GitHub 远端（第三级扫全部远端）', snap4.repo && snap4.repo.owner === 'OnlyUpstream' && snap4.repo.name === 'OnlyUpstreamRepo', JSON.stringify(snap4.repo))
 
   // ============ 场景 5：缓存按 cwd 隔离 — Tier 1 命中后 repoKeys[cwd] 缓存 ============
   console.log('--- 场景 5：同 cwd 第二次 → repoKeys 缓存命中 ---')
@@ -272,7 +274,66 @@ async function main() {
   const snap10 = await h10('snapshot', { cwd: tmp10 })
   expect('场景10 · 没有远端、没有主锚 → detect 得不出后端（fallback）', det10.ok === true && det10.selection && det10.selection.backendId === null && det10.selection.source === 'fallback', JSON.stringify(det10.selection))
   expect('场景10 · snapshot.repo 如实为 null（不拿 gh 兜一个身份出来）', snap10.repo === null, JSON.stringify(snap10.repo))
+  const chain10 = await h10('chain', { cwd: tmp10, backendId: 'github', lang: 'zh', force: true })
+  const remote10 = chain10 && chain10.backendChain && chain10.backendChain.resolved && chain10.backendChain.resolved['gh:remote']
+  expect('场景10 · 面板「已关联 GitHub 仓库」判失败，并说清是「没有」而不是「有多个」', remote10 && remote10.status === 'fail' && String(remote10.detail).indexOf('没有指向 GitHub 的远端') >= 0, JSON.stringify(remote10))
 
+  // ============ 场景 11：origin 是自建 GitLab 镜像、GitHub 是第二远端（#1566 的现场布局） ============
+  // 票面复现的就是这份布局：origin 指向自建 GitLab（任意主机名），另一个远端指向 GitHub。检查面板过去只问 origin，
+  // 于是「已关联 GitHub 仓库」恒红；现在第三级扫全部远端，唯一 GitHub 地址即身份，与会话侧的解析口径一致。
+  console.log('--- 场景 11：origin 是 GitLab 镜像、GitHub 是第二远端 → 仍认得 GitHub 身份 ---')
+  const mirrorDir = await setupGitRepo([
+    { name: 'origin', url: 'https://git.example.com/team/mirror.git' },
+    { name: 'github', url: 'https://github.com/SAXEM1997/dsh-cherry-bridge.git' },
+  ])
+  // 这一场故意让「只有 git remote -v 的 fetch 行」能得出正确身份，三条道具各证明一件事：
+  //   1) github 远端在 .git/config 里存的是别名 gh-alias:dsh-cherry-bridge.git（url.<base>.insteadOf 只在 git 读远端时展开），
+  //      能认出说明走的是 git remote -v 主路，不是退回读 .git/config；
+  //   2) push 行故意指向另一个仓库（PushOnly/PushOnlyRepo）：若把 push 行也算身份就会变成歧义，证明只取 fetch 行；
+  //   3) github-alt 与 github 是同一个仓库、只是 owner/name 大小写不同（GitHub 不区分大小写），不能被当成两个身份判歧义。
+  // 别名写进 .git/config 的 [url "…"] 段：经 git config 命令行传带引号的子段名时，Windows 上 spawnSync 不剥引号，
+  // 会把引号写进配置（本次踩过），所以直接追加配置文件，保证这里的道具就是 git 正常读到的形状。
+  fsx.appendFileSync(path.join(mirrorDir, '.git', 'config'), '\n[url "https://github.com/SAXEM1997/"]\n\tinsteadOf = gh-alias:\n')
+  spawnSync('git', ['-C', mirrorDir, 'remote', 'set-url', 'github', 'gh-alias:dsh-cherry-bridge.git'])
+  spawnSync('git', ['-C', mirrorDir, 'remote', 'set-url', '--push', 'github', 'https://github.com/PushOnly/PushOnlyRepo.git'])
+  spawnSync('git', ['-C', mirrorDir, 'remote', 'add', 'github-alt', 'https://github.com/saxem1997/DSH-Cherry-Bridge.git'])
+  const h11 = await loadPlugin({ subprocess, timer, fs: fsSvc, skills: makeSkills() })
+  ghCalls.length = 0
+  const snap11 = await h11('snapshot', { cwd: mirrorDir })
+  expect('场景11 · snapshot.repo 命中 GitHub 第二远端（大小写按首次出现的写法）', snap11.repo && snap11.repo.owner === 'SAXEM1997' && snap11.repo.name === 'dsh-cherry-bridge', JSON.stringify(snap11.repo))
+  const chain11 = await h11('chain', { cwd: mirrorDir, backendId: 'github', lang: 'zh', force: true })
+  const remote11 = chain11 && chain11.backendChain && chain11.backendChain.resolved && chain11.backendChain.resolved['gh:remote']
+  expect('场景11 · 面板「已关联 GitHub 仓库」转绿并报 owner/name', remote11 && remote11.status === 'pass' && remote11.detail === 'SAXEM1997/dsh-cherry-bridge', JSON.stringify(remote11))
+  const access11 = chain11 && chain11.backendChain && chain11.backendChain.resolved && chain11.backendChain.resolved['gh:repoAccess']
+  expect('场景11 · 「仓库在 GitHub 上可访问」不再被前一行的错误让成红（本场景 mock 的 gh 全通，应为 pass）', access11 && access11.status === 'pass', JSON.stringify(access11))
+
+  // ============ 场景 12：两个不同的 GitHub 远端 → 判歧义、不猜（#1566） ============
+  console.log('--- 场景 12：两个不同的 GitHub 远端 → 不猜，点名候选 ---')
+  const twoGithubDir = await setupGitRepo([
+    { name: 'origin', url: 'https://git.example.com/team/mirror.git' },
+    { name: 'github-a', url: 'https://github.com/FirstOwner/MirrorA.git' },
+    { name: 'github-b', url: 'https://github.com/SecondOwner/MirrorB.git' },
+  ])
+  const h12 = await loadPlugin({ subprocess, timer, fs: fsSvc, skills: makeSkills() })
+  const snap12 = await h12('snapshot', { cwd: twoGithubDir })
+  expect('场景12 · 多个不同 GitHub 远端时 snapshot.repo 不猜（为空）', !snap12.repo, JSON.stringify(snap12.repo))
+  const chain12 = await h12('chain', { cwd: twoGithubDir, backendId: 'github', lang: 'zh', force: true })
+  const remote12 = chain12 && chain12.backendChain && chain12.backendChain.resolved && chain12.backendChain.resolved['gh:remote']
+  expect('场景12 · 面板判失败并同时点名两个候选', remote12 && remote12.status === 'fail' && String(remote12.detail).indexOf('FirstOwner/MirrorA') >= 0 && String(remote12.detail).indexOf('SecondOwner/MirrorB') >= 0, JSON.stringify(remote12))
+  expect('场景12 · 失败文案说清怎么收口（把主仓库的远端命名为 origin）', remote12 && String(remote12.detail).indexOf('origin') >= 0 && String(remote12.detail).indexOf('canonical') < 0, String(remote12 && remote12.detail))
+
+  // ============ 场景 13：git 不可用 → 退回读 .git/config（#1566 第三级要能兜住） ============
+  console.log('--- 场景 13：git 二进制不可用 → 换成读 .git/config 兜底 ---')
+  // 单独建一个朴素仓库（origin 自建 GitLab + 一个 GitHub 远端）：不复用场景 11 那个带别名与大小写变体的仓库，
+  // 否则 config 兜底读到的是别名（解析不出）与大小写变体，这条用例就分不清「兜住」与「恰好」。
+  const configDir = await setupGitRepo([
+    { name: 'origin', url: 'https://git.example.com/team/mirror.git' },
+    { name: 'github', url: 'https://github.com/SAXEM1997/dsh-cherry-bridge.git' },
+  ])
+  const noGitSubprocess = Object.assign({}, subprocess, { resolveExecutable: async (name) => (name === 'git' ? null : subprocess.resolveExecutable(name)) })
+  const h13 = await loadPlugin({ subprocess: noGitSubprocess, timer, fs: fsSvc, skills: makeSkills() })
+  const snap13 = await h13('snapshot', { cwd: configDir })
+  expect('场景13 · 没有 git 可执行文件时仍从 .git/config 认出 GitHub 身份', snap13.repo && snap13.repo.owner === 'SAXEM1997' && snap13.repo.name === 'dsh-cherry-bridge', JSON.stringify(snap13.repo))
   const failed = checks.filter(c => !c.pass)
   console.log('')
   console.log('TOTAL', checks.length, 'PASS', checks.length - failed.length, 'FAIL', failed.length)

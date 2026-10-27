@@ -30,6 +30,7 @@ import type { OriginalWordsEntry } from '../../shared/issue-file/src/original-wo
 import { originalWordsFromArg } from '../../shared/issue-file/src/original-words-tool.js'
 import { planBodyWrite, moveLeadingSectionBelowTitle } from '../shell/body-write.js'
 import type { BodyWritePlan } from '../shell/body-write.js'
+import { bodyDigest as bodyDigestOf } from '../shell/body-digest.js'
 import { textWriteVerify } from '../shell/text-write-verify.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
@@ -80,6 +81,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
     const a: Record<string, unknown> = args || {}
     const key = String(a.key === undefined || a.key === null ? '' : a.key).trim()
     const est = shell.estimateFor('deck_issue_patch', a)
+    if (Object.prototype.hasOwnProperty.call(a, 'workRouteDetail') && a.workRouteDetail !== undefined) return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, 'workRouteDetail 参数已退役（#1561）：在办表不再跟在写回执里，要看就调 deck_work_route（默认只看近 24 小时在办，带 includeStale:true 看近 30 天）。这次什么都没做：没选后端、没花点数、没写盘。', { cost: { estimated: est } })
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 在会话壳里是运行时布尔，
     // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
@@ -304,8 +306,25 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
             let beforeBase: string | null = null
             let bodyPlan: BodyWritePlan | null = null
             const explicitBody = typeof a.body === 'string'
+            const wantDigest = typeof a.bodyDigest === 'string' ? String(a.bodyDigest).trim().toLowerCase() : ''
             if (typeof a.title === 'string') patch.title = a.title
-            if (explicitBody) patch.body = a.body
+            // 整段正文替换的乐观锁（#1562）：调用方先用 body='full' 读出全文与指纹，这次把指纹带来；
+            // 这里先读当前正文算指纹，对不上就一个字不动——防止两边同时改正文时后写的把先写的覆盖掉。
+            // 只改进度或原话（不传整段 body）时走下面的读改写，不用这把锁。
+            if (explicitBody && wantDigest === '') bodyProblem = '改整段正文要先带上 bodyDigest：先用 deck_issue_get(body=\'full\') 读一次，把回来的 data.body.digest 原样带来，这次正文一个字没动。'
+            else if (explicitBody && wantDigest !== '') {
+              if (sc.outOfBudget()) bodyProblem = '剩余额度不够读回旧正文验指纹：这次正文一个字没动。'
+              else {
+                const rawBase = await t.get(repo, key, {}, opCtx)
+                const baseTimeout = timeoutMessage(rawBase as unknown as TransportResult)
+                if (baseTimeout) { lockTimeout = baseTimeout; return }
+                const baseCur = must(rawBase)
+                const baseText = (baseCur && baseCur.ok === true && baseCur.data && typeof baseCur.data.body === 'string') ? baseCur.data.body : null
+                if (baseText === null) bodyProblem = '旧正文没读回来，不敢验指纹覆盖：这次正文没写，等能读回旧正文再写。'
+                else if (bodyDigestOf(baseText) !== wantDigest) bodyProblem = '正文指纹对不上：这张票在你上次读完之后被人改过，先用 deck_issue_get(body=\'full\') 重读一次，拿到新指纹再写，这次一个字没动。'
+              }
+            }
+            if (explicitBody && bodyProblem === null) patch.body = a.body
             // 点到了进度或原话时先拿到写前正文：传了整段 body 就用它，否则读回旧正文。
             if (progressEntry || originalWords) {
               if (explicitBody) beforeBase = a.body as string
@@ -420,7 +439,6 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
           status: status,
           reason: status === DECK_STATUS.OK ? '' : REFUSAL_REASONS.BACKEND_UNSUPPORTED,
           text: '票 ' + key + '：这次点了 ' + items.length + ' 步，成了 ' + items.filter((i) => i.status === 'ok').length + ' 步。',
-          workRouteDetail: a.workRouteDetail,
           data: { requested: Object.keys(wants).filter((k) => wants[k]), ticket: readBack },
           items: items,
           readBack: readBackDigest,

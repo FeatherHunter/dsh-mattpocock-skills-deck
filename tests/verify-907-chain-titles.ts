@@ -28,6 +28,9 @@ const { sourceText, spliceableJs } = require('./lib/source-text.js')
 // 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
 ;(globalThis as any).ticketLabelOf = require('../src/client/kernel/ticket-label.js').ticketLabelOf
 ;(globalThis as any).ticketLabelNodesOf = require('../src/client/kernel/ticket-label.js').ticketLabelNodesOf
+// #1563：状态栏胶囊主行的编号改成两段结构后，SessionChainCapsule 求值时还要用到 ticketLabelCapsuleFoldOf。
+// 这里和 tests/verify-chain-capsule.ts 一样补上真身 —— 不补的话那一行一求值就报 ReferenceError。
+;(globalThis as any).ticketLabelCapsuleFoldOf = require('../src/client/kernel/ticket-label.js').ticketLabelCapsuleFoldOf
 ;(globalThis as any).TICKET_LABEL_MAX_WIDTH = require('../src/client/kernel/ticket-label.js').TICKET_LABEL_MAX_WIDTH
 
 const ROOT = path.resolve(__dirname, '..')

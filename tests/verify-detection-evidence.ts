@@ -284,15 +284,37 @@ async function main(): Promise<void> {
       '多行标题时与 parseIssueTracker 同一答案（GitLab > Markdown > GitHub，出口那套 Markdown 优先的已删）',
       JSON.stringify({ outlet: r2.backendId, parser: parsed.explicitBackendId }))
 
-    // 出口从前自带一套「只看标题行」的解析器；那套已删。声明文件里只有正文关键词、没有标题行时，
-    // 今天与探测器同一答案 —— 这是本票的有意修正：一句话说清用哪个后端的地方，不该被出口漏看。
+    // #1572：声明文件里只有正文关键词、没有标题行时，判定层仍然按 #1555 的口径认这条线索，
+    // 但 origin 要如实写成 declaration-low —— 读日志与诊断的人不能把「正文提了一句」
+    // 看成「标题行声明」。认领层只认高置信标题。
     const bodyOnly = '本仓库的票记在 GitHub 上，用 gh 命令读写。\n'
     const f3 = fakeFs({ [DECL]: bodyOnly })
     const r3 = await decideBackend(CWD, { fs: f3.fs, registry: fakeRegistry(['github']), skipAutodetect: true })
     const parsed3 = parseIssueTracker(bodyOnly)
-    ok(r3.backendId === parsed3.explicitBackendId && r3.backendId === 'github' && r3.origin === 'declaration',
-      '正文关键词（没有标题行）也认，与探测器同一答案（旧的只看标题那套已删）',
+    ok(r3.backendId === parsed3.explicitBackendId && r3.backendId === 'github' && r3.origin === 'declaration-low',
+      '正文关键词（没有标题行）仍被判定层当线索用，但 origin 如实标 declaration-low（#1572）',
       JSON.stringify({ outlet: r3.backendId, parser: parsed3.explicitBackendId, origin: r3.origin }))
+
+    // 票面验收 ② 的另一半：旧模板正文提的若是 gitlab，判定层同样按低置信认下、origin 同样写 declaration-low。
+    // 认领层对同一份文档说「不是」（见 verify-1555-gitlab-claim-declaration.ts ③），两层的区别只在「判定层认线索、认领层不认」。
+    const oldDoc = '以前这里用 GitLab 管票，后来迁到别处了。\n'
+    const f5 = fakeFs({ [DECL]: oldDoc })
+    const r5 = await decideBackend(CWD, { fs: f5.fs, registry: fakeRegistry(['gitlab']), skipAutodetect: true })
+    const parsed5 = parseIssueTracker(oldDoc)
+    ok(r5.backendId === 'gitlab' && r5.origin === 'declaration-low' && parsed5.confidence === 'low',
+      '旧模板正文提 gitlab：判定层认这条低置信线索，origin 写 declaration-low（#1572 验收 ②）',
+      JSON.stringify({ outlet: r5.backendId, origin: r5.origin, parserConfidence: parsed5.confidence }))
+
+    // 调用方交回的声明读法可能带置信度（#1572）：低置信线索不能因为换了读法就被当成标题声明。
+    // 这一条钉的是 decideBackend 与工具壳装配层之间的交接形状 —— 只把钩子改回旧字符串，低置信就会悄悄变高。
+    const r4a = await decideBackend(CWD, { readDeclarationId: async () => 'gitlab', registry: fakeRegistry(['gitlab']), skipAutodetect: true })
+    ok(r4a.backendId === 'gitlab' && r4a.origin === 'declaration',
+      '读法只回 id 字符串（旧形状）：按高置信处理，origin 仍是 declaration',
+      JSON.stringify({ outlet: r4a.backendId, origin: r4a.origin }))
+    const r4b = await decideBackend(CWD, { readDeclarationId: async () => ({ id: 'gitlab', confidence: 'low', reason: 'keyword-gitlab' }), registry: fakeRegistry(['gitlab']), skipAutodetect: true })
+    ok(r4b.backendId === 'gitlab' && r4b.origin === 'declaration-low',
+      '读法带回低置信提示：origin 如实写 declaration-low，不冒充标题声明（#1572）',
+      JSON.stringify({ outlet: r4b.backendId, origin: r4b.origin }))
   }
 
   title('D 多命中按明文顺序裁剪（GitHub > Markdown > GitLab）')

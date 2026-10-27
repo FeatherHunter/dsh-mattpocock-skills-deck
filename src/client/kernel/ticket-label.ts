@@ -95,6 +95,27 @@ export const ticketLabelNodesOf = function (h: any, key: unknown, effortId: unkn
   ]
 }
 
+/**
+ * 状态栏胶囊主行里那一串编号的外层节点：目录前缀挂着让位号 12、编号尾巴不挂号。
+ *
+ * 窄下去时阶梯机只收挂号的那一段，所以目录从末尾逐字收、编号完整保留；拉宽后恢复完整写法。
+ * 空编号时回一个空外层，免得调用方再分叉；单段写法（没有编号尾巴）时前缀就是整串，整段挂号，与原来保持一致。
+ *
+ * 为什么单段与两段要共用同一个挂号 span、把号码只写一遍：让位表按号码数段落的门禁是照文本数的
+ * （tests/verify-capsule-narrow.ts 要求 1..12 每个号恰好出现一次），同一份号码写两遍就会被判成
+ * 「12 号出现 2 次」。改成一处号码 + 一处样式分叉后，行为与两段结构都不变，门禁也数得准。
+ */
+export const ticketLabelCapsuleFoldOf = function (h: any, key: unknown, effortId: unknown): any {
+  const p = ticketLabelPartsOf(key, effortId)
+  if (p.full === '') return h('span', { style: { display: 'inline-flex', alignItems: 'center', minWidth: 0, overflow: 'hidden', maxWidth: TICKET_LABEL_MAX_WIDTH } }, [])
+  return h('span', { style: { display: 'inline-flex', alignItems: 'center', minWidth: 0, overflow: 'hidden', maxWidth: TICKET_LABEL_MAX_WIDTH } }, [
+    // 挂号那一段就是真正出省略号的文字，所以省略号样式写在这一处；单段写法没有编号尾巴，自己就是整串，
+    // 按上限宽度收；两段写法里它只是可压缩的目录前缀，让出位置给编号。
+    h('span', { 'data-fold-priority': 12, style: Object.assign({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, p.number === '' ? { maxWidth: TICKET_LABEL_MAX_WIDTH } : { minWidth: 0, flex: '1 1 auto' }) }, p.prefix),
+    p.number === '' ? null : h('span', { style: { flex: 'none', whiteSpace: 'nowrap' } }, p.number),
+  ])
+}
+
 /** 在办表里一行要带的行形状（估宽只读这两段，其余不管）。 */
 export interface WorkRouteWidthRow {
   /** 后端的票号（容器行是 00 这类）。 */

@@ -55,6 +55,7 @@ async function main() {
   check(local.indexOf('.scratch') >= 0, '本地后端 howto 点名 .scratch 下的票文件不要手写')
   check(local.indexOf('deck_map_link') >= 0, '本地后端 howto 说清补边用 deck_map_link')
   check(local.indexOf('技能原文为准') >= 0, '本地后端 howto 声明与技能原文冲突时以原文为准（#1480）')
+  check(local.indexOf('上报是记账') >= 0 && local.indexOf('deck_work_route') >= 0, '本地后端 howto 说清上报只记账不带表、在办表走 deck_work_route（#1561）')
 
   // —— 其它后端：逐字不变 ——
   for (const id of ['github', 'gitlab']) {

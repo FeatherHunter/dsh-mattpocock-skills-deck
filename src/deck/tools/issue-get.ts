@@ -16,6 +16,7 @@ import { withCap } from '../shell/capped-wait.js'
 // #1090：进度区的结构化读回（{percent,note,updatedAt,entries}）与写侧共用同一份解析。
 // #1092：维护者原话区的结构化读回（{text,source,recordedAt}）同样与该区的写侧共用同一份解析。
 import { parseOriginalWords, parseProgressDetail } from '../../tracker/body-parse.js'
+import { bodyDigest, chunkBody, BODY_EXCERPT_LEN } from '../shell/body-digest.js'
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
@@ -82,8 +83,9 @@ export const definition = {
     type: 'object',
     properties: {
       key: { type: 'string', description: '票号，例如 713' },
-      comments: { type: 'number', description: '最多带回几条评论，缺省 50' },
-      section: { type: 'string', description: '只回正文里这一节（## 标题子串），缺省回全文前 2000 字' },
+      body: { type: 'string', description: '正文怎么回：excerpt 只回前 2000 字（缺省，省上下文）；full 回全文分块（大正文不截断，带指纹可验完整）。' },
+      comments: { type: 'number', description: '最多带回几条评论，缺省 0（只回总数不回正文）；要看评论正文再按需取，最大 200' },
+      section: { type: 'string', description: '只回正文里这一节（## 标题子串），缺省回正文前 2000 字' },
       blocking: { type: 'boolean', description: '要不要反向阻塞边（谁被这张票阻塞）。缺省要：读全量关系，一次查询就取回反向边，阻塞者的标题与状态随行回来。关掉只读单票本身，跳过一次反向边查询，快；反向边记空并注记，要就再调一次。' },
       ...MD_SCOPE_LOCATE,
     },
@@ -102,7 +104,9 @@ function issueBrief(issue: Record<string, unknown> | null | undefined) {
     key: issue.key, title: issue.title, state: issue.state, type: issue.type,
     labels: Array.isArray(issue.labels) ? issue.labels.map((l) => (l && l.name) || String(l)) : [],
     assignees: Array.isArray(issue.assignees) ? issue.assignees.map((a) => (a && a.login) || String(a)) : [],
-    updatedAt: issue.updatedAt || '', closedAt: issue.closedAt || '', url: issue.url || '', body: issue.body !== undefined ? issue.body : null,
+    updatedAt: issue.updatedAt || '', closedAt: issue.closedAt || '', url: issue.url || '',
+    commentCount: typeof issue.commentCount === 'number' ? issue.commentCount : (Array.isArray(issue.comments) ? issue.comments.length : 0),
+    body: issue.body !== undefined ? issue.body : null,
     // #1090：正文里的进度区按结构化形状回一份（旧字段一个不删，读的人想只取数字仍可读 body）。
     // 没写进度时是 {percent:null,note:'',updatedAt:null,entries:[]}，不是 null——「没写」与「写坏了」分开看。
     progress: parseProgressDetail(issue.body !== undefined ? issue.body : null),
@@ -165,7 +169,9 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
     const repo = shell.repoOf(pick, s)
     const scope = applyMdScope(repo, a)
     if (!scope.ok) return shell.unsupported('deck_issue_get', REFUSAL_REASONS.BAD_ARGS, scope.message, { cost: { estimated: est } })
-    const first = Math.max(0, Math.min(200, Number(a.comments) > 0 ? Math.floor(Number(a.comments)) : 50))
+    const rawComments = Number(a.comments)
+    const first = (typeof a.comments === 'number' && isFinite(rawComments) && rawComments >= 0) ? Math.max(0, Math.min(200, Math.floor(rawComments))) : 0
+    const bodyMode = String(a.body || 'excerpt').trim().toLowerCase() === 'full' ? 'full' : 'excerpt'
     // 反向边缺省要：只有显式传 false 才跳过。缺席、true、其它值一律全量，老调用方形状不动。
     const wantBlocking = a.blocking !== false
     // 沙箱策略的快照：等不到（超时、对方失败、没注入）一律按「没有」往下走，与老口径同形。
@@ -221,22 +227,33 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
       // 不替它改写成「0 条」那种看起来确定的说法（#1304）。
       if (wantBlocking && dependencies && typeof dependencies.blockingNote === 'string' && dependencies.blockingNote) notes.push(dependencies.blockingNote)
       const bodyText = typeof issue.body === 'string' ? issue.body : ''
+      const digest = bodyDigest(bodyText)
       const sec = sectionOf(bodyText, a.section)
-      if (typeof a.section === 'string' && a.section.trim() !== '' && !sec.found) notes.push('正文里没找到标题含「' + String(a.section).trim().slice(0, 60) + '」的节，回的是全文前 2000 字。')
-      const excerpt = (sec.found ? sec.text : bodyText).slice(0, sec.found ? 2000 : 2000)
+      if (typeof a.section === 'string' && a.section.trim() !== '' && !sec.found) notes.push('正文里没找到标题含「' + String(a.section).trim().slice(0, 60) + '」的节，回的是正文前 2000 字。')
+      const excerpt = (sec.found ? sec.text : bodyText).slice(0, BODY_EXCERPT_LEN)
+      const commentTotal = typeof (issue as { commentCount?: unknown }).commentCount === 'number' ? (issue as { commentCount: number }).commentCount : (Array.isArray(issue.comments) ? issue.comments.length : 0)
+      if (bodyMode === 'excerpt') notes.push(bodyText.length <= BODY_EXCERPT_LEN ? '正文共 ' + bodyText.length + ' 字，已全量在上面 ticket.body / excerpt 里（指纹 ' + digest.slice(0, 12) + '）：写回正文时仍要先 body=\'full\' 取指纹再传 bodyDigest。' : '正文只回前 2000 字（全文共 ' + bodyText.length + ' 字，指纹 ' + digest.slice(0, 12) + '）：要全文带 body=\'full\' 再调一次，按分块回、可验指纹。')
+      if (first === 0) notes.push('评论默认 0 条（共有 ' + commentTotal + ' 条）：要看评论正文带 comments=N 再调一次（最大 200），总数这次已给。')
       const stateText = String(issue.state || '未知状态')
       const closedText = issue.closedAt ? '（关闭于 ' + String(issue.closedAt).slice(0, 10) + '）' : ''
       // 反向边不全时，条数后面跟一句「可能不全」：数字本身照给（已经看到的那些是真的），但别让读者当成全量。
       const blockingText = wantBlocking
         ? ('阻塞别人 ' + rel.blocking.length + ' 条' + (dependencies && dependencies.blockingComplete === false ? '（可能不全，见注记）。' : '。'))
         : '阻塞别人未取（blocking=false）。'
+      const brief = issueBrief(issue)
+      if (brief && bodyMode === 'excerpt') brief.body = excerpt
+      const bodyPayload = bodyMode === 'full'
+        ? { mode: 'full', length: bodyText.length, digest: digest, chunks: chunkBody(bodyText) }
+        : { mode: 'excerpt', length: bodyText.length, digest: digest, text: excerpt }
       return {
         value: {
           status: DECK_STATUS.OK,
           text: '票 ' + key + ' 读回来了：状态 ' + stateText + closedText + '，父票 ' + (rel.parentKey || '（没有）') + '，被阻塞 ' + rel.blockedBy.length + ' 条，' + blockingText,
           data: {
-            ticket: issueBrief(issue),
+            ticket: brief,
             excerpt: excerpt,
+            body: bodyPayload,
+            commentCount: commentTotal,
             section: sec.found ? { name: sec.name, text: excerpt } : null,
             relations: rel,
             landings: {

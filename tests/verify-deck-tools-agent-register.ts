@@ -1,7 +1,7 @@
-// verify-deck-tools-agent-register.ts —— 门禁：九个 deck_* 工具真的交到 agent 手上（#741)
+// verify-deck-tools-agent-register.ts —— 门禁：十个 deck_* 工具真的交到 agent 手上（#741)
 // 用法：在插件根目录执行 node tests/verify-deck-tools-agent-register.ts，可独立运行。
 //
-// 为什么要这一段：九个工具的实现与宿主装配都在（实现由 verify-deck-tools.js 盯着，装配由
+// 为什么要这一段：十个工具的实现与宿主装配都在（实现由 verify-deck-tools.js 盯着，装配由
 // verify-1109-matches-timeout.ts、verify-1150-plan-store-durable.ts、verify-723-gate-wiring.ts
 // 盯着），但 agent 的工具列表里一个都看不见 ——
 // 从来没有一处调用过工具注册。这一段盯最后那一步：
@@ -30,7 +30,7 @@ async function waitFor(cond, what, rounds) {
   throw new Error('等不到：' + what)
 }
 
-const SEVEN_NAMES = [
+const TEN_NAMES = [
   'deck_context',
   'deck_issue_get',
   'deck_map_snapshot',
@@ -40,6 +40,7 @@ const SEVEN_NAMES = [
   'deck_map_link',
   'deck_issue_patch',
   'deck_issue_report',
+  'deck_work_route',
 ]
 
 // 注册表允许出现在参数写法里的键（与线上工具注册实现同一份白名单，逐字对齐）。
@@ -114,7 +115,7 @@ function stubTable(seven, failOn) {
 }
 
 async function main() {
-  console.log('九个 deck_* 工具的 agent 注册门禁（#741：注册一处、形状合法、只转发、不掀宿主）')
+  console.log('十个 deck_* 工具的 agent 注册门禁（#741：注册一处、形状合法、只转发、不掀宿主）')
 
   // ── 0. 注册帮助模块存在且只用纯函数 ──
   let agent = null
@@ -135,7 +136,7 @@ async function main() {
   check(row && Array.isArray(row.inject) && row.inject.indexOf('tools') >= 0, '行模块注入工具服务（框架保证就绪才加载）')
   check(typeof row.name === 'string' && row.name.length > 0, '行模块有名字')
 
-  // ── 1. 用九个真定义跑转换：名字齐、形状合法、必填对上 ──
+  // ── 1. 用十个真定义跑转换：名字齐、形状合法、必填对上 ──
   const toolFiles = [
     'src/deck/tools/context.ts',
     'src/deck/tools/issue-get.ts',
@@ -146,10 +147,11 @@ async function main() {
     'src/deck/tools/map-link.ts',
     'src/deck/tools/issue-patch.ts',
     'src/deck/tools/issue-report.ts',
+    'src/deck/tools/work-route.ts',
   ]
   const seven = []
   for (const f of toolFiles) seven.push((await imp(f)).definition)
-  check(seven.map((d) => d.name).join(',') === SEVEN_NAMES.join(','), '九个真定义名字齐且顺序与装配口一致')
+  check(seven.map((d) => d.name).join(',') === TEN_NAMES.join(','), '十个真定义名字齐且顺序与装配口一致')
   // 真实现直引（仓库开发依赖，与线上同版本）：官方编译与原生判定都不拿桩冒充。
   const realTools = await imp('node_modules/@deepseek-ai/dsh-tools/lib/index.js')
   const realDefineTool = realTools.defineTool
@@ -179,18 +181,18 @@ async function main() {
       d.name + ' 信封里有 data 时把明细一起交给模型（#809）')
   }
 
-  // ── 2. 注册行为（全桩）：九个都交出去、执行只转发、不抛 ──
+  // ── 2. 注册行为（全桩）：十个都交出去、执行只转发、不抛 ──
   const svc = stubToolsSvc()
   const table = stubTable(seven, null)
   const res = await agent.registerDeckAgentTools(svc, table, realDefineTool)
-  check(res && res.registered && res.registered.join(',') === SEVEN_NAMES.join(','), '一次注册九个，一个不少')
+  check(res && res.registered && res.registered.join(',') === TEN_NAMES.join(','), '一次注册十个，一个不少')
   check(!res.missing || res.missing.length === 0, '缺件清单为空')
   const one = svc.registered.filter((t) => t.name === 'deck_issue_create')[0]
   const out = await one.execute({ title: '演示票', kind: 'issue' }, { agent: { session: { cwd: '/ws', id: 's1' } } })
   check(out && out.status === 'ok' && out.text === '桩回包：deck_issue_create', '执行转发到宿主那张表并只回它的 value')
   check(out && !Object.hasOwn(out, 'claimed'), '记账数不外露（闸里已经记过）')
-  // 九个逐个真执行一遍：转发的路每条都通，回包都有状态与一句话。
-  const demoArgs = { deck_context: {}, deck_issue_get: { key: '01' }, deck_map_snapshot: { key: '01' }, deck_issue_list: {}, deck_issue_create: { title: 't', kind: 'issue' }, deck_map_plan_create: { title: 't', children: [] }, deck_map_link: { key: '01' }, deck_issue_patch: { key: '01' }, deck_issue_report: { key: '01' } }
+  // 十个逐个真执行一遍：转发的路每条都通，回包都有状态与一句话。
+  const demoArgs = { deck_context: {}, deck_issue_get: { key: '01' }, deck_map_snapshot: { key: '01' }, deck_issue_list: {}, deck_issue_create: { title: 't', kind: 'issue' }, deck_map_plan_create: { title: 't', children: [] }, deck_map_link: { key: '01' }, deck_issue_patch: { key: '01' }, deck_issue_report: { key: '01' }, deck_work_route: {} }
   for (const t of svc.registered) {
     const got = await t.execute(demoArgs[t.name], { agent: { session: { cwd: '/ws' } } })
     check(got && typeof got.status === 'string' && typeof got.text === 'string' && got.text.length > 0, t.name + ' 执行通，回包带状态与一句话')
@@ -214,16 +216,16 @@ async function main() {
   check(noSvc && noSvc.registered.length === 0 && (noSvc.reason || '').length > 0, '服务不在只进 reason，不抛')
   const emptyTable = await agent.registerDeckAgentTools(stubToolsSvc(), { names: [], definitions: [], tools: {} }, realDefineTool)
   check(emptyTable && emptyTable.registered.length === 0 && emptyTable.reason === 'empty-table', '表是空的给空表原因（不谎报已交过）')
-  // 退路（工具包没装好、defineTool 传不进来）：直接按注册表形状交，九个照样出去。
+  // 退路（工具包没装好、defineTool 传不进来）：直接按注册表形状交，十个照样出去。
   const rawSvc = stubToolsSvc()
   const raw = await agent.registerDeckAgentTools(rawSvc, table, null)
-  check(raw && raw.registered.join(',') === SEVEN_NAMES.join(',') && (!raw.missing || raw.missing.length === 0),
-    '没 defineTool 走退路，九个照样注册')
+  check(raw && raw.registered.join(',') === TEN_NAMES.join(',') && (!raw.missing || raw.missing.length === 0),
+    '没 defineTool 走退路，十个照样注册')
   const rawOne = rawSvc.registered.filter((t) => t.name === 'deck_issue_get')[0]
   const rawDef = seven.filter((d) => d.name === 'deck_issue_get')[0]
   check(rawOne && rawOne.parameters === rawDef.parameters && typeof rawOne.execute === 'function',
     '退路参数用定义里编好的那份原样交（注册表不重编，直接当模式用）')
-  // 退路九个的形状逐个过原生子集判定（官方写法走编译器，退路走这一关），
+  // 退路十个的形状逐个过原生子集判定（官方写法走编译器，退路走这一关），
   // 再过一遍真原生判定（手写判定只防回归，真实现才是准绳）。
   for (const t of rawSvc.registered) {
     const rProblems = []
@@ -252,21 +254,21 @@ async function main() {
   //   inject 声明里是 connection 而不是 webServer。这些钉的都是手写源码的写法与字面量，
   //   改写法、搬文件、调注入顺序就会变红，按维护者要求整段去掉（连带只用在这里的 readText）。
 
-  // ── 5. 钩子行为（全桩）：有服务就交九个，没服务静默跳过 ──
+  // ── 5. 钩子行为（全桩）：有服务就交十个，没服务静默跳过 ──
   check(typeof agent.hookDeckAgentTools === 'function', '交出 hookDeckAgentTools（接线调的就是它）')
   const hookSvc = stubToolsSvc()
   agent.hookDeckAgentTools({ tools: hookSvc }, async function () { return table }, async function () { return { defineTool: realDefineTool } })
-  await waitFor(function () { return hookSvc.registered.length === 9 }, '钩子交出九个')
-  check(hookSvc.registered.length === 9, '钩子交出九个（官方写法）')
+  await waitFor(function () { return hookSvc.registered.length === 10 }, '钩子交出十个')
+  check(hookSvc.registered.length === 10, '钩子交出十个（官方写法）')
   const hookRawSvc = stubToolsSvc()
   agent.hookDeckAgentTools({ tools: hookRawSvc }, async function () { return table }, async function () { return null })
-  await waitFor(function () { return hookRawSvc.registered.length === 9 }, '退路钩子交出九个')
-  check(hookRawSvc.registered.length === 9, '拿不到工具包时钩子走退路，九个照样交')
+  await waitFor(function () { return hookRawSvc.registered.length === 10 }, '退路钩子交出十个')
+  check(hookRawSvc.registered.length === 10, '拿不到工具包时钩子走退路，十个照样交')
   let hookCrashed = false
   try { agent.hookDeckAgentTools({}, async function () { return table }, async function () { return null }) } catch (e) { hookCrashed = true }
   await sleep(50)
   check(!hookCrashed, '工具服务不在，钩子静默等几轮（宿主照常起）')
-  // 服务晚到两秒：钩子第一轮取不到，等一轮再取到，九个照样交。
+  // 服务晚到两秒：钩子第一轮取不到，等一轮再取到，十个照样交。
   const lateCtx = {}
   const lateSvc = stubToolsSvc()
   const lateReports = []
@@ -274,8 +276,8 @@ async function main() {
     function (info) { lateReports.push(info) }, { retries: 30, waitMs: 20 })
   await sleep(100)
   lateCtx.tools = lateSvc
-  await waitFor(function () { return lateSvc.registered.length === 9 }, '晚到的服务', 700)
-  check(lateSvc.registered.length === 9, '服务晚到，钩子等到再交（不等死也不错过）')
+  await waitFor(function () { return lateSvc.registered.length === 10 }, '晚到的服务', 700)
+  check(lateSvc.registered.length === 10, '服务晚到，钩子等到再交（不等死也不错过）')
   check(lateReports.length === 1 && lateReports[0].ok === true && typeof lateReports[0].ms === 'number',
     '交出去终点报告成功（含耗时）')
   // 报告函数抛错不连累钩子；服务始终没有终点报告没交出去。
@@ -308,15 +310,15 @@ async function main() {
   try { noLog({ ok: true, ms: 1 }); noLog({ ok: false, reason: 'x' }) } catch (e) { reportCrashed = true }
   check(!reportCrashed, '日志口不在，报告静默跳过')
 
-  // ── 7. 行模块：agent 层那一行交出九个加探针和建议 ──
+  // ── 7. 行模块：agent 层那一行交出十个加探针和建议 ──
   const rowSvc = stubToolsSvc()
   let rowCrashed = null
   try { row.apply({ tools: rowSvc, connection: {} }) } catch (e) { rowCrashed = e }
   check(!rowCrashed, '行模块应用不抛（服务在就交）')
   const rowNames = rowSvc.registered.map((t) => t.name)
-  check(SEVEN_NAMES.every((n) => rowNames.indexOf(n) >= 0), '行模块交出九个 deck 工具')
+  check(TEN_NAMES.every((n) => rowNames.indexOf(n) >= 0), '行模块交出十个 deck 工具')
   check(rowNames.indexOf('deck_probe') >= 0, '行模块交出探针')
-  check(rowNames.indexOf('suggest_next_steps') >= 0, '行模块交出建议工具（单独登记，不进九工具）')
+  check(rowNames.indexOf('suggest_next_steps') >= 0, '行模块交出建议工具（单独登记，不进十工具）')
   const probe = rowSvc.registered.filter((t) => t.name === 'deck_probe')[0]
   const inventory = JSON.parse(await probe.execute({}, { tools: { a: 1 }, connection: {}, agent: { session: { cwd: '/ws' } } }))
   check(inventory && inventory.tools === true && inventory.connection === true && inventory.subprocess === false,
@@ -325,15 +327,15 @@ async function main() {
   const pendOut = await pending.execute({}, { agent: { session: { cwd: '/ws' } } })
   check(pendOut && pendOut.status === 'unsupported' && String(pendOut.text).indexOf('面板') >= 0,
     '通道未通时执行诚实说明并指去面板（不谎报成功）')
-  // 注册表第二个就拒绝：剩下的照样交，坏一个不连累其余八个加探针和建议。
+  // 注册表第二个就拒绝：剩下的照样交，坏一个不连累其余九个加探针和建议。
   const flakySvc = stubToolsSvc()
   let flakyCalls = 0
   const flakyOrig = flakySvc.register
   flakySvc.register = function (tool) { flakyCalls += 1; if (flakyCalls === 2) throw new Error('注册表拒收这一个'); return flakyOrig(tool) }
   let flakyCrashed = null
   try { row.apply({ tools: flakySvc, connection: {} }) } catch (e) { flakyCrashed = e }
-  check(!flakyCrashed && flakySvc.registered.length === 10,
-    '坏一个工具的注册，剩下八个加探针和建议照样交（行不整体掀翻）')
+  check(!flakyCrashed && flakySvc.registered.length === 11,
+    '坏一个工具的注册，剩下九个加探针和建议照样交（行不整体掀翻）')
   // 工具服务不在：行起不来就明说，不静默。
   let noSvcCrashed = null
   try { row.apply({}) } catch (e) { noSvcCrashed = e }

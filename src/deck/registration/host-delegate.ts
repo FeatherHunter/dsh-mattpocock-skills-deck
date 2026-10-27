@@ -76,7 +76,7 @@ export function createDeckExec(deps: unknown): { handleDeckExec: (args: unknown)
 
     if ((DECK_TOOL_ORDER as readonly string[]).indexOf(tool) < 0) {
       fireFail('bad-tool:' + tool)
-      return unsupported(tool || 'deck', 'bad-args', '工具名不对，我没法做：请按九个 deck 工具的名字重调一次。')
+      return unsupported(tool || 'deck', 'bad-args', '工具名不对，我没法做：请按十个 deck 工具的名字重调一次。')
     }
     if (toolArgs === null || typeof toolArgs !== 'object' || Array.isArray(toolArgs)) {
       fireFail('bad-args')

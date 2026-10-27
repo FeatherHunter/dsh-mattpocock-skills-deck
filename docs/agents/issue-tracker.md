@@ -5,7 +5,7 @@ Issues and specs for this repo live as GitHub issues.
 ## 怎么做（先看这一节）
 
 **这个仓库的票，用插件自带的工具来读写，不要手敲跟踪器命令。** 这些工具坐在插件的契约层之上：工具自己
-按当前后端把事情做完，并且读回来核对；同一个工具在后端不是 GitHub 时照样能用，所以这份说明里不写命令。
+按当前后端把事情做完，并且读回来核对；同一个工具在后端不是 GitHub 时照样能用，所以这份说明的正常路径里不写命令。
 
 **这些工具回给你的是三段**：一段人话摘要、一段「本次调用的提示」（工具对这次拿得全不全的如实警告，
 有降级时才有，比如按节标题只取到一段正文），然后是一段标着「明细（JSON）」的明细。明细里装的是这次真正
@@ -21,6 +21,7 @@ Issues and specs for this repo live as GitHub issues.
 - 一次建出一整张地图（地图本身 + 子票 + 它们之间的边）→ `deck_map_plan_create`
 - 补一条边（父子边或阻塞边）→ `deck_map_link`
 - 改一张票（评论 / 标签 / 认领 / 关闭 / 改正文）→ `deck_issue_patch`
+- 查本工作区在办（谁在处理哪张票、有没有撞车）→ `deck_work_route`（写回执里不带表，要看在办就调它）
 
 工具管不到的地方只剩两件事，它们都发生在跟踪器之外：
 
@@ -28,7 +29,32 @@ Issues and specs for this repo live as GitHub issues.
 - **建仓库**：用 `gh repo create` 建好远端仓库并推上去。面板上的「创建并发布」向导会替你做这一件事，
   所以正常情况下不需要手敲它。
 
-除了上面这两件事，这份说明里不再出现任何 `gh` 命令。
+除了上面这两件事，正常路径里不写任何 `gh` 命令。工具本身出问题、或刚升级完插件时，按下节「工具故障」处理。
+
+### 工具故障
+
+这一节只在工具本身出问题、或刚升级完插件时用；正常路径仍走上面的工具，不手敲跟踪器命令。
+
+**升级后 / 工具异常时的自检**：依次调 `deck_context`、`deck_issue_list`（`limit: 3`）、`deck_issue_get`（读最近一张票）。任一条报错就停手排查，不要带着坏工具继续干活；但报的如果是下一条说的已知回归，按替代命令绕开就行，不必重新诊断。每次升级只跑一次，不必每轮跑（三条加起来点数不多，别每轮都跑）。
+
+**按版本自过期的已知回归**：安装版本 ≤ `1.9.0-beta.26` 时，`deck_issue_list` 报 `ToolOutputError` / `value is not lossless JSON` 属已知回归（回执的 `data` 里带了 `undefined`，修复见 #1559，代码已进 main 但还没发版），不要重新诊断；等 npm 上出了含修复的版本、安装版本越过它，本条自动失效。
+
+**替代命令**（应急用，不进日常）：列票 `gh issue list --state open --label bug --limit 200 --json number,title,labels,updatedAt`；读回 `gh api repos/{owner}/{repo}/issues/{n}`；关单 `gh api -X PATCH repos/{owner}/{repo}/issues/{n} -f state=closed`；摘标签 `gh api -X DELETE repos/{owner}/{repo}/issues/{n}/labels/{name}`。同一套动作也封装成了 `scripts/issue-emergency.ps1`（`-Action read|close|unlabel|body`，加 `-DryRun` 只打印将要执行的命令）：四个动作都先读回、再写、写后核对，写失败还会读回确认是否其实已经落盘。
+
+**版本三查**：本机装的是哪个版本 —— `(Get-Content "$env:USERPROFILE\.dsh\profiles\desktop\package.json" -Raw | ConvertFrom-Json).dependencies.'dsh-mattpocock-skills-deck'`；工作区 `package.json` 的版号；`npm view dsh-mattpocock-skills-deck version` 的远端最新。三个数一起看：工作区版号是正在开发的版本，不是本机跑着的版本。
+
+**失败回执怎么读**：`status`、`reason` 都在回执的「明细（JSON）」那一段里。`status` 三态（`ok` / `partial` / `unsupported`）；`reason` 按下一步分四档——可重试（`backend-threw` 等）/ 等额度（`ai-tool-refused`）/ 后端做不到（`backend-unsupported`）/ 超时（`backend-timeout`）；另外几种少见原因码（`gate-defer` / `bad-args` / `no-backend`）遇到时直接看回执里的说明文字。`items` 里逐条看哪一步失败、原因是什么；`notes` 里若写「这份清单可能不全」，就收窄条件再查一次。整份回执被判非法（报 `invalid output`）时，先按上面的自检确认是哪把工具坏了，再按替代命令绕开。
+
+**铁律**：写操作超时后一律先读回现状，不许直接重发——超时往往意味着写入其实已经落盘，重发会产生重复评论或重复关闭。
+
+### 读票时省上下文（正文与评论按需取）
+
+`deck_issue_get` 缺省只给够定位的量，不把整张票一次倒进上下文：正文只回前 2000 字（回执里同时告诉你全文多长、全文指纹是多少），评论一条正文都不回、只告诉你一共有几条。反向阻塞边与地图快照的缺省口径不变（不传就是全量）。
+
+- 要看全文：带 `body: 'full'` 再调一次。全文按 7000 字一块分块回来（单块留足渲染余量），带全文的 SHA-256 指纹；把分块按顺序拼回去就是原文，一个字节不少。写回整段正文之前，先用这一档读一次，把拿到的指纹记下来。
+- 要看评论正文：带 `comments: N` 再调一次（最多 200）。总数那一次已经给了，这次只补正文。
+- 写整段正文：必须同时带 `bodyDigest`（上一次用 `body: 'full'` 拿到的指纹）。工具先读当前正文算指纹，对不上就一个字不动地拒绝——这是防止两个人同时改正文时，后写的把先写的覆盖掉。只改评论、标签、认领、进度、原话时不用它。
+
 
 ### 写正文时的一条通用规则
 

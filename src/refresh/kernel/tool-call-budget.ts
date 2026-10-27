@@ -198,6 +198,8 @@ export function toolCostInputFrom(tool: string, args: Record<string, unknown> | 
       return Object.assign(base, { patches: 1, reads: 1, edges: one(a.parentKey) })
     case 'deck_issue_report':
       return Object.assign(base, { reads: 1 })
+    case 'deck_work_route':
+      return Object.assign(base, { reads: 1 })
     default:
       return Object.assign(base, {
         tickets: count(a.tickets as number),
