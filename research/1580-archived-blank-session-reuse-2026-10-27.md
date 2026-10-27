@@ -118,9 +118,20 @@ created = await this.agents.createSession({
 - DSH 打包件：`D:\DeepseekHarness\resources\app.asar`，客户端 `ConversationContent` 顶栏（偏移≈25148386）、`ui-workspace.openSession`（≈49145052）、`clearArchivedCurrent`（≈49152307 / ≈49149586）、归档文案（≈49300413）、Workspace 模型 `buildSnapshot`（≈21500346）、Host `SessionCommandController.create`（≈20003000 / ≈20876813）、`WorkspaceEntity` 归档注释（≈115643004 / ≈115670000）
 - 新增日志的提交：`a65498e8`（常驻事件 #134 `newsession.decide`）
 
+## 实施（2026-10-27 晚，等发版后由维护者验证关闭）
+
+维护者拍板：Q1 读不到归档名单时 fail-closed（不复用、走新建）；Q2 日志改到打开之后并在同一票里做；Q3 宿主侧 `openSession` 不额外改（不在本仓范围）。按这三条落地，实现提交 `de1bd4ba`。
+
+- `src/client/kernel/api-workspace.ts`：新增 `archivedSessionIdsOf(workspaces)`，返回 `{ known, ids, legacy }`。`workspaces` 为空（老宿主没有工作区/归档概念）→ `known=true, legacy=true`，行为不变；有新快照形状（带 `pinnedSessionIds` / `state` / `phase`）却缺归档名单、字段不是数组、读快照抛错、拿到异步结果 → `known=false, legacy=false`，调用方按 fail-closed 处理。
+- `src/client/kernel/api-new-session.ts`：`allowReuse` 升级为 `canReuse`——先验工作区名单，再跳过归档名单命中的候选；归档名单读不到（`known=false` 且非老版）也跳过。另加失败草稿台账：`__ok742a` 给被复用的非当前会话打 `reuseDraftPending`，下次挑候选时发现它仍挂着草稿就清掉残留、改走新建（防宿主静默清主区后一直踩同一个坑）。复用分支日志从打开前移到打开后：成功 `reuse-opened`、失败 `open-failed`，字段新增 `reuseSkip`（`archived` / `archive-unknown` / `stale-draft` / `gate` / 空串）。
+- 日志契约：`src/shared/log-event-list.ts`、`tests/verify-log-fields.ts`、`research/489-appendix.md` #134 段与 `scripts/generated/logKernel.derived.js` 同步为 17 个字段，`outcome` 枚举里 `reuse-draft` 换成 `reuse-opened`。
+- 门禁：`tests/verify-newsession-workspace-fallback.ts` 新增 7 条归档闸门单测 + 6 个集成场景（唯一候选已归档、最新候选已归档但较旧干净、新版快照缺名单、老版快照行为不变、当前会话已归档、失败草稿台账），104 项全过；`verify-newsession-preset-guard` 86 项、`verify-log-fields` 266 项、`verify-log-count` 209 项、`verify-kernel` 全过。`npm run verify:parallel` 410/410 步，真红 1 步 `verify-detail-levels`（快照 maps 无子票，与另一路会话未提交的检测层改动有关，本改动未触碰该链路）。
+- 限制（写清楚，免得误判）：`reuseDraftPending` 是进程内存标记，插件重载后丢失；归档名单读取按每次点击读快照，代价很小但不缓存。
+
 ### 落库信息
 
-- 票面：正文补“已查阅范围/诊断结论/修复方向/待拍板问题”，进度更新，评论区留诊断摘要（评论开头按 `/triage` 规矩写 AI 生成声明）。
-- 标签：保持 `bug`，状态从 `needs-info` 转入待拍板状态（见票面 Q1 的推荐）。
-- 本笔记：`research/1580-archived-blank-session-reuse-2026-10-27.md`。
+- 票面：诊断结论、修复方向、Q1–Q3 已写进正文；实施完成后评论区补一条“已按 Q1/Q2 实施、Q3 不动”的说明，进度更新到 90%。
+- 标签：保持 `bug` 与 `ready-for-human`（修复已提交，等发版后由维护者验证再关闭）。
+- 实现提交：`de1bd4ba`（9 个文件，242 插入 / 29 删除，已推 main）。
+- 本笔记：`research/1580-archived-blank-session-reuse-2026-10-27.md`（早期诊断提交 `6b1f4d64`，本段更新提交见本次推送）。
 - 未改业务代码，未提交源码改动；本笔记自身的提交为 `6b1f4d64`（已推 main）。
