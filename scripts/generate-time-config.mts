@@ -198,6 +198,8 @@ const KEYS: Array<[string, string, string]> = [
   // —— ttl：有效期 ——
   ['preflightTtlMs', 'PREFLIGHT_TTL_MS', 'ttl'],
   ['chainAllGreenTtlMs', 'CHAIN_ALL_GREEN_TTL_MS', 'ttl'],
+  // #1528：一趟环境检查里两项判据共用 `.scratch` 根目录列举结果的重合窗口。
+  ['scratchRootListingTtlMs', 'SCRATCH_ROOT_LISTING_TTL_MS', 'ttl'],
   ['deferExpiryMs', 'DEFER_EXPIRY_MS', 'ttl'],
   ['failureHalfOpenDelayMs', 'FAILURE_HALF_OPEN_DELAY_MS', 'ttl'],
   ['attentionExpiryMs', 'ATTENTION_EXPIRY_MS', 'ttl'],

@@ -90,6 +90,8 @@ const REFERENCES: RefRow[] = [
   { file: 'src/host/platform/namingSummary.ts', access: 'SUMMARY_TIMEOUT_MS', gen: 'NAMING_SUMMARY_TIMEOUT_MS', key: 'namingSummaryTimeoutMs' },
   { file: 'src/host/namingGuardian.ts', access: 'NAMING_FALLBACK_MS', gen: 'NAMING_FALLBACK_INTERVAL_MS', key: 'namingFallbackIntervalMs' },
   { file: 'src/host/skillProbeCache.ts', access: 'SKILL_PROBE_CACHE_MS', gen: 'SKILL_PROBE_CACHE_MS', key: 'skillProbeCacheMs' },
+  // #1528：一趟环境检查里两项判据共用同一份 `.scratch` 根目录列举结果，重合窗口住中央 YAML。
+  { file: 'src/tracker/rooms/markdown/scratch-listing.ts', access: 'SCRATCH_ROOT_LISTING_TTL_MS', gen: 'SCRATCH_ROOT_LISTING_TTL_MS', key: 'scratchRootListingTtlMs' },
   { file: 'src/refresh/rooms/host/chain-coalescing.ts', access: 'CHAIN_RIDE_MAX_AGE_MS', gen: 'CHAIN_RIDE_MAX_AGE_MS', key: 'chainRideMaxAgeMs' },
   { file: 'src/refresh/rooms/host/refresh-runtime.ts', access: 'DECK_ENSURE_TIMEOUT_MS', gen: 'DECK_ENSURE_TIMEOUT_MS', key: 'deckEnsureMs' },
   { file: 'src/refresh/registry/quota-sync-bridge.ts', access: 'QUOTA_SYNC_HARD_COOLDOWN_MS', gen: 'QUOTA_SYNC_HARD_COOLDOWN_MS', key: 'quotaSyncHardCooldownMs' },

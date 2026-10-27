@@ -27,6 +27,8 @@
  *   ⑨ .scratch 列不出来            → md:workspace = fail：读不出工作区不能谎报「空工作区」，容器判据也 fail，预检点名「本地工作区能不能读」
  *   ⑩ 容器文件写了不支持的版本号   → md:containersReadable = fail：md-v2 认不得，不能静默按 v1 读，预检点名「本地地图与规格文件能不能读」
  *   ⑪ 容器文件读不出来             → md:containersReadable = fail：权限坏掉要说读不出，不能当成没有容器文件，预检点名同一项
+ *   ⑫ 一趟检查里 .scratch 根目录只列一次（#1528）：工作区判据与容器判据要的是同一份名字表，
+ *      链上并行求值、房间预检顺序求值，两处都只许向文件服务要一次；多列一次就是重复扫描。
  *
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-1512-md-chain.ts
  * 门禁归属: src/tracker/rooms/markdown/workspace-checks.ts
@@ -101,6 +103,13 @@ function underAny(list: string[], target: string): boolean {
 }
 
 function makePlatform(trouble: FsTrouble = {}): AnyObj {
+  /**
+   * 这层文件服务被要求列过哪些路径（按发生顺序）。
+   *
+   * 为什么夹具要记这个：场景⑫ 钉的是「一趟检查里 .scratch 根目录只列一次」（#1528）。重复扫描看不见结论，
+   *   只能从文件服务这一层看它被问了几次；记在平台对象上，场景在跑完之后自己数。
+   */
+  const listCalls: string[] = []
   const fsAdapter: AnyObj = {
     async resolve(p: unknown, opts?: unknown): Promise<string> {
       const raw = String(p)
@@ -116,6 +125,7 @@ function makePlatform(trouble: FsTrouble = {}): AnyObj {
     },
     async listDir(t: unknown): Promise<string[]> {
       const p = String(t)
+      listCalls.push(p)
       if (underAny(trouble.unreadableDirs || [], p)) throw deniedError('scandir', p, 'EACCES')
       let st: any
       try { st = fs.statSync(p) } catch (e) { throw deniedError('scandir', p, 'ENOENT') }
@@ -149,6 +159,7 @@ function makePlatform(trouble: FsTrouble = {}): AnyObj {
   return {
     path: path.posix,
     fs: fsAdapter,
+    listCalls: listCalls,
     env: { get: () => undefined, has: () => false },
     os: process.platform,
     getHome: () => os.homedir(),
@@ -412,6 +423,31 @@ async function main(): Promise<void> {
       ok(pf.probe.ok === false, '场景⑪：房间预检不通过')
       const message = String((pf.probe.error && pf.probe.error.message) || '')
       ok(message.indexOf('预检没过：本地地图与规格文件能不能读') >= 0, '场景⑪：预检点名「本地地图与规格文件能不能读」→ ' + message.slice(0, 160))
+    }
+
+    console.log('\n== 十二、一趟检查里 .scratch 根目录只列一次（#1528）==')
+    {
+      // 为什么这一条要单独量：三项判据的结论早就被上面几段钉住了，重复列盘是「结论对、活干了两遍」，
+      //   只有从文件服务这一层看它被问了几次才看得见。链上三项是并行求值的，房间预检是顺序求值的，
+      //   两种跑法都该让工作区判据与容器判据共用同一份名字表，而不是各列各的。
+      const ws = newWs('c12-list-once-')
+      writeTextAt(ws, '.scratch/demo/spec.md', SPEC_TEXT)
+      const root = path.posix.join(ws, '.scratch')
+      const rootListingCount = (platform: AnyObj): number =>
+        ((platform.listCalls as string[]) || []).filter((one: string) => one === root).length
+
+      currentPlatform = makePlatform()
+      const reply = await chainRun(ws)
+      ok(reply.ok === true, '场景⑫：链求值成功回包', JSON.stringify(reply.error))
+      assertMdShape('场景⑫', reply)
+      const listingCount = rootListingCount(currentPlatform)
+      ok(listingCount === 1, '场景⑫：一趟链求值里 .scratch 根目录只列一次 → 实得 ' + listingCount + ' 次')
+
+      currentPlatform = makePlatform()
+      const pf = await preflightRun(ws)
+      ok(pf.probe.ok === true, '场景⑫：房间预检照旧通过', pf.probe && pf.probe.error && pf.probe.error.message)
+      const preflightListingCount = rootListingCount(currentPlatform)
+      ok(preflightListingCount === 1, '场景⑫：一趟房间预检里 .scratch 根目录只列一次 → 实得 ' + preflightListingCount + ' 次')
     }
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true })
