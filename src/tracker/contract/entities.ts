@@ -147,6 +147,8 @@ export interface Issue {
   blockedBy?: IssueRef[]
   /** 评论（决策记录）。 */
   comments?: Comment[]
+  /** 评论总数（后端能给就给，拿不到就省略；调用方不许拿 comments.length 当总数）。 */
+  commentCount?: number
   /** 是不是拉取请求：能判断就写 true/false，判断不了就省略这个字段。 */
   isPullRequest?: boolean
   /** 合并时间，还没合并是 `null`；没有拉取请求能力的后端省略。 */

@@ -120,6 +120,11 @@ async function loadModule(spec: string): Promise<unknown> {
 
 function normalize(value: unknown, rootPosix: string, rootWin: string, wsKey: string): unknown {
   const isoRe = /20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z/g
+  // 正文指纹是正文原文的 SHA-256：原文里幂等锚等字段每次运行都一样，但归一化只抹路径与时间，
+  // 指纹本身跑两次就会变（哈希放大了归一化抹掉的那点差别）。基准里只钉「有指纹、64 位十六进制」这个形状，
+  // 值用占位符归一；指纹算法的正确性由体积极小的专用断言另守，不在这里逐字节比。
+  const digestRe = /\b[0-9a-f]{64}\b/g
+  const shortRe = /指纹 [0-9a-f]{12}/g
   const walk = (v: unknown): unknown => {
     if (typeof v === 'string') {
       let s = v
@@ -127,6 +132,8 @@ function normalize(value: unknown, rootPosix: string, rootWin: string, wsKey: st
       if (rootWin && rootWin !== rootPosix) s = s.split(rootWin).join('<ROOT>')
       if (wsKey) s = s.split(wsKey).join('<WSKEY>')
       s = s.replace(isoRe, '<TIME>')
+      s = s.replace(digestRe, '<DIGEST>')
+      s = s.replace(shortRe, '指纹 <DIGEST12>')
       return s
     }
     if (Array.isArray(v)) return v.map(walk)

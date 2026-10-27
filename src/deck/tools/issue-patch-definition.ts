@@ -19,7 +19,8 @@ export const definition = {
       removeLabels: { type: 'array', items: { type: 'string' }, description: '要摘掉的标签' },
       assignees: { type: 'array', items: { type: 'string' }, description: '认领人（整批替换；给空数组就是取掉认领）' },
       title: { type: 'string', description: '新的标题' },
-      body: { type: 'string', description: '新的正文' },
+      body: { type: 'string', description: '新的正文（整段替换）：要先用 deck_issue_get(body=\'full\') 读出全文与指纹，把读到的指纹放在 bodyDigest 里一起传，否则这次正文不动。只改进度或原话不传整段正文时不用它。' },
+      bodyDigest: { type: 'string', description: '写整段正文时的乐观锁：上一次用 body=\'full\' 读到的正文指纹（data.body.digest）。工具先读当前正文算指纹，对不上就一个字不动地拒绝，防止把别人的改动覆盖掉。' },
       originalWords: {
         type: 'object',
         description: '追加一条维护者原话到正文的「## 维护者原话」区（紧跟「## 目的」，没有目的区就放正文最前）：{text, source}，source 必填。原话一字不改（不润色、不改标点、不翻译、不摘要），只追加、不编辑不删除不排序；同一段原话 + 同一出处已经写过时幂等跳过。三个后端都写进票的正文，不进评论。正文超过 60KB 时拒绝写入、一个字节不动。',

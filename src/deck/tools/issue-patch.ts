@@ -30,6 +30,7 @@ import type { OriginalWordsEntry } from '../../shared/issue-file/src/original-wo
 import { originalWordsFromArg } from '../../shared/issue-file/src/original-words-tool.js'
 import { planBodyWrite, moveLeadingSectionBelowTitle } from '../shell/body-write.js'
 import type { BodyWritePlan } from '../shell/body-write.js'
+import { bodyDigest as bodyDigestOf } from '../shell/body-digest.js'
 import { textWriteVerify } from '../shell/text-write-verify.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
@@ -304,8 +305,25 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
             let beforeBase: string | null = null
             let bodyPlan: BodyWritePlan | null = null
             const explicitBody = typeof a.body === 'string'
+            const wantDigest = typeof a.bodyDigest === 'string' ? String(a.bodyDigest).trim().toLowerCase() : ''
             if (typeof a.title === 'string') patch.title = a.title
-            if (explicitBody) patch.body = a.body
+            // 整段正文替换的乐观锁（#1562）：调用方先用 body='full' 读出全文与指纹，这次把指纹带来；
+            // 这里先读当前正文算指纹，对不上就一个字不动——防止两边同时改正文时后写的把先写的覆盖掉。
+            // 只改进度或原话（不传整段 body）时走下面的读改写，不用这把锁。
+            if (explicitBody && wantDigest === '') bodyProblem = '改整段正文要先带上 bodyDigest：先用 deck_issue_get(body=\'full\') 读一次，把回来的 data.body.digest 原样带来，这次正文一个字没动。'
+            else if (explicitBody && wantDigest !== '') {
+              if (sc.outOfBudget()) bodyProblem = '剩余额度不够读回旧正文验指纹：这次正文一个字没动。'
+              else {
+                const rawBase = await t.get(repo, key, {}, opCtx)
+                const baseTimeout = timeoutMessage(rawBase as unknown as TransportResult)
+                if (baseTimeout) { lockTimeout = baseTimeout; return }
+                const baseCur = must(rawBase)
+                const baseText = (baseCur && baseCur.ok === true && baseCur.data && typeof baseCur.data.body === 'string') ? baseCur.data.body : null
+                if (baseText === null) bodyProblem = '旧正文没读回来，不敢验指纹覆盖：这次正文没写，等能读回旧正文再写。'
+                else if (bodyDigestOf(baseText) !== wantDigest) bodyProblem = '正文指纹对不上：这张票在你上次读完之后被人改过，先用 deck_issue_get(body=\'full\') 重读一次，拿到新指纹再写，这次一个字没动。'
+              }
+            }
+            if (explicitBody && bodyProblem === null) patch.body = a.body
             // 点到了进度或原话时先拿到写前正文：传了整段 body 就用它，否则读回旧正文。
             if (progressEntry || originalWords) {
               if (explicitBody) beforeBase = a.body as string

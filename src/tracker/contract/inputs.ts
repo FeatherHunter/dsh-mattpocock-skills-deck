@@ -58,7 +58,7 @@ export interface ListFilter {
 
 /** 读单票的选项（今天只有评论分页一项）。 */
 export interface GetOpts {
-  /** 评论分页：要前几条、从哪个游标之后开始。 */
+  /** 评论分页：要前几条、从哪个游标之后开始。first 为 0 表示一条评论正文都不要（只拿总数，能给就给）。 */
   comments?: { first: number; after?: string }
 }
 
