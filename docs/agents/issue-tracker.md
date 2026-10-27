@@ -5,7 +5,7 @@ Issues and specs for this repo live as GitHub issues.
 ## 怎么做（先看这一节）
 
 **这个仓库的票，用插件自带的工具来读写，不要手敲跟踪器命令。** 这些工具坐在插件的契约层之上：工具自己
-按当前后端把事情做完，并且读回来核对；同一个工具在后端不是 GitHub 时照样能用，所以这份说明里不写命令。
+按当前后端把事情做完，并且读回来核对；同一个工具在后端不是 GitHub 时照样能用，所以这份说明的正常路径里不写命令。
 
 **这些工具回给你的是三段**：一段人话摘要、一段「本次调用的提示」（工具对这次拿得全不全的如实警告，
 有降级时才有，比如按节标题只取到一段正文），然后是一段标着「明细（JSON）」的明细。明细里装的是这次真正
@@ -34,15 +34,15 @@ Issues and specs for this repo live as GitHub issues.
 
 这一节只在工具本身出问题、或刚升级完插件时用；正常路径仍走上面的工具，不手敲跟踪器命令。
 
-**升级后 / 工具异常时的自检**：依次调 `deck_context`、`deck_issue_list`（`limit: 3`）、`deck_issue_get`（读最近一张票）。任一条报错就停手排查，不要带着坏工具继续干活。每次升级只跑一次，不必每轮跑（三条合计约 10 点额度）。
+**升级后 / 工具异常时的自检**：依次调 `deck_context`、`deck_issue_list`（`limit: 3`）、`deck_issue_get`（读最近一张票）。任一条报错就停手排查，不要带着坏工具继续干活；但报的如果是下一条说的已知回归，按替代命令绕开就行，不必重新诊断。每次升级只跑一次，不必每轮跑（三条加起来点数不多，别每轮都跑）。
 
-**按版本自过期的已知回归**：安装版本 ≤ `1.9.0-beta.25` 时，`deck_issue_list` 报 `ToolOutputError` / `value is not lossless JSON` 属已知回归（回执的 `data` 里带了 `undefined`），不要重新诊断；修好并发版、升过该版本号之后，本条自动失效。
+**按版本自过期的已知回归**：安装版本 ≤ `1.9.0-beta.26` 时，`deck_issue_list` 报 `ToolOutputError` / `value is not lossless JSON` 属已知回归（回执的 `data` 里带了 `undefined`，修复见 #1559，代码已进 main 但还没发版），不要重新诊断；等 npm 上出了含修复的版本、安装版本越过它，本条自动失效。
 
-**替代命令**（应急用，不进日常）：列票 `gh issue list --state open --label bug --limit 200 --json number,title,labels,updatedAt`；读回 `gh api repos/{owner}/{repo}/issues/{n}`；关单 `gh api -X PATCH repos/{owner}/{repo}/issues/{n} -f state=closed`；摘标签 `gh api -X DELETE repos/{owner}/{repo}/issues/{n}/labels/{name}`。
+**替代命令**（应急用，不进日常）：列票 `gh issue list --state open --label bug --limit 200 --json number,title,labels,updatedAt`；读回 `gh api repos/{owner}/{repo}/issues/{n}`；关单 `gh api -X PATCH repos/{owner}/{repo}/issues/{n} -f state=closed`；摘标签 `gh api -X DELETE repos/{owner}/{repo}/issues/{n}/labels/{name}`。同一套动作也封装成了 `scripts/issue-emergency.ps1`（`-Action read|close|unlabel|body`，加 `-DryRun` 只打印将要执行的命令）：四个动作都先读回、再写、写后核对，写失败还会读回确认是否其实已经落盘。
 
 **版本三查**：本机装的是哪个版本 —— `(Get-Content "$env:USERPROFILE\.dsh\profiles\desktop\package.json" -Raw | ConvertFrom-Json).dependencies.'dsh-mattpocock-skills-deck'`；工作区 `package.json` 的版号；`npm view dsh-mattpocock-skills-deck version` 的远端最新。三个数一起看：工作区版号是正在开发的版本，不是本机跑着的版本。
 
-**失败回执怎么读**：`status` 三态（`ok` / `partial` / `unsupported`）；`reason` 按下一步分四档——可重试（`backend-threw` 等）/ 等额度（`ai-tool-refused`）/ 后端做不到（`backend-unsupported`）/ 超时（`backend-timeout`）；`items` 里逐条看哪一步失败、原因是什么；`notes` 里若写「这份清单可能不全」，就收窄条件再查一次。整份回执被判非法（报 `invalid output`）时，先按上面的自检确认是哪把工具坏了，再按替代命令绕开。
+**失败回执怎么读**：`status`、`reason` 都在回执的「明细（JSON）」那一段里。`status` 三态（`ok` / `partial` / `unsupported`）；`reason` 按下一步分四档——可重试（`backend-threw` 等）/ 等额度（`ai-tool-refused`）/ 后端做不到（`backend-unsupported`）/ 超时（`backend-timeout`）；另外几种少见原因码（`gate-defer` / `bad-args` / `no-backend`）遇到时直接看回执里的说明文字。`items` 里逐条看哪一步失败、原因是什么；`notes` 里若写「这份清单可能不全」，就收窄条件再查一次。整份回执被判非法（报 `invalid output`）时，先按上面的自检确认是哪把工具坏了，再按替代命令绕开。
 
 **铁律**：写操作超时后一律先读回现状，不许直接重发——超时往往意味着写入其实已经落盘，重发会产生重复评论或重复关闭。
 

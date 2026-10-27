@@ -23,14 +23,14 @@ param(
   [string]$File = "",
   [string]$Repo = "",
   [int]$Retries = 3,
-  [string]$ApiBase = "https://api.github.com",
   [switch]$DryRun
 )
 
 $ErrorActionPreference = "Stop"
 
-# 只匹配真实见过的传输层错误；4xx/5xx 不重试，因为重试也改不了结果。
-$TransientPattern = "TLS handshake timeout|unexpected EOF|EOF|connect(ion)? refused|proxyconnect|i/o timeout"
+# 只匹配真实见过的传输层错误（裸 EOF 已经涵盖 unexpected EOF）。HTTP 状态码错误不在这里重试：
+# 写操作重发可能重复落盘，失败后由各个动作读回现状，判断是不是其实已经达成。
+$TransientPattern = "TLS handshake timeout|EOF|connect(ion)? refused|proxyconnect|i/o timeout"
 
 function Write-Info([string]$Text) { Write-Output ("[issue-emergency] " + $Text) }
 function Write-Fail([string]$Text) { [Console]::Error.WriteLine("[issue-emergency] 失败：" + $Text) }
@@ -46,16 +46,17 @@ function Resolve-Repo([string]$Given) {
 }
 
 function Invoke-Gh([string[]]$GhArgs, [string]$StdinText, [string]$What) {
+  # $Retries 是首次失败后最多再试几次，所以总尝试次数是 $Retries + 1；间隔 2/4/8 秒封顶。
   $attempt = 0
   $lastText = ""
-  while ($attempt -lt $Retries) {
+  while ($true) {
     $attempt++
     if ($null -ne $StdinText) { $out = ($StdinText | & gh @GhArgs 2>&1) } else { $out = (& gh @GhArgs 2>&1) }
     $code = $LASTEXITCODE
     $text = ($out | Out-String).Trim()
     if ($code -eq 0) { return @{ ok = $true; text = $text; attempts = $attempt } }
     $lastText = $text
-    if ($text -match $TransientPattern -and $attempt -lt $Retries) {
+    if ($text -match $TransientPattern -and $attempt -le $Retries) {
       $delay = [Math]::Min(8, [Math]::Pow(2, $attempt))
       Write-Info ($What + " 第 " + $attempt + " 次失败（传输层），" + $delay + " 秒后重试")
       Start-Sleep -Seconds $delay
@@ -69,11 +70,29 @@ function Invoke-Gh([string[]]$GhArgs, [string]$StdinText, [string]$What) {
 function Get-Issue {
   $r = Invoke-Gh @("api", $script:BasePath) $null "读回票面"
   if (-not $r.ok) { Write-Fail ("读回票面没成功（attempts=" + $r.attempts + "）：" + $r.text); exit 1 }
-  try { return ($r.text | ConvertFrom-Json) } catch { Write-Fail ("读回票面的 JSON 解析失败：" + $r.text); exit 1 }
+  $script:LastReadAttempts = $r.attempts
+  try { return ($r.text | ConvertFrom-Json) } catch {
+    # gh 偶尔把提示打到 stderr；读回时只取 JSON 本体，避免一行提示把整段解析带崩。
+    $m = [regex]::Match($r.text, '(?s){.*}')
+    if ($m.Success) { try { return ($m.Value | ConvertFrom-Json) } catch { } }
+    Write-Fail ("读回票面的 JSON 解析失败：" + $r.text); exit 1
+  }
 }
 
 function Patch-Json([string]$Json, [string]$What) {
   return Invoke-Gh @("api", "-X", "PATCH", $script:BasePath, "--input", "-") $Json $What
+}
+
+# 写在请求返回失败之后：再读一次现状，若目标状态其实已经达成（典型是请求超时但写入已落盘），
+# 就按成功收尾；否则才报失败。这一步是为了不再出现「超时后重发，结果重复评论／重复关闭」。
+function Confirm-After-Error($Result, [string]$What, [scriptblock]$Achieved, [string]$AchievedText) {
+  $issue = Get-Issue
+  if (& $Achieved $issue) {
+    Write-Info ($AchievedText + "（写入请求返回失败，但读回已达成，可能第一次请求已经落盘；attempts=" + $Result.attempts + "）。")
+    exit 0
+  }
+  Write-Fail ($What + "没成功（attempts=" + $Result.attempts + "）：" + $Result.text)
+  exit 1
 }
 
 function Show-Issue($Issue) {
@@ -92,14 +111,14 @@ $script:BasePath = "/repos/" + $script:Repo + "/issues/" + $Ticket
 if ($DryRun) {
   switch ($Action) {
     "read"    { Write-Output ("[dry-run] gh api " + $script:BasePath) }
-    "close"   { Write-Output ("[dry-run] gh api -X PATCH " + $script:BasePath + " --input -  <<< {`"state`":`"closed`"}") }
+    "close"   { Write-Output ('[dry-run] ''{"state":"closed"}'' | gh api -X PATCH ' + $script:BasePath + ' --input -') }
     "unlabel" {
       if (-not $Value) { Write-Fail "-Action unlabel 需要 -Value <标签名>"; exit 1 }
       Write-Output ("[dry-run] gh api -X DELETE " + $script:BasePath + "/labels/" + $Value)
     }
     "body"    {
       if (-not $File) { Write-Fail "-Action body 需要 -File <正文文件路径>"; exit 1 }
-      Write-Output ("[dry-run] gh api -X PATCH " + $script:BasePath + " --input -  <<< {`"body`": 文件内容（" + $File + "）}")
+      Write-Output ('[dry-run] ''{"body":"（正文文件里的内容）"}'' （正文取自 ' + $File + '） | gh api -X PATCH ' + $script:BasePath + ' --input -')
     }
   }
   Write-Info "dry-run 结束：没有发出任何写操作。"
@@ -110,18 +129,19 @@ switch ($Action) {
   "read" {
     $issue = Get-Issue
     Show-Issue $issue
+    Write-Info ("读回成功（attempts=" + $script:LastReadAttempts + "）。")
     exit 0
   }
 
   "close" {
     $issue = Get-Issue
     if ($issue.state -eq "closed") {
-      Write-Info "已达成、未写：票本来就是 closed，不重发关闭。"
+      Write-Info ("已达成、未写：票本来就是 closed，不重发关闭（读回 attempts=" + $script:LastReadAttempts + "）。")
       exit 0
     }
     $json = @{ state = "closed" } | ConvertTo-Json -Compress
     $r = Patch-Json $json "关闭票"
-    if (-not $r.ok) { Write-Fail ("关闭没成功（attempts=" + $r.attempts + "）：" + $r.text); exit 1 }
+    if (-not $r.ok) { Confirm-After-Error $r "关闭" { param($i) $i.state -eq "closed" } "读回确认票已是 closed" }
     $after = Get-Issue
     if ($after.state -eq "closed") { Write-Info ("已关闭并读回核对通过（attempts=" + $r.attempts + "）。"); exit 0 }
     Write-Fail ("关闭请求返回成功，但读回仍是 " + $after.state + "，请人工核对。")
@@ -133,11 +153,11 @@ switch ($Action) {
     $issue = Get-Issue
     $labels = @($issue.labels | ForEach-Object { $_.name })
     if ($labels -notcontains $Value) {
-      Write-Info ("已达成、未写：标签 " + $Value + " 本来就不在票上。")
+      Write-Info ("已达成、未写：标签 " + $Value + " 本来就不在票上（读回 attempts=" + $script:LastReadAttempts + "）。")
       exit 0
     }
     $r = Invoke-Gh @("api", "-X", "DELETE", ($script:BasePath + "/labels/" + $Value)) $null "摘标签"
-    if (-not $r.ok) { Write-Fail ("摘标签没成功（attempts=" + $r.attempts + "）：" + $r.text); exit 1 }
+    if (-not $r.ok) { Confirm-After-Error $r ("摘标签 " + $Value) { param($i) (@($i.labels | ForEach-Object { $_.name }) -notcontains $Value) } "读回确认标签已不在票上" }
     $after = Get-Issue
     $afterLabels = @($after.labels | ForEach-Object { $_.name })
     if ($afterLabels -notcontains $Value) { Write-Info ("标签已摘掉并读回核对通过（attempts=" + $r.attempts + "）。"); exit 0 }
@@ -152,16 +172,16 @@ switch ($Action) {
     $newBody = $newBody -replace "`r`n", "`n"
     $issue = Get-Issue
     $oldBody = ([string]$issue.body) -replace "`r`n", "`n"
-    if ($oldBody -eq $newBody) {
-      Write-Info "已达成、未写：正文与文件逐字一致。"
+    if ($oldBody.TrimEnd() -eq $newBody.TrimEnd()) {
+      Write-Info ("已达成、未写：正文与文件一致（首尾空白不计，读回 attempts=" + $script:LastReadAttempts + "）。")
       exit 0
     }
     $json = @{ body = $newBody } | ConvertTo-Json -Compress
     $r = Patch-Json $json "改正文"
-    if (-not $r.ok) { Write-Fail ("改正文没成功（attempts=" + $r.attempts + "）：" + $r.text); exit 1 }
+    if (-not $r.ok) { Confirm-After-Error $r "改正文" { param($i) ((([string]$i.body) -replace "`r`n", "`n").TrimEnd() -eq $newBody.TrimEnd()) } "读回确认正文已是新内容" }
     $after = Get-Issue
     $afterBody = ([string]$after.body) -replace "`r`n", "`n"
-    if ($afterBody -eq $newBody) { Write-Info ("正文已写入并逐字读回核对通过（attempts=" + $r.attempts + "）。"); exit 0 }
+    if ($afterBody.TrimEnd() -eq $newBody.TrimEnd()) { Write-Info ("正文已写入并读回核对通过（首尾空白不计，attempts=" + $r.attempts + "）。"); exit 0 }
     Write-Fail ("正文写入后读回与文件不一致：长度 " + $afterBody.Length + " vs " + $newBody.Length + "，请人工核对。")
     exit 1
   }
