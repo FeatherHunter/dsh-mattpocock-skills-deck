@@ -35,6 +35,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 // chooseWorkspace 顶替工作区文件、用真人选出口的夹具 makeDecideStub 顶替生产出口：工具读到的
 // 就还是「这个工作区用户亲手选过 markdown」，写用途才会放行；中途换后端也照旧换一笔账。
 import { chooseWorkspace, makeDecideStub } from './lib/deck-decide-stub.js'
+import { losslessProblems, describeLosslessProblems } from './lib/json-lossless.js'
 // #1511：编号写成「#目录/编号」的真实现住在 kernel/ticket-label.ts。本门禁按文本/模块单独加载视图叶子，
 // 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
 ;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
@@ -271,6 +272,11 @@ async function main() {
     let r: any = null
     let threw = ''
     try { r = await tools[name].run(exec, args) } catch (e) { threw = String((e && (e as Error).message) || e) }
+    // #1559：宿主收工具返回值时要求无损 JSON；这里给本门禁跑到的每一次调用都过同一份判据。
+    if (r !== null && r !== undefined) {
+      const problems = losslessProblems(r)
+      check(problems.length === 0, name + ' 回执是无损 JSON' + (problems.length ? '：' + describeLosslessProblems(problems, 3) : ''))
+    }
     return { r, threw }
   }
 
