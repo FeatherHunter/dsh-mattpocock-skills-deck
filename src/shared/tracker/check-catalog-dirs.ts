@@ -112,7 +112,10 @@ export const GENERIC_CATALOG: readonly CatalogItem[] = Object.freeze([
 ])
 
 /** GitHub 后端检查目录（仅 github 适用，物理隔离，其他后端该行不存在）。
- * #227 D7：仓库定位(c1 backend) / gh CLI(c4) / gh 登录(c5) / API 可达(c6) 4 项迁移，语义与 9 项一致；gh:labels 保留作仓库就绪链标签引导。
+ * #227 D7：仓库定位(c1 backend) / gh CLI(c4) / gh 登录(c5) / API 可达(c6) 4 项迁移，语义与 9 项一致。
+ * 2026-10-27（#1223）：已退役的旧标签检查目录项删除——运行时清单本来就算 4 项，目录却多声明一行，
+ *   只能靠运行期一条过滤把多出来的行藏住；删掉之后目录与运行时清单逐字对齐，由
+ *   tests/verify-1223-catalog-runtime-parity.ts 守住不再分叉。
  */
 export const GITHUB_CATALOG: readonly CatalogItem[] = Object.freeze([
   {
@@ -148,14 +151,6 @@ export const GITHUB_CATALOG: readonly CatalogItem[] = Object.freeze([
     backends: ['github'],
     check: { kind: 'backend', id: 'repoAccess', backendId: 'github' },
     origin: 'backends/github/preflight.js:3 / inventory 类别 8 c6',
-  },
-  {
-    id: 'gh:labels',
-    label: '标签已齐（10 核心标签）',
-    scope: 'backend',
-    backends: ['github'],
-    check: { kind: 'backend', id: 'labels', backendId: 'github' },
-    origin: 'host/checkLabels / inventory 类别 4/6',
   },
 ])
 
@@ -276,10 +271,9 @@ export const MIGRATION_MAP = Object.freeze({
   'skill:ask-matt': 'GENERIC_CATALOG[2]',
   'env:home': 'GENERIC_CATALOG[3]',
   'tracker:initialized': 'GENERIC_CATALOG[4]',
-  'gh:installed': 'GITHUB_CATALOG[0]',
-  'gh:authed': 'GITHUB_CATALOG[1]',
-  'gh:repoAccess': 'GITHUB_CATALOG[2]',
-  'gh:labels': 'GITHUB_CATALOG[3]',
+  'gh:installed': 'GITHUB_CATALOG[1]',
+  'gh:authed': 'GITHUB_CATALOG[2]',
+  'gh:repoAccess': 'GITHUB_CATALOG[3]',
   'glab:installed': 'GITLAB_CATALOG[0]',
   'glab:authed': 'GITLAB_CATALOG[1]',
   'glab:repoAccess': 'GITLAB_CATALOG[2]',

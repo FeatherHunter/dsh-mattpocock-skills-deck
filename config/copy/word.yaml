@@ -149,8 +149,6 @@ zh:
   check.gh:authed.fail: 已登录 GitHub
   check.gh:repoAccess.pass: 仓库在 GitHub 上可访问
   check.gh:repoAccess.fail: 仓库在 GitHub 上可访问
-  check.gh:labels.pass: 标签已齐（10 核心标签）
-  check.gh:labels.fail: 标签已齐（10 核心标签）
   check.glab:installed.pass: GitLab CLI (glab) 已安装
   check.glab:installed.fail: GitLab CLI (glab) 已安装
   check.glab:authed.pass: glab 已登录
@@ -359,8 +357,6 @@ en:
   check.gh:authed.fail: Signed in to GitHub
   check.gh:repoAccess.pass: Repo is reachable on GitHub
   check.gh:repoAccess.fail: Repo is reachable on GitHub
-  check.gh:labels.pass: Labels complete (10 core labels)
-  check.gh:labels.fail: Labels complete (10 core labels)
   check.glab:installed.pass: GitLab CLI (glab) is installed
   check.glab:installed.fail: GitLab CLI (glab) is installed
   check.glab:authed.pass: Signed in to glab

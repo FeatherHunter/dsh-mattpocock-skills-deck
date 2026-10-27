@@ -2,7 +2,7 @@
 const { createOutboundControl } = require('../src/refresh/rooms/host/outbound-control.ts')
 // tests/verify-992-readonly-labels.ts —— #992 只读仓库标签能力降级专属门禁（不联网）
 //
-// 测什么（定版“最终方案”第 1–6 项 + Q6/Q7；第 7 项 `gh:labels` 清理属 #1001，不在这里）：
+// 测什么（定版“最终方案”第 1–6 项 + Q6/Q7；第 7 项旧标签检查清理属 #1223，不在这里）：
 //   A) 分类只修真错的一句：GraphQL 复数权限句（does not have the correct permissions /
 //      AddLabelsToLabelable）在 errors.js 与 preflight.js 都归 auth；HTTP 404 仍归 not-found（不动）。
 //   B) 权限单源 helper：同批复用只真问一次；问不出来回 null（调用方走“分不清”分支，不瞎猜）。

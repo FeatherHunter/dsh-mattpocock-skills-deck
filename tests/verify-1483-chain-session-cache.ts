@@ -39,7 +39,7 @@ const ok = (cond: boolean, msg: string, detail?: unknown): void => {
 async function main(): Promise<void> {
   // 用真实的 markdown 后端目录搭出后端链：md:scratchWritable 带 sessionScoped，另外两项不带。
   const chain: AnyObj[] = catalogFor('markdown')
-    .filter((c: AnyObj) => c.scope === 'backend' && c.id !== 'gh:labels')
+    .filter((c: AnyObj) => c.scope === 'backend')
     .map((c: AnyObj) => catalogItemToCheckItem(c as any) as AnyObj)
 
   const cachedResolved: AnyObj = {}
