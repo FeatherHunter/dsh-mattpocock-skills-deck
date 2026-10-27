@@ -281,7 +281,13 @@ function storeOf (patch?: Record<string, unknown>): any {
   check(detailsAt >= 0, '通路冷却：仍给得出「原始说明」折叠区')
   check(text.includes(ZH.networkShort), '通路冷却：主行说一句人话（实得：「' + text.slice(0, 80) + '」）')
   check(html.indexOf(ZH.networkShort) >= 0 && html.indexOf(ZH.networkShort) < detailsAt, '通路冷却：人话在折叠区之前的失败主行上')
-  check(detailsAt >= 0 && html.indexOf('没有起进程') > detailsAt, '通路冷却：整段技术原文收在折叠区里（不再铺在主行）')
+  // 折叠条（<summary>）始终可见，只许放短提示；整段技术原文必须留在展开后的正文里。
+  // 只判「原文在 <details> 之后」不够：原文在 <summary> 里也算满足，会长文重新铺满可见区。
+  const summaryAt = html.indexOf('<summary')
+  const summaryEnd = summaryAt >= 0 ? html.indexOf('</summary>', summaryAt) : -1
+  const summaryText = summaryAt >= 0 && summaryEnd > summaryAt ? html.slice(summaryAt, summaryEnd) : ''
+  check(summaryText.indexOf('没有起进程') < 0, '通路冷却：折叠条只留短提示，不重复整段技术原文（实得：「' + summaryText.slice(0, 80) + '」）')
+  check(summaryEnd > 0 && html.indexOf('没有起进程') > summaryEnd, '通路冷却：整段技术原文只放在展开后的正文里（不再铺在主行或折叠条）')
   check(text.includes(raw), '通路冷却：原始说明（raw）也仍在折叠区里')
   check(text.includes('重试'), '通路冷却：重试按钮照常给')
 }

@@ -29,11 +29,15 @@ export const issueErrorViewOf = function (h: any, e: any): any {
   const rawText = longNetwork
     ? (direct ? said + '\n\n' + direct : said)
     : (direct || ((e && typeof e.error === 'string') ? String(e.error).trim() : ''))
+  // 折叠条（<summary>）本身始终可见，只能放短提示：长 network 时优先用 raw 里的短标签（例如
+  // 「gh admission: transport cooling down」），没有短标签就用主行那句人话；整段技术原文只放进展开后的
+  // 正文里，否则会出现「主行降噪了，折叠条却又把长文铺一遍」。
+  const rawSummary = longNetwork ? (direct || tr('detail.err.networkShort')) : rawText
   const rawBlock = rawText
     ? h('details', { style: { width: '100%', marginTop: 2, paddingTop: 4, borderTop: '1px solid rgba(248,113,113,.25)' } }, [
       // 本次界面反馈需求：错误原文的折叠条能点，给它悬停反馈、按压态与自己的点击日志。
       //   原文是自由文本，不进定位串。
-      h('summary', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'detail.err.raw.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('vc.fail.raw', { msg: rawText })),
+      h('summary', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'detail.err.raw.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('vc.fail.raw', { msg: rawSummary })),
       h('div', { style: { marginTop: 4, padding: '6px 8px', background: 'rgba(0,0,0,.18)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 6, fontSize: 11, lineHeight: 1.6, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto' } }, rawText),
     ])
     : null
