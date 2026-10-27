@@ -7,15 +7,25 @@
 // 口径（与读出口同源，数值真源见 config/ttl.yaml，不在这里再写第二份）：
 //   存档只留 30 天内动过的条目；在办指 24 小时内动过，超过 24 小时、未满 30 天记为陈旧；
 //   存档上限 2MB，超限按时间从旧到新裁。回执里如实说来源与这三条上限，不让人猜。
+//   回执里那三个数不是写死的文案：保留期与在办窗口从中央 YAML 的生成常量算，体积上限从
+//   裁剪那一份字节数算，改 YAML（或改 CHAIN_MAX_BYTES）这里跟着变。
 //   隐私：会话只给 sessionLabel（例如「会话 ab12cd」），原始会话 id 永不进回执。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
-// 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+// 超时与两个窗口都住中央 YAML，调时间改 config/timeouts.yaml 与 config/ttl.yaml，这里只导入。
+import { DECK_SANDBOX_TIMEOUT_MS, WORK_ROUTE_ACTIVE_WINDOW_MS, WORK_ROUTE_IN_PROGRESS_WINDOW_MS } from '../../shared/time-config/src/values.js'
+import { CHAIN_MAX_BYTES } from '../../refresh/kernel/chain-pruning.js'
 import { withCap } from '../shell/capped-wait.js'
+
+/** 单位换算：一小时多少毫秒。这是数学定义，不是可调时长（回执里把窗口换算成「小时」给人看）。 */
+const HOUR_MS = 3_600_000
+/** 单位换算：一天多少毫秒（24 小时）。同上，把保留期换算成「天」。 */
+const DAY_MS = 24 * HOUR_MS
+/** 回执里「存档上限」那句的体积写法：由裁剪用的那一份字节数推出来，不在这里再抄一个「2MB」。 */
+const CHAIN_MAX_BYTES_LABEL = Math.round(CHAIN_MAX_BYTES / (1024 * 1024)) + 'MB'
 
 /**
  * 装配层注入的依赖袋。壳要的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
@@ -185,7 +195,7 @@ export function createDeckWorkRoute(deps?: DeckWorkRouteDeps) {
         limit: limit,
         groups: groups,
         source: 'local-archive',
-        limits: { retentionDays: 30, activeHours: 24, maxBytes: '2MB' },
+        limits: { retentionDays: WORK_ROUTE_IN_PROGRESS_WINDOW_MS / DAY_MS, activeHours: WORK_ROUTE_ACTIVE_WINDOW_MS / HOUR_MS, maxBytes: CHAIN_MAX_BYTES_LABEL },
       }
       if (collisions.length > 0) data.collisions = collisions
       const head = includeStale
