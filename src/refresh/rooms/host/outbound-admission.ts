@@ -36,7 +36,7 @@
  */
 
 import { TUNING } from '../../contract/tuning-parameters.js'
-import { TRANSPORT_COOLDOWN_MS } from '../../../tracker/kernel/outbound-tiers.js'
+import { TRANSPORT_COOLDOWN_MS, OUTBOUND_QUEUE_TIMEOUT_CODE, outboundQueueTimeoutOf } from '../../../tracker/kernel/outbound-tiers.js'
 import { LANE_LONG_WAIT_LOG_MS, LANE_WAIT_LOG_INTERVAL_MS } from '../../../shared/time-config/src/values.js'
 
 // 取值住共用调参表（真源 src/refresh/contract/tuning-parameters.ts），这里只留缺表回落的缺省值（与今天一致）。
@@ -138,15 +138,18 @@ export function isAdmissionCancelled(err: unknown): boolean {
   return !!(err && ((err as { code?: unknown }).code === ADMISSION_CANCELLED || (err as { admissionCancelled?: unknown }).admissionCancelled === true))
 }
 
-/** 排队超时的标记：调用方据此回「排队太久、一次都没跑起来」，按可重试处理。 */
-export const ADMISSION_QUEUE_TIMEOUT = 'admission-queue-timeout'
+/**
+ * 排队超时的标记：调用方据此回「排队太久、一次都没跑起来」，按可重试处理。
+ * 值只有一处真源（kernel 的 OUTBOUND_QUEUE_TIMEOUT_CODE），这里只转出口，不写第二份字面量。
+ */
+export const ADMISSION_QUEUE_TIMEOUT = OUTBOUND_QUEUE_TIMEOUT_CODE
 
 /**
  * 是不是「排队等过了调用方给的预算」。与取消分开判：取消是调用方主动放弃，排队超时是名额竞争输了。
- * 类型说明：错误值可能是任意形状，断言只做类型读取，运行时仍是原键读取。
+ * 判定复用 kernel 的 outboundQueueTimeoutOf，保证闸与四条出站路认的是同一把尺子。
  */
 export function isAdmissionQueueTimeout(err: unknown): boolean {
-  return !!(err && ((err as { code?: unknown }).code === ADMISSION_QUEUE_TIMEOUT || (err as { admissionQueueTimeout?: unknown }).admissionQueueTimeout === true))
+  return outboundQueueTimeoutOf(err) !== null
 }
 
 /** 排队预算归一：只认有限正数（毫秒，向下取整）；没给、非数字、非正数一律按「不设上限」（0）处理。 */
@@ -477,19 +480,21 @@ export function resetGhLaneForTest(): void { defaultLane = null }
 
 /**
  * 排队拿名额再跑（#965 共用包装器，给行数到顶的文件用，免得每个调用方各写一遍拿与放）。
- * 满了等（等不是失败）；排队被取消（或排队超预算，传了 waitMs 时）调 onQueuedCancel；
+ * 满了等（等不是失败）；排队出队（被取消，或传了 waitMs 且等到预算用完）时调 onQueueFailure：
+ * 回调拿到的是原始错误，调用方用 isAdmissionCancelled / outboundQueueTimeoutOf 分清是哪一种——
+ * 取消按取消返回、排队超时按可重试失败返回，两者不能混成一条回话。
  * 跑完放名额（成功失败都放，抛错也放）。
  * 用法：return withGhLane({ bucket: 'read', signal: opts.signal, waitMs: budget }, async function () { …真起进程… },
- *   function () { return { kind: 'cancelled', cancelled: true } })。
- * 类型说明：host 域文件，只做类型标注；取消回调允许缺省（缺省时取消仍会抛，与原来一致）。
+ *   function (e) { return outboundQueueTimeoutOf(e) ? RETRY_REPLY : CANCELLED_REPLY })。
+ * 类型说明：host 域文件，只做类型标注；失败回调允许缺省（缺省时错误仍会抛，与原来一致）。
  */
-export async function withGhLane(laneOpts: GhLaneOpts | null | undefined, run: () => unknown, onQueuedCancel?: (e: unknown) => unknown): Promise<unknown> {
+export async function withGhLane(laneOpts: GhLaneOpts | null | undefined, run: () => unknown, onQueueFailure?: (e: unknown) => unknown): Promise<unknown> {
   const o: GhLaneOpts = laneOpts || {}
   let release: (() => void) | null = null
   try {
     release = await getGhLane().acquire({ bucket: o.bucket || 'read', signal: o.signal || undefined, service: o.service, waitMs: o.waitMs })
   } catch (e) {
-    return onQueuedCancel!(e)
+    return onQueueFailure!(e)
   }
   try {
     return await run()

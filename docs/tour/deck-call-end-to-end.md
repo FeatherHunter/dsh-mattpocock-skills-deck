@@ -321,7 +321,7 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 | 退出码归一 | :403-409 | 拿不到整数退出码按 `-1` 记失败，不再当 0（:405-407 讲了为什么） |
 | 错误分类 | :427 | `ghVerdictOf({code, text})`：先本家前置扩展表 `GH_ERROR_RULES`（`src/tracker/rooms/github/errors.ts:65-153`，数组顺序即判档顺序，层次只许 `fact` → `errcode` → `phrase` → `vague` → `fallback`，见 :63），再通用表（:162-164）；`classifyGhError`（:180）是只要档位的简写版 |
 
-**排队最多等多久由闸管（#1570）**：`execGh` 不再自己起一只「排队上限」表；它只把预算 `queueLimit = queueTimeoutForTier(timeout)`（:280，本档预算与中央 `ghQueueWaitTimeoutMs` 更小的那个）填进 `acquire` 的 `waitMs`。准入闸（`src/refresh/rooms/host/outbound-admission.ts`）排队时按这个预算起表，到点先从队里摘下这一笔、抛带 `admission-queue-timeout` 标记的错误（带 `waitedMs` 与 `limitMs`），再把晚到的名额交给后面排队的人——迟到名额不泄漏。回话由各出口按自己的口径拼：房间说「排队 X 毫秒，到点时还没拿到名额」，宿主说「一次都没有跑起来」，平台通道与 adhoc 说「可重试」。计时、到点判定与名额归还都只有闸这一份；四条出站路（房间 client、宿主 runGh、平台通道 detectionExec、adhoc execProc）都只递预算。
+**排队最多等多久由闸管（#1570）**：`execGh` 不再自己起一只「排队上限」表；它只把预算 `queueLimit = queueTimeoutForTier(timeout)`（:280，本档预算与中央 `ghQueueWaitTimeoutMs` 更小的那个）填进 `acquire` 的 `waitMs`。准入闸（`src/refresh/rooms/host/outbound-admission.ts`）排队时按这个预算起表，到点先从队里摘下这一笔、抛带 `admission-queue-timeout` 标记的错误（带 `waitedMs` 与 `limitMs`），再把晚到的名额交给后面排队的人——迟到名额不泄漏。回话由各出口按自己的口径拼：房间说「排队 X 毫秒，到点时还没拿到名额」，宿主说「一次都没有跑起来」，平台通道与自建操作上下文的 execProc 说「可重试」。计时、到点判定与名额归还都只有闸这一份；四条出站路（房间 client、宿主 runGh、平台通道 detectionExec、自建操作上下文的 execProc）都只递预算，其中 glab 沿用旧行为、不设排队上限（本票只下沉 gh 的排队预算）。
 
 **十个工具在 GitHub 房间各发什么命令**
 
@@ -347,7 +347,7 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 
 - 命令没起来（`gh` 不在 PATH、没登录）：`kind: 'env'` 或 `'auth'`，`code: -1`。
 - 到点没回话：`kind: 'network'`，原文「gh 在 N 毫秒内没有回话（房内分档超时：读 12 秒 / 写 30 秒 / 探活 15 秒），这一笔已经中止」（:361；括号里那三个秒数由 `src/tracker/kernel/outbound-tiers.ts` 的档位常量现算，改档时文案跟着走、不会漂）。
-- 排队到点还没拿到名额：闸抛的排队超时错误（code `admission-queue-timeout`，带 `waitedMs` / `limitMs`），房间回「排队 X 毫秒，到点时还没拿到名额」，按网络类失败、可重试处理；宿主、平台通道与 adhoc 各按自己的口径回同一条事实（#1570）。
+- 排队到点还没拿到名额：闸抛的排队超时错误（code `admission-queue-timeout`，带 `waitedMs` / `limitMs`），房间回「排队 X 毫秒，到点时还没拿到名额」，按网络类失败、可重试处理；宿主、平台通道与自建操作上下文的 execProc 各按自己的口径回同一条事实（#1570）。
 - 排队中被取消：「已取消排队（出站准入等待中被取消），没有发出请求，可重试」（:377）。
 - 命令跑了但退出码非 0：按 `ghVerdictOf` 分类，事实与退出码一起交表（:454-460）。
 

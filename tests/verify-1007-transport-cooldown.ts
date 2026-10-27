@@ -223,6 +223,7 @@ async function main(): Promise<void> {
     // 回话与上报的共用口径住在 tracker/kernel/outbound-tiers.ts（宿主不能新建指向刷新房或宿主兄弟文件的边）。
     const reportSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/kernel/outbound-tiers.ts'), 'utf8')
     check(/ghCooldownReply/.test(platSrc) && /outboundCooldownOf/.test(reportSrc) && /通路现在不通/.test(reportSrc), '五、平台通道的探测出口经共享口径把冷却翻译成「通路不通」', '')
+    check(/waitMs:\s*deIsGh\s*\?\s*queueTimeoutForTier/.test(platSrc), '五、平台通道的探测出口把 gh 的排队预算递给闸（glab 不设上限）', '')
     const admSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/outbound-admission.ts'), 'utf8')
     check(/gh\.transport/.test(admSrc) && /admission-cooldown/.test(admSrc), '五、准入闸里有常驻的冷却轨迹与冷却错误标记', '')
     // 排队上限只在 YAML 里有一处定义；#1570 起「到点由闸抛排队超时、归还晚到名额」住在闸里，出口只递预算。
@@ -233,7 +234,8 @@ async function main(): Promise<void> {
     // #1007 复核：三条出站通道拿名额时都要报服务名，GitHub 的通路故障才不会挡住 GitLab 与 git。
     check(/service:\s*deIsGh\s*\?\s*'github'\s*:\s*'gitlab'/.test(platSrc), '五、平台通道按 gh / glab 分别报服务名（GitHub 冷却不挡 glab）', '')
     const gitExecSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/git-execution.ts'), 'utf8')
-    check(/service:\s*xpIsGh\s*\?\s*'github'\s*:\s*'gitlab'/.test(gitExecSrc), '五、adhoc 执行通道按 gh / glab 分别报服务名（GitHub 冷却不挡 glab）', '')
+    check(/service:\s*xpIsGh\s*\?\s*'github'\s*:\s*'gitlab'/.test(gitExecSrc), '五、自建操作上下文的 execProc 按 gh / glab 分别报服务名（GitHub 冷却不挡 glab）', '')
+    check(/waitMs:\s*xpIsGh\s*\?\s*queueTimeoutForTier/.test(gitExecSrc), '五、execProc 把 gh 的排队预算递给闸（glab 不设上限）', '')
     const vcSrc = fs.readFileSync(path.join(ROOT, 'src/host/versionControl.ts'), 'utf8')
     check(/withGhLane\(\{[^}]*service:\s*'git'/.test(vcSrc), '五、本地 git 命令拿名额时报 service=git（GitHub 冷却不挡 git）', '')
     const ctlSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/outbound-control.ts'), 'utf8')
@@ -297,6 +299,9 @@ async function main(): Promise<void> {
   setGhLaneLogCtx(null)
   const transportOnly = transportEvents.filter((e: any) => e.event === 'gh.transport')
   check(transportOnly.length >= 2 && transportOnly.every((e: any) => Object.keys(e.fields).every((k) => ['decision', 'bucket', 'reason', 'remainingMs', 'failStreak', 'cmd'].indexOf(k) >= 0)), '五、gh.transport 只记枚举、数字与命令短标签（字段都在白名单内，不记命令原文）', JSON.stringify(transportOnly.slice(0, 2)))
+  // 闸自身的排队轨迹不许换名夹带：除 gh.transport 外只允许排队饱和/排队等待两种。
+  const otherEvents = transportEvents.filter((e: any) => e.event !== 'gh.transport')
+  check(otherEvents.every((e: any) => e.event === 'gh.lane.saturated' || e.event === 'gh.lane.wait'), '五、闸的排队轨迹只有饱和与等待两种，不夹带别的日志', JSON.stringify(otherEvents.map((e: any) => e.event).slice(0, 5)))
   console.log('\n共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
   process.exit(failed ? 1 : 0)
 }
