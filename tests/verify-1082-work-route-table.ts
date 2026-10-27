@@ -368,12 +368,12 @@ async function main() {
   // 表头与每一行仍共用算出来的同一份（对齐要求不变，见下）。
   check(tracks[0] === '56px' && tracks[3] === '48px' && tracks[4] === '36px' && tracks[5] === '36px', '默认模板：票号 56px，动作、动作时间、是否在办定宽不变')
   check(workRouteCellsFor([{ ticketKey: '101' }]).split(' ')[0] === '56px', '自适应：短编号行仍是 56px')
-  check(workRouteCellsFor([{ ticketKey: '00', effortId: 'demo' }]).split(' ')[0] === '96px', '自适应：「#demo/00」这类放宽到 96px，目录不缩写')
-  // #1565：分档封顶不再另写 192px，就是徽标上限（136px，同一个数推出来）—— 最宽一档不再比徽标宽 56px。
+  check(workRouteCellsFor([{ ticketKey: '00', effortId: 'demo' }]).split(' ')[0] === '68px', '自适应：「#demo/00」这类放宽到 68px，目录不缩写')
+  // #1565：分档封顶不再另写 192px，就是徽标上限（85px，同一个数推出来）—— 最宽一档不再比徽标宽 56px。
   check(WORK_ROUTE_FIRST_COL_TIERS_PX[WORK_ROUTE_FIRST_COL_TIERS_PX.length - 1] === TICKET_LABEL_MAX_WIDTH_PX, '分档表最后一档等于徽标上限（' + TICKET_LABEL_MAX_WIDTH_PX + 'px，两处同源）')
   check(WORK_ROUTE_FIRST_COL_TIERS_PX.every(function (t: number) { return t <= TICKET_LABEL_MAX_WIDTH_PX }), '分档表每一档都不超过徽标上限（格子不会比徽标宽）')
   check(workRouteCellsFor([{ ticketKey: '00', effortId: 'undefined-wf1089-bodies-20261021' }]).split(' ')[0] === TICKET_LABEL_MAX_WIDTH, '自适应：32 字超长目录封顶在徽标上限 ' + TICKET_LABEL_MAX_WIDTH + '（#1565：不再白留 56px；再长走省略号+悬停）')
-  check(workRouteCellsFor([{ ticketKey: '00', effortId: 'notes-inbox' }]).split(' ')[0] === TICKET_LABEL_MAX_WIDTH, '自适应：中等目录「#notes-inbox/02」仍拿最宽一档 ' + TICKET_LABEL_MAX_WIDTH + '（不因收窄被误截）')
+  check(workRouteCellsFor([{ ticketKey: '00', effortId: 'notes-inbox' }]).split(' ')[0] === TICKET_LABEL_MAX_WIDTH, '自适应：中等目录「#notes-inbox/02」估宽超上限，拿最宽一档 ' + TICKET_LABEL_MAX_WIDTH + '（目录走省略号、`/` 与编号完整，悬停补全文）')
   check(pxOf(tracks[4]) < 72 && pxOf(tracks[5]) < 48, '「动作时间」与「是否在办」两列比改版前窄（72→36、48→36），省下的宽度让给标题与会话')
   // #1553 维护者口径：六列每一列都设计最大宽度，内容自适应变宽、到上限不再变宽。
   // 标题 150~320px（10 个汉字保底，约 29 个字到顶）、会话 104~200px（约 9 字保底、18 字到顶）。

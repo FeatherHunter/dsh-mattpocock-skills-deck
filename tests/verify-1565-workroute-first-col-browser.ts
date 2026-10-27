@@ -5,7 +5,8 @@
 //   G1 最宽一档的格子宽 == 徽标上限：格子与徽标等宽，不再白留；同一页面里按改前的 192px 模板再画一份作反证，
 //      它必须量出约 56px 的留白 —— 证明这把尺子抓得住这个毛病，不会永远绿。
 //   G2 同一面板宽度下，标题列真的变宽、长标题可见的字符真的变多（改前模板 vs 现在模板，同一个容器宽度）。
-//   G3 中等长度目录（#notes-inbox/02）仍完整显示，没有被这次收窄误截。
+//   G3 中等长度目录（#notes-inbox/02）按新上限走省略号：目录段被裁、`/` 与完整编号仍可见，
+//      没有被这次收窄误截掉编号。
 //
 // 页面是怎么来的（这一节是这门禁的立身之本，改之前先读一遍）：
 //   不是手抄一份 CSS 再量自己抄的东西，而是把 src/client/views/shared/workRouteTable.ts 按构建同一做法求值，
@@ -47,7 +48,7 @@ const PRE_1565_FIRST_COL_PX = 192
 const LONG_TITLE = '把在办表的标题列宽度量出来看看这次改动到底能多显示几个汉字'
 // 11px 字下整串约 150px，超过徽标上限：逼出首列最宽一档。
 const LONG_EFFORT = 'wayfinder-capability-test'
-// 「#notes-inbox/02」按估宽约 117px：中等长度目录，收窄后必须仍完整显示。
+// 「#notes-inbox/02」按估宽约 117px：超过新上限 85px，走目录省略号，`/` 与编号完整保留（#1579）。
 const MEDIUM_EFFORT = 'notes-inbox'
 
 function esc(s: any): string {
@@ -269,6 +270,7 @@ async function main(): Promise<void> {
           const title = longRow.children[1]
           const mediumBadge = mediumRow.children[0]
           const mediumPrefix = mediumBadge.children[0]
+          const mediumNumber = mediumBadge.children[1]
           return {
             sectionWidth: sectionEl.getBoundingClientRect().width,
             gridWidth: longRow.getBoundingClientRect().width,
@@ -289,6 +291,9 @@ async function main(): Promise<void> {
             mediumBadgeScrollWidth: mediumBadge.scrollWidth,
             mediumPrefixClientWidth: mediumPrefix.clientWidth,
             mediumPrefixScrollWidth: mediumPrefix.scrollWidth,
+            mediumNumberText: String((mediumNumber && mediumNumber.textContent) || ''),
+            mediumNumberClientWidth: mediumNumber ? mediumNumber.clientWidth : 0,
+            mediumNumberScrollWidth: mediumNumber ? mediumNumber.scrollWidth : 0,
           }
         }
         return { now: read('stage-new'), before: read('stage-old') }
@@ -321,9 +326,11 @@ async function main(): Promise<void> {
   check(n.titleVisible > o.titleVisible, 'G2 长标题可见字符变多（改前 ' + o.titleVisible + ' 个 → 现在 ' + n.titleVisible + ' 个；全宽 ' + f(n.titleFullWidth) + 'px）')
   check(n.tracks[1] > 150 && n.tracks[1] <= 320, 'G2 标题列仍落在 150~320px 的上限区间里（实得 ' + f(n.tracks[1]) + 'px）')
 
-  // ── G3：中等长度目录仍完整显示 ──
-  check(n.mediumPrefixScrollWidth <= n.mediumPrefixClientWidth + 1 && n.mediumBadgeScrollWidth <= n.mediumBadgeClientWidth + 1, 'G3 中等目录「#notes-inbox/02」完整显示，没有被误截（前缀内容 ' + f(n.mediumPrefixScrollWidth) + 'px / 可见 ' + f(n.mediumPrefixClientWidth) + 'px）')
-  check(o.mediumPrefixScrollWidth <= o.mediumPrefixClientWidth + 1, 'G3 改前模板下中等目录同样完整显示（对照：这次收窄没有把它挤坏）')
+  // ── G3：中等目录按新上限走目录省略，`/` 与完整编号保留 ──
+  check(n.mediumPrefixScrollWidth > n.mediumPrefixClientWidth, 'G3 中等目录「#notes-inbox/02」目录段走省略号（内容 ' + f(n.mediumPrefixScrollWidth) + 'px > 可见 ' + f(n.mediumPrefixClientWidth) + 'px）')
+  check(n.mediumNumberText === '/02', 'G3 `/编号` 段文字完整（实得 ' + JSON.stringify(n.mediumNumberText) + '）')
+  check(n.mediumNumberScrollWidth <= n.mediumNumberClientWidth + 1, 'G3 `/编号` 段没有被裁掉（内容 ' + f(n.mediumNumberScrollWidth) + 'px / 可见 ' + f(n.mediumNumberClientWidth) + 'px）')
+  check(o.mediumPrefixScrollWidth > o.mediumPrefixClientWidth, 'G3 改前模板（首列 192px）下中等目录同样走省略号（内容 ' + f(o.mediumPrefixScrollWidth) + 'px > 可见 ' + f(o.mediumPrefixClientWidth) + 'px）：省略出自徽标全局上限 85px，不是这次收窄挤坏的')
 
   if (total === 0) check(false, '一条断言都没跑')
 }

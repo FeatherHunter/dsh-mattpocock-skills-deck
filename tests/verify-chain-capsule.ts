@@ -709,17 +709,18 @@ console.log('H) #1563 窄栏：目录先让位，编号永不缩写')
   })(shutNarrow)
   check(foldSlotsNarrow.length === 1, '#1563 整条胶囊仍只有一个挂让位号的元素（让位表仍是 12 段那一格）')
   const onlySlotTexts = (foldSlotsNarrow[0] && foldSlotsNarrow[0].c || []).filter(function (x: any) { return typeof x === 'string' }).join('')
-  check(onlySlotTexts.indexOf('1563') < 0, '#1563 挂让位号的是目录段，编号段不挂让位号（实得 ' + JSON.stringify(onlySlotTexts) + '）')
+  check(onlySlotTexts.indexOf('1563') < 0, '#1563 挂让位号的是目录段，`/编号` 段不挂让位号（实得 ' + JSON.stringify(onlySlotTexts) + '）')
+  check(onlySlotTexts.indexOf('/') < 0, '#1563 `/` 跟编号走：目录段里没有 `/`（#1579，实得 ' + JSON.stringify(onlySlotTexts) + '）')
   const numNodes: any[] = []
   ;(function findNum(n: any) {
     if (n === null || n === undefined) return
     if (Array.isArray(n)) { n.forEach(findNum); return }
     if (typeof n !== 'object') return
-    if (typeof n.c !== 'undefined' && Array.isArray(n.c) && n.c.length === 1 && n.c[0] === '1563') numNodes.push(n)
+    if (typeof n.c !== 'undefined' && Array.isArray(n.c) && n.c.length === 1 && n.c[0] === '/1563') numNodes.push(n)
     ;(n.c || []).forEach(findNum)
   })(shutNarrow)
-  check(numNodes.length === 1 && numNodes[0].p && numNodes[0].p['data-fold-priority'] === undefined, '#1563 编号段不挂让位数据，收窄时不被收字机裁掉')
-  check(numNodes.length === 1 && String((numNodes[0].p && numNodes[0].p.style && (numNodes[0].p.style as any).flex) || '') === 'none', '#1563 编号段钉在行尾不收缩（flex none）')
+  check(numNodes.length === 1 && numNodes[0].p && numNodes[0].p['data-fold-priority'] === undefined, '#1563 `/编号` 段不挂让位数据，收窄时不被收字机裁掉')
+  check(numNodes.length === 1 && String((numNodes[0].p && numNodes[0].p.style && (numNodes[0].p.style as any).flex) || '') === 'none', '#1563 `/编号` 段钉在行尾不收缩（flex none）')
   check(onlySlotTexts.length > 0 && String((foldSlotsNarrow[0].p.style as any).textOverflow) === 'ellipsis', '#1563 目录段超长时按省略号收起，而不是把编号挤掉')
   let tipContent = ''
   let tipAria = ''
