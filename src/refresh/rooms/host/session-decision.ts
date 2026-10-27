@@ -46,6 +46,9 @@ export function createSessionDecisionResolver(deps: any): (cwd: string) => Promi
         ref: decision.ref || null,
         multiHit: decision.multiHit,
         pending: decision.pending,
+        // 写权限的结论也来自判定出口（人选 true / 声明与自动识别 false）；丢在这里会让写会话退回“没人说能写”的缺省。
+        canWrite: decision.canWrite === true,
+        reason: String(decision.reason || ''),
       }
     } catch (e) {
       // 判定这一趟不可用：回 null 让调用方退回旧行为，绝不让“选谁”把会话开成失败。

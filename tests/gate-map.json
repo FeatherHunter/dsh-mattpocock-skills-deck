@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T05:06:42.509Z",
+  "generatedAt": "2026-10-27T05:44:01.973Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 403,
   "gateCount": 403,
@@ -3803,6 +3803,8 @@
       "file": "tests/verify-1555-session-uses-decision.ts",
       "guards": [
         "src/refresh/rooms/host/comment-thread-fetch.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
+        "src/refresh/rooms/host/session-decision.ts",
         "src/refresh/rooms/host/session-opener.ts"
       ],
       "dirs": [
@@ -3812,7 +3814,22 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1559-deck-output-lossless.ts",
+      "file": "tests/verify-1559-deck-output-lossless.ts",
+      "guards": [
+        "src/deck/tools"
+      ],
+      "dirs": [
+        "src/deck/tools"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-1565-workroute-first-col-browser.ts",
@@ -8794,6 +8811,7 @@
         "src/deck/shell/work-path-readout.ts",
         "src/deck/shell/write-mutex.ts",
         "src/deck/tools/map-link.ts",
+        "src/deck/tools/work-route.ts",
         "src/host/namingGuardian.ts",
         "src/host/platform/namingSummary.ts",
         "src/host/platformChannel.ts",
@@ -8893,7 +8911,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 97 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 98 条"
     },
     {
       "step": "node tests/verify-tracker-contract.ts",
@@ -10239,6 +10257,7 @@
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1487-map-plan.ts",
       "node tests/verify-1495-deck-close-reason.ts",
+      "node tests/verify-1559-deck-output-lossless.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",

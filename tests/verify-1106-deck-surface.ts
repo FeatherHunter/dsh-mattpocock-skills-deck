@@ -277,6 +277,11 @@ async function main() {
     let r: any = null
     let threw = ''
     try { r = await tools[name].run(exec, args) } catch (e) { threw = String((e && (e as Error).message) || e) }
+    // #1559：宿主收工具返回值时要求无损 JSON；这里给本门禁跑到的每一次调用都过同一份判据。
+    if (r !== null && r !== undefined) {
+      const problems = losslessProblems(r)
+      check(problems.length === 0, name + ' 回执是无损 JSON' + (problems.length ? '：' + describeLosslessProblems(problems, 3) : ''))
+    }
     return { r, threw }
   }
 
