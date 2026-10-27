@@ -11,6 +11,9 @@
 import { projectUiDescription } from '../../../tracker/ui-description.js'
 // 有效期住中央 YAML，调时间改 config/ttl.yaml。
 import { SNAPSHOT_TTL_MS } from '../../../shared/time-config/src/values.js'
+// #1584 F1：强制刷新主路径与首屏同构，原来也用注册表 describe 自己造身份；
+// 空 refId 不能当身份（GitHub / GitLab 只给目录时 describe 回的就是空壳），给不出就问会话。
+import { resolveRepoRefForCwd } from '../../../tracker/session/repo-ref.js'
 
 // ===== 类型契约（#1155）：下面这些声明只给类型检查看，编译后一行都不剩，运行时不引用任何名字 =====
 // 为什么都收在文件顶部：本文件的依赖全部由接线处 index.js 注入（那份是 JS，不检查编译错误），
@@ -124,6 +127,11 @@ export function createSessionRefresh(deps: RefreshDeps) {
           const backendId = _sel.backendId
           let repoRef: RepoRef = null
           try { repoRef = reg.describe({ cwd }, backendId) } catch {}
+          // #1584 F1：与首屏同一条修法——空 refId 的壳不算身份，改问会话；拿不到再走原兜底。
+          if (!repoRef || !repoRef.refId) {
+            const identified = await resolveRepoRefForCwd({ cwd, backendId, describe: reg.describe, openSession })
+            if (identified) repoRef = identified
+          }
           if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
           // #927：刷新这一路的每条命令也过闸（分类同上：人的动作那一档，只记账、不降档）；没给 send 时照旧直发。
           const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o?: unknown) { if (typeof send !== 'function') return detectionExec(c, a, o, 'refresh'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'refresh') }).then(function (r) { return r.result }) } }

@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T08:52:24.477Z",
+  "generatedAt": "2026-10-27T09:09:06.568Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 407,
-  "gateCount": 407,
-  "attributedGates": 364,
+  "chainLength": 408,
+  "gateCount": 408,
+  "attributedGates": 365,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 17,
@@ -3917,6 +3917,28 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1584-repo-ref-for-cwd.ts",
+      "file": "tests/verify-1584-repo-ref-for-cwd.ts",
+      "guards": [
+        "src/host/issuePage.ts",
+        "src/host/mapTickets.ts",
+        "src/refresh/rooms/host/probe-handler.ts",
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
+        "src/tracker/session/repo-ref.ts"
+      ],
+      "dirs": [
+        "src/host",
+        "src/refresh/rooms/host",
+        "src/tracker/session"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -10381,6 +10403,7 @@
       "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-1512-md-chain.ts",
       "node tests/verify-1522-skill-md-refs.ts",
+      "node tests/verify-1584-repo-ref-for-cwd.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
@@ -10658,6 +10681,7 @@
       "node tests/verify-1555-session-uses-decision.ts",
       "node tests/verify-1581-session-locators.ts",
       "node tests/verify-1583-repo-ref-fallback.ts",
+      "node tests/verify-1584-repo-ref-for-cwd.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-524-pr-detail.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -11124,6 +11148,7 @@
       "node tests/verify-1453-repo-locate-via-session.ts",
       "node tests/verify-1581-session-locators.ts",
       "node tests/verify-1583-repo-ref-fallback.ts",
+      "node tests/verify-1584-repo-ref-for-cwd.ts",
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-tracker-session.ts"
     ],

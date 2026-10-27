@@ -20,6 +20,10 @@
  *   - 不猜数。拿不到就让错误原样回去，界面照实说「没拿到」。
  */
 
+// #1584 F3：GitHub / GitLab 的 describe 只给目录时回的是空 refId 的壳；
+// 这里复用 tracker 层那一把「工作区→仓库身份」的共享尺子，不再自己拼 GitHub 形状。
+import { resolveRepoRefForCwd } from '../tracker/session/repo-ref.js'
+
 // ---------------------------------------------------------------------------
 // 类型（本次转 TypeScript：只写类型不写实现）。
 //
@@ -39,6 +43,8 @@ interface IssuePageDeps {
   DEFAULT_CWD: any
   detectionExec: any
   logCtx: any
+  /** #1584 F3：宿主注入的只读会话口；身份真源，注册表 describe 给不出 refId 时问它。 */
+  openSession: any
 }
 
 /**
@@ -48,7 +54,7 @@ interface IssuePageDeps {
  * 什么约定不能改：返回对象的两个字段名（handleIssuesPage 给调用点按名取，clientRowOf 给测试按名取），改名就拿不到。
  */
 export function createIssuePage(deps: IssuePageDeps): any {
-  const { normCwd, selectEarly, getTrackerRegistry, getPlatform, getRepoKey, ctx, DEFAULT_CWD, detectionExec, logCtx } = deps as any
+  const { normCwd, selectEarly, getTrackerRegistry, getPlatform, getRepoKey, ctx, DEFAULT_CWD, detectionExec, logCtx, openSession } = deps as any
 
   // 在途去重表：key → Promise<回包>。settle 之后立即清掉（同一页翻第二次是要重新取的）。
   const inflight: Map<any, any> = new Map()
@@ -111,6 +117,12 @@ export function createIssuePage(deps: IssuePageDeps): any {
     if (!tracker || typeof tracker.listPage !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + backendId + "' 未实现 listPage" } }
     let repoRef: any = null
     try { repoRef = reg.describe({ cwd }, backendId) } catch {}
+    if (!repoRef || !repoRef.refId) {
+      // #1584 F3：GitHub / GitLab 只给目录时 describe 只回显示名，空 refId 不算身份；
+      // 先问会话（身份真源），会话也答不上时再按工作区问一次 owner/name（那道只认 GitHub）。
+      const identified: any = await resolveRepoRefForCwd({ cwd, backendId, describe: reg.describe, openSession })
+      if (identified) repoRef = identified
+    }
     if (!repoRef || !repoRef.refId) {
       // 与快照那条链同样的兜底：注册表 describe 给不出 refId 时，按工作区问一次 owner/name。
       try {

@@ -10,6 +10,9 @@ import { projectUiDescription } from '../../../tracker/ui-description.js'
 import { parseWorkspaceFile, WORKSPACE_FILE_REL, isWorkspaceLayout } from '../../../deck/shell/workspace-anchor.js'
 // 有效期住中央 YAML，调时间改 config/ttl.yaml。
 import { SNAPSHOT_TTL_MS } from '../../../shared/time-config/src/values.js'
+// #1584 F1：面板首屏原来用注册表 describe 自己造仓库身份，空 refId 被当成「答出来了」；
+// 这里改成「describe 给不出 refId 时问会话」，共享补齐入口放在 tracker 层（宿主与刷新两侧都能引用）。
+import { resolveRepoRefForCwd } from '../../../tracker/session/repo-ref.js'
 
 // ===== 类型契约（#1155）：下面这些声明只给类型检查看，编译后一行都不剩，运行时不引用任何名字 =====
 // 为什么都堆在文件顶部：本文件的依赖全部由接线处 index.js 那份对象注入（JS 不查编译错误），
@@ -160,6 +163,13 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           const backendId = _sel!.backendId!
           let repoRef: RepoRef = null
           try { repoRef = reg.describe({ cwd }, backendId) } catch {}
+          // #1584 F1：GitHub / GitLab 的 describe 只给目录时回的是「refId 为空的壳」；
+          // 空 refId 不能当身份（composer 会用它当缓存键、后端操作也认不出仓库），
+          // 这时改问会话（身份真源，含远端定位），拿不到再走原来那条兜底。
+          if (!repoRef || !repoRef.refId) {
+            const identified = await resolveRepoRefForCwd({ cwd, backendId, describe: reg.describe, openSession })
+            if (identified) repoRef = identified
+          }
           if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
           // #927：面板取数这一路的每条命令都过闸（分类是「人的动作」那一档：只记账、不降档）；没给 send 时照旧直发。
           const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { if (typeof send !== 'function') return detectionExec(c, a, o, 'snapshot'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'snapshot') }).then(function (r) { return r.result }) } }

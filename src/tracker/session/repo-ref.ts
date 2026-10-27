@@ -173,3 +173,93 @@ export async function resolveSessionRepoRef(input: ResolveSessionRepoRefInput): 
   // 没补全：把 describe 拿到的壳交回去（可能带显示名），refId 仍为空；调用方照旧诚实失败。
   return { ref: candidate, via: 'none', steps: steps }
 }
+
+// ===== 给「手上没有会话、只有工作区目录」的取数电话用（#1584） =====
+
+/**
+ * 注册表视图的 describe 形状（`registry.describe(handle, backendId)`，模块优先那一份）。
+ * 宿主与刷新两侧手上都有它；这里只声明用到的两格，不引注册表实现。
+ * 返回值收成 unknown：调用方手上的那份类型各写各的（有的只声明四个可选字段），
+ * 这里只按 refId 是不是非空字符串来判断「答出来了没有」。
+ */
+export type RegistryDescribe = (handle: { cwd: string; refId?: string }, backendId: string) => unknown
+
+/** 宿主注入的只读会话口（与 session-opener 的 openSession 同一个签名的一小部分）。 */
+export type OpenReadSession = (cwd: string, options?: { write?: boolean }) => Promise<unknown>
+
+/** 「给一个目录、问它是哪个仓库」的输入。 */
+export interface ResolveRepoRefForCwdInput {
+  /** 工作区目录。 */
+  cwd: string
+  /** 这次选中的后端编号（会话回包的 backend 格要与它一致才算数）。 */
+  backendId: string
+  /** 注册表视图的 describe；给得出非空 refId 就直接用（便宜、不花额度）。 */
+  describe?: RegistryDescribe | null
+  /** 宿主注入的只读会话口；它开出的会话语义与 #1583 收口后的补齐链一致，是身份的真源。 */
+  openSession?: OpenReadSession | null
+}
+
+/** 把任意来源的身份收成「带非空 refId 的那一份」；只有显示名、没有 refId 的空壳一律当没答上来。 */
+function refWithId(value: unknown): RepositoryRef | null {
+  try {
+    const refId = (value as { refId?: unknown } | null | undefined)?.refId
+    return (typeof refId === 'string' && refId) ? copyRef(value as RepositoryRef) : null
+  } catch {
+    return null
+  }
+}
+
+/** 会话回包这份形状里本文件只认三格（可用性、后端编号、身份）。 */
+type OpenedSession = { ok?: unknown; backendId?: unknown; repoRef?: RepositoryRef | null }
+
+/**
+ * 从一次会话回包里取身份：只认「会话开成了、后端就是这个后端、refId 非空」的那一份。
+ * 其余情况（没会话、开失败、开成别的后端、只有显示名没有 refId）都按「这次拿不到」处理——
+ * 空 refId 不是身份，不能被调用方当成「已经答出来了」（#1584 的教训）。
+ */
+function repoRefOfOpenedSession(opened: unknown, backendId: string): RepositoryRef | null {
+  try {
+    const o = opened as OpenedSession | null | undefined
+    if (!o || o.ok !== true) return null
+    if (typeof o.backendId === 'string' && o.backendId !== '' && o.backendId !== backendId) return null
+    return refWithId(o.repoRef || null)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 给四条「自己造仓库身份」的取数电话用：先问注册表 describe，给不出 refId 再向会话要。
+ *
+ * 为什么要有这一步：GitHub 的 describe 只认已带 owner/name 的 handle，GitLab 的 describe 也只认
+ * handle.refId；只拿工作区目录去问，它们会回一个 refId 为空的壳。调用方如果只判「回包里有没有对象」，
+ * 空壳就会被当成身份送进后端操作，最终在房间内部以「refId missing」失败（#1584 的 F1–F4）。
+ *
+ * 返回值约定：拿到非空 refId 才回对象；否则回 null，调用方保持自己原来的兜底/报错（不在这一层编造
+ * 「refId=cwd」这种糊弄下游的身份）。本函数永不抛，开会话失败等同于「这次拿不到」。
+ */
+export async function resolveRepoRefForCwd(input: ResolveRepoRefForCwdInput): Promise<RepositoryRef | null> {
+  // 第一步：注册表 describe。宿主与刷新手里直接就有它，且它已是「模块优先」口径；
+  // GitHub / Markdown 在这里通常就能给出完整身份，不花额度、不碰远端。
+  if (typeof input.describe === 'function') {
+    try {
+      const described = (input.describe as RegistryDescribe)({ cwd: input.cwd }, input.backendId)
+      const parsed = refWithId(described)
+      if (parsed) return parsed
+    } catch {
+      // describe 是本地读；抛错等同于「答不上」，交给下一步的会话再问一次。
+    }
+  }
+  // 第二步：向会话要。会话装配已按 #1581 补齐两条定位口、按 #1583 补齐远端坐标，
+  // 这是仓库身份的真源；这里只借用它的答案，不重复实现一遍补齐链。
+  if (typeof input.openSession === 'function') {
+    try {
+      const opened = await (input.openSession as OpenReadSession)(input.cwd, { write: false })
+      const ref = repoRefOfOpenedSession(opened, input.backendId)
+      if (ref) return ref
+    } catch {
+      // 开会话失败按「这次拿不到身份」处理；调用方照旧走自己的兜底或诚实报错。
+    }
+  }
+  return null
+}
