@@ -132,7 +132,7 @@ async function main(): Promise<void> {
   check((capsuleSrc.match(/ticketBadgeOf\(h, \{/g) || []).length === 2, 'SessionChainCapsule.ts 的两处徽标（单子药丸 + 主胶囊）都走共用组件')
   // 在办表首列不套自己的 Tip：这一点的反面写法（第二层 Tip 包住号）必须不存在。
   const tableSrc = sourceText('src/client/views/shared/workRouteTable.ts')
-  check(tableSrc.indexOf('h(Tip, { content: ticketLabelOf(') < 0 && countTip(fakeH) === 0, '工作路线表首列不另套一层 Tip（悬停由整行 tipContent 负责）')
+  check(tableSrc.indexOf('h(Tip, { content: ticketLabelOf(') < 0, '工作路线表首列不另套一层 Tip（悬停由整行 tipContent 负责）')
   check(tableSrc.indexOf('h(Tip, { content: tipContent') >= 0, '工作路线表整行悬停仍在（cell 外壳把悬停交给它）')
 
   // ── 三、登记：组件进了构建清单、index 拼接标记与叶子清单，且它自己不再引运行时模块 ──────
@@ -157,6 +157,12 @@ async function main(): Promise<void> {
   for (const file of unique) dupMaxWidth += (sourceText(file).match(/maxWidth:\s*TICKET_LABEL_MAX_WIDTH/g) || []).length
   check(dupMaxWidth === 0, '五处显示点里没有一处再写 maxWidth: TICKET_LABEL_MAX_WIDTH')
   check((compSrc.match(/className: 'dsws-idnum'/g) || []).length === 1, '组件是这套徽标唯一写 dsws-idnum 类名的地方（浅色层与悬停样式靠它命中）')
+  // 这五份文件里还允许存在两种「旧式手写徽标」：IssueDetail 的子问题行与阻塞行（只写裸号、没带
+  //   目录段，属于别的界面，另票收）。数成固定值，将来谁再往这五份文件里塞第三份手写拷贝就会红。
+  let handRolled = 0
+  const codeOnly = (src: string) => src.replace(/^[ \t]*\/\/.*$/gm, '')
+  for (const file of unique) handRolled += (codeOnly(sourceText(file)).match(/className: 'dsws-idnum'/g) || []).length
+  check(handRolled === 2, '五处视图里只剩两处已知的旧式徽标（IssueDetail 子问题/阻塞行，另票收），没有新增手写拷贝（实得 ' + handRolled + ' 处）')
 
   if (total === 0) check(false, '一条断言都没跑')
 }
