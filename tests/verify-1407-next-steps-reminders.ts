@@ -44,8 +44,9 @@ const TARGETS = {
     'tpl.implement': 4,
     'tpl.prototype': 13,
     'tpl.research': 13,
-    'tpl.supplement': 7,
-    'tpl.takeover': 10,
+    // #1577（2026-10-27）：接手 v11、补充 v9 改挂 /triage 并补状态分支，版本底线跟着抬。
+    'tpl.supplement': 9,
+    'tpl.takeover': 11,
   },
   'ticket-creation': { newBugWayfinder: 15, newSpec: 4, newWayfinder: 23 },
   'map-advancement': {
