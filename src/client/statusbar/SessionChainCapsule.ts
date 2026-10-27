@@ -16,9 +16,9 @@
  *      同一条纪律）；真读坏了（read-failed / shape）画一枚 11 像素小图标，完整话进悬停，
  *      不独占一行（与 SessionChainStrip 那枚标记同形）。
  *
- * 折叠阶梯：这一段不进 capFold.ts 的让位表（那张表被门禁钉死在 12 段，加一段就红），它是
- *   「载荷」—— 与计数器数字、段图标同类：任何宽度都不撤，只用省略号收宽度
- *   （maxWidth 加 ellipsis 加 flex 收缩）。没有记录时它根本不存在，所以窄宽度下它不占地方。
+ * 折叠阶梯（#1563）：这一段挂着让位表第 12 号，但只有目录前缀参与让位、编号尾巴永不让位。
+ *   完整写法仍是那一份（`#目录/编号`，目录为空就是 `#编号`）；窄下去时目录从末尾逐字收、
+ *   编号那截完整保留，拉宽后恢复完整写法。悬停提示与无障碍名里仍是完整写法。
  *
  * 契约：模块真源（ESM 导出）；构建时剥行首 export，拼回 src/client/index.ts
  *   的 leaf 标记处（源码树里只有这一份真源）。文案全部走词条（chainView.capsuleDoing 复用 action 词条与 openTip），
@@ -50,6 +50,8 @@ declare function workRouteTableOf(...args: any[]): any;
 declare function ticketLabelOf(...args: any[]): any;
 // B 方案：单子里徽章的两段子节点与上限宽度同样走那一份（目录可省略、编号绝不缩小）。
 declare function ticketLabelNodesOf(...args: any[]): any; declare const TICKET_LABEL_MAX_WIDTH: any;
+// #1563：主胶囊的编号外层节点同样走那一份（目录前缀挂让位号 12、编号尾巴不挂号）。
+declare function ticketLabelCapsuleFoldOf(...args: any[]): any;
 // 值引用的组件与字段名（弹层、悬停提示）。
 declare const PortalOverlay: any;
 declare const Tip: any;
@@ -148,7 +150,7 @@ const capsuleRowOf = function (titles: any, e: any) {
   return {
     ticketKey: key,
     ticketTitle: (known && known.ticketTitle) ? known.ticketTitle : ((e && typeof e.title === 'string') ? e.title : ''),
-    effortId: (known && known.effortId) ? known.effortId : '',
+    effortId: (known && known.effortId) ? known.effortId : eEff,
     ticketState: (known && known.ticketState) ? known.ticketState : '',
     containerKind: (known && known.containerKind) ? known.containerKind : '',
     sessionLabel: (e && typeof e.sessionLabel === 'string') ? e.sessionLabel : '',
@@ -542,10 +544,10 @@ export const SessionChainCapsule = function (props: any) {
       //   原因不是环画错了——环（悬停的内画描边与键盘焦点 outline）一直是跟着元素自己的边界形状走的，
       //   这一颗原先没写圆角，所以环四四方方。补一个轻微圆角（4px，与菜单项、折叠条一致），环自然跟着变圆。
       style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: eColor, cursor: 'pointer', borderRadius: 4 },
-      // 主胶囊例外：这一颗挂着 data-fold-priority 12，阶梯机直接往里面写 textContent（见 capFoldMachine.ts），
-      //   两段 span 放进去第一次折叠就会被拍平；所以这里保持纯文本 + 上限宽度 + 悬停完整写法，
-      //   目录与编号都长时从末尾收（窄到极窄时编号也会让位，这是状态栏让位必须的）。
-    }, [Ic({ n: 'pin', size: 12 }), chainContainerIconOf(eKind, 12), h(Tip, { content: chainKeyTextOf(eKind, e.ticketKey, e.effortId) }, h('span', { 'data-fold-priority': 12, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: TICKET_LABEL_MAX_WIDTH } }, chainKeyTextOf(eKind, e.ticketKey, e.effortId)))]),
+      // #1563：主胶囊的号是两段结构 —— 目录前缀挂着让位号 12（阶梯机往里面写字只收这一段），
+      //   编号尾巴没有让位号（永不让位）。图标仍是外层徽标的兄弟节点，不放进让位号里面。
+      //   悬停提示与无障碍名仍是完整写法（chainKeyTextOf）。
+    }, [Ic({ n: 'pin', size: 12 }), chainContainerIconOf(eKind, 12), h(Tip, { content: chainKeyTextOf(eKind, e.ticketKey, e.effortId) }, ticketLabelCapsuleFoldOf(h, e.ticketKey, e.effortId))]),
     menu,
   ])
 }

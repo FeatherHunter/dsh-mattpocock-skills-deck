@@ -95,6 +95,22 @@ export const ticketLabelNodesOf = function (h: any, key: unknown, effortId: unkn
   ]
 }
 
+/**
+ * 状态栏胶囊主行里那一串编号的外层节点：目录前缀挂着让位号 12、编号尾巴不挂号。
+ *
+ * 窄下去时阶梯机只收挂号的那一段，所以目录从末尾逐字收、编号完整保留；拉宽后恢复完整写法。
+ * 空编号时回一个空外层，免得调用方再分叉；单段写法（没有编号尾巴）整段挂号，与原来保持一致。
+ */
+export const ticketLabelCapsuleFoldOf = function (h: any, key: unknown, effortId: unknown): any {
+  const p = ticketLabelPartsOf(key, effortId)
+  if (p.full === '') return h('span', { style: { display: 'inline-flex', alignItems: 'center', minWidth: 0, overflow: 'hidden', maxWidth: TICKET_LABEL_MAX_WIDTH } }, [])
+  if (p.number === '') return h('span', { 'data-fold-priority': 12, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: TICKET_LABEL_MAX_WIDTH } }, p.full)
+  return h('span', { style: { display: 'inline-flex', alignItems: 'center', minWidth: 0, overflow: 'hidden', maxWidth: TICKET_LABEL_MAX_WIDTH } }, [
+    h('span', { 'data-fold-priority': 12, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: '1 1 auto' } }, p.prefix),
+    h('span', { style: { flex: 'none', whiteSpace: 'nowrap' } }, p.number),
+  ])
+}
+
 /** 在办表里一行要带的行形状（估宽只读这两段，其余不管）。 */
 export interface WorkRouteWidthRow {
   /** 后端的票号（容器行是 00 这类）。 */
