@@ -513,7 +513,7 @@ const ALLOWED = {
   //   outcome 结论枚举（reuse-draft 复用并写草稿 / create-draft 新建并写草稿 / open-failed 会话已建但打开失败 /
   //   create-failed 创建失败 / no-sessions 无会话服务 / empty-cwd 拿不到目录）、errorHash 失败错误原文
   //   （截断 120 字再散列，成功为空串）。只记散列、枚举、长度与计数，会话标题与提示词正文一个字都不记。
-  'newsession.decide': ['entry', 'textLen', 'curSidHash', 'cwdHash', 'cwdSource', 'wsResolved', 'wsSource', 'wsItems', 'branch', 'reuseFrom', 'reuseSidHash', 'allowReuse', 'createOpts', 'sidHash', 'outcome', 'errorHash'],
+  'newsession.decide': ['entry', 'textLen', 'curSidHash', 'cwdHash', 'cwdSource', 'wsResolved', 'wsSource', 'wsItems', 'branch', 'reuseFrom', 'reuseSidHash', 'allowReuse', 'createOpts', 'reuseSkip', 'sidHash', 'outcome', 'errorHash'],
 }
 // #1143 包拥有事件白名单：dsh-log 升到 0.4.1 后，旧实现三件套（src/host/logStore.ts、src/host/logPhones.ts、src/client/kernel/log.ts）已删除，
 // 这四个事件的发射点搬进了已安装的 dsh-log 包内，全仓扫不到是正常的；白名单之外的事件仍按老口径全仓扫。

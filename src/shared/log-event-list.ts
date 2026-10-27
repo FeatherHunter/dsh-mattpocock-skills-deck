@@ -85,7 +85,7 @@ export const LOG_EVENT_LIST: {
     'newsession.decide': {
       level: 'info',
       kind: 'resident',
-      fields: ['entry', 'textLen', 'curSidHash', 'cwdHash', 'cwdSource', 'wsResolved', 'wsSource', 'wsItems', 'branch', 'reuseFrom', 'reuseSidHash', 'allowReuse', 'createOpts', 'sidHash', 'outcome', 'errorHash'],
+      fields: ['entry', 'textLen', 'curSidHash', 'cwdHash', 'cwdSource', 'wsResolved', 'wsSource', 'wsItems', 'branch', 'reuseFrom', 'reuseSidHash', 'allowReuse', 'createOpts', 'reuseSkip', 'sidHash', 'outcome', 'errorHash'],
     },
   },
 }

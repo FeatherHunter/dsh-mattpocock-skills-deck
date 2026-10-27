@@ -63,7 +63,7 @@ const MODULES = [
   // #709（T5）：5 秒自轮询常量与启动函数已退役，换成事件驱动入口；namingGuardianKick 仍是那一次拉取的本体。
   { name: 'apiNaming', file: 'api-naming', exports: ['injectFixate', 'handoffPrompt', 'extractHandoffFile', 'absHandoffPath', 'handoffReadText', 'getRowPreset', 'isHealthyPreset', 'isReusableBlank', 'buildCreateOpts', 'createPTCSession', 'namingCurrentTitleOf', 'namingHintOf', 'executeNamingOrder', 'reconcileNamingFailure', 'applyNamingFailurePanel', 'namingGuardianKick', 'namingGuardianEvent', 'startNamingGuardianEvents'] },
   { name: 'apiPresetGuard', file: 'api-preset-guard', exports: ['describeReuseDecision', 'verifyFreshPreset', 'tryQuarantineSession', 'createVerifiedPTCSession'] },
-  { name: 'apiWorkspace', file: 'api-workspace', exports: ['workspacePathOf', 'workspaceIdOf', 'workspaceNormOf', 'workspaceCollectFromSnap', 'workspaceMatchEntry', 'workspaceTryCreateWid', 'resolveWorkspaceEntry'] },
+  { name: 'apiWorkspace', file: 'api-workspace', exports: ['workspacePathOf', 'workspaceIdOf', 'workspaceNormOf', 'workspaceCollectFromSnap', 'workspaceMatchEntry', 'workspaceTryCreateWid', 'resolveWorkspaceEntry', 'archivedSessionIdsOf'] },
   // #1251：交接执行那一族从 apiNewSession 里拆出（原文件有效行超 350 上限）：
   //   探测交接文档、生成交接文档、带着交接文档开新会话在 api-handoff；新会话创建仍在 api-new-session。
   { name: 'apiHandoff', file: 'api-handoff', exports: ['probeHandoffReady', 'doHandoff', 'doHandoffOpen'] },

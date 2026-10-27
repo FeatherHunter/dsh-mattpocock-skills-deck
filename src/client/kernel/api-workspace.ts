@@ -166,3 +166,38 @@ declare function keyOf(...args: any[]): any;
       } catch (e) {}
       return Promise.resolve({ wid: null, entry: null, source: 'none', items: 0 })
     }
+
+    // #1580：复用一个空白会话之前，除了验它还在工作区名单里，还要验它没有被归档。
+    // 已归档会话在 DSH 里不能当主会话打开：插件打开它之后，宿主下一拍会把主区清回“选择工作区”，
+    // 提示词写进看不见的会话——这张票的现场就是这样。调用方拿到 {known, ids, legacy} 后按此处理：
+    //   known=true → 名单可信，命中 ids 的候选跳过；
+    //   known=false 且 legacy=false → 宿主有归档概念但这次读不到名单，不能证明候选可用，按 fail-closed 跳过；
+    //   legacy=true（老版快照只有 items，或根本没有工作区服务）→ 保持旧行为，不因读不到而改变复用策略。
+    // 为什么把“老版”单独标出来：老版宿主没有归档概念，读不到名单是常态，不能因此把好功能关掉；
+    // 新版宿主（快照带 pinnedSessionIds/state/phase 任一）却缺名单，才说明这次读取异常。
+    export const archivedSessionIdsOf = function (workspaces: any): any {
+      if (!workspaces) return { known: true, ids: [], legacy: true }
+      let snap: any = null
+      try {
+        if (workspaces.list) {
+          if (typeof workspaces.list.getSnapshot === 'function') snap = workspaces.list.getSnapshot()
+          else if (typeof workspaces.list.getCurrent === 'function') snap = workspaces.list.getCurrent()
+        }
+      } catch (eS) { return { known: false, ids: [], legacy: false } }
+      // 读不到同步快照（服务存在但没有同步读法），或拿到的是异步结果：不能证明候选可用，按未知处理。
+      if (!snap || typeof snap.then === 'function') return { known: false, ids: [], legacy: false }
+      const hasArchive = snap.archivedSessionIds !== undefined && snap.archivedSessionIds !== null
+      if (!hasArchive) {
+        const looksNew = snap.pinnedSessionIds !== undefined || snap.state !== undefined || snap.phase !== undefined
+        return { known: !looksNew, ids: [], legacy: !looksNew }
+      }
+      if (!Array.isArray(snap.archivedSessionIds)) return { known: false, ids: [], legacy: false }
+      const ids: any[] = []
+      try {
+        for (let k = 0; k < snap.archivedSessionIds.length; k++) {
+          const id = snap.archivedSessionIds[k]
+          if (typeof id === 'string' && id) ids.push(id)
+        }
+      } catch (eIds) { return { known: false, ids: [], legacy: false } }
+      return { known: true, ids: ids, legacy: false }
+    }

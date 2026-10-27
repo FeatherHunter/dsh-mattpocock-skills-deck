@@ -283,6 +283,41 @@ async function testFile(file) {
     }
   } catch(e) { check(false, file + ' ensureWorkspaceId 沙箱 — ' + e.stack) }
 
+  // i) 沙箱：复用前的归档闸门（#1580）
+  //    为什么要有这一条：已归档会话在 DSH 里不是可查看的主会话，复用它会把提示词写进打不开的会话；
+  //    这几条把“读到名单 / 老版快照 / 名单缺失 / 形状异常 / 读取抛错 / 无工作区服务”六种输入都跑一遍。
+  try {
+    const fnArch = compileFn(['workspaces','keyOf'], wsLib + '; return archivedSessionIdsOf')
+    {
+      const info = fnArch(null, keyOf)({ list: { getSnapshot: () => ({ items: [], archivedSessionIds: ['sid-a', 'sid-b'], pinnedSessionIds: [], state: 'ready', phase: 'ready' }) } })
+      check(info && info.known === true && info.ids.length === 2 && info.ids[0] === 'sid-a', file + ' 归档闸门：新版快照 → 读到归档名单')
+    }
+    {
+      const info = fnArch(null, keyOf)({ list: { getSnapshot: () => ({ items: [{ path: 'D:/my-app', workspaceId: 'ws1' }] }) } })
+      check(info && info.known === true && info.ids.length === 0, file + ' 归档闸门：老版快照（只有 items）→ 视为无归档，照旧可复用')
+    }
+    {
+      const info = fnArch(null, keyOf)({ list: { getSnapshot: () => ({ items: [], pinnedSessionIds: [], state: 'ready' }) } })
+      check(info && info.known === false, file + ' 归档闸门：新版快照缺归档名单 → 按读不到处理（不复用）')
+    }
+    {
+      const info = fnArch(null, keyOf)({ list: { getSnapshot: () => ({ items: [], archivedSessionIds: { a: true } }) } })
+      check(info && info.known === false, file + ' 归档闸门：归档字段不是数组 → 按读不到处理（不复用）')
+    }
+    {
+      const info = fnArch(null, keyOf)({ list: { getSnapshot: () => { throw new Error('boom') } } })
+      check(info && info.known === false, file + ' 归档闸门：读快照抛错 → 按读不到处理（不复用）')
+    }
+    {
+      const info = fnArch(null, keyOf)(null)
+      check(info && info.known === true && info.ids.length === 0, file + ' 归档闸门：没有工作区服务 → 保持旧行为')
+    }
+    {
+      const info = fnArch(null, keyOf)({ list: {} })
+      check(info && info.known === false, file + ' 归档闸门：有工作区服务但读不到快照 → 按读不到处理（不复用）')
+    }
+  } catch(e) { check(false, file + ' 归档闸门沙箱 — ' + e.stack) }
+
   // e) 沙箱：buildCreateOpts
   try {
     let block = factoryBlock.replace(/^\s*export\s+/gm, '')
@@ -517,6 +552,111 @@ async function testFile(file) {
       await new Promise(r=>setTimeout(r, 80))
       check(rec.created && rec.created.workspaceId==='ws-hit' && rec.created.agentPreset==='ptc', file + ' 集成：命中工作区 → {workspaceId,ptc} 创建')
       check(storeOfStubC.map['sid-wid'] && storeOfStubC.map['sid-wid'].incomingDraft==='/wayfinder https://github.com/x/issues/1', file + ' 集成：命中创建仍写入目标 store 首条')
+    }
+    // #1580：复用前的归档闸门。现场是一个“在工作区名单里、但已经归档”的空白会话被反复复用：
+    // 插件只验名单就打开它，DSH 却把归档会话从主区清掉，提示词写进打不开的会话、界面停在“选择工作区”。
+    // 下面把“复用谁、草稿写进哪条会话、日志记了什么”都真跑一遍。
+    async function runGate(opts) {
+      const rec = { created: null, opened: null, injected: null, flashed: null, logs: [] }
+      const dbg = { pendingDraft: null, pendingDraftTargetSid: null }
+      const store = mkStoreOfG()
+      if (opts.prefill) opts.prefill(store)
+      const sessionsStub = {
+        create: async (o) => { rec.created = JSON.parse(JSON.stringify(o)); return 'sid-new' },
+        scope: (sid) => ({ sessionId: sid }),
+        sessionOf: () => ({ rename: async (t) => ({ ok: true, value: { title: t } }) }),
+        open: (sid) => { rec.opened = sid },
+        list: { getSnapshot: () => ({ byId: opts.byId || {} }) }
+      }
+      const logStub = (level, event, fields) => { if (event === 'newsession.decide') rec.logs.push(fields) }
+      const st = { sessionId: opts.curSid || 'sess-1', cwd: 'D:/my-app', snapshot: null }
+      const text = '/wayfinder https://github.com/x/issues/1580'
+      const fn = compileFn(['st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick','log','dswsLogHash','dswsLogTrunc'],
+        wsPrelude + fullOpenHelpers + ';\n' + open + '; return openTextInNewSession'
+      )
+      const openFn = fn(st, text, '[#1580] test',
+        { get: (k) => k === 'sessions' ? sessionsStub : k === 'workspaces' ? opts.workspaces : null },
+        { call: async () => ({ ok: true }) }, dbg,
+        (s, txt) => { rec.injected = txt }, (s, msg, lvl) => { rec.flashed = lvl }, (k) => k, () => null, keyOf, store,
+        () => false, () => null, () => null, (t) => /^\[New\] /.test(String(t)), () => {},
+        logStub, (s) => 'h:' + String(s || '').length, (s) => String(s || '').slice(0, 120)
+      )
+      openFn(st, text, '[#1580] test')
+      await new Promise(r => setTimeout(r, 120))
+      return { rec, store, text }
+    }
+    // 新版工作区快照：items + archivedSessionIds + pinnedSessionIds + state/phase
+    const wsSnap = (extra) => ({ list: { getSnapshot: () => extra }, create: async () => ({ workspaceId: 'ws1' }) })
+    const blankRow = (id, updatedAt) => ({ id: id, blank: true, cwd: 'D:/my-app', updatedAt: updatedAt, projectionValues: { agentPreset: 'ptc' } })
+
+    // 场景 D（现场形状）：唯一空白候选已归档 → 不复用，按工作区新建，草稿不写进归档会话
+    {
+      const { rec, store, text } = await runGate({
+        byId: { 'sess-blank-arch': blankRow('sess-blank-arch', 100) },
+        workspaces: wsSnap({ items: [{ path: 'D:/my-app', workspaceId: 'ws1', sessionIds: ['sess-blank-arch'] }], archivedSessionIds: ['sess-blank-arch'], pinnedSessionIds: [], state: 'ready', phase: 'ready' })
+      })
+      check(rec.opened === 'sid-new' && rec.created && rec.created.workspaceId === 'ws1', file + ' 归档闸门：唯一空白候选已归档 → 不复用、按工作区新建')
+      check(!store.map['sess-blank-arch'] || store.map['sess-blank-arch'].incomingDraft === null, file + ' 归档闸门：已归档会话不接手草稿')
+      const last = rec.logs[rec.logs.length - 1] || {}
+      check(last.branch === 'create' && last.reuseSkip === 'archived' && last.outcome === 'create-draft', file + ' 归档闸门：新建日志记下 reuseSkip=archived')
+      check(last.sidHash === 'h:7', file + ' 归档闸门：新建日志的 sidHash 是建出来的会话号（定长散列桩）')
+      void text
+    }
+
+    // 场景 E：最新候选已归档、较旧候选干净 → 跳过最新的，复用干净的那条，并记下跳过原因
+    {
+      const { rec, store, text } = await runGate({
+        byId: { 'sess-blank-arch': blankRow('sess-blank-arch', 200), 'sess-blank-ok': blankRow('sess-blank-ok', 100) },
+        workspaces: wsSnap({ items: [{ path: 'D:/my-app', workspaceId: 'ws1', sessionIds: ['sess-blank-arch', 'sess-blank-ok'] }], archivedSessionIds: ['sess-blank-arch'], pinnedSessionIds: [], state: 'ready', phase: 'ready' })
+      })
+      check(rec.opened === 'sess-blank-ok' && rec.created === null, file + ' 归档闸门：跳过已归档的最新候选，复用干净的空白会话')
+      check(store.map['sess-blank-ok'].incomingDraft === text && (!store.map['sess-blank-arch'] || store.map['sess-blank-arch'].incomingDraft === null), file + ' 归档闸门：草稿只写进被复用的干净会话')
+      const last = rec.logs[rec.logs.length - 1] || {}
+      check(last.branch === 'reuse' && last.outcome === 'reuse-opened' && last.reuseSkip === 'archived', file + ' 归档闸门：复用日志记在打开之后（reuse-opened），并带跳过原因')
+    }
+
+    // 场景 F：新版快照但读不到归档名单 → fail-closed：不复用，走新建
+    {
+      const { rec } = await runGate({
+        byId: { 'sess-blank-ok': blankRow('sess-blank-ok', 100) },
+        workspaces: wsSnap({ items: [{ path: 'D:/my-app', workspaceId: 'ws1', sessionIds: ['sess-blank-ok'] }], pinnedSessionIds: [], state: 'ready' })
+      })
+      check(rec.opened === 'sid-new' && rec.created && rec.created.workspaceId === 'ws1', file + ' 归档闸门：归档名单读不到 → fail-closed 新建')
+      const last = rec.logs[rec.logs.length - 1] || {}
+      check(last.reuseSkip === 'archive-unknown' && last.branch === 'create', file + ' 归档闸门：日志记下 reuseSkip=archive-unknown')
+    }
+
+    // 场景 G：老版快照（只有 items、没有归档概念）→ 行为不变，仍可复用空白会话
+    {
+      const { rec, store, text } = await runGate({
+        byId: { 'sess-blank-old': blankRow('sess-blank-old', 100) },
+        workspaces: wsSnap({ items: [{ path: 'D:/my-app', workspaceId: 'ws1', sessionIds: ['sess-blank-old'] }] })
+      })
+      check(rec.opened === 'sess-blank-old' && rec.created === null, file + ' 归档闸门：老版快照仍复用空白会话（行为不变）')
+      check(store.map['sess-blank-old'].incomingDraft === text, file + ' 归档闸门：老版快照复用仍写草稿')
+    }
+
+    // 场景 H：当前会话自己是空白但已归档 → 不直注、不复用自身，改新建
+    {
+      const { rec, store } = await runGate({
+        curSid: 'sess-cur',
+        byId: { 'sess-cur': blankRow('sess-cur', 50) },
+        workspaces: wsSnap({ items: [{ path: 'D:/my-app', workspaceId: 'ws1', sessionIds: ['sess-cur'] }], archivedSessionIds: ['sess-cur'], pinnedSessionIds: [], state: 'ready', phase: 'ready' })
+      })
+      check(rec.opened === 'sid-new' && rec.injected === null && (!store.map['sess-cur'] || store.map['sess-cur'].incomingDraft === null), file + ' 归档闸门：当前会话已归档 → 不直注、不复用自身，改新建')
+    }
+
+    // 场景 I：台账守卫——候选上次复用没被吃进稿子（残留草稿仍在）→ 不再踩坑，改新建并清掉残留
+    {
+      const { rec, store } = await runGate({
+        prefill: (s) => { const ns = s('sess-stale'); ns.incomingDraft = '/wayfinder 上一次没进去的草稿'; ns.reuseDraftPending = true },
+        byId: { 'sess-stale': blankRow('sess-stale', 100) },
+        workspaces: wsSnap({ items: [{ path: 'D:/my-app', workspaceId: 'ws1', sessionIds: ['sess-stale'] }], archivedSessionIds: [], pinnedSessionIds: [], state: 'ready', phase: 'ready' })
+      })
+      check(rec.opened === 'sid-new' && rec.created, file + ' 台账守卫：上次复用没吃进稿子的空白会话不再复用')
+      check(store.map['sess-stale'].incomingDraft === null && store.map['sess-stale'].reuseDraftPending === false, file + ' 台账守卫：跳过时清掉残留草稿')
+      const last = rec.logs[rec.logs.length - 1] || {}
+      check(last.reuseSkip === 'stale-draft' && last.branch === 'create', file + ' 台账守卫：日志记下 reuseSkip=stale-draft')
     }
   } catch(e) { check(false, file + ' 集成沙箱 — ' + e.stack) }
 }
