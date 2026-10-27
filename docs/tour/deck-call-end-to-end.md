@@ -308,18 +308,20 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 
 ### 7.1 GitHub 房间：最后是 `gh` 进程
 
-**唯一出口**：`src/tracker/rooms/github/client.ts`（`ghClient` :197 造执行器，`execGh` :253 起真正干活）。所有对 GitHub 的读写都从这里出去。房间里起 `gh` 进程的地方只有两处：真正干活的全在 `execGh`（:433），另一处是**找不到 `gh` 时的一次探活**（`gh --version`，:229，走探活档（15 秒），`GITHUB_PROBE_TIMEOUT_MS` 在 `src/shared/time-config/src/values.ts:194`）。
+**唯一出口**：`src/tracker/rooms/github/client.ts`（`ghClient` :197 造执行器，`execGh` :253 起真正干活）。所有对 GitHub 的读写都从这里出去。房间里起 `gh` 进程的地方只有两处：真正干活的全在 `execGh`（:400），另一处是**找不到 `gh` 时的一次探活**（`gh --version`，:229，走探活档（15 秒），`GITHUB_PROBE_TIMEOUT_MS` 在 `src/shared/time-config/src/values.ts:194`）。
 
 | 环节 | 行号 | 做什么 |
 | --- | --- | --- |
 | 分桶 | :273 | `isWriteGhArgs(args) ? 'write' : 'read'` |
 | 定档超时 | :275 | `timeoutForGhArgs(args)`：读 12 秒 / 写 30 秒 / 探活 15 秒（档位值在 `src/tracker/kernel/outbound-tiers.ts:8-9`，函数在 :122） |
-| 房内自己掐表 | :281-361 | 定时器在**拿名额之前**就起（拿名额在 :377），所以排队段也被盖住；到点算超时、被调用方取消算取消（原因见 :285） |
-| 拿名额 | :377 | `control.acquire({bucket, signal})`：满了就排队，「等」不算失败。出站控制面是契约 `src/tracker/contract/outbound.ts:51-78`（`acquire`/`noteWrite`），房内经 `getOutbound` 取（:262），没接上就按环境失败大声报出来、不发这一笔（:263-270） |
-| 报出站 | :430 | `reportOutbound(ctx, args)`——真要起进程了才报，排队中被取消的不进账 |
-| **起进程** | **:433** | **`exec('gh', args, { cwd, timeout, signal })`** |
-| 退出码归一 | :436-442 | 拿不到整数退出码按 `-1` 记失败，不再当 0（:438-440 讲了为什么） |
-| 错误分类 | :460 | `ghVerdictOf({code, text})`：先本家前置扩展表 `GH_ERROR_RULES`（`src/tracker/rooms/github/errors.ts:65-153`，数组顺序即判档顺序，层次只许 `fact` → `errcode` → `phrase` → `vague` → `fallback`，见 :63），再通用表（:162-164）；`classifyGhError`（:180）是只要档位的简写版 |
+| 房内自己掐表 | :299-350 | 定时器在**拿名额之前**就起（拿名额在 :356），排队段与执行段合起来仍是本档；到点算超时、被调用方取消算取消（原因见 :285） |
+| 拿名额 | :356 | `control.acquire({bucket, signal, cmd, waitMs: queueLimit})`：满了就排队，「等」不算失败；`waitMs` 是这一笔最多能在队里等多久（#1570，见下）。出站控制面是契约 `src/tracker/contract/outbound.ts:51-78`（`acquire`/`noteWrite`），房内经 `getOutbound` 取（:262），没接上就按环境失败大声报出来、不发这一笔（:263-270） |
+| 报出站 | :397 | `reportOutbound(ctx, args)`——真要起进程了才报，排队中被取消的不进账 |
+| **起进程** | **:400** | **`exec('gh', args, { cwd, timeout, signal })`** |
+| 退出码归一 | :403-409 | 拿不到整数退出码按 `-1` 记失败，不再当 0（:405-407 讲了为什么） |
+| 错误分类 | :427 | `ghVerdictOf({code, text})`：先本家前置扩展表 `GH_ERROR_RULES`（`src/tracker/rooms/github/errors.ts:65-153`，数组顺序即判档顺序，层次只许 `fact` → `errcode` → `phrase` → `vague` → `fallback`，见 :63），再通用表（:162-164）；`classifyGhError`（:180）是只要档位的简写版 |
+
+**排队最多等多久由闸管（#1570）**：`execGh` 不再自己起一只「排队上限」表；它只把预算 `queueLimit = queueTimeoutForTier(timeout)`（:280，本档预算与中央 `ghQueueWaitTimeoutMs` 更小的那个）填进 `acquire` 的 `waitMs`。准入闸（`src/refresh/rooms/host/outbound-admission.ts`）排队时按这个预算起表，到点先从队里摘下这一笔、抛带 `admission-queue-timeout` 标记的错误（带 `waitedMs` 与 `limitMs`），再把晚到的名额交给后面排队的人——迟到名额不泄漏。回话由各出口按自己的口径拼：房间说「排队 X 毫秒，到点时还没拿到名额」，宿主说「一次都没有跑起来」，平台通道与 adhoc 说「可重试」。计时、到点判定与名额归还都只有闸这一份；四条出站路（房间 client、宿主 runGh、平台通道 detectionExec、adhoc execProc）都只递预算。
 
 **十个工具在 GitHub 房间各发什么命令**
 
@@ -345,7 +347,8 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 
 - 命令没起来（`gh` 不在 PATH、没登录）：`kind: 'env'` 或 `'auth'`，`code: -1`。
 - 到点没回话：`kind: 'network'`，原文「gh 在 N 毫秒内没有回话（房内分档超时：读 12 秒 / 写 30 秒 / 探活 15 秒），这一笔已经中止」（:361；括号里那三个秒数由 `src/tracker/kernel/outbound-tiers.ts` 的档位常量现算，改档时文案跟着走、不会漂）。
-- 排队中被取消：「已取消排队（出站准入等待中被取消），没有发出请求，可重试」（:410）。
+- 排队到点还没拿到名额：闸抛的排队超时错误（code `admission-queue-timeout`，带 `waitedMs` / `limitMs`），房间回「排队 X 毫秒，到点时还没拿到名额」，按网络类失败、可重试处理；宿主、平台通道与 adhoc 各按自己的口径回同一条事实（#1570）。
+- 排队中被取消：「已取消排队（出站准入等待中被取消），没有发出请求，可重试」（:377）。
 - 命令跑了但退出码非 0：按 `ghVerdictOf` 分类，事实与退出码一起交表（:454-460）。
 
 ### 7.2 本地 Markdown 房间：最后是工作区里的票文件

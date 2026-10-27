@@ -132,10 +132,11 @@ export function timeoutForGhArgs(args: unknown, explicitTimeout?: unknown): numb
  * 不出现「排队比整档还久」。拿到名额之后起进程的等待仍按本档超时算，总墙钟仍是本档，
  * 预检与外层预算都不用加账（甲方案要重算 54 秒内层，乙不碰）。
  *
- * 为什么住在这里：房间侧不许 import 宿主模块，宿主 runGh 与房间客户端都要用同一条算式
- * （#1007 落地时它住在宿主 gh-queue-race.ts，房间够不着）；纯计算放 kernel 两边都能用，
- * gh-queue-race.ts 只剩转出口供旧调用方。值本身仍只在中央 YAML 有一处定义
- * （config/timeouts.yaml 的 ghQueueWaitTimeoutMs 键），这里只引用中央常量，不抄数字。
+ * 为什么住在这里：房间侧不许 import 宿主模块，而这条算式要同时供房间客户端、平台通道与宿主两路使用。
+ * #1570 起「排队最多等多久」由出站准入闸自己执行（闸收 waitMs、到点抛排队超时并归还晚到名额），
+ * 各出口只在这里算出预算再递给闸 —— 计时与归还都只有闸那一份，出口不许再自己起表赛跑。
+ * 值本身仍只在中央 YAML 有一处定义（config/timeouts.yaml 的 ghQueueWaitTimeoutMs 键），
+ * 这里只引用中央常量，不抄数字。
  */
 export function queueTimeoutForTier(tierTimeoutMs: number): number {
   return Math.min(tierTimeoutMs, GH_QUEUE_WAIT_TIMEOUT_MS)
@@ -306,6 +307,33 @@ export function outboundCooldownOf(err: unknown): OutboundCooldownInfo | null {
   const remainingMs = typeof e.remainingMs === 'number' && isFinite(e.remainingMs) ? e.remainingMs : 0
   const failStreak = typeof e.failStreak === 'number' && isFinite(e.failStreak) ? e.failStreak : 0
   return { bucket, remainingMs: Math.max(0, Math.floor(remainingMs)), reason, failStreak: Math.max(0, Math.floor(failStreak)) }
+}
+
+/**
+ * 排队超时错误码（#1570）：准入闸在队列里等过了调用方给的时间预算时，错误对象带这个 code。
+ * 调用方据此返回「排队太久、一次都没跑起来」这类**可重试**的回话，与「排队时被取消」
+ * 「通路冷却」和普通失败分开 —— 它说明名额竞争激烈，不是命令本身错了。
+ */
+export const OUTBOUND_QUEUE_TIMEOUT_CODE = 'admission-queue-timeout'
+
+/** 排队超时错误上能读出的信息：哪只桶、等了多久、当初给的时间预算是多少。 */
+export interface OutboundQueueTimeoutInfo {
+  bucket: string
+  waitedMs: number
+  limitMs: number
+}
+
+/**
+ * 从错误对象上读排队超时信息；不是排队超时错误就回 null。
+ * 类型说明：错误值形状不可控，只按键读取，不改变运行时对象。
+ */
+export function outboundQueueTimeoutOf(err: unknown): OutboundQueueTimeoutInfo | null {
+  if (!err || (err as { code?: unknown }).code !== OUTBOUND_QUEUE_TIMEOUT_CODE) return null
+  const e = err as { bucket?: unknown; waitedMs?: unknown; limitMs?: unknown }
+  const bucket = String(e.bucket == null ? '' : e.bucket)
+  const waitedMs = typeof e.waitedMs === 'number' && isFinite(e.waitedMs) ? e.waitedMs : 0
+  const limitMs = typeof e.limitMs === 'number' && isFinite(e.limitMs) ? e.limitMs : 0
+  return { bucket: bucket, waitedMs: Math.max(0, Math.floor(waitedMs)), limitMs: Math.max(0, Math.floor(limitMs)) }
 }
 
 /**

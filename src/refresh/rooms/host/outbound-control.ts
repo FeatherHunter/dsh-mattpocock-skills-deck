@@ -29,7 +29,7 @@ import type { OutboundControl } from '../../../tracker/contract/outbound.js'
 export function createOutboundControl(): OutboundControl {
   return {
     acquire(req) {
-      return getGhLane().acquire({ bucket: req.bucket, signal: req.signal, cmd: req.cmd, service: req.service })
+      return getGhLane().acquire({ bucket: req.bucket, signal: req.signal, cmd: req.cmd, service: req.service, waitMs: req.waitMs })
     },
     isCancelled(err) {
       return isAdmissionCancelled(err)

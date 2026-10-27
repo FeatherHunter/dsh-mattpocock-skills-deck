@@ -53,8 +53,14 @@ export interface OutboundControl {
    * 取一个出站名额，拿到就返回放行函数；排满了就在这里等。
    * 等待期间 `signal` 中止 → 抛「排队时被取消」的错误（不占名额、不记失败），
    * 由 `isCancelled` 认出来，调用方按取消返回、可以重试。
+   *
+   * `waitMs`（#1570）是调用方给排队这一段的**时间预算**（毫秒）：到点还没拿到名额，
+   * 闸会抛带 `admission-queue-timeout` 码的排队超时错误（由 kernel 的
+   * `outboundQueueTimeoutOf` 识别，带出等了多久与预算），并负责把晚到的名额归还；
+   * 到点之后不会再凭空多出一次「拿名额成功、但没人放回」的泄漏。
+   * 缺省不给就是不设排队上限（与今天一致）——排队预算由闸管，调用方不再自己写计时器。
    */
-  acquire(req: { bucket: OutboundBucket; signal?: AbortSignal; cmd?: string; service?: OutboundService }): Promise<() => void>
+  acquire(req: { bucket: OutboundBucket; signal?: AbortSignal; cmd?: string; service?: OutboundService; waitMs?: number }): Promise<() => void>
 
   /** 这个错误是不是「出站准入等待中被取消」。只有闸自己说得清，房间不猜。 */
   isCancelled(err: unknown): boolean

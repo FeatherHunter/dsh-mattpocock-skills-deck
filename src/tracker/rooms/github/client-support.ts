@@ -54,16 +54,6 @@ export function isDeadlineHit(v: unknown): v is DeadlineHit {
   return !!v && typeof v === 'object' && (v as DeadlineHit).__deadlineHit === true;
 }
 
-/** 排队上限哨兵（#1560）：与拿名额赛跑，落地的是它就说明排队上限那只表先到点了，真结果里不会有这一格。 */
-export interface QueueLimitHit {
-  __queueLimitHit: boolean;
-}
-
-/** 是不是排队上限哨兵：只有排队上限那只表到点才会产出这个形状，真结果里不会有这一格。 */
-export function isQueueLimitHit(v: unknown): v is QueueLimitHit {
-  return !!v && typeof v === 'object' && (v as QueueLimitHit).__queueLimitHit === true;
-}
-
 // 房内埋点（#494 O1）：gh.exec（#5 常驻）/ gh.timeout（#6 告警）/ gh.resolve.fail（#7 告警），字段按 #489 附录 1.4。
 // gh.exec 高频：外层先判 isEnabled（信息），关闭时不组装字段；告警两项常驻直发；参数只记命令名，不记完整参数（避免令牌落盘）。
 export function hash8(s: unknown): string { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch { return '00000000' } }

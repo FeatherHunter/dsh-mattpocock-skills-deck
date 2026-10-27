@@ -56,7 +56,7 @@ function countingOk(store: { spawns: number }): any {
 }
 
 async function main(): Promise<void> {
-  const { createGhAdmission, setGhLaneLogCtx } = await imp('src/refresh/rooms/host/outbound-admission.ts')
+  const { createGhAdmission, setGhLaneLogCtx, isAdmissionCancelled } = await imp('src/refresh/rooms/host/outbound-admission.ts')
   const tiers = await imp('src/tracker/kernel/outbound-tiers.ts')
   const { outboundCooldownOf } = tiers
   // 全局的日志出口只给「自建闸」用：设一次，收集 gh.transport；结束时清掉，不影响别人。
@@ -225,13 +225,11 @@ async function main(): Promise<void> {
     check(/ghCooldownReply/.test(platSrc) && /outboundCooldownOf/.test(reportSrc) && /通路现在不通/.test(reportSrc), '五、平台通道的探测出口经共享口径把冷却翻译成「通路不通」', '')
     const admSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/outbound-admission.ts'), 'utf8')
     check(/gh\.transport/.test(admSrc) && /admission-cooldown/.test(admSrc), '五、准入闸里有常驻的冷却轨迹与冷却错误标记', '')
-    // 排队上限只在 YAML 里有一处定义，宿主 runGh 的排队段经 queueTimeoutForTier 取「本档预算与它更小的那个」。
+    // 排队上限只在 YAML 里有一处定义；#1570 起「到点由闸抛排队超时、归还晚到名额」住在闸里，出口只递预算。
     const yamlSrc = fs.readFileSync(path.join(ROOT, 'config/timeouts.yaml'), 'utf8')
     check(/ghQueueWaitTimeoutMs:\s*3000/.test(yamlSrc), '五、排队上限在 config/timeouts.yaml 里有一处定义（3000 毫秒）', '')
-    const qrSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/gh-queue-race.ts'), 'utf8')
-    // #1560 起算式住在房间与宿主共用的 kernel（房间客户端也要用同一条），排队竞速文件只剩转出口。
     const tiersSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/kernel/outbound-tiers.ts'), 'utf8')
-    check(/queueTimeoutForTier/.test(tiersSrc) && /GH_QUEUE_WAIT_TIMEOUT_MS/.test(tiersSrc) && /queueTimeoutForTier/.test(qrSrc) && /queueTimeoutForTier/.test(ghExecSrc), '五、排队上限来自中央配置，宿主 runGh 的排队段用它掐表', '')
+    check(/queueTimeoutForTier/.test(tiersSrc) && /GH_QUEUE_WAIT_TIMEOUT_MS/.test(tiersSrc) && /queueTimeoutForTier/.test(ghExecSrc) && /waitMs/.test(ghExecSrc), '五、排队上限来自中央配置，宿主 runGh 只把预算递给闸', '')
     // #1007 复核：三条出站通道拿名额时都要报服务名，GitHub 的通路故障才不会挡住 GitLab 与 git。
     check(/service:\s*deIsGh\s*\?\s*'github'\s*:\s*'gitlab'/.test(platSrc), '五、平台通道按 gh / glab 分别报服务名（GitHub 冷却不挡 glab）', '')
     const gitExecSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/git-execution.ts'), 'utf8')
@@ -242,61 +240,63 @@ async function main(): Promise<void> {
     check((ctlSrc.match(/service/g) || []).length >= 3, '五、出站控制面把调用方报的服务名原样转给准入闸', '')
   }
 
-  // —— 六、排队上限只夹排队段；计时器先赢时晚到的名额必须归还（#1007 复核指出的泄漏）——
+  // —— 六、排队上限只在闸里执行：到点抛可辨认错误、迟到名额不泄漏、取消与到点分得开（#1570）——
   {
-    const queueRace = await imp('src/refresh/rooms/host/gh-queue-race.ts')
     const { GH_QUEUE_WAIT_TIMEOUT_MS } = await imp('src/shared/time-config/src/values.js')
-    check(queueRace.queueTimeoutForTier(12000) === GH_QUEUE_WAIT_TIMEOUT_MS && GH_QUEUE_WAIT_TIMEOUT_MS === 3000 && queueRace.queueTimeoutForTier(1500) === 1500, '六、排队上限取「本档预算」与「中央配置」更小的那个（不把整档预算花在排队上）', String(queueRace.queueTimeoutForTier(12000)) + ' / ' + String(queueRace.queueTimeoutForTier(1500)))
+    const { outboundQueueTimeoutOf, queueTimeoutForTier } = tiers
+    check(queueTimeoutForTier(12000) === GH_QUEUE_WAIT_TIMEOUT_MS && GH_QUEUE_WAIT_TIMEOUT_MS === 3000 && queueTimeoutForTier(1500) === 1500, '六、排队上限取「本档预算」与「中央配置」更小的那个（不把整档预算花在排队上）', String(queueTimeoutForTier(12000)) + ' / ' + String(queueTimeoutForTier(1500)))
 
-    // 计时器先赢：迟到回来的名额没有人会用，必须在赛跑内部当场归还。
-    {
-      const meter = { released: 0 }
-      const lane = { acquire: (): Promise<() => void> => new Promise<() => void>((resolve) => { setTimeout(() => resolve(() => { meter.released += 1 }), 20) }) }
-      const handle = queueRace.raceGhQueue({ lane, timer: { timeout: () => Promise.resolve('timeout') }, timeoutMs: 10, bucket: 'read', cmd: 'issue:list', signal: undefined })
-      const first = await handle.result
-      check(first.timedOut === true && first.release === null, '六、计时器先赢时按「排队到点」落定，不把名额交给调用方', JSON.stringify(first))
-      await wait(40)
-      check(meter.released === 1, '六、计时器先赢后迟到回来的名额被归还（不泄漏准入名额）', String(meter.released))
+    // 用可手动触发的表测到点：不睡真实时间，也不依赖机器快慢。
+    const pending: any[] = []
+    const timers = {
+      setTimeout: (fn: () => void, ms: number) => { const h: any = { fn: fn, ms: ms, cleared: false }; pending.push(h); return h },
+      clearTimeout: (h: any) => { if (h) h.cleared = true },
     }
+    const lane = createGhAdmission({ readMax: 1, writeMax: 1, timers: timers })
+    const releaseHeld = await lane.acquire({ bucket: 'read' })
+    let queueErr: any = null
+    const queued = lane.acquire({ bucket: 'read', waitMs: 250 }).then(() => 'got', (e: any) => { queueErr = e; return 'rejected' })
+    check(pending.length === 1 && pending[0].ms === 250, '六、给了预算才建表：排队时按「最多等多久」起一只表', JSON.stringify(pending.map((h) => h.ms)))
+    pending[0].fn()
+    const outcome = await queued
+    check(outcome === 'rejected' && !!outboundQueueTimeoutOf(queueErr), '六、到点由闸抛可辨认的「排队超时」，调用方靠 kernel 的判定函数认出来', JSON.stringify(queueErr && queueErr.code))
+    const qInfo = outboundQueueTimeoutOf(queueErr)
+    check(!!qInfo && qInfo.bucket === 'read' && qInfo.limitMs === 250 && qInfo.waitedMs >= 0, '六、排队超时错误带桶名、预算与已等毫秒', JSON.stringify(qInfo))
+    // 这一笔没有拿过名额，也没把名额弄丢：放掉占位后下一笔立刻能进。
+    releaseHeld()
+    const nextRel: any = await Promise.race([lane.acquire({ bucket: 'read' }), wait(1000).then(() => 'stuck')])
+    check(typeof nextRel === 'function', '六、排队到点后名额没有泄漏（放掉占位，下一笔立刻拿到）', String(nextRel))
+    if (typeof nextRel === 'function') nextRel()
+    check(lane.snapshot().readQueueTimedOut === 1, '六、排队到点单独计数，不混进取消或成功', String(lane.snapshot().readQueueTimedOut))
 
-    // 名额先到：把归还函数交给调用方，未到点前不自动归还。
-    {
-      const meter = { released: 0 }
-      const lane = { acquire: (): Promise<() => void> => Promise.resolve(() => { meter.released += 1 }) }
-      const handle = queueRace.raceGhQueue({ lane, timer: { timeout: () => new Promise(() => {}) }, timeoutMs: 10, bucket: 'read', cmd: 'issue:list', signal: undefined })
-      const got = await handle.result
-      check(typeof got.release === 'function' && got.timedOut !== true, '六、名额先到时把归还函数交给调用方', JSON.stringify({ release: typeof got.release, timedOut: got.timedOut }))
-      check(meter.released === 0, '六、名额先到时不自动归还（由调用方在命令收尾时归还）', String(meter.released))
-      got.release()
-      check(meter.released === 1, '六、调用方归还后名额回到桶里', String(meter.released))
-    }
+    // 取消与排队到点分得开：取消按取消返回，那只表被撤掉、不算到点。
+    const releaseHeld2 = await lane.acquire({ bucket: 'read' })
+    const ctl = new AbortController()
+    let cancelErr: any = null
+    const queued2 = lane.acquire({ bucket: 'read', waitMs: 250, signal: ctl.signal }).then(() => 'got', (e: any) => { cancelErr = e; return 'rejected' })
+    const timedOutBefore = lane.snapshot().readQueueTimedOut
+    ctl.abort()
+    const outcome2 = await queued2
+    check(outcome2 === 'rejected' && isAdmissionCancelled(cancelErr) && !outboundQueueTimeoutOf(cancelErr), '六、取消仍按取消返回，不算排队到点', String(cancelErr && cancelErr.code))
+    const cancelTimer = pending[pending.length - 1]
+    check(!!cancelTimer && cancelTimer.cleared === true, '六、取消后排队那只表被撤掉（不会稍后误杀）', JSON.stringify({ cleared: cancelTimer && cancelTimer.cleared }))
+    check(lane.snapshot().readQueueTimedOut === timedOutBefore, '六、排队到点计数不因取消而增加', String(lane.snapshot().readQueueTimedOut))
+    releaseHeld2()
 
-    // 放弃这一笔：中止排队信号，且晚到的名额同样归还。
-    {
-      const meter = { released: 0 }
-      let releaseLater: (() => void) | null = null
-      const lane = { acquire: (): Promise<() => void> => new Promise<() => void>((resolve) => { releaseLater = () => resolve(() => { meter.released += 1 }) }) }
-      const handle = queueRace.raceGhQueue({ lane, timer: { timeout: () => new Promise(() => {}) }, timeoutMs: 10, bucket: 'read', cmd: 'issue:list', signal: undefined })
-      const ctrl = new AbortController()
-      handle.abandon(ctrl)
-      releaseLater!()
-      await handle.result
-      check(ctrl.signal.aborted === true, '六、放弃这一笔时中止排队信号（排队段可取消）', String(ctrl.signal.aborted))
-      check(meter.released === 1, '六、放弃之后晚到的名额也被归还', String(meter.released))
-    }
-
-    // 计时器建不出来（实例已销毁）：退化成只等名额，结果照样落定、不抛。
-    {
-      const lane = { acquire: (): Promise<() => void> => Promise.resolve(() => {}) }
-      const handle = queueRace.raceGhQueue({ lane, timer: { timeout: () => { throw new Error('INACTIVE_EFFECT') } }, timeoutMs: 10, bucket: 'read', cmd: 'issue:list', signal: undefined })
-      const got = await handle.result
-      check(typeof got.release === 'function' && got.disposed !== true, '六、计时器建不出来时退化成只等名额（#1392 销毁路径不抛）', JSON.stringify({ release: typeof got.release }))
-      got.release()
-    }
+    // 没给预算就不设上限：不建表，放掉占位后照常拿到（既有调用方行为不变）。
+    const lane2 = createGhAdmission({ readMax: 1, writeMax: 1, timers: timers })
+    const hold2 = await lane2.acquire({ bucket: 'read' })
+    const pendingBefore = pending.length
+    const waitOnly = lane2.acquire({ bucket: 'read' }).then(() => 'ok')
+    check(pending.length === pendingBefore, '六、缺省不给预算时不设上限（排队不建表，与既有调用方兼容）', String(pending.length - pendingBefore))
+    hold2()
+    const gotWait = await Promise.race([waitOnly, wait(1000).then(() => 'stuck')])
+    check(gotWait === 'ok', '六、不设上限的排队在名额回来时照常放行', String(gotWait))
   }
 
   setGhLaneLogCtx(null)
-  check(transportEvents.every((e) => e.event === 'gh.transport' && Object.keys(e.fields).every((k) => ['decision', 'bucket', 'reason', 'remainingMs', 'failStreak', 'cmd'].indexOf(k) >= 0)), '五、gh.transport 只记枚举、数字与命令短标签（字段都在白名单内，不记命令原文）', JSON.stringify(transportEvents.slice(0, 2)))
+  const transportOnly = transportEvents.filter((e: any) => e.event === 'gh.transport')
+  check(transportOnly.length >= 2 && transportOnly.every((e: any) => Object.keys(e.fields).every((k) => ['decision', 'bucket', 'reason', 'remainingMs', 'failStreak', 'cmd'].indexOf(k) >= 0)), '五、gh.transport 只记枚举、数字与命令短标签（字段都在白名单内，不记命令原文）', JSON.stringify(transportOnly.slice(0, 2)))
   console.log('\n共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
   process.exit(failed ? 1 : 0)
 }

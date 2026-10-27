@@ -130,7 +130,7 @@ const REFERENCES: RefRow[] = [
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'DEFAULT_TIMEOUT_MS', gen: 'OUTBOUND_DEFAULT_TIMEOUT_MS', key: 'outboundDefaultMs' },
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'TRANSPORT_COOLDOWN_MS', gen: 'OUTBOUND_TRANSPORT_COOLDOWN_MS', key: 'outboundTransportCooldownMs' },
   // #1007 复核补的排队上限：代码里只夹排队段，起进程之后的等待仍按本档超时。
-  // #1560 起算式搬进房间与宿主共用的 kernel（outbound-tiers.ts），gh-queue-race.ts 只剩转出口供旧调用方。
+  // #1560 起算式搬进房间与宿主共用的 kernel（outbound-tiers.ts）；#1570 起到点与迟到名额归还也由准入闸自己执行。
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'GH_QUEUE_WAIT_TIMEOUT_MS', gen: 'GH_QUEUE_WAIT_TIMEOUT_MS', key: 'ghQueueWaitTimeoutMs' },
   { file: 'src/tracker/registry/core.ts', access: 'MATCHES_TIMEOUT_MS', gen: 'MATCHES_TIMEOUT_MS', key: 'matchesTimeoutMs' },
   { file: 'src/tracker/rooms/github/client.ts', access: 'TIMEOUT_MS', gen: 'GITHUB_CLIENT_TIMEOUT_MS', key: 'githubClientTimeoutMs' },
@@ -468,6 +468,10 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/write-event-subscription.ts', name: 'waitedMs', reason: '算出来的等待时长（现在减上次动作时刻），不是输入参数' },
   { file: 'src/tracker/rooms/github/client.ts', name: 'waitedMs', reason: '测量用耗时：这一笔在名额队列里等了多久，不是可调参数' },
   { file: 'src/refresh/rooms/host/outbound-admission.ts', name: 'waitedMs', reason: '算出来的等待时长（放行时刻减排队开始时刻），日志字段，不是输入参数' },
+  { file: 'src/refresh/rooms/host/outbound-admission.ts', name: 'waitMs', reason: '透传变量：调用方（各出站路经 queueTimeoutForTier）传入的排队预算，闸只归一与执行，不新增时长来源' },
+  // #1570：排队超时错误上的两个字段是「量出来的等多久」与「调用方当初给的预算」，都由调用方参数算出，不新增时长来源。
+  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'waitedMs', reason: '排队超时错误载荷：闸量出来的已等毫秒，读出来只用于拼回话，不是可调参数' },
+  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'limitMs', reason: '排队超时错误载荷：调用方当初传入的 waitMs（来自已登记的本档预算 / ghQueueWaitTimeoutMs），不是新参数' },
   // 透传与派生：值来自调用方或已登记的中央常量，本文件不决定时长。
   { file: 'src/refresh/rooms/client/refresh-timer.ts', name: 'baseMs', reason: '透传变量：调用方给这一拍的正常间隔（上游是已登记的 probeIntervalMs 一类），不是新参数' },
   { file: 'src/refresh/rooms/host/chain-backoff.ts', name: 'capMs', reason: '透传变量：取注入的 limits.setupPendingCapMs（YAML 已登记为 chainSetupPendingCapMs），不是新参数' },
