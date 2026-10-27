@@ -69,8 +69,8 @@ console.log('面板取数与记账接线（#1439 A2 / #1454：面板经会话取
   check(snap.indexOf("not reachable (composition aborted)") >= 0, '会话与注册表都取不到实例时才如实说不可达，不假装组出来')
 
   const deck = srcOf('src/deck/tools/tracker-session.ts')
-  check(deck.indexOf('registry.get(') < 0 && deck.indexOf('sessionAny.getRepoKey') >= 0,
-    'deck 补仓库身份改问已开会话的 getRepoKey 能力（不再向注册表取实例）')
+  check(deck.indexOf('registry.get(') < 0 && deck.indexOf('resolveSessionRepoRef(') >= 0,
+    'deck 补仓库身份走会话能力（调用共享补齐实现，不再向注册表取实例）')
 
   const runtime = srcOf('src/refresh/rooms/host/refresh-runtime.ts')
   check(runtime.indexOf('createAccountPort') >= 0 && runtime.indexOf('accountFor: accountFor') >= 0,

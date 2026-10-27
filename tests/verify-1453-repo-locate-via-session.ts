@@ -43,7 +43,12 @@ let lastRoomCall: any = null
 
 /** 房间回包带用量：契约里的定位口回裸值（{ owner, name } 或 null，没有成功信封），用量挂在裸值上自报。 */
 const room = {
-  describe: (): any => ({ backend: 'github', refId: '', name: '', url: '' }),
+  // #1583：describe 按后端真实口径回答——只给目录时 refId 为空；再问时带着 owner/name 当 refId 就补全身份。
+  describe: (handle: any): any => {
+    const refId = (handle && typeof handle.refId === 'string' && handle.refId) ? handle.refId : ''
+    const cwd = (handle && typeof handle.cwd === 'string') ? handle.cwd : ''
+    return { backend: 'github', refId, name: refId || cwd.split('/').pop() || 'repo', url: refId ? 'https://github.com/' + refId : '' }
+  },
   getRepoKey: async (cwd: string, ctx: any): Promise<any> => {
     trace.push('room.getRepoKey')
     lastRoomCall = { cwd, ctx }

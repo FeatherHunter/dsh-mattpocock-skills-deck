@@ -14,9 +14,12 @@
  *     与「花了多少要记下来」是两件事，前者是裁决，后者是量账；1439 之前读路径不记账才让账本越走越偏。
  *     开会话时顺手调一次 ensureBackend：账本按后端建模，桶要先建出来，写第一笔时才不会因为桶缺席当场炸。
  *  3. 仓库身份随会话一起交出去（openTracker 回包里的 repoRef）：写操作要一个 RepositoryRef，
- *     判定出口没带时在这里用 describe 补一次；GitHub 仍缺 refId 时问**会话自己的 getRepoKey 能力**，
+ *     判定出口没带时在这里用 describe 补一次；仍缺 refId 时问**会话自己的 getRepoKey 能力**，
  *     由它先过裁决、再按后端口径记账（#1453，规格 1439 第 5 节：gh repo view 那一级是出站，
  *     必须放在会话建立之后、走操作管线）。宿主那一份 getRepoKey 只读本地证据，这里不用它兜底。
+ *     #1583 起补齐顺序与「不按后端名写死」的口径收在 src/tracker/session/repo-ref.ts，
+ *     远端归属改为「谁提供 getRepoKey 就问谁」，拿到 owner/name 后再问一次后端 describe
+ *     写完整身份（域名不在这里拼，GitHub 与 GitLab 各用各的）。
  *
  * 第 4 条（#1555 补）：调用方没有显式给选择时，本文件先问统一判定（deps.decideSelection，\
  * 工作区文件 > 声明文件 > 自动识别）再开会话；判定层缺席或抛错才退回裸问注册表（#1444 之前的行为）。
@@ -28,6 +31,7 @@
  * 不开整套读写路径。本文件的开会话也复用它——读数仍然直达房间，不裁决不记账。
  */
 import { openTracker } from '../../../tracker/session/open-tracker.js'
+import { resolveSessionRepoRef } from '../../../tracker/session/repo-ref.js'
 import { createSessionDecisionResolver } from './session-decision.js'
 import { createAccountPort } from '../../kernel/backend-accounting.js'
 import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
@@ -137,39 +141,43 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
     return { ok: false, reason: reason, detail: detail }
   }
   /**
-   * 补出仓库身份：判定出口带的先用；缺 refId 时问 describe；GitHub 仍缺就问会话的 getRepoKey。
-   * 为什么最后一步必须问会话而不是宿主（#1453）：仓库定位的 gh 那一级是出站，规格 1439 第 5 节
-   * 要求它放在会话建立之后、作为操作先过裁决再记账。会话的 getRepoKey 已经接在 Tracker 操作管线上
-   * （open-tracker 把除 describe/issueAddress 之外的能力都包进 runPipelineOp），直接调它就得到同一条路；
-   * 那一笔的用量由房间在回包上自报（OpUsage），账本才按后端的两桶口径记得到。
+   * 补出仓库身份：判定出口带的先用；缺 refId 时按「describe → 会话自己的 getRepoKey → 再问
+   * describe 拿完整身份」补齐。补齐顺序与每一步的失败诊断收在 src/tracker/session/repo-ref.ts
+   * （deck 工具也走同一份，两边不会再各写一套、各说一种后端）。
+   * 为什么远端那一问必须问会话而不是宿主（#1453）：仓库定位的 gh 那一级是出站，规格 1439 第 5 节
+   * 要求它放在会话建立之后、作为操作先过裁决再记账；会话的 getRepoKey 已经接在 Tracker 操作管线上。
+   * #1583：不再按后端名写死「只给 GitHub 问」——谁提供 getRepoKey 就问谁（GitLab 也提供）；
+   * 本地 Markdown 的 getRepoKey 恒回 null，这一问不产生出站、也不会改变结果。
    */
   async function resolveRepoRef(cwdStr: string, backendId: string, session: TrackerSession, fromSelection: RepositoryRef | null): Promise<RepositoryRef | null> {
-    let ref: RepositoryRef | null = (fromSelection && fromSelection.refId) ? fromSelection : null
-    if (!ref) {
-      try {
-        const described: any = (session as any).describe({ cwd: cwdStr }, backendId)
-        if (described) ref = Object.assign({}, described) as RepositoryRef
-      } catch (eD: any) { ref = null }
-    }
-    if (ref && (ref as any).refId) return ref
-    if (backendId !== 'github' || typeof (session as any).getRepoKey !== 'function') return ref
-    // GitHub 的判定出口不一定带 refId，缺它时后端无法定位仓库；这一问可能起 gh，所以先过裁决、再记账。
     let base: Record<string, unknown> = {}
     try { base = deps.backendCtx() || {} } catch (eB: any) { base = {} }
-    try {
-      // 第一格是仓库路径（契约 getRepoKey(cwd, ctx) 的 cwd 是字符串，房间的三级探测都拿它当工作目录）；
-      // 第二格是操作上下文：会话管线只负责裁决与记账，真正起 git/gh 时房间还是要 platform/exec/fs。
-      const located: any = await (session as any).getRepoKey(cwdStr, Object.assign({}, base, { cwd: cwdStr, caller: 'refresh' }))
-      // 房间回的是裸值（契约：{ owner, name } 或 null，用量挂在同一个对象上）；只有管线拒绝时才带 ok:false。
-      if (located && located.ok !== false && located.owner && located.name) {
-        const merged: any = Object.assign({}, ref || {})
-        merged.refId = String(located.owner) + '/' + String(located.name)
-        merged.name = merged.refId
-        merged.url = 'https://github.com/' + merged.refId
-        return merged as RepositoryRef
-      }
-    } catch (eK: any) {}
-    return ref
+    const resolved = await resolveSessionRepoRef({
+      session: session,
+      cwd: cwdStr,
+      backendId: backendId,
+      fromSelection: fromSelection,
+      baseCtx: base,
+      caller: 'refresh',
+    })
+    // 日志只记有诊断价值的三种：某一步抛错、走了远端定位（可能花了出站额度）、最后没补出 refId。
+    // 正常的「判定自带 / describe 一次就成」是每次开会话都会走的寻常路径，记下来就是噪音。
+    const failed = resolved.steps.filter(function (step) { return !step.ok })
+    if (failed.length > 0 || resolved.via === 'remote-locate' || resolved.via === 'none') {
+      try {
+        if (logCtx && typeof logCtx.fire === 'function') {
+          logCtx.fire('debug', 'read.session.repo-ref', {
+            ok: !!(resolved.ref && resolved.ref.refId),
+            backendId: backendId,
+            via: resolved.via,
+            steps: resolved.steps.map(function (step) {
+              return step.step + ':' + (step.ok ? 'ok' : 'fail' + (step.error ? '(' + step.error + ')' : ''))
+            }),
+          })
+        }
+      } catch (eL: any) {}
+    }
+    return resolved.ref
   }
   return async function openSession(cwd: unknown, opts?: OpenSessionOptions): Promise<OpenSessionResult> {
     const cwdStr = (typeof cwd === 'string') ? cwd : String(cwd == null ? '' : cwd)

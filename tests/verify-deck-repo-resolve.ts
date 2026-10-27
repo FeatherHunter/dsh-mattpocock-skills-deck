@@ -81,12 +81,21 @@ async function main() {
   // （等价于工作区文件里那一行），否则壳按「没选定后端」在选后端那一步就拒了。
   chooseWorkspace('/ws', 'github')
   let resolveCalls = 0
+  // #1583 起，会话的 describe 定位口按「模块优先、实例兜底」装配，实例上这份要按真后端口径回答：
+  // 拿到 owner/name 形态的 refId 就带上仓库地址；补身份的第三步（拿到 owner/name 后再问一次 describe）
+  // 靠它产出完整身份，所以这里不能永远回空壳。
+  const githubDescribe = function (handle: any): any {
+    const refId = (handle && typeof handle.refId === 'string') ? handle.refId : ''
+    return { backend: 'github', refId: refId, name: refId || 'ws', url: refId ? 'https://github.com/' + refId : '' }
+  }
   const withCap = {
     has: function () { return true },
     select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' }, canWrite: true } },
-    describe: function () { return { backend: 'github', refId: '', name: 'ws', url: '' } },
+    // 判定出口取 ref 时也会问注册表这一份（只给目录，只能回空壳——正是要验的起点）。
+    describe: function () { return githubDescribe({}) },
     get: function () {
       return {
+        describe: githubDescribe,
         getRepoKey: async function (cwd: string): Promise<any> {
           resolveCalls += 1
           if (cwd !== '/ws') throw new Error('目录没递过去')

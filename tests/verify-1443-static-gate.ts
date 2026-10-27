@@ -130,7 +130,12 @@ async function main() {
   const openAt = opener.indexOf('await openTracker(')
   const refAt = opener.indexOf('await resolveRepoRef(')
   check(openAt >= 0 && refAt > openAt, '仓库身份在会话建立之后才补（openTracker 先于 resolveRepoRef）')
-  check(opener.indexOf('(session as any).getRepoKey') >= 0,
+  // #1583：远端那一问与「问谁」的规则搬进了共享实现，两条调用方（刷新与 deck 工具）都经它。
+  // 这里钉住两件事：刷新侧确实调用共享实现；共享实现里问的是会话的 getRepoKey 能力（不是宿主那份）。
+  const repoRefSrc = stripComments(fs.readFileSync(path.join(ROOT, 'src/tracker/session/repo-ref.ts'), 'utf8'))
+  check(opener.indexOf('resolveSessionRepoRef(') >= 0,
+    '刷新后台的仓库身份补齐调用共享实现 src/tracker/session/repo-ref.ts（不再各写一份）')
+  check(repoRefSrc.indexOf('getRepoKey') >= 0,
     '补仓库身份问的是会话的 getRepoKey 能力（走操作管线：先裁决、再按后端口径记账）')
   check(opener.indexOf('deps.getRepoKey') < 0, '不再退回宿主那一份 getRepoKey（那份只读本地证据，起 gh 的那一级已删）')
   // 那一级要真的住在房间里：能力和实现分家时，这条会先红，提醒把调用点搬回去。
@@ -205,8 +210,8 @@ async function main() {
   check(snapComposer.indexOf('const trackerFor') >= 0 && snapComposer.indexOf('opened.call(') >= 0 && countOf(snapComposer, 'registry.get(') === 1,
     '编排器接了会话口就经 opened.call 调会话操作，会话这层用不上时回落注册表取实例（全文件 registry.get 恰好一处，实得 ' + countOf(snapComposer, 'registry.get(') + ' 处）')
   const deckSession = stripComments(fs.readFileSync(path.join(ROOT, 'src/deck/tools/tracker-session.ts'), 'utf8'))
-  check(deckSession.indexOf('registry.get(') < 0 && deckSession.indexOf('sessionAny.getRepoKey') >= 0,
-    'deck 补仓库身份改问已开会话的 getRepoKey 能力（不再向注册表取实例）')
+  check(deckSession.indexOf('registry.get(') < 0 && deckSession.indexOf('resolveSessionRepoRef(') >= 0,
+    'deck 补仓库身份走会话能力（调用共享补齐实现，不再向注册表取实例）')
   console.log(failed ? ('\n' + total + ' 条断言，失败') : ('\n' + total + ' 条断言，全部通过')); process.exit(failed ? 1 : 0)
 }
 

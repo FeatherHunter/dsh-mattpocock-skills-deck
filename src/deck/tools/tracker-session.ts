@@ -6,7 +6,9 @@
 // 不花额度），离网后端跳过剩余额度探针（没有额度可言，直接放行），额度只在管线里按
 // 后端口径裁决与记账。九个工具的 work 闭包一个字不动，只换 pick 与 call 两个调用点。
 import { openTracker } from '../../tracker/session/open-tracker.js'
+import { resolveSessionRepoRef } from '../../tracker/session/repo-ref.js'
 import type { TrackerSession } from '../../tracker/session/open-tracker.js'
+import type { RepositoryRef } from '../../tracker/contract/entities.js'
 import { selectionFromOutlet } from '../../tracker/detection/backendDecision.js'
 import { tierFor, aiToolFloor } from '../../refresh/kernel/host-budget.js'
 import { recordWorkRoute } from '../shell/work-path-record.js'
@@ -228,25 +230,30 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
     if (reason === 'no-backend') return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: '这个工作区还没有后端（既没有手动选过，也没有识别到锚文件）。先在面板上选一个后端。' };
     return { ok: false, reason: REFUSAL_REASONS.BACKEND_THREW, text: '选中的后端还没就绪（' + (detail || reason || '没说清原因') + '），我没往下做。' };
   }
-  // 仓库标识补全：与原来同一场竞速（会话定位口与等待上限拼速度）。#1453 起问会话自己的能力：
-  // 仓库定位是出站动作，要过裁决与记账；注册表的取实例口不再对 deck 工具公开。
+  // 仓库标识补全：判定出口带的先用；缺 refId 时与刷新后台走同一份补齐
+  // （src/tracker/session/repo-ref.ts）：先问会话的 describe（本地 Markdown 在这里就能拿到工作区
+  // 路径），仍缺再问会话的 getRepoKey 远端定位口，拿到 owner/name 后由后端 describe 写完整身份
+  // （域名不在这里拼）。#1453 起这一问必须走会话能力：仓库定位是出站动作，要过裁决与记账；
+  // 注册表的取实例口不再对 deck 工具公开。#1583 起不按后端名写死、也不再自己拼 github.com。
   let ref: UnknownRecord | null = (selection.ref || null) as UnknownRecord | null;
   if (!ref || !ref.refId) {
-    try {
-      const sessionAny = opened.session as unknown as UnknownRecord;
-      const keyFn = sessionAny.getRepoKey as ((cwd: string, ctx: unknown) => Promise<unknown>) | undefined;
-      if (typeof keyFn === 'function') {
-        const cap = (typeof d.resolveTimeoutMs === 'number' && (d.resolveTimeoutMs as number) > 0) ? Math.floor(d.resolveTimeoutMs as number) : 8000;
-        // 竞速实现见 ../shell/capped-wait.ts（#1114 第二批）：到点就清等待定时器；超时与对方抛错
-        // 都回「没等到」，与原来 sleepFn 赢下竞速回 null 同形。
-        const keyed = await withCap(Promise.resolve().then(function () { return keyFn.call(sessionAny, cwd, Object.assign({}, backendCtxNow(d), { cwd: cwd, caller: DECK_TOOL_KIND })); }), cap, (typeof d.sleep === 'function') ? d.sleep as (ms: number) => Promise<unknown> : undefined);
-        const kRec = ((keyed.ok === true) ? keyed.value : null) as UnknownRecord | null;
-        if (kRec && typeof kRec.owner === 'string' && kRec.owner && typeof kRec.name === 'string' && kRec.name) {
-          const refId = kRec.owner + '/' + kRec.name;
-          ref = { backend: backendId, refId: refId, name: refId, url: 'https://github.com/' + refId };
-        }
-      }
-    } catch { /* 补不上就用判定出口给的（可能为空），下游照旧诚实失败。 */ }
+    const cap = (typeof d.resolveTimeoutMs === 'number' && (d.resolveTimeoutMs as number) > 0) ? Math.floor(d.resolveTimeoutMs as number) : 8000;
+    // 补身份整段与等待上限赛跑：describe 是同步的，真正可能悬挂的是远端那一问；整段一起限时
+    // 也覆盖将来 describe 换成异步实现的情形。等待口缺席时用真定时器（与旧行为一致）。
+    const resolved = await withCap(
+      resolveSessionRepoRef({
+        session: opened.session,
+        cwd: cwd,
+        backendId: backendId,
+        fromSelection: (ref as unknown as RepositoryRef | null),
+        baseCtx: backendCtxNow(d),
+        caller: DECK_TOOL_KIND,
+      }),
+      cap,
+      (typeof d.sleep === 'function') ? d.sleep as (ms: number) => Promise<unknown> : undefined,
+    );
+    const maybe = (resolved.ok === true) ? (resolved.value as { ref?: RepositoryRef | null } | null) : null;
+    if (maybe && maybe.ref) ref = maybe.ref as unknown as UnknownRecord;
   }
   return { ok: true, backendId: backendId, source: source, ref: ref, pending: !!selection.pending, requests: num(est.requests), points: num(est.points), session: opened.session, admit: admit };
 }
