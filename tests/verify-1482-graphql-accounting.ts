@@ -310,11 +310,15 @@ function partF(): void {
     'F、GraphQL 估算点数只有一处定义')
 
   const client = srcOf('src/tracker/rooms/github/client.ts')
+  // gh.exec / gh.timeout 两条日志的字段拼装与 NOT_ACCOUNTED 已按文件粒度上限拆到 client-support.ts，
+  // 判据仍按「这两份合起来必须有」来判：拆文件不该让防回退扫描漏掉日志点。
+  const clientSupport = srcOf('src/tracker/rooms/github/client-support.ts')
+  const clientParts = client + '\n' + clientSupport
   check(client.indexOf('ghOutboundEntryOf(args)') >= 0 && client.indexOf('graphqlCorrectionOf(args, stdout)') >= 0,
     'F、gh 客户端报闸与补差都用共享口径，不再自己算一条请求/一点')
-  check(client.indexOf('ghPointNoteOf(args, stdout)') >= 0 && client.indexOf('points: pointNote.points') >= 0,
+  check(clientParts.indexOf('ghPointNoteOf(args, stdout)') >= 0 && clientParts.indexOf('points: pointNote.points') >= 0,
     'F、gh 客户端把真实点数与来源写进 gh.exec 日志（#1482 补的日志点）')
-  check(client.indexOf("const NOT_ACCOUNTED = { points: 0, pointSource: '' }") >= 0 &&
+  check(clientParts.indexOf("const NOT_ACCOUNTED = { points: 0, pointSource: '' }") >= 0 &&
     client.indexOf("phase === 'queue' ? NOT_ACCOUNTED : ghPointNoteOf(args)") >= 0,
     'F、报闸之前的 gh.exec 行写 0 点与空来源（排队取消、执行器没接上时不假装已记账）')
   check(client.indexOf("indexOf('graphql')") < 0 && client.indexOf('String(args && args[0]') < 0,
