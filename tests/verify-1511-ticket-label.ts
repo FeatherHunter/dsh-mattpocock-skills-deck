@@ -54,30 +54,31 @@ async function main(): Promise<void> {
   check(label(null, DIR) === '', '编号为 null 也不画')
   check(label(undefined, undefined) === '', '两个参数都缺席时返回空串')
 
-  // ── 一点五、B 方案的分段写法：目录前缀可省略、编号尾巴绝不缩小 ──────────────────
-  // 同一串编号只在这里拆一次：前缀（含 `#` 与结尾的 `/`）走省略号那一段，编号尾巴（`flex: none`）
-  // 永远完整显示；上限宽度同样只在这里定一个值（`TICKET_LABEL_MAX_WIDTH_PX = 136`），五处显示点都读它，
+  // ── 一点五、B 方案的分段写法：目录前缀可省略、`/编号` 尾巴绝不缩小 ──────────────────
+  // 同一串编号只在这里拆一次：前缀（含 `#`，不含 `/`）走省略号那一段，`/编号` 尾巴（`flex: none`）
+  // 永远完整显示；上限宽度同样只在这里定一个值（`TICKET_LABEL_MAX_WIDTH_PX = 85`），五处显示点都读它，
   // 在办表首列分档的封顶也由它推出（#1565：格子与徽标不再一宽一窄）。
-  // 取 136px 的原因：11px 字下 `#wayfinder-capability-test/00` 内容约 150px，上限 180px 时它碰不到线看着和没改一样。
+  // 取 85px 的原因：11px 字下 `#wayfin…/05` 外宽约 84px，按这串规则宽度定上限；放不下时目录段走省略号，
+  // `/` 与编号尾巴始终完整（#1579：`/` 留在尾巴里，不再被目录段的末尾省略吃掉）。
   check(typeof mod.ticketLabelPartsOf === 'function', 'kernel/ticket-label.ts 导出 ticketLabelPartsOf')
   check(typeof mod.ticketLabelNodesOf === 'function', 'kernel/ticket-label.ts 导出 ticketLabelNodesOf')
-  check(mod.TICKET_LABEL_MAX_WIDTH === '136px', '上限宽度是 136px（最长的那批目录能碰到线，长目录才会真的省略）')
+  check(mod.TICKET_LABEL_MAX_WIDTH === '85px', '上限宽度是 85px（规则宽度：`#wayfin…/05` 外宽约 84px，放不下走目录省略）')
   // #1565：上限先写成像素数，CSS 写法与在办表首列分档的封顶都由它推出来 —— 改宽度只改这一个数。
-  check(mod.TICKET_LABEL_MAX_WIDTH_PX === 136 && mod.TICKET_LABEL_MAX_WIDTH === mod.TICKET_LABEL_MAX_WIDTH_PX + 'px', '上限有两个形态（136 与 136px）且同源：分档封顶不会另写一个数')
+  check(mod.TICKET_LABEL_MAX_WIDTH_PX === 85 && mod.TICKET_LABEL_MAX_WIDTH === mod.TICKET_LABEL_MAX_WIDTH_PX + 'px', '上限有两个形态（85 与 85px）且同源：分档封顶不会另写一个数')
   const parts = mod.ticketLabelPartsOf
   const p1 = parts('01', DIR)
-  check(p1.full === '#' + DIR + '/01' && p1.prefix === '#' + DIR + '/' && p1.number === '01', '正常票拆成 #目录/ + 01')
+  check(p1.full === '#' + DIR + '/01' && p1.prefix === '#' + DIR && p1.number === '/01', '正常票拆成 #目录 + /01（`/` 跟编号走，不被目录省略吃掉）')
   const p2 = parts('01', '')
   check(p2.full === '#01' && p2.prefix === '#' && p2.number === '01', '没有目录时拆成 # + 01')
   const p3 = parts(DIR + '/01-买咖啡', DIR)
-  check(p3.full === '#' + DIR + '/01-买咖啡' && p3.prefix === '#' + DIR + '/' && p3.number === '01-买咖啡', '退化身份同样按第一个 / 切（目录可压、编号保住）')
+  check(p3.full === '#' + DIR + '/01-买咖啡' && p3.prefix === '#' + DIR && p3.number === '/01-买咖啡', '退化身份同样按第一个 / 切（目录可压、`/编号` 保住）')
   const p4 = parts('', DIR)
   check(p4.full === '' && p4.prefix === '' && p4.number === '', '空编号返回空三件（不画空徽标）')
   const fakeH = function (tag: any, props: any) { return { tag: tag, props: props } }
   const nodes = mod.ticketLabelNodesOf(fakeH, '01', DIR)
   check(Array.isArray(nodes) && nodes.length === 2, '两段子节点：目录一段 + 编号一段')
   check(nodes[0] && nodes[0].props && nodes[0].props.style && nodes[0].props.style.textOverflow === 'ellipsis' && nodes[0].props.style.whiteSpace === 'nowrap', '目录那段走省略号（末尾变…）')
-  check(nodes[1] && nodes[1].props && nodes[1].props.style && nodes[1].props.style.flex === 'none', '编号那段绝不缩小（flex: none）')
+  check(nodes[1] && nodes[1].props && nodes[1].props.style && nodes[1].props.style.flex === 'none', '`/编号` 那段绝不缩小（flex: none）')
   check(mod.ticketLabelNodesOf(fakeH, '', DIR).length === 0, '空编号不画子节点')
 
   // ── 二、五处显示点都调这份实现，不各拼一遍 ──────────────────────────────────────
@@ -104,7 +105,7 @@ async function main(): Promise<void> {
   for (const file of ['src/client/views/ListTabRow.ts', 'src/client/views/IssueDetail.ts', 'src/client/views/MapDetailHead.ts', 'src/client/views/shared/workRouteTable.ts', 'src/client/statusbar/SessionChainCapsule.ts']) {
     const src = sourceText(file)
     check(src.indexOf('ticketLabelNodesOf(') >= 0, file + ' 用两段子节点画徽标（目录可省略、编号绝不缩小）')
-    check(src.indexOf('TICKET_LABEL_MAX_WIDTH') >= 0 || src.indexOf('136px') >= 0, file + ' 给了上限宽度（136px 或那份常量）')
+    check(src.indexOf('TICKET_LABEL_MAX_WIDTH') >= 0 || src.indexOf('85px') >= 0, file + ' 给了上限宽度（85px 或那份常量）')
   }
   for (const file of ['src/client/views/ListTabRow.ts', 'src/client/views/IssueDetail.ts', 'src/client/views/MapDetailHead.ts']) {
     const src = sourceText(file)

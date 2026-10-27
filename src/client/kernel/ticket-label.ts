@@ -47,18 +47,18 @@ export function ticketLabelOf(key: unknown, effortId: unknown): string {
  *     直接拿它当 `maxWidth`；
  *   · 在办表首列最宽的那一档：分档封顶就是这条线（#1565 把原来各写各的 192px / 136px 收成一处，
  *     格子不会再比徽标宽、白留一片空白）。
- * 取 136 的原因（#1553）：11px 字下最长的那批目录（`#wayfinder-capability-test/00`）内容约 150px，
- * 上限再宽就碰不到线，长目录看着和没改一样；收到 136px 后目录前缀才会真的变省略号，编号尾巴仍完整显示。
+ * 取 85 的原因（#1579）：11px 字下 `#wayfin…/05` 外宽约 84px（文字约 70px + 内边距 12px + 边框 2px），
+ * 上限按这一串的规则宽度定；完整编号放得下整串显示，放不下时目录段走省略号、`/` 与编号段始终完整。
  */
-export const TICKET_LABEL_MAX_WIDTH_PX = 136
+export const TICKET_LABEL_MAX_WIDTH_PX = 85
 /** 上面那个数的 CSS 写法（`style.maxWidth` 用）。改宽度只改 `TICKET_LABEL_MAX_WIDTH_PX`，不要另写一个字面量。 */
 export const TICKET_LABEL_MAX_WIDTH = TICKET_LABEL_MAX_WIDTH_PX + 'px'
 
-/** 同一串编号拆成两段：目录前缀（含 `#` 与结尾的 `/`）与绝不缩小的编号尾巴。 */
+/** 同一串编号拆成两段：目录前缀（含 `#`，不含 `/`）与绝不缩小的 `/编号` 尾巴。 */
 export interface TicketLabelParts {
-  /** `#目录/`；没有目录时就是 `#`（退化身份按第一个 `/` 切，同样是这个形状）。 */
+  /** `#目录`；没有目录时就是 `#`（退化身份按第一个 `/` 切，同样是这个形状）。 */
   readonly prefix: string
-  /** `/` 后面的编号本身；空编号时为空串。 */
+  /** `/` 开头的编号本身（`/` 紧跟编号，不参与省略）；空编号时为空串。 */
   readonly number: string
   /** 完整写法（与 ticketLabelOf 同一串，悬停与无障碍名直接用它）。 */
   readonly full: string
@@ -66,24 +66,25 @@ export interface TicketLabelParts {
 
 /**
  * 把同一串编号拆成「可省略的目录前缀」与「绝不缩小的编号尾巴」：目录再长也只压前缀这一段，
- * 编号尾巴（`/13`、`01-文件名` 这类认票的那一截）永远完整显示。
+ * `/编号` 尾巴（`/13`、`01-文件名` 这类认票的那一截前面带着 `/`）永远完整显示。
  *
  * 拆法与上面那份真写法同一条口径：空编号返回空三件；没有 `/` 时前缀是 `#`；有 `/` 时按第一个 `/` 切
- * （`#目录/01-文件名` 切成 `#目录/` + `01-文件名`，退化身份同样是目录可压、编号保住）。
+ * （`#目录/01-买咖啡` 切成 `#目录` + `/01-买咖啡`，退化身份同样是目录可压、`/编号` 保住）。
+ * `/` 放在编号尾巴这一段（#1579）：目录段挂着省略号，结尾的字先被裁，`/` 留在尾巴里才不会跟着消失。
  */
 export function ticketLabelPartsOf(key: unknown, effortId: unknown): TicketLabelParts {
   const full = ticketLabelOf(key, effortId)
   if (full === '') return { prefix: '', number: '', full: '' }
   const slash = full.indexOf('/')
   if (slash < 0) return { prefix: '#', number: full.slice(1), full: full }
-  return { prefix: full.slice(0, slash + 1), number: full.slice(slash + 1), full: full }
+  return { prefix: full.slice(0, slash), number: full.slice(slash), full: full }
 }
 
 /**
- * 同一颗 `#目录/编号` 控件的两段子节点：目录前缀可省略、编号尾巴绝不缩小。
+ * 同一颗 `#目录/编号` 控件的两段子节点：目录前缀可省略、`/编号` 尾巴绝不缩小。
  *
  * 为什么收在这里：五处显示点（列表行、详情页头、地图详情头、在办表首列、状态栏胶囊）都要同一套
- * 「目录末尾变省略号」的写法，散在各处迟早长岔；这里只拼两段 span，外层的上限宽度与悬停仍由调用方
+ * 「目录末尾变省略号、`/` 紧跟编号」的写法，散在各处迟早长岔；这里只拼两段 span，外层的上限宽度与悬停仍由调用方
  * 按原样写（Tip 的 content 与无障碍名都用上面的完整写法，不另起一串）。
  */
 export const ticketLabelNodesOf = function (h: any, key: unknown, effortId: unknown): any[] {
@@ -96,9 +97,9 @@ export const ticketLabelNodesOf = function (h: any, key: unknown, effortId: unkn
 }
 
 /**
- * 状态栏胶囊主行里那一串编号的外层节点：目录前缀挂着让位号 12、编号尾巴不挂号。
+ * 状态栏胶囊主行里那一串编号的外层节点：目录前缀挂着让位号 12、`/编号` 尾巴不挂号。
  *
- * 窄下去时阶梯机只收挂号的那一段，所以目录从末尾逐字收、编号完整保留；拉宽后恢复完整写法。
+ * 窄下去时阶梯机只收挂号的那一段，所以目录从末尾逐字收、`/` 与完整编号保留；拉宽后恢复完整写法。
  * 空编号时回一个空外层，免得调用方再分叉；单段写法（没有编号尾巴）时前缀就是整串，整段挂号，与原来保持一致。
  *
  * 为什么单段与两段要共用同一个挂号 span、把号码只写一遍：让位表按号码数段落的门禁是照文本数的
@@ -128,14 +129,14 @@ export interface WorkRouteWidthRow {
  * #1548 修完首列是定死的 128px —— 全是「#1548」这类短编号时白白占掉 70 多像素，标题和会话反而被挤。
  * 现在按本表所有行里最长的编号估宽分档：短编号收窄，长编号才放宽，目录名尽量不缩写。
  * 估宽直接调上面那份真写法（同一份形状，想 drift 都 drift 不了）：11px 字号下 ASCII 按 7px、
- * 中文等非 ASCII 按 11px，另加 12px 估宽余量（宁可估宽一点，也别让真字被截）；分档 snap 到 56 / 96 / 136 三档。
+ * 中文等非 ASCII 按 11px，另加 12px 估宽余量（宁可估宽一点，也别让真字被截）；分档 snap 到 56 / 68 / 85 三档。
  * 最宽那一档**就是徽标上限**（`TICKET_LABEL_MAX_WIDTH_PX`，同一个数推出来，见上）：
  * 超过上限的目录仍走省略号，完整编号在悬停提示里补（见 workRouteTable.ts 的 tipContent）。
  * 反例（#1565 之前）：分档封顶另写着 192px，徽标只到 136px —— 走到最宽一档时格子白留 56px，
  * 那 56px 本该分给标题列。现在两处同源，格子不会再比徽标宽。
  * （#1548 注释里“最长 17 个字符”写错了：仓里 .scratch 目录名最长 32 个字符，定宽 128px 本来也放不下。） */
 /** 首列候选宽度（像素），从小到大；最后一档必须等于徽标上限，否则格子与徽标又会一宽一窄（#1565）。 */
-export const WORK_ROUTE_FIRST_COL_TIERS_PX: readonly number[] = [56, 96, TICKET_LABEL_MAX_WIDTH_PX]
+export const WORK_ROUTE_FIRST_COL_TIERS_PX: readonly number[] = [56, 68, TICKET_LABEL_MAX_WIDTH_PX]
 /** 这一行编号按真写法拼出来之后占多宽（像素，估算）。凡例：('#101','') → 40；('00','demo') → 68。 */
 export function workRouteLabelWidthOf(key: unknown, effortId: unknown): number {
   const label = ticketLabelOf(key, effortId)
