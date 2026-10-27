@@ -47,6 +47,7 @@
 
 - 使用者按技能原文手写的 `.scratch/` 文件（没有 `DSH-FORMAT`、`DSH-PARENT` 等注释）能被列出、读单票、看快照、改、完成；缺插件信息时按内容推断，不当作损坏，也不报错。
 - #1486 之前落在工作区根 `issues/`、工作区根 `.scratch/map.md`、`.scratch/issues/<键>.md` 的旧文件保持只读可用：列表、读取、快照跑得通；但写入路径（改状态、关闭、改正文、评论、认领、标签，凡是按写模式定位票文件的调用）在命中工作区根 `issues/` 或 `.scratch/issues/` 这两处扁平旧布局时如实失败，错误里说清「旧布局的票只读，迁移另行处理」，并记一条写日志（`issue.write` 事件的失败原因 `fail:unsupported`）。新写入不再往这些位置落；`.scratch/<feature>/issues/` 下的原文布局新票不算旧布局，读写都照常。旧数据的迁移另行开票，不夹带在本次纠正里。
+- 已知边界（#1567）：旧布局里以票文件形式存在的地图（工作区根 `issues/` 下带 `wayfinder:map` 标签、没有 `map.md` 的票）只按票行的身份可读：列表里它是 `type=map`、`effortId` 是空串、`parentKey` 是 null，面板按这一行的身份打开详情。`00` 号容器路径只认 `map.md`，所以 `00` 号读不到；旧文件里没有父边，这张地图也没有子票清单（本地 Markdown 后端的 `listSubIssues` 明确不支持）。地图清单靠 `wayfinder:map` 标签（或旧的 `Type: map` 标记）认它，写路径仍按上面只读失败。这些可观测行为里，带标签地图票的列出与读回、地图清单认它、`00` 号确定 `not-found`、子票清单为空、写路径拒绝且文件逐字节不变，由 `tests/verify-1488-read-mixed-layout.ts` 场景③ 钉住。
 
 **决定五 · 跨后端接口一致：effortId 就是 feature 目录名。**
 
