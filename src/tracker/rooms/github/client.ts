@@ -27,7 +27,7 @@ import { guardEmit } from '../../kernel/log-emit.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 // #1446：每一次真实出站同时记进「这一次操作」的计数器（op-usage.ts 在操作表外层取走）。
 import { noteGithubUsage } from './op-usage.js'
-import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields, ghOutboundEntryOf, graphqlCorrectionOf, ghPointNoteOf, outboundCooldownOf, transportFailureReasonOf, ghCooldownReply, outboundFollowUpAdvice, READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS } from '../../kernel/outbound-tiers.js'
+import { timeoutForGhArgs, queueTimeoutForTier, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields, ghOutboundEntryOf, graphqlCorrectionOf, ghPointNoteOf, outboundCooldownOf, transportFailureReasonOf, ghCooldownReply, outboundFollowUpAdvice, READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS } from '../../kernel/outbound-tiers.js'
 // 默认超时住中央 YAML（config/timeouts.yaml 的 githubClientTimeoutMs 键），这里只留别名。
 import { GITHUB_CLIENT_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 // #1159：名额闸与搭车账本不再从宿主 import —— 它们是有状态的运行时能力，形状由契约层声明
@@ -98,6 +98,16 @@ interface DeadlineHit {
 /** 是不是到点哨兵：只有房内表到点才会产出这个形状，真结果里不会有这一格。 */
 function isDeadlineHit(v: unknown): v is DeadlineHit {
   return !!v && typeof v === 'object' && (v as DeadlineHit).__deadlineHit === true;
+}
+
+/** 排队上限哨兵（#1560）：与拿名额赛跑，落地的是它就说明排队上限那只表先到点了，真结果里不会有这一格。 */
+interface QueueLimitHit {
+  __queueLimitHit: boolean;
+}
+
+/** 是不是排队上限哨兵：只有排队上限那只表到点才会产出这个形状，真结果里不会有这一格。 */
+function isQueueLimitHit(v: unknown): v is QueueLimitHit {
+  return !!v && typeof v === 'object' && (v as QueueLimitHit).__queueLimitHit === true;
 }
 
 /** 出站闸的最小口：只认记账这一个方法，闸由接线处注入，本房不 import 它。 */
@@ -365,6 +375,11 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
     const bucket = isWriteGhArgs(args) ? 'write' : 'read'
     const signal = opts.signal || (ctx && ctx.signal) || undefined
     const timeout = opts.timeout != null ? opts.timeout : timeoutForGhArgs(args)
+    // #1560：排队拿名额只等「本档预算与中央排队上限取更小」（读 12 秒档就是 3 秒），不等整档。
+    // 为什么不等整档：名额被占满时整档预算会全花在排队上，命令一次没跑却报「命令超时」；
+    // 上限先到就报「还在排队、一次没跑」，拿到名额之后仍按本档超时算，总墙钟仍是本档。
+    // 算式住在与宿主共用的 kernel（outbound-tiers.ts 的 queueTimeoutForTier），两边用同一条。
+    const queueLimit = queueTimeoutForTier(timeout)
     // #1007：房内自己掐表，而且计时从「拿名额」那一刻就开始。
     // 为什么必须盖住排队段：名额被卡住的调用占满时，新调用会在队列里一直等到外层调用钳制（30 秒）才结束，
     // 既没有上限也没有名字（日志里只看到「30 秒被取消」）。计时器盖住排队段之后，这一笔最多赔本档超时
@@ -408,6 +423,18 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       try { if (deadlineTimer !== null && typeof clearTimeout === 'function') clearTimeout(deadlineTimer) } catch (e1) {}
       try { if (onCallerAbort && signal && typeof signal.removeEventListener === 'function') signal.removeEventListener('abort', onCallerAbort) } catch (e2) {}
     }
+    // #1560：排队上限赢了的标记 —— 上限这只表先到就中止排队，后续一律按「还在排队」收，
+    // acquire 随后无论落地还是拒绝都只是中止的回声，不再进正常流程。
+    let queueWon = false
+    // 为什么显式标这两个：同上，定时器与回调形状标出来才过得了严格模式。
+    let queueTimer: ReturnType<typeof setTimeout> | null = null
+    let queueResolve: ((value: QueueLimitHit) => void) | null = null
+    const queueHit: Promise<QueueLimitHit> | null = (typeof setTimeout === 'function')
+      ? new Promise<QueueLimitHit>(function (res) { queueResolve = res })
+      : null
+    function clearQueueTimer(): void {
+      try { if (queueTimer !== null && typeof clearTimeout === 'function') clearTimeout(queueTimer) } catch (eQ) {}
+    }
     /** 房内到点的统一回执：横幅按超时记，内容说清等了多久、是哪一档。 */
     function selfTimeoutOutcome(phase?: string): GhExecResult {
       // 排队段到点时还没报闸（账上 0 条），命令已起来的到点才按估/真实点数落一行。
@@ -416,28 +443,59 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       const waitedMs = Date.now() - t0
       // #1007：只有真的尝试起过进程的到点才算 transport 级失败。还在排队、或在解析执行器的到点
       // 说明不了 GitHub 通不通，给它设冷却会让随后调用误以为「路断了」，其实只是名额挤。
+      // #1560：被排队挤占过的到点同样不设 —— 排队吃掉了部分预算，执行段没跑满本档，
+      // 同样说明不了通路断没断。为什么判大于 5 毫秒而不是大于 0：空闲名额秒到时 Date.now
+      // 粒度下也会量出 0~1 毫秒（约 5% 跨毫秒边界），按大于 0 判会让空闲用例偶发不设冷却；
+      // 5 毫秒是 5 倍噪声底，真被占住的用例排队都在几十毫秒以上，不影响判定。
       // 闭包里编译器不沿用上面那道「control 非空」的判断，这里显式再判一次（运行时恒真）。
-      if (processStarted && control) {
+      if (processStarted && control && slotWaitedMs <= 5) {
         try { control.reportTransportFailure({ bucket: bucket, reason: 'timeout', cmd: cmdLabel }) } catch (eR) {}
       }
       // 房内到点时执行器还没有交回任何输出，这一处没有原文可交（空串是如实交代，不是漏填）。
       // 括号里那三档按当前档位值现算（毫秒换秒）、不手抄：手抄的数字会在有人调 YAML 之后悄悄变成错的。
       const where = phase === 'queue'
-        ? '到点时命令还排在名额队列里，一次都没跑起来'
+        ? '到点时命令还排在名额队列里，一次都没跑起来（排队上限 ' + queueLimit + ' 毫秒，本档预算 ' + timeout + ' 毫秒；排队已中止，名额没有被占）'
         : '到点掐断这一笔的是房内分档表，不是外层调用钳制，也不是调用方取消'
       return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: 'gh 在 ' + timeout + ' 毫秒内没有回话（命令 ' + (cmdLabel || 'gh') + '；' + where + '；总共已等 ' + waitedMs + ' 毫秒，其中排队 ' + slotWaitedMs + ' 毫秒；房内分档：读 ' + Math.round(READ_TIMEOUT_MS / 1000) + ' 秒 / 写 ' + Math.round(WRITE_TIMEOUT_MS / 1000) + ' 秒 / 探活 ' + Math.round(PROBE_TIMEOUT_MS / 1000) + ' 秒）。这一笔已经中止。' + outboundFollowUpAdvice(bucket), code: -1, timedOut: true, raw: '' } }
     }
     // #965：先拿名额再起进程，满了就排队等（等不是失败）；排队中被调用方取消则按取消返回，不算失败。
+    // #1560：排队同时与两只表赛跑 —— 房内分档表（整档）与排队上限表（min(本档，中央 3 秒））。
+    // 哪只先到都中止排队：分档表先到走「分档到点」（只有极小的显式超时才有），上限表先到走「还在排队」。
     let release: (() => void) | null = null
     try {
-      const acquired = await raceDeadline(control.acquire({ bucket: bucket, signal: laneSignal || undefined, cmd: cmdLabel }))
+      if (queueHit) {
+        queueTimer = setTimeout(function () {
+          queueWon = true
+          try { if (ctrl) ctrl.abort() } catch (eQa) {}
+          try { if (queueResolve) queueResolve({ __queueLimitHit: true }) } catch (eQr) {}
+        }, queueLimit)
+      }
+      // 上限表赢了之后 acquire 才落地：那一个名额已经没人要了，就地归还（宿主 gh-queue-race.ts 同一条），
+      // 不然每一笔排队到点都漏一个名额，漏完闸就永远满了；随后拒绝只走「还在排队」收，不再进正常流程。
+      const guardedAcquire = Promise.resolve(control.acquire({ bucket: bucket, signal: laneSignal || undefined, cmd: cmdLabel })).then(
+        function (rel) {
+          if (queueWon) { try { (rel as () => void)() } catch (eLate) {} return { __queueLimitHit: true } }
+          return rel
+        },
+        function (err) {
+          if (queueWon) return { __queueLimitHit: true }
+          throw err
+        }
+      )
+      const acquired = await raceDeadline(Promise.race([guardedAcquire, queueHit || guardedAcquire]))
       // #1101：先把「在门口等了多久」量出来，再判到点。从前这行赋值在到点判断之后，
       //   排队段被到点掀桌子的那一类（最该留证据的）记成 waitedMs=0，看起来像刚排上队就没耐心。
       slotWaitedMs = Date.now() - t0
-      if (isDeadlineHit(acquired)) { clearDeadline(); return selfTimeoutOutcome('queue') }
+      // 上限表赢了（无论哪一路先报的信）→「还在排队」；分档表赢了 → 照旧「分档到点」。
+      if (queueWon || isQueueLimitHit(acquired)) { clearQueueTimer(); clearDeadline(); return selfTimeoutOutcome('queue') }
+      if (isDeadlineHit(acquired)) { clearQueueTimer(); clearDeadline(); return selfTimeoutOutcome('queue') }
       release = acquired
+      // 名额到手：排队上限那只表收掉，不然它稍后到点会把正在执行的这一笔误杀。
+      clearQueueTimer()
     } catch (eAcquire) {
-      if (selfTimedOut) { slotWaitedMs = Date.now() - t0; clearDeadline(); return selfTimeoutOutcome('queue') }
+      if (queueWon) { slotWaitedMs = Date.now() - t0; clearQueueTimer(); clearDeadline(); return selfTimeoutOutcome('queue') }
+      if (selfTimedOut) { slotWaitedMs = Date.now() - t0; clearQueueTimer(); clearDeadline(); return selfTimeoutOutcome('queue') }
+      clearQueueTimer()
       clearDeadline()
       // #1007：这只桶刚发生过 transport 级失败，冷却窗口还没过 —— 这一笔没有起进程，立刻回人话。
       // 回话要说清是哪条命令、还剩多久、上次为什么失败；不能只说「限时」让人以为命令自己慢。

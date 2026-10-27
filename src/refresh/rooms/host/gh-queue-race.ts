@@ -6,11 +6,11 @@
  * 64 个名额全满、排队中位数 35 位、最长 338 位）。这里只做三件事：
  *   ① 把拿名额与到点放在一起赛跑；
  *   ② 排队到点立刻中止排队，并保证晚一步回来的名额一定被归还（#1007 复核指出的泄漏就住在这里）；
- *   ③ 排队最多等多久由中央时间参数决定：本档预算与 ghQueueWaitTimeoutMs 取更小的那个。
+ *   ③ 排队最多等多久由中央时间参数决定：本档预算与 ghQueueWaitTimeoutMs 取更小的那个
+ * （算式住共用 kernel，见下面转出口；这里只用它掐表）。
  *
  * 为什么有 ③：名额满时不该把整档预算（读 12 秒 / 写 30 秒）全花在排队上。这个上限的来由与取值
- * 写在 config/timeouts.yaml 的 ghQueueWaitTimeoutMs 键旁边；这里只说它会参与「取更小」的计算，
- * 数字本身不在代码里再写一遍。
+ * 写在 config/timeouts.yaml 的 ghQueueWaitTimeoutMs 键旁边；这里不抄数字。
  *
  * 为什么不写在 gh-execution.ts 里：那个文件已经贴着单文件 350 有效行的上限（#1017），
  * 而这段机械逻辑与 gh 命令本身的执行无关，拆出来能独立读、独立测。
@@ -20,7 +20,7 @@
  * （终止子进程、归还名额、按错误类别返回 disposed 或原样抛出）。代价是这一趟排队不再有上限，
  * 但实例已经销毁，这一趟活不到排队结束。
  */
-import { GH_QUEUE_WAIT_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+import { queueTimeoutForTier as queueTimeoutForTierShared } from '../../../tracker/kernel/outbound-tiers.js'
 
 /** 「排队拿名额」与「到点」赛跑之后的那一个结果：拿到名额时 release 是归还函数；
  *  冷却/取消等失败时 failed 是拒绝原因；timedOut 表示排队到点（命令一次没跑）；disposed 表示运行实例已销毁。 */
@@ -46,13 +46,10 @@ interface GhQueueRaceOpts {
 }
 
 /**
- * 排队上限：本档超时与中央配置里的排队上限取更小的那个。
- * 为什么在排队这一侧再夹一次：本档预算可能比排队上限还短（例如探活档 15 秒、测试里给 150 毫秒），
- * 那时排队自然只等到本档超时；取更小的那个能让两种情况共用同一只表，不出现「排队比整档还久」。
+ * 排队上限：实现已搬到房间与宿主共用的 kernel（outbound-tiers.ts），房间客户端（#1560）也要用同一条算式。
+ * 这里只剩转出口：宿主旧调用方（gh-execution.ts）继续从这里拿，不用改；新代码请直接从 kernel 拿。
  */
-export function queueTimeoutForTier(tierTimeoutMs: number): number {
-  return Math.min(tierTimeoutMs, GH_QUEUE_WAIT_TIMEOUT_MS)
-}
+export const queueTimeoutForTier = queueTimeoutForTierShared
 
 /** 赛跑句柄：调用方 await result 判结局；放弃这一笔时调 abandon，由它负责中止排队与归还迟到名额。 */
 export interface GhQueueRaceHandle {

@@ -229,7 +229,9 @@ async function main(): Promise<void> {
     const yamlSrc = fs.readFileSync(path.join(ROOT, 'config/timeouts.yaml'), 'utf8')
     check(/ghQueueWaitTimeoutMs:\s*3000/.test(yamlSrc), '五、排队上限在 config/timeouts.yaml 里有一处定义（3000 毫秒）', '')
     const qrSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/gh-queue-race.ts'), 'utf8')
-    check(/queueTimeoutForTier/.test(qrSrc) && /GH_QUEUE_WAIT_TIMEOUT_MS/.test(qrSrc) && /queueTimeoutForTier/.test(ghExecSrc), '五、排队上限来自中央配置，宿主 runGh 的排队段用它掐表', '')
+    // #1560 起算式住在房间与宿主共用的 kernel（房间客户端也要用同一条），排队竞速文件只剩转出口。
+    const tiersSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/kernel/outbound-tiers.ts'), 'utf8')
+    check(/queueTimeoutForTier/.test(tiersSrc) && /GH_QUEUE_WAIT_TIMEOUT_MS/.test(tiersSrc) && /queueTimeoutForTier/.test(qrSrc) && /queueTimeoutForTier/.test(ghExecSrc), '五、排队上限来自中央配置，宿主 runGh 的排队段用它掐表', '')
     // #1007 复核：三条出站通道拿名额时都要报服务名，GitHub 的通路故障才不会挡住 GitLab 与 git。
     check(/service:\s*deIsGh\s*\?\s*'github'\s*:\s*'gitlab'/.test(platSrc), '五、平台通道按 gh / glab 分别报服务名（GitHub 冷却不挡 glab）', '')
     const gitExecSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/git-execution.ts'), 'utf8')
