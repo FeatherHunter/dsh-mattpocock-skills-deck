@@ -1,8 +1,8 @@
-// verify-deck-tools.ts —— 门禁：九个后端无关工具（#713 第六批 + 薄列表补齐）
+// verify-deck-tools.ts —— 门禁：十个后端无关工具（#713 第六批 + 薄列表补齐）
 // 用法：在插件根目录执行 node tests/verify-deck-tools.ts，可独立运行。
 //
 // 这一段盯四件事，都是票面点名要的：
-//   ① 九个工具各一条正例：调用能不能真的把事情做完（在真实本地 Markdown 后端上跑，票就是盘上的文件）。
+//   ① 十个工具各一条正例：调用能不能真的把事情做完（在真实本地 Markdown 后端上跑，票就是盘上的文件）。
 //   ② 两条负向：`unsupported`（后端说做不到 / 会话取不到工作区）与 `partial`（一批里有的成、有的没成）。
 //   ③ **离网后端不再过闸**（#1442 起）：工具只调 Tracker 会话，离网口径跳过剩余额度探针，
 //      所以真闸的「AI 工具」那一档是 0、escaped 是 0 —— 这个零不是漏记，是离网本来就没有额度可记。
@@ -36,6 +36,7 @@ const TOOL_FILES = [
   ['src/deck/tools/map-link.ts', 'createDeckMapLink', 'deck_map_link'],
   ['src/deck/tools/issue-patch.ts', 'createDeckIssuePatch', 'deck_issue_patch'],
   ['src/deck/tools/issue-report.ts', 'createDeckIssueReport', 'deck_issue_report'],
+  ['src/deck/tools/work-route.ts', 'createDeckWorkRoute', 'deck_work_route'],
 ]
 
 /** 一个真实本地 Markdown 工作区：票就是 .scratch/demo/issues/*.md 这些文件（与 sections/idempotency.js 同一套做法）。 */
@@ -69,7 +70,7 @@ function makeWorkspace() {
 }
 
 async function main() {
-  console.log('九个后端无关工具的门禁（#713 T9：过闸、三态、永不抛、不判后端）')
+  console.log('十个后端无关工具的门禁（#713 T9：过闸、三态、永不抛、不判后端）')
   const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
   const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
@@ -399,28 +400,31 @@ async function main() {
     check(nothing.ok === false && nothing.reason === 'bad-args', 'deck_issue_patch 负向：什么都没点名 → bad-args，不抛')
   }
 
-  // ── ⑦b deck_issue_report：上报成功收口记进工作路线（正例 + 负向） ──
+  // ── ⑦b deck_issue_report：上报成功收口只记账不带表（正例 + 负向）；在办表走 deck_work_route 读 ──
   {
-    const r = await callTool('deck_issue_report', { key: createdKey, note: '开始处理', workRouteDetail: 'standard' })
+    const r = await callTool('deck_issue_report', { key: createdKey, note: '开始处理' })
+    check(!!(r.data) && !Object.prototype.hasOwnProperty.call(r.data, 'workRoute'), '上报成功收口不再带在办表（#1561 起表只活在读工具里）')
     const normCreated = String(createdKey).replace(/^0+(?=\d)/, '')
     check(envelopeOk(r) && r.status === 'ok' && r.data && String(r.data.key).replace(/^0+(?=\d)/, '') === normCreated, 'deck_issue_report 正例：上报成了（票 ' + createdKey + '，实得 ' + (r && r.status) + '）')
     // #1261 起步、#1262 铺满：上报成功收口也记一笔（动作 report、来源 reported），
-    // 回执带的是这个工作区整张在办表（不止刚上报这一张），notes 末尾带摘要。
+    // 在办表走 deck_work_route 读：读到的是这个工作区整张表（不止刚上报这一张）。
     // 这张夹具到这一步在办表里有 6 张票：创建票 1、子票 3/4/5、②a 的规格票与实施票各一条
     //（票号在链上统一收成 "1"、"2"…）。地图 2 是容器，按规格（#1259 决定 5：「plan 建出的每张子票各一条」）
     // 不记，所以不在表里。
-    const wr = r.data && r.data.workRoute
-    check(wr && typeof wr.at === 'string' && Array.isArray(wr.entries) && wr.entries.length === 6, 'deck_issue_report 回执带工作路线在办表（6 条，实得 ' + JSON.stringify(wr && wr.entries && wr.entries.length) + '）')
-    const e0 = wr && wr.entries && wr.entries[0]
+    const table = await callTool('deck_work_route', {})
+    check(envelopeOk(table) && table.status === 'ok' && table.data && table.data.source === 'local-archive' && table.data.total === 6, 'deck_work_route 正例：在办表读回来了（6 条，实得 ' + JSON.stringify(table.data && { total: table.data.total, source: table.data.source }) + '）')
+    const groups = (table.data && table.data.groups) || []
+    const items = groups.reduce((all, g) => all.concat((g && g.items) || []), [])
+    const e0 = items[0]
     check(e0 && String(e0.ticketKey) === normCreated && e0.action === 'report' && e0.source === 'reported' && e0.active === true && e0.currentSession === true, '在办表第一条是刚上报的票（动作 report、来源 reported、现办、当前会话）：' + JSON.stringify(e0))
-    check(wr && wr.entries && new Set(wr.entries.map((e) => String(e.ticketKey))).size === wr.entries.length, '同一张票在在办表里只有一条（6 条票、6 个票号）：' + JSON.stringify(wr && wr.entries && wr.entries.map((e) => e.ticketKey)))
+    check(items.length === 6 && new Set(items.map((e) => String(e.ticketKey))).size === items.length, '同一张票在在办表里只有一条（6 条票、6 个票号）：' + JSON.stringify(items.map((e) => e.ticketKey)))
     check(e0 && typeof e0.sessionLabel === 'string' && e0.sessionLabel.indexOf('会话 ') === 0, '会话只露标签不露原始 id（实得 ' + (e0 && e0.sessionLabel) + '）')
     // #1352：上报不再收进度自评，条目与回执 data 都不出现 progress 这一格。
     check(e0 && !Object.prototype.hasOwnProperty.call(e0, 'progress'), '在办表这一条没有 progress 键（#1352 起不再新增）')
     check(!!(r.data) && !Object.prototype.hasOwnProperty.call(r.data, 'progress'), '回执 data 里也没有 progress 这一格（#1352 起不再新增）')
-    check(wr && wr.collisions === undefined && typeof wr.staleCount === 'number', '单会话无撞单（collisions 键不出现，staleCount 在）')
-    check((r.notes || []).some((n) => String(n).indexOf('工作路线摘要 · 本工作区在办 6 条') === 0), 'notes 末尾带工作路线摘要：' + JSON.stringify(r.notes))
-    check(JSON.stringify(r).indexOf('s-713') < 0, '回执全文没有原始会话 id（s-713 只进盘，不进回执）')
+    check(table.data && table.data.collisions === undefined && table.data.limits && table.data.limits.retentionDays === 30 && table.data.limits.activeHours === 24 && table.data.limits.maxBytes === '2MB', '单会话无撞单（collisions 键不出现），读工具回执写清三条上限（30 天、24 小时、2MB）')
+    check(!(r.notes || []).some((n) => String(n).indexOf('工作路线摘要') >= 0), '成功收口 notes 里不再带工作路线摘要（表搬走了，摘要跟表走）')
+    check(JSON.stringify(r).indexOf('s-713') < 0 && JSON.stringify(table).indexOf('s-713') < 0, '写回执与读回执全文都没有原始会话 id（s-713 只进盘，不进回执）')
     // 盘上是同一份：v3 形状、同一张票、原始会话 id 在盘上（回执里只有标签）。
     const wsKey = r.workspace && r.workspace.key
     check(typeof wsKey === 'string' && wsKey, '回执带工作区钥匙（落哪一份文件由它定）')
@@ -435,13 +439,16 @@ async function main() {
     await callTool('deck_issue_get', { key: createdKey })
     check(fs.readFileSync(diskFile, 'utf8') === before, '只读调用不碰盘（文件内容一字不动）')
     // 紧接着第二次调用：同一张票只留一条（去重后来居上），回执与盘上一致。
-    const r2 = await callTool('deck_issue_report', { key: createdKey, note: '继续处理', workRouteDetail: 'standard' })
-    check(r2.data && r2.data.workRoute && r2.data.workRoute.entries.length === 6, '第二次上报同一张票：在办表还是 6 条（去重，不多也不少）')
+    const r2 = await callTool('deck_issue_report', { key: createdKey, note: '继续处理' })
+    const table2 = await callTool('deck_work_route', {})
+    check(table2.data && table2.data.total === 6, '第二次上报同一张票：在办表还是 6 条（去重，不多也不少）')
     const after2 = JSON.parse(fs.readFileSync(diskFile, 'utf8'))
     const createdRows = after2.workers[0].entries.filter((e) => String(e.ticketKey) === normCreated)
     check(after2.workers[0].entries.length === 6 && createdRows.length === 1 && createdRows[0].action === 'report', '第二次上报：盘上还是同一条，动作停在 report（去重）')
     // #1352：上报不再收进度，条目、回执 data 与盘上三处都没有 progress 键。
-    const r2Created = ((r2.data && r2.data.workRoute && r2.data.workRoute.entries) || []).filter((e) => String(e.ticketKey) === normCreated)[0]
+    const table2groups = (table2.data && table2.data.groups) || []
+    const table2items = table2groups.reduce((all, g) => all.concat((g && g.items) || []), [])
+    const r2Created = table2items.filter((e) => String(e.ticketKey) === normCreated)[0]
     check(r2Created && !Object.prototype.hasOwnProperty.call(r2Created, 'progress'), '第二次上报：在办表这一条没有 progress 键')
     check(!!(r2.data) && !Object.prototype.hasOwnProperty.call(r2.data, 'progress'), '第二次上报：回执 data 里也没有 progress 这一格')
     const after2row = createdRows[0]
@@ -460,6 +467,14 @@ async function main() {
     }
     check(badSeen.length === 0, 'progress 参数已退役：带这个键（40 / 0 / 101 / -1 / 12.5 / 30 / true）一律 bad-args、不抛、不带 data，并指路 deck_issue_patch' + (badSeen.length ? '：' + badSeen.join('；') : ''))
     check(fs.readFileSync(diskFile, 'utf8') === diskBeforeBadProgress, '带已退役的 progress 时盘上一字不动（不写盘）')
+    // workRouteDetail 参数退役（#1561）：定义里不再广告这个键，收到就一律 bad-args，不碰后端、不写盘。
+    const diskBeforeBadRoute = fs.readFileSync(diskFile, 'utf8')
+    const routeBad = await callTool('deck_issue_report', { key: createdKey, workRouteDetail: 'standard' })
+    const routeBadText = String(routeBad && routeBad.text || '')
+    check(envelopeOk(routeBad) && routeBad.ok === false && routeBad.reason === 'bad-args' && !routeBad.data
+      && routeBadText.indexOf('workRouteDetail 参数已退役') >= 0 && routeBadText.indexOf('deck_work_route') >= 0,
+      'workRouteDetail 参数已退役：带这个键一律 bad-args、不抛、不带 data，并指路 deck_work_route')
+    check(fs.readFileSync(diskFile, 'utf8') === diskBeforeBadRoute, '带已退役的 workRouteDetail 时盘上一字不动（不写盘）')
     // 旧存档里已经记下的进度自评不回溯删除：手动把盘上这一条加上 progress 再上报一次，历史值还在，
     // 但回执里不再投影这一格（工作条目这一格已退役）。
     const legacy = JSON.parse(fs.readFileSync(diskFile, 'utf8'))
@@ -470,7 +485,9 @@ async function main() {
     const keptDisk = JSON.parse(fs.readFileSync(diskFile, 'utf8'))
     const keptRow = keptDisk.workers[0].entries.filter((e) => String(e.ticketKey) === normCreated)[0]
     check(envelopeOk(keep) && keep.status === 'ok' && !!keptRow && keptRow.progress === 40, '旧存档里的进度自评 40 后来的上报不会抹掉（#1352：不回溯删除，实得 ' + JSON.stringify(keptRow && keptRow.progress) + '）')
-    const keepEntry = ((keep.data && keep.data.workRoute && keep.data.workRoute.entries) || []).filter((e) => String(e.ticketKey) === normCreated)[0]
+    const keepTable = await callTool('deck_work_route', {})
+    const keepItems = ((keepTable.data && keepTable.data.groups) || []).reduce((all, g) => all.concat((g && g.items) || []), [])
+    const keepEntry = keepItems.filter((e) => String(e.ticketKey) === normCreated)[0]
     check(keepEntry && !Object.prototype.hasOwnProperty.call(keepEntry, 'progress'), '回执里不再投影历史进度（这一格已退役，实得 ' + JSON.stringify(keepEntry) + '）')
     // #1086 释放入口，2026-10-21（#1349）起收紧：这张票本会话建过、改过、关过，属于处理过的票 ——
     // 带 release=true 的上报不能再把它从工作路线里删掉，回执必须说明原因；纯误报的释放成功路径由
@@ -478,11 +495,12 @@ async function main() {
     const relBefore = await callTool('deck_issue_get', { key: createdKey })
     const relBeforeTicket = relBefore.data && relBefore.data.ticket
     const relFace = (t) => JSON.stringify(t && { state: t.state, assignees: t.assignees })
-    const rel = await callTool('deck_issue_report', { key: createdKey, release: true, workRouteDetail: 'standard' })
-    const relWr = rel.data && rel.data.workRoute
+    const rel = await callTool('deck_issue_report', { key: createdKey, release: true })
     const normKey = (k) => String(k).replace(/^0+(?=\d)/, '')
-    check(envelopeOk(rel) && rel.status === 'ok' && !!relWr, '释放被拒：成功回执仍带在办表（实得 ' + (rel && rel.status) + '）')
-    const relOwn = (relWr && relWr.entries || []).filter((e) => normKey(e.ticketKey) === normCreated)
+    check(envelopeOk(rel) && rel.status === 'ok', '释放被拒：回执仍是成功（实得 ' + (rel && rel.status) + '）')
+    const relTable = await callTool('deck_work_route', {})
+    const relItems = ((relTable.data && relTable.data.groups) || []).reduce((all, g) => all.concat((g && g.items) || []), [])
+    const relOwn = relItems.filter((e) => normKey(e.ticketKey) === normCreated)
     check(relOwn.length === 1, '处理过的票释放被拒：在办表里这张票还在、只有一条（实得 ' + JSON.stringify(relOwn.length) + ' 条）')
     check((rel.notes || []).some((n) => String(n).indexOf('有过实际处理') >= 0 && String(n).indexOf('不能从工作路线里释放') >= 0 && String(n).indexOf('只用来撤销从没处理过的误报') >= 0),
       '处理过的票释放被拒：备注说明干过实事、不能释放：' + JSON.stringify(rel.notes))
@@ -500,10 +518,12 @@ async function main() {
       && (relAgain.notes || []).some((n) => String(n).indexOf('有过实际处理') >= 0 && String(n).indexOf('不能从工作路线里释放') >= 0)
       && !(relAgain.notes || []).some((n) => String(n).indexOf('本来就不在本会话的工作路线里') >= 0),
       '再释放同一条：仍说明干过实事、不能释放（不说本来就没有）')
-    const relFalse = await callTool('deck_issue_report', { key: createdKey, release: false, workRouteDetail: 'standard' })
-    const relFalseEntries = relFalse.data && relFalse.data.workRoute && (relFalse.data.workRoute.entries || []).filter((e) => normKey(e.ticketKey) === normCreated)
-    check(envelopeOk(relFalse) && relFalse.status === 'ok' && !!relFalseEntries && relFalseEntries.length === 1,
-      'release:false 仍走正常上报：条目仍在且只有一条（实得 ' + JSON.stringify(relFalseEntries && relFalseEntries.length) + ' 条）')
+    const relFalse = await callTool('deck_issue_report', { key: createdKey, release: false })
+    const relFalseTable = await callTool('deck_work_route', {})
+    const relFalseItems = ((relFalseTable.data && relFalseTable.data.groups) || []).reduce((all, g) => all.concat((g && g.items) || []), [])
+    const relFalseEntries = relFalseItems.filter((e) => normKey(e.ticketKey) === normCreated)
+    check(envelopeOk(relFalse) && relFalse.status === 'ok' && relFalseEntries.length === 1,
+      'release:false 仍走正常上报：条目仍在且只有一条（实得 ' + JSON.stringify(relFalseEntries.length) + ' 条）')
     const bad = await callTool('deck_issue_report', { key: '999999' })
     check(envelopeOk(bad) && bad.ok === false && bad.status === 'unsupported', 'deck_issue_report 负向：票不存在 → ok:false / unsupported（实得 ' + (bad && bad.status) + '）')
     check(!bad.data || !bad.data.workRoute, '失败回执不带在办表（这一格只属于成功的上报）')
@@ -611,7 +631,7 @@ async function main() {
       }
     }
     for (const d of ['src/deck/tools', 'src/deck/shell', 'src/deck/registration']) walk(path.join(ROOT, d))
-    check(files.length >= 8, '扫描到的工具层文件数（' + files.length + '：九个工具 + 两个共享壳）')
+    check(files.length >= 9, '扫描到的工具层文件数（' + files.length + '：十个工具 + 两个共享壳）')
     const RE_ID = /(===|!==|==|!=)\s*['"](github|gitlab|markdown)['"]|['"](github|gitlab|markdown)['"]\s*(===|!==|==|!=)/
     const hits = []
     for (const f of files) {
@@ -669,7 +689,7 @@ async function main() {
   ws.cleanup()
   try { fs.rmSync(workPathHome, { recursive: true, force: true }) } catch (e) {}
   try { dispose.dispose() } catch (e) {}
-  console.log('\n' + (failed ? '存在失败' : '全部通过 — 九个工具：过闸、三态、永不抛、不判后端（' + total + ' 条）'))
+  console.log('\n' + (failed ? '存在失败' : '全部通过 — 十个工具：过闸、三态、永不抛、不判后端（' + total + ' 条）'))
   process.exit(failed ? 1 : 0)
 }
 

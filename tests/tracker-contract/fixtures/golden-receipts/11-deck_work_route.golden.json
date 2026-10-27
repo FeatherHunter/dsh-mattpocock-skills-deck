@@ -1,0 +1,99 @@
+{
+  "backend": {
+    "id": "markdown",
+    "source": "explicit"
+  },
+  "cost": {
+    "actual": {
+      "backendId": "markdown",
+      "budgetKind": "off-network",
+      "offNetwork": true,
+      "points": 3,
+      "readKnown": true,
+      "requests": 1
+    },
+    "estimated": {
+      "perShard": 1,
+      "points": 6,
+      "requests": 3,
+      "shards": 1,
+      "text": "这次 deck_work_route 预计花 6 点、3 条出站请求，在硬顶之内。",
+      "withinCallCap": true
+    },
+    "note": "本后端不需要额度（离网口径）。"
+  },
+  "data": {
+    "at": "<TIME>",
+    "groups": [
+      {
+        "currentSession": true,
+        "items": [
+          {
+            "action": "report",
+            "actionAt": "<TIME>",
+            "active": true,
+            "currentSession": true,
+            "effortId": "demo",
+            "sessionLabel": "会话 1d9b81",
+            "source": "reported",
+            "ticketKey": "1",
+            "title": "金标准演示票"
+          },
+          {
+            "action": "plan",
+            "actionAt": "<TIME>",
+            "active": true,
+            "currentSession": true,
+            "sessionLabel": "会话 1d9b81",
+            "source": "auto",
+            "ticketKey": "2",
+            "title": "金子票一"
+          },
+          {
+            "action": "link",
+            "actionAt": "<TIME>",
+            "active": true,
+            "currentSession": true,
+            "sessionLabel": "会话 1d9b81",
+            "source": "auto",
+            "ticketKey": "3",
+            "title": "金子票二"
+          }
+        ],
+        "sessionLabel": "会话 1d9b81"
+      }
+    ],
+    "includeStale": false,
+    "limit": 100,
+    "limits": {
+      "activeHours": 24,
+      "maxBytes": "2MB",
+      "retentionDays": 30
+    },
+    "omitted": 0,
+    "returned": 3,
+    "source": "local-archive",
+    "total": 3
+  },
+  "items": [],
+  "notes": [
+    "数据来自本机工作区存档（local archive），只含本工作区 30 天内动过的条目；在办指 24 小时内动过，超过 24 小时、未满 30 天记为陈旧；存档上限 2MB，超限按时间从旧到新裁。"
+  ],
+  "ok": true,
+  "readBack": null,
+  "reason": "",
+  "repo": {
+    "backend": "markdown",
+    "name": "demo",
+    "refId": ".scratch/demo",
+    "url": ""
+  },
+  "status": "ok",
+  "text": "在办表（24 小时内在办）：共 3 条，分 1 个会话组，回 3 条。",
+  "tool": "deck_work_route",
+  "touched": [],
+  "workspace": {
+    "key": "<WSKEY>",
+    "root": "<ROOT>"
+  }
+}

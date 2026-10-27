@@ -21,6 +21,7 @@ Issues and specs for this repo live as GitHub issues.
 - 一次建出一整张地图（地图本身 + 子票 + 它们之间的边）→ `deck_map_plan_create`
 - 补一条边（父子边或阻塞边）→ `deck_map_link`
 - 改一张票（评论 / 标签 / 认领 / 关闭 / 改正文）→ `deck_issue_patch`
+- 查本工作区在办（谁在处理哪张票、有没有撞车）→ `deck_work_route`（写回执里不带表，要看在办就调它）
 
 工具管不到的地方只剩两件事，它们都发生在跟踪器之外：
 

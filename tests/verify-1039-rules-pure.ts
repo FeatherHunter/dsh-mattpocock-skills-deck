@@ -205,14 +205,14 @@ async function toolTable() {
   const t = await imp('src/deck/rules/tool-table.ts')
   console.log('— 装表')
 
-  check(t.DECK_TOOL_ORDER.length === 9 && t.DECK_TOOL_ORDER[0] === 'deck_context', '九个工具的装配顺序钉住（第一个是 deck_context）')
+  check(t.DECK_TOOL_ORDER.length === 10 && t.DECK_TOOL_ORDER[0] === 'deck_context', '十个工具的装配顺序钉住（第一个是 deck_context）')
   const good = { definition: { name: 'deck_context' }, run: () => 'ok' }
   const halfBaked = { definition: { name: 'deck_issue_get' }, run: '不是函数' }
   const table = t.createDeckTools([good, halfBaked, null])
   check(table.names.join(',') === 'deck_context', '只把形状完整的工具装进表（半个的不装）')
-  check(table.missing.length === 8 && table.missing.includes('deck_issue_get'), '缺的八个如实列在 missing 里，不补假桩')
+  check(table.missing.length === 9 && table.missing.includes('deck_issue_get'), '缺的九个如实列在 missing 里，不补假桩')
   const throwing = t.createDeckTools([() => { throw new Error('装不起来') }])
-  check(throwing.names.length === 0 && throwing.missing.length === 9, '工厂抛错时不影响别的、也不崩（一个都不装并如实报缺）')
+  check(throwing.names.length === 0 && throwing.missing.length === 10, '工厂抛错时不影响别的、也不崩（一个都不装并如实报缺）')
 }
 
 async function workspaceFile() {

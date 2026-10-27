@@ -2,7 +2,7 @@
 //
 // 目的：把「行为零变化」从口头承诺变成机器判据。
 // 做法：用固定的本地 Markdown 工作区、固定的会话、固定的时钟，
-//   把九个 deck 工具各调一次代表性调用，归一化后与基准逐字节比对。
+//   把十个 deck 工具各调一次代表性调用，归一化后与基准逐字节比对。
 //   差一个字符就报错（exit 1），全等才过（exit 0）。
 //
 // 用法（自挂钩子，裸跑即正确，不需要命令行再挂一遍）：
@@ -32,13 +32,13 @@
 //   按修改时间倒序的那一处是跨机器远虑，记成已知约束，不在此处理。
 //
 // 两房形状（同一次调用在两房下的回执形状）：
-//   九个工具的基准跑在本地 Markdown 房（离线、确定性）。
+//   十个工具的基准跑在本地 Markdown 房（离线、确定性）。
 //   GitHub 房要联网，不进逐字节比对；它与 Markdown 房的形状对照记在
 //   tests/tracker-contract/fixtures/golden-receipts/two-room-shape.golden.json，
 //   断言只看字段形状与已知差异，不看具体值。
 //   已知缺口（不是疏漏，是离线量尺的原理边界）：GitHub 房特有的回执措辞
 //   （evidence 文案、landing 落点描述）只有真机联网能走到，playback 固件守的
-//   是后端契约层的形状，不是这九个工具在 GitHub 房里的回执原文。
+//   是后端契约层的形状，不是这十个工具在 GitHub 房里的回执原文。
 //
 // 守卫边界（本夹具不是全部）：每个工具一次最小调用，只守快乐路径回执；
 //   错误分支与集成级错误包络由 tests/verify-deck-tools.js 的 86 条守着，
@@ -91,6 +91,8 @@ const CALLS: GoldenCall[] = [
   // 同一工具出两份基准时用 id 区分（否则后一次会盖掉前一次的结果）：第 10 份是不带
   // progress 的正常上报——回执 data 与条目都不出现那一格。文件名沿用历史，不改。
   { file: '10-deck_issue_report-without-progress.golden.json', tool: 'deck_issue_report', id: 'report-without-progress', args: { key: '01', note: '金标准上报（不带进度）' } },
+  // 第 11 份：在办表读工具——读同一份账，默认只看近 24 小时在办；排在最后，前面的写调用都已落账。
+  { file: '11-deck_work_route.golden.json', tool: 'deck_work_route', args: {} },
 ]
 
 function resolveSpec(spec: string): string {
@@ -195,6 +197,7 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
     deck_map_link: ['../src/deck/tools/map-link.ts', 'createDeckMapLink'],
     deck_issue_patch: ['../src/deck/tools/issue-patch.ts', 'createDeckIssuePatch'],
     deck_issue_report: ['../src/deck/tools/issue-report.ts', 'createDeckIssueReport'],
+    deck_work_route: ['../src/deck/tools/work-route.ts', 'createDeckWorkRoute'],
   }
 
   const posixSep = (p: string): string => String(p).replace(/\\/g, '/')
@@ -228,7 +231,8 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
   // registry.bind(handle, 'markdown')，绑定层已随 #1138 整段删掉。
   chooseWorkspace(rootPosix, 'markdown')
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
-  // #1261：上报回执带工作路线在办表，基准钉死它——用同一份真实现（临时家目录 + 固定时钟），
+  // #1261 记账用同一份真实现（临时家目录 + 固定时钟），不造假口；#1561 起回执不再带表，
+  // 在办表由第 11 份基准（deck_work_route）钉死——读同一份家目录里的账，与写工具同源。
   // 不造假口。家目录是临时的：基准里只看回执，落盘路径不进回执，进了也会被 <ROOT> 归一之外的形状红掉。
   const bindingsMod = await loadModule('../src/deck/shell/work-path-bindings.js') as { createWorkRouteBindings: (io: unknown) => { note: (i: unknown) => Promise<unknown>, release: (i: unknown) => Promise<unknown>, read: (i: unknown) => unknown } }
   const workPathHome = mkdtempSync(join(tmpdir(), 'golden-workpath-'))
@@ -290,7 +294,7 @@ async function buildTwoRoomShape(): Promise<Record<string, unknown>> {
   const ghFields = Object.keys(gh).sort()
   const common = mdFields.filter((f) => ghFields.indexOf(f) >= 0)
   return {
-    // 这份对照只记形状，不记值；值由九个工具的基准守。
+    // 这份对照只记形状，不记值；值由十个工具的基准守。
     markdownFields: mdFields,
     githubFields: ghFields,
     commonCore: common,
@@ -379,7 +383,7 @@ async function main(): Promise<void> {
     cleanup()
   }
   if (update) console.log(`\n重建完成：${changed} 个文件内容有变（有意改行为且已评审才可提交），其余不变。`)
-  console.log('\n' + (failed ? '存在失败（差一个字符即红）' : '全部通过 — 九个工具回执逐字节一致（' + total + ' 项）'))
+  console.log('\n' + (failed ? '存在失败（差一个字符即红）' : '全部通过 — 十个工具回执逐字节一致（' + total + ' 项）'))
   process.exit(failed ? 1 : 0)
 }
 

@@ -90,6 +90,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
     const a: Record<string, unknown> = args || {}
     const title = String(a.title === undefined || a.title === null ? '' : a.title).trim()
     const est = shell.estimateFor('deck_issue_create', a)
+    if (Object.prototype.hasOwnProperty.call(a, 'workRouteDetail') && a.workRouteDetail !== undefined) return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, 'workRouteDetail 参数已退役（#1561）：在办表不再跟在写回执里，要看就调 deck_work_route（默认只看近 24 小时在办，带 includeStale:true 看近 30 天）。这次什么都没做：没选后端、没花点数、没写盘。', { cost: { estimated: est } })
     // #1403：位置值先收口 —— kind 必填、label 只给地图工单、labels 里不许重复表达类型、顶层容器不收父票、
     // 子票必须带父票。收不成就回一句人话，把合法值与迁移路径写清楚；这一步不碰后端、不花请求。
     const argued = resolveCreateKind({ kind: a.kind, label: a.label, labels: a.labels, parentKey: a.parentKey })
@@ -439,7 +440,6 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       return {
         value: {
           status: DECK_STATUS.OK,
-          workRouteDetail: a.workRouteDetail,
           text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + (rel ? '（父票 ' + rel + '）' : '') + '。' + where + '返回值就是写后的真状态，不必再读一次。'
             + (blockWant.length ? '阻塞边已按写后读回逐条核对（见 items）：' + blockWant.join('、') + '。' : ''),
           data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },

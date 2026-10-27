@@ -43,7 +43,6 @@ export const definition = {
       },
       close: { type: 'boolean', description: 'true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false' },
       closeReason: { type: 'string', description: '关闭原因：和 close:true 一起用，告诉后端这次为什么关。地图子票的原因写进正文的 Answer 段，还会在地图的 Decisions so far 里补一条指针；实施票的原因按原文追加成一条评论；旧布局票写 Close reason 行；规格与地图容器只记状态，原因忽略。只带 closeReason、不带 close:true 时整笔拒绝，一个字都不动。' },
-      workRouteDetail: { type: 'string', enum: ['core', 'standard'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）' },
       ...MD_SCOPE_LOCATE,
     },
     required: ['key'],
