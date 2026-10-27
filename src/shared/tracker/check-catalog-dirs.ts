@@ -113,9 +113,11 @@ export const GENERIC_CATALOG: readonly CatalogItem[] = Object.freeze([
 
 /** GitHub 后端检查目录（仅 github 适用，物理隔离，其他后端该行不存在）。
  * #227 D7：仓库定位(c1 backend) / gh CLI(c4) / gh 登录(c5) / API 可达(c6) 4 项迁移，语义与 9 项一致。
- * 2026-10-27（#1223）：已退役的旧标签检查目录项删除——运行时清单本来就算 4 项，目录却多声明一行，
- *   只能靠运行期一条过滤把多出来的行藏住；删掉之后目录与运行时清单逐字对齐，由
- *   tests/verify-1223-catalog-runtime-parity.ts 守住不再分叉。
+ * 2026-10-27（#1223）：删掉一项已退役的旧标签检查。它当时只在这份目录里、不在 GitHub 房的检查表里，
+ *   靠运行期一条过滤把多出来的行藏住；删掉之后目录与检查表一致。
+ * 2026-10-27 同日后手：GitHub 房的检查表（src/tracker/rooms/github/checks.ts）改成直接由这份目录派生，
+ *   不再手抄第二份——「目录与检查表各说各话」从此在结构上不可能出现
+ *   （tests/verify-1223-catalog-runtime-parity.ts 里的逐项断言保留作回归锁）。
  */
 export const GITHUB_CATALOG: readonly CatalogItem[] = Object.freeze([
   {
