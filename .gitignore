@@ -116,6 +116,10 @@ _research/
 
 # 本地工作目录：明确不入库（多人协作的工作树、本地运行日志、视觉路由产物）
 /.worktrees/
+# 以前某一回会话留下的单个临时工作树（.wt-head）：它停在提交 8bbbf727 上，
+# 但目录里的 .git 指针文件已经丢了，git worktree list 把它标成 prunable。
+# 它和上面的 .worktrees/ 是同一类东西（本地临时工作树），同样不入库。
+/.wt-head/
 /logs/
 /.dsh-vision-router/
 # 全链门禁的本地运行日志（node scripts/verify-all.mjs > .verify-all-<票号>.log）：一次几十万行，
