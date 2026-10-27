@@ -60,11 +60,11 @@ const WORKING_CHANGES: Array<{ path: string; kind: StatusEntry['kind']; x: strin
   { path: 'docs/design/md-env-check-chain.png', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
   { path: 'docs/design/md-env-check-chain.svg', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
   { path: 'tests/verify-1545-workroute-row-nav.ts', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
-  { path: 'undefined/issue1518-body.md', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
-  { path: 'undefined/issue1518-original-body.md', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
-  { path: 'undefined/probe-spec-capsule.mjs', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
-  { path: 'undefined/probe2.mjs', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
-  { path: 'undefined/temp/pr-1475-body.md', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
+  { path: '.scratch/issue1518-body.md', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
+  { path: '.scratch/issue1518-original-body.md', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
+  { path: '.scratch/probe-spec-capsule.mjs', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
+  { path: '.scratch/probe2.mjs', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
+  { path: '.scratch/temp/pr-1475-body.md', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
 ]
 
 /** 六条本地分支：上游、领先落后、是否已并入当前分支各占一种组合。 */
@@ -223,3 +223,4 @@ export function buildPrototypeData(): PrototypeData {
 
 /** 采集时刻（生成文件里记录的），页脚用来说明原型数据不是实时读取的。 */
 export const CAPTURED_AT_MS = capturedAtMs
+

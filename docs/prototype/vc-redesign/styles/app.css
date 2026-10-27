@@ -945,7 +945,7 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 }
 
 .composer-hint { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 10px; line-height: 1.5; color: var(--faint); }
-.hint-text { min-width: 0; }
+.hint-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-reason { display: flex; align-items: flex-start; gap: 4px; font-size: 10.5px; line-height: 1.45; color: var(--warn); }
 .composer-reason svg { flex: none; margin-top: 1px; }
 /* 提交按钮固定右下角：上面有原因行时它也不会被挤到左边或换行到奇怪的位置。 */
@@ -1527,7 +1527,11 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .ai-entry-rail:hover { background: var(--hover); border-color: var(--accent); }
 .ai-entry-rail .ai-entry-label { font-weight: 650; }
 
-/* 副行单独占满一行：300 宽下面板里，标题与副标题挤在一行会先把动词截掉。 */
+/* 副行只在够宽时出现：460 以下的面板里，AI 入口压成一行，把高度留给文件列表。 */
+.ai-entry-rail .ai-entry-sub { display: none; }
+@container panel (min-width: 500px) { .ai-entry-rail .ai-entry-sub { display: block; } }
+
+/* 副行占满一行：300 宽下面板里，标题与副标题挤在同一行会先把动词截掉。 */
 .ai-entry-rail .ai-entry-sub {
   flex-basis: 100%;
   padding-left: 20px;
@@ -1542,7 +1546,6 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .ai-entry-inline:hover { color: var(--accent); }
 .ai-entry-inline svg { opacity: 0.9; }
 
-.composer-ai { display: flex; justify-content: flex-end; padding: 2px 0 6px; }
 .wt-foot .ai-entry { align-self: flex-start; }
 .branch-ai { display: flex; justify-content: flex-start; padding: 6px 2px 2px; }
 
@@ -1613,4 +1616,28 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
     animation-iteration-count: 1 !important;
   }
 }
+
+
+
+/* ---------- 窄面板：AI 入口让出高度，先保文件列表 ---------- */
+
+/* 460 以下：提交区那行提示不再塞交接入口；同步带上的整行入口仍在，功能不丢。 */
+@container panel (max-width: 439px) {
+  .composer-hint .ai-entry { display: none; }
+}
+
+.composer-hint .ai-entry { flex: none; white-space: nowrap; }
+
+@container panel (max-width: 339px) {
+  /* 300 宽时同步带本来就高：收起身份行里的复制按钮，别让它单独折成一行。 */
+  .rail-id .icon-btn { display: none; }
+  .ai-entry-rail { padding: 5px 7px; }
+  .commit-input { min-height: 44px; }
+}
+
+@container panel (max-width: 319px) {
+  /* 最窄一档连路径行也收起：完整路径在 AI 交接说明与工作树页里都能看到。 */
+  .rail-path { display: none; }
+}
+
 

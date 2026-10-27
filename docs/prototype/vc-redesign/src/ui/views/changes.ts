@@ -73,8 +73,11 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
   })
   textarea.value = model.composer.message
 
+  // 交接入口与静态提示挤在同一行：提示说「只提交已暂存的内容」，入口说「不想自己拆就交给 AI」，
+  // 两件事都发生在动手之前，合在一行不额外占高度，列表就能多露几行文件。
   const hint = h('div', { class: 'composer-hint', id: 'commit-hint' },
-    h('span', { class: 'hint-text', text: model.composer.hint }))
+    h('span', { class: 'hint-text', text: model.composer.hint }),
+    handoffEntry(HANDOFF_ENTRY.changes, 'changes', 'inline'))
 
   const commitButton = button({
     label: COPY.changes.commitLabel(model.composer.stagedCount),
@@ -91,10 +94,7 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
   // 提交按钮固定贴在右下角：它上面是禁用原因（有才画），再上面是说明输入与静态提示。
   // 原因单独成行，按钮就不会因为文案长短被挤来挤去，位置在 300 到 520 各档都一样。
   const submitRow = h('div', { class: 'composer-submit' }, commitButton)
-  // 交接入口放在说明输入下面、禁用原因上面：盯着这一堆文件发愁时，这里是视线最后停的地方。
-  // 它是轻链接样式，不与提交按钮争夺「这一屏最该点哪个」的位置。
-  const aiRow = h('div', { class: 'composer-ai' }, handoffEntry(HANDOFF_ENTRY.changes, 'changes', 'inline'))
-  composer.append(stagedLine, textarea, hint, aiRow)
+  composer.append(stagedLine, textarea, hint)
   if (model.composer.disabledReason !== null) {
     composer.append(h('div', { class: 'composer-reason', id: 'commit-reason' },
       icon('alert', 12), h('span', { text: model.composer.disabledReason })))

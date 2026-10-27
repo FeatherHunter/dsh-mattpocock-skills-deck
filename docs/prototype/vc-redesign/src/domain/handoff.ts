@@ -105,9 +105,12 @@ export function buildHandoff(data: PrototypeData, kind: HandoffKind, nowMs: numb
   const conflictLines = screen.unstaged.filter((row) => row.conflict).map(fileLine)
   const recentCommits = data.commits.slice(0, 5).map((commit) => `${commit.short} ${commit.subject}（${commit.author}，${whenText(nowMs, commit.authorDateMs)}）`)
 
+  // 路径统一成斜杠：同一段说明里既有仓库根又有工作树路径，一个用反斜杠一个用正斜杠，
+  // 贴进对话后读者会以为是两个不同的目录。Windows 的正斜杠 git 也认。
+  const repoPath = data.repoRoot.replace(/\\/g, '/')
   const identityLines = [
-    `路径：${data.repoRoot}`,
-    `当前工作树：${identity.worktreePath}`,
+    `路径：${repoPath}`,
+    `当前工作树：${identity.worktreePath.replace(/\\/g, '/')}`,
     `分支：${identity.branch ?? '游离 HEAD，不在任何分支上'}`,
     `上游：${upstream ?? '这条分支没有设置上游'}`,
     `同步：超前 ${identity.ahead} 笔提交，落后 ${identity.behind} 笔提交`,

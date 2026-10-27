@@ -3745,11 +3745,11 @@
     { path: "docs/design/md-env-check-chain.png", kind: "untracked", x: "?", y: "?", added: null, deleted: null },
     { path: "docs/design/md-env-check-chain.svg", kind: "untracked", x: "?", y: "?", added: null, deleted: null },
     { path: "tests/verify-1545-workroute-row-nav.ts", kind: "untracked", x: "?", y: "?", added: null, deleted: null },
-    { path: "undefined/issue1518-body.md", kind: "untracked", x: "?", y: "?", added: null, deleted: null },
-    { path: "undefined/issue1518-original-body.md", kind: "untracked", x: "?", y: "?", added: null, deleted: null },
-    { path: "undefined/probe-spec-capsule.mjs", kind: "untracked", x: "?", y: "?", added: null, deleted: null },
-    { path: "undefined/probe2.mjs", kind: "untracked", x: "?", y: "?", added: null, deleted: null },
-    { path: "undefined/temp/pr-1475-body.md", kind: "untracked", x: "?", y: "?", added: null, deleted: null }
+    { path: ".scratch/issue1518-body.md", kind: "untracked", x: "?", y: "?", added: null, deleted: null },
+    { path: ".scratch/issue1518-original-body.md", kind: "untracked", x: "?", y: "?", added: null, deleted: null },
+    { path: ".scratch/probe-spec-capsule.mjs", kind: "untracked", x: "?", y: "?", added: null, deleted: null },
+    { path: ".scratch/probe2.mjs", kind: "untracked", x: "?", y: "?", added: null, deleted: null },
+    { path: ".scratch/temp/pr-1475-body.md", kind: "untracked", x: "?", y: "?", added: null, deleted: null }
   ];
   function branchSamples(nowMs, headShort) {
     const minute = 60 * 1e3;
@@ -4354,9 +4354,10 @@
     const unstagedLines = screen.unstaged.map(fileLine);
     const conflictLines = screen.unstaged.filter((row) => row.conflict).map(fileLine);
     const recentCommits = data.commits.slice(0, 5).map((commit) => `${commit.short} ${commit.subject}\uFF08${commit.author}\uFF0C${whenText(nowMs, commit.authorDateMs)}\uFF09`);
+    const repoPath = data.repoRoot.replace(/\\/g, "/");
     const identityLines = [
-      `\u8DEF\u5F84\uFF1A${data.repoRoot}`,
-      `\u5F53\u524D\u5DE5\u4F5C\u6811\uFF1A${identity.worktreePath}`,
+      `\u8DEF\u5F84\uFF1A${repoPath}`,
+      `\u5F53\u524D\u5DE5\u4F5C\u6811\uFF1A${identity.worktreePath.replace(/\\/g, "/")}`,
       `\u5206\u652F\uFF1A${identity.branch ?? "\u6E38\u79BB HEAD\uFF0C\u4E0D\u5728\u4EFB\u4F55\u5206\u652F\u4E0A"}`,
       `\u4E0A\u6E38\uFF1A${upstream ?? "\u8FD9\u6761\u5206\u652F\u6CA1\u6709\u8BBE\u7F6E\u4E0A\u6E38"}`,
       `\u540C\u6B65\uFF1A\u8D85\u524D ${identity.ahead} \u7B14\u63D0\u4EA4\uFF0C\u843D\u540E ${identity.behind} \u7B14\u63D0\u4EA4`
@@ -5396,7 +5397,8 @@
     const hint = h(
       "div",
       { class: "composer-hint", id: "commit-hint" },
-      h("span", { class: "hint-text", text: model.composer.hint })
+      h("span", { class: "hint-text", text: model.composer.hint }),
+      handoffEntry(HANDOFF_ENTRY.changes, "changes", "inline")
     );
     const commitButton = button({
       label: COPY.changes.commitLabel(model.composer.stagedCount),
@@ -5410,8 +5412,7 @@
       focusKey: "commit"
     });
     const submitRow = h("div", { class: "composer-submit" }, commitButton);
-    const aiRow = h("div", { class: "composer-ai" }, handoffEntry(HANDOFF_ENTRY.changes, "changes", "inline"));
-    composer.append(stagedLine, textarea, hint, aiRow);
+    composer.append(stagedLine, textarea, hint);
     if (model.composer.disabledReason !== null) {
       composer.append(h(
         "div",
