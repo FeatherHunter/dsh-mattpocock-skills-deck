@@ -65,6 +65,15 @@ async function main(): Promise<void> {
     check(out.rows[0].backendId === 'github', '显示的后端名就是统一结论里的那一个');
   }
   {
+    // #1572 收尾：低置信线索也算有结论（行算已绑定），但来源词原样交给界面——
+    // 界面据此标「推测」，不许把它显示成「显式」。
+    const paths = ['D:/a/hinted'];
+    const selections = { 'D:/a/hinted': { backendId: 'github', source: 'hint' } };
+    const out = computeWsOverviewRows(paths, selections, depsOf({}));
+    check(out.total === 1 && out.boundCount === 1, '低置信线索行同样算已绑定（后端有结论）');
+    check(out.rows[0].source === 'hint', '来源词原样带出给界面（hint 不变 explicit）');
+  }
+  {
     const paths = ['D:/a/ilife'];
     const out = computeWsOverviewRows(paths, {}, depsOf({}));
     check(out.total === 1 && out.boundCount === 0, '没有记录的行显示未绑定，计数 1/0');

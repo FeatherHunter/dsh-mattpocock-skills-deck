@@ -56,7 +56,7 @@ type BackendChainPack = { chain: CheckItem[]; resolved: ResolvedMap; snapshot: S
 type Selection = { backendId?: string | null; source?: string }
 
 /** 一次探测的回包：本文件只读 selection 与 explicit 两格，其余原样透传给界面。 */
-type DetectResult = { selection?: Selection | null; explicit?: { parsed?: { explicitBackendId?: unknown } } | null }
+type DetectResult = { selection?: Selection | null; explicit?: { parsed?: { explicitBackendId?: unknown; confidence?: unknown } } | null }
 
 /** 探测服务：本文件只调 detect（前后两次调用各带各的选项）。 */
 type DetectionService = { detect(input: unknown, opts: unknown): Promise<DetectResult> }
@@ -373,9 +373,13 @@ export function createDetectChain(deps: DetectChainDeps) {
         const selConsistent = (selRaw && backendId && selRaw.backendId !== backendId)
           ? Object.assign({}, selRaw, { backendId: backendId })
           : selRaw
-        const expConsistent = (selConsistent && selConsistent.backendId)
+        // #1572 收尾：低置信线索（source 'hint'，说明文件正文提了一句）不是「明确选定」，
+        //   不能给 backendSelected 谓词撑出 explicit:<id> 这句；只有真正的显式选择/工作区文件与高置信标题算数。
+        //   线索仍然按它定下的后端求值（#1555 的决定不改），这里只纠正「来源怎么说」。
+        const parsedDecl = (selMod && selMod.explicit && selMod.explicit.parsed) || null
+        const expConsistent = (selConsistent && selConsistent.backendId && selConsistent.source !== 'hint')
           ? selConsistent.backendId
-          : ((selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId) || null)
+          : ((parsedDecl && parsedDecl.confidence === 'high' && parsedDecl.explicitBackendId) || null)
         const sbInfo = await resolveSessionPolicy(cwd, args && args.sessionId)
         const chainPolicy = sbInfo.policy; const chainSessionId = sbInfo.sessionId
         const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, lang: chainLang, selection: selConsistent, explicitBackendId: expConsistent, sandboxPolicy: chainPolicy, sessionId: chainSessionId, skillProbe: async function (skillName: string) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && (e as CaughtError).message) || e), hint: 'pending:skills-unavailable' } } } }

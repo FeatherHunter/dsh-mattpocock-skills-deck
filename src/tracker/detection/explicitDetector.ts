@@ -6,8 +6,10 @@
  *    以前还有一份注册表里的进程内绑定，与它记的是同一件事，已整段删除）
  *  - 本模块为「文件显式」：读 `docs/agents/workspace.json`、`docs/agents/workspace.yaml`，再读 `docs/agents/issue-tracker.md`，经 `platform.fs`（零 OS 直碰），
  *    产内存 `Selection(explicit)`；不写 `byHandle`，避免文件监听竞态（handoff-150 Q4 *不自动 bind* 推荐）
- *  - 若解析出 `explicitBackendId` 且已注册 → 直接回 `Selection`，跳过 `registry.select` 的 matches 并行；
- *    否则返回 null 由调用方落到 `registry.select`（matches > fallback + pending/multiHit）
+ *  - 若解析出 `explicitBackendId` 且置信度是 high、且已注册 → 直接回 `Selection`，跳过 `registry.select` 的 matches 并行；
+ *    否则返回 null 由调用方落到 `registry.select`（matches > fallback + pending/multiHit）。
+ *    低置信线索（#1572 收尾：正文关键词、没有标题行）不算「显式」——只留在 `parsed` 里作证据，
+ *    判定出口那边会把它记成 hint，不冒充人亲手选的。
  *  - 平台层单点：`platform.fs.resolve/readText` + `platform.path.join`（若需拼接），绝不 `process.env`/`path.join` 直调
  */
 
@@ -86,7 +88,10 @@ export async function detectExplicit(handle: RepoHandle, ctx: ExplicitDetectCtx,
   const text = normalizeTrackerText(raw)
   const parsed = parseIssueTracker(text)
   const bid = parsed.explicitBackendId
-  if (bid && registry && typeof registry.has === 'function' && registry.has(bid)) {
+  // #1572 收尾：这一层叫「显式」，只认标题行（或工作区文件）写明的结论。
+  //   正文提到过某个后端只是低置信线索：留在 parsed 里交给判定出口按线索用（那边把来源记成 hint），
+  //   这里不再产 Selection —— 否则界面与检查链会把猜的当成「你亲手选的」。
+  if (bid && parsed.confidence === 'high' && registry && typeof registry.has === 'function' && registry.has(bid)) {
     let ref: RepositoryRef
     try { ref = registry.describe(handle, bid) } catch { ref = { backend: bid, refId: handle.refId || handle.cwd || '', name: handle.cwd || bid, url: '' } }
     return { selection: { backendId: bid, source: 'explicit', ref }, raw, parsed }

@@ -153,7 +153,7 @@ export const OPERATIONS: readonly string[] = Object.freeze(CATALOG_OPERATIONS)
  * - multiHit = 多命中（平局=注册序取首个；暴露供 bind 显式纠正）。
  * @typedef {Object} Selection
  * @property {import('../../shared/tracker/shape.js').BackendId|null} backendId
- * @property {'explicit'|'matches'|'fallback'} source 无 'detect'（残留已改 'matches'）
+ * @property {'explicit'|'hint'|'matches'|'fallback'|'unknown'} source 无 'detect'（残留已改 'matches'）；'hint' 是说明文件正文提及的低置信线索（#1572），不是人选的
  * @property {RepositoryRef} [ref] backendId=null 时省略
  * @property {import('../../shared/tracker/shape.js').BackendId[]} [multiHit]
  * @property {true} [pending] 仲裁有超时未决（只出现在超时未决时）；UI/调用方必须显示等待/建议 bind，不得静默 OtherCard

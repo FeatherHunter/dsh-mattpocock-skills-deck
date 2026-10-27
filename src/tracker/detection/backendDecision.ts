@@ -556,10 +556,12 @@ export function pickVerdict(evidence: readonly TierEvidence[]): Verdict | null {
       return { backendId: hit.backendId, source: 'explicit', origin: fileOriginOf(hit.fileSource), ref: hit.ref || null, canWrite: true, reason: '' };
     }
     if (tier === 'declaration') {
-      // #1572：低置信声明也是结论（沿用 #1555 的「判定层认低置信线索」），
-      // 但 origin 如实写成 declaration-low，别让日志与诊断把「正文提了一句」看成「标题行声明」。
-      const origin = hit.declarationConfidence === 'low' ? 'declaration-low' : 'declaration';
-      return { backendId: hit.backendId, source: 'explicit', origin: origin, ref: hit.ref || null, canWrite: false, reason: 'needs-generate' };
+      // #1572：低置信声明也是一条线索（沿用 #1555 的「判定层认低置信线索」），
+      // 但来源词与 origin 都如实分开写：source 是 hint（不是 explicit），origin 是 declaration-low。
+      // 读取方只要认 source / origin 就能分清「标题行写明」与「正文提了一句」，不会把猜的当成人选的。
+      const low = hit.declarationConfidence === 'low';
+      const origin = low ? 'declaration-low' : 'declaration';
+      return { backendId: hit.backendId, source: low ? 'hint' : 'explicit', origin: origin, ref: hit.ref || null, canWrite: false, reason: 'needs-generate' };
     }
     return {
       backendId: hit.backendId,

@@ -273,7 +273,7 @@ async function main(): Promise<void> {
     const r = await decideBackend(CWD, { fs: f.fs, registry: fakeRegistry(['github']), skipAutodetect: true })
     const declReads = f.reads.filter((x) => x === DECL).length
     ok(declReads === 1, '一次判定只读声明文件一次（实得 ' + declReads + ' 次）', f.reads.slice(reads0).join(','))
-    ok(r.backendId === 'github' && r.origin === 'declaration', '读到的这一份直接就是结论', String(r.backendId))
+    ok(r.backendId === 'github' && r.origin === 'declaration' && r.source === 'explicit', '读到的这一份直接就是结论（来源词是 explicit）', JSON.stringify({ backendId: r.backendId, origin: r.origin, source: r.source }))
 
     // 声明文件里写了好几行标题：结论必须与 parseIssueTracker 一模一样（出口不再自带第二套优先级）。
     const multi = '# Issue tracker: GitLab\n# Issue tracker: GitHub\n# Issue tracker: Markdown\n'
@@ -291,9 +291,9 @@ async function main(): Promise<void> {
     const f3 = fakeFs({ [DECL]: bodyOnly })
     const r3 = await decideBackend(CWD, { fs: f3.fs, registry: fakeRegistry(['github']), skipAutodetect: true })
     const parsed3 = parseIssueTracker(bodyOnly)
-    ok(r3.backendId === parsed3.explicitBackendId && r3.backendId === 'github' && r3.origin === 'declaration-low',
-      '正文关键词（没有标题行）仍被判定层当线索用，但 origin 如实标 declaration-low（#1572）',
-      JSON.stringify({ outlet: r3.backendId, parser: parsed3.explicitBackendId, origin: r3.origin }))
+    ok(r3.backendId === parsed3.explicitBackendId && r3.backendId === 'github' && r3.origin === 'declaration-low' && r3.source === 'hint',
+      '正文关键词（没有标题行）仍被判定层当线索用，但来源词写 hint、origin 写 declaration-low（#1572 收尾）',
+      JSON.stringify({ outlet: r3.backendId, parser: parsed3.explicitBackendId, origin: r3.origin, source: r3.source }))
 
     // 票面验收 ② 的另一半：旧模板正文提的若是 gitlab，判定层同样按低置信认下、origin 同样写 declaration-low。
     // 认领层对同一份文档说「不是」（见 verify-1555-gitlab-claim-declaration.ts ③），两层的区别只在「判定层认线索、认领层不认」。
@@ -301,20 +301,20 @@ async function main(): Promise<void> {
     const f5 = fakeFs({ [DECL]: oldDoc })
     const r5 = await decideBackend(CWD, { fs: f5.fs, registry: fakeRegistry(['gitlab']), skipAutodetect: true })
     const parsed5 = parseIssueTracker(oldDoc)
-    ok(r5.backendId === 'gitlab' && r5.origin === 'declaration-low' && parsed5.confidence === 'low',
-      '旧模板正文提 gitlab：判定层认这条低置信线索，origin 写 declaration-low（#1572 验收 ②）',
-      JSON.stringify({ outlet: r5.backendId, origin: r5.origin, parserConfidence: parsed5.confidence }))
+    ok(r5.backendId === 'gitlab' && r5.origin === 'declaration-low' && r5.source === 'hint' && parsed5.confidence === 'low',
+      '旧模板正文提 gitlab：判定层认这条低置信线索，来源词写 hint、origin 写 declaration-low（#1572 验收 ② + 收尾）',
+      JSON.stringify({ outlet: r5.backendId, origin: r5.origin, source: r5.source, parserConfidence: parsed5.confidence }))
 
     // 调用方交回的声明读法可能带置信度（#1572）：低置信线索不能因为换了读法就被当成标题声明。
     // 这一条钉的是 decideBackend 与工具壳装配层之间的交接形状 —— 只把钩子改回旧字符串，低置信就会悄悄变高。
     const r4a = await decideBackend(CWD, { readDeclarationId: async () => 'gitlab', registry: fakeRegistry(['gitlab']), skipAutodetect: true })
-    ok(r4a.backendId === 'gitlab' && r4a.origin === 'declaration',
-      '读法只回 id 字符串（旧形状）：按高置信处理，origin 仍是 declaration',
-      JSON.stringify({ outlet: r4a.backendId, origin: r4a.origin }))
+    ok(r4a.backendId === 'gitlab' && r4a.origin === 'declaration' && r4a.source === 'explicit',
+      '读法只回 id 字符串（旧形状）：按高置信处理，origin 仍是 declaration、来源词仍是 explicit',
+      JSON.stringify({ outlet: r4a.backendId, origin: r4a.origin, source: r4a.source }))
     const r4b = await decideBackend(CWD, { readDeclarationId: async () => ({ id: 'gitlab', confidence: 'low', reason: 'keyword-gitlab' }), registry: fakeRegistry(['gitlab']), skipAutodetect: true })
-    ok(r4b.backendId === 'gitlab' && r4b.origin === 'declaration-low',
-      '读法带回低置信提示：origin 如实写 declaration-low，不冒充标题声明（#1572）',
-      JSON.stringify({ outlet: r4b.backendId, origin: r4b.origin }))
+    ok(r4b.backendId === 'gitlab' && r4b.origin === 'declaration-low' && r4b.source === 'hint',
+      '读法带回低置信提示：来源词写 hint、origin 写 declaration-low，不冒充标题声明（#1572）',
+      JSON.stringify({ outlet: r4b.backendId, origin: r4b.origin, source: r4b.source }))
   }
 
   title('D 多命中按明文顺序裁剪（GitHub > Markdown > GitLab）')
@@ -442,6 +442,9 @@ async function main(): Promise<void> {
     const hit = selectionFromOutlet({ backendId: 'github', source: 'explicit', ref: { refId: 'R' } })
     ok(!!hit && JSON.stringify(Object.keys(hit).sort()) === JSON.stringify(['backendId', 'ref', 'source']),
       '命中时只有 backendId/source/ref（multiHit 与 pending 缺席就不出现）', JSON.stringify(Object.keys(hit || {})))
+    const hintSel = selectionFromOutlet({ backendId: 'github', source: 'hint', ref: { refId: 'R' } })
+    ok(!!hintSel && hintSel.source === 'hint' && JSON.stringify(Object.keys(hintSel).sort()) === JSON.stringify(['backendId', 'ref', 'source']),
+      '低置信线索的来源词原样带出（hint 不会被改写成 explicit）', JSON.stringify(hintSel))
     const multi = selectionFromOutlet({ backendId: 'github', source: 'matches', multiHit: ['github', 'markdown'], pending: true })
     ok(!!multi && JSON.stringify(Object.keys(multi).sort()) === JSON.stringify(['backendId', 'multiHit', 'pending', 'ref', 'source']),
       '多命中与待定照旧原样带出', JSON.stringify(Object.keys(multi || {})))

@@ -317,11 +317,11 @@ export const renderWsOverview = function (h: any, sharedSt: any, wsOverview: any
                 const label=backendId?(typeof labelOf==='function'?labelOf(backendId):String(backendId)):tr('cfg.wsUnbound')
                 const color=(typeof backendColorOf==='function'?backendColorOf(backendId):'')
                 const source=row.source
-                const srcLabel=source==='explicit'?tr('cfg.wsSrcExplicit'):source==='matches'?tr('cfg.wsSrcAuto'):tr('cfg.wsSrcUnset')
-                const srcColor=source==='explicit'?'#4ade80':source==='matches'?'#58a6ff':'#8b8b95'
+                const srcLabel=source==='explicit'?tr('cfg.wsSrcExplicit'):source==='hint'?tr('cfg.wsSrcHint'):source==='matches'?tr('cfg.wsSrcAuto'):tr('cfg.wsSrcUnset')
+                const srcColor=source==='explicit'?'#4ade80':source==='hint'?'#e3b341':source==='matches'?'#58a6ff':'#8b8b95'
                 // #1238：未绑定行带失败线索时，来源标签的悬停换成线索文案（等就绪还是查文件分得清）；
                 //   标签本身的字样不动，正常未绑定行与已绑定行的悬停也都不动。
-                const srcTitle=row.unboundHint==='wait'?tr('cfg.wsHintWait'):row.unboundHint==='check'?tr('cfg.wsHintCheck'):source==='explicit'?tr('cfg.wsSrcExplicitTip'):source==='matches'?tr('cfg.wsSrcAutoTip'):tr('cfg.wsSrcUnsetTip')
+                const srcTitle=row.unboundHint==='wait'?tr('cfg.wsHintWait'):row.unboundHint==='check'?tr('cfg.wsHintCheck'):source==='explicit'?tr('cfg.wsSrcExplicitTip'):source==='hint'?tr('cfg.wsSrcHintTip'):source==='matches'?tr('cfg.wsSrcAutoTip'):tr('cfg.wsSrcUnsetTip')
                 const display=row.display||cwd
                 // #653：这一组并进了不止一条目录才标一句（几条目录并在这里）；Hover 浮层给组里每条原样路径，不猜。
                 const mergedNote = row.merged ? tr('cfg.wsMergedCount', { n: row.members.length }) : ''

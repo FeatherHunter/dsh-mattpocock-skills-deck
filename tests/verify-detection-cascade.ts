@@ -81,6 +81,19 @@ console.log('== ① 探测正确性（注册表两级联 matches>fallback + pend
   const res = await detectExplicit({ cwd:'/tmp/a' }, { platform: platformOk, cwd:'/tmp/a' }, reg)
   ok(res.selection && res.selection.backendId==='github' && res.selection.source==='explicit', 'explicitDetector github hit → explicit selection')
   ok(res.parsed.explicitBackendId==='github', 'explicitDetector parsed github')
+  // #1572 收尾：说明文件里只有正文提及、没有标题行时，这一层不再产 Selection；
+  //   线索仍留在 parsed 里，交给判定出口按 hint 用（见下面 detectionService 那一段）。
+  const platformLow = {
+    fs: {
+      resolve: async (p, opts)=> p,
+      readText: async ()=> '本仓库的票记在 GitHub 上，用 gh 命令读写。\n',
+      lstat: async()=>null,
+    },
+    path: { join: (...a)=>a.join('/'), sep:'/' },
+  }
+  const low = await detectExplicit({ cwd:'/tmp/low' }, { platform: platformLow, cwd:'/tmp/low' }, reg)
+  ok(low.selection === null, 'explicitDetector 低置信（正文提及）不产 Selection')
+  ok(low.parsed.explicitBackendId==='github' && low.parsed.confidence==='low', '低置信线索仍留在 parsed 里作证据')
 }
 // registry select pending / multiHit
 {
@@ -129,6 +142,15 @@ console.log('== ① 探测正确性（注册表两级联 matches>fallback + pend
   const svcC = createDetectionService({ registry: reg, getPlatform: async()=>platformC, getFs: ()=>platformC.fs, getTimers: ()=>({setTimeout, clearTimeout}), workspaceStore: createWorkspaceStore({ttl:30000}), skillProbe: async()=>({ok:true, missing:[], probes:{}}), getChoiceStore: async () => null, decideBackend: outletDecideBackend })
   const rC = await svcC.detect({ cwd:'/tmp/none' }, {})
   ok(rC.selection.backendId===null && rC.selection.source==='fallback', 'detectionService fallback 无命中 → null')
+
+  // #1572 收尾：统一判定出口对「只有正文提及」的结论把来源词记成 hint，
+  //   这条线索仍能当作这次选的后端用，但不再对调用方自称 explicit。
+  const bodyOnly = '本仓库的票记在 GitHub 上，用 gh 命令读写。\n'
+  const platformD = { fs: { resolve: async(p)=>p, readText: async()=>bodyOnly, lstat: async()=>null }, path:{join:(...a)=>a.join('/'), sep:'/'}, resolveExecutable: async()=>null, getHome: async()=>null, env:{get:()=>undefined,has:()=>false} }
+  const svcD = createDetectionService({ registry: reg, getPlatform: async()=>platformD, getFs: ()=>platformD.fs, getTimers: ()=>({setTimeout, clearTimeout}), workspaceStore: createWorkspaceStore({ttl:30000}), skillProbe: async()=>({ok:true, missing:[], probes:{}}), getChoiceStore: async () => null, decideBackend: outletDecideBackend })
+  const rD = await svcD.detect({ cwd:'/tmp/d' }, {})
+  ok(rD.selection.backendId==='github' && rD.selection.source==='hint', 'detectionService 低置信线索 → source hint（不再冒充 explicit）')
+  ok(rD.explicit && rD.explicit.parsed && rD.explicit.parsed.confidence==='low', '探测结果里仍如实带着低置信解析（界面与排查读得到来路）')
 }
 
 console.log('\n== ② per-workspace 隔离 + 覆盖层「用户说了算」 ==')

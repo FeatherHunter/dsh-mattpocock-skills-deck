@@ -232,6 +232,24 @@ async function main() {
     check(verdict.status === 'pending' && String(verdict.detail || '').indexOf('读会话还没接上') >= 0, '登录行落回「读会话还没接上」兜底 pending', JSON.stringify(verdict))
   }
 
+  title('⑦ 低置信线索（source hint）不是「明确选定」：链上不冒充 explicit:github，但仍按线索定的后端求值')
+  {
+    const r = await runScenario({
+      hasGit: false,
+      detect: {
+        selection: { backendId: 'github', source: 'hint' },
+        explicit: { parsed: { explicitBackendId: 'github', confidence: 'low', reason: 'keyword-github' } },
+      },
+    })
+    const out = r.out
+    check(!!out && out.ok === true, '链求值成功', JSON.stringify(out && out.error))
+    check(!!out && out.backendId === 'github', '低置信线索仍按它定下的后端求值（#1555 的决定没变）', String(out && out.backendId))
+    const gate = (out && out.resolved && out.resolved['selection:backendSelected']) || null
+    check(!!gate && gate.status === 'pass', '「已选后端」这一项照常通过', JSON.stringify(gate))
+    check(!!gate && String(gate.detail || '') === 'backend:github', '通过说明写 backend:github（线索说明后端存在，不是显式声明）', String(gate && gate.detail))
+    check(!!gate && String(gate.detail || '').indexOf('explicit:') < 0, '通过说明不带 explicit: 前缀（不把正文提及说成明确选定）', String(gate && gate.detail))
+  }
+
   console.log('\nverify-1505-chain-env-selection: ' + (failed ? '有失败项' : '全部通过') + '（共 ' + total + ' 条断言）')
   if (failed) process.exit(1)
   console.log('CHAIN ENV SELECTION OK')
