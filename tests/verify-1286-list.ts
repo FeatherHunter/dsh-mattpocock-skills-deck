@@ -146,6 +146,7 @@ const { ticketLabelOf, ticketLabelNodesOf, TICKET_LABEL_MAX_WIDTH } = await impo
 G.ticketLabelOf = ticketLabelOf
 G.ticketLabelNodesOf = ticketLabelNodesOf
 G.TICKET_LABEL_MAX_WIDTH = TICKET_LABEL_MAX_WIDTH
+G.ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
 const listMod: any = await import('../src/client/views/ListTab.js')
 // 本次界面反馈需求：筛选药丸那一行搬成了独立叶子（要接三块液态墨块，ListTab 放不下）。
 // 这里直接加载真叶子；墨块钩子用空实现——这几道门禁只看行与按钮的形状，不测墨块对位。

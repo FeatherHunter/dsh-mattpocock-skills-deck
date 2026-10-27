@@ -232,21 +232,25 @@ async function main() {
     check(verdict.status === 'pending' && String(verdict.detail || '').indexOf('读会话还没接上') >= 0, '登录行落回「读会话还没接上」兜底 pending', JSON.stringify(verdict))
   }
 
-  title('⑦ 低置信线索（source hint）不是「明确选定」：链上不冒充 explicit:github，但仍按线索定的后端求值')
+  title('⑦ 低置信线索（正文提及）不再是「明确选定」：链上按已选的后端求值，通过说明写 backend:github')
   {
+    // 方案 A（#1572 收尾）：说明文件里只有正文提及、没有标题行时，判定层不再把它当结论，
+    // 所以探测结果里 selection 为空、只留 parsed 的低置信证据；链按调用方给的 backendId 求值，
+    // 「已选后端」这一项通过，但通过说明写 backend:github —— 它不是显式声明。
     const r = await runScenario({
       hasGit: false,
+      argsBackendId: 'github',
       detect: {
-        selection: { backendId: 'github', source: 'hint' },
+        selection: null,
         explicit: { parsed: { explicitBackendId: 'github', confidence: 'low', reason: 'keyword-github' } },
       },
     })
     const out = r.out
     check(!!out && out.ok === true, '链求值成功', JSON.stringify(out && out.error))
-    check(!!out && out.backendId === 'github', '低置信线索仍按它定下的后端求值（#1555 的决定没变）', String(out && out.backendId))
+    check(!!out && out.backendId === 'github', '按调用方给的后端求值（低置信线索不产结论）', String(out && out.backendId))
     const gate = (out && out.resolved && out.resolved['selection:backendSelected']) || null
     check(!!gate && gate.status === 'pass', '「已选后端」这一项照常通过', JSON.stringify(gate))
-    check(!!gate && String(gate.detail || '') === 'backend:github', '通过说明写 backend:github（线索说明后端存在，不是显式声明）', String(gate && gate.detail))
+    check(!!gate && String(gate.detail || '') === 'backend:github', '通过说明写 backend:github（后端存在，不是显式声明）', String(gate && gate.detail))
     check(!!gate && String(gate.detail || '').indexOf('explicit:') < 0, '通过说明不带 explicit: 前缀（不把正文提及说成明确选定）', String(gate && gate.detail))
   }
 

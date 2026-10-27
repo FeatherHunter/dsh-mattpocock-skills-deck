@@ -113,6 +113,7 @@ const ticketLabelModForBadge = await import('../src/client/kernel/ticket-label.j
 G.ticketLabelOf = ticketLabelModForBadge.ticketLabelOf
 G.ticketLabelNodesOf = ticketLabelModForBadge.ticketLabelNodesOf
 G.TICKET_LABEL_MAX_WIDTH = ticketLabelModForBadge.TICKET_LABEL_MAX_WIDTH
+G.ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
 G.effortNamesOf = () => ['default']
 G.findMapByIdentity = () => null
 G.pushNav = () => {}

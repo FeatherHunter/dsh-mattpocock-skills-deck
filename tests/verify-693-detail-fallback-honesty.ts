@@ -34,6 +34,8 @@ import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 ;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
 ;(globalThis as any).ticketLabelNodesOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelNodesOf
 ;(globalThis as any).TICKET_LABEL_MAX_WIDTH = (await import('../src/client/kernel/ticket-label.js')).TICKET_LABEL_MAX_WIDTH
+;(globalThis as any).ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
+;(globalThis as any).Tip = function (props: any): any { return props && props.children ? props.children : null }
 
 // Node 里 global 就是 globalThis；这里声明一次，是为了保住原文件「往 global 上挂浏览器环境」的写法，
 // 行为与原来一模一样（不是新造的对象）。

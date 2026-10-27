@@ -403,6 +403,17 @@ export function ghCooldownReply(err: unknown, cmd: string): string {
   return '到 GitHub 的通路现在不通：命令 ' + (cmd || 'gh') + ' 没有起进程（上一笔连续第 ' + cool.failStreak + ' 次' + (reasonLabel ? reasonLabel + '失败' : '通路失败') + '，冷却还剩约 ' + remainSec + ' 秒）。这一笔没有执行。' + outboundFollowUpAdvice(cool.bucket)
 }
 
+/**
+ * 排队到点还没拿到名额时给人的那句话（#1570）：说清是哪条命令、这一笔一次都没起进程、预算多少，
+ * 并按可重试处理。平台通道与 execProc 共用这一句，免得两处各写一份措辞。
+ * 不是排队超时错误返回空串（调用方照旧走原来的取消/冷却回话）。
+ */
+export function ghQueueTimeoutReply(err: unknown, cmd: string): string {
+  const q = outboundQueueTimeoutOf(err)
+  if (!q) return ''
+  return (cmd || 'gh') + ' 在 ' + q.limitMs + ' 毫秒内没等到出站名额（到点时还在排队，一次都没有跑起来）。可重试。'
+}
+
 /** 进程根本没起来也是 transport 级失败（spawn-failed）：同一只桶进入冷却，随后调用立刻回「通路不通」。 */
 export function reportGhSpawnFailure(lane: OutboundTransportLane, bucket: string, cmd: string): void {
   try { lane.reportTransportFailure({ bucket: bucket, reason: 'spawn-failed', cmd: cmd }) } catch (eR) {}

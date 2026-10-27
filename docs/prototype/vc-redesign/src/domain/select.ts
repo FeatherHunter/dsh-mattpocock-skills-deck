@@ -17,7 +17,7 @@ import { COPY } from '../data/copy'
 import { changeBadge, lineDelta, shortOid, splitPath, syncModel } from '../data/format'
 import type { ChangeTone, SyncModel } from '../data/format'
 import { samplePatch } from '../data/patches'
-import type { ChangesFilter, LocalCommit, OpName, SessionState, Tone, ViewId } from './session'
+import type { BranchPending, BranchRow, BranchSub, ChangesFilter, LocalCommit, OpName, SessionState, Tone, ViewId, WorktreePending } from './session'
 import { metadataOf } from './session'
 import type { SessionBase } from './session'
 
@@ -173,6 +173,9 @@ export interface WorktreeRowModel {
   states: Array<{ label: string; tone: BadgeTone; detail: string | null }>
   abnormal: boolean
   copied: boolean
+  /** 三个动作按钮各自是否应该出现；由行状态决定，不在视图里再判一遍。 */
+  locked: boolean
+  prunable: boolean
 }
 
 export interface WorktreesModel {
@@ -186,6 +189,45 @@ export interface WorktreesModel {
   notice: string
   aiLabel: string
   aiEnabled: boolean
+  pending: WorktreePending | null
+}
+
+/** 一条分支在列表里的样子：名字与当前标记之外只留判断要用的数字。 */
+export interface BranchRowModel {
+  name: string
+  current: boolean
+  upstream: string | null
+  ahead: number
+  behind: number
+  oidShort: string
+  when: string
+  subject: string
+  merged: boolean
+}
+
+/** 分支详情：一条分支能做什么、为什么不能做，全部在这里算好。 */
+export interface BranchDetailModel {
+  row: BranchRowModel
+  canSwitch: boolean
+  canMerge: boolean
+  canDelete: boolean
+  switchReason: string | null
+  mergeReason: string | null
+  deleteReason: string | null
+  pending: BranchPending | null
+}
+
+export interface BranchesModel {
+  rows: BranchRowModel[]
+  total: number
+  currentName: string | null
+  selected: BranchDetailModel | null
+  sub: BranchSub
+  draft: string
+  query: string
+  pending: BranchPending | null
+  empty: boolean
+  dirty: boolean
 }
 
 export interface PanelModel {
@@ -194,6 +236,7 @@ export interface PanelModel {
   changes: ChangesModel
   history: HistoryModel
   worktrees: WorktreesModel
+  branches: BranchesModel
   result: SessionState['result']
   confirm: { title: string; body: string; files: string[]; continueLabel: string; cancelLabel: string } | null
   busy: OpName | null
@@ -271,6 +314,8 @@ function nextStepOf(state: SessionState): { text: string; tone: Tone } {
 
 export function railOf(base: SessionBase, state: SessionState, nowMs: number): RailModel {
   const identity = base.screen.identity
+  // 分支名以状态机为准：切换分支之后，顶部身份行要立刻显示新分支，而不是首屏读数里的旧名字。
+  const currentBranch = state.branches.find((row) => row.current)
   const screen = judgeScreen(base, state)
   const sync = syncModel(identity.sync, state.ahead, state.behind)
   const syncChips: SyncChipModel[] = []
@@ -298,7 +343,7 @@ export function railOf(base: SessionBase, state: SessionState, nowMs: number): R
   return {
     worktreeDisplay: identity.worktreeDisplay,
     worktreePath: identity.worktreePath,
-    branch: identity.branch,
+    branch: currentBranch === undefined ? identity.branch : currentBranch.name,
     detached: identity.detached,
     oidShort: identity.oid === null ? null : shortOid(identity.oid),
     sync,
@@ -623,6 +668,25 @@ function worktreeRowOf(state: SessionState, worktree: WorktreeInfo): WorktreeRow
     states: chips.states,
     abnormal: chips.abnormal,
     copied: state.copiedPath === worktree.path,
+    locked: worktree.locked,
+    prunable: worktree.prunable,
+  }
+}
+
+/**
+ * 把面板里已经做过的动作叠加到原始清单上：
+ * 解锁过的行不再显示占用，清理与移除过的行直接从清单消失。
+ * 真实实现里这些变化来自重新读取 git；原型把它们记在状态里，视图不用各自判断。
+ */
+function applyWorktreeActions(state: SessionState, item: WorktreeInfo): WorktreeInfo {
+  const unlocked = state.unlockedWorktrees.includes(item.path)
+  const pruned = state.prunedWorktrees.includes(item.path)
+  if (!unlocked && !pruned) return item
+  return {
+    ...item,
+    locked: unlocked ? false : item.locked,
+    lockReason: unlocked ? null : item.lockReason,
+    prunable: pruned ? false : item.prunable,
   }
 }
 
@@ -645,6 +709,8 @@ export function worktreesOf(base: SessionBase, state: SessionState): WorktreesMo
     })
   const demo = state.demoWorktrees ? demoWorktreesOf(identity.worktreePath) : []
   const othersRaw = [...base.screen.otherWorktrees.filter((item) => !item.current), ...demo]
+    .filter((item) => !state.hiddenWorktrees.includes(item.path))
+    .map((item) => applyWorktreeActions(state, item))
   // 需要人工处理的工作树排在最前，其余保持 git 记录顺序（sort 在 ES2019 起稳定）。
   const others = othersRaw
     .map((item) => worktreeRowOf(state, item))
@@ -659,8 +725,63 @@ export function worktreesOf(base: SessionBase, state: SessionState): WorktreesMo
     notice: `${COPY.worktrees.scope}${COPY.worktrees.boundary}`,
     aiLabel: COPY.worktrees.ai,
     aiEnabled: abnormal > 0,
+    pending: state.worktreePending,
   }
 }
+
+/** 一条分支的列表行与详情：可点性在这里判一次，按钮与原因共用同一个结论。 */
+function branchRowOf(state: SessionState, row: BranchRow, nowMs: number): BranchRowModel {
+  return {
+    name: row.name,
+    current: row.current,
+    upstream: row.upstream,
+    ahead: row.ahead,
+    behind: row.behind,
+    oidShort: row.oidShort,
+    when: timeText(nowMs, row.lastCommitMs),
+    subject: row.subject,
+    merged: row.mergedIntoCurrent,
+  }
+}
+
+export function branchesOf(base: SessionBase, state: SessionState, nowMs: number): BranchesModel {
+  const query = state.branchQuery.trim().toLowerCase()
+  const rows = state.branches
+    .filter((row) => query === '' || row.name.toLowerCase().includes(query))
+    .map((row) => branchRowOf(state, row, nowMs))
+  const current = state.branches.find((row) => row.current) ?? null
+  const selectedRaw = state.branchSelected === null
+    ? null
+    : state.branches.find((row) => row.name === state.branchSelected) ?? null
+  let selected: BranchDetailModel | null = null
+  if (selectedRaw !== null) {
+    const row = branchRowOf(state, selectedRaw, nowMs)
+    const isCurrent = selectedRaw.current
+    selected = {
+      row,
+      canSwitch: !isCurrent,
+      canMerge: !isCurrent,
+      canDelete: !isCurrent,
+      switchReason: isCurrent ? COPY.branches.switchCurrent : null,
+      mergeReason: null,
+      deleteReason: isCurrent ? COPY.branches.cannotDeleteCurrent : null,
+      pending: state.branchPending,
+    }
+  }
+  return {
+    rows,
+    total: state.branches.length,
+    currentName: current === null ? base.branch : current.name,
+    selected,
+    sub: state.branchSub,
+    draft: state.branchDraft,
+    query: state.branchQuery,
+    pending: state.branchPending,
+    empty: rows.length === 0,
+    dirty: state.staged.length > 0 || state.unstaged.length > 0 || state.conflicts.length > 0,
+  }
+}
+
 
 export function panelModelOf(base: SessionBase, state: SessionState, nowMs: number): PanelModel {
   const tabs = tabsOf(base, state)
@@ -677,6 +798,7 @@ export function panelModelOf(base: SessionBase, state: SessionState, nowMs: numb
     changes: changesOf(base, state),
     history: historyOf(base, state, nowMs),
     worktrees: worktreesOf(base, state),
+    branches: branchesOf(base, state, nowMs),
     result: state.result,
     confirm,
     busy: state.busy,

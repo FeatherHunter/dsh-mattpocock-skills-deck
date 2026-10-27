@@ -1,15 +1,11 @@
 // 演示页入口：给卡片模块补上闭包里的自由变量，再把三张卡的全部形态摆出来。
 import * as ReactLib from 'react';
 import { createRoot } from 'react-dom/client';
-import { L_PANEL } from '../../src/client/kernel/locale-panel';
-import { L_FLOW } from '../../src/client/kernel/locale-flow';
-import { L_WORD } from '../../src/client/kernel/locale-word';
-import { L_LABELS } from '../../src/client/kernel/locale-labels';
-import { L_PAGES } from '../../src/client/kernel/locale-pages';
-import { L_VCWRITE } from '../../src/client/kernel/locale-vcwrite';
-import { L_SKILLDESC } from '../../src/client/kernel/locale-skilldesc';
-import { L_SKILLDETAIL } from '../../src/client/kernel/locale-skilldetail';
-import { L_CARDS } from '../../src/client/kernel/locale-cards';
+// 界面词表在 #1294 之后不再是一份份 locale-*.ts 源文件，而是从 config/copy/*.yaml 生成的
+// 单份 locale-data.ts（生成物不入库）：十张表都从这里一处取，写成一行省得下回改词表时又对不上。
+import {
+  L_PANEL, L_FLOW, L_WORD, L_LABELS, L_PAGES, L_VCWRITE, L_SKILLDESC, L_SKILLDETAIL, L_CARDS,
+} from '../../src/client/kernel/locale-data';
 import { PixelIssueCard } from '../../src/client/views/cards/PixelIssueCard';
 import { PixelIssueMapCard } from '../../src/client/views/cards/PixelIssueMapCard';
 import { PixelMapCard } from '../../src/client/views/cards/PixelMapCard';

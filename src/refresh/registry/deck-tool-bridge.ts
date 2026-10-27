@@ -194,7 +194,7 @@ export function createDeckToolsForHost(toolDeps: unknown): unknown {
   const base = ((toolDeps as UnknownRecord | null | undefined) || {}) as UnknownRecord;
   // #1003 补声明文件这一层：工具壳新增的 readDeclarationId 缺席时，由装配层按现有文件服务现拼一个。
   //   读与解析与探测器同路径同口径（docs/agents/issue-tracker.md + parseIssueTracker），不另起第二套。
-  // #1572：声明读法要把解析器的置信度一并交回判定层（低置信标 declaration-low），不再只回一个 id。
+  // #1572：声明读法要把解析器的置信度一并交回判定层；低置信只作证据（方案 A），不再只回一个 id。
   let readDeclarationId = base.readDeclarationId as ((rootCwd: unknown) => Promise<unknown>) | undefined;
   if (typeof readDeclarationId !== 'function') {
     readDeclarationId = async function (rootCwd: unknown): Promise<unknown> {
@@ -217,7 +217,7 @@ export function createDeckToolsForHost(toolDeps: unknown): unknown {
         if (parsed && parsed.explicitBackendId) {
           // 未注册的 id 由调用方按“未知层跳过”处理，这里只透传文本结论。
           // 高置信与低置信都回同一形状（#1572）：高置信不带原因，判定层按缺省的 declaration-hit 记；
-          // 低置信把解析器原因一并带上，判定层写成 declaration-low-<原因>，日志里能分清两种来路。
+          // 低置信把解析器原因一并带上（步骤原因 declaration-low-<原因>），判定层只把它当证据、不当结论。
           const hint: { id: string; confidence: 'high' | 'low'; reason?: string } = { id: parsed.explicitBackendId as string, confidence: parsed.confidence === 'low' ? 'low' : 'high' };
           if (parsed.confidence === 'low' && typeof parsed.reason === 'string' && parsed.reason) hint.reason = parsed.reason;
           return hint;

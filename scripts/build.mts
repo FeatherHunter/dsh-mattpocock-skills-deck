@@ -652,6 +652,9 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'chips', file: 'src/client/views/shared/chips.ts' },
   { id: 'hoverTip', file: 'src/client/views/primitives/HoverTip.ts' },
   { id: 'tip', file: 'src/client/views/primitives/Tip.ts' },
+  // #1564：票号徽标的四种外壳（列表行、详情页头、在办表首列、状态栏胶囊）共用这一个画法。
+  //   它依赖 kernel:ticketLabel 的文字规则与 leaf:tip 的悬停，登记在两者之后。
+  { id: 'ticketBadge', file: 'src/client/views/shared/ticketBadge.ts' },
   // #1582：打开文件夹的共用函数（四处入口共用：判目录可用、只发一次 wf.openFolder、读回包、把结论交回调用方）。
   { id: 'openFolder', file: 'src/client/views/shared/openFolder.ts' },
   // 本次界面反馈需求：液态墨块（页签与列表筛选药丸共用），必须排在 leaf:tabs 之前登记。

@@ -32,6 +32,10 @@ const { sourceText, spliceableJs } = require('./lib/source-text.js')
 // 这里和 tests/verify-chain-capsule.ts 一样补上真身 —— 不补的话那一行一求值就报 ReferenceError。
 ;(globalThis as any).ticketLabelCapsuleFoldOf = require('../src/client/kernel/ticket-label.js').ticketLabelCapsuleFoldOf
 ;(globalThis as any).TICKET_LABEL_MAX_WIDTH = require('../src/client/kernel/ticket-label.js').TICKET_LABEL_MAX_WIDTH
+// #1564：整颗徽标收进共享叶子 ticketBadge.ts；叶子单独求值时闭包里没有这个名字，也补上真身。
+;(globalThis as any).ticketBadgeOf = require('../src/client/views/shared/ticketBadge.js').ticketBadgeOf
+// 徽标自己的悬停壳 Tip 同样来自闭包：求值时合成的树只记节点、不调组件，给一个同形的纯函数即可。
+;(globalThis as any).Tip = function (props) { return props && props.children ? props.children : null }
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false

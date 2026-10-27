@@ -286,6 +286,10 @@ export default {
     // ==== leaf:chips (spliced by build) ====
     // ==== leaf:hoverTip (spliced by build) ====
     // ==== leaf:tip (spliced by build) ====
+    // #1564：票号徽标（列表行、票详情头、容器详情头、在办表首列、状态栏胶囊单子与主行）的唯一画法。
+    //   四种外壳只决定外面长什么样；文字规则与上限宽度仍来自 kernel:ticketLabel，悬停来自 leaf:tip，
+    //   所以这一片必须排在它们之后。
+    // ==== leaf:ticketBadge (spliced by build) ====
     // #1582：打开文件夹的共用函数，Dock 仓库芯片、子工作区标志、日志菜单、诊断日志页都走它。
     // ==== leaf:openFolder (spliced by build) ====
     // 本次界面反馈需求：液态墨块，页签与列表筛选药丸共用的选中块，必须排在 leaf:tabs 之前。

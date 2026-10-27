@@ -174,6 +174,26 @@ async function main() {
     check(lane.snapshot().readQueueTimedOut === timedOutBefore, '取消不会增加「排队到点」计数')
     releaseHeld2()
 
+    // 「到点的人身后还有人在等」：到点者挪出队列后，晚到的名额要落到身后那个人的手里，不能漏掉。
+    const releaseHeld3 = await lane.acquire({ bucket: 'read' })
+    let followerGot: any = null
+    const follower = lane.acquire({ bucket: 'read' }).then((rel: any) => { followerGot = rel; return rel })
+    let secondTimedOut: any = null
+    const secondQueued = lane.acquire({ bucket: 'read', waitMs: 40 }).then(() => 'got', (e) => { secondTimedOut = e; return 'rejected' })
+    const secondTimer = pending[pending.length - 1]
+    check(!!secondTimer && secondTimer.ms === 40, '排队到点：两只排队里只有给了预算的那只建表（实得 ' + JSON.stringify(pending.slice(-1).map((h) => h.ms)) + '）')
+    secondTimer.fn()
+    const secondOutcome = await secondQueued
+    const followerStillQueued = followerGot === null
+    check(secondOutcome === 'rejected' && isAdmissionQueueTimeout(secondTimedOut), '排队到点：到点者被挪出队列并拿到可辨认错误')
+    check(followerStillQueued, '排队到点：到点者身后的人没被误伤，仍在排队')
+    releaseHeld3()
+    const followerRel: any = await Promise.race([follower, new Promise((res) => setTimeout(() => res('stuck'), 1000))])
+    check(typeof followerRel === 'function', '迟到名额由身后排队的人接住（名额没有漏掉）')
+    if (typeof followerRel === 'function') followerRel()
+    const snapAfterFollower = lane.snapshot()
+    check(snapAfterFollower.readQueueTimedOut === 2 && snapAfterFollower.readQueued === 0, '到点两次各记一次，队列清空（到点 ' + snapAfterFollower.readQueueTimedOut + '，仍在排 ' + snapAfterFollower.readQueued + '）')
+
     // 缺省不给预算：维持不设上限，排队只等名额回来。
     const lane2 = createGhAdmission({ readMax: 1, writeMax: 1, timers: timers })
     const hold2 = await lane2.acquire({ bucket: 'read' })
@@ -183,6 +203,26 @@ async function main() {
     hold2()
     const gotWait = await Promise.race([waitOnly, new Promise((res) => setTimeout(() => res('stuck'), 1000))])
     check(gotWait === 'ok', '不设上限的排队在名额回来时照常放行')
+  }
+
+  // 7. 包装器没传失败回调时，拿名额被取消要原样抛原始取消错误，不能变成 TypeError（#1570 复核）。
+  {
+    const { withGhLane } = mod!
+    const laneW = getGhLane()
+    const holdsW = []
+    for (let i = 0; i < READ_BUCKET_MAX; i++) holdsW.push(await laneW.acquire({ bucket: 'read' }))
+    const ctrlW = new AbortController()
+    let errW: any = null
+    // 满桶之后这一笔只能排队；传了取消信号但没传第三个回调，取消时包装器必须抛原始错误。
+    const waiting = withGhLane({ bucket: 'read', signal: ctrlW.signal }, async () => 'ran').then(
+      () => { return },
+      (e) => { errW = e },
+    )
+    await new Promise((res) => setImmediate(res))
+    ctrlW.abort()
+    await waiting
+    for (const relW of holdsW) relW()
+    check(isAdmissionCancelled(errW), '包装器没传失败回调时，排队被取消仍抛原始取消错误（不是 TypeError）', String(errW && errW.code) + ' / ' + String(errW))
   }
 
   finish()

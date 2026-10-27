@@ -16,7 +16,7 @@
  */
 
 /** 结果出现的位置：这是「结果不能堆在页面底部」的具体落点。 */
-export type ResultSource = 'sync' | 'reload' | 'commit' | 'copy' | 'ai'
+export type ResultSource = 'sync' | 'reload' | 'commit' | 'copy' | 'ai' | 'branch' | 'worktree'
 /** 结果与「下一步」提示的四种语气；muted 表示没有紧迫性，不改变颜色语义。 */
 export type Tone = 'ok' | 'warn' | 'error' | 'info' | 'muted'
 export type ViewId = 'changes' | 'commits' | 'worktrees'
@@ -46,6 +46,35 @@ export interface ConfirmPull {
   files: string[]
 }
 
+/** 分支在原型里的状态：与真实 refs 读到的字段一一对应，外加「是否已并入当前分支」。 */
+export interface BranchRow {
+  name: string
+  upstream: string | null
+  ahead: number
+  behind: number
+  oidShort: string
+  lastCommitMs: number
+  subject: string
+  mergedIntoCurrent: boolean
+  current: boolean
+}
+
+/** 分支页的三种二级形态：列表、单条详情、新建与重命名共用的输入表单。 */
+export type BranchSub = 'list' | 'detail' | 'create' | 'rename'
+
+/** 需要二次确认的分支动作：删除与「工作区有改动时仍要切换」。 */
+export interface BranchPending {
+  kind: 'delete' | 'switch'
+  name: string
+}
+
+/** 工作树动作的二次确认：三个动作都直接改状态，不再走复制命令。 */
+export interface WorktreePending {
+  kind: 'unlock' | 'prune' | 'remove'
+  path: string
+  name: string
+}
+
 export interface SessionState {
   view: ViewId
   busy: OpName | null
@@ -69,6 +98,19 @@ export interface SessionState {
   localCommits: LocalCommit[]
   copiedPath: string | null
   demoWorktrees: boolean
+  /** 分支页是否覆盖在当前视图上；分支属于顶部身份，不是第四个页签。 */
+  branchOpen: boolean
+  branchSub: BranchSub
+  branchSelected: string | null
+  branchDraft: string
+  branchQuery: string
+  branchPending: BranchPending | null
+  branches: BranchRow[]
+  /** 工作树动作的确认与结果：三个动作都在面板里执行，状态改在这里。 */
+  worktreePending: WorktreePending | null
+  hiddenWorktrees: string[]
+  unlockedWorktrees: string[]
+  prunedWorktrees: string[]
 }
 
 /**
@@ -81,6 +123,7 @@ export interface SessionBase {
   commitFiles: Map<string, Array<{ path: string; added: number; deleted: number }>>
   totalCommits: number
   branch: string | null
+  branches: BranchRow[]
 }
 
 export type Action =
@@ -110,12 +153,27 @@ export type Action =
   | { type: 'copy'; path: string }
   | { type: 'ai-worktrees' }
   | { type: 'demo-worktrees' }
+  | { type: 'branch-open' }
+  | { type: 'branch-close' }
+  | { type: 'branch-select'; name: string }
+  | { type: 'branch-sub'; sub: BranchSub }
+  | { type: 'branch-draft'; value: string }
+  | { type: 'branch-query'; value: string }
+  | { type: 'branch-pending'; pending: BranchPending | null }
+  | { type: 'branch-create' }
+  | { type: 'branch-rename'; name: string }
+  | { type: 'branch-switch'; name: string }
+  | { type: 'branch-merge'; name: string }
+  | { type: 'branch-delete'; name: string }
+  | { type: 'wt-pending'; pending: WorktreePending | null }
+  | { type: 'wt-apply' }
 
 /** 初始状态：全部从真实首屏读数派生，不在原型里另编一套计数。 */
-export function createSessionState(screen: SessionBase['screen'], nowMs: number): SessionState {
+export function createSessionState(base: SessionBase, nowMs: number): SessionState {
   const conflicts: string[] = []
   const staged: string[] = []
   const unstaged: string[] = []
+  const screen = base.screen
   for (const entry of screen.staged) {
     if (entry.conflict) conflicts.push(entry.path)
     else if (entry.staged) staged.push(entry.path)
@@ -152,6 +210,17 @@ export function createSessionState(screen: SessionBase['screen'], nowMs: number)
     localCommits: [],
     copiedPath: null,
     demoWorktrees: false,
+    branchOpen: false,
+    branchSub: 'list',
+    branchSelected: null,
+    branchDraft: '',
+    branchQuery: '',
+    branchPending: null,
+    branches: base.branches.map((row) => ({ ...row })),
+    worktreePending: null,
+    hiddenWorktrees: [],
+    unlockedWorktrees: [],
+    prunedWorktrees: [],
   }
 }
 
@@ -351,6 +420,147 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         detail: '真实页面会打开本机 DSH 会话，并在提示里带上异常工作树的路径与状态。',
         source: 'ai',
       })
+    case 'wt-pending':
+      return { ...state, worktreePending: action.pending }
+    case 'wt-apply': {
+      const pending = state.worktreePending
+      if (pending === null) return state
+      const hidden = state.hiddenWorktrees.includes(pending.path)
+        ? state.hiddenWorktrees
+        : [...state.hiddenWorktrees, pending.path]
+      if (pending.kind === 'unlock') {
+        return withResult({
+          ...state,
+          worktreePending: null,
+          unlockedWorktrees: unique([...state.unlockedWorktrees, pending.path]),
+        }, { tone: 'ok', text: `已解除占用：${pending.name}。`, detail: '工作目录与里面的改动都没有动，只是去掉了 git 的占用标记。', source: 'worktree' })
+      }
+      if (pending.kind === 'prune') {
+        return withResult({
+          ...state,
+          worktreePending: null,
+          hiddenWorktrees: hidden,
+          prunedWorktrees: unique([...state.prunedWorktrees, pending.path]),
+        }, { tone: 'ok', text: `已清理记录：${pending.name}。`, detail: '这条记录对应的目录本来就不存在，清理不会删除任何文件。', source: 'worktree' })
+      }
+      return withResult({
+        ...state,
+        worktreePending: null,
+        hiddenWorktrees: hidden,
+      }, { tone: 'ok', text: `已移除工作树：${pending.name}。`, detail: '分支与提交都还在仓库里；这一步只删掉了检出记录与工作目录。', source: 'worktree' })
+    }
+    case 'branch-open':
+      return { ...state, branchOpen: true, branchSub: 'list', branchSelected: null, branchDraft: '', branchPending: null }
+    case 'branch-close':
+      return { ...state, branchOpen: false, branchPending: null, branchDraft: '' }
+    case 'branch-select':
+      return { ...state, branchSelected: action.name, branchSub: 'detail', branchPending: null, branchDraft: '' }
+    case 'branch-sub':
+      return { ...state, branchSub: action.sub, branchDraft: '', branchPending: null }
+    case 'branch-draft':
+      return { ...state, branchDraft: action.value }
+    case 'branch-query':
+      return { ...state, branchQuery: action.value }
+    case 'branch-pending':
+      return { ...state, branchPending: action.pending }
+    case 'branch-create': {
+      if (state.busy !== null || state.reloading) return state
+      const name = state.branchDraft.trim()
+      if (name === '' || /\s/.test(name)) {
+        return withResult(state, { tone: 'error', text: '分支名不能为空，也不能包含空格。', detail: null, source: 'branch' })
+      }
+      if (state.branches.some((row) => row.name === name)) {
+        return withResult(state, { tone: 'error', text: `分支 ${name} 已经存在。`, detail: null, source: 'branch' })
+      }
+      const current = state.branches.find((row) => row.current)
+      const created: BranchRow = {
+        name,
+        upstream: null,
+        ahead: 0,
+        behind: 0,
+        oidShort: current === undefined ? state.branches[0]?.oidShort ?? '' : current.oidShort,
+        lastCommitMs: Date.now(),
+        subject: current === undefined ? '从当前提交创建' : `从 ${current.name} 的当前提交创建`,
+        mergedIntoCurrent: true,
+        current: false,
+      }
+      return withResult({
+        ...state,
+        branches: [...state.branches, created],
+        branchSub: 'detail',
+        branchSelected: name,
+        branchDraft: '',
+      }, { tone: 'ok', text: `已创建分支 ${name}，还没有切换过去。`, detail: '新分支指向当前分支的最新提交；切换过去之后才会在它上面提交。', source: 'branch' })
+    }
+    case 'branch-rename': {
+      if (state.busy !== null || state.reloading) return state
+      const name = state.branchDraft.trim()
+      const from = action.name
+      if (name === '' || /\s/.test(name)) {
+        return withResult(state, { tone: 'error', text: '分支名不能为空，也不能包含空格。', detail: null, source: 'branch' })
+      }
+      if (name === from) return { ...state, branchSub: 'detail', branchDraft: '' }
+      if (state.branches.some((row) => row.name === name)) {
+        return withResult(state, { tone: 'error', text: `分支 ${name} 已经存在。`, detail: null, source: 'branch' })
+      }
+      return withResult({
+        ...state,
+        branches: state.branches.map((row) => (row.name === from ? { ...row, name } : row)),
+        branchSub: 'detail',
+        branchSelected: name,
+        branchDraft: '',
+      }, { tone: 'ok', text: `分支 ${from} 已改名为 ${name}。`, detail: '只改本地名字；上游跟踪引用与远端分支名都不受影响。', source: 'branch' })
+    }
+    case 'branch-switch': {
+      if (state.busy !== null || state.reloading) return state
+      const target = state.branches.find((row) => row.name === action.name)
+      if (target === undefined || target.current) return { ...state, branchPending: null }
+      return withResult({
+        ...state,
+        branches: state.branches.map((row) => ({ ...row, current: row.name === action.name })),
+        branchPending: null,
+        branchSub: 'detail',
+        branchSelected: action.name,
+        ahead: target.ahead,
+        behind: target.behind,
+      }, { tone: 'ok', text: `已切换到分支 ${action.name}。`, detail: '左侧工作区的未提交改动已经带过来了；读写与提交都发生在新分支上。', source: 'branch' })
+    }
+    case 'branch-merge': {
+      if (state.busy !== null || state.reloading) return state
+      const target = state.branches.find((row) => row.name === action.name)
+      const current = state.branches.find((row) => row.current)
+      if (target === undefined || current === undefined) return { ...state, branchPending: null }
+      if (target.current) {
+        return withResult(state, { tone: 'error', text: '不能把当前分支合并进它自己。', detail: null, source: 'branch' })
+      }
+      const commits = target.ahead + 1
+      return withResult({
+        ...state,
+        branches: state.branches.map((row) => (row.name === target.name ? { ...row, mergedIntoCurrent: true } : row)),
+        ahead: state.ahead + commits,
+        branchPending: null,
+      }, {
+        tone: 'ok',
+        text: `已把 ${target.name} 合并进 ${current.name}，接入 ${commits} 个提交。`,
+        detail: '这次合并没有冲突；合并后的结果还在本地，推送之后远端才看得到。',
+        source: 'branch',
+      })
+    }
+    case 'branch-delete': {
+      if (state.busy !== null || state.reloading) return state
+      const target = state.branches.find((row) => row.name === action.name)
+      if (target === undefined) return { ...state, branchPending: null }
+      if (target.current) {
+        return withResult(state, { tone: 'error', text: '不能删除当前分支，先切换到别的分支。', detail: null, source: 'branch' })
+      }
+      return withResult({
+        ...state,
+        branches: state.branches.filter((row) => row.name !== action.name),
+        branchSub: 'list',
+        branchSelected: null,
+        branchPending: null,
+      }, { tone: 'ok', text: `已删除分支 ${action.name}。`, detail: '只删了本地记录；如果远端还有这条分支，它不受影响。', source: 'branch' })
+    }
     default:
       return state
   }

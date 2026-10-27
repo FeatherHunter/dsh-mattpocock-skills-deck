@@ -4,7 +4,24 @@ import esbuild from "esbuild";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 const dir = fileURLToPath(new URL('.', import.meta.url));
+
+// 界面词表 locale-data.ts 是 scripts/generate-locale-config.mts 生成的东西（被 .gitignore 忽略，
+// 新克隆的仓库里没有）。缺了就先补跑一次生成器，否则 esbuild 只会甩一句 "Could not resolve"，
+// 让人以为是路径写错了。生成器的真源 config/copy/*.yaml 是入库的，所以这一步在任何克隆里都能跑。
+const localeData = path.join(dir, '../../src/client/kernel/locale-data.ts');
+if (!fs.existsSync(localeData)) {
+  console.log('[cards-demo] 缺少界面词表生成物 locale-data.ts，先跑 scripts/generate-locale-config.mts');
+  const gen = spawnSync(process.execPath, [path.join(dir, '../../scripts/generate-locale-config.mts')], { stdio: 'inherit' });
+  if (gen.status !== 0) {
+    throw new Error('界面词表生成失败（scripts/generate-locale-config.mts），demo.html 没有重出');
+  }
+  if (!fs.existsSync(localeData)) {
+    throw new Error('界面词表生成器跑完了，但 src/client/kernel/locale-data.ts 还是没有生成出来');
+  }
+}
+
 esbuild.buildSync({
   entryPoints: [path.join(dir, "main.ts")],
   bundle: true,

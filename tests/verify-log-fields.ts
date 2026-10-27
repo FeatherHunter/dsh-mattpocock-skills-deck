@@ -509,9 +509,12 @@ const ALLOWED = {
   //   branch 走哪一支（reuse 复用空白 / create 新建 / fallback 兜底）、reuseFrom 从哪复用
   //   （current 当前会话 / blank 别的空白会话 / none）、reuseSidHash 复用的会话（短散列）、
   //   allowReuse 复用的工作区归属校验（pass 凭名单通过 / bypass 名单不可验放行 / none 没走复用）、
+  //   reuseSkip 候选被跳过的第一条原因（archived 已归档 / archive-unknown 归档名单读不到 / stale-draft 上次复用
+  //   没吃进稿子 / gate 工作区归属名单不通过 / 空串 没跳过任何候选）、
   //   createOpts 创建入参档（workspaceId 带工作区 / cwd-only 只带目录 / 空串）、sidHash 新建会话号（短散列）、
-  //   outcome 结论枚举（reuse-draft 复用并写草稿 / create-draft 新建并写草稿 / open-failed 会话已建但打开失败 /
-  //   create-failed 创建失败 / no-sessions 无会话服务 / empty-cwd 拿不到目录）、errorHash 失败错误原文
+  //   outcome 结论枚举（复用分支记在打开之后：reuse-opened 复用并已打开 / open-failed 复用但打开失败；
+  //   新建分支：create-draft 新建并写草稿 / create-failed 创建失败 / no-sessions 无会话服务 /
+  //   empty-cwd 拿不到目录）、errorHash 失败错误原文
   //   （截断 120 字再散列，成功为空串）。只记散列、枚举、长度与计数，会话标题与提示词正文一个字都不记。
   'newsession.decide': ['entry', 'textLen', 'curSidHash', 'cwdHash', 'cwdSource', 'wsResolved', 'wsSource', 'wsItems', 'branch', 'reuseFrom', 'reuseSidHash', 'allowReuse', 'createOpts', 'reuseSkip', 'sidHash', 'outcome', 'errorHash'],
 }

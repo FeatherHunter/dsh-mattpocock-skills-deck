@@ -14,7 +14,7 @@
 // 需要 `gh repo view` 的那一级属于出站，已经从这里删掉；它改由会话的 getRepoKey 能力在开会话之后
 // 走 Tracker 操作管线（先裁决、再按后端口径记账），见 src/refresh/rooms/host/session-opener.ts。
 // 所以「选哪个后端」这一层永远不会起 gh，也不会花额度。
-import { timeoutForGhArgs, queueTimeoutForTier, isWriteGhArgs, ghArgsOf, ghCommandLabel, ghOutboundEntryOf, noteGhGraphqlCorrection, outboundCooldownOf, outboundQueueTimeoutOf, ghCooldownReply, type OutboundGateLike } from '../../../tracker/kernel/outbound-tiers.js'
+import { timeoutForGhArgs, queueTimeoutForTier, isWriteGhArgs, ghArgsOf, ghCommandLabel, ghOutboundEntryOf, noteGhGraphqlCorrection, outboundCooldownOf, ghCooldownReply, ghQueueTimeoutReply, type OutboundGateLike } from '../../../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound-admission.js'
 import { createGhExecution } from './gh-execution.js'
 // #1392：实例销毁时一条外部命令的收尾（还名额、终止子进程、接住 done、建计时器守卫）见 ../shared/command-cleanup/。
@@ -196,19 +196,19 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       const xpIsOutbound = xpIsGh || xpIsGlab
       const xpArgs = Array.isArray(argv) ? argv.slice(1) : []
       const xpBucket = (xpIsGh && isWriteGhArgs(xpArgs)) ? 'write' : 'read'
-      // 出站才拿名额（不传取消信号，拿不到只在到点后抛排队超时）；git 本地命令直行。
+      // 出站才拿名额（不传取消信号，到点闸抛排队超时）；git 本地命令直行。
       // #1007 复核：gh 与 glab 共用同一套名额，但通路各是一条 —— 拿名额时带上服务名，
       // 才不会让 GitHub 的冷却把 glab 的调用一起挡住（git 本地命令不进口这道闸）。
-      // #1570：排队最多等多久由准入闸管 —— 只把预算递过去，到点闸抛排队超时并负责归还晚到的名额。
+      // #1570：gh 的排队预算递给闸；glab 沿用旧行为（不设排队上限），避免顺手改 GitLab 分档。
       const xpCmd = xpIsGh ? ghCommandLabel(xpArgs) : xpProg
       let xpRelease = null
       // #1392：归还包成幂等，下面每条退出路径都调 xpReleaseSlot()；git 本地命令没有名额，它是空转。
       if (xpIsOutbound) {
-        try { xpRelease = await getGhLane().acquire({ bucket: xpBucket, service: xpIsGh ? 'github' : 'gitlab', cmd: xpIsGh ? xpCmd : undefined, waitMs: queueTimeoutForTier(xpIsGh ? timeoutForGhArgs(xpArgs) : TIMEOUT_MS) }) }
+        try { xpRelease = await getGhLane().acquire({ bucket: xpBucket, service: xpIsGh ? 'github' : 'gitlab', cmd: xpIsGh ? xpCmd : undefined, waitMs: xpIsGh ? queueTimeoutForTier(timeoutForGhArgs(xpArgs)) : undefined }) }
         catch (eAcq) {
           // 到点还没拿到名额（一次没起进程）：按可重试网络失败回人话，不与「取消排队」混成一条。
-          const xpQueue = outboundQueueTimeoutOf(eAcq)
-          if (xpQueue) return { ok: false, error: (xpIsGh ? 'gh' : 'glab') + ' 在 ' + xpQueue.limitMs + ' 毫秒内没等到出站名额（到点时还在排队，一次都没有跑起来）。可重试。' }
+          const xpQueueText = ghQueueTimeoutReply(eAcq, xpIsGh ? 'gh' : 'glab')
+          if (xpQueueText) return { ok: false, error: xpQueueText }
           // 冷却窗口里的拒绝同理：说清是通路不通，别让调用方以为命令自己慢。
           if (outboundCooldownOf(eAcq)) return { ok: false, error: ghCooldownReply(eAcq, xpCmd) }
           throw eAcq

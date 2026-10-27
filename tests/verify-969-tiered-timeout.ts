@@ -237,13 +237,13 @@ if (tiers) {
   const tiers7 = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/kernel/outbound-tiers.ts')).href)
   const { GH_QUEUE_WAIT_TIMEOUT_MS } = await import(pathToFileURL(nodePath.join(ROOT, 'src/shared/time-config/values.js')).href)
 
-  // 上限算式住在共用 kernel：读档取中央 3 秒，本档预算比上限还短时取本档。
-  check(tiers7.queueTimeoutForTier(READ_BUDGET_MS) === GH_QUEUE_WAIT_TIMEOUT_MS && GH_QUEUE_WAIT_TIMEOUT_MS === 3000, '七、读档的排队上限是中央 3 秒（不是整档 ' + READ_BUDGET_MS / 1000 + ' 秒）', String(tiers7.queueTimeoutForTier(READ_BUDGET_MS)))
+  // 上限算式住在共用 kernel：读档取中央 10 秒，本档预算比上限还短时取本档。
+  check(tiers7.queueTimeoutForTier(READ_BUDGET_MS) === GH_QUEUE_WAIT_TIMEOUT_MS && GH_QUEUE_WAIT_TIMEOUT_MS === 10000, '七、读档的排队上限是中央 10 秒（不是整档 ' + READ_BUDGET_MS / 1000 + ' 秒）', String(tiers7.queueTimeoutForTier(READ_BUDGET_MS)))
   check(tiers7.queueTimeoutForTier(500) === 500, '七、本档预算比上限还短时排队只等本档', String(tiers7.queueTimeoutForTier(500)))
   const roomSource = readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts'), 'utf8')
   check(roomSource.indexOf('queueTimeoutForTier') >= 0 && roomSource.indexOf('waitMs: queueLimit') >= 0 && roomSource.indexOf('queueWon') < 0 && roomSource.indexOf('clearQueueTimer') < 0, '七、房内 execGh 只把排队预算递给闸，不再自己起表赛跑（#1570）', '')
 
-  // 名额占满：读档默认预算下约 3 秒即报「还在排队」，不等 12 秒整档。
+  // 名额占满：读档默认预算下约 10 秒即报「还在排队」，不等 30 秒整档.
   try { resetGhLaneForTest() } catch (eReset7) {}
   const lane7 = getGhLane()
   const maxRead7 = lane7.limits().readMax
@@ -265,8 +265,8 @@ if (tiers) {
   for (const rel of held7) { try { rel() } catch (eR7) {} }
   const msg7 = String((r7 && r7.error && r7.error.message) || '')
   check(r7 && r7.ok === false && r7.error && r7.error.kind === ERROR_KIND.NETWORK && r7.error.timedOut === true, '七、名额满时上限到点按超时返回（不等整档）', JSON.stringify(r7 && r7.error))
-  check(msg7.indexOf('一次都没跑') >= 0 && /排队上限 3000 毫秒/.test(msg7), '七、回话说清「一次没跑」与排队上限（不报「命令超时」）', msg7.slice(0, 200))
-  check(took7 >= 2500 && took7 < 10000, '七、上限到点即返回（约 3 秒，不等 12 秒整档）', '实耗 ' + took7 + 'ms')
+  check(msg7.indexOf('一次都没跑') >= 0 && /排队上限 10000 毫秒/.test(msg7), '七、回话说清「一次没跑」与排队上限（不报「命令超时」）', msg7.slice(0, 200))
+  check(took7 >= 9000 && took7 < 20000, '七、上限到点即返回（约 10 秒，不等 30 秒整档）', '实耗 ' + took7 + 'ms')
 
   // 拿到名额后到点（Q3）：回话写「排队 X 毫秒 / 拿到名额后又等了 Y 毫秒」，不把后一段叫成命令运行时长。
   try { resetGhLaneForTest() } catch (eReset7c) {}

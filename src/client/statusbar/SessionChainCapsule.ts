@@ -46,12 +46,11 @@ declare function scheduleStatusClose(...args: any[]): any;
 declare function workRouteActionKeyOf(...args: any[]): any;
 declare function workRouteTableClock(...args: any[]): any;
 declare function workRouteTableOf(...args: any[]): any;
-// #1511：编号写成「#目录/编号」的显示规则住在 kernel/ticket-label.ts，本文件只调用（文字通道与徽标共用同一条）。
+// #1511：编号写成「#目录/编号」的显示规则住在 kernel/ticket-label.ts，本文件的文字通道仍只调它一条。
 declare function ticketLabelOf(...args: any[]): any;
-// B 方案：单子里徽章的两段子节点与上限宽度同样走那一份（目录可省略、编号绝不缩小）。
-declare function ticketLabelNodesOf(...args: any[]): any; declare const TICKET_LABEL_MAX_WIDTH: any;
-// #1563：主胶囊的编号外层节点同样走那一份（目录前缀挂让位号 12、编号尾巴不挂号）。
-declare function ticketLabelCapsuleFoldOf(...args: any[]): any;
+// #1564：单子里的药丸徽标与主胶囊的折叠徽标统一走 views/shared/ticketBadge.ts（各自一种外壳）；
+//   两段结构、折叠让位与上限宽度仍由 kernel/ticket-label.ts 提供，本文件不再自己拼。
+declare function ticketBadgeOf(...args: any[]): any;
 // 值引用的组件与字段名（弹层、悬停提示）。
 declare const PortalOverlay: any;
 declare const Tip: any;
@@ -511,8 +510,8 @@ export const SessionChainCapsule = function (props: any) {
         },
       }, [
         // #780 / #1518 / #1553：容器（探索地图与规格）那行的号徽章是「地图图标 + 完整编号」，普通票那行仍是 `#号`
-        // B 方案：徽章上限宽度 + 目录前缀可省略、编号尾巴绝不缩小；悬停读完整写法那一串。
-        h(Tip, { content: chainKeyTextOf(rKind, r.ticketKey, r.effortId) }, h('span', { style: { flex: 'none', display: 'inline-flex', alignItems: 'center', maxWidth: TICKET_LABEL_MAX_WIDTH, overflow: 'hidden', fontSize: 11, lineHeight: '16px', padding: '0 6px', borderRadius: 99, border: '1px solid ' + badgeBorder, color: badgeColor } }, rKind ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 0, overflow: 'hidden' } }, [chainContainerIconOf(rKind, 11), h('span', { style: { display: 'inline-flex', alignItems: 'center', minWidth: 0, overflow: 'hidden' } }, ticketLabelNodesOf(h, r.ticketKey, r.effortId))]) : ticketLabelNodesOf(h, r.ticketKey, r.effortId))),
+        // #1564 起整颗徽标（上限宽度、两段布局、悬停与无障碍名）走共用组件的 pill 外壳，容器图标由本处传入。
+        ticketBadgeOf(h, { key: r.ticketKey, effortId: r.effortId, surface: 'pill', color: badgeColor, borderColor: badgeBorder, leadingIcon: rKind ? chainContainerIconOf(rKind, 11) : null }),
         // #907：查不到标题就留白（一个字都不写），不再拿票号顶上 —— 那会让同一行出现两遍同一个号；
         //   「标题未取到」那句话只在文字通道里（上面 spoken 与 line 两处无障碍名）。
         h('span', { style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.ticketTitle),
@@ -547,7 +546,7 @@ export const SessionChainCapsule = function (props: any) {
       // #1563：主胶囊的号是两段结构 —— 目录前缀挂着让位号 12（阶梯机往里面写字只收这一段），
       //   编号尾巴没有让位号（永不让位）。图标仍是外层徽标的兄弟节点，不放进让位号里面。
       //   悬停提示与无障碍名仍是完整写法（chainKeyTextOf）。
-    }, [Ic({ n: 'pin', size: 12 }), chainContainerIconOf(eKind, 12), h(Tip, { content: chainKeyTextOf(eKind, e.ticketKey, e.effortId) }, ticketLabelCapsuleFoldOf(h, e.ticketKey, e.effortId))]),
+    }, [Ic({ n: 'pin', size: 12 }), chainContainerIconOf(eKind, 12), ticketBadgeOf(h, { key: e.ticketKey, effortId: e.effortId, surface: 'capsule' })]),
     menu,
   ])
 }

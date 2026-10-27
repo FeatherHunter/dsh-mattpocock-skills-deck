@@ -30,6 +30,7 @@ import { sourcePath, sourceText } from './lib/source-text.ts'
 ;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
 ;(globalThis as any).ticketLabelNodesOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelNodesOf
 ;(globalThis as any).TICKET_LABEL_MAX_WIDTH = (await import('../src/client/kernel/ticket-label.js')).TICKET_LABEL_MAX_WIDTH
+;(globalThis as any).ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 let failed = 0
@@ -414,6 +415,8 @@ if (!existsSync(PRODUCT)) {
   globalThis.__TR__ = trFn
   globalThis.__IC__ = () => null
   globalThis.__TIP__ = function (props: { children?: unknown }): unknown { return props && props.children ? props.children : null }
+  // #1564：徽标叶子里的悬停壳 Tip 同样来自闭包，这里把它接到同一份桩上。
+  ;(globalThis as any).Tip = (globalThis as any).__TIP__
   globalThis.__PRSTATEKIND__ = prStateKind
   globalThis.__PRISSUES__ = () => currentIssues
   globalThis.__SETACTIVE__ = () => {}

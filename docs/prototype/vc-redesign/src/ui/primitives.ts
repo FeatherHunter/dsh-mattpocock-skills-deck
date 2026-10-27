@@ -14,7 +14,7 @@ import type { ResultMessage } from '../domain/session'
 
 export interface ButtonOptions {
   label: string
-  kind?: 'primary' | 'secondary' | 'ghost'
+  kind?: 'primary' | 'secondary' | 'ghost' | 'danger'
   size?: 'sm' | 'md'
   disabled?: boolean
   busy?: boolean
@@ -82,6 +82,8 @@ export function resultBanner(result: ResultMessage): HTMLElement {
     commit: '提交',
     copy: '复制',
     ai: 'AI 交接',
+    branch: '分支动作',
+    worktree: '工作树动作',
   }
   return h(
     'div',

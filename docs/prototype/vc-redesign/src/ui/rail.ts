@@ -10,9 +10,11 @@
  */
 import type { RailModel } from '../domain/select'
 import { COPY } from '../data/copy'
+import { HANDOFF_ENTRY } from '../domain/handoff'
 import type { ResultMessage } from '../domain/session'
 import { icon, h } from './dom'
 import { button, chip, resultBanner } from './primitives'
+import { handoffEntry } from './views/handoff'
 
 export function renderRail(model: RailModel, result: ResultMessage | null): HTMLElement {
   const rail = h('header', { class: 'rail', attrs: { 'aria-label': '仓库状态' } })
@@ -23,9 +25,21 @@ export function renderRail(model: RailModel, result: ResultMessage | null): HTML
   if (model.branch === null) {
     idRow.append(chip(COPY.rail.detached, 'warn', { small: true }))
   } else {
+    // 分支名本身是入口：点开是分支列表，切换与合并都在那里，不再只是给眼睛看的文字。
     idRow.append(
       h('span', { class: 'rail-slash', text: '/', attrs: { 'aria-hidden': 'true' } }),
-      h('span', { class: 'rail-branch', attrs: { title: `分支 ${model.branch}` } }, h('span', { class: 'mono', text: model.branch })),
+      h('button', {
+        class: 'rail-branch-btn',
+        attrs: {
+          type: 'button',
+          title: COPY.rail.branchHint,
+          'aria-label': `当前分支 ${model.branch}。${COPY.rail.branchHint}`,
+          'data-focus-key': 'branch-open',
+        },
+        dataset: { action: 'branch-open' },
+      },
+      h('span', { class: 'rail-branch mono', text: model.branch }),
+      h('span', { class: 'rail-branch-chevron', attrs: { 'aria-hidden': 'true' } }, icon('chevron', 11))),
     )
   }
   if (model.oidShort !== null) {
@@ -105,6 +119,10 @@ export function renderRail(model: RailModel, result: ResultMessage | null): HTML
     h('span', { class: 'rail-path-label', text: '工作树路径' }),
     h('span', { class: 'rail-path-value mono', text: model.worktreePath }))
 
+  // ⑤ 交接入口：常驻在同步带最下方。它不解决某一条具体动作，而是「整件事我不想自己弄」时的出口，
+  // 所以放在身份、同步、动作、路径都读完之后，不跟三颗动作按钮抢注意力。
+  const aiRow = h('div', { class: 'rail-row rail-ai' }, handoffEntry(HANDOFF_ENTRY.general, 'general', 'rail'))
+
   // 禁用/警告原因：只列有原因的动作，每行一个「动作：原因」。
   const reasons = h('div', { class: 'rail-reasons' })
   const rows: Array<[string, typeof model.pull]> = [
@@ -118,7 +136,7 @@ export function renderRail(model: RailModel, result: ResultMessage | null): HTML
       h('span', { class: 'reason-v', text: action.reason })))
   }
 
-  rail.append(idRow, syncRow, actRow, reasons, pathRow)
+  rail.append(idRow, syncRow, actRow, reasons, pathRow, aiRow)
   if (result !== null) rail.append(resultBanner(result))
   return rail
 }

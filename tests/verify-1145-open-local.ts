@@ -75,6 +75,7 @@ const { ticketLabelOf, ticketLabelNodesOf, TICKET_LABEL_MAX_WIDTH } = await impo
 globalThis.ticketLabelOf = ticketLabelOf
 globalThis.ticketLabelNodesOf = ticketLabelNodesOf
 globalThis.TICKET_LABEL_MAX_WIDTH = TICKET_LABEL_MAX_WIDTH
+globalThis.ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
 
 let failures = 0
 let total = 0
