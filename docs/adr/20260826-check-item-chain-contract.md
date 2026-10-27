@@ -114,8 +114,11 @@ type Check =
   - GitHub：`gh:installed / gh:authed / gh:repoAccess / gh:labels`；
     - 2026-10-27 补注（#1223）：GitHub 侧目录已删掉已退役的 `gh:labels`，现在是
       `gh:remote / gh:installed / gh:authed / gh:repoAccess` 四项（原来这一行漏了 `gh:remote`，
-      只记了另外三项加一项死项）；目录与运行时清单的一致性由
+      只记了另外三项加一项死项）；目录与模块检查表的一致性由
       `tests/verify-1223-catalog-runtime-parity.ts` 守住。上面这一行是当时的记录，结论不改，只补这一句说明现在是什么。
+    - 2026-10-27 当天稍晚又改了一次：GitHub 房的模块检查表 `src/tracker/rooms/github/checks.ts`
+      已改成直接由目录派生（`backendItemsOf('github')`），不再手抄第二份；这是「目录与检查表各说各话」
+      这类问题的根治——上面那条逐项断言保留作回归锁，防止有人把派生改回手抄副本并漂移。
   - GitLab：`glab:installed / glab:authed / glab:repoAccess`；
   - Markdown：`md:scratchWritable / md:parseOk`。
     - 2026-10-25 补注（#1512 的 #1513/#1514 两张实施票）：Markdown 侧的目录已改成三项
