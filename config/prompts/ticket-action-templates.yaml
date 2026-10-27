@@ -44,7 +44,7 @@ tpl.diagnose:
 
     {{shared:sharedTools}}
 tpl.discuss:
-  version: 19
+  version: 20
   placeholders:
     - url
   use: 动作按钮「讨论」（wayfinder:grilling 票）· map 子票统一入口：首行 /wayfinder，交给技能内部按票的类型分流（#1281）
@@ -61,6 +61,7 @@ tpl.discuss:
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 收尾
+    - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
 
     {{shared:sharedTools}}
   en: |-
@@ -76,10 +77,11 @@ tpl.discuss:
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
     ## Wrap-up
+    - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.
 
     {{shared:sharedTools}}
 tpl.execute:
-  version: 19
+  version: 20
   placeholders:
     - url
   use: 动作按钮「执行」（wayfinder:task 票）· map 子票统一入口：首行 /wayfinder（#1281）
@@ -96,6 +98,7 @@ tpl.execute:
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 收尾
+    - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
 
     {{shared:sharedTools}}
   en: |-
@@ -111,6 +114,7 @@ tpl.execute:
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
     ## Wrap-up
+    - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.
 
     {{shared:sharedTools}}
 tpl.fix:
@@ -228,7 +232,7 @@ tpl.implement:
 
     {{shared:sharedTools}}
 tpl.prototype:
-  version: 13
+  version: 14
   placeholders:
     - url
   use: 动作按钮「原型」（wayfinder:prototype 票）· map 子票统一入口：首行 /wayfinder（#1281）
@@ -245,6 +249,7 @@ tpl.prototype:
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 收尾
+    - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
 
     {{shared:sharedTools}}
   en: |-
@@ -260,10 +265,11 @@ tpl.prototype:
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
     ## Wrap-up
+    - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.
 
     {{shared:sharedTools}}
 tpl.research:
-  version: 13
+  version: 14
   placeholders:
     - url
   use: 动作按钮「研究」（wayfinder:research 票）· map 子票统一入口：首行 /wayfinder（#1281）
@@ -280,6 +286,7 @@ tpl.research:
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 收尾
+    - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
 
     {{shared:sharedTools}}
   en: |-
@@ -295,6 +302,7 @@ tpl.research:
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
     ## Wrap-up
+    - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.
 
     {{shared:sharedTools}}
 tpl.supplement:

@@ -1515,8 +1515,8 @@ const contractChecksInner = function (reg, src) {
     // #1274 收口后：完成提示词补「先判断」节与当前状态分支（已交过棒的步骤跳过、核对不通过、两种都有），complete 的版本底线 12 → 13。
     // #1212 恢复：诊断 v14→v16、接手 v6→v7，补回 #1281 删掉的调查节、诊断边界与收尾两条，版本底线同步抬高。
     // #1577（2026-10-27）：接手 v10→v11、补充 v8→v9 —— 首行 /wayfinder 改 /triage，补读现状与状态分支，版本底线同步抬高。
-    mapExecute: 20, complete: 16, fixate: 11, 'tpl.diagnose': 19, 'tpl.fix': 17, 'tpl.discuss': 19,
-    'tpl.research': 13, 'tpl.prototype': 13, 'tpl.takeover': 11, 'tpl.supplement': 9, 'tpl.execute': 19, mapInspect: 12, newWayfinder: 23,
+    mapExecute: 21, complete: 16, fixate: 11, 'tpl.diagnose': 19, 'tpl.fix': 17, 'tpl.discuss': 20,
+    'tpl.research': 14, 'tpl.prototype': 14, 'tpl.takeover': 11, 'tpl.supplement': 9, 'tpl.execute': 20, mapInspect: 12, newWayfinder: 24,
     newBugWayfinder: 15, newSpec: 4, healthCheck: 5, specComplete: 6, specExecute: 5, specSplit: 5,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
@@ -2353,7 +2353,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': '9728e0b2eeb26b8c6d77c7e903753f0d22cc3f14ef8cad53545e02bb784f4783',
+  'tests/verify-prompts.ts': '38514b105d2ca8f863044e231b57dd0d962b862885fca12983ce977b8e7e266a',
 }
 // ---- LOCK-END ----
 

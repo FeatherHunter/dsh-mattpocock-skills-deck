@@ -38,22 +38,22 @@ const TOOLS_EN = '## Tools'
 const TARGETS = {
   'ticket-action-templates': {
     'tpl.diagnose': 19,
-    'tpl.discuss': 19,
-    'tpl.execute': 19,
+    'tpl.discuss': 20,
+    'tpl.execute': 20,
     'tpl.fix': 17,
     'tpl.implement': 4,
-    'tpl.prototype': 13,
-    'tpl.research': 13,
+    'tpl.prototype': 14,
+    'tpl.research': 14,
     // #1577（2026-10-27）：接手 v11、补充 v9 改挂 /triage 并补状态分支，版本底线跟着抬。
     'tpl.supplement': 9,
     'tpl.takeover': 11,
   },
-  'ticket-creation': { newBugWayfinder: 15, newSpec: 4, newWayfinder: 23 },
+  'ticket-creation': { newBugWayfinder: 15, newSpec: 4, newWayfinder: 24 },
   'map-advancement': {
     complete: 16,
     fixate: 11,
     healthCheck: 5,
-    mapExecute: 20,
+    mapExecute: 21,
     mapInspect: 12,
     specComplete: 7,
     specExecute: 5,

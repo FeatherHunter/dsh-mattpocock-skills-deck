@@ -117,7 +117,7 @@ newSpec:
 
     {{shared:sharedTools}}
 newWayfinder:
-  version: 23
+  version: 24
   placeholders:
     - repo
   use: 「探索地图」卡（入口浮层里那张紫卡，#1297 起唯一入口开出的两张卡之一）· 新会话预填 /wayfinder；只留调查节、收尾与工具节，建图规则交给 wayfinder 技能（#1281）
@@ -133,6 +133,7 @@ newWayfinder:
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
 
     ## 收尾
+    - [ ] 结束前把这次讨论的结论告诉用户；建了新 map 就写明编号，没建成就写明下一步。
 
     {{shared:sharedTools}}
   en: |-
@@ -147,6 +148,7 @@ newWayfinder:
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
 
     ## Wrap-up
+    - [ ] Before finishing, tell the user the conclusion; if a new map was created, state its number, otherwise state the next step.
 
     {{shared:sharedTools}}
 

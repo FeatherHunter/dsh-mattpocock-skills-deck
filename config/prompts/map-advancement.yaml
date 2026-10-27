@@ -191,19 +191,21 @@ healthCheck:
 
     {{shared:sharedTools}}
 mapExecute:
-  version: 20
+  version: 21
   placeholders: []
   use: map 执行 / 新会话（未完成态）· 只写推进指令与收尾，推进规则交给 wayfinder 技能（#1281）
   zh: |-
     请按 wayfinder 技能推进这张 map。
 
     ## 收尾
+    - [ ] 结束前把这次推进的结果写进这张 map 正文；没做完的写明下一步。
 
     {{shared:sharedTools}}
   en: |-
     Please advance this map with the wayfinder skill.
 
     ## Wrap-up
+    - [ ] Before finishing, write the result of this pass into this map body; if unfinished, state the next step.
 
     {{shared:sharedTools}}
 mapInspect:
