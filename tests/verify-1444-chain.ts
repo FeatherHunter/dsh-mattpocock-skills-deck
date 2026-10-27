@@ -78,7 +78,7 @@ async function makeChain(opts) {
     getDetectionService: async () => ({ detect: async () => { detects += 1; if (o.detectMs) await new Promise((r) => setTimeout(r, o.detectMs)); return { selection: { backendId: 'github', source: 'auto' } } } }),
     getPlatform: async () => PLATFORM,
     getTrackerRegistry: async () => ({ modules: () => [] }),
-    getRepoKey: async () => ({ owner: 'acme', name: 'demo' }),
+    getRepoKey: o.getRepoKey || (async () => ({ owner: 'acme', name: 'demo' })),
     timer: { timeout: (ms) => new Promise((r) => setTimeout(r, ms)) },
     probeSkill: async () => ({ ok: true, level: 'ok', detail: 'fake' }),
     mdPredicate: async () => ({ status: 'pass', detail: 'fake' }),
@@ -88,6 +88,7 @@ async function makeChain(opts) {
     logCtx: o.logCtx || null,
     gate: o.gate || null,
     openSession: o.openSession || null,
+    getRepoIdentity: o.getRepoIdentity,
   })
   return { chain: chain, detects: () => detects }
 }
@@ -233,6 +234,74 @@ async function main() {
     must(a === b, '同钥匙并发两路拿到同一份回包', 'same=' + (a === b))
   }
 
+  title('⑥ 仓库身份证据三种结局 + 读不到：已关联仓库与仓库可达共用同一份结论（#1566）')
+  {
+    // 唯一身份：origin 是自建 GitLab 镜像、GitHub 是第二远端时，宿主兜底读出唯一 GitHub 身份，两行一起转绿。
+    let idCalls = 0
+    const fxId = makeSession({})
+    const cId = await makeChain({ getRepoKey: async () => null, getRepoIdentity: async () => { idCalls += 1; return { kind: 'identity', owner: 'SAXEM1997', name: 'dsh-cherry-bridge' } }, openSession: openReplyOf(fxId.session) })
+    const outId = await cId.chain.handleChain({ cwd: 'D:/demo', backendId: 'github', lang: 'zh', force: true })
+    const remoteId = resolvedOf(outId, 'gh:remote')
+    const accessId = resolvedOf(outId, 'gh:repoAccess')
+    must(remoteId && remoteId.status === 'pass' && remoteId.detail === 'SAXEM1997/dsh-cherry-bridge',
+      '身份唯一时 gh:remote 判过并报 owner/name（与 deck_context 口径一致）', JSON.stringify(remoteId))
+    must(accessId && accessId.status === 'pass',
+      '身份唯一时 gh:repoAccess 不再因「只认 origin」被前置拖红', JSON.stringify(accessId))
+    must(fxId.stats.preflight === 1, '仓库可达那条复用这次求值唯一那次预检（不另开会话）', 'preflight=' + fxId.stats.preflight)
+    // 两条谓词并行跑，但身份证据只该问一次：没有这份共用，两行会各扫一遍远端，慢配置下还可能一行成功一行失败。
+    must(idCalls === 1, '同一次求值里两条谓词共用一份身份证据（getRepoIdentity 只问一次）', 'getRepoIdentity 调用 ' + idCalls + ' 次')
+
+    // 多个不同的 GitHub 远端：不猜，点名候选并说清怎么收口。
+    const fxAmb = makeSession({})
+    const cAmb = await makeChain({ getRepoKey: async () => null, getRepoIdentity: async () => ({ kind: 'ambiguous', candidates: [{ owner: 'FirstOwner', name: 'MirrorA' }, { owner: 'SecondOwner', name: 'MirrorB' }] }), openSession: openReplyOf(fxAmb.session) })
+    const outAmb = await cAmb.chain.handleChain({ cwd: 'D:/demo', backendId: 'github', lang: 'zh', force: true })
+    const remoteAmb = resolvedOf(outAmb, 'gh:remote')
+    const accessAmb = resolvedOf(outAmb, 'gh:repoAccess')
+    must(remoteAmb && remoteAmb.status === 'fail' && String(remoteAmb.detail).indexOf('FirstOwner/MirrorA') >= 0 && String(remoteAmb.detail).indexOf('SecondOwner/MirrorB') >= 0,
+      '多个 GitHub 远端时不猜：gh:remote 判失败并点名两个候选', JSON.stringify(remoteAmb))
+    must(remoteAmb && String(remoteAmb.detail).indexOf('origin') >= 0 && String(remoteAmb.detail).indexOf('canonical') < 0,
+      '歧义文案说清收口办法（把主仓库的远端命名为 origin，或删掉多余远端），且不用「canonical 仓库」这类黑话', String(remoteAmb && remoteAmb.detail))
+    must(accessAmb && accessAmb.status === 'fail' && accessAmb.detail === remoteAmb.detail,
+      '仓库可达那条用同一份文案，不另说一套', JSON.stringify(accessAmb))
+
+    // 一个 GitHub 远端都没有：与「有多个」必须能区分开。
+    const fxNone = makeSession({})
+    const cNone = await makeChain({ getRepoKey: async () => null, getRepoIdentity: async () => ({ kind: 'none' }), openSession: openReplyOf(fxNone.session) })
+    const outNone = await cNone.chain.handleChain({ cwd: 'D:/demo', backendId: 'github', lang: 'zh', force: true })
+    const remoteNone = resolvedOf(outNone, 'gh:remote')
+    must(remoteNone && remoteNone.status === 'fail' && String(remoteNone.detail).indexOf('没有指向 GitHub 的远端') >= 0,
+      '完全没有 GitHub 远端时判失败，文案说「没有」而不是「多个」', JSON.stringify(remoteNone))
+    must(String(remoteNone && remoteNone.detail) !== String(remoteAmb && remoteAmb.detail), '「没有」与「有多个」两种失败文案可区分', '')
+    must(fxAmb.stats.preflight === 1 && fxNone.stats.preflight === 1,
+      '歧义与没有远端这两条都不拿候选去问会话：仓库可达那条只共用登录态那一次预检（多问才会是 2）',
+      'ambiguous preflight=' + fxAmb.stats.preflight + ' none preflight=' + fxNone.stats.preflight)
+
+    // 连远端列表都读不到（没有 git、.git/config 也读不到）：两条都落 pending，
+    // 不许把「读不到」说成「一个都没有」——那是把未知说成事实。
+    const fxUnknown = makeSession({})
+    const cUnknown = await makeChain({ getRepoKey: async () => null, getRepoIdentity: async () => null, openSession: openReplyOf(fxUnknown.session) })
+    const outUnknown = await cUnknown.chain.handleChain({ cwd: 'D:/demo', backendId: 'github', lang: 'zh', force: true })
+    const remoteUnknown = resolvedOf(outUnknown, 'gh:remote')
+    const accessUnknown = resolvedOf(outUnknown, 'gh:repoAccess')
+    must(remoteUnknown && remoteUnknown.status === 'pending' && String(remoteUnknown.detail).indexOf('暂时确认不了') >= 0,
+      '读不到远端列表时 gh:remote 判 pending，并如实说暂时确认不了', JSON.stringify(remoteUnknown))
+    must(accessUnknown && accessUnknown.status === 'pending', '读不到远端列表时 gh:repoAccess 同样 pending', JSON.stringify(accessUnknown))
+    must(String(remoteUnknown && remoteUnknown.detail) !== String(remoteNone && remoteNone.detail),
+      '「读不到」与「一个都没有」两种话术可区分', '')
+
+    // 英文界面：不走中文黑话。
+    const cEn = await makeChain({ getRepoKey: async () => null, getRepoIdentity: async () => ({ kind: 'ambiguous', candidates: [{ owner: 'A', name: 'One' }, { owner: 'B', name: 'Two' }] }), openSession: openReplyOf(makeSession({}).session) })
+    const outEn = await cEn.chain.handleChain({ cwd: 'D:/demo', backendId: 'github', lang: 'en', force: true })
+    const remoteEn = resolvedOf(outEn, 'gh:remote')
+    must(remoteEn && remoteEn.status === 'fail' && /multiple GitHub remotes/i.test(String(remoteEn.detail)) && String(remoteEn.detail).indexOf('A/One') >= 0,
+      '英文界面下歧义文案走英文分支并点名候选', JSON.stringify(remoteEn))
+
+    // 读身份证据自己抛：两条都诚实 pending，不把整条链带崩。
+    const cThrow = await makeChain({ getRepoKey: async () => null, getRepoIdentity: async () => { throw new Error('身份证据读坏了') }, openSession: openReplyOf(makeSession({}).session) })
+    const outThrow = await cThrow.chain.handleChain({ cwd: 'D:/demo', backendId: 'github', lang: 'zh', force: true })
+    must(resolvedOf(outThrow, 'gh:remote') && resolvedOf(outThrow, 'gh:remote').status === 'pending', '读身份证据抛异常时 gh:remote 判 pending（不崩、不误判）', JSON.stringify(resolvedOf(outThrow, 'gh:remote')))
+    must(resolvedOf(outThrow, 'gh:repoAccess') && resolvedOf(outThrow, 'gh:repoAccess').status === 'pending', '读身份证据抛异常时 gh:repoAccess 同样 pending', JSON.stringify(resolvedOf(outThrow, 'gh:repoAccess')))
+  }
   console.log('\n共 ' + total + ' 项，' + (broken.length ? ('破 ' + broken.length + ' 项') : '全绿'))
   if (broken.length) process.exit(1)
 }
