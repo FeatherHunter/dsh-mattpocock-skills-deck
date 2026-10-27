@@ -3,6 +3,9 @@
 // 判据（第一性原理）：本地票的 url 是文件路径不是网址，`<a href="D:\…">` 点了没反应；
 // 唯一诚实动作是调宿主 openPath（https 票走 `<a target=_blank>` 不动）。四处都要守：
 // 详情顶栏、报错横幅、评论加载失败横幅、评论鉴权横幅。
+// #1557 起同一份「打开方式」由后端声明分派（openIssue / openContainer），本文件再加 D 部分：
+//   本地 md 的票开文件、容器（map.md / spec.md）开所在目录、远程后端开网页，以及宿主
+//   wf.openFolder({ file }) 用平台能力取父目录的行为（不真开系统窗口，只断言意图与参数）。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1145-open-local.ts
 // 说明：评论区是纯函数，直接调 handler 全行为断言（含点击调宿主）；详情页组件走
 // react-dom/server 静态渲染断分支（button vs 裸 a、href 值）。本机 jsdom 已坏
@@ -52,6 +55,10 @@ globalThis.React = React
 const linkMod = await import('../src/client/kernel/link.js')
 globalThis.issueUrlFor = linkMod.issueUrlFor
 globalThis.openIssueUrl = linkMod.openIssueUrl
+// #1557：打开方式由后端声明（openIssue / openContainer）分派；视图与门禁都调这几个入口。
+globalThis.openTrackerTarget = linkMod.openTrackerTarget
+globalThis.openModeFor = linkMod.openModeFor
+globalThis.openModeDeclared = linkMod.openModeDeclared
 // #1573：失败横幅三块（主行一句话 / kind 小标签 / 原始说明折叠区）搬进了 issueDetailErrorView 叶子；
 //   叶子单独加载时闭包里没有这个名字，这里接真实现（同构接线，不抄一份假判据）。
 const { issueErrorViewOf } = await import('../src/client/views/issueDetailErrorView.js')
@@ -233,15 +240,18 @@ function containerSt() {
   const got = globalThis.issueUrlFor(st, '00', 'alpha')
   check(got === MAP_ALPHA, 'md 容器行 key=00 能拿回 map.md 路径')
 }
-// C3：容器行 openIssueUrl 调宿主 wf.openPath（跳转不断在取址就停）
+// C3（#1557 改口径）：容器行按「容器」打开——本地后端声明 openContainer='folder'，
+//   调 wf.openFolder 并把 map.md 文件路径交给宿主，由宿主用平台规则取所在目录（不再直接开文件）。
 {
   hostCalls.length = 0; opened.length = 0
-  const st = containerSt()
+  const st: any = containerSt()
+  st.selection = { backendId: 'markdown' }
+  st.backendModules = [{ id: 'markdown', openIssue: 'file', openContainer: 'folder' }]
   const fakeHost = { call: (m, a) => { hostCalls.push([m, a]); return Promise.resolve({ ok: true }) } }
-  const ok = globalThis.openIssueUrl(st, 0, fakeHost, 'alpha')
-  check(ok === true, 'md 容器行 openIssueUrl 返回 true（取到地址并尝试打开）')
-  check(hostCalls.length === 1 && hostCalls[0][0] === 'wf.openPath' && hostCalls[0][1] && hostCalls[0][1].path === MAP_ALPHA,
-    'md 容器行点击调宿主 wf.openPath 且 path 为 map.md')
+  const ok = globalThis.openTrackerTarget(st, 0, fakeHost, 'alpha', 'container')
+  check(ok === true, 'md 容器行 openTrackerTarget 返回 true（取到地址并尝试打开）')
+  check(hostCalls.length === 1 && hostCalls[0][0] === 'wf.openFolder' && hostCalls[0][1] && hostCalls[0][1].file === MAP_ALPHA,
+    'md 容器行点击调宿主 wf.openFolder 且 file 为 map.md（父目录由宿主取）')
   check(opened.length === 0, 'md 容器行没走 window.open（文件路径不是网址）')
 }
 // C4：普通子票 number=1 不回归
@@ -249,6 +259,71 @@ function containerSt() {
   const st = containerSt()
   const got = globalThis.issueUrlFor(st, 1, 'alpha')
   check(got === T1_ALPHA, '普通子票 number=1 仍返回自己文件路径（回归不动）')
+}
+
+// ---- D 部分（#1557）：打开方式按后端声明分派 + 宿主按平台能力取容器父目录 ----
+// D1：快照 maps[] 里的容器行自己也能取到地址（#1557 前只翻 issues 与 maps[].tickets，容器编号 0 取不到）
+{
+  const st: any = { snapshot: { issues: [], maps: [{ number: 0, key: '00', title: 'Alpha Map', url: MAP_ALPHA, effortId: 'alpha', tickets: [] }] } }
+  check(globalThis.issueUrlFor(st, 0, 'alpha') === MAP_ALPHA, 'D1 快照 maps[] 里的容器行能取回 map.md 路径')
+}
+// D2：md 票（issue 级）仍开文件
+{
+  hostCalls.length = 0
+  const st: any = containerSt()
+  st.selection = { backendId: 'markdown' }
+  st.backendModules = [{ id: 'markdown', openIssue: 'file', openContainer: 'folder' }]
+  const fakeHost = { call: (m, a) => { hostCalls.push([m, a]); return Promise.resolve({ ok: true }) } }
+  const ok = globalThis.openTrackerTarget(st, 1, fakeHost, 'alpha', 'issue')
+  check(ok === true && hostCalls.length === 1 && hostCalls[0][0] === 'wf.openPath' && hostCalls[0][1].path === T1_ALPHA,
+    'D2 md 票（issue 级）仍调 wf.openPath 打开票文件')
+}
+// D3：远程后端（openIssue/openContainer 都是 url）→ 浏览器新页，不调宿主
+{
+  hostCalls.length = 0; opened.length = 0
+  const GH = 'https://github.com/o/r/issues/9'
+  const st: any = {
+    selection: { backendId: 'github' },
+    backendModules: [{ id: 'github', openIssue: 'url', openContainer: 'url' }],
+    snapshot: { issues: [{ number: 9, key: '9', url: GH }], maps: [] },
+  }
+  const fakeHost = { call: (m, a) => { hostCalls.push([m, a]); return Promise.resolve({ ok: true }) } }
+  withWindowStub(() => {
+    const ok = globalThis.openTrackerTarget(st, 9, fakeHost, undefined, 'issue')
+    check(ok === true && opened.length === 1 && opened[0][0] === GH, 'D3 远程后端票点击走 window.open 打开网址')
+  })
+  check(hostCalls.length === 0, 'D3 远程后端票不调宿主打开')
+}
+// D4：openModeFor 的三种取值 —— 声明优先、未声明时按地址回退旧行为
+{
+  const mdSt: any = { selection: { backendId: 'markdown' }, backendModules: [{ id: 'markdown', openIssue: 'file', openContainer: 'folder' }] }
+  const ghSt: any = { selection: { backendId: 'github' }, backendModules: [{ id: 'github', openIssue: 'url', openContainer: 'url' }] }
+  const noneSt: any = {}
+  check(globalThis.openModeFor(mdSt, 'container', MAP_ALPHA) === 'folder', 'D4 本地后端容器声明为 folder')
+  check(globalThis.openModeFor(mdSt, 'issue', T1_ALPHA) === 'file', 'D4 本地后端票声明为 file')
+  check(globalThis.openModeFor(ghSt, 'issue', 'https://x/1') === 'url', 'D4 远程后端票声明为 url')
+  check(globalThis.openModeFor(noneSt, 'issue', 'https://x/1') === 'url', 'D4 未声明时网址按旧行为回退 url')
+  check(globalThis.openModeFor(noneSt, 'issue', T1_ALPHA) === 'file', 'D4 未声明时本地路径按旧行为回退 file')
+}
+// D5：宿主 wf.openFolder({ file }) 用平台能力取父目录；{ cwd } 的老用法不受影响
+{
+  const { createPickerShell } = await import('../src/host/pickerShell.js')
+  const dirs = []
+  const plat = {
+    openFolder: async (dir) => { dirs.push(dir); return { ok: true, opener: 'open' } },
+    path: { dirname: (p) => String(p).replace(/[\\/][^\\/]*$/, '') },
+  }
+  const shell = createPickerShell({ DEFAULT_CWD: 'D:\\ws', getPlatform: async () => plat, logCtx: null })
+  const r1 = await shell.handleOpenFolder({ file: MAP_ALPHA })
+  check(r1 && r1.ok === true && r1.cwd === 'D:\\ws\\.scratch\\alpha', 'D5 wf.openFolder({ file }) 用平台 dirname 得到 map.md 所在目录')
+  check(dirs.length === 1 && dirs[0] === 'D:\\ws\\.scratch\\alpha', 'D5 实际交给平台打开的是父目录')
+  const r2 = await shell.handleOpenFolder({ cwd: 'D:\\ws' })
+  check(r2 && r2.ok === true && dirs.length === 2 && dirs[1] === 'D:\\ws', 'D5 wf.openFolder({ cwd }) 老用法不变')
+  // 平台没有 path.dirname 时诚实报错，不猜分隔符
+  const noDirPlat = { openFolder: async () => ({ ok: true }), path: {} }
+  const shell2 = createPickerShell({ DEFAULT_CWD: 'D:\\ws', getPlatform: async () => noDirPlat, logCtx: null })
+  const r3 = await shell2.handleOpenFolder({ file: MAP_ALPHA })
+  check(r3 && r3.ok === false, 'D5 平台缺 dirname 时诚实报错（不手切路径）')
 }
 
 console.log(failures ? `\n#1145 门禁失败 ${failures} 项（共 ${total} 条）` : `\n#1145 门禁全部通过（共 ${total} 条）`)

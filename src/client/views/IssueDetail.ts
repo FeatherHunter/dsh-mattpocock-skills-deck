@@ -46,6 +46,10 @@ declare function enterSubDetail(st: any, x: any, issueEffort: any): void;
 declare function mdImgOverlay(...args: any[]): any;
 declare function issueUrlFor(...args: any[]): any;
 declare function openIssueUrl(...args: any[]): any;
+// #1557：票与容器的打开方式由后端声明（openIssue / openContainer），视图只问该画链接还是按钮、
+// 点下去走哪个打开动作，不再自己按地址前缀分流。
+declare function openModeFor(...args: any[]): any;
+declare function openTrackerTarget(...args: any[]): any;
 declare function Ic(props?: any): any;
 declare const Tip: any;
 // 详情页确认提示的停留时间（毫秒）。数值写在 config/ttl.yaml 的 issueDetailConfirmMs，
@@ -163,13 +167,13 @@ export const IssueDetail = function (props: any): any {
                             // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
               (function () {
                 const _u = issueUrlFor(st, issueNumber, issueEffort)
-                const _isHttp = /^https?:\/\//i.test(String(_u || ''))
-                const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), issueEffort) }
+                const _isUrl = openModeFor(st, 'issue', _u) === 'url'
+                const _openLocal = function (e: any) { e.stopPropagation(); openTrackerTarget(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), issueEffort, 'issue') }
                 const _props = { className: 'dsws-btn ghost dsws-hov', style: { padding: '1px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 } }
                 const _kids = [Ic({ n: 'link', size: 11 }), h('span', null, tr('detail.viewOnTracker'))]
-                // 本次界面反馈需求：https 与本地两条分支各带一个定位串，日志里能认出点的是哪一条；
+                // 本次界面反馈需求：网页与本地两条分支各带一个定位串，日志里能认出点的是哪一条；
                 //   定位串里不写票号以外的内容，票号是自由文本之外的标识仍不入串。
-                return _isHttp
+                return _isUrl
                   ? h('a', Object.assign({ href: _u, target: '_blank', rel: 'noreferrer', 'data-press': 'link', 'data-log': 'detail.err.open' }, _props), _kids)
                   : h('button', Object.assign({ type: 'button', onClick: _openLocal, 'data-press': 'button', 'data-log': 'detail.err.open.local' }, _props), _kids)
               })(),
@@ -336,10 +340,10 @@ export const IssueDetail = function (props: any): any {
                         // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
             h(Tip, { content: tr('tip.openInTracker', { n: issueNumber }) }, (function () {
               const _u = issueUrlFor(st, issueNumber, issueEffort)
-              const _isHttp = /^https?:\/\//i.test(String(_u || ''))
-              const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), issueEffort) }
+              const _isUrl = openModeFor(st, 'issue', _u) === 'url'
+              const _openLocal = function (e: any) { e.stopPropagation(); openTrackerTarget(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), issueEffort, 'issue') }
               const _props = { className: 'dsws-btn ghost', 'data-press': 'icon', 'data-log': 'issue.top.link', style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }
-              return _isHttp
+              return _isUrl
                 ? h('a', Object.assign({ href: _u, target: '_blank', rel: 'noreferrer' }, _props), Ic({ n: 'link', size: 13 }))
                 : h('button', Object.assign({ type: 'button', onClick: _openLocal }, _props), Ic({ n: 'link', size: 13 }))
             })()),

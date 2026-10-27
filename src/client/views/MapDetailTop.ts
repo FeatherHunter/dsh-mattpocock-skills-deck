@@ -31,6 +31,9 @@ declare function startText(...args: any[]): any;
 declare function useIssueDetailFold(...args: any[]): any;
 declare const Tip: any;
 declare const issueUrlFor: any;
+// #1557：打开方式由后端声明（openContainer），视图不再自己按地址前缀分流。
+declare function openModeFor(...args: any[]): any;
+declare function openTrackerTarget(...args: any[]): any;
 declare function isLightHex(...args: any[]): any;
 // #1286：容器三态与角标的真源在 kernel/container-view.ts（列表页同一份）
 declare function containerStateOf(...args: any[]): any;
@@ -82,13 +85,12 @@ export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack, kind, tri: tri
     try { copyText(st, issueUrlFor(st, m.number, mEffort), tr('toast.copiedLink', { n: m.number })) } catch (err) {}
   }
   const openUrl = (typeof issueUrlFor === 'function') ? (function () { try { return issueUrlFor(st, m.number, mEffort) } catch (err) { return '' } })() : ''
-  const openIsHttp = /^https?:\/\//i.test(String(openUrl || ''))
-  const openWeb = function (e: any) {
+  // #1557：地图 / 规格这类容器的打开方式由后端声明（openContainer）：远程后端开网页，
+  //   本地 Markdown 开 map.md / spec.md 所在目录；视图只决定画链接还是按钮，不再自己判地址前缀。
+  const openIsUrl = openModeFor(st, 'container', openUrl) === 'url'
+  const openTracker = function (e: any) {
     if (e && e.stopPropagation) e.stopPropagation()
-    const u = (typeof issueUrlFor === 'function') ? (function () { try { return issueUrlFor(st, m.number, mEffort) } catch (err2) { return '' } })() : ''
-    if (!u) return
-    if (/^https?:\/\//i.test(String(u))) { try { window.open(u, '_blank', 'noreferrer') } catch (err3) {} }
-    else { try { if (typeof host !== 'undefined' && host.call) host.call('wf.openPath', { path: u }) } catch (err4) {} }
+    try { openTrackerTarget(st, m.number, (typeof host !== 'undefined' ? host : null), mEffort, 'container') } catch (err) {}
   }
   // 主动作：探索地图是 检查 / 执行 / 完成，规格是 拆票 / 执行 / 完成。文字、底色、图标与
   //   点下去注入的提示词都取同一份三态配置（container-view.ts），所以按钮上写什么与点下去注入什么
@@ -144,9 +146,9 @@ export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack, kind, tri: tri
         h('span', { 'data-detail-new-text': 1, 'data-full': tr('list.newSessionLabel'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.newSessionLabel')),
       ])),
       h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost', 'data-press': 'icon', 'data-log': 'map.top.copy', onClick: copyUrl, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'clipboard', size: 13 }))),
-      openIsHttp
+      openIsUrl
         ? h(Tip, { content: tr('tip.openInTracker', { n: m.number }) }, h('a', { className: 'dsws-btn ghost', href: openUrl, target: '_blank', rel: 'noreferrer', 'data-press': 'icon', 'data-log': 'map.top.link', onClick: function (e: any) { e.stopPropagation() }, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' }, 'aria-label': tr('tip.openInTracker', { n: m.number }) }, Ic({ n: 'link', size: 13 })))
-        : h(Tip, { content: tr('tip.openInTracker', { n: m.number }) }, h('button', { className: 'dsws-btn ghost', onClick: openWeb, 'data-press': 'icon', 'data-log': 'map.top.link', style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' }, 'aria-label': tr('tip.openInTracker', { n: m.number }) }, Ic({ n: 'link', size: 13 }))),
+        : h(Tip, { content: tr('tip.openInTracker', { n: m.number }) }, h('button', { className: 'dsws-btn ghost', onClick: openTracker, 'data-press': 'icon', 'data-log': 'map.top.link', style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' }, 'aria-label': tr('tip.openInTracker', { n: m.number }) }, Ic({ n: 'link', size: 13 }))),
     ]),
   ])
 }

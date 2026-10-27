@@ -23,6 +23,8 @@ declare function rowActionText(...args: any[]): any
 declare function openInNewSession(...args: any[]): any
 declare function copyText(...args: any[]): any
 declare function issueUrlFor(...args: any[]): any
+// #1557：打开方式由后端声明（openIssue），本文件不再自己按地址前缀分流。
+declare function openTrackerTarget(...args: any[]): any
 declare function effortOf(...args: any[]): any
 declare function enterSubDetail(st: any, x: any, issueEffort: any): void
 
@@ -114,23 +116,12 @@ export function pageActionHandlersOf(st: any, rows: MapTicketRow[]): TicketCardH
       if (!url) return
       try { copyText(st, url, tr('toast.copiedLink', { n: facts.number == null ? '' : facts.number })) } catch (e) {}
     },
-    /** 打开：网页地址开新窗，本机路径交宿主打开（与老页同一判据：是不是 http(s)）。 */
+    /** 打开：打开方式由后端声明（openIssue），不再按地址前缀分流（#1557）。 */
     onOpen: function (facts: TicketCardFacts): void {
       const row = sourceRowOf(facts, index)
       const url = urlOf(st, facts, row)
       if (!url) return
-      if (/^https?:\/\//i.test(url)) {
-        try { window.open(url, '_blank', 'noreferrer') } catch (e) {}
-        return
-      }
-      try {
-        // host 只在真机闭包里存在；单文件求值或宿主未注入时，裸写 host 会抛 ReferenceError 被这里
-        // catch 吞掉，用户看到的是「点了打开没反应」。同类调用都先判 typeof（views/MapDetailTop.ts:91、
-        // kernel/api-io.ts:251），这里跟它们保持一致。
-        if (typeof host !== 'undefined' && host && typeof host.call === 'function') {
-          host.call('wf.openPath', { path: url })
-        }
-      } catch (e) {}
+      try { openTrackerTarget(st, facts.number, (typeof host !== 'undefined' ? host : null), row ? effortOf(row) : undefined, 'issue') } catch (e) {}
     },
     /**
      * 整卡点按：进这张票的详情页。

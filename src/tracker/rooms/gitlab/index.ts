@@ -404,6 +404,9 @@ export const gitlabBackend = {
   //   lcCopyPlanOf）于是把 GitLab 归到「没读到开仓动作」那一套。这跟 #620 给 GitHub 修掉的是同一处
   //   形状，所以这里挂上同一个值；契约里这个成员本来就是可选的。
   openRepository,
+  // #1557：远程后端的票与容器地址都是网页——开票、开容器都交给浏览器，与开仓库同一个方式。
+  openIssue: 'url',
+  openContainer: 'url',
   // #191：品牌色完整色板（B 方案定版 · #177）
   presentation: {
     color: '#c25100',

@@ -36,6 +36,8 @@ const { DswsCtx, createCx } = await import('../src/client/kernel/ctx.js')
 const cvMod = await import('../src/client/kernel/container-view.js')
 
 globalThis.issueUrlFor = linkMod.issueUrlFor
+globalThis.openModeFor = linkMod.openModeFor
+globalThis.openTrackerTarget = linkMod.openTrackerTarget
 globalThis.effortOf = identityMod.effortOf
 globalThis.idOf = identityMod.idOf
 globalThis.idOfParts = identityMod.idOfParts

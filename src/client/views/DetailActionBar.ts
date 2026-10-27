@@ -19,6 +19,10 @@
 declare function Ic(props?: any): any;
 declare const Tip: any;
 declare function issueUrlFor(...args: any[]): any;
+// #1557：容器打开方式由后端声明（openContainer），本文件不再自己按地址前缀分流。
+declare function openModeFor(...args: any[]): any;
+declare function openTrackerTarget(...args: any[]): any;
+declare function effortOf(...args: any[]): any;
 declare function inject(...args: any[]): any;
 declare function inspectPrompt(...args: any[]): any;
 declare function promptTextFor(...args: any[]): any;
@@ -92,21 +96,17 @@ export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => 
       h('span', null, tr(t.labelKey)),
     ])),
     (function () {
-      // 存档链接：GitHub 票给网页链接，本地 Markdown 房给「让宿主打开这个路径」的按钮。
+      // 存档链接：远程后端给网页链接，本地 Markdown 房给「让宿主打开容器文件所在目录」的按钮。
+      // #1557：打开方式由后端声明（openContainer），这里不再自己按地址前缀分流。
       const archiveUrl = issueUrlFor(st, m.number)
-      const archiveIsHttp = /^https?:\/\//i.test(String(archiveUrl || ''))
+      const archiveEff = (typeof effortOf === 'function') ? effortOf(m) : undefined
+      const archiveIsUrl = openModeFor(st, 'container', archiveUrl) === 'url'
       const openArchive = function (e: any) {
         e.stopPropagation()
-        const u = issueUrlFor(st, m.number)
-        if (!u) return
-        if (/^https?:\/\//i.test(String(u))) {
-          try { window.open(u, '_blank', 'noreferrer') } catch (err) {}
-        } else {
-          try { if (typeof host !== 'undefined' && host.call) host.call('wf.openPath', { path: u }) } catch (err2) {}
-        }
+        try { openTrackerTarget(st, m.number, (typeof host !== 'undefined' ? host : null), archiveEff, 'container') } catch (err2) {}
       }
       const archiveBtnStyle: any = { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11 }
-      return archiveIsHttp
+      return archiveIsUrl
         ? h('a', { className: 'dsws-btn ghost', href: archiveUrl, target: '_blank', rel: 'noreferrer', 'data-press': 'button', 'data-log': 'map.dest.archive', style: archiveBtnStyle }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))])
         : h('button', { className: 'dsws-btn ghost', onClick: openArchive, 'data-press': 'button', 'data-log': 'map.dest.archive', style: archiveBtnStyle }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('map.archive'))])
     })(),

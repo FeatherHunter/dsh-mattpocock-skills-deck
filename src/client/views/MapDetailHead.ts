@@ -26,6 +26,9 @@ declare function effortOf(...args: any[]): any;
 declare const Tip: any;
 declare const fetchMapTickets: any;
 declare const issueUrlFor: any;
+// #1557：打开方式由后端声明（openContainer），视图不再自己按地址前缀分流。
+declare function openModeFor(...args: any[]): any;
+declare function openTrackerTarget(...args: any[]): any;
 // #1286：容器身份色与计数词表键的真源在 kernel/container-view.ts（列表页同一份）
 declare function containerKindOf(...args: any[]): any;
 declare function containerCountKey(...args: any[]): any;
@@ -57,9 +60,8 @@ export const MapDetailHead = ({ st, m, mt, multiEffort, kind }: any) => {
   const retry = function (e: any) { if (e && e.stopPropagation) e.stopPropagation(); if (typeof fetchMapTickets === 'function') fetchMapTickets(st, mapKey, { force: true, effortId: effortOf(m) }) }
   const openWeb = function (e: any) {
     if (e && e.stopPropagation) e.stopPropagation()
-    if (!url) return
-    if (/^https?:\/\//i.test(String(url))) { try { window.open(url, '_blank', 'noreferrer') } catch (err) {} }
-    else { try { if (typeof host !== 'undefined' && host.call) host.call('wf.openPath', { path: url }) } catch (err) {} }
+    // #1557：容器打开方式由后端声明（openContainer），这里只执行，不再按地址前缀分流。
+    try { openTrackerTarget(st, m.number, (typeof host !== 'undefined' ? host : null), effortOf(m), 'container') } catch (err) {}
   }
   // #1286：这一页是哪种容器 —— 探索地图还是规格（实施地图）。身份判定与计数句的词表键
   //   取 container-view.ts 那一份（列表页同一份），别处不再各判一次。

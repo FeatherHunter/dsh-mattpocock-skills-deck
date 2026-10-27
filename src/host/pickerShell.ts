@@ -33,13 +33,21 @@ type WfArgs = any;
 export function createPickerShell(deps?: any): any {
   const { DEFAULT_CWD, getPlatform, logCtx } = deps
   // ============ #190：wf.openFolder — 打开本地文件夹（Markdown 后端仓库名点击）============
-  // 输入：{ cwd }；调起经平台抽象层 openFolder（配方归 OS 底座），本文件不拼系统命令。
+  // 输入：{ cwd }（或 { file }）；调起经平台抽象层 openFolder（配方归 OS 底座），本文件不拼系统命令。
+  // #1557 起还认 { file }：调用方手里是文件地址（本地后端的 map.md / spec.md），要开的是它所在的目录。
+  // 父目录必须按平台规则取（分隔符随系统变），所以解析留在宿主这一侧，客户端只声明「开文件夹」。
   async function handleOpenFolder(args?: any) {
-    const cwd = (args && (args.cwd || args.path)) || DEFAULT_CWD
-    if (!cwd) return { ok: false, error: '缺少 cwd' }
+    let cwd = (args && (args.cwd || args.path)) || DEFAULT_CWD
     try {
       const platform = await getPlatform()
       if (!platform || typeof platform.openFolder !== 'function') return { ok: false, error: '当前平台不支持打开' }
+      if (args && args.file) {
+        const file = String(args.file)
+        if (!file) return { ok: false, error: '缺少 file' }
+        if (!platform.path || typeof platform.path.dirname !== 'function') return { ok: false, error: '当前平台不支持解析路径' }
+        cwd = platform.path.dirname(file)
+      }
+      if (!cwd) return { ok: false, error: '缺少 cwd' }
       const res = await platform.openFolder(String(cwd), DEFAULT_CWD)
       if (!res || res.ok !== true) return { ok: false, error: String((res && res.error) || '打开失败') }
       return { ok: true, cwd: String(cwd), opener: res.opener || '' }

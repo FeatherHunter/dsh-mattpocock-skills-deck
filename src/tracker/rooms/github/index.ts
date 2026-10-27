@@ -234,6 +234,9 @@ export const githubModule = {
   //   这条规矩在 GitHub 上落到「没读到开仓方式」那一态（GitHub 版的推荐配色方案文案拼不出来）。
   //   本地 Markdown 一直是好的（markdownModule 里带 openRepository: 'folder'），这里补上同一个值。
   openRepository,
+  // #1557：远程后端的票与容器地址都是网页——开票、开容器都交给浏览器，与开仓库同一个方式。
+  openIssue: 'url',
+  openContainer: 'url',
   prompts,
   checks: GITHUB_CHECKS,
   fixes,

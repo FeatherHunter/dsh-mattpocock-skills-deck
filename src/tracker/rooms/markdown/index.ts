@@ -417,6 +417,11 @@ export const markdownModule = {
   // links 仅留提及识别正则；开仓为打开文件夹
   links: { linkPatternSource: "#(\\d+)" },
   openRepository: 'folder',
+  // #1557：本地后端里「票」就是工作区中的一个 .md 文件，所以开票 = 让宿主打开文件；
+  // 「容器」（探索地图 / 实施规格）分别是 map.md / spec.md，开容器 = 打开这两个文件所在的目录，
+  // 而不是打开文件本身（文件打开后对「看这个地图下有哪些票」没有帮助）。
+  openIssue: 'file',
+  openContainer: 'folder',
   prompts,
   fixes,
 } satisfies BackendModule

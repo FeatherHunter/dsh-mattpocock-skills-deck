@@ -140,6 +140,8 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
   const stubs = {
     Ic: () => null, tr: (k) => String(k), Tip: (p) => (p && p.children) || null,
     actionColorOf: () => '#ffffff', rowActionKind: () => 'execute', mkRowAction: () => null, issueUrlFor: () => '', openInNewSession: () => {},
+    // #1557：行内第 4 颗按钮的打开方式改由后端声明决定，这里给「本地文件」模式，让按钮走宿主开文件那条路。
+    openModeFor: () => 'file', openTrackerTarget: () => false,
     copyText: () => {}, setActiveMap: () => {}, setActiveIssue: () => {}, showPop: () => {}, inject: () => {},
     promptText: () => '', inspectPrompt: () => '', completePrompt: () => '', authorColor: () => '#000000',
     hexA: () => 'rgba(0,0,0,0)', darken: () => null, isLightHex: () => true,

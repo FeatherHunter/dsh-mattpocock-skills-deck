@@ -5,7 +5,7 @@
  * 界面跑在浏览器那一侧，读不到宿主里的后端模块对象：模块对象上挂着 create / matches 这些函数，
  * 过不了进程边界。所以宿主必须把每个后端「只给界面看的那部分」挑出来，放进快照与 wf.registry 回包。
  * 这段挑选原先在宿主里手抄了 11 遍（sessionSnapshot.ts 五处、sessionRefresh.ts 四处、
- * snapshotBuild.ts 一处、workspaceCwd.js 一处），每份都把同一张六项清单重写一次。代价有两条：
+ * snapshotBuild.ts 一处、workspaceCwd.js 一处），每份都把同一张「哪些字段发给界面」清单重写一次。代价有两条：
  *   1. 哪一处漏一项，就是某条通道少一个字段——不报错、不记日志；界面拿到的是「这个后端没声明」，
  *      于是走「没读到开仓方式」那类兜底。GitHub 的 #620、GitLab 的 #1117 都是这样被漏掉的。
  *   2. 十处里有一处（workspaceCwd.js）键序与另外十处不同，正说明它们是各抄各的。
@@ -46,8 +46,8 @@ type UiDescriptionDataField = {
  * 界面描述字段表——这份投影的唯一真源。加一个界面字段只改这里一行，宿主零改动；
  * 写错字段名、或写进一个函数字段，编译当场报错（`satisfies` 那一步就是干这个的）。
  *
- * 六项的次序沿用宿主十处里那十处已有的写法（openRepository 放最后），这样这次收口只有
- * workspaceCwd.js 那一处的键序跟着变。键序本身不承载语义，统一由这张表说了算。
+ * 八项的次序沿用宿主十处里那十处已有的写法（openRepository 及其后追加的两项打开方式放最后），
+ * 这样这次收口只有 workspaceCwd.js 那一处的键序跟着变。键序本身不承载语义，统一由这张表说了算。
  */
 export const UI_DESCRIPTION_FIELDS = [
   'links',
@@ -56,14 +56,18 @@ export const UI_DESCRIPTION_FIELDS = [
   'setupPrompt',
   'labelPalette',
   'openRepository',
+  // #1557：打开行为的声明也随这份描述发给界面——“用网址还是文件/文件夹打开”是后端
+  // 自己知道的事实（本地 Markdown 的票是文件、GitHub 的票是网页），界面不该按地址前缀猜。
+  'openIssue',
+  'openContainer',
 ] as const satisfies readonly UiDescriptionDataField[]
 
-/** 表里那六个字段名（联合类型），供类型标注引用，避免第二处手写这六个字符串。 */
+/** 表里那八个字段名（联合类型），供类型标注引用，避免第二处手写这八个字符串。 */
 export type UiDescriptionField = (typeof UI_DESCRIPTION_FIELDS)[number]
 
 /**
  * 发给界面的那一份。身份三件套（id / label / presentation）永远在——界面画后端列表就要它们；
- * 其余六项按需带上：模块对象上有定义就带，没有就整个键不出现。
+ * 其余八项按需带上：模块对象上有定义就带，没有就整个键不出现。
  */
 export type UiDescription = {
   id: string

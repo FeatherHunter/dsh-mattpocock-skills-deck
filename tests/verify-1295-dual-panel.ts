@@ -135,6 +135,8 @@ G.idOfParts = identityMod.idOfParts
 G.effortOf = identityMod.effortOf
 G.refKeyOf = identityMod.refKeyOf
 G.issueUrlFor = linkMod.issueUrlFor
+G.openModeFor = linkMod.openModeFor
+G.openTrackerTarget = linkMod.openTrackerTarget
 
 // ---- 容器口径：走真实现（唯一真源），行渲染、列表分桶与详情页都从它拿种类、颜色、三态与提示语 ----
 const cv: any = await import('../src/client/kernel/container-view.js')

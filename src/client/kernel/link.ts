@@ -54,7 +54,10 @@ export const issueUrlFor = (st: any, key: any, effortId?: any): any => {
   // effort 维度：编号在仓库内不再唯一，给了 effortId 就按 (effort, 编号) 精确取，否则退回第一个命中（旧行为）。
   try {
     const snap = st && st.snapshot
-    const all = snap ? [].concat(snap.issues||[]).concat((snap.maps||[]).flatMap(function(m: any){return m.tickets||[]})) : []
+    // #1557：容器行（探索地图 / 实施规格）自己也住在快照 maps[] 里 —— 它的 url 是 map.md / spec.md
+    // 的路径。以前这里只翻 issues 与 maps[].tickets，容器编号（00）永远查不到地址，
+    // 「在跟踪器打开」于是点了没反应（剩下的模板回退对本地后端是空串）。
+    const all = snap ? [].concat(snap.issues||[]).concat(snap.maps||[]).concat((snap.maps||[]).flatMap(function(m: any){return m.tickets||[]})) : []
     const wantId = (effortId !== undefined && effortId !== null) ? idOfParts(effortId, String(n).padStart(2,'0')) : ''
     let hit: any = null
     if (wantId) hit = all.find(function(x: any){ return idOf(x) === wantId })
@@ -69,12 +72,63 @@ export const issueUrlFor = (st: any, key: any, effortId?: any): any => {
   if (!refId) return ''
   return tpl.split('{refId}').join(refId).split('{key}').join(n)
 }
-// 统一打开：https 走新页，file 盘符走宿主 wf.openPath（UI 零分支）
+// 统一打开：https 走新页，本地路径走宿主打开（UI 零分支）。
+// #1557 起视图不再自己按地址前缀分流，而是先问 openModeFor / 要开就调 openTrackerTarget（见下）。
 export const openIssueUrl = function(st: any, key: any, host: any, effortId?: any): any {
+  return openTrackerTarget(st, key, host, effortId, 'issue')
+}
+
+/** 从发给界面的后端描述里取本会话的模块清单（st 优先，回退全局共享缓存）。 */
+function __backendModules(st: any): any[] {
+  const own = (st && Array.isArray(st.backendModules)) ? st.backendModules : null
+  if (own) return own
+  const sh = (typeof shared !== 'undefined' && shared && Array.isArray(shared.backendModules)) ? shared.backendModules : null
+  return sh || []
+}
+/**
+ * 后端声明的打开方式：`kind === 'container'` 看 openContainer，其余看 openIssue。
+ * 没声明（旧后端 / 第三方后端 / 旧宿主）回空串——由 openModeFor 按地址回退旧行为。
+ */
+export function openModeDeclared(st: any, kind?: any): any {
+  const bid = __backendId(st)
+  if (bid == null) return ''
+  const ms = __backendModules(st)
+  for (let i = 0; i < ms.length; i++) {
+    const m = ms[i]
+    if (!m || m.id !== bid) continue
+    return kind === 'container' ? String(m.openContainer || '') : String(m.openIssue || '')
+  }
+  return ''
+}
+/**
+ * 这个地址按哪种方式打开：'url'（浏览器）/ 'file'（宿主开文件）/ 'folder'（宿主开文件所在目录）。
+ * 视图用它决定渲染外链 `<a>` 还是按钮；真正打开交给 openTrackerTarget。
+ * 回退：后端声明 → 地址像网页就 'url'（旧行为）→ 否则 'file'（旧行为：宿主开路径）。
+ */
+export function openModeFor(st: any, kind: any, url: any): any {
+  const declared = openModeDeclared(st, kind)
+  if (declared === 'url' || declared === 'file' || declared === 'folder') return declared
+  return /^https?:\/\//i.test(String(url || '')) ? 'url' : 'file'
+}
+/**
+ * 统一打开「票 / 容器」：按后端声明的方式分派（#1557），视图只调它，不再各自复制 http 分支。
+ * - 'url'：浏览器新页；没有 window 的环境诚实回 false（#1199 的约定）。
+ * - 'file'：宿主 wf.openPath 打开票文件（本地 Markdown 的票就是一个 .md 文件）。
+ * - 'folder'：宿主 wf.openFolder 打开容器文件所在目录；父目录由宿主用平台能力解析
+ *   （客户端拿不到平台对象，见 src/host/pickerShell.ts 的 handleOpenFolder 注释）。
+ * 地址为空 → false（不发无意义的电话）；打开失败的日志由宿主电话统一记 host.call.fail，界面不重复记。
+ */
+export const openTrackerTarget = function(st: any, key: any, host: any, effortId?: any, kind?: any): any {
   const u = issueUrlFor(st, key, effortId)
-  if(!u) return false
-  if(/^https?:\/\//i.test(String(u))) { if(typeof window==='undefined') return false; try{ window.open(u,'_blank','noreferrer') }catch{} return true }
-  try{ if(host && typeof host.call==='function'){ host.call('wf.openPath',{path:u}); return true } }catch{}
+  if (!u) return false
+  const mode = openModeFor(st, kind, u)
+  if (mode === 'url') { if (typeof window === 'undefined') return false; try { window.open(u, '_blank', 'noreferrer') } catch (e) {} return true }
+  try {
+    if (!host || typeof host.call !== 'function') return false
+    if (mode === 'folder') host.call('wf.openFolder', { file: u })
+    else host.call('wf.openPath', { path: u })
+    return true
+  } catch (e) {}
   return false
 }
 export const searchUrlFor = (st: any, name: any): any => {

@@ -60,6 +60,10 @@ declare const CONTAINER_EMPTY_COLOR: any;
 declare const CONTAINER_TINT: any;
 declare const Tip: any;
 declare const issueUrlFor: any;
+// #1557：打开方式与打开动作收在 kernel/link.ts —— 视图只问「这颗按钮画成链接还是按钮」与「点下去开什么」，
+// 不再自己按地址是不是 http 前缀分流（本地后端的票是文件、容器是文件夹，按地址前缀猜不出开法）。
+declare function openModeFor(...args: any[]): any;
+declare function openTrackerTarget(...args: any[]): any;
 
 // #1302：列表加载时的行形占位。这个文件定义「一票一行长什么样」，所以行形状的真源也放在这里：
 // 真实行与加载占位都从 LIST_ROW_SHAPE 取尺寸，改一处两边一起变；不会出现「真实行改了间距、
@@ -376,13 +380,20 @@ export const listIssueRow = function (h: any, st: any, x: any, isOpen: any, narr
               h(Tip, { content: tr('tip.newSession', { n: x.number }) }, h('button', { className: 'dsws-btn primary' + (narrow ? ' narrow-icon' : ''), 'data-press': 'button', 'data-log': 'list.row.newsession.' + (x.key != null ? x.key : x.number), onClick: function (e: any) { e.stopPropagation(); openInNewSession(st, x) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', marginLeft: 4, background: primaryColor, borderColor: 'transparent', color: primaryText } }, [Ic({ n: 'external-link', size: 10 }), narrow ? null : h('span', null, tr('list.newSessionLabel'))])),
             ]) : null,
             isOpen ? h('div', { className: 'dsws-aux', style: { display: 'flex', gap: 2, alignItems: 'center', flex: 'none' } }, [
-              // v1.3.3：复制/外链图标增大 11 → 13；Q6 解耦：复制=绝对路径/链接，跳转=按 url 前缀分流（https 开网页，file 盘符调 wf.openPath）
+              // v1.3.3：复制/外链图标增大 11 → 13；Q6 解耦：复制=绝对路径/链接，跳转按后端声明的打开方式分派
+              //   （远程后端开网页，本地 Markdown 的票开文件、地图/规格容器开所在目录；#1557）
               h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost' + (copyRes === 'ok' ? ' dsws-fb-okflash dsws-fb-success-ring dsws-fb-pop' : '') + (copyRes === 'fail' ? ' dsws-fb-errflash dsws-fb-shake' : ''), 'data-press': 'icon', 'data-log': 'list.row.copy.' + (x.key != null ? x.key : x.number), onClick: function (e: any) { e.stopPropagation(); copyUrl(x) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, copyRes === 'ok' ? Ic({ n: 'check', size: 13 }) : (copyRes === 'fail' ? Ic({ n: 'x', size: 13 }) : Ic({ n: 'clipboard', size: 13 })))),
               (function(){
                 const _u = issueUrlFor(st, x.number, effortOf(x));
-                const _isHttp = /^https?:\/\//i.test(String(_u||''));
-                const _openLocal = function(e: any){ e.stopPropagation(); const u=issueUrlFor(st, x.number, effortOf(x)); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } };
-                return _isHttp ? h(Tip, { content: tr('tip.openInTracker', { n: x.number }) }, h('a', { className: 'dsws-btn ghost', href: _u, target: '_blank', rel: 'noreferrer', 'data-press': 'icon', 'data-log': 'list.row.link.' + x.number, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'link', size: 13 }))) : h(Tip, { content: tr('tip.openInTracker', { n: x.number }) }, h('button', { className: 'dsws-btn ghost', onClick: _openLocal, 'data-press': 'icon', 'data-log': 'list.row.link.' + x.number, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'link', size: 13 })));
+                // #1557：打开方式由后端声明（openIssue / openContainer）——列表里的容器行跟地图走（开文件夹），
+                //   普通票开文件；视图不再自己按地址前缀分流。
+                const _kind = (typeof containerKindOf === 'function' && containerKindOf(x)) ? 'container' : 'issue';
+                const _isUrl = openModeFor(st, _kind, _u) === 'url';
+                const _open = function(e: any){ e.stopPropagation(); openTrackerTarget(st, x.number, (typeof host !== 'undefined' ? host : null), effortOf(x), _kind) };
+                const _tip = tr('tip.openInTracker', { n: x.number });
+                return _isUrl
+                  ? h(Tip, { content: _tip }, h('a', { className: 'dsws-btn ghost', href: _u, target: '_blank', rel: 'noreferrer', 'data-press': 'icon', 'data-log': 'list.row.link.' + x.number, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'link', size: 13 })))
+                  : h(Tip, { content: _tip }, h('button', { className: 'dsws-btn ghost', onClick: _open, 'data-press': 'icon', 'data-log': 'list.row.link.' + x.number, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'link', size: 13 })));
               })(),
             ]) : null,
           ]),

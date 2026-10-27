@@ -17,6 +17,9 @@ declare function mdToHtml(...args: any[]): any;
 declare function idOfParts(...args: any[]): any;
 declare function issueUrlFor(...args: any[]): any;
 declare function openIssueUrl(...args: any[]): any;
+// #1557：打开方式由后端声明（openIssue），视图不再自己按地址前缀分流。
+declare function openModeFor(...args: any[]): any;
+declare function openTrackerTarget(...args: any[]): any;
 declare function Ic(props?: any): any;
 declare const Tip: any;
 // 评论结果提示（成功打勾 / 失败打叉）在按钮上的停留时间（毫秒）。
@@ -118,12 +121,12 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
                     // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
       (function () {
         const _u: any = issueUrlFor(st, issueNumber, _eff)
-        const _isHttp = /^https?:\/\//i.test(String(_u || ''))
-        const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), _eff) }
+        const _isUrl = openModeFor(st, 'issue', _u) === 'url'
+        const _openLocal = function (e: any) { e.stopPropagation(); openTrackerTarget(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), _eff, 'issue') }
         const _textStyle = { color: '#58a6ff', textDecoration: 'underline' }
         // 本次界面反馈需求：评论没加载出来时，这个链接是用户唯一的出路，附近没有带 data-log 的祖先，
-        //   不接就完全没有日志；https 与本地两条分支各带一个定位串。
-        return _isHttp
+        //   不接就完全没有日志；网页与本地两条分支各带一个定位串。
+        return _isUrl
           ? h('a', { href: _u, target: '_blank', rel: 'noreferrer', className: 'dsws-hov', 'data-press': 'link', 'data-log': 'detail.cmt.tracker', style: _textStyle }, tr('detail.viewOnTrackerHint'))
           : h('button', { type: 'button', onClick: _openLocal, className: 'dsws-hov', 'data-press': 'button', 'data-log': 'detail.cmt.tracker.local', style: Object.assign({ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }, _textStyle) }, tr('detail.viewOnTrackerHint'))
       })(),
@@ -169,11 +172,11 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
                   // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
       st.cmtError.kind === 'auth' ? (function () {
         const _u: any = issueUrlFor(st, issueNumber, _eff)
-        const _isHttp = /^https?:\/\//i.test(String(_u || ''))
-        const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), _eff) }
+        const _isUrl = openModeFor(st, 'issue', _u) === 'url'
+        const _openLocal = function (e: any) { e.stopPropagation(); openTrackerTarget(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), _eff, 'issue') }
         const _textStyle = { color: '#58a6ff', textDecoration: 'underline' }
-        // 本次界面反馈需求：授权失败时的这个入口带按压态、悬停反馈与点击日志；https 与本地两条分支各带一个定位串。
-        return _isHttp
+        // 本次界面反馈需求：授权失败时的这个入口带按压态、悬停反馈与点击日志；网页与本地两条分支各带一个定位串。
+        return _isUrl
           ? h('a', { href: _u, target: '_blank', rel: 'noreferrer', className: 'dsws-hov', 'data-press': 'link', 'data-log': 'detail.cmt.authlink', style: _textStyle }, tr('detail.authFailCta'))
           : h('button', { type: 'button', onClick: _openLocal, className: 'dsws-hov', 'data-press': 'button', 'data-log': 'detail.cmt.authlink.local', style: Object.assign({ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }, _textStyle) }, tr('detail.authFailCta'))
       })() : null,

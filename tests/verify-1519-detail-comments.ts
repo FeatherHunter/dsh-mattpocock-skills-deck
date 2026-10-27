@@ -187,6 +187,8 @@ const { DswsCtx, createCx } = await imp('src/client/kernel/ctx.ts')
 const linkMod = await imp('src/client/kernel/link.ts')
 ;(globalThis as any).issueUrlFor = linkMod.issueUrlFor
 ;(globalThis as any).openIssueUrl = linkMod.openIssueUrl
+;(globalThis as any).openModeFor = linkMod.openModeFor
+;(globalThis as any).openTrackerTarget = linkMod.openTrackerTarget
 // markdown 渲染走真实现：截图能不能进 <img>、能不能点开放大，判据都靠它。
 const mdMod = await imp('src/client/views/shared/md.ts')
 ;(globalThis as any).mdToHtml = mdMod.mdToHtml

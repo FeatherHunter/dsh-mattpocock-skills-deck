@@ -148,6 +148,8 @@ async function loadDetailModule (): Promise<any> {
     'const pushNav = () => {}',
     'const copyText = () => {}',
     'const issueUrlFor = () => ""',
+    'const openModeFor = () => "file"',
+    'const openTrackerTarget = () => false',
     'const repoStr = () => ""',
     'const effortOf = () => ""',
     'const effortNamesOf = () => []',
