@@ -114,6 +114,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-25 #1526：切回后台会话时从历史重放补出最后一组已收尾的建议（规格 #1525）；
   // 51 条是单跑实测得出的（含订阅失败不补历史、快照失败只记日志两档）。
   'verify-1526-suggest-replay-restore': 51,
+  // 2026-10-27 #1571：GitHub 房间调用点的 -F/-f 写法（20 处 owner/name 逐文件点名、整型字段仍走 -F）；
+  // 15 条是单跑实测得出的。
+  'verify-1571-gh-flag-writing': 15,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

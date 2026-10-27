@@ -195,6 +195,17 @@ async function main() {
     must(envMod.glabRepoAccessVerdict({ stage: 'pass', refId: '' }, true).status === 'pending', '没 refId 时房间会跳过第三关回成功，判定要如实 pending', 'pass')
     must(envMod.glabRepoAccessVerdict({ stage: 'repo', kind: 'not-found' }, true).status === 'fail', '确定 404 才判失败', 'pending')
     must(envMod.glabRepoAccessVerdict({ stage: 'auth', kind: 'auth' }, true).status === 'pending', '登录失败不把仓库显示成不可达', 'fail')
+    // #1571：env 档不只有「没找到可执行文件」一种；出站控制面/执行器没接上时不能继续说「没找到 glab」。
+    const detached: any = { stage: 'gh', kind: 'env', message: '出站控制面没有接上：名额闸、取消判定与搭车账本都拿不到，这一笔不发出去。' }
+    const detachedAuth = String((envMod.glabAuthVerdict(detached, true).detail) || '')
+    const detachedRepo = String((envMod.glabRepoAccessVerdict(detached, true).detail) || '')
+    must(detachedAuth.indexOf('没找到 glab') < 0, '出站控制面没接上时登录态文案不再说「没找到 glab」', detachedAuth)
+    must(detachedAuth.indexOf('环境检查没通过') >= 0, '非缺 glab 的 env 失败如实说「环境检查没通过」', detachedAuth)
+    must(detachedRepo.indexOf('没找到 glab') < 0 && detachedRepo.indexOf('环境检查没通过') >= 0, '仓库可达那一行按同一口径分流', detachedRepo)
+    const blankGlab = String((envMod.glabAuthVerdict({ stage: 'gh' }, true).detail) || '')
+    must(blankGlab.indexOf('没找到 glab') < 0 && blankGlab.indexOf('环境检查没通过') >= 0, '只给 stage 不给原文时只说环境检查没过，不断言缺 glab（#1571）', blankGlab)
+    const missingGlab = String((envMod.glabAuthVerdict({ stage: 'gh', kind: 'env', message: 'glab not found' }, true).detail) || '')
+    must(missingGlab.indexOf('没找到 glab') >= 0, '原文确实是 glab not found 时仍说没找到 glab（旧文案保住）', missingGlab)
     const failText = String((envMod.glabAuthVerdict({ stage: 'auth', kind: 'auth', message: 'not logged in' }, true).detail) || '')
     must(/[\u4e00-\u9fa5]/.test(failText), '中文界面的失败文案是中文', failText)
     must(failText.indexOf('predicate not registered') < 0, '失败文案里没有那句英文内部串', failText)

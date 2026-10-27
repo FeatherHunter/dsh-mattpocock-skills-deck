@@ -42,7 +42,7 @@ async function readNativeDependencies(parsed: ParsedRepo, k: string, ctx: MemoCo
   const num = Number(k)
   if (!Number.isFinite(num)) return null
   const c = ghClient(ctx)
-  const args = ['api', 'graphql', '-f', 'query=' + DEPS_QUERY, '-F', 'owner=' + parsed.owner, '-F', 'name=' + parsed.name, '-F', 'number=' + String(num)]
+  const args = ['api', 'graphql', '-f', 'query=' + DEPS_QUERY, '-f', 'owner=' + parsed.owner, '-f', 'name=' + parsed.name, '-F', 'number=' + String(num)]
   const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'deps.gql' })
   if (!r.ok) return null
   let j: unknown

@@ -182,8 +182,8 @@ export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | u
       const args = [
         'api', 'graphql',
         '-f', `query=${labels.length ? LIST_PAGE_QUERY_WITH_LABELS : LIST_PAGE_QUERY}`,
-        '-F', `owner=${parsed.owner}`,
-        '-F', `name=${parsed.name}`,
+        '-f', `owner=${parsed.owner}`,
+        '-f', `name=${parsed.name}`,
         '-F', `first=${lim}`,
         '-F', `after=${cursor}`,
       ]

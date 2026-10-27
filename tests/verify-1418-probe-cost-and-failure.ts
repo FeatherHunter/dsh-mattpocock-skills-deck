@@ -203,6 +203,14 @@ const partA = async function (): Promise<void> {
     'A、GitHub 的 EXCESSIVE_PAGINATION 写法同样归不支持档')
   check(ghVerdictOf({ code: 1, text: 'HTTP 500: Internal Server Error' }).kind !== ERROR_KIND.UNSUPPORTED,
     'A、无关的 500 不被这条规则抢走（判据只认单页上限那句）')
+  // #1571：GraphQL 变量类型对不上的两句真原话（-F 把纯数字 owner 发成 JSON 数字）→ 解析档，
+  // 不许掉进兜底网络档；两句分别断言，将来只认一句也看得出来。
+  check(ghVerdictOf({ code: 1, text: 'gh: Variable $owner of type String! was provided invalid value' }).kind === ERROR_KIND.PARSE,
+    'A、变量类型不符的原文归解析档（#1571）')
+  check(ghVerdictOf({ code: 1, text: 'Could not coerce value 654970 to String' }).kind === ERROR_KIND.PARSE,
+    'A、值转不成 String 的原文归解析档（#1571）')
+  check(ghVerdictOf({ code: 1, text: 'Could not resolve to a Repository with the name \'nope/nope\'.' }).kind === ERROR_KIND.NOTFOUND,
+    'A、新规则不抢「解析不到仓库」的判档（顺序与归属没被破坏）')
 
   // A7. 连接上限只有一个真源：page.ts 的夹取值来自契约的分页表，不在房里另写一个数。
   const pageSrc = sourceText('src/tracker/rooms/github/page.ts')
