@@ -227,8 +227,13 @@ async function main() {
   check(bothBody.indexOf('## 维护者原话') > bothBody.indexOf('## 目的') && bothBody.indexOf('## 维护者原话') < bothBody.indexOf('## 进度'), '一起写时原话区仍在目的区后面、进度区之前')
 
   // ⑧ 整份正文改写（自带一级标题）不丢原话区：搬回来时按原位置放。
+  // 整段替换要带正文指纹（#1311 的正文指纹锁，docs/agents/issue-tracker.md 第 56 行）：先用
+  // body:'full' 读一次，把 data.body.digest 原样放进 bodyDigest，否则工具按「怕覆盖别人的改动」一个字不动地拒绝。
   const whole = '# 原话摆放票\n\n## 目的\n\n改写后的目的。\n\nStatus: open\n\n## Comments\n\n## Answer\n'
-  const w4 = await patchTool.run(execA, { key: cKey, body: whole })
+  const beforeWhole = await getTool.run(execA, { key: cKey, body: 'full' })
+  const wholeDigest = String((beforeWhole && beforeWhole.data && beforeWhole.data.body && beforeWhole.data.body.digest) || '')
+  check(wholeDigest !== '', '整段改写前先读到了正文指纹（body:full 回 data.body.digest）')
+  const w4 = await patchTool.run(execA, { key: cKey, body: whole, bodyDigest: wholeDigest })
   check(!!w4 && w4.status === 'ok', '整份正文改写回 ok（实得 ' + String(w4 && w4.status) + '，说明 ' + String((w4 && w4.text) || '').slice(0, 160) + '）')
   const g4 = await getTool.run(execA, { key: cKey })
   const body4 = String((g4.data && g4.data.ticket && g4.data.ticket.body) || '')
