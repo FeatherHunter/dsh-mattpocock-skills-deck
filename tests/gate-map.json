@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T05:44:01.973Z",
+  "generatedAt": "2026-10-27T05:59:27.313Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 403,
   "gateCount": 403,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 16,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 596,
+  "graphFileCount": 598,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -6902,6 +6902,7 @@
       "file": "tests/verify-github-gh-via.ts",
       "guards": [
         "src/refresh/rooms/host/outbound-control.ts",
+        "src/tracker/rooms/github/client-support.ts",
         "src/tracker/rooms/github/client.ts",
         "src/tracker/rooms/github/comment-paging.ts",
         "src/tracker/rooms/github/counts.ts",
@@ -6924,7 +6925,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 12 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 13 条"
     },
     {
       "step": "node tests/verify-github-label-colors.ts",
@@ -11274,9 +11275,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 617,
+    "fileCount": 619,
     "dirCount": 74,
-    "coveredFileCount": 617,
+    "coveredFileCount": 619,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11769,6 +11770,7 @@
       "src/tracker/detection/explicitDetector.ts",
       "src/tracker/detection/parseIssueTracker.ts",
       "src/tracker/detection/preflightScope.ts",
+      "src/tracker/detection/readEvidenceLayers.ts",
       "src/tracker/detection/selection-precedence.ts",
       "src/tracker/detection/workspaceStore.ts",
       "src/tracker/fix-contract.ts",
@@ -11793,6 +11795,7 @@
       "src/tracker/rooms/github/budget.ts",
       "src/tracker/rooms/github/capability-register.ts",
       "src/tracker/rooms/github/checks.ts",
+      "src/tracker/rooms/github/client-support.ts",
       "src/tracker/rooms/github/client.ts",
       "src/tracker/rooms/github/close-reason.ts",
       "src/tracker/rooms/github/comment-paging.ts",
