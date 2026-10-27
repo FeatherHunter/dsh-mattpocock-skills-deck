@@ -16,7 +16,7 @@ import { whenText } from '../data/format'
 import { buildPrototypeData } from '../data/screen'
 import type { PrototypeData } from '../data/screen'
 import { createSessionState, reduce } from '../domain/session'
-import type { Action, BranchSub, OpName, SessionBase, SessionState, WorktreePending } from '../domain/session'
+import type { Action, BranchSub, ChangesPendingKind, OpName, SessionBase, SessionState, StashPending, WorktreePending } from '../domain/session'
 import { buildHandoff } from '../domain/handoff'
 import type { HandoffKind } from '../domain/handoff'
 import { panelModelOf } from '../domain/select'
@@ -27,6 +27,7 @@ import { renderChanges } from './views/changes'
 import { renderBranches } from './views/branches'
 import { renderHandoffSheet } from './views/handoff'
 import { renderHistory } from './views/history'
+import { renderStash } from './views/stash'
 import { renderWorktrees } from './views/worktrees'
 import type { WorktreeFilter, WorktreesViewOptions } from './views/worktrees'
 
@@ -98,6 +99,10 @@ export function mount(root: HTMLElement): void {
   let handoffKind: HandoffKind | null = null
   let handoffFocus = ''
   let handoffCopied = false
+  // 提交行菜单与「撤销这次提交」的确认各记一个 oid：菜单开着、确认卡也开着时，
+  // 两者都只贴着那一行；切换视图或点别处就应该收起来。
+  let commitMenuOid: string | null = null
+  let commitConfirmOid: string | null = null
 
   const liveRegion = h('div', { class: 'sr-only', attrs: { 'aria-live': 'polite', role: 'status' } })
   root.append(liveRegion)
@@ -175,9 +180,11 @@ export function mount(root: HTMLElement): void {
     restoreFocus(options.focusKey ?? null, options.focusCaret ?? null)
     // 确认卡可能落在滚动区底部之外：先把它滚进可视区，读者才看得到「确认 / 取消」。
     // 用 block:'nearest' 只做最小滚动；卡片上方那一行通常已经露着一半，不必把整行顶到最上面。
-    const pendingCard = root.querySelector<HTMLElement>('.wt-confirm, .branch-confirm')
+    const pendingCard = root.querySelector<HTMLElement>('.wt-confirm, .branch-confirm, .changes-confirm, .commit-confirm, .stash-confirm')
     if (pendingCard !== null) pendingCard.scrollIntoView({ block: 'nearest' })
     positionPopconfirm()
+    positionBranchPop()
+    positionHandoff()
     scheduleResultDismiss()
     liveRegion.textContent = state.result === null ? '' : state.result.text
     options.post?.()
@@ -255,8 +262,11 @@ export function mount(root: HTMLElement): void {
     panel.append(renderRail(model.rail, railResult))
     panel.append(renderTabs(model))
     panel.append(h('main', { class: 'panel-body', attrs: { id: 'view-panel', role: 'tabpanel', 'aria-labelledby': `tab-${state.view}` } }, renderActiveView(model)))
+    // 分支浮层贴着顶部身份行的分支名展开，不再替换整页内容：
+    // 关掉之后原来那一页还在原位，读者不会丢失刚才在看的东西。
+    if (state.branchOpen) panel.append(renderBranchPopover(model))
     if (model.confirm !== null) panel.append(renderPopconfirm(model.confirm))
-    // 交接说明盖在面板最上层：它读的是整页状态，不能被页签或滚动区裁掉一半。
+    // 交接说明也改成浮层：贴在点开的入口旁边，高度由 positionHandoff() 按可用空间算。
     if (handoffKind !== null) {
       panel.append(renderHandoffSheet({
         draft: buildHandoff(data, handoffKind, Date.now(), handoffFocus),
@@ -304,12 +314,15 @@ export function mount(root: HTMLElement): void {
   }
 
   function renderActiveView(model: PanelModel): HTMLElement {
-    // 分支页是覆盖在当前视图上的一层，不占页签：它属于顶部身份「我在哪个分支」，不属于三个列表。
-    if (state.branchOpen) {
-      return renderBranches(model.branches, model.result !== null && model.result.source === 'branch' ? model.result : null)
-    }
     switch (state.view) {
-      case 'commits': return renderHistory(model.history)
+      case 'commits':
+        return renderHistory(model.history, {
+          result: model.result,
+          // 最新一条提交在列表最上面；菜单里「撤销这次提交」只对它开放。
+          headOid: model.history.rows[0] === undefined ? null : model.history.rows[0].oid,
+          menuOid: commitMenuOid,
+          confirmOid: commitConfirmOid,
+        })
       case 'worktrees': {
         const options: WorktreesViewOptions = {
           filter: wtFilter,
@@ -319,8 +332,67 @@ export function mount(root: HTMLElement): void {
         const result = model.result !== null && (model.result.source === 'ai' || model.result.source === 'worktree') ? model.result : null
         return renderWorktrees(model.worktrees, result, options)
       }
-      default: return renderChanges(model.changes, model.result !== null && model.result.source === 'commit' ? model.result : null)
+      case 'stash':
+        return renderStash(model.stash, model.result)
+      default:
+        return renderChanges(model.changes, model.result)
     }
+  }
+
+  /** 分支浮层：外壳只负责定位与标题，内容仍然是那份分支清单（列表 ↔ 详情 ↔ 表单）。 */
+  function renderBranchPopover(model: PanelModel): HTMLElement {
+    return h('div', {
+      class: 'branch-pop',
+      attrs: { role: 'dialog', 'aria-label': COPY.branches.listTitle },
+    }, renderBranches(model.branches, model.result !== null && model.result.source === 'branch' ? model.result : null))
+  }
+
+  /** 把分支浮层摆在顶部那枚分支按钮的正下方；下面放不下就翻到按钮上方，左右夹在面板内。 */
+  function positionBranchPop(): void {
+    const pop = root.querySelector<HTMLElement>('.branch-pop')
+    if (pop === null) return
+    const anchor = root.querySelector<HTMLElement>('[data-action="branch-open"]')
+    const panel = root.querySelector<HTMLElement>('.panel')
+    if (anchor === null || panel === null) return
+    const a = anchor.getBoundingClientRect()
+    const p = panel.getBoundingClientRect()
+    const width = pop.offsetWidth
+    const height = pop.offsetHeight
+    const left = Math.min(Math.max(a.left - p.left, 8), Math.max(8, p.width - width - 8))
+    let top = a.bottom - p.top + 8
+    if (top + height > p.height - 8) top = Math.max(8, a.top - p.top - height - 8)
+    pop.style.left = `${left}px`
+    pop.style.top = `${top}px`
+    pop.classList.add('is-placed')
+  }
+
+  /**
+   * 交接说明贴在点开的那个入口旁边：rail 的整行入口、改动页的「拿不准怎么拆提交」、
+   * 工作树页与分支页的入口都可能是触发点，按 data-kind 找到当前可见的那一个。
+   * 找不到触发点（例如深链直接打开）时退回面板中间偏上，仍然不铺满整屏。
+   */
+  function positionHandoff(): void {
+    const layer = root.querySelector<HTMLElement>('.handoff-layer.is-pop')
+    if (layer === null || handoffKind === null) return
+    const sheet = layer.querySelector<HTMLElement>('.handoff-sheet')
+    const panel = root.querySelector<HTMLElement>('.panel')
+    if (sheet === null || panel === null) return
+    const anchor = root.querySelector<HTMLElement>(`[data-action="handoff-open"][data-kind="${handoffKind}"]`)
+    const p = panel.getBoundingClientRect()
+    const width = sheet.offsetWidth
+    const height = sheet.offsetHeight
+    let left = Math.max(8, (p.width - width) / 2)
+    let top = Math.max(8, (p.height - height) / 3)
+    if (anchor !== null) {
+      const a = anchor.getBoundingClientRect()
+      left = Math.min(Math.max(a.left - p.left, 8), Math.max(8, p.width - width - 8))
+      top = a.bottom - p.top + 8
+      if (top + height > p.height - 8) top = Math.max(8, a.top - p.top - height - 8)
+    }
+    sheet.style.left = `${left}px`
+    sheet.style.top = `${top}px`
+    sheet.style.width = `${Math.min(440, p.width - 16)}px`
+    layer.classList.add('is-placed')
   }
 
   /**
@@ -430,15 +502,27 @@ export function mount(root: HTMLElement): void {
     dispatch({ type: 'copy', path }, { focusKey: lastFocusKey })
   }
 
+  /** 关掉所有「只属于本次浏览」的浮层：切页签时不该把它们带到新页面上。 */
+  function closeTransientPanels(): void {
+    if (state.openMenuPath !== null) state = reduce(state, { type: 'changes-open-menu', path: null }, base)
+    if (state.changesPending !== null) state = reduce(state, { type: 'changes-pending', pending: null }, base)
+    if (state.stashPending !== null) state = reduce(state, { type: 'stash-pending', pending: null }, base)
+    commitMenuOid = null
+    commitConfirmOid = null
+  }
+
   /** 交接说明里「界面停在」那一行：只写读者关心的位置，不写控件名。 */
   function focusText(model: PanelModel): string {
-    if (state.branchOpen) return '分支页，正在本地分支清单里'
+    if (state.branchOpen) return '分支浮层，正在本地分支清单里'
     if (state.view === 'commits') {
       const detail = model.history.detail
       return detail === null ? '提交历史视图的列表' : `提交历史视图，正在看提交 ${detail.short} 的详情`
     }
     if (state.view === 'worktrees') {
       return `工作树视图，筛选是${wtFilter === 'all' ? '全部' : '只看需要处理'}`
+    }
+    if (state.view === 'stash') {
+      return `贮藏视图，列表里有 ${model.stash.total} 条记录`
     }
     const filter = state.changesFilter
     const filterLabel = filter === 'conflict' ? '只看冲突' : filter === 'staged' ? '只看已暂存' : filter === 'unstaged' ? '只看未暂存' : '全部'
@@ -483,11 +567,12 @@ export function mount(root: HTMLElement): void {
       }
       case 'tab': {
         const view = el.dataset.view
-        if (view !== 'changes' && view !== 'commits' && view !== 'worktrees') return
-        // 分支页是覆盖层：点页签意味着离开它，先关掉再切视图，避免分支页留在新页签上。
+        if (view !== 'changes' && view !== 'commits' && view !== 'worktrees' && view !== 'stash') return
+        // 分支浮层是覆盖层：点页签意味着离开它，先关掉再切视图，避免浮层留在新页签上面。
         if (state.branchOpen) {
           state = reduce(state, { type: 'branch-close' }, base)
         }
+        closeTransientPanels()
         if (state.view === view) {
           repaint({ focusKey: `tab-${view}`, scroll: null })
           return
@@ -546,6 +631,89 @@ export function mount(root: HTMLElement): void {
       case 'commit': {
         if (model.changes.composer.disabled) return
         runOp('commit')
+        return
+      }
+      case 'changes-open-menu': {
+        const path = el.dataset.path ?? ''
+        const open = state.openMenuPath === path
+        dispatch({ type: 'changes-open-menu', path: open ? null : path }, { focusKey: `row-more:${path}` })
+        return
+      }
+      case 'changes-pending': {
+        const kind = el.dataset.kind
+        if (kind !== 'discard' && kind !== 'discard-all' && kind !== 'ignore' && kind !== 'delete-untracked' && kind !== 'resolve-ours' && kind !== 'resolve-theirs') return
+        const pendingKind: ChangesPendingKind = kind
+        const path = el.dataset.path ?? null
+        dispatch({ type: 'changes-pending', pending: { kind: pendingKind, path } }, { focusKey: 'changes-cancel', scroll: null })
+        return
+      }
+      case 'changes-pending-cancel':
+        dispatch({ type: 'changes-pending', pending: null }, { focusKey: lastFocusKey, scroll: null })
+        return
+      case 'changes-apply':
+        dispatch({ type: 'changes-apply' }, { focusKey: lastFocusKey, scroll: null })
+        return
+      case 'stash-create':
+        dispatch({ type: 'stash-create' }, { focusKey: 'composer-links', scroll: null })
+        return
+      case 'stash-apply':
+      case 'stash-pop': {
+        const id = el.dataset.id ?? ''
+        dispatch({ type: action, id }, { focusKey: `stash-${action === 'stash-apply' ? 'apply' : 'pop'}:${id}`, scroll: null })
+        return
+      }
+      case 'stash-pending': {
+        const pending: StashPending = { kind: 'drop', id: el.dataset.id ?? '' }
+        dispatch({ type: 'stash-pending', pending }, { focusKey: 'stash-cancel', scroll: null })
+        return
+      }
+      case 'stash-pending-cancel':
+        dispatch({ type: 'stash-pending', pending: null }, { focusKey: lastFocusKey, scroll: null })
+        return
+      case 'stash-drop':
+        dispatch({ type: 'stash-drop', id: el.dataset.id ?? '' }, { focusKey: 'tab-stash', scroll: null })
+        return
+      case 'commit-menu': {
+        const oid = el.dataset.oid ?? ''
+        const open = commitMenuOid === oid && commitConfirmOid === null
+        commitMenuOid = open ? null : oid
+        commitConfirmOid = null
+        repaint({ focusKey: `commit-more:${oid}` })
+        return
+      }
+      case 'commit-menu-close':
+        commitMenuOid = null
+        commitConfirmOid = null
+        repaint({ focusKey: lastFocusKey })
+        return
+      case 'commit-undo-start': {
+        const oid = el.dataset.oid ?? ''
+        commitMenuOid = oid
+        commitConfirmOid = oid
+        repaint({ focusKey: 'commit-cancel' })
+        return
+      }
+      case 'commit-undo': {
+        const oid = el.dataset.oid ?? ''
+        commitMenuOid = null
+        commitConfirmOid = null
+        dispatch({ type: 'commit-undo', oid }, { focusKey: 'tab-commits', scroll: null })
+        return
+      }
+      case 'commit-revert':
+      case 'commit-cherry-pick': {
+        const oid = el.dataset.oid ?? ''
+        commitMenuOid = null
+        commitConfirmOid = null
+        dispatch({ type: action, oid }, { focusKey: `commit:${oid}`, scroll: null })
+        return
+      }
+      case 'copy-oid': {
+        const oid = el.dataset.oid ?? ''
+        commitMenuOid = null
+        commitConfirmOid = null
+        void copyPath(oid)
+        repaint({ focusKey: 'tab-commits' })
         return
       }
       case 'history-open': {
@@ -660,6 +828,12 @@ export function mount(root: HTMLElement): void {
       case 'branch-delete-confirm':
         dispatch({ type: 'branch-delete', name: el.dataset.name ?? '' }, { focusKey: 'branch-back', scroll: null })
         return
+      case 'branch-rebase-start':
+        dispatch({ type: 'branch-pending', pending: { kind: 'rebase', name: el.dataset.name ?? '' } }, { focusKey: 'branch-cancel', scroll: null })
+        return
+      case 'branch-rebase-confirm':
+        dispatch({ type: 'branch-rebase', name: el.dataset.name ?? '' }, { focusKey: 'branch-back', scroll: null })
+        return
       case 'branch-pending-cancel':
         dispatch({ type: 'branch-pending', pending: null }, { focusKey: 'branch-back', scroll: null })
         return
@@ -758,6 +932,23 @@ export function mount(root: HTMLElement): void {
       repaint({ focusKey: `handoff-${previous}` })
       return
     }
+    if (event.key === 'Escape' && state.changesPending !== null) {
+      event.preventDefault()
+      dispatch({ type: 'changes-pending', pending: null }, { focusKey: lastFocusKey })
+      return
+    }
+    if (event.key === 'Escape' && state.stashPending !== null) {
+      event.preventDefault()
+      dispatch({ type: 'stash-pending', pending: null }, { focusKey: lastFocusKey })
+      return
+    }
+    if (event.key === 'Escape' && (commitMenuOid !== null || commitConfirmOid !== null)) {
+      event.preventDefault()
+      commitMenuOid = null
+      commitConfirmOid = null
+      repaint({ focusKey: 'tab-commits' })
+      return
+    }
     if (event.key === 'Escape' && state.branchPending !== null) {
       event.preventDefault()
       dispatch({ type: 'branch-pending', pending: null }, { focusKey: 'branch-back' })
@@ -796,7 +987,7 @@ export function mount(root: HTMLElement): void {
       const nextIndex = event.key === 'ArrowRight' ? (index + 1) % tabs.length : (index - 1 + tabs.length) % tabs.length
       const nextTab = tabs[nextIndex]
       const view = nextTab.dataset.view
-      if (view === 'changes' || view === 'commits' || view === 'worktrees') {
+      if (view === 'changes' || view === 'commits' || view === 'worktrees' || view === 'stash') {
         dispatch({ type: 'view', view }, { focusKey: `tab-${view}`, scroll: null })
       }
     }
@@ -805,12 +996,25 @@ export function mount(root: HTMLElement): void {
   root.addEventListener('click', onClick)
   root.addEventListener('input', onChange)
   root.addEventListener('keydown', onKeyDown)
-  // 浮层之外的任何点击都收起拉取提醒；点「拉取」按钮本身不在这里收，交给 onClick 的开关逻辑。
+  // 浮层之外的任何点击都收起贴着的浮层；点触发按钮本身不在这里收，交给 onClick 的开关逻辑。
+  // 顺序上先处理「拉取提醒」，再处理分支浮层与行内菜单，避免一次点击只收起其中一层。
   document.addEventListener('click', (event) => {
-    if (state.confirmPull === null) return
     const target = event.target
-    if (target instanceof Element && (target.closest('.popconfirm') !== null || target.closest('[data-action="pull"]') !== null)) return
-    dispatch({ type: 'pull-confirm-close' }, { focusKey: 'pull' })
+    if (!(target instanceof Element)) return
+    if (state.confirmPull !== null && target.closest('.popconfirm') === null && target.closest('[data-action="pull"]') === null) {
+      dispatch({ type: 'pull-confirm-close' }, { focusKey: 'pull' })
+    }
+    if (state.branchOpen && target.closest('.branch-pop') === null && target.closest('[data-action="branch-open"]') === null) {
+      state = reduce(state, { type: 'branch-close' }, base)
+      repaint({ focusKey: 'branch-open' })
+    }
+    const insideTransient = target.closest('.row-menu, .row-more, .row-act, .commit-menu, .commit-more, .changes-confirm, .commit-confirm') !== null
+    if (!insideTransient && (commitMenuOid !== null || commitConfirmOid !== null || state.openMenuPath !== null)) {
+      commitMenuOid = null
+      commitConfirmOid = null
+      if (state.openMenuPath !== null) state = reduce(state, { type: 'changes-open-menu', path: null }, base)
+      repaint({ focusKey: lastFocusKey })
+    }
   })
   root.addEventListener('focusin', (event) => {
     const target = event.target
@@ -851,8 +1055,28 @@ export function mount(root: HTMLElement): void {
       }
     }
     const view = params.get('view')
-    if (view === 'changes' || view === 'commits' || view === 'worktrees') {
+    if (view === 'changes' || view === 'commits' || view === 'worktrees' || view === 'stash') {
       state = reduce(state, { type: 'view', view }, base)
+    }
+    // 改动行的「更多」菜单与它下面的确认卡也留深链：评审要截「丢弃前先问一句」时不用先展开再点。
+    const menuPath = params.get('menu')
+    if (menuPath !== null && menuPath !== '') {
+      state = reduce(state, { type: 'changes-open-menu', path: menuPath }, base)
+    }
+    const changePending = params.get('cpending')
+    if (changePending === 'discard' || changePending === 'discard-all' || changePending === 'ignore' || changePending === 'delete-untracked' || changePending === 'resolve-ours' || changePending === 'resolve-theirs') {
+      state = reduce(state, { type: 'changes-pending', pending: { kind: changePending, path: params.get('cpath') ?? null } }, base)
+    }
+    // 提交行的菜单与撤销确认：oid 由评审从页面上抄，深链不替他们猜。
+    const commitMenu = params.get('commitmenu')
+    if (commitMenu !== null && commitMenu !== '') commitMenuOid = commitMenu
+    if (params.get('commitconfirm') === '1' && commitMenuOid !== null) commitConfirmOid = commitMenuOid
+    // 贮藏记录用一条演示数据起底：真实仓库里没有贮藏，也要能截到「应用 / 弹出 / 丢弃」这一页。
+    if (params.get('stashdemo') === '1') state = reduce(state, { type: 'stash-create' }, base)
+    const stashPending = params.get('stashpending')
+    if (stashPending === 'drop') {
+      const stashId = params.get('stashid') ?? 'stash@{0}'
+      state = reduce(state, { type: 'stash-pending', pending: { kind: 'drop', id: stashId } }, base)
     }
     // 分支页是覆盖层，放在视图之后应用：?branches=1&view=worktrees 表示「工作树页盖着分支页」。
     if (params.get('branches') === '1') state = reduce(state, { type: 'branch-open' }, base)
@@ -865,7 +1089,7 @@ export function mount(root: HTMLElement): void {
     const branchDraft = params.get('bdraft')
     if (branchDraft !== null && branchDraft !== '') state = reduce(state, { type: 'branch-draft', value: branchDraft }, base)
     const branchPendingParam = params.get('bpending')
-    if (branchPendingParam === 'delete' || branchPendingParam === 'switch') {
+    if (branchPendingParam === 'delete' || branchPendingParam === 'switch' || branchPendingParam === 'rebase') {
       const selected = state.branchSelected
       if (selected !== null) {
         state = reduce(state, { type: 'branch-pending', pending: { kind: branchPendingParam, name: selected } }, base)

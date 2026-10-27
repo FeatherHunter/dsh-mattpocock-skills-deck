@@ -1640,4 +1640,251 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   .rail-path { display: none; }
 }
 
+/* ============================================================
+   就近交互（2026-10-28）：行内菜单、行内确认、贴着入口的浮层
+   规则只有一条：谁触发，谁旁边出现；不跳到页面另一头，也不铺满整屏。
+   ============================================================ */
+
+/* ---------- 改动页：行尾「更多」、贴行菜单、贴行确认 ---------- */
+.file-row.is-pending { background: color-mix(in srgb, var(--warn-soft) 30%, transparent); }
+
+.row-act.row-more {
+  min-width: 20px;
+  padding: 0 4px;
+  color: var(--faint);
+  letter-spacing: 0.08em;
+}
+
+.row-act.row-more.is-open,
+.row-act.row-more:hover { color: var(--ink); background: var(--hover); }
+
+.row-more-dots { font-size: 13px; line-height: 1; }
+
+.row-menu,
+.commit-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 12px 8px 30px;
+  padding: 4px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 10px 26px -18px rgba(8, 12, 20, 0.55);
+}
+
+.row-menu-item {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 10.5px;
+  line-height: 1.5;
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.row-menu-item:hover { background: var(--hover); }
+.row-menu-item.is-danger { color: var(--danger); }
+.row-menu-item.is-close { color: var(--faint); }
+.row-menu-item:disabled { color: var(--faint); cursor: not-allowed; }
+
+.changes-confirm,
+.commit-confirm,
+.stash-confirm {
+  margin: 2px 12px 10px 30px;
+  padding: 9px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+}
+
+.changes-confirm.is-warn,
+.commit-confirm,
+.stash-confirm.is-warn {
+  border-color: color-mix(in srgb, var(--warn) 50%, var(--line-2));
+  background: color-mix(in srgb, var(--warn-soft) 45%, var(--panel));
+}
+
+.changes-confirm.is-danger,
+.stash-confirm {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line-2));
+  background: color-mix(in srgb, var(--danger-soft) 45%, var(--panel));
+}
+
+.changes-confirm-title,
+.commit-confirm-title,
+.stash-confirm-title {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.changes-confirm-body,
+.commit-confirm-body,
+.commit-confirm-note,
+.stash-confirm-body {
+  margin: 4px 0 0;
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--mut);
+}
+
+.commit-confirm-note { color: var(--faint); }
+
+.changes-confirm-meta {
+  margin: 4px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--faint);
+}
+
+.changes-confirm-actions,
+.commit-confirm-actions,
+.stash-confirm-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.changes-note { padding: 6px 12px 2px; }
+.changes-note .note { margin: 0; }
+
+.composer-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ---------- 提交历史：行尾「更多」、贴行菜单、撤销确认 ---------- */
+.commit-line-wrap { position: relative; }
+.commit-line { display: flex; align-items: stretch; gap: 2px; }
+.commit-line .commit-row { flex: 1; min-width: 0; }
+
+.commit-more {
+  flex: none;
+  align-self: stretch;
+  width: 22px;
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+  font-size: 13px;
+  line-height: 1;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.commit-more:hover,
+.commit-more.is-open { color: var(--ink); background: var(--hover); }
+
+.commit-menu { margin-left: 26px; margin-right: 6px; }
+.commit-confirm { margin-left: 26px; margin-right: 6px; }
+
+/* ---------- 贮藏页签 ---------- */
+.stash-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 12px 4px;
+}
+
+.stash-title { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.stash-count { margin: 0; font-size: 10px; color: var(--faint); }
+.view-stash > .note { margin: 0 12px 8px; }
+
+.stash-scroll { flex: 1; min-height: 0; overflow: auto; padding: 2px 6px 14px; }
+
+.stash-row-wrap { border-bottom: 1px solid var(--line); padding: 9px 6px 10px; }
+.stash-row { display: flex; align-items: flex-start; gap: 8px; }
+.stash-main { flex: 1; min-width: 0; }
+
+.stash-id-line { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.stash-id { font-size: 10px; color: var(--info); flex: none; }
+.stash-message {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stash-meta { margin-top: 3px; font-size: 10px; color: var(--faint); }
+
+.stash-actions { display: flex; align-items: center; gap: 4px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+
+.stash-paths {
+  margin: 7px 0 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--line) 45%, transparent);
+}
+.stash-paths-note { margin: 0 0 4px; font-size: 9.5px; line-height: 1.5; color: var(--faint); }
+.stash-path-list { margin: 0; padding-left: 14px; display: flex; flex-direction: column; gap: 2px; }
+.stash-path { font-size: 9.5px; color: var(--mut); word-break: break-all; }
+.stash-confirm.is-warn { border-color: color-mix(in srgb, var(--warn) 50%, var(--line-2)); background: color-mix(in srgb, var(--warn-soft) 45%, var(--panel)); }
+
+/* ---------- 分支浮层：贴着顶部身份行的分支名 ---------- */
+.branch-pop {
+  position: absolute;
+  z-index: 28;
+  display: flex;
+  flex-direction: column;
+  width: min(440px, calc(100% - 16px));
+  max-height: 66%;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  box-shadow: 0 20px 44px -24px rgba(8, 12, 20, 0.6);
+  visibility: hidden;
+}
+
+.branch-pop.is-placed { visibility: visible; }
+.branch-pop .view-branches { min-height: 0; }
+.branch-pop .branch-head { padding-top: 8px; }
+
+/* ---------- 交接浮层：贴着点开的入口 ---------- */
+.handoff-layer.is-pop { display: block; }
+.handoff-layer.is-pop .handoff-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 10, 14, 0.18);
+}
+
+.handoff-sheet.is-pop {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 1;
+  width: 100%;
+  max-height: 70%;
+  margin: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  box-shadow: 0 22px 48px -26px rgba(8, 12, 20, 0.65);
+  visibility: hidden;
+}
+
+.handoff-layer.is-placed .handoff-sheet.is-pop { visibility: visible; }
+.handoff-layer.is-pop .handoff-prompt { max-height: 40vh; overflow: auto; }
+
+/* 窄面板：行内菜单与确认卡不再缩进，把宽度留给文字。 */
+@container panel (max-width: 359px) {
+  .row-menu,
+  .commit-menu,
+  .changes-confirm,
+  .commit-confirm,
+  .stash-confirm { margin-left: 8px; margin-right: 8px; }
+  .stash-row { flex-direction: column; }
+  .stash-actions { justify-content: flex-start; }
+}
+
+
 

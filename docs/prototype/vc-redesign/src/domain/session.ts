@@ -16,10 +16,10 @@
  */
 
 /** 结果出现的位置：这是「结果不能堆在页面底部」的具体落点。 */
-export type ResultSource = 'sync' | 'reload' | 'commit' | 'copy' | 'ai' | 'branch' | 'worktree'
+export type ResultSource = 'sync' | 'reload' | 'commit' | 'copy' | 'ai' | 'branch' | 'worktree' | 'changes' | 'stash' | 'history'
 /** 结果与「下一步」提示的四种语气；muted 表示没有紧迫性，不改变颜色语义。 */
 export type Tone = 'ok' | 'warn' | 'error' | 'info' | 'muted'
-export type ViewId = 'changes' | 'commits' | 'worktrees'
+export type ViewId = 'changes' | 'commits' | 'worktrees' | 'stash'
 export type OpName = 'commit' | 'pull' | 'push' | 'fetch'
 export type ChangesFilter = 'all' | 'conflict' | 'staged' | 'unstaged'
 
@@ -62,9 +62,9 @@ export interface BranchRow {
 /** 分支页的三种二级形态：列表、单条详情、新建与重命名共用的输入表单。 */
 export type BranchSub = 'list' | 'detail' | 'create' | 'rename'
 
-/** 需要二次确认的分支动作：删除与「工作区有改动时仍要切换」。 */
+/** 需要二次确认的分支动作：删除、变基，以及「工作区有改动时仍要切换」。 */
 export interface BranchPending {
-  kind: 'delete' | 'switch'
+  kind: 'delete' | 'switch' | 'rebase'
   name: string
 }
 
@@ -73,6 +73,36 @@ export interface WorktreePending {
   kind: 'unlock' | 'prune' | 'remove'
   path: string
   name: string
+}
+
+/**
+ * 一条贮藏记录：git stash 会把「工作区与暂存区此刻的样子」打包成一条记录。
+ * paths 存的是被打包的文件路径，应用时原样放回工作区；原型不保存文件内容。
+ */
+export interface StashEntry {
+  id: string
+  message: string
+  whenMs: number
+  paths: string[]
+}
+
+/** 贮藏动作里唯一需要二次确认的是丢弃：弹出与应用都还能从历史里找回。 */
+export interface StashPending {
+  kind: 'drop'
+  id: string
+}
+
+/**
+ * 改动行上需要二次确认的动作。
+ * 为什么放在状态里而不是视图里：确认卡开着的时候，列表的其它操作应当不可点，
+ * 这条判定必须和「点击会不会生效」用同一份状态，不能视图自己记一个变量。
+ */
+export type ChangesPendingKind = 'discard' | 'discard-all' | 'ignore' | 'delete-untracked' | 'resolve-ours' | 'resolve-theirs'
+
+export interface ChangesPending {
+  kind: ChangesPendingKind
+  /** 单文件动作记路径；批量动作（丢弃全部）为 null。 */
+  path: string | null
 }
 
 export interface SessionState {
@@ -111,6 +141,17 @@ export interface SessionState {
   hiddenWorktrees: string[]
   unlockedWorktrees: string[]
   prunedWorktrees: string[]
+  /** 改动行的危险动作确认：丢弃、加入忽略、删除未跟踪文件、解决冲突。 */
+  changesPending: ChangesPending | null
+  /** 哪一行的「更多」菜单被点开了：菜单紧贴这一行画，不再另开一层页面。 */
+  openMenuPath: string | null
+  /** 原型里「已经加入 .gitignore」的文件：接回宿主后它们会在下一次读取时从列表消失。 */
+  ignored: string[]
+  /** 贮藏清单：按 git stash 的顺序，最近一条在最前面。 */
+  stashes: StashEntry[]
+  stashPending: StashPending | null
+  /** 被「撤销这次提交」撤掉的那条提交：从历史里暂时隐去，改动回到暂存区。 */
+  undoneOid: string | null
 }
 
 /**
@@ -167,6 +208,19 @@ export type Action =
   | { type: 'branch-delete'; name: string }
   | { type: 'wt-pending'; pending: WorktreePending | null }
   | { type: 'wt-apply' }
+  | { type: 'changes-pending'; pending: ChangesPending | null }
+  | { type: 'changes-apply' }
+  | { type: 'changes-open-menu'; path: string | null }
+  | { type: 'demo-conflicts' }
+  | { type: 'stash-create' }
+  | { type: 'stash-apply'; id: string }
+  | { type: 'stash-pop'; id: string }
+  | { type: 'stash-pending'; pending: StashPending | null }
+  | { type: 'stash-drop'; id: string }
+  | { type: 'commit-undo'; oid: string }
+  | { type: 'commit-revert'; oid: string }
+  | { type: 'commit-cherry-pick'; oid: string }
+  | { type: 'branch-rebase'; name: string }
 
 /** 初始状态：全部从真实首屏读数派生，不在原型里另编一套计数。 */
 export function createSessionState(base: SessionBase, nowMs: number): SessionState {
@@ -221,6 +275,12 @@ export function createSessionState(base: SessionBase, nowMs: number): SessionSta
     hiddenWorktrees: [],
     unlockedWorktrees: [],
     prunedWorktrees: [],
+    changesPending: null,
+    openMenuPath: null,
+    ignored: [],
+    stashes: [],
+    stashPending: null,
+    undoneOid: null,
   }
 }
 
@@ -449,6 +509,90 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         hiddenWorktrees: hidden,
       }, { tone: 'ok', text: `已移除工作树：${pending.name}。`, detail: '分支与提交都还在仓库里；这一步只删掉了检出记录与工作目录。', source: 'worktree' })
     }
+    case 'changes-pending':
+      return { ...state, changesPending: action.pending, openMenuPath: null }
+    case 'changes-open-menu':
+      return { ...state, openMenuPath: action.path, changesPending: null }
+    case 'changes-apply': {
+      const pending = state.changesPending
+      if (pending === null) return state
+      const cleared: SessionState = { ...state, changesPending: null }
+      const path = pending.path
+      const name = path === null ? '' : nameOfPath(path)
+      switch (pending.kind) {
+        case 'discard': {
+          if (path === null || !state.unstaged.includes(path)) return cleared
+          const lines = changeSummary(base, path)
+          return withResult({
+            ...cleared,
+            unstaged: state.unstaged.filter((item) => item !== path),
+          }, {
+            tone: 'warn',
+            text: `已丢弃 ${name} 的未暂存改动。`,
+            detail: lines === '' ? '文件回到上一次提交时的内容；面板不能撤回这一步。' : `文件回到上一次提交时的内容，${lines} 一起丢掉了；面板不能撤回这一步。`,
+            source: 'changes',
+          })
+        }
+        case 'discard-all': {
+          const count = state.unstaged.length
+          if (count === 0) return cleared
+          return withResult({ ...cleared, unstaged: [] }, {
+            tone: 'warn',
+            text: `已丢弃 ${count} 个文件的未暂存改动。`,
+            detail: '这些文件都回到上一次提交时的内容；面板不能撤回这一步。',
+            source: 'changes',
+          })
+        }
+        case 'ignore': {
+          if (path === null || !state.unstaged.includes(path)) return cleared
+          return withResult({
+            ...cleared,
+            unstaged: state.unstaged.filter((item) => item !== path),
+            ignored: unique([...state.ignored, path]),
+          }, {
+            tone: 'info',
+            text: `已把 ${name} 加入 .gitignore。`,
+            detail: '文件仍然留在磁盘上，git 从下一次读取起不再跟踪它；已经提交进历史的内容不受影响。原型不会真的改 .gitignore。',
+            source: 'changes',
+          })
+        }
+        case 'delete-untracked': {
+          if (path === null || !state.unstaged.includes(path)) return cleared
+          return withResult({
+            ...cleared,
+            unstaged: state.unstaged.filter((item) => item !== path),
+          }, {
+            tone: 'warn',
+            text: `已删除未跟踪文件 ${name}。`,
+            detail: '它从来没有进过 git 历史，删除以后没有任何地方能找回。原型不会真的删磁盘上的文件。',
+            source: 'changes',
+          })
+        }
+        case 'resolve-ours':
+        case 'resolve-theirs': {
+          if (path === null || !state.conflicts.includes(path)) return cleared
+          const conflicts = state.conflicts.filter((item) => item !== path)
+          const side = pending.kind === 'resolve-ours' ? '当前分支' : '对方'
+          return withResult({
+            ...cleared,
+            conflicts,
+            staged: unique([...state.staged, path]),
+          }, {
+            tone: 'ok',
+            text: `已按${side}的版本解决 ${name}，文件已暂存。`,
+            detail: conflicts.length === 0
+              ? '冲突已经全部解决，现在可以提交这次合并的结果。'
+              : `还有 ${conflicts.length} 个冲突文件没有解决。`,
+            source: 'changes',
+          })
+        }
+        default:
+          return cleared
+      }
+    }
+    case 'demo-conflicts':
+      // 演示数据：真实仓库此刻没有冲突，评审要评「冲突怎么就地解决」时用它造两行。
+      return { ...state, conflicts: unique([...state.conflicts, 'src/client/views/versionControl/vcWriteView.ts', 'src/shared/version-control/src/rules.ts']) }
     case 'branch-open':
       return { ...state, branchOpen: true, branchSub: 'list', branchSelected: null, branchDraft: '', branchPending: null }
     case 'branch-close':
@@ -561,6 +705,156 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         branchPending: null,
       }, { tone: 'ok', text: `已删除分支 ${action.name}。`, detail: '只删了本地记录；如果远端还有这条分支，它不受影响。', source: 'branch' })
     }
+    case 'branch-rebase': {
+      if (state.busy !== null || state.reloading) return state
+      const target = state.branches.find((row) => row.name === action.name)
+      const current = state.branches.find((row) => row.current)
+      if (target === undefined || current === undefined || target.current) {
+        return withResult(state, { tone: 'error', text: '不能把当前分支变基到它自己。', detail: null, source: 'branch' })
+      }
+      return withResult({
+        ...state,
+        branches: state.branches.map((row) => (row.name === target.name ? { ...row, mergedIntoCurrent: true } : row)),
+        branchSub: 'list',
+        branchSelected: null,
+      }, {
+        tone: 'warn',
+        text: `已把 ${current.name} 变基到 ${target.name} 上。`,
+        detail: '本地历史被重写成「先放对方分支，再接上自己的提交」；提交号变了，如果这条分支已经推送过，远端需要强推才能对齐。原型只演示结果与状态变化，不改写真实历史。',
+        source: 'branch',
+      })
+    }
+    case 'stash-create': {
+      if (state.busy !== null || state.reloading) return state
+      if (state.conflicts.length > 0) {
+        return withResult(state, { tone: 'error', text: '有冲突文件时不能贮藏。', detail: '贮藏会把工作树恢复成上次提交时的样子，冲突文件没有可以安全恢复的版本；先解决冲突，再贮藏剩下的改动。', source: 'changes' })
+      }
+      const paths = unique([...state.staged, ...state.unstaged])
+      if (paths.length === 0) {
+        return withResult(state, { tone: 'info', text: '工作区是干净的，没有可贮藏的改动。', detail: null, source: 'changes' })
+      }
+      const branchName = state.branches.find((row) => row.current)?.name ?? base.branch ?? 'detached'
+      const message = state.message.trim() === '' ? `WIP on ${branchName}` : state.message.trim()
+      const entry: StashEntry = {
+        id: `stash@{${state.stashes.length}}`,
+        message,
+        whenMs: Date.now(),
+        paths,
+      }
+      return withResult({
+        ...state,
+        stashes: [entry, ...state.stashes],
+        staged: [],
+        unstaged: [],
+        message: '',
+      }, {
+        tone: 'ok',
+        text: `已贮藏 ${paths.length} 个文件的改动。`,
+        detail: `贮藏记录 ${entry.id} 里放着这些文件；工作区与暂存区都恢复成上次提交时的样子，应用或弹出都能把它拿回来。`,
+        source: 'changes',
+      })
+    }
+    case 'stash-apply':
+    case 'stash-pop': {
+      if (state.busy !== null || state.reloading) return state
+      const entry = state.stashes.find((row) => row.id === action.id)
+      if (entry === undefined) return state
+      const restored = entry.paths.filter((path) => !state.conflicts.includes(path))
+      const before = state.stashes.length
+      const stashes = action.type === 'stash-pop' ? state.stashes.filter((row) => row.id !== action.id) : state.stashes
+      return withResult({
+        ...state,
+        stashes,
+        unstaged: unique([...state.unstaged, ...restored]),
+        stashPending: null,
+      }, {
+        tone: 'ok',
+        text: action.type === 'stash-pop' ? `已弹出 ${entry.id}，${restored.length} 个文件回到工作区。` : `已应用 ${entry.id}，${restored.length} 个文件回到工作区。`,
+        detail: action.type === 'stash-pop'
+          ? `弹出等于「应用 + 删除」：这条贮藏已经从清单里移除（原来 ${before} 条）。改动现在在未暂存区，需要重新暂存再提交。`
+          : `应用只把改动放回工作区，贮藏记录仍然保留在清单里（${before} 条），可以再应用一次或随后丢弃。`,
+        source: 'stash',
+      })
+    }
+    case 'stash-pending':
+      return { ...state, stashPending: action.pending }
+    case 'stash-drop': {
+      if (state.busy !== null || state.reloading) return state
+      const entry = state.stashes.find((row) => row.id === action.id)
+      if (entry === undefined) return { ...state, stashPending: null }
+      return withResult({
+        ...state,
+        stashes: state.stashes.filter((row) => row.id !== action.id),
+        stashPending: null,
+      }, {
+        tone: 'warn',
+        text: `已丢弃贮藏记录 ${entry.id}。`,
+        detail: `记录里那 ${entry.paths.length} 个文件当时的样子已经不存在；这一步不能撤回。`,
+        source: 'stash',
+      })
+    }
+    case 'commit-undo': {
+      if (state.busy !== null || state.reloading) return state
+      const localHead = state.localCommits[0] ?? null
+      const capturedHead = base.screen.commits[0]
+      const headOid = localHead !== null ? localHead.oid : capturedHead?.oid ?? null
+      if (headOid === null || action.oid !== headOid) {
+        return withResult(state, {
+          tone: 'error',
+          text: '只能撤销最新一条提交。',
+          detail: '撤销会把提交里的改动放回暂存区、并让分支退一步；选择更早的提交就得改写它后面的历史，原型不做这一步。',
+          source: 'history',
+        })
+      }
+      const files = localHead !== null
+        ? localHead.files.map((file) => file.path)
+        : (base.commitFiles.get(action.oid) ?? []).map((file) => file.path)
+      const subject = localHead !== null ? localHead.subject : capturedHead?.subject ?? ''
+      const pushed = state.ahead === 0
+      return withResult({
+        ...state,
+        localCommits: localHead !== null ? state.localCommits.slice(1) : state.localCommits,
+        undoneOid: localHead !== null ? state.undoneOid : action.oid,
+        staged: unique([...state.staged, ...files]),
+        message: state.message.trim() === '' ? subject : state.message,
+        ahead: pushed ? state.ahead : Math.max(0, state.ahead - 1),
+        behind: pushed ? state.behind + 1 : state.behind,
+      }, {
+        tone: 'warn',
+        text: `已撤销提交 ${subject === '' ? action.oid.slice(0, 7) : subject}。`,
+        detail: pushed
+          ? `提交里的 ${files.length} 个文件回到暂存区，提交说明留在输入框里；这条提交已经推送过，所以本地现在比远端各少一步，需要重新提交后再推送。`
+          : `提交里的 ${files.length} 个文件回到暂存区，提交说明留在输入框里；可以改完再重新提交。`,
+        source: 'history',
+      })
+    }
+    case 'commit-revert': {
+      if (state.busy !== null || state.reloading) return state
+      const entry = state.localCommits.find((row) => row.oid === action.oid)
+        ?? base.screen.commits.find((row) => row.oid === action.oid)
+      if (entry === undefined) return state
+      return withResult({ ...state, ahead: state.ahead + 1 }, {
+        tone: 'ok',
+        text: `已生成一次反向提交，抵消「${entry.subject}」。`,
+        detail: '回退不是删除历史：原提交还在，后面多了一笔把它的改动撤回去的新提交。这笔新提交还没有推送；如果和别的分支冲突，需要先解决冲突。原型不真的写历史。',
+        source: 'history',
+      })
+    }
+    case 'commit-cherry-pick': {
+      if (state.busy !== null || state.reloading) return state
+      const entry = state.localCommits.find((row) => row.oid === action.oid)
+        ?? base.screen.commits.find((row) => row.oid === action.oid)
+      if (entry === undefined) return state
+      if (entry.parents.length > 1) {
+        return withResult(state, { tone: 'error', text: '合并提交不能直接拣选。', detail: '合并提交有两个父提交，拣选时 git 不知道要带哪一边；先拣选它引入的那些普通提交。', source: 'history' })
+      }
+      return withResult({ ...state, ahead: state.ahead + 1 }, {
+        tone: 'ok',
+        text: `已把提交 ${entry.short} 拣选到当前分支。`,
+        detail: '原来的提交留在它自己的分支上；当前分支多了一笔内容相同、提交号不同的新提交，还没有推送。原型不真的写历史。',
+        source: 'history',
+      })
+    }
     default:
       return state
   }
@@ -571,4 +865,20 @@ function metadataOf(base: SessionBase, path: string): import('../data/core').Fil
   return [...base.screen.staged, ...base.screen.unstaged].find((entry) => entry.path === path)
 }
 
-export { metadataOf }
+/** 结果文案里只写文件名：完整路径在列表里已经可见，提示条不必再抄一遍目录。 */
+function nameOfPath(path: string): string {
+  const segments = path.split(/[\\/]/)
+  return segments[segments.length - 1] ?? path
+}
+
+/** 丢弃与确认卡共用的一句「这次会丢多少」：没有行数（未跟踪、二进制）时返回空串。 */
+function changeSummary(base: SessionBase, path: string): string {
+  const meta = metadataOf(base, path)
+  if (meta === undefined) return ''
+  const parts: string[] = []
+  if (meta.addedLines !== null && meta.addedLines > 0) parts.push(`新增 ${meta.addedLines} 行`)
+  if (meta.deletedLines !== null && meta.deletedLines > 0) parts.push(`删除 ${meta.deletedLines} 行`)
+  return parts.join('，')
+}
+
+export { metadataOf, nameOfPath, changeSummary }

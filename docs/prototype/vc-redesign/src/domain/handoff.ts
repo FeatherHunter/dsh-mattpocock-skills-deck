@@ -45,7 +45,7 @@ const LEDES: Record<HandoffKind, string> = {
   branches: '这段说明会列出本地分支与上游的关系、领先落后与是否已合并，复制之后让 AI 给出安全的合并与删除顺序。',
 }
 
-/** 四种意图各自「我想达到的结果」：一句祈使句，说要做成什么样。 */
+/** 四种意图各自「我想做什么」的示例句：只当括号里的参考，不再自动替用户写成结论。 */
 const GOALS: Record<HandoffKind, string> = {
   general: '先帮我把当前状态核对清楚，再告诉我下一步最值得做的一件事。',
   changes: '把这批改动整理成若干条主题清楚的提交，并逐条告诉我应该把哪些文件放进同一条提交。',
@@ -152,14 +152,8 @@ export function buildHandoff(data: PrototypeData, kind: HandoffKind, nowMs: numb
       `其中已合并 ${mergedBranches.length} 条，没有上游 ${looseBranches.length} 条。`,
     ]
 
-  const observation = kind === 'general'
-    ? '我能看到状态，但不确定从哪一步开始最省事；也担心自己漏看了某个让操作失败的条件。'
-    : kind === 'changes'
-      ? `改动列表里有 ${screen.unstagedCount} 个未暂存文件、${screen.stagedCount} 个已暂存文件、${screen.conflictCount} 个冲突文件；我不确定该把它们拆成几条提交、每条放哪些文件。`
-      : kind === 'worktrees'
-        ? `其他工作树有 ${otherWorktrees.length} 棵，其中 ${abnormal.length} 棵在挡路；我不确定哪些该解锁、哪些该清理记录、哪些该移除。`
-        : `本地 ${branches.length} 条分支里，${mergedBranches.length} 条已合并、${looseBranches.length} 条没有上游；我不知道先合并哪条、删哪条才安全。`
-
+  // 主观三段留空：面板能确定的是仓库与界面位置，不能替用户说他想要什么。
+  // 这里只放「界面停在」这一条已知事实，其余用括号提示写法，等用户自己补。
   const prompt = [
     '我在本地仓库的版本管理页上遇到了下面的情况，请你帮我判断并给出下一步做法。',
     '',
@@ -180,10 +174,10 @@ export function buildHandoff(data: PrototypeData, kind: HandoffKind, nowMs: numb
     '',
     '【我看到的现象】',
     `  界面停在：${focus}`,
-    `  我的感受：${observation}`,
+    '  （在这里补一句：你打开面板时想做什么，或者看到哪里不对劲。这一句不写，模型只能从上面的状态里猜。）',
     '',
-    '【我想达到的结果】',
-    `  ${GOALS[kind]}`,
+    '【我想做什么】',
+    `  （用一两句话说清你想得到的结果。可以照这个方向写：${GOALS[kind]}）`,
     '',
     '【请你】',
     '  1. 先用三五句话复述你理解的状态，并指出我可能误解的地方。',

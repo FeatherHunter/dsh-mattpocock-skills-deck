@@ -17,7 +17,7 @@ import { COPY } from '../data/copy'
 import { changeBadge, lineDelta, shortOid, splitPath, syncModel } from '../data/format'
 import type { ChangeTone, SyncModel } from '../data/format'
 import { samplePatch } from '../data/patches'
-import type { BranchPending, BranchRow, BranchSub, ChangesFilter, LocalCommit, OpName, SessionState, Tone, ViewId, WorktreePending } from './session'
+import type { BranchPending, BranchRow, BranchSub, ChangesFilter, ChangesPendingKind, LocalCommit, OpName, SessionState, Tone, ViewId, WorktreePending } from './session'
 import { metadataOf } from './session'
 import type { SessionBase } from './session'
 
@@ -85,6 +85,15 @@ export interface FileRowModel {
   patchNote: string | null
   canStage: boolean
   canUnstage: boolean
+  /** 未跟踪文件：决定行上写不写「未跟踪」，也决定「加入 .gitignore」「删除这个文件」出不出来。 */
+  untracked: boolean
+  /** 行尾「更多」按钮：未暂存与冲突行有，已暂存行只保留撤回。 */
+  showMenu: boolean
+  canDiscard: boolean
+  canIgnore: boolean
+  canDeleteUntracked: boolean
+  /** 冲突行：可以按当前分支或对方的版本就地解决。 */
+  resolvable: boolean
 }
 
 export interface GroupModel {
@@ -104,6 +113,17 @@ export interface ComposerModel {
   busy: boolean
 }
 
+/** 危险动作的确认卡：标题、后果、涉及范围与按钮文案都在这里一次算好，视图不再自己拼。 */
+export interface ChangesPendingModel {
+  kind: ChangesPendingKind
+  path: string | null
+  title: string
+  body: string
+  meta: string | null
+  confirmLabel: string
+  danger: boolean
+}
+
 export interface ChangesModel {
   stats: Array<{ id: ChangesFilter; label: string; count: number; tone: BadgeTone }>
   filter: ChangesFilter
@@ -111,10 +131,20 @@ export interface ChangesModel {
   composer: ComposerModel
   empty: boolean
   stagedCount: number
+  unstagedCount: number
   conflictCount: number
   busy: boolean
   canStageAll: boolean
   canUnstageAll: boolean
+  canDiscardAll: boolean
+  /** 贮藏入口：工作区有改动、且没有冲突文件时才可用。 */
+  canStash: boolean
+  stashReason: string | null
+  /** 哪一行的「更多」菜单开着：菜单紧贴这一行画。 */
+  openMenuPath: string | null
+  pending: ChangesPendingModel | null
+  /** 加入 .gitignore 之后的一行说明：文件还在磁盘上，只是 git 不再跟踪。 */
+  ignoredNote: string | null
 }
 
 export interface CommitRowModel {
@@ -211,10 +241,32 @@ export interface BranchDetailModel {
   canSwitch: boolean
   canMerge: boolean
   canDelete: boolean
+  /** 变基会把当前分支的提交挪到目标分支后面：只允许对「别的分支」发起，不可能变基到自己。 */
+  canRebase: boolean
   switchReason: string | null
   mergeReason: string | null
   deleteReason: string | null
+  rebaseReason: string | null
   pending: BranchPending | null
+}
+
+/** 一条贮藏记录的展示形态：时间已翻成人话，文件路径原样给出，便于确认「这是不是我那条」。 */
+export interface StashRowModel {
+  id: string
+  message: string
+  when: string
+  paths: string[]
+  filesCount: number
+}
+
+/** 贮藏视图：没有需要二次确认的动作，只有丢弃要问一句。 */
+export interface StashModel {
+  rows: StashRowModel[]
+  total: number
+  empty: boolean
+  /** 正在等用户确认丢弃的那一条：确认卡出现在它的行下面。 */
+  pending: { id: string; title: string; body: string } | null
+  busy: boolean
 }
 
 export interface BranchesModel {
@@ -237,6 +289,7 @@ export interface PanelModel {
   history: HistoryModel
   worktrees: WorktreesModel
   branches: BranchesModel
+  stash: StashModel
   result: SessionState['result']
   confirm: { title: string; body: string; files: string[]; continueLabel: string; cancelLabel: string } | null
   busy: OpName | null
@@ -292,13 +345,14 @@ function actionOf(
   }
 }
 
-/** 页签计数：改动按文件数、提交按条数、工作树按棵数，单位随数字一起画。 */
+/** 页签计数：改动按文件数、提交按条数、工作树按棵数、贮藏按条数，单位随数字一起画。 */
 export function tabsOf(base: SessionBase, state: SessionState): TabModel[] {
   const changes = state.staged.length + state.unstaged.length + state.conflicts.length
   return [
     { id: 'changes', label: COPY.views.changes, count: changes, unit: COPY.units.change },
     { id: 'commits', label: COPY.views.commits, count: base.totalCommits, unit: COPY.units.commit },
     { id: 'worktrees', label: COPY.views.worktrees, count: base.screen.otherWorktrees.filter((item) => !item.current).length + (state.demoWorktrees ? DEMO_WORKTREE_COUNT : 0), unit: COPY.units.worktree },
+    { id: 'stash', label: COPY.views.stash, count: state.stashes.length, unit: COPY.units.stash },
   ]
 }
 
@@ -412,6 +466,58 @@ function fileRowOf(
     patchNote,
     canStage: !busy && !options.conflict && !options.staged,
     canUnstage: !busy && !options.conflict && options.staged,
+    untracked: isUntracked,
+    showMenu: !busy && !options.staged,
+    canDiscard: !busy && !options.conflict && !options.staged && !isUntracked,
+    canIgnore: !busy && !options.conflict && !options.staged && isUntracked,
+    canDeleteUntracked: !busy && !options.conflict && !options.staged && isUntracked,
+    resolvable: !busy && options.conflict,
+  }
+}
+
+/**
+ * 把「正在等确认的改动动作」翻成一张确认卡。
+ * 三件事必须一次说清，否则危险动作就只能靠用户猜：会动什么、丢什么、能不能撤回。
+ * 文案按动作类型分开写；范围（涉及几个文件、丢多少行）用面板已有的读数算，不另读磁盘。
+ */
+function pendingOf(base: SessionBase, state: SessionState): ChangesPendingModel | null {
+  const pending = state.changesPending
+  if (pending === null) return null
+  if (state.busy !== null || state.reloading) return null
+  if (pending.kind === 'discard-all') {
+    return {
+      kind: pending.kind,
+      path: null,
+      title: COPY.changes.confirmDiscardAllTitle(state.unstaged.length),
+      body: COPY.changes.confirmDiscardAllBody,
+      meta: COPY.changes.confirmDiscardAllMeta(state.unstaged.length),
+      confirmLabel: COPY.changes.confirmDiscard,
+      danger: true,
+    }
+  }
+  const path = pending.path
+  if (path === null) return null
+  const meta = metadataOf(base, path)
+  const name = splitPath(path).name
+  const lines: string[] = []
+  if (meta !== undefined) {
+    if (meta.addedLines !== null && meta.addedLines > 0) lines.push(`新增 ${meta.addedLines} 行`)
+    if (meta.deletedLines !== null && meta.deletedLines > 0) lines.push(`删除 ${meta.deletedLines} 行`)
+  }
+  const metaText = lines.length === 0 ? null : `这次会丢掉 ${lines.join('，')}`
+  switch (pending.kind) {
+    case 'discard':
+      return { kind: pending.kind, path, title: COPY.changes.confirmDiscardTitle(name), body: COPY.changes.confirmDiscardBody, meta: metaText, confirmLabel: COPY.changes.confirmDiscard, danger: true }
+    case 'ignore':
+      return { kind: pending.kind, path, title: COPY.changes.confirmIgnoreTitle(name), body: COPY.changes.confirmIgnoreBody, meta: null, confirmLabel: COPY.changes.confirmIgnore, danger: false }
+    case 'delete-untracked':
+      return { kind: pending.kind, path, title: COPY.changes.confirmDeleteTitle(name), body: COPY.changes.confirmDeleteBody, meta: null, confirmLabel: COPY.changes.confirmDelete, danger: true }
+    case 'resolve-ours':
+      return { kind: pending.kind, path, title: COPY.changes.confirmResolveOursTitle(name), body: COPY.changes.confirmResolveOursBody, meta: null, confirmLabel: COPY.changes.confirmResolve, danger: true }
+    case 'resolve-theirs':
+      return { kind: pending.kind, path, title: COPY.changes.confirmResolveTheirsTitle(name), body: COPY.changes.confirmResolveTheirsBody, meta: null, confirmLabel: COPY.changes.confirmResolve, danger: true }
+    default:
+      return null
   }
 }
 
@@ -448,7 +554,13 @@ export function changesOf(base: SessionBase, state: SessionState): ChangesModel 
     })
   }
   const keepEmptyGroup = state.changesFilter !== 'all'
-  const visibleGroups = groups.filter((group) => keepEmptyGroup || group.id === 'conflict' || group.rows.length > 0 || group.id === 'staged')
+  // 全部分组时，空分组不再各占一整行：冲突分组没有文件就不画，未暂存分组没有文件也不画；
+  // 「已暂存」分组保留一行，因为它是「暂存区现在还空着」这个结论本身（往下就是提交区）。
+  const visibleGroups = groups.filter((group) => {
+    if (keepEmptyGroup) return true
+    if (group.id === 'staged') return true
+    return group.rows.length > 0
+  })
 
   const commitVerdict = verdictOf(screen, 'commit')
   let disabledReason: string | null = commitVerdict.reason
@@ -456,6 +568,7 @@ export function changesOf(base: SessionBase, state: SessionState): ChangesModel 
   else if (state.conflicts.length > 0) disabledReason = COPY.block['conflicts-unresolved']
   else if (state.message.trim() === '') disabledReason = COPY.changes.commitNoMessage
 
+  const changeCount = state.staged.length + state.unstaged.length
   return {
     stats: [
       { id: 'conflict', label: COPY.changes.filterConflict, count: state.conflicts.length, tone: 'error' },
@@ -466,10 +579,17 @@ export function changesOf(base: SessionBase, state: SessionState): ChangesModel 
     groups: visibleGroups,
     empty: state.staged.length === 0 && state.unstaged.length === 0 && state.conflicts.length === 0,
     stagedCount: state.staged.length,
+    unstagedCount: state.unstaged.length,
     conflictCount: state.conflicts.length,
     busy,
     canStageAll: !busy && state.conflicts.length === 0 && state.unstaged.length > 0,
     canUnstageAll: !busy && state.staged.length > 0,
+    canDiscardAll: !busy && state.conflicts.length === 0 && state.unstaged.length > 0,
+    canStash: !busy && state.conflicts.length === 0 && changeCount > 0,
+    stashReason: state.conflicts.length > 0 ? COPY.block['conflicts-unresolved'] : null,
+    openMenuPath: state.openMenuPath,
+    pending: pendingOf(base, state),
+    ignoredNote: state.ignored.length === 0 ? null : COPY.changes.ignoredNote(state.ignored.length),
     composer: {
       stagedCount: state.staged.length,
       message: state.message,
@@ -503,7 +623,10 @@ interface HistoryEntry {
   local: boolean
 }
 
-/** 合并本地模拟提交与采集提交：总数固定为采集总数，本地新提交插到最前、末尾让出同一条数。 */
+/**
+ * 合并本地模拟提交与采集提交：总数固定为采集总数，本地新提交插到最前、末尾让出同一条数。
+ * 「撤销这次提交」撤掉的那条采集提交暂时从历史里隐去，总数也跟着少一条。
+ */
 function historyEntries(base: SessionBase, state: SessionState): HistoryEntry[] {
   const local: HistoryEntry[] = state.localCommits.map((commit) => ({
     oid: commit.oid,
@@ -515,8 +638,12 @@ function historyEntries(base: SessionBase, state: SessionState): HistoryEntry[] 
     files: commit.files,
     local: true,
   }))
-  const keep = Math.max(0, base.totalCommits - local.length)
-  const captured: HistoryEntry[] = base.screen.commits.slice(0, keep).map((commit: CommitInfo) => ({
+  const total = historyTotal(base, state)
+  const keep = Math.max(0, total - local.length)
+  const captured: HistoryEntry[] = base.screen.commits
+    .filter((commit: CommitInfo) => commit.oid !== state.undoneOid)
+    .slice(0, keep)
+    .map((commit: CommitInfo) => ({
     oid: commit.oid,
     short: commit.short,
     subject: commit.subject,
@@ -527,6 +654,11 @@ function historyEntries(base: SessionBase, state: SessionState): HistoryEntry[] 
     local: false,
   }))
   return [...local, ...captured]
+}
+
+/** 历史总数：撤销一条提交之后，列表里的条数立刻少一条，不跟顶部页签的旧数字打架。 */
+function historyTotal(base: SessionBase, state: SessionState): number {
+  return Math.max(0, base.totalCommits - (state.undoneOid === null ? 0 : 1))
 }
 
 function matchesQuery(entry: HistoryEntry, query: string): boolean {
@@ -596,11 +728,11 @@ export function historyOf(base: SessionBase, state: SessionState, nowMs: number)
     detail,
     rows,
     loaded: rows.length,
-    total: base.totalCommits,
+    total: historyTotal(base, state),
     query: state.historyQuery,
     mergeOnly: state.historyMergeOnly,
     empty: rows.length === 0,
-    scopeText: COPY.history.loadedCount(rows.length, base.totalCommits),
+    scopeText: COPY.history.loadedCount(rows.length, historyTotal(base, state)),
     mergeOnlyText: COPY.history.mergeOnly,
   }
 }
@@ -762,9 +894,11 @@ export function branchesOf(base: SessionBase, state: SessionState, nowMs: number
       canSwitch: !isCurrent,
       canMerge: !isCurrent,
       canDelete: !isCurrent,
+      canRebase: !isCurrent,
       switchReason: isCurrent ? COPY.branches.switchCurrent : null,
       mergeReason: null,
       deleteReason: isCurrent ? COPY.branches.cannotDeleteCurrent : null,
+      rebaseReason: isCurrent ? COPY.branches.rebaseCurrent : null,
       pending: state.branchPending,
     }
   }
@@ -783,6 +917,32 @@ export function branchesOf(base: SessionBase, state: SessionState, nowMs: number
 }
 
 
+/**
+ * 贮藏列表：每条记录只回答三个问题——这是哪一条、什么时候存的、里面有哪些文件。
+ * 「应用会不会冲突」这类判断不在原型里模拟，所以只给一句枕边提醒，不假装能预判。
+ */
+export function stashOf(state: SessionState, nowMs: number): StashModel {
+  const rows: StashRowModel[] = state.stashes.map((entry) => ({
+    id: entry.id,
+    message: entry.message,
+    when: timeText(nowMs, entry.whenMs),
+    paths: entry.paths,
+    filesCount: entry.paths.length,
+  }))
+  const pending = state.stashPending === null ? null : {
+    id: state.stashPending.id,
+    title: COPY.stash.dropTitle(state.stashPending.id),
+    body: COPY.stash.dropBody,
+  }
+  return {
+    rows,
+    total: rows.length,
+    empty: rows.length === 0,
+    pending,
+    busy: state.busy !== null,
+  }
+}
+
 export function panelModelOf(base: SessionBase, state: SessionState, nowMs: number): PanelModel {
   const tabs = tabsOf(base, state)
   const confirm = state.confirmPull === null ? null : {
@@ -799,6 +959,7 @@ export function panelModelOf(base: SessionBase, state: SessionState, nowMs: numb
     history: historyOf(base, state, nowMs),
     worktrees: worktreesOf(base, state),
     branches: branchesOf(base, state, nowMs),
+    stash: stashOf(state, nowMs),
     result: state.result,
     confirm,
     busy: state.busy,

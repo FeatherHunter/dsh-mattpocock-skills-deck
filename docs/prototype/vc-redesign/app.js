@@ -21,12 +21,14 @@
     views: {
       changes: "\u6539\u52A8",
       commits: "\u63D0\u4EA4\u5386\u53F2",
-      worktrees: "\u5DE5\u4F5C\u6811"
+      worktrees: "\u5DE5\u4F5C\u6811",
+      stash: "\u8D2E\u85CF"
     },
     units: {
       change: "\u6587\u4EF6",
       commit: "\u6761",
-      worktree: "\u68F5"
+      worktree: "\u68F5",
+      stash: "\u6761"
     },
     rail: {
       reload: "\u91CD\u65B0\u8BFB\u53D6",
@@ -121,7 +123,38 @@
       emptyHint: "\u5DE5\u4F5C\u6811\u4E0E\u6682\u5B58\u533A\u90FD\u662F\u5E72\u51C0\u7684\u3002",
       untracked: "\u672A\u8DDF\u8E2A",
       typeUnknown: "\u65E0\u6CD5\u5224\u5B9A\u53D8\u66F4\u7C7B\u578B",
-      stagedBadge: "\u5DF2\u6682\u5B58"
+      stagedBadge: "\u5DF2\u6682\u5B58",
+      menuMore: "\u66F4\u591A\u64CD\u4F5C",
+      menuDiscard: "\u4E22\u5F03\u4FEE\u6539",
+      menuIgnore: "\u52A0\u5165 .gitignore",
+      menuDelete: "\u5220\u9664\u8FD9\u4E2A\u6587\u4EF6",
+      menuResolveOurs: "\u7528\u5F53\u524D\u5206\u652F\u7684\u7248\u672C\u89E3\u51B3",
+      menuResolveTheirs: "\u7528\u5BF9\u65B9\u7684\u7248\u672C\u89E3\u51B3",
+      discardAll: "\u4E22\u5F03\u5168\u90E8",
+      confirmCancel: "\u53D6\u6D88",
+      confirmDiscard: "\u786E\u8BA4\u4E22\u5F03",
+      confirmIgnore: "\u786E\u8BA4\u52A0\u5165",
+      confirmDelete: "\u786E\u8BA4\u5220\u9664",
+      confirmResolve: "\u786E\u8BA4\u89E3\u51B3",
+      confirmDiscardTitle: (name) => `\u4E22\u5F03 ${name} \u7684\u6539\u52A8\uFF1F`,
+      confirmDiscardBody: "\u6587\u4EF6\u4F1A\u56DE\u5230\u4E0A\u4E00\u6B21\u63D0\u4EA4\u65F6\u7684\u5185\u5BB9\uFF0C\u8FD9\u6B21\u672A\u6682\u5B58\u7684\u6539\u52A8\u6CA1\u6CD5\u4ECE\u9762\u677F\u64A4\u56DE\u3002",
+      confirmDiscardAllTitle: (n) => `\u4E22\u5F03 ${n} \u4E2A\u6587\u4EF6\u7684\u6539\u52A8\uFF1F`,
+      confirmDiscardAllBody: "\u8FD9\u4E9B\u6587\u4EF6\u90FD\u4F1A\u56DE\u5230\u4E0A\u4E00\u6B21\u63D0\u4EA4\u65F6\u7684\u5185\u5BB9\uFF0C\u672A\u6682\u5B58\u7684\u6539\u52A8\u6CA1\u6CD5\u4ECE\u9762\u677F\u64A4\u56DE\u3002",
+      confirmDiscardAllMeta: (n) => `\u6D89\u53CA ${n} \u4E2A\u6587\u4EF6`,
+      confirmIgnoreTitle: (name) => `\u628A ${name} \u52A0\u5165 .gitignore\uFF1F`,
+      confirmIgnoreBody: "\u6587\u4EF6\u4ECD\u5728\u78C1\u76D8\u4E0A\uFF0Cgit \u4ECE\u4E0B\u4E00\u6B21\u8BFB\u53D6\u8D77\u4E0D\u518D\u8DDF\u8E2A\u5B83\uFF1B\u5DF2\u7ECF\u63D0\u4EA4\u8FDB\u5386\u53F2\u7684\u5185\u5BB9\u4E0D\u53D7\u5F71\u54CD\u3002",
+      confirmDeleteTitle: (name) => `\u5220\u9664\u672A\u8DDF\u8E2A\u6587\u4EF6 ${name}\uFF1F`,
+      confirmDeleteBody: "\u8FD9\u4E2A\u6587\u4EF6\u4ECE\u6765\u6CA1\u6709\u8FDB\u8FC7 git \u5386\u53F2\uFF0C\u5220\u9664\u4EE5\u540E\u6CA1\u6709\u4EFB\u4F55\u5730\u65B9\u80FD\u627E\u56DE\u3002",
+      confirmResolveOursTitle: (name) => `\u7528\u5F53\u524D\u5206\u652F\u7684\u7248\u672C\u89E3\u51B3 ${name}\uFF1F`,
+      confirmResolveOursBody: "\u5BF9\u65B9\u7684\u6539\u52A8\u4F1A\u88AB\u4E22\u6389\uFF0C\u6587\u4EF6\u4F1A\u76F4\u63A5\u53D8\u4E3A\u5DF2\u6682\u5B58\u3002",
+      confirmResolveTheirsTitle: (name) => `\u7528\u5BF9\u65B9\u7684\u7248\u672C\u89E3\u51B3 ${name}\uFF1F`,
+      confirmResolveTheirsBody: "\u5F53\u524D\u5206\u652F\u91CC\u7684\u6539\u52A8\u4F1A\u88AB\u4E22\u6389\uFF0C\u6587\u4EF6\u4F1A\u76F4\u63A5\u53D8\u4E3A\u5DF2\u6682\u5B58\u3002",
+      ignoredNote: (n) => `\u5DF2\u5FFD\u7565 ${n} \u4E2A\u6587\u4EF6\uFF0Cgit \u4ECE\u4E0B\u4E00\u6B21\u8BFB\u53D6\u8D77\u4E0D\u518D\u8DDF\u8E2A\u5B83\u4EEC`,
+      stashAction: "\u8D2E\u85CF\u8FD9\u4E9B\u6539\u52A8",
+      stashHint: "\u8D2E\u85CF\u4F1A\u628A\u5DE5\u4F5C\u533A\u4E0E\u6682\u5B58\u533A\u4E00\u8D77\u6253\u5305\u5E26\u8D70\uFF0C\u5DE5\u4F5C\u533A\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\uFF1B\u4E4B\u540E\u53EF\u4EE5\u5E94\u7528\u6216\u5F39\u51FA\u62FF\u56DE\u6765\u3002",
+      stashBlocked: "\u6709\u51B2\u7A81\u6587\u4EF6\u65F6\u4E0D\u80FD\u8D2E\u85CF\uFF0C\u5148\u89E3\u51B3\u51B2\u7A81\u3002",
+      menuClose: "\u6536\u8D77\u83DC\u5355",
+      menuOpen: "\u66F4\u591A\u64CD\u4F5C"
     },
     history: {
       searchPlaceholder: (loaded) => `\u5728\u5DF2\u52A0\u8F7D\u7684 ${loaded} \u6761\u63D0\u4EA4\u91CC\u7B5B\u9009`,
@@ -140,7 +173,19 @@
       filesEmpty: "\u8BE5\u63D0\u4EA4\u672A\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\u3002",
       fileTypeUnknown: "\u8BE5\u63D0\u4EA4\u53EA\u8FD4\u56DE\u8DEF\u5F84\u4E0E\u589E\u5220\u884C\u6570\uFF0C\u65E0\u6CD5\u5224\u5B9A\u53D8\u66F4\u7C7B\u578B",
       diffSampleNote: "\u539F\u578B\u53EA\u6F14\u793A\u9010\u884C\u5DEE\u5F02\u7684\u6392\u7248\uFF0C\u5C55\u5F00\u540E\u662F\u793A\u4F8B\u8865\u4E01\uFF0C\u4E0D\u6765\u81EA\u8BE5\u63D0\u4EA4\u3002",
-      mergeChip: "\u5408\u5E76"
+      mergeChip: "\u5408\u5E76",
+      menuOpen: "\u66F4\u591A\u64CD\u4F5C",
+      menuRevert: "\u56DE\u9000\u8FD9\u6B21\u63D0\u4EA4",
+      menuCherryPick: "\u62E3\u9009\u5230\u5F53\u524D\u5206\u652F",
+      menuUndo: "\u64A4\u9500\u8FD9\u6B21\u63D0\u4EA4\uFF0C\u6539\u52A8\u7559\u5728\u6682\u5B58\u533A",
+      menuUndoHint: "\u53EA\u80FD\u64A4\u9500\u6700\u65B0\u4E00\u6761\u63D0\u4EA4",
+      menuCopy: "\u590D\u5236\u63D0\u4EA4 ID",
+      menuClose: "\u6536\u8D77\u83DC\u5355",
+      undoTitle: (subject) => `\u64A4\u9500\u63D0\u4EA4\u300C${subject}\u300D\uFF1F`,
+      undoBody: "\u5206\u652F\u4F1A\u9000\u4E00\u6B65\uFF0C\u8FD9\u6B21\u63D0\u4EA4\u91CC\u7684\u6587\u4EF6\u56DE\u5230\u6682\u5B58\u533A\uFF0C\u63D0\u4EA4\u8BF4\u660E\u7559\u5728\u8F93\u5165\u6846\u91CC\uFF1B\u8FD9\u4E00\u6B65\u6539\u7684\u662F\u672C\u5730\u5386\u53F2\u3002",
+      undoConfirm: "\u786E\u8BA4\u64A4\u9500",
+      cancel: "\u53D6\u6D88",
+      undoNote: "\u5386\u53F2\u91CC\u7684\u8FD9\u6761\u63D0\u4EA4\u6682\u65F6\u9690\u53BB\uFF0C\u6539\u52A8\u5728\u300C\u6539\u52A8\u300D\u9875\u7B7E\u7684\u5DF2\u6682\u5B58\u5206\u7EC4\u91CC\u3002"
     },
     branches: {
       title: "\u5206\u652F",
@@ -190,7 +235,12 @@
       invalidName: "\u5206\u652F\u540D\u4E0D\u80FD\u4E3A\u7A7A\uFF0C\u4E5F\u4E0D\u80FD\u5305\u542B\u7A7A\u683C\u3002",
       duplicateName: (name) => `\u5206\u652F ${name} \u5DF2\u7ECF\u5B58\u5728\u3002`,
       cannotDeleteCurrent: "\u4E0D\u80FD\u5220\u9664\u5F53\u524D\u5206\u652F\uFF0C\u5148\u5207\u6362\u5230\u522B\u7684\u5206\u652F\u3002",
-      cannotMergeCurrent: "\u4E0D\u80FD\u628A\u5F53\u524D\u5206\u652F\u5408\u5E76\u8FDB\u5B83\u81EA\u5DF1\u3002"
+      cannotMergeCurrent: "\u4E0D\u80FD\u628A\u5F53\u524D\u5206\u652F\u5408\u5E76\u8FDB\u5B83\u81EA\u5DF1\u3002",
+      rebase: "\u53D8\u57FA\u5230\u8FD9\u91CC",
+      rebaseCurrent: "\u5F53\u524D\u5206\u652F\u5C31\u662F\u5B83\uFF0C\u4E0D\u80FD\u53D8\u57FA\u5230\u81EA\u5DF1\u3002",
+      rebaseTitle: (current, target) => `\u628A ${current} \u53D8\u57FA\u5230 ${target} \u4E0A\uFF1F`,
+      rebaseBody: "\u672C\u5730\u5386\u53F2\u4F1A\u88AB\u91CD\u5199\uFF1A\u5148\u653E\u5BF9\u65B9\u5206\u652F\u7684\u63D0\u4EA4\uFF0C\u518D\u63A5\u4E0A\u81EA\u5DF1\u7684\u63D0\u4EA4\u3002\u63D0\u4EA4\u53F7\u4F1A\u53D8\uFF1B\u5982\u679C\u8FD9\u6761\u5206\u652F\u5DF2\u7ECF\u63A8\u9001\u8FC7\uFF0C\u8FDC\u7AEF\u9700\u8981\u5F3A\u63A8\u624D\u80FD\u5BF9\u9F50\u3002",
+      rebaseConfirm: "\u786E\u8BA4\u53D8\u57FA"
     },
     worktrees: {
       current: "\u5F53\u524D\u5DE5\u4F5C\u6811",
@@ -235,6 +285,30 @@
       resultPruned: (name) => `\u5DF2\u6E05\u7406\u8BB0\u5F55\uFF1A${name}\u3002`,
       resultRemoved: (name) => `\u5DF2\u79FB\u9664\u5DE5\u4F5C\u6811\uFF1A${name}\u3002`,
       ai: "\u8BA9 AI \u5904\u7406\u5F02\u5E38\u5DE5\u4F5C\u6811"
+    },
+    /**
+     * 贮藏页签：git stash 的完整生命周期。文案只说用户能看见的两件事——
+     * 这条记录里放着什么、这一下是拿回来还是彻底丢掉。
+     */
+    stash: {
+      title: "\u8D2E\u85CF",
+      empty: "\u8FD8\u6CA1\u6709\u8D2E\u85CF\u8BB0\u5F55",
+      emptyHint: "\u5728\u300C\u6539\u52A8\u300D\u9875\u7B7E\u91CC\u70B9\u300C\u8D2E\u85CF\u8FD9\u4E9B\u6539\u52A8\u300D\uFF0C\u5C31\u80FD\u628A\u5F53\u524D\u6539\u52A8\u6253\u5305\u6536\u8D77\u6765\u3002",
+      entryMeta: (when, n) => `${when} \xB7 ${n} \u4E2A\u6587\u4EF6`,
+      pathsNote: "\u8BB0\u5F55\u91CC\u4FDD\u5B58\u7684\u662F\u6539\u52A8\u53D1\u751F\u65F6\u7684\u6837\u5B50\uFF1B\u5E94\u7528\u4E4B\u540E\u9700\u8981\u91CD\u65B0\u6682\u5B58\u518D\u63D0\u4EA4\u3002",
+      apply: "\u5E94\u7528",
+      pop: "\u5F39\u51FA",
+      drop: "\u4E22\u5F03",
+      applyHint: "\u628A\u6539\u52A8\u653E\u56DE\u5DE5\u4F5C\u533A\uFF0C\u8FD9\u6761\u8BB0\u5F55\u4ECD\u7136\u4FDD\u7559",
+      popHint: "\u628A\u6539\u52A8\u653E\u56DE\u5DE5\u4F5C\u533A\uFF0C\u5E76\u5220\u9664\u8FD9\u6761\u8BB0\u5F55",
+      dropTitle: (id) => `\u4E22\u5F03\u8D2E\u85CF\u8BB0\u5F55 ${id}\uFF1F`,
+      dropBody: "\u8BB0\u5F55\u91CC\u90A3\u4E9B\u6587\u4EF6\u5F53\u65F6\u7684\u6837\u5B50\u4F1A\u5F7B\u5E95\u6D88\u5931\uFF0C\u9762\u677F\u4E0D\u80FD\u6062\u590D\u3002",
+      dropConfirm: "\u786E\u8BA4\u4E22\u5F03",
+      cancel: "\u53D6\u6D88",
+      showPaths: "\u770B\u770B\u8FD9\u6761\u8BB0\u5F55\u91CC\u6709\u54EA\u4E9B\u6587\u4EF6",
+      hidePaths: "\u6536\u8D77\u6587\u4EF6\u6E05\u5355",
+      boundary: "\u8D2E\u85CF\u53EA\u5728\u672C\u5730\uFF0C\u4E0D\u4F1A\u63A8\u9001\uFF1B\u5E94\u7528\u6216\u5F39\u51FA\u65F6\u6309\u8BB0\u5F55\u91CC\u7684\u987A\u5E8F\u653E\u56DE\u5DE5\u4F5C\u533A\u3002",
+      restoreNote: (n) => `\u5E94\u7528\u540E\u4F1A\u653E\u56DE ${n} \u4E2A\u6587\u4EF6\uFF0C\u5DF2\u5B58\u5728\u7684\u540C\u540D\u6539\u52A8\u4F1A\u88AB\u5408\u5E76\u6216\u63D0\u793A\u51B2\u7A81\u3002`
     },
     /**
      * AI 交接的全部文案。入口上的那几句故意写成问句：它们要让人意识到
@@ -3954,7 +4028,13 @@
       worktreePending: null,
       hiddenWorktrees: [],
       unlockedWorktrees: [],
-      prunedWorktrees: []
+      prunedWorktrees: [],
+      changesPending: null,
+      openMenuPath: null,
+      ignored: [],
+      stashes: [],
+      stashPending: null,
+      undoneOid: null
     };
   }
   function unique(paths) {
@@ -4175,6 +4255,87 @@
           hiddenWorktrees: hidden
         }, { tone: "ok", text: `\u5DF2\u79FB\u9664\u5DE5\u4F5C\u6811\uFF1A${pending.name}\u3002`, detail: "\u5206\u652F\u4E0E\u63D0\u4EA4\u90FD\u8FD8\u5728\u4ED3\u5E93\u91CC\uFF1B\u8FD9\u4E00\u6B65\u53EA\u5220\u6389\u4E86\u68C0\u51FA\u8BB0\u5F55\u4E0E\u5DE5\u4F5C\u76EE\u5F55\u3002", source: "worktree" });
       }
+      case "changes-pending":
+        return { ...state, changesPending: action.pending, openMenuPath: null };
+      case "changes-open-menu":
+        return { ...state, openMenuPath: action.path, changesPending: null };
+      case "changes-apply": {
+        const pending = state.changesPending;
+        if (pending === null) return state;
+        const cleared = { ...state, changesPending: null };
+        const path = pending.path;
+        const name = path === null ? "" : nameOfPath(path);
+        switch (pending.kind) {
+          case "discard": {
+            if (path === null || !state.unstaged.includes(path)) return cleared;
+            const lines = changeSummary(base, path);
+            return withResult({
+              ...cleared,
+              unstaged: state.unstaged.filter((item) => item !== path)
+            }, {
+              tone: "warn",
+              text: `\u5DF2\u4E22\u5F03 ${name} \u7684\u672A\u6682\u5B58\u6539\u52A8\u3002`,
+              detail: lines === "" ? "\u6587\u4EF6\u56DE\u5230\u4E0A\u4E00\u6B21\u63D0\u4EA4\u65F6\u7684\u5185\u5BB9\uFF1B\u9762\u677F\u4E0D\u80FD\u64A4\u56DE\u8FD9\u4E00\u6B65\u3002" : `\u6587\u4EF6\u56DE\u5230\u4E0A\u4E00\u6B21\u63D0\u4EA4\u65F6\u7684\u5185\u5BB9\uFF0C${lines} \u4E00\u8D77\u4E22\u6389\u4E86\uFF1B\u9762\u677F\u4E0D\u80FD\u64A4\u56DE\u8FD9\u4E00\u6B65\u3002`,
+              source: "changes"
+            });
+          }
+          case "discard-all": {
+            const count = state.unstaged.length;
+            if (count === 0) return cleared;
+            return withResult({ ...cleared, unstaged: [] }, {
+              tone: "warn",
+              text: `\u5DF2\u4E22\u5F03 ${count} \u4E2A\u6587\u4EF6\u7684\u672A\u6682\u5B58\u6539\u52A8\u3002`,
+              detail: "\u8FD9\u4E9B\u6587\u4EF6\u90FD\u56DE\u5230\u4E0A\u4E00\u6B21\u63D0\u4EA4\u65F6\u7684\u5185\u5BB9\uFF1B\u9762\u677F\u4E0D\u80FD\u64A4\u56DE\u8FD9\u4E00\u6B65\u3002",
+              source: "changes"
+            });
+          }
+          case "ignore": {
+            if (path === null || !state.unstaged.includes(path)) return cleared;
+            return withResult({
+              ...cleared,
+              unstaged: state.unstaged.filter((item) => item !== path),
+              ignored: unique([...state.ignored, path])
+            }, {
+              tone: "info",
+              text: `\u5DF2\u628A ${name} \u52A0\u5165 .gitignore\u3002`,
+              detail: "\u6587\u4EF6\u4ECD\u7136\u7559\u5728\u78C1\u76D8\u4E0A\uFF0Cgit \u4ECE\u4E0B\u4E00\u6B21\u8BFB\u53D6\u8D77\u4E0D\u518D\u8DDF\u8E2A\u5B83\uFF1B\u5DF2\u7ECF\u63D0\u4EA4\u8FDB\u5386\u53F2\u7684\u5185\u5BB9\u4E0D\u53D7\u5F71\u54CD\u3002\u539F\u578B\u4E0D\u4F1A\u771F\u7684\u6539 .gitignore\u3002",
+              source: "changes"
+            });
+          }
+          case "delete-untracked": {
+            if (path === null || !state.unstaged.includes(path)) return cleared;
+            return withResult({
+              ...cleared,
+              unstaged: state.unstaged.filter((item) => item !== path)
+            }, {
+              tone: "warn",
+              text: `\u5DF2\u5220\u9664\u672A\u8DDF\u8E2A\u6587\u4EF6 ${name}\u3002`,
+              detail: "\u5B83\u4ECE\u6765\u6CA1\u6709\u8FDB\u8FC7 git \u5386\u53F2\uFF0C\u5220\u9664\u4EE5\u540E\u6CA1\u6709\u4EFB\u4F55\u5730\u65B9\u80FD\u627E\u56DE\u3002\u539F\u578B\u4E0D\u4F1A\u771F\u7684\u5220\u78C1\u76D8\u4E0A\u7684\u6587\u4EF6\u3002",
+              source: "changes"
+            });
+          }
+          case "resolve-ours":
+          case "resolve-theirs": {
+            if (path === null || !state.conflicts.includes(path)) return cleared;
+            const conflicts = state.conflicts.filter((item) => item !== path);
+            const side = pending.kind === "resolve-ours" ? "\u5F53\u524D\u5206\u652F" : "\u5BF9\u65B9";
+            return withResult({
+              ...cleared,
+              conflicts,
+              staged: unique([...state.staged, path])
+            }, {
+              tone: "ok",
+              text: `\u5DF2\u6309${side}\u7684\u7248\u672C\u89E3\u51B3 ${name}\uFF0C\u6587\u4EF6\u5DF2\u6682\u5B58\u3002`,
+              detail: conflicts.length === 0 ? "\u51B2\u7A81\u5DF2\u7ECF\u5168\u90E8\u89E3\u51B3\uFF0C\u73B0\u5728\u53EF\u4EE5\u63D0\u4EA4\u8FD9\u6B21\u5408\u5E76\u7684\u7ED3\u679C\u3002" : `\u8FD8\u6709 ${conflicts.length} \u4E2A\u51B2\u7A81\u6587\u4EF6\u6CA1\u6709\u89E3\u51B3\u3002`,
+              source: "changes"
+            });
+          }
+          default:
+            return cleared;
+        }
+      }
+      case "demo-conflicts":
+        return { ...state, conflicts: unique([...state.conflicts, "src/client/views/versionControl/vcWriteView.ts", "src/shared/version-control/src/rules.ts"]) };
       case "branch-open":
         return { ...state, branchOpen: true, branchSub: "list", branchSelected: null, branchDraft: "", branchPending: null };
       case "branch-close":
@@ -4287,12 +4448,166 @@
           branchPending: null
         }, { tone: "ok", text: `\u5DF2\u5220\u9664\u5206\u652F ${action.name}\u3002`, detail: "\u53EA\u5220\u4E86\u672C\u5730\u8BB0\u5F55\uFF1B\u5982\u679C\u8FDC\u7AEF\u8FD8\u6709\u8FD9\u6761\u5206\u652F\uFF0C\u5B83\u4E0D\u53D7\u5F71\u54CD\u3002", source: "branch" });
       }
+      case "branch-rebase": {
+        if (state.busy !== null || state.reloading) return state;
+        const target = state.branches.find((row) => row.name === action.name);
+        const current = state.branches.find((row) => row.current);
+        if (target === void 0 || current === void 0 || target.current) {
+          return withResult(state, { tone: "error", text: "\u4E0D\u80FD\u628A\u5F53\u524D\u5206\u652F\u53D8\u57FA\u5230\u5B83\u81EA\u5DF1\u3002", detail: null, source: "branch" });
+        }
+        return withResult({
+          ...state,
+          branches: state.branches.map((row) => row.name === target.name ? { ...row, mergedIntoCurrent: true } : row),
+          branchSub: "list",
+          branchSelected: null
+        }, {
+          tone: "warn",
+          text: `\u5DF2\u628A ${current.name} \u53D8\u57FA\u5230 ${target.name} \u4E0A\u3002`,
+          detail: "\u672C\u5730\u5386\u53F2\u88AB\u91CD\u5199\u6210\u300C\u5148\u653E\u5BF9\u65B9\u5206\u652F\uFF0C\u518D\u63A5\u4E0A\u81EA\u5DF1\u7684\u63D0\u4EA4\u300D\uFF1B\u63D0\u4EA4\u53F7\u53D8\u4E86\uFF0C\u5982\u679C\u8FD9\u6761\u5206\u652F\u5DF2\u7ECF\u63A8\u9001\u8FC7\uFF0C\u8FDC\u7AEF\u9700\u8981\u5F3A\u63A8\u624D\u80FD\u5BF9\u9F50\u3002\u539F\u578B\u53EA\u6F14\u793A\u7ED3\u679C\u4E0E\u72B6\u6001\u53D8\u5316\uFF0C\u4E0D\u6539\u5199\u771F\u5B9E\u5386\u53F2\u3002",
+          source: "branch"
+        });
+      }
+      case "stash-create": {
+        if (state.busy !== null || state.reloading) return state;
+        if (state.conflicts.length > 0) {
+          return withResult(state, { tone: "error", text: "\u6709\u51B2\u7A81\u6587\u4EF6\u65F6\u4E0D\u80FD\u8D2E\u85CF\u3002", detail: "\u8D2E\u85CF\u4F1A\u628A\u5DE5\u4F5C\u6811\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\uFF0C\u51B2\u7A81\u6587\u4EF6\u6CA1\u6709\u53EF\u4EE5\u5B89\u5168\u6062\u590D\u7684\u7248\u672C\uFF1B\u5148\u89E3\u51B3\u51B2\u7A81\uFF0C\u518D\u8D2E\u85CF\u5269\u4E0B\u7684\u6539\u52A8\u3002", source: "changes" });
+        }
+        const paths = unique([...state.staged, ...state.unstaged]);
+        if (paths.length === 0) {
+          return withResult(state, { tone: "info", text: "\u5DE5\u4F5C\u533A\u662F\u5E72\u51C0\u7684\uFF0C\u6CA1\u6709\u53EF\u8D2E\u85CF\u7684\u6539\u52A8\u3002", detail: null, source: "changes" });
+        }
+        const branchName = state.branches.find((row) => row.current)?.name ?? base.branch ?? "detached";
+        const message = state.message.trim() === "" ? `WIP on ${branchName}` : state.message.trim();
+        const entry = {
+          id: `stash@{${state.stashes.length}}`,
+          message,
+          whenMs: Date.now(),
+          paths
+        };
+        return withResult({
+          ...state,
+          stashes: [entry, ...state.stashes],
+          staged: [],
+          unstaged: [],
+          message: ""
+        }, {
+          tone: "ok",
+          text: `\u5DF2\u8D2E\u85CF ${paths.length} \u4E2A\u6587\u4EF6\u7684\u6539\u52A8\u3002`,
+          detail: `\u8D2E\u85CF\u8BB0\u5F55 ${entry.id} \u91CC\u653E\u7740\u8FD9\u4E9B\u6587\u4EF6\uFF1B\u5DE5\u4F5C\u533A\u4E0E\u6682\u5B58\u533A\u90FD\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\uFF0C\u5E94\u7528\u6216\u5F39\u51FA\u90FD\u80FD\u628A\u5B83\u62FF\u56DE\u6765\u3002`,
+          source: "changes"
+        });
+      }
+      case "stash-apply":
+      case "stash-pop": {
+        if (state.busy !== null || state.reloading) return state;
+        const entry = state.stashes.find((row) => row.id === action.id);
+        if (entry === void 0) return state;
+        const restored = entry.paths.filter((path) => !state.conflicts.includes(path));
+        const before = state.stashes.length;
+        const stashes = action.type === "stash-pop" ? state.stashes.filter((row) => row.id !== action.id) : state.stashes;
+        return withResult({
+          ...state,
+          stashes,
+          unstaged: unique([...state.unstaged, ...restored]),
+          stashPending: null
+        }, {
+          tone: "ok",
+          text: action.type === "stash-pop" ? `\u5DF2\u5F39\u51FA ${entry.id}\uFF0C${restored.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u5DE5\u4F5C\u533A\u3002` : `\u5DF2\u5E94\u7528 ${entry.id}\uFF0C${restored.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u5DE5\u4F5C\u533A\u3002`,
+          detail: action.type === "stash-pop" ? `\u5F39\u51FA\u7B49\u4E8E\u300C\u5E94\u7528 + \u5220\u9664\u300D\uFF1A\u8FD9\u6761\u8D2E\u85CF\u5DF2\u7ECF\u4ECE\u6E05\u5355\u91CC\u79FB\u9664\uFF08\u539F\u6765 ${before} \u6761\uFF09\u3002\u6539\u52A8\u73B0\u5728\u5728\u672A\u6682\u5B58\u533A\uFF0C\u9700\u8981\u91CD\u65B0\u6682\u5B58\u518D\u63D0\u4EA4\u3002` : `\u5E94\u7528\u53EA\u628A\u6539\u52A8\u653E\u56DE\u5DE5\u4F5C\u533A\uFF0C\u8D2E\u85CF\u8BB0\u5F55\u4ECD\u7136\u4FDD\u7559\u5728\u6E05\u5355\u91CC\uFF08${before} \u6761\uFF09\uFF0C\u53EF\u4EE5\u518D\u5E94\u7528\u4E00\u6B21\u6216\u968F\u540E\u4E22\u5F03\u3002`,
+          source: "stash"
+        });
+      }
+      case "stash-pending":
+        return { ...state, stashPending: action.pending };
+      case "stash-drop": {
+        if (state.busy !== null || state.reloading) return state;
+        const entry = state.stashes.find((row) => row.id === action.id);
+        if (entry === void 0) return { ...state, stashPending: null };
+        return withResult({
+          ...state,
+          stashes: state.stashes.filter((row) => row.id !== action.id),
+          stashPending: null
+        }, {
+          tone: "warn",
+          text: `\u5DF2\u4E22\u5F03\u8D2E\u85CF\u8BB0\u5F55 ${entry.id}\u3002`,
+          detail: `\u8BB0\u5F55\u91CC\u90A3 ${entry.paths.length} \u4E2A\u6587\u4EF6\u5F53\u65F6\u7684\u6837\u5B50\u5DF2\u7ECF\u4E0D\u5B58\u5728\uFF1B\u8FD9\u4E00\u6B65\u4E0D\u80FD\u64A4\u56DE\u3002`,
+          source: "stash"
+        });
+      }
+      case "commit-undo": {
+        if (state.busy !== null || state.reloading) return state;
+        const localHead = state.localCommits[0] ?? null;
+        const capturedHead2 = base.screen.commits[0];
+        const headOid = localHead !== null ? localHead.oid : capturedHead2?.oid ?? null;
+        if (headOid === null || action.oid !== headOid) {
+          return withResult(state, {
+            tone: "error",
+            text: "\u53EA\u80FD\u64A4\u9500\u6700\u65B0\u4E00\u6761\u63D0\u4EA4\u3002",
+            detail: "\u64A4\u9500\u4F1A\u628A\u63D0\u4EA4\u91CC\u7684\u6539\u52A8\u653E\u56DE\u6682\u5B58\u533A\u3001\u5E76\u8BA9\u5206\u652F\u9000\u4E00\u6B65\uFF1B\u9009\u62E9\u66F4\u65E9\u7684\u63D0\u4EA4\u5C31\u5F97\u6539\u5199\u5B83\u540E\u9762\u7684\u5386\u53F2\uFF0C\u539F\u578B\u4E0D\u505A\u8FD9\u4E00\u6B65\u3002",
+            source: "history"
+          });
+        }
+        const files = localHead !== null ? localHead.files.map((file) => file.path) : (base.commitFiles.get(action.oid) ?? []).map((file) => file.path);
+        const subject = localHead !== null ? localHead.subject : capturedHead2?.subject ?? "";
+        const pushed = state.ahead === 0;
+        return withResult({
+          ...state,
+          localCommits: localHead !== null ? state.localCommits.slice(1) : state.localCommits,
+          undoneOid: localHead !== null ? state.undoneOid : action.oid,
+          staged: unique([...state.staged, ...files]),
+          message: state.message.trim() === "" ? subject : state.message,
+          ahead: pushed ? state.ahead : Math.max(0, state.ahead - 1),
+          behind: pushed ? state.behind + 1 : state.behind
+        }, {
+          tone: "warn",
+          text: `\u5DF2\u64A4\u9500\u63D0\u4EA4 ${subject === "" ? action.oid.slice(0, 7) : subject}\u3002`,
+          detail: pushed ? `\u63D0\u4EA4\u91CC\u7684 ${files.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u6682\u5B58\u533A\uFF0C\u63D0\u4EA4\u8BF4\u660E\u7559\u5728\u8F93\u5165\u6846\u91CC\uFF1B\u8FD9\u6761\u63D0\u4EA4\u5DF2\u7ECF\u63A8\u9001\u8FC7\uFF0C\u6240\u4EE5\u672C\u5730\u73B0\u5728\u6BD4\u8FDC\u7AEF\u5404\u5C11\u4E00\u6B65\uFF0C\u9700\u8981\u91CD\u65B0\u63D0\u4EA4\u540E\u518D\u63A8\u9001\u3002` : `\u63D0\u4EA4\u91CC\u7684 ${files.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u6682\u5B58\u533A\uFF0C\u63D0\u4EA4\u8BF4\u660E\u7559\u5728\u8F93\u5165\u6846\u91CC\uFF1B\u53EF\u4EE5\u6539\u5B8C\u518D\u91CD\u65B0\u63D0\u4EA4\u3002`,
+          source: "history"
+        });
+      }
+      case "commit-revert": {
+        if (state.busy !== null || state.reloading) return state;
+        const entry = state.localCommits.find((row) => row.oid === action.oid) ?? base.screen.commits.find((row) => row.oid === action.oid);
+        if (entry === void 0) return state;
+        return withResult({ ...state, ahead: state.ahead + 1 }, {
+          tone: "ok",
+          text: `\u5DF2\u751F\u6210\u4E00\u6B21\u53CD\u5411\u63D0\u4EA4\uFF0C\u62B5\u6D88\u300C${entry.subject}\u300D\u3002`,
+          detail: "\u56DE\u9000\u4E0D\u662F\u5220\u9664\u5386\u53F2\uFF1A\u539F\u63D0\u4EA4\u8FD8\u5728\uFF0C\u540E\u9762\u591A\u4E86\u4E00\u7B14\u628A\u5B83\u7684\u6539\u52A8\u64A4\u56DE\u53BB\u7684\u65B0\u63D0\u4EA4\u3002\u8FD9\u7B14\u65B0\u63D0\u4EA4\u8FD8\u6CA1\u6709\u63A8\u9001\uFF1B\u5982\u679C\u548C\u522B\u7684\u5206\u652F\u51B2\u7A81\uFF0C\u9700\u8981\u5148\u89E3\u51B3\u51B2\u7A81\u3002\u539F\u578B\u4E0D\u771F\u7684\u5199\u5386\u53F2\u3002",
+          source: "history"
+        });
+      }
+      case "commit-cherry-pick": {
+        if (state.busy !== null || state.reloading) return state;
+        const entry = state.localCommits.find((row) => row.oid === action.oid) ?? base.screen.commits.find((row) => row.oid === action.oid);
+        if (entry === void 0) return state;
+        if (entry.parents.length > 1) {
+          return withResult(state, { tone: "error", text: "\u5408\u5E76\u63D0\u4EA4\u4E0D\u80FD\u76F4\u63A5\u62E3\u9009\u3002", detail: "\u5408\u5E76\u63D0\u4EA4\u6709\u4E24\u4E2A\u7236\u63D0\u4EA4\uFF0C\u62E3\u9009\u65F6 git \u4E0D\u77E5\u9053\u8981\u5E26\u54EA\u4E00\u8FB9\uFF1B\u5148\u62E3\u9009\u5B83\u5F15\u5165\u7684\u90A3\u4E9B\u666E\u901A\u63D0\u4EA4\u3002", source: "history" });
+        }
+        return withResult({ ...state, ahead: state.ahead + 1 }, {
+          tone: "ok",
+          text: `\u5DF2\u628A\u63D0\u4EA4 ${entry.short} \u62E3\u9009\u5230\u5F53\u524D\u5206\u652F\u3002`,
+          detail: "\u539F\u6765\u7684\u63D0\u4EA4\u7559\u5728\u5B83\u81EA\u5DF1\u7684\u5206\u652F\u4E0A\uFF1B\u5F53\u524D\u5206\u652F\u591A\u4E86\u4E00\u7B14\u5185\u5BB9\u76F8\u540C\u3001\u63D0\u4EA4\u53F7\u4E0D\u540C\u7684\u65B0\u63D0\u4EA4\uFF0C\u8FD8\u6CA1\u6709\u63A8\u9001\u3002\u539F\u578B\u4E0D\u771F\u7684\u5199\u5386\u53F2\u3002",
+          source: "history"
+        });
+      }
       default:
         return state;
     }
   }
   function metadataOf(base, path) {
     return [...base.screen.staged, ...base.screen.unstaged].find((entry) => entry.path === path);
+  }
+  function nameOfPath(path) {
+    const segments = path.split(/[\\/]/);
+    return segments[segments.length - 1] ?? path;
+  }
+  function changeSummary(base, path) {
+    const meta = metadataOf(base, path);
+    if (meta === void 0) return "";
+    const parts = [];
+    if (meta.addedLines !== null && meta.addedLines > 0) parts.push(`\u65B0\u589E ${meta.addedLines} \u884C`);
+    if (meta.deletedLines !== null && meta.deletedLines > 0) parts.push(`\u5220\u9664 ${meta.deletedLines} \u884C`);
+    return parts.join("\uFF0C");
   }
 
   // docs/prototype/vc-redesign/src/domain/handoff.ts
@@ -4391,7 +4706,6 @@
       })),
       `\u5176\u4E2D\u5DF2\u5408\u5E76 ${mergedBranches.length} \u6761\uFF0C\u6CA1\u6709\u4E0A\u6E38 ${looseBranches.length} \u6761\u3002`
     ];
-    const observation = kind === "general" ? "\u6211\u80FD\u770B\u5230\u72B6\u6001\uFF0C\u4F46\u4E0D\u786E\u5B9A\u4ECE\u54EA\u4E00\u6B65\u5F00\u59CB\u6700\u7701\u4E8B\uFF1B\u4E5F\u62C5\u5FC3\u81EA\u5DF1\u6F0F\u770B\u4E86\u67D0\u4E2A\u8BA9\u64CD\u4F5C\u5931\u8D25\u7684\u6761\u4EF6\u3002" : kind === "changes" ? `\u6539\u52A8\u5217\u8868\u91CC\u6709 ${screen.unstagedCount} \u4E2A\u672A\u6682\u5B58\u6587\u4EF6\u3001${screen.stagedCount} \u4E2A\u5DF2\u6682\u5B58\u6587\u4EF6\u3001${screen.conflictCount} \u4E2A\u51B2\u7A81\u6587\u4EF6\uFF1B\u6211\u4E0D\u786E\u5B9A\u8BE5\u628A\u5B83\u4EEC\u62C6\u6210\u51E0\u6761\u63D0\u4EA4\u3001\u6BCF\u6761\u653E\u54EA\u4E9B\u6587\u4EF6\u3002` : kind === "worktrees" ? `\u5176\u4ED6\u5DE5\u4F5C\u6811\u6709 ${otherWorktrees.length} \u68F5\uFF0C\u5176\u4E2D ${abnormal.length} \u68F5\u5728\u6321\u8DEF\uFF1B\u6211\u4E0D\u786E\u5B9A\u54EA\u4E9B\u8BE5\u89E3\u9501\u3001\u54EA\u4E9B\u8BE5\u6E05\u7406\u8BB0\u5F55\u3001\u54EA\u4E9B\u8BE5\u79FB\u9664\u3002` : `\u672C\u5730 ${branches.length} \u6761\u5206\u652F\u91CC\uFF0C${mergedBranches.length} \u6761\u5DF2\u5408\u5E76\u3001${looseBranches.length} \u6761\u6CA1\u6709\u4E0A\u6E38\uFF1B\u6211\u4E0D\u77E5\u9053\u5148\u5408\u5E76\u54EA\u6761\u3001\u5220\u54EA\u6761\u624D\u5B89\u5168\u3002`;
     const prompt = [
       "\u6211\u5728\u672C\u5730\u4ED3\u5E93\u7684\u7248\u672C\u7BA1\u7406\u9875\u4E0A\u9047\u5230\u4E86\u4E0B\u9762\u7684\u60C5\u51B5\uFF0C\u8BF7\u4F60\u5E2E\u6211\u5224\u65AD\u5E76\u7ED9\u51FA\u4E0B\u4E00\u6B65\u505A\u6CD5\u3002",
       "",
@@ -4412,10 +4726,10 @@
       "",
       "\u3010\u6211\u770B\u5230\u7684\u73B0\u8C61\u3011",
       `  \u754C\u9762\u505C\u5728\uFF1A${focus}`,
-      `  \u6211\u7684\u611F\u53D7\uFF1A${observation}`,
+      "  \uFF08\u5728\u8FD9\u91CC\u8865\u4E00\u53E5\uFF1A\u4F60\u6253\u5F00\u9762\u677F\u65F6\u60F3\u505A\u4EC0\u4E48\uFF0C\u6216\u8005\u770B\u5230\u54EA\u91CC\u4E0D\u5BF9\u52B2\u3002\u8FD9\u4E00\u53E5\u4E0D\u5199\uFF0C\u6A21\u578B\u53EA\u80FD\u4ECE\u4E0A\u9762\u7684\u72B6\u6001\u91CC\u731C\u3002\uFF09",
       "",
-      "\u3010\u6211\u60F3\u8FBE\u5230\u7684\u7ED3\u679C\u3011",
-      `  ${GOALS[kind]}`,
+      "\u3010\u6211\u60F3\u505A\u4EC0\u4E48\u3011",
+      `  \uFF08\u7528\u4E00\u4E24\u53E5\u8BDD\u8BF4\u6E05\u4F60\u60F3\u5F97\u5230\u7684\u7ED3\u679C\u3002\u53EF\u4EE5\u7167\u8FD9\u4E2A\u65B9\u5411\u5199\uFF1A${GOALS[kind]}\uFF09`,
       "",
       "\u3010\u8BF7\u4F60\u3011",
       "  1. \u5148\u7528\u4E09\u4E94\u53E5\u8BDD\u590D\u8FF0\u4F60\u7406\u89E3\u7684\u72B6\u6001\uFF0C\u5E76\u6307\u51FA\u6211\u53EF\u80FD\u8BEF\u89E3\u7684\u5730\u65B9\u3002",
@@ -4524,7 +4838,8 @@
     return [
       { id: "changes", label: COPY.views.changes, count: changes, unit: COPY.units.change },
       { id: "commits", label: COPY.views.commits, count: base.totalCommits, unit: COPY.units.commit },
-      { id: "worktrees", label: COPY.views.worktrees, count: base.screen.otherWorktrees.filter((item) => !item.current).length + (state.demoWorktrees ? DEMO_WORKTREE_COUNT : 0), unit: COPY.units.worktree }
+      { id: "worktrees", label: COPY.views.worktrees, count: base.screen.otherWorktrees.filter((item) => !item.current).length + (state.demoWorktrees ? DEMO_WORKTREE_COUNT : 0), unit: COPY.units.worktree },
+      { id: "stash", label: COPY.views.stash, count: state.stashes.length, unit: COPY.units.stash }
     ];
   }
   function nextStepOf(state) {
@@ -4624,8 +4939,54 @@
       patch,
       patchNote,
       canStage: !busy && !options.conflict && !options.staged,
-      canUnstage: !busy && !options.conflict && options.staged
+      canUnstage: !busy && !options.conflict && options.staged,
+      untracked: isUntracked,
+      showMenu: !busy && !options.staged,
+      canDiscard: !busy && !options.conflict && !options.staged && !isUntracked,
+      canIgnore: !busy && !options.conflict && !options.staged && isUntracked,
+      canDeleteUntracked: !busy && !options.conflict && !options.staged && isUntracked,
+      resolvable: !busy && options.conflict
     };
+  }
+  function pendingOf(base, state) {
+    const pending = state.changesPending;
+    if (pending === null) return null;
+    if (state.busy !== null || state.reloading) return null;
+    if (pending.kind === "discard-all") {
+      return {
+        kind: pending.kind,
+        path: null,
+        title: COPY.changes.confirmDiscardAllTitle(state.unstaged.length),
+        body: COPY.changes.confirmDiscardAllBody,
+        meta: COPY.changes.confirmDiscardAllMeta(state.unstaged.length),
+        confirmLabel: COPY.changes.confirmDiscard,
+        danger: true
+      };
+    }
+    const path = pending.path;
+    if (path === null) return null;
+    const meta = metadataOf(base, path);
+    const name = splitPath(path).name;
+    const lines = [];
+    if (meta !== void 0) {
+      if (meta.addedLines !== null && meta.addedLines > 0) lines.push(`\u65B0\u589E ${meta.addedLines} \u884C`);
+      if (meta.deletedLines !== null && meta.deletedLines > 0) lines.push(`\u5220\u9664 ${meta.deletedLines} \u884C`);
+    }
+    const metaText = lines.length === 0 ? null : `\u8FD9\u6B21\u4F1A\u4E22\u6389 ${lines.join("\uFF0C")}`;
+    switch (pending.kind) {
+      case "discard":
+        return { kind: pending.kind, path, title: COPY.changes.confirmDiscardTitle(name), body: COPY.changes.confirmDiscardBody, meta: metaText, confirmLabel: COPY.changes.confirmDiscard, danger: true };
+      case "ignore":
+        return { kind: pending.kind, path, title: COPY.changes.confirmIgnoreTitle(name), body: COPY.changes.confirmIgnoreBody, meta: null, confirmLabel: COPY.changes.confirmIgnore, danger: false };
+      case "delete-untracked":
+        return { kind: pending.kind, path, title: COPY.changes.confirmDeleteTitle(name), body: COPY.changes.confirmDeleteBody, meta: null, confirmLabel: COPY.changes.confirmDelete, danger: true };
+      case "resolve-ours":
+        return { kind: pending.kind, path, title: COPY.changes.confirmResolveOursTitle(name), body: COPY.changes.confirmResolveOursBody, meta: null, confirmLabel: COPY.changes.confirmResolve, danger: true };
+      case "resolve-theirs":
+        return { kind: pending.kind, path, title: COPY.changes.confirmResolveTheirsTitle(name), body: COPY.changes.confirmResolveTheirsBody, meta: null, confirmLabel: COPY.changes.confirmResolve, danger: true };
+      default:
+        return null;
+    }
   }
   function changesOf(base, state) {
     const screen = judgeScreen(base, state);
@@ -4659,12 +5020,17 @@
       });
     }
     const keepEmptyGroup = state.changesFilter !== "all";
-    const visibleGroups = groups.filter((group) => keepEmptyGroup || group.id === "conflict" || group.rows.length > 0 || group.id === "staged");
+    const visibleGroups = groups.filter((group) => {
+      if (keepEmptyGroup) return true;
+      if (group.id === "staged") return true;
+      return group.rows.length > 0;
+    });
     const commitVerdict = verdictOf(screen, "commit");
     let disabledReason = commitVerdict.reason;
     if (state.staged.length === 0) disabledReason = COPY.changes.commitNoStaged;
     else if (state.conflicts.length > 0) disabledReason = COPY.block["conflicts-unresolved"];
     else if (state.message.trim() === "") disabledReason = COPY.changes.commitNoMessage;
+    const changeCount = state.staged.length + state.unstaged.length;
     return {
       stats: [
         { id: "conflict", label: COPY.changes.filterConflict, count: state.conflicts.length, tone: "error" },
@@ -4675,10 +5041,17 @@
       groups: visibleGroups,
       empty: state.staged.length === 0 && state.unstaged.length === 0 && state.conflicts.length === 0,
       stagedCount: state.staged.length,
+      unstagedCount: state.unstaged.length,
       conflictCount: state.conflicts.length,
       busy,
       canStageAll: !busy && state.conflicts.length === 0 && state.unstaged.length > 0,
       canUnstageAll: !busy && state.staged.length > 0,
+      canDiscardAll: !busy && state.conflicts.length === 0 && state.unstaged.length > 0,
+      canStash: !busy && state.conflicts.length === 0 && changeCount > 0,
+      stashReason: state.conflicts.length > 0 ? COPY.block["conflicts-unresolved"] : null,
+      openMenuPath: state.openMenuPath,
+      pending: pendingOf(base, state),
+      ignoredNote: state.ignored.length === 0 ? null : COPY.changes.ignoredNote(state.ignored.length),
       composer: {
         stagedCount: state.staged.length,
         message: state.message,
@@ -4710,8 +5083,9 @@
       files: commit.files,
       local: true
     }));
-    const keep = Math.max(0, base.totalCommits - local.length);
-    const captured = base.screen.commits.slice(0, keep).map((commit) => ({
+    const total = historyTotal(base, state);
+    const keep = Math.max(0, total - local.length);
+    const captured = base.screen.commits.filter((commit) => commit.oid !== state.undoneOid).slice(0, keep).map((commit) => ({
       oid: commit.oid,
       short: commit.short,
       subject: commit.subject,
@@ -4722,6 +5096,9 @@
       local: false
     }));
     return [...local, ...captured];
+  }
+  function historyTotal(base, state) {
+    return Math.max(0, base.totalCommits - (state.undoneOid === null ? 0 : 1));
   }
   function matchesQuery(entry, query) {
     if (query === "") return true;
@@ -4785,11 +5162,11 @@
       detail,
       rows,
       loaded: rows.length,
-      total: base.totalCommits,
+      total: historyTotal(base, state),
       query: state.historyQuery,
       mergeOnly: state.historyMergeOnly,
       empty: rows.length === 0,
-      scopeText: COPY.history.loadedCount(rows.length, base.totalCommits),
+      scopeText: COPY.history.loadedCount(rows.length, historyTotal(base, state)),
       mergeOnlyText: COPY.history.mergeOnly
     };
   }
@@ -4922,9 +5299,11 @@
         canSwitch: !isCurrent,
         canMerge: !isCurrent,
         canDelete: !isCurrent,
+        canRebase: !isCurrent,
         switchReason: isCurrent ? COPY.branches.switchCurrent : null,
         mergeReason: null,
         deleteReason: isCurrent ? COPY.branches.cannotDeleteCurrent : null,
+        rebaseReason: isCurrent ? COPY.branches.rebaseCurrent : null,
         pending: state.branchPending
       };
     }
@@ -4939,6 +5318,27 @@
       pending: state.branchPending,
       empty: rows.length === 0,
       dirty: state.staged.length > 0 || state.unstaged.length > 0 || state.conflicts.length > 0
+    };
+  }
+  function stashOf(state, nowMs) {
+    const rows = state.stashes.map((entry) => ({
+      id: entry.id,
+      message: entry.message,
+      when: timeText(nowMs, entry.whenMs),
+      paths: entry.paths,
+      filesCount: entry.paths.length
+    }));
+    const pending = state.stashPending === null ? null : {
+      id: state.stashPending.id,
+      title: COPY.stash.dropTitle(state.stashPending.id),
+      body: COPY.stash.dropBody
+    };
+    return {
+      rows,
+      total: rows.length,
+      empty: rows.length === 0,
+      pending,
+      busy: state.busy !== null
     };
   }
   function panelModelOf(base, state, nowMs) {
@@ -4957,6 +5357,7 @@
       history: historyOf(base, state, nowMs),
       worktrees: worktreesOf(base, state),
       branches: branchesOf(base, state, nowMs),
+      stash: stashOf(state, nowMs),
       result: state.result,
       confirm,
       busy: state.busy,
@@ -5078,7 +5479,10 @@
       copy: "\u590D\u5236",
       ai: "AI \u4EA4\u63A5",
       branch: "\u5206\u652F\u52A8\u4F5C",
-      worktree: "\u5DE5\u4F5C\u6811\u52A8\u4F5C"
+      worktree: "\u5DE5\u4F5C\u6811\u52A8\u4F5C",
+      changes: "\u6539\u52A8\u52A8\u4F5C",
+      history: "\u63D0\u4EA4\u52A8\u4F5C",
+      stash: "\u8D2E\u85CF\u52A8\u4F5C"
     };
     return h(
       "div",
@@ -5132,17 +5536,16 @@
   // docs/prototype/vc-redesign/src/ui/views/handoff.ts
   function renderHandoffSheet(model) {
     const { draft, copied } = model;
-    const layer = h("div", { class: "handoff-layer" });
+    const layer = h("div", { class: "handoff-layer is-pop" });
     layer.append(h("div", {
       class: "handoff-backdrop",
       attrs: { "aria-hidden": "true" },
       dataset: { action: "handoff-close" }
     }));
     const sheet = h("section", {
-      class: "handoff-sheet",
+      class: "handoff-sheet is-pop",
       attrs: {
         role: "dialog",
-        "aria-modal": "true",
         "aria-labelledby": "handoff-title",
         "aria-describedby": "handoff-lede"
       }
@@ -5359,13 +5762,25 @@
       );
     }
     const list = h("div", { class: "changes-scroll" });
+    if (result !== null && result.source !== "commit") list.append(resultBanner(result));
+    if (model.ignoredNote !== null) list.append(h("div", { class: "changes-note" }, note(model.ignoredNote, "muted")));
     if (model.empty) {
       list.append(emptyState(COPY.changes.emptyTitle, COPY.changes.emptyHint));
     } else {
       for (const group of model.groups) list.append(renderGroup(group, model));
     }
     const composer = h("div", { class: "composer" });
-    if (result !== null) composer.append(resultBanner(result));
+    if (result !== null && result.source === "commit") composer.append(resultBanner(result));
+    const stashBtn = h("button", {
+      class: `link-btn${model.canStash ? "" : " is-disabled"}`,
+      attrs: {
+        type: "button",
+        "data-focus-key": "stash-create",
+        title: model.canStash ? COPY.changes.stashHint : model.stashReason ?? COPY.changes.stashBlocked,
+        disabled: !model.canStash
+      },
+      dataset: { action: "stash-create" }
+    }, COPY.changes.stashAction);
     const stagedLine = h(
       "div",
       { class: "composer-head" },
@@ -5375,11 +5790,16 @@
         h("span", { class: "count", text: String(model.composer.stagedCount) }),
         h("span", { class: "unit", text: "\u4E2A\u6587\u4EF6\u5DF2\u6682\u5B58" })
       ),
-      model.canUnstageAll ? h("button", {
-        class: "link-btn",
-        attrs: { type: "button", "data-focus-key": "unstage-all" },
-        dataset: { action: "unstage-all" }
-      }, COPY.actions.unstageAll) : null
+      h(
+        "span",
+        { class: "composer-links" },
+        model.canUnstageAll ? h("button", {
+          class: "link-btn",
+          attrs: { type: "button", "data-focus-key": "unstage-all" },
+          dataset: { action: "unstage-all" }
+        }, COPY.actions.unstageAll) : null,
+        stashBtn
+      )
     );
     const textarea = h("textarea", {
       class: "commit-input",
@@ -5460,13 +5880,25 @@
         },
         dataset: { action: "stage-all" }
       }, COPY.actions.stageAll));
+      if (model.canDiscardAll) {
+        head.append(h("button", {
+          class: "group-action is-danger",
+          attrs: { type: "button", "aria-label": COPY.changes.discardAll, title: "\u628A\u5168\u90E8\u672A\u6682\u5B58\u7684\u6539\u52A8\u4E22\u5F03\uFF08\u4E0D\u80FD\u64A4\u56DE\uFF09" },
+          dataset: { action: "changes-pending", kind: "discard-all" }
+        }, COPY.changes.discardAll));
+      }
     }
     section.append(head);
-    for (const row of group.rows) section.append(renderFileRow(row));
+    if (model.pending !== null && model.pending.kind === "discard-all") section.append(renderConfirmCard(model.pending));
+    for (const row of group.rows) section.append(renderFileRow(row, model));
     return section;
   }
-  function renderFileRow(row) {
-    const rowNode = h("div", { class: `file-row${row.expanded ? " is-open" : ""}${row.conflict ? " is-conflict" : ""}` });
+  function renderFileRow(row, model) {
+    const pendingHere = model.pending !== null && model.pending.path === row.fullPath;
+    const menuOpen = model.openMenuPath === row.fullPath;
+    const rowNode = h("div", {
+      class: `file-row${row.expanded ? " is-open" : ""}${row.conflict ? " is-conflict" : ""}${pendingHere ? " is-pending" : ""}`
+    });
     const main = h("div", {
       class: "file-main",
       attrs: {
@@ -5514,8 +5946,24 @@
         dataset: { action: "unstage", path: row.fullPath }
       }, COPY.actions.unstage));
     }
+    if (row.showMenu) {
+      actions.append(h("button", {
+        class: `row-act row-more${menuOpen ? " is-open" : ""}`,
+        attrs: {
+          type: "button",
+          "aria-haspopup": "true",
+          "aria-expanded": menuOpen ? "true" : "false",
+          "aria-label": COPY.changes.menuOpen,
+          title: COPY.changes.menuOpen,
+          "data-focus-key": `more:${row.fullPath}`
+        },
+        dataset: { action: "changes-open-menu", path: row.fullPath }
+      }, h("span", { class: "row-more-dots", text: "\u22EF", attrs: { "aria-hidden": "true" } })));
+    }
     rowNode.append(main, actions);
     const wrap = h("div", { class: "file-row-wrap" }, rowNode);
+    if (menuOpen) wrap.append(renderRowMenu(row, model));
+    if (pendingHere && model.pending !== null) wrap.append(renderConfirmCard(model.pending));
     if (row.expanded) {
       const body = h("div", { class: "file-detail" });
       if (row.patch !== null) body.append(patchBlock(row.patch), h("div", { class: "file-detail-note", text: COPY.changes.patchNote }));
@@ -5523,6 +5971,51 @@
       wrap.append(body);
     }
     return wrap;
+  }
+  function renderRowMenu(row, model) {
+    const menu = h("div", { class: "row-menu", attrs: { role: "menu", "aria-label": `${row.name} \u7684\u66F4\u591A\u64CD\u4F5C` } });
+    const item = (label, action, dataset, danger = false) => h("button", {
+      class: `row-menu-item${danger ? " is-danger" : ""}`,
+      attrs: { type: "button", role: "menuitem", "data-focus-key": `menu:${row.fullPath}:${action}:${dataset.kind ?? ""}` },
+      dataset: { action, ...dataset }
+    }, label);
+    if (row.canDiscard) menu.append(item(COPY.changes.menuDiscard, "changes-pending", { kind: "discard", path: row.fullPath }, true));
+    if (row.canIgnore) menu.append(item(COPY.changes.menuIgnore, "changes-pending", { kind: "ignore", path: row.fullPath }));
+    if (row.canDeleteUntracked) menu.append(item(COPY.changes.menuDelete, "changes-pending", { kind: "delete-untracked", path: row.fullPath }, true));
+    if (row.resolvable) {
+      menu.append(item(COPY.changes.menuResolveOurs, "changes-pending", { kind: "resolve-ours", path: row.fullPath }, true));
+      menu.append(item(COPY.changes.menuResolveTheirs, "changes-pending", { kind: "resolve-theirs", path: row.fullPath }, true));
+    }
+    if (menu.childElementCount === 0) menu.append(note("\u8FD9\u4E00\u884C\u6CA1\u6709\u53EF\u7528\u7684\u884C\u7EA7\u52A8\u4F5C\u3002"));
+    menu.append(h("button", {
+      class: "row-menu-item is-close",
+      attrs: { type: "button", "aria-label": COPY.changes.menuClose },
+      dataset: { action: "changes-open-menu", path: "" }
+    }, COPY.changes.menuClose));
+    void model;
+    return menu;
+  }
+  function renderConfirmCard(pending) {
+    const card = h(
+      "div",
+      { class: `changes-confirm${pending.danger ? " is-danger" : " is-warn"}`, attrs: { role: "group", "aria-label": pending.title } },
+      h("h3", { class: "changes-confirm-title", text: pending.title }),
+      h("p", { class: "changes-confirm-body", text: pending.body })
+    );
+    if (pending.meta !== null) card.append(h("p", { class: "changes-confirm-meta", text: pending.meta }));
+    card.append(h(
+      "div",
+      { class: "changes-confirm-actions" },
+      button({ label: COPY.changes.confirmCancel, kind: "ghost", size: "sm", action: "changes-pending-cancel", focusKey: "changes-cancel" }),
+      button({
+        label: pending.confirmLabel,
+        kind: pending.danger ? "danger" : "secondary",
+        size: "sm",
+        action: "changes-apply",
+        focusKey: "changes-confirm"
+      })
+    ));
+    return card;
   }
 
   // docs/prototype/vc-redesign/src/ui/views/branches.ts
@@ -5660,6 +6153,16 @@
       focusKey: "branch-merge"
     }));
     actions.append(button({
+      label: COPY.branches.rebase,
+      kind: "secondary",
+      size: "sm",
+      disabled: !detail.canRebase,
+      title: detail.rebaseReason,
+      action: "branch-rebase-start",
+      dataset: { name: row.name },
+      focusKey: "branch-rebase"
+    }));
+    actions.append(button({
       label: COPY.branches.rename,
       kind: "ghost",
       size: "sm",
@@ -5679,7 +6182,7 @@
     });
     actions.append(danger);
     wrap.append(actions);
-    if (detail.pending !== null) wrap.append(renderConfirm(detail.pending));
+    if (detail.pending !== null) wrap.append(renderConfirm(detail.pending, model.currentName));
     else wrap.append(h("p", { class: "branch-hint", text: COPY.branches.mergeHint }));
     if (model.dirty) {
       wrap.append(h("p", { class: "branch-hint is-warn", text: "\u5DE5\u4F5C\u533A\u6709\u672A\u63D0\u4EA4\u7684\u6539\u52A8\uFF1A\u5207\u6362\u6216\u5408\u5E76\u4E4B\u524D\uFF0C\u5148\u60F3\u6E05\u695A\u8FD9\u4E9B\u6539\u52A8\u8981\u8DDF\u7740\u8D70\u8FD8\u662F\u8981\u7559\u5728\u539F\u5206\u652F\u3002" }));
@@ -5703,13 +6206,18 @@
     facts.append(h("p", { class: "branch-subject", text: row.subject }));
     return facts;
   }
-  function renderConfirm(pending) {
+  function renderConfirm(pending, currentName) {
     const isDelete = pending.kind === "delete";
+    const isRebase = pending.kind === "rebase";
+    const title = isDelete ? COPY.branches.deleteTitle(pending.name) : isRebase ? COPY.branches.rebaseTitle(currentName ?? "\u5F53\u524D\u5206\u652F", pending.name) : COPY.branches.switchDirtyTitle;
+    const body = isDelete ? COPY.branches.deleteBody : isRebase ? COPY.branches.rebaseBody : COPY.branches.switchDirtyBody;
+    const confirmLabel = isDelete ? COPY.branches.deleteConfirm : isRebase ? COPY.branches.rebaseConfirm : COPY.branches.switchConfirm;
+    const confirmAction = isDelete ? "branch-delete-confirm" : isRebase ? "branch-rebase-confirm" : "branch-switch-confirm";
     return h(
       "div",
       { class: `branch-confirm${isDelete ? " is-danger" : " is-warn"}` },
-      h("h3", { class: "branch-confirm-title", text: isDelete ? COPY.branches.deleteTitle(pending.name) : COPY.branches.switchDirtyTitle }),
-      h("p", { class: "branch-confirm-body", text: isDelete ? COPY.branches.deleteBody : COPY.branches.switchDirtyBody }),
+      h("h3", { class: "branch-confirm-title", text: title }),
+      h("p", { class: "branch-confirm-body", text: body }),
       h(
         "div",
         { class: "branch-confirm-actions" },
@@ -5721,10 +6229,10 @@
           focusKey: "branch-cancel"
         }),
         button({
-          label: isDelete ? COPY.branches.deleteConfirm : COPY.branches.switchConfirm,
+          label: confirmLabel,
           kind: isDelete ? "danger" : "secondary",
           size: "sm",
-          action: isDelete ? "branch-delete-confirm" : "branch-switch-confirm",
+          action: confirmAction,
           dataset: { name: pending.name },
           focusKey: "branch-confirm"
         })
@@ -5772,11 +6280,11 @@
   }
 
   // docs/prototype/vc-redesign/src/ui/views/history.ts
-  function renderHistory(model) {
-    if (model.detail !== null) return renderDetail2(model.detail);
-    return renderList2(model);
+  function renderHistory(model, options = {}) {
+    if (model.detail !== null) return renderDetail2(model.detail, options);
+    return renderList2(model, options);
   }
-  function renderList2(model) {
+  function renderList2(model, options) {
     const view = h("div", { class: "view view-history" });
     const search = h("input", {
       class: "search-input",
@@ -5799,39 +6307,121 @@
     const tools = h("div", { class: "history-tools" }, search, mergeToggle);
     const scope = h("div", { class: "history-scope", text: model.scopeText });
     const scroll = h("div", { class: "history-scroll" });
+    if (options.result !== null && options.result !== void 0 && options.result.source === "history") {
+      scroll.append(resultBanner(options.result));
+    }
     if (model.empty) {
       scroll.append(emptyState(COPY.history.empty, null));
     } else {
       for (const row of model.rows) {
         if (row.group !== null) scroll.append(h("div", { class: "day-group", text: row.group }));
-        scroll.append(h(
-          "div",
-          {
-            class: `commit-row${row.selected ? " is-selected" : ""}`,
-            attrs: {
-              role: "button",
-              tabindex: 0,
-              "aria-label": `${row.short} ${row.subject}`,
-              "data-focus-key": `commit:${row.oid}`,
-              title: row.subject
-            },
-            dataset: { action: "history-open", oid: row.oid }
-          },
-          h("span", { class: "commit-hash mono", text: row.short }),
-          subjectNodeOf(row),
-          h(
-            "span",
-            { class: "commit-meta" },
-            h("span", { class: "commit-author", text: row.author }),
-            h("span", { class: "commit-when", text: row.when }),
-            row.filesCount > 0 ? h("span", { class: "commit-files", text: `${row.filesCount} \u4E2A\u6587\u4EF6` }) : null
-          ),
-          h("span", { class: "commit-chevron" }, icon("chevron", 12))
-        ));
+        scroll.append(renderCommitLine(row, model, options));
       }
     }
     view.append(tools, scope, scroll);
     return view;
+  }
+  function renderCommitLine(row, model, options) {
+    const menuOpen = options.menuOid === row.oid;
+    const line = h(
+      "div",
+      { class: "commit-line" },
+      h(
+        "div",
+        {
+          class: `commit-row${row.selected ? " is-selected" : ""}${menuOpen ? " is-menu" : ""}`,
+          attrs: {
+            role: "button",
+            tabindex: 0,
+            "aria-label": `${row.short} ${row.subject}`,
+            "data-focus-key": `commit:${row.oid}`,
+            title: row.subject
+          },
+          dataset: { action: "history-open", oid: row.oid }
+        },
+        h("span", { class: "commit-hash mono", text: row.short }),
+        subjectNodeOf(row),
+        h(
+          "span",
+          { class: "commit-meta" },
+          h("span", { class: "commit-author", text: row.author }),
+          h("span", { class: "commit-when", text: row.when }),
+          row.filesCount > 0 ? h("span", { class: "commit-files", text: `${row.filesCount} \u4E2A\u6587\u4EF6` }) : null
+        ),
+        h("span", { class: "commit-chevron" }, icon("chevron", 12))
+      ),
+      h("button", {
+        class: `commit-more${menuOpen ? " is-open" : ""}`,
+        attrs: {
+          type: "button",
+          "aria-haspopup": "true",
+          "aria-expanded": menuOpen ? "true" : "false",
+          "aria-label": COPY.history.menuOpen,
+          title: COPY.history.menuOpen,
+          "data-focus-key": `commit-more:${row.oid}`,
+          disabled: options.busy === true
+        },
+        dataset: { action: "commit-menu", oid: row.oid }
+      }, h("span", { text: "\u22EF", attrs: { "aria-hidden": "true" } }))
+    );
+    const wrap = h("div", { class: "commit-line-wrap" }, line);
+    if (menuOpen) {
+      const headOid = options.headOid ?? null;
+      if (options.confirmOid === row.oid) {
+        wrap.append(renderUndoConfirm(row, model));
+      } else {
+        wrap.append(renderCommitMenu(row, headOid));
+      }
+    }
+    return wrap;
+  }
+  function renderCommitMenu(row, headOid) {
+    const isHead = headOid !== null && headOid === row.oid;
+    const menu = h("div", { class: "commit-menu", attrs: { role: "menu", "aria-label": `\u63D0\u4EA4 ${row.short} \u7684\u66F4\u591A\u64CD\u4F5C` } });
+    const item = (label, action, dataset, options = {}) => h("button", {
+      class: `row-menu-item${options.danger === true ? " is-danger" : ""}`,
+      attrs: { type: "button", role: "menuitem", disabled: options.disabled === true, title: options.title ?? null, "aria-label": label },
+      dataset: { action, ...dataset }
+    }, label);
+    menu.append(item(COPY.history.menuRevert, "commit-revert", { oid: row.oid }));
+    if (!row.merge) menu.append(item(COPY.history.menuCherryPick, "commit-cherry-pick", { oid: row.oid }));
+    else menu.append(item(COPY.history.menuCherryPick, "commit-cherry-pick", { oid: row.oid }, { disabled: true, title: "\u5408\u5E76\u63D0\u4EA4\u6709\u4E24\u4E2A\u7236\u63D0\u4EA4\uFF0C\u62E3\u9009\u65F6 git \u4E0D\u77E5\u9053\u8981\u5E26\u54EA\u4E00\u8FB9\u3002" }));
+    menu.append(item(
+      COPY.history.menuUndo,
+      "commit-undo-start",
+      { oid: row.oid },
+      { disabled: !isHead, title: isHead ? COPY.history.undoBody : COPY.history.menuUndoHint, danger: true }
+    ));
+    menu.append(item(COPY.history.menuCopy, "copy-oid", { oid: row.oid }));
+    menu.append(h("button", {
+      class: "row-menu-item is-close",
+      attrs: { type: "button", "aria-label": COPY.history.menuClose },
+      dataset: { action: "commit-menu", oid: row.oid }
+    }, COPY.history.menuClose));
+    return menu;
+  }
+  function renderUndoConfirm(row, model) {
+    void model;
+    return h(
+      "div",
+      { class: "commit-confirm", attrs: { role: "group", "aria-label": COPY.history.undoTitle(row.subject) } },
+      h("h3", { class: "commit-confirm-title", text: COPY.history.undoTitle(row.subject) }),
+      h("p", { class: "commit-confirm-body", text: COPY.history.undoBody }),
+      h("p", { class: "commit-confirm-note", text: COPY.history.undoNote }),
+      h(
+        "div",
+        { class: "commit-confirm-actions" },
+        button({ label: COPY.history.cancel, kind: "ghost", size: "sm", action: "commit-menu-close", focusKey: "commit-cancel" }),
+        button({
+          label: COPY.history.undoConfirm,
+          kind: "danger",
+          size: "sm",
+          action: "commit-undo",
+          dataset: { oid: row.oid },
+          focusKey: "commit-undo-confirm"
+        })
+      )
+    );
   }
   function subjectNodeOf(row) {
     if (!row.merge) return h("span", { class: "commit-subject", text: row.subject });
@@ -5842,7 +6432,7 @@
       h("span", { class: "commit-merge-raw mono", text: row.subject })
     );
   }
-  function renderDetail2(detail) {
+  function renderDetail2(detail, options) {
     const view = h("div", { class: "view view-detail" });
     const head = h(
       "div",
@@ -5923,8 +6513,114 @@
       }
     }
     scroll.append(files);
+    if (options.result !== null && options.result !== void 0 && options.result.source === "history") {
+      scroll.append(resultBanner(options.result));
+    }
     view.append(scroll);
     return view;
+  }
+
+  // docs/prototype/vc-redesign/src/ui/views/stash.ts
+  function renderStash(model, result) {
+    const view = h("div", { class: "view view-stash" });
+    const head = h(
+      "div",
+      { class: "stash-head" },
+      h(
+        "div",
+        { class: "stash-head-text" },
+        h("h2", { class: "stash-title", text: COPY.stash.title }),
+        h("p", { class: "stash-count", text: COPY.changes.stashHint })
+      )
+    );
+    view.append(head);
+    view.append(note(COPY.stash.boundary, "muted"));
+    const scroll = h("div", { class: "stash-scroll" });
+    if (result !== null) scroll.append(resultBanner(result));
+    if (model.empty) {
+      scroll.append(emptyState(COPY.stash.empty, COPY.stash.emptyHint));
+    } else {
+      for (const row of model.rows) scroll.append(renderStashRow(row, model));
+    }
+    view.append(scroll);
+    return view;
+  }
+  function renderStashRow(row, model) {
+    const wrap = h("div", { class: "stash-row-wrap" });
+    const line = h("div", { class: "stash-row" });
+    const main = h(
+      "div",
+      { class: "stash-main" },
+      h(
+        "div",
+        { class: "stash-id-line" },
+        h("span", { class: "stash-id mono", text: row.id }),
+        h("span", { class: "stash-message", text: row.message, title: row.message })
+      ),
+      h("div", { class: "stash-meta", text: COPY.stash.entryMeta(row.when, row.filesCount) })
+    );
+    line.append(main);
+    const actions = h("div", { class: "stash-actions" });
+    actions.append(button({
+      label: COPY.stash.apply,
+      kind: "secondary",
+      size: "sm",
+      action: "stash-apply",
+      dataset: { id: row.id },
+      focusKey: `stash-apply:${row.id}`,
+      title: COPY.stash.applyHint,
+      disabled: model.busy
+    }));
+    actions.append(button({
+      label: COPY.stash.pop,
+      kind: "secondary",
+      size: "sm",
+      action: "stash-pop",
+      dataset: { id: row.id },
+      focusKey: `stash-pop:${row.id}`,
+      title: COPY.stash.popHint,
+      disabled: model.busy
+    }));
+    actions.append(button({
+      label: COPY.stash.drop,
+      kind: "ghost",
+      size: "sm",
+      action: "stash-pending",
+      dataset: { kind: "drop", id: row.id },
+      focusKey: `stash-drop:${row.id}`,
+      title: COPY.stash.dropTitle(row.id),
+      disabled: model.busy
+    }));
+    line.append(actions);
+    wrap.append(line);
+    const paths = h("div", { class: "stash-paths" });
+    paths.append(h("p", { class: "stash-paths-note", text: COPY.stash.pathsNote }));
+    const list = h("ul", { class: "stash-path-list" });
+    for (const path of row.paths) list.append(h("li", { class: "stash-path mono", text: path, attrs: { title: path } }));
+    paths.append(list);
+    wrap.append(paths);
+    if (model.pending !== null && model.pending.id === row.id) {
+      wrap.append(h(
+        "div",
+        { class: "stash-confirm", attrs: { role: "group", "aria-label": model.pending.title } },
+        h("p", { class: "stash-confirm-title", text: model.pending.title }),
+        h("p", { class: "stash-confirm-body", text: model.pending.body }),
+        h(
+          "div",
+          { class: "stash-confirm-actions" },
+          button({ label: COPY.stash.cancel, kind: "ghost", size: "sm", action: "stash-pending-cancel", focusKey: "stash-cancel" }),
+          button({
+            label: COPY.stash.dropConfirm,
+            kind: "danger",
+            size: "sm",
+            action: "stash-drop",
+            dataset: { id: row.id },
+            focusKey: `stash-drop-confirm:${row.id}`
+          })
+        )
+      ));
+    }
+    return wrap;
   }
 
   // docs/prototype/vc-redesign/src/ui/views/worktrees.ts
@@ -6204,6 +6900,8 @@
     let handoffKind = null;
     let handoffFocus = "";
     let handoffCopied = false;
+    let commitMenuOid = null;
+    let commitConfirmOid = null;
     const liveRegion = h("div", { class: "sr-only", attrs: { "aria-live": "polite", role: "status" } });
     root2.append(liveRegion);
     function snapshotFocus() {
@@ -6263,9 +6961,11 @@
       root2.append(liveRegion, frame);
       restoreScroll(options.scroll ?? null);
       restoreFocus(options.focusKey ?? null, options.focusCaret ?? null);
-      const pendingCard = root2.querySelector(".wt-confirm, .branch-confirm");
+      const pendingCard = root2.querySelector(".wt-confirm, .branch-confirm, .changes-confirm, .commit-confirm, .stash-confirm");
       if (pendingCard !== null) pendingCard.scrollIntoView({ block: "nearest" });
       positionPopconfirm();
+      positionBranchPop();
+      positionHandoff();
       scheduleResultDismiss();
       liveRegion.textContent = state.result === null ? "" : state.result.text;
       options.post?.();
@@ -6347,6 +7047,7 @@
       panel.append(renderRail(model.rail, railResult));
       panel.append(renderTabs(model));
       panel.append(h("main", { class: "panel-body", attrs: { id: "view-panel", role: "tabpanel", "aria-labelledby": `tab-${state.view}` } }, renderActiveView(model)));
+      if (state.branchOpen) panel.append(renderBranchPopover(model));
       if (model.confirm !== null) panel.append(renderPopconfirm(model.confirm));
       if (handoffKind !== null) {
         panel.append(renderHandoffSheet({
@@ -6400,12 +7101,15 @@
       return nav;
     }
     function renderActiveView(model) {
-      if (state.branchOpen) {
-        return renderBranches(model.branches, model.result !== null && model.result.source === "branch" ? model.result : null);
-      }
       switch (state.view) {
         case "commits":
-          return renderHistory(model.history);
+          return renderHistory(model.history, {
+            result: model.result,
+            // 最新一条提交在列表最上面；菜单里「撤销这次提交」只对它开放。
+            headOid: model.history.rows[0] === void 0 ? null : model.history.rows[0].oid,
+            menuOid: commitMenuOid,
+            confirmOid: commitConfirmOid
+          });
         case "worktrees": {
           const options = {
             filter: wtFilter,
@@ -6415,9 +7119,57 @@
           const result = model.result !== null && (model.result.source === "ai" || model.result.source === "worktree") ? model.result : null;
           return renderWorktrees(model.worktrees, result, options);
         }
+        case "stash":
+          return renderStash(model.stash, model.result);
         default:
-          return renderChanges(model.changes, model.result !== null && model.result.source === "commit" ? model.result : null);
+          return renderChanges(model.changes, model.result);
       }
+    }
+    function renderBranchPopover(model) {
+      return h("div", {
+        class: "branch-pop",
+        attrs: { role: "dialog", "aria-label": COPY.branches.listTitle }
+      }, renderBranches(model.branches, model.result !== null && model.result.source === "branch" ? model.result : null));
+    }
+    function positionBranchPop() {
+      const pop = root2.querySelector(".branch-pop");
+      if (pop === null) return;
+      const anchor = root2.querySelector('[data-action="branch-open"]');
+      const panel = root2.querySelector(".panel");
+      if (anchor === null || panel === null) return;
+      const a = anchor.getBoundingClientRect();
+      const p = panel.getBoundingClientRect();
+      const width = pop.offsetWidth;
+      const height = pop.offsetHeight;
+      const left = Math.min(Math.max(a.left - p.left, 8), Math.max(8, p.width - width - 8));
+      let top = a.bottom - p.top + 8;
+      if (top + height > p.height - 8) top = Math.max(8, a.top - p.top - height - 8);
+      pop.style.left = `${left}px`;
+      pop.style.top = `${top}px`;
+      pop.classList.add("is-placed");
+    }
+    function positionHandoff() {
+      const layer = root2.querySelector(".handoff-layer.is-pop");
+      if (layer === null || handoffKind === null) return;
+      const sheet = layer.querySelector(".handoff-sheet");
+      const panel = root2.querySelector(".panel");
+      if (sheet === null || panel === null) return;
+      const anchor = root2.querySelector(`[data-action="handoff-open"][data-kind="${handoffKind}"]`);
+      const p = panel.getBoundingClientRect();
+      const width = sheet.offsetWidth;
+      const height = sheet.offsetHeight;
+      let left = Math.max(8, (p.width - width) / 2);
+      let top = Math.max(8, (p.height - height) / 3);
+      if (anchor !== null) {
+        const a = anchor.getBoundingClientRect();
+        left = Math.min(Math.max(a.left - p.left, 8), Math.max(8, p.width - width - 8));
+        top = a.bottom - p.top + 8;
+        if (top + height > p.height - 8) top = Math.max(8, a.top - p.top - height - 8);
+      }
+      sheet.style.left = `${left}px`;
+      sheet.style.top = `${top}px`;
+      sheet.style.width = `${Math.min(440, p.width - 16)}px`;
+      layer.classList.add("is-placed");
     }
     function renderPopconfirm(confirm) {
       return h(
@@ -6513,14 +7265,24 @@
       }
       dispatch({ type: "copy", path }, { focusKey: lastFocusKey });
     }
+    function closeTransientPanels() {
+      if (state.openMenuPath !== null) state = reduce(state, { type: "changes-open-menu", path: null }, base);
+      if (state.changesPending !== null) state = reduce(state, { type: "changes-pending", pending: null }, base);
+      if (state.stashPending !== null) state = reduce(state, { type: "stash-pending", pending: null }, base);
+      commitMenuOid = null;
+      commitConfirmOid = null;
+    }
     function focusText(model) {
-      if (state.branchOpen) return "\u5206\u652F\u9875\uFF0C\u6B63\u5728\u672C\u5730\u5206\u652F\u6E05\u5355\u91CC";
+      if (state.branchOpen) return "\u5206\u652F\u6D6E\u5C42\uFF0C\u6B63\u5728\u672C\u5730\u5206\u652F\u6E05\u5355\u91CC";
       if (state.view === "commits") {
         const detail = model.history.detail;
         return detail === null ? "\u63D0\u4EA4\u5386\u53F2\u89C6\u56FE\u7684\u5217\u8868" : `\u63D0\u4EA4\u5386\u53F2\u89C6\u56FE\uFF0C\u6B63\u5728\u770B\u63D0\u4EA4 ${detail.short} \u7684\u8BE6\u60C5`;
       }
       if (state.view === "worktrees") {
         return `\u5DE5\u4F5C\u6811\u89C6\u56FE\uFF0C\u7B5B\u9009\u662F${wtFilter === "all" ? "\u5168\u90E8" : "\u53EA\u770B\u9700\u8981\u5904\u7406"}`;
+      }
+      if (state.view === "stash") {
+        return `\u8D2E\u85CF\u89C6\u56FE\uFF0C\u5217\u8868\u91CC\u6709 ${model.stash.total} \u6761\u8BB0\u5F55`;
       }
       const filter = state.changesFilter;
       const filterLabel = filter === "conflict" ? "\u53EA\u770B\u51B2\u7A81" : filter === "staged" ? "\u53EA\u770B\u5DF2\u6682\u5B58" : filter === "unstaged" ? "\u53EA\u770B\u672A\u6682\u5B58" : "\u5168\u90E8";
@@ -6561,10 +7323,11 @@
         }
         case "tab": {
           const view = el.dataset.view;
-          if (view !== "changes" && view !== "commits" && view !== "worktrees") return;
+          if (view !== "changes" && view !== "commits" && view !== "worktrees" && view !== "stash") return;
           if (state.branchOpen) {
             state = reduce(state, { type: "branch-close" }, base);
           }
+          closeTransientPanels();
           if (state.view === view) {
             repaint({ focusKey: `tab-${view}`, scroll: null });
             return;
@@ -6628,6 +7391,89 @@
         case "commit": {
           if (model.changes.composer.disabled) return;
           runOp("commit");
+          return;
+        }
+        case "changes-open-menu": {
+          const path = el.dataset.path ?? "";
+          const open = state.openMenuPath === path;
+          dispatch({ type: "changes-open-menu", path: open ? null : path }, { focusKey: `row-more:${path}` });
+          return;
+        }
+        case "changes-pending": {
+          const kind = el.dataset.kind;
+          if (kind !== "discard" && kind !== "discard-all" && kind !== "ignore" && kind !== "delete-untracked" && kind !== "resolve-ours" && kind !== "resolve-theirs") return;
+          const pendingKind = kind;
+          const path = el.dataset.path ?? null;
+          dispatch({ type: "changes-pending", pending: { kind: pendingKind, path } }, { focusKey: "changes-cancel", scroll: null });
+          return;
+        }
+        case "changes-pending-cancel":
+          dispatch({ type: "changes-pending", pending: null }, { focusKey: lastFocusKey, scroll: null });
+          return;
+        case "changes-apply":
+          dispatch({ type: "changes-apply" }, { focusKey: lastFocusKey, scroll: null });
+          return;
+        case "stash-create":
+          dispatch({ type: "stash-create" }, { focusKey: "composer-links", scroll: null });
+          return;
+        case "stash-apply":
+        case "stash-pop": {
+          const id = el.dataset.id ?? "";
+          dispatch({ type: action, id }, { focusKey: `stash-${action === "stash-apply" ? "apply" : "pop"}:${id}`, scroll: null });
+          return;
+        }
+        case "stash-pending": {
+          const pending = { kind: "drop", id: el.dataset.id ?? "" };
+          dispatch({ type: "stash-pending", pending }, { focusKey: "stash-cancel", scroll: null });
+          return;
+        }
+        case "stash-pending-cancel":
+          dispatch({ type: "stash-pending", pending: null }, { focusKey: lastFocusKey, scroll: null });
+          return;
+        case "stash-drop":
+          dispatch({ type: "stash-drop", id: el.dataset.id ?? "" }, { focusKey: "tab-stash", scroll: null });
+          return;
+        case "commit-menu": {
+          const oid = el.dataset.oid ?? "";
+          const open = commitMenuOid === oid && commitConfirmOid === null;
+          commitMenuOid = open ? null : oid;
+          commitConfirmOid = null;
+          repaint({ focusKey: `commit-more:${oid}` });
+          return;
+        }
+        case "commit-menu-close":
+          commitMenuOid = null;
+          commitConfirmOid = null;
+          repaint({ focusKey: lastFocusKey });
+          return;
+        case "commit-undo-start": {
+          const oid = el.dataset.oid ?? "";
+          commitMenuOid = oid;
+          commitConfirmOid = oid;
+          repaint({ focusKey: "commit-cancel" });
+          return;
+        }
+        case "commit-undo": {
+          const oid = el.dataset.oid ?? "";
+          commitMenuOid = null;
+          commitConfirmOid = null;
+          dispatch({ type: "commit-undo", oid }, { focusKey: "tab-commits", scroll: null });
+          return;
+        }
+        case "commit-revert":
+        case "commit-cherry-pick": {
+          const oid = el.dataset.oid ?? "";
+          commitMenuOid = null;
+          commitConfirmOid = null;
+          dispatch({ type: action, oid }, { focusKey: `commit:${oid}`, scroll: null });
+          return;
+        }
+        case "copy-oid": {
+          const oid = el.dataset.oid ?? "";
+          commitMenuOid = null;
+          commitConfirmOid = null;
+          void copyPath(oid);
+          repaint({ focusKey: "tab-commits" });
           return;
         }
         case "history-open": {
@@ -6744,6 +7590,12 @@
         case "branch-delete-confirm":
           dispatch({ type: "branch-delete", name: el.dataset.name ?? "" }, { focusKey: "branch-back", scroll: null });
           return;
+        case "branch-rebase-start":
+          dispatch({ type: "branch-pending", pending: { kind: "rebase", name: el.dataset.name ?? "" } }, { focusKey: "branch-cancel", scroll: null });
+          return;
+        case "branch-rebase-confirm":
+          dispatch({ type: "branch-rebase", name: el.dataset.name ?? "" }, { focusKey: "branch-back", scroll: null });
+          return;
         case "branch-pending-cancel":
           dispatch({ type: "branch-pending", pending: null }, { focusKey: "branch-back", scroll: null });
           return;
@@ -6832,6 +7684,23 @@
         repaint({ focusKey: `handoff-${previous}` });
         return;
       }
+      if (event.key === "Escape" && state.changesPending !== null) {
+        event.preventDefault();
+        dispatch({ type: "changes-pending", pending: null }, { focusKey: lastFocusKey });
+        return;
+      }
+      if (event.key === "Escape" && state.stashPending !== null) {
+        event.preventDefault();
+        dispatch({ type: "stash-pending", pending: null }, { focusKey: lastFocusKey });
+        return;
+      }
+      if (event.key === "Escape" && (commitMenuOid !== null || commitConfirmOid !== null)) {
+        event.preventDefault();
+        commitMenuOid = null;
+        commitConfirmOid = null;
+        repaint({ focusKey: "tab-commits" });
+        return;
+      }
       if (event.key === "Escape" && state.branchPending !== null) {
         event.preventDefault();
         dispatch({ type: "branch-pending", pending: null }, { focusKey: "branch-back" });
@@ -6868,7 +7737,7 @@
         const nextIndex = event.key === "ArrowRight" ? (index + 1) % tabs.length : (index - 1 + tabs.length) % tabs.length;
         const nextTab = tabs[nextIndex];
         const view = nextTab.dataset.view;
-        if (view === "changes" || view === "commits" || view === "worktrees") {
+        if (view === "changes" || view === "commits" || view === "worktrees" || view === "stash") {
           dispatch({ type: "view", view }, { focusKey: `tab-${view}`, scroll: null });
         }
       }
@@ -6877,10 +7746,22 @@
     root2.addEventListener("input", onChange);
     root2.addEventListener("keydown", onKeyDown);
     document.addEventListener("click", (event) => {
-      if (state.confirmPull === null) return;
       const target = event.target;
-      if (target instanceof Element && (target.closest(".popconfirm") !== null || target.closest('[data-action="pull"]') !== null)) return;
-      dispatch({ type: "pull-confirm-close" }, { focusKey: "pull" });
+      if (!(target instanceof Element)) return;
+      if (state.confirmPull !== null && target.closest(".popconfirm") === null && target.closest('[data-action="pull"]') === null) {
+        dispatch({ type: "pull-confirm-close" }, { focusKey: "pull" });
+      }
+      if (state.branchOpen && target.closest(".branch-pop") === null && target.closest('[data-action="branch-open"]') === null) {
+        state = reduce(state, { type: "branch-close" }, base);
+        repaint({ focusKey: "branch-open" });
+      }
+      const insideTransient = target.closest(".row-menu, .row-more, .row-act, .commit-menu, .commit-more, .changes-confirm, .commit-confirm") !== null;
+      if (!insideTransient && (commitMenuOid !== null || commitConfirmOid !== null || state.openMenuPath !== null)) {
+        commitMenuOid = null;
+        commitConfirmOid = null;
+        if (state.openMenuPath !== null) state = reduce(state, { type: "changes-open-menu", path: null }, base);
+        repaint({ focusKey: lastFocusKey });
+      }
     });
     root2.addEventListener("focusin", (event) => {
       const target = event.target;
@@ -6911,8 +7792,25 @@
         }
       }
       const view = params.get("view");
-      if (view === "changes" || view === "commits" || view === "worktrees") {
+      if (view === "changes" || view === "commits" || view === "worktrees" || view === "stash") {
         state = reduce(state, { type: "view", view }, base);
+      }
+      const menuPath = params.get("menu");
+      if (menuPath !== null && menuPath !== "") {
+        state = reduce(state, { type: "changes-open-menu", path: menuPath }, base);
+      }
+      const changePending = params.get("cpending");
+      if (changePending === "discard" || changePending === "discard-all" || changePending === "ignore" || changePending === "delete-untracked" || changePending === "resolve-ours" || changePending === "resolve-theirs") {
+        state = reduce(state, { type: "changes-pending", pending: { kind: changePending, path: params.get("cpath") ?? null } }, base);
+      }
+      const commitMenu = params.get("commitmenu");
+      if (commitMenu !== null && commitMenu !== "") commitMenuOid = commitMenu;
+      if (params.get("commitconfirm") === "1" && commitMenuOid !== null) commitConfirmOid = commitMenuOid;
+      if (params.get("stashdemo") === "1") state = reduce(state, { type: "stash-create" }, base);
+      const stashPending = params.get("stashpending");
+      if (stashPending === "drop") {
+        const stashId = params.get("stashid") ?? "stash@{0}";
+        state = reduce(state, { type: "stash-pending", pending: { kind: "drop", id: stashId } }, base);
       }
       if (params.get("branches") === "1") state = reduce(state, { type: "branch-open" }, base);
       const branchName = params.get("branch");
@@ -6924,7 +7822,7 @@
       const branchDraft = params.get("bdraft");
       if (branchDraft !== null && branchDraft !== "") state = reduce(state, { type: "branch-draft", value: branchDraft }, base);
       const branchPendingParam = params.get("bpending");
-      if (branchPendingParam === "delete" || branchPendingParam === "switch") {
+      if (branchPendingParam === "delete" || branchPendingParam === "switch" || branchPendingParam === "rebase") {
         const selected = state.branchSelected;
         if (selected !== null) {
           state = reduce(state, { type: "branch-pending", pending: { kind: branchPendingParam, name: selected } }, base);

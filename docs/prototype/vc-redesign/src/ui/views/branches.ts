@@ -1,8 +1,9 @@
 /**
- * ui/views/branches.ts —— 分支页：从顶部身份行的分支名点进来，覆盖当前视图，不新增第四个页签。
+ * ui/views/branches.ts —— 分支浮层：从顶部身份行的分支名点进来，贴着分支名出现。
  *
- * 为什么是「覆盖」而不是页签：分支首先回答「我在哪」，它贴在顶部身份行旁边；
- * 把它做成第四个页签会让「改动、提交历史、工作树」变成四选一，而分支其实随时可看。
+ * 为什么是贴着入口的浮层而不是整页覆盖：用户要求「点了 branch 入口出现的内容不能离入口太远」。
+ * 分支首先回答「我在哪」，它就在顶部身份行旁边；浮层紧贴那枚分支按钮展开，
+ * 关掉之后原来那一页原样还在，读者不会失去自己刚才在做的事。
  *
  * 结构沿用历史页的单列两层：列表点一行进详情，详情返回回列表，不做左右分栏。
  * 这条规则来自面板宽度只有 300 到 520：两栏在 460 宽以下连分支名都放不下。
@@ -159,6 +160,16 @@ function renderDetail(detail: BranchDetailModel, model: BranchesModel): HTMLElem
     focusKey: 'branch-merge',
   }))
   actions.append(button({
+    label: COPY.branches.rebase,
+    kind: 'secondary',
+    size: 'sm',
+    disabled: !detail.canRebase,
+    title: detail.rebaseReason,
+    action: 'branch-rebase-start',
+    dataset: { name: row.name },
+    focusKey: 'branch-rebase',
+  }))
+  actions.append(button({
     label: COPY.branches.rename,
     kind: 'ghost',
     size: 'sm',
@@ -179,7 +190,7 @@ function renderDetail(detail: BranchDetailModel, model: BranchesModel): HTMLElem
   actions.append(danger)
   wrap.append(actions)
 
-  if (detail.pending !== null) wrap.append(renderConfirm(detail.pending))
+  if (detail.pending !== null) wrap.append(renderConfirm(detail.pending, model.currentName))
   else wrap.append(h('p', { class: 'branch-hint', text: COPY.branches.mergeHint }))
 
   if (model.dirty) {
@@ -205,12 +216,27 @@ function renderFacts(row: BranchRowModel): HTMLElement {
   return facts
 }
 
-/** 二次确认做成详情里的一张内联卡片：面板窄，弹层会把分支名和按钮挡住。 */
-function renderConfirm(pending: { kind: 'delete' | 'switch'; name: string }): HTMLElement {
+/** 二次确认做成详情里的一张内联卡片：浮层本身已经很窄，再弹一层会把分支名和按钮挡住。 */
+function renderConfirm(pending: { kind: 'delete' | 'switch' | 'rebase'; name: string }, currentName: string | null): HTMLElement {
   const isDelete = pending.kind === 'delete'
+  const isRebase = pending.kind === 'rebase'
+  const title = isDelete
+    ? COPY.branches.deleteTitle(pending.name)
+    : isRebase
+      ? COPY.branches.rebaseTitle(currentName ?? '当前分支', pending.name)
+      : COPY.branches.switchDirtyTitle
+  const body = isDelete
+    ? COPY.branches.deleteBody
+    : isRebase ? COPY.branches.rebaseBody : COPY.branches.switchDirtyBody
+  const confirmLabel = isDelete
+    ? COPY.branches.deleteConfirm
+    : isRebase ? COPY.branches.rebaseConfirm : COPY.branches.switchConfirm
+  const confirmAction = isDelete
+    ? 'branch-delete-confirm'
+    : isRebase ? 'branch-rebase-confirm' : 'branch-switch-confirm'
   return h('div', { class: `branch-confirm${isDelete ? ' is-danger' : ' is-warn'}` },
-    h('h3', { class: 'branch-confirm-title', text: isDelete ? COPY.branches.deleteTitle(pending.name) : COPY.branches.switchDirtyTitle }),
-    h('p', { class: 'branch-confirm-body', text: isDelete ? COPY.branches.deleteBody : COPY.branches.switchDirtyBody }),
+    h('h3', { class: 'branch-confirm-title', text: title }),
+    h('p', { class: 'branch-confirm-body', text: body }),
     h('div', { class: 'branch-confirm-actions' },
       button({
         label: COPY.branches.cancel,
@@ -220,10 +246,10 @@ function renderConfirm(pending: { kind: 'delete' | 'switch'; name: string }): HT
         focusKey: 'branch-cancel',
       }),
       button({
-        label: isDelete ? COPY.branches.deleteConfirm : COPY.branches.switchConfirm,
+        label: confirmLabel,
         kind: isDelete ? 'danger' : 'secondary',
         size: 'sm',
-        action: isDelete ? 'branch-delete-confirm' : 'branch-switch-confirm',
+        action: confirmAction,
         dataset: { name: pending.name },
         focusKey: 'branch-confirm',
       })))

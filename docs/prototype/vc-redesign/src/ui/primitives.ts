@@ -84,6 +84,9 @@ export function resultBanner(result: ResultMessage): HTMLElement {
     ai: 'AI 交接',
     branch: '分支动作',
     worktree: '工作树动作',
+    changes: '改动动作',
+    history: '提交动作',
+    stash: '贮藏动作',
   }
   return h(
     'div',
