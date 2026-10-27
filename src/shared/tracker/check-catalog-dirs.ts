@@ -113,9 +113,9 @@ export const GENERIC_CATALOG: readonly CatalogItem[] = Object.freeze([
 
 /** GitHub 后端检查目录（仅 github 适用，物理隔离，其他后端该行不存在）。
  * #227 D7：仓库定位(c1 backend) / gh CLI(c4) / gh 登录(c5) / API 可达(c6) 4 项迁移，语义与 9 项一致。
- * 2026-10-27（#1223）：删掉一项已退役的旧标签检查。它当时只在这份目录里、不在 GitHub 房的检查表里，
- *   靠运行期一条过滤把多出来的行藏住；删掉之后目录与检查表一致。
- * 2026-10-27 同日后手：GitHub 房的检查表（src/tracker/rooms/github/checks.ts）改成直接由这份目录派生，
+ * 2026-10-27（#1223）：删掉一项已退役的旧标签检查。它当时只在这份目录里、不在 GitHub 房的模块检查表里，
+ *   靠运行期一条过滤把多出来的行藏住；删掉之后目录与模块检查表一致。
+ * 2026-10-27 当天稍晚：GitHub 房的模块检查表（src/tracker/rooms/github/checks.ts）改成直接由这份目录派生，
  *   不再手抄第二份——「目录与检查表各说各话」从此在结构上不可能出现
  *   （tests/verify-1223-catalog-runtime-parity.ts 里的逐项断言保留作回归锁）。
  */
@@ -226,6 +226,12 @@ export const MARKDOWN_CATALOG: readonly CatalogItem[] = Object.freeze([
   },
 ])
 
+// 冻结目录项本身（不只是数组）：GitHub 房的模块检查表现在直接引用这些对象、不再各持一份副本；
+// 元素如果可变，谁都能通过模块表改掉目录里的字，唯一真源就被绕过了。
+for (const list of [GENERIC_CATALOG, GITHUB_CATALOG, GITLAB_CATALOG, MARKDOWN_CATALOG]) {
+  for (const item of list) Object.freeze(item)
+}
+
 /** 全量目录（按 scope 分组，供编排链票直接合并）。 */
 export const ALL_CATALOGS = Object.freeze({
   generic: GENERIC_CATALOG,
@@ -262,6 +268,19 @@ export function catalogFor(backendId: 'github' | 'markdown' | 'gitlab' | null | 
   else if (backendId === 'gitlab') base.push(...GITLAB_CATALOG)
   else if (backendId === 'markdown') base.push(...MARKDOWN_CATALOG)
   return base
+}
+
+/**
+ * 取某个后端的后端段（该后端链上真正要做检查的行，按目录顺序；通用项不在此列）。
+ *
+ * 约定：先按 catalogFor 取「通用 + 该后端」，再只留 scope==='backend'；未知后端得到空数组，不抛错。
+ * 反例是各调用方各写一遍 `scope === 'backend'` 过滤——今天写法一样，明天就可能有一处漏改。
+ *
+ * @param {'github'|'markdown'|'gitlab'|null|undefined} backendId
+ * @returns {CatalogItem[]}
+ */
+export function backendItemsOf(backendId: 'github' | 'markdown' | 'gitlab' | null | undefined): CatalogItem[] {
+  return catalogFor(backendId).filter((item) => item.scope === 'backend')
 }
 
 /**
