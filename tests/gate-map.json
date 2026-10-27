@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T14:30:23.634Z",
+  "generatedAt": "2026-10-27T15:34:31.037Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 410,
   "gateCount": 410,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 17,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 600,
+  "graphFileCount": 601,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -9012,6 +9012,7 @@
         "src/tracker/rooms/github/idempotency.ts",
         "src/tracker/rooms/github/issues.ts",
         "src/tracker/rooms/gitlab/client.ts",
+        "src/tracker/rooms/markdown/scratch-listing.ts",
         "tests/verify-time-config.ts"
       ],
       "dirs": [
@@ -9048,13 +9049,14 @@
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/markdown",
         "tests"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 98 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 99 条"
     },
     {
       "step": "node tests/verify-tracker-contract.ts",
@@ -11190,6 +11192,7 @@
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.ts",
       "node tests/verify-refresh-workspace-key.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-tracker-session.ts"
     ],
     "src/tracker/rooms/markdown/format": [
@@ -11439,9 +11442,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 621,
+    "fileCount": 622,
     "dirCount": 74,
-    "coveredFileCount": 621,
+    "coveredFileCount": 622,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -12053,6 +12056,7 @@
       "src/tracker/rooms/markdown/path.ts",
       "src/tracker/rooms/markdown/read-log.ts",
       "src/tracker/rooms/markdown/read.ts",
+      "src/tracker/rooms/markdown/scratch-listing.ts",
       "src/tracker/rooms/markdown/template-guard.ts",
       "src/tracker/rooms/markdown/workspace-checks.ts",
       "src/tracker/rooms/markdown/write-guards.ts",

@@ -134,10 +134,30 @@ export async function listDirOrMissingIsEmpty(ctx: OpContext, dirPath: string): 
  * 调用方用 try/catch 转成自己那一层的失败形状即可。
  */
 export async function listDirOrThrow(ctx: OpContext, dirPath: string): Promise<string[]> {
-  const r=await listDir(ctx,dirPath)
-  if(r.ok) return r.names
-  if(r.missing) return []
+  return namesOfListingOrThrow(await listDir(ctx, dirPath))
+}
+/**
+ * 把一份**已经拿到的**列举结果按 `listDirOrThrow` 的口径解成名字表：列成了给名字，目录本来不存在当空表，
+ * 其余没读成的一律抛出。
+ *
+ * 为什么单独抽出来（#1528）：一趟环境检查里两项判据要的是同一份 `.scratch` 名字表。先列目录的那一项
+ *   可以把 DirListing 原样交给后一项，后一项不必再列一次盘；交给它的是同一份三态结果，判断「读不成不能
+ *   当空」的口径也就与直接列目录完全一样——两处各写一份，迟早会一边把读不成当空表，长出 #1174 那类谎话。
+ */
+export function namesOfListingOrThrow(r: DirListing): string[] {
+  if (r.ok) return r.names
+  if (r.missing) return []
   throw r.error
+}
+/**
+ * 列目录结果里哪些名字算「看得见」的条目：空串与点开头的隐藏项不算。
+ *
+ * 为什么单拎出来（#1528）：`.scratch` 的根目录列举收拢成一份之后，「哪些名字算工作单元或容器候选」的过滤
+ *   也不该再各写一份——三处过滤里只要有一处漏掉隐藏项，同一份名字表就会长出两套候选。排序不在这里做：
+ *   调用方要不要排序、按什么顺序排，是各调用方自己的事。
+ */
+export function visibleNamesOf(names: readonly string[]): string[] {
+  return names.filter(function (n: string) { return !!n && !n.startsWith('.') })
 }
 /** 这次调用有没有文件服务（platform.fs → ctx.fs → ctx.get('fs') 那三处任一）。
  *

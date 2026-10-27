@@ -18,10 +18,14 @@
 //   绝不在探测里顺手把 .scratch 建出来（它该由写票/建图那一路按需创建）。
 import type { OpContext, SandboxFs, BackendPlatform } from '../../contract/contexts.js'
 import { listWorkUnits, getCwd, getPlat } from './issues-locate.js'
-import { listDir, readTextFile, exists, statFile } from './read.js'
+import { listDir, readTextFile, exists, statFile, visibleNamesOf } from './read.js'
 import { SUPPORTED_DSH_FORMATS, dshFormatOf, isSupportedDshFormat } from './original-fields.js'
 // 取出工作单元清单里的类型只用于给人看的文案，不参与运行时。
 import type { WorkUnit } from './issues-locate.js'
+// 一趟检查里两项判据共用同一份 `.scratch` 根目录列举结果（#1528）；为什么要按文件服务对象与一秒窗口
+//   共用、以及哪些做法是反例，都写在这一份里。
+import { scratchRootListingOf } from './scratch-listing.js'
+import type { ScratchListingRound } from './scratch-listing.js'
 
 /** 三项判据在检查链里的 id（与 src/shared/tracker/check-catalog-dirs.ts 的 MARKDOWN_CATALOG 逐字对齐）。 */
 export type WorkspaceCheckId = 'md:workspace' | 'md:scratchWritable' | 'md:containersReadable'
@@ -58,6 +62,11 @@ export interface WorkspaceCheckDeps {
   lang?: string
   /** 本次调用的沙箱写许可（宿主会话政策）。写探测原样透传给文件服务。 */
   sandboxPolicy?: unknown
+  /**
+   * 同一趟房间预检的标记：runWorkspaceChecks 每趟新建一个对象并交给三项判据，让 `.scratch` 根目录的列举
+   *   在这一趟里只做一次（#1528）。宿主链逐项调用时不带这个标记，判据退到按文件服务对象的短时共用。
+   */
+  listingRound?: ScratchListingRound
 }
 
 export type WorkspaceCheckFn = (deps: WorkspaceCheckDeps) => Promise<WorkspaceCheckResult>
@@ -159,7 +168,10 @@ export async function checkWorkspace(deps: WorkspaceCheckDeps): Promise<Workspac
   const cwd = getCwd(ctx)
   const root = plat.join(cwd, '.scratch')
   try {
-    const units = await listWorkUnits(ctx)
+    // 先把 `.scratch` 根目录列一次，交给 listWorkUnits；md:containersReadable 再用同一份。
+    //   为什么这样只列一次盘、什么时候会重列，见 './scratch-listing.js' 的说明（#1528）。
+    const rootListing = await scratchRootListingOf(fsOf(ctx), ctx, root, (deps && deps.listingRound) || null)
+    const units = await listWorkUnits(ctx, rootListing)
     if (!units || units.length === 0) {
       return {
         status: 'pass',
@@ -295,11 +307,12 @@ type ContainerCollect = { ok: true; files: string[] } | { ok: false; detailZh: s
  * 为什么列出的名字还要再列一层：容器按「工作单元目录」摆放（.scratch/<目录>/map.md），目录名本身
  *   没有约定，只能逐个目录看里面有没有容器文件。
  */
-async function collectContainers(ctx: OpContext): Promise<ContainerCollect> {
+async function collectContainers(ctx: OpContext, round: ScratchListingRound | null): Promise<ContainerCollect> {
   const plat = getPlat(ctx)
   const cwd = getCwd(ctx)
   const root = plat.join(cwd, '.scratch')
-  const rootListing = await listDir(ctx, root)
+  // 与 md:workspace 共用同一份根目录列举结果（#1528）：两项判据要的是同一份名字表，一趟检查里只列一次盘。
+  const rootListing = (await scratchRootListingOf(fsOf(ctx), ctx, root, round)).listing
   if (!rootListing.ok) {
     if (rootListing.missing) return { ok: true, files: [] }
     const evidence = errorTextOf(rootListing.error)
@@ -309,7 +322,7 @@ async function collectContainers(ctx: OpContext): Promise<ContainerCollect> {
       detailEn: 'cannot list the local data dir ' + root + ': ' + evidence,
     }
   }
-  const names = rootListing.names.filter(function (n: string) { return !!n && !n.startsWith('.') }).sort()
+  const names = visibleNamesOf(rootListing.names).sort()
   const files: string[] = []
   for (const f of ['map.md', 'spec.md']) {
     if (names.indexOf(f) >= 0) files.push(plat.join(root, f))
@@ -355,7 +368,7 @@ export async function checkContainersReadable(deps: WorkspaceCheckDeps): Promise
   const en = isEn(deps)
   let collected: ContainerCollect
   try {
-    collected = await collectContainers(ctx)
+    collected = await collectContainers(ctx, (deps && deps.listingRound) || null)
   } catch (e) {
     const evidence = errorTextOf(e)
     return { status: 'fail', evidence: 'error=' + (errorCodeOf(e) || 'unknown'), detail: pick(deps, '列容器文件时出错：' + evidence, 'failed while listing container files: ' + evidence) }
@@ -453,13 +466,18 @@ export interface WorkspaceCheckRow {
  * 只做「跑」和「交回」，怎么把结论收成 preflight 的一句话由房间决定（#1513 起房间不再自己找 map.md）。
  * 为什么在这里记耗时（#1514）：三项各有自己的边界日志，日志要回答「这一项慢在哪」；耗时只能在这一层量，
  *   再往下传到具体判据里，判据本身反倒要为日志背一笔不相关的账。
+ * #1528：这一层还给三项判据发同一个「趟标记」——三项仍逐个独立求值、各出各的结论，只是共用这一趟里
+ *   `.scratch` 根目录的同一份列举结果。
  */
 export async function runWorkspaceChecks(deps: WorkspaceCheckDeps): Promise<WorkspaceCheckRow[]> {
   const out: WorkspaceCheckRow[] = []
+  // 一趟预检共用一个趟标记：三项判据仍各自独立求值，但 `.scratch` 根目录的列举在这一趟里只做一次（#1528）。
+  const round: ScratchListingRound = {}
+  const scopedDeps: WorkspaceCheckDeps = Object.assign({}, deps, { listingRound: round })
   for (const id of CHECK_ORDER) {
     const fn = workspaceCheckOf(id) as WorkspaceCheckFn
     const startedAt = Date.now()
-    const result = await fn(deps)
+    const result = await fn(scopedDeps)
     out.push({ id: id, result: result, latencyMs: Date.now() - startedAt })
   }
   return out
