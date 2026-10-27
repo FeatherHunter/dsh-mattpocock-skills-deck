@@ -265,7 +265,7 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
     //   最长贪婪取出名字后整体查表，不中就原样放回，不许前缀回退（如 /implement-spec 整体命中，/tdd-x 不许拆出 tdd）。
     rest = rest.replace(/\/([A-Za-z0-9][A-Za-z0-9_-]*)/g, function (all: string, _name: string, offset: number, whole: string) {
       const before = offset > 0 ? whole.charAt(offset - 1) : '', end = offset + all.length, after = end < whole.length ? whole.charAt(end) : ''
-      if ((before && /[A-Za-z0-9_.\/-]/.test(before)) || (after && /[A-Za-z0-9_\/-]/.test(after)) || (after === '.' && /[A-Za-z]/.test(whole.charAt(end + 1) || ''))) return all
+      if ((before && /[A-Za-z0-9_.\/]/.test(before)) || (after && /[A-Za-z0-9_\/-]/.test(after)) || (after === '.' && /[A-Za-z]/.test(whole.charAt(end + 1) || ''))) return all
       const ref = skillRefOf(all); return ref ? mark(skillEntry(ref, all)) : all
     })
     return expand(emphasisOf(rest))

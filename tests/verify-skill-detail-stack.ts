@@ -282,7 +282,7 @@ for (const root of bundledRootsForSlash) {
         const end = start + m2[0].length
         const before = start > 0 ? noLink.charAt(start - 1) : ''
         const after = end < noLink.length ? noLink.charAt(end) : ''
-        if (before && /[A-Za-z0-9_.\/-]/.test(before)) continue
+        if (before && /[A-Za-z0-9_.\/]/.test(before)) continue
         if (after && /[A-Za-z0-9_\/-]/.test(after)) continue
         if (after === '.' && end + 1 < noLink.length && /[A-Za-z]/.test(noLink.charAt(end + 1))) continue
         if (!bundledSet[token]) continue
@@ -314,6 +314,9 @@ for (const one of slashCounters) {
 // 最长命中正例：/implement-spec 整体命中，不拆。
 const specGot = (await renderLine('Use /implement-spec to build.')).refs
 check(specGot.indexOf('/implement-spec') >= 0, '普通文字里的 /implement-spec 整体做成入口（实得 ' + JSON.stringify(specGot) + '）')
+// 边界正例：连字符后面直接跟斜杠写法仍是入口（斜杠前只有字母、数字、下划线、点、斜杠才不认，连字符不在此列）。
+const hyphenBeforeGot = (await renderLine('Use -/tdd where possible.')).refs
+check(hyphenBeforeGot.indexOf('/tdd') >= 0, '连字符后的 /tdd 仍做成入口（实得 ' + JSON.stringify(hyphenBeforeGot) + '）')
 check(slashCounterBad.length === 0, '普通文字反证一处入口都不做' + (slashCounterBad.length ? '：' + slashCounterBad.join('；') : '（/nope、地址路径、文件写法、/tdd-x、/TDD 各 1 句）'))
 // 实现验收：/implement 英中正文里的四处普通文字写法逐行是入口。
 const implementEnTdd = await renderLine('Use /tdd where possible, at pre-agreed seams.')
