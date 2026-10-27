@@ -147,11 +147,17 @@ async function main() {
     check(String(tool.definition.description || '').length <= 350, name + ' 的描述在 350 字内（' + String(tool.definition.description || '').length + ' 字）')
   }
 
+  // #1559：宿主收工具返回值时要求无损 JSON。本门禁跑到的每一次工具调用都在这里过同一份判据
+  // （判据实现见 tests/lib/json-lossless.ts，与宿主 walkJsonValue 同口径），避免只在某一扇专门门禁里看一遍。
+  const losslessMod = await imp('tests/lib/json-lossless.ts')
+  const losslessProblems = (value) => losslessMod.losslessProblems(value)
   const callTool = async (name, args) => {
     const r = await tools[name].run(exec, args || {})
     // 成功选出后端的那几次调用在这里计数，供下面那段「离网调用不再过真闸」核对（调用次数大于 0 而闸计数为 0）。
     // #1442 起选后端走判定出口（读工作区文件），不再调注册表的选择接口；选择接口零调用由 tests/verify-1442-tracker-tools.ts 钉住。
     if (r && r.backend && r.backend.id) selectCount.count += 1
+    const problems = (r === null || r === undefined) ? [] : losslessProblems(r)
+    check(problems.length === 0, name + ' 的回执是无损 JSON' + (problems.length ? '：' + losslessMod.describeLosslessProblems(problems, 3) : ''))
     return r
   }
   const selectCount = { count: 0 }
