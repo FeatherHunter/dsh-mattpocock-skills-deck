@@ -11,7 +11,7 @@
 //      普通票（type issue）不进容器表。
 //   2) 客户端按新身份找得到地图 00 与规格 00（进容器详情），普通票 01 找不到（回落票详情）；
 //      老快照（只有 number 0、没有身份字段）仍按数字兜底找得到，不因升级而断链。
-//   3) 首列自适应（#1553）：按本表实际行的编号长度分档（56/96/136px），短编号收窄、长编号放宽，目录名尽量不缩写；
+//   3) 首列自适应（#1553）：按本表实际行的编号长度分档（56/68/85px），短编号收窄、长编号放宽，目录名尽量不缩写；
 //      最宽一档就是票号徽标上限（#1565 起两处由同一个数推出，格子不再比徽标宽）。
 //      （#1548 注释里“最长 17 个字符”写错了：仓里 .scratch 目录名最长 32 个字符，定宽 128px 本来也放不下。）
 //      普通「#1548」这类短编号收进 56px 那一档。
@@ -152,10 +152,10 @@ async function main() {
   const label = ticketLabel('00', 'demo')
   check(label === '#demo/00', '容器票号写成「#目录名/编号」整串（点行之前先看得见）：' + label)
   check(cellsFor([{ ticketKey: '101' }]).split(' ')[0] === '56px', '短编号收窄到 56px（#1548 那种）')
-  check(cellsFor([{ ticketKey: '00', effortId: 'demo' }]).split(' ')[0] === '96px', '「#demo/00」放宽到 96px，目录不缩写')
+  check(cellsFor([{ ticketKey: '00', effortId: 'demo' }]).split(' ')[0] === '68px', '「#demo/00」放宽到 68px，目录不缩写')
   check(cellsFor([{ ticketKey: '00', effortId: 'undefined-wf1089-bodies-20261021' }]).split(' ')[0] === labelMax, '32 字超长目录封顶在徽标上限 ' + labelMax + '（#1565：不再白留 56px，再长走省略号+悬停）')
-  check(cellsFor([{ ticketKey: '00', effortId: '测试' }]).split(' ')[0] === '96px', '中文目录按宽字符估（#测试/00 → 96px）')
-  check(cellsFor([{ ticketKey: '00', effortId: 'demo' }, { ticketKey: '1548' }]).split(' ')[0] === '96px', '混排时按最长的那一行定（全表共用一份）')
+  check(cellsFor([{ ticketKey: '00', effortId: '测试' }]).split(' ')[0] === '68px', '中文目录按宽字符估（#测试/00 → 68px）')
+  check(cellsFor([{ ticketKey: '00', effortId: 'demo' }, { ticketKey: '1548' }]).split(' ')[0] === '68px', '混排时按最长的那一行定（全表共用一份）')
   check(String(workRouteTable.WORK_ROUTE_TABLE_CELLS).split(' ')[0] === '56px', '默认模板即短档 56px')
 
   console.log('\n' + (failed ? '存在失败 — #1548 门禁未通过' : '全部通过 — 地图行显示与跳转（' + total + ' 条断言）'))
