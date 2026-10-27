@@ -228,7 +228,7 @@ async function main(): Promise<void> {
     check(/gh\.transport/.test(admSrc) && /admission-cooldown/.test(admSrc), '五、准入闸里有常驻的冷却轨迹与冷却错误标记', '')
     // 排队上限只在 YAML 里有一处定义；#1570 起「到点由闸抛排队超时、归还晚到名额」住在闸里，出口只递预算。
     const yamlSrc = fs.readFileSync(path.join(ROOT, 'config/timeouts.yaml'), 'utf8')
-    check(/ghQueueWaitTimeoutMs:\s*3000/.test(yamlSrc), '五、排队上限在 config/timeouts.yaml 里有一处定义（3000 毫秒）', '')
+    check(/ghQueueWaitTimeoutMs:\s*10000/.test(yamlSrc), '五、排队上限在 config/timeouts.yaml 里有一处定义（10000 毫秒）', '')
     const tiersSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/kernel/outbound-tiers.ts'), 'utf8')
     check(/queueTimeoutForTier/.test(tiersSrc) && /GH_QUEUE_WAIT_TIMEOUT_MS/.test(tiersSrc) && /queueTimeoutForTier/.test(ghExecSrc) && /waitMs/.test(ghExecSrc), '五、排队上限来自中央配置，宿主 runGh 只把预算递给闸', '')
     // #1007 复核：三条出站通道拿名额时都要报服务名，GitHub 的通路故障才不会挡住 GitLab 与 git。
@@ -246,7 +246,7 @@ async function main(): Promise<void> {
   {
     const { GH_QUEUE_WAIT_TIMEOUT_MS } = await imp('src/shared/time-config/src/values.js')
     const { outboundQueueTimeoutOf, queueTimeoutForTier } = tiers
-    check(queueTimeoutForTier(12000) === GH_QUEUE_WAIT_TIMEOUT_MS && GH_QUEUE_WAIT_TIMEOUT_MS === 3000 && queueTimeoutForTier(1500) === 1500, '六、排队上限取「本档预算」与「中央配置」更小的那个（不把整档预算花在排队上）', String(queueTimeoutForTier(12000)) + ' / ' + String(queueTimeoutForTier(1500)))
+    check(queueTimeoutForTier(12000) === GH_QUEUE_WAIT_TIMEOUT_MS && GH_QUEUE_WAIT_TIMEOUT_MS === 10000 && queueTimeoutForTier(1500) === 1500, '六、排队上限取「本档预算」与「中央配置」更小的那个（不把整档预算花在排队上）', String(queueTimeoutForTier(12000)) + ' / ' + String(queueTimeoutForTier(1500)))
 
     // 用可手动触发的表测到点：不睡真实时间，也不依赖机器快慢。
     const pending: any[] = []
