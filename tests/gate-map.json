@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-26T16:07:18.297Z",
+  "generatedAt": "2026-10-27T03:06:11.827Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 401,
   "gateCount": 401,
@@ -3795,6 +3795,8 @@
       "file": "tests/verify-1555-session-uses-decision.ts",
       "guards": [
         "src/refresh/rooms/host/comment-thread-fetch.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
+        "src/refresh/rooms/host/session-decision.ts",
         "src/refresh/rooms/host/session-opener.ts"
       ],
       "dirs": [
@@ -3804,7 +3806,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
