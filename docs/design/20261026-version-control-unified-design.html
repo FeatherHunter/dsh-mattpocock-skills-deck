@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>版本管理页 · 四部分整合设计稿</title>
+<title>版本管理页四部分整合设计稿</title>
 <style>
+.m-gap{display:inline-block;width:9px;height:1px;vertical-align:middle}
+.m-btn.sug{background:rgba(124,196,255,.10);color:#d6e7ff;border:1px solid rgba(124,196,255,.55)}
   :root{
     --paper:#f7f5ef; --paper2:#efece2; --ink:#171a1f; --mut:#5a6371; --dim:#8b929e;
     --line:#ddd7c9; --line2:#cec7b5; --acc:#12703f; --warn:#8a6100; --bad:#bf3a30; --blue:#1d5b9e;
@@ -209,12 +211,12 @@
 <div class="wrap">
 
 <header class="top">
-  <div class="kicker">Design spec · version-control page · 2026-10-26</div>
-  <h1>版本管理页 · 四部分整合设计稿</h1>
+  <div class="kicker">Design spec：version-control page，2026-10-26</div>
+  <h1>版本管理页四部分整合设计稿</h1>
   <p class="lede">把「顶部信息」「改动」「提交历史」「工作树」收进同一套骨架：顶部一句话说清当前在哪、与远端是什么关系；每一屏先说结论、再给证据、最后让动作和结果待在同一处。这一页只负责看与读，会改仓库的动作留在它该在的视图里。</p>
   <div class="meta">
-    <span class="chip">依据 #821 规格 · #853 词条表 · #854 布局 C · #856 顶部四变体 · #857 性能复盘</span>
-    <span class="chip">190 条 vc.* 词条 · 0 条自造词条</span>
+    <span class="chip">依据 #821 规格，#853 词条表，#854 布局 C，#856 顶部四变体，#857 性能复盘</span>
+    <span class="chip">190 条 vc.* 词条，0 条自造词条</span>
     <span class="chip">覆盖视角：300–640 三种宽度（这页没有更宽的形态）</span>
   </div>
 </header>
@@ -234,20 +236,20 @@
   <p class="thesis">下面这一屏按真实宽度（≈520）画：顶部状态轨、三个带单位的页签、提交历史的「列表 ↔ 详情」两层，以及贴着对象的结果与动作。后面四节分别只讲「现状 → 设计」的改动。</p>
 
   <div class="fig">
-    <p class="figcap">列表态 · 默认宽度 ≈ 520（仓内记录：面板可拖 300–520，默认约 460）</p>
+    <p class="figcap">列表态，默认宽度 ≈ 520（仓内记录：面板可拖 300–520，默认约 460）</p>
     <div class="mock m-panel520">
       <div class="m-rail">
         <div class="m-rail__r">
           <span class="m-repo">deck</span><span class="m-dim">/</span><span class="m-branch">main</span>
-          <span class="m-sync ahead">领先 2 笔 · 落后 0</span><span class="p">1</span>
+          <span class="m-sync ahead">超前 2 笔，落后 0</span><span class="p">1</span>
           <span class="mgap"></span>
-          <button class="m-btn pri">推送 2 笔</button>
+          <button class="m-btn sug">推送 2 笔</button>
           <button class="m-btn ghost">⋯</button>
         </div>
         <div class="m-rail__r">
           <span class="m-path">D:/dsh-plugin/…skills-deck</span>
-          <span class="m-dot">·</span><span class="m-clock">本地读取于 刚刚</span>
-          <span class="m-dot">·</span><span class="m-clock remote">远端依据 2 小时前</span><span class="p">2</span>
+          <span class="m-gap"></span><span class="m-clock">本地读取于 刚刚</span>
+          <span class="m-gap"></span><span class="m-clock remote">远端依据 2 小时前</span><span class="p">2</span>
         </div>
         <div class="m-tabs">
           <span class="m-tab">改动 <b>11</b><i>文件</i></span>
@@ -259,39 +261,39 @@
       <div class="m-group">今天</div>
       <div class="m-item on">
         <span class="m-hash">1a6bf85</span>
-        <span class="m-sub"><span class="m-subject">补充评审记录与设计示意图，以及大量并发落地的演示视频</span><span class="m-submeta">辰辰 · 16:02</span></span>
+        <span class="m-sub"><span class="m-subject">补充评审记录与设计示意图，以及大量并发落地的演示视频</span><span class="m-submeta">辰辰，16:02</span></span>
         <span class="m-when">1 分钟前</span><span class="p">5</span>
       </div>
       <div class="m-item">
         <span class="m-hash">471a6f8</span>
-        <span class="m-sub"><span class="m-subject">读票时按被引文件回填引用标题，通路冷却按服务与读写档分开记</span><span class="m-submeta">辰辰 · 15:51</span></span>
+        <span class="m-sub"><span class="m-subject">读票时按被引文件回填引用标题，通路冷却按服务与读写档分开记</span><span class="m-submeta">辰辰，15:51</span></span>
         <span class="m-when">12 分钟前</span>
       </div>
       <div class="m-group">昨天</div>
       <div class="m-item">
         <span class="m-hash">ac5f354</span>
-        <span class="m-sub"><span class="m-subject">Merge remote-tracking branch 'refs/remotes/origin/main'</span><span class="m-submeta"><span class="m-tag merge">合并</span> 辰辰 · 23:40</span></span>
+        <span class="m-sub"><span class="m-subject">Merge remote-tracking branch 'refs/remotes/origin/main'</span><span class="m-submeta"><span class="m-tag merge">合并</span> 辰辰，23:40</span></span>
         <span class="m-when">2 小时前</span><span class="p">8</span>
       </div>
       <div class="m-item">
         <span class="m-hash">b912380</span>
-        <span class="m-sub"><span class="m-subject">修复 #1530：给时间参数声明派生出头，让构建缓存不再把生成物当输入</span><span class="m-submeta">辰辰 · 昨天 22:08</span></span>
+        <span class="m-sub"><span class="m-subject">修复 #1530：给时间参数声明派生出头，让构建缓存不再把生成物当输入</span><span class="m-submeta">辰辰，昨天 22:08</span></span>
         <span class="m-when">昨天</span>
       </div>
-      <div class="m-more">加载更早的 20 条 <span class="mcap">· 加载中 / 失败重试 / 已到最早三类状态就地说明</span></div>
+      <div class="m-more">加载更早的 20 条 <span class="mcap">加载中 / 失败重试 / 已到最早三类状态就地说明</span></div>
       <div class="m-note">点一行或按 Enter 进入详情：列表整页替换，返回时回到这一行（选中与滚动都保留）。</div>
     </div>
 
-    <p class="figcap">详情态 · 同一块区域整页替换（不是第二栏；这页没有左右两栏的宽度）</p>
+    <p class="figcap">详情态，同一块区域整页替换（不是第二栏；这页没有左右两栏的宽度）</p>
     <div class="mock m-panel520">
       <div class="m-rail">
-        <div class="m-rail__r"><span class="m-repo">deck</span><span class="m-dim">/</span><span class="m-branch">main</span><span class="mgap"></span><span class="m-sync ahead">领先 2 · 落后 0</span></div>
+        <div class="m-rail__r"><span class="m-repo">deck</span><span class="m-dim">/</span><span class="m-branch">main</span><span class="mgap"></span><span class="m-sync ahead">超前 2，落后 0</span></div>
         <div class="m-tabs"><span class="m-tab">改动 <b>11</b><i>文件</i></span><span class="m-tab on">提交历史 <b>50</b><i>条</i></span><span class="m-tab">工作树 <b>13</b><i>棵</i></span></div>
       </div>
       <div class="m-back">← 返回提交历史 <span class="mcap">保留上次选中的 1a6bf85</span><span class="p">6</span></div>
-      <div class="m-detail__head"><span class="m-detail__hash">1a6bf85 ⧉</span><span class="mcap msmall">辰辰 · 2026-10-26 16:02（今天）</span></div>
+      <div class="m-detail__head"><span class="m-detail__hash">1a6bf85 ⧉</span><span class="mcap msmall">辰辰，2026-10-26 16:02（今天）</span></div>
       <div class="m-detail__msg">补充评审记录与设计示意图，以及大量并发落地的演示视频</div>
-      <div class="m-row msmall mcap" style="gap:6px;margin-bottom:8px">父提交 <span class="mmono mblue">471a6f8</span><span class="m-tag">可点击切换</span> 改了 5 个文件 · <span class="macc">+963</span> <span class="mbad">−0</span></div>
+      <div class="m-row msmall mcap" style="gap:6px;margin-bottom:8px">父提交 <span class="mmono mblue">471a6f8</span><span class="m-tag">可点击切换</span> 改了 5 个文件，<span class="macc">+963</span> <span class="mbad">−0</span></div>
       <div class="m-file"><span class="m-badge M">M</span><span class="m-file__path">assets/video/中文-implement需求-…</span><span class="m-file__add">+0</span><span class="m-file__del">−0</span></div>
       <div class="m-file"><span class="m-badge M">M</span><span class="m-file__path">docs/review/20261026-version-control-ui-review.html</span><span class="m-file__add">+821</span><span class="m-file__del">−0</span><span class="p">7</span></div>
       <div class="m-note">点文件行在原处展开差异（先骨架再内容，Esc 收起）；差异读数沿用 #857 的 stale 闸。</div>
@@ -300,7 +302,7 @@
   </div>
 
   <ol class="notes b">
-    <li><span class="n">1</span><div><b>状态轨先给一句人话</b>：同步关系用「领先 / 落后 / 一致 / 分叉 / 没有远端依据」五态之一表述，并点名基准远端。颜色只在需要人注意时出现。</div></li>
+    <li><span class="n">1</span><div><b>状态轨先给一句人话</b>：同步关系用「超前 / 落后 / 一致 / 分叉 / 没有远端依据」五态之一表述，并点名基准远端。颜色只在需要人注意时出现。</div></li>
     <li><span class="n">2</span><div><b>两个时间摆在一起、都可点开解释</b>：「本地读取于」不联网，「远端依据」是上一次取回远端信息的时间。点任意一个都打开解释气泡（见第 01 节）。</div></li>
     <li><span class="n">3</span><div><b>页签数字带单位</b>：11 文件 / 50 条（已加载）/ 13 棵（不含当前）。单位放在数字右侧的小字里，鼠标悬停给出计数口径。</div></li>
     <li><span class="n">4</span><div><b>筛选先声明范围</b>：这里只筛「已加载的 50 条」，更早的提交要往下加载。页面不假装自己有全库搜索。</div></li>
@@ -321,13 +323,13 @@
       <div class="m-rail">
         <div class="m-rail__r">
           <span class="m-repo">dsh-mattpocock-skills-deck</span><span class="m-dim">/</span><span class="m-branch">main</span>
-          <span class="mgap"></span><span class="mcap mtiny">超前 2 · 落后 0</span><span class="p">1</span>
+          <span class="mgap"></span><span class="mcap mtiny">超前 2，落后 0</span><span class="p">1</span>
         </div>
         <div class="m-rail__r">
           <span class="m-path">D:/dsh-plugin/dsh-mattpocock-skills-deck</span>
-          <span class="m-dot">·</span><span class="mcap mtiny">读取于 刚刚</span>
-          <span class="m-dot">·</span><span class="mcap mtiny">远端信息更新于 12 分钟前</span>
-          <span class="m-dot">·</span><span class="mblue mtiny">重新读取</span><span class="p">2</span>
+          <span class="m-gap"></span><span class="mcap mtiny">读取于 刚刚</span>
+          <span class="m-gap"></span><span class="mcap mtiny">远端信息更新于 12 分钟前</span>
+          <span class="m-gap"></span><span class="mblue mtiny">重新读取</span><span class="p">2</span>
         </div>
         <div class="m-tabs">
           <span class="m-tab">改动 <b>11</b></span>
@@ -337,7 +339,7 @@
       </div>
       <div class="m-sep"></div>
       <div class="m-viewbar">
-        <button class="m-btn">拉取</button><button class="m-btn">更新</button><button class="m-btn pri">推送</button>
+        <button class="m-btn">拉取</button><button class="m-btn">更新</button><button class="m-btn sug">推送</button>
         <span class="mcap mtiny">工作区存在未提交的变更，请先提交再拉取</span><span class="p">4</span>
       </div>
       <div class="m-note">上面这条视图条只长在「改动」页里：切到提交历史或工作树后，「拉取 / 更新 / 推送」就消失了。<span class="p">5</span></div>
@@ -345,7 +347,7 @@
   </div>
 
   <ol class="notes">
-    <li><span class="n">1</span><div><b>「超前 2 · 落后 0」是裸文本</b>：没有基准远端、没有颜色优先级，也没有解释「超前」到底相对谁。同一个词在别处还叫「领先」（854 原型、工作树列表的过滤词），两种叫法并存。</div></li>
+    <li><span class="n">1</span><div><b>「超前 2，落后 0」是裸文本</b>：没有基准远端、没有颜色优先级，也没有解释「超前」到底相对谁。同一个词在别处还叫「领先」（854 原型、工作树列表的过滤词），两种叫法并存；本次统一用「超前」，因为代码词表里就是这个词。</div></li>
     <li><span class="n">2</span><div><b>两个时间没有说明书</b>：用户看到「读取于 刚刚」「远端信息更新于 12 分钟前」，但页面不解释前者不联网、后者依赖上一次取回远端信息；也不知道「更新」这颗按钮到底联网不联网。</div></li>
     <li><span class="n">3</span><div><b>三个页签的数字是三种单位</b>：11 是文件数、50 是已加载的提交条数、13 是工作树棵数，却都裸着；50 还会让人以为是总数。</div></li>
     <li><span class="n">4</span><div><b>「更新」是含糊动词</b>：它其实是「取回远端信息」（fetch），和「重新读取」（本地重读）不是一类动作，却都长得很像按钮；而提示语又说「请先提交再拉取」，把 fetch 和 pull 混成一句。</div></li>
@@ -358,14 +360,14 @@
       <div class="m-rail">
         <div class="m-rail__r">
           <span class="m-repo">deck</span><span class="m-dim">/</span><span class="m-branch">main</span>
-          <span class="m-sync ahead">领先 2 笔 · 落后 0</span><span class="mk g">6</span>
+          <span class="m-sync ahead">超前 2 笔，落后 0</span><span class="mk g">6</span>
           <span class="mgap"></span>
-          <button class="m-btn pri">推送 2 笔</button><button class="m-btn">重新读取</button><button class="m-btn ghost">⋯</button>
+          <button class="m-btn sug">推送 2 笔</button><button class="m-btn">重新读取</button><button class="m-btn ghost">⋯</button>
         </div>
         <div class="m-rail__r">
           <span class="m-path">D:/dsh-plugin/dsh-mattpocock-skills-deck</span>
-          <span class="m-dot">·</span><span class="m-clock">本地读取于 刚刚</span>
-          <span class="m-dot">·</span><span class="m-clock remote">远端依据 2 小时前</span><span class="mk g">7</span>
+          <span class="m-gap"></span><span class="m-clock">本地读取于 刚刚</span>
+          <span class="m-gap"></span><span class="m-clock remote">远端依据 2 小时前</span><span class="mk g">7</span>
         </div>
         <div class="m-tabs">
           <span class="m-tab">改动 <b>11</b><i>文件</i></span>
@@ -376,17 +378,17 @@
       <div class="m-pop"><span class="mk g">7</span>
         <div class="m-pop__t">这个页面上的两个时间</div>
         <div><b>本地读取于 刚刚</b>：上一次从本地仓库读状态的时间。不联网，随时可以再点「重新读取」。</div>
-        <div style="margin-top:3px"><b>远端依据 2 小时前</b>：上一次取回远端信息（git fetch）的时间。这段时间里远端可能已经变了，所以「领先 / 落后」都只是相对这份依据。</div>
+        <div style="margin-top:3px"><b>远端依据 2 小时前</b>：上一次取回远端信息（git fetch）的时间。这段时间里远端可能已经变了，所以「超前 / 落后」都只是相对这份依据。</div>
         <div class="m-row"><button class="m-btn">取回远端信息（联网）</button><button class="m-btn ghost">知道了</button></div>
       </div>
     </div>
   </div>
 
   <div class="diff">
-    <div class="dr minus"><span class="s">−</span><div><span class="mtiny">「超前 2 · 落后 0」裸文本，相对谁、哪个更急都要猜</span><div class="why">同步是五个状态：一致 / 领先 / 落后 / 分叉 / 没有远端依据；每种状态有自己的颜色和一句完整的话。</div></div></div>
-    <div class="dr plus"><span class="s">+</span><div><b>一条状态轨</b>：<code>与 origin/main 一致</code> · <code>领先 2 笔 · 落后 0</code> · <code>落后 1 笔，可以拉取</code> · <code>已经分叉，需要先看差异</code> · <code>没有远端依据（还没取回过）</code>；点气泡看这五个词分别是什么意思。</div></div>
+    <div class="dr minus"><span class="s">−</span><div><span class="mtiny">「超前 2，落后 0」裸文本，相对谁、哪个更急都要猜</span><div class="why">同步是五个状态：一致 / 超前 / 落后 / 分叉 / 没有远端依据；每种状态有自己的颜色和一句完整的话。</div></div></div>
+    <div class="dr plus"><span class="s">+</span><div><b>一条状态轨</b>：<code>与 origin/main 一致</code>，<code>超前 2 笔，落后 0</code>，<code>落后 1 笔，可以拉取</code>，<code>已经分叉，需要先看差异</code>，<code>没有远端依据（还没取回过）</code>；点气泡看这五个词分别是什么意思。</div></div>
     <div class="dr minus"><span class="s">−</span><div><span class="mtiny">「更新」按钮 + 提示语把 fetch 与 pull 混在一起</span></div></div>
-    <div class="dr plus"><span class="s">+</span><div><b>动词拆开</b>：<code>重新读取</code>（本地重读，不联网）常驻；<code>取回远端信息</code>（fetch）收进 <code>⋯</code>，只更新远端依据；<code>拉取</code>（pull，可能改工作区）只在落后时出现并先给影响范围；<code>推送</code>只在领先时点亮，按钮上带笔数。</div></div>
+    <div class="dr plus"><span class="s">+</span><div><b>动词拆开</b>：<code>重新读取</code>（本地重读，不联网）常驻；<code>取回远端信息</code>（fetch）收进 <code>⋯</code>，只更新远端依据；<code>拉取</code>（pull，可能改工作区）只在落后时出现并先给影响范围；<code>推送</code>只在超前时点亮，按钮上带笔数。</div></div>
     <div class="dr minus"><span class="s">−</span><div><span class="mtiny">拉取 / 推送埋在「改动」页视图条里，换页签就找不到</span></div></div>
     <div class="dr plus"><span class="s">+</span><div><b>同步动作贴着同步状态放</b>：状态轨在三个页签里都常驻，读类动作（重新读取）与写类同步动作（拉取 / 推送）都在这里，不再依赖当前在哪个视图。</div></div>
     <div class="dr minus"><span class="s">−</span><div><span class="mtiny">页签数字 11 / 50 / 13 裸着，单位与口径不明</span></div></div>
@@ -409,7 +411,7 @@
   <div class="fig">
     <div class="mock m-content">
       <div class="m-rail">
-        <div class="m-rail__r"><span class="m-repo">deck</span><span class="m-dim">/</span><span class="m-branch">main</span><span class="mgap"></span><span class="mcap mtiny">超前 2 · 落后 0</span></div>
+        <div class="m-rail__r"><span class="m-repo">deck</span><span class="m-dim">/</span><span class="m-branch">main</span><span class="mgap"></span><span class="mcap mtiny">超前 2，落后 0</span></div>
         <div class="m-tabs"><span class="m-tab on">改动 <b>11</b></span><span class="m-tab">提交历史 <b>50</b></span><span class="m-tab">工作树 <b>13</b></span></div>
       </div>
       <div class="m-stats">
@@ -418,7 +420,7 @@
         <div class="m-stat"><b class="warn">12</b><span>未暂存</span></div>
       </div>
       <div class="m-viewbar">
-        <button class="m-btn">拉取</button><button class="m-btn">更新</button><button class="m-btn pri">推送</button>
+        <button class="m-btn">拉取</button><button class="m-btn">更新</button><button class="m-btn sug">推送</button>
         <span class="mcap mtiny">工作区存在未提交的变更，请先提交再拉取</span>
       </div>
       <div class="m-viewbar" style="margin-top:6px">
@@ -432,7 +434,7 @@
       <div class="m-file"><span class="m-badge c">冲突</span><span class="m-file__path">src/refresh/rooms/host/outbound-admission.ts</span><button class="m-btn sm">提交</button><span class="p">5</span></div>
       <div class="m-note">点「提交」以后，结果不在按钮旁边，而是出现在整页最底部的尾巴里。</div>
       <div class="m-sep"></div>
-      <div class="mcap mtiny" style="text-align:center">✓ 执行完成 · 更新完成<span class="p">6</span></div>
+      <div class="mcap mtiny" style="text-align:center">✓ 执行完成，更新完成<span class="p">6</span></div>
     </div>
   </div>
 
@@ -450,14 +452,14 @@
     <div class="mock m-content">
       <div class="m-row" style="margin:8px 0 2px;gap:6px"><span>工作区有 <b>2</b> 个已暂存、<b>9</b> 个未暂存，<b>1</b> 个文件卡在冲突里。</span><span class="mk g">7</span></div>
       <div class="m-stats">
-        <div class="m-stat" style="border-color:rgba(248,81,73,.45)"><b class="bad">1</b><span>冲突 · 点一下只看这一组</span><em>筛选</em></div>
-        <div class="m-stat" style="border-color:rgba(63,185,80,.35)"><b class="acc">2</b><span>已暂存 · 点一下只看这一组</span><em>筛选</em></div>
-        <div class="m-stat"><b class="warn">9</b><span>未暂存 · 点一下只看这一组</span><em>筛选</em></div>
+        <div class="m-stat" style="border-color:rgba(248,81,73,.45)"><b class="bad">1</b><span>冲突，点一下只看这一组</span><em>筛选</em></div>
+        <div class="m-stat" style="border-color:rgba(63,185,80,.35)"><b class="acc">2</b><span>已暂存，点一下只看这一组</span><em>筛选</em></div>
+        <div class="m-stat"><b class="warn">9</b><span>未暂存，点一下只看这一组</span><em>筛选</em></div>
       </div>
-      <div class="m-sec">已暂存 <em>2 · 空的时候这一组也在，写一行「还没有暂存的改动」</em></div>
+      <div class="m-sec">已暂存 <em>2，空的时候这一组也在，写一行「还没有暂存的改动」</em></div>
       <div class="m-file"><span class="m-file__cb on"></span><span class="m-badge M">M</span><span class="m-file__path">src/client/views/shared/workRouteTable.ts</span><span class="m-file__add">+53</span><span class="m-file__del">−8</span><button class="m-btn sm">撤回</button><button class="m-btn ghost">⋯</button></div>
       <div class="m-sec">未暂存 <em>9</em></div>
-      <div class="m-file"><span class="m-file__cb on"></span><span class="m-badge q">?</span><span class="m-file__path">assets/video/中文-implement需求-大量并发-落地.mp4</span><span class="m-untracked">未跟踪 · 视频 · 21.8 MB</span><button class="m-btn sm">暂存</button><button class="m-btn ghost">⋯</button><span class="mk g">8</span></div>
+      <div class="m-file"><span class="m-file__cb on"></span><span class="m-badge q">?</span><span class="m-file__path">assets/video/中文-implement需求-大量并发-落地.mp4</span><span class="m-untracked">未跟踪，视频，21.8 MB</span><button class="m-btn sm">暂存</button><button class="m-btn ghost">⋯</button><span class="mk g">8</span></div>
       <div class="m-batch">已选 2 个文件 <span class="mgap"></span><button class="m-btn sm">暂存所选</button><button class="m-btn ghost">清除选择</button></div>
       <div class="m-file"><span class="m-file__cb"></span><span class="m-badge c">冲突</span><span class="m-file__path">src/refresh/rooms/host/outbound-admission.ts</span><button class="m-btn sm">标记为已解决</button><button class="m-btn ghost">让 AI 处理</button><span class="mk g">9</span></div>
       <div class="m-collapse">
@@ -480,7 +482,7 @@
     <div class="dr minus"><span class="s">−</span><div><span class="mtiny">行内只有 add / 撤回一条路</span></div></div>
     <div class="dr plus"><span class="s">+</span><div><b>行菜单补齐判断与退路</b>：查看差异、复制完整路径、在编辑器中打开、丢弃这些修改…、加入 .gitignore…（后两项二次确认并列影响文件）；勾选后可批量暂存 / 撤回。</div></div>
     <div class="dr minus"><span class="s">−</span><div><span class="mtiny">未跟踪文件只有「未跟踪」三个字</span></div></div>
-    <div class="dr plus"><span class="s">+</span><div><b>给体积与类型</b>：<code>未跟踪 · 视频 · 21.8 MB</code>；过大文件直接提示建议加入 .gitignore。体积需要宿主多读一次文件信息，标成新增读数而不是猜。</div></div>
+    <div class="dr plus"><span class="s">+</span><div><b>给体积与类型</b>：<code>未跟踪，视频，21.8 MB</code>；过大文件直接提示建议加入 .gitignore。体积需要宿主多读一次文件信息，标成新增读数而不是猜。</div></div>
     <div class="dr minus"><span class="s">−</span><div><span class="mtiny">冲突行写「请在命令行中处理」，页面不点</span></div></div>
     <div class="dr plus"><span class="s">+</span><div><b>给一个能点的下一步</b>：<code>标记为已解决</code> 走已有暂存通道；「让 AI 处理」带路径与冲突状态开新会话。</div></div>
     <div class="dr minus"><span class="s">−</span><div><span class="mtiny">拉取 / 推送挤在改动视图的条里</span></div></div>
@@ -499,12 +501,12 @@
   <div class="fig">
     <div class="mock m-content">
       <div class="m-rail">
-        <div class="m-rail__r"><span class="m-repo">dsh-mattpocock-skills-deck</span><span class="m-dim">/</span><span class="m-branch">main</span><span class="mgap"></span><span class="mcap mtiny">超前 2 · 落后 0</span></div>
+        <div class="m-rail__r"><span class="m-repo">dsh-mattpocock-skills-deck</span><span class="m-dim">/</span><span class="m-branch">main</span><span class="mgap"></span><span class="mcap mtiny">超前 2，落后 0</span></div>
         <div class="m-tabs"><span class="m-tab">改动 <b>11</b></span><span class="m-tab on">提交历史 <b>50</b></span><span class="m-tab">工作树 <b>13</b></span></div>
       </div>
       <div class="m-blue mtiny" style="margin:6px 0 4px">← 返回未提交改动 <span class="p">1</span></div>
       <div class="msec" style="font-weight:750;color:var(--mink);font-size:12.5px;margin:2px 0 4px">该提交的变更内容</div>
-      <div class="mmono msmall mcap">1a6bf850 · 补充评审记录与设计示意图，以及大量并发落地的演示视频</div>
+      <div class="mmono msmall mcap">1a6bf850，补充评审记录与设计示意图，以及大量并发落地的演示视频</div>
       <div class="mcap mtiny" style="margin:4px 0 6px">该提交变更了 5 个文件</div>
       <div class="m-file"><span class="m-badge M">M</span><span class="m-file__path">assets/video/中文-implement需求-大量并发-落地.mp4</span></div>
       <div class="m-file"><span class="m-badge M">M</span><span class="m-file__path">docs/design/md-env-check-chain.svg</span><span class="m-file__add">+142</span><span class="m-file__del">−0</span></div>
@@ -516,7 +518,7 @@
       <div class="mcap mtiny">读票时按被引文件回填引用标题，通路冷却按服务与读写档分开记</div>
       <div class="msec msmall" style="color:var(--mink);margin-top:6px">ac5f354c</div>
       <div class="mcap mtiny">Merge remote-tracking branch 'refs/remotes/origin/main'<span class="p">2</span></div>
-      <div class="mcap mtiny" style="margin-top:6px">b9123804 · 修复 #1530：给时间参数声明派生出头…<span class="m-when">2 小时前</span><span class="p">3</span></div>
+      <div class="mcap mtiny" style="margin-top:6px">b9123804，修复 #1530：给时间参数声明派生出头…<span class="m-when">2 小时前</span><span class="p">3</span></div>
       <div class="m-note">列表往下滚，详情就滚出视野；再想对一下另一笔，得来回滚。<span class="p">4</span></div>
     </div>
   </div>
@@ -536,29 +538,29 @@
   <div class="fig">
     <div class="mock m-panel520">
       <div class="m-rail">
-        <div class="m-rail__r"><span class="m-repo">deck</span><span class="m-dim">/</span><span class="m-branch">main</span><span class="m-sync ahead">领先 2 笔 · 落后 0</span><span class="mgap"></span><button class="m-btn pri">推送 2 笔</button></div>
+        <div class="m-rail__r"><span class="m-repo">deck</span><span class="m-dim">/</span><span class="m-branch">main</span><span class="m-sync ahead">超前 2 笔，落后 0</span><span class="mgap"></span><button class="m-btn sug">推送 2 笔</button></div>
         <div class="m-tabs"><span class="m-tab">改动 <b>11</b><i>文件</i></span><span class="m-tab on">提交历史 <b>50</b><i>条</i></span><span class="m-tab">工作树 <b>13</b><i>棵</i></span></div>
       </div>
       <div class="m-toolbar" style="margin-top:8px">在已加载的 50 条里筛选<span class="mk g">12</span></div>
       <div class="m-group">今天</div>
-      <div class="m-item on"><span class="m-hash">1a6bf85</span><span class="m-sub"><span class="m-subject">补充评审记录与设计示意图，以及大量并发落地的演示视频</span><span class="m-submeta">辰辰 · 16:02</span></span><span class="m-when">1 分钟前</span><span class="mk g">13</span></div>
-      <div class="m-item"><span class="m-hash">471a6f8</span><span class="m-sub"><span class="m-subject">读票时按被引文件回填引用标题，通路冷却按服务与读写档分开记</span><span class="m-submeta">辰辰 · 15:51</span></span><span class="m-when">12 分钟前</span></div>
+      <div class="m-item on"><span class="m-hash">1a6bf85</span><span class="m-sub"><span class="m-subject">补充评审记录与设计示意图，以及大量并发落地的演示视频</span><span class="m-submeta">辰辰，16:02</span></span><span class="m-when">1 分钟前</span><span class="mk g">13</span></div>
+      <div class="m-item"><span class="m-hash">471a6f8</span><span class="m-sub"><span class="m-subject">读票时按被引文件回填引用标题，通路冷却按服务与读写档分开记</span><span class="m-submeta">辰辰，15:51</span></span><span class="m-when">12 分钟前</span></div>
       <div class="m-group">昨天</div>
-      <div class="m-item"><span class="m-hash">ac5f354</span><span class="m-sub"><span class="m-subject">Merge remote-tracking branch 'refs/remotes/origin/main'</span><span class="m-submeta"><span class="m-tag merge">合并</span> 辰辰 · 23:40</span></span><span class="m-when">2 小时前</span></div>
-      <div class="m-item"><span class="m-hash">b912380</span><span class="m-sub"><span class="m-subject">修复 #1530：给时间参数声明派生出头，让构建缓存不再把生成物当输入</span><span class="m-submeta">辰辰 · 昨天 22:08</span></span><span class="m-when">昨天</span></div>
-      <div class="m-more">加载更早的 20 条 · <span class="mcap">加载中 / 失败重试 / 已到最早三种状态就地说明</span><span class="mk g">14</span></div>
+      <div class="m-item"><span class="m-hash">ac5f354</span><span class="m-sub"><span class="m-subject">Merge remote-tracking branch 'refs/remotes/origin/main'</span><span class="m-submeta"><span class="m-tag merge">合并</span> 辰辰，23:40</span></span><span class="m-when">2 小时前</span></div>
+      <div class="m-item"><span class="m-hash">b912380</span><span class="m-sub"><span class="m-subject">修复 #1530：给时间参数声明派生出头，让构建缓存不再把生成物当输入</span><span class="m-submeta">辰辰，昨天 22:08</span></span><span class="m-when">昨天</span></div>
+      <div class="m-more">加载更早的 20 条，<span class="mcap">加载中 / 失败重试 / 已到最早三种状态就地说明</span><span class="mk g">14</span></div>
     </div>
   </div>
 
   <p class="figcap">详情态：点一行或按 Enter，列表被整页替换；返回条保留来源与上次选中</p>
   <div class="fig">
     <div class="mock m-panel520">
-      <div class="m-rail"><div class="m-rail__r"><span class="m-repo">deck</span><span class="m-dim">/</span><span class="m-branch">main</span><span class="mgap"></span><span class="m-sync ahead">领先 2 · 落后 0</span></div>
+      <div class="m-rail"><div class="m-rail__r"><span class="m-repo">deck</span><span class="m-dim">/</span><span class="m-branch">main</span><span class="mgap"></span><span class="m-sync ahead">超前 2，落后 0</span></div>
         <div class="m-tabs"><span class="m-tab">改动 <b>11</b><i>文件</i></span><span class="m-tab on">提交历史 <b>50</b><i>条</i></span><span class="m-tab">工作树 <b>13</b><i>棵</i></span></div></div>
       <div class="m-back">← 返回提交历史 <span class="mcap">保留上次选中的 1a6bf85</span><span class="mk g">15</span></div>
-      <div class="m-detail__head"><span class="m-detail__hash">1a6bf85 ⧉</span><span class="mcap msmall">辰辰 · 2026-10-26 16:02（今天）</span></div>
+      <div class="m-detail__head"><span class="m-detail__hash">1a6bf85 ⧉</span><span class="mcap msmall">辰辰，2026-10-26 16:02（今天）</span></div>
       <div class="m-detail__msg">补充评审记录与设计示意图，以及大量并发落地的演示视频</div>
-      <div class="m-row msmall mcap" style="gap:6px;margin-bottom:8px">父提交 <span class="mmono mblue">471a6f8</span><span class="m-tag">可点击切换</span> 改了 5 个文件 · <span class="macc">+963</span> <span class="mbad">−0</span></div>
+      <div class="m-row msmall mcap" style="gap:6px;margin-bottom:8px">父提交 <span class="mmono mblue">471a6f8</span><span class="m-tag">可点击切换</span> 改了 5 个文件，<span class="macc">+963</span> <span class="mbad">−0</span></div>
       <div class="m-file"><span class="m-badge M">M</span><span class="m-file__path">assets/video/中文-implement需求-…</span><span class="m-file__add">+0</span><span class="m-file__del">−0</span></div>
       <div class="m-file"><span class="m-badge M">M</span><span class="m-file__path">docs/review/20261026-version-control-ui-review.html</span><span class="m-file__add">+821</span><span class="m-file__del">−0</span><span class="mk g">16</span></div>
       <div class="m-note">点文件行在原处展开差异（先骨架再内容，Esc 收起）；差异读数沿用 #857 的 stale 闸，换工作区后的回包直接丢。</div>
@@ -574,7 +576,7 @@
     <div class="dr minus"><span class="s">−</span><div><span class="mtiny">Merge 原文与中文界面混排、无标识</span></div></div>
     <div class="dr plus"><span class="s">+</span><div><b>保留原文、加上结构</b>：行首「合并」徽章 + 详情里父提交 chips 可点切换；git 写的提交说明一个字不改，中文只出现在徽章与解释里。</div></div>
     <div class="dr minus"><span class="s">−</span><div><span class="mtiny">只有「1 分钟前 / 2 小时前 / 09-30」这类相对时间</span></div></div>
-    <div class="dr plus"><span class="s">+</span><div><b>相对 + 精确 + 时区</b>：行里显示相对与本地时刻（<code>辰辰 · 16:02</code>）；悬停给 <code>&lt;time datetime&gt;</code> 的完整本地时间与时区，复制给机器读的 ISO 串。</div></div>
+    <div class="dr plus"><span class="s">+</span><div><b>相对 + 精确 + 时区</b>：行里显示相对与本地时刻（<code>辰辰，16:02</code>）；悬停给 <code>&lt;time datetime&gt;</code> 的完整本地时间与时区，复制给机器读的 ISO 串。</div></div>
     <div class="dr minus"><span class="s">−</span><div><span class="mtiny">50 裸数字；加载更多靠「进入视野自动触发」，没有正在加载 / 已到最早的明确交代</span></div></div>
     <div class="dr plus"><span class="s">+</span><div><b>范围 + 显式三态</b>：页签写 <code>50 条（已加载）</code>，不装作知道总数；列表底部是一个显式按钮 <code>加载更早的 20 条</code>，加载中 / 失败重试 / 已到最早三种状态就地说明，不再靠滚动列表在脚下变长。</div></div>
     <div class="dr minus"><span class="s">−</span><div><span class="mtiny">整行 div + onClick，键盘到不了</span></div></div>
@@ -599,7 +601,7 @@
   <div class="fig">
     <div class="mock m-content">
       <div class="m-rail">
-        <div class="m-rail__r"><span class="m-repo">deck</span><span class="m-dim">/</span><span class="m-branch">main</span><span class="mgap"></span><span class="mcap mtiny">超前 2 · 落后 0</span></div>
+        <div class="m-rail__r"><span class="m-repo">deck</span><span class="m-dim">/</span><span class="m-branch">main</span><span class="mgap"></span><span class="mcap mtiny">超前 2，落后 0</span></div>
         <div class="m-tabs"><span class="m-tab">改动 <b>11</b></span><span class="m-tab">提交历史 <b>50</b></span><span class="m-tab on">工作树 <b>13</b></span></div>
       </div>
       <div class="m-sec" style="margin-top:8px">其他工作树 <em>13</em><span class="p">1</span></div>
@@ -636,7 +638,7 @@
         <div class="m-card__p">D:/dsh-plugin/dsh-mattpocock-skills-deck</div>
         <div class="m-note">要改东西去「改动」；其它 git 动作在侧栏终端里做。</div>
       </div>
-      <div class="m-sec" style="margin-top:12px">其他工作树 <em>13 棵（不含当前）· 2 棵需要处理</em><span class="mk g">6</span></div>
+      <div class="m-sec" style="margin-top:12px">其他工作树 <em>13 棵（不含当前），2 棵需要处理</em><span class="mk g">6</span></div>
       <div class="m-toolbar">按目录名或分支筛选…<span class="mk g">7</span></div>
       <div class="m-sec" style="color:var(--mwarn)">需要处理 <em>2</em></div>
       <div class="m-row2"><span class="m-tag bad">占用中</span><span class="m-row2__name">1475-timeout-budget</span><span class="m-row2__br">ticket/1475-predicate-budget</span><span class="m-row2__p">D:/worktrees/1475-timeout-budget</span><button class="m-btn sm">复制路径</button><button class="m-btn ghost">让 AI 处理</button><span class="mk g">8</span></div>
@@ -675,17 +677,17 @@
   <table>
     <thead><tr><th>动作</th><th>类型</th><th>放在哪</th><th>完成后结果回到哪</th></tr></thead>
     <tbody>
-      <tr><td>重新读取</td><td class="tnum">读 · 本地</td><td>状态轨，常驻</td><td>状态轨刷新；不弹整页提示</td></tr>
-      <tr><td>取回远端信息（fetch）</td><td class="tnum">读 · 联网</td><td>状态轨 <code>⋯</code></td><td>两个时间里的「远端依据」更新；领先/落后重算</td></tr>
-      <tr><td>拉取（pull）</td><td class="tnum">写 · 联网</td><td>状态轨，仅在落后时出现</td><td>贴身结果：快进几笔 / 已是最新；提示看新增提交</td></tr>
-      <tr><td>推送（push）</td><td class="tnum">写 · 联网</td><td>状态轨，仅在领先时点亮，带笔数</td><td>贴身结果：推上去几笔；失败给原话摘要与重试</td></tr>
-      <tr><td>暂存 / 撤回暂存</td><td class="tnum">写 · 本地</td><td>改动页行内 / 勾选后的批量条</td><td>该行状态即时变化；批量条给出「已暂存 2 个」</td></tr>
-      <tr><td>提交</td><td class="tnum">写 · 本地</td><td>改动页提交区</td><td>按钮下方结果条，带「查看这笔提交」</td></tr>
-      <tr><td>丢弃修改 / 加入 .gitignore</td><td class="tnum">写 · 本地</td><td>行菜单，二次确认</td><td>确认框列影响文件；成功后该行消失并说明</td></tr>
-      <tr><td>标记为已解决</td><td class="tnum">写 · 本地</td><td>冲突行</td><td>该行状态变化；冲突计数减少</td></tr>
-      <tr><td>加载更早</td><td class="tnum">读 · 本地</td><td>提交历史列表底部</td><td>列表底部内联三态</td></tr>
-      <tr><td>筛选</td><td class="tnum">读 · 视图内</td><td>各视图工具栏，写清范围</td><td>不持久化，切页签重置</td></tr>
-      <tr><td>复制路径 / 哈希 / 提交说明</td><td class="tnum">读 · 剪贴板</td><td>紧挨被复制文本</td><td>原位短暂提示「已复制」</td></tr>
+      <tr><td>重新读取</td><td class="tnum">读，本地</td><td>状态轨，常驻</td><td>状态轨刷新；不弹整页提示</td></tr>
+      <tr><td>取回远端信息（fetch）</td><td class="tnum">读，联网</td><td>状态轨 <code>⋯</code></td><td>两个时间里的「远端依据」更新；超前/落后重算</td></tr>
+      <tr><td>拉取（pull）</td><td class="tnum">写，联网</td><td>状态轨，仅在落后时出现</td><td>贴身结果：快进几笔 / 已是最新；提示看新增提交</td></tr>
+      <tr><td>推送（push）</td><td class="tnum">写，联网</td><td>状态轨，仅在超前时点亮，带笔数</td><td>贴身结果：推上去几笔；失败给原话摘要与重试</td></tr>
+      <tr><td>暂存 / 撤回暂存</td><td class="tnum">写，本地</td><td>改动页行内 / 勾选后的批量条</td><td>该行状态即时变化；批量条给出「已暂存 2 个」</td></tr>
+      <tr><td>提交</td><td class="tnum">写，本地</td><td>改动页提交区</td><td>按钮下方结果条，带「查看这笔提交」</td></tr>
+      <tr><td>丢弃修改 / 加入 .gitignore</td><td class="tnum">写，本地</td><td>行菜单，二次确认</td><td>确认框列影响文件；成功后该行消失并说明</td></tr>
+      <tr><td>标记为已解决</td><td class="tnum">写，本地</td><td>冲突行</td><td>该行状态变化；冲突计数减少</td></tr>
+      <tr><td>加载更早</td><td class="tnum">读，本地</td><td>提交历史列表底部</td><td>列表底部内联三态</td></tr>
+      <tr><td>筛选</td><td class="tnum">读，视图内</td><td>各视图工具栏，写清范围</td><td>不持久化，切页签重置</td></tr>
+      <tr><td>复制路径 / 哈希 / 提交说明</td><td class="tnum">读，剪贴板</td><td>紧挨被复制文本</td><td>原位短暂提示「已复制」</td></tr>
       <tr><td>让 AI 处理 / 解释</td><td class="tnum">交接到新会话</td><td>只在有问题的对象旁</td><td>新会话里带对象、状态与原因</td></tr>
     </tbody>
   </table>
@@ -697,10 +699,10 @@
       <tr><td>改动页签</td><td><code>11 文件</code></td><td>已暂存 2 + 未暂存 9；冲突文件只算一次</td></tr>
       <tr><td>提交历史页签</td><td><code>50 条</code></td><td>已加载 50 条，不是仓库总提交数；更早的要往下加载</td></tr>
       <tr><td>工作树页签</td><td><code>13 棵</code></td><td>其他工作树 13 棵，不含当前这一棵</td></tr>
-      <tr><td>领先 / 落后</td><td><code>领先 2 笔 · 落后 0</code></td><td>相对「远端依据」那一刻的 origin/分支；取回远端信息后重算</td></tr>
+      <tr><td>超前 / 落后</td><td><code>超前 2 笔，落后 0</code></td><td>相对「远端依据」那一刻的 origin/分支；取回远端信息后重算</td></tr>
       <tr><td>本地读取于</td><td><code>刚刚 / 3 分钟前</code></td><td>上一次本地读状态的时间；不联网；精确值给到秒与本地时区</td></tr>
       <tr><td>远端依据</td><td><code>2 小时前</code></td><td>上一次取回远端信息的时间；点击可「取回远端信息」</td></tr>
-      <tr><td>提交时间</td><td><code>辰辰 · 16:02</code> / <code>昨天 22:08</code></td><td>悬停给完整本地时间与时区；复制给机器读的 ISO 串</td></tr>
+      <tr><td>提交时间</td><td><code>辰辰，16:02</code> / <code>昨天 22:08</code></td><td>悬停给完整本地时间与时区；复制给机器读的 ISO 串</td></tr>
     </tbody>
   </table>
 
@@ -777,7 +779,7 @@
   <h3>C 验收清单</h3>
   <ol class="notes g">
     <li><span class="n">✓</span><div>三个页签里，同步关系、两个时间、重新读取入口都在同一处；拉取/推送只在状态轨出现。</div></li>
-    <li><span class="n">✓</span><div>任何数字带单位、可悬停拿口径：文件 / 条（已加载）/ 棵（不含当前）/ 笔（领先落后）。</div></li>
+    <li><span class="n">✓</span><div>任何数字带单位、可悬停拿口径：文件 / 条（已加载）/ 棵（不含当前）/ 笔（超前落后）。</div></li>
     <li><span class="n">✓</span><div>「返回」只回来源：提交历史 → 提交历史；改动页跳来 → 回改动页；都保留选中与滚动。</div></li>
     <li><span class="n">✓</span><div>提交历史是单列两层（列表 ↔ 详情），没有左右分栏；筛选范围写清「已加载的 N 条」。</div></li>
     <li><span class="n">✓</span><div>Merge 提交保留原文 + 「合并」徽章 + 父提交可点；提交说明不改写、不机翻。</div></li>
@@ -790,15 +792,15 @@
 
   <h3>D 明确不做</h3>
   <ol class="notes d">
-    <li><span class="n">·</span><div>不自动 fetch / 自动 pull：首屏不联网是 ADR 20261002 定的，保留。</div></li>
-    <li><span class="n">·</span><div>不做全库提交搜索：筛选只作用于已加载集合，范围写在输入框上，不假装有服务端搜索。</div></li>
-    <li><span class="n">·</span><div>不在页面里新建 / 切换 / 删除工作树、不 checkout：这些留在侧栏终端；页面只给入口与交接。</div></li>
-    <li><span class="n">·</span><div>不改写任何 git 生成的文字（提交说明、Merge 原文、报错原话）；中文只出现在界面词条与解释里。</div></li>
-    <li><span class="n">·</span><div>不新增主题与皮肤：沿用「工程台账」深色；文档页用浅色是为了读，不代表产品支持浅色主题。</div></li>
+    <li><span class="n">–</span><div>不自动 fetch / 自动 pull：首屏不联网是 ADR 20261002 定的，保留。</div></li>
+    <li><span class="n">–</span><div>不做全库提交搜索：筛选只作用于已加载集合，范围写在输入框上，不假装有服务端搜索。</div></li>
+    <li><span class="n">–</span><div>不在页面里新建 / 切换 / 删除工作树、不 checkout：这些留在侧栏终端；页面只给入口与交接。</div></li>
+    <li><span class="n">–</span><div>不改写任何 git 生成的文字（提交说明、Merge 原文、报错原话）；中文只出现在界面词条与解释里。</div></li>
+    <li><span class="n">–</span><div>不新增主题与皮肤：沿用「工程台账」深色；文档页用浅色是为了读，不代表产品支持浅色主题。</div></li>
   </ol>
 
   <div class="foot">
-    <span>design spec · 2026-10-26 · docs/design/20261026-version-control-unified-design.html</span>
+    <span>design spec，2026-10-26，docs/design/20261026-version-control-unified-design.html</span>
     <span>现状调研：docs/design/20261026-version-control-page-research.md</span>
     <span>关联：改动页审查稿 docs/review/20261026-version-control-ui-review.html</span>
   </div>
