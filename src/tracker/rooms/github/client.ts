@@ -441,6 +441,10 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       emitGhExec('network', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, phase === 'queue' ? NOT_ACCOUNTED : ghPointNoteOf(args))
       emitGhTimeout(timeout, 'room-tier', opts.via, cmdLabel, slotWaitedMs, phase)
       const waitedMs = Date.now() - t0
+      // #1560（Q3）：排队与拿到名额之后分开写，不把后一段叫成命令运行时长；排队上限先到的那一笔没有后一段。
+      const queuePart = phase === 'queue'
+        ? '排队 ' + slotWaitedMs + ' 毫秒，到点时还没拿到名额'
+        : '排队 ' + slotWaitedMs + ' 毫秒，拿到名额后又等了 ' + Math.max(0, waitedMs - slotWaitedMs) + ' 毫秒'
       // #1007：只有真的尝试起过进程的到点才算 transport 级失败。还在排队、或在解析执行器的到点
       // 说明不了 GitHub 通不通，给它设冷却会让随后调用误以为「路断了」，其实只是名额挤。
       // #1560：被排队挤占过的到点同样不设 —— 排队吃掉了部分预算，执行段没跑满本档，
@@ -456,7 +460,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       const where = phase === 'queue'
         ? '到点时命令还排在名额队列里，一次都没跑起来（排队上限 ' + queueLimit + ' 毫秒，本档预算 ' + timeout + ' 毫秒；排队已中止，名额没有被占）'
         : '到点掐断这一笔的是房内分档表，不是外层调用钳制，也不是调用方取消'
-      return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: 'gh 在 ' + timeout + ' 毫秒内没有回话（命令 ' + (cmdLabel || 'gh') + '；' + where + '；总共已等 ' + waitedMs + ' 毫秒，其中排队 ' + slotWaitedMs + ' 毫秒；房内分档：读 ' + Math.round(READ_TIMEOUT_MS / 1000) + ' 秒 / 写 ' + Math.round(WRITE_TIMEOUT_MS / 1000) + ' 秒 / 探活 ' + Math.round(PROBE_TIMEOUT_MS / 1000) + ' 秒）。这一笔已经中止。' + outboundFollowUpAdvice(bucket), code: -1, timedOut: true, raw: '' } }
+      return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: 'gh 在 ' + timeout + ' 毫秒内没有回话（命令 ' + (cmdLabel || 'gh') + '；' + where + '；' + queuePart + '；房内分档：读 ' + Math.round(READ_TIMEOUT_MS / 1000) + ' 秒 / 写 ' + Math.round(WRITE_TIMEOUT_MS / 1000) + ' 秒 / 探活 ' + Math.round(PROBE_TIMEOUT_MS / 1000) + ' 秒）。这一笔已经中止。' + outboundFollowUpAdvice(bucket), code: -1, timedOut: true, raw: '' } }
     }
     // #965：先拿名额再起进程，满了就排队等（等不是失败）；排队中被调用方取消则按取消返回，不算失败。
     // #1560：排队同时与两只表赛跑 —— 房内分档表（整档）与排队上限表（min(本档，中央 3 秒））。
