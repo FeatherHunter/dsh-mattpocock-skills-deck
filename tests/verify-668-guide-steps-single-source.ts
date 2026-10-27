@@ -87,7 +87,7 @@ async function main() {
 
   // —— 场景 4：宿主按清单排链快照（对真目录、真函数） ——
   const chainStepsOf = (backendId: string, allDone?: boolean) => {
-    const items = catalog.catalogFor(backendId).filter((c) => c.id !== 'gh:labels')
+    const items = catalog.catalogFor(backendId)
     return items.map((c) => ({ id: String(c.id), status: allDone ? 'done' : 'fail', show: null, actions: [] }))
   }
   const ghOrdered = guide.orderStepsByGuide(guide.guideStepsFor('github'), chainStepsOf('github'))
@@ -96,7 +96,7 @@ async function main() {
     'skill:wayfinder', 'skill:setup-matt-pocock-skills', 'skill:ask-matt',
     'env:home', 'gh:repoAccess',
   ], 'GitHub 排出来就是定版四那张「新流程」表：gh 三行上移、初始化与技能那四行下移；清单没覆盖的两项按各自那一段的先后接在后面')
-  assert.strictEqual(ghOrdered.length, catalog.catalogFor('github').filter((c) => c.id !== 'gh:labels').length, 'GitHub：一行不多、一行不少')
+  assert.strictEqual(ghOrdered.length, catalog.catalogFor('github').length, 'GitHub：一行不多、一行不少')
 
   const mdOrdered = guide.orderStepsByGuide(guide.guideStepsFor('markdown'), chainStepsOf('markdown'))
   assert.deepStrictEqual(idOf(mdOrdered), [

@@ -169,7 +169,7 @@ async function main() {
     must(registered.size >= 8, '从求值文件里至少认出 8 条注册（解析失效时本节其余断言会假绿）', '只认出 ' + registered.size + ' 条')
     const backends = ['github', 'markdown', 'gitlab']
     for (const backendId of backends) {
-      const items = mods.catMod.catalogFor(backendId).filter(function (c) { return c.scope === 'backend' && c.id !== 'gh:labels' })
+      const items = mods.catMod.catalogFor(backendId).filter(function (c) { return c.scope === 'backend' })
       must(items.length > 0, backendId + ' 的后端目录非空', '空目录')
       for (const it of items) {
         const check = it.check || {}
