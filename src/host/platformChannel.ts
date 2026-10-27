@@ -6,7 +6,7 @@
 // #1161：内置房间清单从前写在本文件里（三段 try 各 import 一间房），现在只认装配点
 //   src/tracker/registry/builtins.ts —— 宿主侧不再认识任何具体房间（规则 rooms-imported-only-by-assembly）。
 import type { HostTimerService } from '../refresh/contract/host-timer-ports.js'
-import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, reportGhOutbound, noteGhGraphqlCorrection, ghCooldownReply, reportGhSpawnFailure, reportGhOutcome } from '../tracker/kernel/outbound-tiers.js'
+import { timeoutForGhArgs, queueTimeoutForTier, isWriteGhArgs, ghCommandLabel, reportGhOutbound, noteGhGraphqlCorrection, ghCooldownReply, reportGhSpawnFailure, reportGhOutcome, outboundQueueTimeoutOf } from '../tracker/kernel/outbound-tiers.js'
 // #1007：这一层的 gh 出站结局上报与冷却回话都走 tracker/kernel/outbound-tiers.ts（界面口径、日志口径与宿主两路共用一份）。
 import { getGhLane } from '../refresh/rooms/host/outbound-admission.js'
 // #1159：给房间的那份后端上下文要挂上出站控制面（实现见 outbound-control.ts，只做转发）。
@@ -349,8 +349,12 @@ export function createPlatformChannel(deps: Deps) {
       let deGate: OutboundGate | null = null
       let deRelease: (() => void) | null = null
       if (deIsOutbound) {
-        try { deRelease = await getGhLane().acquire({ bucket: deBucket, signal: (opts && opts.signal) || undefined, cmd: deIsGh ? deCmd : undefined, service: deIsGh ? 'github' : 'gitlab' }) }
+        // #1570：排队最多等多久由闸管 —— 预算取 min(本档超时, 中央排队上限)，到点闸抛「排队超时」。
+        try { deRelease = await getGhLane().acquire({ bucket: deBucket, signal: (opts && opts.signal) || undefined, cmd: deIsGh ? deCmd : undefined, service: deIsGh ? 'github' : 'gitlab', waitMs: queueTimeoutForTier((opts && opts.timeout != null) ? opts.timeout : (deIsGh ? timeoutForGhArgs(args) : TIMEOUT_MS)) }) }
         catch (eDeQ) {
+          // #1570：到点时这一笔还没拿到名额（一次都没起进程），按可重试网络失败如实回，不混成「取消排队」。
+          const deQ = outboundQueueTimeoutOf(eDeQ)
+          if (deQ) return { stdout: '', stderr: (cmdBase || 'gh') + ' 在 ' + deQ.limitMs + ' 毫秒内没等到出站名额（到点时还在排队，一次都没有跑起来）。可重试。', code: -1 }
           // #1007：冷却窗口里的拒绝不是「排队取消」，要如实说成「通路不通」，否则调用方会以为只是排队被人喊停。
           const deCoolText = ghCooldownReply(eDeQ, deCmd || cmdBase || 'gh')
           if (deCoolText) return { stdout: '', stderr: deCoolText, code: -1 }

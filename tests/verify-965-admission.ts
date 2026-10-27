@@ -10,6 +10,8 @@
  * 3. 取消能出队，被取消的不算失败（取消数加一，成功数不受影响）。
  * 4. 终值可回填（读桶写桶上限可配，#966 执行时换数字不用改调用处）。
  * 5. 全进程共用同一道默认单例（三次拿是同一个对象，上限一致）。
+ * 6. 排队最多等多久由闸自己管（#1570）：给 waitMs 才起表，到点抛可辨认「排队超时」并带走时辰；
+ *    到点的那一笔没有拿过名额，名额不泄漏；取消仍按取消返回、与到点分得开；缺省不给预算时维持不设上限。
  *
  * 原来那组「读宿主源码文本、断言 getGhLane / outbound-admission 字样出现过」的接线检查
  * 已删：断言对象是手写源码文件的文本，等价重构（换写法、搬文件、改注释）就会误报。
@@ -37,7 +39,7 @@ async function main() {
     finish()
     return
   }
-  const { createGhAdmission, getGhLane, READ_BUCKET_MAX, WRITE_BUCKET_MAX, isAdmissionCancelled, ADMISSION_CANCELLED } = mod!
+  const { createGhAdmission, getGhLane, READ_BUCKET_MAX, WRITE_BUCKET_MAX, isAdmissionCancelled, isAdmissionQueueTimeout, ADMISSION_CANCELLED } = mod!
 
   check(READ_BUCKET_MAX === 64, '读桶上限 64（保险丝：远高于实测峰值 12，正常永不介入）', '实得 ' + String(READ_BUCKET_MAX))
   check(WRITE_BUCKET_MAX === 16, '写桶上限 16（写需求远小于读，仍留一道远高于需求的保险丝）', '实得 ' + String(WRITE_BUCKET_MAX))
@@ -129,7 +131,66 @@ async function main() {
     check(limits.readMax === 64 && limits.writeMax === 16, '默认单例用现行上限（读 64 写 16）')
   }
 
+  // 6. 排队最多等多久（#1570）：到点由闸抛「排队超时」、名额不泄漏、取消与到点分得开。
+  {
+    const { outboundQueueTimeoutOf } = await import(pathToFileURLOf('src/tracker/kernel/outbound-tiers.ts'))
+    // 可手动触发的表：不睡真实时间，到点时刻由测试自己点。
+    const pending: any[] = []
+    const timers = {
+      setTimeout: (fn: () => void, ms: number) => { const h: any = { fn: fn, ms: ms, cleared: false }; pending.push(h); return h },
+      clearTimeout: (h: any) => { if (h) h.cleared = true },
+    }
+    const lane = createGhAdmission({ readMax: 1, writeMax: 1, timers: timers })
+    const releaseHeld = await lane.acquire({ bucket: 'read' })
+    let queueErr: any = null
+    const queued = lane.acquire({ bucket: 'read', waitMs: 40 }).then(() => 'got', (e) => { queueErr = e; return 'rejected' })
+    check(pending.length === 1 && pending[0].ms === 40, '排队到点：闸按「最多等多久」起表（实得 ' + JSON.stringify(pending.map((h) => h.ms)) + '）')
+    pending[0].fn()
+    const outcome = await queued
+    check(outcome === 'rejected' && isAdmissionQueueTimeout(queueErr), '排队到点：闸抛可辨认的「排队超时」（码 ' + String(queueErr && queueErr.code) + '）')
+    const info = outboundQueueTimeoutOf(queueErr)
+    check(!!info && info.bucket === 'read' && info.limitMs === 40 && typeof info.waitedMs === 'number', '排队超时错误带桶、预算与已等毫秒（' + JSON.stringify(info) + '）')
+    check(!isAdmissionCancelled(queueErr), '排队到点不是「取消」：两者调用方分得开')
+    // 没拿到名额就不算占用：放掉占位，下一笔立刻能进，说明名额没被到点的人带走。
+    releaseHeld()
+    const gotAfter: any = await Promise.race([lane.acquire({ bucket: 'read' }), new Promise((res) => setTimeout(() => res('stuck'), 1000))])
+    check(typeof gotAfter === 'function', '排队到点后名额不泄漏（放掉占位，下一笔立刻拿到）')
+    if (typeof gotAfter === 'function') gotAfter()
+    const snapQ = lane.snapshot()
+    check(snapQ.readQueueTimedOut === 1 && snapQ.readQueued === 0, '到点单独计数且队列已清空（到点 ' + snapQ.readQueueTimedOut + '，仍在排 ' + snapQ.readQueued + '）')
+
+    // 取消仍按取消返回：不算到点、不增加到点计数，那只表被撤掉。
+    const releaseHeld2 = await lane.acquire({ bucket: 'read' })
+    const ctl = new AbortController()
+    let cancelErr: any = null
+    const queued2 = lane.acquire({ bucket: 'read', waitMs: 500, signal: ctl.signal }).then(() => 'got', (e) => { cancelErr = e; return 'rejected' })
+    const timedOutBefore = lane.snapshot().readQueueTimedOut
+    ctl.abort()
+    const outcome2 = await queued2
+    check(outcome2 === 'rejected' && isAdmissionCancelled(cancelErr) && outboundQueueTimeoutOf(cancelErr) === null, '取消与排队到点分得开：取消按取消返回')
+    const cancelTimer = pending[pending.length - 1]
+    check(!!cancelTimer && cancelTimer.cleared === true, '取消后排队那只表被撤掉（不会稍后误触发）')
+    if (cancelTimer) cancelTimer.fn()
+    check(lane.snapshot().readQueueTimedOut === timedOutBefore, '取消不会增加「排队到点」计数')
+    releaseHeld2()
+
+    // 缺省不给预算：维持不设上限，排队只等名额回来。
+    const lane2 = createGhAdmission({ readMax: 1, writeMax: 1, timers: timers })
+    const hold2 = await lane2.acquire({ bucket: 'read' })
+    const pendingBefore = pending.length
+    const waitOnly = lane2.acquire({ bucket: 'read' }).then(() => 'ok')
+    check(pending.length === pendingBefore, '缺省不给预算时不设上限（排队不建表）')
+    hold2()
+    const gotWait = await Promise.race([waitOnly, new Promise((res) => setTimeout(() => res('stuck'), 1000))])
+    check(gotWait === 'ok', '不设上限的排队在名额回来时照常放行')
+  }
+
   finish()
+}
+
+function pathToFileURLOf(rel: string) {
+  const { pathToFileURL: f } = require('url')
+  return f(path.join(ROOT, rel)).href
 }
 
 function pathToFileURL() {

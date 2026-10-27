@@ -49,9 +49,8 @@
 // 路径走域构建产物写法（与 src/refresh/rooms/host/chain-coalescing.ts 引 values.js 同例），值由 tests/verify-time-config.ts 看守一致。
 import { GIT_CREDENTIAL_CALL_BUDGET_MS as CALL_BUDGET_MS, GIT_CREDENTIAL_MIN_BUDGET_MS as MIN_BUDGET_MS, GIT_CREDENTIAL_MAX_BUDGET_MS as MAX_BUDGET_MS, GIT_CREDENTIAL_PROBE_TIMEOUT_MS, GIT_CREDENTIAL_LS_REMOTE_BUDGET_MS, GIT_CREDENTIAL_FETCH_BUDGET_MS, GIT_CREDENTIAL_PULL_BUDGET_MS, GIT_CREDENTIAL_PUSH_BUDGET_MS, GIT_CREDENTIAL_DEFAULT_BUDGET_MS, GIT_LOW_SPEED_TIMEOUT_MS, PROC_PROBE_GRACE_MS, PROC_GRACE_MS, GH_VERSION_PROBE_MS } from '../../../shared/time-config/src/values.js'
 
-import { timeoutForGhArgs, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields, outboundCooldownOf, transportFailureReasonOf, ghCooldownReply } from '../../../tracker/kernel/outbound-tiers.js'
+import { timeoutForGhArgs, queueTimeoutForTier, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields, outboundCooldownOf, outboundQueueTimeoutOf, transportFailureReasonOf, ghCooldownReply } from '../../../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound-admission.js'
-import { raceGhQueue, queueTimeoutForTier } from './gh-queue-race.js'
 import { reportGhRunOutcome } from './gh-run-report.js'
 import { getChainRide } from './chain-coalescing.js'
 import { onceRelease, abandonCommand, startWaitTimeout, DISPOSED_MESSAGE } from '../../../shared/command-cleanup/src/command-cleanup.js'
@@ -382,49 +381,33 @@ export function createGhExecution(deps: GhExecutionDeps): { resolveGh: () => Pro
     const rkWaitT0 = Date.now()
     // 这一条是哪一类 gh 命令（#1007）：所有日志行、冷却回话与失败上报共用一个短标签。
     const rkCmd = ghCommandLabel(args)
-    // #1007 评论四补的边界：排队拿名额这一段也要有一只表，而且必须可取消。
-    //   从前这里直接 await acquire({bucket})，不传信号、不与到点赛跑：名额被慢调用占满时，
-    //   面板调用会把整段分档预算花在排队上，最后却以「命令超时」返回，命令一次都没执行。
-    //   现在把「拿名额」与「本档毫秒数到点」赛跑；到点就中止排队、立刻说清「还在排队、没跑起来」。
-    //   超时值从进函数前就开始算（与 gh.exec 的 latencyMs 同一个起点），排队与执行共用这一份预算；
-    //   排队这一段另有上限：取「本档预算」与中央配置 ghQueueWaitTimeoutMs 里更小的那个
-    //   （数值与理由见 config/timeouts.yaml）。只夹排队段 —— 拿到名额之后起进程的等待仍按本档超时算。
+    // #1570：排队拿名额这一段也要有时间上限，但「等多久」改由准入闸自己管 ——
+    //   这里只把预算（本档预算与中央配置 ghQueueWaitTimeoutMs 里更小的那个）递给闸，
+    //   到点由闸抛排队超时、并负责把晚到的名额放回队列；不再由这里起表赛跑、也不再自己归还。
+    //   拿到名额之后起进程的等待仍按本档超时算，不在闸里。
     const rkQueueCtrl = (typeof AbortController === 'function') ? new AbortController() : null
     const rkQueueTimeout = queueTimeoutForTier(rkTimeout)
-    // 赛跑机制住在 gh-queue-race.ts（那里同时写明 #1392 的计时器建表异常怎么退化、迟到名额怎么归还），这里只把参数递过去。
-    const rkQueue = raceGhQueue({
-      lane: getGhLane(logCtx),
-      timer: timer,
-      timeoutMs: rkQueueTimeout,
-      bucket: rkBucket,
-      cmd: rkCmd,
-      signal: rkQueueCtrl ? rkQueueCtrl.signal : undefined,
-    })
-    const rkFirst = await rkQueue.result
-    if (rkFirst.timedOut || rkFirst.disposed) {
-      // 中止排队；晚一步拿到的那一个名额由 gh-queue-race.ts 当场归还（细节见那里的 acquire 分支）。
-      rkQueue.abandon(rkQueueCtrl)
+    let rkRelease: (() => void) | null = null
+    try {
+      rkRelease = await getGhLane(logCtx).acquire({ bucket: rkBucket, signal: rkQueueCtrl ? rkQueueCtrl.signal : undefined, cmd: rkCmd, service: 'github', waitMs: rkQueueTimeout })
+    } catch (eAcq) {
       const rkWaitedMs = Date.now() - rkWaitT0
-      if (rkFirst.disposed) {
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: rkCmd, cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'disposed', exitCode: -1 }) } catch (eL) {}
-        return { ok: false, kind: 'disposed', error: DISPOSED_MESSAGE }
-      }
       // 到点是排队的表掐的（host-queue），不是命令自己慢：日志把这一层写清楚，回话也说清一次没跑起来。
-      try { if (logCtx) logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: rkQueueTimeout, layer: 'host-queue', via: String(via || ''), cmd: rkCmd, waitedMs: rkWaitedMs, phase: 'queue' }) } catch (eL) {}
-      try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: rkCmd, cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'network', exitCode: -1 }) } catch (eL) {}
-      return { ok: false, kind: 'network', code: -1, error: 'gh 在 ' + rkQueueTimeout + ' 毫秒内没等到出站名额（命令 ' + (rkCmd || 'gh') + '；排队上限 ' + rkQueueTimeout + ' 毫秒，本档预算 ' + rkTimeout + ' 毫秒；到点时它还在排队，一次都没有跑起来）。这一笔已经中止。' }
-    }
-    if (rkFirst.failed) {
+      if (outboundQueueTimeoutOf(eAcq)) {
+        try { if (logCtx) logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: rkQueueTimeout, layer: 'host-queue', via: String(via || ''), cmd: rkCmd, waitedMs: rkWaitedMs, phase: 'queue' }) } catch (eL) {}
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: rkCmd, cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'network', exitCode: -1 }) } catch (eL) {}
+        return { ok: false, kind: 'network', code: -1, error: 'gh 在 ' + rkQueueTimeout + ' 毫秒内没等到出站名额（命令 ' + (rkCmd || 'gh') + '；排队上限 ' + rkQueueTimeout + ' 毫秒，本档预算 ' + rkTimeout + ' 毫秒；到点时它还在排队，一次都没有跑起来）。这一笔已经中止。' }
+      }
       // 冷却期间拿名额会被准入闸直接拒绝（code=admission-cooldown）：这一笔没有起进程，
       // 回一句「通路不通」比笼统的「限时没回来」有用；这句和房间 client、平台通道共用 outbound-tiers 的口径。
-      if (outboundCooldownOf(rkFirst.failed)) {
-        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: rkCmd, cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: Date.now() - rkWaitT0, kind: 'network', exitCode: -1 }) } catch (eL) {}
-        return { ok: false, kind: 'network', code: -1, error: ghCooldownReply(rkFirst.failed, rkCmd) }
+      if (outboundCooldownOf(eAcq)) {
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cmd: rkCmd, cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, waitedMs: rkWaitedMs, kind: 'network', exitCode: -1 }) } catch (eL) {}
+        return { ok: false, kind: 'network', code: -1, error: ghCooldownReply(eAcq, rkCmd) }
       }
-      throw rkFirst.failed
+      throw eAcq
     }
     // #1392：归还包成幂等，下面每条退出路径都调 releaseSlot()，保证恰好一次。
-    const releaseSlot = onceRelease(rkFirst.release)
+    const releaseSlot = onceRelease(rkRelease)
     const rkWaitedMs = Date.now() - rkWaitT0
     const exe = await resolveGh()
     if (!exe) { releaseSlot(); return { ok: false, kind: 'env', error: getGhLastError() } }
