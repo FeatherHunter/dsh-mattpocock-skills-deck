@@ -120,7 +120,11 @@ async function main() {
     let threw = ''
     try { r = await tools[name].run(exec, args || {}) } catch (e) { threw = String((e as { message?: unknown } | null)?.message || e) }
     check(threw === '', label + '：工具不把异常抛给调用方' + (threw ? '（抛了：' + threw + '）' : ''))
-    if (r !== null && r !== undefined) audit(label, r)
+    if (r !== null && r !== undefined) {
+      // 只判「没抛 + 无损」不够：回执退回错误信封时门禁也绿，标题里的「真实成功路径」会失真（#1559 复审）。
+      check(r.status === 'ok', label + ' 回执状态是 ok（实得 ' + JSON.stringify(r.status) + '）')
+      audit(label, r)
+    }
     return r
   }
 
@@ -132,7 +136,10 @@ async function main() {
   check(!!issueKey, '建票回执带票号（实得 ' + JSON.stringify(issueKey) + '）')
   await run('读票', 'deck_issue_get', { key: issueKey, feature: 'demo-spec' })
   // #1559 的故障支就在这一条：正常成功（没走 REST 降级）的列票回执。
-  await run('列票（正常成功）', 'deck_issue_list', { state: 'open' })
+  const listedNormal = await run('列票（正常成功）', 'deck_issue_list', { state: 'open' })
+  const normalData = (listedNormal && listedNormal.data) || {}
+  check(!('fallback' in normalData) && !('fallbackReason' in normalData), '正常成功回执的 data 里没有 fallback/fallbackReason 两个键（实得 ' + JSON.stringify(Object.keys(normalData)) + '）')
+  check(typeof normalData.opId === 'string' && normalData.opId.length > 0, '正常成功回执的 opId 是非空字符串（实得 ' + JSON.stringify(normalData.opId) + '）')
   await run('地图快照（full）', 'deck_map_snapshot', { key: '00', effort: 'demo' })
   await run('地图快照（thin）', 'deck_map_snapshot', { key: '00', effort: 'demo', detail: 'thin' })
   await run('改票', 'deck_issue_patch', { key: issueKey, feature: 'demo-spec', comment: '无损门禁：一条评论' })
@@ -144,6 +151,47 @@ async function main() {
   check(!!keyA && !!keyB, '两张地图子票都建成了（A=' + keyA + '，B=' + keyB + '）')
   await run('补阻塞边', 'deck_map_link', { key: keyB, effort: 'demo', blockedBy: [keyA] })
   await run('建地图骨架', 'deck_map_plan_create', { planId: 'lossless-plan', title: '无损门禁地图', effort: 'lossless-plan', children: [{ key: 'a1', title: '子一', kind: 'issue' }] })
+
+  // ── 一（续）、降级分支：后端走了 REST 降级时，fallback 与 fallbackReason 必须有值 ──
+  // 本地 Markdown 后端没有 REST 降级通道，所以这一段单独造一个「列表回 REST 降级」的假后端；
+  // 不补这一条，Agent Brief 要求的「两种分支」里降级那一半就没有任何验证证据（#1559 复审补）。
+  console.log('— 一（续）、REST 降级分支的回执形状')
+  const ws2 = makeWorkspace()
+  const ledger2 = ledgerMod.createLedger({ now: () => clock })
+  const gate2 = gateMod.createGate({ ledger: ledger2, now: () => clock })
+  const registry2 = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, ws2.ctx), { matchesTimeout: 200 })
+  const fallbackModule = Object.assign({}, markdownModule, {
+    create: (backendCtx: unknown) => {
+      const tracker: Record<string, any> = (markdownModule as any).create(backendCtx)
+      tracker.list = async () => ({ ok: true, data: [], truncated: false, fallback: 'rest', fallbackReason: 'quota' })
+      return tracker
+    },
+  })
+  registry2.register(fallbackModule as any)
+  chooseWorkspace(ws2.rootPosix, 'markdown')
+  ledger2.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
+  const deps2 = {
+    gate: gate2, registry: registry2, budget: budget,
+    estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
+    backendCtx: ws2.ctx,
+    handleFor: () => ({ cwd: ws2.rootPosix, refId: '.scratch/demo' }),
+    decideBackend: makeDecideStub(registry2),
+    log: { fire: () => {} },
+    now: () => clock,
+  }
+  const fallbackList = (await imp('src/deck/tools/issue-list.ts')).createDeckIssueList(deps2)
+  const exec2 = { agent: { session: { id: 's-1559-rest', cwd: ws2.rootPosix } } }
+  let fallbackReceipt: any = null
+  let fallbackThrew = ''
+  try { fallbackReceipt = await fallbackList.run(exec2, { state: 'open' }) } catch (e) { fallbackThrew = String((e as { message?: unknown } | null)?.message || e) }
+  check(fallbackThrew === '', '列票（REST 降级）：工具不把异常抛给调用方' + (fallbackThrew ? '（抛了：' + fallbackThrew + '）' : ''))
+  check(!!fallbackReceipt && fallbackReceipt.status === 'ok', '列票（REST 降级）回执状态是 ok（实得 ' + JSON.stringify(fallbackReceipt && fallbackReceipt.status) + '）')
+  if (fallbackReceipt) audit('列票（REST 降级）', fallbackReceipt)
+  const fallbackData = (fallbackReceipt && fallbackReceipt.data) || {}
+  check(fallbackData.fallback === 'rest', 'REST 降级回执带 fallback=rest（实得 ' + JSON.stringify(fallbackData.fallback) + '）')
+  check(fallbackData.fallbackReason === 'quota', 'REST 降级回执带具体原因 quota（实得 ' + JSON.stringify(fallbackData.fallbackReason) + '）')
+  check(typeof fallbackData.opId === 'string' && fallbackData.opId.length > 0, 'REST 降级回执的 opId 也是非空字符串（实得 ' + JSON.stringify(fallbackData.opId) + '）')
+  ws2.cleanup()
 
   // ── 二、检查器本身：宿主会拒收的坏值必须被点名 ──
   console.log('— 二、检查器判据（照宿主 walkJsonValue 的口径）')

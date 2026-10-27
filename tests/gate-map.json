@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T03:21:42.158Z",
+  "generatedAt": "2026-10-27T04:35:30.947Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 403,
   "gateCount": 403,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 16,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 594,
+  "graphFileCount": 595,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -537,8 +537,10 @@
       "step": "node tests/verify-deck-thin-reads.ts",
       "file": "tests/verify-deck-thin-reads.ts",
       "guards": [
+        "src/deck/shell/body-digest.ts",
         "src/deck/tools/issue-get.ts",
         "src/deck/tools/issue-list.ts",
+        "src/deck/tools/issue-patch.ts",
         "src/deck/tools/map-snapshot.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
@@ -546,6 +548,7 @@
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
+        "src/deck/shell",
         "src/deck/tools",
         "src/refresh/kernel",
         "src/refresh/rooms/host",
@@ -555,7 +558,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-deck-tools-agent-register.ts",
@@ -10188,6 +10191,7 @@
     "src/deck/shell": [
       "node tests/verify-deck-exec-phone.ts",
       "node tests/verify-deck-parallel.ts",
+      "node tests/verify-deck-thin-reads.ts",
       "node tests/verify-deck-tools-agent-register.ts",
       "node tests/verify-deck-tools.ts",
       "node tests/verify-dependency-rules.ts",
@@ -11264,9 +11268,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 615,
+    "fileCount": 616,
     "dirCount": 74,
-    "coveredFileCount": 615,
+    "coveredFileCount": 616,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11481,6 +11485,7 @@
       "src/deck/rules/tool-table.ts",
       "src/deck/rules/workspace-file.ts",
       "src/deck/shell/backend-transport.ts",
+      "src/deck/shell/body-digest.ts",
       "src/deck/shell/body-write.ts",
       "src/deck/shell/call-memo.ts",
       "src/deck/shell/call-shell-types.ts",

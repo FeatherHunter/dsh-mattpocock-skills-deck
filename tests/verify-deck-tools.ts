@@ -150,14 +150,19 @@ async function main() {
   // #1559：宿主收工具返回值时要求无损 JSON。本门禁跑到的每一次工具调用都在这里过同一份判据
   // （判据实现见 tests/lib/json-lossless.ts，与宿主 walkJsonValue 同口径），避免只在某一扇专门门禁里看一遍。
   const losslessMod = await imp('tests/lib/json-lossless.ts')
-  const losslessProblems = (value) => losslessMod.losslessProblems(value)
+  const { losslessProblems, describeLosslessProblems } = losslessMod
+  // 回执无损检查收一处：门禁里凡是直接调 tool.run 的地方（包括下面几段负向探针）都要过同一份判据，
+  // 否则「每次调用都被覆盖」只对走 callTool 的那部分成立（#1559 复审）。
+  const auditLossless = (label, r) => {
+    const problems = (r === null || r === undefined) ? [] : losslessProblems(r)
+    check(problems.length === 0, label + ' 的回执是无损 JSON' + (problems.length ? '：' + describeLosslessProblems(problems, 3) : ''))
+  }
   const callTool = async (name, args) => {
     const r = await tools[name].run(exec, args || {})
     // 成功选出后端的那几次调用在这里计数，供下面那段「离网调用不再过真闸」核对（调用次数大于 0 而闸计数为 0）。
     // #1442 起选后端走判定出口（读工作区文件），不再调注册表的选择接口；选择接口零调用由 tests/verify-1442-tracker-tools.ts 钉住。
     if (r && r.backend && r.backend.id) selectCount.count += 1
-    const problems = (r === null || r === undefined) ? [] : losslessProblems(r)
-    check(problems.length === 0, name + ' 的回执是无损 JSON' + (problems.length ? '：' + losslessMod.describeLosslessProblems(problems, 3) : ''))
+    auditLossless(name, r)
     return r
   }
   const selectCount = { count: 0 }
@@ -555,6 +560,7 @@ async function main() {
     chooseWorkspace(ws.rootPosix, 'probe-remote')   // 把工作区文件改写成选了探针远端（等同旧写法 registry.bind(handle, 'probe-remote')）
     const before = { hour: ledger.hourOf('ai-tool'), accounted: gate.stats().accounted, escaped: gate.escaped().requests }
     const r = await tools.deck_issue_create.run(exec, { title: '远端那一张', kind: 'issue' })
+    auditLossless('deck_issue_create（探针远端）', r)
     const after = { hour: ledger.hourOf('ai-tool'), accounted: gate.stats().accounted, escaped: gate.escaped().requests }
     check(envelopeOk(r) && r.ok === true, '探针远端上建票成功（实得 ' + (r && r.status) + '）')
     check(after.accounted.requests - before.accounted.requests === 0, '离网探针不经真闸记账：闸记下 0 条（实得 ' + (after.accounted.requests - before.accounted.requests) + '，管线记账 1443 才接）')
@@ -593,9 +599,11 @@ async function main() {
     chooseWorkspace(ws.rootPosix, 'boom')
     try {
       const r = await tools.deck_issue_create.run(exec, { title: '会抛的那一张', kind: 'issue' })
+      auditLossless('deck_issue_create（后端抛错）', r)
       check(envelopeOk(r) && r.ok === false && r.status === 'unsupported' && r.reason === 'backend-threw', '✗ 负向：后端抛错 → ok:false / unsupported + reason=backend-threw（实得 ' + (r && r.status) + '/' + (r && r.reason) + '）')
       check(typeof r.text === 'string' && r.text.indexOf('后端实现抛错') >= 0, '抛错这件事如实写在 text 里：' + String(r && r.text).slice(0, 80))
       const r2 = await tools.deck_context.run(exec, {})
+      auditLossless('deck_context（后端抛错）', r2)
       check(envelopeOk(r2) && r2.ok === false, '✗ 负向：读路径上后端抛错也一样收成三态（' + (r2 && r2.status) + '）')
     } finally { d2.dispose(); chooseWorkspace(ws.rootPosix, 'markdown') }
   }
@@ -603,6 +611,7 @@ async function main() {
   // ── ⑩ 负向：会话取不到工作区 → 如实说做不到，不猜一个进程目录 ──
   {
     const r = await tools.deck_context.run({ agent: { session: {} } }, {})
+    auditLossless('deck_context（无会话）', r)
     check(envelopeOk(r) && r.ok === false && r.reason === 'no-session-context', '✗ 负向：会话里没有工作区 → no-session-context（实得 ' + (r && r.reason) + '）')
   }
 

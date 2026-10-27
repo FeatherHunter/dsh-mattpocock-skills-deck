@@ -244,7 +244,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
         returned: sliced.length,
         truncated: truncated,
         issues: sliced,
-        opId: opId || '',
+        opId: opId,
       }
       if (backendFallback) {
         data.fallback = 'rest'
