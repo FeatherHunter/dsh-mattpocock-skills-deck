@@ -38,7 +38,6 @@ export const definition = {
       labels: { type: 'array', items: { type: 'string' }, description: '要带的标签，会在必备标签之外追加；除 issue 外不要再放类型标签（wayfinder:map / wayfinder:research / wayfinder:prototype / wayfinder:grilling / wayfinder:task / bug），类型标签由 kind 与 label 决定。' },
       assignees: { type: 'array', items: { type: 'string' }, description: '认领人' },
       idempotencyKey: { type: 'string', description: '这一批写的幂等锚，重试时带同一个值' },
-      workRouteDetail: { type: 'string', enum: ['core', 'standard'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）' },
       ...MD_SCOPE_CREATE,
     },
     required: ['title', 'kind'],

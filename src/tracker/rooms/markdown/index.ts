@@ -6,6 +6,8 @@ import type { Actor } from '../../contract/identity.js'
 import type { OpResult, PreflightResult, Counts, PageResult, Dependencies, RepoPermissions, SubIssueList, LabelColorsFilePlacement, LabelColorBatchResult } from '../../contract/results.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { readTextFile, exists } from './read.js'
+// #1572：认领与判定层共用同一套声明解析器（GitLab 房 #1555 已是这条口径），避免同一个文件两处各答一套。
+import { normalizeTrackerText, parseIssueTracker } from '../../kernel/issue-tracker-declaration.js'
 // #1513：本地 Markdown 的预检判据与检查链上的三项是同一份实现（票面硬条件：不许各写一套）。
 import { runWorkspaceChecks, workspaceCheckLabel } from './workspace-checks.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setBlockedByIssue, setAssigneesIssue, setParentIssue, setLabelsIssue } from './issues.js'
@@ -121,7 +123,8 @@ export async function matches(handle: RepoHandle, ctx: OpContext): Promise<boole
     // 反例：不要把「扫 `.scratch` 找 map.md」加回来，包括「只看子目录」「只看唯一那个子目录」这类变体——
     // 它们同样是猜。要认下一个工作区，就让它把话说明白：`.scratch/map.md` 在，或者声明文件指向 markdown。
     for(const p of candidatePaths){if(await exists(ctx,p))return true}
-    // bug 修复：setup 已选 Local Markdown 但尚未落 map.md 时，仍应算 Markdown 身份（底层 Markdown 格式以 docs/agents/issue-tracker.md 声明为准，非仅 map.md 数据）
+    // setup 已选 Local Markdown 但尚未落 map.md 时，仍应算 Markdown 身份（底层 Markdown 格式以 docs/agents/issue-tracker.md 声明为准，非仅 map.md 数据）。
+    // #1572 起声明必须是高置信的标题行：「正文里顺嘴提到 Local Markdown」不再算身份，与 GitLab 房同口径。
     try{
       const itPath=plat.join(cwd,'docs/agents/issue-tracker.md')
       if(await exists(ctx,itPath)){
@@ -137,10 +140,19 @@ export async function matches(handle: RepoHandle, ctx: OpContext): Promise<boole
             if(fs2&&typeof fs2.resolve==='function'&&typeof fs2.readText==='function'){ const t=await fs2.resolve(itPath,{cwd}); txt=await fs2.readText(t); unreadable=false }
           }catch{}
         }
-        if(typeof txt==='string'&&/Local\s+Markdown/i.test(txt)) return true
+        // #1572：只认「标题行明说 Local Markdown」这种高置信声明，与 GitLab 房 #1555 的判据对齐。
+        // 为什么不再用全文正则：正文里顺嘴提到 Local Markdown（迁移记录、对照说明、模板示例）会被当成
+        // 声明，于是 GitHub 工作区被 Markdown 房错误认领（#1572 的复现）；GitLab 房已经改成只看标题行，
+        // 两层的答案必须对得上。代价是「没有标题行、正文只写 Local Markdown」的旧文档不再被本房认领——
+        // 判定层不会把正文提 markdown 当成身份（#277：markdown 的正文关键词不进标题行判据）；认领层跟它同口径。
+        if(typeof txt==='string'){
+          const parsed=parseIssueTracker(normalizeTrackerText(txt))
+          if(parsed.confidence==='high'&&parsed.explicitBackendId==='markdown') return true
+        }
         // 声明文件在、可房里的读法与平台 fs 那条兜底都没读动：识别最后一道证据没能出声。
         if(unreadable) emitReadDegraded(ctx,'matches','matches:tracker-doc',Date.now()-startedAt)
-        // 走到这里说明声明文件在、也读到了内容，只是里面没写 Local Markdown：这是正常的否定结论，不记。
+        // 走到这里说明声明文件在、也读到了内容，只是没有「标题行写着 markdown」这条声明：
+        // 这是正常的否定结论，不记 —— 正文里提过 Local Markdown 也一样（#1572：认领不认正文关键词）。
       }
     }catch{
       // 声明文件这一层没能给出答案的另一种走法：拼这个路径的时候抛了（平台对象形状怪、join 自己抛）。

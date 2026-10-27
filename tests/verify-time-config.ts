@@ -309,6 +309,8 @@ const PERMANENT: PermanentRow[] = [
   // —— 单位换算（数学定义，不是旋钮） ——
   { file: 'src/refresh/kernel/host-budget.ts', snippet: 'HOUR_MS = 3_600_000', reason: '单位换算（1 小时），不是旋钮，调它没有意义' },
   { file: 'src/client/views/shared/truthLines.ts', snippet: 'TRUTH_MINUTE_MS = 60000', reason: '单位换算（1 分钟），只做“多久”折人话的刻度，不是旋钮' },
+  { file: 'src/deck/tools/work-route.ts', snippet: 'HOUR_MS = 3_600_000', reason: '单位换算（1 小时）：把中央 YAML 的在办窗口算出回执里的「24 小时」，不是旋钮' },
+  { file: 'src/deck/tools/work-route.ts', snippet: 'DAY_MS = 24 * HOUR_MS', reason: '单位换算（1 天 = 24 小时）：把中央 YAML 的保留期算出回执里的「30 天」，不是旋钮' },
   // —— 0 表示“还没有 / 关掉”（状态初值与开关，不是时长） ——
   { file: 'src/shared/naming-tracking.ts', snippet: 'NAMING_HINT_GRACE_MS = 0', reason: '值为 0 表示把这个宽限窗关掉，不是可调时长' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', snippet: "intervalMs: 0, lingerMs: 0, standing: '', limit: 0, atMs: 0", reason: '心跳计划的状态初值（0 = 还没定下节拍 / 还没跳过），真值由刷新预算注入，不是新参数' },

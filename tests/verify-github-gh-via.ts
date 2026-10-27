@@ -23,6 +23,9 @@ import { ghClient } from '../src/tracker/rooms/github/client.ts'
 
 const HERE = 'tests/verify-github-gh-via.ts'
 const CLIENT = 'src/tracker/rooms/github/client.ts'
+// gh.exec / gh.timeout 两条日志的字段拼装按文件粒度上限拆到了 client-support.ts：
+// 管子判据要连这份一起看，否则「via 有没有真的写进日志」会因为拆文件而漏判。
+const CLIENT_SUPPORT = 'src/tracker/rooms/github/client-support.ts'
 
 /** 读路径这一片的调用点：每一条都由 #1052 逐个贴过标签。 */
 const READ_CALL_FILES = [
@@ -201,9 +204,10 @@ function callSites(rel: string): { line: number; tag: string | null }[] {
 
 console.log('== 一、管子通着：opts.via 一路到 gh.exec ==')
 const client = readSelf(CLIENT)
+const support = readSelf(CLIENT_SUPPORT)
 check(/via\?:\s*string/.test(client), 'client.ts 的 GhExecOpts 里有 via 这一格')
-check(/emitGhExec\([^)]*via\??:\s*string/.test(client), 'emitGhExec 收得下 via 这个参数')
-check(/roomLogEvent\(ctx,\s*'info',\s*'gh\.exec',\s*\{[^}]*via:\s*String\(via \|\| ''\)/s.test(client), "gh.exec 那一行里写进了 via 字段（没给标签的调用点落空串）")
+check(/emitGhExec\([^)]*via\??:\s*string/.test(support), 'emitGhExec 收得下 via 这个参数')
+check(/roomLogEvent\(ctx,\s*(?:lv|'info'),\s*'gh\.exec',\s*\{[^}]*via:\s*String\(via \|\| ''\)/s.test(support), "gh.exec 那一行里写进了 via 字段（没给标签的调用点落空串）")
 const emitCalls = /\bemitGhExec\s*\(/g
 let em: RegExpExecArray | null
 let emitTotal = 0

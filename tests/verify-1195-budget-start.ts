@@ -115,9 +115,9 @@ async function main() {
     check(fastR && fastR.status === 'ok', '入口前不耗时时照样成功（实得 ' + (fastR && fastR.status) + '）')
   }
 
-  // ③ 接线：九个工具都传 startedAt
+  // ③ 接线：十个工具都传 startedAt
   {
-    const tools = ['context', 'issue-get', 'issue-list', 'map-snapshot', 'issue-create', 'map-plan-create', 'map-link', 'issue-patch', 'issue-report']
+    const tools = ['context', 'issue-get', 'issue-list', 'map-snapshot', 'issue-create', 'map-plan-create', 'map-link', 'issue-patch', 'issue-report', 'work-route']
     for (const name of tools) {
       const src = fs.readFileSync(path.join(ROOT, 'src', 'deck', 'tools', name + '.ts'), 'utf8')
       check(src.indexOf('startedAt: toolEntryAt') >= 0, name + ' 把入口时间传给预算壳')

@@ -7,6 +7,9 @@
  *   ③ 认领路径不再按「`.scratch` 目录里的每个条目」去猜 map.md 在哪。这一条用两个计数器钉：
  *      找 map.md 的过程不再调用列目录（listDir），判断路径是否存在（lstat）的次数也不再随
  *      `.scratch` 里的条目数增长。
+ *   ④ 正文里提到 Local Markdown 不算声明（#1572）：认领只认标题行的高置信声明，与 GitLab 房同口径；
+ *      代价是「没有标题行、正文只写 Local Markdown」的旧文档不再被本房认领。解析器对 markdown 的
+ *      正文关键词同样不给身份（#277），所以两层在这份文档上本来就该同样说「不是」。
  *
  * 为什么这条要紧（2026-10-14 在本机只读实测到的事实）：
  *   - wayfinder 的本地地图写在 `.scratch/<effort>/map.md`，根级 `.scratch/map.md` 在真机上并不存在
@@ -26,6 +29,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { matches } from '../src/tracker/rooms/markdown/index.ts'
+import { parseIssueTracker, normalizeTrackerText } from '../src/tracker/kernel/issue-tracker-declaration.ts'
 
 let failed = false
 const check = (ok: boolean, msg: string) => {
@@ -171,6 +175,41 @@ console.log('\n== #1129 ③ 认领时不再遍历 .scratch，成本不随条目�
   putScratchFiles(ws, 20)
   const r = await claim(ws)
   check(r.calls.listDir === 0, '认领过程一次 listDir 都不调用（不再遍历 .scratch）')
+}
+console.log('\n== ④ #1572 正文提到 Local Markdown 不算声明：认领只认标题行 ==')
+
+// 甲工作区：标题行声明 GitHub，正文顺嘴提到 Local Markdown（迁移记录的写法）。
+// 旧实现拿整篇文档做 /Local\s+Markdown/i 扫描，正文这一句也当成声明 —— 这就是 #1572 的复现。
+{
+  const ws = newWorkspace()
+  const decl = '# Issue tracker: GitHub\n\n这个仓库以前用 Local Markdown 管票，2025 年迁到 GitHub 了。\n'
+  put(ws, 'docs/agents/issue-tracker.md', decl)
+  const r = await claim(ws)
+  const parsed = parseIssueTracker(normalizeTrackerText(decl))
+  check(r.hit === false, '标题行声明 GitHub、正文提到 Local Markdown → false（不再被正文那遍正则认领）')
+  check(parsed.confidence === 'high' && parsed.explicitBackendId === 'github', '同一份文档：解析器的高置信结论是 GitHub（正文提及不进标题行判据）')
+}
+
+// 乙工作区：没有标题行、正文只写一句 Local Markdown 的旧文档。
+// 判定层不会把正文里提 markdown 当成身份（#277：markdown 的正文关键词不进标题行判据），认领层从 #1572 起也不再拿它当身份。
+{
+  const ws = newWorkspace()
+  const decl = '以前这里用 Local Markdown 管票，后来迁到别处了。\n'
+  put(ws, 'docs/agents/issue-tracker.md', decl)
+  const r = await claim(ws)
+  const parsed = parseIssueTracker(normalizeTrackerText(decl))
+  check(r.hit === false, '没有标题行、正文只写 Local Markdown → false（#1572 接受的代价：旧文档不再被认领）')
+  check(parsed.confidence !== 'high' && parsed.explicitBackendId !== 'markdown', '同一份文档：解析器不给高置信的 markdown 身份（#277：正文提 markdown 不进标题行判据）——认领层与它同口径')
+}
+
+// 丙工作区：标准模板的标题行写着 Local Markdown —— 认领与其高置信结论必须一致。
+{
+  const ws = newWorkspace()
+  put(ws, 'docs/agents/issue-tracker.md', DECLARATION_LOCAL)
+  const r = await claim(ws)
+  const parsed = parseIssueTracker(normalizeTrackerText(DECLARATION_LOCAL))
+  check(r.hit === true && parsed.confidence === 'high' && parsed.explicitBackendId === 'markdown',
+    '标题行写着 Local Markdown → 认领为真，与解析器高置信结论一致（#1572 要的两层同口径）')
 }
 
 console.log('\nverify-1129-markdown-claim: ' + (failed ? '有失败项' : '全部通过'))

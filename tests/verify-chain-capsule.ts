@@ -23,6 +23,8 @@ import { sourcePath, spliceableJs } from './lib/source-text.ts'
 // 构建时那个闭包里才有的名字在这里不存在，所以补上真身 —— 不另抄一份规则，否则门禁会跟着实现一起漂。
 ;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
 ;(globalThis as any).ticketLabelNodesOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelNodesOf
+;(globalThis as any).ticketLabelPartsOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelPartsOf
+;(globalThis as any).ticketLabelCapsuleFoldOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelCapsuleFoldOf
 ;(globalThis as any).TICKET_LABEL_MAX_WIDTH = (await import('../src/client/kernel/ticket-label.js')).TICKET_LABEL_MAX_WIDTH
 // #1518：容器身份（探索地图 / 规格 / 普通票）的判据真源住在 kernel/container-view.ts。本门禁按模块单独加载视图叶子，
 //   构建闭包里才有的名字这里也要补真身 —— 不另抄一份判定，否则门禁会跟着实现一起漂。
@@ -154,8 +156,8 @@ console.log('B) 版面纪律：真渲染出来的版面上没有内部行话与�
     if (typeof n === 'object') { (n.c || []).forEach(walk) }
   })(shut)
   // 版面那个号：普通票与容器都写完整编号（#1553 起容器不再写裸号，见 E 节）。
-  const faces = flat.filter(function (s) { return /^#?\d{1,10}$/.test(s) })
-  check(faces.length === 1 && faces[0] === '#951', '单子没打开时版面只有一个号（标题再长也不上版面）')
+  const faces = flat.filter(function (s) { return /^#?\d{1,10}$/.test(s) || /^\d{1,10}$/.test(s) })
+  check(flat.join('').indexOf('#951') >= 0 && faces.length === 1, '单子没打开时版面只有一个号（标题再长也不上版面）')
   check(flat.some(function (s) { return s.indexOf('dsws-chainmenu') >= 0 }) === false, '单子没打开时版面上没有单子节点')
   st.chainMenuOpen = true
   st.chainMenuPos = { left: 1, bottom: 2 }
@@ -279,7 +281,7 @@ console.log('E) 容器那一条（地图与规格）：认身份换图标，文�
     if (Array.isArray(n)) { n.forEach(walk); return }
     if (typeof n === 'object') { (n.c || []).forEach(walk) }
   })(shut)
-  check(flat.indexOf('#40') >= 0, '#1553 地图那一条版面上是完整编号 #40（地图图标仍在，见下一条）')
+  check(flat.join('').indexOf('#40') >= 0, '#1553 地图那一条版面上是完整编号 #40（地图图标仍在，见下一条）')
   check(icons.indexOf('map') >= 0 && icons.indexOf('pin') >= 0, '地图那一条同时有图钉与地图图标')
   const foldSlots = []
   ;(function collect(n) {
@@ -408,7 +410,7 @@ console.log('E) 容器那一条（地图与规格）：认身份换图标，文�
     if (n.p && typeof n.p['aria-label'] === 'string' && n.p['aria-label'].indexOf('chainView.capsuleDoing') >= 0) { specAria = n.p['aria-label']; return }
     ;(n.c || []).forEach(findAria)
   })(specShut)
-  check(specFlat.indexOf('#1460') >= 0, '#1553 主胶囊里规格容器是完整编号 #1460（地图图标仍在，见下一条）')
+  check(specFlat.join('').indexOf('#1460') >= 0, '#1553 主胶囊里规格容器是完整编号 #1460（地图图标仍在，见下一条）')
   check(specIcons.indexOf('map') >= 0, '#1518 主胶囊里规格容器那一条也画地图图标（与地图同形）')
   check(specAria.indexOf('#1460') >= 0 && specAria.indexOf('type.spec') >= 0, '#1518 主胶囊的无障碍名里仍是 #1460 且带上「规格」类型词（实得 ' + JSON.stringify(specAria) + '）')
   // #1518：门禁按模块单独加载本文件时，内核 containerKindOf 不在作用域里（构建闭包里才带进来）。
@@ -431,7 +433,7 @@ console.log('E) 容器那一条（地图与规格）：认身份换图标，文�
     if (n.p && typeof n.p['aria-label'] === 'string' && n.p['aria-label'].indexOf('chainView.capsuleDoing') >= 0) { fbAria = n.p['aria-label']; return }
     ;(n.c || []).forEach(findFb)
   })(fbShut)
-  check(fbFlat.indexOf('#1460') >= 0, '#1553 内核不在时规格仍按容器画（退化判定回 spec，版面上是完整编号 #1460）')
+  check(fbFlat.join('').indexOf('#1460') >= 0, '#1553 内核不在时规格仍按容器画（退化判定回 spec，版面上是完整编号 #1460）')
   check(fbIcons.indexOf('map') >= 0 && fbAria.indexOf('type.spec') >= 0, '#1518 内核不在时规格仍画地图图标、文字通道仍带「规格」类型词（退化判定与内核同口径）')
 }
 
@@ -680,6 +682,57 @@ console.log('F) #1404 表头单行：左右两簇、四段词条、两枚分隔�
   check(soloSvgs.length === 1 && soloSvgs.every(hiddenSvg), '没有其他会话时只剩内部那条分隔线')
   check(!soloCalls.some(function (c: any) { return c.k === 'chainView.capsuleHeaderOthers' }), '没有其他会话时不调用「另有 …」词条')
   check(stringStyle(soloHead).lineHeight === '18px' && stringStyle(soloHead).padding === '2px 8px', '表头恒为一行高（18 + 2 + 2 = 22px）')
+}
+
+console.log('H) #1563 窄栏：目录先让位，编号永不缩写')
+{
+  const longEffort = 'very-long-directory-name-that-exceeds-width'
+  const stNarrow: any = { snapshot: { workRouteTable: tableFor([entryOf('1563', { title: '窄栏用例', effortId: longEffort })]) } }
+  const builtNarrow = loadCap({})
+  const shutNarrow = builtNarrow.SessionChainCapsule({ st: stNarrow, sid: 's1' })
+  const flatNarrow: any[] = []
+  ;(function walk(n: any) {
+    if (n === null || n === undefined) return
+    if (typeof n === 'string') { flatNarrow.push(n); return }
+    if (Array.isArray(n)) { n.forEach(walk); return }
+    if (typeof n === 'object') { (n.c || []).forEach(walk) }
+  })(shutNarrow)
+  const full = '#' + longEffort + '/1563'
+  check(flatNarrow.join('').indexOf(full) >= 0, '#1563 窄栏下完整编号仍在版面上（拼起来读，实得 ' + JSON.stringify(flatNarrow.join('')) + '）')
+  const foldSlotsNarrow: any[] = []
+  ;(function collect(n: any) {
+    if (n === null || n === undefined) return
+    if (Array.isArray(n)) { n.forEach(collect); return }
+    if (typeof n !== 'object') return
+    if (n.p && n.p['data-fold-priority'] !== undefined) foldSlotsNarrow.push(n)
+    ;(n.c || []).forEach(collect)
+  })(shutNarrow)
+  check(foldSlotsNarrow.length === 1, '#1563 整条胶囊仍只有一个挂让位号的元素（让位表仍是 12 段那一格）')
+  const onlySlotTexts = (foldSlotsNarrow[0] && foldSlotsNarrow[0].c || []).filter(function (x: any) { return typeof x === 'string' }).join('')
+  check(onlySlotTexts.indexOf('1563') < 0, '#1563 挂让位号的是目录段，编号段不挂让位号（实得 ' + JSON.stringify(onlySlotTexts) + '）')
+  const numNodes: any[] = []
+  ;(function findNum(n: any) {
+    if (n === null || n === undefined) return
+    if (Array.isArray(n)) { n.forEach(findNum); return }
+    if (typeof n !== 'object') return
+    if (typeof n.c !== 'undefined' && Array.isArray(n.c) && n.c.length === 1 && n.c[0] === '1563') numNodes.push(n)
+    ;(n.c || []).forEach(findNum)
+  })(shutNarrow)
+  check(numNodes.length === 1 && numNodes[0].p && numNodes[0].p['data-fold-priority'] === undefined, '#1563 编号段不挂让位数据，收窄时不被收字机裁掉')
+  check(numNodes.length === 1 && String((numNodes[0].p && numNodes[0].p.style && (numNodes[0].p.style as any).flex) || '') === 'none', '#1563 编号段钉在行尾不收缩（flex none）')
+  check(onlySlotTexts.length > 0 && String((foldSlotsNarrow[0].p.style as any).textOverflow) === 'ellipsis', '#1563 目录段超长时按省略号收起，而不是把编号挤掉')
+  let tipContent = ''
+  let tipAria = ''
+  ;(function findTip(n: any) {
+    if (n === null || n === undefined) return
+    if (Array.isArray(n)) { n.forEach(findTip); return }
+    if (typeof n !== 'object') return
+    if (!tipContent && n.p && typeof n.p.content === 'string' && n.p.content.indexOf('1563') >= 0 && n.p.content.indexOf(longEffort) >= 0) { tipContent = n.p.content }
+    if (!tipAria && n.p && typeof n.p['aria-label'] === 'string' && n.p['aria-label'].indexOf('chainView.capsuleDoing') >= 0) { tipAria = String(n.p['aria-label'] || '') }
+    ;(n.c || []).forEach(findTip)
+  })(shutNarrow)
+  check(tipContent === full, '#1563 悬停提示仍是完整编号（实得 ' + JSON.stringify(tipContent) + '）')
+  check(tipAria.indexOf(full) >= 0, '#1563 无障碍名仍是完整编号（实得 ' + JSON.stringify(tipAria) + '）')
 }
 
 console.log(failed ? '\n存在失败' : '\n全部通过')

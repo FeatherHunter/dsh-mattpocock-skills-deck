@@ -1,15 +1,15 @@
-// tests/verify-1106-deck-surface.ts —— #1106：九个 deck 工具对外的样子（参数表 / 信封表 / 点数表）
+// tests/verify-1106-deck-surface.ts —— #1106：十个 deck 工具对外的样子（参数表 / 信封表 / 点数表）
 // 门禁归属: src/deck/tools
 // 门禁归属: src/deck/shell/capped-wait.ts
 // 门禁归属: src/deck/shell/call-shell.ts
 // 门禁归属: src/refresh/kernel/tool-call-budget.ts
 //
-// 这份门禁只回答一个问题：九个对外工具「长什么样」，是不是还和冻下来的对照面一样？
+// 这份门禁只回答一个问题：十个对外工具「长什么样」，是不是还和冻下来的对照面一样？
 // 给人读的那一份表在 specs/1106-deck-tool-surface-spec.md —— 那边给人读，这边给机器盯，
 // 说的是同一件事：参数改一个键、回执少一格、点数动一条，这里就红。
 //
 // 五层 + 一条静态扫描，对着票面（#1106）的三张表：
-//   一、参数表：九个定义的形状（参数名与书写顺序、必填、枚举、每个对象节点都显式写 additionalProperties:false），
+//   一、参数表：十个定义的形状（参数名与书写顺序、必填、枚举、每个对象节点都显式写 additionalProperties:false），
 //       连同「模型看到的那几句话」逐字冻住（工具本级一句、每个参数各一句：改一个字就红）。
 //   二、信封表：回执只有两种形状 —— 走到选后端之后的 14 格、还没走到之前的 6 格；三态取值；
 //       失败时的原因码只能是八个之一（#1195 起超时与抛错分家，多了 backend-timeout）；失败永远是值不是异常（稀奇古怪的参数形状也回值）；
@@ -56,19 +56,21 @@ const TOOL_FILES: Array<[string, string, string]> = [
   ['src/deck/tools/map-link.ts', 'createDeckMapLink', 'deck_map_link'],
   ['src/deck/tools/issue-patch.ts', 'createDeckIssuePatch', 'deck_issue_patch'],
   ['src/deck/tools/issue-report.ts', 'createDeckIssueReport', 'deck_issue_report'],
+  ['src/deck/tools/work-route.ts', 'createDeckWorkRoute', 'deck_work_route'],
 ]
 
-/** 表一 · 参数表：九个定义的形状。格式见 shapeOf() 上面那段注释。 */
+/** 表一 · 参数表：十个定义的形状。格式见 shapeOf() 上面那段注释。 */
 const FROZEN_SHAPE: Record<string, string> = {
   deck_context: "必填=[] 多传=false",
   deck_issue_get: "key:string, body:string, comments:number, section:string, blocking:boolean, effort:string, feature:string 必填=[key] 多传=false",
   deck_map_snapshot: "key:string, frontierOnly:boolean, detail:枚举(full|thin), effort:string, feature:string 必填=[key] 多传=false",
   deck_issue_list: "state:枚举(open|closed|all), type:枚举(issue|map|spec|all), labels:数组<string>, assignee:string, query:string, limit:number, effort:string, feature:string 必填=[] 多传=false",
-  deck_issue_create: "title:string, body:string, originalWords:对象(text:string, source:string 必填=[text,source] 多传=false), kind:枚举(map|map-ticket|spec|spec-ticket|bug|issue), label:枚举(wayfinder:research|wayfinder:prototype|wayfinder:grilling|wayfinder:task), parentKey:string, blockedBy:数组<string>, labels:数组<string>, assignees:数组<string>, idempotencyKey:string, workRouteDetail:枚举(core|standard), effort:string, feature:string 必填=[title,kind] 多传=false",
-  deck_map_plan_create: "title:string, body:string, planId:string, children:数组<对象(key:string, title:string, body:string, kind:枚举(map-ticket|bug|issue), label:枚举(wayfinder:research|wayfinder:prototype|wayfinder:grilling|wayfinder:task), labels:数组<string>, assignees:数组<string> 必填=[key,title,kind] 多传=false)>, edges:数组<对象(from:string, to:string, type:枚举(blocked-by|parent) 必填=[from,to] 多传=false)>, labels:数组<string>, workRouteDetail:枚举(core|standard), effort:string, feature:string 必填=[title,children] 多传=false",
-  deck_map_link: "key:string, parentKey:string, blockedBy:数组<string>, edges:数组<对象(key:string, parentKey:string, blockedBy:数组<string> 必填=[key] 多传=false)>, workRouteDetail:枚举(core|standard), effort:string, feature:string 必填=[] 多传=false",
-  deck_issue_patch: "key:string, comment:string, addLabels:数组<string>, removeLabels:数组<string>, assignees:数组<string>, title:string, body:string, bodyDigest:string, originalWords:对象(text:string, source:string 必填=[text,source] 多传=false), progress:对象(percent:integer, note:string 必填=[percent,note] 多传=false), close:boolean, closeReason:string, workRouteDetail:枚举(core|standard), effort:string, feature:string 必填=[key] 多传=false",
-  deck_issue_report: "key:string, note:string, workRouteDetail:枚举(core|standard), effort:string, feature:string, release:boolean 必填=[key] 多传=false",
+  deck_issue_create: "title:string, body:string, originalWords:对象(text:string, source:string 必填=[text,source] 多传=false), kind:枚举(map|map-ticket|spec|spec-ticket|bug|issue), label:枚举(wayfinder:research|wayfinder:prototype|wayfinder:grilling|wayfinder:task), parentKey:string, blockedBy:数组<string>, labels:数组<string>, assignees:数组<string>, idempotencyKey:string, effort:string, feature:string 必填=[title,kind] 多传=false",
+  deck_map_plan_create: "title:string, body:string, planId:string, children:数组<对象(key:string, title:string, body:string, kind:枚举(map-ticket|bug|issue), label:枚举(wayfinder:research|wayfinder:prototype|wayfinder:grilling|wayfinder:task), labels:数组<string>, assignees:数组<string> 必填=[key,title,kind] 多传=false)>, edges:数组<对象(from:string, to:string, type:枚举(blocked-by|parent) 必填=[from,to] 多传=false)>, labels:数组<string>, effort:string, feature:string 必填=[title,children] 多传=false",
+  deck_map_link: "key:string, parentKey:string, blockedBy:数组<string>, edges:数组<对象(key:string, parentKey:string, blockedBy:数组<string> 必填=[key] 多传=false)>, effort:string, feature:string 必填=[] 多传=false",
+  deck_issue_patch: "key:string, comment:string, addLabels:数组<string>, removeLabels:数组<string>, assignees:数组<string>, title:string, body:string, bodyDigest:string, originalWords:对象(text:string, source:string 必填=[text,source] 多传=false), progress:对象(percent:integer, note:string 必填=[percent,note] 多传=false), close:boolean, closeReason:string, effort:string, feature:string 必填=[key] 多传=false",
+  deck_issue_report: "key:string, note:string, effort:string, feature:string, release:boolean 必填=[key] 多传=false",
+  deck_work_route: "includeStale:boolean, limit:number 必填=[] 多传=false",
 }
 
 /**
@@ -83,11 +85,12 @@ const FROZEN_DESC: Record<string, string> = {
   deck_issue_get: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。读一个 ISSUE 的完整关系：正文、评论、label、assignee 与 parent 和 blockedBy 边，每条边标出落点。blocking=false 跳过反向边查询（快，见 blocking 参数）。；key=票号，例如 713；body=正文怎么回：excerpt 只回前 2000 字（缺省，省上下文）；full 回全文分块（大正文不截断，带指纹可验完整）。；comments=最多带回几条评论，缺省 0（只回总数不回正文）；要看评论正文再按需取，最大 200；section=只回正文里这一节（## 标题子串），缺省回正文前 2000 字；blocking=要不要反向阻塞边（谁被这张票阻塞）。缺省要：读全量关系，一次查询就取回反向边，阻塞者的标题与状态随行回来。关掉只读单票本身，跳过一次反向边查询，快；反向边记空并注记，要就再调一次。；effort=本地 Markdown 后端专用：探索地图（wayfinder）所在的 `.scratch/` 目录名，原文叫 `<effort>`。不填就全仓库找；远端后端忽略它。；feature=本地 Markdown 后端专用：规格、实施票、普通票所在的 `.scratch/` 目录名，原文叫 `<feature-slug>`。不填就全仓库找；远端后端忽略它。",
   deck_map_snapshot: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。看一个 map 的全部 child ISSUE、进度统计与五个区块，用来判断 map 做到哪一步。detail=thin 只要薄行不断（见 detail 参数）。；key=地图那张票的票号；frontierOnly=只回可接的子票（未关闭、未认领、阻塞已满足），缺省回全部；detail=子票行要多细。缺省 full：每行带正文进度（回包大，票多时被截断）。thin：只要键、标题、状态、标签、认领、阻塞（回包小、清单不断；统计与进度表照算不变；要正文用 deck_issue_get 逐张取）。；effort=本地 Markdown 后端专用：探索地图（wayfinder）所在的 `.scratch/` 目录名，原文叫 `<effort>`。不填就全仓库找；远端后端忽略它。；feature=本地 Markdown 后端专用：规格、实施票、普通票所在的 `.scratch/` 目录名，原文叫 `<feature-slug>`。不填就全仓库找；远端后端忽略它。",
   deck_issue_list: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。按状态、label、assignee 与关键词列出 ISSUE 薄行，不回正文与评论。；state=只列哪种状态，缺省 open；type=只列哪种类型，缺省 all；labels=必须同时带上这些 label（AND），缺省不过滤；assignee=只留认领含此人的行，缺省不过滤；query=标题与正文的子串过滤，缺省不过滤；limit=最多回几行，缺省 50，上限 200；effort=本地 Markdown 后端专用：探索地图（wayfinder）所在的 `.scratch/` 目录名，原文叫 `<effort>`。不填就全仓库找；远端后端忽略它。；feature=本地 Markdown 后端专用：规格、实施票、普通票所在的 `.scratch/` 目录名，原文叫 `<feature-slug>`。不填就全仓库找；远端后端忽略它。",
-  deck_issue_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一张票：kind 必填，六值 map / map-ticket / spec / spec-ticket / bug / issue；map 与 spec 是顶层容器，地图工单挂探索地图、实施票挂规格，用 parentKey，工单要 label。自动补 label 与进度；规格与实施票写类型标记；originalWords 照抄；blockedBy 写成依赖边。本地后端编号与文件头标记由工具写，不要手写票文件。；title=票的标题；body=正文；缺省时按种类补最小骨架；originalWords=建票时顺便追加一条维护者原话到正文的「## 维护者原话」区（紧跟「## 目的」，没有目的区就放正文最前）：{text, source}，source 必填。原话一字不改（不润色、不改标点、不翻译、不摘要），只追加、不编辑不删除不排序。三个后端都写进票的正文，不进评论；正文超过 60KB 时拒绝建票、一个字节不动。；kind=票的位置，必填：map（探索地图）/ map-ticket（地图下的工单）/ spec（规格）/ spec-ticket（规格下的实施票）/ bug（缺陷）/ issue（普通票，万能兜底）。旧的 task / ticket 不再接受：task 改 map-ticket 并给 label，ticket 改 spec-ticket。；label=只有 kind=map-ticket 才收且必填：wayfinder:research / wayfinder:prototype / wayfinder:grilling / wayfinder:task，四选一。类型标签由它决定，别再放进 labels。；parentKey=父票：map-ticket 必填，父必须是探索地图；spec-ticket 必填，父必须是规格；map 与 spec 是顶层容器，不收 parentKey；bug 与 issue 可选，给了就必须是探索地图或规格。；blockedBy=这张票建成后被哪些票阻塞（票号或 key 的数组，整批替换；只认本仓库的票，不许写别的仓库的票号）；labels=要带的标签，会在必备标签之外追加；除 issue 外不要再放类型标签（wayfinder:map / wayfinder:research / wayfinder:prototype / wayfinder:grilling / wayfinder:task / bug），类型标签由 kind 与 label 决定。；assignees=认领人；idempotencyKey=这一批写的幂等锚，重试时带同一个值；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）；effort=本地 Markdown 后端专用：探索地图（wayfinder）所在的 `.scratch/` 目录名，原文叫 `<effort>`。不填时按父票或标题决定目录；远端后端忽略它。；feature=本地 Markdown 后端专用：规格、实施票、普通票所在的 `.scratch/` 目录名，原文叫 `<feature-slug>`。不填时按父票或标题决定目录；远端后端忽略它。",
-  deck_map_plan_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。一次建一整张 map 的骨架（map ISSUE + child ISSUE + 依赖边），带逐项校验与可续跑中间态。；title=地图票的标题；body=地图正文；缺省时自动补五个区块；planId=这次计划的标识；重跑时带同一个值就能接着上次没做完的部分继续；想建第二张内容相同的计划时传一个不同的值；children=要建的子票清单；edges=子票之间的边。from 是这条边写进哪张票（写的是它的字段），to 是这条边指向的另一张票。type 只有两个值：省略或写 blocked-by 是阻塞边，{from: \"D3\", to: \"D1\"} 表示 D3 的 Blocked by 里加上 D1，也就是 D3 被 D1 阻塞、要先做完 D1；写 parent 是父子边，表示 from 的父票是 to，常规写法是 {from: \"C1\", to: \"@map\"}，把子票 C1 挂到本次计划新建的地图票底下。@map 指本次计划建的那张地图票；from 和 to 都可以写，但父子边的常规写法是 to 写 @map。；labels=(没有说明)；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）；effort=本地 Markdown 后端专用：探索地图（wayfinder）所在的 `.scratch/` 目录名，原文叫 `<effort>`。不填时按父票或标题决定目录；远端后端忽略它。；feature=本地 Markdown 后端专用：规格、实施票、普通票所在的 `.scratch/` 目录名，原文叫 `<feature-slug>`。不填时按父票或标题决定目录；远端后端忽略它。",
-  deck_map_link: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。给已存在的 ISSUE 补 parent 或 blockedBy 边，写完读回并逐条标出落点。；key=要改的那张票（子票）；parentKey=要挂到的父票；不传就不动父子；blockedBy=这张票被哪些票阻塞（整批替换）；edges=一次改多张票的边；与 key/parentKey/blockedBy 二选一；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）；effort=本地 Markdown 后端专用：探索地图（wayfinder）所在的 `.scratch/` 目录名，原文叫 `<effort>`。不填就全仓库找；远端后端忽略它。；feature=本地 Markdown 后端专用：规格、实施票、普通票所在的 `.scratch/` 目录名，原文叫 `<feature-slug>`。不填就全仓库找；远端后端忽略它。",
-  deck_issue_patch: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、关闭、标题正文、progress 区、维护者原话区，一次只动点名的那些；重开不在这个工具上（只由人在后端做），关规格要先在这一次调用里带收口核对评论、且实施票已全关。本地后端认领会写进票里的 Assignees 行。；key=要改的那张票；comment=要发的评论正文；addLabels=要加的标签；removeLabels=要摘掉的标签；assignees=认领人（整批替换；给空数组就是取掉认领）；title=新的标题；body=新的正文（整段替换）：要先用 deck_issue_get(body='full') 读出全文与指纹，把读到的指纹放在 bodyDigest 里一起传，否则这次正文不动。只改进度或原话不传整段正文时不用它。；bodyDigest=写整段正文时的乐观锁：上一次用 body='full' 读到的正文指纹（data.body.digest）。工具先读当前正文算指纹，对不上就一个字不动地拒绝，防止把别人的改动覆盖掉。；originalWords=追加一条维护者原话到正文的「## 维护者原话」区（紧跟「## 目的」，没有目的区就放正文最前）：{text, source}，source 必填。原话一字不改（不润色、不改标点、不翻译、不摘要），只追加、不编辑不删除不排序；同一段原话 + 同一出处已经写过时幂等跳过。三个后端都写进票的正文，不进评论。正文超过 60KB 时拒绝写入、一个字节不动。；progress=写一条进度记录：{percent, note}（#1090 起不再收一段自由文字）。工具自动盖当前时间、把这条加到「## 进度」区最上面，旧记录原样保留；正文超过 60KB 时拒绝写入、一个字节不动。；close=true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false；closeReason=关闭原因：和 close:true 一起用，告诉后端这次为什么关。地图子票的原因写进正文的 Answer 段，还会在地图的 Decisions so far 里补一条指针；实施票的原因按原文追加成一条评论；旧布局票写 Close reason 行；规格与地图容器只记状态，原因忽略。只带 closeReason、不带 close:true 时整笔拒绝，一个字都不动。；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）；effort=本地 Markdown 后端专用：探索地图（wayfinder）所在的 `.scratch/` 目录名，原文叫 `<effort>`。不填就全仓库找；远端后端忽略它。；feature=本地 Markdown 后端专用：规格、实施票、普通票所在的 `.scratch/` 目录名，原文叫 `<feature-slug>`。不填就全仓库找；远端后端忽略它。",
-  deck_issue_report: "工具=同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次。职责划分：deck_issue_patch 改内容，deck_issue_report 上报处理关系；用前者关闭不等于已上报。key 填要上报的 ISSUE 编号；本地后端才需要填 effort 或 feature（地图用 effort、规格用 feature，均为 `.scratch/` 下目录名），远端忽略。撤销误报带 release=true（只删本会话那一行；建过、改过、关过、建过计划、挂过边的票不能释放）。；key=你要上报的那个 ISSUE 的编号；note=可选带一句备注（只回显，不进链）；workRouteDetail=成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）；effort=本地 Markdown 后端专用：探索地图（wayfinder）所在的 `.scratch/` 目录名，原文叫 `<effort>`。不填就全仓库找；远端后端忽略它。；feature=本地 Markdown 后端专用：规格、实施票、普通票所在的 `.scratch/` 目录名，原文叫 `<feature-slug>`。不填就全仓库找；远端后端忽略它。；release=可选：传 true 表示尝试撤销本会话对这张票的一条误报（只在从没实际处理过这张票时删得掉；建过、改过、关过、建过计划或挂过边的票不能释放，路径保留；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报",
+  deck_issue_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一张票：kind 必填，六值 map / map-ticket / spec / spec-ticket / bug / issue；map 与 spec 是顶层容器，地图工单挂探索地图、实施票挂规格，用 parentKey，工单要 label。自动补 label 与进度；规格与实施票写类型标记；originalWords 照抄；blockedBy 写成依赖边。本地后端编号与文件头标记由工具写，不要手写票文件。；title=票的标题；body=正文；缺省时按种类补最小骨架；originalWords=建票时顺便追加一条维护者原话到正文的「## 维护者原话」区（紧跟「## 目的」，没有目的区就放正文最前）：{text, source}，source 必填。原话一字不改（不润色、不改标点、不翻译、不摘要），只追加、不编辑不删除不排序。三个后端都写进票的正文，不进评论；正文超过 60KB 时拒绝建票、一个字节不动。；kind=票的位置，必填：map（探索地图）/ map-ticket（地图下的工单）/ spec（规格）/ spec-ticket（规格下的实施票）/ bug（缺陷）/ issue（普通票，万能兜底）。旧的 task / ticket 不再接受：task 改 map-ticket 并给 label，ticket 改 spec-ticket。；label=只有 kind=map-ticket 才收且必填：wayfinder:research / wayfinder:prototype / wayfinder:grilling / wayfinder:task，四选一。类型标签由它决定，别再放进 labels。；parentKey=父票：map-ticket 必填，父必须是探索地图；spec-ticket 必填，父必须是规格；map 与 spec 是顶层容器，不收 parentKey；bug 与 issue 可选，给了就必须是探索地图或规格。；blockedBy=这张票建成后被哪些票阻塞（票号或 key 的数组，整批替换；只认本仓库的票，不许写别的仓库的票号）；labels=要带的标签，会在必备标签之外追加；除 issue 外不要再放类型标签（wayfinder:map / wayfinder:research / wayfinder:prototype / wayfinder:grilling / wayfinder:task / bug），类型标签由 kind 与 label 决定。；assignees=认领人；idempotencyKey=这一批写的幂等锚，重试时带同一个值；effort=本地 Markdown 后端专用：探索地图（wayfinder）所在的 `.scratch/` 目录名，原文叫 `<effort>`。不填时按父票或标题决定目录；远端后端忽略它。；feature=本地 Markdown 后端专用：规格、实施票、普通票所在的 `.scratch/` 目录名，原文叫 `<feature-slug>`。不填时按父票或标题决定目录；远端后端忽略它。",
+  deck_map_plan_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。一次建一整张 map 的骨架（map ISSUE + child ISSUE + 依赖边），带逐项校验与可续跑中间态。；title=地图票的标题；body=地图正文；缺省时自动补五个区块；planId=这次计划的标识；重跑时带同一个值就能接着上次没做完的部分继续；想建第二张内容相同的计划时传一个不同的值；children=要建的子票清单；edges=子票之间的边。from 是这条边写进哪张票（写的是它的字段），to 是这条边指向的另一张票。type 只有两个值：省略或写 blocked-by 是阻塞边，{from: \"D3\", to: \"D1\"} 表示 D3 的 Blocked by 里加上 D1，也就是 D3 被 D1 阻塞、要先做完 D1；写 parent 是父子边，表示 from 的父票是 to，常规写法是 {from: \"C1\", to: \"@map\"}，把子票 C1 挂到本次计划新建的地图票底下。@map 指本次计划建的那张地图票；from 和 to 都可以写，但父子边的常规写法是 to 写 @map。；labels=(没有说明)；effort=本地 Markdown 后端专用：探索地图（wayfinder）所在的 `.scratch/` 目录名，原文叫 `<effort>`。不填时按父票或标题决定目录；远端后端忽略它。；feature=本地 Markdown 后端专用：规格、实施票、普通票所在的 `.scratch/` 目录名，原文叫 `<feature-slug>`。不填时按父票或标题决定目录；远端后端忽略它。",
+  deck_map_link: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。给已存在的 ISSUE 补 parent 或 blockedBy 边，写完读回并逐条标出落点。；key=要改的那张票（子票）；parentKey=要挂到的父票；不传就不动父子；blockedBy=这张票被哪些票阻塞（整批替换）；edges=一次改多张票的边；与 key/parentKey/blockedBy 二选一；effort=本地 Markdown 后端专用：探索地图（wayfinder）所在的 `.scratch/` 目录名，原文叫 `<effort>`。不填就全仓库找；远端后端忽略它。；feature=本地 Markdown 后端专用：规格、实施票、普通票所在的 `.scratch/` 目录名，原文叫 `<feature-slug>`。不填就全仓库找；远端后端忽略它。",
+  deck_issue_patch: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、关闭、标题正文、progress 区、维护者原话区，一次只动点名的那些；重开不在这个工具上（只由人在后端做），关规格要先在这一次调用里带收口核对评论、且实施票已全关。本地后端认领会写进票里的 Assignees 行。；key=要改的那张票；comment=要发的评论正文；addLabels=要加的标签；removeLabels=要摘掉的标签；assignees=认领人（整批替换；给空数组就是取掉认领）；title=新的标题；body=新的正文（整段替换）：要先用 deck_issue_get(body='full') 读出全文与指纹，把读到的指纹放在 bodyDigest 里一起传，否则这次正文不动。只改进度或原话不传整段正文时不用它。；bodyDigest=写整段正文时的乐观锁：上一次用 body='full' 读到的正文指纹（data.body.digest）。工具先读当前正文算指纹，对不上就一个字不动地拒绝，防止把别人的改动覆盖掉。；originalWords=追加一条维护者原话到正文的「## 维护者原话」区（紧跟「## 目的」，没有目的区就放正文最前）：{text, source}，source 必填。原话一字不改（不润色、不改标点、不翻译、不摘要），只追加、不编辑不删除不排序；同一段原话 + 同一出处已经写过时幂等跳过。三个后端都写进票的正文，不进评论。正文超过 60KB 时拒绝写入、一个字节不动。；progress=写一条进度记录：{percent, note}（#1090 起不再收一段自由文字）。工具自动盖当前时间、把这条加到「## 进度」区最上面，旧记录原样保留；正文超过 60KB 时拒绝写入、一个字节不动。；close=true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false；closeReason=关闭原因：和 close:true 一起用，告诉后端这次为什么关。地图子票的原因写进正文的 Answer 段，还会在地图的 Decisions so far 里补一条指针；实施票的原因按原文追加成一条评论；旧布局票写 Close reason 行；规格与地图容器只记状态，原因忽略。只带 closeReason、不带 close:true 时整笔拒绝，一个字都不动。；effort=本地 Markdown 后端专用：探索地图（wayfinder）所在的 `.scratch/` 目录名，原文叫 `<effort>`。不填就全仓库找；远端后端忽略它。；feature=本地 Markdown 后端专用：规格、实施票、普通票所在的 `.scratch/` 目录名，原文叫 `<feature-slug>`。不填就全仓库找；远端后端忽略它。",
+  deck_issue_report: "工具=同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次。职责划分：deck_issue_patch 改内容，deck_issue_report 上报处理关系；用前者关闭不等于已上报。key 填要上报的 ISSUE 编号；本地后端才需要填 effort 或 feature（地图用 effort、规格用 feature，均为 `.scratch/` 下目录名），远端忽略。撤销误报带 release=true（只删本会话那一行；建过、改过、关过、建过计划、挂过边的票不能释放）。；key=你要上报的那个 ISSUE 的编号；note=可选带一句备注（只回显，不进链）；effort=本地 Markdown 后端专用：探索地图（wayfinder）所在的 `.scratch/` 目录名，原文叫 `<effort>`。不填就全仓库找；远端后端忽略它。；feature=本地 Markdown 后端专用：规格、实施票、普通票所在的 `.scratch/` 目录名，原文叫 `<feature-slug>`。不填就全仓库找；远端后端忽略它。；release=可选：传 true 表示尝试撤销本会话对这张票的一条误报（只在从没实际处理过这张票时删得掉；建过、改过、关过、建过计划或挂过边的票不能释放，路径保留；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报",
+  deck_work_route: "工具=查看本工作区在办表（按会话分组）：默认只看 24 小时内在办的条目，传 includeStale:true 展开 30 天内全部（含陈旧）；limit 控制最多回多少条。数据来自本机工作区存档，只含本工作区 30 天内动过的条目；在办指 24 小时内动过，存档上限 2MB。写票回执不再带在办表，要看就来这里。；includeStale=是否展开陈旧条目：缺省 false 只看 24 小时内在办；传 true 回 30 天内全部（含超过 24 小时未动的那部分）；limit=最多回多少条，缺省 100，上限 200",
 }
 
 /** 表二 · 信封表：两种形状的字段清单，一个不多一个不少。 */
@@ -134,7 +137,9 @@ const POINTS: PointsRow[] = [
   { label: '上报：缺票号（还没走到选后端）', tool: 'deck_issue_report', args: {}, own: [0, 0] },
   { label: '上报：成功', tool: 'deck_issue_report', args: { key: '02' }, own: [1, 3] },
   { label: '上报：带已退役的 progress（还没走到选后端）', tool: 'deck_issue_report', args: { key: '02', progress: 50 }, own: [0, 0] },
+  { label: '上报：带已退役的 workRouteDetail（还没走到选后端）', tool: 'deck_issue_report', args: { key: '02', workRouteDetail: 'standard' }, own: [0, 0] },
   { label: '上报：这张票不存在（同价）', tool: 'deck_issue_report', args: { key: '999999' }, own: [1, 3] },
+  { label: '在办表：成功（读本机存档）', tool: 'deck_work_route', args: {}, own: [1, 3] },
 ]
 
 /**
@@ -210,7 +215,7 @@ function makeWorkspace() {
 }
 
 async function main() {
-  console.log('#1106 九个工具对外长什么样（参数表 / 信封表 / 点数表）')
+  console.log('#1106 十个工具对外长什么样（参数表 / 信封表 / 点数表）')
   const budget = await imp('src/refresh/kernel/host-budget.js')
   const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
   const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
@@ -281,7 +286,7 @@ async function main() {
   }
 
   // ── 一、参数表 ──
-  console.log('— 一、参数表：九个定义的形状（参数名与顺序、必填、枚举、多传即拒）')
+  console.log('— 一、参数表：十个定义的形状（参数名与顺序、必填、枚举、多传即拒）')
   for (const [, , name] of TOOL_FILES) {
     const got = shapeOf(tools[name].definition.parameters)
     const want = FROZEN_SHAPE[name]
@@ -297,7 +302,7 @@ async function main() {
       const want = FROZEN_DESC[name]
       if (got !== want) bad.push(name + '：' + firstDiff(want, got))
     }
-    check(bad.length === 0, '九个工具给模型看的话没动过（工具本级一句 + 每个参数各一句）' + (bad.length ? '\n        ' + bad.join('\n        ') : ''))
+    check(bad.length === 0, '十个工具给模型看的话没动过（工具本级一句 + 每个参数各一句）' + (bad.length ? '\n        ' + bad.join('\n        ') : ''))
   }
   {
     // 哪些格子有各自的说明、哪些没有，也是模型看到的样子的一部分，所以一并冻住。
@@ -340,7 +345,7 @@ async function main() {
     // 装配顺序：宿主装配与展示都按它来。
     const orderMod = await imp('src/deck/rules/tool-order.ts')
     const want = TOOL_FILES.map((x) => x[2]).join(',')
-    check(orderMod.DECK_TOOL_ORDER.join(',') === want, '九个工具的装配顺序冻着：' + want)
+    check(orderMod.DECK_TOOL_ORDER.join(',') === want, '十个工具的装配顺序冻着：' + want)
   }
 
   // 先按顺序建出后面要用的票：01 甲票、02 乙票（乙票挂在 00 地图下）。
@@ -359,6 +364,7 @@ async function main() {
     ['deck_map_link', { key: '02', parentKey: '00' }],
     ['deck_issue_patch', { key: '02', comment: '信封表：改一下' }],
     ['deck_issue_report', { key: '02' }],
+    ['deck_work_route', {}],
   ]
   for (const [name, args] of representative) {
     const { r, threw } = await run(name, args)
@@ -380,33 +386,45 @@ async function main() {
       name + ' 只有读数已知且有额度才带水位，未知与离网改用一句人话（' + JSON.stringify(actual) + '）')
   }
   {
-    // 二b、在办表（#1261 起步、#1262 铺满）：写工具成功收口才有 data.workRoute，失败调用没有这一格；原始会话 id 不进回执。
-    // #1303 起缺省只带 core（票号、会话、时间三格），要标题与动作这些细节得显式传 workRouteDetail: standard。
-    // #1352 起 full 档退役：老调用还传 full 时按 standard 处理（它的增量本来只有进度自评）。
-    const core = await run('deck_issue_report', { key: '01' })
-    const coreWr = core.r && core.r.data && core.r.data.workRoute
-    const coreKeys = coreWr && coreWr.entries && coreWr.entries[0] ? Object.keys(coreWr.entries[0]).sort().join(',') : ''
-    check(!core.threw && !!coreWr && coreWr.detail === 'core' && coreKeys === 'actionAt,sessionLabel,ticketKey' && typeof coreWr.total === 'number',
-      '缺省档只带核心字段（实得 ' + JSON.stringify({ detail: coreWr && coreWr.detail, keys: coreKeys }) + '）')
-    check(!!coreWr && (core.r.notes || []).some((n: string) => n.indexOf('只带核心字段') >= 0), '缺省档的摘要说清缺什么、下一档怎么取')
-    // 不带进度时回执 data 与在办表条目都不出现 progress 这一格（最近一次写照）。
-    const got = await run('deck_issue_report', { key: '01', workRouteDetail: 'standard' })
-    const wr = got.r && got.r.data && got.r.data.workRoute
-    check(!got.threw && got.r && got.r.status === 'ok' && !!wr, '上报成功回执带 data.workRoute（实得 ' + (got.threw || (got.r && got.r.status)) + '）')
-    const keys = wr && wr.entries && wr.entries[0] ? Object.keys(wr.entries[0]).sort().join(',') : ''
-    // #1511：standard 档多了 effortId 一格（面板首列要把票号写成「#目录/编号」，目录得从回执读出来）。
-    // 其余八格不变；core 档仍只三格 —— 这一句就是「字段集合不会悄悄变」的锁。
-    check(keys === 'action,actionAt,active,currentSession,effortId,sessionLabel,source,ticketKey,title', '在办表每条正好九格（实得 ' + keys + '）')
-    const legacy = await run('deck_issue_report', { key: '01', workRouteDetail: 'full' })
-    const legacyWr = legacy.r && legacy.r.data && legacy.r.data.workRoute
-    check(!legacy.threw && !!legacyWr && legacyWr.detail === 'standard', '老调用传 full（#1352 已退役的档位）按 standard 处理（实得 ' + JSON.stringify(legacyWr && legacyWr.detail) + '）')
-    check(!(got.r && got.r.data && Object.prototype.hasOwnProperty.call(got.r.data, 'progress')), '上报回执 data 里不再有 progress 这一格（#1352 退役）')
-    check(!!(wr && wr.entries.some((e: { ticketKey: string }) => String(e.ticketKey).replace(/^0+(?=\d)/, '') === '1' && e.action === 'report' && e.source === 'reported' && e.currentSession === true)), '在办表里有刚上报的票（动作 report、来源 reported、当前会话）')
-    check(!!(wr && typeof wr.at === 'string' && typeof wr.staleCount === 'number' && wr.collisions === undefined), '在办表有 at 与 staleCount、单会话无 collisions 键')
-    check(!!(got.r && (got.r.notes || []).some((n: string) => n.indexOf('工作路线摘要') === 0)), 'notes 带工作路线摘要')
+    // 二b、在办表独立读工具（#1561）：五个写工具的成功收口不再带 data.workRoute；在办表只活在读工具里。
+    // 老调用还带 workRouteDetail 一律 bad-args（六格，不碰后端），要看在办表就调 deck_work_route。
+    const rep = await run('deck_issue_report', { key: '01' })
+    const repDataKeys = rep.r && rep.r.data ? Object.keys(rep.r.data).sort().join(',') : ''
+    check(!rep.threw && rep.r && rep.r.status === 'ok' && !(rep.r.data && Object.prototype.hasOwnProperty.call(rep.r.data, 'workRoute')),
+      '上报成功回执不再带在办表（data 实得 ' + repDataKeys + '）')
+    const retired: Array<[string, unknown]> = [['core', 'core'], ['standard', 'standard']]
+    const bad: string[] = []
+    for (const [label, value] of retired) {
+      const rr = await run('deck_issue_report', { key: '01', workRouteDetail: value })
+      const cells = Object.keys(rr.r || {}).sort()
+      const text = String(rr.r && rr.r.text || '')
+      const okShape = !rr.threw && rr.r && rr.r.ok === false && rr.r.reason === 'bad-args'
+        && cells.join(',') === ENVELOPE_PRE_GATE.join(',')
+        && !(rr.r && rr.r.data)
+        && text.indexOf('workRouteDetail 参数已退役') >= 0 && text.indexOf('deck_work_route') >= 0
+      if (!okShape) bad.push(label + '（' + JSON.stringify({ threw: rr.threw, reason: rr.r && rr.r.reason, cells: cells.length, text }) + '）')
+    }
+    check(bad.length === 0, 'workRouteDetail 参数已退役：带这个键（core / standard）一律 bad-args + 六格，并指路 deck_work_route' + (bad.length ? '：' + bad.join('；') : ''))
+    // 读工具：在办表按会话分组，当前会话排第一组；来源与三条上限如实写进回执，原始会话 id 不进回执。
+    const got = await run('deck_work_route', {})
+    const data = got.r && got.r.data
+    const groups = (data && Array.isArray(data.groups)) ? data.groups : []
+    check(!got.threw && got.r && got.r.status === 'ok' && !!data && data.source === 'local-archive'
+      && typeof data.total === 'number' && typeof data.returned === 'number' && typeof data.omitted === 'number' && groups.length > 0,
+      '读工具回在办表：来源是本机存档，带总数与会话分组（实得 ' + (got.threw || ((got.r && got.r.status) + '，' + groups.length + ' 组')) + '）')
+    check(!!(groups[0] && groups[0].currentSession === true), '当前会话排第一组（实得 ' + JSON.stringify(groups[0] && { sessionLabel: groups[0].sessionLabel, currentSession: groups[0].currentSession }) + '）')
+    const first = groups[0] && groups[0].items && groups[0].items[0]
+    const itemKeys = first ? Object.keys(first) : []
+    const need = ['action', 'actionAt', 'active', 'currentSession', 'sessionLabel', 'source', 'ticketKey', 'title']
+    check(!!first && need.every((k) => itemKeys.indexOf(k) >= 0) && itemKeys.indexOf('progress') < 0, '条目带齐八格、不带 progress（实得 ' + itemKeys.sort().join(',') + '）')
+    check(!!groups.some((g: { items: Array<{ ticketKey: string; action: string; source: string; currentSession: boolean }> }) => (g.items || []).some((e) => String(e.ticketKey).replace(/^0+(?=\d)/, '') === '1' && e.action === 'report' && e.source === 'reported' && e.currentSession === true)), '在办表里有刚上报的票（动作 report、来源 reported、当前会话）')
+    check(!!(data && data.limits && data.limits.retentionDays === 30 && data.limits.activeHours === 24 && data.limits.maxBytes === '2MB'), '回执写清三条上限（30 天、24 小时、2MB）')
+    check(!!(got.r && (got.r.notes || []).some((n: string) => n.indexOf('数据来自本机工作区存档') === 0)), 'notes 首句说清来源与口径')
     check(JSON.stringify(got.r).indexOf('s-1106') < 0, '回执全文没有原始会话 id（s-1106 只进盘，不进回执）')
+    const big = await run('deck_work_route', { limit: 500 })
+    check(!big.threw && big.r && big.r.data && big.r.data.limit === 200 && big.r.data.returned <= 200, 'limit 钳在 200（传 500 实得 ' + JSON.stringify(big.r && big.r.data && { limit: big.r.data.limit, returned: big.r.data.returned }) + '）')
     const failed = await run('deck_issue_report', { key: '999999' })
-    check(!failed.threw && failed.r && failed.r.status === 'unsupported' && !(failed.r.data && failed.r.data.workRoute), '失败上报没有 data.workRoute（这一格只属于成功的写工具调用）')
+    check(!failed.threw && failed.r && failed.r.status === 'unsupported' && !(failed.r.data && failed.r.data.workRoute), '失败上报没有 data.workRoute（在办表只活在读工具里）')
   }
   {
     // 二c、progress 参数退役（#1352）：上报只表达「在办／办完」，进度写到票面。定义里已经不再广告这个键，
@@ -433,12 +451,13 @@ async function main() {
     const norm = (k: string) => String(k).replace(/^0+(?=\d)/, '')
     const beforeGet = await run('deck_issue_get', { key: '02', blocking: false })
     const beforeTicket = beforeGet.r && beforeGet.r.data && beforeGet.r.data.ticket
-    const rel = await run('deck_issue_report', { key: '02', release: true, workRouteDetail: 'standard' })
+    const rel = await run('deck_issue_report', { key: '02', release: true })
     check(!rel.threw && rel.r && rel.r.status === 'ok' && Object.keys(rel.r || {}).sort().join(',') === ENVELOPE_FULL.join(','),
       '释放被拒：回执仍是成功的 14 格（实得 ' + (rel.threw || Object.keys(rel.r || {}).length + ' 格') + '）')
-    const relWr = rel.r && rel.r.data && rel.r.data.workRoute
-    const relEntries = (relWr && relWr.entries || []).filter((e: { ticketKey: string }) => norm(e.ticketKey) === '2')
-    check(!!relWr && relEntries.length === 1, '处理过的票释放被拒：在办表里这张票还在（实得 ' + JSON.stringify(relEntries) + '）')
+    const relTable = await run('deck_work_route', {})
+    const relItems = ((relTable.r && relTable.r.data && relTable.r.data.groups) || []).reduce((all: Array<{ ticketKey: string }>, g: { items: Array<{ ticketKey: string }> }) => all.concat(g.items || []), [])
+    const relEntries = relItems.filter((e: { ticketKey: string }) => norm(e.ticketKey) === '2')
+    check(!relTable.threw && relEntries.length === 1, '处理过的票释放被拒：在办表里这张票还在（实得 ' + JSON.stringify(relEntries) + '）')
     check((rel.r && rel.r.notes || []).some((n: string) => n.indexOf('有过实际处理') >= 0 && n.indexOf('不能从工作路线里释放') >= 0 && n.indexOf('只用来撤销从没处理过的误报') >= 0),
       '处理过的票释放被拒：备注说明干过实事、不能释放（实得 ' + JSON.stringify(rel.r && rel.r.notes) + '）')
     const afterGet = await run('deck_issue_get', { key: '02', blocking: false })
@@ -454,12 +473,13 @@ async function main() {
     // 地图 00 是夹具直接写在盘上的，本会话没建过、改过、关过、建过计划、挂过边：先普通上报记下一条纯误报，再释放它。
     const seedReportOnly = await run('deck_issue_report', { key: '00' })
     check(!seedReportOnly.threw && seedReportOnly.r && seedReportOnly.r.status === 'ok', '纯误报种子：普通上报地图 00 成功')
-    const relReportOnly = await run('deck_issue_report', { key: '00', release: true, workRouteDetail: 'standard' })
-    const relReportOnlyWr = relReportOnly.r && relReportOnly.r.data && relReportOnly.r.data.workRoute
-    const relReportOnlyEntries = (relReportOnlyWr && relReportOnlyWr.entries || []).filter((e: { ticketKey: string }) => norm(e.ticketKey) === '0')
-    check(!relReportOnly.threw && relReportOnly.r && relReportOnly.r.status === 'ok' && relReportOnlyEntries.length === 0,
+    const relReportOnly = await run('deck_issue_report', { key: '00', release: true })
+    const relReportOnlyTable = await run('deck_work_route', {})
+    const relReportOnlyItems = ((relReportOnlyTable.r && relReportOnlyTable.r.data && relReportOnlyTable.r.data.groups) || []).reduce((all: Array<{ ticketKey: string; currentSession?: boolean }>, g: { items: Array<{ ticketKey: string; currentSession?: boolean }> }) => all.concat(g.items || []), [])
+    const relReportOnlyEntries = relReportOnlyItems.filter((e: { ticketKey: string }) => norm(e.ticketKey) === '0')
+    check(!relReportOnly.threw && relReportOnly.r && relReportOnly.r.status === 'ok' && !relReportOnlyTable.threw && relReportOnlyEntries.length === 0,
       '纯误报（只上报过的地图 00）能释放：在办表里已经没有这张票（实得 ' + JSON.stringify(relReportOnlyEntries) + '）')
-    const relLeft = (relReportOnlyWr && relReportOnlyWr.entries || []).filter((e: { currentSession?: boolean }) => e.currentSession === true).length
+    const relLeft = relReportOnlyItems.filter((e: { currentSession?: boolean }) => e.currentSession === true).length
     check((relReportOnly.r && relReportOnly.r.notes || []).some((n: string) => n.indexOf('已把票 0 从本会话的工作路线里释放掉') === 0 && n.indexOf('还剩 ' + relLeft + ' 条在办') > 0),
       '纯误报释放成功：备注写明删掉了哪张票与剩余条数（实得 ' + JSON.stringify(relReportOnly.r && relReportOnly.r.notes) + '）')
     check(!(relReportOnly.r && relReportOnly.r.data && Object.prototype.hasOwnProperty.call(relReportOnly.r.data, 'progress')), '释放回执的 data 里不出现 progress 这一格（该格已随 #1352 退役，释放也不记动作）')
@@ -467,11 +487,12 @@ async function main() {
     check(!relReportOnlyAgain.threw && relReportOnlyAgain.r && relReportOnlyAgain.r.status === 'ok'
       && (relReportOnlyAgain.r.notes || []).some((n: string) => n.indexOf('本来就不在本会话的工作路线里') >= 0),
       '再释放同一条误报：成功回执 + 备注说本来就没有（不冒充删掉）')
-    const relFalse = await run('deck_issue_report', { key: '02', release: false, workRouteDetail: 'standard' })
-    const relFalseWr = relFalse.r && relFalse.r.data && relFalse.r.data.workRoute
-    check(!relFalse.threw && relFalse.r && relFalse.r.status === 'ok'
-      && (relFalseWr && relFalseWr.entries || []).some((e: { ticketKey: string }) => norm(e.ticketKey) === '2'),
-      'release:false 仍走正常上报：条目重新落上、回执带在办表')
+    const relFalse = await run('deck_issue_report', { key: '02', release: false })
+    const relFalseTable = await run('deck_work_route', {})
+    const relFalseItems = ((relFalseTable.r && relFalseTable.r.data && relFalseTable.r.data.groups) || []).reduce((all: Array<{ ticketKey: string }>, g: { items: Array<{ ticketKey: string }> }) => all.concat(g.items || []), [])
+    check(!relFalse.threw && relFalse.r && relFalse.r.status === 'ok' && !relFalseTable.threw
+      && relFalseItems.some((e: { ticketKey: string }) => norm(e.ticketKey) === '2'),
+      'release:false 仍走正常上报：条目重新落上（读工具里查得到）')
   }
   {
     // 二e、建票时带 blockedBy（#1299）：票建成后把这批票写成它的原生依赖边；票照建，边写后读回逐条报。
@@ -527,7 +548,7 @@ async function main() {
         else if (!r || typeof r !== 'object' || !STATUSES.includes(r.status)) threwList.push(name + '(' + JSON.stringify(bad) + ') 没回三态回执')
       }
     }
-    check(threwList.length === 0, '九个工具 × ' + hostiles.length + ' 种怪参数（共 ' + seen + ' 次）都回值不抛' + (threwList.length ? '：' + threwList.join('；') : ''))
+    check(threwList.length === 0, '十个工具 × ' + hostiles.length + ' 种怪参数（共 ' + seen + ' 次）都回值不抛' + (threwList.length ? '：' + threwList.join('；') : ''))
   }
 
   // ── 三、点数表 ──
@@ -758,16 +779,16 @@ async function main() {
       }
     }
     const names = fs.readdirSync(dir).filter((n) => n.endsWith('.ts')).sort()
-    // 工具层本来只有十份：九份工具 + 顺序表的宿主侧门面。门面（tool-order.ts）只转发一行，
+    // 工具层本来只有十一份：十份工具 + 顺序表的宿主侧门面。门面（tool-order.ts）只转发一行。
     // 本体在 src/deck/rules/tool-order.ts，跟装表住同一层。多一份少一份都该有人看一眼。
     // 2026-10 的「文件粒度」收尾（#1403）从两个超 350 行的工具文件里搬出了三个内部模块：
     // issue-create-parts.ts（建票参数表）、map-plan-readback.ts（地图建后读回核对）、
     // map-plan-resume.ts（续跑时的批量锚预检与孤儿父边修复）。它们不是独立工具，不注册成工具，
     // 但这几份文件同样在工具层、同样受下面这套「不许直连外面」的扫描约束，所以照样列进这张名单——
     // 判据没有放宽：仍然是一张精确名单，多一份少一份都判红，只是名单本身随拆分更新了一次。
-    // 2026-10 #1406 又加了一份 suggest-next-steps.ts：它是建议工具（不进九个追踪器工具的装配顺序表，
+    // 2026-10 #1406 又加了一份 suggest-next-steps.ts：它是建议工具（不进十个追踪器工具的装配顺序表，
     // 单独登记），但同样住在工具层，所以照样进这张名单、照样受同一套边界约束。
-    // 2026-10 #1442 再加一份 tracker-session.ts：九个工具不再走旧调用壳（call-shell.ts），改成在这里
+    // 2026-10 #1442 再加一份 tracker-session.ts：十个工具不再走旧调用壳（call-shell.ts），改成在这里
     // 开一个 Tracker 会话、把工具的工作闭包交给它跑。它住在工具层，也照样受下面这套扫描约束，
     // 所以一并列进这张名单 —— 名单仍然是精确名单，多一份少一份都判红。
     // 2026-10 #1480 T2 又加一份 md-scope.ts：八个工具的 effort / feature 两参数口径与目录名校验。
@@ -777,8 +798,8 @@ async function main() {
     // 上限）；这一支只在建票本工具里用，不是独立工具，但同样住在工具层、同样受下面这套扫描约束。
     // 2026-10 #1543 再把「地图票没建成」整支搬成 map-plan-create-failure.ts（map-plan-create.ts 撞回
     // 文件粒度基线）；同样只在建图本工具里用，同样进这张精确名单。
-    const EXPECTED_FILES = ['context.ts', 'issue-create-failure.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create-failure.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session.ts'].sort()
-    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是九份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + md-scope + 工具定义 + 建票失败回执 + 建图失败回执 这十九份（实际 ' + names.join(',') + '）')
+    const EXPECTED_FILES = ['context.ts', 'issue-create-failure.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create-failure.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session.ts', 'work-route.ts'].sort()
+    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是十份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + md-scope + 工具定义 + 建票失败回执 + 建图失败回执 这二十份（实际 ' + names.join(',') + '）')
     const bad: string[] = []
     let sawClock = 0
     let toolTimer = 0
@@ -794,7 +815,7 @@ async function main() {
       : '工具层又出现了自己写的超时定时器（' + toolTimer + ' 处），等待竞速应当收进 capped-wait.ts 一处')
     check(bad.length === 0, bad.length
       ? '工具层有直连外面的写法：' + bad.join('；')
-      : '十八份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；工具层与壳层等待件里，时间只用在票面点名的两种形状上')
+      : '十九份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；工具层与壳层等待件里，时间只用在票面点名的两种形状上')
     check(sawClock > 0 && sawTimer > 0, '允许形状表在真实文件上确实被走到（时钟缺省 ' + sawClock + ' 处、超时钳制 ' + sawTimer + ' 处，钳制这一处落在 capped-wait.ts 里），这套判据不是空转')
   }
 

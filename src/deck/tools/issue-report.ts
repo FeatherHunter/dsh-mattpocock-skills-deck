@@ -1,7 +1,7 @@
 // src/deck/tools/issue-report.ts —— deck_issue_report（#775 落地；#1019 换到新树、#1035 转 TypeScript）
 //
-// AI 主动上报自己在办哪张票：票号必填、可选带一句备注；上报成功后
-// 在回执 data.workRoute 里能看到工作路线（界面面板的读数待 #1263 重接新读出口）；三后端诚实失败。
+// AI 主动上报自己在办哪张票：票号必填、可选带一句备注；上报成功后只记一笔工作路线，
+// 要看在办表就调 deck_work_route；三后端诚实失败。
 // #1352 起 progress 参数退役：上报只表达「在办／办完」，进度一律写到票面（deck_issue_patch 的 progress）。
 // 定义里不再广告这个参数；但宿主不替工具挡参数（规格 #1106 写明多传即拒是宿主的责任），run 仍可能
 // 收到它，所以收到就按 bad-args 明确拒绝并指路，不悄悄当没有——旧习惯的调用要能立刻看懂该改去哪。
@@ -79,7 +79,6 @@ export const definition = {
     properties: {
       key: { type: 'string', description: '你要上报的那个 ISSUE 的编号' },
       note: { type: 'string', description: '可选带一句备注（只回显，不进链）' },
-      workRouteDetail: { type: 'string', enum: ['core', 'standard'], description: '成功后回执里在办表（data.workRoute）带多细：core 只带票号、会话、时间（缺省，最多 20 条），standard 再加标题与动作（全部条目）' },
       ...MD_SCOPE_LOCATE,
       release: { type: 'boolean', description: '可选：传 true 表示尝试撤销本会话对这张票的一条误报（只在从没实际处理过这张票时删得掉；建过、改过、关过、建过计划或挂过边的票不能释放，路径保留；不是改票：票的状态与认领人都不动）；不传或传 false 就是正常上报' },
     },
@@ -119,6 +118,7 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
     // #1352：progress 已退役。检查放在最前面（比读会话、比选后端都早）：不花点数、不碰后端、不写盘，
     // 回执形状与别的参数错一样是六格。
     if (retiredProgressGiven(a)) return shell.unsupported('deck_issue_report', REFUSAL_REASONS.BAD_ARGS, 'progress 参数已退役（#1352）：上报只表达「在办／办完」，进度请写到票面——用 deck_issue_patch 的 progress 传 { percent, note }，工具会把它写进那张票的「## 进度」区。这次什么都没做：没选后端、没花点数、没写盘。', { cost: { estimated: est } })
+    if (Object.prototype.hasOwnProperty.call(a, 'workRouteDetail') && a.workRouteDetail !== undefined) return shell.unsupported('deck_issue_report', REFUSAL_REASONS.BAD_ARGS, 'workRouteDetail 参数已退役（#1561）：在办表不再跟在写回执里，要看就调 deck_work_route（默认只看近 24 小时在办，带 includeStale:true 看近 30 天）。这次什么都没做：没选后端、没花点数、没写盘。', { cost: { estimated: est } })
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 在会话壳里是运行时布尔，
     // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
@@ -193,7 +193,6 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
           value: {
             status: DECK_STATUS.OK,
             release: true,
-            workRouteDetail: a.workRouteDetail,
             text: '票 ' + key + ' 这次不是上报，是释放：尝试把本会话工作路线里的这一条误报删掉（票本身的状态与认领人没有改动）。只有从没实际处理过的票能删，删没删掉看回执备注。',
             data: {
               key: key, title: title, state: issue.state || '', url: issue.url || '',
@@ -209,8 +208,7 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
       return {
         value: {
           status: DECK_STATUS.OK,
-          workRouteDetail: a.workRouteDetail,
-          text: '票 ' + key + ' 已上报（' + (title || '没取到标题') + '）' + (note ? '：' + note.slice(0, 80) : '') + '。在办表见回执 data.workRoute。',
+          text: '票 ' + key + ' 已上报（' + (title || '没取到标题') + '）' + (note ? '：' + note.slice(0, 80) : '') + '。要看在办表就调 deck_work_route。',
           data: {
             key: key, title: title, state: issue.state || '', url: issue.url || '',
             backendId: pick.backendId, effortId: effortId || (issue.effortId !== undefined ? issue.effortId : ''),

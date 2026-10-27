@@ -621,7 +621,11 @@ function collectCalls() {
   // 2026-10-20 #1294：locale.ts 的埋点走一个 localeLogEmit 发射壳 —— 它把级别、事件名、字段原样转给 log，
   //   只是晚一拍进微任务写（这份内核排在 kernel:log 之前，激活过程中就要注册语言）。壳名不补进扫描口径，
   //   上面两条 locale.registration* 就会被判成「全仓未找到」，白名单也收不到它们的字段。
-  const mainRe = /(?:^|[^A-Za-z0-9_$])(?:log|fire|rlog|logEvent|backendLogEvent|roomLogEvent|localeLogEmit)\s*\(\s*(?:[A-Za-z_$][A-Za-z0-9_$]*\s*,\s*)?['"](error|warn|info|debug)['"]\s*,\s*['"]([a-z][a-zA-Z0-9.]*?)['"]\s*,/g
+  // 级别位接受两种写法：字面量（多数发射点写死 info / warn / …）与标识符（级别由调用方按事实决定）。
+  // 为什么要收后者：gh.exec 的字段拼装搬进 client-support.ts 后只有一份，级别由 emitGhExec 的 level
+  // 参数给（缺省 info，控制面没接上时 warn），事件名与字段仍在同一处，字段形状判据照样收得到。
+  // 事件名那一位仍要求字面量，所以「误收别的调用」的风险与从前一样。
+  const mainRe = /(?:^|[^A-Za-z0-9_$])(?:log|fire|rlog|logEvent|backendLogEvent|roomLogEvent|localeLogEmit)\s*\(\s*(?:[A-Za-z_$][A-Za-z0-9_$]*\s*,\s*)?(['"](?:error|warn|info|debug)['"]|[A-Za-z_$][A-Za-z0-9_$]*)\s*,\s*['"]([a-z][a-zA-Z0-9.]*?)['"]\s*,/g
   for (const f of files) {
     const text = fs.readFileSync(f, 'utf8')
     const rel = path.relative(ROOT, f)

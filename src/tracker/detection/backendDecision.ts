@@ -58,13 +58,14 @@
  *   注册表那边负责写这份副本的 bind/bound/allBindings 也一起删了（见 src/tracker/registry/core.ts）。
  */
 
-import * as workspaceFileNS from '../../deck/shell/workspace-anchor.js';
-import { parseIssueTracker } from './parseIssueTracker.js';
-import type { RepoHandle, SandboxFs } from '../contract/contexts.js';
+import type { RepoHandle } from '../contract/contexts.js';
 import type { RepositoryRef } from '../contract/entities.js';
 import type { Selection } from '../contract/results.js';
-const parseWorkspaceFile = workspaceFileNS.parseWorkspaceFile;
-const WORKSPACE_FILE_REL = workspaceFileNS.WORKSPACE_FILE_REL;
+import type { DeclarationLayerDeps, FileLayerDeps, WorkspaceFileParsed } from './readEvidenceLayers.js';
+import { readDeclarationLayer, readFileLayer } from './readEvidenceLayers.js';
+// 这几个类型原来就长在这个文件里、对外导出；读法搬走后从新文件原样再导出一遍，
+// 别的文件仍可按老路径导入，不必跟着改。
+export type { DeclarationIdHint, DeclarationLayerDeps, FileLayerDeps, WorkspaceFileParsed } from './readEvidenceLayers.js';
 
 /* ══════════════════════════════════════════════════════════════════════════════
  * 一、证据的形状：层与全序（政策即数据）
@@ -100,7 +101,7 @@ export type EvidenceOutcomeWord = 'hit' | 'miss' | 'unreadable' | 'unknown-backe
 /**
  * 这一层这一步的意义分四类，与用词的关系写在下面的构造函数里：
  * verdict（给出了可用结论）/ abstain（看过了，没有结论）/ unavailable（没看成或问不成）/ skipped（有意没看）。
- * 判断层只认 kind，日志层只认 outcome，两者不许对不上——所以只经构造函数产出。
+ * 判定层只认 kind，日志层只认 outcome，两者不许对不上——所以只经构造函数产出。
  */
 export type EvidenceKind = 'verdict' | 'abstain' | 'unavailable' | 'skipped'
 
@@ -108,6 +109,8 @@ export type EvidenceKind = 'verdict' | 'abstain' | 'unavailable' | 'skipped'
  * 一层证据的收集结果：这一步看了什么、结论是什么、为什么。
  * 可选格只在特定层有意义：fileSource 只有工作区文件层有（user / migrated / detected / auto，
  * 用来分辨人选与搬来的记录）；multiHit / pending / ref / source 只有各房认领层有。
+ * declarationConfidence 只有声明文件层有（#1572）：高置信来自标题行，低置信来自正文关键词；
+ * 判定层据此把 origin 写成 declaration 或 declaration-low，两种来路不混成一句。
  */
 export interface TierEvidence {
   tier: EvidenceTier
@@ -120,6 +123,7 @@ export interface TierEvidence {
   multiHit?: string[]
   pending?: true
   ref?: RepositoryRef | null
+  declarationConfidence?: 'high' | 'low'
 }
 
 /**
@@ -132,7 +136,7 @@ export interface DecisionCoverage {
   skipped: { tier: EvidenceTier; why: string }[]
 }
 
-/** 一份证据报告：收集层的产出，判断层的唯一输入。 */
+/** 一份证据报告：收集层的产出，判定层的唯一输入。 */
 export interface EvidenceReport {
   evidence: TierEvidence[]
   scope: EvidenceScope
@@ -153,7 +157,7 @@ export interface Verdict {
   reason: string
 }
 
-/** 判断层的产出：交给上层的选择形状 + 写权限原因 + 三态、档位、矛盾、覆盖度。 */
+/** 判定层的产出：交给上层的选择形状 + 写权限原因 + 三态、档位、矛盾、覆盖度。 */
 export interface DecisionSynthesis {
   verdict: Verdict | null
   selection: DecisionSelection
@@ -235,7 +239,7 @@ export interface DecisionConflict {
 
 /**
  * 判定出口的完整答案：选择加写权限与原因，另加内部三态、失败档位、矛盾、覆盖度与步骤轨迹。
- * origin 在这里一定有（判断层的每个分支都会填）。
+ * origin 在这里一定有（判定层的每个分支都会填）。
  */
 export type BackendDecision = Omit<Selection, 'ref' | 'origin'> & {
   origin: string
@@ -263,39 +267,6 @@ export interface DecisionRegistry {
  */
 export interface DecideRegistry extends DecisionRegistry {
   select(handle: RepoHandle, ctx: unknown): Promise<Selection | null>
-}
-
-/**
- * 工作区文件那一层的解析结果：后端 id 加来源档位。
- * 格子按真源（workspace-file.ts 的 WorkspaceChoice）逐个声明，不用索引签名——
- * 接口没有隐式索引签名，带索引签名的目标会让真源的形状传不进来（TS2322）。
- */
-export interface WorkspaceFileParsed {
-  backendId: string
-  source?: unknown
-  pickedAt?: number
-  layout?: string
-}
-
-/**
- * 读文件层要用的外部能力：沙箱文件服务优先，兼容老调用方交的两个函数。
- */
-export interface FileLayerDeps {
-  fs?: Pick<SandboxFs, 'resolve' | 'readText'> | null
-  platform?: { fs?: Pick<SandboxFs, 'resolve' | 'readText'> } | null
-  readWorkspaceFileText?: (cwd: string) => Promise<string | null>
-  parseWorkspaceFile?: (text: string) => WorkspaceFileParsed | null
-}
-
-/**
- * 读声明层要用的外部能力：调用方给了整套解析器就用它的，没给就走本文件自带的 parseIssueTracker
- *（与探测器、工具壳装配层同一套解析器，一次读取一份结论）。
- */
-export interface DeclarationLayerDeps {
-  fs?: Pick<SandboxFs, 'resolve' | 'readText'> | null
-  platform?: { fs?: Pick<SandboxFs, 'resolve' | 'readText'> } | null
-  readDeclarationId?: (cwd: string) => Promise<string | null>
-  parseDeclaration?: (raw: string) => Promise<string | null> | string | null
 }
 
 /**
@@ -406,19 +377,6 @@ function isKnown(registry: DecisionRegistry | null | undefined, id: string): boo
   } catch {
     return false;
   }
-}
-
-/**
- * 这个错误是不是「文件不在」（而不是「读的时候出了别的问题」）。
- * 为什么要分：把「读不成」记成「没有这份文件」，会让判定层得出「查清了，确实没有后端」——
- * 那是句假话。分不出来时一律当作「读不成」（宁可说没查清）。
- */
-function isMissingFileError(e: unknown): boolean {
-  const asRecord = (e && typeof e === 'object') ? (e as Record<string, unknown>) : null;
-  const code = asRecord ? String(asRecord['code'] || '') : '';
-  if (code === 'ENOENT' || code === 'ENOTDIR') return true;
-  const msg = asRecord && asRecord['message'] != null ? String(asRecord['message']) : String(e == null ? '' : e);
-  return /ENOENT|ENOTDIR|no such file|not found|找不到|不存在/i.test(msg);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
@@ -598,7 +556,10 @@ export function pickVerdict(evidence: readonly TierEvidence[]): Verdict | null {
       return { backendId: hit.backendId, source: 'explicit', origin: fileOriginOf(hit.fileSource), ref: hit.ref || null, canWrite: true, reason: '' };
     }
     if (tier === 'declaration') {
-      return { backendId: hit.backendId, source: 'explicit', origin: 'declaration', ref: hit.ref || null, canWrite: false, reason: 'needs-generate' };
+      // #1572：低置信声明也是结论（沿用 #1555 的「判定层认低置信线索」），
+      // 但 origin 如实写成 declaration-low，别让日志与诊断把「正文提了一句」看成「标题行声明」。
+      const origin = hit.declarationConfidence === 'low' ? 'declaration-low' : 'declaration';
+      return { backendId: hit.backendId, source: 'explicit', origin: origin, ref: hit.ref || null, canWrite: false, reason: 'needs-generate' };
     }
     return {
       backendId: hit.backendId,
@@ -795,7 +756,7 @@ function makeRun(logCtx: DecisionLogCtx | null, stepsEnabled: boolean): DecideRu
     fireConclusion(selection, cwdHash, synth) {
       if (!logCtx || typeof logCtx.fire !== 'function') return;
       // 平时只有这一条结论（#1047 决策 5）：判到哪个后端、来源、三态、档位、覆盖度、花了多久、有没有矛盾。
-      // 三态与档位**取自判断层的产出**（#1048 复核修的一处：从前这里按 winner 现推一遍，
+      // 三态与档位**取自判定层的产出**（#1048 复核修的一处：从前这里按 winner 现推一遍，
       // 于是四类「判不出来」的场景日志写 no-backend、结果写 undetermined，日志在骗人）。
       try {
         logCtx.fire('info', 'detection.detect', {
@@ -816,96 +777,9 @@ function makeRun(logCtx: DecisionLogCtx | null, stepsEnabled: boolean): DecideRu
   };
 }
 
-/**
- * 工作区文件那一层的读法：新文件优先、老文件兼容（与核的读口同顺序；老 json 只作兼容读）。
- * 回的是「读到了什么 + 这一步的结论」，不是光秃秃的解析结果——判不出来时要说得出缺什么（#1048）。
- * 「文件不在」与「读不成」在这里就分开：前者够格参与「确实没有」的结论，后者不够（见 isMissingFileError）。
- */
-interface FileLayerRead { parsed: WorkspaceFileParsed | null; outcome: string; reason: string }
-
-async function readFileLayer(cwd: string, deps: FileLayerDeps): Promise<FileLayerRead> {
-  const rels: string[] = [String(WORKSPACE_FILE_REL)];
-  const legacyRel = (workspaceFileNS.WORKSPACE_FILE_LEGACY_REL || 'docs/agents/workspace.json');
-  // 两个常量在类型层面是互不相交的字面量（yaml 与 json），直接比会报 TS2367；
-  // 运行时它们都是字符串，这里按字符串比，行为与原来完全一致。
-  if (legacyRel && (legacyRel as string) !== (WORKSPACE_FILE_REL as string)) rels.push(String(legacyRel));
-  let sawFile = false;
-  let sawBroken = false;
-  let readFailed = false;
-  try {
-    const fsSvc = deps.fs || (deps.platform && deps.platform.fs) || null;
-    if (fsSvc && typeof fsSvc.resolve === 'function' && typeof fsSvc.readText === 'function') {
-      for (const rel of rels) {
-        let txt = '';
-        try {
-          const target = await fsSvc.resolve(rel, { cwd });
-          txt = await fsSvc.readText(target);
-        } catch (eOne) {
-          // 这一条路径没读成：文件不在是「没有这份记录」，别的错是「这次没看成」。
-          if (!isMissingFileError(eOne)) readFailed = true;
-          continue;
-        }
-        sawFile = true;
-        const parsed = parseWorkspaceFile(txt);
-        if (parsed && parsed.backendId) return { parsed, outcome: 'hit', reason: 'file-hit' };
-        // 文件在，但里面没有可用的后端名：继续试下一个路径（老文件可能才是那份），都试完再说“读不出”。
-        sawBroken = true;
-      }
-      if (sawBroken) return { parsed: null, outcome: 'unreadable', reason: 'file-unreadable' };
-      if (readFailed) return { parsed: null, outcome: 'error', reason: 'file-read-failed' };
-      return { parsed: null, outcome: 'miss', reason: sawFile ? 'file-no-backend' : 'file-missing' };
-    }
-    if (typeof deps.readWorkspaceFileText === 'function' && typeof deps.parseWorkspaceFile === 'function') {
-      const txt = await deps.readWorkspaceFileText(cwd);
-      if (!txt) return { parsed: null, outcome: 'miss', reason: 'file-missing' };
-      const parsed = deps.parseWorkspaceFile(txt);
-      if (parsed && parsed.backendId) return { parsed, outcome: 'hit', reason: 'file-hit' };
-      return { parsed: null, outcome: 'unreadable', reason: 'file-no-backend' };
-    }
-  } catch (eFile) {
-    return { parsed: null, outcome: 'error', reason: 'file-error' };
-  }
-  return { parsed: null, outcome: 'miss', reason: 'file-layer-unavailable' };
-}
-
-/**
- * 声明文件那一层的读法：调用方给了读法就用它的，没给就自己经沙箱文件服务读原文，
- * 用 parseIssueTracker 解析（与探测器、工具壳装配层同一套解析器 —— 一次读取、一份结论，#1048）。
- * 读失败同样与「文件不存在」分开。
- */
-interface DeclarationLayerRead { id: string; outcome: string; reason: string }
-
-async function readDeclarationLayer(cwd: string, deps: DeclarationLayerDeps): Promise<DeclarationLayerRead> {
-  try {
-    if (typeof deps.readDeclarationId === 'function') {
-      const did = await deps.readDeclarationId(cwd);
-      if (typeof did === 'string' && did) return { id: did, outcome: 'hit', reason: 'declaration-hit' };
-      return { id: '', outcome: 'miss', reason: 'declaration-missing' };
-    }
-    const fsSvc = deps.fs || (deps.platform && deps.platform.fs) || null;
-    if (fsSvc && typeof fsSvc.resolve === 'function' && typeof fsSvc.readText === 'function') {
-      let raw: unknown = null;
-      try {
-        const target = await fsSvc.resolve('docs/agents/issue-tracker.md', { cwd });
-        raw = await fsSvc.readText(target);
-      } catch (eRead) {
-        if (isMissingFileError(eRead)) return { id: '', outcome: 'miss', reason: 'declaration-missing' };
-        return { id: '', outcome: 'error', reason: 'declaration-read-failed' };
-      }
-      if (typeof deps.parseDeclaration === 'function') {
-        const did2 = await deps.parseDeclaration(raw as string);
-        if (typeof did2 === 'string' && did2) return { id: did2, outcome: 'hit', reason: 'declaration-hit' };
-        return { id: '', outcome: 'miss', reason: 'declaration-no-backend' };
-      }
-      const parsed = parseIssueTracker(raw);
-      if (parsed && parsed.explicitBackendId) return { id: parsed.explicitBackendId, outcome: 'hit', reason: 'declaration-' + parsed.reason };
-      return { id: '', outcome: 'miss', reason: 'declaration-no-backend' };
-    }
-  } catch (eDecl) {
-    return { id: '', outcome: 'error', reason: 'declaration-error' };
-  }
-  return { id: '', outcome: 'miss', reason: 'declaration-layer-unavailable' };
-}
+/* 两层「证据怎么读」已经从这份文件搬走：工作区文件层与声明文件层的读法、读失败与文件不在的区分、
+ * 声明置信度的用法，现在都在 ./readEvidenceLayers.ts。这里只调 readFileLayer / readDeclarationLayer，
+ * 不再自己拼路径、不再自己解析声明文件——拆出去是为了让这份文件的体积回到文件粒度门禁的基线以里（#1572 收尾）。 */
 
 /**
  * 收集三层证据（壳）。记步骤、按证据范围决定问不问各房，返回一份证据报告。
@@ -948,7 +822,7 @@ async function collectEvidence(cwd: string, deps: DecideBackendDeps, scope: Evid
   const declRead = await readDeclarationLayer(cwd, deps);
   let declEvidence: TierEvidence;
   if (declRead.outcome === 'hit') {
-    if (isKnown(registry, declRead.id)) declEvidence = verdictEvidence('declaration', declRead.id, declRead.reason);
+    if (isKnown(registry, declRead.id)) declEvidence = verdictEvidence('declaration', declRead.id, declRead.reason, { declarationConfidence: declRead.confidence || 'high' });
     else declEvidence = unavailableEvidence('declaration', 'unknown-backend', 'declaration-backend-unknown', declRead.id);
   } else if (declRead.outcome === 'error') {
     declEvidence = unavailableEvidence('declaration', 'error', declRead.reason);
@@ -1138,7 +1012,7 @@ export async function decideBackend(root: unknown, deps: DecideBackendDeps = {})
   return {
     backendId: synth.selection.backendId,
     source: synth.selection.source,
-    // 契约里 origin 是可选的，判断层每一支都写了它；这里的兜底只为满足类型，
+    // 契约里 origin 是可选的，判定层每一支都写了它；这里的兜底只为满足类型，
     // 真要走到空串说明上游漏写，门禁里有多处断言盯着 origin 的具体取值。
     origin: String(synth.selection.origin || ''),
     canWrite: synth.canWrite,

@@ -268,6 +268,24 @@ if (tiers) {
   check(msg7.indexOf('一次都没跑') >= 0 && /排队上限 3000 毫秒/.test(msg7), '七、回话说清「一次没跑」与排队上限（不报「命令超时」）', msg7.slice(0, 200))
   check(took7 >= 2500 && took7 < 10000, '七、上限到点即返回（约 3 秒，不等 12 秒整档）', '实耗 ' + took7 + 'ms')
 
+  // 拿到名额后到点（Q3）：回话写「排队 X 毫秒 / 拿到名额后又等了 Y 毫秒」，不把后一段叫成命令运行时长。
+  try { resetGhLaneForTest() } catch (eReset7c) {}
+  const lane7c = getGhLane()
+  const held7c = []
+  for (let i = 0; i < maxRead7; i++) held7c.push(await lane7c.acquire({ bucket: 'read' }))
+  setTimeout(() => { for (const rel of held7c) { try { rel() } catch (eR7c) {} } }, 100)
+  const slowClient = ghClient(Object.assign({}, hangCtx7, { exec: hangExec7 }))
+  const r7c = await slowClient.execGh(['issue', 'list'], { cwd: '.', timeout: 500 })
+  const msg7c = String((r7c && r7c.error && r7c.error.message) || '')
+  check(/拿到名额后又等了 \d+ 毫秒/.test(msg7c) && msg7c.indexOf('一次都没跑') < 0, '七、拿到名额后到点分开写两段（不叫命令运行时长）', msg7c.slice(0, 260))
+  const held7c2 = []
+  const full7c = await Promise.race([
+    (async () => { for (let i = 0; i < maxRead7; i++) held7c2.push(await lane7c.acquire({ bucket: 'read' })); return 'ok' })(),
+    new Promise((res) => setTimeout(() => res('stuck'), 5000)),
+  ])
+  for (const rel of held7c2) { try { rel() } catch (eR7c2) {} }
+  check(full7c === 'ok', '七、拿到名额后到点不漏名额（仍能拿满）', String(full7c))
+
   // 被排队挤占过的到点不设冷却、不漏名额：占位已放，下一笔成功执行不受影响，且名额能拿满。
   const okExec7 = async () => ({ stdout: '[]', stderr: '', code: 0 })
   const okClient7 = ghClient(Object.assign({}, hangCtx7, { exec: okExec7 }))

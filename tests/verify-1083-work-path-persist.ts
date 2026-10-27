@@ -147,7 +147,7 @@ async function main() {
   const instBad = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: home4, now: () => T0, log: log4.sink }, realIo()))
   const vBad: any = { status: 'ok', data: { key: '704', effortId: '', title: '坏文件票' }, notes: [] }
   await recordMod.recordWorkRoute({ workRouteNote: (i: unknown) => instBad.note(i), workRouteRead: (i: unknown) => instBad.read(i), now: () => T0 }, 'deck_issue_report', { sessionId: 'sess-a-1083', workspaceKey: 'ws-1083-bad', cwd: 'x' }, 'markdown', vBad)
-  check(vBad.data.workRoute && typeof vBad.data.workRoute === 'object', '坏文件时回执照常带出在办表（不抛错）')
+  check(!vBad.data || !('workRoute' in vBad.data), '坏文件时写回执不再带在办表（#1561：要看调 deck_work_route）；记条目本身不抛错')
   check(vBad.notes.some((n: string) => n.indexOf('读不出来') >= 0), '回执备注说明盘上旧文件读不出来、按空账重写：' + JSON.stringify(vBad.notes))
   const badAfter = JSON.parse(fs.readFileSync(badFile, 'utf8'))
   check(badAfter.workers.length === 1 && badAfter.workers[0].entries.length === 1 && badAfter.workers[0].entries[0].ticketKey === '704', '坏文件被整份重写成只含这次这一条的新账')
