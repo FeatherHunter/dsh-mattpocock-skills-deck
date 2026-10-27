@@ -60,13 +60,16 @@ function buildWorld(model: Record<string, (...args: never[]) => unknown>) {
     copyThrow: false,
     switchBehavior: 'ok',
   };
+  // #1582：共用打开函数的替身也要真发宿主电话，所以把「记一笔 + 交 box.handler」抽成一个名字，
+  //   host.call 与下面 openFolder 替身共用它（既有断言量 w.calls[0] 仍然是那一发）。
+  const callHost = (method: string, args: Record<string, unknown>) => {
+    calls.push({ method, args });
+    return box.handler(method, args);
+  };
   const deps = {
     host: {
       ready: () => box.readyResult,
-      call: (method: string, args: Record<string, unknown>) => {
-        calls.push({ method, args });
-        return box.handler(method, args);
-      },
+      call: callHost,
     },
     tell: {
       tr: (key: string, params?: Record<string, string | number>) =>
@@ -108,6 +111,25 @@ function buildWorld(model: Record<string, (...args: never[]) => unknown>) {
         if (box.switchBehavior === 'stale') return Promise.resolve({ ok: true, hostPushed: false, enabled: on });
         return Promise.resolve({ ok: true, hostPushed: true, enabled: on });
       },
+    },
+    // #1582：共用打开函数的替身 —— 语义照真函数（判空不发、只发一次、读回包、异常同路），
+    //   但真去调假 host.call，这样「成功打开」那组既有断言（calls[0] 是 wf.openFolder）照旧成立。
+    openFolder: (dir: string, report: (outcome: string, detail?: unknown) => void) => {
+      const value = String(dir == null ? '' : dir).trim();
+      if (!value) { report('missing'); return false; }
+      try {
+        callHost('wf.openFolder', { cwd: value }).then(
+          (res) => {
+            if (res && (res as Record<string, unknown>)['ok'] === true) { report('opened'); return; }
+            report('open-failed', (res && (res as Record<string, unknown>)['error']) || 'not-ok');
+          },
+          (e) => { report('open-failed', e); },
+        );
+      } catch (eSync) {
+        report('open-failed', eSync);
+        return false;
+      }
+      return true;
     },
   };
   return { deps, box, flashes, infos, warns, fails, copies, afters, calls, uiState };

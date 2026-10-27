@@ -652,6 +652,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'chips', file: 'src/client/views/shared/chips.ts' },
   { id: 'hoverTip', file: 'src/client/views/primitives/HoverTip.ts' },
   { id: 'tip', file: 'src/client/views/primitives/Tip.ts' },
+  // #1582：打开文件夹的共用函数（四处入口共用：判目录可用、只发一次 wf.openFolder、读回包、把结论交回调用方）。
+  { id: 'openFolder', file: 'src/client/views/shared/openFolder.ts' },
   // 本次界面反馈需求：液态墨块（页签与列表筛选药丸共用），必须排在 leaf:tabs 之前登记。
   { id: 'liquidInk', file: 'src/client/views/shared/liquidInk.ts' },
   // 887 技能详情像素风：八个最小组件（无依赖，按使用次序登记）

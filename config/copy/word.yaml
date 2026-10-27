@@ -59,6 +59,7 @@ zh:
   logtoast.exportFallback: 今日日志已导出（原文件形态）：{path}
   logtoast.exportFailed: 导出失败：{err}
   logtoast.openFailed: 打开目录失败：{err}
+  logtoast.openNoDir: 还没拿到要打开的目录（工作区目录可能还没同步好），稍后再试
   logtoast.pathCopied: 日志路径已复制：{path}
   logtoast.cleared: 今日日志已清空（删了 {n} 个文件）
   logtoast.clearEmpty: 今日暂无日志可清
@@ -269,6 +270,7 @@ en:
   logtoast.exportFallback: "Today log exported (plain files): {path}"
   logtoast.exportFailed: "Export failed: {err}"
   logtoast.openFailed: "Open folder failed: {err}"
+  logtoast.openNoDir: "Nothing to open yet — the workspace folder may still be syncing; try again in a moment"
   logtoast.pathCopied: "Log path copied: {path}"
   logtoast.cleared: Today log cleared ({n} files removed)
   logtoast.clearEmpty: No log for today to clear

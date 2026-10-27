@@ -41,6 +41,8 @@ declare function isTodayName(name: unknown): boolean;
 declare function canStartOp(busy: LogBusy): boolean;
 declare function exportDirOf(res: unknown): string;
 declare function createDiagnosticLogOps(deps: DiagnosticLogDeps): DiagnosticLogOps;
+// #1582：打开文件夹的共用函数（实现住 views/shared/openFolder.ts，由构建拼进同一个闭包）。
+declare function openFolderAt(...args: any[]): any;
 
 /**
  * 调试分组（props 只有一个：sessionId，给订阅 store 用）。
@@ -84,7 +86,7 @@ export const DiagnosticLogSection = (props: { sessionId?: unknown }): unknown =>
     try { return !!readLocalDebugSwitch().enabled; } catch (eDbg2) { return false; }
   })();
 
-  // 世界接线：七组里每一格都包一层闭包里的原调用，跑腿只认这七组，不直接碰闭包。
+  // 世界接线：八组里每一格都包一层闭包里的原调用，跑腿只认这八组，不直接碰闭包。
   const deps: DiagnosticLogDeps = {
     host: {
       ready: function () { try { return !!(typeof host !== 'undefined' && host && host.call); } catch (eDbg) { return false; } },
@@ -150,6 +152,10 @@ export const DiagnosticLogSection = (props: { sessionId?: unknown }): unknown =>
         if (typeof dbgSwitch !== 'function') throw new Error('no-switch');
         return dbgSwitch(on, 1);
       },
+    },
+    // #1582：打开文件夹的共用函数（判目录可用、只发一次、读回包都在它那里），这一页只把结论接进提示。
+    openFolder: function (dir: string, report) {
+      return openFolderAt(host, dir, report);
     },
   };
   const ops: DiagnosticLogOps = createDiagnosticLogOps(deps);

@@ -31,6 +31,8 @@ declare function labelOf(...args: any[]): any;
 declare function lcPanelSavedColors(...args: any[]): any;
 declare function loadSnapshot(...args: any[]): any;
 declare function noticeIcon(...args: any[]): any;
+// #1582：打开文件夹的共用函数（实现住在 views/shared/openFolder.ts，由构建拼进同一个闭包）。
+declare function openFolderAt(...args: any[]): any;
 declare function openSwitchConfirm(...args: any[]): any;
 declare function otherFiltered(...args: any[]): any;
 // panelClock 在这里只被读写 renderT0/commitMs 两个字段（调用发生在别处），
@@ -268,10 +270,24 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             //   那条阶梯一格一格地减。boxSizing 必须是 border-box —— minWidth 40 是照「外框 40 像素」写的，默认的
             //   content-box 会把它垫成外框 58（真机实测：名字收到只剩省略号时芯片卡在 58，后面几格一格也省不出宽度）。
             const chipStyle = { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: col, backgroundColor: bg, border: '1px solid transparent', borderRadius: 6, padding: '1px 8px', flex: 'none', boxSizing: 'border-box', minWidth: 40, maxWidth: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Consolas,Menlo,monospace', borderColor: bdc, colorScheme: 'light dark' }
-            // #231（契约动作）：开仓行为由后端 openRepository 声明驱动 —— folder 型注入 wf.openFolder，url 型浏览器原生新窗；无声明且无 url 即无动作（诚实渲染）
+            // #231（契约动作）：开仓行为由后端 openRepository 声明驱动 —— folder 型走共用打开函数（#1582），url 型浏览器原生新窗；无声明且无 url 即无动作（诚实渲染）
             const act = repositoryActionOf(s, bid)
             if (act === 'folder') {
-              return h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullRepo')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, repoRef.name), h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px', marginTop: 2 } }, tr('tip.header.repoAction'))]) }, h('a', { href: 'javascript:void(0)', 'aria-label': repoRef.name, 'data-repo-chip': 1, className: 'dsws-hov', 'data-press': 'button', 'data-log': 'head.repochip', style: Object.assign({}, chipStyle, { cursor:'pointer' }), onClick: function(e: any){ try{ if(e&&e.preventDefault) e.preventDefault() }catch(_){}; try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openFolder',{cwd: s.cwd||''}) }catch(__){} } }, inner))
+              // #1582：目录还没同步到手时不再把空串发给宿主，改成当场说一句「目录还没准备好」；
+              //   宿主回 {ok:false,error} 也把原因弹出来（这两条以前都是静默的）。
+              const openRepoFolder = function (e: any) {
+                try { if (e && e.preventDefault) e.preventDefault() } catch (_) {}
+                openFolderAt(host, s.cwd, function (outcome: any, detail: any) {
+                  if (outcome === 'missing') {
+                    try { flash(s, tr('logtoast.openNoDir'), 'warn') } catch (__) {}
+                    return
+                  }
+                  if (outcome === 'open-failed') {
+                    try { flash(s, tr('logtoast.openFailed', { err: String(detail || 'unknown').slice(0, 120) }), 'warn') } catch (__) {}
+                  }
+                })
+              }
+              return h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullRepo')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, repoRef.name), h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px', marginTop: 2 } }, tr('tip.header.repoAction'))]) }, h('a', { href: 'javascript:void(0)', 'aria-label': repoRef.name, 'data-repo-chip': 1, className: 'dsws-hov', 'data-press': 'button', 'data-log': 'head.repochip', style: Object.assign({}, chipStyle, { cursor:'pointer' }), onClick: openRepoFolder }, inner))
             }
             if (!href) return h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullRepo')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, repoRef.name)]) }, h('span', { 'aria-label': repoRef.name, 'data-repo-chip': 1, style: Object.assign({}, chipStyle, { cursor:'default' }) }, inner))
             // #191（用户反馈）：GitHub/GitLab 路径只 target='_blank'（浏览器原生新窗口），

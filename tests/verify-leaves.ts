@@ -38,6 +38,8 @@ const LEAVES = [
   { file: 'src/client/views/shared/chips.js', exports: ['Dot', 'TypeChip', 'chipKeyDown', 'chipProps'], components: ['Dot', 'TypeChip'] },
   // 本次界面反馈需求：液态墨块（页签与列表筛选药丸共用）。
   { file: 'src/client/views/shared/liquidInk.ts', exports: ['LIQUID_INK_CLASS', 'LIQUID_INK_HOST_CLASS', 'LIQUID_INK_ON_CLASS', 'liquidInkPlace', 'liquidInkRemember', 'useLiquidInk'], components: [] },
+  // #1582：打开文件夹的共用函数（四处入口共用，零依赖纯函数：判空、只发一次、读回包）。
+  { file: 'src/client/views/shared/openFolder.ts', exports: ['openFolderAt'], components: [] },
   { file: 'src/client/views/shared/md.js', exports: ['MD_LINK_RE', 'MD_TASK_RE', 'mdEsc', 'mdInline', 'mdToHtml'], components: [] },
   { file: 'src/client/views/shared/ticket.js', exports: ['tStatus', 'tStatusLabel', 'tProgressBar', 'tStatusBadge'], components: [] },
   { file: 'src/client/views/shared/stateKind.js', exports: ['prStateKind'], components: [] }, // #599 新增：票的状态判据（打开/已关闭/已合并）单源，拉取请求页与单票详情页共用

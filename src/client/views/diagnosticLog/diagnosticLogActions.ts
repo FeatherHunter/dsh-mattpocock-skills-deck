@@ -3,14 +3,15 @@
  *
  * 它与同目录的 diagnosticLogModel.ts 是刻意拆开的两半：模型只做推演（给值、回值，不碰世界），
  * 这一份只做跑腿（按模型的判据去调宿主、弹提示）。跑腿需要世界，所以世界从参数里递进来，
- * 一共七组，各管一摊，换一摊只动它自己的那几个小函数：
+ * 一共八组，各管一摊，换一摊只动它自己的那几个小函数：
  * - host：宿主在不在、替我喊宿主的方法；
  * - tell：文案与提示（翻译、弹条、记账、失败上报、脱敏两件套）；
  * - board：剪贴板；
  * - clock：现在几点、几百毫秒后叫我；
  * - ui：界面状态的读写（忙碌、开关中的过渡、行内闪光、清空确认、最近一次导出的回执）；
  * - rules：纯判据（调用方把模型那份函数递进来，不在这里 import）；
- * - switchWriter：拨开关真正写进去的那一笔（调用方把闭包里的 settingsDebugToggle 递进来）。
+ * - switchWriter：拨开关真正写进去的那一笔（调用方把闭包里的 settingsDebugToggle 递进来）；
+ * - openFolder：打开文件夹的共用函数（#1582 收敛出来的 openFolderAt，调用方包一层递进来）。
  *
  * 为什么纯判据也要递进来、而不直接 import 模型：产物是把各文件逐个转译后按序拼进同一个闭包，
  * 跨文件的「值引用」只能走拼完后的闭包作用域，文件里出现 `import {函数} from './模型'`
@@ -89,7 +90,16 @@ export interface DiagnosticLogSwitchWriter {
   write(on: boolean): Promise<unknown>;
 }
 
-/** 跑腿要的世界，一共七组（各组含义见上面各自的注释）。 */
+/**
+ * 打开文件夹的共用函数（#1582）：真实现是闭包里的 openFolderAt（views/shared/openFolder.ts），
+ * 由调用方（DiagnosticLogSection.ts）包一层递进来；单测喂替身。回调收 'missing' 或 'open-failed'，
+ * 成功的 'opened' 只为保住本页打开成功时那一句提示（cfg.dbgOpenedDir）。
+ */
+export interface DiagnosticLogOpenFolder {
+  (dir: string, report: (outcome: 'opened' | 'missing' | 'open-failed', detail?: string) => void): boolean;
+}
+
+/** 跑腿要的世界，一共八组（各组含义见上面各自的注释）。 */
 export interface DiagnosticLogDeps {
   host: DiagnosticLogHost;
   tell: DiagnosticLogTell;
@@ -98,6 +108,7 @@ export interface DiagnosticLogDeps {
   ui: DiagnosticLogUi;
   rules: DiagnosticLogRules;
   switchWriter: DiagnosticLogSwitchWriter;
+  openFolder: DiagnosticLogOpenFolder;
 }
 
 /** 开关拨动事件：只读 target.checked，其余一概不碰。 */
@@ -305,26 +316,24 @@ export function createDiagnosticLogOps(deps: DiagnosticLogDeps): DiagnosticLogOp
         deps.tell.flash(deps.tell.tr('cfg.dbgExportFail'), 'warn');
         return;
       }
-      try {
-        deps.host.call('wf.openFolder', { cwd: dir }).then((res) => {
-          deps.ui.set({ busy: null });
-          const okOpen = writeOk(res);
-          if (!okOpen) {
-            deps.tell.warn('wf.openFolder', 'open-path', deps.tell.hash(deps.tell.trunc('open-not-ok', 120, 'error')));
-            deps.tell.exportFail('openDir', 'open-fail', resErr(res));
-          }
-          deps.tell.flash(deps.tell.tr(okOpen ? 'cfg.dbgOpenedDir' : 'cfg.dbgOpenDirFail'), okOpen ? 'ok' : 'warn');
-        }).catch((e: unknown) => {
-          deps.tell.warn('wf.openFolder', 'open-path', deps.tell.hash(deps.tell.trunc(errText(e), 120, 'error')));
-          deps.ui.set({ busy: null });
-          deps.tell.exportFail('openDir', 'open-fail', e);
-          deps.tell.flash(deps.tell.tr('cfg.dbgOpenDirFail'), 'warn');
-        });
-      } catch (eSync) {
+      // #1582：发宿主调用这一步交给共用函数（判空、只发一次、读回包都在它那里）。
+      //   以前这里自己写 .then/.catch：宿主回 {ok:false} 那条路写得对，但四处入口里只有这一处对；
+      //   收敛之后「读回包」这条规矩只维护一份，这一页的提示文案与记账口径保持不变。
+      deps.openFolder(dir, (outcome, detail) => {
         deps.ui.set({ busy: null });
-        deps.tell.exportFail('openDir', 'open-fail', eSync);
+        if (outcome === 'opened') {
+          deps.tell.flash(deps.tell.tr('cfg.dbgOpenedDir'), 'ok');
+          return;
+        }
+        if (outcome === 'missing') {
+          deps.tell.exportFail('openDir', 'path-missing', 'path-missing');
+          deps.tell.flash(deps.tell.tr('cfg.dbgExportFail'), 'warn');
+          return;
+        }
+        deps.tell.warn('wf.openFolder', 'open-path', deps.tell.hash(deps.tell.trunc(String(detail || 'not-ok'), 120, 'error')));
+        deps.tell.exportFail('openDir', 'open-fail', detail);
         deps.tell.flash(deps.tell.tr('cfg.dbgOpenDirFail'), 'warn');
-      }
+      });
     });
   };
 

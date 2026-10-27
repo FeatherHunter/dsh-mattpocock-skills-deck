@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T10:06:53.818Z",
+  "generatedAt": "2026-10-27T13:20:58.183Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 408,
-  "gateCount": 408,
-  "attributedGates": 365,
+  "chainLength": 409,
+  "gateCount": 409,
+  "attributedGates": 366,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 17,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 600,
+  "graphFileCount": 601,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -185,6 +185,7 @@
         "src/client/views/shared/chips.ts",
         "src/client/views/shared/liquidInk.ts",
         "src/client/views/shared/md.ts",
+        "src/client/views/shared/openFolder.ts",
         "src/client/views/shared/stateKind.ts",
         "src/client/views/shared/tagsFit.ts",
         "src/client/views/shared/ticket.ts",
@@ -225,7 +226,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 81 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 82 条"
     },
     {
       "step": "node tests/verify-chain-capsule.ts",
@@ -3902,6 +3903,31 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1582-open-folder.ts",
+      "file": "tests/verify-1582-open-folder.ts",
+      "guards": [
+        "src/client/panel/Dock.ts",
+        "src/client/statusbar/StatusLogMenu.ts",
+        "src/client/views/SubworkspaceMark.ts",
+        "src/client/views/diagnosticLog/diagnosticLogActions.ts",
+        "src/client/views/shared/openFolder.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/client/panel",
+        "src/client/statusbar",
+        "src/client/views",
+        "src/client/views/diagnosticLog",
+        "src/client/views/shared",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-1583-repo-ref-fallback.ts",
@@ -10093,6 +10119,7 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-no-title.ts",
       "node tests/verify-1082-work-route-table.ts",
+      "node tests/verify-1582-open-folder.ts",
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-667-dock-header-no-brand.ts",
@@ -10122,6 +10149,7 @@
       "node tests/verify-1463-banner-recheck.ts",
       "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-1526-suggest-replay-restore.ts",
+      "node tests/verify-1582-open-folder.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -10155,6 +10183,7 @@
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-1519-detail-comments.ts",
+      "node tests/verify-1582-open-folder.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -10185,6 +10214,7 @@
     ],
     "src/client/views/diagnosticLog": [
       "node tests/verify-leaves.ts",
+      "node tests/verify-1582-open-folder.ts",
       "node tests/verify-diagnostic-log-actions.ts",
       "node tests/verify-diagnostic-log-model.ts",
       "node tests/verify-settings-debug.ts",
@@ -10232,6 +10262,7 @@
       "node tests/verify-1545-workroute-row-nav.ts",
       "node tests/verify-1548-map-row-nav.ts",
       "node tests/verify-1565-workroute-first-col-browser.ts",
+      "node tests/verify-1582-open-folder.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
@@ -11256,6 +11287,7 @@
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1526-suggest-replay-restore.ts",
+      "node tests/verify-1582-open-folder.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
@@ -11386,9 +11418,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 621,
+    "fileCount": 622,
     "dirCount": 74,
-    "coveredFileCount": 621,
+    "coveredFileCount": 622,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11553,6 +11585,7 @@
       "src/client/views/shared/chips.ts",
       "src/client/views/shared/liquidInk.ts",
       "src/client/views/shared/md.ts",
+      "src/client/views/shared/openFolder.ts",
       "src/client/views/shared/stateKind.ts",
       "src/client/views/shared/tagsFit.ts",
       "src/client/views/shared/ticket.ts",

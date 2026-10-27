@@ -7,8 +7,9 @@
  *   所以缺陷一路过关。这里把渲染这件事做成可复用的工具，让门禁与复现脚本都能真的画一遍。
  *
  * 真到什么程度：真的 jsdom、真的 React（两者都来自本仓 devDependencies）、组件源码从真源
- *   原样取出、浮层文案从真 locale 里取。只有两个东西是替身 —— Tip 与 host，因为本工具不测
- *   浮层的样式，也不真去开文件夹；它俩的调用记录会回给调用方自己去断言。
+ *   原样取出、浮层文案从真 locale 里取。只有三个东西是替身 —— Tip、host 与 openFolderAt
+ *   （#1582 起组件把打开文件夹那一步交给共用函数），因为本工具不测浮层的样式，也不真去开文件夹；
+ *   它们的调用记录会回给调用方自己去断言。
  *
  * 用法：
  *   const { renderMark } = require('./lib/render-subws-mark.js')
@@ -59,14 +60,15 @@ function keyOfFn(): any {
  * @param {string} src 组件源码文本
  * @param {object} env { React, h, keyOf, tr, Tip, host, localStorage, chainStep }
  */
-function makeMark(src: string, env: { React: any; h: any; keyOf: any; tr: any; Tip: any; host: any; localStorage: any; chainStep: any }): any {
+function makeMark(src: string, env: { React: any; h: any; keyOf: any; tr: any; Tip: any; host: any; localStorage: any; chainStep: any; openFolderAt: any }): any {
   const body = src.replace(/^\s*export\s+/gm, '')
   // 本处走 compileFn：组件要的外层名字（React、tr、Tip…）本来就一个不少地按参数传进来，不靠外层作用域。
+  // #1582：打开文件夹那一步走共用函数 openFolderAt，名字表与 env 都得多一个（见下面替身）。
   const factory = compileFn(
-    ['keyOf', 'tr', 'Tip', 'host', 'React', 'h', 'localStorage', 'chainStep'],
+    ['keyOf', 'tr', 'Tip', 'host', 'React', 'h', 'localStorage', 'chainStep', 'openFolderAt'],
     body + '\nreturn SubworkspaceMark'
   )
-  return factory(env.keyOf, env.tr, env.Tip, env.host, env.React, env.h, env.localStorage, env.chainStep)
+  return factory(env.keyOf, env.tr, env.Tip, env.host, env.React, env.h, env.localStorage, env.chainStep, env.openFolderAt)
 }
 
 /**
@@ -144,6 +146,20 @@ async function renderMark(store: any, opts?: { lang?: string; src?: string; clic
   }
   const hostCalls = []
   const host = { call: function (method, args) { hostCalls.push({ method: method, args: args }); return Promise.resolve({ ok: true }) } }
+  // #1582：组件里打开文件夹走共用函数 openFolderAt（真实现住 views/shared/openFolder.ts，由构建拼进闭包）。
+  //   这里给最小替身：替身内部真发 host.call，并照真函数的约定回一句结论 —— 既保住「点一下真的会发
+  //   wf.openFolder、cwd 是工作区根」这条断言（E9），又不把共用函数的实现细节搬进本工具。
+  const openFolderAt = function (h: any, dir: any, report: any) {
+    const value = String(dir == null ? '' : dir).trim()
+    if (!value) { try { report('missing') } catch (e) {} ; return false }
+    try {
+      h.call('wf.openFolder', { cwd: value }).then(function (res: any) {
+        if (res && res.ok === true) { try { report('opened') } catch (e) {} ; return }
+        try { report('open-failed', (res && res.error) || 'not-ok') } catch (e2) {}
+      }, function (e: any) { try { report('open-failed', e) } catch (e3) {} })
+    } catch (eSync) { try { report('open-failed', eSync) } catch (e4) {} ; return false }
+    return true
+  }
   const keyOf = keyOfFn()
   // 「已经自动展开过」这份记录按**工作区根**那把键记，与组件里读它的地方同一把键
   //   （组件读的是 subwsMarkCmpKey(root)，root 取的是快照里那个 workspaceRoot）。
@@ -157,7 +173,7 @@ async function renderMark(store: any, opts?: { lang?: string; src?: string; clic
     if (id !== 'tracker:initialized' || !o.chainInit) return null
     return { id: id, status: o.chainInit }
   }
-  const Comp = makeMark(src, { React: React, h: React.createElement, keyOf: keyOf, tr: tr, Tip: Tip, host: host, localStorage: window.localStorage, chainStep: chainStep })
+  const Comp = makeMark(src, { React: React, h: React.createElement, keyOf: keyOf, tr: tr, Tip: Tip, host: host, localStorage: window.localStorage, chainStep: chainStep, openFolderAt: openFolderAt })
 
   const container = window.document.createElement('div')
   window.document.body.appendChild(container)

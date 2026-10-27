@@ -286,6 +286,8 @@ export default {
     // ==== leaf:chips (spliced by build) ====
     // ==== leaf:hoverTip (spliced by build) ====
     // ==== leaf:tip (spliced by build) ====
+    // #1582：打开文件夹的共用函数，Dock 仓库芯片、子工作区标志、日志菜单、诊断日志页都走它。
+    // ==== leaf:openFolder (spliced by build) ====
     // 本次界面反馈需求：液态墨块，页签与列表筛选药丸共用的选中块，必须排在 leaf:tabs 之前。
     // ==== leaf:liquidInk (spliced by build) ====
     // 887：八个像素风最小组件。

@@ -12,7 +12,7 @@
 // 三个必须一起落的东西（不然这枚没字的图标等于白放）：
 //   ① 第一次在工作区的子目录会话里出现时自动展开一次浮层；用户关掉之后同一个工作区不再自动展开；
 //   ② 图标带 aria-label（读屏用户没有「悬停」这个动作，浮层里的三句话合成一句念出来）；
-//   ③ 点击打开工作区根目录（复用宿主已有的打开文件夹能力 wf.openFolder）。
+//   ③ 点击打开工作区根目录（走 #1582 收敛出来的共用打开函数 openFolderAt，它负责判空、只发一次、读回包）。
 //
 // 用户可见之处一律说大白话（#649 定的措辞纪律）：界面上不出现「子工作区」「工作区根」这类内部术语，
 // 只出现「面板数据来自工作区 …」「当前目录是它的子目录」这种人人看得懂的句子。
@@ -71,6 +71,10 @@ declare function viewFlagReadyNow(...args: any[]): any;
 declare function setViewFlagRoot(...args: any[]): any;
 /** 设置视图：按会话目录写一格状态（老口子），写成了回 true。 */
 declare function setViewFlag(...args: any[]): any;
+/** 打开文件夹的共用函数（实现住在 views/shared/openFolder.ts，由构建拼进同一个闭包，#1582）。 */
+declare function openFolderAt(...args: any[]): any;
+/** 提示条（原来这枚标志点下去什么都不说；#1582 起失败要让人看见）。 */
+declare function flash(...args: any[]): any;
 /** 进程对象，只用来在 typeof 里判平台。 */
 declare const process: any;
 
@@ -329,6 +333,20 @@ export const SubworkspaceMark = function (props: any) {
   //   React 19 对「当子元素传进来的数组」逐个要 key，**哪怕数组里只有一个元素**，缺了就在控制台留一行警告。
   //   这里原先都没带，是这枚标志自带的开发期噪音（不影响画出来的样子，但会多一行查问题时要跳过的东西）。
   // 本次界面反馈需求：子工作区标记本身能点（打开工作区根目录），它是纯图标，按用户口径只给按压态。
+  // #1582：打开那一步改走共用函数 —— 目录为空时不发宿主调用、宿主回 {ok:false} 时把原因弹出来
+  //   （以前这里是空 catch，点下去没反应也没人知道为什么）。
+  const openMarkFolder = function (e: any) {
+    try { if (e && e.preventDefault) e.preventDefault() } catch (_) {}
+    openFolderAt(host, shownRoot, function (outcome: any, detail: any) {
+      if (outcome === 'missing') {
+        try { flash(st, tr('logtoast.openNoDir'), 'warn') } catch (__) {}
+        return
+      }
+      if (outcome === 'open-failed') {
+        try { flash(st, tr('logtoast.openFailed', { err: String(detail || 'unknown').slice(0, 120) }), 'warn') } catch (__) {}
+      }
+    })
+  }
   const body = h('a', {
     href: 'javascript:void(0)',
     'data-subws-mark-link': 1,
@@ -336,10 +354,7 @@ export const SubworkspaceMark = function (props: any) {
     'data-log': 'sub.mark.open',
     'aria-label': aria,
     style: { display: 'inline-flex', alignItems: 'center', textDecoration: 'none', flex: 'none' },
-    onClick: function (e: any) {
-      try { if (e && e.preventDefault) e.preventDefault() } catch (_) {}
-      try { if (typeof host !== 'undefined' && host.call) host.call('wf.openFolder', { cwd: shownRoot }) } catch (__) {}
-    },
+    onClick: openMarkFolder,
   }, [
     h('span', {
       key: 'icon',

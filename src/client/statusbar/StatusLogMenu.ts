@@ -24,6 +24,8 @@ declare function copyText(...args: any[]): any;
 declare function flash(...args: any[]): any;
 declare function Ic(props?: any): any;
 declare function logExportFail(...args: any[]): any;
+// #1582：打开文件夹的共用函数（实现住在 views/shared/openFolder.ts，由构建拼进同一个闭包）。
+declare function openFolderAt(...args: any[]): any;
 // 值引用的组件、开关与时间常量（危险确认框、弹层、绿点开关、开关延时由构建从配置注入）。
 declare const LogDangerConfirmBox: any;
 declare const LogDangerNotice: any;
@@ -223,20 +225,20 @@ export const StatusLogDot = function (props: any) {
         say(tr('logtoast.openFailed', { err: String(got.error || 'unknown').slice(0, 120) }), 'warn')
         return
       }
-      try {
-        host.call('wf.openFolder', { cwd: got.dir }).then(function () {
-          setBusy(null)
-          setMenuOpen(false)
-        }).catch(function (e: any) {
-          setBusy(null)
-          dswsLogWarnCall('wf.openFolder', 'open-path', e); dswsLogMenuFail('openDir', 'open-fail', e)
-          say(tr('logtoast.openFailed', { err: String(((e as any) && (e as any).message) || e).slice(0, 120) }), 'warn')
-        })
-      } catch (e) {
+      // #1582：真正发宿主调用这一步交给共用函数（判空、只发一次、读回包都在它那里）。
+      //   成功照旧收起菜单；失败照旧记两笔账并弹那一句 —— 用户看到的行为与以前手写 catch 时一致，
+      //   区别是宿主回 {ok:false} 现在也会走到这里（以前 .then 不接回包，那种失败是静默的）。
+      openFolderAt(host, got.dir, function (outcome: any, detail: any) {
         setBusy(null)
-        dswsLogWarnCall('wf.openFolder', 'open-path', e); dswsLogMenuFail('openDir', 'open-fail', e)
-        say(tr('logtoast.openFailed', { err: String(((e as any) && (e as any).message) || e).slice(0, 120) }), 'warn')
-      }
+        if (outcome === 'opened') { setMenuOpen(false); return }
+        if (outcome === 'missing') {
+          dswsLogMenuFail('openDir', 'path-missing', 'path-missing')
+          say(tr('logtoast.openNoDir'), 'warn')
+          return
+        }
+        dswsLogWarnCall('wf.openFolder', 'open-path', detail); dswsLogMenuFail('openDir', 'open-fail', detail)
+        say(tr('logtoast.openFailed', { err: String(detail || 'unknown').slice(0, 120) }), 'warn')
+      })
     })
   }
   const doCopyPath = function () {
