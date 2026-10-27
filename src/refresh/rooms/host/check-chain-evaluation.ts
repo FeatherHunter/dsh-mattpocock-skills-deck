@@ -373,11 +373,10 @@ export function createDetectChain(deps: DetectChainDeps) {
         const selConsistent = (selRaw && backendId && selRaw.backendId !== backendId)
           ? Object.assign({}, selRaw, { backendId: backendId })
           : selRaw
-        // #1572 收尾：低置信线索（source 'hint'，说明文件正文提了一句）不是「明确选定」，
-        //   不能给 backendSelected 谓词撑出 explicit:<id> 这句；只有真正的显式选择/工作区文件与高置信标题算数。
-        //   线索仍然按它定下的后端求值（#1555 的决定不改），这里只纠正「来源怎么说」。
+        // #1572 收尾（方案 A）：说明文件里只有正文提及、没有标题行时，判定层不再把它当结论，
+        //   所以这里也只在 parsed 明确是高置信时才把它当「明确选定」；低置信解析只作证据，不撑 explicit:<id>。
         const parsedDecl = (selMod && selMod.explicit && selMod.explicit.parsed) || null
-        const expConsistent = (selConsistent && selConsistent.backendId && selConsistent.source !== 'hint')
+        const expConsistent = (selConsistent && selConsistent.backendId)
           ? selConsistent.backendId
           : ((parsedDecl && parsedDecl.confidence === 'high' && parsedDecl.explicitBackendId) || null)
         const sbInfo = await resolveSessionPolicy(cwd, args && args.sessionId)

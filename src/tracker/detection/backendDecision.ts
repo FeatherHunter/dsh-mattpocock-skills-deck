@@ -109,8 +109,8 @@ export type EvidenceKind = 'verdict' | 'abstain' | 'unavailable' | 'skipped'
  * 一层证据的收集结果：这一步看了什么、结论是什么、为什么。
  * 可选格只在特定层有意义：fileSource 只有工作区文件层有（user / migrated / detected / auto，
  * 用来分辨人选与搬来的记录）；multiHit / pending / ref / source 只有各房认领层有。
- * declarationConfidence 只有声明文件层有（#1572）：高置信来自标题行，低置信来自正文关键词；
- * 判定层据此把 origin 写成 declaration 或 declaration-low，两种来路不混成一句。
+ * declarationConfidence 只有声明文件层有（#1572）：高置信来自标题行；正文关键词的低置信在读取层
+ * 就记成 abstain（方案 A），不会走到 pickVerdict 产出结论，这里只作证据元数据保留。
  */
 export interface TierEvidence {
   tier: EvidenceTier
@@ -556,12 +556,9 @@ export function pickVerdict(evidence: readonly TierEvidence[]): Verdict | null {
       return { backendId: hit.backendId, source: 'explicit', origin: fileOriginOf(hit.fileSource), ref: hit.ref || null, canWrite: true, reason: '' };
     }
     if (tier === 'declaration') {
-      // #1572：低置信声明也是一条线索（沿用 #1555 的「判定层认低置信线索」），
-      // 但来源词与 origin 都如实分开写：source 是 hint（不是 explicit），origin 是 declaration-low。
-      // 读取方只要认 source / origin 就能分清「标题行写明」与「正文提了一句」，不会把猜的当成人选的。
-      const low = hit.declarationConfidence === 'low';
-      const origin = low ? 'declaration-low' : 'declaration';
-      return { backendId: hit.backendId, source: low ? 'hint' : 'explicit', origin: origin, ref: hit.ref || null, canWrite: false, reason: 'needs-generate' };
+      // #1572 收尾（方案 A）：低置信（正文提了一句）在读取层就记成 abstain，不会产出一层结论；
+      // 走到这儿的声明结论只可能是高置信标题，来源词才是 explicit、origin 才是 declaration。
+      return { backendId: hit.backendId, source: 'explicit', origin: 'declaration', ref: hit.ref || null, canWrite: false, reason: 'needs-generate' };
     }
     return {
       backendId: hit.backendId,

@@ -13,8 +13,8 @@
  *    分不出来时一律当作读不成（宁可说没查清，也不说查清了没有）。
  *  - 工作区文件层新文件优先、老 json 只作兼容读，顺序与核的读口一致。
  *  - 声明文件层与探测器、工具壳装配层共用 parseIssueTracker 一套解析器：一次读取、一份结论（#1048）。
- *  - #1572：声明读法可以交回一个带 confidence 的提示；低置信（正文里提了一句）如实标成低置信，
- *    判定层据此把 origin 写成 declaration-low，不让它冒充标题行声明。
+ *  - #1572 收尾（方案 A）：声明读法可以交回一个带 confidence 的提示；低置信（正文里提了一句）只当证据，
+ *    这一步记成 abstain（reason 带 declaration-low- 前缀），不给判定层当结论。
  */
 import * as workspaceFileNS from '../../deck/shell/workspace-anchor.js'
 // 解析器直接引内核里的实现（detection/parseIssueTracker.ts 只是同层的转出口）：
@@ -50,7 +50,7 @@ export interface FileLayerDeps {
 
 /**
  * 声明读法交回的结论（#1572）：只给 id 时按高置信处理（老钩子的形状，行为一字不变）；
- * 带上 confidence 时把解析器的置信度原样交回，低置信的结论会被判定层标成 declaration-low。
+ * 带上 confidence 时把解析器的置信度原样交回；低置信的线索只进证据、不产生结论（方案 A）。
  * reason 可选，是解析器原因用词的后半段（如 keyword-gitlab / title-github）；缺省按 hit 写。
  */
 export interface DeclarationIdHint {
@@ -155,14 +155,14 @@ export async function readDeclarationLayer(cwd: string, deps: DeclarationLayerDe
     if (typeof deps.readDeclarationId === 'function') {
       const did = await deps.readDeclarationId(cwd);
       // 老形状是直接回 id 字符串：按高置信处理，步骤行与从前一字不差。
-      // 新形状可带 confidence（#1572）：低置信的结论不冒充标题声明，reason 里带 declaration-low-，
-      // 判定层再把 origin 写成 declaration-low，读日志的人一眼能分开这两种来路。
+      // 新形状可带 confidence（#1572 收尾方案 A）：低置信的正文提及只进证据（outcome=abstain），
+      // 不冒充标题声明；reason 仍带 declaration-low- 前缀，读日志的人一眼能分开两种来路。
       const hint: DeclarationIdHint | null = (typeof did === 'string') ? (did ? { id: did } : null) : (did && typeof did === 'object' ? did : null);
       if (hint && hint.id) {
         const hintId = String(hint.id);
         const low = hint.confidence === 'low';
         const suffix = (typeof hint.reason === 'string' && hint.reason) ? hint.reason : 'hit';
-        return { id: hintId, outcome: 'hit', confidence: low ? 'low' : 'high', reason: declarationReason(hint.confidence, suffix) };
+        return { id: hintId, outcome: low ? 'abstain' : 'hit', confidence: low ? 'low' : 'high', reason: declarationReason(hint.confidence, suffix) };
       }
       return { id: '', outcome: 'miss', reason: 'declaration-missing' };
     }
@@ -183,10 +183,10 @@ export async function readDeclarationLayer(cwd: string, deps: DeclarationLayerDe
       }
       const parsed = parseIssueTracker(raw);
       if (parsed && parsed.explicitBackendId) {
-        // #1572：低置信（正文关键词）也给出 id —— 保留 #1555 的「判定层认这条线索」，
-        // 但如实标成低置信，不冒充标题声明。
+        // #1572 收尾（方案 A）：低置信（正文关键词）只作证据 —— id 仍留下便于排查，但 outcome 记 abstain，
+        // 不给判定层当结论；高置信标题照旧是 hit。
         const low = parsed.confidence === 'low';
-        return { id: parsed.explicitBackendId, outcome: 'hit', confidence: low ? 'low' : 'high', reason: declarationReason(low ? 'low' : 'high', parsed.reason) };
+        return { id: parsed.explicitBackendId, outcome: low ? 'abstain' : 'hit', confidence: low ? 'low' : 'high', reason: declarationReason(low ? 'low' : 'high', parsed.reason) };
       }
       return { id: '', outcome: 'miss', reason: 'declaration-no-backend' };
     }

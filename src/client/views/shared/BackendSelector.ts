@@ -70,10 +70,8 @@ export const BackendSelector = (props: any) => {
   const isMultiHit = curSelection && Array.isArray(curSelection.multiHit) && curSelection.multiHit.length > 1
   // #191：纯机制派生（store 内置中性兜底，不在此硬编码）
   const colorOf = typeof backendColorOf === 'function' ? backendColorOf : function () { return '' }
-  // #1572 收尾：hint 是「说明文件正文提过这个后端」的低置信线索，不是人亲手选的显式绑定；
-  //   这里单独给它一个标签，别让它掉到「回退」那一档里去。
-  const srcLabel = curSource === 'explicit' ? tr('switch.srcExplicit') : curSource === 'hint' ? tr('switch.srcHint') : curSource === 'matches' ? tr('switch.srcMatches') : tr('switch.srcFallback')
-  const srcColor = curSource === 'explicit' ? '#4ade80' : curSource === 'hint' ? '#e3b341' : curSource === 'matches' ? '#58a6ff' : '#8b8b95'
+  const srcLabel = curSource === 'explicit' ? tr('switch.srcExplicit') : curSource === 'matches' ? tr('switch.srcMatches') : tr('switch.srcFallback')
+  const srcColor = curSource === 'explicit' ? '#4ade80' : curSource === 'matches' ? '#58a6ff' : '#8b8b95'
   // #191：面板内覆盖层锚点（SwitchConfirmModal 就地渲染 absolute 相对此容器）
   return h('div', { style: { position: 'relative' } }, [
     h('div', { style:{ fontSize:11, color:'#f59e0b', background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.25)', borderRadius:6, padding:'6px 8px', marginBottom:8 } }, tr('gate.wipNotice')),

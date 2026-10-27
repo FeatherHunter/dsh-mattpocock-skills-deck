@@ -163,7 +163,7 @@ async function matches(
     // 2) issue-tracker.md 声明的是不是 GitLab：用判定层那套 parseIssueTracker，只认高置信标题行（#1555）。
     //    旧写法在整篇文本里找 /gitlab/i —— 正文里提一句「GitLab 的 MR 不参与分诊」也会被算成 GitLab 工作区；
     //    真机上它与 markdown 同时举手，详情/评论开会话判 multi-match，整批子票读不到。
-    //    低置信的正文兜底留给判定层（声明层排在自动识别之前，不需要认领再猜一遍）。
+    //    低置信的正文提及从 #1572 收尾（方案 A）起只留在判定证据里，不产生结论，认领层也不认它。
     const doc = await readWorkspaceFile(fs, cwd, 'docs/agents/issue-tracker.md')
     if (doc === null) emitReadDegraded(ctx, 'matches', 'matches:tracker-doc', Date.now() - startedAt)
     else {

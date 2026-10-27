@@ -114,13 +114,11 @@ export interface PreflightResult {
 export interface Selection {
   backendId: BackendId | null
   /**
-   * 这个结论是怎么来的：显式选择 / 命中 / 兜底 / 低置信线索，以及 `unknown`。
+   * 这个结论是怎么来的：显式选择 / 命中 / 兜底，以及 `unknown`。
    * `unknown` 表示「还不知道这个工作区是哪条目录」——它与「已决的无后端」（backendId 为 null 且 source 为 fallback）
-   * 是两件相反的事：前者等就绪后自行恢复，后者要人去面板选一次。这些取值的穷尽分支里不许把 unknown 当 fallback。
-   * `hint`（#1572 收尾）表示结论只是一条低置信线索：仓库的说明文件里没有标准标题，只是正文提到过这个后端。
-   * 判定层拿它当线索用，界面标「推测」；它不是人亲手选的，读的人不许把它当成 `explicit`。
+   * 是两件相反的事：前者等就绪后自行恢复，后者要人去面板选一次。三种取值的穷尽分支里不许把 unknown 当 fallback。
    */
-  source: 'explicit' | 'matches' | 'fallback' | 'unknown' | 'hint'
+  source: 'explicit' | 'matches' | 'fallback' | 'unknown'
   /**
    * 结论的具体出处（比 source 更细一档）：`user-file` / `file-migrated` / `file-detected` / `file-auto`
    * （工作区配置文件里的四种来源，前两种是人选、后两种是读侧兼容分支）、`declaration`（仓库里的说明文件）、

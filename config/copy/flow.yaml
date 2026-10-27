@@ -206,11 +206,9 @@ zh:
   cfg.wsUnbound: 未绑定
   cfg.wsSrcExplicit: 显式
   cfg.wsSrcAuto: 自动
-  cfg.wsSrcHint: 推测
   cfg.wsSrcUnset: 未指定
   cfg.wsSrcExplicitTip: 显式：你在右侧面板亲手选过，这次选择已经写进这个工作区里的配置文件
   cfg.wsSrcAutoTip: 自动：按仓库内容自动命中
-  cfg.wsSrcHintTip: 推测：仓库的说明文件里没有标准标题，只是正文提到过这个后端；在右侧面板确认后才会写进工作区配置文件
   cfg.wsSrcUnsetTip: 未指定：未显式且未自动命中，回退 Other
   cfg.wsNoService: workspaces 服务不可用
   cfg.wsJumpedTo: 已跳转到 {cwd}
@@ -451,11 +449,9 @@ en:
   cfg.wsUnbound: Unbound
   cfg.wsSrcExplicit: Explicit
   cfg.wsSrcAuto: Auto
-  cfg.wsSrcHint: Guessed
   cfg.wsSrcUnset: Unset
   cfg.wsSrcExplicitTip: "Explicit: you picked it in the right panel, and that choice is saved in this workspace's config file"
   cfg.wsSrcAutoTip: "Auto: matched automatically by repository content"
-  cfg.wsSrcHintTip: "Guessed: the tracker doc has no standard title and only mentions this backend in its body; confirm it in the right panel to save the choice"
   cfg.wsSrcUnsetTip: "Unset: neither explicit nor auto-matched, falls back to Other"
   cfg.wsNoService: workspaces service unavailable
   cfg.wsJumpedTo: Jumped to {cwd}

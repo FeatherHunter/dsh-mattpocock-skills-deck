@@ -115,7 +115,6 @@ zh:
   switch.targetLockedTip: 这个后端能力还不全（筹备中），先别切过去。
   switch.srcExplicit: 显式绑定
   switch.srcMatches: 自动匹配
-  switch.srcHint: 正文提及
   switch.srcFallback: 回退
   switch.multiHitBadge: ⚠ 多命中
   switch.otherOption: Other（无后端）
@@ -326,7 +325,6 @@ en:
   switch.targetLockedTip: This backend is still incomplete (in preparation) — do not switch to it yet.
   switch.srcExplicit: Explicit
   switch.srcMatches: Auto-matched
-  switch.srcHint: Body mention
   switch.srcFallback: Fallback
   switch.multiHitBadge: ⚠ Multiple matches
   switch.otherOption: Other (no backend)
