@@ -100,7 +100,7 @@ export type EvidenceOutcomeWord = 'hit' | 'miss' | 'unreadable' | 'unknown-backe
 /**
  * 这一层这一步的意义分四类，与用词的关系写在下面的构造函数里：
  * verdict（给出了可用结论）/ abstain（看过了，没有结论）/ unavailable（没看成或问不成）/ skipped（有意没看）。
- * 判断层只认 kind，日志层只认 outcome，两者不许对不上——所以只经构造函数产出。
+ * 判定层只认 kind，日志层只认 outcome，两者不许对不上——所以只经构造函数产出。
  */
 export type EvidenceKind = 'verdict' | 'abstain' | 'unavailable' | 'skipped'
 
@@ -108,6 +108,8 @@ export type EvidenceKind = 'verdict' | 'abstain' | 'unavailable' | 'skipped'
  * 一层证据的收集结果：这一步看了什么、结论是什么、为什么。
  * 可选格只在特定层有意义：fileSource 只有工作区文件层有（user / migrated / detected / auto，
  * 用来分辨人选与搬来的记录）；multiHit / pending / ref / source 只有各房认领层有。
+ * declarationConfidence 只有声明文件层有（#1572）：高置信来自标题行，低置信来自正文关键词；
+ * 判定层据此把 origin 写成 declaration 或 declaration-low，两种来路不混成一句。
  */
 export interface TierEvidence {
   tier: EvidenceTier
@@ -120,6 +122,7 @@ export interface TierEvidence {
   multiHit?: string[]
   pending?: true
   ref?: RepositoryRef | null
+  declarationConfidence?: 'high' | 'low'
 }
 
 /**
@@ -132,7 +135,7 @@ export interface DecisionCoverage {
   skipped: { tier: EvidenceTier; why: string }[]
 }
 
-/** 一份证据报告：收集层的产出，判断层的唯一输入。 */
+/** 一份证据报告：收集层的产出，判定层的唯一输入。 */
 export interface EvidenceReport {
   evidence: TierEvidence[]
   scope: EvidenceScope
@@ -153,7 +156,7 @@ export interface Verdict {
   reason: string
 }
 
-/** 判断层的产出：交给上层的选择形状 + 写权限原因 + 三态、档位、矛盾、覆盖度。 */
+/** 判定层的产出：交给上层的选择形状 + 写权限原因 + 三态、档位、矛盾、覆盖度。 */
 export interface DecisionSynthesis {
   verdict: Verdict | null
   selection: DecisionSelection
@@ -235,7 +238,7 @@ export interface DecisionConflict {
 
 /**
  * 判定出口的完整答案：选择加写权限与原因，另加内部三态、失败档位、矛盾、覆盖度与步骤轨迹。
- * origin 在这里一定有（判断层的每个分支都会填）。
+ * origin 在这里一定有（判定层的每个分支都会填）。
  */
 export type BackendDecision = Omit<Selection, 'ref' | 'origin'> & {
   origin: string
@@ -288,13 +291,24 @@ export interface FileLayerDeps {
 }
 
 /**
+ * 声明读法交回的结论（#1572）：只给 id 时按高置信处理（老钩子的形状，行为一字不变）；
+ * 带上 confidence 时把解析器的置信度原样交回，低置信的结论会被判定层标成 declaration-low。
+ * reason 可选，是解析器原因用词的后半段（如 keyword-gitlab / title-github）；缺省按 hit 写。
+ */
+export interface DeclarationIdHint {
+  id?: string | null
+  confidence?: 'high' | 'low'
+  reason?: string
+}
+
+/**
  * 读声明层要用的外部能力：调用方给了整套解析器就用它的，没给就走本文件自带的 parseIssueTracker
  *（与探测器、工具壳装配层同一套解析器，一次读取一份结论）。
  */
 export interface DeclarationLayerDeps {
   fs?: Pick<SandboxFs, 'resolve' | 'readText'> | null
   platform?: { fs?: Pick<SandboxFs, 'resolve' | 'readText'> } | null
-  readDeclarationId?: (cwd: string) => Promise<string | null>
+  readDeclarationId?: (cwd: string) => Promise<string | DeclarationIdHint | null>
   parseDeclaration?: (raw: string) => Promise<string | null> | string | null
 }
 
@@ -598,7 +612,10 @@ export function pickVerdict(evidence: readonly TierEvidence[]): Verdict | null {
       return { backendId: hit.backendId, source: 'explicit', origin: fileOriginOf(hit.fileSource), ref: hit.ref || null, canWrite: true, reason: '' };
     }
     if (tier === 'declaration') {
-      return { backendId: hit.backendId, source: 'explicit', origin: 'declaration', ref: hit.ref || null, canWrite: false, reason: 'needs-generate' };
+      // #1572：低置信声明也是结论（沿用 #1555 的「判定层认低置信线索」），
+      // 但 origin 如实写成 declaration-low，别让日志与诊断把「正文提了一句」看成「标题行声明」。
+      const origin = hit.declarationConfidence === 'low' ? 'declaration-low' : 'declaration';
+      return { backendId: hit.backendId, source: 'explicit', origin: origin, ref: hit.ref || null, canWrite: false, reason: 'needs-generate' };
     }
     return {
       backendId: hit.backendId,
@@ -795,7 +812,7 @@ function makeRun(logCtx: DecisionLogCtx | null, stepsEnabled: boolean): DecideRu
     fireConclusion(selection, cwdHash, synth) {
       if (!logCtx || typeof logCtx.fire !== 'function') return;
       // 平时只有这一条结论（#1047 决策 5）：判到哪个后端、来源、三态、档位、覆盖度、花了多久、有没有矛盾。
-      // 三态与档位**取自判断层的产出**（#1048 复核修的一处：从前这里按 winner 现推一遍，
+      // 三态与档位**取自判定层的产出**（#1048 复核修的一处：从前这里按 winner 现推一遍，
       // 于是四类「判不出来」的场景日志写 no-backend、结果写 undetermined，日志在骗人）。
       try {
         logCtx.fire('info', 'detection.detect', {
@@ -873,13 +890,30 @@ async function readFileLayer(cwd: string, deps: FileLayerDeps): Promise<FileLaye
  * 用 parseIssueTracker 解析（与探测器、工具壳装配层同一套解析器 —— 一次读取、一份结论，#1048）。
  * 读失败同样与「文件不存在」分开。
  */
-interface DeclarationLayerRead { id: string; outcome: string; reason: string }
+interface DeclarationLayerRead { id: string; outcome: string; reason: string; confidence?: 'high' | 'low' }
+
+/**
+ * 步骤原因：低置信声明带 declaration-low- 前缀，高置信照旧 declaration-（#1572）。
+ * 两处读法共用这一处拼法，避免一个改前缀、另一个忘改，日志里出现两种来路。
+ */
+function declarationReason(confidence: 'high' | 'low' | undefined, suffix: string): string {
+  return (confidence === 'low' ? 'declaration-low-' : 'declaration-') + suffix
+}
 
 async function readDeclarationLayer(cwd: string, deps: DeclarationLayerDeps): Promise<DeclarationLayerRead> {
   try {
     if (typeof deps.readDeclarationId === 'function') {
       const did = await deps.readDeclarationId(cwd);
-      if (typeof did === 'string' && did) return { id: did, outcome: 'hit', reason: 'declaration-hit' };
+      // 老形状是直接回 id 字符串：按高置信处理，步骤行与从前一字不差。
+      // 新形状可带 confidence（#1572）：低置信的结论不冒充标题声明，reason 里带 declaration-low-，
+      // 判定层再把 origin 写成 declaration-low，读日志的人一眼能分开这两种来路。
+      const hint: DeclarationIdHint | null = (typeof did === 'string') ? (did ? { id: did } : null) : (did && typeof did === 'object' ? did : null);
+      if (hint && hint.id) {
+        const hintId = String(hint.id);
+        const low = hint.confidence === 'low';
+        const suffix = (typeof hint.reason === 'string' && hint.reason) ? hint.reason : 'hit';
+        return { id: hintId, outcome: 'hit', confidence: low ? 'low' : 'high', reason: declarationReason(hint.confidence, suffix) };
+      }
       return { id: '', outcome: 'miss', reason: 'declaration-missing' };
     }
     const fsSvc = deps.fs || (deps.platform && deps.platform.fs) || null;
@@ -898,7 +932,12 @@ async function readDeclarationLayer(cwd: string, deps: DeclarationLayerDeps): Pr
         return { id: '', outcome: 'miss', reason: 'declaration-no-backend' };
       }
       const parsed = parseIssueTracker(raw);
-      if (parsed && parsed.explicitBackendId) return { id: parsed.explicitBackendId, outcome: 'hit', reason: 'declaration-' + parsed.reason };
+      if (parsed && parsed.explicitBackendId) {
+        // #1572：低置信（正文关键词）也给出 id —— 保留 #1555 的「判定层认这条线索」，
+        // 但如实标成低置信，不冒充标题声明。
+        const low = parsed.confidence === 'low';
+        return { id: parsed.explicitBackendId, outcome: 'hit', confidence: low ? 'low' : 'high', reason: declarationReason(low ? 'low' : 'high', parsed.reason) };
+      }
       return { id: '', outcome: 'miss', reason: 'declaration-no-backend' };
     }
   } catch (eDecl) {
@@ -948,7 +987,7 @@ async function collectEvidence(cwd: string, deps: DecideBackendDeps, scope: Evid
   const declRead = await readDeclarationLayer(cwd, deps);
   let declEvidence: TierEvidence;
   if (declRead.outcome === 'hit') {
-    if (isKnown(registry, declRead.id)) declEvidence = verdictEvidence('declaration', declRead.id, declRead.reason);
+    if (isKnown(registry, declRead.id)) declEvidence = verdictEvidence('declaration', declRead.id, declRead.reason, { declarationConfidence: declRead.confidence || 'high' });
     else declEvidence = unavailableEvidence('declaration', 'unknown-backend', 'declaration-backend-unknown', declRead.id);
   } else if (declRead.outcome === 'error') {
     declEvidence = unavailableEvidence('declaration', 'error', declRead.reason);
@@ -1138,7 +1177,7 @@ export async function decideBackend(root: unknown, deps: DecideBackendDeps = {})
   return {
     backendId: synth.selection.backendId,
     source: synth.selection.source,
-    // 契约里 origin 是可选的，判断层每一支都写了它；这里的兜底只为满足类型，
+    // 契约里 origin 是可选的，判定层每一支都写了它；这里的兜底只为满足类型，
     // 真要走到空串说明上游漏写，门禁里有多处断言盯着 origin 的具体取值。
     origin: String(synth.selection.origin || ''),
     canWrite: synth.canWrite,

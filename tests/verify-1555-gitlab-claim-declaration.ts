@@ -113,12 +113,14 @@ async function main() {
   // ══════════════════════════════════════════════════════════════════════
   console.log('\n== ③ 与判定层同答案：同一个文档，matches 与 parseIssueTracker 一致 ==')
 
-  for (const [label, doc] of [
+  // ③ 与 #1572 不变式共用这一份文档清单：同一批文档只写一遍，避免两处清单慢慢漂开。
+  const parityDocs: Array<[string, string]> = [
     ['GitHub + 正文提及', DECL_GITHUB_WITH_MENTION],
     ['Local Markdown + 正文提及', DECL_LOCAL_WITH_MENTION],
     ['标题 GitLab', DECL_GITLAB],
     ['随包 GitLab 模板', DECL_GITLAB_TEMPLATE],
-  ] as Array<[string, string]>) {
+  ]
+  for (const [label, doc] of parityDocs) {
     const parsed = parseIssueTracker(normalizeTrackerText(doc))
     const declaredByTitle = !!(parsed && parsed.confidence === 'high' && parsed.explicitBackendId === 'gitlab')
     const got = await claimedByDoc(doc)
@@ -131,6 +133,18 @@ async function main() {
     check(!!(parsed && parsed.confidence === 'low' && parsed.explicitBackendId === 'gitlab'), '无标题旧文档：解析器照旧给 low 的 gitlab（判定层用得到）')
     check((await claimedByDoc(DECL_NO_TITLE_WITH_GITLAB)) === false, '无标题旧文档：认领不拿 low 兜底当身份（否则正文提一句就多命中）')
   }
+  // #1572 加的一条不变式：认领一旦为真，判定层对同一份文档必须是高置信 ——
+  // 两层可以「判定认低置信线索、认领不认」，但不能反过来让认领比判定更宽。
+  // 同时数一遍真被认领的文档数：这份清单里至少要有两份认领为真，否则循环一行断言都不跑，
+  // 门禁就成了永远变绿的摆设。
+  let claimedCount = 0
+  for (const [label, doc] of parityDocs.concat([['无标题旧文档', DECL_NO_TITLE_WITH_GITLAB]] as Array<[string, string]>)) {
+    if ((await claimedByDoc(doc)) !== true) continue
+    claimedCount += 1
+    const parsed = parseIssueTracker(normalizeTrackerText(doc))
+    check(!!(parsed && parsed.confidence === 'high'), '认领为真 ⇒ 判定层高置信（' + label + '，#1572）')
+  }
+  check(claimedCount >= 2, '#1572 不变式不是空转：清单里至少两份文档真被认领', 'claimed=' + claimedCount)
 
   // ══════════════════════════════════════════════════════════════════════
   console.log('\n== ④ 现场事实照旧：远端地址与 git remote 兜底 ==')
