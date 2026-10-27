@@ -179,12 +179,13 @@ export interface WorktreesModel {
   current: WorktreeRowModel | null
   others: WorktreeRowModel[]
   othersCount: number
+  /** 需要人工确认的工作树数量：筛选标签与摘要行都用它，不在视图层重新数一遍。 */
+  abnormalCount: number
   empty: boolean
-  boundaryText: string
-  hint: string
+  /** 面板边界说明：一句话说清「这里有什么、面板能做什么」，由视图放进可关闭的提示条里。 */
+  notice: string
   aiLabel: string
   aiEnabled: boolean
-  hintNote: string | null
 }
 
 export interface PanelModel {
@@ -653,12 +654,11 @@ export function worktreesOf(base: SessionBase, state: SessionState): WorktreesMo
     current,
     others,
     othersCount: others.length,
+    abnormalCount: abnormal,
     empty: others.length === 0,
-    boundaryText: COPY.worktrees.boundary,
-    hint: COPY.worktrees.hint,
+    notice: `${COPY.worktrees.scope}${COPY.worktrees.boundary}`,
     aiLabel: COPY.worktrees.ai,
     aiEnabled: abnormal > 0,
-    hintNote: abnormal > 0 ? `有 ${abnormal} 棵工作树需要人工确认，原因写在对应行的状态里。` : null,
   }
 }
 

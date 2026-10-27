@@ -80,7 +80,7 @@ export function resultBanner(result: ResultMessage): HTMLElement {
     sync: '同步动作',
     reload: '重新读取',
     commit: '提交',
-    copy: '复制路径',
+    copy: '复制',
     ai: 'AI 交接',
   }
   return h(
@@ -133,12 +133,7 @@ export function patchBlock(lines: PatchLine[]): HTMLElement {
   return block
 }
 
-/** 一行小字说明，常用在按钮下面解释禁用原因或键盘操作。 */
+/** 一行小字说明，常用在按钮下面解释禁用原因或边界条件。 */
 export function note(text: string, tone: 'muted' | 'warn' | 'error' | 'ok' = 'muted'): HTMLElement {
   return h('span', { class: `note note-${tone}`, text })
-}
-
-/** 键盘提示：kbd 语义与实际按键一致，不写「快捷键」这类空话。 */
-export function keycap(label: string): HTMLElement {
-  return h('kbd', { class: 'keycap', text: label })
 }

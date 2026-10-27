@@ -340,7 +340,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
     case 'copy':
       return withResult({ ...state, copiedPath: action.path }, {
         tone: 'ok',
-        text: `路径已复制：${action.path}`,
+        text: `已复制：${action.path}`,
         detail: '复制走的是浏览器的剪贴板；面板不会因此发起任何 git 操作。',
         source: 'copy',
       })

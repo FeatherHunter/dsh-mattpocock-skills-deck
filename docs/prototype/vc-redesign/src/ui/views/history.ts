@@ -8,7 +8,7 @@
 import type { CommitDetailModel, CommitRowModel, HistoryModel } from '../../domain/select'
 import { COPY } from '../../data/copy'
 import { icon, h } from '../dom'
-import { emptyState, keycap, note, patchBlock } from '../primitives'
+import { emptyState, note, patchBlock } from '../primitives'
 
 export function renderHistory(model: HistoryModel): HTMLElement {
   if (model.detail !== null) return renderDetail(model.detail)
@@ -92,8 +92,7 @@ function renderDetail(detail: CommitDetailModel): HTMLElement {
       class: 'back-btn',
       attrs: { type: 'button', 'data-focus-key': 'history-back' },
       dataset: { action: 'history-back' },
-    }, icon('back', 13), h('span', { text: COPY.actions.back })),
-    h('span', { class: 'detail-head-hint' }, keycap('Esc'), h('span', { text: COPY.history.backHint })))
+    }, icon('back', 13), h('span', { text: COPY.actions.back })))
   view.append(head)
 
   const scroll = h('div', { class: 'detail-scroll' })

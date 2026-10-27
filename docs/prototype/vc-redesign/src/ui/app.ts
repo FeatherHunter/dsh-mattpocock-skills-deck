@@ -19,12 +19,12 @@ import { createSessionState, reduce } from '../domain/session'
 import type { Action, OpName, SessionBase, SessionState } from '../domain/session'
 import { panelModelOf } from '../domain/select'
 import type { PanelModel } from '../domain/select'
-import { clear, h } from './dom'
-import { keycap } from './primitives'
+import { clear, h, icon } from './dom'
 import { renderRail } from './rail'
 import { renderChanges } from './views/changes'
 import { renderHistory } from './views/history'
 import { renderWorktrees } from './views/worktrees'
+import type { WorktreeFilter, WorktreesViewOptions } from './views/worktrees'
 
 /** 面板可拖宽度的四个演示档位；真实实现的区间是 300 到 520。 */
 const PANEL_WIDTHS = [300, 380, 460, 520] as const
@@ -83,6 +83,11 @@ export function mount(root: HTMLElement): void {
   let resultRef: SessionState['result'] = null
   let opTimer: number | null = null
   let pendingOp: OpName | null = null
+  // 工作树视图的三个局部界面状态：筛选、说明条是否展开、展开的是哪一棵。
+  // 它们不进入状态机：真实页面里这类状态也只属于这一次浏览，不参与任何判定。
+  let wtFilter: WorktreeFilter = 'all'
+  let wtNoteOpen = true
+  let expandedWorktree: string | null = null
 
   const liveRegion = h('div', { class: 'sr-only', attrs: { 'aria-live': 'polite', role: 'status' } })
   root.append(liveRegion)
@@ -154,13 +159,13 @@ export function mount(root: HTMLElement): void {
     const frame = buildFrame(model)
     clear(root)
     root.append(liveRegion, frame)
-    setTimeout(() => {
-      restoreScroll(options.scroll ?? null)
-      restoreFocus(options.focusKey ?? null, options.focusCaret ?? null)
-      scheduleResultDismiss()
-      liveRegion.textContent = state.result === null ? '' : state.result.text
-      options.post?.()
-    }, 0)
+    // 同步恢复滚动与焦点：整块重画后先让布局落定再赋值，不会出现「先被夹到 0、下一帧再跳回」的抖动。
+    restoreScroll(options.scroll ?? null)
+    restoreFocus(options.focusKey ?? null, options.focusCaret ?? null)
+    positionPopconfirm()
+    scheduleResultDismiss()
+    liveRegion.textContent = state.result === null ? '' : state.result.text
+    options.post?.()
   }
 
   function scheduleResultDismiss(): void {
@@ -235,7 +240,7 @@ export function mount(root: HTMLElement): void {
     panel.append(renderRail(model.rail, railResult))
     panel.append(renderTabs(model))
     panel.append(h('main', { class: 'panel-body', attrs: { id: 'view-panel', role: 'tabpanel', 'aria-labelledby': `tab-${state.view}` } }, renderActiveView(model)))
-    if (model.confirm !== null) panel.append(renderConfirm(model))
+    if (model.confirm !== null) panel.append(renderPopconfirm(model.confirm))
     frame.append(panel)
     stage.append(frame)
 
@@ -279,35 +284,62 @@ export function mount(root: HTMLElement): void {
   function renderActiveView(model: PanelModel): HTMLElement {
     switch (state.view) {
       case 'commits': return renderHistory(model.history)
-      case 'worktrees': return renderWorktrees(model.worktrees, model.result !== null && model.result.source === 'ai' ? model.result : null)
+      case 'worktrees': {
+        const options: WorktreesViewOptions = {
+          filter: wtFilter,
+          noticeOpen: wtNoteOpen,
+          expandedPath: expandedWorktree,
+        }
+        return renderWorktrees(model.worktrees, model.result !== null && model.result.source === 'ai' ? model.result : null, options)
+      }
       default: return renderChanges(model.changes, model.result !== null && model.result.source === 'commit' ? model.result : null)
     }
   }
 
-  function renderConfirm(model: PanelModel): HTMLElement {
-    const confirm = model.confirm
-    if (confirm === null) return h('div', {})
-    return h('div', { class: 'confirm-wrap' },
-      h('div', { class: 'confirm', attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'confirm-title' } },
-        h('h3', { class: 'confirm-title', id: 'confirm-title', text: confirm.title }),
-        h('p', { class: 'confirm-body', text: confirm.body }),
-        h('ul', { class: 'confirm-files' }, ...confirm.files.slice(0, 6).map((path) => h('li', { class: 'mono', text: path }))),
-        // 列表只列前六个；还有更多时必须说出来，否则读者会以为工作区只有这六个文件。
-        confirm.files.length > 6
-          ? h('p', { class: 'confirm-more', text: `另有 ${confirm.files.length - 6} 个文件没有列出。` })
-          : null,
-        h('div', { class: 'confirm-actions' },
-          h('span', { class: 'confirm-hint' }, keycap('Esc'), h('span', { text: '取消' })),
-          h('button', {
-            class: 'btn btn-md',
-            attrs: { type: 'button', 'data-focus-key': 'confirm-cancel' },
-            dataset: { action: 'confirm-cancel' },
-          }, confirm.cancelLabel),
-          h('button', {
-            class: 'btn btn-primary btn-md',
-            attrs: { type: 'button', 'data-focus-key': 'confirm-continue' },
-            dataset: { action: 'confirm-continue' },
-          }, confirm.continueLabel))))
+  /**
+   * 拉取前的提醒做成贴着「拉取」按钮的浮层，不再铺满面板：
+   * 遮罩会把列表和工作树一起盖住，读的人还得先找哪块被压暗了才敢点。
+   * 浮层的位置在重画之后按按钮的实际矩形算，宽度变化与换皮肤都不用另写一套定位。
+   */
+  function renderPopconfirm(confirm: { title: string; body: string; files: string[]; continueLabel: string; cancelLabel: string }): HTMLElement {
+    return h('div', {
+      class: 'popconfirm',
+      attrs: { role: 'dialog', 'aria-labelledby': 'confirm-title', 'aria-describedby': 'confirm-body' },
+    },
+    h('div', { class: 'popconfirm-card' },
+      h('h3', { class: 'popconfirm-title', id: 'confirm-title', text: confirm.title }),
+      h('p', { class: 'popconfirm-body', id: 'confirm-body', text: confirm.body }),
+      h('p', { class: 'popconfirm-meta', text: COPY.rail.confirmFiles(confirm.files.length) }),
+      h('div', { class: 'popconfirm-actions' },
+        h('button', {
+          class: 'btn btn-md',
+          attrs: { type: 'button', 'data-focus-key': 'confirm-cancel' },
+          dataset: { action: 'confirm-cancel' },
+        }, confirm.cancelLabel),
+        h('button', {
+          class: 'btn btn-primary btn-md',
+          attrs: { type: 'button', 'data-focus-key': 'confirm-continue' },
+          dataset: { action: 'confirm-continue' },
+        }, confirm.continueLabel))))
+  }
+
+  /** 把浮层摆在「拉取」按钮正下方；底部放不下时翻到按钮上方，左右都夹在面板内。 */
+  function positionPopconfirm(): void {
+    const pop = root.querySelector<HTMLElement>('.popconfirm')
+    if (pop === null) return
+    const anchor = root.querySelector<HTMLElement>('[data-action="pull"]')
+    const panel = root.querySelector<HTMLElement>('.panel')
+    if (anchor === null || panel === null) return
+    const a = anchor.getBoundingClientRect()
+    const p = panel.getBoundingClientRect()
+    const width = pop.offsetWidth
+    const height = pop.offsetHeight
+    const left = Math.min(Math.max(a.left - p.left, 8), Math.max(8, p.width - width - 8))
+    let top = a.bottom - p.top + 8
+    if (top + height > p.height - 8) top = Math.max(8, a.top - p.top - height - 8)
+    pop.style.left = `${left}px`
+    pop.style.top = `${top}px`
+    pop.classList.add('is-placed')
   }
 
   /** 忙态标记到框架上：让「整块重画之后 aria-busy 还在」这件事有唯一出口。 */
@@ -407,6 +439,11 @@ export function mount(root: HTMLElement): void {
         return
       case 'pull': {
         if (model.rail.pull.disabled) return
+        // 已经打开时再点一次等于取消：同一个按钮负责开与关，符合浮层的预期。
+        if (state.confirmPull !== null) {
+          dispatch({ type: 'pull-confirm-close' }, { focusKey: 'pull' })
+          return
+        }
         if (model.rail.pull.warn) {
           dispatch({ type: 'pull-confirm-open', files: dirtyFiles(), dirtyCount: dirtyFiles().length }, { focusKey: 'confirm-cancel' })
           return
@@ -471,6 +508,32 @@ export function mount(root: HTMLElement): void {
       case 'ai-worktrees':
         dispatch({ type: 'ai-worktrees' }, { focusKey: 'ai-worktrees' })
         return
+      case 'wt-filter': {
+        const filter = el.dataset.filter === 'abnormal' ? 'abnormal' : 'all'
+        if (filter === wtFilter) return
+        wtFilter = filter
+        repaint({ focusKey: `wt-filter-${filter}` })
+        return
+      }
+      case 'wt-note-close':
+        wtNoteOpen = false
+        repaint({ focusKey: 'wt-note-open' })
+        return
+      case 'wt-note-open':
+        wtNoteOpen = true
+        repaint({ focusKey: 'wt-note-open' })
+        return
+      case 'wt-expand': {
+        const path = el.dataset.path ?? ''
+        expandedWorktree = expandedWorktree === path ? null : path
+        repaint({ focusKey: `wt-expand:${path}` })
+        return
+      }
+      case 'worktree-command': {
+        const command = el.dataset.command ?? ''
+        void copyPath(command)
+        return
+      }
       case 'confirm-cancel':
         dispatch({ type: 'pull-confirm-close' }, { focusKey: 'pull' })
         return
@@ -491,8 +554,50 @@ export function mount(root: HTMLElement): void {
     if (!(target instanceof HTMLTextAreaElement) && !(target instanceof HTMLInputElement)) return
     if (event instanceof InputEvent && event.isComposing) return
     const field = target.dataset.field
-    if (field === 'message') dispatch({ type: 'message', value: target.value }, { focusKey: 'commit-message' })
-    else if (field === 'history-query') dispatch({ type: 'history-query', value: target.value }, { focusKey: 'history-query' })
+    if (field === 'message') {
+      const next = reduce(state, { type: 'message', value: target.value }, base)
+      if (next === state) return
+      state = next
+      syncComposer()
+    } else if (field === 'history-query') {
+      dispatch({ type: 'history-query', value: target.value }, { focusKey: 'history-query' })
+    }
+  }
+
+  /**
+   * 提交说明每敲一个字只更新「按钮能不能点、原因写什么」这两处，不整块重画。
+   * 整块重画会把列表滚动位置重新赋一遍，滚动条刚好见底时看起来就像列表在抖；
+   * 而输入说明本来就不该动列表。滚动搜索框仍走整块重画，因为筛选结果确实变了。
+   */
+  function syncComposer(): void {
+    const composer = root.querySelector<HTMLElement>('.composer')
+    if (composer === null) return
+    const current = panelModelOf(base, state, Date.now()).changes.composer
+    const buttonEl = composer.querySelector<HTMLButtonElement>('.btn-primary')
+    if (buttonEl !== null) {
+      const busy = current.busy
+      buttonEl.disabled = current.disabled || busy
+      buttonEl.classList.toggle('is-disabled', current.disabled && !busy)
+      buttonEl.setAttribute('aria-busy', busy ? 'true' : 'false')
+      buttonEl.title = current.disabledReason ?? ''
+      const label = buttonEl.querySelector<HTMLElement>('.btn-label')
+      if (label !== null) label.textContent = busy ? COPY.busy.commit : COPY.changes.commitLabel(current.stagedCount)
+    }
+
+    const submitRow = composer.querySelector<HTMLElement>('.composer-submit')
+    const reason = composer.querySelector<HTMLElement>('.composer-reason')
+    if (current.disabledReason === null) {
+      if (reason !== null) reason.remove()
+      return
+    }
+    if (reason !== null) {
+      const text = reason.querySelector<HTMLElement>('span')
+      if (text !== null) text.textContent = current.disabledReason
+      return
+    }
+    if (submitRow !== null) {
+      submitRow.before(h('div', { class: 'composer-reason' }, icon('alert', 12), h('span', { text: current.disabledReason })))
+    }
   }
 
   function onKeyDown(event: KeyboardEvent): void {
@@ -505,24 +610,6 @@ export function mount(root: HTMLElement): void {
       return
     }
     if (state.confirmPull !== null) return
-
-    // Esc 是提交详情里「返回列表」的第二条通路；列表页上按 Esc 什么都不做。
-    if (event.key === 'Escape' && state.view === 'commits') {
-      if (panelModelOf(base, state, Date.now()).history.detail !== null) {
-        event.preventDefault()
-        backToHistoryList()
-        return
-      }
-    }
-
-    if (target instanceof HTMLTextAreaElement && target.dataset.field === 'message' && event.key === 'Enter' && !event.shiftKey) {
-      const model = panelModelOf(base, state, Date.now())
-      if (!model.changes.composer.disabled) {
-        event.preventDefault()
-        runOp('commit')
-      }
-      return
-    }
 
     const row = target.closest<HTMLElement>('[data-action="toggle-file"], [data-action="history-open"], [data-action="history-file"]')
     if (row !== null && (event.key === 'Enter' || event.key === ' ')) {
@@ -549,6 +636,13 @@ export function mount(root: HTMLElement): void {
   root.addEventListener('click', onClick)
   root.addEventListener('input', onChange)
   root.addEventListener('keydown', onKeyDown)
+  // 浮层之外的任何点击都收起拉取提醒；点「拉取」按钮本身不在这里收，交给 onClick 的开关逻辑。
+  document.addEventListener('click', (event) => {
+    if (state.confirmPull === null) return
+    const target = event.target
+    if (target instanceof Element && (target.closest('.popconfirm') !== null || target.closest('[data-action="pull"]') !== null)) return
+    dispatch({ type: 'pull-confirm-close' }, { focusKey: 'pull' })
+  })
   root.addEventListener('focusin', (event) => {
     const target = event.target
     if (target instanceof HTMLElement && target.dataset.focusKey !== undefined) lastFocusKey = target.dataset.focusKey
@@ -568,7 +662,15 @@ export function mount(root: HTMLElement): void {
     const themeParam = params.get('theme')
     if (themeParam === 'dark' || themeParam === 'light') theme = themeParam
     embed = params.get('embed') === '1'
+    // 工作树视图的三个局部状态也给深链：评审要截「只看异常」或「展开某一棵」时不用手点。
+    const wt = params.get('wt')
+    if (wt === 'abnormal' || wt === 'all') wtFilter = wt
+    if (params.get('wtnote') === '0') wtNoteOpen = false
     if (params.get('demo') === '1') state = reduce(state, { type: 'demo-worktrees' }, base)
+    if (params.get('wtexpand') === '1') {
+      const first = panelModelOf(base, state, Date.now()).worktrees.others.find((row) => row.abnormal)
+      expandedWorktree = first === undefined ? null : first.path
+    }
     const view = params.get('view')
     if (view === 'changes' || view === 'commits' || view === 'worktrees') {
       state = reduce(state, { type: 'view', view }, base)

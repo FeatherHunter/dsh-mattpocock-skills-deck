@@ -12,7 +12,7 @@ import type { ChangesModel, FileRowModel, GroupModel } from '../../domain/select
 import { COPY } from '../../data/copy'
 import type { ResultMessage } from '../../domain/session'
 import { icon, h } from '../dom'
-import { badgeLetter, button, chip, emptyState, keycap, note, patchBlock, resultBanner } from '../primitives'
+import { badgeLetter, button, chip, emptyState, note, patchBlock, resultBanner } from '../primitives'
 
 export function renderChanges(model: ChangesModel, result: ResultMessage | null): HTMLElement {
   const view = h('div', { class: 'view view-changes' })
@@ -73,10 +73,6 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
 
   const hint = h('div', { class: 'composer-hint', id: 'commit-hint' },
     h('span', { class: 'hint-text', text: model.composer.hint }))
-  // 禁用时不能还教「按 Enter 提交」：键盘提示只在真的能提交时出现。
-  if (!model.composer.disabled) {
-    hint.append(h('span', { class: 'hint-key' }, keycap('Enter'), h('span', { text: ' 提交' })))
-  }
 
   const commitButton = button({
     label: COPY.changes.commitLabel(model.composer.stagedCount),
@@ -90,12 +86,15 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
     focusKey: 'commit',
   })
 
-  const actionRow = h('div', { class: 'composer-actions' },
-    model.composer.disabledReason === null ? null : h('div', { class: 'composer-reason', id: 'commit-reason' },
-      icon('alert', 12), h('span', { text: model.composer.disabledReason })),
-    commitButton)
-
-  composer.append(stagedLine, textarea, hint, actionRow)
+  // 提交按钮固定贴在右下角：它上面是禁用原因（有才画），再上面是说明输入与静态提示。
+  // 原因单独成行，按钮就不会因为文案长短被挤来挤去，位置在 300 到 520 各档都一样。
+  const submitRow = h('div', { class: 'composer-submit' }, commitButton)
+  composer.append(stagedLine, textarea, hint)
+  if (model.composer.disabledReason !== null) {
+    composer.append(h('div', { class: 'composer-reason', id: 'commit-reason' },
+      icon('alert', 12), h('span', { text: model.composer.disabledReason })))
+  }
+  composer.append(submitRow)
   view.append(filterRow, list, composer)
   return view
 }

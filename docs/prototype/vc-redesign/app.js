@@ -15,7 +15,7 @@
       themeDark: "\u6DF1\u8272",
       themeLight: "\u6D45\u8272",
       toolsNote: "\u5199\u64CD\u4F5C\u53EA\u6539\u754C\u9762\u72B6\u6001\uFF0C\u4E0D\u4F1A\u6539\u52A8\u4ED3\u5E93",
-      hint: "Tab \u79FB\u52A8\u7126\u70B9\uFF0C\u65B9\u5411\u952E\u5207\u6362\u9875\u7B7E\uFF0CEnter \u5C55\u5F00\u884C\u6216\u6253\u5F00\u63D0\u4EA4\uFF0CEsc \u8FD4\u56DE\u63D0\u4EA4\u5386\u53F2",
+      hint: "\u70B9\u9875\u7B7E\u5207\u6362\u89C6\u56FE\uFF0C\u70B9\u6587\u4EF6\u884C\u5C55\u5F00\u9010\u884C\u5DEE\u5F02",
       capturedAt: (when) => `\u6570\u636E\u91C7\u96C6\u4E8E ${when}`
     },
     views: {
@@ -49,7 +49,8 @@
       detached: "\u6E38\u79BB\u5934\u6307\u9488",
       syncUnknown: "\u540C\u6B65\u72B6\u6001\u8BFB\u4E0D\u5230",
       confirmTitle: "\u5DE5\u4F5C\u533A\u6709\u672A\u63D0\u4EA4\u6539\u52A8\uFF0C\u4ECD\u8981\u62C9\u53D6\uFF1F",
-      confirmBody: "\u53EA\u5FEB\u8FDB\u7684\u62C9\u53D6\u5728\u672C\u5730\u6539\u52A8\u4E0E\u8FDC\u7AEF\u65B0\u63D0\u4EA4\u4E0D\u76F8\u4EA4\u65F6\u80FD\u6210\u529F\uFF1B\u76F8\u4EA4\u65F6\u547D\u4EE4\u4F1A\u62D2\u7EDD\u5E76\u70B9\u540D\u6587\u4EF6\u3002",
+      confirmBody: "\u53EA\u5FEB\u8FDB\u7684\u62C9\u53D6\u5728\u672C\u5730\u6539\u52A8\u4E0E\u8FDC\u7AEF\u65B0\u63D0\u4EA4\u4E0D\u76F8\u4EA4\u65F6\u80FD\u6210\u529F\uFF1B\u76F8\u4EA4\u65F6\u4F1A\u88AB\u62D2\u7EDD\u5E76\u70B9\u540D\u6587\u4EF6\u3002",
+      confirmFiles: (n) => `\u6D89\u53CA ${n} \u4E2A\u6587\u4EF6`,
       confirmContinue: "\u7EE7\u7EED\u62C9\u53D6",
       confirmCancel: "\u53D6\u6D88"
     },
@@ -111,7 +112,7 @@
       patchTitle: "\u76F8\u5BF9\u4E0A\u4E00\u6B21\u63D0\u4EA4\u7684\u53D8\u66F4\uFF08\u542B\u5DF2\u6682\u5B58\u4E0E\u672A\u6682\u5B58\uFF09",
       patchNote: "\u539F\u578B\u53EA\u6F14\u793A\u9010\u884C\u5DEE\u5F02\u7684\u6392\u7248\uFF0C\u8FD9\u4E00\u5C0F\u6BB5\u662F\u793A\u4F8B\u8865\u4E01\uFF0C\u4E0D\u6765\u81EA\u4ED3\u5E93\u3002",
       messagePlaceholder: "\u5199\u4E00\u53E5\u63D0\u4EA4\u8BF4\u660E",
-      messageHint: "\u4EC5\u63D0\u4EA4\u5DF2\u6682\u5B58\u5185\u5BB9\uFF0C\u672A\u6682\u5B58\u7684\u6587\u4EF6\u4E0D\u4F1A\u88AB\u63D0\u4EA4\u3002\u6309 Enter \u63D0\u4EA4\u3002",
+      messageHint: "\u4EC5\u63D0\u4EA4\u5DF2\u6682\u5B58\u7684\u5185\u5BB9\uFF0C\u672A\u6682\u5B58\u7684\u6587\u4EF6\u4E0D\u4F1A\u88AB\u63D0\u4EA4\u3002",
       commitLabel: (n) => `\u63D0\u4EA4 ${n} \u4E2A\u6587\u4EF6`,
       commitNoStaged: "\u6682\u5B58\u533A\u6CA1\u6709\u6587\u4EF6",
       commitNoMessage: "\u586B\u5199\u63D0\u4EA4\u8BF4\u660E\u540E\u5373\u53EF\u63D0\u4EA4",
@@ -138,9 +139,7 @@
       filesEmpty: "\u8BE5\u63D0\u4EA4\u672A\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\u3002",
       fileTypeUnknown: "\u8BE5\u63D0\u4EA4\u53EA\u8FD4\u56DE\u8DEF\u5F84\u4E0E\u589E\u5220\u884C\u6570\uFF0C\u65E0\u6CD5\u5224\u5B9A\u53D8\u66F4\u7C7B\u578B",
       diffSampleNote: "\u539F\u578B\u53EA\u6F14\u793A\u9010\u884C\u5DEE\u5F02\u7684\u6392\u7248\uFF0C\u5C55\u5F00\u540E\u662F\u793A\u4F8B\u8865\u4E01\uFF0C\u4E0D\u6765\u81EA\u8BE5\u63D0\u4EA4\u3002",
-      mergeChip: "\u5408\u5E76",
-      /* 详情头右侧是给键帽配的短句，键帽本身已经写了 Esc，这里不要再重复「按 Esc」。 */
-      backHint: "\u8FD4\u56DE"
+      mergeChip: "\u5408\u5E76"
     },
     worktrees: {
       current: "\u5F53\u524D\u5DE5\u4F5C\u6811",
@@ -154,8 +153,24 @@
       bare: "\u88F8\u4ED3\u5E93",
       noBranch: "\u65E0\u5206\u652F",
       copyPath: "\u590D\u5236\u8DEF\u5F84",
-      hint: "\u8FD9\u91CC\u5217\u51FA\u5F53\u524D git \u8BB0\u5F55\u7684\u5176\u4ED6\u5DE5\u4F5C\u6811\uFF1B\u672A\u68C0\u51FA\u7684\u672C\u5730\u5206\u652F\u4E0D\u5728\u8FD9\u91CC\u3002",
+      copyCommand: "\u590D\u5236\u547D\u4EE4",
+      scope: "\u8FD9\u91CC\u5217\u51FA\u5F53\u524D git \u8BB0\u5F55\u7684\u5176\u4ED6\u5DE5\u4F5C\u6811\uFF1B\u672A\u68C0\u51FA\u7684\u672C\u5730\u5206\u652F\u4E0D\u5728\u8FD9\u91CC\u3002",
       boundary: "\u521B\u5EFA\u4E0E\u79FB\u9664\u5DE5\u4F5C\u6811\u8BF7\u5728\u7EC8\u7AEF\u5B8C\u6210\uFF0C\u9762\u677F\u53EA\u8BFB\u3002",
+      noticeClose: "\u5173\u95ED\u8FD9\u6761\u8BF4\u660E",
+      noticeOpen: "\u663E\u793A\u5DE5\u4F5C\u6811\u8303\u56F4\u8BF4\u660E",
+      filterAll: "\u5168\u90E8",
+      filterAbnormal: "\u9700\u8981\u5904\u7406",
+      filterEmpty: "\u6CA1\u6709\u7B26\u5408\u7B5B\u9009\u6761\u4EF6\u7684\u5DE5\u4F5C\u6811\u3002",
+      expand: "\u5C55\u5F00\u8BE6\u60C5",
+      collapse: "\u6536\u8D77\u8BE6\u60C5",
+      detailPath: "\u5B8C\u6574\u8DEF\u5F84",
+      detailBranch: "\u5206\u652F",
+      detailHead: "\u5F53\u524D\u63D0\u4EA4",
+      detailState: "\u72B6\u6001\u8BF4\u660E",
+      detailCommand: "\u5728\u7EC8\u7AEF\u91CC\u6267\u884C\u8FD9\u6761\u547D\u4EE4\uFF0C\u9762\u677F\u4E0D\u4F1A\u66FF\u4F60\u6267\u884C\u3002",
+      commandPrune: "git worktree prune",
+      commandUnlock: (path) => `git worktree unlock "${path}"`,
+      commandRemove: (path) => `git worktree remove "${path}"`,
       ai: "\u8BA9 AI \u5904\u7406\u5F02\u5E38\u5DE5\u4F5C\u6811"
     },
     result: {
@@ -166,7 +181,6 @@
       pullFastForward: "\u5DF2\u5FEB\u8FDB\u81F3\u8FDC\u7AEF\u6700\u65B0\u3002",
       fetched: "\u66F4\u65B0\u5B8C\u6210\uFF1A\u8FDC\u7AEF\u4F9D\u636E\u5DF2\u5237\u65B0\u3002",
       reloaded: "\u5DF2\u91CD\u65B0\u8BFB\u53D6\u3002",
-      pathCopied: (path) => `\u8DEF\u5F84\u5DF2\u590D\u5236\uFF1A${path}`,
       aiWorktrees: "\u539F\u578B\u91CC AI \u4EA4\u63A5\u53EA\u505A\u63D0\u793A\uFF1B\u771F\u5B9E\u9875\u9762\u4F1A\u6253\u5F00\u672C\u673A DSH \u4F1A\u8BDD\uFF0C\u5E76\u5E26\u4E0A\u5F02\u5E38\u5DE5\u4F5C\u6811\u6E05\u5355\u3002",
       simulated: "\u539F\u578B\u6A21\u62DF"
     },
@@ -3966,7 +3980,7 @@
       case "copy":
         return withResult({ ...state, copiedPath: action.path }, {
           tone: "ok",
-          text: `\u8DEF\u5F84\u5DF2\u590D\u5236\uFF1A${action.path}`,
+          text: `\u5DF2\u590D\u5236\uFF1A${action.path}`,
           detail: "\u590D\u5236\u8D70\u7684\u662F\u6D4F\u89C8\u5668\u7684\u526A\u8D34\u677F\uFF1B\u9762\u677F\u4E0D\u4F1A\u56E0\u6B64\u53D1\u8D77\u4EFB\u4F55 git \u64CD\u4F5C\u3002",
           source: "copy"
         });
@@ -4424,12 +4438,11 @@
       current,
       others,
       othersCount: others.length,
+      abnormalCount: abnormal,
       empty: others.length === 0,
-      boundaryText: COPY.worktrees.boundary,
-      hint: COPY.worktrees.hint,
+      notice: `${COPY.worktrees.scope}${COPY.worktrees.boundary}`,
       aiLabel: COPY.worktrees.ai,
-      aiEnabled: abnormal > 0,
-      hintNote: abnormal > 0 ? `\u6709 ${abnormal} \u68F5\u5DE5\u4F5C\u6811\u9700\u8981\u4EBA\u5DE5\u786E\u8BA4\uFF0C\u539F\u56E0\u5199\u5728\u5BF9\u5E94\u884C\u7684\u72B6\u6001\u91CC\u3002` : null
+      aiEnabled: abnormal > 0
     };
   }
   function panelModelOf(base, state, nowMs) {
@@ -4562,7 +4575,7 @@
       sync: "\u540C\u6B65\u52A8\u4F5C",
       reload: "\u91CD\u65B0\u8BFB\u53D6",
       commit: "\u63D0\u4EA4",
-      copy: "\u590D\u5236\u8DEF\u5F84",
+      copy: "\u590D\u5236",
       ai: "AI \u4EA4\u63A5"
     };
     return h(
@@ -4612,9 +4625,6 @@
   }
   function note(text, tone = "muted") {
     return h("span", { class: `note note-${tone}`, text });
-  }
-  function keycap(label) {
-    return h("kbd", { class: "keycap", text: label });
   }
 
   // docs/prototype/vc-redesign/src/ui/rail.ts
@@ -4793,9 +4803,6 @@
       { class: "composer-hint", id: "commit-hint" },
       h("span", { class: "hint-text", text: model.composer.hint })
     );
-    if (!model.composer.disabled) {
-      hint.append(h("span", { class: "hint-key" }, keycap("Enter"), h("span", { text: " \u63D0\u4EA4" })));
-    }
     const commitButton = button({
       label: COPY.changes.commitLabel(model.composer.stagedCount),
       kind: "primary",
@@ -4807,18 +4814,17 @@
       action: "commit",
       focusKey: "commit"
     });
-    const actionRow = h(
-      "div",
-      { class: "composer-actions" },
-      model.composer.disabledReason === null ? null : h(
+    const submitRow = h("div", { class: "composer-submit" }, commitButton);
+    composer.append(stagedLine, textarea, hint);
+    if (model.composer.disabledReason !== null) {
+      composer.append(h(
         "div",
         { class: "composer-reason", id: "commit-reason" },
         icon("alert", 12),
         h("span", { text: model.composer.disabledReason })
-      ),
-      commitButton
-    );
-    composer.append(stagedLine, textarea, hint, actionRow);
+      ));
+    }
+    composer.append(submitRow);
     view.append(filterRow, list, composer);
     return view;
   }
@@ -5002,8 +5008,7 @@
         class: "back-btn",
         attrs: { type: "button", "data-focus-key": "history-back" },
         dataset: { action: "history-back" }
-      }, icon("back", 13), h("span", { text: COPY.actions.back })),
-      h("span", { class: "detail-head-hint" }, keycap("Esc"), h("span", { text: COPY.history.backHint }))
+      }, icon("back", 13), h("span", { text: COPY.actions.back }))
     );
     view.append(head);
     const scroll = h("div", { class: "detail-scroll" });
@@ -5080,84 +5085,221 @@
   }
 
   // docs/prototype/vc-redesign/src/ui/views/worktrees.ts
-  function renderWorktrees(model, result) {
+  function renderWorktrees(model, result, options) {
     const view = h("div", { class: "view view-worktrees" });
-    if (model.current !== null) {
-      const current = model.current;
+    if (options.noticeOpen) view.append(renderNotice(model));
+    view.append(renderCurrent(model.current));
+    view.append(renderHead(model, options, options.noticeOpen));
+    const rows = options.filter === "abnormal" ? model.others.filter((row) => row.abnormal) : model.others;
+    const list = h("div", { class: "wt-list" });
+    if (model.empty) {
+      list.append(emptyState(COPY.worktrees.empty, COPY.worktrees.emptyHint));
+    } else if (rows.length === 0) {
+      list.append(emptyState(COPY.worktrees.filterEmpty, null));
+    } else {
+      for (const row of rows) list.append(renderRow(row, options.expandedPath === row.path));
+    }
+    view.append(list);
+    if (model.aiEnabled) {
       view.append(h(
-        "section",
-        { class: "wt-current" },
-        h(
-          "div",
-          { class: "wt-current-head" },
-          chip(COPY.worktrees.current, "ok", { small: true }),
-          h("span", { class: "wt-name mono", text: current.name, title: current.path }),
-          current.branch === null ? null : h("span", { class: "wt-branch", attrs: { title: `\u5206\u652F ${current.branch}` } }, h("span", { class: "mono", text: current.branch }))
-        ),
-        h("div", { class: "wt-current-path mono", text: current.path, title: current.path })
+        "div",
+        { class: "wt-foot" },
+        button({
+          label: model.aiLabel,
+          kind: "secondary",
+          size: "sm",
+          icon: "alert",
+          action: "ai-worktrees",
+          focusKey: "ai-worktrees"
+        })
       ));
     }
+    if (result !== null) view.append(resultBanner(result));
+    return view;
+  }
+  function renderNotice(model) {
+    return h(
+      "aside",
+      { class: "wt-notice", attrs: { role: "note" } },
+      h("span", { class: "wt-notice-text", text: model.notice }),
+      h("button", {
+        class: "wt-notice-close",
+        attrs: { type: "button", "aria-label": COPY.worktrees.noticeClose, title: COPY.worktrees.noticeClose },
+        dataset: { action: "wt-note-close" }
+      }, "\xD7")
+    );
+  }
+  function renderCurrent(row) {
+    if (row === null) return h("div", {});
+    const head = h(
+      "div",
+      { class: "wt-current-head" },
+      chip(COPY.worktrees.current, "ok", { small: true }),
+      h("span", { class: "wt-name mono", text: row.name, title: row.path }),
+      row.branch === null ? chip(COPY.worktrees.noBranch, "muted", { small: true }) : h("span", { class: "wt-branch", attrs: { title: `\u5206\u652F ${row.branch}` } }, h("span", { class: "mono", text: row.branch })),
+      h("button", {
+        class: "icon-btn wt-current-copy",
+        attrs: {
+          type: "button",
+          title: COPY.worktrees.copyPath,
+          "aria-label": `\u590D\u5236\u5F53\u524D\u5DE5\u4F5C\u6811\u8DEF\u5F84\uFF1A${row.path}`,
+          "data-focus-key": `wt-copy:${row.path}`
+        },
+        dataset: { action: "worktree-copy", path: row.path }
+      }, icon("copy", 14))
+    );
+    return h(
+      "section",
+      { class: "wt-current" },
+      head,
+      h("div", { class: "wt-current-path mono", text: row.path, title: row.path })
+    );
+  }
+  function renderHead(model, options, noticeOpen) {
     const head = h(
       "div",
       { class: "wt-head" },
       h("span", { class: "wt-head-title", text: "\u5176\u4ED6\u5DE5\u4F5C\u6811" }),
       h("span", { class: "wt-head-count", text: String(model.othersCount) }),
-      h("span", { class: "wt-head-unit", text: COPY.units.worktree })
+      h("span", { class: "wt-head-unit", text: COPY.units.worktree }),
+      model.abnormalCount > 0 ? h("span", { class: "wt-head-alert", text: `\u5176\u4E2D ${model.abnormalCount} \u68F5\u9700\u8981\u5904\u7406` }) : null
     );
-    view.append(head);
-    const list = h("div", { class: "wt-list" });
-    if (model.empty) {
-      list.append(emptyState(COPY.worktrees.empty, COPY.worktrees.emptyHint));
-    } else {
-      for (const row of model.others) {
-        const rowNode = h("div", { class: `wt-row${row.abnormal ? " is-abnormal" : ""}` });
-        const nameRow = h(
+    const filters = h("div", { class: "wt-filters", attrs: { role: "group", "aria-label": "\u6309\u72B6\u6001\u7B5B\u9009\u5DE5\u4F5C\u6811" } });
+    filters.append(filterChip(COPY.worktrees.filterAll, String(model.othersCount), options.filter === "all", "all"));
+    if (model.abnormalCount > 0) {
+      filters.append(filterChip(COPY.worktrees.filterAbnormal, String(model.abnormalCount), options.filter === "abnormal", "abnormal"));
+    }
+    head.append(filters);
+    if (!noticeOpen) {
+      head.append(h("button", {
+        class: "icon-btn wt-notice-open",
+        attrs: {
+          type: "button",
+          title: COPY.worktrees.noticeOpen,
+          "aria-label": COPY.worktrees.noticeOpen,
+          "data-focus-key": "wt-note-open"
+        },
+        dataset: { action: "wt-note-open" }
+      }, "?"));
+    }
+    return head;
+  }
+  function filterChip(label, count, on, filter) {
+    return h(
+      "button",
+      {
+        class: `filter-chip${filter === "abnormal" ? " tone-error" : " tone-ok"}${on ? " is-on" : ""}`,
+        attrs: {
+          type: "button",
+          "aria-pressed": on ? "true" : "false",
+          "data-focus-key": `wt-filter-${filter}`
+        },
+        dataset: { action: "wt-filter", filter }
+      },
+      h("span", { class: "filter-label", text: label }),
+      h("span", { class: "filter-count", text: count })
+    );
+  }
+  function renderRow(row, expanded) {
+    const rowNode = h("div", {
+      class: `wt-row${row.abnormal ? " is-abnormal" : ""}${expanded ? " is-open" : ""}`
+    });
+    const nameRow = h(
+      "div",
+      { class: "wt-name-row" },
+      h("span", { class: "wt-name mono", text: row.name, title: row.path }),
+      row.branch === null ? chip(COPY.worktrees.noBranch, "muted", { small: true }) : h("span", { class: "wt-branch", attrs: { title: `\u5206\u652F ${row.branch}` } }, h("span", { class: "mono", text: row.branch })),
+      h("span", { class: "wt-oid mono", text: row.oidShort, title: "\u8FD9\u4E2A\u5DE5\u4F5C\u6811\u5F53\u524D\u6307\u5411\u7684\u63D0\u4EA4\u77ED\u53F7" })
+    );
+    const pathRow = h(
+      "div",
+      { class: "wt-path" },
+      h("span", { class: "wt-path-dir mono", text: row.dir }),
+      h("span", { class: "wt-path-name mono", text: row.name })
+    );
+    const stateRow = h("div", { class: "wt-states" });
+    for (const state of row.states) stateRow.append(chip(state.label, state.tone, { small: true, title: state.detail ?? void 0 }));
+    const actions = h(
+      "div",
+      { class: "wt-actions" },
+      h("button", {
+        class: "icon-btn",
+        attrs: {
+          type: "button",
+          title: COPY.worktrees.copyPath,
+          "aria-label": `${COPY.worktrees.copyPath}\uFF1A${row.path}`,
+          "data-focus-key": `wt-copy:${row.path}`
+        },
+        dataset: { action: "worktree-copy", path: row.path }
+      }, icon("copy", 14)),
+      h("button", {
+        class: `icon-btn wt-expander${expanded ? " is-open" : ""}`,
+        attrs: {
+          type: "button",
+          "aria-expanded": expanded ? "true" : "false",
+          "aria-label": expanded ? COPY.worktrees.collapse : COPY.worktrees.expand,
+          title: expanded ? COPY.worktrees.collapse : COPY.worktrees.expand,
+          "data-focus-key": `wt-expand:${row.path}`
+        },
+        dataset: { action: "wt-expand", path: row.path }
+      }, icon("chevron", 12))
+    );
+    rowNode.append(h("div", { class: "wt-main" }, nameRow, pathRow, stateRow), actions);
+    const wrap = h("div", { class: "wt-row-wrap" }, rowNode);
+    if (expanded) wrap.append(renderDetail2(row));
+    return wrap;
+  }
+  function renderDetail2(row) {
+    const detail = h("div", { class: `wt-detail${row.abnormal ? " is-abnormal" : ""}` });
+    const fact = (label, value, mono) => h(
+      "div",
+      { class: "wt-fact" },
+      h("span", { class: "wt-fact-k", text: label }),
+      h("span", { class: `wt-fact-v${mono ? " mono" : ""}`, text: value, title: value })
+    );
+    detail.append(
+      fact(COPY.worktrees.detailPath, row.path, true),
+      fact(COPY.worktrees.detailBranch, row.branch ?? COPY.worktrees.noBranch, false),
+      fact(COPY.worktrees.detailHead, row.oidShort, true)
+    );
+    for (const state of row.states) {
+      if (state.detail === null) continue;
+      detail.append(fact(state.label, state.detail, false));
+    }
+    const commands = commandsFor(row);
+    if (commands.length > 0) {
+      const block = h("div", { class: "wt-commands" });
+      for (const item of commands) {
+        block.append(h(
           "div",
-          { class: "wt-name-row" },
-          h("span", { class: "wt-name mono", text: row.name, title: row.path }),
-          row.branch === null ? chip(COPY.worktrees.noBranch, "muted", { small: true }) : h("span", { class: "wt-branch", attrs: { title: `\u5206\u652F ${row.branch}` } }, h("span", { class: "mono", text: row.branch })),
-          h("span", { class: "wt-oid mono", text: row.oidShort, title: "\u8FD9\u4E2A\u5DE5\u4F5C\u6811\u5F53\u524D\u6307\u5411\u7684\u63D0\u4EA4\u77ED\u53F7" }),
+          { class: "wt-command" },
+          h("span", { class: "wt-command-label", text: item.label }),
+          h("code", { class: "wt-command-text mono", text: item.command, title: item.command }),
           h("button", {
-            class: "icon-btn",
+            class: "wt-command-copy",
             attrs: {
               type: "button",
-              title: COPY.worktrees.copyPath,
-              "aria-label": `${COPY.worktrees.copyPath}\uFF1A${row.path}`,
-              "data-focus-key": `wt-copy:${row.path}`
+              "aria-label": `\u590D\u5236\u547D\u4EE4\uFF1A${item.command}`,
+              title: COPY.worktrees.copyCommand,
+              "data-focus-key": `wt-command:${row.path}:${item.label}`
             },
-            dataset: { action: "worktree-copy", path: row.path }
-          }, icon("copy", 14))
-        );
-        const stateRow = h("div", { class: "wt-states" });
-        for (const state of row.states) stateRow.append(chip(state.label, state.tone, { small: true, title: state.detail ?? void 0 }));
-        const pathRow = h(
-          "div",
-          { class: "wt-path" },
-          h("span", { class: "wt-path-dir mono", text: row.dir }),
-          h("span", { class: "wt-path-name mono", text: row.name })
-        );
-        rowNode.append(nameRow, pathRow, stateRow);
-        list.append(rowNode);
+            dataset: { action: "worktree-command", command: item.command }
+          }, COPY.worktrees.copyCommand)
+        ));
       }
+      detail.append(block, h("p", { class: "wt-command-note", text: COPY.worktrees.detailCommand }));
     }
-    view.append(list);
-    const foot = h("div", { class: "wt-foot" });
-    foot.append(note(model.hint));
-    if (model.hintNote !== null) foot.append(note(model.hintNote, "warn"));
-    foot.append(note(model.boundaryText));
-    if (model.aiEnabled) {
-      foot.append(button({
-        label: model.aiLabel,
-        kind: "secondary",
-        size: "sm",
-        icon: "alert",
-        action: "ai-worktrees",
-        focusKey: "ai-worktrees"
-      }));
+    return detail;
+  }
+  function commandsFor(row) {
+    const labels = new Set(row.states.map((state) => state.label));
+    if (labels.has(COPY.worktrees.prunable)) {
+      return [{ label: "\u6E05\u7406\u4E0D\u5B58\u5728\u7684\u76EE\u5F55\u8BB0\u5F55", command: COPY.worktrees.commandPrune }];
     }
-    view.append(foot);
-    if (result !== null) view.append(resultBanner(result));
-    return view;
+    if (labels.has(COPY.worktrees.locked)) {
+      return [{ label: "\u89E3\u9664\u5360\u7528", command: COPY.worktrees.commandUnlock(row.path) }];
+    }
+    return [{ label: "\u79FB\u9664\u8FD9\u68F5\u5DE5\u4F5C\u6811", command: COPY.worktrees.commandRemove(row.path) }];
   }
 
   // docs/prototype/vc-redesign/src/ui/app.ts
@@ -5182,6 +5324,9 @@
     let resultRef = null;
     let opTimer = null;
     let pendingOp = null;
+    let wtFilter = "all";
+    let wtNoteOpen = true;
+    let expandedWorktree = null;
     const liveRegion = h("div", { class: "sr-only", attrs: { "aria-live": "polite", role: "status" } });
     root2.append(liveRegion);
     function snapshotFocus() {
@@ -5239,13 +5384,12 @@
       const frame = buildFrame(model);
       clear(root2);
       root2.append(liveRegion, frame);
-      setTimeout(() => {
-        restoreScroll(options.scroll ?? null);
-        restoreFocus(options.focusKey ?? null, options.focusCaret ?? null);
-        scheduleResultDismiss();
-        liveRegion.textContent = state.result === null ? "" : state.result.text;
-        options.post?.();
-      }, 0);
+      restoreScroll(options.scroll ?? null);
+      restoreFocus(options.focusKey ?? null, options.focusCaret ?? null);
+      positionPopconfirm();
+      scheduleResultDismiss();
+      liveRegion.textContent = state.result === null ? "" : state.result.text;
+      options.post?.();
     }
     function scheduleResultDismiss() {
       if (state.result === null) {
@@ -5324,7 +5468,7 @@
       panel.append(renderRail(model.rail, railResult));
       panel.append(renderTabs(model));
       panel.append(h("main", { class: "panel-body", attrs: { id: "view-panel", role: "tabpanel", "aria-labelledby": `tab-${state.view}` } }, renderActiveView(model)));
-      if (model.confirm !== null) panel.append(renderConfirm(model));
+      if (model.confirm !== null) panel.append(renderPopconfirm(model.confirm));
       frame.append(panel);
       stage.append(frame);
       const foot = h(
@@ -5374,30 +5518,34 @@
       switch (state.view) {
         case "commits":
           return renderHistory(model.history);
-        case "worktrees":
-          return renderWorktrees(model.worktrees, model.result !== null && model.result.source === "ai" ? model.result : null);
+        case "worktrees": {
+          const options = {
+            filter: wtFilter,
+            noticeOpen: wtNoteOpen,
+            expandedPath: expandedWorktree
+          };
+          return renderWorktrees(model.worktrees, model.result !== null && model.result.source === "ai" ? model.result : null, options);
+        }
         default:
           return renderChanges(model.changes, model.result !== null && model.result.source === "commit" ? model.result : null);
       }
     }
-    function renderConfirm(model) {
-      const confirm = model.confirm;
-      if (confirm === null) return h("div", {});
+    function renderPopconfirm(confirm) {
       return h(
         "div",
-        { class: "confirm-wrap" },
+        {
+          class: "popconfirm",
+          attrs: { role: "dialog", "aria-labelledby": "confirm-title", "aria-describedby": "confirm-body" }
+        },
         h(
           "div",
-          { class: "confirm", attrs: { role: "dialog", "aria-modal": "true", "aria-labelledby": "confirm-title" } },
-          h("h3", { class: "confirm-title", id: "confirm-title", text: confirm.title }),
-          h("p", { class: "confirm-body", text: confirm.body }),
-          h("ul", { class: "confirm-files" }, ...confirm.files.slice(0, 6).map((path) => h("li", { class: "mono", text: path }))),
-          // 列表只列前六个；还有更多时必须说出来，否则读者会以为工作区只有这六个文件。
-          confirm.files.length > 6 ? h("p", { class: "confirm-more", text: `\u53E6\u6709 ${confirm.files.length - 6} \u4E2A\u6587\u4EF6\u6CA1\u6709\u5217\u51FA\u3002` }) : null,
+          { class: "popconfirm-card" },
+          h("h3", { class: "popconfirm-title", id: "confirm-title", text: confirm.title }),
+          h("p", { class: "popconfirm-body", id: "confirm-body", text: confirm.body }),
+          h("p", { class: "popconfirm-meta", text: COPY.rail.confirmFiles(confirm.files.length) }),
           h(
             "div",
-            { class: "confirm-actions" },
-            h("span", { class: "confirm-hint" }, keycap("Esc"), h("span", { text: "\u53D6\u6D88" })),
+            { class: "popconfirm-actions" },
             h("button", {
               class: "btn btn-md",
               attrs: { type: "button", "data-focus-key": "confirm-cancel" },
@@ -5411,6 +5559,23 @@
           )
         )
       );
+    }
+    function positionPopconfirm() {
+      const pop = root2.querySelector(".popconfirm");
+      if (pop === null) return;
+      const anchor = root2.querySelector('[data-action="pull"]');
+      const panel = root2.querySelector(".panel");
+      if (anchor === null || panel === null) return;
+      const a = anchor.getBoundingClientRect();
+      const p = panel.getBoundingClientRect();
+      const width = pop.offsetWidth;
+      const height = pop.offsetHeight;
+      const left = Math.min(Math.max(a.left - p.left, 8), Math.max(8, p.width - width - 8));
+      let top = a.bottom - p.top + 8;
+      if (top + height > p.height - 8) top = Math.max(8, a.top - p.top - height - 8);
+      pop.style.left = `${left}px`;
+      pop.style.top = `${top}px`;
+      pop.classList.add("is-placed");
     }
     function exitBusyLabel(wrap, model) {
       if (model.busy !== null || model.rail.reloading) wrap.setAttribute("aria-busy", "true");
@@ -5495,6 +5660,10 @@
           return;
         case "pull": {
           if (model.rail.pull.disabled) return;
+          if (state.confirmPull !== null) {
+            dispatch({ type: "pull-confirm-close" }, { focusKey: "pull" });
+            return;
+          }
           if (model.rail.pull.warn) {
             dispatch({ type: "pull-confirm-open", files: dirtyFiles(), dirtyCount: dirtyFiles().length }, { focusKey: "confirm-cancel" });
             return;
@@ -5568,6 +5737,32 @@
         case "ai-worktrees":
           dispatch({ type: "ai-worktrees" }, { focusKey: "ai-worktrees" });
           return;
+        case "wt-filter": {
+          const filter = el.dataset.filter === "abnormal" ? "abnormal" : "all";
+          if (filter === wtFilter) return;
+          wtFilter = filter;
+          repaint({ focusKey: `wt-filter-${filter}` });
+          return;
+        }
+        case "wt-note-close":
+          wtNoteOpen = false;
+          repaint({ focusKey: "wt-note-open" });
+          return;
+        case "wt-note-open":
+          wtNoteOpen = true;
+          repaint({ focusKey: "wt-note-open" });
+          return;
+        case "wt-expand": {
+          const path = el.dataset.path ?? "";
+          expandedWorktree = expandedWorktree === path ? null : path;
+          repaint({ focusKey: `wt-expand:${path}` });
+          return;
+        }
+        case "worktree-command": {
+          const command = el.dataset.command ?? "";
+          void copyPath(command);
+          return;
+        }
         case "confirm-cancel":
           dispatch({ type: "pull-confirm-close" }, { focusKey: "pull" });
           return;
@@ -5587,8 +5782,43 @@
       if (!(target instanceof HTMLTextAreaElement) && !(target instanceof HTMLInputElement)) return;
       if (event instanceof InputEvent && event.isComposing) return;
       const field = target.dataset.field;
-      if (field === "message") dispatch({ type: "message", value: target.value }, { focusKey: "commit-message" });
-      else if (field === "history-query") dispatch({ type: "history-query", value: target.value }, { focusKey: "history-query" });
+      if (field === "message") {
+        const next = reduce(state, { type: "message", value: target.value }, base);
+        if (next === state) return;
+        state = next;
+        syncComposer();
+      } else if (field === "history-query") {
+        dispatch({ type: "history-query", value: target.value }, { focusKey: "history-query" });
+      }
+    }
+    function syncComposer() {
+      const composer = root2.querySelector(".composer");
+      if (composer === null) return;
+      const current = panelModelOf(base, state, Date.now()).changes.composer;
+      const buttonEl = composer.querySelector(".btn-primary");
+      if (buttonEl !== null) {
+        const busy = current.busy;
+        buttonEl.disabled = current.disabled || busy;
+        buttonEl.classList.toggle("is-disabled", current.disabled && !busy);
+        buttonEl.setAttribute("aria-busy", busy ? "true" : "false");
+        buttonEl.title = current.disabledReason ?? "";
+        const label = buttonEl.querySelector(".btn-label");
+        if (label !== null) label.textContent = busy ? COPY.busy.commit : COPY.changes.commitLabel(current.stagedCount);
+      }
+      const submitRow = composer.querySelector(".composer-submit");
+      const reason = composer.querySelector(".composer-reason");
+      if (current.disabledReason === null) {
+        if (reason !== null) reason.remove();
+        return;
+      }
+      if (reason !== null) {
+        const text = reason.querySelector("span");
+        if (text !== null) text.textContent = current.disabledReason;
+        return;
+      }
+      if (submitRow !== null) {
+        submitRow.before(h("div", { class: "composer-reason" }, icon("alert", 12), h("span", { text: current.disabledReason })));
+      }
     }
     function onKeyDown(event) {
       const target = event.target;
@@ -5599,21 +5829,6 @@
         return;
       }
       if (state.confirmPull !== null) return;
-      if (event.key === "Escape" && state.view === "commits") {
-        if (panelModelOf(base, state, Date.now()).history.detail !== null) {
-          event.preventDefault();
-          backToHistoryList();
-          return;
-        }
-      }
-      if (target instanceof HTMLTextAreaElement && target.dataset.field === "message" && event.key === "Enter" && !event.shiftKey) {
-        const model = panelModelOf(base, state, Date.now());
-        if (!model.changes.composer.disabled) {
-          event.preventDefault();
-          runOp("commit");
-        }
-        return;
-      }
       const row = target.closest('[data-action="toggle-file"], [data-action="history-open"], [data-action="history-file"]');
       if (row !== null && (event.key === "Enter" || event.key === " ")) {
         event.preventDefault();
@@ -5637,6 +5852,12 @@
     root2.addEventListener("click", onClick);
     root2.addEventListener("input", onChange);
     root2.addEventListener("keydown", onKeyDown);
+    document.addEventListener("click", (event) => {
+      if (state.confirmPull === null) return;
+      const target = event.target;
+      if (target instanceof Element && (target.closest(".popconfirm") !== null || target.closest('[data-action="pull"]') !== null)) return;
+      dispatch({ type: "pull-confirm-close" }, { focusKey: "pull" });
+    });
     root2.addEventListener("focusin", (event) => {
       const target = event.target;
       if (target instanceof HTMLElement && target.dataset.focusKey !== void 0) lastFocusKey = target.dataset.focusKey;
@@ -5648,7 +5869,14 @@
       const themeParam = params.get("theme");
       if (themeParam === "dark" || themeParam === "light") theme = themeParam;
       embed = params.get("embed") === "1";
+      const wt = params.get("wt");
+      if (wt === "abnormal" || wt === "all") wtFilter = wt;
+      if (params.get("wtnote") === "0") wtNoteOpen = false;
       if (params.get("demo") === "1") state = reduce(state, { type: "demo-worktrees" }, base);
+      if (params.get("wtexpand") === "1") {
+        const first = panelModelOf(base, state, Date.now()).worktrees.others.find((row) => row.abnormal);
+        expandedWorktree = first === void 0 ? null : first.path;
+      }
       const view = params.get("view");
       if (view === "changes" || view === "commits" || view === "worktrees") {
         state = reduce(state, { type: "view", view }, base);
