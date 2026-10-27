@@ -16,12 +16,16 @@ import { whenText } from '../data/format'
 import { buildPrototypeData } from '../data/screen'
 import type { PrototypeData } from '../data/screen'
 import { createSessionState, reduce } from '../domain/session'
-import type { Action, OpName, SessionBase, SessionState } from '../domain/session'
+import type { Action, BranchSub, OpName, SessionBase, SessionState, WorktreePending } from '../domain/session'
+import { buildHandoff } from '../domain/handoff'
+import type { HandoffKind } from '../domain/handoff'
 import { panelModelOf } from '../domain/select'
 import type { PanelModel } from '../domain/select'
 import { clear, h, icon } from './dom'
 import { renderRail } from './rail'
 import { renderChanges } from './views/changes'
+import { renderBranches } from './views/branches'
+import { renderHandoffSheet } from './views/handoff'
 import { renderHistory } from './views/history'
 import { renderWorktrees } from './views/worktrees'
 import type { WorktreeFilter, WorktreesViewOptions } from './views/worktrees'
@@ -71,8 +75,9 @@ export function mount(root: HTMLElement): void {
     commitFiles: data.commitFiles,
     totalCommits: data.commits.length,
     branch: data.branch,
+    branches: data.branches.map((row) => ({ ...row, current: row.name === data.branch })),
   }
-  let state: SessionState = createSessionState(base.screen, Date.now())
+  let state: SessionState = createSessionState(base, Date.now())
   let panelWidth: number = DEFAULT_WIDTH
   let theme: Theme = DEFAULT_THEME
   /** 嵌入模式只留面板本体，用于截图与嵌进文档；顶部栏与页脚仍然存在，只是隐藏。 */
@@ -88,6 +93,11 @@ export function mount(root: HTMLElement): void {
   let wtFilter: WorktreeFilter = 'all'
   let wtNoteOpen = true
   let expandedWorktree: string | null = null
+  // AI 交接浮层：打开的是哪种意图、打开时停在哪儿、这一次是否已经复制。
+  // 三者都只属于本次浏览，不参与任何 git 判定，所以不进状态机。
+  let handoffKind: HandoffKind | null = null
+  let handoffFocus = ''
+  let handoffCopied = false
 
   const liveRegion = h('div', { class: 'sr-only', attrs: { 'aria-live': 'polite', role: 'status' } })
   root.append(liveRegion)
@@ -119,12 +129,13 @@ export function mount(root: HTMLElement): void {
   }
 
   function captureScroll(): ScrollSnapshot | null {
-    const selector = '.changes-scroll, .history-scroll, .detail-scroll'
+    const selector = '.changes-scroll, .history-scroll, .detail-scroll, .branch-scroll'
     const el = root.querySelector<HTMLElement>(selector)
     if (el === null) return null
     const scrollSelector = el.classList.contains('changes-scroll')
       ? '.changes-scroll'
-      : el.classList.contains('history-scroll') ? '.history-scroll' : '.detail-scroll'
+      : el.classList.contains('history-scroll') ? '.history-scroll'
+        : el.classList.contains('branch-scroll') ? '.branch-scroll' : '.detail-scroll'
     return { selector: scrollSelector, top: el.scrollTop }
   }
 
@@ -162,6 +173,10 @@ export function mount(root: HTMLElement): void {
     // 同步恢复滚动与焦点：整块重画后先让布局落定再赋值，不会出现「先被夹到 0、下一帧再跳回」的抖动。
     restoreScroll(options.scroll ?? null)
     restoreFocus(options.focusKey ?? null, options.focusCaret ?? null)
+    // 确认卡可能落在滚动区底部之外：先把它滚进可视区，读者才看得到「确认 / 取消」。
+    // 用 block:'nearest' 只做最小滚动；卡片上方那一行通常已经露着一半，不必把整行顶到最上面。
+    const pendingCard = root.querySelector<HTMLElement>('.wt-confirm, .branch-confirm')
+    if (pendingCard !== null) pendingCard.scrollIntoView({ block: 'nearest' })
     positionPopconfirm()
     scheduleResultDismiss()
     liveRegion.textContent = state.result === null ? '' : state.result.text
@@ -241,6 +256,13 @@ export function mount(root: HTMLElement): void {
     panel.append(renderTabs(model))
     panel.append(h('main', { class: 'panel-body', attrs: { id: 'view-panel', role: 'tabpanel', 'aria-labelledby': `tab-${state.view}` } }, renderActiveView(model)))
     if (model.confirm !== null) panel.append(renderPopconfirm(model.confirm))
+    // 交接说明盖在面板最上层：它读的是整页状态，不能被页签或滚动区裁掉一半。
+    if (handoffKind !== null) {
+      panel.append(renderHandoffSheet({
+        draft: buildHandoff(data, handoffKind, Date.now(), handoffFocus),
+        copied: handoffCopied,
+      }))
+    }
     frame.append(panel)
     stage.append(frame)
 
@@ -282,6 +304,10 @@ export function mount(root: HTMLElement): void {
   }
 
   function renderActiveView(model: PanelModel): HTMLElement {
+    // 分支页是覆盖在当前视图上的一层，不占页签：它属于顶部身份「我在哪个分支」，不属于三个列表。
+    if (state.branchOpen) {
+      return renderBranches(model.branches, model.result !== null && model.result.source === 'branch' ? model.result : null)
+    }
     switch (state.view) {
       case 'commits': return renderHistory(model.history)
       case 'worktrees': {
@@ -290,7 +316,8 @@ export function mount(root: HTMLElement): void {
           noticeOpen: wtNoteOpen,
           expandedPath: expandedWorktree,
         }
-        return renderWorktrees(model.worktrees, model.result !== null && model.result.source === 'ai' ? model.result : null, options)
+        const result = model.result !== null && (model.result.source === 'ai' || model.result.source === 'worktree') ? model.result : null
+        return renderWorktrees(model.worktrees, result, options)
       }
       default: return renderChanges(model.changes, model.result !== null && model.result.source === 'commit' ? model.result : null)
     }
@@ -403,6 +430,33 @@ export function mount(root: HTMLElement): void {
     dispatch({ type: 'copy', path }, { focusKey: lastFocusKey })
   }
 
+  /** 交接说明里「界面停在」那一行：只写读者关心的位置，不写控件名。 */
+  function focusText(model: PanelModel): string {
+    if (state.branchOpen) return '分支页，正在本地分支清单里'
+    if (state.view === 'commits') {
+      const detail = model.history.detail
+      return detail === null ? '提交历史视图的列表' : `提交历史视图，正在看提交 ${detail.short} 的详情`
+    }
+    if (state.view === 'worktrees') {
+      return `工作树视图，筛选是${wtFilter === 'all' ? '全部' : '只看需要处理'}`
+    }
+    const filter = state.changesFilter
+    const filterLabel = filter === 'conflict' ? '只看冲突' : filter === 'staged' ? '只看已暂存' : filter === 'unstaged' ? '只看未暂存' : '全部'
+    return `改动视图，筛选是${filterLabel}`
+  }
+
+  /** 复制整段交接说明：剪贴板被拒绝时不弹错，只把「已复制」的判断留给浮层里的结果行。 */
+  async function copyHandoff(text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // 非安全上下文会拒绝写剪贴板；原型仍然把这段文字完整留在浮层里，读者可以手动选中复制。
+    }
+    handoffCopied = true
+    liveRegion.textContent = COPY.ai.copied(text.length)
+    repaint({ focusKey: 'handoff-copy' })
+  }
+
   function onClick(event: Event): void {
     const target = event.target
     if (!(target instanceof Element)) return
@@ -430,7 +484,14 @@ export function mount(root: HTMLElement): void {
       case 'tab': {
         const view = el.dataset.view
         if (view !== 'changes' && view !== 'commits' && view !== 'worktrees') return
-        if (state.view === view) return
+        // 分支页是覆盖层：点页签意味着离开它，先关掉再切视图，避免分支页留在新页签上。
+        if (state.branchOpen) {
+          state = reduce(state, { type: 'branch-close' }, base)
+        }
+        if (state.view === view) {
+          repaint({ focusKey: `tab-${view}`, scroll: null })
+          return
+        }
         dispatch({ type: 'view', view }, { focusKey: `tab-${view}`, scroll: null })
         return
       }
@@ -508,6 +569,29 @@ export function mount(root: HTMLElement): void {
       case 'ai-worktrees':
         dispatch({ type: 'ai-worktrees' }, { focusKey: 'ai-worktrees' })
         return
+      case 'handoff-open': {
+        const kind = el.dataset.kind
+        if (kind !== 'general' && kind !== 'changes' && kind !== 'worktrees' && kind !== 'branches') return
+        handoffKind = kind
+        handoffFocus = focusText(model)
+        handoffCopied = false
+        repaint({ focusKey: 'handoff-copy' })
+        return
+      }
+      case 'handoff-close': {
+        if (handoffKind === null) return
+        const previous = handoffKind
+        handoffKind = null
+        handoffCopied = false
+        repaint({ focusKey: `handoff-${previous}` })
+        return
+      }
+      case 'handoff-copy': {
+        if (handoffKind === null) return
+        const draft = buildHandoff(data, handoffKind, Date.now(), handoffFocus)
+        void copyHandoff(draft.prompt)
+        return
+      }
       case 'wt-filter': {
         const filter = el.dataset.filter === 'abnormal' ? 'abnormal' : 'all'
         if (filter === wtFilter) return
@@ -529,11 +613,69 @@ export function mount(root: HTMLElement): void {
         repaint({ focusKey: `wt-expand:${path}` })
         return
       }
-      case 'worktree-command': {
-        const command = el.dataset.command ?? ''
-        void copyPath(command)
+      case 'branch-open':
+        dispatch({ type: 'branch-open' }, { focusKey: 'branch-search', scroll: null })
+        return
+      case 'branch-close':
+        dispatch({ type: 'branch-close' }, { focusKey: 'branch-open', scroll: null })
+        return
+      case 'branch-select': {
+        const name = el.dataset.name ?? ''
+        dispatch({ type: 'branch-select', name }, { focusKey: 'branch-back', scroll: null })
         return
       }
+      case 'branch-sub': {
+        const sub = el.dataset.sub
+        if (sub !== 'list' && sub !== 'detail' && sub !== 'create' && sub !== 'rename') return
+        const next: BranchSub = sub
+        const focusKey = next === 'create' || next === 'rename' ? 'branch-draft' : 'branch-back'
+        dispatch({ type: 'branch-sub', sub: next }, { focusKey, scroll: null })
+        return
+      }
+      case 'branch-create':
+        dispatch({ type: 'branch-create' }, { focusKey: 'branch-back', scroll: null })
+        return
+      case 'branch-rename-confirm':
+        dispatch({ type: 'branch-rename', name: el.dataset.name ?? '' }, { focusKey: 'branch-back', scroll: null })
+        return
+      case 'branch-switch': {
+        const name = el.dataset.name ?? ''
+        // 工作区有改动时先内联确认：真实 git 会在切换时把这些改动带过去，部分场景会挡下来。
+        if (model.branches.dirty) {
+          dispatch({ type: 'branch-pending', pending: { kind: 'switch', name } }, { focusKey: 'branch-confirm', scroll: null })
+          return
+        }
+        dispatch({ type: 'branch-switch', name }, { focusKey: 'branch-back', scroll: null })
+        return
+      }
+      case 'branch-switch-confirm':
+        dispatch({ type: 'branch-switch', name: el.dataset.name ?? '' }, { focusKey: 'branch-back', scroll: null })
+        return
+      case 'branch-merge':
+        dispatch({ type: 'branch-merge', name: el.dataset.name ?? '' }, { focusKey: 'branch-back', scroll: null })
+        return
+      case 'branch-delete-start':
+        dispatch({ type: 'branch-pending', pending: { kind: 'delete', name: el.dataset.name ?? '' } }, { focusKey: 'branch-cancel', scroll: null })
+        return
+      case 'branch-delete-confirm':
+        dispatch({ type: 'branch-delete', name: el.dataset.name ?? '' }, { focusKey: 'branch-back', scroll: null })
+        return
+      case 'branch-pending-cancel':
+        dispatch({ type: 'branch-pending', pending: null }, { focusKey: 'branch-back', scroll: null })
+        return
+      case 'wt-pending': {
+        const kind = el.dataset.kind
+        if (kind !== 'unlock' && kind !== 'prune' && kind !== 'remove') return
+        const pending: WorktreePending = { kind, path: el.dataset.path ?? '', name: el.dataset.name ?? '' }
+        dispatch({ type: 'wt-pending', pending }, { focusKey: 'wt-cancel', scroll: null })
+        return
+      }
+      case 'wt-pending-cancel':
+        dispatch({ type: 'wt-pending', pending: null }, { focusKey: `wt-expand:${el.dataset.path ?? expandedWorktree ?? ''}`, scroll: null })
+        return
+      case 'wt-apply':
+        dispatch({ type: 'wt-apply' }, { focusKey: `wt-expand:${expandedWorktree ?? ''}`, scroll: null })
+        return
       case 'confirm-cancel':
         dispatch({ type: 'pull-confirm-close' }, { focusKey: 'pull' })
         return
@@ -561,6 +703,10 @@ export function mount(root: HTMLElement): void {
       syncComposer()
     } else if (field === 'history-query') {
       dispatch({ type: 'history-query', value: target.value }, { focusKey: 'history-query' })
+    } else if (field === 'branch-query') {
+      dispatch({ type: 'branch-query', value: target.value }, { focusKey: 'branch-search' })
+    } else if (field === 'branch-draft') {
+      dispatch({ type: 'branch-draft', value: target.value }, { focusKey: 'branch-draft' })
     }
   }
 
@@ -604,6 +750,29 @@ export function mount(root: HTMLElement): void {
     const target = event.target
     if (!(target instanceof HTMLElement)) return
 
+    if (event.key === 'Escape' && handoffKind !== null) {
+      event.preventDefault()
+      const previous = handoffKind
+      handoffKind = null
+      handoffCopied = false
+      repaint({ focusKey: `handoff-${previous}` })
+      return
+    }
+    if (event.key === 'Escape' && state.branchPending !== null) {
+      event.preventDefault()
+      dispatch({ type: 'branch-pending', pending: null }, { focusKey: 'branch-back' })
+      return
+    }
+    if (event.key === 'Escape' && state.worktreePending !== null) {
+      event.preventDefault()
+      dispatch({ type: 'wt-pending', pending: null }, { focusKey: `wt-expand:${state.worktreePending.path}` })
+      return
+    }
+    if (event.key === 'Escape' && state.branchOpen) {
+      event.preventDefault()
+      dispatch({ type: 'branch-close' }, { focusKey: 'branch-open' })
+      return
+    }
     if (event.key === 'Escape' && state.confirmPull !== null) {
       event.preventDefault()
       dispatch({ type: 'pull-confirm-close' }, { focusKey: 'pull' })
@@ -671,9 +840,36 @@ export function mount(root: HTMLElement): void {
       const first = panelModelOf(base, state, Date.now()).worktrees.others.find((row) => row.abnormal)
       expandedWorktree = first === undefined ? null : first.path
     }
+    // 工作树动作的确认卡也留深链入口：评审要截「移除前确认」时不用先展开再点按钮。
+    const wtPendingParam = params.get('wtpending')
+    if (wtPendingParam === 'unlock' || wtPendingParam === 'prune' || wtPendingParam === 'remove') {
+      const path = params.get('wtpath') ?? ''
+      const row = panelModelOf(base, state, Date.now()).worktrees.others.find((candidate) => candidate.path === path)
+      if (row !== undefined) {
+        expandedWorktree = row.path
+        state = reduce(state, { type: 'wt-pending', pending: { kind: wtPendingParam, path: row.path, name: row.name } }, base)
+      }
+    }
     const view = params.get('view')
     if (view === 'changes' || view === 'commits' || view === 'worktrees') {
       state = reduce(state, { type: 'view', view }, base)
+    }
+    // 分支页是覆盖层，放在视图之后应用：?branches=1&view=worktrees 表示「工作树页盖着分支页」。
+    if (params.get('branches') === '1') state = reduce(state, { type: 'branch-open' }, base)
+    const branchName = params.get('branch')
+    if (branchName !== null && branchName !== '') state = reduce(state, { type: 'branch-select', name: branchName }, base)
+    const branchSubParam = params.get('bsub')
+    if (branchSubParam === 'list' || branchSubParam === 'detail' || branchSubParam === 'create' || branchSubParam === 'rename') {
+      state = reduce(state, { type: 'branch-sub', sub: branchSubParam }, base)
+    }
+    const branchDraft = params.get('bdraft')
+    if (branchDraft !== null && branchDraft !== '') state = reduce(state, { type: 'branch-draft', value: branchDraft }, base)
+    const branchPendingParam = params.get('bpending')
+    if (branchPendingParam === 'delete' || branchPendingParam === 'switch') {
+      const selected = state.branchSelected
+      if (selected !== null) {
+        state = reduce(state, { type: 'branch-pending', pending: { kind: branchPendingParam, name: selected } }, base)
+      }
     }
     if (params.get('merge') === '1') state = reduce(state, { type: 'history-merge-only' }, base)
     const query = params.get('q')
@@ -691,6 +887,13 @@ export function mount(root: HTMLElement): void {
     // 拉取前的确认气泡只出现在「工作区有未提交改动」时，没有入口直接截到它；给评审留一个深链。
     if (params.get('confirm') === '1') {
       state = reduce(state, { type: 'pull-confirm-open', files: dirtyFiles(), dirtyCount: dirtyFiles().length }, base)
+    }
+    // AI 交接浮层也留深链：评审要截「整页状态交给 AI」时不用先点开再滚动。
+    const ai = params.get('ai')
+    if (ai === 'general' || ai === 'changes' || ai === 'worktrees' || ai === 'branches') {
+      handoffKind = ai
+      handoffFocus = focusText(panelModelOf(base, state, Date.now()))
+      if (params.get('aicopied') === '1') handoffCopied = true
     }
   }
 

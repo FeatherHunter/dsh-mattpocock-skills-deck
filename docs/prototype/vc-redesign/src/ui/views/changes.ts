@@ -10,9 +10,11 @@
  */
 import type { ChangesModel, FileRowModel, GroupModel } from '../../domain/select'
 import { COPY } from '../../data/copy'
+import { HANDOFF_ENTRY } from '../../domain/handoff'
 import type { ResultMessage } from '../../domain/session'
 import { icon, h } from '../dom'
 import { badgeLetter, button, chip, emptyState, note, patchBlock, resultBanner } from '../primitives'
+import { handoffEntry } from './handoff'
 
 export function renderChanges(model: ChangesModel, result: ResultMessage | null): HTMLElement {
   const view = h('div', { class: 'view view-changes' })
@@ -89,7 +91,10 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
   // 提交按钮固定贴在右下角：它上面是禁用原因（有才画），再上面是说明输入与静态提示。
   // 原因单独成行，按钮就不会因为文案长短被挤来挤去，位置在 300 到 520 各档都一样。
   const submitRow = h('div', { class: 'composer-submit' }, commitButton)
-  composer.append(stagedLine, textarea, hint)
+  // 交接入口放在说明输入下面、禁用原因上面：盯着这一堆文件发愁时，这里是视线最后停的地方。
+  // 它是轻链接样式，不与提交按钮争夺「这一屏最该点哪个」的位置。
+  const aiRow = h('div', { class: 'composer-ai' }, handoffEntry(HANDOFF_ENTRY.changes, 'changes', 'inline'))
+  composer.append(stagedLine, textarea, hint, aiRow)
   if (model.composer.disabledReason !== null) {
     composer.append(h('div', { class: 'composer-reason', id: 'commit-reason' },
       icon('alert', 12), h('span', { text: model.composer.disabledReason })))

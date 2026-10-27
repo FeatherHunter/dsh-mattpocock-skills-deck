@@ -178,6 +178,7 @@ async function main(): Promise<void> {
   ;(globalThis as any).ticketLabelNodesOf = kernel.ticketLabelNodesOf
   ;(globalThis as any).TICKET_LABEL_MAX_WIDTH = TICKET_LABEL_MAX_WIDTH
   ;(globalThis as any).workRouteCellsFor = kernel.workRouteCellsFor
+  ;(globalThis as any).ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
   ;(globalThis as any).ownWorkRouteSlotOf = function () { return null }
   ;(globalThis as any).findMapByIdentity = function () { return null }
   ;(globalThis as any).containerKindOf = function () { return '' }

@@ -47,6 +47,7 @@ const WORK_ROUTE_FIRST_COL_TIERS_PX: number[] = ticketLabelKernel.WORK_ROUTE_FIR
 ;(globalThis as any).ticketLabelNodesOf = ticketLabelKernel.ticketLabelNodesOf
 ;(globalThis as any).TICKET_LABEL_MAX_WIDTH = TICKET_LABEL_MAX_WIDTH
 ;(globalThis as any).workRouteCellsFor = ticketLabelKernel.workRouteCellsFor
+;(globalThis as any).ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)

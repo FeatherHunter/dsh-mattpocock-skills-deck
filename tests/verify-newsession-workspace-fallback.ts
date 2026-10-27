@@ -7,6 +7,9 @@
 //  f) 沙箱：createPTCSession — 正常 wid/cwd 分支、workspaceId 失败回落 cwd+ptc、agentPreset 更名回退仍写目标会话自己的草稿
 //  g) 沙箱：openTextInNewSession 工作区回退集成 — cwd 缺失走 fallback、workspaceId 创建失败走 cwd+ptc、成功走 wid+ptc、首条写目标会话自己的存放
 //  h) 双源一致（src 与构建产物逐字 splice 保留）
+//  i) 沙箱与集成（#1580 追加）：复用空白会话前先过归档闸门 — 已归档候选跳过、归档名单读不到按 fail-closed 改新建、
+//     老版快照行为不变、当前会话已归档不复用自身、失败草稿台账（上次复用没吃进稿子）下次清残留后改新建；
+//     并把复用日志从「打开之前」改到「打开之后」（reuse-opened / open-failed）后仍带 reuseSkip 跳过原因。
 //
 // 2026-10-12 修订：原来还有 a/b/c 三条「静態：源码必含某段字」的断言，它们读源码文本钉写法，等价重构就会变红，
 //   已连同只服务它们的读取语句与临时变量一并删掉；下面 d/e/f/g 四条沙箱断言是真跑代码，一条都没动。

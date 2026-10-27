@@ -30,6 +30,10 @@ import esbuild from 'esbuild'
 ;(globalThis as any).ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
 ;(globalThis as any).ticketLabelNodesOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelNodesOf
 ;(globalThis as any).TICKET_LABEL_MAX_WIDTH = (await import('../src/client/kernel/ticket-label.js')).TICKET_LABEL_MAX_WIDTH
+// #1564：整颗徽标收进共享叶子 ticketBadge.ts；叶子单独求值时闭包里没有这个名字，也补上真身。
+;(globalThis as any).ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
+// 徽标自己的悬停壳 Tip 同样来自闭包：求值时合成的树只记节点、不调组件，给一个同形的纯函数即可。
+;(globalThis as any).Tip = function (props: any): any { return props && props.children ? props.children : null }
 
 const ROOT = resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 let failed = false

@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T14:30:23.634Z",
+  "generatedAt": "2026-10-27T15:06:55.251Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 410,
-  "gateCount": 410,
-  "attributedGates": 367,
+  "chainLength": 411,
+  "gateCount": 411,
+  "attributedGates": 368,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 17,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 600,
+  "graphFileCount": 601,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -189,6 +189,7 @@
         "src/client/views/shared/stateKind.ts",
         "src/client/views/shared/tagsFit.ts",
         "src/client/views/shared/ticket.ts",
+        "src/client/views/shared/ticketBadge.ts",
         "src/client/views/shared/workRouteTable.ts",
         "src/client/views/subIssueRouting.ts",
         "src/client/views/versionControl/vcAiHandoff.ts",
@@ -226,7 +227,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 82 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 83 条"
     },
     {
       "step": "node tests/verify-chain-capsule.ts",
@@ -3600,6 +3601,7 @@
         "src/client/views/IssueDetail.ts",
         "src/client/views/ListTabRow.ts",
         "src/client/views/MapDetailHead.ts",
+        "src/client/views/shared/ticketBadge.ts",
         "src/client/views/shared/workRouteTable.ts",
         "src/deck/shell/work-path-readout.ts"
       ],
@@ -3614,7 +3616,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
     },
     {
       "step": "node tests/verify-1512-md-chain.ts",
@@ -3869,6 +3871,30 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1564-ticket-badge.ts",
+      "file": "tests/verify-1564-ticket-badge.ts",
+      "guards": [
+        "src/client/kernel/ticket-label.ts",
+        "src/client/statusbar/SessionChainCapsule.ts",
+        "src/client/views/IssueDetail.ts",
+        "src/client/views/ListTabRow.ts",
+        "src/client/views/MapDetailHead.ts",
+        "src/client/views/shared/ticketBadge.ts",
+        "src/client/views/shared/workRouteTable.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/statusbar",
+        "src/client/views",
+        "src/client/views/shared"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
       "step": "node tests/verify-1565-workroute-first-col-browser.ts",
@@ -10076,6 +10102,7 @@
       "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-1519-detail-comments.ts",
       "node tests/verify-1548-map-row-nav.ts",
+      "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1565-workroute-first-col-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
@@ -10167,6 +10194,7 @@
       "node tests/verify-1463-banner-recheck.ts",
       "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-1526-suggest-replay-restore.ts",
+      "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1582-open-folder.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
@@ -10201,6 +10229,7 @@
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-1519-detail-comments.ts",
+      "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1582-open-folder.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -10279,6 +10308,7 @@
       "node tests/verify-1519-detail-comments.ts",
       "node tests/verify-1545-workroute-row-nav.ts",
       "node tests/verify-1548-map-row-nav.ts",
+      "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1565-workroute-first-col-browser.ts",
       "node tests/verify-1582-open-folder.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -11439,9 +11469,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 621,
+    "fileCount": 622,
     "dirCount": 74,
-    "coveredFileCount": 621,
+    "coveredFileCount": 622,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11610,6 +11640,7 @@
       "src/client/views/shared/stateKind.ts",
       "src/client/views/shared/tagsFit.ts",
       "src/client/views/shared/ticket.ts",
+      "src/client/views/shared/ticketBadge.ts",
       "src/client/views/shared/truthLines.ts",
       "src/client/views/shared/workRouteTable.ts",
       "src/client/views/skillDetail/PixelContents.ts",

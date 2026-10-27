@@ -37,6 +37,7 @@
       readHint: "\u672C\u5730\u6700\u8FD1\u4E00\u6B21\u8BFB\u53D6 git \u7684\u65F6\u95F4\uFF0C\u4E0D\u8054\u7F51",
       basisHint: "\u6700\u8FD1\u4E00\u6B21\u4ECE\u8FDC\u7AEF\u53D6\u56DE\u4FE1\u606F\u7684\u65F6\u95F4",
       nextHint: "\u6309\u5F53\u524D\u72B6\u6001\u7ED9\u51FA\u7684\u4E0B\u4E00\u6B65\u5EFA\u8BAE\uFF0C\u4E0D\u662F\u6309\u94AE",
+      branchHint: "\u6253\u5F00\u5206\u652F\u5217\u8868\uFF0C\u53EF\u4EE5\u5207\u6362\u3001\u521B\u5EFA\u3001\u5408\u5E76\u3001\u91CD\u547D\u540D\u548C\u5220\u9664\u5206\u652F",
       syncHint: (label, value) => `${label} ${value} \u4E2A\u63D0\u4EA4`,
       copyRepoPath: "\u590D\u5236\u4ED3\u5E93\u8DEF\u5F84",
       copyWorktreePath: "\u590D\u5236\u5DE5\u4F5C\u6811\u8DEF\u5F84",
@@ -141,11 +142,61 @@
       diffSampleNote: "\u539F\u578B\u53EA\u6F14\u793A\u9010\u884C\u5DEE\u5F02\u7684\u6392\u7248\uFF0C\u5C55\u5F00\u540E\u662F\u793A\u4F8B\u8865\u4E01\uFF0C\u4E0D\u6765\u81EA\u8BE5\u63D0\u4EA4\u3002",
       mergeChip: "\u5408\u5E76"
     },
+    branches: {
+      title: "\u5206\u652F",
+      newBranch: "\u65B0\u5EFA\u5206\u652F",
+      searchPlaceholder: "\u6309\u5206\u652F\u540D\u7B5B\u9009",
+      current: "\u5F53\u524D",
+      noUpstream: "\u672A\u8BBE\u7F6E\u4E0A\u6E38",
+      upstream: (name) => `\u4E0A\u6E38 ${name}`,
+      ahead: (n) => `\u9886\u5148 ${n}`,
+      behind: (n) => `\u843D\u540E ${n}`,
+      merged: "\u5DF2\u5408\u5E76\u8FDB\u5F53\u524D\u5206\u652F",
+      notMerged: "\u5C1A\u672A\u5408\u5E76\u8FDB\u5F53\u524D\u5206\u652F",
+      latestCommit: "\u6700\u65B0\u63D0\u4EA4",
+      switch: "\u5207\u6362\u5230\u6B64\u5206\u652F",
+      switchCurrent: "\u5DF2\u5728\u5F53\u524D\u5206\u652F",
+      merge: "\u5408\u5E76\u5230\u5F53\u524D\u5206\u652F",
+      mergeHint: "\u628A\u8FD9\u6761\u5206\u652F\u7684\u63D0\u4EA4\u5E76\u8FDB\u5F53\u524D\u5206\u652F\uFF1B\u6709\u51B2\u7A81\u65F6\u4F1A\u505C\u4E0B\u7B49\u4F60\u5904\u7406\u3002",
+      rename: "\u91CD\u547D\u540D",
+      delete: "\u5220\u9664\u5206\u652F",
+      deleteTitle: (name) => `\u5220\u9664\u5206\u652F ${name}\uFF1F`,
+      deleteBody: "\u53EA\u5220\u672C\u5730\u8BB0\u5F55\uFF0C\u8FDC\u7AEF\u5206\u652F\u4E0D\u53D7\u5F71\u54CD\u3002\u8FD9\u6761\u5206\u652F\u72EC\u6709\u7684\u63D0\u4EA4\u4F1A\u4E00\u8D77\u4E22\u6389\uFF0C\u9762\u677F\u4E0D\u80FD\u6062\u590D\u3002",
+      deleteConfirm: "\u786E\u8BA4\u5220\u9664",
+      switchDirtyTitle: "\u5DE5\u4F5C\u533A\u6709\u672A\u63D0\u4EA4\u7684\u6539\u52A8\uFF0C\u4ECD\u8981\u5207\u6362\uFF1F",
+      switchDirtyBody: "\u5207\u6362\u540E\u8FD9\u4E9B\u6539\u52A8\u4F1A\u8DDF\u7740\u5E26\u5230\u76EE\u6807\u5206\u652F\uFF1B\u4E24\u8FB9\u6539\u5230\u540C\u4E00\u5904\u65F6 git \u4F1A\u62D2\u7EDD\u5207\u6362\u5E76\u8BF4\u660E\u539F\u56E0\u3002",
+      switchConfirm: "\u7EE7\u7EED\u5207\u6362",
+      cancel: "\u53D6\u6D88",
+      back: "\u8FD4\u56DE\u9762\u677F",
+      backList: "\u8FD4\u56DE\u5217\u8868",
+      listTitle: "\u672C\u5730\u5206\u652F",
+      branchLabel: "\u5206\u652F\u540D",
+      createTitle: "\u65B0\u5EFA\u5206\u652F",
+      createFrom: (name) => `\u4ECE ${name} \u7684\u5F53\u524D\u63D0\u4EA4\u521B\u5EFA`,
+      createPlaceholder: "\u5206\u652F\u540D\uFF0C\u4F8B\u5982 feature/version-control",
+      nameHint: "\u5206\u652F\u540D\u4E0D\u80FD\u4E3A\u7A7A\uFF0C\u4E5F\u4E0D\u80FD\u5305\u542B\u7A7A\u683C\u3002",
+      create: "\u521B\u5EFA\u5206\u652F",
+      renameTitle: "\u91CD\u547D\u540D\u5206\u652F",
+      renamePlaceholder: "\u65B0\u7684\u5206\u652F\u540D",
+      renameSubmit: "\u4FDD\u5B58\u65B0\u540D\u5B57",
+      empty: "\u6CA1\u6709\u5339\u914D\u7684\u5206\u652F\u3002",
+      detailEmpty: "\u8FD9\u6761\u5206\u652F\u5DF2\u7ECF\u4E0D\u5728\u5217\u8868\u91CC\u3002",
+      resultCreated: (name) => `\u5DF2\u521B\u5EFA\u5206\u652F ${name}\uFF0C\u8FD8\u6CA1\u6709\u5207\u6362\u8FC7\u53BB\u3002`,
+      resultSwitched: (name) => `\u5DF2\u5207\u6362\u5230\u5206\u652F ${name}\u3002`,
+      resultMerged: (target, current, n) => `\u5DF2\u628A ${target} \u5408\u5E76\u8FDB ${current}\uFF0C\u63A5\u5165 ${n} \u4E2A\u63D0\u4EA4\u3002`,
+      resultMergedClean: (target, current) => `\u5DF2\u628A ${target} \u5408\u5E76\u8FDB ${current}\uFF0C\u6CA1\u6709\u65B0\u63D0\u4EA4\u9700\u8981\u63A5\u5165\u3002`,
+      resultRenamed: (from, to) => `\u5206\u652F ${from} \u5DF2\u6539\u540D\u4E3A ${to}\u3002`,
+      resultDeleted: (name) => `\u5DF2\u5220\u9664\u5206\u652F ${name}\u3002`,
+      invalidName: "\u5206\u652F\u540D\u4E0D\u80FD\u4E3A\u7A7A\uFF0C\u4E5F\u4E0D\u80FD\u5305\u542B\u7A7A\u683C\u3002",
+      duplicateName: (name) => `\u5206\u652F ${name} \u5DF2\u7ECF\u5B58\u5728\u3002`,
+      cannotDeleteCurrent: "\u4E0D\u80FD\u5220\u9664\u5F53\u524D\u5206\u652F\uFF0C\u5148\u5207\u6362\u5230\u522B\u7684\u5206\u652F\u3002",
+      cannotMergeCurrent: "\u4E0D\u80FD\u628A\u5F53\u524D\u5206\u652F\u5408\u5E76\u8FDB\u5B83\u81EA\u5DF1\u3002"
+    },
     worktrees: {
       current: "\u5F53\u524D\u5DE5\u4F5C\u6811",
       others: (n) => `\u5176\u4ED6\u5DE5\u4F5C\u6811 ${n}`,
       empty: "\u4E0D\u5B58\u5728\u5176\u4ED6\u5DE5\u4F5C\u6811",
-      emptyHint: "\u6BCF\u68F5\u5DE5\u4F5C\u6811\u90FD\u8981\u5355\u72EC\u68C0\u51FA\uFF1B\u8FD9\u91CC\u53EA\u8BFB\u6E05\u5355\u3002",
+      emptyHint: "\u6BCF\u68F5\u5DE5\u4F5C\u6811\u90FD\u8981\u5355\u72EC\u68C0\u51FA\uFF1B\u5C55\u5F00\u4E00\u884C\u53EF\u4EE5\u89E3\u9501\u3001\u6E05\u7406\u8BB0\u5F55\u6216\u79FB\u9664\u3002",
       locked: "\u5DF2\u88AB\u5360\u7528",
       prunable: "\u76EE\u5F55\u4E0D\u5B58\u5728",
       lockUnknown: "\u65E0\u6CD5\u5224\u65AD",
@@ -153,9 +204,8 @@
       bare: "\u88F8\u4ED3\u5E93",
       noBranch: "\u65E0\u5206\u652F",
       copyPath: "\u590D\u5236\u8DEF\u5F84",
-      copyCommand: "\u590D\u5236\u547D\u4EE4",
       scope: "\u8FD9\u91CC\u5217\u51FA\u5F53\u524D git \u8BB0\u5F55\u7684\u5176\u4ED6\u5DE5\u4F5C\u6811\uFF1B\u672A\u68C0\u51FA\u7684\u672C\u5730\u5206\u652F\u4E0D\u5728\u8FD9\u91CC\u3002",
-      boundary: "\u521B\u5EFA\u4E0E\u79FB\u9664\u5DE5\u4F5C\u6811\u8BF7\u5728\u7EC8\u7AEF\u5B8C\u6210\uFF0C\u9762\u677F\u53EA\u8BFB\u3002",
+      boundary: "\u5904\u7406\u52A8\u4F5C\u76F4\u63A5\u5728\u9762\u677F\u91CC\u6267\u884C\uFF0C\u4E0D\u518D\u628A\u547D\u4EE4\u4EA4\u7ED9\u4F60\u590D\u5236\u3002",
       noticeClose: "\u5173\u95ED\u8FD9\u6761\u8BF4\u660E",
       noticeOpen: "\u663E\u793A\u5DE5\u4F5C\u6811\u8303\u56F4\u8BF4\u660E",
       filterAll: "\u5168\u90E8",
@@ -167,11 +217,40 @@
       detailBranch: "\u5206\u652F",
       detailHead: "\u5F53\u524D\u63D0\u4EA4",
       detailState: "\u72B6\u6001\u8BF4\u660E",
-      detailCommand: "\u5728\u7EC8\u7AEF\u91CC\u6267\u884C\u8FD9\u6761\u547D\u4EE4\uFF0C\u9762\u677F\u4E0D\u4F1A\u66FF\u4F60\u6267\u884C\u3002",
-      commandPrune: "git worktree prune",
-      commandUnlock: (path) => `git worktree unlock "${path}"`,
-      commandRemove: (path) => `git worktree remove "${path}"`,
+      actionsHint: "\u8FD9\u4E9B\u64CD\u4F5C\u4F1A\u76F4\u63A5\u5728\u9762\u677F\u91CC\u6267\u884C\uFF0C\u4E0D\u518D\u8981\u6C42\u4F60\u53BB\u7EC8\u7AEF\u590D\u5236\u547D\u4EE4\u3002",
+      unlock: "\u89E3\u9664\u9501\u5B9A",
+      pruneRecord: "\u6E05\u7406\u8BB0\u5F55",
+      remove: "\u79FB\u9664\u5DE5\u4F5C\u6811",
+      unlockTitle: "\u89E3\u9664\u8FD9\u68F5\u5DE5\u4F5C\u6811\u7684\u5360\u7528\uFF1F",
+      unlockBody: "\u89E3\u9501\u53EA\u6E05\u6389 git \u7684\u5360\u7528\u6807\u8BB0\uFF0C\u5DE5\u4F5C\u76EE\u5F55\u4E0E\u6539\u52A8\u90FD\u4E0D\u4F1A\u52A8\uFF1B\u5982\u679C\u6709\u7EC8\u7AEF\u6B63\u5728\u91CC\u9762\u8DD1\u4EFB\u52A1\uFF0C\u4E24\u8FB9\u53EF\u80FD\u4E92\u76F8\u6253\u65AD\u3002",
+      unlockConfirm: "\u89E3\u9664\u5360\u7528",
+      pruneTitle: "\u6E05\u7406\u8FD9\u6761\u5DF2\u7ECF\u4E0D\u5B58\u5728\u7684\u5DE5\u4F5C\u6811\u8BB0\u5F55\uFF1F",
+      pruneBody: "\u53EA\u6E05\u6389 git \u8BB0\u5F55\uFF0C\u4E0D\u4F1A\u5220\u9664\u4EFB\u4F55\u6587\u4EF6\uFF1B\u76EE\u5F55\u786E\u5B9E\u4E0D\u5B58\u5728\u65F6\u624D\u5E94\u8BE5\u70B9\u3002",
+      pruneConfirm: "\u6E05\u7406\u8BB0\u5F55",
+      removeTitle: (name) => `\u79FB\u9664\u5DE5\u4F5C\u6811 ${name}\uFF1F`,
+      removeBody: "\u5220\u9664 git \u8BB0\u5F55\u4E0E\u5DE5\u4F5C\u76EE\u5F55\uFF0C\u5206\u652F\u548C\u63D0\u4EA4\u90FD\u7559\u5728\u4ED3\u5E93\u91CC\uFF1B\u76EE\u5F55\u91CC\u6709\u672A\u63D0\u4EA4\u6539\u52A8\u65F6\u8FD9\u4E00\u6B65\u4F1A\u88AB\u62D2\u7EDD\u3002",
+      removeConfirm: "\u786E\u8BA4\u79FB\u9664",
+      cancel: "\u53D6\u6D88",
+      resultUnlocked: (name) => `\u5DF2\u89E3\u9664\u5360\u7528\uFF1A${name}\u3002`,
+      resultPruned: (name) => `\u5DF2\u6E05\u7406\u8BB0\u5F55\uFF1A${name}\u3002`,
+      resultRemoved: (name) => `\u5DF2\u79FB\u9664\u5DE5\u4F5C\u6811\uFF1A${name}\u3002`,
       ai: "\u8BA9 AI \u5904\u7406\u5F02\u5E38\u5DE5\u4F5C\u6811"
+    },
+    /**
+     * AI 交接的全部文案。入口上的那几句故意写成问句：它们要让人意识到
+     * 「这件事可以不用自己硬扛」，而不是描述一个功能按钮。
+     */
+    ai: {
+      kicker: "AI HANDOFF",
+      copyLabel: "\u590D\u5236\u8FD9\u6BB5\u8BF4\u660E",
+      copied: (n) => `\u5DF2\u590D\u5236 ${n} \u4E2A\u5B57\u7B26\uFF0C\u7C98\u8D34\u5230\u65B0\u5BF9\u8BDD\u91CC\u5C31\u80FD\u63A5\u7740\u8C08\u3002`,
+      closeLabel: "\u5173\u95ED",
+      closeTitle: "\u5173\u95ED\u8FD9\u4EFD\u8BF4\u660E",
+      footNote: "\u8BF4\u660E\u91CC\u5305\u542B\u5B8C\u6574\u8DEF\u5F84\u4E0E\u6587\u4EF6\u6E05\u5355\uFF0C\u7C98\u8D34\u524D\u53EF\u4EE5\u5148\u5220\u6389\u4E0D\u60F3\u5916\u53D1\u7684\u90E8\u5206\u3002\u539F\u578B\u91CC\u4E0D\u4F1A\u771F\u7684\u6253\u5F00\u65B0\u5BF9\u8BDD\uFF1B\u63A5\u5165\u5BBF\u4E3B\u540E\uFF0C\u70B9\u4E00\u4E0B\u5C31\u76F4\u63A5\u8FDB\u5165\u65B0\u5BF9\u8BDD\u3002",
+      railSub: "\u4E0D\u719F\u6089 Git \u4E5F\u6CA1\u5173\u7CFB\uFF1A\u4ED3\u5E93\u3001\u5206\u652F\u3001\u6539\u52A8\u3001\u5DE5\u4F5C\u6811\u4E00\u8D77\u5E26\u8FC7\u53BB",
+      entryTitle: "\u4E0D\u60F3\u4EB2\u81EA\u5904\u7406\uFF1F\u4EA4\u7ED9 AI",
+      cleanEntry: "\u60F3\u628A\u5DE5\u4F5C\u6811\u4ECE\u5934\u7406\u4E00\u904D\uFF1F\u4EA4\u7ED9 AI",
+      entryAria: (label) => `${label}\uFF1A\u628A\u5F53\u524D\u7248\u672C\u7BA1\u7406\u9875\u7684\u5B8C\u6574\u72B6\u6001\u5E26\u8FDB\u65B0\u5BF9\u8BDD`
     },
     result: {
       committed: (n) => `\u63D0\u4EA4\u5B8C\u6210\uFF1A${n} \u4E2A\u6587\u4EF6\u5DF2\u8FDB\u5165\u5386\u53F2\u3002`,
@@ -3672,6 +3751,71 @@
     { path: "undefined/probe2.mjs", kind: "untracked", x: "?", y: "?", added: null, deleted: null },
     { path: "undefined/temp/pr-1475-body.md", kind: "untracked", x: "?", y: "?", added: null, deleted: null }
   ];
+  function branchSamples(nowMs, headShort) {
+    const minute = 60 * 1e3;
+    return [
+      {
+        name: capturedBranch,
+        upstream: `origin/${capturedBranch}`,
+        ahead: 2,
+        behind: 0,
+        oidShort: headShort,
+        lastCommitMs: nowMs - 6 * minute,
+        subject: "\u7248\u672C\u7BA1\u7406\u9875\u91CD\u6784\u539F\u578B\u6536\u5C3E\uFF0C\u5DE5\u4F5C\u6811\u52A8\u4F5C\u5168\u90E8\u6536\u8FDB\u9762\u677F",
+        mergedIntoCurrent: true
+      },
+      {
+        name: "release/2026-10",
+        upstream: "origin/release/2026-10",
+        ahead: 0,
+        behind: 4,
+        oidShort: "3b7c1d9",
+        lastCommitMs: nowMs - 26 * 60 * minute,
+        subject: "\u6574\u7406\u5341\u6708\u53D1\u5E03\u8BF4\u660E\u4E0E\u56DE\u6EDA\u6B65\u9AA4",
+        mergedIntoCurrent: false
+      },
+      {
+        name: "feature/version-control-redesign",
+        upstream: "origin/feature/version-control-redesign",
+        ahead: 3,
+        behind: 0,
+        oidShort: "9d2e4a1",
+        lastCommitMs: nowMs - 3 * 60 * minute,
+        subject: "\u5206\u652F\u9875\u4E0E\u52A8\u4F5C\u6A21\u578B\u63A5\u5165\u9762\u677F\u9AA8\u67B6",
+        mergedIntoCurrent: false
+      },
+      {
+        name: "fix/rail-tab-overflow",
+        upstream: "origin/fix/rail-tab-overflow",
+        ahead: 0,
+        behind: 1,
+        oidShort: "c41a7f2",
+        lastCommitMs: nowMs - 2 * 24 * 60 * minute,
+        subject: "\u7A84\u6863\u4E0B\u9875\u7B7E\u8BA1\u6570\u6362\u884C\u6324\u538B\u5185\u5BB9",
+        mergedIntoCurrent: false
+      },
+      {
+        name: "chore/docs-cleanup",
+        upstream: null,
+        ahead: 0,
+        behind: 0,
+        oidShort: "5e8b0c3",
+        lastCommitMs: nowMs - 5 * 24 * 60 * minute,
+        subject: "\u5220\u6389\u91CD\u590D\u7684\u8BBE\u8BA1\u7A3F\u622A\u56FE\u8BF4\u660E",
+        mergedIntoCurrent: true
+      },
+      {
+        name: "experiment/old-layout",
+        upstream: null,
+        ahead: 0,
+        behind: 0,
+        oidShort: "a06d3e8",
+        lastCommitMs: nowMs - 12 * 24 * 60 * minute,
+        subject: "\u65E7\u7248\u4E09\u680F\u5E03\u5C40\u7684\u8BD5\u9A8C\u5206\u652F\uFF0C\u7559\u7740\u5BF9\u7167",
+        mergedIntoCurrent: true
+      }
+    ];
+  }
   function worktreeRecords() {
     return capturedWorktrees.map((w) => ({
       path: w.path,
@@ -3751,6 +3895,7 @@
       screen: result.screen,
       commits: capturedCommits,
       commitFiles,
+      branches: branchSamples(nowMs, capturedHead.slice(0, 7)),
       repoRoot: capturedRepoRoot,
       branch: capturedBranch,
       nowMs
@@ -3758,10 +3903,11 @@
   }
 
   // docs/prototype/vc-redesign/src/domain/session.ts
-  function createSessionState(screen, nowMs) {
+  function createSessionState(base, nowMs) {
     const conflicts = [];
     const staged = [];
     const unstaged = [];
+    const screen = base.screen;
     for (const entry of screen.staged) {
       if (entry.conflict) conflicts.push(entry.path);
       else if (entry.staged) staged.push(entry.path);
@@ -3797,7 +3943,18 @@
       historyOpenFile: null,
       localCommits: [],
       copiedPath: null,
-      demoWorktrees: false
+      demoWorktrees: false,
+      branchOpen: false,
+      branchSub: "list",
+      branchSelected: null,
+      branchDraft: "",
+      branchQuery: "",
+      branchPending: null,
+      branches: base.branches.map((row) => ({ ...row })),
+      worktreePending: null,
+      hiddenWorktrees: [],
+      unlockedWorktrees: [],
+      prunedWorktrees: []
     };
   }
   function unique(paths) {
@@ -3991,6 +4148,145 @@
           detail: "\u771F\u5B9E\u9875\u9762\u4F1A\u6253\u5F00\u672C\u673A DSH \u4F1A\u8BDD\uFF0C\u5E76\u5728\u63D0\u793A\u91CC\u5E26\u4E0A\u5F02\u5E38\u5DE5\u4F5C\u6811\u7684\u8DEF\u5F84\u4E0E\u72B6\u6001\u3002",
           source: "ai"
         });
+      case "wt-pending":
+        return { ...state, worktreePending: action.pending };
+      case "wt-apply": {
+        const pending = state.worktreePending;
+        if (pending === null) return state;
+        const hidden = state.hiddenWorktrees.includes(pending.path) ? state.hiddenWorktrees : [...state.hiddenWorktrees, pending.path];
+        if (pending.kind === "unlock") {
+          return withResult({
+            ...state,
+            worktreePending: null,
+            unlockedWorktrees: unique([...state.unlockedWorktrees, pending.path])
+          }, { tone: "ok", text: `\u5DF2\u89E3\u9664\u5360\u7528\uFF1A${pending.name}\u3002`, detail: "\u5DE5\u4F5C\u76EE\u5F55\u4E0E\u91CC\u9762\u7684\u6539\u52A8\u90FD\u6CA1\u6709\u52A8\uFF0C\u53EA\u662F\u53BB\u6389\u4E86 git \u7684\u5360\u7528\u6807\u8BB0\u3002", source: "worktree" });
+        }
+        if (pending.kind === "prune") {
+          return withResult({
+            ...state,
+            worktreePending: null,
+            hiddenWorktrees: hidden,
+            prunedWorktrees: unique([...state.prunedWorktrees, pending.path])
+          }, { tone: "ok", text: `\u5DF2\u6E05\u7406\u8BB0\u5F55\uFF1A${pending.name}\u3002`, detail: "\u8FD9\u6761\u8BB0\u5F55\u5BF9\u5E94\u7684\u76EE\u5F55\u672C\u6765\u5C31\u4E0D\u5B58\u5728\uFF0C\u6E05\u7406\u4E0D\u4F1A\u5220\u9664\u4EFB\u4F55\u6587\u4EF6\u3002", source: "worktree" });
+        }
+        return withResult({
+          ...state,
+          worktreePending: null,
+          hiddenWorktrees: hidden
+        }, { tone: "ok", text: `\u5DF2\u79FB\u9664\u5DE5\u4F5C\u6811\uFF1A${pending.name}\u3002`, detail: "\u5206\u652F\u4E0E\u63D0\u4EA4\u90FD\u8FD8\u5728\u4ED3\u5E93\u91CC\uFF1B\u8FD9\u4E00\u6B65\u53EA\u5220\u6389\u4E86\u68C0\u51FA\u8BB0\u5F55\u4E0E\u5DE5\u4F5C\u76EE\u5F55\u3002", source: "worktree" });
+      }
+      case "branch-open":
+        return { ...state, branchOpen: true, branchSub: "list", branchSelected: null, branchDraft: "", branchPending: null };
+      case "branch-close":
+        return { ...state, branchOpen: false, branchPending: null, branchDraft: "" };
+      case "branch-select":
+        return { ...state, branchSelected: action.name, branchSub: "detail", branchPending: null, branchDraft: "" };
+      case "branch-sub":
+        return { ...state, branchSub: action.sub, branchDraft: "", branchPending: null };
+      case "branch-draft":
+        return { ...state, branchDraft: action.value };
+      case "branch-query":
+        return { ...state, branchQuery: action.value };
+      case "branch-pending":
+        return { ...state, branchPending: action.pending };
+      case "branch-create": {
+        if (state.busy !== null || state.reloading) return state;
+        const name = state.branchDraft.trim();
+        if (name === "" || /\s/.test(name)) {
+          return withResult(state, { tone: "error", text: "\u5206\u652F\u540D\u4E0D\u80FD\u4E3A\u7A7A\uFF0C\u4E5F\u4E0D\u80FD\u5305\u542B\u7A7A\u683C\u3002", detail: null, source: "branch" });
+        }
+        if (state.branches.some((row) => row.name === name)) {
+          return withResult(state, { tone: "error", text: `\u5206\u652F ${name} \u5DF2\u7ECF\u5B58\u5728\u3002`, detail: null, source: "branch" });
+        }
+        const current = state.branches.find((row) => row.current);
+        const created = {
+          name,
+          upstream: null,
+          ahead: 0,
+          behind: 0,
+          oidShort: current === void 0 ? state.branches[0]?.oidShort ?? "" : current.oidShort,
+          lastCommitMs: Date.now(),
+          subject: current === void 0 ? "\u4ECE\u5F53\u524D\u63D0\u4EA4\u521B\u5EFA" : `\u4ECE ${current.name} \u7684\u5F53\u524D\u63D0\u4EA4\u521B\u5EFA`,
+          mergedIntoCurrent: true,
+          current: false
+        };
+        return withResult({
+          ...state,
+          branches: [...state.branches, created],
+          branchSub: "detail",
+          branchSelected: name,
+          branchDraft: ""
+        }, { tone: "ok", text: `\u5DF2\u521B\u5EFA\u5206\u652F ${name}\uFF0C\u8FD8\u6CA1\u6709\u5207\u6362\u8FC7\u53BB\u3002`, detail: "\u65B0\u5206\u652F\u6307\u5411\u5F53\u524D\u5206\u652F\u7684\u6700\u65B0\u63D0\u4EA4\uFF1B\u5207\u6362\u8FC7\u53BB\u4E4B\u540E\u624D\u4F1A\u5728\u5B83\u4E0A\u9762\u63D0\u4EA4\u3002", source: "branch" });
+      }
+      case "branch-rename": {
+        if (state.busy !== null || state.reloading) return state;
+        const name = state.branchDraft.trim();
+        const from = action.name;
+        if (name === "" || /\s/.test(name)) {
+          return withResult(state, { tone: "error", text: "\u5206\u652F\u540D\u4E0D\u80FD\u4E3A\u7A7A\uFF0C\u4E5F\u4E0D\u80FD\u5305\u542B\u7A7A\u683C\u3002", detail: null, source: "branch" });
+        }
+        if (name === from) return { ...state, branchSub: "detail", branchDraft: "" };
+        if (state.branches.some((row) => row.name === name)) {
+          return withResult(state, { tone: "error", text: `\u5206\u652F ${name} \u5DF2\u7ECF\u5B58\u5728\u3002`, detail: null, source: "branch" });
+        }
+        return withResult({
+          ...state,
+          branches: state.branches.map((row) => row.name === from ? { ...row, name } : row),
+          branchSub: "detail",
+          branchSelected: name,
+          branchDraft: ""
+        }, { tone: "ok", text: `\u5206\u652F ${from} \u5DF2\u6539\u540D\u4E3A ${name}\u3002`, detail: "\u53EA\u6539\u672C\u5730\u540D\u5B57\uFF1B\u4E0A\u6E38\u8DDF\u8E2A\u5F15\u7528\u4E0E\u8FDC\u7AEF\u5206\u652F\u540D\u90FD\u4E0D\u53D7\u5F71\u54CD\u3002", source: "branch" });
+      }
+      case "branch-switch": {
+        if (state.busy !== null || state.reloading) return state;
+        const target = state.branches.find((row) => row.name === action.name);
+        if (target === void 0 || target.current) return { ...state, branchPending: null };
+        return withResult({
+          ...state,
+          branches: state.branches.map((row) => ({ ...row, current: row.name === action.name })),
+          branchPending: null,
+          branchSub: "detail",
+          branchSelected: action.name,
+          ahead: target.ahead,
+          behind: target.behind
+        }, { tone: "ok", text: `\u5DF2\u5207\u6362\u5230\u5206\u652F ${action.name}\u3002`, detail: "\u5DE6\u4FA7\u5DE5\u4F5C\u533A\u7684\u672A\u63D0\u4EA4\u6539\u52A8\u5DF2\u7ECF\u5E26\u8FC7\u6765\u4E86\uFF1B\u8BFB\u5199\u4E0E\u63D0\u4EA4\u90FD\u53D1\u751F\u5728\u65B0\u5206\u652F\u4E0A\u3002", source: "branch" });
+      }
+      case "branch-merge": {
+        if (state.busy !== null || state.reloading) return state;
+        const target = state.branches.find((row) => row.name === action.name);
+        const current = state.branches.find((row) => row.current);
+        if (target === void 0 || current === void 0) return { ...state, branchPending: null };
+        if (target.current) {
+          return withResult(state, { tone: "error", text: "\u4E0D\u80FD\u628A\u5F53\u524D\u5206\u652F\u5408\u5E76\u8FDB\u5B83\u81EA\u5DF1\u3002", detail: null, source: "branch" });
+        }
+        const commits = target.ahead + 1;
+        return withResult({
+          ...state,
+          branches: state.branches.map((row) => row.name === target.name ? { ...row, mergedIntoCurrent: true } : row),
+          ahead: state.ahead + commits,
+          branchPending: null
+        }, {
+          tone: "ok",
+          text: `\u5DF2\u628A ${target.name} \u5408\u5E76\u8FDB ${current.name}\uFF0C\u63A5\u5165 ${commits} \u4E2A\u63D0\u4EA4\u3002`,
+          detail: "\u8FD9\u6B21\u5408\u5E76\u6CA1\u6709\u51B2\u7A81\uFF1B\u5408\u5E76\u540E\u7684\u7ED3\u679C\u8FD8\u5728\u672C\u5730\uFF0C\u63A8\u9001\u4E4B\u540E\u8FDC\u7AEF\u624D\u770B\u5F97\u5230\u3002",
+          source: "branch"
+        });
+      }
+      case "branch-delete": {
+        if (state.busy !== null || state.reloading) return state;
+        const target = state.branches.find((row) => row.name === action.name);
+        if (target === void 0) return { ...state, branchPending: null };
+        if (target.current) {
+          return withResult(state, { tone: "error", text: "\u4E0D\u80FD\u5220\u9664\u5F53\u524D\u5206\u652F\uFF0C\u5148\u5207\u6362\u5230\u522B\u7684\u5206\u652F\u3002", detail: null, source: "branch" });
+        }
+        return withResult({
+          ...state,
+          branches: state.branches.filter((row) => row.name !== action.name),
+          branchSub: "list",
+          branchSelected: null,
+          branchPending: null
+        }, { tone: "ok", text: `\u5DF2\u5220\u9664\u5206\u652F ${action.name}\u3002`, detail: "\u53EA\u5220\u4E86\u672C\u5730\u8BB0\u5F55\uFF1B\u5982\u679C\u8FDC\u7AEF\u8FD8\u6709\u8FD9\u6761\u5206\u652F\uFF0C\u5B83\u4E0D\u53D7\u5F71\u54CD\u3002", source: "branch" });
+      }
       default:
         return state;
     }
@@ -3998,6 +4294,144 @@
   function metadataOf(base, path) {
     return [...base.screen.staged, ...base.screen.unstaged].find((entry) => entry.path === path);
   }
+
+  // docs/prototype/vc-redesign/src/domain/handoff.ts
+  var TITLES = {
+    general: "\u4E0D\u60F3\u4EB2\u81EA\u5904\u7406\uFF1F\u628A\u5F53\u524D\u72B6\u6001\u4EA4\u7ED9 AI",
+    changes: "\u6539\u52A8\u592A\u591A\uFF1F\u4EA4\u7ED9 AI \u62C6\u6210\u51E0\u6761\u63D0\u4EA4",
+    worktrees: "\u5DE5\u4F5C\u6811\u592A\u4E71\uFF1F\u4EA4\u7ED9 AI \u6536\u5C3E",
+    branches: "\u5206\u652F\u5173\u7CFB\u592A\u4E71\uFF1F\u4EA4\u7ED9 AI \u7406\u6E05"
+  };
+  var LEDES = {
+    general: "\u8FD9\u6BB5\u8BF4\u660E\u5E26\u7740\u4ED3\u5E93\u3001\u5206\u652F\u3001\u5DE5\u4F5C\u533A\u6587\u4EF6\u3001\u5176\u4ED6\u5DE5\u4F5C\u6811\u548C\u6700\u8FD1\u63D0\u4EA4\uFF1B\u590D\u5236\u4E4B\u540E\u7C98\u8D34\u5230\u65B0\u5BF9\u8BDD\u91CC\uFF0C\u5C31\u80FD\u63A5\u7740\u8C08\u3002",
+    changes: "\u8FD9\u6BB5\u8BF4\u660E\u4F1A\u5217\u51FA\u6BCF\u4E00\u4E2A\u672A\u63D0\u4EA4\u7684\u6587\u4EF6\u548C\u589E\u5220\u884C\u6570\uFF0C\u590D\u5236\u4E4B\u540E\u7C98\u8D34\u5230\u65B0\u5BF9\u8BDD\u91CC\uFF0C\u8BA9 AI \u76F4\u63A5\u5224\u65AD\u8BE5\u5206\u6210\u51E0\u6761\u63D0\u4EA4\u3002",
+    worktrees: "\u8FD9\u6BB5\u8BF4\u660E\u4F1A\u5217\u51FA\u6BCF\u4E00\u68F5\u5176\u4ED6\u5DE5\u4F5C\u6811\u7684\u72B6\u6001\u4E0E\u539F\u56E0\uFF0C\u590D\u5236\u4E4B\u540E\u8BA9 AI \u5224\u65AD\u54EA\u4E9B\u8BE5\u89E3\u9501\u3001\u54EA\u4E9B\u8BE5\u6E05\u7406\u8BB0\u5F55\u3001\u54EA\u4E9B\u8BE5\u79FB\u9664\u3002",
+    branches: "\u8FD9\u6BB5\u8BF4\u660E\u4F1A\u5217\u51FA\u672C\u5730\u5206\u652F\u4E0E\u4E0A\u6E38\u7684\u5173\u7CFB\u3001\u9886\u5148\u843D\u540E\u4E0E\u662F\u5426\u5DF2\u5408\u5E76\uFF0C\u590D\u5236\u4E4B\u540E\u8BA9 AI \u7ED9\u51FA\u5B89\u5168\u7684\u5408\u5E76\u4E0E\u5220\u9664\u987A\u5E8F\u3002"
+  };
+  var GOALS = {
+    general: "\u5148\u5E2E\u6211\u628A\u5F53\u524D\u72B6\u6001\u6838\u5BF9\u6E05\u695A\uFF0C\u518D\u544A\u8BC9\u6211\u4E0B\u4E00\u6B65\u6700\u503C\u5F97\u505A\u7684\u4E00\u4EF6\u4E8B\u3002",
+    changes: "\u628A\u8FD9\u6279\u6539\u52A8\u6574\u7406\u6210\u82E5\u5E72\u6761\u4E3B\u9898\u6E05\u695A\u7684\u63D0\u4EA4\uFF0C\u5E76\u9010\u6761\u544A\u8BC9\u6211\u5E94\u8BE5\u628A\u54EA\u4E9B\u6587\u4EF6\u653E\u8FDB\u540C\u4E00\u6761\u63D0\u4EA4\u3002",
+    worktrees: "\u628A\u5DE5\u4F5C\u6811\u6E05\u5355\u6062\u590D\u5E72\u51C0\uFF1A\u80FD\u89E3\u9501\u7684\u89E3\u9501\uFF0C\u80FD\u6E05\u7406\u8BB0\u5F55\u7684\u6E05\u7406\u8BB0\u5F55\uFF0C\u80FD\u79FB\u9664\u7684\u79FB\u9664\uFF1B\u6BCF\u4E00\u6B65\u5148\u8BF4\u6E05\u695A\u98CE\u9669\u3002",
+    branches: "\u7406\u6E05\u5206\u652F\u5173\u7CFB\uFF1A\u8BE5\u5408\u5E76\u7684\u5408\u5E76\uFF0C\u8BE5\u5220\u9664\u7684\u5220\u9664\uFF0C\u7136\u540E\u544A\u8BC9\u6211\u4EE5\u540E\u600E\u4E48\u4FDD\u6301\u6574\u6D01\u3002"
+  };
+  function fileLine(entry) {
+    if (entry.conflict) return `${entry.path}\uFF08\u51B2\u7A81\uFF0C\u5C1A\u672A\u89E3\u51B3\uFF09`;
+    const added = entry.addedLines;
+    const deleted = entry.deletedLines;
+    if (added === null && deleted === null) return `${entry.path}\uFF08\u672A\u8DDF\u8E2A\u6216\u4E8C\u8FDB\u5236\u6587\u4EF6\uFF0C\u6CA1\u6709\u884C\u6570\uFF09`;
+    const parts = [];
+    if (added !== null && added > 0) parts.push(`\u65B0\u589E ${added} \u884C`);
+    if (deleted !== null && deleted > 0) parts.push(`\u5220\u9664 ${deleted} \u884C`);
+    return parts.length === 0 ? `${entry.path}\uFF08\u5185\u5BB9\u4E0D\u53D8\uFF0C\u53EA\u6709\u6587\u4EF6\u72B6\u6001\u53D8\u5316\uFF09` : `${entry.path}\uFF08${parts.join("\uFF0C")}\uFF09`;
+  }
+  function pendingOperationText(screen) {
+    const names = [];
+    if (screen.repo.merging) names.push("\u5408\u5E76");
+    if (screen.repo.rebasing) names.push("\u53D8\u57FA");
+    if (screen.repo.cherryPicking) names.push("\u62E3\u9009");
+    if (screen.repo.reverting) names.push("\u56DE\u9000");
+    return names.length === 0 ? "\u65E0\uFF0C\u6CA1\u6709\u6B63\u5728\u8FDB\u884C\u7684\u5408\u5E76\u3001\u53D8\u57FA\u3001\u62E3\u9009\u6216\u56DE\u9000" : `\u6B63\u5728\u8FDB\u884C\uFF1A${names.join("\u3001")}`;
+  }
+  function worktreeStateText(row) {
+    if (row.locked) return row.lockReason === null ? "\u5DF2\u88AB\u5360\u7528\uFF0Cgit \u8BB0\u4E86\u7BA1\u7406\u5458\u9501" : `\u5DF2\u88AB\u5360\u7528\uFF1A${row.lockReason}`;
+    if (row.prunable) return "\u76EE\u5F55\u5DF2\u7ECF\u4E0D\u5B58\u5728\uFF0C\u53EA\u5269\u4E00\u6761 git \u8BB0\u5F55";
+    if (row.prunableUnknown) return "\u76EE\u5F55\u8FD8\u5728\u4E0D\u5728\u65E0\u6CD5\u5224\u65AD\uFF0C\u9700\u8981\u4EBA\u5DE5\u786E\u8BA4";
+    return null;
+  }
+  function numbered(lines) {
+    return lines.map((line, index) => `  ${index + 1}. ${line}`).join("\n");
+  }
+  function buildHandoff(data, kind, nowMs, focus) {
+    const screen = data.screen;
+    const identity = screen.identity;
+    const upstream = screen.branches.find((row) => row.short === data.branch)?.upstream ?? null;
+    const otherWorktrees = screen.otherWorktrees;
+    const abnormal = otherWorktrees.filter((row) => worktreeStateText(row) !== null);
+    const branches = data.branches;
+    const mergedBranches = branches.filter((row) => row.mergedIntoCurrent && row.name !== data.branch);
+    const looseBranches = branches.filter((row) => row.upstream === null && row.name !== data.branch);
+    const stagedLines = screen.staged.map(fileLine);
+    const unstagedLines = screen.unstaged.map(fileLine);
+    const conflictLines = screen.unstaged.filter((row) => row.conflict).map(fileLine);
+    const recentCommits = data.commits.slice(0, 5).map((commit) => `${commit.short} ${commit.subject}\uFF08${commit.author}\uFF0C${whenText(nowMs, commit.authorDateMs)}\uFF09`);
+    const identityLines = [
+      `\u8DEF\u5F84\uFF1A${data.repoRoot}`,
+      `\u5F53\u524D\u5DE5\u4F5C\u6811\uFF1A${identity.worktreePath}`,
+      `\u5206\u652F\uFF1A${identity.branch ?? "\u6E38\u79BB HEAD\uFF0C\u4E0D\u5728\u4EFB\u4F55\u5206\u652F\u4E0A"}`,
+      `\u4E0A\u6E38\uFF1A${upstream ?? "\u8FD9\u6761\u5206\u652F\u6CA1\u6709\u8BBE\u7F6E\u4E0A\u6E38"}`,
+      `\u540C\u6B65\uFF1A\u8D85\u524D ${identity.ahead} \u7B14\u63D0\u4EA4\uFF0C\u843D\u540E ${identity.behind} \u7B14\u63D0\u4EA4`
+    ];
+    const changesLines = [
+      `\u5DF2\u6682\u5B58\uFF1A${screen.stagedCount} \u4E2A\u6587\u4EF6`,
+      ...stagedLines.length === 0 ? [] : [numbered(stagedLines)],
+      `\u672A\u6682\u5B58\uFF1A${screen.unstagedCount} \u4E2A\u6587\u4EF6`,
+      ...unstagedLines.length === 0 ? [] : [numbered(unstagedLines)],
+      `\u51B2\u7A81\uFF1A${screen.conflictCount} \u4E2A\u6587\u4EF6`,
+      ...conflictLines.length === 0 ? [] : [numbered(conflictLines)],
+      `\u672A\u5B8C\u6210\u7684\u64CD\u4F5C\uFF1A${pendingOperationText(screen)}`
+    ];
+    const worktreeLines = otherWorktrees.length === 0 ? ["\u6CA1\u6709\u5176\u4ED6\u5DE5\u4F5C\u6811\u3002"] : [
+      `\u5171 ${otherWorktrees.length} \u68F5\uFF0C\u5176\u4E2D ${abnormal.length} \u68F5\u9700\u8981\u5904\u7406\u3002`,
+      ...abnormal.length === 0 ? [] : [numbered(abnormal.map((row) => {
+        const reason = worktreeStateText(row);
+        return `${row.display}\uFF1A${row.path}\uFF08${reason ?? ""}\uFF09`;
+      }))]
+    ];
+    const branchLines = branches.length === 0 ? ["\u6CA1\u6709\u8BFB\u5230\u7684\u672C\u5730\u5206\u652F\u3002"] : [
+      `\u672C\u5730 ${branches.length} \u6761\uFF0C\u5F53\u524D\u662F ${data.branch}\u3002`,
+      numbered(branches.map((row) => {
+        const parts = [];
+        if (row.name === data.branch) parts.push("\u5F53\u524D\u5206\u652F");
+        parts.push(row.upstream === null ? "\u6CA1\u6709\u4E0A\u6E38" : `\u4E0A\u6E38 ${row.upstream}`);
+        if (row.ahead > 0) parts.push(`\u8D85\u524D ${row.ahead}`);
+        if (row.behind > 0) parts.push(`\u843D\u540E ${row.behind}`);
+        if (row.name !== data.branch) parts.push(row.mergedIntoCurrent ? "\u5DF2\u5408\u5E76\u8FDB\u5F53\u524D\u5206\u652F" : "\u5C1A\u672A\u5408\u5E76\u8FDB\u5F53\u524D\u5206\u652F");
+        return `${row.name}\uFF08${parts.join("\uFF0C")}\uFF09\uFF1A${row.subject}`;
+      })),
+      `\u5176\u4E2D\u5DF2\u5408\u5E76 ${mergedBranches.length} \u6761\uFF0C\u6CA1\u6709\u4E0A\u6E38 ${looseBranches.length} \u6761\u3002`
+    ];
+    const observation = kind === "general" ? "\u6211\u80FD\u770B\u5230\u72B6\u6001\uFF0C\u4F46\u4E0D\u786E\u5B9A\u4ECE\u54EA\u4E00\u6B65\u5F00\u59CB\u6700\u7701\u4E8B\uFF1B\u4E5F\u62C5\u5FC3\u81EA\u5DF1\u6F0F\u770B\u4E86\u67D0\u4E2A\u8BA9\u64CD\u4F5C\u5931\u8D25\u7684\u6761\u4EF6\u3002" : kind === "changes" ? `\u6539\u52A8\u5217\u8868\u91CC\u6709 ${screen.unstagedCount} \u4E2A\u672A\u6682\u5B58\u6587\u4EF6\u3001${screen.stagedCount} \u4E2A\u5DF2\u6682\u5B58\u6587\u4EF6\u3001${screen.conflictCount} \u4E2A\u51B2\u7A81\u6587\u4EF6\uFF1B\u6211\u4E0D\u786E\u5B9A\u8BE5\u628A\u5B83\u4EEC\u62C6\u6210\u51E0\u6761\u63D0\u4EA4\u3001\u6BCF\u6761\u653E\u54EA\u4E9B\u6587\u4EF6\u3002` : kind === "worktrees" ? `\u5176\u4ED6\u5DE5\u4F5C\u6811\u6709 ${otherWorktrees.length} \u68F5\uFF0C\u5176\u4E2D ${abnormal.length} \u68F5\u5728\u6321\u8DEF\uFF1B\u6211\u4E0D\u786E\u5B9A\u54EA\u4E9B\u8BE5\u89E3\u9501\u3001\u54EA\u4E9B\u8BE5\u6E05\u7406\u8BB0\u5F55\u3001\u54EA\u4E9B\u8BE5\u79FB\u9664\u3002` : `\u672C\u5730 ${branches.length} \u6761\u5206\u652F\u91CC\uFF0C${mergedBranches.length} \u6761\u5DF2\u5408\u5E76\u3001${looseBranches.length} \u6761\u6CA1\u6709\u4E0A\u6E38\uFF1B\u6211\u4E0D\u77E5\u9053\u5148\u5408\u5E76\u54EA\u6761\u3001\u5220\u54EA\u6761\u624D\u5B89\u5168\u3002`;
+    const prompt = [
+      "\u6211\u5728\u672C\u5730\u4ED3\u5E93\u7684\u7248\u672C\u7BA1\u7406\u9875\u4E0A\u9047\u5230\u4E86\u4E0B\u9762\u7684\u60C5\u51B5\uFF0C\u8BF7\u4F60\u5E2E\u6211\u5224\u65AD\u5E76\u7ED9\u51FA\u4E0B\u4E00\u6B65\u505A\u6CD5\u3002",
+      "",
+      "\u3010\u4ED3\u5E93\u4E0E\u5206\u652F\u3011",
+      ...identityLines,
+      "",
+      "\u3010\u5DE5\u4F5C\u533A\u73B0\u72B6\u3011",
+      ...changesLines,
+      "",
+      "\u3010\u5176\u4ED6\u5DE5\u4F5C\u6811\u3011",
+      ...worktreeLines,
+      "",
+      "\u3010\u672C\u5730\u5206\u652F\u3011",
+      ...branchLines,
+      "",
+      "\u3010\u6700\u8FD1\u63D0\u4EA4\u3011",
+      recentCommits.length === 0 ? "  \u6CA1\u6709\u8BFB\u5230\u63D0\u4EA4\u3002" : numbered(recentCommits),
+      "",
+      "\u3010\u6211\u770B\u5230\u7684\u73B0\u8C61\u3011",
+      `  \u754C\u9762\u505C\u5728\uFF1A${focus}`,
+      `  \u6211\u7684\u611F\u53D7\uFF1A${observation}`,
+      "",
+      "\u3010\u6211\u60F3\u8FBE\u5230\u7684\u7ED3\u679C\u3011",
+      `  ${GOALS[kind]}`,
+      "",
+      "\u3010\u8BF7\u4F60\u3011",
+      "  1. \u5148\u7528\u4E09\u4E94\u53E5\u8BDD\u590D\u8FF0\u4F60\u7406\u89E3\u7684\u72B6\u6001\uFF0C\u5E76\u6307\u51FA\u6211\u53EF\u80FD\u8BEF\u89E3\u7684\u5730\u65B9\u3002",
+      "  2. \u518D\u6309\u6B65\u9AA4\u7ED9\u51FA\u505A\u6CD5\uFF0C\u6BCF\u4E00\u6B65\u5199\u6E05\u695A\u4F1A\u6539\u52A8\u4EC0\u4E48\u3001\u4E0D\u4F1A\u6539\u52A8\u4EC0\u4E48\u3001\u600E\u4E48\u9A8C\u8BC1\u6210\u529F\u3002",
+      "  3. \u78B0\u5230\u4E22\u5F03\u6539\u52A8\u3001\u8986\u76D6\u5DF2\u63A8\u9001\u7684\u5386\u53F2\u3001\u5F3A\u5236\u63A8\u9001\u4E4B\u524D\uFF0C\u5148\u505C\u4E0B\u6765\u95EE\u6211\u786E\u8BA4\u3002",
+      "",
+      "\u3010\u8865\u5145\u3011",
+      "  \uFF08\u5982\u679C\u8FD8\u6709\u522B\u7684\u80CC\u666F\u6216\u9650\u5236\uFF0C\u5199\u5728\u8FD9\u91CC\u3002\uFF09"
+    ].join("\n");
+    return { title: TITLES[kind], lede: LEDES[kind], prompt, charCount: prompt.length };
+  }
+  var HANDOFF_ENTRY = {
+    general: "\u4E0D\u60F3\u4EB2\u81EA\u5904\u7406\uFF1F\u4EA4\u7ED9 AI",
+    changes: "\u62FF\u4E0D\u51C6\u600E\u4E48\u62C6\u63D0\u4EA4\uFF1F\u4EA4\u7ED9 AI",
+    worktrees: "\u4E0D\u60F3\u81EA\u5DF1\u6392\u67E5\uFF1F\u4EA4\u7ED9 AI",
+    branches: "\u5206\u652F\u5173\u7CFB\u592A\u4E71\uFF1F\u4EA4\u7ED9 AI \u7406\u6E05"
+  };
 
   // docs/prototype/vc-redesign/src/data/patches.ts
   var TS_SAMPLE = [
@@ -4103,6 +4537,7 @@
   }
   function railOf(base, state, nowMs) {
     const identity = base.screen.identity;
+    const currentBranch = state.branches.find((row) => row.current);
     const screen = judgeScreen(base, state);
     const sync = syncModel(identity.sync, state.ahead, state.behind);
     const syncChips = [];
@@ -4127,7 +4562,7 @@
     return {
       worktreeDisplay: identity.worktreeDisplay,
       worktreePath: identity.worktreePath,
-      branch: identity.branch,
+      branch: currentBranch === void 0 ? identity.branch : currentBranch.name,
       detached: identity.detached,
       oidShort: identity.oid === null ? null : shortOid(identity.oid),
       sync,
@@ -4412,7 +4847,20 @@
       oidShort: shortOid(worktree.head),
       states: chips.states,
       abnormal: chips.abnormal,
-      copied: state.copiedPath === worktree.path
+      copied: state.copiedPath === worktree.path,
+      locked: worktree.locked,
+      prunable: worktree.prunable
+    };
+  }
+  function applyWorktreeActions(state, item) {
+    const unlocked = state.unlockedWorktrees.includes(item.path);
+    const pruned = state.prunedWorktrees.includes(item.path);
+    if (!unlocked && !pruned) return item;
+    return {
+      ...item,
+      locked: unlocked ? false : item.locked,
+      lockReason: unlocked ? null : item.lockReason,
+      prunable: pruned ? false : item.prunable
     };
   }
   function worktreesOf(base, state) {
@@ -4431,7 +4879,7 @@
       prunableUnknown: false
     });
     const demo = state.demoWorktrees ? demoWorktreesOf(identity.worktreePath) : [];
-    const othersRaw = [...base.screen.otherWorktrees.filter((item) => !item.current), ...demo];
+    const othersRaw = [...base.screen.otherWorktrees.filter((item) => !item.current), ...demo].filter((item) => !state.hiddenWorktrees.includes(item.path)).map((item) => applyWorktreeActions(state, item));
     const others = othersRaw.map((item) => worktreeRowOf(state, item)).sort((a, b) => Number(b.abnormal) - Number(a.abnormal));
     const abnormal = others.filter((row) => row.abnormal).length;
     return {
@@ -4442,7 +4890,54 @@
       empty: others.length === 0,
       notice: `${COPY.worktrees.scope}${COPY.worktrees.boundary}`,
       aiLabel: COPY.worktrees.ai,
-      aiEnabled: abnormal > 0
+      aiEnabled: abnormal > 0,
+      pending: state.worktreePending
+    };
+  }
+  function branchRowOf(state, row, nowMs) {
+    return {
+      name: row.name,
+      current: row.current,
+      upstream: row.upstream,
+      ahead: row.ahead,
+      behind: row.behind,
+      oidShort: row.oidShort,
+      when: timeText(nowMs, row.lastCommitMs),
+      subject: row.subject,
+      merged: row.mergedIntoCurrent
+    };
+  }
+  function branchesOf(base, state, nowMs) {
+    const query = state.branchQuery.trim().toLowerCase();
+    const rows = state.branches.filter((row) => query === "" || row.name.toLowerCase().includes(query)).map((row) => branchRowOf(state, row, nowMs));
+    const current = state.branches.find((row) => row.current) ?? null;
+    const selectedRaw = state.branchSelected === null ? null : state.branches.find((row) => row.name === state.branchSelected) ?? null;
+    let selected = null;
+    if (selectedRaw !== null) {
+      const row = branchRowOf(state, selectedRaw, nowMs);
+      const isCurrent = selectedRaw.current;
+      selected = {
+        row,
+        canSwitch: !isCurrent,
+        canMerge: !isCurrent,
+        canDelete: !isCurrent,
+        switchReason: isCurrent ? COPY.branches.switchCurrent : null,
+        mergeReason: null,
+        deleteReason: isCurrent ? COPY.branches.cannotDeleteCurrent : null,
+        pending: state.branchPending
+      };
+    }
+    return {
+      rows,
+      total: state.branches.length,
+      currentName: current === null ? base.branch : current.name,
+      selected,
+      sub: state.branchSub,
+      draft: state.branchDraft,
+      query: state.branchQuery,
+      pending: state.branchPending,
+      empty: rows.length === 0,
+      dirty: state.staged.length > 0 || state.unstaged.length > 0 || state.conflicts.length > 0
     };
   }
   function panelModelOf(base, state, nowMs) {
@@ -4460,6 +4955,7 @@
       changes: changesOf(base, state),
       history: historyOf(base, state, nowMs),
       worktrees: worktreesOf(base, state),
+      branches: branchesOf(base, state, nowMs),
       result: state.result,
       confirm,
       busy: state.busy,
@@ -4513,7 +5009,10 @@
     folder: "M3 6h7l2 3h9v10H3z",
     file: "M6 3h8l4 4v14H6zM14 3v4h4",
     commit: "M8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0M3 12h5M16 12h5",
-    branch: "M6 3v18M6 9c0 4 6 4 6 8M12 9h4M16 7a2 2 0 1 0 0 .1M9 5a2 2 0 1 1 0 .1"
+    branch: "M6 3v18M6 9c0 4 6 4 6 8M12 9h4M16 7a2 2 0 1 0 0 .1M9 5a2 2 0 1 1 0 .1",
+    // 四角星：AI 交接的入口记号；刻意不用机器人头像，避免读者以为这是另一个终端。
+    spark: "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM18.5 16l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z",
+    close: "M6 6l12 12M18 6L6 18"
   };
   function icon(kind, size = 14) {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -4576,7 +5075,9 @@
       reload: "\u91CD\u65B0\u8BFB\u53D6",
       commit: "\u63D0\u4EA4",
       copy: "\u590D\u5236",
-      ai: "AI \u4EA4\u63A5"
+      ai: "AI \u4EA4\u63A5",
+      branch: "\u5206\u652F\u52A8\u4F5C",
+      worktree: "\u5DE5\u4F5C\u6811\u52A8\u4F5C"
     };
     return h(
       "div",
@@ -4627,6 +5128,85 @@
     return h("span", { class: `note note-${tone}`, text });
   }
 
+  // docs/prototype/vc-redesign/src/ui/views/handoff.ts
+  function renderHandoffSheet(model) {
+    const { draft, copied } = model;
+    const layer = h("div", { class: "handoff-layer" });
+    layer.append(h("div", {
+      class: "handoff-backdrop",
+      attrs: { "aria-hidden": "true" },
+      dataset: { action: "handoff-close" }
+    }));
+    const sheet = h("section", {
+      class: "handoff-sheet",
+      attrs: {
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-labelledby": "handoff-title",
+        "aria-describedby": "handoff-lede"
+      }
+    });
+    const head = h(
+      "header",
+      { class: "handoff-head" },
+      h("p", { class: "handoff-kicker mono", text: COPY.ai.kicker }),
+      h("h2", { class: "handoff-title", id: "handoff-title", text: draft.title }),
+      h("button", {
+        class: "icon-btn handoff-close",
+        attrs: {
+          type: "button",
+          title: COPY.ai.closeTitle,
+          "aria-label": COPY.ai.closeTitle,
+          "data-focus-key": "handoff-close"
+        },
+        dataset: { action: "handoff-close" }
+      }, icon("close", 14))
+    );
+    const prompt = h("pre", {
+      class: "handoff-prompt",
+      attrs: { tabindex: 0, "aria-label": "\u4EA4\u7ED9 AI \u7684\u8BF4\u660E\u5168\u6587" }
+    });
+    prompt.textContent = draft.prompt;
+    const foot = h("footer", { class: "handoff-foot" });
+    if (copied) foot.append(h("p", { class: "handoff-copied", attrs: { role: "status" } }, icon("check", 13), h("span", { text: COPY.ai.copied(draft.charCount) })));
+    else foot.append(h("p", { class: "handoff-hint", text: COPY.ai.footNote }));
+    foot.append(h(
+      "div",
+      { class: "handoff-actions" },
+      button({ label: COPY.ai.closeLabel, kind: "ghost", size: "md", action: "handoff-close", focusKey: "handoff-close-2" }),
+      button({
+        label: COPY.ai.copyLabel,
+        kind: "primary",
+        size: "md",
+        action: "handoff-copy",
+        focusKey: "handoff-copy",
+        title: COPY.ai.footNote
+      })
+    ));
+    sheet.append(
+      head,
+      h("p", { class: "handoff-lede", id: "handoff-lede", text: draft.lede }),
+      prompt,
+      foot
+    );
+    layer.append(sheet);
+    return layer;
+  }
+  function handoffEntry(label, kind, variant) {
+    const node = h("button", {
+      class: `ai-entry ai-entry-${variant}`,
+      attrs: {
+        type: "button",
+        title: COPY.ai.entryAria(label),
+        "aria-label": COPY.ai.entryAria(label),
+        "data-focus-key": `handoff-${kind}`
+      },
+      dataset: { action: "handoff-open", kind }
+    }, icon("spark", 14), h("span", { class: "ai-entry-label", text: label }));
+    if (variant === "rail") node.append(h("span", { class: "ai-entry-sub", text: COPY.ai.railSub }));
+    return node;
+  }
+
   // docs/prototype/vc-redesign/src/ui/rail.ts
   function renderRail(model, result) {
     const rail = h("header", { class: "rail", attrs: { "aria-label": "\u4ED3\u5E93\u72B6\u6001" } });
@@ -4637,7 +5217,21 @@
     } else {
       idRow.append(
         h("span", { class: "rail-slash", text: "/", attrs: { "aria-hidden": "true" } }),
-        h("span", { class: "rail-branch", attrs: { title: `\u5206\u652F ${model.branch}` } }, h("span", { class: "mono", text: model.branch }))
+        h(
+          "button",
+          {
+            class: "rail-branch-btn",
+            attrs: {
+              type: "button",
+              title: COPY.rail.branchHint,
+              "aria-label": `\u5F53\u524D\u5206\u652F ${model.branch}\u3002${COPY.rail.branchHint}`,
+              "data-focus-key": "branch-open"
+            },
+            dataset: { action: "branch-open" }
+          },
+          h("span", { class: "rail-branch mono", text: model.branch }),
+          h("span", { class: "rail-branch-chevron", attrs: { "aria-hidden": "true" } }, icon("chevron", 11))
+        )
       );
     }
     if (model.oidShort !== null) {
@@ -4719,6 +5313,7 @@
       h("span", { class: "rail-path-label", text: "\u5DE5\u4F5C\u6811\u8DEF\u5F84" }),
       h("span", { class: "rail-path-value mono", text: model.worktreePath })
     );
+    const aiRow = h("div", { class: "rail-row rail-ai" }, handoffEntry(HANDOFF_ENTRY.general, "general", "rail"));
     const reasons = h("div", { class: "rail-reasons" });
     const rows = [
       [COPY.actions.pull, model.pull],
@@ -4733,7 +5328,7 @@
         h("span", { class: "reason-v", text: action.reason })
       ));
     }
-    rail.append(idRow, syncRow, actRow, reasons, pathRow);
+    rail.append(idRow, syncRow, actRow, reasons, pathRow, aiRow);
     if (result !== null) rail.append(resultBanner(result));
     return rail;
   }
@@ -4815,7 +5410,8 @@
       focusKey: "commit"
     });
     const submitRow = h("div", { class: "composer-submit" }, commitButton);
-    composer.append(stagedLine, textarea, hint);
+    const aiRow = h("div", { class: "composer-ai" }, handoffEntry(HANDOFF_ENTRY.changes, "changes", "inline"));
+    composer.append(stagedLine, textarea, hint, aiRow);
     if (model.composer.disabledReason !== null) {
       composer.append(h(
         "div",
@@ -4928,12 +5524,258 @@
     return wrap;
   }
 
-  // docs/prototype/vc-redesign/src/ui/views/history.ts
-  function renderHistory(model) {
-    if (model.detail !== null) return renderDetail(model.detail);
-    return renderList(model);
+  // docs/prototype/vc-redesign/src/ui/views/branches.ts
+  function renderBranches(model, result) {
+    const view = h("div", { class: "view view-branches" });
+    view.append(renderHead(model));
+    if (model.sub === "create" || model.sub === "rename") {
+      view.append(renderForm(model));
+    } else if (model.sub === "detail" && model.selected !== null) {
+      view.append(renderDetail(model.selected, model));
+    } else {
+      view.append(renderList(model));
+    }
+    if (result !== null) view.append(resultBanner(result));
+    return view;
+  }
+  function renderHead(model) {
+    const head = h("div", { class: "branch-head" });
+    head.append(h("button", {
+      class: "icon-text-btn",
+      attrs: { type: "button", "data-focus-key": "branch-back", title: COPY.branches.back },
+      dataset: { action: model.sub === "list" ? "branch-close" : "branch-sub", sub: "list" }
+    }, icon("back", 13), h("span", { text: model.sub === "list" ? COPY.branches.back : COPY.branches.backList })));
+    const title = model.sub === "detail" && model.selected !== null ? model.selected.row.name : model.sub === "create" ? COPY.branches.createTitle : model.sub === "rename" && model.selected !== null ? COPY.branches.renameTitle : COPY.branches.listTitle;
+    head.append(h("h2", { class: "branch-title", text: title }));
+    if (model.sub === "list") {
+      head.append(
+        h("span", { class: "branch-count", text: `${model.total}` }),
+        h("span", { class: "branch-count-unit", text: "\u4E2A" })
+      );
+      head.append(h("span", { class: "branch-spacer" }));
+      head.append(button({
+        label: COPY.branches.newBranch,
+        kind: "secondary",
+        size: "sm",
+        action: "branch-sub",
+        dataset: { sub: "create" },
+        focusKey: "branch-new"
+      }));
+    }
+    return head;
   }
   function renderList(model) {
+    const wrap = h("div", { class: "branch-list-wrap" });
+    const search = h("input", {
+      class: "branch-search",
+      attrs: {
+        type: "search",
+        value: model.query,
+        placeholder: COPY.branches.searchPlaceholder,
+        "aria-label": COPY.branches.searchPlaceholder,
+        "data-focus-key": "branch-query"
+      },
+      dataset: { field: "branch-query" }
+    });
+    wrap.append(search);
+    if (model.empty) {
+      wrap.append(emptyState(COPY.branches.empty, null));
+      return wrap;
+    }
+    const list = h("div", { class: "branch-scroll" });
+    for (const row of model.rows) list.append(renderRow(model, row));
+    wrap.append(list);
+    wrap.append(h("div", { class: "branch-ai" }, handoffEntry(HANDOFF_ENTRY.branches, "branches", "inline")));
+    return wrap;
+  }
+  function renderRow(model, row) {
+    const sync = h("span", { class: "branch-sync" });
+    if (row.ahead > 0) sync.append(h("span", { class: "branch-count-chip is-ahead", attrs: { title: COPY.branches.ahead(row.ahead) } }, COPY.branches.ahead(row.ahead)));
+    if (row.behind > 0) sync.append(h("span", { class: "branch-count-chip is-behind", attrs: { title: COPY.branches.behind(row.behind) } }, COPY.branches.behind(row.behind)));
+    return h(
+      "button",
+      {
+        class: `branch-row${row.current ? " is-current" : ""}${model.selected?.row.name === row.name && model.sub === "detail" ? " is-open" : ""}`,
+        attrs: {
+          type: "button",
+          "data-focus-key": `branch:${row.name}`,
+          title: row.current ? `${row.name}\uFF1A\u5F53\u524D\u5206\u652F` : `\u67E5\u770B\u5206\u652F ${row.name}`
+        },
+        dataset: { action: "branch-select", name: row.name }
+      },
+      h(
+        "span",
+        { class: "branch-row-main" },
+        h(
+          "span",
+          { class: "branch-row-name" },
+          h("span", { class: "mono", text: row.name }),
+          row.current ? chip(COPY.branches.current, "ok", { small: true }) : null
+        ),
+        h(
+          "span",
+          { class: "branch-row-meta" },
+          h("span", { class: "mono branch-upstream", text: row.upstream ?? COPY.branches.noUpstream }),
+          h("span", { class: "branch-when", text: row.when })
+        )
+      ),
+      h(
+        "span",
+        { class: "branch-row-side" },
+        sync,
+        h("span", { class: "branch-chevron" }, icon("chevron", 12))
+      )
+    );
+  }
+  function renderDetail(detail, model) {
+    const row = detail.row;
+    const wrap = h("div", { class: "branch-detail" });
+    if (row.ahead > 0 || row.behind > 0) {
+      const sync = h("div", { class: "branch-detail-sync" });
+      if (row.ahead > 0) sync.append(chip(COPY.branches.ahead(row.ahead), "info", { small: true }));
+      if (row.behind > 0) sync.append(chip(COPY.branches.behind(row.behind), "error", { small: true }));
+      wrap.append(sync);
+    }
+    wrap.append(renderFacts(row));
+    const actions = h("div", { class: "branch-actions" });
+    actions.append(button({
+      label: COPY.branches.switch,
+      kind: "secondary",
+      size: "sm",
+      disabled: !detail.canSwitch,
+      title: detail.switchReason,
+      action: "branch-switch",
+      dataset: { name: row.name },
+      focusKey: "branch-switch"
+    }));
+    actions.append(button({
+      label: COPY.branches.merge,
+      kind: "secondary",
+      size: "sm",
+      disabled: !detail.canMerge,
+      title: detail.mergeReason,
+      action: "branch-merge",
+      dataset: { name: row.name },
+      focusKey: "branch-merge"
+    }));
+    actions.append(button({
+      label: COPY.branches.rename,
+      kind: "ghost",
+      size: "sm",
+      action: "branch-sub",
+      dataset: { sub: "rename" },
+      focusKey: "branch-rename"
+    }));
+    const danger = button({
+      label: COPY.branches.delete,
+      kind: "danger",
+      size: "sm",
+      disabled: !detail.canDelete,
+      title: detail.deleteReason,
+      action: "branch-delete-start",
+      dataset: { name: row.name },
+      focusKey: "branch-delete"
+    });
+    actions.append(danger);
+    wrap.append(actions);
+    if (detail.pending !== null) wrap.append(renderConfirm(detail.pending));
+    else wrap.append(h("p", { class: "branch-hint", text: COPY.branches.mergeHint }));
+    if (model.dirty) {
+      wrap.append(h("p", { class: "branch-hint is-warn", text: "\u5DE5\u4F5C\u533A\u6709\u672A\u63D0\u4EA4\u7684\u6539\u52A8\uFF1A\u5207\u6362\u6216\u5408\u5E76\u4E4B\u524D\uFF0C\u5148\u60F3\u6E05\u695A\u8FD9\u4E9B\u6539\u52A8\u8981\u8DDF\u7740\u8D70\u8FD8\u662F\u8981\u7559\u5728\u539F\u5206\u652F\u3002" }));
+    }
+    return wrap;
+  }
+  function renderFacts(row) {
+    const facts = h("dl", { class: "branch-facts" });
+    const fact = (label, value, mono, title) => h(
+      "div",
+      { class: "branch-fact" },
+      h("dt", { class: "branch-fact-k", text: label }),
+      h("dd", { class: `branch-fact-v${mono ? " mono" : ""}`, text: value, attrs: title === void 0 ? {} : { title } })
+    );
+    facts.append(
+      fact("\u4E0A\u6E38\u8DDF\u8E2A", row.upstream ?? COPY.branches.noUpstream, true),
+      fact(COPY.branches.latestCommit, row.oidShort, true, row.subject),
+      fact("\u63D0\u4EA4\u65F6\u95F4", row.when, false),
+      fact("\u5408\u5E76\u72B6\u6001", row.merged ? COPY.branches.merged : COPY.branches.notMerged, false)
+    );
+    facts.append(h("p", { class: "branch-subject", text: row.subject }));
+    return facts;
+  }
+  function renderConfirm(pending) {
+    const isDelete = pending.kind === "delete";
+    return h(
+      "div",
+      { class: `branch-confirm${isDelete ? " is-danger" : " is-warn"}` },
+      h("h3", { class: "branch-confirm-title", text: isDelete ? COPY.branches.deleteTitle(pending.name) : COPY.branches.switchDirtyTitle }),
+      h("p", { class: "branch-confirm-body", text: isDelete ? COPY.branches.deleteBody : COPY.branches.switchDirtyBody }),
+      h(
+        "div",
+        { class: "branch-confirm-actions" },
+        button({
+          label: COPY.branches.cancel,
+          kind: "ghost",
+          size: "sm",
+          action: "branch-pending-cancel",
+          focusKey: "branch-cancel"
+        }),
+        button({
+          label: isDelete ? COPY.branches.deleteConfirm : COPY.branches.switchConfirm,
+          kind: isDelete ? "danger" : "secondary",
+          size: "sm",
+          action: isDelete ? "branch-delete-confirm" : "branch-switch-confirm",
+          dataset: { name: pending.name },
+          focusKey: "branch-confirm"
+        })
+      )
+    );
+  }
+  function renderForm(model) {
+    const isCreate = model.sub === "create";
+    const wrap = h("div", { class: "branch-form" });
+    wrap.append(h("p", { class: "branch-form-note", text: isCreate ? COPY.branches.createFrom(model.currentName ?? "") : model.selected?.row.name ?? "" }));
+    wrap.append(h("label", { class: "branch-form-label", text: COPY.branches.branchLabel, attrs: { for: "branch-name-input" } }));
+    const input = h("input", {
+      class: "branch-input",
+      attrs: {
+        type: "text",
+        id: "branch-name-input",
+        value: model.draft,
+        placeholder: isCreate ? COPY.branches.createPlaceholder : COPY.branches.renamePlaceholder,
+        "aria-label": isCreate ? COPY.branches.createPlaceholder : COPY.branches.renamePlaceholder,
+        "data-focus-key": "branch-draft"
+      },
+      dataset: { field: "branch-draft" }
+    });
+    wrap.append(input);
+    wrap.append(h("p", { class: "branch-form-hint", text: COPY.branches.nameHint }));
+    const actions = h("div", { class: "branch-form-actions" });
+    actions.append(button({
+      label: COPY.branches.cancel,
+      kind: "ghost",
+      size: "sm",
+      action: "branch-sub",
+      dataset: { sub: "list" },
+      focusKey: "branch-cancel"
+    }));
+    actions.append(button({
+      label: isCreate ? COPY.branches.create : COPY.branches.renameSubmit,
+      kind: "primary",
+      size: "sm",
+      action: isCreate ? "branch-create" : "branch-rename-confirm",
+      dataset: isCreate ? {} : { name: model.selected?.row.name ?? "" },
+      focusKey: "branch-submit"
+    }));
+    wrap.append(actions);
+    return wrap;
+  }
+
+  // docs/prototype/vc-redesign/src/ui/views/history.ts
+  function renderHistory(model) {
+    if (model.detail !== null) return renderDetail2(model.detail);
+    return renderList2(model);
+  }
+  function renderList2(model) {
     const view = h("div", { class: "view view-history" });
     const search = h("input", {
       class: "search-input",
@@ -4999,7 +5841,7 @@
       h("span", { class: "commit-merge-raw mono", text: row.subject })
     );
   }
-  function renderDetail(detail) {
+  function renderDetail2(detail) {
     const view = h("div", { class: "view view-detail" });
     const head = h(
       "div",
@@ -5089,7 +5931,7 @@
     const view = h("div", { class: "view view-worktrees" });
     if (options.noticeOpen) view.append(renderNotice(model));
     view.append(renderCurrent(model.current));
-    view.append(renderHead(model, options, options.noticeOpen));
+    view.append(renderHead2(model, options, options.noticeOpen));
     const rows = options.filter === "abnormal" ? model.others.filter((row) => row.abnormal) : model.others;
     const list = h("div", { class: "wt-list" });
     if (model.empty) {
@@ -5097,23 +5939,14 @@
     } else if (rows.length === 0) {
       list.append(emptyState(COPY.worktrees.filterEmpty, null));
     } else {
-      for (const row of rows) list.append(renderRow(row, options.expandedPath === row.path));
+      for (const row of rows) list.append(renderRow2(row, options.expandedPath === row.path, model.pending));
     }
     view.append(list);
-    if (model.aiEnabled) {
-      view.append(h(
-        "div",
-        { class: "wt-foot" },
-        button({
-          label: model.aiLabel,
-          kind: "secondary",
-          size: "sm",
-          icon: "alert",
-          action: "ai-worktrees",
-          focusKey: "ai-worktrees"
-        })
-      ));
-    }
+    view.append(h(
+      "div",
+      { class: "wt-foot" },
+      handoffEntry(model.abnormalCount > 0 ? HANDOFF_ENTRY.worktrees : COPY.ai.cleanEntry, "worktrees", "inline")
+    ));
     if (result !== null) view.append(resultBanner(result));
     return view;
   }
@@ -5155,7 +5988,7 @@
       h("div", { class: "wt-current-path mono", text: row.path, title: row.path })
     );
   }
-  function renderHead(model, options, noticeOpen) {
+  function renderHead2(model, options, noticeOpen) {
     const head = h(
       "div",
       { class: "wt-head" },
@@ -5200,7 +6033,7 @@
       h("span", { class: "filter-count", text: count })
     );
   }
-  function renderRow(row, expanded) {
+  function renderRow2(row, expanded, pending) {
     const rowNode = h("div", {
       class: `wt-row${row.abnormal ? " is-abnormal" : ""}${expanded ? " is-open" : ""}`
     });
@@ -5246,10 +6079,10 @@
     );
     rowNode.append(h("div", { class: "wt-main" }, nameRow, pathRow, stateRow), actions);
     const wrap = h("div", { class: "wt-row-wrap" }, rowNode);
-    if (expanded) wrap.append(renderDetail2(row));
+    if (expanded) wrap.append(renderDetail3(row, pending));
     return wrap;
   }
-  function renderDetail2(row) {
+  function renderDetail3(row, pending) {
     const detail = h("div", { class: `wt-detail${row.abnormal ? " is-abnormal" : ""}` });
     const fact = (label, value, mono) => h(
       "div",
@@ -5262,44 +6095,83 @@
       fact(COPY.worktrees.detailBranch, row.branch ?? COPY.worktrees.noBranch, false),
       fact(COPY.worktrees.detailHead, row.oidShort, true)
     );
-    for (const state of row.states) {
-      if (state.detail === null) continue;
-      detail.append(fact(state.label, state.detail, false));
-    }
-    const commands = commandsFor(row);
-    if (commands.length > 0) {
-      const block = h("div", { class: "wt-commands" });
-      for (const item of commands) {
-        block.append(h(
-          "div",
-          { class: "wt-command" },
-          h("span", { class: "wt-command-label", text: item.label }),
-          h("code", { class: "wt-command-text mono", text: item.command, title: item.command }),
-          h("button", {
-            class: "wt-command-copy",
-            attrs: {
-              type: "button",
-              "aria-label": `\u590D\u5236\u547D\u4EE4\uFF1A${item.command}`,
-              title: COPY.worktrees.copyCommand,
-              "data-focus-key": `wt-command:${row.path}:${item.label}`
-            },
-            dataset: { action: "worktree-command", command: item.command }
-          }, COPY.worktrees.copyCommand)
-        ));
+    const awaiting = pending !== null && pending.path === row.path;
+    if (!awaiting) {
+      for (const state of row.states) {
+        if (state.detail === null) continue;
+        detail.append(fact(state.label, state.detail, false));
       }
-      detail.append(block, h("p", { class: "wt-command-note", text: COPY.worktrees.detailCommand }));
+    }
+    if (!awaiting) {
+      const actions = h("div", { class: "wt-actions-row" });
+      if (row.locked) {
+        actions.append(button({
+          label: COPY.worktrees.unlock,
+          kind: "secondary",
+          size: "sm",
+          action: "wt-pending",
+          dataset: { kind: "unlock", path: row.path, name: row.name },
+          focusKey: `wt-unlock:${row.path}`
+        }));
+      }
+      if (row.prunable) {
+        actions.append(button({
+          label: COPY.worktrees.pruneRecord,
+          kind: "secondary",
+          size: "sm",
+          action: "wt-pending",
+          dataset: { kind: "prune", path: row.path, name: row.name },
+          focusKey: `wt-prune:${row.path}`
+        }));
+      }
+      actions.append(button({
+        label: COPY.worktrees.remove,
+        kind: "danger",
+        size: "sm",
+        action: "wt-pending",
+        dataset: { kind: "remove", path: row.path, name: row.name },
+        focusKey: `wt-remove:${row.path}`
+      }));
+      detail.append(actions, h("p", { class: "wt-action-note", text: COPY.worktrees.actionsHint }));
+    }
+    if (pending !== null && pending.path === row.path) {
+      detail.append(h(
+        "div",
+        { class: `wt-confirm${pending.kind === "remove" ? " is-danger" : " is-warn"}` },
+        h("h4", { class: "wt-confirm-title", text: pendingTitle(pending) }),
+        h("p", { class: "wt-confirm-body", text: pendingBody(pending) }),
+        h(
+          "div",
+          { class: "wt-confirm-actions" },
+          button({
+            label: COPY.worktrees.cancel,
+            kind: "ghost",
+            size: "sm",
+            action: "wt-pending-cancel",
+            focusKey: "wt-cancel"
+          }),
+          button({
+            label: pending.kind === "unlock" ? COPY.worktrees.unlockConfirm : pending.kind === "prune" ? COPY.worktrees.pruneConfirm : COPY.worktrees.removeConfirm,
+            kind: pending.kind === "remove" ? "danger" : "secondary",
+            size: "sm",
+            action: "wt-apply",
+            dataset: { kind: pending.kind, path: pending.path, name: pending.name },
+            focusKey: "wt-confirm"
+          })
+        )
+      ));
     }
     return detail;
   }
-  function commandsFor(row) {
-    const labels = new Set(row.states.map((state) => state.label));
-    if (labels.has(COPY.worktrees.prunable)) {
-      return [{ label: "\u6E05\u7406\u4E0D\u5B58\u5728\u7684\u76EE\u5F55\u8BB0\u5F55", command: COPY.worktrees.commandPrune }];
-    }
-    if (labels.has(COPY.worktrees.locked)) {
-      return [{ label: "\u89E3\u9664\u5360\u7528", command: COPY.worktrees.commandUnlock(row.path) }];
-    }
-    return [{ label: "\u79FB\u9664\u8FD9\u68F5\u5DE5\u4F5C\u6811", command: COPY.worktrees.commandRemove(row.path) }];
+  function pendingTitle(pending) {
+    if (pending.kind === "unlock") return COPY.worktrees.unlockTitle;
+    if (pending.kind === "prune") return COPY.worktrees.pruneTitle;
+    return COPY.worktrees.removeTitle(pending.name);
+  }
+  function pendingBody(pending) {
+    if (pending.kind === "unlock") return COPY.worktrees.unlockBody;
+    if (pending.kind === "prune") return COPY.worktrees.pruneBody;
+    return COPY.worktrees.removeBody;
   }
 
   // docs/prototype/vc-redesign/src/ui/app.ts
@@ -5312,9 +6184,10 @@
       screen: data.screen,
       commitFiles: data.commitFiles,
       totalCommits: data.commits.length,
-      branch: data.branch
+      branch: data.branch,
+      branches: data.branches.map((row) => ({ ...row, current: row.name === data.branch }))
     };
-    let state = createSessionState(base.screen, Date.now());
+    let state = createSessionState(base, Date.now());
     let panelWidth = DEFAULT_WIDTH;
     let theme = DEFAULT_THEME;
     let embed = false;
@@ -5327,6 +6200,9 @@
     let wtFilter = "all";
     let wtNoteOpen = true;
     let expandedWorktree = null;
+    let handoffKind = null;
+    let handoffFocus = "";
+    let handoffCopied = false;
     const liveRegion = h("div", { class: "sr-only", attrs: { "aria-live": "polite", role: "status" } });
     root2.append(liveRegion);
     function snapshotFocus() {
@@ -5352,10 +6228,10 @@
       }
     }
     function captureScroll() {
-      const selector = ".changes-scroll, .history-scroll, .detail-scroll";
+      const selector = ".changes-scroll, .history-scroll, .detail-scroll, .branch-scroll";
       const el = root2.querySelector(selector);
       if (el === null) return null;
-      const scrollSelector = el.classList.contains("changes-scroll") ? ".changes-scroll" : el.classList.contains("history-scroll") ? ".history-scroll" : ".detail-scroll";
+      const scrollSelector = el.classList.contains("changes-scroll") ? ".changes-scroll" : el.classList.contains("history-scroll") ? ".history-scroll" : el.classList.contains("branch-scroll") ? ".branch-scroll" : ".detail-scroll";
       return { selector: scrollSelector, top: el.scrollTop };
     }
     function restoreScroll(snapshot) {
@@ -5386,6 +6262,8 @@
       root2.append(liveRegion, frame);
       restoreScroll(options.scroll ?? null);
       restoreFocus(options.focusKey ?? null, options.focusCaret ?? null);
+      const pendingCard = root2.querySelector(".wt-confirm, .branch-confirm");
+      if (pendingCard !== null) pendingCard.scrollIntoView({ block: "nearest" });
       positionPopconfirm();
       scheduleResultDismiss();
       liveRegion.textContent = state.result === null ? "" : state.result.text;
@@ -5469,6 +6347,12 @@
       panel.append(renderTabs(model));
       panel.append(h("main", { class: "panel-body", attrs: { id: "view-panel", role: "tabpanel", "aria-labelledby": `tab-${state.view}` } }, renderActiveView(model)));
       if (model.confirm !== null) panel.append(renderPopconfirm(model.confirm));
+      if (handoffKind !== null) {
+        panel.append(renderHandoffSheet({
+          draft: buildHandoff(data, handoffKind, Date.now(), handoffFocus),
+          copied: handoffCopied
+        }));
+      }
       frame.append(panel);
       stage.append(frame);
       const foot = h(
@@ -5515,6 +6399,9 @@
       return nav;
     }
     function renderActiveView(model) {
+      if (state.branchOpen) {
+        return renderBranches(model.branches, model.result !== null && model.result.source === "branch" ? model.result : null);
+      }
       switch (state.view) {
         case "commits":
           return renderHistory(model.history);
@@ -5524,7 +6411,8 @@
             noticeOpen: wtNoteOpen,
             expandedPath: expandedWorktree
           };
-          return renderWorktrees(model.worktrees, model.result !== null && model.result.source === "ai" ? model.result : null, options);
+          const result = model.result !== null && (model.result.source === "ai" || model.result.source === "worktree") ? model.result : null;
+          return renderWorktrees(model.worktrees, result, options);
         }
         default:
           return renderChanges(model.changes, model.result !== null && model.result.source === "commit" ? model.result : null);
@@ -5624,6 +6512,28 @@
       }
       dispatch({ type: "copy", path }, { focusKey: lastFocusKey });
     }
+    function focusText(model) {
+      if (state.branchOpen) return "\u5206\u652F\u9875\uFF0C\u6B63\u5728\u672C\u5730\u5206\u652F\u6E05\u5355\u91CC";
+      if (state.view === "commits") {
+        const detail = model.history.detail;
+        return detail === null ? "\u63D0\u4EA4\u5386\u53F2\u89C6\u56FE\u7684\u5217\u8868" : `\u63D0\u4EA4\u5386\u53F2\u89C6\u56FE\uFF0C\u6B63\u5728\u770B\u63D0\u4EA4 ${detail.short} \u7684\u8BE6\u60C5`;
+      }
+      if (state.view === "worktrees") {
+        return `\u5DE5\u4F5C\u6811\u89C6\u56FE\uFF0C\u7B5B\u9009\u662F${wtFilter === "all" ? "\u5168\u90E8" : "\u53EA\u770B\u9700\u8981\u5904\u7406"}`;
+      }
+      const filter = state.changesFilter;
+      const filterLabel = filter === "conflict" ? "\u53EA\u770B\u51B2\u7A81" : filter === "staged" ? "\u53EA\u770B\u5DF2\u6682\u5B58" : filter === "unstaged" ? "\u53EA\u770B\u672A\u6682\u5B58" : "\u5168\u90E8";
+      return `\u6539\u52A8\u89C6\u56FE\uFF0C\u7B5B\u9009\u662F${filterLabel}`;
+    }
+    async function copyHandoff(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+      }
+      handoffCopied = true;
+      liveRegion.textContent = COPY.ai.copied(text.length);
+      repaint({ focusKey: "handoff-copy" });
+    }
     function onClick(event) {
       const target = event.target;
       if (!(target instanceof Element)) return;
@@ -5651,7 +6561,13 @@
         case "tab": {
           const view = el.dataset.view;
           if (view !== "changes" && view !== "commits" && view !== "worktrees") return;
-          if (state.view === view) return;
+          if (state.branchOpen) {
+            state = reduce(state, { type: "branch-close" }, base);
+          }
+          if (state.view === view) {
+            repaint({ focusKey: `tab-${view}`, scroll: null });
+            return;
+          }
           dispatch({ type: "view", view }, { focusKey: `tab-${view}`, scroll: null });
           return;
         }
@@ -5737,6 +6653,29 @@
         case "ai-worktrees":
           dispatch({ type: "ai-worktrees" }, { focusKey: "ai-worktrees" });
           return;
+        case "handoff-open": {
+          const kind = el.dataset.kind;
+          if (kind !== "general" && kind !== "changes" && kind !== "worktrees" && kind !== "branches") return;
+          handoffKind = kind;
+          handoffFocus = focusText(model);
+          handoffCopied = false;
+          repaint({ focusKey: "handoff-copy" });
+          return;
+        }
+        case "handoff-close": {
+          if (handoffKind === null) return;
+          const previous = handoffKind;
+          handoffKind = null;
+          handoffCopied = false;
+          repaint({ focusKey: `handoff-${previous}` });
+          return;
+        }
+        case "handoff-copy": {
+          if (handoffKind === null) return;
+          const draft = buildHandoff(data, handoffKind, Date.now(), handoffFocus);
+          void copyHandoff(draft.prompt);
+          return;
+        }
         case "wt-filter": {
           const filter = el.dataset.filter === "abnormal" ? "abnormal" : "all";
           if (filter === wtFilter) return;
@@ -5758,11 +6697,68 @@
           repaint({ focusKey: `wt-expand:${path}` });
           return;
         }
-        case "worktree-command": {
-          const command = el.dataset.command ?? "";
-          void copyPath(command);
+        case "branch-open":
+          dispatch({ type: "branch-open" }, { focusKey: "branch-search", scroll: null });
+          return;
+        case "branch-close":
+          dispatch({ type: "branch-close" }, { focusKey: "branch-open", scroll: null });
+          return;
+        case "branch-select": {
+          const name = el.dataset.name ?? "";
+          dispatch({ type: "branch-select", name }, { focusKey: "branch-back", scroll: null });
           return;
         }
+        case "branch-sub": {
+          const sub = el.dataset.sub;
+          if (sub !== "list" && sub !== "detail" && sub !== "create" && sub !== "rename") return;
+          const next = sub;
+          const focusKey = next === "create" || next === "rename" ? "branch-draft" : "branch-back";
+          dispatch({ type: "branch-sub", sub: next }, { focusKey, scroll: null });
+          return;
+        }
+        case "branch-create":
+          dispatch({ type: "branch-create" }, { focusKey: "branch-back", scroll: null });
+          return;
+        case "branch-rename-confirm":
+          dispatch({ type: "branch-rename", name: el.dataset.name ?? "" }, { focusKey: "branch-back", scroll: null });
+          return;
+        case "branch-switch": {
+          const name = el.dataset.name ?? "";
+          if (model.branches.dirty) {
+            dispatch({ type: "branch-pending", pending: { kind: "switch", name } }, { focusKey: "branch-confirm", scroll: null });
+            return;
+          }
+          dispatch({ type: "branch-switch", name }, { focusKey: "branch-back", scroll: null });
+          return;
+        }
+        case "branch-switch-confirm":
+          dispatch({ type: "branch-switch", name: el.dataset.name ?? "" }, { focusKey: "branch-back", scroll: null });
+          return;
+        case "branch-merge":
+          dispatch({ type: "branch-merge", name: el.dataset.name ?? "" }, { focusKey: "branch-back", scroll: null });
+          return;
+        case "branch-delete-start":
+          dispatch({ type: "branch-pending", pending: { kind: "delete", name: el.dataset.name ?? "" } }, { focusKey: "branch-cancel", scroll: null });
+          return;
+        case "branch-delete-confirm":
+          dispatch({ type: "branch-delete", name: el.dataset.name ?? "" }, { focusKey: "branch-back", scroll: null });
+          return;
+        case "branch-pending-cancel":
+          dispatch({ type: "branch-pending", pending: null }, { focusKey: "branch-back", scroll: null });
+          return;
+        case "wt-pending": {
+          const kind = el.dataset.kind;
+          if (kind !== "unlock" && kind !== "prune" && kind !== "remove") return;
+          const pending = { kind, path: el.dataset.path ?? "", name: el.dataset.name ?? "" };
+          dispatch({ type: "wt-pending", pending }, { focusKey: "wt-cancel", scroll: null });
+          return;
+        }
+        case "wt-pending-cancel":
+          dispatch({ type: "wt-pending", pending: null }, { focusKey: `wt-expand:${el.dataset.path ?? expandedWorktree ?? ""}`, scroll: null });
+          return;
+        case "wt-apply":
+          dispatch({ type: "wt-apply" }, { focusKey: `wt-expand:${expandedWorktree ?? ""}`, scroll: null });
+          return;
         case "confirm-cancel":
           dispatch({ type: "pull-confirm-close" }, { focusKey: "pull" });
           return;
@@ -5789,6 +6785,10 @@
         syncComposer();
       } else if (field === "history-query") {
         dispatch({ type: "history-query", value: target.value }, { focusKey: "history-query" });
+      } else if (field === "branch-query") {
+        dispatch({ type: "branch-query", value: target.value }, { focusKey: "branch-search" });
+      } else if (field === "branch-draft") {
+        dispatch({ type: "branch-draft", value: target.value }, { focusKey: "branch-draft" });
       }
     }
     function syncComposer() {
@@ -5823,6 +6823,29 @@
     function onKeyDown(event) {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
+      if (event.key === "Escape" && handoffKind !== null) {
+        event.preventDefault();
+        const previous = handoffKind;
+        handoffKind = null;
+        handoffCopied = false;
+        repaint({ focusKey: `handoff-${previous}` });
+        return;
+      }
+      if (event.key === "Escape" && state.branchPending !== null) {
+        event.preventDefault();
+        dispatch({ type: "branch-pending", pending: null }, { focusKey: "branch-back" });
+        return;
+      }
+      if (event.key === "Escape" && state.worktreePending !== null) {
+        event.preventDefault();
+        dispatch({ type: "wt-pending", pending: null }, { focusKey: `wt-expand:${state.worktreePending.path}` });
+        return;
+      }
+      if (event.key === "Escape" && state.branchOpen) {
+        event.preventDefault();
+        dispatch({ type: "branch-close" }, { focusKey: "branch-open" });
+        return;
+      }
       if (event.key === "Escape" && state.confirmPull !== null) {
         event.preventDefault();
         dispatch({ type: "pull-confirm-close" }, { focusKey: "pull" });
@@ -5877,9 +6900,34 @@
         const first = panelModelOf(base, state, Date.now()).worktrees.others.find((row) => row.abnormal);
         expandedWorktree = first === void 0 ? null : first.path;
       }
+      const wtPendingParam = params.get("wtpending");
+      if (wtPendingParam === "unlock" || wtPendingParam === "prune" || wtPendingParam === "remove") {
+        const path = params.get("wtpath") ?? "";
+        const row = panelModelOf(base, state, Date.now()).worktrees.others.find((candidate) => candidate.path === path);
+        if (row !== void 0) {
+          expandedWorktree = row.path;
+          state = reduce(state, { type: "wt-pending", pending: { kind: wtPendingParam, path: row.path, name: row.name } }, base);
+        }
+      }
       const view = params.get("view");
       if (view === "changes" || view === "commits" || view === "worktrees") {
         state = reduce(state, { type: "view", view }, base);
+      }
+      if (params.get("branches") === "1") state = reduce(state, { type: "branch-open" }, base);
+      const branchName = params.get("branch");
+      if (branchName !== null && branchName !== "") state = reduce(state, { type: "branch-select", name: branchName }, base);
+      const branchSubParam = params.get("bsub");
+      if (branchSubParam === "list" || branchSubParam === "detail" || branchSubParam === "create" || branchSubParam === "rename") {
+        state = reduce(state, { type: "branch-sub", sub: branchSubParam }, base);
+      }
+      const branchDraft = params.get("bdraft");
+      if (branchDraft !== null && branchDraft !== "") state = reduce(state, { type: "branch-draft", value: branchDraft }, base);
+      const branchPendingParam = params.get("bpending");
+      if (branchPendingParam === "delete" || branchPendingParam === "switch") {
+        const selected = state.branchSelected;
+        if (selected !== null) {
+          state = reduce(state, { type: "branch-pending", pending: { kind: branchPendingParam, name: selected } }, base);
+        }
       }
       if (params.get("merge") === "1") state = reduce(state, { type: "history-merge-only" }, base);
       const query = params.get("q");
@@ -5896,6 +6944,12 @@
       if (message !== null && message !== "") state = reduce(state, { type: "message", value: message }, base);
       if (params.get("confirm") === "1") {
         state = reduce(state, { type: "pull-confirm-open", files: dirtyFiles(), dirtyCount: dirtyFiles().length }, base);
+      }
+      const ai = params.get("ai");
+      if (ai === "general" || ai === "changes" || ai === "worktrees" || ai === "branches") {
+        handoffKind = ai;
+        handoffFocus = focusText(panelModelOf(base, state, Date.now()));
+        if (params.get("aicopied") === "1") handoffCopied = true;
       }
     }
     applyDeepLink();

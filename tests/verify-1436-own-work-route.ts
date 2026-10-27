@@ -34,6 +34,8 @@ import { spliceableJs, sourceText } from './lib/source-text.ts'
 // 门禁把剥掉 import 行之后的源码当函数跑，这个名字成了自由变量，所以作用域里补的是中央导出的同一份值；
 // B3 的两档等待断言也按它算，不在门禁里手抄第二份数字。
 import { OWN_ROUTE_RETRY_MS } from '../src/shared/time-config/src/values.js'
+// #1564：整颗徽标收进共享叶子 ticketBadge.ts；本门禁按文本/模块单独加载视图叶子时闭包里没有这个名字，补上真身。
+;(globalThis as any).ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
 let failed = false
 let total = 0
 const check = function (ok: any, msg: string): void {

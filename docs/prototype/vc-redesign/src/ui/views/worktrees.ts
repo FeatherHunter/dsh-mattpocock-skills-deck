@@ -5,17 +5,19 @@
  *   ① 我在哪（当前工作树卡）；
  *   ② 一共有几棵、其中几棵需要人处理（筛选标签就是计数）；
  *   ③ 每棵是什么状态、指向哪个提交（行内信息）；
- *   ④ 想动手时该敲什么命令（展开行里的「复制命令」）。
+ *   ④ 想动手时该点哪个按钮（展开行里的动作）。
  *
- * 面板只读，所以「操作更便捷」不是加按钮，而是把终端命令原样备好：
- * 用户点一下就得到 `git worktree unlock "..."` 这样的完整命令，不用自己拼路径。
- * 创建与移除仍然只能在终端完成，这条边界写在可关闭的说明条里，不常驻底部。
+ * 面板现在直接执行工作树动作：解锁、清理记录、移除都在这里点；
+ * 不再把命令写出来让用户复制到终端，那样等于把操作留在面板外面。
+ * 三个动作里移除与清理会改清单，所以都要一次内联二次确认。
  */
 import type { WorktreeRowModel, WorktreesModel } from '../../domain/select'
 import { COPY } from '../../data/copy'
-import type { ResultMessage } from '../../domain/session'
+import { HANDOFF_ENTRY } from '../../domain/handoff'
+import type { ResultMessage, WorktreePending } from '../../domain/session'
 import { icon, h } from '../dom'
 import { button, chip, emptyState, resultBanner } from '../primitives'
+import { handoffEntry } from './handoff'
 
 export type WorktreeFilter = 'all' | 'abnormal'
 
@@ -46,21 +48,14 @@ export function renderWorktrees(
   } else if (rows.length === 0) {
     list.append(emptyState(COPY.worktrees.filterEmpty, null))
   } else {
-    for (const row of rows) list.append(renderRow(row, options.expandedPath === row.path))
+    for (const row of rows) list.append(renderRow(row, options.expandedPath === row.path, model.pending))
   }
   view.append(list)
 
-  if (model.aiEnabled) {
-    view.append(h('div', { class: 'wt-foot' },
-      button({
-        label: model.aiLabel,
-        kind: 'secondary',
-        size: 'sm',
-        icon: 'alert',
-        action: 'ai-worktrees',
-        focusKey: 'ai-worktrees',
-      })))
-  }
+  // 交接入口常驻：异常为零时也可能有人想把整页状态交给 AI 从头理一遍，
+  // 所以这里不按 aiEnabled 隐藏，只按有没有异常换一句标题。
+  view.append(h('div', { class: 'wt-foot' },
+    handoffEntry(model.abnormalCount > 0 ? HANDOFF_ENTRY.worktrees : COPY.ai.cleanEntry, 'worktrees', 'inline')))
   if (result !== null) view.append(resultBanner(result))
   return view
 }
@@ -143,7 +138,7 @@ function filterChip(label: string, count: string, on: boolean, filter: WorktreeF
   h('span', { class: 'filter-count', text: count }))
 }
 
-function renderRow(row: WorktreeRowModel, expanded: boolean): HTMLElement {
+function renderRow(row: WorktreeRowModel, expanded: boolean, pending: WorktreePending | null): HTMLElement {
   const rowNode = h('div', {
     class: `wt-row${row.abnormal ? ' is-abnormal' : ''}${expanded ? ' is-open' : ''}`,
   })
@@ -187,11 +182,15 @@ function renderRow(row: WorktreeRowModel, expanded: boolean): HTMLElement {
 
   rowNode.append(h('div', { class: 'wt-main' }, nameRow, pathRow, stateRow), actions)
   const wrap = h('div', { class: 'wt-row-wrap' }, rowNode)
-  if (expanded) wrap.append(renderDetail(row))
+  if (expanded) wrap.append(renderDetail(row, pending))
   return wrap
 }
 
-function renderDetail(row: WorktreeRowModel): HTMLElement {
+/**
+ * 展开区：上面是事实，下面是动作。三个动作按「先解锁、再清理、最后移除」的危险程度排列，
+ * 移除永远是最后一颗并且用危险色；确认做成内联卡片，不再弹浮层盖住列表。
+ */
+function renderDetail(row: WorktreeRowModel, pending: WorktreePending | null): HTMLElement {
   const detail = h('div', { class: `wt-detail${row.abnormal ? ' is-abnormal' : ''}` })
   const fact = (label: string, value: string, mono: boolean): HTMLElement =>
     h('div', { class: 'wt-fact' },
@@ -204,43 +203,84 @@ function renderDetail(row: WorktreeRowModel): HTMLElement {
     fact(COPY.worktrees.detailHead, row.oidShort, true),
   )
 
-  // 状态 chip 的 detail 是「为什么」，行内只放得下结论，展开后才给原因。
-  for (const state of row.states) {
-    if (state.detail === null) continue
-    detail.append(fact(state.label, state.detail, false))
+  // 确认状态下只留三项身份事实（路径、分支、提交）：状态原因写在确认卡正文里，
+  // 再留一遍会把确认卡顶出列表可视区，这正是「移除前确认」最不该发生的事。
+  const awaiting = pending !== null && pending.path === row.path
+  if (!awaiting) {
+    // 状态 chip 的 detail 是「为什么」，行内只放得下结论，展开后才给原因。
+    for (const state of row.states) {
+      if (state.detail === null) continue
+      detail.append(fact(state.label, state.detail, false))
+    }
   }
 
-  const commands = commandsFor(row)
-  if (commands.length > 0) {
-    const block = h('div', { class: 'wt-commands' })
-    for (const item of commands) {
-      block.append(h('div', { class: 'wt-command' },
-        h('span', { class: 'wt-command-label', text: item.label }),
-        h('code', { class: 'wt-command-text mono', text: item.command, title: item.command }),
-        h('button', {
-          class: 'wt-command-copy',
-          attrs: {
-            type: 'button',
-            'aria-label': `复制命令：${item.command}`,
-            title: COPY.worktrees.copyCommand,
-            'data-focus-key': `wt-command:${row.path}:${item.label}`,
-          },
-          dataset: { action: 'worktree-command', command: item.command },
-        }, COPY.worktrees.copyCommand)))
+  // 确认卡打开时收起三颗动作按钮与说明：同一行里同时留「取消/确认」和「解锁/移除」两套按钮，
+  // 读者会分不清哪一组才是当前这一步。
+  if (!awaiting) {
+    const actions = h('div', { class: 'wt-actions-row' })
+    if (row.locked) {
+      actions.append(button({
+        label: COPY.worktrees.unlock,
+        kind: 'secondary',
+        size: 'sm',
+        action: 'wt-pending',
+        dataset: { kind: 'unlock', path: row.path, name: row.name },
+        focusKey: `wt-unlock:${row.path}`,
+      }))
     }
-    detail.append(block, h('p', { class: 'wt-command-note', text: COPY.worktrees.detailCommand }))
+    if (row.prunable) {
+      actions.append(button({
+        label: COPY.worktrees.pruneRecord,
+        kind: 'secondary',
+        size: 'sm',
+        action: 'wt-pending',
+        dataset: { kind: 'prune', path: row.path, name: row.name },
+        focusKey: `wt-prune:${row.path}`,
+      }))
+    }
+    actions.append(button({
+      label: COPY.worktrees.remove,
+      kind: 'danger',
+      size: 'sm',
+      action: 'wt-pending',
+      dataset: { kind: 'remove', path: row.path, name: row.name },
+      focusKey: `wt-remove:${row.path}`,
+    }))
+    detail.append(actions, h('p', { class: 'wt-action-note', text: COPY.worktrees.actionsHint }))
+  }
+
+  if (pending !== null && pending.path === row.path) {
+    detail.append(h('div', { class: `wt-confirm${pending.kind === 'remove' ? ' is-danger' : ' is-warn'}` },
+      h('h4', { class: 'wt-confirm-title', text: pendingTitle(pending) }),
+      h('p', { class: 'wt-confirm-body', text: pendingBody(pending) }),
+      h('div', { class: 'wt-confirm-actions' },
+        button({
+          label: COPY.worktrees.cancel,
+          kind: 'ghost',
+          size: 'sm',
+          action: 'wt-pending-cancel',
+          focusKey: 'wt-cancel',
+        }),
+        button({
+          label: pending.kind === 'unlock' ? COPY.worktrees.unlockConfirm : pending.kind === 'prune' ? COPY.worktrees.pruneConfirm : COPY.worktrees.removeConfirm,
+          kind: pending.kind === 'remove' ? 'danger' : 'secondary',
+          size: 'sm',
+          action: 'wt-apply',
+          dataset: { kind: pending.kind, path: pending.path, name: pending.name },
+          focusKey: 'wt-confirm',
+        }))))
   }
   return detail
 }
 
-/** 只给展开行准备命令：面板不执行，只把该敲的完整命令备好，用户复制到终端。 */
-function commandsFor(row: WorktreeRowModel): Array<{ label: string; command: string }> {
-  const labels = new Set(row.states.map((state) => state.label))
-  if (labels.has(COPY.worktrees.prunable)) {
-    return [{ label: '清理不存在的目录记录', command: COPY.worktrees.commandPrune }]
-  }
-  if (labels.has(COPY.worktrees.locked)) {
-    return [{ label: '解除占用', command: COPY.worktrees.commandUnlock(row.path) }]
-  }
-  return [{ label: '移除这棵工作树', command: COPY.worktrees.commandRemove(row.path) }]
+function pendingTitle(pending: WorktreePending): string {
+  if (pending.kind === 'unlock') return COPY.worktrees.unlockTitle
+  if (pending.kind === 'prune') return COPY.worktrees.pruneTitle
+  return COPY.worktrees.removeTitle(pending.name)
+}
+
+function pendingBody(pending: WorktreePending): string {
+  if (pending.kind === 'unlock') return COPY.worktrees.unlockBody
+  if (pending.kind === 'prune') return COPY.worktrees.pruneBody
+  return COPY.worktrees.removeBody
 }

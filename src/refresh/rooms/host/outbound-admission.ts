@@ -494,7 +494,9 @@ export async function withGhLane(laneOpts: GhLaneOpts | null | undefined, run: (
   try {
     release = await getGhLane().acquire({ bucket: o.bucket || 'read', signal: o.signal || undefined, service: o.service, waitMs: o.waitMs })
   } catch (e) {
-    return onQueueFailure!(e)
+    // 没传失败回调时原样抛回原始错误（取消就是取消、冷却就是冷却），不能因为缺省回调把它换成 TypeError。
+    if (onQueueFailure) return onQueueFailure(e)
+    throw e
   }
   try {
     return await run()

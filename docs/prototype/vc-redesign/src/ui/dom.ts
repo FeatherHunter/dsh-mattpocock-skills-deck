@@ -63,7 +63,7 @@ export function clear(node: Element): void {
   while (node.firstChild !== null) node.removeChild(node.firstChild)
 }
 
-export type IconKind = 'chevron' | 'refresh' | 'copy' | 'check' | 'alert' | 'back' | 'folder' | 'file' | 'commit' | 'branch'
+export type IconKind = 'chevron' | 'refresh' | 'copy' | 'check' | 'alert' | 'back' | 'folder' | 'file' | 'commit' | 'branch' | 'spark' | 'close'
 
 const ICON_PATHS: Record<IconKind, string> = {
   chevron: 'M6 9l6 6 6-6',
@@ -76,6 +76,9 @@ const ICON_PATHS: Record<IconKind, string> = {
   file: 'M6 3h8l4 4v14H6zM14 3v4h4',
   commit: 'M8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0M3 12h5M16 12h5',
   branch: 'M6 3v18M6 9c0 4 6 4 6 8M12 9h4M16 7a2 2 0 1 0 0 .1M9 5a2 2 0 1 1 0 .1',
+  // 四角星：AI 交接的入口记号；刻意不用机器人头像，避免读者以为这是另一个终端。
+  spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM18.5 16l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z',
+  close: 'M6 6l12 12M18 6L6 18',
 }
 
 /** 图标一律内联 SVG：跟文字同色跟随 currentColor，不依赖图标字体或外部文件。 */

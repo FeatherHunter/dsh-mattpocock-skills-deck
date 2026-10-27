@@ -149,6 +149,7 @@ async function main() {
   const cellsFor = labelKernel.workRouteCellsFor
   const ticketLabel = labelKernel.ticketLabelOf
   const labelMax = labelKernel.TICKET_LABEL_MAX_WIDTH // #1565：首列封顶就是徽标上限，断言不另抄字面量
+  ;(globalThis as any).ticketBadgeOf = (await imp('src/client/views/shared/ticketBadge.js')).ticketBadgeOf // #1564：徽标收进共享叶子，叶子单测里同样补真身
   const label = ticketLabel('00', 'demo')
   check(label === '#demo/00', '容器票号写成「#目录名/编号」整串（点行之前先看得见）：' + label)
   check(cellsFor([{ ticketKey: '101' }]).split(' ')[0] === '56px', '短编号收窄到 56px（#1548 那种）')

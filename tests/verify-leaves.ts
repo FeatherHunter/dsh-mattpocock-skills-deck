@@ -40,6 +40,8 @@ const LEAVES = [
   { file: 'src/client/views/shared/liquidInk.ts', exports: ['LIQUID_INK_CLASS', 'LIQUID_INK_HOST_CLASS', 'LIQUID_INK_ON_CLASS', 'liquidInkPlace', 'liquidInkRemember', 'useLiquidInk'], components: [] },
   // #1582：打开文件夹的共用函数（四处入口共用，零依赖纯函数：判空、只发一次、读回包）。
   { file: 'src/client/views/shared/openFolder.ts', exports: ['openFolderAt'], components: [] },
+  // #1564：票号徽标的四种外壳（列表行、详情页头、在办表首列、状态栏胶囊）共用这一个画法。
+  { file: 'src/client/views/shared/ticketBadge.ts', exports: ['ticketBadgeOf'], components: [] },
   { file: 'src/client/views/shared/md.js', exports: ['MD_LINK_RE', 'MD_TASK_RE', 'mdEsc', 'mdInline', 'mdToHtml'], components: [] },
   { file: 'src/client/views/shared/ticket.js', exports: ['tStatus', 'tStatusLabel', 'tProgressBar', 'tStatusBadge'], components: [] },
   { file: 'src/client/views/shared/stateKind.js', exports: ['prStateKind'], components: [] }, // #599 新增：票的状态判据（打开/已关闭/已合并）单源，拉取请求页与单票详情页共用

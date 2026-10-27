@@ -205,6 +205,26 @@ async function main() {
     check(gotWait === 'ok', '不设上限的排队在名额回来时照常放行')
   }
 
+  // 7. 包装器没传失败回调时，拿名额被取消要原样抛原始取消错误，不能变成 TypeError（#1570 复核）。
+  {
+    const { withGhLane } = mod!
+    const laneW = getGhLane()
+    const holdsW = []
+    for (let i = 0; i < READ_BUCKET_MAX; i++) holdsW.push(await laneW.acquire({ bucket: 'read' }))
+    const ctrlW = new AbortController()
+    let errW: any = null
+    // 满桶之后这一笔只能排队；传了取消信号但没传第三个回调，取消时包装器必须抛原始错误。
+    const waiting = withGhLane({ bucket: 'read', signal: ctrlW.signal }, async () => 'ran').then(
+      () => { return },
+      (e) => { errW = e },
+    )
+    await new Promise((res) => setImmediate(res))
+    ctrlW.abort()
+    await waiting
+    for (const relW of holdsW) relW()
+    check(isAdmissionCancelled(errW), '包装器没传失败回调时，排队被取消仍抛原始取消错误（不是 TypeError）', String(errW && errW.code) + ' / ' + String(errW))
+  }
+
   finish()
 }
 

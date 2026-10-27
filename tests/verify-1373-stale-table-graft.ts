@@ -42,6 +42,8 @@ import { createSessionSnapshot } from '../src/refresh/rooms/host/session-snapsho
 import { workspaceKeyOf } from '../src/refresh/contract/workspace-keys.js'
 // #1553：在办表首列按行自适应 —— 表体一跑就要调它，叶子单测里按 1082 的做法补真身（不另抄规则）。
 import { workRouteCellsFor } from '../src/client/kernel/ticket-label.js'
+// #1564：整颗徽标收进共享叶子 ticketBadge.ts；本门禁按文本/模块单独加载视图叶子时闭包里没有这个名字，补上真身。
+;(globalThis as any).ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
 
 let failed = false
 let total = 0

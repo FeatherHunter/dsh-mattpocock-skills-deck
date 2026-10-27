@@ -26,6 +26,10 @@ import { sourcePath, spliceableJs } from './lib/source-text.ts'
 ;(globalThis as any).ticketLabelPartsOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelPartsOf
 ;(globalThis as any).ticketLabelCapsuleFoldOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelCapsuleFoldOf
 ;(globalThis as any).TICKET_LABEL_MAX_WIDTH = (await import('../src/client/kernel/ticket-label.js')).TICKET_LABEL_MAX_WIDTH
+// #1564：整颗徽标收进共享叶子 ticketBadge.ts；叶子单独求值时闭包里没有这个名字，也补上真身。
+;(globalThis as any).ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
+// 徽标自己的悬停壳 Tip 同样来自闭包：求值时合成的树只记节点、不调组件，给一个同形的纯函数即可。
+;(globalThis as any).Tip = function (props: any): any { return props && props.children ? props.children : null }
 // #1518：容器身份（探索地图 / 规格 / 普通票）的判据真源住在 kernel/container-view.ts。本门禁按模块单独加载视图叶子，
 //   构建闭包里才有的名字这里也要补真身 —— 不另抄一份判定，否则门禁会跟着实现一起漂。
 const realContainerKindOf = (await import('../src/client/kernel/container-view.js')).containerKindOf

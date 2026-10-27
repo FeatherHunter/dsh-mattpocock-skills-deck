@@ -45,6 +45,7 @@ globalThis.idOfParts = identityMod.idOfParts
 globalThis.ticketLabelOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelOf
 globalThis.ticketLabelNodesOf = (await import('../src/client/kernel/ticket-label.js')).ticketLabelNodesOf
 globalThis.TICKET_LABEL_MAX_WIDTH = (await import('../src/client/kernel/ticket-label.js')).TICKET_LABEL_MAX_WIDTH
+globalThis.ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
 globalThis.effortNamesOf = () => ['default']
 globalThis.findMapByIdentity = () => null
 globalThis.containerKindOf = cvMod.containerKindOf

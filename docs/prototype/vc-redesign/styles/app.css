@@ -371,15 +371,31 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   white-space: nowrap;
 }
 .rail-slash { color: var(--faint); font-size: 13px; font-weight: 400; }
-.rail-branch {
+/**
+ * 分支名是入口按钮：平时看起来就是一行绿字，悬停才浮出底色与箭头，
+ * 这样身份行仍然是「仓库 / 分支」，不会被一颗明显的按钮打断阅读。
+ */
+.rail-branch-btn {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  color: var(--accent);
-  font: 700 12.5px/1.4 var(--mono);
+  gap: 2px;
   min-width: 0;
   max-width: 100%;
+  padding: 1px 4px 1px 3px;
+  margin-left: -3px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--accent);
+  font: 700 12.5px/1.4 var(--mono);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
+.rail-branch-btn:hover { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.rail-branch-btn:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.rail-branch-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rail-branch-chevron { display: inline-grid; place-items: center; color: color-mix(in srgb, var(--accent) 70%, var(--mut)); transform: rotate(-90deg); }
+.rail-branch { display: inline-flex; align-items: center; min-width: 0; color: inherit; font: inherit; }
 .rail-branch .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-oid { font-size: 10.5px; color: var(--faint); }
 .rail-id .icon-btn { margin-left: auto; }
@@ -561,6 +577,12 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .btn-primary:active:not(:disabled) { background: var(--primary-hover); }
 /* 主按钮禁用时改回中性底：实心色加半透明看起来仍像可点，这是旧页被批过的地方。 */
 .btn-primary:disabled { background: var(--inset); border-color: var(--line); color: var(--faint); }
+
+/* 危险动作只在确认与删除这类不可逆入口用：平时保持描边，不靠红色抢注意力。 */
+.btn-danger { border-color: color-mix(in srgb, var(--danger) 55%, var(--line-2)); background: color-mix(in srgb, var(--danger) 7%, var(--raised)); color: var(--danger); }
+.btn-danger:hover:not(:disabled) { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
+.btn-danger:active:not(:disabled) { background: color-mix(in srgb, var(--danger) 20%, transparent); }
+.btn-danger:focus-visible { outline: 2px solid var(--danger); outline-offset: 1px; }
 
 .btn-ghost { background: transparent; border-color: transparent; color: var(--mut); }
 .btn-ghost:hover:not(:disabled) { background: var(--hover); border-color: var(--line-2); color: var(--ink-2); }
@@ -1087,6 +1109,120 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   background-clip: padding-box;
 }
 
+/* ---------- 分支页 ---------- */
+
+/**
+ * 分支页沿历史页的单列两层：列表点一行进详情，详情返回回列表。
+ * 之所以不做左右分栏，是因为面板最窄 300：两栏连分支名都会截断，主从结构在这个宽度里只剩两条缝。
+ */
+.branch-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.branch-title { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink); }
+.branch-count { font: 700 12px var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.branch-count-unit { font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+.branch-spacer { flex: 1; }
+
+.branch-list-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.branch-search {
+  margin: 8px 12px 6px;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-btn);
+  background: var(--inset);
+  color: var(--ink);
+  font-size: 11.5px;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.branch-search::placeholder { color: var(--faint); }
+.branch-search:hover { border-color: var(--mut); }
+.branch-search:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+
+.branch-scroll { flex: 1; min-height: 0; overflow: auto; padding: 2px 6px 10px; }
+
+.branch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-btn);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.branch-row:hover { background: var(--hover); }
+.branch-row:active { background: var(--press); }
+.branch-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.branch-row.is-current { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+.branch-row.is-open { background: var(--inset); }
+.branch-row-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.branch-row-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.branch-row-name .mono { font-size: 12px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.branch-row-meta { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 10px; }
+.branch-upstream { color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.branch-when { flex: none; color: var(--faint); }
+.branch-row-side { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.branch-sync { display: inline-flex; align-items: center; gap: 3px; }
+.branch-count-chip { font: 700 9.5px var(--mono); padding: 1px 4px; border-radius: 999px; white-space: nowrap; }
+.branch-count-chip.is-ahead { color: var(--info); background: var(--info-soft); }
+.branch-count-chip.is-behind { color: var(--danger); background: var(--danger-soft); }
+.branch-chevron { display: inline-grid; place-items: center; color: var(--faint); }
+
+.branch-detail-sync { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+
+.branch-detail { flex: 1; min-height: 0; overflow: auto; padding: 12px 12px 18px; display: flex; flex-direction: column; }
+.branch-facts { margin: 0; display: flex; flex-direction: column; gap: 5px; }
+.branch-fact { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; font-size: 10.5px; line-height: 1.5; }
+.branch-fact-k { color: var(--faint); }
+.branch-fact-v { margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.branch-subject { margin: 9px 0 0; font-size: 12px; line-height: 1.5; color: var(--ink); }
+.branch-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+.branch-hint { margin: 8px 0 0; font-size: 10px; line-height: 1.55; color: var(--faint); }
+.branch-hint.is-warn { color: var(--warn); }
+
+/* 分支确认卡与工作树确认卡同一形态：内联卡片，不做浮层。 */
+.branch-confirm {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-btn);
+  background: var(--panel);
+}
+.branch-confirm.is-warn { border-color: color-mix(in srgb, var(--warn) 50%, var(--line-2)); background: color-mix(in srgb, var(--warn-soft) 45%, var(--panel)); }
+.branch-confirm.is-danger { border-color: color-mix(in srgb, var(--danger) 55%, var(--line-2)); background: color-mix(in srgb, var(--danger-soft) 45%, var(--panel)); }
+.branch-confirm-title { margin: 0; font-size: 11.5px; font-weight: 700; color: var(--ink); }
+.branch-confirm-body { margin: 4px 0 0; font-size: 10.5px; line-height: 1.55; color: var(--mut); }
+.branch-confirm-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+.branch-form { flex: 1; min-height: 0; overflow: auto; padding: 12px 12px 18px; display: flex; flex-direction: column; align-items: flex-start; }
+.branch-form-note { margin: 0 0 8px; font-size: 10.5px; line-height: 1.5; color: var(--mut); }
+.branch-form-label { margin: 0 0 4px; font-size: 10px; color: var(--faint); }
+.branch-input {
+  width: 100%;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-btn);
+  background: var(--inset);
+  color: var(--ink);
+  font: 12px var(--mono);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.branch-input:hover { border-color: var(--mut); }
+.branch-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); background: var(--panel); }
+.branch-form-hint { margin: 6px 0 0; font-size: 10px; line-height: 1.5; color: var(--faint); }
+.branch-form-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
 /* ---------- 工作树 ---------- */
 
 .wt-current {
@@ -1175,25 +1311,21 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .wt-fact { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; padding: 3px 0; font-size: 10.5px; line-height: 1.5; }
 .wt-fact-k { color: var(--faint); }
 .wt-fact-v { color: var(--ink-2); overflow-wrap: anywhere; }
-.wt-commands { display: flex; flex-direction: column; gap: 4px; margin-top: 7px; }
-.wt-command { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 6px; align-items: center; padding: 6px 7px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: var(--panel); }
-.wt-command-label { grid-column: 1 / -1; font-size: 10px; color: var(--faint); }
-.wt-command-text { min-width: 0; font-size: 10px; line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere; white-space: pre-wrap; }
-.wt-command-copy {
-  min-height: 22px;
-  padding: 0 8px;
+.wt-actions-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
+/* 动作说明只解释边界（哪些动、哪些不动），不是第二个按钮；字号压到 10，避免被读成可点。 */
+.wt-action-note { margin: 6px 0 0; font-size: 10px; line-height: 1.5; color: var(--faint); }
+.wt-confirm {
+  margin-top: 8px;
+  padding: 9px 10px 10px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-btn);
-  background: var(--raised);
-  color: var(--mut);
-  font-size: 10px;
-  cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.06s ease;
+  background: var(--panel);
 }
-.wt-command-copy:hover { background: var(--raised-2); border-color: color-mix(in srgb, var(--line-2) 60%, var(--mut)); color: var(--ink); }
-.wt-command-copy:active { transform: translateY(1px); }
-.wt-command-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.wt-command-note { margin: 5px 0 0; font-size: 10px; line-height: 1.5; color: var(--faint); }
+.wt-confirm.is-warn { border-color: color-mix(in srgb, var(--warn) 50%, var(--line-2)); background: color-mix(in srgb, var(--warn-soft) 45%, var(--panel)); }
+.wt-confirm.is-danger { border-color: color-mix(in srgb, var(--danger) 55%, var(--line-2)); background: color-mix(in srgb, var(--danger-soft) 45%, var(--panel)); }
+.wt-confirm-title { margin: 0; font-size: 11.5px; font-weight: 700; color: var(--ink); }
+.wt-confirm-body { margin: 4px 0 0; font-size: 10.5px; line-height: 1.55; color: var(--mut); }
+.wt-confirm-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 
 .wt-foot { display: flex; flex-direction: column; gap: 4px; padding: 9px 12px 11px; border-top: 1px solid var(--line); }
 .wt-foot .btn { align-self: flex-start; margin-top: 3px; }
@@ -1356,6 +1488,120 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .group-empty-row { display: flex; align-items: baseline; gap: 6px; padding: 4px 12px 10px; }
 .group-empty-text { font-size: 10.5px; line-height: 1.55; color: var(--faint); }
 
+/* ---------- AI 交接：入口 ---------- */
+
+.ai-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.ai-entry svg { flex: none; color: var(--accent); }
+.ai-entry:hover { color: var(--ink); }
+.ai-entry:active { color: var(--accent); }
+.ai-entry:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 同步带里的整行入口：一条细边加浅底，读起来是「这里还有一条路」，不是第二颗主按钮。 */
+.ai-entry-rail {
+  width: 100%;
+  padding: 7px 9px;
+  border-color: var(--line-2);
+  background: var(--raised);
+  border-radius: 8px;
+  color: var(--ink-2);
+  flex-wrap: wrap;
+}
+
+.ai-entry-rail:hover { background: var(--hover); border-color: var(--accent); }
+.ai-entry-rail .ai-entry-label { font-weight: 650; }
+
+/* 副行单独占满一行：300 宽下面板里，标题与副标题挤在一行会先把动词截掉。 */
+.ai-entry-rail .ai-entry-sub {
+  flex-basis: 100%;
+  padding-left: 20px;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--faint);
+}
+
+/* 落在视图里的轻入口：一行文字，没有边框；只在悬停时变绿，不跟主按钮抢位置。 */
+.ai-entry-inline { padding: 3px 2px; color: var(--mut); font-weight: 550; }
+.ai-entry-inline:hover { color: var(--accent); }
+.ai-entry-inline svg { opacity: 0.9; }
+
+.composer-ai { display: flex; justify-content: flex-end; padding: 2px 0 6px; }
+.wt-foot .ai-entry { align-self: flex-start; }
+.branch-ai { display: flex; justify-content: flex-start; padding: 6px 2px 2px; }
+
+/* ---------- AI 交接：浮层 ---------- */
+
+.handoff-layer { position: absolute; inset: 0; z-index: 30; display: flex; align-items: stretch; }
+.handoff-backdrop { position: absolute; inset: 0; background: var(--overlay); }
+
+.handoff-sheet {
+  position: relative;
+  z-index: 1;
+  margin: 10px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+  animation: handoff-in 0.14s ease-out;
+}
+
+@keyframes handoff-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.handoff-head { display: flex; align-items: flex-start; gap: 8px; padding: 12px 12px 6px; flex-wrap: wrap; }
+.handoff-kicker { margin: 0 0 2px; width: 100%; font-size: 9.5px; letter-spacing: 0.12em; color: var(--faint); }
+.handoff-title { flex: 1; min-width: 0; margin: 0; font-size: 13.5px; line-height: 1.4; color: var(--ink); font-weight: 680; }
+.handoff-close { flex: none; }
+.handoff-lede { margin: 0; padding: 0 12px 8px; font-size: 11px; line-height: 1.55; color: var(--mut); }
+
+/* 正文必须自己滚：整段说明可能有一两百行，浮层高度不能跟着它长。 */
+.handoff-prompt {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0 12px;
+  padding: 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--inset);
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.handoff-prompt:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.handoff-foot { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 12px; }
+.handoff-hint { margin: 0; font-size: 10px; line-height: 1.5; color: var(--faint); }
+.handoff-copied { display: flex; align-items: center; gap: 5px; margin: 0; font-size: 10.5px; color: var(--accent); }
+.handoff-actions { display: flex; justify-content: flex-end; gap: 6px; }
+
 /* ---------- 动效与可访问性 ---------- */
 
 @media (prefers-reduced-motion: reduce) {
@@ -1367,3 +1613,4 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
     animation-iteration-count: 1 !important;
   }
 }
+

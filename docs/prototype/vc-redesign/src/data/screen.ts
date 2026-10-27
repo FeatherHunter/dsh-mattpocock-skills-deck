@@ -22,12 +22,30 @@ import {
   type CapturedFile,
 } from './repo.generated'
 
+/**
+ * 本地分支样本：真实仓库此刻只有一条分支，评审需要看到「当前分支、上游、领先落后、
+ * 已合并与未合并」这些状态同时出现，所以这里给一份固定的六条分支。
+ * 字段含义与真实 refs 读取结果一致：oid 是分支尖端，lastCommitMs 是尖端提交时间。
+ */
+export interface PrototypeBranch {
+  name: string
+  upstream: string | null
+  ahead: number
+  behind: number
+  oidShort: string
+  lastCommitMs: number
+  subject: string
+  mergedIntoCurrent: boolean
+}
+
 export interface PrototypeData {
   screen: FirstScreen
   /** 采集到的 50 条提交及各自的文件清单（合并提交与空提交自然是空清单）。 */
   commits: CapturedCommit[]
   /** 按提交号索引文件清单，提交详情页用。 */
   commitFiles: Map<string, CapturedFile[]>
+  /** 本地分支清单：当前分支永远在第一位，其余按最近提交时间倒序。 */
+  branches: PrototypeBranch[]
   repoRoot: string
   branch: string
   /** 页面打开的时刻：读取时间与「远端依据」的基准。 */
@@ -48,6 +66,73 @@ const WORKING_CHANGES: Array<{ path: string; kind: StatusEntry['kind']; x: strin
   { path: 'undefined/probe2.mjs', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
   { path: 'undefined/temp/pr-1475-body.md', kind: 'untracked', x: '?', y: '?', added: null, deleted: null },
 ]
+
+/** 六条本地分支：上游、领先落后、是否已并入当前分支各占一种组合。 */
+function branchSamples(nowMs: number, headShort: string): PrototypeBranch[] {
+  const minute = 60 * 1000
+  return [
+    {
+      name: capturedBranch,
+      upstream: `origin/${capturedBranch}`,
+      ahead: 2,
+      behind: 0,
+      oidShort: headShort,
+      lastCommitMs: nowMs - 6 * minute,
+      subject: '版本管理页重构原型收尾，工作树动作全部收进面板',
+      mergedIntoCurrent: true,
+    },
+    {
+      name: 'release/2026-10',
+      upstream: 'origin/release/2026-10',
+      ahead: 0,
+      behind: 4,
+      oidShort: '3b7c1d9',
+      lastCommitMs: nowMs - 26 * 60 * minute,
+      subject: '整理十月发布说明与回滚步骤',
+      mergedIntoCurrent: false,
+    },
+    {
+      name: 'feature/version-control-redesign',
+      upstream: 'origin/feature/version-control-redesign',
+      ahead: 3,
+      behind: 0,
+      oidShort: '9d2e4a1',
+      lastCommitMs: nowMs - 3 * 60 * minute,
+      subject: '分支页与动作模型接入面板骨架',
+      mergedIntoCurrent: false,
+    },
+    {
+      name: 'fix/rail-tab-overflow',
+      upstream: 'origin/fix/rail-tab-overflow',
+      ahead: 0,
+      behind: 1,
+      oidShort: 'c41a7f2',
+      lastCommitMs: nowMs - 2 * 24 * 60 * minute,
+      subject: '窄档下页签计数换行挤压内容',
+      mergedIntoCurrent: false,
+    },
+    {
+      name: 'chore/docs-cleanup',
+      upstream: null,
+      ahead: 0,
+      behind: 0,
+      oidShort: '5e8b0c3',
+      lastCommitMs: nowMs - 5 * 24 * 60 * minute,
+      subject: '删掉重复的设计稿截图说明',
+      mergedIntoCurrent: true,
+    },
+    {
+      name: 'experiment/old-layout',
+      upstream: null,
+      ahead: 0,
+      behind: 0,
+      oidShort: 'a06d3e8',
+      lastCommitMs: nowMs - 12 * 24 * 60 * minute,
+      subject: '旧版三栏布局的试验分支，留着对照',
+      mergedIntoCurrent: true,
+    },
+  ]
+}
 
 function worktreeRecords(): WorktreeRecord[] {
   return capturedWorktrees.map((w) => ({
@@ -129,6 +214,7 @@ export function buildPrototypeData(): PrototypeData {
     screen: result.screen,
     commits: capturedCommits,
     commitFiles,
+    branches: branchSamples(nowMs, capturedHead.slice(0, 7)),
     repoRoot: capturedRepoRoot,
     branch: capturedBranch,
     nowMs,

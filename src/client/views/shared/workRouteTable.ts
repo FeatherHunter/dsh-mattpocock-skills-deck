@@ -48,13 +48,11 @@ declare function h(...args: any[]): any;
 // #1436：只读电话那条链（同闭包更早的片段提供）—— 用户点「重试」时重读本机记录。
 // #1436：首帧只读那条链（同闭包更早的片段提供）—— 取当前会话那一格。
 declare function ownWorkRouteSlotOf(...args: any[]): any;
-// #1511：首列票号写成「#目录/编号」的显示规则住在 kernel/ticket-label.ts，本文件只调用。
+// #1511：首列票号写成「#目录/编号」的显示规则住在 kernel/ticket-label.ts，本文件只调用（整行提示与行名仍读它）。
 declare function ticketLabelOf(...args: any[]): any;
-// B 方案：同一颗控件的两段子节点走那一份（目录前缀可省略、编号尾巴绝不缩小）。
-declare function ticketLabelNodesOf(...args: any[]): any;
-// B 方案 + #1565：首列票号控件的上限宽度读同一份（TICKET_LABEL_MAX_WIDTH），与列表行、详情页、胶囊是同一颗控件；
-// 首列分档的封顶也是同一个数推出来的（kernel/ticket-label.ts 的 WORK_ROUTE_FIRST_COL_TIERS_PX）。
-declare const TICKET_LABEL_MAX_WIDTH: string;
+// #1564：首列那颗票号的画法（两段布局、上限宽度、在办表外壳）收在 views/shared/ticketBadge.ts。
+//   这一处不套自己的悬停提示 —— 整行的 Tip（下面 tipContent）负责，见组件文件头对 cell 外壳的说明。
+declare function ticketBadgeOf(...args: any[]): any;
 // #1545：行点击要调的三个函数（findMapByIdentity 按票号找容器、containerKindOf 认它是地图还是规格、
 //   pushNav 跳到目标页）由打包时拼进同一闭包的更早片段提供，这里只声明名字与参数形状，不参与转译。
 declare function findMapByIdentity(...args: any[]): any;
@@ -331,8 +329,8 @@ export const WorkRouteRow = ({ r, nowMs, st, onNavigate, cells }: any) => {
     }
   }
   const row = h('div', rowProps, [
-    // B 方案：首列同样是上限宽度 + 目录前缀可省略、编号尾巴绝不缩小；完整写法仍走悬停补（见 tipContent）。
-    h('span', { ref: numberRef, style: Object.assign({ fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-primary,#e6e6eb)', display: 'inline-flex', alignItems: 'center', maxWidth: TICKET_LABEL_MAX_WIDTH }, workRouteCellStyle) }, ticketLabelNodesOf(h, r.ticketKey, r.effortId)),
+    // B 方案：#1564 起首列徽标整颗走共用组件（cell 外壳：上限宽度、两段布局照旧，悬停交给整行 Tip）。
+    ticketBadgeOf(h, { key: r.ticketKey, effortId: r.effortId, surface: 'cell', color: 'var(--dsw-alias-label-primary,#e6e6eb)', ref: numberRef }),
     h('span', { style: Object.assign({ color: r.title ? 'inherit' : 'var(--dsw-alias-label-caption,#8b8b95)' }, workRouteCellStyle) }, r.title || tr('workRouteTable.titleMissing')),
     h('span', { style: Object.assign({ display: 'inline-flex', alignItems: 'center', gap: 4 }, workRouteCellStyle) }, [
       h('span', { key: 's', style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.sessionLabel),
