@@ -156,6 +156,13 @@ console.log('== ① 探测正确性（注册表两级联 matches>fallback + pend
   const svcE = createDetectionService({ registry: reg, getPlatform: async()=>platformE, getFs: ()=>platformE.fs, getTimers: ()=>({setTimeout, clearTimeout}), workspaceStore: createWorkspaceStore({ttl:30000}), skillProbe: async()=>({ok:true, missing:[], probes:{}}), getChoiceStore: async () => null, decideBackend: outletDecideBackend })
   const rE = await svcE.detect({ cwd:'/tmp/gh-low' }, {})
   ok(rE.selection.backendId==='github' && rE.selection.source==='matches', '低置信线索不再挡住自动识别：目录能被 GitHub 认领时结论就是 matches')
+  // 反例（本票最初的现场）：说明文件正文只提过 GitLab，目录却能被 GitHub 认领 —— 结论按现场事实取 GitHub，
+  //   不再像修复前那样被正文压成 GitLab。
+  const crossDoc = '以前这里用 GitLab 管票，后来迁到别处了。\n'
+  const platformCross = { fs: { resolve: async(p)=>p, readText: async()=>crossDoc, lstat: async()=>null }, path:{join:(...a)=>a.join('/'), sep:'/'}, resolveExecutable: async()=>null, getHome: async()=>null, env:{get:()=>undefined,has:()=>false} }
+  const svcCross = createDetectionService({ registry: reg, getPlatform: async()=>platformCross, getFs: ()=>platformCross.fs, getTimers: ()=>({setTimeout, clearTimeout}), workspaceStore: createWorkspaceStore({ttl:30000}), skillProbe: async()=>({ok:true, missing:[], probes:{}}), getChoiceStore: async () => null, decideBackend: outletDecideBackend })
+  const rCross = await svcCross.detect({ cwd:'/tmp/gh-cross' }, {})
+  ok(rCross.selection.backendId==='github' && rCross.selection.source==='matches', '正文提 GitLab、目录被 GitHub 认领 → 按现场事实取 GitHub（不再被正文压过）')
 }
 
 console.log('\n== ② per-workspace 隔离 + 覆盖层「用户说了算」 ==')
