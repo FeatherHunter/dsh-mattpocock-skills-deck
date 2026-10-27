@@ -155,9 +155,27 @@ export async function openTracker(handle: RepoHandle, options: OpenTrackerOption
     } as unknown as Record<string, unknown>
     for (const name of CAPABILITIES) {
       if (name === 'describe' || name === 'issueAddress') {
-        // 两条同步定位口直通房间：它们不花额度（算身份与地址，不碰远端），不进管线。
-        const fn = (tracker as unknown as Record<string, unknown>)[name]
-        session[name] = (...args: unknown[]): unknown => (fn as (...a: unknown[]) => unknown)(...args)
+        // 两条同步定位口（算出仓库身份与票地址，不花额度、不碰远端）不进管线。
+        // 它们该由模块对象回答：契约允许后端只把定位口写在模块上、不写进工厂实例，
+        // 本地 Markdown 后端就是这样（见 src/tracker/rooms/markdown/index.ts 的成员集合注释）。
+        // 这里必须先看模块再退回实例，且不能把缺席当成「有函数可调」——以前只取实例上的方法，
+        // Markdown 实例没有 describe，调用时抛 TypeError 被上层吞成「没拿到身份」，
+        // 详情页就报 refId missing（#1581）。两处都没有时诚实返回空值，让调用方按「没有答案」处理。
+        const modFn = (mod as unknown as Record<string, unknown>)[name]
+        const instFn = (tracker as unknown as Record<string, unknown>)[name]
+        if (typeof modFn !== 'function' && typeof instFn !== 'function') {
+          session[name] = (): undefined => undefined
+          continue
+        }
+        // 记下实现来自哪一份对象：调用时用它当 this，与注册表视图那份“点着谁就叫谁”的调用方式一致。
+        const owner: unknown = typeof modFn === 'function' ? mod : tracker
+        session[name] = (...args: unknown[]): unknown => {
+          const fn = (owner as Record<string, unknown>)[name] as (...a: unknown[]) => unknown
+          // 有的模块级定位口要第二个参数才知道「按哪家后端的口径写仓库身份」（GitHub 的 describe 如此）；
+          // 调用方只递工作区时，用这次选中的后端补上，别把第二格留空。
+          const callArgs = name === 'describe' && args.length < 2 ? [args[0], selection.backendId] : args
+          return fn.apply(owner, callArgs)
+        }
       } else {
         // 其余 24 条异步操作（读预算也在内）走管线：读预算在管线里直达房间，其余的过裁决与记账。
         session[name] = (...args: unknown[]): Promise<unknown> => runPipelineOp(deps, name, args)
