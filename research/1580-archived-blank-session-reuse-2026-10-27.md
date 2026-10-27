@@ -123,4 +123,4 @@ created = await this.agents.createSession({
 - 票面：正文补“已查阅范围/诊断结论/修复方向/待拍板问题”，进度更新，评论区留诊断摘要（评论开头按 `/triage` 规矩写 AI 生成声明）。
 - 标签：保持 `bug`，状态从 `needs-info` 转入待拍板状态（见票面 Q1 的推荐）。
 - 本笔记：`research/1580-archived-blank-session-reuse-2026-10-27.md`。
-- 未改业务代码，未提交源码改动。
+- 未改业务代码，未提交源码改动；本笔记自身的提交为 `6b1f4d64`（已推 main）。
