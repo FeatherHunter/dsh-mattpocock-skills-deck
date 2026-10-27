@@ -99,7 +99,7 @@ async function graphqlIssueIds(client: GhClient, owner: string, name: string, ke
   }
   try {
     const r = await client.execGh(
-      ['api', 'graphql', '--method', 'POST', '-f', 'query=' + issueNodeIdsQuery(keys), '-F', 'owner=' + owner, '-F', 'name=' + name],
+      ['api', 'graphql', '--method', 'POST', '-f', 'query=' + issueNodeIdsQuery(keys), '-f', 'owner=' + owner, '-f', 'name=' + name],
       { cwd: ctx && ctx.cwd, via: 'edge.gql.ids' },
     )
     if (!r.ok) return { ids: null, cause: r.error, attempted: true }

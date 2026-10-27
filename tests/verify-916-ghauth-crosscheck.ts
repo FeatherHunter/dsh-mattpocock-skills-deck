@@ -21,7 +21,7 @@
 import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 import { resetGhLaneForTest } from '../src/refresh/rooms/host/outbound-admission.ts'
 import { ghPreflight } from '../src/tracker/rooms/github/preflight.ts'
-import { probeChainEnv, ghAuthVerdict } from '../src/refresh/rooms/host/chain-env-map.ts'
+import { probeChainEnv, ghAuthVerdict, repoAccessVerdict, ENV_PENDING_CLIP_EN, ENV_PENDING_CLIP_ZH } from '../src/refresh/rooms/host/chain-env-map.ts'
 import { GUIDE_STEPS, guideBannerOf, guideMissingOf, guideStepState } from '../src/shared/tracker/guide-steps.ts'
 
 /** 一段 gh 输出的样本：正常退出给 stdout/stderr/code，起进程失败或本地超时给 Error（走 execGh 的 catch 那一路）。 */
@@ -198,6 +198,46 @@ async function main(): Promise<void> {
     })
     check(r.reply.stage === 'pass' && r.verdict.status === 'pass', '六、登录态判 pass', JSON.stringify(r.reply))
     check(!r.calls.find((c) => c[0] === 'api' && c[1] === 'user'), '六、auth status 成功时不做核对（正常路径不多一条请求）', JSON.stringify(r.calls))
+  }
+
+  console.log('== 七、env 档的 pending 文案按原文分流（#1571）：确实缺 gh 与其它本机故障分开说 ==')
+  {
+    const missing: any = { stage: 'gh', kind: 'env', message: 'gh not found: platform.resolveExecutable returned null (install https://cli.github.com/)' }
+    const detached: any = { stage: 'gh', kind: 'env', message: '出站控制面没有接上：名额闸、取消判定与搭车账本都拿不到，这一笔不发出去。' }
+    const noExec: any = { stage: 'gh', kind: 'env', message: 'ctx.exec unavailable' }
+    const missingZh: string = String(ghAuthVerdict(missing, true).detail || '')
+    const missingEn: string = String(ghAuthVerdict(missing, false).detail || '')
+    const detachedZh: string = String(ghAuthVerdict(detached, true).detail || '')
+    const detachedEn: string = String(ghAuthVerdict(detached, false).detail || '')
+    const noExecEn: string = String(ghAuthVerdict(noExec, false).detail || '')
+    const storedMissingZh: string = String(repoAccessVerdict(missing, true).detail || '')
+    const storedDetachedZh: string = String(repoAccessVerdict(detached, true).detail || '')
+    const blankZh: string = String(ghAuthVerdict({ stage: 'gh' } as never, true).detail || '')
+    check(missingZh.indexOf('没找到 gh 可执行') >= 0, '七、确实缺 gh 时登录态文案仍是「没找到 gh 可执行」（旧文案保住）', missingZh)
+    check(missingEn.indexOf('gh executable not found') >= 0, '七、英文界面同样保留「gh executable not found」', missingEn)
+    check(storedMissingZh.indexOf('没找到 gh 可执行') >= 0, '七、确实缺 gh 时仓库可达文案仍写明缺可执行', storedMissingZh)
+    check(detachedZh.indexOf('没找到') < 0, '七、出站控制面没接上时文案不再说「没找到 gh」（会把人引去装一个装着的命令）', detachedZh)
+    check(detachedZh.indexOf('环境检查没通过') >= 0, '七、非缺 gh 的 env 失败如实说「环境检查没通过」', detachedZh)
+    check(detachedZh.indexOf('出站控制面没有接上') >= 0, '七、带上截断后的原文，人能看到真正卡在哪一处', detachedZh)
+    check(storedDetachedZh.indexOf('没找到') < 0 && storedDetachedZh.indexOf('环境检查没通过') >= 0, '七、仓库可达那一行按同一口径分流', storedDetachedZh)
+    check(noExecEn.indexOf('gh executable not found') < 0, '七、执行器没接上时英文界面不再说 gh 找不到', noExecEn)
+    check(noExecEn.indexOf('environment check failed') >= 0 && noExecEn.indexOf('ctx.exec unavailable') >= 0, '七、英文文案说清环境检查没过并带上原文', noExecEn)
+    check(detachedEn.indexOf('环境检查') < 0, '七、英文界面不混进中文话术', detachedEn)
+    check(blankZh.indexOf('没找到') < 0 && blankZh.indexOf('环境检查没通过') >= 0, '七、老调用方只给 stage 不给原文时只说环境检查没过，不断言缺 gh', blankZh)
+    // 只按 not found 字眼判「缺可执行」会误伤：宿主接线的原文里也可能碰巧带 not found，说的却不是没装命令。
+    const registryMiss: any = { stage: 'gh', kind: 'env', message: 'plugin registry entry not found: gh-handler' }
+    const registryMissZh: string = String(ghAuthVerdict(registryMiss, true).detail || '')
+    check(registryMissZh.indexOf('没找到 gh 可执行') < 0 && registryMissZh.indexOf('环境检查没通过') >= 0, '七、原文带 not found 但说的不是缺命令时，不误判成没装 gh', registryMissZh)
+    const zhPrefix = '环境检查没通过，暂时无法确认登录状态：'
+    const clipLimit = zhPrefix.length + ENV_PENDING_CLIP_ZH
+    check(detachedZh.length <= clipLimit, '七、原文截断到 ENV_PENDING_CLIP_ZH 字，长地址不刷屏', detachedZh.length + ' / ' + clipLimit)
+    // 超长原文除了被截断，末尾还要留一个省略号：读的人才知道后面还有没显示出来的内容，而不是恰好写到这里。
+    const longZhRaw = '环境检查没通过：' + '日志'.repeat(120) + ' END'
+    const longZh: string = String(ghAuthVerdict({ stage: 'gh', kind: 'env', message: longZhRaw } as never, true).detail || '')
+    check(longZh.length === clipLimit + 1 && longZh.endsWith('…'), '七、超长中文原文截到常量宽度并以省略号收尾', longZh.length + ' / ' + (clipLimit + 1))
+    const enPrefix = 'environment check failed; login state unknown: '
+    const longEn: string = String(ghAuthVerdict({ stage: 'gh', kind: 'env', message: 'x'.repeat(400) } as never, false).detail || '')
+    check(longEn.length === enPrefix.length + ENV_PENDING_CLIP_EN + 1 && longEn.endsWith('…'), '七、超长英文原文按 ENV_PENDING_CLIP_EN 截断并加省略号', longEn.length + ' / ' + (enPrefix.length + ENV_PENDING_CLIP_EN + 1))
   }
 
   if (failed) {

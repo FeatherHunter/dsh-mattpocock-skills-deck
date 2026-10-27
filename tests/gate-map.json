@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-26T16:26:40.519Z",
+  "generatedAt": "2026-10-27T04:48:19.852Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 402,
-  "gateCount": 402,
-  "attributedGates": 359,
+  "chainLength": 403,
+  "gateCount": 403,
+  "attributedGates": 360,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 16,
+  "completionRecordedGates": 17,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 594,
@@ -3822,6 +3822,21 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1571-gh-flag-writing.ts",
+      "file": "tests/verify-1571-gh-flag-writing.ts",
+      "guards": [
+        "src/tracker/rooms/github"
+      ],
+      "dirs": [
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 15,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -10886,6 +10901,7 @@
       "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-1532-github-close-reason.ts",
       "node tests/verify-1533-git-remote-claim.ts",
+      "node tests/verify-1571-gh-flag-writing.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",

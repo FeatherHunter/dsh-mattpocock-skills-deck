@@ -77,7 +77,7 @@ export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: 
     let capped = false
     // 逐页取到底：每页都问一次 hasNextPage，不用「上一页满不满」去猜（满页也可能是最后一页）。
     for (;;) {
-      const args = ['api', 'graphql', '-f', `query=${SUB_ISSUES_QUERY}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `number=${num}`, '-F', `first=${PAGE_SIZE}`]
+      const args = ['api', 'graphql', '-f', `query=${SUB_ISSUES_QUERY}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `number=${num}`, '-F', `first=${PAGE_SIZE}`]
       if (after) args.push('-F', `after=${after}`)
       else args.push('-F', 'after=')
       // 这一台机器上 api.github.com/graphql 的 POST 偶发 `unexpected EOF`（仓库里早有记载，见 issues.js 的 REST 降级注释）。
