@@ -28,7 +28,23 @@ Issues and specs for this repo live as GitHub issues.
 - **建仓库**：用 `gh repo create` 建好远端仓库并推上去。面板上的「创建并发布」向导会替你做这一件事，
   所以正常情况下不需要手敲它。
 
-除了上面这两件事，这份说明里不再出现任何 `gh` 命令。
+除了上面这两件事，正常路径里不写任何 `gh` 命令。工具本身出问题、或刚升级完插件时，按下节「工具故障」处理。
+
+### 工具故障
+
+这一节只在工具本身出问题、或刚升级完插件时用；正常路径仍走上面的工具，不手敲跟踪器命令。
+
+**升级后 / 工具异常时的自检**：依次调 `deck_context`、`deck_issue_list`（`limit: 3`）、`deck_issue_get`（读最近一张票）。任一条报错就停手排查，不要带着坏工具继续干活。每次升级只跑一次，不必每轮跑（三条合计约 10 点额度）。
+
+**按版本自过期的已知回归**：安装版本 ≤ `1.9.0-beta.25` 时，`deck_issue_list` 报 `ToolOutputError` / `value is not lossless JSON` 属已知回归（回执的 `data` 里带了 `undefined`），不要重新诊断；修好并发版、升过该版本号之后，本条自动失效。
+
+**替代命令**（应急用，不进日常）：列票 `gh issue list --state open --label bug --limit 200 --json number,title,labels,updatedAt`；读回 `gh api repos/{owner}/{repo}/issues/{n}`；关单 `gh api -X PATCH repos/{owner}/{repo}/issues/{n} -f state=closed`；摘标签 `gh api -X DELETE repos/{owner}/{repo}/issues/{n}/labels/{name}`。
+
+**版本三查**：本机装的是哪个版本 —— `(Get-Content "$env:USERPROFILE\.dsh\profiles\desktop\package.json" -Raw | ConvertFrom-Json).dependencies.'dsh-mattpocock-skills-deck'`；工作区 `package.json` 的版号；`npm view dsh-mattpocock-skills-deck version` 的远端最新。三个数一起看：工作区版号是正在开发的版本，不是本机跑着的版本。
+
+**失败回执怎么读**：`status` 三态（`ok` / `partial` / `unsupported`）；`reason` 按下一步分四档——可重试（`backend-threw` 等）/ 等额度（`ai-tool-refused`）/ 后端做不到（`backend-unsupported`）/ 超时（`backend-timeout`）；`items` 里逐条看哪一步失败、原因是什么；`notes` 里若写「这份清单可能不全」，就收窄条件再查一次。整份回执被判非法（报 `invalid output`）时，先按上面的自检确认是哪把工具坏了，再按替代命令绕开。
+
+**铁律**：写操作超时后一律先读回现状，不许直接重发——超时往往意味着写入其实已经落盘，重发会产生重复评论或重复关闭。
 
 ### 读票时省上下文（正文与评论按需取）
 
