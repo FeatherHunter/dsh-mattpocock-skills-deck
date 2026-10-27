@@ -162,7 +162,7 @@ pixelOpenDetail(bare, 'grill-me', null)
 await act(async () => { root.render(React.createElement(Comp, { st: bare, full: true, skillNames: ['grill-with-docs', 'grilling'] })); await new Promise((r) => setTimeout(r, 20)) })
 if (pending['grill-me']) { const r = pending['grill-me']; delete pending['grill-me']; r({ ok: true, md: '用 `/grill-with-docs` 与 "grilling" 打磨设计文档', path: 'C:/x/a.md' }) }
 await act(async () => { root.render(React.createElement(Comp, { st: bare, full: true, skillNames: ['grill-with-docs', 'grilling'] })); await new Promise((r) => setTimeout(r, 20)) })
-check(container.querySelectorAll('code.pixel-skillref').length === 0, '反证：没接 onOpenSkill 时不做假入口（反引号与双引号两种写法都不做）')
+check(container.querySelectorAll('code.pixel-skillref').length === 0, '反证：没接 onOpenSkill 时不做假入口（反引号、双引号、普通文字斜杠三种写法都不做）')
 
 // #1520 的真实语料盘点：随包技能正文里，用直双引号写出来的技能名现在也要能点。
 // 做法不靠人肉抄清单：扫 package/bundled-skills 下每篇 SKILL.md / SKILL.zh.md 的每一行，找出
@@ -237,6 +237,93 @@ for (const one of imageCases) {
   if (out.text.indexOf('\u0002') >= 0 || out.alt.join('|').indexOf('\u0002') >= 0) imageProblems.push(one + ' 把原子占位符漏进了界面')
 }
 check(imageProblems.length === 0, '图片的 alt 与 title 里的引号文字不会被当成技能名' + (imageProblems.length ? '：' + imageProblems.join('；') : ''))
+
+// #1556：普通文字里斜杠写出来的技能名也要能点（/implement 正文里的 /tdd、/code-review）。
+// 做法与双引号那段同形：扫随包英中正文（剥掉 frontmatter、跳过围栏代码块），把每行里
+// 反引号与直双引号之外的普通文字里「斜杠 + 名单内技能名」逐处断言是入口；另加一组反证。
+const SLASH_NAME = /\/([A-Za-z0-9][A-Za-z0-9_-]*)/g
+const stripFrontmatterForGate = (src: string): string => {
+  const lines = String(src == null ? '' : src).split(/\r?\n/)
+  if (lines.length > 0 && lines[0].trim() === '---') {
+    for (let i = 1; i < lines.length; i++) if (lines[i].trim() === '---') return lines.slice(i + 1).join('\n')
+  }
+  return String(src == null ? '' : src)
+}
+const plainWanted: string[] = []
+const plainBad: string[] = []
+const plainHitDirs: Record<string, boolean> = {}
+const bundledZhRoot = path.join(repoRoot, 'package', 'bundled-skills-zh')
+const bundledRootsForSlash: string[] = [bundledRoot]
+if (fs.existsSync(bundledZhRoot)) bundledRootsForSlash.push(bundledZhRoot)
+for (const root of bundledRootsForSlash) {
+  const dirs = fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, 'SKILL.md')))
+  for (const d of dirs) {
+    const abs = path.join(root, d, 'SKILL.md')
+    const body = stripFrontmatterForGate(fs.readFileSync(abs, 'utf8'))
+    const lines = body.split(/\r?\n/)
+    let inFence = false
+    for (let li = 0; li < lines.length; li++) {
+      const line = lines[li]
+      const trim = line.trim()
+      if (trim.indexOf('```') === 0) { inFence = !inFence; continue }
+      if (inFence) continue
+      // 先拿掉行内代码与直双引号，剩下的才是普通文字（与渲染器里代码跨度、双引号先原子化的次序同理，门禁侧各写一份）。
+      const plain = line.replace(/`[^`]*`/g, ' ').replace(/"[^"\n]*"/g, ' ')
+      // 再拿掉链接与图片地址：它们在渲染器里先原子化，里面的斜杠不该算普通文字。
+      const noLink = plain.replace(/!?\[[^\]]*\]\([^)]*\)/g, function (m) {
+        const lb = m.indexOf('](')
+        return lb >= 0 ? m.slice(0, lb + 1) : ' '
+      })
+      let m2: RegExpExecArray | null = null
+      SLASH_NAME.lastIndex = 0
+      while ((m2 = SLASH_NAME.exec(noLink)) !== null) {
+        const token = m2[1]
+        const start = m2.index
+        const end = start + m2[0].length
+        const before = start > 0 ? noLink.charAt(start - 1) : ''
+        const after = end < noLink.length ? noLink.charAt(end) : ''
+        if (before && /[A-Za-z0-9_.\/-]/.test(before)) continue
+        if (after && /[A-Za-z0-9_\/-]/.test(after)) continue
+        if (after === '.' && end + 1 < noLink.length && /[A-Za-z]/.test(noLink.charAt(end + 1))) continue
+        if (!bundledSet[token]) continue
+        const lang = root.indexOf('bundled-skills-zh') >= 0 ? 'zh' : 'en'
+        plainWanted.push(d + '/' + lang + ':' + (li + 1) + ' 的 /' + token)
+        if (root === bundledRoot) plainHitDirs[d] = true
+        const got = (await renderLine(line)).refs
+        if (got.indexOf('/' + token) < 0) plainBad.push(d + ':' + (li + 1) + ' 的 /' + token + '（实得 ' + JSON.stringify(got) + '）')
+      }
+    }
+  }
+}
+check(plainWanted.length > 0, '真实语料里确实有普通文字写出来的技能名（实得 ' + plainWanted.length + ' 处：' + plainWanted.slice(0, 8).join('、') + '；当前已知全在 implement 英中各 2 处，这里不钉死数字）')
+check(plainBad.length === 0, '真实语料里每一处普通文字技能名都做成了入口' + (plainBad.length ? '；没做成：' + plainBad.slice(0, 5).join('；') : ''))
+// 反证组：名单外、地址路径、文件写法、前缀回退、大小写，每组一处入口都不做。
+const slashCounters: string[] = [
+  'Use /nope where possible.',
+  'See https://host/tdd for details.',
+  'See docs/agents/domain.md for details.',
+  'See /tdd.md for details.',
+  'Use /tdd-x where possible.',
+  'Use /TDD where possible.',
+]
+const slashCounterBad: string[] = []
+for (const one of slashCounters) {
+  const got = (await renderLine(one)).refs
+  if (got.length !== 0) slashCounterBad.push(one + ' 出现了入口 ' + JSON.stringify(got))
+}
+// 最长命中正例：/implement-spec 整体命中，不拆。
+const specGot = (await renderLine('Use /implement-spec to build.')).refs
+check(specGot.indexOf('/implement-spec') >= 0, '普通文字里的 /implement-spec 整体做成入口（实得 ' + JSON.stringify(specGot) + '）')
+check(slashCounterBad.length === 0, '普通文字反证一处入口都不做' + (slashCounterBad.length ? '：' + slashCounterBad.join('；') : '（/nope、地址路径、文件写法、/tdd-x、/TDD 各 1 句）'))
+// 实现验收：/implement 英中正文里的四处普通文字写法逐行是入口。
+const implementEnTdd = await renderLine('Use /tdd where possible, at pre-agreed seams.')
+check(implementEnTdd.refs.indexOf('/tdd') >= 0, '英文 /implement 的 /tdd 是入口（实得 ' + JSON.stringify(implementEnTdd.refs) + '）')
+const implementEnReview = await renderLine('Once done, use /code-review to review the work.')
+check(implementEnReview.refs.indexOf('/code-review') >= 0, '英文 /implement 的 /code-review 是入口（实得 ' + JSON.stringify(implementEnReview.refs) + '）')
+const implementZhTdd = await renderLine('尽可能在事先约定好的接缝处使用 /tdd。')
+check(implementZhTdd.refs.indexOf('/tdd') >= 0, '中文 /implement 的 /tdd 是入口（实得 ' + JSON.stringify(implementZhTdd.refs) + '）')
+const implementZhReview = await renderLine('做完之后，用 /code-review 评审这次的工作。')
+check(implementZhReview.refs.indexOf('/code-review') >= 0, '中文 /implement 的 /code-review 是入口（实得 ' + JSON.stringify(implementZhReview.refs) + '）')
 
 // ==== 浅色皮肤（#1378）：像素家族——深色原值不动，浅色换成浅色纸面便签（原型里选定的纸面底、卡片白、深色描边、深绿强调） ====
 // 判据只看样式文本本身，不看渲染：色值写错、深色值被挪进浅色选择器、装饰色又写回裸值，都会报红。

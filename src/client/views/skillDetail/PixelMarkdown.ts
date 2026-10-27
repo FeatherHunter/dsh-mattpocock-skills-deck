@@ -4,10 +4,10 @@
  * 拼回 src/client/index.ts 的 `// ==== leaf:pixelMarkdown (spliced by build) ====` 标记处。
  * 用法：PixelMarkdown({md, lang, st, onSkill, skillNames})；pixelDocHeadings(md) 纯函数抽标题给目录用。
  * onSkill 与 skillNames 都给了的时候，正文里写到的**随包真有的技能名**才做成可点的入口，点了压一层新的
- * 详情（2026-10-10 人拍板）。认两种写法：反引号写的 `/grill-with-docs` 或 `grilling`，以及直双引号写的
- * "grilling"（#1520）；双引号写法只把引号里的名字做成入口，引号本身原样留在正文里。双引号这一种只认同一行内、
+ * 详情（2026-10-10 人拍板）。认三种写法：反引号写的 `/grill-with-docs` 或 `grilling`、直双引号写的
+ * "grilling"（#1520），以及普通文字里直接写的 `/grilling`（#1556）；双引号写法只把引号里的名字做成入口，引号本身原样留在正文里。双引号这一种只认同一行内、
  * 引号里文字 1~64 字、整个名字对上的写法（真实技能名最长十几个字符，64 字上限只为挡住一整段话被误当成名字）；
- * 不在名单里、跨行、超长的引号文字都原样当普通文字画。
+ * 不在名单里、跨行、超长的引号文字都原样当普通文字画。普通文字里的斜杠写法保留作者原样（含开头的斜杠），大小写敏感。
  * 没给技能名单与 onSkill、或名字对不上时就都原样当文字画。
  * 白名单与 views/shared/md.js 对齐（标题/分割线/引用/列表/任务列表/代码块/加粗/斜体/
  * 行内代码/删除线/链接/图片），只有两处不同：①列表支持缩进嵌套（生产渲染器会拍平，
@@ -30,7 +30,7 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
   const h = cx ? cx.h : React.createElement
   const st = p.st || null
   // 正文里能点开的技能名（2026-10-10 人拍板）：只有随包真有的那些做成入口，别的原样当代码。
-  // 认两种写法：`/grill-with-docs`（带斜杠）与 `grilling`（不带），名字必须整个对上。
+  // 认三种写法：反引号 `/grill-with-docs`（带斜杠）与 `grilling`（不带）、直双引号 "grilling"（#1520）、普通文字 /grilling（#1556），名字必须整个对上。
   const nameSet = function (names: any): any {
     if (!names || !names.length) return null
     const s: Record<string, boolean> = {}
@@ -92,8 +92,8 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
     st.pixelImgOverlay = { src: src, alt: String(alt || '').slice(0, 200) }
     try { if (typeof emit === 'function') emit(st) } catch (e) { /* 画布外自测时没有 emit */ }
   }
-  // 正文里写到的技能名做成可点入口的那颗棋子：反引号写法与双引号写法（#1520）共用这一份，
-  // 保证两种写法点下去是同一件事（压一层新详情），同屏定位名也还用同一个 sd.md.skill. 前缀。
+  // 正文里写到的技能名做成可点入口的那颗棋子：反引号写法、双引号写法（#1520）、普通文字斜杠写法（#1556）共用这一份，
+  // 保证三种写法点下去是同一件事（压一层新详情），同屏定位名也还用同一个 sd.md.skill. 前缀。
   const skillEntry = function (ref: string, label: string): any {
     skillN += 1
     return h('code', {
@@ -117,7 +117,8 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
   // 次序：①代码跨度抽成原子（里面字符不再参与解析）；②反斜杠转义出原样字符；
   // ③图片；④链接（标签递归，共用同一张原子表）；
   // ⑤双引号里写出来的技能名做成入口（#1520，引号本身原样留着；放在图片与链接之后，免得图片 alt/title 与链接地址里的引号文字被改写）；
-  // ⑥剩下文字上递归解析强调；⑦原子填回（填回要下探到新建节点的子节点里，否则占位符会露在界面上）。
+  // ⑥普通文字里斜杠写出来的技能名做成入口（#1556，放在双引号之后、强调展开之前：链接与图片地址此时已被换成原子，不会被误认；代码跨度同理）；
+  // ⑦剩下文字上递归解析强调；⑧原子填回（填回要下探到新建节点的子节点里，否则占位符会露在界面上）。
   // 强调收口的两条细节：** 与 __ 要成对整串；单个 * 只认"孤立的星"收口，
   // 这样 *a **b** c* 反向嵌套也能正确（否则会被切成三段各自的斜体）。
   // 下划线守词边界：_x_ 认，snake_case 不认。
@@ -256,6 +257,16 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
       const ref = skillRefOf(inner)
       if (!ref) return all
       return '"' + mark(skillEntry(ref, inner)) + '"'
+    })
+    // ⑥ 普通文字里斜杠写出来的技能名（#1556）：随包正文里有作者直接写 /tdd、/code-review 的地方，
+    //   命中随包名单的做成与反引号、双引号相同的入口。词边界与随包 md 文件名引用同一套：斜杠前面是
+    //   字母、数字、下划线、点、斜杠的不认；名字后面紧跟字母、数字、下划线、斜杠、连字符的不认；
+    //   后面紧跟「点＋字母」（如 /tdd.md 这类文件写法）的不认，让文件引用分支处理。
+    //   最长贪婪取出名字后整体查表，不中就原样放回，不许前缀回退（如 /implement-spec 整体命中，/tdd-x 不许拆出 tdd）。
+    rest = rest.replace(/\/([A-Za-z0-9][A-Za-z0-9_-]*)/g, function (all: string, _name: string, offset: number, whole: string) {
+      const before = offset > 0 ? whole.charAt(offset - 1) : '', end = offset + all.length, after = end < whole.length ? whole.charAt(end) : ''
+      if ((before && /[A-Za-z0-9_.\/-]/.test(before)) || (after && /[A-Za-z0-9_\/-]/.test(after)) || (after === '.' && /[A-Za-z]/.test(whole.charAt(end + 1) || ''))) return all
+      const ref = skillRefOf(all); return ref ? mark(skillEntry(ref, all)) : all
     })
     return expand(emphasisOf(rest))
   }
