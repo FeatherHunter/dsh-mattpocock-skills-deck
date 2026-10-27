@@ -283,7 +283,10 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
                     return
                   }
                   if (outcome === 'open-failed') {
-                    try { flash(s, tr('logtoast.openFailed', { err: String(detail || 'unknown').slice(0, 120) }), 'warn') } catch (__) {}
+                    try {
+                      const why = (typeof detail === 'string' && detail) ? detail.slice(0, 120) : ''
+                      flash(s, why ? tr('logtoast.openFailed', { err: why }) : tr('logtoast.openFailedNoReason'), 'warn')
+                    } catch (__) {}
                   }
                 })
               }
@@ -291,7 +294,7 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             }
             if (!href) return h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullRepo')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, repoRef.name)]) }, h('span', { 'aria-label': repoRef.name, 'data-repo-chip': 1, style: Object.assign({}, chipStyle, { cursor:'default' }) }, inner))
             // #191（用户反馈）：GitHub/GitLab 路径只 target='_blank'（浏览器原生新窗口），
-            //   之前的 onClick openUrl 导致点一次开两个浏览器。Markdown 路径见上方分支（保留 onClick wf.openFolder）
+            //   之前的 onClick openUrl 导致点一次开两个浏览器。Markdown 路径见上方分支（那一支已改走共用打开函数 openFolderAt）
             // 悬停提示里始终摆着**完整**的仓库名（维护者 2026-09-22 定：版面上那一串会随宽度逐字变短，
             //   一个字都不许丢，完整的那串必须能在悬停时读到），再加一句这颗芯片点下去做什么。
             return h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullRepo')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, repoRef.name), h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px', marginTop: 2 } }, tr('panel.repoTitle'))]) }, h('a', { href: href, target: '_blank', rel: 'noreferrer', 'aria-label': repoRef.name, 'data-repo-chip': 1, className: 'dsws-hov', 'data-press': 'button', 'data-log': 'head.repochip', style: chipStyle }, inner))

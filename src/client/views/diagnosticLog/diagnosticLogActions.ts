@@ -23,6 +23,8 @@ import type {
   DiagnosticLocaleKey,
   LogBusy,
 } from './diagnosticLogModel.js';
+// #1582：结果三态与共用函数共用同一份类型（只做类型标注，转译时整句抹掉，不构成运行时 import）。
+import type { OpenFolderOutcome } from '../shared/openFolder.js';
 
 /** 宿主：探活与远程调用。args 只传纯数据，不传函数（宿主边界只走可序列化的数据）。 */
 export interface DiagnosticLogHost {
@@ -96,7 +98,7 @@ export interface DiagnosticLogSwitchWriter {
  * 成功的 'opened' 只为保住本页打开成功时那一句提示（cfg.dbgOpenedDir）。
  */
 export interface DiagnosticLogOpenFolder {
-  (dir: string, report: (outcome: 'opened' | 'missing' | 'open-failed', detail?: string) => void): boolean;
+  (dir: string, report: (outcome: OpenFolderOutcome, detail?: string) => void): boolean;
 }
 
 /** 跑腿要的世界，一共八组（各组含义见上面各自的注释）。 */
@@ -327,7 +329,7 @@ export function createDiagnosticLogOps(deps: DiagnosticLogDeps): DiagnosticLogOp
         }
         if (outcome === 'missing') {
           deps.tell.exportFail('openDir', 'path-missing', 'path-missing');
-          deps.tell.flash(deps.tell.tr('cfg.dbgExportFail'), 'warn');
+          deps.tell.flash(deps.tell.tr('logtoast.openNoDir'), 'warn');
           return;
         }
         deps.tell.warn('wf.openFolder', 'open-path', deps.tell.hash(deps.tell.trunc(String(detail || 'not-ok'), 120, 'error')));

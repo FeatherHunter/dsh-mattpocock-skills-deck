@@ -83,20 +83,20 @@ async function main(): Promise<void> {
     check(reports.length === 1 && reports[0].outcome === 'missing', '目录为空（' + JSON.stringify(empty) + '）：报 missing')
   }
 
-  // ---- 分支 2：宿主不可用 —— 报 open-failed(host-unavailable)，不炸 ----
+  // ---- 分支 2：宿主不可用 —— 报 open-failed 且不带原因，不炸 ----
   {
     const reports: ReportCall[] = []
     const sent = openFolderAt(null, 'D:/x', (outcome, detail) => reports.push({ outcome, detail }))
     await flush()
-    check(sent === false && reports.length === 1 && reports[0].outcome === 'open-failed' && reports[0].detail === 'host-unavailable',
-      '没有宿主：报 open-failed(host-unavailable)，返回未发出')
+    check(sent === false && reports.length === 1 && reports[0].outcome === 'open-failed' && reports[0].detail === undefined,
+      '没有宿主：报 open-failed 且原因留空（不把机器词交给界面），返回未发出')
   }
   {
     const reports: ReportCall[] = []
     const sent = openFolderAt({}, 'D:/x', (outcome, detail) => reports.push({ outcome, detail }))
     await flush()
-    check(sent === false && reports.length === 1 && reports[0].outcome === 'open-failed',
-      '宿主没有 call 方法：同样报 open-failed，不当成已发出')
+    check(sent === false && reports.length === 1 && reports[0].outcome === 'open-failed' && reports[0].detail === undefined,
+      '宿主没有 call 方法：报 open-failed 且原因留空，不当成已发出')
   }
 
   // ---- 分支 3：正常回包 —— 只发一次，报 opened ----
@@ -112,7 +112,7 @@ async function main(): Promise<void> {
     check(reports.length === 1 && reports[0].outcome === 'opened', '目录可用：报 opened（诊断日志页靠它弹成功提示）')
   }
 
-  // ---- 分支 4：宿主回 {ok:false} —— 报 open-failed 并带上宿主给的原因 ----
+  // ---- 分支 4：宿主回 {ok:false} —— 报 open-failed；原因只在宿主给了文字时原样带回 ----
   {
     const world = fakeHost()
     world.box.reply = () => Promise.resolve({ ok: false, error: '目录被占用' })
@@ -120,7 +120,7 @@ async function main(): Promise<void> {
     openFolderAt(world.host, 'D:/work/x', (outcome, detail) => reports.push({ outcome, detail }))
     await flush()
     check(reports.length === 1 && reports[0].outcome === 'open-failed' && reports[0].detail === '目录被占用',
-      '宿主回 ok:false：报 open-failed，原因原样带回给调用方')
+      '宿主回 ok:false 且给了文字：原因原样带回给调用方')
   }
   {
     const world = fakeHost()
@@ -128,11 +128,11 @@ async function main(): Promise<void> {
     const reports: ReportCall[] = []
     openFolderAt(world.host, 'D:/work/x', (outcome, detail) => reports.push({ outcome, detail }))
     await flush()
-    check(reports.length === 1 && reports[0].outcome === 'open-failed' && reports[0].detail === '打开失败',
-      '宿主回 ok:false 且没给原因：仍报 open-failed，兜底一句「打开失败」')
+    check(reports.length === 1 && reports[0].outcome === 'open-failed' && reports[0].detail === undefined,
+      '宿主回 ok:false 且没给原因：原因留空，由调用方用 logtoast.openFailedNoReason 那句兜住（函数不造文案）')
   }
 
-  // ---- 分支 5：异步拒绝与同步抛错 —— 同走 open-failed ----
+  // ---- 分支 5：异步拒绝与同步抛错 —— 同走 open-failed，且不把异常文字当原因交给界面 ----
   {
     const world = fakeHost()
     world.box.reply = () => Promise.reject(new Error('宿主一对多失败'))
@@ -140,8 +140,8 @@ async function main(): Promise<void> {
     const sent = openFolderAt(world.host, 'D:/work/x', (outcome, detail) => reports.push({ outcome, detail }))
     await flush()
     check(sent === true, '异步拒绝：调用已经发出，返回 true')
-    check(reports.length === 1 && reports[0].outcome === 'open-failed' && reports[0].detail === '宿主一对多失败',
-      '异步拒绝：报 open-failed，异常文字带回给调用方')
+    check(reports.length === 1 && reports[0].outcome === 'open-failed' && reports[0].detail === undefined,
+      '异步拒绝：报 open-failed，异常文字不交给界面')
   }
   {
     const world = fakeHost()
@@ -150,8 +150,8 @@ async function main(): Promise<void> {
     const sent = openFolderAt(world.host, 'D:/work/x', (outcome, detail) => reports.push({ outcome, detail }))
     await flush()
     check(sent === false, '同步抛错：调用没发出去，返回 false')
-    check(reports.length === 1 && reports[0].outcome === 'open-failed' && reports[0].detail === 'call-down',
-      '同步抛错：报 open-failed，不把异常漏给界面')
+    check(reports.length === 1 && reports[0].outcome === 'open-failed' && reports[0].detail === undefined,
+      '同步抛错：报 open-failed 且原因留空，不把异常漏给界面')
   }
 
   // ---- 源码扫描：四处入口不再自己直调宿主，共用函数是唯一实现 ----
@@ -159,6 +159,8 @@ async function main(): Promise<void> {
   check(/export function openFolderAt/.test(helperSrc), '共用函数叶子导出 openFolderAt')
   check(!/^\s*import\b/m.test(helperSrc), '共用函数叶子没有运行时 import（拼接闭包只收声明，不收模块导入）')
   check(/\.call\(\s*'wf\.openFolder'/.test(helperSrc), '共用函数叶子是唯一直接发 wf.openFolder 的地方')
+  check(helperSrc.indexOf('打开失败') < 0, '共用函数叶子不拼任何文案（源码里没有「打开失败」字面量）')
+  check(helperSrc.indexOf('host-unavailable') < 0, '宿主不可用不把机器词当原因交回调用方')
   for (const rel of SITES_REL) {
     const src = sourceText(rel)
     check(!/host\.call\(\s*'wf\.openFolder'/.test(src), rel + ' 不再自己直接调 wf.openFolder')
@@ -167,6 +169,10 @@ async function main(): Promise<void> {
   check(/openFolderAt\(/.test(sourceText(SITES_REL[1])), SITES_REL[1] + ' 接上了共用函数')
   check(/openFolderAt\(/.test(sourceText(SITES_REL[2])), SITES_REL[2] + ' 接上了共用函数')
   check(/deps\.openFolder\(/.test(sourceText(SITES_REL[3])), SITES_REL[3] + ' 经 deps.openFolder 注入共用函数（跑腿层不碰闭包）')
+  for (const rel of [SITES_REL[0], SITES_REL[1], SITES_REL[2]]) {
+    check(/logtoast\.openFailedNoReason/.test(sourceText(rel)), rel + ' 对没有原因的失败用了现成词条 logtoast.openFailedNoReason')
+  }
+  check(/logtoast\.openNoDir/.test(sourceText(SITES_REL[3])), SITES_REL[3] + ' 的目录缺失那一路用现成词条 logtoast.openNoDir')
 
   console.log('\n共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
   if (failed) process.exit(1)

@@ -18,6 +18,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MODEL_REL = 'src/client/views/diagnosticLog/diagnosticLogModel.ts';
 const ACTIONS_REL = 'src/client/views/diagnosticLog/diagnosticLogActions.ts';
+// #1582：跑腿层把「发宿主打开文件夹」交给注入的共用函数；这份门禁直接 import 真叶子喂进去（不手抄替身）。
+const OPEN_FOLDER_REL = 'src/client/views/shared/openFolder.ts';
+let realOpenFolderAt: any = null;
 
 let failed = false;
 let total = 0;
@@ -112,24 +115,11 @@ function buildWorld(model: Record<string, (...args: never[]) => unknown>) {
         return Promise.resolve({ ok: true, hostPushed: true, enabled: on });
       },
     },
-    // #1582：共用打开函数的替身 —— 语义照真函数（判空不发、只发一次、读回包、异常同路），
-    //   但真去调假 host.call，这样「成功打开」那组既有断言（calls[0] 是 wf.openFolder）照旧成立。
-    openFolder: (dir: string, report: (outcome: string, detail?: unknown) => void) => {
-      const value = String(dir == null ? '' : dir).trim();
-      if (!value) { report('missing'); return false; }
-      try {
-        callHost('wf.openFolder', { cwd: value }).then(
-          (res) => {
-            if (res && (res as Record<string, unknown>)['ok'] === true) { report('opened'); return; }
-            report('open-failed', (res && (res as Record<string, unknown>)['error']) || 'not-ok');
-          },
-          (e) => { report('open-failed', e); },
-        );
-      } catch (eSync) {
-        report('open-failed', eSync);
-        return false;
-      }
-      return true;
+    // #1582：共用打开函数不手抄替身 —— 直接喂真叶子（main 里 import 进来），宿主替身用 callHost，
+    //   这样「成功打开」那组既有断言（calls[0] 是 wf.openFolder）照旧成立，失败路径量的也是真实现。
+    openFolder: (dir: string, report: (outcome: string, detail?: string) => void) => {
+      if (typeof realOpenFolderAt !== 'function') throw new Error('共用函数没加载');
+      return realOpenFolderAt({ call: callHost }, dir, report);
     },
   };
   return { deps, box, flashes, infos, warns, fails, copies, afters, calls, uiState };
@@ -143,6 +133,8 @@ async function main(): Promise<void> {
       askClear(): void; cancelClear(): void; confirmClear(): void;
     };
   };
+  const leaf = await import(pathToFileURL(path.join(ROOT, OPEN_FOLDER_REL)).href) as { openFolderAt?: unknown };
+  realOpenFolderAt = leaf.openFolderAt;
   const opsOf = (w: ReturnType<typeof buildWorld>) =>
     actions.createDiagnosticLogOps(w.deps as unknown);
 

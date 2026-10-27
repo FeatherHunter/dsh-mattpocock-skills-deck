@@ -343,7 +343,10 @@ export const SubworkspaceMark = function (props: any) {
         return
       }
       if (outcome === 'open-failed') {
-        try { flash(st, tr('logtoast.openFailed', { err: String(detail || 'unknown').slice(0, 120) }), 'warn') } catch (__) {}
+        try {
+          const why = (typeof detail === 'string' && detail) ? detail.slice(0, 120) : ''
+          flash(st, why ? tr('logtoast.openFailed', { err: why }) : tr('logtoast.openFailedNoReason'), 'warn')
+        } catch (__) {}
       }
     })
   }

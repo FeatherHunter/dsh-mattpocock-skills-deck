@@ -236,8 +236,10 @@ export const StatusLogDot = function (props: any) {
           say(tr('logtoast.openNoDir'), 'warn')
           return
         }
-        dswsLogWarnCall('wf.openFolder', 'open-path', detail); dswsLogMenuFail('openDir', 'open-fail', detail)
-        say(tr('logtoast.openFailed', { err: String(detail || 'unknown').slice(0, 120) }), 'warn')
+        // 失败时保持菜单开着（旧代码 .then 不接回包，失败也会静默收起）——用户能看见这一句再自己关。
+        dswsLogWarnCall('wf.openFolder', 'open-path', detail || 'no-reason'); dswsLogMenuFail('openDir', 'open-fail', detail)
+        const why = (typeof detail === 'string' && detail) ? detail.slice(0, 120) : ''
+        say(why ? tr('logtoast.openFailed', { err: why }) : tr('logtoast.openFailedNoReason'), 'warn')
       })
     })
   }

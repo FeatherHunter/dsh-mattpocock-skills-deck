@@ -7,9 +7,10 @@
  *   所以缺陷一路过关。这里把渲染这件事做成可复用的工具，让门禁与复现脚本都能真的画一遍。
  *
  * 真到什么程度：真的 jsdom、真的 React（两者都来自本仓 devDependencies）、组件源码从真源
- *   原样取出、浮层文案从真 locale 里取。只有三个东西是替身 —— Tip、host 与 openFolderAt
- *   （#1582 起组件把打开文件夹那一步交给共用函数），因为本工具不测浮层的样式，也不真去开文件夹；
- *   它们的调用记录会回给调用方自己去断言。
+ *   原样取出、浮层文案从真 locale 里取。只有三个东西是替身 —— Tip、host 与 flash
+ *   （#1582 起组件打开失败会弹提示条，本工具只记录它弹了什么）；openFolderAt 反过来用真实现
+ *   （这份叶子是纯函数，require 得到的就是构建拼进闭包的那一份），不手抄一份容易跟真的漂开。
+ *   替身的调用记录会回给调用方自己去断言。
  *
  * 用法：
  *   const { renderMark } = require('./lib/render-subws-mark.js')
@@ -18,6 +19,7 @@
  *   r.isSub       这枚标志出现了没有（真看 DOM，不看字段）
  *   r.tipCalls    给 Tip 的调用记录（含 content 与 visible，用来断言文案与「首次自动展开」）
  *   r.hostCalls   给 host.call 的调用记录（用来断言「点一下打开工作区根」）
+ *   r.flashCalls  组件弹提示条的调用记录（用来断言「打开失败有人说话」）
  *   r.hasLink     渲染结果里有没有那圈可点的链接
  */
 const fs = require('fs')
@@ -58,17 +60,17 @@ function keyOfFn(): any {
 /**
  * 把某一版组件源码装成一个能渲的组件。只做两件不改行为的事：剥掉行首 export，补上闭包变量。
  * @param {string} src 组件源码文本
- * @param {object} env { React, h, keyOf, tr, Tip, host, localStorage, chainStep }
+ * @param {object} env { React, h, keyOf, tr, Tip, host, flash, localStorage, chainStep, openFolderAt }
  */
-function makeMark(src: string, env: { React: any; h: any; keyOf: any; tr: any; Tip: any; host: any; localStorage: any; chainStep: any; openFolderAt: any }): any {
+function makeMark(src: string, env: { React: any; h: any; keyOf: any; tr: any; Tip: any; host: any; flash: any; localStorage: any; chainStep: any; openFolderAt: any }): any {
   const body = src.replace(/^\s*export\s+/gm, '')
   // 本处走 compileFn：组件要的外层名字（React、tr、Tip…）本来就一个不少地按参数传进来，不靠外层作用域。
-  // #1582：打开文件夹那一步走共用函数 openFolderAt，名字表与 env 都得多一个（见下面替身）。
+  // #1582：打开文件夹那一步走共用函数 openFolderAt，失败提示走 flash，名字表与 env 都得多这两个。
   const factory = compileFn(
-    ['keyOf', 'tr', 'Tip', 'host', 'React', 'h', 'localStorage', 'chainStep', 'openFolderAt'],
+    ['keyOf', 'tr', 'Tip', 'host', 'React', 'h', 'localStorage', 'chainStep', 'openFolderAt', 'flash'],
     body + '\nreturn SubworkspaceMark'
   )
-  return factory(env.keyOf, env.tr, env.Tip, env.host, env.React, env.h, env.localStorage, env.chainStep, env.openFolderAt)
+  return factory(env.keyOf, env.tr, env.Tip, env.host, env.React, env.h, env.localStorage, env.chainStep, env.openFolderAt, env.flash)
 }
 
 /**
@@ -146,20 +148,13 @@ async function renderMark(store: any, opts?: { lang?: string; src?: string; clic
   }
   const hostCalls = []
   const host = { call: function (method, args) { hostCalls.push({ method: method, args: args }); return Promise.resolve({ ok: true }) } }
-  // #1582：组件里打开文件夹走共用函数 openFolderAt（真实现住 views/shared/openFolder.ts，由构建拼进闭包）。
-  //   这里给最小替身：替身内部真发 host.call，并照真函数的约定回一句结论 —— 既保住「点一下真的会发
-  //   wf.openFolder、cwd 是工作区根」这条断言（E9），又不把共用函数的实现细节搬进本工具。
-  const openFolderAt = function (h: any, dir: any, report: any) {
-    const value = String(dir == null ? '' : dir).trim()
-    if (!value) { try { report('missing') } catch (e) {} ; return false }
-    try {
-      h.call('wf.openFolder', { cwd: value }).then(function (res: any) {
-        if (res && res.ok === true) { try { report('opened') } catch (e) {} ; return }
-        try { report('open-failed', (res && res.error) || 'not-ok') } catch (e2) {}
-      }, function (e: any) { try { report('open-failed', e) } catch (e3) {} })
-    } catch (eSync) { try { report('open-failed', eSync) } catch (e4) {} ; return false }
-    return true
-  }
+  // #1582：组件打开失败会 flash 一句提示。本工具只看它有没有说话、说了哪句，所以只记录不弹。
+  const flashCalls: Array<{ store: any; message: any; kind: any }> = []
+  const flash = function (store: any, message: any, kind: any) { flashCalls.push({ store: store, message: message, kind: kind }) }
+  // #1582：组件里打开文件夹走共用函数 openFolderAt —— 这里不抄实现，直接 require 构建拼进闭包的那一份真源
+  //   （叶子是纯函数，宿主调用对象从参数进；ts-hook 下 require .ts 可用）。组件把这里的 host 替身交给它，
+  //   所以 hostCalls 记的仍是真发出去的那一次 wf.openFolder（E9 断言不变），失败时走的也是真函数的规矩。
+  const { openFolderAt } = require('../../src/client/views/shared/openFolder.ts')
   const keyOf = keyOfFn()
   // 「已经自动展开过」这份记录按**工作区根**那把键记，与组件里读它的地方同一把键
   //   （组件读的是 subwsMarkCmpKey(root)，root 取的是快照里那个 workspaceRoot）。
@@ -173,7 +168,7 @@ async function renderMark(store: any, opts?: { lang?: string; src?: string; clic
     if (id !== 'tracker:initialized' || !o.chainInit) return null
     return { id: id, status: o.chainInit }
   }
-  const Comp = makeMark(src, { React: React, h: React.createElement, keyOf: keyOf, tr: tr, Tip: Tip, host: host, localStorage: window.localStorage, chainStep: chainStep, openFolderAt: openFolderAt })
+  const Comp = makeMark(src, { React: React, h: React.createElement, keyOf: keyOf, tr: tr, Tip: Tip, host: host, flash: flash, localStorage: window.localStorage, chainStep: chainStep, openFolderAt: openFolderAt })
 
   const container = window.document.createElement('div')
   window.document.body.appendChild(container)
@@ -197,7 +192,7 @@ async function renderMark(store: any, opts?: { lang?: string; src?: string; clic
     const html = container.innerHTML
     // isSub 按图标那一处本身找（[data-subws-mark]），不要拿子串搜 —— 「data-subws-mark-link」里也含这段字，
     //   只画了外层链接、没画里面图标时，子串搜会误判成「画出来了」。
-    return { html: html, isSub: !!container.querySelector('[data-subws-mark]'), tipCalls: tipCalls, hostCalls: hostCalls, hasLink: !!link }
+    return { html: html, isSub: !!container.querySelector('[data-subws-mark]'), tipCalls: tipCalls, hostCalls: hostCalls, flashCalls: flashCalls, hasLink: !!link }
   } finally {
     try { if (root) await act(async function () { root.unmount() }) } catch (e) {}
     try { container.parentNode.removeChild(container) } catch (e) {}

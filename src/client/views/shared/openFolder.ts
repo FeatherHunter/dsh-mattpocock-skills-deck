@@ -7,7 +7,7 @@
  *   ① 目录为空或只有空白时不发宿主调用（发过去只会换来一条「缺少 cwd」，还不如当场说清）；
  *   ② 一次点击只发一次宿主调用；
  *   ③ 宿主报失败的方式是回 {ok:false,error}，不是抛错 —— 必须读回包，不能只挂 catch；
- *   ④ 失败原因交回调用方去提示（本函数不弹提示、不认识任何文案键）。
+ *   ④ 失败原因交回调用方去提示（本函数不弹提示、不认识任何文案键、不拼任何文案）。
  *
  * 返回值只回答「这次有没有真的把调用发出去」（目录为空、宿主不可用、同步抛错都回 false），
  * 方便调用方收尾自己的忙碌态；异步结果走 report 回调。
@@ -15,11 +15,15 @@
  * 为什么 report 里除了失败还有 'opened'：诊断日志页打开成功时要弹「已打开」那一句
  * （cfg.dbgOpenedDir），而票面只要求失败回调。多这一个值只为保住那处既有提示，其余调用方忽略即可。
  *
+ * detail 的约定：只有宿主回包里的 error 是非空字符串时才原样交回（那是宿主写给用户看的原因）；
+ * 宿主不可用、调用抛错、回包没带原因这些情况一律不给 detail —— 这种「没有原因」的失败由调用方
+ * 翻成自己的人话（现成词条 logtoast.openFailedNoReason），本函数不造词、不兜底。
+ *
  * 约定：
  *   - 本文件是会被构建拼进客户端闭包的叶子（scripts/build.mts 的 LEAF_MODULES），所以不许写
  *     运行时 import、不许 export default；宿主调用对象与回调都从参数进，不碰闭包里的任何名字。
- *   - 文案不在这里拼：'missing' 与 'open-failed' 各由调用方翻成自己的人话（两句现成词条：
- *     logtoast.openNoDir 与 logtoast.openFailed）。
+ *   - 文案不在这里拼：'missing' 与 'open-failed' 各由调用方翻成自己的人话（现成词条：
+ *     logtoast.openNoDir 与 logtoast.openFailedNoReason）。
  */
 export type OpenFolderOutcome = 'opened' | 'missing' | 'open-failed'
 
@@ -28,19 +32,8 @@ export interface OpenFolderHost {
   call?: (method: string, args: Record<string, unknown>) => Promise<unknown> | unknown
 }
 
-/** 结果回调：'opened' 成功；'missing' 目录为空（没发调用）；'open-failed' 发了但失败或发不出去，detail 是原因。 */
+/** 结果回调：'opened' 成功；'missing' 目录为空（没发调用）；'open-failed' 发了但失败/发不出去；detail 可能没有。 */
 export type OpenFolderReport = (outcome: OpenFolderOutcome, detail?: string) => void
-
-/** 失败原因统一转成一句可读文字：没有原因时用兜底那句，对象里带 message 时用 message。 */
-function openFolderDetailText(detail: unknown): string {
-  if (detail === undefined || detail === null || detail === '') return '打开失败'
-  if (typeof detail === 'string') return detail
-  try {
-    const m = (detail as { message?: unknown }).message
-    if (typeof m === 'string' && m) return m
-  } catch (e) { /* 不是对象、或取 message 时抛错：退回下面的 String */ }
-  return String(detail)
-}
 
 /**
  * 请宿主打开一个文件夹（wf.openFolder）。
@@ -56,21 +49,21 @@ export function openFolderAt(host: OpenFolderHost | null | undefined, dir: unkno
   const wanted = (dir === null || dir === undefined) ? '' : String(dir)
   if (!wanted.trim()) { fire('missing'); return false }
   const owner = (host || null) as OpenFolderHost | null
-  if (!owner || typeof owner.call !== 'function') { fire('open-failed', 'host-unavailable'); return false }
+  if (!owner || typeof owner.call !== 'function') { fire('open-failed'); return false }
   let pending: Promise<unknown>
   try {
     pending = Promise.resolve(owner.call('wf.openFolder', { cwd: wanted }))
   } catch (e) {
-    fire('open-failed', openFolderDetailText(e))
+    fire('open-failed')
     return false
   }
   pending.then(function (res: unknown) {
     const ok = !!res && typeof res === 'object' && (res as { ok?: unknown }).ok === true
     if (ok) { fire('opened'); return }
     const err = (res && typeof res === 'object') ? (res as { error?: unknown }).error : undefined
-    fire('open-failed', openFolderDetailText(err))
-  }, function (e: unknown) {
-    fire('open-failed', openFolderDetailText(e))
+    fire('open-failed', (typeof err === 'string' && err.trim()) ? err : undefined)
+  }, function () {
+    fire('open-failed')
   })
   return true
 }
