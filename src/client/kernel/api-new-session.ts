@@ -80,23 +80,28 @@ declare const ensureInjectFocusAtEnd: any;
       } catch (eInfer) {}
       const sessions = ctx.get('sessions')
       const workspaces = ctx.get('workspaces')
+      // #1580：记一行“新会话决策链”常驻日志用——动作种类、cwd 来源与工作区解析出处，只给日志、不参与行为。
+      // 下次再出现「新会话没选中工作区」时，按这一行就能分出卡在查找 / 复用 / 创建哪一层。
+      const entryKind = (opts && typeof opts.kind === 'string') ? String(opts.kind) : 'text'
+      let cwdSource = 'none'
       const doFallback = function () {
         inject(st, text)
         flash(st, tr('toast.newSessionManual', { title: title }), 'warn')
       }
-      if (!sessions || typeof sessions.create !== 'function') { doFallback(); return }
+      if (!sessions || typeof sessions.create !== 'function') { try { log('info', 'newsession.decide', { entry: entryKind, textLen: String(text || '').length, curSidHash: dswsLogHash(String((st && st.sessionId) || '')), cwdHash: dswsLogHash(String((st && st.cwd) || '')), cwdSource: cwdSource, wsResolved: 'no', wsSource: 'none', wsItems: 0, branch: 'fallback', reuseFrom: 'none', reuseSidHash: '', allowReuse: 'none', createOpts: '', sidHash: '', outcome: 'no-sessions', errorHash: '' }) } catch (eNS) {} doFallback(); return }
       // v1.5：新会话默认继承「点击时所在会话」的工作区（st.cwd）；
       //   缺失时：1) 同步读 sessions.list（权威 cwd，避免 host 异步窗口）2) 再向 host 解析兜底
       const ensureCwd = function () {
         const sync = getCwdSync(st.sessionId)
         if (sync) {
+          cwdSource = 'sync'
           if (sync !== st.cwd) st.cwd = sync
           return Promise.resolve(sync)
         }
-        if (st.cwd) return Promise.resolve(st.cwd)
+        if (st.cwd) { cwdSource = 'state'; return Promise.resolve(st.cwd) }
         if (typeof host !== 'undefined' && typeof host.call === 'function' && st.sessionId) {
           return host.call('wf.cwd', { sessionId: st.sessionId }).then(function (res: any) {
-            if (res && res.ok && res.cwd) { st.cwd = res.cwd; return res.cwd }
+            if (res && res.ok && res.cwd) { st.cwd = res.cwd; cwdSource = 'host'; return res.cwd }
             return null
           }).catch(function () { return null })
         }
@@ -116,13 +121,18 @@ declare const ensureInjectFocusAtEnd: any;
         return Promise.resolve({ wid: null, entry: null })
       }
       ensureCwd().then(function (cwd: any) {
-        if (!cwd) { doFallback(); return }
+        if (!cwd) { try { log('info', 'newsession.decide', { entry: entryKind, textLen: String(text || '').length, curSidHash: dswsLogHash(String((st && st.sessionId) || '')), cwdHash: dswsLogHash(String(cwd || '')), cwdSource: cwdSource, wsResolved: 'no', wsSource: 'none', wsItems: 0, branch: 'fallback', reuseFrom: 'none', reuseSidHash: '', allowReuse: 'none', createOpts: '', sidHash: '', outcome: 'empty-cwd', errorHash: '' }) } catch (eEC) {} doFallback(); return }
         ensureWorkspaceId(cwd).then(function (found: any) {
           const workspaceId = found && found.wid ? found.wid : null
           const wsEntry = found && found.entry ? found.entry : null
+          // #1580：解析回执里的溯源字段（source/items 由 api-workspace.ts 附带），只进日志。
+          const wsResolved = workspaceId ? 'yes' : 'no'
+          const wsSource = (found && typeof found.source === 'string') ? found.source : 'none'
+          const wsItems = (found && typeof found.items === 'number') ? found.items : 0
           // 复用门：候选须已归属目标工作区（凭登记项名单验），防僵尸空白复活后顶栏空工作区；
           // 名单不可验时沿旧行为放行，未拿到编号时沿旧行为放行（反正都是按目录建）。
           const allowReuse = function (sid: any) { try { if (!workspaceId || !wsEntry || !Array.isArray(wsEntry.sessionIds)) return true; return wsEntry.sessionIds.indexOf(sid) >= 0 } catch (eG) { return true } }
+          const reuseMode = (workspaceId && wsEntry && Array.isArray(wsEntry.sessionIds)) ? 'pass' : 'bypass'
           let reuseSid: any = null
           try {
             if (sessions.list && typeof sessions.list.getSnapshot === 'function') {
@@ -234,8 +244,10 @@ declare const ensureInjectFocusAtEnd: any;
               }
             // #742：0.1.7 注册表无 open(会话号)，优先走工作区打开通道，旧方法留回退。
             // #746 Knife2/V7：打开成功才改名记账；打开失败记账不断（守护仍可兜底），提示如实报失败。
+            // #1580：复用分支定案——记“从哪条空白会话复用、工作区归属放行没、草稿已落到目标 store”。
+            try { log('info', 'newsession.decide', { entry: entryKind, textLen: String(text || '').length, curSidHash: dswsLogHash(String(st.sessionId || '')), cwdHash: dswsLogHash(String(cwd || '')), cwdSource: cwdSource, wsResolved: wsResolved, wsSource: wsSource, wsItems: wsItems, branch: 'reuse', reuseFrom: (sid === st.sessionId ? 'current' : 'blank'), reuseSidHash: dswsLogHash(String(sid || '')), allowReuse: reuseMode, createOpts: '', sidHash: '', outcome: 'reuse-draft', errorHash: '' }) } catch (eLogRe) {}
             const __ok742a = function () { try { doRenameRegister() } catch (eRR) {} flash(st, tr('toast.newSessionOpened'), 'ok') }
-            const __fail742a = function () { try { registerTracked(null) } catch (eRG) {} try { if (typeof namingGuardianKick === 'function') namingGuardianKick() } catch (eKG) {} flash(st, tr('toast.newSessionOpenFailed', { title: title }), 'warn') }
+            const __fail742a = function () { try { log('info', 'newsession.decide', { entry: entryKind, textLen: String(text || '').length, curSidHash: dswsLogHash(String(st.sessionId || '')), cwdHash: dswsLogHash(String(cwd || '')), cwdSource: cwdSource, wsResolved: wsResolved, wsSource: wsSource, wsItems: wsItems, branch: 'reuse', reuseFrom: (reuseSid === st.sessionId ? 'current' : 'blank'), reuseSidHash: dswsLogHash(String(reuseSid || '')), allowReuse: reuseMode, createOpts: '', sidHash: '', outcome: 'open-failed', errorHash: '' }) } catch (eLF) {} try { registerTracked(null) } catch (eRG) {} try { if (typeof namingGuardianKick === 'function') namingGuardianKick() } catch (eKG) {} flash(st, tr('toast.newSessionOpenFailed', { title: title }), 'warn') }
             const __go742a = function () { try {
               let __u: any = null
               try { if (typeof ctx !== 'undefined' && ctx) { __u = (typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : null) || ctx.uiWorkspace || null } } catch (eG) {}
@@ -314,12 +326,14 @@ declare const ensureInjectFocusAtEnd: any;
           //   (see handoff 20260830-014242).
           // 建号失败（下链 catch）走 doFallback 时此行没跑过，目标 store 无残留；新编号为空不写（不污染共用）。
           if (sid) ns.incomingDraft = text
+          // #1580：创建分支定案——记创建时带没带 workspaceId（cwd-only 就意味着宿主不会把会话挂进工作区）。
+          try { log('info', 'newsession.decide', { entry: entryKind, textLen: String(text || '').length, curSidHash: dswsLogHash(String(st.sessionId || '')), cwdHash: dswsLogHash(String(cwd || '')), cwdSource: cwdSource, wsResolved: wsResolved, wsSource: wsSource, wsItems: wsItems, branch: 'create', reuseFrom: 'none', reuseSidHash: '', allowReuse: 'none', createOpts: (workspaceId ? 'workspaceId' : 'cwd-only'), sidHash: dswsLogHash(String(sid || '')), outcome: (sid ? 'create-draft' : 'create-no-draft'), errorHash: '' }) } catch (eLogCr) {}
           // #739：建号成功（sid 已到手）后只报成功，打开失败不再进 doFallback ——
           //   兜底会谎称没建会话并把指令塞回当前会话，而带草稿的新会话其实已被丢在后台成幽灵；
           // #742：0.1.7 注册表无 open(会话号)，优先走工作区打开通道，旧方法留回退。
           // #746 Knife2/V7：打开成功才改名记账；打开失败记账不断，提示如实报失败。
           const __ok742b = function () { try { doRenameRegister() } catch (eRR) {} flash(st, tr('toast.newSessionOpened'), 'ok') }
-          const __fail742b = function () { try { registerTracked(null) } catch (eRG) {} try { if (typeof namingGuardianKick === 'function') namingGuardianKick() } catch (eKG) {} flash(st, tr('toast.newSessionOpenFailed', { title: title }), 'warn') }
+          const __fail742b = function () { try { log('info', 'newsession.decide', { entry: entryKind, textLen: String(text || '').length, curSidHash: dswsLogHash(String(st.sessionId || '')), cwdHash: dswsLogHash(String(cwd || '')), cwdSource: cwdSource, wsResolved: wsResolved, wsSource: wsSource, wsItems: wsItems, branch: 'create', reuseFrom: 'none', reuseSidHash: '', allowReuse: 'none', createOpts: (workspaceId ? 'workspaceId' : 'cwd-only'), sidHash: dswsLogHash(String(sid || '')), outcome: 'open-failed', errorHash: '' }) } catch (eLF2) {} try { registerTracked(null) } catch (eRG) {} try { if (typeof namingGuardianKick === 'function') namingGuardianKick() } catch (eKG) {} flash(st, tr('toast.newSessionOpenFailed', { title: title }), 'warn') }
           const __go742b = function () { try {
             let __u: any = null
             try { if (typeof ctx !== 'undefined' && ctx) { __u = (typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : null) || ctx.uiWorkspace || null } } catch (eG) {}
@@ -328,7 +342,7 @@ declare const ensureInjectFocusAtEnd: any;
             __ok742b()
           } catch (eS742b) { try { __fail742b() } catch (eF) {} } }
           __go742b()
-        }).catch(function (err: any) { try { if (String((err && err.message) || '').indexOf('preset-blocked') >= 0) flash(st, tr('toast.newSessionPresetBlocked'), 'warn') } catch (eF) {} doFallback() })
+        }).catch(function (err: any) { try { log('info', 'newsession.decide', { entry: entryKind, textLen: String(text || '').length, curSidHash: dswsLogHash(String(st.sessionId || '')), cwdHash: dswsLogHash(String(cwd || '')), cwdSource: cwdSource, wsResolved: wsResolved, wsSource: wsSource, wsItems: wsItems, branch: 'create', reuseFrom: 'none', reuseSidHash: '', allowReuse: 'none', createOpts: (workspaceId ? 'workspaceId' : 'cwd-only'), sidHash: '', outcome: 'create-failed', errorHash: dswsLogHash(dswsLogTrunc(String((err && err.message) || err), 120, 'error')) }) } catch (eLogCf) {} try { if (String((err && err.message) || '').indexOf('preset-blocked') >= 0) flash(st, tr('toast.newSessionPresetBlocked'), 'warn') } catch (eF) {} doFallback() })
         })
       })
     }

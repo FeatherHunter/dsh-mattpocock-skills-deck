@@ -79,5 +79,13 @@ export const LOG_EVENT_LIST: {
       fields: ['bucket', 'waitedMs', 'inflight', 'max', 'queued'],
       guard: '排队放行时先看等了多久：三秒以上才记；同一只桶五分钟最多一行，风暴期间也不逐条刷',
     },
+    // #1580：每次「在新会话打开」记一行决策链——入口、cwd 来源、工作区解析结果（查到的/新建的/没有）、
+    //   复用还是新建、草稿写进哪条会话、最终成败。下次再出现「新会话没选中工作区」时，
+    //   按这一行就能分出卡在查找 / 复用 / 创建哪一层，不用再到现场猜。
+    'newsession.decide': {
+      level: 'info',
+      kind: 'resident',
+      fields: ['entry', 'textLen', 'curSidHash', 'cwdHash', 'cwdSource', 'wsResolved', 'wsSource', 'wsItems', 'branch', 'reuseFrom', 'reuseSidHash', 'allowReuse', 'createOpts', 'sidHash', 'outcome', 'errorHash'],
+    },
   },
 }

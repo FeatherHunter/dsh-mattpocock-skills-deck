@@ -500,6 +500,20 @@ const ALLOWED = {
   //   no-backend、multi-match、pending 选后端的三种结局 / open-threw 开会话时抛了）。
   //   为什么要有：刷新读不到数据时，光看界面降级分不清是没后端可选、后端认不出、还是注册表没起来。
   'read.session': ['ok', 'reason'],
+  // 2026-10-27（#1580「会触发新会话的操作打开的新会话没有选中工作区，提示词注入失败」排查）：每次「在新会话打开」
+  //   的决策链各一行常驻信息级；下次再复发时不必到现场猜，按这一行就能分出卡在查找 / 复用 / 创建哪一层。
+  //   字段：entry 入口种类（调用方 kind 枚举，未知写 text）、textLen 开场白长度（只记长度不记正文）、
+  //   curSidHash 点按钮时所处会话（短散列）、cwdHash 目标目录（短散列）、cwdSource 目录从哪来
+  //   （sync 会话快照 / state 会话状态 / host 宿主补问 / none 没拿到）、wsResolved 工作区编号拿到没有（yes/no）、
+  //   wsSource 编号来路（snapshot 已登记 / created 现场新建 / none 没有）、wsItems 当时快照里收齐的登记项数、
+  //   branch 走哪一支（reuse 复用空白 / create 新建 / fallback 兜底）、reuseFrom 从哪复用
+  //   （current 当前会话 / blank 别的空白会话 / none）、reuseSidHash 复用的会话（短散列）、
+  //   allowReuse 复用的工作区归属校验（pass 凭名单通过 / bypass 名单不可验放行 / none 没走复用）、
+  //   createOpts 创建入参档（workspaceId 带工作区 / cwd-only 只带目录 / 空串）、sidHash 新建会话号（短散列）、
+  //   outcome 结论枚举（reuse-draft 复用并写草稿 / create-draft 新建并写草稿 / open-failed 会话已建但打开失败 /
+  //   create-failed 创建失败 / no-sessions 无会话服务 / empty-cwd 拿不到目录）、errorHash 失败错误原文
+  //   （截断 120 字再散列，成功为空串）。只记散列、枚举、长度与计数，会话标题与提示词正文一个字都不记。
+  'newsession.decide': ['entry', 'textLen', 'curSidHash', 'cwdHash', 'cwdSource', 'wsResolved', 'wsSource', 'wsItems', 'branch', 'reuseFrom', 'reuseSidHash', 'allowReuse', 'createOpts', 'sidHash', 'outcome', 'errorHash'],
 }
 // #1143 包拥有事件白名单：dsh-log 升到 0.4.1 后，旧实现三件套（src/host/logStore.ts、src/host/logPhones.ts、src/client/kernel/log.ts）已删除，
 // 这四个事件的发射点搬进了已安装的 dsh-log 包内，全仓扫不到是正常的；白名单之外的事件仍按老口径全仓扫。

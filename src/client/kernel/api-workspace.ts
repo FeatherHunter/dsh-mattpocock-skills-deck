@@ -99,7 +99,9 @@ declare function keyOf(...args: any[]): any;
     // 快照形状与设置页工作区总览同口径收集；命中时把编号与登记项同路返回，
     // 供调用方凭登记项名单验复用归属。
     export const resolveWorkspaceEntry = function (workspaces: any, cwd: any): any {
-      if (!workspaces || !cwd) return Promise.resolve({ wid: null, entry: null })
+      // #1580：回执多带溯源字段（source: snapshot/created/none，items: 快照里收到的登记项数），
+      // 让上层日志能分清“没找到”“快照为空”“根本没快照”三种落空，下次查日志不用猜。
+      if (!workspaces || !cwd) return Promise.resolve({ wid: null, entry: null, source: 'none', items: 0 })
       const readSnapSync = function (): any {
         try {
           if (workspaces.list) {
@@ -110,8 +112,13 @@ declare function keyOf(...args: any[]): any;
         return null
       }
       const targetNorm = workspaceNormOf(cwd)
+      // #1580：回执溯源用——seenItems 指向快照收到的登记项数组（同步/异步收集后同一份）。
+      let seenItems: any[] = []
+      const itemsCount = function (): any { try { return seenItems.length } catch (eC) { return 0 } }
+      const mkRes = function (wid: any, entry: any, source: any): any { return { wid: wid, entry: entry, source: source, items: itemsCount() } }
       try {
         let items: any[] = []
+        seenItems = items
         const snap = readSnapSync()
         const thenable = snap && typeof snap.then === 'function' ? snap : null
         const afterSnap = function (realSnap: any): any {
@@ -121,13 +128,13 @@ declare function keyOf(...args: any[]): any;
           const widOfEntry = function (e: any): any { try { return workspaceIdOf(e) || e.workspaceId || e.id || e.workspace_id } catch (eW) { return null } }
           const asyncStep = function (): any {
             const found = workspaceMatchEntry(items, targetNorm)
-            if (found) return Promise.resolve({ wid: widOfEntry(found), entry: found })
-            return workspaceTryCreateWid(workspaces, cwd).then(function (w: any): any { return { wid: w, entry: null } })
+            if (found) return Promise.resolve(mkRes(widOfEntry(found), found, 'snapshot'))
+            return workspaceTryCreateWid(workspaces, cwd).then(function (w: any): any { return w ? mkRes(w, null, 'created') : mkRes(null, null, 'none') })
           }
           if (!needAsync) {
             const found0 = workspaceMatchEntry(items, targetNorm)
-            if (found0) return Promise.resolve({ wid: widOfEntry(found0), entry: found0 })
-            return workspaceTryCreateWid(workspaces, cwd).then(function (w0: any): any { return { wid: w0, entry: null } })
+            if (found0) return Promise.resolve(mkRes(widOfEntry(found0), found0, 'snapshot'))
+            return workspaceTryCreateWid(workspaces, cwd).then(function (w0: any): any { return w0 ? mkRes(w0, null, 'created') : mkRes(null, null, 'none') })
           }
           let p: any = Promise.resolve(null)
           try {
@@ -154,8 +161,8 @@ declare function keyOf(...args: any[]): any;
           } catch (eG2) {}
           return p.then(asyncStep)
         }
-        if (thenable) return thenable.then(afterSnap).catch(function (): any { return workspaceTryCreateWid(workspaces, cwd).then(function (wC: any): any { return { wid: wC, entry: null } }) })
+        if (thenable) return thenable.then(afterSnap).catch(function (): any { return workspaceTryCreateWid(workspaces, cwd).then(function (wC: any): any { return wC ? mkRes(wC, null, 'created') : mkRes(null, null, 'none') }) })
         return afterSnap(snap)
       } catch (e) {}
-      return Promise.resolve({ wid: null, entry: null })
+      return Promise.resolve({ wid: null, entry: null, source: 'none', items: 0 })
     }
