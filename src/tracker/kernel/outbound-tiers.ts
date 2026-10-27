@@ -19,7 +19,7 @@
 
 // 四档时长住中央 YAML（config/timeouts.yaml 的 outbound* 四键）：这里只留同名别名，
 // 调时间改 YAML，不改这里。值由 tests/verify-time-config.ts 看守一致。
-import { OUTBOUND_READ_TIMEOUT_MS, OUTBOUND_WRITE_TIMEOUT_MS, OUTBOUND_PROBE_TIMEOUT_MS, OUTBOUND_DEFAULT_TIMEOUT_MS, OUTBOUND_TRANSPORT_COOLDOWN_MS } from '../../shared/time-config/src/values.js'
+import { OUTBOUND_READ_TIMEOUT_MS, OUTBOUND_WRITE_TIMEOUT_MS, OUTBOUND_PROBE_TIMEOUT_MS, OUTBOUND_DEFAULT_TIMEOUT_MS, OUTBOUND_TRANSPORT_COOLDOWN_MS, GH_QUEUE_WAIT_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 
 export const READ_TIMEOUT_MS = OUTBOUND_READ_TIMEOUT_MS
 export const WRITE_TIMEOUT_MS = OUTBOUND_WRITE_TIMEOUT_MS
@@ -122,6 +122,23 @@ export function timeoutForTier(tier: string): number {
 export function timeoutForGhArgs(args: unknown, explicitTimeout?: unknown): number {
   if (typeof explicitTimeout === 'number' && isFinite(explicitTimeout) && explicitTimeout > 0) return explicitTimeout
   return timeoutForTier(tierForGhArgs(args))
+}
+
+/**
+ * 排队拿名额这一段最多等多久：本档预算与中央排队上限取更小的那个（#1560 乙方案）。
+ *
+ * 为什么取更小的那个：名额满时不该把整档预算（读 12 秒 / 写 30 秒）全花在排队上；
+ * 但本档预算比排队上限还短时（例如调用方显式传了几百毫秒），排队自然只等到本档超时，
+ * 不出现「排队比整档还久」。拿到名额之后起进程的等待仍按本档超时算，总墙钟仍是本档，
+ * 预检与外层预算都不用加账（甲方案要重算 54 秒内层，乙不碰）。
+ *
+ * 为什么住在这里：房间侧不许 import 宿主模块，宿主 runGh 与房间客户端都要用同一条算式
+ * （#1007 落地时它住在宿主 gh-queue-race.ts，房间够不着）；纯计算放 kernel 两边都能用，
+ * gh-queue-race.ts 只剩转出口供旧调用方。值本身仍只在中央 YAML 有一处定义
+ * （config/timeouts.yaml 的 ghQueueWaitTimeoutMs 键），这里只引用中央常量，不抄数字。
+ */
+export function queueTimeoutForTier(tierTimeoutMs: number): number {
+  return Math.min(tierTimeoutMs, GH_QUEUE_WAIT_TIMEOUT_MS)
 }
 
 /**

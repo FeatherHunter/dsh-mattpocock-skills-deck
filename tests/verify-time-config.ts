@@ -129,8 +129,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'PROBE_TIMEOUT_MS', gen: 'OUTBOUND_PROBE_TIMEOUT_MS', key: 'outboundProbeMs' },
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'DEFAULT_TIMEOUT_MS', gen: 'OUTBOUND_DEFAULT_TIMEOUT_MS', key: 'outboundDefaultMs' },
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'TRANSPORT_COOLDOWN_MS', gen: 'OUTBOUND_TRANSPORT_COOLDOWN_MS', key: 'outboundTransportCooldownMs' },
-  // #1007 复核补的排队上限：代码里只夹排队段（gh-queue-race.ts），起进程之后的等待仍按本档超时。
-  { file: 'src/refresh/rooms/host/gh-queue-race.ts', access: 'GH_QUEUE_WAIT_TIMEOUT_MS', gen: 'GH_QUEUE_WAIT_TIMEOUT_MS', key: 'ghQueueWaitTimeoutMs' },
+  // #1007 复核补的排队上限：代码里只夹排队段，起进程之后的等待仍按本档超时。
+  // #1560 起算式搬进房间与宿主共用的 kernel（outbound-tiers.ts），gh-queue-race.ts 只剩转出口供旧调用方。
+  { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'GH_QUEUE_WAIT_TIMEOUT_MS', gen: 'GH_QUEUE_WAIT_TIMEOUT_MS', key: 'ghQueueWaitTimeoutMs' },
   { file: 'src/tracker/registry/core.ts', access: 'MATCHES_TIMEOUT_MS', gen: 'MATCHES_TIMEOUT_MS', key: 'matchesTimeoutMs' },
   { file: 'src/tracker/rooms/github/client.ts', access: 'TIMEOUT_MS', gen: 'GITHUB_CLIENT_TIMEOUT_MS', key: 'githubClientTimeoutMs' },
   // —— 共享层：整份转出（budget）与直接引用 ——

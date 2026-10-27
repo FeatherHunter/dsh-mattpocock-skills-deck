@@ -111,7 +111,7 @@ node --import ./scripts/ts-hook.mts tests/你的测试.ts
 
 AI 这边没有可用的终端工具（better-sidebar 删掉了它自带的 `terminal_*` 工具，DSH 侧对应的 `dsh-tool-terminal` 本机也没安装），开不出侧栏终端，所以 AI 的命令一律用系统原生的 `pwsh` 工具跑；跑什么、为什么跑，在对话正文里写清楚。
 
-工具入参里不能有 `undefined`（可选参数要么不传、要么给值）；报 `lossless JSON` 时去掉该参数或给值，再跑同一段程序。
+工具入参里不能有 `undefined`（可选参数要么不传、要么给值）；报 `lossless JSON` 时去掉该参数或给值，再重试一次同样的工具调用。
 
 ### Release 发布
 
