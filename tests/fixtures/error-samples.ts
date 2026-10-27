@@ -27,6 +27,8 @@ const SAMPLE_SOURCES = {
   RULE_SAMPLE: '规则自带样本',
   /** 某个后端的扩展表里那条规则自己带的样本。 */
   BACKEND_SAMPLE: '后端扩展项自带样本',
+  /** #1571 票面抄下的真机重放原文（出处：research/1481-triage-2026-10-27.md 第四节的重放表）。 */
+  TICKET_1571: '票面 #1571',
 }
 
 /**
@@ -223,6 +225,30 @@ const ERROR_SAMPLES = [
     via: 'gitlab',
     traceFile: 'src/tracker/rooms/gitlab/errors.ts',
     trace: 'no token found for gitlab.com',
+  },
+  {
+    id: 'gh-graphql-variable-invalid',
+    note: 'GraphQL 变量类型对不上（-F 把纯数字 owner 发成 JSON 数字）：归解析档，不许掉进兜底网络档',
+    source: SAMPLE_SOURCES.TICKET_1571,
+    text: 'Variable $owner of type String! was provided invalid value',
+    expectKind: 'parse',
+    expectLayer: 'phrase',
+    expectVia: 'extension',
+    via: 'github',
+    traceFile: 'research/1481-triage-2026-10-27.md',
+    trace: 'Variable $owner of type String! was provided invalid value',
+  },
+  {
+    id: 'gh-graphql-coerce-to-string',
+    note: '同一类故障的另一句（值转不成 String）：同样归解析档，说的是发出去的入参形状不对',
+    source: SAMPLE_SOURCES.TICKET_1571,
+    text: 'Could not coerce value 654970 to String',
+    expectKind: 'parse',
+    expectLayer: 'phrase',
+    expectVia: 'extension',
+    via: 'github',
+    traceFile: 'research/1481-triage-2026-10-27.md',
+    trace: 'Could not coerce value 654970 to String',
   },
   {
     id: 'fallback-unknown',

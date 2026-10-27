@@ -92,8 +92,8 @@ export async function countIssues(repo: RepositoryRef, filter: ListFilter | unde
     const args = [
       'api', 'graphql',
       '-f', `query=${labels.length ? COUNTS_QUERY_WITH_LABELS : COUNTS_QUERY}`,
-      '-F', `owner=${parsed.owner}`,
-      '-F', `name=${parsed.name}`,
+      '-f', `owner=${parsed.owner}`,
+      '-f', `name=${parsed.name}`,
     ]
     for (const name of labels) args.push('-F', `labels[]=${name}`)
     // 计数这条路只有这一笔：标签写 counts.gql，跟那一串长得一样的 gh.exec 分得开。

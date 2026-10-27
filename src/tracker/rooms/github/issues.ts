@@ -207,9 +207,9 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
     let seenPulls = 0
     // 分页按契约页大小取（一页 50，配合列表去评论把单查询压回 1.5 秒线内），超量分页
     while (hasNext) {
-      // 构造带变量查询：gh api graphql -f query -F owner -F name -F first -F after
+      // 构造带变量查询：gh api graphql -f query -f owner -f name -F first -F after
       const query = LIST_QUERY
-      const args = ['api', 'graphql', '-f', `query=${query}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
+      const args = ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
       if (after) args.push('-F', `after=${after}`)
       else args.push('-F', 'after=')
       const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'list.gql' })
@@ -237,7 +237,7 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       let prAfter = null
       let prHasNext = true
       while (prHasNext) {
-        const args = ['api', 'graphql', '-f', `query=${LIST_PR_QUERY}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
+        const args = ['api', 'graphql', '-f', `query=${LIST_PR_QUERY}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
         if (prAfter) args.push('-F', `after=${prAfter}`)
         else args.push('-F', 'after=')
         const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'list.pr' })
@@ -344,7 +344,7 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
     // 上限来自契约（GetOpts.comments.first 的约定），不在房间里私自放宽。夹取与首页条数住在 comment-paging.ts。
     const wantComments = commentsWantOf(opts)
     const query = wantComments === null ? GET_QUERY : getIssueQuery(firstPageSizeOf(wantComments), false)
-    const args = ['api', 'graphql', '-f', `query=${query}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `number=${num}`]
+    const args = ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `number=${num}`]
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'get.gql' })
     let issueFromGraphQL = null
     // 为什么标成未知：这里装的是「第一现场的失败样子」（gh 的失败或抛出的值），形状不固定，只负责往下传、不解读。
@@ -374,7 +374,7 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
     if (!issueFromGraphQL && r.ok) {
       // 单票按号先查工单、再查拉取请求（同号只有一类，查到即停；传输失败则直走 REST）
       try {
-        const prArgs = ['api', 'graphql', '-f', `query=${GET_PR_QUERY}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `number=${num}`]
+        const prArgs = ['api', 'graphql', '-f', `query=${GET_PR_QUERY}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `number=${num}`]
         // 同一号先查工单、再查拉取请求：这一支就是「工单没查着、改查拉取请求」的那一步。
         const pr = await c.execGh(prArgs, { cwd: ctx && ctx.cwd, via: 'get.pr' })
         if (pr.ok) {

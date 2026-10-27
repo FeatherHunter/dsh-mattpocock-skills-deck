@@ -76,7 +76,7 @@ export async function appendCommentPages(input: CommentPagesInput): Promise<void
     // 没有游标却声称还有下一页，是回包形状对不上：再发一次同样的请求只会拿到同一页，直接收手。
     if (!cursor) break
     const pageSize = Math.max(1, Math.min(want - collected.length, COMMENTS_PAGE_MAX))
-    const pageArgs = ['api', 'graphql', '-f', `query=${getIssueQuery(pageSize, true)}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `number=${num}`, '-F', `after=${cursor}`]
+    const pageArgs = ['api', 'graphql', '-f', `query=${getIssueQuery(pageSize, true)}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `number=${num}`, '-F', `after=${cursor}`]
     const pageR = await client.execGh(pageArgs, { cwd: cwd, via: 'get.gql' })
     let nextIssue: any = null
     if (pageR.ok) {

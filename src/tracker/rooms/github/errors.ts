@@ -126,6 +126,20 @@ export const GH_ERROR_RULES: readonly ErrorRule[] = [
     note: 'GitHub 用 422 + Validation Failed 拒绝不合法的入参值，归解析档',
   },
   {
+    kind: ERROR_KIND.PARSE,
+    layer: 'phrase',
+    // #1571：gh 的 -F 会把纯数字的 owner/name 发成 JSON 数字，而查询把这两个变量声明成 String!，
+    // GraphQL 于是回「变量类型对不上」或「值转不成 String」。这两句说的是**发出去的入参形状不对**，
+    // 属于解析档；通用表的解析档只认 parse / invalid json / syntax / unexpected token 这类写法，认不出它们，
+    // 于是会一路掉到兜底被说成网络故障（让人去查网络，其实要改的是出站参数）。
+    // 这两句是 gh 的 GraphQL 接口原话（本仓只有 GitHub 后端走 GraphQL），所以放扩展表；今天调用点与出站归一化
+    // 都已改用 -f（#1375、#1571），这条规则留给老版本插件发出的请求、以及将来某条新查询漏改 -F 时 —— 认出来，
+    // 界面才会提示去改入参形状，而不是照着网络档去查网络。
+    pattern: /Variable \$[A-Za-z_]\w* of type [^ ]+ was provided invalid value|Could not coerce value [^ ]+ to [A-Za-z_]\w*/i,
+    example: { text: 'gh: Variable $owner of type String! was provided invalid value (Could not coerce value 654970 to String)' },
+    note: 'GraphQL 变量类型不符（-F 把纯数字 owner 发成 JSON 数字）说的是入参形状不对，归解析档',
+  },
+  {
     kind: ERROR_KIND.UNSUPPORTED,
     layer: 'phrase',
     // #1418 实测：issues / pullRequests 两条连接自己只肯给 100 条一页。要 200 时 GitHub 回这一句——
