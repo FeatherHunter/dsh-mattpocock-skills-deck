@@ -112,6 +112,10 @@ type Check =
 - **通用目录**（ `src/shared/tracker/check-catalog.js GENERIC_CATALOG` ）：技能探测（wayfinder/setup-mattpocock-skills/ask-matt）、用户主目录可解析、工作区已初始化（`docs/agents/issue-tracker.md` 存在）—— 5 项，适用于所有后端。
 - **后端目录**：
   - GitHub：`gh:installed / gh:authed / gh:repoAccess / gh:labels`；
+    - 2026-10-27 补注（#1223）：GitHub 侧目录已删掉已退役的 `gh:labels`，现在是
+      `gh:remote / gh:installed / gh:authed / gh:repoAccess` 四项（原来这一行漏了 `gh:remote`，
+      只记了另外三项加一项死项）；目录与运行时清单的一致性由
+      `tests/verify-1223-catalog-runtime-parity.ts` 守住。上面这一行是当时的记录，结论不改，只补这一句说明现在是什么。
   - GitLab：`glab:installed / glab:authed / glab:repoAccess`；
   - Markdown：`md:scratchWritable / md:parseOk`。
     - 2026-10-25 补注（#1512 的 #1513/#1514 两张实施票）：Markdown 侧的目录已改成三项

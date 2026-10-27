@@ -15,30 +15,18 @@
 //
 // 运行：node --import ./scripts/ts-hook.mts tests/verify-1223-catalog-runtime-parity.ts
 import assert from 'node:assert/strict'
-import {
-  catalogFor,
-  GENERIC_CATALOG,
-  GITHUB_CATALOG,
-  GITLAB_CATALOG,
-  MARKDOWN_CATALOG,
-  MIGRATION_MAP,
-} from '../src/shared/tracker/check-catalog-dirs.js'
+import { ALL_CATALOGS, catalogFor, MIGRATION_MAP } from '../src/shared/tracker/check-catalog-dirs.js'
 import { GITHUB_CHECKS } from '../src/tracker/rooms/github/checks.js'
 
 type ItemLike = { id: string; label?: string; check?: unknown }
-let passed = 0
-const ok = (name: string): void => { passed += 1; console.log('  PASS ' + name) }
+let groups = 0
+const ok = (name: string): void => { groups += 1; console.log('  PASS ' + name) }
 
 function main(): void {
   // —— 断言 A：目录后端段 = 运行时清单（id 顺序、label、check 三样都逐字比） ——
-  const githubBackend: ItemLike[] = catalogFor('github').filter((c) => c.scope === 'backend')
-  const runtime: ItemLike[] = GITHUB_CHECKS as unknown as ItemLike[]
+  const githubBackend: readonly ItemLike[] = catalogFor('github').filter((c) => c.scope === 'backend')
+  const runtime: readonly ItemLike[] = GITHUB_CHECKS
   assert(githubBackend.length > 0, '目录里 GitHub 后端段非空（空目录会让本断言假绿）')
-  assert.deepStrictEqual(
-    githubBackend.map((c) => c.id),
-    runtime.map((c) => c.id),
-    '目录 GitHub 后端段的 id 与运行时清单逐项一致（顺序也一样）',
-  )
   assert.deepStrictEqual(
     githubBackend.map((c) => ({ id: c.id, label: c.label, check: c.check })),
     runtime.map((c) => ({ id: c.id, label: c.label, check: c.check })),
@@ -47,25 +35,21 @@ function main(): void {
   ok('目录 GitHub 后端段与运行时清单逐字对齐')
 
   // —— 断言 B：迁移表每一项都解析回它自己的那个目录项 ——
-  const catalogs: { [prefix: string]: readonly ItemLike[] } = {
-    GENERIC: GENERIC_CATALOG,
-    GITHUB: GITHUB_CATALOG,
-    GITLAB: GITLAB_CATALOG,
-    MARKDOWN: MARKDOWN_CATALOG,
-  }
+  // 目录表从真源导出的 ALL_CATALOGS 取（键名小写），不在这里手抄一份；将来加第五个目录时不会静默漏判。
   const entries = Object.entries(MIGRATION_MAP as Record<string, string>)
   assert(entries.length > 0, '迁移表非空（空表会让逐条断言假绿）')
   for (const [key, ref] of entries) {
     const m = /^(GENERIC|GITHUB|GITLAB|MARKDOWN)_CATALOG\[(\d+)\]$/.exec(ref)
     assert(m, `迁移表 ${key} 的编号写成「目录名[下标]」（实得 ${ref}）`)
-    const list = catalogs[m[1]]
+    const list = (ALL_CATALOGS as Record<string, readonly ItemLike[]>)[m[1].toLowerCase()]
+    assert(list, `迁移表 ${key} 指向的目录 ${m[1]} 存在`)
     const item = list[Number(m[2])]
     assert(item, `迁移表 ${key} 的编号 ${ref} 指向的目录项存在`)
     assert.strictEqual(item.id, key, `迁移表 ${key} 指到的目录项 id 是 ${key}（实得 ${item.id}）`)
   }
   ok(`迁移表 ${entries.length} 项都能解析回自己的目录项（编号与键一致）`)
 
-  console.log('\n全部通过：' + passed + ' 组断言')
+  console.log('\n全部通过：' + groups + ' 组检查')
 }
 
 try {
