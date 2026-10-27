@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T09:09:06.568Z",
+  "generatedAt": "2026-10-27T09:24:33.863Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 408,
   "gateCount": 408,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 17,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 599,
+  "graphFileCount": 600,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -171,6 +171,7 @@
         "src/client/views/diagnosticLog/diagnosticLogActions.ts",
         "src/client/views/diagnosticLog/diagnosticLogModel.ts",
         "src/client/views/feedback/feedback-styles.ts",
+        "src/client/views/issueDetailErrorView.ts",
         "src/client/views/labels/LabelColorDialog.ts",
         "src/client/views/labels/LabelColorEntry.ts",
         "src/client/views/labels/LabelColorRow.ts",
@@ -224,7 +225,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 80 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 81 条"
     },
     {
       "step": "node tests/verify-chain-capsule.ts",
@@ -1479,6 +1480,7 @@
         "src/client/kernel/ticket-label.ts",
         "src/client/views/IssueDetail.ts",
         "src/client/views/IssueDetailComments.ts",
+        "src/client/views/issueDetailErrorView.ts",
         "src/tracker/kernel/identity-keys.ts"
       ],
       "dirs": [
@@ -1490,7 +1492,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 7 条"
     },
     {
       "step": "node tests/verify-1146-virtual-clock-liveness.ts",
@@ -11381,9 +11383,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 620,
+    "fileCount": 621,
     "dirCount": 74,
-    "coveredFileCount": 620,
+    "coveredFileCount": 621,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11506,6 +11508,7 @@
       "src/client/views/diagnosticLog/diagnosticLogActions.ts",
       "src/client/views/diagnosticLog/diagnosticLogModel.ts",
       "src/client/views/feedback/feedback-styles.ts",
+      "src/client/views/issueDetailErrorView.ts",
       "src/client/views/issueDetailFold.ts",
       "src/client/views/labels/LabelColorDialog.ts",
       "src/client/views/labels/LabelColorEntry.ts",

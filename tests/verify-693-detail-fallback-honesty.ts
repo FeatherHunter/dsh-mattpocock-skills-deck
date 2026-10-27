@@ -94,6 +94,7 @@ const ZH = {
   notYet: localeOf('detail.notYet'),
   noComments: localeOf('detail.noComments'),
   loading: localeOf('list.loading'),
+  networkShort: localeOf('detail.err.networkShort'),
 }
 const trFn = (key: string, params?: Record<string, unknown>): string => {
   let s = dict[key] !== undefined ? dict[key] : key
@@ -169,8 +170,12 @@ async function loadDetailModule (): Promise<any> {
   //   一渲染就 ReferenceError。按「真闭包」口径处理：把这个 hook 的函数体也从产物里切出来一起拼，
   //   而不是塞一个空桩（它的依赖只有 React，垫片已有；内部对 issueDetailFold* 的引用带 typeof 守卫）。
   const foldHookSrc = extractFn(bundle, 'const useIssueDetailFold = function')
+  // #1573：失败横幅三块（主行/档位小标签/原文折叠区）从 IssueDetail.ts 抽到 issueDetailErrorView 叶子，
+  //   详情函数现在按全局名字调 issueErrorViewOf。这里同样按「真闭包」口径把它的函数体从产物里切出来拼上，
+  //   而不是塞空桩——否则「长 network 回话主行降噪」这条断言测的就不是真实现。
+  const errViewSrc = extractFn(bundle, 'const issueErrorViewOf = function')
   const dir = mkdtempSync(join(tmpdir(), 'dsws693-'))
-  const code = shim + foldHookSrc + '\n' + ridcSrc + '\nconst renderIssueDetailComments = __ridc\n' + detailFnSrc + '\nexport { IssueDetail }\n'
+  const code = shim + foldHookSrc + '\n' + errViewSrc + '\n' + ridcSrc + '\nconst renderIssueDetailComments = __ridc\n' + detailFnSrc + '\nexport { IssueDetail }\n'
   const built = esbuild.transformSync(code, { loader: 'js', format: 'esm' }).code
   const file = join(dir, 'IssueDetail.mjs')
   writeFileSync(file, built, 'utf8')
@@ -266,6 +271,21 @@ function storeOf (patch?: Record<string, unknown>): any {
   check(text.includes('修复：单票详情页的兜底不许说错话'), '取数失败：上次拿到的标题仍在（不白屏）')
   check(!html.includes('<textarea'), '取数失败：不给输入框')
 }
+
+// ---- 二·补、GitHub 通路冷却：长技术回话主行降噪，完整原文留在「原始说明」里（#1573） ----
+{
+  const longMsg = '到 GitHub 的通路现在不通：命令 api:graphql 没有起进程（上一笔连续第 1 次超时失败，冷却还剩约 17 秒）。这一笔没有执行。这一笔读操作没有拿到数据，可以直接重试。'
+  const raw = 'gh admission: transport cooling down'
+  const { html, text } = await renderStore(storeOf({ issueMode: 'err', issueError: { kind: 'network', message: longMsg, raw } }))
+  const detailsAt = html.indexOf('<details')
+  check(detailsAt >= 0, '通路冷却：仍给得出「原始说明」折叠区')
+  check(text.includes(ZH.networkShort), '通路冷却：主行说一句人话（实得：「' + text.slice(0, 80) + '」）')
+  check(html.indexOf(ZH.networkShort) >= 0 && html.indexOf(ZH.networkShort) < detailsAt, '通路冷却：人话在折叠区之前的失败主行上')
+  check(detailsAt >= 0 && html.indexOf('没有起进程') > detailsAt, '通路冷却：整段技术原文收在折叠区里（不再铺在主行）')
+  check(text.includes(raw), '通路冷却：原始说明（raw）也仍在折叠区里')
+  check(text.includes('重试'), '通路冷却：重试按钮照常给')
+}
+
 
 // ---- 三、详情回来了、正文与评论确实是空的：这时候「无描述」「无评论」才是真话 ----
 {

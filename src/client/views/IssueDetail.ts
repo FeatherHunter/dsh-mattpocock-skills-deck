@@ -12,6 +12,8 @@ declare function repoStr(...args: any[]): any;
 declare function buildColorOf(...args: any[]): any;
 declare function fetchIssueDetail(...args: any[]): any;
 declare function useIssueDetailFold(...args: any[]): any;
+// #1573：失败横幅三块（主行一句话 / kind 小标签 / 原始说明折叠区）的显示口径在 views/issueDetailErrorView.ts。
+declare function issueErrorViewOf(...args: any[]): any;
 declare function effortOf(...args: any[]): any;
 declare function popNav(...args: any[]): any;
 declare function prStateKind(...args: any[]): any;
@@ -90,35 +92,15 @@ export const IssueDetail = function (props: any): any {
       const src = detail || snapIssue
       const mode = st.issueMode || 'idle'
       const err = st.issueError
+      // #1573：失败横幅要用的三块（主行一句话 / kind 小标签 / 原始说明折叠区）住在 views/issueDetailErrorView.ts
+      // （从本文件抽出，本文件贴着 350 行上限）；这里算一次，两处横幅共用。
+      const errView = err ? issueErrorViewOf(h, err) : null
       // T4 #554：返回只弹一层（上一级是地图就回到该地图，是工单就回到该工单，
       // 栈空才回列表）。直接调弹栈，不经过按种类守卫的旧入口，混合栈也只退一级。
       const goBack = function () { popNav(st) }
       const doRetry = function () { if (typeof fetchIssueDetail === 'function') fetchIssueDetail(st, issueNumber, { force: true, effortId: issueEffort }) }
-      // #1111 · 失败横幅共用的三小块（整页横幅与「有快照可显」的细横幅都用它们）。
-      // 一条失败拆成三样：主行是给人看的一句话（后端或界面自己写的那句 message），
-      // 档位只当可选的小标签（kind，八档取值，可能没有），后端原文收进可展开区（raw，没有就不渲染这一段）。
-      // 这三样都由 api-io 的 dswsNormalizeError 统一给出；这里不再照着原文另猜档位。
-      const errSayOf = function (e: any) {
-        const said = String((e && e.message) || '').trim()
-        return said || tr('list.loadFail')
-      }
-      const errKindOf = function (e: any) { return String((e && e.kind) || '').trim() }
-      const errRawOf = function (e: any) {
-        const direct = String((e && e.raw) || '').trim()
-        if (direct) return direct
-        // 兼容本次修复之前就已经存进状态里的错误对象：那时后端原文放在 error 字段里
-        return (e && typeof e.error === 'string') ? String(e.error).trim() : ''
-      }
-      const errRawBlockOf = function (e: any) {
-        const rawText = errRawOf(e)
-        if (!rawText) return null
-        return h('details', { style: { width: '100%', marginTop: 2, paddingTop: 4, borderTop: '1px solid rgba(248,113,113,.25)' } }, [
-          // 本次界面反馈需求：错误原文的折叠条能点，给它悬停反馈、按压态与自己的点击日志。
-          //   原文是自由文本，不进定位串。
-          h('summary', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'detail.err.raw.toggle', style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('vc.fail.raw', { msg: rawText })),
-          h('div', { style: { marginTop: 4, padding: '6px 8px', background: 'rgba(0,0,0,.18)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 6, fontSize: 11, lineHeight: 1.6, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto' } }, rawText),
-        ])
-      }
+      // #1111 · 失败横幅三小块（主行/档位小标签/原文折叠区）的显示口径统一在 views/issueDetailErrorView.ts 里算，
+      // 这里只拿结果；errView 在上面按 st.issueError 算好，两处横幅共用同一份。
       const copyUrl = function (n: any) {
         const url = issueUrlFor(st, n, issueEffort)
         copyText(st, url, tr('toast.copiedLink', { n: n }))
@@ -172,8 +154,8 @@ export const IssueDetail = function (props: any): any {
           h('div', { style: { padding: '12px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 8, fontSize: 12, color: '#f87171', display: 'flex', flexDirection: 'column', gap: 6 } }, [
             h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
               Ic({ n: 'alert', size: 13 }),
-              h('span', { style: { wordBreak: 'break-word' } }, errSayOf(err)),
-              errKindOf(err) ? h('span', { style: { fontSize: 10, padding: '0 6px', border: '1px solid rgba(248,113,113,.45)', borderRadius: 10, flex: 'none' } }, errKindOf(err)) : null,
+              h('span', { style: { wordBreak: 'break-word' } }, (errView ? errView.say : '')),
+              (errView ? errView.kind : '') ? h('span', { style: { fontSize: 10, padding: '0 6px', border: '1px solid rgba(248,113,113,.45)', borderRadius: 10, flex: 'none' } }, (errView ? errView.kind : '')) : null,
               h('span', { style: { flex: 1 } }),
               // 本次界面反馈需求：错误态里「重试」与「在追踪器中查看」是用户此时仅有的两个出口，
               //   各自带按压态、悬停反馈与点击日志；附近没有带 data-log 的祖先，不接就完全没有日志。
@@ -192,7 +174,7 @@ export const IssueDetail = function (props: any): any {
                   : h('button', Object.assign({ type: 'button', onClick: _openLocal, 'data-press': 'button', 'data-log': 'detail.err.open.local' }, _props), _kids)
               })(),
             ]),
-            errRawBlockOf(err),
+            (errView ? errView.rawBlock : null),
           ]),
         ])
       }
@@ -368,8 +350,8 @@ export const IssueDetail = function (props: any): any {
         mode === 'err' && err ? h('div', { className: 'dsws-detail-err', style: { padding: '8px 10px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 6, fontSize: 11, color: '#f87171', display: 'flex', flexDirection: 'column', gap: 6 } }, [
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
             Ic({ n: 'alert', size: 11 }),
-            h('span', { style: { wordBreak: 'break-word' } }, errSayOf(err)),
-            errKindOf(err) ? h('span', { style: { fontSize: 10, padding: '0 6px', border: '1px solid rgba(248,113,113,.45)', borderRadius: 10, flex: 'none' } }, errKindOf(err)) : null,
+            h('span', { style: { wordBreak: 'break-word' } }, (errView ? errView.say : '')),
+            (errView ? errView.kind : '') ? h('span', { style: { fontSize: 10, padding: '0 6px', border: '1px solid rgba(248,113,113,.45)', borderRadius: 10, flex: 'none' } }, (errView ? errView.kind : '')) : null,
             h('span', { style: { flex: 1 } }),
             // 本次界面反馈需求：顶部错误横幅的「重试」与详情页错误态的「重试」会出现在同一屏，
             //   两处定位串必须不同，否则日志分不出是哪一颗被点了。
@@ -377,7 +359,7 @@ export const IssueDetail = function (props: any): any {
             // #1379 收口：这句「显示快照降级」也压在 8% 红底上（原色是写死的警告橙，只有约 2:1），同样挂类名走浅色层。
             !detail && snapIssue ? h('span', { className: 'dsws-detail-err-degraded', style: { fontSize: 10, color: '#f59e0b' } }, '（显示快照降级）') : null,
           ]),
-          errRawBlockOf(err),
+          (errView ? errView.rawBlock : null),
         ]) : null,
         // header
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 } }, [

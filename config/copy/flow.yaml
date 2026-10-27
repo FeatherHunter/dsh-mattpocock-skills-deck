@@ -63,6 +63,7 @@ zh:
   detail.viewOnTracker: 打开原票
   detail.viewOnTrackerHint: 点此打开原票查看
   detail.authFailCta: 去原平台处理后重试
+  detail.err.networkShort: 暂时连不上远端仓库，冷却中，稍等几秒再试
   detail.blockedPrefix: "被阻塞 · "
   detail.readOnlyHint: read-only · 写操作请走 新会话 / 打开原票
   detail.noBody: 无描述
@@ -305,6 +306,7 @@ en:
   detail.viewOnTracker: Open issue
   detail.viewOnTrackerHint: Click to open the issue
   detail.authFailCta: Resolve on the platform, then retry
+  detail.err.networkShort: Cannot reach the remote repository right now; try again in a few seconds.
   detail.blockedPrefix: "Blocked · "
   detail.readOnlyHint: read-only · write actions live in a new session or on the platform
   detail.noBody: No description

@@ -52,6 +52,10 @@ globalThis.React = React
 const linkMod = await import('../src/client/kernel/link.js')
 globalThis.issueUrlFor = linkMod.issueUrlFor
 globalThis.openIssueUrl = linkMod.openIssueUrl
+// #1573：失败横幅三块（主行一句话 / kind 小标签 / 原始说明折叠区）搬进了 issueDetailErrorView 叶子；
+//   叶子单独加载时闭包里没有这个名字，这里接真实现（同构接线，不抄一份假判据）。
+const { issueErrorViewOf } = await import('../src/client/views/issueDetailErrorView.js')
+globalThis.issueErrorViewOf = issueErrorViewOf
 const { DswsCtx, createCx } = await import('../src/client/kernel/ctx.js')
 const { renderIssueDetailComments } = await import('../src/client/views/IssueDetailComments.js')
 const { IssueDetail } = await import('../src/client/views/IssueDetail.js')

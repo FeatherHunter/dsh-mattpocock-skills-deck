@@ -746,6 +746,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'issueDetailFold', file: 'src/client/views/issueDetailFold.ts' }, // #763 新增：详情页顶栏逐字折叠阶梯（纯函数，返回优先收到图标）
   { id: 'useIssueDetailFold', file: 'src/client/views/useIssueDetailFold.ts' }, // #763 新增：同一处的折叠机（读写顶栏 DOM；判据在上一项）
         { id: 'subIssueRouting', file: 'src/client/views/subIssueRouting.ts' }, // 子票/阻塞票分流判定，从 IssueDetail.ts 原样抽出
+  { id: 'issueDetailErrorView', file: 'src/client/views/issueDetailErrorView.ts' }, // #1573 新增：详情页失败横幅三块（主行一句话 / kind 小标签 / 原始说明折叠区），从 IssueDetail.ts 抽出（它贴着 350 行上限）
   { id: 'IssueDetail', file: 'src/client/views/IssueDetail.ts' },
   { id: 'noRepoCard', file: 'src/client/views/NoRepoCard.ts' },
   { id: 'setupCard', file: 'src/client/views/SetupCard.ts' }, // #698 新增：盖住整个应用的「域文档布局」小卡（原先只渲染在黄条下面，工作区一初始化就没有地方可画）
