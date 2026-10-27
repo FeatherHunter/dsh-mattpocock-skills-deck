@@ -9,7 +9,7 @@
  * 本门禁逐条钉票面验收（编号照 #1488）：
  *  ① 只含 spec.md 的目录能被识别，并把规格与实施票列出来；
  *  ② 三个以上目录、同号票并存时，列表与单票读取都按目录区分，不互相串；
- *  ③ 工作区根 issues/ 的旧票仍可列出、可读，读取时留下兼容日志；旧布局只读，写路径如实拒绝（#1480 两轴评审）；
+ *  ③ 工作区根 issues/ 的旧票（含带 wayfinder:map 的地图票）仍可列出、可读，读取时留下兼容日志；旧布局只读，写路径如实拒绝（#1480 两轴评审；#1567 补地图票形状）；
  *  ④ 重复编号与非规范文件名有确定的退化显示规则并打日志，不抛错；
  *  ⑤ 环境预检、计数、分页等读路径在混合布局下都正常。
  *
@@ -78,10 +78,12 @@ const degradations = (ctx: Ctx) => ctx.events.filter(function (e) { return e.eve
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1488-read-'))
 const backend = createMarkdownBackend(makeCtx(tmpRoot) as never)
 
-/** 写一张票文件（原文形态：标题 + Status 行 + 正文；不带任何 DSH 隐藏注释）。 */
-function writeTicket(dir: string, file: string, title: string, status = 'ready-for-agent') {
+/** 写一张票文件（原文形态：标题 + Status 行 + 正文；不带任何 DSH 隐藏注释）。
+ *  `labels` 给标签行：旧布局里地图就是一张带 `wayfinder:map` 标签的票文件，没有 map.md。 */
+function writeTicket(dir: string, file: string, title: string, status = 'ready-for-agent', labels?: string[]) {
+  const labelsLine = labels && labels.length ? 'Labels: ' + labels.join(', ') + '\n\n' : ''
   fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(path.join(dir, file), '# ' + title + '\n\nStatus: ' + status + '\n\n## Body\n\n夹具里的票\n', 'utf8')
+  fs.writeFileSync(path.join(dir, file), '# ' + title + '\n\nStatus: ' + status + '\n\n' + labelsLine + '## Body\n\n夹具里的票\n', 'utf8')
 }
 /** 写一份规格文件（原文形态）。 */
 function writeSpec(dir: string, title: string, status = 'ready-for-agent') {
@@ -167,37 +169,74 @@ async function main() {
     check(scopedRows.some(function (r) { return r.type === 'spec' }) && scopedRows.some(function (r) { return r.key === '01' }), '② 收窄后的 beta 仍同时有规格行与 01 号票行')
   }
 
-  console.log('== ③ 工作区根 issues/ 的旧票：可列出、可读，写路径如实拒绝，读取时留兼容日志 ==')
+  console.log('== ③ 工作区根 issues/ 的旧票（含带 wayfinder:map 的地图票）：可列出、可读，写路径如实拒绝，读取时留兼容日志 ==')
   {
     const root = fs.mkdtempSync(path.join(tmpRoot, 'legacy-'))
     // #1486 之前没给工作单元时，建票落到工作区根 issues/；这些票还在原地，必须原样可用。
-    writeTicket(path.join(root, 'issues'), '01-legacy-root.md', '旧版根目录的票')
+    // #1567 补的形状：旧布局里地图本身就是一张票文件（带 wayfinder:map 标签，没有 map.md）。
+    // 它只按票行的身份可读；00 号容器路径与子票清单都不可用，这一节把这几件事一起钉住。
+    writeTicket(path.join(root, 'issues'), '01-legacy-map.md', '旧版根目录的地图', 'ready-for-agent', ['wayfinder:map'])
+    writeTicket(path.join(root, 'issues'), '02-legacy-root.md', '旧版根目录的票')
     const ctx = makeCtx(root)
     const be = createMarkdownBackend(ctx as never)
 
     const pre = await be.preflight({ cwd: root, refId: '' } as never, ctx as never)
     check(pre.ok === true, '③ 只有工作区根 issues/ 的旧工作区预检通过')
 
+    const legacyListLogs = function () { return degradations(ctx).filter(function (e) { return e.fields.reason === 'list:legacy-root' }).length }
+    const legacyGetLogs = function () { return degradations(ctx).filter(function (e) { return e.fields.reason === 'get:legacy-root' }).length }
+
+    const listLogsBefore = legacyListLogs()
     const listed = await be.list(REPO as never, {} as never, ctx as never)
     const rows = listed.ok ? (listed.data as Array<Record<string, unknown>>) : []
-    const legacyRow = rows.filter(function (r) { return r.key === '01' })
-    check(listed.ok === true && legacyRow.length === 1 && legacyRow[0].title === '旧版根目录的票', '③ 旧票照常列出来（' + (listed.ok ? rows.length : '失败') + ' 行）')
-    const listLogs = degradations(ctx).filter(function (e) { return e.fields.reason === 'list:legacy-root' })
-    check(listLogs.length === 1, '③ 列出旧票时留下一条 list:legacy-root 兼容日志（' + listLogs.length + '）')
+    const legacyMapRow = rows.filter(function (r) { return r.key === '01' })[0]
+    const legacyTicketRow = rows.filter(function (r) { return r.key === '02' })[0]
+    check(listed.ok === true && legacyMapRow !== undefined && legacyMapRow.title === '旧版根目录的地图', '③ 旧地图票照常列出来（' + (listed.ok ? rows.length : '失败') + ' 行）')
+    check(legacyMapRow !== undefined && legacyMapRow.type === 'map' && legacyMapRow.effortId === '' && legacyMapRow.parentKey === null, '③ 旧地图票按 type=map、effortId 是空串、parentKey 是 null 的票行身份列出（' + (legacyMapRow ? JSON.stringify({ type: legacyMapRow.type, effortId: legacyMapRow.effortId, parentKey: legacyMapRow.parentKey }) : '没有这一行') + '）')
+    check(legacyTicketRow !== undefined && legacyTicketRow.type === 'issue' && legacyTicketRow.title === '旧版根目录的票', '③ 旧普通票也照常列在列表里（type=issue）')
+    check(legacyListLogs() === listLogsBefore + 1, '③ 列出旧票时新增一条 list:legacy-root 兼容日志（' + (legacyListLogs() - listLogsBefore) + '）')
 
-    const got = await be.get(REPO as never, '01', {} as never, ctx as never)
-    check(got.ok === true && got.data.title === '旧版根目录的票', '③ 旧票按编号读得到')
-    const getLogs = degradations(ctx).filter(function (e) { return e.fields.reason === 'get:legacy-root' })
-    check(getLogs.length === 1, '③ 读取旧票时留下一条 get:legacy-root 兼容日志（' + getLogs.length + '）')
+    // 地图清单（deck_context 走 list({type:'map'})）只靠 wayfinder:map 标签认这张旧地图票。
+    const mapList = await be.list(REPO as never, { type: 'map' } as never, ctx as never)
+    const mapRows = mapList.ok ? (mapList.data as Array<Record<string, unknown>>) : []
+    const listedMap = mapRows[0]
+    check(mapList.ok === true && mapRows.length === 1 && listedMap !== undefined && listedMap.key === '01' && listedMap.type === 'map' && listedMap.effortId === '' && listedMap.parentKey === null, '③ 地图清单认这张旧地图票：list({type:\'map\'}) 恰好一行 01，且带 type=map、effortId 空串、parentKey null（' + mapRows.length + '）')
+
+    const getLogsBeforeMap = legacyGetLogs()
+    const gotMap = await be.get(REPO as never, '01', {} as never, ctx as never)
+    check(gotMap.ok === true && gotMap.data.type === 'map' && gotMap.data.title === '旧版根目录的地图', '③ 旧地图票按编号读得到，类型是地图')
+    check(gotMap.ok === true && (gotMap.data.labels as Array<{ name?: string }>).some(function (l) { return l.name === 'wayfinder:map' }), '③ 读回的地图票带 wayfinder:map 标签（身份靠它，不靠 map.md）')
+    check(legacyGetLogs() === getLogsBeforeMap + 1, '③ 读取旧地图票时新增一条 get:legacy-root 兼容日志（' + (legacyGetLogs() - getLogsBeforeMap) + '）')
+
+    // #1567：旧布局没有地图容器文件，00 号只认 map.md，所以 00 号在这里确定读不到。
+    const container = await be.get(REPO as never, '00', {} as never, ctx as never)
+    check(container.ok === false && container.error.kind === 'not-found' && /map\.md not-found/.test(container.error.message), '③ 00 号容器路径确定读不到：not-found / map.md not-found（' + (container.ok ? '竟然读到了' : container.error.kind + ' / ' + container.error.message) + '）')
+
+    // 旧文件里没有父边，子票清单按 parentKey 取也是空的——不靠假装补父边来凑地图详情。
+    const children = await be.list(REPO as never, { parentKey: '01' } as never, ctx as never)
+    const childRows = children.ok ? (children.data as Array<Record<string, unknown>>) : []
+    check(children.ok === true && childRows.length === 0, '③ 旧地图票没有子票清单：list({parentKey:\'01\'}) 为空（' + childRows.length + '）')
+
+    const getLogsBeforeTicket = legacyGetLogs()
+    const gotTicket = await be.get(REPO as never, '02', {} as never, ctx as never)
+    check(gotTicket.ok === true && gotTicket.data.title === '旧版根目录的票', '③ 旧普通票按编号读得到')
+    check(legacyGetLogs() === getLogsBeforeTicket + 1, '③ 读取旧普通票时新增一条 get:legacy-root 兼容日志（' + (legacyGetLogs() - getLogsBeforeTicket) + '）')
 
     // #1480 两轴评审：旧布局只读。规格 #1488 只要求「仍可读、不迁移」，写路径必须如实失败。
-    const beforeDisk = fs.readFileSync(path.join(root, 'issues', '01-legacy-root.md'), 'utf8')
-    const updated = await be.update(REPO as never, '01', { title: '旧票改过的标题' } as never, ctx as never)
-    check(updated.ok === false && updated.error.kind === 'unsupported', '③ 旧票不能改：update 如实失败（' + (updated.ok ? '竟然成功' : updated.error.kind) + '）')
-    check(!updated.ok && /旧布局/.test(updated.error.message) && /只读/.test(updated.error.message), '③ 失败话说清旧布局的票只读，迁移另行处理（' + (updated.ok ? '' : updated.error.message) + '）')
-    const onDisk = fs.readFileSync(path.join(root, 'issues', '01-legacy-root.md'), 'utf8')
-    check(onDisk === beforeDisk && !onDisk.includes('旧票改过的标题'), '③ 拒绝后旧票文件逐字节未变（不迁移、不新建到 .scratch 下）')
-    check(!fs.existsSync(path.join(root, '.scratch', 'issues', '01-legacy-root.md')), '③ 没有把旧票复制或迁移到 .scratch 下')
+    // 只读拒绝只看路径（根 issues/ 属旧布局），与这张票是地图还是普通票无关，所以两种票走同一组断言。
+    const checkReadonlyRefused = async function (key: string, disk: string, changedTitle: string) {
+      const before = fs.readFileSync(disk, 'utf8')
+      const updated = await be.update(REPO as never, key, { title: changedTitle } as never, ctx as never)
+      check(updated.ok === false && updated.error.kind === 'unsupported', '③ 旧票 ' + key + ' 不能改标题：update 如实失败（' + (updated.ok ? '竟然成功' : updated.error.kind) + '）')
+      check(!updated.ok && /旧布局/.test(updated.error.message) && /只读/.test(updated.error.message), '③ 旧票 ' + key + ' 的失败话说清旧布局的票只读，迁移另行处理（' + (updated.ok ? '' : updated.error.message) + '）')
+      const closed = await be.close(REPO as never, key, {} as never, ctx as never)
+      check(closed.ok === false && closed.error.kind === 'unsupported' && /旧布局/.test(closed.error.message) && /只读/.test(closed.error.message), '③ 旧票 ' + key + ' 不能关闭：close 同样如实失败（' + (closed.ok ? '竟然成功' : closed.error.kind) + '）')
+      const after = fs.readFileSync(disk, 'utf8')
+      check(after === before && !after.includes(changedTitle), '③ 拒绝后旧票 ' + key + ' 文件逐字节未变（不迁移、不新建到 .scratch 下）')
+      check(!fs.existsSync(path.join(root, '.scratch', 'issues', path.basename(disk))), '③ 没有把旧票 ' + key + ' 复制或迁移到 .scratch 下')
+    }
+    await checkReadonlyRefused('01', path.join(root, 'issues', '01-legacy-map.md'), '旧地图改过的标题')
+    await checkReadonlyRefused('02', path.join(root, 'issues', '02-legacy-root.md'), '旧票改过的标题')
   }
 
   console.log('== ④ 重复编号与非规范文件名：退化显示规则固定、打日志、不抛错 ==')
