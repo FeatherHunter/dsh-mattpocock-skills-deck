@@ -140,7 +140,27 @@ export function createDetectChain(deps: DetectChainDeps) {
   // 这里只把接线给的两条能力交进去。
   // #1187：探针必须等 detect 定下后端才建——GitLab 的仓库身份要经会话 getRepoKey 问房间（宿主那份只认 GitHub），
   // 而探针把 refId 缓存进这一次求值，先建再定后端就会拿 GitHub 的空结果去问 GitLab。
-  const createChainEnvProbe = (probeCwd: string, backendId: string | null | undefined) => probeChainEnv({ getRepoKey: getRepoKey, openSession: openSession }, probeCwd, { backendId: backendId || 'github' })
+  // #1505：环境探针开只读会话时，必须沿用上面已经定下的后端（显式、声明、自动识别定下的都算）。
+  // 为什么不能只交目录：会话入口在没有显式选择时会按目录重新问一遍注册表，而「目录里只有
+  //   docs/agents/workspace.yaml、还没有 .git 与远端」的工作区各家都认领不了，会话回 no-backend，
+  //   两行环境检查就永远停在「读会话还没接上，暂时无法确认登录状态」。
+  // 交什么：只交出归一的 { backendId }，不递整份判定结论——它带的 multiHit / pending 会让会话入口
+  //   按「有歧义」处理，开不出会话。
+  // 什么时候不交：backendId 为空说明判定层没有结论、调用方也没给后端，维持原样，绝不凭默认后端伪造会话。
+  const createChainEnvProbe = (probeCwd: string, backendId: string | null | undefined) => {
+    const selectedBackendId = (typeof backendId === 'string' && backendId) ? backendId : ''
+    const rawOpenSession = openSession
+    const envOpenSession = (selectedBackendId && typeof rawOpenSession === 'function')
+      ? function (envCwd: string): Promise<OpenSessionReply> {
+          // 同一个问题「这次用哪个后端」只回答一次：会话入口拿到它，就不再自己重跑各家的认领判断。
+          const resolver = async function (): Promise<{ backendId: string }> { return { backendId: selectedBackendId } }
+          return rawOpenSession(envCwd, { resolveSelection: resolver })
+        }
+      : rawOpenSession
+    // 探针自己那格 backendId 只用来决定「问哪个房间要仓库身份」，沿用原来的 github 兜底；后端为空时
+    // 链上不建后端链、探针不会被问，所以这里不会凭空开出一个 github 会话。
+    return probeChainEnv({ getRepoKey: getRepoKey, openSession: envOpenSession }, probeCwd, { backendId: backendId || 'github' })
+  }
 
   // #1483：把「按当前会话解析沙箱许可」收成一处。正常求值与缓存命中后的重算都用这一处解析：
   //   缺省会话号（空串）与「接线没给 sandboxPolicyFor」都不算错，照旧返回空政策，让谓词按平台默认量。
