@@ -139,7 +139,10 @@ export function createDeckContext(deps?: DeckContextDeps) {
       const t = sc.tracker!
       const opCtx = sc.opCtx
       const preP = (typeof t.preflight === 'function') ? t.preflight({ cwd: s.cwd }, opCtx) : Promise.resolve(null)
-      const listP = t.list(repo, { type: 'map' }, opCtx)
+      // #1603：地图清单优先走一次取全量的薄行口（只收仓库，后端内部翻页收齐；
+      // 单页失败整趟失败、超时与传输失败直接失败，只有「这个后端不支持」才回落到老路）。
+      // 薄行口与预检、权限三路并行；只有回落时才串行补一次老路。
+      const thinP = (typeof t.listMaps === 'function') ? t.listMaps(repo, opCtx) : Promise.resolve(null)
       // #992：仓库写权限能力位（只读旁路，与预检/清单并行）。本地文件后端没有远端权限模型，
       //   由共享判断直接给「可写」（见 shared/tracker/backendWritePermissions.js）；其余后端问一遍
       //   写权限旁路，问不出来不拦事、按未知处理。
@@ -147,8 +150,17 @@ export function createDeckContext(deps?: DeckContextDeps) {
       const wantPerms = !knownPerm && typeof t.getRepoPermissions === 'function' && !sc.outOfBudget()
       const permP = wantPerms ? t.getRepoPermissions(repo, opCtx) : Promise.resolve(null)
       const pre = await preP
-      const listed = await listP
+      const thin = await thinP
+      // 薄行口只有「不支持」才回落：超时与传输失败走下面原有的失败语义，不许拿半份当整仓。
+      const thinUnsupported = thin !== null && thin.ok === false && thin.error && thin.error.kind === 'unsupported'
+      const listMapsUsed = thin !== null && !thinUnsupported
+      const listed = (thin !== null && !thinUnsupported) ? thin : await t.list(repo, { type: 'map' }, opCtx)
       const perm = await permP
+      // 实际用量：薄行口成功时按它自报的量记（按实际页数），其余情况沿用老口径。
+      const thinUsage = (listMapsUsed && listed && listed.ok === true) ? listed.usage : null
+      const mapClaimed = (thinUsage && typeof thinUsage.requests === 'number' && typeof thinUsage.points === 'number')
+        ? { requests: thinUsage.requests, points: thinUsage.points }
+        : { requests: 3, points: 2 }
       const preTimeout = timeoutMessage(pre as TransportResult)
       if (preTimeout) return {
         value: {
@@ -157,7 +169,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
           text: '工作区这次没确认下来（超时了：在限时内没等到后端回话，这次读没动手，重调一次就行）。',
           data: { backendId: pick.backendId, error: { kind: 'timeout', message: preTimeout.slice(0, 300) } },
         },
-        claimed: { requests: 3, points: 2 },
+        claimed: mapClaimed,
       }
       const preTransport = transportMessage(pre as TransportResult)
       if (preTransport) throw new Error(preTransport)
@@ -169,7 +181,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
           text: '地图清单这次没取到（超时了：在限时内没等到后端回话，这次读没动手，重调一次就行）。',
           data: { backendId: pick.backendId, error: { kind: 'timeout', message: listedTimeout.slice(0, 300) } },
         },
-        claimed: { requests: 3, points: 2 },
+        claimed: mapClaimed,
       }
       const listedTransport = transportMessage(listed as TransportResult)
       if (listedTransport) throw new Error(listedTransport)
@@ -181,11 +193,14 @@ export function createDeckContext(deps?: DeckContextDeps) {
           text: '写权限那一问超时了：在限时内没等到后端回话，这次读没动手，重调一次就行。',
           data: { backendId: pick.backendId, error: { kind: 'timeout', message: permTimeout.slice(0, 300) } },
         },
-        claimed: { requests: 3, points: 2 },
+        claimed: mapClaimed,
       }
       const permTransport = transportMessage(perm as TransportResult)
       if (permTransport) throw new Error(permTransport)
-      const maps = (listed.ok && Array.isArray(listed.data)) ? listed.data.map(mapRow) : []
+      // 薄行口回来的已经是薄行（key/title/state/url），不再过 mapRow；
+      // 老路回来的完整行照原来的样子投影成薄行。
+      const thinRows = (listMapsUsed && listed.ok === true && listed.data && Array.isArray(listed.data.rows)) ? listed.data.rows : []
+      const maps = listMapsUsed ? thinRows : ((listed.ok && Array.isArray(listed.data)) ? listed.data.map(mapRow) : [])
       // 能力位：本地文件后端恒可写（本地文件可写性归 md:scratchWritable 管，这里不重复判）；
       //   其余后端问到了用真值，问不到按未知（不捏造）。
       let permissions = null
@@ -195,6 +210,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
       } else permissions = { unknown: true }
       const notes = []
       if (!listed.ok) notes.push('地图清单这次没取到（后端原话：' + String((listed.error && listed.error.message) || '').slice(0, 200) + '）。')
+      if (listMapsUsed && listed.ok === true && listed.data && listed.data.truncated === true) notes.push('地图只取回了前 ' + thinRows.length + ' 张（共 ' + listed.data.total + ' 张，撞到封顶页数），剩下的这次没拿。')
       if (pre && pre.ok === false) notes.push('环境预检没过（' + String((pre.error && pre.error.message) || '').slice(0, 200) + '）：票还是能读，写操作可能失败。')
       if (permissions && permissions.push === false) {
         notes.push('这个仓库只读：标签与写操作不可用。')
@@ -220,7 +236,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
           notes: notes,
           touched: [],
         },
-        claimed: { requests: 3, points: 2 },
+        claimed: mapClaimed,
       }
     })
   }

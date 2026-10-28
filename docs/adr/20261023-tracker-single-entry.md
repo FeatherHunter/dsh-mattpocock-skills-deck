@@ -19,7 +19,7 @@
 **决定一 · 后端操作只有一条入口：Tracker 会话。**
 
 - 会话由 `openTracker(仓库句柄, 选项)` 一次建立、一次只绑定一个后端；返回值只可能是两种：`{ ok: true, session }` 或 `{ ok: false, reason, detail }`，reason 是四种可区分的情况之一：没有可用后端（no-backend）、同时命中多个（multi-match）、选择还没做完（pending）、工作区还没就绪（workspace-not-ready）。**这个函数永远不抛异常**，失败如实回值。
-- 会话上挂着全部 26 条能力：23 条操作 + 3 条定位口（`getRepoKey`、`describe`、`issueAddress`）。23 条操作都异步回值，其中 22 条统一走操作管线；第 23 条 `readBudget` 直达房间，不裁决也不记账。3 条定位口里 `getRepoKey` 可能出站（GitHub 的 gh 视图兜底），所以也走操作管线：先裁决、再转发、再按后端口径记账；`describe` 与 `issueAddress` 同步直通。
+- 会话上挂着全部 27 条能力：24 条操作 + 3 条定位口（`getRepoKey`、`describe`、`issueAddress`）。24 条操作都异步回值，其中 23 条统一走操作管线；第 24 条 `readBudget` 直达房间，不裁决也不记账。3 条定位口里 `getRepoKey` 可能出站（GitHub 的 gh 视图兜底），所以也走操作管线：先裁决、再转发、再按后端口径记账；`describe` 与 `issueAddress` 同步直通。
 - 调用方（deck 工具、刷新读路径、刷新写路径、宿主发布、面板）不再自己选后端、不再自己过闸、不再拿 backendId 写准入分支、不再直接 import 房间实现。选后端发生在会话内部，**选后端本身不消耗额度**——这是事故 1 的直接修复。
 
 **决定二 · 预算模型由后端自己声明，缺声明就注册不进来。**

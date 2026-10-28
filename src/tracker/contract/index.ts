@@ -55,7 +55,8 @@ import { OPERATIONS as CATALOG_OPERATIONS } from './operations-catalog.js'
  * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').RepoPermissions>>} getRepoPermissions 问仓库写权限（push/triage 两个布尔）；GitHub 与 GitLab 真去问（GitLab 读远端档位折算），本地 Markdown 回 unsupported。调用方拿不到就按「未知」处理，不许当成「能写」
  * @property {(repo: RepositoryRef, mapKey: string, opts: Record<string, never>|undefined, ctx: OpContext) => Promise<OpResult<import('./results.js').SubIssueList>>} listSubIssues 取一张地图的全部子票（翻页拉到底，1000 张硬上限）；返回里 capped/missing/dropped 三项是「有没有拿全」的诚实交代。GitHub 实现，GitLab 真实现（读子票正文顶部的归属声明行），本地 Markdown 回 unsupported
  * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').LabelColorsFilePlacement>>} ensureLabelColorsFile 往工作区放一份用户可手改的默认标签配色文件（文件已存在时一个字都不改）；本地 Markdown 实现，GitHub 与 GitLab 回 unsupported（两家颜色真源都在远端，工作区文件没有读者，属形态不合，理由见两份能力表）
- * @property {(ctx: OpContext) => Promise<OpResult<import('../session/budget-reading.js').BudgetReading>>} readBudget 读缓存里的剩余额度，只读不花（规格 1439 第 23 条操作）；永远放行、不记账，直达房间
+ * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').MapListResult>>} listMaps 一次取全量地图薄行（只收仓库；状态两档都要、标签只要小写的 wayfinder:map、时间窗口为空；薄行只要 key/title/state/url；按更新时间倒序；撞封顶如实截断；单页失败整趟失败）。GitHub 实现，GitLab 与本地 Markdown 暂由注册表补 unsupported 桩（承接见规格 1602）
+ * @property {(ctx: OpContext) => Promise<OpResult<import('../session/budget-reading.js').BudgetReading>>} readBudget 读缓存里的剩余额度，只读不花（规格 1439 落地，规格 1602 起是第 24 条操作）；永远放行、不记账，直达房间
  *
  * 定位口三条（没有「我不支持」这种答案，缺席就是缺席，调用方拿空值往下走）：
  * @property {(cwd: string, ctx: OpContext) => Promise<{owner: string, name: string}|null>} getRepoKey 从工作区目录解析出 owner/name；解析不出来回 null（不是异常）。只有需要连远端的后端才有
@@ -75,9 +76,9 @@ import { OPERATIONS as CATALOG_OPERATIONS } from './operations-catalog.js'
  * `Object.freeze` 留着：原来那份就是冻住的，金标准夹具断言它冻住（改了口径不改行为）。
  * 冻的是同一份数组（名录那份），不产生第二份拷贝。
  *
- * 这里只是**操作**那一半（23 条，规格 1439 起含读预算）。另有三条定位口（`getRepoKey` / `describe` / `issueAddress`）
+ * 这里只是**操作**那一半（24 条，规格 1602 起含地图薄行）。另有三条定位口（`getRepoKey` / `describe` / `issueAddress`）
  * 不进这份数组：它们没有「我不支持」这种答案，注册表不替它们补桩，`includes` 判据也不适用。
- * 两半合起来是 `CAPABILITIES`（26 条，见 `operations-catalog.ts`）。
+ * 两半合起来是 `CAPABILITIES`（27 条，见 `operations-catalog.ts`）。
  */
 export const OPERATIONS: readonly string[] = Object.freeze(CATALOG_OPERATIONS)
 
