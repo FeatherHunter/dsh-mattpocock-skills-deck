@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T11:48:57.583Z",
+  "generatedAt": "2026-10-28T11:52:31.203Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 425,
-  "gateCount": 425,
-  "attributedGates": 382,
+  "chainLength": 426,
+  "gateCount": 426,
+  "attributedGates": 383,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 18,
@@ -8288,6 +8288,21 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 1 条；源码里的路径字面量 1 条"
     },
     {
+      "step": "node tests/verify-naming-host-suppression.ts",
+      "file": "tests/verify-naming-host-suppression.ts",
+      "guards": [
+        "src/host/namingGuardian.ts"
+      ],
+      "dirs": [
+        "src/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-naming-title-fact.ts",
       "file": "tests/verify-naming-title-fact.ts",
       "guards": [
@@ -10849,6 +10864,7 @@
       "node tests/verify-log-store.ts",
       "node tests/verify-log-switch-single-source.ts",
       "node tests/verify-markdown-label-colors.ts",
+      "node tests/verify-naming-host-suppression.ts",
       "node tests/verify-parse-leaf.ts",
       "node tests/verify-progress.ts",
       "node tests/verify-prompts.ts",
