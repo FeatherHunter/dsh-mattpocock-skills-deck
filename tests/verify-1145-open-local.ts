@@ -65,6 +65,8 @@ const { issueErrorViewOf } = await import('../src/client/views/issueDetailErrorV
 globalThis.issueErrorViewOf = issueErrorViewOf
 const { DswsCtx, createCx } = await import('../src/client/kernel/ctx.js')
 const { renderIssueDetailComments } = await import('../src/client/views/IssueDetailComments.js')
+// #1236：IssueDetail 的内联旋转动画读 kernel/motion.ts 的 MOTION；单独加载时它是自由变量，先挂上再 import。
+globalThis.MOTION = (await import('../src/client/kernel/motion.js')).MOTION
 const { IssueDetail } = await import('../src/client/views/IssueDetail.js')
 globalThis.DswsCtx = DswsCtx
 // 同叶调用走真实现（构建把两叶拼进同一闭包，这里同构接线；桩它就测不到真行为）

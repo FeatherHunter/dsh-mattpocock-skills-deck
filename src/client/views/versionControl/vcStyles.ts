@@ -26,6 +26,7 @@
  *   去掉强制就恢复跟随：document.querySelector('[data-vc-root]').removeAttribute('data-vc-theme')。
  *   下面导出的 vcSetTheme / vcClearTheme 只是把这两行包成函数，行为与手写属性完全一致。
  */
+declare const MOTION: any; // #1236 动效时长统一在 kernel/motion.ts，本文件只引用不写真值
 export const VC_STYLE_TEXT = [
   // ---- 皮肤令牌：深色（A 工程台账，原型 853-vc-styles.css 的 [data-style="A"] 一字不差） ----
   "body[data-ds-dark-theme] [data-vc-root]{--vc-paper:#131c2f;--vc-inset:#0b1120;--vc-elevated:#1a2438;--vc-hover:color-mix(in srgb,#f8fafc 6%,transparent)" +
@@ -170,7 +171,7 @@ export const VC_STYLE_TEXT = [
   "[data-vc-root] [data-vc-confirm][data-vc-popover],[data-vc-root] [data-vc-remote-choice][data-vc-popover]{margin-top:0;max-width:min(360px,calc(100% - 16px))}",
   ".dsws-vc-viewbar-lbl{font-size:10.5px;color:var(--vc-faint);font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace}",
   // #857 P5/P6：骨架条——固定高度占位，不跳；减弱动态偏好下静止。
-  ".dsws-vc-skel{border-radius:4px;background:linear-gradient(90deg,var(--vc-hover,rgba(127,127,160,.12)) 25%,var(--vc-elevated,#16181d) 50%,var(--vc-hover,rgba(127,127,160,.12)) 75%);background-size:200% 100%;animation:dsws-vc-shimmer 1.4s linear infinite;margin:7px 0}",
+  ".dsws-vc-skel{border-radius:4px;background:linear-gradient(90deg,var(--vc-hover,rgba(127,127,160,.12)) 25%,var(--vc-elevated,#16181d) 50%,var(--vc-hover,rgba(127,127,160,.12)) 75%);background-size:200% 100%;animation:dsws-vc-shimmer " + MOTION.vcShimmerMs + "ms linear infinite;margin:7px 0}",
   "@keyframes dsws-vc-shimmer{to{background-position:-200% 0}}",
   "@media (prefers-reduced-motion:reduce){.dsws-vc-skel{animation:none}}",
 ].join('')

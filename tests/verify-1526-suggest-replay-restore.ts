@@ -296,6 +296,9 @@ async function main() {
   const appearanceMod = await imp('src/client/statusbar/suggestAppearance.ts')
   global.SUGGEST_Z = appearanceMod.SUGGEST_Z
   global.SUGGEST_APPEARANCE = appearanceMod.SUGGEST_APPEARANCE
+  // #1236：动画时长住在 kernel/motion.ts 的 MOTION 里（样式叶子求值时要用）。
+  const motionMod = await imp('src/client/kernel/motion.ts')
+  global.MOTION = motionMod.MOTION
   global.inject = function () {}
   global.PortalOverlay = function (props, children) { return React.createElement('div', props || {}, children) }
   const bubbleMod = await imp('src/client/statusbar/suggestBubble.ts')

@@ -20,6 +20,7 @@
  *   与 cards 的 PixelCardsStyles.ts 之间不能 import，所以同一套浅色纸色两份皮肤各写一份；
  *   防分叉不靠导入，靠 tests/verify-cards-dir.ts 里那几条跨文件逐值比对。
  */
+declare const MOTION: any; // #1236 动效时长统一在 kernel/motion.ts，本文件只引用不写真值
 export const PIXEL_STYLE_TEXT: string[] = [
   ":root{--pixel-frame:#3a2c14;--pixel-paper:#f2e4c0;--pixel-card:#fffdf4;--pixel-ink:#2b2113;--pixel-ink2:#6b5b3e;--pixel-shadow:#241a0c;--pixel-gold:#e3a92f;--pixel-acc:#8b5cf6;--pixel-ok:#0e8a16;--pixel-bad:#a3231a;--pixel-warn:#f59e0b;--pixel-stripe:#ddcda1;--pixel-popline:#e8d9ae;--pixel-hi:#ffe1a1;--pixel-link:#5b3df0}",
   // ---- 装饰色令牌：深色值就是以前写在各条规则里的那些字面量，一个不差（深色零变化的底线）----
@@ -38,7 +39,7 @@ export const PIXEL_STYLE_TEXT: string[] = [
   //   pre 保持墨块（深底浅字）：纸面上的代码块是一块压上去的墨，比浅底更清楚，对比 14:1。
   //   overlay 用描边色压 45%：浅色下面板后面的东西还看得见轮廓，又不至于抢戏。
   "body:not([data-ds-dark-theme]) .pixel-tab{--pixel-frame:#3a2c14;--pixel-paper:#f6f1e6;--pixel-card:#fffdf8;--pixel-ink:#221d15;--pixel-ink2:#6f6252;--pixel-shadow:#241a0c;--pixel-gold:#a16207;--pixel-acc:#15803d;--pixel-ok:#15803d;--pixel-bad:#b91c1c;--pixel-warn:#b45309;--pixel-stripe:#e7ddc8;--pixel-popline:#e7ddc8;--pixel-hi:#dff2e3;--pixel-link:#2563eb;--pixel-tab1:#efe8d9;--pixel-tab2:#e7ddc8;--pixel-tab-ink:#3a2c14;--pixel-ok-bg:#d9f2dc;--pixel-bad-bg:#fbe3e1;--pixel-warn-bg:#fdf0d3;--pixel-ic-warn-ink:#b45309;--pixel-seal:#c9503f;--pixel-statusline-edge:#b9ab90;--pixel-quote-bg:#efe8d9;--pixel-rec-bg:#eef7ef;--pixel-pre-bg:#241a0c;--pixel-pre-ink:#f6f1e6;--pixel-overlay:rgba(58,44,20,.45);--pixel-acc-ink:#fff}",
-  ".pixel-btn{font:700 12px ui-monospace,Menlo,Consolas,monospace;border:3px solid var(--pixel-frame);background:var(--pixel-paper);color:var(--pixel-ink);padding:4px 12px;cursor:pointer;box-shadow:2px 2px 0 var(--pixel-shadow);transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}",
+  ".pixel-btn{font:700 12px ui-monospace,Menlo,Consolas,monospace;border:3px solid var(--pixel-frame);background:var(--pixel-paper);color:var(--pixel-ink);padding:4px 12px;cursor:pointer;box-shadow:2px 2px 0 var(--pixel-shadow);transition:transform " + MOTION.pixelPressMs + "ms steps(2,end),box-shadow " + MOTION.pixelPressMs + "ms steps(2,end)}",
   ".pixel-btn:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--pixel-shadow);outline:2px solid var(--pixel-gold);outline-offset:1px}",
   // 按压态走委托挂的 .dsws-pressing（#1335 界面反馈）：不用 CSS 的 :active，
   // 因为按住后把指针拖走 :active 会粘住，祖先元素还会跟着一起匹配。
@@ -52,7 +53,7 @@ export const PIXEL_STYLE_TEXT: string[] = [
   ".pixel-btn:disabled{opacity:.6;cursor:wait}",
   ".pixel-btn.hot{background:var(--pixel-acc);color:var(--pixel-acc-ink)}",
   ".pixel-btn.mini{padding:1px 8px;font-size:11px}",
-  ".pixel-spin{display:none;width:10px;height:10px;background:var(--pixel-acc);margin-right:6px;vertical-align:-1px;animation:pixel-blk .6s steps(2,end) infinite}",
+  ".pixel-spin{display:none;width:10px;height:10px;background:var(--pixel-acc);margin-right:6px;vertical-align:-1px;animation:pixel-blk " + MOTION.pixelBlinkMs + "ms steps(2,end) infinite}",
   ".pixel-btn.loading .pixel-spin{display:inline-block}",
   "@keyframes pixel-blk{50%{opacity:.15}}",
   ".pixel-dot{flex:none;width:10px;height:10px;border:2px solid var(--pixel-frame);background:var(--pixel-dc,var(--pixel-ok))}",
@@ -63,9 +64,9 @@ export const PIXEL_STYLE_TEXT: string[] = [
   // 加载中的三句节奏话（2026-10-10 人拍板放回）：按顺序 1 秒一句。
   // 纯 CSS 轮播，客户端不排任何定时器：三句叠在网格的同一格里，各自错开一秒显示。
   ".pixel-statusline .pixel-seq{display:grid;align-items:center}",
-  ".pixel-statusline .pixel-seq>span{grid-area:1/1;opacity:0;animation:pixel-seq 3s step-end infinite both}",
+  ".pixel-statusline .pixel-seq>span{grid-area:1/1;opacity:0;animation:pixel-seq " + MOTION.pixelStatusCycleMs + "ms step-end infinite both}",
   "@keyframes pixel-seq{0%{opacity:0}1%,33.3%{opacity:1}33.4%,100%{opacity:0}}",
-  ".pixel-skel{height:14px;background:var(--pixel-stripe);border:2px solid var(--pixel-frame);margin:8px 0;animation:pixel-blk 1s steps(2,end) infinite}",
+  ".pixel-skel{height:14px;background:var(--pixel-stripe);border:2px solid var(--pixel-frame);margin:8px 0;animation:pixel-blk " + MOTION.pixelSkeletonMs + "ms steps(2,end) infinite}",
   ".pixel-banner{background:var(--pixel-bad-bg);border:3px solid var(--pixel-frame);border-left:10px solid var(--pixel-bad);box-shadow:3px 3px 0 var(--pixel-shadow);padding:8px 10px;font-size:13px;margin:10px 0;display:flex;gap:8px;align-items:center}",
   ".pixel-banner.warn{background:var(--pixel-warn-bg);border-left-color:var(--pixel-warn)}",
   ".pixel-banner .grow{flex:1}",
@@ -125,7 +126,7 @@ export const PIXEL_STYLE_TEXT: string[] = [
   ".pixel-doc hr{border:none;border-top:3px solid var(--pixel-frame);margin:10px 0}",
   ".pixel-doc img{max-width:100%;max-height:220px;object-fit:contain;display:block;margin:8px 0;border:3px solid var(--pixel-frame);background:var(--pixel-card);cursor:zoom-in}",
   ".pixel-doc label.pixel-task{display:flex;gap:8px;align-items:flex-start;margin:5px 0}",
-  ".pixel-skillrow{display:flex;gap:8px;align-items:center;background:var(--pixel-card);border:3px solid var(--pixel-frame);box-shadow:3px 3px 0 var(--pixel-shadow);padding:6px 10px;margin:8px 0;transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}",
+  ".pixel-skillrow{display:flex;gap:8px;align-items:center;background:var(--pixel-card);border:3px solid var(--pixel-frame);box-shadow:3px 3px 0 var(--pixel-shadow);padding:6px 10px;margin:8px 0;transition:transform " + MOTION.pixelPressMs + "ms steps(2,end),box-shadow " + MOTION.pixelPressMs + "ms steps(2,end)}",
   ".pixel-skillrow.rec{background:var(--pixel-rec-bg)}",
   // 悬停与焦点拆开：悬停不是焦点，深浅两套照旧；:focus-within 只在深色下画整行的圈，
   // 浅色这一行不画环，交给宿主给里面那颗拿到焦点的控件画焦点环。
@@ -139,11 +140,11 @@ export const PIXEL_STYLE_TEXT: string[] = [
   ".pixel-top{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:3px solid var(--pixel-frame);font:700 13px ui-monospace,Menlo,Consolas,Microsoft YaHei,sans-serif}",
   ".pixel-body{padding:12px 16px;overflow:auto;flex:1;min-height:120px}",
   ".pixel-bot{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:3px solid var(--pixel-frame)}",
-  ".pixel-f-ok{animation:pixel-fok .5s steps(3,end)}",
-  ".pixel-f-err{animation:pixel-ferr .5s steps(3,end)}",
+  ".pixel-f-ok{animation:pixel-fok " + MOTION.pixelResultFlashMs + "ms steps(3,end)}",
+  ".pixel-f-err{animation:pixel-ferr " + MOTION.pixelResultFlashMs + "ms steps(3,end)}",
   "@keyframes pixel-fok{0%{background:var(--pixel-ok-bg)}100%{background:var(--pixel-paper)}}",
   "@keyframes pixel-ferr{0%{background:var(--pixel-bad-bg)}100%{background:var(--pixel-paper)}}",
-  ".pixel-shake{animation:pixel-shk .4s steps(4,end)}",
+  ".pixel-shake{animation:pixel-shk " + MOTION.pixelShakeMs + "ms steps(4,end)}",
   "@keyframes pixel-shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}",
   // ---- 文字色兜底（2026-10-10 真机修复）----
   // 面板走深色主题，宿主给正文的默认字色是浅色（#e6edf3）。原型的纸面上是深字，但那些元素

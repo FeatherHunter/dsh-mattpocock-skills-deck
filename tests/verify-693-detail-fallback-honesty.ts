@@ -178,8 +178,12 @@ async function loadDetailModule (): Promise<any> {
   //   详情函数现在按全局名字调 issueErrorViewOf。这里同样按「真闭包」口径把它的函数体从产物里切出来拼上，
   //   而不是塞空桩——否则「长 network 回话主行降噪」这条断言测的就不是真实现。
   const errViewSrc = extractFn(bundle, 'const issueErrorViewOf = function')
+  // #1236：详情页的内联转圈时长改从动效令牌 MOTION 取（DSWS 的样式时长唯一真源）。
+  //   与上面两个函数同一口径：把产物里那份 MOTION 对象整段切出来拼上，而不是塞一个抄了数字的空桩，
+  //   否则这里测的就是门禁自己编的时长，实现改成别的值也看不出来。
+  const motionSrc = extractFn(bundle, 'const MOTION = {')
   const dir = mkdtempSync(join(tmpdir(), 'dsws693-'))
-  const code = shim + foldHookSrc + '\n' + errViewSrc + '\n' + ridcSrc + '\nconst renderIssueDetailComments = __ridc\n' + detailFnSrc + '\nexport { IssueDetail }\n'
+  const code = shim + motionSrc + '\n' + foldHookSrc + '\n' + errViewSrc + '\n' + ridcSrc + '\nconst renderIssueDetailComments = __ridc\n' + detailFnSrc + '\nexport { IssueDetail }\n'
   const built = esbuild.transformSync(code, { loader: 'js', format: 'esm' }).code
   const file = join(dir, 'IssueDetail.mjs')
   writeFileSync(file, built, 'utf8')

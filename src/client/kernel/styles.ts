@@ -10,7 +10,8 @@
  * 原位），与 ctx.ts/seam 同模式，源码树里只有这一份真源。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
-declare const CONTAINER_ACCENT: any;
+declare const CONTAINER_ACCENT: any, MOTION: any;
+// #1236：动效时长统一在 kernel/motion.ts 的 MOTION 里（构建把 kernel:motion 排在 kernel:styles 之前拼进来）。
 // #1296：两套容器的身份色只剩中央色表 container-view.ts 的 CONTAINER_ACCENT 一处。本文件的 CSS 在模块
 //   求值时就要拼成一份字符串，而拼接次序由 src/client/index.ts 的标记决定——真机 bundle 里中央色表在前
 //   （kernel:containerView 标记已移到 kernel:styles 之前）；单独 import 本文件的门禁环境里它还不存在，
@@ -34,14 +35,14 @@ const CONTAINER_ACCENT_CSS: any = (typeof CONTAINER_ACCENT === 'object' && CONTA
       '.dsws-tab{padding:4px 10px;border-radius:6px;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);font-size:12px;white-space:nowrap;flex:none;line-height:1.5}',
       '.dsws-tab.on{background:var(--dsw-alias-interactive-bg-active,rgba(255,255,255,.14));color:var(--dsw-alias-label-primary,#e6edf3);border-color:var(--dsw-alias-border-l1,#2a2d35)}',
       // v0.3 渐进式折叠：按钮按 data-priority 逐个折叠（priority 小=重要=晚折叠），max-width 动画平滑过渡
-      '.dsws-tabs .dsws-tab > span:last-child,.dsws-tabs .dsws-btn > span:last-child{max-width:120px;overflow:hidden;white-space:nowrap;transition:max-width .25s ease,opacity .2s ease,margin .25s ease}',
+      '.dsws-tabs .dsws-tab > span:last-child,.dsws-tabs .dsws-btn > span:last-child{max-width:120px;overflow:hidden;white-space:nowrap;transition:max-width ' + MOTION.tabFoldMs + 'ms ease,opacity ' + MOTION.tabFoldFadeMs + 'ms ease,margin ' + MOTION.tabFoldMs + 'ms ease}',
       '.dsws-tabs .dsws-tab.collapsed > span:last-child,.dsws-tabs .dsws-btn.collapsed > span:last-child{max-width:0;opacity:0;margin-left:-4px;margin-right:-4px}',
-      '.dsws-tabs > span:last-child,.dsws-tabs > a:last-child{transition:max-width .25s ease,opacity .2s ease;overflow:hidden;white-space:nowrap}',
+      '.dsws-tabs > span:last-child,.dsws-tabs > a:last-child{transition:max-width ' + MOTION.tabFoldMs + 'ms ease,opacity ' + MOTION.tabFoldFadeMs + 'ms ease;overflow:hidden;white-space:nowrap}',
       // #1285：头部那一行右端改成在办表图标（版本号撤走，版本号进了图标的悬停提示）——
       //   视觉上不是按钮：无边框、无底色，只有字形，悬停时提亮一点。
       '.dsws-tabs .dsws-workroute{color:var(--dsw-alias-label-caption,#8b8b95);display:inline-flex;align-items:center}',
       '.dsws-tabs .dsws-workroute:hover{color:var(--dsw-alias-label-secondary,#a1a1aa)}',
-      '.dsws-tabs .dsws-tab.collapsed,.dsws-tabs .dsws-btn.collapsed{padding-left:6px;padding-right:6px;transition:padding .25s ease}',
+      '.dsws-tabs .dsws-tab.collapsed,.dsws-tabs .dsws-btn.collapsed{padding-left:6px;padding-right:6px;transition:padding ' + MOTION.tabFoldMs + 'ms ease}',
       '.dsws-tabs.dsws-no-anim *,.dsws-tabs.dsws-no-anim{transition:none!important}',
       '.dsws-body{flex:1;overflow-y:auto;padding:10px 12px}',
       '.dsws-stickybar{position:sticky;top:-10px;z-index:5;background:var(--dsw-alias-bg-layer-2,#16181d);margin:-10px -12px 6px;padding:10px 12px 8px;border-bottom:1px solid var(--dsw-alias-border-l1,#2a2d35)}',
@@ -114,7 +115,7 @@ const CONTAINER_ACCENT_CSS: any = (typeof CONTAINER_ACCENT === 'object' && CONTA
       '.dsws-split:hover{border-color:var(--dsw-alias-border-l1,#2a2d35)}',
       '.dsws-split .dsws-split-part{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;cursor:pointer}',
       '.dsws-split .dsws-split-part:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}',
-      '.dsws-split .dsws-split-div{width:1px;height:14px;background:var(--dsw-alias-border-l1,#2a2d35);flex:none;opacity:0;transition:opacity .12s}',
+      '.dsws-split .dsws-split-div{width:1px;height:14px;background:var(--dsw-alias-border-l1,#2a2d35);flex:none;opacity:0;transition:opacity ' + MOTION.hoverFadeMs + 'ms}',
       '.dsws-split:hover .dsws-split-div{opacity:1}',
       '.dsws-timebtn{cursor:pointer;padding:2px 7px;border-radius:99px;border:1px dashed transparent;color:var(--dsw-alias-label-caption,#8b8b95);white-space:nowrap;font-variant-numeric:tabular-nums;flex:none}',
       '.dsws-timebtn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08));border-color:var(--dsw-alias-border-l1,#2a2d35);color:var(--dsw-alias-label-primary,#e6edf3)}',
@@ -195,7 +196,7 @@ const CONTAINER_ACCENT_CSS: any = (typeof CONTAINER_ACCENT === 'object' && CONTA
       '.dsws-tags{display:flex;align-items:center;gap:3px;flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap}',
       '.dsws-tags .dsws-chip{flex:none}',
       // v1.3.3：+N 展开符号整体缩小 20%（padding 8→6px · font 11→9px · line-height 1.7→1.8）
-      '.dsws-more{background:rgba(188,140,255,.1);color:#bc8cff;border:1px dashed rgba(188,140,255,.55);cursor:pointer;flex:none;transition:background .12s,border-color .12s;padding:0 6px;font-size:9px;line-height:1.8}',
+      '.dsws-more{background:rgba(188,140,255,.1);color:#bc8cff;border:1px dashed rgba(188,140,255,.55);cursor:pointer;flex:none;transition:background ' + MOTION.hoverFadeMs + 'ms,border-color ' + MOTION.hoverFadeMs + 'ms;padding:0 6px;font-size:9px;line-height:1.8}',
       '.dsws-more:hover{background:rgba(188,140,255,.22);border-color:rgba(188,140,255,.8)}',
       // v1.3.3 UI：行1 编号 + map 徽章竖排（标题获得更宽展示区）
       '.dsws-idcol{display:flex;flex-direction:column;align-items:flex-start;gap:3px;flex:none}',
@@ -286,14 +287,14 @@ const CONTAINER_ACCENT_CSS: any = (typeof CONTAINER_ACCENT === 'object' && CONTA
       '.dsws-ccard .dt{font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa)}',
       '.dsws-ccard .act{margin-top:5px;display:flex;gap:6px}',
       // v1.5 T10 R7：刷新遮罩已废除（手动刷新走静默路径）；spinner 仅首开 loading 用
-      '.dsws-spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.18);border-top-color:' + CONTAINER_ACCENT_CSS.map + ';animation:dsws-spin .8s linear infinite;flex:none}',
+      '.dsws-spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.18);border-top-color:' + CONTAINER_ACCENT_CSS.map + ';animation:dsws-spin ' + MOTION.spinMs + 'ms linear infinite;flex:none}',
       '@keyframes dsws-spin{to{transform:rotate(360deg)}}',
       // v1.5 T10：刷新入口按钮内联转圈（非阻塞反馈 · R7 反馈半）+ R5 变化行高亮（变更琥珀渐隐 / 新增绿闪）
-      '.dsws-spin{display:inline-flex;animation:dsws-spin .8s linear infinite}',
+      '.dsws-spin{display:inline-flex;animation:dsws-spin ' + MOTION.spinMs + 'ms linear infinite}',
       '@keyframes dsws-flash-amber{0%{background-color:rgba(251,191,36,.20)}100%{background-color:transparent}}',
       '@keyframes dsws-flash-green{0%{background-color:rgba(74,222,128,.20)}100%{background-color:transparent}}',
-      '.dsws-row-changed{animation:dsws-flash-amber 2.4s ease-out 1}',
-      '.dsws-row-added{animation:dsws-flash-green 2.4s ease-out 1}',
+      '.dsws-row-changed{animation:dsws-flash-amber ' + MOTION.rowFlashMs + 'ms ease-out 1}',
+      '.dsws-row-added{animation:dsws-flash-green ' + MOTION.rowFlashMs + 'ms ease-out 1}',
       // v25 · T2b：配置页（settings.plugins.tab）专用样式
       '.dsws-cfg{max-width:720px;display:flex;flex-direction:column;gap:12px;padding:2px 2px 4px}',
       '.dsws-cfg-head{display:flex;align-items:center;gap:10px}',
@@ -311,14 +312,14 @@ const CONTAINER_ACCENT_CSS: any = (typeof CONTAINER_ACCENT === 'object' && CONTA
       '.dsws-cfg-seg button.on{background:' + CONTAINER_ACCENT_CSS.map + ';color:#140a1e;font-weight:600}',
       '.dsws-cfg-sw{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:12px}',
       '.dsws-cfg-sw input{display:none}',
-      '.dsws-cfg-sw .tr{width:34px;height:19px;border-radius:99px;background:var(--dsw-alias-bg-layer-3,#0c0e12);border:1px solid var(--dsw-alias-border-l1,#2a2d35);position:relative;flex:none;transition:background .15s,border-color .15s}',
-      '.dsws-cfg-sw .tr::after{content:"";position:absolute;left:2px;top:2px;width:13px;height:13px;border-radius:50%;background:var(--dsw-alias-label-caption,#8b8b95);transition:transform .15s,background .15s}',
+      '.dsws-cfg-sw .tr{width:34px;height:19px;border-radius:99px;background:var(--dsw-alias-bg-layer-3,#0c0e12);border:1px solid var(--dsw-alias-border-l1,#2a2d35);position:relative;flex:none;transition:background ' + MOTION.toggleMs + 'ms,border-color ' + MOTION.toggleMs + 'ms}',
+      '.dsws-cfg-sw .tr::after{content:"";position:absolute;left:2px;top:2px;width:13px;height:13px;border-radius:50%;background:var(--dsw-alias-label-caption,#8b8b95);transition:transform ' + MOTION.toggleMs + 'ms,background ' + MOTION.toggleMs + 'ms}',
       '.dsws-cfg-sw input:checked + .tr{background:rgba(192,132,252,.22);border-color:rgba(192,132,252,.55)}',
       '.dsws-cfg-sw input:checked + .tr::after{transform:translateX(15px);background:' + CONTAINER_ACCENT_CSS.map + '}',
       '.dsws-cfg-ta{width:100%;min-height:56px;background:var(--dsw-alias-bg-layer-2,#16181d);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;color:var(--dsw-alias-label-primary,#e6edf3);font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);font-size:11.5px;line-height:1.6;padding:7px 9px;box-sizing:border-box;resize:none;overflow:hidden}',
       '.dsws-cfg-ta:focus{outline:none;border-color:rgba(192,132,252,.6)}',
       '.dsws-cfg-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0}',
-      '.dsws-cfg-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:99px;font-size:11px;font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);cursor:pointer;background:rgba(188,140,255,.14);color:#bc8cff;border:1px solid rgba(188,140,255,.35);transition:background .12s}',
+      '.dsws-cfg-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:99px;font-size:11px;font-family:var(--ds-font-family-code,Consolas,Menlo,monospace);cursor:pointer;background:rgba(188,140,255,.14);color:#bc8cff;border:1px solid rgba(188,140,255,.35);transition:background ' + MOTION.hoverFadeMs + 'ms}',
       '.dsws-cfg-chip:hover{background:rgba(188,140,255,.26)}',
       '.dsws-cfg-chip.req{background:rgba(248,113,113,.14);color:#f87171;border-color:rgba(248,113,113,.45)}',
       '.dsws-cfg-chip.req:hover{background:rgba(248,113,113,.26)}',
@@ -353,5 +354,5 @@ const CONTAINER_ACCENT_CSS: any = (typeof CONTAINER_ACCENT === 'object' && CONTA
       '.dsws-no-repo-form .hint{font-size:10px;color:var(--dsw-alias-label-caption,#8b8b95);margin-top:2px}',
       '.dsws-no-repo-form .radio{display:inline-flex;align-items:center;gap:4px;font-size:11px;cursor:pointer}',
       // #876 自有更新弹窗与待重启提示已删（按钮与面板走包的入口件，样式由包自带）：下掉旧排版，只留版本管理页的链接行样式。
-      '.dsws-vc-link{color:var(--dsw-alias-interactive-bg-primary,' + CONTAINER_ACCENT_CSS.map + ');cursor:pointer;text-decoration:none}.dsws-vc-link:hover{text-decoration:underline;filter:brightness(1.12)}.dsws-vc-row{border-radius:6px;padding:2px 6px;margin-left:-6px;transition:background .12s ease}.dsws-vc-row:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.06))}.dsws-vc-card{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;padding:6px 8px;background:var(--dsw-alias-bg-layer-3,#0c0e12)}.dsws-vc-diff{font-family:ui-monospace,Consolas,Menlo,monospace;font-size:11px;line-height:1.55;max-height:320px;overflow:auto}.dsws-vc-caption{font-size:11px;color:var(--dsw-alias-label-caption,#8b8b95)}.dsws-vc-sep+.dsws-vc-sep{border-top:1px solid var(--dsw-alias-border-l1,#2a2d35)}', // #842 界面打磨（task-61）：版本管理页里那几处「看着像没上样式」的元素的统一取色与悬停；取值风格照既有 .dsws-* 与主题变量（--dsw-alias-*），浅深色都跟着主题走
+      '.dsws-vc-link{color:var(--dsw-alias-interactive-bg-primary,' + CONTAINER_ACCENT_CSS.map + ');cursor:pointer;text-decoration:none}.dsws-vc-link:hover{text-decoration:underline;filter:brightness(1.12)}.dsws-vc-row{border-radius:6px;padding:2px 6px;margin-left:-6px;transition:background ' + MOTION.hoverFadeMs + 'ms ease}.dsws-vc-row:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.06))}.dsws-vc-card{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;padding:6px 8px;background:var(--dsw-alias-bg-layer-3,#0c0e12)}.dsws-vc-diff{font-family:ui-monospace,Consolas,Menlo,monospace;font-size:11px;line-height:1.55;max-height:320px;overflow:auto}.dsws-vc-caption{font-size:11px;color:var(--dsw-alias-label-caption,#8b8b95)}.dsws-vc-sep+.dsws-vc-sep{border-top:1px solid var(--dsw-alias-border-l1,#2a2d35)}', // #842 界面打磨（task-61）：版本管理页里那几处「看着像没上样式」的元素的统一取色与悬停；取值风格照既有 .dsws-* 与主题变量（--dsw-alias-*），浅深色都跟着主题走
     ].join('')

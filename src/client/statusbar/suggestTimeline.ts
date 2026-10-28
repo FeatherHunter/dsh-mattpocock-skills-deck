@@ -10,6 +10,7 @@
 // 契约（与仓库其它叶子文件同一套）：模块真源是 ESM 导出，构建时剥掉行首 export 拼进 apply
 // 闭包；运行时不许跨文件 import；不许 export default；只写可剥离的 TypeScript。
 declare const SUGGEST_APPEARANCE: any;
+declare const MOTION: any; // #1236 动效时长统一在 kernel/motion.ts，本文件只引用不写真值
 
 /** 把数字夹在区间里；不是有限数就退回下限。 */
 function suggestClampNumber(value: any, min: number, max: number) {
@@ -124,8 +125,8 @@ export const suggestBubblePlan = function (layout: any, rand: any) {
     }
     const toX = pillLeft + pillWidth * (SUGGEST_APPEARANCE.bubbleArriveMinRatio + random() * SUGGEST_APPEARANCE.bubbleArriveSpanRatio)
     const toY = pillTop + pillHeight * (SUGGEST_APPEARANCE.bubbleArriveRowMinRatio + random() * SUGGEST_APPEARANCE.bubbleArriveRowSpanRatio)
-    const delayMs = random() * SUGGEST_APPEARANCE.bubbleDelayMaxMs
-    const durationMs = SUGGEST_APPEARANCE.bubbleTravelMinMs + random() * (SUGGEST_APPEARANCE.bubbleTravelMaxMs - SUGGEST_APPEARANCE.bubbleTravelMinMs)
+    const delayMs = random() * MOTION.suggestBubbleDelayMaxMs
+    const durationMs = MOTION.suggestBubbleTravelMinMs + random() * (MOTION.suggestBubbleTravelMaxMs - MOTION.suggestBubbleTravelMinMs)
     const ease = eases[Math.floor(random() * eases.length) % eases.length]
     const sway = (random() * 2 - 1) * SUGGEST_APPEARANCE.bubbleSwayPx
     bubbles.push({ size: size, fromX: fromX, fromY: fromY, toX: toX, toY: toY, delayMs: delayMs, durationMs: durationMs, ease: ease, sway: sway })
@@ -167,8 +168,8 @@ export const suggestPickPlan = function (layout: any, rand: any) {
       const fromX = pillLeft + pillWidth * (0.2 + random() * 0.6)
       const fromY = pillTop + pillHeight * (0.25 + random() * 0.5)
       const rise = SUGGEST_APPEARANCE.pickBubbleRiseMinPx + random() * (SUGGEST_APPEARANCE.pickBubbleRiseMaxPx - SUGGEST_APPEARANCE.pickBubbleRiseMinPx)
-      const delayMs = random() * SUGGEST_APPEARANCE.pickBubbleDelayMaxMs
-      const durationMs = SUGGEST_APPEARANCE.pickBubbleTravelMinMs + random() * (SUGGEST_APPEARANCE.pickBubbleTravelMaxMs - SUGGEST_APPEARANCE.pickBubbleTravelMinMs)
+      const delayMs = random() * MOTION.suggestPickBubbleDelayMaxMs
+      const durationMs = MOTION.suggestPickBubbleTravelMinMs + random() * (MOTION.suggestPickBubbleTravelMaxMs - MOTION.suggestPickBubbleTravelMinMs)
       const ease = eases[Math.floor(random() * eases.length) % eases.length]
       const sway = (random() * 2 - 1) * SUGGEST_APPEARANCE.pickBubbleSwayPx
       endMs = Math.max(endMs, delayMs + durationMs)

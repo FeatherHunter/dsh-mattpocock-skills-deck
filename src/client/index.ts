@@ -100,6 +100,10 @@ export default {
     // ==== kernel:backendList (spliced by build) ====
     // ==== kernel:link (spliced by build) ====
 
+    // #1236：界面动效时长的唯一真源（MOTION）。样式文本在模块求值时就要拼好，
+    //   所以这一片必须排在 kernel:styles 之前（const 有暂时性死区）。
+    // ==== kernel:motion (spliced by build) ====
+
     // ==== kernel:styles (spliced by build) ====
     styles.insert(STYLE_TEXT)
     // #851：版本管理页签的视觉语言另起一个样式叶子（styles.js 已 350/350 是冻结基线）。

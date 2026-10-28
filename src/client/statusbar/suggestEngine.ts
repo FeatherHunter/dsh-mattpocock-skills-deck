@@ -18,6 +18,7 @@
 // 契约（与仓库其它叶子文件同一套）：模块真源是 ESM 导出，构建时剥掉行首 export 拼进 apply
 // 闭包；运行时不许跨文件 import；不许 export default；只写可剥离的 TypeScript。
 declare const SUGGEST_APPEARANCE: any;
+declare const MOTION: any; // #1236 动效时长统一在 kernel/motion.ts，本文件只引用不写真值
 declare function suggestBubblePlan(layout: any, rand?: any): any;
 declare function suggestPickPlan(layout: any, rand?: any): any;
 declare function suggestRowOpacity(landed: any, total: any): number;
@@ -194,7 +195,7 @@ export const createSuggestEngine = function (layerEl: any) {
         if (xrow && xrow.style) xrow.style.opacity = String(suggestCloseOpacity(landed, total))
       } catch (eTick) {}
       if (landed >= total) {
-        cleanupTimer = setTimeout(function () { cleanupTimer = 0; if (!disposed) settle() }, SUGGEST_APPEARANCE.bubbleCleanupDelayMs)
+        cleanupTimer = setTimeout(function () { cleanupTimer = 0; if (!disposed) settle() }, MOTION.suggestBubbleCleanupDelayMs)
         return
       }
       frame = requestAnimationFrame(tick)
@@ -241,7 +242,7 @@ export const createSuggestEngine = function (layerEl: any) {
       outTimer = 0
       if (disposed) return
       try { if (typeof done === 'function') done() } catch (eDone) {}
-    }, (Number(plan.endMs) || 0) + (Number(SUGGEST_APPEARANCE.pickBubbleTailMs) || 0))
+    }, (Number(plan.endMs) || 0) + (Number(MOTION.suggestPickBubbleTailMs) || 0))
     return true
   }
 
@@ -255,7 +256,7 @@ export const createSuggestEngine = function (layerEl: any) {
     stopEntrance()
     clearBubbles()
     const cls = 'dsws-sugg-fading'
-    const wait = SUGGEST_APPEARANCE.fadeMs
+    const wait = MOTION.suggestFadeMs
     try { if (layerEl.classList) layerEl.classList.add(cls) } catch (eClass) { return false }
     outTimer = setTimeout(function () {
       outTimer = 0
