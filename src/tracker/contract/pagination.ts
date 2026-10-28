@@ -58,6 +58,7 @@ export const PAGINATION = {
     anchorLookupListLimit: 100,
     // 依赖投影：blockedBy 与 blocking 两条连接各最多一次取 50 条（到顶时要能如实说「可能不全」）。
     depsMax: 50,
+    mapListMaxPages: 10,
   },
   gitlab: {
     // 分页契约：与 GitHub 房同一套（缺省 50、上限 200）。

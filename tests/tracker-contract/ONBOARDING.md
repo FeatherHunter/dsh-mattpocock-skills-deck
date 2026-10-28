@@ -30,11 +30,11 @@
   - `platform`: 已按 #129 三底座实现的 OS 抽象（`getHome/path/resolveExecutable/fs/env`），**不可**在后端内自拼 `C:\` 或直接 `import('node:fs')`。
   - `fs`/`exec`/`timers`/`log` 由宿主经此 `ctx` 注入；后端只用它们。
   - 实现**只写你真会的**：`create` 返回对象里只放你实现的 op；**缺的方法不手写，由 `src/tracker/registry/shape.ts` 的 Proxy 自动补 `unsupported` 桩**（能力零声明，G5）。
-- 23 条操作（`OpName`，名录 `OPERATIONS` 的真源在 `src/tracker/contract/operations-catalog.ts`）按需实现：
+- 24 条操作（`OpName`，名录 `OPERATIONS` 的真源在 `src/tracker/contract/operations-catalog.ts`）按需实现：
 
   ```
   preflight, list, get, getDependencies, create, close, reopen, comment, update, setLabels, setAssignees, setParent, setBlockedBy,
-  getCurrentUser, initProject, listLabels, setLabelColors, counts, listPage, getRepoPermissions, listSubIssues, ensureLabelColorsFile, readBudget
+  getCurrentUser, initProject, listLabels, setLabelColors, counts, listPage, getRepoPermissions, listSubIssues, ensureLabelColorsFile, listMaps, readBudget
   ```
 
   - 未实现 → 返回 `{ ok:false, error:{ kind:'unsupported' } }`（由 Proxy 兜底，你也可显式返回）。
@@ -67,7 +67,7 @@ export const myBudget = {
 
 **⑤-b 额度读数 readBudget 的三态**
 
-`readBudget` 是操作名录里的第 23 条（整套能力名录的第 26 条）。它只回答事实，不裁决、不记账、不抛；四种形状都必须诚实：
+`readBudget` 是操作名录里的第 24 条（整套能力名录的第 27 条）。它只回答事实，不裁决、不记账、不抛；四种形状都必须诚实：
 
 ```ts
 // 读到了：已知的额度口径与剩余（GitHub 是两个互相独立的桶）

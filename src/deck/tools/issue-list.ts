@@ -101,6 +101,94 @@ function rowKindOf(issue: Record<string, unknown> | null | undefined): string {
   } catch (e) { return 'issue' }
 }
 
+/** 地图薄查认的标签（写死小写）：发给服务端的筛子与内存二次校验都用它，大小写输入先归一到它再比。 */
+export const THIN_MAP_LABEL = 'wayfinder:map'
+
+/** 分流判定的输入（调用方已收口的值：type 是小写四档之一，assignee/query 已 trim+小写，effortId 是 scope 收口后的目录名）。 */
+export interface ThinRouteInput {
+  /** 已收口的 type（issue | map | spec | all）。 */
+  type: string
+  /** 原始 labels（本函数内逐项 trim+小写后再判，调用方不用先归一）。 */
+  labels: unknown
+  /** 已 trim+小写 的 assignee（空串表示没筛）。 */
+  assignee: string
+  /** 已 trim+小写 的 query（空串表示没搜）。 */
+  query: string
+  /** scope 收口后的目录名（空串表示不限）。 */
+  effortId: string
+}
+
+/**
+ * 纯地图筛才走薄查（#1604）：只筛地图标签的列表走 listMaps 快速回，其余一律走老全量路径。
+ *
+ * 走薄查当且仅当同时满足这五条（按要不要正文分流，不按调用方名字分流）：
+ * 一、没带文本搜（query 要读标题加正文，薄行没有正文）；
+ * 二、没带指派筛（assignee 细筛后要正文确认，薄行没有认领格）；
+ * 三、没带目录限定（effortId 薄行没有这格，老路才懂）；
+ * 四、type 不是 spec/issue（规格识别要读票面标记，普通票薄行里根本没有）；
+ * 五、labels 非空且逐项归一后全是地图标签（没筛标签就不是纯地图筛，掺了别的标签薄行对不上）。
+ * 大小写输入一视同仁：逐项 trim+小写后再比，大写筛与小写筛走同一条路。
+ */
+export function shouldUseThinMapList(opts: ThinRouteInput): boolean {
+  try {
+    const o = (opts || {}) as unknown as Record<string, unknown>
+    if (String(o.query || '')) return false
+    if (String(o.assignee || '')) return false
+    if (String(o.effortId || '')) return false
+    const t = String(o.type || 'all')
+    if (t === 'spec' || t === 'issue') return false
+    if (t !== 'map' && t !== 'all') return false
+    const raw = Array.isArray(o.labels) ? (o.labels as unknown[]) : []
+    const lows = raw.map((x) => String(x).trim().toLowerCase()).filter(Boolean)
+    if (!lows.length) return false
+    for (const l of lows) if (l !== THIN_MAP_LABEL) return false
+    return true
+  } catch (e) { return false }
+}
+
+/** 薄查回来的行形状（listMaps 的 MapRow：只有画清单要的四格）。 */
+export interface ThinMapRow {
+  key: unknown
+  title: unknown
+  state: unknown
+  url: unknown
+}
+
+/**
+ * 薄行转列表行（#1604）：type 写死地图，labels 写死小写单个地图标签。
+ *
+ * 薄行本来就没有的格如实留空（认领、更新时间、目录、父票）：纯地图筛的调用方只看
+ * key/title/state/url 四格，空串与 null 不是缺行（行数不缺），与 deck_context 首屏
+ * 拿薄行直接画清单同一口径。state 在这里再按调用方的要求过滤一次（薄查内部两种
+ * 状态都要，all 全留，其余只留对上的那一档），顺序沿用薄查交出来的更新时间倒序。
+ */
+export function thinMapRowsToIssues(rows: ThinMapRow[] | unknown, opts: { state: string }): Record<string, unknown>[] {
+  try {
+    const list = Array.isArray(rows) ? rows : []
+    const want = String((opts && opts.state) || 'all').toLowerCase()
+    const out: Record<string, unknown>[] = []
+    for (const r of list) {
+      if (!r || typeof r !== 'object') continue
+      const rec = r as Record<string, unknown>
+      const st = String(rec.state || '').toLowerCase() === 'closed' ? 'closed' : 'open'
+      if (want !== 'all' && st !== want) continue
+      out.push({
+        key: rec.key,
+        title: rec.title,
+        state: st,
+        type: 'map',
+        labels: [THIN_MAP_LABEL],
+        assignees: [],
+        updatedAt: '',
+        url: rec.url || '',
+        effortId: '',
+        parentKey: null,
+      })
+    }
+    return out
+  } catch (e) { return [] }
+}
+
 /**
  * 装配层调一次，拿到这对 { definition, run }。deps 是宿主注入的依赖袋（见 DeckIssueListDeps），
  * 什么都不给也能跑：壳与这里的每一处都各自退默认。
@@ -161,6 +249,63 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       const filter: Record<string, unknown> = {}
       if (state !== 'all') filter.state = state
       if (type !== 'all') filter.type = type
+      // #1604：纯地图筛走薄查快速回（只筛地图标签、不读正文时调 listMaps），
+      // 其余（文本搜、规格识别、指派、目录限定、掺杂其它标签）一律走下面的老全量路径。
+      // 薄查只有「不支持」才回落：超时与传输失败直接失败，不拿半份当整仓。
+      if (shouldUseThinMapList({ type: type, labels: wantLabels, assignee: wantAssignee, query: wantQuery, effortId: (scope && scope.effortId) || '' }) && typeof t.listMaps === 'function') {
+        const thin = await t.listMaps(repo, opCtx)
+        const thinBody = (thin || {}) as { ok?: unknown; error?: { kind?: unknown; message?: unknown }; data?: { rows?: unknown; total?: unknown; truncated?: unknown } }
+        const thinUnsupported = thinBody.ok === false && thinBody.error && String(thinBody.error.kind) === 'unsupported'
+        if (!thinUnsupported) {
+          if (thinBody.ok !== true) {
+            const thinMsg = String((thinBody.error && thinBody.error.message) || '后端没给出原因').slice(0, 300)
+            return {
+              value: {
+                status: DECK_STATUS.UNSUPPORTED,
+                reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
+                text: 'ISSUE 列表没取回来（后端原话：' + thinMsg + '）。',
+                data: { error: { kind: String((thinBody.error && thinBody.error.kind) || ''), message: thinMsg } },
+              },
+              claimed: { requests: 1, points: 3 },
+            }
+          }
+          const thinRows = (thinBody.data && Array.isArray(thinBody.data.rows)) ? thinBody.data.rows : []
+          const mapped = thinMapRowsToIssues(thinRows as ThinMapRow[], { state: state })
+          const thinTotal = mapped.length
+          const thinSliced = mapped.slice(0, limit)
+          const thinTruncated = thinTotal > thinSliced.length
+          const thinCond = []
+          thinCond.push('state=' + state)
+          if (type !== 'all') thinCond.push('type=' + type)
+          if (wantLabels.length) thinCond.push('label=' + wantLabels.join('&'))
+          const thinNotes = ['这次走地图薄查快速回（只筛地图标签，不读正文）。']
+          if (thinBody.data && thinBody.data.truncated === true) thinNotes.push('地图只取回了前 ' + mapped.length + ' 张（共 ' + String(thinBody.data.total) + ' 张，撞到封顶页数），剩下的这次没拿。')
+          if (thinTruncated) thinNotes.push('只回前 ' + thinSliced.length + ' 行（共 ' + thinTotal + ' 行符合）：收窄过滤或调大 limit 再取一次。')
+          const thinRawUsage: unknown = (thin as { usage?: unknown }).usage
+          const thinUsageObj: { requests?: unknown; points?: unknown } = (thinRawUsage !== null && typeof thinRawUsage === 'object') ? (thinRawUsage as { requests?: unknown; points?: unknown }) : {}
+          const thinClaimed = (typeof thinUsageObj.requests === 'number' && typeof thinUsageObj.points === 'number')
+            ? { requests: thinUsageObj.requests, points: thinUsageObj.points }
+            : { requests: 1, points: 2 }
+          const thinOpId = String(((opCtx as Record<string, unknown> | null | undefined) || {}).opId || '')
+          const thinData: Record<string, unknown> = {
+            total: thinTotal,
+            returned: thinSliced.length,
+            truncated: thinTruncated,
+            issues: thinSliced,
+            opId: thinOpId,
+          }
+          return {
+            value: {
+              status: DECK_STATUS.OK,
+              text: 'ISSUE 列表：共 ' + thinTotal + ' 行符合（' + thinCond.join('，') + '），回 ' + thinSliced.length + ' 行。',
+              data: thinData,
+              notes: thinNotes,
+              touched: [],
+            },
+            claimed: thinClaimed,
+          }
+        }
+      }
       const listed = await t.list(repo, filter, opCtx)
       if (!listed || listed.ok !== true) {
         const msg = String((listed && listed.error && listed.error.message) || '后端没给出原因').slice(0, 300)

@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T10:29:53.032Z",
+  "generatedAt": "2026-10-28T10:53:24.665Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 416,
-  "gateCount": 416,
-  "attributedGates": 373,
+  "chainLength": 418,
+  "gateCount": 418,
+  "attributedGates": 375,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 17,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 603,
+  "graphFileCount": 604,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4131,6 +4131,36 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 2 条"
+    },
+    {
+      "step": "node tests/verify-1603-map-thin-list.ts",
+      "file": "tests/verify-1603-map-thin-list.ts",
+      "guards": [
+        "src/tracker/rooms/github/maps.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1604-pure-map-routing.ts",
+      "file": "tests/verify-1604-pure-map-routing.ts",
+      "guards": [
+        "src/deck/tools/issue-list.ts"
+      ],
+      "dirs": [
+        "src/deck/tools"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -10578,6 +10608,7 @@
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1559-deck-output-lossless.ts",
       "node tests/verify-1583-repo-ref-fallback.ts",
+      "node tests/verify-1604-pure-map-routing.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -11251,6 +11282,7 @@
       "node tests/verify-1532-github-close-reason.ts",
       "node tests/verify-1533-git-remote-claim.ts",
       "node tests/verify-1571-gh-flag-writing.ts",
+      "node tests/verify-1603-map-thin-list.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -11619,9 +11651,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 624,
+    "fileCount": 625,
     "dirCount": 74,
-    "coveredFileCount": 624,
+    "coveredFileCount": 625,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -12160,6 +12192,7 @@
       "src/tracker/rooms/github/issues.ts",
       "src/tracker/rooms/github/label-colors-ops.ts",
       "src/tracker/rooms/github/labels.ts",
+      "src/tracker/rooms/github/maps.ts",
       "src/tracker/rooms/github/normalize.ts",
       "src/tracker/rooms/github/op-usage.ts",
       "src/tracker/rooms/github/page.ts",
