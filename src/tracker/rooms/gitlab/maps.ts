@@ -101,7 +101,7 @@ export async function listMaps(
       const res = await c.run(['api', apiPath], { timeout: GITLAB_SLOW_READ_TIMEOUT_MS })
       if (res.code !== 0) {
         // 原文 = 断掉的那一次 glab 调用的进程结果：此前页攒的行全部作废，不回半份。
-        return failGlab(res, res.stderr || res.stdout || 'listMaps failed', res, opCtx)
+        return failGlab(res, res.stderr || res.stdout || 'listMaps failed', res, opCtx ?? undefined)
       }
       const arr: unknown = parseJsonSafe(res.stdout)
       // 原文 = 远端回的那一段：不是数组就整趟失败，人据此看出服务端到底回了什么形状。
@@ -123,7 +123,7 @@ export async function listMaps(
     }
   } catch (err: unknown) {
     // 原文 = 抛上来的那个 Error（超时、执行器故障都在这里）：如实失败，不回落。
-    return failGlab(err, errMsg(err), err, opCtx)
+    return failGlab(err, errMsg(err), err, opCtx ?? undefined)
   }
   // 更新时间倒序：缺时间的沉底（空串最小），同时间按抓取序（稳定，不让人猜）。
   kept.sort((a, b) => {

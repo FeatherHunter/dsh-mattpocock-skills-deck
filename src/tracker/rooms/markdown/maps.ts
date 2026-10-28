@@ -68,7 +68,7 @@ export async function listMaps(
       // 原文 = 每张读不动的票“编号（文件）+ 判出来的档位 + 那句错误”，一行一张。
       return failAs(kind, mapReadFailureMessage(errors), errors.map(function (e) {
         return String(e.key) + ' ' + String(e.path) + ' [' + String(e.kind || '') + '] ' + String(e.message || '')
-      }).join('\n'))
+      }).join('\n')) as OpResult<MapListResult>
     }
     const kept: { row: MapRow; updatedAt: string; seq: number }[] = []
     let seq = 0
@@ -94,7 +94,8 @@ export async function listMaps(
   } catch (e) {
     // 枚举这一层之外冒上来的故障（列工作单元、读目录……）：整条失败，日志留一行“停在哪条操作”。
     emitReadDegraded(ctx, 'list', 'list:fs-fail', Date.now() - t0)
-    return failFromError(e, ctx, '拉这个工作区的地图清单时出错')
+    // 房里 failAs 家族回的是宽 kind（string），运行时值就是自家判据定的档位，转成契约要的窄类型不断言不改值。
+    return failFromError(e, ctx, '拉这个工作区的地图清单时出错') as OpResult<MapListResult>
   }
 }
 
