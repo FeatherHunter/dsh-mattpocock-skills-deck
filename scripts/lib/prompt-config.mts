@@ -18,15 +18,18 @@
  *   · PROMPT_FRAGMENT_IDS —— 三处片段 id（newBugFields / newWayfinderWiring / vocabularyDefaults）。
  *     模板一份字面量有版本号与 placeholders 两类元字段，片段只装 zh/en 两份 —— 不是模板，
  *     分类不同。门禁与生成器都按片段口径核（zh/en 必含，占位符用法单独看）。
- *   · PROMPT_SHARED_SECTION_IDS —— 跨族公共小节（今天两节：sharedTools「## 工具」三条、
- *     investigation「## 调查（建议先查后问）」四条）。
+ *   · PROMPT_SHARED_SECTION_IDS —— 公共小节（今天四节：sharedTools「## 工具」三条、
+ *     investigation「## 调查（建议先查后问）」四条、mapTicketAdvance（讨论 / 执行 / 研究三条动作模板
+ *     注入的同一段正文）、repoBootstrap（setupRun 与 switchAlign 共用的初始化正文））。
  *     它们不属于任何一族，单独住在 config/prompts/shared-sections.yaml；模板正文里写
  *     {{shared:<id>}}，readPromptConfig 展开时把对应语言的正文整段换进去。
  *     这样一节正文只写一遍、引用它的模板只写标记，不会再出现改一处漏其余的情况。
+ *     小节正文里也可以再写标记（mapTicketAdvance 嵌着 investigation 与 sharedTools），读取时逐层展开。
  *   · readPromptYamls —— 读五份提示词 YAML 与一份语言清单，返回结构化对象。
  *     YAML 真读不到 / 解析失败 / 顶层形状不对一律报错（不静默返回空）。
  *   · readSharedSections + expandSharedSections —— 读公共小节 YAML，并在读配置时把模板里的
- *     {{shared:<id>}} 标记展开成正文；标记不展开就进提示词比缺一段更难查，所以两处都当场抛错。
+ *     {{shared:<id>}} 标记逐层展开成正文；标记不展开就进提示词比缺一段更难查，所以未登记的 id、
+ *     互相引用成环、展开后仍有残留标记三处都当场抛错。
  *   · validatePromptData —— 照 PROMPT_TEMPLATE_IDS / PROMPT_FRAGMENT_IDS 核 YAML 字段：
  *     zh/en 必含且非空、占位符声明必须用全（声明但未用、用但未声明都红）、
  *     use 字段只许在模板条目上出现、元字段齐全。
@@ -215,16 +218,16 @@ export const PROMPT_YAML_PATHS: ReadonlyArray<string> = [
 ]
 
 // ---------------------------------------------------------------------------
-// 跨族公共小节
+// 公共小节
 // ---------------------------------------------------------------------------
 
-/** 跨族公共小节 YAML 的路径（以 repoRoot 为根的相对路径）。
+/** 公共小节 YAML 的路径（以 repoRoot 为根的相对路径）。
  *  它不在 PROMPT_YAML_PATHS 里：那份清单是「五份族文件 + 语言清单」，族按注入时机分；
  *  公共小节不属于任何时机，只属于「多处共用」，所以单独一份、单独一条读取路径。 */
 export const PROMPT_SHARED_SECTIONS_REL = 'config/prompts/shared-sections.yaml'
 
 /** 公共小节 id 清单。新增一节时改这一处，YAML 顶层键必须与它逐项相等。 */
-export const PROMPT_SHARED_SECTION_IDS: ReadonlyArray<string> = ['sharedTools', 'investigation']
+export const PROMPT_SHARED_SECTION_IDS: ReadonlyArray<string> = ['sharedTools', 'investigation', 'mapTicketAdvance', 'repoBootstrap']
 
 /** 一个公共小节的形状：只装 zh/en 两份正文，没有版本号与占位符（它不是一条模板）。 */
 export interface SharedSectionShape {
@@ -234,12 +237,14 @@ export interface SharedSectionShape {
 
 /** 模板正文里引用公共小节的标记：`{{shared:<id>}}`。
  *  写成双花括号加冒号是故意的——占位符校验认的是 `{x}`（`/\{(\w+)\}/`），
- *  两者不同形，标记不会被误当成占位符，也不会因为占位符双向校验而红。 */
-const SHARED_MARKER_RE = /\{\{shared:([A-Za-z0-9_-]+)\}\}/g
+ *  两者不同形，标记不会被误当成占位符，也不会因为占位符双向校验而红。
+ *  这里存的是不带 g 标志的原型：展开时按它的 source 现造带 g 的实例，
+ *  免得嵌套展开共用一个全局正则、lastIndex 互相踩。 */
+const SHARED_MARKER_RE = /\{\{shared:([A-Za-z0-9_-]+)\}\}/
 
 /**
  * 读公共小节 YAML：顶层键必须与 PROMPT_SHARED_SECTION_IDS 逐项相等，每节 zh/en 非空。
- * 读不到 / 解析错 / 多键少键 / 空正文一律抛错——公共小节缺一节，20 个模板会同时缺一段话，
+ * 读不到 / 解析错 / 多键少键 / 空正文一律抛错——公共小节缺一节，引用它的模板会同时缺一段话，
  * 这种故障不能静默放行。
  */
 export function readSharedSections(repoRoot: string): Record<string, SharedSectionShape> {
@@ -248,7 +253,7 @@ export function readSharedSections(repoRoot: string): Record<string, SharedSecti
   try {
     text = fs.readFileSync(abs, 'utf8')
   } catch {
-    throw new Error('读不到 ' + PROMPT_SHARED_SECTIONS_REL + '：跨族公共小节缺一不可')
+    throw new Error('读不到 ' + PROMPT_SHARED_SECTIONS_REL + '：公共小节缺一不可')
   }
   const doc = yaml.parse(text) as unknown
   if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
@@ -279,38 +284,75 @@ export function readSharedSections(repoRoot: string): Record<string, SharedSecti
 }
 
 /**
- * 把模板正文里的 `{{shared:<id>}}` 展开成对应语言的公共小节正文。
+ * 把模板正文里的 `{{shared:<id>}}` 逐层展开成对应语言的公共小节正文。
  *
  * 展开放在读取这一层（readPromptConfig 里）：生成物、门禁、单文件探针拿到的都是展开后的完整正文，
  * 不需要各自再实现一遍替换；生成器的产物形状也就不用变。
- * 引用未登记的 id、或展开后仍残留标记，都当场抛错——半截正文进了提示词，比缺一段更难查。
+ * 小节正文里可以再写标记（mapTicketAdvance 里嵌着 investigation 与 sharedTools），
+ * 所以先把每个被引用的小节解析到「不含任何标记」的终态，再展开模板；同一节只解析一次。
+ * 引用了未登记的 id、小节互相引用成环、展开后仍残留标记，都当场抛错——半截正文进了提示词，比缺一段更难查。
  */
 export function expandSharedSections(
   templates: Record<PromptFamily, Record<string, TemplateShape>>,
   sharedSections: Record<string, SharedSectionShape>,
 ): Record<PromptFamily, Record<string, TemplateShape>> {
-  const expandOne = (templateId: string, body: string, lang: 'zh' | 'en'): string => {
-    // 全局正则有 lastIndex 状态，每次展开前复位，免得跨模板、跨语言互相影响。
-    SHARED_MARKER_RE.lastIndex = 0
-    const replaced = body.replace(SHARED_MARKER_RE, function (_whole: string, sectionId: string): string {
-      const section = sharedSections[sectionId]
-      if (!section) {
-        throw new Error(
-          '模板 ' + templateId + ' 引用了未登记的公共小节：' + sectionId + '（见 PROMPT_SHARED_SECTION_IDS 与 ' + PROMPT_SHARED_SECTIONS_REL + '）',
-        )
-      }
-      return section[lang]
-    })
+  // 每次展开现造带 g 的正则实例：String.replace 与全局正则共享 lastIndex，嵌套展开复用同一个实例会互相踩。
+  const markerRe = (): RegExp => new RegExp(SHARED_MARKER_RE.source, 'g')
+
+  const resolved: Record<string, SharedSectionShape> = {}
+  const resolving: string[] = []
+
+  const expandText = (
+    owner: string,
+    body: string,
+    lang: 'zh' | 'en',
+    resolveSection: (sectionId: string, ownerName: string) => SharedSectionShape,
+  ): string => body.replace(markerRe(), function (_whole: string, sectionId: string): string {
+    return resolveSection(sectionId, owner)[lang]
+  })
+
+  const resolveSection = (sectionId: string, ownerName: string): SharedSectionShape => {
+    const done = resolved[sectionId]
+    if (done) return done
+    const raw = sharedSections[sectionId]
+    if (!raw) {
+      throw new Error(
+        ownerName + ' 引用了未登记的公共小节：' + sectionId + '（见 PROMPT_SHARED_SECTION_IDS 与 ' + PROMPT_SHARED_SECTIONS_REL + '）',
+      )
+    }
+    const seenAt = resolving.indexOf(sectionId)
+    if (seenAt >= 0) {
+      throw new Error(
+        '公共小节互相引用成环：' + resolving.slice(seenAt).concat(sectionId).join(' -> ') + '（' + PROMPT_SHARED_SECTIONS_REL + '，必须有一节不再引用别的小节）',
+      )
+    }
+    resolving.push(sectionId)
+    const one = '公共小节 ' + sectionId
+    const expanded: SharedSectionShape = {
+      zh: expandText(one, raw.zh, 'zh', resolveSection),
+      en: expandText(one, raw.en, 'en', resolveSection),
+    }
+    resolving.pop()
+    if (expanded.zh.indexOf('{{shared:') >= 0 || expanded.en.indexOf('{{shared:') >= 0) {
+      throw new Error(one + ' 里有没展开完的公共小节标记（形状应是 {{shared:名字}}）')
+    }
+    resolved[sectionId] = expanded
+    return expanded
+  }
+
+  const expandTemplate = (templateId: string, body: string, lang: 'zh' | 'en'): string => {
+    const replaced = expandText('模板 ' + templateId, body, lang, resolveSection)
     if (replaced.indexOf('{{shared:') >= 0) {
       throw new Error('模板 ' + templateId + ' 的 ' + lang + ' 正文里还有没展开完的公共小节标记（形状应是 {{shared:名字}}）')
     }
     return replaced
   }
+
   const out = {} as Record<PromptFamily, Record<string, TemplateShape>>
   for (const fam of PROMPT_FAMILIES) {
     out[fam] = {}
     for (const [id, tpl] of Object.entries(templates[fam])) {
-      out[fam][id] = { ...tpl, zh: expandOne(id, tpl.zh, 'zh'), en: expandOne(id, tpl.en, 'en') }
+      out[fam][id] = { ...tpl, zh: expandTemplate(id, tpl.zh, 'zh'), en: expandTemplate(id, tpl.en, 'en') }
     }
   }
   return out

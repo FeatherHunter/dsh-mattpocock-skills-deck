@@ -1,7 +1,11 @@
-# 跨族公共小节（#1298 收尾提示词落地时立）：只写一遍、被多个族的提示词模板引用的正文字句。
+# 公共小节（#1298 收尾提示词落地时立）：只写一遍、被多处模板引用的正文字句。
 # 模板正文里写 {{shared:<id>}}（例如 {{shared:sharedTools}}），scripts/lib/prompt-config.mts 在 readPromptConfig 里展开成对应语言的正文。
 # 为什么不放进那五份族 YAML：族的划分是「这条提示词什么时候被注入」，公共小节不属于任何时机，
 # 它只属于「好几处共用同一段话」这一件事；混进族文件会让「按注入时机分族」这条规矩失真。
+# 今天四节：sharedTools（20 条模板引用）与 investigation（10 条）是跨族共用；
+#   mapTicketAdvance（讨论 / 执行 / 研究三条动作模板）与 repoBootstrap（setupRun / switchAlign 两条）是同族内共用，
+#   2026-10-29 收进来 —— 此前各抄一遍，改一句要改好几处、升好几次版本。
+# 小节之间可以互相引用（mapTicketAdvance 里嵌着 investigation 与 sharedTools），读取时逐层展开，成环当场报错。
 # 新增一节：在下面加一条（每个 id 只装 zh/en 两份正文），同时把 PROMPT_SHARED_SECTION_IDS 补上。
 sharedTools:
   zh: |-
@@ -30,4 +34,47 @@ investigation:
     - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
     - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
     - [ ] Before asking, state in one sentence what you checked.
+
+# mapTicketAdvance：map 子票统一入口的整段正文（#1281：讨论 / 执行 / 研究三个动作按钮注入同一段话）。
+# 2026-10-29 收成公共小节：此前三条模板各抄一遍，改一句要改三处、升三次版本。
+mapTicketAdvance:
+  zh: |-
+    /wayfinder
+    {url}
+
+    请按 wayfinder 技能推进这张票。
+
+    {{shared:investigation}}
+
+    ## 收尾
+    - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
+
+    {{shared:sharedTools}}
+  en: |-
+    /wayfinder
+    {url}
+
+    Please advance this ticket with the wayfinder skill.
+
+    {{shared:investigation}}
+
+    ## Wrap-up
+    - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.
+
+    {{shared:sharedTools}}
+
+# repoBootstrap：初始化本仓库配置的整段正文（setupRun 与 switchAlign 共用；命令首行 /setup-matt-pocock-skills 留在模板里）。
+# 2026-10-29 收成公共小节：两条模板此前逐字相同，switchAlign 的 use 里还写着一句「主体与 setupRun 一字一致」——
+# 收进公共小节后，这句话从「靠人维护两份拷贝」变成「结构上就是同一份」。
+repoBootstrap:
+  zh: |-
+    初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：
+    1. 按技能流程选择 issue tracker：{trackerLine}，由用户确认；
+    2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 {trackerChoice}；triage 标签保留默认五角色）{labelReqs}；后续打标签严格遵循技能规则，不额外强制任何标签；
+    3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。{contextLayout}。{backendNote}
+  en: |-
+    Bootstrap this repo configuration (the skill suite is already installed; this command only records the issue tracker / label vocabulary / doc paths — it does not install or clone any skills):
+    1. Follow the skill flow to pick the issue tracker: {trackerLine}, confirm with the user;
+    2. During init, follow the setup-matt-pocock-skills skill own flow (choose {trackerChoice} as the tracker; keep the default triage-role labels){labelReqs}; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;
+    3. Verify the actual outputs of the setup skill: docs/agents/issue-tracker.md + triage-labels.md + domain.md and the ## Agent skills block in AGENTS.md; then re-run the environment check (setup turns green). {contextLayout}.{backendNote}
 

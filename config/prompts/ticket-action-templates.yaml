@@ -36,63 +36,23 @@ tpl.diagnose:
 
     {{shared:sharedTools}}
 tpl.discuss:
-  version: 21
+  version: 22
   placeholders:
     - url
-  use: 动作按钮「讨论」（wayfinder:grilling 票）· map 子票统一入口：首行 /wayfinder，交给技能内部按票的类型分流（#1281）
+  use: 动作按钮「讨论」（wayfinder:grilling 票）· map 子票统一入口：首行 /wayfinder，交给技能内部按票的类型分流（#1281）；v22（2026-10-29）：正文收成公共小节 mapTicketAdvance（与执行 / 研究共用同一份），文本不变、只换存放方式
   zh: |-
-    /wayfinder
-    {url}
-
-    请按 wayfinder 技能推进这张票。
-
-    {{shared:investigation}}
-
-    ## 收尾
-    - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
-
-    {{shared:sharedTools}}
+    {{shared:mapTicketAdvance}}
   en: |-
-    /wayfinder
-    {url}
-
-    Please advance this ticket with the wayfinder skill.
-
-    {{shared:investigation}}
-
-    ## Wrap-up
-    - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.
-
-    {{shared:sharedTools}}
+    {{shared:mapTicketAdvance}}
 tpl.execute:
-  version: 21
+  version: 22
   placeholders:
     - url
-  use: 动作按钮「执行」（wayfinder:task 票）· map 子票统一入口：首行 /wayfinder（#1281）
+  use: 动作按钮「执行」（wayfinder:task 票）· map 子票统一入口：首行 /wayfinder（#1281）；v22（2026-10-29）：正文收成公共小节 mapTicketAdvance（与讨论 / 研究共用同一份），文本不变、只换存放方式
   zh: |-
-    /wayfinder
-    {url}
-
-    请按 wayfinder 技能推进这张票。
-
-    {{shared:investigation}}
-
-    ## 收尾
-    - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
-
-    {{shared:sharedTools}}
+    {{shared:mapTicketAdvance}}
   en: |-
-    /wayfinder
-    {url}
-
-    Please advance this ticket with the wayfinder skill.
-
-    {{shared:investigation}}
-
-    ## Wrap-up
-    - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.
-
-    {{shared:sharedTools}}
+    {{shared:mapTicketAdvance}}
 tpl.fix:
   version: 17
   placeholders:
@@ -247,34 +207,14 @@ tpl.prototype:
 
     {{shared:sharedTools}}
 tpl.research:
-  version: 15
+  version: 16
   placeholders:
     - url
-  use: 动作按钮「研究」（wayfinder:research 票）· map 子票统一入口：首行 /wayfinder（#1281）
+  use: 动作按钮「研究」（wayfinder:research 票）· map 子票统一入口：首行 /wayfinder（#1281）；v16（2026-10-29）：正文收成公共小节 mapTicketAdvance（与讨论 / 执行共用同一份），文本不变、只换存放方式
   zh: |-
-    /wayfinder
-    {url}
-
-    请按 wayfinder 技能推进这张票。
-
-    {{shared:investigation}}
-
-    ## 收尾
-    - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
-
-    {{shared:sharedTools}}
+    {{shared:mapTicketAdvance}}
   en: |-
-    /wayfinder
-    {url}
-
-    Please advance this ticket with the wayfinder skill.
-
-    {{shared:investigation}}
-
-    ## Wrap-up
-    - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.
-
-    {{shared:sharedTools}}
+    {{shared:mapTicketAdvance}}
 tpl.supplement:
   version: 10
   placeholders:
