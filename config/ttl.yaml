@@ -29,6 +29,10 @@ ttl:
   # 视野信号失效的判据：90 秒内没有任何“我在看谁”的上报，全部工作区降为后台档。
   # 界面半边读的是同一个数（内核心跳那段用它判“自动刷新已暂停”），值同源，别改一边。
   attentionExpiryMs: 90000
+  # 心跳的人在场判据：60 秒。最近这么久没有任何人类输入，就不发这条本地心跳。
+  # 这是心跳三条门之一（面板可见、文档有焦点、最近有人动过），三条门一起把“人不在”时的空转掐断；
+  # 判据值见 src/refresh/rooms/client/client-attention-heartbeat.ts，别在界面半边写第二份数字。
+  attentionHumanInputWindowMs: 60000
   # 刚离开的那个工作区还算“活跃”多久：30 秒。照顾两个工作区之间快速来回切的手感。
   activeLingerMs: 30000
   # 扫描类取数的合并窗口：同一个工作区 10 秒内的多次扫描（probe-now）合并成一次；点名补行（patch-now）不受它限制。
@@ -50,6 +54,10 @@ ttl:
   statusCacheMs: 30000
   # 会话快照内存缓存的有效期：60 秒。命中即用，不重算。
   snapshotCacheMs: 60000
+  # 刚选中某份快照后的保护窗：60 秒。旧缓存里另一个后端在这段时间内不许把用户刚点的选择盖回去
+  # （水合守卫，#1003 接替 userPicked；见 src/refresh/rooms/client/snapshot-cache-store.ts）。
+  # 它管的是“别用旧快照盖掉刚点的东西”，不是缓存寿命——别和上面的 snapshotCacheMs 混用。
+  snapshotPickedGuardMs: 60000
   # 计划游标文件的有效期：7 天。过期视为无游标，重走全量。
   planCursorTtlMs: 604800000
   # 幂等锚的时间档位宽度：5 分钟。把时刻压到档位上，同一档位内的重复调用视为同一笔。

@@ -56,6 +56,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   COPY_DIR_REL,
   LOCALE_DATA_REL,
+  findHardcodedDurations,
   readCopyConfig,
   readTimeValues,
   renderLocaleData,
@@ -392,6 +393,27 @@ if (config && timeValues) {
     expectIssue('时间参数名写错', (c) => {
       c.families[0].texts[refLang][firstKey] = '{{NO_SUCH_TIME_PARAM}}'
     }, '未知的时间参数')
+    // #1240：两条真实历史坏样本（#1160 修过的那两处），证明「文案里手写时长」会判红。
+    // 改的是真配置里那两个键（中英两门语言一起改回旧写法），不是往任意的键里塞字：
+    // 这样演练贴着真事故走，键改名时这里会红，逼着把样本一起搬过去。
+    const familyOfRealKey = (c: CopyConfig, key: string) => c.families.find((f) => Object.prototype.hasOwnProperty.call(f.texts[refLang] || {}, key))
+    expectIssue('文案里手写了时长（cfg.dbgSwitchFailTimeout 的旧写法）', (c) => {
+      const fam = familyOfRealKey(c, 'cfg.dbgSwitchFailTimeout')
+      if (!fam) throw new Error('真配置里找不到键 cfg.dbgSwitchFailTimeout，演练失去真实样本')
+      fam.texts[refLang]['cfg.dbgSwitchFailTimeout'] = '开关保存失败：宿主超过 5 秒没有回应，已保持原状态，请重试'
+      if (fam.texts[otherLang]) fam.texts[otherLang]['cfg.dbgSwitchFailTimeout'] = 'Could not save the switch: the host did not answer within 5 seconds — kept the previous state, please retry'
+    }, '手写了时长')
+    expectIssue('文案里手写了时长（sd.layoutSlow 的旧写法）', (c) => {
+      const fam = familyOfRealKey(c, 'sd.layoutSlow')
+      if (!fam) throw new Error('真配置里找不到键 sd.layoutSlow，演练失去真实样本')
+      fam.texts[refLang]['sd.layoutSlow'] = '正在排版…（超过 2 秒）'
+      if (fam.texts[otherLang]) fam.texts[otherLang]['sd.layoutSlow'] = 'Laying out… (over 2s)'
+    }, '手写了时长')
+    // 再直接对判据本身取证：上面两条走的是整份校验器，这里单看「裸时长」正则。
+    // 这样将来别的检查也报文「手写了时长」时，这两个样本不会在判据坏掉的情况下仍然绿。
+    check(findHardcodedDurations('开关保存失败：宿主超过 5 秒没有回应').length === 1, '自检：中文旧文案（超过 5 秒）被「裸时长」判据抓到 1 处')
+    check(findHardcodedDurations('Laying out… (over 2s)').length === 1, '自检：英文旧文案（over 2s）被「裸时长」判据抓到 1 处')
+    check(findHardcodedDurations('超过 {{SKILL_SKELETON_DELAY_MS/1000}} 秒').length === 0, '自检：已经写成中央常量的句子不误报')
     expectIssue('空词族（一族一条词都没有）', (c) => {
       for (const lang of langIds) c.families[0].texts[lang] = {}
     }, '空词族没有存在意义')

@@ -90,13 +90,13 @@ async function main() {
     '摘要一句话（当前会话优先、按时间倒序）：' + read1.summary)
   // 原始会话 id 只进盘：回执全文没有，盘上有。
   check(JSON.stringify(read1.readout).indexOf('s-a') < 0 && JSON.stringify(disk3).indexOf('s-a') >= 0, '原始会话 id 只进盘不进回执')
-  // 30 天外的条目读不出来；超过 1 天未动的标 stale，摘要里另说。
+  // 30 天外的条目读不出来；超过在办窗口（今天是 24 小时）未动的标 stale，摘要里另说。
   const readOld: any = await store.read({ sessionId: 's-a', rootKey: rootKey, at: T0 + 31 * DAY })
   check(readOld.ok === true && readOld.readout.entries.length === 0 && readOld.readout.staleCount === 0 && readOld.summary === null,
     '31 天后再读：在办表空了，摘要也不写')
   const readStale: any = await store.read({ sessionId: 's-a', rootKey: rootKey, at: T0 + 2 * DAY })
   check(readStale.ok === true && readStale.readout.entries.length === 2 && readStale.readout.entries.every((e: any) => e.active === false)
-    && readStale.readout.staleCount === 2 && (readStale.summary || '').indexOf('其中 2 条超过 1 天未动') >= 0,
+    && readStale.readout.staleCount === 2 && (readStale.summary || '').indexOf('其中 2 条超过 24 小时未动') >= 0,
     '2 天后再读：两条都不现办，摘要里另说：' + readStale.summary)
   // 空账：读出来是空表，摘要为 null。
   const storeEmpty = bindingsMod.createWorkRouteBindings(Object.assign({ homeDir: fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1261e-')), now: () => T0 }, memFs(home1)))

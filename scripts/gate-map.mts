@@ -121,6 +121,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 面板主路径 wf.mapTickets（点开地图现取子票）与快照兜底路径；唯一替身是 gh 可执行程序，
   // 注册表、GitHub 房间、会话管线、快照装配都是真件；95 条是单跑实测得出的。
   'verify-1242-panel-numbers': 95,
+  // 2026-10-28 #1607：UNC 工作区里 gh 的当前目录不许绕道 shell 的守卫（静态扫四个起进程点，加生产 preflight
+  // 走一趟 UNC / 盘符 / 失败三条路）；42 条是单跑实测得出的。
+  'verify-1607-gh-unc-cwd': 42,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

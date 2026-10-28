@@ -174,6 +174,30 @@ export function resolveTimeTokens(text: string, timeValues: Record<string, numbe
 }
 
 /**
+ * 界面文案里的「裸时长」判据：写死的数字后面直接跟时间单位。
+ *
+ * 为什么要查：文案里的时长必须写成 {{参数名}} 或 {{参数名/1000}} 引用中央时间参数，
+ * 否则参数一调文案就开始撒谎。#1160 修过的两处真实事故就是这样来的——调试开关的
+ * 「宿主超过 5 秒没有回应」在等待提到 10 秒之后还在说 5 秒；技能详情的「正在排版…（超过
+ * 2 秒）」与排版骨架阈值各写各的。这里只看「数字 + 单位」的写法；「半秒」「一天」
+ * 「a day」这类文字化时长不在机械检查范围内，靠评审（边界写进
+ * src/shared/time-config/README.md 的约定一节）。
+ */
+const CN_DURATION_RE = /(\d[\d_]*(?:\.\d+)?)\s*(毫秒|秒钟|秒|分钟|小时|天|周)/g
+// 末尾的 s 是英文缩写（旧文案里的「over 2s」）：只认数字后面紧跟单位这一种形态，
+// 「1980s」这类年代写法在界面词表里不出现，真出现时人为改成不写时长的说法即可。
+const EN_DURATION_RE = /(\d[\d_]*(?:\.\d+)?)\s*(ms|msec|sec|secs|second|seconds|min|mins|minute|minutes|hr|hrs|hour|hours|day|days|week|weeks|s)\b/gi
+
+/** 在一段文案里找出写死的时长片段；已写成 {{...}} 占位符的部分不参与匹配。 */
+export function findHardcodedDurations(text: string): string[] {
+  const stripped: string = String(text).replace(TOKEN_RE, ' ')
+  const hits: string[] = []
+  for (const m of stripped.matchAll(CN_DURATION_RE)) hits.push(m[0].trim())
+  for (const m of stripped.matchAll(EN_DURATION_RE)) hits.push(m[0].trim())
+  return hits
+}
+
+/**
  * 校验读出来的界面词表。返回错误清单（空数组 = 通过），不抛 —— 生成器在写之前跑一遍、
  * 门禁在 --check 时跑一遍，怎么报红由调用方决定。
  */
@@ -248,6 +272,11 @@ export function validateCopyConfig(config: CopyConfig, timeValues: Record<string
         if (typeof raw !== 'string') {
           out.push(fam.rel + ' 的「' + lang + '」段「' + key + '」必须是字符串（实际是 ' + (raw === null ? 'null' : typeof raw) + '）')
           continue
+        }
+        for (const hit of findHardcodedDurations(raw)) {
+          out.push(fam.rel + ' 的「' + lang + '」段「' + key + '」手写了时长「' + hit
+            + '」：界面文案里的时间数字只能引用中央参数占位符（例如 {{NAME}} 或 {{NAME/1000}}），'
+            + '或改成不写时长的说法；确需固定时长，先把键加进 config/ 下三份时间参数 YAML 再引用')
         }
         const resolved = resolveTimeTokens(raw, timeValues)
         for (const name of resolved.unknown) {
