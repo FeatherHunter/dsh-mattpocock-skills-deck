@@ -259,15 +259,20 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
 }
 
 /** 管线执行层失败（房间抛错被管线收成 env）与旧口径的对照：旧壳认 backend-threw 才抛，这里改写一格再交出去。 */
-const ADAPT_OPS = ['get', 'list', 'getDependencies', 'create', 'setParent', 'setBlockedBy', 'preflight', 'getRepoPermissions', 'close', 'reopen', 'comment', 'update', 'setLabels', 'setAssignees'];
-/** 把会话包成预算壳认得的后端门面：方法名与 withCallScope 要的那十四条对齐，env 改写成 backend-threw。 */
+const ADAPT_OPS = ['get', 'list', 'listMaps', 'getDependencies', 'create', 'setParent', 'setBlockedBy', 'preflight', 'getRepoPermissions', 'close', 'reopen', 'comment', 'update', 'setLabels', 'setAssignees'];
+/** 把会话包成预算壳认得的后端门面：方法名与 withCallScope 要的那十五条对齐，env 改写成 backend-threw。 */
 function adaptSession(session: TrackerSession): UnknownRecord {
   const room = (session || {}) as unknown as UnknownRecord;
   const out: UnknownRecord = {};
   for (const name of ADAPT_OPS) {
     out[name] = async function (...args: unknown[]): Promise<unknown> {
       const fn = room[name] as ((...a: unknown[]) => Promise<unknown>) | undefined;
-      if (typeof fn !== 'function') throw new Error('这次没拿到后端实现，我没往下做。');
+      // listMaps 是第一条允许退化的操作：房间没有它（手造桩或极老的会话形状）不算执行层失败，
+      // 调用方拿 unsupported 照老路走；其余操作的缺席仍是抛错（调用方按 backend-threw 处理）。
+      if (typeof fn !== 'function') {
+        if (name === 'listMaps') return { ok: false, error: { kind: 'unsupported', message: '这个后端没有地图薄行，按老路取' } };
+        throw new Error('这次没拿到后端实现，我没往下做。');
+      }
       const got = (await fn(...args)) as UnknownRecord | null;
       const err = (got && got.ok === false) ? (got.error || null) as UnknownRecord | null : null;
       if (err && str(err.kind) === 'env') return { ok: false, error: { kind: 'backend-threw', message: str(err.message) || '执行层没回来' } };

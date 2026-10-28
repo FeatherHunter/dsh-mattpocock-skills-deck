@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/github/capability-register.ts —— GitHub 后端对 26 条能力的回答（数据）
+ * src/tracker/rooms/github/capability-register.ts —— GitHub 后端对 27 条能力的回答（数据）
  *
  * 四类的判据、为什么写成联合、以及「运行时不读它」这条 G5 纪律，都写在
  * `src/tracker/contract/capability-answer.ts` 的文件头，这里不重复。
@@ -22,12 +22,12 @@
 import type { CapabilityRegister } from '../../contract/capability-answer.js'
 
 /**
- * GitHub 后端：26 条能力里 25 条真提供，1 条按设计明确不支持（配色文件）。
+ * GitHub 后端：27 条能力里 26 条真提供（含 #1603 落地的地图薄行），1 条按设计明确不支持（配色文件）。
  *
- * 顺序照契约名录（23 条操作在前、3 条定位口在后），读的人可以两边对着看。
+ * 顺序照契约名录（24 条操作在前、3 条定位口在后），读的人可以两边对着看。
  */
 export const GITHUB_CAPABILITY_REGISTER = {
-  // —— 操作 23 条：22 条真实现（含读预算），1 条按设计不支持 ——
+  // —— 操作 24 条：23 条真实现（含读预算与地图薄行），1 条按设计不支持 ——
   preflight: { tier: 'provided' },
   list: { tier: 'provided' },
   get: { tier: 'provided' },
@@ -52,6 +52,8 @@ export const GITHUB_CAPABILITY_REGISTER = {
   // 唯一一条形态不合的：配色文件的读者在本地 Markdown 那边（颜色真源是工作区文件）；
   // GitHub 的颜色真源是仓库标签，放一份手改不算数的文件只会误导人。理由见 md 表的依据列。
   ensureLabelColorsFile: { tier: 'unsupported-by-design', stubBy: 'registry' },
+  // 地图薄行（#1603 落地）：`maps.ts`，一次取回全量地图薄行（内部翻页 + 内存二次校验 + 更新时间重排 + 封顶截断），给 deck_context 首屏用。
+  listMaps: { tier: 'provided' },
   // 规格 1439 的读预算：#1443 起房间自己读 gh（budget.ts），不再是未来会开发。
   readBudget: { tier: 'provided' },
 

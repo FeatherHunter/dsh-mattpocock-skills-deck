@@ -285,3 +285,38 @@ export interface LabelColorsFilePlacement {
   reason: string
   from?: string
 }
+
+/**
+ * 地图薄行（`listMaps` 的行形状）。
+ *
+ * deck_context 首屏只画「地图有几张、每张叫什么、开着还是关了、点开去哪」，
+ * 这一行就是这四个问题的答案，别的一律不带：不带正文、不带评论、不问它是不是
+ * 拉取请求（那些是详情页与列表页的读者，不是首屏的）。
+ */
+export interface MapRow {
+  /** 票号（`owner/repo#number` 或本地键），列表行的唯一键。 */
+  key: string
+  /** 标题原文。 */
+  title: string
+  /** 开关状态（`open` / `closed`），与契约 `Issue.state` 同词。 */
+  state: string
+  /** 票的地址（远端是网址，本地诚实回空串）。 */
+  url: string
+}
+
+/**
+ * 全量地图薄行（`listMaps` 的返回）。
+ *
+ * 与 `listPage` 的区别只有一条：调用方不给筛选、不给游标、不给页大小，
+ * 后端把「全部地图」一次交回来；分页、封顶、排序都在后端内部做完。
+ * `truncated: true` 表示撞到封顶页数（这次没拿全），调用方必须把
+ * 「只取回了前 N 张、共 M 张」说清，不许把半份当整仓。
+ */
+export interface MapListResult {
+  /** 地图薄行（已按更新时间倒序排好，调用方不再重排）。 */
+  rows: MapRow[]
+  /** 同一口径下的总数（服务端标签筛中的张数，非负整数）。 */
+  total: number
+  /** 是否撞到封顶页数（撞到时界面要说清「还有更多，这次没取全」）。 */
+  truncated: boolean
+}

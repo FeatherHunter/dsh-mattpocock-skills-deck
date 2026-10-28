@@ -114,6 +114,7 @@ export interface BackendLike {
 export interface DeckTrackerLike {
   get(repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
   list(repo: unknown, filter?: unknown, ctx?: unknown): Promise<ListOpOutcome>;
+  listMaps(repo: unknown, ctx?: unknown): Promise<OpOutcome>;
   getDependencies(repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
   create(repo: unknown, input?: unknown, ctx?: unknown): Promise<OpOutcome>;
   setParent(repo: unknown, key: unknown, parent: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
@@ -392,6 +393,14 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
       },
       // #992：仓库写权限旁路（只读探活一次，次次真问；没有这个方法的后端诚实回未知，
       //   不走 backend-threw —— 缺方法不是执行层失败，调用方按未知处理）。
+      // #1603：一次取全量地图薄行（只收仓库）。不进名册（首屏自用快照，不参与成环检查），
+      // 次次真问；没有这个方法的后端诚实回 unsupported，调用方照老路退化。
+      listMaps: async function (repo: unknown, ctx?: unknown): Promise<OpOutcome> {
+        void ctx
+        const listMapsFn = real.listMaps as ((repo: unknown, ctx: unknown) => Promise<unknown>) | undefined
+        if (typeof listMapsFn !== 'function') return { ok: false, error: { kind: 'unsupported', message: '这个后端没有地图薄行，按老路取' } }
+        return mapOpOutcome(await execOp('listMaps', function (c2) { return listMapsFn(repo, c2) }))
+      },
       getRepoPermissions: async function (repo: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         if (!real.getRepoPermissions) return { ok: false, error: { kind: 'unsupported', message: '这个后端没有仓库写权限旁路，按未知处理' } }

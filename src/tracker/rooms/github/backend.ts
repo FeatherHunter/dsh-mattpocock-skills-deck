@@ -22,6 +22,7 @@ import { remoteUrlsOfGitConfig } from '../../kernel/git-remote.js'
 import { listIssues, getIssue } from './issues.js'
 import { countIssues } from './counts.js'
 import { listIssuesPage } from './page.js'
+import { listMaps } from './maps.js'
 import { listSubIssues } from './sub-issues.js'
 import { createIssue, closeIssue, reopenIssue, updateIssue, setAssignees } from './issues-write.js'
 import { addComment } from './comments.js'
@@ -39,7 +40,7 @@ import type { GITHUB_CAPABILITY_REGISTER } from './capability-register.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GIT_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
-// —— GitHub 交出来的成员：25 条能力 + id（22 条操作 + 3 条定位口）——
+// —— GitHub 交出来的成员：26 条能力 + id（23 条操作 + 3 条定位口）——
 // 这份集合不再手写：它从本房的登记数据（./capability-register.ts）推出来 —— 「明确提供功能」的那些
 // 名字，就是这个实例上应当出现的成员。登记里把一条改成「不支持」，这里少一格，工厂还留着就编译红；
 // 登记里加一条「提供」，这里多一格，工厂没实现也编译红。成员集合与分类的唯一真源因此是登记数据，
@@ -125,6 +126,8 @@ export function createGithubBackend(ctx: OpContext) {
     //   2026-10-14 起它是契约操作（`Tracker.listSubIssues`）：原先按「读路径的实现细节」豁免在外，
     //   但它的调用者是宿主电话 wf.mapTickets —— 房外有读者，它就不是某家的细节。
     listSubIssues: (repo, mapKey, opts, opCtx) => listSubIssues(repo, mapKey, opts, opCtx || ctx),
+    // #1603：一次取全量地图薄行（内部翻页 + 内存二次校验 + 更新时间重排 + 封顶截断），给 deck_context 首屏用。
+    listMaps: (repo, opCtx) => listMaps(repo, opCtx || ctx),
     get: (repo, key, opts, opCtx) => getIssue(repo, key, opts, opCtx || ctx),
     getDependencies: (repo, key, opts, opCtx) => getDependencies(repo, key, opts, opCtx || ctx),
     create: (repo, input, opCtx) => createIssue(repo, input, opCtx || ctx),
