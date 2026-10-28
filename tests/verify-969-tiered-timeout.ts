@@ -1,4 +1,4 @@
-// tests/verify-969-tiered-timeout.ts —— 门禁：分档超时暂定值（#969）
+// tests/verify-969-tiered-timeout.ts —— 门禁：分档超时终值（#969 立，#1224 定稿）
 // 为什么需要它：以前全仓只有一档 30000，读等得久拖住界面，写杀得早害用户不敢重试，
 // 探活本该最快却也要等满；慢网超时还可能被说成没登录，写超时还可能被自动重试写两遍。
 // 它守三件事（只看外部行为，不看内部队列数组长什么样）：
@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url'
 const ROOT = nodePath.resolve(nodePath.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
 
 // 三个档位的毫秒数只有中央一个来源（src/shared/time-config/values.js）：这里不手抄数字，
-// 免得配置一调（例如 #1245 把写档从 30 秒放宽到 60 秒）门禁就假红。
+// 免得配置一调（例如 #1224 把读档从 12 秒放宽到 30 秒）门禁就假红。
 const { OUTBOUND_READ_TIMEOUT_MS: READ_BUDGET_MS, OUTBOUND_WRITE_TIMEOUT_MS: WRITE_BUDGET_MS, OUTBOUND_PROBE_TIMEOUT_MS: PROBE_BUDGET_MS } =
   await import(pathToFileURL(nodePath.join(ROOT, 'src/shared/time-config/values.js')).href)
 
@@ -42,8 +42,8 @@ try {
 }
 if (tiers) {
   const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS, tierForGhArgs, timeoutForGhArgs, timeoutForTier, normalizeGhStringFields } = tiers
-  check(READ_TIMEOUT_MS === READ_BUDGET_MS, '一、读档是 ' + READ_BUDGET_MS / 1000 + ' 秒（暂定值，终值等测量回填）', '实得 ' + String(READ_TIMEOUT_MS))
-  check(WRITE_TIMEOUT_MS === WRITE_BUDGET_MS, '一、写档是 ' + WRITE_BUDGET_MS / 1000 + ' 秒（#1245 从 30 秒放宽到 60 秒，值取自中央常量）', '实得 ' + String(WRITE_TIMEOUT_MS))
+  check(READ_TIMEOUT_MS === READ_BUDGET_MS, '一、读档是 ' + READ_BUDGET_MS / 1000 + ' 秒（#1224 定为终值）', '实得 ' + String(READ_TIMEOUT_MS))
+  check(WRITE_TIMEOUT_MS === WRITE_BUDGET_MS, '一、写档是 ' + WRITE_BUDGET_MS / 1000 + ' 秒（#1224 沿用 10-27 放宽值，值取自中央常量）', '实得 ' + String(WRITE_TIMEOUT_MS))
   check(PROBE_TIMEOUT_MS === PROBE_BUDGET_MS, '一、探活档是 ' + PROBE_BUDGET_MS / 1000 + ' 秒（#1160：冷启动 keyring 加 TLS 经常超 3 秒，与谓词 15 秒对齐）', '实得 ' + String(PROBE_TIMEOUT_MS))
   // 读：列票与看票走读档
   check(tierForGhArgs(['issue', 'list', '--repo', 'a/b']) === 'read', '一、列票走读档')
@@ -54,7 +54,7 @@ if (tiers) {
   check(tierForGhArgs(['issue', 'comment', '1', '--body', 'hi']) === 'write', '一、评论走写档')
   check(tierForGhArgs(['api', 'repos/a/b/issues', '--method', 'POST']) === 'write', '一、经接口写票（POST）走写档')
   check(tierForGhArgs(['api', 'repos/a/b/issues/1']) === 'read', '一、经接口读票（GET）走读档')
-  // 探活：登录态与版本自检走探活档（#1160 起探活 15 秒，不再是三档里最短的）
+  // 探活：登录态与版本自检走探活档（#1160 起探活档，2026-10-28 #1224 定为 25 秒）
   check(tierForGhArgs(['auth', 'status']) === 'probe', '一、查登录态走探活档')
   check(timeoutForGhArgs(['auth', 'status']) === PROBE_BUDGET_MS, '一、查登录态超时 ' + PROBE_BUDGET_MS / 1000 + ' 秒（#1160）')
   check(tierForGhArgs(['--version']) === 'probe', '一、查版本号走探活档')
@@ -100,7 +100,7 @@ if (tiers) {
   check(k !== ERROR_KIND.AUTH, '二、超时不报没登录（归 ' + String(k) + '，不是 auth）')
 }
 
-// —— 三、执行层按档取超时：读、写、探活各按中央常量那一档（#1160、#1245）——
+// —— 三、执行层按档取超时：读、写、探活各按中央常量那一档（#1160、#1224）——
 {
   const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
   // 假执行器：只记调用方要它等多久，不真起进程
@@ -166,7 +166,7 @@ if (tiers) {
   // 超时杀掉后记超时行（gh.timeout），且超时那一次按网络档返回（不是没登录也不是找不到）
   check(/gh\.timeout/.test(src), '五、取数层超时记超时行（gh.timeout）')
   check(/signal\s*===\s*['"]timeout['"]/.test(src) && /network/.test(src), '五、超时信号归网络档（慢网显示未知）')
-  // 取数层按档取超时（读短写长探活最长：探活 15 秒比读档的 12 秒还久），不是全仓一档写死
+  // 取数层按档取超时（读 30 / 写 30 / 探活 25 秒，各档取自中央常量），不是全仓一档写死
   check(/gh-timeout-tiers|timeoutForGhArgs|tierForGhArgs|READ_TIMEOUT_MS|WRITE_TIMEOUT_MS|PROBE_TIMEOUT_MS/.test(src), '五、取数层按读写探活分档取超时（不是一档写死）')
 }
 
