@@ -1,5 +1,5 @@
 tpl.diagnose:
-  version: 19
+  version: 20
   placeholders:
     - url
   use: 动作按钮「诊断」（needs-triage 票）· 恢复调查节、补已实现核对与终态收尾（#1212、#1281）
@@ -12,11 +12,7 @@ tpl.diagnose:
     ## 先核对是否已有实施
     - [ ] 先看正文、评论与已有记录里有没有实施痕迹：验收标准全部满足的，按 /triage 处理“已实现”票的规则收口，不要重复实施；只做了一半的，写明还缺什么再继续诊断；没有实施记录的，按正常诊断走。
 
-    ## 调查（建议先查后问）
-    - [ ] 建议先阅读本票正文、评论及仓内相关内容后再提问。
-    - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
-    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 `/research` 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
-    - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
+    {{shared:investigation}}
 
     ## 收尾
     - [ ] 结束前把这张票的真实状态写进正文；结尾用提问格式收尾：有待维护者拍板的事，有几个就问几个，写成❓ Q1、Q2、Q3，逐个给推荐答案（➡️），等回复再动。
@@ -32,11 +28,7 @@ tpl.diagnose:
     ## Check for existing implementation first
     - [ ] First check the body, comments, and existing records for any implementation work: if every acceptance criterion is met, close it out per the /triage rules for an already-implemented ticket and do not re-implement; if it is only half done, state what is still missing and keep diagnosing; if no implementation is recorded, diagnose it as usual.
 
-    ## Investigate first (recommended: look before asking)
-    - [ ] It is recommended to read this ticket body, its comments, and related in-repo material before asking.
-    - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
-    - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
-    - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template’s original question format.
+    {{shared:investigation}}
 
     ## Wrap-up
     - [ ] Before finishing, write the true state of this ticket into its body; end with the question format: list every decision the maintainer must make as ❓ Q1, Q2, Q3, each with a recommended answer (➡️), and wait for the reply before acting.
@@ -44,7 +36,7 @@ tpl.diagnose:
 
     {{shared:sharedTools}}
 tpl.discuss:
-  version: 20
+  version: 21
   placeholders:
     - url
   use: 动作按钮「讨论」（wayfinder:grilling 票）· map 子票统一入口：首行 /wayfinder，交给技能内部按票的类型分流（#1281）
@@ -54,11 +46,7 @@ tpl.discuss:
 
     请按 wayfinder 技能推进这张票。
 
-    ## 调查（建议先查后问）
-    - [ ] 建议先阅读本票正文、评论及仓内相关内容后再提问。
-    - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
-    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 /research 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
-    - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
+    {{shared:investigation}}
 
     ## 收尾
     - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
@@ -70,18 +58,14 @@ tpl.discuss:
 
     Please advance this ticket with the wayfinder skill.
 
-    ## Investigate (recommended: look before asking)
-    - [ ] It is recommended to read this ticket body, its comments, and related in-repo material before asking.
-    - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
-    - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
-    - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
+    {{shared:investigation}}
 
     ## Wrap-up
     - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.
 
     {{shared:sharedTools}}
 tpl.execute:
-  version: 20
+  version: 21
   placeholders:
     - url
   use: 动作按钮「执行」（wayfinder:task 票）· map 子票统一入口：首行 /wayfinder（#1281）
@@ -91,11 +75,7 @@ tpl.execute:
 
     请按 wayfinder 技能推进这张票。
 
-    ## 调查（建议先查后问）
-    - [ ] 建议先阅读本票正文、评论及仓内相关内容后再提问。
-    - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
-    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 /research 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
-    - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
+    {{shared:investigation}}
 
     ## 收尾
     - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
@@ -107,11 +87,7 @@ tpl.execute:
 
     Please advance this ticket with the wayfinder skill.
 
-    ## Investigate (recommended: look before asking)
-    - [ ] It is recommended to read this ticket body, its comments, and related in-repo material before asking.
-    - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
-    - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
-    - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
+    {{shared:investigation}}
 
     ## Wrap-up
     - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.
@@ -232,7 +208,7 @@ tpl.implement:
 
     {{shared:sharedTools}}
 tpl.prototype:
-  version: 15
+  version: 16
   placeholders:
     - url
   use: 动作按钮「原型」（wayfinder:prototype 票）· map 子票统一入口：首行 /wayfinder（#1281）
@@ -242,11 +218,7 @@ tpl.prototype:
 
     请按 wayfinder 技能推进这张票。
 
-    ## 调查（建议先查后问）
-    - [ ] 建议先阅读本票正文、评论及仓内相关内容后再提问。
-    - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
-    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 /research 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
-    - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
+    {{shared:investigation}}
 
     ## 定版与移交
     - [ ] 把定版写进本票正文，让后人能打开同一版：产物在哪，用什么区分这一版和其他版本（提交号、分支名或文件名），当时看的是哪个变体或哪组演示参数。有变体或演示参数的一并写下，没有就不写。
@@ -263,11 +235,7 @@ tpl.prototype:
 
     Please advance this ticket with the wayfinder skill.
 
-    ## Investigate (recommended: look before asking)
-    - [ ] It is recommended to read this ticket body, its comments, and related in-repo material before asking.
-    - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
-    - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
-    - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
+    {{shared:investigation}}
 
     ## Agreed version and handoff
     - [ ] Write the agreed version into this ticket body so a later session can open the same version: where the artifact lives, what tells this version apart from other versions (a commit, a branch name, or a file name), and which variant or demo parameters were reviewed. Add the variant or demo parameters when there were any; leave them out when there were none.
@@ -279,7 +247,7 @@ tpl.prototype:
 
     {{shared:sharedTools}}
 tpl.research:
-  version: 14
+  version: 15
   placeholders:
     - url
   use: 动作按钮「研究」（wayfinder:research 票）· map 子票统一入口：首行 /wayfinder（#1281）
@@ -289,11 +257,7 @@ tpl.research:
 
     请按 wayfinder 技能推进这张票。
 
-    ## 调查（建议先查后问）
-    - [ ] 建议先阅读本票正文、评论及仓内相关内容后再提问。
-    - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
-    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 /research 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
-    - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
+    {{shared:investigation}}
 
     ## 收尾
     - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
@@ -305,18 +269,14 @@ tpl.research:
 
     Please advance this ticket with the wayfinder skill.
 
-    ## Investigate (recommended: look before asking)
-    - [ ] It is recommended to read this ticket body, its comments, and related in-repo material before asking.
-    - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
-    - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
-    - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
+    {{shared:investigation}}
 
     ## Wrap-up
     - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.
 
     {{shared:sharedTools}}
 tpl.supplement:
-  version: 9
+  version: 10
   placeholders:
     - url
   use: "动作按钮「补充」（needs-info 票）· 清单式 · v9 改挂 /triage，补答复回流与声明（2026-10-27 #1577）；#1407 加 suggest_next_steps 提醒、删 /retro 提醒"
@@ -330,11 +290,7 @@ tpl.supplement:
     - [ ] 读全该 issue（正文、评论、标签、认领、阻塞关系），核对报告人是否已经答复过：答了并覆盖缺口的，按 /triage 的 needs-info 回流规则核对后转回 needs-triage，不重复提问；没答全的，只追缺口。
     - [ ] 把缺口逐条列出来：缺什么、卡住哪一步、谁手上可能有（报告人 / 仓内既有记录 / 外部系统）。
 
-    ## 调查（建议先查后问）
-    - [ ] 建议先阅读本票正文、评论及仓内相关内容后再提问。
-    - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
-    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 /research 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
-    - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
+    {{shared:investigation}}
 
     ## 已确认事项
     - [ ] 将已确认的事项逐条写进正文，避免重复检索评论。
@@ -362,11 +318,7 @@ tpl.supplement:
     - [ ] Read the whole issue (body, comments, labels, claim, blocking relationships), and check whether the reporter has already replied: if the reply covers the gaps, verify it per the /triage needs-info return rules and move the label back to needs-triage without asking again; if it only partly covers them, follow up only on what is missing.
     - [ ] List the gaps one by one: what is missing, which step it blocks, and who might have it (reporter / existing in-repo records / external systems).
 
-    ## Investigate first (recommended: look before asking)
-    - [ ] It is recommended to read this ticket body, its comments, and related in-repo material before asking.
-    - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
-    - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
-    - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
+    {{shared:investigation}}
 
     ## Settled items
     - [ ] Write each settled item into the body, so nobody has to dig through the comments again.
@@ -385,7 +337,7 @@ tpl.supplement:
 
     {{shared:sharedTools}}
 tpl.takeover:
-  version: 11
+  version: 12
   placeholders:
     - url
   use: 动作按钮「接手」（ready-for-human 票）· v11 改挂 /triage，补读现状与已做完分支（2026-10-27 #1577）；恢复调查节；补 /wizard 落点（#1212、#1281）
@@ -399,11 +351,7 @@ tpl.takeover:
     - [ ] 读全这张票（正文、评论、标签、认领、父子与阻塞边），确认它仍然开放、标签仍是 ready-for-human。
     - [ ] 先核对人那部分是否已经做完：票里已有验收记录且满足验收标准的，按 /triage 处理“已实现”票的规则核对后关票；只做了一半的，写明还缺什么；没有记录的，继续往下。
 
-    ## 调查（建议先查后问）
-    - [ ] 建议先阅读本票正文、评论及仓内相关内容后再提问。
-    - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
-    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 `/research` 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
-    - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
+    {{shared:investigation}}
 
     ## 判断人工档位
     - [ ] 复核这个判定属于哪一类：判断类决策 / 外部访问权限（账号、设备或第三方系统）/ 设计决策 / 需人工测试。
@@ -430,11 +378,7 @@ tpl.takeover:
     - [ ] Read the whole ticket (body, comments, labels, claim, parent/child and blocked-by edges); confirm it is still open and still labeled ready-for-human.
     - [ ] First check whether the human part is already done: if the ticket records an acceptance check that meets the criteria, verify it per the /triage rules for an already-implemented ticket and close it; if it is half done, write what is missing; if nothing is recorded, continue below.
 
-    ## Investigate first (recommended: look before asking)
-    - [ ] It is recommended to read this ticket body, its comments, and related in-repo material before asking.
-    - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
-    - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
-    - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template’s original question format.
+    {{shared:investigation}}
 
     ## Decide the human tier
     - [ ] Re-check which tier this belongs to: judgement call / external access (account, device, or third-party system) / design decision / manual testing.

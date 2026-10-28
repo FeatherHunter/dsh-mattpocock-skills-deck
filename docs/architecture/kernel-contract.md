@@ -97,7 +97,7 @@
 
 三处片段（`newBugFields`、`newWayfinderWiring`、`vocabularyDefaults`）不是完整模板，是模板正文里替换进去的一段话。它们不单独占一份文件，而是按同一把尺子——「什么时候注入」——住在对应族的那份 YAML 里：`newBugFields` 与 `newWayfinderWiring` 跟着建票入口住在 `ticket-creation.yaml`；`vocabularyDefaults` 是 `{cli}` / `{cliBrand}` 两个占位符的兜底说法，跟着 `installSkills` 住在 `repository-alignment.yaml`。所以一份族文件里的顶层键 = 这一族的模板 id + 片段 id。
 
-跨族公共小节是另一类东西：它不属于任何一族，是「同一段正文被好几个族的模板引用」时只写一遍的存放处。今天只有一节 `sharedTools`（每个带工具节的模板末尾那三条：优先用 `deck_` 工具、及时用 `deck_issue_report` 上报、回复前按 `/ask-matt` 规则调 `suggest_next_steps`），住在 `config/prompts/shared-sections.yaml`；20 个模板的正文里写的是标记 `{{shared:sharedTools}}`，`readPromptConfig` 读配置时把它展开成对应语言的正文。为什么单独一份：族的划分是「什么时候注入」，公共小节不属于任何时机；混进族文件会让「按注入时机分族」失真，而 20 个模板各抄一遍又会在改文案时漏掉某几处。新增一节的做法是「在 `shared-sections.yaml` 里加一条，同步补 `scripts/lib/prompt-config.mts` 的 `PROMPT_SHARED_SECTION_IDS`」。
+跨族公共小节是另一类东西：它不属于任何一族，是「同一段正文被好几个族的模板引用」时只写一遍的存放处。今天有两节，都住在 `config/prompts/shared-sections.yaml`：`sharedTools`（每个带工具节的模板末尾那三条：优先用 `deck_` 工具、及时用 `deck_issue_report` 上报、回复前按 `/ask-matt` 规则调 `suggest_next_steps`，20 个模板引用）与 `investigation`（「## 调查（建议先查后问）」那四条：先查后问、复用既有笔记、既有笔记答不了再按 `/research` 新查一次、提问前说明已查阅范围，10 个模板引用）。模板正文里写的是标记 `{{shared:sharedTools}}` / `{{shared:investigation}}`，`readPromptConfig` 读配置时把它展开成对应语言的正文。为什么单独一份：族的划分是「什么时候注入」，公共小节不属于任何时机；混进族文件会让「按注入时机分族」失真，而 20 个模板各抄一遍又会在改文案时漏掉某几处。新增一节的做法是「在 `shared-sections.yaml` 里加一条，同步补 `scripts/lib/prompt-config.mts` 的 `PROMPT_SHARED_SECTION_IDS`」。
 
 登录引导不在这张表里：`ghAuthLogin` 这条模板 2026-10-21 已删除，用户可见的登录指引只由 GitHub 后端自己声明（`src/tracker/rooms/github/index.ts` 的 `prompts.ghAuthLogin`），客户端按「后端声明优先、注册表模板兜底」的既有链路取文案；今天只有 GitHub 会触发 `gh:authed`，所以兜底那一格不再需要自己的正文。
 

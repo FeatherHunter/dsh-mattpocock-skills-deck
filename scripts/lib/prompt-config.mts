@@ -18,10 +18,11 @@
  *   · PROMPT_FRAGMENT_IDS —— 三处片段 id（newBugFields / newWayfinderWiring / vocabularyDefaults）。
  *     模板一份字面量有版本号与 placeholders 两类元字段，片段只装 zh/en 两份 —— 不是模板，
  *     分类不同。门禁与生成器都按片段口径核（zh/en 必含，占位符用法单独看）。
- *   · PROMPT_SHARED_SECTION_IDS —— 跨族公共小节（今天只有 sharedTools：「## 工具」那三条）。
- *     它不属于任何一族，单独住在 config/prompts/shared-sections.yaml；模板正文里写
- *     {{shared:sharedTools}}，readPromptConfig 展开时把对应语言的正文整段换进去。
- *     这样「## 工具」只写一遍、20 个模板都引用它，不会再出现改一处漏其余的情况。
+ *   · PROMPT_SHARED_SECTION_IDS —— 跨族公共小节（今天两节：sharedTools「## 工具」三条、
+ *     investigation「## 调查（建议先查后问）」四条）。
+ *     它们不属于任何一族，单独住在 config/prompts/shared-sections.yaml；模板正文里写
+ *     {{shared:<id>}}，readPromptConfig 展开时把对应语言的正文整段换进去。
+ *     这样一节正文只写一遍、引用它的模板只写标记，不会再出现改一处漏其余的情况。
  *   · readPromptYamls —— 读五份提示词 YAML 与一份语言清单，返回结构化对象。
  *     YAML 真读不到 / 解析失败 / 顶层形状不对一律报错（不静默返回空）。
  *   · readSharedSections + expandSharedSections —— 读公共小节 YAML，并在读配置时把模板里的
@@ -223,7 +224,7 @@ export const PROMPT_YAML_PATHS: ReadonlyArray<string> = [
 export const PROMPT_SHARED_SECTIONS_REL = 'config/prompts/shared-sections.yaml'
 
 /** 公共小节 id 清单。新增一节时改这一处，YAML 顶层键必须与它逐项相等。 */
-export const PROMPT_SHARED_SECTION_IDS: ReadonlyArray<string> = ['sharedTools']
+export const PROMPT_SHARED_SECTION_IDS: ReadonlyArray<string> = ['sharedTools', 'investigation']
 
 /** 一个公共小节的形状：只装 zh/en 两份正文，没有版本号与占位符（它不是一条模板）。 */
 export interface SharedSectionShape {

@@ -1,5 +1,5 @@
 # 跨族公共小节（#1298 收尾提示词落地时立）：只写一遍、被多个族的提示词模板引用的正文字句。
-# 模板正文里写 {{shared:sharedTools}}，scripts/lib/prompt-config.mts 在 readPromptConfig 里展开成对应语言的正文。
+# 模板正文里写 {{shared:<id>}}（例如 {{shared:sharedTools}}），scripts/lib/prompt-config.mts 在 readPromptConfig 里展开成对应语言的正文。
 # 为什么不放进那五份族 YAML：族的划分是「这条提示词什么时候被注入」，公共小节不属于任何时机，
 # 它只属于「好几处共用同一段话」这一件事；混进族文件会让「按注入时机分族」这条规矩失真。
 # 新增一节：在下面加一条（每个 id 只装 zh/en 两份正文），同时把 PROMPT_SHARED_SECTION_IDS 补上。
@@ -14,3 +14,20 @@ sharedTools:
     - [ ] Prefer the deck_ tools for issue operations; if the deck_ tools fail, choose a suitable approach for the current workspace.
     - [ ] Report processed and in-progress issue numbers with the deck_issue_report tool in a timely manner.
     - [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.
+
+# investigation：「## 调查（建议先查后问）」那四条 —— #1212 加进 10 个模板（七个动作模板 + 三个建票模板），
+#   2026-10-28 汇总到这一处，模板里只写标记，改一次就全改（不再出现十个模板各抄一遍、改一处漏其余）。
+investigation:
+  zh: |-
+    ## 调查（建议先查后问）
+    - [ ] 建议先阅读本票正文、评论及仓内相关内容后再提问。
+    - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
+    - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 /research 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
+    - [ ] 提问前用一句话说明已查阅范围。
+  en: |-
+    ## Investigate (recommended: look before asking)
+    - [ ] It is recommended to read this ticket body, its comments, and related in-repo material before asking.
+    - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
+    - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
+    - [ ] Before asking, state in one sentence what you checked.
+
