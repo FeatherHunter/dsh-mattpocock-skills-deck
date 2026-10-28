@@ -168,44 +168,28 @@ tpl.implement:
 
     {{shared:sharedTools}}
 tpl.prototype:
-  version: 16
+  version: 17
   placeholders:
     - url
-  use: 动作按钮「原型」（wayfinder:prototype 票）· map 子票统一入口：首行 /wayfinder（#1281）
+  use: 动作按钮「原型」（wayfinder:prototype 票）· map 子票统一入口：首行 /wayfinder（#1281）；v17（2026-10-29）：正文改为引用公共小节 mapTicketAdvanceOpening 与 mapTicketAdvanceWrapUp，中间保留自己的「定版与移交」节，文本不变、只换存放方式
   zh: |-
-    /wayfinder
-    {url}
-
-    请按 wayfinder 技能推进这张票。
-
-    {{shared:investigation}}
+    {{shared:mapTicketAdvanceOpening}}
 
     ## 定版与移交
     - [ ] 把定版写进本票正文，让后人能打开同一版：产物在哪，用什么区分这一版和其他版本（提交号、分支名或文件名），当时看的是哪个变体或哪组演示参数。有变体或演示参数的一并写下，没有就不写。
     - [ ] 写清什么算数：已点头的界面、状态与交互逐条列出；没被选中的备选明确写成不算数。下游只照列出的部分做。
     - [ ] 写下照做标准与复核人：实施时对照哪几个界面或状态、什么算还原；由当初点头这一版的人复核。这是给下游写规格与实施票的移交要求，不是本票要交的验收证据。
 
-    ## 收尾
-    - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
-
-    {{shared:sharedTools}}
+    {{shared:mapTicketAdvanceWrapUp}}
   en: |-
-    /wayfinder
-    {url}
-
-    Please advance this ticket with the wayfinder skill.
-
-    {{shared:investigation}}
+    {{shared:mapTicketAdvanceOpening}}
 
     ## Agreed version and handoff
     - [ ] Write the agreed version into this ticket body so a later session can open the same version: where the artifact lives, what tells this version apart from other versions (a commit, a branch name, or a file name), and which variant or demo parameters were reviewed. Add the variant or demo parameters when there were any; leave them out when there were none.
     - [ ] State what counts: list the approved screens, states and interactions one by one; mark the alternatives that were not chosen as not part of the agreed version. Downstream work reproduces only what is listed.
     - [ ] Write the reproduction standard and the reviewer: which screens or states to compare, what counts as reproduced, and that the person who approved this version reviews it. This is the handoff requirement for the spec and implementation tickets, not evidence this ticket must produce.
 
-    ## Wrap-up
-    - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.
-
-    {{shared:sharedTools}}
+    {{shared:mapTicketAdvanceWrapUp}}
 tpl.research:
   version: 16
   placeholders:

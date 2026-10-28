@@ -2,10 +2,12 @@
 # 模板正文里写 {{shared:<id>}}（例如 {{shared:sharedTools}}），scripts/lib/prompt-config.mts 在 readPromptConfig 里展开成对应语言的正文。
 # 为什么不放进那五份族 YAML：族的划分是「这条提示词什么时候被注入」，公共小节不属于任何时机，
 # 它只属于「好几处共用同一段话」这一件事；混进族文件会让「按注入时机分族」这条规矩失真。
-# 今天四节：sharedTools（20 条模板引用）与 investigation（10 条）是跨族共用；
+# 今天六节：sharedTools（20 条模板引用）与 investigation（10 条）是跨族共用；
 #   mapTicketAdvance（讨论 / 执行 / 研究三条动作模板）与 repoBootstrap（setupRun / switchAlign 两条）是同族内共用，
-#   2026-10-29 收进来 —— 此前各抄一遍，改一句要改好几处、升好几次版本。
-# 小节之间可以互相引用（mapTicketAdvance 里嵌着 investigation 与 sharedTools），读取时逐层展开，成环当场报错。
+#   2026-10-29 收进来 —— 此前各抄一遍，改一句要改好几处、升好几次版本；
+#   mapTicketAdvanceOpening / mapTicketAdvanceWrapUp 是同一天把 mapTicketAdvance 拆成的两段，
+#   好让 tpl.prototype 在开头与收尾之间插自己的一节，开头与收尾仍然各只有一份。
+# 小节之间可以互相引用（mapTicketAdvance 由开头与收尾两节拼成，开头里又嵌着 investigation），读取时逐层展开，成环当场报错。
 # 新增一节：在下面加一条（每个 id 只装 zh/en 两份正文），同时把 PROMPT_SHARED_SECTION_IDS 补上。
 sharedTools:
   zh: |-
@@ -35,9 +37,12 @@ investigation:
     - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
     - [ ] Before asking, state in one sentence what you checked.
 
-# mapTicketAdvance：map 子票统一入口的整段正文（#1281：讨论 / 执行 / 研究三个动作按钮注入同一段话）。
-# 2026-10-29 收成公共小节：此前三条模板各抄一遍，改一句要改三处、升三次版本。
-mapTicketAdvance:
+# mapTicketAdvanceOpening：map 子票统一入口的开头一段（首行 /wayfinder + 票链接 + 推进指令 + 调查节）。
+# mapTicketAdvanceWrapUp：同一个入口的收尾段（## 收尾那一节 + 工具节）。
+# mapTicketAdvance 由这两节拼成，讨论 / 执行 / 研究三条动作模板整段引用它；
+#   tpl.prototype 要在这两段中间插自己的一节「## 定版与移交」，所以它分别引用开头与收尾两节。
+# 2026-10-29 收成公共小节：此前四条模板各抄一遍，改一句要改好几处、升好几次版本。
+mapTicketAdvanceOpening:
   zh: |-
     /wayfinder
     {url}
@@ -45,11 +50,6 @@ mapTicketAdvance:
     请按 wayfinder 技能推进这张票。
 
     {{shared:investigation}}
-
-    ## 收尾
-    - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
-
-    {{shared:sharedTools}}
   en: |-
     /wayfinder
     {url}
@@ -57,11 +57,26 @@ mapTicketAdvance:
     Please advance this ticket with the wayfinder skill.
 
     {{shared:investigation}}
+mapTicketAdvanceWrapUp:
+  zh: |-
+    ## 收尾
+    - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
 
+    {{shared:sharedTools}}
+  en: |-
     ## Wrap-up
     - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.
 
     {{shared:sharedTools}}
+mapTicketAdvance:
+  zh: |-
+    {{shared:mapTicketAdvanceOpening}}
+
+    {{shared:mapTicketAdvanceWrapUp}}
+  en: |-
+    {{shared:mapTicketAdvanceOpening}}
+
+    {{shared:mapTicketAdvanceWrapUp}}
 
 # repoBootstrap：初始化本仓库配置的整段正文（setupRun 与 switchAlign 共用；命令首行 /setup-matt-pocock-skills 留在模板里）。
 # 2026-10-29 收成公共小节：两条模板此前逐字相同，switchAlign 的 use 里还写着一句「主体与 setupRun 一字一致」——

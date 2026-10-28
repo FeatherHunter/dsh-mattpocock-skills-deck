@@ -1527,9 +1527,12 @@ const contractChecksInner = function (reg, src) {
     //   `## Destination` 一节必须保留、再按后端声明建边），版本底线同步抬到 13。
     // 2026-10-29：map 子票的讨论 / 执行 / 研究三条动作模板的同一段正文收成公共小节 mapTicketAdvance，
     //   setupRun 与 switchAlign 共用的初始化正文收成公共小节 repoBootstrap；对应五条模板升版，版本底线同步抬高。
+    // 2026-10-29（同日第二笔）：tpl.prototype v16→v17 —— mapTicketAdvance 拆成开头与收尾两节
+    //   （mapTicketAdvanceOpening / mapTicketAdvanceWrapUp），原型模板引用这两节、中间保留自己的「定版与移交」一节，
+    //   版本底线同步抬高；specExecute v5→v6 —— 中文收尾小节标题从「## 收口」改成「## 收尾」，与其余模板统一。
     mapExecute: 21, complete: 16, fixate: 11, 'tpl.diagnose': 20, 'tpl.fix': 17, 'tpl.discuss': 22,
-    'tpl.research': 16, 'tpl.prototype': 16, 'tpl.takeover': 12, 'tpl.supplement': 10, 'tpl.execute': 22, mapInspect: 13, newWayfinder: 25,
-    newBugWayfinder: 16, newSpec: 5, healthCheck: 5, specComplete: 6, specExecute: 5, specSplit: 5,
+    'tpl.research': 16, 'tpl.prototype': 17, 'tpl.takeover': 12, 'tpl.supplement': 10, 'tpl.execute': 22, mapInspect: 13, newWayfinder: 25,
+    newBugWayfinder: 16, newSpec: 5, healthCheck: 5, specComplete: 6, specExecute: 6, specSplit: 5,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
     // #664：setupRun v13 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（界面已保证过），版本号跟着抬到 13
@@ -2402,7 +2405,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'b6a56f4a985da8ed3b47101fb0d954838d1cf2ac416ccac9e9ec9bea4c004cad',
+  'tests/verify-prompts.ts': 'dc6b0ab4b65f12ea84ed769beb615a9cb5cf91100f1c9daa2d8ca013c089d4ae',
 }
 // ---- LOCK-END ----
 

@@ -18,13 +18,15 @@
  *   · PROMPT_FRAGMENT_IDS —— 三处片段 id（newBugFields / newWayfinderWiring / vocabularyDefaults）。
  *     模板一份字面量有版本号与 placeholders 两类元字段，片段只装 zh/en 两份 —— 不是模板，
  *     分类不同。门禁与生成器都按片段口径核（zh/en 必含，占位符用法单独看）。
- *   · PROMPT_SHARED_SECTION_IDS —— 公共小节（今天四节：sharedTools「## 工具」三条、
+ *   · PROMPT_SHARED_SECTION_IDS —— 公共小节（今天六节：sharedTools「## 工具」三条、
  *     investigation「## 调查（建议先查后问）」四条、mapTicketAdvance（讨论 / 执行 / 研究三条动作模板
- *     注入的同一段正文）、repoBootstrap（setupRun 与 switchAlign 共用的初始化正文））。
+ *     注入的同一段正文）、repoBootstrap（setupRun 与 switchAlign 共用的初始化正文）、
+ *     mapTicketAdvanceOpening 与 mapTicketAdvanceWrapUp（把 mapTicketAdvance 拆成的开头与收尾两段，
+ *     tpl.prototype 在两者之间插自己的一节「## 定版与移交」））。
  *     它们不属于任何一族，单独住在 config/prompts/shared-sections.yaml；模板正文里写
  *     {{shared:<id>}}，readPromptConfig 展开时把对应语言的正文整段换进去。
  *     这样一节正文只写一遍、引用它的模板只写标记，不会再出现改一处漏其余的情况。
- *     小节正文里也可以再写标记（mapTicketAdvance 嵌着 investigation 与 sharedTools），读取时逐层展开。
+ *     小节正文里也可以再写标记（mapTicketAdvance 由开头与收尾两节拼成，开头里嵌着 investigation），读取时逐层展开。
  *   · readPromptYamls —— 读五份提示词 YAML 与一份语言清单，返回结构化对象。
  *     YAML 真读不到 / 解析失败 / 顶层形状不对一律报错（不静默返回空）。
  *   · readSharedSections + expandSharedSections —— 读公共小节 YAML，并在读配置时把模板里的
@@ -227,7 +229,7 @@ export const PROMPT_YAML_PATHS: ReadonlyArray<string> = [
 export const PROMPT_SHARED_SECTIONS_REL = 'config/prompts/shared-sections.yaml'
 
 /** 公共小节 id 清单。新增一节时改这一处，YAML 顶层键必须与它逐项相等。 */
-export const PROMPT_SHARED_SECTION_IDS: ReadonlyArray<string> = ['sharedTools', 'investigation', 'mapTicketAdvance', 'repoBootstrap']
+export const PROMPT_SHARED_SECTION_IDS: ReadonlyArray<string> = ['sharedTools', 'investigation', 'mapTicketAdvanceOpening', 'mapTicketAdvanceWrapUp', 'mapTicketAdvance', 'repoBootstrap']
 
 /** 一个公共小节的形状：只装 zh/en 两份正文，没有版本号与占位符（它不是一条模板）。 */
 export interface SharedSectionShape {
