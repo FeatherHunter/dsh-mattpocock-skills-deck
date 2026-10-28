@@ -203,6 +203,8 @@ const KEYS: Array<[string, string, string]> = [
   ['deferExpiryMs', 'DEFER_EXPIRY_MS', 'ttl'],
   ['failureHalfOpenDelayMs', 'FAILURE_HALF_OPEN_DELAY_MS', 'ttl'],
   ['attentionExpiryMs', 'ATTENTION_EXPIRY_MS', 'ttl'],
+  // #1240：心跳的人在场判据（最近这段时间没有人类输入就不发心跳）。
+  ['attentionHumanInputWindowMs', 'ATTENTION_HUMAN_INPUT_WINDOW_MS', 'ttl'],
   ['activeLingerMs', 'ACTIVE_LINGER_MS', 'ttl'],
   ['patchMergeWindowMs', 'PATCH_MERGE_WINDOW_MS', 'ttl'],
   ['freshnessYellowMs', 'FRESHNESS_YELLOW_MS', 'ttl'],
@@ -213,6 +215,8 @@ const KEYS: Array<[string, string, string]> = [
   ['snapshotTtlMs', 'SNAPSHOT_TTL_MS', 'ttl'],
   ['statusCacheMs', 'STATUS_CACHE_MS', 'ttl'],
   ['snapshotCacheMs', 'SNAPSHOT_CACHE_MS', 'ttl'],
+  // #1240：刚选中快照的保护窗（别用旧缓存盖掉用户刚点的选择）。
+  ['snapshotPickedGuardMs', 'SNAPSHOT_PICKED_GUARD_MS', 'ttl'],
   ['planCursorTtlMs', 'PLAN_CURSOR_TTL_MS', 'ttl'],
   ['anchorWindowMs', 'ANCHOR_WINDOW_MS', 'ttl'],
   ['idempotencyLookbackMs', 'IDEMPOTENCY_LOOKBACK_MS', 'ttl'],

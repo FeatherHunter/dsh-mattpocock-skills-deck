@@ -193,6 +193,7 @@ const REFERENCES: RefRow[] = [
   { file: 'src/client/kernel/settings-view-write.ts', access: 'VIEW_FLAG_WRITE_DEBOUNCE_MS', gen: 'VIEW_FLAG_WRITE_DEBOUNCE_MS', key: 'viewFlagWriteDebounceMs' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', access: 'ATTENTION_EXPIRY_MS', gen: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', access: 'ATTENTION_HEARTBEAT_MS', gen: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
+  { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', access: 'ATTENTION_HUMAN_INPUT_WINDOW_MS', gen: 'ATTENTION_HUMAN_INPUT_WINDOW_MS', key: 'attentionHumanInputWindowMs' },
   { file: 'src/client/views/shared/truthLines.ts', access: 'REST_FALLBACK_STALE_MS', gen: 'REST_FALLBACK_STALE_MS', key: 'restFallbackStaleMs' },
   { file: 'src/client/views/versionControl/vcText.ts', access: 'VC_RELATIVE_WINDOW_MS', gen: 'VC_RELATIVE_WINDOW_MS', key: 'vcRelativeWindowMs' },
   { file: 'src/client/kernel/store-prefs.ts', access: 'SYNC_ISSUE_CACHE_TTL_MS', gen: 'SYNC_ISSUE_CACHE_TTL_MS', key: 'syncIssueCacheTtlMs' },
@@ -229,6 +230,7 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/client/kernel/slotRenderer-queue.ts', name: 'SLOT_QUEUE_STEP_MS', key: 'slotQueueStepMs' },
   { file: 'src/client/kernel/slotRenderer-modal-view.ts', name: 'SLOT_MODAL_OPEN_DELAY_MS', key: 'slotModalOpenDelayMs' },
   { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'STORE_NOTICE_DISMISS_MS', key: 'storeNoticeDismissMs' },
+  { file: 'src/refresh/rooms/client/snapshot-cache-store.ts', name: 'SNAPSHOT_PICKED_GUARD_MS', key: 'snapshotPickedGuardMs' },
   { file: 'src/client/kernel/store-switch.ts', name: 'STORE_SWITCH_CONFIRM_MS', key: 'storeSwitchConfirmMs' },
   { file: 'src/client/statusbar/StatusLogMenu.ts', name: 'STATUS_MENU_DISMISS_DELAY_MS', key: 'statusMenuDismissDelayMs' },
   { file: 'src/client/statusbar/StatusLogMenu.ts', name: 'STATUS_MENU_HOVER_OPEN_DELAY_MS', key: 'statusMenuHoverOpenDelayMs' },
@@ -293,6 +295,8 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/refresh/kernel/host-budget.ts', name: 'ACTIVE_LINGER_MS', key: 'activeLingerMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs' },
+  // heartbeat.js（attentionHeartbeat 拼片）：本机人不在场的判定窗也由这一片提供（#1240）。
+  { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: 'ATTENTION_HUMAN_INPUT_WINDOW_MS', key: 'attentionHumanInputWindowMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'QUOTA_SYNC_INTERVAL_MS', key: 'quotaSyncIntervalMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'FRESHNESS_YELLOW_MS', key: 'freshnessYellowMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'FRESHNESS_RED_MS', key: 'freshnessRedMs' },
@@ -313,6 +317,8 @@ const PERMANENT: PermanentRow[] = [
   { file: 'src/client/views/shared/truthLines.ts', snippet: 'TRUTH_MINUTE_MS = 60000', reason: '单位换算（1 分钟），只做“多久”折人话的刻度，不是旋钮' },
   { file: 'src/deck/tools/work-route.ts', snippet: 'HOUR_MS = 3_600_000', reason: '单位换算（1 小时）：把中央 YAML 的在办窗口算出回执里的「24 小时」，不是旋钮' },
   { file: 'src/deck/tools/work-route.ts', snippet: 'DAY_MS = 24 * HOUR_MS', reason: '单位换算（1 天 = 24 小时）：把中央 YAML 的保留期算出回执里的「30 天」，不是旋钮' },
+  { file: 'src/deck/shell/work-path-readout.ts', snippet: 'MINUTE_MS = 60_000', reason: '单位换算（1 分钟）：把中央 YAML 的撞单窗口算成回执里的「30 分钟」，不是旋钮' },
+  { file: 'src/deck/shell/work-path-readout.ts', snippet: 'HOUR_MS = 60 * MINUTE_MS', reason: '单位换算（1 小时 = 60 分钟）：把中央 YAML 的在办窗口算成摘要里的「24 小时」，不是旋钮' },
   // —— 0 表示“还没有 / 关掉”（状态初值与开关，不是时长） ——
   { file: 'src/shared/naming-tracking.ts', snippet: 'NAMING_HINT_GRACE_MS = 0', reason: '值为 0 表示把这个宽限窗关掉，不是可调时长' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', snippet: "intervalMs: 0, lingerMs: 0, standing: '', limit: 0, atMs: 0", reason: '心跳计划的状态初值（0 = 还没定下节拍 / 还没跳过），真值由刷新预算注入，不是新参数' },
@@ -675,7 +681,7 @@ async function main(): Promise<void> {
   //   · setTimeout(() => {…}, 5000)——箭头回调自带括号，逗号前那一段被 [^,()]* 挡掉，匹配不上。
   // 所以改成取整段参数再判：只认「某个顶层参数本身就是数字」这一种形态，
   // 回调体内部的数字（timer.timeout(() => { i + 1 }, 5000) 里的 1）不算，免得凭空多报。
-  const TIMER_CALL_RE = /\b(?:setTimeout|setInterval|timer\.(?:timeout|sleep|wait))\s*\(/g
+  const TIMER_CALL_RE = /\b(?:setTimeout|setInterval|timer\.(?:timeout|sleep|wait)|withCap|sleepOnce)\s*\(/g
   function timerArgHits(text: string): string[] {
     const out: string[] = []
     for (const m of text.matchAll(TIMER_CALL_RE)) {
@@ -708,6 +714,31 @@ async function main(): Promise<void> {
     }
     return out
   }
+  // 时钟差直接与数字比较：Date.now() - 某个时刻 <op> 数字（#1240 二类之一）。
+  // 为什么单列一条：定时器参数位只看得见 setTimeout 一类的调用，看不见「自己算两个时刻的差」——
+  //   仓里有两处真实写法靠这条判据才暴露：视野心跳的「最近 60 秒有没有人类输入」与水合守卫的
+  //   「刚选中 60 秒内别被旧缓存盖掉」。窗口值必须入 config/ 下三份 YAML，经生成常量 import 进来。
+  // 0 与 -1 按第四节口径放行（「还没有 / 上限哨兵」，不是可调时长）。
+  // 操作数里不许出现逗号、分号、花括号与比较符：这样 'Date.now() - t0, ok: true, kind: n > 0'
+  //   这种「逗号后另起属性」不会被误报（StatusLogMenu 的真实写法，基线核验时验证过）。
+  function findClockDiffLiterals(text: string): string[] {
+    const out: string[] = []
+    const forward = /Date\.now\(\)\s*-\s*([^,;{}!?=<>"\n]*?)\s*(<=?|>=?)\s*(\d[\d_]*)\b/g
+    const reverse = /(\d[\d_]*)\s*(<=?|>=?)\s*Date\.now\(\)\s*-/g
+    const isWindow = (raw: string): boolean => {
+      const v = numVal(raw)
+      return v !== 0 && v !== -1
+    }
+    for (const m of text.matchAll(forward)) {
+      if (!isWindow(m[3])) continue
+      out.push('时钟差直接比数字：' + m[0].replace(/\s+/g, ' ').trim())
+    }
+    for (const m of text.matchAll(reverse)) {
+      if (!isWindow(m[1])) continue
+      out.push('时钟差直接比数字：' + m[0].replace(/\s+/g, ' ').trim())
+    }
+    return out
+  }
   const fallbackNumRe = /([A-Za-z_$][A-Za-z0-9_$.]*)\s*(\?\?|\|\|)\s*(\d[\d_]*)\b/g
   const ls4 = spawnSync('git', ['ls-files', 'src'], { cwd: ROOT, encoding: 'utf8' })
   check(ls4.status === 0, 'git ls-files 可用（无字面量扫描的前置条件）')
@@ -728,6 +759,11 @@ async function main(): Promise<void> {
       if (timeishLike(m[1])) hits.push('对象里藏数字：' + m[1] + ' : {…}')
     }
     for (const hit of timerArgHits(text)) hits.push(hit)
+    // 时钟差比较单独判：它不是「声明/属性/参数位上挂着数字」，而是一整句比较，
+    //   没有时间名字可以交给 PERMANENT 表认领，所以只有一条出路——把窗口入 YAML 走 import。
+    for (const hit of findClockDiffLiterals(text)) {
+      check(false, file + ' ' + hit + '——时间窗口不许写死：把窗口加进 config/ 下三份 YAML 再 import 生成常量（0 与 -1 除外）')
+    }
     for (const m of text.matchAll(fallbackNumRe)) {
       if (numVal(m[3]) === 0 || numVal(m[3]) === -1) continue
       if (timeishLike(m[1].split('.').pop()!)) hits.push('缺省回落是数字：' + m[1] + ' ' + m[2] + ' ' + m[3])
@@ -854,6 +890,22 @@ async function main(): Promise<void> {
     }
   }
   check(scanned > 0, '覆盖率扫描走完了全部 src/**/*.ts 与 .js（命中时间名字的文件 ' + scanned + ' 个）')
+
+  // —— 第六节：两条新判据先自检（#1240） ——
+  // 检测器写成纯函数却没人调，就会一直是绿的；这里给一组「必须红 / 必须不红」的合成样本。
+  const clockBad: string[] = findClockDiffLiterals('while (Date.now() - t0 < 2000) { poll() }')
+  check(clockBad.length === 1 && clockBad[0].indexOf('2000') >= 0,
+    '自检：时钟差直接比数字会被抓到（' + (clockBad.join('；') || '没抓到') + '）')
+  check(findClockDiffLiterals('const d = Date.now() - t0, ok: true, kind: n > 0').length === 0,
+    '自检：逗号后另起属性不算时钟差比较（不误报）')
+  check(findClockDiffLiterals('if (Date.now() - lastHumanAt > 0) return').length === 0,
+    '自检：和 0 比是「还没有」哨兵，不算手写窗口')
+  check(timerArgHits('await withCap(work, 2000)').length === 1,
+    '自检：withCap 的参数位传裸数字会被抓到')
+  check(timerArgHits('await sleepOnce(2000)').length === 1,
+    '自检：sleepOnce 的参数位传裸数字会被抓到')
+  check(timerArgHits('await withCap(work, ATTENTION_EXPIRY_MS)').length === 0,
+    '自检：withCap 传中央常量不算手写数字')
 
   if (failed) process.exit(1)
   console.log('PASS 中央时间参数门禁全绿')

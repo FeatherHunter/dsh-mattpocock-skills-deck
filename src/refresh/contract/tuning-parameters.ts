@@ -25,19 +25,19 @@ import { DECK_ENSURE_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /** 调参表的形状：三个字段都可选，缺字段时调用方用代码缺省值顶上。 */
 export interface SharedTuning {
-  /** 读桶上限，来源 src/refresh/rooms/host/outbound-admission.ts:25（READ_BUCKET_MAX）。 */
+  /** 读桶上限；调用方 src/refresh/rooms/host/outbound-admission.ts 读取，缺字段时回落到 64。 */
   readBucketMax?: number
-  /** 写桶上限，来源同文件 :26（WRITE_BUCKET_MAX）。 */
+  /** 写桶上限；调用方同上，缺字段时回落到 16。 */
   writeBucketMax?: number
-  /** deck 调用前置保读数等待，来源 src/refresh/rooms/host/refresh-runtime.js:38（DECK_ENSURE_TIMEOUT_MS）。 */
+  /** deck 调用前置保读数等待；真源是 config/timeouts.yaml 的 deckEnsureMs（生成 DECK_ENSURE_TIMEOUT_MS）。 */
   deckEnsureTimeoutMs?: number
 }
 
 /**
- * 调参表当前值（一个字没改，全是今天的数）：
- *   · 读 64：取自 #962 当初给的上限参考，终值以 #967 测量回填为准；
- *   · 写 16：写需求差取四分之一；
- *   · 保读数 15000 毫秒：保读数含一次远端读数（读档 12 秒加排队），给 15 秒。
+ * 调参表当前值（每次改数字都要在这里写清依据，不要只改值）：
+ *   · 读 64：#1224 按 2026-10-28 实测定为终值（同时在飞需求峰值 65，93.8% 不排队）；
+ *   · 写 16：#1224 补测写需求峰值 6，16 留约两倍半余量；
+ *   · 保读数 15000 毫秒：前置保读的等待上限，真源是 config/timeouts.yaml 的 deckEnsureMs。
  */
 export const TUNING: SharedTuning = {
   readBucketMax: 64,

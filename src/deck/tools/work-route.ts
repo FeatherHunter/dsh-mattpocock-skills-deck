@@ -26,6 +26,13 @@ const HOUR_MS = 3_600_000
 const DAY_MS = 24 * HOUR_MS
 /** 回执里「存档上限」那句的体积写法：由裁剪用的那一份字节数推出来，不在这里再抄一个「2MB」。 */
 const CHAIN_MAX_BYTES_LABEL = Math.round(CHAIN_MAX_BYTES / (1024 * 1024)) + 'MB'
+/** 回执句子里「24 小时」的写法：由中央 YAML 的在办窗口现算，改 YAML 这里跟着变。 */
+const ACTIVE_HOURS = WORK_ROUTE_ACTIVE_WINDOW_MS / HOUR_MS
+/** 回执句子里「30 天」的写法：由中央 YAML 的保留期现算，改 YAML 这里跟着变。 */
+const RETENTION_DAYS = WORK_ROUTE_IN_PROGRESS_WINDOW_MS / DAY_MS
+/** 两条回执 notes 共用的前半句（说清数据来源与两个口径），避免同一句话抄两遍抄出错。 */
+const ARCHIVE_SCOPE_NOTE = '数据来自本机工作区存档（local archive），只含本工作区 ' + RETENTION_DAYS
+  + ' 天内动过的条目；在办指 ' + ACTIVE_HOURS + ' 小时内动过'
 
 /**
  * 装配层注入的依赖袋。壳要的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
@@ -43,11 +50,11 @@ export interface DeckWorkRouteDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_work_route',
-  description: '查看本工作区在办表（按会话分组）：默认只看 24 小时内在办的条目，传 includeStale:true 展开 30 天内全部（含陈旧）；limit 控制最多回多少条。数据来自本机工作区存档，只含本工作区 30 天内动过的条目；在办指 24 小时内动过，存档上限 2MB。写票回执不再带在办表，要看就来这里。',
+  description: '查看本工作区在办表（按会话分组）：默认只看 ' + ACTIVE_HOURS + ' 小时内在办的条目，传 includeStale:true 展开 ' + RETENTION_DAYS + ' 天内全部（含陈旧）；limit 控制最多回多少条。数据来自本机工作区存档，只含本工作区 ' + RETENTION_DAYS + ' 天内动过的条目；在办指 ' + ACTIVE_HOURS + ' 小时内动过，存档上限 ' + CHAIN_MAX_BYTES_LABEL + '。写票回执不再带在办表，要看就来这里。',
   parameters: {
     type: 'object',
     properties: {
-      includeStale: { type: 'boolean', description: '是否展开陈旧条目：缺省 false 只看 24 小时内在办；传 true 回 30 天内全部（含超过 24 小时未动的那部分）' },
+      includeStale: { type: 'boolean', description: '是否展开陈旧条目：缺省 false 只看 ' + ACTIVE_HOURS + ' 小时内在办；传 true 回 ' + RETENTION_DAYS + ' 天内全部（含超过 ' + ACTIVE_HOURS + ' 小时未动的那部分）' },
       limit: { type: 'number', description: '最多回多少条，缺省 100，上限 200' },
     },
     required: [],
@@ -116,7 +123,7 @@ export function createDeckWorkRoute(deps?: DeckWorkRouteDeps) {
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
             text: '在办表这次读不出来（no-read-binding）：当前装配没接上读这一支，下一次再试。',
             data: { total: 0, returned: 0, omitted: 0, includeStale: includeStale, limit: limit },
-            notes: ['数据来自本机工作区存档（local archive），只含本工作区 30 天内动过的条目；在办指 24 小时内动过，存档上限 2MB。'],
+            notes: [ARCHIVE_SCOPE_NOTE + '，存档上限 ' + CHAIN_MAX_BYTES_LABEL + '。'],
             touched: [],
           },
           claimed: { requests: 1, points: 3 },
@@ -136,7 +143,7 @@ export function createDeckWorkRoute(deps?: DeckWorkRouteDeps) {
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
             text: '在办表这次读不出来（' + reason + '）：下一次写票或再调一次会重新读盘，不用改参数。',
             data: { total: 0, returned: 0, omitted: 0, includeStale: includeStale, limit: limit },
-            notes: ['数据来自本机工作区存档（local archive），只含本工作区 30 天内动过的条目；在办指 24 小时内动过，存档上限 2MB。'],
+            notes: [ARCHIVE_SCOPE_NOTE + '，存档上限 ' + CHAIN_MAX_BYTES_LABEL + '。'],
             touched: [],
           },
           claimed: { requests: 1, points: 3 },
@@ -179,12 +186,13 @@ export function createDeckWorkRoute(deps?: DeckWorkRouteDeps) {
         return y.items.length - x.items.length
       })
       const staleCount = num((readout as UnknownRecord).staleCount)
-      const notes: string[] = ['数据来自本机工作区存档（local archive），只含本工作区 30 天内动过的条目；在办指 24 小时内动过，超过 24 小时、未满 30 天记为陈旧；存档上限 2MB，超限按时间从旧到新裁。']
+      const notes: string[] = [ARCHIVE_SCOPE_NOTE + '，超过 ' + ACTIVE_HOURS + ' 小时、未满 ' + RETENTION_DAYS
+        + ' 天记为陈旧；存档上限 ' + CHAIN_MAX_BYTES_LABEL + '，超限按时间从旧到新裁。']
       if (omitted > 0) notes.push('只回前 ' + sliced.length + ' 条（共 ' + total + ' 条符合，另有 ' + omitted + ' 条没带）：调大 limit 或分会话再查一次。')
       const staleInView = sliced.filter((e) => (e as UnknownRecord).active !== true).length
-      if (staleInView > 0) notes.push('其中 ' + staleInView + ' 条超过 1 天未动（本工作区陈旧共 ' + staleCount + ' 条）。')
-      else if (includeStale && staleCount > 0) notes.push('本工作区陈旧共 ' + staleCount + ' 条（超过 1 天未动）。')
-      else if (!includeStale && staleCount > 0) notes.push('另有 ' + staleCount + ' 条超过 1 天未动（陈旧，只计数，不在默认视图里列出；传 includeStale:true 展开）。')
+      if (staleInView > 0) notes.push('其中 ' + staleInView + ' 条超过 ' + ACTIVE_HOURS + ' 小时未动（本工作区陈旧共 ' + staleCount + ' 条）。')
+      else if (includeStale && staleCount > 0) notes.push('本工作区陈旧共 ' + staleCount + ' 条（超过 ' + ACTIVE_HOURS + ' 小时未动）。')
+      else if (!includeStale && staleCount > 0) notes.push('另有 ' + staleCount + ' 条超过 ' + ACTIVE_HOURS + ' 小时未动（陈旧，只计数，不在默认视图里列出；传 includeStale:true 展开）。')
       const collisions: UnknownRecord[] = Array.isArray((readout as UnknownRecord).collisions) ? ((readout as UnknownRecord).collisions as UnknownRecord[]) : []
       const data: UnknownRecord = {
         at: str((readout as UnknownRecord).at) || atFallbackIso,
@@ -199,8 +207,8 @@ export function createDeckWorkRoute(deps?: DeckWorkRouteDeps) {
       }
       if (collisions.length > 0) data.collisions = collisions
       const head = includeStale
-        ? '在办表（30 天内全部）：共 ' + total + ' 条，分 ' + groups.length + ' 个会话组'
-        : '在办表（24 小时内在办）：共 ' + total + ' 条，分 ' + groups.length + ' 个会话组'
+        ? '在办表（' + RETENTION_DAYS + ' 天内全部）：共 ' + total + ' 条，分 ' + groups.length + ' 个会话组'
+        : '在办表（' + ACTIVE_HOURS + ' 小时内在办）：共 ' + total + ' 条，分 ' + groups.length + ' 个会话组'
       return {
         value: {
           status: DECK_STATUS.OK,
