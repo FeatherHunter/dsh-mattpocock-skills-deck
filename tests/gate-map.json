@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T11:52:31.203Z",
+  "generatedAt": "2026-10-28T12:23:12.673Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 426,
-  "gateCount": 426,
-  "attributedGates": 383,
+  "chainLength": 430,
+  "gateCount": 430,
+  "attributedGates": 387,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 18,
+  "completionRecordedGates": 19,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 606,
+  "graphFileCount": 608,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -144,6 +144,7 @@
         "src/client/statusbar/capFold.ts",
         "src/client/statusbar/capFoldMachine.ts",
         "src/client/statusbar/checksums.ts",
+        "src/client/statusbar/shownAttentionMount.ts",
         "src/client/statusbar/suggestAppearance.ts",
         "src/client/statusbar/suggestBubble.ts",
         "src/client/statusbar/suggestEngine.ts",
@@ -227,7 +228,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 83 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 84 条"
     },
     {
       "step": "node tests/verify-chain-capsule.ts",
@@ -1523,6 +1524,7 @@
       "guards": [
         "src/client/kernel/ctx.ts",
         "src/client/kernel/link.ts",
+        "src/client/kernel/motion.ts",
         "src/client/kernel/ticket-label.ts",
         "src/client/views/IssueDetail.ts",
         "src/client/views/IssueDetailComments.ts",
@@ -1542,7 +1544,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 9 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 10 条"
     },
     {
       "step": "node tests/verify-1146-virtual-clock-liveness.ts",
@@ -1869,6 +1871,24 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "读到的路径都落在 package、scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
+    },
+    {
+      "step": "node tests/verify-1220-shown-store.ts",
+      "file": "tests/verify-1220-shown-store.ts",
+      "guards": [
+        "src/client/statusbar/StatusBar.ts",
+        "src/client/statusbar/shownAttentionMount.ts",
+        "src/refresh/rooms/client/client-attention-heartbeat.ts"
+      ],
+      "dirs": [
+        "src/client/statusbar",
+        "src/refresh/rooms/client"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-1223-catalog-runtime-parity.ts",
@@ -2224,6 +2244,7 @@
         "src/client/kernel/container-view.ts",
         "src/client/kernel/ctx.ts",
         "src/client/kernel/link.ts",
+        "src/client/kernel/motion.ts",
         "src/client/kernel/ticket-label.ts",
         "src/client/views/ListTab.ts",
         "src/client/views/ListTabRow.ts",
@@ -2245,7 +2266,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 9 条；静态 import 说明符 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 9 条；静态 import 说明符 2 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-1304-deps-native.ts",
@@ -2516,6 +2537,7 @@
       "guards": [
         "scripts/build.mts",
         "src/client/index.ts",
+        "src/client/kernel/motion.ts",
         "src/client/statusbar/suggestAppearance.ts",
         "src/client/statusbar/suggestBubble.ts",
         "src/client/statusbar/suggestEngine.ts",
@@ -2527,6 +2549,7 @@
       "dirs": [
         "scripts",
         "src/client",
+        "src/client/kernel",
         "src/client/statusbar",
         "tests",
         "tests/lib"
@@ -2535,7 +2558,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 151,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-1411-suggest-bubble.ts",
@@ -2543,6 +2566,7 @@
       "guards": [
         "scripts/build.mts",
         "src/client/index.ts",
+        "src/client/kernel/motion.ts",
         "src/client/statusbar/suggestAppearance.ts",
         "src/client/statusbar/suggestBubble.ts",
         "src/client/statusbar/suggestStream.ts",
@@ -2553,6 +2577,7 @@
       "dirs": [
         "scripts",
         "src/client",
+        "src/client/kernel",
         "src/client/statusbar",
         "tests",
         "tests/lib"
@@ -2561,7 +2586,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 104,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-1412-ask-matt-next-steps.ts",
@@ -2779,6 +2804,7 @@
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
         "src/deck/tools/tracker-session.ts",
+        "src/refresh/kernel/backend-accounting.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/tool-call-budget.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
@@ -2800,7 +2826,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 18 条"
+      "reason": "归属来自：源码里的路径字面量 19 条"
     },
     {
       "step": "node tests/verify-1443-github-readbudget.ts",
@@ -3128,6 +3154,7 @@
       "step": "node tests/verify-1451-suggest-session-keep.ts",
       "file": "tests/verify-1451-suggest-session-keep.ts",
       "guards": [
+        "src/client/kernel/motion.ts",
         "src/client/statusbar/suggestAppearance.ts",
         "src/client/statusbar/suggestBubble.ts",
         "src/client/statusbar/suggestFacts.ts",
@@ -3135,6 +3162,7 @@
         "tests/lib/gate-result.ts"
       ],
       "dirs": [
+        "src/client/kernel",
         "src/client/statusbar",
         "tests/lib"
       ],
@@ -3142,7 +3170,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 31,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-1453-repo-locate-via-session.ts",
@@ -3797,6 +3825,7 @@
       "step": "node tests/verify-1526-suggest-replay-restore.ts",
       "file": "tests/verify-1526-suggest-replay-restore.ts",
       "guards": [
+        "src/client/kernel/motion.ts",
         "src/client/statusbar/suggestAppearance.ts",
         "src/client/statusbar/suggestBubble.ts",
         "src/client/statusbar/suggestFacts.ts",
@@ -3804,6 +3833,7 @@
         "tests/lib/gate-result.ts"
       ],
       "dirs": [
+        "src/client/kernel",
         "src/client/statusbar",
         "tests/lib"
       ],
@@ -3811,7 +3841,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 51,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-1530-generated-outputs-not-inputs.ts",
@@ -4239,6 +4269,57 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1607-gh-unc-cwd.ts",
+      "file": "tests/verify-1607-gh-unc-cwd.ts",
+      "guards": [
+        "src/host/platformChannel.ts",
+        "src/host/versionControl.ts",
+        "src/refresh/rooms/host/gh-execution.ts",
+        "src/tracker/rooms/github/client.ts",
+        "src/tracker/rooms/github/preflight.ts"
+      ],
+      "dirs": [
+        "src/host",
+        "src/refresh/rooms/host",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 42,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
+    {
+      "step": "node tests/verify-1610-parallel-read.ts",
+      "file": "tests/verify-1610-parallel-read.ts",
+      "guards": [
+        "src/deck/shell/work-path-bindings.ts",
+        "src/deck/tools/issue-create.ts",
+        "src/deck/tools/issue-get.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/tracker/registry/core.ts",
+        "src/tracker/rooms/markdown/index.ts",
+        "tests/lib/deck-decide-stub.ts"
+      ],
+      "dirs": [
+        "src/deck/shell",
+        "src/deck/tools",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
+        "src/tracker/registry",
+        "src/tracker/rooms/markdown",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -5623,6 +5704,7 @@
       "file": "tests/verify-842-version-control-write-view.ts",
       "guards": [
         "scripts/lib/transpile-unit.mts",
+        "src/client/kernel/motion.ts",
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/client/views/versionControl/vcAiHandoff.ts",
         "src/client/views/versionControl/vcBlocks.ts",
@@ -5653,6 +5735,7 @@
       ],
       "dirs": [
         "scripts/lib",
+        "src/client/kernel",
         "src/client/views/versionControl",
         "src/shared/time-config/src",
         "src/shared/version-control/src",
@@ -5662,7 +5745,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 21 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 21 条"
     },
     {
       "step": "node tests/verify-847-stall-watch.ts",
@@ -6355,6 +6438,7 @@
       "step": "node tests/verify-997-vc-sight-browser.ts",
       "file": "tests/verify-997-vc-sight-browser.ts",
       "guards": [
+        "src/client/kernel/motion.ts",
         "src/client/kernel/styles.ts",
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/client/views/versionControl/vcAiHandoff.ts",
@@ -6390,7 +6474,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 19 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 19 条"
     },
     {
       "step": "node tests/verify-997-vc-sight.ts",
@@ -8177,6 +8261,21 @@
       "reason": "读到的路径都落在 docs、package、scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
+      "step": "node tests/verify-motion-tokens.ts",
+      "file": "tests/verify-motion-tokens.ts",
+      "guards": [
+        "src/client/kernel/motion.ts"
+      ],
+      "dirs": [
+        "src/client/kernel"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-multi-effort-panel.ts",
       "file": "tests/verify-multi-effort-panel.ts",
       "guards": [
@@ -9013,6 +9112,7 @@
       "guards": [
         "package/bundled-skills",
         "package/bundled-skills-zh",
+        "src/client/kernel/motion.ts",
         "src/client/views/pixel/PixelBanner.ts",
         "src/client/views/pixel/PixelBtn.ts",
         "src/client/views/pixel/PixelSeal.ts",
@@ -9031,6 +9131,7 @@
       "dirs": [
         "package/bundled-skills",
         "package/bundled-skills-zh",
+        "src/client/kernel",
         "src/client/views/pixel",
         "src/client/views/skillDetail",
         "src/shared/time-config/src",
@@ -9040,7 +9141,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 3 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；静态 import 说明符 2 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-skill-probe-redcard-and-waiting.ts",
@@ -9253,6 +9354,7 @@
         "src/client/floating/SkillFloatList.ts",
         "src/client/kernel/api-handoff.ts",
         "src/client/kernel/api-io.ts",
+        "src/client/kernel/motion.ts",
         "src/client/kernel/router.ts",
         "src/client/kernel/settings-debug.ts",
         "src/client/kernel/settings-view-write.ts",
@@ -9266,7 +9368,6 @@
         "src/client/statusbar/StatusLogMenu.ts",
         "src/client/statusbar/StatusMenus.ts",
         "src/client/statusbar/checksums.ts",
-        "src/client/statusbar/suggestAppearance.ts",
         "src/client/statusbar/suggestEngine.ts",
         "src/client/statusbar/suggestTimeline.ts",
         "src/client/views/IssueDetail.ts",
@@ -10411,12 +10512,16 @@
       "node tests/verify-1302-panel-list-skeleton.ts",
       "node tests/verify-1355-cross-session-table.ts",
       "node tests/verify-1373-stale-table-graft.ts",
+      "node tests/verify-1411-suggest-appearance.ts",
+      "node tests/verify-1411-suggest-bubble.ts",
       "node tests/verify-1431-snapshot-refresh-parity.ts",
       "node tests/verify-1436-own-work-route.ts",
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1449-layout-single-source.ts",
+      "node tests/verify-1451-suggest-session-keep.ts",
       "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-1519-detail-comments.ts",
+      "node tests/verify-1526-suggest-replay-restore.ts",
       "node tests/verify-1548-map-row-nav.ts",
       "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1565-workroute-first-col-browser.ts",
@@ -10442,6 +10547,7 @@
       "node tests/verify-693-detail-fallback-honesty.ts",
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-786-focus-end.ts",
+      "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-b2-map-newsession.ts",
@@ -10455,6 +10561,7 @@
       "node tests/verify-issue60-cwd.ts",
       "node tests/verify-log-exec-606.ts",
       "node tests/verify-map-drill.ts",
+      "node tests/verify-motion-tokens.ts",
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-naming-e2e.ts",
       "node tests/verify-naming-guardian.ts",
@@ -10468,6 +10575,7 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
+      "node tests/verify-skill-detail-stack.ts",
       "node tests/verify-subdir-first-frame.ts",
       "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-time-config.ts",
@@ -10495,6 +10603,7 @@
       "node tests/verify-chain-renderer.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-no-title.ts",
+      "node tests/verify-1220-shown-store.ts",
       "node tests/verify-1281-entries.ts",
       "node tests/verify-1291-closed-map-open-children.ts",
       "node tests/verify-1297-entry.ts",
@@ -10719,6 +10828,7 @@
       "node tests/verify-1489-progress.ts",
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1511-ticket-label.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-bulk-deadline.ts",
@@ -10766,6 +10876,7 @@
       "node tests/verify-1583-repo-ref-fallback.ts",
       "node tests/verify-1604-pure-map-routing.ts",
       "node tests/verify-1605-map-routing-guard.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -10819,6 +10930,7 @@
       "node tests/verify-1512-md-chain.ts",
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
+      "node tests/verify-1607-gh-unc-cwd.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
@@ -10970,6 +11082,7 @@
       "node tests/verify-1454-ledger-single-entry.ts",
       "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-1495-deck-close-reason.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
@@ -11019,6 +11132,7 @@
       "node tests/verify-chain-session.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-1082-work-route-table.ts",
+      "node tests/verify-1220-shown-store.ts",
       "node tests/verify-1305-client-session.ts",
       "node tests/verify-1355-cross-session-table.ts",
       "node tests/verify-1363-first-run-recovery.ts",
@@ -11102,6 +11216,8 @@
       "node tests/verify-1581-session-locators.ts",
       "node tests/verify-1583-repo-ref-fallback.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
+      "node tests/verify-1607-gh-unc-cwd.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -11393,6 +11509,7 @@
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1495-deck-close-reason.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-669-choice-precedence.ts",
@@ -11450,6 +11567,7 @@
       "node tests/verify-1571-gh-flag-writing.ts",
       "node tests/verify-1603-map-thin-list.ts",
       "node tests/verify-1605-map-routing-guard.ts",
+      "node tests/verify-1607-gh-unc-cwd.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -11551,6 +11669,7 @@
       "node tests/verify-1595-resolvespec.ts",
       "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-1605-markdown-map-list.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -11694,6 +11813,7 @@
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1526-suggest-replay-restore.ts",
       "node tests/verify-1582-open-folder.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
@@ -11824,9 +11944,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 627,
+    "fileCount": 629,
     "dirCount": 74,
-    "coveredFileCount": 627,
+    "coveredFileCount": 629,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -11855,6 +11975,7 @@
       "src/client/kernel/locale-data.ts",
       "src/client/kernel/locale.ts",
       "src/client/kernel/modal-fields.ts",
+      "src/client/kernel/motion.ts",
       "src/client/kernel/portal.ts",
       "src/client/kernel/prompt-data.ts",
       "src/client/kernel/prompts-backend.ts",
@@ -11897,6 +12018,7 @@
       "src/client/statusbar/capFold.ts",
       "src/client/statusbar/capFoldMachine.ts",
       "src/client/statusbar/checksums.ts",
+      "src/client/statusbar/shownAttentionMount.ts",
       "src/client/statusbar/suggestAppearance.ts",
       "src/client/statusbar/suggestBubble.ts",
       "src/client/statusbar/suggestEngine.ts",

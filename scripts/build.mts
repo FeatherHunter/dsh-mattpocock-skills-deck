@@ -837,6 +837,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'suggestAppearance', file: 'src/client/statusbar/suggestAppearance.ts' },
   { id: 'suggestStyles', file: 'src/client/statusbar/suggestStyles.ts' },
   { id: 'suggestBubble', file: 'src/client/statusbar/suggestBubble.ts' },
+  // #1220：状态栏登记「当前显示哪个会话」的空挂载组件，排在 StatusBar 之前（状态栏要挂它）。
+  { id: 'shownAttentionMount', file: 'src/client/statusbar/shownAttentionMount.ts' },
   { id: 'statusBar', file: 'src/client/statusbar/StatusBar.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
