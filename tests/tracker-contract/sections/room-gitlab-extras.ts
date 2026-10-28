@@ -861,6 +861,8 @@ export async function run() {
           if (!t) return { code: 1, stdout: '', stderr: '404 Issue Not Found' }
           if (o.links403) return { code: 1, stdout: '', stderr: '403 ' + PREMIUM_MSG }
           if (method === 'POST') {
+            // 免费档形状（#1599 真机探针查实）：GET links 通（读回空），POST is_blocked_by 403 点名要 Premium。
+            if (o.postBlocked403 && fval(args, 'link_type') === 'is_blocked_by') return { code: 1, stdout: '', stderr: '403 ' + PREMIUM_MSG }
             const target = fval(args, 'target_issue_iid')
             const type = fval(args, 'link_type') || 'relates_to'
             const link = { issue_link_id: ++nextLinkId, iid: Number(target), link_type: type }
@@ -1040,6 +1042,31 @@ export async function run() {
         'setBlockedBy：回退 PUT 回显里没有正文（要写的阻塞丢了）时如实失败',
         honestFailureCheck(r).length === 0 && /missing|readback|回/i.test(r.error.message),
         JSON.stringify(r).slice(0, 300),
+      )
+    }
+
+    // H. 免费档形状（GET 通读回空、POST 403）：滚回核对认 nativeEmpty 为干净 → 滑进正文成对回退。
+    // #1599 真机探针查实：旧实现在这里把 nativeEmpty 当成读回失败，免费档永远滑不进回退。
+    {
+      const store = makeStore([
+        { iid: 1, title: '被阻塞的票', description: '第一行\n\n第三行' },
+        { iid: 2, title: '阻塞者甲', description: '' },
+      ], { postBlocked403: true })
+      const sc = scriptedCtx({ script: store.script })
+      const r = await withGitlabTracker((t) => t.setBlockedBy(GL_REPO, '1', ['2'], null, sc.ctx))
+      const putBody = store.get(1).description
+      await assert(
+        'setBlockedBy：免费档 POST 403 后滚回核对通过、滑进正文成对回退（仍发 PUT，不报 auth 失败）',
+        r.ok === true && writesOf(sc).some((c) => c.indexOf('link_type=is_blocked_by') >= 0) &&
+          writesOf(sc).filter((c) => c.indexOf('--method PUT') >= 0).length === 1,
+        JSON.stringify({ ok: r.ok, err: r.ok ? null : r.error, writes: writesOf(sc) }).slice(0, 400),
+      )
+      await assert(
+        'setBlockedBy：免费档回退写的是成对两行，读回认得阻塞者甲',
+        putBody === 'Blocked by: #2\n<!-- DSH-BLOCKED-BY: 2 -->\n第一行\n\n第三行' &&
+          r.ok === true && r.data.blockedBy.length === 1 && r.data.blockedBy[0].key === '2' &&
+          r.data.blockedBy[0].title === '阻塞者甲',
+        JSON.stringify({ putBody, refs: r.ok ? r.data.blockedBy : null }).slice(0, 400),
       )
     }
   }

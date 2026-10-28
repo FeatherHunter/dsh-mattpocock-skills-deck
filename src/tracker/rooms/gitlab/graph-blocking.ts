@@ -287,9 +287,13 @@ async function writeNativeBlockedBy(
         }
       }
       const verify = await tryNativeBlockedBy(effective, id, key)
-      const leftovers = verify.probeFailed || !verify.native
+      // 核对只认「多出来的原生边」：nativeEmpty（端点通、is_blocked_by 零条）说明本轮什么都没落下，
+      // 滚回是干净的，可以滑进正文行回退；只有读不出（probeFailed）才算核对不了。之前这里把 nativeEmpty
+      // 也当成读回失败，导致免费档（GET 通、POST 403）永远滑不进回退（#1599 真机探针查实）。
+      const verifyRows = verify.probeFailed ? null : (verify.native || [])
+      const leftovers = verifyRows === null
         ? ['读回失败']
-        : verify.native.map(keyOf).filter((kk) => wanted.includes(kk) && !currentKeys.includes(kk))
+        : verifyRows.map(keyOf).filter((kk) => wanted.includes(kk) && !currentKeys.includes(kk))
       if (leftovers.length > 0) {
         return { ok: false, fallback: false, message: `阻塞真写：原生边加上又滚不干净（残留 ${leftovers.join(', ')}），不敢再写正文行`, raw: res }
       }
@@ -509,6 +513,8 @@ export async function setBlockedBy(
       }
     }
     const issue = normalizeIssue(ub)
+    // 回退路径的返回与上限路径同一条纪律（上面写后读回对上那一段）：对端标题与开关逐张落实，不硬写占位。
+    issue.blockedBy = await resolveBlockerStates(effective, id, (issue.blockedBy || []).map((b) => b.key), new Map())
     // 回退写后核对：PUT 回包就是读回（服务端回显更新后的票面）。要写的阻塞一个都不能少，
     // 少了说明远端没落盘或回显丢了正文，如实失败，不把「写丢了」包装成成功。
     const written = (issue.blockedBy || []).map((b) => b.key)
