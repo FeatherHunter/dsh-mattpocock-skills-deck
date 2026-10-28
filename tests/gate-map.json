@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T12:43:27.323Z",
+  "generatedAt": "2026-10-28T12:51:59.407Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 430,
   "gateCount": 430,
@@ -3840,7 +3840,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 51,
+      "expectedAssertions": 68,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
@@ -9248,6 +9248,7 @@
       "step": "node tests/verify-suggest-next-steps.ts",
       "file": "tests/verify-suggest-next-steps.ts",
       "guards": [
+        "src/client/statusbar/suggestFacts.ts",
         "src/deck/registration/agent-row.ts",
         "src/deck/registration/host-assemble.ts",
         "src/deck/registration/suggest-steps-register.ts",
@@ -9258,6 +9259,7 @@
         "tests/lib/gate-result.ts"
       ],
       "dirs": [
+        "src/client/statusbar",
         "src/deck/registration",
         "src/deck/rules",
         "src/deck/tools",
@@ -9268,8 +9270,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 151,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
+      "expectedAssertions": 160,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-t1-getrepokey.ts",
@@ -10642,6 +10644,7 @@
       "node tests/verify-cap-fold.ts",
       "node tests/verify-reuse.ts",
       "node tests/verify-subdir-first-frame.ts",
+      "node tests/verify-suggest-next-steps.ts",
       "node tests/verify-time-config.ts",
       "node tests/verify-ui-feedback.ts"
     ],

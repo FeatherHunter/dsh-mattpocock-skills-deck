@@ -11,8 +11,14 @@
 //   - 不新增常驻定时器、不订阅会话列表：等「整轮结束」靠 turn/end 事件，不靠计时器猜。
 //   - 拿不到事件流就安静不做，只留一条能指路的调试日志；整条路任何一步失败都吞掉，不影响界面。
 //   - 增量通路只处理 append：replace 是历史重放（打开旧会话时会把已有事件重放一遍），不当新调用冒泡。
-//     例外是 #1526（规格 #1525）的「补出」：挂载后按会话缓存为空时，只读一次快照，在历史重放里
+//     例外是 #1526（规格 #1525）的「补出」：挂载后按会话缓存为空时，读一次快照的事件窗口，
 //     找最后一条所在轮已收尾的建议补出一组；这是补历史，不是把重放当增量交付。
+//   - 补出看整个窗口，不看这一次变更的增量：真机上挂载可能早于窗口装载（先给空快照，装载完成后再
+//     用 replace 把整个窗口装进来），也可能会话已经热着、最后一次变更是 append（历史在窗口里，
+//     增量里没有）。窗口装载完成时的那一次 replace 会再给一次补出机会，其余 replace 仍不冒泡。
+//     来龙去脉见 restoreFromReplay 上的说明（#1420 第五项）。
+//   - 交付只看「调用到过、参数完整解析、这一轮已收尾」，不看 turn/end 的结束原因：completed 之外的
+//     aborted / error / interrupted 也可能带着完整一组建议（#1420 第三项定下的口径）。
 //
 // 契约（与仓库其它叶子文件同一套，见 scripts/build.mts 里的叶子清单）：
 //   模块真源是 ESM 导出，构建时剥掉行首 export 拼进 apply 闭包；运行时不许跨文件 import，
@@ -127,6 +133,9 @@ export const createSuggestStream = function (options: any) {
   let stop: any = null
   let binding: any = null
   let pending: any = null
+  // 补出还欠一次机会：挂载时事件窗口是空的（真机上先给空快照、装载完成后再 replace 装窗）。
+  // 置上之后，第一次 replace 到达时再补一次，补完就清掉；之后任何 replace 都不再冒泡（#1409）。
+  let replayWaitWindow = false
   let lastEndedTurn: any = null
   // PTC 预设的派发事件本身不带轮次，只能跟着 turn/start 走：记下当前这一轮的编号，
   // 给那些事件补轮次。原生 tool/call 自带轮次，不依赖它。
@@ -200,6 +209,10 @@ export const createSuggestStream = function (options: any) {
     if (info.kind === 'turn-end') {
       lastEndedTurn = info.turn
       currentTurn = null
+      // 结束原因不参与交付判据（#1420 第三项的口径）：turn/end 的 data.reason 可能是 completed，
+      // 也可能是 aborted / error（用户停止、模型报错）或 interrupted（进程崩溃后平台补写的收尾）。
+      // 建议工具的调用事件既然到过、参数又完整解析成功，就交出这一组；参数坏的在那一步已经被拒，
+      // 所以不会出现半组。改成「只认 completed」的话，中断与报错场景会把完整的一组静默丢掉。
       // PTC 调用可能是在界面挂载时这一轮已经开始了（没看到 turn/start），那时轮次补不出来；
       // 只要它是在这条 turn/end 之前收到的，就属于这一轮，照常交付。
       if (pending && (pending.turn === null || pending.turn <= info.turn)) {
@@ -230,13 +243,24 @@ export const createSuggestStream = function (options: any) {
     logReady('queued', callId, callTurn, parsed.items.length)
   }
 
-  /** 事件流通知：只认 append 增量；replace 是打开旧会话时的历史重放，不能当新调用冒泡。 */
+  /**
+   * 事件流通知：append 是增量，按条认调用；replace 是平台装载或重放整个窗口。
+   * 挂载时窗口还是空的（真机上先给空快照、装载完成后再 replace 装窗）时，第一次 replace
+   * 要把补出机会还回来；其余 replace 一律不当作新调用冒泡（#1409 的契约）。
+   */
   function onChange() {
     if (disposed) return
     let snapshot: any = null
     try { snapshot = binding.eventSource.getSnapshot() } catch (eSnap) { return }
     const change = snapshot && snapshot.change
-    if (!change || change.kind !== 'append') return
+    if (!change) return
+    if (change.kind === 'replace') {
+      if (!replayWaitWindow) return
+      replayWaitWindow = false
+      restoreFromReplay()
+      return
+    }
+    if (change.kind !== 'append') return
     const entries = Array.isArray(change.entries) ? change.entries : []
     for (let i = 0; i < entries.length; i++) {
       if (disposed) return
@@ -246,62 +270,92 @@ export const createSuggestStream = function (options: any) {
   }
 
   /**
-   * 补出：切回一个在后台跑完了一轮的会话时，那组建议从没上过屏，按会话缓存也是空的
-   * （取数层只认 append 增量，历史重放不会当新调用交付）。这里只读一次事件流快照，在历史重放
-   * 里从尾向前找最后一条「所在轮已收尾」的建议调用，走既有交付函数补出一组；更早的一律不补。
-   * 尾部那一轮还没收尾时不补出来，改为收下等增量通路送来 turn/end 再正常交付 —— 否则这一组
-   * 在挂载前就已到达的调用会永远没人交付。
-   * 任何一步失败都安静吞掉，只留能指路的调试日志；读快照只读一次，不保持订阅、不加定时器。
+   * 补出（#1526，规格 #1525）：切回一个在后台跑完了一轮的会话时，那组建议从没上过屏
+   * （取数层只把 append 增量当新调用），历史在事件流窗口里，只能从快照里找回来。
+   * 只补窗口尾部最后一条「所在轮已收尾」的建议调用，更早的一律不补 —— 这样保证
+   * 「要么没有、要么完整的一组」：参数不完整（少于 2 条、缺字段）的那条在解析处就被拒，
+   * 不会只上屏半组。尾部那一轮还没收尾时不补，改为收下等增量通路送来 turn/end 再正常交付。
+   *
+   * 为什么扫整个窗口（snapshot.entries）而不是这一次变更的增量（snapshot.change.entries）：
+   * 真机上挂载时机有两种。① 打开会话时先拿到空窗口，装载完成后平台再用一次 replace 把整个
+   * 窗口装进来 —— 挂载那一刻读到的快照是空的；② 会话已经热着（别的消费者还保活着），最后
+   * 一次变更是 append 或 settle-assistant，历史早在窗口里，变更增量里却一个字都没有。
+   * 只扫 change.entries 时这两种都补不出来，真机上大多数「切回来没气泡」正是它们（#1420 第五项）。
+   *
+   * 补出只在两个时机各尝试一次：挂载时；以及挂载时窗口还空、之后第一次 replace 把窗口装进来时
+   * （replayWaitWindow 标记）。之后的 replace 一律不再扫，免得把历史重放当新调用冒泡（#1409）。
+   * 任何一步失败都安静吞掉，只留能指路的调试日志；读快照不保持订阅、不加定时器。
    */
+  function replayEntriesOf(snapshot: any) {
+    const entries = snapshot && snapshot.entries
+    return Array.isArray(entries) ? entries : []
+  }
+
+  /**
+   * 扫窗口里的历史，对齐轮次状态，并找出最后一条建议调用（带「它所在轮收尾没有」）。
+   * 收尾只看轮次与有没有收到 turn/end，不看结束原因（completed / aborted / error / interrupted
+   * 都算收尾，理由见 takeEvent 里 turn-end 那一段）。
+   */
+  function lastCallOfReplay(entries: any[]) {
+    let lastCall: any = null
+    let endedTurn: any = null
+    let openTurn: any = null
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i]
+      const info = suggestEventOf(entry && entry.event)
+      if (!info) continue
+      if (info.kind === 'turn-start') { openTurn = info.turn; continue }
+      if (info.kind === 'turn-end') {
+        endedTurn = info.turn
+        openTurn = null
+        // PTC 调用不带轮次，挂在它前面的那一轮上；这一轮的 turn/end 到了就算收尾。
+        if (lastCall && !lastCall.closed && (lastCall.turn === null || lastCall.turn <= info.turn)) lastCall.closed = true
+        continue
+      }
+      const callTurn = (info.turn === null || info.turn === undefined) ? openTurn : info.turn
+      lastCall = { callId: info.callId, argumentsValue: info.argumentsValue, turn: callTurn, closed: false }
+    }
+    return { lastCall: lastCall, endedTurn: endedTurn, openTurn: openTurn }
+  }
+
   function restoreFromReplay() {
     if (!restoreReplay || disposed || !sid || !bound) return
     if (!binding || !binding.eventSource || typeof binding.eventSource.getSnapshot !== 'function') return
-    // 用户在本进程里点走或关掉过这个会话的组：历史重放里就算还有，也不补（#1525 认可的边界）。
+    // 用户在本进程里点走或关掉过这个会话的组：历史里就算还有，也不补（#1525 认可的边界）。
     if (suggestSessionWasDismissed(sid)) return
     let snapshot: any = null
     try { snapshot = binding.eventSource.getSnapshot() } catch (eSnapshot) { logBind('error', 'restore-snapshot'); return }
     try {
-      const change = snapshot && snapshot.change
-      // 只认历史重放。挂载时快照若不是 replace（例如空会话的初始快照），说明没有历史可补。
-      if (!change || change.kind !== 'replace') return
-      const entries = Array.isArray(change.entries) ? change.entries : []
-      if (!entries.length) return
-      let lastCall: any = null
-      let endedTurn: any = null
-      let openTurn: any = null
-      for (let i = 0; i < entries.length; i++) {
-        const entry = entries[i]
-        const info = suggestEventOf(entry && entry.event)
-        if (!info) continue
-        if (info.kind === 'turn-start') { openTurn = info.turn; continue }
-        if (info.kind === 'turn-end') {
-          endedTurn = info.turn
-          openTurn = null
-          // PTC 调用不带轮次，挂在它前面的那一轮上；这一轮的 turn/end 到了就算收尾。
-          if (lastCall && !lastCall.closed && (lastCall.turn === null || lastCall.turn <= info.turn)) lastCall.closed = true
-          continue
-        }
-        const callTurn = (info.turn === null || info.turn === undefined) ? openTurn : info.turn
-        lastCall = { callId: info.callId, argumentsValue: info.argumentsValue, turn: callTurn, closed: false }
-      }
-      // 把内部轮次状态对齐到历史末尾，之后增量事件照常判断「这轮结束没有」。
-      lastEndedTurn = endedTurn
-      currentTurn = openTurn
-      if (!lastCall) return
-      if (!markSeen(lastCall.callId)) return
-      const parsed = suggestItemsOf(lastCall.argumentsValue)
-      if (!parsed.ok) {
-        logCall(parsed.reason === 'bad-shape' ? 'bad-shape' : 'bad-args', lastCall.callId, lastCall.turn, 0, 0, parsed.reason)
+      const entries = replayEntriesOf(snapshot)
+      if (!entries.length) {
+        // 窗口还没装（真机上打开会话时先给空快照，装载完成后再 replace 一次）：不判死，
+        // 等那一次 replace 再补；日志留一条 deferred，真机上才分得清「窗口是空的」与
+        // 「扫过窗口但没有建议」。
+        replayWaitWindow = true
+        logBind('deferred', 'restore-empty')
         return
       }
-      logCall('seen', lastCall.callId, lastCall.turn, parsed.items.length, parsed.clipped, '')
-      if (lastCall.closed) {
-        deliver('restored', lastCall.turn, lastCall.callId, parsed.items)
+      // 窗口已经有内容：这一次就是补出机会，之后不再因为任何 replace 重扫。
+      replayWaitWindow = false
+      const scan = lastCallOfReplay(entries)
+      // 把内部轮次状态对齐到历史末尾，之后增量事件照常判断「这轮结束没有」。
+      lastEndedTurn = scan.endedTurn
+      currentTurn = scan.openTurn
+      if (!scan.lastCall) return
+      if (!markSeen(scan.lastCall.callId)) return
+      const parsed = suggestItemsOf(scan.lastCall.argumentsValue)
+      if (!parsed.ok) {
+        logCall(parsed.reason === 'bad-shape' ? 'bad-shape' : 'bad-args', scan.lastCall.callId, scan.lastCall.turn, 0, 0, parsed.reason)
+        return
+      }
+      logCall('seen', scan.lastCall.callId, scan.lastCall.turn, parsed.items.length, parsed.clipped, '')
+      if (scan.lastCall.closed) {
+        deliver('restored', scan.lastCall.turn, scan.lastCall.callId, parsed.items)
         return
       }
       // 尾部这一轮还没收尾：收下等增量通路的 turn/end（同一套 pending 状态，不另立字段）。
-      pending = { turn: lastCall.turn, callId: lastCall.callId, items: parsed.items }
-      logReady('queued', lastCall.callId, lastCall.turn, parsed.items.length)
+      pending = { turn: scan.lastCall.turn, callId: scan.lastCall.callId, items: parsed.items }
+      logReady('queued', scan.lastCall.callId, scan.lastCall.turn, parsed.items.length)
     } catch (eRestore) {
       logBind('error', 'restore-scan')
     }

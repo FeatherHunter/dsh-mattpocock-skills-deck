@@ -29,6 +29,51 @@ export interface SuggestRegisterDeps {
   now?: () => number
 }
 
+// ── 宿主日志兜底口（#1420 第四项） ──
+//
+// 为什么需要：agent-row 直接登记这颗工具时不传依赖袋，工具侧的 log 就是 null，真机上模型每次
+// 调用 suggest_next_steps 一条 host.call 都不落。日志里于是分不清「模型根本没调」与「调了但
+// 界面没拿到事件流」—— 这正是 #1412 关闭评论里记为「预期」、#1420 要求补上的区分能力。
+//
+// 兜底口不 import 宿主模块：宿主启动时已经把日志库挂在 globalThis 上（src/host/index.ts 的
+// _log()，键见 HOST_LOG_SLOT），这里只按约定读那个格子。登记发生在启动早期，格子可能还没填、
+// p 也可能没解析完，拿不到就安静丢弃：日志可缺，登记与工具执行不能受影响。
+
+const HOST_LOG_SLOT = '__dsh_mattskillsdeck_host_log__'
+
+/** 兜底口：每次 fire 时懒读全局格，解析出日志库后按它的开关决定记不记。 */
+function hostLogBridge(): SuggestRegisterLogLike {
+  return {
+    fire: function (level: string, event: string, fields: UnknownRecord): void {
+      try {
+        const g = globalThis as unknown as UnknownRecord
+        const slot = g[HOST_LOG_SLOT] as UnknownRecord | null | undefined
+        const pending = slot && slot.p
+        if (!pending || typeof (pending as Promise<unknown>).then !== 'function') return
+        ;(pending as Promise<unknown>).then(function (store: unknown) {
+          try {
+            const s = (store || {}) as UnknownRecord
+            if (typeof s.isEnabled !== 'function' || typeof s.log !== 'function') return
+            if (!(s.isEnabled as (l: string, e: string) => boolean)(level, event)) return
+            ;(s.log as (l: string, e: string, x: UnknownRecord) => void)(level, event, fields)
+          } catch (eStore) { /* 记录失败只丢这一行 */ }
+        }).catch(function () { /* 解析失败只丢这一行 */ })
+      } catch (eBridge) { /* 全局格读不了就只丢这一行 */ }
+    },
+  }
+}
+const hostLogBridgeOnce = hostLogBridge()
+
+/**
+ * 依赖袋归一：显式给了 log（包括显式 null —— 测试靠它保持安静）就照用，没给 log 才接宿主
+ * 兜底口。这样 refresh-runtime 那条显式传日志的路一行不变，agent-row 那条不传的路才多出轨迹。
+ */
+function resolveRegisterDeps(deps?: SuggestRegisterDeps): SuggestRegisterDeps {
+  const d = (deps && typeof deps === 'object') ? deps : {}
+  if (Object.prototype.hasOwnProperty.call(d, 'log')) return d
+  return { log: hostLogBridgeOnce, now: d.now }
+}
+
 /** 工具服务的窄形状：只需要 register 一格（返回注销函数，本文件不关心）。 */
 interface ToolsServiceLike {
   register: (tool: UnknownRecord) => unknown
@@ -87,7 +132,7 @@ function fireRegisterLog(log: SuggestRegisterLogLike | null, latencyMs: number, 
  * 同一份退路形状（原生模式受支持子集），执行函数调本进程里的 run 并兜底永不抛。
  */
 export function makeSuggestRegistration(deps?: SuggestRegisterDeps): UnknownRecord {
-  const d = (deps || {}) as SuggestRegisterDeps
+  const d = resolveRegisterDeps(deps)
   const runner = createSuggestNextSteps({ log: d.log || null, now: d.now })
   return {
     name: definition.name,
@@ -111,15 +156,33 @@ export function makeSuggestRegistration(deps?: SuggestRegisterDeps): UnknownReco
   }
 }
 
-/** 注册一次：服务不在、注册表拒绝、重名都折成 { registered:false, reason }，绝不抛。 */
-export function registerSuggestNextSteps(toolsSvc: unknown, deps?: SuggestRegisterDeps): SuggestRegisterResult {
+/** 注册一次的附加开关：silent 只表示「调用方自己会记这一趟」，不改变注册结果。 */
+export interface SuggestRegisterOptions {
+  silent?: boolean
+}
+
+/**
+ * 注册一次：服务不在、注册表拒绝、重名都折成 { registered:false, reason }，绝不抛。
+ * 没传 log 时走宿主兜底口记一行登记结论 —— agent-row 那条路就是不传，真机上要能看出工具
+ * 到底登记上没有。钩子那条路自己记「等了多久才登记上」，传 { silent: true } 免得同一趟记两行。
+ */
+export function registerSuggestNextSteps(toolsSvc: unknown, deps?: SuggestRegisterDeps, opts?: SuggestRegisterOptions): SuggestRegisterResult {
+  const d = resolveRegisterDeps(deps)
+  const silent = !!(opts && opts.silent === true)
+  const now: () => number = typeof d.now === 'function' ? d.now : Date.now
+  const t0 = now()
   const service = toolsServiceOf({ tools: toolsSvc })
-  if (!service) return { registered: false, reason: 'no-tools-service' }
+  if (!service) {
+    if (!silent) fireRegisterLog(d.log || null, now() - t0, false, 'no-tools-service')
+    return { registered: false, reason: 'no-tools-service' }
+  }
   try {
-    service.register(makeSuggestRegistration(deps))
+    service.register(makeSuggestRegistration(d))
+    if (!silent) fireRegisterLog(d.log || null, now() - t0, true, '')
     return { registered: true, reason: '' }
   } catch (e) {
     const message = String((e as Error && (e as Error).message) || e || '')
+    if (!silent) fireRegisterLog(d.log || null, now() - t0, false, 'register-failed')
     return { registered: false, reason: 'register-failed:' + message }
   }
 }
@@ -137,7 +200,7 @@ function sleep(ms: number): Promise<void> {
  * 建议工具就永远不会登记 —— 等待定时器不拥有进程存活，有活在跑时显式拿租约（ADR 20261014）。
  */
 export function hookSuggestNextSteps(ctx: unknown, deps?: SuggestRegisterDeps, opts?: { retries?: number; waitMs?: number }): Promise<SuggestRegisterResult> {
-  const d = (deps || {}) as SuggestRegisterDeps
+  const d = resolveRegisterDeps(deps)
   const o = (opts || {}) as UnknownRecord
   const retries = typeof o.retries === 'number' ? o.retries : SUGGEST_REGISTER_RETRIES
   const waitMs = typeof o.waitMs === 'number' ? o.waitMs : SUGGEST_REGISTER_WAIT_MS
@@ -154,7 +217,7 @@ export function hookSuggestNextSteps(ctx: unknown, deps?: SuggestRegisterDeps, o
       fireRegisterLog(d.log || null, now() - t0, false, 'no-tools-service')
       return { registered: false, reason: 'no-tools-service' }
     }
-    const result = registerSuggestNextSteps(service, d)
+    const result = registerSuggestNextSteps(service, d, { silent: true })
     fireRegisterLog(d.log || null, now() - t0, result.registered, result.reason)
     return result
   })

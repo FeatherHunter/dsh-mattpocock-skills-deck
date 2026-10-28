@@ -29,9 +29,11 @@ const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
 
 // 十工具的冻结顺序与日志字段白名单：本文件按字面量再写一遍，改动必须两边一起改（这样才有门禁的意义）。
 const ORDER = ['deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_list', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch', 'deck_issue_report', 'deck_work_route']
-const ALLOWED_HOST_CALL = ['method', 'latencyMs', 'ok', 'kind', 'pluginId', 'opId', 'cwdHash', 'reason']
+// 2026-10-28（#1420 第四项）'callIdHash'：工具侧那行 host.call 带调用编号散列，与界面 suggest.call 对齐。
+const ALLOWED_HOST_CALL = ['method', 'latencyMs', 'ok', 'kind', 'pluginId', 'opId', 'cwdHash', 'reason', 'callIdHash']
 const ALLOWED_HOST_CALL_FAIL = ['method', 'kind', 'errorHash', 'pluginId', 'errorKind', 'opId', 'cwdHash']
-const EXEC = { agent: { session: { cwd: '/ws/proj', id: 'sess-7' } } }
+// 真机 exec 带调用编号（平台原生形状）：工具侧日志记它的散列，界面 suggest.call 记同一个值。
+const EXEC = { callId: 'call-7', agent: { session: { cwd: '/ws/proj', id: 'sess-7' } } }
 // 真机形状的 exec：会话顶层没有目录，目录住在 header 里（#1406 真机缺口回归用）。
 const EXEC_HEADER_CWD = { agent: { session: { header: { cwd: '/ws/hdr', id: 'sess-hdr' } } } }
 const EXEC_HEADER_WORKSPACE = { agent: { session: { header: { workspaceRoot: '/ws/hdr-root', id: 'sess-hdr2' } } } }
@@ -222,6 +224,9 @@ async function main() {
   check(okLine.fields && okLine.fields.latencyMs === 5, '成功日志带耗时')
   check(okLine.fields && okLine.fields.reason === 'items=2;returned=2;clipped=0', '成功日志的 reason 记清条数与截断数')
   check(okLine.fields && /^[0-9a-f]{8}$/.test(String(okLine.fields.cwdHash || '')), '成功日志记工作区散列（不记原文路径）')
+  const factsMod = await imp('src/client/statusbar/suggestFacts.ts')
+  check(okLine.fields && okLine.fields.callIdHash === factsMod.suggestHash('call-7'),
+    '成功日志记调用编号的短散列，与界面 suggest.call 的 callIdHash 同一算法（两边对同一编号算出同一个值）')
   check(keysWithin(okLine.fields, ALLOWED_HOST_CALL), '成功日志字段都在白名单内')
   check(JSON.stringify(okLine.fields).indexOf('sess-7') < 0, '日志里不出现会话号原文')
 
@@ -253,6 +258,7 @@ async function main() {
   const noSession = await noSessionRunner.run({}, { items: two })
   check(noSession.ok === false && noSession.reason === 'no-session-context' && typeof noSession.text === 'string', '没有会话目录时如实拒绝（no-session-context）')
   check(noSessionLog.fired[0] && noSessionLog.fired[0].fields.reason === 'no-session-context', '没有会话目录也落一行日志')
+  check(noSessionLog.fired[0] && !('callIdHash' in noSessionLog.fired[0].fields), 'exec 没带调用编号时不留 callIdHash 空字段')
   const aborted = await noSessionRunner.run({ signal: { aborted: true } }, { items: two })
   check(aborted.ok === false && aborted.reason === 'aborted', '已中止的调用立刻如实回（aborted）')
   const nonObject = await badRunner.run(EXEC, 'not-an-object')
@@ -410,6 +416,52 @@ async function main() {
   const wiringTail = wiringCallAt >= 0 ? wiringSource.slice(wiringCallAt, wiringCallAt + 240) : ''
   check(wiringCallAt >= 0, '宿主接线里仍在调用建议工具登记钩子')
   check(wiringTail.indexOf('.catch(') >= 0, '宿主接线给登记钩子的 Promise 挂了 .catch 兜底（异步异常不会逃逸）')
+
+  // ── 8d. 宿主日志兜底口：agent-row 那条不传日志的路也要落轨迹（#1420 第四项） ──
+  // 真机上这颗工具由代理行直接登记、不传依赖袋，从前工具侧一条 host.call 都不落，日志里分不清
+  // 「模型没调」与「调了但界面没拿到事件流」。兜底口读宿主的全局日志槽（src/host/index.ts 的
+  // _log() 挂在 globalThis['__dsh_mattskillsdeck_host_log__'] 上，p 解析出日志库）。这里放一个
+  // 假槽，验证登记结论与工具调用都落得下来；显式传 log:null 时保持安静（测试与「不要日志」的
+  // 调用方不受影响）；槽不存在时登记与工具执行都不受影响。
+  const SLOT = '__dsh_mattskillsdeck_host_log__'
+  const flushAsync = async function () { await Promise.resolve(); await Promise.resolve() }
+  const slotCalls = []
+  const fakeStore = {
+    isEnabled: function (level, event) { return event === 'host.call' || event === 'host.call.fail' },
+    log: function (level, event, fields) { slotCalls.push({ level: level, event: event, fields: fields }) },
+  }
+  const previousSlot = globalThis[SLOT]
+  globalThis[SLOT] = { p: Promise.resolve(fakeStore) }
+  const noDepService = { register: function () { return function () {} } }
+  const noDepReg = registerMod.registerSuggestNextSteps(noDepService)
+  await flushAsync()
+  check(noDepReg.registered === true, '不传日志口时登记照样成功（兜底口不是必需品）')
+  const noDepLine = slotCalls.filter(function (r) { return r.event === 'host.call' && r.fields && r.fields.method === 'suggest_next_steps.register' })[0]
+  check(!!noDepLine && noDepLine.fields.ok === true && keysWithin(noDepLine.fields, ALLOWED_HOST_CALL),
+    '不传日志口时登记结论经宿主兜底口落 host.call，字段仍在白名单内')
+  const noDepRegistration = registerMod.makeSuggestRegistration()
+  const noDepEnv = await noDepRegistration.execute({ items: two }, EXEC)
+  await flushAsync()
+  check(noDepEnv.ok === true, '兜底口下工具照常回执')
+  const noDepCall = slotCalls.filter(function (r) { return r.event === 'host.call' && r.fields && r.fields.method === 'suggest_next_steps' })[0]
+  check(!!noDepCall && noDepCall.fields.ok === true && noDepCall.fields.callIdHash === factsMod.suggestHash('call-7'),
+    '兜底口下工具调用落 host.call，并带上与界面同一个 callIdHash')
+  check(!!noDepCall && keysWithin(noDepCall.fields, ALLOWED_HOST_CALL), '兜底口下的调用日志字段也在白名单内')
+  slotCalls.length = 0
+  const quietReg = registerMod.registerSuggestNextSteps({ register: function () { return function () {} } }, { log: null })
+  const quietRegistration = registerMod.makeSuggestRegistration({ log: null })
+  const quietEnv = await quietRegistration.execute({ items: two }, EXEC)
+  await flushAsync()
+  check(quietReg.registered === true && quietEnv.ok === true && slotCalls.length === 0,
+    '显式传 log:null 时兜底口不接（调用方自己决定记不记）')
+  delete globalThis[SLOT]
+  const noSlotReg = registerMod.registerSuggestNextSteps({ register: function () { return function () {} } })
+  const noSlotEnv = await noSlotReg.registered && await registerMod.makeSuggestRegistration().execute({ items: two }, EXEC)
+  await flushAsync()
+  check(noSlotReg.registered === true && !!noSlotEnv && noSlotEnv.ok === true,
+    '全局槽不存在时登记与工具执行都不受影响（日志可缺，功能不能缺）')
+  if (previousSlot === undefined) delete globalThis[SLOT]
+  else globalThis[SLOT] = previousSlot
 
   // ── 9. 锁十：DECK_TOOL_ORDER / 工厂表 / 文件清单仍是冻结的十条 ──
   const orderMod = await imp('src/deck/rules/tool-order.ts')
