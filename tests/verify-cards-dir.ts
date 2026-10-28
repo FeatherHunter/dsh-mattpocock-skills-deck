@@ -32,6 +32,8 @@
  *   5. 源码树里只剩真源：16 份叶子旁边没有同名 .js（产物搬进 client.js 之后不该再落回来）。
  *   6. props 契约：cardBits.d.ts / cardProps.d.ts 里声明的字段，逐个用「带上它 / 去掉它，观察点必须变」
  *      证明真的被用上；反方向再断言组件读的字段名全都在契约里声明过。
+ *   7. 卡片自成一层（#1630）：.cd-card 声明了 isolation:isolate，卡内 z-index 数值一处没改；
+ *      判据在内存里把声明删掉、把层级改坏时必须报红。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-cards-dir.ts（在插件根目录，不需要先构建；2026-10-17 从 .js 转成 TypeScript，只改名与加类型标注，判据一条没动；2026-10-19 起改读真源，pixel-ts 产物已删）
  */
@@ -240,6 +242,49 @@ function cardLightProblems (cardsCss: string, pixelCss: string): string[] {
   if (cardsCss.split('--cd-warn:#f59e0b').length - 1 !== 1) out.push('--cd-warn:#f59e0b 该有且只有一处（verify-container-colors 的白名单锁着它）')
   if (/#1d4ed8/i.test(cardsCss)) out.push('出现了容器身份蓝 #1d4ed8（全仓零容忍）')
   if (/#c084fc/i.test(cardsCss)) out.push('出现了探索地图身份紫 #c084fc（全仓零容忍）')
+  return out
+}
+
+// ==== 卡片自成一层（#1630）：卡内 z-index 不许漏到页面层，跟粘性顶栏比高低 ====
+// 为什么要有这条：卡片里为了「结案章压在已结案暗层之上」「点亮徽标压在卡面之上」写了 z-index 5 与 8，
+// 但卡片根元素 .cd-card 自己不成层时，这些数值就进了页面层，与顶栏 .dsws-stickybar 的 z-index:5
+// 平起平坐；卡片流在 DOM 里排在顶栏后面，同一层级按先后绘制，结案章就画到了顶栏上面（#1630）。
+// 修法只能是让卡片自成一层：卡内层级只在卡内比较，卡片整体滚到顶栏下面时被顶栏盖住。
+// 绘制顺序 jsdom 量不到，这条静态判据负责防止有人顺手把声明删掉；判据只看样式文本本身，
+// 所以下面能在内存里把同一段文本变坏两次，证明这扇门真能红。
+// 卡内层级数值是既有约定（章要压过暗层、徽标要压过卡面），修层级不许靠改这些数（票的 out of scope
+// 里写明：不许去掉这些 z-index、不许抬共享顶栏、不许改页面容器来顶替这个修法）。这里把四个数值钉住，
+// 防止哪次「顺手抬一下」又走回常量竞赛的老路。
+// 选择器照样式文本原样写：.cd-bchip 那条规则写的是后代选择器 .cd-card .cd-bchip，
+// 按整串比才对得上（卡片里那几处层级恰好分散在几种写法的选择器上）。
+const CARD_LAYER_Z: Array<[string, number]> = [
+  ['.cd-sealcn', 5], ['.cd-dimveil', 5], ['.cd-card .cd-bchip', 8], ['.cd-mapcorner', 4],
+]
+
+/** 从一段样式文本里取「选择器正好是这一个」的规则体；找不到返回 null。 */
+function cardRuleBodyOf (css: string, selector: string): string | null {
+  for (const chunk of String(css).split('}')) {
+    const open = chunk.indexOf('{')
+    if (open < 0) continue
+    if (chunk.slice(0, open).trim() !== selector) continue
+    return chunk.slice(open + 1)
+  }
+  return null
+}
+
+/** 把一段票卡样式文本按「卡片自成一层」的判据过一遍，返回不通过的原因（空数组＝全过）。 */
+function cardLayerProblems (css: string): string[] {
+  const out: string[] = []
+  const root = cardRuleBodyOf(css, '.cd-card')
+  if (root === null) return ['找不到 .cd-card 这条基础规则']
+  if (!/(?:^|;)\s*isolation:\s*isolate\s*(?:;|$)/.test(root)) {
+    out.push('.cd-card 没有声明 isolation:isolate：卡里的 z-index 会漏到页面层，跟顶栏的 z-index:5 比高低')
+  }
+  for (const pair of CARD_LAYER_Z) {
+    const body = cardRuleBodyOf(css, pair[0])
+    const got = body === null ? null : (body.match(/(?:^|;)\s*z-index:\s*(-?\d+)/) || [null, null])[1]
+    if (Number(got) !== pair[1]) out.push(pair[0] + ' 的 z-index 该是 ' + pair[1] + '（实得 ' + (got === null ? '没写' : got) + '）')
+  }
   return out
 }
 
@@ -843,6 +888,41 @@ async function main (): Promise<void> {
       '浅色主题下卡片与按钮都有可见的键盘焦点环，环色取宿主焦点令牌 --dsw-focus-ring-color（#1401）')
     check(cardsSrc.indexOf('body:not([data-ds-dark-theme]) .cd-card:focus-visible{outline:2px dashed var(--cd-frame)') < 0,
       '浅色焦点环不再用卡片自己的墨色（那样换肤时颜色不跟宿主走）')
+  }
+
+  // ---- 5.8 卡片自成一层（#1630）：结案章不再画到粘性顶栏上面 ----
+  // 这条修的是渲染层：结案章 static 时画到了顶栏上面，原因是卡片没有形成层叠上下文。
+  // jsdom 量不到绘制顺序，所以判据分两半：样式文本里必须声明层次（静态，防删），
+  // 真渲染出来的卡片根元素计算样式必须真的生效（证明声明被浏览器解析、没有写错位置）。
+  {
+    const layerCss = M.PIXEL_CARDS_STYLE_TEXT.join('\n')
+    const layerProblems = cardLayerProblems(layerCss)
+    check(layerProblems.length === 0,
+      '卡片自成一层（#1630）：.cd-card 声明 isolation:isolate，卡内 z-index 只在卡内比较' +
+      (layerProblems.length ? '\n    不过 ' + layerProblems.length + ' 条：\n      ' + layerProblems.join('\n      ') : ''))
+
+    // 反例 a：把 isolation 声明整段删掉 —— 同一套判据必须报红（只在内存里改文本，不落盘）
+    const noIsoCss = layerCss.replace('isolation:isolate;', '')
+    const noIsoProblems = cardLayerProblems(noIsoCss)
+    check(noIsoCss !== layerCss && noIsoProblems.length > 0,
+      '反例 a：删掉 .cd-card 的 isolation:isolate → 判据报红（' + noIsoProblems.length + ' 条：' + noIsoProblems.slice(0, 2).join('；') + '）')
+
+    // 反例 b：把结案章的 z-index 从 5 抬到 9（「常量竞赛」的老路）—— 判据必须报红
+    const racedCss = layerCss.replace(/(\.cd-sealcn\{[^}]*z-index:)5/, '$19')
+    const racedProblems = cardLayerProblems(racedCss)
+    check(racedCss !== layerCss && racedProblems.some((m) => m.indexOf('cd-sealcn') >= 0),
+      '反例 b：把结案章的 z-index 改成 9 → 判据报红（' + racedProblems.filter((m) => m.indexOf('cd-sealcn') >= 0).join('；') + '）')
+
+    // 真渲染：已结案的地图子票卡（章会真的画出来）挂一张，量卡片根元素与章的计算样式。
+    const h = await mountCard(M.PixelIssueMapCard, { mapNo: '841', title: '已结案的地图子票', open: false })
+    const rootCs = h.cs('.cd-card')
+    check(rootCs.isolation === 'isolate',
+      '已结案子票卡的根元素计算样式 isolation = isolate（实得 ' + show(rootCs.isolation) + '）')
+    check(rootCs.position === 'relative',
+      '卡片根元素的定位仍是 relative，isolation 是另加的一层、没有顶掉原有定位（实得 ' + show(rootCs.position) + '）')
+    check(h.cs('.cd-sealcn').zIndex === '5',
+      '结案章的计算样式 z-index 仍是 5：章仍压在已结案卡片的暗色蒙版之上（实得 ' + show(h.cs('.cd-sealcn').zIndex) + '）')
+    await h.unmount()
   }
 
   // =========================================================================
