@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T12:21:01.910Z",
+  "generatedAt": "2026-10-28T12:18:21.430Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 426,
-  "gateCount": 426,
-  "attributedGates": 383,
+  "chainLength": 427,
+  "gateCount": 427,
+  "attributedGates": 384,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 18,
@@ -2779,6 +2779,7 @@
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
         "src/deck/tools/tracker-session.ts",
+        "src/refresh/kernel/backend-accounting.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/tool-call-budget.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
@@ -2800,7 +2801,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 18 条"
+      "reason": "归属来自：源码里的路径字面量 19 条"
     },
     {
       "step": "node tests/verify-1443-github-readbudget.ts",
@@ -4239,6 +4240,36 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1610-parallel-read.ts",
+      "file": "tests/verify-1610-parallel-read.ts",
+      "guards": [
+        "src/deck/shell/work-path-bindings.ts",
+        "src/deck/tools/issue-create.ts",
+        "src/deck/tools/issue-get.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/tracker/registry/core.ts",
+        "src/tracker/rooms/markdown/index.ts",
+        "tests/lib/deck-decide-stub.ts"
+      ],
+      "dirs": [
+        "src/deck/shell",
+        "src/deck/tools",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
+        "src/tracker/registry",
+        "src/tracker/rooms/markdown",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -7920,9 +7951,6 @@
         "src/deck",
         "src/host",
         "src/refresh",
-        "src/refresh/kernel/host-budget.ts",
-        "src/refresh/rooms/host/quota-ledger.ts",
-        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker"
       ],
       "dirs": [
@@ -7930,15 +7958,13 @@
         "src/deck",
         "src/host",
         "src/refresh",
-        "src/refresh/kernel",
-        "src/refresh/rooms/host",
         "src/tracker"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
     },
     {
       "step": "node tests/verify-log-selfmon.ts",
@@ -10724,6 +10750,7 @@
       "node tests/verify-1489-progress.ts",
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1511-ticket-label.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-bulk-deadline.ts",
@@ -10771,6 +10798,7 @@
       "node tests/verify-1583-repo-ref-fallback.ts",
       "node tests/verify-1604-pure-map-routing.ts",
       "node tests/verify-1605-map-routing-guard.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -10975,6 +11003,7 @@
       "node tests/verify-1454-ledger-single-entry.ts",
       "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-1495-deck-close-reason.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
@@ -10999,7 +11028,6 @@
       "node tests/verify-gate-accounting.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-index-window.ts",
-      "node tests/verify-log-fields.ts",
       "node tests/verify-policy.ts",
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-time-config.ts",
@@ -11108,6 +11136,7 @@
       "node tests/verify-1581-session-locators.ts",
       "node tests/verify-1583-repo-ref-fallback.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -11151,7 +11180,6 @@
       "node tests/verify-github-rest-fallback.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-log-exec-606.ts",
-      "node tests/verify-log-fields.ts",
       "node tests/verify-multi-effort.ts",
       "node tests/verify-naming-title-fact.ts",
       "node tests/verify-parse-leaf.ts",
@@ -11400,6 +11428,7 @@
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1495-deck-close-reason.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-669-choice-precedence.ts",
@@ -11558,6 +11587,7 @@
       "node tests/verify-1595-resolvespec.ts",
       "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-1605-markdown-map-list.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -11701,6 +11731,7 @@
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1526-suggest-replay-restore.ts",
       "node tests/verify-1582-open-folder.ts",
+      "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",

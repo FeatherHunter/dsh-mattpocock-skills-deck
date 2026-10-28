@@ -1,14 +1,14 @@
 // src/deck/tools/issue-get.ts —— deck_issue_get（#713 第六批；#1019 换到新树、#1035 转 TypeScript）
 //
 // 一次把一张票的完整关系读回来：正文、评论、标签、认领、父子、阻塞边。
-// 「优先读宿主已有快照」落在实现上是：宿主把快照缓存（snapshot.js 的 get/getDependencies）通过
-// deps.readThrough 注进来时先用它，没注入就现读；两条路的返回值形状一样，调用方看不出区别。
+// 读票与读阻塞边是两次远端调用，#1610 起这两条一起发出去：串行等于把两次等待相加，
+// 并发之后只等较长的那一条，发出去的请求数一条不少。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { EDGE_LANDING, relationsOf } from '../shell/edge-landing.js'
-import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
+import { withCallScope, type OpOutcome } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
@@ -48,6 +48,19 @@ function timeoutValue(text: string, data: Record<string, unknown>, claimed: { re
       status: DECK_STATUS.UNSUPPORTED,
       reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
       text: text,
+      data: data,
+    },
+    claimed: claimed,
+  }
+}
+// 执行层失败的回执：原因码与原话跟壳里「后端实现抛错」那一支一字不差，
+// 区别是这里自己把实际用量带上（#1610）：抛给壳的话用量丢在壳的兜底里，回执只能报 0 条。
+function transportValue(message: string, claimed: { requests: number; points: number }, data: Record<string, unknown>) {
+  return {
+    value: {
+      status: DECK_STATUS.UNSUPPORTED,
+      reason: REFUSAL_REASONS.BACKEND_THREW,
+      text: '后端实现抛错了（我没有把它抛给 AI，按三态返回）：' + String(message).slice(0, 300),
       data: data,
     },
     claimed: claimed,
@@ -191,11 +204,28 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!
       const opCtx = sc.opCtx
-      const got = await t.get(repo, key, { comments: { first: first } }, opCtx)
+      // 报账按「实际发出了几条请求」算（#1610）：预算壳数得到这次真的派发了几次远端调用，
+      // 发出前就被预算或取消拒掉的那些不算数；点数沿用老口径，一条请求 3 点。
+      const claimedOf = function (): { requests: number; points: number } {
+        const n = sc.sentRequests()
+        return { requests: n, points: n * 3 }
+      }
+      // 两条查询一起发出去（#1610）：读票与读阻塞边各是一次远端调用，串行等于把两次等待相加，
+      // 并发之后只等较长的那一条，发出去的请求数一条不少。
+      const gotP = t.get(repo, key, { comments: { first: first } }, opCtx)
+      // 依赖查询先挂上失败兜底：读票先失败的话整次读会提前返回，这一条的拒绝没人接手就成未处理拒绝。
+      const depP = (wantBlocking && typeof t.getDependencies === 'function')
+        ? t.getDependencies(repo, key, {}, opCtx).catch(function (e: unknown): OpOutcome {
+          return { ok: false, error: { kind: 'backend-threw', message: String((e && (e as Error).message) || e) } }
+        })
+        : null
+      const got = await gotP
       const gotTimeout = timeoutMessage(got as TransportResult)
-      if (gotTimeout) return timeoutValue('这张票这次没读回来（超时了：在限时内没等到后端回话，这次读没动手，重调一次就行）。', { key: key, backendId: pick.backendId, error: { kind: 'timeout', message: gotTimeout.slice(0, 300) } }, { requests: 1, points: 3 })
+      if (gotTimeout) return timeoutValue('这张票这次没读回来（超时了：在限时内没等到后端回话，这次读没动手，重调一次就行）。', { key: key, backendId: pick.backendId, error: { kind: 'timeout', message: gotTimeout.slice(0, 300) } }, claimedOf())
       const gotTransport = transportMessage(got as TransportResult)
-      if (gotTransport) throw new Error(gotTransport)
+      // 执行层失败今天靠抛给壳收成 backend-threw；这里改成回同形的信封，好让回执里的实际用量
+      // 带上真的发出去了几条（抛出去的话用量丢在壳的兜底里，回执只能报 0 条）。
+      if (gotTransport) return transportValue(gotTransport, claimedOf(), { key: key, backendId: pick.backendId, error: { kind: String((got && got.error && got.error.kind) || 'backend-threw'), message: gotTransport.slice(0, 300) } })
       if (!got || got.ok !== true) {
         const msg = String((got && got.error && got.error.message) || '后端没给出原因').slice(0, 300)
         return {
@@ -205,24 +235,26 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
             text: '这张票没读回来（后端原话：' + msg + '）。',
             data: { key: key, backendId: pick.backendId, error: { kind: String((got && got.error && got.error.kind) || ''), message: msg } },
           },
-          claimed: { requests: 1, points: 3 },
+          claimed: claimedOf(),
         }
       }
       const issue = got.data || {}
       // 反向边走单独一次依赖查询（#1304 起改为读后端原生的「我挡住了谁」，不必再扫全仓）：
       // 关掉（blocking=false）就整段跳过，只读单票本身；反向边记空并注记，不假装 0 条。
-      const dep = (wantBlocking && typeof t.getDependencies === 'function') ? await t.getDependencies(repo, key, {}, opCtx) : null
+      // 依赖查询与读票是一起发出去的（见上面 depP），这里只等它的结果。
+      const dep = depP ? await depP : null
       const depTimeout = wantBlocking ? timeoutMessage(dep as TransportResult) : null
-      if (depTimeout) return timeoutValue('这张票读到一半（阻塞边超时了：在限时内没等到后端回话；票本身已读回，阻塞边重调一次就行）。', { key: key, backendId: pick.backendId, error: { kind: 'timeout', message: depTimeout.slice(0, 300) } }, { requests: 1, points: 3 })
       const depTransport = wantBlocking ? transportMessage(dep as TransportResult) : null
-      if (depTransport) throw new Error(depTransport)
+      // 阻塞边没读到不再毁掉整次读（#1610）：票正文照回，关系那一栏按「没读到」交代清楚。
+      // 只有调用方自己把这次读取消掉（kind=aborted）才仍然整次失败：那是整次读被叫停。
+      if (depTransport && !!(dep && dep.error && dep.error.kind === 'aborted')) return transportValue(depTransport, claimedOf(), { key: key, backendId: pick.backendId, error: { kind: 'aborted', message: depTransport.slice(0, 300) } })
       const dependencies = (dep && dep.ok === true) ? dep.data : null
       const rel = relationsOf(issue, dependencies)
       if (!wantBlocking) rel.blocking = []
       const notes = []
       if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
       if (!wantBlocking) notes.push('反向阻塞边这次没取（blocking=false，跳过一次反向边查询）：上面“阻塞别人”记空不是 0 条，要就带 blocking=true 再调一次。')
-      if (dep && dep.ok !== true) notes.push('阻塞边这次没读到（后端原话：' + String((dep.error && dep.error.message) || '').slice(0, 200) + '）：上面只列了票自己带的那些。')
+      if (dep && dep.ok !== true) notes.push('阻塞边这次没读到（' + (depTimeout ? '阻塞边查询超时了：' + depTimeout.slice(0, 200) : '后端原话：' + String((dep.error && dep.error.message) || '').slice(0, 200)) + '）：上面只列了票自己带的那些。')
       // 反向边全不全由读路径自己交代（原生连接截断、或退回整仓反推）：这里原样带给调用方，
       // 不替它改写成「0 条」那种看起来确定的说法（#1304）。
       if (wantBlocking && dependencies && typeof dependencies.blockingNote === 'string' && dependencies.blockingNote) notes.push(dependencies.blockingNote)
@@ -268,8 +300,9 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
           notes: notes,
           touched: [],
         },
-        // 按实际读数报账：跳过反向边就是一次读，与取失败那条路同数，闸对账不报“对不上”。
-        claimed: wantBlocking ? { requests: 2, points: 6 } : { requests: 1, points: 3 },
+        // 按实际发出的请求数报账（#1610）：读票与读阻塞边各发出一条，成功路径仍是 2 条 6 点，
+        // 跳过反向边就只有 1 条 3 点；与失败那几条路用同一把尺，闸对账不报“对不上”。
+        claimed: claimedOf(),
       }
     })
   }

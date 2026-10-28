@@ -136,18 +136,20 @@ export function createIssueDetail(deps: Deps) {
   async function fetchIssueDetail(n: number, cwd: string, opts?: { isPullRequest?: boolean } | null): Promise<any> {
     if (!n) return fail('parse', '缺少 number')
     return withReadSession(cwd, async function (session: TrackerSession, ref: RepositoryRef, ctx: OpContext): Promise<any> {
+      // 两条查询一起发出去（#1610）：读票与读阻塞边各是一次远端调用，串行等于把两次等待相加，
+      // 并发之后只等较长的那一条；发出去的请求数一条不少。
+      const gotP: Promise<any> = Promise.resolve().then(function () { return session.get(ref, String(n), { comments: { first: 50 } }, ctx) })
+      // 阻塞边单独一问（#1304 的投影）；失败不让详情崩：退成 get 自带的那一份入边，出边为空。
+      // 先挂好失败兜底：读票先失败会提前返回，这一条的拒绝没人接手就成未处理拒绝。
+      const depsP: Promise<any> = Promise.resolve().then(function () { return session.getDependencies(ref, String(n), undefined, ctx) })
+        .then(function (dr: any) { return (dr && dr.ok === true) ? dr.data : null }, function () { return null })
       let got: any = null
-      try { got = await session.get(ref, String(n), { comments: { first: 50 } }, ctx) } catch (e: any) { return sessionFail('取单票时抛错', (e && e.message) || e) }
+      try { got = await gotP } catch (e: any) { return sessionFail('取单票时抛错', (e && e.message) || e) }
       if (!got || got.ok !== true || !got.data) {
         const err = (got && got.error) || {}
         return fail(String(err.kind || 'network'), String(err.message || '单票读取失败'))
       }
-      // 阻塞边单独一问（#1304 的投影）；失败不让详情崩：退成 get 自带的那一份入边，出边为空。
-      let depsData: any = null
-      try {
-        const dr: any = await session.getDependencies(ref, String(n), undefined, ctx)
-        if (dr && dr.ok === true) depsData = dr.data
-      } catch (eD: any) { depsData = null }
+      const depsData: any = await depsP
       return { ok: true, issue: detailOf(got.data, depsData, ref) }
     })
   }
