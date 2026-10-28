@@ -31,8 +31,10 @@ import { compileFn, evalWithScope } from './lib/eval-probe.js'
 // （.ts 会先按构建那份口径转译，引号与换行会被重排）。本文件只求值、不按文本形状扫源码。
 import { spliceableJs } from './lib/source-text.ts'
 // 中央时间真值：切换确认的收起延时只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
-import { STORE_SWITCH_CONFIRM_MS } from '../src/shared/time-config/values.js'
+import { STORE_SWITCH_CONFIRM_MS, SNAPSHOT_PICKED_GUARD_MS } from '../src/shared/time-config/values.js'
 (globalThis as unknown as Record<string, unknown>).STORE_SWITCH_CONFIRM_MS = STORE_SWITCH_CONFIRM_MS
+// 水合守卫的保护窗（#1240）：justPicked 的源码被剥掉 import 行后求值，裸名字从这里取。
+;(globalThis as unknown as Record<string, unknown>).SNAPSHOT_PICKED_GUARD_MS = SNAPSHOT_PICKED_GUARD_MS
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
