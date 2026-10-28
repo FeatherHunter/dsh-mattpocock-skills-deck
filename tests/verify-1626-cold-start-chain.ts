@@ -26,6 +26,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { compileFn } from './lib/eval-probe.js'
 import { spliceableJs } from './lib/source-text.ts'
+import { STEP_WAIT_MS } from '../src/shared/time-config/values.js'
 
 const ROOT = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 
@@ -133,7 +134,7 @@ function makeWorld (mode: Mode): World {
     getCachedChain: function (): any { return null },
     getCachedChainEntry: function (): any { return null },
     setCachedChain: function (): void {},
-    CHAIN_AUTO_RETRY_COOLDOWN_MS: 30000,
+    STEP_WAIT_MS: STEP_WAIT_MS,
     askSelectionOnce: function (): any {
       return holder.ask ? holder.ask.apply(null, arguments) : Promise.resolve(null)
     },
@@ -247,7 +248,7 @@ async function main (): Promise<void> {
       getCachedChain: function (): any { return null },
       getCachedChainEntry: function (): any { return null },
       setCachedChain: function (): void {},
-      CHAIN_AUTO_RETRY_COOLDOWN_MS: 30000,
+      STEP_WAIT_MS: STEP_WAIT_MS,
     }
     const chainMod = buildChainModule(sandbox)
     const st: any = { cwd: CWD, sessionId: SID, selection: null, chainSnapshot: null }

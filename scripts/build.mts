@@ -1856,8 +1856,9 @@ const CLIENT_TIME_NAMES: string[] = [
   'RECONCILE_INTERVAL_MS',
   'PREFLIGHT_TTL_MS',
   'CHAIN_BACKOFF_MS',
-  // 链自动复查的客户端冷却（probe-chain-subscription.ts 也拼进闭包，名字由这一片提供，#1474）。
-  'CHAIN_AUTO_RETRY_COOLDOWN_MS',
+  // 一步等待的统一值（probe-chain-subscription.ts 也拼进闭包，名字由这一片提供；
+  // 它同时是上面退避序列的第二档，改了这一个数两处一起跟，#1629）。
+  'STEP_WAIT_MS',
   'FAILURE_HALF_OPEN_DELAY_MS',
   'CHAIN_ALL_GREEN_TTL_MS',
   'PATCH_MERGE_WINDOW_MS',

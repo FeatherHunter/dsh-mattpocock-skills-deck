@@ -8,7 +8,7 @@
 // 本门禁量七件事（都是跑起来的结果，不读「源码里有没有某个字」）：
 //   A 判据：chainPendingOf 只认 pending —— 明确失败（fail/current）与全绿都不归自动复查管
 //   B 发起：链上有 pending 时发一次宿主求值，触发名是 auto-retry、不带 force、且绕开本地缓存读取
-//   C 冷却：默认 30 秒内最多发起一次；冷却内的拍子只记一条调试日志，不再发请求
+//   C 冷却：一步等待（默认 30 秒）内最多发起一次；冷却内的拍子只记一条调试日志，不再发请求
 //   D 单飞：上一轮还在路上时不再叠第二份；客户端已有一趟在途时自动复查搭那趟车、不另起请求
 //   E 边界：没有 pending、快照没到、非活跃/不可见时不发起（面板隐藏零新增链求值）
 //   F 宿主：所有求值共用一份在途合并（连点两下「重新检查」也只真算一次）；
@@ -28,7 +28,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { stripTypeScriptTypes } from 'node:module'
 import { compileFn } from './lib/eval-probe.js'
 import { spliceableJs } from './lib/source-text.ts'
-import { CHAIN_AUTO_RETRY_COOLDOWN_MS } from '../src/shared/time-config/values.js'
+import { STEP_WAIT_MS } from '../src/shared/time-config/values.js'
 
 const ROOT = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const url = (rel: string): string => pathToFileURL(path.join(ROOT, rel)).href
@@ -113,7 +113,7 @@ function makeWorld(opts?: AnyObj): AnyObj {
       },
     },
     // 冷却值按仓里规矩从中央配置来：测试也读同一份生成常量，不另写一个 30000。
-    CHAIN_AUTO_RETRY_COOLDOWN_MS: (o.cooldown === undefined ? CHAIN_AUTO_RETRY_COOLDOWN_MS : o.cooldown),
+    STEP_WAIT_MS: (o.cooldown === undefined ? STEP_WAIT_MS : o.cooldown),
     getCachedChain: function (ws: string, bid: string, lang: string): any {
       const e = entries.get(keyOf(ws, bid, lang))
       return e ? e.snapshot : null
@@ -183,7 +183,7 @@ const partA = function (): void {
 const partB = async function (): Promise<void> {
   console.log('#1474 B. 发起：绕开本地缓存再问一次宿主，触发名是 auto-retry、不带 force')
   const w = makeWorld()
-  check(CHAIN_AUTO_RETRY_COOLDOWN_MS === 30000, '冷却值来自中央配置 config/intervals.yaml 的 chainAutoRetryCooldownMs（实得 ' + CHAIN_AUTO_RETRY_COOLDOWN_MS + '）')
+  check(Number.isInteger(STEP_WAIT_MS) && STEP_WAIT_MS > 0, '冷却值取自中央配置 config/timeouts.yaml 的 stepWaitMs（实得 ' + STEP_WAIT_MS + '；具体数值由 verify-time-config 门禁统一核对，这里不锁死）')
   const st = mkState('s1')
   // 本地缓存里放着一份「还是旧状态」的同一会话快照：不绕缓存的话会原样读回来，等于没复查。
   const cachedSnap = { steps: [pendingStep('gh:authed')], tag: 'cached-old' }
@@ -202,7 +202,7 @@ const partB = async function (): Promise<void> {
 }
 
 const partC = async function (): Promise<void> {
-  console.log('#1474 C. 冷却：默认 30 秒内最多发起一次，冷却内的拍子只记日志不发请求')
+  console.log('#1474 C. 冷却：一步等待（默认 30 秒）内最多发起一次，冷却内的拍子只记日志不发请求')
   const w = makeWorld()
   const st = mkState('s1')
   const key = w.autoRetryKeyOf(st)
@@ -228,7 +228,7 @@ const partC = async function (): Promise<void> {
   check(cooldownLogs.length >= 1, '冷却挡下这一拍会记一条 chain.auto.retry decision=cooldown（可追，实得 ' + cooldownLogs.length + ' 条）')
   check(!!cooldownLogs[0] && Number(cooldownLogs[0].fields.waitMs) > 0, '冷却日志带上还剩多少毫秒（waitMs，实得 ' + (cooldownLogs[0] ? String(cooldownLogs[0].fields.waitMs) : '无') + '）')
   // 把上次发起时间往前推过冷却窗：下一次应该再发。
-  w.autoRetryState.atByKey.set(key, Date.now() - CHAIN_AUTO_RETRY_COOLDOWN_MS - 1)
+  w.autoRetryState.atByKey.set(key, Date.now() - STEP_WAIT_MS - 1)
   await w.maybeAutoRetryChain(st)
   check(w.requests.length === before + 1, '过完冷却窗后重新发起（实得新增 ' + (w.requests.length - before) + ' 次）')
 }

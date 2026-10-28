@@ -23,7 +23,11 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   // 旧卡（old）用纸面下沉 #efe8d9；--cd-card2 只给浅色的棋盘墙当底，深色不定义，墙面保持透明。
   'body:not([data-ds-dark-theme]) .cd-card{--cd-frame:#3a2c14;--cd-card:#f6f1e6;--cd-paper:#fffdf8;--cd-old:#efe8d9;--cd-ink:#221d15;--cd-ink2:#6f6252;--cd-shadow:#241a0c;--cd-gold:#15803d;--cd-ok:#15803d;--cd-sel:#1e40af;--cd-warn:#b45309;--cd-bad:#b91c1c;--cd-dim:#7d7061;--cd-take:#2456c9;--cd-map:#6d28d9;--cd-stripe:#e7ddc8;--cd-card2:#efe8d9;--cd-lit:#b45309;--cd-note:#b91c1c;--cd-mark-bug:#b91c1c;--cd-mark-ready:#15803d;--cd-mark-doing:#1e40af;}',
   // 卡片容器自己落墨色（#1387 第一条）：卡片是浅纸，深色下继承宿主浅字只有约 1.07 比 1，标题之外的行都会跟着看不清。
-  '.cd-card{width:300px;background:var(--cd-card);color:var(--cd-ink);border:4px solid var(--cd-frame);box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),6px 6px 0 var(--cd-shadow);padding:10px 11px;position:relative;display:flex;flex-direction:column;gap:6px;transition:transform ' + MOTION.pixelPressMs + 'ms steps(2,end),box-shadow ' + MOTION.pixelPressMs + 'ms steps(2,end)}',
+  // #1630 卡片自成一层：卡里为了压住暗层和卡面用了 z-index（结案章 5、暗层 5、点亮徽标 8），卡片
+  // 自己不成层时这些数会直接进页面层，跟粘性顶栏 .dsws-stickybar 的 z-index:5 平起平坐。卡片流在
+  // DOM 里排在顶栏后面，同一层级按先后绘制，结案章就画到了顶栏上面。isolation:isolate 让卡内层级
+  // 只在卡内比较，卡片整体滚到顶栏下面时被顶栏盖住；悬停时 transform 也不再引起章与顶栏的层级跳变。
+  '.cd-card{width:300px;background:var(--cd-card);color:var(--cd-ink);border:4px solid var(--cd-frame);box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),6px 6px 0 var(--cd-shadow);padding:10px 11px;position:relative;isolation:isolate;display:flex;flex-direction:column;gap:6px;transition:transform ' + MOTION.pixelPressMs + 'ms steps(2,end),box-shadow ' + MOTION.pixelPressMs + 'ms steps(2,end)}',
   '.cd-card.old{background:var(--cd-old);box-shadow:inset 2px 2px 0 #f7edd3,inset -2px -2px 0 #7d5730,6px 6px 0 var(--cd-shadow)}',
   '.cd-card.wide{width:340px;padding:11px 13px;gap:8px;min-height:230px;cursor:pointer}',
   '.cd-card.mapcard{width:404px;padding:11px 13px;gap:8px}',

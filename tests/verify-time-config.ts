@@ -20,6 +20,11 @@
 //   删一行同理。三张表（REFERENCES / CLIENTS / PERMANENT）与 EXEMPTS 的行数只许增不许减式的维护：
 //   加参数加行，删参数删行，不许为了让门禁变绿而删行（那等于把参数放回源码里写数字）。
 //
+//   跨键引用（#1629）：YAML 的数组项可以写成另一个键的名字（或「键名 * 倍数」），生成器在构建期
+//   把它算成普通数字；解析器住 scripts/lib/time-config-expr.mts。这样「一步等待」那个数只需要
+//   定义一次，检查链退避的第二档直接引用它。第二节因此多一条「一步等待三处同源」断言：退避序列
+//   的第二档必须就是 stepWaitMs，YAML 原文里不许再抄一遍那个数；第六节对解析器做了自检。
+//
 // 为什么有些文件是动态 import 或闭包拼接，而不是一律静态 import：
 //   src/host/index.ts 是插件入口，禁静态 import（D7），走动态 import；
 //   src/client/** 整份拼进界面闭包，文件里的 import 行由构建剥掉（见 stripTimeConfigRefs，
@@ -45,6 +50,7 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
+import { parseTimeArrayRef, resolveTimeArray } from '../scripts/lib/time-config-expr.mts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const TIME_CONFIG_JS = '../src/shared/time-config/src/values.js'
@@ -233,9 +239,10 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/client/kernel/api-handoff.ts', name: 'CLIENT_SESSION_TICK_MS', key: 'clientSessionTickMs' },
   { file: 'src/client/kernel/api-handoff.ts', name: 'CLIENT_HANDOFF_DELAY_MS', key: 'clientHandoffDelayMs' },
   { file: 'src/refresh/rooms/client/refresh-timer.ts', name: 'PROBE_AUTO_WAIT_MS', key: 'probeAutoWaitMs' },
-  // #1474：链自动复查的冷却窗。值来自 config/intervals.yaml 的 chainAutoRetryCooldownMs；
-  // 使用点是 probe-chain-subscription.ts（也拼进闭包，名字由 timeConfig 片段提供）。
-  { file: 'src/refresh/rooms/client/probe-chain-subscription.ts', name: 'CHAIN_AUTO_RETRY_COOLDOWN_MS', key: 'chainAutoRetryCooldownMs' },
+  // #1629：链自动复查的间隔就取「一步等待」的统一值。值来自 config/timeouts.yaml 的 stepWaitMs
+  // （#1474 原来自带一份冷却值，已并入）；使用点是 probe-chain-subscription.ts（也拼进闭包，
+  // 名字由 timeConfig 片段提供）。
+  { file: 'src/refresh/rooms/client/probe-chain-subscription.ts', name: 'STEP_WAIT_MS', key: 'stepWaitMs' },
   { file: 'src/refresh/rooms/client/snapshot-sync-helpers.ts', name: 'SNAPSHOT_PROBE_MS', key: 'snapshotProbeMs' },
   { file: 'src/client/kernel/slotRenderer-queue.ts', name: 'SLOT_QUEUE_STEP_MS', key: 'slotQueueStepMs' },
   { file: 'src/client/kernel/slotRenderer-modal-view.ts', name: 'SLOT_MODAL_OPEN_DELAY_MS', key: 'slotModalOpenDelayMs' },
@@ -385,7 +392,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'remainingMs', reason: '算出来的剩余冷却（拼回话文案用），不是输入参数' },
   { file: 'src/refresh/rooms/host/check-chain-evaluation.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
   { file: 'src/refresh/rooms/host/check-chain-evaluation.ts', name: 'waitMs', reason: '透传 backoff 的 verdict 结论，不是输入参数' },
-  { file: 'src/host/platformChannel.ts', name: 'timeoutMs', reason: '透传变量，接注入的 TIMEOUT_MS（调用方按已登记的 hostTimeoutMs 装进来）' },
+  { file: 'src/host/platformChannel.ts', name: 'timeoutMs', reason: '透传变量，接注入的 TIMEOUT_MS（调用方按已登记的 stepWaitMs 装进来）' },
   { file: 'src/refresh/rooms/host/chain-coalescing.ts', name: 'nowMs', reason: '测试注钟口（生产用 Date.now），不是可调参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'lingerMs', reason: '注入字段的本地接住（上游是 ACTIVE_LINGER_MS），不是新参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'expiryMs', reason: '注入字段的本地接住（上游是 ATTENTION_EXPIRY_MS），不是新参数' },
@@ -607,6 +614,43 @@ async function main(): Promise<void> {
         + (same ? '' : '（实测 ' + JSON.stringify(got) + '，YAML 生效值 ' + JSON.stringify(eff) + '；先重跑构建排除产物过期）'),
     )
   }
+
+  // —— 第二节续：一步等待只有一个数（#1629） ——
+  // 「向对方发出一次请求后等它出结果」这一步的上限，三处（面板自动复查、宿主接线的单次调用、
+  // 检查链退避第二档）都取中央的同一个键。这里守两件事：三处都真引用它；YAML 里只定义一次，
+  // 退避序列的第二档直接引用它、不另抄一份数字。
+  const hostEntrySrc = fs.readFileSync(path.join(ROOT, 'src/host/index.ts'), 'utf8')
+  const timeoutSites = countOccurrences(hostEntrySrc, 'TIMEOUT_MS:')
+  const stepWaitUseCount = countOccurrences(hostEntrySrc, 'TIMEOUT_MS: tc.STEP_WAIT_MS')
+  const stepWait = timeMod.STEP_WAIT_MS as number
+  check(timeoutSites >= 3 && stepWaitUseCount === timeoutSites, 'src/host/index.ts 的每一处 TIMEOUT_MS 都原样取中央的 tc.STEP_WAIT_MS（TIMEOUT_MS 共 ' + timeoutSites + ' 处，原样取中央的 ' + stepWaitUseCount + ' 处）')
+  check(stepWait === (timeMod.TIME_YAML as Record<string, unknown>).stepWaitMs, 'src/host/index.ts 拿到的 STEP_WAIT_MS 与 YAML 生效值一致（实得 ' + stepWait + '）')
+  check(!/HOST_TIMEOUT_MS|hostTimeoutMs/.test(hostEntrySrc), 'src/host/index.ts 里不再出现已删的 hostTimeoutMs（统一后不许留旧名）')
+  const probeChainSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/client/probe-chain-subscription.ts'), 'utf8')
+  check(/import\s*\{\s*STEP_WAIT_MS\s*\}\s*from\s*'[^']*time-config\/values\.js'/.test(probeChainSrc), 'probe-chain-subscription.ts 真 import 了 STEP_WAIT_MS（构建按界面半边写法剥掉这一行，名字由拼接片段提供）')
+  check(/=\s*STEP_WAIT_MS\s*;/.test(probeChainSrc), 'probe-chain-subscription.ts 的自动复查间隔取 STEP_WAIT_MS')
+  const timeoutsRaw = fs.readFileSync(path.join(ROOT, 'config/timeouts.yaml'), 'utf8')
+  check(countOccurrences(timeoutsRaw, 'stepWaitMs:') === 1, 'config/timeouts.yaml 里一步等待只定义一次（stepWaitMs: 出现 ' + countOccurrences(timeoutsRaw, 'stepWaitMs:') + ' 次）')
+  check(!/\bhostTimeoutMs\b/.test(timeoutsRaw), 'config/timeouts.yaml 里没有已删的 hostTimeoutMs（旧键不许作为第二份数字留着）')
+  const intervalsRaw = fs.readFileSync(path.join(ROOT, 'config/intervals.yaml'), 'utf8')
+  // 只查非注释行：文件里留着一条「已删、已并入 stepWaitMs」的墓碑注释是给人看的历史，
+  // 不算第二份配置；真正要防的是还有人把这个键当成有效配置写回来。
+  const yamlCodeOnly = (text: string): string => text.split('\n').filter((line) => !/^\s*#/.test(line)).join('\n')
+  check(!/\bchainAutoRetryCooldownMs\b/.test(yamlCodeOnly(intervalsRaw)), 'config/intervals.yaml 的有效配置里没有已删的 chainAutoRetryCooldownMs（已并入 stepWaitMs，只留墓碑注释）')
+  const backoffLineMatch = intervalsRaw.match(/^\s*chainBackoffMs:\s*\[[^\]]*\]/m)
+  const backoffLine = backoffLineMatch ? backoffLineMatch[0] : ''
+  check(backoffLine.indexOf('stepWaitMs') >= 0, 'config/intervals.yaml 的 chainBackoffMs 直接引用 stepWaitMs，不另抄数字（原文：' + backoffLine.trim() + '）')
+  // 用解析器自己的规则判「这一项是不是引用」，不在门禁里再抄一份规则：解析器认得出的算引用，
+  // 认不出的按字面量计数（这样解析器一放宽，门禁跟着放宽，不会两处说法慢慢分家）。
+  const backoffItems = ((backoffLine.match(/\[([^\]]*)\]/) || [])[1] || '').split(',').map((s) => s.trim()).filter(Boolean)
+  const refItems = backoffItems.filter((item) => parseTimeArrayRef(item) !== null)
+  const literalItems = backoffItems.filter((item) => parseTimeArrayRef(item) === null)
+  check(refItems.length > 0 && literalItems.every((item) => /^[0-9]+$/.test(item)), 'chainBackoffMs 的数组项只有正整数与引用两种写法（其余写法生成器会报错）')
+  check(literalItems.length === 1, 'chainBackoffMs 的数组项里只有一个数字字面量（独立的快档），其余都写成引用（实得字面量：' + JSON.stringify(literalItems) + '）')
+  const backoff = timeMod.CHAIN_BACKOFF_MS as number[] | undefined
+  check(literalItems.every((item) => Number(item) !== stepWait), '那一个字面量不与一步等待同值（同值就是又抄了一份数字）')
+  check(Array.isArray(backoff) && backoff.length === 4, '退避序列仍是四档（#1474 拍板的档数不改，实得 ' + JSON.stringify(backoff) + '）')
+  check(Array.isArray(backoff) && backoff[1] === stepWait, '退避第二档就是一步等待那个数（实得 ' + JSON.stringify(backoff && backoff[1]) + '，一步等待 ' + stepWait + '）')
 
   // —— 第三节：界面半边拿不拿得到值（values.ts 有、构建名单有、界面文件真在用） ——
   const buildSrc = fs.readFileSync(path.join(ROOT, 'scripts', 'build.mts'), 'utf8')
@@ -884,6 +928,37 @@ async function main(): Promise<void> {
     '自检：sleepOnce 的参数位传裸数字会被抓到')
   check(timerArgHits('await withCap(work, ATTENTION_EXPIRY_MS)').length === 0,
     '自检：withCap 传中央常量不算手写数字')
+
+  // —— 第六节续：数组项引用解析器自检（#1629） ——
+  // 解析器若悄悄退回「只认数字」，退避第二档就不再引用一步等待；这里给一组合成样本，
+  // 把「该算对的」与「该报错的」两头都钉住。
+  const parseDeps = {
+    file: 'config/intervals.yaml',
+    key: 'chainBackoffMs',
+    scalarOf: (k: string): number | undefined => (k === 'stepWaitMs' ? 30000 : undefined),
+    isArrayKey: (k: string): boolean => k === 'chainBackoffMs',
+  }
+  const thrownOf = (fn: () => unknown): string => {
+    try {
+      fn()
+      return ''
+    } catch (e) {
+      return String((e as Error).message)
+    }
+  }
+  const refParsed = parseTimeArrayRef('stepWaitMs * 4')
+  check(!!refParsed && refParsed.key === 'stepWaitMs' && refParsed.factor === 4, '自检：解析器认得「键名 * 倍数」写法（实得 ' + JSON.stringify(refParsed) + '）')
+  check(parseTimeArrayRef('stepWaitMs')?.factor === 1, '自检：只写键名时倍数是 1')
+  check(parseTimeArrayRef('stepWaitMs / 2') === null, '自检：只支持一次乘法，别的算式不算引用（会按非法项报错）')
+  const resolved = resolveTimeArray([8000, 'stepWaitMs', 'stepWaitMs * 4', 'stepWaitMs * 10'], parseDeps)
+  check(eqValue(resolved, [8000, 30000, 120000, 300000]), '自检：数组项里的引用被算成数字（实得 ' + JSON.stringify(resolved) + '）')
+  check(resolveTimeArray([1200, 'stepWaitMs * 2'], { ...parseDeps, key: 'ownRouteRetryMs' }).length === 2, '自检：另一个数组键也能用同一套解析（倍数按需写）')
+  const missingRefMsg = thrownOf(() => resolveTimeArray(['noSuchKey'], parseDeps))
+  check(missingRefMsg.indexOf('noSuchKey') >= 0, '自检：引用不存在的键会报错，且错误里点名那个键（实得：' + missingRefMsg + '）')
+  const arrayRefMsg = thrownOf(() => resolveTimeArray(['chainBackoffMs'], parseDeps))
+  check(arrayRefMsg.indexOf('数组') >= 0, '自检：引用数组键会报错（数组项只能是标量引用，实得：' + arrayRefMsg + '）')
+  const zeroMsg = thrownOf(() => resolveTimeArray([0], parseDeps))
+  check(zeroMsg.indexOf('正整数') >= 0, '自检：数组项写 0 会报错（不是合法毫秒，实得：' + zeroMsg + '）')
 
   if (failed) process.exit(1)
   console.log('PASS 中央时间参数门禁全绿')
