@@ -110,9 +110,11 @@ async function main() {
   ok(!!bare.seen.logged.find((l) => l.event === 'guide.inject' && l.fields.outcome === 'action'), '退回那一路同样落日志')
 
   console.log('== 6. 声明只有一处、词条真的在词表里 ==')
-  ok(guide.GUIDE_STEPS.filter((s) => s.banner && s.banner.recheckBtn).length === 1, 'GUIDE_STEPS 里带第二颗按钮的步骤恰好一条')
+  ok(guide.GUIDE_STEPS.filter((s) => s.banner && s.banner.recheckBtn).length === 2, 'GUIDE_STEPS 里带第二颗按钮的步骤恰好两条（GitHub 登录与 GitLab 登录，#1190）')
   const ghStep = guide.GUIDE_STEPS.filter((s) => s.id === 'gh:authed')[0]
   ok(!!ghStep && !!ghStep.banner && ghStep.banner.recheckBtn === 'banner.ghauthUnknownBtn', '那一条就是登录那一步，键仍是「重新检查」那一句')
+  const glabStep = guide.GUIDE_STEPS.filter((s) => s.id === 'glab:authed')[0]
+  ok(!!glabStep && !!glabStep.banner && glabStep.banner.recheckBtn === 'banner.ghauthUnknownBtn', 'GitLab 登录那一步同样带第二颗按钮，复用同一个键（#1190，不另造说法）')
   const cfg = readCopyConfig(root)
   const panel = cfg.families.filter((f) => f.family === 'panel')[0]
   const langs = Object.keys(cfg.languages.languages)

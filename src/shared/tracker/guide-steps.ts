@@ -19,16 +19,16 @@ const STEP_ACTION = Object.freeze({ INJECT: 'inject', FIXES_ACTION: 'fixes-actio
 const MISSING = Object.freeze({
   // 「已选择后端」这一步由界面自己开那张选后端的窗（它不碰后端，所以不是后端声明的修复动作）。
   pickBackend: Object.freeze({ type: 'open-backend-picker' }),
-  // 「命令行工具已安装」这一步注入哪段话：按当前后端声明的提示词键去取（GitHub 上是 prompts.ghInstall，
+  // 「命令行工具已安装」这一步注入哪段话：按当前后端声明的提示词键去取（GitHub 上是 prompts.cliInstall，
   //   内容就是维护者 2026-09-19 给的那句原话，让代理用 /wizard 技能帮用户装）。#716 之前这句话写死在这份
   //   共享清单里 —— 共享清单是三个后端共用的文件，装 CLI 的地址与名字都跟具体后端有关，于是把它挪回各自的
   //   后端声明，清单这里只留「注入哪条提示词」这个键名（与下面 ghAuthLogin 那一步同一种写法）。
   installCli: Object.freeze({ type: STEP_ACTION.INJECT, prompt: 'cliInstall' }),
-  // 「已登录 GitHub」注入按当前后端解析的登录指引（提示词 id 与今天一致）。
-  ghAuthLogin: Object.freeze({ type: STEP_ACTION.INJECT, prompt: 'ghAuthLogin' }),
-  // 「已登录 GitHub」但链快照里是查不到（pending）：不注入登录指引，只强制重查一次
+  // 「已登录」注入按当前后端解析的登录指引（#1190 通用键 cliLogin：两后端都声明，老 ghAuthLogin / glabLoginFix 保留为别名）。
+  cliLogin: Object.freeze({ type: STEP_ACTION.INJECT, prompt: 'cliLogin' }),
+  // 「已登录」但链快照里是查不到（pending）：不注入登录指引，只强制重查一次
   // （#916：查不到也被画成缺登录，文案读起来像确定没登录）。
-  ghAuthRecheck: Object.freeze({ type: 'recheck' }),
+  loginRecheck: Object.freeze({ type: 'recheck' }),
   // 「已关联 GitHub 仓库」用后端为这一项声明的第一个修复动作（GitHub 那枚两步建仓弹窗）。
   repoRemoteFix: Object.freeze({ type: STEP_ACTION.FIXES_ACTION }),
   // 「工作区已初始化」注入初始化全文（布局没选过时先弹那张小卡，由注入决策漏斗负责）。
@@ -38,7 +38,7 @@ const MISSING = Object.freeze({
 })
 
 /** 步骤没过时出哪一条横幅（文案与按钮标签是 locale 词条键名，界面不许写死文字；null = 这一步不出横幅）。
- *  recheckBtn 是「主按钮旁边还带一颗重查按钮」的标签键（#1438）：今天只有登录失败那一条声明它 ——
+ *  recheckBtn 是「主按钮旁边还带一颗重查按钮」的标签键（#1438）：登录失败的两条（gh:authed 与 glab:authed，#1190）声明它 ——
  *  检查已经答对了（红），可用户在插件外面把登录修好之后，这条横幅上原来没有一颗点了会重查的按钮，
  *  只能自己到「环境检查」页去点。它复用「登录状态暂时确认不了」那版按钮的词条：两处是同一个动作，
  *  界面上就该是同一句话，不另造第三个说法。 */
@@ -105,7 +105,7 @@ export const GUIDE_STEPS: ReadonlyArray<GuideStep> = Object.freeze([
     backends: ['github'],
     ready: STEP_READY.CHAIN,
     banner: BANNER.ghAuth,
-    missing: MISSING.ghAuthLogin,
+    missing: MISSING.cliLogin,
     blocksSetup: false,
   },
   {
@@ -120,7 +120,40 @@ export const GUIDE_STEPS: ReadonlyArray<GuideStep> = Object.freeze([
     blocksSetup: true,
   },
   {
-    // 第 5 步：工作区已初始化（读工作区根那份 docs/agents/issue-tracker.md，口径与今天一致）。
+    // #1190：第 5 步：装 glab（只管 GitLab 这条链）。横幅复用同一条通用文案
+    //   （banner.ghcli 的文本是「数据源前置条件未就绪——按当前后端引导」，没有写死 GitHub 字样，见 config/copy/panel.yaml）。
+    id: 'glab:installed',
+    checks: ['glab:installed'],
+    backends: ['gitlab'],
+    ready: STEP_READY.CHAIN,
+    banner: BANNER.ghCli,
+    missing: MISSING.installCli,
+    blocksSetup: false,
+  },
+  {
+    // #1190：第 6 步：登录 GitLab。missing 与 GitHub 登录步同为通用键 cliLogin，
+    //   文本按当前后端解析（GitLab 房是 glab auth login 那一段）。
+    id: 'glab:authed',
+    checks: ['glab:authed'],
+    backends: ['gitlab'],
+    ready: STEP_READY.CHAIN,
+    banner: BANNER.ghAuth,
+    missing: MISSING.cliLogin,
+    blocksSetup: false,
+  },
+  {
+    // #1190：第 7 步：GitLab 远端仓库已关联（复用检查页已有的 glab:repoAccess，不新增检查项）。
+    //   与 GitHub 那一步同形：用后端为这一项声明的第一个修复动作，清单不抄弹窗载荷。
+    id: 'glab:repoAccess',
+    checks: ['glab:repoAccess'],
+    backends: ['gitlab'],
+    ready: STEP_READY.CHAIN,
+    banner: BANNER.repo,
+    missing: MISSING.repoRemoteFix,
+    blocksSetup: true,
+  },
+  {
+    // 第 7 步：工作区已初始化（读工作区根那份 docs/agents/issue-tracker.md，口径与今天一致）。
     id: 'tracker:initialized',
     checks: ['tracker:initialized'],
     backends: ['github', 'markdown', 'gitlab'],
@@ -130,7 +163,7 @@ export const GUIDE_STEPS: ReadonlyArray<GuideStep> = Object.freeze([
     blocksSetup: false,
   },
   {
-    // 第 6 步：技能套件的三个技能，一条横幅管三项（取三项里最差的那一项，与今天渲染一致）。
+    // 第 9 步：技能套件的三个技能，一条横幅管三项（取三项里最差的那一项，与今天渲染一致）。
     id: 'skill:wayfinder',
     checks: ['skill:wayfinder', 'skill:setup-matt-pocock-skills', 'skill:ask-matt'],
     backends: ['github', 'markdown', 'gitlab'],
@@ -213,7 +246,8 @@ export function guideStepState(step: GuideStep | null | undefined, chainSteps: A
  */
 export function guideBannerOf(step: GuideStep | null | undefined, chainSteps: Array<ChainStepRef> | null | undefined): GuideBanner | null {
   try {
-    if (step && String(step.id) === 'gh:authed' && guideStepState(step, chainSteps) === 'pending') return BANNER.ghAuthUnknown
+    // #1190：不认步骤名（gh:authed / glab:authed），认「这一步是不是按通用登录键注入」——两后端登录步同为 cliLogin。
+    if (step && step.missing && (step.missing as GuideMissing).prompt === 'cliLogin' && guideStepState(step, chainSteps) === 'pending') return BANNER.ghAuthUnknown
     return (step && step.banner) || null
   } catch (e) { return (step && step.banner) || null }
 }
@@ -224,7 +258,8 @@ export function guideBannerOf(step: GuideStep | null | undefined, chainSteps: Ar
  */
 export function guideMissingOf(step: GuideStep | null | undefined, chainSteps: Array<ChainStepRef> | null | undefined): GuideMissing | null {
   try {
-    if (step && String(step.id) === 'gh:authed' && guideStepState(step, chainSteps) === 'pending') return MISSING.ghAuthRecheck
+    // #1190：同上，不认步骤名，认通用登录键。
+    if (step && step.missing && (step.missing as GuideMissing).prompt === 'cliLogin' && guideStepState(step, chainSteps) === 'pending') return MISSING.loginRecheck
     return (step && step.missing) || null
   } catch (e) { return (step && step.missing) || null }
 }

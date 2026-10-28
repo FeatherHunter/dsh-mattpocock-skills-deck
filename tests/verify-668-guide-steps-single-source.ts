@@ -16,14 +16,16 @@ async function main() {
   const guide = await import(require('url').pathToFileURL(path.join(ROOT, 'src', 'shared', 'tracker', 'guide-steps.js')).href)
   const catalog = await import(require('url').pathToFileURL(path.join(ROOT, 'src', 'shared', 'tracker', 'check-catalog-dirs.js')).href)
 
-  const ORDER = ['selection:backendSelected', 'gh:installed', 'gh:authed', 'gh:remote', 'tracker:initialized', 'skill:wayfinder']
+  // #1190：GitLab 三步（glab:installed/authed/repoAccess）进清单，与 gh 三步同形（同横幅、同通用键、各自只适用自家后端）。
+  //   顺序按后端分组（gh 三步在前、glab 三步在后），各后端过滤后相对顺序不变。
+  const ORDER = ['selection:backendSelected', 'gh:installed', 'gh:authed', 'gh:remote', 'glab:installed', 'glab:authed', 'glab:repoAccess', 'tracker:initialized', 'skill:wayfinder']
   const idOf = (arr: any[]): string[] => arr.map((s) => String(s.id))
 
   // —— 场景 1：清单本身 = 维护者 2026-09-19 定的那一条顺序 ——
   assert(Array.isArray(guide.GUIDE_STEPS), 'GUIDE_STEPS 是有序数组')
   assert(Object.isFrozen(guide.GUIDE_STEPS), 'GUIDE_STEPS 已冻结（顺序不许被就地改）')
   assert.deepStrictEqual(idOf(guide.GUIDE_STEPS), ORDER, 'GUIDE_STEPS 的顺序就是定版那一条：' + ORDER.join(' → '))
-  ok('清单顺序 = 定版那一条（后端 → gh 装 → gh 登录 → 远端仓库 → 初始化 → 技能）')
+  ok('清单顺序 = 定版那一条（后端 → gh 装/登录/仓库 → glab 装/登录/仓库 → 初始化 → 技能）')
 
   // 每一步的形状：字段齐、取值合法
   const FIELDS = ['id', 'checks', 'backends', 'ready', 'banner', 'missing', 'blocksSetup']
@@ -40,7 +42,7 @@ async function main() {
     }
     assert(typeof step.blocksSetup === 'boolean', `步骤 ${step.id} 的 blocksSetup 是布尔`)
   }
-  ok('六步的字段与规格「定版一」逐项一致（字段齐、取值合法）')
+  ok('九步的字段与规格「定版一」逐项一致（字段齐、取值合法）')
 
   // gate 那一步只能有一项，且它是唯一不读链快照的（#662 定版一的注）
   const gateSteps = guide.GUIDE_STEPS.filter((s) => s.ready === 'gate')
@@ -58,9 +60,10 @@ async function main() {
   ok(`清单引用的检查项 id 全部来自检查目录（目录共 ${known.size} 项，清单只挑不造）`)
 
   // —— 场景 3：两个纯函数的取值 ——
-  assert.deepStrictEqual(idOf(guide.guideStepsFor('github')), ORDER, 'github 拿到全六步、顺序不变')
+  assert.deepStrictEqual(idOf(guide.guideStepsFor('github')), ['selection:backendSelected', 'gh:installed', 'gh:authed', 'gh:remote', 'tracker:initialized', 'skill:wayfinder'], 'github 拿到自家六步（glab 三步不混入）、顺序不变')
   assert.deepStrictEqual(idOf(guide.guideStepsFor('markdown')), ['selection:backendSelected', 'tracker:initialized', 'skill:wayfinder'], 'markdown 只拿到通用那三步（不插仓库段）')
-  assert.deepStrictEqual(idOf(guide.guideStepsFor('gitlab')), ['selection:backendSelected', 'tracker:initialized', 'skill:wayfinder'], 'gitlab 本轮与 markdown 同形（不插仓库段）')
+  // #1190 起 gitlab 不再与 markdown 同形：自家三步进清单（装/登录/仓库），通用三步照旧。
+  assert.deepStrictEqual(idOf(guide.guideStepsFor('gitlab')), ['selection:backendSelected', 'glab:installed', 'glab:authed', 'glab:repoAccess', 'tracker:initialized', 'skill:wayfinder'], 'gitlab 拿到自家三步 + 通用三步（gh 三步不混入）')
   assert.deepStrictEqual(guide.guideStepsFor(null), [], '后端没定时返回空数组')
   assert.deepStrictEqual(guide.guideStepsFor(''), [], '后端为空串时返回空数组')
   assert.deepStrictEqual(guide.guideStepsFor('其它'), [], '未知后端返回空数组')
@@ -106,7 +109,8 @@ async function main() {
   assert.strictEqual(mdOrdered.length, catalog.catalogFor('markdown').length, 'Markdown：一行不多、一行不少')
 
   const glOrdered = guide.orderStepsByGuide(guide.guideStepsFor('gitlab'), chainStepsOf('gitlab'))
-  assert.deepStrictEqual(idOf(glOrdered), ['tracker:initialized', 'skill:wayfinder', 'skill:setup-matt-pocock-skills', 'skill:ask-matt', 'env:home', 'glab:installed', 'glab:authed', 'glab:repoAccess'], 'GitLab 本轮不插仓库段，只让通用步骤上移')
+  // #1190 起 GitLab 也是「清单上的步骤上移」：自家三步 + 通用两步在前，其余照目录顺序跟在后面。
+  assert.deepStrictEqual(idOf(glOrdered), ['glab:installed', 'glab:authed', 'glab:repoAccess', 'tracker:initialized', 'skill:wayfinder', 'skill:setup-matt-pocock-skills', 'skill:ask-matt', 'env:home'], 'GitLab 清单步骤上移：自家三步与通用两步在前，其余按目录顺序在后')
   assert.strictEqual(glOrdered.length, catalog.catalogFor('gitlab').length, 'GitLab：一行不多、一行不少')
 
   // 后端没定时（清单为空）：原样返回，不崩
@@ -153,9 +157,11 @@ async function main() {
   const repoStep = guide.GUIDE_STEPS.find((s) => s.id === 'gh:remote')
   assert.strictEqual(repoStep.missing.type, 'fixes-action', '远端仓库那一步用后端声明的修复动作，清单不抄弹窗载荷')
   assert.strictEqual(repoStep.blocksSetup, true, '远端仓库那一步没过之前不注入初始化全文')
-  assert.strictEqual(guide.GUIDE_STEPS.filter((s) => s.blocksSetup).length, 1, '只有远端仓库那一步挡初始化全文')
+  // #1190：两家后端各一步挡初始化（gh:remote 与 glab:repoAccess，互不适用对方后端）。
+  assert.strictEqual(guide.GUIDE_STEPS.filter((s) => s.blocksSetup).length, 2, '两家后端的仓库步骤都挡初始化全文（gh:remote、glab:repoAccess）')
+  assert.deepStrictEqual(guide.GUIDE_STEPS.filter((s) => s.blocksSetup).map((s) => s.id), ['gh:remote', 'glab:repoAccess'], '挡初始化的就是两家后端的仓库步骤（不多不少）')
   assert.strictEqual(ghStep.blocksSetup, false, 'gh 没装不挡初始化全文（挡住的是仓库那一步）')
-  ok('清单里的注入原话逐字一致，且只有「远端仓库」那一步挡初始化全文')
+  ok('清单里的注入原话逐字一致，且只有两家后端的「仓库」步骤挡初始化全文')
 
   // —— 场景 9：门禁已接入 verify 链（#1125 起问规划函数，不再读 package.json 长串） ——
   const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')

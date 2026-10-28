@@ -66,7 +66,8 @@ async function main() {
   ok(failMeta.text === 'banner.ghauth' && failMeta.btn === 'banner.ghauthBtn', 'fail 文案仍是缺登录 + 查看登录指南')
   const beforeFail = seen.injected.length
   ok(mod.runGuideMissing(failSt, failStep) === 'text', 'fail 按钮仍注入登录指引')
-  ok(seen.injected.length === beforeFail + 1 && seen.injected[seen.injected.length - 1].indexOf('PROMPT:ghAuthLogin') >= 0, '注入的是登录指引那一段')
+  // #1190：登录这一步按通用键 cliLogin 注入（与旧 ghAuthLogin 同文，旧键保留做回退）。
+  ok(seen.injected.length === beforeFail + 1 && seen.injected[seen.injected.length - 1].indexOf('PROMPT:cliLogin') >= 0, '注入的是登录指引那一段（通用键 cliLogin）')
 
   console.log('== 2. 查不到（pending）→ 中性横幅 + 只重查 ==')
   const pendSt = mk({ 'gh:installed': 'done', 'gh:authed': 'pending' })

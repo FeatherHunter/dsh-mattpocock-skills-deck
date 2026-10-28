@@ -135,10 +135,12 @@ const BACKENDS: Record<string, BackendDesc> = {
 }
 // 链快照：决定初始化放不放行的只有一件事 —— 清单里标着 blocksSetup 的那一步（GitHub 的「已关联仓库」）过没过。
 //   repoDone 省略/true = 那一步绿（仓库就绪）；repoDone:false = 那一步红（仓库还没建好）。
-//   本地 Markdown 与 GitLab 本轮没有那一步，所以它们永远不挡初始化。
+//   本地 Markdown 没有那一步，所以它永远不挡初始化；GitLab 从 #1190 起也有这一步（glab:repoAccess）。
 const chainOf = (backend: string, repoDone?: boolean) => (backend === 'github'
   ? [{ id: 'gh:remote', status: repoDone === false ? 'fail' : 'done' }]
-  : [])
+  : backend === 'gitlab'
+    ? [{ id: 'glab:repoAccess', status: repoDone === false ? 'fail' : 'done' }]
+    : [])
 // 会话状态是喂给真决策函数的形状：只保证后端 / 布局 / 链快照三维，用 any 承载（测试桩，不进类型注册表）。
 const stateOf = (opts: any): any => {
   const o = opts || {}
@@ -185,6 +187,14 @@ async function main() {
   ok(mod.setupBlockedByGuide(stateOf({ backend: 'github', repoDone: false }), 'github') === true, '判据：仓库那一步没过 → 算「挡住初始化」')
   ok(mod.setupBlockedByGuide(stateOf({ backend: 'github' }), 'github') === false, '判据：仓库那一步绿了 → 不挡')
   ok(mod.setupBlockedByGuide(stateOf({ backend: 'markdown' }), 'markdown') === false, '判据：本地 Markdown 没有那一步，永远不挡')
+  // #1190：GitLab 也有「先建仓库」这一步（glab:repoAccess），判据与 GitHub 同形。
+  ok(mod.setupBlockedByGuide(stateOf({ backend: 'gitlab', repoDone: false }), 'gitlab') === true, '判据：GitLab 仓库那一步没过 → 同样算「挡住初始化」')
+  ok(mod.setupBlockedByGuide(stateOf({ backend: 'gitlab' }), 'gitlab') === false, '判据：GitLab 仓库那一步绿了 → 不挡')
+  {
+    const stGlBlocked = stateOf({ backend: 'gitlab', repoDone: false })
+    ok(mod.injectSetupDecision(stGlBlocked, 'gitlab', { allowCard: true }) === 'blocked', 'GitLab 仓库没就绪 → 决定是「不注入」（实得 ' + mod.injectSetupDecision(stateOf({ backend: 'gitlab', repoDone: false }), 'gitlab', { allowCard: true }) + '）')
+    ok(stGlBlocked.setupLayoutCardOpen !== true, 'GitLab 仓库没就绪 → 那张小卡没被要求打开')
+  }
 
   console.log('== #655 · 能弹出卡来的入口（allowCard）：布局未定时先问，不注入 ==')
   for (const backend of Object.keys(BACKENDS)) {

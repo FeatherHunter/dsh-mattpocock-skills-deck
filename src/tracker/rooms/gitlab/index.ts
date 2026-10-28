@@ -309,6 +309,16 @@ export const prompts = {
     zh: '请完成 glab 登录（glab auth login）：按向导选择 GitLab.com → HTTPS → 浏览器授权（OAuth）；完成后 glab auth status 验证；然后请用户点「重查」。',
     en: 'Complete glab login: glab auth login → GitLab.com → HTTPS → browser OAuth; verify with glab auth status; then ask the user to re-check.',
   },
+  // #1190 通用键：首开引导清单不写后端名，统一按 cliInstall / cliLogin 向当前后端要文本。
+  //   内容与 glab* 同一份（单源文本、两个键名），老键保留给检查页 fixes 与旧门禁断言。
+  cliInstall: {
+    zh: '请为 DSH 安装 GitLab CLI（glab）。官方安装说明只有一处：https://docs.gitlab.com/cli/，按那一页的指引做，不要凭记忆写安装命令。\n1. 先检查：终端执行 glab --version；有版本号就直接汇报已装版本，不要重复安装；\n2. 没有 glab 时，打开上面那一页，按你的系统对应的那一节装；那一页打不开就如实说打不开，不要编命令；\n3. 装完请用户点「重查」；如果重查仍说找不到，先用绝对路径跑一次 glab --version 证明装好了，再请用户重启宿主（宿主只在启动时读 PATH）。',
+    en: 'Install the GitLab CLI (glab) for DSH. The only official install guide is https://docs.gitlab.com/cli/ — follow that page, do not write install commands from memory.\n1. Check first: glab --version; if a version is reported, report it and do not reinstall;\n2. If missing, open the page above and follow the section for your OS; if the page cannot be opened, say so plainly and do not invent commands;\n3. After install, ask the user to re-check; if it still reports missing, prove the install with an absolute-path glab --version, then ask the user to restart the host (the host reads PATH only at startup).',
+  },
+  cliLogin: {
+    zh: '请完成 glab 登录（glab auth login）：按向导选择 GitLab.com → HTTPS → 浏览器授权（OAuth）；完成后 glab auth status 验证；然后请用户点「重查」。',
+    en: 'Complete glab login: glab auth login → GitLab.com → HTTPS → browser OAuth; verify with glab auth status; then ask the user to re-check.',
+  },
   glabRepoFix: {
     zh: '当前工作区未解析出 GitLab 仓库（glab 无法定位 owner/project）。请先向用户确认意图：\nA. 本地项目（不需要 GitLab）→ 切换到「本地 Markdown」后端；\nB. 确实要用 GitLab → 核对 remote 指向（git remote get-url origin / glab config），或 glab repo create 创建并关联；\n完成后请用户点「重查」。',
     en: 'No GitLab repository resolved for the current workspace. Confirm intent: A. local project → switch to "Local Markdown"; B. GitLab really wanted → verify the remote (git remote get-url origin / glab config), or create/associate via glab repo create; then ask the user to re-check.',
@@ -366,11 +376,30 @@ export const fixes = Object.freeze({
   },
   'glab:repoAccess': {
     hint: {
-      zh: 'GitLab 仓库不可达（可能未定位仓库 / 无权限 / 网络不通）。点「修复指引」排查，完成后重查。',
-      en: 'GitLab repository not reachable (not located / permission / network). Use the fix guide, then re-check.',
+      zh: '此目录未关联 GitLab 仓库。先点「创建并发布」完成建仓推送，再执行初始化；想用本地 Markdown，可在顶端切换后端后再查。',
+      en: 'This directory is not linked to a GitLab repo. First click "Create & publish" to finish creating and pushing the repo, then run initialization. To use local Markdown, switch the backend at the top and re-check.',
     },
+    // 修复动作（#1191：与 GitHub 房同形的两步向导；提交走 contract-op 按当前后端分发，不再直调 wf.initPublish）。
     actions: [
-      { type: 'inject-prompt', prompt: 'glabRepoFix', label: { zh: '修复指引', en: 'Fix guide' } },
+      {
+        type: 'wizard',
+        label: { zh: '创建并发布', en: 'Create & publish' },
+        steps: [
+          {
+            title: { zh: '仓库信息', en: 'Repository info' },
+            schema: [
+              { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$', defaultFrom: 'cwd-basename', preview: { zh: '将创建 https://gitlab.com/{owner}/{name}', en: 'Will create https://gitlab.com/{owner}/{name}' } },
+            ],
+          },
+          {
+            title: { zh: '可见性', en: 'Visibility' },
+            schema: [
+              { name: 'visibility', type: 'single', label: { zh: '可见性', en: 'Visibility' }, options: ['private', 'public'], optionSubs: { private: { zh: '仅自己', en: 'Only you' }, public: { zh: '所有人', en: 'Everyone' } }, defaultValue: 'private' },
+            ],
+          },
+        ],
+        submitAction: { type: 'contract-op', op: 'initProject', params: {} },
+      },
       { type: 'refresh', target: 'chain' },
     ],
   },

@@ -222,8 +222,8 @@ declare function resolveFailText(...args: any[]): any;
           if (code === 'no-gh' || code === 'not-logged-in') {
             let guide = ''
             const key = (code === 'no-gh')
-              ? ((typeof guideInjectPromptOf === 'function') ? String(guideInjectPromptOf('gh:installed') || '') : '')
-              : 'ghAuthLogin'
+              ? ((typeof guideInjectPromptOf === 'function') ? String(guideInjectPromptOf('gh:installed') || '') : 'cliInstall')
+              : 'cliLogin'
             if (key) {
               const bidG = (st.selection || (st.snapshot && st.snapshot.selection) || {}).backendId
               const mmG = (typeof moduleMetaOf === 'function' && bidG != null) ? moduleMetaOf(st, bidG) : null

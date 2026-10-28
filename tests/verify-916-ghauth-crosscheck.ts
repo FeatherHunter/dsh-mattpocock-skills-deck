@@ -144,7 +144,8 @@ async function main(): Promise<void> {
     check(r.reply.kind === 'auth', '二、结论仍是确定没登录（auth）', JSON.stringify(r.reply))
     check(r.verdict.status === 'fail', '二、链上登录态判 fail', r.verdict.detail)
     check(!!r.banner && r.banner.text === 'banner.ghauth', '二、横幅仍是缺登录那句', JSON.stringify(r.banner))
-    check(!!r.missing && r.missing.type === 'inject' && r.missing.prompt === 'ghAuthLogin', '二、按钮仍注入登录指引', JSON.stringify(r.missing))
+    // #1190：登录这一步按通用键 cliLogin 注入（与旧 ghAuthLogin 同文）。
+    check(!!r.missing && r.missing.type === 'inject' && r.missing.prompt === 'cliLogin', '二、按钮仍注入登录指引（通用键 cliLogin）', JSON.stringify(r.missing))
   }
 
   console.log('== 三、auth status 只是闪了一下、核对接口通 → 登录是好的，横幅不该出现 ==')

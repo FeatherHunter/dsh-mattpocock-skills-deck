@@ -302,7 +302,8 @@ async function main() {
   ok(mod.setupBlockedByGuide(stateOf(chainOf(STEP_CHAIN.noRepo), { backend: 'github', backends: backends }), 'github') === true, '判据：仓库那一步红着 → 挡住初始化')
   ok(mod.setupBlockedByGuide(stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'github', backends: backends }), 'github') === false, '判据：仓库那一步绿了 → 不挡')
   ok(mod.setupBlockedByGuide(stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'markdown', backends: backends }), 'markdown') === false, '判据：本地 Markdown 没有那一步 → 永远不挡')
-  ok(guide.GUIDE_STEPS.filter(function (s: any) { return s.blocksSetup === true }).map(function (s: any) { return s.id }).join(',') === 'gh:remote', '清单里标着「挡住初始化」的只有「已关联 GitHub 仓库」那一步')
+  // #1190：两家后端各一步挡初始化（gh:remote 只适用 github、glab:repoAccess 只适用 gitlab），合在一起是两步。
+  ok(guide.GUIDE_STEPS.filter(function (s: any) { return s.blocksSetup === true }).map(function (s: any) { return s.id }).join(',') === 'gh:remote,glab:repoAccess', '清单里标着「挡住初始化」的是两家后端的仓库步骤（gh:remote、glab:repoAccess）')
   // 检查页那颗「执行初始化」按钮：这一次确实什么都不该注入（返回 null），别落到「解析不出来就把键名原样注入」那条兜底上。
   const stClick = stateOf(chainOf(STEP_CHAIN.noRepo), { backend: 'github', backends: backends })
   ok(mod.setupRunTextForClick(stClick) === null, '检查页那颗按钮在仓库没就绪时拿到的决定是 null（这次就该一个字都不注入）')

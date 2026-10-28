@@ -113,7 +113,8 @@ async function main() {
   ok(!seen.logged.find((l) => l.event === 'inject.decision'), '没有沿用初始化那条漏斗的事件（那条记的是另一件事）')
 
   console.log('== 4. 只改这一颗：登录那条仍然注入后端声明的登录指引 ==')
-  const stAuth = { cwd: '/w/demo', selection: { backendId: 'github' }, backendModules: [{ id: 'github', prompts: { ghAuthLogin: { zh: '请为本机完成 GitHub CLI 登录', en: 'Sign in' } } }], chainSnapshot: { steps: [{ id: 'gh:installed', status: 'done' }, { id: 'gh:authed', status: 'fail' }] } }
+  // #1190：登录这一步按通用键 cliLogin 注入（后端声明里 cliLogin 与 ghAuthLogin 同文，旧键保留做回退）。
+  const stAuth = { cwd: '/w/demo', selection: { backendId: 'github' }, backendModules: [{ id: 'github', prompts: { cliLogin: { zh: '请为本机完成 GitHub CLI 登录', en: 'Sign in' } } }], chainSnapshot: { steps: [{ id: 'gh:installed', status: 'done' }, { id: 'gh:authed', status: 'fail' }] } }
   const authStep = mod.guideBannerStep(stAuth, false)
   ok(!!authStep && authStep.id === 'gh:authed', '装了 gh、没登录 → 出的是登录那一步（实得 ' + (authStep && authStep.id) + '）')
   const outAuth = mod.runGuideMissing(stAuth, authStep)

@@ -35,7 +35,7 @@ export { initProject } from './init-project.js'
  * 每个后端检查项的失败修复知识：hint（人读指引，随链渲染）+ actions（词汇表动作）。
  * host wf.chain 组装时按语言解析进 onFail.show.hint / onFail.actions（见 tracker/fixContract.js）；
  * UI 只渲染与分发，不识别后端、不推导修复步骤。
- * 文案引用本模块 prompts 键：cliInstall / ghAuthLogin（双语单源）；操作类的事一律交给工具
+ * 文案引用本模块 prompts 键：cliInstall / cliLogin（ghAuthLogin 为旧别名，同文本保留；双语单源）；操作类的事一律交给工具
  *   （deck_* 那一批），提示词里不再教任何一条跟踪器命令 —— #716 定的口径：提示词与文档里剩下的
  *   裸命令只有三类（登录、建仓、阻塞降级写法）。
  */
@@ -144,6 +144,12 @@ export const prompts = (function () {
       en: '/wizard help the user install the gh CLI — official page: https://cli.github.com/',
     },
     ghAuthLogin: {
+      zh: '/wizard 辅助用户完成 gh 登录：运行 gh auth login 并按提示在浏览器完成授权；结束后运行 gh auth status 确认已登录。',
+      en: 'Please complete gh login: run gh auth login and finish browser authorization; afterwards run gh auth status to confirm.',
+    },
+    // #1190 通用键：首开引导清单是三个后端共用的文件，不写 gh 名。内容与 ghAuthLogin 同一份（单源文本、两个键名），
+    //   老键保留给旧调用处（NoRepoCard 回落、旧门禁断言），新流程一律走 cliLogin。
+    cliLogin: {
       zh: '/wizard 辅助用户完成 gh 登录：运行 gh auth login 并按提示在浏览器完成授权；结束后运行 gh auth status 确认已登录。',
       en: 'Please complete gh login: run gh auth login and finish browser authorization; afterwards run gh auth status to confirm.',
     },

@@ -96,7 +96,9 @@ const EXPECT_REGISTRY_ENTRIES = 27 // 注册表条目数（#1281：新增 newSpe
 // #725：三后端各自的 prompts.bodyFormat 整节删除 —— 键数各减 1：9/7/5 → 8/6/4。
 // #1514：markdown 的 wayfinderMapBuild 整条删除（「执行 wayfinder 构造地图」按钮的注入提示词不再成立），
 //   键数 4 → 3；github / gitlab 不受影响，仍是 8 / 6。
-const EXPECT_BACKEND_KEYS = { github: 8, gitlab: 6, markdown: 3 }
+// #1190：两后端各加通用键别名（github 加 cliLogin 与 ghAuthLogin 同文、gitlab 加 cliInstall/cliLogin 与 glab 两条同文，
+//   旧键保留做回退），键数 8/6 → 9/8；markdown 不动。
+const EXPECT_BACKEND_KEYS = { github: 9, gitlab: 8, markdown: 3 }
 // S3 各后端 prompts 块内的字符串字面量总数（含字符串拼接的续段，如 ensureLabels 的命令就藏在续段里）。
 // 这个数字是「词法扫描不许静默少扫」的硬保证：少扫一段就会对不上。
 // #684：github +2（healthCheck 的 zh/en）、gitlab +2、markdown +2。
@@ -107,7 +109,8 @@ const EXPECT_BACKEND_KEYS = { github: 8, gitlab: 6, markdown: 3 }
 //   短文案，外加两行解释注释也是字符串字面量），44 → 50。这两档是「创建并发布」失败时给用户看的文案，
 //   修法提示与原文另走界面那两条路，不放这里，所以只加两条短句。
 // #1514：markdown 的 wayfinderMapBuild（zh/en 两条短句）整条删除，字面量 markdown 7 → 5；github / gitlab 不动。
-const EXPECT_BACKEND_LITERALS = { github: 50, gitlab: 12, markdown: 5 }
+// #1190：通用键别名与旧键同文（每条 zh/en 各一字面量），字面量 github +2（cliLogin）、gitlab +4（cliInstall/cliLogin）；markdown 不动。
+const EXPECT_BACKEND_LITERALS = { github: 52, gitlab: 16, markdown: 5 }
 // #664：宿主那份「怎么装 gh」的长文（GH_INSTALL_PROMPT）按新流程退役，此后很长一段时间 src/host 全树一个
 //   *_PROMPT 常量都没有（本行原为 0）。#839 起有一个真的了：src/refresh/rooms/host/gh-execution.js 的
 //   GIT_TERMINAL_PROMPT: '0'（非交互环境那一条固定前缀）。门禁口径是「≥ 这个数」，合法新增不判红，
@@ -2350,10 +2353,13 @@ const selfDigest = function () {
 //   （两次全扫参数、最多 3 张候选交报告人确认、四类出口、查重记录四行与建单前置条件），中英文对应；
 //   版本底线 14 → 15（规格 #1460 写 12→13，但基线已是 v14，只许升不许降）。
 //   config/prompts/ticket-creation.yaml 与 tests/verify-bug-entry.ts 都改了；本文件只动版本底线与自摘要。
+// #1190：两后端加通用键别名（github cliLogin / gitlab cliInstall+cliLogin，与旧键同文），三面计数跟着改
+//   （键数 8/6 → 9/8、字面量 50/12 → 52/16；markdown 不动）；新键走默认判定且通过，不加豁免，
+//   受保护清单与必须受判清单都不动，自摘要按新内容重算（豁免登记表与 payload 夹具没动）。
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': '38514b105d2ca8f863044e231b57dd0d962b862885fca12983ce977b8e7e266a',
+  'tests/verify-prompts.ts': 'c06330c2e5f5d786db66d33df54db482cf1dc38c32540aeac02994b31d5e23d2',
 }
 // ---- LOCK-END ----
 
