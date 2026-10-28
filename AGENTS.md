@@ -113,6 +113,10 @@ AI 这边没有可用的终端工具（better-sidebar 删掉了它自带的 `ter
 
 工具入参里不能有 `undefined`（可选参数要么不传、要么给值）；报 `lossless JSON` 时去掉该参数或给值，再重试一次同样的工具调用。
 
+### 真机验证清单
+
+每个要发布的版本都有一张 `[真机验证] <版本号>` 清单票；关票、发布前、发布后的动作都写在这一份规则里，见 `docs/agents/real-machine-verification.md`。
+
 ### Release 发布
 
 Publish `package` (the main plugin; skills ship inside it, never separately). `dsh-log` and `dsh-plugin-update` now live in standalone repos and are only consumed from npm, never published from here (#878, #892). Private package shells are skipped automatically.

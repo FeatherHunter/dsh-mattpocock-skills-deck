@@ -194,17 +194,21 @@ export const loadChain = function (st: any, force: any, trigger: any, opts?: any
   //   为什么不担心等不到：wf.selection 只读宿主本地的工作区文件，几十毫秒就回；它失败/超时也不影响
   //   兜底——probe-scope-selection 会在 selPending 收掉之后补发，本函数拿到的是「诚实降级成空键」那一次。
   //   谁负责补发：selection 落定那一刻由 probe-scope-selection 调 _flushDeferredChain（见本文件下方）。
-  if (!st.selection) {
+  //   判据取「未定」而不是「selection 为空对象」：mergeSelection 会把 fallback 的空结论也装成
+  //   { backendId: null } 的真值对象，但它不是「确实没有后端」（显式空 source=explicit 才是），
+  //   拿它当已定会照旧带着空键发出去，等于只修了冷启动那一种形状。
+  const _selUndecided: boolean = !st.selection || (st.selection.backendId == null && String(st.selection.source || '') !== 'explicit');
+  if (_selUndecided) {
     try { if (typeof askSelectionOnce === 'function') askSelectionOnce(st); } catch (eAskSel) {}
     if (st.selPending === true) {
       try {
-        const d: any = st._chainDeferred || { force: false, trigger: '', opts: null };
-        if (force) d.force = true;
+        const deferred: any = st._chainDeferred || { force: false, trigger: '', opts: null };
+        if (force) deferred.force = true;
         const why: string = String(trigger || '');
-        if (why === CHAIN_EVENT_REASONS.userRecheck) d.trigger = why;
-        else if (why && !d.trigger) d.trigger = why;
-        if (opts) d.opts = Object.assign({}, d.opts || {}, opts);
-        st._chainDeferred = d;
+        if (why === CHAIN_EVENT_REASONS.userRecheck) deferred.trigger = why;
+        else if (why && !deferred.trigger) deferred.trigger = why;
+        if (opts) deferred.opts = Object.assign({}, deferred.opts || {}, opts);
+        st._chainDeferred = deferred;
       } catch (eDef) {}
       return Promise.resolve(null);
     }
@@ -363,17 +367,18 @@ export const loadChain = function (st: any, force: any, trigger: any, opts?: any
 };
 /**
  * 把「因为 selection 还没落定而被推迟」的那一次链求值补发出去（#1626）。
- * 调用方是 probe-scope-selection：选择落定、迟到选择落地、正常快照带回 selection 三处都试一次。
+ * 调用方是 probe-scope-selection：选择落定、迟到选择落地、正常快照带回选择、快照取数失败（诚实降级）
+ *   四处都试一次。
  * 只在真的记着一次推迟时动手，补发后立刻清账，所以之后每一次选择合并都不会顺手多打一枪。
  * 来路：默认记 selection-resolved（宿主按后台事件照常退避）；推迟期间若有人亲手点过（user-recheck），
  *   保留那个来路——宿主对人的动作永不降档，这一条不能替它降。
  */
 const _flushDeferredChain = function (st: any): any {
   try {
-    const d: any = st && st._chainDeferred;
-    if (!d) return null;
+    const deferred: any = st && st._chainDeferred;
+    if (!deferred) return null;
     st._chainDeferred = null;
-    return loadChain(st, !!d.force, d.trigger || CHAIN_EVENT_REASONS.selectionResolved, d.opts);
+    return loadChain(st, !!deferred.force, deferred.trigger || CHAIN_EVENT_REASONS.selectionResolved, deferred.opts);
   } catch (eFlush) { return null; }
 };
 /**

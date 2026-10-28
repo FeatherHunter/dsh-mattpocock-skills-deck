@@ -64,4 +64,5 @@
 - 本模板与网页卡 `.github/ISSUE_TEMPLATE/release.yml` 同源，正文逐字一致。
 - 未提供版本号时请勿猜测，需追问确认。
 - awesome 侧更新保持按需原则，单条目且不手改生成产物。
+- 发布前会跑真机验证清单检查（`node scripts/release-preflight.mts`）：本版 `[真机验证] vX.Y.Z` 清单票必须恰好一张且已关闭，否则发布被阻断；发布成功后 `scripts/release-postflight.mts` 会给清单票补发布记录并建下一版占位票。规则见 `docs/agents/real-machine-verification.md`。
 - 致谢与安装命令：致谢表由每日任务自动追加，发布时只需确认当天任务已跑、新贡献已收录（见 Runbook 第 2 节）；中文、英文 README 与包内说明的锁定版本与本次发布同源。
