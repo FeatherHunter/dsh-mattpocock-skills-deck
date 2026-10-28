@@ -115,7 +115,9 @@ const POINTS: PointsRow[] = [
   { label: '建票：成功、没有父子边', tool: 'deck_issue_create', args: { title: '点数表甲票', kind: 'issue' }, own: [2, 4] },
   { label: '建票：成功、带父子边', tool: 'deck_issue_create', args: { title: '点数表乙票', kind: 'map-ticket', label: 'wayfinder:task', parentKey: '00' }, own: [4, 8] },
   { label: '读票：缺票号（还没走到选后端）', tool: 'deck_issue_get', args: {}, own: [0, 0] },
-  { label: '读票：这张票读不回来', tool: 'deck_issue_get', args: { key: '999999' }, own: [1, 3] },
+  // #1610 起读票与读反向边是并发发出的两次请求：票读不回来时反向边那一条已经发出去了，
+  // 所以这一支按实际发出数报 2 条 6 点（以前串行时后一条没发，只报 1 条 3 点）。
+  { label: '读票：这张票读不回来', tool: 'deck_issue_get', args: { key: '999999' }, own: [2, 6] },
   { label: '读票：成功、跳反向边', tool: 'deck_issue_get', args: { key: '01', blocking: false }, own: [1, 3] },
   { label: '读票：成功、读全量关系（缺省）', tool: 'deck_issue_get', args: { key: '01' }, own: [2, 6] },
   { label: '列票：成功（回多少行都一样）', tool: 'deck_issue_list', args: {}, own: [2, 5] },

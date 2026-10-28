@@ -100,6 +100,7 @@ async function main() {
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.js')).markdownModule;
   const toolCost = await imp('src/refresh/kernel/tool-call-budget.js');
   const budgetMod = await imp('src/refresh/kernel/host-budget.js');
+  const acctMod = await imp('src/refresh/kernel/backend-accounting.js');
   const { chooseWorkspace, makeDecideStub } = await imp('tests/lib/deck-decide-stub.js');
   const workRouteMod = await imp('src/deck/shell/work-path-bindings.js');
   const trackerSessionMod = await imp('src/deck/tools/tracker-session.js');
@@ -108,6 +109,13 @@ async function main() {
   const ws = makeWorkspace();
   const clock = 1700000000000;
 
+  // #1610：成功回包上贴一份房间自报的用量（一条远端调用 = 1 请求 3 点，与工具侧同口径）。
+  // 真实房间在成功回包上自报（src/tracker/rooms/github/op-usage.ts）；失败回包不自报，
+  // 生产口径也不给失败信封记用量（src/refresh/kernel/backend-accounting.ts:52）。
+  const withUsage = (fn: any) => async (...args: any[]) => {
+    const out: any = await fn(...args);
+    return (out && out.ok === true) ? Object.assign({}, out, { usage: { requests: 1, points: 3 } }) : out;
+  };
   // 一个双桶桩：房间实现直接委托真实 Markdown 房间（同一份工作区、同一批票），只换 id 与预算声明。
   const ghStubModule = {
     id: 'gh-stub-1442', label: '双桶桩',
@@ -117,8 +125,9 @@ async function main() {
       const inner = markdownModule.create(ctx) as Record<string, (...a: any[]) => unknown>;
       const delegate = (name: string) => async (...args: any[]) => inner[name](...args);
       return {
-        id: 'gh-stub-1442', create: delegate('create'), list: delegate('list'), get: delegate('get'),
-        getDependencies: delegate('getDependencies'), close: delegate('close'), reopen: delegate('reopen'),
+        id: 'gh-stub-1442', create: delegate('create'), list: delegate('list'),
+        get: withUsage(delegate('get')), getDependencies: withUsage(delegate('getDependencies')),
+        close: delegate('close'), reopen: delegate('reopen'),
         comment: delegate('comment'), update: delegate('update'), setLabels: delegate('setLabels'),
         setAssignees: delegate('setAssignees'), setParent: delegate('setParent'), setBlockedBy: delegate('setBlockedBy'),
         preflight: delegate('preflight'), getRepoPermissions: delegate('getRepoPermissions'),
@@ -174,12 +183,10 @@ async function main() {
     chooseWorkspace(ws.rootPosix, backendId);
     const ports = {
       admit: makeAdmit(budgetMod),
-      account: async (input: any) => {
-        const model = (input && input.budget) || {};
-        if (model.kind === 'off-network') return;
-        const claimed = (input && input.result && input.result.claimed) || { requests: 0, points: 0 };
-        ledger.spend({ account: 'ai-tool', backendId: (input && input.backendId) || backendId, bucket: 'graphql', requests: claimed.requests || 0, points: claimed.points || 0 });
-      },
+      // #1610：报账门禁换成生产那一份记账口（src/refresh/kernel/backend-accounting.ts:141 的 createAccountPort）。
+      // 从前这里手写一份读 result.claimed 的替身，可房间回包上根本没有 claimed 这一格，替身静默记 0，
+      // 账本这一层等于从没被验证过。
+      account: acctMod.createAccountPort({ ledger: ledger, account: 'ai-tool' }),
       getCachedReading: () => reading,
     };
     const deps = {
@@ -259,6 +266,19 @@ async function main() {
       && typeof actual.remaining === 'number' && actual.remaining >= 0 && typeof actual.tier === 'string',
       '双桶桩回执带四格事实与真实水位（实得 ' + JSON.stringify(actual) + '）');
     check(!!r && !!r.cost && !r.cost.note, '双桶桩回执没有未知/离网说明（实得 ' + JSON.stringify(r && r.cost) + '）');
+    // #1610：默认读一张票 = 读票 + 读反向阻塞边，两条并发发出；报账按实际发出数 2 请求 6 点，
+    // 账本按房间自报的用量记账（记账口已换成生产那一份 createAccountPort）。
+    const read = await w.run('deck_issue_get', { key: '01' });
+    const readActual = read.r && read.r.cost && read.r.cost.actual;
+    check(!read.threw && !!read.r && read.r.status === 'ok', '默认读一张票成功（实得 ' + (read.threw || (read.r && read.r.status) + '/' + (read.r && read.r.reason)) + '）');
+    check(!!readActual && readActual.requests === 2 && readActual.points === 6, '默认读一张票报 2 请求 6 点（实得 ' + JSON.stringify(readActual) + '）');
+    const readHour = w.hour() as { requests: number; points: number };
+    check(readHour.requests === 2 && readHour.points === 6, '账本照房间自报的用量记 2 请求 6 点（实得 ' + JSON.stringify(readHour) + '）');
+    // 读票失败时依赖查询也已经发出去：报账仍是 2 请求 6 点（#1610 修的就是这一格）。
+    const miss = await w.run('deck_issue_get', { key: '99' });
+    const missActual = miss.r && miss.r.cost && miss.r.cost.actual;
+    check(!miss.threw && !!miss.r && miss.r.status === 'unsupported', '读一张不存在的票走 unsupported（实得 ' + (miss.threw || (miss.r && miss.r.status) + '/' + (miss.r && miss.r.reason)) + '）');
+    check(!!missActual && missActual.requests === 2 && missActual.points === 6, '读票失败的回执照样报 2 请求 6 点（实得 ' + JSON.stringify(missActual) + '）');
   }
 
   // ── 三、双桶桩额度见底：拒绝且不花额度 ──
