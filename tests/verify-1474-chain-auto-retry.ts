@@ -289,6 +289,8 @@ const partF = async function (): Promise<void> {
     const o = opts || {}
     let detects = 0
     let resets = 0
+    let active = 0
+    let maxActive = 0
     const chain = createDetectChain({
       canonicalKey: async function (raw: any): Promise<string> { return String(raw || '') },
       DEFAULT_CWD: 'D:/demo',
@@ -297,8 +299,12 @@ const partF = async function (): Promise<void> {
         return {
           detect: async function (): Promise<AnyObj> {
             detects += 1
-            if (o.detectMs) await sleep(o.detectMs)
-            return { selection: { backendId: 'github', source: 'auto' } }
+            active += 1
+            maxActive = Math.max(maxActive, active)
+            try {
+              if (o.detectMs) await sleep(o.detectMs)
+              return { selection: { backendId: 'github', source: 'auto' } }
+            } finally { active -= 1 }
           },
         }
       },
@@ -321,7 +327,7 @@ const partF = async function (): Promise<void> {
       openSession: null,
       getRepoIdentity: undefined,
     })
-    return { chain: chain, detects: function (): number { return detects }, resets: function (): number { return resets } }
+    return { chain: chain, detects: function (): number { return detects }, resets: function (): number { return resets }, maxActive: function (): number { return maxActive } }
   }
   const argsOf = function (o: AnyObj): AnyObj {
     return Object.assign({ cwd: 'D:/demo', backendId: 'github', lang: 'zh' }, o)
@@ -337,6 +343,7 @@ const partF = async function (): Promise<void> {
     check(m.chain.rideStats().merged >= 1, '第二下搭上第一趟车（合并计数 +1，实得 ' + JSON.stringify(m.chain.rideStats()) + '）')
     check(r[0] && r[0].ok === true && r[1] && r[1].ok === true, '两下都拿到成功回包')
     check(r[0] && r[1] && r[0].backendId === 'github' && r[1].backendId === 'github', '两路回包都带着同一条链的判定（真算次数见上一条，没有各算一份）')
+    check(m.resets() === 1, '连点两下只清一次 gh 解析缓存（搭车那一下不再白清，实得 ' + m.resets() + ' 次）')
   }
 
   // F2 自动复查（不带 force）撞上人手那一次（带 force）：也只真算一次；清 gh 解析缓存只发生在人手那一路。
@@ -366,6 +373,39 @@ const partF = async function (): Promise<void> {
     check(m.detects() === 1 && r && r.ok === true, '人手重新检查照常求值成功')
     check(m.resets() === 1, '人手重新检查照旧清一次 gh 解析缓存（行为与今天一致，实得 ' + m.resets() + ' 次）')
   }
+
+  // F5 反序：后台那一轮先跑起来，人手点「重新检查」后到 —— 先等后台收尾，再自己顺序算一轮，
+  //   不搭后台那一轮的结果（按钮承诺「点完之后真的重问过」），全程不出现两轮求值重叠。
+  {
+    const m = makeChain({ detectMs: 60 })
+    const pAuto = m.chain.handleChain(argsOf({ trigger: 'auto-retry' }))
+    await sleep(15)
+    check(m.detects() === 1, '后台那一轮已经在路上（实得 ' + m.detects() + ' 次）')
+    const pForce = m.chain.handleChain(argsOf({ force: true, trigger: 'user-recheck' }))
+    const r = await Promise.all([pAuto, pForce])
+    check(m.detects() === 2, '后台收尾之后人手那一下自己又算了一轮（不搭后台车，实得 ' + m.detects() + ' 次）')
+    check(m.maxActive() === 1, '两轮严格先后跑，没有重叠（实测最大并发 ' + m.maxActive() + ' 轮）')
+    check(m.resets() === 1, '清 gh 解析缓存只发生在人手真正开算之前（实得 ' + m.resets() + ' 次）')
+    check(r[0] && r[0].ok === true && r[1] && r[1].ok === true, '两路都拿到成功回包')
+  }
+
+  // F6 后台在飞时连点两下「重新检查」：后台一轮 + 人手一轮共两轮，第二下人手搭第一下那轮（合并计数 +1），
+  //   两次点击只清一次 gh 解析缓存。
+  {
+    const m = makeChain({ detectMs: 60 })
+    const pAuto = m.chain.handleChain(argsOf({ trigger: 'auto-retry' }))
+    await sleep(15)
+    const p1 = m.chain.handleChain(argsOf({ force: true, trigger: 'user-recheck' }))
+    await sleep(5)
+    const p2 = m.chain.handleChain(argsOf({ force: true, trigger: 'user-recheck' }))
+    const r = await Promise.all([pAuto, p1, p2])
+    check(m.detects() === 2, '后台一轮 + 人手一轮共两轮（第二下人手点击不另算，实得 ' + m.detects() + ' 次）')
+    check(m.maxActive() === 1, '任何时刻只有一轮求值（实测最大并发 ' + m.maxActive() + ' 轮）')
+    check(m.chain.rideStats().merged >= 1, '第二下人手点击搭上第一下那轮（合并计数 ' + JSON.stringify(m.chain.rideStats()) + '）')
+    check(m.resets() === 1, '两次人手点击只清一次 gh 解析缓存（实得 ' + m.resets() + ' 次）')
+    check(r.every(function (x: any): boolean { return !!(x && x.ok === true) }), '三路都拿到成功回包')
+  }
+
 }
 
 // ---------------------------------------------------------------------------------------------
