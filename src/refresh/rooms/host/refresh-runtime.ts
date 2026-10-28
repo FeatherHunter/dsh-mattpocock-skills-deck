@@ -189,7 +189,7 @@ export function createRefreshWiring(deps: any): any {
         },
         logEvent: function (level: any, event: any, fields: any): void { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e: any) {} },
         isEnabled: function (level: any): any { try { return logCtx ? logCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e: any) { return level === 'error' || level === 'warn' } },
-        outbound: createOutboundControl(),
+        outbound: createOutboundControl(logCtx),
       }
     }
     // platform 每次现取：第一份装配可能发生在平台加载完之前，把 null 缓存下来就再也补不上了。
