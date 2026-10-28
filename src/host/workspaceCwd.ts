@@ -254,7 +254,11 @@ export function createWorkspaceCwd(deps: Deps) {
       //   不递的后果是「用户在设置页选了后端、事后想查为什么是这个」，日志里查不到这一趟判定。
       const o = await outlet.decideBackend(cwd, { registry: reg, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'wf.selection', logCtx: logCtx }).catch(function () { return null })
       const describeOf = function (id: string) { try { return reg.describe({ cwd: cwd }, id) } catch (eD) { return null } }
-      const sel = (typeof outlet.selectionFromOutlet === 'function' && o) ? outlet.selectionFromOutlet(o, describeOf) : null
+      // (#1625) 映射函数由 #1003 的装配约定挂在 decideBackend 函数自己身上（探测服务也是这么读的），
+      //   装配结果这一层只带了 decideBackend 一格。两种形状都读：对象上直接给了就用对象的，没给就读函数身上那份。
+      //   只认对象那一格时这条电话恒回 fallback —— 界面把已经选了后端的工作区当成没选（#1474 真机现场被它挡住）。
+      const outletMap = (outlet.selectionFromOutlet || (outlet.decideBackend && outlet.decideBackend.selectionFromOutlet)) || null
+      const sel = (typeof outletMap === 'function' && o) ? outletMap(o, describeOf) : null
       // #1238 行级别失败线索：统一判定结论里的诊断（三态：查清了确实没有还是没查清）只活在 decideBackend 的回包里，
       //   selectionFromOutlet 的对外五格按约定不带它（判定层注释写明那一格是给排查与将来界面的，形状被门禁锁死，不动它）。
       //   总览就是那个“将来界面”：未绑定的行把 state 原样捎给客户端，客户端只做分类显示，不做新判定。

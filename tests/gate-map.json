@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T15:18:06.486Z",
+  "generatedAt": "2026-10-28T16:28:05.129Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 431,
-  "gateCount": 431,
-  "attributedGates": 388,
+  "chainLength": 432,
+  "gateCount": 432,
+  "attributedGates": 389,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 19,
@@ -4340,6 +4340,22 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 10 条"
+    },
+    {
+      "step": "node tests/verify-1625-wf-selection-outlet.ts",
+      "file": "tests/verify-1625-wf-selection-outlet.ts",
+      "guards": [
+        "src/host/platformChannel.ts",
+        "src/host/workspaceCwd.ts"
+      ],
+      "dirs": [
+        "src/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -10970,6 +10986,7 @@
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
+      "node tests/verify-1625-wf-selection-outlet.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
