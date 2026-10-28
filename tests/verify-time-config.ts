@@ -615,7 +615,7 @@ async function main(): Promise<void> {
     check(clientUsed.has(name), '拼接名单里的 ' + name + ' 有界面文件在用（名单多一个名字，就是把没人用的常量白拼进闭包）')
   }
 
-  // —— 第四节：无字面量（时间味的位置上不许出现数字；唯一出口是 PERMANENT 表与样式类的 STYLE 表） ——
+  // —— 第四节：无字面量（时间味的位置上不许出现数字；唯一出口是 PERMANENT 表；样式类时长不归本门禁，见下） ——
   const permanentByFile = new Map<string, string[]>()
   for (const row of PERMANENT) {
     if (!permanentByFile.has(row.file)) permanentByFile.set(row.file, [])

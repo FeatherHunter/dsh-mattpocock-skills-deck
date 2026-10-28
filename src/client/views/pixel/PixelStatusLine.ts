@@ -8,6 +8,7 @@
  */
 import type { PixelStatusLineProps, PixelStateIconProps } from '../pixelProps';
 declare const PixelStateIcon: (props?: PixelStateIconProps) => any;
+declare const MOTION: any;
 export const PixelStatusLine = function (props?: PixelStatusLineProps): any {
   const p = props || {}
   const cx = React.useContext(DswsCtx)
@@ -15,8 +16,9 @@ export const PixelStatusLine = function (props?: PixelStatusLineProps): any {
   const seq = Array.isArray(p.texts) && p.texts.length ? p.texts : null
   const line = seq
     ? h('span', { key: 'seq', className: 'pixel-seq' }, seq.map(function (s: string, i: number) {
-        // 每句往后错一秒（0s / 1s / 2s）：第一句立刻出现，后两句在自己的时刻之前是隐藏的。
-        return h('span', { key: i, style: { animationDelay: i + 's' } }, s)
+        // 每句往后错一秒（0 / 1000 / 2000 毫秒，步长取动效令牌 MOTION.pixelStatusStepMs）：
+        // 第一句立刻出现，后两句在自己的时刻之前是隐藏的。
+        return h('span', { key: i, style: { animationDelay: (i * MOTION.pixelStatusStepMs) + 'ms' } }, s)
       }))
     : h('span', { key: 'tx' }, p.text)
   return h('div', { className: 'pixel-statusline' }, [

@@ -15,6 +15,9 @@
  * 命名：键名按「这个时长是做什么用的」命名，统一以 Ms 结尾，值是整数毫秒；同一个数值如果用在
  *   两件不同的事上，就各起一个名字（例如 spinMs 与 inlineSpinnerMs 都是转圈，但改造前就是
  *   两个数，先按原值保留）。这样调参的人按用途找得到，而不是先猜数值。
+ *   每个分组的行尾注释都写清了用途：写「过渡」「淡入淡出」「迁移」的是一次性 transition；
+ *   写「呼吸」「轮播」「微光」「闪烁」并配 infinite 关键帧的是循环 animation。哪个动画配哪个
+ *   关键帧仍写在样式叶子里，这里只回答「多久」。
  *
  * 为什么不是 config/ 下的 YAML：见 docs/adr/20261021-config-ownership.md。这些值由写界面代码的人改，
  *   客户端又是构建产物、运行期读不到数据文件；做成 YAML 会凭空多出「真源 + 生成物」两份会漂的拷贝，
@@ -25,8 +28,10 @@
  *   拼接次序：kernel:motion 必须排在 kernel:styles 之前（样式字符串在模块求值时就要取值，const 有暂时性死区）。
  *
  * 门禁：tests/verify-motion-tokens.ts。它守五件事：MOTION 的形状、每个键都被引用且引用名都有定义、
- *   全仓只有这一份定义、构建与内核档案确实登记了它、src/client 下（本文件除外）任何一行同时出现
- *   transition/animation 关键字与字面时长就判红。改这里之后要跑 npm run verify:parallel。
+ *   全仓只有这一份定义、构建与内核档案确实登记了它（且每个读 MOTION 的模块都排在它后面）、
+ *   src/client 下（本文件除外）任何一行同时出现 transition/animation 关键字与写死的时长就判红。
+ *   写死的时长有三种形态都算（.12s、' + 200 + 'ms'、i + 's'）；真要留一处，必须去门禁的 EXEMPTS
+ *   表登记文件、片段与理由。改这里之后要跑 npm run verify:parallel。
  */
 export const MOTION = {
   // ---- 面板外壳与通用交互 ----
@@ -63,6 +68,7 @@ export const MOTION = {
   pixelPressMs: 120, // 像素按钮/卡片按下时的位移与投影
   pixelBlinkMs: 600, // 像素加载方块的闪烁
   pixelStatusCycleMs: 3000, // 像素状态行三句轮播一轮
+  pixelStatusStepMs: 1000, // 像素状态行里每句往后错开的步长（三句轮播一轮 = 3 步）
   pixelSkeletonMs: 1000, // 像素骨架方块的闪烁
   pixelResultFlashMs: 500, // 像素成功/失败的底色一闪
   pixelShakeMs: 400, // 像素失败抖动

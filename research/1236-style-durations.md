@@ -110,24 +110,39 @@
 - 改造时要一起改的测试与门禁：`tests/verify-1302-panel-list-skeleton.ts:336`、`tests/verify-ui-feedback.ts:196` 的源码断言；`tests/verify-1411-suggest-appearance.ts` 里 9 个毫秒值的断言；`tests/verify-time-config.ts` 的 STYLE 表；`tests/verify-kernel.ts` 的 MODULES 表；`scripts/build.mts` 的 `KERNEL_MODULES` 与 `src/client/index.ts` 的 `kernel:motion` 标记。
 - 新增门禁后按仓内规矩跑 `node scripts/gate-map.mts` 重生成 `tests/gate-map.json`，再跑 `node tests/verify-gate-map.ts`。
 
-**判据盲区复验**：不在 `transition`/`animation` 行上的 `s`/`ms` 字面量只剩 13 处，全部是注释、界面文案或 SVG 路径（例如 `src/client/kernel/icons.ts:30` 的 `M12 21s…`、`src/client/kernel/api-handoff.ts:124` 的注释「2s 后恢复」），没有跨行书写的 CSS 声明被漏掉；camelCase 目前只有运行时拼接（`src/client/statusbar/suggestEngine.ts:139-140`、`src/client/views/pixel/PixelStatusLine.ts:19`），按行扫描的判据对现在的代码形态够用。
+**判据盲区复验**：不在 `transition`/`animation` 行上的 `s`/`ms` 字面量只剩 13 处，全部是注释、界面文案或 SVG 路径（例如 `src/client/kernel/icons.ts:30` 的 `M12 21s…`、`src/client/kernel/api-handoff.ts:124` 的注释「2s 后恢复」），没有跨行书写的 CSS 声明被漏掉；camelCase 目前只有运行时拼接（`src/client/statusbar/suggestEngine.ts:139-140` 的 transitionDuration/Delay 由计划值算），按行扫描的判据对现在的代码形态够用；`src/client/views/pixel/PixelStatusLine.ts:19` 原来写 `animationDelay: i + 's'`（每句 1 秒），复核后也收进了令牌（`MOTION.pixelStatusStepMs`），门禁对「变量与单位分开拼」同样判红。
 
 ---
 
 ## 2026-10-28 落地记录（改完了，以这一节为准）
 
-**最后的形态不是 YAML**：开票时设想的是新建一份 `config/motion.yaml`，落地时按更晚的 `docs/adr/20261021-config-ownership.md` 改成了 TypeScript 模块。理由是这份 ADR 的判据：值由写界面代码的人改、编译器又能把两份拷贝连起来，就该留在代码里用 import 让漏改在编译期红；做成 YAML 反而凭空多出「真源 + 生成物」两份会漂的拷贝，还丢掉类型。这也是 ADR §2.6「本轮一份新的 YAML 都不建」与 §4「不新建任何 YAML 文件」的直接约束。动效时长的真源因此落在 `src/client/kernel/motion.ts` 的 `MOTION` 对象上，和界面其它样式一样随构建拼进客户端闭包，运行期不读文件。
+**最后的形态不是 YAML**：开票时设想的是新建一份 `config/motion.yaml`，落地时按更晚的 `docs/adr/20261021-config-ownership.md` 改成了 TypeScript 模块。理由是这份 ADR 的判据：值由写界面代码的人改、编译器又能把两份拷贝连起来，就该留在代码里用 import 让漏改在编译期红；做成 YAML 反而凭空多出「真源 + 生成物」两份会漂的拷贝，还丢掉类型。这符合 ADR §2.2 的判据（编译器能把两份拷贝连起来就该留在代码里）；§2.6「本轮一份新的 YAML 都不建」与 §4「不新建任何 YAML 文件」是 #1336 那一轮的收敛结论，不是本票的直接约束，这里只沿用它的判据。动效时长的真源因此落在 `src/client/kernel/motion.ts` 的 `MOTION` 对象上，和界面其它样式一样随构建拼进客户端闭包，运行期不读文件。
 
 **改了什么**
 
-- 新建 `src/client/kernel/motion.ts`（kernel 片，插在 `kernel:styles` 之前）：一个 `MOTION` 对象，45 个毫秒令牌，键名按用途命名、统一以 `Ms` 结尾，值全是整数毫秒。24 个原有取值全部保留、不合并（同一个数值用在两件不同的事上就各起一个名字，例如 `spinMs` 800 和 `inlineSpinnerMs` 1000 改造前就是两个数）；另有一个 `motionOffMs: 1` 是「系统要求减少动态效果」分支关动画用的哨兵，不是可调观感档位。
+- 新建 `src/client/kernel/motion.ts`（kernel 片，插在 `kernel:styles` 之前）：一个 `MOTION` 对象，45 个毫秒令牌（审查后又补了 `pixelStatusStepMs`，现为 46 个），键名按用途命名、统一以 `Ms` 结尾，值全是整数毫秒。24 个原有取值全部保留、不合并（同一个数值用在两件不同的事上就各起一个名字，例如 `spinMs` 800 和 `inlineSpinnerMs` 1000 改造前就是两个数）；另有一个 `motionOffMs: 1` 是「系统要求减少动态效果」分支关动画用的哨兵，不是可调观感档位。
 - 11 个文件里的 51 条声明行全部改成用 `MOTION.xxx + 'ms'` 拼样式字符串（内联 `animation: '…'` 的字符串同样拼）。产物里原来的 `.12s` 变成 `120ms`，CSS 等价，界面观感零变化；`tests/verify-time-config.ts` 的 STYLE 表与 `docs/adr/20261016-time-config-yaml.md` 第 5 节同步改写，时间门禁不再管样式时长。
 - 「下一步建议」气泡原来放在 `suggestAppearance.ts` 的 9 个动画毫秒值（`bubbleDelayMaxMs` 等）一并搬进 `MOTION`（改名 `suggestBubbleDelayMaxMs` 等），那里只剩像素、颜色、比例等外观旋钮；时间门禁的 STYLE 表随之整张删除——那张表本来就写明是过渡，不是永久豁免。
-- 新门禁 `tests/verify-motion-tokens.ts`（18 条断言）守五件事：`MOTION` 的形状（单一定义、键名以 `Ms` 结尾、值 1~10000 的整数、键数下限）、每个键至少被引用一次且引用名都有定义、全仓只有这一份定义且不自带 import、构建与内核档案确实登记了 motion 片、`src/client/**` 里除 `motion.ts` 外任何 `transition`/`animation` 行出现字面时长就判红。文件头写了「门禁归属: src/client/kernel/motion.ts」。
-- 按 `docs/adr/20261021-config-ownership.md` §2.5 做了红绿演示：把 `src/client/views/cards/PixelCardsStyles.ts` 一处改回字面 `.12s`，门禁当场报 1 处违例、退出码 1；改回拼接后 18 条断言全绿、退出码 0，演示后文件已还原。
+- 新门禁 `tests/verify-motion-tokens.ts`（18 条断言，审查后增至 20 条）守五件事：`MOTION` 的形状（单一定义、键名以 `Ms` 结尾、值 1~10000 的整数、键数下限）、每个键至少被引用一次且引用名都有定义、全仓只有这一份定义且不自带 import、构建与内核档案确实登记了 motion 片、`src/client/**` 里除 `motion.ts` 外任何 `transition`/`animation` 行出现字面时长就判红。文件头写了「门禁归属: src/client/kernel/motion.ts」。
+- 按 `docs/adr/20261021-config-ownership.md` §2.5 做了红绿演示：把 `src/client/views/cards/PixelCardsStyles.ts` 一处改回字面 `.12s`，门禁当场报 1 处违例、退出码 1；改回拼接后全绿、退出码 0，演示后文件已还原。
 
 **验证**：`tests/verify-motion-tokens.ts` 18/18 通过（改动前先跑红，恰好报出 51 条声明行，与本文复核表逐条对上）；`tests/verify-time-config.ts` 全绿（覆盖率扫描 66 个文件）；11 个受影响的门禁与测试逐条跑绿；`node scripts/gate-map.mts` 重生成 `tests/gate-map.json` 后 `tests/verify-gate-map.ts` 全绿；全链 `npm run verify:parallel` 的结论见 #1236 的收尾评论（本文写作时有 4 道与本次无关的红：分页额度门禁、金标准回执、`verify-669`、文件粒度门禁，来源都是同一工作区里别的会话正在推进的改动，与动效时长无关）。
 
 **留给以后**：新加动画时长时只改 `motion.ts` 一处，然后跑 `npm run verify:parallel`；不要往样式文件里写裸时长，门禁会拦。真要让用户或主题包在运行期调动画快慢，那是行为变更，按 ADR §7 另开票，不在本次范围内。
+
+---
+
+## 2026-10-28 代码审查后的加固
+
+`/code-review` 两轴审查（固定点 `aefb15e0`，审查提交 `8abc4587`）之后补的改动；这一节之前的门禁描述以此为准。
+
+- **门禁 ⑤ 收紧了三种回退写法**：原来只认「数字紧贴单位」（`.12s`），把 `' + 200 + 'ms` 这种改造后最容易出现的回退判绿——而这张票的全部价值就是「以后写死会判红」。现在三种形态都算：数字紧贴单位、数字与单位分开拼、别的变量与单位分开拼（`i + 's'`）；合法的 `MOTION.键 + 'ms…` 会先整段剥掉，不会误报（单位字符串常是一段长 CSS 的开头，如 `'ms steps(2,end)…'`，所以只要求引号后紧跟 ms/s 边界）。
+- **闸门 ⑤ 补了豁免落点（`EXEMPTS` 表）**：真要留一处写死的时长，必须登记文件、片段与理由；理由空白或登记行对不上现码都判红。票面 §三.3 要求的那处「为什么可以豁免」的落点由此存在。
+- **门禁 ④ 补了拼接次序的全量检查**：不只查 `kernel:motion` 排在 `kernel:styles` 之前，还把 `scripts/build.mts` 的模块清单与 `src/client/index.ts` 的标记顺序对上，检查每一个读 `MOTION` 的模块都排在它后面；排前面就是 const 暂时性死区、整块面板不加载。
+- **补上 `PixelStatusLine.ts` 的第二份「1 秒」**：`animationDelay: i + 's'` 改成 `(i * MOTION.pixelStatusStepMs) + 'ms'`，新键 `pixelStatusStepMs: 1000`（三段轮播的步长，和 `pixelStatusCycleMs: 3000` 一起看）；令牌总数因此是 46 个。
+- **补上 `inkMoveMs` 的值锁**：`tests/verify-ui-feedback.ts` 的 B9 原来只断言源码里出现 `MOTION.inkMoveMs`，改错数值不会红；现在同时断言 `motion.ts` 里写的是 `inkMoveMs: 240`。
+- **注释与引用纠错**：`tests/verify-time-config.ts` 第四节头注释还写着已删掉的 STYLE 表；本文与 ADR 20261016 §5 对「不新建 YAML」的引用过头，改成以 ADR 20261021 §2.2 的判据为准。
+
+红绿演示补测（两处都实测）：把任一 `transition` 行临时改成 `' + 200 + 'ms`，门禁报「数字拼单位」、退出码 1；把 `PixelStatusLine` 的 `animationDelay` 改回 `i + 's'`，门禁报「变量拼单位」、退出码 1；两处改回后全绿（20 条断言）。
 
 

@@ -9,9 +9,11 @@
 //   ① MOTION 的形状：唯一一个对象、键名以 Ms 结尾、值是正整数毫秒、键数够用；
 //   ② 每个键都至少被引用一次；引用过的名字都必须有定义（拼错键名会让界面挂上 undefined 时长，这里提前抓）；
 //   ③ 全仓只有一份 MOTION 定义，且它自身是纯常量（不许 import、require、export default）；
-//   ④ 它确实接进了构建：scripts/build.mts 的 KERNEL_MODULES、src/client/index.ts 的拼接标记
-//      （且排在 kernel:styles 之前）、tests/verify-kernel.ts 的模块档案；
-//   ⑤ src/client 下（motion.ts 除外）任何一行只要同时出现 transition/animation 关键字与字面时长就判红。
+//   ④ 它确实接进了构建：scripts/build.mts 的模块清单、src/client/index.ts 的拼接标记（排在 kernel:styles 之前，
+//      且每个读 MOTION 的模块都排在 kernel:motion 之后——排前面就是 const 暂时性死区）、tests/verify-kernel.ts 的模块档案；
+//   ⑤ src/client 下（motion.ts 除外）任何一行只要同时出现 transition/animation 关键字与写死的时长就判红：
+//      数字紧贴单位（.12s、120ms）、数字与单位分开拼（' + 200 + 'ms'）、别的变量与单位分开拼（i + 's'）三种形态都算。
+//      真要留一处写死的时长，必须去 ⑤ 节的 EXEMPTS 表登记文件、片段与理由——没有理由的豁免不算落点。
 //
 // 为什么把「无字面时长」判据写成「同一行同时出现关键字 + 时长」而不是「全树禁数字」：
 //   样式时长在 CSS 文本与内联样式字符串里，关键字是它唯一的上下文标记；这样既不会误伤 SVG 路径、
@@ -98,11 +100,18 @@ let motionValues: Record<string, number> = {}
     }
     check(badLine === null, '对象体里每一行都是「键: 整数毫秒,」或注释（不合规的行：' + String(badLine) + '）')
     check(dupKey === null, '键名没有重复（重复的：' + String(dupKey) + '）')
+    // 键数下限 30 不是目标值，是「对象被截断或误删」的防线：落地时 45 个，低于 30 说明大段丢了。
     check(motionKeys.length >= 30, '键数够用：至少 30 个（实得 ' + motionKeys.length + ' 个）')
     const badName = motionKeys.filter((k) => !/^[a-z][A-Za-z0-9]*Ms$/.test(k))
     check(badName.length === 0, '键名全部以 Ms 结尾、首字母小写（违规：' + (badName.length ? badName.join('、') : '无') + '）')
+    // 1~10000 是「像界面动效时长」的范围：现有最长 3 秒，留到 10 秒给以后的大动效；为 0、负数或更大，多半是单位写错。
     const badValue = motionKeys.filter((k) => !Number.isInteger(motionValues[k]) || motionValues[k] < 1 || motionValues[k] > 10000)
     check(badValue.length === 0, '值全是 1~10000 之间的整数毫秒（违规：' + (badValue.length ? badValue.join('、') : '无') + '）')
+    // 个别令牌的具体数值被别处测试拿来算边界（tests/verify-ui-feedback.ts 的 B9 用 inkMoveMs 做墨块滑动断言）；
+    // 把「名字 → 必须保持的值」钉在这里：改这些值必须同时改消费方测试，这里红一次提醒。
+    const PINNED_VALUES: Record<string, number> = { inkMoveMs: 240 }
+    const pinBad = Object.keys(PINNED_VALUES).filter((k) => motionValues[k] !== PINNED_VALUES[k])
+    check(pinBad.length === 0, '被别处依赖具体数值的令牌保持原值（违规：' + (pinBad.length ? pinBad.join('、') : '无') + '）')
   }
 }
 
@@ -155,28 +164,92 @@ console.log('== ④ 构建登记 ==')
   const kernelGate = fs.readFileSync(path.join(ROOT, 'tests/verify-kernel.ts'), 'utf8')
   check(/\{ name: 'motion'[^}]*exports: \['MOTION'\] \}/.test(kernelGate),
     'tests/verify-kernel.ts 的模块档案登记了 motion（否则「改了没重建」没人拦）')
+
+  // 只查「motion 排在 styles 前面」不够：另外 12 个模块也会在求值时读 MOTION（11 个样式叶子与内联样式的视图），
+  // 任何一个被挪到 kernel:motion 之前，闭包里就是 const 暂时性死区，整块面板不加载。所以把 build.mts 的
+  // 模块清单（kernel 用 name、leaf 用 id）与 index.ts 的标记顺序对起来，逐个检查引用方。
+  const buildEntries: { name: string; file: string }[] = []
+  const entryRe = /\{\s*(?:name|id):\s*'([^']+)',\s*file:\s*'(src\/client\/[^']+)'\s*\}/g
+  for (const m of buildSrc.matchAll(entryRe)) buildEntries.push({ name: m[1], file: m[2] })
+  const entryOfFile = new Map(buildEntries.map((e) => [e.file, e.name]))
+  const markerRe = /\/\/ ==== (kernel|leaf|shared):([A-Za-z0-9_]+) \(spliced by build\) ====/g
+  const markerPos = new Map<string, number>()
+  let order = 0
+  let motionPos = -1
+  for (const m of indexSrc.matchAll(markerRe)) {
+    markerPos.set(m[1] + ':' + m[2], order)
+    if (m[1] === 'kernel' && m[2] === 'motion') motionPos = order
+    order++
+  }
+  const refFiles: string[] = []
+  for (const file of clientSources()) {
+    if (file === MOTION_FILE) continue
+    if (/MOTION\./.test(blankComments(fs.readFileSync(file, 'utf8')))) refFiles.push(file)
+  }
+  const lateRefs: string[] = []
+  const unplacedRefs: string[] = []
+  for (const file of refFiles) {
+    const rel = relOf(file)
+    const modName = entryOfFile.get(rel)
+    if (!modName) {
+      unplacedRefs.push(rel)
+      continue
+    }
+    const pos = markerPos.get('kernel:' + modName) ?? markerPos.get('leaf:' + modName)
+    if (pos === undefined) unplacedRefs.push(rel)
+    else if (pos < motionPos) lateRefs.push(rel)
+  }
+  check(motionPos >= 0 && lateRefs.length === 0,
+    '读 MOTION 的模块都排在 kernel:motion 之后（排前面的：' + (lateRefs.length ? lateRefs.join('、') : '无') + '）')
+  check(unplacedRefs.length === 0,
+    '读 MOTION 的模块都能在 build.mts 与 index.ts 里找到拼接位置（找不到的：' + (unplacedRefs.length ? unplacedRefs.join('、') : '无') + '）')
 }
 
-// ---------- ⑤ 除真源外不许再写字面时长 ----------
+// ---------- ⑤ 除真源外不许再写死时长 ----------
 console.log('== ⑤ 无裸时长 ==')
 {
   const KEYWORD_RE = /transition|animation/i
-  // 数字紧跟 ms/s、且前面不是标识符字符、后面不是标识符字符：.12s、120ms、1s、2.4s 都算；steps(2,end)、30% 不算。
+  // 写法一：数字紧贴单位（.12s、120ms、1s、2.4s）。前面不是标识符字符、后面不是标识符字符，
+  //   所以 steps(2,end)、30% 不算。
   const DURATION_RE = /(?:^|[^A-Za-z0-9_.])[0-9]*\.?[0-9]+(?:ms|s)(?![A-Za-z0-9_])/
-  const offenders: string[] = []
+  // 写法二：数字与单位分开拼（' + 200 + 'ms steps(...)'）。改造完成之后最容易出现的回退写法就是它，必须抓。
+  const NUMBER_CONCAT_RE = /(?:\+|=)\s*\d+\s*\+\s*['"](?:ms|s)\b/
+  // 写法三：别的变量与单位分开拼（animationDelay: i + 's'）。先把合法的「MOTION.键 + 'ms…」整段剥掉，
+  //   再看剩下还有没有「标识符 + 'ms…」；这样每一次正常拼接不会被误报。
+  //   注意单位字符串往往是一段长 CSS 的开头（'ms steps(2,end)…'），所以引号后只要求紧跟 ms/s 边界，不要求右引号。
+  const MOTION_UNIT_RE = /MOTION\.[A-Za-z][A-Za-z0-9]*\s*\+\s*['"](?:ms|s)\b/g
+  const VARIABLE_CONCAT_RE = /(?:^|[^.\w$])[A-Za-z_$][\w$]*\s*\+\s*['"](?:ms|s)\b/
+  // 豁免落点：每一行都必须写明「这个写死的时长为什么可以留在源码里」。没有理由的豁免不算落点。
+  // 典型场景：第三方 CSS 原样搬运、必须写 0s 才能关掉动画、运行时派生值的外部约定。
+  const EXEMPTS: { file: string; snippet: string; reason: string }[] = []
+
+  const hits: { file: string; lineNo: number; text: string; kind: string }[] = []
   for (const file of clientSources()) {
     if (file === MOTION_FILE) continue
     const lines = blankComments(fs.readFileSync(file, 'utf8')).split(/\r?\n/)
     for (let i = 0; i < lines.length; i++) {
-      if (!KEYWORD_RE.test(lines[i])) continue
-      if (!DURATION_RE.test(lines[i])) continue
-      offenders.push(relOf(file) + ':' + (i + 1) + '  ' + lines[i].trim().slice(0, 160))
+      const line = lines[i]
+      if (!KEYWORD_RE.test(line)) continue
+      let kind = ''
+      if (DURATION_RE.test(line)) kind = '字面时长'
+      else if (NUMBER_CONCAT_RE.test(line)) kind = '数字拼单位'
+      else if (VARIABLE_CONCAT_RE.test(line.replace(MOTION_UNIT_RE, ''))) kind = '变量拼单位'
+      if (!kind) continue
+      hits.push({ file: relOf(file), lineNo: i + 1, text: line.trim().slice(0, 160), kind })
     }
   }
+
+  // 豁免表自检：理由必须写；登记过的行必须仍能对上现在的违例（对不上说明码已经改了，删掉这行）。
+  for (const row of EXEMPTS) {
+    check(row.reason.trim().length > 0, 'EXEMPTS 行写明了理由（' + row.file + '：“' + row.snippet + '”）')
+    check(hits.some((h) => h.file === row.file && h.text.indexOf(row.snippet) >= 0),
+      'EXEMPTS 行仍能对上现码（' + row.file + '：“' + row.snippet + '”）')
+  }
+  const offenders = hits.filter((h) => !EXEMPTS.some((row) => row.file === h.file && h.text.indexOf(row.snippet) >= 0))
   check(offenders.length === 0,
-    'src/client 里没有写着字面时长的 transition/animation（只许用 MOTION 的键拼毫秒；实得 ' + offenders.length + ' 处）')
+    'src/client 里没有写死的 transition/animation 时长（三种形态都算；真需要留一处就来 EXEMPTS 登记理由。实得 ' + offenders.length + ' 处）')
   if (offenders.length) {
-    for (const line of offenders.slice(0, 80)) console.log('    - ' + line)
+    for (const h of offenders.slice(0, 80)) console.log('    - ' + h.file + ':' + h.lineNo + ' [' + h.kind + ']  ' + h.text)
     if (offenders.length > 80) console.log('    …还有 ' + (offenders.length - 80) + ' 处')
   }
 }

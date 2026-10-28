@@ -154,6 +154,9 @@ try {
 // 放进 vm 里跑；宿主电话用 pending 表模拟，按 args.file/args.name 分开回各自的读数。
 const centralTime = await import('./../src/shared/time-config/values.js')
 const SKILL_SKELETON_DELAY_MS = centralTime.SKILL_SKELETON_DELAY_MS
+// #1236：像素叶子求值时要用 kernel/motion.ts 的 MOTION（闭包里的自由变量），先取真值再挂进 ctx。
+const motionMod = await import('./../src/client/kernel/motion.ts')
+const MOTION = motionMod.MOTION
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://127.0.0.1:59519/' })
 ;(global as any).window = dom.window
 ;(global as any).document = dom.window.document
@@ -166,6 +169,7 @@ const ctx: any = {
   window: dom.window, document: dom.window.document, navigator: dom.window.navigator,
   getComputedStyle: dom.window.getComputedStyle, requestAnimationFrame: (cb: any) => setTimeout(cb, 0),
   ResizeObserver: (global as any).ResizeObserver, Promise, Date, Math, JSON, Array, Object, String, Number, Boolean, RegExp, Error,
+  MOTION,
 }
 ctx.globalThis = ctx
 vm.createContext(ctx)
