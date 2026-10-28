@@ -49,8 +49,13 @@ const readSource = function (rel: string): string {
 }
 // 这个客户端文件是「拼进浏览器闭包」的片段：去掉行首 export、剥掉类型后，用沙箱把跨文件名字补上，
 // 就与浏览器里那份拼接结果同形（与 tests/verify-1483-client-chain-cache.ts 同一种装载法）。
+// #1474 起这个客户端片段有一行中央时间参数的真 import（构建会整行删掉）；沙箱装载时照做，
+// 否则 vm 会报 import 语句语法错。数值由 makeWorld 的沙箱 globals 提供。
+const stripTimeConfigImport = function (source: string): string {
+  return source.replace(/^\s*import\s*\{[^}]*\}\s*from\s*['"][^'"]*time-config\/values\.js['"]\s*;?\s*$/gm, '')
+}
 const asSnippet = function (source: string): string {
-  return stripTypeScriptTypes(source.replace(/^export /gm, ''), { mode: 'strip' })
+  return stripTypeScriptTypes(stripTimeConfigImport(source).replace(/^export /gm, ''), { mode: 'strip' })
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -127,7 +132,9 @@ function makeWorld(opts?: AnyObj): AnyObj {
   vm.runInContext(asSnippet(readSource('src/refresh/rooms/client/probe-chain-subscription.ts')) +
     '\nglobalThis.chainPendingOf = chainPendingOf;' +
     '\nglobalThis.maybeAutoRetryChain = maybeAutoRetryChain;' +
-    '\nglobalThis._autoRetryAt = _autoRetryAt;' +
+    '\nglobalThis._autoRetryState = _autoRetryState;' +
+    '\nglobalThis._autoRetryKeyOf = _autoRetryKeyOf;' +
+    '\nglobalThis.resetAutoRetryCooldown = resetAutoRetryCooldown;' +
     '\nglobalThis.CHAIN_EVENT_REASONS = CHAIN_EVENT_REASONS;' +
     '\nglobalThis.loadChain = loadChain;', sandbox)
   const world: AnyObj = {
@@ -135,7 +142,9 @@ function makeWorld(opts?: AnyObj): AnyObj {
     keyOf: keyOf, replyFor: replyFor,
     chainPendingOf: sandbox.chainPendingOf,
     maybeAutoRetryChain: sandbox.maybeAutoRetryChain,
-    autoRetryAt: sandbox._autoRetryAt,
+    autoRetryState: sandbox._autoRetryState,
+    autoRetryKeyOf: sandbox._autoRetryKeyOf,
+    resetAutoRetryCooldown: sandbox.resetAutoRetryCooldown,
     loadChain: sandbox.loadChain,
     reasons: sandbox.CHAIN_EVENT_REASONS,
   }
@@ -164,6 +173,8 @@ const partA = function (): void {
   check(w.chainPendingOf(mkState('s1', [doneStep('gh:installed'), doneStep('gh:authed')])) === false, '全绿 → 不需要')
   check(w.chainPendingOf(mkState('s1', [{ id: 'gh:authed', status: 'fail' }])) === false, '明确失败（fail）→ 不需要，那是人该处理的事')
   check(w.chainPendingOf(mkState('s1', [{ id: 'gh:remote', status: 'current' }])) === false, '有下一步可点（current）→ 不需要')
+  check(w.chainPendingOf(mkState('s1', [{ id: 'gh:authed', status: 'fail' }, pendingStep('gh:remote')])) === false, '明确失败后面被阻塞的 pending 不算（它不是链头，反复求值也解不开）')
+  check(w.chainPendingOf(mkState('s1', [{ id: 'gh:authed', status: 'current' }, pendingStep('gh:remote')])) === false, '待操作（current）后面的 pending 也不算（被前一步挡着）')
   check(w.chainPendingOf(mkState('s1', [])) === false, '快照一行都没有 → 不需要（不借机多算）')
   check(w.chainPendingOf(null) === false, '没有会话状态也不抛')
   check(w.chainPendingOf({ cwd: '/ws' }) === false, '没有链快照也不抛')
@@ -194,6 +205,7 @@ const partC = async function (): Promise<void> {
   console.log('#1474 C. 冷却：默认 30 秒内最多发起一次，冷却内的拍子只记日志不发请求')
   const w = makeWorld()
   const st = mkState('s1')
+  const key = w.autoRetryKeyOf(st)
   w.hang.on = true
   const first: any = w.maybeAutoRetryChain(st)
   await sleep(5)
@@ -208,12 +220,15 @@ const partC = async function (): Promise<void> {
   w.hang.on = false
   // 回包把会话快照换成了全绿；把「还有一步 pending」重新摆好，单独量冷却这一条。
   st.chainSnapshot = { steps: [pendingStep('gh:authed')] }
+  check(w.autoRetryState.atByKey.get(key) > 0, '发起时把这一把链键的冷却起点记下来（下一拍据此判断）')
   const before = w.requests.length
   w.maybeAutoRetryChain(st)
   check(w.requests.length === before, '冷却窗内（刚过 30 秒不到）不再发请求（实得新增 ' + (w.requests.length - before) + ' 次）')
-  check(chainEventsOf(w, 'auto-retry-cooldown').length >= 1, '冷却挡下这一拍会记一条 chain.event reason=auto-retry-cooldown（可追）')
+  const cooldownLogs = w.logs.filter(function (l: AnyObj): boolean { return l.event === 'chain.auto.retry' && l.fields && l.fields.decision === 'cooldown' })
+  check(cooldownLogs.length >= 1, '冷却挡下这一拍会记一条 chain.auto.retry decision=cooldown（可追，实得 ' + cooldownLogs.length + ' 条）')
+  check(!!cooldownLogs[0] && Number(cooldownLogs[0].fields.waitMs) > 0, '冷却日志带上还剩多少毫秒（waitMs，实得 ' + (cooldownLogs[0] ? String(cooldownLogs[0].fields.waitMs) : '无') + '）')
   // 把上次发起时间往前推过冷却窗：下一次应该再发。
-  w.autoRetryAt.at = Date.now() - CHAIN_AUTO_RETRY_COOLDOWN_MS - 1
+  w.autoRetryState.atByKey.set(key, Date.now() - CHAIN_AUTO_RETRY_COOLDOWN_MS - 1)
   await w.maybeAutoRetryChain(st)
   check(w.requests.length === before + 1, '过完冷却窗后重新发起（实得新增 ' + (w.requests.length - before) + ' 次）')
 }
@@ -229,11 +244,12 @@ const partD = async function (): Promise<void> {
   const p2 = w.maybeAutoRetryChain(st)
   check(p2 === null, '在途期间再调一次直接返回 null（不排第二份）')
   check(w.requests.length === 1, '在途期间没有第二个请求')
-  check(chainEventsOf(w, 'auto-retry-busy').length >= 1, '在途跳过记一条 chain.event reason=auto-retry-busy（可追）')
+  const busyLogs = w.logs.filter(function (l: AnyObj): boolean { return l.event === 'chain.auto.retry' && l.fields && l.fields.decision === 'busy' })
+  check(busyLogs.length >= 1, '在途跳过记一条 chain.auto.retry decision=busy（可追，实得 ' + busyLogs.length + ' 条）')
   w.hang.pending[0].resolve(w.replyFor('fresh-1'))
   await p1
   await sleep(5)
-  check(w.autoRetryAt.inFlight === false, '回包落地后单飞标记复位')
+  check(w.autoRetryState.inFlightByKey.get(w.autoRetryKeyOf(st)) === undefined, '回包落地后这一把链键的在途标记摘掉')
 
   // 客户端同一把键上已经有一趟普通请求在飞时，自动复查绕开本地缓存读取，但仍参与在途合并。
   const w2 = makeWorld()
@@ -361,7 +377,7 @@ const loadSpliced = function (relPath: string, exportNames: string[], scope: Any
   return fn.apply(null, paramNames.map(function (k) { return scope[k] }))
 }
 
-const partG = function (): any {
+const partG = async function (): Promise<void> {
   console.log('#1474 G. 活跃拍接线：setup-pending 优先，其次才是自动复查；复用这一拍、不新增定时器')
   const noop = function (): void {}
   const makeProbe = function (opts?: AnyObj): AnyObj {
@@ -371,6 +387,7 @@ const partG = function (): any {
     const firedSteps: any[] = []
     const triggers: string[] = []
     const autoRuns: number[] = []
+    const resets: number[] = []
     const timer: AnyObj = {
       timeout: function (fn: any, ms: number): any { return setTimeout(fn, ms) },
       interval: function (fn: any, ms: number): any { intervals.push(ms); firedSteps.push(fn); return function cancel(): void {} },
@@ -406,6 +423,8 @@ const partG = function (): any {
       setupPendingOf: function (): boolean { return !!o.setupPending },
       chainPendingOf: function (): boolean { return !!o.chainPending },
       maybeAutoRetryChain: function (): any { autoRuns.push(1); return Promise.resolve(null) },
+      // #1474：面板从藏起来回到可见的第一拍会清当前链的冷却窗；这里只记被调了几次。
+      resetAutoRetryCooldown: function (): void { resets.push(1) },
       attentionVisible: function (): boolean { return o.visible === undefined ? true : !!o.visible },
       attentionStoreOf: function (): any { return { cwd: 'D:\\ws1474', chainSnapshot: { steps: [{ id: 'gh:authed', status: 'pending' }] } } },
       probeTargetNow: function (): any { return 'D:\\ws1474' },
@@ -418,7 +437,7 @@ const partG = function (): any {
       document: undefined, window: undefined,
     }
     const mod = loadSpliced('src/refresh/rooms/client/refresh-timer.js', ['startActiveProbeLoop', '_activeProbeAt'], scope)
-    return { mod: mod, scope: scope, logs: logs, intervals: intervals, firedSteps: firedSteps, triggers: triggers, autoRuns: autoRuns }
+    return { mod: mod, scope: scope, logs: logs, intervals: intervals, firedSteps: firedSteps, triggers: triggers, autoRuns: autoRuns, resets: resets, opts: o }
   }
   const fireTick = async function (p: AnyObj): Promise<void> {
     p.mod.startActiveProbeLoop()
@@ -430,40 +449,47 @@ const partG = function (): any {
 
   // G1 链上有 pending、初始化那一步没事：这一拍顺带发起自动复查。
   const g1 = makeProbe({ setupPending: false, chainPending: true })
-  return fireTick(g1).then(function (): Promise<void> {
-    check(g1.autoRuns.length === 1, '链上有 pending 时，这一拍发起了一次自动复查（实得 ' + g1.autoRuns.length + ' 次）')
-    check(g1.intervals.length === 1, '没有因为自动复查新排定时器：活跃拍仍只有原来那一档（实得 ' + JSON.stringify(g1.intervals) + '）')
+  await fireTick(g1)
+  check(g1.autoRuns.length === 1, '链上有 pending 时，这一拍发起了一次自动复查（实得 ' + g1.autoRuns.length + ' 次）')
+  check(g1.intervals.length === 1, '没有因为自动复查新排定时器：活跃拍仍只有原来那一档（实得 ' + JSON.stringify(g1.intervals) + '）')
 
-    // G2 初始化那一步还挂着：照 #891 老路走 setup-pending，不重复发起自动复查（同一拍不跑两趟）。
-    const g2 = makeProbe({ setupPending: true, chainPending: true })
-    return fireTick(g2).then(function (): void {
-      check(g2.triggers.indexOf('setup-pending') >= 0, '初始化还在等时仍走 setup-pending（#891 回归，实得 ' + JSON.stringify(g2.triggers) + '）')
-      check(g2.autoRuns.length === 0, 'setup-pending 已接手时不再重复发起自动复查（实得 ' + g2.autoRuns.length + ' 次）')
+  // G2 初始化那一步还挂着：照 #891 老路走 setup-pending，不重复发起自动复查（同一拍不跑两趟）。
+  const g2 = makeProbe({ setupPending: true, chainPending: true })
+  await fireTick(g2)
+  check(g2.triggers.indexOf('setup-pending') >= 0, '初始化还在等时仍走 setup-pending（#891 回归，实得 ' + JSON.stringify(g2.triggers) + '）')
+  check(g2.autoRuns.length === 0, 'setup-pending 已接手时不再重复发起自动复查（实得 ' + g2.autoRuns.length + ' 次）')
 
-      // G3 链上没有 pending：不发起。
-      const g3 = makeProbe({ setupPending: false, chainPending: false })
-      return fireTick(g3).then(function (): void {
-        check(g3.autoRuns.length === 0, '链上没有 pending 时不发起自动复查（实得 ' + g3.autoRuns.length + ' 次）')
+  // G3 链上没有 pending：不发起。
+  const g3 = makeProbe({ setupPending: false, chainPending: false })
+  await fireTick(g3)
+  check(g3.autoRuns.length === 0, '链上没有 pending 时不发起自动复查（实得 ' + g3.autoRuns.length + ' 次）')
 
-        // G4 面板不可见 / 不在活跃集合：这一拍本来就不跑，自动复查也不许跑。
-        const g4 = makeProbe({ setupPending: false, chainPending: true, visible: false })
-        g4.mod.startActiveProbeLoop()
-        g4.firedSteps[g4.firedSteps.length - 1]()
-        check(g4.autoRuns.length === 0 && g4.triggers.length === 0, '面板不可见时这一拍什么都不做（零新增链求值，实得 auto=' + g4.autoRuns.length + '）')
+  // G4 面板不可见 / 不在活跃集合：这一拍本来就不跑，自动复查也不许跑。
+  const g4 = makeProbe({ setupPending: false, chainPending: true, visible: false })
+  g4.mod.startActiveProbeLoop()
+  g4.firedSteps[g4.firedSteps.length - 1]()
+  check(g4.autoRuns.length === 0 && g4.triggers.length === 0, '面板不可见时这一拍什么都不做（零新增链求值，实得 auto=' + g4.autoRuns.length + '）')
 
-        // G5 宿主没给定时器出口：如实记 no-timer，不排节拍（与 #891 口径一致）。
-        const g5 = makeProbe({ setupPending: false, chainPending: true, noTimer: true })
-        g5.mod.startActiveProbeLoop()
-        check(g5.intervals.length === 0, '宿主没给定时器出口时不排节拍')
-        check(g5.autoRuns.length === 0, '没排上节拍时也不会自动复查')
+  // G5 宿主没给定时器出口：如实记 no-timer，不排节拍（与 #891 口径一致）。
+  const g5 = makeProbe({ setupPending: false, chainPending: true, noTimer: true })
+  g5.mod.startActiveProbeLoop()
+  check(g5.intervals.length === 0, '宿主没给定时器出口时不排节拍')
+  check(g5.autoRuns.length === 0, '没排上节拍时也不会自动复查')
 
-        // G6 源码口径：整个 refresh-timer 仍然只有兜底探针那一个 setInterval，自动复查没有偷偷起定时器。
-        const src = readSource('src/refresh/rooms/client/refresh-timer.ts')
-        const intervals2 = (src.match(/setInterval\(/g) || []).length
-        check(intervals2 === 1, 'refresh-timer 里只有兜底探针那一个 setInterval（实得 ' + intervals2 + ' 个）')
-      })
-    })
-  })
+  // G6 源码口径：整个 refresh-timer 仍然只有兜底探针那一个 setInterval，自动复查没有偷偷起定时器。
+  const src = readSource('src/refresh/rooms/client/refresh-timer.ts')
+  const intervals2 = (src.match(/setInterval\(/g) || []).length
+  check(intervals2 === 1, 'refresh-timer 里只有兜底探针那一个 setInterval（实得 ' + intervals2 + ' 个）')
+
+  // G7 面板从藏起来回到可见：第一拍先清当前链的冷却窗，同一拍就补一次自动复查（验收「回来一拍内补一次」）。
+  const g7 = makeProbe({ setupPending: false, chainPending: true, visible: false })
+  g7.mod.startActiveProbeLoop()
+  g7.firedSteps[g7.firedSteps.length - 1]()
+  check(g7.autoRuns.length === 0 && g7.resets.length === 0, '藏起来的那一拍只记「暂停」，不清冷却也不发起（实得 auto=' + g7.autoRuns.length + ' reset=' + g7.resets.length + '）')
+  g7.opts.visible = true
+  g7.firedSteps[g7.firedSteps.length - 1]()
+  check(g7.resets.length === 1, '回到可见的第一拍先清当前链的冷却窗（实得 ' + g7.resets.length + ' 次）')
+  check(g7.autoRuns.length === 1, '清完冷却后同一拍补一次自动复查（实得 ' + g7.autoRuns.length + ' 次）')
 }
 
 const main = async function (): Promise<void> {
