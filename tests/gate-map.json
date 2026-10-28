@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T10:53:24.665Z",
+  "generatedAt": "2026-10-28T11:04:14.919Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 418,
-  "gateCount": 418,
-  "attributedGates": 375,
+  "chainLength": 421,
+  "gateCount": 421,
+  "attributedGates": 378,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 17,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 604,
+  "graphFileCount": 606,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1078,7 +1078,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-1039-rules-pure.ts",
@@ -4155,6 +4155,62 @@
       ],
       "dirs": [
         "src/deck/tools"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1605-gitlab-map-list.ts",
+      "file": "tests/verify-1605-gitlab-map-list.ts",
+      "guards": [
+        "src/tracker/rooms/gitlab/maps.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/gitlab"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1605-map-routing-guard.ts",
+      "file": "tests/verify-1605-map-routing-guard.ts",
+      "guards": [
+        "src/deck/tools/issue-list.ts",
+        "src/tracker/rooms/github/capability-register.ts",
+        "src/tracker/rooms/github/maps.ts",
+        "src/tracker/rooms/gitlab/capability-register.ts",
+        "src/tracker/rooms/gitlab/index.ts",
+        "src/tracker/rooms/gitlab/maps.ts",
+        "src/tracker/rooms/markdown/capability-register.ts",
+        "src/tracker/rooms/markdown/index.ts",
+        "src/tracker/rooms/markdown/maps.ts"
+      ],
+      "dirs": [
+        "src/deck/tools",
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 7 条；源码里的路径字面量 3 条"
+    },
+    {
+      "step": "node tests/verify-1605-markdown-map-list.ts",
+      "file": "tests/verify-1605-markdown-map-list.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/maps.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -10609,6 +10665,7 @@
       "node tests/verify-1559-deck-output-lossless.ts",
       "node tests/verify-1583-repo-ref-fallback.ts",
       "node tests/verify-1604-pure-map-routing.ts",
+      "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -11283,6 +11340,7 @@
       "node tests/verify-1533-git-remote-claim.ts",
       "node tests/verify-1571-gh-flag-writing.ts",
       "node tests/verify-1603-map-thin-list.ts",
+      "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -11329,6 +11387,8 @@
       "node tests/verify-1533-git-remote-claim.ts",
       "node tests/verify-1555-gitlab-claim-declaration.ts",
       "node tests/verify-1599-gitlab-hidden-markers.ts",
+      "node tests/verify-1605-gitlab-map-list.ts",
+      "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-686-accept.ts",
       "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",
@@ -11378,6 +11438,8 @@
       "node tests/verify-1512-md-chain.ts",
       "node tests/verify-1537-blocked-ref-title.ts",
       "node tests/verify-1595-resolvespec.ts",
+      "node tests/verify-1605-map-routing-guard.ts",
+      "node tests/verify-1605-markdown-map-list.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -11651,9 +11713,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 625,
+    "fileCount": 627,
     "dirCount": 74,
-    "coveredFileCount": 625,
+    "coveredFileCount": 627,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -12226,6 +12288,7 @@
       "src/tracker/rooms/gitlab/issues.ts",
       "src/tracker/rooms/gitlab/labels-ops.ts",
       "src/tracker/rooms/gitlab/labels.ts",
+      "src/tracker/rooms/gitlab/maps.ts",
       "src/tracker/rooms/gitlab/normalize.ts",
       "src/tracker/rooms/gitlab/pages.ts",
       "src/tracker/rooms/gitlab/preflight.ts",
@@ -12259,6 +12322,7 @@
       "src/tracker/rooms/markdown/label-colors-palette.ts",
       "src/tracker/rooms/markdown/label-colors.ts",
       "src/tracker/rooms/markdown/map-render.ts",
+      "src/tracker/rooms/markdown/maps.ts",
       "src/tracker/rooms/markdown/markdown-scan.ts",
       "src/tracker/rooms/markdown/normalize.ts",
       "src/tracker/rooms/markdown/original-fields.ts",
