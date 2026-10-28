@@ -84,14 +84,14 @@ async function main() {
   let sessionMod = null
   try { sessionMod = await imp('src/tracker/session/open-tracker.ts') } catch (e) { check(false, '会话入口可加载：' + String((e && e.message) || e)) }
   const registryStub = { select: async function () { return { backendId: 'github' } }, get: function (id) { return id === 'github' ? backend : undefined }, modules: function () { return [{ id: 'github', budget: { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true } }] } }
-  const ports = { getCachedReading: async function () { return { known: false, reason: 'not-measured' } }, admit: async function () { return { allowed: true, reason: 'test-permissive' } }, account: async function () {} }
-  const opened = await sessionMod.openTracker({ cwd: '/ws-test-1443' }, { registry: registryStub, getCachedReading: ports.getCachedReading, admit: ports.admit, account: ports.account, canWrite: false, canWriteReason: '读数会话只读不写' })
+  const ports = { getCachedReading: async function () { return { known: false, reason: 'not-measured' } }, admit: async function () { return { allowed: true, reason: 'test-permissive' } }, accountPort: async function () {} }
+  const opened = await sessionMod.openTracker({ cwd: '/ws-test-1443' }, { registry: registryStub, getCachedReading: ports.getCachedReading, admit: ports.admit, accountPort: ports.accountPort, canWrite: false, canWriteReason: '读数会话只读不写' })
   check(opened && opened.ok === true, '只读会话能打开（选后端走注册表桩）')
   const viaSession = await opened.session.readBudget(makeCtx(successExec, ghPresentResolve))
   check(viaSession && viaSession.ok === true && viaSession.data && viaSession.data.known === true && viaSession.data.buckets.rest.remaining === 4999, '会话 readBudget 直达房间（成功读数原样回来）')
   const noGhBackend = factory.createGithubBackend(makeCtx(ghMissingExec, ghMissingResolve))
   const noGhRegistry = { select: async function () { return { backendId: 'github' } }, get: function (id) { return id === 'github' ? noGhBackend : undefined }, modules: function () { return [{ id: 'github', budget: { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true } }] } }
-  const noGhOpened = await sessionMod.openTracker({ cwd: '/ws-test-1443' }, { registry: noGhRegistry, getCachedReading: ports.getCachedReading, admit: ports.admit, account: ports.account, canWrite: false, canWriteReason: '读数会话只读不写' })
+  const noGhOpened = await sessionMod.openTracker({ cwd: '/ws-test-1443' }, { registry: noGhRegistry, getCachedReading: ports.getCachedReading, admit: ports.admit, accountPort: ports.accountPort, canWrite: false, canWriteReason: '读数会话只读不写' })
   const noGhBudget = await noGhOpened.session.readBudget({ cwd: '/ws-test-1443' })
   check(noGhBudget && noGhBudget.ok === true && noGhBudget.data && noGhBudget.data.known === false, '没 gh 时会话 readBudget 回未知（不是失败信封，不触发失败计数）')
   const noGhList = await noGhOpened.session.list({ owner: 'o', name: 'n', refId: 'o/n' }, {}, makeCtx(ghMissingExec, ghMissingResolve))

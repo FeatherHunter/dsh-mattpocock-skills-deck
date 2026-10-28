@@ -16,6 +16,8 @@
  *   标签只在调用点上写死，本层不猜也不推断。没给标签的调用点照常不记，行为与从前一字不差。
  * - gh.exec 还会记一格 opId，取自 `ctx.opId`（宿主起这一趟操作时生成的编号）。这一格不由调用点给：
  *   调用点拿不到「这一趟操作」的编号，只有上下文里有；不给编号时记空串，与从前一字不差。
+ * - #1627 起 gh.exec 再记一格 rateClass：失败行的限流细分类（primary / secondary / http429 / unknown），
+ *   成功行与不是限流的失败行记空串；判据在 kernel/error-rules.ts 的 rateLimitClassOf，本层不另写词表。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -26,6 +28,8 @@ import { fail, rawText } from '../../kernel/preflight.js'
 import { getCwd, getExec, getPlatform, hash8, roomLogEvent, emitGhExec, emitGhTimeout, isDeadlineHit, NOT_ACCOUNTED } from './client-support.js'
 import type { DeadlineHit } from './client-support.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
+// #1627：限流细分类与档位表同一处定义（本层只把判好的结果写进 gh.exec 的 rateClass），不在这里另抄一份词表。
+import { rateLimitClassOf } from '../../kernel/error-rules.js'
 // #1446：每一次真实出站同时记进「这一次操作」的计数器（op-usage.ts 在操作表外层取走）。
 import { noteGithubUsage } from './op-usage.js'
 import { timeoutForGhArgs, queueTimeoutForTier, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields, ghOutboundEntryOf, graphqlCorrectionOf, ghPointNoteOf, outboundCooldownOf, outboundQueueTimeoutOf, transportFailureReasonOf, ghCooldownReply, outboundFollowUpAdvice, READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS } from '../../kernel/outbound-tiers.js'
@@ -265,7 +269,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       //   分不出是网络慢、命令失败，还是这道闸压根没接上。落一行同族告警轨迹（kind=env）：
       //   没起过任何进程，所以 latencyMs 只是走到这里的毫秒数、exitCode 记 -1、waitedMs 记 0。
       try {
-        emitGhExec(ctx, ERROR_KIND.ENV, -1, t0, cwd, 0, opts.via, cmdLabel, NOT_ACCOUNTED, 'warn')
+        emitGhExec(ctx, ERROR_KIND.ENV, -1, t0, cwd, 0, opts.via, cmdLabel, NOT_ACCOUNTED, 'warn', '')
       } catch {}
       return { ok: false, error: { kind: ERROR_KIND.ENV, message: '出站控制面没有接上：名额闸、取消判定与搭车账本都拿不到，这一笔不发出去。宿主接线要给两处：装配点造房时的上下文（生产里是 src/host/platformChannel.ts 的 backendCtxForRooms 与 src/refresh/rooms/host/refresh-runtime.js 的 backendObj），以及当次操作的上下文（ctx.outbound，门禁夹具走这一条）。', code: -1, raw: '' } }
     }
@@ -324,7 +328,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
     /** 房内到点的统一回执：横幅按超时记，内容说清等了多久、是哪一档。 */
     function selfTimeoutOutcome(phase?: string): GhExecResult {
       // 排队段到点时还没报闸（账上 0 条），命令已起来的到点才按估/真实点数落一行。
-      emitGhExec(ctx, 'network', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, phase === 'queue' ? NOT_ACCOUNTED : ghPointNoteOf(args))
+      emitGhExec(ctx, 'network', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, phase === 'queue' ? NOT_ACCOUNTED : ghPointNoteOf(args), '')
       emitGhTimeout(ctx, timeout, 'room-tier', opts.via, cmdLabel, slotWaitedMs, phase)
       const waitedMs = Date.now() - t0
       // #1560（Q3）：排队与拿到名额之后分开写，不把后一段叫成命令运行时长；排队上限先到的那一笔没有后一段。
@@ -369,24 +373,24 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       // #1007：这只桶刚发生过 transport 级失败，冷却窗口还没过 —— 这一笔没有起进程，立刻回人话。
       // 回话要说清是哪条命令、还剩多久、上次为什么失败；不能只说「限时」让人以为命令自己慢。
       if (outboundCooldownOf(eAcquire)) {
-        emitGhExec(ctx, 'network', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, NOT_ACCOUNTED)
+        emitGhExec(ctx, 'network', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, NOT_ACCOUNTED, '')
         // 回话与宿主两路共用 outbound-tiers 的 ghCooldownReply：命令名、失败类别、还剩多久、读写后续动作都在那一份里。
         return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: ghCooldownReply(eAcquire, cmdLabel), code: -1, raw: rawText(eAcquire) } }
       }
-      emitGhExec(ctx, 'cancelled', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, NOT_ACCOUNTED)
+      emitGhExec(ctx, 'cancelled', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, NOT_ACCOUNTED, '')
       return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消排队（出站准入等待中被取消），没有发出请求，可重试', code: -1, cancelled: true, raw: rawText(eAcquire) } }
     }
     try {
     const resolved = await raceDeadline(resolveGh(cwd))
     if (isDeadlineHit(resolved)) return selfTimeoutOutcome('inflight')
     if (!resolved.ok) {
-      emitGhExec(ctx, resolved.error && resolved.error.kind ? resolved.error.kind : ERROR_KIND.ENV, -1, t0, cwd, undefined, opts.via, cmdLabel, NOT_ACCOUNTED)
+      emitGhExec(ctx, resolved.error && resolved.error.kind ? resolved.error.kind : ERROR_KIND.ENV, -1, t0, cwd, undefined, opts.via, cmdLabel, NOT_ACCOUNTED, '')
       // 补上 code: -1，让「失败时 error 里一定有 code」这条形状对所有失败成立（命令根本没跑起来）
       return { ok: false, error: Object.assign({ code: -1 }, resolved.error) }
     }
 
     if (!exec) {
-      emitGhExec(ctx, 'env', -1, t0, cwd, undefined, opts.via, cmdLabel, NOT_ACCOUNTED)
+      emitGhExec(ctx, 'env', -1, t0, cwd, undefined, opts.via, cmdLabel, NOT_ACCOUNTED, '')
       // 这一处是「执行器根本没接上」，没有跑过任何外部命令，没有原文可交。
       return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'ctx.exec unavailable', code: -1, raw: '' } }
     }
@@ -425,7 +429,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
         // 交给表的这份事实按「执行结果」的形状写：退出码在那个形状里叫 `code`（`factsFromError` 只认这个键，
         // 写 `exitCode` 会被丢掉，规则就看不着了）。
         const verdict = ghVerdictOf({ code: code, text: factsText }, ctx)
-        emitGhExec(ctx, verdict.kind, code, t0, cwd, slotWaitedMs, opts.via, cmdLabel, ghPointNoteOf(args))
+        emitGhExec(ctx, verdict.kind, code, t0, cwd, slotWaitedMs, opts.via, cmdLabel, ghPointNoteOf(args), rateLimitClassOf({ kind: verdict.kind, message: factsText }))
         if (looksTimeout) emitGhTimeout(ctx, timeout, 'room-tier', opts.via, cmdLabel, slotWaitedMs, 'inflight')
         // #1007：拿到了整数退出码（非零也算）说明进程起得来、通路有回话，冷却立刻清零；
         // 只有 -1（没拿到退出码）才归 transport 级失败。认不出类别的不设冷却 —— 与下面 catch 分支同一口径，
@@ -440,7 +444,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
         const own = String(stderr || stdout || note).slice(0, 800)
         return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, own), code, raw: rawText(result) } }
       }
-      emitGhExec(ctx, 'ok', 0, t0, cwd, slotWaitedMs, opts.via, cmdLabel, ghPointNoteOf(args, stdout))
+      emitGhExec(ctx, 'ok', 0, t0, cwd, slotWaitedMs, opts.via, cmdLabel, ghPointNoteOf(args, stdout), '')
       // #1007：这一条命令跑完拿到退出码，说明通路是通的，冷却窗口立刻清零（不等到期）。
       try { control.reportSuccess({ bucket: bucket }) } catch (eS) {}
       // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
@@ -455,13 +459,13 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       if (selfTimedOut) return selfTimeoutOutcome('inflight')
       // #969：调用方取消（排队/在飞中被杀）按取消返回，不算失败；其余照旧归一。
       if (control.isCancelled(e) || (signal && signal.aborted === true)) {
-        emitGhExec(ctx, 'cancelled', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, ghPointNoteOf(args))
+        emitGhExec(ctx, 'cancelled', -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, ghPointNoteOf(args), '')
         return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消（没有发出有效请求，可重试）', code: -1, cancelled: true, raw: rawText(e) } }
       }
       // 抛出来的错误同样只交给规则表判：ctx.exec 抛的 Error 里可能带着 `code`（例如 ENOTFOUND），
       // 那是错误码层认得出的事实，房里不再自己写第二份「像不像网络问题」的说法。
       const verdict = ghVerdictOf(e, ctx)
-      emitGhExec(ctx, verdict.kind, -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, ghPointNoteOf(args))
+      emitGhExec(ctx, verdict.kind, -1, t0, cwd, slotWaitedMs, opts.via, cmdLabel, ghPointNoteOf(args), rateLimitClassOf({ kind: verdict.kind, message: rawText(e) }))
       // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后表达式与原来一字不差，运行时不变。
       const eb = e as { message?: unknown; stderr?: unknown } | null;
       const looksTimeout = isTimeoutText((eb && (eb.message || eb.stderr)) || e) || elapsedMs >= timeout - 50

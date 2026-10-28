@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T18:34:03.349Z",
+  "generatedAt": "2026-10-28T18:52:11.802Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 440,
-  "gateCount": 440,
-  "attributedGates": 397,
+  "chainLength": 441,
+  "gateCount": 441,
+  "attributedGates": 398,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 20,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 614,
+  "graphFileCount": 618,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -8117,6 +8117,21 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 1 条"
     },
     {
+      "step": "node tests/verify-log-1627.ts",
+      "file": "tests/verify-log-1627.ts",
+      "guards": [
+        "src/refresh/rooms/host/quota-observer.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
+    },
+    {
       "step": "node tests/verify-log-artifacts.ts",
       "file": "tests/verify-log-artifacts.ts",
       "guards": [
@@ -8232,6 +8247,7 @@
         "src/refresh/rooms/host/issue-list-fetch.ts",
         "src/refresh/rooms/host/outbound-admission.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/quota-observer.ts",
         "src/refresh/rooms/host/refresh-gate.ts",
         "src/refresh/rooms/host/row-patch.ts",
         "src/refresh/rooms/host/write-event-fetch.ts",
@@ -8253,7 +8269,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-log-selfmon.ts",
@@ -9630,6 +9646,7 @@
         "src/deck/shell/work-path-readout.ts",
         "src/deck/shell/write-mutex.ts",
         "src/deck/tools/map-link.ts",
+        "src/deck/tools/tracker-session.ts",
         "src/deck/tools/work-route.ts",
         "src/host/deckToolGate.ts",
         "src/host/namingGuardian.ts",
@@ -9669,6 +9686,8 @@
         "src/refresh/rooms/host/issue-list-fetch.ts",
         "src/refresh/rooms/host/outbound-admission.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/quota-observer-types.ts",
+        "src/refresh/rooms/host/quota-observer.ts",
         "src/refresh/rooms/host/refresh-gate.ts",
         "src/refresh/rooms/host/refresh-runtime.ts",
         "src/refresh/rooms/host/refusal-messages.ts",
@@ -9734,7 +9753,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 101 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 104 条"
     },
     {
       "step": "node tests/verify-tracker-contract.ts",
@@ -11528,6 +11547,7 @@
       "node tests/verify-github-label-colors.ts",
       "node tests/verify-github-rest-fallback.ts",
       "node tests/verify-golden-receipts.ts",
+      "node tests/verify-log-1627.ts",
       "node tests/verify-log-exec-606.ts",
       "node tests/verify-log-fields.ts",
       "node tests/verify-multi-effort.ts",
@@ -12227,9 +12247,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 635,
+    "fileCount": 639,
     "dirCount": 74,
-    "coveredFileCount": 635,
+    "coveredFileCount": 639,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 57,
@@ -12611,6 +12631,9 @@
       "src/refresh/rooms/host/patch-wiring.ts",
       "src/refresh/rooms/host/probe-handler.ts",
       "src/refresh/rooms/host/quota-ledger.ts",
+      "src/refresh/rooms/host/quota-log-wiring.ts",
+      "src/refresh/rooms/host/quota-observer-types.ts",
+      "src/refresh/rooms/host/quota-observer.ts",
       "src/refresh/rooms/host/quota-sync-status.ts",
       "src/refresh/rooms/host/refresh-assembly.ts",
       "src/refresh/rooms/host/refresh-gate.ts",
@@ -12669,6 +12692,7 @@
       "src/shared/naming-attribution.ts",
       "src/shared/naming-titles.ts",
       "src/shared/naming-tracking.ts",
+      "src/shared/op-id.ts",
       "src/shared/session-cwd.ts",
       "src/shared/skill-probe-channels.ts",
       "src/shared/time-config/README.md",
@@ -13048,7 +13072,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 48
+        "fileCount": 51
       },
       {
         "path": "src/shared/command-cleanup",

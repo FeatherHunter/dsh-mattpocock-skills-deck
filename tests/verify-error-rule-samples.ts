@@ -3,14 +3,14 @@
  * tests/verify-error-rule-samples.js —— #1111：规则表逐条自证 + 真实原文夹具回归
  *
  * 守着的源码路径（按改动挑门禁时照这份清单）：
- *   src/tracker/kernel/error-rules.ts            COMMON_RULES / RULE_LAYERS / matchRule / judgeFactsDetailed
+ *   src/tracker/kernel/error-rules.ts            COMMON_RULES / RULE_LAYERS / matchRule / judgeFactsDetailed / rateLimitClassOf
  *   src/tracker/rooms/github/errors.ts    本家前置扩展表 + classifyGhError
  *   src/tracker/rooms/gitlab/errors.ts    本家前置扩展表 + classifyGlabError
  *   src/tracker/rooms/markdown/**         本后端有无可比的扩展表（今天没有，门禁会说明）
  *   docs/adr/20261014-error-classification-single-source.md  第 2 节第 3 条：层序的真源
  *   tests/fixtures/error-samples.js       真实原文夹具（本门禁的证据表）
  *
- * 五段断言（A–E）：
+ * 六段断言（A–F）：
  *   A 规则表自证：每条规则拿**它自带的样本**跑 matchRule，命中的必须正好是它自己
  *     （不是更靠前或更靠后的另一条）；新规则不配样本、样本被前面的规则抢走，都算红。
  *   B 顺序即文档：代码里的层序等于 RULE_LAYERS，也等于 ADR 第 2 节第 3 条写下的顺序；
@@ -21,6 +21,8 @@
  *     规则样本类来源能在盘上逐字找到出处（不许编造"真实"原文）。
  *   E 自证：拿「坏词表 / 倒序 / 删兜底 / 改错期望档位 / 空样本」五种反例试这道门禁会不会红 ——
  *     不会红的门禁等于没写。E1、E2 复现的正是本门禁第一次跑时抓出来的两条真实缺陷。
+ *   F 限流细分类（#1627）：rateLimitClassOf 的四类判据各给一个样本，外加「不是限流记空串」与
+ *     「判档是限流但原文与事实都没线索记 unknown」两条边界；空串与 unknown 必须分得开。
  *
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-error-rule-samples.ts
  * 接线：由 Lead 统一挂进 scripts 里的门禁链（本次交付不动 scripts/**）。
@@ -214,7 +216,7 @@ function discoverExtensionTables(dirRel) {
 
 async function main() {
   const rulesMod = await imp('src/tracker/kernel/error-rules.ts')
-  const { COMMON_RULES, RULE_LAYERS, matchRule, judgeFactsDetailed } = rulesMod
+  const { COMMON_RULES, RULE_LAYERS, matchRule, judgeFactsDetailed, rateLimitClassOf } = rulesMod
   const samples = require('./fixtures/error-samples.js')
 
   // ── A 规则表自证 ──────────────────────────────────────────────────────────
@@ -406,6 +408,31 @@ async function main() {
   const caughtEmpty = shapeProblems(emptySample, '反例·空样本')
   check(caughtEmpty.length > 0, 'E6 反例：把一条规则的样本换成空对象（对任何宽规则都"命中"），形状断言会红'
     + (caughtEmpty.length ? '（' + caughtEmpty[0] + '）' : ''))
+
+  // ── F 限流细分类（#1627） ─────────────────────────────────────────────────
+  console.log('\nF 限流细分类（#1627 rateLimitClassOf：失败当下判好 primary / secondary / http429 / unknown）')
+  check(rateLimitClassOf({ kind: 'rate-limit', message: 'API rate limit exceeded for user ID 1.' }) === 'primary',
+    'F1 原文是主配额耗尽的说法，判 primary')
+  check(rateLimitClassOf({ message: 'quota exhausted' }) === 'primary',
+    'F2 只有 quota exhausted 一句话，也判 primary')
+  check(rateLimitClassOf({ message: 'You have exceeded a secondary rate limit. Please wait a few minutes before you try again.' }) === 'secondary',
+    'F3 二级限流原文，判 secondary')
+  check(rateLimitClassOf({ message: 'You have triggered an abuse detection mechanism.' }) === 'secondary',
+    'F4 abuse 检测原文，判 secondary')
+  check(rateLimitClassOf({ httpStatus: 403, retryAfterSec: 60 }) === 'secondary',
+    'F5 403 带 Retry-After、原文没写类别，也判 secondary（GitHub 二级限流的真实形状）')
+  check(rateLimitClassOf({ httpStatus: 429 }) === 'http429', 'F6 状态码是 429，判 http429')
+  check(rateLimitClassOf({ message: 'HTTP 429: Too Many Requests' }) === 'http429', 'F7 只给了原文 429，判 http429')
+  check(rateLimitClassOf({ kind: 'rate-limit', message: 'HTTP 403: Forbidden' }) === 'unknown',
+    'F8 kind 是限流但原文无线索，记 unknown（不是空串）')
+  check(rateLimitClassOf({ kind: 'rate-limit' }) === 'unknown', 'F9 kind 是限流、什么原文都没有，记 unknown')
+  check(rateLimitClassOf({ kind: 'network', message: 'connect ECONNREFUSED 127.0.0.1:443' }) === '',
+    'F10 网络失败不是限流，记空串')
+  check(rateLimitClassOf({ kind: 'ok' }) === '', 'F11 成功行记空串')
+  check(rateLimitClassOf({ message: 'exit status 4291' }) === '',
+    'F12 原文里的 4291 是进程退出码不是 HTTP 429（按词边界判），记空串')
+  check(rateLimitClassOf({ message: 'API rate limit exceeded; secondary rate limit' }) === 'primary',
+    'F13 两类字样同时出现，按合同写死的顺序判 primary')
 
   console.log('\n' + (failed
     ? '存在失败 — #1111 规则表自证门禁未通过'

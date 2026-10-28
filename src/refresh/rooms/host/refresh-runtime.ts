@@ -36,14 +36,15 @@ import { createNamingSummary, readFirstUserText } from '../../../host/platform/n
 import { hookDeckAgentTools, makeDeckRegisterReport } from '../../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交九个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
 import { hookSuggestNextSteps } from '../../../deck/registration/suggest-steps-register.js' // #1406 建议工具单独登记（不进九工具装配顺序表）
 // #1612：按工作区关掉 deck 工具箱之后，deck 工具要从该工作区会话身上收走；闸门逻辑全住 src/host/deckToolGate.ts，
-// 这里只在 deck 工具注册之后挂一次（挂载失败只记日志，不影响刷新装表）。
-import { hookDeckToolGate } from '../../../host/deckToolGate.js'
+// 这里只在 deck 工具注册之后挂一次（挂载失败只记日志，不影响刷新装表）。本文件已顶到 350 有效行上限，
+// 所以不用顶部的 import 行，改为挂载那一行里的动态 import。
 import { createDeckQuotaSync } from '../../registry/quota-sync-bridge.js'
 import { ledgerReadingsOf } from '../../kernel/budget-readings.js' // #1446：读数 → 账本格的唯一换算处
 import { createAccountPort, normalizeBudgetDeclaration } from '../../kernel/backend-accounting.js' // #1439：账本唯一写入口；面板/强制刷新经闸把真实用量交给它
 import { createBudgetState } from './budget-state.js' // #1446：面板要的额度状态（模型 + 水位 → 读数），单独一件免得本文件顶破行数上限
 import { createQuotaSyncStatus } from './quota-sync-status.js' // #1006：后台同步失败的记事本，面板把「还没同步上来」说清是哪一种失败
 import { createSessionOpener } from './session-opener.js' // #1444 读路径 / #1445 写路径：刷新后台开会话的唯一装配口（六个取数文件与写路径共用这一份）
+import { createQuotaLogWiring } from './quota-log-wiring.js' // #1627：配额与限流诊断日志的接线（装配开关 quotaLog，关掉则整包不建观察器）
 import { createOutboundControl } from './outbound-control.js'
 import { hostTimers } from '../../contract/host-timer-ports.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
 // #723（T19c）第 E 件：行级增量那半边（src/refresh/rooms/host/row-patch.js）的装配从这里再往外搬了一格：
@@ -126,9 +127,9 @@ export function makeRefreshLoader(deps: any): () => Promise<any> {
  */
 export function createRefreshWiring(deps: any): any {
   const d: any = deps || {}
-  const logCtx: any = d.logCtx || null
+  const logCtx: any = d.logCtx || null; const quotaLog: any = createQuotaLogWiring({ logCtx: logCtx, enabled: d.quotaLog !== false, backendIdOf: function (): any { return currentBackendId }, ledgerOf: function (): any { return ledger } }) // #1627 观察器先于账本建造：回调闭包在调用那一刻才取当前后端编号与账本，行为与被观测对象一致
 
-  const ledger: any = d.ledger || createLedger({ logCtx: logCtx })
+  const ledger: any = d.ledger || createLedger({ logCtx: logCtx, onSpend: quotaLog.onSpend, onSync: quotaLog.onSync }); try { quotaLog.bindLedger(ledger) } catch (eQL: any) {} // #1627 记账与同步读数各交观察器一份（关掉装配开关时两个回调都是 undefined，账本按原样跑）
   // 后端的花钱口径由各后端模块自己声明（规格 #1439）：闸不维护静态表，这里从注册表现取一份注入进去。
   // 取不到（注册表还没就绪、或这个后端没登记）就按「未知」口径，闸据此只记请求数，不凭空判两桶。
   function budgetModelOf(backendId: string): any {
@@ -151,7 +152,7 @@ export function createRefreshWiring(deps: any): any {
       return port({ op: op, backendId: backendId, budget: normalizeBudgetDeclaration(budgetModelOf(backendId)), result: { ok: true, usage: { requests: requests, points: points } } })
     }
   }
-  const gate: any = d.gate || createGate({ ledger: ledger, logCtx: logCtx, budgetModelOf: budgetModelOf, accountFor: accountFor })
+  const gate: any = d.gate || createGate({ ledger: ledger, logCtx: logCtx, budgetModelOf: budgetModelOf, accountFor: accountFor, onDecision: quotaLog.onDecision })
 
   // #758 剩余额度读数接线：动手前先保一次读数（差就经会话读一次，不差不打）；失败只影响这一次调用。
   // #1443 改道：不再经闸打免费的 gh 直调，读数走 Tracker 会话的 readBudget（房间自己读 gh，读预算本身不花额度）。
@@ -210,7 +211,7 @@ export function createRefreshWiring(deps: any): any {
     getTrackerRegistry: function (): any { return (typeof d.getTrackerRegistry === 'function') ? d.getTrackerRegistry() : null },
     ledger: ledger,
     backendCtx: syncBackendCtxOf,
-    logCtx: logCtx,
+    logCtx: logCtx, onOpStart: quotaLog.onOpStart, onOpEnd: quotaLog.onOpEnd,
     // #1555：开会话默认选后端时先问统一判定（只有一份答案）；判定层不可用时 session-opener 退回裸问注册表。
     getDecisionFn: function (): any { return (typeof d.getDecisionFn === 'function') ? d.getDecisionFn() : null },
     ensureBackend: function (backendId: any, budget: any): void { try { if (ledger && typeof ledger.ensureBackend === 'function') ledger.ensureBackend(String(backendId), budget) } catch (eEn: any) {} },
@@ -438,19 +439,19 @@ export function createRefreshWiring(deps: any): any {
     detectionExec: d.detectionExec,
     gate: gate,
     ledger: ledger,
-    logCtx: logCtx,
+    logCtx: logCtx, onOpStart: quotaLog.onOpStart, onOpEnd: quotaLog.onOpEnd, onToolReceipt: quotaLog.onToolReceipt,
     workspaceKeyOf: workspaceKeyOf,
     loadWorkRouteBindings: loadWorkRouteBindings,
     ensureDeckReading: ensureDeckReading,
     onDeckWrite: onDeckWrite,
     sessionTitleSnapshotOf: sessionTitleSnapshotOf,
-  })
+  }) // #1627 不排常驻计时器：窗口与待写读数由下一笔事件或 quotaLog.tick() 收尾（宿主没有统一的接线销毁口）
   try { hookDeckAgentTools(d.ctx, deckBridge.deckToolsForHost, function (): Promise<any> { return Promise.resolve(null) }, makeDeckRegisterReport(logCtx), undefined) } catch (eH: any) {} // #741 注册那一步：表装好就向 agent 交九个工具，成败落既有日志（装表函数住桥实例，这里经 deckBridge 取）。末尾的 undefined 是“轮数与间隔都用缺省”（五轮、每轮两秒）：原 JS 只传四个实参，被调方按缺席取缺省；这里显式写出才能过类型检查，运行期走的是同一条缺省分支。
   // #1406：建议工具单独登记一次（与九工具那条钩子并列，不进 DECK_TOOL_ORDER）。失败只落日志，不影响九个追踪器工具。
   // #1406 补（2026-10-23）：hookSuggestNextSteps 是 async，开头读上下文若抛错会变成 rejected Promise，
   // 那一行同步 try/catch 抓不到；宿主加载期会把未处理的 rejection 判成致命错误（真机启动即退出 1）。
   // 所以给返回的 Promise 再挂一层 .catch 兜底：登记失败只落既有日志，绝不拖垮启动。
-  try { hookSuggestNextSteps(d.ctx, { log: logCtx }).catch(function (eSuggest: any) {}) } catch (eSuggest: any) {}; try { hookDeckToolGate(d.ctx, { canonicalKey: d.canonicalKey, logCtx: logCtx }) } catch (eGate: any) {}
+  try { hookSuggestNextSteps(d.ctx, { log: logCtx }).catch(function (eSuggest: any) {}) } catch (eSuggest: any) {}; void import('../../../host/deckToolGate.js').then(function (mGate: any) { try { mGate.hookDeckToolGate(d.ctx, { canonicalKey: d.canonicalKey, logCtx: logCtx }) } catch (eGate: any) {} }).catch(function (eGate: any) {}) // #1612 闸门用动态 import：本文件 350 有效行已满，顶部再加一行 import 会顶破上限
 
   // ── E（#723 T19c）：行级增量真的能在宿主里跑起来 ────────────────────────────────────────────
   // 以前探测到变化之后没人去跑 src/refresh/rooms/host/row-patch.js，客户端只能整池重建；现在它在这里装起来，由 wf.probe 那条路在
@@ -498,7 +499,7 @@ export function createRefreshWiring(deps: any): any {
   }
 
   return {
-    ledger: ledger,
+    ledger: ledger, quotaLog: quotaLog,
     gate: gate,
     // #927：面板取数那两路要过闸（它们是「人的动作」那一类，只记账、不降档）。
     // #1446：回执要按后端说额度，闸的入参补上当前后端编号（还没读过就缺席，闸按未知后端处理）。

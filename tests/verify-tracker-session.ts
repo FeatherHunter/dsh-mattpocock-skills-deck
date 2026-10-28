@@ -124,7 +124,7 @@ function openWith(over: Partial<OpenTrackerOptions> & { canWrite?: boolean },
     registry,
     getCachedReading: () => currentReading,
     admit: referenceAdmit,
-    account: referenceAccount,
+    accountPort: referenceAccount,
     canWrite: true,
     ...over,
   })
@@ -218,7 +218,7 @@ async function main(): Promise<void> {
   offLedger.ensureBackend('fake-off', { kind: 'two-buckets' })
   const offAccount = createAccountPort({ ledger: offLedger, account: 'ai-tool' })
   const sOff = await openWith({
-    account: async (input) => { accountCalls.push({ op: input.op, result: input.result }); await offAccount(input) },
+    accountPort: async (input) => { accountCalls.push({ op: input.op, result: input.result }); await offAccount(input) },
   }, offModule)
   if (!sOff.ok) { check(false, '离网后端的会话没打开'); return }
   const listedOff = await sOff.session.list({} as never, {} as OpContext)
@@ -285,7 +285,7 @@ async function main(): Promise<void> {
   registryStub.register(stubModule)
   admitCalls.length = 0; accountCalls.length = 0
   const openedStub = await openTracker(HANDLE, {
-    registry: registryStub, getCachedReading: () => fullBuckets, admit: referenceAdmit, account: referenceAccount, canWrite: true,
+    registry: registryStub, getCachedReading: () => fullBuckets, admit: referenceAdmit, accountPort: referenceAccount, canWrite: true,
   })
   if (!openedStub.ok) {
     check(false, '没实现读预算的后端会话没打开')
@@ -309,7 +309,7 @@ async function main(): Promise<void> {
   const registry6 = createRegistry()
   registry6.register(fakeModule)
   const rNotReady = await openTracker({} as RepoHandle, {
-    registry: registry6, getCachedReading: () => currentReading, admit: referenceAdmit, account: referenceAccount,
+    registry: registry6, getCachedReading: () => currentReading, admit: referenceAdmit, accountPort: referenceAccount,
   })
   check(rNotReady.ok === false && !rNotReady.ok && rNotReady.reason === 'workspace-not-ready', '工作区没就绪可区分（workspace-not-ready，不出站）')
   const rThrow = await openWith({ resolveSelection: async () => { throw new Error('boom') } })
@@ -318,7 +318,7 @@ async function main(): Promise<void> {
   const registry7 = createRegistry()
   registry7.register(fakeModule)
   const rDefault = await openTracker(HANDLE, {
-    registry: registry7, getCachedReading: () => currentReading, admit: referenceAdmit, account: referenceAccount,
+    registry: registry7, getCachedReading: () => currentReading, admit: referenceAdmit, accountPort: referenceAccount,
   })
   check(rDefault.ok === true && rDefault.ok && rDefault.session.backendId === 'fake-d', '默认选后端走注册表本地认领（假后端被认出来）')
 
