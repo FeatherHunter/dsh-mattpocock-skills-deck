@@ -463,6 +463,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/chain-backoff.ts', name: 'capMs', reason: '透传变量：取注入的 limits.setupPendingCapMs（YAML 已登记为 chainSetupPendingCapMs），不是新参数' },
   { file: 'src/refresh/rooms/host/chain-backoff.ts', name: 'waitedMs', reason: '算出来的等待时长（现在减上次求值时刻），退避结论的输入，不是可调参数' },
   { file: 'src/deck/registration/suggest-steps-register.ts', name: 'waitMs', reason: '派生变量：调用方可传，缺省取 SUGGEST_REGISTER_WAIT_MS（等于已登记的 REGISTER_RETRY_WAIT_MS），不是新参数' },
+  { file: 'src/host/deckToolGate.ts', name: 'retryWait', reason: '派生变量：装配层可注入的等待函数（d.wait），缺省用 setTimeout 加已登记的 REGISTER_RETRY_WAIT_MS，不是新时长参数' },
   { file: 'src/refresh/kernel/write-event-detection.ts', name: 'waitMs', reason: '计划结论里的等待长度字段：0 表示不用等，其它值来自已登记的窗口 / 间隔（mergeWindowMs、probeIntervalMs），不是新参数' },
   { file: 'src/refresh/rooms/host/refusal-messages.ts', name: 'wait', reason: '拼回话用的文案片段（“多久以后可以再试”那一句），不是时长参数' },
   // 算出来的动画时间轴：每颗小泡的出发延迟 / 飞行时长 / 结束时刻，按随机数与外观旋钮现算。

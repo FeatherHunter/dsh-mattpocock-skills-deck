@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T18:26:08.094Z",
+  "generatedAt": "2026-10-28T18:31:12.318Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 439,
   "gateCount": 439,
@@ -9614,6 +9614,7 @@
         "src/deck/shell/write-mutex.ts",
         "src/deck/tools/map-link.ts",
         "src/deck/tools/work-route.ts",
+        "src/host/deckToolGate.ts",
         "src/host/namingGuardian.ts",
         "src/host/platform/namingSummary.ts",
         "src/host/platformChannel.ts",
@@ -9716,7 +9717,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 100 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 101 条"
     },
     {
       "step": "node tests/verify-tracker-contract.ts",

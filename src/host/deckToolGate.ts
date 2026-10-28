@@ -28,6 +28,7 @@
  */
 import { keyOf } from '../shared/workspaceKey.js'
 import { DECK_SETTINGS_BUS_SLOT } from '../shared/config-store/src/settings.js'
+import { REGISTER_RETRY_WAIT_MS } from '../shared/time-config/src/values.js'
 
 /**
  * 要收走的十二个工具名：十个 deck_* 业务工具（与 src/deck/tools/ 下真实定义、src/deck/rules/tool-order.ts
@@ -62,9 +63,9 @@ const HOST_LOG_SLOT = '__dsh_mattskillsdeck_host_log__'
 const GATE_LOG_METHOD = 'deck.toolGate'
 const GATE_LOG_KIND = 'deck-tool'
 // restrict 因「名字不在已知全局工具表」失败时的重试：deck 工具注册是异步的，闸门可能抢在前面。
-// 五轮、每轮两秒，足够等注册完成；还不行就记日志放弃（注册本身失败时 register-options 那边也会记账）。
+// 五轮、每轮取已登记的注册重试间隔（REGISTER_RETRY_WAIT_MS，与 register-options 等注册路径同一份值），
+// 足够等注册完成；还不行就记日志放弃（注册本身失败时 register-options 那边也会记账）。
 const RESTRICT_RETRY_ROUNDS = 5
-const RESTRICT_RETRY_WAIT_MS = 2000
 // 取 agents 服务（宿主 ctx 上的注册表）失败时只记日志：之后每次设置发布都会再扫一遍，事件也会补上新建的会话。
 
 type AnyRecord = Record<string, any>
@@ -241,9 +242,9 @@ export function hookDeckToolGate(hostCtx: any, deps?: any): { dispose: () => voi
               if (!stopped && entries.get(agent) === entry) applyGate(agent, entry, cwd)
             } catch (eTick) {}
           }
-          if (retryWait) entry.timer = retryWait(RESTRICT_RETRY_WAIT_MS)
+          if (retryWait) entry.timer = retryWait(REGISTER_RETRY_WAIT_MS)
           else {
-            entry.timer = setTimeout(scheduled, RESTRICT_RETRY_WAIT_MS)
+            entry.timer = setTimeout(scheduled, REGISTER_RETRY_WAIT_MS)
             try { if (entry.timer && typeof entry.timer.unref === 'function') entry.timer.unref() } catch (eU) {}
           }
           if (retryWait) {
