@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T11:06:04.343Z",
+  "generatedAt": "2026-10-28T11:12:51.612Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 422,
-  "gateCount": 422,
-  "attributedGates": 379,
+  "chainLength": 425,
+  "gateCount": 425,
+  "attributedGates": 382,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 18,
@@ -4334,6 +4334,46 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
+    },
+    {
+      "step": "node tests/verify-504-github-pr.ts",
+      "file": "tests/verify-504-github-pr.ts",
+      "guards": [
+        "src/refresh/rooms/host/outbound-control.ts",
+        "src/tracker/rooms/github/issues.ts",
+        "src/tracker/rooms/github/normalize.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 2 条"
+    },
+    {
+      "step": "node tests/verify-507-pr-offline.ts",
+      "file": "tests/verify-507-pr-offline.ts",
+      "guards": [
+        "src/host/tracker/snapshot.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
+        "src/tracker/registry/core.ts",
+        "src/tracker/rooms/github/issues.ts",
+        "src/tracker/rooms/github/normalize.ts"
+      ],
+      "dirs": [
+        "src/host/tracker",
+        "src/refresh/rooms/host",
+        "src/tracker/registry",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-524-pr-detail.ts",
@@ -8987,6 +9027,27 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 3 条；源码里的路径字面量 10 条"
     },
     {
+      "step": "node tests/verify-skill-probe-redcard-and-waiting.ts",
+      "file": "tests/verify-skill-probe-redcard-and-waiting.ts",
+      "guards": [
+        "docs/adr/20260828-skill-probe-redcard-and-waiting.md",
+        "docs/adr/20260828-skill-probe-union-channels.md",
+        "package/lib/index.js",
+        "package/lib/skillProbe.js",
+        "src/host/index.ts"
+      ],
+      "dirs": [
+        "docs/adr",
+        "package/lib",
+        "src/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 5 条"
+    },
+    {
       "step": "node tests/verify-snapshot-cache-first.ts",
       "file": "tests/verify-snapshot-cache-first.ts",
       "guards": [
@@ -9946,7 +10007,8 @@
     ],
     "docs/adr": [
       "node tests/verify-error-rule-samples.ts",
-      "node tests/verify-refresh-adr.ts"
+      "node tests/verify-refresh-adr.ts",
+      "node tests/verify-skill-probe-redcard-and-waiting.ts"
     ],
     "docs/agents": [
       "node tests/verify-gate-map.ts",
@@ -10101,6 +10163,7 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
+      "node tests/verify-skill-probe-redcard-and-waiting.ts",
       "node tests/verify-statusbar-filter-reset.ts",
       "node tests/verify-t1-getrepokey.ts",
       "node tests/verify-t1-initpublish.ts",
@@ -10794,6 +10857,7 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
+      "node tests/verify-skill-probe-redcard-and-waiting.ts",
       "node tests/verify-time-config.ts",
       "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-update-migration.ts",
@@ -10830,6 +10894,7 @@
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1490-four-objects.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
+      "node tests/verify-507-pr-offline.ts",
       "node tests/verify-691-map-subissues.ts",
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-934-935-invariants.ts",
@@ -11021,6 +11086,8 @@
       "node tests/verify-1583-repo-ref-fallback.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
       "node tests/verify-3-workspace-switch.ts",
+      "node tests/verify-504-github-pr.ts",
+      "node tests/verify-507-pr-offline.ts",
       "node tests/verify-524-pr-detail.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-683-host-wiring.ts",
@@ -11309,6 +11376,7 @@
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1495-deck-close-reason.ts",
+      "node tests/verify-507-pr-offline.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-683-host-wiring.ts",
@@ -11365,6 +11433,8 @@
       "node tests/verify-1571-gh-flag-writing.ts",
       "node tests/verify-1603-map-thin-list.ts",
       "node tests/verify-1605-map-routing-guard.ts",
+      "node tests/verify-504-github-pr.ts",
+      "node tests/verify-507-pr-offline.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",

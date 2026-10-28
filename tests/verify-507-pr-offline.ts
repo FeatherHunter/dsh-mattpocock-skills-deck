@@ -14,6 +14,9 @@
  */
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+// #1227 复判：gh 客户端要求 ctx.outbound 必填（#1159：缺了按环境失败、不发这一笔），
+// 夹具补上宿主那一份，才能走到真实的 GraphQL 失败与 REST 降级分支。
+import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 let pass = 0
@@ -31,7 +34,7 @@ check(Array.isArray(bad.reviews) && bad.reviews.length === 0 && bad.mergedAt ===
 const { listIssues } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/issues.ts')).href)
 function stubCtx(failStderr: string, ghHost: string) {
   const logs: Array<{ level: string; event: string; fields: any }> = []
-  return { logs, ctx: { cwd: ROOT, platform: { resolveExecutable: async (n: string) => (n === 'gh' ? 'gh' : null), env: { get: (k: string) => (k === 'GH_HOST' ? (ghHost || '') : '') } },
+  return { logs, ctx: { outbound: createOutboundControl(), cwd: ROOT, platform: { resolveExecutable: async (n: string) => (n === 'gh' ? 'gh' : null), env: { get: (k: string) => (k === 'GH_HOST' ? (ghHost || '') : '') } },
     exec: async (cmd: unknown, args?: string[]) => { const j = (args || []).join(' '); if (j.includes('graphql')) return { code: 1, stdout: '', stderr: failStderr };
       if (j.includes('/issues?state=all')) return { code: 0, stdout: JSON.stringify([{ number: 1, title: 't', state: 'open', labels: [], user: { login: 'a' }, html_url: 'https://x/issues/1' }]), stderr: '' };
       if (j.includes('/pulls?state=all')) return { code: 0, stdout: '[]', stderr: '' }; if (j.includes('/sub_issues')) return { code: 0, stdout: '[]', stderr: '' };
@@ -71,7 +74,7 @@ check(chainOk, 'B2 合成链指纹含耗时毫秒（fallback.chain 记 in/out/la
   const good = (n: number) => ({ number: n, title: 'good ' + n, state: 'open', labels: [], user: { login: 'a' }, html_url: 'https://x/issues/' + n })
   const pr = { number: 493, title: 'pr', state: 'OPEN', body: '', url: 'https://x/pull/493', createdAt: '', updatedAt: '', closedAt: null, mergedAt: null, author: { login: 'a' }, assignees: { nodes: [] }, labels: { nodes: [] }, milestone: null, comments: { nodes: [] }, reviews: { nodes: [] } }
   const origParse = JSON.parse
-  const ctx = { cwd: ROOT, platform: { resolveExecutable: async () => 'gh', env: () => '' }, exec: async (cmd: unknown, args?: string[]) => { const j = (args || []).join(' '); if (j.includes('pullRequests')) return { code: 0, stdout: '__PR__', stderr: '' }; if (j.includes('graphql')) return { code: 0, stdout: '__ISS__', stderr: '' }; return { code: 1, stdout: '', stderr: 'x' } }, logEvent: () => {}, isEnabled: () => false }
+  const ctx = { cwd: ROOT, outbound: createOutboundControl(), platform: { resolveExecutable: async () => 'gh', env: () => '' }, exec: async (cmd: unknown, args?: string[]) => { const j = (args || []).join(' '); if (j.includes('pullRequests')) return { code: 0, stdout: '__PR__', stderr: '' }; if (j.includes('graphql')) return { code: 0, stdout: '__ISS__', stderr: '' }; return { code: 1, stdout: '', stderr: 'x' } }, logEvent: () => {}, isEnabled: () => false }
   JSON.parse = function (t: string) { if (t === '__ISS__') return { data: { repository: { issues: { nodes: [good(1)], pageInfo: { hasNextPage: false, endCursor: null } } } } }; if (t === '__PR__') return { data: { repository: { pullRequests: { nodes: [pr], pageInfo: { hasNextPage: false, endCursor: null } } } } }; return origParse(t) }
   let only = null
   try { only = await listIssues(repo, { isPullRequest: true }, ctx) } finally { JSON.parse = origParse }
@@ -92,7 +95,8 @@ const prData: Array<Record<string, any>> = [
 ]
 {
   const registry = createRegistry({}, { matchesTimeout: 50 })
-  registry.register({ id: 'prpool', label: 'prpool', create: () => ({ list: async () => ({ ok: true, data: prData }) }), matches: async () => true })
+  // 预算声明是登记口的必填格（#1439）：这是离线内存桩，不碰网络，所以按 off-network 报。
+  registry.register({ id: 'prpool', label: 'prpool', budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false }, create: () => ({ list: async () => ({ ok: true, data: prData }) }), matches: async () => true })
   const fires: Array<{ level: string; event: string; fields: any }> = []
   const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000, logCtx: { fire(l: string, e: string, f: any) { fires.push({ level: l, event: e, fields: f }) }, isEnabled: (l: string) => l === 'info' } })
   const r = await composer.composeSnapshot('prpool', { backend: 'prpool', refId: 'r1', name: 'R1', url: '' }, {})

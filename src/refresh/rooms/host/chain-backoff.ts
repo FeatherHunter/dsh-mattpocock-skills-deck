@@ -188,6 +188,22 @@ export function createChainBackoff(deps?: ChainBackoffDeps | null): any {
     try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.backoff', { keyHash: '', decision: 'write-reset', reason: 'write-done', waitMs: 0, step: 0, trigger: 'write-done' }) } catch (eL: any) {}
   }
 
+  /**
+   * 外部说「这个工作区的东西变了」（技能装/卸的失效广播）：把这一格的缓存整格丢掉，下一次求值重新算。
+   *
+   * 为什么不能只用 noteWriteActivity：那里只把档位拉回第一档，快照与完整回包还留着 —— 下一次事件若落在
+   * 第一档的退避窗口里，仍会原样回旧快照（#1227 验收四要的正是「广播后不带 force 的下一轮就看到新装的技能」）。
+   * 带工作区时只丢那个工作区开头的几条（键是「工作区|后端|语言」，与链快照缓存那一侧的失效口径一致），
+   * 不带才全丢。
+   */
+  function reset(scopeKey?: unknown): void {
+    try {
+      if (!scopeKey) { _stateByKey.clear(); return }
+      const raw = String(scopeKey)
+      for (const k of Array.from(_stateByKey.keys())) { try { if (k.split('|')[0] === raw) _stateByKey.delete(k) } catch (e: any) {} }
+    } catch (e: any) {}
+  }
+
   /** 这个键上最近那一份快照（没有就是 null）。被退避挡下时用它直接回。 */
   function cached(key: string): any {
     const st: ChainBackoffEntry | null = _stateByKey.get(key) || null
@@ -206,5 +222,5 @@ export function createChainBackoff(deps?: ChainBackoffDeps | null): any {
     return st ? st.step : 0
   }
 
-  return { verdict, note, noteWriteActivity, cached, allGreenTtlMs, stepOf, isAllGreen, doneCountOf }
+  return { verdict, note, noteWriteActivity, reset, cached, allGreenTtlMs, stepOf, isAllGreen, doneCountOf }
 }

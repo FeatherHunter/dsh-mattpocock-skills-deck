@@ -87,21 +87,6 @@
       "file": "tests/verify-issue22-ui.ts",
       "reason": "只动手点：要真机 DSH 图形界面加 Chrome（127.0.0.1:59519），链上跑不了，留给人动手验收",
       "ticket": "#1125"
-    },
-    {
-      "file": "tests/verify-skill-probe-redcard-and-waiting.ts",
-      "reason": "隔离待查：14/55 行为失败（坏名片分拣语义），先修代码再进链",
-      "ticket": "#1227"
-    },
-    {
-      "file": "tests/verify-504-github-pr.ts",
-      "reason": "隔离待查：雾证据与坏节点行为失败，先定是回归还是门禁过期再进链",
-      "ticket": "#1227"
-    },
-    {
-      "file": "tests/verify-507-pr-offline.ts",
-      "reason": "隔离待查：9过2败，先定性再进链",
-      "ticket": "#1227"
     }
   ],
   "_已删除": "2026-10-16 删掉 2 扇复刻自测（把源码逻辑抄进门禁里再断言，源码坏了照样绿， maintainer 同意去无价值门禁）：tests/verify-blocked-filter.js、tests/verify-t2b-templates.js。两处棘轮基线已同步（unmigrated 重录 318，handwritten 删行）。 2026-10-20（#1293）删掉 tests/verify-prompt-newlines.ts：它守的「提示词正文不许出现字面 \\n」判据折进 tests/verify-prompts.ts 的第 4c 节，扫描面一处不少（config/prompts/ 下五份 YAML、client.js 与 package/lib/client.js 两份产物、src/host 下的 *_PROMPT、src/tracker/rooms 下的 zh/en 字面量），空豁免清单与指纹断言也一并接过去。删掉的文件不能写进上面的 exclude 表——看守门禁会按「名单里有、磁盘上没有」判烂条，所以记在这里。",

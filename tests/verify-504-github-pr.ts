@@ -15,6 +15,9 @@
  */
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+// #1227 复判：出站控制面是 gh 客户端的必填口（缺了按环境失败，命令根本发不出去），
+// 所以夹具必须像其他房间门禁一样注入这一份；否则四类降级原因都会被「出站没接上」吞成同一个。
+import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 function check(cond: unknown, msg: string) { if (!cond) { console.error('FAIL', msg); process.exitCode = 1 } else console.log('PASS', msg) }
@@ -54,6 +57,7 @@ function makeCtx(failStderr: string, ghHost: string) {
   return {
     logs,
     ctx: {
+      outbound: createOutboundControl(),
       cwd: ROOT,
       platform: {
         resolveExecutable: async (n: string) => (n === 'gh' ? 'gh' : null),
@@ -111,6 +115,7 @@ for (const c of [
   const prGood = { number: 493, title: 'pr', state: 'OPEN', body: '', url: 'https://github.com/o/r/pull/493', createdAt: '', updatedAt: '', closedAt: null, mergedAt: null, author: { login: 'a' }, assignees: { nodes: [] }, labels: { nodes: [] }, milestone: null, comments: { nodes: [] }, reviews: { nodes: [] } }
   const origParse = JSON.parse
   const ctx = {
+    outbound: createOutboundControl(),
     cwd: ROOT,
     platform: { resolveExecutable: async (n: string) => (n === 'gh' ? 'gh' : null), env: { get: () => '' } },
     exec: async (cmd: unknown, args: string[]) => {

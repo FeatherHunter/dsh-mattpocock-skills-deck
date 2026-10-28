@@ -62,7 +62,9 @@ const callChain = async (dispatch, payload) => {
   if (!dispatch) return { checks: [] }
   // 链为串行求值：前置（已选后端/已初始化）须通过，技能步才会被求值；测试环境显式给定后端
   // #284 修订：链上检查项逐项独立求值（不依赖前置通过）——测试不再注入后端、不再预置初始化文件
-  const res = await dispatch('chain', Object.assign({}, payload, { force: true }))
+  // 与生产同一形状（src/refresh/rooms/client/probe-chain-subscription.ts 的 loadChain(st,true,'user-recheck')）：
+  // 人点重查时 force 与 trigger 一起带。只带 force 会被链退避当后台动作、直接回旧快照，本轮求值根本不发生（#1227 实测）。
+  const res = await dispatch('chain', Object.assign({}, payload, { force: true, trigger: 'user-recheck' }))
   return chainToRow(res)
 }
 
