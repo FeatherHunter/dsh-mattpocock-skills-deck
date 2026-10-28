@@ -40,6 +40,9 @@ declare const setCachedChain: any;
 declare const userHintOf: any;
 declare const nowStr: any;
 declare const emit: any;
+// #1626：首帧链求值等 selection 落定用的那条专用电话。实现住在 probe-scope-selection 片段里，
+//   这里只声明形状；叶子沙箱没有它时调用点用 typeof 兜底（与其它跨闭包名字同一规矩）。
+declare const askSelectionOnce: any;
 // #1474：自动复查的冷却窗（毫秒）来自中央时间配置 config/intervals.yaml 的 chainAutoRetryCooldownMs。
 // 这是本文件唯一的运行时 import：构建按 docs/adr/20261016-time-config-yaml.md 的界面半边写法，
 // 把下面这一行整行删掉，再由拼进闭包的 timeConfig 片段提供同名常量。
@@ -117,7 +120,11 @@ export const CHAIN_EVENT_REASONS: Record<string, string> = {
   // #1474：链上有一步「暂时确认不了」之后，界面自己隔一会儿再问一次宿主时带的原因。
   //   它与人手重查的区别只在宿主那一侧：这个原因照常受后台退避约束（8 秒 → 30 秒 → 2 分钟 → 5 分钟），
   //   人点「重新检查」的那一次永不降档。
-  autoRetry: 'auto-retry'
+  autoRetry: 'auto-retry',
+  // #1626：冷启动首帧因为 selection 还没落定而推迟，等 wf.selection 回包把链键补齐后补发的那一次。
+  //   和 enter-workspace 一样是后台事件，不豁免退避；单独一个名字是为了在 chain.flow 日志里一眼认出
+  //   「这一次是选择落定带起来的」，不必再靠时间差去猜。
+  selectionResolved: 'selection-resolved'
 };
 /**
  * 初始化那一步还需不需要重算：链快照里有 tracker:initialized 这一行、且它还不是 done 时为真。
@@ -181,6 +188,27 @@ export const chainEventRefresh = function (st: any, why: any, force: any): any {
 };
 export const loadChain = function (st: any, force: any, trigger: any, opts?: any): any {
   if (typeof host === 'undefined' || typeof host.call !== 'function') return Promise.resolve(null);
+  // #1626：冷启动首帧先等「这个工作区用哪个后端」落定，别带着空 backendId 去算整条链。
+  //   为什么不能照发再补：空键那一次回包注定被 _chainRespStale 按「键变了」判过期丢掉，
+  //   日志里会留下一条 stale 假故障，同一时刻还多出一份注定白算的求值。
+  //   为什么不担心等不到：wf.selection 只读宿主本地的工作区文件，几十毫秒就回；它失败/超时也不影响
+  //   兜底——probe-scope-selection 会在 selPending 收掉之后补发，本函数拿到的是「诚实降级成空键」那一次。
+  //   谁负责补发：selection 落定那一刻由 probe-scope-selection 调 _flushDeferredChain（见本文件下方）。
+  if (!st.selection) {
+    try { if (typeof askSelectionOnce === 'function') askSelectionOnce(st); } catch (eAskSel) {}
+    if (st.selPending === true) {
+      try {
+        const d: any = st._chainDeferred || { force: false, trigger: '', opts: null };
+        if (force) d.force = true;
+        const why: string = String(trigger || '');
+        if (why === CHAIN_EVENT_REASONS.userRecheck) d.trigger = why;
+        else if (why && !d.trigger) d.trigger = why;
+        if (opts) d.opts = Object.assign({}, d.opts || {}, opts);
+        st._chainDeferred = d;
+      } catch (eDef) {}
+      return Promise.resolve(null);
+    }
+  }
   // 链共享键 = 工作区键 + 后端 id + 语言（#324 按工作区单次求值按后端隔离；#529 加语言：host 明细按语言产出，中英快照分开缓存，切换语言即时重取）
   const _backendIdForChain: string = (st.selection && st.selection.backendId) || '';
   const _langForChain: string = (typeof promptLang === 'function' ? promptLang() : 'zh');
@@ -332,6 +360,21 @@ export const loadChain = function (st: any, force: any, trigger: any, opts?: any
   });
   if (!force) _chainInflightByCwd.set(_scopedKey, p);
   return p;
+};
+/**
+ * 把「因为 selection 还没落定而被推迟」的那一次链求值补发出去（#1626）。
+ * 调用方是 probe-scope-selection：选择落定、迟到选择落地、正常快照带回 selection 三处都试一次。
+ * 只在真的记着一次推迟时动手，补发后立刻清账，所以之后每一次选择合并都不会顺手多打一枪。
+ * 来路：默认记 selection-resolved（宿主按后台事件照常退避）；推迟期间若有人亲手点过（user-recheck），
+ *   保留那个来路——宿主对人的动作永不降档，这一条不能替它降。
+ */
+const _flushDeferredChain = function (st: any): any {
+  try {
+    const d: any = st && st._chainDeferred;
+    if (!d) return null;
+    st._chainDeferred = null;
+    return loadChain(st, !!d.force, d.trigger || CHAIN_EVENT_REASONS.selectionResolved, d.opts);
+  } catch (eFlush) { return null; }
 };
 /**
  * 自动复查的冷却窗与在途标记（#1474）。
