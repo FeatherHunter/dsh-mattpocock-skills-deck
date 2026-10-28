@@ -172,11 +172,11 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 - **Map**: 一张打了 `wayfinder:map` 标签的票，正文里放着 Notes / Decisions-so-far / Fog。用
   `deck_map_plan_create` 建（它会把目的地、Notes 与计划写成一张地图）。
 - **Child ticket**: 挂在这张地图下的子票。用 `deck_map_link` 传 `parentKey` 建这条父子边；工具会按当前后端
-  的能力落下去，并如实回报这条边落在哪一列（原生边，还是退回任务清单 + 正文首行 `Part of #<map>`）。
+  的能力落下去，并如实回报这条边落在哪一列（原生边，还是任务清单 + 票正文的归属标记；GitLab 房落在文件头的隐藏标记 `<!-- DSH-PARENT: <地图> -->`）。
   标签取 `wayfinder:<类型>`（`research` / `prototype` / `grilling` / `task`）。票被认领之后，认领人就是驱动
   这件事的开发者（认领用 `deck_issue_patch`）。
 - **Blocking**: 阻塞关系优先落成后端自己的原生依赖边（GitHub 上是原生的 issue dependencies，界面上看得见）。
-  用 `deck_map_link` 传 `blockedBy`，工具自己判断能不能落原生边、落不了就退回正文首行的 `Blocked by: #n`，
+  用 `deck_map_link` 传 `blockedBy`，工具自己判断能不能落原生边、落不了就退回正文的阻塞写法（GitLab 房是成对降级：可见行 `Blocked by: #n` + 隐藏机器表 `<!-- DSH-BLOCKED-BY: … -->`），
   并把落在哪一列告诉你。`blockedBy` 里列的是**阻塞这一方的票**（先把它们关掉才轮到这张票）；回执会点名
   「票 #A 的 blockedBy 里有 #B，也就是 #A 被 #B 阻塞」，读回执时按这个方向核对。一张票要等所有阻塞它的票都关闭了才算解除阻塞。
 - **Frontier query**: 用 `deck_map_snapshot` 读这张地图的开放子票，去掉还能被阻塞的（依赖边指向仍未关闭的

@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T09:37:10.276Z",
+  "generatedAt": "2026-10-28T09:50:15.154Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 414,
-  "gateCount": 414,
-  "attributedGates": 371,
+  "chainLength": 415,
+  "gateCount": 415,
+  "attributedGates": 372,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 17,
@@ -4070,6 +4070,23 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1599-gitlab-hidden-markers.ts",
+      "file": "tests/verify-1599-gitlab-hidden-markers.ts",
+      "guards": [
+        "scripts/lib/discover-gates.ts",
+        "src/tracker/rooms/gitlab/normalize.ts"
+      ],
+      "dirs": [
+        "scripts/lib",
+        "src/tracker/rooms/gitlab"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 2 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -10046,6 +10063,7 @@
       "node tests/verify-1438-banner-recheck-button.ts",
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1530-generated-outputs-not-inputs.ts",
+      "node tests/verify-1599-gitlab-hidden-markers.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-596-rpc-carrier.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -11225,6 +11243,7 @@
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1533-git-remote-claim.ts",
       "node tests/verify-1555-gitlab-claim-declaration.ts",
+      "node tests/verify-1599-gitlab-hidden-markers.ts",
       "node tests/verify-686-accept.ts",
       "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",

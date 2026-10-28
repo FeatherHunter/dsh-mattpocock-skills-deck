@@ -9,14 +9,18 @@
  *  - 无 `subIssues`/`blocking`：树边 = `parentKey`向上 + MapNode.tickets向下；`blocking`仅getDependencies投影。
  *  - GitLab原生支持 labels → `Issue.labels`恒存在，空→`[]`EMPTY（capability-by-fill）。
  *  - `Label={name,color,description?}` color无则''；milestone独立字段，有→对象，无→省略(MISSING)。
- *  - `parentKey` 只有一条真相：正文里的 `Part of #<地图号>` 声明行；
- *    `blockedBy` 双路径：原生 `is_blocked_by` 优先 → `Blocked by:` 行回退。
+ *  - `parentKey` 只有一条真相：文件头里的隐藏标记 `<!-- DSH-PARENT: <地图号> -->`（#1599 起；
+ *    旧 `Part of #<地图号>` 可见行只在过渡期回退认，不再写）；
+ *    `blockedBy` 三层：原生 `is_blocked_by` 优先 → 文件头机器表 `<!-- DSH-BLOCKED-BY: ... -->` →
+ *    可见 `Blocked by:` 行回退（后两者写侧成对维护，读侧隐藏优先）。
  */
 
 import { STATE, ISSUE_TYPE } from '../../contract/vocabulary.js'
 import { markerKindInHeader } from '../../../shared/issue-file/src/marker.js'
 import type { Actor, IssueType, State } from '../../contract/identity.js'
 import type { Comment, Issue, IssueRef, Label, Milestone } from '../../contract/entities.js'
+import { parseHiddenBlockedBy, parseHiddenParent, parseLegacyPartOf } from './description-markers.js'
+export { parseHiddenBlockedBy, parseHiddenParent, parseLegacyPartOf, rewriteDescriptionWithBlockedPair, rewriteDescriptionWithHiddenParent } from './description-markers.js'
 
 // GitLab 回包是外部形状，先收成键值袋再逐格判是因为远端字段可缺可空，直接按定型读会把缺字段当成错。
 type RawBag = Record<string, unknown>
@@ -221,6 +225,26 @@ function parseBlockedByFromDescription(body: unknown): IssueRef[] | null {
   return out
 }
 
+function blockedKeysToRefs(keys: string[]): IssueRef[] {
+  const out: IssueRef[] = []
+  for (const k of keys) {
+    out.push({ key: String(k), title: '#' + String(k), state: STATE.OPEN as State, type: ISSUE_TYPE.ISSUE as IssueType })
+  }
+  return out
+}
+
+/**
+ * 正文回退读阻塞（机器表优先，可见行兜底）：原生不可用时调用，返回票号数组，没有任何写法返回 null。
+ * graph-blocking 的读回退与环检快照都走这一处，不各写一遍认法。
+ */
+export function parseBlockedByFallback(body: unknown): string[] | null {
+  const table = parseHiddenBlockedBy(body)
+  if (table !== null) return table
+  const parsed = parseBlockedByFromDescription(body)
+  if (parsed !== null) return parsed.map((r) => r.key)
+  return null
+}
+
 function deriveBlockedBy(raw: unknown): IssueRef[] {
   const bag = asBag(raw)
   // 原生优先：raw.blocked_by (array of issues) 或 raw.blockedBy
@@ -256,58 +280,28 @@ function deriveBlockedBy(raw: unknown): IssueRef[] {
     // 检测：若 raw 拥有 blocked_by 字段（即使空），视为原生有值 → 忽略回退
     if (bag && ('blocked_by' in bag || 'blockedBy' in bag)) return []
   }
-  // 回退
+  // 回退：先认文件头机器表，没有再认可见行（过渡期双读；写侧成对维护，正常票面两者一致）。
   const body =
     bag && typeof bag['description'] === 'string'
       ? (bag['description'] as string)
       : bag && typeof bag['body'] === 'string'
         ? (bag['body'] as string)
         : ''
+  const hiddenTable = parseHiddenBlockedBy(body)
+  if (hiddenTable !== null) return blockedKeysToRefs(hiddenTable)
   const parsed = parseBlockedByFromDescription(body)
   if (parsed !== null) return parsed
   return []
 }
 
-// 子票归属的唯一真相：正文里的 `Part of #<地图号>` 声明行（模板 Wayfinding operations 第 42 行）。
-// 为什么不再看 links：`relates_to` 是对称的平级关联，列表行里分不出哪一头是父；
-// 按时间取最早一条是猜，不是读。旧的 `Parent: #iid` 自造关键词一并退役：没有任何模板会写它。
-const PART_OF_RE = /^Part of #(\d+)\s*$/m
-
-/** 从正文里读出 `Part of #<地图号>`；没有返回 null。 */
-export function parsePartOfLine(body: unknown): string | null {
-  if (typeof body !== 'string' || !body) return null
-  const m = body.match(PART_OF_RE)
-  if (!m) return null
-  return m[1] as string
-}
-
-/** 建出 `Part of #<地图号>` 那一行。 */
-export function buildPartOfLine(mapKey: string): string {
-  return `Part of #${mapKey}`
-}
-
-/**
- * 把 `Part of #` 行写进正文最前面（幂等替换，不在才加）。
- * 传 null 表示拆掉这一行（其余正文一个字不动）。
- *
- * 幂等锚是渲染后看不见的 HTML 注释行，按行扫描认得出来，
- * 所以这一行固定放最前面不会影响建票幂等回查。
- */
-export function rewriteDescriptionWithPartOf(oldBody: string | null | undefined, mapKey: string | null): string {
-  const body = oldBody || ''
-  if (mapKey === null) {
-    if (!PART_OF_RE.test(body)) return body
-    return body.replace(PART_OF_RE, '').replace(/^\n+/, '')
-  }
-  const line = buildPartOfLine(String(mapKey))
-  if (PART_OF_RE.test(body)) return body.replace(PART_OF_RE, line)
-  return line + (body ? '\n\n' + body : '')
-}
-
 function deriveParentKey(raw: unknown): string | null {
   const bag = asBag(raw)
-  const declared = parsePartOfLine(bodyOf(raw))
-  if (declared) return declared
+  const body = bodyOf(raw)
+  // 隐藏标记优先；旧 `Part of` 行只在过渡期回退认（存量票还没被写过一次）；最后是聚合形状自带的格。
+  const hidden = parseHiddenParent(body)
+  if (hidden) return hidden
+  const legacy = parseLegacyPartOf(body)
+  if (legacy) return legacy
   if (bag && typeof bag['parentKey'] === 'string') return bag['parentKey'] as string
   if (bag && bag['parentKey'] === null) return null
   return null

@@ -2,10 +2,9 @@
  * src/tracker/rooms/gitlab/sub-issues.ts —— 取一张地图上挂着的票（契约第 21 条 `Tracker.listSubIssues` 的 GitLab 实现）。
  *
  * ── 这条能力在 GitLab 上读回来的到底是什么（先读这一段，再读代码）──────────────────
- * 子票的定义只有一条：正文里写着 `Part of #<这张地图>` 声明行的票
- * （模板 `issue-tracker-gitlab.md` Wayfinding operations 第 42 行：子票 = 正文顶部
- * `Part of #<map>` + `wayfinder:<类型>` 标签）。读法是声明优先：票面上有这一行就是子票，
- * 没有就不是 —— 不猜、不按链接方向推断。
+ * 子票的定义只有一条：文件头里写着隐藏标记 `<!-- DSH-PARENT: <这张地图> -->` 的票
+ * （子票 = 文件头标记 + `wayfinder:<类型>` 标签；旧 `Part of #<map>` 可见行过渡期回退认）。
+ * 读法是声明优先：票面上有这个标记就是子票，没有就不是 —— 不猜、不按链接方向推断。
  *
  * 为什么不走 links 表：`relates_to` 是对称的平级关联，列表行里分不出哪一头是父；
  * 按 source/target 方向判读得准，但那是「本房以前自己立的约定」，人手工加的关联链接
@@ -167,7 +166,7 @@ export async function listSubIssues(
         }
         try {
           const issue = normalizeIssue(row)
-          // 子票的唯一判据：正文里的 `Part of #<这张地图>` 声明行（归一里已经认好，这里只比）。
+          // 子票的唯一判据：文件头的隐藏归属标记（归一里已经认好，这里只比）。
           if (issue.parentKey === key) items.push(issue)
         } catch {
           dropped += 1

@@ -12,7 +12,7 @@ import type { CloseOpts, CreateInput, GetOpts, ListFilter, UpdatePatch } from '.
 import type { OpResult } from '../../contract/results.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
-import { normalizeIssue, rewriteDescriptionWithPartOf } from './normalize.js'
+import { normalizeIssue, rewriteDescriptionWithHiddenParent } from './normalize.js'
 import { failGlab } from './errors.js'
 import { issuesPath, issuePath, notesPath, linksPath, milestonesPath } from './queries.js'
 // #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
@@ -204,7 +204,7 @@ export async function getIssue(
 }
 
 /**
- * 建票：先验幂等键、按锚回查命中就复用，否则走单写路径，parentKey 在建票时直接写进正文顶部的 `Part of #` 行。
+ * 建票：先验幂等键、按锚回查命中就复用，否则走单写路径，parentKey 在建票时直接写进文件头的隐藏标记。
  *
  * @param ctx 调用上下文（opCtx 缺时顶上）
  * @param repo 目标仓库（只取 refId/name）
@@ -245,9 +245,9 @@ export async function createIssue(
     const body: CreateIssueBody = { title: input.title.trim() }
     // 锚写在 description 的第一行（渲染后看不见的 HTML 注释），重试时凭它把这张票找回来。
     let description = withAnchor(typeof input.body === 'string' ? input.body : '', idemKey)
-    // parentKey → 建票时直接把归属声明行写进正文最前面（幂等锚按行扫描认得出来，位置不影响回查）。
+    // parentKey → 建票时直接把隐藏归属标记写进文件头（幂等锚之后；锚按行扫描认得出来，位置不影响回查）。
     if (input.parentKey != null) {
-      description = rewriteDescriptionWithPartOf(description, String(input.parentKey))
+      description = rewriteDescriptionWithHiddenParent(description, String(input.parentKey))
     }
     if (description) body.description = description
     if (Array.isArray(input.labels) && input.labels.length) {
@@ -258,7 +258,7 @@ export async function createIssue(
     }
     // #722：到这里建票只走一条写路径（POST 到集合端点），回包判据与「许不许再发一次」都在纯函数里。
     // 「可能已经写出去」的回包（超时、EOF、回包形状不对、5xx）一律不再发第二次写，只如实失败并带上幂等键。
-    // parentKey → 建票时已经写进正文顶部的 `Part of #` 行，建完不再链任何 links：
+    // parentKey → 建票时已经写进文件头的隐藏归属标记，建完不再链任何 links：
     // `relates_to` 是对称的平级关联，链上它反而污染归属（读回来分不出哪一头是父）。
     const written = await writeNewIssue(effective as Partial<OpContext> & Partial<BackendContext>, id, body)
     if (written.verdict.verdict !== 'created') {

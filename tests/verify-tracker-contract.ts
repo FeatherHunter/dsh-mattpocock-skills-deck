@@ -119,15 +119,20 @@ try {
   const labEmpty = norm({ iid: 1, title: 'e', state: 'opened', description: '', labels: [] })
   const labelsEmptyOk = Array.isArray(labEmpty.labels) && labEmpty.labels.length === 0 && !('number' in labEmpty) && !('subIssues' in labEmpty) && !('blocking' in labEmpty)
   results.push({ name: 'gitlab · labels EMPTY + no legacy fields', ok: labelsEmptyOk, detail: labelsEmptyOk ? '' : JSON.stringify(labEmpty) })
-  // parentKey 归一：正文 `Part of #<地图>` 声明行是唯一判据，links 表一次都不认
+  // parentKey 归一（#1599 起）：文件头隐藏标记 `<!-- DSH-PARENT: <地图> -->` 是第一判据，
+  // 旧 `Part of #<地图>` 可见行过渡期回退认；links 表一次都不认
   // （GitLab 原生层级挂不上 issue 到 issue，relates_to 又是对称平级关联分不出谁是父）。
-  const parentIssue = norm({ iid: 10, title: 't', state: 'opened', description: 'Part of #7\n\n正文', links: [{ iid: 3, link_type: 'relates_to', created_at: '2024-01-02' }, { iid: 2, link_type: 'relates_to', created_at: '2024-01-01' }] })
+  const parentIssue = norm({ iid: 10, title: 't', state: 'opened', description: '<!-- DSH-PARENT: 7 -->\n\n正文', links: [{ iid: 3, link_type: 'relates_to', created_at: '2024-01-02' }, { iid: 2, link_type: 'relates_to', created_at: '2024-01-01' }] })
   const parentOk = parentIssue.parentKey === '7'
-  results.push({ name: 'gitlab · parentKey from Part-of line', ok: parentOk, detail: parentOk ? '' : 'got=' + parentIssue.parentKey })
-  // 反例：只有 links、没有声明行 → 归属不明，不许猜（回 null）。
+  results.push({ name: 'gitlab · parentKey from hidden marker', ok: parentOk, detail: parentOk ? '' : 'got=' + parentIssue.parentKey })
+  // 过渡期：只有旧声明行、没有隐藏标记 → 回退认（存量票双读可用）。
+  const legacyIssue = norm({ iid: 12, title: 't', state: 'opened', description: 'Part of #7\n\n正文', links: [] })
+  const legacyOk = legacyIssue.parentKey === '7'
+  results.push({ name: 'gitlab · parentKey legacy Part-of fallback', ok: legacyOk, detail: legacyOk ? '' : 'got=' + legacyIssue.parentKey })
+  // 反例：只有 links、没有归属标记 → 归属不明，不许猜（回 null）。
   const orphanIssue = norm({ iid: 11, title: 't', state: 'opened', description: '普通正文', links: [{ iid: 2, link_type: 'relates_to', created_at: '2024-01-01' }] })
   const orphanOk = orphanIssue.parentKey === null
-  results.push({ name: 'gitlab · parentKey null without Part-of line', ok: orphanOk, detail: orphanOk ? '' : 'got=' + orphanIssue.parentKey })
+  results.push({ name: 'gitlab · parentKey null without marker', ok: orphanOk, detail: orphanOk ? '' : 'got=' + orphanIssue.parentKey })
 } catch (e) {
   results.push({ name: 'gitlab-adapter · import-failed', ok: false, detail: String(e && e.message || e) })
 }

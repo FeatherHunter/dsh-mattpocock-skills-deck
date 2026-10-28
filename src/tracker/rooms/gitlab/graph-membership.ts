@@ -1,4 +1,4 @@
-// graph-membership.ts —— 以后改亲缘挂载与指派接口时改它：Part of 行挂载、assignee_ids 解析。
+// graph-membership.ts —— 以后改亲缘挂载与指派接口时改它：隐藏标记挂载、assignee_ids 解析。
 // 抓取底座（repoId/fetchRawIssue）从阻塞文件单向导入，不自建第二份（同房互引，老门禁放行）。
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { ErrorKind } from '../../contract/identity.js'
@@ -8,7 +8,7 @@ import type { AssigneeInput, SetOpts } from '../../contract/inputs.js'
 import type { OpResult } from '../../contract/results.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
-import { normalizeIssue, rewriteDescriptionWithPartOf } from './normalize.js'
+import { normalizeIssue, rewriteDescriptionWithHiddenParent } from './normalize.js'
 import { failGlab } from './errors.js'
 import { issuePath } from './queries.js'
 import { repoId, fetchRawIssue } from './graph-blocking.js'
@@ -39,8 +39,10 @@ function rawUpdatedAt(curRaw: unknown): string {
 }
 
 /**
- * 挂亲缘：子票归属的唯一真相是它自己正文顶部的 `Part of #<父票>` 声明行。
- * parentKey 为 null 时拆掉这一行，否则幂等写上这一行，再回读归一。
+ * 挂亲缘：子票归属的唯一真相是它自己文件头里的隐藏标记 `<!-- DSH-PARENT: <父票> -->`。
+ * parentKey 为 null 时拆掉这一行，否则幂等写上这一行，再回读归一并核对语义（写后读回的
+ * parentKey 对不上要写的就回 conflict，不把“写丢了”包装成成功）。旧 `Part of #<父票>` 可见行
+ * 在写时顺手置换掉，不再新增。
  * 不再 POST 任何 links：`relates_to` 是对称的平级关联，分不出哪一头是父。
  *
  * @param ctx 调用上下文（opCtx 缺时顶上）
@@ -79,7 +81,7 @@ export async function setParent(
     }
     const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
     if (parentKey === null) {
-      const newBody = rewriteDescriptionWithPartOf(
+      const newBody = rewriteDescriptionWithHiddenParent(
         String((curRaw as RawBag)['description'] || (curRaw as RawBag)['body'] || ''),
         null,
       )
@@ -100,7 +102,7 @@ export async function setParent(
       // 自环先判：结论是「入参自己和自己打架」，不是外部来源说了什么，所以原文给这次入参快照。
       if (pk === k) return fail(ERROR_KIND.CONFLICT as ErrorKind, 'conflict: self-parent', JSON.stringify({ key: k, parentKey: pk }))
       const oldBody = String((curRaw as RawBag)['description'] || (curRaw as RawBag)['body'] || '')
-      const newBody = rewriteDescriptionWithPartOf(oldBody, pk)
+      const newBody = rewriteDescriptionWithHiddenParent(oldBody, pk)
       if (newBody !== oldBody) {
         // PUT 整篇 description（换行原样发，不转义：读回来的归一靠真实换行认行）。
         const res = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `description=${newBody}`], { timeout: GITLAB_READ_TIMEOUT_MS })
@@ -112,6 +114,12 @@ export async function setParent(
     }
     const raw = ((await (fetchRawIssue as (c: unknown, i: string, kk: string) => Promise<unknown>)(effective, id, k)) as RawBag) || {}
     const issue = normalizeIssue(raw)
+    // 写后语义核对：读回的归属必须等于要写的（null 表示拆干净）。对不上说明远端没落盘
+    // 或并发改了，如实回 conflict——调用方凭原文（回读到的票面）自己核对远端现在是什么。
+    const want = parentKey === null ? null : String(parentKey)
+    if (issue.parentKey !== want) {
+      return fail(ERROR_KIND.CONFLICT as ErrorKind, `conflict: parent write readback mismatch (want ${want === null ? '无' : '#' + want} got ${issue.parentKey === null ? '无' : '#' + issue.parentKey})`, JSON.stringify(raw))
+    }
     return { ok: true, data: issue }
   } catch (err: unknown) {
     // 原文 = 抛上来的那个 Error 对象本身。

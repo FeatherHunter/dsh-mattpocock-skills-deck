@@ -53,7 +53,7 @@ export const GITLAB_CAPABILITY_REGISTER = {
   setLabelColors: { tier: 'provided' },
   getCurrentUser: { tier: 'provided' },
   getRepoPermissions: { tier: 'provided' },
-  // 这一条读的是票正文顶部的 `Part of #<地图>` 声明行（setParent 建票/挂载时写下），不是原生子票 ——
+  // 这一条读的是票文件头的隐藏标记 `<!-- DSH-PARENT: <地图> -->`（setParent 建票/挂载时写下），不是原生子票 ——
   // 「能读回来」这件事成立，但读回来的东西叫什么要看清，理由见 md 表与交接说明。
   listSubIssues: { tier: 'provided' },
   initProject: { tier: 'provided' },

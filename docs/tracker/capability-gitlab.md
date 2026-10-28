@@ -19,15 +19,15 @@
 | update | 明确提供功能 | `issues.ts`，改票 |
 | setLabels | 明确提供功能 | `labels.ts`，给票改标签（milestone 分流见 `#135`） |
 | setAssignees | 明确提供功能 | `graph.ts`，改认领 |
-| setParent | 明确提供功能 | `graph-membership.ts`，**落在票正文顶部的 `Part of #<地图>` 声明行**——归属的唯一真相是子票自己写下的这一行，建票时带 `parentKey` 直接写进去，挂载/拆除走同一行（幂等改写）；不再写任何 links（`relates_to` 是对称的平级关联，分不出哪一头是父，链上它反而污染归属）。原生层级在 work items 那条路上，入口是界面与 GraphQL，本房不走 |
-| setBlockedBy | 明确提供功能 | `graph-blocking.ts`，阻塞边走原生 `is_blocked_by`：有能力就逐条真写（POST 加、DELETE 删，删边拿链接自己的 `issue_link_id`）、写后读回核对；免费档常拿不到原生能力，滚回干净后才回落到正文首行的降级写法。读的顺序是原生优先、没有读那一行，对端开关状态逐张落实 |
+| setParent | 明确提供功能 | `graph-membership.ts`，**落在票文件头的隐藏标记 `<!-- DSH-PARENT: <地图> -->`**——归属的唯一真相是子票自己写下的这一行，建票时带 `parentKey` 直接写进去，挂载/拆除走同一行（幂等改写，写后读回核对语义）；旧 `Part of #<地图>` 可见行退役（过渡期回退认，写时置换）。不再写任何 links（`relates_to` 是对称的平级关联，分不出哪一头是父，链上它反而污染归属）。原生层级在 work items 那条路上，入口是界面与 GraphQL，本房不走 |
+| setBlockedBy | 明确提供功能 | `graph-blocking.ts`，阻塞边走原生 `is_blocked_by`：有能力就逐条真写（POST 加、DELETE 删，删边拿链接自己的 `issue_link_id`）、写后读回核对；免费档常拿不到原生能力，滚回干净后才回落到正文的成对降级写法（人读的 `Blocked by:` 行 + 程序读的机器表 `<!-- DSH-BLOCKED-BY: ... -->`，一次写齐）。读的顺序是原生优先、没有读机器表、再没有读可见行，对端开关状态逐张落实 |
 | counts | 明确提供功能 | `counts.ts`，走 `issues_statistics` 拿三个数 |
 | listPage | 明确提供功能 | `pages.ts`，分页读票 |
 | listLabels | 明确提供功能 | `labels-ops.ts`，翻页拉全，取不全就整体失败 |
 | setLabelColors | 明确提供功能 | `labels-ops.ts`，逐条改色、逐条记账；GitLab 只有单个 `color` 字段，没有 GitHub 那种前景/背景双色 |
 | getCurrentUser | 明确提供功能 | `identity-ops.ts`，`glab api user` |
 | getRepoPermissions | 明确提供功能 | `identity-ops.ts`，读 `permissions` 里的 access level 折算 push / triage |
-| listSubIssues | 明确提供功能 | `sub-issues.ts`，读票正文顶部的 `Part of #<地图>` 声明行（**不是远端认的层级子条目**，见下面的实话）：有这一行就是子票，没有就不是，不猜、不按 links 方向推断；翻页扫仓，拿不全就整体失败 |
+| listSubIssues | 明确提供功能 | `sub-issues.ts`，读票文件头的隐藏标记 `<!-- DSH-PARENT: <地图> -->`（**不是远端认的层级子条目**，见下面的实话；旧 `Part of` 行过渡期回退认）：有标记就是子票，没有就不是，不猜、不按 links 方向推断；翻页扫仓，拿不全就整体失败 |
 | initProject | 明确提供功能 | `init-project.ts`，`glab repo create` + git 初始化 |
 | ensureLabelColorsFile | 明确不支持 | 这条能力承诺的是「在工作区放一份用户可以手改、**改了就生效**的标签配色文件」。GitLab 这一家的颜色真源是远端仓库的标签，工作区里那份文件没有任何读者，手改也不会影响颜色——放一份改了不算数的文件只会误导人，属于形态不合。要读颜色用 `listLabels`，要改颜色用 `setLabelColors`。理由与 GitHub 那家同一条，见 `capability-github.md` 的变更段。 |
 | readBudget | 明确提供功能 | 规格 1439 新增、#1446 落地：`budget.ts` 经 `glab api --include` 读响应头里的 `RateLimit-Limit` / `RateLimit-Remaining`，只读不花；量不到时回「读数未知」并带原因（没装 glab 记 not-measured，请求失败或响应头缺数记 unavailable），不回 0、不抛。 |
@@ -42,6 +42,7 @@
 
 ## 变更
 
+- 2026-10-28（`#1599` 落地、`#1176` 拍板）：亲缘与阻塞回退改用文件头隐藏标记——归属唯一真相换成 `<!-- DSH-PARENT: <地图> -->`（旧 `Part of #<地图>` 可见行退役，只回退认；只认文件头，正文中间手写的不算）；阻塞回退换成成对写法（可见 `Blocked by:` 行 + 机器表 `<!-- DSH-BLOCKED-BY: ... -->`，读侧机器表优先）；`setParent` 加写后语义核对。档位不变，仍是三条明确提供功能。
 - 2026-10-23（规格 #1439、#1446 落地）：新增第 26 条能力 `readBudget`，登记为「明确提供功能」——`budget.ts` 经 `glab api --include` 读响应头里的请求桶水位，量不到时回未知并带原因（没装 glab 记 not-measured，请求失败或响应头缺数记 unavailable），不回 0、不抛。本表按新的总数与档位订正导语与表头：GitLab 25 条真提供、1 条按设计明确不支持，名录上不再有要靠注册表补桩的能力。
 - 2026-10-14（地图 10 开发票 `#1064`）：**9 条由「当前不支持、未来会开发」改成「明确提供功能」，1 条改判成「明确不支持」，1 条定位口补上。**
 
@@ -53,7 +54,7 @@
 
 ## 两条不能忘的实话
 
-- `listSubIssues` 在 GitLab 上读的是子票自己正文顶部的 `Part of #<地图>` 声明行，不是远端认的层级子条目。人手工加的 `relates_to` 关联不参与归属判定。拿到的东西能用来画关系，但别把它当成原生层级去用。
+- `listSubIssues` 在 GitLab 上读的是子票自己文件头的隐藏标记 `<!-- DSH-PARENT: <地图> -->`，不是远端认的层级子条目。人手工加的 `relates_to` 关联不参与归属判定。拿到的东西能用来画关系，但别把它当成原生层级去用。
 - GitLab 平台有原生的父子层级（work items 那条路，入口是界面与 GraphQL），但本房不走那条路；免费档的阻塞原生能力也常常拿不到，拿不到时按登记表与代码注释回落到正文行。不要把声明行说成原生层级，也不要把「本房这条路拿不到」说成「GitLab 做不到」。
 
 ## 交接

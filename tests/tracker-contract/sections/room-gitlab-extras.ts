@@ -25,8 +25,9 @@
  *      Guest(10) 两个 false、Planner(15) 能整理票不能推、Reporter(20) 同上、
  *      Security Manager(25) 同上、Developer(30) 能推；两格都有时取高的那一档；
  *      拿不到档位（没有 `permissions`、两格都 null）时如实失败，**不许拿 false 顶上**。
- *   3）`listSubIssues`：读的是**翻页列表**（`.../issues?per_page=100&page=N`），子票的唯一判据是正文里的
- *      `Part of #<地图>` 声明行；没写这一行的（@ 了地图、别家地图的子票）不画；缺编号、形状不对、归一抛错的
+ *   3）`listSubIssues`：读的是**翻页列表**（`.../issues?per_page=100&page=N`），子票的唯一判据是文件头里的
+ *      隐藏归属标记 `<!-- DSH-PARENT: <地图> -->`（#1599 起；旧 `Part of #<地图>` 可见行过渡期回退认）；
+ *      没写这一行的（@ 了地图、别家地图的子票）不画；缺编号、形状不对、归一抛错的
  *      记 `dropped`；有候选行却一行都没能算进去时如实失败，**不许回一张空表**（「读不出来」与「真的没有子票」
  *      必须长得不一样）；links 表一次都不碰（`relates_to` 是对称的平级关联，分不出谁是父）。
  *   4）`initProject`：按名字与可见性建仓，两个可见性值都真的出现在发出去的命令里（省略时显式 `--private`）；
@@ -40,7 +41,7 @@
  * ── 反例（✗ probe）怎么自证 ──────────────────────────────────────────────────
  * 五条能力各配一个**检查器**（下面那几个具名导出）：检查器接收「一次调用的结果」，返回违规清单，
  * 空清单 = 这一趟合规。正例是「拿真结果喂检查器 → 清单为空」；✗ 反例是「把故意做坏的样本喂给同一个
- * 检查器 → 清单必须非空」，坏样本就是审查报告点名的那些坏法：只取前两段路径、把没写声明行的票算进来、
+ * 检查器 → 清单必须非空」，坏样本就是审查报告点名的那些坏法：只取前两段路径、把没写归属标记的票算进来、
  * 拿旧门槛 20 判 triage、把 read 不出来画成空表/假成功/编一个人等等。
  *
  * ── getRepoPermissions 的档位依据（一手来源，2026-10-15 本机实拉）───────────────
@@ -57,9 +58,9 @@
  *     真的建仓/推送的副作用，本段都判不了；
  *   · `?simple=true` 这个参数在单项目接口上到底认不认（源码级已核实、没真发过请求）—— 本段只钉
  *     「问的是这个项目的这条路径」，不钉远端怎么回；
- *   · 人手工在界面上加的「关联」链接与程序写下的链接在远端长得一样 —— 但归属判据只有正文里的
- *     `Part of #<地图>` 声明行，links 表一次都不认，所以「手工链接该不该算子票」这个问题已经不存在，
- *     本段只钉「没写声明行的票不画」。
+ *   · 人手工在界面上加的「关联」链接与程序写下的链接在远端长得一样 —— 但归属判据只有文件头的
+ *     隐藏标记（旧可见行过渡期回退认），links 表一次都不认，所以「手工链接该不该算子票」这个问题已经不存在，
+ *     本段只钉「没写归属标记的票不画」。
  */
 
 import * as nodePath from 'node:path'
@@ -445,18 +446,18 @@ export async function run() {
     )
   }
 
-  // ── 三、listSubIssues：翻页扫仓、只认正文里的 `Part of #<地图>` 声明行，links 表一次都不碰 ──
+  // ── 三、listSubIssues：翻页扫仓、只认文件头的隐藏归属标记（旧可见行回退认），links 表一次都不碰 ──
   {
     const MAP_KEY = '7'
     const LIST_PAGE1 = 'projects/acme%2Fdemo/issues?per_page=100&page=1&with_labels_details=true'
     // 五行各代表一种情形（顺序即列表接口的返回顺序）：
-    //   21 写了 `Part of #7` → 画出来
-    //   30 正文里 @ 了地图、但没写声明行 → 不是子票，不画
-    //   40 写的是别家地图的声明行（`Part of #9`）→ 不画
+    //   21 写了隐藏归属标记 → 画出来（#1599 起新写的票都是这个形状）
+    //   30 正文里 @ 了地图、但没写归属标记 → 不是子票，不画
+    //   40 写的是别家地图的旧声明行（`Part of #9`）→ 不画
     //   缺编号那行（只有 id、没有 iid）→ 算不进去，记 dropped
-    //   22 只有幂等锚、声明行与一行正文 → 照样认（判据只看声明行，不看正文多少）
+    //   22 只有幂等锚与旧声明行 → 回退认，照样画（存量票双读可用）
     const ROWS = [
-      { iid: 21, title: '子票甲', state: 'opened', description: 'Part of #7\n\n子票甲的正文', labels: ['wayfinder:task'] },
+      { iid: 21, title: '子票甲', state: 'opened', description: '<!-- DSH-PARENT: 7 -->\n\n子票甲的正文', labels: ['wayfinder:task'] },
       { iid: 30, title: '只是 @ 了地图', state: 'opened', description: '这里 @ 了 #7，但没写声明行', labels: [] },
       { iid: 40, title: '别家地图的子票', state: 'opened', description: 'Part of #9\n\n归属是另一张地图', labels: ['wayfinder:task'] },
       { id: 55, title: '缺编号的行', state: 'opened', description: 'Part of #7\n\n编号这一格是空的' },
@@ -476,7 +477,7 @@ export async function run() {
     const r = await withGitlabTracker((t) => t.listSubIssues(GL_REPO, MAP_KEY, undefined, sc.ctx))
     const expect = { keys: ['21', '22'], dropped: 1 }
     await assert(
-      'listSubIssues：只画写着 `Part of #7` 的行；@ 了地图、别家地图的子票都不画；缺编号的行记 dropped',
+      'listSubIssues：只画归属是 #7 的行（隐藏标记优先、旧声明行回退认）；@ 了地图、别家地图的子票都不画；缺编号的行记 dropped',
       subIssuesCheck(r, expect).length === 0,
       subIssuesCheck(r, expect).join('；') || JSON.stringify(r).slice(0, 500),
     )
@@ -490,9 +491,9 @@ export async function run() {
     const sample = r.ok ? r.data : {}
     const doctored = (patch) => ({ ok: true, data: Object.assign({}, sample, patch) })
     await assert(
-      '✗ probe: 把没写声明行的票（30）也算成子票的结论必须被逮住',
+      '✗ probe: 把没写归属标记的票（30）也算成子票的结论必须被逮住',
       subIssuesCheck(doctored({ items: [{ key: '21' }, { key: '22' }, { key: '30' }] }), expect).length > 0,
-      '检查器放过了没写声明行的行',
+      '检查器放过了没写归属标记的行',
     )
     await assert(
       '✗ probe: 把别家地图的子票（40）也算进来的结论必须被逮住',
@@ -954,8 +955,8 @@ export async function run() {
         JSON.stringify(writesOf(sc)),
       )
       await assert(
-        'setBlockedBy：回退写行用真换行（行是 `Blocked by: #2`，后面跟原来的多行正文，不出现字面反斜杠 n）',
-        putBody.indexOf('Blocked by: #2\n\n第一行\n\n第三行') === 0 && putBody.indexOf('\\n') < 0,
+        'setBlockedBy：回退写行用真换行（成对两行 `Blocked by: #2` + 机器表，后面跟原来的多行正文，不出现字面反斜杠 n）',
+        putBody === 'Blocked by: #2\n<!-- DSH-BLOCKED-BY: 2 -->\n第一行\n\n第三行' && putBody.indexOf('\\n') < 0,
         JSON.stringify(putBody),
       )
     }

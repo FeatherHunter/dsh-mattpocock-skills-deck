@@ -1,4 +1,4 @@
-// graph-blocking.ts —— 以后改阻塞关系语义时改它：Blocked by 行格式、原生 blocked_by 探测、读合并写回退、环检、阻塞读写两操作。
+// graph-blocking.ts —— 以后改阻塞关系语义时改它：阻塞成对写格式、原生 blocked_by 探测、读合并写回退、环检、阻塞读写两操作。
 // 抓取底座（repoId/fetchRawIssue）暂住本文件，亲缘文件从本文件单向导入（同房互引，老门禁放行；本文件不依赖亲缘文件）。
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
@@ -8,7 +8,7 @@ import type { DepsOpts, SetOpts } from '../../contract/inputs.js'
 import type { Dependencies, OpResult } from '../../contract/results.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
-import { normalizeIssue } from './normalize.js'
+import { normalizeIssue, parseBlockedByFallback, rewriteDescriptionWithBlockedPair } from './normalize.js'
 import { failGlab } from './errors.js'
 import { issuePath, linksPath } from './queries.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
@@ -42,43 +42,8 @@ export function repoId(repo: RepoLike): string {
   return ''
 }
 
-function parseBlockedByLine(body: unknown): string[] | null {
-  if (typeof body !== 'string' || !body) return null
-  const m = body.match(/^Blocked by:\s*(.+)$/m)
-  if (!m) return null
-  const line = (m[1] as string).trim()
-  if (!line) return []
-  const parts = line
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-  const out: string[] = []
-  const seen = new Set<string>()
-  for (const p of parts) {
-    const mm = p.match(/#(\d+)\s*$/)
-    const key = mm ? (mm[1] as string) : p.replace(/^#/, '').trim()
-    if (!key || seen.has(key)) continue
-    seen.add(key)
-    out.push(key)
-  }
-  return out
-}
-
-function buildBlockedByLine(keys: string[]): string {
-  if (!keys || keys.length === 0) return ''
-  return `Blocked by: ${keys.map((k) => `#${k}`).join(', ')}`
-}
-
-function rewriteDescriptionWithBlockedBy(oldBody: string | null | undefined, keys: string[]): string {
-  const body = oldBody || ''
-  const line = buildBlockedByLine(keys)
-  if (/^Blocked by:\s*.+$/m.test(body)) {
-    if (!line) return body.replace(/^Blocked by:\s*.+$/m, '').replace(/^\n+/, '')
-    return body.replace(/^Blocked by:\s*.+$/m, line)
-  }
-  if (!line) return body
-  return line + (body ? '\n\n' + body : '')
-}
+// 正文阻塞读写不自立认法：回退读（机器表优先、可见行兜底）与成对写的形状都在 description-markers.ts 一处，
+// 读回退、环检快照、回退写三处都调同一份，避免认法分叉。
 
 /**
  * 按 iid 拉一张票的原始形状：成功回票面，失败抛带原文的错以便上层归一。
@@ -246,7 +211,7 @@ async function buildBlockMap(
         for (const it of arr as RawBag[]) {
           const kk = String(it['iid'])
           if (!kk) continue
-          const line = parseBlockedByLine(it['description'] || '')
+          const line = parseBlockedByFallback(it['description'] || '')
           if (line) map.set(kk, line)
           else if (Array.isArray(it['blocked_by']) && (it['blocked_by'] as RawBag[]).length) {
             map.set(kk, (it['blocked_by'] as RawBag[]).map((b) => String(b['iid'])))
@@ -390,17 +355,17 @@ export async function getDependencies(
         blockedKeys = probe.native.map((b) => String(b['iid'] || b['target_issue_iid'] || b['key'] || ''))
       } else if (probe.nativeEmpty) {
         // 原生空但可达 → 按#144合并策略：原生有值忽略回退，原生空时只用回退？此处links可达但blocking原生不可达，仍用回退
-        const fromLine = parseBlockedByLine((raw && (raw['description'] || raw['body'])) || '')
+        const fromLine = parseBlockedByFallback((raw && (raw['description'] || raw['body'])) || '')
         if (fromLine !== null) blockedKeys = fromLine
       } else if (probe.probeFailed) {
-        const fromLine = parseBlockedByLine((raw && (raw['description'] || raw['body'])) || '')
+        const fromLine = parseBlockedByFallback((raw && (raw['description'] || raw['body'])) || '')
         if (fromLine !== null) blockedKeys = fromLine
       } else {
-        const fromLine = parseBlockedByLine((raw && (raw['description'] || raw['body'])) || '')
+        const fromLine = parseBlockedByFallback((raw && (raw['description'] || raw['body'])) || '')
         if (fromLine !== null) blockedKeys = fromLine
       }
     } catch {
-      const fromLine = parseBlockedByLine((raw && (raw['description'] || raw['body'])) || '')
+      const fromLine = parseBlockedByFallback((raw && (raw['description'] || raw['body'])) || '')
       if (fromLine !== null) blockedKeys = fromLine
     }
 
@@ -501,9 +466,9 @@ export async function setBlockedBy(
       // 能力错误且滚回干净 → 滑进下面的正文行回退（res.raw 留给回退失败时拼原文，见下）。
     }
 
-    // 回退路径：重写 description 的 Blocked by: 行（环检已在上面两条路径共用那道门里做过，这里不再做第二次）。
+    // 回退路径：重写 description 的阻塞对（可见 Blocked by: 行 + 隐藏机器表，环检已在上面两条路径共用那道门里做过，这里不再做第二次）。
     const oldBody = String(raw['description'] || raw['body'] || '')
-    const newBody = rewriteDescriptionWithBlockedBy(oldBody, wanted)
+    const newBody = rewriteDescriptionWithBlockedPair(oldBody, wanted)
 
     const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
     // 换行按真换行发：远端存什么读回就是什么，读回的解析才对得上。旧代码在这里把换行转成字面 `\n`，

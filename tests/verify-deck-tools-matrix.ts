@@ -4,8 +4,8 @@ const { createOutboundControl } = require('../src/refresh/rooms/host/outbound-co
 //
 // 为什么要这一段：这九个工具坐在 tracker 契约之上，而三个后端表达关系的方式**不一样**：
 //   GitHub：父子是它自己的原生 sub-issues 层级，阻塞是原生 dependencies 边；
-//   GitLab：父子是票正文顶部的 `Part of #<地图>` 声明行（读回走契约的父子列），阻塞是原生 is_blocked_by 边
-//     （上限；免费档或远端说没能力时才回退到重写正文里的 Blocked by 行）；
+//   GitLab：父子是票文件头的隐藏标记 `<!-- DSH-PARENT: <地图> -->`（读回走契约的父子列，旧 Part of 行回退认），
+//     阻塞是原生 is_blocked_by 边（上限；免费档或远端说没能力时才回退到正文的成对降级写法：可见行 + 隐藏机器表）；
 //   本地 Markdown：父子写在票文件顶的注释里（例如 <!-- parentKey: 01 -->，#971 起读回与列举都认它），阻塞写进票文件正文里的 Blocked by 那一行。
 // 同一个工具调用在这三种地方会得到不同的结果。如果返回里不逐项说清落点，AI 会以为地图结构已经建好了
 // （对抗式审查里点名的那条攻击）。所以这一段把「建票 / 建整张地图骨架 / 补边 / 改票 / 读回」
@@ -40,7 +40,7 @@ const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
 /** 表格里那一格：这个动作在这个后端上落到哪里（精确说法由本文件给出，工具自己只报它看到的证据）。 */
 const PRECISE = {
   github: { parent: '原生层级（GitHub sub-issues）', block: '原生依赖边（GitHub dependencies）' },
-  gitlab: { parent: '正文声明行（Part of #<地图>，读回走契约的父子列）', block: '原生依赖边（is_blocked_by；没能力时回退正文行）' },
+  gitlab: { parent: '文件头隐藏标记（DSH-PARENT，读回走契约的父子列；旧 Part of 行回退认）', block: '原生依赖边（is_blocked_by；没能力时回退成对降级写法）' },
   // #971 起本地 Markdown 的父子以文件顶注释为承载，读回走契约的父子列（与远端同一档），不再是做不到。
   markdown: { parent: '票文件注释（本地 Markdown 的 parentKey 注释，读回走契约的父子列）', block: '正文行（票文件里的 Blocked by）' },
 }
