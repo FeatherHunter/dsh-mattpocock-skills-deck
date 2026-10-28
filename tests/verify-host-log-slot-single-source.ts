@@ -13,6 +13,7 @@
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-host-log-slot-single-source.ts
 // 只按退出码收尾，不交 GATE-RESULT（#1620 交接要求：不登记 completionRecord，避免编期望数）。
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -36,39 +37,55 @@ function countOf(text, needle) {
   while (at >= 0) { hits += 1; at = text.indexOf(needle, at + needle.length) }
   return hits
 }
-function walk(relDir, out) {
-  const abs = path.join(ROOT, relDir)
-  for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
+function walk(absDir, prefix, out) {
+  for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
     if (entry.isSymbolicLink()) continue
-    const rel = relDir + '/' + entry.name
+    const rel = prefix ? prefix + '/' + entry.name : entry.name
     if (entry.isDirectory()) {
       if (SKIP_DIRS.has(entry.name)) continue
-      walk(rel, out)
+      walk(path.join(absDir, entry.name), rel, out)
       continue
     }
     if (!entry.name.endsWith('.ts') || entry.name.endsWith('.d.ts')) continue
-    out.push(rel)
+    out.push({ rel: rel, abs: path.join(absDir, entry.name) })
   }
   return out
+}
+/** 对一棵已经收集好的文件树做「键只许在定义模块出现一次」的判定，返回定义模块命中数与违规列表。 */
+function inspect(files, defRel) {
+  let moduleHits = 0
+  const offenders = []
+  for (const file of files) {
+    const text = fs.readFileSync(file.abs, 'utf8')
+    const keyHits = countOf(text, KEY_LITERAL)
+    if (file.rel === defRel) moduleHits = keyHits
+    else if (keyHits > 0) offenders.push(file.rel + '（' + keyHits + ' 处键值字面量）')
+    // 拆成两段拼接也抓：片段只该出现在定义模块里（定义模块的键值本身含这个片段）。
+    const fragHits = countOf(text, KEY_FRAGMENT)
+    if (file.rel !== defRel && fragHits > 0) offenders.push(file.rel + "（" + fragHits + " 处 'host_log' 片段，可能是拼接键）")
+  }
+  return { moduleHits: moduleHits, offenders: offenders }
 }
 
 async function main() {
   // ── ① 静态面：src 下只有定义模块写这个键 ──
-  const files = walk('src', [])
+  const files = walk(path.join(ROOT, 'src'), 'src', [])
   check(files.length > 100, '扫到 src 下的 TypeScript 文件（' + files.length + ' 份）')
-  let moduleHits = 0
-  const offenders = []
-  for (const rel of files) {
-    const text = fs.readFileSync(path.join(ROOT, rel), 'utf8')
-    const keyHits = countOf(text, KEY_LITERAL)
-    if (rel === SLOT_MODULE) moduleHits = keyHits
-    else if (keyHits > 0) offenders.push(rel + '（' + keyHits + ' 处键值字面量）')
-    // 拆成两段拼接也抓：片段只该出现在定义模块里（定义模块的键值本身含这个片段）。
-    const fragHits = countOf(text, KEY_FRAGMENT)
-    if (rel !== SLOT_MODULE && fragHits > 0) offenders.push(rel + "（" + fragHits + " 处 'host_log' 片段，可能是拼接键）")
+  const scanned = inspect(files, SLOT_MODULE)
+  check(scanned.moduleHits === 1, '定义模块恰好写一次键值字面量（实得 ' + scanned.moduleHits + ' 处）')
+  check(scanned.offenders.length === 0, '别处没有第二份键或拼接片段（违规 ' + scanned.offenders.length + ' 处' + (scanned.offenders.length ? '：' + scanned.offenders.join('、') : '') + '）')
+
+  // ── ①b 负向自检：换一棵树，把同样的键写进第二个文件，静态面必须报红（原型建在临时目录，跑完即删） ──
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-host-log-slot-'))
+  try {
+    fs.writeFileSync(path.join(tmpRoot, 'def.ts'), 'export const K = ' + JSON.stringify(KEY_LITERAL) + '\n')
+    fs.writeFileSync(path.join(tmpRoot, 'copy.ts'), 'export const K2 = ' + JSON.stringify(KEY_LITERAL) + '\n')
+    const planted = inspect(walk(tmpRoot, '', []), 'def.ts')
+    const caught = planted.moduleHits === 1 && planted.offenders.some(function (line) { return line.indexOf('copy.ts') === 0 })
+    check(caught, '负向自检：同样的键写进第二个文件时静态面会判红')
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true })
   }
-  check(moduleHits === 1, '定义模块恰好写一次键值字面量（实得 ' + moduleHits + ' 处）')
-  check(offenders.length === 0, '别处没有第二份键或拼接片段（违规 ' + offenders.length + ' 处' + (offenders.length ? '：' + offenders.join('、') : '') + '）')
 
   // ── ② 行为面：读不到就是 null，读到就原样返回 ──
   const slotMod = await import(pathToFileURL(path.join(ROOT, SLOT_MODULE)).href)
