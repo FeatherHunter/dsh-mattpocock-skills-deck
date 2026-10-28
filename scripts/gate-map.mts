@@ -117,9 +117,10 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-27 #1571：GitHub 房间调用点的 -F/-f 写法（20 处 owner/name 逐文件点名、整型字段仍走 -F）；
   // 15 条是单跑实测得出的。
   'verify-1571-gh-flag-writing': 15,
-  // 2026-10-28 #1242：面板统计数字与 GitHub 现场的端到端对账。唯一替身是 gh 可执行程序，
-  // 注册表、GitHub 房间、会话管线、快照装配都是真件；74 条是单跑实测得出的。
-  'verify-1242-panel-numbers': 74,
+  // 2026-10-28 #1242：面板统计数字与 GitHub 现场的端到端对账。两条真路径都从原始回包走到六格：
+  // 面板主路径 wf.mapTickets（点开地图现取子票）与快照兜底路径；唯一替身是 gh 可执行程序，
+  // 注册表、GitHub 房间、会话管线、快照装配都是真件；95 条是单跑实测得出的。
+  'verify-1242-panel-numbers': 95,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

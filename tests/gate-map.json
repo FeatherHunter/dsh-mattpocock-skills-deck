@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T11:12:51.612Z",
+  "generatedAt": "2026-10-28T11:48:57.583Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 425,
   "gateCount": 425,
@@ -1924,6 +1924,7 @@
       "file": "tests/verify-1242-panel-numbers.ts",
       "guards": [
         "src/host/mapBody.ts",
+        "src/host/mapTickets.ts",
         "src/host/ticketGrouping.ts",
         "src/refresh/rooms/host/session-opener.ts",
         "src/refresh/rooms/host/snapshot-build.ts",
@@ -1937,8 +1938,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 74,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+      "expectedAssertions": 95,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
       "step": "node tests/verify-1245-plan-resume.ts",
