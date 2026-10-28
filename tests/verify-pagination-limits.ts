@@ -50,6 +50,7 @@ const EXPECTED = {
     anchorLookupSearchLimit: 20,
     anchorLookupListLimit: 100,
     depsMax: 50,
+    mapListMaxPages: 10,
   },
   gitlab: {
     limitDefault: 50,
@@ -62,6 +63,7 @@ const EXPECTED = {
     labelWriteConcurrencyMax: 4,
     labelWriteConcurrencyDefault: 4,
     anchorLookupScanLimit: 100,
+    mapListMaxPages: 10,
   },
   markdown: {
     limitDefault: 50,
