@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T16:54:02.675Z",
+  "generatedAt": "2026-10-28T17:31:49.141Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 432,
-  "gateCount": 432,
-  "attributedGates": 389,
+  "chainLength": 433,
+  "gateCount": 433,
+  "attributedGates": 390,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 19,
@@ -4340,6 +4340,27 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 10 条"
+    },
+    {
+      "step": "node tests/verify-1621-gh-missing-copy.ts",
+      "file": "tests/verify-1621-gh-missing-copy.ts",
+      "guards": [
+        "docs/agents/issue-tracker.md",
+        "src/host/publishFlow.ts",
+        "src/refresh/rooms/host/gh-execution.ts",
+        "src/tracker/rooms/github"
+      ],
+      "dirs": [
+        "docs/agents",
+        "src/host",
+        "src/refresh/rooms/host",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
       "step": "node tests/verify-1625-wf-selection-outlet.ts",
@@ -10197,6 +10218,7 @@
       "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1488-read-mixed-layout.ts",
       "node tests/verify-1522-skill-md-refs.ts",
+      "node tests/verify-1621-gh-missing-copy.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -10986,6 +11008,7 @@
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
+      "node tests/verify-1621-gh-missing-copy.ts",
       "node tests/verify-1625-wf-selection-outlet.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
@@ -11278,6 +11301,7 @@
       "node tests/verify-1584-repo-ref-for-cwd.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
       "node tests/verify-1610-parallel-read.ts",
+      "node tests/verify-1621-gh-missing-copy.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -11629,6 +11653,7 @@
       "node tests/verify-1603-map-thin-list.ts",
       "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
+      "node tests/verify-1621-gh-missing-copy.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-599-merged-pr.ts",
