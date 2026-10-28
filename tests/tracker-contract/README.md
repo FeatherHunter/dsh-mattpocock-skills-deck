@@ -99,7 +99,7 @@ node scripts/generate-github-fixtures.js --repo FeatherHunter/dsh-mattpocock-ski
 
 详见 `ONBOARDING.md`。一句话：**新增后端需提交四件**：
 
-1. `src/tracker/rooms/<id>/` 适配器（`index.ts` 导出 BackendModule，23 条操作按需实现，缺的由注册表补 `unsupported` 的桩；预算口径 `budget` 必填）
+1. `src/tracker/rooms/<id>/` 适配器（`index.ts` 导出 BackendModule，24 条操作按需实现，缺的由注册表补 `unsupported` 的桩；预算口径 `budget` 必填）
 2. `tests/tracker-contract/fixtures/<id>-real/` 采样固件 + `metadata.json`（来源/脱敏/时间/字段）
 3. `scripts/generate-<id>-fixtures.js` 生成脚本（可复现，记录来源/脱敏）
 4. `verify-tracker-contract` 集成（`tests/verify-tracker-contract.ts` 中 `runContractTests(<id>Fixture)` + `runPlayback`），并保持门禁**红线的形状**不回归：合规桩全 PASS、违规桩那 4 条预期失败都在、各行为段全 PASS（含 `sections/labels.ts` 里对着真实后端模块的探针）、`CONTRACT SKELETON OK` 且退出码 0（验收④）。断言总数每张票都会长，**不要照抄某个数字当门槛**：现值是 620 passed / 4 failed（`sections/labels.ts` 85 条），判断标准是上面这几条形状，不是数字。
