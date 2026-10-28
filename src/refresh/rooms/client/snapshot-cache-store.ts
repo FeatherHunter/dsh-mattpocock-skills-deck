@@ -25,6 +25,7 @@ declare function keepUserPick(...args: any[]): any;
 declare const React: any;
 declare const timer: any;
 declare const STORE_NOTICE_DISMISS_MS: number;
+declare const SNAPSHOT_PICKED_GUARD_MS: number;
 export const makeStore = (): any => ({
   open: false, tab: 'list', activeMap: null, activeIssue: null,
   // #552 导航栈（会话私有状态）：只存坐标不存正文，元素形状 { kind: 'map' | 'issue', n: 数字编号 }；
@@ -216,7 +217,8 @@ export const getCachedChain = function(cwd: any, backendId: any, lang: any): any
 export const getCachedChainEntry = function(cwd: any, backendId: any, lang: any): any{ try{ const k: any=getChainCacheKey(cwd, backendId, lang); const e: any=chainByCwd.get(k); return e||null; }catch(e){ return null; } }
 // #1483：第 5 个参数记产出会话号；只传 4 个参数的老调用点行为不变（条目不带 sessionId）。
 export const setCachedChain = function(cwd: any, backendId: any, lang: any, snap: any, sessionId?: any): void{ if(!cwd||!snap) return; try{ const k: any=getChainCacheKey(cwd, backendId, lang); const ent: any={snapshot:snap, ts:Date.now()}; if(sessionId !== undefined && sessionId !== null) ent.sessionId = String(sessionId); if(chainByCwd.has(k)) chainByCwd.delete(k); chainByCwd.set(k, ent); if(chainByCwd.size>CHAIN_CWD_LRU_MAX){ const first: any=chainByCwd.keys().next().value; chainByCwd.delete(first);} }catch(e){} }
-// 水合守卫：刚点的那一下不被旧缓存盖掉（#1003 接替 userPicked 标记；只看时间，不落盘）。
+// 水合守卫：刚点的那一下不被旧缓存盖掉（#1003 接替 userPicked 标记；只看时间，不落盘；
+//   保护窗多久由 config/ttl.yaml 的 snapshotPickedGuardMs 定，别在这里写第二份数字）。
 export const justPicked = function (st: any, c: any): boolean {
   try {
     const sel: any = st && st.selection
@@ -224,7 +226,7 @@ export const justPicked = function (st: any, c: any): boolean {
     const cacheMs: number = (c && typeof c.generatedMs === 'number' && c.generatedMs > 0) ? c.generatedMs : 0
     if (cacheMs > 0) return sel.pickedAt > cacheMs
     const incBid: any = c && c.selection && c.selection.backendId
-    return !!(incBid && String(incBid) !== String(sel.backendId) && (Date.now() - sel.pickedAt) < 60000)
+    return !!(incBid && String(incBid) !== String(sel.backendId) && (Date.now() - sel.pickedAt) < SNAPSHOT_PICKED_GUARD_MS)
   } catch (e) { return false }
 }
 export const hydrateFromCache = function (st: any): boolean {

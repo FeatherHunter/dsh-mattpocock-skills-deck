@@ -31,6 +31,10 @@ import type { WorkPathLedger } from './work-path-store.js';
 const SUMMARY_CLIP = 3;
 /** core 档最多带几条：再往前的条目留给 standard / full 按需取，默认回执别把几十条整表塞进来。 */
 const CORE_CLIP = 20;
+/** 单位换算：一分钟多少毫秒。不是可调时长，只把中央 YAML 的撞单窗口换算成回执里的「30 分钟」。 */
+const MINUTE_MS = 60_000;
+/** 单位换算：一小时等于 60 分钟。把中央 YAML 的在办窗口换算成摘要里的「24 小时」。 */
+const HOUR_MS = 60 * MINUTE_MS;
 
 export interface WorkPathReadoutEntry {
   ticketKey: string
@@ -270,7 +274,7 @@ export function buildWorkPathCollisionNote(readout: WorkPathReadout | null): str
     const label = String(hits[i] && hits[i].sessionLabel !== undefined ? (hits[i] as any).sessionLabel : '');
     const at = String(hits[i] && hits[i].actionAt !== undefined ? (hits[i] as any).actionAt : '');
     if (key === '' || label === '' || at === '') continue;
-    items.push('票 #' + key + ' 在 30 分钟内也被 ' + label + ' 记过（它记在 ' + at + '）');
+    items.push('票 #' + key + ' 在 ' + Math.round(WORK_ROUTE_COLLISION_WINDOW_MS / MINUTE_MS) + ' 分钟内也被 ' + label + ' 记过（它记在 ' + at + '）');
   }
   if (items.length === 0) return null;
   return '撞车提醒 · ' + items.join('；') + '，这次写仍然成功，票的状态没有变。';
@@ -297,6 +301,6 @@ export function buildWorkPathSummary(readout: WorkPathReadout | WorkPathReadoutV
     if (total > shown) text += '，其余 ' + (total - shown) + ' 条见 data.workRoute';
   }
   const stale = typeof readout.staleCount === 'number' ? readout.staleCount : 0;
-  if (stale > 0) text += '；其中 ' + stale + ' 条超过 1 天未动';
+  if (stale > 0) text += '；其中 ' + stale + ' 条超过 ' + (WORK_ROUTE_ACTIVE_WINDOW_MS / HOUR_MS) + ' 小时未动';
   return text;
 }

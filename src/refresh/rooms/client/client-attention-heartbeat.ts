@@ -11,14 +11,15 @@
  * ④ 把宿主回话里的探测间隔与处境交给同一闭包的探测循环，界面自己不做判断。
  *
  * 心跳间隔来自契约层 SYNC.ATTENTION_HEARTBEAT_MS（与预算同一个数同源，
- * 客户端半边不 import 核心产物）。静默阈值住中央 config/ttl.yaml 的 attentionExpiryMs。
+ * 客户端半边不 import 核心产物）。静默阈值住中央 config/ttl.yaml 的 attentionExpiryMs，
+ * 人走开的判据住同一份 YAML 的 attentionHumanInputWindowMs。
  * 本文件为模块真源，同名 .js 是构建产物，构建侧去掉行首 export 后拼回闭包。
  *
  * 反例：不要把窗口身份放 localStorage；不要在心跳里顺手做探测判断；
  * 中央时间参数走顶部单行真引用（构建剥离后由闭包另一片提供，单行是硬要求），
  * 其余跨闭包名字一律 declare，不要加 export default。
  */
-    import { ATTENTION_EXPIRY_MS, ATTENTION_HEARTBEAT_MS } from '../../../shared/time-config/values.js'
+    import { ATTENTION_EXPIRY_MS, ATTENTION_HEARTBEAT_MS, ATTENTION_HUMAN_INPUT_WINDOW_MS } from '../../../shared/time-config/values.js'
 // 跨闭包的值引用按仓里规矩写模块级 declare（实现只在拼好的闭包里有一份，类型检查各看各的）。
 declare const host: any;
 declare const stores: any;
@@ -171,14 +172,15 @@ export const attentionStandingOf = function (cwd: any): string {
 };
 /**
  * 20 秒一次的本地心跳。零配额、不出网那一半说的是「它不引发任何探测」：它只上报事实。
- * 三条门在源头上就把它掐掉 —— 面板不可见、窗口不在前台、最近一分钟没有任何人类输入（人走开了的窗口
- * 不该靠心跳一直霸着活跃名额）。三条任何一条不成立，连 host.call 都不发。
+ * 三条门在源头上就把它掐掉 —— 面板不可见、窗口不在前台、最近一段时间没有任何人类输入（人走开了的窗口
+ * 不该靠心跳一直霸着活跃名额；这段判据值见 config/ttl.yaml 的 attentionHumanInputWindowMs）。
+ * 三条任何一条不成立，连 host.call 都不发。
  */
 export const attentionBeat = function (): void {
   try {
     if (!attentionVisible()) return;
     try { if (typeof document !== 'undefined' && typeof document.hasFocus === 'function' && !document.hasFocus()) return; } catch (eF) {}
-    if (!_attentionHumanAt || (Date.now() - _attentionHumanAt) > 60000) return;
+    if (!_attentionHumanAt || (Date.now() - _attentionHumanAt) > ATTENTION_HUMAN_INPUT_WINDOW_MS) return;
     _attentionLastBeatAt = Date.now();
     reportWorkspaceAttention(null, 'heartbeat', null);
   } catch (e) {}
