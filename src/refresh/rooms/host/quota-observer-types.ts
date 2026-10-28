@@ -10,12 +10,14 @@
  *   - 类型与常量是 quota-observer.ts 与 tests/verify-log-1627.ts 的共同尺子，改字段先改票面字段表。
  */
 
-/** 一分钟后落一行汇总、以及滚动一小时的窗口，都以毫秒为单位，不引任何时间配置。 */
+import { QUOTA_INCIDENT_DEDUPE_MS, QUOTA_RECOVER_QUIET_MS } from '../../../shared/time-config/src/values.js'
+
+/** 一分钟后落一行汇总、以及滚动一小时的窗口，都以毫秒为单位；这个 60_000 只是把分钟折成毫秒的换算，不是旋钮。 */
 export const MINUTE_MS = 60_000
-/** 同一个限流类别 60 秒内只写一次 incident，避免一次风暴刷出几十行同样的告警。 */
-export const INCIDENT_DEDUPE_MS = 60_000
-/** 最近一次限流失败之后安静 30 秒、第一个成功操作算恢复：比这更短的「成功」说明还在半开试探。 */
-export const RECOVER_QUIET_MS = 30_000
+/** 同一个限流类别 60 秒内只写一次 incident，避免一次风暴刷出几十行同样的告警；秒数住 config/intervals.yaml（quotaIncidentDedupeMs）。 */
+export const INCIDENT_DEDUPE_MS = QUOTA_INCIDENT_DEDUPE_MS
+/** 最近一次限流失败之后安静 30 秒、第一个成功操作算恢复：比这更短的「成功」说明还在半开试探；秒数住 config/intervals.yaml（quotaRecoverQuietMs）。 */
+export const RECOVER_QUIET_MS = QUOTA_RECOVER_QUIET_MS
 /** 每次事故最多旁证 40 个在飞调用（票面硬上限）。 */
 export const DETAIL_MAX = 40
 /** top 字段最多 200 字符（票面硬上限），超长只截断、不丢整行。 */

@@ -198,6 +198,9 @@ const KEYS: Array<[string, string, string]> = [
   ['laneWaitLogIntervalMs', 'LANE_WAIT_LOG_INTERVAL_MS', 'intervals'],
   // #1627：deck 工具回执「慢」的日志判据（3 秒），只参与判断，不是等待上限。
   ['toolReceiptSlowMs', 'TOOL_RECEIPT_SLOW_MS', 'intervals'],
+  // #1627：配额与限流诊断的两个判定窗（告警去重 60 秒 / 恢复安静 30 秒），只参与判断，不改任何出站行为。
+  ['quotaIncidentDedupeMs', 'QUOTA_INCIDENT_DEDUPE_MS', 'intervals'],
+  ['quotaRecoverQuietMs', 'QUOTA_RECOVER_QUIET_MS', 'intervals'],
   // —— ttl：有效期 ——
   ['preflightTtlMs', 'PREFLIGHT_TTL_MS', 'ttl'],
   ['chainAllGreenTtlMs', 'CHAIN_ALL_GREEN_TTL_MS', 'ttl'],

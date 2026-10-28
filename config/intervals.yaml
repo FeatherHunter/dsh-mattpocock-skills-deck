@@ -100,6 +100,12 @@ intervals:
   # 陈旧判定（见 ttl 那一档的 buildLockStaleMs）按心跳的新鲜度来，所以这一档必须远小于那一档（#1365）。
   buildLockHeartbeatMs: 15000
 
+  # —— 配额与限流诊断的判定窗（#1627）——
+  # 同一限流类别的告警去重窗：60 秒。同一个 rateClass 60 秒内只写一条 quota.incident。
+  quotaIncidentDedupeMs: 60000
+  # 「恢复」的安静窗：30 秒。最后一次限流失败之后连续安静这么久、又见到第一个成功操作，才记一条 quota.recover。
+  quotaRecoverQuietMs: 30000
+
   # —— 宿主出站排队段的日志节流（#1101）——
   # 排队放行时「等了很久」的常驻轨迹门槛：3 秒。低于它不记，免得正常波形也变成日志。
   laneLongWaitLogMs: 3000
