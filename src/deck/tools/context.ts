@@ -157,9 +157,11 @@ export function createDeckContext(deps?: DeckContextDeps) {
       const listed = (thin !== null && !thinUnsupported) ? thin : await t.list(repo, { type: 'map' }, opCtx)
       const perm = await permP
       // 实际用量：薄行口成功时按它自报的量记（按实际页数），其余情况沿用老口径。
-      const thinUsage = (listMapsUsed && listed && listed.ok === true) ? listed.usage : null
-      const mapClaimed = (thinUsage && typeof thinUsage.requests === 'number' && typeof thinUsage.points === 'number')
-        ? { requests: thinUsage.requests, points: thinUsage.points }
+      // 回执的用量形状未知，先收成未知再按数字校验，避免直接读不存在的字段。
+      const rawUsage: unknown = (listMapsUsed && listed && listed.ok === true) ? (listed as { usage?: unknown }).usage : null
+      const usageObj: { requests?: unknown; points?: unknown } = (rawUsage !== null && typeof rawUsage === 'object') ? (rawUsage as { requests?: unknown; points?: unknown }) : {}
+      const mapClaimed = (typeof usageObj.requests === 'number' && typeof usageObj.points === 'number')
+        ? { requests: usageObj.requests, points: usageObj.points }
         : { requests: 3, points: 2 }
       const preTimeout = timeoutMessage(pre as TransportResult)
       if (preTimeout) return {
