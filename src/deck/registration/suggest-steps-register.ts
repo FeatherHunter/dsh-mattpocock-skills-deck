@@ -39,15 +39,21 @@ export interface SuggestRegisterDeps {
 // 键、槽的形状与读取规则都住在 src/shared/host-log-slot.ts，这里不再写第二份字面量（#1620 的
 // 毛病就是改一处漏一处）。登记发生在启动早期：工具行多数组装可能早于宿主入口那次动态 import
 // 解析，槽那时还没建好——所以一次读不到不代表永远读不到，兜底口在后台按固定退避重读几次。
-// 窗口有上限（4 次 × 中央退避窗 HOST_LOG_SLOT_RETRY_MS，总计不超过 500ms）：fire 立刻返回，等待只
-// 发生在后台；窗口过完还读不到就只丢这一行。日志可缺，登记与工具执行不能受影响（#1620 复审 Blocking-2）。
+// 最多重读 HOST_LOG_RETRY_TIMES 次、每次等一个中央退避窗 HOST_LOG_SLOT_RETRY_MS：fire 立刻返回，
+// 等待只发生在后台；窗口过完还读不到就只丢这一行。日志可缺，登记与工具执行不能受影响（#1620 复审 Blocking-2）。
+//
+// 这里有意不拿存活租约（ADR 20261014 的例外，理由是本文件门禁己6）：这几次等待只是尽力补记一行
+// 诊断日志，不是「没有它这趟就算没跑完」的活；一旦拿租约，每次 fire 都会把进程多留最多 500ms，
+// tests/verify-1114-timer-exit.ts 的「建议工具登记完成后进程里不留 Timeout」会当场红。日志投递
+// 只随进程存活，进程先退出就安静丢掉这一行——这比把登记与工具链的退出时间往后拖更合适。
 const HOST_LOG_RETRY_TIMES = 4
 
 /** 兜底口：每次 fire 都从共享模块读槽，读到后按日志库的开关决定记不记。 */
 function hostLogBridge(): SuggestRegisterLogLike {
   return {
     fire: function (level: string, event: string, fields: UnknownRecord): void {
-      // 有意不 await：兜底口不能拖慢登记与工具执行，重读全在后台。
+      // 有意不 await：兜底口不能拖慢登记与工具执行，重读全在后台。也不拿存活租约（见上方说明）：
+      // 日志投递只随进程存活，进程先退出就丢掉这一行，不反过来决定进程何时能退。
       void deliverHostLog(level, event, fields, 0)
     },
   }

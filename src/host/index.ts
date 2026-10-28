@@ -337,7 +337,7 @@ export default {
     // ---- #490 底座 + #564 切包 + #1374 进程单例 + #1620 槽只定义一处：全进程一份（globalThis 唯一一份），服务活委托跟当前装配走 ----
     let _slotMod: any = null
     async function _log(): Promise<any> {
-      if (!_slotMod) { try { _slotMod = await import('../shared/host-log-slot.js') } catch (eP) { const eC: any = new Error('[log] dsh-log 包不可用，日志已禁用，不回退旧实现（#1143）：' + String((eP as any)?.message || eP)); eC.cause = eP; throw eC } }
+      if (!_slotMod) { try { _slotMod = await import('../shared/host-log-slot.js') } catch (eP) { const eC: any = new Error('[log] 宿主日志槽模块不可用，日志已禁用，不回退旧实现（#1143）：' + String((eP as any)?.message || eP)); eC.cause = eP; throw eC } }
       const H = _slotMod.ensureHostLogSlot()
       H.svc = { fs: fs, timer: timer, gc: function (...a: any[]) { return getCacheDir.apply(null, a) }, gp: function (...a: any[]) { return getPlatform.apply(null, a) }, st: _settings, cwd: DEFAULT_CWD };
       if (H.p) return H.p;
