@@ -3,7 +3,7 @@ import type { BackendModule } from '../../contract/backend-module.js'
 import type { RepositoryRef, Issue, Comment, LabelColor } from '../../contract/entities.js'
 import type { OpContext, RepoHandle } from '../../contract/contexts.js'
 import type { Actor } from '../../contract/identity.js'
-import type { OpResult, PreflightResult, Counts, PageResult, Dependencies, RepoPermissions, SubIssueList, LabelColorsFilePlacement, LabelColorBatchResult } from '../../contract/results.js'
+import type { OpResult, PreflightResult, Counts, PageResult, Dependencies, RepoPermissions, SubIssueList, LabelColorsFilePlacement, LabelColorBatchResult, MapListResult } from '../../contract/results.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { readTextFile, exists } from './read.js'
 // #1572：认领与判定层共用同一套声明解析器（GitLab 房 #1555 已是这条口径），避免同一个文件两处各答一套。
@@ -13,6 +13,8 @@ import { runWorkspaceChecks, workspaceCheckLabel } from './workspace-checks.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setBlockedByIssue, setAssigneesIssue, setParentIssue, setLabelsIssue } from './issues.js'
 import { countIssues } from './counts.js'
 import { listIssuesPage } from './page.js'
+// #1605：地图薄查真实现（此前 planned，注册表补桩；今天起走真实现）。
+import { listMaps } from './maps.js'
 import { getDependenciesForKey } from './graph.js'
 import { addComment } from './comments.js'
 import { listLabels, setLabelColors } from './label-colors-ops.js'
@@ -32,7 +34,7 @@ import type { PartiallyProvidedCapability, ProvidedCapability, StubbedByBackend 
 // `import type` 取登记数据：转译后不留运行时引用（理由与 GitHub 房那处相同，见 rooms/github/backend.ts）。
 import type { MARKDOWN_CAPABILITY_REGISTER } from './capability-register.js'
 
-// —— Markdown 交出来的成员：23 条能力 + id（读预算自 #1446 起「明确提供功能」，随本条进成员集合） ——
+// —— Markdown 交出来的成员：24 条能力 + id（读预算自 #1446 起「明确提供功能」，地图薄行自 #1605 起进成员集合） ——
 // 这份集合不再手写，从本房的登记数据推出来：明说「提供」的名字、明说「做了但没做到位」的名字（#1174 第四档，
 // 它们的实现是有的），再加上「明确不支持、但后端自己在实例上补了显式桩」的那 4 条（登记里 `stubBy: 'backend'`）。
 // 定位口要摘掉两条：本后端只有 `describe` / `issueAddress` 住在模块对象上（`markdownModule`）、不在工厂实例上，
@@ -280,6 +282,8 @@ export function createMarkdownBackend(ctx: OpContext) {
     // #691：本地 Markdown 补上契约的 listPage（按「创建时间倒序」切一页票行 + 同口径总数）。
     // 语义见 tracker/contract-page.js 的「分页契约」；本后端的游标是「排好序的票行列表里的下标」。
     listPage:(repo,filter,opts,opCtx)=>asOpResult<PageResult>(listIssuesPage(opCtx||ctx,repo,filter,opts)),
+    // #1605 地图薄查：纯地图筛的列表走这条快速路（与 list 共用同一份枚举，不读正文）。
+    listMaps:(repo,opCtx)=>asOpResult<MapListResult>(listMaps(opCtx||ctx,repo)),
     get:(repo,key,opts,opCtx)=>asOpResult<Issue>(getIssue(opCtx||ctx,repo,key,opts)),
     getDependencies:(repo,key,opts,opCtx)=>asOpResult<Dependencies>(getDependenciesForKey(opCtx||ctx,repo,key,opts)),
     create:(repo,input,opCtx)=>asOpResult<Issue>(createIssue(opCtx||ctx,repo,input)),

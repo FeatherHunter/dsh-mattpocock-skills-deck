@@ -21,7 +21,7 @@
  */
 import type { CapabilityRegister } from '../../contract/capability-answer.js'
 
-/** 本地 Markdown 后端：27 条里 19 条真提供（含 #1446 落地的读预算）、3 条做了但有对不上的输入、4 条明确不支持（后端自己补桩）、1 条未来会开发（地图薄行）。
+/** 本地 Markdown 后端：27 条里 20 条真提供（含 #1446 落地的读预算与 #1605 落地的地图薄行）、3 条做了但有对不上的输入、4 条明确不支持（后端自己补桩）。
  *
  *  `getRepoKey` 为什么算「提供」而不是「不支持」：契约对定位口只有一种答案形态 —— 名字或者空，
  *  空也是答案、不是失败（见 `contract/operations.ts` 定位口那一段）。本地房的身份就是工作区目录本身，
@@ -30,7 +30,7 @@ import type { CapabilityRegister } from '../../contract/capability-answer.js'
  *  于是这个后端实例上压根没有这个方法，调用方一调就抛类型错误。现在改成真的实现一条回空的。
  *  #1174 决策 2、决策 11③。 */
 export const MARKDOWN_CAPABILITY_REGISTER = {
-  // —— 操作 24 条：15 条真提供（每种合法输入都对得上承诺）——
+  // —— 操作 24 条：16 条真提供（每种合法输入都对得上承诺）——
   preflight: { tier: 'provided' },
   list: { tier: 'provided' },
   get: { tier: 'provided' },
@@ -46,6 +46,8 @@ export const MARKDOWN_CAPABILITY_REGISTER = {
   counts: { tier: 'provided' },
   listPage: { tier: 'provided' },
   ensureLabelColorsFile: { tier: 'provided' },
+  // 地图薄行（#1605 落地）：真实现在 ./maps.ts——与 list 共用同一份枚举，只做内存复核与排序。
+  listMaps: { tier: 'provided' },
 
   // —— 操作 24 条：3 条做了但有对不上的输入（差在哪写在 gap 里，这是给人看的账）——
   getDependencies: {
@@ -65,7 +67,7 @@ export const MARKDOWN_CAPABILITY_REGISTER = {
     ticket: '#1174',
   },
 
-  // —— 操作 24 条：4 条明确不支持（后端自己在实例上补了显式桩），另有 1 条未来会开发 ——
+  // —— 操作 24 条：4 条明确不支持（后端自己在实例上补了显式桩）——
   getCurrentUser: { tier: 'unsupported-by-design', stubBy: 'backend' },
   initProject: { tier: 'unsupported-by-design', stubBy: 'backend' },
   getRepoPermissions: { tier: 'unsupported-by-design', stubBy: 'backend' },
@@ -73,10 +75,6 @@ export const MARKDOWN_CAPABILITY_REGISTER = {
   // 读预算（#1446 落地）：本地房是离网口径，读数恒为「离网」那一支，不读盘、不调任何东西。
   // 实现在 ./budget.ts；这里从「未来会开发」改成「明确提供功能」，是因为调用方今天就会问到它。
   readBudget: { tier: 'provided' },
-  // 地图薄行（规格 1602）：形态成立、说得通，只是这家今天没做（欠账）。
-  // 没实现它的这段时间由注册表按名录自动补「做不到」的桩，调用方拿到诚实的 unsupported，照老路退化。
-  listMaps: { tier: 'planned', ticket: '#1602' },
-
   // —— 定位口 3 条：全部提供；其中两条在模块对象上，getRepoKey 在实例上、答案恒为空 ——
   getRepoKey: { tier: 'provided' },
   describe: { tier: 'provided' },
