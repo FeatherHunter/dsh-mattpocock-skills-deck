@@ -14,10 +14,12 @@ import { stripTypeScriptTypes } from 'node:module';
 
 const readSource = (rel: string): string => fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8');
 
-// 这两个客户端文件是「拼进浏览器闭包」的片段：没有自己的 import/export，跨文件名字靠 declare。
-// 这里把行首 export 去掉、类型剥掉（Node 只删类型、不做语法转换），再把 host 等闭包名字用
-// 沙箱桩补上，就能像浏览器里那份拼接结果一样直接求值。不需要浏览器，也不写工作区。
-const asSnippet = (source: string): string => stripTypeScriptTypes(source.replace(/^export /gm, ''), { mode: 'strip' });
+// 这两个客户端文件是「拼进浏览器闭包」的片段：跨文件名字靠 declare，唯一一行中央时间参数的真 import
+// 由构建剥掉（见 docs/adr/20261016-time-config-yaml.md 的界面半边写法）。这里照构建先剥掉那一行，
+// 再把行首 export 去掉、类型剥掉（Node 只删类型、不做语法转换），最后用沙箱桩补上闭包名字，
+// 就能像浏览器里那份拼接结果一样直接求值。不需要浏览器，也不写工作区。
+const stripTimeConfigImport = (source: string): string => source.replace(/^\s*import\s*\{[^}]*\}\s*from\s*['"][^'"]*time-config\/values\.js['"]\s*;?\s*$/gm, '');
+const asSnippet = (source: string): string => stripTypeScriptTypes(stripTimeConfigImport(source).replace(/^export /gm, ''), { mode: 'strip' });
 
 const sessions: string[] = ['writable-session', 'readonly-session', ''];
 

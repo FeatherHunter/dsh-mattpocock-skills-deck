@@ -21,8 +21,8 @@ console.log('日志计数门禁（#494/#498/#499/#548/#606/#618/#635/#652/#655/#
 // 2026-10-22（#1363/#1220）：新增常驻 #126 chain.flow，并把按需 #123 probe.loop 提升为常驻（编号与字段
 //   表不变，新增 timerOk 一格）。两条都服务同一件事：查「状态栏该出条却没出、初始化完了条还在」。
 const RESIDENT = ['snapshot.request', 'snapshot.cache.miss', 'repo.resolve.tier', 'gh.exec', 'gh.timeout', 'gh.resolve.fail', 'graphql.fallback', 'issues.fallback', 'snapshot.built', 'panelSync.dirty', 'registry.select', 'detection.detect', 'skill.probe', 'skill.pending.cap', 'host.call', 'host.call.fail', 'snapshot.hydrate', 'backend.switch', 'naming.guard', 'naming.lock', 'panel.open', 'statusbar.fallback', 'dock.rehydrate', 'storage.fail', 'chain.derive.error', 'fallback.chain', 'client.snapshot.miss', 'host.start', 'update.install.exec', 'labelColors.write', 'guide.inject', 'healthCheck.inject', 'choiceStore.file.bad', 'choiceStore.write.fail', 'issues.page', 'chain.backoff', 'host.dispatch.empty', 'naming.summary', 'cwd.persisted', 'update.install.manifestSync', 'git.exec', 'git.exec.fail', 'edge.write', 'issue.write', 'labelDefs.write', 'repo.init', 'read.degraded', 'preflight.gate', 'workRoute.write', 'workRoute.read', 'locale.registration.fail', 'entry.open', 'entry.pick', 'gh.auth.env', 'guide.banner', 'gh.lane.wait', 'chain.flow', 'probe.loop', 'gh.transport', 'chain.predicate.timeout', 'newsession.decide']
-// 按需 62 条编号（#498 增补 #52、#53、#54、#56，#606 增补 #58、#59，#618 增补 #61，#635 增补 #62，#652 增补 #63，#655 增补 #64，#66 为 2026-09-21 新增 chain.stale.drop，#67 为同日新增 snapshot.stale.drop，#71、#72、#73 为 2026-09-22 #683 新增，#75、#76、#77 为 2026-09-23 #706 第二批新增，#78、#79 为同一天 #707 第三批新增 attention.report / attention.sweep，#81 为同一天 #710 第二批新增 write.event，#82 为同一天 #708 第三批新增 refresh.patch，#84、#85、#86、#87 为 2026-09-25 #709 登记收口新增，#89 为 2026-09-27 #727 新增 snapshot.late.install，#91 为 2026-09-28 #776 新增 input.observe，#96 为 2026-10-05 #864 新增 vc.cache.screen，#97 为 2026-10-09 #958 新增 labelColors.listed，#98 为 2026-10-14 #1048 新增 detection.step，#99 为 2026-10-14 #1131 新增 detection.cache.hit，#101、#102、#103 为 2026-10-14 #1054 新增 edge.cycle / edge.roster / edge.repair，#105 为 2026-10-14 #1048 收口补做新增 detection.fallback —— 号位避让同票的常驻 #100 edge.write 与 #1053 的 #104 issue.write；2026-10-20 #1294 增补 #112 locale.registration；2026-10-20 #1295 增补 #114 container.split；2026-10-20 #1296 增补 #115 container.accent；2026-10-21 #1314 排查时新增 #118 write.sent；2026-10-21 map 1010 逐票复核增补 #121 gh.lane.saturated、#123 probe.loop、#124 prompt.link；2026-10-23 #1409 新增 #127 suggest.bind、#128 suggest.call、#129 suggest.ready；2026-10-25 #1514 新增 #131 preflight.check）：含 #45，不含已退役。
-const ONDEMAND = ['snapshot.cache.hit', 'probe.eval', 'panelSync.eval', 'registry.stub', 'workspaceStore.hit', 'chain.cache.hit', 'chain.predicate', 'workspaceKey.canonical', 'platform.resolve', 'naming.sweep', 'snapshot.fanout', 'dedup.hit', 'statusbar.hydrate', 'error.normalize', 'timer.schedule', 'privacy.scrub', 'chain.cache.miss', 'workspaceStore.miss', 'client.snapshot.hit', 'detail.cache.hit', 'exec.run', 'panel.render', 'labelColors.read', 'labelColors.panelPatch', 'workspaceRoot.resolve', 'inject.decision', 'chain.stale.drop', 'snapshot.stale.drop', 'choiceStore.read', 'choiceStore.evict', 'quota.spend', 'refresh.decide', 'refresh.skipped', 'attention.report', 'attention.sweep', 'write.event', 'refresh.patch', 'chain.cache.write', 'chain.event', 'naming.guard.event', 'chain.preflight.reuse', 'snapshot.late.install', 'input.observe', 'vc.cache.screen', 'labelColors.listed', 'detection.step', 'detection.cache.hit', 'edge.cycle', 'edge.roster', 'edge.repair', 'detection.fallback', 'locale.registration', 'container.split', 'container.accent', 'write.sent', 'ui.action', 'gh.lane.saturated', 'prompt.link', 'suggest.bind', 'suggest.call', 'suggest.ready', 'preflight.check']
+// 按需 63 条编号（#498 增补 #52、#53、#54、#56，#606 增补 #58、#59，#618 增补 #61，#635 增补 #62，#652 增补 #63，#655 增补 #64，#66 为 2026-09-21 新增 chain.stale.drop，#67 为同日新增 snapshot.stale.drop，#71、#72、#73 为 2026-09-22 #683 新增，#75、#76、#77 为 2026-09-23 #706 第二批新增，#78、#79 为同一天 #707 第三批新增 attention.report / attention.sweep，#81 为同一天 #710 第二批新增 write.event，#82 为同一天 #708 第三批新增 refresh.patch，#84、#85、#86、#87 为 2026-09-25 #709 登记收口新增，#89 为 2026-09-27 #727 新增 snapshot.late.install，#91 为 2026-09-28 #776 新增 input.observe，#96 为 2026-10-05 #864 新增 vc.cache.screen，#97 为 2026-10-09 #958 新增 labelColors.listed，#98 为 2026-10-14 #1048 新增 detection.step，#99 为 2026-10-14 #1131 新增 detection.cache.hit，#101、#102、#103 为 2026-10-14 #1054 新增 edge.cycle / edge.roster / edge.repair，#105 为 2026-10-14 #1048 收口补做新增 detection.fallback —— 号位避让同票的常驻 #100 edge.write 与 #1053 的 #104 issue.write；2026-10-20 #1294 增补 #112 locale.registration；2026-10-20 #1295 增补 #114 container.split；2026-10-20 #1296 增补 #115 container.accent；2026-10-21 #1314 排查时新增 #118 write.sent；2026-10-21 map 1010 逐票复核增补 #121 gh.lane.saturated、#123 probe.loop、#124 prompt.link；2026-10-23 #1409 新增 #127 suggest.bind、#128 suggest.call、#129 suggest.ready；2026-10-25 #1514 新增 #131 preflight.check）：含 #45，不含已退役。
+const ONDEMAND = ['snapshot.cache.hit', 'probe.eval', 'panelSync.eval', 'registry.stub', 'workspaceStore.hit', 'chain.cache.hit', 'chain.predicate', 'workspaceKey.canonical', 'platform.resolve', 'naming.sweep', 'snapshot.fanout', 'dedup.hit', 'statusbar.hydrate', 'error.normalize', 'timer.schedule', 'privacy.scrub', 'chain.cache.miss', 'workspaceStore.miss', 'client.snapshot.hit', 'detail.cache.hit', 'exec.run', 'panel.render', 'labelColors.read', 'labelColors.panelPatch', 'workspaceRoot.resolve', 'inject.decision', 'chain.stale.drop', 'snapshot.stale.drop', 'choiceStore.read', 'choiceStore.evict', 'quota.spend', 'refresh.decide', 'refresh.skipped', 'attention.report', 'attention.sweep', 'write.event', 'refresh.patch', 'chain.cache.write', 'chain.event', 'naming.guard.event', 'chain.preflight.reuse', 'snapshot.late.install', 'input.observe', 'vc.cache.screen', 'labelColors.listed', 'detection.step', 'detection.cache.hit', 'edge.cycle', 'edge.roster', 'edge.repair', 'detection.fallback', 'locale.registration', 'container.split', 'container.accent', 'write.sent', 'ui.action', 'gh.lane.saturated', 'prompt.link', 'suggest.bind', 'suggest.call', 'suggest.ready', 'preflight.check', 'chain.auto.retry']
 // 2026-10-22（#1363/#1220）：#123 probe.loop 从这张表提升为常驻，按需清单不再含它。
 // 2026-10-23（#1409）：新增 #127 suggest.bind、#128 suggest.call、#129 suggest.ready 三条按需调试线。
 // 退役三条 + 2026-10-12 起的第四条：choiceStore.hint.reject（#1003 删掉上报优先与修订号仲裁之后，这一档在代码里不再存在）；2026-10-19 #1083 起的第五条：sessionTickets.chain（工作路线改成新的存档之后，旧链落盘那一路不再发日志）。
@@ -145,9 +145,17 @@ check(appendix.includes('#116') && appendix.includes('entry.open') && appendix.i
   check(list1580, '附录常驻编号清单 61 个（2026-10-27 #1580 增补 134 newsession.decide，号位接在 #133 之后）')
   const event1580 = appendix.includes('#134') && appendix.includes('newsession.decide')
   check(event1580, '附录记明 #134 newsession.decide 一条新增常驻事件（1.4 表行保留）')
+  // 2026-10-28 #1474：新增按需 #135 chain.auto.retry（自动复查被冷却窗挡下、或被同一把链键上的上一轮
+  //   自动复查挡下各记一行），总数 128 → 129（常驻 61 不动、按需 62 → 63、自监控 5 条不动）。
+  const counts1474 = appendix.includes('常驻 61 条、按需 63 条、自监控 5 条、总数 129 条')
+  check(counts1474, '附录 counts 字面为常驻 61 条、按需 63 条、自监控 5 条、总数 129 条（2026-10-28 #1474 新增按需 #135 chain.auto.retry）')
+  const list1474 = appendix.includes('127、128、129、131、135')
+  check(list1474, '附录按需编号清单接续到 135（2026-10-28 #1474 新增 chain.auto.retry，号位接在 #131 之后）')
+  const event1474 = appendix.includes('#135') && appendix.includes('chain.auto.retry')
+  check(event1474, '附录记明 #135 chain.auto.retry 一条新增按需事件（1.5 表行保留）')
 }
 
-// 二、源码点名：常驻 60、按需 62、自监控 5 逐个出现（单双引号都算），退役 5 条不许出现。
+// 二、源码点名：常驻 61、按需 63、自监控 5 逐个出现（单双引号都算），退役 5 条不许出现。
 function stripComments(t) {
   return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
 }
@@ -225,13 +233,13 @@ for (const name of SELFMON) {
   check(!!quoted[name], '自监控事件有埋点 ' + name + (quoted[name] ? '（' + quoted[name].length + ' 处以上）' : ''))
 }
 
-// 三、总数：已知事件恰为 128 个（常驻 61 加按需 62 加自监控 5），退役的不计入（#1003 起 choiceStore.hint.reject 退役，2026-10-19 #1083 起 sessionTickets.chain 退役）。
+// 三、总数：已知事件恰为 129 个（常驻 61 加按需 63 加自监控 5），退役的不计入（#1003 起 choiceStore.hint.reject 退役，2026-10-19 #1083 起 sessionTickets.chain 退役）。
 {
   const known = RESIDENT.concat(ONDEMAND).concat(SELFMON)
   const missing = known.filter((n) => !quoted[n] && !PACKAGE_OWNED.includes(n))
   const hitKnown = known.filter((n) => quoted[n])
-  check(RESIDENT.length === 61 && ONDEMAND.length === 62 && SELFMON.length === 5 && known.length === 128, '清单总数 128（常驻 61、按需 62、自监控 5）')
-  check(missing.length === 0, '128 个事件全部落点无缺口' + (missing.length ? ' —— 缺口：' + missing.join('、') : '（命中 ' + hitKnown.length + ' 个）'))
+  check(RESIDENT.length === 61 && ONDEMAND.length === 63 && SELFMON.length === 5 && known.length === 129, '清单总数 129（常驻 61、按需 63、自监控 5）')
+  check(missing.length === 0, '129 个事件全部落点无缺口' + (missing.length ? ' —— 缺口：' + missing.join('、') : '（命中 ' + hitKnown.length + ' 个）'))
 }
 
 console.log(failed ? '\n存在失败 — verify-log-count 未通过' : '\n全部通过 — 计数门禁生效（' + total + ' 项断言）')

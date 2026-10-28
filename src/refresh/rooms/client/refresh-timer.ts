@@ -44,6 +44,12 @@ declare const loadOwnWorkRoute: any;
 declare const chainEventRefresh: any;
 declare const loadChain: any;
 declare const setupPendingOf: any;
+// #1474：链自动复查的判据与入口（实现都在 probe-chain-subscription.js 那一半，这里只调）。
+//   自动复查复用下面这条活跃探测拍，不新建定时器；冷却与单飞都在 maybeAutoRetryChain 里判。
+declare const chainPendingOf: any;
+declare const maybeAutoRetryChain: any;
+// #1474：面板从藏起来回到可见时清当前链的冷却窗（实现在同目录 probe-chain-subscription.ts）。
+declare const resetAutoRetryCooldown: any;
 declare const attentionVisible: any;
 declare const attentionStoreOf: any;
 // #1418 P1：探测范围与降档都收在注意力那一档（视野模型本来就归它管），这里只调两下。
@@ -302,6 +308,9 @@ export const startAutoProbe = function (): void {
 // 不满一个间隔就不重复探（同一条工作区根只探一次，#324 / #653 的口径不变）。
 // 后台那些工作区一次都不探 —— 它们由宿主那一侧按视野模型安排，界面上一个定时器都不给它们。
 export const _activeProbeAt: { at: number } = { at: 0 };
+// #1474：这条拍因为面板藏起来而整拍跳过时置真；回到可见的第一拍先清当前链的冷却窗，
+//   保证「回来一拍内补一次」，而不是被藏起来之前那次自动复查的 30 秒冷却继续挡着。
+let _autoRetryCooldownPaused: boolean = false;
 export const startActiveProbeLoop = function (): void {
   try {
     if (!_attentionPlan.intervalMs) return;
@@ -316,11 +325,15 @@ export const startActiveProbeLoop = function (): void {
     }
     const step = function (): void {
       try {
-        if (!attentionVisible()) return;
+        if (!attentionVisible()) { _autoRetryCooldownPaused = true; return; }
         if (_attentionPlan.standing !== 'active') return;
         const st: any = attentionStoreOf(null);
         const cwd: any = (st && st.cwd) || '';
         if (!cwd) return;
+        // #1474：面板从藏起来回到可见，把当前这条链的冷却窗清掉，保证回来第一拍就补一次复查（行数压在一行，这扇门禁卡 350 有效行）。
+        if (_autoRetryCooldownPaused) { _autoRetryCooldownPaused = false; try { if (typeof resetAutoRetryCooldown === 'function') resetAutoRetryCooldown(st); } catch (eRst) {} }
+        // 下面两路都要知道「初始化那一步是不是还挂着」，只算一次（同一拍别重复问）。
+        var setupPending: boolean = (typeof setupPendingOf === 'function') && !!setupPendingOf(st);
         const gap: number = _attentionPlan.intervalMs || PROBE_MS;
         if (_activeProbeAt.at && (Date.now() - _activeProbeAt.at) < gap) return;
         _activeProbeAt.at = Date.now();
@@ -335,11 +348,22 @@ export const startActiveProbeLoop = function (): void {
         // 链的那几路事件里没有这一路，黄条就按旧快照常驻。这里复用正在看才跑的这一拍，不新开定时器；
         // 是否真算由宿主按退避裁定，人手重查那一路永不降档不受影响。全绿或根本没这一行时 setupPendingOf 为假，不多算。
         try {
-          if (typeof setupPendingOf === 'function' && setupPendingOf(st)) {
+          if (setupPending) {
             if (typeof chainEventRefresh === 'function') chainEventRefresh(st, 'setup-pending').catch(function (): void {});
             else if (typeof loadChain === 'function') loadChain(st, false, 'setup-pending').catch(function (): void {});
           }
         } catch (eSetup) {}
+        // #1474：链上任何一步「暂时确认不了」（pending）时，也顺带自己再问一次宿主 —— 不只是初始化那一步。
+        //   只在 setup-pending 没发起时走这里，避免同一拍发两趟；是否真算仍由宿主退避裁定
+        //   （8 秒 → 30 秒 → 2 分钟 → 5 分钟），人点「重新检查」那一路永不降档、行为不变。
+        //   冷却（默认 30 秒）与单飞都在 maybeAutoRetryChain 里判；本处只负责复用这条已经在跑的
+        //   活跃探测拍，不新建任何定时器。
+        try {
+          if (!setupPending && typeof chainPendingOf === 'function' && typeof maybeAutoRetryChain === 'function' && chainPendingOf(st)) {
+            var ar: any = maybeAutoRetryChain(st);
+            if (ar && typeof ar.catch === 'function') ar.catch(function (): void {});
+          }
+        } catch (eAuto) {}
       } catch (e) {}
     };
     if (timer === undefined || typeof timer.interval !== 'function') {

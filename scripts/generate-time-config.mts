@@ -263,6 +263,8 @@ const KEYS: Array<[string, string, string]> = [
   ['ownRouteRetryMs', 'OWN_ROUTE_RETRY_MS', 'backoff'],
   // —— 初始化等待那一路的等待封顶（#1363）：超过多久必真算一次 ——
   ['chainSetupPendingCapMs', 'CHAIN_SETUP_PENDING_CAP_MS', 'timeouts'],
+  // —— 链自动复查的客户端冷却（#1474）：界面最多每 30 秒发起一次宿主求值 ——
+  ['chainAutoRetryCooldownMs', 'CHAIN_AUTO_RETRY_COOLDOWN_MS', 'intervals'],
 ]
 
 /** 小编辑距离：拼错的键名能指到它想写的那个键，而不是一句“未知键”。 */

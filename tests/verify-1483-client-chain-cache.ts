@@ -34,9 +34,11 @@ const ok = (cond: boolean, msg: string, detail?: unknown): void => {
 }
 
 const readSource = (rel: string): string => fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8')
-// 这个客户端文件是「拼进浏览器闭包」的片段：没有自己的 import/export，跨文件名字靠 declare。
-// 去掉行首 export、剥掉类型后，用沙箱把闭包里的名字补上，就与浏览器里那份拼接结果同形。
-const asSnippet = (source: string): string => stripTypeScriptTypes(source.replace(/^export /gm, ''), { mode: 'strip' })
+// 这个客户端文件是「拼进浏览器闭包」的片段：跨文件名字靠 declare 补，唯一一行中央时间参数的
+// 真 import 由构建剥掉（见 docs/adr/20261016-time-config-yaml.md）。这里照构建的做法先剥那一行，
+// 再去掉行首 export、剥掉类型，用沙箱把闭包里的名字补上，就与浏览器里那份拼接结果同形。
+const stripTimeConfigImport = (source: string): string => source.replace(/^\s*import\s*\{[^}]*\}\s*from\s*['"][^'"]*time-config\/values\.js['"]\s*;?\s*$/gm, '')
+const asSnippet = (source: string): string => stripTypeScriptTypes(stripTimeConfigImport(source).replace(/^export /gm, ''), { mode: 'strip' })
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
 function makeWorld(): AnyObj {
