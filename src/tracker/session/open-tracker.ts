@@ -14,6 +14,7 @@ import type { RepositoryRef } from '../contract/entities.js'
 import type { BackendModule } from '../contract/backend-module.js'
 import type { AccountPort, AdmitPort, BackendBudgetModel, BudgetReading } from '../contract/budget-model.js'
 import { runPipelineOp } from './pipeline.js'
+import type { PipelineDeps } from './pipeline.js'
 
 /** 会话：完整的 Tracker 能力，加上「这是谁的、按什么口径花钱、能不能写」这三格装配信息。 */
 export interface TrackerSession extends Tracker {
@@ -61,8 +62,12 @@ export interface OpenTrackerOptions {
   getCachedReading: () => BudgetReading | Promise<BudgetReading>
   /** 裁决口（放行还是推迟，它说了算）。 */
   admit: AdmitPort
-  /** 记账口（只记账，不改变结果）。 */
-  account: AccountPort
+  /**
+   * 记账口（只记账，不改变结果）。
+   * #1627：叫 accountPort 而不是 account——同一份选项里还有字符串 account（记到账本哪一档），
+   * 同名字段在造 deps 的对象字面量里会互相顶掉；端口是函数、档位是名字，分开写。
+   */
+  accountPort: AccountPort
   /** 写权限就绪没有（缺省按没就绪：没人说能写，就当不能写，硬顶默认收紧）。 */
   canWrite?: boolean
   /**
@@ -81,6 +86,26 @@ export interface OpenTrackerOptions {
    * 选后端这件事仍然只经 openTracker（宿主与刷新机制不自己调注册表选择）。
    */
   matchContext?: Partial<OpContext>
+  /**
+   * 谁发起的这次会话（#1627）：'refresh'（刷新房间自己用）或 'deck-tool'（工具调用那条路）。
+   * 入口只把它原样交给管线；没给就是空串（老调用方不填，行为不变）。
+   */
+  caller?: string
+  /**
+   * 这次会话记到账本的哪一档（#1627）：'plugin' 或 'ai-tool'。
+   * 观察器按它把同一份额度下「插件自己刷的」与「工具调用花的」分开算。
+   */
+  account?: string
+  /**
+   * 这趟会话的用途（#1627）：'' 是普通取数，'naming-index' 是命名索引翻页。
+   * 命名索引与用户操作抢同一份额度，单列一格才知道分钟内是谁把额度用掉的。
+   */
+  purpose?: string
+  /**
+   * 逐笔操作的开始/结束钩子（#1627）。入口不认识观察器，只把这两支原样递给管线；
+   * 缺省不传时管线什么都不做，行为与从前一字不差。
+   */
+  opHooks?: PipelineDeps['opHooks']
   /** 诊断钩子（管线分支原因的出口；没有就静默）。 */
   onEvent?: (event: string, fields: Record<string, unknown>) => void
 }
@@ -141,9 +166,16 @@ export async function openTracker(handle: RepoHandle, options: OpenTrackerOption
       canWrite: canWrite,
       getCachedReading: options.getCachedReading,
       admit: options.admit,
-      account: options.account,
+      // #1627：记账口带 Port 后缀，与下面那一格字符串档位 account 分开（同名字段会互相顶掉）。
+      accountPort: options.accountPort,
       // #1446：会话属于哪个后端，管线记账时按它给账本分格（会话不再另起一个后端编号）。
       backendId: selection.backendId,
+      // #1627：观察器要的几格随会话一起下去——谁发起、记哪一档、干什么用的、逐笔钩子。
+      // 入口只原样转手：它不认识观察器的形状，换算点数与桶是装配侧的事。
+      caller: options.caller,
+      account: options.account,
+      purpose: options.purpose,
+      opHooks: options.opHooks,
       onEvent: options.onEvent,
     }
     const session = {

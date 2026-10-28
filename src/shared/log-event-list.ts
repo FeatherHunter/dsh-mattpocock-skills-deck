@@ -14,7 +14,7 @@
  * 收哪些事件（口径）：
  *   - 只收「信息级 + 附录 1.4 表标成常驻」的事件。错误与告警级本来就永远落盘（日志包按级别兜底），
  *     申报不申报都一样，所以 read.degraded、preflight.gate、locale.registration.fail、gh.auth.env
- *     四条告警级常驻事件故意不写在这里。
+ *     四条告警级常驻事件故意不写在这里；2026-10-29 #1627 新增的 quota.incident 也是告警级，同样不登记（附录 1.4 表里有它一行）。
  *   - 字段表从 tests/verify-log-fields.ts 的 ALLOWED 抄来：那份表是埋点字段的尺子，两边必须一致；
  *     日志包运行期只原样透传字段、不按这份表裁剪，所以这里写错的后果是自查对不上，不是丢日志。
  *   - gh.lane.wait 带 guard：附录 1.4 表里写明的守卫「排队放行时先看等了多久：三秒以上才记；
@@ -86,6 +86,60 @@ export const LOG_EVENT_LIST: {
       level: 'info',
       kind: 'resident',
       fields: ['entry', 'textLen', 'curSidHash', 'cwdHash', 'cwdSource', 'wsResolved', 'wsSource', 'wsItems', 'branch', 'reuseFrom', 'reuseSidHash', 'allowReuse', 'createOpts', 'reuseSkip', 'sidHash', 'outcome', 'errorHash'],
+    },
+    // 2026-10-29 #1627：配额与限流诊断的五问要在调试开关关着时也能回答（真配额还是二级限流、谁在抢、
+    //   靠什么恢复、损失多少、重试放大几倍），所以下面七条都定信息级常驻。每一行都是低频结论：
+    //   窗口每分钟至多一行、事故与恢复按次、同步按服务端读数、压力按滚动阈值，不是心跳。
+    //   quota.incident 是告警级（始终落盘），按本文件口径不登记，只在附录 1.4 表留一行。
+    // 每分钟一行的窗口汇总：这一分钟花了多少、失败几次、在飞与排队峰值、软超与降载几次、
+    //   服务端读数多新，以及其中命名索引那一路占了多少 —— 回答「损失多少」与「谁在抢」。
+    'quota.window': {
+      level: 'info',
+      kind: 'resident',
+      fields: ['requests', 'points', 'estPoints', 'restRequests', 'aiPoints', 'pluginPoints', 'userPoints', 'failCount', 'limitCount', 'inflightPeak', 'inflightMax', 'queuedPeak', 'oldestWaitMs', 'allowUser', 'allowAi', 'softOver', 'allowBg', 'deferCount', 'gqlRemain', 'resetSec', 'syncAgeMs', 'tier', 'namingPages', 'namingPoints', 'suppressed'],
+      guard: '每分钟最多一行；只有真发生了事的分钟才写（跨分钟收尾时写上一分钟，空分钟零落行）',
+    },
+    // 事故当下的逐笔明细：事故期间每次限流失败或慢操作一行，回答「真配额还是二级限流、
+    //   重试放大几倍」；每次事故最多 40 行，超限只在窗口行的 suppressed 上加一。
+    'quota.detail': {
+      level: 'info',
+      kind: 'resident',
+      fields: ['via', 'opId', 'account', 'points', 'waitedMs', 'latencyMs', 'kind'],
+    },
+    // 每次恢复一行：事故持续多久、期间几次事故、被压掉几行、窗口内失败几次、失败操作几次、
+    //   在飞峰值与恢复后第一个成功操作来自哪一路，回答「靠什么恢复」。
+    'quota.recover': {
+      level: 'info',
+      kind: 'resident',
+      fields: ['durationMs', 'incidents', 'suppressed', 'failsInWindow', 'opsFailed', 'maxInflightDuring', 'firstOkVia', 'resetPast'],
+    },
+    // 每次读到服务端额度一行：触发来源、服务端上限与剩余、重置还有多久、本地记账花掉多少、
+    //   与上一次次读数比漂移多少、是不是见到重置前进、这份读数多旧 —— 回答「真配额还是二级限流」。
+    'quota.sync': {
+      level: 'info',
+      kind: 'resident',
+      fields: ['trigger', 'serverLimit', 'serverRemaining', 'resetSec', 'allowance', 'spentSinceSync', 'driftPoints', 'resetSeen', 'ageMs'],
+    },
+    // 压力档：滚动一小时至少 4000 点、或单分钟至少 1000 点时每分钟至多一行，
+    //   回答「谁在抢、还能撑多久」；阈值没到一行都不写，不制造心跳。
+    'quota.pressure': {
+      level: 'info',
+      kind: 'resident',
+      fields: ['pointsLastMin', 'pointsLastHour', 'projectedHour', 'capacity', 'inflightPeak', 'top'],
+    },
+    // 逐笔操作只在坏 / 慢 / 贵时写一行（失败、耗时至少 10 秒、至少 3 点、至少 3 次请求），
+    //   其余落调试档；这是回答「谁在抢」的逐笔证据，正常操作不占常驻额度。
+    'quota.op': {
+      level: 'info',
+      kind: 'resident',
+      fields: ['op', 'opId', 'caller', 'account', 'bucket', 'ok', 'requests', 'points', 'pointSource', 'latencyMs', 'remaining', 'tier', 'backendId'],
+    },
+    // 工具回执同样只在坏 / 慢 / 贵时写一行（失败、耗时至少 3 秒、至少 3 点），
+    //   回答「AI 工具这一趟花了多少、重试放大几倍」；正常回执落调试档。
+    'tool.receipt': {
+      level: 'info',
+      kind: 'resident',
+      fields: ['tool', 'opId', 'status', 'estRequests', 'estPoints', 'requests', 'points', 'latencyMs', 'remaining', 'tier', 'backendId', 'note'],
     },
   },
 }

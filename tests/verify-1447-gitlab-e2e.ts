@@ -101,7 +101,7 @@ function makeHarness(ledger, accounting, admission, glab) {
   }
   const factory = async function () { return { ok: true, data: { known: false, reason: 'not-measured' } } }
   void factory
-  return { state: state, account: account, admit: admit,
+  return { state: state, accountPort: account, admit: admit,
     getCachedReading: function () { return state.reading } }
 }
 
@@ -131,7 +131,7 @@ async function main() {
     ledger.ensureBackend('gitlab', REQUESTS)
     const h = makeHarness(ledger, accounting, admission, ok)
     const opened = await opener.openTracker({ cwd: '/ws-test-1447' }, {
-      registry: makeRegistry(room), getCachedReading: h.getCachedReading, admit: h.admit, account: h.account, canWrite: true })
+      registry: makeRegistry(room), getCachedReading: h.getCachedReading, admit: h.admit, accountPort: h.accountPort, canWrite: true })
     check(opened.ok === true && opened.session.backendId === 'gitlab', '会话能建在 GitLab 后端上（backendId = gitlab）')
     check(opened.ok === true && opened.session.budget && opened.session.budget.kind === 'requests-only', '会话带出后端的预算声明（只计请求）')
     const read = await opened.session.readBudget()
@@ -149,13 +149,13 @@ async function main() {
     ledger.ensureBackend('gitlab', REQUESTS)
     const h = makeHarness(ledger, accounting, admission, missing)
     const opened = await opener.openTracker({ cwd: '/ws-test-1447' }, {
-      registry: makeRegistry(room), getCachedReading: h.getCachedReading, admit: h.admit, account: h.account, canWrite: true })
+      registry: makeRegistry(room), getCachedReading: h.getCachedReading, admit: h.admit, accountPort: h.accountPort, canWrite: true })
     const read = await opened.session.readBudget()
     check(read && read.ok === true && read.data && read.data.known === false && read.data.reason === 'not-measured', '没装 glab 时读数回「没测到」（not-measured），不抛')
     const broken = makeGlabExec('broken')
     const room2 = factory.createGitlabBackend(makeCtx(broken.exec, glabPresent))
     const opened2 = await opener.openTracker({ cwd: '/ws-test-1447' }, {
-      registry: makeRegistry(room2), getCachedReading: h.getCachedReading, admit: h.admit, account: h.account, canWrite: true })
+      registry: makeRegistry(room2), getCachedReading: h.getCachedReading, admit: h.admit, accountPort: h.accountPort, canWrite: true })
     const read2 = await opened2.session.readBudget()
     check(read2 && read2.ok === true && read2.data && read2.data.known === false && read2.data.reason === 'unavailable', '请求失败时读数回「量不到」（unavailable），不抛')
   }
@@ -177,7 +177,7 @@ async function main() {
     h = makeHarness(ledger, accounting, admission, glab)
     h.state.reading = { known: false, reason: 'not-measured' }
     opened = await opener.openTracker({ cwd: '/ws-test-1447' }, {
-      registry: makeRegistry(room), getCachedReading: h.getCachedReading, admit: h.admit, account: h.account, canWrite: true })
+      registry: makeRegistry(room), getCachedReading: h.getCachedReading, admit: h.admit, accountPort: h.accountPort, canWrite: true })
     check(opened.ok === true, '会话开成（第二段准备）')
     const list = await opened.session.list(REF)
     check(list && list.ok === true && Array.isArray(list.data) && list.data.length === 2, '列表操作经会话走通（两张票）')
@@ -210,7 +210,7 @@ async function main() {
     check(ledger.view('gitlab', 'requests').used === usedBefore, '被推迟的调用不记账（没发生的事不记）')
     const callsBeforeHard = glab.box.calls
     const readOnly = await opener.openTracker({ cwd: '/ws-test-1447' }, {
-      registry: makeRegistry(room), getCachedReading: h.getCachedReading, admit: h.admit, account: h.account, canWrite: false })
+      registry: makeRegistry(room), getCachedReading: h.getCachedReading, admit: h.admit, accountPort: h.accountPort, canWrite: false })
     h.state.reading = { known: true, kind: 'requests-only', requests: { remaining: 500, limit: 600 } }
     const hardCap = await readOnly.session.comment(REF, '5', '没有写权限不该发出去')
     check(hardCap && hardCap.ok === false && hardCap.error && hardCap.error.kind === 'hard-cap', '没有写权限时写操作按硬顶拒绝')
@@ -225,18 +225,18 @@ async function main() {
     const room2 = factory.createGitlabBackend(makeCtx(makeGlabExec('ok').exec, glabPresent))
     const regNo = Object.assign({}, makeRegistry(room2), { select: async function () { return null } })
     const noBackend = await opener.openTracker({ cwd: '/ws-test-1447' }, {
-      registry: regNo, getCachedReading: h.getCachedReading, admit: h.admit, account: h.account })
+      registry: regNo, getCachedReading: h.getCachedReading, admit: h.admit, accountPort: h.accountPort })
     check(noBackend.ok === false && noBackend.reason === 'no-backend', '没有后端认这个工作区时回 no-backend')
     const regMulti = Object.assign({}, makeRegistry(room2), { select: async function () { return { backendId: 'gitlab', source: 'explicit', multiHit: ['gitlab', 'github'], ref: REF } } })
     const multi = await opener.openTracker({ cwd: '/ws-test-1447' }, {
-      registry: regMulti, getCachedReading: h.getCachedReading, admit: h.admit, account: h.account })
+      registry: regMulti, getCachedReading: h.getCachedReading, admit: h.admit, accountPort: h.accountPort })
     check(multi.ok === false && multi.reason === 'multi-match', '多家后端同时认领时回 multi-match')
     const regPending = Object.assign({}, makeRegistry(room2), { select: async function () { return { backendId: null, pending: true } } })
     const pending = await opener.openTracker({ cwd: '/ws-test-1447' }, {
-      registry: regPending, getCachedReading: h.getCachedReading, admit: h.admit, account: h.account })
+      registry: regPending, getCachedReading: h.getCachedReading, admit: h.admit, accountPort: h.accountPort })
     check(pending.ok === false && pending.reason === 'pending', '仲裁没完成时回 pending（不报成 no-backend）')
     const notReady = await opener.openTracker({ cwd: '   ' }, {
-      registry: makeRegistry(room2), getCachedReading: h.getCachedReading, admit: h.admit, account: h.account })
+      registry: makeRegistry(room2), getCachedReading: h.getCachedReading, admit: h.admit, accountPort: h.accountPort })
     check(notReady.ok === false && notReady.reason === 'workspace-not-ready', '工作区没就绪时回 workspace-not-ready')
   }
 
@@ -272,7 +272,7 @@ async function main() {
       decideBackend: async function () { return { backendId: 'gitlab', source: 'explicit', canWrite: true, reason: '测试桩：工作区文件里人显式选过 GitLab', ref: REF } },
       getCachedReading: h.getCachedReading,
       admit: h.admit,
-      account: h.account,
+      accountPort: h.accountPort,
       gate: { admitAiTool: async function () { return { admitted: true, text: '' } } },
     }
     const openedDeck = await toolMod.openDeckSession({ deps: deckDeps, exec: {}, session: session, estimate: estimate, tool: 'deck_issue_list', kind: 'read' })
@@ -321,7 +321,7 @@ async function main() {
     const realOpened = await opener.openTracker({ cwd: '/ws-test-1447' }, {
       registry: realReg,
       resolveSelection: async function (handle, ctx) { return realReg.select(handle, realCtx) },
-      getCachedReading: realH.getCachedReading, admit: realH.admit, account: realH.account, canWrite: true })
+      getCachedReading: realH.getCachedReading, admit: realH.admit, accountPort: realH.accountPort, canWrite: true })
     check(realOpened.ok === true, '真实注册表 + 真实 GitLab 房间能开出会话（实得 ' + JSON.stringify(realOpened.ok ? 'ok' : realOpened) + '）')
     const realRead = realOpened.ok ? await realOpened.session.readBudget() : null
     check(realRead && realRead.ok === true && realRead.data && realRead.data.known === true && realRead.data.kind === 'requests-only', '真实会话的 readBudget 回已知的只计请求读数')
@@ -337,7 +337,7 @@ async function main() {
     const pairedRoom = factory.createGitlabBackend(makeCtx(pairedGlab.exec, glabPresent))
     const pairedH = makeHarness(paired, accounting, admission, pairedGlab)
     const pairedOpened = await opener.openTracker({ cwd: '/ws-test-1447' }, {
-      registry: makeRegistry(pairedRoom), getCachedReading: pairedH.getCachedReading, admit: pairedH.admit, account: pairedH.account, canWrite: true })
+      registry: makeRegistry(pairedRoom), getCachedReading: pairedH.getCachedReading, admit: pairedH.admit, accountPort: pairedH.accountPort, canWrite: true })
     check(pairedOpened.ok === true, '同一本账里装着 github 两桶时，GitLab 会话照常开')
     const githubBefore = JSON.stringify({ rest: paired.view('github', 'rest'), graphql: paired.view('github', 'graphql') })
     const pairedCallsBefore = pairedGlab.box.calls
@@ -361,7 +361,7 @@ async function main() {
       decideBackend: async function () { return { backendId: 'gitlab', source: 'explicit', canWrite: true, ref: REF } },
       getCachedReading: function () { return ports.getCachedReading('gitlab') },
       admit: ports.admit,
-      account: ports.account,
+      accountPort: ports.account,
       gate: { admitAiTool: async function () { return { admitted: true, text: '' } } },
       backendCtx: function () { return makeCtx(glab.exec, glabPresent) },
     }

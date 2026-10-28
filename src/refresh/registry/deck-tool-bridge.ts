@@ -235,10 +235,25 @@ export function createDeckToolsForHost(toolDeps: unknown): unknown {
   // 本票的读缓存先从账本即时读（同步过就有数，没同步过就诚实报未知，未知不拦事）。
   const ports = buildTrackerPorts(base);
   // 装配后的依赖包换一个名字：与入参同名叫 toolDeps 时是重复声明（TS2300，宿主与刷新两份配置各报一次）。
-  const mergedDeps = Object.assign({}, base, { readDeclarationId, decideBackend: decideBackendFn });
+  // #1627：观察器钩子与「谁发起、记哪一档」随依赖包交给工具壳（B 在 tracker-session 里消费）：
+  //   opHooks 是逐笔操作的开始/结束（桥把宿主传来的 onOpStart/onOpEnd 拼成管线要的两支），
+  //   onToolReceipt 是坏/慢/贵工具的回执；caller/account 标明这条路是工具调用、记 ai-tool 档。
+  //   没传的保持 undefined，下游按缺席处理（老装配方不传，行为不变）。
+  const mergedDeps = Object.assign({}, base, {
+    readDeclarationId,
+    decideBackend: decideBackendFn,
+    opHooks: { onStart: base.onOpStart, onEnd: base.onOpEnd },
+    caller: 'deck-tool',
+    // #1627：这一格是「记到账本哪一档」的字符串；记账口另放 accountPort（见下），
+    // 两个不能同名——tracker-session 把端口递给 openTracker 的 accountPort，档位递给 account。
+    account: 'ai-tool',
+    onToolReceipt: base.onToolReceipt,
+  });
   if (typeof mergedDeps.getCachedReading !== 'function') mergedDeps.getCachedReading = ports.getCachedReading;
   if (typeof mergedDeps.admit !== 'function') mergedDeps.admit = ports.admit;
-  if (typeof mergedDeps.account !== 'function') mergedDeps.account = ports.account;
+  // 记账口：老依赖袋里它叫 account（函数），#1627 起改叫 accountPort —— 装配方若已给了一份
+  // 函数就不覆盖（门禁直调工厂时自带桩），否则用桥自己这一份（写 'ai-tool' 档的那个端口）。
+  if (typeof mergedDeps.accountPort !== 'function') mergedDeps.accountPort = ports.account;
   return createTools(DECK_TOOL_FACTORIES, { toolDeps: mergedDeps })
 }
 
@@ -260,6 +275,10 @@ export function createDeckToolBridge(deps: any): any {
   const ledger = d.ledger
   const logCtx = d.logCtx
   const workspaceKeyOf = d.workspaceKeyOf
+  // #1627：配额诊断观察器的三支（宿主接线时传；没传就是 undefined，一路按缺席处理）。
+  const onOpStart = d.onOpStart
+  const onOpEnd = d.onOpEnd
+  const onToolReceipt = d.onToolReceipt
   let deckToolsP: Promise<any> | null = null
   async function deckToolsForHost(): Promise<any> {
     if (!deckToolsP) {
@@ -376,6 +395,10 @@ export function createDeckToolBridge(deps: any): any {
           //（原先还点着 tests/verify-deck-tools-host-wiring.js，那条门禁 2026-10-14 整份删掉了：
           //  它的判据没有一条是独占的，见 #1173。）
           workspaceKeyOf: workspaceKeyOf,
+          // #1627：观察器三支原样递给工具壳（壳把它们拼进 mergedDeps，见 createDeckToolsForHost）。
+          onOpStart: onOpStart,
+          onOpEnd: onOpEnd,
+          onToolReceipt: onToolReceipt,
           now: Date.now,
         })
         return Object.assign({ reason: '', files: DECK_TOOL_FILES }, built)

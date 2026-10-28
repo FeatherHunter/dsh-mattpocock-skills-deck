@@ -166,6 +166,12 @@ interface GateDeps {
   budgetModelOf?: (backendId: string) => unknown
   /** 类别 → 记账口（#1439）。面板与强制刷新不经过操作管线，真实用量由闸经这里交出去；不接就不记，行为与 #1454 后一致。 */
   accountFor?: (category: string) => AccountSink | null
+  /**
+   * #1627：每一次裁决的结论报给观察器（放行/推迟各算一次，admitAiTool 那一路也走同一个出口）。
+   * 契约要求**在调试开关判断之前**调用：debug 关着的时候窗口行里的放行与推迟计数也必须准，
+   * 把计数挂在刷新日志的开关后面，关着时那些计数就永远是 0 —— 那正是这张票要治的病。
+   */
+  onDecision?: (info: { at: number; category: string; verdict: string; reason: string }) => void
 }
 
 /** 工作区状态能从外面改的那一格（现在只有「在不在用」）。 */
@@ -273,10 +279,7 @@ export function createGate(deps?: GateDeps) {
   const opts = deps || {}
   // 账本在这里断言成整本形状：紧接着那条判断仍原样在运行时把不合格的账本当掉（接线出错就当场抛），
   // 断言只为让下面那些内层函数里的读法成立 —— TS 不把这里 const 的收窄带进内层函数，运行时不多不少一行。
-  const ledger = opts.ledger as LedgerShape
-  if (!ledger || typeof ledger.view !== 'function') {
-    throw new Error('闸要一本账：deps.ledger 缺 view 这一条')
-  }
+  const ledger = opts.ledger as LedgerShape; if (!ledger || typeof ledger.view !== 'function') throw new Error('闸要一本账：deps.ledger 缺 view 这一条')
   const now = typeof opts.now === 'function' ? opts.now : Date.now
   const logCtx = opts.logCtx || null
   const hash8 = typeof opts.hash8 === 'function' ? opts.hash8 : shortHash
@@ -366,9 +369,13 @@ export function createGate(deps?: GateDeps) {
     }
   }
 
+  // #1627：先无条件把结论报给观察器（写在调试开关判断之前，见 GateDeps.onDecision 的说明）。
+  // 没有观察器时不读钟、不组装对象；回调抛错不影响裁决（观测是旁证，与日志同一纪律）。
+  function fireDecision(req: NormalizedReq, verdict: string, reason: string): void { try { if (typeof opts.onDecision === 'function') opts.onDecision({ at: now(), category: String(req.category), verdict: String(verdict), reason: String(reason) }) } catch (eD) { /* 观测不许影响裁决 */ } }
+
   // 账本三个事件之一（按需级 P1）：这一笔的结论与原因。外层先判调试开关，关着连字段对象都不组装。
   // #1008/#1218：失败窗口里再补六个归因键（窗口外自动不加，正常时段的这一行与从前一字不差）。
-  function fireDecide(req: NormalizedReq, verdict: string, reason: string, slot: QuotaSlot) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'refresh.decide', Object.assign({ category: req.category, kind: req.kind, verdict: verdict, reason: reason, tier: slot.facts.readKnown ? policyTierOf(slot) : '', cycle: req.cycle, keyHash: hash8(req.workspaceKey), backendId: slot.facts.backendId, budgetKind: slot.facts.budgetKind, readKnown: slot.facts.readKnown, offNetwork: slot.facts.offNetwork }, failureAttribution(req.workspaceKey) || {})) } catch (eL) {} }
+  function fireDecide(req: NormalizedReq, verdict: string, reason: string, slot: QuotaSlot) { fireDecision(req, verdict, reason); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'refresh.decide', Object.assign({ category: req.category, kind: req.kind, verdict: verdict, reason: reason, tier: slot.facts.readKnown ? policyTierOf(slot) : '', cycle: req.cycle, keyHash: hash8(req.workspaceKey), backendId: slot.facts.backendId, budgetKind: slot.facts.budgetKind, readKnown: slot.facts.readKnown, offNetwork: slot.facts.offNetwork }, failureAttribution(req.workspaceKey) || {})) } catch (eL) {} }
 
   // 账本三个事件之一（按需级 P1）：被跳过的那些（后台档被推迟、额度不足、过期丢弃）。
   // #1008/#1218：同样只在失败窗口里补六个归因键。

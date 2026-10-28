@@ -87,6 +87,29 @@ interface GhWaiter {
   bucket: GhBucket
   service: GhService
   timer: GhTimerHandle | null
+  /**
+   * #1627：排上队的那一刻（毫秒时间戳）。只给观察器算「队尾那位等了多久」用——
+   * 没有这个时刻就只能报「有人在等」却说不出等了多久，那正好是「门口到底憋没憋人」的答案缺口。
+   */
+  since: number
+}
+
+/**
+ * #1627：准入闸当下的状态（观察器每分钟采样一次，写进 quota.window / quota.incident 的几格）。
+ * 全部是只读快照，不参与任何准入判断；上限用常量而不是实例上覆盖过的 maxOf：
+ * 观察器问的是「按设计这道门能同时放几个」，不是「这条测试路径把门改小成了几个」。
+ */
+export interface QuotaLaneState {
+  /** 读 + 写两桶正在飞的进程数之和。 */
+  inflight: number
+  /** 两桶在飞上限之和（READ_BUCKET_MAX + WRITE_BUCKET_MAX）。 */
+  inflightMax: number
+  /** 两桶排队人数之和。 */
+  queued: number
+  /** 进程启动以来见过的最大排队数（两桶各自峰值相加）。 */
+  queuedPeak: number
+  /** 排队里等得最久那一位已经等了多久（毫秒）；没人排队时是 0。 */
+  oldestWaitMs: number
 }
 // 准入选项与拿名额参数的形状：调用方没给就用缺省桶与缺省配额。
 interface GhAdmissionOpts {
@@ -223,8 +246,9 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
   // 冷却表键：服务名与桶名各取一枚枚举，拼出来只做查表用，不进日志。
   function coolKeyOf(service: GhService, bucket: GhBucket): string { return service + ':' + bucket }
   const stats = {
-    read: { peak: 0, waited: 0, done: 0, timedOut: 0 },
-    write: { peak: 0, waited: 0, done: 0, timedOut: 0 },
+    // #1627：queuedPeak 是这只桶排队人数见过的最大值（进程启动以来），给观察器回答「堵到过什么程度」。
+    read: { peak: 0, waited: 0, done: 0, timedOut: 0, queuedPeak: 0 },
+    write: { peak: 0, waited: 0, done: 0, timedOut: 0, queuedPeak: 0 },
     cancelled: 0,
   }
   // 两只桶各记「上一次因长等待落行」的钟点，用来做五分钟节流；0 表示还没记过。
@@ -315,7 +339,7 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
     // 类型说明：Promise 泛型只定放行函数的形状，运行时仍是原来那只 Promise。
     return new Promise<() => void>(function (resolve, reject) {
       // 类型说明：放行与取消函数先空着，随后立即补上，空只存在这两行之间。
-      const waiter: GhWaiter = { settled: false, signal: signal, resolve: null, reject: null, bucket: bucket, service: service, timer: null }
+      const waiter: GhWaiter = { settled: false, signal: signal, resolve: null, reject: null, bucket: bucket, service: service, timer: null, since: waitT0 }
       waiter.resolve = function (): void {
         clearQueueTimer(waiter)
         // #960：排队拿到名额时落一行 —— 桶名、放行时在飞数、上限、放行时队列残长、等了多久。
@@ -376,6 +400,8 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
         }, waitMs)
       }
       queues[bucket].push(waiter)
+      // #1627：记下排队人数的峰值（观察器读 lane 状态时用它回答「这只桶历史上堵到过什么程度」）。
+      if (queues[bucket].length > stats[bucket].queuedPeak) stats[bucket].queuedPeak = queues[bucket].length
       pump(bucket)
     })
   }
@@ -454,11 +480,34 @@ export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
     }
   }
 
+  /**
+   * #1627：这道闸当下状态的只读快照（观察器采样用，不参与准入判断）。
+   * oldestWaitMs 只看还在队里的那几位：已经 settle 但还没被 pump 摘走的瞬间不单独处理，
+   * 与 queued 的口径保持一致（两者都按队里现有的元素算，免得一个说有人、一个说没人）。
+   */
+  function laneState(): QuotaLaneState {
+    let oldestSince = 0
+    for (const bucket of ['read', 'write'] as GhBucket[]) {
+      for (const waiter of queues[bucket]) {
+        if (waiter.since > 0 && (oldestSince === 0 || waiter.since < oldestSince)) oldestSince = waiter.since
+      }
+    }
+    const queued = queues.read.length + queues.write.length
+    return {
+      inflight: running.read + running.write,
+      inflightMax: READ_BUCKET_MAX + WRITE_BUCKET_MAX,
+      queued: queued,
+      queuedPeak: stats.read.queuedPeak + stats.write.queuedPeak,
+      oldestWaitMs: (queued > 0 && oldestSince > 0) ? Math.max(0, Date.now() - oldestSince) : 0,
+    }
+  }
+
   return {
     acquire: acquire,
     reportTransportFailure: reportTransportFailure,
     reportSuccess: reportSuccess,
     snapshot: snapshot,
+    laneState: laneState,
     limits: function (): { readMax: number; writeMax: number } { return { readMax: maxOf.read, writeMax: maxOf.write } },
   }
 }
@@ -475,6 +524,13 @@ export function getGhLane(logCtx?: GhLogCtxLike | null): ReturnType<typeof creat
 
 /** 测试与特殊场景自建一道（不污染默认单例）。 */
 export function resetGhLaneForTest(): void { defaultLane = null }
+
+/**
+ * #1627：读进程内默认准入闸的当下状态（观察器采样用）。
+ * 还没起过 gh（单例没建）时回 null：调用方要分得清「没有闸」与「闸里一个人都没有」——
+ * 前者是「这个进程还不知道门口的情况」，后者是「门口确实空着」，两者写进日志意思完全不同。
+ */
+export function getLaneState(): QuotaLaneState | null { if (!defaultLane) return null; return defaultLane.laneState() }
 
 /**
  * 排队拿名额再跑（#965 共用包装器，给行数到顶的文件用，免得每个调用方各写一遍拿与放）。

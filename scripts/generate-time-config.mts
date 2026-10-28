@@ -195,6 +195,8 @@ const KEYS: Array<[string, string, string]> = [
   // —— 宿主出站排队段的日志节流（#1101）：等多久才记一行、同一只桶最短多久记一次 ——
   ['laneLongWaitLogMs', 'LANE_LONG_WAIT_LOG_MS', 'intervals'],
   ['laneWaitLogIntervalMs', 'LANE_WAIT_LOG_INTERVAL_MS', 'intervals'],
+  // #1627：deck 工具回执「慢」的日志判据（3 秒），只参与判断，不是等待上限。
+  ['toolReceiptSlowMs', 'TOOL_RECEIPT_SLOW_MS', 'intervals'],
   // —— ttl：有效期 ——
   ['preflightTtlMs', 'PREFLIGHT_TTL_MS', 'ttl'],
   ['chainAllGreenTtlMs', 'CHAIN_ALL_GREEN_TTL_MS', 'ttl'],

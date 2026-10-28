@@ -40,8 +40,9 @@ const REF = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
 // host.call 与房间这层串起来），所以这里是八格；与 tests/verify-log-fields.ts 的白名单一致。
 // 2026-10-21（#1007 复核）：又增补了一格 cmd（这一条 gh 命令的短标签，如 label-colors:list）。
 // 2026-10-25（#1482）：再增补 points（这一笔记进账本的点数）与 pointSource（这个点数是哪来的）。
-// 所以这里是十一格；与 tests/verify-log-fields.ts 的白名单一致。
-const GH_EXEC_FIELDS = ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd', 'points', 'pointSource']
+// 2026-10-29（#1627）：再增补 rateClass（失败行的限流细分类；成功行与不是限流的失败行空串）。
+// 所以这里是十二格；与 tests/verify-log-fields.ts 的白名单一致。
+const GH_EXEC_FIELDS = ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd', 'points', 'pointSource', 'rateClass']
 
 /** 从参数数组里读 `--flag value` 这种写法（不拼字符串再正则，标签名里可能有空格与冒号）。 */
 function flagsOf(args) {

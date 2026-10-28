@@ -91,13 +91,17 @@ export const NOT_ACCOUNTED = { points: 0, pointSource: '' }
 // 拿不到时按 1 点估；REST 记 0），pointSource 说这个点数是哪来的（server 回包给了真实 cost /
 // estimate 按 1 点估 / 空串 不是 GraphQL）。为什么要这两格：账本记错时，人得能从日志看出
 // 这一笔是真实点数还是估算 —— 从前只记条数不记点数，记歪了查不出来。
+// #1627 起多记一格 rateClass：失败行的限流细分类（primary / secondary / http429 / unknown），
+// 成功行与不是限流的失败行记空串。空串「不是限流」与 unknown「判档说是限流、原文没给类别」是两件事，
+// 不能合并：前者只是普通失败，后者要人去查配额。判据住在 kernel/error-rules.ts 的 rateLimitClassOf，
+// 由调用点判好递进来；这一层只管字段拼装，不另写词表。
 // 默认是信息级别（高频、外层先判开关）；出站控制面没接上这类「一条命令都没发」的轨迹按告警级别记，
 // 那时不需要问 isEnabled —— 与从前那一行告警口径一致。level 是本文件唯一的调用点差异，字段拼法完全同一份。
-export function emitGhExec(ctx: OpContext, kind: string, exitCode: number, t0: number, cwd: string | undefined, waitedMs: number | undefined, via: string | undefined, cmd: string | undefined, pointNote: { points: number; pointSource: string }, level?: string): void {
+export function emitGhExec(ctx: OpContext, kind: string, exitCode: number, t0: number, cwd: string | undefined, waitedMs: number | undefined, via: string | undefined, cmd: string | undefined, pointNote: { points: number; pointSource: string }, level?: string, rateClass?: string): void {
   try {
     const lv = String(level || 'info')
     if (lv === 'info' && !roomInfoEnabled(ctx)) return
-    roomLogEvent(ctx, lv, 'gh.exec', { argv0: 'gh', via: String(via || ''), opId: String((ctx && ctx.opId) || ''), cwdHash: hash8(cwd || ''), latencyMs: Date.now() - t0, waitedMs: (typeof waitedMs === 'number' && isFinite(waitedMs) && waitedMs > 0) ? Math.floor(waitedMs) : 0, kind: String(kind || 'unknown'), exitCode: typeof exitCode === 'number' ? exitCode : -1, cmd: String(cmd || ''), points: pointNote.points, pointSource: pointNote.pointSource })
+    roomLogEvent(ctx, lv, 'gh.exec', { argv0: 'gh', via: String(via || ''), opId: String((ctx && ctx.opId) || ''), cwdHash: hash8(cwd || ''), latencyMs: Date.now() - t0, waitedMs: (typeof waitedMs === 'number' && isFinite(waitedMs) && waitedMs > 0) ? Math.floor(waitedMs) : 0, kind: String(kind || 'unknown'), exitCode: typeof exitCode === 'number' ? exitCode : -1, cmd: String(cmd || ''), points: pointNote.points, pointSource: pointNote.pointSource, rateClass: String(rateClass || '') })
   } catch {}
 }
 

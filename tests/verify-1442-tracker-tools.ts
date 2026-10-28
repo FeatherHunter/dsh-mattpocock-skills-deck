@@ -186,7 +186,7 @@ async function main() {
       // #1610：报账门禁换成生产那一份记账口（src/refresh/kernel/backend-accounting.ts:141 的 createAccountPort）。
       // 从前这里手写一份读 result.claimed 的替身，可房间回包上根本没有 claimed 这一格，替身静默记 0，
       // 账本这一层等于从没被验证过。
-      account: acctMod.createAccountPort({ ledger: ledger, account: 'ai-tool' }),
+      accountPort: acctMod.createAccountPort({ ledger: ledger, account: 'ai-tool' }),
       getCachedReading: () => reading,
     };
     const deps = {
@@ -198,7 +198,7 @@ async function main() {
       workRouteNote: (i: unknown) => workRouteBindings.note(i),
       workRouteRead: (i: unknown) => workRouteBindings.read(i),
       workRouteRelease: (i: unknown) => workRouteBindings.release(i),
-      planStore, admit: ports.admit, account: ports.account, getCachedReading: ports.getCachedReading,
+      planStore, admit: ports.admit, accountPort: ports.accountPort, getCachedReading: ports.getCachedReading,
     };
     const tools: Record<string, any> = {};
     for (const [file, factory, name] of TOOL_FILES) tools[name] = (await imp(file))[factory](deps);
