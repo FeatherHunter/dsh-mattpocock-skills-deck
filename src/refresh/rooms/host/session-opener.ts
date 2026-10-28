@@ -31,7 +31,9 @@
  * 不开整套读写路径。本文件的开会话也复用它——读数仍然直达房间，不裁决不记账。
  */
 import { openTracker } from '../../../tracker/session/open-tracker.js'
+import { newOpId } from '../../../shared/op-id.js'
 import { resolveSessionRepoRef } from '../../../tracker/session/repo-ref.js'
+import type { QuotaOpEnd, QuotaOpStart } from '../../../tracker/session/pipeline.js'
 import { createSessionDecisionResolver } from './session-decision.js'
 import { createAccountPort } from '../../kernel/backend-accounting.js'
 import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
@@ -68,6 +70,13 @@ export interface SessionOpenerDeps {
   decideSelection?: (cwd: string) => Promise<DecidedSelection | null>
   /** #1555：装配方交来的统一判定函数（refresh-runtime 递 host 的那一份）；给了就在这里现造 decideSelection。 */
   getDecisionFn?: () => any
+  /**
+   * #1627 配额诊断：每一笔操作的开始/结束钩子，装配方接观察器（Lead 的 quota-observer）。
+   * 类型直接从管线导出，本文件不认识观察器的形状；缺省不传时管线什么都不做。
+   */
+  onOpStart?: (info: QuotaOpStart) => void
+  /** #1627：与 onOpStart 成对的结束钩子（房间回了、账记了，或者房间抛错收成失败信封之后）。 */
+  onOpEnd?: (info: QuotaOpEnd) => void
 }
 
 /** 一层会话：会话本身、这一次的仓库身份、以及「这个会话能不能写」的结论。 */
@@ -108,6 +117,12 @@ export interface OpenSessionOptions {
   resolveSelection?: SelectionResolver
   /** 这一次的起进程出口（写会话可覆盖；不覆盖就用后端上下文里那一份）。 */
   exec?: SessionExec
+  /**
+   * 这趟会话的用途（#1627）：'' 表示普通取数，'naming-index' 表示命名索引那次翻页。
+   * 为什么值得单独标出来：命名索引在陌生工作区里会一页页翻，它和用户点的操作抢同一份额度，
+   * 混在一起看不出「分钟内是谁把额度用掉的」。
+   */
+  purpose?: string
 }
 
 /** 判定层交回来的选择：开会话只读这五格（与契约 Selection 同形；ref 可空）。 */
@@ -216,7 +231,8 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
         getCachedReading: ports.getCachedReading as any,
         admit: (write ? ports.admit : readAdmit) as any,
         // #1446：读写两条路都记账（读路径的裁决仍恒放行，见文件头第 1 条；记账不是裁决）。
-        account: accountPort as any,
+        // #1627：记账口叫 accountPort，与下面字符串档位 account 分开——同名会让字符串顶掉端口。
+        accountPort: accountPort as any,
         canWrite: !!(opts && opts.canWrite === true),
         ...(write
           ? { canWriteFromSelection: true, canWriteReason: '写会话的写权限由判定出口回答（取不到就是没就绪，不默认放开）' }
@@ -224,6 +240,12 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
         // 调用方显式给了选择就尊重它那份（快照复用判定结论、面板按已核验的后端取数）；
         // 没给则先按统一判定（判定层不可用时退回裸问注册表，见上面 resolveSelection 的那段）。
         ...(resolveSelection ? { resolveSelection: resolveSelection } : { matchContext: matchCtx }),
+        // #1627：逐笔钩子与「谁发起 / 记哪一档 / 干什么用的」随会话交给管线。
+        // 刷新后台这条路发起方恒为 refresh、恒记 plugin 档（与文件头第 2 条记账口径一致）。
+        opHooks: { onStart: deps.onOpStart, onEnd: deps.onOpEnd },
+        caller: 'refresh',
+        account: 'plugin',
+        purpose: String((opts && opts.purpose) || ''),
       })
       if (!opened || opened.ok !== true) {
         return openFail(String((opened && opened.reason) || 'open-failed'), String((opened && opened.detail) || ''))
@@ -241,7 +263,9 @@ export function createSessionOpener(deps: SessionOpenerDeps): (cwd: unknown, opt
         call: function <T>(fn: (s: TrackerSession, c: OpContext) => Promise<T>): Promise<T> {
           let base: Record<string, unknown> = {}
           try { base = deps.backendCtx() || {} } catch (eB: any) { base = {} }
-          const over: Record<string, unknown> = { cwd: cwdStr, signal: undefined, caller: 'refresh' }
+          // #1627：一次 call 就是一个操作编号——同一次工具调用里可能有多个会话操作（例如先 describe
+          // 再 listIssues），它们共用这个编号，逐笔行与宿主那层行才串得起来；每次 call 都现造，不复用。
+          const over: Record<string, unknown> = { cwd: cwdStr, signal: undefined, caller: 'refresh', opId: newOpId() }
           if (opts && typeof opts.exec === 'function') over.exec = opts.exec
           const ctx = Object.assign({}, base, over) as unknown as OpContext
           return Promise.resolve(fn(session, ctx))

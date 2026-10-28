@@ -246,6 +246,25 @@ else
   say "✓ 版本 $VERSION 尚未占用，可发布"
 fi
 
+say "⑤ 真机验证清单检查（本版清单票恰好一张且已关闭）"
+note "规则见 docs/agents/real-machine-verification.md；dry-run 只提示不阻断"
+if [[ -f scripts/release-preflight.mts ]]; then
+  set +e
+  node scripts/release-preflight.mts --version "$VER_NUM" 2>&1 | sed 's/^/  /'
+  PREFLIGHT_CODE=${PIPESTATUS[0]}
+  set -e
+  if [[ "$PREFLIGHT_CODE" -eq 0 ]]; then
+    say "✓ 真机验证清单已收口（本版清单票已关闭）"
+  elif [[ "$DRY_RUN" -eq 1 ]]; then
+    warn "真机验证清单没通过（dry-run 只提示，不阻断）——正式发布前必须先建票、验完、关票。"
+  else
+    warn "真机验证清单没通过，已阻断后续发布。"
+    warn "按 docs/agents/real-machine-verification.md 处理：建清单票、登记场景、验完关票后重跑本向导。"
+    exit 1
+  fi
+else
+  note "没有 scripts/release-preflight.mts，跳过真机验证清单检查。"
+fi
 write_env WIZARD_RELEASE_STAGE "3"
 pause "门禁全绿后按回车进入发布（将弹浏览器）"
 
@@ -320,6 +339,20 @@ else
 fi
 
 pause "发布步骤已完成，按回车进入官方源验证（后台轮询）"
+
+# 发布之后的清单收尾：给本版清单票补发布记录、建下一版占位票（失败只提示，不影响已完成的发布）
+if [[ -f scripts/release-postflight.mts ]]; then
+  say "真机验证清单收尾：给本版清单票补发布记录，并建下一版占位票"
+  set +e
+  node scripts/release-postflight.mts --version "$VER_NUM" 2>&1 | sed 's/^/  /'
+  POSTFLIGHT_CODE=${PIPESTATUS[0]}
+  set -e
+  if [[ "$POSTFLIGHT_CODE" -ne 0 ]]; then
+    warn "清单收尾没走完（发布本身已经完成，不受影响）；下次发布前检查会发现缺票并拦住。"
+  fi
+else
+  note "没有 scripts/release-postflight.mts，跳过清单收尾。"
+fi
 
 # ── Stage 5：官方源验证（后台轮询） ───────────────────────
 stage "5/6 官方源验证（后台轮询）"

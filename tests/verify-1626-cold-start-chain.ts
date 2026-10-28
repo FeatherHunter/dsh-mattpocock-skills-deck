@@ -14,6 +14,8 @@
 //   C 不重复：等待期间再挂载一路（第二次 loadChain）也只补发一次；日志里没有空键请求、没有 stale 回包
 //   D 兜底：wf.selection 回失败 / 显式「没有后端」/ 叶子沙箱里没有 selection 模块时，都照旧能求值一次、不吊死
 //   E 回归：selection 已在手上时照旧立刻发，不多问 wf.selection；快照到手后 #1474 的入口（chainPendingOf）照旧为真
+//   F 回归：selection 是 fallback 的空结论（{backendId:null} 真值对象）时也按「还没确定」处理，等落定再发；
+//     只有显式空（source=explicit）才当「确实没有后端」立刻算
 //
 // 门禁归属: src/refresh/rooms/client/probe-chain-subscription.ts
 // 门禁归属: src/refresh/rooms/client/probe-scope-selection.ts
@@ -144,12 +146,15 @@ function makeWorld (mode: Mode): World {
   const flushFn = compileFn(['loadChain', 'CHAIN_EVENT_REASONS'], 'var ' + flushSrc + '\n;return _flushDeferredChain')(function (): any {
     return holder.loadChain.apply(null, arguments)
   }, chainMod.CHAIN_EVENT_REASONS)
-  // 真 askSelectionOnce（probe-scope-selection.ts 切函数体）：内部会用真 mergeSelection 与上面那份补发。
+  // 真补发守卫（probe-scope-selection.ts 切函数体）：四个汇合点共用的那一段，内部转调上面那份补发。
+  const guardSrc = extractFn(spliceableJs('src/refresh/rooms/client/probe-scope-selection.js'), '_tryFlushDeferredChain = function')
+  const guardFn = compileFn(['_flushDeferredChain'], 'var ' + guardSrc + '\n;return _tryFlushDeferredChain')(flushFn)
+  // 真 askSelectionOnce（probe-scope-selection.ts 切函数体）：内部会用真 mergeSelection、真守卫与上面那份补发。
   const askSrc = extractFn(spliceableJs('src/refresh/rooms/client/probe-scope-selection.js'), 'askSelectionOnce = function')
   holder.ask = compileFn(
-    ['host', 'wsKeyOf', 'isEnabled', 'log', 'dswsLogHash', 'dswsLogTrunc', 'mergeSelection', 'emit', '_flushDeferredChain'],
+    ['host', 'wsKeyOf', 'isEnabled', 'log', 'dswsLogHash', 'dswsLogTrunc', 'mergeSelection', 'emit', '_flushDeferredChain', '_tryFlushDeferredChain'],
     'var ' + askSrc + '\n;return askSelectionOnce')(
-    w.host, wsKeyOf, function (): boolean { return true }, logFn, hashFn, truncFn, mergeSelection, emitFn, flushFn)
+    w.host, wsKeyOf, function (): boolean { return true }, logFn, hashFn, truncFn, mergeSelection, emitFn, flushFn, guardFn)
   w.chainMod = chainMod
   return w as World
 }
@@ -261,6 +266,24 @@ async function main (): Promise<void> {
     check(w.chainCalls.length === 1, 'E2 立刻发一条链求值（实得 ' + w.chainCalls.length + ' 条）')
     check(w.selectionCalls.length === 0, 'E3 不再多问 wf.selection（实得 ' + w.selectionCalls.length + ' 次）')
     check(requestLogs(w)[0].fields.backendId === 'github', 'E4 请求键里的 backendId 是 github')
+  }
+
+  console.log('\n#1626 F. 回归：fallback 的空结论不是「确实没有后端」，也要等落定')
+  {
+    // 宿主快照可能先把 fallback 的空结论装进来（mergeSelection 会装成 {backendId:null} 真值对象），
+    // 它不是「确实没有后端」——那条专用电话之后可能带回显式结论，照旧按空键先发就等于只修了冷启动一种形状。
+    const w = makeWorld('github')
+    const st: any = { cwd: CWD, sessionId: SID, selection: { backendId: null, source: 'fallback' }, chainSnapshot: null }
+    w.chainMod.loadChain(st, false)
+    // 这一格必须同步判：mode=github 的 selection 回包在微任务里就落定，await 一下就已经补发完了。
+    check(w.chainCalls.length === 0, 'F1 fallback 空结论时先不空算（实得 ' + w.chainCalls.length + ' 条）')
+    await sleep(5)
+    check(w.selectionCalls.length === 1, 'F2 仍然问一次 wf.selection（实得 ' + w.selectionCalls.length + ' 次）')
+    await sleep(15)
+    check(!!st.selection && st.selection.backendId === 'github', 'F3 落定成 github（实得 ' + JSON.stringify(st.selection) + '）')
+    check(w.chainCalls.length === 1, 'F4 落定后只发一次（实得 ' + w.chainCalls.length + ' 条）')
+    check(requestLogs(w)[0].fields.backendId === 'github', 'F5 这条请求带 github，不是空键')
+    check(!requestLogs(w).some(function (l) { return l.fields.backendId === '' }), 'F6 没有空键请求')
   }
 
   console.log('\n共 ' + total + ' 项，' + (failed ? '有失败' : '全绿'))

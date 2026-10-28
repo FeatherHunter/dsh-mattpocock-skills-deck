@@ -154,6 +154,22 @@ try {
     }
   }
   Log ('TAG ' + $Tag + '（latest 是所有人默认拿到的；其他 tag 只有显式安装才拿到，所以测试版发 beta 不会推给其他用户）')
+  # ── 真机验证清单闸：本版清单票恰好一张且已关闭（规则见 docs/agents/real-machine-verification.md） ──
+  # 只在本仓有 scripts/release-preflight.mts 时生效：五仓同步的 token 协议别处不带这套票务规则。
+  $preflight = Join-Path $RepoRoot 'scripts/release-preflight.mts'
+  if (-not (Test-Path $preflight)) { Log 'CHECK 跳过（本仓没有 scripts/release-preflight.mts）' }
+  else {
+    if ($DryRun) { Log 'CHECK 真机验证清单（DryRun 只提示不阻断）' } else { Log 'CHECK 真机验证清单：本版 [真机验证] 清单票恰好一张且已关闭' }
+    Push-Location $RepoRoot
+    $chkArgs = @('scripts/release-preflight.mts')
+    if ($DryRun) { $chkArgs += '--soft' }
+    $chkOut = (node @chkArgs 2>&1 | Out-String)
+    $chkCode = $LASTEXITCODE
+    Pop-Location
+    $chkTrim = $chkOut.Trim(); if ($chkTrim.Length -gt 1200) { $chkTrim = $chkTrim.Substring($chkTrim.Length - 1200) }
+    if (($chkCode -ne 0) -and (-not $DryRun)) { Log ('CHECK-FAIL 真机验证清单没通过（exit=' + $chkCode + '）：' + $chkTrim); exit 1 }
+    if ($chkCode -ne 0) { Log ('CHECK-SOFT 演练模式不阻断：' + $chkTrim) } else { Log ('CHECK-OK ' + $chkTrim) }
+  }
   if ($DryRun) { Log 'DRYRUN 只验到这里，不跑门禁不发布'; exit 0 }
 
   # ── 门禁：构建＋测试（仓根跑一次；较重，可 -SkipGate 跳过） ─────────────
@@ -227,6 +243,20 @@ try {
       if ($pend.Count -gt 0) { Log ('STAGED-PENDING ' + $pend.Count + ' 个（已受理、待可见）：' + ($pend -join ', ') + '；宣布前跑 -FullPost 复核到全绿') }
     }
   } else { Log 'STAGE 3/3 跳过（本轮无走完的包）' }
+  # ── 发布后：真机验证清单票补发布记录、建下一版占位票（失败只记日志，不改本次发布结果） ──
+  $postflight = Join-Path $RepoRoot 'scripts/release-postflight.mts'
+  if ($done.Count -eq 0) { Log 'POST 跳过（本轮没有成功的包）' }
+  elseif (-not (Test-Path $postflight)) { Log 'POST 跳过（本仓没有 scripts/release-postflight.mts）' }
+  else {
+    Log 'POST 真机验证清单收尾：补发布记录、建下一版占位票'
+    Push-Location $RepoRoot
+    $pfOut = (node $postflight 2>&1 | Out-String)
+    $pfCode = $LASTEXITCODE
+    Pop-Location
+    $pfTrim = $pfOut.Trim(); if ($pfTrim.Length -gt 1600) { $pfTrim = $pfTrim.Substring($pfTrim.Length - 1600) }
+    if ($pfCode -ne 0) { Log ('POST-FAIL 收尾没走完（exit=' + $pfCode + '），不影响本次发布；下次发布前检查会拦缺票：' + $pfTrim) }
+    else { Log ('POST-OK ' + $pfTrim) }
+  }
   if ($failed.Count -gt 0) { Log ('FAIL 本轮失败 ' + $failed.Count + ' 个：' + ($failed -join ', ')); exit 1 }
   Log ('DONE 已发 ' + $done.Count + ' 个：' + ($done -join ', '))
   Write-Host '发布侧到此结束（三包全绿即交付）：安装一律用户侧做（市场升级/软件内升级/自装）。'

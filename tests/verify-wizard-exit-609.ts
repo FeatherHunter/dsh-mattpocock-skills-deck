@@ -10,7 +10,7 @@
 //     A. 用向导库真的 open_url 去调一个「返回 1 的调起器」，再把 scripts/wizard-release.sh 里每一处
 //        open_url 调用按行号原样抽出来执行，看脚本会不会被带走；
 //     B. 让 pause 在 stdin 关掉时跑，看它是明确失败还是静默返回成功；
-//     C. 把 scripts/wizard-release.sh 的发布那一段（第 285–320 行）整段抽出来跑，npm 与调起器都换成桩函数；
+//     C. 把 scripts/wizard-release.sh 的发布那一段（第 304–339 行）整段抽出来跑，npm 与调起器都换成桩函数；
 //     D. 对照：换成「有人应答」的输入，同一段必须照常走完并照常记「已发布」。
 //   确定性、秒级、不需要人按键、不联网，也绝不执行真实发布（npm 全程是桩，只打印参数），
 //   更不会弹浏览器：调起器换成了「返回 1 的桩」，真 explorer.exe 一次都不会被调到。
@@ -30,8 +30,8 @@ const WORK_REL = 'test/wizard-609-work'
 const WORK = path.join(ROOT, WORK_REL)
 const GIT_BASH = 'C:\\Program Files\\Git\\bin\\bash.exe'
 // 发布那一段的行号：抽的是产品源码本身，不手抄。改向导的人若把这段挪了位置，这段门禁会当场花掉提醒对齐。
-const PUBLISH_START = 285
-const PUBLISH_END = 320
+const PUBLISH_START = 304
+const PUBLISH_END = 339
 
 let failed = false
 let total = 0

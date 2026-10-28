@@ -115,7 +115,7 @@ async function main(): Promise<void> {
     registry: registry as any,
     getCachedReading: (): any => ({ known: false, reason: 'not-measured' }),
     admit: (): any => ({ allowed: false, kind: 'ratelimit', message: '预算不足，本次调用推迟' }),
-    account: (): void => {},
+    accountPort: (): void => {},
     canWrite: false,
   })
   check(gated && gated.ok === true, '裁决拒绝不影响开会话本身（会话照开，只是这一趟调用被推迟）')

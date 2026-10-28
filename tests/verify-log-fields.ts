@@ -2,7 +2,7 @@
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-log-fields.ts。
 // 2026-10-28（#1609）起 refresh.decide 与 refresh.skipped 两条事件的字段改为运行时采集（见 collectCalls 之后的注释），
 //   要在 ts-hook 下才能载入 .ts 源码、把闸真的跑一遍；其余事件仍是纯静态扫描。不走钩子时运行时采集那一项会判红并写明用法。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（2026-10-21 map 1010 wayfinder 逐票复核新增常驻 #120 gh.auth.env、#122 guide.banner 与按需 #121 gh.lane.saturated、#123 probe.loop、#124 prompt.link，共 127 事件（2026-10-26 #1007 新增常驻 #132 gh.transport：通路失败后的冷却三件事（设上 / 挡回 / 清零），字段只有 decision / bucket / reason / remainingMs / failStreak / cmd，命令只记短标签、不记原文；2026-10-26 #1475 新增常驻 #133 chain.predicate.timeout：检测链一次求值里外层等待预算先到点、被放弃的内层谓词后来回话各记一行，字段只有 id / phase / budgetMs / status / latencyMs；2026-10-25 #1514 新增按需 #131 preflight.check：房间预检的 Markdown 三项环境判据各落一行，字段只有 gate / status / evidence / cwdHash / latencyMs / opId，evidence 是短机器证据、cwdHash 只记 8 位散列，路径原文与错误原文一个字都不记；2026-10-23 #1409 新增按需 #127 suggest.bind、#128 suggest.call、#129 suggest.ready：界面借会话事件流取数的三条调试线，只记散列与计数，绝不记建议原文）；2026-10-20 #1295 新增按需 #114 container.split（列表页容器分拣这一趟：探索地图 / 规格 / 普通未关闭票 / 已关闭各几条，以及容器种类判定有没有退回文件内兜底）并给常驻 #10 snapshot.built 增补一格 specs（这一份快照里判成规格容器的几个；maps 是容器总数，条数不变）；2026-10-20 #1294 新增按需 #112 locale.registration（注册这一趟的结论：几门语言、新增几门、跳过几门、缺省语言、耗时）与常驻 #113 locale.registration.fail（注册失败那一步：读快照 / 新增语言 / 注册词表，哪门语言、回退目标、错误原文散列）；#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；2026-10-20 #1296 新增按需 #115 container.accent（启动时按调试档记一行界面实际取到的两色：explore 是中央色表 map 值、spec 是中央色表 spec 值）；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（2026-10-21 map 1010 wayfinder 逐票复核新增常驻 #120 gh.auth.env、#122 guide.banner 与按需 #121 gh.lane.saturated、#123 probe.loop、#124 prompt.link，共 137 事件（2026-10-26 #1007 新增常驻 #132 gh.transport：通路失败后的冷却三件事（设上 / 挡回 / 清零），字段只有 decision / bucket / reason / remainingMs / failStreak / cmd，命令只记短标签、不记原文；2026-10-26 #1475 新增常驻 #133 chain.predicate.timeout：检测链一次求值里外层等待预算先到点、被放弃的内层谓词后来回话各记一行，字段只有 id / phase / budgetMs / status / latencyMs；2026-10-25 #1514 新增按需 #131 preflight.check：房间预检的 Markdown 三项环境判据各落一行，字段只有 gate / status / evidence / cwdHash / latencyMs / opId，evidence 是短机器证据、cwdHash 只记 8 位散列，路径原文与错误原文一个字都不记；2026-10-23 #1409 新增按需 #127 suggest.bind、#128 suggest.call、#129 suggest.ready：界面借会话事件流取数的三条调试线，只记散列与计数，绝不记建议原文）；2026-10-20 #1295 新增按需 #114 container.split（列表页容器分拣这一趟：探索地图 / 规格 / 普通未关闭票 / 已关闭各几条，以及容器种类判定有没有退回文件内兜底）并给常驻 #10 snapshot.built 增补一格 specs（这一份快照里判成规格容器的几个；maps 是容器总数，条数不变）；2026-10-20 #1294 新增按需 #112 locale.registration（注册这一趟的结论：几门语言、新增几门、跳过几门、缺省语言、耗时）与常驻 #113 locale.registration.fail（注册失败那一步：读快照 / 新增语言 / 注册词表，哪门语言、回退目标、错误原文散列）；#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；2026-10-20 #1296 新增按需 #115 container.accent（启动时按调试档记一行界面实际取到的两色：explore 是中央色表 map 值、spec 是中央色表 spec 值）；
 // 2026-10-21 第二轮逐票复核（map 1010 的 1000–1300 段）没有新增事件，只给四条既有事件补判定字段：
 //   常驻 #5 gh.exec 增补 cmd（哪条 gh 子命令，例如 issue:create；从前只有 argv0='gh'，分不出查登录态还是改票）、
 //   常驻 #6 gh.timeout 增补 layer（room-tier 房内自己掐表 / host-clamp 宿主外包钳制）、
@@ -27,7 +27,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053/#1083/#1294/#1295/#1296：119 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053/#1083/#1294/#1295/#1296/#1627：137 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -55,7 +55,12 @@ const ALLOWED = {
   //   拿不到时按 1 点估；REST 记 0），pointSource 说这个点数是哪来的（server 回包给了真实 cost / estimate 按 1 点估 /
   //   空串 不是 GraphQL）。为什么要有：账本曾经把 GraphQL 记成 REST、点数固定按 1，记歪了光看日志查不出；
   //   有了这两格，一眼能看出这一笔用的是真实点数还是估算值。发射口同在 client.ts 的 emitGhExec 及其调用点。
-  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd', 'points', 'pointSource'],
+  // 2026-10-29（#1627）再增补一格 rateClass：这一行是不是撞上配额或限流、撞的是哪一档
+  //   （primary 主配额见底 / secondary 二级限流 / http429 状态码 429 / unknown 判不出档 / 空串 不是限流）。
+  //   为什么要有：真配额见底与二级限流是两种完全不同的处置（等额度重置还是降速重试），
+  //   从前 gh.exec 只有 kind 一个笼统的档，事后分不出该等还是该退。只记短枚举，失败行写分类结果、
+  //   其余行写空串，级别与其余字段一个不动。
+  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd', 'points', 'pointSource', 'rateClass'],
   // 2026-10-14（#1052 补做）常驻 #108 `read.degraded`：一条读操作「本来能成、这一趟没成，或者成得不完整」
   //   的结论线，一趟一行（命令成功了、可回包不是合法 JSON / 缺东西 / 游标失效 / 只拿到前几页 / 被上限截断
   //   这类路，从前一个字都不留）。七个键全是短枚举、数字与单页条数：op 哪条读操作、reason 为什么、latencyMs
@@ -340,7 +345,9 @@ const ALLOWED = {
   //   一笔花费（哪一档、哪个桶、几条真实出站请求、几点、记完还剩多少）、一次裁决（类别、种类、结论、原因代号、档位）、
   //   一次跳过（工作区键散列、种类、原因、推迟队列里现在几条）。都只记枚举、散列与数字，不记路径原文与命令原文。
   // #1446 起账本按「后端/桶」分格，记账日志必须能说清记到哪个后端头上（schema 增字段：含义稳定、旧字段不改含义）。
-  'quota.spend': ['account', 'backendId', 'bucket', 'requests', 'points', 'remaining'],
+  // 2026-10-29（#1627）：增补一格 op，记这一笔花费属于哪种操作（值等于账本收进的 kind，例如 graphql / rest），
+  //   回答「谁在抢」——只看 account 分不出同一账号里是哪条路径花的。仍只在调试档落盘，级别与其余字段不变。
+  'quota.spend': ['account', 'backendId', 'bucket', 'requests', 'points', 'remaining', 'op'],
   // 2026-10-21（#1008/#1218 复核）按需 #76 refresh.decide 与 #77 refresh.skipped 在「这个工作区还处在
   //   连续失败窗口里」时增补五个归因键，窗口外一个都不带（正常时段的这两行与从前一字不差）：
   //   failuresSinceSuccess 连续失败几次、backoffWindowStartedAt 这串从什么时候开始、lastFailureCategory 最近一次
@@ -534,6 +541,32 @@ const ALLOWED = {
   //   empty-cwd 拿不到目录）、errorHash 失败错误原文
   //   （截断 120 字再散列，成功为空串）。只记散列、枚举、长度与计数，会话标题与提示词正文一个字都不记。
   'newsession.decide': ['entry', 'textLen', 'curSidHash', 'cwdHash', 'cwdSource', 'wsResolved', 'wsSource', 'wsItems', 'branch', 'reuseFrom', 'reuseSidHash', 'allowReuse', 'createOpts', 'reuseSkip', 'sidHash', 'outcome', 'errorHash'],
+  // 2026-10-29（#1627）配额与限流诊断一次加到位：调试开关关着时只看核心行就要能回答五问 ——
+  //   真配额见底还是二级限流、谁在抢（账号与调用方）、靠什么恢复（等待与额度重置或降载）、
+  //   损失多少（点数、请求、失败）、重试放大几倍。下面七条是信息级常驻，按事件频次收口：
+  //   窗口每分钟至多一行、事故与恢复按次、同步按服务端读数、压力按滚动阈值，不制造心跳；
+  //   quota.incident 是唯一一条告警级（始终落盘，调试关着也写），字段与其它事件一样逐字受本表管。
+  // 窗口汇总：这一分钟花多少点 / 几条请求、失败几次、在飞与排队峰值、软超与降载几次、
+  //   服务端读数多新、命名索引那一路占多少 —— 回答损失多少与谁在抢。
+  'quota.window': ['requests', 'points', 'estPoints', 'restRequests', 'aiPoints', 'pluginPoints', 'userPoints', 'failCount', 'limitCount', 'inflightPeak', 'inflightMax', 'queuedPeak', 'oldestWaitMs', 'allowUser', 'allowAi', 'softOver', 'allowBg', 'deferCount', 'gqlRemain', 'resetSec', 'syncAgeMs', 'tier', 'namingPages', 'namingPoints', 'suppressed'],
+  // 事故当下：撞限流的那一笔是什么类别、哪个操作、哪个账号、同一操作自上次成功以来第几次失败、
+  //   距上一次失败多久、事故当时的在飞与排队、这一分钟的窗口事实、服务端读数与最贵的那一路。
+  'quota.incident': ['rateClass', 'httpStatus', 'via', 'op', 'opId', 'account', 'attempt', 'retryGapMs', 'inflight', 'inflightMax', 'queued', 'oldestWaitMs', 'windowRequests', 'windowPoints', 'windowFailures', 'gqlRemain', 'resetSec', 'syncAgeMs', 'tier', 'top'],
+  // 事故旁证：每次事故最多 40 行，记当时还没收尾的调用是谁在飞、等了多久、跑的是哪条操作。
+  'quota.detail': ['via', 'opId', 'account', 'points', 'waitedMs', 'latencyMs', 'kind'],
+  // 恢复结论：事故持续多久、几次事故、被压掉几行、失败几笔、失败操作几笔、在飞峰值、恢复后第一个成功来自哪一路。
+  'quota.recover': ['durationMs', 'incidents', 'suppressed', 'failsInWindow', 'opsFailed', 'maxInflightDuring', 'firstOkVia', 'resetPast'],
+  // 服务端读数：触发来源、上限与剩余、重置还有多久、分给本地的额度、本地已花、与上一次次读数比漂移多少、
+  //   有没有看到重置前进、这份读数隔了多久。
+  'quota.sync': ['trigger', 'serverLimit', 'serverRemaining', 'resetSec', 'allowance', 'spentSinceSync', 'driftPoints', 'resetSeen', 'ageMs'],
+  // 压力档：单分钟或滚动一小时越线才写，判断「还能撑多久、谁在抢」。
+  'quota.pressure': ['pointsLastMin', 'pointsLastHour', 'projectedHour', 'capacity', 'inflightPeak', 'top'],
+  // 逐笔操作：只在坏 / 慢 / 贵时提升到信息级（失败、耗时至少 10 秒、至少 3 点、至少 3 次请求），
+  //   其余落调试档；字段里有 op 与 opId，能把同一笔的 gh.exec、quota.spend 与这一行串起来。
+  'quota.op': ['op', 'opId', 'caller', 'account', 'bucket', 'ok', 'requests', 'points', 'pointSource', 'latencyMs', 'remaining', 'tier', 'backendId'],
+  // 工具回执：锅在 AI 工具这一层时的一行（失败、耗时至少 3 秒、至少 3 点提升到信息级），
+  //   回答「这一趟工具调用花了多少、中间重试了几次、给调用方的估值差多少」。
+  'tool.receipt': ['tool', 'opId', 'status', 'estRequests', 'estPoints', 'requests', 'points', 'latencyMs', 'remaining', 'tier', 'backendId', 'note'],
 }
 // #1143 包拥有事件白名单：dsh-log 升到 0.4.1 后，旧实现三件套（src/host/logStore.ts、src/host/logPhones.ts、src/client/kernel/log.ts）已删除，
 // 这四个事件的发射点搬进了已安装的 dsh-log 包内，全仓扫不到是正常的；白名单之外的事件仍按老口径全仓扫。
@@ -560,7 +593,8 @@ const ROOM_SHAPES = {
   // 2026-10-14（#1052 续）再增补一格 `opId`（含义见上面 ALLOWED 里同名的注释段）：
   //   宿主起这一趟操作时生成的编号，房间原样取 `ctx.opId`；不给编号的调用方记空串。
   // 2026-10-25（#1482）再增补两格 `points` 与 `pointSource`（含义见上面 ALLOWED 里 gh.exec 那一段注释）。
-  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd', 'points', 'pointSource'],
+  // 2026-10-29（#1627）再增补一格 `rateClass`（分类结果写在失败行、其余行写空串；含义见上面 ALLOWED 里 gh.exec 那一段注释）。
+  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode', 'cmd', 'points', 'pointSource', 'rateClass'],
   // 2026-10-14（#1052 补做）房内两条新结论线的形状（字段含义见上面 ALLOWED 里同名的两段注释）。
   'read.degraded': ['op', 'reason', 'latencyMs', 'opId', 'kind', 'limitBefore', 'limitAfter'],
   'preflight.gate': ['gate', 'reason', 'latencyMs', 'opId'],
@@ -721,8 +755,11 @@ function collectCalls() {
 // 这两条事件加条件分支，要在这个场景里补一笔把它逼出来，不许把「相等」这条断言放宽成「包含」。
 // #1617 把同形态的另外 7 条（chain.flow、cwd.persisted、gh.transport、labelColors.read、panelSync.eval、
 // probe.eval、refresh.patch）也改成运行时采集：静态收集器对它们一律收成空集，白名单因此空过。
+// #1627 再把配额与限流诊断的 8 条（quota.window / quota.incident / quota.detail / quota.recover / quota.sync /
+//   quota.pressure / quota.op / tool.receipt）也改成运行时采集：观察器只有一处统一的 emit 发射壳
+//   （壳名不叫 log / fire，静态收集器认不出这种调用形状），八条的字段全部是那一处现拼出来的。
 // 每条的埋点入口与场景见下面 capture* 系列函数；采集不到发射行由 main 判红，断言仍是「与白名单一字不差」。
-const RUNTIME_CAPTURED = ['refresh.decide', 'refresh.skipped', 'chain.flow', 'cwd.persisted', 'gh.transport', 'labelColors.read', 'panelSync.eval', 'probe.eval', 'refresh.patch']
+const RUNTIME_CAPTURED = ['refresh.decide', 'refresh.skipped', 'chain.flow', 'cwd.persisted', 'gh.transport', 'labelColors.read', 'panelSync.eval', 'probe.eval', 'refresh.patch', 'quota.window', 'quota.incident', 'quota.detail', 'quota.recover', 'quota.sync', 'quota.pressure', 'quota.op', 'tool.receipt']
 
 // 返回 { byEvent: {事件名: [键...]}, capturedRows } 或 { error: '...' }。
 // 采集失败不抛：交给调用方判红并打印可读原因，静态那部分照常跑完。
@@ -761,6 +798,8 @@ async function captureRuntimeFields() {
     // #1617：7 条静态盲区事件各跑一笔真实发射（场景见下面的 captureBlindSpots 与 capture* 函数）。
     const failures = []
     await captureBlindSpots(rows, failures)
+    // #1627：配额与限流诊断八条也走同一条路（观察器统一的 emit 发射壳静态认不出，字段是现拼的）。
+    await captureQuotaObserver(rows, failures)
     const byEvent = {}
     let capturedRows = 0
     for (const row of rows) {
@@ -929,10 +968,40 @@ async function captureBlindSpots(rows, failures) {
   }
 }
 
+// #1627：配额与限流诊断八条（quota.window / quota.incident / quota.detail / quota.recover / quota.sync /
+//   quota.pressure / quota.op / tool.receipt）。观察器把每一行都交给一个叫 emit 的发射壳，静态收集器
+//   不认这种调用形状，所以八条改运行时采集：造一条只收行的假日志出口，按真实调用顺序把窗口、事故与
+//   旁证、同步、逐笔、工具回执、恢复、压力各推一遍。场景要把每条都逼出来，否则 main 的「一字不差」
+//   断言会因为少键变红 —— 加字段时两边一起改。
+async function captureQuotaObserver(rows, failures) {
+  try {
+    const mod = await loadProductModule('src/refresh/rooms/host/quota-observer.js')
+    const sink = { isEnabled: () => true, fire: (level, event, fields) => pushRuntimeRow(rows, level, event, fields) }
+    const lane = () => ({ inflight: 2, inflightMax: 3, queued: 1, queuedPeak: 2, oldestWaitMs: 50 })
+    const readings = () => ({ gqlRemain: 4000, resetSec: 100, syncAgeMs: 2000, tier: 'primary', allowance: 5000 })
+    const ob = mod.createQuotaObserver({ log: sink, lane: lane, readings: readings })
+    const t0 = 1793000000000
+    // 这一分钟先花 1200 点：窗口行会带上全部计数，压力行也会越过单分钟 1000 点那条线。
+    ob.noteSpend({ at: t0, account: 'ai-tool', backendId: 'github', bucket: 'graphql', requests: 1, points: 1200, kind: 'graphql' })
+    // 一笔还在飞的操作撞上限流：事故行、事故旁证、逐笔操作行都由这一笔顺手写出来。
+    ob.noteOpStart({ at: t0 + 1000, op: 'get.gql', opId: 'op-1627', caller: 'get.gql', account: 'ai-tool', backendId: 'github', purpose: 'naming-index' })
+    ob.noteOp({ at: t0 + 1000, op: 'get.gql', opId: 'op-1627', caller: 'get.gql', account: 'ai-tool', backendId: 'github', purpose: 'naming-index', ok: false, latencyMs: 12000, requests: 3, points: 3, pointSource: 'estimate', bucket: 'graphql', remaining: null, tier: null, errorKind: 'ratelimit', rateClass: 'secondary', httpStatus: 403, top: 'get.gql:1' })
+    // 服务端读数先缓存，下一次推进时落成 quota.sync。
+    ob.noteSync({ at: t0 + 2000, trigger: 'probe', backendId: 'github', bucket: 'graphql', serverLimit: 5000, serverRemaining: 4000, resetSec: 100, allowance: 4500, spentPoints: 10 })
+    ob.noteToolReceipt({ at: t0 + 5000, tool: 'tracker-session', opId: 'op-1627', status: 'failed', estRequests: 2, estPoints: 2, requests: 3, points: 3, latencyMs: 4000, remaining: null, tier: null, backendId: 'github', note: 'failed' })
+    ob.tick(t0 + 30000)
+    // 安静期过后的第一次成功操作：先收掉上一分钟（窗口与压力），再写恢复行。
+    ob.noteOp({ at: t0 + 70000, op: 'get.gql', opId: 'op-ok', caller: 'get.gql', account: 'ai-tool', backendId: 'github', purpose: 'naming-index', ok: true, latencyMs: 0, requests: 0, points: 0, pointSource: '', bucket: 'graphql', remaining: null, tier: null, errorKind: '', rateClass: '', httpStatus: 0, top: '' })
+    ob.tick(t0 + 120000)
+  } catch (e) {
+    failures.push('quota.*：' + String((e && e.message) || e).split('\n')[0])
+  }
+}
+
 async function main() {
   const found = collectCalls()
 
-  const names = Object.keys(found).sort()
+  let names = Object.keys(found).sort()
     // 把运行时采到的键集盖到静态收集结果上：这几条静态只能收成空集（原因见上面 captureRuntimeFields 的注释）。
     // 采集失败单独判红，不让空集继续以「实得 空」空过。
     const captured = await captureRuntimeFields()
@@ -951,8 +1020,10 @@ async function main() {
         found[name] = { keys, sites: prev.sites.concat(['运行时采集：假日志出口跑一遍真实发射（场景见本文件 captureRuntimeFields）']) }
       }
     }
+    // 运行时采集会把 quota.* 等新事件补进名字表，这里重算一次：后面的未知事件检查与原文类键检查才覆盖得到它们。
+    names = Object.keys(found).sort()
 
-  // 一、允许表里每个事件都有埋点落点（允许表 109 个事件；自监控那几条由 verify-log-selfmon 覆盖，退役的 5 个 —— issuePath.push、issuePath.record、settings.save、choiceStore.hint.reject、sessionTickets.chain —— 不在源码里）。
+  // 一、允许表里每个事件都有埋点落点（允许表 137 个事件；自监控那几条由 verify-log-selfmon 覆盖，退役的 5 个 —— issuePath.push、issuePath.record、settings.save、choiceStore.hint.reject、sessionTickets.chain —— 不在源码里）。
   // #875 薄接线：update.install.exec 的发射器已收进已安装的更新包（事件保留、字段不变，落点改到包内编译产物）。
   // 本仓 src 里不再有它的落点，这里到包内发射处核对事件名与五个字段，找不到仍红。
   if (!found['update.install.exec']) {
@@ -1004,7 +1075,7 @@ async function main() {
     check(extra.length === 0, '事件只含允许字段 ' + name + '（实得 ' + (actual.join('、') || '空') + '）' + (extra.length ? ' —— 多出：' + extra.join('、') : ''))
   }
 
-    // 二之一、运行时采集的九条：采集到的键集与白名单一字不差（#1609 的两条 + #1617 补的七条）。
+    // 二之一、运行时采集的十七条：采集到的键集与白名单一字不差（#1609 的两条 + #1617 补的七条 + #1627 的八条）。
     // 静态收集器对它们只能收成空集；采集失效或字段漂移（多一个、少一个）都必须在这里变红。
     for (const name of RUNTIME_CAPTURED) {
       if (captured.error || !captured.byEvent[name]) continue

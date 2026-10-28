@@ -168,10 +168,22 @@ interface LogCtx {
   fire(level: string, event: string, fields: unknown): void
 }
 
-/** 建一本账的依赖：两个都可缺——缺了用系统时钟、一条日志都不记（原来就是这个行为）。 */
+/** 建一本账的依赖：都可缺——缺了用系统时钟、一条日志都不记、也不报观察器（原来就是这个行为）。 */
 interface LedgerDeps {
   now?: () => number
   logCtx?: LogCtx | null
+  /**
+   * #1627：每成功记下一笔花费报一次（观察器据此算逐笔、窗口合计与「分钟额度是谁用掉的」）。
+   * 为什么放在落账之后：只有真的记进账的那一笔才算「花了」；桶缺席当场抛的那一笔不能报成已花，
+   * 否则逐笔行里会出现账上根本没有的消耗，对账时又得回头解释这一笔去了哪里。
+   */
+  onSpend?: (info: { at: number; account: string; backendId: string; bucket: string; requests: number; points: number; kind: string }) => void
+  /**
+   * #1627：每真正落下一个服务端读数桶报一次（观察器据此算同步漂移、恢复时刻与桶水位）。
+   * spentPoints 给的是**这次同步之前**桶里攒的「自上次同步以来我们记了多少」，必须在归零之前取出来
+   * 交给回调，否则观察器永远读到 0，漂移当然也算不出来。
+   */
+  onSync?: (info: { at: number; trigger: string; backendId: string; bucket: string; serverLimit: number; serverRemaining: number; resetSec: number; allowance: number; spentPoints: number }) => void
 }
 
 /** 三个档位（分开记账的名字）。标成只读数组：循环变量因此就是上面那个联合类型，不再是宽泛的 string。 */
@@ -421,20 +433,20 @@ export function createLedger(deps?: LedgerDeps) {
     if (e.kind === 'quota-read') {
       // 读剩余额度那一路服务端不扣配额：只进 free 那一格，不算进 used 与 spentSinceSync，
       // 否则每同步一次读数就凭空压掉一截可用量（与账本「记实际花费」的口径相反）。
-      free.requests += requests
-      free.points += points
+      free.requests += requests; free.points += points
     } else {
       b.used += unit
       b.spentSinceSync += unit
     }
     // 分档计数与总量照记：quota-read 也是真实出站，I6 要求能对出「这一小时一共发出去多少条」。
     const c = a.byKey[bucketKey(id, b.bucket)]
-    c.requests += requests
-    c.points += points
-    total.requests += requests
-    total.points += points
-    // 账本三个事件之一（按需级 P1）：谁发起、哪个后端、哪一档、花了多少、当时剩多少。外层先判调试开关。
-    try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'quota.spend', { account: String(e.account), backendId: id, bucket: b.bucket, requests: requests, points: points, remaining: lowerBound(b) }) } catch (eL) { /* 日志不许影响记账 */ }
+    c.requests += requests; c.points += points
+    total.requests += requests; total.points += points
+    // 账本三个事件之一（按需级 P1）：谁发起、哪个后端、哪一档、花了多少、当时剩多少、哪条操作花的。
+    // 外层先判调试开关。op 一格是 #1627 加的：原来只有金额不知道花在哪条操作上，按操作对账时缺半个键。
+    try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'quota.spend', { account: String(e.account), backendId: id, bucket: b.bucket, requests: requests, points: points, remaining: lowerBound(b), op: String(e.kind || '') }) } catch (eL) { /* 日志不许影响记账 */ }
+    // #1627：账已经落定，把这一笔原样报给观察器。回调抛错不影响记账（观测是旁证，与日志同一纪律）。
+    try { if (typeof opts.onSpend === 'function') opts.onSpend({ at: now(), account: String(e.account), backendId: id, bucket: b.bucket, requests: requests, points: points, kind: String(e.kind || '') }) } catch (eS) { /* 观测不许影响记账 */ }
     return { remaining: lowerBound(b), tier: view(id, b.bucket).tier }
   }
 
@@ -443,11 +455,13 @@ export function createLedger(deps?: LedgerDeps) {
    * 传进别的后端的桶（例如把 GitHub 的 rest/graphql 读数交给 GitLab 那本账）直接抛：
    * 那种错会写出一本看着正常、其实全是别人额度的假账。
    */
-  function syncServer(backendId: string, readings?: ServerReadings, at?: unknown) {
+  function syncServer(backendId: string, readings?: ServerReadings, at?: unknown, trigger?: unknown) {
     rollHour()
-    const id = normBackendId(backendId)
-    const t = (typeof at === 'number') ? at : now()
+    const id = normBackendId(backendId); const t = (typeof at === 'number') ? at : now()
     const src = readings || {}
+    // #1627：这次同步是谁触发的（定时 'sync' / 手工强制 / 别处），观察器按它分组看同步是否有效。
+    // 缺省 'sync'：老调用方只传三个参数，行为不变。
+    const trig = (typeof trigger === 'string' && trigger) ? trigger : 'sync'
     const owned = bucketsOf(id)
     const applied: LedgerBucketName[] = []
     for (const key of Object.keys(src)) {
@@ -467,8 +481,14 @@ export function createLedger(deps?: LedgerDeps) {
       b.allowance = key === 'requests' ? b.reading.limit : hourlyAllowance(b.reading.remaining)
       b.syncedAt = t
       b.resetAt = num(r.reset) * (num(r.reset) > 1e12 ? 1 : 1000)
-      b.spentSinceSync = 0
+      // #1627：归零之前先把旧值取出来——观察器要的 spentPoints 是「上次同步以来本地记了多少」，
+      // 等归零之后再读就只剩 0，漂移（服务端剩余 vs 本地记账）永远对不上。
+      const spentBeforeSync = b.spentSinceSync; b.spentSinceSync = 0
       applied.push(key)
+      // 只有真正落账的桶才报（上面被「旧读数不许盖新读数」跳过的桶没发生状态变化，不报）。
+      // 一行装下整笔报数：字段多但都是同一次同步的同一个读数，拆开只为好看，门禁按物理行算，先折起来。
+      // resetSec 与上面 b.resetAt 同一换算：服务端给秒就取秒，给毫秒就除以一千。
+      try { if (typeof opts.onSync === 'function') opts.onSync({ at: t, trigger: trig, backendId: id, bucket: key, serverLimit: b.reading.limit, serverRemaining: b.reading.remaining, resetSec: num(r.reset) > 1e12 ? num(r.reset) / 1000 : num(r.reset), allowance: b.allowance, spentPoints: spentBeforeSync }) } catch (eS) { /* 观测不许影响落账 */ }
     }
     return { applied: applied, syncedAt: t }
   }
