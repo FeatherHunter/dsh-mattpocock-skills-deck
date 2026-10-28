@@ -99,7 +99,10 @@ const ALLOWED = {
   //   这一轮一张规格都没认出来（识别或数据来源问题），specs=maps 说明全是规格、没有探索地图。
   //   只记计数：容器键名、标题一个都不记。落点两处：src/host/snapshotEnvelope.ts 与 src/refresh/rooms/host/session-refresh-schedule.ts 的 adoptSnapLog。
   'snapshot.built': ['maps', 'specs', 'issues', 'labels', 'fallback', 'latencyMs', 'open', 'closed', 'partial'],
-  'probe.eval': ['repoKeyHash', 'since', 'count', 'changed'],
+  // 2026-10-28（#1617）：删掉 `since`。逐版本核过发射行（从 #708 落地起直到今天）都只记三格，
+  //   附录里写的「since 增量起点」是设计稿口径、从未发射；白名单要按真实发射维护。这条事件现在
+  //   由运行时采集断言「实得键集与白名单一字不差」，多一格少一格都会变红。
+  'probe.eval': ['repoKeyHash', 'count', 'changed'],
   'panelSync.eval': ['repoKeyHash', 'baseline', 'dirty', 'failures'],
   'panelSync.dirty': ['cwdHash', 'ageMs'],
   'registry.select': ['cwdHash', 'backendId', 'source', 'latencyMs', 'caller'],
@@ -716,9 +719,10 @@ function collectCalls() {
 // 白名单逐字相等，采集失效（场景没走到发射点）或字段漂移都会变红，不会再空过。
 // 代价写在明处：①这一扇从此要在 ts-hook 下跑（见文件头用法）；②只覆盖跑到的分支 —— 将来给
 // 这两条事件加条件分支，要在这个场景里补一笔把它逼出来，不许把「相等」这条断言放宽成「包含」。
-// 同形态的静态盲区还有 7 条（chain.flow、cwd.persisted、gh.transport、labelColors.read、panelSync.eval、
-// probe.eval、refresh.patch），已另立 #1617 跟踪；本票不顺手扩大。
-const RUNTIME_CAPTURED = ['refresh.decide', 'refresh.skipped']
+// #1617 把同形态的另外 7 条（chain.flow、cwd.persisted、gh.transport、labelColors.read、panelSync.eval、
+// probe.eval、refresh.patch）也改成运行时采集：静态收集器对它们一律收成空集，白名单因此空过。
+// 每条的埋点入口与场景见下面 capture* 系列函数；采集不到发射行由 main 判红，断言仍是「与白名单一字不差」。
+const RUNTIME_CAPTURED = ['refresh.decide', 'refresh.skipped', 'chain.flow', 'cwd.persisted', 'gh.transport', 'labelColors.read', 'panelSync.eval', 'probe.eval', 'refresh.patch']
 
 // 返回 { byEvent: {事件名: [键...]}, capturedRows } 或 { error: '...' }。
 // 采集失败不抛：交给调用方判红并打印可读原因，静态那部分照常跑完。
@@ -754,6 +758,9 @@ async function captureRuntimeFields() {
     await gate.send({
       source: 'probe.tick', kind: 'probe', workspaceKey, plan: [{ phase: 'op' }], backendId,
     }, () => { throw new Error('verify-log-fields 运行时采集：这一笔应当被闸拦下，不该真跑') }).then(() => false, () => true)
+    // #1617：7 条静态盲区事件各跑一笔真实发射（场景见下面的 captureBlindSpots 与 capture* 函数）。
+    const failures = []
+    await captureBlindSpots(rows, failures)
     const byEvent = {}
     let capturedRows = 0
     for (const row of rows) {
@@ -764,16 +771,169 @@ async function captureRuntimeFields() {
         if (!byEvent[row.event].includes(k)) byEvent[row.event].push(k)
       }
     }
-    return { byEvent, capturedRows }
+    return { byEvent, capturedRows, failures }
   } catch (e) {
     return { error: String((e && e.stack) || e) }
   }
 }
 
+// ── #1617：那 7 条静态盲区事件的补采场景 ────────────────────────────────────────────
+// 每条都走产品源码自己的发射入口：假日志出口只收 level/event/fields，不落盘、不判产物。
+// 入口走动态 import（这些文件是 ESM；ts-hook 会把同名的 .js 说明符指到 .ts）。
+const { pathToFileURL } = require('url')
+const vm = require('vm')
+const stripTypeScriptTypes = require('node:module').stripTypeScriptTypes
+const loadProductModule = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+
+// 假出口收一行。第三参可能是惰性函数（panelSync.eval 与 probe.eval 故意晚组装字段，真实出口在守卫内才
+// 调它）；假出口也照做，否则收不到真实字段键。
+function pushRuntimeRow(rows, level, event, fields) {
+  let value = fields
+  if (typeof value === 'function') {
+    try { value = value() } catch (e) { value = {} }
+  }
+  rows.push({ level, event, fields: value })
+}
+
+// chain.flow：把客户端那份片段照 tests/verify-chain-session.ts 的同一套办法在沙箱里求值，
+// 跑一趟真实取链（请求行 + 回包行合起来是全部 11 个键）。
+async function captureChainFlow(rows) {
+  const stripTimeConfigImport = (source) => source.replace(/^\s*import\s*\{[^}]*\}\s*from\s*['"][^'"]*time-config\/values\.js['"]\s*;?\s*$/gm, '')
+  const asSnippet = (source) => stripTypeScriptTypes(stripTimeConfigImport(source).replace(/^export /gm, ''), { mode: 'strip' })
+  const sandbox = {
+    promptLang: () => 'en',
+    wsKeyOf: (cwd) => cwd,
+    getChainCacheKey: (...parts) => parts.join('|'),
+    isEnabled: () => true,
+    log: (level, event, fields) => pushRuntimeRow(rows, level, event, fields),
+    dswsLogHash: String,
+    dswsLogTrunc: String,
+    userHintOf: (selection) => selection.backendId,
+    nowStr: () => '',
+    emit: () => {},
+    host: { call: async () => ({ ok: true, fullSnapshot: { steps: [] } }) },
+  }
+  vm.createContext(sandbox)
+  const source = fs.readFileSync(path.join(ROOT, 'src', 'refresh', 'rooms', 'client', 'probe-chain-subscription.ts'), 'utf8')
+  vm.runInContext(asSnippet(source) + '\nglobalThis.runChain = loadChain;', sandbox)
+  await (sandbox as any).runChain({ cwd: '/workspace', sessionId: 'session-1617', selection: { backendId: 'markdown' } }, true, 'user-recheck')
+  await new Promise((resolve) => setTimeout(resolve, 10))
+}
+
+// cwd.persisted：内存里没有这个会话，落盘按号直读命中，记一行四键（夹具同 tests/verify-782-cwd-disk.ts）。
+async function captureCwdPersisted(rows) {
+  const mod = await loadProductModule('src/host/sessionLifecycle.js')
+  const life = mod.createSessionLifecycle({
+    ctx: {
+      get: (key) => {
+        if (key === 'sessions') return { get: () => null }
+        if (key === 'sessionPersistence') return { open: async (id) => ({ header: { id: id, cwd: '/workspace' }, close: async () => {} }) }
+        if (key === 'sessionQuery') return { filterSessions: async () => [] }
+        return undefined
+      },
+    },
+    DEFAULT_CWD: '/',
+    errText: (e) => String((e && e.message) || e),
+    getDetectionService: async () => null,
+    getTrackerRegistry: async () => null,
+    getPlatform: async () => null,
+    canonicalKey: async (raw) => raw,
+    logCtx: { fire: (level, event, fields) => pushRuntimeRow(rows, level, event, fields) },
+  })
+  await life.handleCwd({ sessionId: 'session-1617' })
+}
+
+// gh.transport：设冷却、冷却窗内被挡回、拿到失败后清零，三处字面量各走一遍（并集六键）。
+async function captureGhTransport(rows) {
+  const mod = await loadProductModule('src/refresh/rooms/host/outbound-admission.js')
+  const sink = { isEnabled: (level) => level === 'debug', fire: (level, event, fields) => pushRuntimeRow(rows, level, event, fields) }
+  mod.setGhLaneLogCtx(sink)
+  try {
+    const admission = mod.createGhAdmission({ readMax: 1, writeMax: 1, cooldownMs: 60000 })
+    await admission.reportTransportFailure({ bucket: 'read', reason: 'timeout', cmd: 'api', service: 'github' })
+    await admission.acquire({ bucket: 'read', service: 'github' }).then((release) => { try { release() } catch (e) {} }, () => {})
+    admission.reportSuccess({ bucket: 'read', service: 'github' })
+  } finally {
+    mod.setGhLaneLogCtx(null)
+  }
+}
+
+// refresh.patch：成功行走 createPatch 里唯一那份字段口径；失败行借 write-event-fetch 的真实失败分支
+// 把上游原话带进同一个 fire（err 是 #1472 定下的唯一原文类键，路径替换与 120 字截断都在 fire 里做）。
+async function captureRefreshPatch(rows) {
+  const patchMod = await loadProductModule('src/refresh/rooms/host/row-patch.js')
+  const writeEventMod = await loadProductModule('src/refresh/rooms/host/write-event-fetch.js')
+  const sink = { isEnabled: (level) => level === 'debug', fire: (level, event, fields) => pushRuntimeRow(rows, level, event, fields) }
+  const patch = patchMod.createPatch({ logCtx: sink, workspaceKeyOf: () => 'verify-log-fields-runtime' })
+  patch.log('patch', 'rows-changed', { keyHash: 'h-1617', changed: 2, queries: 1, watermark: 'advanced', pending: 0 })
+  const fetcher = writeEventMod.createWriteEventFetch({
+    patchOf: () => ({ log: patch.log, patchTickets: async () => { throw new Error('取数爆了') } }),
+    hash8: (s) => 'h:' + String(s),
+    canonicalKey: async (p) => String(p),
+    now: () => 1700000000000,
+  })
+  await fetcher.remember('/workspace')
+  await fetcher.fetch({ action: 'patch-now', ticket: '101' }, { workspaceKey: 'h:/workspace' })
+}
+
+// panelSync.eval 与 probe.eval：同一处求值。先造一笔「只会话开不起来」的失败（failures:1 行），
+// 再连跑 100 笔「有变化」——面板行每笔都发一行，探针行是每 100 次有变化才采一行。
+async function captureIssueListEval(rows) {
+  const mod = await loadProductModule('src/refresh/rooms/host/issue-list-fetch.js')
+  const sink = { isEnabled: (level) => level === 'debug', fire: (level, event, fields) => pushRuntimeRow(rows, level, event, fields) }
+  const session = { listPage: async () => ({ ok: true, data: { items: [{ key: '1617', state: 'OPEN', updatedAt: '2026-10-28T00:00:00Z' }], nextCursor: null, total: 1 } }) }
+  let openMode = 'fail'
+  const issueList = mod.createIssueList({
+    getRepoKey: async () => ({ owner: 'owner-1617', name: 'repo-1617' }),
+    setCache: () => {},
+    issueIndexFromSnapshot: () => null,
+    issueIndexChanged: () => true,
+    rememberIssueIndex: () => {},
+    readDiskCache: async () => null,
+    logCtx: sink,
+    openSession: async () => (openMode === 'fail'
+      ? { ok: false, reason: 'open-failed' }
+      : { ok: true, backendId: 'github', call: async (fn) => fn(session, {}) }),
+  })
+  await issueList.cacheSnapshotIsCurrent({ version: 'v1' }, '/workspace')
+  openMode = 'ok'
+  for (let i = 0; i < 100; i += 1) await issueList.cacheSnapshotIsCurrent({ version: 'v1' }, '/workspace')
+}
+
+// labelColors.read：一笔没有文件服务（全新工作区，present:false 行），一笔读动作抛权限错
+// （present:true、reason:'read-fail' 行）；两笔并集正好是五键。
+async function captureLabelColorsRead(rows) {
+  const mod = await loadProductModule('src/tracker/rooms/markdown/label-colors.js')
+  const ctxOf = (fsService) => ({
+    cwd: '/workspace',
+    platform: fsService ? { path: path.posix, fs: fsService } : { path: path.posix },
+    isEnabled: (level) => level === 'debug',
+    logEvent: (level, event, fields) => pushRuntimeRow(rows, level, event, fields),
+  })
+  await mod.readLabelColors(ctxOf(null))
+  await mod.readLabelColors(ctxOf({ readFile: async () => { throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }) } }))
+}
+
+// 逐条跑；哪条抛错就记进 failures（不打断别的场景），缺行与报错都由 main 判红。
+async function captureBlindSpots(rows, failures) {
+  const scenarios = [
+    ['chain.flow', captureChainFlow],
+    ['cwd.persisted', captureCwdPersisted],
+    ['gh.transport', captureGhTransport],
+    ['labelColors.read', captureLabelColorsRead],
+    ['panelSync.eval 与 probe.eval', captureIssueListEval],
+    ['refresh.patch', captureRefreshPatch],
+  ]
+  for (const scenario of scenarios) {
+    try { await scenario[1](rows) } catch (e) { failures.push(scenario[0] + '：' + String((e && e.message) || e).split('\n')[0]) }
+  }
+}
+
 async function main() {
   const found = collectCalls()
+
   const names = Object.keys(found).sort()
-    // 把运行时采到的键集盖到静态收集结果上：这两条静态只能收成空集（原因见上面 captureRuntimeFields 的注释）。
+    // 把运行时采到的键集盖到静态收集结果上：这几条静态只能收成空集（原因见上面 captureRuntimeFields 的注释）。
     // 采集失败单独判红，不让空集继续以「实得 空」空过。
     const captured = await captureRuntimeFields()
     if (captured.error) {
@@ -782,7 +942,7 @@ async function main() {
       for (const name of RUNTIME_CAPTURED) {
         const seen = captured.byEvent[name]
         if (!seen) {
-          check(false, '运行时采集没有见到 ' + name + ' 的发射行（场景漏了这一档，补场景，不许放宽断言）')
+          check(false, '运行时采集没有见到 ' + name + ' 的发射行（场景漏了这一档，补场景，不许放宽断言）' + ((captured.failures && captured.failures.length) ? '；采集场景报错：' + captured.failures.join(' / ') : ''))
           continue
         }
         const prev = found[name] || { keys: {}, sites: [] }
@@ -844,8 +1004,8 @@ async function main() {
     check(extra.length === 0, '事件只含允许字段 ' + name + '（实得 ' + (actual.join('、') || '空') + '）' + (extra.length ? ' —— 多出：' + extra.join('、') : ''))
   }
 
-    // 二之一、运行时采集的两条：采集到的键集与白名单一字不差（#1609 的回归断言）。
-    // 静态收集器对这两条只能收成空集；采集失效或字段漂移（多一个、少一个）都必须在这里变红。
+    // 二之一、运行时采集的九条：采集到的键集与白名单一字不差（#1609 的两条 + #1617 补的七条）。
+    // 静态收集器对它们只能收成空集；采集失效或字段漂移（多一个、少一个）都必须在这里变红。
     for (const name of RUNTIME_CAPTURED) {
       if (captured.error || !captured.byEvent[name]) continue
       const want = ALLOWED[name].slice().sort()
@@ -875,8 +1035,19 @@ async function main() {
   // 原文类键精确名单：与这些一字相同的键名不许出现在任何事件里
   // （是否配备用路径这类布尔键、带 Hash 后缀的散列键不在此列）。
   const RAW_KEYS = ['token', 'password', 'passwd', 'pwd', 'secret', 'authorization', 'bearer', 'url', 'path', 'cwd', 'message', 'error', 'err', 'stack', 'text', 'title', 'body', 'content', 'template', 'snapshot', 'stdout', 'stderr', 'args', 'argv', 'query', 'cookie', 'session', 'hint', 'repo', 'owner']
-  const rawLike = Object.keys(allKeys).filter((k) => RAW_KEYS.includes(k))
-  check(rawLike.length === 0, '字段键无原文类键（令牌、路径、地址、文本原文都不许作键名）' + (rawLike.length ? ' —— 命中：' + rawLike.join('、') : '（共 ' + Object.keys(allKeys).length + ' 个键）'))
+  // 唯一登记在案的例外按「键 → 只属于哪个事件」成对写：#1472 给 refresh.patch 加了 err，记的是上游错误
+  //   原话先做路径替换、再截 120 字之后的那一段（口径见本文件 refresh.patch 白名单上方的注释与附录 1.5
+  //   的 #82 行）。例外只放行登记过的那个事件；别的任何事件出现 err 或其他原文类键照样判红。
+  const RAW_KEY_EXCEPTIONS = { err: 'refresh.patch' }
+  const rawLike = []
+  for (const name of names) {
+    for (const key of Object.keys(found[name].keys)) {
+      if (!RAW_KEYS.includes(key)) continue
+      if (RAW_KEY_EXCEPTIONS[key] === name) continue
+      rawLike.push(name + '.' + key)
+    }
+  }
+  check(rawLike.length === 0, '字段键无原文类键（令牌、路径、地址、文本原文都不许作键名；refresh.patch.err 是登记过的截断例外）' + (rawLike.length ? ' —— 命中：' + rawLike.join('、') : '（共 ' + Object.keys(allKeys).length + ' 个键）'))
 
   console.log(failed ? '\n存在失败 — verify-log-fields 未通过' : '\n全部通过 — 字段白名单门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)

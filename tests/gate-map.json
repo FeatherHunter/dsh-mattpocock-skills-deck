@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T14:55:01.213Z",
+  "generatedAt": "2026-10-28T15:18:06.486Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 431,
   "gateCount": 431,
@@ -8023,11 +8023,18 @@
         "src/client",
         "src/deck",
         "src/host",
+        "src/host/sessionLifecycle.ts",
         "src/refresh",
         "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/client/probe-chain-subscription.ts",
+        "src/refresh/rooms/host/issue-list-fetch.ts",
+        "src/refresh/rooms/host/outbound-admission.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
         "src/refresh/rooms/host/refresh-gate.ts",
-        "src/tracker"
+        "src/refresh/rooms/host/row-patch.ts",
+        "src/refresh/rooms/host/write-event-fetch.ts",
+        "src/tracker",
+        "src/tracker/rooms/markdown/label-colors.ts"
       ],
       "dirs": [
         "src/client",
@@ -8035,14 +8042,16 @@
         "src/host",
         "src/refresh",
         "src/refresh/kernel",
+        "src/refresh/rooms/client",
         "src/refresh/rooms/host",
-        "src/tracker"
+        "src/tracker",
+        "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-log-selfmon.ts",
@@ -11184,6 +11193,7 @@
       "node tests/verify-delta-wiring.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-log-client.ts",
+      "node tests/verify-log-fields.ts",
       "node tests/verify-panel-workspace-isolation.ts",
       "node tests/verify-subdir-first-frame.ts",
       "node tests/verify-time-config.ts"
@@ -11721,6 +11731,7 @@
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-golden-receipts.ts",
+      "node tests/verify-log-fields.ts",
       "node tests/verify-markdown-backend.ts",
       "node tests/verify-markdown-label-colors.ts",
       "node tests/verify-multi-effort-panel.ts",
