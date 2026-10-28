@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T10:29:53.032Z",
+  "generatedAt": "2026-10-28T11:12:51.612Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 416,
-  "gateCount": 416,
-  "attributedGates": 373,
+  "chainLength": 425,
+  "gateCount": 425,
+  "attributedGates": 382,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 17,
+  "completionRecordedGates": 18,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 603,
+  "graphFileCount": 606,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1078,7 +1078,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-1039-rules-pure.ts",
@@ -1918,6 +1918,27 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1242-panel-numbers.ts",
+      "file": "tests/verify-1242-panel-numbers.ts",
+      "guards": [
+        "src/host/mapBody.ts",
+        "src/host/ticketGrouping.ts",
+        "src/refresh/rooms/host/session-opener.ts",
+        "src/refresh/rooms/host/snapshot-build.ts",
+        "src/tracker/rooms/github"
+      ],
+      "dirs": [
+        "src/host",
+        "src/refresh/rooms/host",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 74,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
       "step": "node tests/verify-1245-plan-resume.ts",
@@ -4133,6 +4154,92 @@
       "reason": "归属来自：静态 import 说明符 2 条"
     },
     {
+      "step": "node tests/verify-1603-map-thin-list.ts",
+      "file": "tests/verify-1603-map-thin-list.ts",
+      "guards": [
+        "src/tracker/rooms/github/maps.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1604-pure-map-routing.ts",
+      "file": "tests/verify-1604-pure-map-routing.ts",
+      "guards": [
+        "src/deck/tools/issue-list.ts"
+      ],
+      "dirs": [
+        "src/deck/tools"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1605-gitlab-map-list.ts",
+      "file": "tests/verify-1605-gitlab-map-list.ts",
+      "guards": [
+        "src/tracker/rooms/gitlab/maps.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/gitlab"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1605-map-routing-guard.ts",
+      "file": "tests/verify-1605-map-routing-guard.ts",
+      "guards": [
+        "src/deck/tools/issue-list.ts",
+        "src/tracker/rooms/github/capability-register.ts",
+        "src/tracker/rooms/github/maps.ts",
+        "src/tracker/rooms/gitlab/capability-register.ts",
+        "src/tracker/rooms/gitlab/index.ts",
+        "src/tracker/rooms/gitlab/maps.ts",
+        "src/tracker/rooms/markdown/capability-register.ts",
+        "src/tracker/rooms/markdown/index.ts",
+        "src/tracker/rooms/markdown/maps.ts"
+      ],
+      "dirs": [
+        "src/deck/tools",
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 7 条；源码里的路径字面量 3 条"
+    },
+    {
+      "step": "node tests/verify-1605-markdown-map-list.ts",
+      "file": "tests/verify-1605-markdown-map-list.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/maps.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
       "step": "node tests/verify-3-workspace-switch.ts",
       "file": "tests/verify-3-workspace-switch.ts",
       "guards": [
@@ -4227,6 +4334,46 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
+    },
+    {
+      "step": "node tests/verify-504-github-pr.ts",
+      "file": "tests/verify-504-github-pr.ts",
+      "guards": [
+        "src/refresh/rooms/host/outbound-control.ts",
+        "src/tracker/rooms/github/issues.ts",
+        "src/tracker/rooms/github/normalize.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 2 条"
+    },
+    {
+      "step": "node tests/verify-507-pr-offline.ts",
+      "file": "tests/verify-507-pr-offline.ts",
+      "guards": [
+        "src/host/tracker/snapshot.ts",
+        "src/refresh/rooms/host/outbound-control.ts",
+        "src/tracker/registry/core.ts",
+        "src/tracker/rooms/github/issues.ts",
+        "src/tracker/rooms/github/normalize.ts"
+      ],
+      "dirs": [
+        "src/host/tracker",
+        "src/refresh/rooms/host",
+        "src/tracker/registry",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-524-pr-detail.ts",
@@ -8880,6 +9027,27 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 3 条；源码里的路径字面量 10 条"
     },
     {
+      "step": "node tests/verify-skill-probe-redcard-and-waiting.ts",
+      "file": "tests/verify-skill-probe-redcard-and-waiting.ts",
+      "guards": [
+        "docs/adr/20260828-skill-probe-redcard-and-waiting.md",
+        "docs/adr/20260828-skill-probe-union-channels.md",
+        "package/lib/index.js",
+        "package/lib/skillProbe.js",
+        "src/host/index.ts"
+      ],
+      "dirs": [
+        "docs/adr",
+        "package/lib",
+        "src/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 5 条"
+    },
+    {
       "step": "node tests/verify-snapshot-cache-first.ts",
       "file": "tests/verify-snapshot-cache-first.ts",
       "guards": [
@@ -9839,7 +10007,8 @@
     ],
     "docs/adr": [
       "node tests/verify-error-rule-samples.ts",
-      "node tests/verify-refresh-adr.ts"
+      "node tests/verify-refresh-adr.ts",
+      "node tests/verify-skill-probe-redcard-and-waiting.ts"
     ],
     "docs/agents": [
       "node tests/verify-gate-map.ts",
@@ -9994,6 +10163,7 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
+      "node tests/verify-skill-probe-redcard-and-waiting.ts",
       "node tests/verify-statusbar-filter-reset.ts",
       "node tests/verify-t1-getrepokey.ts",
       "node tests/verify-t1-initpublish.ts",
@@ -10578,6 +10748,8 @@
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1559-deck-output-lossless.ts",
       "node tests/verify-1583-repo-ref-fallback.ts",
+      "node tests/verify-1604-pure-map-routing.ts",
+      "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -10614,6 +10786,7 @@
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1191-contract-op.ts",
+      "node tests/verify-1242-panel-numbers.ts",
       "node tests/verify-1305-session-permit.ts",
       "node tests/verify-1373-stale-table-graft.ts",
       "node tests/verify-1412-ask-matt-next-steps.ts",
@@ -10684,6 +10857,7 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.ts",
+      "node tests/verify-skill-probe-redcard-and-waiting.ts",
       "node tests/verify-time-config.ts",
       "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-update-migration.ts",
@@ -10720,6 +10894,7 @@
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1490-four-objects.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
+      "node tests/verify-507-pr-offline.ts",
       "node tests/verify-691-map-subissues.ts",
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-934-935-invariants.ts",
@@ -10873,6 +11048,7 @@
       "node tests/verify-1187-gitlab-chain-predicates.ts",
       "node tests/verify-1195-budget-start.ts",
       "node tests/verify-1195-timeout-split.ts",
+      "node tests/verify-1242-panel-numbers.ts",
       "node tests/verify-1291-closed-map-open-children.ts",
       "node tests/verify-1304-deps-native.ts",
       "node tests/verify-1363-first-run-recovery.ts",
@@ -10910,6 +11086,8 @@
       "node tests/verify-1583-repo-ref-fallback.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
       "node tests/verify-3-workspace-switch.ts",
+      "node tests/verify-504-github-pr.ts",
+      "node tests/verify-507-pr-offline.ts",
       "node tests/verify-524-pr-detail.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-683-host-wiring.ts",
@@ -11198,6 +11376,7 @@
       "node tests/verify-1442-tracker-tools.ts",
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1495-deck-close-reason.ts",
+      "node tests/verify-507-pr-offline.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-683-host-wiring.ts",
@@ -11239,6 +11418,7 @@
       "node tests/verify-1053-issue-write.ts",
       "node tests/verify-1054-edge-graph.ts",
       "node tests/verify-1223-catalog-runtime-parity.ts",
+      "node tests/verify-1242-panel-numbers.ts",
       "node tests/verify-1286-snapshot.ts",
       "node tests/verify-1304-deps-native.ts",
       "node tests/verify-1418-probe-cost-and-failure.ts",
@@ -11251,6 +11431,10 @@
       "node tests/verify-1532-github-close-reason.ts",
       "node tests/verify-1533-git-remote-claim.ts",
       "node tests/verify-1571-gh-flag-writing.ts",
+      "node tests/verify-1603-map-thin-list.ts",
+      "node tests/verify-1605-map-routing-guard.ts",
+      "node tests/verify-504-github-pr.ts",
+      "node tests/verify-507-pr-offline.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -11297,6 +11481,8 @@
       "node tests/verify-1533-git-remote-claim.ts",
       "node tests/verify-1555-gitlab-claim-declaration.ts",
       "node tests/verify-1599-gitlab-hidden-markers.ts",
+      "node tests/verify-1605-gitlab-map-list.ts",
+      "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-686-accept.ts",
       "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",
@@ -11346,6 +11532,8 @@
       "node tests/verify-1512-md-chain.ts",
       "node tests/verify-1537-blocked-ref-title.ts",
       "node tests/verify-1595-resolvespec.ts",
+      "node tests/verify-1605-map-routing-guard.ts",
+      "node tests/verify-1605-markdown-map-list.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -11619,9 +11807,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 624,
+    "fileCount": 627,
     "dirCount": 74,
-    "coveredFileCount": 624,
+    "coveredFileCount": 627,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -12160,6 +12348,7 @@
       "src/tracker/rooms/github/issues.ts",
       "src/tracker/rooms/github/label-colors-ops.ts",
       "src/tracker/rooms/github/labels.ts",
+      "src/tracker/rooms/github/maps.ts",
       "src/tracker/rooms/github/normalize.ts",
       "src/tracker/rooms/github/op-usage.ts",
       "src/tracker/rooms/github/page.ts",
@@ -12193,6 +12382,7 @@
       "src/tracker/rooms/gitlab/issues.ts",
       "src/tracker/rooms/gitlab/labels-ops.ts",
       "src/tracker/rooms/gitlab/labels.ts",
+      "src/tracker/rooms/gitlab/maps.ts",
       "src/tracker/rooms/gitlab/normalize.ts",
       "src/tracker/rooms/gitlab/pages.ts",
       "src/tracker/rooms/gitlab/preflight.ts",
@@ -12226,6 +12416,7 @@
       "src/tracker/rooms/markdown/label-colors-palette.ts",
       "src/tracker/rooms/markdown/label-colors.ts",
       "src/tracker/rooms/markdown/map-render.ts",
+      "src/tracker/rooms/markdown/maps.ts",
       "src/tracker/rooms/markdown/markdown-scan.ts",
       "src/tracker/rooms/markdown/normalize.ts",
       "src/tracker/rooms/markdown/original-fields.ts",

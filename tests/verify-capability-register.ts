@@ -40,7 +40,7 @@ type RegisterView = { readonly [name: string]: { readonly tier: CapabilityTier; 
 
 const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..')
 
-/** 契约名录的全部 26 个名字（23 条操作 + 3 条定位口）：登记表要有多少行，就是它说了算。 */
+/** 契约名录的全部 27 个名字（24 条操作 + 3 条定位口）：登记表要有多少行，就是它说了算。 */
 const CATALOG: string[] = [...OPERATIONS, ...LOCATORS]
 
 /** md 表「登记」列里那四个词 ↔ 数据里的四档。前三个词是 2026-10-14 #1147 决策 9 定下的，
@@ -126,7 +126,8 @@ function headingProblems(
   const all = /^(\d+) 条全部(.+)$/.exec(inner)
   if (split) {
     declaredTotal = Number(split[1])
-    groups = split[2].split('、').map((part) => {
+    // 分档按顿号切，但档位词本身可能带顿号（「当前不支持、未来会开发」）：只在顿号后面跟着「数字 + 条」时才切。
+    groups = split[2].split(/、(?=\d+ 条)/).map((part) => {
       const m = /^(\d+) 条(.+)$/.exec(part.trim())
       if (!m) problems.push('表头分档「' + part.trim() + '」读不出条数与标签')
       return m ? { label: m[2].trim(), count: Number(m[1]) } : { label: part.trim(), count: -1 }
@@ -178,12 +179,12 @@ for (const backend of BACKENDS) {
   const mdRows = readMdTable(mdText)
   const mdNames = mdRows.map((r) => r.name)
 
-  // —— 一、登记数据本身：26 条齐全、与名录同集（类型层已经管住，这里是运行时的第二道）——
+  // —— 一、登记数据本身：27 条齐全、与名录同集（类型层已经管住，这里是运行时的第二道）——
   const dataMissing = CATALOG.filter((n) => !dataNames.includes(n))
   const dataExtra = dataNames.filter((n) => !CATALOG.includes(n))
   check(
     dataMissing.length === 0 && dataExtra.length === 0 && dataNames.length === CATALOG.length,
-    backend.id + ' 的登记数据 26 条齐全、与名录同集（共 ' + dataNames.length + ' 条；缺 ' +
+    backend.id + ' 的登记数据 27 条齐全、与名录同集（共 ' + dataNames.length + ' 条；缺 ' +
       (dataMissing.length ? dataMissing.join('、') : NOTHING) + '；多 ' + (dataExtra.length ? dataExtra.join('、') : NOTHING) + '）',
   )
 
@@ -256,11 +257,11 @@ for (const backend of BACKENDS) {
 
 // —— 反证：表头数字不是抄的。把真文档里的一处总数改错一位，同一个判据必须抓到（#1456）——
 const ghText = fs.readFileSync(path.join(ROOT, 'docs/tracker/capability-github.md'), 'utf8')
-const badOpText = ghText.split('22 条明确提供功能').join('21 条明确提供功能')
+const badOpText = ghText.split('23 条明确提供功能').join('22 条明确提供功能')
 const badOpHeading = headingProblems(badOpText, OPERATIONS, '操作')
 check(
-  ghText.indexOf('22 条明确提供功能') >= 0 && badOpHeading.length > 0,
-  '反证：把「22 条明确提供功能」改成 21 条之后，表头判据必须抓到它' +
+  ghText.indexOf('23 条明确提供功能') >= 0 && badOpHeading.length > 0,
+  '反证：把「23 条明确提供功能」改成 22 条之后，表头判据必须抓到它' +
     (badOpHeading.length ? '（抓到：' + badOpHeading.join('；') + '）' : '（没抓到，判据失效）'),
 )
 const badLocText = ghText.split('3 条全部提供').join('4 条全部提供')

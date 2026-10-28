@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/gitlab/capability-register.ts —— GitLab 后端对 26 条能力的回答（数据）
+ * src/tracker/rooms/gitlab/capability-register.ts —— GitLab 后端对 27 条能力的回答（数据）
  *
  * 四类的判据、为什么写成联合、以及「运行时不读它」这条 G5 纪律，都写在
  * `src/tracker/contract/capability-answer.ts` 的文件头，这里不重复。
@@ -9,7 +9,7 @@
  * （`#1062`）本轮把那 10 条逐条落地：9 条真做（`counts`、`listPage`、`listLabels`、
  * `setLabelColors`、`getCurrentUser`、`getRepoPermissions`、`listSubIssues`、`getRepoKey`、
  * `initProject`），1 条判定为形态不合（`ensureLabelColorsFile`，往下看第 2 条）。
- * 今天这一家与 GitHub 那家一样，是 **25 条真提供、1 条明确不支持**。
+ * 今天这一家是 **26 条真提供、1 条明确不支持**（地图薄行 #1605 落地，欠账清零）。
  *
  * ── 与谁是一对 ──────────────────────────────────────────────────────────────────
  *   - 给人读的表：`docs/tracker/capability-gitlab.md`（视图，门禁逐条比对，两边不许打架）
@@ -27,12 +27,12 @@
 import type { CapabilityRegister } from '../../contract/capability-answer.js'
 
 /**
- * GitLab 后端：26 条能力里 25 条真提供（含 #1446 落地的读预算），1 条按设计明确不支持。
+ * GitLab 后端：27 条能力里 26 条真提供（含 #1446 落地的读预算与 #1605 落地的地图薄行），1 条按设计明确不支持。
  *
- * 顺序照契约名录（23 条操作在前、3 条定位口在后），读的人可以两边对着看。
+ * 顺序照契约名录（24 条操作在前、3 条定位口在后），读的人可以两边对着看。
  */
 export const GITLAB_CAPABILITY_REGISTER = {
-  // —— 操作 23 条：22 条真实现，1 条按设计不支持 ——
+  // —— 操作 24 条：23 条真实现，1 条按设计不支持 ——
   preflight: { tier: 'provided' },
   list: { tier: 'provided' },
   get: { tier: 'provided' },
@@ -66,6 +66,10 @@ export const GITLAB_CAPABILITY_REGISTER = {
   // RateLimit-Remaining，量出请求桶的水位；量不到时回「读数未知」并带原因，不回 0。
   // 实现在 ./budget.ts，三条坏路的理由写在那个文件头上。
   readBudget: { tier: 'provided' },
+  // 地图薄行（#1605 落地）：真实现在 ./maps.ts，服务端按地图标签筛、内存复核、更新时间倒序。
+  // 没实现的那段时间（规格 1602）由注册表按名录自动补「做不到」的桩，调用方拿诚实的 unsupported 照老路退化——
+  // 那条退化路今天起在本房没人走了（已支持），但判定还在分流文件里留给别的房（只认 unsupported 才回落）。
+  listMaps: { tier: 'provided' },
 
   // —— 定位口 3 条：全部提供 ——
   // getRepoKey 是这一轮补的第三条。定位口没有「我不支持」这种答案，注册表也不替它们补桩：

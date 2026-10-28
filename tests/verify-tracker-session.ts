@@ -6,9 +6,9 @@
  * 真额度。这一条用假后端与可控读数把六条验收逐条钉住，真实现以后改坏任何一条都会红。
  *
  * 六条验收（票 1441）：
- *   一、名录只新增读预算：操作 23 条（末尾是读预算）、能力 26 条，其余名字一个不动。
+ *   一、名录只新增读预算与地图薄行：操作 24 条（末尾是读预算、倒数第二是地图薄行）、能力 27 条，其余名字一个不动。
  *   二、预算必填：三间房的声明各在其位，缺预算的模块在注册时就被拒绝，理由点名缺哪格。
- *   三、会话形状：公开入口只交会话，会上带后端编号、预算模型、写权限与 26 条能力。
+ *   三、会话形状：公开入口只交会话，会上带后端编号、预算模型、写权限与 27 条能力。
  *   四、管线分流：分发原样透传；离网放行且记零账；未知读数不被当成耗尽；已知耗尽推迟
  *       且房间与记账都不被碰；写权限这道硬顶在读数充足时照样拦。
  *   五、读预算特权：它只读缓存不花额度，所以不走裁决也不记账，直达房间。
@@ -132,15 +132,15 @@ function openWith(over: Partial<OpenTrackerOptions> & { canWrite?: boolean },
 
 async function main(): Promise<void> {
   console.log('== 一、名录只新增读预算 ==')
-  const known22 = ['preflight', 'list', 'get', 'getDependencies', 'create', 'close', 'reopen',
+  const known23 = ['preflight', 'list', 'get', 'getDependencies', 'create', 'close', 'reopen',
     'comment', 'update', 'setLabels', 'setAssignees', 'setParent', 'setBlockedBy', 'getCurrentUser',
     'initProject', 'listLabels', 'setLabelColors', 'counts', 'listPage', 'getRepoPermissions',
-    'listSubIssues', 'ensureLabelColorsFile']
-  check(OPERATIONS.length === 23, '操作 23 条 → 实得 ' + OPERATIONS.length + ' 条')
+    'listSubIssues', 'ensureLabelColorsFile', 'listMaps']
+  check(OPERATIONS.length === 24, '操作 24 条 → 实得 ' + OPERATIONS.length + ' 条')
   check(OPERATIONS[OPERATIONS.length - 1] === 'readBudget', '新增的在末尾（读预算）→ 实得 ' + OPERATIONS[OPERATIONS.length - 1])
-  check(OPERATIONS.filter((op) => op !== 'readBudget').every((op) => known22.indexOf(op) >= 0),
+  check(OPERATIONS.filter((op) => op !== 'readBudget').every((op) => known23.indexOf(op) >= 0),
     '除读预算外没有第二张新面孔（已有名字一个没动）')
-  check(CAPABILITIES.length === 26, '能力 26 条 → 实得 ' + CAPABILITIES.length + ' 条')
+  check(CAPABILITIES.length === 27, '能力 27 条 → 实得 ' + CAPABILITIES.length + ' 条')
 
   console.log('== 二、预算必填：三间房声明 + 缺预算当场拒绝 ==')
   const github = await import('../src/tracker/rooms/github/index.ts')
@@ -183,7 +183,7 @@ async function main(): Promise<void> {
     '缺预算的模块经注册表注册时当场抛错且理由点名预算 → ' + JSON.stringify(registerReason))
   check(registryNeg.modules().length === 0, '注册失败的模块没有留在注册表里（不留半截）')
 
-  console.log('== 三、会话形状：编号预算写权限与 26 条能力 ==')
+  console.log('== 三、会话形状：编号预算写权限与 27 条能力 ==')
   currentReading = fullBuckets
   const opened = await openWith({})
   check(opened.ok === true, '公开入口交出会话（ok:true）')
@@ -192,7 +192,7 @@ async function main(): Promise<void> {
     check(same(opened.session.budget, fakeBudget), '会话带预算模型（与注册的那一份是同一份）')
     check(opened.session.canWrite === true, '会话带写权限')
     check(CAPABILITIES.every((name) => typeof (opened.session as unknown as Record<string, unknown>)[name] === 'function'),
-      '26 条能力在会话上都叫得到（少一条都不行）')
+      '27 条能力在会话上都叫得到（少一条都不行）')
     check(opened.session.id === 'fake-d', '会话编号与后端编号一致（注册表那条不许说谎的规矩同样适用）')
   }
 

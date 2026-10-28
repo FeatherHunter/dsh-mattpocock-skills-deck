@@ -56,7 +56,20 @@ export function normalizeWorkspacePath(raw: any, platform: any): string {
         const otherSep: string = sep==='\\' ? '/' : '\\';
         while (n.length>1 && (n.endsWith(sep) || n.endsWith(otherSep))) n=n.slice(0,-1);
       }
-      if(platform.os==='win32') n=n.toLowerCase();
+      // #1498：Windows 的小写折叠只对真正大小写不敏感的卷（盘符路径）做，UNC 一律保留原始大小写。
+      // 为什么：UNC 背后可能是 WSL 里的 ext4（\\wsl.localhost\… 、\\wsl$\…），也可能是 Windows 共享，
+      // 光看字符串分不出是哪一种；在区分大小写的盘上小写化会洗出一条根本不存在的路径，于是锚根探测、
+      // .git 读取、gh 命令全部失败（界面一直显示「未识别仓库」），写工作区文件时还会在父目录里真的
+      // 建出一个只有大小写不同的假目录。
+      // 为什么拿规整后的 n 判「是不是 UNC」而不是拿原始入参：调用方可能把 UNC 写成正斜杠的
+      // //wsl.localhost/… ，只有 path.normalize 之后才变成反斜杠开头的共享写法；拿原文判会漏掉它。
+      // 两个反斜杠开头不全是 UNC：\\?\D:\Work\Alpha（长路径写法）与 \\.\C:\Work（设备前缀）
+      // 后面跟的是盘符，仍是大小写不敏感的卷，必须照旧折叠，所以把它们从 UNC 里排掉；
+      // \\?\Volume{…} 这类看不出卷的大小写规矩，跟 UNC 一样保留原样。裸斜杠根没有字母，折叠与否无差别。
+      if(platform.os==='win32'){
+        const isUnc: boolean = /^\\\\/.test(n) && !/^\\\\[?.]\\[A-Za-z]:/.test(n);
+        if(!isUnc) n=n.toLowerCase();
+      }
       return n;
     }
   } catch {}
