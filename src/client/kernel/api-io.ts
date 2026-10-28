@@ -26,6 +26,7 @@
     declare const newSessionTitle: any
     declare const rowActionText: any
     declare const issueUrlFor: any
+    declare const effortOf: any
     declare const rowActionKind: any
     declare const openTextInNewSession: any
     declare const flash: any
@@ -46,9 +47,8 @@
       try { text = rowActionText(st, x) } catch(e) {
         try { text = rowActionText(st, x) } catch(e2) { text = '' }
         if (!text) {
-          const u = (typeof issueUrlFor === 'function' ? (function(){ try{ return issueUrlFor(st, x && x.number) }catch(_){ return '' } })() : '')
-          const uu = u || (x && x.number != null ? '#' + String(x.number) : '')
-          text = uu ? ('/wayfinder ' + uu) : '/wayfinder'
+          const u = (typeof issueUrlFor === 'function' ? (function(){ try{ return issueUrlFor(st, x && x.number, (typeof effortOf === 'function' ? effortOf(x) : undefined)) }catch(_){ return '' } })() : '')
+          const uu = u || (x && x.number != null ? '#' + String(x.number) : ''); text = uu ? ('/wayfinder ' + uu) : '/wayfinder'
         }
       }
       let kind = null

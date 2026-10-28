@@ -2359,7 +2359,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'c06330c2e5f5d786db66d33df54db482cf1dc38c32540aeac02994b31d5e23d2',
+  'tests/verify-prompts.ts': '347902e9f3b118404e25988a7b08a1b91bbb1910279ddb91dd825290ac25df0f',
 }
 // ---- LOCK-END ----
 
@@ -2622,7 +2622,7 @@ if (reg) {
     ;['github', 'gitlab', 'markdown'].forEach(function (b) {
       if (backendDecls[b] && backendDecls[b].bodyFormat) fail('#725 ' + b + ' 后端仍声明 prompts.bodyFormat（该条已整节删除）')
     })
-    // #603 必修①：completePrompt 的真实调用形态 —— 签名 (st, num, title, total, closed)。
+    // #603 必修①：completePrompt 的真实调用形态 —— 签名 (st, num, title, total, closed, effortId)。
     //   #779 起模板不再内嵌标识头（标题由首行 /wayfinder+链接承载），title 参数保留兼容但正文不再渲染「标题：T」。
     const cpSt = { selection: { backendId: 'github' }, backendModules: [{ id: 'github', prompts: backendDecls.github }] }
     const cpText = String(evalPromptHelpers.completePromptForTest(cpSt, 5, 'T', 3, 3) || '')
@@ -2636,7 +2636,7 @@ if (reg) {
     // 先验自证：旧的四参形态必须能被上面两条抓红（证明断言有变红能力，不是永远绿）
     const cpBad = String(evalPromptHelpers.completePromptForTest(cpSt, 5, 3, 3) || '')
     if (cpBad.indexOf('undefined') < 0) fail('#595 先验失败：按旧四参形态调用 completePrompt 竟渲染不出 undefined（渲染面断言抓不住调用错位）')
-    // 调用点也必须按五参形态调（防回退）：这几处视图/router 里每处 completePrompt 调用都要传 5 个实参
+    // 调用点也必须按六参形态调（防回退，#1595）：这几处视图/router 里每处 completePrompt 调用都要传 6 个实参（含 effortId）
     ;['src/client/views/ListTabRow.js', 'src/client/views/DetailActionBar.js', 'src/client/kernel/container-view.js', 'src/client/kernel/router.js'].forEach(function (rel) {
       // 2026-10-20（#1286）：地图详情页底部那处 completePrompt 调用随三态动作组搬到了 DetailActionBar.ts，
       //   名单跟着搬家（扫描面不许静默少扫：搬走的那处仍然要被数）；同时把新出现的那处调用点
@@ -2644,13 +2644,13 @@ if (reg) {
       // 2026-10-19（#1301 批C）：这几份真源今天都住在同名 .ts 里，旁边那份 .js 产物这一阶段已经删掉，
       //   按 .js 路径直接读会 ENOENT；取源改走共用入口的 sourceText，扫描的是手写真源原文。
       //   另：真源顶部有一句 `declare function completePrompt(...args: any[]): any` —— 那是类型声明、不是调用点
-      //   （构建产物里被剥掉了，老口径碰不到它）。按原判据「每处调用传 5 个实参」先把声明行剔掉再数，判据没放宽。
+      //   （构建产物里被剥掉了，老口径碰不到它）。按 #1595 判据「每处调用传 6 个实参」先把声明行剔掉再数。
       const srcV = sourceText(rel).split('\n')
         .filter((l) => !/^\s*declare\s+function\s+completePrompt\b/.test(l)).join('\n')
       const counts = callArgCounts(srcV, 'completePrompt')
       if (counts.length === 0) { fail('#595 ' + rel + ' 里找不到 completePrompt 调用点（调用形态断言无源，扫描面不许静默少扫）'); return }
       counts.forEach(function (n, i) {
-        if (n !== 5) fail('#595 ' + rel + ' 第 ' + (i + 1) + ' 处 completePrompt 调用传了 ' + n + ' 个实参（签名是 (st, num, title, total, closed)，必须 5 个）')
+        if (n !== 6) fail('#595 ' + rel + ' 第 ' + (i + 1) + ' 处 completePrompt 调用传了 ' + n + ' 个实参（签名是 (st, num, title, total, closed, effortId)，必须 6 个）')
       })
     })
     // 脚本引用面（#603）：两边都从源码机械求值，但不再要求「提示词引用的脚本集合 == 发布包脚本集合」相等。

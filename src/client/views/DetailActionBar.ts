@@ -58,7 +58,7 @@ export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => 
       : (state === 'done'
         ? { labelKey: 'act.done', color: triDoneColor(), icon: 'check', titleKey: 'map.doneTitle' }
         : { labelKey: 'act.execute', color: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', icon: 'play', titleKey: 'map.executeTitle' })))
-  const url = (typeof issueUrlFor === 'function') ? (function () { try { return issueUrlFor(st, m.number) } catch (e) { return '' } })() : ''
+  const url = (typeof issueUrlFor === 'function') ? (function () { try { return issueUrlFor(st, m.number, (typeof effortOf === 'function') ? effortOf(m) : undefined) } catch (e) { return '' } })() : ''
   // 点下去注入什么。真源是 container-view.ts 的 containerPromptText；它不在时退回今天的老口径
   //   （检查 / 完成 / 推进三段），行为与今天一字不差。
   const promptText = function (): string {
@@ -73,15 +73,15 @@ export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => 
       //   不在时才会走到，口径与它保持一致。
       if (cKind === 'spec') return '/to-tickets ' + url
       let t2 = ''
-      try { t2 = inspectPrompt(st, m.number, m.title) } catch (e) {
+      try { t2 = inspectPrompt(st, m.number, m.title, (typeof effortOf === 'function') ? effortOf(m) : undefined) } catch (e) {
         try {
-          t2 = promptTextFor(st, 'mapInspect', { n: String(m.number || ''), ['title']: String(m.title || ''), url: url })
+          t2 = promptTextFor(st, 'mapInspect', { n: (m.number === undefined || m.number === null ? '' : String(m.number)), ['title']: String(m.title || ''), url: url })
           if (t2) t2 = '/wayfinder ' + url + '\n\n' + t2
         } catch (_) { t2 = startText(st, m) }
       }
       return t2
     }
-    if (state === 'done') return completePrompt(st, m.number, m.title, (effStats ? effStats.total : 0), (effStats ? effStats.closed : 0))
+    if (state === 'done') return completePrompt(st, m.number, m.title, (effStats ? effStats.total : 0), (effStats ? effStats.closed : 0), (typeof effortOf === 'function') ? effortOf(m) : undefined)
     // 规格未完成：注入 /implement-spec 链接；通用执行模板首行是 /wayfinder，用在规格上不对（§3.4）。
     if (cKind === 'spec') return '/implement-spec ' + url
     return startText(st, m)
@@ -98,8 +98,8 @@ export const DetailActionBar = ({ st, m, kind, cState, effStats, tri }: any) => 
     (function () {
       // 存档链接：远程后端给网页链接，本地 Markdown 房给「让宿主打开容器文件所在目录」的按钮。
       // #1557：打开方式由后端声明（openContainer），这里不再自己按地址前缀分流。
-      const archiveUrl = issueUrlFor(st, m.number)
       const archiveEff = (typeof effortOf === 'function') ? effortOf(m) : undefined
+      const archiveUrl = issueUrlFor(st, m.number, archiveEff)
       const archiveIsUrl = openModeFor(st, 'container', archiveUrl) === 'url'
       const openArchive = function (e: any) {
         e.stopPropagation()

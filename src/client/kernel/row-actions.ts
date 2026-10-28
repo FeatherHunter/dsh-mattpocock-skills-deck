@@ -82,7 +82,7 @@ export const actionColorOf = function (x: any, colorOf: any): any {
 // #361：行级动作注入文本的单一真源（诊断/接手/补充/修复/讨论/研究/原型/执行）—— 新会话打开与行内动作共用
 export const rowActionText = function (st: any, x: any): any {
   let url: string = ''
-  try { url = issueUrlFor(st, x.number) } catch(e) { url = '' }
+  try { url = issueUrlFor(st, x.number, effortOf(x)) } catch(e) { url = '' }
   if (!url) {
     const fallbackKey: any = (x && (x.number != null ? x.number : x.key != null ? x.key : ''))
     if (fallbackKey !== '') url = '#' + String(fallbackKey)
@@ -121,7 +121,7 @@ export const rowActionText = function (st: any, x: any): any {
 // v19：共享 —— 行级动作（列表与 map 详情共用）：按一处分类八选一（诊断/接手/补充/修复/讨论/研究/原型/执行），预填输入框；
 // 按钮主体色 = 对应 label 的 GitHub 配置色（字色按对比度在深白两色里择优，见 isLightHex）；接手跟 ready-for-human、补充跟 needs-info（#785），取不到时兜底探索紫
 export const mkRowAction = function (st: any, x: any, narrow: any, colorOf: any): any {
-  const url: any = issueUrlFor(st, x.number)
+  const url: any = issueUrlFor(st, x.number, effortOf(x))
   const kind: any = rowActionKind(x)
   const isLight: any = isLightHex
   const btnColor = function (nm: any, fb: any): any { const c: any = colorOf[nm]; return c ? '#' + c : fb }

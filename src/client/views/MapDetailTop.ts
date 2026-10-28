@@ -107,15 +107,15 @@ export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack, kind, tri: tri
       //   container-view.ts 不在时才会走到（例如门禁单独求值本文件），口径要与它保持一致。
       if (cKind === 'spec') return '/to-tickets ' + openUrl
       let t2 = ''
-      try { t2 = inspectPrompt(st, m.number, m.title) } catch (e) {
+      try { t2 = inspectPrompt(st, m.number, m.title, mEffort) } catch (e) {
         try {
-          t2 = promptTextFor(st, 'mapInspect', { n: String(m.number || ''), ['title']: String(m.title || ''), url: openUrl })
+          t2 = promptTextFor(st, 'mapInspect', { n: (m.number === undefined || m.number === null ? '' : String(m.number)), ['title']: String(m.title || ''), url: openUrl })
           if (t2) t2 = '/wayfinder ' + openUrl + '\n\n' + t2
         } catch (_) { t2 = startText(st, m) }
       }
       return t2
     }
-    if (cState === 'done') return completePrompt(st, m.number, m.title, (effStats ? effStats.total : 0), (effStats ? effStats.closed : 0))
+    if (cState === 'done') return completePrompt(st, m.number, m.title, (effStats ? effStats.total : 0), (effStats ? effStats.closed : 0), mEffort)
     // 规格未完成：注入 /implement-spec 链接；通用「执行这张票」模板的正文首行是 /wayfinder，
     //   用在规格上不对（设计文档 §3.4）。探索地图的推进式提示词照旧。
     if (cKind === 'spec') return '/implement-spec ' + openUrl

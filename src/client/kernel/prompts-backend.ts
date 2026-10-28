@@ -138,14 +138,17 @@ declare function isEnabled(...args: any[]): any
     // v5（#77 grilling 定版 2026-08-21）：mapHead 自包含化 —— 标识头三字段内联 complete 顶部，completePrompt 补 title 参数并填 {n}/{title}/{url}
     // #1281：完成提示词改成自包含（首行 /wayfinder、次行链接都写在正文里），这三个占位符一次填完；
     //   n/title 两个参数保留是为了不动各处调用点，正文不再使用它们。
-    export const completePrompt = function (st: any, num: unknown, title: unknown, total: unknown, closed: unknown): string {
+    // #1595：多 effort 仓库里同号票分属不同目录，调用方把票所属 effort 传进来，链接才能指到对的目录；不传时保持原来的第一个命中行为。
+    export const completePrompt = function (st: any, num: unknown, title: unknown, total: unknown, closed: unknown, effortId?: unknown): string {
       void title
-      const url = issueUrlFor(st, String(num || '')) // #231：后端声明模板单源；元数据未达即空（诚实缺形态）
+      const url = issueUrlFor(st, (num === undefined || num === null ? '' : String(num)), effortId) // #231：后端声明模板单源；元数据未达即空（诚实缺形态）
+      // #1597：0 是容器行（key 00）的合法编号，不能用 || 判空，否则会被压成空串导致新会话次行链接丢失（link.ts:50 同理）
       if (typeof logPromptLink === 'function') logPromptLink(st, 'complete', num, url)
       return COMPLETE_PROMPT(st).split('{url}').join(url).split('{total}').join(String(total)).split('{closed}').join(String(closed))
     }
-    export const inspectPrompt = function (st: any, num: unknown, title: unknown): string {
-      const url = issueUrlFor(st, String(num || ''))
+    // #1595：同上，检查提示词里的链接也要按票所属 effort 取，否则多 effort 仓库会指到别的目录。
+    export const inspectPrompt = function (st: any, num: unknown, title: unknown, effortId?: unknown): string {
+      const url = issueUrlFor(st, (num === undefined || num === null ? '' : String(num)), effortId) // #1597：0 是合法编号，不能用 ||（同上）
       if (typeof logPromptLink === 'function') logPromptLink(st, 'inspect', num, url)
-      return '/wayfinder ' + url + '\n\n' + promptTextFor(st, 'mapInspect', { n: String(num || ''), title: String(title || ''), url: url })
+      return '/wayfinder ' + url + '\n\n' + promptTextFor(st, 'mapInspect', { n: (num === undefined || num === null ? '' : String(num)), title: String(title || ''), url: url })
     }

@@ -388,7 +388,7 @@ export async function resolveMapFile(ctx: OpContext, repo: RepoWithPath | null, 
  *  调用方用 `mdScene` 说明自己说的是哪套词汇（feature 找 spec、effort 找 map）；没说明时先找 spec、
  *  找不到再回落 map，保证老工作区的 `#00` 链接照旧打开地图。
  *
- *  未给范围且多命中时，读按目录顺序取第一个、写报 conflict —— 与 resolveMapFile 同一口径。 */
+ *  未给范围且多命中时，读写都报 conflict（#1595 Q1=A：读也不猜，原文列出候选）；单候选保持原样直接返回。 */
 export async function resolveSpecFile(ctx: OpContext, repo: RepoWithPath | null, o: LocateOpts = {}): Promise<{ ok: true; path: string; effortId: string } | { ok: false; error: { kind: string; message: string; raw: string } }> {
   const plat=getPlat(ctx)
   const scope=scopeOf(repo, o)
@@ -413,7 +413,8 @@ export async function resolveSpecFile(ctx: OpContext, repo: RepoWithPath | null,
     }
   }
   if(hits.length===0) return failAs(ERROR_KIND.NOTFOUND, 'spec.md not-found', rawJson({ effortId: scope===undefined?null:scope }))
-  if(hits.length>1 && o.mode==='write') return conflict('00', hits)
+  // #1595 Q1=A：无范围多候选时读也不猜，直接报冲突并在原文列出候选（复用本文件 conflict 写法）；单候选保持原样。
+  if(hits.length>1) return conflict('00', hits)
   return { ok:true, path:hits[0].path, effortId:hits[0].effortId }
 }
 /** 00 号容器（规格或地图）的定位：读取侧与写入侧共用同一顺序（#1480 两轴评审确认的偏差收口）。

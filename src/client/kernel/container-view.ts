@@ -25,6 +25,7 @@
  */
 declare function inspectPrompt(...args: any[]): string;
 declare function completePrompt(...args: any[]): string;
+declare function effortOf(...args: any[]): any;
 declare function startText(...args: any[]): string;
 declare function promptTextFor(...args: any[]): string;
 
@@ -111,7 +112,8 @@ export const containerPromptText = function (st: any, c: any, kind: string, stat
     //   规格是「逐张核对，通过后才关闭」；两者语义不同，不能再共用 completePrompt。
     if (state === 'done') {
       if (kind === 'spec') return promptTextFor(st, 'specComplete', { url: url, total: stats.total || 0, closed: stats.closed || 0 });
-      return completePrompt(st, num, title, stats.total || 0, stats.closed || 0);
+      // #1595：容器对象自带 effort，把它传给 completePrompt 让链接按 effort 取；单 effort 时 effortOf 回空串，行为与原来一致。
+      return completePrompt(st, num, title, stats.total || 0, stats.closed || 0, (typeof effortOf === 'function') ? effortOf(c) : undefined);
     }
     if (kind === 'spec') {
       // 规格空态：还没有实施票，按钮是「拆票」，注入 to-tickets 模板（正文首行 /to-tickets）。
@@ -120,7 +122,8 @@ export const containerPromptText = function (st: any, c: any, kind: string, stat
       //   通用执行模板首行是 /wayfinder（探索地图的路子），用在规格上不对，所以规格走自己这两条。
       return promptTextFor(st, 'specExecute', { url: url });
     }
-    if (state === 'empty') return inspectPrompt(st, num, title);
+    // #1595：同上，把容器的 effort 传给 inspectPrompt，让检查提示词里的链接按 effort 取。
+    if (state === 'empty') return inspectPrompt(st, num, title, (typeof effortOf === 'function') ? effortOf(c) : undefined);
     return startText(st, c);
   } catch (e) {
     // 提示词取不到时退回推进式提示词，跟今天地图侧的行为一致（不静默吞掉）。

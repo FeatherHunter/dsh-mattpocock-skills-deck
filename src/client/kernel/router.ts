@@ -178,15 +178,15 @@ export const startText = (st: any, t: any): string => {
     })();
     const empty: boolean = !!(stats && stats.total === 0);
     if (empty) {
-      try { return inspectPrompt(st, t.number, t.title); } catch (e) { return '/wayfinder ' + url + '\n\n' + promptTextFor(st, 'mapInspect', { n: String(t.number || ''), title: (t.title || ''), url: url }); }
+      try { return inspectPrompt(st, t.number, t.title, effortOf(t)); } catch (e) { return '/wayfinder ' + url + '\n\n' + promptTextFor(st, 'mapInspect', { n: (t.number === undefined || t.number === null ? '' : String(t.number)), title: (t.title || ''), url: url }); }
     }
     const done: boolean = !!(stats && stats.total > 0 && stats.closed === stats.total);
     if (done) {
       // #77 定版：mapHead 自包含化 —— 标识头已内联 complete v5，head 外挂删除
-      return completePrompt(st, t.number, t.title, stats.total, stats.closed);
+      return completePrompt(st, t.number, t.title, stats.total, stats.closed, effortOf(t));
     }
     // v1.5：技能 + 链接前置（具体操作 prompt 开头 = /wayfinder + ISSUE 链接，单行空格分隔）
-    return '/wayfinder ' + url + '\n\n' + promptTextFor(st, 'mapExecute', { n: String(t.number || ''), title: (t.title || ''), url: url });
+    return '/wayfinder ' + url + '\n\n' + promptTextFor(st, 'mapExecute', { n: (t.number === undefined || t.number === null ? '' : String(t.number)), title: (t.title || ''), url: url });
   }
   const body: string = renderTemplate('execute', { number: String(t.number), url: url, title: t.title }, st);
   return withWayfinderPrefix(body);
