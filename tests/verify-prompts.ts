@@ -1518,8 +1518,10 @@ const contractChecksInner = function (reg, src) {
     // #1274 收口后：完成提示词补「先判断」节与当前状态分支（已交过棒的步骤跳过、核对不通过、两种都有），complete 的版本底线 12 → 13。
     // #1212 恢复：诊断 v14→v16、接手 v6→v7，补回 #1281 删掉的调查节、诊断边界与收尾两条，版本底线同步抬高。
     // #1577（2026-10-27）：接手 v10→v11、补充 v8→v9 —— 首行 /wayfinder 改 /triage，补读现状与状态分支，版本底线同步抬高。
+    // #1258（2026-10-28）：原型 v14→v15，收尾前加「定版与移交」节（哪一版、什么算数、照做标准与复核人），
+    //   版本底线跟着抬到 15；这一节的中英判据在四条公共骨架的 forEach 之后单独一组。
     mapExecute: 21, complete: 16, fixate: 11, 'tpl.diagnose': 19, 'tpl.fix': 17, 'tpl.discuss': 20,
-    'tpl.research': 14, 'tpl.prototype': 14, 'tpl.takeover': 11, 'tpl.supplement': 9, 'tpl.execute': 20, mapInspect: 12, newWayfinder: 24,
+    'tpl.research': 14, 'tpl.prototype': 15, 'tpl.takeover': 11, 'tpl.supplement': 9, 'tpl.execute': 20, mapInspect: 12, newWayfinder: 24,
     newBugWayfinder: 15, newSpec: 4, healthCheck: 5, specComplete: 6, specExecute: 5, specSplit: 5,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
@@ -1554,7 +1556,8 @@ const contractChecksInner = function (reg, src) {
     if (me.en.indexOf('## Tools') < 0 || me.en.indexOf('## Wrap-up') < 0) fail('mapExecute en 缺清单段标题（Tools/Wrap-up）')
   }
   // tpl.execute / tpl.discuss / tpl.research / tpl.prototype（#1281：map 子票统一入口）
-  //   四条正文相同：首行 /wayfinder + 第二行 {url}，之后只保留插件增量（调查节 + 收尾）。
+  //   四条同为首行 /wayfinder + 第二行 {url}，之后只保留插件增量（调查节 + 收尾）；
+  //   原型多一节「定版与移交」（#1258），等下面这张公共骨架表判完后单独判。
   //   技能内部如何按票的类型分流不在插件这里复述（#1281 第 5 条原则）。
   ;['tpl.execute', 'tpl.discuss', 'tpl.research', 'tpl.prototype'].forEach(function (wfId) {
     const wf = reg[wfId]
@@ -1571,6 +1574,28 @@ const contractChecksInner = function (reg, src) {
     if (wf.en.indexOf('It is recommended to read this ticket body') < 0) fail(wfId + ' en 缺 #1212 调查首行（同中文那条的对应句）')
     if (wf.en.indexOf('## Wrap-up') < 0) fail(wfId + ' en 缺收尾节')
   })
+  // tpl.prototype（#1258）：原型会话关票前要把「哪一版、什么算数、照做标准与复核人」写进票正文，
+  //   否则下游只能翻评论猜版本（#1258 调查的四张已关闭原型票就有四种记法）。
+  //   不算复述技能规则（#1281）：原型技能第 6 条只要求把原型与结论挂到实施票上，没有要求在本票
+  //   写清看的是哪个变体、哪些状态算数、谁复核；这一节补的正是这几样，落点在本票正文而不是评论。
+  //   落点固定在调查节与收尾之间：收尾是最后动作，移交写晚了会被跳过。
+  const proto = reg['tpl.prototype']
+  if (proto) {
+    const protoZh = String(proto.zh)
+    const protoEn = String(proto.en)
+    if (protoZh.indexOf('## 定版与移交') < 0) fail('tpl.prototype zh 缺 #1258 定版与移交节')
+    if (protoZh.indexOf('让后人能打开同一版') < 0) fail('tpl.prototype zh 缺定版位置要求（让后人能打开同一版）')
+    if (protoZh.indexOf('写清什么算数') < 0) fail('tpl.prototype zh 缺「什么算数」要求（已点头的逐条列出、未选中的写不算数，同 #1258）')
+    if (protoZh.indexOf('照做标准与复核人') < 0) fail('tpl.prototype zh 缺照做标准与复核人（#1258）')
+    if (protoEn.indexOf('## Agreed version and handoff') < 0) fail('tpl.prototype en 缺 #1258 Agreed version and handoff 节')
+    if (protoEn.indexOf('so a later session can open the same version') < 0) fail('tpl.prototype en 缺定版位置要求（同中文那条）')
+    if (protoEn.indexOf('State what counts') < 0) fail('tpl.prototype en 缺「什么算数」要求（同中文那条）')
+    if (protoEn.indexOf('reproduction standard and the reviewer') < 0) fail('tpl.prototype en 缺照做标准与复核人（同中文那条）')
+    if (protoZh.indexOf('## 定版与移交') > protoZh.indexOf('## 收尾')) fail('tpl.prototype zh 的定版与移交节应在收尾之前（#1258）')
+    if (protoEn.indexOf('## Agreed version and handoff') > protoEn.indexOf('## Wrap-up')) fail('tpl.prototype en 的移交节应在 Wrap-up 之前（同中文那条）')
+    if (protoZh.indexOf('## 定版与移交') < protoZh.indexOf('## 调查（建议先查后问）')) fail('tpl.prototype zh 的定版与移交节应在调查节之后（#1258）')
+    if (protoEn.indexOf('## Agreed version and handoff') < protoEn.indexOf('## Investigate (recommended: look before asking)')) fail('tpl.prototype en 的移交节应在 Investigate 之后（同中文那条）')
+  }
   // tpl.diagnose（#1281 只留插件增量；#1212 恢复：调查节、诊断边界与收尾两条回来）
   const di = reg['tpl.diagnose']
   if (di) {
@@ -2356,10 +2381,14 @@ const selfDigest = function () {
 // #1190：两后端加通用键别名（github cliLogin / gitlab cliInstall+cliLogin，与旧键同文），三面计数跟着改
 //   （键数 8/6 → 9/8、字面量 50/12 → 52/16；markdown 不动）；新键走默认判定且通过，不加豁免，
 //   受保护清单与必须受判清单都不动，自摘要按新内容重算（豁免登记表与 payload 夹具没动）。
+// #1258：原型 v14 → v15，收尾前插「定版与移交」节 —— 哪一版（产物位置与区分这一版的提交号/分支/文件名）、
+//   什么算数（已点头的界面与状态逐条列出、没选中的备选写不算数）、照做标准与复核人（给下游规格与实施票的移交要求）。
+//   版本底线 tpl.prototype 14 → 15，中英各五条断言（四条内容 + 一条先后顺序）加在四条公共骨架表之后；落地清单见票 #1258。
+//   同步改了 tests/verify-1407-next-steps-reminders.ts 的版本下限；豁免登记表与 payload 夹具没动，自摘要按新内容重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': '347902e9f3b118404e25988a7b08a1b91bbb1910279ddb91dd825290ac25df0f',
+  'tests/verify-prompts.ts': '529a5f1960f7384c5db0e04157e98547fecf42e29b4f1c6681f6a56de4a7afc9',
 }
 // ---- LOCK-END ----
 

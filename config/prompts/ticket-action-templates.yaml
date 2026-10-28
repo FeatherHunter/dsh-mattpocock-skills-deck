@@ -232,7 +232,7 @@ tpl.implement:
 
     {{shared:sharedTools}}
 tpl.prototype:
-  version: 14
+  version: 15
   placeholders:
     - url
   use: 动作按钮「原型」（wayfinder:prototype 票）· map 子票统一入口：首行 /wayfinder（#1281）
@@ -247,6 +247,11 @@ tpl.prototype:
     - [ ] 建议优先复用仓内既有相关笔记（查找与存放均循仓内习惯），复用时仅记录路径与一句话结论，不粘贴全文。
     - [ ] 确认已找到的既有笔记无法回答本次问题后，再按 /research 规则新查一次，并用一句话说明不适用的原因，新笔记路径回填至正文。
     - [ ] 提问前用一句话说明已查阅范围，问题本身仍按本模板原有提问格式提出。
+
+    ## 定版与移交
+    - [ ] 把定版写进本票正文，让后人能打开同一版：产物在哪，用什么区分这一版和其他版本（提交号、分支名或文件名），当时看的是哪个变体或哪组演示参数。有变体或演示参数的一并写下，没有就不写。
+    - [ ] 写清什么算数：已点头的界面、状态与交互逐条列出；没被选中的备选明确写成不算数。下游只照列出的部分做。
+    - [ ] 写下照做标准与复核人：实施时对照哪几个界面或状态、什么算还原；由当初点头这一版的人复核。这是给下游写规格与实施票的移交要求，不是本票要交的验收证据。
 
     ## 收尾
     - [ ] 结束前把这张票的真实状态写进正文；没做完的写明下一步。
@@ -263,6 +268,11 @@ tpl.prototype:
     - [ ] It is recommended to reuse an existing related note in the repo first (where to look and where to store both follow the repo convention); record only its path plus a one-sentence conclusion, never the full text.
     - [ ] Only after the existing notes you found cannot answer this question, run one new /research pass per its skill rules; state in one sentence why they do not fit, then write the new note path back into the body.
     - [ ] Before asking, state in one sentence what you checked; ask the question itself in this template original question format.
+
+    ## Agreed version and handoff
+    - [ ] Write the agreed version into this ticket body so a later session can open the same version: where the artifact lives, what tells this version apart from other versions (a commit, a branch name, or a file name), and which variant or demo parameters were reviewed. Add the variant or demo parameters when there were any; leave them out when there were none.
+    - [ ] State what counts: list the approved screens, states and interactions one by one; mark the alternatives that were not chosen as not part of the agreed version. Downstream work reproduces only what is listed.
+    - [ ] Write the reproduction standard and the reviewer: which screens or states to compare, what counts as reproduced, and that the person who approved this version reviews it. This is the handoff requirement for the spec and implementation tickets, not evidence this ticket must produce.
 
     ## Wrap-up
     - [ ] Before finishing, write the true state of this ticket into its body; if unfinished, state the next step.

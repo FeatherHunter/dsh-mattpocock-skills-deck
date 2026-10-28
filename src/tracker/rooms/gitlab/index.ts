@@ -38,6 +38,8 @@ import { listLabels, setLabelColors } from './labels-ops.js'
 import { getCurrentUser, getRepoPermissions } from './identity-ops.js'
 import { listSubIssues } from './sub-issues.js'
 import { initProject } from './init-project.js'
+// #1605：地图薄查真实现（此前 planned，注册表补桩；今天起走真实现）。
+import { listMaps } from './maps.js'
 // #1446：读额度读数与「每次 glab 调用记一条请求」的用量信封。
 import { readGitlabBudget } from './budget.js'
 import { attachGlabOpUsage } from './client.js'
@@ -47,7 +49,7 @@ import type { GITLAB_CAPABILITY_REGISTER } from './capability-register.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_FALLBACK_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
-// —— GitLab 交出来的成员：25 条能力 + id（22 条操作 + describe/issueAddress/getRepoKey 三条定位口）——
+// —— GitLab 交出来的成员：26 条能力 + id（23 条操作 + describe/issueAddress/getRepoKey 三条定位口）——
 // 这份集合不再手写，从本房的登记数据推出来：「明确提供功能」的名字才是实例成员；登记里那 1 条
 // 「明确不支持」（ensureLabelColorsFile）因此不会出现在这里（它由注册表按名录补桩）。
 // 为什么集合与形状住在房间文件里（而不是判定文件）：判定收在 src/tracker/capability-assertions.ts，
@@ -244,11 +246,11 @@ export const links = {
 }
 
 /**
- * 创建 GitLab 后端适配器（今天交 25 条：22 条操作 + 3 条定位口；剩下配色文件那 1 条按设计由注册表补桩）。
+ * 创建 GitLab 后端适配器（今天交 26 条：23 条操作 + 3 条定位口；剩下配色文件那 1 条按设计由注册表补桩）。
  *
  * 返回类型故意不标（理由同 GitHub 房：标成成员全可选的集合就查不出少写，
  * 形状判定收在 `src/tracker/capability-assertions.ts`）：没实现的那些操作由注册表补「我不支持」的桩。
- * 本后端今天的边界是「22 条操作 + describe / issueAddress / getRepoKey 三条定位口」——
+ * 本后端今天的边界是「23 条操作 + describe / issueAddress / getRepoKey 三条定位口」——
  * 唯一没实现的是 `ensureLabelColorsFile`，而且它**不是欠账**：这一条在本后端上形态不成立
  * （颜色真源在远端仓库标签，工作区里那份文件没有读者，改了不算数），登记为「明确不支持」，
  * 理由见 `./capability-register.ts` 那一行的注释与 `docs/tracker/capability-gitlab.md`。
@@ -291,6 +293,8 @@ export function createGitlabBackend(ctx: BackendContext) {
     // 它回答的是「挂在这张地图上的票」；人手工加的 relates_to 关联不参与归属判定。详见 ./sub-issues.ts 文件头。
     listSubIssues: (repo, mapKey, opts, opCtx) => listSubIssues(repo, mapKey, opts, opCtx || ctx),
     initProject: (handle, input, opCtx) => initProject(handle, input, opCtx || ctx),
+    // #1605 地图薄查：签名 ctx 收在最后一格（与上面地图 10 那几条同列），这里直接透传。
+    listMaps: (repo, opCtx) => listMaps(repo, opCtx || ctx),
     // 读额度：GitLab 只按请求计数，读数固定是 requests-only；坏路一律回「读数未知」，不抛。
     readBudget: (opCtx) => readGitlabBudget(opCtx || ctx),
   } satisfies GitlabBackendShape

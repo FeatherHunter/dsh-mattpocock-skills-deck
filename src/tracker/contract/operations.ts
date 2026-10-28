@@ -1,5 +1,5 @@
 /**
- * src/tracker/contract/operations.ts —— 契约的能力层：26 条能力，一个后端能被要求做的全部事情
+ * src/tracker/contract/operations.ts —— 契约的能力层：27 条能力，一个后端能被要求做的全部事情
  *
  * ── 这份文件回答一个问题 ────────────────────────────────────────────────────────
  * 「一个后端要能做哪些事，每件事收什么、回什么。」答完这一份，上层就能不认识后端是谁。
@@ -40,6 +40,7 @@ import type {
   LabelColorBatchResult,
   IssueListResult,
   LabelColorsFilePlacement,
+  MapListResult,
   OpResult,
   OpUsage,
   PageResult,
@@ -64,11 +65,11 @@ import type { OPERATIONS } from './operations-catalog.js'
 import type { BudgetReading } from './budget-model.js'
 
 /**
- * 23 条契约操作的名字，**由名录单源生成**（`operations-catalog.ts` 的 `OPERATIONS` 数组）：
+ * 24 条契约操作的名字，**由名录单源生成**（`operations-catalog.ts` 的 `OPERATIONS` 数组）：
  * `preflight`、`list`、`get`、`getDependencies`、`create`、`close`、`reopen`、`comment`、
  * `update`、`setLabels`、`setAssignees`、`setParent`、`setBlockedBy`、`getCurrentUser`、
  * `initProject`、`listLabels`、`setLabelColors`、`counts`、`listPage`、`getRepoPermissions`、
- * `listSubIssues`、`ensureLabelColorsFile`、`readBudget`（读预算，规格 1439 起是第 23 条）。
+ * `listSubIssues`、`ensureLabelColorsFile`、`listMaps`（地图薄行，规格 1602 起是第 24 条操作的前一条）、`readBudget`（读预算，规格 1439 落地、规格 1602 起是第 24 条）。
  *
  * 为什么这么写（原来是一份手抄的联合类型）：手抄的联合类型与运行时那份 `OPERATIONS` 数组
  * 是两份数据，靠人眼对齐，漏改一处的后果是「类型说有、注册表不补桩」—— 那种错只在运行时
@@ -85,9 +86,9 @@ import type { BudgetReading } from './budget-model.js'
 export type OpName = (typeof OPERATIONS)[number]
 
 /**
- * 一个后端适配器对上层承诺的全部能力：**23 条操作 + 3 条定位口，共 26 条**。
+ * 一个后端适配器对上层承诺的全部能力：**24 条操作 + 3 条定位口，共 27 条**。
  *
- * 谁实现：三个内置后端各自按登记表声明——GitHub 与 GitLab 各 25 条真提供、1 条按设计不支持；本地 Markdown 19 条真提供、3 条做了但没做到位、4 条明确不支持。
+ * 谁实现：三个内置后端各自按登记表声明——GitHub 26 条真提供、GitLab 25 条真提供（各有 1 条按设计不支持）；本地 Markdown 19 条真提供、3 条做了但没做到位、4 条明确不支持、1 条未来会开发。
  * 谁消费：deck 九个工具（经共享壳）、注册表、宿主电话、面板。
  *
  * 实现方义务（写在类型旁边，因为类型管不了这几条）：
@@ -290,7 +291,24 @@ export interface Tracker {
   ensureLabelColorsFile(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<LabelColorsFilePlacement>>
 
   /**
-   * 读预算：读缓存里的剩余额度，只读不花（规格 1439 第 23 条操作）。
+   * 一次取全量地图薄行（规格 1602 第 24 条操作的前一条，#1603 落地）。
+   *
+   * 给 deck_context 首屏用的：调用方只给仓库，不给筛选、不给游标、不给页大小。
+   * 后端内部写死三件事——状态 `open` + `closed` 两档都要、标签只要小写的
+   * `wayfinder:map`、时间窗口为空——服务端能筛的先筛，拿回来再按小写标签二次
+   * 校验一次，两次都中的才算（标签大小写在远端可能不敏感，内存里再卡一次才作数）。
+   * 行是薄的（`MapRow`：只要 key/title/state/url，不带正文、不带评论、不问 PR），
+   * 内部按创建时间倒序翻页，交出来之前按更新时间重排；撞到封顶页数如实截断
+   * （`truncated: true`），单页失败整趟失败（不回半份）；超时与传输失败直接失败，
+   * 只在「这个后端不支持」时回 `unsupported`（调用方据此回落到老路）。
+   */
+  listMaps(
+    repo: RepositoryRef,
+    ctx: OpContext,
+  ): Promise<OpResult<MapListResult>>
+
+  /**
+   * 读预算：读缓存里的剩余额度，只读不花（规格 1439 落地，规格 1602 起是第 24 条操作）。
    *
    * 它是操作里唯一不走裁决与记账的那一条：回来的就是读数本身，让它再过一遍裁决等于
    * 「量体温之前先问体温计热不热」，记账则等于「看额度这件事自己花额度」。
@@ -299,7 +317,7 @@ export interface Tracker {
   readBudget(ctx: OpContext): Promise<OpResult<BudgetReading>>
 
   // ── 定位口三条 ────────────────────────────────────────────────────────────────
-  // 与上面 23 条操作的区别只有一条，但很要紧：它们**没有「我不支持」这种答案**。
+  // 与上面 24 条操作的区别只有一条，但很要紧：它们**没有「我不支持」这种答案**。
   // 问「这个仓库在这个后端上叫什么」，答案是名字或者空；空也是答案，不是失败。
   // 所以注册表不替它们补桩，缺席就是缺席，调用方拿空值继续往下走（不抛、不拦）。
   // 名字用「地址」不用「网址」：本地文件后端给过票文件路径，路径也是地址。

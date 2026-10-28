@@ -204,7 +204,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       let xpRelease = null
       // #1392：归还包成幂等，下面每条退出路径都调 xpReleaseSlot()；git 本地命令没有名额，它是空转。
       if (xpIsOutbound) {
-        try { xpRelease = await getGhLane().acquire({ bucket: xpBucket, service: xpIsGh ? 'github' : 'gitlab', cmd: xpIsGh ? xpCmd : undefined, waitMs: xpIsGh ? queueTimeoutForTier(timeoutForGhArgs(xpArgs)) : undefined }) }
+        try { xpRelease = await getGhLane(logCtx).acquire({ bucket: xpBucket, service: xpIsGh ? 'github' : 'gitlab', cmd: xpIsGh ? xpCmd : undefined, waitMs: xpIsGh ? queueTimeoutForTier(timeoutForGhArgs(xpArgs)) : undefined }) }
         catch (eAcq) {
           // 到点还没拿到名额（一次没起进程）：按可重试网络失败回人话，不与「取消排队」混成一条。
           const xpQueueText = ghQueueTimeoutReply(eAcq, xpIsGh ? 'gh' : 'glab')

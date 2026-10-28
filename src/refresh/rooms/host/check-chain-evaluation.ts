@@ -90,7 +90,8 @@ type DetectChainDeps = {
   /** #1566：仓库身份证据（可选；旧接线没给这一格时退回 getRepoKey 的单值结论，行为不变）。 */
   getRepoIdentity?(cwd: string): Promise<RepoIdentityEvidence | null>
   timer: { timeout(ms: number): Promise<unknown> }
-  probeSkill(skillName: string, lang: string, cwd: string): Promise<unknown>
+  // #1227：第四格 force 要透传进 #968 的短时缓存，否则人点「重新检查」后链上技能行最多 30 秒仍显示旧绿。
+  probeSkill(skillName: string, lang: string, cwd: string, opts?: { force?: boolean }): Promise<unknown>
   /** 本地 Markdown 三项判据的取用口（#1513）：按检查项 id 调同一份房间判据，sandboxPolicy 供写探测用。 */
   mdPredicate(platform: unknown, cwd: string, lang: string, checkId: string, sandboxPolicy?: unknown): Promise<PredicateResultView>
   /** 解构出来但本文件没用到（接线给全了，这两格留给别处读）：只声明它们存在。 */
@@ -381,7 +382,9 @@ export function createDetectChain(deps: DetectChainDeps) {
           : ((parsedDecl && parsedDecl.confidence === 'high' && parsedDecl.explicitBackendId) || null)
         const sbInfo = await resolveSessionPolicy(cwd, args && args.sessionId)
         const chainPolicy = sbInfo.policy; const chainSessionId = sbInfo.sessionId
-        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, lang: chainLang, selection: selConsistent, explicitBackendId: expConsistent, sandboxPolicy: chainPolicy, sessionId: chainSessionId, skillProbe: async function (skillName: string) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && (e as CaughtError).message) || e), hint: 'pending:skills-unavailable' } } } }
+        // #1227：人点「重新检查」带 force 上来时，链上的技能行也要真去重问一次。不把 force 透下去的话，
+        //   #968 的 30 秒绿牌短时缓存会继续把刚被删掉的技能报成「已安装」（链重算了、技能行没重算）。
+        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, lang: chainLang, selection: selConsistent, explicitBackendId: expConsistent, sandboxPolicy: chainPolicy, sessionId: chainSessionId, skillProbe: async function (skillName: string) { try { return await probeSkill(skillName, chainLang, cwd, { force: force }) } catch (e) { return { ok: false, level: 'pending', detail: String((e && (e as CaughtError).message) || e), hint: 'pending:skills-unavailable' } } } }
         // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
         try { registry.register('backend:github:repoRemote', async function (check, pctx: PredicateCtx) {
           try {

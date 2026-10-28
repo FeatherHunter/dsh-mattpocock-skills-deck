@@ -4,7 +4,7 @@
 
 ## 第一性原理
 
-- 契约说真话：完整数据形状（`src/shared/tracker/shape.ts`）+ 23 条操作集（`src/tracker/contract/index.ts`，规格 1439 起含读预算）+ capability-by-fill + registry 三级联，已由 #124-#128 定稿。
+- 契约说真话：完整数据形状（`src/shared/tracker/shape.ts`）+ 24 条操作集（`src/tracker/contract/index.ts`，规格 1602 起含地图薄行）+ capability-by-fill + registry 三级联，已由 #124-#128 定稿。
 - 骨架已自洽：门禁 `620 passed / 4 failed / CONTRACT SKELETON OK`（退出码 0）证明“桩能过、违规能逮”，测的是 `fixtures/compliant.ts` 与 `violating.js`，不是真实适配器。那 4 条失败是 `violating` 桩里刻意埋的错，门禁要求它们**必须出现**（按名字点名，见 `verify-tracker-contract.ts` 末尾的 `VIOLATING_EXPECTED_FAILURES`）；数字会随票据增长，判据不是数字本身。其中 `sections/labels.ts`（#627 标签配色契约）是 85 条。
 - 真实适配器这一层另有门禁：`sections/labels.ts` 里有对着**真实 GitHub 与本地 Markdown 后端模块**的探针（把真实模块注册进注册表真调用），判据是「要么诚实地说做不到（unsupported），要么把这两条操作做到契约要求」；今天两个后端都还没实现，走前一条，下游一实现这一段自动变成真验收。
 - 平台可测：#131 的 145+32 方法论（注入可判真 + 零手拼 + 双闸）已让次缝（平台层）单机判三端；主缝需复用同一方法论，但对象改为“后端适配器”。
@@ -99,7 +99,7 @@ node scripts/generate-github-fixtures.js --repo FeatherHunter/dsh-mattpocock-ski
 
 详见 `ONBOARDING.md`。一句话：**新增后端需提交四件**：
 
-1. `src/tracker/rooms/<id>/` 适配器（`index.ts` 导出 BackendModule，23 条操作按需实现，缺的由注册表补 `unsupported` 的桩；预算口径 `budget` 必填）
+1. `src/tracker/rooms/<id>/` 适配器（`index.ts` 导出 BackendModule，24 条操作按需实现，缺的由注册表补 `unsupported` 的桩；预算口径 `budget` 必填）
 2. `tests/tracker-contract/fixtures/<id>-real/` 采样固件 + `metadata.json`（来源/脱敏/时间/字段）
 3. `scripts/generate-<id>-fixtures.js` 生成脚本（可复现，记录来源/脱敏）
 4. `verify-tracker-contract` 集成（`tests/verify-tracker-contract.ts` 中 `runContractTests(<id>Fixture)` + `runPlayback`），并保持门禁**红线的形状**不回归：合规桩全 PASS、违规桩那 4 条预期失败都在、各行为段全 PASS（含 `sections/labels.ts` 里对着真实后端模块的探针）、`CONTRACT SKELETON OK` 且退出码 0（验收④）。断言总数每张票都会长，**不要照抄某个数字当门槛**：现值是 620 passed / 4 failed（`sections/labels.ts` 85 条），判断标准是上面这几条形状，不是数字。

@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/markdown/capability-register.ts —— 本地 Markdown 后端对 26 条能力的回答（数据）
+ * src/tracker/rooms/markdown/capability-register.ts —— 本地 Markdown 后端对 27 条能力的回答（数据）
  *
  * 四类的判据、为什么写成联合、以及「运行时不读它」这条 G5 纪律，都写在
  * `src/tracker/contract/capability-answer.ts` 的文件头，这里不重复。
@@ -21,7 +21,7 @@
  */
 import type { CapabilityRegister } from '../../contract/capability-answer.js'
 
-/** 本地 Markdown 后端：26 条里 19 条真提供（含 #1446 落地的读预算）、3 条做了但有对不上的输入、4 条明确不支持（后端自己补桩）。
+/** 本地 Markdown 后端：27 条里 20 条真提供（含 #1446 落地的读预算与 #1605 落地的地图薄行）、3 条做了但有对不上的输入、4 条明确不支持（后端自己补桩）。
  *
  *  `getRepoKey` 为什么算「提供」而不是「不支持」：契约对定位口只有一种答案形态 —— 名字或者空，
  *  空也是答案、不是失败（见 `contract/operations.ts` 定位口那一段）。本地房的身份就是工作区目录本身，
@@ -30,7 +30,7 @@ import type { CapabilityRegister } from '../../contract/capability-answer.js'
  *  于是这个后端实例上压根没有这个方法，调用方一调就抛类型错误。现在改成真的实现一条回空的。
  *  #1174 决策 2、决策 11③。 */
 export const MARKDOWN_CAPABILITY_REGISTER = {
-  // —— 操作 23 条：15 条真提供（每种合法输入都对得上承诺）——
+  // —— 操作 24 条：16 条真提供（每种合法输入都对得上承诺）——
   preflight: { tier: 'provided' },
   list: { tier: 'provided' },
   get: { tier: 'provided' },
@@ -46,8 +46,10 @@ export const MARKDOWN_CAPABILITY_REGISTER = {
   counts: { tier: 'provided' },
   listPage: { tier: 'provided' },
   ensureLabelColorsFile: { tier: 'provided' },
+  // 地图薄行（#1605 落地）：真实现在 ./maps.ts——与 list 共用同一份枚举，只做内存复核与排序。
+  listMaps: { tier: 'provided' },
 
-  // —— 操作 23 条：3 条做了但有对不上的输入（差在哪写在 gap 里，这是给人看的账）——
+  // —— 操作 24 条：3 条做了但有对不上的输入（差在哪写在 gap 里，这是给人看的账）——
   getDependencies: {
     tier: 'partial',
     gap: '一次问多个编号（opts.keys）这一条不认：契约的返回形状只装得下一个编号的依赖关系，本后端的做法是如实回「不支持」，请逐个编号调用。单个编号的读取、以及两个方向（被谁阻塞、阻塞了谁）都正常。',
@@ -65,7 +67,7 @@ export const MARKDOWN_CAPABILITY_REGISTER = {
     ticket: '#1174',
   },
 
-  // —— 操作 23 条：4 条明确不支持（后端自己在实例上补了显式桩）——
+  // —— 操作 24 条：4 条明确不支持（后端自己在实例上补了显式桩）——
   getCurrentUser: { tier: 'unsupported-by-design', stubBy: 'backend' },
   initProject: { tier: 'unsupported-by-design', stubBy: 'backend' },
   getRepoPermissions: { tier: 'unsupported-by-design', stubBy: 'backend' },
@@ -73,7 +75,6 @@ export const MARKDOWN_CAPABILITY_REGISTER = {
   // 读预算（#1446 落地）：本地房是离网口径，读数恒为「离网」那一支，不读盘、不调任何东西。
   // 实现在 ./budget.ts；这里从「未来会开发」改成「明确提供功能」，是因为调用方今天就会问到它。
   readBudget: { tier: 'provided' },
-
   // —— 定位口 3 条：全部提供；其中两条在模块对象上，getRepoKey 在实例上、答案恒为空 ——
   getRepoKey: { tier: 'provided' },
   describe: { tier: 'provided' },
