@@ -14,6 +14,9 @@
  * 接线：store-prefs.ts 的 isBannerFolded / setBannerFolded 与 views/SubworkspaceMark.js 的「自动展开过没有」
  *   那一段改调这一族（导出名与签名一字不变），旧表那几行原地留着当过渡；本片不在（老产物、渲染替身里）
  *   或回 false 时，调用方照改动前的老办法写旧表。
+ *   #1612 起多一个写口 setViewFlagValue：它不改写值（不做真假值转换），只负责把字符串原样交给
+ *   「改内存文档 → 进队列 → 防抖 → 写前重读合并」这一条路，给 kernel/deck-state.ts 的
+ *   setDeckStatusBar / setDeckTools 用；返回值含义与 setViewFlag 一致（true ＝ 交给文件这条路了）。
  *
  * 为什么单独一片：settings-view.js 在拆出这一片之前按门禁算法已经 349 行（文件粒度门禁上限 350 行，
  *   见 tests/verify-file-granularity.ts），而本次修复的四个必修点里有三个都落在写这条路上，塞不进去。
@@ -64,6 +67,10 @@
     declare function tplLegacyWriteAll(...args: any[]): any;
     declare function settingsViewLoad(...args: any[]): any;
     declare function viewFlagWriteKeyOf(...args: any[]): any;
+    // #1612 两个文字开关（statusBar、deckTools）的名字表与允许值表住在 kernel/settings-view.js，
+    //   这里按仓里跨片规矩声明一句（实现只在拼好的闭包里有一份），用来判「这一笔在文件里写进去了没有」。
+    declare function viewFlagIsTextNameOf(...args: any[]): any;
+    declare function viewFlagTextValuesOf(...args: any[]): any;
     declare const timer: any;
     // 防抖窗口取 500 毫秒，理由有三条。第一条：一次收起或展开在界面上往往连着来两下（点按钮那一下，
     //   加同一个工作区别的会话跟着重渲染那一趟），而每一次落盘都是宿主先读整份文件、再整份写回。
@@ -148,6 +155,11 @@
           if (d.section === 'templates') { tplLegacyWriteAll(); continue }
           // 调试开关那一族兜底：把内存这一份（＝真值）写回旧键 dsws.debug 当秒显快照，理由见 settings-debug.js。
           if (d.section === 'debug') { settingsDebugLegacyWrite(); continue }
+          // #1612 的两个文字开关没有对应的旧 localStorage 键（旧版根本没有这两件事），
+          //   statusBar 能按意思换算回旧横幅键（收起 → bannerFold 记 1、显示 → 记 0），让老读口在本窗口里也看得懂；
+          //   deckTools 没有可退的旧键，就不写（这一格仍留在队列里，下一趟写会再试），只补一行日志说明这一笔没落地。
+          if (d.name === 'statusBar') { viewFlagLegacyWrite(d.cwd, 'bannerFolded', d.value === 'hide'); continue }
+          if (d.name === 'deckTools') { viewFlagLogDocFail(); continue }
           viewFlagLegacyWrite(d.cwd, d.name, d.value)
         }
         if (viewFlagState.retryLeft > 0) { viewFlagState.retryLeft -= 1; viewFlagScheduleWrite() }
@@ -187,6 +199,11 @@
         if (!key || !snap || !snap.workspaces || typeof snap.workspaces !== 'object') return d.value
         const ek = viewFlagEntryKeyOf(snap, key)
         const v = ek ? (snap.workspaces[ek] || {})[d.name] : undefined
+        // #1612 的两个文字开关：文件里是各自允许的字符串才算「这一笔写进去了」，读不懂就退回队列里的值。
+        if (viewFlagIsTextNameOf(d.name)) {
+          const allowed: any = viewFlagTextValuesOf(d.name)
+          return (typeof v === 'string' && allowed.indexOf(v) >= 0) ? v : d.value
+        }
         return (typeof v === 'boolean') ? v : d.value
       } catch (e) { return d.value }
     }
@@ -313,6 +330,37 @@
           return false
         }
         viewFlagState.journal[viewFlagJournalKeyOf(key, name)] = { cwd: cwd, name: name, value: on, key: key }
+        viewFlagScheduleWrite()
+        return true
+      } catch (e) { return false }
+    }
+    // #1612 写一格文字开关：与 setViewFlag 同一条路（loading 先进 deferred、ready 后改内存文档 + 进队列 + 防抖，
+    //   写前重读合并、写失败留队重试都在同一条路上），只是不做真假值转换 —— 值原样放进去（statusBar 写
+    //   'show'/'hide'，deckTools 写 'on'/'off'）。返回值与 setViewFlag 同义：true ＝ 交给文件这条路了
+    //   （可能还在防抖窗口里），false ＝ 接不下（认不出工作区根、文档问不到、是更高版本，或者名字/值不是这两个
+    //   开关认得出的那几种之一），调用方据此提示。
+    export const setViewFlagValue = function (cwd: any, name: any, value: any): any {
+      try {
+        const raw = value
+        // 只接这两个文字名字、只认各自的那几个字面量：别的名字或值的调用直接回 false，调用方据此知道这一笔没接。
+        //   为什么先挡一道、不交给写盘那一趟去发现：核写盘时会按字面量校验整份文档，认不出的值会让整份写失败，
+        //   然后走旧表兜底 —— 而旧表只有横幅折叠一个布尔键，兜底时只能按「hide」猜，猜出来的那一格与用户点的那一下
+        //   没有关系，等于静默写错。挡在这里，错值一步都进不了内存文档，也就不会有任何一格被猜着写到别处。
+        if (!viewFlagIsTextNameOf(name)) return false
+        if (viewFlagTextValuesOf(name).indexOf(raw) < 0) return false
+        settingsViewLoad()
+        const key = viewFlagWriteKeyOf(cwd)
+        if (!key) return false
+        if (viewFlagState.status === 'loading') {
+          viewFlagState.deferred[viewFlagJournalKeyOf(key, name)] = { cwd: cwd, name: name, value: raw, key: key }
+          return true
+        }
+        if (viewFlagState.status !== 'ready') return false
+        if (!viewFlagSetInDoc(viewFlagState.doc, cwd, key, name, raw)) {
+          viewFlagLogDocFail()
+          return false
+        }
+        viewFlagState.journal[viewFlagJournalKeyOf(key, name)] = { cwd: cwd, name: name, value: raw, key: key }
         viewFlagScheduleWrite()
         return true
       } catch (e) { return false }

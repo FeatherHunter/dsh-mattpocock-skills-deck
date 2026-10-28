@@ -493,6 +493,11 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   //   与上面三族共用同一个待写队列与同一份文档，所以标记必须排在 settingsViewWrite 之后；它还要用运行时那份
   //   日志内核的名字（上面第 500 行的 log），所以必须排在 log 之后。
   { name: 'settingsDebug', file: 'src/client/kernel/settings-debug.ts' },
+  // #1612：状态栏胶囊与 deck 工具箱两个按工作区的开关（唯一读口与写口），以及「deck 关闭的工作区注入的提示词
+  //   去掉 deck 工具提醒行」这个纯函数。前者要用 settingsViewWrite 那一片的写入口，所以标记排在它之后；
+  //   后者不依赖别的片，紧随其后拼进来，调用方（api-io / api-new-session）在本行之后，次序自然成立。
+  { name: 'deckState', file: 'src/client/kernel/deck-state.ts' },
+  { name: 'deckPromptFilter', file: 'src/client/kernel/deck-prompt-filter.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'storeSwitch', file: 'src/client/kernel/store-switch.ts' },
@@ -842,6 +847,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'suggestBubble', file: 'src/client/statusbar/suggestBubble.ts' },
   // #1220：状态栏登记「当前显示哪个会话」的空挂载组件，排在 StatusBar 之前（状态栏要挂它）。
   { id: 'shownAttentionMount', file: 'src/client/statusbar/shownAttentionMount.ts' },
+  // #1612：胶囊上那扇「关/开整个 deck」的门（红色 X、展开确认框）。排在 statusBar 之前 —— 状态栏要调用它导出的那几件。
+  { id: 'deckDoor', file: 'src/client/statusbar/deckDoor.ts' },
   { id: 'statusBar', file: 'src/client/statusbar/StatusBar.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。

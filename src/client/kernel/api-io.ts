@@ -34,7 +34,7 @@
     declare const idOfParts: any
     declare const ISSUE_CACHE_TTL: number
     declare const isEnabled: any
-    declare const markRowWrite: any
+    declare const markRowWrite: any; declare const deckPromptFiltered: any; declare const isDeckClosed: any
     export const openInNewSession = function (st: any, x: any) {
       let title = null
       try { title = newSessionTitle(x) } catch(e) {
@@ -57,8 +57,9 @@
     }
     // 彻底移除：extractIssueRefs 已移除（#345）
     export const inject = (st: any, text: any) => {
-      var bodyText = text
-      try { if (typeof withTrailingNewline === 'function') bodyText = withTrailingNewline(text) } catch (eNl) {}
+      // #1612：deck 关闭的工作区里，注入的提示词先去掉 deck 工具提醒行（deckPromptFiltered 住在 kernel/deck-prompt-filter.ts）。
+      var bodyText = (typeof deckPromptFiltered === 'function' && typeof isDeckClosed === 'function' && isDeckClosed(st && st.cwd)) ? deckPromptFiltered(text, true) : text
+      try { if (typeof withTrailingNewline === 'function') bodyText = withTrailingNewline(bodyText) } catch (eNl) {}
       if (st.injector) { st.injector(bodyText); flash(st, tr('toast.injected'), 'ok'); try { if (typeof ensureInjectFocusAtEnd === 'function') ensureInjectFocusAtEnd() } catch (eFocus) {} }
       else copyText(st, bodyText, tr('toast.copiedFallback'))
       // 彻底移除：issuePath 提及识别已移除（#345）

@@ -20,8 +20,8 @@ declare function emit(...args: any[]): any;
 declare const shared: any;
 declare const stores: any;
 declare function saveUiPrefs(...args: any[]): any;
-declare function viewFlagOf(...args: any[]): any;
-declare function setViewFlag(...args: any[]): any;
+declare function isDeckCapsuleFolded(...args: any[]): any;
+declare function setDeckStatusBar(...args: any[]): any;
 declare function h(...args: any[]): any;
 export const DEFAULT_PANEL_H: number = (function (): number {
   try { return Math.max(240, Math.round((window.innerHeight || 800) * 0.5)) } catch (e) { return 400 }
@@ -185,54 +185,25 @@ export const ISSUE_CACHE_TTL: number = ((typeof SYNC === 'object' && SYNC && SYN
 export const selectionByCwd: any = {}
 export const repositoryByCwd: any = {}
 export const SELECTION_BY_CWD_KEY: string = 'dsws.selectionByCwd'
-// #422 · 提示横幅按工作区收起记忆（默认全部收起；用户点过展开才展开，各类提示横幅都可收，由调用方横幅决定是否给收起入口）。
-//   存法：归一键 → 1（收起）或 0（用户点过展开），缺席是没点过、按收起算；localStorage 不可用时降级为仅内存。
+// #422 起这里按工作区记「横幅要不要收起」；#1612 把折叠语义收拢到本机设置文件的那组开关上：
+//   胶囊折没折只看 kernel/deck-state.ts 的 statusBar（deck 工具箱关着时一律算折）。所以下面两个旧导出名
+//   现在只是转调：读走 isDeckCapsuleFolded（含旧字段 bannerFolded 的一次性迁移），写走 setDeckStatusBar。
+//   名字不改：状态栏与设置页的调用方、以及 tests/verify-kernel.ts 的接口冻结清单都按旧名调用，本票只换语义。
+// 旧 localStorage 表（BANNER_FOLD_KEY / bannerFoldByCwd）在 #1612 之后只读、不再写：迁移读口（kernel/deck-state.ts
+//   的 deckStatusBarOf 读旧字段 bannerFolded）由 settings-view 的旧键读法直接读 localStorage，不经过这张表。
+//   两个导出名只作留档，等确认没有旧版本需要迁移时再连它们一起删（删的时候记得同步接口冻结清单）。
 export const BANNER_FOLD_KEY: string = 'dsws.bannerFold'
 export const bannerFoldByCwd: any = {}
-;(function (): void {
-  try {
-    const raw: any = localStorage.getItem(BANNER_FOLD_KEY)
-    if (raw) { const m: any = JSON.parse(raw); if (m && typeof m === 'object') { for (const k of Object.keys(m)) { const nk: any = (typeof keyOf === 'function' ? keyOf(k) : k); if ((nk in bannerFoldByCwd)) continue; if (m[k]) bannerFoldByCwd[nk] = 1; else if (m[k] === 0 || m[k] === false) bannerFoldByCwd[nk] = 0 } } }
-  } catch (e) { /* 存储不可用降级为仅内存 */ }
-})()
-const persistBannerFold = function (): void { try { localStorage.setItem(BANNER_FOLD_KEY, JSON.stringify(bannerFoldByCwd)) } catch (e) { /* 忽略 */ } }
-// #1012：读写体搬去 kernel/settings-view.js（本机设置文件是唯一真源；旧表只是过渡）。
-//   导出名与签名一字不变，旧表那几行原地留着当过渡 —— 新模块不在（老产物、或渲染替身里）时照旧干活。
-//   新模块会在这四种情况下回 false（认不出工作区根、文档问不到、文件是更高版本、文档在手却写不进这一格），那时才走旧表这条路。
-//   说准这一手兜得住什么：文件里已经有这个工作区的记录时，写进旧表这一份读不回来（读侧以文件里那条为准），
-//   它只在本窗口内充当记性，页面一关就只剩文件里那一份。真正让一次改动不丢的是写那一趟自己：
-//   写失败时把这一格留在待写队列里，下一趟写再试一次（见 kernel/settings-view-write.js）。
+// #1012 起读写体在本机设置文件那一条路上（kernel/settings-view*.js）；#1612 起真源收成一个开关：
+//   statusBar=show 显示、hide 折叠，deck 工具箱关着时也一律按折叠算。下面是两个旧名转调，签名与导出名不变。
 export const isBannerFolded = function (cwd: any): boolean {
-  try { const v: any = (typeof viewFlagOf === 'function') ? viewFlagOf(cwd, 'bannerFolded') : undefined; if (typeof v === 'boolean') return v } catch (eN) {}
-  // 新模块不在（老产物、渲染替身）时才走旧表：记得 1 是收起、0 是点过展开，缺席是没点过、按收起算。
-  try { if (!cwd) return true; const k: any = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || '')); if (k in bannerFoldByCwd) return !!bannerFoldByCwd[k]; return true } catch (e) { return true }
+  try { return isDeckCapsuleFolded(cwd) === true } catch (e) { return true }
 }
-// 把这一次折叠交给新模块（写本机设置文件那条路）：回 true 表示它接下了，旧表一个字都不动；
-//   回 false 表示它接不下（认不出工作区根、文档问不到、文件只读、文档在手却写不进这一格）或根本不在，调用方照老办法写旧表。
-const handoffBannerFold = function (cwd: any, folded: any): boolean {
-  try { if (typeof setViewFlag === 'function' && cwd) return setViewFlag(cwd, 'bannerFolded', !!folded) === true } catch (eN) {}
-  return false
-}
-// 同工作区各会话跟随重渲染（与 touchProbeAt 同例；设置页另有本地刷新兜底）：两条路都要走这一趟。
-const emitBannerFold = function (cwd: any): void {
-  try {
-    const nk: any = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || ''))
-    if (typeof shared !== 'undefined' && shared && shared.cwd && keyOf(shared.cwd) === nk) emit(shared)
-  } catch (e1) {}
-  try {
-    if (typeof stores !== 'undefined') Object.keys(stores).forEach(function (kk: any): void { const st2: any = stores[kk]; if (st2 && st2.cwd && keyOf(st2.cwd) === (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || ''))) emit(st2) })
-  } catch (e2) {}
-}
-export const setBannerFolded = function (cwd: any, folded: any): void {
-  if (handoffBannerFold(cwd, folded)) { emitBannerFold(cwd); return }
-  try {
-    const k: any = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || ''))
-    if (!cwd || !k) return
-    if (folded) bannerFoldByCwd[k] = 1
-    else bannerFoldByCwd[k] = 0
-    persistBannerFold()
-  } catch (e) { /* 忽略 */ }
-  emitBannerFold(cwd)
+// 旧名这样写：收起来 → statusBar=hide；展开 → statusBar=show。deck 工具箱一个字不碰，
+//   所以「只关胶囊」时工具与右侧面板都照旧（验收 ⑤）。返回 true ＝ 文件那条路接下了；false ＝ 接不下，
+//   这时不再把旧 localStorage 表写回去（#1612：旧状态只读一次做迁移，迁移后不再写旧键）。
+export const setBannerFolded = function (cwd: any, folded: any): boolean {
+  try { return setDeckStatusBar(cwd, folded !== true) === true } catch (e) { return false }
 }
 // #1003 退役：镜像读写已删，这两个只剩空壳（调用方在本次范围外，留名免崩；一律按“无镜像”答）。
 export const getCachedSelection = function (cwd: any): any { return null }

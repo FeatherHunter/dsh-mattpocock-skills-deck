@@ -6,6 +6,16 @@
  * 未知名字一律拒绝（静默丢掉用户手写的键等于丢数据）。
  * 自包含：小工具自己写一遍，不引用别的单元（产物零相对引用，见 workspace.ts 头注）。
  * YAML 入口守卫住宿主适配器的 parseConfig（唯一入口）。
+ *
+ * 每个工作区那一条记录里的两个开关（#1612 维护者拍板）：
+ *   · statusBar（胶囊状态栏）只认 show 显示、hide 收起（缺省收起）。收起时状态栏只剩一条折叠条，
+ *     环境检查类横幅也一起不显示。
+ *   · deckTools（deck 工具箱）只认 on 打开、off 关闭（缺省打开）。关掉时该工作区的模型工具、
+ *     胶囊状态栏、右侧面板三处一起关。
+ * 旧字段 bannerFolded 只在读旧文件时认一次，并换算成 statusBar：收起（true）→ hide，展开（false）→ show；
+ * 同一份文件里 statusBar 显式写着时以它为准。归一之后的 workspaces 里不再留 bannerFolded，
+ * 而 stringifySettings 正是先走 parseSettings 归一、再按归一结果逐行写，
+ * 所以旧文件第一次写回时自然升级成新两格，此后不再写旧字段。
  */
 
 import type { ConfigParseResult, ConfigStringifyResult } from './ports.js'
@@ -16,11 +26,20 @@ export const SETTINGS_KNOWN_VERSION = 1
 /** 本机设置在用户主目录下的相对位置（调用方拼绝对路径，核里不碰主目录）。 */
 export const SETTINGS_REL_SEGMENTS = ['.dsh', 'mattskillsdeck', 'settings.yaml']
 
+/**
+ * 设置发布槽位的名字（#1612）：实例宿主在每次成功读 / 写本机设置之后，把归一后的设置文档投到
+ * globalThis 上这个槽位，宿主侧的 deck 工具闸门订阅它。名字只在这里定义一次，
+ * src/host/settingsPhones.ts（发布方）与 src/host/deckToolGate.ts（订阅方）都从这里导入。
+ * 放在核里而不是某一边，是因为它是「本机设置」这件事的共享契约：谁都不该独占一份字符串副本。
+ */
+export const DECK_SETTINGS_BUS_SLOT = '__dsh_mattskillsdeck_settings_bus__'
+
 const HEADER = ['# 本文件的注释由插件生成；你自己加的注释会在下次写入时被替换。']
 const COMMENT_UI = '# 界面偏好（本机全工作区默认生效）'
 const COMMENT_STATE = '# 主列表的状态过滤与排序'
 const COMMENT_WORKSPACES = '# 按工作区区分的观看状态（键 = 工作区根目录）'
-const COMMENT_BANNER = '# 状态栏横幅与胶囊是否收起'
+const COMMENT_STATUS_BAR = '# 胶囊状态栏：show 显示、hide 收起（收起后状态栏只剩一条折叠条）'
+const COMMENT_DECK_TOOLS = '# deck 工具箱：on 打开、off 关闭（关掉后模型工具、胶囊状态栏、右侧面板三处一起关）'
 const COMMENT_NOREPO = '# 无仓库红卡是否已收起'
 const COMMENT_SUBWS = '# 红文件夹标志的说明浮层是否已自动展开过'
 const COMMENT_DEBUG = '# 本地诊断日志开关'
@@ -30,7 +49,12 @@ const TOP_KEYS = ['version', 'ui', 'workspaces', 'debug', 'templates']
 // labelClicks 只在「读」这一侧认得（老文件里可能已经写进去了，读出来不能报错），写出去的一份里没有它：
 // 维护者 2026-10-12 拍板这项不落盘——它只是标签 chip 排序用的热度，丢了不影响功能，没必要占文件。
 const UI_KEYS = ['stateFilter', 'sortKey', 'sortDir', 'labelClicks']
-const WS_KEYS = ['bannerFolded', 'noRepoDismissed', 'subwsMarkAutoShown']
+// workspaces 每条记录认的名字：两个新开关（statusBar、deckTools）、两个旧布尔开关（noRepoDismissed、
+// subwsMarkAutoShown），以及只读不写的旧字段 bannerFolded（升级迁移用，见 parseSettings）。
+const WS_KEYS = ['statusBar', 'deckTools', 'bannerFolded', 'noRepoDismissed', 'subwsMarkAutoShown']
+// 两个新开关各自允许的字面量：值必须逐字是其中之一，别的一律按坏形状回。
+const WS_STATUS_BAR_VALUES = ['show', 'hide']
+const WS_DECK_TOOLS_VALUES = ['on', 'off']
 const DEBUG_KEYS = ['enabled', 'sampleRate']
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -118,7 +142,8 @@ export function parseSettings(doc: unknown): ConfigParseResult {
     clicks[name] = n
   }
 
-  // workspaces 节：键是工作区根的可读路径（动态），值里只认三个开关（横幅折叠缺了默认收起，其余缺了默认关）。
+  // workspaces 节：键是工作区根的可读路径（动态），值里认四个开关（胶囊状态栏缺了默认收起、deck 工具箱缺了默认开，
+  // 其余两个旧开关缺了默认关）。旧文件里的 bannerFolded 只在这条读路径上认一次并换算成 statusBar，归一结果里不再带它。
   const wsRaw = doc['workspaces'] === undefined ? {} : doc['workspaces']
   if (!isRecord(wsRaw)) return fail('bad-shape', '本机设置文件里的 workspaces 必须是一组「工作区根 → 开关」')
   const workspaces: Record<string, unknown> = {}
@@ -131,8 +156,32 @@ export function parseSettings(doc: unknown): ConfigParseResult {
     if (entryStrange.length > 0) {
       return fail('unknown-keys', '本机设置文件 workspaces 节里「' + root + '」有多出来的名字：' + entryStrange.join('、'), entryStrange)
     }
-    const norm: Record<string, unknown> = { bannerFolded: true, noRepoDismissed: false, subwsMarkAutoShown: false }
-    for (const k of WS_KEYS) {
+    const norm: Record<string, unknown> = { statusBar: 'hide', deckTools: 'on', noRepoDismissed: false, subwsMarkAutoShown: false }
+    // 旧字段 bannerFolded 先换算：收起（true）→ statusBar: hide，展开（false）→ statusBar: show。
+    // 它只在读这一侧认，归一结果里不带它，所以写出去的那一份里也就不会再出现这一格。
+    if (entry['bannerFolded'] !== undefined) {
+      if (typeof entry['bannerFolded'] !== 'boolean') {
+        return fail('bad-shape', '本机设置文件 workspaces 节里「' + root + '」的 bannerFolded 必须是真假值（YAML 会把没加引号的 yes/no/on 读成文字，那种按坏形状回）；这一格是旧字段，新文件请写 statusBar: show 或 statusBar: hide')
+      }
+      norm['statusBar'] = entry['bannerFolded'] ? 'hide' : 'show'
+    }
+    // 新字段显式写着时以它为准：它是升级之后的唯一真源，旧字段只负责把老文件领过来。
+    if (entry['statusBar'] !== undefined) {
+      const okBar: boolean = typeof entry['statusBar'] === 'string' && WS_STATUS_BAR_VALUES.indexOf(entry['statusBar'] as string) >= 0
+      if (!okBar) {
+        return fail('bad-shape', '本机设置文件 workspaces 节里「' + root + '」的 statusBar 必须是 show（显示胶囊状态栏）或 hide（收起胶囊状态栏），读到的是：' + String(entry['statusBar']))
+      }
+      norm['statusBar'] = entry['statusBar']
+    }
+    if (entry['deckTools'] !== undefined) {
+      const okTools: boolean = typeof entry['deckTools'] === 'string' && WS_DECK_TOOLS_VALUES.indexOf(entry['deckTools'] as string) >= 0
+      if (!okTools) {
+        return fail('bad-shape', '本机设置文件 workspaces 节里「' + root + '」的 deckTools 必须是 on（打开 deck 工具箱）或 off（关闭 deck 工具箱），读到的是：' + String(entry['deckTools']))
+      }
+      norm['deckTools'] = entry['deckTools']
+    }
+    // 两个旧布尔开关照旧：值必须是真假值，缺了用默认。
+    for (const k of ['noRepoDismissed', 'subwsMarkAutoShown']) {
       if (entry[k] === undefined) continue
       if (typeof entry[k] !== 'boolean') {
         return fail('bad-shape', '本机设置文件 workspaces 节里「' + root + '」的 ' + k + ' 必须是真假值（YAML 会把没加引号的 yes/no/on 读成文字，那种按坏形状回）')
@@ -224,8 +273,10 @@ export function stringifySettings(value: unknown): ConfigStringifyResult {
     for (const root of wsKeys) {
       const entry = workspaces[root] as Record<string, unknown>
       lines.push('  ' + esc(root) + ':')
-      lines.push('    ' + COMMENT_BANNER)
-      lines.push('    bannerFolded: ' + String(entry['bannerFolded']))
+      lines.push('    ' + COMMENT_STATUS_BAR)
+      lines.push('    statusBar: ' + esc(String(entry['statusBar'])))
+      lines.push('    ' + COMMENT_DECK_TOOLS)
+      lines.push('    deckTools: ' + esc(String(entry['deckTools'])))
       lines.push('    ' + COMMENT_NOREPO)
       lines.push('    noRepoDismissed: ' + String(entry['noRepoDismissed']))
       lines.push('    ' + COMMENT_SUBWS)

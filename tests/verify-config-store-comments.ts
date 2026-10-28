@@ -54,7 +54,8 @@ layout: multi
   const stOut = stringifyConfig({
     version: 1,
     ui: { stateFilter: 'open', sortKey: 'updatedAt', sortDir: 'desc', labelClicks: {} },
-    workspaces: { 'D:\\ws\\demo': { bannerFolded: true, noRepoDismissed: true, subwsMarkAutoShown: true } },
+    // #1612：新两格写出去时各自带一行注释；deckTools 的 on/off 必须带引号（YAML 会把没引号的 on/off 读成真假值）。
+    workspaces: { 'D:\\ws\\demo': { statusBar: 'show', deckTools: 'off', noRepoDismissed: true, subwsMarkAutoShown: true } },
     debug: { enabled: false, sampleRate: 1 },
     templates: {},
   }, 'settings')
@@ -66,7 +67,9 @@ layout: multi
     check(commentBefore(t, '# 主列表的状态过滤与排序', '  stateFilter: open'), 'stateFilter 有注释', '')
     check(t.indexOf('labelClicks') < 0, '写出去的一份里不写 labelClicks（维护者 2026-10-12 拍板：这项不落盘）', t)
     check(commentBefore(t, '# 按工作区区分的观看状态（键 = 工作区根目录）', 'workspaces:'), 'workspaces 节有注释', '')
-    check(commentBefore(t, '# 状态栏横幅与胶囊是否收起', '    bannerFolded: true'), 'bannerFolded 有注释', '')
+    check(commentBefore(t, '# 胶囊状态栏：show 显示、hide 收起（收起后状态栏只剩一条折叠条）', '    statusBar: show'), 'statusBar 有注释', t)
+    check(commentBefore(t, '# deck 工具箱：on 打开、off 关闭（关掉后模型工具、胶囊状态栏、右侧面板三处一起关）', '    deckTools: "off"'), 'deckTools 有注释', t)
+    check(t.indexOf('bannerFolded') < 0, '写出去的一份里不再写旧字段 bannerFolded（#1612 拍板：旧字段只在读时认一次，写回升级成新两格）', t)
     check(commentBefore(t, '# 无仓库红卡是否已收起', '    noRepoDismissed: true'), 'noRepoDismissed 有注释', '')
     check(commentBefore(t, '# 红文件夹标志的说明浮层是否已自动展开过', '    subwsMarkAutoShown: true'), 'subwsMarkAutoShown 有注释', '')
     check(commentBefore(t, '# 本地诊断日志开关', 'debug:'), 'debug 节有注释', '')

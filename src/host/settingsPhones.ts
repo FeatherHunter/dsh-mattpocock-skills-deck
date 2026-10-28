@@ -1,12 +1,14 @@
 /**
- * src/host/settingsPhones.ts —— 本机设置两条电话的处理体（来源：src/host/settingsPhones.js，issue #1247 转写，本次只加类型标注与注释，逻辑一行未动）。
+ * src/host/settingsPhones.ts —— 本机设置两条电话的处理体（来源：src/host/settingsPhones.js，issue #1247 转写）。
  *
  * 为什么要有它（一句话）：读与写两条电话；用户主目录一定从平台取，写路径在同一实例内串行。
  *
- * 三条不能改的约定（改之前先看原 settingsPhones.js 头注释与调用点 index.ts）：
- * 1. 行为零变化：逻辑逐行对应，只加类型标注与中文注释，不改任何运行时语义；相对导入保留 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。
- * 2. 只写可剥离 TypeScript：不新增运行时语法（禁用 enum 与构造函数参数属性），类型一律 import type 或内联标注，转译后与原 .js 逐行同义。
- * 3. 不新增任何 import 边：只给已有引用加类型，不引入新模块依赖；Node 内建模块的类型缺席由文件内局部声明与 @ts-expect-error 承接，不装 @types/node。
+ * 三条不能改的约定（改之前先看调用点 index.ts 与对应门禁）：
+ * 1. 两条电话的入参与返回形状不变：#1247 转写后与旧 .js 逐行同义；#1612 只在两条电话成功返回之后
+ *    各多发布一次设置快照（publishSettingsSnapshot，宿主侧 deck 工具闸门订阅它），电话本身的行为不动。
+ * 2. 只写可剥离 TypeScript：不新增运行时语法（禁用 enum 与构造函数参数属性），类型一律 import type 或内联标注。
+ * 3. 除导入核里的设置槽位常量（#1612）外不新增依赖：只给已有引用加类型；Node 内建模块的类型缺席由文件内
+ *    局部声明与 @ts-expect-error 承接，不装 @types/node。
  */
 
 // ---------------------------------------------------------------------------
@@ -23,12 +25,7 @@ type Deps = any;
 /** 客户端调电话时送进来的参数：JSON 边界，形状由调用方保证，本文件只做运行时判空。 */
 type WfArgs = any;
 
-// src/host/settingsPhones.js —— 本机设置两条电话的处理体：wf.getSettings（读）与 wf.setSettings（写）。
-//
-// 本文件用 JavaScript 而不用 TypeScript，一共有三条书面理由，每一条都是完整的一句话。
-// 第一条理由是文件粒度门禁只扫描 JavaScript 文件，所以本票的新叶子必须写成 JavaScript 才能被门禁统计到行数里。
-// 第二条理由是宿主构建对宿主目录的 JavaScript 文件是原样复制而不做转译，所以用 JavaScript 写不会引入新的构建步骤。
-// 第三条理由是如果为本票单独新建一条宿主 TypeScript 编译管线，就属于一次大爆炸式的改动，所以本票沿用 JavaScript 例外。
+// 本机设置两条电话的处理体：wf.getSettings（读）与 wf.setSettings（写）。
 //
 // 为什么单独成一个文件：宿主入口已经贴着文件粒度门禁的三百五十行上限，
 // 两条电话的读写真体放不进去了，所以照仓库惯例搬成一个自包含叶子，入口只留一行动态加载器。
@@ -44,6 +41,35 @@ type WfArgs = any;
 // 本域 tsconfig 有意不加载任何类型包（types 为空），Node 内建模块的类型声明随 @types/node 一起被挡在门外；运行时一定是 Node，这些模块必然存在。所以只忽略这一行导入的类型错误（纯类型层面，不影响运行时转译）。
 // @ts-expect-error
 import { mkdir as nodeMkdir, readFile as nodeReadFile, unlink as nodeUnlink, writeFile as nodeWriteFile } from 'node:fs/promises'
+
+// #1612：设置文件里每个工作区多了 deckTools（on / off）这条记录，宿主侧的 deck 工具闸门
+// （src/host/deckToolGate.ts）要按它决定哪些工作区的会话不再拿到 deck 工具。
+// 槽位名定义在核里（src/shared/config-store/src/settings.ts 的 DECK_SETTINGS_BUS_SLOT），
+// 发布方与订阅方都 import 同一个常量，不各写一份（docs/adr/20261021-config-ownership.md）。
+// 本文件在每次成功读 / 写设置之后，把那份归一后的设置文档投到槽位上，闸门订阅这个槽位。
+// 槽位缺席就当场建出来；监听器是谁、有几个都不由本文件关心，逐个调用并吞掉异常，
+// 任何发布动作都不许影响两条设置电话的返回值与串行写队列语义。
+import { DECK_SETTINGS_BUS_SLOT } from '../shared/config-store/src/settings.js'
+
+function publishSettingsSnapshot(value?: any): void {
+  try {
+    const g: any = globalThis as any
+    let bus = g[DECK_SETTINGS_BUS_SLOT]
+    if (!bus || typeof bus !== 'object') {
+      bus = { value: null, at: 0, listeners: [] }
+      g[DECK_SETTINGS_BUS_SLOT] = bus
+    }
+    if (!Array.isArray(bus.listeners)) bus.listeners = []
+    bus.value = value
+    bus.at = Date.now()
+    const listeners = bus.listeners.slice()
+    for (const listener of listeners) {
+      try {
+        if (typeof listener === 'function') listener(value)
+      } catch (eListen) {}
+    }
+  } catch (ePublish) {}
+}
 
 // 缺席判据同时认两种失败码：系统直连的 ENOENT 与平台文件服务的 FS_NOT_FOUND。
 // 原因是调用方传进来的读写口可能是真系统文件，也可能是门禁里的假文件，
@@ -157,6 +183,8 @@ export function createSettingsPhones(deps?: any): any {
       return { ok: false, error: { kind: 'environment', message: '读本机设置文件这一步出错了，可能是当前账号读不到它，也可能是它正被别的程序占用。请检查后重试。错误原文：' + String((e && (e as any).message) || e).slice(0, 120) } }
     }
     if (raw && raw.ok === true) {
+      // #1612：读成功就把这份归一后的设置文档发布给 deck 工具闸门（闸门据此决定哪些工作区要收掉 deck 工具）。
+      publishSettingsSnapshot(raw.value)
       return { ok: true, value: raw.value, warnings: raw.warnings || [], readonly: raw.readonly === true, from: raw.from || 'yaml' }
     }
     const reason = String((raw && raw.reason) || 'env')
@@ -188,6 +216,8 @@ export function createSettingsPhones(deps?: any): any {
         return { ok: false, error: { kind: 'environment', message: '保存失败，写不进本机设置文件，请检查它的上一级目录在不在与当前账号能不能写入，然后重试。错误原文：' + String((e && (e as any).message) || e).slice(0, 120) } }
       }
       if (made && made.ok === true) {
+        // #1612：写成功同样发布一次 —— 用户刚改的 deckTools 要让闸门立刻跟上，不必等下一次读设置。
+        publishSettingsSnapshot(inputValue)
         return { ok: true, from: made.from || 'yaml', warnings: made.warnings || [] }
       }
       const reason = String((made && made.reason) || 'env')

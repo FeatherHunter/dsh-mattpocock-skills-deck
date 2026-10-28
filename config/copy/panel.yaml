@@ -66,6 +66,12 @@ zh:
   banner.foldShort: 收起
   banner.expandShort: 展开
   banner.folded: MattSkillsDeck 已收起，点击展开
+  banner.deckDoorClose: 关闭整个 MattSkillsDeck（工具、胶囊与右侧面板）
+  banner.deckDoorTip: 胶囊右边那颗红色 X 会把整个 deck 关掉：工具、胶囊与右侧面板三处一起关。
+  banner.deckReopenTitle: 重新打开 MattSkillsDeck
+  banner.deckReopenBody: 展开会开启 deck 工具箱、右侧面板和胶囊状态栏；确认后这三处一起恢复。
+  banner.deckReopenOk: 开启
+  banner.deckReopenCancel: 取消
   env.installBtn: 安装引导
   env.guide: 配置引导 · 按顺序完成（步骤随当前后端检查行派生）
   env.step.ghcli: 安装 GitHub CLI
@@ -151,6 +157,7 @@ zh:
   panel.closeTitle: 关闭面板
   panel.closeDetailTitle: 关闭详情
   panel.openUnavailable: 面板没打开：宿主现在没有提供 DSH 右侧边栏的控制器，面板暂时没有落点。
+  panel.deckClosed: 这个工作区的 deck 工具箱已经关了，要先在设置页把它打开，右侧面板才会再出现。
   panel.newWayfinder: 新建需求
   panel.newWayfinderTitle: 点一下弹出两张卡：探索地图或实施地图，由你自己选
   panel.newBug: + bug
@@ -365,6 +372,12 @@ en:
   banner.foldShort: Collapse
   banner.expandShort: Expand
   banner.folded: MattSkillsDeck is collapsed — click to expand
+  banner.deckDoorClose: "Close the whole MattSkillsDeck (tools, capsule and right panel)"
+  banner.deckDoorTip: "The red X at the right edge of the capsule closes the whole deck: tools, capsule and right panel together."
+  banner.deckReopenTitle: Reopen MattSkillsDeck
+  banner.deckReopenBody: "Expanding turns the deck tools, the right panel and the capsule status bar back on for this workspace; confirming restores all three."
+  banner.deckReopenOk: Reopen
+  banner.deckReopenCancel: Cancel
   env.installBtn: Install guide
   env.guide: Setup guide · complete in order (steps derive from current backend check rows)
   env.step.ghcli: Install GitHub CLI
@@ -450,6 +463,7 @@ en:
   panel.closeTitle: Close panel
   panel.closeDetailTitle: Close details
   panel.openUnavailable: "The panel did not open: the host is not offering its right-sidebar controller right now, so there is nowhere to put the panel."
+  panel.deckClosed: "Deck tools are off for this workspace; turn them back on in settings to reopen the right panel."
   panel.newWayfinder: New Requirement
   panel.newWayfinderTitle: "Opens two cards: Explore map or Implementation map - you pick which route"
   panel.newBug: + BUG

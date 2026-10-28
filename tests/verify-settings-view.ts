@@ -341,8 +341,8 @@ const wait = (env) => realSleep(300)
     check(accepted === true, '文件缺席时这一片照样接下写入（后端通着，第一次写入会把这份文件建出来）。')
     await wait(env)
     const doc = await readDoc(env.home)
-    check(!!doc && !!doc.workspaces && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].bannerFolded === true,
-      '缺席起步的那一份空文档，写下去之后文件真的建出来了，而且这一格是 true。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && !!doc.workspaces && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].statusBar === 'hide',
+      '缺席起步的那一份空文档，写下去之后文件真的建出来了，而且这一格是「收起」。#1612 拍板：旧字段 bannerFolded 写回时换算成 statusBar（收起=true→hide、展开=false→show），所以盘上看到的是新格。', JSON.stringify(doc && doc.workspaces))
     // A4：新建这一条记录时，无仓库红卡那一格不由本窗口替用户答 false（那张卡要退役，答了会在以后把用户
     //   已经收起的红卡重新弹出来）。这里量的是发出去的那一份文档：它不该带这一格。
     const sentFirst = env.calls.filter((c) => c.method === 'wf.setSettings')[0]
@@ -437,11 +437,11 @@ const wait = (env) => realSleep(300)
     check(!!doc && JSON.stringify(doc.ui) === JSON.stringify(uiExpected), 'ui 节原样保留（状态过滤、排序一个不动；标签点击次数不落盘，写出去的一份里没有它）。', JSON.stringify(doc && doc.ui))
     check(!!doc && JSON.stringify(doc.debug) === JSON.stringify(preset.debug), 'debug 节原样保留（开关与采样率一个不动）。', JSON.stringify(doc && doc.debug))
     check(!!doc && JSON.stringify(doc.templates) === JSON.stringify(preset.templates), 'templates 节原样保留（用户自己写的模板文本一个不动）。', JSON.stringify(doc && doc.templates))
-    check(!!doc && !!doc.workspaces['D:\\other'] && doc.workspaces['D:\\other'].bannerFolded === true && doc.workspaces['D:\\other'].noRepoDismissed === true,
-      '别的工作区那一条原样保留。', JSON.stringify(doc && doc.workspaces))
-    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].bannerFolded === true, '本工作区这一格写成了 true。', JSON.stringify(doc && doc.workspaces))
-    check(!!doc && ['bannerFolded', 'noRepoDismissed', 'subwsMarkAutoShown'].every((k) => typeof doc.workspaces['D:\\ilife'][k] === 'boolean'),
-      '新写下的这一条是核认得的完整形状（三个开关都在，核不会按缺项或多项拒绝）。', JSON.stringify(doc && doc.workspaces['D:\\ilife']))
+    check(!!doc && !!doc.workspaces['D:\\other'] && doc.workspaces['D:\\other'].statusBar === 'hide' && doc.workspaces['D:\\other'].noRepoDismissed === true,
+      '别的工作区那一条原样保留（旧文件里的 bannerFolded: true 写回时换算成 statusBar: hide，说的还是「收起」这一件事）。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].statusBar === 'hide', '本工作区这一格写成了「收起」（旧 bannerFolded: true 换算成 statusBar: hide）。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && doc.workspaces['D:\\ilife'].statusBar === 'hide' && doc.workspaces['D:\\ilife'].deckTools === 'on' && typeof doc.workspaces['D:\\ilife'].noRepoDismissed === 'boolean' && typeof doc.workspaces['D:\\ilife'].subwsMarkAutoShown === 'boolean',
+      '新写下的这一条是核认得的完整形状（statusBar 与 deckTools 是约定的文字值，另两格照旧是真假值；#1612 归一后每条都带这四格，核不会按缺项或多项拒绝）。', JSON.stringify(doc && doc.workspaces['D:\\ilife']))
   }
 
   // ── 第五件事：键用工作区根的可读路径，不是折叠散列，同一个工作区只留一条 ──
@@ -488,8 +488,8 @@ const wait = (env) => realSleep(300)
     await wait(env)
     const doc = await readDoc(env.home)
     check(!!doc && Object.keys(doc.workspaces).length === 1, '写完两条会话之后，文件里仍然只有一条记录（不同写法折算到同一条）。', JSON.stringify(doc && Object.keys(doc.workspaces)))
-    check(!!doc && doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].bannerFolded === true && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true,
-      '两格都落在原来那一条记录上（bannerFolded 与 subwsMarkAutoShown 都是 true）。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].statusBar === 'hide' && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true,
+      '两格都落在原来那一条记录上（#1612 迁移：旧 bannerFolded: true 变 statusBar: hide，subwsMarkAutoShown 仍是 true）。', JSON.stringify(doc && doc.workspaces))
   }
 
   // ── 第六件事：防抖把连着来的几下合并成一次电话调用 ──
@@ -510,8 +510,8 @@ const wait = (env) => realSleep(300)
     check(writes.length === 1, '五次改动只发了一次写电话（防抖把窗口内的几下并成一次）。', '实得 ' + writes.length + ' 次')
     check(writes.length === 1 && Object.keys(writes[0].args.value.workspaces).length >= 1, '那一次写电话带的是整份文档（value 里有 workspaces 这一节）。')
     const doc = await readDoc(env.home)
-    check(!!doc && doc.workspaces['D:\\ilife'].bannerFolded === false && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true,
-      '文件里留下的是最后那一下的值（横幅没收起、标志已展开）。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && doc.workspaces['D:\\ilife'].statusBar === 'show' && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true,
+      '文件里留下的是最后那一下的值（横幅没收起=statusBar: show、标志已展开）。', JSON.stringify(doc && doc.workspaces))
     await realSleep(300) // 负向断言（「不再补发」没有变化可等）：用真实时钟等过第二个窗口
     check(env.calls.filter((c) => c.method === 'wf.setSettings').length === 1, '等过第二个窗口之后也没有补发第二次（不是自续的定时器）。')
   }
@@ -886,10 +886,10 @@ const wait = (env) => realSleep(300)
     await waitFor(() => { try { return JSON.parse(env.ls.getItem('dsws.bannerFold') || '{}')[KEY_OF(cwd)] === 1 } catch (e) { return false } })
     const oldMap = JSON.parse(env.ls.getItem('dsws.bannerFold') || '{}')
     check(oldMap[KEY_OF(cwd)] === 1, '第一趟写失败时照旧把这一格写回旧键做过渡（与改动前一致）。', JSON.stringify(oldMap))
-    await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].bannerFolded === true })
+    await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].statusBar === 'hide' })
     const doc = await readDoc(env.home)
-    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].bannerFolded === true,
-      '这一笔没有被丢掉：失败后留在待写队列里，后面那一趟把它落进了文件（盘上这一格是 true）。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].statusBar === 'hide',
+      '这一笔没有被丢掉：失败后留在待写队列里，后面那一趟把它落进了文件（盘上这一格是「收起」=statusBar: hide）。', JSON.stringify(doc && doc.workspaces))
     const writes = env.calls.filter((c) => c.method === 'wf.setSettings').length
     check(writes >= 2, '失败之后又试了一趟（不是失败一次就再也不管），实得 ' + writes + ' 次写电话。')
   }
@@ -931,12 +931,12 @@ const wait = (env) => realSleep(300)
     //   这里等到盘上真是后改的那个值再看，断言才有确定性。
     const settled = await waitFor(async () => {
       const d = await readDoc(env.home)
-      return !!(d && d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].bannerFolded === false)
+      return !!(d && d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].statusBar === 'show')
     })
     const doc = await readDoc(env.home)
-    check(settled, '第二趟写真的落到盘上了（后改的那个值 false）—— 这一条等的是写落定，不是电话出现。', JSON.stringify(doc && doc.workspaces))
-    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].bannerFolded === false,
-      '盘上留下的是后改的那个值 false（不是第一趟那个 true）。', JSON.stringify(doc && doc.workspaces))
+    check(settled, '第二趟写真的落到盘上了（后改的那个值「展开」=statusBar: show）—— 这一条等的是写落定，不是电话出现。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].statusBar === 'show',
+      '盘上留下的是后改的那个值（statusBar: show，不是第一趟那个 hide）。', JSON.stringify(doc && doc.workspaces))
     check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '内存里也是后改的那个值 false —— 盘上与内存一致。')
   }
 
@@ -983,8 +983,8 @@ const wait = (env) => realSleep(300)
     const doc = await readDoc(env.home)
     check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true,
       '另一扇窗刚写进去的**别的**那一格没有被本窗整份顶掉（写之前重读了一遍文件）。', JSON.stringify(doc && doc.workspaces))
-    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].bannerFolded === true,
-      '本窗改的那一格照样写进去了（重读没有把本窗的改动丢掉）。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].statusBar === 'hide',
+      '本窗改的那一格照样写进去了（重读没有把本窗的改动丢掉；#1612：收起写回成 statusBar: hide）。', JSON.stringify(doc && doc.workspaces))
     const gets = env.calls.filter((c) => c.method === 'wf.getSettings').length
     check(gets >= 2, '真正要写之前又读了一次文件（不是只有第一页那一次懒读），实得 ' + gets + ' 次读电话。')
     check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true && env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === true,
@@ -1019,8 +1019,8 @@ const wait = (env) => realSleep(300)
     check(ready, '这份设置文档读到手了（读这一侧要按真源判，不能还没问到就下结论）。')
     check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '文档到手后读这一侧答文件里那条记录：横幅是收起的。')
     check(env.mod.setViewFlag(cwd, 'bannerFolded', false) === true, '用户点开横幅这一笔要接下来（从前这里返回 false，点了等于没反应）。')
-    const landed = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].bannerFolded === false })
-    check(landed, '这一笔真的落进了文件（盘上这一格变成 false）。')
+    const landed = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].statusBar === 'show' })
+    check(landed, '这一笔真的落进了文件（盘上这一格变成「展开」=statusBar: show）。')
     check(env.calls.filter((c) => c.method === 'wf.setSettings').length === 1, '只发了一趟写电话（认得出根就走文件这一条路，不是又去写旧键）。', JSON.stringify(env.calls.map((c) => c.method)))
     check(env.ls.getItem('dsws.bannerFold') === null, '写文件这一条路走通了，就绝不再写旧键（两处都写就是两份真相）。')
     check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '内存里也是 false —— 盘上与内存一致。')
@@ -1045,11 +1045,11 @@ const wait = (env) => realSleep(300)
     box.mod = env.mod
     check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '先点一下收起（这一笔排进待写队列）。')
     // 等到最后一趟写真的落地（盘上回到 true），再判盘上与内存是否一致。
-    const settled = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].bannerFolded === true })
+    const settled = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].statusBar === 'hide' })
     const doc = await readDoc(env.home)
     const sent = env.calls.filter((c) => c.method === 'wf.setSettings')
     check(sent.length >= 2, '这一笔没有被误划掉：回包之后又排了一趟写，实得 ' + sent.length + ' 次写电话。')
-    check(settled, '盘上最后是用户最后那一下的值 true（不是中途那个 false）。', JSON.stringify(doc && doc.workspaces))
+    check(settled, '盘上最后是用户最后那一下的值（收起=statusBar: hide，不是中途那个 show）。', JSON.stringify(doc && doc.workspaces))
     check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '内存里也是 true —— 盘上与内存一致。')
   }
 

@@ -82,16 +82,40 @@ declare const process: any;
       bannerFolded: { key: 'dsws.bannerFold', by: 'cwd' },
       subwsMarkAutoShown: { key: 'dsws.subwsAutoShown', by: 'root' },
     }
-    // 新建一条工作区记录时要顺手种上的那两格：与核（src/shared/config-store/src/settings.ts 的 WS_KEYS
-    //   与归一默认值：横幅折叠默认收起、其余默认关）一字对齐，值取旧表里还知道的那一份 —— 新建的那一刻
-    //   别顺手把用户原来点过展开的横幅重新收起，那不是双写，只是别把已经知道的事忘掉。
+    // #1612 新增的两格是文字开关，不是真假值：文件里只认下面这些字面量，读到别的写法就当「说不清」。
+    //   单独列一张表是为了让读口对旧布尔名字的判据一个字都不变（很多门禁和调用方盯着那几个名字），
+    //   新两格按各自允许的字面量单独判；写这一侧也照同一张表判「这一笔写进去了没有」。
+    const VIEW_FLAG_TEXT_NAMES: any = {
+      statusBar: ['show', 'hide'],
+      deckTools: ['on', 'off'],
+    }
+    // 这个名字是不是新两格之一（是的话读写都按文字处理，不回退旧 localStorage 的布尔键）。
+    const viewFlagIsTextNameOf = function (name: any): any {
+      return Object.prototype.hasOwnProperty.call(VIEW_FLAG_TEXT_NAMES, name)
+    }
+    // 这个名字允许写哪几个字面量；不是新两格就回空清单。写这一侧判「文件里写进去了没有」要用它。
+    const viewFlagTextValuesOf = function (name: any): any {
+      return VIEW_FLAG_TEXT_NAMES[name] || []
+    }
+    // 新建一条工作区记录时要顺手种上的那三格（#1612 起是 statusBar、deckTools 与 subwsMarkAutoShown）：
+    //   与核（src/shared/config-store/src/settings.ts 的归一默认值：胶囊状态栏默认收起、deck 工具箱默认开、
+    //   其余默认关）一字对齐，值取旧表里还知道的那一份 —— 新建的那一刻别顺手把用户原来点过展开的横幅重新收起，
+    //   那不是双写，只是别把已经知道的事忘掉。statusBar 按旧 bannerFolded 的语义换算：旧值展开（false）→ show，
+    //   收起（true）或没有 → hide；deckTools 种 on；subwsMarkAutoShown 照旧取旧表。
     //   为什么这张表里没有 noRepoDismissed（#1012 后续修复的 A4）：无仓库红卡那张卡要退役，本窗口替它写一个
     //   false，等以后红卡的记录也搬进这份文件时，就会拿这个 false 当「用户没收起过」，把人家早就收起的红卡
     //   重新弹出来。所以这一格不由本窗口种。
-    //   说清这一手管得到哪，不许夸大：核在写盘时会把缺的那一格按默认值补上（settings.ts 归一：横幅折叠补
-    //   收起、其余补关，stringifySettings 每次都写全三格），所以文件里那一行照旧出现 —— 这里改掉的只是
-    //   「本窗口不主动替用户答这一格」。真正决定以后红卡弹不弹的是核里那个默认值，不在这里；要真治它得动核或等红卡搬过来那票。
-    const VIEW_FLAG_SEED_NAMES = ['bannerFolded', 'subwsMarkAutoShown']
+    //   说清这一手管得到哪，不许夸大：核在写盘时会把缺的那几格按默认值补上（settings.ts 归一：胶囊状态栏补
+    //   hide、deck 工具箱补 on、其余补默认，stringifySettings 每次都写全四格），所以文件里那几行照旧出现 ——
+    //   这里改掉的只是「本窗口不主动替用户答 noRepoDismissed」。真正决定以后红卡弹不弹的是核里那个默认值，不在这里。
+    const VIEW_FLAG_SEED_NAMES = ['statusBar', 'deckTools', 'subwsMarkAutoShown']
+    // 种一格时用哪个值：statusBar 按旧 bannerFolded 换算（旧值 false→show、true/没有→hide），deckTools 种 on，
+    // 其余名字照旧读旧表。新建那一刻要知道的旧事，全从这一处取。
+    const viewFlagSeedValueOf = function (cwd: any, name: any): any {
+      if (name === 'statusBar') return viewFlagLegacyRead(cwd, 'bannerFolded') === false ? 'show' : 'hide'
+      if (name === 'deckTools') return 'on'
+      return viewFlagLegacyRead(cwd, name)
+    }
     // 折算到同一把键再比较：这一片一律走闭包里那把 keyOf（与仓库其余位置同口径），拿不到时才退回本地写法。
     const viewFlagNormOf = function (p: any): any {
       try { if (typeof keyOf === 'function') return String(keyOf(p) || '') } catch (e) {}
@@ -255,12 +279,16 @@ declare const process: any;
           const seed: any = {}
           for (let i = 0; i < VIEW_FLAG_SEED_NAMES.length; i++) {
             const n = VIEW_FLAG_SEED_NAMES[i]
-            seed[n] = (n === name) ? on : viewFlagLegacyRead(cwd, n)
+            seed[n] = (n === name) ? on : viewFlagSeedValueOf(cwd, n)
           }
           doc.workspaces[key] = seed
           entryKey = key
         }
         doc.workspaces[entryKey][name] = on
+        // 旧调用方（store-prefs 的 setBannerFolded）还在写 bannerFolded：这一格只在本窗口内存里留着，
+        //   写盘时会被核归一换算成 statusBar。为了让这次点击在文件里也真正生效，顺手把 statusBar 改成同一个意思
+        //   （收起 true → hide、展开 false → show）—— 迁移期两条路写的是同一件事，不会一边改了另一边没改。
+        if (name === 'bannerFolded') doc.workspaces[entryKey]['statusBar'] = on ? 'hide' : 'show'
         return true
       } catch (e) { return false }
     }
@@ -350,8 +378,8 @@ declare const process: any;
       } catch (e) { viewFlagSettle('unavailable') }
     }
     // 按调用方手上那个工作区根读一格（2026-10-12 复核 Q2）：返回 { known, value }。known=true ＝ 文件里查得到
-    //   这个工作区这一条记录、且这一格是真假值（以文件为准）；known=false ＝ 问不出（还没写过、读失败、更高
-    //   版本、形状对不上），调用方退回旧表那一份。为什么要按根读：本组件自己认得出根（subwsMarkRootOf），
+    //   这个工作区这一条记录、且这一格的值认得（旧布尔名字要真假值，statusBar/deckTools 要各自允许的字符串）；
+    //   known=false ＝ 问不出（还没写过、读失败、更高版本、形状对不上），调用方退回旧表那一份。为什么要按根读：本组件自己认得出根（subwsMarkRootOf），
     //   而内核那把「所选目录 → 工作区根」的表是快照缓存，同一条目录的根变过时可能还留着旧条目 —— 按会话
     //   目录读会落到另一把键上，文件里明明记过却判成问不出，用户每开一次窗就白弹一次浮层（比搬迁前差）。
     export const viewFlagOfRoot = function (root: any, name: any): any {
@@ -360,7 +388,15 @@ declare const process: any;
         const key = String(root == null ? '' : root).trim()
         const hit = (key && viewFlagState.doc) ? viewFlagEntryKeyOf(viewFlagState.doc, key) : ''
         const entry = hit ? viewFlagState.doc.workspaces[hit] : null
-        if (entry && typeof entry === 'object' && typeof entry[name] === 'boolean') return { known: true, value: entry[name] }
+        if (entry && typeof entry === 'object') {
+          // 旧布尔名字的判据一个字不动：文件里是真正的真假值才算知道。
+          if (!viewFlagIsTextNameOf(name) && typeof entry[name] === 'boolean') return { known: true, value: entry[name] }
+          // #1612 的两个文字开关：文件里是各自允许的字面量才算知道（别的写法当说不清，别猜）。
+          if (viewFlagIsTextNameOf(name)) {
+            const allowed = VIEW_FLAG_TEXT_NAMES[name]
+            if (typeof entry[name] === 'string' && allowed.indexOf(entry[name]) >= 0) return { known: true, value: entry[name] }
+          }
+        }
       } catch (e) {}
       // 问不出时的默认值按名字走：横幅折叠默认收起，其余默认关。
       return { known: false, value: name === 'bannerFolded' }
@@ -371,6 +407,13 @@ declare const process: any;
       try {
         const ans = viewFlagOfRoot(viewFlagDocKeyOf(cwd), name)
         if (ans.known) return ans.value
+        // #1612 的两个文字开关问不出时直接回「不知道」（undefined），不回退旧 localStorage 的布尔键：
+        //   旧键里只有 bannerFolded 一个布尔语义，拿它冒充新开关会造出第二份真相；迁移由调用方
+        //   （kernel/deck-state.ts 的 deckStatusBarOf）自己读一次旧 bannerFolded 来兜。
+        if (viewFlagIsTextNameOf(name)) return undefined
         return viewFlagLegacyRead(cwd, name)
-      } catch (e) { return name === 'bannerFolded' }
+      } catch (e) {
+        if (viewFlagIsTextNameOf(name)) return undefined
+        return name === 'bannerFolded'
+      }
     }

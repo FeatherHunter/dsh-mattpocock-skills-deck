@@ -233,7 +233,7 @@ export default {
     // ==== kernel:storePrefs (spliced by build) ====
     // ==== kernel:settingsViewState (spliced by build) ====
     // ==== kernel:settingsView (spliced by build) ====
-    // ==== kernel:settingsViewWrite (spliced by build) ==== // ==== kernel:settingsUi (spliced by build) ==== // ==== kernel:settingsTemplates (spliced by build) ==== // ==== kernel:settingsDebug (spliced by build) ====
+    // ==== kernel:settingsViewWrite (spliced by build) ==== // ==== kernel:settingsUi (spliced by build) ==== // ==== kernel:settingsTemplates (spliced by build) ==== // ==== kernel:settingsDebug (spliced by build) ==== // ==== kernel:deckState (spliced by build) ==== // ==== kernel:deckPromptFilter (spliced by build) ====
     // ==== kernel:storeSwitch (spliced by build) ====
     // ==== kernel:storeSnapshot (spliced by build) ====
     // #1355：本会话自己的工作路线读数（剥表、补拉、三处接线共用的请求决策）单独一片，理由见 kernel/work-route-own.ts 文件头。
@@ -347,7 +347,7 @@ export default {
     // ==== leaf:suggestStream (spliced by build) ====
     // ==== leaf:capFold (spliced by build) ==== // ==== leaf:capFoldMachine (spliced by build) ====
     // ==== leaf:shownAttentionMount (spliced by build) ====
-    // ==== leaf:StatusMenus (spliced by build) ==== // ==== leaf:StatusBackend (spliced by build) ==== // ==== leaf:bannerChain (spliced by build) ==== // ==== leaf:logDangerConfirm (spliced by build) ==== // ==== leaf:StatusLogMenu (spliced by build) ==== // ==== leaf:statusBar (spliced by build) ====
+    // ==== leaf:deckDoor (spliced by build) ==== // ==== leaf:StatusMenus (spliced by build) ==== // ==== leaf:StatusBackend (spliced by build) ==== // ==== leaf:bannerChain (spliced by build) ==== // ==== leaf:logDangerConfirm (spliced by build) ==== // ==== leaf:StatusLogMenu (spliced by build) ==== // ==== leaf:statusBar (spliced by build) ====
     // ==== leaf:sessionChainCapsule (spliced by build) ====
 
     // ==== leaf:md (spliced by build) ====

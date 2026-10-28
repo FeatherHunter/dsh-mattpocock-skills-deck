@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T16:28:05.129Z",
+  "generatedAt": "2026-10-28T18:22:53.646Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 432,
-  "gateCount": 432,
-  "attributedGates": 389,
+  "chainLength": 437,
+  "gateCount": 437,
+  "attributedGates": 394,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 19,
+  "completionRecordedGates": 20,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 609,
+  "graphFileCount": 613,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4340,6 +4340,140 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 10 条"
+    },
+    {
+      "step": "node tests/verify-1612-deck-door.ts",
+      "file": "tests/verify-1612-deck-door.ts",
+      "guards": [
+        "config/copy/panel.yaml",
+        "scripts/build.mts",
+        "src/client/index.ts",
+        "src/client/kernel/router.ts",
+        "src/client/kernel/store-prefs.ts",
+        "src/client/statusbar/StatusBar.ts",
+        "src/client/statusbar/deckDoor.ts",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "config/copy",
+        "scripts",
+        "src/client",
+        "src/client/kernel",
+        "src/client/statusbar",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 6 条"
+    },
+    {
+      "step": "node tests/verify-1612-deck-state.ts",
+      "file": "tests/verify-1612-deck-state.ts",
+      "guards": [
+        "scripts/build.mts",
+        "src/client/index.ts",
+        "src/client/kernel/deck-prompt-filter.ts",
+        "src/client/kernel/deck-state.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "scripts",
+        "src/client",
+        "src/client/kernel",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 5 条"
+    },
+    {
+      "step": "node tests/verify-1612-deck-tool-gate.ts",
+      "file": "tests/verify-1612-deck-tool-gate.ts",
+      "guards": [
+        "src/deck/registration/register-options.ts",
+        "src/deck/tools/context.ts",
+        "src/deck/tools/issue-create.ts",
+        "src/deck/tools/issue-get.ts",
+        "src/deck/tools/issue-list.ts",
+        "src/deck/tools/issue-patch.ts",
+        "src/deck/tools/issue-report.ts",
+        "src/deck/tools/map-link.ts",
+        "src/deck/tools/map-plan-create.ts",
+        "src/deck/tools/map-snapshot.ts",
+        "src/deck/tools/suggest-next-steps.ts",
+        "src/deck/tools/work-route.ts",
+        "src/host/deckToolGate.ts",
+        "src/host/settingsPhones.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts",
+        "src/shared/config-store/src/settings.ts",
+        "src/shared/workspaceKey.ts"
+      ],
+      "dirs": [
+        "src/deck/registration",
+        "src/deck/tools",
+        "src/host",
+        "src/refresh/rooms/host",
+        "src/shared",
+        "src/shared/config-store/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；静态 import 说明符 1 条；源码里的路径字面量 15 条"
+    },
+    {
+      "step": "node tests/verify-1612-prompt-filter.ts",
+      "file": "tests/verify-1612-prompt-filter.ts",
+      "guards": [
+        "src/client/kernel/api-io.ts",
+        "src/client/kernel/api-naming.ts",
+        "src/client/kernel/api-new-session.ts",
+        "src/client/kernel/deck-prompt-filter.ts",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/prompt-data.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 6 条"
+    },
+    {
+      "step": "node tests/verify-1612-settings-switches.ts",
+      "file": "tests/verify-1612-settings-switches.ts",
+      "guards": [
+        "src/client/kernel/settings-view-state.ts",
+        "src/client/kernel/settings-view-write.ts",
+        "src/client/kernel/settings-view.ts",
+        "src/host/configStore.ts",
+        "src/host/settingsPhones.ts",
+        "src/shared/time-config/src/values.ts",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/gate-result.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/host",
+        "src/shared/time-config/src",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 51,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-1625-wf-selection-outlet.ts",
@@ -10161,7 +10295,8 @@
     ],
     "config/copy": [
       "node tests/verify-1297-entry.ts",
-      "node tests/verify-1490-declaration-file.ts"
+      "node tests/verify-1490-declaration-file.ts",
+      "node tests/verify-1612-deck-door.ts"
     ],
     "config/prompts": [
       "node tests/verify-1298-spec-close.ts",
@@ -10391,6 +10526,8 @@
       "node tests/verify-1411-suggest-appearance.ts",
       "node tests/verify-1411-suggest-bubble.ts",
       "node tests/verify-1530-generated-outputs-not-inputs.ts",
+      "node tests/verify-1612-deck-door.ts",
+      "node tests/verify-1612-deck-state.ts",
       "node tests/verify-640-dock-width-browser.ts",
       "node tests/verify-bundled-skills-zh.ts",
       "node tests/verify-ctx.ts",
@@ -10517,6 +10654,8 @@
       "node tests/verify-1409-suggest-stream.ts",
       "node tests/verify-1411-suggest-appearance.ts",
       "node tests/verify-1411-suggest-bubble.ts",
+      "node tests/verify-1612-deck-door.ts",
+      "node tests/verify-1612-deck-state.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-646-native-tab.ts",
       "node tests/verify-client-hardcode-gate.ts",
@@ -10579,6 +10718,10 @@
       "node tests/verify-1548-map-row-nav.ts",
       "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1565-workroute-first-col-browser.ts",
+      "node tests/verify-1612-deck-door.ts",
+      "node tests/verify-1612-deck-state.ts",
+      "node tests/verify-1612-prompt-filter.ts",
+      "node tests/verify-1612-settings-switches.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -10676,6 +10819,7 @@
       "node tests/verify-1526-suggest-replay-restore.ts",
       "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1582-open-folder.ts",
+      "node tests/verify-1612-deck-door.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -10848,6 +10992,7 @@
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1114-timer-exit.ts",
       "node tests/verify-1195-cell-cancel.ts",
+      "node tests/verify-1612-deck-tool-gate.ts",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-suggest-next-steps.ts",
       "node tests/verify-time-config.ts"
@@ -10932,6 +11077,7 @@
       "node tests/verify-1604-pure-map-routing.ts",
       "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-1610-parallel-read.ts",
+      "node tests/verify-1612-deck-tool-gate.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -10986,6 +11132,8 @@
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
+      "node tests/verify-1612-deck-tool-gate.ts",
+      "node tests/verify-1612-settings-switches.ts",
       "node tests/verify-1625-wf-selection-outlet.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
@@ -11278,6 +11426,7 @@
       "node tests/verify-1584-repo-ref-for-cwd.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
       "node tests/verify-1610-parallel-read.ts",
+      "node tests/verify-1612-deck-tool-gate.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -11345,6 +11494,7 @@
       "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1281-entries.ts",
+      "node tests/verify-1612-deck-tool-gate.ts",
       "node tests/verify-730-cwd-consistent.ts",
       "node tests/verify-948-feedback-map.ts",
       "node tests/verify-952-short-text.ts",
@@ -11360,6 +11510,10 @@
     "src/shared/command-cleanup": [],
     "src/shared/command-cleanup/src": [
       "node tests/verify-1392-disposed-timer.ts"
+    ],
+    "src/shared/config-store": [],
+    "src/shared/config-store/src": [
+      "node tests/verify-1612-deck-tool-gate.ts"
     ],
     "src/shared/doc-layout": [],
     "src/shared/doc-layout/src": [
@@ -11386,6 +11540,7 @@
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1522-skill-md-refs.ts",
+      "node tests/verify-1612-settings-switches.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-669-choice-precedence.ts",
@@ -11876,6 +12031,10 @@
       "node tests/verify-1526-suggest-replay-restore.ts",
       "node tests/verify-1582-open-folder.ts",
       "node tests/verify-1610-parallel-read.ts",
+      "node tests/verify-1612-deck-door.ts",
+      "node tests/verify-1612-deck-state.ts",
+      "node tests/verify-1612-prompt-filter.ts",
+      "node tests/verify-1612-settings-switches.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
@@ -12006,12 +12165,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 630,
+    "fileCount": 634,
     "dirCount": 74,
-    "coveredFileCount": 630,
+    "coveredFileCount": 634,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 56,
+    "dedicatedDirCount": 57,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -12028,6 +12187,8 @@
       "src/client/kernel/config.ts",
       "src/client/kernel/container-view.ts",
       "src/client/kernel/ctx.ts",
+      "src/client/kernel/deck-prompt-filter.ts",
+      "src/client/kernel/deck-state.ts",
       "src/client/kernel/entry-card.ts",
       "src/client/kernel/entry-choice.ts",
       "src/client/kernel/health-check.ts",
@@ -12080,6 +12241,7 @@
       "src/client/statusbar/capFold.ts",
       "src/client/statusbar/capFoldMachine.ts",
       "src/client/statusbar/checksums.ts",
+      "src/client/statusbar/deckDoor.ts",
       "src/client/statusbar/shownAttentionMount.ts",
       "src/client/statusbar/suggestAppearance.ts",
       "src/client/statusbar/suggestBubble.ts",
@@ -12276,6 +12438,7 @@
       "src/host/bootstrap.ts",
       "src/host/choiceStore.ts",
       "src/host/configStore.ts",
+      "src/host/deckToolGate.ts",
       "src/host/dispatchMeta.ts",
       "src/host/fsAbsence.ts",
       "src/host/handoffClaim.ts",
@@ -12758,6 +12921,7 @@
       "src/seam",
       "src/shared",
       "src/shared/command-cleanup/src",
+      "src/shared/config-store/src",
       "src/shared/doc-layout/src",
       "src/shared/issue-file/src",
       "src/shared/label-color/src",
@@ -12830,10 +12994,6 @@
       {
         "path": "src/shared/config-store",
         "fileCount": 6
-      },
-      {
-        "path": "src/shared/config-store/src",
-        "fileCount": 4
       },
       {
         "path": "src/shared/doc-layout",

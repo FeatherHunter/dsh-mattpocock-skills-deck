@@ -49,7 +49,8 @@ async function main() {
     const st = {
       version: 1,
       ui: { stateFilter: 'open', sortKey: 'updatedAt', sortDir: 'desc', labelClicks: { bug: 3 } },
-      workspaces: { 'D:\\ws\\demo': { bannerFolded: true, noRepoDismissed: false, subwsMarkAutoShown: true } },
+      // #1612：工作区每条记录现在是四格——statusBar/deckTools 两个文字开关加两个旧布尔开关；旧 bannerFolded 只在读时认。
+      workspaces: { 'D:\\ws\\demo': { statusBar: 'show', deckTools: 'off', noRepoDismissed: false, subwsMarkAutoShown: true } },
       debug: { enabled: false, sampleRate: 1 },
       templates: { execute: 'hi' },
     }

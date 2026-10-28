@@ -33,7 +33,7 @@ declare const NAMING_STAGES: any;
 declare function newSessionTitleNew(...args: any[]): any;
 declare function parseNumberedTitle(...args: any[]): any;
 declare function isNewPlaceholderTitle(...args: any[]): any;
-declare const isEnabled: any;
+declare const isEnabled: any; declare const deckPromptFiltered: any; declare const isDeckClosed: any;
 
     // #1294：草稿标题的正文语言 —— 由命名内容表自己的语言列沿着语言链选（不再「promptLang() 是不是 en」）。
     //   两处 draft 分支（执行一次、定败化解）共用这一个取法，避免同一段兜底写两遍、慢慢走岔。
@@ -135,6 +135,9 @@ declare const isEnabled: any;
       return { cwd: cwd, agentPreset: 'ptc' }
     }
     export const createPTCSession = function (sessions: any, workspaceId: any, cwd: any, text: any): any {
+      // #1612：deck 关闭的工作区里，首条提示词先去掉 deck 工具提醒行 —— 本函数是新建会话的唯一出口，
+      //   在这里过滤一次，后面所有建会话入口（新建、接手、交接）都自动跟上。
+      try { if (typeof deckPromptFiltered === 'function' && typeof isDeckClosed === 'function' && isDeckClosed(cwd)) text = deckPromptFiltered(text, true) } catch (ePF) {}
       // 单点工厂：唯一调用 sessions.create 的出口，显式 ptc + 工作区 + 首条原子化（#363）
       // #364 保真与兼容增强：首条在同链路内原子化写入目标会话自己的 store；
       //   若首次创建因 alpha 新参（workspaceId 不认 / agentPreset 更名）抛错，则自动回退到 {cwd,ptc} 或兼容 presetId 重试，

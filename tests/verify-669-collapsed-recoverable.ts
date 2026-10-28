@@ -185,6 +185,9 @@ const mountLive = async function (code: string) {
     methods.push(method)
     if (method === 'snapshot') return SNAP_GITHUB
     if (method === 'chain') return { ok: true, value: { ok: true, fullSnapshot: CHAIN_SETUP, backendId: 'github' } }
+    // #1612：设置电话要答得像真宿主（五节齐全的文档），否则界面判「读不出设置」，折叠/展开全走写设置文件那条路，
+    //   夹具里点展开会毫无反应。注意这一层的 rpc 回包外面还包着一层 {ok:true,value:…}，所以里面才是电话结果。
+    if (method === 'getSettings') return { ok: true, value: { ok: true, value: { version: 1, ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} }, workspaces: {}, debug: { enabled: false, sampleRate: 1 }, templates: {} }, warnings: [], readonly: false, from: { kind: 'file' } } }
     return { ok: true, value: { ok: true } }
   } } }
   const dict: Record<string, string> = {}

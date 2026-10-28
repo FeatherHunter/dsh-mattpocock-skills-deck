@@ -46,6 +46,7 @@ declare const NEW_BUG_FIELDS_BODY: any;
 declare const inspectPrompt: any;
 declare const completePrompt: any;
 declare const dswsLogHash: any;
+declare const isDeckClosed: any;
 // #606 面板打开各阶段计时的唯一状态。一次点开面板的调用链上只写读这几个数：
 //   openPanel 记下点击那一刻；Dock 记下进入渲染那一刻与提交完成；
 //   列表把提交阶段里做折叠测量花掉的毫秒累加进来；DockSync 在副作用里把各段落成日志。
@@ -134,6 +135,11 @@ export const openPanel = function (st: any): void {
   // 面板只有一条路：本插件注册的类型，开进原生右侧边栏，右栏里那一格由我们渲染。
   // 原来这里还有一个二选一（把面板交给第三方插件打开）。两条路并存时，那个插件会把面板
   // 画进同一列，于是原生右栏的引导页里出现两枚同名入口，所以那条路连同它的注册整段删除。
+  // #1612：该工作区的 deck 工具箱关着时不再打开右侧面板（验收 ②）。这里只挡「打开」这一半：
+  //   关闭永远允许（togglePanel 的关分支不经过这里），否则红色 X 的「先关面板、再关 deck」会被自己的闸门挡住。
+  //   平台限制：宿主右栏没有按会话关掉某一格的接口，已经开着的面板只能等下次刷新页面消失；
+  //   这里保证的是「deck 关后不再新开」，这条差异写在 #1612 的实现说明里。
+  if (typeof isDeckClosed === 'function' && isDeckClosed(st && st.cwd)) { try { flash(st, tr('panel.deckClosed'), 'warn') } catch (eDC) {} return }
   try { const _keyHash: any = dswsLogHash((typeof keyOf === 'function' ? keyOf(st.cwd || '') : String(st.cwd || ''))); const _snapVer: any = (typeof getSnapshotVersion === 'function' ? getSnapshotVersion(st.cwd) : '') || (st.snapshot && st.snapshot.version) || ''; const _bid: string = String((st.selection && st.selection.backendId) || ''); log('info', 'panel.open', { hasCache: !!(st.snapshot || (typeof getCachedSnapshot === 'function' && getCachedSnapshot(st.cwd))), snapFresh: (typeof snapFresh === 'function' ? snapFresh(st) : false), keyHash: _keyHash, snapVersion: _snapVer, backendId: _bid }); } catch (eL) {}
   // 常规测点起点：记下点开面板这一刻，供后面各段算出各自耗时。用完即清；不挂在会话状态对象上，也不挂到全局上。
   // 调试开关关着时这一整段跳过：连时钟都不读，后面各段也就没有起点可算，唯一代价是读一次开关。

@@ -108,10 +108,11 @@ async function main() {
     const mem = makeMemFs({})
     const r0 = await readLocalSettings('C:\\Users\\demo', mem.io)
     check(r0.ok === false && r0.reason === 'missing', '设置文件不在回 missing（不算错）', JSON.stringify(r0))
+    // #1612：工作区每条记录归一是四格（statusBar/deckTools 两个文字开关 + 两个旧布尔开关），往返逐字一致。
     const value = {
       version: 1,
       ui: { stateFilter: 'open', sortKey: 'updatedAt', sortDir: 'desc', labelClicks: {} },
-      workspaces: { 'D:\\ws\\demo': { bannerFolded: true, noRepoDismissed: false, subwsMarkAutoShown: false } },
+      workspaces: { 'D:\\ws\\demo': { statusBar: 'hide', deckTools: 'on', noRepoDismissed: false, subwsMarkAutoShown: false } },
       debug: { enabled: true, sampleRate: 0.5 },
       templates: {},
     }
@@ -120,6 +121,20 @@ async function main() {
     check(mem.files.has('C:\\Users\\demo/.dsh/mattskillsdeck/settings.yaml'), '设置落在用户主目录下那一层', JSON.stringify([...mem.files.keys()]))
     const r = await readLocalSettings('C:\\Users\\demo', mem.io)
     check(r.ok === true && JSON.stringify(r.value) === JSON.stringify(value), '设置读写往返一致', JSON.stringify(r.value))
+    // #1612：只带旧字段 bannerFolded 的文件第一次写回就升级成新两格，读回来不再有旧字段。
+    const legacyValue = {
+      version: 1,
+      ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} },
+      workspaces: { 'D:\\ws\\demo': { bannerFolded: false, noRepoDismissed: false, subwsMarkAutoShown: false } },
+      debug: { enabled: false, sampleRate: 1 },
+      templates: {},
+    }
+    const wl = await writeLocalSettings(legacyValue, 'C:\\Users\\demo', mem.io)
+    check(wl.ok === true, '旧字段的文件也能写（读时认 bannerFolded）', JSON.stringify(wl))
+    const rl = await readLocalSettings('C:\\Users\\demo', mem.io)
+    const upgraded = rl.ok ? rl.value.workspaces['D:\\ws\\demo'] : null
+    check(!!upgraded && upgraded.statusBar === 'show' && upgraded.deckTools === 'on' && upgraded.bannerFolded === undefined,
+      '旧 bannerFolded: false 写回后升级成 statusBar: show、deckTools: on，旧字段不再出现', JSON.stringify(upgraded))
   }
   {
     const mem = makeMemFs({ [ROOT_DIR + '/docs/agents/label-colors.json']: JSON.stringify({ bug: 'd73a4a' }) })

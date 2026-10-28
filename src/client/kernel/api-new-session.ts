@@ -39,11 +39,13 @@ declare const dswsLogHash: any;
 declare const dswsLogTrunc: any;
 declare const namingCurrentTitleOf: any;
 declare const withTrailingNewline: any;
-declare const ensureInjectFocusAtEnd: any;
+declare const ensureInjectFocusAtEnd: any; declare const deckPromptFiltered: any; declare const isDeckClosed: any;
     // #361：在新会话中打开 —— 同 cwd + 自动命名 + 预填指令
     //   契约（dsh-client-runtime ISessions）：create({cwd}) → SessionId；scope(sid) → AgentContext；
     //   sessionOf(ctx) → SessionFace.rename(title)；open(sid) 切换。任一步失败降级为当前会话注入 + 提醒。
     export const openTextInNewSession = function (st: any, text: any, title: any, opts?: any) {
+      // #1612：deck 关闭的工作区里提示词先去掉 deck 工具提醒行（本函数后面三条落地路径共用这一份判断）。
+      try { if (typeof deckPromptFiltered === 'function' && typeof isDeckClosed === 'function' && isDeckClosed(st && st.cwd)) text = deckPromptFiltered(text, true) } catch (ePF) {}
       // 七动作分形：首条是动作模板时，起步占位跟动作走（如 /triage → [New] 诊断），
       // 编号会话（[#n] 开头）不动，只动通用占位，保证初步名字一眼可分。
       // #746 Knife1：动作种类优先用调用方显式传的 opts.kind（行级入口下单时已知，不反推）；

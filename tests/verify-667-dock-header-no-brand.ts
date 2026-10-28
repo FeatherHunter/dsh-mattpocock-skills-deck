@@ -217,6 +217,9 @@ const reply = (method) => {
   if (method === 'snapshot' || method === 'refresh') return SNAP
   if (method === 'chain') return { ok: true, snapshot: { steps: [] }, chain: [], fullChain: null, resolved: [] }
   if (method === 'registry') return { ok: true, modules: [{ id: 'github', label: 'GitHub' }, { id: 'markdown', label: 'Markdown' }] }
+  // #1612：设置文件这条路必须答得像真宿主。以前这里对所有电话都回 {ok:true}，设置电话拿不到五节齐全的文档
+  //   就判「读不出设置」，而胶囊的折叠/展开全走写设置文件那条路，夹具里点展开会毫无反应（胶囊永远不出现）。
+  if (method === 'getSettings') return { ok: true, value: { version: 1, ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} }, workspaces: {}, debug: { enabled: false, sampleRate: 1 }, templates: {} }, warnings: [], readonly: false, from: { kind: 'file' } }
   return { ok: true }
 }
 // #1294：宿主语言服务换成新契约——词表按语言逐张注册 register('dsws', id, table)，不再是一次收整表

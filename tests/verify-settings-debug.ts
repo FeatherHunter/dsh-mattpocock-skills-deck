@@ -625,9 +625,9 @@ async function main(): Promise<void> {
     check(await waitWrite(env2), '这一笔落了一次盘。', String(callsOf(env2, 'wf.setSettings').length))
     const landed = await waitFor(async () => {
       const d = await readDoc(home2)
-      return !!d && !!d.workspaces && !!d.workspaces['D:\\proj'] && d.workspaces['D:\\proj'].bannerFolded === false
+      return !!d && !!d.workspaces && !!d.workspaces['D:\\proj'] && d.workspaces['D:\\proj'].statusBar === 'show'
     })
-    check(landed, '这一笔自己落了盘（bannerFolded 变成 false）。', JSON.stringify(((await readDoc(home2)) || {}).workspaces))
+    check(landed, '这一笔自己落了盘（#1612 迁移：旧 bannerFolded: false 写回时换算成 statusBar: show）。', JSON.stringify(((await readDoc(home2)) || {}).workspaces))
     const dShell = await readDoc(home2)
     check(!!dShell && dShell.ui.stateFilter === 'open' && dShell.templates.comment === 'hello',
       '半份文档没被当成基底：别的节（ui.stateFilter、templates.comment）原样还在，没被写成空值。',

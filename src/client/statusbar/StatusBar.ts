@@ -38,7 +38,7 @@ declare function Ic(props?: any): any;
 declare function Icon(...args: any[]): any;
 declare function injectFixate(...args: any[]): any;
 declare function isBackendUnavailable(...args: any[]): any;
-declare function isBannerFolded(...args: any[]): any;
+declare function isDeckCapsuleFolded(...args: any[]): any;
 declare function isEnabled(...args: any[]): any;
 declare function loadChain(...args: any[]): any;
 declare function loadSnapshot(...args: any[]): any;
@@ -59,7 +59,7 @@ declare function runGuideMissing(...args: any[]): any;
 declare function runGuideRecheck(...args: any[]): any;
 declare function scheduleStatusClose(...args: any[]): any;
 declare function seg(...args: any[]): any;
-declare function setBannerFolded(...args: any[]): any;
+declare function deckDoorCapsuleTail(...args: any[]): any; declare function deckDoorExpand(...args: any[]): any; declare function deckDoorFold(...args: any[]): any; declare function deckDoorConfirmEl(...args: any[]): any;
 declare function showStatusBugMenu(...args: any[]): any;
 declare function showStatusTakeMenu(...args: any[]): any;
 declare function snapFresh(...args: any[]): any;
@@ -230,7 +230,7 @@ export const StatusBar = (props: any) => {
   // 胶囊阶梯机（#725）：判据在 statusbar/capFold.js，机器在 statusbar/capFoldMachine.js，这里只留接线。
   //   这两张表（每一段完整那串字 / 机器上一次写下的那串字）必须跨调用带着走，所以挂在 ref 上。
   // 横幅收起态的判定放在折叠接线之前：下面那条挂观察器的副作用依赖它（展开时重挂），放后面会报先用后声明。
-  const deckFolded = isBannerFolded(s.cwd)
+  const deckFolded = isDeckCapsuleFolded(s.cwd)
   const foldKeep = React.useRef({ full: {}, written: {} })
   // #725 真机回归补的一条：观察器盯的是**元素**，而胶囊这个元素是会换代的（功能区先收起、再展开时
   //   React 会新造一个；旧那个已经被摘下来，它的尺寸从此不会再变、观察器也就再不会响）。于是
@@ -324,10 +324,11 @@ export const StatusBar = (props: any) => {
     } catch (e) {}
   }, [_bannerLogKey])
   // #422 · 收起整个功能区：横幅上的叉收起横幅与胶囊状态栏（打破胶囊永不隐藏旧规）；默认收起，用户点过展开才展开，按工作区记住（判定见上面折叠接线之前）。
-  const foldBanner = function () { try { setBannerFolded(s.cwd, true) } catch (e) {} }
-  const expandBanner = function () { try { setBannerFolded(s.cwd, false) } catch (e) {} }
+  const foldBanner = function () { try { deckDoorFold(s) } catch (e) {} }
+  const expandBanner = function () { try { deckDoorExpand(s) } catch (e) {} }
   // 收放按钮：胶囊最右侧的“∨”图标（无文字，技能入口之后）；收起态为带文字的小按钮（悬停与无障碍文案保留全称）。
-  const capsuleToggle = h(Tip, { content: tr('banner.foldDeck') }, h('span', { className: 'dsws-fold-toggle', onClick: function (e: any) { e.stopPropagation(); foldBanner() }, 'aria-label': tr('banner.foldDeck'),
+  // key 必填：这颗「∨」与右边那颗红色「X」拼成同一个数组交给胶囊，React 对数组里的每个元素都要求稳定 key（缺了会报错、门禁会红）。
+  const capsuleToggle = h(Tip, { key: 'deckFoldToggle', content: tr('banner.foldDeck') }, h('span', { className: 'dsws-fold-toggle', onClick: function (e: any) { e.stopPropagation(); foldBanner() }, 'aria-label': tr('banner.foldDeck'),
     // 接线（#1335 界面反馈）：收起整块功能区的叉是纯图标控件，只接按压压暗，不加悬停类，
     // 免得小图标按下时下沉一像素看着像错位；日志标识与胶囊本体那条分开。
     'data-press': 'icon',
@@ -368,7 +369,7 @@ export const StatusBar = (props: any) => {
         Ic({ n: 'chev-up', size: 10 }),
         h('span', null, tr('banner.expandDeck')),
       ])),
-      modalSeat, h(SuggestStreamMount, { sid: sid }), h(ShownAttentionMount, { sid: sid }),
+      modalSeat, deckDoorConfirmEl(h, s), h(SuggestStreamMount, { sid: sid }), h(ShownAttentionMount, { sid: sid }),
     ])
   }
   // #522：调试开关关闭时小灰点不挂载（胶囊里不留空位）；开时常驻；开关切换经已有的日志开关广播刷新各会话界面，此处只读开关不另加广播。
@@ -459,7 +460,7 @@ export const StatusBar = (props: any) => {
       'data-log': 'status.refresh' }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]), h('span', { 'data-fold-priority': 2 }, tr('nav.refresh')), h('span', { key: 'dd', 'data-fold-priority': 3, style: { color: freshColor } }, splitTimeStr(' ' + timeStr).date), h('span', { key: 'tt', 'data-fold-priority': 6, style: { color: freshColor } }, splitTimeStr(' ' + timeStr).time)])),
     h(SkillFloatList, { s: s }),
     logDotOn ? h(StatusLogDot, { s: s }) : null,
-    capsuleToggle,
+    ...deckDoorCapsuleTail(h, s, capsuleToggle),
     // #1297：入口浮层挂在状态栏这一层（不是悬停菜单里）：菜单随鼠标离开关门时浮层不受影响，
     //   打开后鼠标可以自由移到浮层上选卡。
     h(EntryChooser, { key: 'entryChooser', st: s, from: 'statusbar' }),
@@ -482,7 +483,7 @@ export const StatusBar = (props: any) => {
   //   这里因此不再声明它；两个转调包装留着，卡的界面在那边直接调用它们。
   if (!bannerStep) {
     // 无 banner 时为胶囊 + 常驻收起按钮（#422：收起即整个功能区消失）
-    return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, overflow: RDOM ? 'hidden' : 'visible' }, dswsStatusDockGeom()) }, [modalSeat, workspaceFileNoteEl(s), capsule])
+    return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, overflow: RDOM ? 'hidden' : 'visible' }, dswsStatusDockGeom()) }, [modalSeat, deckDoorConfirmEl(h, s), workspaceFileNoteEl(s), capsule])
   }
   const bann = function (text: any, btnLabel: any, onBtn: any, foldable: any, alt: any) {
     // #669：这颗叉（收起整个功能区）与左边那颗主按钮之间留 12px —— 原来只隔 6px，两颗按钮长得一样高、
@@ -531,7 +532,7 @@ export const StatusBar = (props: any) => {
   })()
   return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, position: 'relative' }, dswsStatusDockGeom()) }, [
     stepBanner, workspaceFileNoteEl(s),
-    capsule,
+    capsule, deckDoorConfirmEl(h, s),
     modalSeat,
     (s.gateModalOpen && s.gateModalSource==='status' ? h('div', { onClick:function(e: any){ if(e.target===e.currentTarget) closeGate() },
       // 接线（#1335 界面反馈）：点遮罩空白处会关掉这个窗，遮罩自己也是能点到的，所以接一组标识；

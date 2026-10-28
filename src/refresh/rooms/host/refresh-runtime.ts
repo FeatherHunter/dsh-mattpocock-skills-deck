@@ -35,6 +35,9 @@ import { DECK_ENSURE_TIMEOUT_MS } from '../../../shared/time-config/src/values.j
 import { createNamingSummary, readFirstUserText } from '../../../host/platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
 import { hookDeckAgentTools, makeDeckRegisterReport } from '../../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交九个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
 import { hookSuggestNextSteps } from '../../../deck/registration/suggest-steps-register.js' // #1406 建议工具单独登记（不进九工具装配顺序表）
+// #1612：按工作区关掉 deck 工具箱之后，deck 工具要从该工作区会话身上收走；闸门逻辑全住 src/host/deckToolGate.ts，
+// 这里只在 deck 工具注册之后挂一次（挂载失败只记日志，不影响刷新装表）。
+import { hookDeckToolGate } from '../../../host/deckToolGate.js'
 import { createDeckQuotaSync } from '../../registry/quota-sync-bridge.js'
 import { ledgerReadingsOf } from '../../kernel/budget-readings.js' // #1446：读数 → 账本格的唯一换算处
 import { createAccountPort, normalizeBudgetDeclaration } from '../../kernel/backend-accounting.js' // #1439：账本唯一写入口；面板/强制刷新经闸把真实用量交给它
@@ -447,7 +450,7 @@ export function createRefreshWiring(deps: any): any {
   // #1406 补（2026-10-23）：hookSuggestNextSteps 是 async，开头读上下文若抛错会变成 rejected Promise，
   // 那一行同步 try/catch 抓不到；宿主加载期会把未处理的 rejection 判成致命错误（真机启动即退出 1）。
   // 所以给返回的 Promise 再挂一层 .catch 兜底：登记失败只落既有日志，绝不拖垮启动。
-  try { hookSuggestNextSteps(d.ctx, { log: logCtx }).catch(function (eSuggest: any) {}) } catch (eSuggest: any) {}
+  try { hookSuggestNextSteps(d.ctx, { log: logCtx }).catch(function (eSuggest: any) {}) } catch (eSuggest: any) {}; try { hookDeckToolGate(d.ctx, { canonicalKey: d.canonicalKey, logCtx: logCtx }) } catch (eGate: any) {}
 
   // ── E（#723 T19c）：行级增量真的能在宿主里跑起来 ────────────────────────────────────────────
   // 以前探测到变化之后没人去跑 src/refresh/rooms/host/row-patch.js，客户端只能整池重建；现在它在这里装起来，由 wf.probe 那条路在

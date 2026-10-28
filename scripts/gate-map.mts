@@ -127,6 +127,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-28 #1607：UNC 工作区里 gh 的当前目录不许绕道 shell 的守卫（静态扫四个起进程点，加生产 preflight
   // 走一趟 UNC / 盘符 / 失败三条路）；42 条是单跑实测得出的。
   'verify-1607-gh-unc-cwd': 42,
+  // 2026-10-29 #1612：设置文件两个按工作区开关（胶囊状态栏 / deck 工具箱）的 schema、迁移与落盘；
+  // 51 条是单跑实测得出的。
+  'verify-1612-settings-switches': 51,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。
