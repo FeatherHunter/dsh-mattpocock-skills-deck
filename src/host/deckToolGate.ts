@@ -29,6 +29,7 @@
 import { keyOf } from '../shared/workspaceKey.js'
 import { DECK_SETTINGS_BUS_SLOT } from '../shared/config-store/src/settings.js'
 import { REGISTER_RETRY_WAIT_MS } from '../shared/time-config/src/values.js'
+import { HOST_LOG_SLOT } from '../shared/host-log-slot.js'
 
 /**
  * 要收走的十二个工具名：十个 deck_* 业务工具（与 src/deck/tools/ 下真实定义、src/deck/rules/tool-order.ts
@@ -57,8 +58,8 @@ export { DECK_SETTINGS_BUS_SLOT }
 const hookedContexts = new WeakMap<any, any>()
 
 // 宿主日志单例槽位（src/host/index.ts 的 _log() 建的进程单例）：槽位上的 svc.st 是设置电话的懒加载器。
+// 键值住在 src/shared/host-log-slot.ts（#1620 起全仓只许一处定义），这里只导入，不再写第二份字面量。
 // 只用它做一次「闸门挂载时设置还没被读过」的兜底初读，读不到就跳过，绝不因此报错。
-const HOST_LOG_SLOT = '__dsh_mattskillsdeck_host_log__'
 
 const GATE_LOG_METHOD = 'deck.toolGate'
 const GATE_LOG_KIND = 'deck-tool'

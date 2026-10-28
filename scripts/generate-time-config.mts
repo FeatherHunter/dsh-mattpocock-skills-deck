@@ -173,6 +173,7 @@ const KEYS: Array<[string, string, string]> = [
   ['predicateLogSampleMs', 'PREDICATE_LOG_SAMPLE_MS', 'intervals'],
   ['logWriteDebounceMs', 'LOG_WRITE_DEBOUNCE_MS', 'intervals'],
   ['logFlushMs', 'LOG_FLUSH_MS', 'intervals'],
+  ['hostLogSlotRetryMs', 'HOST_LOG_SLOT_RETRY_MS', 'intervals'],
   // —— 界面上的一次性延时 ——
   ['clientSessionTickMs', 'CLIENT_SESSION_TICK_MS', 'intervals'],
   ['clientHandoffDelayMs', 'CLIENT_HANDOFF_DELAY_MS', 'intervals'],

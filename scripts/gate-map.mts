@@ -92,7 +92,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-24 #1464 后续：工具参数说明与 /ask-matt 规则节补「技能优先、prompt 开头写 /xxxx」。
   // 2026-10-24 #1412 反向（维护者拍板撤机制）：规则从 /ask-matt 正文搬进工具说明；1412 那扇门禁
   // 改成「技能正文原样返回、不追加」的守卫，断言数随之变化。下面两个数字都是单跑实测得出的。
-  'verify-suggest-next-steps': 160,
+  // 2026-10-29 #1620：兜底口改读 src/shared/host-log-slot.ts（键只定义一处），8d 加「槽晚到」「槽始终不出现」
+  // 两组断言，单跑实测 167 条。
+  'verify-suggest-next-steps': 167,
   // 2026-10-26 规格收尾提示词落地：模板里的「## 工具」节收进公共小节 shared-sections.yaml，
   // 这扇的 ⑤ 从「扫三份 YAML 原文数提醒行」改成「经共享读取核展开后数」，少了两条文件存在性断言，
   // 单跑实测 29 条，期望数同步改准。

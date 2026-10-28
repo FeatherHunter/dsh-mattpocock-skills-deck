@@ -417,21 +417,33 @@ async function main() {
   check(wiringCallAt >= 0, '宿主接线里仍在调用建议工具登记钩子')
   check(wiringTail.indexOf('.catch(') >= 0, '宿主接线给登记钩子的 Promise 挂了 .catch 兜底（异步异常不会逃逸）')
 
-  // ── 8d. 宿主日志兜底口：agent-row 那条不传日志的路也要落轨迹（#1420 第四项） ──
+  // ── 8d. 宿主日志兜底口：agent-row 那条不传日志的路也要落轨迹（#1420 第四项；#1620 收成一处） ──
   // 真机上这颗工具由代理行直接登记、不传依赖袋，从前工具侧一条 host.call 都不落，日志里分不清
-  // 「模型没调」与「调了但界面没拿到事件流」。兜底口读宿主的全局日志槽（src/host/index.ts 的
-  // _log() 挂在 globalThis['__dsh_mattskillsdeck_host_log__'] 上，p 解析出日志库）。这里放一个
-  // 假槽，验证登记结论与工具调用都落得下来；显式传 log:null 时保持安静（测试与「不要日志」的
-  // 调用方不受影响）；槽不存在时登记与工具执行都不受影响。
-  const SLOT = '__dsh_mattskillsdeck_host_log__'
-  const flushAsync = async function () { await Promise.resolve(); await Promise.resolve() }
+  // 「模型没调」与「调了但界面没拿到事件流」。兜底口读宿主挂在 globalThis 上的日志槽——键、槽形状、
+  // 读取方式都住在 src/shared/host-log-slot.ts，这里从模块取，不再写第二份字面量。槽可能比工具行
+  // 的登记晚一步建好（#1620 复审 Blocking-2：建槽挪到动态 import 之后），所以兜底口读不到时按固定
+  // 退避重读一小段；下面三组分别验「槽已就绪」「槽晚到」「槽始终不出现」。
+  const slotMod = await imp('src/shared/host-log-slot.ts')
+  const SLOT = slotMod.HOST_LOG_SLOT
+  const flushAsync = async function () { for (let i = 0; i < 4; i += 1) await Promise.resolve() }
+  const wait = function (ms) { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
+  const waitForSlotLine = async function (calls, method, timeoutMs) {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      const line = calls.filter(function (r) { return r.event === 'host.call' && r.fields && r.fields.method === method })[0]
+      if (line) return line
+      await wait(10)
+    }
+    return null
+  }
   const slotCalls = []
   const fakeStore = {
     isEnabled: function (level, event) { return event === 'host.call' || event === 'host.call.fail' },
     log: function (level, event, fields) { slotCalls.push({ level: level, event: event, fields: fields }) },
   }
   const previousSlot = globalThis[SLOT]
-  globalThis[SLOT] = { p: Promise.resolve(fakeStore) }
+  delete globalThis[SLOT]
+  slotMod.ensureHostLogSlot().p = Promise.resolve(fakeStore)
   const noDepService = { register: function () { return function () {} } }
   const noDepReg = registerMod.registerSuggestNextSteps(noDepService)
   await flushAsync()
@@ -454,12 +466,44 @@ async function main() {
   await flushAsync()
   check(quietReg.registered === true && quietEnv.ok === true && slotCalls.length === 0,
     '显式传 log:null 时兜底口不接（调用方自己决定记不记）')
+  // 槽晚到：登记先跑（此刻还没有槽），槽在等待窗口内建好，那两行日志要最终落下。
   delete globalThis[SLOT]
+  const lateCalls = []
+  const lateStore = {
+    isEnabled: function (level, event) { return event === 'host.call' || event === 'host.call.fail' },
+    log: function (level, event, fields) { lateCalls.push({ level: level, event: event, fields: fields }) },
+  }
+  const lateReg = registerMod.registerSuggestNextSteps({ register: function () { return function () {} } })
+  check(lateReg.registered === true, '槽还没建好时登记同步成功（兜底口不阻塞登记）')
+  const lateRegistration = registerMod.makeSuggestRegistration()
+  const lateEnv = await lateRegistration.execute({ items: two }, EXEC)
+  check(lateEnv.ok === true, '槽还没建好时工具照常回执（等待只发生在后台）')
+  await wait(40)
+  slotMod.ensureHostLogSlot().p = Promise.resolve(lateStore)
+  const lateRegLine = await waitForSlotLine(lateCalls, 'suggest_next_steps.register', 1200)
+  check(!!lateRegLine && lateRegLine.fields.ok === true && keysWithin(lateRegLine.fields, ALLOWED_HOST_CALL),
+    '槽晚到时登记那行日志最终落下（有界重读有效）')
+  const lateCallLine = await waitForSlotLine(lateCalls, 'suggest_next_steps', 1200)
+  check(!!lateCallLine && keysWithin(lateCallLine.fields, ALLOWED_HOST_CALL), '槽晚到时工具调用那行也落下且字段在白名单内')
+
+  // 槽始终不出现：登记与工具执行立刻返回，等待窗口用尽后安静放弃，不建槽、不长期占计时器。
+  delete globalThis[SLOT]
+  const noSlotStartedAt = Date.now()
   const noSlotReg = registerMod.registerSuggestNextSteps({ register: function () { return function () {} } })
-  const noSlotEnv = await noSlotReg.registered && await registerMod.makeSuggestRegistration().execute({ items: two }, EXEC)
-  await flushAsync()
-  check(noSlotReg.registered === true && !!noSlotEnv && noSlotEnv.ok === true,
-    '全局槽不存在时登记与工具执行都不受影响（日志可缺，功能不能缺）')
+  const noSlotSyncMs = Date.now() - noSlotStartedAt
+  check(noSlotReg.registered === true && noSlotSyncMs < 100, '槽始终不出现时登记同步返回、不被等待拖慢（实得 ' + noSlotSyncMs + 'ms）')
+  const noSlotEnv = await registerMod.makeSuggestRegistration().execute({ items: two }, EXEC)
+  check(!!noSlotEnv && noSlotEnv.ok === true, '槽始终不出现时工具照常回执')
+  await wait(700)
+  check(globalThis[SLOT] === undefined, '等待窗口内兜底口没有偷偷建槽')
+  const afterWindowCalls = []
+  slotMod.ensureHostLogSlot().p = Promise.resolve({
+    isEnabled: function () { return true },
+    log: function (level, event, fields) { afterWindowCalls.push({ level: level, event: event, fields: fields }) },
+  })
+  await wait(200)
+  check(afterWindowCalls.length === 0, '等待窗口用尽后不再重读（窗口有上限，不长期占着退避计时器）')
+  delete globalThis[SLOT]
   if (previousSlot === undefined) delete globalThis[SLOT]
   else globalThis[SLOT] = previousSlot
 
