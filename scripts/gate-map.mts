@@ -75,7 +75,9 @@ export const MAP_PATH: string = path.join(ROOT, 'tests', 'gate-map.json')
 //   期望比实际小 = 有人加了断言却忘了改这里，也判红，顺手把数字改准。
 // 还没开闸的门禁一律不许写在这里 —— 编一个数字出来，真红就会变假绿。
 export const COMPLETION_RECORDED_GATES: Record<string, number> = {
-  'verify-669-collapsed-recoverable': 30,
+  // 2026-10-29 #1600：词表里 gate.wipNotice 已退役（GitLab 可用后不再有「筹备中」注解），
+  // 这扇改成先钉「键已不在词表里」、再钉「初始化小卡上不再出现该文案」，单跑实测 31 条。
+  'verify-669-collapsed-recoverable': 31,
   'verify-deck-no-hang': 19,
   'verify-log-selfmon': 27,
   // 2026-10-23 #1432：调试日志开关只认 settings.yaml 一处真源（静态面查代码里只剩一处读写，行为面查开关来源按设置文件四个状态回值）；37 条是单跑实测得出的。
