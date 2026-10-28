@@ -2,11 +2,13 @@
 # 模板正文里写 {{shared:<id>}}（例如 {{shared:sharedTools}}），scripts/lib/prompt-config.mts 在 readPromptConfig 里展开成对应语言的正文。
 # 为什么不放进那五份族 YAML：族的划分是「这条提示词什么时候被注入」，公共小节不属于任何时机，
 # 它只属于「好几处共用同一段话」这一件事；混进族文件会让「按注入时机分族」这条规矩失真。
-# 今天六节：sharedTools（20 条模板引用）与 investigation（10 条）是跨族共用；
+# 今天七节：sharedTools（20 条模板引用）与 investigation（10 条）是跨族共用；
 #   mapTicketAdvance（讨论 / 执行 / 研究三条动作模板）与 repoBootstrap（setupRun / switchAlign 两条）是同族内共用，
 #   2026-10-29 收进来 —— 此前各抄一遍，改一句要改好几处、升好几次版本；
 #   mapTicketAdvanceOpening / mapTicketAdvanceWrapUp 是同一天把 mapTicketAdvance 拆成的两段，
 #   好让 tpl.prototype 在开头与收尾之间插自己的一节，开头与收尾仍然各只有一份。
+#   firstPrinciples（2026-10-29 立）：元提示句「从第一性原理出发。」，由 15 条模板与 mapTicketAdvanceOpening 直接引用
+#   （合计覆盖 19 条注入面），放在正文第一句；它管的是「用什么方式想」，不是任务说明，解释性内容不跟着写。
 # 小节之间可以互相引用（mapTicketAdvance 由开头与收尾两节拼成，开头里又嵌着 investigation），读取时逐层展开，成环当场报错。
 # 新增一节：在下面加一条（每个 id 只装 zh/en 两份正文），同时把 PROMPT_SHARED_SECTION_IDS 补上。
 sharedTools:
@@ -47,12 +49,16 @@ mapTicketAdvanceOpening:
     /wayfinder
     {url}
 
+    {{shared:firstPrinciples}}
+
     请按 wayfinder 技能推进这张票。
 
     {{shared:investigation}}
   en: |-
     /wayfinder
     {url}
+
+    {{shared:firstPrinciples}}
 
     Please advance this ticket with the wayfinder skill.
 
@@ -93,3 +99,12 @@ repoBootstrap:
     2. During init, follow the setup-matt-pocock-skills skill own flow (choose {trackerChoice} as the tracker; keep the default triage-role labels){labelReqs}; when labelling issues, strictly follow the skill rules, with no extra mandatory labels;
     3. Verify the actual outputs of the setup skill: docs/agents/issue-tracker.md + triage-labels.md + domain.md and the ## Agent skills block in AGENTS.md; then re-run the environment check (setup turns green). {contextLayout}.{backendNote}
 
+
+# firstPrinciples（2026-10-29 立）：元提示句，只管「用什么方式想」，不是任务说明。
+# 放法：模板正文第一句（slash 命令与链接之后），单独成行、前后空行；不写成 - [ ] 清单项。
+# 一行就够：解释、锚点、护栏都不跟着写 —— 写长了会从「模式开关」降级成「条款」，威力反而被稀释。
+firstPrinciples:
+  zh: |-
+    从第一性原理出发。
+  en: |-
+    Start from first principles.

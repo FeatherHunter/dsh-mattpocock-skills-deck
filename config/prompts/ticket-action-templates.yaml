@@ -1,11 +1,13 @@
 tpl.diagnose:
-  version: 20
+  version: 21
   placeholders:
     - url
-  use: 动作按钮「诊断」（needs-triage 票）· 恢复调查节、补已实现核对与终态收尾（#1212、#1281）
+  use: 动作按钮「诊断」（needs-triage 票）· 恢复调查节、补已实现核对与终态收尾（#1212、#1281）；v21（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
   zh: |-
     /triage
     {url}
+
+    {{shared:firstPrinciples}}
 
     按 /triage 技能诊断这张 issue；诊断不等于修复，只弄清问题与分流：不改业务代码、不开始实施。
 
@@ -23,6 +25,8 @@ tpl.diagnose:
     /triage
     {url}
 
+    {{shared:firstPrinciples}}
+
     Follow the /triage skill to diagnose this issue; diagnosing is not fixing — only establish the problem and route it: do not change product code, and do not start implementing.
 
     ## Check for existing implementation first
@@ -36,31 +40,33 @@ tpl.diagnose:
 
     {{shared:sharedTools}}
 tpl.discuss:
-  version: 22
+  version: 23
   placeholders:
     - url
-  use: 动作按钮「讨论」（wayfinder:grilling 票）· map 子票统一入口：首行 /wayfinder，交给技能内部按票的类型分流（#1281）；v22（2026-10-29）：正文收成公共小节 mapTicketAdvance（与执行 / 研究共用同一份），文本不变、只换存放方式
+  use: 动作按钮「讨论」（wayfinder:grilling 票）· map 子票统一入口：首行 /wayfinder，交给技能内部按票的类型分流（#1281）；v22（2026-10-29）：正文收成公共小节 mapTicketAdvance（与执行 / 研究共用同一份），文本不变、只换存放方式；v23（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
   zh: |-
     {{shared:mapTicketAdvance}}
   en: |-
     {{shared:mapTicketAdvance}}
 tpl.execute:
-  version: 22
+  version: 23
   placeholders:
     - url
-  use: 动作按钮「执行」（wayfinder:task 票）· map 子票统一入口：首行 /wayfinder（#1281）；v22（2026-10-29）：正文收成公共小节 mapTicketAdvance（与讨论 / 研究共用同一份），文本不变、只换存放方式
+  use: 动作按钮「执行」（wayfinder:task 票）· map 子票统一入口：首行 /wayfinder（#1281）；v22（2026-10-29）：正文收成公共小节 mapTicketAdvance（与讨论 / 研究共用同一份），文本不变、只换存放方式；v23（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
   zh: |-
     {{shared:mapTicketAdvance}}
   en: |-
     {{shared:mapTicketAdvance}}
 tpl.fix:
-  version: 17
+  version: 18
   placeholders:
     - url
-  use: 动作按钮「修复」（bug 票）· 首行 /implement；补 /diagnosing-bugs 落点（#1281）
+  use: 动作按钮「修复」（bug 票）· 首行 /implement；补 /diagnosing-bugs 落点（#1281）；v18（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
   zh: |-
     /implement
     {url}
+
+    {{shared:firstPrinciples}}
 
     按 /implement 技能修复这个 bug。
 
@@ -77,6 +83,8 @@ tpl.fix:
   en: |-
     /implement
     {url}
+
+    {{shared:firstPrinciples}}
 
     Follow the /implement skill to fix this bug.
 
@@ -104,11 +112,13 @@ tpl.handoff1:
 
     This doc is for an agent with no memory of this session — write from its perspective, so it can continue seamlessly without guessing or revisiting this session. Approach from first principles.
 tpl.handoff2:
-  version: 5
+  version: 6
   placeholders:
     - path
-  use: "交接第二击（读交接文档）；v5 #792 撤掉末尾的工具节（维护者 2026-09-30 定稿：交接两条都不带工具节）"
+  use: "交接第二击（读交接文档）；v5 #792 撤掉末尾的工具节（维护者 2026-09-30 定稿：交接两条都不带工具节）；v6（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程"
   zh: |-
+    {{shared:firstPrinciples}}
+
     请阅读 {path}（上一会话生成的交接文档），复述你的理解后再继续推进：
 
     ## 复述理解
@@ -118,8 +128,10 @@ tpl.handoff2:
     - [ ] 把以上三点复述给我；若有遗漏或不确定 → 先问我确认，不猜
 
     ## 继续推进
-    - [ ] 从第一性原理出发，继续完成未完成事项
+    - [ ] 继续完成未完成事项
   en: |-
+    {{shared:firstPrinciples}}
+
     Read the handoff doc {path} (from the previous session), restate your understanding, then continue:
 
     ## Restate understanding
@@ -129,17 +141,19 @@ tpl.handoff2:
     - [ ] Restate the three points to me; if anything is missing or uncertain → ask me first, do not guess
 
     ## Continue
-    - [ ] From first principles, continue with the unfinished work
+    - [ ] Continue with the unfinished work
 tpl.implement:
-  version: 4
+  version: 5
   placeholders:
     - url
-  use: 动作按钮「实施」（ready-for-agent 实施票）· 首行 /implement（#1281）
+  use: 动作按钮「实施」（ready-for-agent 实施票）· 首行 /implement（#1281）；v5（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
   zh: |-
     /implement
     {url}
 
     按 /implement 技能实施这张票。
+
+    {{shared:firstPrinciples}}
 
     ## 读现状
     - [ ] 已认领？若未认领，先认领。
@@ -157,6 +171,8 @@ tpl.implement:
 
     Follow the /implement skill to implement this ticket.
 
+    {{shared:firstPrinciples}}
+
     ## Read current state
     - [ ] Claimed? Claim first if unclaimed.
     - [ ] Read the whole ticket (body / comments / acceptance criteria / parent & blocking edges) and confirm the deliverable; ask the user first when ambiguous.
@@ -168,10 +184,10 @@ tpl.implement:
 
     {{shared:sharedTools}}
 tpl.prototype:
-  version: 17
+  version: 18
   placeholders:
     - url
-  use: 动作按钮「原型」（wayfinder:prototype 票）· map 子票统一入口：首行 /wayfinder（#1281）；v17（2026-10-29）：正文改为引用公共小节 mapTicketAdvanceOpening 与 mapTicketAdvanceWrapUp，中间保留自己的「定版与移交」节，文本不变、只换存放方式
+  use: 动作按钮「原型」（wayfinder:prototype 票）· map 子票统一入口：首行 /wayfinder（#1281）；v17（2026-10-29）：正文改为引用公共小节 mapTicketAdvanceOpening 与 mapTicketAdvanceWrapUp，中间保留自己的「定版与移交」节，文本不变、只换存放方式；v18（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
   zh: |-
     {{shared:mapTicketAdvanceOpening}}
 
@@ -191,10 +207,10 @@ tpl.prototype:
 
     {{shared:mapTicketAdvanceWrapUp}}
 tpl.research:
-  version: 16
+  version: 17
   placeholders:
     - url
-  use: 动作按钮「研究」（wayfinder:research 票）· map 子票统一入口：首行 /wayfinder（#1281）；v16（2026-10-29）：正文收成公共小节 mapTicketAdvance（与讨论 / 执行共用同一份），文本不变、只换存放方式
+  use: 动作按钮「研究」（wayfinder:research 票）· map 子票统一入口：首行 /wayfinder（#1281）；v16（2026-10-29）：正文收成公共小节 mapTicketAdvance（与讨论 / 执行共用同一份），文本不变、只换存放方式；v17（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
   zh: |-
     {{shared:mapTicketAdvance}}
   en: |-
@@ -261,13 +277,15 @@ tpl.supplement:
 
     {{shared:sharedTools}}
 tpl.takeover:
-  version: 12
+  version: 13
   placeholders:
     - url
-  use: 动作按钮「接手」（ready-for-human 票）· v11 改挂 /triage，补读现状与已做完分支（2026-10-27 #1577）；恢复调查节；补 /wizard 落点（#1212、#1281）
+  use: 动作按钮「接手」（ready-for-human 票）· v11 改挂 /triage，补读现状与已做完分支（2026-10-27 #1577）；恢复调查节；补 /wizard 落点（#1212、#1281）；v13（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
   zh: |-
     /triage
     {url}
+
+    {{shared:firstPrinciples}}
 
     这张票停在 ready-for-human：有一块必须由人亲自做的部分。先复核这个判定，再决定继续交给用户、改判，还是按已完成收口；用户必须亲自做的部分留给用户，其余由你完成，不要替他做。
 
@@ -295,6 +313,8 @@ tpl.takeover:
   en: |-
     /triage
     {url}
+
+    {{shared:firstPrinciples}}
 
     This ticket is sitting on ready-for-human: one part of it must be done by a human. Re-check that call first, then decide whether to hand the human part over, re-tier the ticket, or close it out as already done; leave the part only the user can do to the user, and do the rest yourself — never do the user's part for them.
 

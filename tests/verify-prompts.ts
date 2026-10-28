@@ -1530,9 +1530,12 @@ const contractChecksInner = function (reg, src) {
     // 2026-10-29（同日第二笔）：tpl.prototype v16→v17 —— mapTicketAdvance 拆成开头与收尾两节
     //   （mapTicketAdvanceOpening / mapTicketAdvanceWrapUp），原型模板引用这两节、中间保留自己的「定版与移交」一节，
     //   版本底线同步抬高；specExecute v5→v6 —— 中文收尾小节标题从「## 收口」改成「## 收尾」，与其余模板统一。
-    mapExecute: 21, complete: 16, fixate: 11, 'tpl.diagnose': 20, 'tpl.fix': 17, 'tpl.discuss': 22,
-    'tpl.research': 16, 'tpl.prototype': 17, 'tpl.takeover': 12, 'tpl.supplement': 10, 'tpl.execute': 22, mapInspect: 13, newWayfinder: 25,
-    newBugWayfinder: 16, newSpec: 5, healthCheck: 5, specComplete: 6, specExecute: 6, specSplit: 5,
+    // 2026-10-29：元提示句「从第一性原理出发。」进 19 条模板（公共小节 firstPrinciples；15 条直接引用 +
+    //   mapTicketAdvanceOpening 覆盖讨论 / 执行 / 研究 / 原型 4 条），版本底线整体 +1；
+    //   handoff2 不在本表（下面单列 ≥v3 的那组），正文也变了、同步升到 v6。
+    mapExecute: 22, complete: 17, fixate: 11, 'tpl.diagnose': 21, 'tpl.fix': 18, 'tpl.discuss': 23,
+    'tpl.research': 17, 'tpl.prototype': 18, 'tpl.takeover': 13, 'tpl.supplement': 10, 'tpl.execute': 23, mapInspect: 14, newWayfinder: 26,
+    newBugWayfinder: 17, newSpec: 6, healthCheck: 6, specComplete: 8, specExecute: 7, specSplit: 6,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
     // #664：setupRun v13 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（界面已保证过），版本号跟着抬到 13
@@ -1752,6 +1755,25 @@ const contractChecksInner = function (reg, src) {
     if (co.en.indexOf('Both: part of it needs building') < 0 || co.en.indexOf('Check not passed') < 0) fail('complete en 岔节缺「两种都有」「核对不通过」两个分支（对应中文同名两条）')
     if (co.en.indexOf('## Tools') < 0 || co.en.indexOf('deck_issue_report') < 0) fail('complete en 缺工具节两行（#779）')
   } else fail('缺条目 complete')
+  // 2026-10-29：元提示句「从第一性原理出发。」进 19 条注入面（15 条模板直接引用公共小节 firstPrinciples，
+  //   mapTicketAdvanceOpening 覆盖讨论 / 执行 / 研究 / 原型 4 条）。只判「两语言都在」，位置由正文结构自证；
+  //   哪条被悄悄删掉这里先红，不靠人眼。handoff2 是「搬家」：队尾旧句必须已经清掉。
+  const FIRST_PRINCIPLES_IDS = [
+    'mapExecute', 'complete', 'healthCheck', 'mapInspect', 'specExecute', 'specComplete', 'specSplit',
+    'tpl.diagnose', 'tpl.fix', 'tpl.implement', 'tpl.takeover', 'tpl.handoff2',
+    'newWayfinder', 'newSpec', 'newBugWayfinder',
+    'tpl.discuss', 'tpl.execute', 'tpl.research', 'tpl.prototype',
+  ]
+  FIRST_PRINCIPLES_IDS.forEach(function (id) {
+    const e = reg[id]
+    if (!e) { fail('缺条目 ' + id + '（firstPrinciples 判据无源）'); return }
+    if (String(e.zh).indexOf('从第一性原理出发。') < 0) fail(id + ' zh 缺元提示句「从第一性原理出发。」（公共小节 firstPrinciples，2026-10-29 加）')
+    if (String(e.en).indexOf('Start from first principles.') < 0) fail(id + ' en 缺元提示句 Start from first principles.（同中文那条的对应句）')
+  })
+  ;[['zh', '从第一性原理出发，继续'], ['en', 'From first principles, continue']].forEach(function (pair) {
+    const body = String((reg['tpl.handoff2'] || {})[pair[0]] || '')
+    if (body.indexOf(pair[1]) >= 0) fail('tpl.handoff2 ' + pair[0] + ' 队尾还留着旧句「' + pair[1] + '…」，应挪到开头（2026-10-29）')
+  })
   // handoff1/handoff2（#71）
   const h1 = reg['tpl.handoff1']
   if (h1) {
@@ -2405,7 +2427,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'dc6b0ab4b65f12ea84ed769beb615a9cb5cf91100f1c9daa2d8ca013c089d4ae',
+  'tests/verify-prompts.ts': 'f17e7ce254c6262e1ac524ea68db8045b5c6b6dfd9afc587f78594fef5f0e919',
 }
 // ---- LOCK-END ----
 

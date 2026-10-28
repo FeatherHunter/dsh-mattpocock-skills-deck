@@ -18,7 +18,7 @@
  *   · PROMPT_FRAGMENT_IDS —— 三处片段 id（newBugFields / newWayfinderWiring / vocabularyDefaults）。
  *     模板一份字面量有版本号与 placeholders 两类元字段，片段只装 zh/en 两份 —— 不是模板，
  *     分类不同。门禁与生成器都按片段口径核（zh/en 必含，占位符用法单独看）。
- *   · PROMPT_SHARED_SECTION_IDS —— 公共小节（今天六节：sharedTools「## 工具」三条、
+ *   · PROMPT_SHARED_SECTION_IDS —— 公共小节（今天七节：sharedTools「## 工具」三条、
  *     investigation「## 调查（建议先查后问）」四条、mapTicketAdvance（讨论 / 执行 / 研究三条动作模板
  *     注入的同一段正文）、repoBootstrap（setupRun 与 switchAlign 共用的初始化正文）、
  *     mapTicketAdvanceOpening 与 mapTicketAdvanceWrapUp（把 mapTicketAdvance 拆成的开头与收尾两段，
@@ -228,8 +228,9 @@ export const PROMPT_YAML_PATHS: ReadonlyArray<string> = [
  *  公共小节不属于任何时机，只属于「多处共用」，所以单独一份、单独一条读取路径。 */
 export const PROMPT_SHARED_SECTIONS_REL = 'config/prompts/shared-sections.yaml'
 
-/** 公共小节 id 清单。新增一节时改这一处，YAML 顶层键必须与它逐项相等。 */
-export const PROMPT_SHARED_SECTION_IDS: ReadonlyArray<string> = ['sharedTools', 'investigation', 'mapTicketAdvanceOpening', 'mapTicketAdvanceWrapUp', 'mapTicketAdvance', 'repoBootstrap']
+/** 公共小节 id 清单。新增一节时改这一处，YAML 顶层键必须与它逐项相等。
+ *  2026-10-29 加 firstPrinciples（元提示句「从第一性原理出发。」，被 15 条模板与 mapTicketAdvanceOpening 引用）。 */
+export const PROMPT_SHARED_SECTION_IDS: ReadonlyArray<string> = ['sharedTools', 'investigation', 'mapTicketAdvanceOpening', 'mapTicketAdvanceWrapUp', 'mapTicketAdvance', 'repoBootstrap', 'firstPrinciples']
 
 /** 一个公共小节的形状：只装 zh/en 两份正文，没有版本号与占位符（它不是一条模板）。 */
 export interface SharedSectionShape {

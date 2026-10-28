@@ -1,11 +1,14 @@
 newBugWayfinder:
-  version: 16
+  version: 17
   placeholders:
     - repo
-  use: "「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4 · v2 修 #1 BUG3：输入位移到末尾 · v3 #14：精简为 4 字段 · v4 #63：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行 · v7 #882：压薄终稿四节清单 + 尾部四选填通用版 · v10 #1268 加调查节先查后问） · v12 #1407 加 suggest_next_steps 提醒、删 /retro 提醒 · v15 #1460 建单前查重：扫全可见 BUG 单、候选交报告人确认、正文固定写查重记录"
+  use: "「+ 新增BUG单」按钮 / 状态栏 BUG 悬停菜单「新增」（issue #4 · v2 修 #1 BUG3：输入位移到末尾 · v3 #14：精简为 4 字段 · v4 #63：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行 · v7 #882：压薄终稿四节清单 + 尾部四选填通用版 · v10 #1268 加调查节先查后问） · v12 #1407 加 suggest_next_steps 提醒、删 /retro 提醒 · v15 #1460 建单前查重：扫全可见 BUG 单、候选交报告人确认、正文固定写查重记录；v17（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程"
   zh: |-
     /wayfinder
     请帮我新增一个 BUG 单（按 wayfinder 技能规则处理）。
+
+    {{shared:firstPrinciples}}
+
     仓库：{repo}
     新建的单子必须带上 bug 标签；如果还没有经过诊断，同时带上 needs-triage 标签。远端后端按原生标签方式打标签，本地 Markdown 后端在正文加标签行（例如 Labels: bug, needs-triage）。
 
@@ -40,6 +43,9 @@ newBugWayfinder:
   en: |-
     /wayfinder
     Please help me file a new BUG ticket (follow the wayfinder skill rules).
+
+    {{shared:firstPrinciples}}
+
     Repo: {repo}
     New tickets must carry the bug label; if not yet triaged, also carry needs-triage. On remote backends use native labels; on the local Markdown backend add a Labels line (e.g. Labels: bug, needs-triage).
 
@@ -72,13 +78,16 @@ newBugWayfinder:
 
     {{shared:sharedTools}}
 newSpec:
-  version: 5
+  version: 6
   placeholders:
     - repo
-  use: 「实施地图」卡（入口浮层里那张蓝卡，#1297 起改名）· 新会话预填 /grill-with-docs；收尾提醒用户手动执行 /to-spec 与 /to-tickets（#1281）
+  use: 「实施地图」卡（入口浮层里那张蓝卡，#1297 起改名）· 新会话预填 /grill-with-docs；收尾提醒用户手动执行 /to-spec 与 /to-tickets（#1281）；v6（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
   zh: |-
     /grill-with-docs
     请帮我讨论一个需求（严格遵循 grill-with-docs 技能规则）。
+
+    {{shared:firstPrinciples}}
+
     仓库（已自动填入当前工作区）：{repo}
 
     {{shared:investigation}}
@@ -91,6 +100,9 @@ newSpec:
   en: |-
     /grill-with-docs
     Help me discuss a requirement (strictly follow the grill-with-docs skill rules).
+
+    {{shared:firstPrinciples}}
+
     Repo (auto-filled from the current workspace): {repo}
 
     {{shared:investigation}}
@@ -101,13 +113,16 @@ newSpec:
 
     {{shared:sharedTools}}
 newWayfinder:
-  version: 25
+  version: 26
   placeholders:
     - repo
-  use: 「探索地图」卡（入口浮层里那张紫卡，#1297 起唯一入口开出的两张卡之一）· 新会话预填 /wayfinder；只留调查节、收尾与工具节，建图规则交给 wayfinder 技能（#1281）
+  use: 「探索地图」卡（入口浮层里那张紫卡，#1297 起唯一入口开出的两张卡之一）· 新会话预填 /wayfinder；只留调查节、收尾与工具节，建图规则交给 wayfinder 技能（#1281）；v26（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
   zh: |-
     /wayfinder
     请帮我处理一个需求（严格遵循 wayfinder 技能规则）。
+
+    {{shared:firstPrinciples}}
+
     仓库（已自动填入当前工作区）：{repo}
 
     {{shared:investigation}}
@@ -119,6 +134,9 @@ newWayfinder:
   en: |-
     /wayfinder
     Please handle a requirement (strictly follow the wayfinder skill rules).
+
+    {{shared:firstPrinciples}}
+
     Repo (auto-filled from the current workspace): {repo}
 
     {{shared:investigation}}

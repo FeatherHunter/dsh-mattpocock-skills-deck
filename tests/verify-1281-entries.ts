@@ -50,7 +50,7 @@ function enOf(id) {
 
 const newSpecEntry = templateOf('newSpec')
 // 2026-10-28：「## 调查（建议先查后问）」四条汇总成公共小节 investigation，newSpec 的正文改短、版本号 v4→v5，期望跟着改。
-check(!!newSpecEntry && newSpecEntry.version === 5, 'newSpec 条目存在且 v5')
+check(!!newSpecEntry && newSpecEntry.version === 6, 'newSpec 条目存在且 v6')
 check(zhOf('newSpec').indexOf('/grill-with-docs\n请帮我讨论一个需求') === 0, 'newSpec 首行是 /grill-with-docs 且收尾提醒 to-spec（正文在注册表）')
 check(zhOf('tpl.implement').indexOf('/implement\n{url}\n\n按 /implement 技能实施这张票。') === 0, 'tpl.implement 首行 /implement、次行 {url}')
 check(zhOf('specSplit').indexOf('/to-tickets\n{url}') === 0, 'specSplit 首行 /to-tickets')
@@ -72,7 +72,7 @@ check(zhOf('specSplit').indexOf('.scratch') >= 0, 'specSplit.zh 本地后端不�
 check(enOf('specSplit').indexOf('.scratch') >= 0, 'specSplit.en 本地后端不要手写 .scratch 票文件')
 check(zhOf('specExecute').indexOf('/implement-spec\n{url}') === 0, 'specExecute 首行 /implement-spec')
 check(zhOf('specComplete').indexOf('这张规格 issue（{url}）下面的实施 issue 已经全部关闭') >= 0, 'specComplete 是规格收口模板（逐张核对后关闭）')
-check(zhOf('complete').indexOf('/wayfinder\n{url}\n\n## 完成核对') === 0, 'complete 自包含：首行 /wayfinder、次行 {url}、完成核对节')
+check(zhOf('complete').indexOf('/wayfinder\n{url}\n') === 0 && zhOf('complete').indexOf('## 完成核对') >= 0, 'complete 自包含：首行 /wayfinder、次行 {url}、含完成核对节（2026-10-29 中间允许元提示句 firstPrinciples）')
 check(zhOf('complete').indexOf('提醒用户手动执行一次 /to-spec') >= 0 && zhOf('complete').indexOf('提醒用户手动执行一次 /to-tickets') >= 0, 'complete 含两步手动交棒提醒')
 
 // 2) 两处入口共用一层浮层，宿主不再各写一份拼装
