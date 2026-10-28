@@ -131,7 +131,7 @@ export interface ThinRouteInput {
  */
 export function shouldUseThinMapList(opts: ThinRouteInput): boolean {
   try {
-    const o = (opts || {}) as Record<string, unknown>
+    const o = (opts || {}) as unknown as Record<string, unknown>
     if (String(o.query || '')) return false
     if (String(o.assignee || '')) return false
     if (String(o.effortId || '')) return false
