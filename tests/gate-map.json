@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T09:32:32.314Z",
+  "generatedAt": "2026-10-28T09:37:10.276Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 413,
-  "gateCount": 413,
-  "attributedGates": 370,
+  "chainLength": 414,
+  "gateCount": 414,
+  "attributedGates": 371,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 17,
@@ -1701,6 +1701,25 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+    },
+    {
+      "step": "node tests/verify-1191-contract-op.ts",
+      "file": "tests/verify-1191-contract-op.ts",
+      "guards": [
+        "src/client/kernel/actions.ts",
+        "src/host/publishFlow.ts",
+        "src/shared/tracker/chain-validate.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/host",
+        "src/shared/tracker"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-1195-budget-start.ts",
@@ -10131,6 +10150,7 @@
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1145-open-local.ts",
+      "node tests/verify-1191-contract-op.ts",
       "node tests/verify-1199-row-closed-link.ts",
       "node tests/verify-1281-entries.ts",
       "node tests/verify-1286-detail.ts",
@@ -10526,6 +10546,7 @@
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1145-open-local.ts",
+      "node tests/verify-1191-contract-op.ts",
       "node tests/verify-1305-session-permit.ts",
       "node tests/verify-1373-stale-table-graft.ts",
       "node tests/verify-1412-ask-matt-next-steps.ts",
@@ -10969,6 +10990,7 @@
       "node tests/verify-chain.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-1187-gitlab-chain-predicates.ts",
+      "node tests/verify-1191-contract-op.ts",
       "node tests/verify-1223-catalog-runtime-parity.ts",
       "node tests/verify-1438-banner-recheck-button.ts",
       "node tests/verify-1463-banner-recheck.ts",

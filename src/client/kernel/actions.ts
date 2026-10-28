@@ -126,7 +126,7 @@ export function createActionDispatcher(ctx: any) {
         if (typeof ctx.hostCall !== 'function') {
           return { ok: false, error: { kind: 'unsupported', message: 'hostCall not available' }, action }
         }
-        // 按当前后端分发：客户端只报操作名与参数，不判断后端是谁（#1191：知识断在最后一米的修复）。
+        // 按当前后端分发：客户端只报操作名与参数，不判断后端是谁（#1191：以前 GitLab 房缺仓库只给文字命令，建仓这一步没有按钮，补上这一步。）
         //   宿主侧经 wf.contractOp 按当前会话的后端选房间执行；参数形状与 Tracker 契约的入参同形
         //   （如 initProject 收 {name, visibility}，外加可选 cwd；缺 cwd 时宿主用当前工作区）。
         const base = action.params !== undefined ? action.params : action.args

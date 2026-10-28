@@ -207,7 +207,7 @@ export function createPublishFlow(deps: Deps) {
   // ============ 红卡建仓发布（T1 #34 · 无仓库时一键建仓发布）============
   // 输入：{ cwd, name, visibility }（visibility = 'public' | 'private'，默认 private）
   // #1445 起流程：#994 工作区 git 可用性探测（属主不一致则补 safe.directory 重试一次）→ 开一个写会话 →
-  //   把建仓整步交给 GitHub 房的 initProject（gh 解析、登录态、git init/add/commit、repo create、push 全在里面）→
+  //   把建仓整步交给当前后端房间的 initProject（gh 解析、登录态、git init/add/commit、repo create、push 全在里面）→
   //   按房间回包映射成败。为什么宿主还留着 bad-name 与 git 前置：这两件不碰 gh、也不该等开会话才回答，
   //   而属主自愈改的是用户机器上的全局配置，是面板这条路的既有行为，换路不能丢。
   // 返回：{ ok: true, repo: { owner, name } } | { ok: false, errorKind, error, repoUrl? }
@@ -270,7 +270,7 @@ export function createPublishFlow(deps: Deps) {
   }
 
   // ============ 契约操作分发（#1191：UI 的 contract-op 落到这里按当前后端执行）============
-  // 入参：{ op, cwd?, name?, visibility?, ... }（op 如 initProject；其余键原样透给对应操作）。
+  // 入参：{ op, cwd?, name?, visibility? }（op 如 initProject；只取 cwd/name/visibility 三键透给对应操作，其余键丢弃）。
   // 为什么只有 initProject：今天 UI 只有建仓向导用 contract-op；未知 op 诚实回 unsupported，不猜、不兜。
   interface ContractOpArgs { op?: unknown; cwd?: unknown; name?: unknown; visibility?: unknown }
   async function handleContractOp(args?: ContractOpArgs | null) {
@@ -300,7 +300,7 @@ export function createPublishFlow(deps: Deps) {
     const pushR = await gitExec([git, 'push', '-u', 'origin', 'HEAD'], cwd)
     if (pushR.ok) {
       try { const rkRetry = await canonicalKey(cwd || DEFAULT_CWD); setCache({ ts: 0, snapshot: null, error: null, cwd: rkRetry }) } catch (eCache) { try { setCache({ ts: 0, snapshot: null, error: null, cwd: null }) } catch {} /* #696 锚根失败兜底清全部（拿不出目录，仅此一条） */ }
-      return { ok: true, repo: { owner: owner, name: name }, repoUrl: owner ? ('https://github.com/' + owner + '/' + name) : '' }
+      return { ok: true, repo: { owner: owner, name: name }, repoUrl: repoUrl || (owner ? ('https://github.com/' + owner + '/' + name) : '') } // 成功回的地址优先用入参那份（半成功结果带的是真域，GitLab 给 gitlab.com）；入参没有才按旧口径拼
     }
     const gf = gitFail(pushR.error, cwd)
     return { ok: false, errorKind: gf.errorKind, error: gf.error, repoUrl: repoUrl || undefined, repo: { owner: owner, name: name }, halfCreated: true }

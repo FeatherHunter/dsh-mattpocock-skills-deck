@@ -46,7 +46,7 @@ export const STEP_STATUS = CHECK_STATE
 export const ACTION_TYPE = Object.freeze({
   INJECT_PROMPT: 'inject-prompt', // 推进型：注入提示词，配合重求值推进（例：gh auth login 引导）
   OPEN_URL: 'open-url',           // 信息型：打开链接，不宣称修复、不推进链
-  RPC: 'rpc',                     // 执行型：host.call（例：wf.openFolder；后端相关调用已迁往 contract-op）
+  RPC: 'rpc',                     // 执行型：host.call（例：wf.openFolder；GitLab 新建仓走 contract-op，GitHub 旧路仍用 rpc 并存）
   FORM: 'form',                   // 执行型：内嵌字段表单，提交后走 submitAction
   REFRESH: 'refresh',             // 执行型：触发重求值（例：重探）
   WIZARD: 'wizard',               // 执行型：多步向导（单弹窗内分页，Q5 定版：按步校验、最后一起提交、可返回、取消丢弃）
@@ -177,7 +177,7 @@ export type FieldSchema = {
  * @property {Action} [submitAction] 提交动作（type=form 时必有，通常为 rpc 或 inject-prompt；兼容 submit）
  * // wizard（2026-08-28 Q5 定版：单弹窗内分页，按步校验、最后一起提交、可返回、取消丢弃）
  * @property {Array<{title?: string, schema: FieldSchema[]}>} [steps] 向导步骤（type=wizard 时必有，每步 schema 复用 FieldSchema，title 无则回落“步骤 n/总数”）
- * @property {Action} [submitAction] 提交动作（type=wizard 时必有，合并全步 values 后触发；后端建仓统一用 contract-op，不再用 rpc 直调 wf.initPublish）
+ * @property {Action} [submitAction] 提交动作（type=wizard 时必有，合并全步 values 后触发；GitLab 建仓向导的提交走 contract-op，GitHub 旧向导仍用 rpc 直调 wf.initPublish（并存））
  * // contract-op（#1191：按当前后端分发的契约操作，UI 不知道后端是谁）
  * @property {string} [op] 契约操作名（type=contract-op 时必填，如 initProject；取值见 operations-catalog.ts 的 OPERATIONS）
  * @property {unknown} [params] 操作参数（type=contract-op 时，如 initProject 收 {name, visibility}；向导合并后透传）

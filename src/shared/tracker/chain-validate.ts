@@ -32,7 +32,7 @@ type ValidateCheckItemLike = {
 const ACTION_TYPE = Object.freeze({
   INJECT_PROMPT: 'inject-prompt', // 推进型：注入提示词，配合重求值推进（例：gh auth login 引导）
   OPEN_URL: 'open-url',           // 信息型：打开链接，不宣称修复、不推进链
-  RPC: 'rpc',                     // 执行型：host.call（例：wf.openFolder；后端相关调用已迁往 contract-op）
+  RPC: 'rpc',                     // 执行型：host.call（例：wf.openFolder；GitLab 新建仓走 contract-op，GitHub 旧路仍用 rpc 并存）
   FORM: 'form',                   // 执行型：内嵌字段表单，提交后走 submitAction
   REFRESH: 'refresh',             // 执行型：触发重求值（例：重探）
   WIZARD: 'wizard',               // 执行型：多步向导（单弹窗内分页，Q5 定版：按步校验、最后一起提交、可返回、取消丢弃）
