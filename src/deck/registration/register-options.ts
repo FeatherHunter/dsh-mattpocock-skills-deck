@@ -6,9 +6,9 @@
 // 注册重试的等待定时器要 unref 并在到点后清掉，不能把宿主在最后一次调用之后多留几秒），
 // 以及壳层的存活租约 withInFlightLease（#1534 复核补的回归）：等待定时器不拥有进程存活，
 // 整条重试链必须显式扣着租约，否则只剩这笔 unref 等待时进程会带着退出码 0 静默收摊、工具永不注册。
-// defineTool 由调用方传（生产是工具包，门禁用仓库开发依赖里的真实现）；传不进来走退路。
+// defineTool 由调用方传（生产是工具包，门禁用仓库开发依赖里的真实现）；拿不到就直接按注册表认的原生形状交（线上天天走的就是这条，#1030 Q5）。
 // 日志沿用既有事件不新增（调用走 host.call，注册结果见 makeDeckRegisterReport，#1030 Q6）。
-// 招牌（本文件交出去的名字）与后厨（装配拼出的实现表）必须同源：
+// 本文件交出去的工具名与装配拼出的实现表必须来自同一份顺序：
 // 名字顺序的真源在装配清单与行数组（实际九个），注释里的“七个”是旧话，已按 #1030 Q1 改齐。
 // 时间数字不住这里：只引用纯数据的中央时间参数目录，不引用别的逻辑层。
 import { TOOL_TIMEOUT_MS, REGISTER_RETRY_WAIT_MS } from '../../shared/time-config/src/values.js';
@@ -25,9 +25,9 @@ type DeckAgentTable = { names?: unknown; tools?: unknown; definitions?: unknown 
 type RegisterResult = { registered: string[]; missing: { name: string; reason: string }[]; reason: string };
 /** 工具服务：调它的 register 交工具；不在或无 register 即服务不在，宿主不因此起不来。 */
 type ToolsService = { register: (tool: unknown) => unknown };
-/** 定义函数：工具包里的官方写法入口；拿不到就走退路原生形状（退路即线上实际走的路，#1030 Q5）。 */
+/** 定义函数：工具包里的定义函数写法入口；拿不到就直接按注册表认的原生形状交（线上天天走的就是这条，#1030 Q5）。 */
 type DefineToolFn = (options: UnknownRecord) => unknown;
-/** 输出形状：官方写法与退路原生写法是同一内容两种适配，渲染走同一份。 */
+/** 输出形状：定义函数写法与原生形状写法是同一内容两种适配，渲染走同一份。 */
 type AgentOutputSpec = { schema: UnknownRecord; render: (args: unknown, value: unknown) => unknown[] };
 
 /** 短散列（错误原因只记指纹，不记原文；与共享壳里那把同算法，零导入所以自带一份）。 */
@@ -220,7 +220,7 @@ function deckAgentRender(args: unknown, value: unknown): { type: string; text: s
 /**
  * 输出的固定形状（官方写法用）：每次调用都带状态与一句话（壳里保证这两格永远是字符串），
  * 其余原样透出；渲染把摘要、提示与明细一起交给模型（见上面 deckAgentRender 与 #809）。
- * 注意这是定义函数的写法（必填按属性标）；退路另有一份原生写法，见下。
+ * 注意这是定义函数的写法（必填按属性标）；直接交注册表的原生形状写法另有一份，见下。
  */
 export function deckAgentOutputSpec(): AgentOutputSpec {
   return {
@@ -237,8 +237,8 @@ export function deckAgentOutputSpec(): AgentOutputSpec {
 }
 
 /**
- * 输出的固定形状（退路用，直接交注册表）：内容与上面同一份，但写成原生模式——
- * 必填写成字符串数组挂在对象节点上。退路不经过定义函数的编译，
+ * 输出的固定形状（拿不到定义函数时用，直接交注册表）：内容与上面同一份，但写成原生模式——
+ * 必填写成字符串数组挂在对象节点上。这种写法不经过定义函数的编译，
  * 上面那种按属性标必填的写法交过去会被注册表当场拒绝（九个一个都交不出去），
  * 2026-09-26 真机验证时就是栽在这里。
  */
@@ -392,8 +392,8 @@ export async function registerDeckAgentTools(toolsSvc: unknown, table: unknown, 
         execute: execute,
       }
     } else {
-      // 工具包没装好时的退路：直接按注册表认的形状交。参数用定义里编好的那份
-      // （它本来就是编好的模式），输出与执行和官方写法同一份。
+      // 工具包没装好时直接按注册表认的形状交：参数用定义里编好的那份
+      // （它本来就是编好的模式），输出与执行和定义函数写法同一份。
       if (!def || typeof def.name !== 'string' || !def.name) { missing.push({ name: name, reason: 'unsupported-definition' }); continue }
       if (typeof def.description !== 'string' || !def.description) { missing.push({ name: name, reason: 'unsupported-definition' }); continue }
       if (!isRecord(def.parameters)) { missing.push({ name: name, reason: 'unsupported-definition' }); continue }
@@ -444,7 +444,7 @@ export function makeDeckRegisterReport(logCtx: unknown): (info: unknown) => void
 /**
  * 自举钩子：接线装好表之后调一次，把九个工具交到 agent 手上（#741 缺的就是这一步）。
  * ctx 是宿主上下文（工具服务从它身上取，取不到会等几轮）；
- * getTable 取已装好的那张表；loadDefineTool 拿工具包的定义函数（拿不到就走退路）。
+ * getTable 取已装好的那张表；loadDefineTool 拿工具包的定义函数（拿不到就直接按注册表认的原生形状交）。
  * report 可选：每到一个终点调一次（交出去/没交出去），接线拿它落日志。
  * 防御式防火即发：任何一步走不通都只吞掉，宿主绝不因此起不来。
  * 工具服务可能比我们晚就绪（行顺序不保证），取不到就等几轮再取；

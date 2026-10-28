@@ -17,7 +17,7 @@
 // 所以这里只交纯数据对象（名字、描述、参数、输出、执行函数），
 // 注册表本来就认这种形状，不需要经过创建函数；
 // 参数用定义里写好的那份原样交，输出用共享层的原生形状。
-// 测试重心在退路（#1030 Q5）：接线固定给 defineTool 传空，退路即线上实际走的路。
+// 测试重心在直接交注册表的原生形状写法（#1030 Q5）：接线固定给 defineTool 传空，线上天天走的就是这条。
 import { definition as deckContextDef } from '../tools/context.js'
 import { definition as deckIssueGetDef } from '../tools/issue-get.js'
 import { definition as deckMapSnapshotDef } from '../tools/map-snapshot.js'
