@@ -3,10 +3,11 @@
 //
 // #663 改写说明（这张票把这门禁收回了 npm run verify 链上，之前它因为几条与代码脱节的断言一直是红的）：
 //   #195 当初要的是「缺 gh cli 时点一下按钮，要给出能照着做的安装指引」。这条要求在首开引导链定版（#661）
-//   之后换了承担者 —— 注入的文案收成维护者给的那句原话（逐字固定，住在 src/shared/tracker/guide-steps.js
-//   的 gh:installed 那一步），界面那颗按钮从清单里取它注入，不再读链上这一项的 show.hint
+//   之后换了承担者 —— 注入的文案收成一句固定文本（#716 起文本住在 GitHub 后端声明 prompts.cliInstall，
+//   清单那一步只声明键名），界面那颗按钮从清单取它注入，不再读链上这一项的 show.hint
 //   （那句话在一次改写里已被降成一句陈述句，点一下等于什么都没给 —— 这正是本票按缺陷修的那一处）。
-//   行为金样在 tests/verify-663-gh-install-inject.js；本文件钉的是跨文件的这几条老契约不许回退。
+//   行为金样在 tests/verify-663-gh-install-inject.ts；本文件钉的是跨文件的这几条老契约不许回退。
+//   #1621 起那段指引换成「先确认装没装、再按结果分流」的说法（旧话默认 gh 没装，会把装好的人引去重装）。
 // 保留的：#195 当年修的 gh 探测缓存与 checksums 那几个读数口径里仍然成立的部分（`let ghPathError` 永久缓存
 //   不许回来、ghLastError 与 resetGhCache 要在、没有「安装副按钮」外链、没有 installGh 提示词键）。
 const fs = require('fs')
@@ -14,10 +15,12 @@ const files = process.argv.slice(2)
 const targets = files.length ? files : ['client.js', 'package/lib/client.js', 'host.js', 'package/lib/index.js', 'src/tracker/contract/index.ts', 'src/tracker/rooms/github/preflight.ts', 'src/tracker/rooms/github/index.ts']
 let failed = false
 
-// 缺 gh cli 时注入的那句原话（与后端声明里逐字一致；金样比对在 verify-663-gh-install-inject.js）。
-// #716：这句话从共享清单 src/shared/tracker/guide-steps.js 挪回了 GitHub 后端声明（prompts.cliInstall），
+// 缺 gh cli 时注入的那段排查/安装指引（#1621 定稿；整段文本的逐字比对在 verify-663-gh-install-inject.ts）。
+// #716：这段文本从共享清单 src/shared/tracker/guide-steps.js 挪回了 GitHub 后端声明（prompts.cliInstall），
 //   所以它现在应该出现在后端声明文件里（客户端产物里只有「去查 cliInstall 这条提示词」这个键名）。
-const GH_INSTALL_ORIGINAL = '/wizard 帮用户安装gh cli 官方地址：https://cli.github.com/'
+// 为什么只查特征片段：源码里那段多行文本的换行写成 \n 转义，整段运行时文本不是源码里的连续子串；
+//   这里只钉「它还在这份声明里、且是那一版说法」，整段逐字契约交给 tests/verify-1621-gh-missing-copy.ts。
+const GH_INSTALL_MARKERS = ['确认 gh 安装状态', 'DSH_GH_PATH', '/wizard 安装 gh CLI']
 
 function check(file) {
   const src = fs.readFileSync(file, 'utf8')
@@ -29,7 +32,7 @@ function check(file) {
   //   （钉 GH_INSTALL_PROMPT 三件套）两条分支，两个被测事实都已经退役：#664 把后端交给界面的那份
   //   安装引导收成共享清单里的一句原话（contract 层的 prompt 字段随之删掉），GH_INSTALL_PROMPT 长文
   //   也不再存在。判定文件仍然匹配 .ts，原判据只认 .js，今天必然空转；两条一起删掉，并把理由留在这里。
-  //   缺 gh 的文案这件事今天由下面 GitHub 后端那一支直断（原话必须还在后端声明里），行为金样在
+  //   缺 gh 的文案这件事今天由下面 GitHub 后端那一支直断（那段指引必须还在后端声明里），行为金样在
   //   tests/verify-663-gh-install-inject.ts。
 
   if (isHost) {
@@ -63,14 +66,15 @@ function check(file) {
   // 2026-10-17 先修：路径判据从旧的 backends/<id>/index.js 改成今天的 src/tracker/rooms/github/index.ts
   //   （房间入口在 #1159 那批搬进了 src/tracker/rooms/，旧路径在仓库里已经不存在，这一支原来必然空转）。
   if (/rooms[\\/]github[\\/]index\.ts$/.test(file)) {
-    if (src.indexOf(GH_INSTALL_ORIGINAL) < 0) problems.push("Backend: 缺 gh 时注入的那句原话不在 GitHub 后端声明里（点一下又等于什么都没给）")
+    const missingMarkers = GH_INSTALL_MARKERS.filter(function (s) { return src.indexOf(s) < 0 })
+    if (missingMarkers.length) problems.push("Backend: 缺 gh 时注入的排查/安装指引不在 GitHub 后端声明里（点一下又等于什么都没给） - 缺 " + missingMarkers.join('、'))
   }
 
   if (problems.length) { console.log('  FAIL', file, problems.join('；')); failed = true }
   else console.log('  PASS', file)
 }
 
-console.log('#195 修复契约（#663 改写后：缺 gh 的文案收成清单里那句原话 + 老契约里仍成立的部分）')
+console.log('#195 修复契约（#663/#1621 改写后：缺 gh 的指引住在后端声明里 + 老契约里仍成立的部分）')
 targets.forEach(check)
 if (failed) { console.log('\n存在失败'); process.exit(1) }
 console.log('\n全部通过')

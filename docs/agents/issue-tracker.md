@@ -37,6 +37,8 @@ Issues and specs for this repo live as GitHub issues.
 
 **升级后 / 工具异常时的自检**：依次调 `deck_context`、`deck_issue_list`（`limit: 3`）、`deck_issue_get`（读最近一张票）。任一条报错就停手排查，不要带着坏工具继续干活；但报的如果是下一条说的已知回归，按替代命令绕开就行，不必重新诊断。每次升级只跑一次，不必每轮跑（三条加起来点数不多，别每轮都跑）。
 
+**报 `gh not found` 但 `gh --version` 有输出**：说明 gh 已安装，只是它的目录不在 DSH 启动时继承的 PATH 里（deck 工具与插件都只从这份 PATH 解析 gh，不探测已知安装目录）。先重启 DSH Desktop，重启时从开始菜单、桌面或资源管理器启动（不要从旧终端或旧 IDE 会话启动，它们的进程环境可能还是旧的）；重启后仍失败，则在启动 DSH 前把 gh 所在目录加入用户级或系统级 PATH，或将本插件读取的 `DSH_GH_PATH` 设为 gh 可执行文件的绝对路径（Windows 默认安装位置是 `C:\Program Files\GitHub CLI\gh.exe`）。不要直接建议重装 gh。
+
 **按版本自过期的已知回归**：安装版本 ≤ `1.9.0-beta.26` 时，`deck_issue_list` 报 `ToolOutputError` / `value is not lossless JSON` 属已知回归（回执的 `data` 里带了 `undefined`，修复见 #1559，代码已进 main 但还没发版），不要重新诊断；等 npm 上出了含修复的版本、安装版本越过它，本条自动失效。
 
 **替代命令**（应急用，不进日常）：列票 `gh issue list --state open --label bug --limit 200 --json number,title,labels,updatedAt`；读回 `gh api repos/{owner}/{repo}/issues/{n}`；关单 `gh api -X PATCH repos/{owner}/{repo}/issues/{n} -f state=closed`；摘标签 `gh api -X DELETE repos/{owner}/{repo}/issues/{n}/labels/{name}`。同一套动作也封装成了 `scripts/issue-emergency.ps1`（`-Action read|close|unlabel|body`，加 `-DryRun` 只打印将要执行的命令）：四个动作都先读回、再写、写后核对，写失败还会读回确认是否其实已经落盘。

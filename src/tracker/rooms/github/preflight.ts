@@ -120,9 +120,10 @@ async function crosscheckGhAuth(c: ReturnType<typeof ghClient>, cwd: string | un
 }
 
 // #195 曾经在这里挂着一整段「怎么装 gh」的长文（按系统分平台列命令），交给界面直接注入。
-// #664（首开引导链定版 #661 第③条）：缺 gh 时注入的文案收成一句原话（「/wizard 帮用户安装gh cli 官方地址：
-//   https://cli.github.com/」），唯一一份住在共享清单 src/shared/tracker/guide-steps.js 的 gh:installed
-//   那一步里，界面从那一步取它。那段长文与预检结果里的 prompt 字段随之退役 —— 一个缺失状态不许有两份说明。
+// #664（首开引导链定版 #661 第③条）：缺 gh 时注入的文案收成一条提示词，唯一一份住在 GitHub 后端声明的
+//   prompts.cliInstall（清单 gh:installed 那一步只声明键名），界面按清单声明的键名去取。那段长文与预检
+//   结果里的 prompt 字段随之退役 —— 一个缺失状态不许有两份说明。
+// #1621：那条提示词改成「先确认装没装、再按结果分流」的说法；本文件只负责判定与分类，不产出提示词正文。
 
 /**
  * @param {import('../../contract/index.js').RepoHandle} handle
@@ -154,7 +155,7 @@ export async function ghPreflight(handle: RepoHandle, ctx: OpContext): Promise<P
     if (!ghPath) {
       // 同上：解析结果是 null，手里没有能当原文的文字。
       emitReadDegraded(opCtx, 'preflight', 'preflight:gh', Date.now() - t0)
-      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable returned null (install https://cli.github.com/)', raw: '' } }
+      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable returned null — DSH resolves gh only from the PATH inherited at process startup; if gh is installed in a directory absent from that PATH, add it to PATH or set DSH_GH_PATH to the absolute path of the gh executable before restarting DSH (install only if gh is not installed: https://cli.github.com/)', raw: '' } }
     }
   } catch (e) {
     // 抛出来这一路手里有原文：错误值原样交出去；档位与话术走本房唯一的出口。

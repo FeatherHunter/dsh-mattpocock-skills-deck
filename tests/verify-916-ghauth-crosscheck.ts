@@ -203,7 +203,8 @@ async function main(): Promise<void> {
 
   console.log('== 七、env 档的 pending 文案按原文分流（#1571）：确实缺 gh 与其它本机故障分开说 ==')
   {
-    const missing: any = { stage: 'gh', kind: 'env', message: 'gh not found: platform.resolveExecutable returned null (install https://cli.github.com/)' }
+    // #1621：预检那条缺失消息换了措辞（保留 gh not found 与 platform.resolveExecutable 两个分类 token），夹具照新原文。
+    const missing: any = { stage: 'gh', kind: 'env', message: 'gh not found: platform.resolveExecutable returned null — DSH resolves gh only from the PATH inherited at process startup; if gh is installed in a directory absent from that PATH, add it to PATH or set DSH_GH_PATH to the absolute path of the gh executable before restarting DSH (install only if gh is not installed: https://cli.github.com/)' }
     const detached: any = { stage: 'gh', kind: 'env', message: '出站控制面没有接上：名额闸、取消判定与搭车账本都拿不到，这一笔不发出去。' }
     const noExec: any = { stage: 'gh', kind: 'env', message: 'ctx.exec unavailable' }
     const missingZh: string = String(ghAuthVerdict(missing, true).detail || '')

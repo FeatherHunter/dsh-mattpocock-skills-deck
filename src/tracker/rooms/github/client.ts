@@ -233,8 +233,8 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
           if (probe && probe.code === 0) return { ok: true, ghPath: 'gh' }
         } catch {}
       }
-      emitResolveFail('gh not found: platform.resolveExecutable returned null and gh --version probe failed')
-      return fail(ERROR_KIND.ENV, 'gh not found: platform.resolveExecutable returned null and gh --version probe failed', '')
+      emitResolveFail('gh not found: platform.resolveExecutable returned null and gh --version probe failed — DSH resolves gh only from the PATH inherited at process startup; if gh is installed, add its directory to PATH or set DSH_GH_PATH to the absolute path of the gh executable before restarting DSH (install only if gh is not installed: https://cli.github.com/)')
+      return fail(ERROR_KIND.ENV, 'gh not found: platform.resolveExecutable returned null and gh --version probe failed — DSH resolves gh only from the PATH inherited at process startup; if gh is installed, add its directory to PATH or set DSH_GH_PATH to the absolute path of the gh executable before restarting DSH (install only if gh is not installed: https://cli.github.com/)', '')
     } catch (e) {
       // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后表达式与原来一字不差，运行时不变。
       const eb = e as { message?: unknown } | null;

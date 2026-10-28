@@ -389,10 +389,12 @@ console.log('== C 真产物行为层：逐个点一遍，看谁会让整条状�
   {
     const live0 = await mountLive(code)
     { const s0 = stateOf(live0.container, live0.dict); if (!s0.banner && s0.recover) await live0.clickNode(s0.recover) }
-    const wip = String(live0.dict['gate.wipNotice'] || 'Markdown 预览，GitLab 筹备中')
+    // #1600 起词表里已没有 gate.wipNotice（GitLab 可用，不再有筹备中注解）：先钉键已退役，再钉卡上不见“筹备中”三字。
+    const wipMissing = !live0.dict || !('gate.wipNotice' in live0.dict)
+    check(wipMissing, 'C：词表里已没有 gate.wipNotice（#1600 起 GitLab 可用，不再有筹备中注解）')
     await live0.click('.dsws-banner button.dsws-btn')
     const cardText = String(live0.container.textContent || '')
-    check(cardText.indexOf(wip) < 0, 'C：那句「' + wip + '」不再出现在这张卡上（属于挑后端那一步的注解）')
+    check(cardText.indexOf('筹备中') < 0, 'C：初始化小卡上不再出现“筹备中”（属于挑后端那一步的旧注解）')
     // 点卡上的「确认并继续」（它不在横幅里面，是横幅下面那张卡自己的按钮）：只记布局、只注入 ——
     //   不许再写选择、不许再打绑定电话。
     const confirmText = String(live0.dict['banner.setupPickConfirm'] || '确认并继续').trim()

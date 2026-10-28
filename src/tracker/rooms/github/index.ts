@@ -44,13 +44,13 @@ export const fixes = Object.freeze({
   //   不再指挥点击（按钮自己会说话）、不贴命令（命令在指引全文里）、去掉与判定矛盾的「网络不通」表述。
   'gh:installed': {
     hint: {
-      zh: 'GitHub 助手（gh cli）还没安装，安装后即可继续。',
-      en: 'The GitHub CLI (gh) is not installed yet — install it to continue.',
+      zh: 'DSH 进程启动时继承的 PATH 中未解析到 gh 可执行文件。可能未安装，也可能已安装但其目录不在该 PATH 中。若已安装：将 gh 所在目录加入 PATH，或设置 DSH_GH_PATH，再重启 DSH；若该目录已在 PATH 中，直接重启。若未安装：安装 gh。',
+      en: 'gh was not resolved from the PATH inherited at DSH process startup. It may be not installed, or installed in a directory absent from that PATH. If installed: add the gh directory to PATH or set DSH_GH_PATH, then restart DSH; if the directory is already in PATH, restart DSH. If not installed: install gh.',
     },
     actions: [
       // #664：缺 gh 时那句话只有一份。#716 把那份话挪回了本模块 prompts.cliInstall，这里改成按提示词键引用 ——
       //   检查页这一行的按钮与状态栏那条横幅注入的仍是同一句话（原先那段按系统分平台的安装长文 noGhPrompt 已退役）。
-      { type: 'inject-prompt', prompt: 'cliInstall', label: { zh: '安装指引', en: 'Install guide' } },
+      { type: 'inject-prompt', prompt: 'cliInstall', label: { zh: '排查与安装', en: 'Troubleshoot / install' } },
       { type: 'refresh', target: 'chain' },
     ],
   },
@@ -136,12 +136,14 @@ export const prompts = (function () {
       zh: '请为当前仓库补全缺失的核心标签（共 ' + names.length + ' 个）：\n\n必备标签：' + zhNames + '\n\n步骤：\n- [ ] 先看现在有哪些标签：调 deck_context 拿当前后端与仓库，票上带了哪些标签用 deck_issue_get 读\n- [ ] 缺哪个补哪个：调 deck_issue_patch 并把缺的标签名放进 addLabels —— 它按当前后端自己的方式打标签，已经有的不会重复建，成没成逐条回报\n- [ ] 补完再调一次 deck_context 核对标签已齐\n\n色值/描述以 src/tracker/contract/canonical-labels.ts 为唯一清单，门禁逐字比对名字、颜色与描述。\n\n只读仓库补不上标签（建标签要 push，给票打标要 triage 及以上）：这时先 fork 到自己名下，再把工作区 origin 指向 fork；插件只认 origin，不代改配置。',
       en: 'Please complete the missing canonical labels (' + names.length + ' total):\n\nRequired labels: ' + enNames + '\n\nSteps:\n- [ ] See what labels exist now: call deck_context for the current backend and repo; read which labels a ticket carries with deck_issue_get\n- [ ] Add whatever is missing: call deck_issue_patch with the missing names in addLabels — it applies labels the way the current backend does, never creates duplicates, and reports each one\n- [ ] Re-check with deck_context until the labels are complete\n\nColors/descriptions are single-sourced in src/tracker/contract/canonical-labels.ts; the gate compares names, colors, and descriptions verbatim.\n\nA read-only repo cannot take labels (creating labels needs push, labeling tickets needs triage or higher): fork it to your own account first, then point the workspace origin at the fork. The plugin only reads origin and never rewrites your config.',
     },
-    // #716：装 gh 的那句原话（维护者 2026-09-19 给的那一句，逐字不改）。原先它写在共享清单
-    //   src/shared/tracker/guide-steps.js 里，是三个后端共用的文件；装 CLI 这件事只跟 GitHub 有关，
-    //   所以搬回这里。缺 gh 时状态栏横幅、检查页那一行的按钮取的都是这一条（一个缺失状态不许有两份说明）。
+    // #716：装 gh 的提示词原先逐字沿用维护者 2026-09-19 给的原话（「/wizard 帮用户安装gh cli…」）。
+    // #1621（维护者 2026-10-29 决定）：那句原话把结果默认成「还没装」，会把已经装好、只是目录不在
+    //   DSH 启动时继承的 PATH 里的人引去重装；改成先确认安装状态，再按结果分流：有版本号只改 PATH 或设
+    //   DSH_GH_PATH 后重启，无版本号才走安装。它仍是本模块 prompts 里唯一的一份（原先放在共享清单
+    //   src/shared/tracker/guide-steps.js 的那句已退役）：缺 gh 时状态栏横幅、检查页那一行的按钮取的都是这一条。
     cliInstall: {
-      zh: '/wizard 帮用户安装gh cli 官方地址：https://cli.github.com/',
-      en: '/wizard help the user install the gh CLI — official page: https://cli.github.com/',
+      zh: '确认 gh 安装状态：在 DSH 之外的终端执行 `gh --version`。\n有版本号输出：gh 已安装。无需重复安装。将 gh 所在目录加入 PATH，或设置本插件读取的 DSH_GH_PATH 为 gh 可执行文件的绝对路径，再重启 DSH Desktop；若该目录已在 PATH 中，直接重启 DSH Desktop。\n无版本号输出：该终端也无法执行 gh。检查 gh 的安装目录（Windows 默认：C:\\Program Files\\GitHub CLI\\gh.exe）；确认未安装后执行：/wizard 安装 gh CLI（官方地址：https://cli.github.com/）',
+      en: 'Confirm gh installation status: run `gh --version` in a terminal outside DSH.\nVersion printed: gh is installed. Do not reinstall. Add the gh directory to PATH, or set the plugin-read DSH_GH_PATH to the absolute path of the gh executable, then restart DSH Desktop; if the directory is already in PATH, restart DSH Desktop.\nNo version printed: gh is not executable in that terminal either. Check the gh install directory (Windows default: C:\\Program Files\\GitHub CLI\\gh.exe); if gh is not installed, run: /wizard install the gh CLI (official page: https://cli.github.com/)',
     },
     ghAuthLogin: {
       zh: '/wizard 辅助用户完成 gh 登录：运行 gh auth login 并按提示在浏览器完成授权；结束后运行 gh auth status 确认已登录。',
@@ -180,7 +182,7 @@ export const prompts = (function () {
     errorKinds: {
       'bad-name': { zh: '仓库名仅支持字母、数字、._- 且不超过 100 个字符', en: 'Repo name supports only letters, digits, ._- and at most 100 characters' },
       'no-git': { zh: '未找到 git，请先安装 Git', en: 'git not found — please install Git' },
-      'no-gh': { zh: '未找到 gh，请先安装 GitHub CLI', en: 'gh not found — please install GitHub CLI' },
+      'no-gh': { zh: 'DSH 进程的 PATH 中未解析到 gh（可能未安装，也可能已安装但不在该 PATH 中）', en: 'gh was not resolved from the DSH process PATH (not installed, or installed in a directory absent from the DSH process PATH)' },
       'not-logged-in': { zh: '未登录 GitHub，请先执行 gh auth login', en: 'Not logged into GitHub — run gh auth login' },
       'already-exists': { zh: '同名仓库已存在（平台可查看）', en: 'Repository already exists (view it on the platform)' },
       'network': { zh: '网络异常，请重试', en: 'Network error — please retry' },

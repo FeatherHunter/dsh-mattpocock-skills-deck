@@ -352,7 +352,7 @@ export function createGhExecution(deps: GhExecutionDeps): { resolveGh: () => Pro
       const outProbe = (probeHandle.collected && probeHandle.collected.stdout) ? probeHandle.collected.stdout.readFrom(0) : { text: '' }
       if (probeOutcome && probeOutcome.exitCode === 0 && String(outProbe.text||'').includes('gh version')) { setGhPath('gh'); setGhLastError(null); return 'gh' }
     } catch {}
-    setGhLastError('gh 不可用：PATH 无 gh，且 DSH_GH_PATH 未配置（官方安装请访问 https://cli.github.com/）')
+    setGhLastError('gh 不可用：DSH 启动时继承的 PATH 中未解析到 gh 可执行文件（不代表未安装；若已安装，将 gh 所在目录加入 PATH 或将 DSH_GH_PATH 设为 gh 可执行文件的绝对路径，再重启 DSH；确认未安装时访问 https://cli.github.com/）')
     try { if (logCtx) { let hasGhPath = false; try { hasGhPath = !!(platform && platform.env && platform.env.get && platform.env.get('DSH_GH_PATH')) } catch (eH) {} logCtx.fire('warn', 'gh.resolve.fail', { hasDSH_GH_PATH: hasGhPath, errorHash: hash8(getGhLastError()) }) } } catch (eL) {}
     return null
   }

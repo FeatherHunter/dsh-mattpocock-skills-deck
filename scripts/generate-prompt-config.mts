@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // scripts/generate-prompt-config.mts —— 提示词 YAML 配置的生成器（#1292 立）。
 //
-// 读 config/prompts/ 下的五份模板族 YAML（三处片段按注入时机住在对应族里）、一份跨族公共小节 YAML
-// （shared-sections.yaml：模板里的 {{shared:sharedTools}} 读的时候就展开成完整正文）与 config/languages.yaml，
+// 读 config/prompts/ 下的五份模板族 YAML（三处片段按注入时机住在对应族里）、一份公共小节 YAML
+// （shared-sections.yaml：模板里的 {{shared:<id>}} 读的时候就展开成完整正文，小节里再嵌小节也逐层展开）与 config/languages.yaml，
 // 由 scripts/lib/prompt-config.mts 校验、对得上 PROMPT_TEMPLATE_IDS / PROMPT_FRAGMENT_IDS / PROMPT_SHARED_SECTION_IDS 之后，
 // 写成 src/client/kernel/prompt-data.ts —— 这份生成物不入库，构建时现场生成。
 //

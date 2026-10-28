@@ -41,9 +41,14 @@ const ok = (cond: unknown, msg: string) => { total++; if (cond) console.log('  P
 const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8')
 const url = (rel: string): string => pathToFileURL(path.join(root, rel)).href
 
-// 维护者 2026-09-19 给的那句原话（与 tests/verify-663-gh-install-inject.js 同源：那边单独钉这一句的来历，
-//   这边钉「从蓝条走到这一步时点下去给的就是它」）。
-const GH_INSTALL_ORIGINAL = '/wizard 帮用户安装gh cli 官方地址：https://cli.github.com/'
+// 注入正文的金样（#1621 定稿：先确认 gh 装没装，再按结果分流。与 tests/verify-663-gh-install-inject.ts 同源：
+//   那边单独钉这段文本本身，这边钉「从蓝条走到这一步时点下去给的就是它」；文案契约另见
+//   tests/verify-1621-gh-missing-copy.ts）。旧话（维护者 2026-09-19 那句 /wizard 原话）已退役。
+const GH_INSTALL_TEXT = [
+  '确认 gh 安装状态：在 DSH 之外的终端执行 `gh --version`。',
+  '有版本号输出：gh 已安装。无需重复安装。将 gh 所在目录加入 PATH，或设置本插件读取的 DSH_GH_PATH 为 gh 可执行文件的绝对路径，再重启 DSH Desktop；若该目录已在 PATH 中，直接重启 DSH Desktop。',
+  '无版本号输出：该终端也无法执行 gh。检查 gh 的安装目录（Windows 默认：C:\\Program Files\\GitHub CLI\\gh.exe）；确认未安装后执行：/wizard 安装 gh CLI（官方地址：https://cli.github.com/）',
+].join('\n')
 // #664 按规格删掉的初始化全文尾巴（正文里不许再出现这几段之一）。
 const RETIRED_TAIL = [
   '若此目录还没有关联 GitHub 远端',
@@ -354,7 +359,7 @@ async function main() {
   ok(stNoSetup.setupLayoutCardOpen === true, '那张布局小卡被要求打开（它渲染在黄条下面）')
   ok(cardClick.logs.length === 1 && cardClick.logs[0].fields.step === 'tracker:initialized' && cardClick.logs[0].fields.outcome === 'action', '这一回记成 action')
 
-  console.log('== 判据④：安装按钮注入原话（缺 gh 那一步点一下给的就是维护者那句）==')
+  console.log('== 判据④：安装按钮注入排查/安装指引（缺 gh 那一步点一下给的就是后端声明那份）==')
   const stNoGh = stateOf(chainOf(STEP_CHAIN.noGh), { backend: 'github', backends: backends })
   const ghStep = bannerOf(mod, stNoGh, false)
   ok(!!ghStep && ghStep.id === 'gh:installed', 'gh cli 没装 → 出的是 gh 那一步（实得 ' + (ghStep && ghStep.id) + '）')
@@ -365,7 +370,7 @@ async function main() {
   const beforeGh = seen.injected.length
   const ghClick = clickAndCount(stNoGh)
   ok(ghClick.out === 'text' && seen.injected.length === beforeGh + 1, '点一下恰好注入一次（实得 ' + (seen.injected.length - beforeGh) + ' 次）')
-  ok(seen.injected[seen.injected.length - 1] === GH_INSTALL_ORIGINAL, '注入的正文逐字等于那句原话')
+  ok(seen.injected[seen.injected.length - 1] === GH_INSTALL_TEXT, '注入的正文逐字等于后端声明里那份指引（金样）')
   ok(ghClick.logs.length === 1 && ghClick.logs[0].level === 'info' && ghClick.logs[0].fields.step === 'gh:installed' && ghClick.logs[0].fields.outcome === 'text', '这一回记成常驻日志：哪一步 + 给出去的是哪一类（text）')
   ok(Object.keys(ghClick.logs[0].fields).length === 2, '日志字段就这两个（不记注入正文、不记路径）')
 
@@ -552,15 +557,15 @@ async function main() {
     ok(/log\(\s*['"][a-z]+['"]\s*,\s*['"]guide\.inject['"]/.test(pair[1]),
       pair[0] + ' 里带着那条常驻注入日志（发射那一处真在产物里）')
   }
-  // #716 起的现状：那句安装原话按「一个缺失状态只有一份说明」的口径挪回了后端声明（GitHub 模块的
-  //   prompts.cliInstall），产物里因此不再有那句字面文本，只有它的键名；替身账本里也没有 GitHub 模块的
+  // #716 起的现状：那段排查/安装指引按「一个缺失状态只有一份说明」的口径挪回了后端声明（GitHub 模块的
+  //   prompts.cliInstall），产物里因此不再有那段字面文本，只有它的键名；替身账本里也没有 GitHub 模块的
   //   prompts（loadBackends 只搬了 id/label/setupPrompt/prompts，而替身走的是下面这条真身渲染路）。
-  //   所以这里改成量**真行为**：拿真后端声明（宿主那个模块）渲染这一步的按钮文案，看它逐字是不是那句原话。
+  //   所以这里改成量**真行为**：拿真后端声明（宿主那个模块）渲染这一步的按钮文案，看它逐字是不是金样。
   const ghModule = (await import(url('src/tracker/rooms/github/index.ts'))).githubModule
   const declared = ghModule && ghModule.prompts && ghModule.prompts.cliInstall
   const rendered = declared ? String((declared.zh || declared.en || '')) : ''
-  ok(rendered === GH_INSTALL_ORIGINAL,
-    '这一步那颗按钮真渲染出来的文案逐字等于维护者给的那句原话（读的是宿主那份后端声明；#716 起字面文本住在那儿）')
+  ok(rendered === GH_INSTALL_TEXT,
+    '这一步那颗按钮真渲染出来的文案逐字等于金样（读的是宿主那份后端声明；#716 起字面文本住在那儿；#1621 换了说法）')
   for (const pair of [['client.js', clientBundle], ['package/lib/client.js', pkgBundle]]) {
     ok(pair[1].indexOf('cliInstall') >= 0, pair[0] + ' 里带着那个提示词键名（界面据此向后端声明要文本）')
   }

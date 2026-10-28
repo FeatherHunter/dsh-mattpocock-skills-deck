@@ -32,6 +32,8 @@ declare const workspaceRootByCwd: any;
 declare const keyOf: any;
 declare const _snapRespStale: any;
 declare const emit: any;
+// #1626：把推迟的那一次链求值补发出去（实现在 probe-chain-subscription 片段里，叶子沙箱可能没有它）。
+declare const _flushDeferredChain: any;
 declare const setCachedRepository: any;
 declare const diffSnapshots: any;
 declare const flash: any;
@@ -82,11 +84,15 @@ export const askSelectionOnce = function (st: any): any {
         if (sel && typeof mergeSelection === 'function' && mergeSelection(st, sel)) emit(st);
       } catch (eSel) {}
       st.selPending = false;
+      // #1626：选择落定了 —— 首帧被推迟的那一次链求值现在可以带着完整键发出去。
+      try { if (typeof _flushDeferredChain === 'function') _flushDeferredChain(st); } catch (eFlushSel) {}
       emit(st);
       return res;
     }).catch(function (e: any): any {
       try { log('warn', 'host.call.fail', { method: method, kind: 'selection', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }); } catch (eL) {}
       st.selPending = false;
+      // #1626：这条电话失败了也不吊死首帧 —— 照旧按空键求值一次（诚实降级，与以前的行为一致）。
+      try { if (typeof _flushDeferredChain === 'function') _flushDeferredChain(st); } catch (eFlushErr) {}
       emit(st);
       return null;
     });
@@ -138,6 +144,8 @@ export const _installLateSnapshotSelection = function (st: any, snap: any, reqNo
     if (snap.repository !== undefined) { try { st.repository = snap.repository; if (st.cwd) setCachedRepository(st.cwd, snap.repository); } catch (eRep) {} }
     st.selPending = false;
     try { st.snapPending = false; } catch (ePendLate) {}
+    // #1626：迟到落地也可能正是「选择终于到了」的那一刻；有被推迟的链求值就补发。
+    try { if (typeof _flushDeferredChain === 'function') _flushDeferredChain(st); } catch (eFlushLate) {}
     if (changed) emit(st);
     // 这条轨迹按需记：迟到本身就少见，而「为什么这一格后来自己好了」正是以后要查的那一问。
     try { if (isEnabled('debug')) log('debug', 'snapshot.late.install', { keyHash: dswsLogHash(reqNorm), installed: !!changed }); } catch (eL) {}
@@ -171,6 +179,8 @@ export const _snapInstallBody = function (st: any, snap: any): boolean {
     st.snapError = null;
     // #155：同步 selection/repository 镜像
     try { if (typeof applySnapshotSelection === 'function') applySnapshotSelection(st, snap); } catch {}
+    // #1626：正常快照也可能带着 selection 回来（例如那条专用电话失败/超时）；有被推迟的链求值就补发。
+    try { if (typeof _flushDeferredChain === 'function') _flushDeferredChain(st); } catch (eFlushSnap) {}
     // #58 缓存优先：落内存表，供新会话秒开 — suspicious fallback 不污染缓存
     // #653：这里从前会先把同一份快照按 snap.repoRoot 存一把、再按所选目录存一把（两把键，两个桶），
     //   子目录会话与根会话因此各看各的。现在 setCachedSnapshot 自己按工作区键（wsKeyOf）落，
