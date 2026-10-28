@@ -143,7 +143,9 @@ export function createNamingGuardian(deps?: any): any {
     try {
       // 没装配「开会话」这一口就如实失败：旧路的 runGh 已经是宿主直连后端，绕回去等于绕过会话的预算与记账。
       if (typeof openSession !== 'function') return { ok: false, error: 'no-open-session' }
-      const opened: any = await openSession(cwd || DEFAULT_CWD)
+      // #1627：这一趟标成命名索引（purpose='naming-index'）——它和用户点的操作抢同一份额度，
+      // 观察器要能单独看出「分钟内是谁把额度用掉的」。其余开会话调用不带这个标记。
+      const opened: any = await openSession(cwd || DEFAULT_CWD, { purpose: 'naming-index' })
       // 仓库引用必须由会话回包给出（refId 就是「这一趟读的是哪个仓库」）；拿不到就这一轮不结。
       if (!opened || opened.ok !== true || typeof opened.call !== 'function' || !opened.repoRef || !opened.repoRef.refId) return { ok: false, error: String((opened && (opened.reason || opened.detail)) || 'open-failed') }
       // 防串仓：调用方按工作区算出的仓库键，与会话拿到的仓库必须同一家；不一致就这一轮不结。

@@ -187,6 +187,8 @@ const REFERENCES: RefRow[] = [
   { file: 'src/deck/shell/work-path-readout.ts', access: 'WORK_ROUTE_IN_PROGRESS_WINDOW_MS', gen: 'WORK_ROUTE_IN_PROGRESS_WINDOW_MS', key: 'workRouteInProgressWindowMs' },
   { file: 'src/deck/shell/work-path-readout.ts', access: 'WORK_ROUTE_ACTIVE_WINDOW_MS', gen: 'WORK_ROUTE_ACTIVE_WINDOW_MS', key: 'workRouteActiveWindowMs' },
   { file: 'src/deck/shell/work-path-readout.ts', access: 'WORK_ROUTE_COLLISION_WINDOW_MS', gen: 'WORK_ROUTE_COLLISION_WINDOW_MS', key: 'workRouteCollisionWindowMs' },
+  // #1627：deck 工具回执「慢」的门槛（3000ms）住 intervals.yaml，日志事件 tool.receipt 用它。
+  { file: 'src/deck/tools/tracker-session.ts', access: 'TOOL_RECEIPT_SLOW_MS', gen: 'TOOL_RECEIPT_SLOW_MS', key: 'toolReceiptSlowMs' },
   { file: 'src/refresh/registry/deck-tool-bridge.ts', access: 'DECK_ASSEMBLY_TIMEOUT_MS', gen: 'DECK_ASSEMBLY_TIMEOUT_MS', key: 'deckAssemblyMs' },
   // —— 界面半边：门禁把它当模块直接 import 跑，引用是真的（构建拼进闭包时剥掉 import 行） ——
   // #1143：src/client/kernel/log.ts 已删（包自带常量，中央键待另票清理），两行 REFERENCES 删除；

@@ -212,7 +212,7 @@ async function main() {
     chooseWorkspace(ws.rootPosix, backendId)
     const ports = {
       admit: makeAdmit(budgetMod),
-      account: async (input: any) => {
+      accountPort: async (input: any) => {
         // 记账口径与生产同源：只认成功信封上的 usage（src/refresh/kernel/backend-accounting.ts:52 的 usageOfResult）。
         // 失败信封没有用量就不记——所以「读票失败但依赖查询发出去了」那一支，回执报 2 条、账本只记依赖那 1 条。
         const model = (input && input.budget) || {}
@@ -233,7 +233,7 @@ async function main() {
       workRouteNote: (i: unknown) => workRouteBindings.note(i),
       workRouteRead: (i: unknown) => workRouteBindings.read(i),
       workRouteRelease: (i: unknown) => workRouteBindings.release(i),
-      planStore: planStore, admit: ports.admit, account: ports.account, getCachedReading: ports.getCachedReading,
+      planStore: planStore, admit: ports.admit, accountPort: ports.accountPort, getCachedReading: ports.getCachedReading,
     }
     const tools: Record<string, any> = {
       deck_issue_get: issueGetFactory(deps),

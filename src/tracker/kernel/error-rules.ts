@@ -490,3 +490,54 @@ export function judgeFacts(
 ): ErrorKind {
   return judgeFactsDetailed(input, extensions, ctx).kind
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 五、限流细分类（#1627）：被限流这件事要能分成「哪一种」
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 把一次失败细分成四种限流类别，给 gh.exec 日志的 `rateClass` 字段用。
+ *
+ * 为什么需要这一格：档位表判出的 `rate-limit` 只说「这一笔被限流了」，但主配额耗尽
+ * （要等配额重置）与二级限流 / abuse（等几分钟再试）恢复方式完全不同，429 又是服务端
+ * 直接让慢一点的第三种形态。事故复盘时只看 `rate-limit`，人还得再读一遍原文去猜；
+ * 这一格在失败当下就判好，事后按值聚合即可。
+ *
+ * 判据按「证据有多硬、对恢复判断多有用」的顺序排：
+ * ① primary —— 主配额耗尽。原文出现 `rate limit exceeded`、`API rate limit exceeded`
+ *    或 `quota exhausted`。这是 GitHub 主配额用尽时的标准文案，证据在原文里。
+ * ② secondary —— 二级限流 / abuse 检测。原文出现 `secondary rate limit`、`abuse` 或
+ *    `请求过频`；另外 HTTP 403 且调用方递来了 `Retry-After`（秒）也归这一类：GitHub
+ *    对二级限流回的是 403 加 Retry-After 头，而不是 429，这里的证据一半是结构化事实。
+ * ③ http429 —— 服务端用 429 明确要求限速。`httpStatus === 429` 是调用方从响应里取到的
+ *    结构化事实；调用方没给状态码时退到原文里找独立出现的 `429`（按词边界，避免把
+ *    4291 这种数字当成状态码）。
+ * ④ unknown —— 档位判成限流（`kind` 等于 ERROR_KIND.RATELIMIT），但上面三类的文字与
+ *    事实一条都没有。真实日志里确实有这种行（#1627 回放夹具里那 7 条就是），记
+ *    unknown 表示「判档说是限流，原文没给类别」；它与空串必须分开：空串是「不是限流」，
+ *    事故统计若把 unknown 并进空串会少算。
+ * ⑤ ''（空串）—— 不是限流。这一格照写空串，不是漏填。
+ *
+ * 参数都能缺省，调用点手里有什么就递什么。`message` 与 `raw` 会先合并成一份原文再判，
+ * 因为失败路径上原文有时分在两格（message 可能是合成句，raw 才是进程原文）。
+ */
+export function rateLimitClassOf(input: {
+  kind?: string; message?: string; raw?: string; httpStatus?: number; retryAfterSec?: number
+}): 'primary' | 'secondary' | 'http429' | 'unknown' | '' {
+  const o = (input || {}) as typeof input
+  const text = [o.message, o.raw].filter((s): s is string => typeof s === 'string' && s !== '').join('\n')
+  // 状态码优先用调用方递来的结构化事实；契约规定 httpStatus 未知时写 0，所以 0 不当状态码用。
+  // 没给状态码时退到原文里认，与 statusFromText 共用同一份口径（只认 401/403/404/429）。
+  const status = (typeof o.httpStatus === 'number' && o.httpStatus > 0) ? o.httpStatus : statusFromText(text)
+  // ① 主配额耗尽：先把这类明确说法认出来，因为它决定「等配额重置」而不是「等几分钟再试」。
+  //    原文同时出现两类字样时按合同写下的顺序取更靠前的一类。
+  if (/rate\s*limit\s+exceeded|quota\s+exhausted/i.test(text)) return 'primary'
+  // ② 二级限流：先认明确文字，再认「403 + Retry-After」这条结构化证据。
+  if (/secondary\s+rate\s*limit|abuse|请求过频/i.test(text)) return 'secondary'
+  if (status === 403 && typeof o.retryAfterSec === 'number') return 'secondary'
+  // ③ HTTP 429：结构化状态码优先，原文兜底只认独立出现的 429。
+  if (status === 429 || /\b429\b/.test(text)) return 'http429'
+  // ④ 档位说是限流，但原文与事实里都没有可分类的线索 —— 如实记 unknown。
+  if (o.kind === ERROR_KIND.RATELIMIT) return 'unknown'
+  return ''
+}

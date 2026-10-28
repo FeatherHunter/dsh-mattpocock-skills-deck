@@ -253,7 +253,7 @@ async function main() {
     // #1442：会话管线要的三件由装配层给（外面裹了计数，见上面那段注释；不在这里另写裁决口径）。
     getCachedReading: trackerPorts.getCachedReading,
     admit: admitPort,
-    account: accountPort,
+    accountPort: accountPort,
     now: () => clock,
     log: { fire: () => {} },
     decideBackend: makeDecideStub(registry),
