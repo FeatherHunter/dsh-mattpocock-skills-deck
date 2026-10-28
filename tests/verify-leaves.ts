@@ -88,6 +88,8 @@ const LEAVES = [
   // 后一个是订阅层（借事件流、等整轮结束交付）加一个不渲染东西的挂载组件。
   { file: 'src/client/statusbar/suggestFacts.ts', exports: ['SUGGEST_TOOL_NAME', 'SUGGEST_MIN_ITEMS', 'SUGGEST_MAX_ITEMS', 'SUGGEST_INTRO_MAX_CHARS', 'SUGGEST_PROMPT_MAX_CHARS', 'SUGGEST_REASON_MAX_CHARS', 'suggestHash', 'suggestClipText', 'suggestItemsOf', 'suggestEventOf'], components: [] },
   { file: 'src/client/statusbar/suggestStream.ts', exports: ['createSuggestStream', 'SuggestStreamMount'], components: ['SuggestStreamMount'] },
+  // #1220 新增：状态栏登记当前显示会话的空挂载组件（不渲染，只把「正在显示哪个会话」交给视野模型）。
+  { file: 'src/client/statusbar/shownAttentionMount.ts', exports: ['ShownAttentionMount'], components: ['ShownAttentionMount'] },
   { file: 'src/client/statusbar/suggestTimeline.ts', exports: ['suggestBubbleCounts', 'suggestRowOpacity', 'suggestCloseOpacity', 'suggestLandedCount', 'suggestBubblePlan'], components: [] },
   { file: 'src/client/statusbar/suggestEngine.ts', exports: ['createSuggestEngine'], components: [] },
   // #1411 新增：状态胶囊上方的下一步建议气泡。外观旋钮（含层级常量）、样式文本、渲染与交互薄壳三片；
