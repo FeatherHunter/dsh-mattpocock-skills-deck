@@ -90,7 +90,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-24 #1464 后续：工具参数说明与 /ask-matt 规则节补「技能优先、prompt 开头写 /xxxx」。
   // 2026-10-24 #1412 反向（维护者拍板撤机制）：规则从 /ask-matt 正文搬进工具说明；1412 那扇门禁
   // 改成「技能正文原样返回、不追加」的守卫，断言数随之变化。下面两个数字都是单跑实测得出的。
-  'verify-suggest-next-steps': 151,
+  'verify-suggest-next-steps': 160,
   // 2026-10-26 规格收尾提示词落地：模板里的「## 工具」节收进公共小节 shared-sections.yaml，
   // 这扇的 ⑤ 从「扫三份 YAML 原文数提醒行」改成「经共享读取核展开后数」，少了两条文件存在性断言，
   // 单跑实测 29 条，期望数同步改准。
@@ -112,8 +112,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 不落盘不加定时器）；31 条是单跑实测得出的。
   'verify-1451-suggest-session-keep': 31,
   // 2026-10-25 #1526：切回后台会话时从历史重放补出最后一组已收尾的建议（规格 #1525）；
-  // 51 条是单跑实测得出的（含订阅失败不补历史、快照失败只记日志两档）。
-  'verify-1526-suggest-replay-restore': 51,
+  // 2026-10-28 #1420 第五项：补出改成扫整个事件窗口、窗口装载完成的那次 replace 再补一次，
+  // 并补上「已热会话最后一次变更是 append」、结束原因非 completed 两组场景；68 条是单跑实测得出的。
+  'verify-1526-suggest-replay-restore': 68,
   // 2026-10-27 #1571：GitHub 房间调用点的 -F/-f 写法（20 处 owner/name 逐文件点名、整型字段仍走 -F）；
   // 15 条是单跑实测得出的。
   'verify-1571-gh-flag-writing': 15,

@@ -10,9 +10,13 @@
 //   ① 直接建流：重放里有已收尾的建议时只补最后一组，记 suggest.ready outcome=restored；
 //   ② 重放尾部那一轮还没收尾时不补，等增量通路送来 turn/end 后正常交付一次；
 //   ③ 重放里没有建议、参数坏、快照读不到、形状不认识时安静不做（只留能指路的日志）；
-//   ④ 挂载后到达的 replace 仍然不冒泡（#1409 的既有断言不回归）；按会话缓存非空时不补；
+//   ④ 挂载时事件窗口还空、之后第一次 replace 把窗口装进来时补出尾部一条；之后的 replace 不冒泡
+//      （#1409 的既有断言不回归）；会话已热、最后一次变更是 append 时也能按窗口补出；按会话缓存非空时不补；
 //   ⑤ 挂载组件：缓存为空才补、补出的组走到既有上屏/关闭通路、关掉后本次运行内不再复活、
-//      之后有新建议正常交付时关闭标记失效、两个会话互不串味；源码守卫仍是不落盘不加定时器不 retain。
+//      之后有新建议正常交付时关闭标记失效、两个会话互不串味；源码守卫仍是不落盘不加定时器不 retain；
+//   ⑥ 补出扫的是整个事件窗口而不是这一次变更的增量（#1420 第五项，真机上补不出气泡的根因）；
+//   ⑦ turn/end 的结束原因不是 completed（aborted / error / interrupted）时，参数完整的那一组照常
+//      交付一次、参数坏的不交付（#1420 第三项定下的口径，见 suggestStream.ts 里 turn-end 那一段）。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1526-suggest-replay-restore.ts
 // 断言数变化时同步 scripts/gate-map.mts 里 COMPLETION_RECORDED_GATES 的 verify-1526-suggest-replay-restore。
@@ -64,6 +68,8 @@ function ptcCallEvent(subCallId, args) {
 }
 function startEvent(turn) { return { type: 'turn/start', data: { turn: turn, step: 1 } } }
 function endEvent(turn) { return { type: 'turn/end', data: { turn: turn, reason: { kind: 'completed' } } } }
+// #1420 第三项：轮次的结束原因不止 completed，中断、报错、崩溃后补写的收尾都可能带着完整建议。
+function endEventWithReason(turn, kind) { return { type: 'turn/end', data: { turn: turn, reason: { kind: kind } } } }
 
 /** 抓日志：把内核的 isEnabled / log 换成测试替身，跑完必须 restore（否则后面的场景互相串味）。 */
 function captureLog() {
@@ -91,16 +97,22 @@ function flatItemTexts(records) {
   return records.map(function (items) { return (items || []).map(function (it) { return it.prompt }).join('|') }).join(' / ')
 }
 
-/** 假事件流：初始快照就是一次「历史重放」（replace 通知），append 后手动通知监听者。 */
+/**
+ * 假事件流：初始快照就是一次「历史重放」（replace 通知），append 后手动通知监听者。
+ * config.changeKind / changeEntries 用来模拟「窗口里有历史、但最后一次变更是 append」的已热会话：
+ * 快照 entries 是整个窗口，change 只是那一次变更的增量（#1420 第五项）。
+ */
 function makeEnv(config) {
   const cfg = config || {}
   const initial = (cfg.entries || []).map(function (event) { return { event: event } })
+  const initialChangeEntries = (Array.isArray(cfg.changeEntries) ? cfg.changeEntries : (cfg.entries || []))
+    .map(function (event) { return { event: event } })
   const env = {
     listeners: [],
     unsubscribed: 0,
     ready: [],
     bindingCalls: [],
-    snapshot: { revision: 0, entries: initial, change: { kind: 'replace', entries: initial } },
+    snapshot: { revision: 0, entries: initial, change: { kind: cfg.changeKind || 'replace', entries: initialChangeEntries } },
     source: null,
     binding: null,
     sessions: null,
@@ -225,13 +237,43 @@ async function main() {
     if (stream) stream.dispose()
   }
 
-  // 6) 挂载后到达的 replace 仍然不冒泡（#1409 既有断言不回归）。
+  // 6) 挂载时事件窗口还空（真机先给空快照），之后第一次 replace 把整个窗口装进来：
+  // 这是补出唯一剩下的时机，要补出尾部那一组；之后的 replace 仍不冒泡（#1409 既有断言不回归）。
   {
     const env = makeEnv({})
     const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-F', restoreReplay: true, onReady: env.onReady })
     check(env.ready.length === 0, '空快照挂载时不出气泡')
-    env.notify([startEvent(1), callEvent('late-replace', 1, A_ITEMS), endEvent(1)], 'replace')
-    check(env.ready.length === 0, '挂载之后才到的历史重放（replace）仍然不出气泡')
+    check(hasOutcome(cap.records, 'suggest.bind', 'deferred'), '窗口还没装时补出记一条 deferred 日志（不判死）')
+    env.notify([startEvent(1), callEvent('late-a', 1, A_ITEMS), endEvent(1), startEvent(2), callEvent('late-b', 2, B_ITEMS), endEvent(2)], 'replace')
+    check(env.ready.length === 1 && flatItemTexts(env.ready) === '/b-one|/b-two', '窗口装载的 replace 到达后补出尾部最后一组（不是更早那组）')
+    check(hasOutcome(cap.records, 'suggest.ready', 'restored'), '这条补出同样记 restored')
+    env.notify([startEvent(5), callEvent('late-later', 5, A_ITEMS), endEvent(5)], 'replace')
+    check(env.ready.length === 1, '补出机会只有一次：之后的 replace 不再扫窗口、不冒泡')
+    stream.dispose()
+  }
+
+  // 6b) 会话已经热着，窗口里有历史，但最后一次变更是 append（增量里没有历史）：
+  // 补出要看整个窗口，不能只看这次变更的增量（#1420 第五项，真机上补不出气泡的根因之一）。
+  {
+    const env = makeEnv({
+      entries: [startEvent(1), callEvent('hot-a', 1, A_ITEMS), endEvent(1)],
+      changeKind: 'append',
+      changeEntries: [],
+    })
+    const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-J', restoreReplay: true, onReady: env.onReady })
+    check(env.ready.length === 1 && flatItemTexts(env.ready) === '/a-one|/a-two', '最后一次变更是 append 时也能按窗口补出最后一条已收尾的建议')
+    stream.dispose()
+  }
+
+  // 6c) 窗口装载的 replace 到达时尾部那一轮还没收尾：先不补，等增量通路送来 turn/end 再交付。
+  {
+    const env = makeEnv({})
+    const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-K', restoreReplay: true, onReady: env.onReady })
+    env.notify([startEvent(1), callEvent('wait-a', 1, A_ITEMS), endEvent(1), startEvent(2), callEvent('wait-b', 2, B_ITEMS)], 'replace')
+    check(env.ready.length === 0, '窗口里尾部那一轮还没收尾：先不补')
+    env.notify([endEvent(2)])
+    check(env.ready.length === 1 && flatItemTexts(env.ready) === '/b-one|/b-two', '增量送来 turn/end 后正常交付尾部那一组')
+    check(hasOutcome(cap.records, 'suggest.ready', 'delivered'), '这一趟日志结论记 delivered（不是 restored）')
     stream.dispose()
   }
 
@@ -249,6 +291,35 @@ async function main() {
     const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-H', restoreReplay: true, onReady: env.onReady })
     check(env.ready.length === 1 && flatItemTexts(env.ready) === '/ptc-one|/ptc-two', '重放里的 PTC 调用也能补出（轮次由 turn/start 补）')
     check(hasOutcome(cap.records, 'suggest.ready', 'restored'), 'PTC 补出同样记 restored')
+    stream.dispose()
+  }
+
+  // 9) turn/end 的结束原因不是 completed（#1420 第三项的口径，见 suggestStream.ts 里 turn-end 那一段）：
+  // 调用到过、参数完整的一组照常交付一次；参数坏的那条在解析处就被拒，不会半组上屏。
+  {
+    const kinds = ['aborted', 'error', 'interrupted']
+    for (let i = 0; i < kinds.length; i++) {
+      const kind = kinds[i]
+      const env = makeEnv({})
+      const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-r-' + kind, restoreReplay: true, onReady: env.onReady })
+      env.notify([startEvent(1), callEvent('r-' + kind, 1, A_ITEMS), endEventWithReason(1, kind)])
+      check(env.ready.length === 1 && flatItemTexts(env.ready) === '/a-one|/a-two', '结束原因 ' + kind + '：完整拿到的一组照常交付一次')
+      check(hasOutcome(cap.records, 'suggest.ready', 'delivered'), '结束原因 ' + kind + '：日志结论记 delivered')
+      stream.dispose()
+    }
+    const env = makeEnv({})
+    const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-r-bad', restoreReplay: true, onReady: env.onReady })
+    const badEvent = { type: 'tool/call', data: { turn: 1, step: 1, callId: 'r-bad', name: 'suggest_next_steps', arguments: '{oops' } }
+    env.notify([startEvent(1), badEvent, endEventWithReason(1, 'interrupted')])
+    check(env.ready.length === 0, '结束原因 interrupted 但参数坏了：不上屏（不会半组）')
+    stream.dispose()
+  }
+
+  // 9b) 补出通路同样不看结束原因：窗口里尾部那组是 aborted 收尾的，也照常补出完整一组。
+  {
+    const env = makeEnv({ entries: [startEvent(1), callEvent('his-aborted', 1, A_ITEMS), endEventWithReason(1, 'aborted')] })
+    const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-L', restoreReplay: true, onReady: env.onReady })
+    check(env.ready.length === 1 && flatItemTexts(env.ready) === '/a-one|/a-two', '补出时结束原因 aborted 也算收尾（照常补出完整一组）')
     stream.dispose()
   }
 
@@ -393,7 +464,9 @@ async function main() {
   const streamSrc = fs.readFileSync(path.join(ROOT, 'src/client/statusbar/suggestStream.ts'), 'utf8')
   const code = codeOnly(streamSrc)
   check(code.indexOf('restoreReplay') >= 0, '取数层接受「要不要从重放补」的开关（缓存非空时不补）')
-  check(code.indexOf("change.kind !== 'replace'") >= 0, '补出只认历史重放（replace），增量通路仍只认 append')
+  check(code.indexOf('replayEntriesOf(snapshot)') >= 0, '补出扫的是整个事件窗口（快照 entries），不是这一次变更的增量')
+  check(code.indexOf("change.kind !== 'append'") >= 0, '增量通路仍只认 append（replace 不当新调用冒泡）')
+  check(code.indexOf('replayWaitWindow') >= 0, '窗口装载完成时的一次性补出机会靠 replayWaitWindow 标记')
   check(code.indexOf("deliver('restored'") >= 0, '补出走既有交付函数，日志结论是 restored')
   check(/const suggestDismissedBySid: any = new Set\(\)/.test(code), '按会话的关闭标记是模块级 Set（只在内存里）')
   check(code.indexOf('suggestSessionWasDismissed(sid)') >= 0, '补出前先看这个会话有没有被关掉过')
