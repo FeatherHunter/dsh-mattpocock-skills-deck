@@ -37,7 +37,9 @@ const FIRST_TEXT = '/wayfinder https://github.com/FeatherHunter/dsh-prompt/issue
 // 底座写下的首句名 = 首句的截断（这里取到 URL 结束，长度足够，用来验「截断那条路要有下限」）
 const CLOBBERED = '/wayfinder https://github.com/FeatherHunter/dsh-prompt/issues/779'
 
-function makeWorld(initialTitle) {
+// faceSessionId 可选：默认不传时面对象与会话是同一个（老用例的常态）；#315 那节传一个不同的值，
+// 模拟宿主把「别的会话的面」回给本单（渲染钩子每窗口全量跑计划单时的错配）。
+function makeWorld(initialTitle, faceSessionId) {
   const world = { titles: { s1: initialTitle }, renamed: [], reports: [] }
   const sessions = {
     // 客户端唯一真源：会话列表快照（客户端 sessions 服务没有 get，2026-10-03 核查后那条分支已删）
@@ -45,7 +47,7 @@ function makeWorld(initialTitle) {
     scope: function (sid) { return { sessionId: sid } },
     sessionOf: function (scope) {
       return {
-        sessionId: scope.sessionId,
+        sessionId: faceSessionId || scope.sessionId,
         rename: function (t) {
           world.renamed.push(t)
           world.titles[scope.sessionId] = t
@@ -87,6 +89,23 @@ console.log('\n— 命名守护端到端缝（真实客户端执行器）—')
   await settle()
   check(w.titles.s1 === '[#779] 原样标题', '首句名盖掉之后：盖回 [#n] 名（机器写过也认）', 'got ' + w.titles.s1)
   check(!locked(w), '首句名盖回：不报锁定', JSON.stringify(w.reports))
+}
+
+// 2b) #315 防御（#1243 补的门禁）：面对象暴露的会话标识与订单 sid 不一致时，一个字都不改并如实回报。
+// 场景取自 #315 根因：宿主对非当前会话的面解析回退到当前会话，执行点若照名字改，就会把 A 会话的标题写到 B 上。
+// 上一节（2）证明同一场景下 sid 一致时会正常改名；这一节只把面的 sessionId 换成 s2，其余输入完全相同。
+{
+  const w = makeWorld(CLOBBERED, 's2')
+  api.executeNamingOrder({
+    sessionId: 's1', kind: 'numbered', number: 779, title: '原样标题',
+    lock: { lastMachineTitle: '[#779] 原样标题', baselineTitle: '[#779] 原样标题', baselineIsOurs: true, locked: false, firstUserText: FIRST_TEXT },
+  })
+  await settle()
+  const fail = w.reports.filter(function (r) { return r.outcome === 'failed' })[0]
+  check(w.titles.s1 === CLOBBERED, '面 sid 不一致：#315 防御拦下，标题一个字都不动', 'got ' + w.titles.s1)
+  check(w.renamed.length === 0, '面 sid 不一致：没有发生跨会话改名调用（不改错会话）')
+  check(!!fail && /session face mismatch/.test(String(fail.error)) && String(fail.error).indexOf('s1') !== -1 && String(fail.error).indexOf('s2') !== -1,
+    '面 sid 不一致：按 session face mismatch 如实回报（expected/got 都点名）', JSON.stringify(w.reports))
 }
 
 // 3) 真手改：与首句无关 → 一步都不动，并如实回报让位理由
