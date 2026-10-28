@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T20:22:17.934Z",
+  "generatedAt": "2026-10-28T20:25:16.274Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 441,
   "gateCount": 441,
@@ -4352,6 +4352,7 @@
         "src/client/kernel/router.ts",
         "src/client/kernel/settings-view.ts",
         "src/client/kernel/store-prefs.ts",
+        "src/client/kernel/styles.ts",
         "src/client/statusbar/StatusBar.ts",
         "src/client/statusbar/deckDoor.ts",
         "tests/lib/eval-probe.ts",
@@ -4372,7 +4373,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-1612-deck-state.ts",

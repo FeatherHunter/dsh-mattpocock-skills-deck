@@ -4,8 +4,8 @@
  *
  * 这一份门禁只量三件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
  * 第一件事是设置文件的读写契约：每个工作区新增 statusBar（show 显示、hide 收起，缺省 hide）与
- *   deckTools（on 打开、off 关闭，缺省 on）两格；旧字段 bannerFolded 已经退役，读旧文件时仍然接受
- *   这个键（否则旧文件整份被判未知键），但完全忽略它的值、不做换算，缺 statusBar 一律按缺省 hide；
+ *   deckTools（on 打开、off 关闭，缺省 on）两格；旧字段 bannerFolded 只留一步读兼容：接受这个键
+ *   （否则旧文件整份被判未知键），只把「展开」（false）换算成 statusBar: show，其余按缺省 hide；
  *   写回去的那一份只写新两格、不再写旧字段；未知键与认不出的开关值仍按坏形状拒绝。
  * 第二件事是客户端写这条路：kernel/settings-view-write.ts 的 setViewFlagValue 把 statusBar/deckTools
  *   原样交给「改内存文档 → 进队列 → 防抖 → 重读合并 → 写文件」这一条路（与 setViewFlag 同一条路，
@@ -116,9 +116,9 @@ async function main() {
   const parseSettingsText = (text) => parseConfig(text, 'settings')
   const wsOf = (ok) => (ok && ok.ok === true ? ok.value.workspaces : null)
 
-  // ── 第一件事：设置文件的读写契约（旧值迁移、新两格、拒绝面） ──
+  // ── 第一件事：设置文件的读写契约（旧值读兼容、新两格、拒绝面） ──
   console.log('')
-  console.log('== 第一件事：旧文件里的 bannerFolded 接受但忽略，写回去只写新两格 ==')
+  console.log('== 第一件事：旧文件里的 bannerFolded 只换算「展开」那一种值，写回去只写新两格 ==')
   const legacyText = settingsText([
     '  D:\\ws\\folded:',
     '    bannerFolded: true',
@@ -128,8 +128,8 @@ async function main() {
   const legacyOut = parseSettingsText(legacyText)
   const legacyWs = wsOf(legacyOut)
   check(!!legacyWs, '旧文件（只有 bannerFolded 两个工作区）能读。', legacyOut && legacyOut.message)
-  check(!!legacyWs && legacyWs['D:\\ws\\folded'].statusBar === 'hide', '旧值收起（bannerFolded: true）不再换算，按缺省 hide 读。', JSON.stringify(legacyWs && legacyWs['D:\\ws\\folded']))
-  check(!!legacyWs && legacyWs['D:\\ws\\shown'].statusBar === 'hide', '旧值展开（bannerFolded: false）同样不再换算，仍按缺省 hide 读。', JSON.stringify(legacyWs && legacyWs['D:\\ws\\shown']))
+  check(!!legacyWs && legacyWs['D:\\ws\\folded'].statusBar === 'hide', '旧值收起（bannerFolded: true）按缺省 hide 读（和旧语义一致，不需要换算）。', JSON.stringify(legacyWs && legacyWs['D:\\ws\\folded']))
+  check(!!legacyWs && legacyWs['D:\\ws\\shown'].statusBar === 'show', '旧值展开（bannerFolded: false）换算成 statusBar: show（升级前展开过的工作区升级后胶囊仍显示着，验收 ⑦）。', JSON.stringify(legacyWs && legacyWs['D:\\ws\\shown']))
   check(!!legacyWs && legacyWs['D:\\ws\\folded'].deckTools === 'on' && legacyWs['D:\\ws\\shown'].deckTools === 'on', '旧文件里没有 deckTools 时按缺省 on（打开）补上。', JSON.stringify(legacyWs))
   check(!!legacyWs && legacyWs['D:\\ws\\folded'].bannerFolded === undefined, '归一结果里不再留旧字段 bannerFolded。', JSON.stringify(legacyWs && legacyWs['D:\\ws\\folded']))
 
@@ -146,7 +146,7 @@ async function main() {
   const written = writeOut.ok === true ? writeOut.text : ''
   check(writeOut.ok === true, '旧文件读出来的那一份能写回去。', writeOut.ok ? '' : writeOut.message)
   check(written.indexOf('bannerFolded') < 0, '写出去的一份里不再出现旧字段 bannerFolded。', written.slice(0, 400))
-  check(written.indexOf('statusBar: hide') >= 0, '写出去的一份里出现 statusBar: hide（两个工作区都按缺省收起）。', written.slice(0, 400))
+  check(written.indexOf('statusBar: hide') >= 0 && written.indexOf('statusBar: show') >= 0, '写出去的一份里出现换算后的 statusBar 两档值（收起→hide、展开→show）。', written.slice(0, 400))
   check(written.indexOf('deckTools: "on"') >= 0, '写出去的一份里出现 deckTools: "on"（缺省打开的开关照写）。', written.slice(0, 400))
   check(written.indexOf('# 胶囊状态栏') >= 0 && written.indexOf('# deck 工具箱') >= 0, '写出去的一份里两格各带一行看得懂的注释。', written.slice(0, 400))
   const backAgain = parseSettingsText(written)
@@ -163,7 +163,7 @@ async function main() {
   const badToolsOut = parseSettingsText(settingsText(['  D:\\ws\\x:', '    deckTools: "true"']))
   check(badToolsOut.ok === false && String(badToolsOut.message || '').indexOf('deckTools') >= 0, 'deckTools 只认 on 与 off，别的字面量按坏形状拒。', JSON.stringify(badToolsOut))
   const oldOut = parseSettingsText(settingsText(['  D:\\ws\\x:', '    bannerFolded: yes']))
-  check(oldOut.ok === true && wsOf(oldOut)['D:\\ws\\x'].statusBar === 'hide' && wsOf(oldOut)['D:\\ws\\x'].bannerFolded === undefined, '已退役的旧字段任意值都接受、值被忽略（读得进 yes，但不影响 statusBar 的缺省值）。', JSON.stringify(oldOut))
+  check(oldOut.ok === true && wsOf(oldOut)['D:\\ws\\x'].statusBar === 'hide' && wsOf(oldOut)['D:\\ws\\x'].bannerFolded === undefined, '旧字段里的非真假值（读得进 yes）不参与换算，按缺省 statusBar: hide。', JSON.stringify(oldOut))
   const goodOut = parseSettingsText(settingsText(['  D:\\ws\\x:', '    statusBar: hide', '    deckTools: off']))
   check(goodOut.ok === true && wsOf(goodOut)['D:\\ws\\x'].statusBar === 'hide' && wsOf(goodOut)['D:\\ws\\x'].deckTools === 'off', '合法的两格值照读（show/hide、on/off 两档都认）。', JSON.stringify(goodOut))
 

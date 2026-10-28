@@ -8,6 +8,7 @@
 //   · 红色 X（只在胶囊展开时出现）→ 关闭整个 deck：先关右侧面板、再写 deckTools=off；设置页开关随之同步；
 //   · 「∨」只折叠胶囊（只写 statusBar），deck 工具箱与右侧面板都不受影响；
 //   · deck 关着的工作区，router.openPanel 不再打开右侧面板（关闭永远允许）；
+//   · deck 关着时，原生右栏里本插件那一格的内容体只画一句说明，不挂面板本体（从右栏直接点进来也绕不进去）；
 //   · 胶囊折叠时只渲染折叠条，蓝条黄条一起不显示。
 //
 // 做法照 tests/verify-663-banner-chain.ts：叶子是 ESM 导出，不能直接 import 进源码树，
@@ -113,12 +114,15 @@ const makeRouter = function (): { mod: any; calls: RouterCalls; closed: Set<stri
     log: (level: string, event: string, fields: any) => { calls.logs.push({ level: level, event: event, fields: fields }) },
     ctx: { get: (k: any) => { calls.ctxGet.push(String(k)); return null } },
     h: hStub,
-    React: { useState: (v: any) => [v, noop], useEffect: noop },
-    DetailsDock: noop,
+    // 面板那一格按「已经就绪」那一次渲染来量：useState 直接回 true，跳过那两跳 rAF 的空壳阶段。
+    React: { useState: (v: any) => [true, noop], useEffect: noop },
+    // 面板本体用有名函数当替身：树里出现它，就说明这一格挂了面板；没出现就是没挂。
+    DetailsDock: function DetailsDock(): any { return null },
     tr: trStub,
     flash: (st: any, msg: string) => { calls.flashed.push(String(msg)) },
     emit: noop,
-    getCwdSync: () => '',
+    // 会话号 → 工作区目录的替身：两个会话各对一个工作区，量「按工作区拦面板」要用到。
+    getCwdSync: (sid: any) => (String(sid) === 'sid-a' ? 'D:/ws-a' : String(sid) === 'sid-b' ? 'D:/ws-b' : ''),
     hydrateFromCache: noop,
     getCachedSnapshot: () => null,
     snapFresh: () => false,
@@ -143,7 +147,7 @@ const makeRouter = function (): { mod: any; calls: RouterCalls; closed: Set<stri
     isDeckClosed: (cwd: any) => closed.has(String(cwd)),
   }
   const names = Object.keys(sandbox)
-  const factory = compileFn(names, body + '\n;return { openPanel: openPanel, togglePanel: togglePanel }')
+  const factory = compileFn(names, body + '\n;return { openPanel: openPanel, togglePanel: togglePanel, DeckSidebarTab: DeckSidebarTab }')
   return { mod: factory(...names.map((n: string) => sandbox[n])), calls: calls, closed: closed }
 }
 
@@ -293,6 +297,20 @@ function main(): void {
     check(stOpen.open === false && rcalls.ctxGet.length === 0, 'togglePanel 的「关」分支不受闸门影响：deck 关着也能把已经开着的面板关掉（红色 X 的「先关面板」靠它）')
   }
 
+  console.log('== 6b. 右栏那一格：deck 关着只画一句说明、不挂面板本体（验收 ②）==')
+  {
+    const { mod: rmod, closed } = makeRouter()
+    const hasDock = (node: any): boolean => walk(node, []).some((n: any) => typeof n.type === 'function' && n.type.name === 'DetailsDock')
+    closed.add('D:/ws-a')
+    const elClosed = rmod.DeckSidebarTab({ sessionId: 'sid-a' })
+    check(!!elClosed && !!(elClosed.props && elClosed.props.className === 'dsws-deckclosed'), 'deck 关着：面板那一格换成说明用的空态（class .dsws-deckclosed）')
+    check(textOf(elClosed) === TR['panel.deckClosed'], 'deck 关着：那一格写的就是 panel.deckClosed 这条词')
+    check(!hasDock(elClosed), 'deck 关着：面板本体（DetailsDock）根本不挂，右栏直连也绕不进来')
+    closed.clear()
+    const elOpen = rmod.DeckSidebarTab({ sessionId: 'sid-a' })
+    check(hasDock(elOpen), 'deck 开着：照旧挂面板本体，面板那条路没被这次改动影响')
+  }
+
   console.log('== 7. 折叠时横幅不渲染（验收 ⑥）：折叠分支早返回，横幅都在它后面 ==')
   {
     const sb = sourceText('src/client/statusbar/StatusBar.ts')
@@ -318,6 +336,9 @@ function main(): void {
     const rt = sourceText('src/client/kernel/router.ts')
     check(rt.indexOf("isDeckClosed(st && st.cwd)") >= 0, 'router.openPanel 里按工作区判 deck 是否关着')
     check(rt.indexOf("tr('panel.deckClosed')") >= 0, '被挡住时给用户一句看得懂的提示')
+    check(rt.indexOf("className: 'dsws-deckclosed'") >= 0, '右侧面板那一格挂的是 .dsws-deckclosed，不往内联样式里写色值')
+    const styles = sourceText('src/client/kernel/styles.ts')
+    check(styles.indexOf('.dsws-deckclosed{') >= 0 && styles.indexOf('var(--dsw-alias-label-caption,#8b8b95)') >= 0, '说明的样式登记在 styles.ts 的唯一真源里，文字用二级文字色令牌，不自造 CSS 变量')
 
     const idx = sourceText('src/client/index.ts')
     const build = sourceText('scripts/build.mts')

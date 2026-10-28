@@ -12,8 +12,8 @@
  *   · statusBar：'show' 显示胶囊；'hide' 折叠（缺省）。胶囊折叠时那颗胶囊换成折叠条，环境检查类横幅一起不显示。
  *   · deckTools：'on' 启用 deck（缺省）；'off' 关闭 —— 该工作区工具、胶囊、右侧面板三处一起关。
  *   · 胶囊实际折没折 = deck 关了**或者** statusBar 是 hide：deck 关了就再没有地方显示胶囊。
- *   · 旧字段 bannerFolded 与旧 localStorage 键都已退役（#1612 维护者拍板删掉迁移）：读口不再问它们，
- *     缺 statusBar 一律按缺省 hide 处理。
+ *   · 旧 localStorage 键与旧字段 bannerFolded 的迁移都已按维护者 2026-10-29 的要求删掉：客户端读口只认 statusBar；
+ *     旧文件里「展开」那一种旧值由设置文件核在读取那一步换算成 show，这里拿到的是换算后的值（缺格按 hide）。
  *
  * 值怎么落地：写走 kernel/settings-view-write.ts 的 setViewFlagValue（整份文档里改这一格、写前重读合并、
  *   写失败留队列重试）；写成功后把同一个工作区的各会话 emit 一次，界面立刻跟着重画。

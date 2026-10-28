@@ -5,7 +5,8 @@
  *   · deckTools：'on' 开（缺省）、'off' 关 —— 关的是整个 deck（工具、胶囊、右侧面板三处一起关）；
  *   · statusBar：'show' 显示胶囊、'hide' 折叠（缺省）；
  *   · 胶囊实际折没折 = deck 关了**或者** statusBar 是 hide；
- *   · 旧字段 bannerFolded 与旧 localStorage 键已退役（维护者 2026-10-29 拍板删掉迁移）：读口不看它们。
+ *   · 旧 localStorage 键与旧字段 bannerFolded 的迁移已删（维护者 2026-10-29 拍板）：客户端读口只认 statusBar
+ *     （旧字段「展开」那一种旧值由设置文件核在读取那一步换算，这一片拿到的已经是换算后的 statusBar）。
  *
  * 本文件钉的是 src/client/kernel/deck-state.ts 这一片：读口把各种残缺输入按上述缺省口径解释，
  * 写口把两个值写回设置文件那一条路、并把同一个工作区的各会话 emit 一次。

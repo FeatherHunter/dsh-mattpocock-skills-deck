@@ -157,7 +157,7 @@ zh:
   panel.closeTitle: 关闭面板
   panel.closeDetailTitle: 关闭详情
   panel.openUnavailable: 面板没打开：宿主现在没有提供 DSH 右侧边栏的控制器，面板暂时没有落点。
-  panel.deckClosed: 这个工作区的 deck 工具箱已经关了，要先在设置页把它打开，右侧面板才会再出现。
+  panel.deckClosed: 这个工作区的 deck 工具箱已经关了；在设置页把它打开之后，右侧面板里才会显示内容。
   panel.newWayfinder: 新建需求
   panel.newWayfinderTitle: 点一下弹出两张卡：探索地图或实施地图，由你自己选
   panel.newBug: + bug
@@ -463,7 +463,7 @@ en:
   panel.closeTitle: Close panel
   panel.closeDetailTitle: Close details
   panel.openUnavailable: "The panel did not open: the host is not offering its right-sidebar controller right now, so there is nowhere to put the panel."
-  panel.deckClosed: "Deck tools are off for this workspace; turn them back on in settings to reopen the right panel."
+  panel.deckClosed: "Deck tools are off for this workspace; turn them back on in settings to show the panel content again."
   panel.newWayfinder: New Requirement
   panel.newWayfinderTitle: "Opens two cards: Explore map or Implementation map - you pick which route"
   panel.newBug: + BUG

@@ -186,7 +186,7 @@ export const selectionByCwd: any = {}
 export const repositoryByCwd: any = {}
 export const SELECTION_BY_CWD_KEY: string = 'dsws.selectionByCwd'
 // #1612 之后胶囊折没折只看 kernel/deck-state.ts 的 statusBar（deck 工具箱关着时一律算折）：
-//   真实的读写都在那里（setDeckStatusBar / isDeckCapsuleFolded），本文件不再留转名的旧壳，
+//   真实的读写都在那里（setDeckStatusBar / isDeckCapsuleFolded），本文件不再留转调的旧名空壳，
 //   旧 localStorage 表（dsws.bannerFold）与旧字段 bannerFolded 一并退役，读都不再读（维护者 2026-10-29 拍板）。
 // #1003 退役：镜像读写已删，这两个只剩空壳（调用方在本次范围外，留名免崩；一律按“无镜像”答）。
 export const getCachedSelection = function (cwd: any): any { return null }

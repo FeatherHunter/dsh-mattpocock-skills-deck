@@ -29,6 +29,9 @@ const CONTAINER_ACCENT_CSS: any = (typeof CONTAINER_ACCENT === 'object' && CONTA
       //   浅色主题下 bg-base 与 bg-layer-1 都是 #ffffff，本次改动在浅色主题下是空操作。
       //   显示上仍是「先出壳、再填内容」（#603 定下的取舍），那两跳不要顺手删。
       '.dsws-hold{height:100%;overflow:hidden;flex:1 1 auto;min-height:0;background:var(--dsw-alias-bg-base,#10131a)}',
+      // #1612：右侧面板那一格在 deck 关着时不挂面板本体，只画一句说明（验收 ②）。底色与面板空壳取同一档，
+      //   文字用二级文字色令牌（不在这里写自造变量），所以从空壳换成说明时那一格不会先黑一下。
+      '.dsws-deckclosed{height:100%;display:flex;align-items:center;justify-content:center;padding:16px;text-align:center;font-size:12px;color:var(--dsw-alias-label-caption,#8b8b95)}',
       '.dsws-panel{position:fixed;left:16px;top:76px;width:460px;max-height:calc(100vh - 24px);display:flex;flex-direction:column;background:var(--dsw-alias-bg-layer-2,#16181d);border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.45);z-index:9999;font-family:var(--dsw-font-family);font-size:13px;color:var(--dsw-alias-label-primary,#e6edf3);line-height:1.6;overflow:hidden}',
       '.dsws-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--dsw-alias-border-l1,#2a2d35);cursor:move;user-select:none}',
       '.dsws-tabs{display:flex;flex-wrap:nowrap;gap:4px;padding:8px 12px 0;overflow:hidden;white-space:nowrap}',

@@ -92,8 +92,11 @@ export const DeckSidebarTab = function (props: any): any {
   }, [ready]);
   // #1612 验收 ②：这个工作区关掉 deck 工具箱后，右侧面板不再开 —— 原生右栏直接点进来（含右栏「+」的引导页）
   //   也一律只画一句说明，不挂面板本体。这里就是面板内容体那一格，挡住了别处也就绕不进来。
+  //   右侧面板本身只是宿主右栏里的一格标签、不等于 deck 工具箱；但平台没有「按会话关掉这一格」的接口，
+  //   deck 关着时唯一能做的就是让这一格不画面板本体、只画说明（打开面板那条路见下面的 openPanel）。
+  //   说明长什么样由 kernel/styles.ts 的 .dsws-deckclosed 一处说了算：样式只有那份真源，颜色令牌也只从那里取。
   if (typeof isDeckClosed === 'function' && isDeckClosed(tabCwd)) {
-    return h('div', { className: 'dsws-hold', style: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, fontSize: 12, color: 'var(--dsws-hold-fg,#8b8b95)', textAlign: 'center' } }, tr('panel.deckClosed'));
+    return h('div', { className: 'dsws-deckclosed' }, tr('panel.deckClosed'));
   }
   if (!ready) return h('div', { className: 'dsws-hold' });
   return h('div', { className: 'dsws-hold' }, h(DetailsDock, { sessionId: sessionId }));

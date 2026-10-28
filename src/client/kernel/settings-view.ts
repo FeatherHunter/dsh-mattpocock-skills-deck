@@ -294,7 +294,7 @@ declare const process: any;
     const viewFlagLogDocFail = function (): void {
       try { log('warn', 'storage.fail', { key: 'settings.workspaces', op: 'write' }) } catch (eL) {}
     }
-    // 文档到手那一刻重画一次（与 touchProbeAt / setBannerFolded 同例：同一个工作区的各会话都跟着重画）。
+    // 文档到手那一刻重画一次（与 touchProbeAt 同例：同一个工作区的各会话都跟着重画）。
     const viewFlagEmitAll = function (): void {
       try { if (typeof emit === 'function' && typeof shared !== 'undefined' && shared) emit(shared) } catch (e) {}
       try {
