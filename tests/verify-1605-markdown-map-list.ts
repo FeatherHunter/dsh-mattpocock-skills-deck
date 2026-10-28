@@ -1,6 +1,7 @@
 /**
  * #1605 本地 Markdown 房 listMaps（地图薄查）门禁：真实现的三条验收。
  * 做法是 TDD：本文件先行（RED），实现住 src/tracker/rooms/markdown/maps.ts。
+ * #1611 起本地 url 不再是空串：薄查的 url 回盘上真实文件路径（与 list 同址），第一节据此断言。
  * 夹具 harness 照抄 tests/verify-1058-markdown-read-log.ts 的 makeCtx 与写盘格式
  * （同一套平台适配与票面写法，不另立口径）。
  */
@@ -95,7 +96,11 @@ console.log('== 一、只收地图：容器与带标票都收，普通票不收 
   check(r.ok === true, '薄查成功')
   const rows = (r.data && r.data.rows) || []
   check(rows.length === 3, '两张容器 + 一张带标票，共三行 → 实得 ' + rows.length)
-  check(rows.every((x) => x.title && typeof x.url === 'string'), '每行都有标题；本地 url 诚实回空串（契约 MapRow 注明）')
+  check(rows.every((x) => x.title && typeof x.url === 'string' && x.url !== ''), '每行都有标题，url 非空（#1611：本地回真实文件路径，不再诚实回空串）')
+  check(rows.every((x) => { try { return fs.statSync(x.url).isFile() } catch { return false } }), '每行 url 都指向磁盘上真实存在的文件 → 实得 ' + rows.map((x) => x.url).join('、'))
+  const containerRows = rows.filter((x) => x.key === '00')
+  check(containerRows.length === 2 && containerRows.every((x) => x.url.split(/[\\/]/).pop() === 'map.md'), '两个容器行的 url 分别指向它那份 map.md')
+  check(rows.some((x) => x.key === '02' && x.url.split(/[\\/]/).pop() === '02-b.md'), '带标票的 url 指向自己的票文件 02-b.md')
   check(rows.filter((x) => x.key === '00').length === 2, '纯容器行 key 沿用旧路的 00')
   check(rows.some((x) => x.key === '02'), '带标票保留自己的编号 02，与旧路同身份')
   check(rows.map((x) => x.key).join('|') === '00|02|00', '按更新时间倒序：b-地图、标签票、a-地图 → 实得 ' + rows.map((x) => x.key).join('|'))

@@ -18,8 +18,8 @@
  * 所以不搬进 config/ 下的 YAML（见 docs/adr/20261021-config-ownership.md 第 2.4 节与
  * docs/adr/20261016-time-config-yaml.md 第 5 节：条数、页数、次数这类值排除在时间参数之外）。
  *
- * 谁在读它：GitHub 房（page / sub-issues / pulls / issues / label-colors-ops / idempotency / queries /
- * graph / parent-repair）、GitLab 房（pages / labels-ops / sub-issues / idempotency / graph-blocking）、
+ * 谁在读它：GitHub 房（page / maps / sub-issues / pulls / issues / label-colors-ops / idempotency / queries /
+ * graph / parent-repair）、GitLab 房（pages / maps / labels-ops / sub-issues / idempotency / graph-blocking）、
  * 本地 Markdown 房（page）。各房原来的导出名与导出位置保持不变，只是值改成从这里取，外部调用方与现有测试
  * 不需要改。
  *
@@ -58,6 +58,7 @@ export const PAGINATION = {
     anchorLookupListLimit: 100,
     // 依赖投影：blockedBy 与 blocking 两条连接各最多一次取 50 条（到顶时要能如实说「可能不全」）。
     depsMax: 50,
+    // 地图薄查最多翻几页：清单再长也够用，撞上限就挂 truncated，不装「全了」。
     mapListMaxPages: 10,
   },
   gitlab: {
@@ -77,6 +78,8 @@ export const PAGINATION = {
     labelWriteConcurrencyDefault: 4,
     // 建票后按锚回查的慢路：最多看 100 张候选（按创建时间倒序的第一页）。
     anchorLookupScanLimit: 100,
+    // 地图薄查最多翻几页：与 GitHub 房同一个契约上限（两房行为一致才不让人猜）。
+    mapListMaxPages: 10,
   },
   markdown: {
     // 本地 Markdown 房只有分页契约这一组数字：缺省 50、上限 200，与另外两房同一口径。

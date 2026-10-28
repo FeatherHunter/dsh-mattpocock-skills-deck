@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T14:15:24.634Z",
+  "generatedAt": "2026-10-28T14:55:01.213Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 431,
   "gateCount": 431,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 19,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 608,
+  "graphFileCount": 609,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -11978,9 +11978,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 629,
+    "fileCount": 630,
     "dirCount": 74,
-    "coveredFileCount": 629,
+    "coveredFileCount": 630,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -12241,6 +12241,7 @@
       "src/deck/tools/md-scope.ts",
       "src/deck/tools/suggest-next-steps.ts",
       "src/deck/tools/tool-order.ts",
+      "src/deck/tools/tracker-session-adapt.ts",
       "src/deck/tools/tracker-session.ts",
       "src/deck/tools/work-route.ts",
       "src/deck/tsconfig.json",

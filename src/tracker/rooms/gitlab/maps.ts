@@ -7,14 +7,16 @@
  * 倒序翻页，回包按更新时间倒序重排；单页失败整趟失败，不回半份；超时与传输失败如实报错，
  * 绝不回落到老路（回落的唯一条件是“不支持”，本房今天起支持，见下）。
  *
- * 上限 10 页与 GitHub 房 PAGINATION.github.mapListMaxPages 取同数：同一份契约、同一上限，
- * 两房行为一致才不让人猜。分页常量住本文件，不碰共享分页表（本票只许动这一行涉及的登记）。
+ * 分页的两个数都从共享分页表取（#1611）：一页 100 行是 GitLab REST 的 per_page 上限，
+ * 最多翻 10 页与 GitHub 房同数（PAGINATION.gitlab.mapListMaxPages）。为什么不再写在房里：
+ * 同一个契约数字两处各存一份，改一处漏一处，两房行为就会悄悄分岔。
  * 状态必须显式传 state=all：GitLab 缺省只回开着的票，漏了已关闭的地图就是半份。
  * 日志不新增：读路径沿用 listIssues 的做法（glab 调用本身不记 read.degraded 行，
  * 失败直接回错），不引入新的 op/reason 取值。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import { PAGINATION } from '../../contract/pagination.js'
 import type { ErrorKind } from '../../contract/identity.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
@@ -34,10 +36,10 @@ type CtxLike = Partial<OpContext> & Partial<BackendContext>
 
 // 地图标签：服务端筛与内存复核用同一个小写名，内存复核逐个转小写再比（服务端大小写口径不保证）。
 const MAP_LABEL = 'wayfinder:map'
-// 一页 100 行：GitLab 单页上限，sub-issues 房同数。
-const PAGE_SIZE = 100
+// 一页 100 行：GitLab REST 的 per_page 上限，sub-issues 房同数（数字住共享分页表）。
+const PAGE_SIZE = PAGINATION.gitlab.maxPerPage
 // 最多翻 10 页：与 GitHub 房同数（见文件头），撞上限挂 truncated，不装“全了”。
-const MAX_MAP_PAGES = 10
+const MAX_MAP_PAGES = PAGINATION.gitlab.mapListMaxPages
 
 function repoId(repo: RepoLike): string {
   if (!repo) return ''

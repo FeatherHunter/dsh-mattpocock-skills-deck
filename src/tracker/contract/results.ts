@@ -300,7 +300,7 @@ export interface MapRow {
   title: string
   /** 开关状态（`open` / `closed`），与契约 `Issue.state` 同词。 */
   state: string
-  /** 票的地址（远端是网址，本地诚实回空串）。 */
+  /** 票的地址（远端是网址，本地是盘上文件的路径；两处都非空）。 */
   url: string
 }
 

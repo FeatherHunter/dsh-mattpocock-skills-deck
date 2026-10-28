@@ -800,8 +800,10 @@ async function main() {
     // 上限）；这一支只在建票本工具里用，不是独立工具，但同样住在工具层、同样受下面这套扫描约束。
     // 2026-10 #1543 再把「地图票没建成」整支搬成 map-plan-create-failure.ts（map-plan-create.ts 撞回
     // 文件粒度基线）；同样只在建图本工具里用，同样进这张精确名单。
-    const EXPECTED_FILES = ['context.ts', 'issue-create-failure.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create-failure.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session.ts', 'work-route.ts'].sort()
-    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是十份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + md-scope + 工具定义 + 建票失败回执 + 建图失败回执 这二十份（实际 ' + names.join(',') + '）')
+    // 2026-10 #1611 又把会话门面的适配壳整支搬成 tracker-session-adapt.ts（tracker-session.ts 撞回
+    // 350 行上限）；它同样住在工具层、同样受下面这套扫描约束，所以进这张精确名单。
+    const EXPECTED_FILES = ['context.ts', 'issue-create-failure.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create-failure.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session-adapt.ts', 'tracker-session.ts', 'work-route.ts'].sort()
+    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是十份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + 会话适配壳 + md-scope + 工具定义 + 建票失败回执 + 建图失败回执 这二十一份（实际 ' + names.join(',') + '）')
     const bad: string[] = []
     let sawClock = 0
     let toolTimer = 0
@@ -817,7 +819,7 @@ async function main() {
       : '工具层又出现了自己写的超时定时器（' + toolTimer + ' 处），等待竞速应当收进 capped-wait.ts 一处')
     check(bad.length === 0, bad.length
       ? '工具层有直连外面的写法：' + bad.join('；')
-      : '十九份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；工具层与壳层等待件里，时间只用在票面点名的两种形状上')
+      : '二十一份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；工具层与壳层等待件里，时间只用在票面点名的两种形状上')
     check(sawClock > 0 && sawTimer > 0, '允许形状表在真实文件上确实被走到（时钟缺省 ' + sawClock + ' 处、超时钳制 ' + sawTimer + ' 处，钳制这一处落在 capped-wait.ts 里），这套判据不是空转')
   }
 

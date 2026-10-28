@@ -14,7 +14,8 @@
  * 文件明细在失败结果的原文里，不在日志里重复）；枚举层自带的 list:map-read-fail 照旧由枚举层记。
  * 注意没有 list:read-fail 这一档（登记表里只有 counts / listPage / get 的 read-fail，list 从不整趟失败，
  * 所以没给它留这一档）：本票不碰表，就用 list 已有的整趟失败行（#1058 双向对账的要求：新值先改表）。
- * 本地 url 诚实回空串（契约 MapRow 注明），key 沿用旧路的身份（容器 00、票保留编号）。
+ * 本地 url 回真实文件路径（与 list 同址）：契约 MapRow 的 url 两处都非空，远端是网址、本地是盘上文件；
+ * key 沿用旧路的身份（容器 00、票保留编号）。
  */
 
 import { ERROR_KIND, ISSUE_TYPE } from '../../contract/vocabulary.js'
@@ -77,7 +78,7 @@ export async function listMaps(
       // 类型判在前、标签复核在后：与三房 T1 口径同序（标记→类型标签→形状），标签是复核不是改判。
       if (row.type !== ISSUE_TYPE.MAP && !hasMapLabel(row.labels)) continue
       kept.push({
-        row: { key: String(row.key), title: row.title, state: row.state, url: '' },
+        row: { key: String(row.key), title: row.title, state: row.state, url: row.url },
         updatedAt: typeof row.updatedAt === 'string' ? row.updatedAt : '',
         seq: seq++,
       })
