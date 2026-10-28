@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T09:50:15.154Z",
+  "generatedAt": "2026-10-28T10:15:01.372Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 415,
   "gateCount": 415,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 17,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 602,
+  "graphFileCount": 603,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -11565,9 +11565,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 623,
+    "fileCount": 624,
     "dirCount": 74,
-    "coveredFileCount": 623,
+    "coveredFileCount": 624,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 56,
@@ -12127,6 +12127,7 @@
       "src/tracker/rooms/gitlab/comments.ts",
       "src/tracker/rooms/gitlab/counts.ts",
       "src/tracker/rooms/gitlab/create-write.ts",
+      "src/tracker/rooms/gitlab/description-markers.ts",
       "src/tracker/rooms/gitlab/errors.ts",
       "src/tracker/rooms/gitlab/graph-blocking.ts",
       "src/tracker/rooms/gitlab/graph-membership.ts",
