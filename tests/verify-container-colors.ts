@@ -101,11 +101,6 @@ const STATUS_EXCEPTIONS = [
     reason: '探测失败后「重试」按钮的背景：警告动作按钮复用同一支琥珀。',
   },
   {
-    file: 'src/client/panel/Dock.ts',
-    segment: 'gate.wipNotice',
-    reason: '功能未完成迁移的提示条（gate.wipNotice）：全仓同一句提示共用一支警告色。',
-  },
-  {
     file: 'src/client/statusbar/StatusBar.ts',
     segment: 'nav.triageTitle',
     reason: '状态栏 triage 入口的警示橙：用颜色提示「有需要分诊的票」。',
@@ -119,11 +114,6 @@ const STATUS_EXCEPTIONS = [
     file: 'src/client/statusbar/StatusBar.ts',
     segment: 'dsws-banner warn',
     reason: '接口探测中的警告横幅（dsws-banner warn）：整条 banner 的文字与边框用琥珀，同一行两处。',
-  },
-  {
-    file: 'src/client/statusbar/StatusBar.ts',
-    segment: 'gate.wipNotice',
-    reason: '功能未完成迁移的提示条（gate.wipNotice）：与切换面板同一句提示、同一支警告色。',
   },
   {
     file: 'src/client/views/ChecksTab.ts',
@@ -222,11 +212,6 @@ const STATUS_EXCEPTIONS = [
   },
   {
     file: 'src/client/views/shared/BackendSelector.ts',
-    segment: 'gate.wipNotice',
-    reason: '功能未完成迁移的提示条（gate.wipNotice）：与状态栏同一句提示、同一支警告色。',
-  },
-  {
-    file: 'src/client/views/shared/BackendSelector.ts',
     segment: 'multiHitBadge',
     reason: '多后端同时命中的标记徽章（同一行两处）：提醒人选中的 ID 命中多个后端。',
   },
@@ -279,11 +264,6 @@ const STATUS_EXCEPTIONS = [
     file: 'src/client/views/shared/SwitchConfirmModal.ts',
     segment: "id === 'migrate' ? '#f59e0b'",
     reason: '切换确认里「迁移」选项的琥珀色：keep 绿 / migrate 琥珀 / 拒绝红三档。',
-  },
-  {
-    file: 'src/client/views/shared/SwitchConfirmModal.ts',
-    segment: 'gate.wipNotice',
-    reason: '功能未完成迁移的提示条（gate.wipNotice）：警告语义。',
   },
   {
     file: 'src/client/views/shared/SwitchConfirmModal.ts',
@@ -434,7 +414,8 @@ const STATUS_EXCEPTIONS = [
 // 让「又抄了一份」或「白名单漏了一处」在 diff 里直接看得见。
 // 2026-10-24：新鲜度三档的显示色从 Dock.ts 收进 views/shared/truthLines.ts（面板与状态栏共用一份），
 //   同值点总数不变（85），落点文件从 32 变成 33。
-const STATUS_REPO_HITS = 85
+// #1600：四处筹备中黄条摘掉，同值点 85→81（文件仍是 33 个，四个文件各少一处黄条）。
+const STATUS_REPO_HITS = 81
 const STATUS_REPO_FILES = 33
 // 这些文件是颜色流向的消费端：必须引用中央色表，不许自己藏一份身份色值。
 const CONSUMERS = [
