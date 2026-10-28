@@ -84,7 +84,8 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-26 #1143：旧日志实现退役，删掉读已删 logStore.ts 的两条断言（剩 35 条，单跑实测）。
   'verify-log-switch-single-source': 35,
   'verify-settings-templates': 65,
-  'verify-settings-view': 215,
+  // 2026-10-29 #1612：删掉旧 bannerFolded 迁移后改写这一扇的采样格，单跑实测 217 条。
+  'verify-settings-view': 217,
   'verify-1158-completion-evidence': 50,
   'verify-1407-next-steps-reminders': 87,
   // 2026-10-24 #1451：下一步建议加了十字简介这一格（工具侧新增 intro、界面侧新增 SUGGEST_INTRO_MAX_CHARS、
@@ -131,9 +132,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-28 #1607：UNC 工作区里 gh 的当前目录不许绕道 shell 的守卫（静态扫四个起进程点，加生产 preflight
   // 走一趟 UNC / 盘符 / 失败三条路）；42 条是单跑实测得出的。
   'verify-1607-gh-unc-cwd': 42,
-  // 2026-10-29 #1612：设置文件两个按工作区开关（胶囊状态栏 / deck 工具箱）的 schema、迁移与落盘；
-  // 51 条是单跑实测得出的。
-  'verify-1612-settings-switches': 51,
+  // 2026-10-29 #1612：设置文件两个按工作区开关（胶囊状态栏 / deck 工具箱）的 schema 与落盘；
+  // 旧字段迁移删掉之后按新语义改写采样格，53 条是单跑实测得出的。
+  'verify-1612-settings-switches': 53,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

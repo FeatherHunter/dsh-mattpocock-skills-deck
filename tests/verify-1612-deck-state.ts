@@ -5,9 +5,9 @@
  *   · deckTools：'on' 开（缺省）、'off' 关 —— 关的是整个 deck（工具、胶囊、右侧面板三处一起关）；
  *   · statusBar：'show' 显示胶囊、'hide' 折叠（缺省）；
  *   · 胶囊实际折没折 = deck 关了**或者** statusBar 是 hide；
- *   · 旧字段 bannerFolded 只在文件里还没有 statusBar 这一格时读一次做迁移（收起→hide、展开→show）。
+ *   · 旧字段 bannerFolded 与旧 localStorage 键已退役（维护者 2026-10-29 拍板删掉迁移）：读口不看它们。
  *
- * 本文件钉的是 src/client/kernel/deck-state.ts 这一片：读口把各种残缺输入按上述缺省与迁移口径解释，
+ * 本文件钉的是 src/client/kernel/deck-state.ts 这一片：读口把各种残缺输入按上述缺省口径解释，
  * 写口把两个值写回设置文件那一条路、并把同一个工作区的各会话 emit 一次。
  * 真源不 import 整棵客户端闭包（它靠 declare 拿闭包里的同名实现），所以这里先往 globalThis 挂替身，
  * 再动态 import 这一片 —— ESM 裸标识符会回落到全局，替身就是真实现的观察窗。
@@ -75,7 +75,7 @@ console.log('== ① deck 工具箱开关：只认文件里的 off，其余一律
   readThrows = false
 }
 
-console.log('\n== ② 胶囊状态栏开关：只认 show/hide，旧 bannerFolded 只做一次迁移 ==')
+console.log('\n== ② 胶囊状态栏开关：只认 show/hide，旧 bannerFolded 已退役不参与 ==')
 {
   reset(); flagTable['D:/ws-a|statusBar'] = 'show'
   check(deckStatusBarOf('D:/ws-a') === 'show', '② 写成 show → 显示胶囊')
@@ -84,11 +84,11 @@ console.log('\n== ② 胶囊状态栏开关：只认 show/hide，旧 bannerFolde
   reset()
   check(deckStatusBarOf('D:/ws-a') === 'hide', '② 文件里没有这一格也没旧字段 → 缺省折叠')
   reset(); flagTable['D:/ws-a|bannerFolded'] = false
-  check(deckStatusBarOf('D:/ws-a') === 'show', '② 旧字段 bannerFolded=false（展开过）→ 迁移成显示')
+  check(deckStatusBarOf('D:/ws-a') === 'hide', '② 旧字段 bannerFolded=false 已退役：不迁移、仍按缺省折叠')
   reset(); flagTable['D:/ws-a|bannerFolded'] = true
-  check(deckStatusBarOf('D:/ws-a') === 'hide', '② 旧字段 bannerFolded=true（收起过）→ 迁移成折叠')
+  check(deckStatusBarOf('D:/ws-a') === 'hide', '② 旧字段 bannerFolded=true 同样被忽略，按缺省折叠')
   reset(); flagTable['D:/ws-a|statusBar'] = 'show'; flagTable['D:/ws-a|bannerFolded'] = true
-  check(deckStatusBarOf('D:/ws-a') === 'show', '② 新字段在时以新字段为准，旧字段不再参与')
+  check(deckStatusBarOf('D:/ws-a') === 'show', '② 只有 statusBar 说了算')
   reset(); readThrows = true
   check(deckStatusBarOf('D:/ws-a') === 'hide', '② 读设置抛错时按折叠算（缺省）')
   readThrows = false

@@ -26,7 +26,7 @@ declare const Ic: any
 declare const Tip: any
 
 // 胶囊显示/折叠只走本机设置文件那一条路（kernel/deck-state.ts 的 setDeckStatusBar），接不下时该函数如实返回 false。
-// 这里不把旧 localStorage 表（dsws.bannerFold）写回去 —— #1612 要求旧状态只读一次做迁移，迁移后不再写旧键。
+// 旧 localStorage 表（dsws.bannerFold）与旧字段 bannerFolded 已退役（维护者 2026-10-29 拍板删掉迁移）：这里既不读也不写。
 
 
 // 折叠条上那颗「展开」按钮点下去先走这里（StatusBar 的 expandBanner 转调）。
@@ -51,8 +51,6 @@ export const deckDoorFold = function (st: any): void {
 // 平台限制：宿主右栏没有「按会话关掉某一格」的接口，所以这里只能把面板状态改回关、保证不再新开；
 // 已经开着的右栏标签要等下次刷新页面才消失（票面允许的退路，router.ts 里同一段也有说明）。
 export const deckDoorCloseDeck = function (st: any): void {
-  // 记下关之前面板是不是开着：确认重开时按这一格把右侧面板恢复回去（验收 ③ 说的「三处恢复」）。
-  try { if (st) st.deckDoorPanelWasOpen = !!(st.open) } catch (eWas) {}
   try { if (st && st.open && typeof togglePanel === 'function') togglePanel(st) } catch (ePanel) {}
   try { if (st) st.deckDoorConfirm = false } catch (eConfirm) {}
   try { setDeckTools(st && st.cwd, false) } catch (eDeck) {}
@@ -78,24 +76,20 @@ export const deckDoorCapsuleTail = function (h: any, st: any, capsuleToggle: any
 }
 
 // 折叠条「展开」的确认框（验收 ③）：deck 关着时点展开先问一句，写明会开启哪三处。
-// 状态放在 st.deckDoorConfirm（会话状态，不落盘）；确认 = 两个开关都写成开、右侧面板按关之前那一格恢复，
+// 状态放在 st.deckDoorConfirm（会话状态，不落盘）；确认 = 两个开关都写成开、右侧面板也重新打开，
 // 取消 = 只收起确认框、一个开关都不写。按钮与遮罩的点击都 stopPropagation，免得冒到下层折叠条。
 export const deckDoorConfirmEl = function (h: any, st: any): any {
   try {
     if (!st || st.deckDoorConfirm !== true) return null
     const close = function (): void { try { st.deckDoorConfirm = false; emit(st) } catch (e) {} }
-    // 确认 = 三处一起恢复：deck 工具箱开、胶囊显示、右侧面板回到红色 X 关掉之前那样（点在 X 上时记下的那一格）。
+    // 确认 = 三处一起恢复（验收 ③）：deck 工具箱开、胶囊显示、右侧面板也重新打开 —— 确认框文案承诺的就是这三处，
+    // 不能因为「这次是关了浏览器重进、没记着面板原本开没开」就少恢复一处。
     // 顺序必须「先写 deckTools、再开面板」：router.openPanel 会按 deck 状态拦，反了会被自己的闸门挡住。
     const confirm = function (): void {
       try { st.deckDoorConfirm = false } catch (e0) {}
       try { setDeckTools(st && st.cwd, true) } catch (e1) {}
       try { setDeckStatusBar(st && st.cwd, true) } catch (e2) {}
-      try {
-        if (st && st.deckDoorPanelWasOpen === true) {
-          st.deckDoorPanelWasOpen = false
-          if (typeof openPanel === 'function') openPanel(st)
-        }
-      } catch (e3) {}
+      try { if (typeof openPanel === 'function') openPanel(st) } catch (e3) {}
       try { emit(st) } catch (e4) {}
     }
     const card = h('div', { role: 'dialog', 'aria-modal': 'true', 'aria-label': tr('banner.deckReopenTitle'),

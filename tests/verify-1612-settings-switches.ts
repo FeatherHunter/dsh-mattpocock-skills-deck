@@ -4,16 +4,15 @@
  *
  * 这一份门禁只量三件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
  * 第一件事是设置文件的读写契约：每个工作区新增 statusBar（show 显示、hide 收起，缺省 hide）与
- *   deckTools（on 打开、off 关闭，缺省 on）两格；旧文件里只有 bannerFolded 的记录照读并换算
- *   （收起 true → hide、展开 false → show），同一份文件里 statusBar 显式写着时以它为准；写回去的那一份
- *   只写新两格、不再写旧字段；未知键与认不出的开关值仍按坏形状拒绝。
+ *   deckTools（on 打开、off 关闭，缺省 on）两格；旧字段 bannerFolded 已经退役，读旧文件时仍然接受
+ *   这个键（否则旧文件整份被判未知键），但完全忽略它的值、不做换算，缺 statusBar 一律按缺省 hide；
+ *   写回去的那一份只写新两格、不再写旧字段；未知键与认不出的开关值仍按坏形状拒绝。
  * 第二件事是客户端写这条路：kernel/settings-view-write.ts 的 setViewFlagValue 把 statusBar/deckTools
  *   原样交给「改内存文档 → 进队列 → 防抖 → 重读合并 → 写文件」这一条路（与 setViewFlag 同一条路，
  *   只是不做真假值转换），文件里真的出现这两格的新值；认不出的名字或值直接拒绝，一个字都不写。
  * 第三件事是客户端读这条路：kernel/settings-view.ts 的 viewFlagOf 对这两个名字读文件里的字符串，
- *   问不出时回 undefined 且不回退旧 localStorage 的布尔键（旧 bannerFolded 的迁移只由 deck-state 做一次）；
- *   旧布尔名字的回退读法一个字不变。另外量新建记录时的种子：文件还没建出来时第一次写，另一格按旧
- *   bannerFolded 的语义种上，升级后用户原来展开的胶囊仍是显示着的。
+ *   问不出时回 undefined，任何旧 localStorage 布尔键都不参与（横幅折叠那一格的迁移已经删掉）；
+ *   新建记录时的种子同样固定：statusBar 种 hide、deckTools 种 on，不看旧键。
  *
  * 怎么保证量的是真件：设置文件的读写用 src/host/configStore.js 的真实现（它转给核里的 settings.ts）；
  *   客户端那三片（settings-view-state、settings-view、settings-view-write）的真源按构建同一种做法、
@@ -119,7 +118,7 @@ async function main() {
 
   // ── 第一件事：设置文件的读写契约（旧值迁移、新两格、拒绝面） ──
   console.log('')
-  console.log('== 第一件事：旧文件里的 bannerFolded 照读并换算，写回去只写新两格 ==')
+  console.log('== 第一件事：旧文件里的 bannerFolded 接受但忽略，写回去只写新两格 ==')
   const legacyText = settingsText([
     '  D:\\ws\\folded:',
     '    bannerFolded: true',
@@ -129,8 +128,8 @@ async function main() {
   const legacyOut = parseSettingsText(legacyText)
   const legacyWs = wsOf(legacyOut)
   check(!!legacyWs, '旧文件（只有 bannerFolded 两个工作区）能读。', legacyOut && legacyOut.message)
-  check(!!legacyWs && legacyWs['D:\\ws\\folded'].statusBar === 'hide', '旧值收起（bannerFolded: true）换算成 statusBar: hide。', JSON.stringify(legacyWs && legacyWs['D:\\ws\\folded']))
-  check(!!legacyWs && legacyWs['D:\\ws\\shown'].statusBar === 'show', '旧值展开（bannerFolded: false）换算成 statusBar: show。', JSON.stringify(legacyWs && legacyWs['D:\\ws\\shown']))
+  check(!!legacyWs && legacyWs['D:\\ws\\folded'].statusBar === 'hide', '旧值收起（bannerFolded: true）不再换算，按缺省 hide 读。', JSON.stringify(legacyWs && legacyWs['D:\\ws\\folded']))
+  check(!!legacyWs && legacyWs['D:\\ws\\shown'].statusBar === 'hide', '旧值展开（bannerFolded: false）同样不再换算，仍按缺省 hide 读。', JSON.stringify(legacyWs && legacyWs['D:\\ws\\shown']))
   check(!!legacyWs && legacyWs['D:\\ws\\folded'].deckTools === 'on' && legacyWs['D:\\ws\\shown'].deckTools === 'on', '旧文件里没有 deckTools 时按缺省 on（打开）补上。', JSON.stringify(legacyWs))
   check(!!legacyWs && legacyWs['D:\\ws\\folded'].bannerFolded === undefined, '归一结果里不再留旧字段 bannerFolded。', JSON.stringify(legacyWs && legacyWs['D:\\ws\\folded']))
 
@@ -147,7 +146,7 @@ async function main() {
   const written = writeOut.ok === true ? writeOut.text : ''
   check(writeOut.ok === true, '旧文件读出来的那一份能写回去。', writeOut.ok ? '' : writeOut.message)
   check(written.indexOf('bannerFolded') < 0, '写出去的一份里不再出现旧字段 bannerFolded。', written.slice(0, 400))
-  check(written.indexOf('statusBar: hide') >= 0 && written.indexOf('statusBar: show') >= 0, '写出去的一份里出现换算后的 statusBar 两档值。', written.slice(0, 400))
+  check(written.indexOf('statusBar: hide') >= 0, '写出去的一份里出现 statusBar: hide（两个工作区都按缺省收起）。', written.slice(0, 400))
   check(written.indexOf('deckTools: "on"') >= 0, '写出去的一份里出现 deckTools: "on"（缺省打开的开关照写）。', written.slice(0, 400))
   check(written.indexOf('# 胶囊状态栏') >= 0 && written.indexOf('# deck 工具箱') >= 0, '写出去的一份里两格各带一行看得懂的注释。', written.slice(0, 400))
   const backAgain = parseSettingsText(written)
@@ -163,8 +162,8 @@ async function main() {
   check(badBarBoolOut.ok === false, 'statusBar 写成真假值也按坏形状拒（它不是布尔开关）。', JSON.stringify(badBarBoolOut))
   const badToolsOut = parseSettingsText(settingsText(['  D:\\ws\\x:', '    deckTools: "true"']))
   check(badToolsOut.ok === false && String(badToolsOut.message || '').indexOf('deckTools') >= 0, 'deckTools 只认 on 与 off，别的字面量按坏形状拒。', JSON.stringify(badToolsOut))
-  const badOldOut = parseSettingsText(settingsText(['  D:\\ws\\x:', '    bannerFolded: yes']))
-  check(badOldOut.ok === false && String(badOldOut.message || '').indexOf('bannerFolded') >= 0, '旧字段 bannerFolded 仍必须是真假值（没加引号的 yes 按坏形状拒）。', JSON.stringify(badOldOut))
+  const oldOut = parseSettingsText(settingsText(['  D:\\ws\\x:', '    bannerFolded: yes']))
+  check(oldOut.ok === true && wsOf(oldOut)['D:\\ws\\x'].statusBar === 'hide' && wsOf(oldOut)['D:\\ws\\x'].bannerFolded === undefined, '已退役的旧字段任意值都接受、值被忽略（读得进 yes，但不影响 statusBar 的缺省值）。', JSON.stringify(oldOut))
   const goodOut = parseSettingsText(settingsText(['  D:\\ws\\x:', '    statusBar: hide', '    deckTools: off']))
   check(goodOut.ok === true && wsOf(goodOut)['D:\\ws\\x'].statusBar === 'hide' && wsOf(goodOut)['D:\\ws\\x'].deckTools === 'off', '合法的两格值照读（show/hide、on/off 两档都认）。', JSON.stringify(goodOut))
 
@@ -292,11 +291,11 @@ async function main() {
   }
 
   {
-    // 旧布尔名字的回退读法一个字不变；文字开关问不出时回 undefined，不回退旧 localStorage 的布尔键。
+    // 旧键彻底退役：即使旧 localStorage 表里还留着「收起」的记录，也不再被任何读口读出来。
     const env = makeEnv({ tag: 'legacy-read', localStorage: { 'dsws.bannerFold': JSON.stringify({ [KEY_OF('D:\\ws\\demo')]: 1 }) } })
-    check(env.mod.viewFlagOf('D:\\ws\\demo', 'bannerFolded') === true, '旧布尔名字 bannerFolded 照旧回退旧 localStorage 键（行为不变）。')
-    check(env.mod.viewFlagOf('D:\\ws\\demo', 'statusBar') === undefined, 'statusBar 问不出时回 undefined，不回退旧 localStorage 的布尔值（迁移只由 deck-state 做一次）。')
-    check(env.mod.viewFlagOf('D:\\ws\\demo', 'deckTools') === undefined, 'deckTools 同样不回退旧键。')
+    check(env.mod.viewFlagOf('D:\\ws\\demo', 'bannerFolded') === false, '旧布尔名字 bannerFolded 已退役：旧表里记着收起也读不出 true。')
+    check(env.mod.viewFlagOf('D:\\ws\\demo', 'statusBar') === undefined, 'statusBar 问不出时回 undefined，不看旧 localStorage 的布尔值（迁移已删）。')
+    check(env.mod.viewFlagOf('D:\\ws\\demo', 'deckTools') === undefined, 'deckTools 同样不看旧键。')
   }
 
   {
@@ -312,16 +311,15 @@ async function main() {
   }
 
   {
-    // 写文件失败时 statusBar 按旧横幅语义兜底（收起 → bannerFold 记 1），老读口在本窗口里也看得懂。
-    const env = makeEnv({ tag: 'fallback-bar', failMode: 'refuse' })
+    // 写文件失败时不再有任何旧键可退：这一笔留在队列里重试，日志里看得见，旧表一个字节都不写。
+    const env = makeEnv({ tag: 'fallback-bar', failMode: 'refuse', localStorage: { 'dsws.bannerFold': JSON.stringify({ [KEY_OF('D:\\ws\\demo')]: 0 }) } })
     check(env.mod.setViewFlagValue(env.cwd, 'statusBar', 'hide') === true, '写文件被拒的那一档，写口先把这一笔接下（失败在落盘那一趟才知道）。')
-    const fellBack = await waitFor(() => {
-      const raw = env.ls.dump()['dsws.bannerFold']
-      if (!raw) return false
-      try { return JSON.parse(raw)[KEY_OF(env.cwd)] === 1 } catch (e) { return false }
-    })
-    check(fellBack, 'statusBar 写 hide 失败时按旧横幅语义记成收起（bannerFold 记 1）。', env.ls.dump()['dsws.bannerFold'])
-    check(env.mod.viewFlagOf(env.cwd, 'bannerFolded') === true, '兜底写进旧键之后，旧读口此刻读得到收起（迁移期的老读法仍能工作）。')
+    const failed = await waitFor(() => env.logs.filter((l) => l.event === 'host.call.fail' && l.fields && l.fields.method === 'wf.setSettings').length >= 1)
+    check(failed, 'statusBar 写文件被拒会记 host.call.fail（method=wf.setSettings）。', JSON.stringify(env.logs.slice(0, 6)))
+    check(env.logs.some((l) => l.event === 'storage.fail' && l.fields && l.fields.key === 'settings.workspaces'), '这一笔没落地在日志里看得见（storage.fail，key=settings.workspaces）。', JSON.stringify(env.logs.map((l) => l.event)))
+    const oldRaw = env.ls.dump()['dsws.bannerFold']
+    check(JSON.parse(oldRaw)[KEY_OF(env.cwd)] === 0, '写失败时旧表原样不动（不往后退写「收起」）。', oldRaw)
+    check(env.mod.viewFlagOf(env.cwd, 'bannerFolded') === false, '旧读口也不再从旧表读出收起（迁移已删）。')
   }
 
   {
@@ -335,14 +333,14 @@ async function main() {
   }
 
   {
-    // 新建记录时的种子：旧值展开（bannerFolded 旧键记 0）→ statusBar 种 show（升级后胶囊仍显示着）。
+    // 新建记录时的种子：旧键就算记着「展开」，也不参与种子，statusBar 固定种 hide（缺省收起）。
     const cwd = 'D:\\ws\\demo'
     const env = makeEnv({ tag: 'seed', localStorage: { 'dsws.bannerFold': JSON.stringify({ [KEY_OF(cwd)]: 0 }) } })
     env.mod.setViewFlagValue(cwd, 'deckTools', 'off')
     const landed = await waitFor(diskEntryIs(env.home, 'D:\\ws', 'deckTools', 'off'))
     check(landed, '文件还没建出来时写 deckTools: off 也能落盘。', JSON.stringify(await readDoc(env.home)))
     const entry = entryOf(await readDoc(env.home), 'D:\\ws')
-    check(!!entry && entry.statusBar === 'show', '新建记录时 statusBar 按旧 bannerFolded 的展开语义种成 show（不顺手把用户原来展开的胶囊收起来）。', JSON.stringify(entry))
+    check(!!entry && entry.statusBar === 'hide', '新建记录时 statusBar 固定种 hide（旧键记着展开也不采纳）。', JSON.stringify(entry))
     check(!!entry && entry.bannerFolded === undefined, '种出来的新记录不带旧字段 bannerFolded。', JSON.stringify(entry))
   }
 

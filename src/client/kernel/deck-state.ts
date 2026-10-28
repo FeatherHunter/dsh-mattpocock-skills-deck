@@ -12,8 +12,8 @@
  *   · statusBar：'show' 显示胶囊；'hide' 折叠（缺省）。胶囊折叠时那颗胶囊换成折叠条，环境检查类横幅一起不显示。
  *   · deckTools：'on' 启用 deck（缺省）；'off' 关闭 —— 该工作区工具、胶囊、右侧面板三处一起关。
  *   · 胶囊实际折没折 = deck 关了**或者** statusBar 是 hide：deck 关了就再没有地方显示胶囊。
- *   · 旧字段 bannerFolded 只读一次做迁移（收起→hide、展开→show），迁移之后不再写它；
- *     文件里还没有这一格时读口照旧问旧字段与旧 localStorage 键（真源在 kernel/settings-view.ts 的 viewFlagOf）。
+ *   · 旧字段 bannerFolded 与旧 localStorage 键都已退役（#1612 维护者拍板删掉迁移）：读口不再问它们，
+ *     缺 statusBar 一律按缺省 hide 处理。
  *
  * 值怎么落地：写走 kernel/settings-view-write.ts 的 setViewFlagValue（整份文档里改这一格、写前重读合并、
  *   写失败留队列重试）；写成功后把同一个工作区的各会话 emit 一次，界面立刻跟着重画。
@@ -46,14 +46,11 @@ export const deckToolsOf = function (cwd: any): any {
   try { return deckFlagText(viewFlagOf(cwd, 'deckTools')) === DECK_TOOLS_OFF ? DECK_TOOLS_OFF : DECK_TOOLS_ON } catch (e) { return DECK_TOOLS_ON }
 }
 
-// 这个工作区的胶囊状态栏显不显示：只认 show；其余按折叠算（缺省折叠，维护者拍板）。
-//   文件里还没有这一格时读旧的 bannerFolded 一次：收起→折叠、展开→显示（#1612 的迁移口径）。
+// 这个工作区的胶囊状态栏显不显示：只认 show；缺格、读失败、别的一律按折叠算（缺省折叠，维护者拍板）。
 export const deckStatusBarOf = function (cwd: any): any {
   try {
     const v = deckFlagText(viewFlagOf(cwd, 'statusBar'))
-    if (v === DECK_STATUS_BAR_SHOW || v === DECK_STATUS_BAR_HIDE) return v
-    const old = viewFlagOf(cwd, 'bannerFolded')
-    return (old === false) ? DECK_STATUS_BAR_SHOW : DECK_STATUS_BAR_HIDE
+    return (v === DECK_STATUS_BAR_SHOW) ? DECK_STATUS_BAR_SHOW : DECK_STATUS_BAR_HIDE
   } catch (e) { return DECK_STATUS_BAR_HIDE }
 }
 

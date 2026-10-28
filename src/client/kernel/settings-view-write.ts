@@ -11,9 +11,9 @@
  * 本片管「写这一趟」：待写队列（journal）、500 毫秒防抖、真正要写之前先重读文件再合并、
  *   回包按值划队列、写失败后留队并重试一趟。
  *
- * 接线：store-prefs.ts 的 isBannerFolded / setBannerFolded 与 views/SubworkspaceMark.js 的「自动展开过没有」
- *   那一段改调这一族（导出名与签名一字不变），旧表那几行原地留着当过渡；本片不在（老产物、渲染替身里）
- *   或回 false 时，调用方照改动前的老办法写旧表。
+ * 接线：views/SubworkspaceMark.js 的「自动展开过没有」那一段改调这一族（导出名与签名一字不变），
+ *   旧表那几行原地留着当过渡；本片不在（老产物、渲染替身里）或回 false 时，调用方照改动前的老办法写旧表。
+ *   胶囊状态栏与 deck 工具箱（#1612）不走旧表：它们只有设置文件一份真源，没有旧 localStorage 键可兜。
  *   #1612 起多一个写口 setViewFlagValue：它不改写值（不做真假值转换），只负责把字符串原样交给
  *   「改内存文档 → 进队列 → 防抖 → 写前重读合并」这一条路，给 kernel/deck-state.ts 的
  *   setDeckStatusBar / setDeckTools 用；返回值含义与 setViewFlag 一致（true ＝ 交给文件这条路了）。
@@ -155,11 +155,9 @@
           if (d.section === 'templates') { tplLegacyWriteAll(); continue }
           // 调试开关那一族兜底：把内存这一份（＝真值）写回旧键 dsws.debug 当秒显快照，理由见 settings-debug.js。
           if (d.section === 'debug') { settingsDebugLegacyWrite(); continue }
-          // #1612 的两个文字开关没有对应的旧 localStorage 键（旧版根本没有这两件事），
-          //   statusBar 能按意思换算回旧横幅键（收起 → bannerFold 记 1、显示 → 记 0），让老读口在本窗口里也看得懂；
-          //   deckTools 没有可退的旧键，就不写（这一格仍留在队列里，下一趟写会再试），只补一行日志说明这一笔没落地。
-          if (d.name === 'statusBar') { viewFlagLegacyWrite(d.cwd, 'bannerFolded', d.value === 'hide'); continue }
-          if (d.name === 'deckTools') { viewFlagLogDocFail(); continue }
+          // #1612 的两个文字开关没有对应的旧 localStorage 键（旧版根本没有这两件事），也不再有旧字段可换算：
+          //   写不进文件就留在队列里等下一趟（下一趟会再试），这里只补一行日志说明这一笔没落地。
+          if (viewFlagIsTextNameOf(d.name)) { viewFlagLogDocFail(); continue }
           viewFlagLegacyWrite(d.cwd, d.name, d.value)
         }
         if (viewFlagState.retryLeft > 0) { viewFlagState.retryLeft -= 1; viewFlagScheduleWrite() }

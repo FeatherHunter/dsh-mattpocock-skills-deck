@@ -49,7 +49,7 @@ async function main() {
     const st = {
       version: 1,
       ui: { stateFilter: 'open', sortKey: 'updatedAt', sortDir: 'desc', labelClicks: { bug: 3 } },
-      // #1612：工作区每条记录现在是四格——statusBar/deckTools 两个文字开关加两个旧布尔开关；旧 bannerFolded 只在读时认。
+      // #1612：工作区每条记录现在是四格——statusBar/deckTools 两个文字开关加两个旧布尔开关；旧 bannerFolded 已退役。
       workspaces: { 'D:\\ws\\demo': { statusBar: 'show', deckTools: 'off', noRepoDismissed: false, subwsMarkAutoShown: true } },
       debug: { enabled: false, sampleRate: 1 },
       templates: { execute: 'hi' },
@@ -93,8 +93,10 @@ async function main() {
   {
     const boolTrap = parseConfig('version: 1\nui: {}\nworkspaces: {}\ndebug: {enabled: yes, sampleRate: 1}\ntemplates: {}\n', 'settings')
     check(boolTrap.ok === false && boolTrap.reason === 'bad-shape', 'C2 `enabled: yes`（文字）按坏形状回', JSON.stringify(boolTrap))
+    // #1612 维护者拍板删掉旧字段迁移：bannerFolded 仍然接受（旧文件里有这格才读得进来），但值一律忽略、不换算。
     const onTrap = parseConfig('version: 1\nui: {}\nworkspaces: {D:\\x: {bannerFolded: on}}\ndebug: {enabled: false, sampleRate: 1}\ntemplates: {}\n', 'settings')
-    check(onTrap.ok === false && onTrap.reason === 'bad-shape', 'C2 `bannerFolded: on`（文字）按坏形状回', JSON.stringify(onTrap))
+    check(onTrap.ok === true && onTrap.value.workspaces['D:\\x'].statusBar === 'hide' && onTrap.value.workspaces['D:\\x'].bannerFolded === undefined,
+      'C2 已退役的 `bannerFolded: on` 读得进来、值被忽略，归一后按缺省 statusBar: hide、且不带旧字段', JSON.stringify(onTrap))
     const numTrap = parseConfig('version: 1.10\nbackendId: github\npickedAt: 1\nsource: user\nlayout: multi\n', 'workspace')
     check(numTrap.ok === false && numTrap.reason === 'bad-shape', 'C2 `version: 1.10`（数字 1.1）按坏形状回', JSON.stringify(numTrap))
     const octTrap = parseConfig('version: 2\nbackendId: github\npickedAt: 0777\nsource: user\nlayout: multi\n', 'workspace')

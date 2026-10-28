@@ -185,26 +185,9 @@ export const ISSUE_CACHE_TTL: number = ((typeof SYNC === 'object' && SYNC && SYN
 export const selectionByCwd: any = {}
 export const repositoryByCwd: any = {}
 export const SELECTION_BY_CWD_KEY: string = 'dsws.selectionByCwd'
-// #422 起这里按工作区记「横幅要不要收起」；#1612 把折叠语义收拢到本机设置文件的那组开关上：
-//   胶囊折没折只看 kernel/deck-state.ts 的 statusBar（deck 工具箱关着时一律算折）。所以下面两个旧导出名
-//   现在只是转调：读走 isDeckCapsuleFolded（含旧字段 bannerFolded 的一次性迁移），写走 setDeckStatusBar。
-//   名字不改：状态栏与设置页的调用方、以及 tests/verify-kernel.ts 的接口冻结清单都按旧名调用，本票只换语义。
-// 旧 localStorage 表（BANNER_FOLD_KEY / bannerFoldByCwd）在 #1612 之后只读、不再写：迁移读口（kernel/deck-state.ts
-//   的 deckStatusBarOf 读旧字段 bannerFolded）由 settings-view 的旧键读法直接读 localStorage，不经过这张表。
-//   两个导出名只作留档，等确认没有旧版本需要迁移时再连它们一起删（删的时候记得同步接口冻结清单）。
-export const BANNER_FOLD_KEY: string = 'dsws.bannerFold'
-export const bannerFoldByCwd: any = {}
-// #1012 起读写体在本机设置文件那一条路上（kernel/settings-view*.js）；#1612 起真源收成一个开关：
-//   statusBar=show 显示、hide 折叠，deck 工具箱关着时也一律按折叠算。下面是两个旧名转调，签名与导出名不变。
-export const isBannerFolded = function (cwd: any): boolean {
-  try { return isDeckCapsuleFolded(cwd) === true } catch (e) { return true }
-}
-// 旧名这样写：收起来 → statusBar=hide；展开 → statusBar=show。deck 工具箱一个字不碰，
-//   所以「只关胶囊」时工具与右侧面板都照旧（验收 ⑤）。返回 true ＝ 文件那条路接下了；false ＝ 接不下，
-//   这时不再把旧 localStorage 表写回去（#1612：旧状态只读一次做迁移，迁移后不再写旧键）。
-export const setBannerFolded = function (cwd: any, folded: any): boolean {
-  try { return setDeckStatusBar(cwd, folded !== true) === true } catch (e) { return false }
-}
+// #1612 之后胶囊折没折只看 kernel/deck-state.ts 的 statusBar（deck 工具箱关着时一律算折）：
+//   真实的读写都在那里（setDeckStatusBar / isDeckCapsuleFolded），本文件不再留转名的旧壳，
+//   旧 localStorage 表（dsws.bannerFold）与旧字段 bannerFolded 一并退役，读都不再读（维护者 2026-10-29 拍板）。
 // #1003 退役：镜像读写已删，这两个只剩空壳（调用方在本次范围外，留名免崩；一律按“无镜像”答）。
 export const getCachedSelection = function (cwd: any): any { return null }
 export const setCachedSelection = function (cwd: any, sel: any): void {}

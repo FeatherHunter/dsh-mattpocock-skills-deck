@@ -614,20 +614,20 @@ async function main(): Promise<void> {
     const home2 = makeHome('shell-base')
     const full = dbgDoc({ enabled: false, sampleRate: 1 })
     full.ui.stateFilter = 'open'
-    full.workspaces = { 'D:\\proj': { bannerFolded: true } }
+    full.workspaces = { 'D:\\proj': { subwsMarkAutoShown: false } }
     full.templates = { comment: 'hello' }
     await store.writeLocalSettings(full, home2, realIo)
     const env2 = makeEnv({ tag: 'shell-base', home: home2, getSeq: [null, { ok: true, value: { version: 1 } }] })
     env2.mod.settingsViewLoad()
     check(await ready(env2), '第一次问文档拿到的是真那一份（后面那次重读才答半份）。', env2.mod.viewFlagState.status)
-    const tookSet = env2.mod.setViewFlagRoot('D:\\proj', 'bannerFolded', false, 'D:\\proj')
+    const tookSet = env2.mod.setViewFlagRoot('D:\\proj', 'subwsMarkAutoShown', true, 'D:\\proj')
     check(tookSet === true, '另一族（工作区那格）那一笔记进了待写队列。', String(tookSet))
     check(await waitWrite(env2), '这一笔落了一次盘。', String(callsOf(env2, 'wf.setSettings').length))
     const landed = await waitFor(async () => {
       const d = await readDoc(home2)
-      return !!d && !!d.workspaces && !!d.workspaces['D:\\proj'] && d.workspaces['D:\\proj'].statusBar === 'show'
+      return !!d && !!d.workspaces && !!d.workspaces['D:\\proj'] && d.workspaces['D:\\proj'].subwsMarkAutoShown === true
     })
-    check(landed, '这一笔自己落了盘（#1612 迁移：旧 bannerFolded: false 写回时换算成 statusBar: show）。', JSON.stringify(((await readDoc(home2)) || {}).workspaces))
+    check(landed, '这一笔自己落了盘（工作区那一族的布尔格写回文件，别的节保住）。', JSON.stringify(((await readDoc(home2)) || {}).workspaces))
     const dShell = await readDoc(home2)
     check(!!dShell && dShell.ui.stateFilter === 'open' && dShell.templates.comment === 'hello',
       '半份文档没被当成基底：别的节（ui.stateFilter、templates.comment）原样还在，没被写成空值。',
@@ -663,7 +663,7 @@ async function main(): Promise<void> {
     const home4 = makeHome('half-first')
     const full4 = dbgDoc({ enabled: false, sampleRate: 1 })
     full4.ui.stateFilter = 'open'
-    full4.workspaces = { 'D:\\proj': { bannerFolded: true } }
+    full4.workspaces = { 'D:\\proj': { subwsMarkAutoShown: false } }
     full4.templates = { comment: 'hello' }
     await store.writeLocalSettings(full4, home4, realIo)
     const env4 = makeEnv({ tag: 'half-first', home: home4, getSeq: [{ ok: true, value: { version: 1 } }, { ok: true, value: { version: 1 } }] })

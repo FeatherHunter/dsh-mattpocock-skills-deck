@@ -329,28 +329,30 @@ const wait = (env) => realSleep(300)
 
   // ── 第一件事：文件缺席时回退旧表读 ──
   console.log('')
-  console.log('== 第一件事：设置文件还没建时，读回退到旧 localStorage 键（行为与改动前一致） ==')
+  console.log('== 第一件事：设置文件还没建时，读回退到还在过渡的那个旧 localStorage 键 ==')
   {
     const cwd = 'D:\\ilife\\packages\\skill-calorie'
-    const env = makeEnv({ tag: 'absent', cwd: cwd, localStorage: { 'dsws.bannerFold': JSON.stringify({ [KEY_OF(cwd)]: 1 }) } })
-    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '文件缺席时，旧键里记着收起过就回 true（不因为新后端没文件就说没收起）。')
-    check(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === false, '另一个名字在旧键里没有记录时回 false（不是 undefined、也不抛错）。', String(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')))
+    const env = makeEnv({ tag: 'absent', cwd: cwd, localStorage: { 'dsws.subwsAutoShown': JSON.stringify({ [KEY_OF('D:\\ilife')]: 1 }), 'dsws.bannerFold': JSON.stringify({ [KEY_OF(cwd)]: 1 }) } })
+    check(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === true, '文件缺席时，那条还在过渡的旧键里记着展示过就回 true（不因为新后端没文件就说没展示过）。')
+    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '横幅折叠那一格的旧键已经退役：旧表里记着收起也读不出 true。')
     check(env.calls.filter((c) => c.method === 'wf.getSettings').length === 1, '文件缺席只读一次文档（第一次用到时惰性读一次）。', JSON.stringify(env.calls.map((c) => c.method)))
     // 缺席不代表这条路不可用：后端通着，第一次写入会把它建出来，所以写要接得下来。
-    const accepted = env.mod.setViewFlag(cwd, 'bannerFolded', true)
+    const accepted = env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true)
     check(accepted === true, '文件缺席时这一片照样接下写入（后端通着，第一次写入会把这份文件建出来）。')
     await wait(env)
     const doc = await readDoc(env.home)
-    check(!!doc && !!doc.workspaces && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].statusBar === 'hide',
-      '缺席起步的那一份空文档，写下去之后文件真的建出来了，而且这一格是「收起」。#1612 拍板：旧字段 bannerFolded 写回时换算成 statusBar（收起=true→hide、展开=false→show），所以盘上看到的是新格。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && !!doc.workspaces && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true,
+      '缺席起步的那一份空文档，写下去之后文件真的建出来了，这一格是刚写下的 true。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && doc.workspaces['D:\\ilife'].statusBar === 'hide' && doc.workspaces['D:\\ilife'].deckTools === 'on',
+      '同一条记录里另外两格按 #1612 的缺省种上（statusBar: hide、deckTools: on）。', JSON.stringify(doc && doc.workspaces))
     // A4：新建这一条记录时，无仓库红卡那一格不由本窗口替用户答 false（那张卡要退役，答了会在以后把用户
     //   已经收起的红卡重新弹出来）。这里量的是发出去的那一份文档：它不该带这一格。
     const sentFirst = env.calls.filter((c) => c.method === 'wf.setSettings')[0]
     const sentEntry = sentFirst && sentFirst.args && sentFirst.args.value && sentFirst.args.value.workspaces['D:\\ilife']
     check(!!sentEntry && sentEntry.noRepoDismissed === undefined,
       '新建记录时本窗口不替无仓库红卡那一格答 false（发出去的文档里没有这一格）。', JSON.stringify(sentEntry))
-    check(!!sentEntry && typeof sentEntry.bannerFolded === 'boolean' && typeof sentEntry.subwsMarkAutoShown === 'boolean',
-      '另外两格照旧种上（值取旧表里还知道的那一份，新建的那一刻不把用户收起过的横幅重新展开）。', JSON.stringify(sentEntry))
+    check(!!sentEntry && sentEntry.bannerFolded === undefined && typeof sentEntry.subwsMarkAutoShown === 'boolean',
+      '发出去的文档里没有已退役的 bannerFolded，另一格照旧种上。', JSON.stringify(sentEntry))
   }
 
   // ── 第二件事：写成功之后旧 localStorage 键一个字节都不写 ──
@@ -379,24 +381,24 @@ const wait = (env) => realSleep(300)
   {
     const cwd = 'D:\\ilife\\packages\\skill-calorie'
     const env = makeEnv({ tag: 'failwrite', cwd: cwd, fsOverrides: { writeFile: async () => { throw failCode('EPERM', 'operation not permitted') } } })
-    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '写这一笔时这一片先接下了（它先按能写处理，落盘失败再兜底）。')
+    check(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true) === true, '写这一笔时这一片先接下了（它先按能写处理，落盘失败再兜底）。')
     await wait(env)
-    const old = env.ls.getItem('dsws.bannerFold')
+    const old = env.ls.getItem('dsws.subwsAutoShown')
     const oldMap = old ? JSON.parse(old) : null
-    check(!!oldMap && oldMap[KEY_OF(cwd)] === 1, '写文件失败之后，这一次的值写回了旧键 dsws.bannerFold（兜底）。', JSON.stringify(old))
+    check(!!oldMap && oldMap[KEY_OF('D:\\ilife')] === 1, '写文件失败之后，这一次的值写回了还在过渡的旧键 dsws.subwsAutoShown（按工作区根记 1）。', JSON.stringify(old))
     check(fs.existsSync(settingsPathIn(env.home)) === false, '写失败时设置文件没有被建出来（兜底不是「换一份假的写成功」）。')
     check(env.logs.some((l) => l.event === 'host.call.fail' && l.fields && l.fields.method === 'wf.setSettings'), '写失败在日志里留下一行（沿用既有的 host.call.fail，电话名写在 method 字段）。', JSON.stringify(env.logs))
   }
   {
     // 文件是高版本插件写的：读得回但字段含义未知，所以不照着它答（宁可回旧表），也绝不写回去。
     const cwd = 'D:\\ilife\\packages\\skill-calorie'
-    const env = makeEnv({ tag: 'readonly', cwd: cwd, localStorage: { 'dsws.bannerFold': JSON.stringify({ [KEY_OF(cwd)]: 1 }) } })
+    const env = makeEnv({ tag: 'readonly', cwd: cwd, localStorage: { 'dsws.subwsAutoShown': JSON.stringify({ [KEY_OF('D:\\ilife')]: 1 }) } })
     fs.mkdirSync(path.dirname(settingsPathIn(env.home)), { recursive: true })
-    fs.writeFileSync(settingsPathIn(env.home), 'version: 9\nworkspaces:\n  "D:\\ilife":\n    bannerFolded: false\n', 'utf8')
-    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '文件是高版本时读回旧表里的值（读不懂的字段不猜）。')
+    fs.writeFileSync(settingsPathIn(env.home), 'version: 9\nworkspaces:\n  "D:\\ilife":\n    subwsMarkAutoShown: false\n', 'utf8')
+    check(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === true, '文件是高版本时读回旧表里的值（读不懂的字段不猜）。')
     await waitFor(() => env.mod.viewFlagReadyNow() === true) // 等那一次读的答复落地（这一片据此把状态标成只读）
-    check(env.mod.setViewFlag(cwd, 'bannerFolded', false) === false, '文件是高版本时写这一笔不接（返回 false，调用方按老办法写旧表）。')
-    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '不接之后读仍旧回旧表里的值（不拿高版本文件里那格当答案）。')
+    check(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', false) === false, '文件是高版本时写这一笔不接（返回 false，调用方按老办法写旧表）。')
+    check(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === true, '不接之后读仍旧回旧表里的值（不拿高版本文件里那格当答案）。')
     await wait(env)
     check(fs.readFileSync(settingsPathIn(env.home), 'utf8').indexOf('version: 9') === 0, '高版本文件一个字节都没被改（还是原来那份）。')
   }
@@ -406,10 +408,10 @@ const wait = (env) => realSleep(300)
     const env = makeEnv({ tag: 'readonly2', cwd: cwd })
     fs.mkdirSync(path.dirname(settingsPathIn(env.home)), { recursive: true })
     fs.writeFileSync(settingsPathIn(env.home), 'version: 9\n', 'utf8')
-    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '读还没回来时这一笔先接下（不当场写旧键，免得文档一到手就把它顶掉）。')
-    await waitFor(() => JSON.parse(env.ls.getItem('dsws.bannerFold') || '{}')[KEY_OF(cwd)] === 1) // 等答复落地：知道是高版本，这一笔被记回旧键兜底
-    const oldMap = JSON.parse(env.ls.getItem('dsws.bannerFold') || '{}')
-    check(oldMap[KEY_OF(cwd)] === 1, '答复落地后知道文件是高版本，于是把这一笔记回旧键兜底。', JSON.stringify(oldMap))
+    check(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true) === true, '读还没回来时这一笔先接下（不当场写旧键，免得文档一到手就把它顶掉）。')
+    await waitFor(() => JSON.parse(env.ls.getItem('dsws.subwsAutoShown') || '{}')[KEY_OF('D:\\ilife')] === 1) // 等答复落地：知道是高版本，这一笔被记回旧键兜底
+    const oldMap = JSON.parse(env.ls.getItem('dsws.subwsAutoShown') || '{}')
+    check(oldMap[KEY_OF('D:\\ilife')] === 1, '答复落地后知道文件是高版本，于是把这一笔记回旧键兜底。', JSON.stringify(oldMap))
     check(fs.readFileSync(settingsPathIn(env.home), 'utf8').indexOf('version: 9') === 0, '这一趟同样没有碰高版本文件一个字节。')
   }
 
@@ -422,13 +424,13 @@ const wait = (env) => realSleep(300)
     const preset = {
       version: 1,
       ui: { stateFilter: 'closed', sortKey: 'updated', sortDir: 'desc', labelClicks: { bug: 3 } },
-      workspaces: { 'D:\\other': { bannerFolded: true, noRepoDismissed: true, subwsMarkAutoShown: true } },
+      workspaces: { 'D:\\other': { statusBar: 'hide', deckTools: 'off', noRepoDismissed: true, subwsMarkAutoShown: true } },
       debug: { enabled: true, sampleRate: 0.25 },
       templates: { greeting: '你好，世界' },
     }
     const w0 = await store.writeLocalSettings(preset, env.home, realIo)
     check(w0.ok === true, '预置一份别人写过的设置文件（里面有别的节、别的字段、别的工作区）。', JSON.stringify(w0))
-    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '在预置文件的基础上写本工作区这一格。')
+    check(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true) === true, '在预置文件的基础上写本工作区这一格。')
     await wait(env)
     const doc = await readDoc(env.home)
     // 标签点击次数不落盘（维护者 2026-10-12 拍板），所以「一个不动」的只有状态过滤与排序两项，
@@ -437,11 +439,12 @@ const wait = (env) => realSleep(300)
     check(!!doc && JSON.stringify(doc.ui) === JSON.stringify(uiExpected), 'ui 节原样保留（状态过滤、排序一个不动；标签点击次数不落盘，写出去的一份里没有它）。', JSON.stringify(doc && doc.ui))
     check(!!doc && JSON.stringify(doc.debug) === JSON.stringify(preset.debug), 'debug 节原样保留（开关与采样率一个不动）。', JSON.stringify(doc && doc.debug))
     check(!!doc && JSON.stringify(doc.templates) === JSON.stringify(preset.templates), 'templates 节原样保留（用户自己写的模板文本一个不动）。', JSON.stringify(doc && doc.templates))
-    check(!!doc && !!doc.workspaces['D:\\other'] && doc.workspaces['D:\\other'].statusBar === 'hide' && doc.workspaces['D:\\other'].noRepoDismissed === true,
-      '别的工作区那一条原样保留（旧文件里的 bannerFolded: true 写回时换算成 statusBar: hide，说的还是「收起」这一件事）。', JSON.stringify(doc && doc.workspaces))
-    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].statusBar === 'hide', '本工作区这一格写成了「收起」（旧 bannerFolded: true 换算成 statusBar: hide）。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && !!doc.workspaces['D:\\other'] && doc.workspaces['D:\\other'].statusBar === 'hide' && doc.workspaces['D:\\other'].deckTools === 'off' && doc.workspaces['D:\\other'].noRepoDismissed === true,
+      '别的工作区那一条原样保留（两格文字开关与两格布尔值一个不动）。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true, '本工作区这一格写成了 true。', JSON.stringify(doc && doc.workspaces))
     check(!!doc && doc.workspaces['D:\\ilife'].statusBar === 'hide' && doc.workspaces['D:\\ilife'].deckTools === 'on' && typeof doc.workspaces['D:\\ilife'].noRepoDismissed === 'boolean' && typeof doc.workspaces['D:\\ilife'].subwsMarkAutoShown === 'boolean',
       '新写下的这一条是核认得的完整形状（statusBar 与 deckTools 是约定的文字值，另两格照旧是真假值；#1612 归一后每条都带这四格，核不会按缺项或多项拒绝）。', JSON.stringify(doc && doc.workspaces['D:\\ilife']))
+    check(!!doc && doc.workspaces['D:\\ilife'].bannerFolded === undefined, '写出去的一份里不再有已退役的 bannerFolded 字段。', JSON.stringify(doc && doc.workspaces['D:\\ilife']))
   }
 
   // ── 第五件事：键用工作区根的可读路径，不是折叠散列，同一个工作区只留一条 ──
@@ -453,7 +456,7 @@ const wait = (env) => realSleep(300)
     check(env.mod.viewFlagDocKeyOf(cwd) === 'D:\\ilife', '键还原成本会话自己的写法 D:\\ilife（宿主给的那份是小写折算过的键）。', JSON.stringify(env.mod.viewFlagDocKeyOf(cwd)))
     check(/^[A-Za-z]:[\\/]/.test(env.mod.viewFlagDocKeyOf(cwd)) && !/^[0-9a-f]{6,}$/i.test(env.mod.viewFlagDocKeyOf(cwd)),
       '键是一条人认得出的路径（有盘符与分隔符），不是一串算出来的散列。', JSON.stringify(env.mod.viewFlagDocKeyOf(cwd)))
-    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '写一笔好让文件里长出这一条。')
+    check(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true) === true, '写一笔好让文件里长出这一条。')
     await wait(env)
     const doc = await readDoc(env.home)
     check(!!doc && Object.keys(doc.workspaces).length === 1 && doc.workspaces['D:\\ilife'] !== undefined,
@@ -479,17 +482,17 @@ const wait = (env) => realSleep(300)
     // 同一个工作区两条不同写法的会话：文件里只留一条，后到的会话沿用它。
     const cwdA = 'D:\\ilife'
     const env = makeEnv({ tag: 'oneentry', cwd: cwdA })
-    check(env.mod.setViewFlag(cwdA, 'bannerFolded', true) === true, '甲会话（D:\\ilife）先写下一条。')
+    check(env.mod.setViewFlag(cwdA, 'subwsMarkAutoShown', true) === true, '甲会话（D:\\ilife）先写下一条。')
     await wait(env)
     const st2 = { cwd: 'd:\\ilife\\packages\\x', sessionWorkspaceRoot: 'd:\\ilife', subs: [], tick: 0 }
     env.stores['sess-2'] = st2
-    check(env.mod.viewFlagOf('d:\\ilife\\packages\\x', 'bannerFolded') === true, '乙会话（小写写法的子目录）读到的是同一条记录里的值。')
-    check(env.mod.setViewFlag('d:\\ilife\\packages\\x', 'subwsMarkAutoShown', true) === true, '乙会话再写另一格。')
+    check(env.mod.viewFlagOf('d:\\ilife\\packages\\x', 'subwsMarkAutoShown') === true, '乙会话（小写写法的子目录）读到的是同一条记录里的值。')
+    check(env.mod.setViewFlag('d:\\ilife\\packages\\x', 'noRepoDismissed', true) === true, '乙会话再写另一格。')
     await wait(env)
     const doc = await readDoc(env.home)
     check(!!doc && Object.keys(doc.workspaces).length === 1, '写完两条会话之后，文件里仍然只有一条记录（不同写法折算到同一条）。', JSON.stringify(doc && Object.keys(doc.workspaces)))
-    check(!!doc && doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].statusBar === 'hide' && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true,
-      '两格都落在原来那一条记录上（#1612 迁移：旧 bannerFolded: true 变 statusBar: hide，subwsMarkAutoShown 仍是 true）。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true && doc.workspaces['D:\\ilife'].noRepoDismissed === true,
+      '两格都落在原来那一条记录上（甲写的那一格与乙写的那一格同时在）。', JSON.stringify(doc && doc.workspaces))
   }
 
   // ── 第六件事：防抖把连着来的几下合并成一次电话调用 ──
@@ -499,19 +502,19 @@ const wait = (env) => realSleep(300)
     const cwd = 'D:\\ilife\\packages\\skill-calorie'
     const env = makeEnv({ tag: 'debounce', cwd: cwd })
     const rets = []
-    rets.push(env.mod.setViewFlag(cwd, 'bannerFolded', true))
-    rets.push(env.mod.setViewFlag(cwd, 'bannerFolded', false))
-    rets.push(env.mod.setViewFlag(cwd, 'bannerFolded', true))
     rets.push(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true))
-    rets.push(env.mod.setViewFlag(cwd, 'bannerFolded', false))
+    rets.push(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', false))
+    rets.push(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true))
+    rets.push(env.mod.setViewFlag(cwd, 'noRepoDismissed', true))
+    rets.push(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', false))
     check(rets.every((v) => v === true), '连着来的五下每一首都接下了（都交给写文件这条路）。', JSON.stringify(rets))
     await wait(env)
     const writes = env.calls.filter((c) => c.method === 'wf.setSettings')
     check(writes.length === 1, '五次改动只发了一次写电话（防抖把窗口内的几下并成一次）。', '实得 ' + writes.length + ' 次')
     check(writes.length === 1 && Object.keys(writes[0].args.value.workspaces).length >= 1, '那一次写电话带的是整份文档（value 里有 workspaces 这一节）。')
     const doc = await readDoc(env.home)
-    check(!!doc && doc.workspaces['D:\\ilife'].statusBar === 'show' && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true,
-      '文件里留下的是最后那一下的值（横幅没收起=statusBar: show、标志已展开）。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === false && doc.workspaces['D:\\ilife'].noRepoDismissed === true,
+      '文件里留下的是最后那一下的值（标志那格回到 false、另一格 true）。', JSON.stringify(doc && doc.workspaces))
     await realSleep(300) // 负向断言（「不再补发」没有变化可等）：用真实时钟等过第二个窗口
     check(env.calls.filter((c) => c.method === 'wf.setSettings').length === 1, '等过第二个窗口之后也没有补发第二次（不是自续的定时器）。')
   }
@@ -521,11 +524,11 @@ const wait = (env) => realSleep(300)
   console.log('== 第七件事之一：手机不通（没有宿主、或读电话失败）时不抛错，全程走旧表且不反复重试 ==')
   {
     const cwd = 'D:\\ilife\\packages\\skill-calorie'
-    const env = makeEnv({ tag: 'nohost', cwd: cwd, noHost: true, localStorage: { 'dsws.bannerFold': JSON.stringify({ [KEY_OF(cwd)]: 1 }) } })
+    const env = makeEnv({ tag: 'nohost', cwd: cwd, noHost: true, localStorage: { 'dsws.subwsAutoShown': JSON.stringify({ [KEY_OF('D:\\ilife')]: 1 }) } })
     let threw = false
     let read = null
     let write = null
-    try { read = env.mod.viewFlagOf(cwd, 'bannerFolded'); write = env.mod.setViewFlag(cwd, 'bannerFolded', false) } catch (e) { threw = true }
+    try { read = env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown'); write = env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', false) } catch (e) { threw = true }
     check(threw === false, '没有宿主可问时，读与写都不抛错。')
     check(read === true, '没有宿主时读回旧表里的值（兜底读）。', JSON.stringify(read))
     check(write === false, '没有宿主时写这一笔不接（返回 false，调用方按老办法写旧表）。', JSON.stringify(write))
@@ -533,11 +536,11 @@ const wait = (env) => realSleep(300)
   }
   {
     const cwd = 'D:\\ilife\\packages\\skill-calorie'
-    const env = makeEnv({ tag: 'readfail', cwd: cwd, failMode: 'throw', localStorage: { 'dsws.bannerFold': JSON.stringify({ [KEY_OF(cwd)]: 1 }) } })
+    const env = makeEnv({ tag: 'readfail', cwd: cwd, failMode: 'throw', localStorage: { 'dsws.subwsAutoShown': JSON.stringify({ [KEY_OF('D:\\ilife')]: 1 }) } })
     let threw = false
     const vals = []
     try {
-      for (let i = 0; i < 4; i++) { vals.push(env.mod.viewFlagOf(cwd, 'bannerFolded')); env.mod.setViewFlag(cwd, 'bannerFolded', false) }
+      for (let i = 0; i < 4; i++) { vals.push(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')); env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', false) }
     } catch (e) { threw = true }
     check(threw === false, '写电话坏了（failMode=throw）时读与写都不抛错。')
     check(vals.every((v) => v === true), '四次读都回旧表里的 true（文件里没有这个工作区，写失败不影响读）。', JSON.stringify(vals))
@@ -556,12 +559,12 @@ const wait = (env) => realSleep(300)
   {
     // 写电话回了 ok:false（宿主明确说这次写不成）时，同样按兜底处理：把值写回旧键，不让这一笔凭空消失。
     const cwd = 'D:\\ilife\\packages\\skill-calorie'
-    const env = makeEnv({ tag: 'refuse', cwd: cwd, failMode: 'refuse', localStorage: { 'dsws.bannerFold': JSON.stringify({ [KEY_OF(cwd)]: 1 }) } })
-    check(env.mod.setViewFlag(cwd, 'bannerFolded', false) === true, '手机答 ok:false 之前，这一笔先按能写接下来。')
+    const env = makeEnv({ tag: 'refuse', cwd: cwd, failMode: 'refuse', localStorage: { 'dsws.subwsAutoShown': JSON.stringify({ [KEY_OF('D:\\ilife')]: 1 }) } })
+    check(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', false) === true, '手机答 ok:false 之前，这一笔先按能写接下来。')
     await wait(env)
-    const oldMap = JSON.parse(env.ls.getItem('dsws.bannerFold') || '{}')
-    check(oldMap[KEY_OF(cwd)] === 0, '宿主说写不成之后，取消这一笔写了回旧键（横幅折叠记 0 是点过展开，缺席留给没点过、读时按收起算）。', JSON.stringify(oldMap))
-    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '内存里这一格是刚点的那一下（false）——不假装写成功了，也不把用户刚做的动作弹回去。')
+    const oldMap = JSON.parse(env.ls.getItem('dsws.subwsAutoShown') || '{}')
+    check(oldMap[KEY_OF('D:\\ilife')] === undefined, '宿主说写不成之后，取消这一笔按旧记法把旧键里那条删掉（与红文件夹标志的老做法一致）。', JSON.stringify(oldMap))
+    check(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === false, '内存里这一格是刚点的那一下（false）——不假装写成功了，也不把用户刚做的动作弹回去。')
     check(env.logs.some((l) => l.event === 'host.call.fail' && l.fields && l.fields.method === 'wf.setSettings'), '被宿主拒绝的那一次留下一行日志。', JSON.stringify(env.logs))
   }
 
@@ -679,7 +682,7 @@ const wait = (env) => realSleep(300)
     const preset = {
       version: 1,
       ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} },
-      workspaces: { 'D:\\ilife': { bannerFolded: false, noRepoDismissed: false, subwsMarkAutoShown: true } },
+      workspaces: { 'D:\\ilife': { statusBar: 'hide', deckTools: 'on', noRepoDismissed: false, subwsMarkAutoShown: true } },
       debug: { enabled: false, sampleRate: 1 },
       templates: {},
     }
@@ -814,11 +817,11 @@ const wait = (env) => realSleep(300)
     check(a.before === 0 && a.after === 0,
       'A 文档里记过、旧键没记过时，浮层一次都不自动展开（文档没到先不弹，到手后按真源判成不弹）。', JSON.stringify(a))
     // B：第一次进这个工作区 —— 文档没到先不弹，到手后按真源判、弹这一次（该弹的还是要弹）。
-    const b = await drawMark({ doc: { bannerFolded: false } })
+    const b = await drawMark({ doc: { noRepoDismissed: false } })
     check(b.before === 0 && b.after === 1,
       'B 文档里没记过时，文档到手后弹一次（不是「干脆不弹了」：该弹的那一次照弹）。', JSON.stringify(b))
     // C：老用户 —— 旧键记过、文档里没有这一条，兜底读旧键，照样一次都不弹（老行为不丢）。
-    const c = await drawMark({ legacyShown: true, doc: { bannerFolded: false } })
+    const c = await drawMark({ legacyShown: true, doc: { noRepoDismissed: false } })
     check(c.before === 0 && c.after === 0,
       'C 旧键记过、文档里没有这一条时一次都不弹（过渡期的老用户照样只弹一次）。', JSON.stringify(c))
     // D：手机不通 —— 这一趟当场就结束（就绪为真），判断按旧键走：没记过就当场弹一次（老行为不丢）。
@@ -881,15 +884,15 @@ const wait = (env) => realSleep(300)
       tag: 'keepqueue', cwd: cwd,
       fsOverrides: { writeFile: async (p, text, enc) => { if (failNext > 0) { failNext -= 1; throw failCode('EPERM', 'operation not permitted') } return realFs.writeFile(p, text, enc) } },
     })
-    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '写这一笔时先按能写接下来（落盘失败再走过渡）。')
+    check(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true) === true, '写这一笔时先按能写接下来（落盘失败再走过渡）。')
     // 等到旧键真的落地再断言（复核建议：固定 700 毫秒要装下 500 毫秒防抖加一次真写，机器忙时会假红）。
-    await waitFor(() => { try { return JSON.parse(env.ls.getItem('dsws.bannerFold') || '{}')[KEY_OF(cwd)] === 1 } catch (e) { return false } })
-    const oldMap = JSON.parse(env.ls.getItem('dsws.bannerFold') || '{}')
-    check(oldMap[KEY_OF(cwd)] === 1, '第一趟写失败时照旧把这一格写回旧键做过渡（与改动前一致）。', JSON.stringify(oldMap))
-    await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].statusBar === 'hide' })
+    await waitFor(() => { try { return JSON.parse(env.ls.getItem('dsws.subwsAutoShown') || '{}')[KEY_OF('D:\\ilife')] === 1 } catch (e) { return false } })
+    const oldMap = JSON.parse(env.ls.getItem('dsws.subwsAutoShown') || '{}')
+    check(oldMap[KEY_OF('D:\\ilife')] === 1, '第一趟写失败时照旧把这一格写回旧键做过渡（与改动前一致）。', JSON.stringify(oldMap))
+    await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].subwsMarkAutoShown === true })
     const doc = await readDoc(env.home)
-    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].statusBar === 'hide',
-      '这一笔没有被丢掉：失败后留在待写队列里，后面那一趟把它落进了文件（盘上这一格是「收起」=statusBar: hide）。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true,
+      '这一笔没有被丢掉：失败后留在待写队列里，后面那一趟把它落进了文件（盘上这一格是 true）。', JSON.stringify(doc && doc.workspaces))
     const writes = env.calls.filter((c) => c.method === 'wf.setSettings').length
     check(writes >= 2, '失败之后又试了一趟（不是失败一次就再也不管），实得 ' + writes + ' 次写电话。')
   }
@@ -898,9 +901,9 @@ const wait = (env) => realSleep(300)
     const cwd = 'D:\\ilife\\packages\\skill-calorie'
     const env = makeEnv({ tag: 'lsfail', cwd: cwd, fsOverrides: { writeFile: async () => { throw failCode('EPERM', 'operation not permitted') } } })
     env.ls.setItem = function () { throw new Error('这份浏览器存储写不进去了') }
-    env.mod.setViewFlag(cwd, 'bannerFolded', true)
-    await waitFor(() => env.logs.some((l) => l.event === 'storage.fail' && l.fields && l.fields.op === 'write' && l.fields.key === 'dsws.bannerFold'))
-    const hit = env.logs.filter((l) => l.event === 'storage.fail' && l.fields && l.fields.op === 'write' && l.fields.key === 'dsws.bannerFold')
+    env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true)
+    await waitFor(() => env.logs.some((l) => l.event === 'storage.fail' && l.fields && l.fields.op === 'write' && l.fields.key === 'dsws.subwsAutoShown'))
+    const hit = env.logs.filter((l) => l.event === 'storage.fail' && l.fields && l.fields.op === 'write' && l.fields.key === 'dsws.subwsAutoShown')
     check(hit.length >= 1, '写旧表这一步自己失败时补了一行 storage.fail（沿用既有事件名，键与操作写在字段里）。', JSON.stringify(env.logs))
     check(fs.existsSync(settingsPathIn(env.home)) === false, '这一趟文件始终没写进去（写失败不是「换一份假的写成功」）。')
   }
@@ -916,28 +919,28 @@ const wait = (env) => realSleep(300)
     const env = makeEnv({
       tag: 'inflight', cwd: cwd,
       onCall: function (method) {
-        if (method === 'wf.setSettings' && !box.done) { box.done = true; box.mod.setViewFlag(cwd, 'bannerFolded', false) }
+        if (method === 'wf.setSettings' && !box.done) { box.done = true; box.mod.setViewFlag(cwd, 'subwsMarkAutoShown', false) }
       },
     })
     box.mod = env.mod
-    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '先点一下收起（这一笔排进待写队列）。')
+    check(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true) === true, '先点一下（这一笔排进待写队列）。')
     await waitFor(() => env.calls.filter((c) => c.method === 'wf.setSettings').length >= 2)
     const sent = env.calls.filter((c) => c.method === 'wf.setSettings')
     check(sent.length >= 2, '第一趟飞在天上时改的那一下没有被划掉：真的又排了第二趟写，实得 ' + sent.length + ' 次。')
     const firstEntry = sent[0] && sent[0].args && sent[0].args.value && sent[0].args.value.workspaces['D:\\ilife']
-    check(!!firstEntry && firstEntry.bannerFolded === true, '第一趟发出去的确实是当时那个值 true（这一条才有东西可丢）。', JSON.stringify(firstEntry))
+    check(!!firstEntry && firstEntry.subwsMarkAutoShown === true, '第一趟发出去的确实是当时那个值 true（这一条才有东西可丢）。', JSON.stringify(firstEntry))
     // 电话是「先记一笔、后落盘」，而第二趟写还要先重读一次文档（多一个 await）。只等电话出现就抢着读盘，
     //   会读到第一趟那个 true —— 门禁在跟自己抢时序（2026-10-12 复核量到 25% 概率的抖动红）。
     //   这里等到盘上真是后改的那个值再看，断言才有确定性。
     const settled = await waitFor(async () => {
       const d = await readDoc(env.home)
-      return !!(d && d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].statusBar === 'show')
+      return !!(d && d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].subwsMarkAutoShown === false)
     })
     const doc = await readDoc(env.home)
-    check(settled, '第二趟写真的落到盘上了（后改的那个值「展开」=statusBar: show）—— 这一条等的是写落定，不是电话出现。', JSON.stringify(doc && doc.workspaces))
-    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].statusBar === 'show',
-      '盘上留下的是后改的那个值（statusBar: show，不是第一趟那个 hide）。', JSON.stringify(doc && doc.workspaces))
-    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '内存里也是后改的那个值 false —— 盘上与内存一致。')
+    check(settled, '第二趟写真的落到盘上了（后改的那个值 false）—— 这一条等的是写落定，不是电话出现。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === false,
+      '盘上留下的是后改的那个值（false，不是第一趟那个 true）。', JSON.stringify(doc && doc.workspaces))
+    check(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === false, '内存里也是后改的那个值 false —— 盘上与内存一致。')
   }
 
   // ── 第十一件事：认不出工作区根时一个字都不写文件 ──
@@ -947,12 +950,12 @@ const wait = (env) => realSleep(300)
     const cwd = 'D:\\scratch\\no-repo\\sub'
     const env = makeEnv({ tag: 'noroot', cwd: cwd, root: '' })
     check(env.mod.viewFlagWriteKeyOf(cwd) === '', '认不出工作区根时，写这一侧要用的键是空串（不退到会话目录）。', JSON.stringify(env.mod.viewFlagWriteKeyOf(cwd)))
-    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === false, '认不出工作区根时写这一笔不接（返回 false，调用方照改动前的老办法写旧表）。')
+    check(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true) === false, '认不出工作区根时写这一笔不接（返回 false，调用方照改动前的老办法写旧表）。')
     await wait(env)
     check(env.calls.filter((c) => c.method === 'wf.setSettings').length === 0, '认不出工作区根时一次写电话都没发出去。', JSON.stringify(env.calls.map((c) => c.method)))
     check(fs.existsSync(settingsPathIn(env.home)) === false, '设置文件一个字节都没写（不会留下一条读不回来、也永远不会被合并的孤儿记录）。')
-    check(env.ls.getItem('dsws.bannerFold') === null, '这一片自己也不写旧键（旧键由调用方按老办法写，这一片不替它写）。')
-    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '读这一侧照旧答得出来（文档里没有这一条，旧表里也没有，按默认收起算）。')
+    check(env.ls.getItem('dsws.subwsAutoShown') === null, '这一片自己也不写旧键（旧键由调用方按老办法写，这一片不替它写）。')
+    check(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === false, '读这一侧照旧答得出来（文档里没有这一条，旧表里也没有，按没展示过算）。')
     // 根认出来之后（同一台机器上 wf.cwd 回过话），键就是根的可读路径，记录落在根上而不是会话目录上。
     env.st.sessionWorkspaceRoot = 'd:\\scratch\\no-repo'
     check(env.mod.viewFlagWriteKeyOf(cwd) === 'D:\\scratch\\no-repo', '根认出来之后，写这一侧的键就是根的可读路径。', JSON.stringify(env.mod.viewFlagWriteKeyOf(cwd)))
@@ -967,27 +970,27 @@ const wait = (env) => realSleep(300)
     const preset = {
       version: 1,
       ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} },
-      workspaces: { 'D:\\ilife': { bannerFolded: false, noRepoDismissed: false, subwsMarkAutoShown: false } },
+      workspaces: { 'D:\\ilife': { statusBar: 'hide', deckTools: 'on', noRepoDismissed: false, subwsMarkAutoShown: false } },
       debug: { enabled: false, sampleRate: 1 },
       templates: {},
     }
     const w0 = await store.writeLocalSettings(preset, env.home, realIo)
     check(w0.ok === true, '预置一份别人写过的设置文件（这个工作区已经有一条记录）。', JSON.stringify(w0))
-    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '本窗在预置文件的基础上写自己那一格（此刻还在防抖窗口里）。')
+    check(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true) === true, '本窗在预置文件的基础上写自己那一格（此刻还在防抖窗口里）。')
     await settle(env.mod) // 让本窗那一次懒读落地：内存里那一份是别人写的那一版
     // 另一扇窗此刻把**别的**那一格写进同一个文件 —— 这一笔本窗没有读到过（客户端只在第一页懒读一次）。
-    const other = Object.assign({}, preset, { workspaces: { 'D:\\ilife': { bannerFolded: false, noRepoDismissed: false, subwsMarkAutoShown: true } } })
+    const other = Object.assign({}, preset, { workspaces: { 'D:\\ilife': { statusBar: 'hide', deckTools: 'on', noRepoDismissed: true, subwsMarkAutoShown: false } } })
     const w1 = await store.writeLocalSettings(other, env.home, realIo)
-    check(w1.ok === true, '另一扇窗把 subwsMarkAutoShown 写成了 true。', JSON.stringify(w1))
+    check(w1.ok === true, '另一扇窗把 noRepoDismissed 写成了 true。', JSON.stringify(w1))
     await wait(env)
     const doc = await readDoc(env.home)
-    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true,
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].noRepoDismissed === true,
       '另一扇窗刚写进去的**别的**那一格没有被本窗整份顶掉（写之前重读了一遍文件）。', JSON.stringify(doc && doc.workspaces))
-    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].statusBar === 'hide',
-      '本窗改的那一格照样写进去了（重读没有把本窗的改动丢掉；#1612：收起写回成 statusBar: hide）。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true,
+      '本窗改的那一格照样写进去了（重读没有把本窗的改动丢掉）。', JSON.stringify(doc && doc.workspaces))
     const gets = env.calls.filter((c) => c.method === 'wf.getSettings').length
     check(gets >= 2, '真正要写之前又读了一次文件（不是只有第一页那一次懒读），实得 ' + gets + ' 次读电话。')
-    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true && env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === true,
+    check(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === true && env.mod.viewFlagOf(cwd, 'noRepoDismissed') === true,
       '写完这一趟之后内存里那份文档与盘上一致（两格都是 true）。')
   }
 
@@ -996,34 +999,34 @@ const wait = (env) => realSleep(300)
   console.log('== 第十三件事：客户端已经从别的路认出工作区根时，用户点一下要真的落盘（不许读得到、写说认不出） ==')
   {
     // 实测到的现场：本会话对象上还没有根，但内核那张「所选目录的键 → 工作区根」的表里已经有一条，
-    //   文件里也有这个工作区的一条记录（横幅是收起的）。此时用户点开横幅：
+    //   文件里也有这个工作区的一条记录（这一格是 false）。此时用户点这一格：
     //   从前读这一侧从表里认出根、答得出一条记录，写这一侧只认会话对象上的根、答认不出 —— 写这一笔直接不接，
-    //   旧键写了也没人读，界面上一看横幅又弹回来（同一条路也让浮层「自动展开过」退化成每进一次子目录白弹一次）。
+    //   旧键写了也没人读，界面上一看又弹回来（同一条路也让浮层「自动展开过」退化成每进一次子目录白弹一次）。
     const cwd = 'D:\\ilife\\packages\\skill-calorie'
     const env = makeEnv({ tag: 'm5', cwd: cwd, root: '', rootByKey: { [KEY_OF(cwd)]: KEY_OF('D:\\ilife') } })
     const preset = {
       version: 1,
       ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} },
-      workspaces: { 'D:\\ilife': { bannerFolded: true, noRepoDismissed: false, subwsMarkAutoShown: false } },
+      workspaces: { 'D:\\ilife': { statusBar: 'hide', deckTools: 'on', noRepoDismissed: false, subwsMarkAutoShown: false } },
       debug: { enabled: false, sampleRate: 1 },
       templates: {},
     }
     const w0 = await store.writeLocalSettings(preset, env.home, realIo)
-    check(w0.ok === true, '预置一份设置文件：这个工作区已经有一条记录、横幅是收起的。', JSON.stringify(w0))
+    check(w0.ok === true, '预置一份设置文件：这个工作区已经有一条记录、这一格是 false。', JSON.stringify(w0))
     check(env.mod.viewFlagDocKeyOf(cwd) === 'D:\\ilife' && env.mod.viewFlagWriteKeyOf(cwd) === 'D:\\ilife',
       '读与写对这把键给同一个答案：都是那条工作区根（表里认得出来，就不许写口再说认不出）。',
       JSON.stringify([env.mod.viewFlagDocKeyOf(cwd), env.mod.viewFlagWriteKeyOf(cwd)]))
-    // 先问一次读：这一次会把懒读起起来（文档到手之前，读这一侧先答旧表；旧表里没有按默认收起算）。
-    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '文档还没到手时读这一侧先答旧表，旧表里没有按默认收起算。')
+    // 先问一次读：这一次会把懒读起起来（文档到手之前，读这一侧先答旧表；旧表里没有按没展示过算）。
+    check(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === false, '文档还没到手时读这一侧先答旧表，旧表里没有按没展示过算。')
     const ready = await waitFor(() => env.mod.viewFlagReadyNow() === true)
     check(ready, '这份设置文档读到手了（读这一侧要按真源判，不能还没问到就下结论）。')
-    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '文档到手后读这一侧答文件里那条记录：横幅是收起的。')
-    check(env.mod.setViewFlag(cwd, 'bannerFolded', false) === true, '用户点开横幅这一笔要接下来（从前这里返回 false，点了等于没反应）。')
-    const landed = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].statusBar === 'show' })
-    check(landed, '这一笔真的落进了文件（盘上这一格变成「展开」=statusBar: show）。')
+    check(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === false, '文档到手后读这一侧答文件里那条记录：这一格是 false。')
+    check(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true) === true, '用户点这一格这一笔要接下来（从前这里返回 false，点了等于没反应）。')
+    const landed = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].subwsMarkAutoShown === true })
+    check(landed, '这一笔真的落进了文件（盘上这一格变成 true）。')
     check(env.calls.filter((c) => c.method === 'wf.setSettings').length === 1, '只发了一趟写电话（认得出根就走文件这一条路，不是又去写旧键）。', JSON.stringify(env.calls.map((c) => c.method)))
-    check(env.ls.getItem('dsws.bannerFold') === null, '写文件这一条路走通了，就绝不再写旧键（两处都写就是两份真相）。')
-    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '内存里也是 false —— 盘上与内存一致。')
+    check(env.ls.getItem('dsws.subwsAutoShown') === null, '写文件这一条路走通了，就绝不再写旧键（两处都写就是两份真相）。')
+    check(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === true, '内存里也是 true —— 盘上与内存一致。')
   }
 
   // ── 第十四件事：回包划队列要按「真正写出去的那份快照」判，不是按发出前记下的值 ──
@@ -1038,19 +1041,19 @@ const wait = (env) => realSleep(300)
     const env = makeEnv({
       tag: 'm1back', cwd: cwd,
       onCall: function (method) {
-        if (method === 'wf.getSettings') { box.reads += 1; if (box.reads === 2) box.mod.setViewFlag(cwd, 'bannerFolded', false) }
-        if (method === 'wf.setSettings' && !box.back) { box.back = true; box.mod.setViewFlag(cwd, 'bannerFolded', true) }
+        if (method === 'wf.getSettings') { box.reads += 1; if (box.reads === 2) box.mod.setViewFlag(cwd, 'subwsMarkAutoShown', false) }
+        if (method === 'wf.setSettings' && !box.back) { box.back = true; box.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true) }
       },
     })
     box.mod = env.mod
-    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '先点一下收起（这一笔排进待写队列）。')
+    check(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true) === true, '先点一下（这一笔排进待写队列）。')
     // 等到最后一趟写真的落地（盘上回到 true），再判盘上与内存是否一致。
-    const settled = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].statusBar === 'hide' })
+    const settled = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].subwsMarkAutoShown === true })
     const doc = await readDoc(env.home)
     const sent = env.calls.filter((c) => c.method === 'wf.setSettings')
     check(sent.length >= 2, '这一笔没有被误划掉：回包之后又排了一趟写，实得 ' + sent.length + ' 次写电话。')
-    check(settled, '盘上最后是用户最后那一下的值（收起=statusBar: hide，不是中途那个 show）。', JSON.stringify(doc && doc.workspaces))
-    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '内存里也是 true —— 盘上与内存一致。')
+    check(settled, '盘上最后是用户最后那一下的值（true，不是中途那个 false）。', JSON.stringify(doc && doc.workspaces))
+    check(env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === true, '内存里也是 true —— 盘上与内存一致。')
   }
 
   // ── 第十五件事：界面偏好那三格搬进本机设置文件的 ui 节（#1012 第 3 步） ──
@@ -1238,7 +1241,7 @@ const wait = (env) => realSleep(300)
   {
     const cwd = 'D:\\ilife\\packages\\skill-calorie'
     const env = makeEnv({ tag: 'root-read', cwd: cwd })
-    const pre = await store.writeLocalSettings({ version: 1, ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} }, workspaces: { 'D:\\ilife': { bannerFolded: false, subwsMarkAutoShown: true } }, debug: { enabled: false, sampleRate: 1 }, templates: {} }, env.home, realIo)
+    const pre = await store.writeLocalSettings({ version: 1, ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} }, workspaces: { 'D:\\ilife': { statusBar: 'hide', deckTools: 'on', noRepoDismissed: false, subwsMarkAutoShown: true } }, debug: { enabled: false, sampleRate: 1 }, templates: {} }, env.home, realIo)
     check(pre && pre.ok === true, '先摆一份文件：本工作区这条记录里「自动展开过」是 true。', JSON.stringify(pre))
     env.mod.settingsViewLoad()
     await waitFor(async () => env.mod.viewFlagReadyNow() === true)

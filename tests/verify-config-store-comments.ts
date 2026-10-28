@@ -69,7 +69,7 @@ layout: multi
     check(commentBefore(t, '# 按工作区区分的观看状态（键 = 工作区根目录）', 'workspaces:'), 'workspaces 节有注释', '')
     check(commentBefore(t, '# 胶囊状态栏：show 显示、hide 收起（收起后状态栏只剩一条折叠条）', '    statusBar: show'), 'statusBar 有注释', t)
     check(commentBefore(t, '# deck 工具箱：on 打开、off 关闭（关掉后模型工具、胶囊状态栏、右侧面板三处一起关）', '    deckTools: "off"'), 'deckTools 有注释', t)
-    check(t.indexOf('bannerFolded') < 0, '写出去的一份里不再写旧字段 bannerFolded（#1612 拍板：旧字段只在读时认一次，写回升级成新两格）', t)
+    check(t.indexOf('bannerFolded') < 0, '写出去的一份里不再写旧字段 bannerFolded（#1612 拍板：旧字段已退役，读旧文件时接受但忽略）', t)
     check(commentBefore(t, '# 无仓库红卡是否已收起', '    noRepoDismissed: true'), 'noRepoDismissed 有注释', '')
     check(commentBefore(t, '# 红文件夹标志的说明浮层是否已自动展开过', '    subwsMarkAutoShown: true'), 'subwsMarkAutoShown 有注释', '')
     check(commentBefore(t, '# 本地诊断日志开关', 'debug:'), 'debug 节有注释', '')

@@ -76,20 +76,18 @@ type DoorCalls = {
   order: string[]
   tools: Array<{ cwd: string; on: any }>
   statusBar: Array<{ cwd: string; show: any }>
-  legacy: Array<{ cwd: string; folded: any }>
   panel: any[]
   emits: any[]
   closed: Set<string>
   failStatusBar: boolean
 }
 const makeDoor = function (): { mod: any; calls: DoorCalls } {
-  const calls: DoorCalls = { order: [], tools: [], statusBar: [], legacy: [], panel: [], emits: [], closed: new Set<string>(), failStatusBar: false }
+  const calls: DoorCalls = { order: [], tools: [], statusBar: [], panel: [], emits: [], closed: new Set<string>(), failStatusBar: false }
   const body = spliceableJs('src/client/statusbar/deckDoor.js').replace(/^[ \t]*export[ \t]+/gm, '')
   const sandbox = {
     isDeckClosed: (cwd: any) => calls.closed.has(String(cwd)),
     setDeckTools: (cwd: any, on: any) => { calls.order.push('tools:' + String(on)); calls.tools.push({ cwd: String(cwd), on: on }); return true },
     setDeckStatusBar: (cwd: any, show: any) => { calls.order.push('statusBar:' + String(show)); calls.statusBar.push({ cwd: String(cwd), show: show }); return calls.failStatusBar ? false : true },
-    setBannerFolded: (cwd: any, folded: any) => { calls.order.push('legacy:' + String(folded)); calls.legacy.push({ cwd: String(cwd), folded: folded }); return false },
     togglePanel: (st: any) => { calls.order.push('panel'); calls.panel.push(st); if (st) st.open = false; return true },
     openPanel: (st: any) => { calls.order.push('open'); calls.panel.push(st); if (st) st.open = true; return true },
     emit: (st: any) => { calls.order.push('emit'); calls.emits.push(st) },
@@ -153,7 +151,7 @@ const makeSt = (cwd: string, extra?: any): any => Object.assign({ cwd: cwd, open
 
 function main(): void {
   const { mod, calls } = makeDoor()
-  const reset = () => { calls.order.length = 0; calls.tools.length = 0; calls.statusBar.length = 0; calls.legacy.length = 0; calls.panel.length = 0; calls.emits.length = 0; calls.failStatusBar = false; calls.closed.clear() }
+  const reset = () => { calls.order.length = 0; calls.tools.length = 0; calls.statusBar.length = 0; calls.panel.length = 0; calls.emits.length = 0; calls.failStatusBar = false; calls.closed.clear() }
 
   console.log('== 1. 「∨」只折叠胶囊：只写 statusBar=hide，deckTools 一个字不碰（验收 ⑤）==')
   {
@@ -200,18 +198,18 @@ function main(): void {
     check(!!okBtn && okBtn.props['data-press'] === 'button' && !!noBtn && noBtn.props['data-press'] === 'button', '两颗按钮都带按压反馈与各自的 data-log（#1335 口径）')
   }
 
-  console.log('== 4. 确认：两个开关都写成开、右侧面板回到关之前那样；取消一个都不写 ==')
+  console.log('== 4. 确认：三处一起恢复（两个开关 + 右侧面板）；取消一个都不写 ==')
   {
     reset()
     calls.closed.add('D:/ws-a')
-    const st = makeSt('D:/ws-a', { deckDoorConfirm: true, deckDoorPanelWasOpen: true })
+    const st = makeSt('D:/ws-a', { deckDoorConfirm: true })
     const el = mod.deckDoorConfirmEl(hStub, st)
     click(findLog(el, 'status.deckdoor.confirm'))
     check(calls.tools.length === 1 && calls.tools[0].on === true, '确认 → setDeckTools(cwd, true) 写 deck 工具箱开')
     check(calls.statusBar.length === 1 && calls.statusBar[0].show === true, '确认 → setDeckStatusBar(cwd, true) 写胶囊显示')
     check(calls.order.indexOf('tools:true') >= 0 && calls.order.indexOf('statusBar:true') >= 0 && calls.order.indexOf('tools:true') < calls.order.indexOf('statusBar:true'), '先开 deck 工具箱、再显示胶囊（顺序与三处联动的因果一致）')
     check(calls.order.indexOf('tools:true') >= 0 && calls.order.indexOf('open') > calls.order.indexOf('tools:true'), '开面板排在写 deckTools 之后（openPanel 会按 deck 状态拦）')
-    check(st.open === true && st.deckDoorPanelWasOpen === false, '红色 X 关掉之前开着的右侧面板恢复回开着，恢复标记清掉')
+    check(st.open === true, '右侧面板也重新打开（验收 ③ 的三处恢复：工具箱、胶囊状态栏、右侧面板）')
     check(st.deckDoorConfirm === false, '确认后确认框标记收起')
     check(calls.emits.indexOf(st) >= 0, '确认后 emit(st) 一次让状态栏重画')
 
@@ -225,7 +223,7 @@ function main(): void {
     reset()
     const st3 = makeSt('D:/ws-a', { deckDoorConfirm: true })
     click(findLog(mod.deckDoorConfirmEl(hStub, st3), 'status.deckdoor.confirm'))
-    check(calls.tools.length === 1 && calls.statusBar.length === 1 && calls.panel.length === 0, 'X 关它之前面板本来没开 → 确认只恢复两个开关，不额外开面板')
+    check(calls.tools.length === 1 && calls.statusBar.length === 1 && calls.panel.length === 1 && st3.open === true, '面板本来没开也照样打开：确认框文案承诺的三处恢复不因刷新而少一处')
   }
 
   console.log('== 5. 红色 X：先关右侧面板、再关 deck（验收 ④）==')
@@ -243,7 +241,6 @@ function main(): void {
     click(x)
     check(calls.order.indexOf('panel') >= 0 && calls.order.indexOf('tools:false') >= 0 && calls.order.indexOf('panel') < calls.order.indexOf('tools:false'), '点击顺序：先关右侧面板、再写 deckTools=off（先关后写，避免被 openPanel 的闸门挡住）')
     check(st.open === false, '面板状态已置关')
-    check(st.deckDoorPanelWasOpen === true, '记下「关之前面板是开着的」，供确认重开时恢复（验收 ③ 的三处恢复）')
     check(calls.statusBar.length === 0, 'X 不单独写 statusBar（deck 关着时胶囊自动折叠，由 isDeckCapsuleFolded 一处决定）')
 
     reset()
@@ -252,28 +249,25 @@ function main(): void {
     check(Array.isArray(tail2) && tail2.length === 1, '没有 ∨ 时只交回红色 X（不塞空位）')
     click(findLog(tail2[0], 'status.capsule.deckclose'))
     check(calls.panel.length === 0 && calls.tools.length === 1 && calls.tools[0].on === false, '面板本来关着：不再关一次，只写 deckTools=off')
-    check(st2.deckDoorPanelWasOpen === false, '关之前面板本来没开：恢复标记记为 false，确认时不会凭空开一块面板')
   }
 
-  console.log('== 5b. 设置文件那条路接不下：如实返回 false，不再把旧 localStorage 表写回去（验收 ⑦）==')
+  console.log('== 5b. 设置文件那条路接不下：只试文件那条路，旧 localStorage 表一个字节都不写（验收 ⑦）==')
   {
     reset()
     calls.failStatusBar = true
     mod.deckDoorFold(makeSt('D:/ws-a'))
-    check(calls.statusBar.length === 1 && calls.statusBar[0].show === false, '收起：照常试一次文件那条路')
-    check(calls.legacy.length === 0, '收起：接不下时也不写旧表（#1612：迁移后不再写旧键）')
+    check(calls.statusBar.length === 1 && calls.statusBar[0].show === false, '收起：只把 statusBar 写成 hide（接不下也不写旧键）')
 
     reset()
     calls.failStatusBar = true
     mod.deckDoorExpand(makeSt('D:/ws-a'))
-    check(calls.statusBar.length === 1 && calls.statusBar[0].show === true, '展开：同样只走文件那条路')
-    check(calls.legacy.length === 0, '展开：接不下时也不写旧表')
+    check(calls.statusBar.length === 1 && calls.statusBar[0].show === true, '展开：只把 statusBar 写成 show（接不下也不写旧键）')
 
     reset()
     calls.failStatusBar = true
     const st3 = makeSt('D:/ws-a', { deckDoorConfirm: true })
     click(findLog(mod.deckDoorConfirmEl(hStub, st3), 'status.deckdoor.confirm'))
-    check(calls.tools.length === 1 && calls.tools[0].on === true && calls.legacy.length === 0, '确认重开：deck 工具箱照常写文件那条路，胶囊那一格接不下也不写旧表')
+    check(calls.tools.length === 1 && calls.tools[0].on === true, '确认重开：deck 工具箱照常写文件那条路')
   }
 
   console.log('== 6. 右侧面板闸门：deck 关着时 openPanel 不开；关面板永远允许（验收 ②）==')
@@ -313,13 +307,13 @@ function main(): void {
     check(sb.indexOf('isBannerFolded(') < 0 && sb.indexOf('setBannerFolded(') < 0, 'StatusBar 不再直接碰旧名（折叠语义只从 deck-state 一处来）')
   }
 
-  console.log('== 8. 接线与接口：两个旧名转调、router 有闸门、构建入口登记这一片 ==')
+  console.log('== 8. 接线与接口：旧迁移已删、router 有闸门、构建入口登记这一片 ==')
   {
     const sp = sourceText('src/client/kernel/store-prefs.ts')
-    check(sp.indexOf('return isDeckCapsuleFolded(cwd) === true') >= 0, 'isBannerFolded 现在直接读 isDeckCapsuleFolded（旧名保留，调用方不改）')
-    check(sp.indexOf('setDeckStatusBar(cwd, folded !== true)') >= 0, 'setBannerFolded 现在写 setDeckStatusBar（收起来 → hide，展开 → show）')
-    check(sp.indexOf('BANNER_FOLD_KEY') >= 0 && sp.indexOf('bannerFoldByCwd') >= 0, '旧表常量与导出名保留（接口冻结清单钉着）')
-    check(sp.indexOf('bannerFoldByCwd[k] = folded ? 1 : 0') < 0 && sp.indexOf('persistBannerFold') < 0, '旧表只读：不再把旧键写回去（#1612 迁移后不再写旧键）')
+    for (const name of ['BANNER_FOLD_KEY', 'bannerFoldByCwd', 'isBannerFolded', 'setBannerFolded']) {
+      check(sp.indexOf(name) < 0, '旧名已删：' + name + '（维护者 2026-10-29 拍板删掉旧迁移）')
+    }
+    check(sp.indexOf("'dsws.bannerFold'") < 0, 'store-prefs 不再读写旧 localStorage 键（注释里写一句「已退役」不算碰它）')
 
     const rt = sourceText('src/client/kernel/router.ts')
     check(rt.indexOf("isDeckClosed(st && st.cwd)") >= 0, 'router.openPanel 里按工作区判 deck 是否关着')
@@ -356,48 +350,18 @@ function main(): void {
     check(/deck tools/.test(enBody) && /right panel/.test(enBody) && /capsule status bar/.test(enBody), '英文正文同样把三处说全')
   }
 
-  console.log('== 10. store-prefs 写口：只走设置文件那条路，接不下如实回 false、一个字节都不写旧表 ==')
+  console.log('== 10. 旧迁移退役：接口冻结清单与契约文档都不再列四个旧名 ==')
   {
-    const makePrefs = function (fileOk: boolean) {
-      const mem: any = {}
-      const ls = { getItem: (k: string) => (k in mem ? mem[k] : null), setItem: (k: string, v: any) => { mem[k] = String(v) }, removeItem: (k: string) => { delete mem[k] } }
-      const emitted: any[] = []
-      const writes: any[] = []
-      const body = spliceableJs('src/client/kernel/store-prefs.js').replace(/^[ \t]*export[ \t]+/gm, '')
-      const sandbox: any = {
-        SYNC: { ISSUE_CACHE_TTL: 60000 },
-        SYNC_ISSUE_CACHE_TTL_MS: 60000,
-        log: function () {},
-        wsKeyOf: (c: any) => String(c || ''),
-        keyOf: (c: any) => String(c || '').replace(/[\\/]+$/, '').toLowerCase(),
-        emit: (s: any) => { emitted.push(s) },
-        shared: { cwd: 'D:/ws-a' },
-        stores: { s1: { cwd: 'D:/ws-a' } },
-        saveUiPrefs: () => false,
-        isDeckCapsuleFolded: () => false,
-        setDeckStatusBar: (cwd: any, show: any) => { writes.push({ cwd: String(cwd), show: show }); return fileOk },
-        h: () => null,
-        localStorage: ls,
-        window: { innerHeight: 800 },
-        document: {},
-        console: { log: function () {}, warn: function () {}, error: function () {} },
-      }
-      const names = Object.keys(sandbox)
-      const factory = compileFn(names, body + '\n;return { setBannerFolded: setBannerFolded, isBannerFolded: isBannerFolded }')
-      const mod2 = factory(...names.map((n: string) => sandbox[n]))
-      return { mod: mod2, mem: mem, emitted: emitted, writes: writes }
+    const kernelGate = sourceText('tests/verify-kernel.ts')
+    for (const name of ['BANNER_FOLD_KEY', 'bannerFoldByCwd', 'isBannerFolded', 'setBannerFolded']) {
+      check(kernelGate.indexOf("'" + name + "'") < 0, '接口冻结清单已去掉 ' + name)
     }
-    const bad = makePrefs(false)
-    const okBad = bad.mod.setBannerFolded('D:/ws-a', true)
-    check(okBad === false, '接不下时如实回 false（不假装落盘）')
-    check(!bad.mem['dsws.bannerFold'], '接不下时也不写旧 localStorage 表（#1612：迁移后不再写旧键）')
-    check(bad.emitted.length === 0, '接不下时不再补 emit（写口只转调 setting 那一路，界面由调用方自己重画）')
-
-    const good = makePrefs(true)
-    const okGood = good.mod.setBannerFolded('D:/ws-a', true)
-    check(okGood === true, '文件那条路接得下时回 true')
-    check(!good.mem['dsws.bannerFold'], '接得下时旧表同样一个字节都不写')
-    check(good.mod.isBannerFolded('D:/ws-a') === false, '读口仍转调 isDeckCapsuleFolded（替身回 false → 未折叠）')
+    const contract = sourceText('docs/architecture/kernel-contract.md')
+    check(contract.indexOf('BANNER_FOLD_KEY') < 0 && contract.indexOf('bannerFoldByCwd') < 0 && contract.indexOf('isBannerFolded') < 0 && contract.indexOf('setBannerFolded') < 0,
+      'kernel 契约文档已去掉四个旧名')
+    const settingsView = sourceText('src/client/kernel/settings-view.ts')
+    check(settingsView.indexOf("key: 'dsws.bannerFold'") < 0, '旧键登记表里不再有 dsws.bannerFold（迁移删了）')
+    check(settingsView.indexOf("key: 'dsws.subwsAutoShown'") >= 0, '红文件夹标志那条旧表读法还在（本次只退役横幅折叠那一格）')
   }
 
   if (failed) {

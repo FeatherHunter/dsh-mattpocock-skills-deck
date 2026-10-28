@@ -121,7 +121,8 @@ async function main() {
     check(mem.files.has('C:\\Users\\demo/.dsh/mattskillsdeck/settings.yaml'), '设置落在用户主目录下那一层', JSON.stringify([...mem.files.keys()]))
     const r = await readLocalSettings('C:\\Users\\demo', mem.io)
     check(r.ok === true && JSON.stringify(r.value) === JSON.stringify(value), '设置读写往返一致', JSON.stringify(r.value))
-    // #1612：只带旧字段 bannerFolded 的文件第一次写回就升级成新两格，读回来不再有旧字段。
+    // #1612 维护者拍板删掉旧字段迁移：只带 bannerFolded 的旧文件读得进来（不判 unknown-keys），
+    //   但值被忽略，读完按缺省 statusBar: hide，写回去的一份里也不再有旧字段。
     const legacyValue = {
       version: 1,
       ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} },
@@ -130,11 +131,11 @@ async function main() {
       templates: {},
     }
     const wl = await writeLocalSettings(legacyValue, 'C:\\Users\\demo', mem.io)
-    check(wl.ok === true, '旧字段的文件也能写（读时认 bannerFolded）', JSON.stringify(wl))
+    check(wl.ok === true, '旧字段的文件也能写（读得进 bannerFolded，但不做迁移）', JSON.stringify(wl))
     const rl = await readLocalSettings('C:\\Users\\demo', mem.io)
     const upgraded = rl.ok ? rl.value.workspaces['D:\\ws\\demo'] : null
-    check(!!upgraded && upgraded.statusBar === 'show' && upgraded.deckTools === 'on' && upgraded.bannerFolded === undefined,
-      '旧 bannerFolded: false 写回后升级成 statusBar: show、deckTools: on，旧字段不再出现', JSON.stringify(upgraded))
+    check(!!upgraded && upgraded.statusBar === 'hide' && upgraded.deckTools === 'on' && upgraded.bannerFolded === undefined,
+      '旧 bannerFolded: false 不再换算：读回按缺省 statusBar: hide、deckTools: on，旧字段不再出现', JSON.stringify(upgraded))
   }
   {
     const mem = makeMemFs({ [ROOT_DIR + '/docs/agents/label-colors.json']: JSON.stringify({ bug: 'd73a4a' }) })

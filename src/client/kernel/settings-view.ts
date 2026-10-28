@@ -19,10 +19,10 @@
  *
  * 真相只有一份：本机设置文件（用户主目录下的 .dsh/mattskillsdeck/settings.yaml，核校验见
  *   src/shared/config-store/settings.js）里 workspaces 那一节，是按工作区记住的观看状态的唯一真源。
- *   localStorage 那两个旧键（dsws.bannerFold、dsws.subwsAutoShown）从此只是过渡：文档缺席、读失败、
- *   手机不通这三种情况才读它；只有写不进文件（或文件是更高版本、不许写回去）时才把这一次的值写回旧键；
- *   写成功那条路上一个字都不写旧键 —— 那不是双写，是过渡。旧键里也没有（或旧键不可用）时，
- *   横幅折叠按收起算，其余按关算。
+ *   localStorage 只剩一个旧键（dsws.subwsAutoShown）还在过渡：文档缺席、读失败、手机不通这三种情况才读它；
+ *   只有写不进文件（或文件是更高版本、不许写回去）时才把这一次的值写回旧键；写成功那条路上一个字都不写旧键
+ *   —— 那不是双写，是过渡。旧键里也没有（或旧键不可用）时按关算。
+ *   #1612 之后胶囊状态栏与 deck 工具箱两格没有旧键：它们只有设置文件一份真源，缺格按缺省（折叠、开）算。
  *   这一手过渡能兜住什么、兜不住什么必须说准（#1012 后续修复按实测改准）：文件里**已经有**这个工作区的
  *   记录时，写进旧键的这一份读不回来 —— 读侧的口径是「文件里这条记录有值就以它为准」，所以它只在本次
  *   窗口内充当记性（用户当场再点一下，看到的是刚点的那一下），页面一关就只剩文件里那一份。真正让一次改动
@@ -74,12 +74,11 @@ declare function settingsDebugDocLooksReal(...args: any[]): any;
 declare function viewFlagScheduleWrite(...args: any[]): any;
 declare const process: any;
     // 旧键登记表：本模块管的名字 → 旧 localStorage 键名，以及旧表里那一把键是按哪条路径记的。
-    //   「按哪条路径记」不能省：横幅折叠按会话所选目录记（读写在 src/client/kernel/store-prefs.ts 的
-    //   bannerFoldByCwd，键是 keyOf(cwd)），
-    //   红文件夹标志按工作区根记（SubworkspaceMark.js 第 138–157 行，键是 subwsMarkCmpKey(root)）。
-    //   照原样读，行为才与改动前一致。
+    //   「按哪条路径记」不能省：红文件夹标志按工作区根记（SubworkspaceMark.js 第 138–157 行，
+    //   键是 subwsMarkCmpKey(root)），照原样读，行为才与改动前一致。
+    //   #1612 退役了横幅折叠那一格（bannerFolded 与 'dsws.bannerFold'）：胶囊状态栏改由设置文件说了算，
+    //   旧键既不再读也不再写，表里也就不再登记它。
     const VIEW_FLAG_LEGACY: any = {
-      bannerFolded: { key: 'dsws.bannerFold', by: 'cwd' },
       subwsMarkAutoShown: { key: 'dsws.subwsAutoShown', by: 'root' },
     }
     // #1612 新增的两格是文字开关，不是真假值：文件里只认下面这些字面量，读到别的写法就当「说不清」。
@@ -99,9 +98,8 @@ declare const process: any;
     }
     // 新建一条工作区记录时要顺手种上的那三格（#1612 起是 statusBar、deckTools 与 subwsMarkAutoShown）：
     //   与核（src/shared/config-store/src/settings.ts 的归一默认值：胶囊状态栏默认收起、deck 工具箱默认开、
-    //   其余默认关）一字对齐，值取旧表里还知道的那一份 —— 新建的那一刻别顺手把用户原来点过展开的横幅重新收起，
-    //   那不是双写，只是别把已经知道的事忘掉。statusBar 按旧 bannerFolded 的语义换算：旧值展开（false）→ show，
-    //   收起（true）或没有 → hide；deckTools 种 on；subwsMarkAutoShown 照旧取旧表。
+    //   其余默认关）一字对齐。statusBar 种 hide、deckTools 种 on（两格都不再有旧值可换算）；
+    //   subwsMarkAutoShown 照旧取旧表那份 —— 那不是双写，只是别把已经知道的事忘掉。
     //   为什么这张表里没有 noRepoDismissed（#1012 后续修复的 A4）：无仓库红卡那张卡要退役，本窗口替它写一个
     //   false，等以后红卡的记录也搬进这份文件时，就会拿这个 false 当「用户没收起过」，把人家早就收起的红卡
     //   重新弹出来。所以这一格不由本窗口种。
@@ -109,10 +107,10 @@ declare const process: any;
     //   hide、deck 工具箱补 on、其余补默认，stringifySettings 每次都写全四格），所以文件里那几行照旧出现 ——
     //   这里改掉的只是「本窗口不主动替用户答 noRepoDismissed」。真正决定以后红卡弹不弹的是核里那个默认值，不在这里。
     const VIEW_FLAG_SEED_NAMES = ['statusBar', 'deckTools', 'subwsMarkAutoShown']
-    // 种一格时用哪个值：statusBar 按旧 bannerFolded 换算（旧值 false→show、true/没有→hide），deckTools 种 on，
+    // 种一格时用哪个值：两个新开关各按缺省种（statusBar 种 hide、deckTools 种 on），
     // 其余名字照旧读旧表。新建那一刻要知道的旧事，全从这一处取。
     const viewFlagSeedValueOf = function (cwd: any, name: any): any {
-      if (name === 'statusBar') return viewFlagLegacyRead(cwd, 'bannerFolded') === false ? 'show' : 'hide'
+      if (name === 'statusBar') return 'hide'
       if (name === 'deckTools') return 'on'
       return viewFlagLegacyRead(cwd, name)
     }
@@ -207,7 +205,7 @@ declare const process: any;
     const viewFlagEmptyDoc = function (): any {
       return { version: 1, ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} }, workspaces: {}, debug: { enabled: false, sampleRate: 1 }, templates: {} }
     }
-    // 旧表里那把键（按折算键记，与旧写法一致）：横幅折叠按会话目录，红文件夹标志按工作区根。
+    // 旧表里那把键（按折算键记，与旧写法一致）：红文件夹标志按工作区根。
     const viewFlagLegacyKeyOf = function (cwd: any, name: any): any {
       try {
         const meta = VIEW_FLAG_LEGACY[name]
@@ -215,29 +213,27 @@ declare const process: any;
         return viewFlagNormOf(meta.by === 'root' ? viewFlagDocKeyOf(cwd) : cwd)
       } catch (e) { return '' }
     }
-    // 读旧表：横幅折叠那把键记 1 是收起、记 0 是用户点过展开，缺席是没点过、按默认收起算；
-    //   红文件夹标志沿用老记法（记 1 是展示过，缺席即没展示过）。读的时候两边都折算过再比
-    //   （旧版本可能把原样路径写进去过）。
+    // 读旧表：红文件夹标志沿用老记法（记 1 是展示过，缺席即没展示过），读的时候两边都折算过再比
+    //   （旧版本可能把原样路径写进去过）。表里没登记的名字答 false。
     const viewFlagLegacyRead = function (cwd: any, name: any): any {
       try {
         const meta = VIEW_FLAG_LEGACY[name]
         if (!meta) return false
-        if (typeof localStorage === 'undefined' || !localStorage) return name === 'bannerFolded'
+        if (typeof localStorage === 'undefined' || !localStorage) return false
         const raw = localStorage.getItem(meta.key)
-        if (!raw) return name === 'bannerFolded'
+        if (!raw) return false
         const map = JSON.parse(raw)
-        if (!map || typeof map !== 'object' || Array.isArray(map)) return name === 'bannerFolded'
+        if (!map || typeof map !== 'object' || Array.isArray(map)) return false
         const key = viewFlagLegacyKeyOf(cwd, name)
-        if (!key) return name === 'bannerFolded'
+        if (!key) return false
         if (Object.prototype.hasOwnProperty.call(map, key)) return !!map[key]
         const ks = Object.keys(map)
         for (let i = 0; i < ks.length; i++) { if (viewFlagNormOf(ks[i]) === key) return !!map[ks[i]] }
-      } catch (e) { return name === 'bannerFolded' }
-      return name === 'bannerFolded'
+      } catch (e) { return false }
+      return false
     }
     // 写旧表：只在这一条路接不下这一次改动时才走（写文件失败、文件只读、或认不出工作区根）。
-    //   横幅折叠记 1 是收起、记 0 是展开（缺席留给没点过、读时按收起算）；红文件夹标志沿用老做法
-    //   （置上记 1，取消删掉，与 src/client/kernel/store-prefs.ts 的旧记法同源）；
+    //   红文件夹标志沿用老做法（置上记 1，取消删掉，与 SubworkspaceMark 的旧记法同源）；
     //   表里别的键原样保留，所以只动这一次涉及的那一条。
     //   写旧表本身失败时补一行 storage.fail（既有事件名，字段只有 key 与 op 两个，与全库其余位置一致），
     //   不再一口吞掉：兜不住这件事要在日志里看见，不然排查时只剩「用户点了、什么都没发生」。
@@ -259,8 +255,8 @@ declare const process: any;
         if (!map) map = {}
         let hit = Object.prototype.hasOwnProperty.call(map, key) ? key : ''
         if (!hit) { const ks = Object.keys(map); for (let i = 0; i < ks.length; i++) { if (viewFlagNormOf(ks[i]) === key) { hit = ks[i]; break } } }
-        if (name === 'bannerFolded') { if (on) map[hit || key] = 1; else map[hit || key] = 0 }
-        else { if (on) map[hit || key] = 1; else if (hit) delete map[hit] }
+        if (on) map[hit || key] = 1
+        else if (hit) delete map[hit]
         localStorage.setItem(meta.key, JSON.stringify(map))
         return true
       } catch (e) {
@@ -269,7 +265,7 @@ declare const process: any;
       }
     }
     // 把这一格改进内存文档：别的节与别的字段一律不动；新建这一条记录时，按上面 VIEW_FLAG_SEED_NAMES 种上
-    //   另外那两格（值取旧表里还知道的那一份）。这一格自己照旧写在最后一行，所以不管名字是哪一个都落得下。
+    //   另外那两格。这一格自己照旧写在最后一行，所以不管名字是哪一个都落得下。
     const viewFlagSetInDoc = function (doc: any, cwd: any, key: any, name: any, on: any): any {
       try {
         if (!doc || typeof doc !== 'object') return false
@@ -285,10 +281,6 @@ declare const process: any;
           entryKey = key
         }
         doc.workspaces[entryKey][name] = on
-        // 旧调用方（store-prefs 的 setBannerFolded）还在写 bannerFolded：这一格只在本窗口内存里留着，
-        //   写盘时会被核归一换算成 statusBar。为了让这次点击在文件里也真正生效，顺手把 statusBar 改成同一个意思
-        //   （收起 true → hide、展开 false → show）—— 迁移期两条路写的是同一件事，不会一边改了另一边没改。
-        if (name === 'bannerFolded') doc.workspaces[entryKey]['statusBar'] = on ? 'hide' : 'show'
         return true
       } catch (e) { return false }
     }
@@ -398,22 +390,21 @@ declare const process: any;
           }
         }
       } catch (e) {}
-      // 问不出时的默认值按名字走：横幅折叠默认收起，其余默认关。
-      return { known: false, value: name === 'bannerFolded' }
+      // 问不出时的默认值一律是「关」；胶囊状态栏该按折叠算的口径由调用方（deck-state）自己给缺省。
+      return { known: false, value: false }
     }
     // 按所选目录那条路读一格：先按认出来的根问上面那个口子，问不出才回退旧 localStorage 键（这一手兜不住
-    //   「文件里已经有这个工作区的记录」那种情形，见文件头那段）。旧键里也没有时横幅折叠按收起算（见旧键读法）。
+    //   「文件里已经有这个工作区的记录」那种情形，见文件头那段）。
     export const viewFlagOf = function (cwd: any, name: any): any {
       try {
         const ans = viewFlagOfRoot(viewFlagDocKeyOf(cwd), name)
         if (ans.known) return ans.value
         // #1612 的两个文字开关问不出时直接回「不知道」（undefined），不回退旧 localStorage 的布尔键：
-        //   旧键里只有 bannerFolded 一个布尔语义，拿它冒充新开关会造出第二份真相；迁移由调用方
-        //   （kernel/deck-state.ts 的 deckStatusBarOf）自己读一次旧 bannerFolded 来兜。
+        //   旧键里没有这两格，硬拿别的布尔值冒充会造出第二份真相。
         if (viewFlagIsTextNameOf(name)) return undefined
         return viewFlagLegacyRead(cwd, name)
       } catch (e) {
         if (viewFlagIsTextNameOf(name)) return undefined
-        return name === 'bannerFolded'
+        return false
       }
     }

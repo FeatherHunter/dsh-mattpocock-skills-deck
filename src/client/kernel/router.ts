@@ -79,6 +79,8 @@ export const DECK_NATIVE_TYPE_ID: string = 'dsh-mattpocock-skills-deck/deck:map'
 export const DeckSidebarTab = function (props: any): any {
   // 会话号由原生右栏就近给：注册内容体槽位时写了 inject(sessionId)，宿主在渲染这一格时把它交进来。
   const sessionId: any = (props && props.sessionId) || undefined;
+  // 这一格归哪个工作区：#1612 的 deck 工具箱开关要按工作区拦面板，拿不到会话就空串（空串不拦）。
+  const tabCwd: any = sessionId ? getCwdSync(sessionId) : '';
   const [ready, setReady] = React.useState(false);
   React.useEffect(function (): any {
     if (ready) return;
@@ -88,6 +90,11 @@ export const DeckSidebarTab = function (props: any): any {
     const id1: any = raf(function (): void { id2 = raf(function (): void { setReady(true); }); });
     return function (): void { try { if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(id1); } catch (eC1) {} try { if (id2 !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(id2); } catch (eC2) {} };
   }, [ready]);
+  // #1612 验收 ②：这个工作区关掉 deck 工具箱后，右侧面板不再开 —— 原生右栏直接点进来（含右栏「+」的引导页）
+  //   也一律只画一句说明，不挂面板本体。这里就是面板内容体那一格，挡住了别处也就绕不进来。
+  if (typeof isDeckClosed === 'function' && isDeckClosed(tabCwd)) {
+    return h('div', { className: 'dsws-hold', style: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, fontSize: 12, color: 'var(--dsws-hold-fg,#8b8b95)', textAlign: 'center' } }, tr('panel.deckClosed'));
+  }
   if (!ready) return h('div', { className: 'dsws-hold' });
   return h('div', { className: 'dsws-hold' }, h(DetailsDock, { sessionId: sessionId }));
 };
