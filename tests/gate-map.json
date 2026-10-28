@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T13:08:32.087Z",
+  "generatedAt": "2026-10-28T13:19:04.654Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 431,
   "gateCount": 431,
@@ -3810,6 +3810,7 @@
       "file": "tests/verify-1522-skill-md-refs.ts",
       "guards": [
         "docs/agents/domain.md",
+        "src/client/kernel/motion.ts",
         "src/client/views/pixel/PixelBanner.ts",
         "src/client/views/pixel/PixelBtn.ts",
         "src/client/views/pixel/PixelNum.ts",
@@ -3827,6 +3828,7 @@
       ],
       "dirs": [
         "docs/agents",
+        "src/client/kernel",
         "src/client/views/pixel",
         "src/client/views/skillDetail",
         "src/host",
@@ -3837,7 +3839,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 2 条；源码里的路径字面量 12 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；静态 import 说明符 2 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-1526-suggest-replay-restore.ts",
@@ -10547,6 +10549,7 @@
       "node tests/verify-1451-suggest-session-keep.ts",
       "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-1519-detail-comments.ts",
+      "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1526-suggest-replay-restore.ts",
       "node tests/verify-1548-map-row-nav.ts",
       "node tests/verify-1564-ticket-badge.ts",
