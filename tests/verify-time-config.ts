@@ -616,12 +616,15 @@ async function main(): Promise<void> {
   }
 
   // —— 第二节续：一步等待只有一个数（#1629） ——
-  // 「向对方发出一次请求后等它出结果」这一步的上限，三处调用方（面板自动复查、deck 工具走一步、
-  // 宿主闸的一次求值）都取中央的同一个键。这里守两件事：三处都真引用它；YAML 里只定义一次，
+  // 「向对方发出一次请求后等它出结果」这一步的上限，三处（面板自动复查、宿主接线的单次调用、
+  // 检查链退避第二档）都取中央的同一个键。这里守两件事：三处都真引用它；YAML 里只定义一次，
   // 退避序列的第二档直接引用它、不另抄一份数字。
   const hostEntrySrc = fs.readFileSync(path.join(ROOT, 'src/host/index.ts'), 'utf8')
-  const stepWaitUseCount = countOccurrences(hostEntrySrc, 'tc.STEP_WAIT_MS')
-  check(stepWaitUseCount === 3, 'src/host/index.ts 的三处 TIMEOUT_MS 都取中央的 tc.STEP_WAIT_MS（实得 ' + stepWaitUseCount + ' 处）')
+  const timeoutSites = countOccurrences(hostEntrySrc, 'TIMEOUT_MS:')
+  const stepWaitUseCount = countOccurrences(hostEntrySrc, 'TIMEOUT_MS: tc.STEP_WAIT_MS')
+  const stepWait = timeMod.STEP_WAIT_MS as number
+  check(timeoutSites >= 3 && stepWaitUseCount === timeoutSites, 'src/host/index.ts 的每一处 TIMEOUT_MS 都原样取中央的 tc.STEP_WAIT_MS（TIMEOUT_MS 共 ' + timeoutSites + ' 处，原样取中央的 ' + stepWaitUseCount + ' 处）')
+  check(stepWait === (timeMod.TIME_YAML as Record<string, unknown>).stepWaitMs, 'src/host/index.ts 拿到的 STEP_WAIT_MS 与 YAML 生效值一致（实得 ' + stepWait + '）')
   check(!/HOST_TIMEOUT_MS|hostTimeoutMs/.test(hostEntrySrc), 'src/host/index.ts 里不再出现已删的 hostTimeoutMs（统一后不许留旧名）')
   const probeChainSrc = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/client/probe-chain-subscription.ts'), 'utf8')
   check(/import\s*\{\s*STEP_WAIT_MS\s*\}\s*from\s*'[^']*time-config\/values\.js'/.test(probeChainSrc), 'probe-chain-subscription.ts 真 import 了 STEP_WAIT_MS（构建按界面半边写法剥掉这一行，名字由拼接片段提供）')
@@ -637,18 +640,17 @@ async function main(): Promise<void> {
   const backoffLineMatch = intervalsRaw.match(/^\s*chainBackoffMs:\s*\[[^\]]*\]/m)
   const backoffLine = backoffLineMatch ? backoffLineMatch[0] : ''
   check(backoffLine.indexOf('stepWaitMs') >= 0, 'config/intervals.yaml 的 chainBackoffMs 直接引用 stepWaitMs，不另抄数字（原文：' + backoffLine.trim() + '）')
-  // 逐个数组项看：除快档 8000 之外，其余项必须写成 stepWaitMs 的引用，不许出现第二个数字字面量。
-  // （不能直接在整行里抓 \d+：倍数 4、10 也是数字，但那不是「再抄一份 30000」。）
+  // 用解析器自己的规则判「这一项是不是引用」，不在门禁里再抄一份规则：解析器认得出的算引用，
+  // 认不出的按字面量计数（这样解析器一放宽，门禁跟着放宽，不会两处说法慢慢分家）。
   const backoffItems = ((backoffLine.match(/\[([^\]]*)\]/) || [])[1] || '').split(',').map((s) => s.trim()).filter(Boolean)
-  const backoffLiterals = backoffItems.filter((item) => /^[0-9]+$/.test(item))
-  check(backoffLiterals.length === 1 && backoffLiterals[0] === '8000', 'chainBackoffMs 的数组项里只有快档 8000 是数字，其余都写成 stepWaitMs 的引用（实得数字项：' + JSON.stringify(backoffLiterals) + '）')
+  const refItems = backoffItems.filter((item) => parseTimeArrayRef(item) !== null)
+  const literalItems = backoffItems.filter((item) => parseTimeArrayRef(item) === null)
+  check(refItems.length > 0 && literalItems.every((item) => /^[0-9]+$/.test(item)), 'chainBackoffMs 的数组项只有正整数与引用两种写法（其余写法生成器会报错）')
+  check(literalItems.length === 1, 'chainBackoffMs 的数组项里只有一个数字字面量（独立的快档），其余都写成引用（实得字面量：' + JSON.stringify(literalItems) + '）')
   const backoff = timeMod.CHAIN_BACKOFF_MS as number[] | undefined
-  const stepWait = timeMod.STEP_WAIT_MS as number
+  check(literalItems.every((item) => Number(item) !== stepWait), '那一个字面量不与一步等待同值（同值就是又抄了一份数字）')
   check(Array.isArray(backoff) && backoff.length === 4, '退避序列仍是四档（#1474 拍板的档数不改，实得 ' + JSON.stringify(backoff) + '）')
-  check(
-    Array.isArray(backoff) && backoff[0] === 8000 && backoff[1] === stepWait && backoff[2] === stepWait * 4 && backoff[3] === stepWait * 10,
-    '退避四档 = [8000, 一步等待, 4 倍, 10 倍]，行为与统一前一致（实得 ' + JSON.stringify(backoff) + '，一步等待 ' + stepWait + '）',
-  )
+  check(Array.isArray(backoff) && backoff[1] === stepWait, '退避第二档就是一步等待那个数（实得 ' + JSON.stringify(backoff && backoff[1]) + '，一步等待 ' + stepWait + '）')
 
   // —— 第三节：界面半边拿不拿得到值（values.ts 有、构建名单有、界面文件真在用） ——
   const buildSrc = fs.readFileSync(path.join(ROOT, 'scripts', 'build.mts'), 'utf8')

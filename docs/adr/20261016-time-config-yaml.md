@@ -1,6 +1,6 @@
 # ADR：全仓时间参数收进中央 YAML（#1215）
 
-> 日期：2026-10-16 定版；同日增补第二轮（全量收拢，见 §2.1）
+> 日期：2026-10-16 定版；同日增补第二轮（全量收拢，见 §2.1）；2026-10-29 增补跨键引用（#1629，见 §2.3）
 > 地位：本文件是「时间参数该放哪、谁能改、改了谁说了算」的唯一依据。凡与本文冲突的旧写法以本文为准；未来任何讨论若改动本决策，以未来版本为准（CONTEXT.md 同款两条规则）。
 > 关联：#1215（落地票）· `research/timeout-centralization-inventory.md`（收拢前的完整清单）· `src/shared/refresh/src/tuning.ts`（#1069 的旧收拢，本文件将其定位为“只搬运的第一步”，见 §6）· `tests/verify-895-bulk-deadline.ts` 第⑦节（双生子同值断言，见 §4）
 
@@ -90,7 +90,7 @@
 
 ### 2.3 数组项引用别的键（#1629：一步等待统一成一个数）
 
-「向对方发出一次请求之后等它出结果」这一步的等待上限，全仓只认一个键：`config/timeouts.yaml` 的 `stepWaitMs`（30000 毫秒）。三处调用方——面板自动复查一次（`src/refresh/rooms/client/probe-chain-subscription.ts`）、deck 工具走一步、宿主闸的一次求值（`src/host/index.ts` 里三处 `TIMEOUT_MS`）——都取它。2026-10-29 的 #1629 把原来各写一份的 `hostTimeoutMs` 与 `chainAutoRetryCooldownMs` 删掉并入这一个键；三处原值都是 30000，行为不变。
+「向对方发出一次请求之后等它出结果」这一步的等待上限，全仓只认一个键：`config/timeouts.yaml` 的 `stepWaitMs`（30000 毫秒）。取它的是三处：面板自动复查的间隔（`src/refresh/rooms/client/probe-chain-subscription.ts`）；宿主接线的通用超时（`src/host/index.ts` 里三处 `TIMEOUT_MS`，经 deps 注入 platformChannel / git-execution / versionControl，deck 工具走一步与宿主闸的一次求值都在这类模块里等）；检查链退避序列的第二档。2026-10-29 的 #1629 把原来各写一份的 `hostTimeoutMs` 与 `chainAutoRetryCooldownMs` 删掉并入这一个键；三处原值都是 30000，行为不变。
 
 检查链的重试退避序列（`chainBackoffMs`）第二档恰好就是这个数（8 秒 → 30 秒 → 2 分钟 → 5 分钟，#1474 拍板的档数不改）。为了不抄第二份 30000，`config/intervals.yaml` 里数组项允许写引用：`chainBackoffMs: [8000, stepWaitMs, stepWaitMs * 4, stepWaitMs * 10]`。规则与边界：
 
@@ -138,6 +138,8 @@
 （门禁断言两者相等）；那张票定的“本轮不统一数值”（同值不同命的不合并）继续有效，
 本票的键里同值不同命的各自保留独立的键（例如 `deckStoreMs` 10000 与 `deckEnsureMs` 15000 是两件事，
 `deckLocalReadMs` 5000 与 `deckEnsureMs` 15000 也是两件事）。
+
+唯一的例外是 #1629：面板自动复查的间隔、宿主接线的一步等待、检查链退避的第二档，三者回答的是同一个问题——「向对方发一次请求后最多等多久」——所以合成一个键 `stepWaitMs`，由三处引用（§2.3）。这条例外只覆盖这三处；其它只是数值碰巧相同的键（例如 `hostBootDeferMs` 也是 30000、`outboundReadMs` 也是 30000）仍然各管各的，不因为这次合并而并过来。
 
 ## 7. 怎么判（门禁总览）
 

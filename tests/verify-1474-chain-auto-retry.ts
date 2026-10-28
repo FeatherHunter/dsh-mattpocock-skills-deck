@@ -183,7 +183,7 @@ const partA = function (): void {
 const partB = async function (): Promise<void> {
   console.log('#1474 B. 发起：绕开本地缓存再问一次宿主，触发名是 auto-retry、不带 force')
   const w = makeWorld()
-  check(STEP_WAIT_MS === 30000, '冷却值来自中央配置 config/timeouts.yaml 的 stepWaitMs（实得 ' + STEP_WAIT_MS + '）')
+  check(Number.isInteger(STEP_WAIT_MS) && STEP_WAIT_MS > 0, '冷却值取自中央配置 config/timeouts.yaml 的 stepWaitMs（实得 ' + STEP_WAIT_MS + '；具体数值由 verify-time-config 门禁统一核对，这里不锁死）')
   const st = mkState('s1')
   // 本地缓存里放着一份「还是旧状态」的同一会话快照：不绕缓存的话会原样读回来，等于没复查。
   const cachedSnap = { steps: [pendingStep('gh:authed')], tag: 'cached-old' }

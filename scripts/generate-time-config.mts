@@ -329,14 +329,19 @@ function load(docs: Array<{ rel: string; doc: any }>): { values: Record<string, 
   const warnings: string[] = []
   const values: Record<string, any> = {}
   const provided: Set<string> = new Set()
-  // 第一遍先落标量键：数组项可能引用标量键（#1629 的一步等待），所以标量必须先算出来。
+  // 第一遍先落标量键：数组项可能引用标量键（#1629 的一步等待），所以标量必须先算出来；
+  // 数组键先把原始值收进清单，等标量都齐了再统一解析（解析规则见 lib/time-config-expr.mts）。
   const scalarValue: Record<string, number> = {}
+  const pendingArrays: Array<{ key: string; group: string; raw: unknown }> = []
   for (const [key, { group }] of known) {
     const v: any = seen[group][key]
     if (v === undefined) {
       throw new Error('缺键：' + FILE_OF_GROUP[group] + ' 的 ' + group + '.' + key + ' 没写；数字只在 YAML 里有一份，没有回落可顶，先把键补上')
     }
-    if (group === ARRAY_GROUP) continue
+    if (group === ARRAY_GROUP) {
+      pendingArrays.push({ key, group, raw: v })
+      continue
+    }
     if (!isPositiveInt(v)) {
       throw new Error(FILE_OF_GROUP[group] + ' 的 ' + key + ' 必须是正整数毫秒，读到的是 ' + JSON.stringify(v))
     }
@@ -355,9 +360,8 @@ function load(docs: Array<{ rel: string; doc: any }>): { values: Record<string, 
   }
   // 第二遍收数组键：项可以是正整数，也可以写「键名」或「键名 * 倍数」引用上面那些标量键。
   // 解析与报错住在 lib/time-config-expr.mts（为什么允许引用见那个文件头）；产物里仍是普通数字数组。
-  for (const [key, { group }] of known) {
-    if (group !== ARRAY_GROUP) continue
-    values[key] = resolveTimeArray(seen[group][key], {
+  for (const { key, group, raw } of pendingArrays) {
+    values[key] = resolveTimeArray(raw, {
       file: FILE_OF_GROUP[group],
       key,
       scalarOf: (target: string) => scalarValue[target],
