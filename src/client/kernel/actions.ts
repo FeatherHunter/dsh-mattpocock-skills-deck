@@ -20,7 +20,7 @@
 
 // 动作类型闭包常量（与 src/shared/tracker/chain-types.ts 的 ACTION_TYPE 同值；本文件为 UI 执行器，
 // 遵守「零 import 语法」约定——防 D7 dev host vm.Script 阻塞；枚举若变更须同步（契约校验兜底））
-const ACTION_TYPE = Object.freeze({ INJECT_PROMPT: 'inject-prompt', OPEN_URL: 'open-url', RPC: 'rpc', FORM: 'form', REFRESH: 'refresh', WIZARD: 'wizard' })
+const ACTION_TYPE = Object.freeze({ INJECT_PROMPT: 'inject-prompt', OPEN_URL: 'open-url', RPC: 'rpc', FORM: 'form', REFRESH: 'refresh', WIZARD: 'wizard', CONTRACT_OP: 'contract-op' })
 
 /**
  * @typedef {Object} ActionContext
@@ -118,6 +118,31 @@ export function createActionDispatcher(ctx: any) {
         // #419/#425：成功结果透传给上层（向导成功弹窗需 repo:{owner,name} 拼真值链接）
         return { ok: true, action, data: (res && typeof res === 'object' && res.ok === true) ? res : undefined }
       }
+      if (t === ACTION_TYPE.CONTRACT_OP) {
+        const op = action.op
+        if (typeof op !== 'string' || !op.trim()) {
+          return { ok: false, error: { kind: 'parse', message: 'contract-op needs op:string' }, action }
+        }
+        if (typeof ctx.hostCall !== 'function') {
+          return { ok: false, error: { kind: 'unsupported', message: 'hostCall not available' }, action }
+        }
+        // 按当前后端分发：客户端只报操作名与参数，不判断后端是谁（#1191：知识断在最后一米的修复）。
+        //   宿主侧经 wf.contractOp 按当前会话的后端选房间执行；参数形状与 Tracker 契约的入参同形
+        //   （如 initProject 收 {name, visibility}，外加可选 cwd；缺 cwd 时宿主用当前工作区）。
+        const base = action.params !== undefined ? action.params : action.args
+        const payload = Object.assign({}, (base && typeof base === 'object' ? base : {}), { op: String(op).trim() })
+        const res = await ctx.hostCall('wf.contractOp', payload)
+        if (res && typeof res === 'object' && res.ok === false) {
+          const kind = res.errorKind || (res.error && res.error.kind) || res.kind || 'internal'
+          const msg = res.error ? (typeof res.error === 'string' ? res.error : (res.error.message || String(res.error))) : (res.message || '契约操作失败：' + String(op))
+          const failure: any = { kind: kind, message: String(msg).slice(0, 600) }
+          if (res.repoUrl) failure.repoUrl = res.repoUrl
+          if (res.repo) failure.repo = res.repo
+          if (res.halfCreated) failure.halfCreated = true
+          return { ok: false, error: failure, action }
+        }
+        return { ok: true, action, data: (res && typeof res === 'object' && res.ok === true) ? res : undefined }
+      }
       if (t === ACTION_TYPE.FORM) {
         if (!Array.isArray(action.schema)) {
           return { ok: false, error: { kind: 'parse', message: 'form needs schema:FieldSchema[]' }, action }
@@ -137,10 +162,10 @@ export function createActionDispatcher(ctx: any) {
               merged.args = Object.assign({}, merged.args || merged.params || {}, values)
               if (merged.params && !merged.args) merged.args = merged.params
             } else {
-              // rpc/form/refresh 等：优先 params，兼容 args 别名
+              // rpc/contract-op/form/refresh 等：优先 params，兼容 args 别名
               const base = merged.params !== undefined ? merged.params : merged.args
-              if (merged.type === ACTION_TYPE.RPC) {
-                // 保持与 RPC 别名一致
+              if (merged.type === ACTION_TYPE.RPC || merged.type === ACTION_TYPE.CONTRACT_OP) {
+                // 保持与 RPC 别名一致（contract-op 同理：向导值并入 params，op 键原样保留）
                 merged.params = Object.assign({}, base || {}, values)
                 if (action.submitAction.args) merged.args = merged.params
               } else {
@@ -182,7 +207,7 @@ export function createActionDispatcher(ctx: any) {
               if (merged.params && !merged.args) merged.args = merged.params
             } else {
               const base = merged.params !== undefined ? merged.params : merged.args
-              if (merged.type === ACTION_TYPE.RPC) {
+              if (merged.type === ACTION_TYPE.RPC || merged.type === ACTION_TYPE.CONTRACT_OP) {
                 merged.params = Object.assign({}, base || {}, values)
                 if (action.submitAction.args) merged.args = merged.params
               } else {

@@ -28,14 +28,15 @@ type ValidateCheckItemLike = {
 }
 
 // 与 chain-types.js 同源（墙要求不互相引用；改动时两处同改）。
-/** 动作类型枚举（v1 六种，契约层唯一真源；2026-08-28 新增 wizard 向导）。 */
+/** 动作类型枚举（v1 七种，契约层唯一真源；2026-08-28 新增 wizard 向导；#1191 新增 contract-op 契约操作）。 */
 const ACTION_TYPE = Object.freeze({
   INJECT_PROMPT: 'inject-prompt', // 推进型：注入提示词，配合重求值推进（例：gh auth login 引导）
   OPEN_URL: 'open-url',           // 信息型：打开链接，不宣称修复、不推进链
-  RPC: 'rpc',                     // 执行型：host.call（例：wf.openFolder）
+  RPC: 'rpc',                     // 执行型：host.call（例：wf.openFolder；后端相关调用已迁往 contract-op）
   FORM: 'form',                   // 执行型：内嵌字段表单，提交后走 submitAction
   REFRESH: 'refresh',             // 执行型：触发重求值（例：重探）
   WIZARD: 'wizard',               // 执行型：多步向导（单弹窗内分页，Q5 定版：按步校验、最后一起提交、可返回、取消丢弃）
+  CONTRACT_OP: 'contract-op',     // 执行型：契约操作（按当前后端分发，如 initProject；与 Tracker 的 23 条操作名区分）
 })
 
 /** 别名：动作词汇表枚举（兼容票面命名 ACTION_TYPES）。 */
@@ -128,6 +129,11 @@ export function validateAction(action: ValidateAction | null | undefined): Valid
       if (!getMethod || typeof getMethod !== 'string' || !String(getMethod).trim()) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'rpc 需 method/endpoint' } }
       return { ok: true }
     }
+    case ACTION_TYPE.CONTRACT_OP: {
+      const op = (action as ValidateAction).op
+      if (!op || typeof op !== 'string' || !String(op).trim()) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'contract-op 需 op（契约操作名，如 initProject）' } }
+      return { ok: true }
+    }
     case ACTION_TYPE.FORM: {
       const fields = getSchema
       if (!Array.isArray(fields) || fields.length === 0) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'form 需 schema/fields 非空数组' } }
@@ -144,6 +150,9 @@ export function validateAction(action: ValidateAction | null | undefined): Valid
       const subEndpoint = getSubmit.endpoint || getSubmit.method
       if (subType && !VALID_ACTION_TYPES.has(String(subType).trim())) {
         // 未知提交类型按 unsupported 透传，不判错
+      } else if (String(subType || '').trim() === ACTION_TYPE.CONTRACT_OP) {
+        const subOp = (getSubmit as ValidateAction).op
+        if (!subOp || typeof subOp !== 'string' || !String(subOp).trim()) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'form.submit 的 contract-op 需 op' } }
       } else if (!subType && !subEndpoint) {
         return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'form.submit 需 type 或 endpoint' } }
       }
@@ -175,6 +184,9 @@ export function validateAction(action: ValidateAction | null | undefined): Valid
       const subEndpoint = getSubmit.endpoint || getSubmit.method
       if (subType && !VALID_ACTION_TYPES.has(String(subType).trim())) {
         // 未知提交类型按 unsupported 透传
+      } else if (String(subType || '').trim() === ACTION_TYPE.CONTRACT_OP) {
+        const subOp = (getSubmit as ValidateAction).op
+        if (!subOp || typeof subOp !== 'string' || !String(subOp).trim()) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.submit 的 contract-op 需 op' } }
       } else if (!subType && !subEndpoint) {
         return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'wizard.submit 需 type 或 endpoint' } }
       }

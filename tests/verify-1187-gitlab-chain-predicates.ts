@@ -261,11 +261,11 @@ async function main() {
     must(!hasInternalString(r.out), '回包里没有英文内部串')
     const step = stepOf(r.out, 'glab:repoAccess')
     must(step && step.status === 'current', '失败行带修复动作（current）', JSON.stringify(step && step.status))
-    must(step && String((step.show || {}).hint || '').indexOf('修复指引') >= 0, '行提示写明点「修复指引」', JSON.stringify(step && step.show))
-    const inject = ((step && step.actions) || []).find(function (a) { return a && a.type === 'inject-prompt' }) || null
-    must(inject && inject.label === '修复指引', '按钮标签是中文「修复指引」', JSON.stringify(inject && inject.label))
-    must(inject && String(inject.prompt || '').indexOf('glab repo create') >= 0, '修复提示词已解析成正文（含 glab repo create）', String(inject && inject.prompt).slice(0, 80))
-    must(inject && inject.prompt !== 'glabRepoFix', '提示词不再是 glabRepoFix 这个键名', String(inject && inject.prompt))
+    must(step && String((step.show || {}).hint || '').indexOf('创建并发布') >= 0, '行提示写明点「创建并发布」(#1191：与 GitHub 同口径)', JSON.stringify(step && step.show))
+    const wizard = ((step && step.actions) || []).find(function (a) { return a && a.type === 'wizard' }) || null
+    must(wizard && wizard.label === '创建并发布', '按钮标签是中文「创建并发布」(#1191：与 GitHub 同口径)', JSON.stringify(wizard && wizard.label))
+    const submit = (wizard && wizard.submitAction) || {}
+    must(submit.type === 'contract-op' && submit.op === 'initProject', '向导提交走 contract-op/initProject（客户端不认后端，由宿主按会话分发）', JSON.stringify(submit))
   }
 
   title('⑥ 网络超时 → 两行都 pending，不许误报未登录')

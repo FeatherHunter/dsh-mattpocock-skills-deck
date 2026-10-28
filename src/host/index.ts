@@ -316,7 +316,7 @@ export default {
     harness.handle('wf.cancelNewSessionWatcher', async function () { const h = await _naming(); return h.handleCancelNewSessionWatcher.apply(h, arguments) })
     harness.handle('wf.awaitCreatedIssue', async function () { const h = await _naming(); return h.handleAwaitCreatedIssue.apply(h, arguments) })
     harness.handle('wf.openFolder', async function () { const h = await _picker(); return h.handleOpenFolder.apply(h, arguments) })
-    harness.handle('wf.initPublish', async function () { const h = await _publish(); return h.handleInitPublish.apply(h, arguments) })
+    harness.handle('wf.initPublish', async function () { const h = await _publish(); return h.handleInitPublish.apply(h, arguments) }); harness.handle('wf.contractOp', async function () { const h = await _publish(); return h.handleContractOp.apply(h, arguments) }) // #1191 契约操作按当前后端分发（与 initPublish 同一发布链）
     harness.handle('wf.retryPush', async function () { const h = await _publish(); return h.handleRetryPush.apply(h, arguments) })
     harness.handle('wf.pickDirectory', async function () { const h = await _picker(); return h.handlePickDirectory.apply(h, arguments) }); harness.handle('wf.pickFile', async function () { const h = await _picker(); return h.handlePickFile.apply(h, arguments) }) // 两句合一行：本文件已顶三百五十行上限，腾出的一行留给本机设置两条电话
     harness.handle('wf.openPath', async function () { const h = await _picker(); return h.handleOpenPath.apply(h, arguments) })

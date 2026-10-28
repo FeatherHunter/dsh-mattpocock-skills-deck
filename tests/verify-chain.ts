@@ -40,7 +40,8 @@ console.log('\n— 枚举 —')
     check(vals.includes('form'), '动作枚举含 form')
     check(vals.includes('refresh'), '动作枚举含 refresh')
     check(vals.includes('wizard'), '动作枚举含 wizard（2026-08-28 向导扩展）')
-    check(vals.length === 6, '动作枚举恰 6 种 — got=' + vals.length)
+    check(vals.includes('contract-op'), '动作枚举含 contract-op（#1191 契约操作）')
+    check(vals.length === 7, '动作枚举恰 7 种 — got=' + vals.length)
   }
   const states = mod.CHECK_STATE || mod.STEP_STATUS
   check(!!states, 'CHECK_STATE/STEP_STATUS 存在')

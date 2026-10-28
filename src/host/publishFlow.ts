@@ -262,8 +262,25 @@ export function createPublishFlow(deps: Deps) {
     if (rk3 && repoKeys[rk3] !== undefined) delete repoKeys[rk3]
     if (rk3 && repoRoots[rk3] !== undefined) delete repoRoots[rk3]
     // URL 以房间给的那份为准；拿不到 owner 时沿用旧口径给空串（没有 owner 拼出来的地址是错的）。
-    const repoUrl = owner ? (String(ref.url || '') || ('https://github.com/' + owner + '/' + repoName)) : ''
+    // #1191：兜底按会话后端选域（GitLab 房走 gitlab.com），房间正常回 url 时这一格不触发。
+    const backendId = String((opened as { backendId?: unknown }).backendId || '')
+    const fallbackBase = backendId === 'gitlab' ? 'https://gitlab.com/' : 'https://github.com/'
+    const repoUrl = owner ? (String(ref.url || '') || (fallbackBase + owner + '/' + repoName)) : ''
     return { ok: true, repo: { owner: owner, name: repoName }, repoUrl: repoUrl }
+  }
+
+  // ============ 契约操作分发（#1191：UI 的 contract-op 落到这里按当前后端执行）============
+  // 入参：{ op, cwd?, name?, visibility?, ... }（op 如 initProject；其余键原样透给对应操作）。
+  // 为什么只有 initProject：今天 UI 只有建仓向导用 contract-op；未知 op 诚实回 unsupported，不猜、不兜。
+  interface ContractOpArgs { op?: unknown; cwd?: unknown; name?: unknown; visibility?: unknown }
+  async function handleContractOp(args?: ContractOpArgs | null) {
+    const op = args && args.op ? String(args.op).trim() : ''
+    if (!op) return { ok: false, errorKind: 'bad-name', error: '缺少 op（契约操作名，如 initProject）' }
+    if (op !== 'initProject') return { ok: false, errorKind: 'unsupported', error: '不支持的契约操作：' + op }
+    const cwd = (args && args.cwd ? String(args.cwd) : '') || DEFAULT_CWD
+    const name = args && args.name ? String(args.name) : ''
+    const visibility = (args && args.visibility) === 'public' ? 'public' : 'private'
+    return handleInitPublish({ cwd: cwd, name: name, visibility: visibility })
   }
 
   // ============ 重试推送（#420/#426 定版：仅推送，不动建仓）============
@@ -298,5 +315,5 @@ export function createPublishFlow(deps: Deps) {
     const wrapped = async function (...a: never[]): Promise<unknown> { const t0 = Date.now(); try { const r = await fn(...a); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } }
     return wrapped as unknown as F
   }
-  return { handleInitPublish: loggedPhone('wf.initPublish', 'publish', handleInitPublish), handleRetryPush: loggedPhone('wf.retryPush', 'publish', handleRetryPush) }
+  return { handleInitPublish: loggedPhone('wf.initPublish', 'publish', handleInitPublish), handleContractOp: loggedPhone('wf.contractOp', 'publish', handleContractOp), handleRetryPush: loggedPhone('wf.retryPush', 'publish', handleRetryPush) }
 }

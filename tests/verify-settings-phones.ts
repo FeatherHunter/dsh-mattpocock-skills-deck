@@ -230,7 +230,8 @@ async function main() {
     check(nIndex <= 400, '宿主入口不超过四百行，实得 ' + nIndex + ' 行。')
     const nPhones = (readText('src/host/index.ts').match(/harness\.handle\(/g) || []).length
     // #1436 加了一条只读电话 wf.workRoute（胶囊首帧读本机 work-path 存档），59 → 60。
-    check(nPhones === 60, '宿主电话六十条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1191 加了一条契约操作电话 wf.contractOp（客户端 contract-op 按当前后端分发），60 → 61。
+    check(nPhones === 61, '宿主电话六十一条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——
