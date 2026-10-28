@@ -317,7 +317,7 @@ export default {
     function _group(): Promise<any> { if (!_groupP) _groupP = import('./ticketGrouping.js').then(function (m: any){ return m.createTicketGrouping() }); return _groupP }
     // H6 同步外形保持：_repo 接线经此同步函数取即时推进（原命名块内同步定义；现为加载后防火即发，无返回值、永不抛，调用方 try 包裹语义不变）。
     function namingSweepSoon(delayMs: number) { _naming().then(function (h: any){ try { h.namingSweepSoon(delayMs) } catch (eSw) {} }).catch(function(){}) }
-    harness.handle('wf.handoffLatest', async function () { const h = await _handoff(); return h.handleHandoffLatest.apply(h, arguments) }); harness.handle('wf.handoffResolve', async function () { const h = await _handoff(); return h.handleHandoffResolve.apply(h, arguments) }) // 两句合一行：本文件已顶三百五十行上限，腾出的一行留给本机设置两条电话
+    harness.handle('wf.handoffLatest', async function () { const h = await _handoff(); return h.handleHandoffLatest.apply(h, arguments) }); harness.handle('wf.handoffResolve', async function () { const h = await _handoff(); return h.handleHandoffResolve.apply(h, arguments) }) // 两句合一行：本文件已顶四百行上限，腾出的一行留给本机设置两条电话
     // #498 退役：wf.claim 删注册（全仓零调用点、零日志行；认领取走 wf.handoffResolve）。handleClaim 实现留守（删注册不断链）。
     harness.handle('wf.namingRegister', async function () { const h = await _naming(); return h.namingRegisterHandler.apply(h, arguments) })
     harness.handle('wf.registerNewSessionWatcher', async function () { const h = await _naming(); return h.namingRegisterHandler.apply(h, arguments) })
@@ -329,16 +329,16 @@ export default {
     harness.handle('wf.openFolder', async function () { const h = await _picker(); return h.handleOpenFolder.apply(h, arguments) })
     harness.handle('wf.initPublish', async function () { const h = await _publish(); return h.handleInitPublish.apply(h, arguments) }); harness.handle('wf.contractOp', async function () { const h = await _publish(); return h.handleContractOp.apply(h, arguments) }) // #1191 契约操作按当前后端分发（与 initPublish 同一发布链）
     harness.handle('wf.retryPush', async function () { const h = await _publish(); return h.handleRetryPush.apply(h, arguments) })
-    harness.handle('wf.pickDirectory', async function () { const h = await _picker(); return h.handlePickDirectory.apply(h, arguments) }); harness.handle('wf.pickFile', async function () { const h = await _picker(); return h.handlePickFile.apply(h, arguments) }) // 两句合一行：本文件已顶三百五十行上限，腾出的一行留给本机设置两条电话
+    harness.handle('wf.pickDirectory', async function () { const h = await _picker(); return h.handlePickDirectory.apply(h, arguments) }); harness.handle('wf.pickFile', async function () { const h = await _picker(); return h.handlePickFile.apply(h, arguments) }) // 两句合一行：本文件已顶四百行上限，腾出的一行留给本机设置两条电话
     harness.handle('wf.openPath', async function () { const h = await _picker(); return h.handleOpenPath.apply(h, arguments) })
     let _settingsP: Promise<any> | null = null; function _settings(): Promise<any> { if (!_settingsP) _settingsP = (async function(){ const sm = await import('./settingsPhones.js'); const cm = await import('./configStore.js'); return sm.createSettingsPhones({ getPlatform: function(...args: any[]){ return getPlatform.apply(null, args) }, readLocalSettings: cm.readLocalSettings, writeLocalSettings: cm.writeLocalSettings, logCtx: logCtx }) })(); return _settingsP } // 本机设置叶子懒加载器：第一次用时才动态引入，之后复用同一份实例。
     harness.handle('wf.getSettings', async function (args: WfArgs) { const h = await _settings(); return h.handleGetSettings(args) }); harness.handle('wf.setSettings', async function (args: WfArgs) { const h = await _settings(); return h.handleSetSettings(args) }) // 读与写两句合一行：两条电话共用同一个懒加载器。
 
-    // ---- #490 底座 + #564 切包 + #1374 进程单例：全进程一份（globalThis 唯一一份），服务活委托跟当前装配走 ----
-    function _log(): Promise<any> {
-      const g: any = globalThis as any, K = '__dsh_mattskillsdeck_host_log__';
-      if (!g[K]) g[K] = { p: null, hd: false, svc: null };
-      const H = g[K];
+    // ---- #490 底座 + #564 切包 + #1374 进程单例 + #1620 槽只定义一处：全进程一份（globalThis 唯一一份），服务活委托跟当前装配走 ----
+    let _slotMod: any = null
+    async function _log(): Promise<any> {
+      if (!_slotMod) { try { _slotMod = await import('../shared/host-log-slot.js') } catch (eP) { const eC: any = new Error('[log] dsh-log 包不可用，日志已禁用，不回退旧实现（#1143）：' + String((eP as any)?.message || eP)); eC.cause = eP; throw eC } }
+      const H = _slotMod.ensureHostLogSlot()
       H.svc = { fs: fs, timer: timer, gc: function (...a: any[]) { return getCacheDir.apply(null, a) }, gp: function (...a: any[]) { return getPlatform.apply(null, a) }, st: _settings, cwd: DEFAULT_CWD };
       if (H.p) return H.p;
       H.p = (async function () {
@@ -357,14 +357,14 @@ export default {
     harness.handle('wf.logGetSwitch', async function (args: WfArgs) { const h = await _log(); return h.handleLogGetSwitch(args) })
     harness.handle('wf.logSetSwitch', async function (args: WfArgs) { const h = await _log(); return h.handleLogSetSwitch(args) })
     // 启动链 import 失败静默（#499 红队 C2）：日志库没加载出来时管道尚未就绪、无处可记；首次命中由分发异常行 #46 在调用方记。
-    _log().then(function (h: any){ try { h.loadSwitch().catch(function(){}) } catch (eSw) {} const H2 = (globalThis as any)['__dsh_mattskillsdeck_host_log__']; if (!H2 || !H2.hd) { if (H2) H2.hd = true; try { h.writeStartupHeader().catch(function(){}) } catch (eHd) {} } }).catch(function(){})
+    _log().then(function (h: any){ try { h.loadSwitch().catch(function(){}) } catch (eSw) {} const H2 = _slotMod.ensureHostLogSlot(); if (!H2.hd) { H2.hd = true; try { h.writeStartupHeader().catch(function(){}) } catch (eHd) {} } }).catch(function(){})
     // ---- #873 薄接线：更新能力只走已安装的更新包（updateFromPackage.js），旧实现与回退分支已删；包缺失直接抛错，不静默降级。
     let _updateP: Promise<any> | null = null
     function _update(): Promise<any> { if (!_updateP) _updateP = (async function(){ const args = { logCtx: logCtx, ctx: ctx }; const migrated = await import('./updateFromPackage.js'); return migrated.createUpdatePhoneHandlers(args) })(); return _updateP }
     harness.handle('wf.updateStatus', async function (args: WfArgs) { const h = await _update(); return h.handleUpdateStatus(args) })
     harness.handle('wf.updateCheck', async function (args: WfArgs) { const h = await _update(); return h.handleUpdateCheck(args) })
     harness.handle('wf.updateInstall', async function (args: WfArgs) { const h = await _update(); return h.handleUpdateInstall(args) })
-    harness.handle('wf.updateChangelog', async function (args: WfArgs) { const h = await _update(); return h.handleUpdateChangelog(args) }); harness.handle('wf.logAppend', async function (args: WfArgs) { const h = await _update(); return h.handleLogAppend(args) }) // 日志直追加与上句合一行：同属更新包同一份处理器表；本文件已顶三百五十行上限
+    harness.handle('wf.updateChangelog', async function (args: WfArgs) { const h = await _update(); return h.handleUpdateChangelog(args) }); harness.handle('wf.logAppend', async function (args: WfArgs) { const h = await _update(); return h.handleLogAppend(args) }) // 日志直追加与上句合一行：同属更新包同一份处理器表；本文件已顶四百行上限
     // 轮询已按 #348 Q3 关闭（60s 全量贴配额上限）：纯手动刷新 + 打开面板即刷，自动待 P1 再议。命名守护按 #709（T5）改事件驱动，
     // 下面这一次只做一次性铺垫（预热跟踪态、把攒下的脏账落盘），此后每一跳都由事件带起来，宿主侧没有自续定时器（由门禁守着）。缘由见账本 §8。
     _naming().then(function (h: any){ try { h.startNamingGuardianEvents() } catch (eEvents) {} }).catch(function(){})

@@ -174,6 +174,8 @@ const REFERENCES: RefRow[] = [
   // —— deck 壳：注册外层上限（导出名沿用，值是中央那一份） ——
   { file: 'src/deck/registration/register-options.ts', access: 'AGENT_TOOL_TIMEOUT_MS', gen: 'TOOL_TIMEOUT_MS', key: 'toolTimeoutMs' },
   { file: 'src/deck/registration/register-options.ts', access: 'REGISTER_RETRY_WAIT_MS', gen: 'REGISTER_RETRY_WAIT_MS', key: 'registerRetryWaitMs' },
+  // —— #1620：宿主日志槽有界重读的退避（只在共享模块里 import 使用，模块不导出该名：门禁走源码 import 断言） ——
+  { file: 'src/deck/registration/suggest-steps-register.ts', access: 'HOST_LOG_SLOT_RETRY_MS', gen: 'HOST_LOG_SLOT_RETRY_MS', key: 'hostLogSlotRetryMs' },
   // —— 宿主 tracker：谓词回落超时（函数内裸用导入常量，模块不导出：门禁走源码 import 断言） ——
   { file: 'src/host/tracker/predicateCore.ts', access: 'PREDICATE_FALLBACK_TIMEOUT_MS', gen: 'PREDICATE_FALLBACK_TIMEOUT_MS', key: 'predicateFallbackTimeoutMs' },
   { file: 'src/refresh/rooms/host/tool-call-budget-enforcement.ts', access: 'DEFAULT_TOOL_TIMEOUT_MS', gen: 'TOOL_TIMEOUT_MS', key: 'toolTimeoutMs' },

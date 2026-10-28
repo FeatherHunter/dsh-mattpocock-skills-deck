@@ -11,10 +11,11 @@
 
 import { AGENT_TOOL_TIMEOUT_MS, deckAgentOutputSchemaRaw } from './register-options.js'
 import { createSuggestNextSteps, definition } from '../tools/suggest-next-steps.js'
-import { REGISTER_RETRY_WAIT_MS } from '../../shared/time-config/src/values.js'
+import { HOST_LOG_SLOT_RETRY_MS, REGISTER_RETRY_WAIT_MS } from '../../shared/time-config/src/values.js'
 import { sleepOnce } from '../shell/capped-wait.js'
 import { withInFlightLease } from '../shell/in-flight-lease.js'
 import { hash8 } from '../../refresh/contract/workspace-keys.js'
+import { readHostLogStore } from '../../shared/host-log-slot.js'
 
 /** 外层递进来的东西（工具服务、上下文、日志）形状都不由本文件定，逐格验，不猜。 */
 type UnknownRecord = Record<string, unknown>
@@ -29,38 +30,43 @@ export interface SuggestRegisterDeps {
   now?: () => number
 }
 
-// ── 宿主日志兜底口（#1420 第四项） ──
+// ── 宿主日志兜底口（#1420 第四项；#1620 收成一处） ──
 //
 // 为什么需要：agent-row 直接登记这颗工具时不传依赖袋，工具侧的 log 就是 null，真机上模型每次
 // 调用 suggest_next_steps 一条 host.call 都不落。日志里于是分不清「模型根本没调」与「调了但
 // 界面没拿到事件流」—— 这正是 #1412 关闭评论里记为「预期」、#1420 要求补上的区分能力。
 //
-// 兜底口不 import 宿主模块：宿主启动时已经把日志库挂在 globalThis 上（src/host/index.ts 的
-// _log()，键见 HOST_LOG_SLOT），这里只按约定读那个格子。登记发生在启动早期，格子可能还没填、
-// p 也可能没解析完，拿不到就安静丢弃：日志可缺，登记与工具执行不能受影响。
+// 键、槽的形状与读取规则都住在 src/shared/host-log-slot.ts，这里不再写第二份字面量（#1620 的
+// 毛病就是改一处漏一处）。登记发生在启动早期：工具行多数组装可能早于宿主入口那次动态 import
+// 解析，槽那时还没建好——所以一次读不到不代表永远读不到，兜底口在后台按固定退避重读几次。
+// 窗口有上限（4 次 × 中央退避窗 HOST_LOG_SLOT_RETRY_MS，总计不超过 500ms）：fire 立刻返回，等待只
+// 发生在后台；窗口过完还读不到就只丢这一行。日志可缺，登记与工具执行不能受影响（#1620 复审 Blocking-2）。
+const HOST_LOG_RETRY_TIMES = 4
 
-const HOST_LOG_SLOT = '__dsh_mattskillsdeck_host_log__'
-
-/** 兜底口：每次 fire 时懒读全局格，解析出日志库后按它的开关决定记不记。 */
+/** 兜底口：每次 fire 都从共享模块读槽，读到后按日志库的开关决定记不记。 */
 function hostLogBridge(): SuggestRegisterLogLike {
   return {
     fire: function (level: string, event: string, fields: UnknownRecord): void {
-      try {
-        const g = globalThis as unknown as UnknownRecord
-        const slot = g[HOST_LOG_SLOT] as UnknownRecord | null | undefined
-        const pending = slot && slot.p
-        if (!pending || typeof (pending as Promise<unknown>).then !== 'function') return
-        ;(pending as Promise<unknown>).then(function (store: unknown) {
-          try {
-            const s = (store || {}) as UnknownRecord
-            if (typeof s.isEnabled !== 'function' || typeof s.log !== 'function') return
-            if (!(s.isEnabled as (l: string, e: string) => boolean)(level, event)) return
-            ;(s.log as (l: string, e: string, x: UnknownRecord) => void)(level, event, fields)
-          } catch (eStore) { /* 记录失败只丢这一行 */ }
-        }).catch(function () { /* 解析失败只丢这一行 */ })
-      } catch (eBridge) { /* 全局格读不了就只丢这一行 */ }
+      // 有意不 await：兜底口不能拖慢登记与工具执行，重读全在后台。
+      void deliverHostLog(level, event, fields, 0)
     },
   }
+}
+
+/** 一次投递：先读槽，读到了按 isEnabled/log 两格校验后记；读不到且还有次数就等一会再读。 */
+async function deliverHostLog(level: string, event: string, fields: UnknownRecord, attempt: number): Promise<void> {
+  try {
+    const store = (await readHostLogStore()) as UnknownRecord | null
+    if (store) {
+      if (typeof store.isEnabled !== 'function' || typeof store.log !== 'function') return
+      if (!(store.isEnabled as (l: string, e: string) => boolean)(level, event)) return
+      ;(store.log as (l: string, e: string, x: UnknownRecord) => void)(level, event, fields)
+      return
+    }
+    if (attempt >= HOST_LOG_RETRY_TIMES) return
+    await sleepOnce(HOST_LOG_SLOT_RETRY_MS)
+    await deliverHostLog(level, event, fields, attempt + 1)
+  } catch (eDeliver) { /* 记录失败只丢这一行 */ }
 }
 const hostLogBridgeOnce = hostLogBridge()
 
