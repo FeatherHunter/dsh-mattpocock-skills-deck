@@ -61,6 +61,7 @@
     "lib/transpile-unit.mts",
     "lib/prompt-config.mts",
     "lib/copy-config.mts",
+    "lib/time-config-expr.mts",
     "matrix-full.ts",
     "matrix-smoke.ts",
     "measure-967-outbound.ts",

@@ -43,10 +43,12 @@ declare const emit: any;
 // #1626：首帧链求值等 selection 落定用的那条专用电话。实现住在 probe-scope-selection 片段里，
 //   这里只声明形状；叶子沙箱没有它时调用点用 typeof 兜底（与其它跨闭包名字同一规矩）。
 declare const askSelectionOnce: any;
-// #1474：自动复查的冷却窗（毫秒）来自中央时间配置 config/intervals.yaml 的 chainAutoRetryCooldownMs。
+// #1629：自动复查的间隔取中央时间配置 config/timeouts.yaml 的 stepWaitMs——它是「发出一次请求后
+// 等它出结果」这一步的统一等待上限，与 deck 每步、宿主闸求值是同一个数（#1474 原来自带一份冷却值，
+// 现已并入）。这里只管界面多久发起一次；真算不算仍由宿主按退避序列裁定。
 // 这是本文件唯一的运行时 import：构建按 docs/adr/20261016-time-config-yaml.md 的界面半边写法，
 // 把下面这一行整行删掉，再由拼进闭包的 timeConfig 片段提供同名常量。
-import { CHAIN_AUTO_RETRY_COOLDOWN_MS } from '../../../shared/time-config/values.js';
+import { STEP_WAIT_MS } from '../../../shared/time-config/values.js';
 // #228/#284 链渲染器主机侧数据：wf.chain 全链快照（通用链 + 后端链，按后端动态，refresh 联动）
 // #284 迁移：九格目录视图（wf.status/checks）退役，全部读数点位改从链快照派生。
 // #284 修订（对抗式审查 2026-08-28）：并发门——同 cwd 同轮次的 in-flight 请求复用；
@@ -416,7 +418,8 @@ export const _logAutoRetrySkip = function (decision: string, waitMs: number): vo
  * 链上还有「暂时确认不了」的步时，自己再问宿主一次（#1474）。
  * 调用方是活跃探测拍（面板可见、停在正在看的工作区，每 5 秒一拍）；本函数不新建定时器，
  * 只在这一拍里判断「要不要顺带再算一次」：
- *   - 冷却：默认 30 秒最多发起一次宿主求值，冷却内的拍子直接跳过（调试日志 chain.auto.retry，decision=cooldown，waitMs 是还剩多少毫秒）；
+ *   - 冷却：每「一步等待」（默认 30 秒，取 config/timeouts.yaml 的 stepWaitMs）最多发起一次宿主求值，
+ *     冷却内的拍子直接跳过（调试日志 chain.auto.retry，decision=cooldown，waitMs 是还剩多少毫秒）；
  *   - 单飞：上一轮还没回来就跳过（同一事件的 decision=busy），不会叠着发第二份；
  *   - 只有链上有 pending 步才会发起；全绿、明确失败（fail/current）都不归这里管。
  * 发起时走 loadChain(force=false, trigger='auto-retry', {bypassLocalCache:true})：
@@ -432,7 +435,7 @@ export const maybeAutoRetryChain = function (st: any): any {
     return null;
   }
   var now: number = Date.now();
-  var cd: number = CHAIN_AUTO_RETRY_COOLDOWN_MS;
+  var cd: number = STEP_WAIT_MS;
   var at: number = _autoRetryState.atByKey.get(key) || 0;
   if (cd > 0 && at && now - at < cd) {
     _logAutoRetrySkip('cooldown', cd - (now - at));
@@ -457,7 +460,7 @@ export const maybeAutoRetryChain = function (st: any): any {
 /**
  * 面板从藏起来回到可见时，把当前这条链的冷却窗清掉（#1474）。
  * 为什么需要：藏着的那些拍一次都不跑，冷却窗却按钟走；回来第一拍若还落在窗里，
- * 会白等最多 30 秒才补这一次复查。清掉只影响这一把链键，不动别的链。
+ * 会白等最多一个「一步等待」（默认 30 秒）才补这一次复查。清掉只影响这一把链键，不动别的链。
  */
 export const resetAutoRetryCooldown = function (st: any): void {
   try {

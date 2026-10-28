@@ -19,11 +19,11 @@
 
 | 文件 | 管什么 | 键数 |
 | --- | --- | --- |
-| `config/timeouts.yaml` | 单次等待的上限，到点没回来就按失败或放弃处理 | 74 |
-| `config/intervals.yaml` | 节拍间隔、一次性延时，以及末尾的退避序列（`chainBackoffMs`、`ownRouteRetryMs`） | 39 |
-| `config/ttl.yaml` | 有效期，一份数据或一次判断过多久算过期 | 48 |
+| `config/timeouts.yaml` | 单次等待的上限，到点没回来就按失败或放弃处理 | 78 |
+| `config/intervals.yaml` | 节拍间隔、一次性延时，以及末尾的退避序列（`chainBackoffMs`、`ownRouteRetryMs`） | 43 |
+| `config/ttl.yaml` | 有效期，一份数据或一次判断过多久算过期 | 51 |
 
-三份合计 161 个键（数字随每次加键变化，以 `scripts/generate-time-config.mts` 的 KEYS 表为准）。
+三份合计 172 个键（2026-10-29 按 #1629 之后核准；数字随每次加键变化，以 `scripts/generate-time-config.mts` 的 KEYS 表为准）。
 2026-10-26 门禁重新入链时又补了 9 个键：工作路线回执的三个时间窗（`workRouteInProgressWindowMs`、
 `workRouteActiveWindowMs`、`workRouteCollisionWindowMs`）、存档保留期 `chainKeepMs`、写事件补丁的
 `writePatchTtlMs`、视野模型上报去重窗 `attentionReportDedupeMs`、出站排队段的两档日志节流
@@ -88,6 +88,19 @@
 
 
 
+### 2.3 数组项引用别的键（#1629：一步等待统一成一个数）
+
+「向对方发出一次请求之后等它出结果」这一步的等待上限，全仓只认一个键：`config/timeouts.yaml` 的 `stepWaitMs`（30000 毫秒）。三处调用方——面板自动复查一次（`src/refresh/rooms/client/probe-chain-subscription.ts`）、deck 工具走一步、宿主闸的一次求值（`src/host/index.ts` 里三处 `TIMEOUT_MS`）——都取它。2026-10-29 的 #1629 把原来各写一份的 `hostTimeoutMs` 与 `chainAutoRetryCooldownMs` 删掉并入这一个键；三处原值都是 30000，行为不变。
+
+检查链的重试退避序列（`chainBackoffMs`）第二档恰好就是这个数（8 秒 → 30 秒 → 2 分钟 → 5 分钟，#1474 拍板的档数不改）。为了不抄第二份 30000，`config/intervals.yaml` 里数组项允许写引用：`chainBackoffMs: [8000, stepWaitMs, stepWaitMs * 4, stepWaitMs * 10]`。规则与边界：
+
+- 数组项只认两种写法：正整数，或「键名」「键名 * 正整数倍数」；
+- 只能引用 KEYS 表里登记过的**标量**键；不能引用数组键，也不能层层套引用；
+- 生成器在构建期算成普通数字写进生成源码，调用方拿到的仍是数字数组，写法与行为都不变；
+- 解析与报错住 `scripts/lib/time-config-expr.mts`；拼错键名、引用数组、乘出非正整数、写 0 都由生成器报错，错误里点名文件、数组键与第几项。
+
+门禁两道：`tests/verify-time-config.ts` 第二节断言「三处都真引用 `STEP_WAIT_MS`、YAML 里 `stepWaitMs` 只定义一次、退避第二档等于它、数组行里除快档 8000 外没有别的数字字面量」；第六节对解析器给合成样本（算得对、报错报得清楚）。为什么走「数据文件 + 构建期解析」而不是「由代码算出派生值」：派生逻辑一旦写进代码，读 YAML 的人就看不到「第二档等于一步等待」这层关系，调参的人只会盯着那一个数；而本域是纯数据、没有运行时代码，构建期解析是这里唯一能表达跨键关系的地方，产物与行为都不变。
+
 ## 3. 五条架构约束（单源头改造后重核：①②③的旧口径已废止，见 §2.1）
 
 1. ~~`register-options.ts:37` 零导入约束~~（废止）：该文件现直接 import 中央常量（`TOOL_TIMEOUT_MS`、`REGISTER_RETRY_WAIT_MS`），当时的“零导入”是因为调用链没理顺，不是架构红线。
@@ -138,6 +151,8 @@
 2. **真引用**：REFERENCES 表逐行断言“调用方拿到的就是中央那一份，不是抄的数字”——
    模块导出的比值（数字）或比引用（数组）；只在内部用、不导出的名字（`import { X }` 裸用、
    动态 `import()` 取命名空间）退到源码断言（import 行存在 + 第四节无字面量，两件事合在一起才是真引用）。
+   第二节另有一条跨键引用断言（#1629）：一步等待 `stepWaitMs` 只有一处定义，退避序列第二档直接引用它、
+   数组行里不再出现那个数，三处调用方都真引用 `STEP_WAIT_MS`。
 3. **界面半边拿不拿得到值**：CLIENTS 表三件事一次对上——`values.ts` 里有这个常量、
    `scripts/build.mjs` 的 `CLIENT_TIME_NAMES` 里有这个名字、文件里确实在用它；
    名单与表还双向对账（名单多一个名字 = 白拼进闭包，表多一行 = 用了却没人拼）。

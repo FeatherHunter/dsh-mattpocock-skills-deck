@@ -133,7 +133,7 @@ function makeWorld (mode: Mode): World {
     getCachedChain: function (): any { return null },
     getCachedChainEntry: function (): any { return null },
     setCachedChain: function (): void {},
-    CHAIN_AUTO_RETRY_COOLDOWN_MS: 30000,
+    STEP_WAIT_MS: 30000,
     askSelectionOnce: function (): any {
       return holder.ask ? holder.ask.apply(null, arguments) : Promise.resolve(null)
     },
@@ -247,7 +247,7 @@ async function main (): Promise<void> {
       getCachedChain: function (): any { return null },
       getCachedChainEntry: function (): any { return null },
       setCachedChain: function (): void {},
-      CHAIN_AUTO_RETRY_COOLDOWN_MS: 30000,
+      STEP_WAIT_MS: 30000,
     }
     const chainMod = buildChainModule(sandbox)
     const st: any = { cwd: CWD, sessionId: SID, selection: null, chainSnapshot: null }
