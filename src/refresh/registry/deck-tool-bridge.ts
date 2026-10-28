@@ -294,7 +294,7 @@ export function createDeckToolBridge(deps: any): any {
           isEnabled: function (level: any): any { try { return logCtx ? logCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e: any) { return level === 'error' || level === 'warn' } },
           // #1159：出站控制面（进程级能力，随这份后端上下文注入一次）。房间起 gh 命令前拿名额、
           // 认取消、写完记账都从这里取；缺了房间按环境失败返回，不静默绕过名额闸。
-          outbound: createOutboundControl(),
+          outbound: createOutboundControl(logCtx),
         }
         /**
          * #1150：批量建图的计划游标存储器，按这一次调用的工作区现造一份落盘的。

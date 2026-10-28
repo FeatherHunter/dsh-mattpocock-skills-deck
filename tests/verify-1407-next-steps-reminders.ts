@@ -42,7 +42,8 @@ const TARGETS = {
     'tpl.execute': 20,
     'tpl.fix': 17,
     'tpl.implement': 4,
-    'tpl.prototype': 14,
+    // #1258（2026-10-28）：原型 v14→v15，收尾前加「定版与移交」节，版本底线跟着抬。
+    'tpl.prototype': 15,
     'tpl.research': 14,
     // #1577（2026-10-27）：接手 v11、补充 v9 改挂 /triage 并补状态分支，版本底线跟着抬。
     'tpl.supplement': 9,

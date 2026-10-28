@@ -302,6 +302,22 @@ async function main(): Promise<void> {
   // 闸自身的排队轨迹不许换名夹带：除 gh.transport 外只允许排队饱和/排队等待两种。
   const otherEvents = transportEvents.filter((e: any) => e.event !== 'gh.transport')
   check(otherEvents.every((e: any) => e.event === 'gh.lane.saturated' || e.event === 'gh.lane.wait'), '五、闸的排队轨迹只有饱和与等待两种，不夹带别的日志', JSON.stringify(otherEvents.map((e: any) => e.event).slice(0, 5)))
+  // 七、生产装配路径（#1224）：gh.lane.wait / gh.lane.saturated / gh.transport 三条准入日志此前只在死掉的
+  // runGh 里装过上下文，生产里全部静默。这里直接走生产用的 createOutboundControl(logCtx)，证明上下文能带进闸、
+  // 事件真会落行；只测接线，不重复测准入行为（上面各节已测）。
+  {
+    const { createOutboundControl } = await imp('src/refresh/rooms/host/outbound-control.ts')
+    setGhLaneLogCtx(null)
+    const wiredEvents: any[] = []
+    const wiredCtl = createOutboundControl({ fire: (level: string, event: string, fields: any) => wiredEvents.push({ level, event, fields }), isEnabled: (level: string) => level === 'info' || level === 'warn' || level === 'error' })
+    wiredCtl.reportTransportFailure({ bucket: 'read', reason: 'timeout', cmd: 'issue:view', service: 'github' })
+    const wiredSet = wiredEvents.find((e: any) => e.event === 'gh.transport' && e.fields.decision === 'cooldown-set')
+    check(!!wiredSet, '七、生产装配路径 createOutboundControl(logCtx) 把日志上下文带进闸（gh.transport 设冷却落行）', JSON.stringify(wiredEvents.slice(0, 2)))
+    wiredCtl.reportSuccess({ bucket: 'read', service: 'github' })
+    const wiredClear = wiredEvents.find((e: any) => e.event === 'gh.transport' && e.fields.decision === 'cooldown-cleared')
+    check(!!wiredClear, '七、生产装配路径 createOutboundControl(logCtx) 的成功清零也同样落行', JSON.stringify(wiredEvents.filter((e: any) => e.event === 'gh.transport').map((e: any) => e.fields.decision)))
+    setGhLaneLogCtx(null)
+  }
   console.log('\n共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
   process.exit(failed ? 1 : 0)
 }

@@ -1,14 +1,17 @@
 // tests/verify-1242-panel-numbers.ts —— 门禁：面板统计数字必须与 GitHub 现场对得上（#1242）
 //
 // 现场（#1242 正文）：面板上的「总数 / 未关闭 / 已关闭 / 可接 / 已认领 / 被阻塞」六格数字
-// 是宿主拼快照时算出来的，但没有任何一道门禁从**原始 gh 回包**一路走到这六格。
+// 由宿主算好交给界面，但没有任何一道门禁从**原始 gh 回包**一路走到这六格。
 // 既有 tests/verify-1444-snapshot.ts 直接塞一份已归一的假会话结果，绕过了 GitHub 房间与
 // gh 出站，所以「房间把回包读歪了」「装配把子票塞错地图」这类故障它一条也抓不到。
 //
-// 这一扇补的正是这一段：唯一替身是 gh 可执行程序（按命令行分派的假函数），
+// 这一扇补的正是这一段，覆盖两条真实路径：面板主路径 wf.mapTickets（点开一张地图时
+// 现取子票，界面顶栏的数字优先用它）与快照兜底路径（取不到子票时退回首屏快照里的地图统计）。
+// 两条路径的唯一替身都是 gh 可执行程序（按命令行分派的假函数），
 // 注册表、GitHub 房间、会话管线、快照装配、地图正文解析、分组与分层全部是仓库里的真件。
 // 链路上任何一格改了行为，这里的手写期望就会对不上。
 //
+// 门禁归属: src/host/mapTickets.ts
 // 门禁归属: src/refresh/rooms/host/snapshot-build.ts
 // 门禁归属: src/tracker/rooms/github
 // 门禁归属: src/host/ticketGrouping.ts
@@ -26,6 +29,7 @@ import { createRegistry } from '../src/tracker/registry/core.ts'
 import { githubModule } from '../src/tracker/rooms/github/index.ts'
 import { createMapBody } from '../src/host/mapBody.ts'
 import { createTicketGrouping } from '../src/host/ticketGrouping.ts'
+import { createMapTickets } from '../src/host/mapTickets.ts'
 
 const CWD = '/ws/demo'
 const REPO_ID = 'acme/demo'
@@ -251,6 +255,47 @@ async function snapshotOf(world: World, over?: { groupTickets?: any }): Promise<
   return { snapshot: snapshot, execProcCalls: execProcCalls }
 }
 
+/**
+ * 搭一份面板真正用的取数电话（wf.mapTickets）：
+ * 注册表 → GitHub 房间 → listSubIssues；只有 gh 是假的。
+ * 这条电话不经过快照，是面板顶栏统计数字的首选来源。
+ */
+async function mapTicketsOf(world: World): Promise<any> {
+  const mapBody = createMapBody()
+  const grouping = createTicketGrouping()
+  const hostCtx: any = {
+    cwd: CWD,
+    outbound: createOutboundControl(),
+    platform: { resolveExecutable: async function (name: string) { return name === 'gh' ? 'gh' : null } },
+    exec: makeExec(world),
+    isEnabled: function () { return false },
+    logEvent: function () {},
+  }
+  const registry = createRegistry(hostCtx, { matchesTimeout: 200 })
+  registry.register(githubModule)
+  return createMapTickets({
+    canonicalKey: async function (dir: string) { return dir },
+    selectEarly: async function () { return SEL },
+    isComposerSelection: function () { return true },
+    // 仓库身份由后端自己回答；这一扇只判数字，身份用固定的完整坐标，不再花一次远端定位。
+    getTrackerRegistry: async function () {
+      return {
+        get: function (id: string) { return registry.get(id) },
+        describe: function () { return { backend: 'github', refId: REPO_ID, name: REPO_ID, url: 'https://github.com/' + REPO_ID } },
+      }
+    },
+    getPlatform: async function () { return hostCtx.platform },
+    ctx: { get: function () { return undefined } },
+    DEFAULT_CWD: CWD,
+    logCtx: null,
+    groupTickets: grouping.groupTickets,
+    getMapBody: async function () { return mapBody },
+    detectionExec: function (c: string, a: string[], o: any) { return hostCtx.exec(c, a, o) },
+    openSession: async function () { return null },
+  })
+}
+
+
 // ── 手写期望：只写「人从 GitHub 现场能数出来」的那几格 ─────────────────────
 const HAND_TICKETS = [
   { number: 101, title: '子票 101', type: 'task', state: 'OPEN', claimedBy: '', blockedBy: [], blocks: [], labels: ['wayfinder:task'], url: 'https://github.com/acme/demo/issues/101', progress: 60, level: 0 },
@@ -352,18 +397,55 @@ async function main(): Promise<void> {
   check(worldUnhandled(normalWorld) === 0, '四、没有门禁没脚本化却被悄悄放过的命令', normalWorld.unhandled.join(' | '))
   check(normal.execProcCalls === 0, '四、快照自己一次都没直调 execProc（所有出站都经房间）', normal.execProcCalls)
 
-  // ── 五、失败面：列表取不回来时如实失败，不伪造 ─────────────────────────
-  console.log('== 五、失败面：列表取不回来时如实失败 ==')
+  // ── 五、面板真正走的那条路：wf.mapTickets 从原始回包到六格 ─────────────
+  //
+  // 面板顶栏与容器三态优先用这条电话取回来的 stats（取不到才退回上面那份快照），
+  // 所以它才是「面板数字」的主路径；这一节从原始 gh 回包一路走到六格，逐格对账。
+  console.log('== 五、面板真正走的那条路：wf.mapTickets 从原始回包到六格 ==')
+  const phoneWorld = makeWorld()
+  const phone = await mapTicketsOf(phoneWorld)
+  const live = await phone.handleMapTickets({ cwd: CWD, key: '100' })
+  check(live && live.ok === true, '五、地图 #100 的按需取数成功（面板顶栏优先用这份数字）', live && live.ok)
+  check(live && live.key === '100', '五、回包带地图编号', live && live.key)
+  const liveRows = (live && Array.isArray(live.items)) ? live.items : []
+  check(liveRows.length === 5, '五、五张子票一张不少', liveRows.length)
+  check(same(liveRows.map(function (r: any) { return r.number }), [101, 102, 103, 104, 105]), '五、子票编号与现场一致', show(liveRows.map(function (r: any) { return r.number }), [101, 102, 103, 104, 105]))
+  check(same(liveRows.map(function (r: any) { return r.state }), ['OPEN', 'OPEN', 'OPEN', 'OPEN', 'CLOSED']), '五、状态转成界面要的大写', show(liveRows.map(function (r: any) { return r.state }), 'OPEN/CLOSED 序列'))
+  check(liveRows[0] && liveRows[0].progress === 60, '五、进度从正文解析成 60', liveRows[0] && liveRows[0].progress)
+  check(liveRows.every(function (r: any) { return !('body' in r) && !('comments' in r) }), '五、正文与评论不随行数据交给界面')
+  check(same(liveRows.map(function (r: any) { return r.claimedBy }), ['', 'alice', '', '', '']), '五、认领人从指派人里取第一个', show(liveRows.map(function (r: any) { return r.claimedBy }), ['', 'alice', '', '', '']))
+  check(liveRows[2] && same(liveRows[2].blockedBy, ['104']), '五、阻塞引用压成编号字符串', show(liveRows[2] && liveRows[2].blockedBy, ['104']))
+  check(liveRows[3] && same(liveRows[3].blockedBy, []), '五、没有被阻塞的票给空数组（不是漏字段）', liveRows[3] && liveRows[3].blockedBy)
+  check(liveRows[0] && same(liveRows[0].labels, [{ name: 'wayfinder:task', color: '0e8a16' }]), '五、标签带名字与颜色', show(liveRows[0] && liveRows[0].labels, [{ name: 'wayfinder:task', color: '0e8a16' }]))
+  check(live && same(live.stats, HAND_STATS), '五、六格统计与两层分层和手数一致', show(live && live.stats, HAND_STATS))
+  check(live && live.total === 5 && live.fetched === 5 && live.capped === false && live.missing === 0, '五、总数 / 实到 / 截断 / 差额四格照实交代', show(live && { total: live.total, fetched: live.fetched, capped: live.capped, missing: live.missing }, { total: 5, fetched: 5, capped: false, missing: 0 }))
+  const phoneCalls = phoneWorld.calls
+  check(phoneCalls.length === 1 && phoneCalls[0].cmd === 'gh', '五、整趟只发一条 gh 命令（没有旁路）', phoneCalls.map(function (c: any) { return c.cmd + ' ' + c.args.join(' ') }))
+  check(phoneCalls.length === 1 && String(phoneCalls[0].args.join(' ')).indexOf('subIssues') >= 0 && String(phoneCalls[0].args.join(' ')).indexOf('number=100') >= 0 && String(phoneCalls[0].args.join(' ')).indexOf('owner=acme') >= 0 && String(phoneCalls[0].args.join(' ')).indexOf('name=demo') >= 0, '五、按地图 #100 与仓库坐标取子票', phoneCalls[0] && phoneCalls[0].args.join(' '))
+  check(worldUnhandled(phoneWorld) === 0, '五、没有门禁没脚本化却被悄悄放过的命令', phoneWorld.unhandled.join(' | '))
+  // 失败面：地图 #200 的子票查询回 errors，这一条电话必须如实失败、不交半份数据。
+  const live200 = await phone.handleMapTickets({ cwd: CWD, key: '200' })
+  check(live200 && live200.ok === false, '五、子票取不回来时如实失败', live200 && live200.ok)
+  check(live200 && live200.error && typeof live200.error.kind === 'string', '五、失败原因带可归类的档位（不吞成一句空话）', show(live200 && live200.error, '{kind,...}'))
+  // 敏感性：现场一变（#104 关闭，#103 解锁），手写 stats 期望就不成立。
+  const phoneChangedWorld = makeWorld()
+  phoneChangedWorld.sub100[3] = rowToNode({ number: 104, title: '子票 104', state: 'CLOSED', updatedAt: '2026-03-05T00:00:00Z', author: false })
+  const changed = await (await mapTicketsOf(phoneChangedWorld)).handleMapTickets({ cwd: CWD, key: '100' })
+  check(changed && changed.ok === true && changed.stats.blocked === 0 && changed.stats.open === 3 && changed.stats.closed === 2, '五、把 #104 改关之后 #103 解锁（open3 / closed2 / blocked0）', show(changed && changed.stats, { open: 3, closed: 2, blocked: 0 }))
+  check(changed && !same(changed.stats, HAND_STATS), '五、现场一变，原来的手写 stats 期望就不成立')
+
+  // ── 六、失败面：列表取不回来时如实失败，不伪造 ─────────────────────────
+  console.log('== 六、失败面：列表取不回来时如实失败 ==')
   const failedWorld = makeWorld({ failList: true })
   const failedSnap = (await snapshotOf(failedWorld)).snapshot
-  check(failedSnap && failedSnap.ok === false, '五、列表 GraphQL 与 REST 都失败时快照 ok:false', failedSnap && failedSnap.ok)
-  check(failedSnap && failedSnap.error && typeof failedSnap.error.kind === 'string' && typeof failedSnap.error.error === 'string', '五、失败原因带 kind 与说明', show(failedSnap && failedSnap.error, '{kind,error}'))
-  check(failedSnap && failedSnap.maps === undefined && failedSnap.issues === undefined, '五、失败时没有伪造 maps / issues 两个空集合', show(failedSnap && Object.keys(failedSnap), '不含 maps/issues'))
-  check(failedWorld.calls.some(function (c) { return typeof c.args[1] === 'string' && c.args[1].indexOf('repos/') === 0 }), '五、主路失败后确实走到过 REST 降级')
-  check(failedSnap && failedSnap.maps === undefined && failedSnap.issues === undefined, '五、失败回包不带旧信封的默认字段（由上层决定要不要用缓存）')
+  check(failedSnap && failedSnap.ok === false, '六、列表 GraphQL 与 REST 都失败时快照 ok:false', failedSnap && failedSnap.ok)
+  check(failedSnap && failedSnap.error && typeof failedSnap.error.kind === 'string' && typeof failedSnap.error.error === 'string', '六、失败原因带 kind 与说明', show(failedSnap && failedSnap.error, '{kind,error}'))
+  check(failedSnap && failedSnap.maps === undefined && failedSnap.issues === undefined, '六、失败时没有伪造 maps / issues 两个空集合', show(failedSnap && Object.keys(failedSnap), '不含 maps/issues'))
+  check(failedWorld.calls.some(function (c) { return typeof c.args[1] === 'string' && c.args[1].indexOf('repos/') === 0 }), '六、主路失败后确实走到过 REST 降级')
+  check(failedSnap && failedSnap.maps === undefined && failedSnap.issues === undefined, '六、失败回包不带旧信封的默认字段（由上层决定要不要用缓存）')
 
-  // ── 六、敏感性：改坏分组 / 改现场，手写期望都会当场不成立 ───────────────
-  console.log('== 六、敏感性：分组算错或现场变了，手写期望都会当场不成立 ==')
+  // ── 七、敏感性：改坏分组 / 改现场，手写期望都会当场不成立 ───────────────
+  console.log('== 七、敏感性：分组算错或现场变了，手写期望都会当场不成立 ==')
   const wrongWorld = makeWorld()
   const realGroup = createTicketGrouping().groupTickets
   const bumped = await snapshotOf(wrongWorld, { groupTickets: function (tickets: any) {
@@ -374,9 +456,9 @@ async function main(): Promise<void> {
     })
   } })
   const bumpedStats = bumped.snapshot.maps[0].stats
-  check(!same(bumpedStats, HAND_STATS), '六、分组六格任何一格算错，整块 stats 期望就不成立（六格各 +1）')
+  check(!same(bumpedStats, HAND_STATS), '七、分组六格任何一格算错，整块 stats 期望就不成立（六格各 +1）')
   ;['total', 'open', 'closed', 'frontier', 'claimed', 'blocked'].forEach(function (key) {
-    check(bumpedStats[key] !== HAND_STATS[key], '六、六格逐格点名：' + key + ' 被改坏时手写期望能抓到', bumpedStats[key] + ' vs ' + HAND_STATS[key])
+    check(bumpedStats[key] !== HAND_STATS[key], '七、六格逐格点名：' + key + ' 被改坏时手写期望能抓到', bumpedStats[key] + ' vs ' + HAND_STATS[key])
   })
   const wrongGroupWorld = makeWorld()
   const wrongGroup = await snapshotOf(wrongGroupWorld, { groupTickets: function (tickets: any) {
@@ -384,16 +466,16 @@ async function main(): Promise<void> {
     return Object.assign({}, stats, { frontier: tickets.length })
   } })
   const wrongStats = wrongGroup.snapshot.maps[0].stats
-  check(wrongStats.frontier === 5 && !same(wrongStats, HAND_STATS), '六、把「可接」错算成票数时，手写期望不成立（5 对 2）', wrongStats.frontier)
+  check(wrongStats.frontier === 5 && !same(wrongStats, HAND_STATS), '七、把「可接」错算成票数时，手写期望不成立（5 对 2）', wrongStats.frontier)
   const closed104World = makeWorld({ sub100: sub100Nodes() })
   closed104World.sub100[3] = rowToNode({ number: 104, title: '子票 104', state: 'CLOSED', updatedAt: '2026-03-05T00:00:00Z', author: false })
   const closed104 = await snapshotOf(closed104World)
   const stats104 = closed104.snapshot.maps[0].stats
-  check(stats104.open === 3 && stats104.closed === 2 && stats104.frontier === 2 && stats104.blocked === 0, '六、把 #104 改关之后 #103 解锁（open3 / closed2 / frontier2 / blocked0）', show(stats104, { open: 3, closed: 2, frontier: 2, blocked: 0 }))
-  check(!same(stats104, HAND_STATS), '六、现场一变（#104 关闭），原来的手写 stats 期望就不成立')
+  check(stats104.open === 3 && stats104.closed === 2 && stats104.frontier === 2 && stats104.blocked === 0, '七、把 #104 改关之后 #103 解锁（open3 / closed2 / frontier2 / blocked0）', show(stats104, { open: 3, closed: 2, frontier: 2, blocked: 0 }))
+  check(!same(stats104, HAND_STATS), '七、现场一变（#104 关闭），原来的手写 stats 期望就不成立')
 
-  // ── 七、自检：门禁自己不联网、不偷跑别的进程 ───────────────────────────
-  console.log('== 七、自检：门禁自身不联网、不另起进程 ==')
+  // ── 八、自检：门禁自己不联网、不偷跑别的进程 ───────────────────────────
+  console.log('== 八、自检：门禁自身不联网、不另起进程 ==')
   const selfSource = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8')
   const forbidden = [
     'child' + '_process',
@@ -403,11 +485,12 @@ async function main(): Promise<void> {
     'https://api' + '.github.com',
   ]
   forbidden.forEach(function (word) {
-    check(selfSource.indexOf(word) < 0, '七、门禁源码不含 ' + word, selfSource.indexOf(word))
+    check(selfSource.indexOf(word) < 0, '八、门禁源码不含 ' + word, selfSource.indexOf(word))
   })
-  check(selfSource.indexOf("from '../src/refresh/rooms/host/snapshot-build.ts'") >= 0, '七、门禁加载的是真快照装配（不是另抄一份口径）')
-  check(selfSource.indexOf("from '../src/tracker/rooms/github/index.ts'") >= 0, '七、门禁加载的是真 GitHub 房间（不是假会话）')
-  check(selfSource.indexOf("from '../src/refresh/rooms/host/session-opener.ts'") >= 0, '七、门禁加载的是真会话装配（出站都经会话管线）')
+  check(selfSource.indexOf("from '../src/refresh/rooms/host/snapshot-build.ts'") >= 0, '八、门禁加载的是真快照装配（不是另抄一份口径）')
+  check(selfSource.indexOf("from '../src/tracker/rooms/github/index.ts'") >= 0, '八、门禁加载的是真 GitHub 房间（不是假会话）')
+  check(selfSource.indexOf("from '../src/host/mapTickets.ts'") >= 0, '八、门禁加载的是面板真正走的取数电话（不是另抄一份口径）')
+  check(selfSource.indexOf("from '../src/refresh/rooms/host/session-opener.ts'") >= 0, '八、门禁加载的是真会话装配（出站都经会话管线）')
 
   printGateResult('verify-1242-panel-numbers', total, failed)
   if (failed) {
