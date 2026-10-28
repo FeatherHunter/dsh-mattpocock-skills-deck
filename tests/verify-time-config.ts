@@ -189,6 +189,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/deck/shell/work-path-readout.ts', access: 'WORK_ROUTE_COLLISION_WINDOW_MS', gen: 'WORK_ROUTE_COLLISION_WINDOW_MS', key: 'workRouteCollisionWindowMs' },
   // #1627：deck 工具回执「慢」的门槛（3000ms）住 intervals.yaml，日志事件 tool.receipt 用它。
   { file: 'src/deck/tools/tracker-session.ts', access: 'TOOL_RECEIPT_SLOW_MS', gen: 'TOOL_RECEIPT_SLOW_MS', key: 'toolReceiptSlowMs' },
+  // #1627：配额诊断的两个判定窗（告警去重 / 恢复安静）同样住 intervals.yaml，观察器从生成常量取名。
+  { file: 'src/refresh/rooms/host/quota-observer-types.ts', access: 'QUOTA_INCIDENT_DEDUPE_MS', gen: 'QUOTA_INCIDENT_DEDUPE_MS', key: 'quotaIncidentDedupeMs' },
+  { file: 'src/refresh/rooms/host/quota-observer-types.ts', access: 'QUOTA_RECOVER_QUIET_MS', gen: 'QUOTA_RECOVER_QUIET_MS', key: 'quotaRecoverQuietMs' },
   { file: 'src/refresh/registry/deck-tool-bridge.ts', access: 'DECK_ASSEMBLY_TIMEOUT_MS', gen: 'DECK_ASSEMBLY_TIMEOUT_MS', key: 'deckAssemblyMs' },
   // —— 界面半边：门禁把它当模块直接 import 跑，引用是真的（构建拼进闭包时剥掉 import 行） ——
   // #1143：src/client/kernel/log.ts 已删（包自带常量，中央键待另票清理），两行 REFERENCES 删除；
@@ -326,6 +329,7 @@ const PERMANENT: PermanentRow[] = [
   { file: 'src/deck/tools/work-route.ts', snippet: 'DAY_MS = 24 * HOUR_MS', reason: '单位换算（1 天 = 24 小时）：把中央 YAML 的保留期算出回执里的「30 天」，不是旋钮' },
   { file: 'src/deck/shell/work-path-readout.ts', snippet: 'MINUTE_MS = 60_000', reason: '单位换算（1 分钟）：把中央 YAML 的撞单窗口算成回执里的「30 分钟」，不是旋钮' },
   { file: 'src/deck/shell/work-path-readout.ts', snippet: 'HOUR_MS = 60 * MINUTE_MS', reason: '单位换算（1 小时 = 60 分钟）：把中央 YAML 的在办窗口算成摘要里的「24 小时」，不是旋钮' },
+  { file: 'src/refresh/rooms/host/quota-observer-types.ts', snippet: 'MINUTE_MS = 60_000', reason: '单位换算（1 分钟）：只把毫秒数折成分钟刻度，窗口收尾要用，不是旋钮' },
   // —— 0 表示“还没有 / 关掉”（状态初值与开关，不是时长） ——
   { file: 'src/shared/naming-tracking.ts', snippet: 'NAMING_HINT_GRACE_MS = 0', reason: '值为 0 表示把这个宽限窗关掉，不是可调时长' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', snippet: "intervalMs: 0, lingerMs: 0, standing: '', limit: 0, atMs: 0", reason: '心跳计划的状态初值（0 = 还没定下节拍 / 还没跳过），真值由刷新预算注入，不是新参数' },
@@ -478,6 +482,11 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: '_probeBackoff', reason: '退避状态对象（第几档、上次什么时候、上次哪个目录、基数），不是时长参数' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: 'logProbeBackoff', reason: '函数名：退避档位变化时记日志，不是时长参数' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: 'resetProbeBackoff', reason: '函数名：把退避档位清零，不是时长参数' },
+  // #1627：配额观察器里的测量值与计数——名字带时间词，但值是现场量出来或数出来的，不是可调时长。
+  { file: 'src/refresh/rooms/host/quota-observer-types.ts', name: 'oldestWaitMs', reason: '算出来的等待时长（最老一笔排队等了多久），日志字段，不是输入参数' },
+  { file: 'src/refresh/rooms/host/quota-observer.ts', name: 'ageMs', reason: '算出来的时间差（距上次服务端读数多久），不是可调参数' },
+  { file: 'src/refresh/rooms/host/quota-observer.ts', name: 'latencyMs', reason: '测量用耗时（操作收尾时算出来的这一笔花了多久），不是可调参数' },
+  { file: 'src/refresh/rooms/host/quota-observer.ts', name: 'failsInWindow', reason: '计数（这一窗里失败几次），名字带 Window 但不是毫秒数' },
 ]
 
 // 时间味判定，两类都认：
