@@ -8,7 +8,8 @@
  *
  * 三部分：
  *   P1 洗衣机数学 —— normalizeWorkspacePath / canonicalWorkspaceKey 单元断言
- *      （Windows 小写折叠、尾斜杠去除、盘根/UNC/POSIX 根不去斜杠、三级回退、空值回退）。
+ *      （Windows 盘符路径小写折叠、尾斜杠去除、盘根/UNC/POSIX 根不去斜杠、
+ *      UNC 保留原始大小写（#1498）、三级回退、空值回退）。
  *   P2 三区五轮推演 —— A→B→C→B→A 连续切 5 轮：旧钥匙（原始串）必然分裂成多桶（缺陷在案），
  *      新钥匙（规整钥匙）每个工作区恰好一桶且三区互不合并（无串味）。
  *   P3 接线在场守卫 —— src/host/index.ts 与 detectionService.js 的全部按工作区分桶点位
@@ -39,14 +40,31 @@ async function main() {
   console.log('P1 洗衣机数学（normalizeWorkspacePath / canonicalWorkspaceKey）')
   const eq = function (name: string, actual: unknown, want: unknown) { (actual === want) ? ok(name) : bad(name + ' → got ' + JSON.stringify(actual) + ' want ' + JSON.stringify(want)) }
 
-  // Windows：小写折叠 + 尾斜杠去除 + 斜杠方向归一
+  // Windows 盘符路径：小写折叠 + 尾斜杠去除 + 斜杠方向归一（盘符背后是大小写不敏感的卷，折叠安全）。
+  // UNC 不走这条折叠，见下面 #1498 的断言。
   eq('win 盘符大小写折叠', norm(W('D:/Work/Alpha'), winPlat), W('d:/work/alpha'))
   eq('win 尾斜杠去除', norm(W('d:/work/alpha/'), winPlat), W('d:/work/alpha'))
   eq('win 正斜杠归一', norm('D:/work/alpha/', winPlat), W('d:/work/alpha'))
   // Windows：三种根不被洗空
   eq('win 盘根保留', norm(W('D:/'), winPlat), W('d:/'))
   eq('win UNC 根保留', norm(W('//srv/share/'), winPlat), W('//srv/share'))
+  // #1498：Windows 的小写折叠只对真正大小写不敏感的卷（盘符路径）做。UNC 背后可能是 WSL 的 ext4
+  // 或别的区分大小写的系统，字符串看不出是哪一种；小写化会洗出一条根本不存在的路径
+  // （\\wsl.localhost\Ubuntu-26.04\home\acgmn\github\WanGP → …\wangp），锚根、.git 与 gh 全部失败，
+  // 还会在父目录里真长出一个小写的幽灵目录。所以 UNC 一律保留原始大小写，只归斜杠方向与尾斜杠。
+  eq('win UNC 保留大小写', norm(W('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP'), winPlat), W('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP'))
+  // 调用方也可能把 UNC 写成正斜杠形态（//wsl.localhost/…）：判「是不是 UNC」必须看规整后的形态，
+  // 拿原始入参判会漏掉这种写法，于是同一个工作区一半写法保留大小写、一半被洗成小写。
+  eq('win UNC 保留大小写（正斜杠写法）', norm('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP', winPlat), W('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP'))
+  eq('win UNC 保留大小写（wsl$ 写法）', norm(W('//wsl$/Ubuntu-26.04/home/acgmn/github/WanGP'), winPlat), W('//wsl$/Ubuntu-26.04/home/acgmn/github/WanGP'))
+  eq('win UNC 保留大小写（长路径写法）', norm(W('//?/UNC/wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP'), winPlat), W('//?/UNC/wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP'))
+  eq('win UNC 保留大小写（普通 Windows 共享）', norm(W('//srv/Share/Foo'), winPlat), W('//srv/Share/Foo'))
+  eq('win UNC 尾斜杠去除后仍保留大小写', norm(W('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP/'), winPlat), W('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP'))
+  // 分不出 UNC 背后盘的大小写规矩，就不能赌：大小写不同的两条 UNC 是两把钥匙（不合并）。
+  eq('win 大小写不同的 UNC 不合并', norm(W('//srv/share/Foo'), winPlat) === norm(W('//srv/share/foo'), winPlat) ? 'merged' : 'kept-apart', 'kept-apart')
   eq('win 裸斜杠根保留', norm('/', winPlat), BS)
+  // canonical：绝对路径短路（不碰 fs）时同样保留 UNC 大小写
+  eq('canon 绝对路径短路（UNC 保留大小写）', await canon(W('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP/'), { getPlatform: async function () { return winPlat } }), W('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP'))
   // POSIX：保持大小写（仅去尾斜杠），根保留
   eq('posix 大小写敏感保留', norm('/work/Alpha/', posixPlat), '/work/Alpha')
   eq('posix 根保留', norm('/', posixPlat), '/')
