@@ -12,9 +12,11 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import assert from 'node:assert'
-// 取源入口（tests/lib/source-text.ts）：src/client 下的同名 .js 是 pixel-ts 写下的构建产物（这一阶段要删），
-//   真源一律是同名 .ts；这里既按形态要求（minHeight 两种写法都认），也按原文要求（注释、单引号），
-//   所以先问 sourcePath 真源今天住在哪一份文件，再由下面的断言按需读它。
+// 取源入口（tests/lib/source-text.ts）：这里既按形态要求（minHeight 两种写法都认），也按原文要求
+//   （注释、单引号），所以先问 sourcePath 真源今天住在哪一份文件，再由下面的断言按需读它。
+//   以前只给 src/client 这一层换真源，是因为那时只有视图层迁完 TypeScript；现在 src/refresh 等目录
+//   的手写源码也迁完了（同名 .js 成了构建产物或已删），所以每条源码路径统一走 sourcePath，
+//   它遇到「同名 .ts、<目录>/src 下的同名 .ts 与它自己都不在盘上」会当场报错，不会静默读到空文本。
 import { sourcePath } from './lib/source-text.ts'
 // #1294：界面词表真源搬去 config/copy/ 并由生成器产出 locale-data.ts（不入库）。旧门禁里
 //   「读某一族 locale-*.js 原文」的判据统一经这个入口取生成物的对应分段，换算只写在一处。
@@ -23,8 +25,8 @@ import { familySectionSource } from './lib/locale-data.ts'
 const root = resolve(import.meta.dirname, '..')
 let passed=0, failed=0
 function check(ok, msg){ if(ok){ console.log('  PASS '+msg); passed++; } else { console.log('  FAIL '+msg); failed++; } }
-// 只把 src/client 这一层改指真源：src/shared、src/host、src/tracker 等目录的 .js 产物这一阶段还留着，读法不动。
-function resolvedPath(p){ const rel = p.replace(/\\/g,'/'); return resolve(root, rel.startsWith('src/client/') && rel.endsWith('.js') ? sourcePath(rel) : rel) }
+// 所有源码路径都统一问 sourcePath（.build 下的构建产物它会原样返回，因为那里没有同名 .ts）。
+function resolvedPath(p){ const rel = p.replace(/\\/g,'/'); return resolve(root, sourcePath(rel)) }
 function file(p){ return readFileSync(resolvedPath(p),'utf8') }
 
 console.log('== #228 链渲染器与动作分发器 ==')
