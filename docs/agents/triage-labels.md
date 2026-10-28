@@ -43,3 +43,8 @@ The `/wayfinder` skill requires all five wayfinder labels to exist. Every wayfin
 - `wayfinder:task` — implementation task ticket
 
 Edit the `Label` column to match whatever label strings you actually use.
+
+## Checklist issue exception
+
+每个要发布的版本有一张 `[真机验证] <版本号>` 清单票（规则见 `docs/agents/real-machine-verification.md`）。它靠标题前缀识别，**不打任何标签**，也不受上面「每张新票至少带一枚必备标签」的约束——打了标签反而会混进 bug / triage 的筛选里。建票时不要给它补标签。
+
