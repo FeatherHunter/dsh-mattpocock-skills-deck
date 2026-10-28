@@ -6,6 +6,7 @@
  *   与 skillDetail 的 PixelStyles.ts 之间不能 import，所以同一套浅色纸色两份皮肤各写一份；
  *   防分叉不靠导入，靠 tests/verify-cards-dir.ts 里那几条跨文件逐值比对。
  */
+declare const MOTION: any; // #1236 动效时长统一在 kernel/motion.ts，本文件只引用不写真值
 export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   // 深色投影用纯黑（2026-10-23 维护者问「深色版有办法能看到阴影吗」）：原来的 #241a0c 与页面炭灰底 #1e2023
   // 明度几乎一样（对比 1.05:1），6px 硬投影在深色下等于没画；纯黑对 #1e2023 是 1.29:1，硬边看得见。
@@ -22,7 +23,7 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   // 旧卡（old）用纸面下沉 #efe8d9；--cd-card2 只给浅色的棋盘墙当底，深色不定义，墙面保持透明。
   'body:not([data-ds-dark-theme]) .cd-card{--cd-frame:#3a2c14;--cd-card:#f6f1e6;--cd-paper:#fffdf8;--cd-old:#efe8d9;--cd-ink:#221d15;--cd-ink2:#6f6252;--cd-shadow:#241a0c;--cd-gold:#15803d;--cd-ok:#15803d;--cd-sel:#1e40af;--cd-warn:#b45309;--cd-bad:#b91c1c;--cd-dim:#7d7061;--cd-take:#2456c9;--cd-map:#6d28d9;--cd-stripe:#e7ddc8;--cd-card2:#efe8d9;--cd-lit:#b45309;--cd-note:#b91c1c;--cd-mark-bug:#b91c1c;--cd-mark-ready:#15803d;--cd-mark-doing:#1e40af;}',
   // 卡片容器自己落墨色（#1387 第一条）：卡片是浅纸，深色下继承宿主浅字只有约 1.07 比 1，标题之外的行都会跟着看不清。
-  '.cd-card{width:300px;background:var(--cd-card);color:var(--cd-ink);border:4px solid var(--cd-frame);box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),6px 6px 0 var(--cd-shadow);padding:10px 11px;position:relative;display:flex;flex-direction:column;gap:6px;transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}',
+  '.cd-card{width:300px;background:var(--cd-card);color:var(--cd-ink);border:4px solid var(--cd-frame);box-shadow:inset 2px 2px 0 rgba(255,255,255,.45),inset -2px -2px 0 var(--cd-shadow),6px 6px 0 var(--cd-shadow);padding:10px 11px;position:relative;display:flex;flex-direction:column;gap:6px;transition:transform ' + MOTION.pixelPressMs + 'ms steps(2,end),box-shadow ' + MOTION.pixelPressMs + 'ms steps(2,end)}',
   '.cd-card.old{background:var(--cd-old);box-shadow:inset 2px 2px 0 #f7edd3,inset -2px -2px 0 #7d5730,6px 6px 0 var(--cd-shadow)}',
   '.cd-card.wide{width:340px;padding:11px 13px;gap:8px;min-height:230px;cursor:pointer}',
   '.cd-card.mapcard{width:404px;padding:11px 13px;gap:8px}',
@@ -64,7 +65,7 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-corner b,.cd-ckj b,.cd-ckb b{position:absolute;right:-36px;top:4px;font-size:9px;color:#fff;transform:rotate(45deg);font-weight:700;white-space:nowrap}',
   '.cd-corner b{right:-32px;top:2px}',
   '.cd-actions{display:flex;gap:6px;margin-top:2px}',
-  '.cd-abtn{border:3px solid var(--cd-frame);cursor:pointer;box-shadow:2px 2px 0 var(--cd-shadow);display:inline-flex;align-items:center;justify-content:center;gap:4px;font-family:ui-monospace,Menlo,Consolas,monospace;transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}',
+  '.cd-abtn{border:3px solid var(--cd-frame);cursor:pointer;box-shadow:2px 2px 0 var(--cd-shadow);display:inline-flex;align-items:center;justify-content:center;gap:4px;font-family:ui-monospace,Menlo,Consolas,monospace;transition:transform ' + MOTION.pixelPressMs + 'ms steps(2,end),box-shadow ' + MOTION.pixelPressMs + 'ms steps(2,end)}',
   // 主按钮与新会话按钮可以被压低：min-width:0 让它们在窄卡里一直缩到「图标 + 内边距」，多出来的空间还给同一行的图标按钮。
   // 按钮里的文字包在 .cd-lbl 里，溢出裁掉；页面层会按整字算宽度（view/flow/TicketCardFlow.ts 的 fitFlowLabels），
   // 所以收窄时是一整字一整字消失，不会停在半个字上。列表页卡片宽度固定，这段配置在那里没有可见变化。

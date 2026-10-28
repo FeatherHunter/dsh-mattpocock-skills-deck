@@ -19,6 +19,7 @@ const { judgeProducts, reportJudgements } = require('../scripts/lib/build-cache.
 const PRODUCTS = ['client.js', 'package/lib/client.js']
 const MODULES = [
   { name: 'styles', exports: ['STYLE_TEXT'] },
+  { name: 'motion', exports: ['MOTION'] }, // #1236：界面动效时长统一在 kernel/motion.ts
   { name: 'portal', exports: ['RDOM', 'portalTop', 'PortalOverlay'] },
   { name: 'localePanel', file: 'locale-panel', exports: ['L_PANEL'] },
   { name: 'localeFlow', file: 'locale-flow', exports: ['L_FLOW'] },

@@ -367,6 +367,8 @@ check(L && L.zh && Object.keys(L.zh).length > 0,
 check(tr('card.newSession') === '新会话' && tr('card.updated', { n: '刚刚' }) === '更新 刚刚',
   'tr 按 index.js 的退化口径工作：card.newSession = ' + show(tr('card.newSession')) +
   '，card.updated{n=刚刚} = ' + show(tr('card.updated', { n: '刚刚' })))
+// #1236：卡片样式叶子里的动效时长读 kernel/motion.ts 的 MOTION；compileFn 的自由变量落回 globalThis。
+globalThis.MOTION = require('../src/client/kernel/motion.ts').MOTION
 let M = null
 try { M = loadCardsLeaves(React, DswsCtx, tr) } catch (e) { check(false, '装载 cards 产物：' + ((e && e.message) || e)) }
 {

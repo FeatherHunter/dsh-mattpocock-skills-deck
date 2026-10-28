@@ -35,6 +35,11 @@ async function main() {
   const A = appearanceMod.SUGGEST_APPEARANCE
   global.SUGGEST_APPEARANCE = A
   global.SUGGEST_Z = appearanceMod.SUGGEST_Z
+  // #1236：动画时长已从 SUGGEST_APPEARANCE 搬到 kernel/motion.ts 的 MOTION（闭包内自由变量），
+  //   必须在 import 会求值样式字符串的叶子之前接上，否则是 ReferenceError。
+  const motionMod = await imp('src/client/kernel/motion.ts')
+  const MOTION = motionMod.MOTION
+  global.MOTION = MOTION
   const timelineMod = await imp('src/client/statusbar/suggestTimeline.ts')
   const stylesMod = await imp('src/client/statusbar/suggestStyles.ts')
   const engineMod = await imp('src/client/statusbar/suggestEngine.ts')
@@ -76,8 +81,8 @@ async function main() {
     check(A.bubblePxPerPill === 20 && A.bubbleMinPerPill === 4, '旋钮：每 20 像素一颗、最少 4 颗')
     check(A.bubbleSizeMin === 5.25 && A.bubbleSizeRange === 9, '旋钮：小泡直径 5.25~14.25（#1451 放大五成）')
     check(A.bubbleFallbackCount === 8, '旋钮：量不到宽度时兜底 8 颗')
-    check(A.bubbleDelayMaxMs === 560, '旋钮：出发延迟上限 560 毫秒')
-    check(A.bubbleTravelMinMs === 500 && A.bubbleTravelMaxMs === 1030, '旋钮：飞行时长 500~1030 毫秒（出场整体约 2 秒）')
+    check(MOTION.suggestBubbleDelayMaxMs === 560, '动效令牌：出发延迟上限 560 毫秒（#1236 起住 motion.ts）')
+    check(MOTION.suggestBubbleTravelMinMs === 500 && MOTION.suggestBubbleTravelMaxMs === 1030, '动效令牌：飞行时长 500~1030 毫秒（出场整体约 2 秒）')
     check(A.bubbleFromButtonRatio === 0.8, '旋钮：八成从关闭按钮下方出发')
     check(A.bubbleButtonSpreadPx === 90 && A.bubbleClampPx === 40, '旋钮：按钮两侧各约 90、再钳 40')
     check(A.bubbleStartTopOffset === 14 && A.bubbleStartTopSpread === 116, '旋钮：按钮下方出发点 14~130')
@@ -87,15 +92,15 @@ async function main() {
     check(A.bubbleSwayPx === 20, '旋钮：飞行摆动幅度 20')
     check(A.rowOpacityBase === 0.04 && A.rowOpacitySpan === 0.96 && A.rowOpacityCurve === 0.8, '旋钮：选项行透明度 0.04 + 0.96 * 比例^0.8')
     check(A.closeRevealCurve === 2, '旋钮：关闭按钮慢半拍（比例的平方）')
-    check(A.bubbleCleanupDelayMs === 400, '旋钮：落完后 400 毫秒清泡')
+    check(MOTION.suggestBubbleCleanupDelayMs === 400, '动效令牌：落完后 400 毫秒清泡')
     check(A.pickMs === undefined, '旋钮：选中退场不再用整组 CSS 动画的旧时长旋钮')
     check(A.pickBubblePxPerPill === 60 && A.pickBubbleMinPerPill === 2 && A.pickBubbleMaxPerPill === 5, '旋钮：选中退场每 60 像素一颗、最少 2 颗最多 5 颗')
-    check(A.pickBubbleDelayMaxMs === 70, '旋钮：退场小泡出发延迟上限 70 毫秒')
-    check(A.pickBubbleTravelMinMs === 400 && A.pickBubbleTravelMaxMs === 500, '旋钮：退场小泡飞行 400~500 毫秒')
+    check(MOTION.suggestPickBubbleDelayMaxMs === 70, '动效令牌：退场小泡出发延迟上限 70 毫秒')
+    check(MOTION.suggestPickBubbleTravelMinMs === 400 && MOTION.suggestPickBubbleTravelMaxMs === 500, '动效令牌：退场小泡飞行 400~500 毫秒')
     check(A.pickBubbleRiseMinPx === 70 && A.pickBubbleRiseMaxPx === 130, '旋钮：退场小泡向上飘 70~130 像素')
     check(A.pickBubbleSwayPx === 10, '旋钮：退场小泡横向摆动 10 像素')
-    check(A.pickBubbleTailMs === 60, '旋钮：退场飘完后留 60 毫秒收尾')
-    check(A.fadeMs === 170, '旋钮：关闭整组淡出 170 毫秒')
+    check(MOTION.suggestPickBubbleTailMs === 60, '动效令牌：退场飘完后留 60 毫秒收尾')
+    check(MOTION.suggestFadeMs === 170, '动效令牌：关闭整组淡出 170 毫秒')
     check(Array.isArray(A.easeList) && A.easeList.length === 5, '旋钮：五条速度曲线')
     check(A.easeList.indexOf('ease-out') >= 0 && A.easeList.indexOf('ease-in-out') >= 0, '旋钮：曲线里有 ease-out、ease-in-out')
     check(typeof A.pillBg === 'string' && A.pillBg.indexOf('linear-gradient') === 0, '旋钮：药丸底是渐变（C 版玻璃质感）')
@@ -190,13 +195,13 @@ async function main() {
     for (let i = 0; i < fromButton.bubbles.length; i++) {
       const b = fromButton.bubbles[i]
       if (b.size < A.bubbleSizeMin || b.size > A.bubbleSizeMin + A.bubbleSizeRange) sizeOk = false
-      if (b.delayMs < 0 || b.delayMs > A.bubbleDelayMaxMs) delayOk = false
-      if (b.durationMs < A.bubbleTravelMinMs || b.durationMs > A.bubbleTravelMaxMs) durationOk = false
+      if (b.delayMs < 0 || b.delayMs > MOTION.suggestBubbleDelayMaxMs) delayOk = false
+      if (b.durationMs < MOTION.suggestBubbleTravelMinMs || b.durationMs > MOTION.suggestBubbleTravelMaxMs) durationOk = false
       if (A.easeList.indexOf(b.ease) < 0) easeOk = false
     }
     check(sizeOk, '计划：小泡尺寸都在 ' + A.bubbleSizeMin + '~' + (A.bubbleSizeMin + A.bubbleSizeRange) + ' 之间')
-    check(delayOk, '计划：出发延迟都在 0~' + A.bubbleDelayMaxMs + ' 毫秒之间')
-    check(durationOk, '计划：飞行时长都在 ' + A.bubbleTravelMinMs + '~' + A.bubbleTravelMaxMs + ' 毫秒之间')
+    check(delayOk, '计划：出发延迟都在 0~' + MOTION.suggestBubbleDelayMaxMs + ' 毫秒之间')
+    check(durationOk, '计划：飞行时长都在 ' + MOTION.suggestBubbleTravelMinMs + '~' + MOTION.suggestBubbleTravelMaxMs + ' 毫秒之间')
     check(easeOk, '计划：每颗的曲线都取自那五条')
     let firstPill = 0
     let secondPill = 0
@@ -252,8 +257,8 @@ async function main() {
       const rise = b.fromY - b.toY
       if (rise < A.pickBubbleRiseMinPx || rise > A.pickBubbleRiseMaxPx) pickRiseOk = false
       if (b.size < A.bubbleSizeMin || b.size > A.bubbleSizeMin + A.bubbleSizeRange) pickTimingOk = false
-      if (b.delayMs < 0 || b.delayMs > A.pickBubbleDelayMaxMs) pickTimingOk = false
-      if (b.durationMs < A.pickBubbleTravelMinMs || b.durationMs > A.pickBubbleTravelMaxMs) pickTimingOk = false
+      if (b.delayMs < 0 || b.delayMs > MOTION.suggestPickBubbleDelayMaxMs) pickTimingOk = false
+      if (b.durationMs < MOTION.suggestPickBubbleTravelMinMs || b.durationMs > MOTION.suggestPickBubbleTravelMaxMs) pickTimingOk = false
       if (A.easeList.indexOf(b.ease) < 0) pickEaseOk = false
       if (Math.abs(b.sway) > A.pickBubbleSwayPx + 1e-9) pickSwayOk = false
     }
@@ -268,7 +273,7 @@ async function main() {
       lastEnd = Math.max(lastEnd, b.delayMs + b.durationMs)
     }
     check(near(pickPlan.endMs, lastEnd), '退场计划：endMs 是最后一颗飞完的时刻')
-    check(pickPlan.endMs >= A.pickBubbleTravelMinMs && pickPlan.endMs <= A.pickBubbleDelayMaxMs + A.pickBubbleTravelMaxMs, '退场计划：整体飞行时间不到 0.6 秒')
+    check(pickPlan.endMs >= MOTION.suggestPickBubbleTravelMinMs && pickPlan.endMs <= MOTION.suggestPickBubbleDelayMaxMs + MOTION.suggestPickBubbleTravelMaxMs, '退场计划：整体飞行时间不到 0.6 秒')
     check(JSON.stringify(suggestPickPlan(pickLayout, constantRand)) === JSON.stringify(pickPlan), '退场计划：同一串随机数得到同一份计划（可测、无隐藏状态）')
     const emptyPickPlan = suggestPickPlan({ pills: [] }, constantRand)
     check(emptyPickPlan.total === 0 && emptyPickPlan.bubbles.length === 0 && emptyPickPlan.endMs === 0, '退场计划：没有胶囊时返回空计划（调用方直接收起）')
@@ -327,8 +332,8 @@ async function main() {
       const duration = parseFloat(String(node.style.transitionDuration))
       const delay = parseFloat(String(node.style.transitionDelay))
       if (node.className !== 'dsws-sugg-bub') nodeStylesOk = false
-      if (!(duration >= A.bubbleTravelMinMs && duration <= A.bubbleTravelMaxMs)) nodeStylesOk = false
-      if (!(delay >= 0 && delay <= A.bubbleDelayMaxMs)) nodeStylesOk = false
+      if (!(duration >= MOTION.suggestBubbleTravelMinMs && duration <= MOTION.suggestBubbleTravelMaxMs)) nodeStylesOk = false
+      if (!(delay >= 0 && delay <= MOTION.suggestBubbleDelayMaxMs)) nodeStylesOk = false
       if (node.style.borderRadius && node.style.borderRadius !== '50%' && node.style.borderRadius !== '50%') nodeStylesOk = false
     }
     check(nodeStylesOk, '执行者：每颗节点的时长/延迟都来自计划，节点类是 .dsws-sugg-bub')
@@ -408,7 +413,7 @@ async function main() {
     }
     check(pickFlyOk, '执行者：退场小泡起飞后向上飘、同时淡出')
     check(pickTimers.length === 1, '执行者：退场只排一个一次性定时器')
-    check(pickTimers.length === 1 && pickTimers[0].ms >= A.pickBubbleTravelMinMs + A.pickBubbleTailMs && pickTimers[0].ms <= A.pickBubbleDelayMaxMs + A.pickBubbleTravelMaxMs + A.pickBubbleTailMs, '执行者：收尾定时器按最后一颗飞完再加尾巴算')
+    check(pickTimers.length === 1 && pickTimers[0].ms >= MOTION.suggestPickBubbleTravelMinMs + MOTION.suggestPickBubbleTailMs && pickTimers[0].ms <= MOTION.suggestPickBubbleDelayMaxMs + MOTION.suggestPickBubbleTravelMaxMs + MOTION.suggestPickBubbleTailMs, '执行者：收尾定时器按最后一颗飞完再加尾巴算')
     if (pickTimers.length) pickTimers[0].cb()
     check(picked === 1, '执行者：退场飘完才调 done 收起整组')
     global.setTimeout = realSetTimeout
@@ -429,8 +434,8 @@ async function main() {
     check(stylesSrc.indexOf('.dsws-sugg-intro') >= 0 && stylesSrc.indexOf('.dsws-sugg-pop') >= 0 && stylesSrc.indexOf('.dsws-sugg-pill-wrap') >= 0 && stylesSrc.indexOf('.dsws-sugg-cmd') < 0, '守卫：框里只剩简介一段，浮层与定位壳的样式都在')
     check(stylesSrc.indexOf('dsws-sugg-pick') < 0 && stylesSrc.indexOf('dsws-sugg-fade') >= 0, '守卫：选中退场不再用整组 CSS 动画，关闭淡出仍在')
     const cssText = String(stylesMod.SUGGEST_STYLE_TEXT)
-    check(stylesSrc.indexOf('SUGGEST_APPEARANCE.pickMs') < 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.fadeMs') >= 0, '守卫：CSS 只取关闭淡出时长（选中退场由执行者按旋钮算）')
-    check(cssText.indexOf(A.fadeMs + 'ms') >= 0 && cssText.indexOf('undefined') < 0, '守卫：产出的 CSS 里只有关闭淡出时长且不含未定义值')
+    check(stylesSrc.indexOf('SUGGEST_APPEARANCE.pickMs') < 0 && stylesSrc.indexOf('MOTION.suggestFadeMs') >= 0, '守卫：CSS 只取关闭淡出时长（选中退场由执行者按旋钮算；#1236 起时长来自 MOTION）')
+    check(cssText.indexOf(MOTION.suggestFadeMs + 'ms') >= 0 && cssText.indexOf('undefined') < 0, '守卫：产出的 CSS 里只有关闭淡出时长且不含未定义值')
     check(stylesSrc.indexOf('body:not([data-ds-dark-theme])') >= 0, '守卫：亮色主题有单独覆盖')
     check(stylesSrc.indexOf('prefers-reduced-motion') >= 0, '守卫：系统减少动效有兜底')
     check(stylesSrc.indexOf('will-change') >= 0, '守卫：小泡标了 will-change（动效性能）')

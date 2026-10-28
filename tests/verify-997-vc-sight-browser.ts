@@ -252,6 +252,9 @@ async function run(browser: any, build: { closure: string, dict: Record<string, 
   // 单独 import 它们时是自由变量，会报 not defined。先把 values.js 的真值挂到 globalThis 上再加载。
   const valuesMod = await import('file://' + path.join(ROOT, 'src/shared/time-config/values.js').replace(/\\/g, '/'))
   for (const k of Object.keys(valuesMod)) { if (globalThis[k] === undefined) globalThis[k] = valuesMod[k] }
+  // #1236：界面动效时长住在 kernel/motion.ts 的 MOTION 里；单独 import 样式片时它是自由变量，先挂上再加载。
+  const motionMod = await import('file://' + path.join(ROOT, 'src/client/kernel/motion.ts').replace(/\\/g, '/'))
+  globalThis.MOTION = motionMod.MOTION
   const relMs = Number(valuesMod.VC_RELATIVE_WINDOW_MS)
   // #1294：词条真源搬到 config/copy/*.yaml，旧片段路径经 tests/lib/source-text.ts 的 sourcePath
   //   映射到生成物 src/client/kernel/locale-data.ts；同一文件 import 多次返回同一模块，L_* 导出名仍在。

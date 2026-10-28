@@ -193,7 +193,7 @@ function audit(read: (p: string) => string): AuditResult[] {
   check(liquidInk.indexOf('ink.contains && ink.contains(t)') >= 0, 'B6 观察回调忽略墨块自身的变动（否则对位改样式会自己触发自己，整窗卡死）')
   check(liquidInk.indexOf("const group = (ink.getAttribute && ink.getAttribute('data-ink-group'))") >= 0, 'B7 一块墨块只盯一组（同一容器里可并排住状态/排序/标签三块）')
   check(feedbackCss.indexOf('.dsws-ink-host{position:relative}') >= 0 && feedbackCss.indexOf('.dsws-ink{position:absolute') >= 0, 'B8 墨块是一层绝对定位的底（容器补 position:relative）')
-  check(feedbackCss.indexOf('transition:transform .24s linear(0,.55 30%,1.06 62%,.99 84%,1)') >= 0, 'B9 滑动带一点过冲（linear() 逐段曲线），落定回弹不靠动画库')
+  check(feedbackCss.indexOf('linear(0,.55 30%,1.06 62%,.99 84%,1)') >= 0 && feedbackCss.indexOf('MOTION.inkMoveMs') >= 0, 'B9 滑动带一点过冲（linear() 逐段曲线），时长取动效令牌 MOTION.inkMoveMs，落定回弹不靠动画库')
   check(feedbackCss.indexOf('.dsws-ink-host .dsws-tab.on{background:transparent') >= 0 && feedbackCss.indexOf('.dsws-ink-host [data-ink-cover="1"]{background:transparent!important') >= 0 && feedbackCss.indexOf('.dsws-ink-on{background:transparent') < 0, 'B10 墨块盖住的那一颗让出底色/描边，其余选中项保留（页签用 .on，药丸靠动态 data-ink-cover；若按 .dsws-ink-on 一刀切，多选标签组会把其余选中项的描边也吃掉）')
   check(liquidInk.indexOf("export const LIQUID_INK_COVER_ATTR = 'data-ink-cover'") >= 0 && liquidInk.indexOf('function markCovered') >= 0 && liquidInk.indexOf('setAttribute(LIQUID_INK_COVER_ATTR') >= 0 && liquidInk.indexOf('removeAttribute(LIQUID_INK_COVER_ATTR)') >= 0, 'B12 盖住标记由 liquidInk 动态标/摘（不是选中态标记，多选组里只盖一颗，避免双底又给其余选中项留描边）')
   check(feedbackCss.indexOf('.dsws-ink{position:absolute') < feedbackCss.indexOf('@media (prefers-reduced-motion: reduce){.dsws-ink'), 'B11 减少动态有降级：墨块仍在，只是不滑（不是整块消失）')

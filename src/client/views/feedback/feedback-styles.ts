@@ -12,10 +12,11 @@
  *
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与这段说明，字符串、次序、
  * 导出名一字未动。契约照旧不能改：本文件是模块真源（ESM 导出），构建时剥行首 export 拼进闭包；
- * 模块说明符保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。这里没有自由变量要声明——
+ * 模块说明符保持 .js 后缀，由 scripts/ts-hook.mts 改指同名 .ts。这里只有一个自由变量要声明：动效时长取 kernel/motion.ts 的 MOTION（#1236）；除此之外
  * 整份文件只是一串 CSS 文本，不引用闭包里任何别的叶子。
  * 一处提醒：数组元素次序就是样式注入次序，改次序可能改层叠结果，转写时一个字都没动。
  */
+declare const MOTION: any; // #1236 动效时长统一在 kernel/motion.ts，本文件只引用不写真值
 export const FEEDBACK_STYLE_TEXT: string = [
       // #948 首批（#949 瞬间底座）：只叠加不顶布局，只用滤镜、外圈描边、阴影（描边蓝复用 #58a6ff）；ghost 整类与 .dsws-fb-dark 走外圈描边代替加深；悬停浮起挂既有 .dsws-btn 只加阴影。
       '.dsws-chip.dsws-pressing,.dsws-chip-fb.dsws-pressing{filter:brightness(.82)}.dsws-trow.dsws-pressing,.dsws-aggrow.dsws-pressing{filter:brightness(.9)}',
@@ -46,9 +47,9 @@ export const FEEDBACK_STYLE_TEXT: string = [
       //   小图标（.ghost）整批无变形，只靠描边（首批）与外扩环确认。
       //   减少动态下动画变形全关，只剩图标加文字（悬浮气泡与底部小提示不受影响）。
       '.dsws-btn.primary{position:relative;overflow:hidden}',
-      '.dsws-btn.primary.dsws-pressing::after{content:"";position:absolute;inset:0;background:radial-gradient(circle,rgba(255,255,255,.55),transparent 70%);opacity:0;animation:dsws-ripple .55s ease-out}',
+      '.dsws-btn.primary.dsws-pressing::after{content:"";position:absolute;inset:0;background:radial-gradient(circle,rgba(255,255,255,.55),transparent 70%);opacity:0;animation:dsws-ripple ' + MOTION.rippleMs + 'ms ease-out}',
       '@keyframes dsws-ripple{0%{opacity:.8;transform:scale(.4)}100%{opacity:0;transform:scale(1.6)}}',
-      '.dsws-btn.ghost.dsws-pressing{animation:dsws-ringout .6s ease-out}',
+      '.dsws-btn.ghost.dsws-pressing{animation:dsws-ringout ' + MOTION.ringOutMs + 'ms ease-out}',
       // ghost 按下时的外扩环同样取主题焦点色：写死的蓝换主题不跟（2026-10-21 用户要求所有高亮边框统一走焦点 token）。
       // 确认圈也画在控件里面：原来是一圈向外扩 12px 的光环，在详情页顶栏那种没有内边距的按钮组里
       //   上下两截会被 overflow:hidden 切掉（2026-10-21 用户实测就是这种「圈被截断」）。内画的环不会出门，
@@ -56,29 +57,29 @@ export const FEEDBACK_STYLE_TEXT: string = [
       '@keyframes dsws-ringout{0%{box-shadow:inset 0 0 0 0 var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)))}45%{box-shadow:inset 0 0 0 2px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff)))}100%{box-shadow:inset 0 0 0 2px transparent}}',
       '.dsws-btn.primary.dsws-pressing{transform:scale(.98) translateY(1px)}',
       '.dsws-modalbox .dsws-btn.primary.dsws-pressing{transform:scale(.98) translateY(1px) rotate(-1.2deg)}',
-      '.dsws-modalbox .dsws-btn.primary.dsws-fb-sheen.dsws-pressing::before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);opacity:0;animation:dsws-sheen .5s ease}',
+      '.dsws-modalbox .dsws-btn.primary.dsws-fb-sheen.dsws-pressing::before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);opacity:0;animation:dsws-sheen ' + MOTION.sheenMs + 'ms ease}',
       '@keyframes dsws-sheen{0%{opacity:0;transform:translateX(-30%)}100%{opacity:.9;transform:translateX(30%)}}',
       '.dsws-seg.dsws-pressing,.dsws-skillbtn.dsws-pressing,.dsws-cfg-btn.dsws-pressing,.dsws-skillpop-row.dsws-pressing{filter:brightness(.85)}',
       '@media (prefers-reduced-motion: reduce){.dsws-btn.primary.dsws-pressing::after,.dsws-modalbox .dsws-btn.primary.dsws-fb-sheen.dsws-pressing::before{animation:none;opacity:0}.dsws-btn.ghost.dsws-pressing{animation:none}.dsws-btn.primary.dsws-pressing,.dsws-modalbox .dsws-btn.primary.dsws-pressing{transform:none}}',
       // #951 短等待核心：转圈 overlay（宽高不动，文字占位、圈盖在上面）+ 结果闪光抖动（半秒自退）+ 减少动态降级只剩图标。
       //   绿跟提示条 ok 同色，红跟横幅 bad 同色，琥珀跟提示条 warn 同色，不设全局硬值，不引入占位红。
-      '.dsws-fb-busy{position:relative}.dsws-fb-busy .fb-t{visibility:hidden}.dsws-fb-busy .fb-spin{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}.dsws-fb-okflash{animation:dsws-fb-okflash .45s ease-out forwards}.dsws-fb-errflash{animation:dsws-fb-errflash .45s ease-out forwards}.dsws-fb-warnflash{animation:dsws-fb-warnflash .45s ease-out forwards}.dsws-fb-shake{animation:dsws-fb-shake .4s ease-out 1}@keyframes dsws-fb-okflash{0%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}100%{box-shadow:0 0 0 10px rgba(74,222,128,0)}}@keyframes dsws-fb-errflash{0%{box-shadow:0 0 0 0 rgba(248,113,113,.55)}100%{box-shadow:0 0 0 10px rgba(248,113,113,0)}}@keyframes dsws-fb-warnflash{0%{box-shadow:0 0 0 0 rgba(251,191,36,.55)}100%{box-shadow:0 0 0 10px rgba(251,191,36,0)}}@keyframes dsws-fb-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}55%{transform:translateX(3px)}80%{transform:translateX(-2px)}}@media (prefers-reduced-motion: reduce){.dsws-fb-okflash,.dsws-fb-errflash,.dsws-fb-warnflash,.dsws-fb-shake{animation:none}}',
+      '.dsws-fb-busy{position:relative}.dsws-fb-busy .fb-t{visibility:hidden}.dsws-fb-busy .fb-spin{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}.dsws-fb-okflash{animation:dsws-fb-okflash ' + MOTION.flashMs + 'ms ease-out forwards}.dsws-fb-errflash{animation:dsws-fb-errflash ' + MOTION.flashMs + 'ms ease-out forwards}.dsws-fb-warnflash{animation:dsws-fb-warnflash ' + MOTION.flashMs + 'ms ease-out forwards}.dsws-fb-shake{animation:dsws-fb-shake ' + MOTION.shakeMs + 'ms ease-out 1}@keyframes dsws-fb-okflash{0%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}100%{box-shadow:0 0 0 10px rgba(74,222,128,0)}}@keyframes dsws-fb-errflash{0%{box-shadow:0 0 0 0 rgba(248,113,113,.55)}100%{box-shadow:0 0 0 10px rgba(248,113,113,0)}}@keyframes dsws-fb-warnflash{0%{box-shadow:0 0 0 0 rgba(251,191,36,.55)}100%{box-shadow:0 0 0 10px rgba(251,191,36,0)}}@keyframes dsws-fb-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}55%{transform:translateX(3px)}80%{transform:translateX(-2px)}}@media (prefers-reduced-motion: reduce){.dsws-fb-okflash,.dsws-fb-errflash,.dsws-fb-warnflash,.dsws-fb-shake{animation:none}}',
       // #948 第三批（#952 短等待文字与轻效果）：换字只宽按钮（留死宽度只这一个类，按最长一句，已提交三字为准）；成功圈弹跳只复制类；圆点呼吸是备用（永不与转圈同开，各有无转圈的归宿）；窄按钮与状态栏小段不换字；本批样式零色值字面量（圆点跟按钮字色走 currentColor，成功圈跟提示条 ok 同色系，呼吸弹跳不动颜色）。
       '.dsws-fb-result{min-width:6.5ch}',
       '.dsws-fb-dots{display:inline-block;min-width:14px;text-align:left}',
-      '.dsws-fb-dots i{display:inline-block;width:3px;height:3px;border-radius:50%;background:currentColor;margin-left:2px;vertical-align:baseline;animation:dsws-fb-dots .9s ease-in-out infinite}',
-      '.dsws-fb-dots i:nth-child(2){animation-delay:.15s}.dsws-fb-dots i:nth-child(3){animation-delay:.3s}',
+      '.dsws-fb-dots i{display:inline-block;width:3px;height:3px;border-radius:50%;background:currentColor;margin-left:2px;vertical-align:baseline;animation:dsws-fb-dots ' + MOTION.dotsMs + 'ms ease-in-out infinite}',
+      '.dsws-fb-dots i:nth-child(2){animation-delay:' + MOTION.dotsStaggerMs + 'ms}.dsws-fb-dots i:nth-child(3){animation-delay:' + (MOTION.dotsStaggerMs * 2) + 'ms}',
       '@keyframes dsws-fb-dots{0%,100%{opacity:.25}50%{opacity:1}}',
-      '.dsws-fb-breath{animation:dsws-fb-breath 1.6s ease-in-out infinite}',
+      '.dsws-fb-breath{animation:dsws-fb-breath ' + MOTION.breathMs + 'ms ease-in-out infinite}',
       '@keyframes dsws-fb-breath{0%,100%{opacity:1}50%{opacity:.45}}',
-      '.dsws-fb-success-ring{animation:dsws-fb-success-ring .6s ease-out}',
+      '.dsws-fb-success-ring{animation:dsws-fb-success-ring ' + MOTION.successRingMs + 'ms ease-out}',
       '@keyframes dsws-fb-success-ring{0%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}100%{box-shadow:0 0 0 10px rgba(74,222,128,0)}}',
-      '.dsws-fb-pop{animation:dsws-fb-pop .35s ease-out}',
+      '.dsws-fb-pop{animation:dsws-fb-pop ' + MOTION.popMs + 'ms ease-out}',
       '@keyframes dsws-fb-pop{0%{transform:scale(1)}40%{transform:scale(1.1)}100%{transform:scale(1)}}',
       '@media (prefers-reduced-motion: reduce){.dsws-fb-dots i,.dsws-fb-breath,.dsws-fb-success-ring,.dsws-fb-pop{animation:none}}',
       // #948 第四批（#953 中长等待）：面板列表加载骨架（只列表用，行形占位；每条的宽高圆角走调用点内联，叶子只管微光）。
       //   微光只用现成的白半透明，本批零十六进制色；减少动态下微光停，只剩静态灰条。
-      '.dsws-fb-skel{background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.13),rgba(255,255,255,.05));background-size:200% 100%;animation:dsws-fb-skel 1.1s linear infinite}',
+      '.dsws-fb-skel{background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.13),rgba(255,255,255,.05));background-size:200% 100%;animation:dsws-fb-skel ' + MOTION.skeletonShimmerMs + 'ms linear infinite}',
       '@keyframes dsws-fb-skel{to{background-position:-200% 0}}',
       '@media (prefers-reduced-motion: reduce){.dsws-fb-skel{animation:none;background:rgba(255,255,255,.07)}}',
       // 本次界面反馈需求里的液态墨块与全控件按压/悬停：第 32 种反馈「选中块迁移」。
@@ -91,9 +92,9 @@ export const FEEDBACK_STYLE_TEXT: string = [
       //   同时选中的可能有好多颗，只有被墨块盖住的那颗让位，其余的保留自己的描边，才看得出选了哪几个。
       '.dsws-ink-host{position:relative}',
       '.dsws-ink-host .dsws-tab,.dsws-ink-host .dsws-chip{position:relative;z-index:1}',
-      '.dsws-ink{position:absolute;left:0;top:0;width:var(--dsws-ink-w,0px);height:var(--dsws-ink-h,0px);border-radius:var(--dsws-ink-radius,6px);background:var(--dsws-ink-bg,rgba(255,255,255,.14));border:1px solid var(--dsws-ink-bd,transparent);box-sizing:border-box;pointer-events:none;z-index:0;will-change:transform;transform:translate3d(var(--dsws-ink-x,0px),var(--dsws-ink-y,0px),0);transition:transform .24s linear(0,.55 30%,1.06 62%,.99 84%,1),width .16s ease,height .16s ease,opacity .12s ease}',
+      '.dsws-ink{position:absolute;left:0;top:0;width:var(--dsws-ink-w,0px);height:var(--dsws-ink-h,0px);border-radius:var(--dsws-ink-radius,6px);background:var(--dsws-ink-bg,rgba(255,255,255,.14));border:1px solid var(--dsws-ink-bd,transparent);box-sizing:border-box;pointer-events:none;z-index:0;will-change:transform;transform:translate3d(var(--dsws-ink-x,0px),var(--dsws-ink-y,0px),0);transition:transform ' + MOTION.inkMoveMs + 'ms linear(0,.55 30%,1.06 62%,.99 84%,1),width ' + MOTION.inkResizeMs + 'ms ease,height ' + MOTION.inkResizeMs + 'ms ease,opacity ' + MOTION.inkFadeMs + 'ms ease}',
       '.dsws-ink.dsws-ink-instant{transition:none!important}',
-      '.dsws-ink.dsws-ink-squash{animation:dsws-ink-squash .3s ease-out}',
+      '.dsws-ink.dsws-ink-squash{animation:dsws-ink-squash ' + MOTION.inkSquashMs + 'ms ease-out}',
       '@keyframes dsws-ink-squash{0%{scale:1.05 .94}55%{scale:1.015 .985}100%{scale:1 1}}',
       '.dsws-ink-host .dsws-tab.on{background:transparent;border-color:transparent}',
       '.dsws-ink-host [data-ink-cover="1"]{background:transparent!important;border-color:transparent!important}',
@@ -112,8 +113,8 @@ export const FEEDBACK_STYLE_TEXT: string = [
       '.dsws-pressing{filter:brightness(.85)}',
       '.dsws-tab.dsws-pressing,.dsws-chip.dsws-pressing{filter:brightness(.8)}',
       '@media (hover:hover) and (pointer:fine){.dsws-hov:hover:not(.dsws-pressing){box-shadow:inset 0 0 0 1px var(--dsws-ring-color,var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff))),0 2px 10px rgba(0,0,0,.25);filter:brightness(1.06)}}',
-      '.dsws-hov.dsws-pressing{filter:brightness(.82);transform:translateY(1px);box-shadow:none;transition:transform .08s ease}',
-      '.dsws-hov{transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}',
+      '.dsws-hov.dsws-pressing{filter:brightness(.82);transform:translateY(1px);box-shadow:none;transition:transform ' + MOTION.pressDipMs + 'ms ease}',
+      '.dsws-hov{transition:transform ' + MOTION.hoverFadeMs + 'ms ease,filter ' + MOTION.hoverFadeMs + 'ms ease,box-shadow ' + MOTION.hoverFadeMs + 'ms ease}',
       '@media (hover:hover) and (pointer:fine){.dsws-workroute:hover:not(.dsws-pressing){filter:brightness(1.18)}}',
       // 通用悬停与按下：接线契约只有 data-press 一个属性——凡是挂了它的控件，不必再逐颗挂 dsws-hov。
       //   2026-10-21 用户实测漏掉的那批（列表行内四颗按钮、地图/工单详情顶栏、地图底部动作区、父链接）
@@ -136,7 +137,7 @@ export const FEEDBACK_STYLE_TEXT: string = [
       //   与上面那条通用按压是同一个压暗值，两处要一起改，否则两种控件的按下深浅会不一致。
       '.dsws-entrycard.dsws-pressing{filter:brightness(.82)!important}',
       '[data-press="button"].dsws-pressing,[data-press="link"].dsws-pressing,[data-press="switch"].dsws-pressing{transform:translateY(1px)}',
-      '.dsws-btn[data-press],[data-press="link"],[data-press="switch"]{transition:filter .12s ease,box-shadow .12s ease,transform .08s ease}',
+      '.dsws-btn[data-press],[data-press="link"],[data-press="switch"]{transition:filter ' + MOTION.hoverFadeMs + 'ms ease,box-shadow ' + MOTION.hoverFadeMs + 'ms ease,transform ' + MOTION.pressDipMs + 'ms ease}',
       // 地图详情的工单卡：整张卡热与按下；卡片内部按钮各自还有自己的反馈，不互相顶掉。
       // 地图工单卡整张卡热起来时边框跟主题主色走（用户实测原来变灰白，跟「获得焦点」的语义对不上）：
       //   颜色与下面的焦点环同一个 token，换主题时一起变；外圈阴影保留，卡片还是浮起来一点。

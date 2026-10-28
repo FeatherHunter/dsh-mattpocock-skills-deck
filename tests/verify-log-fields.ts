@@ -224,7 +224,10 @@ const ALLOWED = {
   // 2026-10-21（#1006 复核）常驻 #26 host.call 增补一格 reason：deck.quotaSync 同步失败那一行带原因码
   //   （sync-empty 读不出读数 / sync-threw 这一趟抛了 / ensure-threw 入口兜底）；#1355 起因缺本会话工作路线表而发的
   //   强制补拉也带 reason=work-route-missing。为什么要有：从前这些分支只回原因码、日志里一个字不留，事后查不出原因。
-  'host.call': ['method', 'latencyMs', 'ok', 'kind', 'pluginId', 'opId', 'cwdHash', 'reason'],
+  // 2026-10-28（#1420 第四项）host.call 增补一格 callIdHash：建议工具调用那行带调用编号的短散列，
+  //   与界面 suggest.call 的 callIdHash 同一算法。为什么要有：日志里才能分清「模型没调」与
+  //   「调了但界面没拿到事件流」—— 从前工具侧一条 host.call 都不落，两类现象在日志里长得一模一样。
+  'host.call': ['method', 'latencyMs', 'ok', 'kind', 'pluginId', 'opId', 'cwdHash', 'reason', 'callIdHash'],
   // 2026-10-14（#1052 续）`host.call` 与 `host.call.fail` 各增补两格：`opId` 与 `cwdHash`。
   //   为什么要有：一趟操作在日志里落成两层——宿主这一层说「调了哪条电话、成没成、花了多久」，
   //   房间那一层（gh.exec / read.degraded）说「里面起了哪几条外部命令、走到哪一支」。两层从前没有

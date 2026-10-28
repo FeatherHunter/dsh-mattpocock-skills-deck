@@ -34,6 +34,7 @@ declare const prFilterForList: any;
 declare const prIssuesOf: any;
 declare const setActiveIssue: any;
 declare const CONTAINER_ACCENT: any;
+declare const MOTION: any; // #1236 动效时长统一在 kernel/motion.ts，本文件只引用不写真值
 
 export const PrTab = function (props: any) {
   const cx = React.useContext(DswsCtx)
@@ -51,7 +52,7 @@ export const PrTab = function (props: any) {
   }
   if (st.snapMode === 'loading' && !st.snapshot) {
     return h('div', { style: { padding: '24px 0', textAlign: 'center', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 12 } }, [
-      h('div', { className: 'dsws-spinner', style: { width: 14, height: 14, border: '2px solid rgba(255,255,255,.15)', borderTopColor: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', borderRadius: '50%', animation: 'dsws-spin 1s linear infinite', margin: '0 auto 8px' } }),
+      h('div', { className: 'dsws-spinner', style: { width: 14, height: 14, border: '2px solid rgba(255,255,255,.15)', borderTopColor: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', borderRadius: '50%', animation: 'dsws-spin ' + MOTION.inlineSpinnerMs + 'ms linear infinite', margin: '0 auto 8px' } }),
       h('span', null, tr('list.loading')),
     ])
   }

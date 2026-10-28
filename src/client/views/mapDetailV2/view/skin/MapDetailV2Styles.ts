@@ -11,6 +11,7 @@
  *
  * 注入方式与其它样式叶子同一条缝（src/client/index.ts 里 styles.insert）。
  */
+declare const MOTION: any; // #1236 动效时长统一在 kernel/motion.ts，本文件只引用不写真值
 export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   // 整页：一列。地图档案区一块，卡片流一块，已完成就接在卡片流最下面（维护者定的连续一条流）。
   // 三档中性色只在 .m2v2-page 上定义、由子元素继承：炭灰底 + 亮一档的面板 + 一档描边，避免纯黑纯白。
@@ -30,7 +31,7 @@ export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   '.m2v2-title{display:flex;align-items:baseline;gap:8px;margin:0;font-size:15px;line-height:1.4;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3)}',
   '.m2v2-title-txt{min-width:0;word-break:break-word}',
   '.m2v2-title-go{flex:none;align-self:center;font-size:10px;font-weight:500;line-height:16px;letter-spacing:.04em;padding:0 6px;border:1px solid var(--m2v2-line,var(--dsw-alias-border-l1,#2a2d35));border-radius:999px;color:var(--dsw-alias-label-caption,#8b8b95)}',
-  '.m2v2-profile-link{cursor:pointer;transition:border-color .12s ease,box-shadow .12s ease}',
+  '.m2v2-profile-link{cursor:pointer;transition:border-color ' + MOTION.hoverFadeMs + 'ms ease,box-shadow ' + MOTION.hoverFadeMs + 'ms ease}',
   '.m2v2-profile-link:hover{border-color:var(--dsw-alias-label-caption,#8b8b95);box-shadow:0 0 0 3px var(--dsw-alias-bg-layer-2,rgba(255,255,255,.06))}',
   '.m2v2-profile-link:hover .m2v2-title-go{color:var(--dsw-alias-label-secondary,#a1a1aa);border-color:var(--dsw-alias-label-caption,#8b8b95)}',
   '.m2v2-profile-link:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:2px}',
@@ -62,10 +63,10 @@ export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   '.m2v2-prog{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}',
   '.m2v2-prog-cap{flex:none;font-size:11px;color:var(--dsw-alias-label-caption,#8b8b95)}',
   '.m2v2-track{flex:1;height:6px;min-width:80px;border-radius:999px;background:var(--dsw-alias-bg-layer-2,rgba(255,255,255,.08));overflow:hidden}',
-  '.m2v2-prog[data-busy="1"] .m2v2-track{background-image:repeating-linear-gradient(135deg,rgba(128,128,128,.55) 0,rgba(128,128,128,.55) 6px,transparent 6px,transparent 12px);background-size:24px 24px;animation:m2v2-stripes .9s linear infinite}',
+  '.m2v2-prog[data-busy="1"] .m2v2-track{background-image:repeating-linear-gradient(135deg,rgba(128,128,128,.55) 0,rgba(128,128,128,.55) 6px,transparent 6px,transparent 12px);background-size:24px 24px;animation:m2v2-stripes ' + MOTION.busyStripesMs + 'ms linear infinite}',
   '@keyframes m2v2-stripes{from{background-position:0 0}to{background-position:24px 0}}',
   '@media (prefers-reduced-motion: reduce){.m2v2-prog[data-busy="1"] .m2v2-track{animation:none}}',
-  '.m2v2-fill{height:100%;border-radius:999px;background:var(--dsw-alias-state-success-primary,#3fb950);transition:width .2s ease}',
+  '.m2v2-fill{height:100%;border-radius:999px;background:var(--dsw-alias-state-success-primary,#3fb950);transition:width ' + MOTION.progressFillMs + 'ms ease}',
   '.m2v2-prog-num{flex:none;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa);font-variant-numeric:tabular-nums}',
 
   // 「子票那句」：本图 N 张子票 / 没取到 / 被截断 / 有差额，都在这一个元素里说。

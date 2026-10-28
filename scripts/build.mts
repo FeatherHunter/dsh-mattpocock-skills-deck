@@ -402,6 +402,9 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'backendList', file: 'src/client/kernel/builtin-backends.ts' },
   { name: 'link', file: 'src/client/kernel/link.ts' },
+  // #1236：界面动效时长的唯一真源。样式字符串在模块求值时就把它拼进 CSS，
+  //   所以这一片必须排在 kernel:styles 之前（const 有暂时性死区）。
+  { name: 'motion', file: 'src/client/kernel/motion.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'styles', file: 'src/client/kernel/styles.ts' },

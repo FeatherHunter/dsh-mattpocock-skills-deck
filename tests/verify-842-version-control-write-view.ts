@@ -19,6 +19,8 @@ const centralTime = require('../src/shared/time-config/values.js')
 for (const [k, v] of Object.entries(centralTime)) {
   if (typeof v === 'number' && globalThis[k] === undefined) globalThis[k] = v
 }
+// #1236：版本管理样式叶子里的动效时长读 kernel/motion.ts 的 MOTION；compileFn 的自由变量落回 globalThis。
+globalThis.MOTION = require('../src/client/kernel/motion.ts').MOTION
 // 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
 const stripTimeConfigImport = (s: string): string => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 

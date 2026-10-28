@@ -15,9 +15,9 @@
 //   旧版锁的是“两份数字相等”（IMPORT 表的 literal 行 + TEXT 表的片段行）：源码里写一份数字，
 //   门禁核对它等于 YAML。改造后源码里不再有第二份数字，所以这两张表整个删掉，换成：
 //   ② 的引用相等断言（REFERENCES 表：模块拿到的就是生成的那一份，不是抄的），
-//   ④ 的无字面量扫描（数字出现在时间味的位置就判红，出口是 PERMANENT 表与样式类的 STYLE 表）。
+//   ④ 的无字面量扫描（数字出现在时间味的位置就判红，唯一出口是 PERMANENT 表）。
 //   以后加一个时间参数的动作是：YAML 里加键 → 文件里 import 生成常量 → REFERENCES 里加一行。
-//   删一行同理。四张表（REFERENCES / CLIENTS / PERMANENT / STYLE）与 EXEMPTS 的行数只许增不许减式的维护：
+//   删一行同理。三张表（REFERENCES / CLIENTS / PERMANENT）与 EXEMPTS 的行数只许增不许减式的维护：
 //   加参数加行，删参数删行，不许为了让门禁变绿而删行（那等于把参数放回源码里写数字）。
 //
 // 为什么有些文件是动态 import 或闭包拼接，而不是一律静态 import：
@@ -35,10 +35,10 @@
 //   ④ 除法里的 1000（毫秒换算成秒给只认秒的 git 选项：除数不是时长）。
 //   除此四种，时间味的名字后面不许出现数字。理由写不清的就不该出现在表里。
 //
-// 样式类时长（STYLE 表）是另一回事：`docs/adr/20261016-time-config-yaml.md` 第 5 节定了
-// 「动画演多久、过渡用多长」与「等多久算失败」不是一个验收口径，它们将来归 #1236 的独立配置；
-// 在 #1236 落地之前，它们只许住在外观旋钮文件（src/client/statusbar/suggestAppearance.ts）里，
-// 由 STYLE 表逐行锁死「文件 + 片段 + 理由」。这张表不是永久豁免：#1236 落地后应逐行删掉。
+// 样式类时长（动画演多久、过渡用多长）不归本门禁管：`docs/adr/20261016-time-config-yaml.md` 第 5 节
+// 定了它与「等多久算失败」不是一个验收口径。#1236 已落地：它们的唯一真源是
+// src/client/kernel/motion.ts 的 MOTION，由 tests/verify-motion-tokens.ts 守；
+// 本门禁第四、第五节跳过那一个文件（为什么不算漏：那里的数字是动画观感，调错只有眼睛看得出来）。
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -332,31 +332,6 @@ const PERMANENT: PermanentRow[] = [
 ]
 
 // ---------------------------------------------------------------------------
-// 表五 STYLE：界面动画与过渡的时长（样式类，不归三份时间 YAML）。
-// 为什么单列一张表：`docs/adr/20261016-time-config-yaml.md` 第 5 节定了样式类时长与毫秒超时
-// 不是一个验收口径，将来由 #1236 的独立配置收走；在那一件事落地之前，它们集中写在外观旋钮文件
-// （src/client/statusbar/suggestAppearance.ts，#1411 定的“气泡所有看得见的数字集中一处”），
-// 由本表逐行锁死「文件 + 片段 + 理由」：改了数字、改了写法、片段从源码里消失都判红。
-// 这不是永久豁免——#1236 落地后应逐行删掉，改用那份样式配置。
-// ---------------------------------------------------------------------------
-interface StyleDurationRow {
-  file: string
-  snippet: string
-  reason: string
-}
-const STYLE_DURATIONS: StyleDurationRow[] = [
-  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'bubbleDelayMaxMs: 560', reason: '出场小泡的每颗出发延迟上限（动画出场节奏），不是“等多久算失败”' },
-  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'bubbleTravelMinMs: 500', reason: '出场小泡的飞行时长下限（动画出场节奏），不是“等多久算失败”' },
-  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'bubbleTravelMaxMs: 1030', reason: '出场小泡的飞行时长上限（动画出场节奏），不是“等多久算失败”' },
-  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'bubbleCleanupDelayMs: 400', reason: '全部小泡落完后清节点的收尾延时（动画收尾），不是“等多久算失败”' },
-  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'pickBubbleDelayMaxMs: 70', reason: '选中后第一批退场小泡的出发延迟上限（动画退场节奏）' },
-  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'pickBubbleTravelMinMs: 400', reason: '退场小泡的飞行时长下限（动画退场节奏）' },
-  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'pickBubbleTravelMaxMs: 500', reason: '退场小泡的飞行时长上限（动画退场节奏）' },
-  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'pickBubbleTailMs: 60', reason: '退场小泡飘完后收起整组前的收尾延时（动画收尾）' },
-  { file: 'src/client/statusbar/suggestAppearance.ts', snippet: 'fadeMs: 170', reason: '关闭与第二组覆盖用的整组淡出时长（动画退场节奏）' },
-]
-
-// ---------------------------------------------------------------------------
 // 表四 EXEMPT：覆盖率扫描认出来、但不是“本文件自己决定的可调时长”的名字。
 // 每一行都要有理由，理由写不清的就不该出现在这里——那是漏登记的参数，不是豁免。
 // 注意：这里只认“名字”，名字后面挂着数字由上一张 PERMANENT 表管（两张表各管一头）。
@@ -491,7 +466,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/kernel/write-event-detection.ts', name: 'waitMs', reason: '计划结论里的等待长度字段：0 表示不用等，其它值来自已登记的窗口 / 间隔（mergeWindowMs、probeIntervalMs），不是新参数' },
   { file: 'src/refresh/rooms/host/refusal-messages.ts', name: 'wait', reason: '拼回话用的文案片段（“多久以后可以再试”那一句），不是时长参数' },
   // 算出来的动画时间轴：每颗小泡的出发延迟 / 飞行时长 / 结束时刻，按随机数与外观旋钮现算。
-  { file: 'src/client/statusbar/suggestEngine.ts', name: 'wait', reason: '派生变量：退场等待取外观旋钮 SUGGEST_APPEARANCE.fadeMs（样式类时长，STYLE 表已认领），不是新参数' },
+  { file: 'src/client/statusbar/suggestEngine.ts', name: 'wait', reason: '派生变量：退场等待取动效令牌 MOTION.suggestFadeMs（#1236 起的样式类时长，verify-motion-tokens 管），不是新参数' },
   { file: 'src/client/statusbar/suggestTimeline.ts', name: 'delayMs', reason: '算出来的动画时间轴值（每颗小泡的出发延迟），不是可调参数' },
   { file: 'src/client/statusbar/suggestTimeline.ts', name: 'durationMs', reason: '算出来的动画时间轴值（每颗小泡的飞行时长），不是可调参数' },
   { file: 'src/client/statusbar/suggestTimeline.ts', name: 'endMs', reason: '算出来的动画时间轴值（每颗小泡的落点时刻），不是可调参数' },
@@ -649,19 +624,9 @@ async function main(): Promise<void> {
     if (!permanentByFile.has(row.file)) permanentByFile.set(row.file, [])
     permanentByFile.get(row.file)!.push(row.snippet)
   }
-  // 样式类时长单独一张表（理由见文件头与 STYLE_DURATIONS 的注释）：判法相同，只是认领来源不同。
-  const styleByFile = new Map<string, string[]>()
-  for (const row of STYLE_DURATIONS) {
-    if (!styleByFile.has(row.file)) styleByFile.set(row.file, [])
-    styleByFile.get(row.file)!.push(row.snippet)
-  }
-  // 表的健全性：STYLE 表只许指向外观旋钮文件——否则它会变成任意源码的万能出口。
-  // 三张逐行登记的表（PERMANENT / STYLE / EXEMPTS）每一行都必须写明理由；理由空白就是漏登记的参数。
-  const STYLE_ONLY_FILE = 'src/client/statusbar/suggestAppearance.ts'
-  for (const row of STYLE_DURATIONS) {
-    check(row.file === STYLE_ONLY_FILE, 'STYLE 表只指向外观旋钮文件 ' + STYLE_ONLY_FILE + '（这一行指向 ' + row.file + '；要放宽先改本门禁的约定与 ADR）')
-    check(row.reason.trim().length > 0, 'STYLE 行写明了理由（' + row.file + '：“' + row.snippet + '”）')
-  }
+  // 样式类时长不归本门禁：#1236 落地后它们的唯一真源是 src/client/kernel/motion.ts 的 MOTION，
+  // 由 tests/verify-motion-tokens.ts 守（验收口径是动画观感，不是“等多久算失败”，见 ADR 20261016 第 5 节）。
+  // 两张逐行登记的表（PERMANENT / EXEMPTS）每一行都必须写明理由；理由空白就是漏登记的参数。
   for (const row of PERMANENT) {
     check(row.reason.trim().length > 0, 'PERMANENT 行写明了理由（' + row.file + '：“' + row.snippet + '”）')
   }
@@ -748,6 +713,9 @@ async function main(): Promise<void> {
   const files4 = String(ls4.stdout || '').split('\n').map((s) => s.trim()).filter((s) => s.endsWith('.ts') || s.endsWith('.js'))
   for (const file of files4) {
     if (file === 'src/shared/time-config/src/values.ts') continue
+    // #1236：动效时长的唯一真源。这里面的数字是动画观感，不是“等多久算失败”，
+    //   由 tests/verify-motion-tokens.ts 守；不把它们算作第二份时间参数。
+    if (file === 'src/client/kernel/motion.ts') continue
     const text = stripCode(fs.readFileSync(path.join(ROOT, file), 'utf8'))
     const hits: string[] = []
     for (const m of text.matchAll(declNumRe)) {
@@ -772,24 +740,21 @@ async function main(): Promise<void> {
       if (timeishLike(m[1].split('.').pop()!)) hits.push('缺省回落是数字：' + m[1] + ' ' + m[2] + ' ' + m[3])
     }
     if (hits.length === 0) continue
-    // 命中了先看 PERMANENT 表与 STYLE 表：片段对得上才放行，对不上（改了数字、改了写法）就判红。
+    // 命中了先看 PERMANENT 表：片段对得上才放行，对不上（改了数字、改了写法）就判红。
     const raws = fs.readFileSync(path.join(ROOT, file), 'utf8')
     const allowed = permanentByFile.get(file) || []
-    const styleAllowed = styleByFile.get(file) || []
     for (const hit of hits) {
       const cover = allowed.find((s) => countOccurrences(raws, s) > 0 && hitCovers(s, hit))
-      const styleCover = styleAllowed.find((s) => countOccurrences(raws, s) > 0 && hitCovers(s, hit))
-      const where = cover ? 'PERMANENT' : (styleCover ? 'STYLE' : '')
-      check(!!cover || !!styleCover, file + ' ' + hit + (where
-        ? '（' + where + ' 表已认领）'
-        : '——源码里不许写时间数字：入 YAML 走 import，或收入 PERMANENT / STYLE 并写明理由'))
+      check(!!cover, file + ' ' + hit + (cover
+        ? '（PERMANENT 表已认领）'
+        : '——源码里不许写时间数字：入 YAML 走 import，或收入 PERMANENT 并写明理由'))
     }
   }
 
   // 两张表的片段自身也要存在，否则这两张表就是空头支票。
   // 这段放在扫描循环之外：文件当次没有命中（#1236 把样式时长搬走、写法改了）、甚至文件被删了，
   // 都要在这里判红。放进循环会被上面的 if (hits.length === 0) continue 整段跳过，等于没查。
-  const tablePairs: Array<[string, Map<string, string[]>]> = [['PERMANENT', permanentByFile], ['STYLE', styleByFile]]
+  const tablePairs: Array<[string, Map<string, string[]>]> = [['PERMANENT', permanentByFile]]
   const tableFiles = new Map<string, Array<{ table: string; snippets: string[] }>>()
   for (const pair of tablePairs) {
     for (const [file, snippets] of pair[1]) {
@@ -832,12 +797,6 @@ async function main(): Promise<void> {
       if (timeishLike(mt[1])) addKnown(row.file, mt[1])
     }
   }
-  // STYLE 表里的名字同理：数字已由第四节认领，覆盖率这节只认名字出现过。
-  for (const row of STYLE_DURATIONS) {
-    for (const mt of row.snippet.matchAll(/([A-Za-z_$][A-Za-z0-9_$]*)/g)) {
-      if (timeishLike(mt[1])) addKnown(row.file, mt[1])
-    }
-  }
   const exempt = new Map<string, Map<string, string>>()
   for (const row of EXEMPTS) {
     if (!exempt.has(row.file)) exempt.set(row.file, new Map())
@@ -865,6 +824,8 @@ async function main(): Promise<void> {
   let scanned = 0
   for (const file of files) {
     if (file === 'src/shared/time-config/src/values.ts') continue
+    // #1236：动效时长的唯一真源，理由见第四节同一处跳过。
+    if (file === 'src/client/kernel/motion.ts') continue
     const text = fs.readFileSync(path.join(ROOT, file), 'utf8')
     const stripped = stripCode(text)
     const declLines = new Map<string, string>()

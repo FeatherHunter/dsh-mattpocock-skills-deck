@@ -31,7 +31,8 @@ import path from 'node:path'
 import { spliceableJs } from './lib/source-text.ts'
 // 2026-10-22（#1378 浅色皮肤）：本门禁现在还兼管 skillDetail 目录下那块像素皮肤的浅色令牌，
 //   判据读的就是样式真源本身（PIXEL_STYLE_TEXT），见文件末尾「浅色皮肤」那一节。
-import { PIXEL_STYLE_TEXT } from '../src/client/views/skillDetail/PixelStyles.ts'
+// #1236：像素样式叶子求值时要用 kernel/motion.ts 的 MOTION（闭包里的自由变量），
+//   所以不能静态 import——改成下面把 MOTION 挂进 ctx 之后再动态 import。
 
 // 2026-10-17 先修：这两片像素叶子在加载时读中央时间常量 SKILL_SKELETON_DELAY_MS（#1215 引入，
 //   真源 src/shared/time-config/values.js，构建时由 buildTimeConfigClientFragment() 注入闭包）。
@@ -40,6 +41,12 @@ import { PIXEL_STYLE_TEXT } from '../src/client/views/skillDetail/PixelStyles.ts
 //   （tests/verify-time-config.ts 盯着常量登记，硬编码会当场被判出来）。
 const centralTime = await import('./../src/shared/time-config/values.js')
 const SKILL_SKELETON_DELAY_MS = centralTime.SKILL_SKELETON_DELAY_MS
+// #1236：动效时长的唯一真源；像素样式叶子求值时从 ctx 里取这个自由变量。
+const motionMod = await import('../src/client/kernel/motion.ts')
+const MOTION = motionMod.MOTION
+// PixelStyles 在模块求值时就把时长拼进样式文本；直接 import 它（而不是拼进 vm）时也要能取到自由变量。
+globalThis.MOTION = MOTION
+const { PIXEL_STYLE_TEXT } = await import('../src/client/views/skillDetail/PixelStyles.ts')
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://127.0.0.1:59519/' })
 global.window = dom.window; global.document = dom.window.document
@@ -53,6 +60,7 @@ const ctx = {
   window: dom.window, document: dom.window.document, navigator: dom.window.navigator,
   getComputedStyle: dom.window.getComputedStyle, requestAnimationFrame: (cb) => setTimeout(cb, 0),
   ResizeObserver: global.ResizeObserver, Promise, Date, Math, JSON, Array, Object, String, Number, Boolean, RegExp, Error,
+  MOTION, // #1236：样式叶子在求值时就拼动效时长
 }
 ctx.globalThis = ctx
 vm.createContext(ctx)

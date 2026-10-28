@@ -16,6 +16,7 @@
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { sourceText } from './lib/source-text.ts'
+import { MOTION } from '../src/client/kernel/motion.ts' // #1236：骨架微光的时长取动效令牌
 
 let failures = 0
 let total = 0
@@ -333,7 +334,9 @@ check(!!SHAPE && !!SHAPE.line1 && !!SHAPE.line2 && !!SHAPE.ring && !!SHAPE.list,
 // ============ D 组：微光节奏与既有口径不动 ============
 {
   const feedSrc = sourceText('src/client/views/feedback/feedback-styles.ts')
-  check(feedSrc.indexOf('animation:dsws-fb-skel 1.1s linear infinite') >= 0, 'D1 骨架微光仍是 1.1 秒循环（#953 定下的节奏，这次不改）')
+  // #1236：字面时长搬进了动效令牌，这里改为核对「取的是骨架微光令牌」。
+  check(feedSrc.indexOf('animation:dsws-fb-skel \' + MOTION.skeletonShimmerMs + \'ms linear infinite') >= 0 &&
+    MOTION.skeletonShimmerMs === 1100, 'D1 骨架微光仍是 1.1 秒循环（#953 定下的节奏；#1236 起时长取动效令牌）')
   check(feedSrc.indexOf('prefers-reduced-motion') >= 0 || feedSrc.indexOf('animation:none') >= 0, 'D2 减少动态时降级为静态底色的既有做法还在')
 }
 

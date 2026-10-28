@@ -54,6 +54,7 @@ declare const Tip: any;
 // 构建时由生成器变成常量拼进界面闭包；这里的 declare 只是让 TypeScript 知道这个名字存在。
 declare const ISSUE_DETAIL_CONFIRM_MS: number;
 declare const CONTAINER_ACCENT: any;
+declare const MOTION: any; // #1236 动效时长统一在 kernel/motion.ts，本文件只引用不写真值
 export const IssueDetail = function (props: any): any {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
@@ -142,7 +143,7 @@ export const IssueDetail = function (props: any): any {
             h('span', { 'data-detail-crumb': 1, 'data-full': navCrumb, style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, navCrumb),
             h('span', { style: { flex: 1 } }),
           ]),
-          h('div', { style: { padding: '24px 0', textAlign: 'center', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 } }, [h('div', { className: 'dsws-spinner', style: { width: 14, height: 14, border: '2px solid rgba(255,255,255,.15)', borderTopColor: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', borderRadius: '50%', animation: 'dsws-spin 1s linear infinite' } }), h('span', null, tr('list.loading'))]),
+          h('div', { style: { padding: '24px 0', textAlign: 'center', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 } }, [h('div', { className: 'dsws-spinner', style: { width: 14, height: 14, border: '2px solid rgba(255,255,255,.15)', borderTopColor: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', borderRadius: '50%', animation: 'dsws-spin ' + MOTION.inlineSpinnerMs + 'ms linear infinite' } }), h('span', null, tr('list.loading'))]),
         ])
       }
       // err 无 src（且非 snap 降级可显）→ 错误横幅
@@ -217,7 +218,7 @@ export const IssueDetail = function (props: any): any {
             ? h('div', { style: { fontSize: 12, lineHeight: 1.6, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, (typeof mdToHtml === 'function' ? mdToHtml(detail.body, { st: st }) : String(detail.body)))
             : h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('detail.noBody')))
         : h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)', display: 'flex', alignItems: 'center', gap: 6 } }, [
-            mode === 'err' ? null : h('div', { className: 'dsws-spinner', style: { width: 11, height: 11, border: '2px solid rgba(255,255,255,.15)', borderTopColor: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', borderRadius: '50%', animation: 'dsws-spin 1s linear infinite' } }),
+            mode === 'err' ? null : h('div', { className: 'dsws-spinner', style: { width: 11, height: 11, border: '2px solid rgba(255,255,255,.15)', borderTopColor: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', borderRadius: '50%', animation: 'dsws-spin ' + MOTION.inlineSpinnerMs + 'ms linear infinite' } }),
             h('span', null, mode === 'err' ? tr('detail.bodyNotYet') : tr('list.loading')),
           ])
       const has = function (nm: any) { return labelArr.some(function (l: any) { return (l.name || l) === nm }) }

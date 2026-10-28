@@ -37,6 +37,7 @@ declare const newSessionTitleNew: any
 declare const tr: (...args: any[]) => any
 declare const CONTAINER_ACCENT: any
 declare const buildEntryCard: any
+declare const MOTION: any; // #1236 动效时长统一在 kernel/motion.ts，本文件只引用不写真值
 
 export const ENTRY_CHOOSER_WIDTH = 392
 // 状态栏那一处是横排两张卡：两张卡各 368 宽、卡间隙 9、左右内边距各 12，合计 769。
@@ -265,7 +266,7 @@ export const EntryChooser = function (props: any) {
         borderRadius: 12,
         cursor: 'pointer',
         filter: focused ? 'brightness(1.14)' : 'none',
-        transition: 'filter .12s',
+        transition: 'filter ' + MOTION.hoverFadeMs + 'ms',
         outline: focused ? '2px solid ' + accent : 'none',
         outlineOffset: 2,
       },

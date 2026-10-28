@@ -79,6 +79,9 @@ async function main() {
   const appearanceMod = await imp('src/client/statusbar/suggestAppearance.ts')
   global.SUGGEST_Z = appearanceMod.SUGGEST_Z
   global.SUGGEST_APPEARANCE = appearanceMod.SUGGEST_APPEARANCE
+  // #1236：动画时长住在 kernel/motion.ts 的 MOTION 里，样式叶子求值前必须先接上。
+  const motionMod = await imp('src/client/kernel/motion.ts')
+  global.MOTION = motionMod.MOTION
   const injectCalls = []
   const portalCalls = []
   global.inject = function (st, text) { injectCalls.push({ st: st, text: text }) }
