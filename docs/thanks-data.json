@@ -313,6 +313,18 @@
       "lastActive": "2026-10-08T02:00:51Z",
       "prs": []
     },
+    "danyanp": {
+      "issues": [
+        {
+          "n": 1595,
+          "at": "2026-10-28T07:25:54Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-28T07:25:54Z"
+    },
     "dis0neplay": {
       "comments": [],
       "discussions": [],
@@ -634,6 +646,6 @@
   },
   "cursors": {
     "discussions": 1578,
-    "issues": 1581
+    "issues": 1596
   }
 }
