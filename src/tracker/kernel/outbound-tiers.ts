@@ -41,6 +41,22 @@ function partsOf(args: unknown): string[] {
 /** 写操作动词：命中即走写档（等得最久，且调用方不许自动重试，见 #969）。 */
 const WRITE_VERBS = new Set(['create', 'edit', 'close', 'reopen', 'comment', 'delete', 'lock', 'unlock', 'pin', 'unpin'])
 
+/**
+ * label / release 两族里的只读子命令（#1614）。
+ *
+ * 为什么不能按族名一刀切：这两族里既有读也有写。旧实现把族名命中的调用一律判成写，
+ * 只读的列表查询于是进写桶；它一失败还会给写桶记一次通路冷却（时长住
+ * config/timeouts.yaml 的 outboundTransportCooldownMs），挡住真正的写操作。
+ *
+ * 取值按 gh 2.97.0 的 --help 实测：label 只有 list（别名 ls）；
+ * release 有 list（别名 ls）、view、download、verify、verify-asset。
+ * 不在这张表里的子命令一律按写（fail-closed）：漏判写的代价（真写操作进并发读桶、
+ * 失败回话按读档说可重试、误清写桶冷却）远高于误判写（多占一个写名额、慢一点）。
+ * 只有族名、没有子命令时（gh 只打帮助）由 isWriteGhArgs 的 parts.length < 2 分支按读返回。
+ */
+const LABEL_READ_SUBCOMMANDS = new Set(['list', 'ls'])
+const RELEASE_READ_SUBCOMMANDS = new Set(['list', 'ls', 'view', 'download', 'verify', 'verify-asset'])
+
 function isApiWrite(parts: string[]): boolean {
   // 经接口写票一定带写方法：-X POST 之类或 --method 覆盖时才是写，默认读。
   if (parts[0] !== 'api') return false
@@ -64,7 +80,9 @@ export function isWriteGhArgs(args: unknown): boolean {
   if (parts.length < 2) return false
   if (parts[0] === 'issue' || parts[0] === 'pr') return WRITE_VERBS.has(parts[1])
   if (parts[0] === 'api') return isApiWrite(parts)
-  if (parts[0] === 'label' || parts[0] === 'release') return true
+  // #1614：label / release 按子命令判，只有白名单里的子命令是读；白名单外的（含将来新增的）按写。
+  if (parts[0] === 'label') return !LABEL_READ_SUBCOMMANDS.has(parts[1])
+  if (parts[0] === 'release') return !RELEASE_READ_SUBCOMMANDS.has(parts[1])
   return false
 }
 

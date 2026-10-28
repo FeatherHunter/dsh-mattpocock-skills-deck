@@ -1,10 +1,11 @@
 // tests/verify-969-tiered-timeout.ts —— 门禁：分档超时终值（#969 立，#1224 定稿）
 // 为什么需要它：以前全仓只有一档 30000，读等得久拖住界面，写杀得早害用户不敢重试，
 // 探活本该最快却也要等满；慢网超时还可能被说成没登录，写超时还可能被自动重试写两遍。
-// 它守三件事（只看外部行为，不看内部队列数组长什么样）：
+// 它守这几件事（只看外部行为，不看内部队列数组长什么样；正文按主题分节，下面的清单不逐节对应）：
 //   一、读与写各走各的档（三个档位的毫秒数取自 src/shared/time-config/values.js，调用方显式传超时优先）；
 //   二、慢网超时归网络档（未知、稍后），不报没登录；
-//   三、写超时只试一次就停，把超时原样交回调用方人工核对，不自动再发一次。
+//   三、写超时只试一次就停，把超时原样交回调用方人工核对，不自动再发一次；
+//   四、label / release 两族按子命令判读写（#1614）：只读的 list、view、download、verify 等不进写桶。
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-969-tiered-timeout.ts（2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注，判据一条没动）
 import nodePath from 'node:path'
 import { readFileSync } from 'node:fs'
@@ -41,7 +42,7 @@ try {
   check(false, '一、能读到分档超时纯函数（src/tracker/kernel/outbound-tiers.ts）', String((e && e.message) || e).slice(0, 200))
 }
 if (tiers) {
-  const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS, tierForGhArgs, timeoutForGhArgs, timeoutForTier, normalizeGhStringFields } = tiers
+  const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS, tierForGhArgs, timeoutForGhArgs, timeoutForTier, isWriteGhArgs, normalizeGhStringFields } = tiers
   check(READ_TIMEOUT_MS === READ_BUDGET_MS, '一、读档是 ' + READ_BUDGET_MS / 1000 + ' 秒（#1224 定为终值）', '实得 ' + String(READ_TIMEOUT_MS))
   check(WRITE_TIMEOUT_MS === WRITE_BUDGET_MS, '一、写档是 ' + WRITE_BUDGET_MS / 1000 + ' 秒（#1224 沿用 10-27 放宽值，值取自中央常量）', '实得 ' + String(WRITE_TIMEOUT_MS))
   check(PROBE_TIMEOUT_MS === PROBE_BUDGET_MS, '一、探活档是 ' + PROBE_BUDGET_MS / 1000 + ' 秒（#1160：冷启动 keyring 加 TLS 经常超 3 秒，与谓词 15 秒对齐）', '实得 ' + String(PROBE_TIMEOUT_MS))
@@ -61,6 +62,32 @@ if (tiers) {
   // 调用方显式传的超时优先，不被档位覆盖
   check(timeoutForGhArgs(['issue', 'list'], 5000) === 5000, '一、调用方显式传的超时优先')
   check(timeoutForTier('write') === WRITE_BUDGET_MS && timeoutForTier('probe') === PROBE_BUDGET_MS && timeoutForTier('read') === READ_BUDGET_MS, '一、按档名取超时各走各的档')
+  // #1614：label / release 两族按子命令判读写，不再按族名一刀切。
+  // 读子命令按 gh 2.97.0 的 --help 实测：label 只有 list（别名 ls）；
+  // release 有 list（别名 ls）、view、download、verify、verify-asset。
+  check(isWriteGhArgs(['label', 'list', '--repo', 'a/b']) === false, '一、label list 是读（#1614）')
+  check(isWriteGhArgs(['label', 'ls']) === false, '一、label ls（list 的别名）是读')
+  check(isWriteGhArgs(['label', 'create', 'x', '--color', 'ff0000']) === true, '一、label create 是写（#1614）')
+  check(isWriteGhArgs(['label', 'edit', 'x', '--new-name', 'y']) === true, '一、label edit 是写')
+  check(isWriteGhArgs(['label', 'delete', '--yes', 'x']) === true, '一、label delete 是写')
+  check(isWriteGhArgs(['release', 'list']) === false, '一、release list 是读（#1614）')
+  check(isWriteGhArgs(['release', 'ls']) === false, '一、release ls（list 的别名）是读')
+  check(isWriteGhArgs(['release', 'view', 'v1.0.0']) === false, '一、release view 是读')
+  check(isWriteGhArgs(['release', 'download', 'v1.0.0', 'x.zip']) === false, '一、release download 是读')
+  check(isWriteGhArgs(['release', 'verify', 'v1.0.0']) === false, '一、release verify 是读')
+  check(isWriteGhArgs(['release', 'verify-asset', 'v1.0.0', 'x.zip']) === false, '一、release verify-asset 是读')
+  check(isWriteGhArgs(['release', 'upload', 'v1.0.0', 'x.zip']) === true, '一、release upload 是写（#1614）')
+  check(isWriteGhArgs(['release', 'create', 'v1.0.0']) === true, '一、release create 是写')
+  check(isWriteGhArgs(['release', 'delete-asset', 'v1.0.0', 'x.zip']) === true, '一、release delete-asset 是写')
+  // 未知子命令按写（fail-closed）：宁可多占一个写名额、慢一点，也不能把可能的写操作放进并发读桶。
+  check(isWriteGhArgs(['label', 'unknown']) === true, '一、label 的未知子命令按写（fail-closed）')
+  check(isWriteGhArgs(['release', 'unknown']) === true, '一、release 的未知子命令按写（fail-closed）')
+  // 只有族名（gh 只打帮助）时没有子命令可判，仍按读，与函数现有 parts.length < 2 的分支一致。
+  check(isWriteGhArgs(['label']) === false, '一、只有族名的 label 按读')
+  check(isWriteGhArgs(['release']) === false, '一、只有族名的 release 按读')
+  // 档位与预算跟着判定走：读走读档，写走写档。
+  check(tierForGhArgs(['label', 'list', '--repo', 'a/b']) === 'read' && timeoutForGhArgs(['label', 'list', '--repo', 'a/b']) === READ_BUDGET_MS, '一、label list 走读档与读预算')
+  check(tierForGhArgs(['release', 'upload', 'v1.0.0', 'x.zip']) === 'write' && timeoutForGhArgs(['release', 'upload', 'v1.0.0', 'x.zip']) === WRITE_BUDGET_MS, '一、release upload 走写档与写预算')
   // #1375：gh 的 -F 会做类型推断，纯数字的 owner（例如 776317107）被发成 JSON 数字，
   // 而 GraphQL 把 $owner 与 $name 声明为 String!，于是回「Could not coerce ... to String」。
   // 出站前必须把这两个字段归一成 -f，整型字段保持 -F。
