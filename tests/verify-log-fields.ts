@@ -1,5 +1,7 @@
 // verify-log-fields.ts —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
-// 用法：在插件根目录执行 node tests/verify-log-fields.ts，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-log-fields.ts。
+// 2026-10-28（#1609）起 refresh.decide 与 refresh.skipped 两条事件的字段改为运行时采集（见 collectCalls 之后的注释），
+//   要在 ts-hook 下才能载入 .ts 源码、把闸真的跑一遍；其余事件仍是纯静态扫描。不走钩子时运行时采集那一项会判红并写明用法。
 // 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（2026-10-21 map 1010 wayfinder 逐票复核新增常驻 #120 gh.auth.env、#122 guide.banner 与按需 #121 gh.lane.saturated、#123 probe.loop、#124 prompt.link，共 127 事件（2026-10-26 #1007 新增常驻 #132 gh.transport：通路失败后的冷却三件事（设上 / 挡回 / 清零），字段只有 decision / bucket / reason / remainingMs / failStreak / cmd，命令只记短标签、不记原文；2026-10-26 #1475 新增常驻 #133 chain.predicate.timeout：检测链一次求值里外层等待预算先到点、被放弃的内层谓词后来回话各记一行，字段只有 id / phase / budgetMs / status / latencyMs；2026-10-25 #1514 新增按需 #131 preflight.check：房间预检的 Markdown 三项环境判据各落一行，字段只有 gate / status / evidence / cwdHash / latencyMs / opId，evidence 是短机器证据、cwdHash 只记 8 位散列，路径原文与错误原文一个字都不记；2026-10-23 #1409 新增按需 #127 suggest.bind、#128 suggest.call、#129 suggest.ready：界面借会话事件流取数的三条调试线，只记散列与计数，绝不记建议原文）；2026-10-20 #1295 新增按需 #114 container.split（列表页容器分拣这一趟：探索地图 / 规格 / 普通未关闭票 / 已关闭各几条，以及容器种类判定有没有退回文件内兜底）并给常驻 #10 snapshot.built 增补一格 specs（这一份快照里判成规格容器的几个；maps 是容器总数，条数不变）；2026-10-20 #1294 新增按需 #112 locale.registration（注册这一趟的结论：几门语言、新增几门、跳过几门、缺省语言、耗时）与常驻 #113 locale.registration.fail（注册失败那一步：读快照 / 新增语言 / 注册词表，哪门语言、回退目标、错误原文散列）；#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；2026-10-20 #1296 新增按需 #115 container.accent（启动时按调试档记一行界面实际取到的两色：explore 是中央色表 map 值、spec 是中央色表 spec 值）；
 // 2026-10-21 第二轮逐票复核（map 1010 的 1000–1300 段）没有新增事件，只给四条既有事件补判定字段：
 //   常驻 #5 gh.exec 增补 cmd（哪条 gh 子命令，例如 issue:create；从前只有 argv0='gh'，分不出查登录态还是改票）、
@@ -342,7 +344,11 @@ const ALLOWED = {
   //   按发生顺序用 > 连接（旧到新），成功归零时清空，第 4 笔起不追加（可能是半开探针失败，也可能是窗口里放行的
   //   读额度 / 人的动作失败）。既有五格含义不改——日志纪律要求事件名与字段含义稳定，改含义要发新事件。
   //   六格都来自闸自己的记忆（src/refresh/rooms/host/refresh-gate.ts 的 WorkspaceState），不查账本、不联网。
-  'refresh.decide': ['category', 'kind', 'verdict', 'reason', 'tier', 'cycle', 'keyHash', 'failuresSinceSuccess', 'backoffWindowStartedAt', 'lastFailureCategory', 'lastFailureKind', 'failureStreak', 'failureTrail'],
+  // 2026-10-28（#1609 修收集盲区时补上）另有四格是闸算这一笔时手里的事实，窗口外也带：
+  //   backendId 这次算的是哪个后端、budgetKind 走的是哪一档预算、readKnown 这一笔是不是已知只读、
+  //   offNetwork 是不是不走网络。四格在 #1446 账本按后端/桶分格时加进发射，白名单一直漏着；
+  //   静态收集器读不到这条事件的拼装，运行时采集接上之后才看见。
+  'refresh.decide': ['category', 'kind', 'verdict', 'reason', 'tier', 'cycle', 'keyHash', 'backendId', 'budgetKind', 'readKnown', 'offNetwork', 'failuresSinceSuccess', 'backoffWindowStartedAt', 'lastFailureCategory', 'lastFailureKind', 'failureStreak', 'failureTrail'],
   'refresh.skipped': ['keyHash', 'kind', 'reason', 'pending', 'failuresSinceSuccess', 'backoffWindowStartedAt', 'lastFailureCategory', 'lastFailureKind', 'failureStreak', 'failureTrail'],
   // 2026-09-23 #708（T4 第三批）新增一条按需事件（附录 1.5 节 #82）：一次行级增量跑完之后的结论 ——
   //   这一次走的是哪一档（补那几条薄查询 / 该整池 / 没变 / 被推迟 / 过期丢弃）、为什么、变了几行、
@@ -690,86 +696,182 @@ function collectCalls() {
   return found
 }
 
-const found = collectCalls()
-const names = Object.keys(found).sort()
+// ── 运行时采集（#1609） ────────────────────────────────────────────────────────
+// refresh.decide 与 refresh.skipped 的字段不是在调用点上写死的对象字面量：两条都是
+//   Object.assign({...固定几格}, failureAttribution(...) || {})
+// 现拼出来的 —— 固定那半写在调用点，归因那半由闸按自己的记忆决定补不补（窗口外一个都不补）。
+// 静态收集器只认调用点上写死的对象字面量与裸变量，撞上这种拼装只能收成空集；而空集会让
+// 「事件只含允许字段」那条断言以「实得 空」空过，白名单等于没守（#1446 加的四格就是这样漏掉的）。
+// 所以这两条改用运行时采集：装一只假日志出口（只接 event 与 fields，不落盘、不判产物），
+// 按 tests/verify-998-half-open.ts 第九段同一套真实路径（账本 + 闸）走一遍，让闸自己把行发出来，
+// 抄下每行真实的字段键。后面「运行时采集的字段与白名单一字不差」那条断言要求采到的键集与
+// 白名单逐字相等，采集失效（场景没走到发射点）或字段漂移都会变红，不会再空过。
+// 代价写在明处：①这一扇从此要在 ts-hook 下跑（见文件头用法）；②只覆盖跑到的分支 —— 将来给
+// 这两条事件加条件分支，要在这个场景里补一笔把它逼出来，不许把「相等」这条断言放宽成「包含」。
+// 同形态的静态盲区还有 7 条（chain.flow、cwd.persisted、gh.transport、labelColors.read、panelSync.eval、
+// probe.eval、refresh.patch），已另立 #1617 跟踪；本票不顺手扩大。
+const RUNTIME_CAPTURED = ['refresh.decide', 'refresh.skipped']
 
-// 一、允许表里每个事件都有埋点落点（允许表 109 个事件；自监控那几条由 verify-log-selfmon 覆盖，退役的 5 个 —— issuePath.push、issuePath.record、settings.save、choiceStore.hint.reject、sessionTickets.chain —— 不在源码里）。
-// #875 薄接线：update.install.exec 的发射器已收进已安装的更新包（事件保留、字段不变，落点改到包内编译产物）。
-// 本仓 src 里不再有它的落点，这里到包内发射处核对事件名与五个字段，找不到仍红。
-if (!found['update.install.exec']) {
+// 返回 { byEvent: {事件名: [键...]}, capturedRows } 或 { error: '...' }。
+// 采集失败不抛：交给调用方判红并打印可读原因，静态那部分照常跑完。
+async function captureRuntimeFields() {
   try {
-    const evtDef = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'shared', 'log-events.js'), 'utf8')
-    const store = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'core', 'executor.js'), 'utf8')
-    const named = evtDef.includes('"update.install.exec"')
-    const at = store.indexOf('LOG_EVENT_INSTALL_EXEC, {')
-    const near = at >= 0 ? store.slice(at, at + 900) : ''
-    const fieldsOk = ['route', 'ok', 'exitCode', 'durationMs', 'pluginId'].every((k) => near.includes(k))
-    if (named && at >= 0 && fieldsOk) found['update.install.exec'] = { keys: { route: 1, ok: 1, exitCode: 1, durationMs: 1, pluginId: 1 }, sites: ['node_modules/dsh-plugin-update/dist/core/executor.js（包内发射，常量名 LOG_EVENT_INSTALL_EXEC）'] }
-  } catch {}
-}
-// #1143 包拥有事件核对：白名单里的四个事件到 dsh-log 包内编译产物里核对发射点与字段（读包文件文本断言，不调用包）。
-// 字段形状是对外契约：这里逐键确认白名单里的键在包文本里仍在，才按白名单的键集补上落点，后面存在性与字段形状断言照旧全过。
-for (const name of PACKAGE_OWNED) {
-  if (found[name]) continue
-  try {
-    const storeText = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-log', 'dist', 'store.js'), 'utf8')
-    const forwardText = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-log', 'dist', 'client', 'forward.js'), 'utf8')
-    const keysOf = (n) => { const o = {}; for (const k of ALLOWED[n]) o[k] = 1; return o }
-    if (name === 'host.start' && storeText.includes("'host.start'") && ['pid', 'startedAt', 'dir', 'pluginVersion', 'os'].every((k) => storeText.includes(k))) {
-      found[name] = { keys: keysOf(name), sites: ['node_modules/dsh-log/dist/store.js（包内发射，writeStartupHeader 写启动头）'] }
-    } else if (name === 'log.forward.summary' && forwardText.includes("'log.forward.summary'") && ['droppedDelta', 'totalDropped', 'reason', 'windowMs'].every((k) => forwardText.includes(k))) {
-      found[name] = { keys: keysOf(name), sites: ['node_modules/dsh-log/dist/client/forward.js（包内发射，maybeForwardSummary 汇总行）'] }
-    } else if (name === 'log.switch.watchdog' && forwardText.includes("'log.switch.watchdog'") && ['timeoutMs', 'stage'].every((k) => forwardText.includes(k))) {
-      found[name] = { keys: keysOf(name), sites: ['node_modules/dsh-log/dist/client/forward.js（包内发射，watchSwitchOp 看门狗）'] }
-    } else if (name === 'log.export.fail' && forwardText.includes("'log.export.fail'") && ['errorHash'].every((k) => forwardText.includes(k))) {
-      found[name] = { keys: keysOf(name), sites: ['node_modules/dsh-log/dist/client/forward.js（包内发射，logExportFail 失败分支）'] }
+    const gateMod = require(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'refresh-gate.ts'))
+    const ledgerMod = require(path.join(ROOT, 'src', 'refresh', 'rooms', 'host', 'quota-ledger.ts'))
+    const budget = require(path.join(ROOT, 'src', 'refresh', 'kernel', 'host-budget.ts'))
+    let clock = 1700000000000
+    const ledger = ledgerMod.createLedger({ now: () => clock })
+    const backendId = 'github'
+    ledger.ensureBackend(backendId, { kind: 'two-buckets' })
+    ledger.syncServer(backendId, {
+      rest: { limit: 5000, remaining: 5000, reset: clock + budget.HOUR_MS },
+      graphql: { limit: 5000, remaining: 5000, reset: clock + budget.HOUR_MS },
+    }, clock)
+    const rows = []
+    const fakeLog = {
+      isEnabled: (level) => level === 'debug',
+      fire: (level, event, fields) => { rows.push({ level, event, fields }) },
     }
-  } catch {}
-}
-// 这一段必须留在上面的 if 之外：发射器今天在已安装的更新包里，条件为真时才会走进上面的委托核对；
-// 哪天发射器搬回本仓，found['update.install.exec'] 直接有值，这 109 条存在性断言仍然要一条不少地跑。
-for (const name of Object.keys(ALLOWED).sort()) {
-  check(!!found[name], '事件有埋点落点 ' + name + (found[name] ? '（' + found[name].sites.length + ' 处）' : '（全仓未找到）'))
-}
-for (const name of names) {
-  if (!ALLOWED[name]) check(false, '未知事件名须先更新附录与本门禁 ' + name + ' @ ' + found[name].sites.slice(0, 3).join('、'))
-}
-check(!found['issuePath.push'] && !found['issuePath.record'] && !found['sessionTickets.chain'], '已退役事件无埋点残留（issuePath.push、issuePath.record、sessionTickets.chain 只在附录追溯）')
-
-// 二、每个事件的实际字段键都在允许表内（只许少记、不过多记）。
-for (const name of Object.keys(ALLOWED).sort()) {
-  if (!found[name]) continue
-  const allowed = ALLOWED[name]
-  const actual = Object.keys(found[name].keys).sort()
-  const extra = actual.filter((k) => !allowed.includes(k))
-  check(extra.length === 0, '事件只含允许字段 ' + name + '（实得 ' + (actual.join('、') || '空') + '）' + (extra.length ? ' —— 多出：' + extra.join('、') : ''))
-}
-
-// 三、房内三点六个事件字段形状一字不差（附录 1.4 原文）。
-for (const name of Object.keys(ROOM_SHAPES).sort()) {
-  if (!found[name]) continue
-  const want = ROOM_SHAPES[name].slice().sort()
-  if (name === 'error.normalize') {
-    const actual = Object.keys(found[name].keys).sort()
-    // 两键必带；三个码值键按事实带上（这次判档手里有什么码就记什么码）。这三个键之外多出来的才是漂移。
-    const optional = ['httpCode', 'exitCode', 'errCode']
-    const ok = ROOM_SHAPES[name].every((k) => actual.includes(k))
-      && actual.every((k) => optional.includes(k) || ROOM_SHAPES[name].includes(k))
-    check(ok, '房内事件字段形状 ' + name + '（实得 ' + actual.join('、') + '，' + optional.join('、') + ' 只在真有对应事实时带）')
-    continue
+    const gate = gateMod.createGate({ ledger, now: () => clock, logCtx: fakeLog })
+    const workspaceKey = 'verify-log-fields-runtime'
+    gate.setWorkspace(workspaceKey, { active: true })
+    const sendFail = (source, kind) => gate.send({
+      source, kind, workspaceKey, plan: [{ phase: 'op' }], backendId,
+    }, () => { throw new Error('verify-log-fields 运行时采集：故意失败，把闸推到退避窗口') }).then(() => false, () => true)
+    // 三笔跨类别的连续失败（后台探针 / 人的动作 / 后台探针的另一类），第 4 笔就会被闸判成 defer；
+    // 那一行同时落 decide（带六格归因）与 skipped，正好覆盖两条事件的完整键集。
+    await sendFail('probe.tick', 'probe')
+    await sendFail('panel.write', 'write')
+    await sendFail('probe.tick', 'detail')
+    await gate.send({
+      source: 'probe.tick', kind: 'probe', workspaceKey, plan: [{ phase: 'op' }], backendId,
+    }, () => { throw new Error('verify-log-fields 运行时采集：这一笔应当被闸拦下，不该真跑') }).then(() => false, () => true)
+    const byEvent = {}
+    let capturedRows = 0
+    for (const row of rows) {
+      if (!RUNTIME_CAPTURED.includes(row.event)) continue
+      capturedRows += 1
+      if (!byEvent[row.event]) byEvent[row.event] = []
+      for (const k of Object.keys(row.fields || {})) {
+        if (!byEvent[row.event].includes(k)) byEvent[row.event].push(k)
+      }
+    }
+    return { byEvent, capturedRows }
+  } catch (e) {
+    return { error: String((e && e.stack) || e) }
   }
-  const actual = Object.keys(found[name].keys).sort()
-  check(JSON.stringify(actual) === JSON.stringify(want), '房内事件字段形状 ' + name + '（实得 ' + (actual.join('、') || '空') + '，应得 ' + want.join('、') + '）')
 }
 
-// 四、全局禁令抽查：全部事件的字段键并集里没有原文类键。
-const allKeys = {}
-for (const name of names) for (const k of Object.keys(found[name].keys)) allKeys[k] = true
-// 原文类键精确名单：与这些一字相同的键名不许出现在任何事件里
-// （是否配备用路径这类布尔键、带 Hash 后缀的散列键不在此列）。
-const RAW_KEYS = ['token', 'password', 'passwd', 'pwd', 'secret', 'authorization', 'bearer', 'url', 'path', 'cwd', 'message', 'error', 'err', 'stack', 'text', 'title', 'body', 'content', 'template', 'snapshot', 'stdout', 'stderr', 'args', 'argv', 'query', 'cookie', 'session', 'hint', 'repo', 'owner']
-const rawLike = Object.keys(allKeys).filter((k) => RAW_KEYS.includes(k))
-check(rawLike.length === 0, '字段键无原文类键（令牌、路径、地址、文本原文都不许作键名）' + (rawLike.length ? ' —— 命中：' + rawLike.join('、') : '（共 ' + Object.keys(allKeys).length + ' 个键）'))
+async function main() {
+  const found = collectCalls()
+  const names = Object.keys(found).sort()
+    // 把运行时采到的键集盖到静态收集结果上：这两条静态只能收成空集（原因见上面 captureRuntimeFields 的注释）。
+    // 采集失败单独判红，不让空集继续以「实得 空」空过。
+    const captured = await captureRuntimeFields()
+    if (captured.error) {
+      check(false, '运行时采集 refresh.decide / refresh.skipped 的字段失败（这一扇要在 ts-hook 下跑，见文件头用法）：' + captured.error.split('\n')[0])
+    } else {
+      for (const name of RUNTIME_CAPTURED) {
+        const seen = captured.byEvent[name]
+        if (!seen) {
+          check(false, '运行时采集没有见到 ' + name + ' 的发射行（场景漏了这一档，补场景，不许放宽断言）')
+          continue
+        }
+        const prev = found[name] || { keys: {}, sites: [] }
+        const keys = {}
+        for (const k of seen) keys[k] = 1
+        found[name] = { keys, sites: prev.sites.concat(['运行时采集：假日志出口跑一遍真实发射（场景见本文件 captureRuntimeFields）']) }
+      }
+    }
 
-console.log(failed ? '\n存在失败 — verify-log-fields 未通过' : '\n全部通过 — 字段白名单门禁生效（' + total + ' 项断言）')
-process.exit(failed ? 1 : 0)
+  // 一、允许表里每个事件都有埋点落点（允许表 109 个事件；自监控那几条由 verify-log-selfmon 覆盖，退役的 5 个 —— issuePath.push、issuePath.record、settings.save、choiceStore.hint.reject、sessionTickets.chain —— 不在源码里）。
+  // #875 薄接线：update.install.exec 的发射器已收进已安装的更新包（事件保留、字段不变，落点改到包内编译产物）。
+  // 本仓 src 里不再有它的落点，这里到包内发射处核对事件名与五个字段，找不到仍红。
+  if (!found['update.install.exec']) {
+    try {
+      const evtDef = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'shared', 'log-events.js'), 'utf8')
+      const store = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'core', 'executor.js'), 'utf8')
+      const named = evtDef.includes('"update.install.exec"')
+      const at = store.indexOf('LOG_EVENT_INSTALL_EXEC, {')
+      const near = at >= 0 ? store.slice(at, at + 900) : ''
+      const fieldsOk = ['route', 'ok', 'exitCode', 'durationMs', 'pluginId'].every((k) => near.includes(k))
+      if (named && at >= 0 && fieldsOk) found['update.install.exec'] = { keys: { route: 1, ok: 1, exitCode: 1, durationMs: 1, pluginId: 1 }, sites: ['node_modules/dsh-plugin-update/dist/core/executor.js（包内发射，常量名 LOG_EVENT_INSTALL_EXEC）'] }
+    } catch {}
+  }
+  // #1143 包拥有事件核对：白名单里的四个事件到 dsh-log 包内编译产物里核对发射点与字段（读包文件文本断言，不调用包）。
+  // 字段形状是对外契约：这里逐键确认白名单里的键在包文本里仍在，才按白名单的键集补上落点，后面存在性与字段形状断言照旧全过。
+  for (const name of PACKAGE_OWNED) {
+    if (found[name]) continue
+    try {
+      const storeText = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-log', 'dist', 'store.js'), 'utf8')
+      const forwardText = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-log', 'dist', 'client', 'forward.js'), 'utf8')
+      const keysOf = (n) => { const o = {}; for (const k of ALLOWED[n]) o[k] = 1; return o }
+      if (name === 'host.start' && storeText.includes("'host.start'") && ['pid', 'startedAt', 'dir', 'pluginVersion', 'os'].every((k) => storeText.includes(k))) {
+        found[name] = { keys: keysOf(name), sites: ['node_modules/dsh-log/dist/store.js（包内发射，writeStartupHeader 写启动头）'] }
+      } else if (name === 'log.forward.summary' && forwardText.includes("'log.forward.summary'") && ['droppedDelta', 'totalDropped', 'reason', 'windowMs'].every((k) => forwardText.includes(k))) {
+        found[name] = { keys: keysOf(name), sites: ['node_modules/dsh-log/dist/client/forward.js（包内发射，maybeForwardSummary 汇总行）'] }
+      } else if (name === 'log.switch.watchdog' && forwardText.includes("'log.switch.watchdog'") && ['timeoutMs', 'stage'].every((k) => forwardText.includes(k))) {
+        found[name] = { keys: keysOf(name), sites: ['node_modules/dsh-log/dist/client/forward.js（包内发射，watchSwitchOp 看门狗）'] }
+      } else if (name === 'log.export.fail' && forwardText.includes("'log.export.fail'") && ['errorHash'].every((k) => forwardText.includes(k))) {
+        found[name] = { keys: keysOf(name), sites: ['node_modules/dsh-log/dist/client/forward.js（包内发射，logExportFail 失败分支）'] }
+      }
+    } catch {}
+  }
+  // 这一段必须留在上面的 if 之外：发射器今天在已安装的更新包里，条件为真时才会走进上面的委托核对；
+  // 哪天发射器搬回本仓，found['update.install.exec'] 直接有值，这 109 条存在性断言仍然要一条不少地跑。
+  for (const name of Object.keys(ALLOWED).sort()) {
+    check(!!found[name], '事件有埋点落点 ' + name + (found[name] ? '（' + found[name].sites.length + ' 处）' : '（全仓未找到）'))
+  }
+  for (const name of names) {
+    if (!ALLOWED[name]) check(false, '未知事件名须先更新附录与本门禁 ' + name + ' @ ' + found[name].sites.slice(0, 3).join('、'))
+  }
+  check(!found['issuePath.push'] && !found['issuePath.record'] && !found['sessionTickets.chain'], '已退役事件无埋点残留（issuePath.push、issuePath.record、sessionTickets.chain 只在附录追溯）')
+
+  // 二、每个事件的实际字段键都在允许表内（只许少记、不过多记）。
+  for (const name of Object.keys(ALLOWED).sort()) {
+    if (!found[name]) continue
+    const allowed = ALLOWED[name]
+    const actual = Object.keys(found[name].keys).sort()
+    const extra = actual.filter((k) => !allowed.includes(k))
+    check(extra.length === 0, '事件只含允许字段 ' + name + '（实得 ' + (actual.join('、') || '空') + '）' + (extra.length ? ' —— 多出：' + extra.join('、') : ''))
+  }
+
+    // 二之一、运行时采集的两条：采集到的键集与白名单一字不差（#1609 的回归断言）。
+    // 静态收集器对这两条只能收成空集；采集失效或字段漂移（多一个、少一个）都必须在这里变红。
+    for (const name of RUNTIME_CAPTURED) {
+      if (captured.error || !captured.byEvent[name]) continue
+      const want = ALLOWED[name].slice().sort()
+      const actual = Object.keys(found[name].keys).sort()
+      check(JSON.stringify(actual) === JSON.stringify(want), '运行时采集的字段与白名单一字不差 ' + name + '（实得 ' + actual.join('、') + '，应得 ' + want.join('、') + '；改字段要同步改上面 captureRuntimeFields 的场景）')
+    }
+  // 三、房内三点六个事件字段形状一字不差（附录 1.4 原文）。
+  for (const name of Object.keys(ROOM_SHAPES).sort()) {
+    if (!found[name]) continue
+    const want = ROOM_SHAPES[name].slice().sort()
+    if (name === 'error.normalize') {
+      const actual = Object.keys(found[name].keys).sort()
+      // 两键必带；三个码值键按事实带上（这次判档手里有什么码就记什么码）。这三个键之外多出来的才是漂移。
+      const optional = ['httpCode', 'exitCode', 'errCode']
+      const ok = ROOM_SHAPES[name].every((k) => actual.includes(k))
+        && actual.every((k) => optional.includes(k) || ROOM_SHAPES[name].includes(k))
+      check(ok, '房内事件字段形状 ' + name + '（实得 ' + actual.join('、') + '，' + optional.join('、') + ' 只在真有对应事实时带）')
+      continue
+    }
+    const actual = Object.keys(found[name].keys).sort()
+    check(JSON.stringify(actual) === JSON.stringify(want), '房内事件字段形状 ' + name + '（实得 ' + (actual.join('、') || '空') + '，应得 ' + want.join('、') + '）')
+  }
+
+  // 四、全局禁令抽查：全部事件的字段键并集里没有原文类键。
+  const allKeys = {}
+  for (const name of names) for (const k of Object.keys(found[name].keys)) allKeys[k] = true
+  // 原文类键精确名单：与这些一字相同的键名不许出现在任何事件里
+  // （是否配备用路径这类布尔键、带 Hash 后缀的散列键不在此列）。
+  const RAW_KEYS = ['token', 'password', 'passwd', 'pwd', 'secret', 'authorization', 'bearer', 'url', 'path', 'cwd', 'message', 'error', 'err', 'stack', 'text', 'title', 'body', 'content', 'template', 'snapshot', 'stdout', 'stderr', 'args', 'argv', 'query', 'cookie', 'session', 'hint', 'repo', 'owner']
+  const rawLike = Object.keys(allKeys).filter((k) => RAW_KEYS.includes(k))
+  check(rawLike.length === 0, '字段键无原文类键（令牌、路径、地址、文本原文都不许作键名）' + (rawLike.length ? ' —— 命中：' + rawLike.join('、') : '（共 ' + Object.keys(allKeys).length + ' 个键）'))
+
+  console.log(failed ? '\n存在失败 — verify-log-fields 未通过' : '\n全部通过 — 字段白名单门禁生效（' + total + ' 项断言）')
+  process.exit(failed ? 1 : 0)
+}
+
+main().catch((e) => { console.error(e); process.exit(1) })

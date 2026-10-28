@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T11:52:31.203Z",
+  "generatedAt": "2026-10-28T12:21:01.910Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 426,
   "gateCount": 426,
@@ -7920,6 +7920,9 @@
         "src/deck",
         "src/host",
         "src/refresh",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker"
       ],
       "dirs": [
@@ -7927,13 +7930,15 @@
         "src/deck",
         "src/host",
         "src/refresh",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
         "src/tracker"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条"
     },
     {
       "step": "node tests/verify-log-selfmon.ts",
@@ -10994,6 +10999,7 @@
       "node tests/verify-gate-accounting.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-index-window.ts",
+      "node tests/verify-log-fields.ts",
       "node tests/verify-policy.ts",
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-time-config.ts",
@@ -11145,6 +11151,7 @@
       "node tests/verify-github-rest-fallback.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-log-exec-606.ts",
+      "node tests/verify-log-fields.ts",
       "node tests/verify-multi-effort.ts",
       "node tests/verify-naming-title-fact.ts",
       "node tests/verify-parse-leaf.ts",
