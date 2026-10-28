@@ -209,7 +209,7 @@ mapExecute:
 
     {{shared:sharedTools}}
 mapInspect:
-  version: 12
+  version: 13
   placeholders:
     - n
     - title
@@ -255,7 +255,7 @@ mapInspect:
     - [ ] Check whether those sub-issues already exist but are not showing as true sub-issues of this map (count still 0/0, not listed in detail)
 
     ## Fix
-    - [ ] First fetch the map current body into an absolute-path file (keep the `## Destination` section), then wire the sub-issues to this map the way this backend declares: {subIssue}
+    - [ ] First read the map body back (the `## Destination` section must be kept), then wire the sub-issues to this map the way this backend declares: {subIssue}
     - [ ] If the sub-issues do not exist yet, create them per the original plan, then wire them the same way
     - [ ] After fixing, verify the sub-issue count matches the way stated above, and that the panel count is no longer 0/0 and the detail page lists all sub-issues with correct blocking
 
