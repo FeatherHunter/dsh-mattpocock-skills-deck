@@ -114,7 +114,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-25 #1526：切回后台会话时从历史重放补出最后一组已收尾的建议（规格 #1525）；
   // 2026-10-28 #1420 第五项：补出改成扫整个事件窗口、窗口装载完成的那次 replace 再补一次，
   // 并补上「已热会话最后一次变更是 append」、结束原因非 completed 两组场景；68 条是单跑实测得出的。
-  'verify-1526-suggest-replay-restore': 68,
+  // 2026-10-28 #1420 复审：9c 钉住「个别条目缺提示词时界面沿用宽松解析、丢掉坏条目后仍整组上屏」，
+  // 把「不会半组」收窄成「交付不拆组」；73 条是单跑实测得出的。
+  'verify-1526-suggest-replay-restore': 73,
   // 2026-10-27 #1571：GitHub 房间调用点的 -F/-f 写法（20 处 owner/name 逐文件点名、整型字段仍走 -F）；
   // 15 条是单跑实测得出的。
   'verify-1571-gh-flag-writing': 15,

@@ -16,7 +16,9 @@
 //      之后有新建议正常交付时关闭标记失效、两个会话互不串味；源码守卫仍是不落盘不加定时器不 retain；
 //   ⑥ 补出扫的是整个事件窗口而不是这一次变更的增量（#1420 第五项，真机上补不出气泡的根因）；
 //   ⑦ turn/end 的结束原因不是 completed（aborted / error / interrupted）时，参数完整的那一组照常
-//      交付一次、参数坏的不交付（#1420 第三项定下的口径，见 suggestStream.ts 里 turn-end 那一段）。
+//      交付一次、整份参数解析不出来的不交付（#1420 第三项定下的口径，见 suggestStream.ts 里 turn-end
+//      那一段）；个别条目缺提示词时按 suggestFacts.ts 的宽松口径丢掉坏条目、剩下够数仍整组上屏，
+//      所以「不会半组」只指交付不拆组，显示条数可能比模型原本给的少（9c 钉住这条既有容错）。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1526-suggest-replay-restore.ts
 // 断言数变化时同步 scripts/gate-map.mts 里 COMPLETION_RECORDED_GATES 的 verify-1526-suggest-replay-restore。
@@ -295,7 +297,7 @@ async function main() {
   }
 
   // 9) turn/end 的结束原因不是 completed（#1420 第三项的口径，见 suggestStream.ts 里 turn-end 那一段）：
-  // 调用到过、参数完整的一组照常交付一次；参数坏的那条在解析处就被拒，不会半组上屏。
+  // 调用到过、参数完整的一组照常交付一次；整份参数解析不出来的那条不出气泡。
   {
     const kinds = ['aborted', 'error', 'interrupted']
     for (let i = 0; i < kinds.length; i++) {
@@ -311,7 +313,7 @@ async function main() {
     const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-r-bad', restoreReplay: true, onReady: env.onReady })
     const badEvent = { type: 'tool/call', data: { turn: 1, step: 1, callId: 'r-bad', name: 'suggest_next_steps', arguments: '{oops' } }
     env.notify([startEvent(1), badEvent, endEventWithReason(1, 'interrupted')])
-    check(env.ready.length === 0, '结束原因 interrupted 但参数坏了：不上屏（不会半组）')
+    check(env.ready.length === 0, '结束原因 interrupted 但整份参数解析不出来：不上屏')
     stream.dispose()
   }
 
@@ -320,6 +322,28 @@ async function main() {
     const env = makeEnv({ entries: [startEvent(1), callEvent('his-aborted', 1, A_ITEMS), endEventWithReason(1, 'aborted')] })
     const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-L', restoreReplay: true, onReady: env.onReady })
     check(env.ready.length === 1 && flatItemTexts(env.ready) === '/a-one|/a-two', '补出时结束原因 aborted 也算收尾（照常补出完整一组）')
+    stream.dispose()
+  }
+
+  // 9c) 个别条目不合法时界面沿用 #1409 的宽松口径：丢掉坏条目、剩下够最少条数仍整组上屏。
+  // 这不是交付时机把一组拆开（一次调用只交一次、不会分批），而是解析容错；工具侧对同一份参数是
+  // 整次拒绝（见 tests/verify-suggest-next-steps.ts 的「第一条缺提示词时整次拒绝」），界面不读工具
+  // 回执，所以两边可能不一致。这里钉住「显示条数会少于模型原本给的条数」，免得把「不会半组」
+  // 读成「显示条数一定等于模型给的条数」。
+  {
+    const mixed = [
+      { intro: '丙一', prompt: '/c-one', reason: '理由丙一' },
+      { intro: '丙二', reason: '缺提示词' },
+      { intro: '丙三', prompt: '/c-three', reason: '理由丙三' },
+    ]
+    const env = makeEnv({})
+    const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-r-mixed', restoreReplay: true, onReady: env.onReady })
+    env.notify([startEvent(1), callEvent('r-mixed', 1, mixed), endEventWithReason(1, 'aborted')])
+    check(env.ready.length === 1, '个别条目缺提示词：这一组仍然交付（不是整组丢掉）')
+    check(flatItemTexts(env.ready) === '/c-one|/c-three', '缺提示词的条目被丢掉，其余照常上屏：显示 2 条，少于原始的 3 条')
+    check(env.ready.length === 1 && env.ready[0].length === 2, '交出去的是一整组 2 条（一次交完，不是拆开分批交）')
+    check(rowsOf(cap.records, 'suggest.call').some(function (r) { return r.fields.outcome === 'seen' && r.fields.items === 2 }), '日志按实际保留的 2 条记 seen')
+    check(rowsOf(cap.records, 'suggest.ready').some(function (r) { return r.fields.outcome === 'delivered' && r.fields.items === 2 }), '交付日志同样按 2 条记')
     stream.dispose()
   }
 
