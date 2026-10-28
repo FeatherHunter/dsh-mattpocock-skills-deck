@@ -49,12 +49,12 @@ import { OPERATIONS as CATALOG_OPERATIONS } from './operations-catalog.js'
  * @property {(repo: RepositoryRef, key: string, blockers: string[], opts?: SetOpts, ctx: OpContext) => Promise<OpResult<Issue>>} setBlockedBy self∈blockers→conflict；写后环检，成环→conflict 不落盘
  * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<LabelColor[]>>} listLabels 标签配色：列出「这个后端能改色的全部标签」及其颜色（#627，见下方「标签配色契约」）
  * @property {(repo: RepositoryRef, changes: LabelColorChange[], ctx: OpContext) => Promise<OpResult<LabelColorBatchResult>>} setLabelColors 标签配色：批量改色，逐条记账（#627，见下方「标签配色契约」）
- * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('../../shared/tracker/shape.js').Actor>>} getCurrentUser 当前登录人（viewer），GitHub 返回 Actor，Markdown/GitLab 返回 unsupported（MISSING）
- * @property {(handle: RepoHandle, input: InitProjectInput, ctx: OpContext) => Promise<OpResult<RepositoryRef>>} initProject 工作区初始化并发布（git init→commit→gh repo create→push；错误分类 no-git/no-gh/not-logged-in/already-exists/network/permission；GitHub 完整实现，本地 Markdown 与 GitLab 回 unsupported）
+ * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('../../shared/tracker/shape.js').Actor>>} getCurrentUser 当前登录人（viewer），GitHub 与 GitLab 返回 Actor（登录人的身份卡片，含登录名、显示名与头像；GitLab 走 glab 问远端），本地 Markdown 返回 unsupported（MISSING）
+ * @property {(handle: RepoHandle, input: InitProjectInput, ctx: OpContext) => Promise<OpResult<RepositoryRef>>} initProject 工作区初始化并发布（git init→commit→gh repo create→push；错误分类 no-git/no-gh/not-logged-in/already-exists/network/permission；GitHub 与 GitLab 完整实现（GitLab 走 glab 建仓），本地 Markdown 回 unsupported）
  *
- * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').RepoPermissions>>} getRepoPermissions 问仓库写权限（push/triage 两个布尔）；GitHub 真去问，本地 Markdown 与 GitLab 回 unsupported。调用方拿不到就按「未知」处理，不许当成「能写」
- * @property {(repo: RepositoryRef, mapKey: string, opts: Record<string, never>|undefined, ctx: OpContext) => Promise<OpResult<import('./results.js').SubIssueList>>} listSubIssues 取一张地图的全部子票（翻页拉到底，1000 张硬上限）；返回里 capped/missing/dropped 三项是「有没有拿全」的诚实交代。GitHub 实现，本地 Markdown 与 GitLab 回 unsupported
- * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').LabelColorsFilePlacement>>} ensureLabelColorsFile 往工作区放一份用户可手改的默认标签配色文件（文件已存在时一个字都不改）；本地 Markdown 实现，GitHub 与 GitLab 回 unsupported
+ * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').RepoPermissions>>} getRepoPermissions 问仓库写权限（push/triage 两个布尔）；GitHub 与 GitLab 真去问（GitLab 读远端档位折算），本地 Markdown 回 unsupported。调用方拿不到就按「未知」处理，不许当成「能写」
+ * @property {(repo: RepositoryRef, mapKey: string, opts: Record<string, never>|undefined, ctx: OpContext) => Promise<OpResult<import('./results.js').SubIssueList>>} listSubIssues 取一张地图的全部子票（翻页拉到底，1000 张硬上限）；返回里 capped/missing/dropped 三项是「有没有拿全」的诚实交代。GitHub 实现，GitLab 真实现（读子票正文顶部的归属声明行），本地 Markdown 回 unsupported
+ * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').LabelColorsFilePlacement>>} ensureLabelColorsFile 往工作区放一份用户可手改的默认标签配色文件（文件已存在时一个字都不改）；本地 Markdown 实现，GitHub 与 GitLab 回 unsupported（两家颜色真源都在远端，工作区文件没有读者，属形态不合，理由见两份能力表）
  * @property {(ctx: OpContext) => Promise<OpResult<import('../session/budget-reading.js').BudgetReading>>} readBudget 读缓存里的剩余额度，只读不花（规格 1439 第 23 条操作）；永远放行、不记账，直达房间
  *
  * 定位口三条（没有「我不支持」这种答案，缺席就是缺席，调用方拿空值往下走）：

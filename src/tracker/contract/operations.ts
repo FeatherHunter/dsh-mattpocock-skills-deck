@@ -211,14 +211,15 @@ export interface Tracker {
 
   /**
    * 当前登录人。
-   * GitHub 回真实账号；本地 Markdown 与 GitLab 回 `unsupported` —— 这是**正常答案**，
+   * GitHub 回真实账号；GitLab 经 `glab api user` 问远端回同一形状的账号；本地 Markdown 回 `unsupported` —— 这是**正常答案**，
    * 不是故障，调用方据此把「本人」相关的高亮关掉即可。
+   * 本地 Markdown 没有远端登录人的概念，所以它只能诚实说做不到。
    */
   getCurrentUser(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<Actor>>
 
   /**
    * 初始化并发布工作区：建仓、提交、推上去。
-   * GitHub 后端完整实现；本地 Markdown 后端回 `unsupported`；GitLab 后端由注册表补桩。
+   * GitHub 后端完整实现；GitLab 后端完整实现（`glab repo create` 加本地初始化）；本地 Markdown 后端回 `unsupported`。
    */
   initProject(
     handle: RepoHandle,
@@ -248,8 +249,8 @@ export interface Tracker {
    * 问这个仓库的写权限。
    * 只回答 push / triage 两个布尔；问不出来如实失败，调用方按「未知」处理，**不许捏造**。
    *
-   * GitHub 后端真去问；本地 Markdown 后端回 `unsupported`（本地文件可写性由沙箱与文件权限决定，
-   * 没有「仓库权限」这回事）；GitLab 后端由注册表补桩。这三种回法都是合规的答案。
+   * GitHub 后端真去问；GitLab 后端真去问（读远端回包里的档位折成能推、能整理两格）；本地 Markdown 后端回 `unsupported`（本地文件可写性由沙箱与文件权限决定，
+   * 没有「仓库权限」这回事）。这三种回法都是合规的答案。
    */
   getRepoPermissions(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<RepoPermissions>>
 
@@ -261,8 +262,8 @@ export interface Tracker {
    * 返回的字段里 `capped` 与 `missing` 是「有没有拿全」的诚实交代 ——
    * 一个地图子票成千上百时，界面必须能说清「还有更多、这次没全取回」。
    *
-   * 本地 Markdown 后端与 GitLab 后端今天回 `unsupported`，宿主电话据此退化：
-   * 界面提示用户「在它自己那边看全部」。
+   * 本地 Markdown 后端今天回 `unsupported`，宿主电话据此退化：界面提示用户「在它自己那边看全部」。
+   * GitLab 后端真实现，读的是子票正文顶部的归属声明行，不是远端认的层级，也不是人力加的关联链接。
    */
   listSubIssues(
     repo: RepositoryRef,
@@ -279,10 +280,10 @@ export interface Tracker {
    * 一份手改了却不影响颜色的文件不如不放。
    *
    * 本地 Markdown 后端实现它（颜色就存在这份工作区文件里，改文件就是改颜色）；
-   * GitHub 后端如实回 `unsupported`，因为它的颜色真源是仓库标签，工作区里那份文件
+   * GitHub 后端与 GitLab 后端如实回 `unsupported`，因为它们的颜色真源是远端仓库标签，工作区里那份文件
    * 没有任何读者（读颜色走 `listLabels`、改颜色走 `setLabelColors`，界面入口是仓库标签页），
    * 放一份改了不算数的文件只会误导人。这是形态不合、不是欠账，登记为「明确不支持」，
-   * 逐条理由见 `docs/tracker/capability-github.md`。
+   * 逐条理由见 `docs/tracker/capability-github.md` 与 `docs/tracker/capability-gitlab.md`。
    *
    * 幂等要求：文件已存在时**一个字都不改**（用户可能已经手改过它）。
    */

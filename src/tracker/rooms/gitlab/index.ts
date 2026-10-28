@@ -244,11 +244,11 @@ export const links = {
 }
 
 /**
- * 创建 GitLab 后端适配器（今天交 24 条：21 条操作 + 3 条定位口；剩下 1 条由注册表补桩）。
+ * 创建 GitLab 后端适配器（今天交 25 条：22 条操作 + 3 条定位口；剩下配色文件那 1 条按设计由注册表补桩）。
  *
  * 返回类型故意不标（理由同 GitHub 房：标成成员全可选的集合就查不出少写，
  * 形状判定收在 `src/tracker/capability-assertions.ts`）：没实现的那些操作由注册表补「我不支持」的桩。
- * 本后端今天的边界是「21 条操作 + describe / issueAddress / getRepoKey 三条定位口」——
+ * 本后端今天的边界是「22 条操作 + describe / issueAddress / getRepoKey 三条定位口」——
  * 唯一没实现的是 `ensureLabelColorsFile`，而且它**不是欠账**：这一条在本后端上形态不成立
  * （颜色真源在远端仓库标签，工作区里那份文件没有读者，改了不算数），登记为「明确不支持」，
  * 理由见 `./capability-register.ts` 那一行的注释与 `docs/tracker/capability-gitlab.md`。

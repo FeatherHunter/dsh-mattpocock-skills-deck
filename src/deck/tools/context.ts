@@ -142,7 +142,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
       const listP = t.list(repo, { type: 'map' }, opCtx)
       // #992：仓库写权限能力位（只读旁路，与预检/清单并行）。本地文件后端没有远端权限模型，
       //   由共享判断直接给「可写」（见 shared/tracker/backendWritePermissions.js）；其余后端问一遍
-      //   写权限旁路，问不出来不拦事、按未知处理（GitLab 不实现这条旁路，诚实未知）。
+      //   写权限旁路，问不出来不拦事、按未知处理。
       const knownPerm = knownWritePermissions(pick.backendId)
       const wantPerms = !knownPerm && typeof t.getRepoPermissions === 'function' && !sc.outOfBudget()
       const permP = wantPerms ? t.getRepoPermissions(repo, opCtx) : Promise.resolve(null)
