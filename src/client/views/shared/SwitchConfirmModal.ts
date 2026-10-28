@@ -174,23 +174,21 @@ export const SwitchConfirmModal = (props: any) => {
             : h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: targetColor, flex: 'none' } }), h('span', { style: { fontWeight: 600, color: targetColor } }, targetLabel)]),
           h('span', { style: { flex: 1 } }),
         ])
-        const wipBanner = h('div', { style:{ fontSize:11, color:'#f59e0b', background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.25)', borderRadius:6, padding:'6px 8px', marginBottom:10 } }, tr('gate.wipNotice'));
+        // #1600：筹备中黄条摘掉——GitLab 已可用，不再提示。
         // #191（用户反馈）：picker 永远渲染（即使已选也可重选 target）
-        // #669 第 6 件（ADR 20260921）：今天真正能用的后端只有 GitHub 与本地 Markdown ——
-        //   GitLab 能力不全（链上会一串红牌），在这里置灰不可选，理由放鼠标悬停（与另两张卡同款）。
+        // #1600：三后端全可选，不再置灰（名单已清空，这里不再问锁）。
         const picker = h('div', { style: { display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' } }, modules.map(function(m: any){
           const col = typeof backendColorOf === 'function' ? backendColorOf(m.id) : ''
           const isSelected = s.switchConfirm.targetBackendId === m.id
-          const locked = (typeof isBackendUnavailable === 'function') ? isBackendUnavailable(m.id) : false
           // 接线（#1335 界面反馈）：目标后端这几颗是药丸形状的按钮，定位名用后端自己的标识清洗成短名；
           //   被锁住的那颗不给悬停高亮，免得看着像能点。
-          const btn = h('button', { key: m.id, type: 'button', className: locked ? '' : 'dsws-hov', 'data-press': 'button', 'data-log': 'switch.target.' + String(m.id == null ? 'x' : m.id).toLowerCase().replace(/[^a-z0-9._-]+/g, '-').slice(0, 40), 'data-target-id': m.id, 'data-target-locked': locked ? 1 : 0, disabled: !!locked, onClick: function(){ if (locked) return; onPick(m.id) }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: isSelected ? '5px 11px' : '6px 12px', borderRadius: 8, border: isSelected ? '2px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSelected ? 'rgba(88,166,255,.10)' : 'transparent', color: isSelected ? col : '#8b8b95', fontSize: 12, fontWeight: isSelected ? 700 : 500, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.45 : 1 } }, [
+          const btn = h('button', { key: m.id, type: 'button', className: 'dsws-hov', 'data-press': 'button', 'data-log': 'switch.target.' + String(m.id == null ? 'x' : m.id).toLowerCase().replace(/[^a-z0-9._-]+/g, '-').slice(0, 40), 'data-target-id': m.id, onClick: function(){ onPick(m.id) }, style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: isSelected ? '5px 11px' : '6px 12px', borderRadius: 8, border: isSelected ? '2px solid ' + col : '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: isSelected ? 'rgba(88,166,255,.10)' : 'transparent', color: isSelected ? col : '#8b8b95', fontSize: 12, fontWeight: isSelected ? 700 : 500, cursor: 'pointer' } }, [
             h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: col, flex: 'none' } }),
             h('span', null, m.label || m.id),
           ])
-          return locked ? h(Tip, { key: m.id, content: tr('switch.targetLockedTip') }, btn) : btn
+          return btn
         }))
-        return h('div', null, [headerRow, wipBanner, picker])
+        return h('div', null, [headerRow, picker])
       })(),
       h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 } }, [
         radioRow('keep', isKeep, tr('switch.optKeep'), tr('switch.optKeepDesc'), null),

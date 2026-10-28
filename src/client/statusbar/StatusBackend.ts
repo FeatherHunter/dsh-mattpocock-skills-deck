@@ -216,9 +216,7 @@ export const openStatusGate = function(s: StatusPickState): void {
 }
 export const closeStatusGate = function(s: StatusPickState): void { s.gateModalOpen=false; s.gateModalSource=null; s.gateError=''; emit(s); };
 export const confirmStatusGate = function(s: StatusPickState): void { const id=s.gateSelected||firstBackendIdOf(null); if(String(id).toLowerCase()==='other'){ s.gateError=tr('switch.gateOtherErr'); emit(s); return; }
-  // #669 第 6 件（ADR 20260921）：能力不全的后端（今天只有 GitLab）不许从门控窗绑上 —— 单选框已置灰，
-  //   这里再挡一道（键盘/别的路径也走不到）；判据问 isBackendUnavailable 一份，不另抄名单。
-  if(typeof isBackendUnavailable==='function'&&isBackendUnavailable(id)){ s.gateError=tr('switch.targetLockedTip'); emit(s); return }
+  // #1600：三后端全可选，门控确认不再拦（名单已清空）。
   // #663：这个窗现在只问后端 —— 点确认只把后端定下来，不往会话里注入任何文字。
   //   此前这里顺手记了「域文档布局」并在绑好后调一次注入决策；两处一起撤（#661 第①条）：
   //   只撤单选而留注入，会在库房还没装 gh、还没建仓库的时候就把初始化长文塞进会话 ——

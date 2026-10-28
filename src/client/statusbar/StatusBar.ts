@@ -540,17 +540,15 @@ export const StatusBar = (props: any) => {
       h('div', { style:{ background:'var(--dsw-alias-bg-layer-2,#16181d)', border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:12, padding:14, width:'92%', maxWidth:380, boxShadow:'0 8px 24px rgba(0,0,0,.5)' } }, [
         h('div', { style:{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6, marginBottom:6 } }, [Ic({n:'compass',size:14}), h('span', null, tr('switch.pleaseSelectTracker'))]),
         h('div', { style:{ fontSize:11, color:'#8b8b95', marginBottom:10, lineHeight:1.5 } }, tr('switch.gateIntro')),
-        h('div', { style:{ fontSize:11, color:'#f59e0b', background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.25)', borderRadius:6, padding:'6px 8px', marginBottom:10 } }, tr('gate.wipNotice')),
         s.gateLoading ? h('div', { style:{ fontSize:11, color:'#8b8b95', padding:'6px 0' } }, tr('panel.loadingShort')) : h('div', { style:{ display:'flex', flexDirection:'column', gap:6 } }, otherFiltered(s.backendModules).map(function(m: any){
           const isSel=s.gateSelected===m.id; const col=(typeof backendColorOf==='function'?backendColorOf(m.id):'#6e7681'); const isRec=(s.backendModules||[])[0] && (s.backendModules||[])[0].id===m.id;
-          // #669 第 6 件（ADR 20260921）：能力不全的后端（今天只有 GitLab）在这里也置灰不可选，判据问 isBackendUnavailable 一份
-          const locked=(typeof isBackendUnavailable==='function')&&isBackendUnavailable(m.id);
+          // #1600：三后端全可选，不再置灰（名单已清空，这里不再问锁）。
           // 接线（#1335 界面反馈）：这一行是用户点得到的后端单选行，整行都能点，所以用 row 这一档；
           // data-log 放在 label 上而不是行里的 radio：点行上的字时浏览器会再合成一次 radio 的点击，
           // 放 label 上两次点击记的都是同一颗（重复但认得准），放 radio 上那次点击会被记成遮罩（认错人）。
-          const row = h('label', { key:m.id, 'data-target-id':m.id, 'data-target-locked': locked?1:0, className:'dsws-hov',
-            'data-press':'row', 'data-log':'status.gate.target.' + m.id, style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border:isSel?'1px solid '+col:'1px solid var(--dsw-alias-border-l1,#2a2d35)', background:isSel?'rgba(88,166,255,.08)':'transparent', cursor: locked?'not-allowed':'pointer', opacity: locked?0.45:1 } }, [ h('input',{type:'radio',checked:isSel,disabled:!!locked,onChange:function(){ if(locked) return; s.gateSelected=m.id;emit(s)}}), h('span',{style:{width:8,height:8,borderRadius:'50%',background:col,flex:'none'}}), h('span',{style:{fontSize:12,fontWeight:600}},m.label), h('span',{style:{fontSize:10,color:'#8b8b95'}},m.id), h('span',{style:{flex:1}}), isRec?h('span',{style:{fontSize:10,color:'#4ade80',border:'1px solid #4ade80',borderRadius:4,padding:'0 4px'}},'推荐'):null ])
-          return locked ? h(Tip, { key:m.id, content: tr('switch.targetLockedTip') }, row) : row
+          const row = h('label', { key:m.id, 'data-target-id':m.id, className:'dsws-hov',
+            'data-press':'row', 'data-log':'status.gate.target.' + m.id, style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border:isSel?'1px solid '+col:'1px solid var(--dsw-alias-border-l1,#2a2d35)', background:isSel?'rgba(88,166,255,.08)':'transparent', cursor:'pointer' } }, [ h('input',{type:'radio',checked:isSel,onChange:function(){ s.gateSelected=m.id;emit(s)}}), h('span',{style:{width:8,height:8,borderRadius:'50%',background:col,flex:'none'}}), h('span',{style:{fontSize:12,fontWeight:600}},m.label), h('span',{style:{fontSize:10,color:'#8b8b95'}},m.id), h('span',{style:{flex:1}}), isRec?h('span',{style:{fontSize:10,color:'#4ade80',border:'1px solid #4ade80',borderRadius:4,padding:'0 4px'}},'推荐'):null ])
+          return row
         })),
         s.gateError ? h('div', { style:{ fontSize:11, color:'#f87171', marginTop:8 } }, s.gateError) : null,
         // #663：这个窗里那组「域文档布局」单选撤掉了 —— 全新工作区打开时还没装 gh、还没建仓库，

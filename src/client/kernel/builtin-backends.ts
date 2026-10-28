@@ -13,13 +13,11 @@
  * 名单内容、函数行为、导出名一字未动。
  */
 export const BUILTIN_BACKENDS = [{ id: 'github', label: 'GitHub' }, { id: 'markdown', label: 'Markdown' }, { id: 'gitlab', label: 'GitLab' }]
-// #669 第 6 件（ADR 20260921）：今天真正可用的后端只有 GitHub 与本地 Markdown —— GitLab 能力不全
-//   （后端模块在，但一批操作返回 unsupported，链上会出现一串红牌，界面上一直标着「筹备中」）。
-//   所以它在「切换后端」那张卡上置灰不可选（维护者 2026-09-21 拍板：不让人按到没实现的按钮）。
-//   以后 GitLab 补齐了，把它从这个名单里拿掉即可（这份名单只管界面可选性，不参与判定链）。
-export const SWITCH_UNAVAILABLE_BACKENDS = ['gitlab']
-// 「这个后端今天能不能选」这个问题的唯一一份答案：切换弹窗、面板门控窗、状态栏门控窗三处都问它，
-//   #669 第 6 件对抗式审查补（原先只有切换弹窗那处置灰，门控窗照样能选到 GitLab —— 最可能出现的那一屏反而没堵上）。
+// #1600（#1188 跟进）：GitLab 能力已补齐，三处窗都不再置灰 —— 名单清空，界面可选性恢复三后端全可选。
+//   名单本身保留为空数组：切换弹窗、面板门控窗、状态栏门控窗三处仍问同一份答案，只是今天答案是「都不锁」。
+//   名单只管界面可选性，不参与判定链；以后若再有后端能力不全，把它的标识加回这份名单即可。
+export const SWITCH_UNAVAILABLE_BACKENDS: string[] = []
+// 「这个后端今天能不能选」这个问题的唯一一份答案：切换弹窗、面板门控窗、状态栏门控窗三处都问它。
 export function isBackendUnavailable(id: any) {
   const k = String(id == null ? '' : id).toLowerCase()
   return SWITCH_UNAVAILABLE_BACKENDS.some(function (x) { return String(x).toLowerCase() === k })

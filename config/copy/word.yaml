@@ -78,7 +78,6 @@ zh:
   switch.gateOtherErr: Other 已弃用，请选择 GitHub / Markdown / GitLab
   switch.pleaseSelectTracker: 请选择 Tracker 后端以继续
   switch.gateIntro: 不同后端的初始化与前置检查不同，选择后将回到主线流程
-  gate.wipNotice: Markdown 预览，GitLab 筹备中
   switch.title: 切换后端
   switch.hint: 确认切换？
   switch.hintDesc: 现有 issues 保留在原后端，切换后不可见，切回可见。
@@ -112,7 +111,6 @@ zh:
   switch.bindOkAskLayout: 已切换到 {label}，请先回答下面那一问（域文档布局）
   switch.setupCardOpen: 那张「域文档布局」的小卡还开着，先答完它再切换后端。
   switch.optLockedTip: 这一项还没有实现：当前只保留展示、按不动，等它单独做出来再开放。
-  switch.targetLockedTip: 这个后端能力还不全（筹备中），先别切过去。
   switch.srcExplicit: 显式绑定
   switch.srcMatches: 自动匹配
   switch.srcFallback: 回退
@@ -288,7 +286,6 @@ en:
   switch.gateOtherErr: Other is deprecated — pick GitHub / Markdown / GitLab
   switch.pleaseSelectTracker: Choose a tracker backend to continue
   switch.gateIntro: Initialization and preflight differ per backend; picking one returns you to the main flow.
-  gate.wipNotice: Markdown preview, GitLab in preparation
   switch.title: Switch backend
   switch.hint: Confirm switch?
   switch.hintDesc: Existing issues stay in the original backend, invisible after switch, visible when you switch back.
@@ -322,7 +319,6 @@ en:
   switch.bindOkAskLayout: Switched to {label} — please answer the question below (domain-doc layout) first
   switch.setupCardOpen: The "domain-doc layout" card is still open — answer it before switching backends.
   switch.optLockedTip: "Not implemented yet: shown for reference only, cannot be picked. It will open once it is built."
-  switch.targetLockedTip: This backend is still incomplete (in preparation) — do not switch to it yet.
   switch.srcExplicit: Explicit
   switch.srcMatches: Auto-matched
   switch.srcFallback: Fallback
