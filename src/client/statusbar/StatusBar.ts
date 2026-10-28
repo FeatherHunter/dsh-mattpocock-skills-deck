@@ -85,6 +85,8 @@ declare const SkillFloatList: any;
 declare const StatusLogDot: any;
 // #1409：建议取数流的挂载组件（同目录叶子 suggestStream.ts）。它返回 null，只做订阅接线，不画任何东西。
 declare const SuggestStreamMount: any;
+// #1220：当前显示会话的登记组件（同目录叶子 shownAttentionMount.ts）。同样返回 null，只把「正在显示哪个会话」交给视野模型。
+declare const ShownAttentionMount: any;
 declare const Tip: any;
 declare const CONTAINER_ACCENT: any;
 
@@ -366,7 +368,7 @@ export const StatusBar = (props: any) => {
         Ic({ n: 'chev-up', size: 10 }),
         h('span', null, tr('banner.expandDeck')),
       ])),
-      modalSeat, h(SuggestStreamMount, { sid: sid }),
+      modalSeat, h(SuggestStreamMount, { sid: sid }), h(ShownAttentionMount, { sid: sid }),
     ])
   }
   // #522：调试开关关闭时小灰点不挂载（胶囊里不留空位）；开时常驻；开关切换经已有的日志开关广播刷新各会话界面，此处只读开关不另加广播。
@@ -390,7 +392,7 @@ export const StatusBar = (props: any) => {
       Icon({ scheme: s.ui.icon, size: 14 }),
       h('span', { 'data-fold-priority': 1 }, tr('panel.title')),
     ]),
-    h(SessionChainCapsule, { st: s, sid: sid }), h(SuggestStreamMount, { sid: sid }),
+    h(SessionChainCapsule, { st: s, sid: sid }), h(SuggestStreamMount, { sid: sid }), h(ShownAttentionMount, { sid: sid }),
     h('span', { ref: takeAnchorRef, style: { position: 'relative', display: 'inline-flex' }, onMouseEnter: showTakeMenu, onMouseLeave: function () { scheduleClose(takeCloseRef, closeTakeMenu) } }, [
       h(Tip, { content: tr('nav.takeableTitle') }, seg('target', [h('span', { 'data-fold-priority': 9 }, tr('nav.takeable')), num(String(fr), '2ch')], '#4ade80', function () { s.stateFilter = 'frontier'; s.lblFilters = []; go('list') }, undefined, 'status.seg.takeable')),
       s.takeMenuOpen ? PortalOverlay({ className: 'dsws-takemenu', onMouseEnter: function () { clearClose(takeCloseRef) }, onMouseLeave: function () { scheduleClose(takeCloseRef, closeTakeMenu) }, onClick: function (e: any) { e.stopPropagation() }, style: { position: 'fixed', left: s.takeMenuPos ? s.takeMenuPos.left : 0, bottom: s.takeMenuPos ? s.takeMenuPos.bottom : 0, padding: 4, zIndex: 2147483000, background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)' } }, [
