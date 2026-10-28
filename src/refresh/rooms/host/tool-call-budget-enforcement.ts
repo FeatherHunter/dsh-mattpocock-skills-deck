@@ -146,6 +146,10 @@ export interface CallScope {
   remainingMs(): number;
   outOfBudget(): boolean;
   execOp(label: string, fn: (ctx: Record<string, unknown>) => unknown): Promise<OpRecord>;
+  /** 这次调用里真的派发出去的远端调用数（#1610）：发出前就被预算或取消拒掉的那些不算数。
+   *  工具侧的报账按它算「实际发出了几条请求」——预算壳把「发出前被拒」与「飞到一半被掐」
+   *  折成同一个 kind，工具那边光看回执分辨不出来，这里才是分辨得清的那一处。 */
+  sentRequests(): number;
   ok: boolean;
 }
 
@@ -244,6 +248,10 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
 
   function remainingMs(): number { return Math.max(0, budget.startedAt + budget.timeoutMs - nowFn()) }
   function outOfBudget(): boolean { return remainingMs() <= budget.marginMs }
+  // 已经派发出去的远端调用数（#1610）：预发检查通过、真正把这一次调用发出去之前先记一笔。
+  // 预发就被预算或取消拒掉的（execOp 开头那两支 refused）根本没发出去，不记。
+  let sentCount = 0
+  function sentRequests(): number { return sentCount }
 
   async function execOp(label: string, fn: (ctx: Record<string, unknown>) => unknown): Promise<OpRecord> {
     void label
@@ -278,6 +286,8 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
       // #1157：等这次调用回来 = 这场调用还没结算，整段圈进存活租约。缺了它，被抓的那次调用
       // 只剩钳制那笔 unref 过的等待时（#1114），进程会带着这次调用收摊——调用方永远等不到回执，
       // 契约层记的 timeout / aborted 只会随进程一起消失。
+      // 派发出去的这一次算一条（#1610）：后端回什么都不改这条计数，只有「压根没发出去」才不算。
+      sentCount += 1
       const result = await withInFlightLease(function () { return fn(ctx2) })
       if (timedOut) return { ok: false, timeout: true, result: result }
       if (sig && sig.aborted) return { ok: false, aborted: true, result: result }
@@ -441,6 +451,7 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
     remainingMs: remainingMs,
     outOfBudget: outOfBudget,
     execOp: execOp,
+    sentRequests: sentRequests,
     ok: !!real,
   }
 }

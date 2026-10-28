@@ -342,6 +342,7 @@ export default {
     // ==== leaf:suggestBubble (spliced by build) ====
     // ==== leaf:suggestStream (spliced by build) ====
     // ==== leaf:capFold (spliced by build) ==== // ==== leaf:capFoldMachine (spliced by build) ====
+    // ==== leaf:shownAttentionMount (spliced by build) ====
     // ==== leaf:StatusMenus (spliced by build) ==== // ==== leaf:StatusBackend (spliced by build) ==== // ==== leaf:bannerChain (spliced by build) ==== // ==== leaf:logDangerConfirm (spliced by build) ==== // ==== leaf:StatusLogMenu (spliced by build) ==== // ==== leaf:statusBar (spliced by build) ====
     // ==== leaf:sessionChainCapsule (spliced by build) ====
 
