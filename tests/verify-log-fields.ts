@@ -396,6 +396,11 @@ const ALLOWED = {
   'chain.backoff': ['keyHash', 'decision', 'reason', 'waitMs', 'step', 'trigger'],
   'chain.cache.write': ['keyHash', 'allGreen', 'doneCount', 'step', 'progressed'],
   'chain.event': ['reason'],
+  // 2026-10-28 #1474 新增一条按需事件：自动复查「这一拍为什么没发起」——冷却窗没到（decision=cooldown，
+  //   配 waitMs 还剩多少毫秒）与同一把链键上一轮还在路上（decision=busy，waitMs 记 0）。它不并进
+  //   chain.event：那条的语义是「这次重新求值是哪一路事件带起来的」，冷却与单飞恰恰是「没发请求的原因」，
+  //   按日志纪律第 4 条「事件名与字段含义稳定，改含义发新事件」另开一条。
+  'chain.auto.retry': ['decision', 'waitMs'],
   'naming.guard.event': ['reason'],
   // 2026-10-26 #1475 给上面那行增补 latencyMs：一次求值从起点到预检收尾的总耗时（毫秒），
   //   与 gh.exec 各条命令的 latencyMs 对齐着看，能分清慢在单条命令还是慢在整趟。

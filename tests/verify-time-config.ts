@@ -226,6 +226,9 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/client/kernel/api-handoff.ts', name: 'CLIENT_SESSION_TICK_MS', key: 'clientSessionTickMs' },
   { file: 'src/client/kernel/api-handoff.ts', name: 'CLIENT_HANDOFF_DELAY_MS', key: 'clientHandoffDelayMs' },
   { file: 'src/refresh/rooms/client/refresh-timer.ts', name: 'PROBE_AUTO_WAIT_MS', key: 'probeAutoWaitMs' },
+  // #1474：链自动复查的冷却窗。值来自 config/intervals.yaml 的 chainAutoRetryCooldownMs；
+  // 使用点是 probe-chain-subscription.ts（也拼进闭包，名字由 timeConfig 片段提供）。
+  { file: 'src/refresh/rooms/client/probe-chain-subscription.ts', name: 'CHAIN_AUTO_RETRY_COOLDOWN_MS', key: 'chainAutoRetryCooldownMs' },
   { file: 'src/refresh/rooms/client/snapshot-sync-helpers.ts', name: 'SNAPSHOT_PROBE_MS', key: 'snapshotProbeMs' },
   { file: 'src/client/kernel/slotRenderer-queue.ts', name: 'SLOT_QUEUE_STEP_MS', key: 'slotQueueStepMs' },
   { file: 'src/client/kernel/slotRenderer-modal-view.ts', name: 'SLOT_MODAL_OPEN_DELAY_MS', key: 'slotModalOpenDelayMs' },

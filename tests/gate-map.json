@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T13:16:57.146Z",
+  "generatedAt": "2026-10-28T13:08:32.087Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 430,
-  "gateCount": 430,
-  "attributedGates": 387,
+  "chainLength": 431,
+  "gateCount": 431,
+  "attributedGates": 388,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 19,
@@ -3302,6 +3302,24 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
+      "step": "node tests/verify-1474-chain-auto-retry.ts",
+      "file": "tests/verify-1474-chain-auto-retry.ts",
+      "guards": [
+        "src/refresh/rooms/client/probe-chain-subscription.ts",
+        "src/refresh/rooms/client/refresh-timer.ts",
+        "src/refresh/rooms/host/check-chain-evaluation.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/client",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
       "step": "node tests/verify-1475-predicate-budget.ts",
       "file": "tests/verify-1475-predicate-budget.ts",
       "guards": [
@@ -3792,7 +3810,6 @@
       "file": "tests/verify-1522-skill-md-refs.ts",
       "guards": [
         "docs/agents/domain.md",
-        "src/client/kernel/motion.ts",
         "src/client/views/pixel/PixelBanner.ts",
         "src/client/views/pixel/PixelBtn.ts",
         "src/client/views/pixel/PixelNum.ts",
@@ -3810,7 +3827,6 @@
       ],
       "dirs": [
         "docs/agents",
-        "src/client/kernel",
         "src/client/views/pixel",
         "src/client/views/skillDetail",
         "src/host",
@@ -3821,7 +3837,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；静态 import 说明符 2 条；源码里的路径字面量 12 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 2 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-1526-suggest-replay-restore.ts",
@@ -9422,6 +9438,7 @@
         "src/refresh/registry/deck-tool-bridge.ts",
         "src/refresh/registry/quota-sync-bridge.ts",
         "src/refresh/rooms/client/client-attention-heartbeat.ts",
+        "src/refresh/rooms/client/probe-chain-subscription.ts",
         "src/refresh/rooms/client/probe-scope-selection.ts",
         "src/refresh/rooms/client/refresh-timer.ts",
         "src/refresh/rooms/client/snapshot-cache-store.ts",
@@ -9501,7 +9518,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 99 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 100 条"
     },
     {
       "step": "node tests/verify-tracker-contract.ts",
@@ -10530,7 +10547,6 @@
       "node tests/verify-1451-suggest-session-keep.ts",
       "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-1519-detail-comments.ts",
-      "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1526-suggest-replay-restore.ts",
       "node tests/verify-1548-map-row-nav.ts",
       "node tests/verify-1564-ticket-badge.ts",
@@ -11153,6 +11169,7 @@
       "node tests/verify-1436-own-work-route.ts",
       "node tests/verify-1449-layout-single-source.ts",
       "node tests/verify-1463-env-counts-pending.ts",
+      "node tests/verify-1474-chain-auto-retry.ts",
       "node tests/verify-1483-client-chain-cache.ts",
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -11217,6 +11234,7 @@
       "node tests/verify-1454-ledger-single-entry.ts",
       "node tests/verify-1465-detail-refid.ts",
       "node tests/verify-1472-write-event-fetch.ts",
+      "node tests/verify-1474-chain-auto-retry.ts",
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-1483-chain-session-cache.ts",
