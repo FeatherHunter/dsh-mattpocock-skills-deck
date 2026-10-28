@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T16:33:06.756Z",
+  "generatedAt": "2026-10-28T09:32:26.112Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 411,
-  "gateCount": 411,
-  "attributedGates": 368,
+  "chainLength": 413,
+  "gateCount": 413,
+  "attributedGates": 370,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 17,
@@ -4021,6 +4021,36 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+    },
+    {
+      "step": "node tests/verify-1595-resolvespec.ts",
+      "file": "tests/verify-1595-resolvespec.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/issues-locate.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1596-md-eff-filter.ts",
+      "file": "tests/verify-1596-md-eff-filter.ts",
+      "guards": [
+        "src/client/views/ListTab.ts"
+      ],
+      "dirs": [
+        "src/client/views"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -10248,6 +10278,7 @@
       "node tests/verify-1519-detail-comments.ts",
       "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1582-open-folder.ts",
+      "node tests/verify-1596-md-eff-filter.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -11220,6 +11251,7 @@
       "node tests/verify-1510-guard-dispatch.ts",
       "node tests/verify-1512-md-chain.ts",
       "node tests/verify-1537-blocked-ref-title.ts",
+      "node tests/verify-1595-resolvespec.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",

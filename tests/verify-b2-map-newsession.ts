@@ -176,10 +176,11 @@ const buildEnv = function (reg, promptsJs, routerJs, lang) {
     return effort ? effort + '\u0000' + k : k
   }
   const idOf = function (issue) { return issue ? idOfParts(effortOf(issue), issue.key) : '' }
-  const inspectPrompt = function (st, num, title) {
-    const u = issueUrlFor(st, String(num == null ? '' : num))
-    return '/wayfinder ' + u + '\n\n' + promptTextFor(st, 'mapInspect', { n: String(num == null ? '' : num), title: String(title || ''), url: u })
-  }
+  // #1597：空态分支调真实的 inspectPrompt 真身（从 prompts-backend.ts 切到文件尾，与 completePrompt 同一切法），
+  //   不再用手写桩 —— 手写桩的判空写法一旦与真身分家，真身把 0 压成空的回归门禁就抓不住。
+  const inspectPromptSrc = promptsJs.slice(promptsJs.indexOf('inspectPrompt = function'))
+  if (!inspectPromptSrc) throw new Error('inspectPrompt 真身切片失败：prompts-backend 里找不到锚点')
+  const inspectPrompt = compileFn(['issueUrlFor', 'promptTextFor'], inspectPromptSrc + '; return inspectPrompt')(issueUrlFor, promptTextFor)
   // 2026-10-17：片段从「剥掉类型标注后的真源」里切；产物的形态（export 去掉、类型去掉、引号重排）不再参与。
   // 终止锚点带上 const，免得切片尾部落下一个孤零零的 const（那会让求值当场报 Unexpected token）。
   // #1292：completePrompt 与它后面那几段搬去了 kernel/prompts-backend.ts（见那份文件开头的说明），
@@ -267,6 +268,17 @@ const checkFile = function (file, reg, promptsJs, routerJs, viewSrc) {
   assert.ok(out7.includes('/to-spec') && out7.includes('/to-tickets'), file + ' en 完成态含交棒两步（#1281）')
   assert.ok(!out7.includes('## Target map'), file + ' en 完成态不再内嵌 map 标识头（#779）')
   assert.ok(out7.includes('## Tools') && out7.includes('deck_issue_report'), file + ' en 完成态带两行工具节（#779）')
+
+  // #1597：number=0 的容器行（Markdown 后端 key 00）新会话链接不能丢 ——
+  //   String(num || '') 会把 0 压成空串，issueUrlFor 回空，次行变成空行。
+  const URL0 = 'https://github.com/FeatherHunter/SKILLS/issues/0'
+  const out0done = env.startText(ST, mapIssue(0, '零号 map', { total: 2, closed: 2 }))
+  assert.ok(out0done.indexOf('/wayfinder\n' + URL0) === 0, file + ' #1597 number=0 完成态次行是链接（不是空行）')
+  assert.ok(out0done.includes('2/2'), file + ' #1597 number=0 完成态 closed/total 已填')
+  // #1597：number=0 的空态 map 同样走真实 inspectPrompt 真身，链接与编号都不能丢
+  const out0empty = env.startText(ST, mapIssue(0, '空零号 map', { total: 0, closed: 0 }))
+  assert.ok(out0empty.indexOf('/wayfinder ' + URL0) === 0, file + ' #1597 number=0 空态首行 /wayfinder+空格+链接（检查分支沿用单行格式，见上文 a）')
+  assert.ok(out0empty.includes('编号：#0'), file + ' #1597 number=0 空态编号是 #0（不是 #空）')
 
   // g) 静态：详情页「在新会话打开」按钮（执行/完成旁，同语义 openInNewSession）
   assert.ok(viewSrc.includes('openInNewSession(st, m)'), file + ' 详情页新会话按钮 openInNewSession')
