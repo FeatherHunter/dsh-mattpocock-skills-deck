@@ -39,6 +39,8 @@ declare const _snapRequestKeyWas: any;
 declare const _installLateSnapshot: any;
 declare const _snapInstallBody: any;
 declare const askSelectionOnce: any;
+// #1626：快照失败/超时会把 selPending 收掉，被推迟的首帧链求值也要在这一刻兜底发出去（实现在 probe-chain-subscription）。
+declare const _flushDeferredChain: any;
 declare const adoptWorkRouteTableIfNewer: any;
 declare const touchProbeAt: any;
 declare const mergeSelection: any;
@@ -305,6 +307,9 @@ export const loadSnapshot = function (st: any, force: any, silent: any, why: any
       // #727：这一次等待到此为止（超时也算）——「在途」这个理由不再成立，横幅回到原来那套判据上。
       //   注意这里只结束「等待」：那份回包若后来还是回来了，由上面的迟到处理器收下（#1009 起整份落地）。
       if (st.selPending === true) st.selPending = false;
+      // #1626：这一次取数失败了，「选择还说不准」的那个在途理由也随之收回；若首帧链求值正被推迟着，
+      //   按空键诚实降级发一次（与修前行为一致），别让它永远等一个不会来的选择。
+      try { if (typeof _flushDeferredChain === 'function') _flushDeferredChain(st); } catch (eFlushSnapFail) {}
       st.snapMode = 'err';
       st.snapError = String((e && e.message) || e).slice(0, 160);
       if (force && !silent) flash(st, tr('toast.snapFail', { err: st.snapError }), 'warn');

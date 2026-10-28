@@ -140,16 +140,6 @@ Issues and specs for this repo live as GitHub issues.
 工具会优先用后端自己的原生能力（GitHub 上是原生子议题与原生依赖边）。真拿不到时，才退回在子票正文首行
 写一行 `Blocked by: #n`（多个阻塞票号用逗号隔开）。这一行是三后端共用的降级写法，不许拿它当默认做法。
 
-## 关票前：把真机验证场景登记到本版清单票
-
-一张票可以没有真机验证就关闭，但它必须先把「发布前要在真机上验证什么」登记到本版清单票里。规则全文见 `docs/agents/real-machine-verification.md`，这里是关票时的三个动作：
-
-1. 先搜本版有没有清单票：`deck_issue_list({ state: 'open', query: '[真机验证]' })`。搜不到就按 `docs/agents/checklist-issue-template.md` 建一张，标题 `[真机验证] <版本号>`（版本号还没定时用 `[真机验证] 下一版（自 <上一发布版本> 之后）`，发布准备时再改名）。
-2. 在清单票下追加一条评论，标题固定写 `## 场景块：<来源票号> <一句话>`，内容按模板写前置条件、操作步骤、预期结果、通过标准、证据看点；场景编号写 `<来源票号>-01` 起。
-3. 关闭这张票时，在关闭评论里写一句「真机验证场景已登记到清单票 #N 的『场景块：<票号>』」。
-
-被关的是清单票本身时，门槛不同：票面登记的每个场景都得是「通过」或「豁免已接受」，才算能关。批次怎么开、结果怎么记、豁免四要素是什么，都在上面那份规则里，不要在这里另立一套。
-
 ## Mandatory label set
 
 This repo uses a mandatory label set — the three labels below must exist in the tracker, and every new issue carries at least one of them (missing = invalid, per the deck's convention):
