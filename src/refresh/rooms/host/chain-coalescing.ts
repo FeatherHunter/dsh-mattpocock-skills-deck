@@ -13,6 +13,9 @@
 //   旧车跑了超过三十秒不搭——等太久说明旧车可能卡住了，
 //   新来的另起一轮，不无限等下去。
 // 被合并掉的那几次只记合并数，不算失败，也不碰退避。
+// #1474 起每趟车记着自己是谁发起的（kind）：人手点「重新检查」是 force，挂载、自动复查、
+//   动作后补算是 background。后台请求搭任何车；人手强制请求只搭别的强制车，撞上后台车时
+//   由调用方等它收尾再自己算 —— 账本只报「这趟车是谁的」，不做等待。
 // 这里不记日志、不碰退避、不起定时器：日志只有调用方搭上车时记原来那一行，
 // 事件名不新增，附录第 1 章的条数不动。
 // 搭车上限住中央 YAML（config/ttl.yaml 的 chainRideMaxAgeMs 键）：这里直接读它生成出来的值，
@@ -27,7 +30,7 @@ export interface ChainRideClock {
 export function createChainRide(opts?: ChainRideClock | null) {
   const clock = (opts && typeof opts.nowMs === 'function') ? opts.nowMs : ((opts && typeof opts.now === 'function') ? opts.now : Date.now)
   const nowMs = () => { try { return Number(clock()) || Date.now() } catch (e) { return Date.now() } }
-  const runningByKey = new Map<string, { promise: unknown; startedAtMs: number }>()
+  const runningByKey = new Map<string, { promise: unknown; startedAtMs: number; kind: string }>()
   let lastWriteAtMs = 0
   let mergedN = 0
   function take(key: unknown) {
@@ -35,11 +38,11 @@ export function createChainRide(opts?: ChainRideClock | null) {
     if (!ride) return null
     if (nowMs() - ride.startedAtMs > CHAIN_RIDE_MAX_AGE_MS) return null
     if (lastWriteAtMs > ride.startedAtMs) return null
-    return ride.promise
+    return ride
   }
   function noteRide() { mergedN += 1 }
-  function park(key: unknown, promise: unknown) {
-    const entry = { promise, startedAtMs: nowMs() }
+  function park(key: unknown, promise: unknown, kind?: unknown) {
+    const entry = { promise: promise, startedAtMs: nowMs(), kind: kind === 'force' ? 'force' : 'background' }
     runningByKey.set(String(key), entry)
     return entry
   }

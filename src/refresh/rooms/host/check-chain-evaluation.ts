@@ -291,7 +291,6 @@ export function createDetectChain(deps: DetectChainDeps) {
       // 带 trigger='user-recheck' 的算人的动作，其余一律归后台档 —— 挂载时那一次强制刷新走的正是后者。
       // 不分开的话，账本会把插件自己的动作记成「人手动过」，而人的动作在闸上永不降档。
       const chainSource = refreshSourceOf(trigger)
-      if (force) resetGhCache()
       try{
         const cacheKey = cwd + '|' + String(args && args.backendId || '') + '|' + chainLang
         // #709（T5）：退避与全绿缓存这一段由纯函数裁定。人亲手点「重新检查」（trigger='user-recheck'）
@@ -311,14 +310,20 @@ export function createDetectChain(deps: DetectChainDeps) {
         }
         try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (v.reason || 'due') } }) } catch (eL) {}
         // #696 在途合并：同钥匙（工作区 + 后端 + 语言）共用同一份求值；先回来的写缓存，后到的拿同一份。
-        //   #1474 改口径：强制请求也参与合并 —— 从前 force 用「带强制标记的钥匙」另起一份，于是人手连点两下
-        //   「重新检查」、或自动复查撞上人手那一次，都会各算一遍；票里要收的正是「同一时刻最多一份求值」。
-        //   强制仍然保留它真正该有的两义：退避那一关永不降档（上面 verdict 先判），进求值前照旧清 gh 解析缓存。
+        //   #1474 改口径：所有求值（含 force）都登记进同一份在途账 —— 从前 force 用另一把钥匙另起一份，
+        //   于是人手连点两下「重新检查」、或自动复查撞上人手那一次，都会各算一遍；票里要收的正是「同一时刻最多一份求值」。
+        //   但搭车规则不对称（与 #729 快照表同一条口径）：后台请求搭任何车；人手强制请求只搭强制车，
+        //   撞上后台在飞那一轮时先等它收尾、再自己顺序算一轮 —— 按钮承诺的是「点完之后真的重问过」，
+        //   而后台那轮不清 gh 解析缓存、技能探测还可能吃短时缓存，正是人手想打破的东西。等不算并发。
+        //   强制另外两义照旧：退避那一关永不降档（上面 verdict 先判），真算之前清一次 gh 解析缓存。
         const chainDedupKey = cacheKey
         // #1483：搭车拿到的是「另一轮求值」的结果，那一轮用的是发起那一轮的会话许可。凡是有依赖会话许可的项，
         //   先按本会话补算再交给调用方；不然只读会话搭上可写会话的车，会先看到别人的「可写」。
-        const ongoingRide = chainInflight.take(chainDedupKey)
-        if (ongoingRide) { chainInflight.noteRide(); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; return { reply: await ongoingRide, forCurrentSession: false } }
+        let ongoingRide = chainInflight.take(chainDedupKey)
+        while (ongoingRide && force && ongoingRide.kind === 'background') { try { await ongoingRide.promise } catch (eWait) {}; ongoingRide = chainInflight.take(chainDedupKey) }
+        if (ongoingRide) { chainInflight.noteRide(); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; return { reply: await ongoingRide.promise, forCurrentSession: false } }
+        // 清 gh 解析缓存本身只对「这一轮真去问命令」有意义：搭车、连点第二下都不该白清一次。
+        if (force) resetGhCache()
         const chainPending = (async function () {
         // #1475：一次求值只读一次钟，给下面告警级「外层先到点 / 内层迟到回话」两行算本次求值的总耗时。
         //   这两行是告警级、总是落盘，不受调试开关约束，所以不把它挂在开关后面（一轮一次 Date.now 不算开销）。
@@ -583,7 +588,7 @@ export function createDetectChain(deps: DetectChainDeps) {
         })()
         // #1474：所有求值都登记进同一份在途账（含 force）—— 同一时刻每个钥匙最多一份真算。
         //   后到的请求（人手连点、自动复查撞上人手那一次）直接搭这趟车，拿同一份回包。
-        const rideEntry = chainInflight.park(chainDedupKey, chainPending)
+        const rideEntry = chainInflight.park(chainDedupKey, chainPending, force ? 'force' : 'background')
         try { return { reply: await chainPending, forCurrentSession: true } } finally { chainInflight.leave(chainDedupKey, rideEntry) }
       }catch(e){
         try { const m = String((e && (e as CaughtError).message) || e); if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: hash8(m), errorKind: (/is not a function|is not defined|of undefined|of null/i.test(m) ? 'missing-dep' : (/timeout|timed out/i.test(m) ? 'timeout' : 'throw')) }) } catch (eL) {}   // #724：异常也留一行（从前静默吞掉，真机查了两天没有原文）；errorKind 把「接线没给全」（missing-dep）与「跑起来真失败」（throw）分开
