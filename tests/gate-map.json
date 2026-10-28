@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T10:15:01.372Z",
+  "generatedAt": "2026-10-28T10:29:53.032Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 415,
-  "gateCount": 415,
-  "attributedGates": 372,
+  "chainLength": 416,
+  "gateCount": 416,
+  "attributedGates": 373,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 17,
@@ -275,6 +275,50 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 3 条"
+    },
+    {
+      "step": "node tests/verify-chain-renderer.ts",
+      "file": "tests/verify-chain-renderer.ts",
+      "guards": [
+        "src/client/kernel/actions.ts",
+        "src/client/kernel/ctx.ts",
+        "src/client/kernel/slotRenderer-modal-view.ts",
+        "src/client/kernel/slotRenderer-queue.ts",
+        "src/client/statusbar/StatusBar.ts",
+        "src/client/statusbar/bannerChain.ts",
+        "src/client/views/ChecksTab.ts",
+        "src/client/views/ListTab.ts",
+        "src/client/views/NoRepoCard.ts",
+        "src/client/views/shared/ChainRenderer.ts",
+        "src/host/index.ts",
+        "src/refresh/rooms/client/probe-chain-subscription.ts",
+        "src/refresh/rooms/client/refresh-timer.ts",
+        "src/refresh/rooms/client/repo-sync-renderer.ts",
+        "src/refresh/rooms/client/snapshot-sync.ts",
+        "src/shared/tracker/chain-types.ts",
+        "src/shared/tracker/check-catalog-dirs.ts",
+        "src/tracker/fix-contract.ts",
+        "src/tracker/rooms/github/index.ts",
+        "tests/lib/locale-data.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/statusbar",
+        "src/client/views",
+        "src/client/views/shared",
+        "src/host",
+        "src/refresh/rooms/client",
+        "src/shared/tracker",
+        "src/tracker",
+        "src/tracker/rooms/github",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 2 条；源码里的路径字面量 16 条"
     },
     {
       "step": "node tests/verify-chain-session.ts",
@@ -10163,6 +10207,7 @@
     "src/client/kernel": [
       "node tests/verify-663-banner-chain.ts",
       "node tests/verify-chain-capsule.ts",
+      "node tests/verify-chain-renderer.ts",
       "node tests/verify-chain-session.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-deck-tools-matrix.ts",
@@ -10261,6 +10306,7 @@
       "node tests/verify-663-banner-chain.ts",
       "node tests/verify-leaves.ts",
       "node tests/verify-chain-capsule.ts",
+      "node tests/verify-chain-renderer.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-no-title.ts",
       "node tests/verify-1281-entries.ts",
@@ -10301,6 +10347,7 @@
     ],
     "src/client/views": [
       "node tests/verify-leaves.ts",
+      "node tests/verify-chain-renderer.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-gate-map.ts",
       "node tests/verify-no-title.ts",
@@ -10381,6 +10428,7 @@
     "src/client/views/shared": [
       "node tests/verify-leaves.ts",
       "node tests/verify-chain-capsule.ts",
+      "node tests/verify-chain-renderer.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-1082-work-route-table.ts",
       "node tests/verify-1145-open-local.ts",
@@ -10550,6 +10598,7 @@
     "src/host": [
       "node tests/verify-build-artifacts.ts",
       "node tests/verify-chain-env-e2e.ts",
+      "node tests/verify-chain-renderer.ts",
       "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-deck-event-gate.ts",
       "node tests/verify-dependency-rules.ts",
@@ -10774,6 +10823,7 @@
     "src/refresh/rooms": [],
     "src/refresh/rooms/client": [
       "node tests/verify-chain-env-e2e.ts",
+      "node tests/verify-chain-renderer.ts",
       "node tests/verify-chain-session.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-1082-work-route-table.ts",
@@ -11005,6 +11055,7 @@
     ],
     "src/shared/tracker": [
       "node tests/verify-663-banner-chain.ts",
+      "node tests/verify-chain-renderer.ts",
       "node tests/verify-chain.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-1187-gitlab-chain-predicates.ts",
@@ -11047,6 +11098,7 @@
     ],
     "src/tracker": [
       "node tests/verify-build-artifacts.ts",
+      "node tests/verify-chain-renderer.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1090-progress-roundtrip.ts",
@@ -11177,6 +11229,7 @@
       "node tests/verify-prompts.ts"
     ],
     "src/tracker/rooms/github": [
+      "node tests/verify-chain-renderer.ts",
       "node tests/verify-deck-repo-resolve.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-deck-tools-matrix.ts",
@@ -11394,6 +11447,7 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-chain-capsule.ts",
       "node tests/verify-chain-env-e2e.ts",
+      "node tests/verify-chain-renderer.ts",
       "node tests/verify-deck-no-hang.ts",
       "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-repo-resolve.ts",
