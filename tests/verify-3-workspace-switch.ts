@@ -51,7 +51,7 @@ async function main() {
   // #1498：Windows 的小写折叠只对真正大小写不敏感的卷（盘符路径）做。UNC 背后可能是 WSL 的 ext4
   // 或别的区分大小写的系统，字符串看不出是哪一种；小写化会洗出一条根本不存在的路径
   // （\\wsl.localhost\Ubuntu-26.04\home\acgmn\github\WanGP → …\wangp），锚根、.git 与 gh 全部失败，
-  // 还会在父目录里真长出一个小写的幽灵目录。所以 UNC 一律保留原始大小写，只归斜杠方向与尾斜杠。
+  // 还会在父目录里真的建出一个只有大小写不同的假目录。所以 UNC 一律保留原始大小写，只归斜杠方向与尾斜杠。
   eq('win UNC 保留大小写', norm(W('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP'), winPlat), W('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP'))
   // 调用方也可能把 UNC 写成正斜杠形态（//wsl.localhost/…）：判「是不是 UNC」必须看规整后的形态，
   // 拿原始入参判会漏掉这种写法，于是同一个工作区一半写法保留大小写、一半被洗成小写。
@@ -62,6 +62,11 @@ async function main() {
   eq('win UNC 尾斜杠去除后仍保留大小写', norm(W('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP/'), winPlat), W('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP'))
   // 分不出 UNC 背后盘的大小写规矩，就不能赌：大小写不同的两条 UNC 是两把钥匙（不合并）。
   eq('win 大小写不同的 UNC 不合并', norm(W('//srv/share/Foo'), winPlat) === norm(W('//srv/share/foo'), winPlat) ? 'merged' : 'kept-apart', 'kept-apart')
+
+  // 两个反斜杠开头不全是 UNC：\\?\D:\ 这类长路径写法与 \\.\C:\ 这类设备前缀，后面跟的是盘符，
+  // 背后仍是大小写不敏感的卷，必须照旧折叠；只把它们从 UNC 里排掉，别把盘符的既有行为带跑偏。
+  eq('win 长路径盘符仍折叠', norm('//?/D:/Work/Alpha', winPlat), W('//?/d:/work/alpha'))
+  eq('win 设备前缀盘符仍折叠', norm('//./C:/Work/Alpha', winPlat), W('//./c:/work/alpha'))
   eq('win 裸斜杠根保留', norm('/', winPlat), BS)
   // canonical：绝对路径短路（不碰 fs）时同样保留 UNC 大小写
   eq('canon 绝对路径短路（UNC 保留大小写）', await canon(W('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP/'), { getPlatform: async function () { return winPlat } }), W('//wsl.localhost/Ubuntu-26.04/home/acgmn/github/WanGP'))
