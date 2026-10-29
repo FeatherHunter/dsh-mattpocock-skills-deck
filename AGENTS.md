@@ -121,4 +121,10 @@ AI 这边没有可用的终端工具（better-sidebar 删掉了它自带的 `ter
 
 Publish `package` (the main plugin; skills ship inside it, never separately). `dsh-log` and `dsh-plugin-update` now live in standalone repos and are only consumed from npm, never published from here (#878, #892). Private package shells are skipped automatically.
 
-Token unattended path (prefer it when a write-capable token exists — no human clicks needed): set `$env:NODE_AUTH_TOKEN` (variable name only, never paste the token value) → run `pwsh -NoProfile -File scripts\publish-token.ps1 -Probe` first (it must say PROBE-OK) → run `pwsh -NoProfile -File scripts\publish-token.ps1` (gates → publish → one-pass sampling; add `-FullPost` before announcing). Accepted is not the same as visible: `E409 previously-staged` means the registry received the package, so wait a few minutes instead of republishing or bumping the version. The old interactive flow (`scripts\publish-all-window.ps1` via schtasks) stays as fallback. Publishing ends the job; installing is always done by the user (marketplace upgrade, in-app upgrade, or their own install command).
+Token unattended path (prefer it when a write-capable token exists — no human clicks needed)。**token 一律走文件通道**：写成命令行参数、或写成 `$env:NODE_AUTH_TOKEN='值'` 这种内联赋值，整条命令都会以明文被完整记进会话记录与进程参数（#1646 实测泄露过），所以这两样都不许再用。做法：
+
+1. 人把写权限 token 写进一个只给本人可读的临时文件的第一行（不要加注释）：例 `%TEMP%\dsh-publish-token.txt`。这个文件不要放在仓库目录里。
+2. Agent 的命令里只出现路径：`pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile <路径> -Probe` 先跑（必须说 PROBE-OK）→ `pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile <路径>`（gates → publish → one-pass sampling；announce 前加 `-FullPost`）。
+3. 每趟跑完立刻删掉临时文件（`Remove-Item <路径>`）。token 一旦可能泄露，先到 npm 撤销那一枚再重新签发；平时按季度轮换。细则见 `docs/releases/RELEASE-RUNBOOK.md` 第 12 节。
+
+`$env:NODE_AUTH_TOKEN` 环境变量入口仍然兼容（`-TokenEnv` 可改首选变量名），但只建议人在自己的终端里设：Agent 执行时一律用文件通道。Accepted is not the same as visible: `E409 previously-staged` means the registry received the package, so wait a few minutes instead of republishing or bumping the version. The old interactive flow (`scripts\publish-all-window.ps1` via schtasks) stays as fallback. Publishing ends the job; installing is always done by the user (marketplace upgrade, in-app upgrade, or their own install command).

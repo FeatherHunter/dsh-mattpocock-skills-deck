@@ -1,22 +1,30 @@
 # dsh-mattpocock-skills-deck token 全自动发布（Windows，无人值守）。
 #
 # 与旧 scripts\publish-all-window.ps1 共存：旧走 schtasks 交互窗口＋人浏览器 2FA；
-# 本走环境变量 token，全程无需人点，Agent 可直接驱动。
+# 本走写权限 token，全程无需人点，Agent 可直接驱动。
 # 发什么（依赖先行，顺序写死，与旧窗口一致）：
 #   1. package（主插件，含捆绑技能；技能随主插件一起发，不单独发）
 # 更新包 dsh-plugin-update 已搬到独立仓库维护，本仓只从 npm 取用，不再从这里发（#878）。
 # 日志包 dsh-log 已搬到独立仓库维护，本仓只从 npm 取用，不再从这里发（#892）。
 # private 包自动跳过（根 package.json 为 private 开发壳，不发）。
 #
-# 跑法（pwsh 7）：
-#     $env:NODE_AUTH_TOKEN='npm_...'  # Automation 或 Granular 写权限（须含这三包名）；Classic Publish 账号级亦可
-#     pwsh -NoProfile -File scripts\publish-token.ps1 -Probe     # 写权限探针（约 5 秒，无副作用）
-#     pwsh -NoProfile -File scripts\publish-token.ps1 -DryRun   # 只读：读表＋验 token
-#     pwsh -NoProfile -File scripts\publish-token.ps1           # 全流程：门禁(build+test)→发三包→一次采样
-#     pwsh -NoProfile -File scripts\publish-token.ps1 -FullPost # 宣布前：长轮询直到三包全可见
+# 跑法（pwsh 7）—— token 放临时文件，命令行里只出现文件路径（#1646）：
+#   token 以命令行参数或 `$env:NODE_AUTH_TOKEN='值'` 这种内联赋值出现时，整条命令会被原样
+#   记进会话记录与进程参数（#1646 实测泄露）。所以给人 / 给 Agent 的标准姿势是：
+#     1) 人把写权限 token 写进一个只给本人可读的临时文件，第一行放 token 值（不要加注释）；
+#        例：$env:TEMP\dsh-publish-token.txt。这个文件不要放在仓库目录里。
+#     2) 下面命令里只出现这个路径，token 值不经过命令行，也不会被记进会话记录：
+#     pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish-token.txt -Probe     # 写权限探针（约 5 秒，无副作用）
+#     pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish-token.txt -DryRun    # 只读：读表＋验 token
+#     pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish-token.txt             # 全流程：门禁(build+test)→发三包→一次采样
+#     pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish-token.txt -FullPost   # 宣布前：长轮询直到包全可见
+#     3) 每趟跑完立刻删掉临时文件：Remove-Item $env:TEMP\dsh-publish-token.txt
+#   环境变量入口仍然兼容（-TokenEnv，缺省 NODE_AUTH_TOKEN；为空再试 NPM_TOKEN/NODE_AUTH_TOKEN），
+#   但别用内联赋值那种写法，理由同上。脚本只记录 token 的来源（文件路径或变量名），从不打印值。
 # 参数：
 #     -RepoRoot 缺省＝本脚本上一级；-Registry 缺省 https://registry.npmjs.org/
-#     -TokenEnv 缺省 NODE_AUTH_TOKEN（为空再试 NPM_TOKEN）；-LogPath 缺省 <仓根>\.tmp-publish-token.log
+#     -TokenFile token 文件路径（推荐入口；只取第一行非空内容，首尾空白会去掉）
+#     -TokenEnv 缺省 NODE_AUTH_TOKEN（-TokenFile 没给时才用；为空再试 NPM_TOKEN）；-LogPath 缺省 <仓根>\.tmp-publish-token.log
 #     -SkipGate 跳过构建与测试门禁（门禁已在别处跑绿时用；本仓 test 较重：verify＋smoke 全套）
 #     -Tag       发布到哪个 dist-tag，缺省 latest（所有人都默认拿到的那一个）。
 #                发测试版必须显式 -Tag beta：registry 上 tag 只是指向某个版本的别名，
@@ -31,12 +39,13 @@
 # 快协议（受理≠可见，两者解耦）：publish exit 0（+包名@版本回执）或 E409 previously-staged
 # 即证明 registry 收下，此时记 DONE（附 STAGED-待可见），不再盲等；可见性只一次采样，
 # 长轮询仅 -FullPost 跑。发布侧到三包全绿即交付：安装一律用户侧做（市场升级/软件内升级/自装）。
-# 退出码：0=DONE（全部受理；个别 STAGED-待可见会在行里点名）·1=失败（看 FAIL 行）·2=用法错误（缺 token/无探针靶）。
+# 退出码：0=DONE（全部受理；个别 STAGED-待可见会在行里点名）·1=失败（看 FAIL 行）·2=用法错误（缺 token/读不到 token 文件/无探针靶）。
 # TOKEN-PROTOCOL v3（2026-10-02）：探针→发布→快分辨→一次采样。改动本协议时五仓同步，行首标记对齐。
 param(
   [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
   [string]$Registry = 'https://registry.npmjs.org/',
   [string]$TokenEnv = 'NODE_AUTH_TOKEN',
+  [string]$TokenFile = '',
   [string]$LogPath = '',
   [switch]$DryRun,
   [switch]$Probe,
@@ -60,22 +69,49 @@ function Mask([string]$s) {
   return ($s -replace 'npm_[A-Za-z0-9_-]{6,}', 'npm_***')
 }
 
-# ── 阶段 0：取 token（只记变量名，不记值） ────────────────────────────────
-$token = [Environment]::GetEnvironmentVariable($TokenEnv)
-$tokenFrom = $TokenEnv
-if ([string]::IsNullOrWhiteSpace($token) -and $TokenEnv -ne 'NPM_TOKEN') {
-  $token = [Environment]::GetEnvironmentVariable('NPM_TOKEN')
-  if (-not [string]::IsNullOrWhiteSpace($token)) { $tokenFrom = 'NPM_TOKEN' }
-}
-if ([string]::IsNullOrWhiteSpace($token) -and $TokenEnv -ne 'NODE_AUTH_TOKEN') {
-  $token = $env:NODE_AUTH_TOKEN
-  if (-not [string]::IsNullOrWhiteSpace($token)) { $tokenFrom = 'NODE_AUTH_TOKEN' }
+# ── 阶段 0：取 token（只记来源，不记值） ──────────────────────────────────
+# 优先级：-TokenFile > 环境变量（$TokenEnv → NPM_TOKEN → NODE_AUTH_TOKEN）。
+# 文件通道排第一是为了让命令行里只有路径：token 值不该出现在命令参数里（#1646 实测会被
+# 完整记进会话记录）。文件约定：第一行非空内容就是 token，前后空白与行尾换行去掉。
+$token = ''
+$tokenFrom = ''
+$tokenFilePath = ''
+if (-not [string]::IsNullOrWhiteSpace($TokenFile)) {
+  try { $tokenFilePath = (Resolve-Path -LiteralPath $TokenFile -ErrorAction Stop).Path }
+  catch { Log ('FAIL 读不到 token 文件：' + $TokenFile + '（路径写错、文件不存在或没有读权限；命令行里只该出现路径）'); exit 2 }
+  try { $rawTokenFile = [System.IO.File]::ReadAllText($tokenFilePath) }
+  catch { Log ('FAIL token 文件读不了：' + $tokenFilePath + '（检查文件权限后重试；命令行里只该出现路径）'); exit 2 }
+  $firstTokenLine = @($rawTokenFile -split "`r?`n" | Where-Object { $_.Trim() -ne '' } | Select-Object -First 1)
+  if ($firstTokenLine.Count -gt 0) { $token = $firstTokenLine[0].Trim() }
+  if ([string]::IsNullOrWhiteSpace($token)) { Log ('FAIL token 文件里没有内容：' + $tokenFilePath + '（需要在第一行放 token 值）'); exit 2 }
+  $tokenFrom = 'file'
 }
 if ([string]::IsNullOrWhiteSpace($token)) {
-  Log ('FAIL 缺 token：环境变量 ' + $TokenEnv + ' 为空（也试过 NPM_TOKEN/NODE_AUTH_TOKEN）。')
+  $token = [Environment]::GetEnvironmentVariable($TokenEnv)
+  $tokenFrom = $TokenEnv
+  if ([string]::IsNullOrWhiteSpace($token) -and $TokenEnv -ne 'NPM_TOKEN') {
+    $token = [Environment]::GetEnvironmentVariable('NPM_TOKEN')
+    if (-not [string]::IsNullOrWhiteSpace($token)) { $tokenFrom = 'NPM_TOKEN' }
+  }
+  if ([string]::IsNullOrWhiteSpace($token) -and $TokenEnv -ne 'NODE_AUTH_TOKEN') {
+    $token = $env:NODE_AUTH_TOKEN
+    if (-not [string]::IsNullOrWhiteSpace($token)) { $tokenFrom = 'NODE_AUTH_TOKEN' }
+  }
+}
+if ([string]::IsNullOrWhiteSpace($token)) {
+  Log ('FAIL 缺 token：给 -TokenFile <路径>（推荐，命令行里只出现路径），或设置环境变量 ' + $TokenEnv + '（也试过 NPM_TOKEN/NODE_AUTH_TOKEN）；本脚本不会打印 token 的任何片段。')
   exit 2
 }
-Log ('TOKEN env=' + $tokenFrom + '（值不打屏）')
+if ($tokenFrom -eq 'file') {
+  # 文件放在仓库目录里会被 git 看见，也有被误提交的风险；这里只提醒，不阻断（发布流程不动这个文件）。
+  $repoRootPath = (Resolve-Path -LiteralPath $RepoRoot).Path.TrimEnd([char]'\', [char]'/')
+  if ($tokenFilePath.StartsWith($repoRootPath + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+    Log ('WARN token 文件在仓库目录里：' + $tokenFilePath + '；跑完立刻删除，不要提交。')
+  }
+  Log ('TOKEN source=file path=' + $tokenFilePath + '（值不打屏）')
+} else {
+  Log ('TOKEN source=env name=' + $tokenFrom + '（值不打屏）')
+}
 # 本进程内统一用 NODE_AUTH_TOKEN 做 ${} 代入：先存下原值，finally 原样恢复。
 # （-TokenEnv 指向谁就用谁；杜绝“日志写用 A、实际代入用 B”的双 token 错位。）
 $hadNodeToken = [Environment]::GetEnvironmentVariable('NODE_AUTH_TOKEN')
