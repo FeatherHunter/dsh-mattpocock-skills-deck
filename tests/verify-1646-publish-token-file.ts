@@ -8,14 +8,15 @@
 //     ② 值不外泄：日志只记来源（文件路径或环境变量名），任何 Log / Write-Host 行里都没有裸 token；
 //        临时 npmrc 里只放环境变量占位符，不写值；
 //     ③ 真能用：拿假 token 文件跑只读的 -DryRun 与 -Probe，假 registry 必须在 Authorization 里收到
-//        文件里的那个值，同时 stdout、日志文件、命令行参数里都搜不到这个值。
+//        文件里的那个值，同时 stdout、stderr、日志文件、命令行参数里都搜不到这个值。
 //   静态部分查脚本与三份文档的写法；动态部分起假 registry、spawn 真的 pwsh 跑脚本。
 //   pwsh 不可用时（非 Windows 的 CI 机器等）静态照跑、动态明确跳过并打 INFO 行。
 //
 // 门禁归属: scripts/publish-token.ps1
-// 门禁归属: AGENTS.md
 // 门禁归属: docs/releases/RELEASE-RUNBOOK.md
 // 门禁归属: docs/agents/real-machine-verification.md
+// 另外守 AGENTS.md 的发布段：根目录文件不在 gate-map 的目录前缀名单里，写归属行会被静默丢掉
+//（先例是 verify-1596 的 GLOSSARY.md 那条），所以不写成归属行，改在这里说明。
 
 const fs = require('fs')
 const os = require('os')
@@ -29,6 +30,8 @@ const PWSH = (process.env.PWSH || '').trim() || 'pwsh'
 // 故意不带 npm_ 前缀：脚本里的 Mask() 只盖 npm_ 开头的串，这样真泄露时一定抓得到。
 const TOKEN = 'fake1646token-do-not-leak'
 const ENV_TOKEN = 'fake1646-env-token-do-not-leak'
+// 误操作形态用：长得像 token（一段 32 个字符以上的连续字母数字串），但没有路径分隔符。
+const TOKEN2 = 'fake1646-token-value-do-not-leak-0123456789abcdef'
 const PKG = 'verify-1646-fake-pkg'
 const PKG_VERSION = '0.0.1'
 
@@ -55,21 +58,30 @@ function staticChecks(): void {
   check(has('本脚本不会打印 token 的任何片段'), '缺 token 的报错明确承诺不打印任何片段')
   check(has('2=用法错误（缺 token/读不到 token 文件/无探针靶）'), '退出码说明里写清 2 的用途')
 
-  // 打印语句的实参里只能出现来源，不能出现值：Log / Write-Host 出现位置之后的那段文本不许有裸 $token。
-  // 不扫整行，是因为条件判断行也会出现 $token（例如 if (... $token)) { Log ... }），那不是打印值。
+  // 打印与落盘语句的实参里只能出现来源，不能出现值：Log / Write-Host / Add-Content / Set-Content /
+  // Out-File 出现位置之后的那段文本不许有裸 $token。不扫整行，是因为条件判断行也会出现 $token
+  // （例如 if (... $token)) { Log ... }），那不是打印值。
   const bareToken = /\$token(?![A-Za-z0-9_])/
   const scriptLines = scriptText.split(/\r?\n/)
+  const printMarks = ['Log (', 'Log(', 'Write-Host', 'Add-Content', 'Set-Content', 'Out-File']
   const printTails: string[] = []
   for (const line of scriptLines) {
-    const marks = [line.indexOf('Log ('), line.indexOf('Log('), line.indexOf('Write-Host')]
     let at = -1
-    for (const m of marks) if (m >= 0 && (at < 0 || m < at)) at = m
+    for (const mark of printMarks) {
+      const m = line.indexOf(mark)
+      if (m >= 0 && (at < 0 || m < at)) at = m
+    }
     if (at >= 0) printTails.push(line.slice(at))
   }
-  check(printTails.length > 0, '脚本里能找到打印语句（本判据确实扫到了）')
+  check(printTails.length > 0, '脚本里能找到打印与落盘语句（本判据确实扫到了）')
   const leakLines: string[] = []
   for (const tail of printTails) if (bareToken.test(tail)) leakLines.push(tail.trim())
-  check(leakLines.length === 0, '所有 Log / Write-Host 的实参都没有裸 $token（发现 ' + leakLines.length + ' 处' + (leakLines.length ? '：' + leakLines.join(' | ') : '') + '）')
+  check(leakLines.length === 0, '所有打印与落盘语句的实参都没有裸 $token（发现 ' + leakLines.length + ' 处' + (leakLines.length ? '：' + leakLines.join(' | ') : '') + '）')
+
+  // 值也不能拼进外部命令的参数：命令行同样会被会话记录与进程参数完整留下（#1646 泄露的就是这条路径）。
+  const runsExternal = /(^|[\s;|(])(npm|node|cmd|pwsh|Start-Process)([\s;|)]|$)/
+  const argLeakLines = scriptLines.filter((line) => runsExternal.test(line) && bareToken.test(line))
+  check(argLeakLines.length === 0, '脚本没有把裸 $token 拼进外部命令的参数（发现 ' + argLeakLines.length + ' 处）')
 
   // 临时 npmrc 里只放占位符：真正提交时由 npm 从环境变量代入，文件里没有值。
   const npmrcLine = scriptLines.find((l) => l.indexOf('Set-Content -Path $tempNpmrc') >= 0)
@@ -93,6 +105,15 @@ function staticChecks(): void {
 
   const realMachine = fs.readFileSync(path.join(ROOT, 'docs', 'agents', 'real-machine-verification.md'), 'utf8')
   check(realMachine.indexOf('-TokenFile') >= 0, 'real-machine-verification.md 的发布路径说明跟着改成文件通道')
+
+  // 权限与删除要有可执行命令，不能只写「只给本人可读」这类形容词。
+  check(runbook.indexOf('icacls') >= 0, 'RELEASE-RUNBOOK.md 给出收紧 token 文件权限的可执行命令')
+  check(runbook.indexOf('Remove-Item -LiteralPath') >= 0, 'RELEASE-RUNBOOK.md 给出用完即删的可执行命令')
+  check(runbook.indexOf('只打一行 WARN 提醒') >= 0, 'RELEASE-RUNBOOK.md 写明仓库目录里的 WARN 只提醒不阻断')
+
+  // 本 issue 的误操作形态是把 token 值当成 -TokenFile 的值传进来：回显路径前必须先打码。
+  check(has('function ShowPath'), '脚本有 ShowPath：回显路径前先隐去长令牌串')
+  check(has('(ShowPath $TokenFile)') && has('(ShowPath $tokenFilePath)'), '报错与 WARN 回显路径时都经过 ShowPath')
 }
 
 // ---------------------------------------------------------------------------
@@ -180,7 +201,7 @@ function runScript(args: string[], extraEnv: Record<string, string>): Promise<Ru
     const errChunks: Buffer[] = []
     child.stdout.on('data', (c: Buffer) => outChunks.push(c))
     child.stderr.on('data', (c: Buffer) => errChunks.push(c))
-    const timer = setTimeout(() => { try { child.kill('SIGKILL') } catch (e) {} }, 120000)
+    const timer = setTimeout(() => { try { child.kill('SIGKILL') } catch (e) {} }, 60000)
     child.on('error', (err: Error) => { clearTimeout(timer); reject(new Error('起 pwsh 跑发布脚本失败：' + err.message)) })
     child.on('close', (code: number | null) => {
       clearTimeout(timer)
@@ -214,6 +235,7 @@ async function dynamicChecks(): Promise<void> {
   const logD = path.join(lab, 'd.log')
   const logE = path.join(lab, 'e.log')
   const logF = path.join(lab, 'f.log')
+  const logG = path.join(lab, 'g.log')
   const packumentPath = path.join(repo, 'package', 'package.json')
   // token 文件故意放在假仓库目录里：顺带验证「文件在仓库目录里」的 WARN。
   const tokenPath = path.join(repo, 'publish-token.txt')
@@ -235,6 +257,7 @@ async function dynamicChecks(): Promise<void> {
       check(run.out.indexOf('NODE_AUTH_TOKEN') >= 0, 'A 缺 token 的报错提到兼容的环境变量名')
       check(run.out.indexOf('不会打印 token') >= 0, 'A 缺 token 的报错承诺不打印任何片段')
       noLeak('A 的 stdout', run.out, TOKEN)
+      noLeak('A 的 stderr', run.err, TOKEN)
     }
 
     // B. -TokenFile 指向不存在的文件：用法错误，报错里给路径。
@@ -242,6 +265,8 @@ async function dynamicChecks(): Promise<void> {
       const run = await runScript(['-TokenFile', missingPath, '-RepoRoot', repo, '-LogPath', logA, '-DryRun'], {})
       check(run.code === 2, 'B token 文件不存在时退出码是 2（实测 ' + run.code + '）')
       check(run.out.indexOf(missingPath) >= 0, 'B 报错里给出所给的文件路径')
+      noLeak('B 的 stdout', run.out, TOKEN)
+      noLeak('B 的 stderr', run.err, TOKEN)
     }
 
     // C. 文件里没有内容：用法错误，报错点明文件里没有内容。
@@ -249,6 +274,8 @@ async function dynamicChecks(): Promise<void> {
       const run = await runScript(['-TokenFile', emptyPath, '-RepoRoot', repo, '-LogPath', logA, '-DryRun'], {})
       check(run.code === 2, 'C 空白 token 文件时退出码是 2（实测 ' + run.code + '）')
       check(run.out.indexOf(emptyPath) >= 0 && run.out.indexOf('没有内容') >= 0, 'C 报错里给出路径并说明文件里没有内容')
+      noLeak('C 的 stdout', run.out, TOKEN)
+      noLeak('C 的 stderr', run.err, TOKEN)
     }
 
     // D. 主路径：文件里的假 token 跑 -DryRun（假 registry 说这个版本还没发过）。
@@ -263,6 +290,7 @@ async function dynamicChecks(): Promise<void> {
       check(run.out.indexOf('DRYRUN 只验到这里') >= 0, 'D -DryRun 只验到只读阶段，不跑门禁不发布')
       check(run.out.indexOf('WARN token 文件在仓库目录里') >= 0, 'D token 文件在仓库目录里时给出 WARN，提醒删掉别提交')
       noLeak('D 的 stdout', run.out, TOKEN)
+      noLeak('D 的 stderr', run.err, TOKEN)
       const logText = readIfExists(logD)
       check(logText.length > 0, 'D 写了日志文件')
       noLeak('D 的日志文件', logText, TOKEN)
@@ -284,10 +312,12 @@ async function dynamicChecks(): Promise<void> {
       check(run.code === 0, 'E -Probe 以假 token 文件跑通，退出码 0（实测 ' + run.code + '）')
       check(run.out.indexOf('PROBE-OK') >= 0, 'E 探针判 PROBE-OK（registry 拒收已存在版本＝写链路通）')
       noLeak('E 的 stdout', run.out, TOKEN)
+      noLeak('E 的 stderr', run.err, TOKEN)
       noLeak('E 的日志文件', readIfExists(logE), TOKEN)
       const put = stubVisible.requests.find((r) => r.method === 'PUT')
       check(put !== undefined, 'E 探针确实向 registry 发了 PUT（真写权限探针，不是只看读）')
       check(put !== undefined && put.auth === 'Bearer ' + TOKEN, 'E 探针 PUT 的 Authorization 里带的是文件里的 token')
+      check(args.join(' ').indexOf(TOKEN) < 0, 'E 命令行参数里只有 token 文件路径，没有 token 值')
     } finally {
       if (stubVisible) await stubVisible.close()
     }
@@ -301,10 +331,25 @@ async function dynamicChecks(): Promise<void> {
       check(run.code === 0, 'F 环境变量入口照旧可用，退出码 0（实测 ' + run.code + '）')
       check(run.out.indexOf('TOKEN source=env name=NODE_AUTH_TOKEN') >= 0, 'F 日志记明来源是环境变量名')
       noLeak('F 的 stdout', run.out, ENV_TOKEN)
+      noLeak('F 的 stderr', run.err, ENV_TOKEN)
       noLeak('F 的日志文件', readIfExists(logF), ENV_TOKEN)
       check(stubEnv.requests.some((r) => r.auth === 'Bearer ' + ENV_TOKEN), 'F 假 registry 的 Authorization 里带的是环境变量里的 token')
+      check(args.join(' ').indexOf(ENV_TOKEN) < 0, 'F 命令行参数里没有 token 值（值只走环境变量）')
     } finally {
       if (stubEnv) await stubEnv.close()
+    }
+
+    // G. 误操作形态：把 token 值当成 -TokenFile 的路径传进来。报错可以指路，但值绝不能原样出现。
+    {
+      const args = ['-TokenFile', TOKEN2, '-RepoRoot', repo, '-LogPath', logG, '-DryRun']
+      const run = await runScript(args, {})
+      check(run.code === 2, 'G 把 token 值当路径传时按用法错误退出 2（实测 ' + run.code + '）')
+      check(run.out.indexOf('读不到 token 文件') >= 0, 'G 报错点明读不到 token 文件')
+      check(run.out.indexOf('***') >= 0, 'G 回显前把长令牌串打了码')
+      noLeak('G 的 stdout', run.out, TOKEN2)
+      noLeak('G 的 stderr', run.err, TOKEN2)
+      noLeak('G 的日志文件', readIfExists(logG), TOKEN2)
+      check(args.join(' ').indexOf(TOKEN2) >= 0, 'G 对照：这个值确实在命令行里传进去了（所以上面“搜不到”不是空转）')
     }
   } finally {
     try { fs.rmSync(lab, { recursive: true, force: true }) } catch (e) {}

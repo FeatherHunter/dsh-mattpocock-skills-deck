@@ -18,7 +18,8 @@
 #     pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish-token.txt -DryRun    # 只读：读表＋验 token
 #     pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish-token.txt             # 全流程：门禁(build+test)→发三包→一次采样
 #     pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish-token.txt -FullPost   # 宣布前：长轮询直到包全可见
-#     3) 每趟跑完立刻删掉临时文件：Remove-Item $env:TEMP\dsh-publish-token.txt
+#     3) 每趟跑完立刻删掉临时文件：Remove-Item -LiteralPath $env:TEMP\dsh-publish-token.txt -Force
+#   怎么收紧文件权限、怎么把值写进文件，见 docs/releases/RELEASE-RUNBOOK.md 第 12 节。
 #   环境变量入口仍然兼容（-TokenEnv，缺省 NODE_AUTH_TOKEN；为空再试 NPM_TOKEN/NODE_AUTH_TOKEN），
 #   但别用内联赋值那种写法，理由同上。脚本只记录 token 的来源（文件路径或变量名），从不打印值。
 # 参数：
@@ -68,6 +69,13 @@ function Mask([string]$s) {
   if ($null -eq $s) { return '' }
   return ($s -replace 'npm_[A-Za-z0-9_-]{6,}', 'npm_***')
 }
+# 回显路径前先隐去令牌串：本 issue 的误操作形态就是把 token 值当成 -TokenFile 的值传进来，
+# 那种串一旦原样打进日志就等于又泄露一次。长于 32 个字符的连续字母数字串（token 的典型形态）
+# 整段打码；真路径的每一段一般没这么长，仍能看清是哪个文件出了错。
+function ShowPath([string]$p) {
+  if ([string]::IsNullOrEmpty($p)) { return '' }
+  return ((Mask $p) -replace '[A-Za-z0-9_-]{32,}', '***')
+}
 
 # ── 阶段 0：取 token（只记来源，不记值） ──────────────────────────────────
 # 优先级：-TokenFile > 环境变量（$TokenEnv → NPM_TOKEN → NODE_AUTH_TOKEN）。
@@ -78,12 +86,12 @@ $tokenFrom = ''
 $tokenFilePath = ''
 if (-not [string]::IsNullOrWhiteSpace($TokenFile)) {
   try { $tokenFilePath = (Resolve-Path -LiteralPath $TokenFile -ErrorAction Stop).Path }
-  catch { Log ('FAIL 读不到 token 文件：' + $TokenFile + '（路径写错、文件不存在或没有读权限；命令行里只该出现路径）'); exit 2 }
+  catch { Log ('FAIL 读不到 token 文件：' + (ShowPath $TokenFile) + '（路径写错、文件不存在或没有读权限；命令行里只该出现路径）'); exit 2 }
   try { $rawTokenFile = [System.IO.File]::ReadAllText($tokenFilePath) }
-  catch { Log ('FAIL token 文件读不了：' + $tokenFilePath + '（检查文件权限后重试；命令行里只该出现路径）'); exit 2 }
-  $firstTokenLine = @($rawTokenFile -split "`r?`n" | Where-Object { $_.Trim() -ne '' } | Select-Object -First 1)
-  if ($firstTokenLine.Count -gt 0) { $token = $firstTokenLine[0].Trim() }
-  if ([string]::IsNullOrWhiteSpace($token)) { Log ('FAIL token 文件里没有内容：' + $tokenFilePath + '（需要在第一行放 token 值）'); exit 2 }
+  catch { Log ('FAIL token 文件读不了：' + (ShowPath $tokenFilePath) + '（检查文件权限后重试；命令行里只该出现路径）'); exit 2 }
+  $tokenLines = @($rawTokenFile -split "`r?`n" | Where-Object { $_.Trim() -ne '' } | Select-Object -First 1)
+  if ($tokenLines.Count -gt 0) { $token = $tokenLines[0].Trim() }
+  if ([string]::IsNullOrWhiteSpace($token)) { Log ('FAIL token 文件里没有内容：' + (ShowPath $tokenFilePath) + '（需要在第一行放 token 值）'); exit 2 }
   $tokenFrom = 'file'
 }
 if ([string]::IsNullOrWhiteSpace($token)) {
@@ -104,11 +112,12 @@ if ([string]::IsNullOrWhiteSpace($token)) {
 }
 if ($tokenFrom -eq 'file') {
   # 文件放在仓库目录里会被 git 看见，也有被误提交的风险；这里只提醒，不阻断（发布流程不动这个文件）。
-  $repoRootPath = (Resolve-Path -LiteralPath $RepoRoot).Path.TrimEnd([char]'\', [char]'/')
-  if ($tokenFilePath.StartsWith($repoRootPath + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
-    Log ('WARN token 文件在仓库目录里：' + $tokenFilePath + '；跑完立刻删除，不要提交。')
+  $repoRootPath = ''
+  try { $repoRootPath = (Resolve-Path -LiteralPath $RepoRoot -ErrorAction Stop).Path.TrimEnd([char]'\', [char]'/') } catch { $repoRootPath = '' }
+  if ($repoRootPath -ne '' -and $tokenFilePath.StartsWith($repoRootPath + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+    Log ('WARN token 文件在仓库目录里：' + (ShowPath $tokenFilePath) + '；只提醒不阻断，但跑完立刻删除，不要提交。')
   }
-  Log ('TOKEN source=file path=' + $tokenFilePath + '（值不打屏）')
+  Log ('TOKEN source=file path=' + (ShowPath $tokenFilePath) + '（值不打屏）')
 } else {
   Log ('TOKEN source=env name=' + $tokenFrom + '（值不打屏）')
 }
