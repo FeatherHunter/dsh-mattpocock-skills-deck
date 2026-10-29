@@ -1,6 +1,6 @@
 // smoke-render.test.ts — T5 阶段 3 运行时冒烟（关键渲染路径：面板/状态栏/tab）
 // 按 R3 第二步设计：jsdom + 真实 React/ReactDOM + DswsCtx，渲染产物注册的宿主无关组件
-// 覆盖：StatusBar（状态栏胶囊 + seg）、DetailsDock（面板容器 + tabs 行）、
+// 覆盖：StatusBar（缺省折叠条；胶囊本体见 669 / cap-fold 系列门禁）、DetailsDock（面板容器 + tabs 行）、
 ///      ListTab / MapDetail / SkillsTab / ChecksTab / SettingsPage（视图区小件）
 // 用法: node --import ./scripts/ts-hook.mts tests/smoke-render.test.ts
 import { JSDOM } from 'jsdom'
@@ -146,7 +146,16 @@ const PanelBodyComp = byName['sidebar.right.pane.tab']
 const PanelTitleComp = byName['sidebar.right.pane.tab.title']
 const SettingsComp = byName['settings.plugins.tab']
 
-// ---- StatusBar 渲染（关键路径：capsule / seg / 状态段）----
+// ---- StatusBar 渲染（关键路径：缺省折叠条；胶囊不在缺省档）----
+// #1612（维护者 2026-10-29 拍板）之后状态栏缺省折叠：新挂载只画那句「展开 MattSkillsDeck」小灰字
+//   （src/client/kernel/deck-state.ts 的 deckStatusBarOf 只认 show，缺格与读失败一律按折叠算）。
+//   点展开要走设置文件那条路（src/client/statusbar/deckDoor.ts 的 deckDoorExpand → setDeckStatusBar），
+//   而这条路在 src/client/kernel/settings-view.ts 里要先认得出工作区根（viewFlagKnownRootOf）。
+//   本冒烟的假宿主连 snapshot 都不答、也没有会话状态，三条来源一条都不成立，认不出根 —— 于是点完
+//   仍停在折叠态。这是夹具的边界，不是产品行为：点展开后胶囊真的回来由
+//   tests/verify-669-collapsed-recoverable.ts 的 C 组（带快照与设置文件的假连接）覆盖，胶囊本体与
+//   样式由 tests/verify-cap-fold-browser.ts、tests/verify-capsule-layout.ts、tests/verify-capsule-narrow.ts
+//   覆盖。本段只钉两件事：缺省挂载画折叠条且不画胶囊；点展开不抛错、界面停在已知状态。
 if (StatusBarComp) {
   const statusBarProps = {
     sessionId: 'test-sid',
@@ -154,7 +163,6 @@ if (StatusBarComp) {
     useSessions: () => null,
     inputActions: null,
   }
-  // 横幅默认收起后，新挂载只画展开按钮：先点展开再断言胶囊（与 669 门禁同一路，不是多判一次）。
   const sbContainer = window.document.createElement('div')
   window.document.body.appendChild(sbContainer)
   let sbRoot = null
@@ -165,21 +173,26 @@ if (StatusBarComp) {
       await new Promise(r => setTimeout(r, 20))
     })
     const sbExpand = sbContainer.querySelector('[data-log="status.banner.expand"]')
-    if (sbExpand && !sbContainer.innerHTML.includes('dsws-capsule')) {
-      await act(async () => {
-        sbExpand.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
-        await new Promise(r => setTimeout(r, 50))
-      })
+    check(!!sbExpand, 'StatusBar 缺省挂载画折叠条（data-log=status.banner.expand）')
+    check(!sbContainer.innerHTML.includes('dsws-capsule'), 'StatusBar 缺省折叠：不渲染 dsws-capsule')
+    if (sbExpand) {
+      let clickErr = ''
+      try {
+        await act(async () => {
+          sbExpand.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+          await new Promise(r => setTimeout(r, 50))
+        })
+      } catch (e) { clickErr = (e && e.message) || String(e) }
+      check(!clickErr, 'StatusBar 点折叠条上的展开不抛错' + (clickErr ? `（${clickErr}）` : ''))
+      check(sbContainer.innerHTML.includes('status.banner.expand') || sbContainer.innerHTML.includes('dsws-capsule'),
+        'StatusBar 点展开后停在已知状态（折叠条或胶囊）')
     }
-    check(sbContainer.innerHTML.includes('dsws-capsule'), 'StatusBar 渲染含 dsws-capsule')
   } catch (e) {
     check(false, `StatusBar 渲染异常: ${e.message} ${e.stack && e.stack.split('\n')[0]}`)
   } finally {
     try { if (sbRoot) sbRoot.unmount() } catch (e) {}
     try { if (sbContainer.parentNode) sbContainer.parentNode.removeChild(sbContainer) } catch (e) {}
   }
-  // 额外校验：seg 是否出现在渲染输出（状态段未因空数据崩溃即视为通过）
-  // 不强制 dsws-seg 因空 snapshot 可能无 seg，但 capsule 必须在
 } else {
   check(false, 'StatusBar 组件未捕获')
 }
