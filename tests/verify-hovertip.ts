@@ -39,6 +39,9 @@ if (src) {
   must(src, /onVisibleChange/, '受控回调 onVisibleChange')
   must(src, /onShow|onHide/, '非受控回调 onShow/onHide')
   must(src, /getBoundingClientRect/, 'anchor 读 getBoundingClientRect')
+  // #1652：锚定分支的位置统一交给方位纯函数，坐标按左上角画，不再按中心点平移。
+  must(src, /computeTipPlace/, 'anchor 分支经 computeTipPlace 算方位')
+  ok(!/tooltipStyle = \{[^}]*translateY\(-50%\)/.test(src), 'tooltipStyle 不再带 translateY(-50%) 中心位移（左上角坐标直画）')
   must(src, /clientX.*clientY|mousePos/, 'mouse 跟 clientX/Y')
   must(src, /ResizeObserver|scroll.*resize/, '滚动/视口变化统一重算')
   must(src, /content.*children|rawContent/, 'content 优先于 children 别名')
