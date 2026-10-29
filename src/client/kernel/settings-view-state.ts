@@ -28,9 +28,12 @@
 //   的额度（#1012 后续修复：写失败不把那一笔从队列里划掉，靠下一趟写把它落进文件；成功一趟额度就恢复，
 //   故障持续存在时额度耗尽就不再自己排，免得长成自续的循环）。它们与「问到哪一步了」是同一件事的
 //   不同侧面，所以跟着状态一起住在这里，不另立第二处。
+//   mergePending 与 mergeLog 是 #1640 临时记录合并的两个尾巴：合并已经把临时记录搬进根记录、但结果还没
+//   落进文件时 mergePending 为 true（写成功一趟才清，写失败留到下一趟）；mergeLog 是这一趟合并该发的那几行
+//   日志，按临时记录键的短散列存着，同样等写成功才发 —— 写失败时不发「合了」的假话。
 // 类型一律写 any 是刻意的：status 有五个字符串取值、doc 在各片里按文档形状读写，
 //   在这里写窄只会把别处正常的改动变成这里的假报错（与 kernel/link.ts 同例）。
-const viewFlagState: any = { status: 'idle', doc: null, deferred: {}, journal: {}, timer: 0, retryLeft: 1 }
+const viewFlagState: any = { status: 'idle', doc: null, deferred: {}, journal: {}, timer: 0, retryLeft: 1, mergePending: false, mergeLog: {} }
 // 登记过「问完了叫我一声」的回调名单。一次问话只有一个终点，所以通知过就把名单清空。
 const viewFlagWaiters: any[] = []
 // 现在给出的判断问过真源了没有：语义见文件头那段「就绪的确切意思」。

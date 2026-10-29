@@ -54,7 +54,7 @@
 //   refresh/rooms/client/snapshot-cache-store.ts，viewFlagState 与 viewFlagNotifySettled 的真源在 kernel/settings-view-state.ts，
 //   settingsUiDrainDeferred 的真源在 kernel/settings-ui.ts，settingsTemplatesDrainDeferred 的真源在
 //   kernel/settings-templates.ts，settingsDebugDrainDeferred 与 settingsDebugDocLooksReal 的真源在
-//   kernel/settings-debug.ts，viewFlagScheduleWrite 的真源在 kernel/settings-view-write.ts；
+//   kernel/settings-debug.ts，viewFlagScheduleWrite 与 viewFlagMergeDoc 的真源在 kernel/settings-view-write.ts；
 //   本片只在调用时求值，初始化期不碰；类型一律写 any 是刻意的：在这里凭记忆写窄，
 //   只会把那边正常的改动变成这里的假报错（与 kernel/link.ts 同例）。
 //   host/emit/log 走全局已声明的那一份，这里不重复。process 只在 typeof 里判平台，
@@ -72,6 +72,7 @@ declare function settingsTemplatesDrainDeferred(...args: any[]): any;
 declare function settingsDebugDrainDeferred(...args: any[]): any;
 declare function settingsDebugDocLooksReal(...args: any[]): any;
 declare function viewFlagScheduleWrite(...args: any[]): any;
+declare function viewFlagMergeDoc(...args: any[]): any;
 declare const process: any;
     // 旧键登记表：本模块管的名字 → 旧 localStorage 键名，以及旧表里那一把键是按哪条路径记的。
     //   「按哪条路径记」不能省：红文件夹标志按工作区根记（SubworkspaceMark.js 第 138–157 行，
@@ -264,11 +265,12 @@ declare const process: any;
         return false
       }
     }
-    // 把这一格改进内存文档：别的节与别的字段一律不动；新建这一条记录时，按上面 VIEW_FLAG_SEED_NAMES 种上
+    // 把这一格改进内存文档：别的节与别的字段一律不动；新建一条普通记录时，按上面 VIEW_FLAG_SEED_NAMES 种上
     //   另外那两格。这一格自己照旧写在最后一行，所以不管名字是哪一个都落得下。
     //   第六个参数 unopened 只对「新建一条记录」生效（#1641）：设置页工作区名单上还没打开过的工作区认不出根，
     //   先按名单上的路径记一条临时记录并标上它；已有记录不动这个标记——什么时候合并、什么时候清掉由 #1640
-    //   那一条路负责，写这一格的人不该顺手抹掉别人的标记。
+    //   那一条路负责，写这一格的人不该顺手抹掉别人的标记。临时记录只种这一格 + 标记（#1640），不种缺省：
+    //   「格在不在」就是「用户点过没点过」，合并时靠它决定搬哪几格。
     const viewFlagSetInDoc = function (doc: any, cwd: any, key: any, name: any, on: any, unopened: any): any {
       try {
         if (!doc || typeof doc !== 'object') return false
@@ -276,11 +278,15 @@ declare const process: any;
         let entryKey = viewFlagEntryKeyOf(doc, key)
         if (!entryKey) {
           const seed: any = {}
-          for (let i = 0; i < VIEW_FLAG_SEED_NAMES.length; i++) {
-            const n = VIEW_FLAG_SEED_NAMES[i]
-            seed[n] = (n === name) ? on : viewFlagSeedValueOf(cwd, n)
+          if (unopened === true) {
+            seed.unopened = true
+            seed[name] = on
+          } else {
+            for (let i = 0; i < VIEW_FLAG_SEED_NAMES.length; i++) {
+              const n = VIEW_FLAG_SEED_NAMES[i]
+              seed[n] = (n === name) ? on : viewFlagSeedValueOf(cwd, n)
+            }
           }
-          if (unopened === true) seed.unopened = true
           doc.workspaces[key] = seed
           entryKey = key
         }
@@ -338,6 +344,9 @@ declare const process: any;
         }
         viewFlagState.deferred = {}
         if (status === 'ready') {
+          // #1640：文档到手以后先合并一次「已经认得出根」的临时记录 —— 界面重画时看到的、以及下面排的
+          //   这一趟写，都是合并后的那一份；合到了会顺手排一次落盘（合并结果写进文件才算数）。
+          try { viewFlagMergeDoc(viewFlagState.doc, 'load') } catch (eM) {}
           // 文档刚到手要重画一次：不然「上次收起过横幅」这件事得等下一次别的重渲染才生效，
           //   用户会先看见横幅自己弹回来一下。只在真拿到文档时重画（问不到那条路上界面本来就照旧表画着）。
           viewFlagEmitAll()

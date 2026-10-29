@@ -13,6 +13,8 @@ declare const listPrefs: any;
 declare function isEnabled(...args: any[]): any;
 declare function log(...args: any[]): any;
 declare function dswsLogHash(...args: any[]): any;
+// #1640：临时记录合并的入口，真源在 kernel/settings-view-write.ts（拼在同一个闭包里）。认不出时按没有处理。
+declare function viewFlagMergeNow(...args: any[]): any;
 declare function promptLang(...args: any[]): any;
 declare function nowStr(...args: any[]): any;
 declare const ctx: any;
@@ -89,6 +91,9 @@ export const rememberWorkspaceRoot = function (selected: any, root: any): void {
     const rk: any = (typeof keyOf === 'function') ? keyOf(root) : String(root || '')
     if (sk && rk) workspaceRootByCwd[sk] = rk
     if (rk) workspaceRootByCwd[rk] = rk
+    // #1640：工作区根刚认出来 —— 设置页名单上那些「先按路径记着」的临时记录，凡是归到这把根的，
+    //   当场合并到根那一条（写入排期由合并那一侧负责；没有临时记录时这一步什么都不做）。
+    try { if (typeof viewFlagMergeNow === 'function') viewFlagMergeNow('root') } catch (eM) {}
   } catch (e) {}
 }
 // 分桶用的钥匙：给所选目录，回工作区根；认不出（宿主还没回过话）就回所选目录本身。

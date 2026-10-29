@@ -66,8 +66,10 @@ async function main() {
     check(stOut.ok === true && stOut.text.indexOf('labelClicks') < 0, 'C1 写出去的一份里不写 labelClicks', stOut.ok ? stOut.text : '')
     // #1641：设置页还没打开过的工作区先按名单路径记一条临时记录，记录上带 unopened: true。
     //   它只是说明，不是开关：写得出来、读得回来、往返值不变；缺省的 false 不写出这个标记。
+    // #1640 起临时记录是稀疏的：只存 unopened 标记与用户真正点过的那几格（这里只有 statusBar），
+    //   另外几格的缺省值由读口自己兜底；写出去、读回来都保持这一份稀疏形状，不补回四格。
     const markedSt = JSON.parse(JSON.stringify(st))
-    markedSt.workspaces['D:\\ws\\other'] = { statusBar: 'hide', deckTools: 'on', noRepoDismissed: false, subwsMarkAutoShown: false, unopened: true }
+    markedSt.workspaces['D:\\ws\\other'] = { unopened: true, statusBar: 'hide' }
     const markedOut = stringifyConfig(markedSt, 'settings')
     check(markedOut.ok === true && markedOut.text.indexOf('unopened: true') >= 0, 'C1 #1641 临时标记 unopened: true 写得出来', markedOut.ok ? markedOut.text : markedOut.message)
     const markedBack = markedOut.ok ? parseConfig(markedOut.text, 'settings') : null

@@ -19,6 +19,9 @@
  * 每个工作区那一条记录上还有一个临时标记 unopened（#1641）：设置页的工作区名单里有些工作区还没打开过，
  *   认不出它的工作区根，只能先按名单上的路径记一条。这条记录带 unopened: true，表示它还没有归到工作区根
  *   那一条，等工作区打开、认出根以后会合并过去。它只是一个说明，不是开关，缺了与 false 同义。
+ *   带这个标记的记录是「临时记录」（#1640）：只写用户真点过的那几格开关，缺的格不补缺省 ——「格在不在」
+ *   就是「用户点过没点过」，认出工作区根以后靠这一点决定合并时搬哪几格；普通记录（已经归到根的那一条）
+ *   照旧四格齐全。
  */
 
 import type { ConfigParseResult, ConfigStringifyResult } from './ports.js'
@@ -149,6 +152,7 @@ export function parseSettings(doc: unknown): ConfigParseResult {
 
   // workspaces 节：键是工作区根的可读路径（动态），值里认四个开关（胶囊状态栏缺了默认收起、deck 工具箱缺了默认开，
   // 其余两个旧开关缺了默认关），还可以带一个临时标记 unopened（见文件头；只记录 true，缺了与 false 同义）。
+  // 带标记的临时记录只留写下来的格（#1640），普通记录才把四个开关的缺省补齐。
   // 旧字段 bannerFolded 只把「展开」（false）换算成 statusBar: show，归一结果里不带它。
   const wsRaw = doc['workspaces'] === undefined ? {} : doc['workspaces']
   if (!isRecord(wsRaw)) return fail('bad-shape', '本机设置文件里的 workspaces 必须是一组「工作区根 → 开关」')
@@ -162,7 +166,16 @@ export function parseSettings(doc: unknown): ConfigParseResult {
     if (entryStrange.length > 0) {
       return fail('unknown-keys', '本机设置文件 workspaces 节里「' + root + '」有多出来的名字：' + entryStrange.join('、'), entryStrange)
     }
-    const norm: Record<string, unknown> = { statusBar: 'hide', deckTools: 'on', noRepoDismissed: false, subwsMarkAutoShown: false }
+    // 先认临时标记 unopened：它决定这一条是普通记录（缺格补默认）还是临时记录（只留写下来的格）。
+    //   值不是真假值一律按坏形状回，免得用户手写的 unopened: yes 被 YAML 读成文字后悄悄当成没写。
+    if (entry['unopened'] !== undefined && typeof entry['unopened'] !== 'boolean') {
+      return fail('bad-shape', '本机设置文件 workspaces 节里「' + root + '」的 unopened 只能是 true 或省略（true 表示这条记录先按工作区名单上的路径记着，那个工作区还没打开过）')
+    }
+    const isTemp: boolean = entry['unopened'] === true
+    // 普通记录缺格补默认；临时记录一格都不补 —— 写下来的才是用户点过的（#1640 合并时按这个判，见文件头）。
+    const norm: Record<string, unknown> = isTemp
+      ? { unopened: true }
+      : { statusBar: 'hide', deckTools: 'on', noRepoDismissed: false, subwsMarkAutoShown: false }
     // bannerFolded 是已发布过的旧字段：接受它（旧文件里可能有，否则整份会被判 unknown-keys）。
     // 只保留「展开」这一种旧值的换算（false → statusBar: show）—— 验收 ⑦ 要求升级前手动展开过的工作区，
     // 升级后胶囊仍显示着；旧版把「收起」记作 true（也是缺省），那种情况按新缺省 hide，不需要换算。
@@ -190,15 +203,6 @@ export function parseSettings(doc: unknown): ConfigParseResult {
         return fail('bad-shape', '本机设置文件 workspaces 节里「' + root + '」的 ' + k + ' 必须是真假值（YAML 会把没加引号的 yes/no/on 读成文字，那种按坏形状回）')
       }
       norm[k] = entry[k]
-    }
-    // #1641 的临时标记：它说明这条记录还挂在工作区名单的路径上、没归到工作区根那一条，不是开关，
-    //   所以只记录 true（false 与省略同义，写出去时也不该冒出一个 false）。值不是真假值一律按坏形状回，
-    //   免得用户手写的 unopened: yes 被 YAML 读成文字后悄悄当成没写。
-    if (entry['unopened'] !== undefined) {
-      if (typeof entry['unopened'] !== 'boolean') {
-        return fail('bad-shape', '本机设置文件 workspaces 节里「' + root + '」的 unopened 只能是 true 或省略（true 表示这条记录先按工作区名单上的路径记着，那个工作区还没打开过）')
-      }
-      if (entry['unopened'] === true) norm['unopened'] = true
     }
     workspaces[root] = norm
   }
@@ -290,14 +294,20 @@ export function stringifySettings(value: unknown): ConfigStringifyResult {
         lines.push('    ' + COMMENT_UNOPENED)
         lines.push('    unopened: true')
       }
-      lines.push('    ' + COMMENT_STATUS_BAR)
-      lines.push('    statusBar: ' + esc(String(entry['statusBar'])))
-      lines.push('    ' + COMMENT_DECK_TOOLS)
-      lines.push('    deckTools: ' + esc(String(entry['deckTools'])))
-      lines.push('    ' + COMMENT_NOREPO)
-      lines.push('    noRepoDismissed: ' + String(entry['noRepoDismissed']))
-      lines.push('    ' + COMMENT_SUBWS)
-      lines.push('    subwsMarkAutoShown: ' + String(entry['subwsMarkAutoShown']))
+      // 四个开关按固定次序写，每个带着自己的注释行；临时记录只写用户真点过的那几格（#1640，缺的格跳过），
+      // 普通记录四格必在（parseSettings 补的），所以照旧全写。
+      const fields: Array<[string, string]> = [
+        ['statusBar', COMMENT_STATUS_BAR],
+        ['deckTools', COMMENT_DECK_TOOLS],
+        ['noRepoDismissed', COMMENT_NOREPO],
+        ['subwsMarkAutoShown', COMMENT_SUBWS],
+      ]
+      for (const [name, comment] of fields) {
+        const cell = entry[name]
+        if (cell === undefined) continue
+        lines.push('    ' + comment)
+        lines.push('    ' + name + ': ' + (typeof cell === 'string' ? esc(cell) : String(cell)))
+      }
     }
   }
   lines.push(COMMENT_DEBUG)

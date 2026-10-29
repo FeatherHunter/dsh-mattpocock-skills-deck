@@ -9,7 +9,8 @@
  *
  * 这一份门禁量六件事，每件都用完整一句话说清：
  * 第一件：设置文件认 unopened 临时标记（写得出来、读得回来、往返不变；false 与省略同义；写数字按坏形状拒并点名）。
- * 第二件：写口收到 listed=true 且认不出根时，按名单路径先记一条带 unopened 的临时记录，种的那两格照旧，读口立刻读得到。
+ * 第二件：写口收到 listed=true 且认不出根时，按名单路径先记一条带 unopened 的临时记录 —— 只写用户点过的
+ *   那一格（#1640 起不种缺省，「格在不在」就是「点过没点过」），读口立刻读得到点过的那一格。
  * 第三件：同样的场景不传 listed（别的调用方）时，仍是 #1612 的口径：返回 false、一个字都不写。
  * 第四件：换一个全新的客户端实例（相当于刷新或重启）读同一个主目录，还能从那条临时记录里读回开关值。
  * 第五件：认得出工作区根的行（真正的会话目录）行为不变：照旧记在根那把键上，记录不带 unopened。
@@ -224,11 +225,11 @@ async function main() {
   const listedDoc = await readDoc(listedEnv.home)
   const listedEntry = entryOf(listedDoc, 'D:\\ws\\other')
   check(!!listedEntry && listedEntry.unopened === true, '这条临时记录带 unopened: true（将来认出根时靠它知道该合并）。', JSON.stringify(listedEntry))
-  check(!!listedEntry && listedEntry.deckTools === 'on', '新建记录时另一格 deckTools 照旧按缺省种 on（种的那两格没漏）。', JSON.stringify(listedEntry))
-  check(!!listedEntry && listedEntry.subwsMarkAutoShown === false, '新建记录时第三格 subwsMarkAutoShown 照旧种 false。', JSON.stringify(listedEntry))
+  check(!!listedEntry && listedEntry.deckTools === undefined, '临时记录只写用户点过的那一格（#1640）：deckTools 没有种进来，缺格就是「没点过」。', JSON.stringify(listedEntry))
+  check(!!listedEntry && Object.keys(listedEntry).sort().join(',') === 'statusBar,unopened', '这条临时记录里只有用户点过的 statusBar 与标记本身，没有别的缺省格。', JSON.stringify(listedEntry))
   check(!!listedDoc && Object.keys(listedDoc.workspaces).length === 1, '文件里只有这一条记录，没有再到别处猜一条。', JSON.stringify(listedDoc && listedDoc.workspaces))
   check(listedEnv.mod.viewFlagOf(listedEnv.cwd, 'statusBar') === 'show', '写成功之后读口立刻读得到 show（同一次会话里不用等重启）。')
-  check(listedEnv.mod.viewFlagOf(listedEnv.cwd, 'deckTools') === 'on', '读口读另一格也是文件里的值 on。')
+  check(listedEnv.mod.viewFlagOf(listedEnv.cwd, 'deckTools') === undefined, '没点过的格子读口回 undefined（不假装文件里有一个值；缺省由 deck-state 的读口兜底）。')
 
   // ── 第三件事：不传 listed 的调用方仍按 #1612 的口径：一个字都不写 ──
   console.log('')
@@ -248,9 +249,9 @@ async function main() {
   restartEnv.mod.settingsViewLoad()
   await settlement(restartEnv.mod)
   check(restartEnv.mod.viewFlagOf('D:\\ws\\other', 'statusBar') === 'show', '新的客户端实例（相当于刷新/重启）读得回 statusBar: show。')
-  check(restartEnv.mod.viewFlagOf('D:\\ws\\other', 'deckTools') === 'on', '另一格 deckTools 也读得回来。')
+  check(restartEnv.mod.viewFlagOf('D:\\ws\\other', 'deckTools') === undefined, '没点过的那一格重启之后照样是 undefined（缺格不补缺省）。')
   const restartDoc = await readDoc(listedEnv.home)
-  check(entryOf(restartDoc, 'D:\\ws\\other') && entryOf(restartDoc, 'D:\\ws\\other').unopened === true, '重启这一趟只读不写，记录上的 unopened 标记原样留着（清标记归 #1640）。', JSON.stringify(entryOf(restartDoc, 'D:\\ws\\other')))
+  check(entryOf(restartDoc, 'D:\\ws\\other') && entryOf(restartDoc, 'D:\\ws\\other').unopened === true, '重启这一趟仍认不出根、不合并，记录上的 unopened 标记原样留着。', JSON.stringify(entryOf(restartDoc, 'D:\\ws\\other')))
 
   // ── 第五件事：认得出工作区根的行行为不变 ──
   console.log('')
