@@ -326,17 +326,22 @@
   },
   {
     "date": "2026-10-26",
-    "total": 237,
-    "daily": 7
+    "total": 236,
+    "daily": 6
   },
   {
     "date": "2026-10-27",
-    "total": 245,
+    "total": 244,
     "daily": 8
   },
   {
     "date": "2026-10-28",
-    "total": 248,
-    "daily": 3
+    "total": 251,
+    "daily": 7
+  },
+  {
+    "date": "2026-10-29",
+    "total": 259,
+    "daily": 8
   }
 ]
