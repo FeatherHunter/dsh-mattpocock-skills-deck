@@ -85,7 +85,9 @@ const MATRIX: [string, string, string[]][] = [
   ['src/client/statusbar/StatusLogMenu.ts', '状态栏日志菜单', ['status.logdot', 'status.logmenu.', 'status.logconfirm.backdrop']],
   ['src/client/statusbar/LogDangerConfirm.ts', '日志危险操作确认', ['status.logconfirm.', 'status.lognotice.']],
   ['src/client/statusbar/SessionChainCapsule.ts', '会话链胶囊', ['status.chainmenu.row.', 'status.capsule.chain']],
-  ['src/client/views/ListTab.ts', '列表页顶部按钮与筛选药丸', ['list.filter.remove.', 'list.filter.clear', 'list.healthcheck', 'list.effort.', 'list.fold.closed']],
+  ['src/client/views/ListTab.ts', '列表页顶部按钮与筛选药丸', ['list.filter.remove.', 'list.filter.clear', 'list.healthcheck', 'list.fold.closed']],
+  // #1639：顶部那排 md目录签的画法搬到 views/mdEffortRow.ts，它的点击日志定位串跟着搬过去（画法在哪，接线就登记在哪）。
+  ['src/client/views/mdEffortRow.ts', '列表页顶部的 md目录签', ['list.effort.']],
   ['src/client/views/ListTabClosed.ts', '已关闭列表', ['list.closed.web']],
   ['src/client/views/IssueDetail.ts', '工单详情错误态控件', ['detail.err.']],
   ['src/client/views/IssueDetailComments.ts', '评论区的错误态链接', ['detail.cmt.']],

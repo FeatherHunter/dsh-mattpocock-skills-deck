@@ -61,6 +61,8 @@ const LEAVES = [
   { file: 'src/client/views/ListTabRow.js', exports: ['listIssueRow'], components: [] }, // V3 #463 由 ListTab.js 拆出：单行渲染（无组件，纯函数）
   // 本次界面反馈需求：列表页状态/排序/标签三组筛选药丸那一行（含三块液态墨块）从 ListTab.ts 抽出。
   { file: 'src/client/views/listFilterRow.ts', exports: ['listFilterRowNode'], components: [] },
+  // #1639：主列表顶部那排 md目录签的画法（普通内联流跨行切断、slice 封口）与目录名文字上限（19 个数字的宽度 + 末尾省略号）。
+  { file: 'src/client/views/mdEffortRow.ts', exports: ['MD_EFFORT_LABEL_DIGIT_LIMIT', 'MD_EFFORT_LABEL_ELLIPSIS', 'mdEffortLabelOf', 'mdEffortRowNode'], components: [] },
   { file: 'src/client/views/ListTab.js', exports: ['ListTab'], components: ['ListTab'] },
   { file: 'src/client/views/SkillsTab.js', exports: ['SkillsTab'], components: ['SkillsTab'] },
   { file: 'src/client/views/ChecksTab.js', exports: ['ChecksTab'], components: ['ChecksTab'] },

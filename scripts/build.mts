@@ -778,6 +778,9 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'ListTabRow', file: 'src/client/views/ListTabRow.ts' },
   // 本次界面反馈需求：列表页三组筛选药丸那一行（含三块液态墨块）从 ListTab 抽出，ListTab 贴着 350 行上限。
   { id: 'listFilterRow', file: 'src/client/views/listFilterRow.ts' },
+  // #1639：顶部那排 md目录签的排布（普通内联流、行尾照字面切断）与目录名文字上限（19 个数字的宽度 + 末尾省略号），
+  //   从 ListTab 抽出，排在 listTab 之前（ListTab 调它画那一排）。
+  { id: 'mdEffortRow', file: 'src/client/views/mdEffortRow.ts' },
   { id: 'listTab', file: 'src/client/views/ListTab.ts' },
   { id: 'prTab', file: 'src/client/views/PrTab.ts' },
   { id: 'skillsTab', file: 'src/client/views/SkillsTab.ts' },
