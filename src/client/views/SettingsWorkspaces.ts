@@ -99,6 +99,9 @@ declare function deckStatusBarOf(cwd: string): string;
 declare function deckToolsOf(cwd: string): string;
 declare function setDeckStatusBar(cwd: string, show: boolean, listed?: boolean): unknown;
 declare function setDeckTools(cwd: string, on: boolean, listed?: boolean): unknown;
+// #1654：这一行是不是还没点开过的工作区（内核认不出根就是没点开过）。真源在 kernel/deck-state.ts，
+//   这里只声明、不 import（与上面四个名字同例，构建时拼进同一个闭包）。
+declare function isWorkspaceUnopened(cwd: string): boolean;
 
 /**
  * 最短唯一后缀：每条路径从末段往左数到可区分的最少段数（全撞车就取全长）。
@@ -348,12 +351,20 @@ export const renderWsOverview = function (h: any, sharedSt: any, wsOverview: any
                 // #1612：两个开关的当前状态只认 deck-state 归一后的值——文件里缺省、旧字段迁移都由它兜住，这里不重新判定。
                 const sbOn = deckStatusBarOf(cwd)==='show'
                 const toolsOn = deckToolsOf(cwd)==='on'
-                return h('div',{ key:cwd + '#' + foldVer, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)', whiteSpace:'nowrap', overflow:'hidden', minHeight:28 }},[
-                  h(HoverTip, { content: hoverText, maxWidth: 220 }, h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 } }, mergedNote ? (display + ' ' + mergedNote) : display)),
-                  h('span',{ style:{ display:'inline-flex', alignItems:'center', gap:4, flex:'none', whiteSpace:'nowrap', fontSize:11, minWidth:72, justifyContent:'flex-end' }},[ h('span',{style:{width:7,height:7,borderRadius:'50%',background:color,flex:'none'}}), h('span',{style:{fontWeight:600,whiteSpace:'nowrap', minWidth:36, textAlign:'center'}},label) ]),
-                  h(HoverTip, { content: srcTitle, maxWidth: 220 }, h('span',{ style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, srcLabel)),
-                  wsSwitchOf(cwd, sbOn, tr('cfg.wsStatusBar'), tr('cfg.wsStatusBarTip'), 'settings.workspaces.statusbar', setDeckStatusBar, listedOf(cwd)),
-                  wsSwitchOf(cwd, toolsOn, tr('cfg.wsDeckTools'), tr('cfg.wsDeckToolsTip'), 'settings.workspaces.decktools', setDeckTools, listedOf(cwd)),
+                // #1654：还没点开过的工作区行，两个开关下面多一行小字。显隐只认两件事：这一行在名单上、内核认不出根。
+                //   名单外的兜底行（拿当前目录凑的那一行）即使认不出根也不显示；第一次打开并合并成功后根认出来了，这里自动消失。
+                const listed = listedOf(cwd)
+                let showPending = false
+                try { showPending = listed === true && typeof isWorkspaceUnopened === 'function' && isWorkspaceUnopened(cwd) === true } catch (e) { showPending = false }
+                return h('div',{ key:cwd + '#' + foldVer, style:{ display:'flex', flexDirection:'column', gap:2, padding:'7px 8px', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)', whiteSpace:'nowrap', overflow:'hidden' }},[
+                  h('div',{ style:{ display:'flex', alignItems:'center', gap:8, whiteSpace:'nowrap', overflow:'hidden', minHeight:28 }},[
+                    h(HoverTip, { content: hoverText, maxWidth: 220 }, h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 } }, mergedNote ? (display + ' ' + mergedNote) : display)),
+                    h('span',{ style:{ display:'inline-flex', alignItems:'center', gap:4, flex:'none', whiteSpace:'nowrap', fontSize:11, minWidth:72, justifyContent:'flex-end' }},[ h('span',{style:{width:7,height:7,borderRadius:'50%',background:color,flex:'none'}}), h('span',{style:{fontWeight:600,whiteSpace:'nowrap', minWidth:36, textAlign:'center'}},label) ]),
+                    h(HoverTip, { content: srcTitle, maxWidth: 220 }, h('span',{ style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, srcLabel)),
+                    wsSwitchOf(cwd, sbOn, tr('cfg.wsStatusBar'), tr('cfg.wsStatusBarTip'), 'settings.workspaces.statusbar', setDeckStatusBar, listed),
+                    wsSwitchOf(cwd, toolsOn, tr('cfg.wsDeckTools'), tr('cfg.wsDeckToolsTip'), 'settings.workspaces.decktools', setDeckTools, listed),
+                  ]),
+                  showPending ? h('div',{ style:{ fontSize:10, color:'#8b8b95', textAlign:'right', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}, tr('cfg.wsPendingHint')) : null,
                 ])
               }))
             ])
