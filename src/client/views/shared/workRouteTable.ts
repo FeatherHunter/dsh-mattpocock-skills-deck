@@ -269,7 +269,7 @@ const workRouteTipGroup = function (h: any, icon: string, text: string, key: str
  *
  * 提示挂在整行上（不是挂在标题那一格上）：悬停这一行的任何位置都能看到。
  * 提示一行两段（#1288）：左边是完整的票标题，右边是完整的会话名，中间一条竖线分开，两边各带一枚图标；
- * 提示落在指针上方（placement: 'above'），不遮住鼠标正指着的那一格。
+ * 提示落在触发控件上方，不遮住鼠标正指着的那一格（方位由提示控件内部按屏幕边界让位）。
  *
  * 表格里的格子窄，显示不下就用省略号；提示里给的是完整原文，不受列宽限制。
  * 动作词与完整动作时刻在格子里被截掉时，以暗色小字补在提示末尾，信息不丢。
@@ -340,7 +340,7 @@ export const WorkRouteRow = ({ r, nowMs, st, onNavigate, cells }: any) => {
     h('span', { style: Object.assign({ fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-caption,#8b8b95)' }, workRouteCellStyle) }, shortAt),
     h('span', { 'data-work-route-state': r.active ? 'active' : 'stale', style: { color: r.active ? '#4ade80' : 'var(--dsw-alias-label-caption,#8b8b95)' } }, r.active ? tr('workRouteTable.active') : tr('workRouteTable.stale')),
   ])
-  return h(Tip, { content: tipContent, placement: 'above', maxWidth: 520, offset: { x: 0, y: 12 } }, row)
+  return h(Tip, { content: tipContent, maxWidth: 520 }, row)
 }
 
 /** 面板里这张表：标题行 + 表头 + 逐条行；空态与读不到也画在这一块里。点行后调 onNavigate（浮层靠它收起）。 */

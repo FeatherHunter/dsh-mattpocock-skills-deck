@@ -349,9 +349,9 @@ export const renderWsOverview = function (h: any, sharedSt: any, wsOverview: any
                 const sbOn = deckStatusBarOf(cwd)==='show'
                 const toolsOn = deckToolsOf(cwd)==='on'
                 return h('div',{ key:cwd + '#' + foldVer, style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid var(--dsw-alias-border-l1,#2a2d35)', whiteSpace:'nowrap', overflow:'hidden', minHeight:28 }},[
-                  h(HoverTip, { content: hoverText, mode: 'mouse', maxWidth: 220 }, h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 } }, mergedNote ? (display + ' ' + mergedNote) : display)),
+                  h(HoverTip, { content: hoverText, maxWidth: 220 }, h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 } }, mergedNote ? (display + ' ' + mergedNote) : display)),
                   h('span',{ style:{ display:'inline-flex', alignItems:'center', gap:4, flex:'none', whiteSpace:'nowrap', fontSize:11, minWidth:72, justifyContent:'flex-end' }},[ h('span',{style:{width:7,height:7,borderRadius:'50%',background:color,flex:'none'}}), h('span',{style:{fontWeight:600,whiteSpace:'nowrap', minWidth:36, textAlign:'center'}},label) ]),
-                  h(HoverTip, { content: srcTitle, mode: 'mouse', maxWidth: 220 }, h('span',{ style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, srcLabel)),
+                  h(HoverTip, { content: srcTitle, maxWidth: 220 }, h('span',{ style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, srcLabel)),
                   wsSwitchOf(cwd, sbOn, tr('cfg.wsStatusBar'), tr('cfg.wsStatusBarTip'), 'settings.workspaces.statusbar', setDeckStatusBar, listedOf(cwd)),
                   wsSwitchOf(cwd, toolsOn, tr('cfg.wsDeckTools'), tr('cfg.wsDeckToolsTip'), 'settings.workspaces.decktools', setDeckTools, listedOf(cwd)),
                 ])

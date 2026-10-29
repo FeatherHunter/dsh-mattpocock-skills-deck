@@ -38,7 +38,7 @@ export     const SettingsPage = (props: { sessionId?: unknown }): unknown => {
       const h = cx ? cx.h : React.createElement
       // T5 修订：订阅 store（设置页独立于面板 dock，需自己订阅 shared 才能渲染 flash toast）
       const sharedSt = cx ? cx.storeSvc.useStore(props && props.sessionId) : useStore(props && props.sessionId)
-      // T2 悬停提示迁移：设置提示框的定位、翻转、挂顶显示已统一交给 HoverTip（mode='mouse'）负责，显示悬停提示、移动悬停提示、隐藏悬停提示三个旧函数（showCfgTip/moveCfgTip/hideCfgTip）已经下线，移除了全局显示时序，翻转阈值与样式走统一配置表，页面行为没有变化
+      // T2 悬停提示迁移：设置提示框的挂顶显示已统一交给 HoverTip 负责，显示悬停提示、移动悬停提示、隐藏悬停提示三个旧函数（showCfgTip/moveCfgTip/hideCfgTip）已经下线，移除了全局显示时序，方位与样式走统一配置表，页面行为没有变化
       const [foldVer, setFoldVer] = React.useState(0)
       // #492 调试分组已搬进 views/diagnosticLog/DiagnosticLogSection.ts（状态、跑腿、画法全在里面，
       //   本页只剩一行挂载）；拨开关写本机设置文件 debug 节、导出四键走宿主电话，口径一点没变。
@@ -71,9 +71,9 @@ export     const SettingsPage = (props: { sessionId?: unknown }): unknown => {
           ]),
           h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
             h(UpdateEntryHost, { key: 'update' }),
-            h(HoverTip, { key: 'star', content: tr('cfg.starTip'), mode: 'mouse', maxWidth: 220 },
+            h(HoverTip, { key: 'star', content: tr('cfg.starTip'), maxWidth: 220 },
               h('a', { className: 'dsws-hov', 'data-press': 'icon', 'data-log': 'settings.star', href: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck', target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: 4, borderRadius: 6, color: 'inherit', textDecoration: 'none' } }, [h('span', { 'aria-hidden': 'true', style: { fontSize: 14, lineHeight: 1 } }, '🌟')])),
-            h(HoverTip, { key: 'feedback', content: tr('cfg.feedbackTip'), mode: 'mouse', maxWidth: 220 },
+            h(HoverTip, { key: 'feedback', content: tr('cfg.feedbackTip'), maxWidth: 220 },
               h('a', { className: 'dsws-hov', 'data-press': 'icon', 'data-log': 'settings.issue', href: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/new', target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: 4, borderRadius: 6, color: 'inherit', textDecoration: 'none' } }, [h('span', { 'aria-hidden': 'true', style: { fontSize: 14, lineHeight: 1 } }, '💬')])),
           ]),
         ]),

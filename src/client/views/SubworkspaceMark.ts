@@ -381,7 +381,7 @@ export const SubworkspaceMark = function (props: any) {
   // 自动展开那一次用受控 visible；关掉（或本来就不再展开）之后交回 HoverTip 自己管（鼠标悬停照常出浮层）。
   // tipProps 标注 Record<string, any>：下面那两笔是「满足条件才挂上去」的可选属性，标注只为让赋值成立，
   // 挂属性的时机与原来逐字一致（先给三样，自动展开且还没关过时才补 visible 与 onVisibleChange）。
-  const tipProps: Record<string, any> = { content: tipContent, children: body, mode: 'mouse' }
+  const tipProps: Record<string, any> = { content: tipContent, children: body }
   if (autoOpen && !autoDone) {
     tipProps.visible = true
     tipProps.onVisibleChange = function (next: any) { if (!next) markAutoShown() }

@@ -117,7 +117,7 @@ export const SkillFloatList = function (props: any) {
     s.skillsOpen ? PortalOverlay({ className: 'dsws-skillpop-bridge', onMouseEnter: function () { clearClose(skillCloseRef) }, onMouseLeave: function () { scheduleClose(skillCloseRef, closeSkillPop) }, style: { position: 'fixed', right: s.skillPopPos ? s.skillPopPos.right : 0, bottom: s.skillPopPos ? s.skillPopPos.bottom : 0, paddingTop: 4, paddingBottom: 4, zIndex: 2147483000 }, onClick: function (e: any) { e.stopPropagation() } }, [
       h('div', { className: 'dsws-skillpop', style: { minWidth: 150, maxHeight: 'min(300px, calc(100vh - 24px))', overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
         SKILLS.map(function (sk: any, i: number) {
-          return h(HoverTip, { key: sk.name, content: tr('skilldesc.' + sk.name), mode: 'anchor', maxWidth: 220 }, h('div', chipProps({
+          return h(HoverTip, { key: sk.name, content: tr('skilldesc.' + sk.name), maxWidth: 220 }, h('div', chipProps({
             // 接线（#1335 界面反馈）：每一行技能都是一颗可点的按钮（上面那套共享属性已经给了 role=button 与键盘三件套），
             //   按整行接 row 形状；日志名用这一行在技能目录里的序号，技能名是行上那段展示文字，按纪律不写进日志。
             className: 'dsws-skillpop-row dsws-hov',

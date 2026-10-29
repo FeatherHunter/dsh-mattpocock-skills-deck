@@ -3,6 +3,7 @@
 > 日期：2026-09-01 定版（承 #373 地图，G1 #391 已落盘底座与目录，G2 #377 grilling 拍板推荐打包 91 分，本规格 #393 首轮定版）
 > 地位：复用体系的第二个架构决策，定版 HoverTip 单一样板与挂顶契约，后续所有悬浮需求默认走此路径；与 `docs/adr/20260901-reuse-g1-portal-primitives.md`、`kernel/portal.js`、`views/primitives/HoverTip.js` 同级约束。
 > 版本与效力：本文件落盘后，凡与本决策冲突的旧悬浮实现/定位分支/全局提示键，以本文件（更新日期者）为准；未来任何讨论若改动本契约，以未来版本为准（CONTEXT.md 同款两条规则）。
+> 取代声明（2026-10-29，规格 #1651，第二张实施票 #1653 定版 docs/adr/20261029-tip-anchor-above.md）：下面 §2.1、§2.2 接口表、§2.3、§2.5、§3 中与「只锚定在触发控件上方」冲突的段落不再执行，行内另有注；本文件的存档意义不变。
 
 ---
 
@@ -25,6 +26,8 @@
 - 首轮仅定版 HoverTip 单一样板与挂顶底座的契约，不将通用定位抽为独立钩子（place/usePlacement）；
 - 通用能力若需后续经原型验证后再议，避免为未验证的复用提前抽象；
 - 固定定位模式与自定义挂载容器不纳入首轮，首轮仅 anchor 与 mouse 两档并锁 document.body。
+
+  > 注（#1653，已取代）：mouse 一档整段删除，只剩锚定在触发控件上方；几何已抽为独立纯函数 tipPlace，不再是「不抽」的口径。
 
 ### 2.2 接口表（HoverTip）
 
@@ -59,6 +62,8 @@ HoverTip(props) // h 工厂，局部 useState/useRef/useEffect 闭环，经 Dsws
 - 阈值统一：estW = maxWidth + 16 + 2 = 238，x + estW > vpW 时翻到另一侧，y 越界时 clamp，caret 边框色走 var(--dsw-alias-border-l2)，随 flippedX 在 -4px 与 -4px 左右切换并 45deg/225deg 旋转；
 - 私有性：place 计算私有于 HoverTip 内，不对外暴露为独立 API，P1 验证后再议是否独立为 usePlacement。
 
+  > 注（#1653，已取代）：方位纯函数已是导出模块真源（src/client/views/primitives/tipPlace.ts），单测直接证明；仍不是钩子，但不再私有。
+
 ### 2.4 时序与事件
 
 - 显隐延迟拆档，默认立显与延迟消失，快速划过时进入即清定时、移开即重计时，单一定时器驱动不另写硬编码；
@@ -66,7 +71,7 @@ HoverTip(props) // h 工厂，局部 useState/useRef/useEffect 闭环，经 Dsws
 
 ### 2.5 挂顶与叠放
 
-- 所有悬浮统一经平台抽象层的挂顶底座落到文档顶层（portalTop），底座内含渲染器缺失时的原地退化；控件内私有定位函数不对外暴露，滚动与视口变化时统一重算（scroll capture + resize + ResizeObserver），失败不抛；
+- 所有悬浮统一经平台抽象层的挂顶底座落到文档顶层（portalTop），底座内含渲染器缺失时的原地退化；控件内私有定位函数不对外暴露（注：#1653 已取代此半句，定位走导出的方位纯函数），滚动与视口变化时统一重算（scroll capture + resize + ResizeObserver），失败不抛；
 - 叠放：统一定位层级 2147483000，高于面板 9999/modal 10000/note 10001，复用既有技能浮层的已验证层级，避免被面板裁剪。
 
 ### 2.6 架构边界
@@ -78,7 +83,7 @@ HoverTip(props) // h 工厂，局部 useState/useRef/useEffect 闭环，经 Dsws
 
 ## 3. 后果
 
-- 正向：后续所有悬浮需求默认走 HoverTip 契约不再各写定位/翻转/挂顶逻辑；首轮两处迁移已完成（SkillFloatList 锚点 + SettingsPage 鼠标，含芯片与工作区后端总览的 mouse 提示），移除手算定位与全局提示键，滚动与视口边缘翻转走同一契约，三件套用例覆盖挂顶/翻转/跟随。
+- 正向：后续所有悬浮需求默认走 HoverTip 契约不再各写定位/翻转/挂顶逻辑；首轮两处迁移已完成（SkillFloatList 锚点 + SettingsPage 鼠标，含芯片与工作区后端总览的 mouse 提示；注：#1653 已将 SettingsPage 的两处 mouse 改为锚定上方），移除手算定位与全局提示键，滚动与视口边缘翻转走同一契约，三件套用例覆盖挂顶/翻转/跟随。
 - 代价：新增 primitives/HoverTip.js 单文件 + 轻量门禁 verify-hovertip.js + 本 ADR，构建与门禁白名单同步（约 1 行 LEAF + 1 行 verify 串联 + 2 处白名单）。
 - 风险与缓解：漏改构建标记或冻结表会导致 verify-kernel 红，T2 单独验证 build 全绿；阈值分裂由 estW 统一，时序竞态由单 timer 统一，叠放被裁由 portalTop 统一，底座缺失由 RDOM 兜底；新增重复由 verify-reuse 按 2 标记 3 即抽 5 必卡拦截。
 
