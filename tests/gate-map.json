@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-29T05:39:29.401Z",
+  "generatedAt": "2026-10-29T05:49:26.845Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 445,
-  "gateCount": 445,
-  "attributedGates": 400,
+  "chainLength": 446,
+  "gateCount": 446,
+  "attributedGates": 401,
   "unattributedGates": 45,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 21,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 618,
+  "graphFileCount": 619,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -197,6 +197,7 @@
         "src/client/views/labels/labelColorPatch.ts",
         "src/client/views/labels/useLabelColors.ts",
         "src/client/views/listFilterRow.ts",
+        "src/client/views/mdEffortRow.ts",
         "src/client/views/shared/RestFallbackBanner.ts",
         "src/client/views/shared/Tabs.ts",
         "src/client/views/shared/chips.ts",
@@ -244,7 +245,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 84 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 85 条"
     },
     {
       "step": "node tests/verify-chain-capsule.ts",
@@ -4192,7 +4193,8 @@
       "step": "node tests/verify-1596-md-eff-filter.ts",
       "file": "tests/verify-1596-md-eff-filter.ts",
       "guards": [
-        "src/client/views/ListTab.ts"
+        "src/client/views/ListTab.ts",
+        "src/client/views/mdEffortRow.ts"
       ],
       "dirs": [
         "src/client/views"
@@ -4201,7 +4203,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-1599-gitlab-hidden-markers.ts",
@@ -4543,6 +4545,22 @@
       ],
       "dirs": [
         "src/refresh/rooms/client"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1639-md-eff-split-browser.ts",
+      "file": "tests/verify-1639-md-eff-split-browser.ts",
+      "guards": [
+        "src/client/views/ListTab.ts",
+        "src/client/views/mdEffortRow.ts"
+      ],
+      "dirs": [
+        "src/client/views"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -10015,6 +10033,7 @@
         "src/client/views/labels/LabelColorEntry.ts",
         "src/client/views/labels/LabelColorRow.ts",
         "src/client/views/listFilterRow.ts",
+        "src/client/views/mdEffortRow.ts",
         "src/client/views/pixel/PixelBanner.ts",
         "src/client/views/pixel/PixelBtn.ts",
         "src/client/views/shared/ChainRenderer.ts",
@@ -10058,7 +10077,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 64 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 65 条"
     },
     {
       "step": "node tests/verify-unmigrated-tests.ts",
@@ -11035,6 +11054,7 @@
       "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1582-open-folder.ts",
       "node tests/verify-1596-md-eff-filter.ts",
+      "node tests/verify-1639-md-eff-split-browser.ts",
       "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -12354,9 +12374,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 639,
+    "fileCount": 640,
     "dirCount": 74,
-    "coveredFileCount": 639,
+    "coveredFileCount": 640,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 57,
@@ -12507,6 +12527,7 @@
       "src/client/views/mapDetailV2/view/skin/MapDetailV2Styles.ts",
       "src/client/views/mapDetailV2/wiring/pageActionHandlers.ts",
       "src/client/views/mapDetailV2/wiring/useMapTicketsFeed.ts",
+      "src/client/views/mdEffortRow.ts",
       "src/client/views/pixel/PixelBanner.ts",
       "src/client/views/pixel/PixelBtn.ts",
       "src/client/views/pixel/PixelDot.ts",
