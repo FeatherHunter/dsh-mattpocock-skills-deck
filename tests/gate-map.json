@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-29T07:14:48.632Z",
+  "generatedAt": "2026-10-29T07:56:41.960Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 450,
-  "gateCount": 450,
-  "attributedGates": 403,
+  "chainLength": 452,
+  "gateCount": 452,
+  "attributedGates": 405,
   "unattributedGates": 47,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 23,
+  "completionRecordedGates": 24,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 619,
+  "graphFileCount": 620,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -198,6 +198,7 @@
         "src/client/views/labels/useLabelColors.ts",
         "src/client/views/listFilterRow.ts",
         "src/client/views/mdEffortRow.ts",
+        "src/client/views/primitives/tipPlace.ts",
         "src/client/views/shared/RestFallbackBanner.ts",
         "src/client/views/shared/Tabs.ts",
         "src/client/views/shared/chips.ts",
@@ -237,6 +238,7 @@
         "src/client/views/diagnosticLog",
         "src/client/views/feedback",
         "src/client/views/labels",
+        "src/client/views/primitives",
         "src/client/views/shared",
         "src/client/views/versionControl",
         "tests/lib"
@@ -245,7 +247,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 85 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 86 条"
     },
     {
       "step": "node tests/verify-chain-capsule.ts",
@@ -4732,6 +4734,38 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
+      "step": "node tests/verify-1654-ws-pending-hint.ts",
+      "file": "tests/verify-1654-ws-pending-hint.ts",
+      "guards": [
+        "config/copy/flow.yaml",
+        "src/client/kernel/deck-state.ts",
+        "src/client/kernel/locale-data.ts",
+        "src/client/kernel/settings-view-state.ts",
+        "src/client/kernel/settings-view-write.ts",
+        "src/client/kernel/settings-view.ts",
+        "src/client/views/SettingsWorkspaces.ts",
+        "src/host/configStore.ts",
+        "src/host/settingsPhones.ts",
+        "src/shared/time-config/src/values.ts",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/gate-result.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "config/copy",
+        "src/client/kernel",
+        "src/client/views",
+        "src/host",
+        "src/shared/time-config/src",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 20,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 7 条"
+    },
+    {
       "step": "node tests/verify-3-workspace-switch.ts",
       "file": "tests/verify-3-workspace-switch.ts",
       "guards": [
@@ -8037,23 +8071,25 @@
       "file": "tests/verify-hovertip.ts",
       "guards": [
         "package/lib/client.js",
-        "src/client/floating/SkillFloatList.ts",
-        "src/client/views/SettingsPage.ts",
+        "src/client",
         "src/client/views/primitives/HoverTip.ts",
+        "src/client/views/primitives/Tip.ts",
+        "src/client/views/primitives/tipPlace.ts",
+        "src/client/views/shared/workRouteTable.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
-        "src/client/floating",
-        "src/client/views",
+        "src/client",
         "src/client/views/primitives",
+        "src/client/views/shared",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；静态 import 说明符 1 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-index-window.ts",
@@ -9965,6 +10001,23 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 105 条"
     },
     {
+      "step": "node tests/verify-tip-place.ts",
+      "file": "tests/verify-tip-place.ts",
+      "guards": [
+        "src/client/views/primitives/tipPlace.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/client/views/primitives",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 1 条"
+    },
+    {
       "step": "node tests/verify-tracker-contract.ts",
       "file": "tests/verify-tracker-contract.ts",
       "guards": [
@@ -10581,7 +10634,8 @@
     "config/copy": [
       "node tests/verify-1297-entry.ts",
       "node tests/verify-1490-declaration-file.ts",
-      "node tests/verify-1612-deck-door.ts"
+      "node tests/verify-1612-deck-door.ts",
+      "node tests/verify-1654-ws-pending-hint.ts"
     ],
     "config/prompts": [
       "node tests/verify-1298-spec-close.ts",
@@ -10958,6 +11012,7 @@
       "node tests/verify-client-hardcode-gate.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-error-single-source.ts",
+      "node tests/verify-hovertip.ts",
       "node tests/verify-kernel.ts",
       "node tests/verify-log-artifacts.ts",
       "node tests/verify-log-client.ts",
@@ -10976,7 +11031,6 @@
     "src/client/floating": [
       "node tests/verify-leaves.ts",
       "node tests/verify-no-title.ts",
-      "node tests/verify-hovertip.ts",
       "node tests/verify-reuse.ts",
       "node tests/verify-time-config.ts"
     ],
@@ -11023,6 +11077,7 @@
       "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-1642-toggle-logs.ts",
       "node tests/verify-1649-detail-closed-link.ts",
+      "node tests/verify-1654-ws-pending-hint.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -11161,6 +11216,7 @@
       "node tests/verify-1596-md-eff-filter.ts",
       "node tests/verify-1639-md-eff-split-browser.ts",
       "node tests/verify-1641-listed-workspace-flags.ts",
+      "node tests/verify-1654-ws-pending-hint.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -11172,7 +11228,6 @@
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-763-detail-fold.ts",
       "node tests/verify-b2-map-newsession.ts",
-      "node tests/verify-hovertip.ts",
       "node tests/verify-issue529-checks-i18n.ts",
       "node tests/verify-labels-sync.ts",
       "node tests/verify-map-drill.ts",
@@ -11217,10 +11272,12 @@
       "node tests/verify-ui-feedback.ts"
     ],
     "src/client/views/primitives": [
+      "node tests/verify-leaves.ts",
       "node tests/verify-no-title.ts",
       "node tests/verify-hovertip.ts",
       "node tests/verify-reuse.ts",
-      "node tests/verify-time-config.ts"
+      "node tests/verify-time-config.ts",
+      "node tests/verify-tip-place.ts"
     ],
     "src/client/views/shared": [
       "node tests/verify-leaves.ts",
@@ -11252,6 +11309,7 @@
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-bug-entry.ts",
       "node tests/verify-diagnostic-log-actions.ts",
+      "node tests/verify-hovertip.ts",
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-rest-fallback-banner.ts",
       "node tests/verify-rest-fallback-reason.ts",
@@ -11442,6 +11500,7 @@
       "node tests/verify-1640-unopened-merge.ts",
       "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-1642-toggle-logs.ts",
+      "node tests/verify-1654-ws-pending-hint.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
@@ -11858,6 +11917,7 @@
       "node tests/verify-1640-unopened-merge.ts",
       "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-1642-toggle-logs.ts",
+      "node tests/verify-1654-ws-pending-hint.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-669-choice-precedence.ts",
@@ -12360,6 +12420,7 @@
       "node tests/verify-1640-unopened-merge.ts",
       "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-1642-toggle-logs.ts",
+      "node tests/verify-1654-ws-pending-hint.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
@@ -12462,6 +12523,7 @@
       "node tests/verify-subdir-first-frame.ts",
       "node tests/verify-suggest-next-steps.ts",
       "node tests/verify-tabsfold-leaf.ts",
+      "node tests/verify-tip-place.ts",
       "node tests/verify-ui-feedback.ts",
       "node tests/verify-update-panel.ts",
       "node tests/verify-visible-truth.ts",
@@ -12490,9 +12552,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 640,
+    "fileCount": 641,
     "dirCount": 74,
-    "coveredFileCount": 640,
+    "coveredFileCount": 641,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 57,
@@ -12655,6 +12717,7 @@
       "src/client/views/pixelProps.d.ts",
       "src/client/views/primitives/HoverTip.ts",
       "src/client/views/primitives/Tip.ts",
+      "src/client/views/primitives/tipPlace.ts",
       "src/client/views/shared/BackendSelector.ts",
       "src/client/views/shared/ChainRenderer.ts",
       "src/client/views/shared/RestFallbackBanner.ts",

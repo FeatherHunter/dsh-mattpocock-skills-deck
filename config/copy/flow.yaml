@@ -221,6 +221,7 @@ zh:
   cfg.wsStatusBarTip: 胶囊状态栏：绿色是显示、灰色是收起，点一下切换。收起后状态栏只剩一条折叠条，蓝条黄条这类环境检查提示也一起不显示。
   cfg.wsDeckTools: deck 工具箱
   cfg.wsDeckToolsTip: deck 工具箱：绿色是打开、灰色是关闭，点一下切换。关闭后这个工作区的 deck 工具、胶囊状态栏和右侧面板三处一起关，界面回到普通编码界面。
+  cfg.wsPendingHint: 已存住，打开该工作区后生效
   cfg.updateManualTitle: 按钮装不了，用这条命令自己装
   cfg.updateCopy: 一键复制
   cfg.updateManualNote: 网络只放行内网镜像时，可以把命令末尾的 --registry=https://registry.npmjs.org/ 去掉，改用本机源。但如果报错说找不到新版本且地址是镜像源，那就是镜像源还没同步到新版本：这时不要去掉源参数，直接用这条命令装。
@@ -468,6 +469,7 @@ en:
   cfg.wsStatusBarTip: Capsule status bar — green means shown, grey means collapsed. A click toggles it; when collapsed only a slim strip remains, and environment-check banners such as the blue and yellow bars are hidden as well.
   cfg.wsDeckTools: Deck tools
   cfg.wsDeckToolsTip: Deck tools — green means on, grey means off. A click toggles it; when off, this workspace's deck tools, capsule status bar and right-hand panel all close together and the usual coding view returns.
+  cfg.wsPendingHint: Saved — takes effect after opening this workspace.
   cfg.updateManualTitle: Button install unavailable — run this command instead
   cfg.updateCopy: Copy command
   cfg.updateManualNote: "On a network that only allows an internal mirror, drop the trailing --registry=https://registry.npmjs.org/ and your local registry is used instead. But if the error says the new version was not found on a mirror registry, the mirror has not synced the new release yet: keep the registry parameter and install with this command."

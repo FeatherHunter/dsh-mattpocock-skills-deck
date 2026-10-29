@@ -27,6 +27,7 @@
 //   viewFlagOf 的真源在 kernel/settings-view.ts，setViewFlagValue 的真源在 kernel/settings-view-write.ts，
 //   keyOf/emit/shared/stores 由界面闭包提供。类型一律写 any 是刻意的（理由同其它 kernel 片）。
 declare function viewFlagOf(...args: any[]): any
+declare function viewFlagDocKeyOf(...args: any[]): any
 declare function setViewFlagValue(...args: any[]): any
 declare function keyOf(...args: any[]): any
 declare function emit(...args: any[]): any
@@ -61,6 +62,19 @@ export const deckStatusBarOf = function (cwd: any): any {
 // deck 关了没有：关的是整个 deck（工具、胶囊、右侧面板三处一起关），所以这个判断比「胶囊折没折」更早。
 export const isDeckClosed = function (cwd: any): boolean {
   try { return deckToolsOf(cwd) === DECK_TOOLS_OFF } catch (e) { return false }
+}
+
+// 设置页工作区名单上「还没点开过的工作区」是不是当前这一行：内核认不出这个目录的工作区根时返回 true。
+//   认不出根的意思是这个工作区还没被打开过（快照表里没有它的根，会话也没有报过根），点开关时会按名单路径先存一条临时记录；
+//   第一次打开并合并成功后，根认出来了，这里就回 false，行下面的小字自动消失。渲染层拿它和「这一行在不在名单上」一起决定小字显不显，
+//   拿当前目录凑出来的兜底行即使认不出根也不显示，所以这一处只判根、不判名单。
+export const isWorkspaceUnopened = function (cwd: any): boolean {
+  try {
+    const p = String(cwd == null ? '' : cwd)
+    if (!p) return false
+    if (typeof viewFlagDocKeyOf !== 'function') return false
+    return viewFlagDocKeyOf(cwd) === ''
+  } catch (e) { return false }
 }
 
 // 胶囊此刻折没折（渲染口径：状态栏、横幅、右侧面板都用它）：deck 关了或者胶囊开关是折叠，两条任一成立就算折。

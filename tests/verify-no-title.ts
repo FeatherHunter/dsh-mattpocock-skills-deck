@@ -121,7 +121,7 @@ if (hits.length>0 && hits.length<=10){
 if (hits.length===0) check(true, 'ok', 'title: 残留 0 处（通过，全量已迁移至 Tip）')
 else if (hits.length===1) check(true, 'ok', 'title: 1 处（未达 2 标记）：' + hits[0])
 else if (hits.length===2) check(false, 'warn', 'title: 2 处标记（// TODO no-title:q）：' + hits.join(', ') + ' — 下一处即抽，请改 Tip({content}) 包裹')
-else if (hits.length<5) check(false, 'error', 'title: ' + hits.length + ' 处即抽（≥3）：' + hits.slice(0,5).join(', ') + (hits.length>5?' ...':'') + ' — 请经 Tip 薄预设迁移（mode mouse/delay 500/160/maxWidth 220/flip auto/zIndex 2147483000）')
+else if (hits.length<5) check(false, 'error', 'title: ' + hits.length + ' 处即抽（≥3）：' + hits.slice(0,5).join(', ') + (hits.length>5?' ...':'') + ' — 请经 Tip 薄预设迁移（锚定上方/delay 400/160/maxWidth 320/zIndex 2147483000）')
 else check(false, 'error', 'title: ' + hits.length + ' 处必卡（≥5）— 合并门禁卡住，不抽不合入；清单：' + hits.slice(0,5).join(', ') + ' ...')
 if (hits.length>=5) check(false, 'error', 'title: 5 处必卡阈值已触发（实际 ' + hits.length + '）— 需 T2/T3 清零')
 // 2026-10-19：Tip 的同名 .js 产物已随 pixel-ts 那一步一起删掉，取源改走共用入口——
@@ -138,9 +138,15 @@ if (fs.existsSync(tipPath)){
   //      （由 tests/verify-time-config.ts 反向锁着 Tip.js 的两个常量导入），在门禁里再写一遍数字
   //      正是仓库明令不要的「第二份数字」。改成按今天的真形态断：鼠标模式、最大宽度 220、
   //      层级 2147483000，延迟走两个中央常量而不是字面量。
-  const hasPreset = /mode:\s*'mouse'/.test(src) && /maxWidth:\s*220/.test(src) && /2147483000/.test(src) &&
-    /TIP_SHOW_DELAY_MS/.test(src) && /TIP_HIDE_DELAY_MS/.test(src) && !/\b(500|160)\b/.test(src)
-  check(hasPreset, hasPreset?'ok':'error', 'Tip 预设按今天的薄形态：mouse/220/2147483000，延迟走中央时间常量、不写第二份数字')
+  // 2026-10-29 规格 1651 把预设换成锚定上方：方位收回控件内部，调用方不再传 mode、placement、
+  //      offset、flip、caret；默认宽度上限 320；延迟仍是两个中央常量（值已改为 400/160）。
+  //      断言跟着换成新形态：有 maxWidth 320 与层级数、无 mode/placement/offset/flip/caret、
+  //      延迟走常量且不写字面量数字。
+  const hasPreset = /maxWidth:\s*320/.test(src) && /2147483000/.test(src) &&
+    /TIP_SHOW_DELAY_MS/.test(src) && /TIP_HIDE_DELAY_MS/.test(src) && !/\b(500|400|160)\b/.test(src) &&
+    !/mode\s*:/.test(src) && !/placement\s*:/.test(src) && !/offset\s*:/.test(src) &&
+    !/flip\s*:/.test(src) && !/caret\s*:/.test(src)
+  check(hasPreset, hasPreset?'ok':'error', 'Tip 预设按今天的薄形态：锚定上方/320/2147483000，无方位参数，延迟走中央时间常量、不写第二份数字')
   //   ② 「零横向 import」原来禁一切 import，比真规则（同层禁互引）严，而 Tip 从共享层取中央时间常量
   //      是必要的 import，于是恒假。这条不变量已由 tests/verify-dependency-rules.ts 与
   //      tests/same-layer-baseline.json 真守，这里只把假断言删掉留一行说明。

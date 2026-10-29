@@ -669,6 +669,8 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
  *  组件经 React.useContext(DswsCtx) 消费 cx（ARCHITECTURE-CTX.md §2）。 */
 const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'chips', file: 'src/client/views/shared/chips.ts' },
+  // #1652：悬停提示方位纯函数（提示控件的零件，HoverTip 的锚定分支调它算落点，排在 hoverTip 之前拼进闭包）。
+  { id: 'tipPlace', file: 'src/client/views/primitives/tipPlace.ts' },
   { id: 'hoverTip', file: 'src/client/views/primitives/HoverTip.ts' },
   { id: 'tip', file: 'src/client/views/primitives/Tip.ts' },
   // #1564：票号徽标的四种外壳（列表行、详情页头、在办表首列、状态栏胶囊）共用这一个画法。
