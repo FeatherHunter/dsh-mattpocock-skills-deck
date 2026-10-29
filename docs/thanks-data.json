@@ -125,9 +125,13 @@
         {
           "at": "2026-10-12T22:59:17Z",
           "n": 1101
+        },
+        {
+          "n": 1606,
+          "at": "2026-10-28T10:19:33Z"
         }
       ],
-      "lastActive": "2026-10-12T22:59:17Z",
+      "lastActive": "2026-10-28T10:19:33Z",
       "prs": []
     },
     "GuanpengLu": {
@@ -187,12 +191,16 @@
         {
           "n": 1566,
           "at": "2026-10-26T15:51:44Z"
+        },
+        {
+          "n": 1612,
+          "at": "2026-10-28T11:53:02Z"
         }
       ],
       "prs": [],
       "discussions": [],
       "comments": [],
-      "lastActive": "2026-10-26T15:51:44Z"
+      "lastActive": "2026-10-28T11:53:02Z"
     },
     "SKADI0718": {
       "comments": [],
@@ -242,6 +250,18 @@
           "n": 287
         }
       ]
+    },
+    "SupingZhou": {
+      "issues": [
+        {
+          "n": 1598,
+          "at": "2026-10-28T09:07:15Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-28T09:07:15Z"
     },
     "TangSuann": {
       "issues": [
@@ -615,6 +635,18 @@
       "comments": [],
       "lastActive": "2026-10-23T04:55:10Z"
     },
+    "yzysdq": {
+      "issues": [
+        {
+          "n": 1621,
+          "at": "2026-10-28T14:51:02Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-28T14:51:02Z"
+    },
     "zerocodefast": {
       "comments": [],
       "discussions": [],
@@ -671,6 +703,6 @@
   },
   "cursors": {
     "discussions": 1578,
-    "issues": 1596
+    "issues": 1658
   }
 }
