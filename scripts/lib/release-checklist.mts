@@ -4,11 +4,13 @@
 // 一旦两边各写一份，早晚对不上——一边按「下一版」找、一边按「下个版本」找，发布检查就会误报缺票。
 // 规则正文在 docs/agents/real-machine-verification.md，这里只认标题与 gh 的调用方式。
 //
-// 本文件只做两件事：读（列清单票、读版本号、取正文模板）与拼标题。所有 gh 调用都走子进程，不改任何东西。
+// 本文件负责读：列清单票、读版本号、取正文模板、读一张票的评论；以及拼标题。所有 gh 调用都走子进程，不改任何东西。
 import { existsSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+import type { ChecklistCommentInput } from './checklist-consistency.mts'
 
 /** 清单票标题前缀。改这里等于改全仓的识别方式，先改规则文档。 */
 export const TITLE_PREFIX = '[真机验证]'
@@ -123,6 +125,53 @@ export function listChecklistIssues(): ChecklistIssue[] {
     })
   }
   return issues
+}
+
+/**
+ * 一张票的一条评论：正文 + 创建时间。评论是发布前一致性检查的另一半数据（票面正文是这一半）。
+ * 形状直接沿用判据库里的 ChecklistCommentInput，两边不再各写一份，免得其中一个加了字段另一个没跟上。
+ */
+export type ChecklistComment = ChecklistCommentInput
+
+/**
+ * 读一张票的全部评论，按 gh 返回的顺序（REST 默认按创建时间升序）。
+ *
+ * 为什么不用 gh issue view --json comments：那条路只取前 100 条评论，清单票一版几十条批次记录攒下来很容易超过，
+ * 超过之后一致性检查就会把「评论里没提过」误判成「正文多登记了场景」。REST 接口配 --paginate --slurp，
+ * 会把每一页拼成一个数组再输出，这里逐页摊平。
+ */
+export function listIssueComments(issueNumber: number): ChecklistComment[] {
+  const raw = ghText([
+    'api',
+    'repos/{owner}/{repo}/issues/' + String(issueNumber) + '/comments',
+    '--paginate',
+    '--slurp',
+  ])
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (error) {
+    throw new ReleaseEnvError('gh 返回的评论列表不是合法 JSON：' + String(error), 2)
+  }
+  if (!Array.isArray(parsed)) {
+    throw new ReleaseEnvError('gh 返回的评论列表不是数组，无法核对清单票的记录。', 2)
+  }
+  // --slurp 的输出是「每一页一个数组」套在外层数组里；只有一页时同样是 [[...]]，逐页摊平即可。
+  const items: unknown[] = []
+  for (const page of parsed) {
+    if (Array.isArray(page)) items.push(...page)
+    else items.push(page)
+  }
+  const comments: ChecklistComment[] = []
+  for (const item of items) {
+    const row = item as Record<string, unknown>
+    // 只走 REST 接口，字段名固定是 created_at（下划线）；没有别的来源，所以不再兼容驼峰写法。
+    comments.push({
+      body: String(row.body || ''),
+      createdAt: String(row.created_at || ''),
+    })
+  }
+  return comments
 }
 
 /** 读仓根 package.json 的 version。发布脚本都从这里取本版版本号，不重复传参。 */
