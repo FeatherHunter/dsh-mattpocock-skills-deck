@@ -430,8 +430,11 @@ console.log('== D 反证：把量到的东西做坏，C 里对应的那几条必
   // D1：给黄条整条挂上收起（模拟真机现场那一种「点一下黄条整条就没了」）
   // 产物由 esbuild 生成，字符串统一是双引号；这里按「两种引号都认」的写法找那一个 return，
   // 再在 style 前面插入 onClick —— 判据本身没变，仍然要求这一改必须真的落到产物上。
+  // #1661 起黄条改成单行自适应，外层样式由 maxWidth 560 换成 maxWidth 100% + width max-content。
+  // 这里跟着改成新形状（#1662）：不跟的话反证会静默失效——产物里找不到旧写法、d1 与 code 相同，
+  // 于是反证 D1 永远报红，判据本身反而量不住「黄条整条可收起」这个毛病。
   const d1 = code.replace(
-    /return h\((['"])div\1, \{ className: (['"])dsws-banner warn\2, style: \{ margin: 0, maxWidth: 560, cursor: (['"])default\3 \} \}/,
+    /return h\((['"])div\1, \{ className: (['"])dsws-banner warn\2, style: \{ margin: 0, maxWidth: (['"])100%\3, width: (['"])max-content\4, cursor: (['"])default\5 \} \}/,
     (matched) => matched.replace('style: {', 'onClick: foldBanner, style: {')
   )
   check(d1 !== code, '反证 D1：改动落到了产物上')
