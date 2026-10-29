@@ -31,6 +31,25 @@
    `USERPROFILE`/`HOME`；插件日志写在各自的启动目录下，插件设置写在各自的 `USERPROFILE` 里。
    `isolation-probe` 这条命令专门用来证明这件事：它对比真实用户设置文件在探针前后的 SHA256，没变才算通过。
 
+## 有头验证：窗口必须是真全屏
+
+无头断言用固定视口（默认 1600x1000）没问题；但要判断「浮层会不会被别的界面元素盖住」「提示贴到屏幕边缘会不会越界」这类空间问题，必须让真实浏览器窗口真的全屏。2026-10-29 验 1655-01 时就错过一次：Playwright 的 `--start-fullscreen` 被忽略，真实窗口只有 1083 像素宽；用 `setViewportSize` 把页面视口强设成 2195 后截图看起来铺满屏幕，据此判「关闭整个 deck 的跟随浮层被右侧面板盖住、确认键鼠标点不到」。后来用 CDP 切真全屏复核，遮挡并不存在——错的是验证方法，不是产品。
+
+现在这层保护做在 `lib/browser.mts` 里：
+
+```js
+// 有头：自动切真全屏并核对尺寸；切不成直接抛错
+// 本机只装了 chromium_headless_shell 时补 channel: 'chrome'，改用系统装的 Chrome
+const opened = await openInstance(instance.tokenUrl, { headless: false, channel: 'chrome' })
+// opened.fullscreen 记着 innerWidth/innerHeight/outerWidth/outerHeight/screen 与判定结果
+// page-diagnostics.json 里也有同一份 fullscreen 测量
+```
+
+- 切全屏走 Chrome DevTools Protocol 的 `Browser.setWindowBounds({ windowState: 'fullscreen' })`，不依赖 `--start-fullscreen`。
+- 切完必须核对 `innerWidth/innerHeight/outerWidth/outerHeight` 都等于 `screen.width/height`（默认允许 2 像素误差），做不到就抛中文错误，不会留下「看起来很大、其实没全屏」的窗口。
+- 要自己控制窗口时用 `newPage(browser, { fullscreen: true })` 或 `enterFullscreen(page)`；`openInstance({ headless: false })` 已默认打开全屏。
+- 判定函数是纯函数 `judgeFullscreen(measurement, tolerance)`，门禁 `tests/verify-real-machine-fullscreen.ts` 用构造出来的测量数守住口径。
+
 ## 三条常用命令
 
 ### 冻结候选包：`freeze-candidate`

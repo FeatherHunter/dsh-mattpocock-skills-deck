@@ -288,6 +288,7 @@ runCli(async () => {
         tokenUrl: instance.tokenUrl,
         consoleLines: created.consoleLines,
         pageErrors: created.pageErrors,
+        fullscreen: created.fullscreen,
         close: async () => {
           await created.context.close().catch(() => undefined)
         },

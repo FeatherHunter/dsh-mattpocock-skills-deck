@@ -104,6 +104,15 @@ declare const document: {
   /** 按坐标找命中的元素（ui 脚本用它验证按钮中心没有别的元素盖住）。 */
   elementFromPoint(x: number, y: number): any
 }
+/** 浏览器里的 window：真机验证工具要有头全屏时读页面视口、外框、屏幕与像素比（browser.mts 的 measureFullscreen）。 */
+declare const window: {
+  innerWidth: number
+  innerHeight: number
+  outerWidth: number
+  outerHeight: number
+  screen: { width: number; height: number }
+  devicePixelRatio: number
+}
 declare const localStorage: {
   getItem(key: string): string | null
   setItem(key: string, value: string): void

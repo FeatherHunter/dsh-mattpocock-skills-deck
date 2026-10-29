@@ -68,6 +68,7 @@
 - **命令怎么跑**：从仓库根目录跑，统一写法是 `node --import ./scripts/ts-hook.mts scripts/real-machine/commands/<命令>.mts <参数>`。成功时 stdout 只有一段 JSON；失败时退出码非 0，stderr 用一句中文说清原因。完整参数与输出字段看每个命令文件的开头注释。
 - **工作根**：默认是仓库里的 `.scratch/verify-run/`，这个目录被版本库忽略，批次产物不会进提交。换位置用环境变量 `DSH_VERIFY_WORK_ROOT`，或单条命令的 `--out` / `--batch` / `--root`。工具只往工作根、系统临时目录和命令显式给的目录写，写别处会被拒绝。
 - **启动**：每个实例用自己复制出来的 `DSH_HOME`、独立启动目录、独立 `USERPROFILE`/`HOME`，端口用 `--port 0` 交给系统分配，所以多开不会抢端口。冷启动到打印访问地址约 10 到 18 秒，页面可交互再等约 6 秒。
+- **浏览器窗口**：判断「浮层会不会被别的界面元素盖住」「提示贴到屏幕边缘会不会越界」这类空间问题时，必须有头、必须真全屏：页面视口与外框（`innerWidth`/`outerWidth`、`innerHeight`/`outerHeight`）都要等于 `screen.width`/`screen.height`。固定视口（例如 1600x1000）或无头窗口只看得到「这个尺寸下长什么样」，不能拿来判定遮挡与越界——2026-10-29 验 1655-01 时，Playwright 的 `--start-fullscreen` 被忽略、窗口只有 1083 像素宽，再用 `setViewportSize` 强设页面视口，截图看起来铺满屏幕，据此得出的「浮层被右侧面板盖住」结论后来被真全屏复核推翻。工具台已把这层保护做进 `lib/browser.mts`：`openInstance(url, { headless: false })` 会自动切真全屏并核对尺寸，切不成直接报错，全屏测量写进 `page-diagnostics.json` 的 `fullscreen` 字段；细节见工具台 README 的「有头验证」一节。
 - **隔离原理**：四层隔离（home、启动目录、USERPROFILE、浏览器上下文）的细节见工具台 README 的「隔离是怎么做到的」。隔离是否真的生效由 `isolation-probe` 回答：它对比真实用户设置文件在探针前后的 SHA256，没变才算通过；验证批次里要保留这条结论。
 - **日志位置**：插件日志写在 `<启动目录>/.dsh-mattskillsdeck-cache/logs/<日期>.log`。用 `log-query` 按事件名、级别、字段过滤；写证据时把关键几行贴进评论，只给路径不算证据。
 - **工作区注入**：无头环境点不了原生目录选择器，所以由 `seed-workspace` 直接写 home 的 `storages/workspace.json` 完成登记。验证用的工作区夹具放在批次目录里，不要放在本仓库里，否则插件会把本仓库的 git 根当成仓库身份，结论会被污染。
