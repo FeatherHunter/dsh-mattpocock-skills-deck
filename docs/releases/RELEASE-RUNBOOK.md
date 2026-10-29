@@ -69,6 +69,8 @@
    `npm view dsh-mattpocock-skills-deck --registry https://registry.npmjs.org --prefer-online`  
    不被镜像延迟误判。
 
+> **#1648 起，门禁段由发布脚本一次跑完，只构建一次**：`scripts/publish-token.ps1` 先跑 `npm run build` 生成产物，再跑唯一裁决入口 `npm run verify:parallel`（含五条冒烟）；不再跑会重复构建的整条 `npm test`。任何一步红，脚本都当场非零退出（`GATE-FAIL`），不带着过期产物进入发布。
+
 > 以上任一失败即阻断后续发布步骤，不携带过期产物进入 `publish`。
 
 ---
@@ -119,6 +121,10 @@
 
 > **发布前必须收口真机验证清单**：本版 `[真机验证] vX.Y.Z` 清单票必须恰好一张、已关闭，而且票面正文与评论记录内部一致（场景总览表的编号集合、每条场景的结论、正文与收口评论里的各处计数都对得上），否则发布被阻断。两条发布路径都会自动跑这个检查（`scripts/publish-token.ps1` 在发布前；`scripts/wizard-release.sh` 在 Stage 3 第五步，也就是上面第 2 步之前），检查实现是 `node scripts/release-preflight.mts`；手工执行 `npm publish` 时请先自己跑一次，对不上的地方它会逐条列出并给出改法。发布成功后 `scripts/release-postflight.mts` 会给清单票补发布记录并建下一版占位票。规则见 [`docs/agents/real-machine-verification.md`](../agents/real-machine-verification.md)。
 
+> **发布脚本自己证明「发出去的字节 = 门禁验过的字节」（#1648）**：`scripts/release-integrity.mts` 把 npm 的 tarball 解包成「逐文件清单」——每个文件的路径、字节数、sha256，再加一个整份清单的指纹——三处各拍一次：门禁构建完之后拍一次（`GATE-SNAPSHOT`）；发布前在包目录里补跑该包的 `prepublishOnly`（发布时 npm 会跑它，可能重新生成文件）再拍一次，与门禁那份比对，不一致打 `PRE-PACK-DIFF` 并停在发布之前，一致打 `PRE-PACK-SAME`；发布完成后按 `包名@版本` 从 registry 拉回 tarball 再拍一次，与发布前那份比对，一致打 `BYTES-SAME`，不一致打 `BYTES-DIFF` 并以非零退出——此时已经发出去、npm 不支持撤回，脚本会把「必须人工核对」写进日志与退出码。比对按逐文件 sha256，不按整个 tarball 的哈希：打包元数据（时间戳、写入顺序）会让同一份内容两次打包的整体哈希不同，那个差异说明不了内容变了。
+
+> **dist-tag 指向按版本形态定，发布前后各核一次**：预发布版本（版本号里带 `-`，例如 `1.9.0-beta.32`）发布时发到 `beta`，发布成功后脚本再把 `latest` 指到同一个版本，这样面板与市场拿到的都是新版；稳定版本发布时发到 `latest`，`beta` 保持发布前的指向不动。发布前脚本读一次当前各 tag，算出「发布后应该是什么样」（`TAG-PLAN`）；发布后再读一次核对（`TAG-VERIFY-OK`，不符打 `TAG-VERIFY-FAIL` 并非零退出）。发完把每包的文件数、字节数、清单指纹与各 tag 的最终指向写进发布记录评论。
+
 顺序固定为：
 
 1. 本地门禁全绿后提交并推送到 `main`（AI 执行 `git commit/push`）
@@ -167,6 +173,7 @@
 > **执行主体：AI** — 本节校验由 AI 在隔离环境执行，人不敲 `node tests/...`；人仅在失败时看待改清单。
 
 - 发布校验以单一高层的发布契约校验覆盖全部 8 项清单与双入口的一致性，优于为每个清单项各自补低层测试。单一入口：`node tests/verify-release-contract.ts --version vX.Y.Z`（亦可无参，自动取 `package.json` 当前版本，**由 AI 执行**）。
+- 发布自证的机器判据另有门禁 `tests/verify-1648-release-integrity.ts`（由 `npm run verify:parallel` 统一跑）：静态检查发布脚本与本规范里的标记字面量，单测 `release-integrity.mts` 的 tar 逐文件清单、差异定位与 dist-tag 策略，动态在临时目录搭假仓库与假 registry 真跑发布脚本的关键路径（策略不允许时不进发布、发布前字节变了就停且不发 PUT、预发布与稳定版各按策略改 tag）。
 - 校验断言：版本同源、说明锁定、变更历史与 Release 同文、包白名单、模板与网页卡同源、向导契约（`wizard/template.sh` 与 `scripts/wizard-release.sh` 的只扫码旅程与落盘语义）；校验失败时给出待改清单且阻断后续发布（`exit 1`）。
 - 向导联动：`scripts/wizard-release.sh` 首段即调用本 gate，失败直接 `exit 1`，不进入 `npm publish`；`--dry-run` 仍执行校验但演示后续旅程。
 - 将被测试的模块：runbook 文档的存在性与引用关系、模板与网页卡的渲染一致性、向导脚本的语法与可执行性（`bash -n`）、隔离门禁链的闭环、双产物一致性；双入口一致性由 `tests/verify-release-template.js` 另行保障，两门禁均挂入 `npm run verify`。
@@ -207,6 +214,8 @@ pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish
 ---
 
 ## 附：修订记录
+
+- 2026-10-29 增补（#1648 发布脚本自己证明字节与 dist-tag）：发布脚本的门禁段改成「只构建一次（`npm run build`）+ `npm run verify:parallel` 唯一裁决入口（含五条冒烟）」，不再跑会重复构建的整条 `npm test`；新增 `scripts/release-integrity.mts`，把 npm 的 tarball 解包成逐文件清单（路径、字节数、sha256 与整份清单指纹），在门禁后（`GATE-SNAPSHOT`）、发布前补跑 `prepublishOnly` 后（`PRE-PACK-SAME` / `PRE-PACK-DIFF`）、发布后从 registry 拉回（`BYTES-SAME` / `BYTES-DIFF`）三处比对，不一致一律非零退出；dist-tag 按版本形态定策略并在发布前后核对（`TAG-PLAN` / `TAG-VERIFY-OK` / `TAG-VERIFY-FAIL`），预发布版本发 `beta` 后把 `latest` 也指过去、稳定版只动 `latest`；发布记录评论补上逐文件清单摘要与各 tag 最终指向。第 4、8、11 节同步，新增门禁 `tests/verify-1648-release-integrity.ts`。
 
 - 2026-10-29 增补（#1646 发布 token 不再经过命令行）：新增第 12 节，写明 token 改由 `-TokenFile` 临时文件传入（命令行只出现路径、文件权限、用完即删）、环境变量入口的兼容位置，以及季度轮换与「怀疑泄露先撤销再重签」的处置；权限与删除给了可执行命令（`icacls`、`chmod 600`、`Remove-Item -LiteralPath`），并写明仓库目录里的提醒只告警不阻断。发布脚本头注释同步改成文件通道的跑法。
 

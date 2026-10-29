@@ -65,6 +65,8 @@
     "matrix-full.ts",
     "matrix-smoke.ts",
     "measure-967-outbound.ts",
+    // #1648：发布自证脚本（发布包逐文件清单与 dist-tag 策略的纯计算部分，tests 直接 import）。
+    "release-integrity.mts",
     "seed-1460-dedup-drill.ts",
     "star-history.mts",
     "sync-matt-skills.mts",
