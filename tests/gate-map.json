@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-29T02:42:21.928Z",
+  "generatedAt": "2026-10-29T04:53:53.821Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 441,
-  "gateCount": 441,
-  "attributedGates": 398,
+  "chainLength": 442,
+  "gateCount": 442,
+  "attributedGates": 399,
   "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 20,
@@ -4527,6 +4527,22 @@
       ],
       "dirs": [
         "src/refresh/rooms/client"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1649-detail-closed-link.ts",
+      "file": "tests/verify-1649-detail-closed-link.ts",
+      "guards": [
+        "src/client/kernel/api-io.ts",
+        "src/client/kernel/link.ts"
+      ],
+      "dirs": [
+        "src/client/kernel"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -10813,6 +10829,7 @@
       "node tests/verify-1612-deck-state.ts",
       "node tests/verify-1612-prompt-filter.ts",
       "node tests/verify-1612-settings-switches.ts",
+      "node tests/verify-1649-detail-closed-link.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",

@@ -6,6 +6,7 @@
  * 元数据未达（旧宿主/极早窗口）：返回空串 —— 诚实缺该形态（D8：markdown '' UI 按空不渲染；同理适用于一切无据可依场景）。
  * 本文件从 .js 改名而来（改名是搬家线做的）；我补了类型标注与环境声明，
  * 并做了 #1199 的修复：https 分支在没有 window 的环境回假。
+ * #1649 补了详情缓存兜底：已关闭票的快照行被瘦身丢 url 时，用详情页取到的 url 取址。
  */
 declare const shared: any;
 declare function idOfParts(...args: any[]): any;
@@ -63,6 +64,22 @@ export const issueUrlFor = (st: any, key: any, effortId?: any): any => {
     if (wantId) hit = all.find(function(x: any){ return idOf(x) === wantId })
     if (!hit) hit = all.find(function(x: any){ return String(x.key).padStart(2,'0')===String(n).padStart(2,'0') || String(x.number)===String(n) })
     if(hit && hit.url) return String(hit.url)
+  } catch {}
+  // #1649：已关闭容器里的已关闭子票在快照里只剩瘦身行（thinTickets 只有六样字段，没有 url），
+  // Markdown 后端又没有 issueUrlTemplate，快照查找与模板回退都会回空串，rowActionText 于是把
+  // 注入文本第二行写成 `#编号`（用户看到的 `#3`）。详情页其实已经拉过这张票的详情，回包里有 url；
+  // fetchIssueDetail 按 (effortId, 编号) 写进 st.issueCache，这里用同一把键把那份权威地址取回来。
+  // 只认完全相同的 (effort, 编号)：编号归一到数字再拼键（快照里的 key 可能带前导零，缓存键不带），
+  // effort 不同的同号票绝不串用。
+  try {
+    const cache = st && st.issueCache
+    const num = Number(n)
+    if (cache && Number.isFinite(num)) {
+      const cacheKey = idOfParts((effortId === undefined || effortId === null) ? '' : String(effortId), num)
+      const entry = cache[cacheKey]
+      const detailUrl = entry && entry.data && entry.data.url
+      if (detailUrl) return String(detailUrl)
+    }
   } catch {}
   const meta = __metaLinks(st)
   if (!meta) return ''
