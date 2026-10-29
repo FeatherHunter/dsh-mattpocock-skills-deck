@@ -33,7 +33,7 @@ async function main() {
   check(typeof shipYaml === 'string' && shipYaml, '发布包 package.json 生产依赖里有 yaml', shipYaml)
   const majorOf = (s: unknown) => String(s || '').replace(/^[\^~>=< ]+/, '').split('.')[0]
   check(!!rootYaml && !!shipYaml && majorOf(rootYaml) === majorOf(shipYaml), '两处 yaml 主版本一致（' + rootYaml + ' / ' + shipYaml + '）', '')
-  check(rootPkg.version === '1.9.0-beta.31' && shipPkg.version === '1.9.0-beta.31', '两份版本号一致且为当前候选版', rootPkg.version + ' / ' + shipPkg.version)
+  check(rootPkg.version === '1.9.0-beta.32' && shipPkg.version === '1.9.0-beta.32', '两份版本号一致且为当前候选版', rootPkg.version + ' / ' + shipPkg.version)
 
   // —— P2：装好的包里能解析 ——
   try {
