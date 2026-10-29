@@ -59,7 +59,7 @@ declare function runGuideMissing(...args: any[]): any;
 declare function runGuideRecheck(...args: any[]): any;
 declare function scheduleStatusClose(...args: any[]): any;
 declare function seg(...args: any[]): any;
-declare function deckDoorCapsuleTail(...args: any[]): any; declare function deckDoorExpand(...args: any[]): any; declare function deckDoorFold(...args: any[]): any; declare function deckDoorConfirmEl(...args: any[]): any;
+declare function deckDoorCapsuleTail(...args: any[]): any; declare function deckDoorExpand(...args: any[]): any; declare function deckDoorFold(...args: any[]): any; declare function deckDoorConfirmEl(...args: any[]): any; declare function deckDoorCloseConfirmEl(...args: any[]): any;
 declare function showStatusBugMenu(...args: any[]): any;
 declare function showStatusTakeMenu(...args: any[]): any;
 declare function snapFresh(...args: any[]): any;
@@ -325,7 +325,8 @@ export const StatusBar = (props: any) => {
   }, [_bannerLogKey])
   // #422 · 收起整个功能区：横幅上的叉收起横幅与胶囊状态栏（打破胶囊永不隐藏旧规）；默认收起，用户点过展开才展开，按工作区记住（判定见上面折叠接线之前）。
   const foldBanner = function () { try { deckDoorFold(s) } catch (e) {} }
-  const expandBanner = function () { try { deckDoorExpand(s) } catch (e) {} }
+  // #1655：展开键本体一并传进门逻辑留锚，跟随浮层按这颗键的矩形定位。
+  const expandBanner = function (e: any) { try { deckDoorExpand(s, e && e.currentTarget) } catch (e2) {} }
   // 收放按钮：胶囊最右侧的“∨”图标（无文字，技能入口之后）；收起态为带文字的小按钮（悬停与无障碍文案保留全称）。
   // key 必填：这颗「∨」与右边那颗红色「X」拼成同一个数组交给胶囊，React 对数组里的每个元素都要求稳定 key（缺了会报错、门禁会红）。
   const capsuleToggle = h(Tip, { key: 'deckFoldToggle', content: tr('banner.foldDeck') }, h('span', { className: 'dsws-fold-toggle', onClick: function (e: any) { e.stopPropagation(); foldBanner() }, 'aria-label': tr('banner.foldDeck'),
@@ -369,7 +370,7 @@ export const StatusBar = (props: any) => {
         Ic({ n: 'chev-up', size: 10 }),
         h('span', null, tr('banner.expandDeck')),
       ])),
-      modalSeat, deckDoorConfirmEl(h, s), h(SuggestStreamMount, { sid: sid }), h(ShownAttentionMount, { sid: sid }),
+      modalSeat, deckDoorConfirmEl(h, s), deckDoorCloseConfirmEl(h, s), h(SuggestStreamMount, { sid: sid }), h(ShownAttentionMount, { sid: sid }),
     ])
   }
   // #522：调试开关关闭时小灰点不挂载（胶囊里不留空位）；开时常驻；开关切换经已有的日志开关广播刷新各会话界面，此处只读开关不另加广播。
@@ -483,7 +484,7 @@ export const StatusBar = (props: any) => {
   //   这里因此不再声明它；两个转调包装留着，卡的界面在那边直接调用它们。
   if (!bannerStep) {
     // 无 banner 时为胶囊 + 常驻收起按钮（#422：收起即整个功能区消失）
-    return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, overflow: RDOM ? 'hidden' : 'visible' }, dswsStatusDockGeom()) }, [modalSeat, deckDoorConfirmEl(h, s), workspaceFileNoteEl(s), capsule])
+    return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, overflow: RDOM ? 'hidden' : 'visible' }, dswsStatusDockGeom()) }, [modalSeat, deckDoorConfirmEl(h, s), deckDoorCloseConfirmEl(h, s), workspaceFileNoteEl(s), capsule])
   }
   const bann = function (text: any, btnLabel: any, onBtn: any, foldable: any, alt: any) {
     // #669：这颗叉（收起整个功能区）与左边那颗主按钮之间留 12px —— 原来只隔 6px，两颗按钮长得一样高、
@@ -532,7 +533,7 @@ export const StatusBar = (props: any) => {
   })()
   return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, position: 'relative' }, dswsStatusDockGeom()) }, [
     stepBanner, workspaceFileNoteEl(s),
-    capsule, deckDoorConfirmEl(h, s),
+    capsule, deckDoorConfirmEl(h, s), deckDoorCloseConfirmEl(h, s),
     modalSeat,
     (s.gateModalOpen && s.gateModalSource==='status' ? h('div', { onClick:function(e: any){ if(e.target===e.currentTarget) closeGate() },
       // 接线（#1335 界面反馈）：点遮罩空白处会关掉这个窗，遮罩自己也是能点到的，所以接一组标识；

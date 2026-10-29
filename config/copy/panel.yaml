@@ -72,6 +72,12 @@ zh:
   banner.deckReopenBody: 展开会开启 deck 工具箱、右侧面板和胶囊状态栏；确认后这三处一起恢复。
   banner.deckReopenOk: 开启
   banner.deckReopenCancel: 取消
+  banner.deckReopenFail: 没打开，请再试一次
+  banner.deckCloseTitle: 关闭整个 MattSkillsDeck
+  banner.deckCloseBody: 关闭会关掉 deck 工具箱、胶囊状态栏和右侧面板；确认后这三处一起关，可随时去设置页重新打开。
+  banner.deckCloseOk: 关闭
+  banner.deckCloseCancel: 取消
+  banner.deckCloseFail: 没关掉，请再试一次
   env.installBtn: 安装引导
   env.guide: 配置引导 · 按顺序完成（步骤随当前后端检查行派生）
   env.step.ghcli: 安装 GitHub CLI
@@ -378,6 +384,12 @@ en:
   banner.deckReopenBody: "Expanding turns the deck tools, the right panel and the capsule status bar back on for this workspace; confirming restores all three."
   banner.deckReopenOk: Reopen
   banner.deckReopenCancel: Cancel
+  banner.deckReopenFail: Could not reopen — please try again
+  banner.deckCloseTitle: Close the whole MattSkillsDeck
+  banner.deckCloseBody: "Closing turns off the deck tools, the capsule status bar and the right panel for this workspace; confirming closes all three. You can turn them back on in settings at any time."
+  banner.deckCloseOk: Close
+  banner.deckCloseCancel: Cancel
+  banner.deckCloseFail: Could not close — please try again
   env.installBtn: Install guide
   env.guide: Setup guide · complete in order (steps derive from current backend check rows)
   env.step.ghcli: Install GitHub CLI
