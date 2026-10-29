@@ -56,6 +56,10 @@ declare const process: {
   on(event: string, listener: (...args: any[]) => void): void
   /** 向进程发信号：signal 0 不杀进程，只问「这个 pid 还在不在」（构建锁拿它判断持锁进程死没死）。 */
   kill(pid: number, signal?: number | string): boolean
+  /** 平台标识（'win32' / 'darwin' / 'linux'）：真机验证工具台按它选 npm/dsh 的可执行文件名。 */
+  platform: string
+  /** 进程结束时的退出码：命令失败时置 1，交给 shell 判断。 */
+  exitCode?: number
 }
 
 declare const console: {
@@ -95,6 +99,8 @@ declare const document: {
   body: any
   head: any
   createElement(...args: any[]): any
+  /** 按坐标找命中的元素（ui 脚本用它验证按钮中心没有别的元素盖住）。 */
+  elementFromPoint(x: number, y: number): any
 }
 declare const localStorage: {
   getItem(key: string): string | null
@@ -110,6 +116,17 @@ declare type HTMLElement = any
 declare type HTMLDetailsElement = any
 declare const AbortSignal: any
 declare type AbortSignal = any
+/** 页面里的全局 URL 构造器（库文件用它从 import.meta.url 推仓库根）；Node 侧是 ES2020 之后的内置全局。 */
+declare const URL: any
+/** 页面里的视口宽度（ui 脚本在 evaluate 回调里用它判断按钮有没有出界）。 */
+declare const innerWidth: number
+/** 页面里的视口高度。 */
+declare const innerHeight: number
+/** 页面性能条目（候选冻结用它找插件 client 包到底加载的是哪个地址）。 */
+declare const performance: { getEntriesByType(type: string): any[] }
+declare type PerformanceResourceTiming = any
+/** 页面里重新取一次已加载资源（候选冻结拿它核对加载出来的版本串）。 */
+declare function fetch(...args: any[]): Promise<any>
 
 declare module 'node:fs' {
   /** 文件状态，脚本只问「是不是文件 / 是不是目录 / 有多新」。 */
@@ -200,6 +217,10 @@ declare module 'node:os' {
   export function homedir(): string
   /** 本机主机名：构建锁写进锁文件，报错与日志里指到哪台机器。 */
   export function hostname(): string
+}
+
+declare module 'node:zlib' {
+  export function gunzipSync(...args: any[]): any
 }
 
 declare module 'node:crypto' {
