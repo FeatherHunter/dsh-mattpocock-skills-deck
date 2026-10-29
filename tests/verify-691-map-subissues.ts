@@ -144,13 +144,13 @@ const REPO = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
   check(r2.ok === false && r2.error.kind === 'unsupported', '三.6 后端没实现这条读路径 → unsupported（界面据此照旧画快照那份）')
 }
 
-// ── 四、#1636：GitHub 选择也能按需取子票（入口不再按后端编号预判） ─────────────
+// ── 四、#1636：只给 GitHub 开口，其余拦法不变 ─────────────
 // 为什么有这一段：wf.mapTickets 曾在入口处用 isComposerSelection 拦掉 backendId=github 的选择，
 // 已关闭地图的详情页因此永远是空的（首屏本来就不装已关闭容器的已关闭子票，唯一一条按需路又被堵死）。
-// 修法：入口只拦“认不出后端”的选择（空选择），有没有取子票的能力由后端自己回答
+// 修法：只放开门卫对 GitHub 的排除，其余拦法原样不动；有没有取子票的能力仍由后端自己回答
 // （没实现就回不支持，见三.6；后端自己说不支持，见电话体里的映射）。
-// 下面用的就是线上真正的门卫判断，不是手捏的永远返回真；GitHub 选择在它眼里是“假”，
-// 修之前这一节是红的。如果将来有人翻转了真正的门卫判断，四.0 会先变红——
+// 下面用的就是线上真正的门卫判断（注入进电话里真实调用），不是手捏的永远返回真；
+// GitHub 选择在它眼里是“假”，修之前四.1 是红的。如果将来有人翻转了真正的门卫判断，四.0 会先变红——
 // 那时请连 #1636 的修法范围一起重估（门卫还喂着快照、刷新、探针、评论四条路）。
 {
   const life: any = createSessionLifecycle({})
@@ -163,24 +163,25 @@ const REPO = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
       { key: '621', state: 'closed', body: '', url: '', assignees: [], blockedBy: [] },
     ], total: 1, fetched: 1, capped: false, missing: 0 } }),
   }
-  const phoneGithub: any = createMapTickets({
-    canonicalKey: async (c: any) => c || '/ws/fake', selectEarly: async () => ({ backendId: 'github' }), isComposerSelection: realGate,
+  const FIRST_MSG = '这个后端不能按需取一张地图的子票'
+  const makePhone = (selectEarly: any) => createMapTickets({
+    canonicalKey: async (c: any) => c || '/ws/fake', selectEarly: selectEarly, isComposerSelection: realGate,
     getTrackerRegistry: async () => ({ get: () => githubTracker, describe: () => ({ backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }) }),
     getPlatform: async () => ({}), ctx: { get: () => undefined }, DEFAULT_CWD: '/ws/fake', logCtx: null,
     groupTickets: grp4.groupTickets, getMapBody: async () => mb4, detectionExec: () => {},
   })
-  const rGithub: any = await phoneGithub.handleMapTickets({ cwd: '/ws/fake', key: '692' })
+  const rGithub: any = await makePhone(async () => ({ backendId: 'github' })).handleMapTickets({ cwd: '/ws/fake', key: '692' })
   check(rGithub.ok === true && rGithub.items.length === 1 && rGithub.items[0].state === 'CLOSED',
     '四.1 GitHub 选择不再被拦在入口：取到后端给的子票（实得 ' + JSON.stringify(rGithub.ok) + '）')
-  const phoneEmpty: any = createMapTickets({
-    canonicalKey: async (c: any) => c || '/ws/fake', selectEarly: async () => null, isComposerSelection: realGate,
-    getTrackerRegistry: async () => ({ get: () => githubTracker, describe: () => ({ backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }) }),
-    getPlatform: async () => ({}), ctx: { get: () => undefined }, DEFAULT_CWD: '/ws/fake', logCtx: null,
-    groupTickets: grp4.groupTickets, getMapBody: async () => mb4, detectionExec: () => {},
-  })
-  const rEmpty: any = await phoneEmpty.handleMapTickets({ cwd: '/ws/fake', key: '692' })
-  check(rEmpty.ok === false && rEmpty.error && rEmpty.error.kind === 'unsupported',
-    '四.2 认不出后端（空选择）仍回不支持（门卫剩下的唯一职责，实得 ' + JSON.stringify(rEmpty.ok) + '）')
+  const rEmpty: any = await makePhone(async () => null).handleMapTickets({ cwd: '/ws/fake', key: '692' })
+  check(rEmpty.ok === false && rEmpty.error && rEmpty.error.kind === 'unsupported' && String(rEmpty.error.message || '').indexOf(FIRST_MSG) === 0,
+    '四.2 认不出后端（空选择）仍回入口那句不支持（实得 ' + JSON.stringify(rEmpty.ok) + '）')
+  const rNoId: any = await makePhone(async () => ({})).handleMapTickets({ cwd: '/ws/fake', key: '692' })
+  check(rNoId.ok === false && rNoId.error && rNoId.error.kind === 'unsupported' && String(rNoId.error.message || '').indexOf(FIRST_MSG) === 0,
+    '四.3 没有后端编号的选择同样拦在入口（实得 ' + JSON.stringify(rNoId.ok) + '）')
+  const rOther: any = await makePhone(async () => ({ backendId: 'other' })).handleMapTickets({ cwd: '/ws/fake', key: '692' })
+  check(rOther.ok === false && rOther.error && rOther.error.kind === 'unsupported' && String(rOther.error.message || '').indexOf(FIRST_MSG) === 0,
+    '四.4 非 GitHub 的选择拦法不变：仍回入口那句，不掉进注册表那句（实得 ' + JSON.stringify(rOther.ok) + '）')
 }
 
 console.log(failed ? '\n存在失败 — verify-691-map-subissues 未通过' : '\n全部通过 — 地图子票拉全与已关闭地图子票去向的判据都在')
