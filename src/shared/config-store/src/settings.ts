@@ -15,6 +15,10 @@
  * 旧字段 bannerFolded 只保留最少的一步读兼容（#1612 维护者 2026-10-29 拍板删掉旧 localStorage 迁移之后）：
  *   接受这个键（否则旧文件整份会被判成多出来的名字），只把「展开」那一种旧值换算成 statusBar: show；
  *   旧版把「收起」记作 true（也是缺省），那种情况按新缺省 hide，不需要换算。写出去的一份里不再出现它。
+ *
+ * 每个工作区那一条记录上还有一个临时标记 unopened（#1641）：设置页的工作区名单里有些工作区还没打开过，
+ *   认不出它的工作区根，只能先按名单上的路径记一条。这条记录带 unopened: true，表示它还没有归到工作区根
+ *   那一条，等工作区打开、认出根以后会合并过去。它只是一个说明，不是开关，缺了与 false 同义。
  */
 
 import type { ConfigParseResult, ConfigStringifyResult } from './ports.js'
@@ -41,6 +45,7 @@ const COMMENT_STATUS_BAR = '# 胶囊状态栏：show 显示、hide 收起（收�
 const COMMENT_DECK_TOOLS = '# deck 工具箱：on 打开、off 关闭（关掉后模型工具、胶囊状态栏、右侧面板三处一起关）'
 const COMMENT_NOREPO = '# 无仓库红卡是否已收起'
 const COMMENT_SUBWS = '# 红文件夹标志的说明浮层是否已自动展开过'
+const COMMENT_UNOPENED = '# 这条记录暂时按设置页工作区名单上的路径记着（这个工作区还没打开过）；打开、认出工作区根以后会合并到根那一条'
 const COMMENT_DEBUG = '# 本地诊断日志开关'
 const COMMENT_TEMPLATES = '# 动作模板（空 = 用默认文本）'
 
@@ -49,8 +54,9 @@ const TOP_KEYS = ['version', 'ui', 'workspaces', 'debug', 'templates']
 // 维护者 2026-10-12 拍板这项不落盘——它只是标签 chip 排序用的热度，丢了不影响功能，没必要占文件。
 const UI_KEYS = ['stateFilter', 'sortKey', 'sortDir', 'labelClicks']
 // workspaces 每条记录认的名字：两个开关（statusBar、deckTools）、两个旧布尔开关（noRepoDismissed、
-// subwsMarkAutoShown），以及旧字段 bannerFolded（只为让旧文件读得进来；只换算「展开」那一种旧值，见 parseSettings）。
-const WS_KEYS = ['statusBar', 'deckTools', 'bannerFolded', 'noRepoDismissed', 'subwsMarkAutoShown']
+// subwsMarkAutoShown），旧字段 bannerFolded（只为让旧文件读得进来；只换算「展开」那一种旧值，见 parseSettings），
+// 以及 #1641 的临时标记 unopened（这条记录先按设置页工作区名单上的路径记着，还没归到工作区根那一条）。
+const WS_KEYS = ['statusBar', 'deckTools', 'bannerFolded', 'noRepoDismissed', 'subwsMarkAutoShown', 'unopened']
 // 两个新开关各自允许的字面量：值必须逐字是其中之一，别的一律按坏形状回。
 const WS_STATUS_BAR_VALUES = ['show', 'hide']
 const WS_DECK_TOOLS_VALUES = ['on', 'off']
@@ -142,7 +148,8 @@ export function parseSettings(doc: unknown): ConfigParseResult {
   }
 
   // workspaces 节：键是工作区根的可读路径（动态），值里认四个开关（胶囊状态栏缺了默认收起、deck 工具箱缺了默认开，
-  // 其余两个旧开关缺了默认关）。旧字段 bannerFolded 只把「展开」（false）换算成 statusBar: show，归一结果里不带它。
+  // 其余两个旧开关缺了默认关），还可以带一个临时标记 unopened（见文件头；只记录 true，缺了与 false 同义）。
+  // 旧字段 bannerFolded 只把「展开」（false）换算成 statusBar: show，归一结果里不带它。
   const wsRaw = doc['workspaces'] === undefined ? {} : doc['workspaces']
   if (!isRecord(wsRaw)) return fail('bad-shape', '本机设置文件里的 workspaces 必须是一组「工作区根 → 开关」')
   const workspaces: Record<string, unknown> = {}
@@ -183,6 +190,15 @@ export function parseSettings(doc: unknown): ConfigParseResult {
         return fail('bad-shape', '本机设置文件 workspaces 节里「' + root + '」的 ' + k + ' 必须是真假值（YAML 会把没加引号的 yes/no/on 读成文字，那种按坏形状回）')
       }
       norm[k] = entry[k]
+    }
+    // #1641 的临时标记：它说明这条记录还挂在工作区名单的路径上、没归到工作区根那一条，不是开关，
+    //   所以只记录 true（false 与省略同义，写出去时也不该冒出一个 false）。值不是真假值一律按坏形状回，
+    //   免得用户手写的 unopened: yes 被 YAML 读成文字后悄悄当成没写。
+    if (entry['unopened'] !== undefined) {
+      if (typeof entry['unopened'] !== 'boolean') {
+        return fail('bad-shape', '本机设置文件 workspaces 节里「' + root + '」的 unopened 只能是 true 或省略（true 表示这条记录先按工作区名单上的路径记着，那个工作区还没打开过）')
+      }
+      if (entry['unopened'] === true) norm['unopened'] = true
     }
     workspaces[root] = norm
   }
@@ -269,6 +285,11 @@ export function stringifySettings(value: unknown): ConfigStringifyResult {
     for (const root of wsKeys) {
       const entry = workspaces[root] as Record<string, unknown>
       lines.push('  ' + esc(root) + ':')
+      // 临时标记写在记录最前面：它说明这条记录为什么用目录路径当键，读的人该先看到它再看下面几个开关。
+      if (entry['unopened'] === true) {
+        lines.push('    ' + COMMENT_UNOPENED)
+        lines.push('    unopened: true')
+      }
       lines.push('    ' + COMMENT_STATUS_BAR)
       lines.push('    statusBar: ' + esc(String(entry['statusBar'])))
       lines.push('    ' + COMMENT_DECK_TOOLS)

@@ -72,6 +72,10 @@ export async function bundleEntryPanel(): Promise<string> {
     target: 'es2020',
     minify: false,
     write: false,
+    // #1644 这一项不能省：esbuild 给打包进来的模块打注释时，用的是这个工作目录。不写它，
+    // esbuild 默认取调用方进程的当前目录，产物就会随「谁在哪个目录调构建」变（从 package/ 目录
+    // 调时注释多一层 ../，客户端产物多 102 字节）。写成 ROOT 之后，本函数的产物与调用方目录无关。
+    absWorkingDir: ROOT,
   })
   const out = result && result.outputFiles && result.outputFiles[0] ? result.outputFiles[0].text : null
   if (typeof out !== 'string' || !out.includes('mountUpdateEntry')) {
@@ -113,6 +117,10 @@ function bundleEntryPanelSync(esbuild: EsbuildBuildApi): void {
     target: 'es2020',
     minify: false,
     write: false,
+    // #1644 这一项不能省：esbuild 给打包进来的模块打注释时，用的是这个工作目录。不写它，
+    // esbuild 默认取调用方进程的当前目录，产物就会随「谁在哪个目录调构建」变（从 package/ 目录
+    // 调时注释多一层 ../，客户端产物多 102 字节）。写成 ROOT 之后，本函数的产物与调用方目录无关。
+    absWorkingDir: ROOT,
   })
   const out = result && result.outputFiles && result.outputFiles[0] ? result.outputFiles[0].text : null
   if (typeof out !== 'string' || !out.includes('mountUpdateEntry')) {

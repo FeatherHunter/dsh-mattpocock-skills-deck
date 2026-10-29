@@ -55,7 +55,11 @@ layout: multi
     version: 1,
     ui: { stateFilter: 'open', sortKey: 'updatedAt', sortDir: 'desc', labelClicks: {} },
     // #1612：新两格写出去时各自带一行注释；deckTools 的 on/off 必须带引号（YAML 会把没引号的 on/off 读成真假值）。
-    workspaces: { 'D:\\ws\\demo': { statusBar: 'show', deckTools: 'off', noRepoDismissed: true, subwsMarkAutoShown: true } },
+    //  #1641：还没打开过的工作区先按设置页名单上的路径记一条临时记录，记录最前面是 unopened: true 与它的注释。
+    workspaces: {
+      'D:\\ws\\demo': { statusBar: 'show', deckTools: 'off', noRepoDismissed: true, subwsMarkAutoShown: true },
+      'D:\\ws\\other': { statusBar: 'hide', deckTools: 'on', noRepoDismissed: false, subwsMarkAutoShown: false, unopened: true },
+    },
     debug: { enabled: false, sampleRate: 1 },
     templates: {},
   }, 'settings')
@@ -70,6 +74,8 @@ layout: multi
     check(commentBefore(t, '# 胶囊状态栏：show 显示、hide 收起（收起后状态栏只剩一条折叠条）', '    statusBar: show'), 'statusBar 有注释', t)
     check(commentBefore(t, '# deck 工具箱：on 打开、off 关闭（关掉后模型工具、胶囊状态栏、右侧面板三处一起关）', '    deckTools: "off"'), 'deckTools 有注释', t)
     check(t.indexOf('bannerFolded') < 0, '写出去的一份里不再写旧字段 bannerFolded（#1612：旧字段只留读兼容，写出去的一份不再有它）', t)
+    check(commentBefore(t, '# 这条记录暂时按设置页工作区名单上的路径记着（这个工作区还没打开过）；打开、认出工作区根以后会合并到根那一条', '    unopened: true'), 'unopened 临时标记有注释（#1641）', t)
+    check(t.indexOf('unopened: true') >= 0 && t.indexOf('unopened: false') < 0 && t.split('unopened: true').length === 2, '只有带标记的那一条记录写 unopened: true，false 不写出去', t)
     check(commentBefore(t, '# 无仓库红卡是否已收起', '    noRepoDismissed: true'), 'noRepoDismissed 有注释', '')
     check(commentBefore(t, '# 红文件夹标志的说明浮层是否已自动展开过', '    subwsMarkAutoShown: true'), 'subwsMarkAutoShown 有注释', '')
     check(commentBefore(t, '# 本地诊断日志开关', 'debug:'), 'debug 节有注释', '')

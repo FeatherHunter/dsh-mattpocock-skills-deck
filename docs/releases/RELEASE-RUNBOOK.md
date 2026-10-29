@@ -173,7 +173,42 @@
 
 ---
 
+## 12. 发布 token 的文件通道与轮换（#1646）
+
+> **背景**：2026-10-29 真机验证时，写权限 token 被写进命令行参数，整条命令被会话记录完整持久化，token 明文从此留在日志里。发布全程不需要人敲命令，但 token 值本身也不该经过命令行与聊天记录——这是本节唯一要守住的事。
+
+### 12.1 Agent 执行时的标准姿势（文件通道）
+
+1. 人把写权限 token（Automation 或 Granular，含 `package` 的写权限）写进一个临时文件的第一行，例如 `%TEMP%\dsh-publish-token.txt`。写的方法是打开记事本（`notepad $env:TEMP\dsh-publish-token.txt`）粘贴后保存关闭：值只经过这个文件，不要贴进对话、命令参数或提交。
+2. Windows 上把文件权限收到只给本人读（`%TEMP%` 默认已按用户隔离，这一步是兜底）：`icacls "$env:TEMP\dsh-publish-token.txt" /inheritance:r /grant:r "$env:USERNAME:(R)"`；macOS/Linux 上用 `chmod 600 <路径>`。
+3. Agent 的命令里只出现路径，token 值不出现：
+
+```powershell
+pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish-token.txt -Probe    # 必须先跑，要求 PROBE-OK
+pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish-token.txt -DryRun   # 只读演练：读表 + 验 token
+pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish-token.txt           # 正式发布（门禁 → 发布 → 一次采样）
+```
+
+4. 脚本只记录来源（`TOKEN source=file path=…`），不打印 token 值；缺 token 或读不到文件时报错也只提 `-TokenFile` 与变量名，不给任何片段（误把 token 值当路径传进来时，长令牌串会先被打码再回显）。
+5. 脚本发现 token 文件放在仓库目录里时只打一行 WARN 提醒，不阻断发布；仍按第 1 条放在 `%TEMP%`，不要依赖这条提醒。
+6. 跑完立刻删：`Remove-Item -LiteralPath "$env:TEMP\dsh-publish-token.txt" -Force`。临时文件没删，等于把 token 留在磁盘上。
+7. `-TokenFile` 只取第一行非空内容（UTF-8 BOM 与 Windows 换行都会被去掉）；文件里不要放第二份 token，也不要写注释。
+
+### 12.2 环境变量入口（兼容）
+
+`NODE_AUTH_TOKEN` / `NPM_TOKEN` 仍然可用（`-TokenEnv` 可改首选的变量名），但只建议人在自己的交互终端里设。Agent 执行时用文件通道，不要把值内联进命令——那正是 #1646 记下的泄露姿势。
+
+### 12.3 轮换与泄露处置
+
+- 正常发布后：按季度轮换一次发布 token（npm 网站 → Access Tokens → 重新签发，删掉旧的）。
+- 怀疑泄露（错误地贴进了聊天、命令参数、提交或日志）：立刻到 npm 撤销该 token，重新签发一枚，再按 12.1 的文件通道重跑探针。撤销是唯一可靠的止血动作，改密码不够。
+- 撤销后如果发布被 401/E403 拦住，先确认新 token 有 `package` 的写权限，再重跑 `-Probe`，PROBE-OK 之后才继续发布。
+
+---
+
 ## 附：修订记录
+
+- 2026-10-29 增补（#1646 发布 token 不再经过命令行）：新增第 12 节，写明 token 改由 `-TokenFile` 临时文件传入（命令行只出现路径、文件权限、用完即删）、环境变量入口的兼容位置，以及季度轮换与「怀疑泄露先撤销再重签」的处置；权限与删除给了可执行命令（`icacls`、`chmod 600`、`Remove-Item -LiteralPath`），并写明仓库目录里的提醒只告警不阻断。发布脚本头注释同步改成文件通道的跑法。
 
 - 2026-08-31 初版：以 map #353 的 Implementation Decisions 为基线固化，生效日期 2026-08-31。
 - 2026-08-31 增补 #356：落地 `wizard/template.sh` 统一向导库与 `scripts/wizard-release.sh` 只扫码向导（6 段旅程、分段清屏/进度/显式打开链接/确认/落盘与收尾、可中断重跑、浏览器授权页仅扫码一次、后台轮询验证），并新增单一高层发布契约校验 `tests/verify-release-contract.ts`（覆盖版本同源等 6 类，失败给待改清单且阻断发布）。
