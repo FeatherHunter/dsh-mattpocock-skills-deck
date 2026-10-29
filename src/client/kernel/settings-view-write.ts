@@ -6,7 +6,8 @@
  *   拼回 src/client/index.ts 里那一行 kernel:settingsViewWrite 拼接标记处（apply 闭包内原位），
  *   与 ctx.ts/seam 同模式，源码树里只有这一份真源。这一行标记必须排在 kernel:settingsView 之后：
  *   本片要用那一片的键与文档工具（viewFlagWriteKeyOf / viewFlagSetInDoc / viewFlagJournalKeyOf /
- *   viewFlagLegacyWrite / viewFlagLogDocFail），以及 kernel/settings-view-state.ts 的状态对象。
+ *   viewFlagLegacyWrite / viewFlagLogDocFail / viewFlagLogToggle / viewFlagLogMergeFail），
+ *   以及 kernel/settings-view-state.ts 的状态对象。
  *
  * 本片管「写这一趟」：待写队列（journal）、500 毫秒防抖、真正要写之前先重读文件再合并、
  *   回包按值划队列、写失败后留队并重试一趟。
@@ -61,6 +62,10 @@
     declare function viewFlagEntryKeyOf(...args: any[]): any;
     declare function viewFlagLegacyWrite(...args: any[]): any;
     declare function viewFlagLogDocFail(...args: any[]): any;
+    // #1642：文字开关点按的结论行（实现住在 kernel/settings-view.ts，与 viewFlagLogDocFail 相邻）。
+    declare function viewFlagLogToggle(...args: any[]): any;
+    // #1642：合并结果没写进文件时的告警行（实现同样住在 kernel/settings-view.ts，与上面那两行相邻）。
+    declare function viewFlagLogMergeFail(...args: any[]): any;
     declare function settingsUiSetInDoc(...args: any[]): any;
     declare function settingsTemplatesSetInDoc(...args: any[]): any;
     declare function settingsDebugSetInDoc(...args: any[]): any;
@@ -256,6 +261,8 @@
           const k = sentKeys[i]
           const cur = viewFlagState.journal[k]
           if (!cur) continue
+          // #1642：这一笔真写进了文件（宿主回包说成功）——文字开关记一行 written，指路「落盘这一步成了」。
+          if (viewFlagIsTextNameOf(cur.name)) viewFlagLogToggle(cur.name, sentVals[k], cur.unopened === true, true, 'written', cur.key || cur.cwd)
           if (cur.value === sentVals[k]) { delete viewFlagState.journal[k]; continue }
           again = true
         }
@@ -275,8 +282,10 @@
     //   诚实说明这一手兜底兜得住什么：文件里已经有这个工作区的记录时，写进旧键的这一份读不回来
     //   （读侧「文件里这条记录有值就以它为准」），它只在本窗口内充当记性；页面一关就只剩文件里那一份。
     //   真正让这次改动不丢的是上面第 ② 条：这一格还在队列里，下一趟写会把它落进文件。
-    const viewFlagFallbackToLegacy = function (sentKeys: any): void {
+    const viewFlagFallbackToLegacy = function (sentKeys: any, reason: any): void {
       try {
+        // #1642：写这一趟没成 —— 先给合并条目补告警行（每条只报一次），再照老办法处理待写的那几格。
+        if (viewFlagState.mergePending === true) viewFlagLogMergeFail(reason)
         for (let i = 0; i < sentKeys.length; i++) {
           const d = viewFlagState.journal[sentKeys[i]]
           if (!d) continue
@@ -288,7 +297,8 @@
           if (d.section === 'debug') { settingsDebugLegacyWrite(); continue }
           // #1612 的两个文字开关没有对应的旧 localStorage 键（旧版根本没有这两件事），也不再有旧字段可换算：
           //   写不进文件就留在队列里等下一趟（下一趟会再试），这里只补一行日志说明这一笔没落地。
-          if (viewFlagIsTextNameOf(d.name)) { viewFlagLogDocFail(); continue }
+          // #1642：文字开关这一笔没落成 —— 补一行 storage.fail，再记下是宿主不在、文件被拒还是写的过程中抛错。
+          if (viewFlagIsTextNameOf(d.name)) { viewFlagLogDocFail(); viewFlagLogToggle(d.name, d.value, d.unopened === true, false, String(reason || 'write-error'), d.key || d.cwd); continue }
           viewFlagLegacyWrite(d.cwd, d.name, d.value)
         }
         if (viewFlagState.retryLeft > 0) { viewFlagState.retryLeft -= 1; viewFlagScheduleWrite() }
@@ -348,7 +358,7 @@
     //   sentVals 必须是对着同一份快照算出来的（见 viewFlagSentValIn）：这一趟发的是哪个值只有一个答案。
     const viewFlagSendDoc = function (snap: any, sentKeys: any, sentVals: any, t0: any): void {
       try {
-        if (typeof host === 'undefined' || !host || typeof host.call !== 'function') { viewFlagFallbackToLegacy(sentKeys); return }
+        if (typeof host === 'undefined' || !host || typeof host.call !== 'function') { viewFlagFallbackToLegacy(sentKeys, 'host-missing'); return }
         host.call('wf.setSettings', { value: snap }).then(function (res: any): any {
           const okRes = !!(res && res.ok === true)
           try {
@@ -357,9 +367,9 @@
           } catch (eL) {}
           if (okRes) { viewFlagConfirmSent(sentKeys, sentVals); return }
           // 写失败（含文件只读被拒、手机说不行）：写回旧键做过渡，并把这几个还留在队列里。
-          viewFlagFallbackToLegacy(sentKeys)
-        }, function (): void { viewFlagFallbackToLegacy(sentKeys) })
-      } catch (e) { viewFlagFallbackToLegacy(sentKeys) }
+          viewFlagFallbackToLegacy(sentKeys, 'write-refused')
+        }, function (): void { viewFlagFallbackToLegacy(sentKeys, 'write-error') })
+      } catch (e) { viewFlagFallbackToLegacy(sentKeys, 'write-error') }
     }
     // 真写一趟：先重读合并，再把「真正要发出去的那一份」照一张相，按这一份记下这一趟发出去的值，最后整份写出去。
     const viewFlagWriteNow = function (): void {
@@ -371,7 +381,7 @@
         try { viewFlagMergeDoc(viewFlagState.doc, 'write') } catch (eM) {}
         const sentKeys = Object.keys(viewFlagState.journal)
         if (!sentKeys.length && viewFlagState.mergePending !== true) return
-        if (typeof host === 'undefined' || !host || typeof host.call !== 'function') { viewFlagFallbackToLegacy(sentKeys); return }
+        if (typeof host === 'undefined' || !host || typeof host.call !== 'function') { viewFlagFallbackToLegacy(sentKeys, 'host-missing'); return }
         const t0 = Date.now()
         // 照相与记值必须对着同一份：先照相，再从这份相里按格取出「这一趟发出去的值」（文件头那一条判据）。
         const sendOf = function (doc: any): void {
@@ -380,13 +390,13 @@
         }
         viewFlagFreshDocFor(sentKeys).then(function (fresh: any): any {
           const value = fresh || viewFlagState.doc
-          if (!value) { viewFlagFallbackToLegacy(sentKeys); return }
+          if (!value) { viewFlagFallbackToLegacy(sentKeys, 'write-error'); return }
           sendOf(value)
         }, function (): void {
           if (viewFlagState.doc) sendOf(viewFlagState.doc)
-          else viewFlagFallbackToLegacy(sentKeys)
+          else viewFlagFallbackToLegacy(sentKeys, 'write-error')
         })
-      } catch (e) { try { viewFlagFallbackToLegacy(Object.keys(viewFlagState.journal)) } catch (e2) {} }
+      } catch (e) { try { viewFlagFallbackToLegacy(Object.keys(viewFlagState.journal), 'write-error') } catch (e2) {} }
     }
     // 撤销上一次排的那支等待。宿主那只 timer 交回的是可调用的撤销器函数，对它调全局 clearTimeout 是
     //   空操作（不报错、也撤不掉，见 #1115），所以句柄一律交给 hostShim 的 timer.clearTimeout 按形状处理；
@@ -480,8 +490,9 @@
         //   为什么先挡一道、不交给写盘那一趟去发现：核写盘时会按字面量校验整份文档，认不出的值会让整份写失败，
         //   然后走旧表兜底 —— 而旧表只有横幅折叠一个布尔键，兜底时只能按「hide」猜，猜出来的那一格与用户点的那一下
         //   没有关系，等于静默写错。挡在这里，错值一步都进不了内存文档，也就不会有任何一格被猜着写到别处。
-        if (!viewFlagIsTextNameOf(name)) return false
-        if (viewFlagTextValuesOf(name).indexOf(raw) < 0) return false
+        // #1642：这一笔接不下时也各记一行 toggle，说清是哪一种「没接」——调用方在界面上看到的就是「点了没反应」。
+        if (!viewFlagIsTextNameOf(name)) { viewFlagLogToggle(name, raw, listed === true, false, 'unknown-flag', cwd); return false }
+        if (viewFlagTextValuesOf(name).indexOf(raw) < 0) { viewFlagLogToggle(name, raw, listed === true, false, 'bad-value', cwd); return false }
         settingsViewLoad()
         let key = viewFlagWriteKeyOf(cwd)
         // #1641：名单上的行认不出根时，名单路径本身就可以当临时键 —— 它是用户看得见的目录，不是会话里的猜测。
@@ -491,22 +502,26 @@
           key = String(cwd == null ? '' : cwd).trim()
           unopened = key !== ''
         }
-        if (!key) return false
+        if (!key) { viewFlagLogToggle(name, raw, listed === true, false, 'no-root', cwd); return false }
         if (viewFlagState.status === 'loading') {
           viewFlagState.deferred[viewFlagJournalKeyOf(key, name)] = (unopened
             ? { cwd: cwd, name: name, value: raw, key: key, unopened: true }
             : { cwd: cwd, name: name, value: raw, key: key })
+          viewFlagLogToggle(name, raw, unopened, true, 'deferred', key)
           return true
         }
-        if (viewFlagState.status !== 'ready') return false
+        if (viewFlagState.status !== 'ready') { viewFlagLogToggle(name, raw, unopened, false, viewFlagState.status === 'readonly' ? 'readonly' : 'unavailable', key); return false }
         if (!viewFlagSetInDoc(viewFlagState.doc, cwd, key, name, raw, unopened)) {
           viewFlagLogDocFail()
+          viewFlagLogToggle(name, raw, unopened, false, 'doc-fail', key)
           return false
         }
         viewFlagState.journal[viewFlagJournalKeyOf(key, name)] = (unopened
           ? { cwd: cwd, name: name, value: raw, key: key, unopened: true }
           : { cwd: cwd, name: name, value: raw, key: key })
         viewFlagScheduleWrite()
+        viewFlagLogToggle(name, raw, unopened, true, 'queued', key)
         return true
-      } catch (e) { return false }
+      // #1642：这一笔在接的过程中抛错（内存文档或队列出问题）——记一行再如实回 false，别静默吞掉。
+      } catch (e) { try { viewFlagLogToggle(name, value, listed === true, false, 'error', cwd) } catch (e2) {} return false }
     }

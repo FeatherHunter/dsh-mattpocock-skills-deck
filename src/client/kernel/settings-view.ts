@@ -304,6 +304,46 @@ declare const process: any;
     const viewFlagLogDocFail = function (): void {
       try { log('warn', 'storage.fail', { key: 'settings.workspaces', op: 'write' }) } catch (eL) {}
     }
+    // 用户点一下设置页的「胶囊状态栏」或「deck 工具箱」这两格文字开关，从界面到文件要经过好几步：
+    //   先进待写队列（还没认出工作区根、或设置文档还在路上）、文档到手后并进内存文档、防抖窗口过后整份写进文件；
+    //   任何一步都可能停住（值不认识、文档是更高版本不许写、手机不通、写被拒）。从前这一路只有失败时一行
+    //   storage.fail，它只说「写 localStorage 失败」，看不出用户点的是哪一格、点成什么值、卡在哪一步，于是
+    //   「点了没反应」只能到现场猜（#1642）。这里每一步各记一行 settings.toggle，用 reason 说走到哪一步、
+    //   ok 说这一步成没成；同一趟按时间顺序读下去就知道停在哪一步。
+    //   字段只有白名单里的六个：flag 开关名、value 这一次点成什么值、listed 是不是名单路径上的临时记录
+    //   （在还没形成记录的早期拒绝里，它回显调用方说的「这一行来自工作区名单」）、ok 这一步成没成、
+    //   reason 结论枚举、cwdHash 工作区键的短散列（日志纪律：不记工作区原始路径）。
+    const viewFlagLogToggle = function (name: any, value: any, listed: any, ok: any, reason: any, keyOrCwd: any): void {
+      try {
+        log('info', 'settings.toggle', {
+          flag: String(name == null ? '' : name),
+          value: String(value == null ? '' : value),
+          listed: listed === true,
+          ok: ok === true,
+          reason: String(reason == null ? '' : reason),
+          cwdHash: dswsLogHash(String(keyOrCwd == null ? '' : keyOrCwd))
+        })
+      } catch (eL) {}
+    }
+    // 合并记下的临时记录这一趟没能写进文件时补一行（#1642）：按 #1640 的约定，settings.merge 那行「合了」
+    //   等写成功才发，写失败时一行告警都不发；可「盘上还留着一处分家、因为这一趟写没成」本身正是需要
+    //   事后看见的事，所以另开一条告警级 settings.merge.fail，字段与 settings.merge 前四格相同，
+    //   末格 reason 说为什么没写进文件（host-missing 宿主不在这台机器上 / write-refused 文件是更高版本
+    //   或被拒 / write-error 写的过程中抛错）。每条临时记录只报一次（条目上的 failTold 标记），
+    //   下一趟重试再失败不重复刷；下一趟写成功时仍按原约定发 settings.merge。工作区键只记短散列。
+    //   与上面两行同住这一片（都是「点一下之后日志该怎么写」）；写侧 kernel/settings-view-write.ts 调它。
+    const viewFlagLogMergeFail = function (reason: any): void {
+      try {
+        if (viewFlagState.mergePending !== true) return
+        const hashes = Object.keys(viewFlagState.mergeLog || {})
+        for (let i = 0; i < hashes.length; i++) {
+          const m = viewFlagState.mergeLog[hashes[i]]
+          if (!m || m.failTold === true) continue
+          m.failTold = true
+          try { log('warn', 'settings.merge.fail', { via: String(m.via || ''), keyHash: String(hashes[i]), rootHash: String(m.rootHash || ''), fields: Number(m.fields) || 0, reason: String(reason || '') }) } catch (eL) {}
+        }
+      } catch (e) {}
+    }
     // 文档到手那一刻重画一次（与 touchProbeAt 同例：同一个工作区的各会话都跟着重画）。
     const viewFlagEmitAll = function (): void {
       try { if (typeof emit === 'function' && typeof shared !== 'undefined' && shared) emit(shared) } catch (e) {}
@@ -334,6 +374,8 @@ declare const process: any;
             viewFlagState.journal[viewFlagJournalKeyOf(key, d.name)] = (d.unopened === true)
               ? { cwd: d.cwd, name: d.name, value: d.value, key: key, unopened: true }
               : { cwd: d.cwd, name: d.name, value: d.value, key: key }
+            // #1642：这一笔从队列并进了内存文档，接下来等防抖窗口把它写进文件（写成功那一行由写侧记）。
+            if (viewFlagIsTextNameOf(d.name)) viewFlagLogToggle(d.name, d.value, d.unopened === true, true, 'queued', key)
             continue
           }
           // 这一笔没能进文档：文档没到手、认不出工作区根、或文档形状对不上写不进去 —— 三种都走同一条
@@ -341,6 +383,15 @@ declare const process: any;
           //   既不写也不记，用户在界面上点的那一下就这么静默消失（#1012 后续修复的 A5）。
           viewFlagLegacyWrite(d.cwd, d.name, d.value)
           if (status === 'ready' && key) viewFlagLogDocFail()
+          // #1642：文字开关没能在这一趟并进文档 —— 记下停在哪一步：readonly 文件是更高版本不许写、
+          //   unavailable 问不到文档、no-root 认不出工作区根、doc-fail 文档在手却形状对不上写不进去。
+          //   旧布尔那两格（红文件夹标志等）没有对应的新事件，行为与从前一致。
+          if (viewFlagIsTextNameOf(d.name)) {
+            let why = 'doc-fail'
+            if (status !== 'ready') why = (status === 'readonly') ? 'readonly' : 'unavailable'
+            else if (!key) why = 'no-root'
+            viewFlagLogToggle(d.name, d.value, d.unopened === true, false, why, d.key || d.cwd)
+          }
         }
         viewFlagState.deferred = {}
         if (status === 'ready') {

@@ -144,6 +144,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-29 #1640：设置页名单上的临时记录在认出工作区根以后合并到根那一条（稀疏记录只存点过的格、
   // 合并按「格在不在」判点过、写成功才发 settings.merge 一行日志、两条触发路 load/root）；36 条是单跑实测得出的。
   'verify-1640-unopened-merge': 36,
+  // 2026-10-29 #1642：设置页两个文字开关点按与临时记录合并两条路都留常驻日志（每一步一个 reason、
+  // 写失败时补一行 settings.merge.fail 告警）；54 条是单跑实测得出的。
+  'verify-1642-toggle-logs': 54,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

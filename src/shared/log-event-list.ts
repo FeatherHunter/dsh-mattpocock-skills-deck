@@ -141,5 +141,11 @@ export const LOG_EVENT_LIST: {
       kind: 'resident',
       fields: ['tool', 'opId', 'status', 'estRequests', 'estPoints', 'requests', 'points', 'latencyMs', 'remaining', 'tier', 'backendId', 'note'],
     },
+    // 2026-10-29 #1640：设置页名单上的临时记录认出工作区根以后合并到根那一条的结论（等这一趟写成功才发）。
+    'settings.merge': { level: 'info', kind: 'resident', fields: ['via', 'keyHash', 'rootHash', 'fields'] },
+    // 2026-10-29 #1642：胶囊状态栏与 deck 工具箱两格文字开关「点了一下」从界面到文件的每一步结论。
+    //   同一次点按可能落两三行（进队 / 并进文档 / 写进文件），按 reason 读出停在哪一步；这是回答
+    //   「点了没反应」的唯一常驻落点，所以定信息级常驻，而不是只落调试档。
+    'settings.toggle': { level: 'info', kind: 'resident', fields: ['flag', 'value', 'listed', 'ok', 'reason', 'cwdHash'] },
   },
 }
