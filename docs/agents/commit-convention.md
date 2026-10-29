@@ -16,5 +16,5 @@
 把 issueDetail 从 JavaScript 转成 TypeScript，行为零变化（#1161）
 
 补齐两个入口的返回类型标注，逻辑未改。
-tsc 与 tests/verify-1053-issue-write 已跑通，冒烟六条全绿。
+tsc 与 tests/verify-1053-issue-write 已跑通，冒烟五条全绿。
 ```
