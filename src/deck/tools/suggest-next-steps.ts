@@ -48,20 +48,20 @@ export const REASON_MAX_CHARS = 200
  *  于是搬进下面这几段说明，跟工具定义一起注册，模型在调用前就能读到。 */
 export const definition = {
   name: SUGGEST_TOOL_NAME,
-  description: '在回复末尾推荐 2~4 条下一步提示词，界面会显示成可点的气泡，点一下填进输入框、不会替你发送；只在有明确下一步时调用，活没干完、在等用户回答或只是礼貌收尾时都不调用；每条 prompt 开头尽量写这一步对应的 /xxxx 技能指令，优先从技能角度推荐。',
+  description: '推荐 2~4 条下一步建议。这一轮已经告一段落，且你能说清下一步要做什么、对什么做时才调用；还有活没干完、在等用户回答时不调用。',
   parameters: {
     type: 'object',
     properties: {
       items: {
         type: 'array',
-        description: '要推荐的下一步，2~4 项，按「现在最该先做」从前往后排；多于 4 项时按优先级留下前 4 项，少于 2 项整次拒绝；每条的 prompt 开头先写对应的 /xxxx 技能指令（例如 /to-tickets、/diagnose、/research），确实没有合适技能时才写普通提示词。',
+        description: 'prompt 开头写这一步对应的技能指令（/xxxx）；没有真实对应的技能就写普通提示词。',
         items: {
           type: 'object',
           properties: {
-            intro: { type: 'string', description: '简介：一句话说清这一步做什么，不超过 10 个字；选项框上只显示这一句，完整提示词点选后才填进输入框。' },
-            prompt: { type: 'string', description: '可以直接执行的下一步提示词，开头尽量写这一步对应的技能指令（/xxxx，例如 /to-tickets）：点选后直接进入那个技能的流程；把票号、路径、分支名这类具体对象写进去，不要写「继续推进」这种没有具体对象的话。' },
-            reason: { type: 'string', description: '一句话说清为什么现在做它——卡在哪、做完能解锁什么、不做会怎样；不要复述提示词，不要写空泛评价。' },
-            priority: { type: 'number', description: '推荐优先级：0 到 10 的数字，分越高越建议先做，界面按分从高到低往左排；现在不做会卡住的打 9 到 10，顺手做的打 6 到 8；拿不准就别给，没给的统一排在最后。' },
+            intro: { type: 'string', description: '一句话说清这一步做什么，10 字以内。' },
+            prompt: { type: 'string', description: '用户会原样发出的话：写清具体对象（文件、结论等），不写「继续推进」这类空话；写不清就换一条，不要留空或编值。' },
+            reason: { type: 'string', description: '一句话说清为什么现在做它：卡在哪、做完能解锁什么；不要复述提示词或写空泛评价。' },
+            priority: { type: 'number', description: '0 到 10，分越高越建议先做。' },
           },
           required: ['intro', 'prompt', 'reason'],
           additionalProperties: false,
