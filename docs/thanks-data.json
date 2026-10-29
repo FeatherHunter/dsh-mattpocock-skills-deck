@@ -10,8 +10,14 @@
       ],
       "prs": [],
       "discussions": [],
-      "comments": [],
-      "lastActive": "2026-10-24T14:30:44Z"
+      "comments": [
+        {
+          "n": 1375,
+          "thread": "issue",
+          "at": "2026-10-24T14:30:52Z"
+        }
+      ],
+      "lastActive": "2026-10-24T14:30:52Z"
     },
     "21967201": {
       "comments": [],
@@ -66,6 +72,19 @@
           "n": 1376
         }
       ]
+    },
+    "2980691758": {
+      "issues": [],
+      "prs": [],
+      "discussions": [],
+      "comments": [
+        {
+          "n": 998,
+          "thread": "issue",
+          "at": "2026-10-19T05:35:24Z"
+        }
+      ],
+      "lastActive": "2026-10-19T05:35:24Z"
     },
     "9agj": {
       "comments": [],
@@ -546,7 +565,13 @@
       "prs": []
     },
     "tafcear": {
-      "comments": [],
+      "comments": [
+        {
+          "n": 432,
+          "thread": "issue",
+          "at": "2026-09-03T12:57:04Z"
+        }
+      ],
       "discussions": [],
       "issues": [
         {
@@ -554,7 +579,7 @@
           "n": 422
         }
       ],
-      "lastActive": "2026-09-02T02:10:16Z",
+      "lastActive": "2026-09-03T12:57:04Z",
       "prs": []
     },
     "xiSage": {

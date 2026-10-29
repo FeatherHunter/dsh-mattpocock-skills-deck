@@ -124,12 +124,25 @@ export function orderedLogins(authors: Record<string, AuthorRec>): string[] {
 }
 
 export function renderRow(login: string, rec: AuthorRec): string {
-  const links: string[] = [];
-  for (const d of [...(rec.issues || [])].sort((x, y) => x.n - y.n)) links.push(itemLink(d.n, 'issue'));
-  for (const d of [...(rec.prs || [])].sort((x, y) => x.n - y.n)) links.push(itemLink(d.n, 'pr'));
-  for (const d of [...(rec.discussions || [])].sort((x, y) => x.n - y.n)) links.push(itemLink(d.n, 'discussion'));
-  const comments: Array<{ n: number; thread: 'issue' | 'pr'; at: string }> = [...(rec.comments || [])].sort((x, y) => x.n - y.n);
-  for (const c of comments) links.push(itemLink(c.n, 'comment', c.thread));
+  type RowEntry =
+    | { k: 'issue'; n: number }
+    | { k: 'pr'; n: number }
+    | { k: 'discussion'; n: number }
+    | { k: 'comment'; n: number; thread: 'issue' | 'pr' };
+  // 评论和它所在的编号串共用一段 URL（issue 串走 /issues/、PR 串走 /pull/），
+  // 所以索引按 URL 段合并、段内升序；分开排会在「既有 Issue 又有一条更小号评论」时撞门禁（#1481 与 #1375 就是）。
+  const entries: RowEntry[] = [
+    ...(rec.issues || []).map((d) => ({ k: 'issue' as const, n: d.n })),
+    ...(rec.prs || []).map((d) => ({ k: 'pr' as const, n: d.n })),
+    ...(rec.discussions || []).map((d) => ({ k: 'discussion' as const, n: d.n })),
+    ...(rec.comments || []).map((c) => ({ k: 'comment' as const, n: c.n, thread: c.thread })),
+  ];
+  const segOf = (e: RowEntry): number =>
+    e.k === 'pr' || (e.k === 'comment' && e.thread === 'pr') ? 1 : e.k === 'discussion' ? 2 : 0;
+  entries.sort((a, b) => (segOf(a) !== segOf(b) ? segOf(a) - segOf(b) : a.n - b.n));
+  const links: string[] = entries.map((e) =>
+    e.k === 'comment' ? itemLink(e.n, 'comment', e.thread) : itemLink(e.n, e.k),
+  );
   return `| [@${login}](https://github.com/${login}) | ${rosesFor(totalOf(rec))} | ${links.join(' ')} |`;
 }
 
