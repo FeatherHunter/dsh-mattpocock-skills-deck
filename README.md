@@ -197,12 +197,14 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 | [@9agj](https://github.com/9agj) | 🌹🌹🌹 | [#992](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/992) [#993](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/993) [#994](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/994) |
 | [@q4452542007](https://github.com/q4452542007) | 🌹🌹 | [#1555](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1555) [#1578](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1578) |
 | [@Niefee](https://github.com/Niefee) | 🌹🌹 | [#1516](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1516) [#1569](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1569) |
+| [@654970](https://github.com/654970) | 🌹🌹 | [#1375](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1375) [#1481](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1481) |
 | [@xingmulee](https://github.com/xingmulee) | 🌹🌹 | [#1421](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1421) [#1422](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1422) |
 | [@776317107](https://github.com/776317107) | 🌹🌹 | [#1375](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1375) [#1376](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1376) |
 | [@gzy31007](https://github.com/gzy31007) | 🌹🌹 | [#1272](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1272) [#1273](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1273) |
 | [@qq1393950873-bit](https://github.com/qq1393950873-bit) | 🌹🌹 | [#970](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/970) [#974](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/974) |
 | [@hyperion2144](https://github.com/hyperion2144) | 🌹🌹 | [#110](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/110) [#646](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/646) |
 | [@arnold117](https://github.com/arnold117) | 🌹🌹 | [#574](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/574) [#575](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/575) |
+| [@tafcear](https://github.com/tafcear) | 🌹🌹 | [#422](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/422) [#432](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/432) |
 | [@xiSage](https://github.com/xiSage) | 🌹🌹 | [#435](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/435) [#436](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/436) |
 | [@angenet](https://github.com/angenet) | 🌹🌹 | [#262](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/262) [#295](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/295) |
 | [@danyanp](https://github.com/danyanp) | 🌹 | [#1595](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1595) |
@@ -211,13 +213,13 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 | [@TangSuann](https://github.com/TangSuann) | 🌹 | [#1505](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1505) |
 | [@nolifeking0916](https://github.com/nolifeking0916) | 🌹 | [#1504](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1504) |
 | [@ACGNnsj](https://github.com/ACGNnsj) | 🌹 | [#1498](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1498) |
-| [@654970](https://github.com/654970) | 🌹 | [#1481](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1481) |
 | [@GuanpengLu](https://github.com/GuanpengLu) | 🌹 | [#1478](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1478) |
 | [@zyf0625-990](https://github.com/zyf0625-990) | 🌹 | [#1476](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1476) |
 | [@Lichxier](https://github.com/Lichxier) | 🌹 | [#1435](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1435) |
 | [@mdc707](https://github.com/mdc707) | 🌹 | [#1394](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1394) |
 | [@firewfly](https://github.com/firewfly) | 🌹 | [#1392](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1392) |
 | [@lilincen](https://github.com/lilincen) | 🌹 | [#1301](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1301) |
+| [@2980691758](https://github.com/2980691758) | 🌹 | [#998](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/998) |
 | [@WDXXZH](https://github.com/WDXXZH) | 🌹 | [#1137](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1137) |
 | [@Drayee](https://github.com/Drayee) | 🌹 | [#1101](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1101) |
 | [@30892096](https://github.com/30892096) | 🌹 | [#1100](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1100) |
@@ -231,7 +233,6 @@ DSH侧边栏-总览任务面板全貌。通过插件内置SKILLS的任务拆分�
 | [@SbDonger](https://github.com/SbDonger) | 🌹 | [#640](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/640) |
 | [@snmtg1008](https://github.com/snmtg1008) | 🌹 | [#476](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/476) |
 | [@dis0neplay](https://github.com/dis0neplay) | 🌹 | [#493](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/493) |
-| [@tafcear](https://github.com/tafcear) | 🌹 | [#422](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/422) |
 | [@21967201](https://github.com/21967201) | 🌹 | [#321](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/321) |
 | [@271912980](https://github.com/271912980) | 🌹 | [#257](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/257) |
 <!-- THANKS-TABLE-ZH-END -->
