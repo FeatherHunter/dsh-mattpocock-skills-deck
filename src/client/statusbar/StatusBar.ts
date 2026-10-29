@@ -495,16 +495,17 @@ export const StatusBar = (props: any) => {
     // #1438：有些横幅在主按钮旁边还要一颗次要按钮（今天只有登录失败那条 —— 检查已经答对了「没登录」，
     //   可人到插件外面把登录修好之后，这条横幅上原来没有一颗点了会重查的按钮，只能自己绕到环境检查页）。
     //   进行中置灰并转圈，点不出第二趟；没声明就不画，那颗叉永远只有一颗。
-    return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }, [
+    // #1661 单行自适应：短文案不换行、宽度跟着内容走（窄屏尾巴省略），图标与按钮固定不压缩。
+    return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: '100%', width: 'max-content', cursor: 'default' } }, [
       Ic({ n: 'alert', size: 13 }),
-      h('span', { style: { flex: 1 } }, text),
-      h('button', { className: 'dsws-btn dsws-hov', style: { borderColor: 'rgba(245,158,11,.6)' }, 'data-press': 'button', 'data-log': 'status.banner.action', onClick: onBtn }, btnLabel),
+      h('span', { style: { flex: '0 1 auto', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, text),
+      h('button', { className: 'dsws-btn dsws-hov', style: { flex: 'none', whiteSpace: 'nowrap', borderColor: 'rgba(245,158,11,.6)' }, 'data-press': 'button', 'data-log': 'status.banner.action', onClick: onBtn }, btnLabel),
       alt ? h('button', { className: 'dsws-btn ghost dsws-hov', style: { color: '#f59e0b', borderColor: 'rgba(245,158,11,.6)', marginLeft: 6, opacity: alt.busy ? 0.6 : 1 }, 'data-press': 'button', 'data-log': 'status.banner.recheck', onClick: alt.onClick, disabled: !!alt.busy }, [h('span', { className: 'dsws-rficon' + (alt.busy ? ' dsws-spin' : ''), style: { marginRight: 4 } }, [Ic({ n: 'refresh', size: 11 })]), tr(alt.label)]) : null,
       foldable ? h(Tip, { content: tr('banner.foldDeck') }, h('button', { className: 'dsws-btn ghost dsws-banner-fold-x', 'aria-label': tr('banner.foldDeck'),
         // 接线（#1335 界面反馈）：黄条那颗叉是纯图标，只接按压压暗；日志标识 status.banner.fold。
         'data-press': 'icon',
         'data-log': 'status.banner.fold',
-        onClick: foldBanner, style: { borderColor: 'rgba(245,158,11,.6)', padding: '1px 6px', marginLeft: 12, display: 'inline-flex', alignItems: 'center' } }, Ic({ n: 'x', size: 11 }))) : null,
+        onClick: foldBanner, style: { flex: 'none', borderColor: 'rgba(245,158,11,.6)', padding: '1px 6px', marginLeft: 12, display: 'inline-flex', alignItems: 'center' } }, Ic({ n: 'x', size: 11 }))) : null,
     ])
   }
   // #663：横幅就这一条 —— 正文与按钮标签用清单里那对词条键，按钮点下去照清单声明的 missing 走
