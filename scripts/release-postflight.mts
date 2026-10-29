@@ -71,7 +71,7 @@ export type PublishRecordInput = {
   now: Date
 }
 
-function parseArgs(argv: string[]): Options {
+function parseArgs(argv: string[]): Options | null {
   const options: Options = { version: '', evidencePath: '' }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
@@ -82,7 +82,9 @@ function parseArgs(argv: string[]): Options {
       else options.evidencePath = value
       index += 1
     } else if (arg === '--help' || arg === '-h') {
-      throw new Error('__HELP__')
+      // 用法请求不是错误，但也不能当成正常参数继续跑：用 null 把它与「参数写错」分开，
+      // 免得靠一个只有本文件知道的异常字符串当控制流。
+      return null
     } else {
       throw new Error('不认识的参数：' + arg)
     }
@@ -112,8 +114,9 @@ export function buildPublishRecordLines(input: PublishRecordInput): string[] {
   if (evidence && evidence.packages.length > 0) {
     for (const pkg of evidence.packages) {
       lines.push(
+        // 指纹写全：发布记录是「发出去的字节」的凭据，截断之后就没法拿它去和发布日志里那一行比对。
         '- 发布包逐文件清单：' + pkg.name + '@' + pkg.version + '，' + String(pkg.fileCount) + ' 个文件，' +
-          String(pkg.totalBytes) + ' 字节，清单指纹 sha256:' + String(pkg.digest).slice(0, 16) + '…（完整指纹见发布日志的 BYTES-SAME 行）',
+          String(pkg.totalBytes) + ' 字节，清单指纹 sha256:' + String(pkg.digest),
       )
     }
     const tags = evidence.tags || {}
@@ -172,7 +175,6 @@ function readEvidenceFile(filePath: string): PublishEvidence {
   }
 }
 
-let options: Options = { version: '', evidencePath: '' }
 let failed = false
 
 function fail(message: string): void {
@@ -213,13 +215,15 @@ function createIssue(title: string, body: string): Issue | null {
 }
 
 function main(): void {
+  let options: Options
   try {
-    options = parseArgs(process.argv.slice(2))
-  } catch (error) {
-    if (error instanceof Error && error.message === '__HELP__') {
+    const parsed = parseArgs(process.argv.slice(2))
+    if (parsed === null) {
       console.log('用法：node scripts/release-postflight.mts [--version <版本号>] [--evidence <发布证据文件>]')
       process.exit(0)
     }
+    options = parsed
+  } catch (error) {
     fail(error instanceof Error ? error.message : String(error))
     process.exit(1)
   }

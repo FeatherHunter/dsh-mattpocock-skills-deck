@@ -100,7 +100,7 @@ const NPM_TARBALL_PREFIX = 'package/'
  * 只认八进制时，一旦遇到大文件（字段放不下）就会把后面所有头的偏移全算错，那时报出来的会是
  * 「随机位置有坏头」这种看不出原因的错。两种都认，编译器就不必替我们猜。
  */
-function readTarNumber(buffer: any, start: number, length: number): number {
+function readTarNumber(buffer: Buffer, start: number, length: number): number {
   if (buffer[start] & 0x80) {
     let value = 0
     for (let index = start + 1; index < start + length; index += 1) {
@@ -114,7 +114,7 @@ function readTarNumber(buffer: any, start: number, length: number): number {
 }
 
 /** 读一个 NUL 结尾的字段：tar 头里的路径、名字都是这种。 */
-function readTarString(buffer: any, start: number, length: number): string {
+function readTarString(buffer: Buffer, start: number, length: number): string {
   let end = start
   const limit = start + length
   while (end < limit && buffer[end] !== 0) end += 1
@@ -127,7 +127,7 @@ function readTarString(buffer: any, start: number, length: number): string {
  * 校验它不是形式主义：npm 的 tarball 是 gzip 过的流，解压后如果中途读错一个字节，后面会把文件内容
  * 当成头来解析、算出一份看起来正常但完全错的清单。那比报错更糟（会误判「字节对得上」）。
  */
-function assertTarHeaderChecksum(header: any, offset: number): void {
+function assertTarHeaderChecksum(header: Buffer, offset: number): void {
   let sum = 0
   for (let index = 0; index < TAR_BLOCK_SIZE; index += 1) {
     const isChecksumField = index >= 148 && index < 156
@@ -143,7 +143,7 @@ function assertTarHeaderChecksum(header: any, offset: number): void {
 }
 
 /** pax 扩展头（typeflag 'x'）的内容是「长度 键=值\n」的记录流；这里只认 path 与 size，其余原样跳过。 */
-function applyPaxRecords(data: any, state: { path?: string; size?: number }): void {
+function applyPaxRecords(data: Buffer, state: { path?: string; size?: number }): void {
   let cursor = 0
   const text = data.toString('utf8')
   while (cursor < text.length) {
@@ -172,7 +172,7 @@ function applyPaxRecords(data: any, state: { path?: string; size?: number }): vo
  * GNU 长路径（'L'）、GNU 长链接名（'K'，跳过）。链接（'1'/'2'）与设备文件不会出现在 npm 包里，
  * 遇到了直接报错而不是猜——猜错会安静地少列一个文件，而少列的文件正好是「对账漏掉」的那一类。
  */
-export function readTarEntries(tarBytes: any, onFile?: (filePath: string, payload: any) => void): ManifestFile[] {
+export function readTarEntries(tarBytes: Buffer, onFile?: (filePath: string, payload: Buffer) => void): ManifestFile[] {
   const entries: ManifestFile[] = []
   let offset = 0
   let nextPath: string | null = null
@@ -233,8 +233,10 @@ export function readTarEntries(tarBytes: any, onFile?: (filePath: string, payloa
       throw new Error('发布包里出现了不认识的 tar 头类型（typeflag ' + JSON.stringify(typeflag) + '），无法安全地列清单。')
     }
 
-    if (typeflag !== 'x') {
-      // pax 覆盖只对紧接着的那一个文件生效；下一轮开始前必须清掉，否则会拿上一个文件的 path/size 去解释下一个头。
+    // pax（'x'）与 GNU 长名（'L'）/长链接名（'K'）都是「给下一个文件用的元数据头」：读到它们时
+    // 不能把刚记下的状态清掉，否则长路径会被静默丢掉、退回被截断的头名（照样能列出文件，但路径是错的）。
+    if (typeflag !== 'x' && typeflag !== 'L' && typeflag !== 'K') {
+      // 覆盖只对紧接着的那一个文件生效；下一轮开始前必须清掉，否则会拿上一个文件的 path/size 去解释下一个头。
       paxState = {}
       nextPath = null
     }
@@ -256,12 +258,16 @@ function normalizeTarballPath(rawPath: string): string {
   return filePath
 }
 
-/** 读 tarball 文件（.tgz）并列出清单：先按 gzip 魔数解压，不是 gzip 时按未压缩 tar 处理（便于用夹具测试）。 */
-export function readTarballEntries(tarballPath: string): ManifestFile[] {
+/** 读 tarball 文件（.tgz）并列出清单：先按 gzip 魔数解压，不是 gzip 时按未压缩 tar 处理（便于用夹具测试）。
+ *
+ * onFile 是给调用方取原始内容的回调：清单只留路径、字节数与 sha256，而取包名/版本这类元数据
+ * 需要 package.json 的原文。带上回调就能在同一趟里读完，不必为了元数据把 tarball 再解压一遍。
+ */
+export function readTarballEntries(tarballPath: string, onFile?: (filePath: string, payload: Buffer) => void): ManifestFile[] {
   const raw = readFileSync(tarballPath)
   const isGzip = raw.length >= 2 && raw[0] === 0x1f && raw[1] === 0x8b
   const tarBytes = isGzip ? gunzipSync(raw) : raw
-  return readTarEntries(tarBytes)
+  return readTarEntries(tarBytes, onFile)
 }
 
 /** 清单指纹：文件按路径排序后，每行「sha256 + 两个空格 + 路径」，整体再算 sha256。 */
@@ -419,9 +425,10 @@ export function parseTagsJson(text: string): TagsSnapshot {
  *     预发布通道结束，beta 应该继续指向上一个预发布号，方便下一轮 beta 从那里继续。
  *
  * 发布前还要挡住两类明显不对的状态：beta 指向一个正式版本（约定里 beta 只放预发布号），以及
- * 新版本比要覆盖的 tag 还旧（那会让 latest/beta 往回退）。只挡这两类，不做更多猜测：
- * 稳定版可能跟在另一个版本线的 beta 之后发布（例如 beta 已经走到 2.0.0-beta.1，这次补 1.9.1），
- * 那种情况是正常的，不该被拦。
+ * 新版本比要覆盖的 tag 还旧（那会让 latest/beta 往回退）。只做这两类检查，不做更多猜测。
+ * 由此有一个已知的保守取舍：预发布会把 latest 指到 2.0.0-beta.1 这种号上，之后若想补发旧线
+ * 1.9.1 的稳定版，会因为「不比 latest 新」被拦下。跨版本线的补发要人工拍板（先定 latest 该指向
+ * 哪里），不交给脚本自动放行。
  */
 export function planTags(input: { version: string; before: TagsSnapshot }): PlanResult {
   const problems: string[] = []
@@ -520,12 +527,7 @@ export function writeManifestFile(filePath: string, manifest: Manifest): void {
 
 /** 读一个 JSON 文件；读不到或不是对象都抛错，错误里带路径，排错时不用猜是哪个文件。 */
 function readJsonFile(filePath: string): any {
-  let text = ''
-  try {
-    text = readFileSync(filePath, 'utf8')
-  } catch (error) {
-    throw new Error('读不到「' + filePath + '」：' + String(error))
-  }
+  const text = readJsonText(filePath)
   try {
     return JSON.parse(text)
   } catch (error) {
@@ -534,21 +536,14 @@ function readJsonFile(filePath: string): any {
 }
 
 /**
- * 从 tarball 里的 package.json 兜底取 name/version：调用方没传时，清单文件里也能看出这是哪个包。
+ * 从 tarball 里的 package.json 原文兜底取 name/version：调用方没传时，清单文件里也能看出这是哪个包。
  *
  * 包名与版本不参与比对（比对只认文件路径与内容），所以这里读不出来也不算错：返回空对象，
  * 清单里就写「(未知)」。真正要紧的是文件清单，这一点不能因为元数据读不到而受影响。
  */
-function metaFromTarball(tarballPath: string): { name?: string; version?: string } {
+function metaFromPackageJsonText(packageJsonText: string): { name?: string; version?: string } {
+  if (!packageJsonText) return {}
   try {
-    const raw = readFileSync(tarballPath)
-    const isGzip = raw.length >= 2 && raw[0] === 0x1f && raw[1] === 0x8b
-    const tarBytes = isGzip ? gunzipSync(raw) : raw
-    let packageJsonText = ''
-    readTarEntries(tarBytes, (filePath: string, payload: any) => {
-      if (filePath === 'package.json') packageJsonText = payload.toString('utf8')
-    })
-    if (!packageJsonText) return {}
     const parsed = JSON.parse(packageJsonText)
     return {
       name: typeof parsed.name === 'string' ? parsed.name : undefined,
@@ -592,8 +587,12 @@ function formatDiff(diff: ManifestDiff): string {
 function runManifest(options: CommandOptions): void {
   const tarballPath = requireOption(options, 'tarball')
   const outPath = requireOption(options, 'out')
-  const entries = readTarballEntries(tarballPath)
-  const meta = metaFromTarball(tarballPath)
+  // 一次解压读完清单与 package.json：meta 只用来给人看这是哪个包，读不出来不影响对账本身。
+  let packageJsonText = ''
+  const entries = readTarballEntries(tarballPath, (filePath: string, payload: Buffer) => {
+    if (filePath === 'package.json') packageJsonText = payload.toString('utf8')
+  })
+  const meta = metaFromPackageJsonText(packageJsonText)
   const manifest = buildManifest(entries, {
     name: options.name || meta.name,
     version: options.version || meta.version,

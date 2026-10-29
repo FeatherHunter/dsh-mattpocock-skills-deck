@@ -146,7 +146,7 @@ $integrityScript = Join-Path $RepoRoot 'scripts/release-integrity.mts'
 $hasIntegrity = Test-Path $integrityScript
 $evidenceDir = ''
 if (-not $hasIntegrity) {
-  Log 'BYTES 跳过（本仓没有 scripts/release-integrity.mts）：本次不拍逐文件清单、不核对 tag 策略。'
+  Log 'BYTES-SKIP 本仓没有 scripts/release-integrity.mts：本次不拍逐文件清单、不核对 tag 策略（五仓同步的旧口径）。'
   if ([string]::IsNullOrWhiteSpace($Tag)) { $Tag = 'latest' }
 }
 
@@ -207,6 +207,11 @@ function Write-JsonFile([string]$path, $value) {
 function Format-ManifestSummary($manifest) {
   if ($null -eq $manifest) { return '(无清单)' }
   return ('files=' + [string]$manifest.fileCount + ' bytes=' + [string]$manifest.totalBytes + ' digest=' + [string]$manifest.digest)
+}
+# 把子命令的多行输出逐行转进发布日志（空行丢掉）。抽出来是因为发布前后共有四处要做同一件事，
+# 以前每处抄一遍循环，改日志格式时容易漏掉其中一处。
+function Write-ToolOutput([string]$text) {
+  foreach ($line in ($text -split '\r?\n')) { if ($line.Trim() -ne '') { Log $line.Trim() } }
 }
 # 打一个包并找出 tarball：target 可以是目录（打当前目录的包），也可以是「包名@版本」（从 registry 拉回已发布的包）。
 # 每次先把目标目录清空，避免上一次留下的 .tgz 被当成这一次的产物。
@@ -342,7 +347,7 @@ try {
       Write-JsonFile $beforeFile $before
       $planFile = Join-Path $evidenceDir ('tags-plan-' + $safeName + '.json')
       $planRun = Invoke-Integrity @('scripts/release-integrity.mts', 'tags-plan', '--version', $p.version, '--before', $beforeFile, '--out', $planFile)
-      foreach ($line in ($planRun.out -split '\r?\n')) { if ($line.Trim() -ne '') { Log $line.Trim() } }
+      Write-ToolOutput $planRun.out
       if ($planRun.code -ne 0) { Log ('TAG-PLAN-FAIL ' + $p.name + '@' + $p.version + ' 的发布前指向或版本顺序不允许这次发布，见上。'); exit 1 }
       $plan = [System.IO.File]::ReadAllText($planFile) | ConvertFrom-Json
       if (-not [string]::IsNullOrWhiteSpace($Tag) -and $Tag -ne [string]$plan.publishTag) {
@@ -422,7 +427,7 @@ try {
       $preManifest = $preMf.manifest
       if ($gateManifests.ContainsKey($p.name)) {
         $cmp = Compare-FileManifests $gateManifests[$p.name].path $preManifestPath
-        foreach ($line in ($cmp.out -split '\r?\n')) { if ($line.Trim() -ne '') { Log $line.Trim() } }
+        Write-ToolOutput $cmp.out
         if ($cmp.code -ne 0) {
           Log ('PRE-PACK-DIFF ' + $p.name + '@' + $p.version + ' 要发的字节与门禁验过的字节不一致，发布前停下（上面 COMPARE-DIFF 是第一处差异）')
           exit 1
@@ -487,7 +492,7 @@ try {
     }
     if ($null -ne $preManifest) {
       $cmp = Compare-FileManifests $preManifestPath $fetchManifestPath
-      foreach ($line in ($cmp.out -split '\r?\n')) { if ($line.Trim() -ne '') { Log $line.Trim() } }
+      Write-ToolOutput $cmp.out
       if ($cmp.code -ne 0) {
         Log ('BYTES-DIFF ' + $p.name + '@' + $p.version + ' registry 上拉回来的包与发布前的逐文件清单不一致（上面 COMPARE-DIFF 是第一处差异；已发布，无法撤回，必须人工核对）')
         $failed += ($p.name + '@' + $p.version)
@@ -527,7 +532,7 @@ try {
     $afterFile = Join-Path $evidenceDir ('tags-after-' + $safeName + '.json')
     Write-JsonFile $afterFile $afterTags
     $verifyRun = Invoke-Integrity @('scripts/release-integrity.mts', 'tags-verify', '--version', $p.version, '--plan', (Join-Path $evidenceDir ('tags-plan-' + $safeName + '.json')), '--after', $afterFile)
-    foreach ($line in ($verifyRun.out -split '\r?\n')) { if ($line.Trim() -ne '') { Log $line.Trim() } }
+    Write-ToolOutput $verifyRun.out
     if ($verifyRun.code -ne 0) {
       Log ('TAG-VERIFY-FAIL ' + $p.name + ' 发布后的 dist-tag 指向不符合策略（见上面 TAG-VERIFY-FAIL 行）')
       $failed += ($p.name + '@' + $p.version)

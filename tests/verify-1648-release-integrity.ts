@@ -83,6 +83,7 @@ function staticChecks(): void {
   check(has('PRE-PACK-DIFF') && has('发布前停下'), '发布前字节不一致就停，不进发布')
   check(has('FETCH-FAIL') && has('BYTES-SAME') && has('BYTES-DIFF'), '发布后从 registry 拉回 tarball 再比对（BYTES-SAME / BYTES-DIFF）')
   check(has('BYTES-DIFF') && has('无法撤回'), '发布后不一致按失败算并说明无法撤回、必须人工核对')
+  check(has('BYTES-SKIP 本仓没有 scripts/release-integrity.mts'), '本仓没有自证脚本时退回旧口径并记 BYTES-SKIP（五仓同步协议靠这个字面量抓日志）')
 
   // 证据：清单统计与最终 tag 指向交给收尾脚本写进发布记录评论。
   check(has('BYTES-EVIDENCE') && has("'evidence.json'"), '把清单统计与 tag 指向整理成证据文件（evidence.json）')
@@ -93,6 +94,7 @@ function staticChecks(): void {
   check(postflightText.indexOf('export function buildPublishRecordLines') >= 0, '收尾脚本把发布记录正文抽成可导出的纯函数')
   check(postflightText.indexOf('发布包逐文件清单') >= 0 && postflightText.indexOf('dist-tag 最终指向') >= 0, '发布记录里写逐文件清单摘要与各 dist-tag 最终指向')
   check(postflightText.indexOf('invokedDirectly') >= 0, '收尾脚本只有被直接执行时才跑 main()（import 不触发 gh）')
+  check(postflightText.indexOf('__HELP__') < 0, '收尾脚本不拿异常字符串当 --help 的控制流')
 
   // 文档：规则写进 runbook，真机验证规则里补一句「发布脚本自证」。
   const runbook = fs.readFileSync(path.join(ROOT, 'docs', 'releases', 'RELEASE-RUNBOOK.md'), 'utf8')
@@ -193,6 +195,21 @@ function unitChecks(): void {
     check(entries.length === 1 && entries[0].path === longName.replace(/^package\//, ''), '单测：pax 长路径覆盖被截断的文件名（实际 ' + (entries[0] && entries[0].path) + '）')
   }
 
+  // 3b. GNU 长路径（typeflag 'L'）：长名头的内容是下一个文件的完整路径，下一个文件头里的名字被截断。
+  {
+    const longName = 'package/' + 'deep/'.repeat(30) + 'gnu-long-name.md'
+    const tar = Buffer.concat([
+      tarEntry('././@LongLink', Buffer.from(longName + '\0', 'utf8'), 'L'),
+      tarEntry('package/truncated-name', Buffer.from('long')),
+      Buffer.alloc(1024, 0),
+    ])
+    const entries = readTarEntries(tar)
+    check(
+      entries.length === 1 && entries[0].path === longName.replace(/^package\//, ''),
+      '单测：GNU 长路径（typeflag L）读出完整路径、不被截断（实际 ' + (entries[0] && entries[0].path) + '）',
+    )
+  }
+
   // 4. 清单指纹：确定性、与文件内容相关。
   {
     const files = [
@@ -291,7 +308,7 @@ function unitChecks(): void {
     const text = withEvidence.join('\n')
     check(text.indexOf('## 发布记录') === 0, '单测：发布记录以「## 发布记录」开头')
     check(text.indexOf('539 个文件') >= 0 && text.indexOf('5481828 字节') >= 0, '单测：发布记录写实际发布包的文件数与字节数')
-    check(text.indexOf('清单指纹 sha256:f09103d1709b0883') >= 0, '单测：发布记录写清单指纹（取完整 sha256 的前 16 位）')
+    check(text.indexOf('清单指纹 sha256:f09103d1709b08839db95d6d8a10a11a75d056afb0677b97622dc8283b922ba6') >= 0, '单测：发布记录写完整清单指纹（64 位 sha256，可拿去与发布日志的 BYTES-SAME 行比对）')
     check(text.indexOf('dist-tag 最终指向：latest → 1.9.0-beta.32，beta → 1.9.0-beta.32') >= 0, '单测：发布记录写各 dist-tag 最终指向')
     check(text.indexOf('下一版清单票：#88') >= 0, '单测：发布记录带下一版清单票号')
     const withoutEvidence = buildPublishRecordLines({ version: '1.9.0', nextIssueNumber: null, evidence: null, now: new Date('2026-10-29T06:40:00Z') }).join('\n')
@@ -561,6 +578,8 @@ type ScenarioOptions = {
   registry: RegistryOptions
   prepackChange?: boolean
   extraArgs?: string[]
+  // true = 这个假仓库里不放 scripts/release-integrity.mts，模拟五仓同步里还没升级的老仓库。
+  omitIntegrity?: boolean
 }
 
 async function runScenario(options: ScenarioOptions): Promise<ScenarioResult> {
@@ -579,7 +598,9 @@ async function runScenario(options: ScenarioOptions): Promise<ScenarioResult> {
     }, null, 2), 'utf8')
     fs.writeFileSync(path.join(repo, 'scripts', 'noop.mjs'), NOOP_SCRIPT, 'utf8')
     fs.writeFileSync(path.join(repo, 'scripts', 'rebuild-stub.mjs'), REBUILD_STUB_SCRIPT, 'utf8')
-    fs.writeFileSync(path.join(repo, 'scripts', 'release-integrity.mts'), fs.readFileSync(INTEGRITY, 'utf8'), 'utf8')
+    if (!options.omitIntegrity) {
+      fs.writeFileSync(path.join(repo, 'scripts', 'release-integrity.mts'), fs.readFileSync(INTEGRITY, 'utf8'), 'utf8')
+    }
     fs.writeFileSync(path.join(repo, 'scripts', 'release-postflight.mts'), POSTFLIGHT_STUB_SCRIPT, 'utf8')
     fs.writeFileSync(path.join(repo, 'package', 'package.json'), JSON.stringify({
       name: PKG,
@@ -745,6 +766,25 @@ async function dynamicChecks(): Promise<void> {
     })
     check(result.code === 1, 'F dist-tag 指向不符时退出码非零（实测 ' + result.code + '）')
     check(hasLogLine(result.log, 'TAG-VERIFY-FAIL'), 'F 日志里给出 TAG-VERIFY-FAIL（latest 没有跟上预发布版本）')
+  }
+
+  // G. 五仓同步的老仓库没有 release-integrity.mts：必须退回旧口径照常发布，日志里明写 BYTES-SKIP，
+  // 且收尾脚本不收到 --evidence（没有机器对账证据就不该假装有）。
+  {
+    const version = '1.0.0'
+    const result = await runScenario({
+      version,
+      registry: {},
+      omitIntegrity: true,
+    })
+    check(result.code === 0, 'G 没有自证脚本时仍按旧口径发布成功，退出码 0（实测 ' + result.code + '）')
+    check(hasLogLine(result.log, 'BYTES-SKIP 本仓没有 scripts/release-integrity.mts'), 'G 日志里明写 BYTES-SKIP 与原因（不是悄悄降级）')
+    check(hasLogLine(result.log, 'GATE-SNAPSHOT') === false && hasLogLine(result.log, 'PRE-PACK-SAME') === false, 'G 没有门禁快照与发布前对账（本来就没有可比的东西）')
+    check(hasLogLine(result.log, 'PKG-OK'), 'G 包照常发布成功（PKG-OK）')
+    const tags = tagsOf(result)
+    check(tags.latest === version, 'G registry 上 latest 指向新版本（实际 ' + (tags.latest || '缺') + '）')
+    check((hasLogLine(result.log, 'TAG-VERIFY-OK') || hasLogLine(result.log, 'TAG-VERIFY-FAIL')) === false, 'G 不做 tag 核对（旧口径没有策略）')
+    check(result.postflight !== null && result.postflight.argv.indexOf('--evidence') < 0, 'G 收尾脚本不带 --evidence')
   }
 }
 
