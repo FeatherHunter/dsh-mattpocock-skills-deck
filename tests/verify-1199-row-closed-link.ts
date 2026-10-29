@@ -2,7 +2,8 @@
 // https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1199
 // 判据（第一性原理）：
 // 1. 已关闭行与打开行是同一控件（查看链接），本地票的 url 是文件路径不是网址，
-//    `<a href="D:\…">` 点了没反应；唯一诚实动作是调宿主 openPath（https 票走 `<a target=_blank>` 不动）。
+//    `<a href="D:\…">` 点了没反应；唯一诚实动作是调宿主打开（#1650 起本地票打开所在目录，
+//    走 wf.openFolder；https 票走 `<a target=_blank>` 不动）。
 // 2. openIssueUrl 在没有 window 的环境调 https 分支，必须回假——回真就是谎报打开成功。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1199-row-closed-link.ts
 // 说明：行分支走 react-dom/server 静态渲染断（button vs 裸 a）；点击行为走 helper
@@ -63,6 +64,8 @@ globalThis.openIssueUrl = linkMod.openIssueUrl
 globalThis.openModeFor = linkMod.openModeFor
 globalThis.openTrackerTarget = linkMod.openTrackerTarget
 const { DswsCtx, createCx } = await import('../src/client/kernel/ctx.js')
+// #1650：本地票的打开方式由 markdown 模块声明决定；夹具挂真模块，别写死值（写死就会与真声明漂开）。
+const { markdownModule } = await import('../src/tracker/rooms/markdown/index.ts')
 const { TicketRow } = await import('../src/client/views/TicketRow.js')
 globalThis.DswsCtx = DswsCtx
 
@@ -116,13 +119,17 @@ function renderStatic(url) {
   const html = renderStatic('https://github.com/o/r/issues/8')
   check(html.includes('href="https://github.com/o/r/issues/8"'), '已关闭行 https 票仍是 a 且 href 为网址（回归不动）')
 }
-// C3：helper 本地分支 → 走宿主（守 link.js 本地分支不动）
+// C3：helper 本地分支 → 走宿主（守 link.js 本地分支不动；#1650 起本地票打开所在目录，走 wf.openFolder）
 {
   hostCalls.length = 0; opened.length = 0
-  const st = { snapshot: { issues: [{ number: 8, key: '8', url: MD8 }], maps: [] } }
+  const st: any = {
+    selection: { backendId: 'markdown' },
+    backendModules: [markdownModule],
+    snapshot: { issues: [{ number: 8, key: '8', url: MD8 }], maps: [] },
+  }
   const r = linkMod.openIssueUrl(st, 8, globalThis.host)
-  check(r === true && hostCalls.length === 1 && hostCalls[0][0] === 'wf.openPath' && hostCalls[0][1] && hostCalls[0][1].path === MD8,
-    '本地票走宿主 wf.openPath 且 path 为票文件路径')
+  check(r === true && hostCalls.length === 1 && hostCalls[0][0] === 'wf.openFolder' && hostCalls[0][1] && hostCalls[0][1].file === MD8,
+    '本地票走宿主 wf.openFolder 且 file 为票文件路径（打开所在目录）')
 }
 // C4：无窗口环境调 https 分支 → 回假（回真就是谎报打开成功）
 {

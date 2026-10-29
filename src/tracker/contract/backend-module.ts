@@ -229,13 +229,16 @@ export interface BackendModule {
   openRepository?: 'url' | 'folder'
 
   /**
-   * 这个后端「开一张票」是打开网址还是打开文件。
+   * 这个后端「开一张票」是打开网址、打开文件，还是打开票文件所在目录。
    * `'url'` = 界面用浏览器开票的地址（GitHub / GitLab 这类远程后端）；
-   * `'file'` = 让宿主打开票文件（本地 Markdown 后端：一张票就是工作区里的一个 `.md` 文件）。
+   * `'file'` = 让宿主打开票文件本身（本地 Markdown 后端：一张票就是工作区里的一个 `.md` 文件）；
+   * `'folder'` = 让宿主打开票文件**所在目录**（#1650 起本地 Markdown 用它：Windows 打开文件的
+   *   配方按文件名是否纯 ASCII 分岔——中文名只能退回开目录、英文名走 `explorer /select` 开目录并选中，
+   *   同一个按钮两种表现，所以本地票统一开目录，与容器同构）。
    * 不声明 = 保持旧行为：地址看起来是网页就交给浏览器，否则交给宿主的「打开路径」。
    * 这条声明只回答「用哪种方式打开」，票地址本身仍由 `issueAddress` 或快照里的 `url` 提供。
    */
-  openIssue?: 'url' | 'file'
+  openIssue?: 'url' | 'file' | 'folder'
 
   /**
    * 这个后端「开一个容器」是打开网址还是打开文件夹。

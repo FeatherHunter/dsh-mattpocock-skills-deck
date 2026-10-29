@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-29T05:49:26.845Z",
+  "generatedAt": "2026-10-29T06:04:25.448Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 446,
   "gateCount": 446,
@@ -1548,20 +1548,22 @@
         "src/client/views/issueDetailErrorView.ts",
         "src/client/views/shared/ticketBadge.ts",
         "src/host/pickerShell.ts",
-        "src/tracker/kernel/identity-keys.ts"
+        "src/tracker/kernel/identity-keys.ts",
+        "src/tracker/rooms/markdown/index.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/views",
         "src/client/views/shared",
         "src/host",
-        "src/tracker/kernel"
+        "src/tracker/kernel",
+        "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 10 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 11 条"
     },
     {
       "step": "node tests/verify-1146-virtual-clock-liveness.ts",
@@ -1857,18 +1859,20 @@
         "src/client/kernel/ctx.ts",
         "src/client/kernel/link.ts",
         "src/client/views/TicketRow.ts",
-        "src/tracker/kernel/identity-keys.ts"
+        "src/tracker/kernel/identity-keys.ts",
+        "src/tracker/rooms/markdown/index.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/views",
-        "src/tracker/kernel"
+        "src/tracker/kernel",
+        "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条"
     },
     {
       "step": "node tests/verify-1206-glossary-naming.ts",
@@ -12064,8 +12068,10 @@
       "node tests/verify-1092-original-words-roundtrip.ts",
       "node tests/verify-1129-markdown-claim.ts",
       "node tests/verify-1144-markdown-issue-address.ts",
+      "node tests/verify-1145-open-local.ts",
       "node tests/verify-1150-plan-store-durable.ts",
       "node tests/verify-1182-ticket-file-publish.ts",
+      "node tests/verify-1199-row-closed-link.ts",
       "node tests/verify-1277-md-spec-container.ts",
       "node tests/verify-1403-kind-two-layer.ts",
       "node tests/verify-1442-tracker-tools.ts",

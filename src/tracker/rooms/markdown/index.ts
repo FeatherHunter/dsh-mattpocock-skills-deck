@@ -421,10 +421,13 @@ export const markdownModule = {
   // links 仅留提及识别正则；开仓为打开文件夹
   links: { linkPatternSource: "#(\\d+)" },
   openRepository: 'folder',
-  // #1557：本地后端里「票」就是工作区中的一个 .md 文件，所以开票 = 让宿主打开文件；
-  // 「容器」（探索地图 / 实施规格）分别是 map.md / spec.md，开容器 = 打开这两个文件所在的目录，
-  // 而不是打开文件本身（文件打开后对「看这个地图下有哪些票」没有帮助）。
-  openIssue: 'file',
+  // #1557 时本地票是开文件（票就是工作区里的一个 .md 文件），#1650 改成开票文件所在目录：
+  // Windows 打开文件的配方按文件名是否纯 ASCII 分岔——纯英文名走 `explorer /select`（打开目录并选中），
+  // 含中文的名字只能退回打开上级目录，同一个按钮在两种票上表现不一致。统一开目录后与容器同构，
+  // 也不再依赖「打开文件」那条会按文件名变脸的平台路径。
+  // 「容器」（探索地图 / 实施规格）分别是 map.md / spec.md，本来开的就是文件所在目录
+  // （文件打开后对「看这个地图下有哪些票」没有帮助）。
+  openIssue: 'folder',
   openContainer: 'folder',
   prompts,
   fixes,

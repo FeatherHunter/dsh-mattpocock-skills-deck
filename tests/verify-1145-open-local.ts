@@ -1,11 +1,13 @@
 // tests/verify-1145-open-local.ts —— #1145 门禁：详情页「在跟踪器打开」本地票必须走宿主打开
 // https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1145
 // 判据（第一性原理）：本地票的 url 是文件路径不是网址，`<a href="D:\…">` 点了没反应；
-// 唯一诚实动作是调宿主 openPath（https 票走 `<a target=_blank>` 不动）。四处都要守：
+// 唯一诚实动作是调宿主打开（https 票走 `<a target=_blank>` 不动）。四处都要守：
 // 详情顶栏、报错横幅、评论加载失败横幅、评论鉴权横幅。
 // #1557 起同一份「打开方式」由后端声明分派（openIssue / openContainer），本文件再加 D 部分：
-//   本地 md 的票开文件、容器（map.md / spec.md）开所在目录、远程后端开网页，以及宿主
-//   wf.openFolder({ file }) 用平台能力取父目录的行为（不真开系统窗口，只断言意图与参数）。
+//   #1650 起本地 md 的票与容器（map.md / spec.md）都打开所在目录——票开文件在 Windows 上会按
+//   文件名是否纯 ASCII 分岔（中文名开目录、英文名开目录并选中），行为不一致，所以统一成开目录；
+//   远程后端开网页。另有宿主 wf.openFolder({ file }) 用平台能力取父目录的行为
+//   （不真开系统窗口，只断言意图与参数）。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1145-open-local.ts
 // 说明：评论区是纯函数，直接调 handler 全行为断言（含点击调宿主）；详情页组件走
 // react-dom/server 静态渲染断分支（button vs 裸 a、href 值）。本机 jsdom 已坏
@@ -78,6 +80,9 @@ globalThis.ticketLabelOf = ticketLabelOf
 globalThis.ticketLabelNodesOf = ticketLabelNodesOf
 globalThis.TICKET_LABEL_MAX_WIDTH = TICKET_LABEL_MAX_WIDTH
 globalThis.ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
+// #1650：打开方式门禁直接用真实 markdown 模块当夹具。夹具若自己写死 openIssue 的值，就会与真声明
+// 漂开——这次正是把票的打开方式从 file 改成 folder，夹具不跟真源就测不到改动。
+const { markdownModule } = await import('../src/tracker/rooms/markdown/index.ts')
 
 let failures = 0
 let total = 0
@@ -117,6 +122,9 @@ function commentsSt(extra) {
     cmtSending: false, cmtDraft: '', cmtResult: null, cmtConfirm: null, cmtError: null,
     issueCommentsFailCount: 0, issueCommentsMoreLoading: false,
     snapshot: { issues: [{ number: 7, key: '7', title: '本地票', state: 'OPEN', labels: [], url: MD7 }], maps: [] },
+    // #1650：本地票的打开方式由 markdown 模块声明决定，夹具挂真模块（票开所在目录 = folder）
+    selection: { backendId: 'markdown' },
+    backendModules: [markdownModule],
   }, extra || {})
 }
 const fakeDetail = { comments: { nodes: [{ body: '好', author: { login: 'a' }, createdAt: '2026-10-01' }], pageInfo: { hasNextPage: false } } }
@@ -130,8 +138,8 @@ const fakeDetail = { comments: { nodes: [{ body: '好', author: { login: 'a' }, 
   check(!!link, '评论加载失败横幅：找到了打开链接节点')
   check(!!link && link.tag === 'button', '本地票渲染的是 button 不是 a（裸 href 点了没反应）')
   if (link && typeof link.props.onClick === 'function') withWindowStub(() => link.props.onClick({ stopPropagation() {} }))
-  check(hostCalls.length === 1 && hostCalls[0][0] === 'wf.openPath' && hostCalls[0][1] && hostCalls[0][1].path === MD7,
-    '点击调宿主 wf.openPath 且 path 为票文件路径')
+  check(hostCalls.length === 1 && hostCalls[0][0] === 'wf.openFolder' && hostCalls[0][1] && hostCalls[0][1].file === MD7,
+    '点击调宿主 wf.openFolder 且 file 为票文件路径（#1650：本地票打开所在目录）')
   check(opened.length === 0, '没走 window.open（文件路径不是网址）')
 }
 // A2：鉴权横幅本地票 → button，点击走宿主
@@ -143,8 +151,8 @@ const fakeDetail = { comments: { nodes: [{ body: '好', author: { login: 'a' }, 
   check(!!link, '鉴权横幅：找到了打开链接节点')
   check(!!link && link.tag === 'button', '本地票渲染的是 button 不是 a')
   if (link && typeof link.props.onClick === 'function') withWindowStub(() => link.props.onClick({ stopPropagation() {} }))
-  check(hostCalls.length === 1 && hostCalls[0][0] === 'wf.openPath' && hostCalls[0][1] && hostCalls[0][1].path === MD7,
-    '点击调宿主 wf.openPath 且 path 为票文件路径')
+  check(hostCalls.length === 1 && hostCalls[0][0] === 'wf.openFolder' && hostCalls[0][1] && hostCalls[0][1].file === MD7,
+    '点击调宿主 wf.openFolder 且 file 为票文件路径（#1650：本地票打开所在目录）')
   check(opened.length === 0, '没走 window.open')
 }
 // A3：https 票不动 → 仍是 a[href]
@@ -152,6 +160,9 @@ const fakeDetail = { comments: { nodes: [{ body: '好', author: { login: 'a' }, 
   hostCalls.length = 0
   const st = commentsSt({ issueCommentsFailCount: 3 })
   st.snapshot.issues[0].url = 'https://github.com/o/r/issues/7'
+  // 声明缺失（旧宿主 / 第三方后端）时按地址回退旧行为：https 仍渲染 <a href>
+  delete st.backendModules
+  delete st.selection
   const tree = renderIssueDetailComments(fakeH, st, 7, fakeDetail, 'real', fakeDetail.comments.nodes, true, '')
   const link = findLinkNode(tree, 'detail.viewOnTrackerHint')
   check(!!link && link.tag === 'a' && link.props.href === 'https://github.com/o/r/issues/7', 'https 票仍是 a 且 href 为网址（回归不动）')
@@ -249,7 +260,7 @@ function containerSt() {
   hostCalls.length = 0; opened.length = 0
   const st: any = containerSt()
   st.selection = { backendId: 'markdown' }
-  st.backendModules = [{ id: 'markdown', openIssue: 'file', openContainer: 'folder' }]
+  st.backendModules = [markdownModule]
   const fakeHost = { call: (m, a) => { hostCalls.push([m, a]); return Promise.resolve({ ok: true }) } }
   const ok = globalThis.openTrackerTarget(st, 0, fakeHost, 'alpha', 'container')
   check(ok === true, 'md 容器行 openTrackerTarget 返回 true（取到地址并尝试打开）')
@@ -270,16 +281,17 @@ function containerSt() {
   const st: any = { snapshot: { issues: [], maps: [{ number: 0, key: '00', title: 'Alpha Map', url: MAP_ALPHA, effortId: 'alpha', tickets: [] }] } }
   check(globalThis.issueUrlFor(st, 0, 'alpha') === MAP_ALPHA, 'D1 快照 maps[] 里的容器行能取回 map.md 路径')
 }
-// D2：md 票（issue 级）仍开文件
+// D2（#1650 改口径）：md 票（issue 级）也打开所在目录——把票文件路径交给宿主 wf.openFolder，
+//   父目录由宿主用平台能力取（与容器同一套路径）
 {
   hostCalls.length = 0
   const st: any = containerSt()
   st.selection = { backendId: 'markdown' }
-  st.backendModules = [{ id: 'markdown', openIssue: 'file', openContainer: 'folder' }]
+  st.backendModules = [markdownModule]
   const fakeHost = { call: (m, a) => { hostCalls.push([m, a]); return Promise.resolve({ ok: true }) } }
   const ok = globalThis.openTrackerTarget(st, 1, fakeHost, 'alpha', 'issue')
-  check(ok === true && hostCalls.length === 1 && hostCalls[0][0] === 'wf.openPath' && hostCalls[0][1].path === T1_ALPHA,
-    'D2 md 票（issue 级）仍调 wf.openPath 打开票文件')
+  check(ok === true && hostCalls.length === 1 && hostCalls[0][0] === 'wf.openFolder' && hostCalls[0][1].file === T1_ALPHA,
+    'D2 md 票（issue 级）调 wf.openFolder 且 file 为票文件（打开所在目录）')
 }
 // D3：远程后端（openIssue/openContainer 都是 url）→ 浏览器新页，不调宿主
 {
@@ -299,14 +311,20 @@ function containerSt() {
 }
 // D4：openModeFor 的三种取值 —— 声明优先、未声明时按地址回退旧行为
 {
-  const mdSt: any = { selection: { backendId: 'markdown' }, backendModules: [{ id: 'markdown', openIssue: 'file', openContainer: 'folder' }] }
+  const mdSt: any = { selection: { backendId: 'markdown' }, backendModules: [markdownModule] }
   const ghSt: any = { selection: { backendId: 'github' }, backendModules: [{ id: 'github', openIssue: 'url', openContainer: 'url' }] }
   const noneSt: any = {}
   check(globalThis.openModeFor(mdSt, 'container', MAP_ALPHA) === 'folder', 'D4 本地后端容器声明为 folder')
-  check(globalThis.openModeFor(mdSt, 'issue', T1_ALPHA) === 'file', 'D4 本地后端票声明为 file')
+  check(globalThis.openModeFor(mdSt, 'issue', T1_ALPHA) === 'folder', 'D4 本地后端票声明为 folder（#1650：打开所在目录）')
   check(globalThis.openModeFor(ghSt, 'issue', 'https://x/1') === 'url', 'D4 远程后端票声明为 url')
   check(globalThis.openModeFor(noneSt, 'issue', 'https://x/1') === 'url', 'D4 未声明时网址按旧行为回退 url')
   check(globalThis.openModeFor(noneSt, 'issue', T1_ALPHA) === 'file', 'D4 未声明时本地路径按旧行为回退 file')
+}
+// D6（#1650）：真实 markdown 模块的声明值。上面几处夹具已经挂真模块，这里再把「值本身」钉死，
+//   防止以后有人把夹具换回手写值、真声明悄悄改回去却没人发现。
+{
+  check(markdownModule.openIssue === 'folder', 'D6 真实 markdown 模块声明 openIssue=folder（本地票打开所在目录）')
+  check(markdownModule.openContainer === 'folder', 'D6 真实 markdown 模块声明 openContainer=folder（容器打开所在目录，回归不动）')
 }
 // D5：宿主 wf.openFolder({ file }) 用平台能力取父目录；{ cwd } 的老用法不受影响
 {
