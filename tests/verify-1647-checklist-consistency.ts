@@ -26,10 +26,11 @@ const FIXTURE_NAMES = fs
   .filter((name) => name.endsWith('.json'))
   .map((name) => name.slice(0, -'.json'.length))
   .sort()
-// 必备夹具：票面要求的三条红路径、全绿路径，以及 #1647 实现里补的两份（模板收口写法、缺场景块）。
+// 必备夹具：票面要求的三条红路径、全绿路径，以及 #1647 实现里补的三份（模板收口写法、缺场景块、作废行）。
 const REQUIRED_FIXTURES = [
   'green',
   'green-template-closing',
+  'green-with-void',
   'red-body-missing-row',
   'red-count-mismatch',
   'red-id-set-diff',

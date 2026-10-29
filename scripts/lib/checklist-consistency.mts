@@ -17,16 +17,24 @@
 // 判据容忍这种写法；真正要拦的是「评论登记了、正文却漏行」「正文有行、评论里连编号都没出现过」，
 // 以及「通过/失败的结果只写在正文、评论里找不到」。
 //
+// 为什么「作废」行同样放宽：规则文档允许把场景标「作废」并说明原因（编号不复用），作废是主持人
+// 后来的决定，批次评论里留下的「未测」「阻塞」是作废前的旧结论，不能反过来说明两边不一致。
+// 作废行不计入发布计数（通过/豁免/失败），也不要求有独立场景块或评论结果。
+//
 // 解析口径是给人看的记录，不是任意自然语言：只认模板里约定的写法——
 //   场景块标题「## 场景块：<来源票号> …」、子场景「### 场景 <来源票号>-<序号>：…」、
 //   批次结果「场景 <编号>（仓库 #…）：<结果>」/ Markdown 表 / 「**<编号> <结果>**」/
-//   收口评论里的「通过 N / 失败 M / 豁免 K」与「N 条已登记场景 = …」。
+//   收口评论里的「通过 N / 失败 M / 豁免 K」与「N 条已登记场景 = …」；斜杠计数只读带「计数」或
+//   「[发布就绪]」的计数行，分批叙述里的小计不拿来和发布总数比。
 // 同一条评论里同一场景出现多个结果时（收口评论既写分批判述又写最终计数），按 RESULT_PRIORITY 取最终结论；
 // 这套写法与优先级在 docs/agents/real-machine-verification.md 第二节对写票的人说明。
 // 记录里用了别的写法而没被认出来时，报告会以「找不到明确结果」出现，不会静默放过。
 
-/** 一条场景的状态。取值与清单票总览表「状态」一列一致；带括号补充的写法（如「通过（条件）」）在解析时归一成本值。 */
-export type ScenarioStatus = '待验证' | '已验证' | '通过' | '失败' | '豁免' | '未测' | '阻塞'
+/**
+ * 一条场景的状态。取值与清单票总览表「状态」一列一致；带括号补充的写法（如「通过（条件）」）在解析时归一成本值。
+ * 「作废」是规则文档允许的终态（场景不再验证，编号不复用），不计入发布计数，也不参与结果一致性判断。
+ */
+export type ScenarioStatus = '待验证' | '已验证' | '通过' | '失败' | '豁免' | '未测' | '阻塞' | '作废'
 
 /** 判据能报出的问题种类；每种在 checkChecklistConsistency 里对应一处 push，code 稳定，改含义时换新值。 */
 export type ConsistencyFindingCode =
@@ -70,7 +78,7 @@ export type ConsistencyFinding = {
   fix: string
 }
 
-/** 按状态分组的条数：七种状态各占一项，没有的记 0，避免调用方每次自己补键。 */
+/** 按状态分组的条数：每种状态各占一项，没有的记 0，避免调用方每次自己补键。 */
 export type StatusCounts = Record<ScenarioStatus, number>
 
 /** 发布口径：已验证并入「通过」（#1628 的收口评论就是这么写的），豁免、失败各算各的。 */
@@ -91,7 +99,7 @@ export type ConsistencyReport = {
 }
 
 /** 状态的判断顺序：同一段文字里出现多个状态词时，取最先出现的那个（「判定为附条件通过」算通过）。 */
-const STATUS_WORDS: ScenarioStatus[] = ['待验证', '已验证', '通过', '失败', '豁免', '未测', '阻塞']
+const STATUS_WORDS: ScenarioStatus[] = ['待验证', '已验证', '通过', '失败', '豁免', '未测', '阻塞', '作废']
 
 /**
  * 必须在评论里有明确结果的状态：通过、失败是批次执行出来的结论，正文写了就得说得出是哪条评论给的。
@@ -105,6 +113,7 @@ const NEEDS_COMMENT_RESULT: ScenarioStatus[] = ['通过', '失败']
  * （「豁免」）写在一起，最终结论要压过过程；这条口径在 docs/agents/real-machine-verification.md 第二节也有写。
  */
 const RESULT_PRIORITY: Record<ScenarioStatus, number> = {
+  作废: 0,
   待验证: 1,
   阻塞: 2,
   未测: 3,
@@ -463,6 +472,7 @@ function expectedPublishCount(status: string, counts: StatusCounts): number | nu
   if (status === '失败') return counts.失败
   if (status === '未测') return counts.未测
   if (status === '已验证') return counts.已验证
+  // 作废不计入发布计数；待验证、阻塞本身还没结论。这几种状态没有可比的发布总数。
   return null
 }
 
@@ -472,6 +482,18 @@ function sourceTicketOf(source: string): string {
 
 /** 一段要核对发布计数的文字：来自正文哪一节或哪条评论，以及改法里怎么指回它。 */
 type CountSource = { where: string; text: string; fixTail: string }
+
+/**
+ * 收口评论里参与发布计数核对的文字：只取带「计数」或「[发布就绪]」的计数行。
+ * 收口评论常把分批小计写在同一段里（如「第 1 批：通过 1 / 失败 0」），那是批次口径，
+ * 拿来和发布总数比会把正确记录误报成不一致；正文「## 发布前对账」本来就是整节对账，不经过这层过滤。
+ */
+function closingCountLines(body: string): string {
+  return String(body || '')
+    .split(/\r?\n/)
+    .filter((line) => line.includes('计数') || line.includes('[发布就绪]'))
+    .join('\n')
+}
 
 /**
  * 核对一段文字里的「通过 N / 失败 M / 豁免 K」计数。正文「## 发布前对账」与收口评论各是一段来源，
@@ -577,8 +599,9 @@ export function checkChecklistConsistency(input: { body: string; comments: Check
   } else {
     // 有场景块时逐行核对来源：正文这一行必须由某条场景块登记过，只有批次结果提过编号不算。
     // 豁免行跳过：豁免可能由另一条场景覆盖（995-01），主持人接受登记在正文豁免表，不要求独立场景块。
+    // 作废行跳过：作废是事后决定，不要求当初登记过独立场景块。
     for (const row of rows) {
-      if (row.status === '豁免' || registered.has(row.id)) continue
+      if (row.status === '豁免' || row.status === '作废' || registered.has(row.id)) continue
       findings.push({
         code: 'missing-scenario-block',
         message: '场景 ' + row.id + ' 在正文总览里有（第 ' + row.line + ' 行），但评论里没有登记它的场景块（只在别处提过编号）。',
@@ -600,7 +623,8 @@ export function checkChecklistConsistency(input: { body: string; comments: Check
     })
   }
   // 豁免行不要求评论里出现编号：豁免的登记与接受在正文「## 豁免」表，评论里可以没有独立场景块（995-01）。
-  const notMentioned = rows.filter((row) => row.status !== '豁免' && !mentioned.has(row.id))
+  // 作废行同样不要求：作废记录可以只留在正文总览里。
+  const notMentioned = rows.filter((row) => row.status !== '豁免' && row.status !== '作废' && !mentioned.has(row.id))
   for (const row of notMentioned) {
     findings.push({
       code: 'scenario-not-registered',
@@ -622,6 +646,11 @@ export function checkChecklistConsistency(input: { body: string; comments: Check
       }
       continue
     }
+    // 作废是事后决定，评论里留下的旧结论（未测、阻塞等）与正文作废不构成不一致。
+    if (row.status === '作废') continue
+    // 豁免被主持人接受之前，批次评论常写「未测」「阻塞」；这些是接受前的过程结论，不当作两边不一致。
+    // 真正要一致的只有「评论说通过/失败/已验证、正文也这么写」这类有验收结论的状态。
+    if (row.status === '豁免' && ['待验证', '阻塞', '未测'].includes(latest)) continue
     if (latest !== row.status) {
       findings.push({
         code: 'result-mismatch',
@@ -676,7 +705,7 @@ export function checkChecklistConsistency(input: { body: string; comments: Check
   for (const comment of comments.closing) {
     countSources.push({
       where: '收口评论',
-      text: comment.body,
+      text: closingCountLines(comment.body),
       fixTail: '改正收口评论里的计数，并同步正文「## 发布前对账」。',
     })
   }
