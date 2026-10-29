@@ -73,4 +73,7 @@ function withDetail(st: any, data: any, effortId: string): any {
 }
 
 console.log(failures ? `\n#1649 门禁失败 ${failures} 项（共 ${total} 条）` : `\n#1649 门禁全部通过（共 ${total} 条）`)
-process.exit(failures ? 1 : 0)
+// 失败才 process.exit(1)。通过时让进程自然退出：Node 24.19 在 Windows 上
+// import 完本模块立刻 process.exit(0) 会撞 libuv 断言（uv_async_send 打在正在关闭
+// 的句柄上，exit code 0xC0000409），断言虽全过但进程被判红。自然退出避开这个竞态。
+if (failures) process.exit(1)
