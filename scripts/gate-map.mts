@@ -153,6 +153,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-29 全屏误判收口：有头验证必须真全屏，固定视口不能拿来做遮挡类结论；
   // 判据与源码约定各占一组断言，21 条是单跑实测得出的（真全屏探针另在批次证据里验过一次）。
   'verify-real-machine-fullscreen': 21,
+  // 2026-10-29 三款窗口尺寸定版：全屏宽 / 窄窗（外框 800，面板 300–359）/ 宽矮窗（高 600）；
+  // 数据换算、browser.mts 实现约定与两份文档各占一组断言，32 条是单跑实测得出的（真机探针另在批次证据里跑过）。
+  'verify-real-machine-size-presets': 32,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

@@ -10,7 +10,14 @@
 // 截图看起来铺满，据此判「浮层被右侧面板盖住」，后来真全屏复核并不存在遮挡。
 
 import path from 'node:path'
+import { presetById, resolvePresetWindow, VIEWPORT_PRESETS } from './presets.mts'
+import type { ResolvedWindowBounds, ViewportPreset, ViewportPresetId } from './presets.mts'
 import { ensureDir, exists, sleep, writeJson } from './util.mts'
+
+// 三款窗口尺寸（全屏宽 / 窄窗 / 宽矮窗）的数据与换算在 presets.mts；这里连同 applyViewportPreset 一起再导出，
+// 批次脚本只 import browser.mts 就能用。
+export { presetById, resolvePresetWindow, VIEWPORT_PRESETS }
+export type { ResolvedWindowBounds, ViewportPreset, ViewportPresetId }
 
 export interface PageOptions {
   width?: number
@@ -40,6 +47,32 @@ export interface FullscreenMeasurement {
 
 /** 全屏测量加判定结论；ok 为 false 时 reason 用完整中文句说清差在哪里。 */
 export interface FullscreenSnapshot extends FullscreenMeasurement {
+  ok: boolean
+  reason: string
+  windowId: number | null
+  measuredAt: string
+}
+
+/**
+ * 一次窗口尺寸设置的实测结果：请求的是哪款预设、窗口最终的外框与页面视口、插件面板宽度与窄态。
+ * 空间类结论必须附这一份测量，证明结论是在预期的窗口形态下得到的。
+ */
+export interface PresetWindowSnapshot {
+  presetId: ViewportPresetId
+  presetLabel: string
+  requested: ResolvedWindowBounds
+  innerWidth: number
+  innerHeight: number
+  outerWidth: number
+  outerHeight: number
+  screenWidth: number
+  screenHeight: number
+  devicePixelRatio: number
+  /** 插件面板宽度：量 .dsws-body 的矩形宽；面板没渲染出来时为 null。 */
+  panelWidth: number | null
+  /** 插件是否落在窄态（页面里有 .dsws-narrow 根节点）。 */
+  dockNarrow: boolean
+  /** 这一次测量是否符合预设的预期分支；reason 用中文写清实测值与期望。 */
   ok: boolean
   reason: string
   windowId: number | null
@@ -169,6 +202,127 @@ export async function enterFullscreen(page: any, options: { timeoutMs?: number; 
   // 字号、折行与面板宽度会随真实视口重排，等布局稳定后再交给调用方量尺寸。
   await sleep(options.settleMs ?? 300)
   return measureFullscreen(page, windowId, tolerance)
+}
+
+/**
+ * 读一次窗口与插件面板的尺寸。判据落在「插件是不是进了预设那一支布局」上：
+ * 窗口外框尺寸只用来等操作系统把窗口改到位，真正的验证目标在插件自己的布局分支（.dsws-narrow）。
+ * 注意：窗口外框与页面视口天然差一圈浏览器边框/标题栏，所以别拿 inner 去对请求的宽高。
+ */
+async function measurePresetWindow(
+  page: any,
+  windowId: number | null,
+  preset: ViewportPreset,
+  requested: ResolvedWindowBounds,
+  requirePanel: boolean,
+): Promise<PresetWindowSnapshot> {
+  const measurement = await page.evaluate(() => {
+    const panel = document.querySelector('.dsws-body') as HTMLElement | null
+    const panelRect = panel ? panel.getBoundingClientRect() : null
+    return {
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      outerWidth: window.outerWidth,
+      outerHeight: window.outerHeight,
+      screenWidth: window.screen.width,
+      screenHeight: window.screen.height,
+      devicePixelRatio: window.devicePixelRatio,
+      panelWidth: panelRect ? Math.round(panelRect.width * 100) / 100 : null,
+      dockNarrow: document.querySelector('.dsws-narrow') !== null,
+    }
+  })
+  const panelMeasured = measurement.panelWidth !== null
+  const ok = panelMeasured && measurement.dockNarrow === preset.expectDockNarrow
+  const measured =
+    '窗口外框 ' + measurement.outerWidth + 'x' + measurement.outerHeight +
+    '、页面视口 ' + measurement.innerWidth + 'x' + measurement.innerHeight +
+    '、面板宽 ' + (measurement.panelWidth === null ? '量不到' : String(measurement.panelWidth)) +
+    '、.dsws-narrow=' + measurement.dockNarrow
+  return {
+    presetId: preset.id,
+    presetLabel: preset.label,
+    requested,
+    ...measurement,
+    ok,
+    reason: ok
+      ? '预设 ' + preset.id + '（' + preset.label + '）生效：' + measured
+      : panelMeasured
+        ? '预设 ' + preset.id + '（' + preset.label + '）没压到预期分支：期望 .dsws-narrow=' + preset.expectDockNarrow + '，实测 ' + measured
+        : '页面里找不到插件面板 .dsws-body，无法核对预设 ' + preset.id + ' 的布局分支；先把 MattSkillsDeck 面板打开再设窗口（只想要窗口尺寸可传 requirePanel: false）',
+    windowId,
+    measuredAt: new Date().toISOString(),
+  }
+}
+
+/**
+ * 把浏览器窗口设置成三款预设之一（wide / narrow / short，定义在 presets.mts），并核对插件真的进了那一支布局。
+ *
+ * 为什么必须走 CDP 而不是 setViewportSize：页面视口被强设、真实窗口没变时，截图会「看起来对了」，
+ * 但遮挡与越界结论全是假的（2026-10-29 的 1655-01 就吃过这个亏）。
+ * 为什么设置完还要核对 .dsws-narrow：窗口宽与插件面板宽不是线性的，宿主会在窄窗口把右侧面板切成整宽覆盖，
+ * 窗口 720 宽时反而进不了插件窄态；只核对窗口尺寸会得到「测了窄态」的假象，所以对不上预期分支直接抛错。
+ *
+ * 设置完返回实测快照（含面板宽与窄态），把它传给 writePageDiagnostics 存进 page-diagnostics.json；
+ * 空间类结论的证据里没有这一份测量，就等于没说明结论是在哪个窗口形态下得到的。
+ *
+ * 默认要求页面上已经渲染出插件面板（.dsws-body）：没有面板就量不到面板宽，也就无法证明「窄态真的生效」，
+ * 所以会抛错提醒先打开 MattSkillsDeck 面板。只想设窗口、不核对布局分支时传 requirePanel: false。
+ */
+export async function applyViewportPreset(
+  page: any,
+  presetOrId: ViewportPreset | ViewportPresetId,
+  options: { timeoutMs?: number; settleMs?: number; tolerancePx?: number; requirePanel?: boolean } = {},
+): Promise<PresetWindowSnapshot> {
+  const preset = typeof presetOrId === 'string' ? presetById(presetOrId) : presetOrId
+  const requirePanel = options.requirePanel !== false
+  const screen = await page.evaluate(() => ({ width: window.screen.width, height: window.screen.height }))
+  const requested = resolvePresetWindow(preset, screen)
+  const tolerancePx = options.tolerancePx ?? 4
+  const timeoutMs = options.timeoutMs ?? 8000
+  let windowId: number | null = null
+  try {
+    const cdp = await page.context().newCDPSession(page)
+    const info = await cdp.send('Browser.getWindowForTarget')
+    windowId = Number(info.windowId)
+    if (requested.windowState === 'fullscreen') {
+      await cdp.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'fullscreen' } })
+    } else {
+      // 2026-10-29 实测：从全屏直接带宽高改窗口时，Chrome 会忽略宽高、退回切全屏前的尺寸
+      // （请求 2195x1235，实得 1069x1074）。所以分两步：先只切回普通窗口，等它落回原尺寸，再设宽高。
+      await cdp.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } })
+      await sleep(300)
+      await cdp.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal', width: requested.width, height: requested.height } })
+    }
+  } catch (error) {
+    throw new Error(
+      '把浏览器窗口设成预设 ' + preset.id + ' 失败：' + (error instanceof Error ? error.message : String(error)) +
+        '。空间类结论不能用没设好窗口的截图当证据。',
+    )
+  }
+  const targetWidth = requested.windowState === 'normal' ? requested.width : screen.width
+  const targetHeight = requested.windowState === 'normal' ? requested.height : screen.height
+  const started = Date.now()
+  let snapshot = await measurePresetWindow(page, windowId, preset, requested, requirePanel)
+  const reached = () =>
+    Math.abs(snapshot.outerWidth - targetWidth) <= tolerancePx && Math.abs(snapshot.outerHeight - targetHeight) <= tolerancePx
+  while (!reached() && Date.now() - started < timeoutMs) {
+    await sleep(150)
+    snapshot = await measurePresetWindow(page, windowId, preset, requested, requirePanel)
+  }
+  if (!reached()) {
+    throw new Error(
+      '窗口没有变成预设 ' + preset.id + ' 要求的外框尺寸（等了 ' + timeoutMs + ' 毫秒）：请求 ' + targetWidth + 'x' + targetHeight +
+        '，实际外框 ' + snapshot.outerWidth + 'x' + snapshot.outerHeight +
+        '。可能是屏幕或可用区域放不下这个窗口，也可能是窗口没从全屏退出来。',
+    )
+  }
+  // 窗口尺寸变了以后，宿主分栏与插件面板会重排，等布局稳定再量一次。
+  await sleep(options.settleMs ?? 500)
+  snapshot = await measurePresetWindow(page, windowId, preset, requested, requirePanel)
+  if (!snapshot.ok) {
+    throw new Error(snapshot.reason + '。窗口尺寸与面板宽度的映射可能随宿主版本变化，先核对 docs/agents/real-machine-verification.md 的「三款窗口尺寸」一节再调。')
+  }
+  return snapshot
 }
 
 /**
@@ -419,11 +573,17 @@ export async function readPluginPanel(page: any): Promise<string> {
 }
 
 /**
- * 把页面的控制台错误、页面异常与全屏测量写成一个文件，便于进证据包。
+ * 把页面的控制台错误、页面异常、全屏测量与窗口尺寸预设写成一个文件，便于进证据包。
  * fullscreen 字段是判定「这份界面结论是不是在真全屏下得到的」的凭据：没开全屏时为 null。
+ * viewport 字段是判定「这份结论是在三款窗口尺寸的哪一款下得到的」的凭据：没调 applyViewportPreset 时为 null。
  */
 export function writePageDiagnostics(
-  opened: { consoleLines: string[]; pageErrors: string[]; fullscreen?: FullscreenSnapshot | null },
+  opened: {
+    consoleLines: string[]
+    pageErrors: string[]
+    fullscreen?: FullscreenSnapshot | null
+    viewport?: PresetWindowSnapshot | null
+  },
   dir: string,
 ): string {
   const target = path.join(path.resolve(dir), 'page-diagnostics.json')
@@ -432,6 +592,7 @@ export function writePageDiagnostics(
     consoleLines: opened.consoleLines,
     pageErrors: opened.pageErrors,
     fullscreen: opened.fullscreen ?? null,
+    viewport: opened.viewport ?? null,
     capturedAt: new Date().toISOString(),
   })
   return target

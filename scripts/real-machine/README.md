@@ -50,6 +50,33 @@ const opened = await openInstance(instance.tokenUrl, { headless: false, channel:
 - 要自己控制窗口时用 `newPage(browser, { fullscreen: true })` 或 `enterFullscreen(page)`；`openInstance({ headless: false })` 已默认打开全屏。
 - 判定函数是纯函数 `judgeFullscreen(measurement, tolerance)`，门禁 `tests/verify-real-machine-fullscreen.ts` 用构造出来的测量数守住口径。
 
+## 三款窗口尺寸：全屏宽 / 窄窗 / 宽矮窗
+
+2026-10-29 定版：真机验证只跑这三款窗口形态，其它分辨率不再单测。三款各压一类布局分支，定义在 `lib/presets.mts` 的 `VIEWPORT_PRESETS`：
+
+| 编号 | 窗口 | 本机实测（2195×1235 屏幕、设备像素比 1.75） | 压的是哪一支 |
+| --- | --- | --- | --- |
+| `wide` | 真全屏 | 页面视口 2195×1235、面板约 988 像素、无窄态 | 宽布局 |
+| `narrow` | 外框宽 800、高铺满屏幕 | 页面视口 787×1142、面板约 331 像素、`.dsws-narrow` 生效 | 面板 300–359 的窄态 |
+| `short` | 外框宽铺满屏幕、高 600 | 页面视口 2182×507、面板约 988 像素 | 垂直方向（宽而矮） |
+
+用 `applyViewportPreset` 一次完成「设窗口 + 核对分支」：
+
+```js
+const opened = await openInstance(instance.tokenUrl, { headless: false, channel: 'chrome' })
+const viewport = await applyViewportPreset(opened.page, 'narrow') // 也可传 VIEWPORT_PRESETS[1] 或 presetById('short')
+// 分支不对时直接抛中文错误，不会留下一个「看起来是窄窗、其实没进窄态」的窗口
+writePageDiagnostics({ ...opened, viewport }, evidenceDir)
+```
+
+为什么窄窗是 800 宽而不是直觉上的 720：窗口宽与插件面板宽不是线性的。DSH 宿主在窄窗口会把右侧面板从「右列」切成「整宽覆盖」——外框 720 宽时页面视口 707、面板宽约 707 像素、`.dsws-narrow` 反而不在场；外框 800 宽时视口 787、面板约 331 像素、窄态生效。2026-10-29 的实测数据在批次证据 `beta32-batch3/s1653/evidence-mapping/mapping-window.json`。
+
+三条硬规矩：
+
+- 不要用 `setViewportSize` 改页面视口来假装窗口尺寸；要改就改真实窗口（`applyViewportPreset` 内部用 CDP `Browser.setWindowBounds`）。
+- 调预设前先把 MattSkillsDeck 面板打开：要核对 `.dsws-narrow` 与面板宽，页面里得先有 `.dsws-body`，没有就直接报错（只想设窗口时传 `requirePanel: false`）。
+- 空间类结论的证据里要有 `page-diagnostics.json` 的 `viewport` 字段（含实测面板宽与窄态），只贴截图不算。
+
 ## 三条常用命令
 
 ### 冻结候选包：`freeze-candidate`

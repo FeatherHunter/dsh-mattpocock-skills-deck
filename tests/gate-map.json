@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-29T12:08:37.177Z",
+  "generatedAt": "2026-10-29T13:57:06.282Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 453,
-  "gateCount": 453,
+  "chainLength": 454,
+  "gateCount": 454,
   "attributedGates": 405,
-  "unattributedGates": 48,
+  "unattributedGates": 49,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 25,
+  "completionRecordedGates": 26,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 620,
@@ -9212,6 +9212,21 @@
       "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
+      "step": "node tests/verify-real-machine-size-presets.ts",
+      "file": "tests/verify-real-machine-size-presets.ts",
+      "guards": [
+        "scripts/real-machine/lib/presets.mts"
+      ],
+      "dirs": [
+        "scripts/real-machine/lib"
+      ],
+      "unattributed": true,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 32,
+      "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
+    },
+    {
       "step": "node tests/verify-refresh-adr.ts",
       "file": "tests/verify-refresh-adr.ts",
       "guards": [
@@ -10995,7 +11010,8 @@
     ],
     "scripts/real-machine": [],
     "scripts/real-machine/lib": [
-      "node tests/verify-real-machine-fullscreen.ts"
+      "node tests/verify-real-machine-fullscreen.ts",
+      "node tests/verify-real-machine-size-presets.ts"
     ],
     "src": [
       "node tests/verify-build-artifacts.ts",
