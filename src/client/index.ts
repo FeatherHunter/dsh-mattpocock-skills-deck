@@ -288,6 +288,7 @@ export default {
     // ==== kernel:slotRendererModalView (spliced by build) ====
 
     // ==== leaf:chips (spliced by build) ====
+    // ==== leaf:tipPlace (spliced by build) ====
     // ==== leaf:hoverTip (spliced by build) ====
     // ==== leaf:tip (spliced by build) ====
     // #1564：票号徽标（列表行、票详情头、容器详情头、在办表首列、状态栏胶囊单子与主行）的唯一画法。

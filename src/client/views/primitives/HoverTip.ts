@@ -9,7 +9,7 @@
  */
 // React / DswsCtx / portalTop 由构建按 build.mjs 次序与别的片段拼进同一个函数作用域（真机有值），
 // 这里只声明形状、不参与转译：拼进闭包的片段里写 import 会在运行时成为语法错。
-declare const React: any;declare const DswsCtx: any;declare const portalTop: any;
+declare const React: any;declare const DswsCtx: any;declare const portalTop: any;declare const computeTipPlace: any;
 let __hoverTipGlobalActive: any = null,__hoverTipGlobalSeq = 0,__hoverTipGlobalPending: any = null
 
 export const HoverTip = function (props: any) {
@@ -86,16 +86,11 @@ export const HoverTip = function (props: any) {
     let rect = null
     try { if (anchorRef && anchorRef.current && typeof anchorRef.current.getBoundingClientRect === 'function') rect = anchorRef.current.getBoundingClientRect() } catch (e) {}
     if (!rect || (!rect.width && !rect.height)) return null
-    let x = rect.right + offset.x
-    let y = rect.top + rect.height / 2
-    if (flip && x + estW > vpW) x = rect.left - offset.x - estW
-    if (flip) {
-      if (y + estH / 2 > vpH - 4) y = vpH - estH / 2 - 4
-      if (y - estH / 2 < 4) y = estH / 2 + 4
-    }
-    x = Math.max(4, Math.min(x, vpW - estW - 4))
-    y = Math.max(estH / 2 + 4, Math.min(y, vpH - estH / 2 - 4))
-    return { left: x, top: y }
+    // 锚定分支的位置统一交给方位纯函数算：传触发控件矩形、量出的提示尺寸、屏幕尺寸与宽度上限，
+    // 拿回来的就是提示左上角坐标。这里不再自己算落点，offset 与 flip 只留给跟随鼠标分支用。
+    const placed: any = computeTipPlace(rect, { width: estW, height: estH }, { width: vpW, height: vpH }, maxWidth)
+    if (placed && typeof placed.x === 'number' && typeof placed.y === 'number') return { left: placed.x, top: placed.y }
+    return null
   }
   React.useEffect(function () {
     if (!visible || !hasTip) return undefined
@@ -160,7 +155,8 @@ export const HoverTip = function (props: any) {
     }, [isControlled, mode])
   }
   const _pad = props.padding !== undefined ? props.padding : '7px 12px'
-  const tooltipStyle = { position: 'fixed', left: pos.left, top: pos.top, transform: 'translateY(-50%)', maxWidth: maxWidth, zIndex: zIndex, padding: _pad, borderRadius: 10, background: props.background || 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: props.border || '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 8px 24px rgba(0,0,0,.45)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
+  // 提示位置一律按左上角坐标画，方位纯函数给什么就画在哪里，不再按中心点向上平移半个提示高度。
+  const tooltipStyle = { position: 'fixed', left: pos.left, top: pos.top, maxWidth: maxWidth, zIndex: zIndex, padding: _pad, borderRadius: 10, background: props.background || 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: props.border || '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 8px 24px rgba(0,0,0,.45)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
   if (props.style && typeof props.style === 'object') Object.assign(tooltipStyle, props.style)
   let tipPortal = null
   if (visible && hasTip) {

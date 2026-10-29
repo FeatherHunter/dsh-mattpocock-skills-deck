@@ -143,6 +143,7 @@ const LEAVES = [
   { file: 'src/client/views/versionControl/vcWriteView.js', exports: ['vcRowStageNodes', 'vcActionsNode', 'vcStageAllNode', 'vcCommitAreaNode', 'vcViewBarNode', 'vcWriteTailNodes'], components: [] },
   { file: 'src/client/views/versionControl/vcCache.js', exports: ['VC_SCREEN_CACHE_MAX', 'vcCacheSeedOf', 'vcCacheSave'], components: [] }, // #864：进出缓存
   { file: 'src/client/views/versionControl/vcInView.js', exports: ['vcMoreStepOf', 'vcMoreStateOf', 'vcMoreShownOf', 'vcUseMoreSightOf'], components: [] }, // #997：「还能显示更多」那几处什么时候接着显示（纯判定 + 从块清单取状态 + 再画一批 + 接线）
+  { file: 'src/client/views/primitives/tipPlace.ts', exports: ['computeTipPlace'], components: [] }, // #1652：悬停提示方位纯函数（提示控件的零件，不画界面，只算落点）
 ]
 const SOURCES = [
   'src/client/index.ts', 'scripts/build.mts', 'package/package.json', // #1254：入口真源转写为 .ts
