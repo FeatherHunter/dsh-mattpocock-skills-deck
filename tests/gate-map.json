@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-29T13:57:06.282Z",
+  "generatedAt": "2026-10-29T15:41:23.179Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 454,
-  "gateCount": 454,
-  "attributedGates": 405,
+  "chainLength": 455,
+  "gateCount": 455,
+  "attributedGates": 406,
   "unattributedGates": 49,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 26,
@@ -4379,6 +4379,7 @@
         "src/client/kernel/styles.ts",
         "src/client/statusbar/StatusBar.ts",
         "src/client/statusbar/deckDoor.ts",
+        "src/client/views/primitives/tipPlace.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts",
         "tests/verify-kernel.ts"
@@ -4390,6 +4391,7 @@
         "src/client",
         "src/client/kernel",
         "src/client/statusbar",
+        "src/client/views/primitives",
         "tests",
         "tests/lib"
       ],
@@ -4397,7 +4399,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-1612-deck-state.ts",
@@ -4764,6 +4766,27 @@
       "completionRecord": true,
       "expectedAssertions": 20,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 7 条"
+    },
+    {
+      "step": "node tests/verify-1661-banner-singleline.ts",
+      "file": "tests/verify-1661-banner-singleline.ts",
+      "guards": [
+        "config/copy/panel.yaml",
+        "src/client/kernel/locale-data.ts",
+        "src/client/statusbar/StatusBar.ts",
+        "src/shared/tracker/guide-steps.ts"
+      ],
+      "dirs": [
+        "config/copy",
+        "src/client/kernel",
+        "src/client/statusbar",
+        "src/shared/tracker"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -10665,7 +10688,8 @@
       "node tests/verify-1297-entry.ts",
       "node tests/verify-1490-declaration-file.ts",
       "node tests/verify-1612-deck-door.ts",
-      "node tests/verify-1654-ws-pending-hint.ts"
+      "node tests/verify-1654-ws-pending-hint.ts",
+      "node tests/verify-1661-banner-singleline.ts"
     ],
     "config/prompts": [
       "node tests/verify-1298-spec-close.ts",
@@ -11113,6 +11137,7 @@
       "node tests/verify-1642-toggle-logs.ts",
       "node tests/verify-1649-detail-closed-link.ts",
       "node tests/verify-1654-ws-pending-hint.ts",
+      "node tests/verify-1661-banner-singleline.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -11211,6 +11236,7 @@
       "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1582-open-folder.ts",
       "node tests/verify-1612-deck-door.ts",
+      "node tests/verify-1661-banner-singleline.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -11309,6 +11335,7 @@
     "src/client/views/primitives": [
       "node tests/verify-leaves.ts",
       "node tests/verify-no-title.ts",
+      "node tests/verify-1612-deck-door.ts",
       "node tests/verify-hovertip.ts",
       "node tests/verify-reuse.ts",
       "node tests/verify-time-config.ts",
@@ -12004,6 +12031,7 @@
       "node tests/verify-1463-banner-recheck.ts",
       "node tests/verify-1483-chain-session-cache.ts",
       "node tests/verify-1512-md-chain.ts",
+      "node tests/verify-1661-banner-singleline.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",

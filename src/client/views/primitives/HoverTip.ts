@@ -1,7 +1,7 @@
 /**
  * views/primitives/HoverTip.ts — 统一悬浮提示原子控件（规格 1651，第二张实施票 1653 起只锚定在触发控件上方）
  * 契约：HoverTip(props) 工厂，局部 state 闭环，经 DswsCtx 取 h，消费 kernel/portal 的 portalTop。
- * props 只收内容与触发节点：content|children、maxWidth 320、delay 0/160、visible 受控、onVisibleChange/onShow/onHide、zIndex 2147483000。
+ * props 只收内容与触发节点：content|children、maxWidth 320（渲染外框宽上限）、delay 0/160、visible 受控、onVisibleChange/onShow/onHide、zIndex 2147483000。
  * 方位一律锚定在触发控件上方，屏幕边缘由方位纯函数让位，调用方不再传方位参数。
  * 样式单真源挂顶经 portalTop，失败不抛。
  * 本文件由同名 .js 转成 TypeScript（#1253）：只加类型标注与环境声明，逻辑、字符串、数字、默认值
@@ -43,7 +43,7 @@ export const HoverTip = function (props: any) {
   const anchorRef = props.targetRef || anchorRefInternal
   // 最近一次鼠标进入事件命中的真实元素：自定义触发节点经克隆拿不到真实位置时，用它量矩形，引用只做兜底。
   const eventRef = React.useRef(null)
-  const tipRef = React.useRef(null)  // 提示本体的 ref：先按宽度上限渲染，量出真实宽高再算落点。
+  const tipRef = React.useRef(null)  // 提示本体的 ref：先按宽度上限渲染，再量渲染外框的真实宽高算落点。
   const [pos, setPos] = React.useState({ left: 0, top: 0, eff: maxWidth })
   const hideTimerRef = React.useRef(null)
   const clearTimer = function () {
@@ -62,10 +62,16 @@ export const HoverTip = function (props: any) {
       try { if (anchorRef && anchorRef.current && typeof anchorRef.current.getBoundingClientRect === 'function') rect = anchorRef.current.getBoundingClientRect() } catch (e) {}
     }
     if (!rect || (!rect.width && !rect.height)) return null
-    // 先按宽度上限渲染再量：量得着就用量出来的真实尺寸，量不到先按上限宽与一行高占位，挂上屏后下一帧重算。
+    // 先按宽度上限渲染再量渲染外框（含内边距与边框，可能带小数）；宽度口径只有一份，说明见 tipPlace 头注释（#1660）。
     let tipW = 0
     let tipH = 0
-    try { if (tipRef.current && tipRef.current.offsetWidth) tipW = tipRef.current.offsetWidth; if (tipRef.current && tipRef.current.offsetHeight) tipH = tipRef.current.offsetHeight } catch (e) {}
+    try {
+      if (tipRef.current && typeof tipRef.current.getBoundingClientRect === 'function') {
+        const tipRect = tipRef.current.getBoundingClientRect()
+        if (tipRect && tipRect.width) tipW = tipRect.width
+        if (tipRect && tipRect.height) tipH = tipRect.height
+      }
+    } catch (e) {}
     if (!tipW) tipW = Math.min(maxWidth, Math.max(0, vpW - 8)) || maxWidth
     if (!tipH) tipH = 32
     // 锚定方位统一交给方位纯函数算：按触发控件矩形、量出的提示尺寸、屏幕尺寸与宽度上限的顺序传入，
@@ -135,9 +141,10 @@ export const HoverTip = function (props: any) {
     }, [isControlled])
   }
   const _pad = props.padding !== undefined ? props.padding : '7px 12px'
-  // 提示位置一律按左上角坐标画，方位纯函数给什么就画在哪里；渲染宽度按实际生效的宽度上限收窄。
+  // 提示位置一律按左上角坐标画；宽度上限按渲染外框宽算（box-sizing: border-box），与排位、量尺寸共用同一个口径
+  // （#1660，完整说明见 tipPlace 头注释），不再替调用方换算内边距与边框。
   const effWidth = (pos && typeof pos.eff === 'number' && pos.eff > 0) ? pos.eff : maxWidth
-  const tooltipStyle = { position: 'fixed', left: pos.left, top: pos.top, maxWidth: effWidth, zIndex: zIndex, padding: _pad, borderRadius: 10, background: props.background || 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: props.border || '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 8px 24px rgba(0,0,0,.45)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
+  const tooltipStyle = { position: 'fixed', left: pos.left, top: pos.top, boxSizing: 'border-box', maxWidth: effWidth, zIndex: zIndex, padding: _pad, borderRadius: 10, background: props.background || 'var(--dsw-alias-bg-layer-3,#0c0e12)', border: props.border || '1px solid var(--dsw-alias-border-l2,#3a3f4a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11, lineHeight: 1.5, pointerEvents: 'none', boxShadow: '0 8px 24px rgba(0,0,0,.45)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
   if (props.style && typeof props.style === 'object') Object.assign(tooltipStyle, props.style)
   let tipPortal = null
   if (visible && hasTip) {

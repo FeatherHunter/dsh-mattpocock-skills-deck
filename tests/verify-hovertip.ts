@@ -3,7 +3,8 @@
 // 验证（#1653 定版，取代 #1652 的翻转/跟随两档口径）：
 //   1) 挂顶：经 portalTop 挂 document.body，zIndex 2147483000，失败不抛
 //   2) 锚定上方：无 mouse 分支、无 clientX/Y，方位统一交给方位纯函数，按触发控件矩形、量出的提示尺寸、屏幕尺寸、宽度上限的顺序传入
-//   3) 先量后算：按宽度上限渲染后读 offsetWidth/offsetHeight 得到真实尺寸再算落点，旧的字数估宽（length*7、maxWidth+16+2、estW）已删除
+//   3) 先量后算：按宽度上限（渲染外框宽）渲染后读 getBoundingClientRect() 的外框宽高得到真实尺寸再算落点，旧的字数估宽（length*7、maxWidth+16+2、estW）已删除；
+//      #1660 起宽度上限就是渲染外框宽（box-sizing: border-box），不再拿整数化的偏移宽高当实际宽度
 //   4) 不越屏不盖控件：生效宽度取调用方上限与屏幕可用宽度的较小值（函数内夹），落点按左上角直画
 //   5) 时序与状态：delay 隐藏默认 160，单一 timer，清 timer 再计时，受控仅回调不双写，同时只显示一条
 //   6) 内容：content 优先于 children，支持 string|VNode|()=>VNode，resolveContent 惰性，缺字符串触发件自动补 aria-label
@@ -39,8 +40,9 @@ must(hoverSrc, /onVisibleChange/, '受控回调 onVisibleChange')
 must(hoverSrc, /onShow|onHide/, '非受控回调 onShow/onHide')
 must(hoverSrc, /getBoundingClientRect/, '读触发控件矩形（事件真实元素优先，引用只做兜底）')
 must(hoverSrc, /currentTarget/, '自定义触发节点取鼠标进入事件的真实元素（currentTarget/target），克隆引用拿不到真实位置时才兜底')
-must(hoverSrc, /offsetWidth/, '先按宽度上限渲染再量 offsetWidth（真实尺寸，不是字数估算）')
-must(hoverSrc, /offsetHeight/, '先按宽度上限渲染再量 offsetHeight')
+must(hoverSrc, /tipRef\.current\.getBoundingClientRect\(\)/, '先按宽度上限渲染再读外框宽高（getBoundingClientRect 带小数，不用整数化的偏移宽高）')
+must(hoverSrc, /boxSizing:\s*['"]border-box['"]/, '提示按 border-box 渲染：宽度上限就是渲染外框宽（#1660）')
+mustNot(hoverSrc, /offsetWidth|offsetHeight/, '不再拿整数化的偏移宽高当实际尺寸（外框宽可能带小数）')
 // 方位纯函数调用顺序：触发控件矩形、量出的提示尺寸、屏幕尺寸、宽度上限，少一位、多一位、换一位都判红。
 must(hoverSrc, /computeTipPlace\s*\(\s*rect\s*,\s*\{\s*width\s*:\s*tipW\s*,\s*height\s*:\s*tipH\s*\}\s*,\s*\{\s*width\s*:\s*vpW\s*,\s*height\s*:\s*vpH\s*\}\s*,\s*maxWidth\s*\)/, '按矩形、提示尺寸、屏幕尺寸、宽度上限的顺序调 computeTipPlace')
 must(hoverSrc, /effectiveMaxWidth/, '拿回生效宽度上限并按它渲染（窄屏自动收窄，不横向溢出）')
@@ -96,7 +98,8 @@ const checkBuilt = (file: string) => {
   must(b, /zIndex:\s*(2147483000|2147483e3)/, '含 zIndex 2147483000')
   must(b, /computeTipPlace/, '含方位纯函数 computeTipPlace（锚定上方走同一份几何）')
   must(b, /HoverTip|hovertip/i, '含 HoverTip 产物')
-  must(b, /offsetWidth/, '含量后算的真实量度（offsetWidth）')
+  // 产物全文件里 boxSizing 出现 17 次（配额、弹窗等各有主人），只查关键词会漏；这里锁 HoverTip 自己 tooltipStyle 的完整形状。
+  must(b, /position:\s*["']fixed["'],\s*left:\s*pos\.left,\s*top:\s*pos\.top,\s*boxSizing:\s*["']border-box["'],\s*maxWidth:\s*effWidth/, '产物里提示按 border-box 限宽（maxWidth 就是渲染外框宽）')
   must(b, /currentTarget/, '含真实元素取位（currentTarget）')
   must(b, /maxWidth:\s*320/, '含预设默认宽度 320')
   // 产物里 estW/caret/clientX 另有主人（配额、弹窗三角、标签页自画提示），不断言产物无这些词，只断言真源干净。

@@ -29,7 +29,8 @@ export const Tip = function(props: any){
   // 值由 tests/verify-time-config.ts 锁住引用关系；本文件顶部 import 真引用，构建拼闭包时剥掉那一行 import，
   // 名字由闭包里的时间片段提供。改时间只改那一份 YAML，本文件不写数字。
   // 提示默认锚定在触发控件上方：方位由 HoverTip 内部按屏幕边界让位，调用方不再传方位参数。
-  // 默认宽度上限是 320，窄屏下按屏幕可用宽度收窄，调用方可覆盖。
+  // 默认的宽度上限是 320，指渲染外框宽（含左右内边距与边框），窄屏下按屏幕可用宽度收窄，调用方可覆盖；
+  // 宽度口径的完整说明见 src/client/views/primitives/tipPlace.ts 头注释（#1660），这里不再重复。
   const preset = { delay: { show: TIP_SHOW_DELAY_MS, hide: TIP_HIDE_DELAY_MS }, maxWidth: 320, zIndex: 2147483000, padding: '7px 12px' }
   // merged 后面要按调用点给的键逐个往上挂，空对象字面量推不出这些键，所以标 any（只加类型、不改代码）。
   const merged: any = {}
