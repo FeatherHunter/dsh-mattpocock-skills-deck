@@ -13,6 +13,11 @@
  * 约束（后人改这里之前先读完）：文件里不写运行时 import，闭包拼接时残留 import 就是语法错；
  * 跨文件名字只许 ambient declare，本文件零依赖所以一个 declare 也没有；只写可剥离的类型，
  * 不用 enum，不用构造函数参数属性；8 与 4 两个数字只许出现在这一个函数里，调用方不许重复写。
+ *
+ * 宽度口径（#1660）：本函数里所有宽度都是「渲染外框宽」——调用方量到的 tip.width 是外框宽（可能带小数），
+ * maxWidth 与返回的 effectiveMaxWidth 也都是外框宽上限。渲染侧按 border-box 限宽，所以这里不需要、
+ * 也不许替调用方换算内边距与边框：排位和渲染只认这一个宽度，两个口径并存就会重新长出「算出来的位置」
+ * 与「画出来的盒子」对不上这类缺陷（#1660 的右偏 7～13 像素与右缘负边距就是这么来的）。
  */
 export type TipPlacement = 'above' | 'below' | 'left' | 'right';
 export type TipPlaceRect = { left: number; top: number; right: number; bottom: number; width: number; height: number };
@@ -31,6 +36,8 @@ export type TipPlaceResult = { placement: TipPlacement; x: number; y: number; ef
  * 两条不变式对任何输入都成立：提示按实际生效宽度渲染后不越出屏幕，提示不盖住触发控件。
  * 调用方注意：返回的坐标一律是提示左上角，渲染处不许再加中心位移；
  * 渲染时必须按返回的实际生效宽度上限去限宽，否则量出来的尺寸和定位用的尺寸对不上。
+ * 返回的横纵坐标都是整数像素：夹取时先把目标坐标取整，右边界与下边界向下取整，这样外框宽、外框高
+ * 带小数时，取整后的左边界或上边界加上外框尺寸也不会把右缘或下缘顶出屏幕。
  */
 export const computeTipPlace = function (anchorRect: any, tipSize: any, viewport: any, maxWidth?: any): TipPlaceResult {
   // 提示底边离触发控件顶边的间隙是 8 像素，提示离屏幕边缘至少留 4 像素。
@@ -57,8 +64,8 @@ export const computeTipPlace = function (anchorRect: any, tipSize: any, viewport
   const vp: any = viewport || {};
   const vpW: number = Math.max(0, numOr(vp.width, numOr(vp.w, 0)));
   const vpH: number = Math.max(0, numOr(vp.height, numOr(vp.h, 0)));
-  // 宽度上限走调用方给的值，默认还是 220，本票不改宽度策略，320 是下一张票的事。
-  const asked: number = (typeof maxWidth === 'number' && isFinite(maxWidth) && maxWidth > 0) ? maxWidth : 220;
+  // 宽度上限走调用方给的值；不传时按默认 320，与 Tip 预设一致（在办表那一行自己传 520，状态栏胶囊那扇门自己传 220）。
+  const asked: number = (typeof maxWidth === 'number' && isFinite(maxWidth) && maxWidth > 0) ? maxWidth : 320;
   const availW: number = Math.max(0, vpW - EDGE * 2);
   const availH: number = Math.max(0, vpH - EDGE * 2);
   // 实际生效的宽度上限是调用方上限与屏幕可用宽度里更小的那个，窄屏下自动收窄，不会横向溢出。
@@ -67,35 +74,38 @@ export const computeTipPlace = function (anchorRect: any, tipSize: any, viewport
   const placeW: number = Math.max(0, Math.min(tipW, baseEffective, availW));
   const placeH: number = Math.max(0, Math.min(tipH, availH));
   // 水平整体平移：只动左右，保证提示左右不越界；上方或者下方形态调这里。
+  // 先取整再夹、右边界向下取整：外框宽可能带小数，右缘要按 floor 留出边界，
+  // 取整后再夹才不会把带小数的右缘推出屏幕（#1660 旧实现在夹取之后才取整，右缘越出 0.43 像素）。
   const clampX = function (x: number, w: number): number {
     if (w >= availW) return EDGE;
-    return Math.max(EDGE, Math.min(x, vpW - w - EDGE));
+    return Math.max(EDGE, Math.min(Math.round(x), Math.floor(vpW - w - EDGE)));
   };
   // 垂直整体平移：只动上下，保证提示上下不越界；左侧或者右侧形态调这里。
+  // 与水平方向同一套取整规则：先取整再夹、下边界向下取整，带小数的外框高才不会把下缘顶出屏幕（#1660）。
   const clampY = function (y: number, h: number): number {
     if (h >= availH) return EDGE;
-    return Math.max(EDGE, Math.min(y, vpH - h - EDGE));
+    return Math.max(EDGE, Math.min(Math.round(y), Math.floor(vpH - h - EDGE)));
   };
   // 第一步放在触发控件正上方、水平居中，提示底边离触发控件顶边留 8 像素。
   // 上方放得下整块提示才命中，左右越界只做水平整体平移，上下一格不动。
   const yAbove: number = aTop - GAP - placeH;
   if (yAbove >= EDGE) {
-    return { placement: 'above', x: Math.round(clampX(aCenterX - placeW / 2, placeW)), y: Math.round(yAbove), effectiveMaxWidth: baseEffective };
+    return { placement: 'above', x: clampX(aCenterX - placeW / 2, placeW), y: Math.round(yAbove), effectiveMaxWidth: baseEffective };
   }
   // 第二步翻到触发控件正下方、水平居中，同样留 8 像素，同样只做水平整体平移。
   const yBelow: number = aBottom + GAP;
   if (yBelow + placeH <= vpH - EDGE) {
-    return { placement: 'below', x: Math.round(clampX(aCenterX - placeW / 2, placeW)), y: Math.round(yBelow), effectiveMaxWidth: baseEffective };
+    return { placement: 'below', x: clampX(aCenterX - placeW / 2, placeW), y: Math.round(yBelow), effectiveMaxWidth: baseEffective };
   }
   // 第三步退到触发控件右侧、垂直居中，提示左边离触发控件右边留 8 像素，只做垂直整体平移。
   const xRight: number = aRight + GAP;
   if (xRight + placeW <= vpW - EDGE) {
-    return { placement: 'right', x: Math.round(xRight), y: Math.round(clampY(aCenterY - placeH / 2, placeH)), effectiveMaxWidth: baseEffective };
+    return { placement: 'right', x: Math.round(xRight), y: clampY(aCenterY - placeH / 2, placeH), effectiveMaxWidth: baseEffective };
   }
   // 第四步退到触发控件左侧、垂直居中，同样留 8 像素，同样只做垂直整体平移。
   const xLeft: number = aLeft - GAP - placeW;
   if (xLeft >= EDGE) {
-    return { placement: 'left', x: Math.round(xLeft), y: Math.round(clampY(aCenterY - placeH / 2, placeH)), effectiveMaxWidth: baseEffective };
+    return { placement: 'left', x: Math.round(xLeft), y: clampY(aCenterY - placeH / 2, placeH), effectiveMaxWidth: baseEffective };
   }
   // 第五步是四面都放不下时的保底：选剩余空间最大的一侧落下去。
   // 并列时按上方、下方、右侧、左侧的次序取先遇到的，保证同样的输入永远得到同样的输出。
@@ -115,18 +125,18 @@ export const computeTipPlace = function (anchorRect: any, tipSize: any, viewport
   if (best === 'right') {
     const sideAvail: number = Math.max(0, vpW - aRight - GAP - EDGE);
     const eff: number = Math.max(0, Math.min(baseEffective, sideAvail));
-    return { placement: 'right', x: Math.round(Math.max(EDGE, aRight + GAP)), y: Math.round(clampY(aCenterY - placeH / 2, placeH)), effectiveMaxWidth: eff };
+    return { placement: 'right', x: Math.round(Math.max(EDGE, aRight + GAP)), y: clampY(aCenterY - placeH / 2, placeH), effectiveMaxWidth: eff };
   }
   if (best === 'left') {
     const sideAvail: number = Math.max(0, aLeft - GAP - EDGE);
     const eff: number = Math.max(0, Math.min(baseEffective, sideAvail));
     const fw: number = Math.max(0, Math.min(placeW, sideAvail));
-    return { placement: 'left', x: Math.round(Math.max(EDGE, aLeft - GAP - fw)), y: Math.round(clampY(aCenterY - placeH / 2, placeH)), effectiveMaxWidth: eff };
+    return { placement: 'left', x: Math.round(Math.max(EDGE, aLeft - GAP - fw)), y: clampY(aCenterY - placeH / 2, placeH), effectiveMaxWidth: eff };
   }
   // 上下两侧是保底时主轴在高度方向，宽度本来就是整屏可用，所以生效宽度不需要再收窄，左右只做水平整体平移。
   // 这两个分支只有提示比屏幕上最大的纵向空闲还高时才走得到，真实提示到不了那么高，单测的保底用例走左右两侧。
   if (best === 'below') {
-    return { placement: 'below', x: Math.round(clampX(aCenterX - placeW / 2, placeW)), y: Math.round(Math.max(EDGE, aBottom + GAP)), effectiveMaxWidth: baseEffective };
+    return { placement: 'below', x: clampX(aCenterX - placeW / 2, placeW), y: Math.round(Math.max(EDGE, aBottom + GAP)), effectiveMaxWidth: baseEffective };
   }
-  return { placement: 'above', x: Math.round(clampX(aCenterX - placeW / 2, placeW)), y: Math.round(Math.max(EDGE, aTop - GAP - placeH)), effectiveMaxWidth: baseEffective };
+  return { placement: 'above', x: clampX(aCenterX - placeW / 2, placeW), y: Math.round(Math.max(EDGE, aTop - GAP - placeH)), effectiveMaxWidth: baseEffective };
 };

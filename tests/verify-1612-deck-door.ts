@@ -22,6 +22,8 @@ const fs = require('fs')
 const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')
 const { sourceText, spliceableJs } = require('./lib/source-text.ts')
+// #1660：定位契约只有一份真源——直接用真函数，不再复制一份测试替身几何（旧替身没跟取整规则一起改，会与真源分叉）。
+const { computeTipPlace } = require('../src/client/views/primitives/tipPlace.ts')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -106,36 +108,8 @@ type DoorCalls = {
 const makeDoor = function (): { mod: any; calls: DoorCalls } {
   const calls: DoorCalls = { order: [], tools: [], statusBar: [], panel: [], emits: [], closed: new Set<string>(), failStatusBar: false, failTools: false }
   const body = spliceableJs('src/client/statusbar/deckDoor.js').replace(/^[ \t]*export[ \t]+/gm, '')
-  // computeTipPlace 在这里是测试替身：只镜像定位契约（上方优先、放不下翻到下方、贴边内收、宽按调用方上限），
-  // 真函数的穷举边界由它自己的门禁钉死；这里只验门逻辑有没有按契约传参（锚、尺寸、视口、上限 220）。
-  const computeTipPlaceStub = function (anchorRect: any, tipSize: any, viewport: any, maxWidth?: any): any {
-    if (!anchorRect || !viewport) return null
-    const GAP = 8
-    const EDGE = 4
-    const W = (typeof maxWidth === 'number' && maxWidth > 0) ? maxWidth : 220
-    const vpW = Number(viewport.width) || 0
-    const vpH = Number(viewport.height) || 0
-    const tipW = Math.max(0, Number((tipSize && tipSize.width) || 0))
-    const tipH = Math.max(0, Number((tipSize && tipSize.height) || 0))
-    const availW = Math.max(0, vpW - EDGE * 2)
-    const availH = Math.max(0, vpH - EDGE * 2)
-    const eff = Math.max(0, Math.min(W, availW))
-    const placeW = Math.max(0, Math.min(tipW, eff, availW))
-    const placeH = Math.max(0, Math.min(tipH, availH))
-    const aL = Number(anchorRect.left) || 0
-    const aT = Number(anchorRect.top) || 0
-    const aR = (anchorRect.right !== undefined && anchorRect.right !== null) ? Number(anchorRect.right) : aL + (Number(anchorRect.width) || 0)
-    const aB = (anchorRect.bottom !== undefined && anchorRect.bottom !== null) ? Number(anchorRect.bottom) : aT + (Number(anchorRect.height) || 0)
-    const cx = (aL + aR) / 2
-    const clampX = function (x: number): number {
-      if (placeW >= availW) return EDGE
-      return Math.max(EDGE, Math.min(x, vpW - placeW - EDGE))
-    }
-    const yAbove = aT - GAP - placeH
-    if (yAbove >= EDGE) return { placement: 'above', x: Math.round(clampX(cx - placeW / 2)), y: Math.round(yAbove), effectiveMaxWidth: eff }
-    const yBelow = aB + GAP
-    return { placement: 'below', x: Math.round(clampX(cx - placeW / 2)), y: Math.round(yBelow), effectiveMaxWidth: eff }
-  }
+  // computeTipPlace 直接用真函数：这里只验门逻辑有没有按契约传参（锚、尺寸、视口、上限 220），
+  // 几何边界由 tipPlace 自己的门禁钉死，两处不再各留一份定位实现（#1660 前的替身已删）。
   const sandbox = {
     isDeckClosed: (cwd: any) => calls.closed.has(String(cwd)),
     setDeckTools: (cwd: any, on: any) => { calls.order.push('tools:' + String(on)); calls.tools.push({ cwd: String(cwd), on: on }); return calls.failTools ? false : true },
@@ -143,7 +117,7 @@ const makeDoor = function (): { mod: any; calls: DoorCalls } {
     togglePanel: (st: any) => { calls.order.push('panel'); calls.panel.push(st); if (st) st.open = false; return true },
     openPanel: (st: any) => { calls.order.push('open'); calls.panel.push(st); if (st) st.open = true; return true },
     emit: (st: any) => { calls.order.push('emit'); calls.emits.push(st) },
-    computeTipPlace: computeTipPlaceStub,
+    computeTipPlace,
     tr: trStub,
     Ic: (props: any) => ({ type: 'Ic', props: props || {} }),
     Tip: function Tip(props: any) { return null },
