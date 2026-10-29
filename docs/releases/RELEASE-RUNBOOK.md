@@ -117,7 +117,7 @@
 
 > **执行主体：AI** — 下述 6 步均由 AI 按序执行，人不敲命令；第 2 步的人机交接仅为浏览器扫码一次。
 
-> **发布前必须收口真机验证清单**：本版 `[真机验证] vX.Y.Z` 清单票必须恰好一张且已关闭，否则发布被阻断。两条发布路径都会自动跑这个检查（`scripts/publish-token.ps1` 在发布前；`scripts/wizard-release.sh` 在 Stage 3 第五步，也就是上面第 2 步之前），检查实现是 `node scripts/release-preflight.mts`；手工执行 `npm publish` 时请先自己跑一次。发布成功后 `scripts/release-postflight.mts` 会给清单票补发布记录并建下一版占位票。规则见 [`docs/agents/real-machine-verification.md`](../agents/real-machine-verification.md)。
+> **发布前必须收口真机验证清单**：本版 `[真机验证] vX.Y.Z` 清单票必须恰好一张、已关闭，而且票面正文与评论记录内部一致（场景总览表的编号集合、每条场景的结论、正文与收口评论里的各处计数都对得上），否则发布被阻断。两条发布路径都会自动跑这个检查（`scripts/publish-token.ps1` 在发布前；`scripts/wizard-release.sh` 在 Stage 3 第五步，也就是上面第 2 步之前），检查实现是 `node scripts/release-preflight.mts`；手工执行 `npm publish` 时请先自己跑一次，对不上的地方它会逐条列出并给出改法。发布成功后 `scripts/release-postflight.mts` 会给清单票补发布记录并建下一版占位票。规则见 [`docs/agents/real-machine-verification.md`](../agents/real-machine-verification.md)。
 
 顺序固定为：
 

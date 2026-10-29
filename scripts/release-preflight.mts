@@ -1,10 +1,15 @@
-// scripts/release-preflight.mts —— 发布前检查：本版真机验证清单票恰好一张、且已关闭。
+// scripts/release-preflight.mts —— 发布前检查：本版真机验证清单票恰好一张、已关闭，且票面记录内部一致。
 //
 // 为什么要有这一步：来源票允许在没有真机验证的情况下先关闭，验证是攒到「版本真机验证清单票」里统一做的。
 // 如果等到发布之后才发现清单票没建、或者还开着一堆待验证场景，这一版就已经发出去了，验证永远补不回来。
-// 规则正文见 docs/agents/real-machine-verification.md 第 4 节；本脚本只做那两条机器检查：
+// 规则正文见 docs/agents/real-machine-verification.md 第 4 节；本脚本做那三条机器检查：
 //   一、标题「[真机验证] <本版版本号>」的票恰好一张；
-//   二、那张票已经关闭（关闭条件由人按票面核对，脚本不看关闭评论里的计数）。
+//   二、那张票已经关闭；
+//   三、那张票的正文与评论记录内部一致——场景编号集合、每条场景的结果、正文自称的条数与分组计数、
+//       收口评论里的发布计数，互相之间要能对上。为什么要查这一条：票是人和 AI 边验边改出来的，
+//       常见错误是正文删了一行、评论里还留着旧结论，或者两边的「通过 / 豁免 / 失败」数字各写各的；
+//       这类错不会让票看起来没关，但会让后来的人按错误数字宣布这版验完了。
+//       脚本只查「两边说的是不是同一件事」，某个豁免该不该接受仍然由人判断。
 //
 // 两条发布路径都在真正发布之前调用本脚本：
 //   - scripts/publish-token.ps1（token 无人值守路径）
@@ -23,17 +28,13 @@ import {
   isExactChecklistTitle,
   isPlaceholderTitle,
   listChecklistIssues,
+  listIssueComments,
   normalizeTitle,
   readPackageVersion,
   TITLE_PREFIX,
 } from './lib/release-checklist.mts'
-
-type Issue = {
-  number: number
-  title: string
-  state: string
-  url: string
-}
+import type { ChecklistComment, ChecklistIssue } from './lib/release-checklist.mts'
+import { checkChecklistConsistency, formatConsistencyFindings } from './lib/checklist-consistency.mts'
 
 type Options = {
   version: string
@@ -100,7 +101,7 @@ function main(): void {
   const targetTitle = TITLE_PREFIX + ' ' + versionNumber
   info('本版：' + versionNumber + '；要找的清单票标题：「' + targetTitle + '」')
 
-  let issues: Issue[] = []
+  let issues: ChecklistIssue[] = []
   try {
     issues = listChecklistIssues()
   } catch (error) {
@@ -144,7 +145,36 @@ function main(): void {
   }
 
   ok('清单票 #' + issue.number + '「' + normalizeTitle(issue.title) + '」已关闭' + (issue.url ? ' ' + issue.url : ''))
-  info('关闭评论里的通过/失败/豁免计数只供人读，脚本不校验计数。')
+
+  // 关闭只是「人宣布验完了」，还得确认这张票自己记的东西前后一致：正文的场景表、评论里的逐条结果、
+  // 收口时写下的计数，任何一处和别处对不上，都说明中间改过一边忘了另一边。
+  let comments: ChecklistComment[] = []
+  try {
+    comments = listIssueComments(issue.number)
+  } catch (error) {
+    fail(error instanceof ReleaseEnvError ? error.message : String(error), 2)
+  }
+  const report = checkChecklistConsistency({ body: issue.body, comments })
+  if (!report.ok) {
+    const lines = formatConsistencyFindings(report)
+    for (const line of lines) {
+      if (options.soft) console.log('PREFLIGHT-SOFT 不阻断发布（演练模式）：' + line)
+      else console.error('PREFLIGHT-FAIL ' + line)
+    }
+    if (options.soft) {
+      info('演练模式下只列出 ' + lines.length + ' 处对不上的地方；真实发布前要按每条的「改法」改完。')
+    } else {
+      console.error('PREFLIGHT-FAIL 清单票记录的正文与评论对不上，共 ' + lines.length + ' 处；按上面每条的「改法」改完再发布。')
+      process.exit(1)
+    }
+  } else {
+    const counts = report.publishCounts
+    ok(
+      '清单票 #' + issue.number + ' 的记录内部一致：' + report.rows.length + ' 条场景、评论登记 ' +
+        report.registeredIds.length + ' 个场景编号，发布计数 通过 ' + counts.passed + ' / 豁免 ' +
+        counts.exempted + ' / 失败 ' + counts.failed,
+    )
+  }
 }
 
 main()
