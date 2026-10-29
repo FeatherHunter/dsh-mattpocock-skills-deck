@@ -498,8 +498,8 @@ async function main() {
   }
   const tipPlain = tipOf([{ current: { scrollWidth: 60, clientWidth: 100 } }])
   check(tipPlain.tips.length === 1, '每一行挂一条悬停提示（提示挂在整行上）')
-  check(tipPlain.tips.length === 1 && tipPlain.tips[0].props.placement === 'above', '提示落在指针上方（不遮住鼠标正指着的那一格）')
-  check(tipPlain.tips.length === 1 && Number(tipPlain.tips[0].props.maxWidth) > 220, '提示比默认宽（默认 220 像素放不下完整标题与会话名）')
+  check(tipPlain.tips.length === 1 && tipPlain.tips[0].props.placement === undefined && tipPlain.tips[0].props.mode === undefined, '提示方位由控件内部决定（调用点不再传 placement/mode，锚定上方走方位纯函数）')
+  check(tipPlain.tips.length === 1 && Number(tipPlain.tips[0].props.maxWidth) === 520, '在办表保留 520 覆盖（默认 320 放不下完整标题与会话名，调用方可覆盖的证据）')
   check(tipPlain.content && tipPlain.content.props['data-work-route-tip'] === 1, '提示内容是一块自己画的结构（不是一段纯文字）')
   const tipKids = tipPlain.content ? tipPlain.content.children : []
   check(tipKids.length === 3, '提示一行三段：标题组、分隔线、右侧的会话组（实得 ' + tipKids.length + ' 段）')
@@ -513,12 +513,12 @@ async function main() {
   const tipRows = findAll(tipPlain.tree, (n: any) => n.props && n.props['data-work-route-row'] === 1)
   check(tipRows.length === 1 && tipPlain.tips[0].children[0] === tipRows[0], '提示的触发件就是那一行本身（悬停行的任何位置都能看到提示）')
 
-  // 提示落在指针上方这件事由 HoverTip 的 placement 负责：源码里要有这个取值，
-  // Tip 预设要把它透传下去，图标库里要有那两枚新图标。
+  // 提示锚定在触发控件上方这件事由方位纯函数负责：HoverTip 按矩形、提示尺寸、屏幕尺寸、宽度上限的顺序调它，
+  // Tip 预设不再收定位参数，图标库里要有那两枚新图标。
   const hoverTipSrc = sourceText('src/client/views/primitives/HoverTip.ts')
-  check(/placement/.test(hoverTipSrc) && /'above'/.test(hoverTipSrc), 'HoverTip 有 placement 取值（提示可以落在指针上方）')
+  check(/computeTipPlace\s*\(\s*rect/.test(hoverTipSrc), 'HoverTip 经方位纯函数算出提示落点（锚定上方按屏幕边界让位）')
   const tipSrc = sourceText('src/client/views/primitives/Tip.ts')
-  check(/merged\.placement/.test(tipSrc), 'Tip 预设把 placement 透传给 HoverTip')
+  check(!/merged\.placement/.test(tipSrc) && !/\bmode\b/.test(tipSrc.split('merged')[1] || ''), 'Tip 预设不再收定位参数（方位由控件内部决定）')
   check(iconsSrc.indexOf("'ticket-title'") >= 0 && iconsSrc.indexOf("'session'") >= 0, '图标库里有标题与会话这两枚新图标')
 
   if (total === 0) check(false, '一条断言都没跑')
