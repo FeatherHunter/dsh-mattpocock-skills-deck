@@ -333,6 +333,10 @@ const snapSrc = read('src/refresh/rooms/host/session-snapshot-cache.ts')
     //   #1139 又从宿主跨目录引了 ../tracker/ui-description.js：所以这里改成按真源里**所有相对 import**
     //   （./ 与 ../ 都算）连目录结构一起镜像到夹具目录，以后谁再拆一次、再跨一次目录，都不用回来改这段。
     const mirror = makeDir('dsh-683-broken2-')
+    // 夹具目录不在仓库里，被镜像过来的模块若 import 裸包（例如 shared 配置核 import 的 'yaml'），
+    // 从临时目录向上找不到 node_modules。给夹具接一条指向仓库 node_modules 的 junction，
+    // 让夹具与真源按同一套依赖求值；窗口下 junction 不需要管理员权限。
+    try { fs.symlinkSync(path.join(ROOT, 'node_modules'), path.join(mirror, 'node_modules'), 'junction') } catch (eLink683) {}
     const mirrored = new Set()
     const mirrorOne = function (relFromSrc: string) {
       if (mirrored.has(relFromSrc)) return

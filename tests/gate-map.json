@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T20:25:16.274Z",
+  "generatedAt": "2026-10-29T02:42:21.928Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 441,
   "gateCount": 441,
@@ -5436,6 +5436,7 @@
       "guards": [
         "src/host/mapBody.ts",
         "src/host/mapTickets.ts",
+        "src/host/sessionLifecycle.ts",
         "src/host/ticketGrouping.ts",
         "src/host/tracker/snapshot.ts",
         "src/refresh/rooms/host/outbound-control.ts",
@@ -5451,7 +5452,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 6 条"
+      "reason": "归属来自：静态 import 说明符 7 条"
     },
     {
       "step": "node tests/verify-691-markdown-counts-page.ts",

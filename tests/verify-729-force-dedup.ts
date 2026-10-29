@@ -221,6 +221,9 @@ async function main() {
     const tmpTree = fsx.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'rollback729-'))
     try {
       fsx.cpSync(nodePath.join(ROOT, 'src'), nodePath.join(tmpTree, 'src'), { recursive: true })
+      // 镜像树不在仓库里，src 里 import 的裸包（例如 shared 配置核用的 'yaml'）从临时目录找不到；
+      // 接一条指向仓库 node_modules 的 junction，让回滚树按同一套依赖求值。
+      try { fsx.symlinkSync(nodePath.join(ROOT, 'node_modules'), nodePath.join(tmpTree, 'node_modules'), 'junction') } catch (eLink729) {}
       const brokenTreePath = nodePath.join(tmpTree, 'src', 'host', 'snapshotInflight.ts')
       const brokenTreeSrc = fsx.readFileSync(brokenTreePath, 'utf8')
       fsx.writeFileSync(brokenTreePath, brokenTreeSrc.split('ongoing.isForce === true || !isForce').join('false'))
