@@ -74,7 +74,12 @@ const statChecks = function (src, tag) {
   //   注意不要把范围放宽成「整个文件里不许出现 padding:'0 8px'」——那个写法在状态栏别处还有正当用途
   //   （折叠按钮等），一并禁掉会误伤。
   ok('几何自带的 padding 就是不带横向内边距的 \'3px 0 0\'', /padding:\s*["']3px 0 0["']/.test(src))
-  ok('三支都不再各自硬写外层容器的横向内边距', !/gap:\s*2\s*,[^}]*padding:/.test(src) && !/gap:\s*4\s*,\s*position:\s*["']relative["']\s*,\s*padding:/.test(src))
+  // 2026-10-29 收窄下面的否定断言：原来扫整个产物包找「gap:2,…,padding:」，
+  //   #1654 在设置页行里正当使用的 gap:2,padding:"7px 8px"把它误触发了。
+  //   改成只在上面三支各自的匹配文本里查 padding——分支匹配止于 dswsStatusDockGeom() 调用，
+  //   几何函数体里的 '3px 0 0' 不在其中，所以误伤消失；三支里谁加 padding 照样红，判据强度不变。
+  const branchSrcs = branchHits.map(function (entry) { const m = src.match(entry[1]); return m ? m[0] : '' })
+  ok('三支都不再各自硬写外层容器的横向内边距', branchSrcs.every(function (s) { return s !== '' && !/padding:/.test(s) }))
   ok('外层容器正常路径仍保留 overflow:hidden 截胶囊溢出、缺 ReactDOM 时 visible 降级',
     /overflow:\s*RDOM\s*\?\s*["']hidden["']\s*:\s*["']visible["']/.test(src))
   ok('胶囊 CSS 不再加 overflow:hidden（让 capsule 圆角背景完整，圆角处不漏白）', !/\.dsws-capsule\s*\{[^}]*overflow:\s*hidden/.test(src))
