@@ -41,7 +41,7 @@ type WfArgs = any;
 // 日志沿用既有的 host.call / host.call.fail 两个事件（不新增事件名）。
 import { resolveRepoRefForCwd } from '../tracker/session/repo-ref.js'
 export function createMapTickets(deps?: any): any {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, DEFAULT_CWD, logCtx, groupTickets, getMapBody, detectionExec, openSession } = deps
+  const { canonicalKey, selectEarly, getTrackerRegistry, getPlatform, ctx, DEFAULT_CWD, logCtx, groupTickets, getMapBody, detectionExec, openSession } = deps
 
   function hash8(s?: any) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   // #1052 续：这一趟操作的编号，用来把宿主这一层的日志行与房间那一层的日志行串起来。
@@ -127,7 +127,12 @@ export function createMapTickets(deps?: any): any {
     const key = String((args && (args.key != null ? args.key : args.number)) || '').trim()
     if (!key) return { ok: false, error: { kind: 'parse', message: '缺少地图编号（key）' }, logged: logged }
     const sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
-    if (!isComposerSelection(sel)) return unsupported('这个后端不能按需取一张地图的子票（在它自己的网页上看全部）', logged)
+    // #1636：入口只拦“认不出后端”的选择，不再按后端编号预判。
+    // 为什么不能沿用 isComposerSelection：它是快照、刷新、探针、评论四条路共用的通道选择，
+    // 今天对 backendId=github 永远返回假；沿用它会把 GitHub 唯一一条按需取子票的路堵死
+    // （已关闭容器的已关闭子票本来就不进首屏快照）。有没有取子票的能力由后端自己回答：
+    // 注册表里没这条读路径就回不支持（下一句），后端自己说不支持也如实透出。
+    if (!sel || !sel.backendId) return unsupported('这个后端不能按需取一张地图的子票（在它自己的网页上看全部）', logged)
     const reg = await getTrackerRegistry()
     const backendId = sel.backendId
     const tracker = reg.get(backendId)

@@ -1,6 +1,6 @@
 import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 /**
- * tests/verify-691-map-subissues.js — 「地图子票拉全 · 已关闭地图不进首屏」门禁（#691 阶段 3）。
+ * tests/verify-691-map-subissues.ts — 「地图子票拉全 · 已关闭地图不进首屏」门禁（#691 阶段 3）。
  *
  * 这张票要的是两件事，这一段逐件断：
  *   一、**拉全**：GitHub 的 listSubIssues 按页翻到底，用连接上的 totalCount 核对「拉到的张数 == 总数」，
@@ -17,6 +17,7 @@ import { createOutboundControl } from '../src/refresh/rooms/host/outbound-contro
 import { listSubIssues } from '../src/tracker/rooms/github/sub-issues.ts'
 import { createSnapshotComposer } from '../src/host/tracker/snapshot.js'
 import { createMapTickets } from '../src/host/mapTickets.js'
+import { createSessionLifecycle } from '../src/host/sessionLifecycle.ts'
 import { createMapBody } from '../src/host/mapBody.js'
 import { createTicketGrouping } from '../src/host/ticketGrouping.js'
 
@@ -141,6 +142,45 @@ const REPO = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
   })
   const r2: any = await phone2.handleMapTickets({ cwd: '/ws/fake', key: '692' })
   check(r2.ok === false && r2.error.kind === 'unsupported', '三.6 后端没实现这条读路径 → unsupported（界面据此照旧画快照那份）')
+}
+
+// ── 四、#1636：GitHub 选择也能按需取子票（入口不再按后端编号预判） ─────────────
+// 为什么有这一段：wf.mapTickets 曾在入口处用 isComposerSelection 拦掉 backendId=github 的选择，
+// 已关闭地图的详情页因此永远是空的（首屏本来就不装已关闭容器的已关闭子票，唯一一条按需路又被堵死）。
+// 修法：入口只拦“认不出后端”的选择（空选择），有没有取子票的能力由后端自己回答
+// （没实现就回不支持，见三.6；后端自己说不支持，见电话体里的映射）。
+// 下面用的就是线上真正的门卫判断，不是手捏的永远返回真；GitHub 选择在它眼里是“假”，
+// 修之前这一节是红的。如果将来有人翻转了真正的门卫判断，四.0 会先变红——
+// 那时请连 #1636 的修法范围一起重估（门卫还喂着快照、刷新、探针、评论四条路）。
+{
+  const life: any = createSessionLifecycle({})
+  const realGate: any = life.isComposerSelection
+  check(realGate({ backendId: 'github' }) === false, '四.0 前提：线上真正的门卫判断对 GitHub 选择返回假（这就是 #1636 的现场）')
+  const mb4 = createMapBody()
+  const grp4 = createTicketGrouping()
+  const githubTracker = {
+    listSubIssues: async () => ({ ok: true, data: { items: [
+      { key: '621', state: 'closed', body: '', url: '', assignees: [], blockedBy: [] },
+    ], total: 1, fetched: 1, capped: false, missing: 0 } }),
+  }
+  const phoneGithub: any = createMapTickets({
+    canonicalKey: async (c: any) => c || '/ws/fake', selectEarly: async () => ({ backendId: 'github' }), isComposerSelection: realGate,
+    getTrackerRegistry: async () => ({ get: () => githubTracker, describe: () => ({ backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }) }),
+    getPlatform: async () => ({}), ctx: { get: () => undefined }, DEFAULT_CWD: '/ws/fake', logCtx: null,
+    groupTickets: grp4.groupTickets, getMapBody: async () => mb4, detectionExec: () => {},
+  })
+  const rGithub: any = await phoneGithub.handleMapTickets({ cwd: '/ws/fake', key: '692' })
+  check(rGithub.ok === true && rGithub.items.length === 1 && rGithub.items[0].state === 'CLOSED',
+    '四.1 GitHub 选择不再被拦在入口：取到后端给的子票（实得 ' + JSON.stringify(rGithub.ok) + '）')
+  const phoneEmpty: any = createMapTickets({
+    canonicalKey: async (c: any) => c || '/ws/fake', selectEarly: async () => null, isComposerSelection: realGate,
+    getTrackerRegistry: async () => ({ get: () => githubTracker, describe: () => ({ backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }) }),
+    getPlatform: async () => ({}), ctx: { get: () => undefined }, DEFAULT_CWD: '/ws/fake', logCtx: null,
+    groupTickets: grp4.groupTickets, getMapBody: async () => mb4, detectionExec: () => {},
+  })
+  const rEmpty: any = await phoneEmpty.handleMapTickets({ cwd: '/ws/fake', key: '692' })
+  check(rEmpty.ok === false && rEmpty.error && rEmpty.error.kind === 'unsupported',
+    '四.2 认不出后端（空选择）仍回不支持（门卫剩下的唯一职责，实得 ' + JSON.stringify(rEmpty.ok) + '）')
 }
 
 console.log(failed ? '\n存在失败 — verify-691-map-subissues 未通过' : '\n全部通过 — 地图子票拉全与已关闭地图子票去向的判据都在')
