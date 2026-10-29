@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-29T05:17:06.274Z",
+  "generatedAt": "2026-10-29T05:36:24.940Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 445,
-  "gateCount": 445,
-  "attributedGates": 400,
-  "unattributedGates": 45,
+  "chainLength": 444,
+  "gateCount": 444,
+  "attributedGates": 401,
+  "unattributedGates": 43,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 21,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 618,
+  "graphFileCount": 619,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -116,22 +116,6 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 15 条；源码里的路径字面量 15 条"
     },
     {
-      "step": "node tests/verify-build-cwd-products.ts",
-      "file": "tests/verify-build-cwd-products.ts",
-      "guards": [
-        "scripts/build.mts",
-        "scripts/bundle-update-entry.mts"
-      ],
-      "dirs": [
-        "scripts"
-      ],
-      "unattributed": true,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
-    },
-    {
       "step": "node tests/verify-leaves.ts",
       "file": "tests/verify-leaves.ts",
       "guards": [
@@ -197,6 +181,7 @@
         "src/client/views/labels/labelColorPatch.ts",
         "src/client/views/labels/useLabelColors.ts",
         "src/client/views/listFilterRow.ts",
+        "src/client/views/mdEffortRow.ts",
         "src/client/views/shared/RestFallbackBanner.ts",
         "src/client/views/shared/Tabs.ts",
         "src/client/views/shared/chips.ts",
@@ -244,7 +229,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 84 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 85 条"
     },
     {
       "step": "node tests/verify-chain-capsule.ts",
@@ -4192,7 +4177,8 @@
       "step": "node tests/verify-1596-md-eff-filter.ts",
       "file": "tests/verify-1596-md-eff-filter.ts",
       "guards": [
-        "src/client/views/ListTab.ts"
+        "src/client/views/ListTab.ts",
+        "src/client/views/mdEffortRow.ts"
       ],
       "dirs": [
         "src/client/views"
@@ -4201,7 +4187,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-1599-gitlab-hidden-markers.ts",
@@ -4551,6 +4537,22 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
+      "step": "node tests/verify-1639-md-eff-split-browser.ts",
+      "file": "tests/verify-1639-md-eff-split-browser.ts",
+      "guards": [
+        "src/client/views/ListTab.ts",
+        "src/client/views/mdEffortRow.ts"
+      ],
+      "dirs": [
+        "src/client/views"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
       "step": "node tests/verify-1641-listed-workspace-flags.ts",
       "file": "tests/verify-1641-listed-workspace-flags.ts",
       "guards": [
@@ -4578,25 +4580,6 @@
       "completionRecord": true,
       "expectedAssertions": 42,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 4 条"
-    },
-    {
-      "step": "node tests/verify-1646-publish-token-file.ts",
-      "file": "tests/verify-1646-publish-token-file.ts",
-      "guards": [
-        "docs/agents/real-machine-verification.md",
-        "docs/releases/RELEASE-RUNBOOK.md",
-        "scripts/publish-token.ps1"
-      ],
-      "dirs": [
-        "docs/agents",
-        "docs/releases",
-        "scripts"
-      ],
-      "unattributed": true,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "读到的路径都落在 docs、scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-1649-detail-closed-link.ts",
@@ -10015,6 +9998,7 @@
         "src/client/views/labels/LabelColorEntry.ts",
         "src/client/views/labels/LabelColorRow.ts",
         "src/client/views/listFilterRow.ts",
+        "src/client/views/mdEffortRow.ts",
         "src/client/views/pixel/PixelBanner.ts",
         "src/client/views/pixel/PixelBtn.ts",
         "src/client/views/shared/ChainRenderer.ts",
@@ -10058,7 +10042,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 64 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 65 条"
     },
     {
       "step": "node tests/verify-unmigrated-tests.ts",
@@ -10500,7 +10484,6 @@
       "node tests/verify-1488-read-mixed-layout.ts",
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1621-gh-missing-copy.ts",
-      "node tests/verify-1646-publish-token-file.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -10518,7 +10501,6 @@
       "node tests/verify-1612-deck-door.ts"
     ],
     "docs/releases": [
-      "node tests/verify-1646-publish-token-file.ts",
       "node tests/verify-market-tarball.ts",
       "node tests/verify-release-contract.ts",
       "node tests/verify-release-template.ts"
@@ -10684,7 +10666,6 @@
     ],
     "scripts": [
       "node tests/verify-1207-splice-ts.ts",
-      "node tests/verify-build-cwd-products.ts",
       "node tests/verify-leaves.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-gate-map.ts",
@@ -10702,7 +10683,6 @@
       "node tests/verify-1530-generated-outputs-not-inputs.ts",
       "node tests/verify-1612-deck-door.ts",
       "node tests/verify-1612-deck-state.ts",
-      "node tests/verify-1646-publish-token-file.ts",
       "node tests/verify-640-dock-width-browser.ts",
       "node tests/verify-bundled-skills-zh.ts",
       "node tests/verify-ctx.ts",
@@ -11035,6 +11015,7 @@
       "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1582-open-folder.ts",
       "node tests/verify-1596-md-eff-filter.ts",
+      "node tests/verify-1639-md-eff-split-browser.ts",
       "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -12354,9 +12335,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 639,
+    "fileCount": 640,
     "dirCount": 74,
-    "coveredFileCount": 639,
+    "coveredFileCount": 640,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 57,
@@ -12507,6 +12488,7 @@
       "src/client/views/mapDetailV2/view/skin/MapDetailV2Styles.ts",
       "src/client/views/mapDetailV2/wiring/pageActionHandlers.ts",
       "src/client/views/mapDetailV2/wiring/useMapTicketsFeed.ts",
+      "src/client/views/mdEffortRow.ts",
       "src/client/views/pixel/PixelBanner.ts",
       "src/client/views/pixel/PixelBtn.ts",
       "src/client/views/pixel/PixelDot.ts",
