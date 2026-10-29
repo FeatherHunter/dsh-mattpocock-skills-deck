@@ -67,7 +67,7 @@ zh:
   banner.expandShort: 展开
   banner.folded: MattSkillsDeck 已收起，点击展开
   banner.deckDoorClose: 关闭整个 MattSkillsDeck（工具、胶囊与右侧面板）
-  banner.deckDoorTip: 胶囊右边那颗红色 X 会把整个 deck 关掉：工具、胶囊与右侧面板三处一起关。
+  banner.deckDoorTip: 点一下，整个 MattSkills 会关掉，回到普通写代码的界面。
   banner.deckReopenTitle: 重新打开 MattSkillsDeck
   banner.deckReopenBody: 展开会开启 deck 工具箱、右侧面板和胶囊状态栏；确认后这三处一起恢复。
   banner.deckReopenOk: 开启
@@ -373,7 +373,7 @@ en:
   banner.expandShort: Expand
   banner.folded: MattSkillsDeck is collapsed — click to expand
   banner.deckDoorClose: "Close the whole MattSkillsDeck (tools, capsule and right panel)"
-  banner.deckDoorTip: "The red X at the right edge of the capsule closes the whole deck: tools, capsule and right panel together."
+  banner.deckDoorTip: "Clicking closes the whole MattSkills and returns to the plain coding view."
   banner.deckReopenTitle: Reopen MattSkillsDeck
   banner.deckReopenBody: "Expanding turns the deck tools, the right panel and the capsule status bar back on for this workspace; confirming restores all three."
   banner.deckReopenOk: Reopen
