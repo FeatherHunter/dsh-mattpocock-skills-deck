@@ -37,6 +37,9 @@
  *       写进去的别的格，照样可能被这一趟整份顶掉（实测），不许说成不会。
  *   四、认不出工作区根时这一片直接返回失败、一个字都不写文件（见 settings-view.ts 的 viewFlagWriteKeyOf）：
  *       会话目录当键写下去会留下永远合并不到一起的孤儿记录。
+ *       只有一个例外（#1641）：设置页总览的行来自工作区名单，调用方明确说这一行在名单上（listed）时，
+ *       名单上的路径就是用户看得见的那条目录、不是会话里的猜测，可以按它先记一条带 unopened 标记的临时
+ *       记录；等工作区打开、认出根以后由 #1640 合并到根那一条。
  */
     import { VIEW_FLAG_WRITE_DEBOUNCE_MS } from '../../shared/time-config/values.js'
     // 跨闭包的值引用按仓里规矩写模块级 declare（实现只在拼好的闭包里有一份，类型检查各看各的）：
@@ -113,7 +116,7 @@
             // 用队列里这一笔自带的键，不重算（#1012 后续修复的建议 2）：本会话若在排期与落盘之间跟丢了根，
             //   重算出来的键会换成会话目录那一条，文件里就长出同一工作区的第二条记录、根那条还是旧值。
             const key = d.key || viewFlagDocKeyOf(d.cwd)
-            if (key) viewFlagSetInDoc(fresh, d.cwd, key, d.name, d.value)
+            if (key) viewFlagSetInDoc(fresh, d.cwd, key, d.name, d.value, d.unopened)
           }
           // 内存那一份换成刚读回来的那一份：这样界面接下来读到的，与盘上那一份是同一份（含别人写进去的格）。
           viewFlagState.doc = fresh
@@ -338,7 +341,9 @@
     //   'show'/'hide'，deckTools 写 'on'/'off'）。返回值与 setViewFlag 同义：true ＝ 交给文件这条路了
     //   （可能还在防抖窗口里），false ＝ 接不下（认不出工作区根、文档问不到、是更高版本，或者名字/值不是这两个
     //   开关认得出的那几种之一），调用方据此提示。
-    export const setViewFlagValue = function (cwd: any, name: any, value: any): any {
+    //   第四个参数 listed 只有设置页总览会传（#1641）：这一行来自工作区名单时，认不出根也可以按名单上的路径
+    //   先存一条带 unopened 标记的临时记录；别的调用方不传，口径仍是文件头第四条「认不出根一个字不写」。
+    export const setViewFlagValue = function (cwd: any, name: any, value: any, listed: any): any {
       try {
         const raw = value
         // 只接这两个文字名字、只认各自的那几个字面量：别的名字或值的调用直接回 false，调用方据此知道这一笔没接。
@@ -348,18 +353,29 @@
         if (!viewFlagIsTextNameOf(name)) return false
         if (viewFlagTextValuesOf(name).indexOf(raw) < 0) return false
         settingsViewLoad()
-        const key = viewFlagWriteKeyOf(cwd)
+        let key = viewFlagWriteKeyOf(cwd)
+        // #1641：名单上的行认不出根时，名单路径本身就可以当临时键 —— 它是用户看得见的目录，不是会话里的猜测。
+        //   这样存下来的记录带 unopened 标记，等工作区打开、认出根以后合并到根那一条（#1640）。
+        let unopened = false
+        if (!key && listed === true) {
+          key = String(cwd == null ? '' : cwd).trim()
+          unopened = key !== ''
+        }
         if (!key) return false
         if (viewFlagState.status === 'loading') {
-          viewFlagState.deferred[viewFlagJournalKeyOf(key, name)] = { cwd: cwd, name: name, value: raw, key: key }
+          viewFlagState.deferred[viewFlagJournalKeyOf(key, name)] = (unopened
+            ? { cwd: cwd, name: name, value: raw, key: key, unopened: true }
+            : { cwd: cwd, name: name, value: raw, key: key })
           return true
         }
         if (viewFlagState.status !== 'ready') return false
-        if (!viewFlagSetInDoc(viewFlagState.doc, cwd, key, name, raw)) {
+        if (!viewFlagSetInDoc(viewFlagState.doc, cwd, key, name, raw, unopened)) {
           viewFlagLogDocFail()
           return false
         }
-        viewFlagState.journal[viewFlagJournalKeyOf(key, name)] = { cwd: cwd, name: name, value: raw, key: key }
+        viewFlagState.journal[viewFlagJournalKeyOf(key, name)] = (unopened
+          ? { cwd: cwd, name: name, value: raw, key: key, unopened: true }
+          : { cwd: cwd, name: name, value: raw, key: key })
         viewFlagScheduleWrite()
         return true
       } catch (e) { return false }

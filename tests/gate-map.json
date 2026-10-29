@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-29T04:53:53.821Z",
+  "generatedAt": "2026-10-29T05:17:06.274Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 442,
-  "gateCount": 442,
-  "attributedGates": 399,
-  "unattributedGates": 43,
+  "chainLength": 445,
+  "gateCount": 445,
+  "attributedGates": 400,
+  "unattributedGates": 45,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 20,
+  "completionRecordedGates": 21,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 618,
@@ -114,6 +114,22 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 15 条；源码里的路径字面量 15 条"
+    },
+    {
+      "step": "node tests/verify-build-cwd-products.ts",
+      "file": "tests/verify-build-cwd-products.ts",
+      "guards": [
+        "scripts/build.mts",
+        "scripts/bundle-update-entry.mts"
+      ],
+      "dirs": [
+        "scripts"
+      ],
+      "unattributed": true,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-leaves.ts",
@@ -4533,6 +4549,54 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1641-listed-workspace-flags.ts",
+      "file": "tests/verify-1641-listed-workspace-flags.ts",
+      "guards": [
+        "src/client/kernel/deck-state.ts",
+        "src/client/kernel/settings-view-state.ts",
+        "src/client/kernel/settings-view-write.ts",
+        "src/client/kernel/settings-view.ts",
+        "src/client/views/SettingsWorkspaces.ts",
+        "src/host/configStore.ts",
+        "src/host/settingsPhones.ts",
+        "src/shared/time-config/src/values.ts",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/gate-result.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views",
+        "src/host",
+        "src/shared/time-config/src",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 42,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 4 条"
+    },
+    {
+      "step": "node tests/verify-1646-publish-token-file.ts",
+      "file": "tests/verify-1646-publish-token-file.ts",
+      "guards": [
+        "docs/agents/real-machine-verification.md",
+        "docs/releases/RELEASE-RUNBOOK.md",
+        "scripts/publish-token.ps1"
+      ],
+      "dirs": [
+        "docs/agents",
+        "docs/releases",
+        "scripts"
+      ],
+      "unattributed": true,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "读到的路径都落在 docs、scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-1649-detail-closed-link.ts",
@@ -10436,6 +10500,7 @@
       "node tests/verify-1488-read-mixed-layout.ts",
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1621-gh-missing-copy.ts",
+      "node tests/verify-1646-publish-token-file.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -10453,6 +10518,7 @@
       "node tests/verify-1612-deck-door.ts"
     ],
     "docs/releases": [
+      "node tests/verify-1646-publish-token-file.ts",
       "node tests/verify-market-tarball.ts",
       "node tests/verify-release-contract.ts",
       "node tests/verify-release-template.ts"
@@ -10618,6 +10684,7 @@
     ],
     "scripts": [
       "node tests/verify-1207-splice-ts.ts",
+      "node tests/verify-build-cwd-products.ts",
       "node tests/verify-leaves.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-gate-map.ts",
@@ -10635,6 +10702,7 @@
       "node tests/verify-1530-generated-outputs-not-inputs.ts",
       "node tests/verify-1612-deck-door.ts",
       "node tests/verify-1612-deck-state.ts",
+      "node tests/verify-1646-publish-token-file.ts",
       "node tests/verify-640-dock-width-browser.ts",
       "node tests/verify-bundled-skills-zh.ts",
       "node tests/verify-ctx.ts",
@@ -10829,6 +10897,7 @@
       "node tests/verify-1612-deck-state.ts",
       "node tests/verify-1612-prompt-filter.ts",
       "node tests/verify-1612-settings-switches.ts",
+      "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-1649-detail-closed-link.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
@@ -10966,6 +11035,7 @@
       "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1582-open-folder.ts",
       "node tests/verify-1596-md-eff-filter.ts",
+      "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -11244,6 +11314,7 @@
       "node tests/verify-1612-settings-switches.ts",
       "node tests/verify-1621-gh-missing-copy.ts",
       "node tests/verify-1625-wf-selection-outlet.ts",
+      "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
@@ -11655,6 +11726,7 @@
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1612-settings-switches.ts",
+      "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-669-choice-precedence.ts",
@@ -12151,6 +12223,7 @@
       "node tests/verify-1612-deck-state.ts",
       "node tests/verify-1612-prompt-filter.ts",
       "node tests/verify-1612-settings-switches.ts",
+      "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",

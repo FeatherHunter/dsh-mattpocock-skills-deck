@@ -93,10 +93,12 @@ declare function setPresentationMap(modules: unknown): void;
 // #1612：下面四个函数由内核片 kernel/deck-state.ts 提供，构建时和本叶子拼进同一个闭包，所以这里只声明、不 import。
 //   deckStatusBarOf / deckToolsOf 读这个工作区设置归一后的当前值（'show'|'hide'、'on'|'off'）；
 //   setDeckStatusBar / setDeckTools 写一个新值并广播，设置文件与胶囊状态由它们统一维护。
+//   #1641：第三个参数 listed 表示这一行来自工作区名单（不是拿当前目录凑出来的兜底行）——名单上的工作区
+//   可能还没打开过、认不出根，写口按列表里的路径先存一条临时记录。
 declare function deckStatusBarOf(cwd: string): string;
 declare function deckToolsOf(cwd: string): string;
-declare function setDeckStatusBar(cwd: string, show: boolean): unknown;
-declare function setDeckTools(cwd: string, on: boolean): unknown;
+declare function setDeckStatusBar(cwd: string, show: boolean, listed?: boolean): unknown;
+declare function setDeckTools(cwd: string, on: boolean, listed?: boolean): unknown;
 
 /**
  * 最短唯一后缀：每条路径从末段往左数到可区分的最少段数（全撞车就取全长）。
@@ -298,6 +300,9 @@ export const renderWsOverview = function (h: any, sharedSt: any, wsOverview: any
           const selMap: WsSelections=wsOverview.selections||{}
           const wsPaths: string[]=wsOverview.workspaces.map(function(w: any){ return w.path||w.cwd||w.dir||w.workspacePath||'' }).filter(Boolean)
           const seen: Record<string, number>={}, all: string[]=[]; wsPaths.forEach(function(c){ const k=String(c); if(!seen[k]){ seen[k]=1; all.push(k) } }); if(!all.length&&sharedSt.cwd) all.push(sharedSt.cwd)
+          // #1641：这一行是不是来自工作区名单。名单行的路径是工作区服务给的，写开关时认不出根也可以按它先存一条
+          //   临时记录；最后那个「拿当前目录凑一行」的兜底路径不在 seen 里，不算名单行，别按它写。
+          const listedOf = function (c: string): boolean { try { return !!seen[String(c)] } catch (e) { return false } }
           if(!all.length) return h('div',{style:{fontSize:11,color:'#8b8b95',padding:'6px 0'}},tr('cfg.wsEmpty'))
           // #653 归属标注所需的两个表：哪些行本身是工作区根、哪些行的根是谁（根用规整键比对，显示用原样路径）
           const normOf = function (p: unknown): string { try { return (typeof keyOf === 'function') ? keyOf(p) : String(p || '').toLowerCase() } catch (e) { return String(p || '') } }
@@ -315,9 +320,10 @@ export const renderWsOverview = function (h: any, sharedSt: any, wsOverview: any
           const boundCnt=view.boundCount
           // #1612：每行末尾两个受控开关（胶囊状态栏、deck 工具箱）。开关只负责写新值，怎么归一由 deck-state 统一读；
           //   点完把 foldVer 加一让这一组重画——行 key 带 foldVer，开关颜色立刻跟上。后端绑定列仍在左边，保持只读。
-          const wsSwitchOf = function(cwd: string, on: boolean, label: string, tip: string, log: string, write: (cwd: string, next: boolean) => unknown): unknown {
+          //   #1641：最后一个参数把「这一行在不在工作区名单上」如实传给写口；名单上的行认不出根也能先存住。
+          const wsSwitchOf = function(cwd: string, on: boolean, label: string, tip: string, log: string, write: (cwd: string, next: boolean, listed?: boolean) => unknown, listed: boolean): unknown {
             const tint = on ? '#4ade80' : '#8b8b95'
-            return h(Tip, { content: tip }, h('button', { className:'dsws-hov', 'data-press':'button', 'data-log':log, style:{ padding:'0 5px', fontSize:10, color:tint, border:'1px solid '+tint, borderRadius:4, background:'transparent', cursor:'pointer', whiteSpace:'nowrap', flex:'none' }, onClick:function(e: any){ e.preventDefault(); e.stopPropagation(); try{ write(cwd, !on) }catch(err){} setFoldVer(foldVer+1) } }, label))
+            return h(Tip, { content: tip }, h('button', { className:'dsws-hov', 'data-press':'button', 'data-log':log, style:{ padding:'0 5px', fontSize:10, color:tint, border:'1px solid '+tint, borderRadius:4, background:'transparent', cursor:'pointer', whiteSpace:'nowrap', flex:'none' }, onClick:function(e: any){ e.preventDefault(); e.stopPropagation(); try{ write(cwd, !on, listed) }catch(err){} setFoldVer(foldVer+1) } }, label))
           }
           return h('details',{ open:false, style:{ marginTop:6, border:'1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius:8, background:'rgba(255,255,255,.02)'}},[
             h('summary',{ className:'dsws-hov', 'data-press':'row', 'data-log':'settings.workspaces.toggle', style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', cursor:'pointer', listStyle:'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontSize:11, fontWeight:600, borderRadius:4 }},[ h('span',{style:{whiteSpace:'nowrap'}},tr('cfg.wsTotal', { n: view.total })), h('span',{style:{ color:boundCnt?'#4ade80':'#8b8b95', whiteSpace:'nowrap'}},tr('cfg.wsBound', { n: boundCnt })), h(Tip, { content: tr('tip.refreshWs') }, h('button',{ className:'dsws-hov', 'data-press':'button', 'data-log':'settings.workspaces.refresh', style:{ marginLeft:'auto', padding:'2px 8px', fontSize:10, color:'#58a6ff', border:'1px solid #58a6ff', borderRadius:4, background:'transparent', cursor:'pointer', whiteSpace:'nowrap', flex:'none' }, onClick:function(e: any){ e.preventDefault(); e.stopPropagation(); if(loadRef.current){ loadRef.current().then(function(){ try{ flash(sharedSt,tr('cfg.wsRefreshed'),'ok') }catch(e){} }).catch(function(){ try{ flash(sharedSt,tr('cfg.wsRefreshFail'),'warn') }catch(e){} }) } } }, tr('cfg.wsRefresh'))), h('span',{style:{ fontSize:10, color:'#58a6ff', whiteSpace:'nowrap'}},tr('cfg.wsToggleHint'))]),
@@ -346,8 +352,8 @@ export const renderWsOverview = function (h: any, sharedSt: any, wsOverview: any
                   h(HoverTip, { content: hoverText, mode: 'mouse', maxWidth: 220 }, h('div',{ style:{ flex:'1 1 0', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, fontWeight:500 } }, mergedNote ? (display + ' ' + mergedNote) : display)),
                   h('span',{ style:{ display:'inline-flex', alignItems:'center', gap:4, flex:'none', whiteSpace:'nowrap', fontSize:11, minWidth:72, justifyContent:'flex-end' }},[ h('span',{style:{width:7,height:7,borderRadius:'50%',background:color,flex:'none'}}), h('span',{style:{fontWeight:600,whiteSpace:'nowrap', minWidth:36, textAlign:'center'}},label) ]),
                   h(HoverTip, { content: srcTitle, mode: 'mouse', maxWidth: 220 }, h('span',{ style:{ fontSize:10, color:srcColor, border:'1px solid '+srcColor, borderRadius:4, padding:'0 4px', flex:'none', whiteSpace:'nowrap', minWidth:44, textAlign:'center', display:'inline-block'}}, srcLabel)),
-                  wsSwitchOf(cwd, sbOn, tr('cfg.wsStatusBar'), tr('cfg.wsStatusBarTip'), 'settings.workspaces.statusbar', setDeckStatusBar),
-                  wsSwitchOf(cwd, toolsOn, tr('cfg.wsDeckTools'), tr('cfg.wsDeckToolsTip'), 'settings.workspaces.decktools', setDeckTools),
+                  wsSwitchOf(cwd, sbOn, tr('cfg.wsStatusBar'), tr('cfg.wsStatusBarTip'), 'settings.workspaces.statusbar', setDeckStatusBar, listedOf(cwd)),
+                  wsSwitchOf(cwd, toolsOn, tr('cfg.wsDeckTools'), tr('cfg.wsDeckToolsTip'), 'settings.workspaces.decktools', setDeckTools, listedOf(cwd)),
                 ])
               }))
             ])

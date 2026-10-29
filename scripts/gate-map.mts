@@ -135,6 +135,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-29 #1612：设置文件两个按工作区开关（胶囊状态栏 / deck 工具箱）的 schema 与落盘；
   // 旧字段迁移删掉之后按新语义改写采样格，53 条是单跑实测得出的。
   'verify-1612-settings-switches': 53,
+  // 2026-10-29 #1641：设置页名单上还没打开过的工作区点开关也能存住（临时记录带 unopened 标记，
+  // 认得出根的行行为不变，deck-state 与设置页渲染都把 listed 一路传到写口）；42 条是单跑实测得出的。
+  'verify-1641-listed-workspace-flags': 42,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。
