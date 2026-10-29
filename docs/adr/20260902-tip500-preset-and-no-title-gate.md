@@ -2,7 +2,8 @@
 
 > 状态：✅ 已定版（承 #402 地图 · #373 复用体系 G1/G2）  
 > 生效：2026-09-02  
-> 关联：#402 地图 · #403 T1 本票 · #404 T2 壳层迁移 · #405 T3 内容区迁移  
+> 关联：#402 地图 · #403 T1 本票 · #404 T2 壳层迁移 · #405 T3 内容区迁移
+> 取代声明（2026-10-29，规格 #1651，第二张实施票 #1653 定版 docs/adr/20261029-tip-anchor-above.md）：下面 §2 预设接口表、底座链路与 §4 粒度中与「锚定上方、无定位参数、默认 320、显示 400」冲突的段落不再执行，行内另有注；本文件的存档意义不变。  
 
 ## 背景
 
@@ -29,6 +30,8 @@
 | `children` / 触发元素 | `props.children` | 被包裹的触发节点；若 `content` 与 `children` 同时为元素，按 HoverTip 约定 `content` 优先、`children` 为触发 | 必传 |
 | 透传 | `targetRef/visible/onVisibleChange/onShow/onHide/caret/offset` | 透传至 HoverTip，不丢失受控/锚点等能力 | 透传 |
 
+> 注（#1653，已取代上表四处）：`mode` 一行删除，提示一律锚定在触发控件上方；`delay` 显示改为 400（真源在 config/intervals.yaml，预设只引用）；`maxWidth` 默认改为 320；`flip` 一行删除，由方位纯函数让位；透传不再含 `caret/offset`，只透传内容、触发节点、受控与外观。
+
 调用示例：
 
 ```js
@@ -44,6 +47,8 @@ h(Tip, { content: tr('x'), delay:{show:300, hide:160} }, trigger)
 
 底座链路：`Tip -> HoverTip({mode,delay,maxWidth,flip,zIndex,...}) -> portalTop -> document.body`，单例互斥、翻转阈值 `estW = maxWidth+16+2 (=238)`、滚动/ResizeObserver 重算均由 HoverTip 统一承载。
 
+> 注（#1653，已取代）：链路改为 `Tip -> HoverTip(merged) -> computeTipPlace -> portalTop`；字数估宽 estW 整段删除，改为先量后算；翻转由纯函数五步让位取代。
+
 ### 3. 构建清单
 
 - `scripts/build.mjs` 的 `LEAF_MODULES` 新增一行：`{ id: 'tip', file: 'src/client/views/primitives/Tip.js' }`（紧随 hoverTip，保序）。
@@ -56,10 +61,10 @@ h(Tip, { content: tr('x'), delay:{show:300, hide:160} }, trigger)
 - **阈值**：`0 通过 / 1 通过（未达 2 标记） / 2 WARN 标记（// TODO no-title） / ≥3 ERROR 即抽 / ≥5 ERROR 必卡（合并门禁）`，与 `verify-reuse` 同口径（2 标记 3 即抽 5 必卡）。
 - **白名单**：仅测试文件（`tests/` 不在扫描范围，天然豁免）与 `aria-label`（含 `aria-label` 行天然不命中 `title:` 正则，显式豁免）；数据字段 `title` 若与提示同名需后续以豁免清单或重命名收敛，门禁按文本计，T3 清零后以 0 为绿。
 - **接入**：T1 阶段门禁可独立 `node tests/verify-no-title.js` 检出残留（当前 79 处必卡，驱动 T2/T3）；**暂不并列接入** `npm run verify` 全链（避免 T1 落地即红），于 T3 全量 44 处清零后并列接入并要求 `npm run verify` 全绿（与 `verify-reuse` 同列）。T2 要求壳层 0 残留单测通过，T3 要求全量清零。
-- **粒度与依赖**：门禁同时校验 `Tip.js ≤50 行`、消费 `HoverTip`、含 500/160/220/2147483000/mouse 预设、零横向 import（`^\\s*import\\s`）。
+- **粒度与依赖**：门禁同时校验 `Tip.js ≤50 行`、消费 `HoverTip`、含 500/160/220/2147483000/mouse 预设（注：#1653 已改为例外见新门禁 tests/verify-hovertip.ts：默认 320、显示 400、隐藏 160、无 mouse；`≤50 行`的数字不再执行，预设仍保持单文件薄封装）、零横向 import（`^\\s*import\\s`）。
 
 ## 后果
 
 - T2/T3 调用方一行即可完成包裹：去掉 `title:` 属性，外层包 `h(Tip, {content: ...}, trigger)`，a11y 视情况补 `aria-label`；Seg 的 `title` 透传参数去除，由调用方包 Tip。
-- 复用闸口生效：后续新增提示不再手写 `title`，统一走 Tip，门禁按 2/3/5 阈值卡住重复；存量 HoverTip(0/160) 在 SkillFloatList/SettingsPage 的锚点/鼠标手感不受影响。
+- 复用闸口生效：后续新增提示不再手写 `title`，统一走 Tip，门禁按 2/3/5 阈值卡住重复；存量 HoverTip(0/160) 在 SkillFloatList/SettingsPage 的锚点/鼠标手感不受影响。（注：#1653 起 mouse 一档已删除，SettingsPage 的两处 mouse 改为锚定上方；显示延时改为 400。）
 - 构建与门禁白名单已同步：`verify-reuse` 的 `ALLOWLIST` 新增 `Tip.js`，Q2 复用重复 0 处通过。
