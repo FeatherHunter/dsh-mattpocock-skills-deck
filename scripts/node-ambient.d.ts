@@ -56,6 +56,8 @@ declare const process: {
   on(event: string, listener: (...args: any[]) => void): void
   /** 向进程发信号：signal 0 不杀进程，只问「这个 pid 还在不在」（构建锁拿它判断持锁进程死没死）。 */
   kill(pid: number, signal?: number | string): boolean
+  /** 切换当前工作目录（脚本入口用它把目录固定成仓库根，产物才不随调用方所在目录漂，见 #1644）。 */
+  chdir(dir: string): void
   /** 平台标识（'win32' / 'darwin' / 'linux'）：真机验证工具台按它选 npm/dsh 的可执行文件名。 */
   platform: string
   /** 进程结束时的退出码：命令失败时置 1，交给 shell 判断。 */
