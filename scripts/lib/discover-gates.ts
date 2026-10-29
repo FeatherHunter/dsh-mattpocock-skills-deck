@@ -5,13 +5,16 @@
 // （#1106 的收尾就卡在这里）。本文件只回答「有哪些门禁」：扫 `tests/` 下符合约定的文件，
 // 减去排除表里写明理由的那几项。顺序与执行仍由阶段表决定，不管发现。
 //
+// 另外回答「冒烟按什么顺序跑哪几条」（#1643）：冒烟清单的唯一来源是 package.json 的
+// scripts.smoke，读法与切法也收在这一处，两个执行器（verify-chain、verify-parallel）与归属表生成器共用，不许各抄一份。
+//
 // 约定：文件名以 `verify-` 开头、后缀是可跑的脚本（.js/.mjs/.cjs/.ts/.mts/.cts），
 // 且不是本文件头里排除表点名的那几类。注意 `.html` 与 `.json` 不可跑，从不进链。
 //
 // 用法：
 //   node --import ./scripts/ts-hook.mjs scripts/lib/discover-gates.ts --list
 // 三个执行器（verify-chain / verify-parallel / verify-all）与看守门禁都调 planGates() 拿名单，
-// 不再读 package.json 长串。
+// 不再读 package.json 长串；冒烟清单（今天五条）走 readSmokeCommands()，两个执行器与归属表共用同一份。
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -160,3 +163,109 @@ export function nearMissGateFiles(root: string): string[] {
 //   scripts/verify-stages.json  四段的顺序与认领前缀，加显式排除表；
 //   本文件的这几个函数      把“磁盘上有哪些”变成“按什么顺序跑”。
 // package.json 里那条长串不再是名单的来源，三个执行器都不读它。
+
+// ---------------------------------------------------------------------------
+// 冒烟清单（package.json 的 scripts.smoke）：读法与切法也收在这一处（#1643）。
+// ---------------------------------------------------------------------------
+//
+// 为什么冒烟不像主链那样扫目录：冒烟不是「tests/ 下有哪些门禁」，而是人挑出来、按固定顺序跑的五条
+// （其中 tests/smoke-naming-persistence.test.ts 会临时切换工作目录，顺序一乱后面的步骤就跟着错）。
+// 所以清单只有一处来源 —— package.json 的 scripts.smoke 那一格；读法收在本文件：
+// 两个执行器（verify-chain 的 --script smoke、verify-parallel 的冒烟阶段）都从这里读，
+// gate-map 生成器读同一份清单出归属表 —— 它是生成器，不算执行器。
+// 切法与「这一步跑的是哪个测试文件」也共用本文件，不许各抄一份。
+// 读不到清单时返回空数组：算不算红由调用方判（两个执行器都当红，不许静默跳过）。
+
+/**
+ * 把一段命令行按「引号外的分隔符」切开；扫描逻辑只写这一份，冒烟链与参数切分共用（#1643）。
+ * separatorAt(text, i) 返回位置 i 处那个分隔符的长度（0 表示这里不是分隔符）：
+ * 冒烟链传 `&&`（2 个字符），参数切分传空白（1 个字符）。
+ * 引号里的字符原样保留在词里，由调用方决定要不要剥掉（参数切分要剥，链切分不剥）。
+ */
+function splitOutsideQuotes(text: string, separatorAt: (t: string, i: number) => number): string[] {
+  const out: string[] = []
+  let cur = ''
+  let quote: string | null = null
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (quote) {
+      cur += ch
+      if (ch === quote) quote = null
+      continue
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch
+      cur += ch
+      continue
+    }
+    const sep: number = separatorAt(text, i)
+    if (sep) {
+      if (cur) out.push(cur)
+      cur = ''
+      i += sep - 1
+      continue
+    }
+    cur += ch
+  }
+  if (cur) out.push(cur)
+  return out
+}
+
+/** 把词里成对的引号剥掉（`"a b"` 变成 `a b`）。今天链上没有引号，这层是防御。 */
+function stripQuotes(word: string): string {
+  let out = ''
+  let quote: string | null = null
+  for (const ch of word) {
+    if (quote) {
+      if (ch === quote) quote = null
+      else out += ch
+      continue
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch
+      continue
+    }
+    out += ch
+  }
+  return out
+}
+
+/**
+ * 把一条 && 串切成一条条命令，照顾引号里的 &&（链里今天没有引号，分支是防御）。
+ * 切法必须与并行执行器、归属表生成器完全一致，否则同一份 package.json 在三处会切出三种结果。
+ */
+export function splitCommandChain(text: string): string[] {
+  return splitOutsideQuotes(text, (t: string, i: number) => (t[i] === '&' && t[i + 1] === '&' ? 2 : 0))
+    .map((x: string) => x.trim())
+    .filter(Boolean)
+}
+
+/** 把一条命令按空白切成参数，照顾引号。今天链上没有引号，这一步等价于按空白切。 */
+export function splitCommandArgs(cmd: string): string[] {
+  return splitOutsideQuotes(cmd, (t: string, i: number) => (/\s/.test(t[i]) ? 1 : 0)).map(stripQuotes).filter(Boolean)
+}
+
+/**
+ * 一条命令跑的是哪个测试文件（仓库相对路径、斜杠统一）。归属表里的 file 就是这个写法。
+ * 主链一步长这样：`node tests/verify-x.js`，第二个参数就是它；
+ * 冒烟链多一层装载钩子：`node --import ./scripts/ts-hook.mts tests/smoke-x.test.ts`，
+ * 所以取「第一个落在 tests/ 下的参数」，找不到再退回第二个 —— 两种写法都能认出文件。
+ * 不是 node 命令时返回空串：这类条目不该进链，交给调用方判红。
+ */
+export function commandTestFile(cmd: string): string {
+  const parts = splitCommandArgs(cmd)
+  if (parts[0] !== 'node') return ''
+  const norm = (p: string): string => String(p || '').replace(/\\/g, '/').replace(/^\.\//, '')
+  const testArg: string | undefined = parts.slice(1).find((p: string) => norm(p).startsWith('tests/'))
+  const chosen: string = testArg || parts[1] || ''
+  return chosen ? norm(chosen) : ''
+}
+
+/** 读 package.json 的 scripts.smoke 并按 && 切开；缺这一格时返回空数组，由调用方判红。 */
+export function readSmokeCommands(root: string): string[] {
+  const raw = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
+    scripts?: Record<string, unknown>
+  }
+  const smoke = raw && raw.scripts && typeof raw.scripts.smoke === 'string' ? raw.scripts.smoke : ''
+  return smoke ? splitCommandChain(smoke) : []
+}

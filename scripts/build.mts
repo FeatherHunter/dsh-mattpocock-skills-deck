@@ -77,6 +77,17 @@ const HAND_WRITTEN_IN_DOMAINS: Record<string, string[]> = {
 
 const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
+// #1644 构建一进来就把当前目录固定成仓库根：产物与「谁在哪个目录调用构建」无关。
+// 为什么必须固定：发布时 npm 会在 package/ 目录里重跑构建（package/package.json 的 prepublishOnly
+// 写的是 `node ../scripts/build.mts --pkg-only`），而 esbuild 给打包进来的模块打注释时，写的是
+// 它干活时的当前目录。不固定的话，从仓库根构建的产物写 `// node_modules/...`，发布时从 package/
+// 目录重跑出来的写 `// ../node_modules/...`：34 处各多 3 个字符，客户端产物多 102 字节，
+// 发布出去的包就不再是真机验证过的那个候选包（#1644 的实测就是这三个数）。
+// 为什么固定在这里、而不是逐个调用点传工作目录：构建里起子进程、调第三方工具的地方很多，
+// 漏掉一处产物就还会漂；在入口固定一次，整段构建连同它起的子进程都按同一个当前目录走。
+// 守这件事的门禁是 tests/verify-build-cwd-products.ts：从两个入口各构建一次，逐文件比 sha256。
+process.chdir(ROOT)
+
 // ---------- 构建缓存：输入与产物都没变就跳过这 30 秒 ----------
 //
 // 缓存的事实（输入范围、产物清单、内容摘要算法、缓存读取、以及唯一一份「产物新不新鲜」判据）

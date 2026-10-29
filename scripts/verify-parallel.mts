@@ -16,6 +16,10 @@
 //   node scripts/verify-parallel.mts --tasks         # 只打印排程（车厢与预计耗时），不跑
 //   node scripts/verify-parallel.mts --json out.json # 额外写一份机器可读的结果
 //
+// #1643 起它是唯一的本地裁决入口：主链跑完后还会按 package.json 的 scripts.smoke 顺序串行跑五条冒烟，
+// 冒烟红也算整体红，汇总里分得清「主链红几步、冒烟红几步」。--only / --changed 抽查与主链首红即停时
+// 不跑冒烟，并在汇总里明说「冒烟阶段：没跑（原因）」——「没跑」永远是明说的，不许静默跳过。
+//
 // 退出码：全部通过 0；有失败 1。名单走规划函数（目录约定加显式排除表，#1125），
 // 与串行执行器、逐道汇总读的是同一份，本脚本不另抄一份。
 import fs from 'node:fs'
@@ -26,7 +30,7 @@ import { pathToFileURL } from 'node:url'
 // 完成证据（#1158）：判定一扇门禁过没过，光看退出码会被「跑到一半就收摊」骗过去。
 // 判据的写法、解析与那句人话理由都在 tests/lib/gate-result.ts 一处，这里只负责调用它。
 import { judgeStepCompletion, loadCompletionExpectations } from '../tests/lib/gate-result.ts'
-import { planGates } from './lib/discover-gates.ts'
+import { planGates, readSmokeCommands, splitCommandArgs, commandTestFile } from './lib/discover-gates.ts'
 
 // 本文件在链上搬运的三样东西：规划出来的门禁步骤、互斥排成的车厢、单步跑完的结果。
 // 预构建那一步（scripts/build.mts）不是链上条目，只有 file/label/optional，所以步骤里的
@@ -42,6 +46,8 @@ interface TaskStep {
   stage?: string
   label?: string
   optional?: boolean
+  // 冒烟步骤带着 package.json 里那条命令的完整参数（装载钩子已经写在里面）；没给时按「tests/ 下的文件挂钩子」算。
+  argv?: string[]
 }
 interface StepResult {
   cmd?: string
@@ -175,14 +181,16 @@ async function selectChanged(): Promise<string[] | null> {
 // 没有同名 .ts 时钩子什么都不做，所以没迁移的步骤行为与今天完全一样。
 // 判定只有一条：要跑的是 tests/ 下的文件才挂。同一个判定分散在三处，改一处必须全改：
 //   1. scripts/verify-chain.ts 的 argvOf（本地 npm test 的串行执行器；#1178 起 npm run test:smoke
-//      也走它 —— 冒烟清单那六条各自显式写了 --import，走的仍是这同一处判定）
-//   2. 本文件的 argvOf（并行执行器）
-//   3. scripts/verify-all.mts 的 withTsHook（CI 的 .github/workflows/verify.yml 跑的就是它）
+//      也走它 —— 冒烟清单那五条各自显式写了 --import，走的仍是这同一处判定）
+//   2. 本文件的 argvOf（并行执行器；#1643 起它也跑冒烟，冒烟步骤的 argv 从 scripts.smoke 原文切出来）
+//   3. scripts/verify-all.mts 的 withTsHook（逐道跑完再汇总的串行入口）
 // 漏掉哪一个，那个入口里的 .ts 迁移就会跟别处表现不一样（本地绿、CI 红就是这么来的）。
 // 预构建那一步（scripts/build.mts）因此不挂：它不加载测试，挂上去只是多一次没用的加载。
 // 这一层只改「怎么起进程」，不动 package.json 里那条链的文字。
 const TS_HOOK: string = pathToFileURL(path.join(ROOT, 'scripts', 'ts-hook.mts')).href
-function argvOf(step: { file: string }): string[] {
+function argvOf(step: { file: string; argv?: string[] }): string[] {
+  // 冒烟步骤的 argv 是从 package.json 原文切出来的，装载钩子已经写在里面，不许再加一层。
+  if (step.argv) return step.argv
   return step.file.startsWith('tests/') ? ['--import', TS_HOOK, step.file] : [step.file]
 }
 
@@ -239,21 +247,71 @@ const tier: string = optOf('--tier', 'full')
 let steps: GateStep[] = steps0
 if (only.length) steps = steps.filter((s) => only.some((o) => s.file.includes(o)))
 if (tier === 'fast' || tier === 'default') steps = steps.filter((s) => !isBrowserStep(s))
+let changedNarrowed = false
 if (has('--changed')) {
   const picked = await selectChanged()
   if (picked) {
+    changedNarrowed = true
     const set = new Set(picked)
     steps = steps.filter((s) => set.has(s.file))
   }
 }
 
+// ---------------------------------------------------------------------------
+// 冒烟阶段（#1643）：主链跑完后，按 package.json 的 scripts.smoke 顺序串行再跑五条冒烟。
+// ---------------------------------------------------------------------------
+// 为什么并进这里：发布前唯一的裁决入口就是本脚本。冒烟从前落在全链之外，真机验证时就出现过
+// 「npm run verify:parallel 全绿、npm test 里的冒烟红」——两条链各跑各的，发布门禁空转一场才失败。
+// 为什么不并进上面的车厢：冒烟只有五条、而且顺序不能乱（tests/smoke-naming-persistence.test.ts
+// 会临时切换工作目录，顺序一乱后面的步骤跟着错），串行最稳；它们也没有可参考的实测耗时。
+// 什么时候不跑：抽查（--only / --changed）与主链首红即停时跑冒烟没有意义，会明说「没跑（原因）」。
+// 读不出清单（package.json 没有 scripts.smoke）时不静默跳过：按红处理，免得「全绿」把冒烟漏掉。
+interface SmokeStep {
+  cmd: string
+  file: string
+  argv: string[]
+}
+function smokePlan(): { steps: SmokeStep[]; error: string } {
+  const commands: string[] = readSmokeCommands(ROOT)
+  if (!commands.length) {
+    return { steps: [], error: 'package.json 里没有 scripts.smoke（冒烟清单缺了，不能静默跳过）' }
+  }
+  const planned: SmokeStep[] = []
+  for (const cmd of commands) {
+    const parts: string[] = splitCommandArgs(cmd)
+    const file: string = commandTestFile(cmd)
+    if (parts[0] !== 'node' || !file || parts.length < 2) {
+      return { steps: [], error: '冒烟清单里这条读不出「node <测试文件>」的形状：' + cmd.slice(0, 120) }
+    }
+    planned.push({ cmd, file, argv: parts.slice(1) })
+  }
+  return { steps: planned, error: '' }
+}
+const smokePlanned = smokePlan()
+
 if (has('--list')) {
   console.log('将要跑 ' + steps.length + ' 步（全链 ' + steps0.length + ' 步）：')
   for (const s of steps) console.log('  ' + s.file)
+  if (smokePlanned.error) console.log('冒烟阶段读不出来：' + smokePlanned.error)
+  else {
+    console.log('冒烟阶段（主链跑完后按 scripts.smoke 的顺序串行跑 ' + smokePlanned.steps.length + ' 步）：')
+    for (const s of smokePlanned.steps) console.log('  ' + s.file)
+    const listSkip: string = narrowSkipReason()
+    // 名单照样印出来（它们是 scripts.smoke 的内容），但抽查档位下真跑时会跳过，必须提前说明，
+    // 免得看名单的人以为这一段会跑——「跑没跑」永远是明说的（#1643 的透明口径）。
+    if (listSkip) console.log('  （注意：' + listSkip + '，真跑时这一段不会跑，汇总里会明写「冒烟阶段：没跑（原因）」。）')
+  }
   process.exit(0)
 }
 if (!steps.length) {
+  // 「没跑」必须明说（#1643 收口的规矩）：主链被筛空了，冒烟阶段跟着不跑，这里也把理由写出来。
+  const why: string = only.length
+    ? '本次用了 --only 抽查，只跑选中的主链步骤'
+    : changedNarrowed
+      ? '本次用了 --changed，只跑本次改动影响到的主链步骤'
+      : '没有可跑的主链步骤'
   console.log('[并行门禁] 没有匹配的步骤')
+  console.log('[并行门禁] 冒烟阶段：没跑（' + why + '）')
   process.exit(0)
 }
 
@@ -338,6 +396,14 @@ if (has('--tasks')) {
       if (t.groups.length) for (const s of t.steps) console.log('           · ' + s.file)
     }
   }
+  if (smokePlanned.error) console.log('  冒烟阶段读不出来：' + smokePlanned.error)
+  else {
+    console.log('  冒烟阶段：不进车厢，主链跑完后按 scripts.smoke 的顺序串行跑（顺序不能乱，其中一条会切换工作目录）：')
+    // 冒烟没有可信的实测耗时（它们不进车厢、不参与排程），这里不拿主链的中位数冒充。
+    for (const s of smokePlanned.steps) console.log('    （未实测）' + s.file)
+    const listSkip: string = narrowSkipReason()
+    if (listSkip) console.log('    （注意：' + listSkip + '，真跑时这一段不会跑，汇总里会明写「冒烟阶段：没跑（原因）」。）')
+  }
   process.exit(0)
 }
 console.log(
@@ -358,6 +424,8 @@ console.log(
     ' 节）'
 )
 console.log('[并行门禁] 完成证据判据：链上 ' + evidenceSteps.length + ' 步带期望（tests/gate-map.json 里 completionRecord 为 true 的那几扇）')
+const smokeEvidenceSteps = smokePlanned.steps.filter((s) => expectations.byFile.has(s.file))
+console.log('[并行门禁] 完成证据判据：冒烟阶段 ' + smokeEvidenceSteps.length + '/' + smokePlanned.steps.length + ' 步带期望（同样查 tests/gate-map.json）')
 
 // 记录这次跑的是哪一棵树：产物要用它自证「检查跑在我说的那个提交上」。
 function headShaOf(): string {
@@ -479,20 +547,65 @@ if (failed.length && !has('--no-retry-failed')) {
   failed = results.filter((r) => r.code !== 0 && !r.optional)
 }
 
+// 冒烟阶段（#1643）：主链与复跑都完事之后再跑，读的是构建产物、不受并发干扰。
+// 跳过时把理由打出来 —— 「没跑」必须是明说的，不能让人从输出里猜。
+function narrowSkipReason(): string {
+  if (only.length) return '本次用了 --only 抽查，只跑选中的主链步骤'
+  if (changedNarrowed) return '本次用了 --changed，只跑本次改动影响到的主链步骤'
+  return ''
+}
+function smokeSkipReason(): string {
+  const narrowed: string = narrowSkipReason()
+  if (narrowed) return narrowed
+  if (stopAll) return '主链因环境缺件硬停了，冒烟结果同样不作数'
+  if (stop) return '主链首红即停（没加 --keep-going），后面的阶段不再跑'
+  return ''
+}
+const smokeSkip: string = smokeSkipReason()
+let smokeRan: boolean = false
+let smokeProblem: string = ''
+const smokeResults: StepResult[] = []
+if (smokeSkip) {
+  console.log('')
+  console.log('[并行门禁] 冒烟阶段：没跑（' + smokeSkip + '）')
+} else if (smokePlanned.error) {
+  console.log('')
+  console.log('[并行门禁] 冒烟阶段：跑不了 —— ' + smokePlanned.error)
+  smokeProblem = smokePlanned.error
+} else {
+  smokeRan = true
+  const smokeStarted: number = Date.now()
+  console.log('')
+  console.log('[并行门禁] —— 冒烟阶段（' + smokePlanned.steps.length + ' 步，按 scripts.smoke 的顺序串行） ——')
+  for (const s of smokePlanned.steps) {
+    const r: StepResult = await runStepJudged({ cmd: s.cmd, file: s.file, label: s.file, stage: 'smoke', argv: s.argv })
+    smokeResults.push(r)
+    console.log('  ' + (r.code === 0 ? 'PASS' : 'FAIL') + ' ' + String(r.ms).padStart(6) + ' ms  ' + s.file)
+    if (r.evidence) console.log('        完成证据对不上：' + r.evidence)
+    if (r.code !== 0 && !has('--keep-going')) break
+  }
+  const smokeFailedCount: number = smokeResults.filter((r) => r.code !== 0).length
+  console.log('[并行门禁] 冒烟阶段：跑 ' + smokeResults.length + '/' + smokePlanned.steps.length + ' 步，真红 ' + smokeFailedCount + ' 步，用时 ' + ((Date.now() - smokeStarted) / 1000).toFixed(1) + ' 秒')
+}
+const smokeFailed: StepResult[] = smokeResults.filter((r) => r.code !== 0)
+const smokeRedTotal: number = smokeFailed.length + (smokeProblem ? 1 : 0)
+
 const slow = [...results].sort((a, b) => b.ms - a.ms).slice(0, 10)
 console.log('')
 // 预构建不是链上的步骤，算总数时把它摘出去（它自己的耗时照旧打在明细里）。
 const chainRan: number = results.filter((r) => steps.some((s) => s.file === r.file)).length
 console.log('[并行门禁] 跑完 ' + chainRan + '/' + steps.length + ' 步，墙钟 ' + (wall / 1000).toFixed(1) + ' 秒；真红 ' + failed.length + ' 步')
+console.log('[并行门禁] 判定：主链真红 ' + failed.length + ' 步，冒烟真红 ' + smokeRedTotal + ' 步' + (smokeSkip ? '（冒烟阶段没跑：' + smokeSkip + '）' : ''))
 const flaky = results.filter((r) => r.flaky)
 if (flaky.length) console.log('  并发假红（复跑已绿）' + flaky.length + ' 步：' + flaky.map((f) => f.file.replace('tests/', '')).join('、'))
 if (slow.length) {
   console.log('  最慢的几步：')
   for (const r of slow) console.log('    ' + String(r.ms).padStart(6) + ' ms  ' + (r.code === 0 ? 'PASS' : 'FAIL') + '  ' + r.file)
 }
-for (const f of failed) {
+// 主链与冒烟的失败明细长得一样，只差标题里那几个字：打印逻辑只写一处，免得改一处漏一处。
+function printFailureDetail(f: StepResult, title: string): void {
   console.log('')
-  console.log('=== FAIL ' + f.file + '（退出码 ' + (f.exitCode != null ? f.exitCode : f.code) + '）===')
+  console.log('=== ' + title + ' ' + f.file + '（退出码 ' + (f.exitCode != null ? f.exitCode : f.code) + '）===')
   if (f.evidence) console.log('  完成证据对不上：' + f.evidence)
   const text: string = (f.out + (f.err ? '\n[stderr]\n' + f.err : '')).trimEnd()
   const lines: string[] = text.split(/\r?\n/)
@@ -500,6 +613,8 @@ for (const f of failed) {
   if (lines.length > 40) console.log('  …（前 ' + (lines.length - 40) + ' 行省略）')
   for (const l of tail) console.log('  ' + l)
 }
+for (const f of failed) printFailureDetail(f, 'FAIL')
+for (const f of smokeFailed) printFailureDetail(f, '冒烟 FAIL')
 
 if (has('--json')) {
   const outPath: string = optOf('--json', '')
@@ -523,9 +638,20 @@ if (has('--json')) {
             tier,
             stepsRan: chainRan,
             stepsTotal: steps.length,
-            red: failed.length,
+            // red 是整趟的总红数（主链 + 冒烟）；chainRed 单独给出，好让发布脚本分辨是哪一段红了。
+            red: failed.length + smokeRedTotal,
+            chainRed: failed.length,
             flaky: flaky.length,
             results: results.map((r) => ({ file: r.file, code: r.code, ms: r.ms, at: r.at, exitCode: r.exitCode != null ? r.exitCode : r.code, evidence: r.evidence || '' })),
+            smoke: {
+              ran: smokeRan,
+              reason: smokeSkip,
+              problem: smokeProblem,
+              stepsTotal: smokePlanned.steps.length,
+              stepsRan: smokeResults.length,
+              red: smokeRedTotal,
+              results: smokeResults.map((r) => ({ file: r.file, code: r.code, ms: r.ms, at: r.at, exitCode: r.exitCode != null ? r.exitCode : r.code, evidence: r.evidence || '' })),
+            },
           },
           null,
           2
@@ -538,4 +664,4 @@ if (has('--json')) {
     }
   }
 }
-process.exit(failed.length ? 1 : 0)
+process.exit(failed.length + smokeRedTotal ? 1 : 0)

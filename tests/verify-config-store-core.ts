@@ -50,6 +50,7 @@ async function main() {
       version: 1,
       ui: { stateFilter: 'open', sortKey: 'updatedAt', sortDir: 'desc', labelClicks: { bug: 3 } },
       // #1612：工作区每条记录现在是四格——statusBar/deckTools 两个文字开关加两个旧布尔开关；旧 bannerFolded 只留一步读兼容。
+      // #1641：还没打开过的工作区可以多一个临时标记 unopened（见下面标记往返那几条）。
       workspaces: { 'D:\\ws\\demo': { statusBar: 'show', deckTools: 'off', noRepoDismissed: false, subwsMarkAutoShown: true } },
       debug: { enabled: false, sampleRate: 1 },
       templates: { execute: 'hi' },
@@ -63,6 +64,14 @@ async function main() {
     stExpected.ui.labelClicks = {}
     check(!!stBack && stBack.ok === true && JSON.stringify(stBack.value) === JSON.stringify(stExpected), 'C1 设置往返值不变（labelClicks 除外，它不落盘）', JSON.stringify(stBack))
     check(stOut.ok === true && stOut.text.indexOf('labelClicks') < 0, 'C1 写出去的一份里不写 labelClicks', stOut.ok ? stOut.text : '')
+    // #1641：设置页还没打开过的工作区先按名单路径记一条临时记录，记录上带 unopened: true。
+    //   它只是说明，不是开关：写得出来、读得回来、往返值不变；缺省的 false 不写出这个标记。
+    const markedSt = JSON.parse(JSON.stringify(st))
+    markedSt.workspaces['D:\\ws\\other'] = { statusBar: 'hide', deckTools: 'on', noRepoDismissed: false, subwsMarkAutoShown: false, unopened: true }
+    const markedOut = stringifyConfig(markedSt, 'settings')
+    check(markedOut.ok === true && markedOut.text.indexOf('unopened: true') >= 0, 'C1 #1641 临时标记 unopened: true 写得出来', markedOut.ok ? markedOut.text : markedOut.message)
+    const markedBack = markedOut.ok ? parseConfig(markedOut.text, 'settings') : null
+    check(!!markedBack && markedBack.ok === true && JSON.stringify(markedBack.value.workspaces) === JSON.stringify(markedSt.workspaces), 'C1 #1641 临时标记往返值不变（另一条记录不带它）', JSON.stringify(markedBack))
     // 读这一侧仍要包容老文件：里面已经有 labelClicks 时读得回来，而且不影响写。
     const legacyText = stOut.ok ? stOut.text.replace('  sortDir: desc\n', '  sortDir: desc\n  labelClicks:\n    bug: 3\n') : ''
     const legacyBack = legacyText ? parseConfig(legacyText, 'settings') : null
@@ -97,6 +106,11 @@ async function main() {
     const onTrap = parseConfig('version: 1\nui: {}\nworkspaces: {D:\\x: {bannerFolded: on}}\ndebug: {enabled: false, sampleRate: 1}\ntemplates: {}\n', 'settings')
     check(onTrap.ok === true && onTrap.value.workspaces['D:\\x'].statusBar === 'hide' && onTrap.value.workspaces['D:\\x'].bannerFolded === undefined,
       'C2 旧字段 `bannerFolded: on` 读得进来（非真假值不参与换算），归一后按缺省 statusBar: hide、且不带旧字段', JSON.stringify(onTrap))
+    // #1641：临时标记只认真假值，写成数字 1 按坏形状回并点名（别让手写的 unopened: 1 悄悄当成没写）。
+    const unopenedTrap = parseConfig('version: 1\nui: {}\nworkspaces: {D:\\x: {unopened: 1}}\ndebug: {enabled: false, sampleRate: 1}\ntemplates: {}\n', 'settings')
+    check(unopenedTrap.ok === false && unopenedTrap.reason === 'bad-shape' && String(unopenedTrap.message || '').indexOf('unopened') >= 0, 'C2 #1641 临时标记 unopened 只认真假值，1 按坏形状回并点名', JSON.stringify(unopenedTrap))
+    const unopenedFalse = parseConfig('version: 1\nui: {}\nworkspaces: {D:\\x: {unopened: false}}\ndebug: {enabled: false, sampleRate: 1}\ntemplates: {}\n', 'settings')
+    check(unopenedFalse.ok === true && unopenedFalse.value.workspaces['D:\\x'].unopened === undefined, 'C2 #1641 unopened: false 与省略同义（归一后不带标记）', JSON.stringify(unopenedFalse))
     const numTrap = parseConfig('version: 1.10\nbackendId: github\npickedAt: 1\nsource: user\nlayout: multi\n', 'workspace')
     check(numTrap.ok === false && numTrap.reason === 'bad-shape', 'C2 `version: 1.10`（数字 1.1）按坏形状回', JSON.stringify(numTrap))
     const octTrap = parseConfig('version: 2\nbackendId: github\npickedAt: 0777\nsource: user\nlayout: multi\n', 'workspace')

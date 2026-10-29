@@ -31,7 +31,8 @@ const check = (ok: unknown, msg: string) => {
 // —— 替身：reads / writes / emits 三本账，被测片只通过全局名字碰它们 ——
 type FlagCall = { cwd: string; name: string }
 const reads: FlagCall[] = []
-const writes: Array<FlagCall & { value: unknown }> = []
+// listed 是 #1641 加的第四个参数：设置页名单行会让写口按名单上的路径先存一条临时记录。
+const writes: Array<FlagCall & { value: unknown; listed?: boolean }> = []
 const emitted: any[] = []
 // 读口替身：按 (cwd, name) 查表，表里没有就回 undefined（缺格）。
 let flagTable: Record<string, unknown> = {}
@@ -44,8 +45,8 @@ let writeThrows = false
   const v = flagTable[String(cwd) + '|' + String(name)]
   return v
 }
-;(globalThis as any).setViewFlagValue = (cwd: any, name: any, value: any) => {
-  writes.push({ cwd: String(cwd), name: String(name), value })
+;(globalThis as any).setViewFlagValue = (cwd: any, name: any, value: any, listed?: any) => {
+  writes.push({ cwd: String(cwd), name: String(name), value, listed: listed === true })
   if (writeThrows) throw new Error('写设置失败（夹具）')
   return writeResult
 }
@@ -127,10 +128,21 @@ console.log('\n== ④ 写口：按字面量写回，并把同一个工作区的�
   reset(); writes.length = 0
   ;(globalThis as any).setViewFlagValue = undefined
   check(setDeckTools('D:/ws-a', false) === false && writes.length === 0, '④ 老产物里没有写这一趟（setViewFlagValue 不存在）→ 返回 false、不抛')
-  ;(globalThis as any).setViewFlagValue = (cwd: any, name: any, value: any) => { writes.push({ cwd: String(cwd), name: String(name), value }); return true }
+  ;(globalThis as any).setViewFlagValue = (cwd: any, name: any, value: any, listed?: any) => { writes.push({ cwd: String(cwd), name: String(name), value, listed: listed === true }); return true }
 }
 
-console.log('\n== ⑤ 接线：这一片已登记进构建清单与客户端入口的拼接标记 ==')
+console.log('\n== ⑤ 设置页名单行：listed 原样传给写口（#1641）==')
+{
+  reset()
+  check(setDeckStatusBar('D:/ws-a', true, true) === true && writes.length === 1 && writes[0].listed === true, '⑤ 名单行改胶囊状态栏时，写口收到 listed=true（认不出根也能按名单路径先存住）')
+  reset()
+  check(setDeckTools('D:/ws-a', false) === true && writes.length === 1 && writes[0].listed === false, '⑤ 别的调用方不传 listed 时，写口收到 false（口径仍是 #1612：认不出根一个字不写）')
+  reset()
+  setDeckTools('D:/ws-a', true, false)
+  check(writes.length === 1 && writes[0].listed === false, '⑤ 明确传 false 也原样传给写口')
+}
+
+console.log('\n== ⑥ 接线：这一片已登记进构建清单与客户端入口的拼接标记 ==')
 {
   const { sourceText } = requireHere('./lib/source-text.ts')
   const idx = sourceText('src/client/index.ts')

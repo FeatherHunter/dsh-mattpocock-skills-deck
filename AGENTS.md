@@ -68,7 +68,7 @@ Single-context layout — root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/
 
 - 改一处、验一处：只跑那一扇——`node --import ./scripts/ts-hook.mts tests/verify-xxx.ts`；按名字抽查用 `node scripts/verify-chain.ts --only <文件名里的一段>`。
 - 一个模块写完：`npm run verify:changed`（只跑这次改动影响得到的门禁，几十秒量级）。
-- 提交前：`npm run verify:parallel`（全链、8 路并发，构建缓存就绪时约 1 分钟）。串行全链 `node scripts/verify-chain.ts` 只在排查顺序问题时用。
+- 提交前：`npm run verify:parallel`（全链、8 路并发，主链跑完再串行跑五条冒烟，构建缓存就绪时约 1 分钟）。串行全链 `node scripts/verify-chain.ts` 只在排查顺序问题时用。
 
 动到 `tests/**`、`scripts/**`、`docs/**` 或任何 `*.md` 时，挑选规则会判「必须全链」，这是故意的，不是 bug。档位怎么选、各档测不出什么、读一扇两千行门禁怎么省上下文，都见 `docs/agents/verification.md`。
 
@@ -82,7 +82,7 @@ Single-context layout — root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/
 node --import ./scripts/ts-hook.mts tests/你的测试.ts
 ```
 
-`npm test`（经 `scripts/verify-chain.ts`）、`npm run verify:parallel`（经 `scripts/verify-parallel.mts`）、`node scripts/verify-all.mts`（逐道跑完再汇总）三个入口跑测试时都会自动挂上这个钩子，写测试的人不用自己加；`npm run test:smoke`（六条冒烟）从 #1178 起也走 `scripts/verify-chain.ts`（`--script smoke` 读 `package.json` 的 `scripts.smoke` 那串清单），钩子判定跟着那一条路走。同一个判定分散在这三处加上链执行器这一处，改一处必须全改——漏掉哪个入口，哪个入口里的 `.ts` 迁移就会跟别处表现不一样，典型症状是不同入口结论对不上（例如本机 `npm test` 全绿、另一个入口红）。远端的 `verify` 工作流已在 2026-10-26 下掉（#1542），推送与开 PR 不再触发它，上面三个都是本地入口。
+`npm test`（经 `scripts/verify-chain.ts`）、`npm run verify:parallel`（经 `scripts/verify-parallel.mts`）、`node scripts/verify-all.mts`（逐道跑完再汇总）三个入口跑测试时都会自动挂上这个钩子，写测试的人不用自己加；`npm run test:smoke`（五条冒烟）从 #1178 起也走 `scripts/verify-chain.ts`（`--script smoke` 读 `package.json` 的 `scripts.smoke` 那串清单），钩子判定跟着那一条路走；#1643 起 `npm run verify:parallel` 在主链跑完后也会按同一份清单串行跑这五条，所以它一次盖住主链与冒烟。同一个判定分散在上面三个入口各一处，冒烟清单那五条还把 `--import` 直接写死在 `package.json` 的 `scripts.smoke` 里（清单仍只有这一处来源），改一处必须全改——漏掉哪个入口，哪个入口里的 `.ts` 迁移就会跟别处表现不一样，典型症状是不同入口结论对不上（例如本机 `npm test` 全绿、另一个入口红）。远端的 `verify` 工作流已在 2026-10-26 下掉（#1542），推送与开 PR 不再触发它，上面三个都是本地入口。
 
 **Node 下限怎么来的**：钩子用的是同步的 `module.registerHooks()`，它同时管 ESM 的 `import` 与 CommonJS 的 `require`；异步的 `module.register()` 管不到 `require`，替代不了它。同步的 `registerHooks()` 从 Node 22.15 才有，这是这条线的起点——但 22.15 不等于能跑：钩子开着的时候测试加载的是 `.ts` 源码，而 Node 默认开启 TypeScript 类型剥离要到 22.18，再往上还有依赖自己的硬线（`jsdom` 声明 `^22.22.2 || ^24.15.0 || >=26.0.0`，8 个用例在用它）。所以根 `package.json` 的 `engines.node` 写的是 `"^22.22.2 || ^24.15.0 || >=26.0.0"`：22 线要 22.22.2 及以上，24 线要 24.15 及以上，26 及以上任意（23、25 是短命版本线，不单独支持）。这个范围是从最严的那个依赖抄来的，依赖一升要跟着复核；写窄了人会卡在「根项目通过、依赖拒绝」的信息里。本地跑验证链的版本要求比这里更严：必须用 Node 24.15 及以上版本，在 Node 22 上跑链会撞上 #1523 记录的装载故障，结论没有参考价值，详见上面跑门禁一节与 #1542 的决定。
 
@@ -121,4 +121,10 @@ AI 这边没有可用的终端工具（better-sidebar 删掉了它自带的 `ter
 
 Publish `package` (the main plugin; skills ship inside it, never separately). `dsh-log` and `dsh-plugin-update` now live in standalone repos and are only consumed from npm, never published from here (#878, #892). Private package shells are skipped automatically.
 
-Token unattended path (prefer it when a write-capable token exists — no human clicks needed): set `$env:NODE_AUTH_TOKEN` (variable name only, never paste the token value) → run `pwsh -NoProfile -File scripts\publish-token.ps1 -Probe` first (it must say PROBE-OK) → run `pwsh -NoProfile -File scripts\publish-token.ps1` (gates → publish → one-pass sampling; add `-FullPost` before announcing). Accepted is not the same as visible: `E409 previously-staged` means the registry received the package, so wait a few minutes instead of republishing or bumping the version. The old interactive flow (`scripts\publish-all-window.ps1` via schtasks) stays as fallback. Publishing ends the job; installing is always done by the user (marketplace upgrade, in-app upgrade, or their own install command).
+无人值守发布（有写权限 token 时优先用它，不需要人点）：**token 一律走文件通道**。把值写成命令行参数、或写成 `$env:NODE_AUTH_TOKEN='值'` 这种内联赋值，整条命令都会以明文被完整记进会话记录与进程参数（#1646 实测泄露过），所以这两样都不许再用。做法：
+
+1. 人把写权限 token 写进一个只给本人可读的临时文件的第一行，例如 `%TEMP%\dsh-publish-token.txt`；不要放仓库目录里，也不要加注释。文件权限怎么收紧、值怎么写进去，见 `docs/releases/RELEASE-RUNBOOK.md` 第 12 节。
+2. Agent 的命令里只出现路径：`pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile <路径> -Probe` 先跑（必须说 PROBE-OK），再跑 `pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile <路径>` 做正式发布（构建与测试门禁 → 发布 → 一次可见性采样；对外宣布前加 `-FullPost`）。
+3. 每趟跑完立刻删掉临时文件（`Remove-Item -LiteralPath <路径> -Force`）。token 一旦可能泄露，先到 npm 撤销那一枚再重新签发；平时按季度轮换。
+
+`$env:NODE_AUTH_TOKEN` 环境变量入口仍然兼容（`-TokenEnv` 可改首选变量名），但只建议人在自己的终端里设：Agent 执行时一律用文件通道。Accepted is not the same as visible: `E409 previously-staged` means the registry received the package, so wait a few minutes instead of republishing or bumping the version. The old interactive flow (`scripts\publish-all-window.ps1` via schtasks) stays as fallback. Publishing ends the job; installing is always done by the user (marketplace upgrade, in-app upgrade, or their own install command).

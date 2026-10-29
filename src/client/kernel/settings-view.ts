@@ -266,7 +266,10 @@ declare const process: any;
     }
     // 把这一格改进内存文档：别的节与别的字段一律不动；新建这一条记录时，按上面 VIEW_FLAG_SEED_NAMES 种上
     //   另外那两格。这一格自己照旧写在最后一行，所以不管名字是哪一个都落得下。
-    const viewFlagSetInDoc = function (doc: any, cwd: any, key: any, name: any, on: any): any {
+    //   第六个参数 unopened 只对「新建一条记录」生效（#1641）：设置页工作区名单上还没打开过的工作区认不出根，
+    //   先按名单上的路径记一条临时记录并标上它；已有记录不动这个标记——什么时候合并、什么时候清掉由 #1640
+    //   那一条路负责，写这一格的人不该顺手抹掉别人的标记。
+    const viewFlagSetInDoc = function (doc: any, cwd: any, key: any, name: any, on: any, unopened: any): any {
       try {
         if (!doc || typeof doc !== 'object') return false
         if (!doc.workspaces || typeof doc.workspaces !== 'object' || Array.isArray(doc.workspaces)) doc.workspaces = {}
@@ -277,6 +280,7 @@ declare const process: any;
             const n = VIEW_FLAG_SEED_NAMES[i]
             seed[n] = (n === name) ? on : viewFlagSeedValueOf(cwd, n)
           }
+          if (unopened === true) seed.unopened = true
           doc.workspaces[key] = seed
           entryKey = key
         }
@@ -318,8 +322,12 @@ declare const process: any;
           if (d.section === 'templates') { settingsTemplatesDrainDeferred(d, status); continue }
           if (d.section === 'debug') { settingsDebugDrainDeferred(d, status); continue }
           const key = (status === 'ready') ? (d.key || viewFlagWriteKeyOf(d.cwd)) : ''
-          if (key && viewFlagSetInDoc(viewFlagState.doc, d.cwd, key, d.name, d.value)) {
-            viewFlagState.journal[viewFlagJournalKeyOf(key, d.name)] = { cwd: d.cwd, name: d.name, value: d.value, key: key }
+          if (key && viewFlagSetInDoc(viewFlagState.doc, d.cwd, key, d.name, d.value, d.unopened)) {
+            // 临时标记跟着这一笔进队列：写前重读合并时按它把「这条记录是名单路径上的临时记录」重新标上，
+            //   不然后并进来的那一份（刚读回来的盘上文档）会把标记丢掉。
+            viewFlagState.journal[viewFlagJournalKeyOf(key, d.name)] = (d.unopened === true)
+              ? { cwd: d.cwd, name: d.name, value: d.value, key: key, unopened: true }
+              : { cwd: d.cwd, name: d.name, value: d.value, key: key }
             continue
           }
           // 这一笔没能进文档：文档没到手、认不出工作区根、或文档形状对不上写不进去 —— 三种都走同一条
@@ -397,7 +405,11 @@ declare const process: any;
     //   「文件里已经有这个工作区的记录」那种情形，见文件头那段）。
     export const viewFlagOf = function (cwd: any, name: any): any {
       try {
-        const ans = viewFlagOfRoot(viewFlagDocKeyOf(cwd), name)
+        const wantKey = viewFlagDocKeyOf(cwd)
+        let ans = viewFlagOfRoot(wantKey, name)
+        // #1641：认不出工作区根时（wantKey 是空串），这个目录可能是设置页名单上还没打开过的工作区 —— 它的临时记录
+        //   就用名单上的目录原文当键，所以按原文再问一次。认得出根的行不会走这一步，读的口径与 #1612 完全一样。
+        if (!ans.known && wantKey === '') ans = viewFlagOfRoot(String(cwd == null ? '' : cwd), name)
         if (ans.known) return ans.value
         // #1612 的两个文字开关问不出时直接回「不知道」（undefined），不回退旧 localStorage 的布尔键：
         //   旧键里没有这两格，硬拿别的布尔值冒充会造出第二份真相。

@@ -236,6 +236,7 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
     check(r.status === 0, '正趟 ' + ex.name + '：夹具链全绿（退出码 ' + r.status + '）')
     if (ex.name === 'verify-parallel.mts') {
       check(out.includes('完成证据判据：链上 2 步带期望'), '正趟 verify-parallel.mts：认出了链上那两步带期望（a 交记录、c 登记了期望）')
+      check(out.includes('冒烟阶段：跑 1/1 步'), '正趟 verify-parallel.mts：主链跑完接着跑了冒烟阶段（#1643：冒烟不再落在全链之外）')
     } else {
       check(out.includes(GATE_RESULT_PREFIX), '正趟 ' + ex.name + '：把门禁交的记录原样透出来')
     }
@@ -248,6 +249,9 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
     const out = String(r.stdout || '') + String(r.stderr || '')
     check(r.status !== 0, '反趟 ' + ex.name + '：门禁退出码 0 却没交记录，执行器判红（退出码 ' + r.status + '）')
     check(out.includes('缺完成记录') && out.includes('gate-c'), '反趟 ' + ex.name + '：红的时候指名道姓说清是 gate-c 缺完成记录')
+    if (ex.name === 'verify-parallel.mts') {
+      check(out.includes('冒烟阶段：没跑') && out.includes('主链首红即停'), '反趟 verify-parallel.mts：主链首红即停时明说冒烟阶段没跑，不静默跳过')
+    }
   }
   // 冒烟链的三趟：正趟（交记录、数字对）、收摊趟（退出码 0、一行记录都没有）、
   // 数字不符趟（交了记录，但计数与表里的期望不等）—— 票面第四条验收要的正是前两句话。
@@ -275,6 +279,32 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
     check(r.status !== 0, '冒烟数字不符趟：记录说 3 条、表里记 4 条，执行器判红（退出码 ' + r.status + '）')
     check(out.includes('断言数 3 ≠ 归属表里记着的 4'), '冒烟数字不符趟：红的时候把「3 ≠ 4」写出来')
   }
+  // 新增一趟（#1643 验收 c）：主链全绿、冒烟红 —— 发布前唯一的裁决入口是并行执行器，
+  // 这种「全绿却漏了冒烟」正是真机验证踩过的那条缝，所以钉成常驻回归：
+  // ①整体必须非零退出；②汇总里单列冒烟阶段真红、并指名是哪个文件；③主链自己仍报真红 0 步。
+  // 先把主链那扇恢复成老实交记录的版本（上一趟反趟把它换成了收摊版），否则主链首红即停、冒烟根本不跑。
+  gateCSrc("const { printGateResult } = require('../tests/lib/gate-result.ts')\nprintGateResult('verify-gate-c', 3, 0)\nprocess.exit(0)\n")
+  smokeGateSrc("const { printGateResult } = require('../tests/lib/gate-result.ts')\nprintGateResult('verify-gate-s', 4, 0)\nconsole.log('这条冒烟被故意改坏了')\nprocess.exit(1)\n")
+  writeSmoke(['node tests/verify-gate-s.js'])
+  {
+    const r = run('scripts/verify-parallel.mts', [])
+    const out = String(r.stdout || '') + String(r.stderr || '')
+    check(r.status !== 0, '冒烟红趟 并行执行器：主链全绿、冒烟红时整体仍非零退出（退出码 ' + r.status + '）')
+    check(out.includes('冒烟阶段') && out.includes('FAIL') && out.includes('tests/verify-gate-s.js'), '冒烟红趟 并行执行器：红的时候指明是冒烟阶段的哪个文件')
+    check(out.includes('判定：主链真红 0 步，冒烟真红 1 步'), '冒烟红趟 并行执行器：汇总把主链红与冒烟红分开写清（主链 0、冒烟 1）')
+    check(out.includes('；真红 0 步'), '冒烟红趟 并行执行器：主链自己的汇总仍报真红 0 步（没有把冒烟记到主链头上）')
+  }
+  // 抽查档位下的名单只是预告（#1643 的透明口径，Spec 审查点 c）：--only / --changed 时真跑会跳过冒烟阶段，
+  // 所以 --list 把五条印出来的同时必须提前说明它们不会跑，免得看名单的人以为这一段跑了。
+  {
+    const r = run('scripts/verify-parallel.mts', ['--list', '--only', 'verify-gate-a'])
+    const out = String(r.stdout || '') + String(r.stderr || '')
+    check(r.status === 0, '抽查档位 --list：只列名单、不跑（退出码 ' + r.status + '）')
+    check(
+      out.includes('冒烟阶段') && out.includes('本次用了 --only 抽查') && out.includes('真跑时这一段不会跑'),
+      '抽查档位 --list：提前说明冒烟阶段会被跳过，不把名单说成会跑',
+    )
+  }
   fs.rmSync(tmpRoot, { recursive: true, force: true })
 }
 
@@ -283,7 +313,7 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
 // ---------------------------------------------------------------------------
 console.log('戊）真仓里的挂接与登记')
 {
-  // 主链名单走规划函数（#1125）；冒烟那六条还住在 package.json 里，所以「挂在链上」
+  // 主链名单走规划函数（#1125）；冒烟那五条还住在 package.json 里，所以「挂在链上」
   // 这句要按两条链一起算：已开闸的门禁恰好挂在一条链上（主链或冒烟链），既不能漏，也不能两边都挂。
   const steps = planGates(ROOT).map((s) => s.cmd)
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as { scripts?: Record<string, string> }

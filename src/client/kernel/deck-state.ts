@@ -18,6 +18,10 @@
  * 值怎么落地：写走 kernel/settings-view-write.ts 的 setViewFlagValue（整份文档里改这一格、写前重读合并、
  *   写失败留队列重试）；写成功后把同一个工作区的各会话 emit 一次，界面立刻跟着重画。
  *   写不进文件（认不出工作区根、文件只读、老产物里没有写这一趟）时返回 false，界面可以据此提示。
+ *
+ * 设置页总览的行来自工作区名单（#1641）：那些还没打开过的工作区认不出根，点开关时由渲染层明确说这一行
+ *   在名单上（第三个参数 listed 传 true），写口才按名单上的路径先存一条带 unopened 标记的临时记录。
+ *   别的调用方不传它，行为与 #1612 一样。
  */
 // 跨闭包的名字按仓里规矩写模块级 declare（实现只在拼好的闭包里有一份，类型检查各看各的）：
 //   viewFlagOf 的真源在 kernel/settings-view.ts，setViewFlagValue 的真源在 kernel/settings-view-write.ts，
@@ -83,19 +87,20 @@ const deckEmitWorkspace = function (cwd: any): void {
 
 // 改「deck 工具箱」：on 传 true 是开、false 是关。返回值表示这一笔有没有交给设置文件那条路
 //   （false ＝ 认不出工作区根/文件只读/写这一趟不在，界面可以照旧提示，但不能假装已经落盘）。
-export const setDeckTools = function (cwd: any, on: any): boolean {
+//   listed 表示这一行来自设置页的工作区名单（#1641）：为 true 时认不出根也按名单路径先存一条临时记录。
+export const setDeckTools = function (cwd: any, on: any, listed: any): boolean {
   const next = (on === true) ? DECK_TOOLS_ON : DECK_TOOLS_OFF
   let ok = false
-  try { ok = (typeof setViewFlagValue === 'function') ? (setViewFlagValue(cwd, 'deckTools', next) === true) : false } catch (e) { ok = false }
+  try { ok = (typeof setViewFlagValue === 'function') ? (setViewFlagValue(cwd, 'deckTools', next, listed === true) === true) : false } catch (e) { ok = false }
   deckEmitWorkspace(cwd)
   return ok
 }
 
-// 改「胶囊状态栏」：show 传 true 是显示、false 是折叠。返回值含义同上。
-export const setDeckStatusBar = function (cwd: any, show: any): boolean {
+// 改「胶囊状态栏」：show 传 true 是显示、false 是折叠。返回值含义同上，listed 的含义也同上。
+export const setDeckStatusBar = function (cwd: any, show: any, listed: any): boolean {
   const next = (show === true) ? DECK_STATUS_BAR_SHOW : DECK_STATUS_BAR_HIDE
   let ok = false
-  try { ok = (typeof setViewFlagValue === 'function') ? (setViewFlagValue(cwd, 'statusBar', next) === true) : false } catch (e) { ok = false }
+  try { ok = (typeof setViewFlagValue === 'function') ? (setViewFlagValue(cwd, 'statusBar', next, listed === true) === true) : false } catch (e) { ok = false }
   deckEmitWorkspace(cwd)
   return ok
 }

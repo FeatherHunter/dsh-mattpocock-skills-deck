@@ -31,7 +31,7 @@
 //              completionRecord 为 true 表示这扇门禁已开闸：它收尾时会交一行 GATE-RESULT，
 //              expectedAssertions 是它该有多少条断言（0 表示还没开闸，执行器只看退出码）。
 //              这两格是给执行器判「完成证据」用的（#1158），名单见 COMPLETION_RECORDED_GATES。
-//   smokeGates 冒烟链（scripts.smoke，六条）每步一条：{ step, file, gate, completionRecord, expectedAssertions }。
+//   smokeGates 冒烟链（scripts.smoke，今天五条）每步一条：{ step, file, gate, completionRecord, expectedAssertions }。
 //              冒烟链不在主链上，所以它不参与归属与覆盖面（那两样只看 gates）；这几条只是把
 //              「冒烟里哪几扇开闸了、该有多少条断言」也写进同一张表，好让 test:smoke 那条路
 //              （#1178 起走 scripts/verify-chain.ts --script smoke）拿同一份判据对数。
@@ -45,7 +45,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
-import { planGates } from './lib/discover-gates.ts'
+import { planGates, readSmokeCommands, commandTestFile } from './lib/discover-gates.ts'
 
 // 类型声明只在转译时剥掉，不产生运行时代码。
 type RepoIndex = { files: Set<string>; dirs: Set<string> }
@@ -86,7 +86,10 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-settings-templates': 65,
   // 2026-10-29 #1612：删掉旧 bannerFolded 迁移后改写这一扇的采样格，单跑实测 217 条。
   'verify-settings-view': 217,
-  'verify-1158-completion-evidence': 50,
+  // 2026-10-29 #1643：加了八条冒烟阶段的断言（并行执行器里冒烟跑没跑、跳过时明说原因、
+  // 冒烟红而主链绿时整体仍红且分得清是哪段红，--list 在抽查档位下提前说明冒烟会被跳过），
+  // 58 条是单跑实测得出的。
+  'verify-1158-completion-evidence': 58,
   'verify-1407-next-steps-reminders': 87,
   // 2026-10-24 #1451：下一步建议加了十字简介这一格（工具侧新增 intro、界面侧新增 SUGGEST_INTRO_MAX_CHARS、
   // 选项按条数均分宽度），相关五扇门禁各自加了断言；下面五个数字都是单跑实测得出的。
@@ -135,6 +138,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-29 #1612：设置文件两个按工作区开关（胶囊状态栏 / deck 工具箱）的 schema 与落盘；
   // 旧字段迁移删掉之后按新语义改写采样格，53 条是单跑实测得出的。
   'verify-1612-settings-switches': 53,
+  // 2026-10-29 #1641：设置页名单上还没打开过的工作区点开关也能存住（临时记录带 unopened 标记，
+  // 认得出根的行行为不变，deck-state 与设置页渲染都把 listed 一路传到写口）；42 条是单跑实测得出的。
+  'verify-1641-listed-workspace-flags': 42,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。
@@ -310,65 +316,30 @@ export function scanRepo(root: string = ROOT): RepoIndex {
   return { files, dirs }
 }
 
-/** 把一条 `&&` 串切成一条条命令。切法与 scripts/verify-chain.ts 一致（照顾引号里的 &&）。 */
-function splitSteps(text: string): string[] {
-  const out: string[] = []
-  let cur = ''
-  let quote: string | null = null
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if (quote) {
-      cur += ch
-      if (ch === quote) quote = null
-      continue
-    }
-    if (ch === '"' || ch === "'") {
-      quote = ch
-      cur += ch
-      continue
-    }
-    if (ch === '&' && text[i + 1] === '&') {
-      out.push(cur.trim())
-      cur = ''
-      i += 1
-      continue
-    }
-    cur += ch
-  }
-  if (cur.trim()) out.push(cur.trim())
-  return out.filter(Boolean)
-}
-
 /** 名单（#1125）：规划函数是归属表的唯一输入，不再读 package.json 长串。 */
 export function readChainSteps(root: string = ROOT): string[] {
   return planGates(root).map((s) => s.cmd)
 }
 
 /**
- * 读 package.json 的 scripts.smoke（冒烟链，六条），按 && 切开。
+ * 读 package.json 的 scripts.smoke（冒烟链，今天五条），按 && 切开。
  * 这一串从 #1178 起单独住在 scripts.smoke 里：scripts['test:smoke'] 改成走
  * `scripts/verify-chain.ts --script smoke`，所以清单不能再放在 test:smoke 那一格（会自己套自己）。
+ * 读法与切法不在这里重写：两个执行器与本生成器共用 scripts/lib/discover-gates.ts 那份（#1643）。
  * 缺这一格时返回空数组而不是抛错：冒烟链不是归属表的必需输入，缺了只是 smokeGates 为空。
  */
 export function readSmokeSteps(root: string = ROOT): string[] {
-  const raw: any = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
-  const smoke = (raw.scripts && raw.scripts.smoke) || ''
-  return smoke ? splitSteps(smoke) : []
+  return readSmokeCommands(root)
 }
 
 /**
  * 链上一条命令 → 它跑的测试文件（仓库相对路径）。不是 `node <文件>` 形状就返回空串。
  * 主链一步长这样：`node tests/verify-x.js`（第二个参数就是文件）；
  * 冒烟链一步长这样：`node --import ./scripts/ts-hook.mts tests/smoke-x.test.js`（前面多一层钩子），
- * 所以取「第一个落在 tests/ 下的参数」，找不到再退回第二个。
+ * 所以取「第一个落在 tests/ 下的参数」，找不到再退回第二个 —— 写法与两个执行器共用同一份（#1643）。
  */
 export function stepToGateFile(step: unknown): string {
-  const parts = String(step || '').trim().split(/\s+/)
-  if (parts[0] !== 'node') return ''
-  const norm = (p: string): string => p.replace(/\\/g, '/').replace(/^\.\//, '')
-  const testArg = parts.slice(1).find((p) => norm(p).startsWith('tests/'))
-  const chosen = testArg || parts[1]
-  return chosen ? norm(chosen) : ''
+  return commandTestFile(String(step || '').trim())
 }
 
 // ---------------------------------------------------------------------------
@@ -902,7 +873,7 @@ export function buildGateMap(root: string = ROOT): GateMap {
   }
 
   // 冒烟链的完成证据（#1178）：冒烟不在主链上，所以不进 gates —— 那一批是归属与覆盖面的输入。
-  // 这里只把六条冒烟各记一行，好让 test:smoke 那条路（#1178 起走同一个执行器）拿同一份判据对数。
+  // 这里只把五条冒烟各记一行，好让 test:smoke 那条路（#1178 起走同一个执行器）拿同一份判据对数。
   const smokeSteps = readSmokeSteps(root)
   const smokeGates = smokeSteps.map((step) => {
     const file = stepToGateFile(step)
