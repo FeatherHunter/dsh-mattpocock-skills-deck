@@ -527,8 +527,9 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   { name: 'rowActions', file: 'src/client/kernel/row-actions.ts' },
   // #1286：容器（探索地图与规格）的判定、取色与提示词单一真源。
   { name: 'containerView', file: 'src/client/kernel/container-view.ts' },
-  // #1668：详情页顶栏「能不能点」的单一判据（已关闭/已合并这一支；被未完成票阻塞留给 #1669）。
-  //   纯函数，运行时只调 stateKind 那一族已经定义好的 prStateKind，所以排在它之后即可。
+  // #1668 / #1669：详情页顶栏两颗动作按钮「能不能点」的单一判据（票已关闭或已合并；#1669 又补上「被还没关闭
+  //   的票阻塞」这一支）。纯函数，只在渲染期调 stateKind 那一族的 prStateKind：本标记排在 leaf:stateKind
+  //   之前，但渲染发生在整个闭包初始化之后，先后不影响它取到那个函数。
   { name: 'detailTopGate', file: 'src/client/kernel/detail-top-gate.ts' },
   // #1511：面板上「#目录/编号」的显示写法单一真源（列表行、在办表、会话链、详情页头部共用）。
   { name: 'ticketLabel', file: 'src/client/kernel/ticket-label.ts' },

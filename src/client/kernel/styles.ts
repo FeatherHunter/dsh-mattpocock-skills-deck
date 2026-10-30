@@ -95,7 +95,8 @@ const CONTAINER_ACCENT_CSS: any = (typeof CONTAINER_ACCENT === 'object' && CONTA
       // #685：「体检」按钮收到「图标 + 件数」那一档（窄面板第二档）：件数是它的价值信号，不跟着按钮名一起收掉。
       '.dsws-btn.narrow-count{padding:1px 5px;gap:2px;width:auto}',
       '.dsws-btn.ghost{background:transparent;border-color:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)}',
-      // #1668：详情顶栏的主动作与新会话在票已关闭/已合并时整体压灰（aria-disabled 由详情页判据挂上）。
+      // #1668 / #1669：详情顶栏的主动作与新会话在票已关闭/已合并、或被还没关闭的票阻塞时整体置灰
+      //   （aria-disabled 由详情页判据挂上）。
       //   用属性选择器而不是原生 disabled：原生 disabled 收不到悬停事件，Tip 会丢；Tab 落不上由 tabIndex=-1 管。
       //   透明度与 cursor 沿用版本管理页的可点性口径（vcStyles.ts 那条 :disabled）；底色换回普通按钮的肤色，
       //   主按钮的容器渐变因此不再显示。颜色全走 --dsw-alias-* 令牌，深浅两套皮肤自动跟随。

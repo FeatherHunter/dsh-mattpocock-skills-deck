@@ -48,7 +48,7 @@ const check = (ok: any, msg: string): void => { total += 1; console.log((ok ? ' 
   const g = detailTopGate({ number: 7, key: '07', title: '子票', state: 'OPEN', labels: [], container: { state: 'COMPLETE' } }, [])
   check(g.clickable === true && g.reason === 'none', '容器已完成但票本身打开：仍能点（容器三态不参与本判据）')
 }
-// F 组：打开且阻塞清单为空或整块缺失 → 能点（本票不判阻塞；#1669 再扩这一支）
+// F 组：打开且阻塞清单为空或整块缺失 → 能点（阻塞这一支由 #1669 补上，已由下面 H 组起逐条覆盖）
 {
   const g1 = detailTopGate({ number: 7, key: '07', state: 'OPEN' }, [])
   const g2 = detailTopGate({ number: 7, key: '07', state: 'OPEN' }, undefined)

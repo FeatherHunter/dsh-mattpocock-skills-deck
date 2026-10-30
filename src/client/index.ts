@@ -242,7 +242,8 @@ export default {
     // 行级动作全家（诊断/接手/…/执行八选一、容器三态按钮）从 store-derived 原样抽出，
     // 排在其后：它们要用 findMapByIdentity 与 isLightHex。
     // ==== kernel:rowActions (spliced by build) ====
-    // #1668：详情页顶栏的点击判据（票已关闭/已合并就只能查看）单独一片，理由见 kernel/detail-top-gate.ts 文件头。
+    // #1668 / #1669：详情页顶栏两颗动作按钮「能不能点」的单一判据（已关闭/已合并，或被还没关闭的票阻塞）单独一片，
+    //   理由见 kernel/detail-top-gate.ts 文件头。标记排在 leaf:stateKind 之前，但它只在渲染期调 prStateKind，顺序无碍。
     // ==== kernel:detailTopGate (spliced by build) ====
 
     // ---- 环境检查链（#228/#284 · host.call('wf.chain')；通用链 + 后端链全链快照）----

@@ -17,7 +17,8 @@ declare function issueErrorViewOf(...args: any[]): any;
 declare function effortOf(...args: any[]): any;
 declare function popNav(...args: any[]): any;
 declare function prStateKind(...args: any[]): any;
-// #1668：详情顶栏动作按钮能不能点（票已关闭/已合并就压灰）的判据住在 kernel/detail-top-gate.ts。
+// #1668 / #1669：详情顶栏动作按钮能不能点（票已关闭/已合并，或被还没关闭的票阻塞就置灰）的判据
+//   住在 kernel/detail-top-gate.ts。
 declare function detailTopGate(...args: any[]): any;
 declare function effortNamesOf(...args: any[]): any;
 // #1511 / #1564：号码写成「#目录/编号」的显示规则住在 kernel/ticket-label.ts，整颗徽标的画法（四种外壳）
@@ -308,6 +309,13 @@ export const IssueDetail = function (props: any): any {
       const gateTip = topGate.clickable ? '' : (topGate.reason === 'blocked'
         ? tr('tip.detailBlockedBy', { n: topGate.blockedNumbers.map(function (x: any) { return '#' + x }).join(tr('tip.detailBlockedByJoin')) })
         : tr('tip.detailClosedReadonly'))
+      // 交互决策 6：这两颗按钮不可点时，点击不该被记进日志。点击日志挂在 document 捕获阶段的委托上，
+      //   它见到带 data-log 的元素就写一条 ui.action；所以置灰状态下干脆不挂 data-log（值给 undefined，
+      //   不是空串），可点时才挂回原来的两个枚举值。data-press 照旧挂着：它管的是按压形状，与日志无关。
+      // 两颗动作按钮的灰态属性与底色是同一套，抽成下面两份共用值，各自只留自己的 data-log、onClick 与内容。
+      const gateDisabled = !topGate.clickable
+      const actionStyle = { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: gateDisabled ? undefined : actColor, borderColor: 'transparent', color: gateDisabled ? undefined : actTextColor, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' }
+      const gateAttrs = { 'aria-disabled': gateDisabled ? 'true' : undefined, tabIndex: gateDisabled ? -1 : undefined }
       // #693 评论也只认详情那次取数：快照那一行可能不带评论，拿它当「没有评论」会说错话。
       // #1519：详情回包里的评论只有一种形状 —— GraphQL 连接 {nodes, pageInfo}。宿主
       // src/refresh/rooms/host/comment-thread-fetch.ts 的 handleIssueDetail 与旧路 issue-detail-fetch.ts
@@ -344,11 +352,9 @@ export const IssueDetail = function (props: any): any {
           h('span', { style: { flex: 1, minWidth: 8 } }),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none', minWidth: 0, overflow: 'hidden', flexWrap: 'nowrap' } }, [
             detail ? h('span', { 'data-detail-snapshot': 1, 'data-full': (isStale ? '快照' : (mode === 'loading' ? tr('list.loading') : '')), style: { fontSize: 10, color: isStale ? '#f59e0b' : '#8b8b95', flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, isStale ? '快照' : (mode === 'loading' ? tr('list.loading') : '')) : null,
-            // 交互决策 6：这两颗按钮不可点时，点击不该被记进日志。点击日志挂在 document 捕获阶段的委托上，
-            //   它见到带 data-log 的元素就写一条 ui.action；所以压灰状态下干脆不挂 data-log（值给 undefined，
-            //   不是空串），可点时才挂回原来的两个枚举值。data-press 照旧挂着：它管的是按压形状，与日志无关。
-            h(Tip, { content: topGate.clickable ? primaryInfo.tip : gateTip }, h('button', { className: 'dsws-btn primary', 'data-press': 'button', 'data-log': topGate.clickable ? 'issue.top.exec' : undefined, 'aria-disabled': topGate.clickable ? undefined : 'true', tabIndex: topGate.clickable ? undefined : -1, onClick: function (e: any) { e.stopPropagation(); if (!topGate.clickable) return; try { inject(st, primaryInfo.text) } catch (err2) {} }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: topGate.clickable ? actColor : undefined, borderColor: 'transparent', color: topGate.clickable ? actTextColor : undefined, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: primaryInfo.icon, size: primaryInfo.icon === 'prototype' ? 12 : 10 }), h('span', { 'data-detail-primary-text': 1, 'data-full': primaryInfo.label, style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, primaryInfo.label)])),
-            h(Tip, { content: topGate.clickable ? tr('tip.newSession', { n: issueNumber }) : gateTip }, h('button', { className: 'dsws-btn primary', 'data-press': 'button', 'data-log': topGate.clickable ? 'issue.top.newsession' : undefined, 'aria-disabled': topGate.clickable ? undefined : 'true', tabIndex: topGate.clickable ? undefined : -1, onClick: function (e: any) { e.stopPropagation(); if (!topGate.clickable) return; openInNewSession(st, { number: issueNumber, ['title']: title, labels: labelArr, effortId: issueEffort }) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: topGate.clickable ? actColor : undefined, borderColor: 'transparent', color: topGate.clickable ? actTextColor : undefined, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: 'external-link', size: 10 }), h('span', { 'data-detail-new-text': 1, 'data-full': tr('list.newSessionLabel'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.newSessionLabel'))])),
+            // 这两颗动作按钮共用上面的 gateAttrs / actionStyle，各自只留自己的 data-log、onClick 与内容。
+            h(Tip, { content: topGate.clickable ? primaryInfo.tip : gateTip }, h('button', Object.assign({ className: 'dsws-btn primary', 'data-press': 'button', 'data-log': gateDisabled ? undefined : 'issue.top.exec', onClick: function (e: any) { e.stopPropagation(); if (gateDisabled) return; try { inject(st, primaryInfo.text) } catch (err2) {} }, style: actionStyle }, gateAttrs), [Ic({ n: primaryInfo.icon, size: primaryInfo.icon === 'prototype' ? 12 : 10 }), h('span', { 'data-detail-primary-text': 1, 'data-full': primaryInfo.label, style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, primaryInfo.label)])),
+            h(Tip, { content: topGate.clickable ? tr('tip.newSession', { n: issueNumber }) : gateTip }, h('button', Object.assign({ className: 'dsws-btn primary', 'data-press': 'button', 'data-log': gateDisabled ? undefined : 'issue.top.newsession', onClick: function (e: any) { e.stopPropagation(); if (gateDisabled) return; openInNewSession(st, { number: issueNumber, ['title']: title, labels: labelArr, effortId: issueEffort }) }, style: actionStyle }, gateAttrs), [Ic({ n: 'external-link', size: 10 }), h('span', { 'data-detail-new-text': 1, 'data-full': tr('list.newSessionLabel'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.newSessionLabel'))])),
             h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost', 'data-press': 'icon', 'data-log': 'issue.top.copy', onClick: function (e: any) { e.stopPropagation(); copyUrl(issueNumber) }, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'clipboard', size: 13 }))),
                         // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
             h(Tip, { content: tr('tip.openInTracker', { n: issueNumber }) }, (function () {
