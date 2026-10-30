@@ -7,7 +7,7 @@
 // 为什么有这个文件：成环检查与反向聚合以前每次整仓拉取（仓库越大越慢，单次补几条边
 // 就能打满执行限时）。现在名册优先：调用上下文带名册（ctx.memo，工具层调用上下文建的）
 // 时只定向重读脏票；名册缺席、脏票读不回时退回整仓拉取（老行为，一字不差）。
-// 同房间内引用（graph.js 用它）；跨房间不许引。签名里不加新参数——名册走既有的 ctx。
+// 同房间内引用（write/graph.ts 用它）；跨房间不许引。签名里不加新参数——名册走既有的 ctx。
 import { listIssues, getIssue } from '../issues.js'
 import { rosterUpsert } from '../model/roster.js'
 import type { RosterMemo } from '../model/roster.js';

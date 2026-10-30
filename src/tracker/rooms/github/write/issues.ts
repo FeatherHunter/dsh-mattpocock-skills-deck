@@ -190,7 +190,7 @@ async function createIssueInner(repo: RepositoryRef, input: CreateInput, ctx: Me
     // parentKey 有则创后 setParent：挂不上不吞错，记在票上让工具层读回时能说清。
     if (input.parentKey != null && input.parentKey !== '') {
       try {
-        const { setParent } = await import('../graph.js')
+        const { setParent } = await import('./graph.js')
         const pr = await setParent(repo, issue.key, String(input.parentKey), {}, ctx)
         // 为什么断言：setParent 成功时一定带回那张票（失败走 else 记账）；graph.ts 定型后这里再复核，断言只为过编译、交的还是原来那个值。
         if (pr.ok) issue = pr.data as Issue
