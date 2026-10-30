@@ -47,7 +47,8 @@ export const makeStore = (): any => ({
   backendModules: null,
   backendMenuOpen: false,
   backendMenuPos: null,
-  cwd: '', lblFilters: [], effFilters: [], expLabels: false,
+  // expLabels 是第三排分类标签的展开态，expEfforts 是第一排 md目录签的展开态（#1664），都会话私有、默认收起。
+  cwd: '', lblFilters: [], effFilters: [], expLabels: false, expEfforts: false,
   // 由 wf.cwd 带回来的工作区根（2026-09-19 加）：归属标志的早到来源，收下与写表在 probe-snapshot.js。
   sessionWorkspaceRoot: '',
   // 状态过滤 + 排序：默认档是「编号升序」，来自内核 listPrefs 的初始偏好（见 store-prefs）；

@@ -95,6 +95,8 @@ G.authorColor = () => '#7aa2f7'
 G.darken = () => 'rgba(188,140,255,.6)'
 G.hexA = () => 'rgba(188,140,255,.16)'
 G.effortNamesOf = () => ['default']
+// #1664：第一排 md目录签的选项另算（只留还有打开的票的工作单元），ListTab 里单独调它。
+G.effortOptionNamesOf = () => ['default']
 G.ticketRowsOf = (arr: any) => arr
 G.issuePageRowsOf = () => []
 G.chipKeyDown = () => {}

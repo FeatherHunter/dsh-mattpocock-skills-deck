@@ -166,6 +166,8 @@ G.rowActionKind = ra.rowActionKind
 G.rowActionText = ra.rowActionText
 G.findMapByIdentity = sd.findMapByIdentity
 G.effortNamesOf = sd.effortNamesOf
+// #1664：第一排 md目录签的选项另算（只留还有打开的票的工作单元），与徽标用的 effortNamesOf 分开。
+G.effortOptionNamesOf = sd.effortOptionNamesOf
 
 // ---- 提示词生成器：给带标记的假实现，门禁只断「选了哪一条」，措辞归 #1281/#1282 ----
 G.renderTemplate = (id: any, values: any) => 'TPL:' + String(id) + ':' + String(values && values.url)

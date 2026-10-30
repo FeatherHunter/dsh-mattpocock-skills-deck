@@ -24,6 +24,12 @@
  *   一个省略号字符；省略号是「被截过」的标记，不占那 19 个数字的宽度额度（与 #1540 的省略号口径一致）。
  *   被截掉的只是显示，名字本身不丢：悬停提示（Tip）与 aria-label 仍是全名，切成两截读回来也仍是
  *   完整的显示文字。「全部」那颗是界面上的固定选项，不是目录名，不受这条上限影响。
+ *
+ * 折叠（#1664，维护者拍板）：平时最多先画 10 个目录名，多出来的收进一颗蓝色虚线 +N 控件
+ *   （第三排分类标签那套折叠的蓝色版）；点一下全部展开，末尾出现一颗「收起」回到折叠态。
+ *   「全部」那颗不算进这 10 个。展开状态记在列表页状态 st.expEfforts 上，与第三排的 st.expLabels 同一做法。
+ *   哪些目录名能进这一排由调用方决定（ListTab 传的是「还有打开的票」的那些，见 store-derived 的
+ *   effortOptionNamesOf）：这里只负责把拿到手的名单画出来并折叠，不自己回快照里挑选项。
  */
 
 // 下面这些名字本文件里没有 import、也不是本文件定义的：它们由构建按 scripts/build.mts 的次序，
@@ -38,6 +44,8 @@ declare function emit(...args: any[]): any
 export const MD_EFFORT_LABEL_DIGIT_LIMIT: number = 19
 /** 截断标记：一个省略号字符，不占上面那 19 个数字的宽度额度。 */
 export const MD_EFFORT_LABEL_ELLIPSIS: string = '…'
+/** 折叠阈值：平时最多先画这么多个目录名（不含「全部」），多出来的收进 +N 控件（#1664）。 */
+export const MD_EFFORT_FOLD_AT: number = 10
 
 /** 量字用的字号，与每颗胶囊的 fontSize 必须一致：量宽与排版用同一个字号，上限才对得上。 */
 const MD_EFFORT_LABEL_FONT_SIZE: number = 10
@@ -135,16 +143,33 @@ const mdEffortChipColors = function (on: boolean): any {
   }
 }
 
+/** 蓝色 +N 控件与淡灰「收起」控件的配色：+N 按要求用蓝色虚线（与本排选中态同一个蓝），
+ *  「收起」照抄第三排分类标签那颗的淡灰虚线。 */
+const mdEffortMoreColors = function (): any {
+  return { background: 'rgba(88,166,255,.1)', color: '#58a6ff', border: '1px dashed rgba(88,166,255,.55)' }
+}
+const mdEffortLessColors = function (): any {
+  return { background: 'rgba(255,255,255,.06)', color: 'var(--dsws-label-caption,#8b8b95)', border: '1px dashed rgba(255,255,255,.3)' }
+}
+
 /**
  * 画这一排。参数说明：
- *   h 是 React 的 createElement；st 是列表页状态（这里读 effFilters 判断选中，点击后整份交回 emit）；
- *   effortNames 是 effortNamesOf 给出的目录名（已排序，多于一个时界面上才画这一排）；
+ *   h 是 React 的 createElement；st 是列表页状态（这里读 effFilters 判断选中、读 expEfforts 判断展开，
+ *   点击后整份交回 emit）；
+ *   effortNames 是调用方给出的目录名（已排序；通常是 effortOptionNamesOf 过滤掉完全关闭的工作单元之后
+ *   的名单，多于一个时界面上才画这一排）；
  *   measureTextWidth 只给门禁用（见 mdEffortMeasureText 上的说明），真机不传。
  */
 export const mdEffortRowNode = function (h: any, st: any, effortNames: any, measureTextWidth?: any): any {
   const names: any[] = Array.isArray(effortNames) ? effortNames : []
   // 单选：effFilters 里只放一个目录名；空数组表示「全部」。
   const selected: any[] = (st && st.effFilters) || []
+  // #1664：平时最多先画 MD_EFFORT_FOLD_AT 个目录名，其余收进蓝色 +N；展开状态放在 st.expEfforts 上，
+  //   与第三排分类标签的 st.expLabels 同一做法（会话私有，不持久化）。
+  const expanded: boolean = !!(st && st.expEfforts)
+  const foldable: boolean = names.length > MD_EFFORT_FOLD_AT
+  const shown: any[] = (expanded || !foldable) ? names : names.slice(0, MD_EFFORT_FOLD_AT)
+  const hidden: any[] = names.slice(shown.length)
   // 容器用普通块，不用 flex：flex 子项会被整块化，行尾切不开（见文件头）。
   // 行高 20 像素，给胶囊上下留出余量：胶囊自己 18 像素高（14 行高 + 上下各 2 像素内边距与边框），
   // 两行之间不会叠在一起。
@@ -173,7 +198,7 @@ export const mdEffortRowNode = function (h: any, st: any, effortNames: any, meas
       onClick: function (e: any) { e.stopPropagation(); st.effFilters = []; emit(st) },
       style: Object.assign({}, chipLayout, mdEffortChipColors(!selected.length)),
     }), tr('list.all')),
-    names.map(function (nm: any, i: number) {
+    shown.map(function (nm: any, i: number) {
       const on: boolean = (selected[0] === nm)
       // md目录签能点（一次只看一个工作单元），给它自己的按压态与点击日志；
       //   定位串用序号（目录名可能是任意字符，进不了定位串）。
@@ -192,5 +217,23 @@ export const mdEffortRowNode = function (h: any, st: any, effortNames: any, meas
         style: Object.assign({}, chipLayout, mdEffortChipColors(on)),
       }), mdEffortLabelOf(nm, measureTextWidth)))
     }),
+    // 折叠时多出来的那一截收进 +N：蓝色虚线，悬停列出全部目录名，点一下展开。
+    hidden.length ? h(Tip, { content: tr('list.effortsTitle', { names: names.join('、') }) }, h('span', chipProps({
+      key: 'eff-more',
+      className: 'dsws-chip',
+      'data-press': 'chip',
+      'data-log': 'list.effort.more',
+      onClick: function (e: any) { e.stopPropagation(); st.expEfforts = true; emit(st) },
+      style: Object.assign({}, chipLayout, mdEffortMoreColors()),
+    }), '+' + hidden.length)) : null,
+    // 展开后可收起：回到折叠态，只留前 10 个。
+    (expanded && foldable) ? h(Tip, { content: tr('list.effortsCollapseTitle') }, h('span', chipProps({
+      key: 'eff-less',
+      className: 'dsws-chip',
+      'data-press': 'chip',
+      'data-log': 'list.effort.less',
+      onClick: function (e: any) { e.stopPropagation(); st.expEfforts = false; emit(st) },
+      style: Object.assign({}, chipLayout, mdEffortLessColors()),
+    }), tr('list.collapse'))) : null,
   ])
 }

@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T06:17:30.727Z",
+  "generatedAt": "2026-10-30T06:24:45.280Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 457,
-  "gateCount": 457,
-  "attributedGates": 408,
+  "chainLength": 458,
+  "gateCount": 458,
+  "attributedGates": 409,
   "unattributedGates": 49,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 26,
@@ -4787,6 +4787,24 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 4 条"
+    },
+    {
+      "step": "node tests/verify-1664-md-eff-filter.ts",
+      "file": "tests/verify-1664-md-eff-filter.ts",
+      "guards": [
+        "src/client/kernel/store-derived.ts",
+        "src/client/views/ListTab.ts",
+        "src/client/views/mdEffortRow.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-1668-detail-top-gate-wire.ts",
@@ -11171,6 +11189,7 @@
       "node tests/verify-1649-detail-closed-link.ts",
       "node tests/verify-1654-ws-pending-hint.ts",
       "node tests/verify-1661-banner-singleline.ts",
+      "node tests/verify-1664-md-eff-filter.ts",
       "node tests/verify-1668-detail-top-gate-wire.ts",
       "node tests/verify-1668-detail-top-gate.ts",
       "node tests/verify-423-title-clamp.ts",
@@ -11313,6 +11332,7 @@
       "node tests/verify-1639-md-eff-split-browser.ts",
       "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-1654-ws-pending-hint.ts",
+      "node tests/verify-1664-md-eff-filter.ts",
       "node tests/verify-1668-detail-top-gate-wire.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
