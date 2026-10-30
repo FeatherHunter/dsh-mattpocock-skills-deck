@@ -183,7 +183,7 @@ npm run test:smoke          # smoke tests
 npm run verify              # contract checks
 ```
 
-The full build / verify / sync / publish workflow lives in [DEV-WORKFLOW.md](workflow/DEV-WORKFLOW.md).
+The current build / verify workflow lives in [docs/agents/verification.md](agents/verification.md); the historical walkthrough is kept in [DEV-WORKFLOW.md](workflow/DEV-WORKFLOW.md).
 
 <h2 align="center"><sub>MORE</sub><br>More from the author</h2>
 

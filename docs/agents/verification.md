@@ -206,7 +206,7 @@ node tests/verify-gate-map.ts        # 给归属表和挑选规则把关的新�
    `exclude` 表，且理由与票号缺一不可（看守门禁 `tests/verify-1125-gate-coverage.ts` 会查这两项）。
 3. 在文件开头写 `// 门禁归属:` 注释，写清它守着哪些源码路径（格式见下一节）。这一步可选，
    但强烈建议写——不写就只能靠「它读了哪些字面量路径」去猜，猜不准。
-4. 重跑 `node scripts/gate-map.mts` 更新归属表，再跑 `node tests/verify-gate-map.ts` 确认全绿。
+4. 重跑 `node scripts/gate-map.mts` 更新归属表，再跑 `node tests/verify-gate-map.ts` 确认全绿。合并时两边都改过归属表而冲突的，不要挑任何一边，以合并后的树为准重新生成一次。
 5. 自己把那扇门禁跑一遍，确认它**能红也能绿**（故意改坏一处看它是不是真的拦得住）——
    一扇永远绿的门禁比没有门禁更糟。
 
