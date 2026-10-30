@@ -57,14 +57,15 @@ import {
   graphqlDependenciesCompleteness,
   graphqlLabelListCompleteness,
   graphqlLabelsCompleteness,
+  graphqlReviewsCompleteness,
   graphqlRowsCompleteness,
   graphqlSubIssuesCompleteness,
 } from '../src/tracker/rooms/github/channels/graphql/read-shapes.js'
 import {
+  restDetailFieldGroups,
   restLabelListCompleteness,
   restListCompleteness,
   restRowLabelsCompleteness,
-  restSingleRowFieldGroups,
   restSubIssuesCompleteness,
 } from '../src/tracker/rooms/github/channels/rest/read-shapes.js'
 import {
@@ -325,7 +326,10 @@ check(listCompleteProv.fieldGroups.row === 'complete' && listCompleteProv.fieldG
 
 const getPartialProv = buildReadProvenance('get', {
   source: 'graphql',
-  fieldGroups: { row: 'complete', body: 'complete', comments: 'complete', dependencies: 'unexpressed' },
+  fieldGroups: {
+    row: 'complete', body: 'complete', comments: 'complete', parents: 'complete',
+    dependencies: 'unexpressed', subIssues: 'complete', review: 'complete', mergeInfo: 'complete',
+  },
   durationMs: 30,
   startVersion: SAMPLE_VERSION,
 })
@@ -334,7 +338,10 @@ check(getPartialProv.missingFieldGroups.join(',') === 'dependencies', '缺失字
 
 const getTruncatedProv = buildReadProvenance('get', {
   source: 'graphql',
-  fieldGroups: { row: 'complete', body: 'complete', comments: 'truncated', dependencies: 'unexpressed' },
+  fieldGroups: {
+    row: 'complete', body: 'complete', comments: 'truncated', parents: 'complete',
+    dependencies: 'unexpressed', subIssues: 'complete', review: 'complete', mergeInfo: 'complete',
+  },
   durationMs: 30,
   startVersion: SAMPLE_VERSION,
 })
@@ -753,9 +760,12 @@ function gqlPageData(nodes: any[], totalCount: number): any {
   const prov = expectProvenance('单票主路', result, {
     operation: 'get',
     source: 'graphql',
-    groups: { row: 'complete', body: 'complete', comments: 'complete', dependencies: 'unexpressed' },
+    groups: {
+      row: 'complete', body: 'complete', comments: 'complete', parents: 'complete',
+      dependencies: 'unexpressed', subIssues: 'unexpressed', review: 'unexpressed', mergeInfo: 'unexpressed',
+    },
     completeness: 'partial',
-    missing: ['dependencies'],
+    missing: ['review', 'dependencies', 'subIssues', 'mergeInfo'],
     degradedFrom: '',
   })
   check(result.ok === true && result.data && result.data.key === '123', '单票主路仍返回这张票（行为不变）', result.data && result.data.key)
@@ -775,9 +785,12 @@ function gqlPageData(nodes: any[], totalCount: number): any {
   expectProvenance('单票依赖到上限', result, {
     operation: 'get',
     source: 'graphql',
-    groups: { row: 'complete', body: 'complete', comments: 'complete', dependencies: 'truncated' },
+    groups: {
+      row: 'complete', body: 'complete', comments: 'complete', parents: 'complete',
+      dependencies: 'truncated', subIssues: 'unexpressed', review: 'unexpressed', mergeInfo: 'unexpressed',
+    },
     completeness: 'truncated',
-    missing: ['dependencies'],
+    missing: ['review', 'dependencies', 'subIssues', 'mergeInfo'],
     degradedFrom: '',
   })
 }
@@ -793,9 +806,12 @@ function gqlPageData(nodes: any[], totalCount: number): any {
   expectProvenance('单票 REST 降级', result, {
     operation: 'get',
     source: 'rest',
-    groups: { row: 'complete', body: 'complete', comments: 'unexpressed', dependencies: 'unexpressed' },
+    groups: {
+      row: 'complete', body: 'complete', comments: 'unexpressed', parents: 'unexpressed',
+      dependencies: 'unexpressed', subIssues: 'unexpressed', review: 'unexpressed', mergeInfo: 'unexpressed',
+    },
     completeness: 'partial',
-    missing: ['comments', 'dependencies'],
+    missing: ['comments', 'review', 'parents', 'dependencies', 'subIssues', 'mergeInfo'],
     degradedFrom: 'graphql',
   })
   check(result.ok === true && result.data && result.data.key === '123', '单票 REST 降级仍返回这张票（行为不变）', result.data && result.data.key)
@@ -911,6 +927,8 @@ check(graphqlRowsCompleteness({ truncated: false, dropped: 0 }) === 'complete', 
 check(graphqlRowsCompleteness({ truncated: false, dropped: 2 }) === 'truncated', 'GraphQL 行：丢过行就是 truncated')
 check(graphqlLabelsCompleteness([labelsOfCount(49)]) === 'complete', 'GraphQL 标签：一行 49 条仍是 complete')
 check(graphqlLabelsCompleteness([labelsOfCount(50)]) === 'truncated', 'GraphQL 标签：一行到 50 条上限即 truncated')
+check(graphqlReviewsCompleteness(19) === 'complete', 'GraphQL 评审：不到 20 条是 complete')
+check(graphqlReviewsCompleteness(20) === 'truncated', 'GraphQL 评审：收到满 20 条即 truncated（可能还有下一页）')
 check(graphqlDependenciesCompleteness([null]) === 'unexpressed', 'GraphQL 依赖：没拉这一侧是 unexpressed')
 check(graphqlDependenciesCompleteness([50, 2]) === 'truncated', 'GraphQL 依赖：一侧到 50 条上限即 truncated')
 check(graphqlCommentsCompleteness({ nodesCount: 2, totalCount: 2, want: null }) === 'complete', 'GraphQL 评论：拉齐全部是 complete')
@@ -932,7 +950,16 @@ check(
 )
 check(restRowLabelsCompleteness([{ labels: [] }]) === 'complete', 'REST 行标签：结构完整是 complete')
 check(restRowLabelsCompleteness([{ name: 'x' }]) === 'unexpressed', 'REST 行标签：结构不对是 unexpressed')
-check(restSingleRowFieldGroups().comments === 'unexpressed', 'REST 单票不表达评论正文')
+check(restDetailFieldGroups({}).comments === 'unexpressed', 'REST 单票不表达评论正文')
+check(restDetailFieldGroups({}).parents === 'unexpressed', 'REST 单票不表达父子边')
+check(restDetailFieldGroups({}).dependencies === 'unexpressed', 'REST 单票不表达依赖边')
+check(restDetailFieldGroups({}).subIssues === 'unexpressed', 'REST 单票回包没有子票计数即记未表达')
+check(restDetailFieldGroups({ sub_issues_summary: { total: 3, completed: 1, percent_completed: 33 } }).subIssues === 'complete', 'REST 单票回包带合法子票计数即记完整')
+check(restDetailFieldGroups({}).review === 'unexpressed', 'REST 单票回包没有评审数组即记未表达')
+check(restDetailFieldGroups({ reviews: [] }).review === 'complete', 'REST 单票回包带不满一页的评审数组即记完整')
+check(restDetailFieldGroups({ reviews: new Array(PAGINATION.github.restPageSize) }).review === 'truncated', 'REST 单票评审恰好满一页记截断（单票富化只取一页不翻页）')
+check(restDetailFieldGroups({}).mergeInfo === 'unexpressed', 'REST 单票回包没有合并时间即记未表达')
+check(restDetailFieldGroups({ merged_at: null }).mergeInfo === 'complete', 'REST 单票回包的 merged_at 是 null 也算表达（还没合并是明确事实）')
 check(restLabelListCompleteness(1000) === 'truncated', 'REST 标签清单：到 1000 上限即 truncated')
 check(
   restSubIssuesCompleteness({ fetched: 120, pageSize: 100, lastPageRows: 20, sawEmptyPage: false, hitCap: false, pageFailure: false }) === 'complete',

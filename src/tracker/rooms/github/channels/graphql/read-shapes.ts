@@ -65,6 +65,26 @@ export function graphqlLabelsCompleteness(
 }
 
 /**
+ * 一次最多取多少条拉取请求评审：与 `channels/graphql/queries.ts` 的 `reviews(first:20)` 是同一个数。
+ *
+ * 为什么单独提成常量：片段里没有 `pageInfo`，收到满 20 条就无法证明取全，判定要用这个数；
+ * 改查询上限时忘了改这里，门禁 `tests/verify-read-result-provenance.ts` 会核对片段文本并判红。
+ */
+export const REVIEWS_MAX = 20
+
+/**
+ * 拉取请求评审组的完整度。
+ *
+ * 只用于「这次确实查了评审」的拉取请求查询：片段 `reviews(first:20)` 没有 `pageInfo`，
+ * 收到满 `REVIEWS_MAX`（20）条就可能是「还有下一页」，记 `truncated`；少于 20 条说明
+ * 这个拉取请求的评审已经全在这份回包里。工单查询不查评审，那一组由调用方记 `unexpressed`。
+ */
+export function graphqlReviewsCompleteness(nodesCount: number): FieldGroupCompleteness {
+  if (nodesCount >= REVIEWS_MAX) return 'truncated'
+  return 'complete'
+}
+
+/**
  * 依赖组的完整度：按「这条读路径实际查过的那几侧」各自计数判断。
  *
  * `counts` 是每侧节点数（例如单票查询只查 `blockedBy` 一侧就只传一个数；依赖投影查两侧就传两个）。

@@ -89,15 +89,58 @@ export function restRowLabelsCompleteness(rows: readonly unknown[]): FieldGroupC
   return 'complete'
 }
 
+/** 一个计数是不是「这个端点表达出来的数」：非负整数才算，坏值不算表达。 */
+function isCount(value: unknown): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+/** 子票计数这一组有没有被回包表达：sub_issues_summary 的 total 与 completed 都是非负整数才算。 */
+function subIssuesExpressed(summary: unknown): boolean {
+  if (!summary || typeof summary !== 'object') return false
+  const bag = summary as Record<string, unknown>
+  return isCount(bag.total) && isCount(bag.completed)
+}
+
+/** 合并时间这一组有没有被回包表达：字符串或 null 都算表达（null 就是「还没合并」）。 */
+function mergeInfoExpressed(bag: Record<string, unknown>): boolean {
+  if (typeof bag.merged_at === 'string' || bag.merged_at === null) return true
+  if (typeof bag.mergedAt === 'string' || bag.mergedAt === null) return true
+  const pull = bag.pull_request
+  if (pull && typeof pull === 'object' && 'merged_at' in (pull as Record<string, unknown>)) return true
+  return false
+}
+
 /**
- * REST 单票的字段组表态：行与正文完整，评论正文与依赖不表达。
+ * REST 单票回包的八组表态（票 #1688）。
  *
- * 为什么固定成常量而不是按回包算：这是 REST 单票端点本身的能力边界（规格第 5 节：REST 单票
- * 行字段完整，但不表达依赖、子票、评论正文），与某一次回包无关。降级到 REST 的读路径直接把
- * 这份表态合进来源信息，不要在那里再手写一遍「comments 未表达」。
+ * 为什么按回包算而不是写成固定常量：REST 单票端点只有「行与正文」是每次恒定表达的；
+ * 子票计数（GitHub 的 issue 回包会带 `sub_issues_summary`）、评审数组（单票富化会补
+ * `/reviews` 一页）、合并时间（`/pulls` 的 `merged_at`，或 `/issues` 里
+ * `pull_request.merged_at`）这三组有没有表达，要看这一次回包。评论正文、父子边、依赖边
+ * 这一版端点压根不取，恒记 `unexpressed`。
+ *
+ * 判定口径：
+ * - 子票计数：`sub_issues_summary` 的 total 与 completed 都是非负整数才算表达，坏值不算；
+ * - 评审：单票富化只补一页 `/reviews`（每页 100 条、不翻页），满 100 条记 `truncated`，
+ *   不满记 `complete`；回包里没有评审数组记 `unexpressed`；
+ * - 合并时间：`merged_at` / `mergedAt` 是字符串或 null、或 `pull_request` 对象里有
+ *   `merged_at` 键，才算表达；坏值不算表达。
  */
-export function restSingleRowFieldGroups(): Readonly<Partial<Record<FieldGroup, FieldGroupCompleteness>>> {
-  return { row: 'complete', body: 'complete', comments: 'unexpressed', dependencies: 'unexpressed' }
+export function restDetailFieldGroups(raw: unknown): Readonly<Partial<Record<FieldGroup, FieldGroupCompleteness>>> {
+  const bag = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const reviews = Array.isArray(bag.reviews) ? bag.reviews as readonly unknown[] : null
+  return {
+    row: 'complete',
+    body: 'complete',
+    comments: 'unexpressed',
+    parents: 'unexpressed',
+    dependencies: 'unexpressed',
+    subIssues: subIssuesExpressed(bag.sub_issues_summary) ? 'complete' : 'unexpressed',
+    review: reviews === null
+      ? 'unexpressed'
+      : (reviews.length >= PAGINATION.github.restPageSize ? 'truncated' : 'complete'),
+    mergeInfo: mergeInfoExpressed(bag) ? 'complete' : 'unexpressed',
+  }
 }
 
 /** REST 子票清单翻页结束时的事实：每页 100 张、至多 1000 张。 */
