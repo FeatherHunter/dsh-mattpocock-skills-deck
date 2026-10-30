@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T19:14:07.105Z",
+  "generatedAt": "2026-10-30T19:51:48.042Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 458,
-  "gateCount": 458,
-  "attributedGates": 409,
-  "unattributedGates": 49,
+  "chainLength": 460,
+  "gateCount": 460,
+  "attributedGates": 410,
+  "unattributedGates": 50,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 26,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 622,
+  "graphFileCount": 626,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -8037,6 +8037,17 @@
       "reason": "归属来自：静态 import 说明符 3 条"
     },
     {
+      "step": "node tests/verify-glossary-terms.ts",
+      "file": "tests/verify-glossary-terms.ts",
+      "guards": [],
+      "dirs": [],
+      "unattributed": true,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "它读的文件都用变量拼出来、或者读的是自己造的临时夹具，脚本里没有出现能认出来的路径字面量，算不出它守着哪条源码路径"
+    },
+    {
       "step": "node tests/verify-golden-receipts.ts",
       "file": "tests/verify-golden-receipts.ts",
       "guards": [
@@ -9085,6 +9096,29 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 6 条"
+    },
+    {
+      "step": "node tests/verify-operation-catalog.ts",
+      "file": "tests/verify-operation-catalog.ts",
+      "guards": [
+        "src/refresh/kernel/budget-admission.ts",
+        "src/tracker/contract/operations-encyclopedia.ts",
+        "src/tracker/rooms/github/read-sources.ts",
+        "src/tracker/rooms/gitlab/read-sources.ts",
+        "src/tracker/rooms/markdown/read-sources.ts"
+      ],
+      "dirs": [
+        "src/refresh/kernel",
+        "src/tracker/contract",
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
       "step": "node tests/verify-panel-workspace-isolation.ts",
@@ -11799,6 +11833,7 @@
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-index-window.ts",
       "node tests/verify-log-fields.ts",
+      "node tests/verify-operation-catalog.ts",
       "node tests/verify-policy.ts",
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-time-config.ts",
@@ -12162,6 +12197,7 @@
       "node tests/verify-issue195.ts",
       "node tests/verify-labels-sync.ts",
       "node tests/verify-markdown-label-colors.ts",
+      "node tests/verify-operation-catalog.ts",
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-tracker-session.ts"
     ],
@@ -12311,6 +12347,7 @@
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue195.ts",
       "node tests/verify-labels-sync.ts",
+      "node tests/verify-operation-catalog.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-t1-initpublish.ts",
@@ -12341,6 +12378,7 @@
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-gitlab-single-write.ts",
+      "node tests/verify-operation-catalog.ts",
       "node tests/verify-time-config.ts",
       "node tests/verify-tracker-contract.ts",
       "node tests/verify-tracker-session.ts",
@@ -12410,6 +12448,7 @@
       "node tests/verify-markdown-label-colors.ts",
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.ts",
+      "node tests/verify-operation-catalog.ts",
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-time-config.ts",
       "node tests/verify-tracker-session.ts"
@@ -12677,9 +12716,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 643,
+    "fileCount": 647,
     "dirCount": 74,
-    "coveredFileCount": 643,
+    "coveredFileCount": 647,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 57,
@@ -13178,6 +13217,7 @@
       "src/tracker/contract/index.ts",
       "src/tracker/contract/inputs.ts",
       "src/tracker/contract/operations-catalog.ts",
+      "src/tracker/contract/operations-encyclopedia.ts",
       "src/tracker/contract/operations.ts",
       "src/tracker/contract/outbound.ts",
       "src/tracker/contract/pagination.ts",
@@ -13242,6 +13282,7 @@
       "src/tracker/rooms/github/pulls.ts",
       "src/tracker/rooms/github/queries.ts",
       "src/tracker/rooms/github/read-log.ts",
+      "src/tracker/rooms/github/read-sources.ts",
       "src/tracker/rooms/github/repo-permissions.ts",
       "src/tracker/rooms/github/repo.ts",
       "src/tracker/rooms/github/rest-list-metadata.ts",
@@ -13274,6 +13315,7 @@
       "src/tracker/rooms/gitlab/preflight.ts",
       "src/tracker/rooms/gitlab/queries.ts",
       "src/tracker/rooms/gitlab/read-log.ts",
+      "src/tracker/rooms/gitlab/read-sources.ts",
       "src/tracker/rooms/gitlab/repo.ts",
       "src/tracker/rooms/gitlab/sub-issues.ts",
       "src/tracker/rooms/markdown/budget.ts",
@@ -13311,6 +13353,7 @@
       "src/tracker/rooms/markdown/patch-body.ts",
       "src/tracker/rooms/markdown/path.ts",
       "src/tracker/rooms/markdown/read-log.ts",
+      "src/tracker/rooms/markdown/read-sources.ts",
       "src/tracker/rooms/markdown/read.ts",
       "src/tracker/rooms/markdown/scratch-listing.ts",
       "src/tracker/rooms/markdown/template-guard.ts",
