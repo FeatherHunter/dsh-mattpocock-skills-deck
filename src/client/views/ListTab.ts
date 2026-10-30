@@ -28,6 +28,8 @@ declare function compute(...args: any[]): any;
 declare function darken(...args: any[]): any;
 declare function deckCountsOf(...args: any[]): any;
 declare function effortNamesOf(...args: any[]): any;
+// #1664：第一排 md目录签的选项（只留还有打开的票的工作单元），与徽标用的 effortNamesOf 分开。
+declare function effortOptionNamesOf(...args: any[]): any;
 declare function effortOf(...args: any[]): any;
 declare function fitAllTags(...args: any[]): any;
 declare function getCachedSnapshot(...args: any[]): any;
@@ -175,9 +177,12 @@ export     const ListTab = ({ st, narrow }: any) => {
       // #690：历史票按需翻页。这一钩子在「看得到已关闭票」的两处生效（状态筛到「已关闭」，或底部那条
       //   折叠行被展开）：进去先把第一页备上，滚到底再顺着游标取下一页。三个触发点共用同一份页数据。
       useClosedPageScroll(st, st.stateFilter === 'closed' || st.closedFoldOpen === true)
-      // effort 维度：仓库里有几个 effort（去重排序，来自共享小件；单 effort 后端恒 []，界面不变）
-      const effortNames = effortNamesOf(st)
-      const multiEffort = effortNames.length > 1
+      // effort 维度：仓库里有几个工作单元（去重排序，来自共享小件；单 effort 后端恒 []，界面不变）。
+      // #1664：徽标与「要不要画这一排」仍看全部目录；这一排实际列出的选项另算——只留还有打开的票的那些
+      //   （完全关闭的工作单元不再出现在选项里，见 store-derived 的 effortOptionNamesOf）。
+      const allEffortNames = effortNamesOf(st)
+      const multiEffort = allEffortNames.length > 1
+      const effortNames = effortOptionNamesOf(st)
       // md目录签筛选（会话私有，不持久化）：没选=全部；选了=只看这一个工作单元的行
       const effPass = function (x: any) {
         const sel = st.effFilters || []

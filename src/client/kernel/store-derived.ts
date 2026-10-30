@@ -71,6 +71,34 @@ export const effortNamesOf = function (st: any): any {
     return Object.keys(set).sort()
   } catch (e) { return [] }
 }
+/** 主列表顶部那排 md目录签实际列出的目录名：只留「还有打开的票」的目录（#1664）。
+ *  为什么不改 effortNamesOf，另起一份：effortNamesOf 还负责回答「这个仓库有几个工作单元」，
+ *  MapDetail 与 IssueDetail 靠它决定要不要给行画工作单元徽标；徽标要看全部目录——哪怕某个目录
+ *  的票已经全关了，行上仍要标出它属于哪个目录。把过滤塞进 effortNamesOf，徽标就会跟着少一颗。
+ *  三个来源一起看：地图本身、地图子票、池子票（快照里的 issues），与 effortNamesOf 收名字的来源一致。
+ *  只有明确写着已关闭的票才算关闭：字段缺失或写法陌生一律按打开处理——宁可多给一颗选项，
+ *  也不要因为不认识一个新写法，就把还有票的目录整颗藏掉。 */
+export const effortOptionNamesOf = function (st: any): any {
+  try {
+    const open: any = {}
+    const note = function (x: any): void {
+      try {
+        const e: any = effortOf(x)
+        if (!e) return
+        const state: string = (x && x.state !== undefined && x.state !== null) ? String(x.state).trim().toLowerCase() : ''
+        if (state !== 'closed') open[e] = true
+      } catch (err) { /* 单张行坏掉不挡整排 */ }
+    }
+    const snap: any = (st && st.snapshot) || {}
+    ;(Array.isArray(snap.maps) ? snap.maps : []).forEach(function (m: any): void {
+      note(m)
+      const tickets: any[] = (m && Array.isArray(m.tickets)) ? m.tickets : []
+      tickets.forEach(note)
+    })
+    ;(Array.isArray(snap.issues) ? snap.issues : []).forEach(note)
+    return Object.keys(open).sort()
+  } catch (e) { return [] }
+}
 /** 编号规范键（与 mapDetailV2/ticketCardFacts.ts 的 numberKeyOf 同口径）：
  * 本地后端票号补零（行 key 写成 '02'），宿主侧阻塞边归一成数字（2）——两边各说各的，
  * 按原样拼身份永远对不上（'02' 对 '2'），整张地图的阻塞会被静默判成可接（#1431）。

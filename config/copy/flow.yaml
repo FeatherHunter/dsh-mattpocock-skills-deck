@@ -58,6 +58,8 @@ zh:
   list.popTitle: 标题
   cfg.previewTitle: 示例 issue 标题
   list.tagsCollapseTitle: 仅显示前 4 个
+  list.effortsTitle: 全部 md目录签：{names}（点击展开）
+  list.effortsCollapseTitle: 仅显示前 10 个
   list.copyLinkTitle: 复制链接
   list.openInTrackerTitle: "在当前 Tracker 打开 #{n}"
   detail.viewOnTracker: 打开原票
@@ -306,6 +308,8 @@ en:
   list.popTitle: Title
   cfg.previewTitle: Sample issue title
   list.tagsCollapseTitle: Show first 4 only
+  list.effortsTitle: "All work-unit filters: {names} (click to expand)"
+  list.effortsCollapseTitle: Show first 10 only
   list.copyLinkTitle: Copy link
   list.openInTrackerTitle: "Open #{n} in the current tracker"
   detail.viewOnTracker: Open issue
