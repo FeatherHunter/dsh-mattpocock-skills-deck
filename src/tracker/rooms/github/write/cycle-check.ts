@@ -1,13 +1,16 @@
-// src/tracker/rooms/github/model/cycle-check.ts —— 依赖图邻接关系的按需组装（#895 去放大）
-// #1686 阶段 1：从房间根迁入 model/，旧路径 src/tracker/rooms/github/cycle-check.ts 保留纯转发，行为零变化。
+// src/tracker/rooms/github/write/cycle-check.ts —— 依赖图邻接关系的按需组装（#895 去放大）
+// #1686 阶段 1：从房间根迁入 model/；#1687 阶段 1：从 model/ 迁入 write/。
+// 为什么归写侧：它读名册与整仓列表是为了给「写阻塞边之前」的成环检查提供邻接关系，
+// 属于写动作的前置判断；而 model 层不许引用 read 层的读函数，所以搬到写侧。
+// 唯一下游是 write/graph.ts；旧路径 src/tracker/rooms/github/cycle-check.ts 保留纯转发，行为零变化。
 //
 // 为什么有这个文件：成环检查与反向聚合以前每次整仓拉取（仓库越大越慢，单次补几条边
 // 就能打满执行限时）。现在名册优先：调用上下文带名册（ctx.memo，工具层调用上下文建的）
 // 时只定向重读脏票；名册缺席、脏票读不回时退回整仓拉取（老行为，一字不差）。
 // 同房间内引用（graph.js 用它）；跨房间不许引。签名里不加新参数——名册走既有的 ctx。
 import { listIssues, getIssue } from '../issues.js'
-import { rosterUpsert } from './roster.js'
-import type { RosterMemo } from './roster.js';
+import { rosterUpsert } from '../model/roster.js'
+import type { RosterMemo } from '../model/roster.js';
 import type { OpContext } from '../../../contract/contexts.js';
 import type { Issue, RepositoryRef } from '../../../contract/entities.js';
 // 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）：本文件从前留着手写副本，
@@ -68,7 +71,7 @@ export async function adjacencyFor(repo: RepositoryRef, ctx: MemoCtx): Promise<M
       let g = null as Awaited<ReturnType<typeof getIssue>> | null;
       try { g = await getIssue(repo, String(k), {}, ctx) } catch (e) { g = null }
       if (!g || g.ok !== true || !g.data) { stale = true; break }
-      try { rosterUpsert(memo as unknown as import('./roster.js').RosterMemo, g.data) } catch (e) {}
+      try { rosterUpsert(memo as unknown as import('../model/roster.js').RosterMemo, g.data) } catch (e) {}
     }
     if (!stale) {
       const adj = adjacencyOfRoster(roster)

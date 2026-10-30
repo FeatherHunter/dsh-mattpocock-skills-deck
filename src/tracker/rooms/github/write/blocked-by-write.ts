@@ -25,7 +25,7 @@ import { fail } from '../../../kernel/preflight.js'
 import { guardEmit } from '../../../kernel/log-emit.js'
 import { ghClient } from '../transport/client.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
-import { pickFallbackReason } from '../fallback-reason.js'
+import { pickFallbackReason } from '../routing/fallback-reason.js'
 import { ADD_BLOCKED_BY_MUTATION, REMOVE_BLOCKED_BY_MUTATION, issueNodeIdsQuery } from '../channels/graphql/queries.js'
 
 /** gh 执行器的形状（client 房的 ghClient 回什么就是什么，这里只借它的类型）。 */
