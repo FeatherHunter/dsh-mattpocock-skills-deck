@@ -213,7 +213,43 @@ pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish
 
 ---
 
+## 13. 发布失败之后的处置：不重跑，先做只读核对
+
+> **背景**：2026-10-30 发布 1.9.0-beta.32 时，registry 已经收下包，但发布脚本在发布后 60 秒内 12 次都没能把 tarball 拉回来核对（`FETCH-FAIL`），按协议以非零退出记为失败。之后人工核对发现字节完全一致，只是 registry 的可见延迟比脚本预算长（实测 beta.31 约 2 分 44 秒、beta.32 约 3 分钟），补 `latest` 也成功了。这一节把这次教训固化成规则。
+
+### 13.1 任何一次失败之后，禁止重跑发布命令
+
+`scripts/publish-token.ps1` 判断「要不要发」的方法是看云端版本是否已可见：已可见就记 `SKIP 云端已有`；当所有包都被跳过、没有要发的包时，脚本直接输出 `DONE 本次没有要发的包` 并以 0 退出。也就是说，一次 `FETCH-FAIL` 之后再跑同一条发布命令，拿到的是成功退出码，而脚本既不重新做字节核对，也不检查 `dist-tag` —— 失败会被静默地洗成成功。`-FullPost` 也救不回来：它同样卡在「没有要发的包」这一步提前结束。所以失败之后第一件事是停下来做只读核对，不是再跑一遍。
+
+### 13.2 只读核对三步（不发布、不改 tag）
+
+1. 从 registry 拉回 tarball：`npm pack dsh-mattpocock-skills-deck@<版本> --registry https://registry.npmjs.org --pack-destination <临时目录>`。
+2. 与冻结候选逐个比对：候选 tgz 的 sha256 记在批次目录的 `pkg/candidate.json` 与清单票的批次评论里；用 `Get-FileHash -Algorithm SHA256` 两两对照，字节数也要一致。beta.32 实测两边都是 1,483,823 字节、sha256 `de94618c…`（完整值 `de94618c47be9c0e594206297337bd3d69e73af5aea73b89e3f641e3da07c261`）。
+3. 读 `dist-tag`：`npm dist-tag ls dsh-mattpocock-skills-deck --registry https://registry.npmjs.org`，确认 `beta` 与 `latest` 的指向符合第 8 节的策略（预发布版本两个 tag 都指向本版；稳定版本只动 `latest`）。
+
+三步都通过，才算「发出去的字节就是验过的字节」；任何一步对不上，按第 8 节「不提供回滚」的口径处理：不删版本、不重发同一版本，评估补一个新版本修正。给 registry 留够时间：脚本的 60 秒预算短于实测可见延迟，人工核对建议至少等 5 分钟再判失败。把脚本的重试预算改长属于另一件事，要单独开票、带测试改，不在这一节里直接改代码。
+
+### 13.3 需要补 tag 时，单独执行
+
+核对通过后如果 `dist-tag` 不符合预期，只补 tag，不重新发布：
+
+```powershell
+npm dist-tag add dsh-mattpocock-skills-deck@<版本> latest --registry https://registry.npmjs.org
+```
+
+遇到 `E429`（请求过多）按秒退避，等几分钟再试；beta.32 实测第一次 429、稍等后重试成功。token 仍按第 12 节的文件通道传入，命令行里只出现路径。
+
+### 13.4 发布记录只追加，不改历史
+
+发布记录评论、批次结果评论、清单票上的历史结论都是审计记录，发出后不改写。首轮失败就如实留着，核对结果用一条新评论追加，写清「首轮为什么判失败、后来核对了什么、结论是什么」。如果已经编辑过历史评论（beta.32 先例：把「这次没有机器对账证据」改成实际核对结果），要在随后一条评论里写明改了哪句、为什么改，让读记录的人能复原先后顺序。GitHub 不提供可查的评论编辑历史，删掉或改写原始结论等于把审计链打断。
+
+> **一句话**：失败之后先只读核对、再补 tag、最后追加记录；永远不要用重跑发布命令来「确认它好了」。
+
+---
+
 ## 附：修订记录
+
+- 2026-10-30 增补（beta.32 发布实测 FETCH-FAIL 与人工恢复）：新增第 13 节，写明发布一旦失败就停止重跑（脚本对云端已可见的版本记 `SKIP 云端已有`，没有要发的包时直接输出 `DONE 本次没有要发的包` 并以 0 退出，重跑会把失败洗成成功）、只读核对三步（拉回 tarball 比 sha256、读 dist-tag）、需要时单独补 tag（E429 退避）、发布记录只追加不改写；引用 beta.32 实测的可见延迟（约 3 分钟，长于脚本 60 秒预算）。
 
 - 2026-10-29 增补（#1648 发布脚本自己证明字节与 dist-tag）：发布脚本的门禁段改成「只构建一次（`npm run build`）+ `npm run verify:parallel` 唯一裁决入口（含五条冒烟）」，不再跑会重复构建的整条 `npm test`；新增 `scripts/release-integrity.mts`，把 npm 的 tarball 解包成逐文件清单（路径、字节数、sha256 与整份清单指纹），在门禁后（`GATE-SNAPSHOT`）、发布前补跑 `prepublishOnly` 后（`PRE-PACK-SAME` / `PRE-PACK-DIFF`）、发布后从 registry 拉回（`BYTES-SAME` / `BYTES-DIFF`）三处比对，不一致一律非零退出；dist-tag 按版本形态定策略并在发布前后核对（`TAG-PLAN` / `TAG-VERIFY-OK` / `TAG-VERIFY-FAIL`），预发布版本发 `beta` 后把 `latest` 也指过去、稳定版只动 `latest`；发布记录评论补上逐文件清单摘要与各 tag 最终指向。第 4、8、11 节同步，新增门禁 `tests/verify-1648-release-integrity.ts`。
 
