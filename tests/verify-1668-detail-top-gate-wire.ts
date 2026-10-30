@@ -1,5 +1,6 @@
-// tests/verify-1668-detail-top-gate-wire.ts —— #1668 门禁：详情页顶栏把「已关闭」判据接到两颗动作按钮上
+// tests/verify-1668-detail-top-gate-wire.ts —— #1668/#1669 门禁：详情页顶栏把可用性判据接到两颗动作按钮上
 // https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1668
+// https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1669
 // 门禁归属: src/client/views/IssueDetail.ts
 // 门禁归属: src/client/kernel/detail-top-gate.ts
 // 门禁归属: src/client/kernel/styles.ts
@@ -7,8 +8,11 @@
 // 1. 票关闭/合并后，顶栏「主动作」与「新会话」同进退：带 aria-disabled="true"、tabindex="-1"，
 //    点击只 stopPropagation、不注入也不开新会话；悬停原文说「这张票已关闭，只能查看。」。
 // 2. 打开的票保持今天的行为：点击照常注入 / 开新会话，不带灰态属性。
-// 3. 详情回包优先于列表快照（src = detail || snapIssue）；只剩快照或加载失败降级时，同一判据照样生效。
-// 4. 复制链接与「在跟踪器打开」是只读动作，不经过判据，两态都能用。
+// 3. #1669：票打开时，详情回包 blockedBy.nodes 里有明确没关闭的票 → 两颗按钮同样压灰，
+//    悬停点名票号（升序、顿号分隔）；阻塞票全关闭、没有 blockedBy、或只剩列表快照时保持可点。
+//    列表快照自己的 blockedBy 不参与（判据只认详情回包那一份）。
+// 4. 详情回包优先于列表快照（src = detail || snapIssue）；只剩快照或加载失败降级时，同一判据照样生效。
+// 5. 复制链接与「在跟踪器打开」是只读动作，不经过判据，两态都能用。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1668-detail-top-gate-wire.ts
 // 说明：本机 jsdom 已坏（@asamuzakjp/css-color 丢失），所以用 react-dom/server 静态渲染真组件，
 //   并在 fakeCx 的 h 里记下 React 元素，事件处理器直接调（renderToStaticMarkup 不保留处理器）。
@@ -20,8 +24,15 @@ let total = 0
 const check = (ok: any, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
 
 // ---- 同闭包全局量接桩：详情页单独加载时，这些名字在真机里由构建拼进同一个闭包 ----
+// #1669 新加的两条词条在桩里给了真源模板：其余键照旧原样返回键名（#1668 的断言按键名比对），
+// 只有这两条必须展开成整句才能断言「占位符替换后的形状」。桩里的句子是否与 flow.yaml 一字不差，
+// 由 verify-locale-completeness 判；这里判的是视图选对了词条、票号拼法与分隔符来自词表。
+const TR_TEMPLATE: Record<string, string> = {
+  'tip.detailBlockedBy': '被 {n} 阻塞，等它们关闭后才能执行。',
+  'tip.detailBlockedByJoin': '、',
+}
 const trFn = (key: any, params?: any): string => {
-  let s = String(key)
+  let s = Object.prototype.hasOwnProperty.call(TR_TEMPLATE, String(key)) ? TR_TEMPLATE[String(key)] : String(key)
   if (params) s = s.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m))
   return s
 }
@@ -110,7 +121,11 @@ const CLOSED_ROW = { number: 7, key: '07', title: '关闭的票', state: 'CLOSED
 function stWith(rows: any[], extra?: any) {
   return Object.assign({ cwd: 'D:\\ws', activeIssue: 7, activeEffortId: '', snapshot: { issues: rows, maps: [] }, issueMode: 'idle' }, extra || {})
 }
-function closedTipCount() { return created.filter((el) => el && el.type === TipStub && String(el.props.content) === 'tip.detailClosedReadonly').length }
+function tipCount(text: string) { return created.filter((el) => el && el.type === TipStub && String(el.props.content) === text).length }
+function closedTipCount() { return tipCount('tip.detailClosedReadonly') }
+// #1669 期望的悬停整句：模板取自上面 TR_TEMPLATE，视图只负责把票号拼成 "#3、#9"；
+// 分隔符必须由 tr('tip.detailBlockedByJoin') 取，不许在视图里写死。
+const blockSentence = (ids: string) => TR_TEMPLATE['tip.detailBlockedBy'].replace('{n}', ids)
 
 // W1：详情缺失、只剩关闭的列表快照 → 两颗动作按钮同进退地压灰
 {
@@ -178,6 +193,86 @@ function closedTipCount() { return created.filter((el) => el && el.type === TipS
   check(byLog('issue.top.newsession').props['aria-disabled'] === 'true', '加载失败只剩快照：新会话仍压灰')
 }
 
+// X1：#1669 打开的票、详情回包说被一张未完成的票阻塞 → 两颗动作按钮压灰、悬停点名那张票
+{
+  const html = renderDetail(stWith([OPEN_ROW], {
+    issueDetail: { number: 7, effortId: '', state: 'OPEN', title: '打开的票', blockedBy: { nodes: [{ number: 11, state: 'OPEN' }] } },
+  }))
+  const exec = byLog('issue.top.exec')
+  const news = byLog('issue.top.newsession')
+  check((html.match(/aria-disabled="true"/g) || []).length === 2, '被阻塞：两颗动作按钮都写了 aria-disabled="true"')
+  check(!!exec && exec.props['aria-disabled'] === 'true' && exec.props.tabIndex === -1, '被阻塞：主动作 aria-disabled 为真、tabIndex 为 -1')
+  check(!!news && news.props['aria-disabled'] === 'true' && news.props.tabIndex === -1, '被阻塞：新会话 aria-disabled 为真、tabIndex 为 -1')
+  check(closedTipCount() === 0, '被阻塞：悬停不是「这张票已关闭」，两种原因不能混用一句话')
+  check(tipCount(blockSentence('#11')) === 2, '被阻塞：两颗按钮的悬停都是点名票号的「被阻塞」整句')
+  const e1 = click('issue.top.exec')
+  const e2 = click('issue.top.newsession')
+  check(!!e1 && e1.stopped === 1 && !!e2 && e2.stopped === 1, '被阻塞：点击仍先 stopPropagation')
+  check(clicks.inject.length === 0, '被阻塞：点主动作没有调用 inject')
+  check(clicks.newSession.length === 0, '被阻塞：点新会话没有调用 openInNewSession')
+  check(!!byLog('issue.top.copy') && byLog('issue.top.copy').props['aria-disabled'] === undefined, '被阻塞：复制链接不受影响（无 aria-disabled）')
+  check(!!byLog('issue.top.link') && byLog('issue.top.link').props['aria-disabled'] === undefined, '被阻塞：在跟踪器打开不受影响（无 aria-disabled）')
+}
+// X2：阻塞票都已关闭 → 保持可点，点击照常
+{
+  const html = renderDetail(stWith([OPEN_ROW], {
+    issueDetail: { number: 7, effortId: '', state: 'OPEN', title: '打开的票', blockedBy: { nodes: [{ number: 3, state: 'CLOSED' }, { number: 5, state: 'MERGED' }] } },
+  }))
+  check(!html.includes('aria-disabled'), '阻塞票全关闭：整页没有灰态按钮')
+  check(tipCount(blockSentence('#3、#5')) === 0, '阻塞票全关闭：悬停不点名任何票号')
+  click('issue.top.exec')
+  click('issue.top.newsession')
+  check(clicks.inject.length === 1, '阻塞票全关闭：点主动作照常 inject')
+  check(clicks.newSession.length === 1 && clicks.newSession[0].number === 7, '阻塞票全关闭：点新会话照常开新会话')
+}
+// X3：详情回包没有 blockedBy、或清单是空的 → 保持可点（没取到不等于被阻塞）
+{
+  const noField = renderDetail(stWith([OPEN_ROW], {
+    issueDetail: { number: 7, effortId: '', state: 'OPEN', title: '打开的票' },
+  }))
+  check(!noField.includes('aria-disabled'), '详情没有 blockedBy：不压灰')
+  const emptyList = renderDetail(stWith([OPEN_ROW], {
+    issueDetail: { number: 7, effortId: '', state: 'OPEN', title: '打开的票', blockedBy: { nodes: [] } },
+  }))
+  check(!emptyList.includes('aria-disabled'), 'blockedBy.nodes 为空数组：不压灰')
+}
+// X4：列表快照写着被阻塞、详情回包没有 blockedBy → 只认详情那一份，保持可点
+{
+  const snapRow = Object.assign({}, OPEN_ROW, { blockedBy: { nodes: [{ number: 3, state: 'OPEN' }] } })
+  renderDetail(stWith([snapRow], { issueDetail: { number: 7, effortId: '', state: 'OPEN', title: '打开的票' } }))
+  check(byLog('issue.top.exec').props['aria-disabled'] === undefined, '只有快照说被阻塞：主动作仍可点（判据只认详情回包）')
+  check(byLog('issue.top.newsession').props['aria-disabled'] === undefined, '只有快照说被阻塞：新会话仍可点')
+}
+// X5：票本身已关闭、详情又列着未完成的阻塞票 → 仍说「已关闭」，两条原因不同时喊
+{
+  renderDetail(stWith([OPEN_ROW], {
+    issueDetail: { number: 7, effortId: '', state: 'CLOSED', title: '关闭的票', blockedBy: { nodes: [{ number: 3, state: 'OPEN' }] } },
+  }))
+  check(byLog('issue.top.exec').props['aria-disabled'] === 'true', '关闭+被阻塞：主动作仍压灰')
+  check(closedTipCount() === 2 && tipCount(blockSentence('#3')) === 0, '关闭+被阻塞：悬停只说「已关闭」，不再点名阻塞票')
+}
+// X6：多张阻塞票乱序 → 悬停里票号升序、顿号分隔
+{
+  renderDetail(stWith([OPEN_ROW], {
+    issueDetail: {
+      number: 7, effortId: '', state: 'OPEN', title: '打开的票',
+      blockedBy: { nodes: [{ number: 12, state: 'OPEN' }, { number: 3, state: ' open ' }, { number: 9, state: 'Open' }] },
+    },
+  }))
+  check(tipCount(blockSentence('#3、#9、#12')) === 2, '多张阻塞票：悬停票号升序、以顿号分隔（分隔符来自词表）')
+}
+// X7：四位票号连排 → 整句完整进得去，视图不做截断
+{
+  const ids = '#1234、#5678、#9012'
+  renderDetail(stWith([OPEN_ROW], {
+    issueDetail: {
+      number: 7, effortId: '', state: 'OPEN', title: '打开的票',
+      blockedBy: { nodes: [{ number: 1234, state: 'OPEN' }, { number: 5678, state: 'OPEN' }, { number: 9012, state: 'OPEN' }] },
+    },
+  }))
+  check(tipCount(blockSentence(ids)) === 2, '长票号串：三张四位票号的整句完整出现在悬停里')
+}
+
 // H：灰态样式只挂详情顶栏里带 aria-disabled 的按钮（断规则存在与关键声明；不做像素断言）
 {
   globalThis.MOTION = (await import('../src/client/kernel/motion.js')).MOTION
@@ -188,7 +283,7 @@ function closedTipCount() { return created.filter((el) => el && el.type === TipS
   check(rule.includes('background:var(--dsw-alias-bg-layer-1'), '灰态压掉主按钮的容器色，改用普通按钮底色（不再显示容器渐变）')
 }
 
-console.log(failures ? `\n#1668 接线门禁失败 ${failures} 项（共 ${total} 条）` : `\n#1668 接线门禁全部通过（共 ${total} 条）`)
+console.log(failures ? `\n#1668/#1669 接线门禁失败 ${failures} 项（共 ${total} 条）` : `\n#1668/#1669 接线门禁全部通过（共 ${total} 条）`)
 // 失败才 process.exit(1)。通过时让进程自然退出：Node 24.19 在 Windows 上
 // import 完本模块立刻 process.exit(0) 会撞 libuv 断言，断言虽全过但进程被判红。
 if (failures) process.exit(1)

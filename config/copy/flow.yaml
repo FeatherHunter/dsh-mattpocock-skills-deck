@@ -162,6 +162,10 @@ zh:
   tip.copyLink: 复制 issue 链接到剪贴板
   tip.openInTracker: "跳转到原票，在当前 Tracker 打开 #{n}"
   tip.detailClosedReadonly: 这张票已关闭，只能查看。
+  tip.detailBlockedBy: "被 {n} 阻塞，等它们关闭后才能执行。"
+  # 分隔符也放进词表：中文的顿号与英文的逗号加空格是两种排版习惯，视图只负责按词表拼句，
+  # 不在代码里替用户写死其中一种。
+  tip.detailBlockedByJoin: 、
   tip.sendComment: 提交到当前 issue，支持 Markdown
   tip.sendingComment: 正在提交评论
   tip.unsupportedAction: 不支持的动作类型，请检查后端声明
@@ -413,6 +417,9 @@ en:
   tip.copyLink: Copy issue link to clipboard
   tip.openInTracker: "Jump to original ticket, open #{n} in tracker"
   tip.detailClosedReadonly: "This issue is closed. You can view it, but it can't be run."
+  tip.detailBlockedBy: "Blocked by {n}. Close them before running."
+  # 同中文段：分隔符是语言习惯的一部分，跟句子一起留在词表里。
+  tip.detailBlockedByJoin: ", "
   tip.sendComment: Submit to current issue (Markdown supported)
   tip.sendingComment: Submitting comment
   tip.unsupportedAction: Unsupported action, check backend declaration
