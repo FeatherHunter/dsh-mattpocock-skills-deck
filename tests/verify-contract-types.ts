@@ -132,7 +132,7 @@ const TSCONFIG = resolveInRoot(process.env.DSH_CONTRACT_TSCONFIG || 'tsconfig.co
  * 换写法（改成标注、或把模块对象挪到别的文件）要同步改这张表，并把 what 写成那个对象的新名字。
  */
 const BACKEND_DECLARATIONS = [
-  { rel: 'src/tracker/rooms/github/index.ts', what: 'githubModule' },
+  { rel: 'src/tracker/rooms/github/room/index.ts', what: 'githubModule' },
   { rel: 'src/tracker/rooms/markdown/index.ts', what: 'markdownModule' },
   { rel: 'src/tracker/rooms/gitlab/index.ts', what: 'gitlabBackend' },
 ]

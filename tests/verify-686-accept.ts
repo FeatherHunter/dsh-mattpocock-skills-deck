@@ -60,7 +60,8 @@ async function main () {
   console.log('验收门禁（#686：真文本串味 · 兜底 · 三态）')
 
   // ─────────── 一、三个后端真实科目互不串味 ───────────
-  const ghSrc = read(path.join('src', 'tracker', 'rooms', 'github', 'index.ts'))
+  // #1687 阶段 1 收口：房间入口整份搬进 room/，抠提示词要看真身。
+  const ghSrc = read(path.join('src', 'tracker', 'rooms', 'github', 'room', 'index.ts'))
   const glSrc = read(path.join('src', 'tracker', 'rooms', 'gitlab', 'index.ts'))
   const mdSrc = read(path.join('src', 'tracker', 'rooms', 'markdown', 'index.ts'))
   // #725：三后端各自的 prompts.bodyFormat 整节删除，这里不再从后端抠那一条。
