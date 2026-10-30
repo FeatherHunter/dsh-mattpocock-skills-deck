@@ -25,6 +25,8 @@
  * （不是「逻辑上一次调用」——分页、重试、兜底链都要算进去）。
  */
 import type { QuotaTier } from '../contract/refresh-ports.js'
+// #1689 降级取数预算的形状：预算核住 kernel/fallback-fetch-budget.ts，这里只放它与额度账本同源的那组常量。
+import type { FallbackFetchLimits } from './fallback-fetch-budget.js'
 
 // #1215 中央时间参数：下面这些节拍与 TTL 名字的唯一真源是 config/*.yaml
 // （intervals.yaml / ttl.yaml），经 src/shared/time-config/values.js 生成常量。
@@ -32,7 +34,7 @@ import type { QuotaTier } from '../contract/refresh-ports.js'
 // 对外不再转出（调用方要名字请直接从 time-config 引：二传会让 esbuild 起别名，域转译过不去）。
 // 各名字的含义见 YAML 对应键的注释；原来跟在各名字上面的旧注释保留在原节位置，
 // 描述的仍是该名字，数值以 YAML 为准。
-import { PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, PROBE_INTERVAL_LINGER_MS, REBUILD_MIN_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, PREFLIGHT_TTL_MS, CHAIN_BACKOFF_MS, FAILURE_HALF_OPEN_DELAY_MS, CHAIN_ALL_GREEN_TTL_MS, PATCH_MERGE_WINDOW_MS, DEFER_EXPIRY_MS, ACTIVE_LINGER_MS, ATTENTION_HEARTBEAT_MS, ATTENTION_EXPIRY_MS, QUOTA_SYNC_INTERVAL_MS, FRESHNESS_YELLOW_MS, FRESHNESS_RED_MS } from '../../shared/time-config/values.js'
+import { PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, PROBE_INTERVAL_LINGER_MS, REBUILD_MIN_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, PREFLIGHT_TTL_MS, CHAIN_BACKOFF_MS, FAILURE_HALF_OPEN_DELAY_MS, CHAIN_ALL_GREEN_TTL_MS, PATCH_MERGE_WINDOW_MS, DEFER_EXPIRY_MS, ACTIVE_LINGER_MS, ATTENTION_HEARTBEAT_MS, ATTENTION_EXPIRY_MS, QUOTA_SYNC_INTERVAL_MS, FRESHNESS_YELLOW_MS, FRESHNESS_RED_MS, FALLBACK_PROBE_INTERVAL_MS, FALLBACK_CALIBRATION_INTERVAL_MS } from '../../shared/time-config/values.js'
 
 // ---------- 一、节拍（多久跑一次） ----------
 
@@ -385,4 +387,49 @@ export function lagPromiseFor(tier: string): { paused: boolean; maxLagMs: number
   if (tier === 'red') return { paused: true, maxLagMs: null }
   if (tier === 'yellow') return { paused: false, maxLagMs: PROBE_INTERVAL_YELLOW_MS }
   return { paused: false, maxLagMs: PROBE_INTERVAL_MS }
+}
+
+// ---------- 九、降级取数的请求预算与节流（#1689） ----------
+
+/**
+ * 降级取数的请求预算：与上面那份额度账本住在同一个文件，就是「同源」的证据。
+ *
+ * 为什么是这几个数（票 #1689 定的口径，出处是迁移计划阶段 4）：
+ *   ① 常规增量一轮最多 3 条请求。降级通道一轮要「探一次窗口 + 把变的那几条补回来」，
+ *      3 条只够最常见的小增量；更大的变化交给整仓枚举那一档，不许在一轮里无限补。
+ *   ② 完整枚举一轮最多 16 条请求。一次整仓重建典型 7 条（REBUILD_COST_REQUESTS），
+ *      16 条是它的两倍多，够一次整仓加一次重试，再多为零——超了就是有环，要停下来查。
+ *   ③ 单次详情补取最多 5 类请求。父边、依赖计数、按需细节这些「类」各算一格；
+ *      同一类补几张票都只占一格，所以这里按类算，不按条算。
+ *   ④ 并发固定 8 路。同时在飞的请求超过 8 条不提高吞吐，只会把宿主与服务端一起拖慢；
+ *      超出的排队，一条都不丢（丢请求是预算那一道闸的事，不是并发闸的事）。
+ *
+ * 这几个数是「条数」不是「时间」：时间值一律住 config/intervals.yaml 经
+ * time-config 生成（见下面两个探针/校准窗口），不许在这里写字面量。
+ */
+
+/** 常规增量一轮最多发几条请求：3 条。 */
+export const FALLBACK_INCREMENT_MAX_REQUESTS = 3
+
+/** 完整枚举一轮最多发几条请求：16 条。 */
+export const FALLBACK_ENUMERATE_MAX_REQUESTS = 16
+
+/** 单次详情补取最多几类请求：5 类（同类补几张只占一格）。 */
+export const FALLBACK_DETAIL_MAX_CLASSES = 5
+
+/** 降级取数同一时刻最多几条请求在飞：8 条，超出的排队。 */
+export const FALLBACK_MAX_CONCURRENCY = 8
+
+/**
+ * 降级取数的整套上限：预算核（src/refresh/kernel/fallback-fetch-budget.ts）只收这一份注入，
+ * 自己一个数字都不写。两个时间值从 time-config 引（config/intervals.yaml 的
+ * fallbackProbeIntervalMs / fallbackCalibrationIntervalMs），与额度账本同一处定义。
+ */
+export const FALLBACK_FETCH_LIMITS: FallbackFetchLimits = {
+  incrementRequests: FALLBACK_INCREMENT_MAX_REQUESTS,
+  enumerateRequests: FALLBACK_ENUMERATE_MAX_REQUESTS,
+  detailClasses: FALLBACK_DETAIL_MAX_CLASSES,
+  maxConcurrency: FALLBACK_MAX_CONCURRENCY,
+  probeIntervalMs: FALLBACK_PROBE_INTERVAL_MS,
+  calibrationIntervalMs: FALLBACK_CALIBRATION_INTERVAL_MS,
 }

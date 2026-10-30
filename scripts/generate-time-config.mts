@@ -171,6 +171,9 @@ const KEYS: Array<[string, string, string]> = [
   ['syncPollGridMs', 'SYNC_POLL_GRID_MS', 'intervals'],
   ['syncFallbackProbeMs', 'SYNC_FALLBACK_PROBE_MS', 'intervals'],
   ['syncFocusProbeMinMs', 'SYNC_FOCUS_PROBE_MIN_MS', 'intervals'],
+  // —— 降级取数的两个节流窗口（#1689）：降级常驻时探测放慢到 60 秒、自动校准至少 10 分钟 ——
+  ['fallbackProbeIntervalMs', 'FALLBACK_PROBE_INTERVAL_MS', 'intervals'],
+  ['fallbackCalibrationIntervalMs', 'FALLBACK_CALIBRATION_INTERVAL_MS', 'intervals'],
   // —— 命名状态与日志的节拍 ——
   ['namingPersistDebounceMs', 'NAMING_PERSIST_DEBOUNCE_MS', 'intervals'],
   ['namingSweepSoonMs', 'NAMING_SWEEP_SOON_MS', 'intervals'],

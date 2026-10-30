@@ -160,6 +160,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/kernel/host-budget.ts', access: 'FRESHNESS_YELLOW_MS', gen: 'FRESHNESS_YELLOW_MS', key: 'freshnessYellowMs' },
   { file: 'src/refresh/kernel/host-budget.ts', access: 'FRESHNESS_RED_MS', gen: 'FRESHNESS_RED_MS', key: 'freshnessRedMs' },
   { file: 'src/refresh/kernel/host-budget.ts', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
+  // #1689 降级取数：降级常驻时探测放慢到 60 秒、自动整仓校准至少隔 10 分钟。
+  { file: 'src/refresh/kernel/host-budget.ts', access: 'FALLBACK_PROBE_INTERVAL_MS', gen: 'FALLBACK_PROBE_INTERVAL_MS', key: 'fallbackProbeIntervalMs' },
+  { file: 'src/refresh/kernel/host-budget.ts', access: 'FALLBACK_CALIBRATION_INTERVAL_MS', gen: 'FALLBACK_CALIBRATION_INTERVAL_MS', key: 'fallbackCalibrationIntervalMs' },
   { file: 'src/refresh/contract/tuning-parameters.ts', access: 'TUNING.deckEnsureTimeoutMs', gen: 'DECK_ENSURE_TIMEOUT_MS', key: 'deckEnsureMs' },
   { file: 'src/shared/version-control/src/write-ticket.ts', access: 'TICKET_TTL_MS', gen: 'TICKET_TTL_MS', key: 'ticketTtlMs' },
   { file: 'src/refresh/kernel/index-window-rules.ts', access: 'MAX_WINDOW_MS', gen: 'TRACKER_INDEX_MAX_WINDOW_MS', key: 'trackerIndexMaxWindowMs' },
@@ -297,7 +300,7 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/shared/tracker/sync.ts', name: 'SYNC_SNAP_FRESH_MS', key: 'syncSnapFreshMs' },
   { file: 'src/shared/tracker/sync.ts', name: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
   { file: 'src/shared/tracker/sync.ts', name: 'SYNC_ISSUE_CACHE_TTL_MS', key: 'syncIssueCacheTtlMs' },
-  // budget.ts（refreshBudget 拼片）：函数体里裸用这 17 个名字，单源头改造前是字面量。
+  // budget.ts（refreshBudget 拼片）：函数体里裸用这些名字（#1689 起 19 个），单源头改造前是字面量。
   { file: 'src/refresh/kernel/host-budget.ts', name: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'PROBE_INTERVAL_YELLOW_MS', key: 'probeIntervalYellowMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'PROBE_INTERVAL_LINGER_MS', key: 'probeIntervalLingerMs' },
@@ -312,6 +315,9 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/refresh/kernel/host-budget.ts', name: 'ACTIVE_LINGER_MS', key: 'activeLingerMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs' },
+  // #1689 降级取数：降级常驻时探测与自动校准的两个窗口。
+  { file: 'src/refresh/kernel/host-budget.ts', name: 'FALLBACK_PROBE_INTERVAL_MS', key: 'fallbackProbeIntervalMs' },
+  { file: 'src/refresh/kernel/host-budget.ts', name: 'FALLBACK_CALIBRATION_INTERVAL_MS', key: 'fallbackCalibrationIntervalMs' },
   // heartbeat.js（attentionHeartbeat 拼片）：本机人不在场的判定窗也由这一片提供（#1240）。
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: 'ATTENTION_HUMAN_INPUT_WINDOW_MS', key: 'attentionHumanInputWindowMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'QUOTA_SYNC_INTERVAL_MS', key: 'quotaSyncIntervalMs' },
