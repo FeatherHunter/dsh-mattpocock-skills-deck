@@ -2,7 +2,7 @@
 //
 // 契约（票面 #1411 验收①~⑤、⑦、⑨）：
 //   - 挂页面浮层：层由 kernel:portal 的 PortalOverlay 挂到 body，position:fixed，z-index 取 SUGGEST_Z
-//     （胶囊之上、仓库顶层浮层 2147483000 之下）；悬停理由用框正上方浮层，位置固定、不跟鼠标；
+//     （与胶囊同层，宿主设置面板能盖住它，#1665）；悬停理由用框正上方浮层，位置固定、不跟鼠标；
 //   - 选项 2~4 颗，点一条走既有 inject（把文本填进输入框、不发送），点完/关闭整组消失；
 //   - 第二组覆盖第一组；真按钮可聚焦，回车/空格填入，Esc 关整组；理由对读屏可读（aria-label）；
 //   - 窄栏不溢出（层宽收在视口内、选项行可换行、单颗有上限）；数据不合法不崩、不渲染半成品；
@@ -242,25 +242,35 @@ async function main() {
     await m4.unmount()
   }
 
-  // ---------- 1.5 输入框锚点：用户拍板把锚点改到输入框（折叠不折叠它都在，不再偏左） ----------
+  // ---------- 1.5 胶囊锚点：#1665 起锚点跟胶囊走（胶囊外框不随对话框内容增高，输入框撑高时气泡不飘） ----------
   {
-    // 有输入框时按输入框定：横向对准输入框中心（200+800/2=600），纵向顶边 600 → 768-600+9=177。
-    const mIn = await mount({
+    // 胶囊和输入框都在时按胶囊定：横向对准胶囊中心（100+400/2=300），纵向贴胶囊顶边上方（768-700+9=77）。
+    const mCap = await mount({
       initial: [{ intro: '一条', prompt: '/a', reason: 'r' }, { intro: '两条', prompt: '/b', reason: 'r' }],
       inputRect: { left: 200, top: 600, width: 800, height: 44 },
       capsuleRect: { left: 100, top: 700, width: 400, height: 36 },
     })
-    check(mIn.layer() !== null && mIn.layer().style.left === '600px', '输入框锚点：横向对准输入框中心，而不是状态胶囊中心')
-    check(mIn.layer().style.bottom === '177px', '输入框锚点：纵向贴在输入框顶边上方（768-600+9）')
-    await mIn.unmount()
-    // 一个输入框都找不到时仍退回状态胶囊（老宿主、没有 textarea 的界面）。
-    const mNoIn = await mount({
+    check(mCap.layer() !== null && mCap.layer().style.left === '300px', '胶囊锚点：输入框也在时仍对准胶囊中心，而不是输入框中心')
+    check(mCap.layer().style.bottom === '77px', '胶囊锚点：纵向贴在胶囊顶边上方（768-700+9）')
+    await mCap.unmount()
+    // 对话框内容把输入框撑高（顶边上移到 300）时，锚点仍跟胶囊，不被顶到内容区顶部（#1665 现象二）。
+    const mTall = await mount({
       initial: [{ intro: '一条', prompt: '/a', reason: 'r' }, { intro: '两条', prompt: '/b', reason: 'r' }],
+      inputRect: { left: 200, top: 300, width: 800, height: 300 },
       capsuleRect: { left: 100, top: 700, width: 400, height: 36 },
     })
-    check(mNoIn.layer().style.left === '300px', '输入框锚点：找不到输入框时退回胶囊中心（100+400/2）')
-    await mNoIn.unmount()
-    // 页面上有好几个输入域时挑最宽的那个（小的搜索框不该抢锚点）。
+    check(mTall.layer() !== null && mTall.layer().style.left === '300px', '胶囊锚点：输入框被内容撑高时横向仍对准胶囊中心')
+    check(mTall.layer().style.bottom === '77px', '胶囊锚点：输入框被内容撑高时纵向仍贴胶囊顶边（不飘到内容区顶部）')
+    await mTall.unmount()
+    // 胶囊量不到（老宿主、没有探针）时才退回最宽的输入框当兜底。
+    const mNoCap = await mount({
+      initial: [{ intro: '一条', prompt: '/a', reason: 'r' }, { intro: '两条', prompt: '/b', reason: 'r' }],
+      inputRect: { left: 200, top: 600, width: 800, height: 44 },
+    })
+    check(mNoCap.layer() !== null && mNoCap.layer().style.left === '600px', '胶囊锚点：量不到胶囊时才退回输入框中心（200+800/2）')
+    check(mNoCap.layer().style.bottom === '177px', '胶囊锚点：退回输入框时纵向贴输入框顶边上方（768-600+9）')
+    await mNoCap.unmount()
+    // 页面上有好几个输入域、胶囊又量不到时挑最宽的那个（小的搜索框不该抢锚点）。
     const narrow = document.createElement('textarea')
     narrow.getBoundingClientRect = function () { return { left: 0, top: 500, width: 120, height: 30 } }
     document.body.appendChild(narrow)
@@ -268,7 +278,7 @@ async function main() {
       initial: [{ intro: '一条', prompt: '/a', reason: 'r' }, { intro: '两条', prompt: '/b', reason: 'r' }],
       inputRect: { left: 300, top: 620, width: 640, height: 44 },
     })
-    check(mWidest.layer().style.left === '620px', '输入框锚点：多个输入域时挑最宽的那个当锚点（300+640/2）')
+    check(mWidest.layer().style.left === '620px', '胶囊锚点：多个输入域兜底时挑最宽的那个当锚点（300+640/2）')
     await mWidest.unmount()
     if (narrow.parentNode) narrow.parentNode.removeChild(narrow)
   }
@@ -450,9 +460,9 @@ async function main() {
     const buildSrc = fs.readFileSync(path.join(ROOT, 'scripts/build.mts'), 'utf8')
     const leavesSrc = fs.readFileSync(path.join(ROOT, 'tests/verify-leaves.ts'), 'utf8')
 
-    check(appearanceMod.SUGGEST_Z === 2147482000, '守卫：SUGGEST_Z 的具体值不变（2147482000）')
+    check(appearanceMod.SUGGEST_Z === 0, '守卫：SUGGEST_Z 的具体值是 0（与胶囊同层，#1665）')
     check(appearanceMod.SUGGEST_Z < 2147483000, '守卫：SUGGEST_Z 低于仓库顶层浮层（2147483000）')
-    check(/export const SUGGEST_Z = 2147482000/.test(appearanceSrc), '守卫：层级常量在 appearance 叶子且只有一个定义')
+    check(/export const SUGGEST_Z = 0/.test(appearanceSrc), '守卫：层级常量在 appearance 叶子且只有一个定义')
     const bubbleCode = codeOnly(bubbleSrc)
     check(bubbleCode.indexOf('SUGGEST_Z') >= 0 && !/zIndex:\s*\d/.test(bubbleCode), '守卫：气泡层取具名常量，不写字面量层级')
     check(stylesSrc.indexOf('SUGGEST_APPEARANCE.pillFontPx') >= 0 && stylesSrc.indexOf('12.5') < 0, '守卫：样式尺寸来自外观旋钮，不写死数字')

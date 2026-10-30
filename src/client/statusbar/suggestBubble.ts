@@ -12,7 +12,7 @@
 //
 // 为什么挂页面浮层而不是就地渲染：状态栏那一层有 overflow 裁剪，就地渲染会把气泡切掉。
 // 挂 body 的做法与胶囊弹菜单同一招（kernel:portal 的 PortalOverlay 直接调用，第二个参数是子节点），
-// 层级用 suggestAppearance 里的具名常量 SUGGEST_Z（胶囊之上、仓库顶层浮层 2147483000 之下）；
+// 层级用 suggestAppearance 里的具名常量 SUGGEST_Z（与胶囊同层，宿主设置面板能盖住它，#1665）；
 // 悬停理由用框正上方的浮层（.dsws-sugg-pop，样式叶子画、位置固定在框顶边、不跟鼠标走），读屏照旧从按钮的 aria-label 念。
 //
 // 硬约束（票面 #1411）：
@@ -57,7 +57,8 @@ export const suggestViewItemsOf = function (items: any) {
 }
 
 /** 找输入框：textarea 或 contenteditable 里量得到宽高、宽度最大的那个（界面上可能还有小的
- *  搜索框与隐藏输入域，输入框是最宽的那个；量不到宽高的一律跳过，jsdom 里也就自然退回兜底）。 */
+ *  搜索框与隐藏输入域，输入框是最宽的那个；量不到宽高的一律跳过）。
+ *  #1665 起它只是锚点的兜底：胶囊量不到时才用它，平时锚点跟胶囊走。 */
 export const suggestInputOf = function () {
   try {
     if (typeof document === 'undefined' || !document.querySelectorAll) return null
@@ -91,27 +92,32 @@ function anchorOfRect(rect: any) {
 }
 
 /**
- * 量气泡锚点：优先输入框（用户拍板把锚点改到输入框——折叠不折叠它都在，横向对准输入框中心，
- * 收起胶囊后不再偏左）；找不到输入框再退回状态胶囊（探针节点最近的 .dsws-capsule）；
- * 都量不到才用视口中央靠下的一点。返回 { left, bottom }，单位是 CSS 像素。
+ * 量气泡锚点：优先状态胶囊（探针节点最近的 .dsws-capsule，横向取胶囊中心）。
+ * 为什么跟胶囊不跟输入框：输入框的高度随对话框内容增减，内容一多顶边上移，
+ * 按输入框算整组会被顶到内容区顶部（#1665 现象二）；胶囊外框不受内容多少影响，
+ * 折叠只显隐里面的文字、不改外框，所以跟胶囊走最稳。
+ * 胶囊量不到（老宿主没有探针）才退回最宽的输入框，都量不到才用视口中央靠下的一点。
+ * 返回 { left, bottom }，单位是 CSS 像素。
  *
  * 这个函数先定下整组选项框的位置，动效再按定好的布局量小泡的起落点（位置 effect 排在动效
- * effect 之前）。输入框高度变化时由 ResizeObserver 重新量，整组跟着输入框走。
+ * effect 之前）。胶囊尺寸变化时由 ResizeObserver 重新量，整组跟着胶囊走。
  */
 export const suggestAnchorOf = function (probeEl: any) {
   const viewWidth = (typeof window !== 'undefined' && Number(window.innerWidth)) || 0
   const fallback = { left: Math.round(viewWidth / 2), bottom: 120 }
   try {
+    if (probeEl && typeof probeEl.closest === 'function') {
+      const capsule = probeEl.closest('.dsws-capsule')
+      const fromCapsule = (capsule && typeof capsule.getBoundingClientRect === 'function') ? anchorOfRect(capsule.getBoundingClientRect()) : null
+      if (fromCapsule) return fromCapsule
+    }
+  } catch (eAnchorCapsule) {}
+  try {
     const input = suggestInputOf()
     const fromInput = (input && typeof input.getBoundingClientRect === 'function') ? anchorOfRect(input.getBoundingClientRect()) : null
     if (fromInput) return fromInput
   } catch (eAnchorInput) {}
-  try {
-    if (!probeEl || typeof probeEl.closest !== 'function') return fallback
-    const capsule = probeEl.closest('.dsws-capsule')
-    if (!capsule || typeof capsule.getBoundingClientRect !== 'function') return fallback
-    return anchorOfRect(capsule.getBoundingClientRect()) || fallback
-  } catch (eAnchor) { return fallback }
+  return fallback
 }
 
 /** 浮层内容：打了分的在理由第一行开头先放一颗分数泡（例如 9.5），理由正文紧跟其后排在同一行，
@@ -159,7 +165,7 @@ export const SuggestBubble = function (props: any) {
   const evenSharePx = items.length ? Math.floor((groupMaxWidthPx - pillGapPx * (items.length - 1)) / items.length) : 0
   const pillCapPx = (evenSharePx > 0 ? Math.min(singleMaxWidthPx, evenSharePx) : singleMaxWidthPx) || singleMaxWidthPx
 
-  // 位置：先定框位（挂载量一次，视口变化与输入框高度变化再量）。本 effect 排在动效 effect 之前。
+  // 位置：先定框位（挂载量一次，视口变化与胶囊尺寸变化再量，#1665）。本 effect 排在动效 effect 之前。
   React.useEffect(function () {
     if (!items.length) return undefined
     function measure() {
@@ -168,7 +174,8 @@ export const SuggestBubble = function (props: any) {
     measure()
     let ro: any = null
     try {
-      const anchorEl = suggestInputOf()
+      const probe = probeRef.current
+      const anchorEl = (probe && typeof probe.closest === 'function') ? probe.closest('.dsws-capsule') : null
       if (anchorEl && typeof ResizeObserver !== 'undefined') {
         ro = new ResizeObserver(function () { measure() })
         if (ro && typeof ro.observe === 'function') ro.observe(anchorEl)

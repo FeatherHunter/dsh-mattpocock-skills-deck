@@ -60,7 +60,8 @@ async function main() {
 
   // ---------- 1. 外观旋钮：关键值逐个钉死（值一变这条门禁就红） ----------
   {
-    check(appearanceMod.SUGGEST_Z === 2147482000, '旋钮：层级常量 SUGGEST_Z 仍是 2147482000')
+    check(appearanceMod.SUGGEST_Z === 0, '旋钮：层级常量 SUGGEST_Z 与胶囊同层（0，#1665）')
+    check(appearanceMod.SUGGEST_Z >= 0, '旋钮：层级不抢全局顶层（宿主设置面板能盖住，#1665）')
     check(appearanceMod.SUGGEST_Z < 2147483000, '旋钮：层级仍在仓库顶层浮层（2147483000）之下')
     check(A.gapAboveCapsule === 9, '旋钮：气泡与胶囊的间距 9')
     check(A.maxWidthPx === 720, '旋钮：整组最大宽度 720')
@@ -111,7 +112,7 @@ async function main() {
     check(Object.keys(A).length >= 60, '旋钮：外观参数集中在一个对象里（至少 60 项）')
     const appearanceSrc = fs.readFileSync(path.join(ROOT, 'src/client/statusbar/suggestAppearance.ts'), 'utf8')
     const zDefs = appearanceSrc.split('SUGGEST_Z').length - 1
-    check(zDefs >= 1 && /SUGGEST_Z = 2147482000/.test(appearanceSrc), '旋钮：层级常量只有一个定义，值写在这里')
+    check(zDefs >= 1 && /SUGGEST_Z = 0/.test(appearanceSrc), '旋钮：层级常量只有一个定义，值写在这里')
   }
 
   // ---------- 2. 泡数：每 20 像素一颗、最少 4 颗，量不到宽度返回空 ----------
@@ -442,7 +443,7 @@ async function main() {
     check(stylesSrc.indexOf('SUGGEST_APPEARANCE.pillBlurPx') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.popBlurPx') >= 0, '守卫：磨砂模糊半径取自外观旋钮')
     check(cssText.indexOf('backdrop-filter:blur(') >= 0 && cssText.indexOf('-webkit-backdrop-filter:blur(') >= 0, '守卫：产出的 CSS 里真有磨砂（含 -webkit- 前缀）')
     check(stylesSrc.indexOf('.dsws-sugg-score') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.scoreGapPx') >= 0 && stylesSrc.indexOf('.dsws-sugg-reason{display:inline}') >= 0, '守卫：浮层里评分贴第一行开头、理由紧跟其后（间距与同一行都有样式兜底）')
-    check(bubbleSrc.indexOf('suggestInputOf') >= 0 && bubbleSrc.indexOf('ResizeObserver') >= 0, '守卫：锚点先找输入框，输入框高度变化时重新量')
+    check(bubbleSrc.indexOf('suggestInputOf') >= 0 && bubbleSrc.indexOf('ResizeObserver') >= 0, '守卫：锚点先找胶囊（输入框只做兜底），胶囊尺寸变化时重新量（#1665）')
     check(bubbleSrc.indexOf('popBodyOf') >= 0, '守卫：浮层内容由单独的函数拼（分数泡 + 理由）')
     check(timelineSrc.indexOf('document.') < 0 && timelineSrc.indexOf('window.') < 0, '守卫：时间线是纯函数（不碰 DOM）')
     check(timelineSrc.indexOf('setTimeout') < 0 && timelineSrc.indexOf('setInterval') < 0, '守卫：时间线不含任何定时器')
