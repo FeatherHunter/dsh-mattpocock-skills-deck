@@ -36,7 +36,7 @@ import { TRACKER_ERROR_STAGE } from '../../../contract/results.js';
 import type { TrackerError } from '../../../contract/results.js';
 import { ghClient } from '../transport/client.js'
 import { ghVerdictOf } from '../support/errors.js'
-import { parseRepo } from '../issues.js'
+import { parseRepo } from '../model/issue-key.js'
 // 回看窗口住中央 YAML，调时间改 config/ttl.yaml。
 import { IDEMPOTENCY_LOOKBACK_MS } from '../../../../shared/time-config/src/values.js'
 import { PAGINATION } from '../../../contract/pagination.js'
