@@ -13,7 +13,7 @@
 //   五、三关全过时也不多问一次接口（正常路径不多花一条请求）。
 //
 // 样本是 2026-10-25 在本机真跑 gh 抓到的原文（把用户目录换成 /home/user 脱敏）。判档、阶段映射与
-// 横幅分发全部用生产代码，不另抄一份判断逻辑：房间 preflight 是真的 src/tracker/rooms/github/preflight.ts，
+// 横幅分发全部用生产代码，不另抄一份判断逻辑：房间 preflight 是真的 src/tracker/rooms/github/read/preflight.ts（#1686 搬进 read/），
 // 档位反推到第几关由 probeChainEnv 做（src/refresh/rooms/host/chain-env-map.ts），
 // 登录态判 pass/fail/pending 由 ghAuthVerdict 做，横幅与按钮去向由 guide-steps.ts 做。
 //

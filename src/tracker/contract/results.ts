@@ -14,7 +14,7 @@
  */
 
 import type { BackendId, ErrorKind } from './identity.js'
-import type { Issue, IssueRef, RepositoryRef } from './entities.js'
+import type { Issue, IssueRef, LabelColor, RepositoryRef } from './entities.js'
 import type { ReadProvenance } from './read-provenance.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -103,6 +103,11 @@ export interface PreflightResult {
   ok: boolean
   /** `ok:false` 时给出原因；`ok:true` 时不写。 */
   error?: TrackerError
+  /**
+   * 这一趟预检的来源与按字段组完整度（#1686）：三条门禁全过才是「权限这组完整」，
+   * 中途失败不挂 provenance（失败结果只回答通不通，不冒充已读到的形状）。
+   */
+  readonly provenance?: ReadProvenance
 }
 
 /**
@@ -149,6 +154,11 @@ export interface RepoPermissions {
   push: boolean
   /** 能不能整理别人的票（改指派、关别人的票）。 */
   triage: boolean
+  /**
+   * 这两个布尔是怎么读来的（#1686）：走到 `api repos/<owner>/<name>` 的 .permissions 这一条，
+   * 来源记 rest、权限组完整。挂在数据对象上是因为调用方（房间入口）原样透传这个对象，不另包信封。
+   */
+  readonly provenance?: ReadProvenance
 }
 
 /**
@@ -183,6 +193,12 @@ export interface Dependencies {
   blockingSource?: 'native' | 'scan'
   /** 给人看的一句话，说清这次依赖边的来源与完整性；任何一侧 `Complete === false` 时必须有。 */
   blockingNote?: string
+}
+
+/** getDependencies 的完整返回：依赖投影 + 这一趟的来源与依赖字段组完整度（#1686）。 */
+export type DependenciesResult = OpResult<Dependencies> & {
+  /** 来源是实际走通的那条渠道；反向边到每侧上限时依赖组记截断，不是「没有阻塞关系」。 */
+  readonly provenance?: ReadProvenance
 }
 
 /**
@@ -236,6 +252,12 @@ export interface Counts {
   total: number
 }
 
+/** counts 的完整返回：数字本身 + 这一趟的来源与计数字段组完整度（#1686）。 */
+export type CountsResult = OpResult<Counts> & {
+  /** 计数只走 GraphQL 一条路，成功时 counts 组完整；失败结果不挂 provenance。 */
+  readonly provenance?: ReadProvenance
+}
+
 /**
  * 一页票与总数（`listPage` 的返回）。
  * 排序键固定「创建时间倒序」，调用方没得选 —— 翻页期间若有票被更新，按更新时间排会让票
@@ -278,6 +300,12 @@ export interface LabelColorBatchResult {
   failed: { name: string; reason: TrackerError }[]
 }
 
+/** listLabels 的完整返回：标签清单 + 这一趟的来源与标签字段组完整度（#1686，成功即完整）。 */
+export type LabelListResult = OpResult<LabelColor[]> & {
+  /** 标签清单取不全时整条操作失败，所以成功分支的标签组必为 complete。 */
+  readonly provenance?: ReadProvenance
+}
+
 /**
  * 一张地图的全部子票（`listSubIssues` 的返回）。
  *
@@ -302,6 +330,12 @@ export interface SubIssueList {
   missing: number
   /** 拿回来却被丢掉的行数（形状不认识、编号解析不出来）。 */
   dropped: number
+}
+
+/** listSubIssues 的完整返回：子票清单 + 这一趟的来源与子票/行两个字段组的完整度（#1686）。 */
+export type SubIssueListResult = OpResult<SubIssueList> & {
+  /** 撞 1000 张上限或还有下一页时子票组记截断；归一化丢行时行组记截断。 */
+  readonly provenance?: ReadProvenance
 }
 
 /**
@@ -352,4 +386,10 @@ export interface MapListResult {
   total: number
   /** 是否撞到封顶页数（撞到时界面要说清「还有更多，这次没取全」）。 */
   truncated: boolean
+}
+
+/** listMaps 的完整返回：地图薄行 + 这一趟的来源与行/标签两个字段组的完整度（#1686）。 */
+export type MapListOpResult = OpResult<MapListResult> & {
+  /** 撞封顶页数时行组记截断；单行标签到 50 条上限时标签组记截断。 */
+  readonly provenance?: ReadProvenance
 }

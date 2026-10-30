@@ -5,7 +5,7 @@
  * 守着的源码路径（按改动挑门禁时照这份清单）：
  *   src/tracker/kernel/error-rules.ts            emitNormalize / judgeFactsDetailed / emitPassthrough（字段由这里组装）
  *   src/tracker/kernel/preflight.ts              classifyError / verdictOf（透传那一路）
- *   src/tracker/rooms/github/errors.ts    classifyGhError（本家判档入口）
+ *   src/tracker/rooms/github/support/errors.ts    classifyGhError（本家判档入口）
  *   src/tracker/rooms/gitlab/errors.js    classifyGlabError（本家判档入口）
  *   src/tracker/rooms/markdown/**         本后端有没有判档入口、有没有把判档上下文传下去
  *   research/489-appendix.md              第 1 章对照表里 error.normalize 那一行（字段名对不上就判红；

@@ -199,7 +199,7 @@ const ERROR_SAMPLES = [
     expectLayer: 'phrase',
     expectVia: 'extension',
     via: 'github',
-    traceFile: 'src/tracker/rooms/github/errors.ts',
+    traceFile: 'src/tracker/rooms/github/support/errors.ts',
     trace: "Could not resolve to a Repository with the name 'nope/nope'.",
   },
   {

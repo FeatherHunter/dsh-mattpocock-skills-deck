@@ -27,8 +27,15 @@
 // 门禁归属: src/tracker/rooms/github/channels/graphql/queries.ts
 // 门禁归属: src/tracker/rooms/github/channels/rest/read-shapes.ts
 // 门禁归属: src/tracker/rooms/github/issues.ts
-// 门禁归属: src/tracker/rooms/github/issues-rest-list.ts
-// 门禁归属: src/tracker/rooms/github/page.ts
+// 门禁归属: src/tracker/rooms/github/read/issues-rest-list.ts
+// 门禁归属: src/tracker/rooms/github/read/page.ts
+// 门禁归属: src/tracker/rooms/github/read/preflight.ts
+// 门禁归属: src/tracker/rooms/github/read/counts.ts
+// 门禁归属: src/tracker/rooms/github/read/deps-read.ts
+// 门禁归属: src/tracker/rooms/github/read/labels.ts
+// 门禁归属: src/tracker/rooms/github/read/repo-permissions.ts
+// 门禁归属: src/tracker/rooms/github/read/sub-issues.ts
+// 门禁归属: src/tracker/rooms/github/read/maps.ts
 //
 // 跑法（在插件根目录；不需要先构建，本门禁跑的是真源码）：
 //   node --import ./scripts/ts-hook.mts tests/verify-read-result-provenance.ts
@@ -207,22 +214,33 @@ const WIRED_OPS = READ_OPS.filter(function (op: any): boolean {
 const WHITELISTED_OPS = READ_OPS.filter(function (op: any): boolean {
   return (READ_PROVENANCE_STATUS as any)[op].status === 'whitelisted'
 }).sort()
-check(WIRED_OPS.join(',') === 'get,list,listPage', '本票只把整仓列表、单票、按页取票三条接成 wired', WIRED_OPS)
-check(WHITELISTED_OPS.length === 9, '其余 9 条读操作暂列白名单（#1686 七条、#1687 两条）', WHITELISTED_OPS.length)
+check(
+  WIRED_OPS.join(',') === 'counts,get,getDependencies,getRepoPermissions,list,listLabels,listMaps,listPage,listSubIssues,preflight',
+  '#1685 接三条、#1686 再清七条，共十条读操作接成 wired',
+  WIRED_OPS,
+)
+check(WHITELISTED_OPS.length === 2, '白名单只剩 getCurrentUser 与 readBudget 两条，留 #1687 房间入口收口时接', WHITELISTED_OPS.length)
 
 const ticketCounts: any = {}
 for (const op of WHITELISTED_OPS) {
   const ticket = String((READ_PROVENANCE_STATUS as any)[op].ticket || '')
   ticketCounts[ticket] = (ticketCounts[ticket] || 0) + 1
 }
-check(ticketCounts['#1686'] === 7, '白名单里七条挂在 #1686（搬读侧时同批接）', ticketCounts)
+check(ticketCounts['#1686'] === undefined, '#1686 的七条已全部清零，白名单里不再有它的名字', ticketCounts)
 check(ticketCounts['#1687'] === 2, '白名单里两条挂在 #1687（收口时统一定义）', ticketCounts)
 
 // wired 的生产文件不是嘴上说说：文件存在、真的开了取数时钟、真的在结果上挂 provenance。
 const WIRED_PRODUCER_FACTS: any = {
+  counts: { file: 'src/tracker/rooms/github/read/counts.ts', markers: ['beginRead(', 'provenance:', 'countsProvenance'] },
   get: { file: 'src/tracker/rooms/github/issues.ts', markers: ['beginRead(', 'provenance:', 'detailProvenanceFrom'] },
+  getDependencies: { file: 'src/tracker/rooms/github/read/deps-read.ts', markers: ['beginRead(', 'provenance:', 'dependenciesProvenanceFrom'] },
+  getRepoPermissions: { file: 'src/tracker/rooms/github/read/repo-permissions.ts', markers: ['beginRead(', 'provenance:', 'permissionsProvenance'] },
   list: { file: 'src/tracker/rooms/github/issues.ts', markers: ['beginRead(', 'provenance:', 'listProvenanceFrom'] },
-  listPage: { file: 'src/tracker/rooms/github/page.ts', markers: ['beginRead(', 'provenance:', 'pageProvenanceFromGraphql'] },
+  listLabels: { file: 'src/tracker/rooms/github/read/labels.ts', markers: ['beginRead(', 'provenance:', 'labelsProvenanceFromRest'] },
+  listMaps: { file: 'src/tracker/rooms/github/read/maps.ts', markers: ['beginRead(', 'provenance:', 'mapsProvenanceFromGraphql'] },
+  listPage: { file: 'src/tracker/rooms/github/read/page.ts', markers: ['beginRead(', 'provenance:', 'pageProvenanceFromGraphql'] },
+  listSubIssues: { file: 'src/tracker/rooms/github/read/sub-issues.ts', markers: ['beginRead(', 'provenance:', 'subIssuesProvenanceFromGraphql'] },
+  preflight: { file: 'src/tracker/rooms/github/read/preflight.ts', markers: ['beginRead(', 'provenance:', 'preflightProvenance'] },
 }
 for (const op of WIRED_OPS) {
   const facts = WIRED_PRODUCER_FACTS[op]
@@ -256,7 +274,11 @@ check(READ_RESULT_COMPLETENESS.join(',') === 'complete,truncated,partial', '汇�
 
 const resultsSrc = readSource('src/tracker/contract/results.ts')
 const provenanceTyped = resultsSrc.split('provenance?: ReadProvenance').length - 1
-check(provenanceTyped === 3, '列表、单票、分页三种读结果都带 provenance（类型强制）', provenanceTyped)
+check(
+  provenanceTyped === 10,
+  '十种读结果（列表、单票、分页、预检、依赖、标签清单、计数、仓库权限、子票、地图）都带 provenance（类型强制）',
+  provenanceTyped,
+)
 
 // 渠道互不引用：GraphQL 通道不认 REST 形状，REST 通道不认 GraphQL 形状；
 // 两条通道都只能往下引契约，不许引路由 / 读 / 写 / 房间入口。
@@ -290,7 +312,7 @@ const graphqlShapesSrc = readSource('src/tracker/rooms/github/channels/graphql/r
 const restShapesSrc = readSource('src/tracker/rooms/github/channels/rest/read-shapes.ts')
 check(graphqlShapesSrc.includes('depsMax') && graphqlShapesSrc.includes('labelListLimit'), 'GraphQL 通道的依赖与标签上限取自契约数字表')
 check(restShapesSrc.includes('subIssuesMax') && restShapesSrc.includes('labelListLimit'), 'REST 通道的子票与标签上限取自契约数字表')
-const restFetchSrc = readSource('src/tracker/rooms/github/issues-rest-list.ts')
+const restFetchSrc = readSource('src/tracker/rooms/github/read/issues-rest-list.ts')
 check(restFetchSrc.includes('restPageSize') && restFetchSrc.includes('restMaxPages'), 'REST 整仓列表的每页条数与页数上限取自契约数字表')
 check(ROW_LABELS_MAX === PAGINATION.github.depsMax, '单行标签上限 50 与依赖上限同源（都是连接一次最多给的条数）', ROW_LABELS_MAX)
 check(PAGINATION.github.restPageSize === 100 && PAGINATION.github.restMaxPages === 10, 'REST 每页 100、最多 10 页', PAGINATION.github)

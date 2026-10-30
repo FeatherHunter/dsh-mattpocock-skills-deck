@@ -25,7 +25,7 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 const A2_UNMIGRATED = []
 // 直接调 gh 的例外（#1453 起不再是「名单放行」）：真要留一处，必须写清是哪一处、为什么留、出处在哪份文档，
 // 三条缺一条就判红 —— 例外必须能被人追溯，不能只靠一张名字表放过去。今天一条都没有：仓库定位的
-// gh repo view 已经搬进会话能力（见 src/tracker/rooms/github/repo.ts 与 src/refresh/rooms/host/session-opener.ts）。
+// gh repo view 已经搬进会话能力（见 src/tracker/rooms/github/model/repo.ts 与 src/refresh/rooms/host/session-opener.ts）。
 const TRANSPORT_EXCEPTIONS: Array<{ file: string; reason: string; doc: string }> = []
 // 例外表的形状判据单独成函数：空表时主循环不会进来，下面的自证要拿它演假条目（见 C 段）。
 function exceptionShapeProblem(x: { file?: string; reason?: string; doc?: string }): string | null {
@@ -139,7 +139,7 @@ async function main() {
     '补仓库身份问的是会话的 getRepoKey 能力（走操作管线：先裁决、再按后端口径记账）')
   check(opener.indexOf('deps.getRepoKey') < 0, '不再退回宿主那一份 getRepoKey（那份只读本地证据，起 gh 的那一级已删）')
   // 那一级要真的住在房间里：能力和实现分家时，这条会先红，提醒把调用点搬回去。
-  const roomRepo = stripComments(fs.readFileSync(path.join(ROOT, 'src/tracker/rooms/github/repo.ts'), 'utf8'))
+  const roomRepo = stripComments(fs.readFileSync(path.join(ROOT, 'src/tracker/rooms/github/model/repo.ts'), 'utf8'))
   check(roomRepo.indexOf('getRepoKey') >= 0 && roomRepo.indexOf("'repo', 'view'") >= 0,
     'gh repo view 这一级住在 GitHub 房间的 getRepoKey 里（会话能力，出站前过闸）')
   const runtime = stripComments(fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/refresh-runtime.ts'), 'utf8'))

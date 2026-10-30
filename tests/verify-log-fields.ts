@@ -69,13 +69,13 @@ const ALLOWED = {
   //   limitBefore / limitAfter 因「一次要多了」换页大小时的前后单页条数（与页大小无关的分支一律记 0）。
   //   为什么补这三格：探测每一拍都失败时，日志里只有 reason 说不清远端到底回了哪一档；换页大小那件事更要一对数字
   //   才看得出「从 100 退到了 50」。票号、命令原文、上游报错原文依然一个字都不记。发射口在
-  //   src/tracker/rooms/github/read-log.ts 的 emitReadDegraded。
+  //   src/tracker/rooms/github/support/read-log.ts 的 emitReadDegraded。
   'read.degraded': ['op', 'reason', 'latencyMs', 'opId', 'kind', 'limitBefore', 'limitAfter'],
   // 2026-10-14（#1052 补做）常驻 #109 `preflight.gate`：探测那三项门禁每过一项各落一行，第三项过了也落一行。
   //   为什么过了也记：三项门禁落三行长得一样的 gh.exec，没有这一行就读不出「探测走到底了」还是「第一关就没过」。
   //   四个键：gate 第几项（1 起 gh / 2 登录态 / 3 认得出仓库且连得上接口）、reason 为什么（过了一律写 ok）、
   //   latencyMs 这一项花了多久、opId 这一行属于宿主哪一趟操作（#1052 续补）。发射口在
-  //   src/tracker/rooms/github/read-log.ts 的 emitPreflightGatePass。
+  //   src/tracker/rooms/github/support/read-log.ts 的 emitPreflightGatePass。
   'preflight.gate': ['gate', 'reason', 'latencyMs', 'opId'],
   // 2026-10-25（#1514）按需 #131 `preflight.check`：Markdown 房间预检的三项环境判据（md:workspace /
   //   md:scratchWritable / md:containersReadable）各落一行，pass / fail / pending 都记 —— 只记 fail 的话，

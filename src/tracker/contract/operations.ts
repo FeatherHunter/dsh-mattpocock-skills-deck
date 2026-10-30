@@ -35,20 +35,21 @@ import type { Actor, BackendId } from './identity.js'
 import type { Comment, Issue, LabelColor, LabelColorChange, RepositoryRef } from './entities.js'
 import type { OpContext, RepoHandle } from './contexts.js'
 import type {
-  Counts,
-  Dependencies,
-  LabelColorBatchResult,
+  CountsResult,
+  DependenciesResult,
   IssueDetailResult,
   IssueListResult,
+  LabelColorBatchResult,
   LabelColorsFilePlacement,
-  MapListResult,
+  LabelListResult,
+  MapListOpResult,
   OpResult,
   OpUsage,
   PageResult,
   ReadPageResult,
   PreflightResult,
   RepoPermissions,
-  SubIssueList,
+  SubIssueListResult,
 } from './results.js'
 import type {
   AssigneeInput,
@@ -123,8 +124,9 @@ export interface Tracker {
   /**
    * 数票：这个后端里符合条件的有多少张。
    * 只回数字不回行；只数工单不含拉取请求；拿不全就整体失败，**不许猜一个数**。
+   * #1686 起返回 CountsResult：成功分支带来源渠道与计数字段组完整度（计数只有一条取数路，成功即完整）。
    */
-  counts(repo: RepositoryRef, filter: ListFilter | undefined, ctx: OpContext): Promise<OpResult<Counts>>
+  counts(repo: RepositoryRef, filter: ListFilter | undefined, ctx: OpContext): Promise<CountsResult>
 
   /**
    * 按页取票：一次要一页行数据，外加「一共多少张」。
@@ -147,13 +149,14 @@ export interface Tracker {
   /**
    * 取依赖关系：谁阻塞我（唯一真源）与反向聚合出的「我阻塞了谁」（便利视图）。
    * 便利视图不是第二真源：任何判定都只许信 `blockedBy`。
+   * #1686 起返回 DependenciesResult：带来源渠道与依赖字段组完整度（某侧到上限记截断、读不到记未表达）。
    */
   getDependencies(
     repo: RepositoryRef,
     key: string,
     opts: DepsOpts | undefined,
     ctx: OpContext,
-  ): Promise<OpResult<Dependencies>>
+  ): Promise<DependenciesResult>
 
   /** 建一张票（可带幂等锚，见 `CreateInput.idempotencyKey`）。 */
   create(repo: RepositoryRef, input: CreateInput, ctx: OpContext): Promise<OpResult<Issue>>
@@ -237,8 +240,9 @@ export interface Tracker {
    * 列出「这个后端能改色的全部标签」与各自颜色。
    * **取不全就必须整体失败**，不许静默返回残缺列表：列表项只有 name/color/description
    * 三个键，没有任何位置能表示「这份清单被截断了」，用户只会看到「标签凭空少了几个」。
+   * #1686 起返回 LabelListResult：成功分支带来源渠道与标签字段组完整度。
    */
-  listLabels(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<LabelColor[]>>
+  listLabels(repo: RepositoryRef, ctx: OpContext): Promise<LabelListResult>
 
   /**
    * 批量改标签颜色，逐条记账。
@@ -270,13 +274,14 @@ export interface Tracker {
    *
    * 本地 Markdown 后端今天回 `unsupported`，宿主电话据此退化：界面提示用户「在它自己那边看全部」。
    * GitLab 后端真实现，读的是子票正文顶部的归属声明行，不是远端认的层级，也不是人力加的关联链接。
+   * #1686 起返回 SubIssueListResult：带来源渠道与「子票」「行」两个字段组的完整度。
    */
   listSubIssues(
     repo: RepositoryRef,
     mapKey: string,
     opts: Record<string, never> | undefined,
     ctx: OpContext,
-  ): Promise<OpResult<SubIssueList>>
+  ): Promise<SubIssueListResult>
 
   /**
    * 确保工作区里有那份用户可手改的标签配色文件。
@@ -306,11 +311,12 @@ export interface Tracker {
    * 内部按创建时间倒序翻页，交出来之前按更新时间重排；撞到封顶页数如实截断
    * （`truncated: true`），单页失败整趟失败（不回半份）；超时与传输失败直接失败，
    * 只在「这个后端不支持」时回 `unsupported`（调用方据此回落到老路）。
+   * #1686 起返回 MapListOpResult：带来源渠道与「行」「标签」两个字段组的完整度。
    */
   listMaps(
     repo: RepositoryRef,
     ctx: OpContext,
-  ): Promise<OpResult<MapListResult>>
+  ): Promise<MapListOpResult>
 
   /**
    * 读预算：读缓存里的剩余额度，只读不花（规格 1439 落地，规格 1602 起是第 24 条操作）。

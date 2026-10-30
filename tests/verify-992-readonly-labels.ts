@@ -95,7 +95,7 @@ async function main(): Promise<void> {
     const CHANGED_NAME = 'GraphQL: AddLabelsToLabelable is not permitted for this viewer'
     check(classifyGhError({ message: CHANGED_NAME }) === ERROR_KIND.AUTH, 'A5 errors.js：只回变更名的权限句也归 auth（实得 ' + classifyGhError({ message: CHANGED_NAME }) + '）')
     // 这里只断言 GitHub 家的分类器：preflight 的 classifyError 只挂通用表，后端专有句式按设计写在
-    //   rooms/github/errors.ts 的前置扩展表里（见 src/tracker/kernel/preflight.ts 文件头），所以「只回变更名」
+    //   rooms/github/support/errors.ts 的前置扩展表里（见 src/tracker/kernel/preflight.ts 文件头），所以「只回变更名」
     //   这句在通用表里判不出 auth 是设计如此，不在这里断言。
     check(keep404 === ERROR_KIND.NOTFOUND, 'A3 404 仍归 not-found（这一档本来就是对的，不动；实得 ' + keep404 + '）')
     const net = classifyGhError({ message: 'dial tcp: lookup api.github.com: no such host' })

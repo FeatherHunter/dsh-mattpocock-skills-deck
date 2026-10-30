@@ -2,7 +2,8 @@
  * src/tracker/rooms/github/routing/read-assembly.ts —— 把渠道事实组装成读结果的来源信息（票 #1685）
  *
  * ── 这个文件回答的问题 ──────────────────────────────────────────────────────────
- * 各条读路径（整仓列表、单票、按页取票）已经知道「这次走的是哪条渠道、翻页停在什么状态」，
+ * 各条读路径（整仓列表、单票、按页取票，以及 #1686 接上的预检、计数、依赖、标签清单、
+ * 仓库权限、子票、地图）已经知道「这次走的是哪条渠道、翻页停在什么状态」，
  * 但把协议事实翻译成 `ReadProvenance` 的活不该散在每个读函数里——散开写，一处口径改了别的路
  * 不会跟着改。这里按操作各收一个组装函数：调用方只交渠道层的事实，来源、字段组完整度、耗时
  * 与取数开始版本都在这里算好，再交给 `buildReadProvenance` 做统一校验。
@@ -25,8 +26,10 @@ import {
   graphqlDependenciesCompleteness,
   graphqlLabelsCompleteness,
   graphqlRowsCompleteness,
+  graphqlSubIssuesCompleteness,
 } from '../channels/graphql/read-shapes.js'
 import {
+  restLabelListCompleteness,
   restListCompleteness,
   restRowLabelsCompleteness,
   restSingleRowFieldGroups,
@@ -197,6 +200,154 @@ export function pageProvenanceFromGraphql(clock: ReadClock, facts: {
     source: 'graphql',
     fieldGroups: {
       row: graphqlRowsCompleteness({ truncated: false, dropped: facts.dropped }),
+      labels: graphqlLabelsCompleteness(facts.labelsPerRow),
+    },
+    durationMs: elapsedOf(clock),
+    startVersion: clock.startVersion,
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #1686：第二批七条读操作的组装函数（模型、读实现与共用支撑搬进职责目录时同批接来源）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 环境预检走了命令行这几笔时的来源信息（preflight）。
+ *
+ * 预检只回答「通不通」：三条门禁（gh 可执行、登录态、仓库可达）串行问完且都过，
+ * 才说明权限这一组真的看过；中途任何一步失败，调用方拿到的是不带 provenance 的失败结果，
+ * 不会出现「只问了一半却说完整」。来源记 rest：这几笔走的是 gh api / gh repo view，
+ * 属于 REST 形状；GraphQL 那条渠道预检压根没用，所以不写降级来源（没发生降级）。
+ */
+export function preflightProvenance(clock: ReadClock): ReadProvenance {
+  return buildReadProvenance('preflight', {
+    source: 'rest',
+    fieldGroups: { permissions: 'complete' },
+    durationMs: elapsedOf(clock),
+    startVersion: clock.startVersion,
+  })
+}
+
+/**
+ * 计数走了 GraphQL 时的来源信息（counts）。
+ *
+ * 计数只有一次 GraphQL 往返（issues 连接的 totalCount），没有 REST 兜底；两个数在同一份
+ * 查询里取回，任何一个拿不到就整条失败，所以成功分支的 counts 组必为完整，不另判截断。
+ */
+export function countsProvenance(clock: ReadClock): ReadProvenance {
+  return buildReadProvenance('counts', {
+    source: 'graphql',
+    fieldGroups: { counts: 'complete' },
+    durationMs: elapsedOf(clock),
+    startVersion: clock.startVersion,
+  })
+}
+
+/** 依赖读取时交给组装函数的两侧条数：读不到的那一侧给 null（记未表达），不是给 0。 */
+export interface DependencyCountFacts {
+  readonly blockedByCount: number | null
+  readonly blockingCount: number | null
+}
+
+/**
+ * 依赖边走了后端原生字段时的来源信息（getDependencies）。
+ *
+ * 两侧条数都来自 GraphQL 连接：任一侧到每侧上限（契约数字表的 depsMax，50）就记截断，
+ * 某一侧读不到时调用方给 null、这里记未表达——绝不把「没看到」写成「没有」。
+ * 原生路两侧都表达；退回整仓列表反推时，列表没读全的那一侧由调用方决定给 null。
+ */
+export function dependenciesProvenanceFromGraphql(clock: ReadClock, facts: DependencyCountFacts): ReadProvenance {
+  return buildReadProvenance('getDependencies', {
+    source: 'graphql',
+    fieldGroups: { dependencies: graphqlDependenciesCompleteness([facts.blockedByCount, facts.blockingCount]) },
+    durationMs: elapsedOf(clock),
+    startVersion: clock.startVersion,
+  })
+}
+
+/**
+ * 依赖边退回整仓列表、而那份列表走了 REST 通道时的来源信息。
+ *
+ * 来源记 rest、降级来源记 graphql：这一趟的数据是 REST 给的，GraphQL 主路没成——
+ * 两格都如实写，排查时才分得清「REST 本来就不全」与「GraphQL 没成、退回 REST」。
+ */
+export function dependenciesProvenanceFromRest(clock: ReadClock, facts: DependencyCountFacts): ReadProvenance {
+  return buildReadProvenance('getDependencies', {
+    source: 'rest',
+    degradedFrom: 'graphql',
+    fieldGroups: { dependencies: graphqlDependenciesCompleteness([facts.blockedByCount, facts.blockingCount]) },
+    durationMs: elapsedOf(clock),
+    startVersion: clock.startVersion,
+  })
+}
+
+/**
+ * 标签清单走了 gh 命令行（REST 形状）时的来源信息（listLabels）。
+ *
+ * 标签清单取不全时整条操作失败（1000 条上限判定在 read/labels.ts），所以成功分支的标签组
+ * 必为完整；这里仍按渠道判据算一次，口径与截断判定同源，不手写「complete」。
+ */
+export function labelsProvenanceFromRest(clock: ReadClock, facts: { readonly fetched: number }): ReadProvenance {
+  return buildReadProvenance('listLabels', {
+    source: 'rest',
+    fieldGroups: { labels: restLabelListCompleteness(facts.fetched) },
+    durationMs: elapsedOf(clock),
+    startVersion: clock.startVersion,
+  })
+}
+
+/**
+ * 仓库写权限走了 gh api repos/<owner>/<name> 时的来源信息（getRepoPermissions）。
+ *
+ * 问到 push/triage 两个布尔才算读成，问不出来时调用方拿到 null、不挂 provenance；
+ * 所以成功这一支权限组必为完整。来源记 rest（这一笔就是 REST 端点）。
+ */
+export function permissionsProvenance(clock: ReadClock): ReadProvenance {
+  return buildReadProvenance('getRepoPermissions', {
+    source: 'rest',
+    fieldGroups: { permissions: 'complete' },
+    durationMs: elapsedOf(clock),
+    startVersion: clock.startVersion,
+  })
+}
+
+/**
+ * 子票清单走了 GraphQL 时的来源信息（listSubIssues）。
+ *
+ * 子票组按「撞 1000 张上限、还有下一页、拉到的张数到上限」判截断；行组按归一化时丢掉的
+ * 条数判截断。两者分开报，是因为「没拉全」与「拉回来却丢掉」的排查方向完全不同。
+ */
+export function subIssuesProvenanceFromGraphql(clock: ReadClock, facts: {
+  readonly fetched: number
+  readonly capped: boolean
+  readonly hasNextPage: boolean
+  readonly dropped: number
+}): ReadProvenance {
+  return buildReadProvenance('listSubIssues', {
+    source: 'graphql',
+    fieldGroups: {
+      subIssues: graphqlSubIssuesCompleteness({ fetched: facts.fetched, capped: facts.capped, hasNextPage: facts.hasNextPage }),
+      row: graphqlRowsCompleteness({ truncated: false, dropped: facts.dropped }),
+    },
+    durationMs: elapsedOf(clock),
+    startVersion: clock.startVersion,
+  })
+}
+
+/**
+ * 地图薄行走了 GraphQL 时的来源信息（listMaps）。
+ *
+ * 行组按封顶页数是否撞到来判截断（地图这条路没有 REST 兜底，单页失败整趟失败、不交半截）；
+ * 标签组按每张地图行的标签数组是否满 50 判截断——标签来自列表片段 labels(first:50)，没有 pageInfo。
+ */
+export function mapsProvenanceFromGraphql(clock: ReadClock, facts: {
+  readonly truncated: boolean
+  readonly labelsPerRow: readonly (readonly unknown[])[]
+}): ReadProvenance {
+  return buildReadProvenance('listMaps', {
+    source: 'graphql',
+    fieldGroups: {
+      row: graphqlRowsCompleteness({ truncated: facts.truncated, dropped: 0 }),
       labels: graphqlLabelsCompleteness(facts.labelsPerRow),
     },
     durationMs: elapsedOf(clock),

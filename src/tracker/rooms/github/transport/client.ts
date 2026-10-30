@@ -30,11 +30,11 @@ import { fail, rawText } from '../../../kernel/preflight.js'
 // 上下文取口、房内埋点与到点哨兵搬到了 ./client-support.ts（本文件超过文件粒度上限，见那边的文件头）。
 import { getCwd, getExec, getPlatform, hash8, roomLogEvent, emitGhExec, emitGhTimeout, isDeadlineHit, NOT_ACCOUNTED } from './client-support.js'
 import type { DeadlineHit } from './client-support.js'
-import { ghFailureMessage, ghVerdictOf } from '../errors.js'
+import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 // #1627：限流细分类与档位表同一处定义（本层只把判好的结果写进 gh.exec 的 rateClass），不在这里另抄一份词表。
 import { rateLimitClassOf } from '../../../kernel/error-rules.js'
 // #1446：每一次真实出站同时记进「这一次操作」的计数器（op-usage.ts 在操作表外层取走）。
-import { noteGithubUsage } from '../op-usage.js'
+import { noteGithubUsage } from '../support/op-usage.js'
 import { timeoutForGhArgs, queueTimeoutForTier, isWriteGhArgs, ghCommandLabel, normalizeGhStringFields, ghOutboundEntryOf, graphqlCorrectionOf, ghPointNoteOf, outboundCooldownOf, outboundQueueTimeoutOf, transportFailureReasonOf, ghCooldownReply, outboundFollowUpAdvice, READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS } from '../../../kernel/outbound-tiers.js'
 // 默认超时住中央 YAML（config/timeouts.yaml 的 githubClientTimeoutMs 键），这里只留别名。
 import { GITHUB_CLIENT_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
