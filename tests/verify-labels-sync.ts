@@ -100,7 +100,8 @@ check(cli.includes('ensureLabels'), 'client.js 含 ensureLabels（#231 起真源
 check(pcli.includes('ensureLabels'), 'package/lib/client.js 含 ensureLabels（同上）')
 check(cli.includes('CANONICAL_LABEL_NAMES') && cli.includes('missingCanonicalLabels('), 'client 产物里拼进了单源名单与补全判定（拼接输入到了位）')
 check(pcli.includes('CANONICAL_LABEL_NAMES') && pcli.includes('missingCanonicalLabels('), 'package 产物里同样拼进了单源名单与补全判定')
-const ghModPath = path.join(ROOT, 'src/tracker/rooms/github/index.ts')
+// #1687 阶段 1 收口：房间入口整份搬进 room/，这条断言跟着看真身而不是旧路径的转发壳。
+const ghModPath = path.join(ROOT, 'src/tracker/rooms/github/room/index.ts')
 let ghTxt=''; try{ ghTxt=fs.readFileSync(ghModPath,'utf8') }catch(e){}
 check(ghTxt.includes('CANONICAL_LABELS.map'), 'github 后端模块从 shared 单源动态拼装名单')
 check(ghTxt.includes('ensureLabels'), 'github 后端模块声明 ensureLabels 双语数据')

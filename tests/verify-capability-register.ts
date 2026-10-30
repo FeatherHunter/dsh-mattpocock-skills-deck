@@ -55,7 +55,7 @@ const TIER_OF_LABEL: { [label: string]: CapabilityTier } = {
 }
 
 const BACKENDS: { readonly id: string; readonly register: RegisterView; readonly md: string; readonly room: string }[] = [
-  { id: 'github', register: GITHUB_CAPABILITY_REGISTER, md: 'docs/tracker/capability-github.md', room: 'src/tracker/rooms/github/backend.ts' },
+  { id: 'github', register: GITHUB_CAPABILITY_REGISTER, md: 'docs/tracker/capability-github.md', room: 'src/tracker/rooms/github/room/backend.ts' },
   { id: 'markdown', register: MARKDOWN_CAPABILITY_REGISTER, md: 'docs/tracker/capability-markdown.md', room: 'src/tracker/rooms/markdown/index.ts' },
   { id: 'gitlab', register: GITLAB_CAPABILITY_REGISTER, md: 'docs/tracker/capability-gitlab.md', room: 'src/tracker/rooms/gitlab/index.ts' },
 ]

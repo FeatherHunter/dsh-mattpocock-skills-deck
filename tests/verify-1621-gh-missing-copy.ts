@@ -134,7 +134,7 @@ function main(): void {
 
   console.log('== 4. 宿主建仓失败的长文与 init-project 回包：同一段话，逐字一致 ==')
   const publishSrc = read('src/host/publishFlow.ts')
-  const initSrc = read('src/tracker/rooms/github/init-project.ts')
+  const initSrc = read('src/tracker/rooms/github/write/init-project.ts')
   const noGhPrompt = literalAfter(publishSrc, /const NO_GH_PROMPT = '((?:[^'\\]|\\.)*)'/)
   const initMatch = /kind: 'no-gh', message: '((?:[^'\\]|\\.)*)', raw: '', prompt: '((?:[^'\\]|\\.)*)'/.exec(initSrc)
   const initMessage = initMatch ? unescapeJs(initMatch[1]) : null
