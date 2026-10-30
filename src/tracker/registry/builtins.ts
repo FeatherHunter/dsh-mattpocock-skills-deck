@@ -49,7 +49,7 @@ export const BUILTIN_ROOM_IDS: readonly BuiltinRoomId[] = ['github', 'markdown',
  */
 async function backendModuleOf(id: BuiltinRoomId): Promise<BackendModule> {
   if (id === 'github') {
-    const ns = await import('../rooms/github/index.js')
+    const ns = await import('../rooms/github/room/index.js')
     return ns.githubModule
   }
   if (id === 'gitlab') {
@@ -89,18 +89,18 @@ export async function loadBuiltinBackendModules(): Promise<BackendModule[]> {
 // 加件之前先问：这一件真是某个房间独有的吗？不是就该去内核或契约层，而不是挂在这里。
 export type GithubHostExtras = {
   /** 单票与拉取请求的状态归一：把 GitHub 的 OPEN/CLOSED/MERGED 收成契约里的状态。 */
-  pullStateOf: typeof import('../rooms/github/normalize.js').pullStateOf
+  pullStateOf: typeof import('../rooms/github/model/normalize.js').pullStateOf
   /** 建仓发布失败的分档器：认 gh 的原话，分成可展示的几档。 */
-  makeCreateErrorClassifier: typeof import('../rooms/github/init-project-error-kinds.js').makeCreateErrorClassifier
+  makeCreateErrorClassifier: typeof import('../rooms/github/support/init-project-error-kinds.js').makeCreateErrorClassifier
   /** 分档器认不出来的那一档的名字（调用方要拿它比对，所以跟分档器一起交）。 */
-  KIND_UNKNOWN: typeof import('../rooms/github/init-project-error-kinds.js').KIND_UNKNOWN
+  KIND_UNKNOWN: typeof import('../rooms/github/support/init-project-error-kinds.js').KIND_UNKNOWN
 }
 
 /** 取出 GitHub 房那几件宿主实现。同一个房间第二次调用命中模块缓存，不会重复求值。 */
 export async function loadGithubHostExtras(): Promise<GithubHostExtras> {
   const [normalize, kinds] = await Promise.all([
-    import('../rooms/github/normalize.js'),
-    import('../rooms/github/init-project-error-kinds.js'),
+    import('../rooms/github/model/normalize.js'),
+    import('../rooms/github/support/init-project-error-kinds.js'),
   ])
   return {
     pullStateOf: normalize.pullStateOf,
@@ -142,6 +142,6 @@ export async function loadMarkdownHostExtras(): Promise<MarkdownHostExtras> {
 // 契约能力的编译期断言（src/tracker/capability-assertions.ts）要用三个房间的「成员集合」与
 // 「工厂返回类型」。它同样不许直接 import 房间（规则 rooms-imported-only-by-assembly），
 // 所以形状经装配点转出 —— 全仓允许 import 房间的地方只有本文件一处，别处的取用一律走这里。
-export type { GithubBackendMembers, GithubBackendShape, createGithubBackend } from '../rooms/github/backend.js'
+export type { GithubBackendMembers, GithubBackendShape, createGithubBackend } from '../rooms/github/room/backend.js'
 export type { GitlabBackendMembers, GitlabBackendShape, createGitlabBackend } from '../rooms/gitlab/index.js'
 export type { MarkdownBackendMembers, MarkdownBackendShape, createMarkdownBackend } from '../rooms/markdown/index.js'

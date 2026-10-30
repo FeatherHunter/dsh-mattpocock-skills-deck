@@ -35,7 +35,7 @@ import fs from 'node:fs'
 import nodePath from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { printGateResult } from './lib/gate-result.ts'
-import { ghPreflight } from '../src/tracker/rooms/github/preflight.ts'
+import { ghPreflight } from '../src/tracker/rooms/github/read/preflight.ts'
 import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 import { resetGhLaneForTest } from '../src/refresh/rooms/host/outbound-admission.ts'
 

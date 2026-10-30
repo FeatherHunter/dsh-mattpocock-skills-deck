@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/write/comments.ts — comment 操作。
- * #1687 阶段 1：从房间根迁入 write/，旧路径 src/tracker/rooms/github/comments.ts 保留纯转发，行为零变化。
+ * #1687 阶段 1：从房间根迁入 write/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 定版依据：#138 §1.4（comment 归一）+ contract.js OpResult 形状。
  * - 签名：comment(repo, key, body, ctx) -> OpResult<Comment>

@@ -1,7 +1,7 @@
 /**
  * src/tracker/rooms/github/model/repo.ts — 仓库身份与链接供给。
  *
- * #1686 阶段 1：从房间根迁入 model/，旧路径 src/tracker/rooms/github/repo.ts 保留纯转发，行为零变化。
+ * #1686 阶段 1：从房间根迁入 model/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 文件头原写 `backends/github/repo.js`，是 #1019 目录归位前的旧路径；#1052 把读路径这一片
  * 的文件头逐个改成今天的真名（本文件也在这一片里，仓库身份的四个定位口都在这里）。

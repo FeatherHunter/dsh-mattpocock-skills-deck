@@ -24,14 +24,14 @@ let fail = 0
 function check(cond: unknown, msg: string) { if (!cond) { fail++; console.error('FAIL', msg) } else { pass++; console.log('PASS', msg) } }
 
 // ---------- A 契约三字段（形状 A：复用工单形状加三个可选字段，不新增实体）----------
-const { normalizeIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/normalize.ts')).href)
+const { normalizeIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/model/normalize.ts')).href)
 const empty = normalizeIssue({})
 check(empty.isPullRequest === false && empty.mergedAt === null && Array.isArray(empty.reviews) && empty.reviews.length === 0, 'A5 空来源逐票必带三字段空值（假、空、空数组，不省略）')
 const bad = normalizeIssue({ number: 1, title: 't', state: 'open', reviews: [{ reviewer: { login: 'x' } }, null], mergedAt: 12345 })
 check(Array.isArray(bad.reviews) && bad.reviews.length === 0 && bad.mergedAt === null, 'A6 坏值收空（缺结论评审丢弃，数字合并时间收空，不抛错）')
 
 // ---------- B 双路降级合成（桩造四种失败，不碰真仓）----------
-const { listIssues } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/issues.ts')).href)
+const { listIssues } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/read/issues.ts')).href)
 function stubCtx(failStderr: string, ghHost: string) {
   const logs: Array<{ level: string; event: string; fields: any }> = []
   return { logs, ctx: { outbound: createOutboundControl(), cwd: ROOT, platform: { resolveExecutable: async (n: string) => (n === 'gh' ? 'gh' : null), env: { get: (k: string) => (k === 'GH_HOST' ? (ghHost || '') : '') } },

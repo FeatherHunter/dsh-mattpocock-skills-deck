@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/transport/budget.ts —— GitHub 房间的额度读数（#1443）。
- * #1687 阶段 1：从房间根迁入 transport/（它只是一次 gh 调用的薄读数，归传输层）；旧路径 budget.ts 保留纯转发。
+ * #1687 阶段 1：从房间根迁入 transport/（它只是一次 gh 调用的薄读数，归传输层）；房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  * 读来源信息（provenance）不在这里挂：transport 层不许引用 routing，包装放在房间入口那一侧。
  *
  * 这一件只回答一件事：这台机器上的 gh 还剩多少可用额度（REST 与 GraphQL 两桶）。

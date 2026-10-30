@@ -2,7 +2,7 @@
  * tests/verify-operation-catalog.ts —— 操作百科名录一致性门禁（#1683）
  *
  * 门禁归属: src/tracker/contract/operations-encyclopedia.ts
- * 门禁归属: src/tracker/rooms/github/read-sources.ts
+ * 门禁归属: src/tracker/rooms/github/read/read-sources.ts
  * 门禁归属: src/tracker/rooms/gitlab/read-sources.ts
  * 门禁归属: src/tracker/rooms/markdown/read-sources.ts
  * 门禁归属: src/refresh/kernel/budget-admission.ts
@@ -35,7 +35,7 @@ import {
   FIELD_GROUPS,
   READ_SOURCE_COMPLETENESS,
 } from '../src/tracker/contract/operations-encyclopedia.js'
-import { GITHUB_READ_SOURCES } from '../src/tracker/rooms/github/read-sources.js'
+import { GITHUB_READ_SOURCES } from '../src/tracker/rooms/github/read/read-sources.js'
 import { GITLAB_READ_SOURCES } from '../src/tracker/rooms/gitlab/read-sources.js'
 import { MARKDOWN_READ_SOURCES } from '../src/tracker/rooms/markdown/read-sources.js'
 import { familiesOfOp, isWriteOp } from '../src/refresh/kernel/budget-admission.js'

@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/read/pulls.ts — 拉取请求读路径的 REST 帮手（列表富化 + 单票明细）。
- * #1686 阶段 1：从房间根迁入 read/，旧路径 src/tracker/rooms/github/pulls.ts 保留纯转发，行为零变化。
+ * #1686 阶段 1：从房间根迁入 read/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 由 #504 从 issues.ts 拆出（单文件 350 行纪律：房内拆文件不拆房）。
  * GraphQL 主路仍在 issues.ts（与工单同池合并）；本文件只装 REST 兜底件：

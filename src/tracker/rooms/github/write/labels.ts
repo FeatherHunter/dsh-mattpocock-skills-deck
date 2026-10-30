@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/write/labels.ts — 「票身上带哪些标签」的实现（#133 定版 + #138 落地）。
- * #1687 阶段 1：从房间根迁入 write/，旧路径 src/tracker/rooms/github/labels.ts 保留纯转发，行为零变化。
+ * #1687 阶段 1：从房间根迁入 write/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 文件头原写 `backends/github/labels.js`，是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。
  *

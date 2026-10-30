@@ -170,7 +170,7 @@ const RUNTIME_SNAPSHOTS = {
    * GitLab 这一份是 2026-10-14 实测补上的（#1110 实现决定第 15 条要求本图把缺的这份补齐）。
    * 当时实测发现它和另外两家不一样：`openRepository` 的值只以文件级导出的形式存在
    * （`src/tracker/rooms/gitlab/index.ts` 顶上的 `export const openRepository = 'url'`），没有挂进模块对象
-   * ——这与 #620 给 GitHub 修掉的那处是同一个形状（`src/tracker/rooms/github/index.ts` 记着那次为什么补）。
+   * ——这与 #620 给 GitHub 修掉的那处是同一个形状（`src/tracker/rooms/github/room/index.ts` 记着那次为什么补）。
    * 契约里这个成员本来就可选（`src/tracker/contract/backend-module.ts` 的 `openRepository?`），
    * 所以「模块对象上没有」当时不算违约，快照如实记「没有」，没替它补值。
    * 该缺口已由 #1117 补齐（2026-10-14）：模块对象上现在挂 `openRepository`（取值与文件级导出同一个 `'url'`），
@@ -545,7 +545,7 @@ function main(): void {
     const hookUrl = pathToFileURL(hookAbs).href
     // 三家现在都是 .ts 真源（GitHub #1133、本地 Markdown #1134、GitLab #1135，2026-10-14 同日收口），
     // 所以这里三家都直接点 .ts：走的是真源，不是构建产物，也不必依赖加载钩子的「同名 .ts 优先」那一步。
-    const evalScript = `Promise.all([import('./src/tracker/rooms/github/index.ts'), import('./src/tracker/rooms/markdown/index.ts'), import('./src/tracker/rooms/gitlab/index.ts')]).then(([g, m, l]) => {` +
+    const evalScript = `Promise.all([import('./src/tracker/rooms/github/room/index.ts'), import('./src/tracker/rooms/markdown/index.ts'), import('./src/tracker/rooms/gitlab/index.ts')]).then(([g, m, l]) => {` +
       ` const kind = (v) => v === undefined ? 'absent' : (Array.isArray(v) ? 'array' : (typeof v === 'function' ? 'function' : typeof v));` +
       ` console.log(JSON.stringify({` +
       ` github: { openRepository: g.githubModule.openRepository, checksKind: kind(g.githubModule.checks) },` +

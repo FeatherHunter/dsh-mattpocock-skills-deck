@@ -1,7 +1,7 @@
 /**
  * src/tracker/rooms/github/routing/idempotency.ts —— 创建幂等锚在这间房里的落地（#711）。
  * #1686 阶段 1：从房间根迁入 routing/（幂等锚回查要选读或写、要经客户端发起请求，属于路由层的取数决策），
- * 旧路径 src/tracker/rooms/github/idempotency.ts 保留纯转发，行为零变化。
+ * 房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 契约层答应的事只有一条：同一个锚提交两次，只多出一张票、返回同一个 key（语义见
  * src/host/tracker/contract-idempotency.js）。锚的构造与「找到的票算不算命中」的判据在

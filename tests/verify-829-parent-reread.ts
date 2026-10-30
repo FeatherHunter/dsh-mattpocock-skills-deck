@@ -57,7 +57,7 @@ function ghCtxFor(factory) {
 
 async function main() {
   console.log('#829 父边重读与读回报错专属门禁（不联网）')
-  const graph = await imp('src/tracker/rooms/github/graph.ts')
+  const graph = await imp('src/tracker/rooms/github/write/graph.ts')
   const repo = { backend: 'github', refId: 'o/r', name: 'r', url: '' }
 
   // G1) 重复 + 重读已是目标父 → 成功

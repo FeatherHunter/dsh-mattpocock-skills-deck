@@ -56,8 +56,8 @@ const ALL_PR_NUMBERS: number[] = MERGED_NUMBERS.concat(CLOSED_ONLY_NUMBERS).sort
 // ------------------------------------------------------------------
 // 一、数据路：用插件自己的代码（GitHub 后端 listIssues）对合成数据跑一遍
 // ------------------------------------------------------------------
-const { normalizeIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/normalize.ts')).href)
-const { listIssues } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/issues.ts')).href)
+const { normalizeIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/model/normalize.ts')).href)
+const { listIssues } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/read/issues.ts')).href)
 const { prStateKind } = await import(pathToFileURL(resolve(ROOT, 'src/client/views/shared/stateKind.js')).href)
 
 const REPO = { refId: 'FeatherHunter/dsh-mattpocock-skills-deck' }

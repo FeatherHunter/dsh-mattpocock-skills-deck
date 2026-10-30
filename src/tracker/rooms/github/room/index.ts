@@ -1,7 +1,7 @@
 /**
  * src/tracker/rooms/github/room/index.ts — GitHub 后端房间入口（只转发，不写逻辑）。
  *
- * #1687 阶段 1：从房间根迁入 room/，成为房间真正的对外入口；旧路径 index.ts 保留纯转发，行为零变化。
+ * #1687 阶段 1：从房间根迁入 room/，成为房间真正的对外入口；房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * #440 拆分后：仓库身份与链接见 repo.js，检查目录见 checks.js，开仓流程见
  * init-project.js，后端装配见 backend.js，issue 读写见 issues.js / issues-write.js。

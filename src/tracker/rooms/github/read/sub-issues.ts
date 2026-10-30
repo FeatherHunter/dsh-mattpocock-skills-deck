@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/read/sub-issues.ts —— 取一张地图的**全部**子票（#691 阶段 3：「地图子票拉全」）。
- * #1686 阶段 1：从房间根迁入 read/，旧路径 src/tracker/rooms/github/sub-issues.ts 保留纯转发，行为零变化。
+ * #1686 阶段 1：从房间根迁入 read/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 文件头原写 `backends/github/sub-issues.js`，是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。
  *

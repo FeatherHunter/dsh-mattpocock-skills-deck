@@ -1,7 +1,7 @@
 /**
  * src/refresh/rooms/host/gh-run-report.ts —— 宿主 runGh 跑完一趟之后，把结局回报给出站准入桶（#1007）。
  *
- * 为什么单独一份：冷却窗口的「设」与「清」只有两处真源 —— 房间客户端（src/tracker/rooms/github/client.ts）
+ * 为什么单独一份：冷却窗口的「设」与「清」只有两处真源 —— 房间客户端（src/tracker/rooms/github/transport/client.ts）
  * 与宿主这一路（src/refresh/rooms/host/gh-execution.ts）。宿主文件已经贴着 350 有效行的门禁上限，
  * 把这套分类口径搬出来，也方便以后加新结局时只改一处。
  *

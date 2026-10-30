@@ -99,7 +99,7 @@ function listJsFiles(dir, skipAbs) {
       if (ent.name === 'node_modules' || ent.name.startsWith('.')) continue
       const p = path.join(d, ent.name)
       if (ent.isDirectory()) { if (path.resolve(p) === skipAbs) continue; walk(p) }
-      // #1095：搬家后出口文件有 .ts（src/refresh/rooms/host/git-execution.ts、src/tracker/rooms/github/client.ts），只扫 .js 会把它们当成「过时登记」误判。
+      // #1095：搬家后出口文件有 .ts（src/refresh/rooms/host/git-execution.ts、src/tracker/rooms/github/transport/client.ts），只扫 .js 会把它们当成「过时登记」误判。
       else if (ent.name.endsWith('.js') || ent.name.endsWith('.ts')) out.push(p)
     }
   }

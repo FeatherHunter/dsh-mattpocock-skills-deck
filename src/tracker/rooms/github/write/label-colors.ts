@@ -1,7 +1,7 @@
 /**
  * src/tracker/rooms/github/write/label-colors.ts — 标签配色契约里批量改色这条写在 GitHub 房间的实现（#620 落地）。
  * #1686 阶段 1：列标签的读侧（listLabels 及其帮手）搬进 read/labels.ts；
- * #1687 阶段 1：本文件从房间根迁入 write/，只剩批量改色（写侧），旧路径 label-colors-ops.ts 保留纯转发。
+ * #1687 阶段 1：本文件从房间根迁入 write/，只剩批量改色（写侧），房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  * 读侧的 listLabels 与 LABEL_LIST_LIMIT 由 read/labels.ts 提供；这里保留旧默认导出面（default 里仍带 listLabels），
  * 只为让还没搬走的调用方行为不变，导出面与拆前逐字一致。
  * 以后谁改它：改「GitHub 上改标签颜色怎么调 gh、失败了落哪一档」的人。

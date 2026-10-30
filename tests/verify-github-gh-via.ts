@@ -19,7 +19,7 @@ import { createOutboundControl } from '../src/refresh/rooms/host/outbound-contro
 // 它不判写路径与关系边那两片（#1053、#1054）：那里 via 是可选的，谁动到谁补，口径与附录一致。
 
 import { readFileSync } from 'node:fs'
-import { ghClient } from '../src/tracker/rooms/github/client.ts'
+import { ghClient } from '../src/tracker/rooms/github/transport/client.ts'
 
 const HERE = 'tests/verify-github-gh-via.ts'
 // #1684 阶段 1 房间分层：客户端与外围零件搬进了 transport/，旧路径只剩转发；

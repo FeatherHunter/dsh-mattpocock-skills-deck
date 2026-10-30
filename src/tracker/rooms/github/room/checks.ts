@@ -1,7 +1,7 @@
 /**
  * src/tracker/rooms/github/room/checks.ts — GitHub 后端的检查表（GITHUB_CHECKS）。
  *
- * #1687 阶段 1：从房间根迁入 room/（它是房间门面的一部分）；旧路径 checks.ts 保留纯转发，行为零变化。
+ * #1687 阶段 1：从房间根迁入 room/（它是房间门面的一部分）；房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 这张表只做一件事：把检查目录（`src/shared/tracker/check-catalog-dirs.ts`）里属于 GitHub 后端
  * 的检查项、按目录顺序交给模块对象（`index.ts` 的 `githubModule.checks`）。2026-10-27 之前这里

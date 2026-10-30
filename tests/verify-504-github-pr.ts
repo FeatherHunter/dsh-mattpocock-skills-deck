@@ -22,8 +22,8 @@ import { createOutboundControl } from '../src/refresh/rooms/host/outbound-contro
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 function check(cond: unknown, msg: string) { if (!cond) { console.error('FAIL', msg); process.exitCode = 1 } else console.log('PASS', msg) }
 
-const { normalizeIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/normalize.ts')).href)
-const { listIssues } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/issues.ts')).href)
+const { normalizeIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/model/normalize.ts')).href)
+const { listIssues } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/read/issues.ts')).href)
 
 // ---------- 1) 行为：双源等价 ----------
 const gqlPR = {

@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/write/close-reason.ts —— 关票原因怎么交给 GitHub 后端（#1532）。
- * #1687 阶段 1：从房间根迁入 write/，旧路径 src/tracker/rooms/github/close-reason.ts 保留纯转发，行为零变化。
+ * #1687 阶段 1：从房间根迁入 write/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * gh issue close --reason 只认三个固定值：completed、not planned、duplicate；而契约里的
  * 关闭原因是一段开放文本，调用方经常给的是一句中文原话。原话直接塞进 --reason 必失败，票就关不掉。

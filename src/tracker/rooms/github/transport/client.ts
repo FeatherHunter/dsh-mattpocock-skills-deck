@@ -2,7 +2,7 @@
  * src/tracker/rooms/github/transport/client.ts — gh CLI 封装（契约对齐版）。
  *
  * #1684 阶段 1（房间分层）：本文件从上一层 client.ts 原样搬进 transport/，逻辑与调用点一字未改；
- * 旧路径 src/tracker/rooms/github/client.ts 只留 re-export 转发，等 1687 批次再删。
+ * 旧路径 src/tracker/rooms/github/transport/client.ts 只留 re-export 转发，等 1687 批次再删。
  *
  * 文件头原写 `backends/github/client.js`，是 #1019 目录归位前的旧路径；#1052 把读路径这一片
  * 的文件头逐个改成今天的真名，并给 gh.exec 补上 via 这一格（本文件也在这一片里）。

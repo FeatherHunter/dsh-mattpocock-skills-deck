@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/write/init-project.ts — 开仓发布流程。
- * #1687 阶段 1：从房间根迁入 write/，旧路径 src/tracker/rooms/github/init-project.ts 保留纯转发，行为零变化。
+ * #1687 阶段 1：从房间根迁入 write/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 由 #440 从 index.js 纯结构移出（initProject），行为零变化。
  * 以后改创建发布流程的人改它。预估约 215 行。

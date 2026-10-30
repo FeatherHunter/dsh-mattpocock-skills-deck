@@ -96,7 +96,7 @@ async function main(): Promise<void> {
 
   // ---------- 动态导入 runner + github 适配器 ----------
   const runnerUrl: string = 'file://' + path.resolve('tests/tracker-contract/runner/index.ts').replace(/\\/g, '/')
-  const githubUrl: string = 'file://' + path.resolve('src/tracker/rooms/github/index.ts').replace(/\\/g, '/')
+  const githubUrl: string = 'file://' + path.resolve('src/tracker/rooms/github/room/index.ts').replace(/\\/g, '/')
   const runner: any = await import(runnerUrl)
   const githubMod: any = await import(githubUrl)
   const { createRunnerContext, runPlayback, runWithAdapter }: any = runner

@@ -1,8 +1,8 @@
 /**
  * src/tracker/rooms/github/read/deps-read.ts —— 依赖投影的读路径（#1304）。
- * #1686 阶段 1：从房间根迁入 read/，旧路径 src/tracker/rooms/github/deps-read.ts 保留纯转发，行为零变化。
+ * #1686 阶段 1：从房间根迁入 read/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  * #1687 阶段 1：getDependencies（入口校验＋批量分支）从房间根 graph.ts 并入本文件；它只读不写，归读侧，
- * 导出面与行为不变，旧路径 graph.ts 保留纯转发。
+ * 导出面与行为不变，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 一只票的「被谁阻塞」与「阻塞了谁」本来要读两条边：正向的 blockedBy 与反向的 blocking。
  * 从前反向边靠「整仓列表逐行看 blockedBy 里有没有这张票」推出来，再逐张读标题：

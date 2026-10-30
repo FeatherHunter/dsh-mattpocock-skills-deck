@@ -359,7 +359,7 @@ async function main() {
   const backendCache = {}
   for (const s of ERROR_SAMPLES) {
     if (!s.via) continue
-    const file = s.via === 'github' ? 'src/tracker/rooms/github/errors.ts'
+    const file = s.via === 'github' ? 'src/tracker/rooms/github/support/errors.ts'
       : s.via === 'gitlab' ? 'src/tracker/rooms/gitlab/errors.ts' : null
     if (!file) { backendBad.push(s.id + '：via=' + s.via + ' 没有对应的判档入口'); continue }
     try {

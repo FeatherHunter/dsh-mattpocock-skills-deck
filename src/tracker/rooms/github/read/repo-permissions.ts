@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/read/repo-permissions.ts — 「这个仓库我能不能写」的单一出口（#992）。
- * #1686 阶段 1：从房间根迁入 read/，旧路径 src/tracker/rooms/github/repo-permissions.ts 保留纯转发，行为零变化。
+ * #1686 阶段 1：从房间根迁入 read/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 文件头原写 `backends/github/repo-permissions.js`，是 #1019 目录归位前的旧路径；#1052 把读路径
  * 这一片的文件头逐个改成今天的真名（本文件也在这一片里）。

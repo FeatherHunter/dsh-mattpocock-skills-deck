@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/write/issues.ts — issue 写路径。
- * #1687 阶段 1：从房间根迁入 write/，旧路径 src/tracker/rooms/github/issues-write.ts 保留纯转发，行为零变化。
+ * #1687 阶段 1：从房间根迁入 write/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 由 #440 从 issues.js 纯结构移出（create / close / reopen / update / setAssignees），行为零变化。
  * 读路径（list / get + REST 降级）留在 issues.js。

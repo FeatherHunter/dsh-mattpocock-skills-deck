@@ -6,7 +6,7 @@
  *
  * ── 这份文件与谁是一对 ──────────────────────────────────────────────────────────
  *   - 给人读的表：`docs/tracker/capability-github.md`（视图，门禁逐条比对，两边不许打架）
- *   - 实现真源：`src/tracker/rooms/github/backend.ts`（工厂交出来的成员；成员集合由本文件推出来，
+ *   - 实现真源：`src/tracker/rooms/github/room/backend.ts`（工厂交出来的成员；成员集合由本文件推出来，
  *     见该文件里 `GithubBackendMembers` 的写法）
  *   - 依据（哪份文件实现的、为什么不做）写在 md 表里人的那两列，不在这里重复一份。
  *

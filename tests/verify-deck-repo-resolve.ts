@@ -195,7 +195,7 @@ async function main() {
   check(admitCalls === 2, '裁决走 admitAiTool 两笔（余量探针与整单批量，实得 ' + admitCalls + ' 笔）')
 
   // ── 5. 真房间把口子开出来（github created 后端带 getRepoKey）──
-  const backendMod = await imp('src/tracker/rooms/github/backend.ts')
+  const backendMod = await imp('src/tracker/rooms/github/room/backend.ts')
   check(backendMod && typeof backendMod.createGithubBackend === 'function', '房间交出装配函数')
   const fakeCtx = {
     platform: { resolveExecutable: async function (name: string): Promise<string | null> { return String(name) === 'git' ? 'git' : null } },

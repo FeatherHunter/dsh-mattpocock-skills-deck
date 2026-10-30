@@ -94,7 +94,7 @@ async function main(): Promise<void> {
 
   // 后端模块 urls
   const backendUrls: Record<string, string> = {
-    github: 'file://' + path.resolve('src/tracker/rooms/github/index.ts').replace(/\\/g,'/'),
+    github: 'file://' + path.resolve('src/tracker/rooms/github/room/index.ts').replace(/\\/g,'/'),
     markdown: 'file://' + path.resolve('src/tracker/rooms/markdown/index.ts').replace(/\\/g,'/'),
     gitlab: 'file://' + path.resolve('src/tracker/rooms/gitlab/index.ts').replace(/\\/g,'/'),
   }
@@ -169,7 +169,7 @@ async function main(): Promise<void> {
         check(pb.ok, `${os} × github playback PASS（真实采样形状，无旧字段）`)
         // 额外：labels 恒 EMPTY 校验（via normalized）
         try {
-          const { normalizeIssue }: any = await import('file://' + path.resolve('src/tracker/rooms/github/normalize.ts').replace(/\\/g,'/'))
+          const { normalizeIssue }: any = await import('file://' + path.resolve('src/tracker/rooms/github/model/normalize.ts').replace(/\\/g,'/'))
           const empty: any = normalizeIssue({ number: 1, title: '', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null })
           check(Array.isArray(empty.labels) && empty.labels.length===0, `${os} × github labels 恒 EMPTY []`)
         } catch {}

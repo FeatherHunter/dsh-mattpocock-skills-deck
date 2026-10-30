@@ -1,7 +1,7 @@
 /**
  * src/tracker/rooms/github/routing/fallback-reason.ts — 降级原因分类（#504 雾证据补强）。
  * #1687 阶段 1：从房间根迁入 routing/。它回答的是「这次降级该记哪个原因」，
- * 属于两条渠道汇合处的判断，读侧与写侧都要用；旧路径 fallback-reason.ts 保留纯转发。
+ * 属于两条渠道汇合处的判断，读侧与写侧都要用；房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 由 `issues.ts` 拆出（单文件 350 行纪律：房内拆文件不拆房）。文件头原写 `backends/github/fallback-reason.js`，
  * 是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。

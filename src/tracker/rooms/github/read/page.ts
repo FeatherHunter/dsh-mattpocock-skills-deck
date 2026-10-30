@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/read/page.ts — 按页取票（listPage 那条操作；契约见 `src/tracker/contract/contract-page.ts` 的「分页契约」，#690 新加）。
- * #1686 阶段 1：从房间根迁入 read/，旧路径 src/tracker/rooms/github/page.ts 保留纯转发，行为零变化。
+ * #1686 阶段 1：从房间根迁入 read/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 文件头原写 `backends/github/page.js`、契约也写作 `tracker/contract-page.js`——两份都是 #1019 目录归位前的旧路径；
  * #1052 按读路径这一片改成今天的真名。文件内另有几处旧路径注释，随本票一并改到真名。

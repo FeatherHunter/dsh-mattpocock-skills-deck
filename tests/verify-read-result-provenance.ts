@@ -133,20 +133,9 @@ function importSpecifiersOf(text: string): string[] {
   })
 }
 
-// 旧路径只许纯转发：去掉注释与空行之后，每一行都得是 export ... from '目标'。
-function isPureForwarder(rel: string, target: string): boolean {
-  const lines = readSource(rel)
-    .split('\n')
-    .map(function (l: string): string { return l.trim() })
-    .filter(function (l: string): boolean {
-      if (!l) return false
-      if (l.startsWith('//') || l.startsWith('/*') || l.startsWith('*') || l.startsWith('*/')) return false
-      return true
-    })
-  if (!lines.length) return false
-  return lines.every(function (l: string): boolean {
-    return l.startsWith('export ') && l.includes(target)
-  })
+// 旧路径在 #1687 末批已经删掉：这里直接断言这些文件不再存在，防止有人把转发器加回来。
+function oldPathRemoved(rel: string): boolean {
+  return !fs.existsSync(path.join(ROOT, rel))
 }
 
 // =============================================================================================
@@ -300,15 +289,9 @@ const restLeaks = restSpecs.filter(function (spec: string): boolean {
 check(graphqlLeaks.length === 0, 'GraphQL 通道不引用 REST 形状，也不引用路由/读/写/房间入口', graphqlLeaks)
 check(restLeaks.length === 0, 'REST 通道不引用 GraphQL 形状，也不引用路由/读/写/房间入口', restLeaks)
 
-// 旧平铺路径只留纯转发（到 #1687 末批才删），新代码从新路径导入。
-check(
-  isPureForwarder('src/tracker/rooms/github/queries.ts', './channels/graphql/queries.js'),
-  '旧路径 queries.ts 只剩指向 GraphQL 通道的纯转发',
-)
-check(
-  isPureForwarder('src/tracker/rooms/github/rest-list-metadata.ts', './channels/rest/list-row-metadata.js'),
-  '旧路径 rest-list-metadata.ts 只剩指向 REST 通道的纯转发',
-)
+// 旧平铺路径在 #1687 末批已删除，新代码一律从九目录里的新路径导入。
+check(oldPathRemoved('src/tracker/rooms/github/queries.ts'), '旧路径 queries.ts 已删除（真身在内 channels/graphql/queries.ts）')
+check(oldPathRemoved('src/tracker/rooms/github/rest-list-metadata.ts'), '旧路径 rest-list-metadata.ts 已删除（真身在 channels/rest/list-row-metadata.ts）')
 
 // 端点上限只从契约数字表取，不许在通道里另写一份。
 const graphqlShapesSrc = readSource('src/tracker/rooms/github/channels/graphql/read-shapes.ts')

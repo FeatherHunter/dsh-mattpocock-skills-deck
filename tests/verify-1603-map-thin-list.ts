@@ -16,7 +16,7 @@
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-1603-map-thin-list.ts（在插件根目录）
  */
-import { listMaps } from '../src/tracker/rooms/github/maps.ts'
+import { listMaps } from '../src/tracker/rooms/github/read/maps.ts'
 
 let failed = false
 let total = 0

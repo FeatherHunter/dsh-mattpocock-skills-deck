@@ -22,7 +22,7 @@ async function main() {
   // （#1040 按单文件 350 行的上限把它拆成两份，为什么这么拆见那份文件头）。
   const memoMod = await imp('src/deck/shell/call-memo.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
-  const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
+  const githubModule = (await imp('src/tracker/rooms/github/room/index.ts')).githubModule
   // #1159 起房间要求宿主注入出站控制面（ctx.outbound）；夹具自带生产那一份
   // （src/refresh/rooms/host/outbound-control.ts，只做转发），否则种子票第 0 张
   // 就报 kind=env（出站控制面没有接上），后面的断言一条跑不起来。

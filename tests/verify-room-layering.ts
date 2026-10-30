@@ -14,12 +14,12 @@
 //      否则「唯一出口」只是把目录建出来、gh 调用还留在别处。
 //      房间里的 git 探测（backend.ts、repo.ts 经 ctx.exec 起 git）不算 gh 传输，这里不拦——它不是 gh 调用，
 //      也不能为了门禁好看就把这些探测硬塞进传输层。
-//   5. 已经搬走的旧平铺文件只留纯转发器；新分层里的文件若还从这些旧路径导入，判红。
-//      非转发器的旧文件（例如尚未搬走的 errors.ts）在迁移期允许被导入，因为 1686/1687 才轮到它们。
+//   5. 房间根不许再有任何平铺源码文件（旧路径转发器在 #1687 末批全部删除），房间内外的导入一律指向九目录里的新路径；
+//      从旧路径导入判红——这条禁令挡住「删了转发器、别处却还按旧路径导入」的静默断链。
 //
 // 判据怎么自证：门禁最怕自己写错以后一直报绿。这里用内存样例做三向自证——
-// 一份合规样例必须绿；缺目录、反向依赖、channels 越界、通道互引、传输外起进程、旧路径导入、坏转发器
-// 各来一份负例，必须逐条判红。样例不落盘，避免在 tests/fixtures 下养一堆一次性小文件。
+// 一份合规样例必须绿；缺目录、房间根残留平铺文件、反向依赖、channels 越界、通道互引、传输外起进程、
+// 房间内从旧路径导入、房间外从旧路径导入各来一份负例，必须逐条判红。样例不落盘，避免在 tests/fixtures 下养一堆一次性小文件。
 //
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-room-layering.ts
 import fs from 'node:fs'
@@ -142,7 +142,7 @@ function insideRoom(rel: string): boolean {
   return rel.startsWith(ROOM_REL + '/')
 }
 
-/** 文件属于哪一层；房间根下的旧平铺文件返回 null。 */
+/** 文件属于哪一层；房间根下的平铺文件（#1687 末批删完之后应为零个）返回 null。 */
 function layerOf(rel: string): string | null {
   if (!insideRoom(rel)) return null
   const rest = rel.slice(ROOM_REL.length + 1)
@@ -159,39 +159,8 @@ function resolveRelative(importer: string, spec: string): string | null {
   return joined.replace(/\.d\.ts$/, '').replace(/\.(?:js|ts|mjs|cjs)$/, '')
 }
 
-function fileExists(tree: Tree, stem: string): boolean {
-  return tree.files.has(stem + '.ts') || tree.files.has(stem + '.js') || tree.files.has(stem + '.d.ts')
-}
-
-/**
- * 纯旧路径转发器：去注释后每个非空行都是 `export * from './x.js'` 或 `export { ... } from './x.js'`。
- * 转发器只许是这一种形状，形状不对就不是转发器，门禁按普通旧文件对待。
- */
-function forwarderSpecs(source: string): string[] | null {
-  const lines = stripComments(source).split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
-  if (lines.length === 0) return null
-  const specs: string[] = []
-  for (const line of lines) {
-    const match = line.match(/^export\s+(?:type\s+)?(?:\*|\{[^}]*\})\s+from\s+['"](\.[^'"]+)['"];?$/)
-    if (!match) return null
-    specs.push(match[1])
-  }
-  return specs
-}
-
-function forwarderText(tree: Tree, stem: string): string | null {
-  if (tree.files.has(stem + '.ts')) return tree.files.get(stem + '.ts') as string
-  if (tree.files.has(stem + '.js')) return tree.files.get(stem + '.js') as string
-  return null
-}
-
-function isForwarderAt(tree: Tree, stem: string): boolean {
-  const text = forwarderText(tree, stem)
-  return text !== null && forwarderSpecs(text) !== null
-}
-
 /** 判一棵树。真树与内存样例共用这一份逻辑，避免“样例绿、真树另一套规则”。 */
-function judge(tree: Tree): Violation[] {
+function judge(tree: Tree, outside: Map<string, string> = new Map()): Violation[] {
   const violations: Violation[] = []
 
   for (const layer of LAYERS) {
@@ -204,6 +173,10 @@ function judge(tree: Tree): Violation[] {
   for (const [rel, text] of tree.files) {
     const source = stripComments(text)
     const layer = layerOf(rel)
+    if (layer === null) {
+      // 房间根平铺文件：旧转发器已在 #1687 末批删完，这里再出现就是新代码放错了地方。
+      violations.push({ kind: 'root-flat-file', where: rel, message: '房间根还有平铺源码文件；新代码一律放进九目录（transport/channels/routing/read/write/model/room/support）' })
+    }
     const hits = scanProcess(source)
     if (layer === 'transport') {
       if (hits.length > 0) transportHasExit = true
@@ -223,14 +196,12 @@ function judge(tree: Tree): Violation[] {
       const importerLayer = layer
       const targetLayer = layerOf(target)
       if (targetLayer === null) {
-        // 旧路径：目标若是转发器，说明文件已经搬走，新分层不许再走旧路径。
-        if (importerLayer !== null && isForwarderAt(tree, target)) {
-          violations.push({
-            kind: 'legacy-forwarder',
-            where: rel + ':' + imp.line,
-            message: importerLayer + ' 仍从旧路径 ' + imp.spec + ' 导入；该路径只是转发器，请不要从旧路径导入',
-          })
-        }
+        // 旧路径（房间根平铺文件）：转发器已在 #1687 末批删除，任何一层再按旧路径导入都是断链。
+        violations.push({
+          kind: 'legacy-root-import',
+          where: rel + ':' + imp.line,
+          message: (importerLayer ?? '房间根平铺文件') + ' 仍从旧路径 ' + imp.spec + ' 导入；房间根已没有平铺文件，请改到九目录里的新路径',
+        })
         continue
       }
       if (importerLayer === null) continue
@@ -267,18 +238,16 @@ function judge(tree: Tree): Violation[] {
     })
   }
 
-  // 旧路径转发器必须指到真实存在的层内文件；指空了就等于旧导入静默断掉。
-  for (const [rel, text] of tree.files) {
-    if (layerOf(rel) !== null) continue
-    const specs = forwarderSpecs(text)
-    if (specs === null) continue
-    for (const spec of specs) {
-      const target = resolveRelative(rel, spec)
-      if (!target || !insideRoom(target) || layerOf(target) === null || !fileExists(tree, target)) {
+  // 房间外的源码也不许按旧路径导入：转发器删掉之后，这类导入就是断链。
+  for (const [rel, text] of outside) {
+    for (const imp of importsOf(stripComments(text))) {
+      const target = resolveRelative(rel, imp.spec)
+      if (!target || !insideRoom(target)) continue
+      if (layerOf(target) === null) {
         violations.push({
-          kind: 'broken-forwarder',
-          where: rel,
-          message: '旧路径转发器指向 ' + spec + '，但目标不存在或不在任何职责层里',
+          kind: 'legacy-root-import',
+          where: rel + ':' + imp.line,
+          message: '房间外导入指向房间根旧平铺文件 ' + imp.spec + '；请改到九目录里的新路径',
         })
       }
     }
@@ -311,6 +280,29 @@ function loadTree(): Tree {
   return { files, dirs }
 }
 
+/**
+ * 读 src/ 下房间目录以外的全部源码，用来查「房间外按旧路径导入」——
+ * 转发器删掉之后，这类导入在真树上就是断链，类型检查会报，但门禁要先有自己的判据。
+ */
+function loadOutside(): Map<string, string> {
+  const files = new Map<string, string>()
+  const walk = (dir: string): void => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        walk(full)
+        continue
+      }
+      if (!/\.(?:ts|js)$/.test(entry.name)) continue
+      const rel = path.relative(ROOT, full).split(path.sep).join('/')
+      if (insideRoom(rel)) continue
+      files.set(rel, fs.readFileSync(full, 'utf8'))
+    }
+  }
+  walk(path.join(ROOT, 'src'))
+  return files
+}
+
 // ---------------------------------------------------------------------------
 // 自证样例
 // ---------------------------------------------------------------------------
@@ -326,7 +318,6 @@ const BASE_FILES: Record<string, string> = {
   'model/model.ts': "export interface Model { id: string }\n",
   'room/room.ts': "import { read } from '../read/read.js'\nexport const room = read\n",
   'support/support.ts': "export const log = 'support'\n",
-  'client.ts': "export * from './transport/client.js'\nexport { default } from './transport/client.js'\n",
 }
 
 function sampleTree(files: Record<string, string>, missing: string[] = []): Tree {
@@ -347,6 +338,12 @@ function sampleTree(files: Record<string, string>, missing: string[] = []): Tree
 }
 
 const sample = (overrides: Record<string, string>): Tree => sampleTree({ ...BASE_FILES, ...overrides })
+
+/** 房间外源码样例：键是仓库相对路径，值是同房间内样例一样可读的源码文本。 */
+function outsideSample(entries: Record<string, string>): Map<string, string> {
+  return new Map(Object.entries(entries))
+}
+
 
 // ---------------------------------------------------------------------------
 // 跑检查
@@ -373,30 +370,32 @@ console.log('GitHub 房间分层门禁（#1684）\n')
 // 红了也一眼看得出是哪一族越界，不必在一行合并结论里翻明细。任何 judge 产出的新 kind 没被下面覆盖时，
 // 由最后那条「没有未分类违规」兜住，不会静默漏判。
 const real = loadTree()
-const realViolations = judge(real)
+const realOutside = loadOutside()
+const realViolations = judge(real, realOutside)
 const ofKinds = (kinds: string[]): Violation[] => realViolations.filter((violation) => kinds.includes(violation.kind))
-const reportedKinds = ['missing-dir', 'broken-forwarder', 'legacy-forwarder', 'direction', 'channels-cross', 'process-outside-transport', 'no-transport-exit', 'channels-upstream']
+const reportedKinds = ['missing-dir', 'root-flat-file', 'legacy-root-import', 'direction', 'channels-cross', 'process-outside-transport', 'no-transport-exit', 'channels-upstream']
 report('真树：九个职责目录都在', ofKinds(['missing-dir']))
-report('真树：旧路径只剩转发、转发目标都在（旧导入不会断）', ofKinds(['broken-forwarder', 'legacy-forwarder']))
+report('真树：房间根没有平铺文件、房间内外都不从旧路径导入', ofKinds(['root-flat-file', 'legacy-root-import']))
 report('真树：依赖方向只能向下（含两套通道互不引用）', ofKinds(['direction', 'channels-cross']))
 report('真树：gh 进程只在 transport/，且 transport 真的有一处出口', ofKinds(['process-outside-transport', 'no-transport-exit']))
 report('真树：channels 不引用 routing/read/write/room', ofKinds(['channels-upstream']))
 report('真树：没有落在上面几族之外的违规', realViolations.filter((violation) => !reportedKinds.includes(violation.kind)))
 check(real.files.has(ROOM_REL + '/transport/client.ts'), 'transport/client.ts 已落位（gh 的唯一出口）')
+const flatFiles = Array.from(real.files.keys()).filter((rel) => layerOf(rel) === null)
+check(flatFiles.length === 0, '房间根零平铺源码文件' + (flatFiles.length === 0 ? '' : '（实得 ' + flatFiles.length + ' 个：' + flatFiles.join('、') + '）'))
 
 console.log('\n自证：合规样例')
 report('合规样例', judge(sampleTree(BASE_FILES)))
 report('合规样例：注释里的 exec 不算数', judge(sample({
   'read/read.ts': "// exec('gh', [])\nimport { route } from '../routing/routing.js'\nexport const read = route\n",
 })))
-report('合规样例：旧平铺的非转发器仍可被导入（迁移期）', judge(sample({
-  'errors.ts': "export const kind = 'x'\n",
-  'transport/client.ts': "import { kind } from '../errors.js'\nexport default function run() { return exec('gh', []) + kind }\n",
+report('合规样例：房间外按新路径导入不误伤', judge(sampleTree(BASE_FILES), outsideSample({
+  'src/tracker/registry/builtins.ts': "import run from '../rooms/github/transport/client.js'\nexport const m = run\n",
 })))
 
 console.log('\n自证：负例')
-function expectViolation(name: string, tree: Tree, kind: string): void {
-  const violations = judge(tree)
+function expectViolation(name: string, tree: Tree, kind: string, outside: Map<string, string> = new Map()): void {
+  const violations = judge(tree, outside)
   const hit = violations.some((violation) => violation.kind === kind)
   check(hit, name + ' 判红（期望 ' + kind + '）')
   if (!hit) console.log('       实际违规：' + (violations.map((violation) => violation.kind).join(', ') || '无'))
@@ -430,13 +429,17 @@ expectViolation('channels/rest 里直接起进程', sample({
   'channels/rest/rest.ts': "import run from '../../transport/client.js'\nexport const call = exec('gh', [])\n",
 }), 'process-outside-transport')
 
-expectViolation('channels/rest 从旧转发器导入', sample({
+expectViolation('房间内从旧路径导入（旧转发器已删）', sample({
   'channels/rest/rest.ts': "import run from '../../client.js'\nexport const call = run\n",
-}), 'legacy-forwarder')
+}), 'legacy-root-import')
 
-expectViolation('旧转发器指向不存在的文件', sample({
-  'client.ts': "export * from './transport/missing.js'\n",
-}), 'broken-forwarder')
+expectViolation('房间外从旧路径导入（旧转发器已删）', sampleTree(BASE_FILES), 'legacy-root-import', outsideSample({
+  'src/tracker/registry/builtins.ts': "import mod from '../rooms/github/index.js'\nexport const m = mod\n",
+}))
+
+expectViolation('房间根残留平铺源码文件', sample({
+  'legacy.ts': "export const x = 1\n",
+}), 'root-flat-file')
 
 expectViolation('缺少一个职责目录', sampleTree(BASE_FILES, ['support']), 'missing-dir')
 

@@ -14,7 +14,7 @@ import { createOutboundControl } from '../src/refresh/rooms/host/outbound-contro
  * 运行：node tests/verify-691-map-subissues.ts
  */
 
-import { listSubIssues } from '../src/tracker/rooms/github/sub-issues.ts'
+import { listSubIssues } from '../src/tracker/rooms/github/read/sub-issues.ts'
 import { createSnapshotComposer } from '../src/host/tracker/snapshot.js'
 import { createMapTickets } from '../src/host/mapTickets.js'
 import { createSessionLifecycle } from '../src/host/sessionLifecycle.ts'

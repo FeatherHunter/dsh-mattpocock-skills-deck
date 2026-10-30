@@ -16,7 +16,7 @@
 import { PAGINATION } from '../../../../contract/pagination.js'
 
 // 评论节点的字段清单：列表与单票共用一份，改这里两处一起变，不会一处多取、一处少取。
-// 这个形状与 normalizeComments 读的字段一一对应（src/tracker/rooms/github/normalize.ts 的 normalizeComments）。
+// 这个形状与 normalizeComments 读的字段一一对应（src/tracker/rooms/github/model/normalize.ts 的 normalizeComments）。
 const COMMENT_NODE_FIELDS = 'id author{login avatarUrl __typename ... on User{name} ... on Organization{name}} authorAssociation body createdAt updatedAt lastEditedAt'
 
 /**

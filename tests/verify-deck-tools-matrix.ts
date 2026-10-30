@@ -112,7 +112,7 @@ async function main() {
   const ledgerMod = await imp('src/refresh/rooms/host/quota-ledger.ts')
   const gateMod = await imp('src/refresh/rooms/host/refresh-gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
-  const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
+  const githubModule = (await imp('src/tracker/rooms/github/room/index.ts')).githubModule
   const gitlabBackend = (await imp('src/tracker/rooms/gitlab/index.ts')).gitlabBackend
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
   const toolCost = await imp('src/refresh/kernel/tool-call-budget.js')

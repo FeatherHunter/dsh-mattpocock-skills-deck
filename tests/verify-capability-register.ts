@@ -29,7 +29,7 @@ import path from 'node:path'
 import url from 'node:url'
 
 import { OPERATIONS, LOCATORS } from '../src/tracker/contract/operations-catalog.js'
-import { GITHUB_CAPABILITY_REGISTER } from '../src/tracker/rooms/github/capability-register.js'
+import { GITHUB_CAPABILITY_REGISTER } from '../src/tracker/rooms/github/support/capability-register.js'
 import { MARKDOWN_CAPABILITY_REGISTER } from '../src/tracker/rooms/markdown/capability-register.js'
 import { GITLAB_CAPABILITY_REGISTER } from '../src/tracker/rooms/gitlab/capability-register.js'
 import type { CapabilityTier } from '../src/tracker/contract/capability-answer.js'

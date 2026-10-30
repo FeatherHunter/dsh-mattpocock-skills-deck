@@ -50,7 +50,7 @@ const check = function (cond, msg) {
 // （docs/agents/verification.md 第三节）；那时人手裸跑要自己加 --import ./scripts/ts-hook.mts。
 let pick = null
 try {
-  pick = require('../src/tracker/rooms/github/fallback-reason.ts').pickFallbackReason
+  pick = require('../src/tracker/rooms/github/routing/fallback-reason.ts').pickFallbackReason
 } catch (e) {
   console.log('FAIL 引真源 fallback-reason.ts 拿不到 pickFallbackReason：' + String(e && e.message))
 }

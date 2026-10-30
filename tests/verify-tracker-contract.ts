@@ -63,7 +63,7 @@ const results = [
 
 // #139：以真实 github 适配器执行 G4（来源有→映射；来源无→空值；违规桩被逮已由 violating 覆盖）
 try {
-  const { normalizeIssue } = await import('../src/tracker/rooms/github/normalize.ts')
+  const { normalizeIssue } = await import('../src/tracker/rooms/github/model/normalize.ts')
   const githubFixture = {
     name: 'github-adapter',
     normalize: normalizeIssue,
