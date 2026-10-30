@@ -378,7 +378,7 @@ export const READ_PROVENANCE_STATUS = {
     reason: '等 #1686 把 counts.ts 搬进 read/ 时同批接来源与完整度',
   },
   // 翻页：本票已接（GraphQL 单页路径成功返回时挂来源）。
-  listPage: { status: 'wired', producer: 'src/tracker/rooms/github/page.ts' },
+  listPage: { status: 'wired', producer: 'src/tracker/rooms/github/read/page.ts' },
   // 仓库权限：等 #1686 把 repo-permissions.ts 搬进 read/ 时同批接。
   getRepoPermissions: {
     status: 'whitelisted',

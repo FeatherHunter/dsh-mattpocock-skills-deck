@@ -38,6 +38,7 @@ const LAYERS = ['transport', 'channels/graphql', 'channels/rest', 'routing', 're
  * 表里 transport/model/routing 把自己写进允许清单就是这条的机器表达。
  * support 在最底层，任何层都可以引用它；transport 也要用它的错误分类与用量计数，所以这一格多了 support。
  * model 也可以引用 transport：仓库身份与远端探测经客户端出手，本层不直接起进程；反过来 transport 不许引用 model。
+ * read 可以引用 channels/graphql 与 channels/rest 的请求文档与回包形状（纯数据）；渠道选择与降级顺序仍由 routing 决定。
  * 这张表是 ADR 第 2 章的机器可读版本：改分层先改 ADR，再改这里，不要只改这里。
  */
 const ALLOWED: Record<string, string[]> = {
@@ -47,7 +48,7 @@ const ALLOWED: Record<string, string[]> = {
   'channels/graphql': ['transport', 'support'],
   'channels/rest': ['transport', 'support'],
   routing: ['routing', 'channels/graphql', 'channels/rest', 'model', 'support', 'transport'],
-  read: ['routing', 'model', 'support', 'transport'],
+  read: ['read', 'routing', 'channels/graphql', 'channels/rest', 'model', 'support', 'transport'],
   write: ['routing', 'model', 'support', 'transport'],
   room: ['read', 'write', 'routing', 'model', 'support', 'transport'],
 }

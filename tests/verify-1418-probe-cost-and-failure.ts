@@ -22,7 +22,7 @@
 //
 // 判据不是「源码里出现过某段字符串」，而是把真源码加载起来喂输入，看它发出什么命令、改出什么状态。
 //
-// 门禁归属: src/tracker/rooms/github/page.ts
+// 门禁归属: src/tracker/rooms/github/read/page.ts
 // 门禁归属: src/tracker/rooms/github/channels/graphql/queries.ts
 // 门禁归属: src/tracker/rooms/github/support/errors.ts
 // 门禁归属: src/refresh/rooms/host/issue-list-fetch.ts
@@ -213,7 +213,7 @@ const partA = async function (): Promise<void> {
     'A、新规则不抢「解析不到仓库」的判档（顺序与归属没被破坏）')
 
   // A7. 连接上限只有一个真源：page.ts 的夹取值来自契约的分页表，不在房里另写一个数。
-  const pageSrc = sourceText('src/tracker/rooms/github/page.ts')
+  const pageSrc = sourceText('src/tracker/rooms/github/read/page.ts')
   check(pageSrc.indexOf('PAGINATION.github.listPageSize') >= 0, 'A、单页上限取自契约分页表（listPageSize）')
 
   // A8. 远端说「一次要多了」时的分页降级：换更小的 first 重发、记住这个上限、下一拍直接按学到的上限发。

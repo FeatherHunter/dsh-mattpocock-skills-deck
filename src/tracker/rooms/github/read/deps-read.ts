@@ -1,0 +1,145 @@
+/**
+ * src/tracker/rooms/github/read/deps-read.ts —— 依赖投影的读路径（#1304）。
+ * #1686 阶段 1：从房间根迁入 read/，旧路径 src/tracker/rooms/github/deps-read.ts 保留纯转发，行为零变化。
+ *
+ * 一只票的「被谁阻塞」与「阻塞了谁」本来要读两条边：正向的 blockedBy 与反向的 blocking。
+ * 从前反向边靠「整仓列表逐行看 blockedBy 里有没有这张票」推出来，再逐张读标题：
+ * 千级票仓一次要 25～29 秒，列表被上限截断时还会静默少边（看起来像「没人被它阻塞」）。
+ *
+ * 现在先问后端原生的反向字段：一条 GraphQL 查询同时拿回两条连接，标题与状态随行返回，
+ * 开销与仓库总票数无关，也不用再逐张读标题。原生字段不可用（老版本、非 GitHub、查询失败）时，
+ * 才退回整仓列表反推 —— 而且只要退回了、或列表被截断，回执必须自己说「用了兜底」「可能不全」，
+ * 不许把「没看到」说成「没有」。
+ *
+ * 每趟只落一行 `read.degraded`（op 固定 `deps`）：原生到上限写 `deps:truncated`、
+ * 退回整仓反推但结果完整写 `deps:shape`、兜底也没读全写 `deps:scan`。
+ * 三条取值登记在 `./read-log.ts`；这行日志让事后翻导出包的人能直接把「慢」与「不全」归到依赖这条读路上。
+ *
+ * 写阻塞边仍然只认 blockedBy（真源不变）：这里只是读投影。
+ */
+
+import type { Issue, IssueRef, RepositoryRef } from '../../../contract/entities.js'
+import type { Dependencies, OpResult } from '../../../contract/results.js'
+import { ghClient } from '../transport/client.js'
+import { getIssue, listIssues } from '../issues.js'
+import { normalizeDependencyEdges } from '../model/normalize.js'
+import { DEPS_MAX, DEPS_QUERY } from '../channels/graphql/queries.js'
+import { emitReadDegraded } from '../support/read-log.js'
+import type { MemoContext } from '../model/roster.js'
+
+/** 仓库定位：拥有者 + 仓名（形状与 graph.ts 里那个同名接口一致）。 */
+interface ParsedRepo {
+  owner: string
+  name: string
+}
+
+/**
+ * 原生路：一次 GraphQL 同时取回正向与反向连接。
+ * 失败（起不了进程、回包不是 JSON、回 errors、缺 repository.issue）一律回 null 交给兜底 ——
+ * 不把「没读到」当成「没有依赖」，也不在这里自己拼一份空边糊弄调用方。
+ * 到了后端一次能给的条数上限时照常返回已给的条目，但把「不全」写进 Complete 位与注记。
+ */
+async function readNativeDependencies(parsed: ParsedRepo, k: string, ctx: MemoContext, started: number): Promise<Dependencies | null> {
+  const num = Number(k)
+  if (!Number.isFinite(num)) return null
+  const c = ghClient(ctx)
+  const args = ['api', 'graphql', '-f', 'query=' + DEPS_QUERY, '-f', 'owner=' + parsed.owner, '-f', 'name=' + parsed.name, '-F', 'number=' + String(num)]
+  const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'deps.gql' })
+  if (!r.ok) return null
+  let j: unknown
+  try { j = JSON.parse((r.data && r.data.stdout) || '') } catch (e) { return null }
+  const root = j as { errors?: unknown; data?: { repository?: { issue?: unknown } } } | null
+  if (!root || root.errors) return null
+  const issueRaw = root.data && root.data.repository ? root.data.repository.issue : null
+  if (!issueRaw || typeof issueRaw !== 'object') return null
+  // 回包里必须真有这两条连接：缺 blockedBy 或 blocking 都按「原生字段不可用」退回兜底 ——
+  // 少了字段却当空连接收下，正好会把「没看到」说成「没有」，那是这张票要修的病。
+  const rawBag = issueRaw as Record<string, unknown>
+  if (!rawBag.blockedBy || typeof rawBag.blockedBy !== 'object') return null
+  if (!rawBag.blocking || typeof rawBag.blocking !== 'object') return null
+  const edges = normalizeDependencyEdges(issueRaw)
+  const data: Dependencies = {
+    blockedBy: edges.blockedBy,
+    blocking: edges.blocking,
+    blockingSource: 'native',
+    blockingComplete: !edges.blockingTruncated,
+    blockedByComplete: !edges.blockedByTruncated,
+  }
+  if (edges.blockingTruncated || edges.blockedByTruncated) {
+    // 人话：不写 GraphQL 术语（连接、字段、上限之外的词），只说「后端一次最多给多少、这次到了顶」。
+    let note = '这次读到的反向边来自后端自带的「我挡住了谁」，一次就取回来了'
+    if (edges.blockingTruncated) {
+      note += '；但它一次最多给 ' + DEPS_MAX + ' 条，反向边这次到了上限，可能不全（' + DEPS_MAX + ' 条是后端一次能给的上限，不是「没有阻塞别人」）'
+    }
+    if (edges.blockedByTruncated) {
+      note += '；「被谁阻塞」这一侧也到了 ' + DEPS_MAX + ' 条上限，可能不全'
+    }
+    data.blockingNote = note + '。'
+    emitReadDegraded(ctx, 'deps', 'deps:truncated', Date.now() - started)
+  }
+  return data
+}
+
+/**
+ * 兜底路：原生反向字段不可用时，退回整仓列表逐行看 blockedBy 里有没有这张票。
+ * 标题与状态直接取列表行本身，不再逐张读 —— 原来那一串 N+1 读标题就出在这里。
+ * 列表被截断、走了 REST、或干脆没读回来时，结果可能不全：标记位与注记都会说清。
+ *
+ * 有意不再先试名册快路（旧路：名册完整就零整仓拉取、只定向重读脏票）：那条路要拿标题还是得逐张读，
+ * 又回到 N+1；#1304 要求名册命中与整仓兜底两条路都不许逐张读标题。兜底只在后端没有原生反向字段时
+ * 才走，代价大但少见；换来的是每条路都只翻一次整仓、标题随列表行回来。
+ */
+async function readScanDependencies(repo: RepositoryRef, k: string, ctx: MemoContext, started: number): Promise<OpResult<Dependencies>> {
+  const cur = await getIssue(repo, k, {}, ctx)
+  if (!cur.ok) {
+    // 连目标票本身都没读回来：这一趟依赖投影彻底没成，兜底路也没走通。
+    emitReadDegraded(ctx, 'deps', 'deps:scan', Date.now() - started)
+    return cur
+  }
+  const blockedBy: IssueRef[] = Array.isArray(cur.data.blockedBy) ? cur.data.blockedBy : []
+
+  // 列表这一步失败不把整件事判失败（正向边已经读到了），而是按「不全」如实交代。
+  type ListShape = { ok: boolean; data?: unknown; truncated?: boolean; fallback?: string; error?: unknown }
+  let allRes: ListShape | null = null
+  try { allRes = await listIssues(repo, {}, ctx) as unknown as ListShape } catch (e) { allRes = null }
+  const listOk = !!(allRes && allRes.ok === true)
+  const rows: Issue[] = listOk && Array.isArray(allRes!.data) ? allRes!.data as Issue[] : []
+  const walkedRest = !!(allRes && allRes.fallback === 'rest')
+  const listTruncated = !!(allRes && allRes.truncated === true)
+  const incomplete = !listOk || walkedRest || listTruncated
+
+  const blocking: IssueRef[] = []
+  for (const row of rows) {
+    if (!row || String(row.key) === k) continue
+    const blockers = Array.isArray(row.blockedBy) ? row.blockedBy : []
+    if (!blockers.some((b) => b && String(b.key) === k)) continue
+    const ref: IssueRef = { key: String(row.key), title: String(row.title || ''), state: row.state }
+    if (row.type) ref.type = row.type
+    blocking.push(ref)
+  }
+
+  const data: Dependencies = {
+    blockedBy: blockedBy,
+    blocking: blocking,
+    blockingSource: 'scan',
+    blockingComplete: !incomplete,
+  }
+  data.blockingNote = incomplete
+    ? '这次没能直接读到后端自带的「我挡住了谁」，只好退回整仓列表反推（把票单拉回来，逐张看谁挡住了谁）；那份清单可能不全（整仓超过后端一次能给的条数、走了别的通道，或这次没读回来），所以「阻塞别人」可能不全 —— 不是「没有阻塞别人」。'
+    : '这次没能直接读到后端自带的「我挡住了谁」，只好退回整仓列表反推；结果是完整的，但票越多越慢。'
+  // 一趟只落一行：兜底已走完，按最终完整性挑原因（列表被截断优先归为 truncated）。
+  emitReadDegraded(ctx, 'deps', incomplete ? (listTruncated ? 'deps:truncated' : 'deps:scan') : 'deps:shape', Date.now() - started)
+  return { ok: true, data: data }
+}
+
+/**
+ * 读一张票的依赖投影：先原生，取不到才退回整仓反推。
+ * 返回的 `blockingSource` / `blockingComplete` / `blockedByComplete` / `blockingNote`
+ * 让工具层能把「用了哪条路、全不全」如实带给调用方。
+ */
+export async function readDependencies(repo: RepositoryRef, parsed: ParsedRepo, k: string, ctx: MemoContext): Promise<OpResult<Dependencies>> {
+  const started = Date.now()
+  const native = await readNativeDependencies(parsed, k, ctx, started)
+  if (native) return { ok: true, data: native }
+  return readScanDependencies(repo, k, ctx, started)
+}

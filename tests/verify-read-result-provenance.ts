@@ -28,7 +28,7 @@
 // 门禁归属: src/tracker/rooms/github/channels/rest/read-shapes.ts
 // 门禁归属: src/tracker/rooms/github/issues.ts
 // 门禁归属: src/tracker/rooms/github/issues-rest-list.ts
-// 门禁归属: src/tracker/rooms/github/page.ts
+// 门禁归属: src/tracker/rooms/github/read/page.ts
 //
 // 跑法（在插件根目录；不需要先构建，本门禁跑的是真源码）：
 //   node --import ./scripts/ts-hook.mts tests/verify-read-result-provenance.ts
@@ -222,7 +222,7 @@ check(ticketCounts['#1687'] === 2, '白名单里两条挂在 #1687（收口时�
 const WIRED_PRODUCER_FACTS: any = {
   get: { file: 'src/tracker/rooms/github/issues.ts', markers: ['beginRead(', 'provenance:', 'detailProvenanceFrom'] },
   list: { file: 'src/tracker/rooms/github/issues.ts', markers: ['beginRead(', 'provenance:', 'listProvenanceFrom'] },
-  listPage: { file: 'src/tracker/rooms/github/page.ts', markers: ['beginRead(', 'provenance:', 'pageProvenanceFromGraphql'] },
+  listPage: { file: 'src/tracker/rooms/github/read/page.ts', markers: ['beginRead(', 'provenance:', 'pageProvenanceFromGraphql'] },
 }
 for (const op of WIRED_OPS) {
   const facts = WIRED_PRODUCER_FACTS[op]
