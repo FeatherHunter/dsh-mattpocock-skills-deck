@@ -15,8 +15,9 @@
  *
  * ── 三条不能改的约定 ───────────────────────────────────────────────────────────
  * 1. 来源用实际走通的那条渠道，不许按「本意想走哪条」写：降级时来源是 `rest`，并带上 `degradedFrom: 'graphql'`。
- * 2. 每个声明字段组都要表态：列表是行与标签，单票是行、正文、评论、依赖，按页取票是行与标签。
- *    没有取的那一组写 `unexpressed`，取到但可能不全写 `truncated`，不许拿总体布尔糊过去。
+ * 2. 每个声明字段组都要表态：列表是行与标签；单票是行、正文、评论、父子边、依赖、子票计数、
+ *    评审、合并时间；按页取票是行与标签。没有取的那一组写 `unexpressed`，取到但可能不全写
+ *    `truncated`，不许拿总体布尔糊过去。
  * 3. 耗时与取数开始版本由调用方在入口调 `beginRead()` 收下、一路传到这里；这里只做减法，
  *    不自己取起点——起点晚了会把「翻页花了多久」算漏。
  */
@@ -25,14 +26,15 @@ import {
   graphqlCommentsCompleteness,
   graphqlDependenciesCompleteness,
   graphqlLabelsCompleteness,
+  graphqlReviewsCompleteness,
   graphqlRowsCompleteness,
   graphqlSubIssuesCompleteness,
 } from '../channels/graphql/read-shapes.js'
 import {
+  restDetailFieldGroups,
   restLabelListCompleteness,
   restListCompleteness,
   restRowLabelsCompleteness,
-  restSingleRowFieldGroups,
 } from '../channels/rest/read-shapes.js'
 import type { RestListPagingFacts } from '../channels/rest/read-shapes.js'
 import { buildReadProvenance } from './read-result.js'
@@ -112,9 +114,10 @@ export function listProvenanceFromRest(clock: ReadClock, facts: {
 /**
  * 单票走了 GraphQL 工单查询时的来源信息。
  *
- * 工单查询带正文、labels(first:50)、comments(first:N)、blockedBy(first:50)；`blocking`（反向边）
- * 这一侧查询里没有，所以依赖组按「被阻塞一侧已表达、阻塞一侧未表达」判——只报实际查过的那一侧，
- * 不假装两侧都看过（规格第 9 节：缺失字段组要说清是哪个组）。
+ * 工单查询带正文、labels(first:50)、comments(first:N)、父票（`parent{number}`，单边不翻页）、
+ * blockedBy(first:50)；`blocking`（反向边）这一侧查询里没有，所以依赖组按「被阻塞一侧已表达、
+ * 阻塞一侧未表达」判——只报实际查过的那一侧，不假装两侧都看过（规格第 9 节：缺失字段组要说清
+ * 是哪个组）。子票计数、评审、合并时间这三组工单查询压根不取，如实记 `unexpressed`。
  */
 export function detailProvenanceFromGraphql(clock: ReadClock, rawIssue: unknown, facts: {
   readonly dropped: number
@@ -136,7 +139,11 @@ export function detailProvenanceFromGraphql(clock: ReadClock, rawIssue: unknown,
       row: graphqlRowsCompleteness({ truncated: false, dropped: facts.dropped }),
       body: 'complete',
       comments: commentsValue,
+      parents: 'complete',
       dependencies: graphqlDependenciesCompleteness([blockedBy.nodes, null]),
+      subIssues: 'unexpressed',
+      review: 'unexpressed',
+      mergeInfo: 'unexpressed',
     },
     durationMs: elapsedOf(clock),
     startVersion: clock.startVersion,
@@ -146,13 +153,16 @@ export function detailProvenanceFromGraphql(clock: ReadClock, rawIssue: unknown,
 /**
  * 单票走了 GraphQL 拉取请求查询时的来源信息。
  *
- * 拉取请求片段带正文与 comments(first:20)（无 pageInfo、不翻页），没有依赖边与反向边：
- * 依赖组记 `unexpressed`（这次压根没取），评论组按目标总数判断——拿到的比总数少就是截断。
+ * 拉取请求片段带正文、mergedAt、comments(first:20)、reviews(first:20)（两段连接都没有 pageInfo、
+ * 不翻页）；没有父子边、依赖边、子票（拉取请求类型原生没有这三样），三组记 `unexpressed`。
+ * 评论组按目标总数判断——拿到的比总数少就是截断；评审组收到满 20 条记 `truncated`
+ * （`reviews(first:20)` 可能还有下一页）；合并时间在 PR 端点恒表达，记 `complete`。
  */
 export function detailProvenanceFromPullRequest(clock: ReadClock, rawPullRequest: unknown, facts: {
   readonly dropped: number
 }): ReadProvenance {
   const comments = connectionFactsOf(rawPullRequest, 'comments')
+  const reviews = connectionFactsOf(rawPullRequest, 'reviews')
   return buildReadProvenance('get', {
     source: 'graphql',
     fieldGroups: {
@@ -163,7 +173,11 @@ export function detailProvenanceFromPullRequest(clock: ReadClock, rawPullRequest
         totalCount: comments.totalCount,
         want: null,
       }),
-      dependencies: graphqlDependenciesCompleteness([]),
+      parents: 'unexpressed',
+      dependencies: 'unexpressed',
+      subIssues: 'unexpressed',
+      review: graphqlReviewsCompleteness(reviews.nodes ?? 0),
+      mergeInfo: 'complete',
     },
     durationMs: elapsedOf(clock),
     startVersion: clock.startVersion,
@@ -173,14 +187,16 @@ export function detailProvenanceFromPullRequest(clock: ReadClock, rawPullRequest
 /**
  * 单票走了 REST 端点时的来源信息。
  *
- * REST 单票端点只能证明行字段与正文；评论正文、依赖边、子票都不在这份回包里，
- * 三组如实记 `unexpressed`——不能因为「没报错」就说完整（规格第 5 节：REST 单票不表达这三组）。
+ * REST 单票端点恒定表达行字段与正文；评论正文、父子边、依赖边不在这份回包里，三组如实记
+ * `unexpressed`。子票计数、评审、合并时间三组要看这一次回包：降级路径单票富化会补一页
+ * `/reviews`，`/issues` 回包可能带 `sub_issues_summary` 与 `pull_request.merged_at`。
+ * 具体判定交给渠道层 `restDetailFieldGroups`，这里只负责把原始回包递进去。
  */
-export function detailProvenanceFromRest(clock: ReadClock): ReadProvenance {
+export function detailProvenanceFromRest(clock: ReadClock, raw?: unknown): ReadProvenance {
   return buildReadProvenance('get', {
     source: 'rest',
     degradedFrom: 'graphql',
-    fieldGroups: restSingleRowFieldGroups(),
+    fieldGroups: restDetailFieldGroups(raw),
     durationMs: elapsedOf(clock),
     startVersion: clock.startVersion,
   })

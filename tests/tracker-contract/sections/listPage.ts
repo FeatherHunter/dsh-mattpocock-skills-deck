@@ -482,7 +482,9 @@ export async function run(): Promise<PageAssertResult[]> {
     await assert('filter.state 下推到后端（states[]=CLOSED，不是先取一页再内存过滤）', /states\[\]=CLOSED/.test(lastArgs), lastArgs.slice(0, 200))
     await assert('薄片段不带正文与评论（画一行用不到的两大块不取）', !/\bbody\b/.test(lastArgs) && !/\bcomments\b/.test(lastArgs), lastArgs.slice(0, 260))
     await assert('薄片段带上了画一行要的那些字段', /number/.test(lastArgs) && /title/.test(lastArgs) && /labels\(/.test(lastArgs) && /assignees\(/.test(lastArgs) && /author\{/.test(lastArgs), lastArgs.slice(0, 260))
-    await assert('行数据是契约形状（key 字符串、没有 number、state 小写），正文与评论给空值不是省略', r1.ok && r1.data.items[0].key === '42' && !('number' in r1.data.items[0]) && r1.data.items[0].state === 'closed' && r1.data.items[0].body === '' && Array.isArray(r1.data.items[0].comments) && r1.data.items[0].comments.length === 0, JSON.stringify(r1.data && r1.data.items[0]).slice(0, 260))
+    // #1688：薄片段确实没取评论（上一行刚验过查询里没有 comments），所以评论这一组是「未表达」，
+    // 不能再补空数组冒充「这条票没有评论」。正文是核心字段，仍给空串（核心字段永远存在）。
+    await assert('行数据是契约形状（key 字符串、没有 number、state 小写），正文给空串、评论没取就记未表达不冒充空数组', r1.ok && r1.data.items[0].key === '42' && !('number' in r1.data.items[0]) && r1.data.items[0].state === 'closed' && r1.data.items[0].body === '' && !('comments' in r1.data.items[0]) && r1.data.items[0].fieldStates.comments.known === false && r1.data.items[0].fieldStates.comments.reason === 'not-expressed', JSON.stringify(r1.data && r1.data.items[0]).slice(0, 260))
 
     const rCursor = await gh.listPage(ref('github'), { state: 'closed' }, { cursor: 'CUR2', limit: 50 }, probeCtx(goodPage({ hasNextPage: false, endCursor: null }, 649)))
     await assert('游标原样回传给后端（after=CUR2）', /after=CUR2/.test(lastArgs), lastArgs.slice(0, 200))

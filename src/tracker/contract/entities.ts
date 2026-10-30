@@ -13,6 +13,7 @@
  */
 
 import type { Actor, BackendId, ClosedReason, IssueType, State } from './identity.js'
+import type { FieldState } from './field-state.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 二、实体形状：票、标签、评论、参与人
@@ -99,12 +100,59 @@ export interface IssueRef {
 }
 
 /**
+ * 子票计数（一张地图下有多少子票、完成了多少）。
+ *
+ * 为什么不塞进 Issue 的数组：三态里「缺计数保持未知」要能说出口——计数没取到时整组是未知的，
+ * 不能落成 `total: 0`（那等于声称没有子票）。形状与 REST 列表行的 sub_issues_summary 一致。
+ */
+export interface SubIssueCounts {
+  /** 子票总数。 */
+  total: number
+  /** 已关闭的子票数。 */
+  completed: number
+  /** 完成百分比（0..100 的整数）。 */
+  percentCompleted: number
+}
+
+/**
+ * 一张票上按字段组的三态快照（#1688 落，消费方是快照合并）。
+ *
+ * 为什么要有它：Issue 上的 `parentKey`/`blockedBy`/`commentCount`/`reviews`/`mergedAt`
+ * 分不清「确实为空」与「这次没取到」——缺边写成 `[]`、缺父票写成 `null`，合并层就把未知当事实。
+ * 六组三态把这件事说清；每组的「知道」与「不知道」都能判读。
+ *
+ * 约定（改之前先读这四条）：
+ *  1. 六组是固定的一整套：给了 `fieldStates`，六组就必须齐全（省略整块 = 这个后端没有三态口径，
+ *     按能力字段的旧口径读）；单组缺席或形状不对由门禁判红。
+ *  2. 已知时值必须与 Issue 上的对应字段一致：parents↔parentKey、dependencies↔blockedBy、
+ *     comments↔commentCount、review↔reviews、mergeInfo↔mergedAt；subIssues 没有对应字段，只在这里。
+ *  3. 未知时 Issue 上那个字段整个省略。`parentKey` 是例外：它是核心字段、永远存在，未知时仍写
+ *     `null`，读的人必须看这里才知道是「没有父票」还是「不知道」。
+ *  4. 只有字段组「完整」的来源才允许按这里的值删改上次已知（完整度在 ReadProvenance 上按组表态）；
+ *     截断或未表达的来源只能补空缺。这条是下一张票（#1690）的合并规则，本契约只承载事实。
+ */
+export interface IssueFieldStates {
+  /** 父子边：父票 key；`null` 表示明确没有父票。 */
+  readonly parents: FieldState<string | null>
+  /** 依赖边：谁阻塞我；`[]` 表示明确没有阻塞者。 */
+  readonly dependencies: FieldState<IssueRef[]>
+  /** 子票计数。 */
+  readonly subIssues: FieldState<SubIssueCounts>
+  /** 评论总数；评论正文取没取看 Issue.comments 与 provenance 的 comments 组完整度。 */
+  readonly comments: FieldState<number>
+  /** 评审明细；`[]` 表示明确没有评审。 */
+  readonly review: FieldState<Review[]>
+  /** 合并时间；`null` 表示明确还没合并。 */
+  readonly mergeInfo: FieldState<string | null>
+}
+
+/**
  * 票/图的完整实体。
  *
  * 核心字段**永远存在**（缺了用 `''`/`null` 补齐），能力字段**可以整个省略**（= 没有这个能力）：
  * - 核心：key、effortId、type、title、state、body、url、createdAt、updatedAt、closedAt、parentKey
  * - 能力：author、assignees、labels、milestone、customFields、reason、blockedBy、comments、
- *   isPullRequest、mergedAt、reviews
+ *   isPullRequest、mergedAt、reviews、fieldStates
  *
  * ⚠️ `blocking`（我阻塞了谁）**不许**作为 Issue 的字段：它是 `blockedBy` 的反向派生，
  * 只允许出现在 `getDependencies` 的返回值里。放进来就是第二真源，两处迟早对不上。
@@ -155,6 +203,12 @@ export interface Issue {
   mergedAt?: string | null
   /** 评审细分，没有评审给 `[]`；没有拉取请求能力的后端省略。 */
   reviews?: Review[]
+  /**
+   * 按字段组的三态快照（#1688）。省略 = 这个后端不区分「明确为空」与「不知道」，
+   * 按能力字段的旧口径读（`[]`/`null` 就是明确为空）；GitHub 房每次归一都给六组齐全。
+   * 组的清单、语义与「已知时与上面字段一致」的约定见 IssueFieldStates。
+   */
+  fieldStates?: IssueFieldStates
 }
 
 /**

@@ -378,8 +378,9 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
           if (jr.pull_request != null) await enrichSinglePR(jr, parsed, ctx)
           try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, jr) } catch (eU) {}
           // 来源与完整度（#1685）：这一支走了 REST，来源记 rest、降级来源记 graphql；
-          // REST 单票只表达行与正文两组，评论与依赖两组一律记未表达（能力边界，不冒充截断）。
-          return { ok: true, data: normalizeIssue(jr), provenance: detailProvenanceFromRest(clock) }
+          // 八组表态按这次回包算：评论正文、父子边、依赖边恒未表达，子票计数、评审、合并时间
+          // 三组看回包（#1688 起由渠道层 restDetailFieldGroups 判，这里交出原始行）。
+          return { ok: true, data: normalizeIssue(jr), provenance: detailProvenanceFromRest(clock, jr) }
         }
         // /issues 回的这份东西没有 number，不像一张票：降级路走了一半、形状不认，如实记一行再退到 /pulls。
         emitReadDegraded(ctx, 'get', 'get:shape', Date.now() - tGet)
@@ -395,8 +396,9 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
         if (prj && typeof prj === 'object' && prj.number != null) {
           await enrichSinglePR(prj, parsed, ctx)
           try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, prj) } catch (eU) {}
-          // 来源与完整度（#1685）：/pulls 单票同样是 REST 降级，字段组能力与 /issues 一致。
-          return { ok: true, data: normalizeIssue(prj), provenance: detailProvenanceFromRest(clock) }
+          // 来源与完整度（#1685）：/pulls 单票同样是 REST 降级；八组表态同样按回包算，
+          // /pulls 行自带 merged_at（字符串或 null），合并时间这一组会是 complete。
+          return { ok: true, data: normalizeIssue(prj), provenance: detailProvenanceFromRest(clock, prj) }
         }
         // 原文交这次 /pulls 回包本身：形状里既没有 number，也就没有能当票看的东西。
         return fail(ERROR_KIND.NOTFOUND, `get: issue ${k} not found`, prr.data.stdout)

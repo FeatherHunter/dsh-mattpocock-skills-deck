@@ -57,14 +57,15 @@ import {
   graphqlDependenciesCompleteness,
   graphqlLabelListCompleteness,
   graphqlLabelsCompleteness,
+  graphqlReviewsCompleteness,
   graphqlRowsCompleteness,
   graphqlSubIssuesCompleteness,
 } from '../src/tracker/rooms/github/channels/graphql/read-shapes.js'
 import {
+  restDetailFieldGroups,
   restLabelListCompleteness,
   restListCompleteness,
   restRowLabelsCompleteness,
-  restSingleRowFieldGroups,
   restSubIssuesCompleteness,
 } from '../src/tracker/rooms/github/channels/rest/read-shapes.js'
 import {
@@ -325,7 +326,10 @@ check(listCompleteProv.fieldGroups.row === 'complete' && listCompleteProv.fieldG
 
 const getPartialProv = buildReadProvenance('get', {
   source: 'graphql',
-  fieldGroups: { row: 'complete', body: 'complete', comments: 'complete', dependencies: 'unexpressed' },
+  fieldGroups: {
+    row: 'complete', body: 'complete', comments: 'complete', parents: 'complete',
+    dependencies: 'unexpressed', subIssues: 'complete', review: 'complete', mergeInfo: 'complete',
+  },
   durationMs: 30,
   startVersion: SAMPLE_VERSION,
 })
@@ -334,7 +338,10 @@ check(getPartialProv.missingFieldGroups.join(',') === 'dependencies', '缺失字
 
 const getTruncatedProv = buildReadProvenance('get', {
   source: 'graphql',
-  fieldGroups: { row: 'complete', body: 'complete', comments: 'truncated', dependencies: 'unexpressed' },
+  fieldGroups: {
+    row: 'complete', body: 'complete', comments: 'truncated', parents: 'complete',
+    dependencies: 'unexpressed', subIssues: 'complete', review: 'complete', mergeInfo: 'complete',
+  },
   durationMs: 30,
   startVersion: SAMPLE_VERSION,
 })
@@ -753,14 +760,32 @@ function gqlPageData(nodes: any[], totalCount: number): any {
   const prov = expectProvenance('单票主路', result, {
     operation: 'get',
     source: 'graphql',
-    groups: { row: 'complete', body: 'complete', comments: 'complete', dependencies: 'unexpressed' },
+    groups: {
+      row: 'complete', body: 'complete', comments: 'complete', parents: 'complete',
+      dependencies: 'unexpressed', subIssues: 'unexpressed', review: 'unexpressed', mergeInfo: 'unexpressed',
+    },
     completeness: 'partial',
-    missing: ['dependencies'],
+    missing: ['review', 'dependencies', 'subIssues', 'mergeInfo'],
     degradedFrom: '',
   })
   check(result.ok === true && result.data && result.data.key === '123', '单票主路仍返回这张票（行为不变）', result.data && result.data.key)
   check(prov && versionTimestampOf(prov) > 0, '单票主路记下取数开始版本', prov && prov.startVersion)
   check(room.calls.map(function (c: any): string { return c.kind }).join(',') === 'get.gql', '单票主路只发一条 GraphQL 查询', room.calls.map(function (c: any): string { return c.kind }))
+  // #1688：字段三态与来源信息是同一趟读结果的两处载体，必须同批出现、各自说同一件事。
+  const d3States: any = (result.data && result.data.fieldStates) || {}
+  check(
+    ['parents', 'dependencies', 'subIssues', 'comments', 'review', 'mergeInfo'].every(function (g: string): boolean { return Boolean(d3States[g]); }),
+    '单票主路的读结果带六组字段三态（行、父子边、依赖边、子票计数、评论、评审、合并时间）',
+    Object.keys(d3States),
+  )
+  check(d3States.parents && d3States.parents.known === true && prov.fieldGroups.parents === 'complete', '父子边既在三态里已知、也在来源信息里记完整', { state: d3States.parents, group: prov.fieldGroups.parents })
+  check(d3States.comments && d3States.comments.known === true && prov.fieldGroups.comments === 'complete', '评论总数既在三态里已知、也在来源信息里记完整', { state: d3States.comments, group: prov.fieldGroups.comments })
+  check(d3States.review && d3States.review.known === false && d3States.review.reason === 'not-expressed' && prov.fieldGroups.review === 'unexpressed', '评审没取时三态记未表达、来源信息也记未表达', { state: d3States.review, group: prov.fieldGroups.review })
+  check(d3States.mergeInfo && d3States.mergeInfo.known === false && prov.fieldGroups.mergeInfo === 'unexpressed', '合并时间没取时三态记未表达、来源信息也记未表达', { state: d3States.mergeInfo, group: prov.fieldGroups.mergeInfo })
+  check(d3States.subIssues && d3States.subIssues.known === false && prov.fieldGroups.subIssues === 'unexpressed', '子票计数没取时三态记未表达、来源信息也记未表达', { state: d3States.subIssues, group: prov.fieldGroups.subIssues })
+  // 依赖组的两个载体粒度不同：三态只讲被阻塞一侧（这张票 raw 里 blockedBy 是空连接，明确为空），
+  // 来源信息讲整组（反向边这次没查），所以一个 known 一个 unexpressed——这不是矛盾，是各自如实。
+  check(d3States.dependencies && d3States.dependencies.known === true && prov.fieldGroups.dependencies === 'unexpressed', '依赖组：被阻塞一侧明确为空，但反向边没查，来源信息仍记未表达', { state: d3States.dependencies, group: prov.fieldGroups.dependencies })
 }
 
 // D3b. 单票依赖到 50 条上限即截断
@@ -775,9 +800,12 @@ function gqlPageData(nodes: any[], totalCount: number): any {
   expectProvenance('单票依赖到上限', result, {
     operation: 'get',
     source: 'graphql',
-    groups: { row: 'complete', body: 'complete', comments: 'complete', dependencies: 'truncated' },
+    groups: {
+      row: 'complete', body: 'complete', comments: 'complete', parents: 'complete',
+      dependencies: 'truncated', subIssues: 'unexpressed', review: 'unexpressed', mergeInfo: 'unexpressed',
+    },
     completeness: 'truncated',
-    missing: ['dependencies'],
+    missing: ['review', 'dependencies', 'subIssues', 'mergeInfo'],
     degradedFrom: '',
   })
 }
@@ -793,13 +821,22 @@ function gqlPageData(nodes: any[], totalCount: number): any {
   expectProvenance('单票 REST 降级', result, {
     operation: 'get',
     source: 'rest',
-    groups: { row: 'complete', body: 'complete', comments: 'unexpressed', dependencies: 'unexpressed' },
+    groups: {
+      row: 'complete', body: 'complete', comments: 'unexpressed', parents: 'unexpressed',
+      dependencies: 'unexpressed', subIssues: 'unexpressed', review: 'unexpressed', mergeInfo: 'unexpressed',
+    },
     completeness: 'partial',
-    missing: ['comments', 'dependencies'],
+    missing: ['comments', 'review', 'parents', 'dependencies', 'subIssues', 'mergeInfo'],
     degradedFrom: 'graphql',
   })
   check(result.ok === true && result.data && result.data.key === '123', '单票 REST 降级仍返回这张票（行为不变）', result.data && result.data.key)
   check(room.calls.map(function (c: any): string { return c.kind }).join(',') === 'get.gql,rest.issue', '单票降级后走 REST 单票端点', room.calls.map(function (c: any): string { return c.kind }))
+  // #1688：REST 单票回包没有父子边与依赖边，三态必须是「未表达」，不许落成空数组或「没有父票」。
+  const d4States: any = (result.data && result.data.fieldStates) || {}
+  check(d4States.parents && d4States.parents.known === false && d4States.parents.reason === 'not-expressed', 'REST 降级单票的父子边三态记未表达，不冒充没有父票', d4States.parents)
+  check(d4States.dependencies && d4States.dependencies.known === false && d4States.dependencies.reason === 'not-expressed', 'REST 降级单票的依赖边三态记未表达，不冒充空数组', d4States.dependencies)
+  check(d4States.comments && d4States.comments.known === false, 'REST 降级单票的评论总数记未知，不拿正文条数冒充', d4States.comments)
+  check(!('blockedBy' in result.data) && !('commentCount' in result.data), 'REST 降级单票不假写空依赖数组与零评论总数', { blockedBy: 'blockedBy' in result.data, commentCount: 'commentCount' in result.data })
 }
 
 // D5. 按页取票走 GraphQL
@@ -911,6 +948,8 @@ check(graphqlRowsCompleteness({ truncated: false, dropped: 0 }) === 'complete', 
 check(graphqlRowsCompleteness({ truncated: false, dropped: 2 }) === 'truncated', 'GraphQL 行：丢过行就是 truncated')
 check(graphqlLabelsCompleteness([labelsOfCount(49)]) === 'complete', 'GraphQL 标签：一行 49 条仍是 complete')
 check(graphqlLabelsCompleteness([labelsOfCount(50)]) === 'truncated', 'GraphQL 标签：一行到 50 条上限即 truncated')
+check(graphqlReviewsCompleteness(19) === 'complete', 'GraphQL 评审：不到 20 条是 complete')
+check(graphqlReviewsCompleteness(20) === 'truncated', 'GraphQL 评审：收到满 20 条即 truncated（可能还有下一页）')
 check(graphqlDependenciesCompleteness([null]) === 'unexpressed', 'GraphQL 依赖：没拉这一侧是 unexpressed')
 check(graphqlDependenciesCompleteness([50, 2]) === 'truncated', 'GraphQL 依赖：一侧到 50 条上限即 truncated')
 check(graphqlCommentsCompleteness({ nodesCount: 2, totalCount: 2, want: null }) === 'complete', 'GraphQL 评论：拉齐全部是 complete')
@@ -932,7 +971,16 @@ check(
 )
 check(restRowLabelsCompleteness([{ labels: [] }]) === 'complete', 'REST 行标签：结构完整是 complete')
 check(restRowLabelsCompleteness([{ name: 'x' }]) === 'unexpressed', 'REST 行标签：结构不对是 unexpressed')
-check(restSingleRowFieldGroups().comments === 'unexpressed', 'REST 单票不表达评论正文')
+check(restDetailFieldGroups({}).comments === 'unexpressed', 'REST 单票不表达评论正文')
+check(restDetailFieldGroups({}).parents === 'unexpressed', 'REST 单票不表达父子边')
+check(restDetailFieldGroups({}).dependencies === 'unexpressed', 'REST 单票不表达依赖边')
+check(restDetailFieldGroups({}).subIssues === 'unexpressed', 'REST 单票回包没有子票计数即记未表达')
+check(restDetailFieldGroups({ sub_issues_summary: { total: 3, completed: 1, percent_completed: 33 } }).subIssues === 'complete', 'REST 单票回包带合法子票计数即记完整')
+check(restDetailFieldGroups({}).review === 'unexpressed', 'REST 单票回包没有评审数组即记未表达')
+check(restDetailFieldGroups({ reviews: [] }).review === 'complete', 'REST 单票回包带不满一页的评审数组即记完整')
+check(restDetailFieldGroups({ reviews: new Array(PAGINATION.github.restPageSize) }).review === 'truncated', 'REST 单票评审恰好满一页记截断（单票富化只取一页不翻页）')
+check(restDetailFieldGroups({}).mergeInfo === 'unexpressed', 'REST 单票回包没有合并时间即记未表达')
+check(restDetailFieldGroups({ merged_at: null }).mergeInfo === 'complete', 'REST 单票回包的 merged_at 是 null 也算表达（还没合并是明确事实）')
 check(restLabelListCompleteness(1000) === 'truncated', 'REST 标签清单：到 1000 上限即 truncated')
 check(
   restSubIssuesCompleteness({ fetched: 120, pageSize: 100, lastPageRows: 20, sawEmptyPage: false, hitCap: false, pageFailure: false }) === 'complete',
