@@ -24,12 +24,12 @@
 //
 // 门禁归属: src/tracker/rooms/github/page.ts
 // 门禁归属: src/tracker/rooms/github/channels/graphql/queries.ts
-// 门禁归属: src/tracker/rooms/github/errors.ts
+// 门禁归属: src/tracker/rooms/github/support/errors.ts
 // 门禁归属: src/refresh/rooms/host/issue-list-fetch.ts
 // 门禁归属: src/refresh/rooms/client/refresh-timer.ts
 // 门禁归属: src/refresh/rooms/host/probe-handler.ts
 // 门禁归属: src/refresh/kernel/budget-admission.ts
-// 门禁归属: src/tracker/rooms/github/read-log.ts
+// 门禁归属: src/tracker/rooms/github/support/read-log.ts
 // 门禁归属: src/host/namingGuardian.ts
 //
 // 跑法（在插件根目录；不需要先构建，本门禁跑的是真源码）：

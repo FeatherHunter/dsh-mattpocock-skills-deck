@@ -2,7 +2,7 @@
  * tests/verify-capability-register.ts —— 能力登记三处对齐门禁（#1172）
  *
  * 门禁归属: src/tracker/contract/capability-answer.ts
- * 门禁归属: src/tracker/rooms/github/capability-register.ts
+ * 门禁归属: src/tracker/rooms/github/support/capability-register.ts
  * 门禁归属: src/tracker/rooms/markdown/capability-register.ts
  * 门禁归属: src/tracker/rooms/gitlab/capability-register.ts
  * 门禁归属: docs/tracker

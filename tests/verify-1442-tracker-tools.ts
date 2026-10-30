@@ -110,7 +110,7 @@ async function main() {
   const clock = 1700000000000;
 
   // #1610：成功回包上贴一份房间自报的用量（一条远端调用 = 1 请求 3 点，与工具侧同口径）。
-  // 真实房间在成功回包上自报（src/tracker/rooms/github/op-usage.ts）；失败回包不自报，
+  // 真实房间在成功回包上自报（src/tracker/rooms/github/support/op-usage.ts）；失败回包不自报，
   // 生产口径也不给失败信封记用量（src/refresh/kernel/backend-accounting.ts:52）。
   const withUsage = (fn: any) => async (...args: any[]) => {
     const out: any = await fn(...args);

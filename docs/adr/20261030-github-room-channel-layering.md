@@ -32,9 +32,9 @@
 - read/：读操作编排（列表、单票、已关闭分页、计数、依赖、子票、标签）；write/：写操作编排；
 - model/：归一化后的领域形状、字段三态与合并口径；
 - room/：房间入口与契约接线（backend.ts、能力声明）；
-- support/：日志、分页、并发等内部工具。
+- support/：错误分类、读写日志、用量计数、分页、并发等内部工具。
 
-依赖方向：room → read/write → routing → channels → transport；model 可被 read/write/routing 引用；channels 不得引用上游。由现有依赖门禁（verify-dependency-rules.ts 与 .dependency-cruiser.ts）扩展硬卡。
+依赖方向：room → read/write → routing → channels → transport；model 可被 read/write/routing 引用；channels 不得引用上游。support 在最底层，不引用房间内任何一层，但任何层都可以引用它（因此 transport 可以引用 support：错误分类与用量计数都住这一层）。由现有依赖门禁（verify-dependency-rules.ts 与 .dependency-cruiser.ts）扩展硬卡。
 
 ### 2.2 读结果带来源与完整度
 
@@ -97,3 +97,4 @@
 
 - 2026-10-30 定版：Q1–Q9 拍板；八目录分层与「降级只补不删」作为结论落盘。
 - 2026-10-31 回填规格票 #1681：改为「8 类职责、9 个物理目录」；预算改按插件读额度；父边与依赖摘要标为阶段 0 真机探针；counts 诚实与 GHES 运行时能力；写路径按操作现状登记。
+- 2026-10-31 阶段 1 第二批（#1686）：support/ 先落位错误分类（errors.ts）、读写日志、用量计数、能力登记、初始化错误分类；transport 允许引用 support（错误分类与用量计数都在这一层，方向仍是「上层引底层」）。原本打算放进 support/ 的幂等键与评论分页要调用 gh 客户端，按「support 不依赖任何层」的边界改放 routing/ 与 channels/graphql/。

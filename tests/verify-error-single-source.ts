@@ -339,7 +339,7 @@ console.log('── B. 档位字面量只许出现在真源文件里')
       why: '初始化流程自己的一套结果词，不是 ERROR_KIND 的八档；#1111 不收编（八档口径与名录属地图 02），只放行点名的这几个词',
     },
     {
-      file: 'src/tracker/rooms/github/init-project-error-kinds.ts',
+      file: 'src/tracker/rooms/github/support/init-project-error-kinds.ts',
       values: ['already-exists', 'network', 'not-logged-in', 'permission'],
       why: '整份就是初始化流程的结果词映射表；这里的 network 也是初始化结果词（不是 TrackerError 档位），一并按具体字符串放行',
     },

@@ -4,7 +4,7 @@
  *
  * 守着的源码路径（按改动挑门禁时照这份清单）：
  *   src/tracker/kernel/error-rules.ts            COMMON_RULES / RULE_LAYERS / matchRule / judgeFactsDetailed / rateLimitClassOf
- *   src/tracker/rooms/github/errors.ts    本家前置扩展表 + classifyGhError
+ *   src/tracker/rooms/github/support/errors.ts    本家前置扩展表 + classifyGhError
  *   src/tracker/rooms/gitlab/errors.ts    本家前置扩展表 + classifyGlabError
  *   src/tracker/rooms/markdown/**         本后端有无可比的扩展表（今天没有，门禁会说明）
  *   docs/adr/20261014-error-classification-single-source.md  第 2 节第 3 条：层序的真源
@@ -198,12 +198,21 @@ function sampleProblems(s, api) {
   return bad
 }
 
-/** 扫一个后端目录，找出它导出的扩展表（`export const XXX_RULES`），名字随各家改也不怕。 */
+/**
+ * 扫一个后端目录（含被职责目录分走的层子目录），找出它导出的扩展表（`export const XXX_RULES`），名字随各家改也不怕。
+ * 从 #1686 起 GitHub 房间按层分了子目录（support/ 等），规则表随错误分类搬进 support/errors.ts；
+ * 只扫顶层会漏掉它，后端专有样本就会掉进通用表兜底，所以这里要递归。
+ */
 function discoverExtensionTables(dirRel) {
   const dir = path.join(ROOT, dirRel)
   const out = []
   if (!fs.existsSync(dir)) return out
-  for (const name of fs.readdirSync(dir)) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      out.push(...discoverExtensionTables(path.posix.join(dirRel, entry.name)))
+      continue
+    }
+    const name = entry.name
     if (!/\.(ts|js)$/.test(name) || /\.d\.ts$/.test(name)) continue
     const file = path.posix.join(dirRel, name)
     const src = readRel(file)
