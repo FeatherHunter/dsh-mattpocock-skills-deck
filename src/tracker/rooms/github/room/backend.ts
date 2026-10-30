@@ -15,6 +15,9 @@ import type { RepositoryRef } from '../../../contract/entities.js';
 import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import { fail } from '../../../kernel/preflight.js'
 import { ghClient, rememberOutbound } from '../transport/client.js'
+// #1687：房间入口收口时给 getCurrentUser / readBudget 接上读来源（入口是它们的生产文件）。
+import { beginRead } from '../routing/read-result.js'
+import { currentUserProvenance, readBudgetProvenance } from '../routing/read-assembly.js'
 // #1446：用量统一在操作表外层附到成功信封上，不在二十六条操作里各写一遍。
 import { attachOpUsage } from '../support/op-usage.js'
 import type { OutboundControl } from '../../../contract/outbound.js'
@@ -147,6 +150,8 @@ export function createGithubBackend(ctx: OpContext) {
     setParent: (repo, key, parentKey, opts, opCtx) => setParent(repo, key, parentKey, opts, opCtx || ctx),
     setBlockedBy: (repo, key, blockers, opts, opCtx) => setBlockedBy(repo, key, blockers, opts, opCtx || ctx),
     getCurrentUser: async (repo, opCtx) => {
+      // 这一趟读的起点在这里收：成功率回包里要带来源、身份组完整度与耗时（#1687）。
+      const clock = beginRead()
       const c = ghClient(opCtx || ctx)
       const r = await c.execGh(['api', 'user', '--jq', '{login: .login, name: .name, avatarUrl: .avatar_url}'], { cwd: (opCtx && opCtx.cwd) || (ctx && ctx.cwd) })
       if (!r.ok) {
@@ -168,7 +173,8 @@ export function createGithubBackend(ctx: OpContext) {
         if (j.avatarUrl) actor.avatarUrl = String(j.avatarUrl)
         else if (j.avatar_url) actor.avatarUrl = String(j.avatar_url)
         actor.kind = 'user'
-        return { ok: true, data: actor }
+        // 问到 login 才算读成：来源只有 rest 一条渠道，成功即身份组完整。
+        return { ok: true, data: actor, provenance: currentUserProvenance(clock) }
       } catch (e) {
         const eb = (e && typeof e === 'object' ? e : null) as { message?: unknown } | null;
         return fail(ERROR_KIND.PARSE, String((eb && eb.message) || e), r.data)
@@ -187,7 +193,13 @@ export function createGithubBackend(ctx: OpContext) {
     //   2026-10-14 起它是契约操作（`Tracker.getRepoPermissions`）：deck_context 的能力位与失败归因
     //   两边都要用它，所以它不再是「GitHub 独有的旁路」。
     //   问不出来（网络、仓库不存在）如实回 ok:false，调用方按「未知」处理，不捏造。
-    readBudget: (opCtx) => readGithubBudget(opCtx || ctx),
+    // #1687：成功量到两桶水位时补来源（固定 local）；「读数未知」仍走成功信封但不挂来源。
+    readBudget: async (opCtx) => {
+      const clock = beginRead()
+      const r = await readGithubBudget(opCtx || ctx)
+      if (r.ok && r.data && r.data.known) return { ok: true, data: r.data, provenance: readBudgetProvenance(clock) }
+      return r
+    },
     getRepoPermissions: async (repo, opCtx) => {
       const c = ghClient(opCtx || ctx)
       const refId = repo && typeof repo.refId === 'string' ? repo.refId.trim() : ''

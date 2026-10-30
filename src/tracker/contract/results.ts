@@ -13,9 +13,10 @@
  * 回值是链路末端，它不该反过来依赖前面交进来的东西。
  */
 
-import type { BackendId, ErrorKind } from './identity.js'
+import type { Actor, BackendId, ErrorKind } from './identity.js'
 import type { Issue, IssueRef, LabelColor, RepositoryRef } from './entities.js'
 import type { ReadProvenance } from './read-provenance.js'
+import type { BudgetReading } from './budget-model.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 四、返回值：失败是值不是异常
@@ -391,5 +392,29 @@ export interface MapListResult {
 /** listMaps 的完整返回：地图薄行 + 这一趟的来源与行/标签两个字段组的完整度（#1686）。 */
 export type MapListOpResult = OpResult<MapListResult> & {
   /** 撞封顶页数时行组记截断；单行标签到 50 条上限时标签组记截断。 */
+  readonly provenance?: ReadProvenance
+}
+
+/**
+ * getCurrentUser 的返回（#1687 房间入口收口时接上来源）。
+ *
+ * 为什么单列一份而不是裸的 OpResult<Actor>：成功拿到账号时还要说清「这个账号是怎么问到的、
+ * 身份这一组取全了没有」。来源只有 rest 一个渠道（gh api user），身份组成功即完整；
+ * 失败（未登录、权限不够、回包解析不出）不挂 provenance —— 失败结果只回答通不通，
+ * 不冒充已经读到了身份。
+ */
+export type ActorResult = OpResult<Actor> & {
+  /** 来源渠道、身份字段组完整度、耗时与取数开始版本；失败结果不带。 */
+  readonly provenance?: ReadProvenance
+}
+
+/**
+ * readBudget 的返回（#1687 房间入口收口时接上来源）。
+ *
+ * 这条读不经过任何远端渠道，来源固定记 local；只有真的量到两桶水位（data.known === true）时才挂
+ * provenance，量不出来的「未知」仍走 ok:true 信封但不带来源 —— 它没有可交代的字段组。
+ */
+export type BudgetResult = OpResult<BudgetReading> & {
+  /** 来源固定 local、计数字段组完整；读数未知（known:false）时不带。 */
   readonly provenance?: ReadProvenance
 }
