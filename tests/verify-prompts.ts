@@ -1533,8 +1533,9 @@ const contractChecksInner = function (reg, src) {
     // 2026-10-29：元提示句「从第一性原理出发。」进 19 条模板（公共小节 firstPrinciples；15 条直接引用 +
     //   mapTicketAdvanceOpening 覆盖讨论 / 执行 / 研究 / 原型 4 条），版本底线整体 +1；
     //   handoff2 不在本表（下面单列 ≥v3 的那组），正文也变了、同步升到 v6。
+    // 2026-10-30：newWayfinder v26→v27 —— 加「并行与串行」节与收尾复查项，建图时一次定好并行串行、收尾前再查一遍边，版本底线同步抬到 27。
     mapExecute: 22, complete: 17, fixate: 11, 'tpl.diagnose': 21, 'tpl.fix': 18, 'tpl.discuss': 23,
-    'tpl.research': 17, 'tpl.prototype': 18, 'tpl.takeover': 13, 'tpl.supplement': 10, 'tpl.execute': 23, mapInspect: 14, newWayfinder: 26,
+    'tpl.research': 17, 'tpl.prototype': 18, 'tpl.takeover': 13, 'tpl.supplement': 10, 'tpl.execute': 23, mapInspect: 14, newWayfinder: 27,
     newBugWayfinder: 17, newSpec: 6, healthCheck: 6, specComplete: 8, specExecute: 7, specSplit: 6,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
@@ -2424,10 +2425,12 @@ const selfDigest = function () {
 // 2026-10-29：三条 map 子票动作模板（讨论 / 执行 / 研究）的同一段正文收成公共小节 mapTicketAdvance、
 //   setupRun 与 switchAlign 的初始化正文收成公共小节 repoBootstrap（模板正文只写标记，读取时逐层展开）；
 //   对应五条模板升版、V_MIN 同步抬高，自摘要按新内容重算。
+// 2026-10-30：newWayfinder v26→v27 —— 加「并行与串行」节与收尾复查项（建图时一次定好并行串行、收尾前再查一遍边）；
+//   V_MIN newWayfinder 26 → 27，自摘要按新内容重算（LOCK 区段挖空后计算，加这几行注释不影响自摘要）。
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'f17e7ce254c6262e1ac524ea68db8045b5c6b6dfd9afc587f78594fef5f0e919',
+  'tests/verify-prompts.ts': 'aa7c480df578e4d5e58e415abd154544b4e5777ea043ac618537e1bff6430c26',
 }
 // ---- LOCK-END ----
 

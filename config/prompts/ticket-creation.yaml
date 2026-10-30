@@ -113,10 +113,10 @@ newSpec:
 
     {{shared:sharedTools}}
 newWayfinder:
-  version: 26
+  version: 27
   placeholders:
     - repo
-  use: 「探索地图」卡（入口浮层里那张紫卡，#1297 起唯一入口开出的两张卡之一）· 新会话预填 /wayfinder；只留调查节、收尾与工具节，建图规则交给 wayfinder 技能（#1281）；v26（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: 「探索地图」卡（入口浮层里那张紫卡，#1297 起唯一入口开出的两张卡之一）· 新会话预填 /wayfinder；只留调查节、收尾与工具节，建图规则交给 wayfinder 技能（#1281）；v26（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v27（2026-10-30）：加「并行与串行」节与收尾复查项，建图时一次定好并行串行、收尾前再查一遍边
   zh: |-
     /wayfinder
     请帮我处理一个需求（严格遵循 wayfinder 技能规则）。
@@ -127,8 +127,13 @@ newWayfinder:
 
     {{shared:investigation}}
 
+    ## 并行与串行
+    - [ ] 画地图定子票时，就把各个 ISSUE 之间的并行与串行关系一次想清楚：能同时开工、互不等待的标成并行；必须等前一张办完才能开工的标成串行，后一张的 blockedBy 指着前一张。
+    - [ ] 串行只留在真有先后要求的地方：后一张要用前一张的结论、共用同一批文件或接口、合拢会打架的，先串行；各自独立、合拢不打架的，才并行。
+
     ## 收尾
     - [ ] 结束前把这次讨论的结论告诉用户；建了新 map 就写明编号，没建成就写明下一步。
+    - [ ] 收尾前再查一遍各个 ISSUE 的并行与串行关系：blockedBy 是否不多不少、串行链条有没有断开或绕圈、标成并行的几张是否真能同时开工；对不上的先把边改对再结束。
 
     {{shared:sharedTools}}
   en: |-
@@ -141,8 +146,13 @@ newWayfinder:
 
     {{shared:investigation}}
 
+    ## Parallel and serial
+    - [ ] When drawing the map and defining its issues, settle the parallel-versus-serial relation among the issues in one pass: issues that can start together without waiting run in parallel; an issue that can only start after an earlier one finishes runs serially, with its blockedBy pointing at the earlier one.
+    - [ ] Keep serial only where an order is really required: the later issue needs the earlier conclusion, shares the same files or interfaces, or merging would collide — run those serially; run in parallel only issues that stay independent and merge cleanly.
+
     ## Wrap-up
     - [ ] Before finishing, tell the user the conclusion; if a new map was created, state its number, otherwise state the next step.
+    - [ ] Before wrapping up, recheck the parallel-versus-serial relation among the issues: blockedBy edges are neither missing nor extra, serial chains have no breaks or cycles, and issues marked parallel can really start together; fix the edges first when anything mismatches, then finish.
 
     {{shared:sharedTools}}
 
