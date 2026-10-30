@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T20:12:07.168Z",
+  "generatedAt": "2026-10-30T20:29:42.066Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 461,
   "gateCount": 461,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 26,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 638,
+  "graphFileCount": 642,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -12752,9 +12752,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 659,
+    "fileCount": 663,
     "dirCount": 84,
-    "coveredFileCount": 659,
+    "coveredFileCount": 663,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 60,
@@ -13257,6 +13257,7 @@
       "src/tracker/contract/operations.ts",
       "src/tracker/contract/outbound.ts",
       "src/tracker/contract/pagination.ts",
+      "src/tracker/contract/read-provenance.ts",
       "src/tracker/contract/results.ts",
       "src/tracker/contract/vocabulary.ts",
       "src/tracker/deck-derive.ts",
@@ -13291,8 +13292,10 @@
       "src/tracker/rooms/github/capability-register.ts",
       "src/tracker/rooms/github/channels/graphql/index.ts",
       "src/tracker/rooms/github/channels/graphql/queries.ts",
+      "src/tracker/rooms/github/channels/graphql/read-shapes.ts",
       "src/tracker/rooms/github/channels/rest/index.ts",
       "src/tracker/rooms/github/channels/rest/list-row-metadata.ts",
+      "src/tracker/rooms/github/channels/rest/read-shapes.ts",
       "src/tracker/rooms/github/checks.ts",
       "src/tracker/rooms/github/client-support.ts",
       "src/tracker/rooms/github/client.ts",
@@ -13331,6 +13334,7 @@
       "src/tracker/rooms/github/room/index.ts",
       "src/tracker/rooms/github/roster.ts",
       "src/tracker/rooms/github/routing/index.ts",
+      "src/tracker/rooms/github/routing/read-result.ts",
       "src/tracker/rooms/github/sub-issues.ts",
       "src/tracker/rooms/github/support/index.ts",
       "src/tracker/rooms/github/transport/client-support.ts",
@@ -13638,7 +13642,7 @@
       },
       {
         "path": "src/tracker/rooms/github/channels",
-        "fileCount": 4
+        "fileCount": 6
       },
       {
         "path": "src/tracker/rooms/github/model",
@@ -13654,7 +13658,7 @@
       },
       {
         "path": "src/tracker/rooms/github/routing",
-        "fileCount": 1
+        "fileCount": 2
       },
       {
         "path": "src/tracker/rooms/github/support",
