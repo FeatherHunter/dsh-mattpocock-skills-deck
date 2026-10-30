@@ -39,7 +39,7 @@ import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
 import { normalizeIssue } from '../model/normalize.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
-import { parseRepo, repoId } from '../issues.js'
+import { parseRepo, repoId } from '../model/issue-key.js'
 import { LIST_PAGE_QUERY, LIST_PAGE_QUERY_WITH_LABELS } from '../channels/graphql/queries.js'
 // 读结果的来源与按字段组完整度（#1685）：起点在这里收，组装统一走 routing。
 import { beginRead } from '../routing/read-result.js'

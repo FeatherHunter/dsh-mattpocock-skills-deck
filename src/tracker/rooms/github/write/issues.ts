@@ -20,7 +20,7 @@ import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { planCloseReason } from './close-reason.js'
 import { rosterUpsert } from '../model/roster.js'
 import type { MemoContext } from '../model/roster.js';
-import { getIssue } from '../issues.js'
+import { getIssue } from '../read/issues.js'
 import { parseRepo, repoId } from '../model/issue-key.js'
 // #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
 // 本间房专属的「建后按锚回查」在 ./idempotency.js（两条路：搜索接口 + 最近更新列表逐张读正文）。

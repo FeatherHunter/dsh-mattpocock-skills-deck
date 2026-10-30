@@ -21,7 +21,7 @@ import { debugOn, guardEmit, outcomeOf } from '../../../kernel/log-emit.js'
 import { ghClient } from '../transport/client.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 // 读票本身是读侧的职责（写后读回也走它）；#1687 批次 3 把 read/issues.ts 落位后这里改成 '../read/issues.js'。
-import { getIssue } from '../issues.js'
+import { getIssue } from '../read/issues.js'
 import { adjacencyFor, hasCycle, CYCLE_VERDICT } from './cycle-check.js'
 import type { CycleVerdict } from './cycle-check.js'
 import { markDirty } from '../model/roster.js'

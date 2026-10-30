@@ -27,7 +27,7 @@ import type { WriteTrail } from '../support/write-log.js';
 import { ghClient } from '../transport/client.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { readRepoPermissions, readonlyMessage } from '../read/repo-permissions.js'
-import { getIssue } from '../issues.js'
+import { getIssue } from '../read/issues.js'
 import { parseRepo, repoId } from '../model/issue-key.js'
 import type { MemoContext } from '../model/roster.js';
 export { parseRepo, repoId }

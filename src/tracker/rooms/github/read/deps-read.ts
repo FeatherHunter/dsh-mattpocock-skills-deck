@@ -26,7 +26,7 @@ import type { Dependencies, DependenciesResult, OpResult } from '../../../contra
 import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
-import { getIssue, listIssues } from '../issues.js'
+import { getIssue, listIssues } from './issues.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { parseRepo, repoId } from '../model/issue-key.js'
 import type { ParsedRepo } from '../model/issue-key.js'

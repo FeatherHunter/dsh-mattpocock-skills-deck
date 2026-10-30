@@ -35,7 +35,7 @@ import type { RepositoryRef } from '../../../contract/entities.js';
 import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
-import { parseRepo, repoId } from '../issues.js'
+import { parseRepo, repoId } from '../model/issue-key.js'
 import { COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS } from '../channels/graphql/queries.js'
 import { emitReadDegraded } from '../support/read-log.js'
 import { beginRead } from '../routing/read-result.js'
