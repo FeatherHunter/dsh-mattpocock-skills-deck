@@ -1,0 +1,153 @@
+{
+  "sampledAt": "2026-10-31T03:04:23+08:00",
+  "sampledUntil": "2026-10-31T03:07:52+08:00",
+  "repo": "example/repo",
+  "shape": "without-relation-fields",
+  "note": "与 with-relation-fields 同一批行，删掉 parent_issue_url、issue_dependencies_summary、sub_issues_summary 三个键，模拟旧服务端或 GHES 不表达这些字段。",
+  "rows": [
+    {
+      "number": 1700,
+      "title": "收口：30 条验收、五类输入与已知红清零",
+      "state": "open",
+      "labels": [
+        {
+          "name": "ready-for-agent"
+        }
+      ],
+      "user": {
+        "login": "user-a"
+      },
+      "html_url": "https://github.com/example/repo/issues/1700"
+    },
+    {
+      "number": 1699,
+      "title": "退役列表内降级提示行，旧门禁改通知断言",
+      "state": "open",
+      "labels": [
+        {
+          "name": "ready-for-agent"
+        }
+      ],
+      "user": {
+        "login": "user-a"
+      },
+      "html_url": "https://github.com/example/repo/issues/1699"
+    },
+    {
+      "number": 1681,
+      "title": "规格：面板快照唯一化与 GitHub 房间读渠道分层（含面板内通知中心）",
+      "state": "open",
+      "labels": [
+        {
+          "name": "ready-for-agent"
+        }
+      ],
+      "user": {
+        "login": "user-a"
+      },
+      "html_url": "https://github.com/example/repo/issues/1681"
+    },
+    {
+      "number": 1677,
+      "title": "决策：环境夹具、批次编排与证据组织怎么定",
+      "state": "open",
+      "labels": [
+        {
+          "name": "wayfinder:grilling"
+        }
+      ],
+      "user": {
+        "login": "user-a"
+      },
+      "html_url": "https://github.com/example/repo/issues/1677"
+    },
+    {
+      "number": 1673,
+      "title": "地图：GitLab 后端在 web profile 下的真机系统化测试方案",
+      "state": "open",
+      "labels": [
+        {
+          "name": "wayfinder:map"
+        }
+      ],
+      "user": {
+        "login": "user-a"
+      },
+      "html_url": "https://github.com/example/repo/issues/1673"
+    },
+    {
+      "number": 1667,
+      "title": "规格：票详情页在已关闭或被未完成票阻塞时，顶栏的「执行」与「新会话」两个按钮置灰不可点",
+      "state": "closed",
+      "labels": [
+        {
+          "name": "ready-for-agent"
+        }
+      ],
+      "user": {
+        "login": "user-a"
+      },
+      "html_url": "https://github.com/example/repo/issues/1667"
+    },
+    {
+      "number": 1622,
+      "title": "人手点「重新检查」撞上后台在飞的链求值时先等它收尾再自己算（#1474）",
+      "state": "closed",
+      "labels": [],
+      "user": {
+        "login": "user-a"
+      },
+      "html_url": "https://github.com/example/repo/pull/1622",
+      "pull_request": {
+        "url": "https://api.github.com/repos/example/repo/pulls/1622"
+      }
+    },
+    {
+      "number": 1601,
+      "title": "摘锁后把链路走通并验完：新工作区到读写票，补上界面复核",
+      "state": "closed",
+      "labels": [
+        {
+          "name": "ready-for-agent"
+        },
+        {
+          "name": "wayfinder:task"
+        }
+      ],
+      "user": {
+        "login": "user-a"
+      },
+      "html_url": "https://github.com/example/repo/issues/1601"
+    },
+    {
+      "number": 1598,
+      "title": "BUG：deck_context 在大仓必超时——列表全仓扫描、过滤在客户端、每页还取票正文",
+      "state": "closed",
+      "labels": [],
+      "user": {
+        "login": "user-b"
+      },
+      "html_url": "https://github.com/example/repo/issues/1598"
+    },
+    {
+      "number": 1587,
+      "title": "Bump dependency-cruiser from 18.6.0 to 18.7.0",
+      "state": "open",
+      "labels": [
+        {
+          "name": "dependencies"
+        },
+        {
+          "name": "javascript"
+        }
+      ],
+      "user": {
+        "login": "dependabot[bot]"
+      },
+      "html_url": "https://github.com/example/repo/pull/1587",
+      "pull_request": {
+        "url": "https://api.github.com/repos/example/repo/pulls/1587"
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "sampledAt": "2026-10-31T03:04:23+08:00",
+  "sampledUntil": "2026-10-31T03:07:52+08:00",
+  "repo": "example/repo",
+  "pagesRequested": 2,
+  "rowsObserved": 200,
+  "issuesObserved": 187,
+  "pullRequestsObserved": 13,
+  "fieldPresence": {
+    "issuesWithParentIssueUrl": 73,
+    "issuesWithDependencySummary": 187,
+    "issuesWithSubIssuesSummary": 187,
+    "pullRequestsWithAnyRelationField": 0
+  },
+  "dependencyDetailCandidates": 67,
+  "subIssueSummaryCandidates": 12,
+  "repositoryScale": {
+    "issues": 1627,
+    "pullRequests": 64,
+    "rows": 1691,
+    "openIssuesCount": 42
+  },
+  "sanitization": "仓库坐标统一写成 example/repo；用户登录名换成 user-a/user-b；去掉正文、node id、头像、各类 URL 与时间戳；编号、状态、标签、父票编号与四组计数保持真机原值。",
+  "tailPageFailure": {
+    "attemptedPage": 3,
+    "method": "把 HTTPS_PROXY/HTTP_PROXY 指向 127.0.0.1:1，再请求第 3 页；这是人为制造的传输层失败，不是 GitHub 返回的 HTTP 错误。",
+    "exitCode": 1,
+    "elapsedMs": 117,
+    "stdoutBytes": 0,
+    "stderrFirstLine": "Get \"https://api.github.com/repos/example/repo/issues?state=all&per_page=100&sort=created&direction=desc&page=3\": proxyconnect tcp: dial tcp 127.0.0.1:1: connectex: No connection could be made because the target machine actively refused it.",
+    "pagesKept": 2,
+    "rowsKept": 200,
+    "interpretation": "尾页失败时 stdout 为空、进程退出码为 1、错误只在 stderr；此前两页已完整落盘，可保留 200 行继续做字段核对。生产里的 3.1–3.3 秒 unexpected EOF 与这次人为代理失败同属传输层失败，形状一致（无 stdout、exit 1），只是耗时不同。"
+  }
+}

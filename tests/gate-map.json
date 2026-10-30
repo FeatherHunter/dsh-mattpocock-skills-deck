@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T14:13:54.184Z",
+  "generatedAt": "2026-10-30T19:14:07.105Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 458,
   "gateCount": 458,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 26,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 621,
+  "graphFileCount": 622,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -8002,17 +8002,20 @@
       "file": "tests/verify-github-rest-fallback.ts",
       "guards": [
         "src/refresh/rooms/host/outbound-control.ts",
-        "src/tracker/rooms/github/issues.ts"
+        "src/tracker/rooms/github/issues.ts",
+        "src/tracker/rooms/github/rest-list-metadata.ts",
+        "tests/fixtures/1682"
       ],
       "dirs": [
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github",
+        "tests/fixtures/1682"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 2 条"
+      "reason": "归属来自：源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-gitlab-single-write.ts",
@@ -12469,6 +12472,9 @@
     "tests/fixtures": [
       "node tests/verify-error-rule-samples.ts"
     ],
+    "tests/fixtures/1682": [
+      "node tests/verify-github-rest-fallback.ts"
+    ],
     "tests/fixtures/deck-event-gate": [
       "node tests/verify-deck-event-gate.ts"
     ],
@@ -12671,9 +12677,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 642,
+    "fileCount": 643,
     "dirCount": 74,
-    "coveredFileCount": 642,
+    "coveredFileCount": 643,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 57,
@@ -13238,6 +13244,7 @@
       "src/tracker/rooms/github/read-log.ts",
       "src/tracker/rooms/github/repo-permissions.ts",
       "src/tracker/rooms/github/repo.ts",
+      "src/tracker/rooms/github/rest-list-metadata.ts",
       "src/tracker/rooms/github/roster.ts",
       "src/tracker/rooms/github/sub-issues.ts",
       "src/tracker/rooms/github/write-log.ts",
