@@ -80,37 +80,68 @@ export const suggestInputOf = function () {
   } catch (eInput) { return null }
 }
 
+/** 取探针节点最近的状态栏外框（.dsws-capsule，整条状态栏的容器；里面每一颗才叫胶囊）；
+ *  没有就返回 null（老宿主、折叠状态都没有这条状态栏）。
+ *  单独抽出来是为了让「锚点量谁」与「位置重算观察谁」共用同一个判定，不用两处各写一遍 closest。 */
+const suggestCapsuleOf = function (probeEl: any) {
+  try {
+    if (!probeEl || typeof probeEl.closest !== 'function') return null
+    return probeEl.closest('.dsws-capsule')
+  } catch (eCapsule) { return null }
+}
+
+/** 位置重算要观察的元素，#1665 现象二：状态栏是被输入框顶上去的，状态栏自身尺寸不变，
+ *  只观察状态栏收不到通知。所以：
+ *  - 状态栏在：观察状态栏（它自己变宽变高要重算）和最宽的输入框（它长高会把状态栏整体顶起）；
+ *  - 折叠状态没有状态栏：锚点退回输入框，观察输入框本身。
+ *  返回去重后的数组；一个都量不到时返回空数组，调用方只剩 resize / scroll 两条路。 */
+const suggestResizeTargetsOf = function (probeEl: any) {
+  const targets: any[] = []
+  try {
+    const capsule = suggestCapsuleOf(probeEl)
+    if (capsule) targets.push(capsule)
+    const input = suggestInputOf()
+    if (input && targets.indexOf(input) < 0) targets.push(input)
+  } catch (eTargets) {}
+  return targets
+}
+
 /** 把一个元素的屏幕矩形换成整组落点：横向取中心，纵向取「顶边到视口底边」再加间距。
- *  量不到宽高（隐藏、jsdom 没布局）返回 null，由调用方换下一种锚点。 */
+ *  量不到宽高（隐藏、jsdom 没布局）返回 null，由调用方换下一种锚点。
+ *  锚点整个跑到视口上方时也返回 null：折叠状态没有状态栏、粘贴长文会把输入框顶到负值，
+ *  照它算出来的气泡会跟着飞出屏幕（#1665 真机复测）。这种时候交给调用方换下一个锚点，
+ *  最后退回视口中央靠下的兜底位置，气泡至少留在屏幕里。 */
 function anchorOfRect(rect: any) {
   const width = Number(rect && rect.width) || 0
   const height = Number(rect && rect.height) || 0
   if (!width && !height) return null
+  const top = Number(rect && rect.top) || 0
+  if (top <= 0) return null
   const viewHeight = (typeof window !== 'undefined' && Number(window.innerHeight)) || 0
   const gap = Number(SUGGEST_APPEARANCE && SUGGEST_APPEARANCE.gapAboveCapsule) || 0
-  return { left: Math.round((Number(rect.left) || 0) + width / 2), bottom: Math.round(viewHeight - (Number(rect.top) || 0)) + gap }
+  return { left: Math.round((Number(rect.left) || 0) + width / 2), bottom: Math.round(viewHeight - top) + gap }
 }
 
 /**
- * 量气泡锚点：优先状态胶囊（探针节点最近的 .dsws-capsule，横向取胶囊中心）。
- * 为什么跟胶囊不跟输入框：输入框的高度随对话框内容增减，内容一多顶边上移，
- * 按输入框算整组会被顶到内容区顶部（#1665 现象二）；胶囊外框不受内容多少影响，
- * 折叠只显隐里面的文字、不改外框，所以跟胶囊走最稳。
- * 胶囊量不到（老宿主没有探针）才退回最宽的输入框，都量不到才用视口中央靠下的一点。
+ * 量气泡锚点：优先跟状态栏外框（探针节点最近的 .dsws-capsule，横向取它的中心）。
+ * 为什么跟状态栏不跟输入框：输入框的高度随对话框内容增减，内容一多顶边上移，
+ * 按输入框算整组会被顶到内容区顶部（#1665 现象二）。状态栏外框的尺寸不随内容改变，
+ * 位置虽然也会被长高的输入框顶起，但它始终贴着输入栏，跟它走最稳。
+ * 状态栏量不到（老宿主没有探针、折叠状态没有这条栏）才退回最宽的输入框，
+ * 都量不到、或量到的锚点已经跑到视口上方，才用视口中央靠下的一点。
  * 返回 { left, bottom }，单位是 CSS 像素。
  *
  * 这个函数先定下整组选项框的位置，动效再按定好的布局量小泡的起落点（位置 effect 排在动效
- * effect 之前）。胶囊尺寸变化时由 ResizeObserver 重新量，整组跟着胶囊走。
+ * effect 之前）。状态栏尺寸变化、输入框长高把状态栏整体顶起时，都由 ResizeObserver 重新量
+ * （观察谁见 suggestResizeTargetsOf），整组跟着状态栏走。
  */
 export const suggestAnchorOf = function (probeEl: any) {
   const viewWidth = (typeof window !== 'undefined' && Number(window.innerWidth)) || 0
   const fallback = { left: Math.round(viewWidth / 2), bottom: 120 }
   try {
-    if (probeEl && typeof probeEl.closest === 'function') {
-      const capsule = probeEl.closest('.dsws-capsule')
-      const fromCapsule = (capsule && typeof capsule.getBoundingClientRect === 'function') ? anchorOfRect(capsule.getBoundingClientRect()) : null
-      if (fromCapsule) return fromCapsule
-    }
+    const capsule = suggestCapsuleOf(probeEl)
+    const fromCapsule = (capsule && typeof capsule.getBoundingClientRect === 'function') ? anchorOfRect(capsule.getBoundingClientRect()) : null
+    if (fromCapsule) return fromCapsule
   } catch (eAnchorCapsule) {}
   try {
     const input = suggestInputOf()
@@ -165,7 +196,8 @@ export const SuggestBubble = function (props: any) {
   const evenSharePx = items.length ? Math.floor((groupMaxWidthPx - pillGapPx * (items.length - 1)) / items.length) : 0
   const pillCapPx = (evenSharePx > 0 ? Math.min(singleMaxWidthPx, evenSharePx) : singleMaxWidthPx) || singleMaxWidthPx
 
-  // 位置：先定框位（挂载量一次，视口变化与胶囊尺寸变化再量，#1665）。本 effect 排在动效 effect 之前。
+  // 位置：先定框位（挂载量一次；视口变化、状态栏尺寸变化、输入框长高把状态栏整体顶起时再量，#1665）。
+  // 本 effect 排在动效 effect 之前。
   React.useEffect(function () {
     if (!items.length) return undefined
     function measure() {
@@ -174,11 +206,12 @@ export const SuggestBubble = function (props: any) {
     measure()
     let ro: any = null
     try {
-      const probe = probeRef.current
-      const anchorEl = (probe && typeof probe.closest === 'function') ? probe.closest('.dsws-capsule') : null
-      if (anchorEl && typeof ResizeObserver !== 'undefined') {
+      const targets = suggestResizeTargetsOf(probeRef.current)
+      if (targets.length && typeof ResizeObserver !== 'undefined') {
         ro = new ResizeObserver(function () { measure() })
-        if (ro && typeof ro.observe === 'function') ro.observe(anchorEl)
+        if (ro && typeof ro.observe === 'function') {
+          for (let i = 0; i < targets.length; i++) ro.observe(targets[i])
+        }
       }
     } catch (eRO) {}
     if (typeof window !== 'undefined' && window.addEventListener) {

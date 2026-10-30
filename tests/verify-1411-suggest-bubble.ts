@@ -3,6 +3,7 @@
 // 契约（票面 #1411 验收①~⑤、⑦、⑨）：
 //   - 挂页面浮层：层由 kernel:portal 的 PortalOverlay 挂到 body，position:fixed，z-index 取 SUGGEST_Z
 //     （与胶囊同层，宿主设置面板能盖住它，#1665）；悬停理由用框正上方浮层，位置固定、不跟鼠标；
+//   - 位置锚点跟胶囊走：胶囊被长高的输入框整体顶起时也重新量（#1665 现象二）；
 //   - 选项 2~4 颗，点一条走既有 inject（把文本填进输入框、不发送），点完/关闭整组消失；
 //   - 第二组覆盖第一组；真按钮可聚焦，回车/空格填入，Esc 关整组；理由对读屏可读（aria-label）；
 //   - 窄栏不溢出（层宽收在视口内、选项行可换行、单颗有上限）；数据不合法不崩、不渲染半成品；
@@ -107,14 +108,21 @@ async function main() {
       document.body.appendChild(input)
       extraInputs.push(input)
     }
-    const capsule = document.createElement('div')
-    capsule.className = 'dsws-capsule'
-    if (opts.capsuleRect) {
-      capsule.getBoundingClientRect = function () { return opts.capsuleRect }
-    }
-    host.appendChild(capsule)
+    // 折叠状态整条状态栏都不在（探针最近处没有 .dsws-capsule）：用 noCapsule 真正模拟 DOM 里没有它，
+    // 而不是建一个量不到的元素；两种情形的兜底路径不一样，要分开测（#1665 真机复测）。
     const holder = document.createElement('div')
-    capsule.appendChild(holder)
+    let capsule: any = null
+    if (opts.noCapsule) {
+      host.appendChild(holder)
+    } else {
+      capsule = document.createElement('div')
+      capsule.className = 'dsws-capsule'
+      if (opts.capsuleRect) {
+        capsule.getBoundingClientRect = function () { return opts.capsuleRect }
+      }
+      host.appendChild(capsule)
+      capsule.appendChild(holder)
+    }
     const st = { injector: function () {} }
     let setGroup = null
     function Host() {
@@ -242,7 +250,7 @@ async function main() {
     await m4.unmount()
   }
 
-  // ---------- 1.5 胶囊锚点：#1665 起锚点跟胶囊走（胶囊外框不随对话框内容增高，输入框撑高时气泡不飘） ----------
+  // ---------- 1.5 状态栏锚点：#1665 起锚点跟状态栏外框走（它的尺寸不随对话框内容变，但位置会被长高的输入框顶起） ----------
   {
     // 胶囊和输入框都在时按胶囊定：横向对准胶囊中心（100+400/2=300），纵向贴胶囊顶边上方（768-700+9=77）。
     const mCap = await mount({
@@ -283,7 +291,101 @@ async function main() {
     if (narrow.parentNode) narrow.parentNode.removeChild(narrow)
   }
 
-  // ---------- 1.6 浮层里的分数泡：模型打了分就印出来，没打分就不印 ----------
+  // ---------- 1.6 位置重算触发：#1665 现象二（输入框长高把胶囊整体顶起、胶囊自身尺寸不变，气泡也要重跟） ----------
+  {
+    // jsdom 没有 ResizeObserver：临时装一个假的，能记下观察了谁，并且只触发「观察了这个元素」的回调——
+    // 真机上让胶囊整体平移的信号是输入框变高（胶囊被顶上去），胶囊自己的尺寸一直没变，所以只观察胶囊
+    // 收不到通知；这一段就是拿这个信号验证位置会不会重新量。
+    const roInstances = []
+    function FakeResizeObserver(callback) {
+      this.callback = callback
+      this.targets = []
+      this.disconnected = false
+      roInstances.push(this)
+    }
+    FakeResizeObserver.prototype.observe = function (el) {
+      if (el && this.targets.indexOf(el) < 0) this.targets.push(el)
+    }
+    FakeResizeObserver.prototype.disconnect = function () { this.disconnected = true }
+    function observedTargets() {
+      const all = []
+      for (let i = 0; i < roInstances.length; i++) {
+        for (let j = 0; j < roInstances[i].targets.length; j++) all.push(roInstances[i].targets[j])
+      }
+      return all
+    }
+    async function fireResize(el) {
+      await act(async function () {
+        for (let i = 0; i < roInstances.length; i++) {
+          const inst = roInstances[i]
+          if (inst.targets.indexOf(el) < 0) continue
+          inst.callback(inst.targets.map(function (t) { return { target: t } }), inst)
+        }
+        await new Promise(function (resolve) { setTimeout(resolve, 0) })
+      })
+    }
+    const hadRO = Object.prototype.hasOwnProperty.call(global, 'ResizeObserver')
+    const previousRO = global.ResizeObserver
+    global.ResizeObserver = FakeResizeObserver
+    try {
+      // 胶囊可见：初始胶囊顶边 700、输入框 44 高，气泡贴 700 上方（bottom 77）。
+      const capsuleRect = { left: 100, top: 700, width: 400, height: 36 }
+      const inputRect = { left: 200, top: 600, width: 800, height: 44 }
+      const mGrow = await mount({
+        initial: [{ intro: '一条', prompt: '/a', reason: 'r' }, { intro: '两条', prompt: '/b', reason: 'r' }],
+        inputRect: inputRect,
+        capsuleRect: capsuleRect,
+      })
+      const inputEl = document.querySelector('textarea')
+      const targets = observedTargets()
+      check(targets.indexOf(mGrow.capsule) >= 0, '重算触发：ResizeObserver 仍观察胶囊（胶囊自身尺寸变化时重算）')
+      check(inputEl !== null && targets.indexOf(inputEl) >= 0, '重算触发：胶囊可见时也观察输入框（输入框长高会把胶囊整体顶起，胶囊自身尺寸不变）')
+      // 模拟粘贴长文：输入框长到 244 高、胶囊被顶到 500 且横向小挪；胶囊自己的 400x36 没变。
+      capsuleRect.left = 200
+      capsuleRect.top = 500
+      inputRect.left = 300
+      inputRect.top = 400
+      inputRect.height = 244
+      await fireResize(inputEl)
+      check(mGrow.layer() !== null && mGrow.layer().style.left === '400px', '重算触发：输入框长高后横向重新对准胶囊中心（200+400/2=400）')
+      check(mGrow.layer() !== null && mGrow.layer().style.bottom === '277px', '重算触发：输入框长高后纵向重贴胶囊新顶边（768-500+9=277），不留在旧位置')
+      await mGrow.unmount()
+      check(roInstances.length > 0 && roInstances.every(function (inst) { return inst.disconnected }), '重算触发：卸载后 ResizeObserver 全部 disconnect')
+
+      // 折叠状态整条状态栏都不在：锚点退回输入框自己，输入框长高时也要重算，否则气泡被顶出屏幕。
+      roInstances.length = 0
+      const foldedRect = { left: 200, top: 600, width: 800, height: 44 }
+      const mFolded = await mount({
+        initial: [{ intro: '一条', prompt: '/a', reason: 'r' }, { intro: '两条', prompt: '/b', reason: 'r' }],
+        inputRect: foldedRect,
+        noCapsule: true,
+      })
+      check(mFolded.host.querySelector('.dsws-capsule') === null, '重算触发：折叠状态真的没有状态栏外框（noCapsule 用例不是零矩形冒充）')
+      const foldedInput = document.querySelector('textarea')
+      const foldedTargets = observedTargets()
+      check(foldedInput !== null && foldedTargets.indexOf(foldedInput) >= 0, '重算触发：折叠状态没有状态栏时观察输入框本身（兜底锚点也要能重算）')
+      foldedRect.left = 300
+      foldedRect.top = 300
+      foldedRect.height = 300
+      await fireResize(foldedInput)
+      check(mFolded.layer() !== null && mFolded.layer().style.left === '700px', '重算触发：折叠态输入框长高后横向重新对准输入框中心（300+800/2=700）')
+      check(mFolded.layer() !== null && mFolded.layer().style.bottom === '477px', '重算触发：折叠态输入框长高后纵向重贴输入框新顶边（768-300+9=477），不留在旧位置')
+      // 继续粘贴长文：输入框顶边被顶到视口上方（真机复测里是 -538），按它算气泡会跟着飞出屏幕。
+      // 这种锚点量得到但不可用，应退回视口中央靠下的兜底位置（1024/2=512，bottom 120）。
+      foldedRect.left = 200
+      foldedRect.top = -538
+      foldedRect.height = 1684
+      await fireResize(foldedInput)
+      check(mFolded.layer() !== null && mFolded.layer().style.left === '512px', '重算触发：折叠态输入框顶边跑到视口上方时退回视口中央（1024/2=512），气泡不跟出屏幕')
+      check(mFolded.layer() !== null && mFolded.layer().style.bottom === '120px', '重算触发：折叠态输入框顶边跑到视口上方时纵向退回视口中央靠下（bottom 120）')
+      await mFolded.unmount()
+    } finally {
+      if (hadRO) global.ResizeObserver = previousRO
+      else delete global.ResizeObserver
+    }
+  }
+
+  // ---------- 1.7 浮层里的分数泡：模型打了分就印出来，没打分就不印 ----------
   {
     const mScore = await mount({
       initial: [

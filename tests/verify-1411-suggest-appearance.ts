@@ -60,9 +60,9 @@ async function main() {
 
   // ---------- 1. 外观旋钮：关键值逐个钉死（值一变这条门禁就红） ----------
   {
-    check(appearanceMod.SUGGEST_Z === 0, '旋钮：层级常量 SUGGEST_Z 与胶囊同层（0，#1665）')
-    check(appearanceMod.SUGGEST_Z >= 0, '旋钮：层级不抢全局顶层（宿主设置面板能盖住，#1665）')
-    check(appearanceMod.SUGGEST_Z < 2147483000, '旋钮：层级仍在仓库顶层浮层（2147483000）之下')
+    // 只留一条固定值的检查：钉死 === 0 之后，>= 0 与 < 2147483000 永远通过，
+    // 单独留着只是永远绿的守卫，会让人误以为这两条还在守东西（#1665 复核意见）。
+    check(appearanceMod.SUGGEST_Z === 0, '旋钮：层级常量 SUGGEST_Z 与状态栏同层（0，宿主设置面板能盖住，#1665）')
     check(A.gapAboveCapsule === 9, '旋钮：气泡与胶囊的间距 9')
     check(A.maxWidthPx === 720, '旋钮：整组最大宽度 720')
     check(A.pillFontPx === 12.5, '旋钮：选项字号 12.5')
