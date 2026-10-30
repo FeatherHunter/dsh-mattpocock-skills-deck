@@ -32,6 +32,9 @@ const CLIENT_SUPPORT = 'src/tracker/rooms/github/transport/client-support.ts'
 /** 读路径这一片的调用点：每一条都由 #1052 逐个贴过标签。 */
 const READ_CALL_FILES = [
   'src/tracker/rooms/github/issues.ts',
+  // #1685：整仓列表的 REST 翻页从 issues.ts 拆到了这里，list.rest 这个标签跟着落在新文件；
+  // 不把新文件加进扫描表，登记册里的 list.rest 就会被判成「没人用」，标签也会漏检。
+  'src/tracker/rooms/github/issues-rest-list.ts',
   'src/tracker/rooms/github/counts.ts',
   'src/tracker/rooms/github/page.ts',
   'src/tracker/rooms/github/preflight.ts',

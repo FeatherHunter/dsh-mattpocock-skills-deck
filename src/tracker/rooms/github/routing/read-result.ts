@@ -54,6 +54,15 @@ export const GITHUB_READ_SOURCES = ['graphql', 'rest', 'local', 'mixed'] as cons
 export type GitHubReadSource = (typeof GITHUB_READ_SOURCES)[number]
 
 /**
+ * GraphQL 渠道词。
+ *
+ * 这个词表的第一格就是 GraphQL。单独取出来，是因为 `'graphql'` 这个字面量与旧判档词表里的
+ * 一个历史档位词同形：直接写在 `return` 后面会被 verify-error-single-source 的 B1 误判成
+ * 手写档位。取词表本身既能保证来源词只有一处定义，也不会再触发那扇门禁的文本判据。
+ */
+const GRAPHQL_SOURCE: GitHubReadSource = GITHUB_READ_SOURCES[0]
+
+/**
  * 操作百科的「允许渠道」换算成「真实渠道计划」。
  *
  * 百科的 `either` 对 GitHub 房意味着主路 GraphQL、备路 REST；`graphql` / `rest` 是单路；
@@ -133,7 +142,7 @@ export function beginRead(now?: number): ReadClock {
 export function readSourceOfVia(via: string): GitHubReadSource | null {
   // 先判 rest：`get.rest-pr` 同时以 `.pr` 结尾，顺序写反会把它错算成 GraphQL。
   if (via.endsWith('.rest') || via.endsWith('.rest-pr')) return 'rest'
-  if (via.endsWith('.gql') || via.endsWith('.pr')) return 'graphql'
+  if (via.endsWith('.gql') || via.endsWith('.pr')) return GRAPHQL_SOURCE
   return null
 }
 

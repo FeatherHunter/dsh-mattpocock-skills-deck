@@ -24,8 +24,8 @@
 
 | 阶段 | 产物 | 先写红的门禁 | 行为变化 | 对抗式审查重点 |
 |---|---|---|---|---|
-| 0 真机探针与唯一真源 | 列表行 parent_issue_url、issue_dependencies_summary、sub_issues_summary 三个字段的真机探针与夹具；操作百科补读/写标记、可用渠道与结果类型；术语「通知中心」「通知事件」 | tests/verify-github-rest-fallback.ts 的 #1682 段：读 tests/fixtures/1682/ 两套夹具与 probe-metadata.json，断言字段有则解析、无则走上次已知或标拿不到（解析器在 src/tracker/rooms/github/rest-list-metadata.ts，阶段 0 不接 list/get） | 无 | 探针结论是否被当成已证事实；字段缺失退路是否写明 |
-| 1 GitHub 房间内部分层 | transport/、channels/{graphql,rest}/、routing/、model/、read/、write/、room/、support/ 落位；读结果类型带来源与完整度 | tests/verify-room-layering.ts、tests/verify-read-result-provenance.ts（降级路径先用白名单登记，逐条清零） | 无行为变化，只换结构 | 依赖旁路、唯一出口被绕过、同一输入输出行为一致 |
+| 0 真机探针与唯一真源 | 列表行 parent_issue_url、issue_dependencies_summary、sub_issues_summary 三个字段的真机探针与夹具；操作百科补读/写标记、可用渠道与结果类型；术语「通知中心」「通知事件」 | tests/verify-github-rest-fallback.ts 的 #1682 段：读 tests/fixtures/1682/ 两套夹具与 probe-metadata.json，断言字段有则解析、无则走上次已知或标拿不到（解析器在 src/tracker/rooms/github/rest-list-metadata.ts，阶段 0 不接 list/get）；tests/verify-operation-catalog.ts、tests/verify-glossary-terms.ts（#1683 落） | 无 | 探针结论是否被当成已证事实；字段缺失退路是否写明 |
+| 1 GitHub 房间内部分层 | transport/、channels/{graphql,rest}/、routing/、model/、read/、write/、room/、support/ 落位；读结果类型带来源与完整度 | tests/verify-room-layering.ts（#1684 落 20 项含 10 条负例，本票补到 21 项含 11 条负例）、tests/verify-read-result-provenance.ts（本票新落：从操作百科枚举读操作、缺来源字段即红；已接的 3 条读路径登记 wired，其余 9 条先按白名单登记——#1686 七条、#1687 两条，随读侧搬迁逐条清零） | 无行为变化，只换结构 | 依赖旁路、唯一出口被绕过、同一输入输出行为一致 |
 | 2 宿主面板快照合并层 | 合并纯函数（字段三态、完整来源判定、字段组的来源与时间）、版本门、磁盘回放扩展（来源随盘、旧格式按未知） | tests/verify-panel-snapshot-merge.ts、tests/verify-snapshot-disk-replay.ts | 快照可合并、可回放；视图暂不切换 | 降级来源误删已知、完整来源判错、过期结果回退、并发写入顺序 |
 | 3 客户端收编为单一读源 | issueCache 与地图子票桶退役为投影；陈旧先显示；写回执合并；TTL 改为只触发后台刷新；读投影回滚开关 | tests/verify-single-read-source.ts、tests/verify-detail-incremental.ts、tests/verify-acceptance-four.ts | 四条要求落地；界面改读投影 | 四条要求逐条演练；双源回流；回滚开关两条路径都能跑 |
 | 4 REST 降级补齐 | 列表 parent_issue_url 零请求补父边；依赖计数大于 0 逐票拉；按需细节按需补；规格容器按「正文标记优先、标签兜底」修父边；预算按插件读额度（常规增量 ≤3、完整枚举 ≤16、详情 ≤5 类、8 路并发、降级探针 5s→60s、自动校准 ≥10min） | tests/verify-fallback-merge.ts、扩展 tests/verify-github-rest-fallback.ts | 降级结果只补不删，已知数据不缩 | 请求预算与 8 路并发上限；GHES 能力标记；降级误标完整 |
@@ -86,3 +86,6 @@
 - 2026-10-30 编制：承接两篇 ADR，定六阶段顺序、每阶段门禁与对抗式审查清单。
 - 2026-10-31 阶段 0 探针完成（#1682）：两页 200 行真机夹具脱敏入库；字段出现性按整页判断、拉取请求标不适用、依赖四格判明细；尾页失败形状与生产 EOF 同类；阶段 0 行为不变，探针断言并入 tests/verify-github-rest-fallback.ts。
 - 2026-10-31 回填规格票 #1681：补阶段 0 真机探针；预算改按插件读额度；通知中心持久化与清理口径；验收改「不允许任何已知红」；回滚开关与双源门禁描述。
+- 2026-10-31 阶段 0 补记（#1683）：操作百科成为读操作唯一真源——24 条操作带读/写标记，12 条读操作带渠道、结果类型、字段组与记账口径；额度闸的读名单改为从百科派生，三个后端的读来源登记同源；术语表补「通知中心」「通知事件」与按需细节淘汰例外；新增门禁 tests/verify-operation-catalog.ts（21 项断言、6 条负例）与 tests/verify-glossary-terms.ts（5 项、3 条负例）并入链。
+- 2026-10-31 阶段 1 第一批（#1684）：GitHub 房间建九个物理目录（transport、channels/graphql、channels/rest、routing、read、write、model、room、support）；gh 客户端搬入 transport/client.ts，成为房间唯一的 gh 进程出口；旧平铺路径只留纯转发；新增 tests/verify-room-layering.ts（20 项断言含 10 条负例）；7 扇按源码路径写死的门禁改指 transport/；阶段 1 行为不变。
+- 2026-10-31 阶段 1 第二批（#1685）：GraphQL 查询与 REST 列表行形状分别收进 channels/graphql/queries.ts 与 channels/rest/list-row-metadata.ts，旧路径只留纯转发；两条通道各落 read-shapes.ts 完整度判据（互不引用），routing/read-assembly.ts 归一出统一读结果；整仓列表、单票、按页取票三条读路径交出实际来源、按字段组完整度、缺失字段组、耗时、取数开始版本与降级来源，其余 9 条读操作按白名单登记（#1686 七条、#1687 两条）；触端点上限一律记截断——REST 整仓列表触 10 页上限、GraphQL 单票依赖触每侧 50 条、单行标签触 50 条、标签清单触 1000 条、子票触 1000 条；已关闭票翻页只加来源与完整度，不把按更新时间增量扩展到 listPage；新增 tests/verify-read-result-provenance.ts（251 项断言）并入链，门禁地图重录；阶段 1 行为零变化。
