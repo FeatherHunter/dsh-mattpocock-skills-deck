@@ -172,11 +172,14 @@ async function main() {
     expect('map #' + m.number + ' DAG 语义：被阻塞者 level 严格大于阻塞者（bad=' + bad + '）', bad === 0)
   })
 
-  // T1d：真实数据层级数合理（1..10 层内）
+  // T1d：真实数据层级数合理（1..20 层内）
+  //   2026-10-31 调整上限：规格 #1681 的 19 张实施票按阻塞边串起来后，地图 #1681 实测有 13 层，
+  //   旧上限 10 是当时观察到的最深地图，不是设计约束（MapDetail.ts 按 levels 全量渲染，没有层数截断）。
+  //   这里保留上限只为挡住异常的层级爆炸，不挡住真实的长串行计划。
   withTickets.forEach(function (m) {
     const lv = m.stats && m.stats.levels
     if (Array.isArray(lv)) {
-      expect('map #' + m.number + ' 层级数 ' + lv.length + ' 在 1..10', lv.length >= 1 && lv.length <= 10)
+      expect('map #' + m.number + ' 层级数 ' + lv.length + ' 在 1..20', lv.length >= 1 && lv.length <= 20)
     }
   })
 
