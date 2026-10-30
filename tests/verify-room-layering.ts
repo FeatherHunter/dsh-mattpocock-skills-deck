@@ -35,7 +35,7 @@ const LAYERS = ['transport', 'channels/graphql', 'channels/rest', 'routing', 're
 /**
  * 允许的层间依赖。键是导入方，值是它可以直接引用的层。
  * 同一层内互相引用是允许的（层内拆文件不算跨层依赖，例如 routing/ 里组装函数引用同层的取数轨迹）；
- * 表里 transport/model/routing 把自己写进允许清单就是这条的机器表达。
+ * 表里 transport/model/routing 与 channels/graphql 把自己写进允许清单就是这条的机器表达。
  * support 在最底层，任何层都可以引用它；transport 也要用它的错误分类与用量计数，所以这一格多了 support。
  * model 也可以引用 transport：仓库身份与远端探测经客户端出手，本层不直接起进程；反过来 transport 不许引用 model。
  * read 可以引用 channels/graphql 与 channels/rest 的请求文档与回包形状（纯数据）；渠道选择与降级顺序仍由 routing 决定。
@@ -45,7 +45,7 @@ const ALLOWED: Record<string, string[]> = {
   transport: ['transport', 'support'],
   support: [],
   model: ['model', 'transport'],
-  'channels/graphql': ['transport', 'support'],
+  'channels/graphql': ['channels/graphql', 'transport', 'support'],
   'channels/rest': ['transport', 'support'],
   routing: ['routing', 'channels/graphql', 'channels/rest', 'model', 'support', 'transport'],
   read: ['read', 'routing', 'channels/graphql', 'channels/rest', 'model', 'support', 'transport'],

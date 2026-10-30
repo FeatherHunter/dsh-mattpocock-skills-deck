@@ -376,10 +376,10 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/tracker/detection/backendDecision.ts', name: 'autoMs', reason: '测量用局部变量，不是可调参数' },
   { file: 'src/tracker/detection/detectionService.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
   { file: 'src/tracker/rooms/github/transport/client.ts', name: 'elapsedMs', reason: '测量用局部变量（耗时），不是可调参数' },
-  { file: 'src/tracker/rooms/github/idempotency.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
+  { file: 'src/tracker/rooms/github/routing/idempotency.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
   { file: 'src/tracker/rooms/github/issues.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
   // —— 名字巧合：叫 Window 但不是时间 ——
-  { file: 'src/tracker/rooms/github/idempotency.ts', name: 'inWindow', reason: '过滤后的候选数组（“窗口内的数据”），不是毫秒数' },
+  { file: 'src/tracker/rooms/github/routing/idempotency.ts', name: 'inWindow', reason: '过滤后的候选数组（“窗口内的数据”），不是毫秒数' },
   // —— 第二层：函数级透传与计算值（门禁覆盖率扫描捞出来的，逐个定性） ——
   { file: 'src/refresh/registry/quota-sync-bridge.ts', name: 'resetMs', reason: '服务端回传的重置时刻算出来的剩余量，不是可调参数' },
   { file: 'src/deck/rules/anchor.ts', name: 'windowMs', reason: '透传变量，缺省接 ANCHOR_WINDOW_MS（已登记）' },
