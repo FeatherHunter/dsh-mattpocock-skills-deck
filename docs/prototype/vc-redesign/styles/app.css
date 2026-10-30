@@ -313,7 +313,9 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.panel-body { flex: 1; min-height: 0; display: flex; }
+/* 内容区改成竖排：二级页打开时这里可能同时有「页面结果条」和「页面本体」，两者上下排列。
+   四个页签各自的视图本来就是 flex 列，竖排不影响它们。 */
+.panel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 /* 嵌入模式：只留产品面板（?embed=1）。520 宽、上下留 16px 纸面边距、水平居中，
    宿主更窄时按宿主宽度收缩。文档里引用截图用这个模式，避免宽屏下把窄面板设计拉扁。 */
@@ -398,7 +400,7 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .rail-branch { display: inline-flex; align-items: center; min-width: 0; color: inherit; font: inherit; }
 .rail-branch .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-oid { font-size: 10.5px; color: var(--faint); }
-.rail-id .icon-btn { margin-left: auto; }
+.rail-id [data-action="copy-repo"] { margin-left: auto; }
 
 .icon-btn {
   display: inline-grid;
@@ -1629,8 +1631,9 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .composer-hint .ai-entry { flex: none; white-space: nowrap; }
 
 @container panel (max-width: 339px) {
-  /* 300 宽时同步带本来就高：收起身份行里的复制按钮，别让它单独折成一行。 */
-  .rail-id .icon-btn { display: none; }
+  /* 300 宽时同步带本来就高：收起身份行里的复制按钮，别让它单独折成一行。
+     放大镜（命令面板）与齿轮（管理）留着——它们是这两个新入口唯一的常驻位置。 */
+  .rail-id [data-action="copy-repo"] { display: none; }
   .ai-entry-rail { padding: 5px 7px; }
   .commit-input { min-height: 44px; }
 }
@@ -1884,6 +1887,389 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   .stash-confirm { margin-left: 8px; margin-right: 8px; }
   .stash-row { flex-direction: column; }
   .stash-actions { justify-content: flex-start; }
+}
+
+/* ============================================================
+   二级页与命令面板（#1591）
+
+   管理索引下的九个分区、四个整页流程、每页底部的能力清单，以及命令面板，
+   共用这一组样式。它们跟四个页签的关系只有一条：页签回答「现在做什么」，
+   二级页回答「这件事归哪一页管」；两者用同一套颜色与尺寸，不另起一套皮肤。
+   ============================================================ */
+
+/* ---------- 二级页外壳 ---------- */
+
+/* 页头固定、内容区独立滚动：返回按钮永远在同一个位置，长清单不会把标题推走。 */
+.page { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--panel); }
+.page-head {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 12px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.page-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  min-height: 22px;
+  padding: 0 7px 0 3px;
+  border: 1px solid transparent;
+  border-radius: var(--r-btn);
+  background: transparent;
+  color: var(--mut);
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.page-back:hover { background: var(--hover); border-color: var(--line-2); color: var(--ink); }
+.page-back:active { background: var(--press); }
+.page-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.page-title-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.page-title { margin: 0; font-size: 13.5px; font-weight: 750; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere; }
+.page-actions { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.page-lede { margin: 0; font-size: 10.5px; line-height: 1.6; color: var(--mut); }
+.page-scroll { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px 18px; }
+.page-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.page-scroll::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: var(--thumb); background-clip: padding-box; }
+.page-stack { display: flex; flex-direction: column; gap: 12px; }
+.page-note { margin: 0; font-size: 10.5px; line-height: 1.6; color: var(--mut); }
+
+/* 页头那条结果条：整页动作的结果贴在这里，跟四页签里贴着动作的结果条是同一个意思。 */
+.page-result {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line-2);
+  border-left: 3px solid var(--info);
+  background: color-mix(in srgb, var(--info-soft) 55%, var(--inset));
+}
+.page-result-text { flex: 1; min-width: 0; font-size: 10.5px; line-height: 1.55; color: var(--ink-2); }
+.page-result-close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--faint);
+  font: 13px/1 var(--sans);
+  cursor: pointer;
+}
+.page-result-close:hover { background: var(--hover); border-color: var(--line-2); color: var(--ink); }
+.page-result-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---------- 一个内容分区 ---------- */
+
+.page-section { display: flex; flex-direction: column; gap: 5px; }
+.section-head { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.section-title { margin: 0; font-size: 12px; font-weight: 700; color: var(--ink); }
+.section-count { font-family: var(--mono); font-size: 9.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.section-note { margin: 0 0 2px; font-size: 10px; line-height: 1.6; color: var(--faint); }
+.page-section.is-danger .section-title { color: var(--danger); }
+
+/* ---------- 折叠区 ---------- */
+
+.fold { border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--inset); overflow: hidden; }
+.fold-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.fold-head:hover { background: var(--hover); color: var(--ink); }
+.fold-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* 收起时箭头指向右、展开时指向下：只靠方向表达状态，不加「展开/收起」文字。 */
+.fold-head svg { flex: none; color: var(--faint); transform: rotate(-90deg); transition: transform 0.15s ease; }
+.fold.is-open .fold-head svg { transform: none; }
+.fold-title { min-width: 0; }
+.fold-count { margin-left: auto; font-family: var(--mono); font-size: 9.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.fold-note { margin: 0; padding: 0 9px 7px; font-size: 10px; line-height: 1.55; color: var(--faint); }
+.fold-body { display: flex; flex-direction: column; gap: 6px; padding: 8px 9px 9px; border-top: 1px dashed var(--line); }
+.fold-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 8px 0 0; }
+
+/* ---------- 键值事实表 ---------- */
+
+/* 一项事实一格：键在上、值在下。宽度够时并排，不够时自动竖排，不靠横向滚动。 */
+.fact-grid { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 7px 10px; }
+.fact-cell { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fact-key { font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+.fact-value { margin: 0; font-size: 11px; line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere; }
+.fact-value.is-warn { color: var(--warn); }
+.fact-value.is-error { color: var(--danger); }
+
+/* ---------- 对象行 ---------- */
+
+/* 一条对象行回答三件事：它是什么、现在什么状态、能对它做什么。右侧动作区最多占一半宽度。 */
+.obj-list { display: flex; flex-direction: column; gap: 5px; }
+.obj-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-btn);
+  background: color-mix(in srgb, var(--inset) 55%, transparent);
+}
+.obj-row.is-danger { border-color: color-mix(in srgb, var(--danger) 35%, var(--line-2)); background: color-mix(in srgb, var(--danger-soft) 40%, transparent); }
+.obj-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.obj-title { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 11.5px; font-weight: 650; line-height: 1.45; color: var(--ink); overflow-wrap: anywhere; }
+.obj-sub { font-size: 10px; line-height: 1.55; color: var(--mut); overflow-wrap: anywhere; }
+.obj-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-family: var(--mono); font-size: 9.5px; line-height: 1.5; color: var(--faint); overflow-wrap: anywhere; }
+.obj-oid { font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+.obj-cap-id { font-family: var(--mono); font-size: 10px; color: var(--faint); }
+.obj-side { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 5px; flex-wrap: wrap; max-width: 55%; }
+
+/* ---------- 行内表单 ---------- */
+
+.inline-form { display: flex; align-items: flex-end; gap: 7px; flex-wrap: wrap; margin-top: 3px; }
+.inline-field { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.inline-label { font-size: 9.5px; color: var(--faint); }
+.inline-input {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-btn);
+  background: var(--inset);
+  color: var(--ink);
+  font: 11px var(--mono);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.inline-input::placeholder { color: var(--faint); }
+.inline-input:hover { border-color: var(--mut); }
+.inline-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); background: var(--panel); }
+.inline-hint { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; font-size: 10px; line-height: 1.5; color: var(--mut); }
+
+/* 基类 .btn 本来就是描边次要按钮；这里把名字补上，视图里写 btn-secondary 时行为一致。 */
+.btn.btn-secondary { background: var(--raised); border-color: var(--line-2); color: var(--ink-2); }
+
+/* ---------- 能力清单 ---------- */
+
+/* 一条能力 = 编号、名字、级别、归属 + 三段事实（入口、打开什么、结果落在哪）+ 演示或只读说明。 */
+.cap-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--inset) 45%, transparent);
+}
+.cap-row.is-open { border-color: color-mix(in srgb, var(--accent) 32%, var(--line-2)); background: var(--inset); }
+/* 从命令面板跳过来时闪一下：告诉眼睛「就是这一行」，不靠滚动位置猜。 */
+.cap-row.is-flash { border-color: var(--accent); animation: cap-flash 1.6s ease-out 1; }
+@keyframes cap-flash { 0% { box-shadow: 0 0 0 3px var(--accent-soft); } 100% { box-shadow: none; } }
+.cap-head { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.cap-id { font-size: 9.5px; color: var(--faint); }
+.cap-name { font-size: 11.5px; font-weight: 650; color: var(--ink); }
+.cap-command { margin: 0; font-family: var(--mono); font-size: 10px; line-height: 1.5; color: var(--mut); overflow-wrap: anywhere; }
+.cap-facts { margin: 0; display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 3px 8px; font-size: 10px; line-height: 1.55; }
+.cap-fact { display: contents; }
+.cap-fact dt { color: var(--faint); }
+.cap-fact dd { margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.cap-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.cap-readonly-note { font-size: 10px; line-height: 1.5; color: var(--faint); }
+.cap-demo-btn {
+  align-self: flex-start;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-btn);
+  background: var(--raised);
+  color: var(--ink-2);
+  font-size: 10.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.cap-demo-btn:hover { background: var(--raised-2); border-color: var(--mut); color: var(--ink); }
+.cap-demo-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cap-demo-btn.is-danger { border-color: color-mix(in srgb, var(--danger) 45%, var(--line-2)); color: var(--danger); }
+.cap-demo-btn.is-danger:hover { background: var(--danger-soft); border-color: var(--danger); }
+.cap-confirm { margin-top: 4px; padding: 8px 9px; border: 1px solid var(--line-2); border-radius: var(--r-btn); background: var(--panel); display: flex; flex-direction: column; gap: 5px; }
+.cap-confirm.is-danger { border-color: color-mix(in srgb, var(--danger) 50%, var(--line-2)); background: color-mix(in srgb, var(--danger-soft) 40%, var(--panel)); }
+.cap-confirm.is-stage2 { border-style: dashed; border-color: color-mix(in srgb, var(--danger) 55%, var(--line-2)); }
+.cap-result { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 3px; padding: 5px 7px; border-left: 2px solid var(--accent); border-radius: var(--r-sm); background: var(--accent-soft); }
+.cap-result-tag { font-family: var(--mono); font-size: 9px; letter-spacing: 0.04em; color: var(--faint); }
+.cap-result-text { font-size: 10.5px; line-height: 1.55; color: var(--ink-2); }
+
+/* 确认卡的四段：会动什么、不会动什么、可逆性与恢复路径、动作按钮。 */
+.confirm-row { display: flex; flex-direction: column; gap: 1px; font-size: 10px; line-height: 1.55; }
+.confirm-key { font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+.confirm-value { color: var(--ink-2); overflow-wrap: anywhere; }
+.confirm-row.is-emphasis .confirm-value { color: var(--warn); }
+.confirm-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
+
+/* 覆盖口径那一条：评审用它核对 162 条有没有落全。 */
+.coverage-note { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0; padding: 8px 9px; border: 1px dashed var(--line-2); border-radius: var(--r-md); font-size: 10px; line-height: 1.55; color: var(--mut); }
+.coverage-count { font-size: 9.5px; color: var(--faint); }
+
+/* ---------- 危险区与二级核对页 ---------- */
+
+.danger-card-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.danger-consequence { margin: 0; font-size: 10.5px; line-height: 1.6; color: var(--ink-2); }
+.danger-recovery { margin: 0; font-size: 10px; line-height: 1.6; color: var(--mut); }
+.danger-meta { margin: 0; font-family: var(--mono); font-size: 9.5px; line-height: 1.5; color: var(--faint); overflow-wrap: anywhere; }
+.danger-confirm-box { margin-top: 4px; padding: 10px; border: 1px solid color-mix(in srgb, var(--danger) 50%, var(--line-2)); border-radius: var(--r-md); background: color-mix(in srgb, var(--danger-soft) 55%, var(--panel)); display: flex; flex-direction: column; gap: 7px; }
+.danger-confirm-q { margin: 0; font-size: 11px; font-weight: 650; line-height: 1.55; color: var(--danger); }
+.confirm-input { min-height: 30px; padding: 0 9px; border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line-2)); border-radius: var(--r-btn); background: var(--panel); color: var(--ink); font: 12px var(--mono); }
+.confirm-input::placeholder { color: var(--faint); }
+.confirm-input:focus-visible { outline: 2px solid var(--danger); outline-offset: 0; }
+.danger-confirm-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* ---------- 管理索引 ---------- */
+
+/* 卡片本身就是入口：标题、数量、一句说明、几条能力，四件事一屏读完。 */
+.manage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 7px; }
+.manage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--inset);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.06s ease;
+}
+.manage-card:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 45%, var(--inset)); }
+.manage-card:active { transform: translateY(1px); }
+.manage-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.manage-card.is-danger { border-color: color-mix(in srgb, var(--danger) 35%, var(--line-2)); }
+.manage-card.is-danger:hover { border-color: var(--danger); background: color-mix(in srgb, var(--danger-soft) 40%, var(--inset)); }
+.manage-card-head { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.manage-card-title { font-size: 12px; font-weight: 700; color: var(--ink); }
+.manage-card-count { margin-left: auto; font-family: var(--mono); font-size: 9px; line-height: 1.45; color: var(--faint); text-align: right; }
+.manage-card-text { font-size: 10px; line-height: 1.55; color: var(--mut); }
+.manage-card-foot { display: flex; align-items: center; gap: 6px; margin-top: auto; }
+.manage-card-caps { font-family: var(--mono); font-size: 9px; color: var(--faint); }
+.manage-card-go { display: inline-flex; align-items: center; gap: 1px; margin-left: auto; font-size: 10px; font-weight: 650; color: var(--accent); }
+.manage-shortcuts { display: flex; flex-direction: column; gap: 5px; }
+.manage-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-btn);
+  background: transparent;
+  color: var(--mut);
+  font-size: 10.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.manage-shortcut:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+.manage-shortcut:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.manage-shortcut svg { flex: none; color: var(--faint); }
+
+/* ---------- 搜索与筛选 ---------- */
+
+.filter-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.page-filters { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.search-counts { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin: 0; }
+.page-search { display: block; }
+.page-search-input {
+  width: 100%;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-btn);
+  background: var(--inset);
+  color: var(--ink);
+  font-size: 11.5px;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.page-search-input::placeholder { color: var(--faint); }
+.page-search-input:hover { border-color: var(--mut); }
+.page-search-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+.page-actions-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* ---------- 长任务进度 ---------- */
+
+.task-meter { position: relative; height: 10px; margin: 16px 0 4px; border-radius: 999px; background: var(--raised); }
+.task-meter-bar { height: 100%; border-radius: 999px; background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 62%, transparent), var(--accent)); transition: width 0.25s ease; }
+.task-meter-label { position: absolute; right: 1px; top: -15px; font-size: 9.5px; color: var(--mut); font-variant-numeric: tabular-nums; }
+.flow-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.flow-done { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 6px; padding: 9px 10px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line-2)); border-radius: var(--r-md); background: color-mix(in srgb, var(--accent-soft) 55%, var(--panel)); }
+.flow-done p { margin: 0; font-size: 10.5px; line-height: 1.6; color: var(--ink-2); }
+
+/* ---------- 空态与说明块 ---------- */
+
+.empty-block { display: flex; flex-direction: column; gap: 8px; }
+.note-block { display: flex; flex-direction: column; gap: 6px; }
+.ext-link { text-decoration: none; }
+
+/* ---------- 命令面板 ---------- */
+
+/* 盖住整个面板：它是一次「找东西」的模式，底下页面不该再抢注意力。 */
+.palette-backdrop { position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 10px; background: var(--overlay); }
+.palette { display: flex; flex-direction: column; width: 100%; max-height: 88%; overflow: hidden; border: 1px solid var(--line-2); border-radius: 10px; background: var(--panel); box-shadow: 0 24px 56px -26px rgba(8, 12, 20, 0.7); }
+.palette-search { flex: none; display: flex; align-items: center; gap: 7px; padding: 9px 11px; border-bottom: 1px solid var(--line-2); color: var(--faint); }
+.palette-input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--ink); font-size: 12.5px; outline: none; }
+.palette-input::placeholder { color: var(--faint); }
+.palette-list { flex: 1; min-height: 0; overflow: auto; padding: 4px 5px 6px; display: flex; flex-direction: column; gap: 2px; }
+.palette-row { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 6px 8px; border: 1px solid transparent; border-radius: var(--r-btn); background: transparent; color: inherit; text-align: left; cursor: pointer; transition: background 0.12s ease, border-color 0.12s ease; }
+.palette-row:hover { background: var(--hover); }
+.palette-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.palette-row.is-first { border-color: color-mix(in srgb, var(--accent) 26%, transparent); }
+.palette-row.is-highlight { border-color: var(--accent); background: var(--accent-soft); }
+.palette-row-main { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.palette-id { font-size: 9.5px; color: var(--faint); }
+.palette-name { font-size: 11.5px; font-weight: 650; color: var(--ink); }
+.palette-row-sub { font-size: 9.5px; line-height: 1.5; color: var(--faint); overflow-wrap: anywhere; }
+.palette-empty { margin: 0; padding: 16px 10px; font-size: 10.5px; line-height: 1.6; color: var(--mut); text-align: center; }
+.palette-more { margin: 0; padding: 4px 10px; font-size: 9.5px; color: var(--faint); }
+.palette-foot { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border-top: 1px solid var(--line-2); font-size: 9.5px; color: var(--faint); }
+.palette-hint { margin-left: auto; }
+
+/* ---------- 同步带上的两个新入口 ---------- */
+
+.icon-btn-wide { width: 26px; }
+.fact-btn { padding: 0; border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; }
+.fact-btn .fact-v { transition: color 0.12s ease, border-color 0.12s ease; }
+.fact-btn:hover .fact-v { color: var(--ink); border-bottom-color: var(--accent); }
+.fact-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+/* ---------- 窄面板：先保文字，再保并排 ---------- */
+
+@container panel (max-width: 439px) {
+  /* 460 以下对象行的动作区从右侧换到下一行：55% 的宽度放不下两颗按钮加一行文字。 */
+  .obj-row { flex-direction: column; }
+  .obj-side { max-width: none; justify-content: flex-start; }
+  .fact-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  .manage-grid { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+  .palette { max-height: 92%; }
+}
+
+@container panel (max-width: 359px) {
+  .page-head { padding-left: 10px; padding-right: 10px; }
+  .page-scroll { padding-left: 10px; padding-right: 10px; }
+  /* 380 以下事实表一律单列；能力行的三段事实改成上下堆叠，长句不挤成一条。 */
+  .fact-grid { grid-template-columns: 1fr; }
+  .manage-grid { grid-template-columns: 1fr; }
+  .cap-facts { grid-template-columns: 1fr; gap: 4px; }
+  .cap-fact { display: flex; flex-direction: column; gap: 1px; }
+  .inline-field { flex-basis: 100%; }
+  .confirm-input { width: 100%; }
 }
 
 

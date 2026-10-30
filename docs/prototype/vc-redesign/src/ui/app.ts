@@ -21,6 +21,10 @@ import { buildHandoff } from '../domain/handoff'
 import type { HandoffKind } from '../domain/handoff'
 import { panelModelOf } from '../domain/select'
 import type { PanelModel } from '../domain/select'
+import { createPageState, reducePage, targetOfCapability } from '../domain/pages'
+import type { PageAction, PageId } from '../domain/pages'
+import { CAPABILITIES } from '../data/capabilities.generated'
+import { PAGE_META } from '../data/pages-copy'
 import { clear, h, icon } from './dom'
 import { renderRail } from './rail'
 import { renderChanges } from './views/changes'
@@ -30,6 +34,8 @@ import { renderHistory } from './views/history'
 import { renderStash } from './views/stash'
 import { renderWorktrees } from './views/worktrees'
 import type { WorktreeFilter, WorktreesViewOptions } from './views/worktrees'
+import { renderPageHost } from './views/page-host'
+import { renderPalette } from './views/palette'
 
 /** 面板可拖宽度的四个演示档位；真实实现的区间是 300 到 520。 */
 const PANEL_WIDTHS = [300, 380, 460, 520] as const
@@ -103,6 +109,11 @@ export function mount(root: HTMLElement): void {
   // 两者都只贴着那一行；切换视图或点别处就应该收起来。
   let commitMenuOid: string | null = null
   let commitConfirmOid: string | null = null
+  // 「管理」二级页与命令面板的状态：与四个页签的会话状态是两条独立的状态机，
+  // 切页签要收起页面，但从页面返回不会动任何请求状态。
+  let pages = createPageState()
+  // 每个二级页上次滚到哪：切走再回来时回到原处，读者不用重新找位置。
+  const pageScrolls = new Map<PageId, number>()
 
   const liveRegion = h('div', { class: 'sr-only', attrs: { 'aria-live': 'polite', role: 'status' } })
   root.append(liveRegion)
@@ -134,13 +145,14 @@ export function mount(root: HTMLElement): void {
   }
 
   function captureScroll(): ScrollSnapshot | null {
-    const selector = '.changes-scroll, .history-scroll, .detail-scroll, .branch-scroll'
+    const selector = '.changes-scroll, .history-scroll, .detail-scroll, .branch-scroll, .page-scroll'
     const el = root.querySelector<HTMLElement>(selector)
     if (el === null) return null
     const scrollSelector = el.classList.contains('changes-scroll')
       ? '.changes-scroll'
       : el.classList.contains('history-scroll') ? '.history-scroll'
-        : el.classList.contains('branch-scroll') ? '.branch-scroll' : '.detail-scroll'
+        : el.classList.contains('branch-scroll') ? '.branch-scroll'
+          : el.classList.contains('page-scroll') ? '.page-scroll' : '.detail-scroll'
     return { selector: scrollSelector, top: el.scrollTop }
   }
 
@@ -166,6 +178,94 @@ export function mount(root: HTMLElement): void {
     })
   }
 
+  /**
+   * 二级页的动作走这一条：先记下当前页滚到哪，换页时按目标页上次的位置恢复。
+   * 与 dispatch() 分开是因为两条状态机各自 reduce，谁也不该顺手改对方。
+   */
+  function dispatchPage(action: PageAction, options: RenderOptions = {}): void {
+    const focus = snapshotFocus()
+    const before = activePageOf()
+    const scrollEl = root.querySelector<HTMLElement>('.page-scroll')
+    if (before !== null && scrollEl !== null) pageScrolls.set(before, scrollEl.scrollTop)
+    const next = reducePage(pages, action)
+    if (next === pages) return
+    pages = next
+    const after = activePageOf()
+    const moved = before !== after
+    render({
+      focusKey: options.focusKey ?? focus?.key ?? null,
+      focusCaret: focus,
+      scroll: options.scroll !== undefined ? options.scroll : moved ? { selector: '.page-scroll', top: after === null ? 0 : (pageScrolls.get(after) ?? 0) } : captureScroll(),
+      post: options.post,
+    })
+  }
+
+  /** 当前二级页：没有打开页面时是 null，界面照旧画四个页签。 */
+  function activePageOf(): PageId | null {
+    return pages.stack.length === 0 ? null : pages.stack[pages.stack.length - 1]
+  }
+
+  /** 页面编号的合法值：统一从 PAGE_META 的键来，新增页面只改一处。 */
+  function asPageId(value: string | undefined): PageId | null {
+    if (value === undefined || value === '') return null
+    return value in PAGE_META ? (value as PageId) : null
+  }
+
+  /**
+   * 命令面板选中一条能力：跳到负责它的页面并高亮那一行。
+   * 四页签的能力回到底层视图；页面能力打开二级页；没有面板落点的也回到页面栈外，避免留在空页上。
+   */
+  function jumpToCapability(id: string): void {
+    const cap = CAPABILITIES.find((item) => item.id === id)
+    if (cap === undefined) return
+    const target = targetOfCapability(cap)
+    let nextPages = reducePage(pages, { type: 'palette-close' })
+    if (target === 'view') {
+      nextPages = reducePage(nextPages, { type: 'page-close-all' })
+      state = reduce(state, { type: 'view', view: cap.target as 'changes' | 'commits' | 'worktrees' | 'stash' }, base)
+      nextPages = reducePage(nextPages, { type: 'palette-highlight', id: cap.id })
+      pages = nextPages
+      render({ focusKey: 'tab-' + cap.target, scroll: null })
+      return
+    }
+    nextPages = reducePage(nextPages, { type: 'page-open', page: target })
+    nextPages = reducePage(nextPages, { type: 'palette-highlight', id: cap.id })
+    pages = nextPages
+    render({ focusKey: 'page-back', scroll: null })
+  }
+
+  /**
+   * 全库搜索的一条结果：提交回历史详情、分支开分支浮层、标签开分支与标签页并按标签名过滤、
+   * 能力交给命令面板同一套跳转。所有跳转都先把页面栈收干净，避免「搜索 › 分支 › ...」叠出长栈。
+   */
+  function jumpFromSearch(kind: string, key: string): void {
+    if (kind === 'cap') {
+      jumpToCapability(key)
+      return
+    }
+    let nextPages = reducePage(pages, { type: 'page-close-all' })
+    if (kind === 'commit') {
+      state = reduce(state, { type: 'view', view: 'commits' }, base)
+      state = reduce(state, { type: 'history-open', oid: key }, base)
+      pages = nextPages
+      render({ focusKey: 'history-back', scroll: null })
+      return
+    }
+    if (kind === 'branch') {
+      state = reduce(state, { type: 'branch-open' }, base)
+      state = reduce(state, { type: 'branch-select', name: key }, base)
+      pages = nextPages
+      render({ focusKey: 'branch-back', scroll: null })
+      return
+    }
+    if (kind === 'tag') {
+      nextPages = reducePage(nextPages, { type: 'page-open', page: 'branch-tags' })
+      nextPages = reducePage(nextPages, { type: 'page-query', value: key })
+      pages = nextPages
+      render({ focusKey: 'page-query', scroll: null })
+    }
+  }
+
   function repaint(options: RenderOptions = {}): void {
     render(options)
   }
@@ -182,6 +282,11 @@ export function mount(root: HTMLElement): void {
     // 用 block:'nearest' 只做最小滚动；卡片上方那一行通常已经露着一半，不必把整行顶到最上面。
     const pendingCard = root.querySelector<HTMLElement>('.wt-confirm, .branch-confirm, .changes-confirm, .commit-confirm, .stash-confirm')
     if (pendingCard !== null) pendingCard.scrollIntoView({ block: 'nearest' })
+    // 从命令面板或搜索跳过来的那一条能力：先滚进可视区，再把这个「一次性高亮」清掉，
+    // 免得下一次重画还亮着——高亮只用来指路，不是选中态。
+    const highlighted = root.querySelector<HTMLElement>('.cap-row.is-flash, .palette-row.is-highlight')
+    if (highlighted !== null) highlighted.scrollIntoView({ block: 'nearest' })
+    if (pages.highlight !== null) pages = reducePage(pages, { type: 'highlight-clear' })
     positionPopconfirm()
     positionBranchPop()
     positionHandoff()
@@ -261,7 +366,16 @@ export function mount(root: HTMLElement): void {
       ? model.result : null
     panel.append(renderRail(model.rail, railResult))
     panel.append(renderTabs(model))
-    panel.append(h('main', { class: 'panel-body', attrs: { id: 'view-panel', role: 'tabpanel', 'aria-labelledby': `tab-${state.view}` } }, renderActiveView(model)))
+    // 页面宿主接管内容区：没有打开二级页时返回 null，这里照旧画四个页签的内容。
+    const pageView = renderPageHost({ data, model, state: pages, nowMs: Date.now() })
+    const main = h('main', { class: 'panel-body', attrs: { id: 'view-panel', role: 'tabpanel', 'aria-labelledby': `tab-${state.view}` } })
+    if (pages.result !== null) {
+      main.append(h('div', { class: 'page-result', attrs: { role: 'status' } },
+        h('span', { class: 'page-result-text', text: pages.result }),
+        h('button', { class: 'page-result-close', attrs: { type: 'button', 'aria-label': '关掉这条结果', 'data-focus-key': 'page-result-close' }, dataset: { action: 'page-result-clear' } }, '×')))
+    }
+    main.append(pageView === null ? renderActiveView(model) : pageView)
+    panel.append(main)
     // 分支浮层贴着顶部身份行的分支名展开，不再替换整页内容：
     // 关掉之后原来那一页还在原位，读者不会丢失刚才在看的东西。
     if (state.branchOpen) panel.append(renderBranchPopover(model))
@@ -273,6 +387,8 @@ export function mount(root: HTMLElement): void {
         copied: handoffCopied,
       }))
     }
+    // 命令面板盖在所有浮层之上：它只是一个入口，不该被下面的页面内容挡住。
+    if (pages.paletteOpen) panel.append(renderPalette(pages))
     frame.append(panel)
     stage.append(frame)
 
@@ -573,6 +689,8 @@ export function mount(root: HTMLElement): void {
           state = reduce(state, { type: 'branch-close' }, base)
         }
         closeTransientPanels()
+        // 点页签等于离开当前二级页与命令面板：页面栈清空，下次回来是干净的页签内容。
+        if (pages.stack.length > 0 || pages.paletteOpen) pages = createPageState()
         if (state.view === view) {
           repaint({ focusKey: `tab-${view}`, scroll: null })
           return
@@ -860,6 +978,124 @@ export function mount(root: HTMLElement): void {
       case 'result-dismiss':
         dispatch({ type: 'result-clear' }, { focusKey: lastFocusKey })
         return
+      case 'page-open': {
+        const page = asPageId(el.dataset.page)
+        if (page === null) return
+        dispatchPage({ type: 'page-open', page }, { focusKey: 'page-back', scroll: null })
+        return
+      }
+      case 'page-back':
+        dispatchPage({ type: 'page-back' }, { focusKey: 'page-back', scroll: null })
+        return
+      case 'page-close-all':
+        dispatchPage({ type: 'page-close-all' }, { focusKey: lastFocusKey, scroll: null })
+        return
+      case 'page-fold': {
+        const key = el.dataset.key ?? ''
+        dispatchPage({ type: 'page-fold', key }, { focusKey: 'fold:' + key })
+        return
+      }
+      case 'page-filter': {
+        const filter = el.dataset.filter ?? 'all'
+        dispatchPage({ type: 'page-filter', filter }, { focusKey: 'filter:' + filter })
+        return
+      }
+      case 'page-demo':
+        dispatchPage({ type: 'page-result', text: el.dataset.note ?? '已执行（原型模拟）。' }, { focusKey: lastFocusKey })
+        return
+      case 'page-result-clear':
+        dispatchPage({ type: 'page-result-clear' }, { focusKey: lastFocusKey })
+        return
+      case 'cap-open': {
+        const id = el.dataset.id ?? ''
+        dispatchPage({ type: 'cap-open', id }, { focusKey: 'cap-open:' + id, scroll: null })
+        return
+      }
+      case 'cap-close':
+        dispatchPage({ type: 'cap-close' }, { focusKey: 'cap-open:' + pages.capOpen })
+        return
+      case 'cap-next':
+        dispatchPage({ type: 'cap-next' }, { focusKey: 'cap-run-' + pages.capOpen })
+        return
+      case 'cap-run':
+        dispatchPage({ type: 'cap-run' }, { focusKey: lastFocusKey })
+        return
+      case 'danger-open': {
+        const id = el.dataset.id ?? ''
+        dispatchPage({ type: 'danger-open', id }, { focusKey: 'danger-input', scroll: null })
+        return
+      }
+      case 'danger-close':
+        dispatchPage({ type: 'danger-close' }, { focusKey: 'danger-zone', scroll: null })
+        return
+      case 'danger-run':
+        dispatchPage({ type: 'danger-run' }, { focusKey: 'danger-zone', scroll: null })
+        return
+      case 'rebase-demo':
+      case 'rebase-step':
+      case 'rebase-abort':
+      case 'conflict-demo':
+      case 'conflict-abort':
+      case 'task-demo':
+      case 'task-tick': {
+        const focusByAction: Record<string, string> = {
+          'rebase-demo': 'rebase-next',
+          'rebase-step': 'rebase-next',
+          'rebase-abort': 'rebase-start',
+          'conflict-demo': 'conflict-start',
+          'conflict-abort': 'conflict-start',
+          'task-demo': 'task-tick',
+          'task-tick': 'task-tick',
+        }
+        dispatchPage({ type: action } as PageAction, { focusKey: focusByAction[action] ?? lastFocusKey, scroll: null })
+        return
+      }
+      case 'conflict-choice': {
+        const choice = el.dataset.choice === 'theirs' ? 'theirs' : 'ours'
+        dispatchPage({ type: 'conflict-choice', choice }, { focusKey: lastFocusKey, scroll: null })
+        return
+      }
+      case 'conflict-resolve': {
+        const path = el.dataset.path ?? ''
+        dispatchPage({ type: 'conflict-resolve', path }, { focusKey: 'conflict-resolve:' + path, scroll: null })
+        return
+      }
+      case 'palette-open':
+        dispatchPage({ type: 'palette-open' }, { focusKey: 'palette-input', scroll: null })
+        return
+      case 'palette-close': {
+        // 面板内部的空白点击不该关掉面板：只有点在遮罩上才算「点到了外面」。
+        if (target.closest('.palette') !== null) return
+        dispatchPage({ type: 'palette-close' }, { focusKey: lastFocusKey, scroll: null })
+        return
+      }
+      case 'palette-select': {
+        const id = el.dataset.id ?? ''
+        jumpToCapability(id)
+        return
+      }
+      case 'search-jump':
+        jumpFromSearch(el.dataset.kind ?? '', el.dataset.oid ?? el.dataset.name ?? el.dataset.id ?? '')
+        return
+      case 'page-form-submit': {
+        const kind = el.dataset.kind ?? ''
+        const text = kind === 'remote-add'
+          ? '已添加远端（原型模拟）：列表里会多一行，拉取与推送按钮随即可用。'
+          : '已添加子模块（原型模拟）：克隆完成后才出现在清单里。'
+        dispatchPage({ type: 'page-result', text }, { focusKey: lastFocusKey })
+        return
+      }
+      case 'branch-tags-view':
+        jumpFromSearch('branch', el.dataset.name ?? '')
+        return
+      case 'branch-open-from-page': {
+        const name = el.dataset.name ?? ''
+        state = reduce(state, { type: 'branch-open' }, base)
+        if (name !== '') state = reduce(state, { type: 'branch-select', name }, base)
+        pages = reducePage(pages, { type: 'page-close-all' })
+        render({ focusKey: 'branch-back', scroll: null })
+        return
+      }
       default:
         return
     }
@@ -881,6 +1117,14 @@ export function mount(root: HTMLElement): void {
       dispatch({ type: 'branch-query', value: target.value }, { focusKey: 'branch-search' })
     } else if (field === 'branch-draft') {
       dispatch({ type: 'branch-draft', value: target.value }, { focusKey: 'branch-draft' })
+    } else if (field === 'page-query') {
+      dispatchPage({ type: 'page-query', value: target.value }, { focusKey: target.dataset.focusKey ?? 'page-query' })
+    } else if (field === 'page-draft') {
+      dispatchPage({ type: 'page-draft', value: target.value }, { focusKey: target.dataset.focusKey ?? 'page-draft' })
+    } else if (field === 'palette-query') {
+      dispatchPage({ type: 'palette-query', value: target.value }, { focusKey: 'palette-input' })
+    } else if (field === 'confirm-text') {
+      dispatchPage({ type: 'confirm-text', value: target.value }, { focusKey: 'danger-input' })
     }
   }
 
@@ -924,6 +1168,42 @@ export function mount(root: HTMLElement): void {
     const target = event.target
     if (!(target instanceof HTMLElement)) return
 
+    // Ctrl/⌘ + K 打开命令面板：这是「我知道有这条能力，但找不到它在哪」的唯一快捷键。
+    if ((event.ctrlKey || event.metaKey) && (event.key === 'k' || event.key === 'K')) {
+      event.preventDefault()
+      if (!pages.paletteOpen) dispatchPage({ type: 'palette-open' }, { focusKey: 'palette-input', scroll: null })
+      return
+    }
+    // Esc 的关闭顺序按「盖在上面的先关」：命令面板 → 危险核对页 → 行内确认卡 → 当前二级页。
+    if (event.key === 'Escape' && pages.paletteOpen) {
+      event.preventDefault()
+      dispatchPage({ type: 'palette-close' }, { focusKey: lastFocusKey, scroll: null })
+      return
+    }
+    if (event.key === 'Escape' && pages.dangerId !== null) {
+      event.preventDefault()
+      dispatchPage({ type: 'danger-close' }, { focusKey: 'danger-zone', scroll: null })
+      return
+    }
+    if (event.key === 'Escape' && pages.capOpen !== '') {
+      event.preventDefault()
+      dispatchPage({ type: 'cap-close' }, { focusKey: 'cap-open:' + pages.capOpen })
+      return
+    }
+    if (event.key === 'Escape' && pages.stack.length > 0) {
+      event.preventDefault()
+      dispatchPage({ type: 'page-back' }, { focusKey: 'page-back', scroll: null })
+      return
+    }
+    // 命令面板里回车打开第一条：键盘操作不用先 Tab 到列表再按空格。
+    if (pages.paletteOpen && event.key === 'Enter' && target.dataset.field === 'palette-query') {
+      const first = root.querySelector<HTMLElement>('.palette-row[data-action="palette-select"]')
+      if (first !== null) {
+        event.preventDefault()
+        jumpToCapability(first.dataset.id ?? '')
+      }
+      return
+    }
     if (event.key === 'Escape' && handoffKind !== null) {
       event.preventDefault()
       const previous = handoffKind
@@ -1119,6 +1399,55 @@ export function mount(root: HTMLElement): void {
       handoffFocus = focusText(panelModelOf(base, state, Date.now()))
       if (params.get('aicopied') === '1') handoffCopied = true
     }
+    // 管理页、命令面板与整页流程的深链：评审直接截某一页、某一步，不用先点开再翻。
+    const manageParam = params.get('manage')
+    if (manageParam === '1') pages = reducePage(pages, { type: 'page-open', page: 'manage' })
+    const pageParam = asPageId(params.get('page') ?? undefined)
+    if (pageParam !== null) pages = reducePage(pages, { type: 'page-open', page: pageParam })
+    const flowParam = params.get('flow')
+    if (flowParam === 'rebase' || flowParam === 'conflicts' || flowParam === 'task') {
+      pages = reducePage(pages, { type: 'page-open', page: flowParam })
+    }
+    const pageQuery = params.get('pq')
+    if (pageQuery !== null && pageQuery !== '') pages = reducePage(pages, { type: 'page-query', value: pageQuery })
+    const pageFilter = params.get('pfilter')
+    if (pageFilter !== null && pageFilter !== '') pages = reducePage(pages, { type: 'page-filter', filter: pageFilter })
+    if (params.get('palette') === '1') pages = reducePage(pages, { type: 'palette-open' })
+    const paletteQuery = params.get('pquery')
+    if (paletteQuery !== null && paletteQuery !== '') pages = reducePage(pages, { type: 'palette-query', value: paletteQuery })
+    const capParam = params.get('cap')
+    if (capParam !== null && capParam !== '') {
+      const cap = CAPABILITIES.find((item) => item.id === capParam)
+      if (cap !== undefined) {
+        const target = targetOfCapability(cap)
+        if (target !== 'view') pages = reducePage(pages, { type: 'page-open', page: target })
+        pages = reducePage(pages, { type: 'palette-highlight', id: cap.id })
+      }
+    }
+    const capOpenParam = params.get('capopen')
+    if (capOpenParam !== null && capOpenParam !== '') pages = reducePage(pages, { type: 'cap-open', id: capOpenParam })
+    if (params.get('rebase') === '1') pages = reducePage(pages, { type: 'rebase-demo' })
+    const rebaseStepParam = Number(params.get('rebasestep'))
+    if (Number.isInteger(rebaseStepParam) && rebaseStepParam > 0) {
+      pages = reducePage(pages, { type: 'rebase-demo' })
+      for (let index = 0; index < rebaseStepParam; index += 1) pages = reducePage(pages, { type: 'rebase-step' })
+    }
+    if (params.get('conflicts') === '1') pages = reducePage(pages, { type: 'conflict-demo' })
+    if (params.get('task') === '1') pages = reducePage(pages, { type: 'task-demo' })
+    const taskProgressParam = Number(params.get('taskp'))
+    if (Number.isInteger(taskProgressParam) && taskProgressParam > 62) {
+      pages = reducePage(pages, { type: 'task-demo' })
+      while (pages.taskProgress < taskProgressParam && pages.taskProgress < 100) pages = reducePage(pages, { type: 'task-tick' })
+    }
+    // 搜索页的深链：search=<词> 直接带词打开；search 传空也打开这一页。
+    const searchParam = params.get('search')
+    if (searchParam !== null) {
+      pages = reducePage(pages, { type: 'page-open', page: 'search' })
+      if (searchParam !== '') pages = reducePage(pages, { type: 'page-query', value: searchParam })
+    }
+    // 危险动作的二级核对页：danger=<能力编号>，用于截「核对后果、敲确认词」这一屏。
+    const dangerParam = params.get('danger')
+    if (dangerParam !== null && dangerParam !== '') pages = reducePage(pages, { type: 'danger-open', id: dangerParam })
   }
 
   applyDeepLink()

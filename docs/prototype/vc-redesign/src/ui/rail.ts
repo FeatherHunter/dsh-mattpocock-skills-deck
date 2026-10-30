@@ -45,12 +45,24 @@ export function renderRail(model: RailModel, result: ResultMessage | null): HTML
   if (model.oidShort !== null) {
     idRow.append(h('span', { class: 'rail-oid mono', text: model.oidShort, title: '当前提交的短号' }))
   }
+  // 身份行右侧常驻两个入口：调色盘（搜全部能力）与管理（九个分区）。
+  // 它们不抢分支按钮的注意力，只在身份行末尾占两个图标位；Ctrl/⌘+K 是同一个调色盘的快捷键。
   idRow.append(
     h('button', {
       class: 'icon-btn',
       attrs: { type: 'button', 'aria-label': COPY.rail.copyRepoPath, title: COPY.rail.copyRepoPath, 'data-focus-key': 'copy-repo' },
       dataset: { action: 'copy-repo' },
     }, icon('copy', 14)),
+    h('button', {
+      class: 'icon-btn icon-btn-wide',
+      attrs: { type: 'button', 'aria-label': '命令面板：搜索全部 162 条能力', title: '命令面板（Ctrl/⌘+K）：按名称、编号或命令搜能力', 'data-focus-key': 'palette-open' },
+      dataset: { action: 'palette-open' },
+    }, icon('search', 14)),
+    h('button', {
+      class: 'icon-btn icon-btn-wide',
+      attrs: { type: 'button', 'aria-label': '打开管理：分支与远端、维护、诊断等九个分区', title: '管理（分支与远端、子模块、维护、迁移、配置、钩子、诊断、平台）', 'data-focus-key': 'manage-open' },
+      dataset: { action: 'page-open', page: 'manage' },
+    }, icon('settings', 14)),
   )
 
   // ② 同步事实行：计数控件 + 两个时间事实 + 重新读取。
@@ -77,9 +89,14 @@ export function renderRail(model: RailModel, result: ResultMessage | null): HTML
     h('span', { class: 'fact' },
       h('span', { class: 'fact-k', text: '读取于' }),
       h('span', { class: 'fact-v', text: model.readAtText, attrs: { title: COPY.rail.readHint } })),
-    h('span', { class: 'fact' },
-      h('span', { class: 'fact-k', text: '远端依据' }),
-      h('span', { class: 'fact-v', text: model.basisText, attrs: { title: COPY.rail.basisHint } })),
+    // 「远端依据」改成入口：它说不清的时候，点开就是远端页（远端清单与同步读数都在那里）。
+    h('button', {
+      class: 'fact fact-btn',
+      attrs: { type: 'button', 'data-focus-key': 'basis-open', title: COPY.rail.basisHint + '；点开查看远端清单与同步读数' },
+      dataset: { action: 'page-open', page: 'remote' },
+    },
+    h('span', { class: 'fact-k', text: '远端依据' }),
+    h('span', { class: 'fact-v', text: model.basisText })),
   )
   syncRow.append(
     h('button', {

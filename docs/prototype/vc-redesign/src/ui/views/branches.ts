@@ -58,6 +58,17 @@ function renderHead(model: BranchesModel): HTMLElement {
       h('span', { class: 'branch-count', text: `${model.total}` }),
       h('span', { class: 'branch-count-unit', text: '个' }))
     head.append(h('span', { class: 'branch-spacer' }))
+    // 标签与「谁跟到哪条上游」都不属于某一条分支，所以不在这个列表里重复显示：
+    // 一个按钮把它们交给管理索引里的「分支与远端」页，列表只留「新建分支」这一颗主按钮。
+    head.append(button({
+      label: '标签与上游',
+      kind: 'ghost',
+      size: 'sm',
+      action: 'page-open',
+      dataset: { page: 'branch-tags' },
+      focusKey: 'branch-tags-open',
+      title: '打开「分支与远端」页：40 个标签、62 条本地分支各自跟到哪条上游，都在那里',
+    }))
     head.append(button({
       label: COPY.branches.newBranch,
       kind: 'secondary',
