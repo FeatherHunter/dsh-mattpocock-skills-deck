@@ -147,7 +147,7 @@ async function main() {
   // ── A GitHub 判档入口 ────────────────────────────────────────────────────
   console.log('\nA GitHub 判档入口（本家扩展命中 / 通用表命中 / 退出码分支）')
   let gh = null
-  try { gh = (await imp('src/tracker/rooms/github/errors.ts')).classifyGhError } catch (e) {
+  try { gh = (await imp('src/tracker/rooms/github/support/errors.ts')).classifyGhError } catch (e) {
     skip('GitHub 判档入口读不进来 —— ' + String((e && e.message) || e))
   }
   if (typeof gh !== 'function') {

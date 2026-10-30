@@ -220,7 +220,7 @@ console.log('\n— 一次评估里环境预检只花一次（断言取数路径�
 
   const repoKeysMod = await imp(join(ROOTDIR, 'src/refresh/rooms/host/git-execution.ts'))
   const detMod = await imp(join(ROOTDIR, 'src/tracker/detection/detectionService.ts'))
-  const githubMod = await imp(join(ROOTDIR, 'src/tracker/rooms/github/index.ts'))
+  const githubMod = await imp(join(ROOTDIR, 'src/tracker/rooms/github/room/index.ts'))
   const detectChainMod = await imp(join(ROOTDIR, 'src/refresh/rooms/host/check-chain-evaluation.ts'))
   const gateMod = await imp(join(ROOTDIR, 'src/refresh/rooms/host/refresh-gate.ts'))
   const ledgerMod = await imp(join(ROOTDIR, 'src/refresh/rooms/host/quota-ledger.ts'))

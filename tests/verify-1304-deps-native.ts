@@ -129,7 +129,7 @@ function makeCtx(stub: any, memo?: any) {
 
 async function main() {
   console.log('#1304 反向阻塞边门禁：原生一次取回 + 截断自曝 + 兜底自曝 + 名册不把截断当完整')
-  const graph = await imp('src/tracker/rooms/github/graph.ts')
+  const graph = await imp('src/tracker/rooms/github/write/graph.ts')
 
   // ── S1 原生路：一次查询拿回正向与反向边，标题状态随行，不再整仓扫描、不再逐条读标题 ──
   {

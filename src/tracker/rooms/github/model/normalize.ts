@@ -1,7 +1,7 @@
 /**
  * src/tracker/rooms/github/model/normalize.ts — GitHub 原始形状 → 契约标准形状。
  *
- * #1686 阶段 1：从房间根迁入 model/，旧路径 src/tracker/rooms/github/normalize.ts 保留纯转发，行为零变化。
+ * #1686 阶段 1：从房间根迁入 model/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 文件头原写 `backends/github/normalize.js`，是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。
  *

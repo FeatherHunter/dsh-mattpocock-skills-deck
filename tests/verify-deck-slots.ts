@@ -144,7 +144,8 @@ try{
 console.log('')
 console.log('-- 4) 后端修复契约：gh:remote 与 gh:repoAccess 同形 form --')
 try{
-  const gh = file('src/tracker/rooms/github/index.ts')
+  // #1687 阶段 1 收口：房间入口整份搬进 room/。
+  const gh = file('src/tracker/rooms/github/room/index.ts')
   check(gh.includes("gh:remote"), 'github/index.js 含 gh:remote')
   check(gh.includes("gh:repoAccess"), 'github/index.js 含 gh:repoAccess')
   // gh:remote 的 form

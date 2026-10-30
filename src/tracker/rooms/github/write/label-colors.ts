@@ -1,9 +1,10 @@
 /**
- * backends/github/label-colors-ops.js — 标签配色契约里那两条操作在 GitHub 房间的实现（#620 落地）。
- * #1686 阶段 1：列标签的读侧（listLabels 及其帮手）已搬进 read/labels.ts，本文件只剩批量改色（写侧）；
- * 读侧仍可从旧路径取到（本文件只转发 listLabels 与 LABEL_LIST_LIMIT 两个对外名字），行为零变化，
- * 等 #1687 把写侧搬进 write/ 时再收口。
- * 以后谁改它：改「GitHub 上怎么列全部标签」「改颜色怎么调 gh、失败了落哪一档」的人。
+ * src/tracker/rooms/github/write/label-colors.ts — 标签配色契约里批量改色这条写在 GitHub 房间的实现（#620 落地）。
+ * #1686 阶段 1：列标签的读侧（listLabels 及其帮手）搬进 read/labels.ts；
+ * #1687 阶段 1：本文件从房间根迁入 write/，只剩批量改色（写侧），房间根的同名转发文件已在 #1687 末批删除，行为零变化。
+ * 读侧的 listLabels 与 LABEL_LIST_LIMIT 由 read/labels.ts 提供；这里保留旧默认导出面（default 里仍带 listLabels），
+ * 只为让还没搬走的调用方行为不变，导出面与拆前逐字一致。
+ * 以后谁改它：改「GitHub 上改标签颜色怎么调 gh、失败了落哪一档」的人。
  *
  * 契约（#627 定版，正文见 src/host/tracker/contract.js 的「标签配色契约」一节）：
  *   listLabels(repo, ctx)                → {ok:true, data: LabelColor[]}，每条只有 name / color / 可选 description
@@ -27,25 +28,24 @@
  * （见 resolveRepoTarget），否则在真实 GitHub 工作区上会一律报「仓库不存在」、一条 gh 命令都发不出去。
  */
 
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { OpContext } from '../../contract/contexts.js';
-import type { LabelColorChange, RepositoryRef } from '../../contract/entities.js';
-import type { ErrorKind } from '../../contract/identity.js';
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import type { OpContext } from '../../../contract/contexts.js';
+import type { LabelColorChange, RepositoryRef } from '../../../contract/entities.js';
+import type { ErrorKind } from '../../../contract/identity.js';
 // #105 labelDefs.write：仓库标签定义改写的常驻结论线（轨迹形状与发射口在 ./write-log.js）。
-import { beginWriteTrail, emitLabelDefsWrite } from './write-log.js'
-import type { WriteTrail } from './write-log.js';
-import type { OpResult, RepoPermissions, TrackerError, LabelColorBatchResult } from '../../contract/results.js';
-import { normalizeColor } from '../../../shared/label-color/src/colors.js'
-import { fail } from '../../kernel/preflight.js'
-import { ghClient } from './client.js'
-import { ghFailureMessage, ghVerdictOf } from './errors.js'
-import { readRepoPermissions } from './repo-permissions.js'
-import { PAGINATION } from '../../contract/pagination.js'
+import { beginWriteTrail, emitLabelDefsWrite } from '../support/write-log.js'
+import type { WriteTrail } from '../support/write-log.js';
+import type { OpResult, RepoPermissions, TrackerError, LabelColorBatchResult } from '../../../contract/results.js';
+import { normalizeColor } from '../../../../shared/label-color/src/colors.js'
+import { fail } from '../../../kernel/preflight.js'
+import { ghClient } from '../transport/client.js'
+import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
+import { readRepoPermissions } from '../read/repo-permissions.js'
+import { PAGINATION } from '../../../contract/pagination.js'
 // #1686 阶段 1：读侧搬进 read/labels.ts 后，改色这条链里共用的几样帮手仍从那里取（同一份实现，行为不变）。
-import { errBag, noRepoTarget, rawHint, resolveRepoTarget, listLabels } from './read/labels.js'
-// 旧路径只继续导出拆前那套对外名字（listLabels、LABEL_LIST_LIMIT），导出面与拆前逐字一致；
-// 内部帮手（errBag、resolveRepoTarget 等）由本文件按需导入，不往外漏。
-export { listLabels, LABEL_LIST_LIMIT } from './read/labels.js'
+// 这里多取一个 listLabels 只为保留旧默认导出面（default 里的 {listLabels, setLabelColors}），
+// 对外名字由旧路径的转发器继续转给调用方；内部帮手（errBag、resolveRepoTarget 等）不往外漏。
+import { errBag, noRepoTarget, rawHint, resolveRepoTarget, listLabels } from '../read/labels.js'
 
 /** gh 执行器的形状（client 房的 ghClient 回什么就是什么，这里只借它的类型）。 */
 type GhClient = ReturnType<typeof ghClient>;

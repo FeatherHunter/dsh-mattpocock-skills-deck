@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/github/read-sources.ts —— GitHub 后端的读来源登记表（#1683）
+ * src/tracker/rooms/github/read/read-sources.ts —— GitHub 后端的读来源登记表（#1683）
  *
  * 这份登记表回答：「在 GitHub 上，每条读操作允许走哪些渠道、取回什么形状、能表达哪些字段组。」
  * 答案不在这里手写：每一条都直接引用操作百科（`src/tracker/contract/operations-encyclopedia.ts`）
@@ -9,8 +9,8 @@
  * 它今天只被门禁 `tests/verify-operation-catalog.ts` 读取；阶段 1 的读结果来源记录（票 1685）
  * 会拿它当声明面。这里不接运行时行为：本票不改 GitHub 的读路径。
  */
-import { OPERATION_ENCYCLOPEDIA } from '../../contract/operations-encyclopedia.js'
-import type { ReadOperationName, ReadProfile } from '../../contract/operations-encyclopedia.js'
+import { OPERATION_ENCYCLOPEDIA } from '../../../contract/operations-encyclopedia.js'
+import type { ReadOperationName, ReadProfile } from '../../../contract/operations-encyclopedia.js'
 
 export const GITHUB_READ_SOURCES = {
   preflight: OPERATION_ENCYCLOPEDIA.preflight,

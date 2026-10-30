@@ -20,7 +20,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 function check (cond, msg) { if (!cond) { console.error('FAIL', msg); process.exitCode = 1 } else console.log('PASS', msg) }
 
 // ---------- 行为断言（stub 双路）----------
-const { listIssues, getIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/issues.ts')).href)
+const { listIssues, getIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/read/issues.ts')).href)
 
 // 固定夹具：150 条（page1=100, page2=50），其中 #1 为 wayfinder:map 地图；#7 为地图（有子票 414、8）；#414 在 page2
 function makeIssue (n) {

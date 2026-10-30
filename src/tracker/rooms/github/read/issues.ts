@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/github/issues.ts — issue 读路径（list / get + REST 降级 + 内存过滤）。
+ * src/tracker/rooms/github/read/issues.ts — issue 读路径（list / get + REST 降级 + 内存过滤）。
  *
  * 文件头原写 `backends/github/issues.js`，是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。
  *
@@ -16,45 +16,45 @@
  * `list:degraded`，单票那条写 `get:repo-ref` / `get:json` / `get:shape` / `get:gql-err` / `get:degraded`。
  */
 
-import { STATE, ERROR_KIND } from '../../contract/vocabulary.js'
-import type { OpContext } from '../../contract/contexts.js';
-import type { Issue, RepositoryRef } from '../../contract/entities.js';
-import type { GetOpts, ListFilter } from '../../contract/inputs.js';
-import type { IssueDetailResult, IssueListResult, OpResult } from '../../contract/results.js';
-import { fail } from '../../kernel/preflight.js'
-import { emitReadDegraded } from './read-log.js'
-import { ghClient } from './client.js'
-import { appendCommentPages, commentsWantOf, firstPageSizeOf, trimCommentsToWant } from './comment-paging.js'
-import { normalizeIssue } from './normalize.js'
-import { ghFailureMessage, ghVerdictOf } from './errors.js'
+import { STATE, ERROR_KIND } from '../../../contract/vocabulary.js'
+import type { OpContext } from '../../../contract/contexts.js';
+import type { Issue, RepositoryRef } from '../../../contract/entities.js';
+import type { GetOpts, ListFilter } from '../../../contract/inputs.js';
+import type { IssueDetailResult, IssueListResult, OpResult } from '../../../contract/results.js';
+import { fail } from '../../../kernel/preflight.js'
+import { emitReadDegraded } from '../support/read-log.js'
+import { ghClient } from '../transport/client.js'
+import { appendCommentPages, commentsWantOf, firstPageSizeOf, trimCommentsToWant } from '../channels/graphql/comment-paging.js'
+import { normalizeIssue } from '../model/normalize.js'
+import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { repairParentLinksREST } from './parent-repair.js'
-import { rosterAdoptList, rosterUpsert } from './roster.js'
-import type { MemoContext } from './roster.js'
-import { LIST_QUERY, GET_QUERY, LIST_PR_QUERY, GET_PR_QUERY, getIssueQuery } from './queries.js'
+import { rosterAdoptList, rosterUpsert } from '../model/roster.js'
+import type { MemoContext } from '../model/roster.js'
+import { LIST_QUERY, GET_QUERY, LIST_PR_QUERY, GET_PR_QUERY, getIssueQuery } from '../channels/graphql/queries.js'
 import { fetchAllPullsREST, enrichRestPRs, enrichSinglePR } from './pulls.js'
-import { pickFallbackReason } from './fallback-reason.js'
+import { pickFallbackReason } from '../routing/fallback-reason.js'
 import { fetchAllIssuesREST } from './issues-rest-list.js'
 // 读结果的来源与按字段组完整度（#1685）：起点在这里收，组装统一走 routing（不在每条读路径各自算）。
-import { beginRead } from './routing/read-result.js'
+import { beginRead } from '../routing/read-result.js'
 import {
   detailProvenanceFromGraphql,
   detailProvenanceFromPullRequest,
   detailProvenanceFromRest,
   listProvenanceFromGraphql,
   listProvenanceFromRest,
-} from './routing/read-assembly.js'
+} from '../routing/read-assembly.js'
 
 // 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
-import { debugOn, guardEmit } from '../../kernel/log-emit.js'
-import { PAGINATION } from '../../contract/pagination.js'
+import { debugOn, guardEmit } from '../../../kernel/log-emit.js'
+import { PAGINATION } from '../../../contract/pagination.js'
 // REST 读走 30 秒档（中央 githubRestReadMs，与读档 12 秒分开）：慢网下备路翻页不被房内到点砍断。
-import { GITHUB_REST_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+import { GITHUB_REST_READ_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
 
-/** 仓库坐标：拥有者与仓库名，refId 形不对就回 null 而不是抛。 */
-interface ParsedRepo {
-  owner: string;
-  name: string;
-}
+// 仓库坐标解析（#1687）：同一份 parseRepo / repoId 原在 issues.ts、labels.ts、graph.ts 各有一份，
+// 现在抽到 model/issue-key.ts 供读写两侧共用；这里再导出一次，保持本文件对外的旧导出面。
+import { parseRepo, repoId } from '../model/issue-key.js'
+import type { ParsedRepo } from '../model/issue-key.js'
+export { parseRepo, repoId }
 
 // list 的返回形状跑到了契约里（#1304）：房间多交代的 `truncated` / `fallback` / `fallbackReason`
 // 是从房间流向调用方的合同，不只是本文件内部的事；契约那份带完整字段说明，这里只留别名。
@@ -88,21 +88,6 @@ function emitBadNodes(ctx: OpContext, scope: string, dropped: number, total: num
   guardEmit(ctx, (c) => {
     c.logEvent('debug', 'error.normalize', { rawKind: 'bad-node:' + scope + ':' + dropped + '/' + total, mappedKind: ERROR_KIND.PARSE })
   }, () => debugOn(ctx))
-}
-
-export function parseRepo(repo: RepositoryRef | null | undefined): ParsedRepo | null {
-  if (!repo || typeof repo.refId !== 'string' || !repo.refId) return null
-  const s = repo.refId.trim()
-  const idx = s.indexOf('/')
-  if (idx <= 0) return null
-  return { owner: s.slice(0, idx), name: s.slice(idx + 1) }
-}
-
-export function repoId(repo: RepositoryRef | null | undefined): string {
-  if (!repo) return ''
-  if (typeof repo.refId === 'string' && repo.refId) return repo.refId
-  if (typeof repo.name === 'string' && repo.name) return repo.name
-  return ''
 }
 
 

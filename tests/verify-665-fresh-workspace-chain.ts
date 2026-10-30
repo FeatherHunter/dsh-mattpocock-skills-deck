@@ -83,7 +83,7 @@ interface BackendPick {
 }
 // 后端声明：直接用宿主那几个后端模块里声明的 prompts 与 setupPrompt（真数据，不是替身）。
 async function loadBackends(): Promise<{ github: BackendPick; markdown: BackendPick; gitlab: BackendPick }> {
-  const gh = await import(url('src/tracker/rooms/github/index.ts'))
+  const gh = await import(url('src/tracker/rooms/github/room/index.ts'))
   const md = await import(url('src/tracker/rooms/markdown/index.ts'))
   const pick = (m: any): BackendPick => ({ id: m.id, label: m.label, setupPrompt: m.setupPrompt, prompts: m.prompts, capabilities: m.capabilities || {} })
   return {
@@ -561,7 +561,7 @@ async function main() {
   //   prompts.cliInstall），产物里因此不再有那段字面文本，只有它的键名；替身账本里也没有 GitHub 模块的
   //   prompts（loadBackends 只搬了 id/label/setupPrompt/prompts，而替身走的是下面这条真身渲染路）。
   //   所以这里改成量**真行为**：拿真后端声明（宿主那个模块）渲染这一步的按钮文案，看它逐字是不是金样。
-  const ghModule = (await import(url('src/tracker/rooms/github/index.ts'))).githubModule
+  const ghModule = (await import(url('src/tracker/rooms/github/room/index.ts'))).githubModule
   const declared = ghModule && ghModule.prompts && ghModule.prompts.cliInstall
   const rendered = declared ? String((declared.zh || declared.en || '')) : ''
   ok(rendered === GH_INSTALL_TEXT,

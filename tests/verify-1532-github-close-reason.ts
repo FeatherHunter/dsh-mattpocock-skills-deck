@@ -1,9 +1,9 @@
 import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
-import { closeIssue } from '../src/tracker/rooms/github/issues-write.ts'
+import { closeIssue } from '../src/tracker/rooms/github/write/issues.ts'
 
 // tests/verify-1532-github-close-reason.ts —— #1532 专属门禁：GitHub 后端自由文本关闭原因不再塞进 --reason
 //
-// 门禁归属: src/tracker/rooms/github/issues-write.ts
+// 门禁归属: src/tracker/rooms/github/write/issues.ts
 //
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-1532-github-close-reason.ts
 //

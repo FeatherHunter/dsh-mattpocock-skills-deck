@@ -334,7 +334,8 @@ console.log('── B. 档位字面量只许出现在真源文件里')
     // ── 以下四条按「文件 + 具体字符串」放行（Lead 2026-10-14 定夺）：不是 TrackerError 档位，
     //    本票不收编；同一个文件里以后新冒出来的档位词照样判红，所以放行面是收窄的。
     {
-      file: 'src/tracker/rooms/github/init-project.ts',
+      // #1687：初始化流程随写侧整份搬进 write/，白名单跟到真身。
+      file: 'src/tracker/rooms/github/write/init-project.ts',
       values: ['bad-name', 'git-ownership', 'no-git', 'no-gh', 'not-logged-in', 'already-exists', 'permission'],
       why: '初始化流程自己的一套结果词，不是 ERROR_KIND 的八档；#1111 不收编（八档口径与名录属地图 02），只放行点名的这几个词',
     },
@@ -344,7 +345,8 @@ console.log('── B. 档位字面量只许出现在真源文件里')
       why: '整份就是初始化流程的结果词映射表；这里的 network 也是初始化结果词（不是 TrackerError 档位），一并按具体字符串放行',
     },
     {
-      file: 'src/tracker/rooms/github/fallback-reason.ts',
+      // #1687：降级原因分类搬进 routing/，白名单跟到真身。
+      file: 'src/tracker/rooms/github/routing/fallback-reason.ts',
       values: ['timeout', 'rate-limit'],
       why: '这两个词是降级原因码（graphql.fallback 事件的 reason 字段），不是 TrackerError 的档位；rate-limit 与档位词同形纯属巧合',
     },
@@ -357,7 +359,8 @@ console.log('── B. 档位字面量只许出现在真源文件里')
       why: '通路失败原因词不是 TrackerError 档位；同一个文件里以后新冒出来的档位词照样判红，只放行 timeout 这一个词',
     },
     {
-      file: 'src/tracker/rooms/github/issues-write.ts',
+      // #1687：写实现整份搬进 write/，白名单跟到真身。
+      file: 'src/tracker/rooms/github/write/issues.ts',
       values: ['unknown'],
       why: '票上的 parentError 子字段（挂父票失败的原因），不是 TrackerError 的档位；unknown 表示这次异常连原因都没拿到',
     },

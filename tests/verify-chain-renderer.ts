@@ -149,7 +149,8 @@ check(!checksTab.includes("openUrl('https://cli.github.com/manual/gh_auth_login'
 const statusBar = file('src/client/statusbar/StatusBar.js') + file('src/client/statusbar/bannerChain.js') + file('.build/shared/tracker/guide-steps.js')
 check(statusBar.includes("promptText('ghAuthLogin')") || statusBar.includes('ghAuthLogin') || statusBar.includes('hintTextOf'), 'StatusBar 含 ghAuthLogin 或通用 hint（兼容）')
 check(!statusBar.includes("openUrl('https://cli.github.com/manual/gh_auth_login')"), 'StatusBar 已删除 openUrl 硬编码')
-const ghBackend = file('src/tracker/rooms/github/index.ts')
+// #1687 阶段 1 收口：房间入口整份搬进 room/，这条断言跟着看真身。
+const ghBackend = file('src/tracker/rooms/github/room/index.ts')
 check(ghBackend.includes('ghAuthLogin'), 'github 后端 fixes 含 ghAuthLogin（bc72e16 迁移真源）')
 const fixContract = file('src/tracker/fix-contract.ts')
 check(fixContract.includes('attachFixContract'), 'fixContract 存在并处理 prompt 解析')

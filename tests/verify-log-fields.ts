@@ -50,7 +50,7 @@ const ALLOWED = {
   // 2026-10-21（#1007 复核）再增补一格 cmd：这一条 gh 命令是哪种子命令，形状是短标签
   //   （api:graphql / api:repos / issue:create / auth:status），第二段不是纯动词时只留第一段。
   //   为什么要有：从前只有 argv0='gh'，一次失败分不清是「查登录态失败」还是「改票失败」；命令参数与编号一律不进日志。
-  //   落点：src/tracker/rooms/github/client.ts 与 src/refresh/rooms/host/git-execution.ts 的 gh.exec 调用点。
+  //   落点：src/tracker/rooms/github/transport/client.ts 与 src/refresh/rooms/host/git-execution.ts 的 gh.exec 调用点。
   // 2026-10-25（#1482）再增补两格：points 这一笔记进账本的点数（GraphQL 按回包 rateLimit.cost 记真实点数，
   //   拿不到时按 1 点估；REST 记 0），pointSource 说这个点数是哪来的（server 回包给了真实 cost / estimate 按 1 点估 /
   //   空串 不是 GraphQL）。为什么要有：账本曾经把 GraphQL 记成 REST、点数固定按 1，记歪了光看日志查不出；
@@ -166,7 +166,7 @@ const ALLOWED = {
   //   ④ 按需 #103 `edge.repair`（调试级）：REST 降级回包里那次树边修复。字段四个：
   //      maps 这一趟问了几张地图、linked 认下几条子票边、failed 哪几张地图没补成、latencyMs。
   //   三条调试线都在调用处先判一次 `isEnabled('debug')`，关闭时连字段对象都不组装。
-  //   落点：src/tracker/rooms/github/graph.ts（edge.write、edge.cycle）、cycle-check.ts（edge.roster）、
+  //   落点：src/tracker/rooms/github/write/graph.ts（edge.write、edge.cycle）、cycle-check.ts（edge.roster）、
   //   parent-repair.ts（edge.repair）。
   'edge.write': ['kind', 'route', 'ok', 'added', 'removed', 'kept', 'reason', 'latencyMs'],
   'edge.cycle': ['verdict', 'nodes', 'blockers', 'latencyMs'],
@@ -188,7 +188,7 @@ const ALLOWED = {
   //   failed 建完票之后补挂标签、认领、父边没挂上的步数、reason 为什么是这个结论
   //   （fresh 真新建 / reuse 幂等锚命中复用 / edited 改了已有票 / noop 一处没改 /
   //   partial 写成了但有补挂没挂上 / fail:<档位>）、latencyMs 这一趟花了多久。
-  //   落点三处：src/tracker/rooms/github/write-log.ts 的 emitIssueWrite（一趟一行），由同目录的
+  //   落点三处：src/tracker/rooms/github/support/write-log.ts 的 emitIssueWrite（一趟一行），由同目录的
   //   issues-write.ts（建票、关闭、重开、改票、改认领五件事）、comments.ts（评论）、labels.ts（贴标签）
   //   各调一次。同一天同一票增补的 #106 labelDefs.write 与 #107 repo.init 与它共用同一份机制，
   //   把同一片写路径剩下的两族（标签配色、开仓发布）也接上了结论线。
@@ -202,7 +202,7 @@ const ALLOWED = {
   //   planned 打算动几个、written 真发出去几条、failed 几条没改上、ok 成没成、
   //   reason 为什么（edited 都改上了 / partial 有的改上有的没改上 / allfailed 一条都没改上 /
   //   noop 一条都不用改 / fail:<档位>）、latencyMs 这一趟花了多久。
-  //   落点一处：src/tracker/rooms/github/label-colors-ops.ts 的 emitLabelDefsWrite（setLabelColors 这个
+  //   落点一处：src/tracker/rooms/github/write/label-colors.ts 的 emitLabelDefsWrite（setLabelColors 这个
   //   对外入口调一次，一趟一行）。
   'labelDefs.write': ['planned', 'written', 'failed', 'ok', 'reason', 'latencyMs'],
   // 2026-10-14（#1053 增补）新增常驻 #107 `repo.init`：把工作区初始化并发布成 GitHub 仓库这一趟的结论 ——
@@ -213,7 +213,7 @@ const ALLOWED = {
   //   允许字段五个，全是枚举、布尔与计数，**仓库名、远端地址、命令原文、上游报错原文一个字都不记**：
   //   route 走的是新建远程仓库（created）还是推到已有远程（existing）、steps 这一趟一共起了几条外部命令
   //   （走到第几条）、ok 成没成、reason 为什么（done 走完了 / fail:<档位> 停在哪一档）、latencyMs 花了多久。
-  //   落点一处：src/tracker/rooms/github/init-project.ts 的 emitRepoInitWrite（initProject 这个对外入口
+  //   落点一处：src/tracker/rooms/github/write/init-project.ts 的 emitRepoInitWrite（initProject 这个对外入口
   //   调一次，一趟一行；execProcLocal 与 ghStep 各计一步 steps，两条分支各写 route）。
   'repo.init': ['route', 'steps', 'ok', 'reason', 'latencyMs'],
   'workspaceStore.hit': ['keyHash', 'fresh', 'ttlMs'],

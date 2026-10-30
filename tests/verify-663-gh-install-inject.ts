@@ -91,7 +91,7 @@ const ghMissing = (extra?: { authed?: Record<string, unknown> }): any => ({
 
 async function main() {
   const { mod, seen, guide } = await loadBannerChain()
-  const ghMod = await import(pathToFileURL(path.join(root, 'src/tracker/rooms/github/index.ts')).href)
+  const ghMod = await import(pathToFileURL(path.join(root, 'src/tracker/rooms/github/room/index.ts')).href)
   const ghPrompts = ghMod.prompts
   const ghStep = guide.GUIDE_STEPS.find((s: any) => s.id === 'gh:installed')
   ok(!!ghStep, '清单里有「gh cli 已安装」这一步')

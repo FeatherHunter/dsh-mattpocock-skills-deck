@@ -1,15 +1,15 @@
 {
   "version": 2,
   "metric": "effective-lines",
-  "recordedAt": "2026-10-20",
+  "recordedAt": "2026-10-30",
   "note": "零增长基线：按有效行（注释与空行都不计）记，只许减不许增；达标文件由各自拆分票移出。",
   "files": {
     "src/client/kernel/api-io.ts": 369,
     "src/client/kernel/entry-card.ts": 357,
     "src/client/views/versionControl/VersionControlTab.ts": 366,
-    "src/deck/tools/map-plan-create.ts": 373,
+    "src/deck/tools/map-plan-create.ts": 367,
     "src/host/namingGuardian.ts": 374,
-    "src/tracker/detection/backendDecision.ts": 740,
-    "src/tracker/rooms/gitlab/graph-blocking.ts": 435
+    "src/tracker/detection/backendDecision.ts": 642,
+    "src/tracker/rooms/gitlab/graph-blocking.ts": 402
   }
 }

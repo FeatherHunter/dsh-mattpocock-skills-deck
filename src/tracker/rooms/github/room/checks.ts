@@ -1,5 +1,7 @@
 /**
- * src/tracker/rooms/github/checks.ts — GitHub 后端的检查表（GITHUB_CHECKS）。
+ * src/tracker/rooms/github/room/checks.ts — GitHub 后端的检查表（GITHUB_CHECKS）。
+ *
+ * #1687 阶段 1：从房间根迁入 room/（它是房间门面的一部分）；房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 这张表只做一件事：把检查目录（`src/shared/tracker/check-catalog-dirs.ts`）里属于 GitHub 后端
  * 的检查项、按目录顺序交给模块对象（`index.ts` 的 `githubModule.checks`）。2026-10-27 之前这里
@@ -10,8 +12,8 @@
  * 没有外部调用、没有时间边界、也没有状态变化——加日志属于「只记结果不记原因」，读了也指不出
  * 下一步该查哪里。真正会失败的判断在 `preflight.ts` 那三项门禁里。
  */
-import type { RoomCheckEntry } from '../../contract/backend-module.js'
-import { backendItemsOf } from '../../../shared/tracker/check-catalog-dirs.js'
+import type { RoomCheckEntry } from '../../../contract/backend-module.js'
+import { backendItemsOf } from '../../../../shared/tracker/check-catalog-dirs.js'
 
 /**
  * GitHub 后端检查表：目录 GitHub 后端段的只读投影（4 项：仓库定位 c1、gh CLI c4、gh 登录 c5、

@@ -354,3 +354,33 @@ export function mapsProvenanceFromGraphql(clock: ReadClock, facts: {
     startVersion: clock.startVersion,
   })
 }
+
+/**
+ * 当前用户走了 gh api user 时的来源信息（getCurrentUser，#1687 房间入口收口）。
+ *
+ * 来源只有 rest 一个渠道（这一笔就是 REST 端点 /user），身份组问到 login 才算读成；
+ * 问不出来时调用方回失败、不挂 provenance，所以成功这一支身份组必为完整。
+ */
+export function currentUserProvenance(clock: ReadClock): ReadProvenance {
+  return buildReadProvenance('getCurrentUser', {
+    source: 'rest',
+    fieldGroups: { identity: 'complete' },
+    durationMs: elapsedOf(clock),
+    startVersion: clock.startVersion,
+  })
+}
+
+/**
+ * 读插件自己的额度账本时的来源信息（readBudget，#1687 房间入口收口）。
+ *
+ * 这条读不经过远端渠道，来源固定记 local；只有真量到两桶水位才挂来源，
+ * 量不出来的「未知」不是一份可交代的读结果，调用方原样交回、这里不伪造完整度。
+ */
+export function readBudgetProvenance(clock: ReadClock): ReadProvenance {
+  return buildReadProvenance('readBudget', {
+    source: 'local',
+    fieldGroups: { counts: 'complete' },
+    durationMs: elapsedOf(clock),
+    startVersion: clock.startVersion,
+  })
+}

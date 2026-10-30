@@ -295,7 +295,7 @@ check(writeOpenCalls === 0, '写评论：参数不合格时不开会话')
 // 二、房间侧：get 认 GetOpts.comments.first 并按游标翻页（上限 200，一页最多 100）
 // ---------------------------------------------------------------------------
 
-const { getIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/issues.ts')).href)
+const { getIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/read/issues.ts')).href)
 const { createOutboundControl } = await import(pathToFileURL(resolve(ROOT, 'src/refresh/rooms/host/outbound-control.ts')).href)
 
 const RAW_COMMENTS = []

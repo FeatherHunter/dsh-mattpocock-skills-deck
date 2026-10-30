@@ -1251,12 +1251,16 @@ const runYamlProductAssertions = function () {
 // ==================== 5. 五面扫描（返回问题数组，主跑与变异自检共用） ====================
 const surfaceReport = { S1: 0, S2: [0, 0], S3: [], S4: 0, S5: 0, S6: 0, S7: 0, S8: [0, 0], exempt: EXEMPT.length }
 const BACKENDS = ['github', 'gitlab', 'markdown']
+// #1687 阶段 1 收口：github 的房间入口整份搬进 room/，另外两房入口仍在各自房间根。
+const backendRel = function (id) {
+  return id === 'github' ? 'src/tracker/rooms/github/room/index.ts' : 'src/tracker/rooms/' + id + '/index.ts'
+}
 const backendPath = function (id, probe) {
   if (id === 'github' && probe) return probe
-  return path.join(ROOT, 'src/tracker/rooms', id, 'index.ts')
+  return path.join(ROOT, backendRel(id))
 }
 const backendLabel = function (id, probe) {
-  return (id === 'github' && probe) ? probe : 'src/tracker/rooms/' + id + '/index.ts'
+  return (id === 'github' && probe) ? probe : backendRel(id)
 }
 const failLine = function (where, rule, snippet, raw) {
   return 'FAIL ' + where + ' [' + rule + '] 命中「' + snippet + '」' +
@@ -2217,7 +2221,8 @@ const runL2Injection = function () {
       })
       return out
     }
-    const backendSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/rooms/github/index.ts'), 'utf8')
+    // #1687 阶段 1 收口：房间入口整份搬进 room/，注入与自证都读真身。
+    const backendSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/rooms/github/room/index.ts'), 'utf8')
     L2_PAYLOADS.forEach(function (p) {
       let mutated = null
       let extraArgs = []
@@ -2440,10 +2445,12 @@ const selfDigest = function () {
 // 2026-10-30（同日第五笔）：newWayfinder v29→v30 —— 把 subissue 改成官方写法 sub-issue（带连字符）；V_MIN 29 → 30，自摘要按新内容重算。
 // 2026-10-31：mapExecute v22→v23 —— 补地图推进四节操作约束（插件增量、不复述技能规则），
 //   V_MIN 22 → 23，自摘要按新内容重算。
+// #1687：github 的房间入口整份搬进 room/index.ts，S3 扫描面、L1/L2 注入源与失败文案的路径跟着改到
+//   src/tracker/rooms/github/room/index.ts（扫描内容与判据都没动），自摘要按新内容重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'f9fae34e48e44b8775bc2d0d2a04f6b7daac6ca6fef06dc8f80886769426739d',
+  'tests/verify-prompts.ts': 'c772ed462734452473f0394dc0a396aee51aa3d6049ec121c5b95dfc339dd248',
 }
 // ---- LOCK-END ----
 
@@ -2905,7 +2912,8 @@ if (reg) {
 
 // —— L1 / L2 / L3 / 自注册 ——
 if (!IS_CHILD) {
-  const backendSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/rooms/github/index.ts'), 'utf8')
+  // #1687 阶段 1 收口：房间入口整份搬进 room/，L1 夹具自证读真身。
+  const backendSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/rooms/github/room/index.ts'), 'utf8')
   const l1 = reg ? runFixtureSelfCheck(reg, backendSrc) : { ok: false }
   if (l1.ok) console.log('  PASS L1 夹具自证（绕过 ' + FIXTURE_BYPASS.length + ' 条全红 / 误报 ' + FIXTURE_FALSE_POS.length + ' 条全绿 / 范围·解析·渲染·反隐藏四类各 1 条）')
   const l2 = runL2Injection()

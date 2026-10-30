@@ -1,36 +1,44 @@
 /**
- * src/tracker/rooms/github/graph.ts — 图关系（setParent / getDependencies / setBlockedBy）。
+ * src/tracker/rooms/github/write/graph.ts — 图关系的写侧（setParent / setBlockedBy）。
+ * #1687 阶段 1：从房间根迁入 write/。父子边与阻塞边的写入、写前成环检查、写后读回都归写侧；
+ * getDependencies 这条纯读路径已在同一次迁移里并入 read/deps-read.ts，本文件只保留旧导出面（转出它）。
  *
  * 定版依据：#138 §1.2 + #128（树/图数据需求由 parentKey+tickets+getDependencies 覆盖）
  * - 树 setParent → POST/DELETE /repos/{o}/{r}/issues/{n}/sub_issues（null → DELETE；GHES 不支持 → unsupported）
- * - 依赖 getDependencies → {blockedBy, blocking}；setBlockedBy → 自环/成环 conflict；read→diff→N写
+ * - 依赖 setBlockedBy → 自环/成环 conflict；read→diff→N写
  * - 所有 op 返回 OpResult，不 throw；preflight 只判环境，能力不在 preflight 预判
  */
 
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { OpContext } from '../../contract/contexts.js';
-import type { Issue, IssueRef, RepositoryRef } from '../../contract/entities.js';
-import type { DepsOpts, SetOpts } from '../../contract/inputs.js';
-import type { Dependencies, OpResult } from '../../contract/results.js';
-import { fail } from '../../kernel/preflight.js'
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import type { OpContext } from '../../../contract/contexts.js';
+import type { Issue, IssueRef, RepositoryRef } from '../../../contract/entities.js';
+import type { SetOpts } from '../../../contract/inputs.js';
+import type { OpResult } from '../../../contract/results.js';
+import { fail } from '../../../kernel/preflight.js'
 // 记日志那层壳、耗时与「成没成、失败哪一档」的读法都在内核一份（#1182 第 3 件）：
 // 本文件从前留着手写副本，与另两座房逐字同形，留着就是「同一句承诺三处实现」。
-import { debugOn, guardEmit, outcomeOf } from '../../kernel/log-emit.js'
-import { ghClient } from './client.js'
-import { ghFailureMessage, ghVerdictOf } from './errors.js'
-import { getIssue } from './issues.js'
+import { debugOn, guardEmit, outcomeOf } from '../../../kernel/log-emit.js'
+import { ghClient } from '../transport/client.js'
+import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
+// 读票本身是读侧的职责（写后读回也走它）；#1687 批次 3 把 read/issues.ts 落位后这里改成 '../read/issues.js'。
+import { getIssue } from '../read/issues.js'
 import { adjacencyFor, hasCycle, CYCLE_VERDICT } from './cycle-check.js'
 import type { CycleVerdict } from './cycle-check.js'
-import { markDirty } from './roster.js'
-import type { MemoContext } from './roster.js';
-import { normalizeIssue } from './normalize.js'
+import { markDirty } from '../model/roster.js'
+import type { MemoContext } from '../model/roster.js';
+import { normalizeIssue } from '../model/normalize.js'
 // 依赖投影的读路径（原生反向边优先、兜底自曝）从 #1304 起单开一房：本文件只留入口校验与判档。
-import { readDependencies } from './deps-read.js'
+import { readDependencies } from '../read/deps-read.js'
+// getDependencies 是纯读路径（#1687 搬进 read/deps-read.ts），这里只保留旧导出面：房间入口还按旧接口要它。
+import { getDependencies } from '../read/deps-read.js'
+export { getDependencies }
 // 写阻塞边这一段（GraphQL 优先、明确不支持才回落 REST）搬到了 blocked-by-write.ts：
 // graph.ts 的有效行已被零增长基线冻结（只许减不许增），所以这里只留「读真值 → 算差集 → 委托写 → 读回」这条主干。
 import { writeBlockedByEdges } from './blocked-by-write.js'
 import type { EdgeTrail } from './blocked-by-write.js'
-import { PAGINATION } from '../../contract/pagination.js'
+import { PAGINATION } from '../../../contract/pagination.js'
+// 仓库坐标解析与读侧共用一份（#1687 从三处一模一样的副本里抽出来），不再在本文件里重写。
+import { parseRepo, repoId } from '../model/issue-key.js'
 
 /** gh 执行器的形状（client 房的 ghClient 回什么就是什么，这里只借它的类型）。 */
 type GhClient = ReturnType<typeof ghClient>;
@@ -81,20 +89,6 @@ function emitEdgeWrite(ctx: OpContext, kind: string, trail: EdgeTrail, r: OpResu
   })
 }
 
-function parseRepo(repo: RepositoryRef): ParsedRepo | null {
-  if (!repo || typeof repo.refId !== 'string' || !repo.refId) return null
-  const s = repo.refId.trim()
-  const idx = s.indexOf('/')
-  if (idx <= 0) return null
-  return { owner: s.slice(0, idx), name: s.slice(idx + 1) }
-}
-
-function repoId(repo: RepositoryRef): string {
-  if (!repo) return ''
-  if (typeof repo.refId === 'string' && repo.refId) return repo.refId
-  if (typeof repo.name === 'string' && repo.name) return repo.name
-  return ''
-}
 
 // 取一张票的数据库编号（非 # 显示编号）：裸接口建边用；与阻塞边的 idOf 同形。
 async function issueDbId(c: GhClient, parsed: ParsedRepo, numberKey: string, ctx: OpContext): Promise<number | null> {
@@ -137,6 +131,7 @@ async function nativeBlockedByKeys(c: GhClient, parsed: ParsedRepo, numberKey: s
     return out
   } catch { return null }
 }
+
 
 /**
  * setParent(repo, key, parentKey, opts, ctx) -> OpResult<Issue>
@@ -298,42 +293,7 @@ async function setParentInner(repo: RepositoryRef, key: string, parentKey: strin
   }
 }
 
-/**
- * getDependencies(repo, key, opts, ctx) -> OpResult<{blockedBy, blocking, blockingSource, blockingComplete}>
- * - blockedBy 读自 GitHub blockedBy 边（唯一真源，写边也只认它）
- * - blocking 反向投影：原生字段一次查询取回，开销与仓库总票数无关；原生不可用才退回整仓列表反推。
- *   退回兜底、或者连接/列表到了上限时，返回值会自己说清「用了兜底」「可能不全」（见 deps-read.ts）。
- */
-export async function getDependencies(repo: RepositoryRef, key: string, opts: DepsOpts | undefined, ctx: MemoContext): Promise<OpResult<Dependencies>> {
-  try {
-    const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `getDependencies: repo.refId missing: ${repoId(repo)}`, repo)
-    // 批量模式：opts.keys
-    if (opts && Array.isArray(opts.keys) && opts.keys.length) {
-      // 批量返回聚合：对每 key 各自取依赖投影，再合并；宿主快照平时逐 key 调用，多 key 分支罕见。
-      // 为什么显式标：循环里才往里装，编译器判成隐式 any；装的本来就是编号与那份依赖投影，运行时还是原来那几个值。
-      const results: { key: string; data: Dependencies }[] = []
-      for (const kk of opts.keys) {
-        const single = await getDependencies(repo, kk, {}, ctx)
-        if (!single.ok) return single
-        results.push({ key: String(kk), data: single.data })
-      }
-      // 为保持契约返回单对象，此处仅支持单 key 批量由宿主 snapshot LRU 处理；批量请求暂返回首个
-      if (results.length === 1) return { ok: true, data: results[0].data }
-      // 多 key 批量：返回首个的 data（宿主会逐 key 调用，此分支罕见）
-      return { ok: true, data: results[0]?.data || { blockedBy: [], blocking: [] } }
-    }
-    const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'getDependencies: key required', key)
-    // 读路径整段委托给 deps-read.ts：原生优先、兜底自曝，这里只留入口校验与判档。
-    return await readDependencies(repo, parsed, k, ctx)
-  } catch (e) {
-    // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
-    // 第三段把出错的那个值原样交出去当原文。
-    const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
-  }
-}
+
 
 /**
  * 环检测的调试线（附录 1.5 节 #101 `edge.cycle`）：一趟一行，回答「这次查没查、拿什么查的、结论是什么」。
@@ -464,5 +424,6 @@ async function setBlockedByInner(repo: RepositoryRef, key: string, blockers: str
     return fail(verdict.kind, ghFailureMessage(verdict, own), e)
   }
 }
+
 
 export default { setParent, getDependencies, setBlockedBy }

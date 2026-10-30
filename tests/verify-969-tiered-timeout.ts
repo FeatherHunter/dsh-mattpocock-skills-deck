@@ -116,7 +116,7 @@ if (tiers) {
 
 // —— 二、慢网超时归网络档，不报没登录 ——
 {
-  const { classifyGhError } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/errors.ts')).href)
+  const { classifyGhError } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/support/errors.ts')).href)
   const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
   // 超时原文（含 timeout / timed out / 超时杀掉）一律归网络档
   check(classifyGhError({ message: 'timeout of 12000ms exceeded' }) === ERROR_KIND.NETWORK, '二、读超时原文归网络档（未知、稍后）')
@@ -129,7 +129,7 @@ if (tiers) {
 
 // —— 三、执行层按档取超时：读、写、探活各按中央常量那一档（#1160、#1224）——
 {
-  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
+  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/transport/client.ts')).href)
   // 假执行器：只记调用方要它等多久，不真起进程
   const seen = []
   const fakeExec = async (cmd, args, opts) => {
@@ -162,7 +162,7 @@ if (tiers) {
 
 // —— 四、写超时只试一次就停，不自动再发一次 ——
 {
-  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
+  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/transport/client.ts')).href)
   const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
   let calls = 0
   const timeoutExec = async () => {
@@ -199,7 +199,7 @@ if (tiers) {
 
 // —— 六、房内自己掐表（#1007）：排队段也算进这只表，且与「调用方取消」分得开 ——
 {
-  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
+  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/transport/client.ts')).href)
   const { getGhLane, resetGhLaneForTest } = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/outbound-admission.ts')).href)
   const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
 
@@ -258,7 +258,7 @@ if (tiers) {
 
 // —— 七、房内排队只等上限（#1560）：名额满时不等整档，上限到点报「还在排队、一次没跑」——
 {
-  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
+  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/transport/client.ts')).href)
   const { getGhLane, resetGhLaneForTest } = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/outbound-admission.ts')).href)
   const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
   const tiers7 = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/kernel/outbound-tiers.ts')).href)

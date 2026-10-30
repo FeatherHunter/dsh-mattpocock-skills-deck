@@ -1,30 +1,31 @@
 /**
- * backends/github/init-project.js — 开仓发布流程。
+ * src/tracker/rooms/github/write/init-project.ts — 开仓发布流程。
+ * #1687 阶段 1：从房间根迁入 write/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 由 #440 从 index.js 纯结构移出（initProject），行为零变化。
  * 以后改创建发布流程的人改它。预估约 215 行。
  */
 
-import { ghClient } from './client.js'
-import { getRepoKey } from './repo.js'
+import { ghClient } from '../transport/client.js'
+import { getRepoKey } from '../model/repo.js'
 // #993 / #994：分类器与「属主不一致」判断都收进 src/shared/tracker/（cross-import 门禁的白名单目录），
 //   与面板那条路（src/host/publishFlow.js）共用同一份实现，避免两处各判一套而漂移。
-import { makeCreateErrorClassifier, KIND_UNKNOWN } from './init-project-error-kinds.js'
+import { makeCreateErrorClassifier, KIND_UNKNOWN } from '../support/init-project-error-kinds.js'
 // 结果词表里凡是要说 TrackerError 八档中某一档的地方，取值都引用真源常量，不写裸字符串，
 // 免得「少一个连字符」「换个近义词」这类偏差逃过检查；本文件其余自成一档的结果词不在八档内，保持原样。
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../../kernel/workspace-ownership.js'
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../../../kernel/workspace-ownership.js'
 // #1111：失败结果统一是三段式（kind / message / raw），这里几条直接写出来的失败字面量也要带原文段 ——
 //   原文取法走跟踪器层唯一那套（多路合并、遮蔽凭据、头尾截断），与 fail() 一致。
-import { rawText } from '../../kernel/preflight.js'
-import type { OpContext, RepoHandle } from '../../contract/contexts.js';
-import type { RepositoryRef } from '../../contract/entities.js';
-import type { InitProjectInput } from '../../contract/inputs.js';
+import { rawText } from '../../../kernel/preflight.js'
+import type { OpContext, RepoHandle } from '../../../contract/contexts.js';
+import type { RepositoryRef } from '../../../contract/entities.js';
+import type { InitProjectInput } from '../../../contract/inputs.js';
 // #106 `repo.init`：开仓发布这一趟的常驻结论线（轨迹形状与发射口在 ./write-log.js）。
-import { beginWriteTrail, emitRepoInitWrite } from './write-log.js'
-import type { WriteTrail } from './write-log.js';
+import { beginWriteTrail, emitRepoInitWrite } from '../support/write-log.js'
+import type { WriteTrail } from '../support/write-log.js';
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GIT_PROBE_TIMEOUT_MS, GITHUB_INIT_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+import { GIT_PROBE_TIMEOUT_MS, GITHUB_INIT_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
 
 /**
  * 开仓失败的错误：三段式，但 kind 是开仓自己的结果词（bad-name/no-git/no-gh/not-logged-in/

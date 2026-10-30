@@ -188,7 +188,7 @@ async function loadPlugin(services) {
   // 假注册表：选后端固定为 GitHub（理由见 makeFakeRegistry），房间实现仍用真的那一份。
   let fakeRegistry = null
   if (!services.trackerRegistry) {
-    const initMod = await import('../src/tracker/rooms/github/init-project.js')
+    const initMod = await import('../src/tracker/rooms/github/write/init-project.js')
     fakeRegistry = makeFakeRegistry(initMod.initProject, services.subprocess)
     services = Object.assign({}, services, { trackerRegistry: fakeRegistry })
   }

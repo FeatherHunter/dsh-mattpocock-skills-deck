@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/read/sub-issues.ts —— 取一张地图的**全部**子票（#691 阶段 3：「地图子票拉全」）。
- * #1686 阶段 1：从房间根迁入 read/，旧路径 src/tracker/rooms/github/sub-issues.ts 保留纯转发，行为零变化。
+ * #1686 阶段 1：从房间根迁入 read/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 文件头原写 `backends/github/sub-issues.js`，是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。
  *
@@ -40,7 +40,7 @@ import { ghClient } from '../transport/client.js'
 import { normalizeIssue } from '../model/normalize.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { SUB_ISSUES_QUERY } from '../channels/graphql/queries.js'
-import { parseRepo, repoId } from '../issues.js'
+import { parseRepo, repoId } from '../model/issue-key.js'
 import { emitReadDegraded } from '../support/read-log.js'
 import { beginRead } from '../routing/read-result.js'
 import { subIssuesProvenanceFromGraphql } from '../routing/read-assembly.js'

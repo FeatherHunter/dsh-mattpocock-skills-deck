@@ -1,42 +1,23 @@
 /**
- * backends/github/comments.js — comment 操作。
+ * src/tracker/rooms/github/write/comments.ts — comment 操作。
+ * #1687 阶段 1：从房间根迁入 write/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 定版依据：#138 §1.4（comment 归一）+ contract.js OpResult 形状。
  * - 签名：comment(repo, key, body, ctx) -> OpResult<Comment>
  * - 通过 `gh issue comment` / REST POST 实现；错误分类经 ghVerdictOf（判档表在 src/tracker/kernel/error-rules.ts）
  */
 
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { OpContext } from '../../contract/contexts.js';
-import type { Comment, RepositoryRef } from '../../contract/entities.js';
-import type { OpResult, TrackerError } from '../../contract/results.js';
-import { fail } from '../../kernel/preflight.js'
-import { ghClient } from './client.js'
-import { ghFailureMessage, ghVerdictOf } from './errors.js'
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import type { OpContext } from '../../../contract/contexts.js';
+import type { Comment, RepositoryRef } from '../../../contract/entities.js';
+import type { OpResult, TrackerError } from '../../../contract/results.js';
+import { fail } from '../../../kernel/preflight.js'
+import { ghClient } from '../transport/client.js'
+import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 // #104 `issue.write`：票写入的常驻结论线（轨迹形状与发射口在 ./write-log.js）。
-import { beginWriteTrail, emitIssueWrite } from './write-log.js'
-import type { WriteTrail } from './write-log.js';
-
-/** 仓库坐标：拥有者与仓库名，refId 形不对就回 null 而不是抛。 */
-interface ParsedRepo {
-  owner: string;
-  name: string;
-}
-
-function parseRepo(repo: RepositoryRef | null | undefined): ParsedRepo | null {
-  if (!repo || typeof repo.refId !== 'string' || !repo.refId) return null
-  const s = repo.refId.trim()
-  const idx = s.indexOf('/')
-  if (idx <= 0) return null
-  return { owner: s.slice(0, idx), name: s.slice(idx + 1) }
-}
-
-function repoId(repo: RepositoryRef | null | undefined): string {
-  if (!repo) return ''
-  if (typeof repo.refId === 'string' && repo.refId) return repo.refId
-  if (typeof repo.name === 'string' && repo.name) return repo.name
-  return ''
-}
+import { beginWriteTrail, emitIssueWrite } from '../support/write-log.js'
+import { parseRepo, repoId } from '../model/issue-key.js'
+import type { WriteTrail } from '../support/write-log.js';
 
 /**
  * comment 的对外入口：建一趟轨迹、交给内层干、出口处按 #104 `issue.write` 记一行结论。

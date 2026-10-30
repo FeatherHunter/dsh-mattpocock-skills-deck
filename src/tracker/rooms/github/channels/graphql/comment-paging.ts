@@ -1,7 +1,7 @@
 /**
  * src/tracker/rooms/github/channels/graphql/comment-paging.ts —— #1444 从 issues.ts 按接缝搬出，纯结构、行为零变化。
  * #1686 阶段 1：从房间根迁入 channels/graphql/（评论翻页只拼 GraphQL 查询文本与校验回包，属于协议形状层），
- * 旧路径 src/tracker/rooms/github/comment-paging.ts 保留纯转发，行为零变化。
+ * 房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 这里住的是「一张票的评论怎么取够」：调用方要多少条（夹在契约上限里）、第一页问多少条、
  * 远端还有下一页时按页码游标接着翻、各页节点拼回第一页的回包、最后截到要的条数。

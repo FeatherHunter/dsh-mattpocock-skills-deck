@@ -20,7 +20,7 @@
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-916-ghauth-crosscheck.ts
 import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 import { resetGhLaneForTest } from '../src/refresh/rooms/host/outbound-admission.ts'
-import { ghPreflight } from '../src/tracker/rooms/github/preflight.ts'
+import { ghPreflight } from '../src/tracker/rooms/github/read/preflight.ts'
 import { probeChainEnv, ghAuthVerdict, repoAccessVerdict, ENV_PENDING_CLIP_EN, ENV_PENDING_CLIP_ZH } from '../src/refresh/rooms/host/chain-env-map.ts'
 import { GUIDE_STEPS, guideBannerOf, guideMissingOf, guideStepState } from '../src/shared/tracker/guide-steps.ts'
 

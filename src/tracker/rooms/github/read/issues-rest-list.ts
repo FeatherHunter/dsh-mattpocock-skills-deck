@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/read/issues-rest-list.ts —— list 的 REST 降级翻页（#1685 从 issues.ts 分出）。
- * #1686 阶段 1：从房间根迁入 read/，旧路径 src/tracker/rooms/github/issues-rest-list.ts 保留纯转发，行为零变化。
+ * #1686 阶段 1：从房间根迁入 read/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 为什么单列一份：一是文件粒度纪律（issues.ts 加上读结果来源后过不了每文件 350 有效行的上限），
  * 二是这一段本来就只有一件事——把 REST 分页翻完、把「翻到哪停、有没有翻到空页、触没触上限」记下来。

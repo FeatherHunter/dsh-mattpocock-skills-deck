@@ -3,7 +3,7 @@
  *
  * ── 与 GitHub 房那份的关系 ────────────────────────────────────────────────────
  * 契约（`contract/operations.ts` 的 `initProject`）只有一份，两个远端后端各写一遍。GitHub 那份
- * （`rooms/github/init-project.ts`）的步骤是本房的模板：
+ * （`rooms/github/write/init-project.ts`）的步骤是本房的模板：
  *   前置（git 在不在、登录了没有）→ 本地 `git init` / `add` / `commit --allow-empty`
  *   → 建远端仓库 → 把 origin 指过去 → `git push -u origin HEAD` → 回 `RepositoryRef`。
  * 本房照这五步做，只把 GitHub 专有的那段换成 glab，**没有照搬的两处**如实记在这里：

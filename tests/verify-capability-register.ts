@@ -29,7 +29,7 @@ import path from 'node:path'
 import url from 'node:url'
 
 import { OPERATIONS, LOCATORS } from '../src/tracker/contract/operations-catalog.js'
-import { GITHUB_CAPABILITY_REGISTER } from '../src/tracker/rooms/github/capability-register.js'
+import { GITHUB_CAPABILITY_REGISTER } from '../src/tracker/rooms/github/support/capability-register.js'
 import { MARKDOWN_CAPABILITY_REGISTER } from '../src/tracker/rooms/markdown/capability-register.js'
 import { GITLAB_CAPABILITY_REGISTER } from '../src/tracker/rooms/gitlab/capability-register.js'
 import type { CapabilityTier } from '../src/tracker/contract/capability-answer.js'
@@ -55,7 +55,7 @@ const TIER_OF_LABEL: { [label: string]: CapabilityTier } = {
 }
 
 const BACKENDS: { readonly id: string; readonly register: RegisterView; readonly md: string; readonly room: string }[] = [
-  { id: 'github', register: GITHUB_CAPABILITY_REGISTER, md: 'docs/tracker/capability-github.md', room: 'src/tracker/rooms/github/backend.ts' },
+  { id: 'github', register: GITHUB_CAPABILITY_REGISTER, md: 'docs/tracker/capability-github.md', room: 'src/tracker/rooms/github/room/backend.ts' },
   { id: 'markdown', register: MARKDOWN_CAPABILITY_REGISTER, md: 'docs/tracker/capability-markdown.md', room: 'src/tracker/rooms/markdown/index.ts' },
   { id: 'gitlab', register: GITLAB_CAPABILITY_REGISTER, md: 'docs/tracker/capability-gitlab.md', room: 'src/tracker/rooms/gitlab/index.ts' },
 ]

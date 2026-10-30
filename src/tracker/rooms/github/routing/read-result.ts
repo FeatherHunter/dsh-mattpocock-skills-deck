@@ -317,13 +317,13 @@ export const READ_CHANNEL_PLAN = deriveChannelPlan()
 /**
  * 一条读操作接来源与完整度的进度登记。
  *
- * 规格 1681 阶段 1 允许降级路径先用白名单登记、逐条清零：#1685 先把 `list` / `get` /
+ * 规格 1681 阶段 1 要求降级路径先用白名单登记、逐条清零：#1685 先把 `list` / `get` /
  * `listPage` 三条接上；#1686 第二批把随读实现搬进 read/ 的七条（预检、依赖、标签清单、
- * 计数、仓库权限、子票、地图）同批接上。只剩 `getCurrentUser` 与 `readBudget` 两条等 #1687
- * 房间入口收口时统一接（它们的实现今天在 backend.ts 与额度账本里）。
+ * 计数、仓库权限、子票、地图）同批接上；#1687 房间入口收口时把最后两条（`getCurrentUser`
+ * 与 `readBudget`）接上——它们的生产文件是 room/backend.ts（装配面就在那里调 gh 与额度账本）。
+ * 白名单到这里清零，十二条全部 wired。
  * 门禁 `tests/verify-read-result-provenance.ts` 逐条核对：wired 必须有真实 producing 文件
- * 且该文件真调 `buildReadProvenance`，whitelisted 必须带票号与理由——白名单不是豁免，
- * 是带下次入场券的欠账。
+ * 且该文件真调 `buildReadProvenance`。
  */
 export interface ReadProvenanceWiring {
   /** wired：已接来源与完整度；whitelisted：登记在案、等后续票接。 */
@@ -347,17 +347,13 @@ export const READ_PROVENANCE_STATUS = {
   // 探测：已接（#1686 把预检搬进 read/preflight.ts 时同批接；三条门禁全过才记权限组完整）。
   preflight: { status: 'wired', producer: 'src/tracker/rooms/github/read/preflight.ts' },
   // 整仓列表：本票已接（GraphQL 主路与 REST 兜底两个成功分支都挂来源）。
-  list: { status: 'wired', producer: 'src/tracker/rooms/github/issues.ts' },
+  list: { status: 'wired', producer: 'src/tracker/rooms/github/read/issues.ts' },
   // 单票详情：本票已接（GraphQL 工单 / GraphQL 拉取请求 / REST 单票四条成功分支都挂来源）。
-  get: { status: 'wired', producer: 'src/tracker/rooms/github/issues.ts' },
+  get: { status: 'wired', producer: 'src/tracker/rooms/github/read/issues.ts' },
   // 依赖边：已接（#1686 把依赖读侧搬进 read/deps-read.ts；原生路记 GraphQL，退回整仓反推时记 REST 并标降级来源）。
   getDependencies: { status: 'wired', producer: 'src/tracker/rooms/github/read/deps-read.ts' },
-  // 当前用户：实现内联在房间入口 backend.ts，等 #1687 房间入口收口时接。
-  getCurrentUser: {
-    status: 'whitelisted',
-    ticket: '#1687',
-    reason: '实现内联在 backend.ts，等 #1687 房间入口收口时接来源与完整度',
-  },
+  // 当前用户：已接（#1687 房间入口收口；实现就在 room/backend.ts 里，成功即身份组完整）。
+  getCurrentUser: { status: 'wired', producer: 'src/tracker/rooms/github/room/backend.ts' },
   // 标签清单：已接（#1686 把标签读侧从 label-colors-ops.ts 拆进 read/labels.ts；取不全整条失败，成功即标签组完整）。
   listLabels: { status: 'wired', producer: 'src/tracker/rooms/github/read/labels.ts' },
   // 计数：已接（#1686 把 counts.ts 搬进 read/ 时同批接；只有一次 GraphQL 往返，成功即计数组完整）。
@@ -370,10 +366,6 @@ export const READ_PROVENANCE_STATUS = {
   listSubIssues: { status: 'wired', producer: 'src/tracker/rooms/github/read/sub-issues.ts' },
   // 地图薄行：已接（#1686 把 maps.ts 搬进 read/；行组按封顶页数判截断，标签组按单行满 50 判截断）。
   listMaps: { status: 'wired', producer: 'src/tracker/rooms/github/read/maps.ts' },
-  // 读预算：读的是插件自己的额度账本（来源固定 local），等 #1687 收口时统一定义。
-  readBudget: {
-    status: 'whitelisted',
-    ticket: '#1687',
-    reason: '读插件自己的额度账本、来源固定 local，等 #1687 收口时统一接来源与完整度',
-  },
+  // 读预算：已接（#1687 房间入口收口；读插件自己的额度账本，来源固定 local，量到两桶才挂）。
+  readBudget: { status: 'wired', producer: 'src/tracker/rooms/github/room/backend.ts' },
 } satisfies Readonly<Record<ReadOperationName, ReadProvenanceWiring>>

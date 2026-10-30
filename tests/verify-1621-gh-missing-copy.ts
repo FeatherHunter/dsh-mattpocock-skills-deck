@@ -31,8 +31,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fixes, prompts } from '../src/tracker/rooms/github/index.ts'
-import { classifyGhError } from '../src/tracker/rooms/github/errors.ts'
+import { fixes, prompts } from '../src/tracker/rooms/github/room/index.ts'
+import { classifyGhError } from '../src/tracker/rooms/github/support/errors.ts'
 import { ghAuthVerdict } from '../src/refresh/rooms/host/chain-env-map.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -134,7 +134,7 @@ function main(): void {
 
   console.log('== 4. 宿主建仓失败的长文与 init-project 回包：同一段话，逐字一致 ==')
   const publishSrc = read('src/host/publishFlow.ts')
-  const initSrc = read('src/tracker/rooms/github/init-project.ts')
+  const initSrc = read('src/tracker/rooms/github/write/init-project.ts')
   const noGhPrompt = literalAfter(publishSrc, /const NO_GH_PROMPT = '((?:[^'\\]|\\.)*)'/)
   const initMatch = /kind: 'no-gh', message: '((?:[^'\\]|\\.)*)', raw: '', prompt: '((?:[^'\\]|\\.)*)'/.exec(initSrc)
   const initMessage = initMatch ? unescapeJs(initMatch[1]) : null

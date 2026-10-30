@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/read/maps.ts -- 地图清单一次取全（#1603）。
- * #1686 阶段 1：从房间根迁入 read/，旧路径 src/tracker/rooms/github/maps.ts 保留纯转发，行为零变化。
+ * #1686 阶段 1：从房间根迁入 read/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 为什么单开一个深模块：deck_context 取地图的旧路是全量 list 再内存过滤（缺陷 #1598：
  * 597 张票 + 193 个拉取请求，实测 163.9 秒撞预算超时）。这一条只干一件事 -- 一次翻完
@@ -29,7 +29,7 @@ import type { State } from '../../../contract/identity.js'
 import type { MapListOpResult } from '../../../contract/results.js'
 import { fail } from '../../../kernel/preflight.js'
 import { PAGINATION } from '../../../contract/pagination.js'
-import { parseRepo, repoId } from '../issues.js'
+import { parseRepo, repoId } from '../model/issue-key.js'
 import { listIssuesPage } from './page.js'
 import { beginRead } from '../routing/read-result.js'
 import { mapsProvenanceFromGraphql } from '../routing/read-assembly.js'

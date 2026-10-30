@@ -167,7 +167,10 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-31 #1685：读结果的来源与按字段组完整度（从操作百科枚举 12 条读操作逐条对账、
   // 两套协议形状互不引用、十二种坏来源负例、stub 执行器真调三条读路径）；
   // 251 条是单跑实测得出的。
-  'verify-read-result-provenance': 265,
+  // 2026-10-31 #1687：两条白名单清零（getCurrentUser 与 readBudget 接上来源与完整度），
+  // 补了这四组接缝断言（成功带身份组/未登录失败不挂、读预算成功带计数组/量不到不挂），
+  // 再加「旧平铺路径已删除」两条，294 条是单跑实测得出的。
+  'verify-read-result-provenance': 294,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

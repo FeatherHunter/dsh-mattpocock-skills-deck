@@ -1,33 +1,34 @@
 /**
- * backends/github/issues-write.js — issue 写路径。
+ * src/tracker/rooms/github/write/issues.ts — issue 写路径。
+ * #1687 阶段 1：从房间根迁入 write/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 由 #440 从 issues.js 纯结构移出（create / close / reopen / update / setAssignees），行为零变化。
- * 读路径（list / get + REST 降级）留在 issues.js。
- * 以后改写操作命令语义的人改它。预估约 285 行。
+ * 读路径（list / get + REST 降级）在 read/issues.ts。
+ * 以后改写操作命令语义的人改它。
  */
 
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { OpContext } from '../../contract/contexts.js';
-import type { Issue, RepositoryRef } from '../../contract/entities.js';
-import type { Actor } from '../../contract/identity.js';
-import type { AssigneeInput, CloseOpts, CreateInput, SetOpts, UpdatePatch } from '../../contract/inputs.js';
-import type { OpResult } from '../../contract/results.js';
-import { fail } from '../../kernel/preflight.js'
-import { ghClient } from './client.js'
-import { normalizeIssue } from './normalize.js'
-import { ghFailureMessage, ghVerdictOf } from './errors.js'
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import type { OpContext } from '../../../contract/contexts.js';
+import type { Issue, RepositoryRef } from '../../../contract/entities.js';
+import type { Actor } from '../../../contract/identity.js';
+import type { AssigneeInput, CloseOpts, CreateInput, SetOpts, UpdatePatch } from '../../../contract/inputs.js';
+import type { OpResult } from '../../../contract/results.js';
+import { fail } from '../../../kernel/preflight.js'
+import { ghClient } from '../transport/client.js'
+import { normalizeIssue } from '../model/normalize.js'
+import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { planCloseReason } from './close-reason.js'
-import { rosterUpsert } from './roster.js'
-import type { MemoContext } from './roster.js';
-import { getIssue, parseRepo, repoId } from './issues.js'
+import { rosterUpsert, type MemoContext } from '../model/roster.js';
+import { getIssue } from '../read/issues.js'
+import { parseRepo, repoId } from '../model/issue-key.js'
 // #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
 // 本间房专属的「建后按锚回查」在 ./idempotency.js（两条路：搜索接口 + 最近更新列表逐张读正文）。
-import { checkIdempotencyKey } from '../../../refresh/contract/idempotency-keys.js'
-import { withAnchor, lookupByAnchor } from './idempotency.js'
+import { checkIdempotencyKey } from '../../../../refresh/contract/idempotency-keys.js'
+import { withAnchor, lookupByAnchor } from '../routing/idempotency.js'
 // #104 `issue.write`：票写入的常驻结论线。轨迹形状与发射口在 ./write-log.js ——
 // 建票、改票、评论、改标签这几处要说的是同一件事，放一处免得各写各的。
-import { beginWriteTrail, emitIssueWrite } from './write-log.js'
-import type { WriteTrail } from './write-log.js';
+import { beginWriteTrail, emitIssueWrite } from '../support/write-log.js'
+import type { WriteTrail } from '../support/write-log.js';
 
 /**
  * 建票过程中组装的那张票：归一后的票 + 没挂上的标签/父边记账（工具层读回时据此说清部分成功）。

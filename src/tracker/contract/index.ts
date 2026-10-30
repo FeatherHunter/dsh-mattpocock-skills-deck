@@ -34,10 +34,10 @@ import { OPERATIONS as CATALOG_OPERATIONS } from './operations-catalog.js'
  *
  * @property {(handle: RepoHandle, ctx: OpContext) => Promise<PreflightResult>} preflight 环境门禁（只判环境：工具在不在/登录/可达/fs;不预判能力）
  * @property {(repo: RepositoryRef, filter?: ListFilter, ctx: OpContext) => Promise<import('./results.js').IssueListResult>} list 列票；返回里带「名单全不全」（truncated）与「走没走 REST 降级」（fallback/fallbackReason）；#1685 起返回带 provenance（来源渠道、按字段组完整度、缺失字段组、耗时、取数开始版本）
- * @property {(repo: RepositoryRef, filter?: ListFilter, ctx: OpContext) => Promise<OpResult<Counts>>} counts 这个后端里符合条件的票有多少张（工单口径，不含拉取请求；只回数字不回行，语义见下方「计数契约」）
+ * @property {(repo: RepositoryRef, filter?: ListFilter, ctx: OpContext) => Promise<import('./results.js').CountsResult>} counts 这个后端里符合条件的票有多少张（工单口径，不含拉取请求；只回数字不回行，语义见下方「计数契约」）；#1686 起返回带来源渠道与计数字段组完整度的结果
  * @property {(repo: RepositoryRef, filter?: ListFilter, opts?: PageOpts, ctx: OpContext) => Promise<import('./results.js').ReadPageResult>} listPage 按页取票（「已关闭票按需浏览」用；排序键固定创建时间倒序；取回来的行是薄片段，不带正文与评论。语义见 contract-page.js 的「分页契约」）；#1685 起带 provenance（来源渠道、按字段组完整度、缺失字段组、耗时、取数开始版本）
  * @property {(repo: RepositoryRef, key: string, opts?: GetOpts, ctx: OpContext) => Promise<import('./results.js').IssueDetailResult>} get 读一张票；#1685 起带 provenance（来源渠道、按字段组完整度、缺失字段组、耗时、取数开始版本）
- * @property {(repo: RepositoryRef, key: string, opts?: DepsOpts, ctx: OpContext) => Promise<OpResult<Dependencies>>} getDependencies 便利投影（blockedBy 唯一真源；blocking 反向聚合）
+ * @property {(repo: RepositoryRef, key: string, opts?: DepsOpts, ctx: OpContext) => Promise<import('./results.js').DependenciesResult>} getDependencies 便利投影（blockedBy 唯一真源；blocking 反向聚合）；#1686 起返回带来源渠道与依赖字段组完整度的结果
  * @property {(repo: RepositoryRef, input: CreateInput, ctx: OpContext) => Promise<OpResult<Issue>>} create
  * @property {(repo: RepositoryRef, key: string, opts?: CloseOpts, ctx: OpContext) => Promise<OpResult<Issue>>} close
  * @property {(repo: RepositoryRef, key: string, ctx: OpContext) => Promise<OpResult<Issue>>} reopen
@@ -47,16 +47,16 @@ import { OPERATIONS as CATALOG_OPERATIONS } from './operations-catalog.js'
  * @property {(repo: RepositoryRef, key: string, assignees: AssigneeInput[], opts?: SetOpts, ctx: OpContext) => Promise<OpResult<Issue>>} setAssignees
  * @property {(repo: RepositoryRef, key: string, parentKey: string|null, opts?: SetOpts, ctx: OpContext) => Promise<OpResult<Issue>>} setParent
  * @property {(repo: RepositoryRef, key: string, blockers: string[], opts?: SetOpts, ctx: OpContext) => Promise<OpResult<Issue>>} setBlockedBy self∈blockers→conflict；写后环检，成环→conflict 不落盘
- * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<LabelColor[]>>} listLabels 标签配色：列出「这个后端能改色的全部标签」及其颜色（#627，见下方「标签配色契约」）
+ * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<import('./results.js').LabelListResult>} listLabels 标签配色：列出「这个后端能改色的全部标签」及其颜色（#627，见下方「标签配色契约」）；#1686 起返回带来源渠道与标签字段组完整度的结果
  * @property {(repo: RepositoryRef, changes: LabelColorChange[], ctx: OpContext) => Promise<OpResult<LabelColorBatchResult>>} setLabelColors 标签配色：批量改色，逐条记账（#627，见下方「标签配色契约」）
- * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('../../shared/tracker/shape.js').Actor>>} getCurrentUser 当前登录人（viewer），GitHub 与 GitLab 返回 Actor（登录人的身份卡片，含登录名、显示名与头像；GitLab 走 glab 问远端），本地 Markdown 返回 unsupported（MISSING）
+ * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<import('./results.js').ActorResult>} getCurrentUser 当前登录人（viewer），GitHub 与 GitLab 返回 Actor（登录人的身份卡片，含登录名、显示名与头像；GitLab 走 glab 问远端），本地 Markdown 返回 unsupported（MISSING）；#1687 起返回带身份字段组完整度的结果
  * @property {(handle: RepoHandle, input: InitProjectInput, ctx: OpContext) => Promise<OpResult<RepositoryRef>>} initProject 工作区初始化并发布（git init→commit→gh repo create→push；错误分类 no-git/no-gh/not-logged-in/already-exists/network/permission；GitHub 与 GitLab 完整实现（GitLab 走 glab 建仓），本地 Markdown 回 unsupported）
  *
  * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').RepoPermissions>>} getRepoPermissions 问仓库写权限（push/triage 两个布尔）；GitHub 与 GitLab 真去问（GitLab 读远端档位折算），本地 Markdown 回 unsupported。调用方拿不到就按「未知」处理，不许当成「能写」
- * @property {(repo: RepositoryRef, mapKey: string, opts: Record<string, never>|undefined, ctx: OpContext) => Promise<OpResult<import('./results.js').SubIssueList>>} listSubIssues 取一张地图的全部子票（翻页拉到底，1000 张硬上限）；返回里 capped/missing/dropped 三项是「有没有拿全」的诚实交代。GitHub 实现，GitLab 真实现（读子票正文顶部的归属声明行），本地 Markdown 回 unsupported
+ * @property {(repo: RepositoryRef, mapKey: string, opts: Record<string, never>|undefined, ctx: OpContext) => Promise<import('./results.js').SubIssueListResult>} listSubIssues 取一张地图的全部子票（翻页拉到底，1000 张硬上限）；返回里 capped/missing/dropped 三项是「有没有拿全」的诚实交代。GitHub 实现，GitLab 真实现（读子票正文顶部的归属声明行），本地 Markdown 回 unsupported；#1686 起返回带来源渠道与子票/行两个字段组完整度的结果
  * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').LabelColorsFilePlacement>>} ensureLabelColorsFile 往工作区放一份用户可手改的默认标签配色文件（文件已存在时一个字都不改）；本地 Markdown 实现，GitHub 与 GitLab 回 unsupported（两家颜色真源都在远端，工作区文件没有读者，属形态不合，理由见两份能力表）
- * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').MapListResult>>} listMaps 一次取全量地图薄行（只收仓库；状态两档都要、标签只要小写的 wayfinder:map、时间窗口为空；薄行只要 key/title/state/url；按更新时间倒序；撞封顶如实截断；单页失败整趟失败）。GitHub 实现，GitLab 与本地 Markdown 暂由注册表补 unsupported 桩（承接见规格 1602）
- * @property {(ctx: OpContext) => Promise<OpResult<import('../session/budget-reading.js').BudgetReading>>} readBudget 读缓存里的剩余额度，只读不花（规格 1439 落地，规格 1602 起是第 24 条操作）；永远放行、不记账，直达房间
+ * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<import('./results.js').MapListOpResult>} listMaps 一次取全量地图薄行（只收仓库；状态两档都要、标签只要小写的 wayfinder:map、时间窗口为空；薄行只要 key/title/state/url；按更新时间倒序；撞封顶如实截断；单页失败整趟失败）。GitHub 实现，GitLab 与本地 Markdown 暂由注册表补 unsupported 桩（承接见规格 1602）
+ * @property {(ctx: OpContext) => Promise<import('./results.js').BudgetResult>} readBudget 读缓存里的剩余额度，只读不花（规格 1439 落地，规格 1602 起是第 24 条操作）；永远放行、不记账，直达房间；#1687 起量到额度时返回带计数字段组完整度的结果
  *
  * 定位口三条（没有「我不支持」这种答案，缺席就是缺席，调用方拿空值往下走）：
  * @property {(cwd: string, ctx: OpContext) => Promise<{owner: string, name: string}|null>} getRepoKey 从工作区目录解析出 owner/name；解析不出来回 null（不是异常）。只有需要连远端的后端才有
@@ -202,7 +202,7 @@ export const OPERATIONS: readonly string[] = Object.freeze(CATALOG_OPERATIONS)
  * @property {string[]} [keys] 批量；宿主侧对结果做 LRU（见 snapshot.js）
  */
 
-/** 依赖投影（便利，非第二真源）。 */
+/** 依赖投影（便利，非第二真源）。这是 DependenciesResult 成功分支里 data 的行形状，结果类型本身带来源与完整度。 */
 /**
  * @typedef {Object} Dependencies
  * @property {import('../../shared/tracker/shape.js').IssueRef[]} blockedBy
@@ -279,7 +279,8 @@ export const OPERATIONS: readonly string[] = Object.freeze(CATALOG_OPERATIONS)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * 后端计数（`counts(repo, filter, ctx)` → `OpResult<Counts>`）。
+ * 后端计数（`counts(repo, filter, ctx)` → `CountsResult`，下面的 Counts 是成功分支里 data 的行形状，
+ * 结果类型本身带来源渠道与完整度）。
  * 宿主拿它覆盖快照 deck 里的数字（见 tracker/snapshot.js 的 composeSnapshot）；拿不到时界面退回按池子
  * 派生，并把「这份清单不全」说出来（deck.partial）。
  */

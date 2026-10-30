@@ -1,5 +1,6 @@
 /**
- * src/tracker/rooms/github/labels.ts — 「票身上带哪些标签」的实现（#133 定版 + #138 落地）。
+ * src/tracker/rooms/github/write/labels.ts — 「票身上带哪些标签」的实现（#133 定版 + #138 落地）。
+ * #1687 阶段 1：从房间根迁入 write/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 文件头原写 `backends/github/labels.js`，是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。
  *
@@ -11,29 +12,25 @@
  *
  * 2026-09-13（#620）：仓库级的「列全部标签 / 批量改标签颜色」两条契约操作搬进同目录的
  * label-colors-ops.js（它们跟这里的 setLabels 不是一件事：这里是给一张票贴标签，那两条是改仓库的标签本身）。
- * 本文件只保留了它们要用的仓库名拆解（parseRepo / repoId），不再自己列标签。
+ * 仓库名拆解（parseRepo / repoId）2026-10-30（#1687）起住在 model/issue-key.ts，读写两侧共用一份，本文件不再自带副本。
  */
 
-import { fail, rawText } from '../../kernel/preflight.js'
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { OpContext } from '../../contract/contexts.js';
-import type { Issue, Label, RepositoryRef } from '../../contract/entities.js';
-import type { LabelInput, SetOpts } from '../../contract/inputs.js';
-import type { OpResult, TrackerError } from '../../contract/results.js';
+import { fail, rawText } from '../../../kernel/preflight.js'
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import type { OpContext } from '../../../contract/contexts.js';
+import type { Issue, Label, RepositoryRef } from '../../../contract/entities.js';
+import type { LabelInput, SetOpts } from '../../../contract/inputs.js';
+import type { OpResult, TrackerError } from '../../../contract/results.js';
 // #104 `issue.write`：票写入的常驻结论线（轨迹形状与发射口在 ./write-log.js）。
-import { beginWriteTrail, emitIssueWrite } from './write-log.js'
-import type { WriteTrail } from './write-log.js';
-import { ghClient } from './client.js'
-import { ghFailureMessage, ghVerdictOf } from './errors.js'
-import { readRepoPermissions, readonlyMessage } from './repo-permissions.js'
-import { getIssue } from './issues.js'
-import type { MemoContext } from './roster.js';
-
-/** 仓库坐标：拥有者与仓库名，refId 形不对就回 null 而不是抛。 */
-interface ParsedRepo {
-  owner: string;
-  name: string;
-}
+import { beginWriteTrail, emitIssueWrite } from '../support/write-log.js'
+import type { WriteTrail } from '../support/write-log.js';
+import { ghClient } from '../transport/client.js'
+import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
+import { readRepoPermissions, readonlyMessage } from '../read/repo-permissions.js'
+import { getIssue } from '../read/issues.js'
+import { parseRepo, repoId } from '../model/issue-key.js'
+import type { MemoContext } from '../model/roster.js';
+export { parseRepo, repoId }
 
 function normalizeLabelInput(li: unknown): Label | null {
   if (typeof li === 'string') {
@@ -53,6 +50,10 @@ function normalizeLabelInput(li: unknown): Label | null {
   return out
 }
 
+/**
+ * 把调用方给的标签输入整成去重后的标签集：支持字符串与对象两种形状，保序、同名只留第一次。
+ * 空名与非对象/非字符串一律丢弃（老行为：宁可少挂一个，也不把空标签名发给 GitHub）。
+ */
 function normalizeLabelInputs(labels: unknown): Label[] {
   if (!Array.isArray(labels)) return []
   const out: Label[] = []
@@ -66,22 +67,6 @@ function normalizeLabelInputs(labels: unknown): Label[] {
   }
   return out
 }
-
-export function parseRepo(repo: RepositoryRef | null | undefined): ParsedRepo | null {
-  if (!repo || typeof repo.refId !== 'string' || !repo.refId) return null
-  const s = repo.refId.trim()
-  const idx = s.indexOf('/')
-  if (idx <= 0) return null
-  return { owner: s.slice(0, idx), name: s.slice(idx + 1) }
-}
-
-export function repoId(repo: RepositoryRef | null | undefined): string {
-  if (!repo) return ''
-  if (typeof repo.refId === 'string' && repo.refId) return repo.refId
-  if (typeof repo.name === 'string' && repo.name) return repo.name
-  return ''
-}
-
 /**
  * 给票贴标签失败时的归因（#992）。
  * 只读仓库上建标签定义（要 push）与给票打标（要 triage 起）撞到的都是 404，

@@ -2,7 +2,7 @@
  * src/tracker/rooms/github/transport/client-support.ts —— gh 客户端的外围零件：上下文取口、房内埋点、到点哨兵
  *
  * #1684 阶段 1（房间分层）：本文件从上一层 client-support.ts 原样搬进 transport/，逻辑零变化；
- * 旧路径 src/tracker/rooms/github/client-support.ts 只留 re-export 转发，等 1687 批次再删。
+ * 旧路径 src/tracker/rooms/github/transport/client-support.ts 只留 re-export 转发，等 1687 批次再删。
  *
  * 人的话：gh 客户端（client.ts）里「真的执行一条 gh 命令」那条流程很长，文件早就超过文件粒度
  * 门禁的上限（tests/verify-file-granularity.ts：单文件 350 有效行）。下面这些零件与那条流程

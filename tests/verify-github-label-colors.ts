@@ -25,8 +25,8 @@ import { resetGhLaneForTest } from '../src/refresh/rooms/host/outbound-admission
  */
 
 import nodePath from 'node:path'
-import { githubModule } from '../src/tracker/rooms/github/index.ts'
-import { ghClient } from '../src/tracker/rooms/github/client.ts'
+import { githubModule } from '../src/tracker/rooms/github/room/index.ts'
+import { ghClient } from '../src/tracker/rooms/github/transport/client.ts'
 import { labelListCheck, labelBatchCheck, labelCompletenessCheck } from './tracker-contract/sections/labels.js'
 // #1686 阶段 1：列标签的读侧从 label-colors-ops.ts 拆进 read/labels.ts；上限从那里取，断言与实现同源。
 import { LABEL_LIST_LIMIT } from '../src/tracker/rooms/github/read/labels.ts'

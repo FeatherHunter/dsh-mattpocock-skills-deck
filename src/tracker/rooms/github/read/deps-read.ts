@@ -1,6 +1,8 @@
 /**
  * src/tracker/rooms/github/read/deps-read.ts —— 依赖投影的读路径（#1304）。
- * #1686 阶段 1：从房间根迁入 read/，旧路径 src/tracker/rooms/github/deps-read.ts 保留纯转发，行为零变化。
+ * #1686 阶段 1：从房间根迁入 read/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
+ * #1687 阶段 1：getDependencies（入口校验＋批量分支）从房间根 graph.ts 并入本文件；它只读不写，归读侧，
+ * 导出面与行为不变，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 一只票的「被谁阻塞」与「阻塞了谁」本来要读两条边：正向的 blockedBy 与反向的 blocking。
  * 从前反向边靠「整仓列表逐行看 blockedBy 里有没有这张票」推出来，再逐张读标题：
@@ -19,9 +21,15 @@
  */
 
 import type { Issue, IssueRef, RepositoryRef } from '../../../contract/entities.js'
-import type { Dependencies, DependenciesResult } from '../../../contract/results.js'
+import type { DepsOpts } from '../../../contract/inputs.js'
+import type { Dependencies, DependenciesResult, OpResult } from '../../../contract/results.js'
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
-import { getIssue, listIssues } from '../issues.js'
+import { getIssue, listIssues } from './issues.js'
+import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
+import { parseRepo, repoId } from '../model/issue-key.js'
+import type { ParsedRepo } from '../model/issue-key.js'
 import { normalizeDependencyEdges } from '../model/normalize.js'
 import { DEPS_MAX, DEPS_QUERY } from '../channels/graphql/queries.js'
 import { emitReadDegraded } from '../support/read-log.js'
@@ -29,12 +37,6 @@ import { beginRead } from '../routing/read-result.js'
 import type { ReadClock } from '../routing/read-result.js'
 import { dependenciesProvenanceFromGraphql, dependenciesProvenanceFromRest } from '../routing/read-assembly.js'
 import type { MemoContext } from '../model/roster.js'
-
-/** 仓库定位：拥有者 + 仓名（形状与 graph.ts 里那个同名接口一致）。 */
-interface ParsedRepo {
-  owner: string
-  name: string
-}
 
 /**
  * 原生路：一次 GraphQL 同时取回正向与反向连接。
@@ -160,4 +162,49 @@ export async function readDependencies(repo: RepositoryRef, parsed: ParsedRepo, 
     }
   }
   return readScanDependencies(repo, k, ctx, started, clock)
+}
+
+// 判档失败时把错误转成最小形状再读（catch 出来是 unknown，直接读 message 报缺成员）：与旧 graph.ts 同一函数体。
+type CaughtMsg = { message?: unknown } | null;
+function caughtMessage(e: unknown, len: number): string {
+  const eb = e as CaughtMsg;
+  return String((eb && eb.message) || e).slice(0, len)
+}
+
+/**
+ * getDependencies(repo, key, opts, ctx) -> OpResult<{blockedBy, blocking, blockingSource, blockingComplete}>
+ * - blockedBy 读自 GitHub blockedBy 边（唯一真源，写边也只认它）
+ * - blocking 反向投影：原生字段一次查询取回，开销与仓库总票数无关；原生不可用才退回整仓列表反推。
+ *   退回兜底、或者连接/列表到了上限时，返回值会自己说清「用了兜底」「可能不全」（见本文件上面两条读路）。
+ * - #1687 从房间根 graph.ts 迁到这里：它只读不写，归读侧；房间入口仍按旧接口名要它，导出面不变。
+ */
+export async function getDependencies(repo: RepositoryRef, key: string, opts: DepsOpts | undefined, ctx: MemoContext): Promise<OpResult<Dependencies>> {
+  try {
+    const parsed = parseRepo(repo)
+    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `getDependencies: repo.refId missing: ${repoId(repo)}`, repo)
+    // 批量模式：opts.keys
+    if (opts && Array.isArray(opts.keys) && opts.keys.length) {
+      // 批量返回聚合：对每 key 各自取依赖投影，再合并；宿主快照平时逐 key 调用，多 key 分支罕见。
+      // 为什么显式标：循环里才往里装，编译器判成隐式 any；装的本来就是编号与那份依赖投影，运行时还是原来那几个值。
+      const results: { key: string; data: Dependencies }[] = []
+      for (const kk of opts.keys) {
+        const single = await getDependencies(repo, kk, {}, ctx)
+        if (!single.ok) return single
+        results.push({ key: String(kk), data: single.data })
+      }
+      // 为保持契约返回单对象，此处仅支持单 key 批量由宿主 snapshot LRU 处理；批量请求暂返回首个
+      if (results.length === 1) return { ok: true, data: results[0].data }
+      // 多 key 批量：返回首个的 data（宿主会逐 key 调用，此分支罕见）
+      return { ok: true, data: results[0]?.data || { blockedBy: [], blocking: [] } }
+    }
+    const k = String(key || '').trim()
+    if (!k) return fail(ERROR_KIND.PARSE, 'getDependencies: key required', key)
+    // 读路径整段委托给下面那条 readDependencies：原生优先、兜底自曝，这里只留入口校验与判档。
+    return await readDependencies(repo, parsed, k, ctx)
+  } catch (e) {
+    // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
+    // 第三段把出错的那个值原样交出去当原文。
+    const verdict = ghVerdictOf(e, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
+  }
 }

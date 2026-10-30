@@ -58,7 +58,7 @@ function row(key: string, type: string, title: string, body: string, parentKey: 
 
 async function main() {
   console.log('#1286 门禁：规格（实施地图）容器的识别与组装')
-  const gh = await import(pathToFileURL(path.join(ROOT, 'src/tracker/rooms/github/normalize.js')).href)
+  const gh = await import(pathToFileURL(path.join(ROOT, 'src/tracker/rooms/github/model/normalize.js')).href)
   const gl = await import(pathToFileURL(path.join(ROOT, 'src/tracker/rooms/gitlab/normalize.js')).href)
   const asm = await import(pathToFileURL(path.join(ROOT, 'src/host/tracker/snapshotAssemble.js')).href)
   const leaf = await import(pathToFileURL(path.join(ROOT, 'src/tracker/body-parse.js')).href)

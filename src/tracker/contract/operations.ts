@@ -35,6 +35,8 @@ import type { Actor, BackendId } from './identity.js'
 import type { Comment, Issue, LabelColor, LabelColorChange, RepositoryRef } from './entities.js'
 import type { OpContext, RepoHandle } from './contexts.js'
 import type {
+  ActorResult,
+  BudgetResult,
   CountsResult,
   DependenciesResult,
   IssueDetailResult,
@@ -224,7 +226,7 @@ export interface Tracker {
    * 不是故障，调用方据此把「本人」相关的高亮关掉即可。
    * 本地 Markdown 没有远端登录人的概念，所以它只能诚实说做不到。
    */
-  getCurrentUser(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<Actor>>
+  getCurrentUser(repo: RepositoryRef, ctx: OpContext): Promise<ActorResult>
 
   /**
    * 初始化并发布工作区：建仓、提交、推上去。
@@ -325,7 +327,7 @@ export interface Tracker {
    * 「量体温之前先问体温计热不热」，记账则等于「看额度这件事自己花额度」。
    * 没实现的后端由注册表补「我不支持」的桩（读数三态里「没量出来」那一支就是给它准备的）。
    */
-  readBudget(ctx: OpContext): Promise<OpResult<BudgetReading>>
+  readBudget(ctx: OpContext): Promise<BudgetResult>
 
   // ── 定位口三条 ────────────────────────────────────────────────────────────────
   // 与上面 24 条操作的区别只有一条，但很要紧：它们**没有「我不支持」这种答案**。

@@ -1,44 +1,51 @@
 /**
- * src/tracker/rooms/github/backend.ts — GitHub 后端装配（githubMatches / createGithubBackend）。
+ * src/tracker/rooms/github/room/backend.ts — GitHub 后端装配（githubMatches / createGithubBackend）。
+ *
+ * #1687 阶段 1：从房间根迁入 room/（它是房间对外的装配面）；房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 由 #440 从 index.js 纯结构移出，行为零变化。
  * 以后改后端装配的人改它。预估约 115 行。
  */
 
-import type { Tracker } from '../../contract/operations.js'
-import type { OpContext, RepoHandle } from '../../contract/contexts.js';
-import type { Actor } from '../../contract/identity.js';
-import type { OpResult } from '../../contract/results.js';
-import type { RepositoryRef } from '../../contract/entities.js';
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import { fail } from '../../kernel/preflight.js'
-import { ghClient, rememberOutbound } from './client.js'
+import type { Tracker } from '../../../contract/operations.js'
+import type { OpContext, RepoHandle } from '../../../contract/contexts.js';
+import type { Actor } from '../../../contract/identity.js';
+import type { OpResult } from '../../../contract/results.js';
+import type { RepositoryRef } from '../../../contract/entities.js';
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
+import { fail } from '../../../kernel/preflight.js'
+import { ghClient, rememberOutbound } from '../transport/client.js'
+// #1687：房间入口收口时给 getCurrentUser / readBudget 接上读来源（入口是它们的生产文件）。
+import { beginRead } from '../routing/read-result.js'
+import { currentUserProvenance, readBudgetProvenance } from '../routing/read-assembly.js'
 // #1446：用量统一在操作表外层附到成功信封上，不在二十六条操作里各写一遍。
-import { attachOpUsage } from './op-usage.js'
-import type { OutboundControl } from '../../contract/outbound.js'
-import { ghPreflight } from './preflight.js'
+import { attachOpUsage } from '../support/op-usage.js'
+import type { OutboundControl } from '../../../contract/outbound.js'
+import { ghPreflight } from '../read/preflight.js'
 // #1533：认领只看 `.git/config` 里的远端地址，不扫整份文本（分支名带 github 不再误认领）。
-import { remoteUrlsOfGitConfig } from '../../kernel/git-remote.js'
-import { listIssues, getIssue } from './issues.js'
-import { countIssues } from './counts.js'
-import { listIssuesPage } from './page.js'
-import { listMaps } from './maps.js'
-import { listSubIssues } from './sub-issues.js'
-import { createIssue, closeIssue, reopenIssue, updateIssue, setAssignees } from './issues-write.js'
-import { addComment } from './comments.js'
-import { setLabels } from './labels.js'
-import { readRepoPermissions } from './repo-permissions.js'
-import { readGithubBudget } from './budget.js'
-import { listLabels, setLabelColors } from './label-colors-ops.js'
-import { setParent, getDependencies, setBlockedBy } from './graph.js'
-import { initProject } from './init-project.js'
-import { describe, issueAddress, getRepoKey } from './repo.js'
-import type { PartiallyProvidedCapability, ProvidedCapability } from '../../contract/capability-answer.js'
+import { remoteUrlsOfGitConfig } from '../../../kernel/git-remote.js'
+import { listIssues, getIssue } from '../read/issues.js'
+import { countIssues } from '../read/counts.js'
+import { listIssuesPage } from '../read/page.js'
+import { listMaps } from '../read/maps.js'
+import { listSubIssues } from '../read/sub-issues.js'
+import { createIssue, closeIssue, reopenIssue, updateIssue, setAssignees } from '../write/issues.js'
+import { addComment } from '../write/comments.js'
+import { setLabels } from '../write/labels.js'
+import { readRepoPermissions } from '../read/repo-permissions.js'
+import { readGithubBudget } from '../transport/budget.js'
+import { listLabels } from '../read/labels.js'
+import { setLabelColors } from '../write/label-colors.js'
+import { setParent, setBlockedBy } from '../write/graph.js'
+import { getDependencies } from '../read/deps-read.js'
+import { initProject } from '../write/init-project.js'
+import { describe, issueAddress, getRepoKey } from '../model/repo.js'
+import type { PartiallyProvidedCapability, ProvidedCapability } from '../../../contract/capability-answer.js'
 // 上面那行与下面这行都用 `import type` 取登记数据：转译后不留任何运行时引用，
 // 发布出去的包里根本不会加载这份登记 —— 「运行时不读它」这条 G5 纪律因此是机械成立的，不靠自觉。
-import type { GITHUB_CAPABILITY_REGISTER } from './capability-register.js'
+import type { GITHUB_CAPABILITY_REGISTER } from '../support/capability-register.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GIT_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+import { GIT_PROBE_TIMEOUT_MS } from '../../../../shared/time-config/src/values.js'
 
 // —— GitHub 交出来的成员：26 条能力 + id（23 条操作 + 3 条定位口）——
 // 这份集合不再手写：它从本房的登记数据（./capability-register.ts）推出来 —— 「明确提供功能」的那些
@@ -143,6 +150,8 @@ export function createGithubBackend(ctx: OpContext) {
     setParent: (repo, key, parentKey, opts, opCtx) => setParent(repo, key, parentKey, opts, opCtx || ctx),
     setBlockedBy: (repo, key, blockers, opts, opCtx) => setBlockedBy(repo, key, blockers, opts, opCtx || ctx),
     getCurrentUser: async (repo, opCtx) => {
+      // 这一趟读的起点在这里收：成功率回包里要带来源、身份组完整度与耗时（#1687）。
+      const clock = beginRead()
       const c = ghClient(opCtx || ctx)
       const r = await c.execGh(['api', 'user', '--jq', '{login: .login, name: .name, avatarUrl: .avatar_url}'], { cwd: (opCtx && opCtx.cwd) || (ctx && ctx.cwd) })
       if (!r.ok) {
@@ -164,7 +173,8 @@ export function createGithubBackend(ctx: OpContext) {
         if (j.avatarUrl) actor.avatarUrl = String(j.avatarUrl)
         else if (j.avatar_url) actor.avatarUrl = String(j.avatar_url)
         actor.kind = 'user'
-        return { ok: true, data: actor }
+        // 问到 login 才算读成：来源只有 rest 一条渠道，成功即身份组完整。
+        return { ok: true, data: actor, provenance: currentUserProvenance(clock) }
       } catch (e) {
         const eb = (e && typeof e === 'object' ? e : null) as { message?: unknown } | null;
         return fail(ERROR_KIND.PARSE, String((eb && eb.message) || e), r.data)
@@ -183,7 +193,13 @@ export function createGithubBackend(ctx: OpContext) {
     //   2026-10-14 起它是契约操作（`Tracker.getRepoPermissions`）：deck_context 的能力位与失败归因
     //   两边都要用它，所以它不再是「GitHub 独有的旁路」。
     //   问不出来（网络、仓库不存在）如实回 ok:false，调用方按「未知」处理，不捏造。
-    readBudget: (opCtx) => readGithubBudget(opCtx || ctx),
+    // #1687：成功量到两桶水位时补来源（固定 local）；「读数未知」仍走成功信封但不挂来源。
+    readBudget: async (opCtx) => {
+      const clock = beginRead()
+      const r = await readGithubBudget(opCtx || ctx)
+      if (r.ok && r.data && r.data.known) return { ok: true, data: r.data, provenance: readBudgetProvenance(clock) }
+      return r
+    },
     getRepoPermissions: async (repo, opCtx) => {
       const c = ghClient(opCtx || ctx)
       const refId = repo && typeof repo.refId === 'string' ? repo.refId.trim() : ''

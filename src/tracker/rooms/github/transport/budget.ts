@@ -1,5 +1,7 @@
 /**
- * src/tracker/rooms/github/budget.ts —— GitHub 房间的额度读数（#1443）。
+ * src/tracker/rooms/github/transport/budget.ts —— GitHub 房间的额度读数（#1443）。
+ * #1687 阶段 1：从房间根迁入 transport/（它只是一次 gh 调用的薄读数，归传输层）；房间根的同名转发文件已在 #1687 末批删除，行为零变化。
+ * 读来源信息（provenance）不在这里挂：transport 层不许引用 routing，包装放在房间入口那一侧。
  *
  * 这一件只回答一件事：这台机器上的 gh 还剩多少可用额度（REST 与 GraphQL 两桶）。
  * 调用方是额度同步（经 Tracker 会话调 readBudget），不是人 —— 所以三条坏路（gh 缺失、
@@ -12,10 +14,10 @@
  *
  * 两桶解析是桥里旧 parseRateLimit 的唯一后继：旧解析随 #1443 改道删掉，以后只认这一份。
  */
-import type { BucketLevel, BudgetReading } from '../../contract/budget-model.js'
-import type { OpContext } from '../../contract/contexts.js'
-import type { OpResult } from '../../contract/results.js'
-import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { BucketLevel, BudgetReading } from '../../../contract/budget-model.js'
+import type { OpContext } from '../../../contract/contexts.js'
+import type { OpResult } from '../../../contract/results.js'
+import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import { ghClient } from './client.js'
 
 /** 两桶水位：REST 与 GraphQL 各剩多少、上限多少（不带重置时刻，房间读数只量水位）。 */

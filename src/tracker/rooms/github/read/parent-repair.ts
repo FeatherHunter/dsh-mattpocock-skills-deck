@@ -1,5 +1,5 @@
 // src/tracker/rooms/github/read/parent-repair.ts —— REST 树边修复（#895 从 issues.js 移出，原样搬家）
-// #1686 阶段 1：从房间根迁入 read/，旧路径 src/tracker/rooms/github/parent-repair.ts 保留纯转发，行为零变化。
+// #1686 阶段 1：从房间根迁入 read/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
 //
 // 由 issues.js 纯结构移出（repairParentLinksREST），行为零变化：找出所有 wayfinder:map 票，
 // 逐个拉 /sub_issues，把子票 raw.parent 设为 {number}（normalize 的 deriveParentKey 直接消费）。

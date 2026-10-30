@@ -115,7 +115,7 @@ export const GENERIC_CATALOG: readonly CatalogItem[] = Object.freeze([
  * #227 D7：仓库定位(c1 backend) / gh CLI(c4) / gh 登录(c5) / API 可达(c6) 4 项迁移，语义与 9 项一致。
  * 2026-10-27（#1223）：删掉一项已退役的旧标签检查。它当时只在这份目录里、不在 GitHub 房的模块检查表里，
  *   靠运行期一条过滤把多出来的行藏住；删掉之后目录与模块检查表一致。
- * 2026-10-27 当天稍晚：GitHub 房的模块检查表（src/tracker/rooms/github/checks.ts）改成直接由这份目录派生，
+ * 2026-10-27 当天稍晚：GitHub 房的模块检查表（src/tracker/rooms/github/room/checks.ts）改成直接由这份目录派生，
  *   不再手抄第二份——「目录与检查表各说各话」从此在结构上不可能出现
  *   （tests/verify-1223-catalog-runtime-parity.ts 里的逐项断言保留作回归锁）。
  */

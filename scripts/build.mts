@@ -1089,7 +1089,7 @@ ${PKG_CLIENT_SHIMS}
 //   exports 里 "./tools" 指到新位置）。
 //
 // 三、宿主引用改写：新树里有 6 处引用指回宿主树（src/tracker/index.ts 两处、
-//   src/tracker/rooms/github/client.ts 三处、src/tracker/detection/detectionService.ts 一处），
+//   src/tracker/rooms/github/transport/client.ts 三处、src/tracker/detection/detectionService.ts 一处），
 //   在源码里它们写作 ../host/...，在包里宿主住在 package/lib，必须改写成 ../lib/...。
 //   改写只动转译产物的引用串，不动源码；改写逐条记日志，审计步骤逐条核对去向文件在不在盘上。
 //

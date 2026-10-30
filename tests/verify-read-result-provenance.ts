@@ -26,7 +26,8 @@
 // 门禁归属: src/tracker/rooms/github/channels/graphql/read-shapes.ts
 // 门禁归属: src/tracker/rooms/github/channels/graphql/queries.ts
 // 门禁归属: src/tracker/rooms/github/channels/rest/read-shapes.ts
-// 门禁归属: src/tracker/rooms/github/issues.ts
+// 门禁归属: src/tracker/rooms/github/read/issues.ts
+// 门禁归属: src/tracker/rooms/github/room/backend.ts
 // 门禁归属: src/tracker/rooms/github/read/issues-rest-list.ts
 // 门禁归属: src/tracker/rooms/github/read/page.ts
 // 门禁归属: src/tracker/rooms/github/read/preflight.ts
@@ -78,8 +79,9 @@ import {
   readSourceOfVia,
 } from '../src/tracker/rooms/github/routing/read-result.js'
 import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.js'
-import { getIssue, listIssues } from '../src/tracker/rooms/github/issues.js'
-import { listIssuesPage } from '../src/tracker/rooms/github/page.js'
+import { getIssue, listIssues } from '../src/tracker/rooms/github/read/issues.js'
+import { listIssuesPage } from '../src/tracker/rooms/github/read/page.js'
+import { createGithubBackend } from '../src/tracker/rooms/github/room/backend.js'
 import {
   GET_QUERY,
   LIST_PAGE_QUERY,
@@ -131,20 +133,9 @@ function importSpecifiersOf(text: string): string[] {
   })
 }
 
-// 旧路径只许纯转发：去掉注释与空行之后，每一行都得是 export ... from '目标'。
-function isPureForwarder(rel: string, target: string): boolean {
-  const lines = readSource(rel)
-    .split('\n')
-    .map(function (l: string): string { return l.trim() })
-    .filter(function (l: string): boolean {
-      if (!l) return false
-      if (l.startsWith('//') || l.startsWith('/*') || l.startsWith('*') || l.startsWith('*/')) return false
-      return true
-    })
-  if (!lines.length) return false
-  return lines.every(function (l: string): boolean {
-    return l.startsWith('export ') && l.includes(target)
-  })
+// 旧路径在 #1687 末批已经删掉：这里直接断言这些文件不再存在，防止有人把转发器加回来。
+function oldPathRemoved(rel: string): boolean {
+  return !fs.existsSync(path.join(ROOT, rel))
 }
 
 // =============================================================================================
@@ -215,32 +206,33 @@ const WHITELISTED_OPS = READ_OPS.filter(function (op: any): boolean {
   return (READ_PROVENANCE_STATUS as any)[op].status === 'whitelisted'
 }).sort()
 check(
-  WIRED_OPS.join(',') === 'counts,get,getDependencies,getRepoPermissions,list,listLabels,listMaps,listPage,listSubIssues,preflight',
-  '#1685 接三条、#1686 再清七条，共十条读操作接成 wired',
+  WIRED_OPS.join(',') === 'counts,get,getCurrentUser,getDependencies,getRepoPermissions,list,listLabels,listMaps,listPage,listSubIssues,preflight,readBudget',
+  '#1685 接三条、#1686 再清七条、#1687 收口清最后两条，十二条读操作全部接成 wired',
   WIRED_OPS,
 )
-check(WHITELISTED_OPS.length === 2, '白名单只剩 getCurrentUser 与 readBudget 两条，留 #1687 房间入口收口时接', WHITELISTED_OPS.length)
+check(WHITELISTED_OPS.length === 0, '#1687 房间入口收口后白名单清零（不再有等后续票接的读操作）', WHITELISTED_OPS.length)
 
 const ticketCounts: any = {}
 for (const op of WHITELISTED_OPS) {
   const ticket = String((READ_PROVENANCE_STATUS as any)[op].ticket || '')
   ticketCounts[ticket] = (ticketCounts[ticket] || 0) + 1
 }
-check(ticketCounts['#1686'] === undefined, '#1686 的七条已全部清零，白名单里不再有它的名字', ticketCounts)
-check(ticketCounts['#1687'] === 2, '白名单里两条挂在 #1687（收口时统一定义）', ticketCounts)
+check(ticketCounts['#1686'] === undefined && ticketCounts['#1687'] === undefined, '白名单里不再挂 #1686 / #1687 的名字', ticketCounts)
 
 // wired 的生产文件不是嘴上说说：文件存在、真的开了取数时钟、真的在结果上挂 provenance。
 const WIRED_PRODUCER_FACTS: any = {
   counts: { file: 'src/tracker/rooms/github/read/counts.ts', markers: ['beginRead(', 'provenance:', 'countsProvenance'] },
-  get: { file: 'src/tracker/rooms/github/issues.ts', markers: ['beginRead(', 'provenance:', 'detailProvenanceFrom'] },
+  get: { file: 'src/tracker/rooms/github/read/issues.ts', markers: ['beginRead(', 'provenance:', 'detailProvenanceFrom'] },
+  getCurrentUser: { file: 'src/tracker/rooms/github/room/backend.ts', markers: ['beginRead(', 'provenance:', 'currentUserProvenance'] },
   getDependencies: { file: 'src/tracker/rooms/github/read/deps-read.ts', markers: ['beginRead(', 'provenance:', 'dependenciesProvenanceFrom'] },
   getRepoPermissions: { file: 'src/tracker/rooms/github/read/repo-permissions.ts', markers: ['beginRead(', 'provenance:', 'permissionsProvenance'] },
-  list: { file: 'src/tracker/rooms/github/issues.ts', markers: ['beginRead(', 'provenance:', 'listProvenanceFrom'] },
+  list: { file: 'src/tracker/rooms/github/read/issues.ts', markers: ['beginRead(', 'provenance:', 'listProvenanceFrom'] },
   listLabels: { file: 'src/tracker/rooms/github/read/labels.ts', markers: ['beginRead(', 'provenance:', 'labelsProvenanceFromRest'] },
   listMaps: { file: 'src/tracker/rooms/github/read/maps.ts', markers: ['beginRead(', 'provenance:', 'mapsProvenanceFromGraphql'] },
   listPage: { file: 'src/tracker/rooms/github/read/page.ts', markers: ['beginRead(', 'provenance:', 'pageProvenanceFromGraphql'] },
   listSubIssues: { file: 'src/tracker/rooms/github/read/sub-issues.ts', markers: ['beginRead(', 'provenance:', 'subIssuesProvenanceFromGraphql'] },
   preflight: { file: 'src/tracker/rooms/github/read/preflight.ts', markers: ['beginRead(', 'provenance:', 'preflightProvenance'] },
+  readBudget: { file: 'src/tracker/rooms/github/room/backend.ts', markers: ['beginRead(', 'provenance:', 'readBudgetProvenance'] },
 }
 for (const op of WIRED_OPS) {
   const facts = WIRED_PRODUCER_FACTS[op]
@@ -275,8 +267,8 @@ check(READ_RESULT_COMPLETENESS.join(',') === 'complete,truncated,partial', '汇�
 const resultsSrc = readSource('src/tracker/contract/results.ts')
 const provenanceTyped = resultsSrc.split('provenance?: ReadProvenance').length - 1
 check(
-  provenanceTyped === 10,
-  '十种读结果（列表、单票、分页、预检、依赖、标签清单、计数、仓库权限、子票、地图）都带 provenance（类型强制）',
+  provenanceTyped === 12,
+  '十二种读结果（列表、单票、分页、预检、依赖、标签清单、计数、仓库权限、子票、地图、当前用户、读预算）都带 provenance（类型强制）',
   provenanceTyped,
 )
 
@@ -297,15 +289,9 @@ const restLeaks = restSpecs.filter(function (spec: string): boolean {
 check(graphqlLeaks.length === 0, 'GraphQL 通道不引用 REST 形状，也不引用路由/读/写/房间入口', graphqlLeaks)
 check(restLeaks.length === 0, 'REST 通道不引用 GraphQL 形状，也不引用路由/读/写/房间入口', restLeaks)
 
-// 旧平铺路径只留纯转发（到 #1687 末批才删），新代码从新路径导入。
-check(
-  isPureForwarder('src/tracker/rooms/github/queries.ts', './channels/graphql/queries.js'),
-  '旧路径 queries.ts 只剩指向 GraphQL 通道的纯转发',
-)
-check(
-  isPureForwarder('src/tracker/rooms/github/rest-list-metadata.ts', './channels/rest/list-row-metadata.js'),
-  '旧路径 rest-list-metadata.ts 只剩指向 REST 通道的纯转发',
-)
+// 旧平铺路径在 #1687 末批已删除，新代码一律从九目录里的新路径导入。
+check(oldPathRemoved('src/tracker/rooms/github/queries.ts'), '旧路径 queries.ts 已删除（真身在内 channels/graphql/queries.ts）')
+check(oldPathRemoved('src/tracker/rooms/github/rest-list-metadata.ts'), '旧路径 rest-list-metadata.ts 已删除（真身在 channels/rest/list-row-metadata.ts）')
 
 // 端点上限只从契约数字表取，不许在通道里另写一份。
 const graphqlShapesSrc = readSource('src/tracker/rooms/github/channels/graphql/read-shapes.ts')
@@ -507,7 +493,9 @@ function classify(args: any): any {
   const base = qIndex >= 0 ? pathArg.slice(0, qIndex) : pathArg
   const pageMatch = /[?&]page=(\d+)/.exec(pathArg)
   info.page = pageMatch ? Number(pageMatch[1]) : 0
-  if (/\/issues$/.test(base)) info.kind = 'rest.issues'
+  if (base === 'user') info.kind = 'rest.user'
+  else if (base === 'rate_limit') info.kind = 'rest.budget'
+  else if (/\/issues$/.test(base)) info.kind = 'rest.issues'
   else if (/\/pulls$/.test(base)) info.kind = 'rest.pulls'
   else if (/\/issues\/\d+$/.test(base)) info.kind = 'rest.issue'
   else if (/\/pulls\/\d+$/.test(base)) info.kind = 'rest.pull'
@@ -848,6 +836,70 @@ function gqlPageData(nodes: any[], totalCount: number): any {
     missing: ['labels'],
     degradedFrom: '',
   })
+}
+
+// D6. 当前用户（房间入口 getCurrentUser）：成功挂身份组完整
+//     #1687 把这条从白名单接成 wired：生产文件是 room/backend.ts —— 直接装一个真后端调它。
+{
+  const room = await makeRoom(function (info: any): any {
+    if (info.kind === 'rest.user') return okExec({ login: 'alice', name: 'Alice', avatar_url: 'https://example.test/a.png' })
+    return failExec()
+  })
+  const backend: any = createGithubBackend(room.ctx)
+  const result: any = await backend.getCurrentUser(REPO, room.ctx)
+  expectProvenance('当前用户', result, {
+    operation: 'getCurrentUser',
+    source: 'rest',
+    groups: { identity: 'complete' },
+    completeness: 'complete',
+    missing: [],
+    degradedFrom: '',
+  })
+  check(result.ok === true && result.data && result.data.login === 'alice' && result.data.kind === 'user', '当前用户仍返回登录名与身份形状（行为不变）')
+  check(room.calls.map(function (c: any): string { return c.kind }).join(',') === 'rest.user', '当前用户只发一条 gh api user', room.calls.map(function (c: any): string { return c.kind }))
+}
+
+// D6b. 当前用户未登录：仍回 unsupported（行为不变），失败结果不带 provenance
+{
+  const room = await makeRoom(function (info: any): any {
+    if (info.kind === 'rest.user') return { stdout: '', stderr: 'gh: Not logged in', code: 1 }
+    return failExec()
+  })
+  const backend: any = createGithubBackend(room.ctx)
+  const result: any = await backend.getCurrentUser(REPO, room.ctx)
+  check(result.ok === false, '当前用户未登录仍回失败（行为不变）')
+  check(!result.provenance, '当前用户失败结果不挂 provenance')
+}
+
+// D7. 读预算（房间入口 readBudget）：量到两桶水位时挂 local 来源与计数组完整
+{
+  const room = await makeRoom(function (info: any): any {
+    if (info.kind === 'rest.budget') {
+      return okExec({ resources: { core: { limit: 5000, remaining: 4990 }, graphql: { limit: 5000, remaining: 4900 } } })
+    }
+    return failExec()
+  })
+  const backend: any = createGithubBackend(room.ctx)
+  const result: any = await backend.readBudget(room.ctx)
+  expectProvenance('读预算', result, {
+    operation: 'readBudget',
+    source: 'local',
+    groups: { counts: 'complete' },
+    completeness: 'complete',
+    missing: [],
+    degradedFrom: '',
+  })
+  check(result.ok === true && result.data && result.data.known === true && result.data.buckets.rest.remaining === 4990, '读预算仍返回两桶水位（行为不变）')
+  check(room.calls.map(function (c: any): string { return c.kind }).join(',') === 'rest.budget', '读预算只发一条 gh api rate_limit', room.calls.map(function (c: any): string { return c.kind }))
+}
+
+// D7b. 读不到额度：仍回成功信封（行为不变），读数未知时不挂 provenance
+{
+  const room = await makeRoom(function (): any { return failExec() })
+  const backend: any = createGithubBackend(room.ctx)
+  const result: any = await backend.readBudget(room.ctx)
+  check(result.ok === true && result.data && result.data.known === false, '读不到额度仍走成功信封（行为不变）')
+  check(!result.provenance, '读数未知不挂 provenance（没有可交代的字段组）')
 }
 
 // =============================================================================================

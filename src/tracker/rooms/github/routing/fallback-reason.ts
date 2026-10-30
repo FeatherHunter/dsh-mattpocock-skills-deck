@@ -1,5 +1,7 @@
 /**
- * src/tracker/rooms/github/fallback-reason.ts — 降级原因分类（#504 雾证据补强）。
+ * src/tracker/rooms/github/routing/fallback-reason.ts — 降级原因分类（#504 雾证据补强）。
+ * #1687 阶段 1：从房间根迁入 routing/。它回答的是「这次降级该记哪个原因」，
+ * 属于两条渠道汇合处的判断，读侧与写侧都要用；房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 由 `issues.ts` 拆出（单文件 350 行纪律：房内拆文件不拆房）。文件头原写 `backends/github/fallback-reason.js`，
  * 是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。
@@ -9,7 +11,7 @@
  * 合成探针见 tests/verify-504-github-pr.js（企业版主机/限流/timeout 三合成失败各走各的 reason）。
  */
 
-import type { OpContext } from '../../contract/contexts.js';
+import type { OpContext } from '../../../contract/contexts.js';
 
 /** 能读 GH_HOST 的最小环境口：契约平台环境口与历史遗留的顶层 env 口都只认这一个方法。 */
 interface GhHostEnv {

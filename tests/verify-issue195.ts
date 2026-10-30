@@ -12,7 +12,7 @@
 //   不许回来、ghLastError 与 resetGhCache 要在、没有「安装副按钮」外链、没有 installGh 提示词键）。
 const fs = require('fs')
 const files = process.argv.slice(2)
-const targets = files.length ? files : ['client.js', 'package/lib/client.js', 'host.js', 'package/lib/index.js', 'src/tracker/contract/index.ts', 'src/tracker/rooms/github/read/preflight.ts', 'src/tracker/rooms/github/index.ts']
+const targets = files.length ? files : ['client.js', 'package/lib/client.js', 'host.js', 'package/lib/index.js', 'src/tracker/contract/index.ts', 'src/tracker/rooms/github/read/preflight.ts', 'src/tracker/rooms/github/room/index.ts']
 let failed = false
 
 // 缺 gh cli 时注入的那段排查/安装指引（#1621 定稿；整段文本的逐字比对在 verify-663-gh-install-inject.ts）。
@@ -63,9 +63,9 @@ function check(file) {
     if (src.indexOf("'cliInstall'") < 0 && src.indexOf('"cliInstall"') < 0) problems.push("UI: 客户端产物里没有 cliInstall 这个提示词键（缺 gh 时那颗按钮不知道该去问哪条文案）")
   }
 
-  // 2026-10-17 先修：路径判据从旧的 backends/<id>/index.js 改成今天的 src/tracker/rooms/github/index.ts
-  //   （房间入口在 #1159 那批搬进了 src/tracker/rooms/，旧路径在仓库里已经不存在，这一支原来必然空转）。
-  if (/rooms[\\/]github[\\/]index\.ts$/.test(file)) {
+  // 2026-10-17 先修：路径判据从旧的 backends/<id>/index.js 改成今天的 src/tracker/rooms/github/room/index.ts
+  //   （房间入口 #1159 搬进 src/tracker/rooms/，#1687 收口时再搬进 room/；旧两层路径都已不存在，这一支不许空转）。
+  if (/rooms[\\/]github[\\/]room[\\/]index\.ts$/.test(file)) {
     const missingMarkers = GH_INSTALL_MARKERS.filter(function (s) { return src.indexOf(s) < 0 })
     if (missingMarkers.length) problems.push("Backend: 缺 gh 时注入的排查/安装指引不在 GitHub 后端声明里（点一下又等于什么都没给） - 缺 " + missingMarkers.join('、'))
   }

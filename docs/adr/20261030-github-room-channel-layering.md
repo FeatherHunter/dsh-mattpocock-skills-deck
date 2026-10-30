@@ -34,7 +34,7 @@
 - room/：房间入口与契约接线（backend.ts、能力声明）；
 - support/：错误分类、读写日志、用量计数、分页、并发等内部工具。
 
-依赖方向：room → read/write → routing → channels → transport；model 可被 read/write/routing 引用，model 自己可以引用 transport（仓库身份与远端探测经客户端出手，不直接起进程），但 transport 与 channels 不得反过来引用 model；read 可以引用 channels/graphql 与 channels/rest 的请求文档与回包形状（纯数据），渠道选择与降级顺序仍只由 routing 决定；channels 不得引用上游（同层拆文件算本层内引用，允许：例如评论翻页 channels/graphql/comment-paging.ts 引同层 queries.ts）。support 在最底层，不引用房间内任何一层，但任何层都可以引用它（因此 transport 可以引用 support：错误分类与用量计数都住这一层）。由现有依赖门禁（verify-dependency-rules.ts 与 .dependency-cruiser.ts）扩展硬卡。
+依赖方向：room → read/write → routing → channels → transport；model 可被 read/write/routing 引用，model 自己可以引用 transport（仓库身份与远端探测经客户端出手，不直接起进程），但 transport 与 channels 不得反过来引用 model；read 可以引用 channels/graphql 与 channels/rest 的请求文档与回包形状（纯数据），渠道选择与降级顺序仍只由 routing 决定；channels 不得引用上游（同层拆文件算本层内引用，允许：例如评论翻页 channels/graphql/comment-paging.ts 引同层 queries.ts）。support 在最底层，不引用房间内任何一层，但任何层都可以引用它（因此 transport 可以引用 support：错误分类与用量计数都住这一层）。#1687 起 write 可以引用 read/ 与 channels/graphql/：写后要读回（getIssue、依赖投影、标签清单、仓库权限），关票原因要先发评论，阻塞边主路是 GraphQL mutation、写层必须自己声明请求与回包形状；room/ 可以引用本层（入口、装配、检查表三个文件互相引用）。由现有依赖门禁（verify-dependency-rules.ts 与 .dependency-cruiser.ts）扩展硬卡。
 
 ### 2.2 读结果带来源与完整度
 
@@ -102,3 +102,6 @@
 - 2026-10-31 阶段 1 第二批（#1686）：routing/ 迁入幂等锚回查（idempotency.ts）：它要先选读或写、再经客户端发请求，属于路由层的取数决策；channels/graphql/ 迁入评论翻页（comment-paging.ts）：只拼 GraphQL 查询文本与校验回包，属于协议形状层。原来把这两个文件放进 support/ 的打算作废——support 不依赖任何层，而它们都要调 transport 的客户端；channels/graphql 因此允许引用本层（同层拆文件），这条已同步写进第 2 章。旧路径都保留纯转发。
 
 - 2026-10-31 阶段 1 第二批（#1686）：read/ 最后四个读实现（preflight.ts、pulls.ts、repo-permissions.ts、issues-rest-list.ts）迁入；标签读侧（listLabels 及其帮手）从 label-colors-ops.ts 拆出为 read/labels.ts，那个文件只留写侧的 setLabelColors 并继续转发读侧名字，两条操作的命令形状、失败档位与话术一字未改。到此 read/ 该有的文件全部落位，旧平铺路径都只是纯转发，等 #1687 收口；这些读实现仍经 transport 起 gh、经 channels 取请求文档与回包形状，没有新增依赖方向。
+- 2026-10-31 阶段 1 第三批（#1687，阶段 1 收口）：写实现全部迁入 write/——建票 issues、评论 comments、关闭原因 close-reason、标签写侧 labels、阻塞边 blocked-by-write、初始化 init-project、父子边与阻塞边编排 graph，成环检查 cycle-check 从 model/ 改放 write/（它是写动作的前置判断，且 model 不许引用 read），标签配色只留写侧的 setLabelColors 为 label-colors；房间入口与契约接线迁入 room/（backend、index、checks）。read/ 收 issues.ts（列表与单票）与 read-sources.ts，getDependencies 从 graph.ts 并入 read/deps-read.ts；预算读数 budget.ts 收进 transport/（它只是一次 gh 调的薄读数，且 transport 不许引用 routing，来源与完整度由 room/backend.ts 挂上）；降级原因分类 fallback-reason.ts 进 routing/；读写两侧共用的 owner/name 解析抽成 model/issue-key.ts（原来三处一字不差的副本合一）。写路径主通道一字未改：建票 REST、评论 REST 优先、阻塞边 GraphQL 优先、关闭与重开走 gh 命令、父子边 gh 命令为主 REST 兜底。
+- 2026-10-31 阶段 1 第三批（#1687）：write 的允许依赖扩三格并写进第 2.1 节——write 自身（关闭原因先发评论、父子边与阻塞边编排互调）、read/（写后读回：getIssue、依赖投影、标签清单、仓库权限）、channels/graphql/（阻塞边主路是 GraphQL mutation，写层要声明请求与回包形状）；room 允许引用本层。read 的两条读来源白名单清零：getCurrentUser 与 readBudget 接上来源与完整度，十二条读操作全部 wired，tests/verify-read-result-provenance.ts 升至 294 项断言。
+- 2026-10-31 阶段 1 第三批（#1687）：房间根 41 个旧平铺路径的纯转发文件全部删除，房间根不再有平铺源码文件；tests/verify-room-layering.ts 增加三类判据（房间根零平铺、房间内不许从旧路径导入、房间外也不许从旧路径导入）并补齐对应负例；src/、tests/、scripts/ 里的导入与注释全部改指九目录新路径，门禁地图与文件粒度基线按最终树重录；阶段 1 行为零变化。

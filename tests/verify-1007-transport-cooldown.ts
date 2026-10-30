@@ -154,7 +154,7 @@ async function main(): Promise<void> {
   {
     const lane = createGhAdmission({ readMax: 2, writeMax: 1, cooldownMs: 60000 })
     const roomEvents: any[] = []
-    const client = (await imp('src/tracker/rooms/github/client.ts')).ghClient(roomCtx(roomOutbound(lane), hangExec, roomEvents))
+    const client = (await imp('src/tracker/rooms/github/transport/client.ts')).ghClient(roomCtx(roomOutbound(lane), hangExec, roomEvents))
 
     const t0 = Date.now()
     const r1 = await client.execGh(['issue', 'list'], { cwd: '.', timeout: 150 })
@@ -169,7 +169,7 @@ async function main(): Promise<void> {
 
     // 冷却期间再调：一次进程都不许起，并且立刻回「通路不通」。
     const store = { spawns: 0 }
-    const client2 = (await imp('src/tracker/rooms/github/client.ts')).ghClient(roomCtx(roomOutbound(lane), countingOk(store), roomEvents))
+    const client2 = (await imp('src/tracker/rooms/github/transport/client.ts')).ghClient(roomCtx(roomOutbound(lane), countingOk(store), roomEvents))
     const t1 = Date.now()
     const r2 = await client2.execGh(['issue', 'list'], { cwd: '.', timeout: 5000 })
     const took2 = Date.now() - t1
@@ -188,7 +188,7 @@ async function main(): Promise<void> {
     lane.reportTransportFailure({ bucket: 'write', reason: 'killed', cmd: 'issue:create' })
     const store = { spawns: 0 }
     const roomEvents: any[] = []
-    const client = (await imp('src/tracker/rooms/github/client.ts')).ghClient(roomCtx(roomOutbound(lane), countingOk(store), roomEvents))
+    const client = (await imp('src/tracker/rooms/github/transport/client.ts')).ghClient(roomCtx(roomOutbound(lane), countingOk(store), roomEvents))
     const r = await client.execGh(['issue', 'create', '--title', 'x'], { cwd: '.', timeout: 5000 })
     check(r && r.ok === false && store.spawns === 0, '四、写档冷却期间同样不起进程', JSON.stringify(r && r.error))
     check(/这一笔写操作没有确认结果/.test(r.error.message) && /核对票面现状/.test(r.error.message) && /不要直接重放/.test(r.error.message), '四、写档的后续动作写死为「先核对现状、不直接重放」', String(r.error.message).slice(0, 260))
@@ -198,11 +198,11 @@ async function main(): Promise<void> {
   {
     const lane = createGhAdmission({ readMax: 2, writeMax: 1, cooldownMs: 150 })
     const roomEvents: any[] = []
-    const client = (await imp('src/tracker/rooms/github/client.ts')).ghClient(roomCtx(roomOutbound(lane), hangExec, roomEvents))
+    const client = (await imp('src/tracker/rooms/github/transport/client.ts')).ghClient(roomCtx(roomOutbound(lane), hangExec, roomEvents))
     await client.execGh(['issue', 'list'], { cwd: '.', timeout: 80 })
     await wait(180)
     const store = { spawns: 0 }
-    const okClient = (await imp('src/tracker/rooms/github/client.ts')).ghClient(roomCtx(roomOutbound(lane), countingOk(store), roomEvents))
+    const okClient = (await imp('src/tracker/rooms/github/transport/client.ts')).ghClient(roomCtx(roomOutbound(lane), countingOk(store), roomEvents))
     const ok = await okClient.execGh(['issue', 'list'], { cwd: '.', timeout: 5000 })
     check(ok && ok.ok === true && store.spawns === 1, '三、冷却窗口过去后第一条成功命令正常执行（起一次进程）', JSON.stringify(ok))
     const clearedEvt = transportEvents.filter((e) => e.event === 'gh.transport' && e.fields.decision === 'cooldown-cleared')

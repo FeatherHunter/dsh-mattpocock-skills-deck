@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/read/page.ts — 按页取票（listPage 那条操作；契约见 `src/tracker/contract/contract-page.ts` 的「分页契约」，#690 新加）。
- * #1686 阶段 1：从房间根迁入 read/，旧路径 src/tracker/rooms/github/page.ts 保留纯转发，行为零变化。
+ * #1686 阶段 1：从房间根迁入 read/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 文件头原写 `backends/github/page.js`、契约也写作 `tracker/contract-page.js`——两份都是 #1019 目录归位前的旧路径；
  * #1052 按读路径这一片改成今天的真名。文件内另有几处旧路径注释，随本票一并改到真名。
@@ -39,7 +39,7 @@ import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
 import { normalizeIssue } from '../model/normalize.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
-import { parseRepo, repoId } from '../issues.js'
+import { parseRepo, repoId } from '../model/issue-key.js'
 import { LIST_PAGE_QUERY, LIST_PAGE_QUERY_WITH_LABELS } from '../channels/graphql/queries.js'
 // 读结果的来源与按字段组完整度（#1685）：起点在这里收，组装统一走 routing。
 import { beginRead } from '../routing/read-result.js'

@@ -1,6 +1,6 @@
 /**
  * src/tracker/rooms/github/read/counts.ts — 后端计数（counts op；契约见 `src/tracker/contract/operations.ts` 的「计数契约」，#689 新加）。
- * #1686 阶段 1：从房间根迁入 read/，旧路径 src/tracker/rooms/github/counts.ts 保留纯转发，行为零变化。
+ * #1686 阶段 1：从房间根迁入 read/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 文件头原写 `backends/github/counts.js`，契约也写作 `tracker/contract.js`——两份都是 #1019 目录归位前的旧路径；
  * #1052 按读路径这一片改成今天的真名。
@@ -35,7 +35,7 @@ import type { RepositoryRef } from '../../../contract/entities.js';
 import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
-import { parseRepo, repoId } from '../issues.js'
+import { parseRepo, repoId } from '../model/issue-key.js'
 import { COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS } from '../channels/graphql/queries.js'
 import { emitReadDegraded } from '../support/read-log.js'
 import { beginRead } from '../routing/read-result.js'
