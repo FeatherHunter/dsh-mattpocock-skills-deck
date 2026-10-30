@@ -25,10 +25,11 @@ function check(cond: unknown, msg: string) { if (!cond) { fail++; console.error(
 
 // ---------- A 契约三字段（形状 A：复用工单形状加三个可选字段，不新增实体）----------
 const { normalizeIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/model/normalize.ts')).href)
+// #1688 起「来源没表达」与「明确为空」分开：空来源不再逐票补三字段空值，坏值也不再收敛成空。
 const empty = normalizeIssue({})
-check(empty.isPullRequest === false && empty.mergedAt === null && Array.isArray(empty.reviews) && empty.reviews.length === 0, 'A5 空来源逐票必带三字段空值（假、空、空数组，不省略）')
+check(empty.isPullRequest === false && !('mergedAt' in empty) && !('reviews' in empty), 'A5 空来源不冒充「没有评审」「还没合并」（字段省略，三态记未表达）')
 const bad = normalizeIssue({ number: 1, title: 't', state: 'open', reviews: [{ reviewer: { login: 'x' } }, null], mergedAt: 12345 })
-check(Array.isArray(bad.reviews) && bad.reviews.length === 0 && bad.mergedAt === null, 'A6 坏值收空（缺结论评审丢弃，数字合并时间收空，不抛错）')
+check(Array.isArray(bad.reviews) && bad.reviews.length === 0 && !('mergedAt' in bad), 'A6 坏值不编事实（缺结论评审丢弃，数字合并时间记为读不懂并省略字段，不抛错）')
 
 // ---------- B 双路降级合成（桩造四种失败，不碰真仓）----------
 const { listIssues } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/read/issues.ts')).href)
