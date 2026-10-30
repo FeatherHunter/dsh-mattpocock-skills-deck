@@ -40,6 +40,7 @@ const EXEC_HEADER_WORKSPACE = { agent: { session: { header: { workspaceRoot: '/w
 // #1406 冻结的一句话介绍。#1464 曾补「技能优先、prompt 开头写 /xxxx」，#1412 又把调用时机搬进说明。
 // 2026-10-29 按维护者定稿把六个字段收紧到 231 字：只写模型必须自己判断的调用时机与写法；
 // 显示位置、点选后是否发送、排序与截断都由实现保证，不再写进说明。
+// #1666 在不动一句话介绍的前提下，只放宽 prompt 与 items 两格说明：补上「等用户补充的半句话」分支。
 const SPEC_DESCRIPTION = '推荐 2~4 条下一步建议。这一轮已经告一段落，且你能说清下一步要做什么、对什么做时才调用；还有活没干完、在等用户回答时不调用。'
 
 function makeLog() {
@@ -88,6 +89,9 @@ async function main() {
   check(String(itemsSpec.description || '').indexOf('/xxxx') >= 0, 'items 的说明写清技能指令的写法（/xxxx）')
   check(String(itemsSpec.description || '').indexOf('技能') >= 0, 'items 的说明提醒传入者：有对应技能就优先用技能指令')
   check(String(itemsSpec.description || '').indexOf('开头') >= 0, 'items 的说明写清技能指令放在 prompt 开头')
+  check(String(itemsSpec.description || '').indexOf('下一轮') >= 0, 'items 的说明写清每条是用户下一轮要说的话（#1666）')
+  check(String(itemsSpec.description || '').indexOf('半句话') >= 0 && String(itemsSpec.description || '').indexOf('最开头') >= 0,
+    'items 的说明写清半句话模板里技能指令仍放最开头（#1666）')
   check(itemsSpec.items && itemsSpec.items.type === 'object', 'items 的每一项是对象')
   const introSpec = itemsSpec.items.properties && itemsSpec.items.properties.intro
   const promptSpec = itemsSpec.items.properties && itemsSpec.items.properties.prompt
@@ -101,6 +105,15 @@ async function main() {
   check(String(promptSpec.description || '').indexOf('/xxxx') < 0, '技能指令只写在 items 说明里，prompt 说明不重复')
   check(String(promptSpec.description || '').indexOf('具体对象') >= 0 && String(promptSpec.description || '').indexOf('继续推进') >= 0,
     'prompt 说明要求写具体对象、不写空泛推进')
+  check(String(promptSpec.description || '').indexOf('能确定') >= 0, 'prompt 说明要求只写现在就能确定的事（#1666）')
+  check(String(promptSpec.description || '').indexOf('补充') >= 0 && String(promptSpec.description || '').indexOf('待填位置') >= 0,
+    'prompt 说明写清要用户补充的只写前半句并留待填位置（#1666）')
+  check(String(promptSpec.description || '').indexOf('冒号') >= 0 && String(promptSpec.description || '').indexOf('在此填写') >= 0,
+    'prompt 说明给出待填位置的写法（冒号结尾或标出要填的地方）（#1666）')
+  check(String(promptSpec.description || '').indexOf('还没发生') >= 0 && String(promptSpec.description || '').indexOf('留给用户填') >= 0,
+    'prompt 说明要求没发生的事留给用户填（#1666）')
+  check(String(promptSpec.description || '').indexOf('不编') >= 0, 'prompt 说明要求不编具体值（#1666）')
+  check(String(promptSpec.description || '').indexOf('我已回答') < 0, 'prompt 说明不引用错误的已完成句式，避免把禁句带进上下文（#1666）')
   check(reasonSpec && reasonSpec.type === 'string' && String(reasonSpec.description || '').indexOf('为什么') >= 0, 'reason 是一句话理由')
   check(String(reasonSpec.description || '').indexOf('卡在哪') >= 0, 'reason 说明写清理由怎么说（卡在哪、能解锁什么）')
   const prioritySpec = itemsSpec.items.properties && itemsSpec.items.properties.priority
