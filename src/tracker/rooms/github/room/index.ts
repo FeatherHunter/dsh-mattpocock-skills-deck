@@ -1,12 +1,255 @@
-// src/tracker/rooms/github/room/index.ts —— room 层目录锚（#1684 阶段 1 建立）
-//
-// 这一层是房间对外的门面：backend 契约实现（谁来做读、谁来写、能力自述）、房间登记与健康检查。
-// 它是依赖图的最上层，负责把 read 与 write 组装成「一个房间」。
-//
-// 允许引用的层：read、write、routing、model、support、transport。这一层不被任何层引用，
-// 也不许被 read/write 反向引用——否则门面与实现互相牵住，房间就不能独立替换。
-//
-// 文件搬入安排在 #1687：backend.ts、index.ts（房间自身的入口）、checks.ts。
-// 本文件现在只占位，让目录在 git 里存在、让分层门禁有据可依；它不是对外导入面——
-// 拆层期间对外仍然走原来的平铺路径（旧路径保留转发，到 #1687 才删）。
-export {}
+/**
+ * src/tracker/rooms/github/room/index.ts — GitHub 后端房间入口（只转发，不写逻辑）。
+ *
+ * #1687 阶段 1：从房间根迁入 room/，成为房间真正的对外入口；旧路径 index.ts 保留纯转发，行为零变化。
+ *
+ * #440 拆分后：仓库身份与链接见 repo.js，检查目录见 checks.js，开仓流程见
+ * init-project.js，后端装配见 backend.js，issue 读写见 issues.js / issues-write.js。
+ * fixes / prompts / githubModule 字面量留在本文件（多道产物门禁按文件文本断言，不可搬）。
+ * 以后改房间对外契约的人看它。预估约 190 行。
+ *
+ * 定版：#133（labels 对齐）+#138（13 ops 形状归一 + 错误分类）+#129（平台三底座）
+ * 定版：#133（labels 对齐）+#138（13 ops 形状归一 + 错误分类）+#129（平台三底座）
+ * 2026-08-28 下沉（#227）：parseGithubRepo / getRepoKey / describe / 链接三件（今天的名字是
+ * issueAddress / repoSearchAddress / issueRefPattern）/ initProject / checks 入本模块，
+ * host 私货删除，registry 只转发。
+ * 对照 contract.js 操作集与 shape.js，不手拼 OS 路径，所有 OS 交互经 ctx.platform。
+ */
+
+import { CANONICAL_LABELS } from '../../../contract/canonical-labels.js'
+import type { BackendModule } from '../../../contract/backend-module.js'
+// #716：缺 gh 时那句装 CLI 的原话，从共享清单挪回了本模块的 prompts.cliInstall（它跟具体后端有关，
+//   共享清单是三个后端共用的文件，不该住那儿）。共享清单里 gh:installed 那一步只留「注入 cliInstall」。
+import { describe, issueAddress, repoSearchAddress, issueRefPattern, links, capabilities, openRepository } from '../model/repo.js'
+import { GITHUB_CHECKS } from './checks.js'
+import { githubMatches, createGithubBackend } from './backend.js'
+// 链接三件的名字与后端无关（#1110 实现决定第 14 条）：GitHub 这家回的是网址，本地 Markdown 那家回的
+// 是票文件路径（#1144 起那条算不出票文件名，改回空串），用「地址」一个说法就都罩得住，不必替谁开例外。改名是 #1133 做的，那时老名字（网址
+// 口吻的那三个）作为同义别名留了一轮；客户端与宿主都不再读它们之后，别名已按 #1141 删净。
+// 实现只有 repo.js 里那一份，本文件只是把名字摆出来，不再另起别名。
+export { describe, issueAddress, repoSearchAddress, issueRefPattern, links, capabilities, githubMatches, createGithubBackend }
+export { parseGithubRepo, getRepoKey, openRepository } from '../model/repo.js'
+export { GITHUB_CHECKS } from './checks.js'
+export { initProject } from '../write/init-project.js'
+
+// ============ 修复契约（Fix Contract · 2026-08-28）：检查失败 → 修复指引（后端知识单源） ============
+/**
+ * 每个后端检查项的失败修复知识：hint（人读指引，随链渲染）+ actions（词汇表动作）。
+ * host wf.chain 组装时按语言解析进 onFail.show.hint / onFail.actions（见 tracker/fixContract.js）；
+ * UI 只渲染与分发，不识别后端、不推导修复步骤。
+ * 文案引用本模块 prompts 键：cliInstall / cliLogin（ghAuthLogin 为旧别名，同文本保留；双语单源）；操作类的事一律交给工具
+ *   （deck_* 那一批），提示词里不再教任何一条跟踪器命令 —— #716 定的口径：提示词与文档里剩下的
+ *   裸命令只有三类（登录、建仓、阻塞降级写法）。
+ */
+export const fixes = Object.freeze({
+  // 2026-08-29（审查 S1/S2）：hint 只做「状态翻译」——说清这行为什么红、不修会怎样、有无第二条路；
+  //   不再指挥点击（按钮自己会说话）、不贴命令（命令在指引全文里）、去掉与判定矛盾的「网络不通」表述。
+  'gh:installed': {
+    hint: {
+      zh: 'DSH 进程启动时继承的 PATH 中未解析到 gh 可执行文件。可能未安装，也可能已安装但其目录不在该 PATH 中。若已安装：将 gh 所在目录加入 PATH，或设置 DSH_GH_PATH，再重启 DSH；若该目录已在 PATH 中，直接重启。若未安装：安装 gh。',
+      en: 'gh was not resolved from the PATH inherited at DSH process startup. It may be not installed, or installed in a directory absent from that PATH. If installed: add the gh directory to PATH or set DSH_GH_PATH, then restart DSH; if the directory is already in PATH, restart DSH. If not installed: install gh.',
+    },
+    actions: [
+      // #664：缺 gh 时那句话只有一份。#716 把那份话挪回了本模块 prompts.cliInstall，这里改成按提示词键引用 ——
+      //   检查页这一行的按钮与状态栏那条横幅注入的仍是同一句话（原先那段按系统分平台的安装长文 noGhPrompt 已退役）。
+      { type: 'inject-prompt', prompt: 'cliInstall', label: { zh: '排查与安装', en: 'Troubleshoot / install' } },
+      { type: 'refresh', target: 'chain' },
+    ],
+  },
+  'gh:authed': {
+    hint: {
+      zh: 'GitHub 登录状态已失效，重新登录后即可继续。',
+      en: 'The GitHub login has expired — sign in again to continue.',
+    },
+    actions: [
+      { type: 'inject-prompt', prompt: 'ghAuthLogin', label: { zh: '登录指引', en: 'Login guide' } },
+      { type: 'refresh', target: 'chain' },
+    ],
+  },
+  'gh:remote': {
+    hint: {
+      zh: '此目录未关联 GitHub 仓库。先点「创建并发布」完成建仓推送，再执行初始化；初始化全文中的标签步骤需等待仓库就绪变绿。想用本地 Markdown，可在顶端切换后端后再查。',
+      en: 'This directory is not linked to a GitHub repo. First click "Create & publish" to finish creating and pushing the repo, then run initialization; the label steps in the full setup prompt must wait until the repo rows turn green. To use local Markdown, switch the backend at the top and re-check.',
+    },
+    // 修复动作（2026-08-28 用户定版）：wizard 两步（仓库名 → 可见性），走 wf.initPublish → github initProject；
+    //   移除「修复指引」inject-prompt 主按钮：有 form/wizard 时注入文本不再以按钮出现（之前讨论判定为不合理功能）。
+    actions: [
+      {
+        type: 'wizard',
+        label: { zh: '创建并发布', en: 'Create & publish' },
+        steps: [
+          {
+            title: { zh: '仓库信息', en: 'Repository info' },
+            schema: [
+              { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$', defaultFrom: 'cwd-basename', preview: { zh: '将创建 https://github.com/{owner}/{name}', en: 'Will create https://github.com/{owner}/{name}' } },
+            ],
+          },
+          {
+            title: { zh: '可见性', en: 'Visibility' },
+            schema: [
+              { name: 'visibility', type: 'single', label: { zh: '可见性', en: 'Visibility' }, options: ['private', 'public'], optionSubs: { private: { zh: '仅自己', en: 'Only you' }, public: { zh: '所有人', en: 'Everyone' } }, defaultValue: 'private' },
+            ],
+          },
+        ],
+        submitAction: { type: 'rpc', method: 'wf.initPublish', params: {} },
+      },
+      { type: 'refresh', target: 'chain' },
+    ],
+  },
+  'gh:repoAccess': {
+    hint: {
+      zh: '仓库在 GitHub 上访问不到（可能还没创建，或你没有权限）。确认后点「创建并发布」；若只是网络问题，它会显示为等待状态。若仓库只读（能看不能写），标签相关操作会失败：建议 fork 到自己名下，再把工作区 origin 指向 fork（插件只认 origin，不代改配置）。',
+      en: 'The repo is not accessible on GitHub (it may not exist yet, or you lack access). Confirm, then "Create & publish"; if it is only a network issue, this shows as waiting instead. If the repo is read-only (you can read but not write), label operations will fail: fork it to your own account, then point the workspace origin at the fork (the plugin only reads origin and never rewrites your config).',
+    },
+    actions: [
+      {
+        type: 'wizard',
+        label: { zh: '创建并发布', en: 'Create & publish' },
+        steps: [
+          {
+            title: { zh: '仓库信息', en: 'Repository info' },
+            schema: [
+              { name: 'name', type: 'text', required: true, label: { zh: '仓库名', en: 'Repo name' }, pattern: '^[A-Za-z0-9._-]{1,100}$', defaultFrom: 'cwd-basename', preview: { zh: '将创建 https://github.com/{owner}/{name}', en: 'Will create https://github.com/{owner}/{name}' } },
+            ],
+          },
+          {
+            title: { zh: '可见性', en: 'Visibility' },
+            schema: [
+              { name: 'visibility', type: 'single', label: { zh: '可见性', en: 'Visibility' }, options: ['private', 'public'], optionSubs: { private: { zh: '仅自己', en: 'Only you' }, public: { zh: '所有人', en: 'Everyone' } }, defaultValue: 'private' },
+            ],
+          },
+        ],
+        submitAction: { type: 'rpc', method: 'wf.initPublish', params: {} },
+      },
+      { type: 'refresh', target: 'chain' },
+    ],
+  },
+})
+/** 注入文案数据（类别7核销）：键→双语全文；名单从唯一真源 src/tracker/contract/canonical-labels.ts 拼装，零第二份字面量名单。 */
+export const prompts = (function () {
+  const names = CANONICAL_LABELS.map(function (l) { return (l && l.name) ? String(l.name) : String(l) })
+  const zhNames = names.join(', ')
+  const enNames = names.join(', ')
+  return {
+    // #716：这个后端自己的命令行名与站点名。提示词模板里只留 {cli} / {cliBrand} 两个占位符，
+    //   渲染时由这里填 —— 换一个后端（或换一个命令行工具）改的只有这一格，模板一行都不用动。
+    commandVocabulary: { cli: 'gh', cliBrand: 'GitHub' },
+    ensureLabels: {
+      zh: '请为当前仓库补全缺失的核心标签（共 ' + names.length + ' 个）：\n\n必备标签：' + zhNames + '\n\n步骤：\n- [ ] 先看现在有哪些标签：调 deck_context 拿当前后端与仓库，票上带了哪些标签用 deck_issue_get 读\n- [ ] 缺哪个补哪个：调 deck_issue_patch 并把缺的标签名放进 addLabels —— 它按当前后端自己的方式打标签，已经有的不会重复建，成没成逐条回报\n- [ ] 补完再调一次 deck_context 核对标签已齐\n\n色值/描述以 src/tracker/contract/canonical-labels.ts 为唯一清单，门禁逐字比对名字、颜色与描述。\n\n只读仓库补不上标签（建标签要 push，给票打标要 triage 及以上）：这时先 fork 到自己名下，再把工作区 origin 指向 fork；插件只认 origin，不代改配置。',
+      en: 'Please complete the missing canonical labels (' + names.length + ' total):\n\nRequired labels: ' + enNames + '\n\nSteps:\n- [ ] See what labels exist now: call deck_context for the current backend and repo; read which labels a ticket carries with deck_issue_get\n- [ ] Add whatever is missing: call deck_issue_patch with the missing names in addLabels — it applies labels the way the current backend does, never creates duplicates, and reports each one\n- [ ] Re-check with deck_context until the labels are complete\n\nColors/descriptions are single-sourced in src/tracker/contract/canonical-labels.ts; the gate compares names, colors, and descriptions verbatim.\n\nA read-only repo cannot take labels (creating labels needs push, labeling tickets needs triage or higher): fork it to your own account first, then point the workspace origin at the fork. The plugin only reads origin and never rewrites your config.',
+    },
+    // #716：装 gh 的提示词原先逐字沿用维护者 2026-09-19 给的原话（「/wizard 帮用户安装gh cli…」）。
+    // #1621（维护者 2026-10-29 决定）：那句原话把结果默认成「还没装」，会把已经装好、只是目录不在
+    //   DSH 启动时继承的 PATH 里的人引去重装；改成先确认安装状态，再按结果分流：有版本号只改 PATH 或设
+    //   DSH_GH_PATH 后重启，无版本号才走安装。它仍是本模块 prompts 里唯一的一份（原先放在共享清单
+    //   src/shared/tracker/guide-steps.js 的那句已退役）：缺 gh 时状态栏横幅、检查页那一行的按钮取的都是这一条。
+    cliInstall: {
+      zh: '确认 gh 安装状态：在 DSH 之外的终端执行 `gh --version`。\n有版本号输出：gh 已安装。无需重复安装。将 gh 所在目录加入 PATH，或设置本插件读取的 DSH_GH_PATH 为 gh 可执行文件的绝对路径，再重启 DSH Desktop；若该目录已在 PATH 中，直接重启 DSH Desktop。\n无版本号输出：该终端也无法执行 gh。检查 gh 的安装目录（Windows 默认：C:\\Program Files\\GitHub CLI\\gh.exe）；确认未安装后执行：/wizard 安装 gh CLI（官方地址：https://cli.github.com/）',
+      en: 'Confirm gh installation status: run `gh --version` in a terminal outside DSH.\nVersion printed: gh is installed. Do not reinstall. Add the gh directory to PATH, or set the plugin-read DSH_GH_PATH to the absolute path of the gh executable, then restart DSH Desktop; if the directory is already in PATH, restart DSH Desktop.\nNo version printed: gh is not executable in that terminal either. Check the gh install directory (Windows default: C:\\Program Files\\GitHub CLI\\gh.exe); if gh is not installed, run: /wizard install the gh CLI (official page: https://cli.github.com/)',
+    },
+    ghAuthLogin: {
+      zh: '/wizard 辅助用户完成 gh 登录：运行 gh auth login 并按提示在浏览器完成授权；结束后运行 gh auth status 确认已登录。',
+      en: 'Please complete gh login: run gh auth login and finish browser authorization; afterwards run gh auth status to confirm.',
+    },
+    // #1190 通用键：首开引导清单是三个后端共用的文件，不写 gh 名。内容与 ghAuthLogin 同一份（单源文本、两个键名），
+    //   老键保留给旧调用处（NoRepoCard 回落、旧门禁断言），新流程一律走 cliLogin。
+    cliLogin: {
+      zh: '/wizard 辅助用户完成 gh 登录：运行 gh auth login 并按提示在浏览器完成授权；结束后运行 gh auth status 确认已登录。',
+      en: 'Please complete gh login: run gh auth login and finish browser authorization; afterwards run gh auth status to confirm.',
+    },
+    // #664：原先这里有 noGhPrompt（按系统分平台的安装长文）与 repoRemoteFix（缺仓长文）两段。
+    //   缺 gh 那句话收成 prompts.cliInstall（见上），缺仓库那件事由界面上那一段负责（状态栏「还没有远端仓库」
+    //   那条横幅 + 检查页那一行的两步建仓弹窗），两段长文都退役了 —— 一个缺失状态不留第二份说明（规格 #662 定版三）。
+    // #716：本条目原先是一串排查用的 gh 命令。仓库读得通读不通这件事，工具自己会报（deck_context 会把
+    //   当前后端与仓库、以及读不通的原因一起回给 AI），提示词这里只留「按哪几步想」——建仓那一步走面板上的
+    //   「创建并发布」向导，不再教人去敲建仓命令。
+    repoAccessFix: {
+      zh: '当前仓库读不通（工具报「取不到这个仓库」）。顺序要求：若仓库尚未创建，先走「创建并发布」完成建仓推送，再重查；请按序排查：\n1. 仓库存在性：这个目录还没有远端仓库时，先点「创建并发布」（面板上那个两步向导会把仓库建好并推上去）；\n2. 登录与权限：看环境检查里「已登录 GitHub」那一行的状态；私有仓库需要当前登录的账号有权限（权限不足与「找不到」在服务端都可能是 404）；\n3. 网络与代理：看环境检查里网络那一类结果，按它的提示处理。\n排查修复后请用户点「重新检查」。',
+      en: 'The repository is not readable right now (the tools report that they cannot reach it). Ordering rule: if the repo does not exist yet, run "Create & publish" to create and push it, then re-check; investigate in order:\n1. Existence: when this directory has no remote repo yet, click "Create & publish" (the two-step wizard creates the repo and pushes it);\n2. Login and permissions: check the status of the "Signed in to GitHub" row; a private repo needs access for the signed-in account (no access and "not found" can both come back as 404);\n3. Network and proxy: check the network row in the environment check and follow what it says.\nAfter fixing, ask the user to re-check.',
+    },
+    subIssue: {
+      // #716：这一段原先写着一整套 gh api 直连命令（取数据库号 → 建原生子议题边 → 校验张数 → 建原生依赖边）。
+      //   这些事已经搬进契约层的 deck_map_link / deck_map_snapshot（票面点名「该搬进工具实现的：建边与校验」），
+      //   所以这里只讲「用哪个工具、参数是什么、工具会回报什么」，一条裸命令都不留。
+      zh: '建边用 deck_map_link：父子边传 parentKey（把这张子票挂到那张地图下），阻塞边传 blockedBy（数组里放阻塞它的那几张票号）；工具自己按本后端的方式落下去，并逐条回报这条边落在哪一列。建完用 deck_map_snapshot 读回地图，核对子票张数与预期一致（deck_map_link 的逐条明细里带着每一条边的读回落点与证据原话）。判「落上了」只看写后读回：读回里看不到这条边就不算落上；读不回来时如实说没确认，绝不报成已经挂上。',
+      en: 'Wire edges with deck_map_link: pass parentKey for the parent-child edge (attach this child under that map) and blockedBy for blocking edges (the numbers of the tickets blocking it); the tool lands each edge the way this backend does and reports, per edge, which column it landed in. Then read the map back with deck_map_snapshot and confirm the child count matches the plan (deck_map_link returns, per edge, the read-back landing and its evidence). Landing is only claimed when the read-back taken after the write shows the edge; when that read-back cannot be taken the tool says plainly that the edge is unconfirmed, never that it landed.',
+    },
+    // #684：「体检」的 GitHub 科目（游离的开放票归位）。总纲住在提示词单源 src/client/kernel/prompts.ts 的
+    //   healthCheck 一条；这里只交 GitHub 自己那一份，经总纲里的 {subject} 填空。建边与开图复用本模块已声明的
+    //   prompts.subIssue 那份原生关联文本（{subIssue}），不在新文案里重抄一遍命令。
+    healthCheck: {
+      zh: '**这条后端查数与动手都走工具**（总纲里的三条口径在这里不变）。\n\n查数：用 deck_context 拿当前后端与仓库；用 deck_map_snapshot 逐张读地图的子票清单（出现在任何一张清单里的都不算游离）。\n\n建边：用 deck_map_link 的 parentKey 把票挂到选中的地图下（原生子议题边与它的读回校验都由工具负责）。{subIssue}\n\n阻塞关系：用 deck_map_link 的 blockedBy 传阻塞它的那张票的票号；工具按本后端的方式落下去，并在返回值里说清落在哪一列（判落上只看写后读回，读不回来就说没确认，不报成已挂上）。\n\n报告按标签与建议类型分区，但体检的范围是全部开放票、不跟随面板当前的筛选。',
+      en: '**On this backend, counting and acting both go through the tools** (the three rules from the general section stay as they are).\n\nCounting: use deck_context for the current backend and repo; read each map\'s child list with deck_map_snapshot (anything appearing in any list is not orphaned).\n\nAttaching: use deck_map_link with parentKey to attach a ticket under the chosen map (the tool owns the native sub-ticket edge and its read-back check). {subIssue}\n\nBlocking: use deck_map_link with blockedBy, passing the numbers of the tickets that block it; the tool lands the edge the way this backend does and says which column it used (landing is only claimed when the read-back after the write shows the edge; when it cannot be read back the tool says it is unconfirmed rather than claiming it landed).\n\nGroup the report by label and suggestion type, but the health check always covers every open ticket and does not follow the current panel filters.',
+    },
+    errorKinds: {
+      'bad-name': { zh: '仓库名仅支持字母、数字、._- 且不超过 100 个字符', en: 'Repo name supports only letters, digits, ._- and at most 100 characters' },
+      'no-git': { zh: '未找到 git，请先安装 Git', en: 'git not found — please install Git' },
+      'no-gh': { zh: 'DSH 进程的 PATH 中未解析到 gh（可能未安装，也可能已安装但不在该 PATH 中）', en: 'gh was not resolved from the DSH process PATH (not installed, or installed in a directory absent from the DSH process PATH)' },
+      'not-logged-in': { zh: '未登录 GitHub，请先执行 gh auth login', en: 'Not logged into GitHub — run gh auth login' },
+      'already-exists': { zh: '同名仓库已存在（平台可查看）', en: 'Repository already exists (view it on the platform)' },
+      'network': { zh: '网络异常，请重试', en: 'Network error — please retry' },
+      'permission': { zh: '权限不足，请检查登录账号', en: 'Permission denied — check your login account' },
+      'half-created': { zh: '仓库已创建，但本地推送未完成', en: 'Repository created, but the local push failed' },
+      // #993：属主不一致（git 原文里的 dubious ownership）单独成一档，不再落进兜底被说成「权限不足」。
+      //   文案要短：它会走过 400/120/160 三道截断，长句会被截掉；照做的命令由界面另给
+      //   （见 src/shared/tracker/workspaceOwnership.js 的 safeDirectoryCommand）。
+      'git-ownership': { zh: '这个工作区的属主不是当前运行用户，git 拒绝操作；把该目录加进 git 的安全目录名单（safe.directory）即可放行', en: 'This workspace is owned by a different user, so git refuses to run; add the directory to the git safe.directory list to unblock it' },
+      // #993：认不出来的错误落这一档，并把 git 的原话原样带给用户（兜底不再等于 permission）。
+      'unknown': { zh: '创建失败，未识别的原因（附 git 的原话）', en: 'Creation failed for an unrecognized reason (the original message is attached)' },
+    },
+  }
+})()
+
+// 宿主今天还要用的三件（检测链超时、单票状态归一、建仓错误分档）已不在本文件转出：
+// #1170 把「宿主取件」收回装配点 src/tracker/registry/builtins.ts 自己取（见那里的 loadGithubHostExtras），
+// 本文件只留房间自己的对外契约。往这里加导出之前先问一句：这是房间的能力，还是宿主的方便？
+
+/**
+ * BackendModule（供 registry.register 用）。
+ * - id/label/create/matches/budget 五件套（预算口径规格 1439 起必填）；select/describe 由 registry 托管，不属 OpName
+ * - 额外只读 view：describe / 三个链接能力（供 registry 转发）
+ */
+export const githubModule = {
+  id: 'github',
+  label: 'GitHub',
+  // #191：品牌色完整色板（B 方案定版 · #177）——后端是配色单一真源，UI 仅消费
+  presentation: {
+    color: '#0969da',
+    darkColor: '#58a6ff',
+    bg: 'light-dark(#ddf4ff, rgba(56,139,253,.15))',
+    border: 'light-dark(rgba(84,174,255,.4), rgba(56,139,253,.4))',
+  },
+  // #230（D10 · 键入 locale）：setup 提示词描述数据 —— 只声明 client locale 双语键名，文案不落后端（双语单源）
+  setupPrompt: {
+    trackerLine: 'setup.github.trackerLine',
+    trackerChoice: 'setup.github.trackerChoice',
+    backendNote: 'setup.github.backendNote',
+    labelReqs: 'setup.github.labelReqs',
+  },
+  create: createGithubBackend,
+  matches: githubMatches,
+  // 预算口径（规格 1439 起必填）：双桶——休息限额按请求数、查询限额按点数，两桶各自独立、都计数。
+  budget: { kind: 'two-buckets', countsRequests: true, countsPoints: true, independentBuckets: true },
+  describe,
+  // 链接三件（#1110 实现决定第 14 条 / #1133 改名 / #1141 删旧名）：名字讲的是「地址」，
+  // 因为本地那家给过票文件路径不是网址（#1144 起那条改回空串）；实现只有 repo.ts 里那一份。
+  issueAddress,
+  repoSearchAddress,
+  issueRefPattern,
+  links,
+  capabilities,
+  // 开仓方式（#231 的开仓契约动作）：'url' = 界面用浏览器新窗打开 describe().url。
+  // 2026-09-13 补（#620 整改）：这个字段原来只以文件级导出的形式存在（export { openRepository }），
+  //   **没有进注册表真正读的那个模块对象** —— 注册表只在字段存在时才转发，于是「后端自己声明开仓方式」
+  //   这条规矩在 GitHub 上落到「没读到开仓方式」那一态（GitHub 版的推荐配色方案文案拼不出来）。
+  //   本地 Markdown 一直是好的（markdownModule 里带 openRepository: 'folder'），这里补上同一个值。
+  openRepository,
+  // #1557：远程后端的票与容器地址都是网页——开票、开容器都交给浏览器，与开仓库同一个方式。
+  openIssue: 'url',
+  openContainer: 'url',
+  prompts,
+  checks: GITHUB_CHECKS,
+  fixes,
+} satisfies BackendModule
+
+export default createGithubBackend
