@@ -3,8 +3,8 @@
  * #1687 阶段 1：从房间根迁入 write/，房间根的同名转发文件已在 #1687 末批删除，行为零变化。
  *
  * 由 #440 从 issues.js 纯结构移出（create / close / reopen / update / setAssignees），行为零变化。
- * 读路径（list / get + REST 降级）留在 issues.js。
- * 以后改写操作命令语义的人改它。预估约 285 行。
+ * 读路径（list / get + REST 降级）在 read/issues.ts。
+ * 以后改写操作命令语义的人改它。
  */
 
 import { ERROR_KIND } from '../../../contract/vocabulary.js'
@@ -18,8 +18,7 @@ import { ghClient } from '../transport/client.js'
 import { normalizeIssue } from '../model/normalize.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { planCloseReason } from './close-reason.js'
-import { rosterUpsert } from '../model/roster.js'
-import type { MemoContext } from '../model/roster.js';
+import { rosterUpsert, type MemoContext } from '../model/roster.js';
 import { getIssue } from '../read/issues.js'
 import { parseRepo, repoId } from '../model/issue-key.js'
 // #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
