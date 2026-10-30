@@ -46,7 +46,8 @@ export type FieldGroupCompleteness = (typeof FIELD_GROUP_COMPLETENESS)[number]
  * 整个读结果的汇总完整度（给人看、给界面排序用，不替代字段组）。
  *
  * `complete`：声明的字段组全都 `complete`；
- * `truncated`：至少一组 `truncated`（有明确的「不全」，降级提示优先说这个）；
+ * `truncated`：至少一组 `truncated`（有明确的「不全」）；降级本身不改变这三档，
+ * 走备路但把声明的组都取全了仍是 `complete`，降级由 `degradedFrom` 单独表达；
  * `partial`：没有截断，但至少一组 `unexpressed`（这次没取的组不影响已取的部分）。
  *
  * 为什么不沿用旧的 `truncated?: boolean`：那个布尔把「没取」和「取不全」压成同一个 false，

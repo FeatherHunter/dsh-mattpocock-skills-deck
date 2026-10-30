@@ -38,12 +38,14 @@ import type {
   Counts,
   Dependencies,
   LabelColorBatchResult,
+  IssueDetailResult,
   IssueListResult,
   LabelColorsFilePlacement,
   MapListResult,
   OpResult,
   OpUsage,
   PageResult,
+  ReadPageResult,
   PreflightResult,
   RepoPermissions,
   SubIssueList,
@@ -113,9 +115,8 @@ export interface Tracker {
 
   /**
    * 列票（完整行：带正文与评论；除正文、评论外不带别的展开。只要列表里的一行、不要正文评论时走
-   * `listPage`；详细口径见 `ListFilter` 各字段注释）。
-   * 返回 `IssueListResult` 而不是裸的 `OpResult<Issue[]>`：房间要能交代「这次名单全不全」
-   * （`truncated`）与「走没走 REST 降级」（`fallback` / `fallbackReason`），这三格是 #1304 收进契约的。
+   * （`truncated`）与「走没走 REST 降级」（`fallback` / `fallbackReason`），这三格是 #1304 收进契约的；
+   * #1685 起再带 provenance（来源渠道、按字段组完整度、缺失字段组、耗时、取数开始版本）。
    */
   list(repo: RepositoryRef, filter: ListFilter | undefined, ctx: OpContext): Promise<IssueListResult>
 
@@ -128,16 +129,20 @@ export interface Tracker {
   /**
    * 按页取票：一次要一页行数据，外加「一共多少张」。
    * 排序键固定「创建时间倒序」；游标不透明，调用方只负责原样回传。
+   * #1685 起返回 ReadPageResult：带来源渠道与按字段组完整度（触到分页上限记截断，不冒充还有下一页）。
    */
   listPage(
     repo: RepositoryRef,
     filter: ListFilter | undefined,
     opts: PageOpts | undefined,
     ctx: OpContext,
-  ): Promise<OpResult<PageResult>>
+  ): Promise<ReadPageResult>
 
-  /** 读一张票；`opts.comments` 控制评论带几条。 */
-  get(repo: RepositoryRef, key: string, opts: GetOpts | undefined, ctx: OpContext): Promise<OpResult<Issue>>
+  /**
+   * 读一张票；`opts.comments` 控制评论带几条。
+   * #1685 起返回 IssueDetailResult：带来源渠道与按字段组完整度，让调用方分清「截断」与「这条渠道不提供」。
+   */
+  get(repo: RepositoryRef, key: string, opts: GetOpts | undefined, ctx: OpContext): Promise<IssueDetailResult>
 
   /**
    * 取依赖关系：谁阻塞我（唯一真源）与反向聚合出的「我阻塞了谁」（便利视图）。

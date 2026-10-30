@@ -33,10 +33,10 @@ import { OPERATIONS as CATALOG_OPERATIONS } from './operations-catalog.js'
  * @property {import('../../shared/tracker/shape.js').BackendId} id 后端 id（= 注册时的 BackendId）
  *
  * @property {(handle: RepoHandle, ctx: OpContext) => Promise<PreflightResult>} preflight 环境门禁（只判环境：工具在不在/登录/可达/fs;不预判能力）
- * @property {(repo: RepositoryRef, filter?: ListFilter, ctx: OpContext) => Promise<import('./results.js').IssueListResult>} list 列票；返回里带「名单全不全」（truncated）与「走没走 REST 降级」（fallback/fallbackReason）
+ * @property {(repo: RepositoryRef, filter?: ListFilter, ctx: OpContext) => Promise<import('./results.js').IssueListResult>} list 列票；返回里带「名单全不全」（truncated）与「走没走 REST 降级」（fallback/fallbackReason）；#1685 起返回带 provenance（来源渠道、按字段组完整度、缺失字段组、耗时、取数开始版本）
  * @property {(repo: RepositoryRef, filter?: ListFilter, ctx: OpContext) => Promise<OpResult<Counts>>} counts 这个后端里符合条件的票有多少张（工单口径，不含拉取请求；只回数字不回行，语义见下方「计数契约」）
- * @property {(repo: RepositoryRef, filter?: ListFilter, opts?: PageOpts, ctx: OpContext) => Promise<OpResult<PageResult>>} listPage 按页取票（「已关闭票按需浏览」用；排序键固定创建时间倒序；取回来的行是薄片段，不带正文与评论。语义见 contract-page.js 的「分页契约」）
- * @property {(repo: RepositoryRef, key: string, opts?: GetOpts, ctx: OpContext) => Promise<OpResult<Issue>>} get
+ * @property {(repo: RepositoryRef, filter?: ListFilter, opts?: PageOpts, ctx: OpContext) => Promise<import('./results.js').ReadPageResult>} listPage 按页取票（「已关闭票按需浏览」用；排序键固定创建时间倒序；取回来的行是薄片段，不带正文与评论。语义见 contract-page.js 的「分页契约」）；#1685 起带 provenance（来源渠道、按字段组完整度、缺失字段组、耗时、取数开始版本）
+ * @property {(repo: RepositoryRef, key: string, opts?: GetOpts, ctx: OpContext) => Promise<import('./results.js').IssueDetailResult>} get 读一张票；#1685 起带 provenance（来源渠道、按字段组完整度、缺失字段组、耗时、取数开始版本）
  * @property {(repo: RepositoryRef, key: string, opts?: DepsOpts, ctx: OpContext) => Promise<OpResult<Dependencies>>} getDependencies 便利投影（blockedBy 唯一真源；blocking 反向聚合）
  * @property {(repo: RepositoryRef, input: CreateInput, ctx: OpContext) => Promise<OpResult<Issue>>} create
  * @property {(repo: RepositoryRef, key: string, opts?: CloseOpts, ctx: OpContext) => Promise<OpResult<Issue>>} close

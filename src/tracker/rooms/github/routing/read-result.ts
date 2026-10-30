@@ -21,8 +21,9 @@
  *    读路径用 `readSourceOfVia()` 从 execGh 的 via 后缀换算来源，不要手写渠道字符串。
  * 2. 每个声明过的字段组都要有一个明确值。少给一组就抛错：忘记表态等于悄悄谎称完整，
  *    比读失败更难发现。
- * 3. 降级结果不许标 `complete`（键里有 `degradedFrom` 时总完整度只能是 `truncated` 或
- *    `partial`），且 `degradedFrom` 必须是这条操作渠道计划里的主路渠道。
+ * 3. 降级另记一笔，不拿完整度顶替：`degradedFrom` 必须是这条操作渠道计划里的主路渠道、
+ *    且与 `source` 不同；总完整度仍只由字段组派生——备路要是把声明的字段组都取全了，
+ *    这一趟就是 `complete`（降级本身由 `degradedFrom` 单独表达，不靠把完整度写成 `truncated` 来暗示）。
  */
 import { FIELD_GROUP_COMPLETENESS } from '../../../contract/read-provenance.js'
 import type {
@@ -185,7 +186,7 @@ function missingFieldGroupsOf(
  * 组装一条读结果的来源信息；形状不合法就抛错。
  *
  * 读路径在成功返回前调用它，拿到 `ReadProvenance` 挂到结果上。抛错是故意的：
- * 忘记给某个声明字段组表态、把来源写成渠道计划外的词、降级了却标 complete，
+ * 忘记给某个声明字段组表态、把来源写成渠道计划外的词、降级来源与来源相同，
  * 这些都不是「少一点信息」，而是会让阶段 2 的合并层做出错误判断的坏数据。
  * 抛出的错误文本一次列全所有问题，排查不用猜。
  */
@@ -230,7 +231,7 @@ function isKnownFieldGroupCompleteness(value: unknown): value is FieldGroupCompl
  * 校验一份读结果来源信息，返回发现的问题（空数组表示合法）。
  *
  * 门禁 `tests/verify-read-result-provenance.ts` 用它的负例证明「坏形状拦得住」：
- * 缺来源、来源不在渠道计划里、缺声明字段组、截断了却标 complete、降级了却标 complete、
+ * 缺来源、来源不在渠道计划里、缺声明字段组、截断了却标 complete、降级来源与来源相同、
  * 起点标记或耗时是坏值，都必须至少报一条问题。
  *
  * 为什么单独导出而不是只让 `buildReadProvenance` 内部用：门禁要能直接喂坏形状进来，
@@ -264,9 +265,6 @@ export function readProvenanceProblems(operation: ReadOperationName, provenance:
     }
     if (from === source) problems.push('降级来源不能与实际来源相同（' + from + '）')
     if (source === 'mixed') problems.push('来源 mixed 不许带降级来源（mixed 没有唯一主路）')
-    if (provenance.completeness === 'complete') {
-      problems.push('走过降级的读结果不能标 complete（实际来源 ' + String(source) + '，主路 ' + String(from) + '）')
-    }
   }
 
   const declaredKeys = Object.keys(fieldGroups) as FieldGroup[]

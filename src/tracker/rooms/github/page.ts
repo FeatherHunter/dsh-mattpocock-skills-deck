@@ -33,13 +33,16 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { OpContext } from '../../contract/contexts.js';
 import type { Issue, RepositoryRef } from '../../contract/entities.js';
 import type { ListFilter, PageOpts } from '../../contract/inputs.js';
-import type { OpResult, PageResult } from '../../contract/results.js';
+import type { OpResult, PageResult, ReadPageResult } from '../../contract/results.js';
 import { fail } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { parseRepo, repoId } from './issues.js'
 import { LIST_PAGE_QUERY, LIST_PAGE_QUERY_WITH_LABELS } from './queries.js'
+// 读结果的来源与按字段组完整度（#1685）：起点在这里收，组装统一走 routing。
+import { beginRead } from './routing/read-result.js'
+import { pageProvenanceFromGraphql } from './routing/read-assembly.js'
 import { emitReadDegraded } from './read-log.js'
 // 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
 import { debugOn, guardEmit } from '../../kernel/log-emit.js'
@@ -153,9 +156,11 @@ function emitBadNodes(ctx: OpContext, dropped: number, total: number): void {
  * @param {import('../../contract/contract-page.js').PageOpts} [opts]
  * @param {import('../../contract/index.js').OpContext} ctx
  */
-export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | undefined, opts: PageOpts | undefined, ctx: OpContext): Promise<OpResult<PageResult>> {
+export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | undefined, opts: PageOpts | undefined, ctx: OpContext): Promise<ReadPageResult> {
   // 这一笔的起点：本函数每一行降级日志都带「从入口到这里花了多久」。
   const t0 = Date.now()
+  // 读结果的起点（#1685）：来源、完整度与耗时要落在返回值上。
+  const clock = beginRead()
   try {
     const parsed = parseRepo(repo)
     // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
@@ -264,7 +269,16 @@ export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | u
       }
       nextCursor = pageInfo.endCursor
     }
-    return { ok: true, data: { items, nextCursor, total } }
+    // 来源与完整度（#1685）：分页只走 GraphQL 主路（REST 无同一游标口径，见文件头「不做的三件」）；
+    // 行与标签两组按渠道层的判定给结论，触到远端连接上限或节点掉坏都算截断，不冒充还有下一页。
+    return {
+      ok: true,
+      data: { items, nextCursor, total },
+      provenance: pageProvenanceFromGraphql(clock, {
+        dropped,
+        labelsPerRow: items.map((i) => (Array.isArray(i.labels) ? i.labels : [])),
+      }),
+    }
   } catch (e) {
     const verdict = ghVerdictOf(e, ctx)
     // 为什么转一下再读：同上，catch 的 unknown 不能直接读 message，转后表达式与原来一致。
