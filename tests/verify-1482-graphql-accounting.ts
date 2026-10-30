@@ -22,7 +22,7 @@
 //
 // 门禁归属: src/tracker/kernel/outbound-tiers.ts
 // 门禁归属: src/tracker/rooms/github/transport/
-// 门禁归属: src/tracker/rooms/github/queries.ts
+// 门禁归属: src/tracker/rooms/github/channels/graphql/queries.ts
 // 门禁归属: src/refresh/kernel/step-pricing.ts
 // 门禁归属: src/refresh/kernel/transport-ledger.ts
 // 门禁归属: src/refresh/rooms/host/refresh-gate.ts
@@ -42,7 +42,7 @@ import { createLedger } from '../src/refresh/rooms/host/quota-ledger.js'
 import { createGate } from '../src/refresh/rooms/host/refresh-gate.js'
 import { createAccountPort } from '../src/refresh/kernel/backend-accounting.js'
 import { measureStep, noteStepOutbound } from '../src/refresh/kernel/step-pricing.js'
-import * as Q from '../src/tracker/rooms/github/queries.js'
+import * as Q from '../src/tracker/rooms/github/channels/graphql/queries.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
