@@ -199,16 +199,32 @@ healthCheck:
 
     {{shared:sharedTools}}
 mapExecute:
-  version: 22
+  version: 23
   placeholders: []
-  use: map 执行 / 新会话（未完成态）· 只写推进指令与收尾，推进规则交给 wayfinder 技能（#1281）；v22（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: map 执行 / 新会话（未完成态）· 只写推进指令与收尾，推进规则交给 wayfinder 技能（#1281）；v22（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v23（2026-10-31）：补地图推进的开工、推进、关 issue、收尾四节操作约束，仍是插件增量——不复述技能规则、不定义认领生命周期
   zh: |-
     {{shared:firstPrinciples}}
 
     请按 wayfinder 技能推进这张 map。
 
+    ## 开工
+    - [ ] 可接 issue 以逐张读回为准：先读 open sub-issue 的认领人、以及它被哪些 issue 阻塞，按技能定义的 frontier 自己算一遍，再读候选 issue 的正文。
+    - [ ] 开工先看 deck 后端能力：写不了就只做只读的活，把结论和下一步交回本人。
+    - [ ] 可接 issue 为空时说明原因后停；如果剩下的还只是 fog、但你能把它写成 issue，就先建 issue、写明它被哪些 issue 阻塞，再停。
+
+    ## 推进
+    - [ ] 技能默认按顺序取第一张可接 issue；这次按能解锁最多下游 issue 的排，仍并列按 issue 号从小到大。
+    - [ ] 需要本人拍板时，把选项、各自代价和建议写进那张 issue 的评论，再在回复里说一遍；问完停下。
+
+    ## 关 issue
+    - [ ] 结论先落 issue：决策写 issue 的 resolution comment，研究结论写 research/ 新笔记。写回 map 的 Decisions so far 前重读正文（别的会话可能刚改过），只追加一行「issue 标题（链接）：结论」。
+    - [ ] 写回被拒（工具提示正文已被改）时，重读最新正文，把你那一行并进去再写，保留别人刚写的部分。
+    - [ ] 写完读回核对四项：issue 里的问题被正面回答、结论有据可查（文件路径、命令输出或实测结果）、该建的 issue 已建好且写明被哪些 issue 阻塞、Not yet specified 已按本次发现增减（毕业的移出、新 fog 补上）。四项齐了才关 issue。
+
     ## 收尾
-    - [ ] 结束前把这次推进的结果写进这张 map 正文；没做完的写明下一步。
+    - [ ] 没做成决策时，把停点写进那张 issue 的评论：等本人拍板、等外部资源，还是写不进去；并在回复里说清下次从哪张 issue 读起。
+    - [ ] sub-issue 全部关闭后，提醒本人点详情页的「完成」做最终核对；地图算不算走完由那次核对宣布，你只报告停在哪一步。
+    - [ ] 回复里用三句话报告：推进了哪张 issue、结论放在哪、下一步由谁做什么。
 
     {{shared:sharedTools}}
   en: |-
@@ -216,8 +232,24 @@ mapExecute:
 
     Please advance this map with the wayfinder skill.
 
+    ## Start
+    - [ ] Treat claimable issues as whatever you read back one by one: read each open sub-issue's assignee and which issues block it, work the frontier out yourself by the skill's definition, then read the candidate issue's body.
+    - [ ] Check what the deck backend can do first: if you cannot write, do read-only work only, and hand the conclusions and the next step back to me.
+    - [ ] If no issue is claimable, say why and stop; if what remains is still only fog but you can turn it into an issue, create the issue, write down which issues block it, then stop.
+
+    ## Advancing
+    - [ ] The skill takes the first claimable issue in order; this time order them by how many downstream issues each unlocks, breaking ties by issue number.
+    - [ ] When you need me to decide something, put the options, their costs and your recommendation in that issue's comments, and repeat them in your reply; then stop and wait.
+
+    ## Closing issues
+    - [ ] Record the conclusion in the issue first: decisions go in the issue's resolution comment; research findings go in a new note under research/. Before writing back to the map's Decisions so far, re-read the body (another session may have just changed it), and append only one line: "issue title (link): conclusion".
+    - [ ] If the write-back is rejected (the tool says the body changed), re-read the latest body, merge your line into it, and write again, keeping what others just wrote.
+    - [ ] After writing, read it back and check four things: the question in the issue is answered directly; the conclusion is verifiable (file path, command output, or observed result); the issues that should exist have been created and say which issues block them; and Not yet specified has been updated for what this session found (graduated items removed, new fog added). Close the issue only when all four hold.
+
     ## Wrap-up
-    - [ ] Before finishing, write the result of this pass into this map body; if unfinished, state the next step.
+    - [ ] If you did not reach a decision, write the stopping point in that issue's comments: waiting on me to decide, waiting on external resources, or cannot write. Also say in your reply which issue to start from next time.
+    - [ ] After all sub-issues are closed, remind me to click "Complete" on the detail page for the final check; that check declares whether the map is done, and you only report where you stopped.
+    - [ ] Report in your reply in three sentences: which issue advanced, where the conclusion is, and who does what next.
 
     {{shared:sharedTools}}
 mapInspect:
