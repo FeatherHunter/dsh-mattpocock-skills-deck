@@ -115,7 +115,8 @@ async function main() {
   check(String(promptSpec.description || '').indexOf('不编') >= 0, 'prompt 说明要求不编具体值（#1666）')
   check(String(promptSpec.description || '').indexOf('我已回答') < 0, 'prompt 说明不引用错误的已完成句式，避免把禁句带进上下文（#1666）')
   check(reasonSpec && reasonSpec.type === 'string' && String(reasonSpec.description || '').indexOf('为什么') >= 0, 'reason 是一句话理由')
-  check(String(reasonSpec.description || '').indexOf('卡在哪') >= 0, 'reason 说明写清理由怎么说（卡在哪、能解锁什么）')
+  check(String(reasonSpec.description || '').indexOf('凭什么') >= 0 && String(reasonSpec.description || '').indexOf('具体依据') >= 0,
+    'reason 说明写清理由怎么说（凭什么推荐这一步、写具体依据）')
   const prioritySpec = itemsSpec.items.properties && itemsSpec.items.properties.priority
   check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.join(',') === 'intro,prompt,reason', '每条必须同时给 intro、prompt 与 reason')
   check(!!prioritySpec && prioritySpec.type === 'number', 'priority 是可选的数字（推荐优先级）')
