@@ -20,13 +20,15 @@ import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import type { OpContext } from '../../../contract/contexts.js';
 import type { LabelColor, RepositoryRef } from '../../../contract/entities.js';
 import { PAGINATION } from '../../../contract/pagination.js'
-import type { OpResult, TrackerError } from '../../../contract/results.js';
+import type { LabelListResult, TrackerError } from '../../../contract/results.js';
 import { normalizeColor } from '../../../../shared/label-color/src/colors.js'
 import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { parseRepo } from '../labels.js'
 import { getRepoKey } from '../model/repo.js'
+import { beginRead } from '../routing/read-result.js'
+import { labelsProvenanceFromRest } from '../routing/read-assembly.js'
 
 /** gh 执行器的形状（client 房的 ghClient 回什么就是什么，这里只借它的类型）。 */
 type GhClient = ReturnType<typeof ghClient>;
@@ -88,7 +90,9 @@ export function rawHint(err: unknown): string {
 
 /** 列出这个仓库的全部标签与颜色（契约操作 listLabels）。
  *  「全部」＝仓库标签全量（含还没被任何票用到的）；取不全就整体失败，不返回残缺清单。 */
-export async function listLabels(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<LabelColor[]>> {
+export async function listLabels(repo: RepositoryRef, ctx: OpContext): Promise<LabelListResult> {
+  // 读来源记录从入口起算（#1686）：整条清单取回来、过了 1000 条上限判定后才算成功，成功分支记标签组完整。
+  const clock = beginRead()
   try {
     const c = ghClient(ctx)
     const target = await resolveRepoTarget(repo, ctx)
@@ -115,7 +119,7 @@ export async function listLabels(repo: RepositoryRef, ctx: OpContext): Promise<O
       return fail(ERROR_KIND.ENV, '未能获取全部标签：这个仓库的标签总数超过了插件一次能读取的上限（' + LABEL_LIST_LIMIT + ' 条），无法确认是否读全。请先在 GitHub 的仓库页面里改名或删除不再需要的标签，然后重试。', r.data)
     }
     // 为什么用带断言的过滤：归一函数只回「合格项或空」，Boolean 滤掉的本来就只有空；断言只为过编译，交出去的还是原来那几项，运行时不变。
-    return { ok: true, data: arr.map(toLabelColor).filter((x): x is LabelColor => Boolean(x)) }
+    return { ok: true, data: arr.map(toLabelColor).filter((x): x is LabelColor => Boolean(x)), provenance: labelsProvenanceFromRest(clock, { fetched: arr.length }) }
   } catch (err) {
     const eb = errBag(err);
     const verdict = ghVerdictOf(err, ctx)

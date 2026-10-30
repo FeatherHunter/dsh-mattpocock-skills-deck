@@ -29,7 +29,7 @@
 
 import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import type { OpContext } from '../../../contract/contexts.js';
-import type { Counts, OpResult } from '../../../contract/results.js';
+import type { CountsResult } from '../../../contract/results.js';
 import type { ListFilter } from '../../../contract/inputs.js';
 import type { RepositoryRef } from '../../../contract/entities.js';
 import { fail } from '../../../kernel/preflight.js'
@@ -38,6 +38,8 @@ import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { parseRepo, repoId } from '../issues.js'
 import { COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS } from '../channels/graphql/queries.js'
 import { emitReadDegraded } from '../support/read-log.js'
+import { beginRead } from '../routing/read-result.js'
+import { countsProvenance } from '../routing/read-assembly.js'
 
 /** filter.state 归一：只有 'open' / 'closed' 两种收窄，其余（含缺失）都是「两种都要」。 */
 function narrowStateOf(filter: ListFilter | null | undefined): string {
@@ -77,9 +79,11 @@ function countOf(node: unknown): number | null {
  * @param {import('../../../contract/index.js').ListFilter} [filter]
  * @param {import('../../../contract/index.js').OpContext} ctx
  */
-export async function countIssues(repo: RepositoryRef, filter: ListFilter | undefined, ctx: OpContext): Promise<OpResult<Counts>> {
+export async function countIssues(repo: RepositoryRef, filter: ListFilter | undefined, ctx: OpContext): Promise<CountsResult> {
   // 这一笔的起点：本函数每一行降级日志都带「从入口到这里花了多久」。
   const t0 = Date.now()
+  // 读来源记录也从这里起算（#1686）：成功时把来源与计数字段组完整度挂到结果信封上。
+  const clock = beginRead()
   try {
     const parsed = parseRepo(repo)
     // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
@@ -134,7 +138,7 @@ export async function countIssues(repo: RepositoryRef, filter: ListFilter | unde
     }
     const open = narrow === 'closed' ? 0 : openAll
     const closed = narrow === 'open' ? 0 : closedAll
-    return { ok: true, data: { open, closed, total: open + closed } }
+    return { ok: true, data: { open, closed, total: open + closed }, provenance: countsProvenance(clock) }
   } catch (e) {
     const verdict = ghVerdictOf(e, ctx)
     // 为什么转一下再读：同上，catch 的 unknown 不能直接读 message，转后表达式与原来一致。

@@ -30,6 +30,8 @@ import type { OpContext } from '../../../contract/contexts.js';
 import type { RepoPermissions } from '../../../contract/results.js';
 import { ghClient } from '../transport/client.js'
 import { emitReadDegraded } from '../support/read-log.js'
+import { beginRead } from '../routing/read-result.js'
+import { permissionsProvenance } from '../routing/read-assembly.js'
 
 /** gh 客户端的最小口：本文件只用得到 execGh，类型从 ghClient 的返回里取，不自己另写一份。 */
 type GhClient = ReturnType<typeof ghClient>;
@@ -89,6 +91,8 @@ async function queryPermissions(c: GhClient, spec: string, ctx: OpContext): Prom
   const cwd = ctx && typeof ctx.cwd === 'string' ? ctx.cwd : undefined
   // 这一笔的起点：下面每一行降级日志带的是「从本函数入口到这里花掉的毫秒数」。
   const t0 = Date.now()
+  // 读来源记录也从这里起算（#1686）：问成时把来源与权限字段组完整度挂到返回对象上。
+  const clock = beginRead()
   const r = await c.execGh(['api', 'repos/' + spec, '--jq', '.permissions'], { cwd: cwd, via: 'permissions.api' })
   if (!r || !r.ok) {
     // 命令没跑成这一路，gh.exec 那行已经写了退出码；这里再补一行，好让「权限问不出来」整条链在日志里是一条线。
@@ -105,7 +109,7 @@ async function queryPermissions(c: GhClient, spec: string, ctx: OpContext): Prom
     const picked = pickPermissions({ permissions: JSON.parse(text) })
     // 回包能解析、命令也成功，可 push/triage 两格不在里面：这一条原先一个字都不留，最容易被当成「没权限」。
     if (!picked) emitReadDegraded(ctx, 'permissions', 'permissions:no-fields', Date.now() - t0)
-    return picked
+    return picked ? { ...picked, provenance: permissionsProvenance(clock) } : null
   } catch {
     emitReadDegraded(ctx, 'permissions', 'permissions:unknown', Date.now() - t0)
     return null

@@ -22,6 +22,8 @@ import type { GhExecResult } from '../transport/client.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { emitPreflightGatePass, emitReadDegraded } from '../support/read-log.js'
 import { timeoutForGhArgs } from '../../../kernel/outbound-tiers.js'
+import { beginRead } from '../routing/read-result.js'
+import { preflightProvenance } from '../routing/read-assembly.js'
 
 // —— #1475：检测链外层等待预算里「内层串行最坏」那一段的算式 ——
 // 为什么这份表住在 preflight 自己文件里：它是「一次环境预检会串行问哪几条命令」的唯一真源，
@@ -142,6 +144,8 @@ export async function ghPreflight(handle: RepoHandle, ctx: OpContext): Promise<P
 
   // 这一笔的起点：三项门禁的每一行日志都要带「从探测入口到这里花了多久」。
   const t0 = Date.now()
+  // 读来源记录也从这里起算（#1686）：成功时才挂 provenance，失败结果不冒充「已经看过的形状」。
+  const clock = beginRead()
 
   // 1) gh 可执行
   try {
@@ -232,7 +236,7 @@ export async function ghPreflight(handle: RepoHandle, ctx: OpContext): Promise<P
     }
     // 三关全过也记一行：不然「探测走到底了」在日志里只是三行长得一样的 gh.exec，读的人看不出走到哪。
     emitPreflightGatePass(opCtx, 3, Date.now() - t2)
-    return { ok: true }
+    return { ok: true, provenance: preflightProvenance(clock) }
   } catch (e) {
     const verdict = ghVerdictOf(e, opCtx)
     emitReadDegraded(opCtx, 'preflight', 'preflight:api', Date.now() - t2)

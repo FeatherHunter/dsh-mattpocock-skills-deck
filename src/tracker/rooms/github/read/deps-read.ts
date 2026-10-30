@@ -19,12 +19,15 @@
  */
 
 import type { Issue, IssueRef, RepositoryRef } from '../../../contract/entities.js'
-import type { Dependencies, OpResult } from '../../../contract/results.js'
+import type { Dependencies, DependenciesResult } from '../../../contract/results.js'
 import { ghClient } from '../transport/client.js'
 import { getIssue, listIssues } from '../issues.js'
 import { normalizeDependencyEdges } from '../model/normalize.js'
 import { DEPS_MAX, DEPS_QUERY } from '../channels/graphql/queries.js'
 import { emitReadDegraded } from '../support/read-log.js'
+import { beginRead } from '../routing/read-result.js'
+import type { ReadClock } from '../routing/read-result.js'
+import { dependenciesProvenanceFromGraphql, dependenciesProvenanceFromRest } from '../routing/read-assembly.js'
 import type { MemoContext } from '../model/roster.js'
 
 /** 仓库定位：拥有者 + 仓名（形状与 graph.ts 里那个同名接口一致）。 */
@@ -89,7 +92,7 @@ async function readNativeDependencies(parsed: ParsedRepo, k: string, ctx: MemoCo
  * 又回到 N+1；#1304 要求名册命中与整仓兜底两条路都不许逐张读标题。兜底只在后端没有原生反向字段时
  * 才走，代价大但少见；换来的是每条路都只翻一次整仓、标题随列表行回来。
  */
-async function readScanDependencies(repo: RepositoryRef, k: string, ctx: MemoContext, started: number): Promise<OpResult<Dependencies>> {
+async function readScanDependencies(repo: RepositoryRef, k: string, ctx: MemoContext, started: number, clock: ReadClock): Promise<DependenciesResult> {
   const cur = await getIssue(repo, k, {}, ctx)
   if (!cur.ok) {
     // 连目标票本身都没读回来：这一趟依赖投影彻底没成，兜底路也没走通。
@@ -129,7 +132,14 @@ async function readScanDependencies(repo: RepositoryRef, k: string, ctx: MemoCon
     : '这次没能直接读到后端自带的「我挡住了谁」，只好退回整仓列表反推；结果是完整的，但票越多越慢。'
   // 一趟只落一行：兜底已走完，按最终完整性挑原因（列表被截断优先归为 truncated）。
   emitReadDegraded(ctx, 'deps', incomplete ? (listTruncated ? 'deps:truncated' : 'deps:scan') : 'deps:shape', Date.now() - started)
-  return { ok: true, data: data }
+  // 来源按反推那份整仓列表实际走的通道记：走 REST 时同时记「GraphQL 没成、降级过来」。
+  // blockedBy 这一侧来自目标票本身的原生字段，永远表达得出来；反推出来的 blocking 那一侧在清单不全时给 null（记未表达，不给 0）。
+  const facts = { blockedByCount: blockedBy.length, blockingCount: incomplete ? null : blocking.length }
+  return {
+    ok: true,
+    data: data,
+    provenance: walkedRest ? dependenciesProvenanceFromRest(clock, facts) : dependenciesProvenanceFromGraphql(clock, facts),
+  }
 }
 
 /**
@@ -137,9 +147,17 @@ async function readScanDependencies(repo: RepositoryRef, k: string, ctx: MemoCon
  * 返回的 `blockingSource` / `blockingComplete` / `blockedByComplete` / `blockingNote`
  * 让工具层能把「用了哪条路、全不全」如实带给调用方。
  */
-export async function readDependencies(repo: RepositoryRef, parsed: ParsedRepo, k: string, ctx: MemoContext): Promise<OpResult<Dependencies>> {
+export async function readDependencies(repo: RepositoryRef, parsed: ParsedRepo, k: string, ctx: MemoContext): Promise<DependenciesResult> {
   const started = Date.now()
+  // 读来源记录从入口起算（#1686）：原生成功与退回反推两条路都在成功分支挂 provenance。
+  const clock = beginRead()
   const native = await readNativeDependencies(parsed, k, ctx, started)
-  if (native) return { ok: true, data: native }
-  return readScanDependencies(repo, k, ctx, started)
+  if (native) {
+    return {
+      ok: true,
+      data: native,
+      provenance: dependenciesProvenanceFromGraphql(clock, { blockedByCount: native.blockedBy.length, blockingCount: native.blocking.length }),
+    }
+  }
+  return readScanDependencies(repo, k, ctx, started, clock)
 }

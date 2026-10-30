@@ -167,7 +167,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-31 #1685：读结果的来源与按字段组完整度（从操作百科枚举 12 条读操作逐条对账、
   // 两套协议形状互不引用、十二种坏来源负例、stub 执行器真调三条读路径）；
   // 251 条是单跑实测得出的。
-  'verify-read-result-provenance': 251,
+  'verify-read-result-provenance': 265,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

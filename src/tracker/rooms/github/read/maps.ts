@@ -26,11 +26,13 @@ import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import type { OpContext } from '../../../contract/contexts.js'
 import type { RepositoryRef, Label } from '../../../contract/entities.js'
 import type { State } from '../../../contract/identity.js'
-import type { OpResult } from '../../../contract/results.js'
+import type { MapListOpResult } from '../../../contract/results.js'
 import { fail } from '../../../kernel/preflight.js'
 import { PAGINATION } from '../../../contract/pagination.js'
 import { parseRepo, repoId } from '../issues.js'
 import { listIssuesPage } from './page.js'
+import { beginRead } from '../routing/read-result.js'
+import { mapsProvenanceFromGraphql } from '../routing/read-assembly.js'
 
 /** 地图薄行：画清单一行只用这四格。不带正文评论，不问拉取请求。 */
 export interface MapRow {
@@ -70,12 +72,16 @@ function hasMapLabel(labels: Label[] | undefined): boolean {
  * 只收仓库，其余写死：状态 OPEN + CLOSED、标签小写 wayfinder:map、时间窗口空。
  * 单页失败整趟失败，不交半截数据；超顶截断时回成功但 truncated 为真。
  */
-export async function listMaps(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<MapListResult>> {
+export async function listMaps(repo: RepositoryRef, ctx: OpContext): Promise<MapListOpResult> {
+  // 读来源记录从入口起算（#1686）：成功时挂「行」「标签」两个字段组的完整度。
+  const clock = beginRead()
   // 坐标形坏是调用方的错：一笔服务端往返都不做，直接失败。
   if (!parseRepo(repo)) {
     return fail(ERROR_KIND.NOTFOUND, 'listMaps: repo.refId missing or malformed: ' + repoId(repo), repo)
   }
   const collected: Array<{ row: MapRow; updatedAt: string; seq: number }> = []
+  // 每张地图行的标签数组（#1686）：列表片段 labels(first:50) 没有 pageInfo，只能按「某行满 50 条」判标签截断。
+  const labelsPerRow: Array<readonly unknown[]> = []
   let total = 0
   let firstPage = true
   let cursor = ''
@@ -93,6 +99,7 @@ export async function listMaps(repo: RepositoryRef, ctx: OpContext): Promise<OpR
         updatedAt: it.updatedAt || '',
         seq: collected.length,
       })
+      labelsPerRow.push(Array.isArray(it.labels) ? it.labels : [])
     }
     if (!r.data.nextCursor) break
     cursor = r.data.nextCursor
@@ -107,7 +114,7 @@ export async function listMaps(repo: RepositoryRef, ctx: OpContext): Promise<OpR
     if (!b.updatedAt) return -1
     return a.updatedAt < b.updatedAt ? 1 : -1
   })
-  return { ok: true, data: { rows: collected.map((x) => x.row), total, truncated } }
+  return { ok: true, data: { rows: collected.map((x) => x.row), total, truncated }, provenance: mapsProvenanceFromGraphql(clock, { truncated, labelsPerRow }) }
 }
 
 export default { listMaps }

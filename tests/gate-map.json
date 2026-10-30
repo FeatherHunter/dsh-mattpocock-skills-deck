@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T21:52:08.480Z",
+  "generatedAt": "2026-10-30T22:05:48.363Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 462,
   "gateCount": 462,
@@ -9336,8 +9336,15 @@
         "src/tracker/rooms/github/channels/graphql/read-shapes.ts",
         "src/tracker/rooms/github/channels/rest/read-shapes.ts",
         "src/tracker/rooms/github/issues.ts",
+        "src/tracker/rooms/github/read/counts.ts",
+        "src/tracker/rooms/github/read/deps-read.ts",
         "src/tracker/rooms/github/read/issues-rest-list.ts",
+        "src/tracker/rooms/github/read/labels.ts",
+        "src/tracker/rooms/github/read/maps.ts",
         "src/tracker/rooms/github/read/page.ts",
+        "src/tracker/rooms/github/read/preflight.ts",
+        "src/tracker/rooms/github/read/repo-permissions.ts",
+        "src/tracker/rooms/github/read/sub-issues.ts",
         "src/tracker/rooms/github/routing/read-assembly.ts",
         "src/tracker/rooms/github/routing/read-result.ts"
       ],
@@ -9352,8 +9359,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 251,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 12 条）"
+      "expectedAssertions": 265,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 19 条）"
     },
     {
       "step": "node tests/verify-real-machine-fullscreen.ts",

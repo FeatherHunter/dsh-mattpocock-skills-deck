@@ -34,7 +34,7 @@
 import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import type { OpContext } from '../../../contract/contexts.js';
 import type { Issue, RepositoryRef } from '../../../contract/entities.js';
-import type { OpResult, SubIssueList } from '../../../contract/results.js';
+import type { SubIssueListResult } from '../../../contract/results.js';
 import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
 import { normalizeIssue } from '../model/normalize.js'
@@ -42,6 +42,8 @@ import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { SUB_ISSUES_QUERY } from '../channels/graphql/queries.js'
 import { parseRepo, repoId } from '../issues.js'
 import { emitReadDegraded } from '../support/read-log.js'
+import { beginRead } from '../routing/read-result.js'
+import { subIssuesProvenanceFromGraphql } from '../routing/read-assembly.js'
 import { PAGINATION } from '../../../contract/pagination.js'
 
 // 每页 100 张（GraphQL 连接的单页上限），硬上限 1000 张（规格第 6.4 节：超过就明说只加载了前 1000 张）。
@@ -57,9 +59,11 @@ const MAX_SUB_ISSUES = PAGINATION.github.subIssuesMax
  *  - missing：没被上限卡住、却与 totalCount 对不上的差额（0 = 对上了）；
  *  - dropped：归一失败的条数（归一失败会丢行，丢了几条如实记下来，不混进 fetched）。
  */
-export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: unknown, ctx: OpContext): Promise<OpResult<SubIssueList>> {
+export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: unknown, ctx: OpContext): Promise<SubIssueListResult> {
   // 这一笔的起点：本函数每一行降级日志都带「从入口到这里花了多久」。
   const t0 = Date.now()
+  // 读来源记录也从这里起算（#1686）：成功时挂来源与「子票」「行」两个字段组的完整度。
+  const clock = beginRead()
   try {
     const parsed = parseRepo(repo)
     // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
@@ -76,6 +80,8 @@ export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: 
     let dropped = 0
     let after: unknown = null
     let capped = false
+    // 最后一页读到的 pageInfo.hasNextPage（#1686）：翻页事实要交回组装函数，交上去才知道是「拉到底」还是「到上限停下」。
+    let hasNextPage = false
     // 逐页取到底：每页都问一次 hasNextPage，不用「上一页满不满」去猜（满页也可能是最后一页）。
     for (;;) {
       const args = ['api', 'graphql', '-f', `query=${SUB_ISSUES_QUERY}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `number=${num}`, '-F', `first=${PAGE_SIZE}`]
@@ -131,6 +137,7 @@ export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: 
       // 为什么断言一下：游标段只读 hasNextPage/endCursor 两格，断言只为过编译，表达式与原来一字不差，运行时不变。
       const pageInfo = conn.pageInfo as { hasNextPage?: unknown; endCursor?: unknown } | null | undefined;
       if (!pageInfo || !pageInfo.hasNextPage) break
+      hasNextPage = true
       after = pageInfo.endCursor
       if (!after) break // 后端说要翻下一页却没给游标：拿不到游标就停，别死循环
     }
@@ -139,7 +146,7 @@ export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: 
     const missing = (total !== null && !capped && fetched + dropped < total) ? (total - fetched - dropped) : 0
     // 「拉全了」这一趟不记；被上限截断的那一趟必须记：回的是成功，可这次只装了一部分子票。
     if (capped) emitReadDegraded(ctx, 'subIssues', 'subIssues:truncated', Date.now() - t0)
-    return { ok: true, data: { items, total: total === null ? fetched : total, fetched, capped, missing, dropped } }
+    return { ok: true, data: { items, total: total === null ? fetched : total, fetched, capped, missing, dropped }, provenance: subIssuesProvenanceFromGraphql(clock, { fetched, capped, hasNextPage, dropped }) }
   } catch (e) {
     const verdict = ghVerdictOf(e, ctx)
     // 为什么转一下再读：同上，catch 的 unknown 不能直接读 message，转后表达式与原来一致。
