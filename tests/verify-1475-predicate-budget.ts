@@ -71,7 +71,7 @@ function assessBudget(outerMs, innerMs, marginMs) {
   const ok = outerMs >= need
   const message = '外层等待 ' + outerMs + 'ms 必须 ≥ 内层串行最坏 ' + innerMs + 'ms + 余量 ' + marginMs +
     'ms（合计至少 ' + need + 'ms）；改 config/timeouts.yaml 的 predicateTimeoutMs（外层那一档）与 predicateMarginMs（余量），' +
-    '内层最坏由 src/tracker/rooms/github/preflight.ts 的 ghPreflightWorstCaseMs() 按出站档位现算'
+    '内层最坏由 src/tracker/rooms/github/read/preflight.ts 的 ghPreflightWorstCaseMs() 按出站档位现算'
   return { ok: ok, need: need, message: message }
 }
 
@@ -150,7 +150,8 @@ async function main() {
 
   title('② 漂移：preflight 真实发出的命令与预算表一一对上')
   {
-    const src = readFileSync(join(ROOT, 'src/tracker/rooms/github/preflight.ts'), 'utf8')
+    // #1686 阶段 1：preflight 随 read 层搬进 read/，这里读真身而不是旧路径的转发壳。
+    const src = readFileSync(join(ROOT, 'src/tracker/rooms/github/read/preflight.ts'), 'utf8')
     const callCount = (src.match(/\.execGh\(/g) || []).length
     must(callCount === GH_PREFLIGHT_SERIAL_STEPS.length,
       '预检文件里真实调用 execGh 的次数（' + callCount + '）等于预算表登记的步数（' + GH_PREFLIGHT_SERIAL_STEPS.length + '）',

@@ -149,7 +149,8 @@ function main(): void {
   check(hasNone(promptText, ['winget', 'brew', 'sudo apt', '请为 DSH 安装']), '宿主长文不再是「请为 DSH 安装」那套安装说明（会让人重装）')
 
   console.log('== 5. 分类 token 保留：新消息仍被认成「缺 gh 可执行」 ==')
-  const preflightSrc = read('src/tracker/rooms/github/preflight.ts')
+  // #1686 阶段 1：preflight 随 read 层搬进 read/，文案看真身而不是旧路径的转发壳。
+  const preflightSrc = read('src/tracker/rooms/github/read/preflight.ts')
   // #1684 阶段 1：gh 客户端真身搬进 transport/，旧路径只留转发；文案看真身。
   const clientSrc = read('src/tracker/rooms/github/transport/client.ts')
   const preflightMsg = literalAfter(preflightSrc, /message: '(gh not found: platform\.resolveExecutable returned null[^']*)'/)

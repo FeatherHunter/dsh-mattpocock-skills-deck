@@ -27,7 +27,7 @@
 // 门禁归属: src/tracker/rooms/github/channels/graphql/queries.ts
 // 门禁归属: src/tracker/rooms/github/channels/rest/read-shapes.ts
 // 门禁归属: src/tracker/rooms/github/issues.ts
-// 门禁归属: src/tracker/rooms/github/issues-rest-list.ts
+// 门禁归属: src/tracker/rooms/github/read/issues-rest-list.ts
 // 门禁归属: src/tracker/rooms/github/read/page.ts
 //
 // 跑法（在插件根目录；不需要先构建，本门禁跑的是真源码）：
@@ -290,7 +290,7 @@ const graphqlShapesSrc = readSource('src/tracker/rooms/github/channels/graphql/r
 const restShapesSrc = readSource('src/tracker/rooms/github/channels/rest/read-shapes.ts')
 check(graphqlShapesSrc.includes('depsMax') && graphqlShapesSrc.includes('labelListLimit'), 'GraphQL 通道的依赖与标签上限取自契约数字表')
 check(restShapesSrc.includes('subIssuesMax') && restShapesSrc.includes('labelListLimit'), 'REST 通道的子票与标签上限取自契约数字表')
-const restFetchSrc = readSource('src/tracker/rooms/github/issues-rest-list.ts')
+const restFetchSrc = readSource('src/tracker/rooms/github/read/issues-rest-list.ts')
 check(restFetchSrc.includes('restPageSize') && restFetchSrc.includes('restMaxPages'), 'REST 整仓列表的每页条数与页数上限取自契约数字表')
 check(ROW_LABELS_MAX === PAGINATION.github.depsMax, '单行标签上限 50 与依赖上限同源（都是连接一次最多给的条数）', ROW_LABELS_MAX)
 check(PAGINATION.github.restPageSize === 100 && PAGINATION.github.restMaxPages === 10, 'REST 每页 100、最多 10 页', PAGINATION.github)

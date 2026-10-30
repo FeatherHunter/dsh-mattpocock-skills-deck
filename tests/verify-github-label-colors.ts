@@ -28,6 +28,8 @@ import nodePath from 'node:path'
 import { githubModule } from '../src/tracker/rooms/github/index.ts'
 import { ghClient } from '../src/tracker/rooms/github/client.ts'
 import { labelListCheck, labelBatchCheck, labelCompletenessCheck } from './tracker-contract/sections/labels.js'
+// #1686 阶段 1：列标签的读侧从 label-colors-ops.ts 拆进 read/labels.ts；上限从那里取，断言与实现同源。
+import { LABEL_LIST_LIMIT } from '../src/tracker/rooms/github/read/labels.ts'
 
 let pass = 0
 let fail = 0
@@ -156,7 +158,7 @@ const SEED = [
   check(!!l && l.flags['--repo'] === 'acme/demo', '列标签指名仓库（实得 ' + JSON.stringify(l && l.flags['--repo']) + '）')
   check(!!l && l.flags['--json'] === 'name,color,description', '列标签只要三个字段 name,color,description（实得 ' + JSON.stringify(l && l.flags['--json']) + '）')
   const lim = l ? Number(l.flags['--limit']) : NaN
-  check(Number.isInteger(lim) && lim >= 100, '列标签传了分页参数 --limit 且远大于 gh 的默认 30（实得 ' + JSON.stringify(l && l.flags['--limit']) + '）——不传就会静默少一截')
+  check(Number.isInteger(lim) && lim === LABEL_LIST_LIMIT, '列标签传了分页参数 --limit，且等于登记的上限 ' + LABEL_LIST_LIMIT + '（实得 ' + JSON.stringify(l && l.flags['--limit']) + '）——不传就会静默少一截')
   check(r.ok === true && labelListCheck(r.data).length === 0, '列标签的返回过契约的列表形状检查器（' + (r.ok === true ? labelListCheck(r.data).join('；') : JSON.stringify(r)) + '）')
   const byName = (n) => (r.ok === true ? r.data.find((x) => x.name === n) : null) || {}
   check(byName('bug').color === 'd73a4a', 'GitHub 上存的大写色值读回来转成六位小写（实得 ' + JSON.stringify(byName('bug').color) + '）')

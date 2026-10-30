@@ -24,7 +24,7 @@
 // 自己封装的执行函数，或者 shell 来自用户装的 .cmd 垫片（那是安装方式的事，不在插件源码里），这一页看不见。
 // 为了不让它假绿，第一段先自测扫描器：喂几段故意犯规的样例必须全部报警，喂一段干净的 argv 样例必须不报警。
 //
-// 门禁归属: src/tracker/rooms/github/preflight.ts
+// 门禁归属: src/tracker/rooms/github/read/preflight.ts
 // 门禁归属: src/tracker/rooms/github/transport/client.ts
 // 门禁归属: src/refresh/rooms/host/gh-execution.ts
 // 门禁归属: src/host/platformChannel.ts

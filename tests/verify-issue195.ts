@@ -12,7 +12,7 @@
 //   不许回来、ghLastError 与 resetGhCache 要在、没有「安装副按钮」外链、没有 installGh 提示词键）。
 const fs = require('fs')
 const files = process.argv.slice(2)
-const targets = files.length ? files : ['client.js', 'package/lib/client.js', 'host.js', 'package/lib/index.js', 'src/tracker/contract/index.ts', 'src/tracker/rooms/github/preflight.ts', 'src/tracker/rooms/github/index.ts']
+const targets = files.length ? files : ['client.js', 'package/lib/client.js', 'host.js', 'package/lib/index.js', 'src/tracker/contract/index.ts', 'src/tracker/rooms/github/read/preflight.ts', 'src/tracker/rooms/github/index.ts']
 let failed = false
 
 // 缺 gh cli 时注入的那段排查/安装指引（#1621 定稿；整段文本的逐字比对在 verify-663-gh-install-inject.ts）。

@@ -34,17 +34,18 @@ const READ_CALL_FILES = [
   'src/tracker/rooms/github/issues.ts',
   // #1685：整仓列表的 REST 翻页从 issues.ts 拆到了这里，list.rest 这个标签跟着落在新文件；
   // 不把新文件加进扫描表，登记册里的 list.rest 就会被判成「没人用」，标签也会漏检。
-  'src/tracker/rooms/github/issues-rest-list.ts',
+  // #1686 阶段 1：这份读实现随 read 层搬进 read/，扫描点跟着改到新位置。
+  'src/tracker/rooms/github/read/issues-rest-list.ts',
   'src/tracker/rooms/github/read/counts.ts',
   'src/tracker/rooms/github/read/page.ts',
-  'src/tracker/rooms/github/preflight.ts',
+  'src/tracker/rooms/github/read/preflight.ts',
   'src/tracker/rooms/github/read/sub-issues.ts',
-  'src/tracker/rooms/github/repo-permissions.ts',
+  'src/tracker/rooms/github/read/repo-permissions.ts',
   // #1686：仓库身份（含 getRepoKey 的 gh 探测）随 model 层搬进职责目录。
   'src/tracker/rooms/github/model/repo.ts',
   // pulls.ts 是 #1052 合成回包实跑时抓出来的漏网：拉列表走 REST 降级那一支会顺带起两笔
   // /pulls 富化（列表翻页 + 单票补合并时间/评审），当时它们不带标签，日志里落的是空 via。
-  'src/tracker/rooms/github/pulls.ts',
+  'src/tracker/rooms/github/read/pulls.ts',
   // 反向阻塞边的原生投影（#1304）：一次 GraphQL 同时取回正向与反向两条连接。
   'src/tracker/rooms/github/read/deps-read.ts',
   // 单票评论的多页取齐（#1444 从 issues.ts 拆出）：翻页那一支自己起 gh，via 写 get.gql。
