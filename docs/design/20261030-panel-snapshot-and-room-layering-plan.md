@@ -2,7 +2,7 @@
 
 > 日期：2026-10-30 编制（承接同日两份 ADR；语义以 ADR 为准，本文只写顺序、每阶段门禁与对抗式审查）
 > 地位：迁移顺序与阶段验收的唯一依据；与两份同日 ADR 冲突时以 ADR 为准。
-> 关联：docs/adr/20261030-panel-snapshot-single-source.md · docs/adr/20261030-github-room-channel-layering.md · 调研 research/graphql-rest-fallback-2026-10-30.md · research/rest-graphql-read-parity-2026-10-30.md
+> 关联：规格票 #1681 · docs/adr/20261030-panel-snapshot-single-source.md · docs/adr/20261030-github-room-channel-layering.md · 调研 research/graphql-rest-fallback-2026-10-30.md · research/rest-graphql-read-parity-2026-10-30.md
 
 ## 1. 目标与验收
 
@@ -15,23 +15,24 @@
 
 通用完成判据：
 
-- `npm run verify:parallel` 全链为绿（除登记在案的已知红）。
-- 每条新增门禁都能红能绿：先按旧行为写红，再修到绿；不能只删不增。
+- `npm run verify:parallel` 全链为绿，不允许任何「已知红」。
+- 每条新增门禁都能红能绿：每个新增门禁都带负例，先按旧行为写红，再修到绿；不能只删不增。
 - 用本仓真实数据（433 张票）演练一遍，当天导出的日志能支持「只看本地诊断日志定位每一步」。
-- 维护者手动跑 `/to-spec` 建立规格票后，把票号回填到两份 ADR 与本文档。
+- 规格票 #1681（2026-10-30 发布）已建立；票号已回填两份 ADR 与本文档。
 
 ## 2. 阶段与门禁
 
 | 阶段 | 产物 | 先写红的门禁 | 行为变化 | 对抗式审查重点 |
 |---|---|---|---|---|
+| 0 真机探针与唯一真源 | 列表行 parent_issue_url、issue_dependencies_summary、sub_issues_summary 三个字段的真机探针与夹具；操作百科补读/写标记、可用渠道与结果类型；术语「通知中心」「通知事件」 | tests/verify-github-rest-fallback.ts 的探针断言（字段有则用、无则走退路） | 无 | 探针结论是否被当成已证事实；字段缺失退路是否写明 |
 | 1 GitHub 房间内部分层 | transport/、channels/{graphql,rest}/、routing/、model/、read/、write/、room/、support/ 落位；读结果类型带来源与完整度 | tests/verify-room-layering.ts、tests/verify-read-result-provenance.ts（降级路径先用白名单登记，逐条清零） | 无行为变化，只换结构 | 依赖旁路、唯一出口被绕过、同一输入输出行为一致 |
-| 2 宿主面板快照合并层 | 合并纯函数（字段三态、完整来源判定、字段组的来源与时间）、磁盘回放扩展 | tests/verify-panel-snapshot-merge.ts、tests/verify-snapshot-disk-replay.ts | 快照可合并、可回放；视图暂不切换 | 降级来源误删已知、完整来源判错、并发写入顺序 |
-| 3 客户端收编为单一读源 | issueCache 与地图子票桶退役为投影；陈旧先显示；写回执合并；TTL 改为只触发后台刷新 | tests/verify-single-read-source.ts、tests/verify-detail-incremental.ts、tests/verify-acceptance-four.ts | 四条要求落地；界面改读投影 | 四条要求逐条演练；双源回流；回滚开关 |
-| 4 REST 降级补齐 | 列表 parent_issue_url 零请求补父边；依赖计数大于 0 逐票拉；按需细节按需补；规格容器按归一化类型修父边 | tests/verify-fallback-merge.ts、扩展 tests/verify-github-rest-fallback.ts | 降级结果只补不删，已知数据不缩 | 请求预算与 8 路并发上限；GHES 能力标记；降级误标完整 |
-| 5 通知中心 | 事件先落库再呈现；未读入口；浮层历史；toast 只做回声；退役占行横幅 | tests/verify-notification-center.ts、改造 tests/verify-rest-fallback-banner.ts | 降级、刷新失败、写失败改为通知呈现，不再占列表行 | 事件不丢；去重与节流；三条诚实约束（只有配额原因才提配额、超时改口「上次」、本次会话可关） |
+| 2 宿主面板快照合并层 | 合并纯函数（字段三态、完整来源判定、字段组的来源与时间）、版本门、磁盘回放扩展（来源随盘、旧格式按未知） | tests/verify-panel-snapshot-merge.ts、tests/verify-snapshot-disk-replay.ts | 快照可合并、可回放；视图暂不切换 | 降级来源误删已知、完整来源判错、过期结果回退、并发写入顺序 |
+| 3 客户端收编为单一读源 | issueCache 与地图子票桶退役为投影；陈旧先显示；写回执合并；TTL 改为只触发后台刷新；读投影回滚开关 | tests/verify-single-read-source.ts、tests/verify-detail-incremental.ts、tests/verify-acceptance-four.ts | 四条要求落地；界面改读投影 | 四条要求逐条演练；双源回流；回滚开关两条路径都能跑 |
+| 4 REST 降级补齐 | 列表 parent_issue_url 零请求补父边；依赖计数大于 0 逐票拉；按需细节按需补；规格容器按「正文标记优先、标签兜底」修父边；预算按插件读额度（常规增量 ≤3、完整枚举 ≤16、详情 ≤5 类、8 路并发、降级探针 5s→60s、自动校准 ≥10min） | tests/verify-fallback-merge.ts、扩展 tests/verify-github-rest-fallback.ts | 降级结果只补不删，已知数据不缩 | 请求预算与 8 路并发上限；GHES 能力标记；降级误标完整 |
+| 5 通知中心 | 事件先落库再呈现；事件库宿主持久化、工作区共享；当前状态仍从快照派生；未读入口；浮层历史；toast 只做回声；退役占行横幅 | tests/verify-notification-center.ts、改造 tests/verify-rest-fallback-banner.ts | 降级、刷新失败、写失败改为通知呈现，不再占列表行 | 事件不丢；去重与恢复配对；三条诚实约束（只有配额原因才提配额、超时改口「上次」、本次会话可关） |
 | 6 收口 | 全链、真实数据演练、文档更新、ADR 回填规格票号 | 全链复跑 | 无 | 四条验收重放；门禁摘要可读 |
 
-阶段 1 先做，是因为「来源与完整度」是后续所有合并判断的输入；阶段 2 与阶段 1 可以并行推进（不同人/不同子代理，写范围不相交），但阶段 3 必须等阶段 1 与阶段 2 都绿；阶段 4 依赖阶段 1 的渠道分层；阶段 5 独立，可随时插队。
+阶段 0 先做，是因为父边与依赖摘要的字段可用性决定阶段 4 的实现路径；阶段 1 其次，因为「来源与完整度」是后续所有合并判断的输入；阶段 2 与阶段 1 可以并行推进（不同人/不同子代理，写范围不相交），但阶段 3 必须等阶段 1 与阶段 2 都绿；阶段 4 依赖阶段 1 的渠道分层；阶段 5 独立，可随时插队。
 
 ## 3. 四条维护者要求的验收对照
 
@@ -63,14 +64,16 @@
 
 - 快照体积：按需细节设条数与字节上限、LRU 淘汰、超限记日志。
 - 磁盘旧数据误导：界面显示来源与时间；校准失败进通知中心。
-- 双源回流：verify-single-read-source 防住；阶段 3 完成后删除旧缓存代码。
-- 请求预算超支：每轮预算常量落配置（沿用现有常量与时间配置机制）；超预算只补当前视图字段。
+- 双源回流：verify-single-read-source 用运行时不变量与纯投影测试防住；阶段 3 完成后删除旧缓存代码。
+- 请求预算超支：预算常量住额度模块（src/refresh/kernel/host-budget.ts），不新建 YAML；时间值走 config/ttl.yaml 与生成器；超预算只补当前视图字段。
 - GHES 与 counts 缺口：能力表标记，界面按未知渲染，文档写清。
 - 回滚：每阶段独立提交、可单独 revert；阶段 3 留一个「读投影开关」（默认新路径），出问题切回旧路径。
-- 迁移期中间态难看：阶段 1–2 行为不变；阶段 3 一次切换，不并行双写。
+- 通知中心清理挂在写/读/刷新节拍上，不新增后台定时器（docs/adr/20260924-refresh-budget-architecture.md 的 I2）。
+- 迁移期中间态难看：阶段 0–2 行为不变；阶段 3 一次切换，不并行双写。
 
 ## 6. 不做的范围
 
+- 不改读操作在额度闸里的渠道放行判定（另票）；不改额度记账、桶与占比。
 - 版本控制页、设置、技能、检查链不纳入面板快照。
 - 不做跨后端通用分层框架；GitLab 与 Markdown 不动。
 - 通知不做系统级或桌面通知（宿主未暴露该能力），只做面板内通知中心。
@@ -79,3 +82,4 @@
 ## 7. 变更记录
 
 - 2026-10-30 编制：承接两篇 ADR，定六阶段顺序、每阶段门禁与对抗式审查清单。
+- 2026-10-31 回填规格票 #1681：补阶段 0 真机探针；预算改按插件读额度；通知中心持久化与清理口径；验收改「不允许任何已知红」；回滚开关与双源门禁描述。
