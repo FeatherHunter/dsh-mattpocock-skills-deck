@@ -4,7 +4,8 @@
 // 取数这边只认两样：开只读会话的装配口、计数表，全由调用方以参数注入；
 // 合并那边的状态（快照、水印、待办）一件都不碰。调用方（row-patch.ts 的 run）只认回包形状：
 //   回 { ok:true, rows, queries }，或 { ok:false, outcome:'failed', keys, reason }。
-// 本文件不 import 宿主其它模块，免得接出环（row-patch.ts 头注释里的那条分工仍在）。
+// 本文件不 import 宿主其它模块，免得接出环（row-patch.ts 头注释里的那条分工仍在）；
+// #1689 只 import 更下层的 kernel（预算核与额度常量），方向仍是 rooms → kernel，不成环。
 //
 // #1444（规格 1439 的 A2 第一批）：这一条从「每票直调 gh api」改成「同一趟只读会话里逐票 get」。
 // 三条口径：
@@ -21,6 +22,13 @@
 import type { OpContext } from '../../../tracker/contract/contexts.js'
 import type { Issue, RepositoryRef } from '../../../tracker/contract/entities.js'
 import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
+// #1689 降级取数：同一时刻最多 8 条请求在飞（超出的排队，一条不丢）；每条请求先预扣、收到后校正、失败回填。
+import { createFallbackConcurrencyGate } from '../../kernel/fallback-fetch-budget.js'
+import type { FallbackRoundBudget } from '../../kernel/fallback-fetch-budget.js'
+import { FALLBACK_MAX_CONCURRENCY } from '../../kernel/host-budget.js'
+
+// 8 路并发闸按模块共享：同一时刻全仓的薄行请求加起来也不超过这个上限（不是每个调用各开一个）。
+const THIN_FETCH_GATE = createFallbackConcurrencyGate({ maxConcurrency: FALLBACK_MAX_CONCURRENCY })
 
 /**
  * 取数要用的两样：开只读会话的装配口（宿主接线注入 openSessionFor）、
@@ -29,6 +37,8 @@ import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
 export interface ThinFetchEnv {
   openSession: (cwd: any, opts?: any) => Promise<any>
   stats: { thinQueries: number }
+  /** #1689：降级常驻时的增量轮预算本子（由 probe-handler 透传下来）；主路正常时不传，一条都不记账。 */
+  budget?: FallbackRoundBudget
 }
 
 /** 本文件认的仓库坐标：宿主 getRepoKey 交出来的那两格。 */
@@ -90,10 +100,18 @@ export async function fetchThinRows(env: ThinFetchEnv, cwd: any, repo: any, keys
   try {
     got = await opened.call(async function (session: TrackerSession, ctx: OpContext): Promise<OneResult[]> {
       return Promise.all(list.map(async function (k: any): Promise<OneResult> {
+        // #1689：降级轮的红线 —— 每条请求发出前先预扣（预扣不到就拒发，一个字节都不许出去）。
+        const ticket: any = env.budget ? env.budget.reserve({ bucket: 'read', cost: 1, classLabel: 'thin-row' }) : null
+        if (env.budget && !ticket) return { k: k, bad: { outcome: 'failed', reason: 'fallback-budget-refused' } }
         // 一次薄查询的计数进这一条路的账（门禁与现场排查读 stats.thinQueries）。
         env.stats.thinQueries += 1
         let r: any = null
-        try { r = await session.get(ref as RepositoryRef, String(k), undefined, ctx) } catch (e: any) { r = null }
+        try { r = await THIN_FETCH_GATE.run(function () { return session.get(ref as RepositoryRef, String(k), undefined, ctx) }) } catch (e: any) { r = null }
+        // #1689 收到后校正：成功按 1 条定账；失败也回填 —— 这条请求真的发出去过，账上不许漏。
+        if (env.budget && ticket) {
+          if (r && r.ok === true) env.budget.correct(ticket, 1)
+          else env.budget.backfill(ticket, 1)
+        }
         if (!r || r.ok !== true || !r.data) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-failed' } }
         const row = rowOf(r.data)
         if (!Number.isFinite(row.number)) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-parse' } }

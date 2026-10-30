@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T23:08:12.098Z",
+  "generatedAt": "2026-10-30T23:40:28.941Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 462,
-  "gateCount": 462,
-  "attributedGates": 412,
+  "chainLength": 463,
+  "gateCount": 463,
+  "attributedGates": 413,
   "unattributedGates": 50,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 27,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 641,
+  "graphFileCount": 642,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -7831,6 +7831,27 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
+      "step": "node tests/verify-fallback-fetch-budget.ts",
+      "file": "tests/verify-fallback-fetch-budget.ts",
+      "guards": [
+        "config/intervals.yaml",
+        "src/refresh/kernel/fallback-fetch-budget.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/probe-handler.ts",
+        "src/refresh/rooms/host/thin-row-fetch.ts"
+      ],
+      "dirs": [
+        "config",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 5 条"
+    },
+    {
       "step": "node tests/verify-file-granularity.ts",
       "file": "tests/verify-file-granularity.ts",
       "guards": [
@@ -10846,6 +10867,7 @@
     "config": [
       "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1475-predicate-budget.ts",
+      "node tests/verify-fallback-fetch-budget.ts",
       "node tests/verify-prompt-config.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-time-config.ts",
@@ -11908,6 +11930,7 @@
       "node tests/verify-delta-patch.ts",
       "node tests/verify-delta-wiring.ts",
       "node tests/verify-event-budget.ts",
+      "node tests/verify-fallback-fetch-budget.ts",
       "node tests/verify-gate-accounting.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-index-window.ts",
@@ -12067,6 +12090,7 @@
       "node tests/verify-delta-patch.ts",
       "node tests/verify-delta-wiring.ts",
       "node tests/verify-error-raw-samples.ts",
+      "node tests/verify-fallback-fetch-budget.ts",
       "node tests/verify-gate-accounting.ts",
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-github-gh-via.ts",
@@ -12846,9 +12870,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 662,
+    "fileCount": 663,
     "dirCount": 84,
-    "coveredFileCount": 662,
+    "coveredFileCount": 663,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 66,
@@ -13190,6 +13214,7 @@
       "src/refresh/kernel/create-write-policy.ts",
       "src/refresh/kernel/failure-backoff.ts",
       "src/refresh/kernel/failure-window.ts",
+      "src/refresh/kernel/fallback-fetch-budget.ts",
       "src/refresh/kernel/host-budget.ts",
       "src/refresh/kernel/index-window-rules.ts",
       "src/refresh/kernel/page-allowance.ts",
