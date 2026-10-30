@@ -1536,8 +1536,9 @@ const contractChecksInner = function (reg, src) {
     // 2026-10-30：newWayfinder v26→v27 —— 加「并行与串行」节与收尾复查项，建图时一次定好并行串行、收尾前再查一遍边，版本底线同步抬到 27。
     // 2026-10-30（同日第二笔）：newWayfinder v27→v28 —— 并行与串行节中文措辞微调（断句顿号、「批」换「组」），章节名与顺序不变，版本底线同步抬到 28。
     // 2026-10-30（同日第三笔）：newWayfinder v28→v29 —— 收尾改成先复查边、再向用户汇报并行串行分工；过程条改为「并行不用另外标注、彼此不连 blockedBy 边」，并把「画地图、定子票」换成专业名词 map 与 subissue；版本底线同步抬到 29。
+    // 2026-10-30（同日第五笔）：newWayfinder v29→v30 —— 把 subissue 改成官方写法 sub-issue（带连字符），与 GitHub 文档、仓内既有写法一致；版本底线同步抬到 30。
     mapExecute: 22, complete: 17, fixate: 11, 'tpl.diagnose': 21, 'tpl.fix': 18, 'tpl.discuss': 23,
-    'tpl.research': 17, 'tpl.prototype': 18, 'tpl.takeover': 13, 'tpl.supplement': 10, 'tpl.execute': 23, mapInspect: 14, newWayfinder: 29,
+    'tpl.research': 17, 'tpl.prototype': 18, 'tpl.takeover': 13, 'tpl.supplement': 10, 'tpl.execute': 23, mapInspect: 14, newWayfinder: 30,
     newBugWayfinder: 17, newSpec: 6, healthCheck: 6, specComplete: 8, specExecute: 7, specSplit: 6,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
@@ -2433,10 +2434,11 @@ const selfDigest = function () {
 //   V_MIN 27 → 28，自摘要按新内容重算。
 // 2026-10-30（同日第四笔）：newWayfinder v28→v29 —— 收尾改成先复查边、再向用户汇报并行串行分工；过程条改为「并行不用另外标注、
 //   彼此不连 blockedBy 边」，并把「画地图、定子票」换成专业名词 map 与 subissue；V_MIN 28 → 29，自摘要按新内容重算。
+// 2026-10-30（同日第五笔）：newWayfinder v29→v30 —— 把 subissue 改成官方写法 sub-issue（带连字符）；V_MIN 29 → 30，自摘要按新内容重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'b576b1272e31642bd0f4149c6ec45a665b1f404b391f42d3db8659b0f655a00f',
+  'tests/verify-prompts.ts': '03c6db676a6e2ac299dd8c05d6012e0bfc77478371e0e92226d1ab3b06052bb6',
 }
 // ---- LOCK-END ----
 
