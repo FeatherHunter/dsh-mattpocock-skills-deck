@@ -193,6 +193,17 @@ const blockSentence = (ids: string) => TR_TEMPLATE['tip.detailBlockedBy'].replac
   check(byLog('issue.top.newsession').props['aria-disabled'] === 'true', '加载失败只剩快照：新会话仍压灰')
 }
 
+// W8：详情还在加载、只剩打开的列表快照 → 保持可点（规格「做完」第 3 条：加载中不凭空压灰）
+{
+  const html = renderDetail(stWith([OPEN_ROW], { issueMode: 'loading' }))
+  check(!html.includes('aria-disabled'), '加载中只剩打开的快照：整页没有灰态按钮')
+  check(!!byLog('issue.top.exec') && byLog('issue.top.exec').props['aria-disabled'] === undefined, '加载中只剩打开的快照：主动作可点')
+  check(!!byLog('issue.top.newsession') && byLog('issue.top.newsession').props['aria-disabled'] === undefined, '加载中只剩打开的快照：新会话可点')
+  click('issue.top.exec')
+  click('issue.top.newsession')
+  check(clicks.inject.length === 1, '加载中只剩打开的快照：点主动作照常 inject')
+  check(clicks.newSession.length === 1 && clicks.newSession[0].number === 7, '加载中只剩打开的快照：点新会话照常开新会话')
+}
 // X1：#1669 打开的票、详情回包说被一张未完成的票阻塞 → 两颗动作按钮压灰、悬停点名那张票
 {
   const html = renderDetail(stWith([OPEN_ROW], {
