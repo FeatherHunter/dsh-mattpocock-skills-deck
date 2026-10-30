@@ -22,10 +22,12 @@ import { readFileSync } from 'node:fs'
 import { ghClient } from '../src/tracker/rooms/github/client.ts'
 
 const HERE = 'tests/verify-github-gh-via.ts'
-const CLIENT = 'src/tracker/rooms/github/client.ts'
+// #1684 阶段 1 房间分层：客户端与外围零件搬进了 transport/，旧路径只剩转发；
+// 文本判据看的是真正拼字段的那两份，所以路径跟着搬。
+const CLIENT = 'src/tracker/rooms/github/transport/client.ts'
 // gh.exec / gh.timeout 两条日志的字段拼装按文件粒度上限拆到了 client-support.ts：
 // 管子判据要连这份一起看，否则「via 有没有真的写进日志」会因为拆文件而漏判。
-const CLIENT_SUPPORT = 'src/tracker/rooms/github/client-support.ts'
+const CLIENT_SUPPORT = 'src/tracker/rooms/github/transport/client-support.ts'
 
 /** 读路径这一片的调用点：每一条都由 #1052 逐个贴过标签。 */
 const READ_CALL_FILES = [

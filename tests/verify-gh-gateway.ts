@@ -72,7 +72,7 @@ const EXITS = [
   { file: 'src/refresh/rooms/host/git-execution.ts', role: 'gateway', reason: '宿主侧 git 本地执行的出口：execProc 起任意命令（含 gh 与 git）；gh 命令执行 #1429 C8 起住 gh-execution.ts，见下一行。#723（T19）接线：每一笔真实出站在起进程之前报给闸（reportOutbound）。' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', role: 'gateway', reason: '宿主侧 gh 命令执行的出口：resolveGh 探活与 runGh 两处 spawn。#1429 C8 从 git-execution.ts 并入；报账经注入的 reportOutbound（本体在 git-execution.ts 里调 gate.noteOutbound），每一笔真实出站照旧先报闸。' },
   { file: 'src/host/platformChannel.ts', role: 'gateway', reason: '操作上下文交给后端的那种 exec 出口（tracker 三个房间与快照那几路都走它）。#723（T19）接线：detectionExec 起进程之前把这一笔报给闸（注入的 gate.noteOutbound）。' },
-  { file: 'src/tracker/rooms/github/client.ts', role: 'gateway', reason: 'GitHub 房间执行 gh 的地方（exec(\'gh\', args) 与 gh --version 探测），最终落到上面两个出口。#723（T19）接线：execGh 与 gh --version 探测都先报给闸（ctx.gate 注进来）。' },
+  { file: 'src/tracker/rooms/github/transport/client.ts', role: 'gateway', reason: 'GitHub 房间执行 gh 的地方（exec(\'gh\', args) 与 gh --version 探测），最终落到上面两个出口。#1684 起从房间根目录搬进 transport/（旧路径 client.ts 只留转发，不再直接起进程）。#723（T19）接线：execGh 与 gh --version 探测都先报给闸（ctx.gate 注进来）。' },
   { file: 'src/host/versionControl.ts', role: 'gateway', reason: '版本管理页签三条只读电话起 git 的地方（第一版零网络、不碰 GitHub）。按 repoKeys.js 的先例与 #817 票面要求，每条命令起进程之前都报一笔给闸（reportOutbound），保证「起过几条命令」与账上条数一一对应。' },
   { file: 'src/host/platform/index.ts', role: 'not-github', reason: '起的是「打开文件 / 打开文件夹」那条路，不是 GitHub 出站' },
   // #875 薄接线：更新安装器已收进更新包（旧登记两行随文件删除；包内出站由包自带测试覆盖）。
