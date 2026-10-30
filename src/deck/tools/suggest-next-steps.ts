@@ -65,7 +65,7 @@ export const definition = {
           properties: {
             intro: { type: 'string', description: '一句话说清这一步做什么，10 字以内。' },
             prompt: { type: 'string', description: '用用户的口气写用户下一轮会原样发出的话，只写现在就能确定的事，写清具体对象（文件、结论等），不写「继续推进」这类空话。还需要用户补充才能说全的话，只写前半句并留出待填位置（例如以冒号结尾，或用【在此填写…】标出要填的地方），还没发生的事留给用户填；实在写不清就换一条，不编具体值。' },
-            reason: { type: 'string', description: '一句话说清为什么现在做它：卡在哪、做完能解锁什么；不要复述提示词或写空泛评价。' },
+            reason: { type: 'string', description: '一句话说清为什么推荐这一步：写你凭什么这么推荐，用户看完就该知道该不该点。理由因事而异，写具体依据；不复述提示词，不用「值得做」「很合适」这类评价代替依据。' },
             priority: { type: 'number', description: '0 到 10，分越高越建议先做。' },
           },
           required: ['intro', 'prompt', 'reason'],
