@@ -13,6 +13,10 @@
 //    列表快照自己的 blockedBy 不参与（判据只认详情回包那一份）。
 // 4. 详情回包优先于列表快照（src = detail || snapIssue）；只剩快照或加载失败降级时，同一判据照样生效。
 // 5. 复制链接与「在跟踪器打开」是只读动作，不经过判据，两态都能用。
+// 6. #1667 交互决策 6：这两颗按钮不可点时点了也不该留下日志，所以压灰态不挂 data-log；
+//    可点时 data-log 仍是原来的稳定枚举值（issue.top.exec / issue.top.newsession）。
+//    因此取这两颗按钮改用按钮里文字 span 的标记（data-detail-primary-text / data-detail-new-text），
+//    不依赖 data-log —— 否则压灰态的取法会反过来把「不该有 data-log」这件事遮住。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1668-detail-top-gate-wire.ts
 // 说明：本机 jsdom 已坏（@asamuzakjp/css-color 丢失），所以用 react-dom/server 静态渲染真组件，
 //   并在 fakeCx 的 h 里记下 React 元素，事件处理器直接调（renderToStaticMarkup 不保留处理器）。
@@ -108,8 +112,19 @@ function renderDetail(st: any): string {
   return renderToStaticMarkup(React.createElement(DswsCtx.Provider, { value: fakeCx }, React.createElement(IssueDetail, { st })))
 }
 function byLog(log: string) { return created.find((el) => el && el.props && el.props['data-log'] === log) }
-function click(log: string) {
-  const el = byLog(log)
+// #1667 交互决策 6 之后，压灰态的两颗动作按钮不再挂 data-log（点了也不该被记日志），
+// 所以取它们不能只靠日志定位串。改用按钮里那颗文字 span 的稳定标记认人：主动作是
+// data-detail-primary-text、新会话是 data-detail-new-text —— 与顶栏折叠读的是同一套标记，两态都在。
+function buttonByChildMark(mark: string) {
+  return created.find((el) => {
+    if (!el || el.type !== 'button' || !el.props) return false
+    return React.Children.toArray(el.props.children).some((kid: any) => !!kid && !!kid.props && kid.props[mark] !== undefined)
+  })
+}
+function topExec() { return buttonByChildMark('data-detail-primary-text') }
+function topNews() { return buttonByChildMark('data-detail-new-text') }
+// 事件处理器在静态渲染里不会保留，所以「点一下」就是直接调按钮自己的 onClick，语义与真机一致。
+function click(el: any) {
   if (!el || typeof el.props.onClick !== 'function') return null
   const ev = { stopped: 0, stopPropagation() { this.stopped += 1 } }
   el.props.onClick(ev)
@@ -130,16 +145,18 @@ const blockSentence = (ids: string) => TR_TEMPLATE['tip.detailBlockedBy'].replac
 // W1：详情缺失、只剩关闭的列表快照 → 两颗动作按钮同进退地压灰
 {
   const html = renderDetail(stWith([CLOSED_ROW]))
-  const exec = byLog('issue.top.exec')
-  const news = byLog('issue.top.newsession')
+  const exec = topExec()
+  const news = topNews()
   check(html.includes('data-detail-topbar="1"'), '顶栏容器带稳定标记 data-detail-topbar（灰态样式只挂这里）')
   check((html.match(/aria-disabled="true"/g) || []).length === 2, '两颗动作按钮都写了 aria-disabled="true"')
   check(!!exec && exec.props['aria-disabled'] === 'true' && exec.props.tabIndex === -1, '主动作：aria-disabled 为真、tabIndex 为 -1')
   check(!!news && news.props['aria-disabled'] === 'true' && news.props.tabIndex === -1, '新会话：aria-disabled 为真、tabIndex 为 -1')
+  check(!!exec && exec.props['data-log'] === undefined && !!news && news.props['data-log'] === undefined, '压灰的主动作与新会话都不带 data-log（点了不该被记一条 ui.action 日志）')
+  check(!html.includes('data-log="issue.top.exec"') && !html.includes('data-log="issue.top.newsession"'), '静态 HTML 里也没有这两个点击定位串（不是空串，是干脆不写这个属性）')
   check(html.includes('tabindex="-1"'), '静态 HTML 里 tabindex 确实是 -1（Tab 落不上）')
   check(closedTipCount() === 2, '两颗按钮的悬停原文都是「这张票已关闭，只能查看。」对应的词条')
-  const e1 = click('issue.top.exec')
-  const e2 = click('issue.top.newsession')
+  const e1 = click(topExec())
+  const e2 = click(topNews())
   check(!!e1 && e1.stopped === 1 && !!e2 && e2.stopped === 1, '点击仍先 stopPropagation（行为与可点态一致）')
   check(clicks.inject.length === 0, '点灰的主动作：没有调用 inject')
   check(clicks.newSession.length === 0, '点灰的新会话：没有调用 openInNewSession')
@@ -150,57 +167,59 @@ const blockSentence = (ids: string) => TR_TEMPLATE['tip.detailBlockedBy'].replac
 // W2：打开的票照旧：可点、可开新会话、不带灰态
 {
   const html = renderDetail(stWith([OPEN_ROW]))
-  const exec = byLog('issue.top.exec')
-  const news = byLog('issue.top.newsession')
+  const exec = topExec()
+  const news = topNews()
   check(!!exec && exec.props['aria-disabled'] === undefined && exec.props.tabIndex === undefined, '打开的票：主动作不带 aria-disabled / 负 tabIndex')
   check(!!news && news.props['aria-disabled'] === undefined && news.props.tabIndex === undefined, '打开的票：新会话不带灰态属性')
   check(!html.includes('aria-disabled'), '打开的票：整页没有灰态按钮')
+  check(!!exec && exec.props['data-log'] === 'issue.top.exec' && !!news && news.props['data-log'] === 'issue.top.newsession', '打开的票：两颗按钮的 data-log 仍是原来的稳定枚举值')
+  check(html.includes('data-log="issue.top.exec"') && html.includes('data-log="issue.top.newsession"'), '打开的票：静态 HTML 里带着这两个点击定位串（可点才有日志）')
   check(closedTipCount() === 0, '打开的票：悬停仍是原来的动作说明，不是「只能查看」')
-  click('issue.top.exec')
-  click('issue.top.newsession')
+  click(topExec())
+  click(topNews())
   check(clicks.inject.length === 1, '打开的票：点主动作仍调用 inject 一次')
   check(clicks.newSession.length === 1 && clicks.newSession[0] && clicks.newSession[0].number === 7, '打开的票：点新会话仍调用 openInNewSession，带上票号')
 }
 // W3：详情回包说关闭、快照还说打开 → 以详情为准（src = detail || snapIssue）
 {
   renderDetail(stWith([OPEN_ROW], { issueDetail: { number: 7, effortId: '', state: 'CLOSED', title: '关闭的票' } }))
-  check(byLog('issue.top.exec').props['aria-disabled'] === 'true', '详情回包关闭、快照打开：主动作压灰（详情优先）')
-  check(byLog('issue.top.newsession').props['aria-disabled'] === 'true', '详情回包关闭、快照打开：新会话压灰（详情优先）')
+  check(topExec().props['aria-disabled'] === 'true', '详情回包关闭、快照打开：主动作压灰（详情优先）')
+  check(topNews().props['aria-disabled'] === 'true', '详情回包关闭、快照打开：新会话压灰（详情优先）')
 }
 // W4：详情回包说打开、快照还说关闭 → 仍以详情为准，保持可点
 {
   renderDetail(stWith([Object.assign({}, CLOSED_ROW)], { issueDetail: { number: 7, effortId: '', state: 'OPEN', title: '打开的票' } }))
-  check(byLog('issue.top.exec').props['aria-disabled'] === undefined, '详情回包打开、快照关闭：主动作仍可点（详情优先）')
-  check(byLog('issue.top.newsession').props['aria-disabled'] === undefined, '详情回包打开、快照关闭：新会话仍可点')
+  check(topExec().props['aria-disabled'] === undefined, '详情回包打开、快照关闭：主动作仍可点（详情优先）')
+  check(topNews().props['aria-disabled'] === undefined, '详情回包打开、快照关闭：新会话仍可点')
 }
 // W5：合并票（有合并时间、state 可能还是 OPEN）→ 也算关闭
 {
   renderDetail(stWith([{ number: 7, key: '07', title: '已合并', state: 'OPEN', mergedAt: '2026-10-01T00:00:00Z', labels: [], url: MD7 }]))
-  check(byLog('issue.top.exec').props['aria-disabled'] === 'true', '带合并时间的票：主动作压灰')
-  check(byLog('issue.top.newsession').props['aria-disabled'] === 'true', '带合并时间的票：新会话压灰')
+  check(topExec().props['aria-disabled'] === 'true', '带合并时间的票：主动作压灰')
+  check(topNews().props['aria-disabled'] === 'true', '带合并时间的票：新会话压灰')
 }
 // W6：加载中（详情没有、快照也没有）→ 早返分支不画动作按钮，不能凭空出现灰按钮
 {
   const html = renderDetail({ cwd: 'D:\\ws', activeIssue: 7, activeEffortId: '', snapshot: { issues: [], maps: [] }, issueMode: 'loading' })
   check(!html.includes('aria-disabled'), '加载中：没有灰态按钮（动作按钮这一支还没画）')
-  check(!byLog('issue.top.exec') && !byLog('issue.top.newsession'), '加载中：没有动作按钮节点')
+  check(!topExec() && !topNews(), '加载中：没有动作按钮节点')
   check(html.includes('list.loading'), '加载中：仍走原来的加载占位')
 }
 // W7：加载失败、只剩关闭的列表快照 → 同一判据照样生效（兜底快照也算数）
 {
   renderDetail(stWith([CLOSED_ROW], { issueMode: 'err', issueError: { message: '炸了', kind: 'network' } }))
-  check(byLog('issue.top.exec').props['aria-disabled'] === 'true', '加载失败只剩快照：主动作仍压灰')
-  check(byLog('issue.top.newsession').props['aria-disabled'] === 'true', '加载失败只剩快照：新会话仍压灰')
+  check(topExec().props['aria-disabled'] === 'true', '加载失败只剩快照：主动作仍压灰')
+  check(topNews().props['aria-disabled'] === 'true', '加载失败只剩快照：新会话仍压灰')
 }
 
 // W8：详情还在加载、只剩打开的列表快照 → 保持可点（规格「做完」第 3 条：加载中不凭空压灰）
 {
   const html = renderDetail(stWith([OPEN_ROW], { issueMode: 'loading' }))
   check(!html.includes('aria-disabled'), '加载中只剩打开的快照：整页没有灰态按钮')
-  check(!!byLog('issue.top.exec') && byLog('issue.top.exec').props['aria-disabled'] === undefined, '加载中只剩打开的快照：主动作可点')
-  check(!!byLog('issue.top.newsession') && byLog('issue.top.newsession').props['aria-disabled'] === undefined, '加载中只剩打开的快照：新会话可点')
-  click('issue.top.exec')
-  click('issue.top.newsession')
+  check(!!topExec() && topExec().props['aria-disabled'] === undefined, '加载中只剩打开的快照：主动作可点')
+  check(!!topNews() && topNews().props['aria-disabled'] === undefined, '加载中只剩打开的快照：新会话可点')
+  click(topExec())
+  click(topNews())
   check(clicks.inject.length === 1, '加载中只剩打开的快照：点主动作照常 inject')
   check(clicks.newSession.length === 1 && clicks.newSession[0].number === 7, '加载中只剩打开的快照：点新会话照常开新会话')
 }
@@ -209,15 +228,15 @@ const blockSentence = (ids: string) => TR_TEMPLATE['tip.detailBlockedBy'].replac
   const html = renderDetail(stWith([OPEN_ROW], {
     issueDetail: { number: 7, effortId: '', state: 'OPEN', title: '打开的票', blockedBy: { nodes: [{ number: 11, state: 'OPEN' }] } },
   }))
-  const exec = byLog('issue.top.exec')
-  const news = byLog('issue.top.newsession')
+  const exec = topExec()
+  const news = topNews()
   check((html.match(/aria-disabled="true"/g) || []).length === 2, '被阻塞：两颗动作按钮都写了 aria-disabled="true"')
   check(!!exec && exec.props['aria-disabled'] === 'true' && exec.props.tabIndex === -1, '被阻塞：主动作 aria-disabled 为真、tabIndex 为 -1')
   check(!!news && news.props['aria-disabled'] === 'true' && news.props.tabIndex === -1, '被阻塞：新会话 aria-disabled 为真、tabIndex 为 -1')
   check(closedTipCount() === 0, '被阻塞：悬停不是「这张票已关闭」，两种原因不能混用一句话')
   check(tipCount(blockSentence('#11')) === 2, '被阻塞：两颗按钮的悬停都是点名票号的「被阻塞」整句')
-  const e1 = click('issue.top.exec')
-  const e2 = click('issue.top.newsession')
+  const e1 = click(topExec())
+  const e2 = click(topNews())
   check(!!e1 && e1.stopped === 1 && !!e2 && e2.stopped === 1, '被阻塞：点击仍先 stopPropagation')
   check(clicks.inject.length === 0, '被阻塞：点主动作没有调用 inject')
   check(clicks.newSession.length === 0, '被阻塞：点新会话没有调用 openInNewSession')
@@ -231,8 +250,8 @@ const blockSentence = (ids: string) => TR_TEMPLATE['tip.detailBlockedBy'].replac
   }))
   check(!html.includes('aria-disabled'), '阻塞票全关闭：整页没有灰态按钮')
   check(tipCount(blockSentence('#3、#5')) === 0, '阻塞票全关闭：悬停不点名任何票号')
-  click('issue.top.exec')
-  click('issue.top.newsession')
+  click(topExec())
+  click(topNews())
   check(clicks.inject.length === 1, '阻塞票全关闭：点主动作照常 inject')
   check(clicks.newSession.length === 1 && clicks.newSession[0].number === 7, '阻塞票全关闭：点新会话照常开新会话')
 }
@@ -251,15 +270,15 @@ const blockSentence = (ids: string) => TR_TEMPLATE['tip.detailBlockedBy'].replac
 {
   const snapRow = Object.assign({}, OPEN_ROW, { blockedBy: { nodes: [{ number: 3, state: 'OPEN' }] } })
   renderDetail(stWith([snapRow], { issueDetail: { number: 7, effortId: '', state: 'OPEN', title: '打开的票' } }))
-  check(byLog('issue.top.exec').props['aria-disabled'] === undefined, '只有快照说被阻塞：主动作仍可点（判据只认详情回包）')
-  check(byLog('issue.top.newsession').props['aria-disabled'] === undefined, '只有快照说被阻塞：新会话仍可点')
+  check(topExec().props['aria-disabled'] === undefined, '只有快照说被阻塞：主动作仍可点（判据只认详情回包）')
+  check(topNews().props['aria-disabled'] === undefined, '只有快照说被阻塞：新会话仍可点')
 }
 // X5：票本身已关闭、详情又列着未完成的阻塞票 → 仍说「已关闭」，两条原因不同时喊
 {
   renderDetail(stWith([OPEN_ROW], {
     issueDetail: { number: 7, effortId: '', state: 'CLOSED', title: '关闭的票', blockedBy: { nodes: [{ number: 3, state: 'OPEN' }] } },
   }))
-  check(byLog('issue.top.exec').props['aria-disabled'] === 'true', '关闭+被阻塞：主动作仍压灰')
+  check(topExec().props['aria-disabled'] === 'true', '关闭+被阻塞：主动作仍压灰')
   check(closedTipCount() === 2 && tipCount(blockSentence('#3')) === 0, '关闭+被阻塞：悬停只说「已关闭」，不再点名阻塞票')
 }
 // X6：多张阻塞票乱序 → 悬停里票号升序、顿号分隔
