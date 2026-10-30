@@ -23,7 +23,7 @@
 // 判据不是「源码里出现过某段字符串」，而是把真源码加载起来喂输入，看它发出什么命令、改出什么状态。
 //
 // 门禁归属: src/tracker/rooms/github/page.ts
-// 门禁归属: src/tracker/rooms/github/queries.ts
+// 门禁归属: src/tracker/rooms/github/channels/graphql/queries.ts
 // 门禁归属: src/tracker/rooms/github/errors.ts
 // 门禁归属: src/refresh/rooms/host/issue-list-fetch.ts
 // 门禁归属: src/refresh/rooms/client/refresh-timer.ts
@@ -42,7 +42,7 @@ import { sourceText, spliceableJs } from './lib/source-text.ts'
 import { PAGINATION } from '../src/tracker/contract/pagination.js'
 import { ERROR_KIND } from '../src/tracker/contract/vocabulary.js'
 import { listIssuesPage } from '../src/tracker/rooms/github/page.js'
-import { LIST_PAGE_QUERY, LIST_PAGE_QUERY_WITH_LABELS } from '../src/tracker/rooms/github/queries.js'
+import { LIST_PAGE_QUERY, LIST_PAGE_QUERY_WITH_LABELS } from '../src/tracker/rooms/github/channels/graphql/queries.js'
 import { ghVerdictOf } from '../src/tracker/rooms/github/errors.js'
 import { createIssueList } from '../src/refresh/rooms/host/issue-list-fetch.js'
 import { createProbeHandler } from '../src/refresh/rooms/host/probe-handler.js'

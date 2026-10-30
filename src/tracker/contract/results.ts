@@ -15,6 +15,7 @@
 
 import type { BackendId, ErrorKind } from './identity.js'
 import type { Issue, IssueRef, RepositoryRef } from './entities.js'
+import type { ReadProvenance } from './read-provenance.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 四、返回值：失败是值不是异常
@@ -202,6 +203,25 @@ export type IssueListResult = OpResult<Issue[]> & {
   fallbackReason?: string
   /** 这份名单可能不全（到了后端安全上限，或降级通道只拿到一部分）：调用方不许当成整仓。 */
   truncated?: boolean
+  /**
+   * 这一趟读结果的来源与按字段组完整度（#1685）：用了哪条渠道、每个字段组是完整/截断/未表达、
+   * 耗时与取数开始版本。老调用方不读它，行为与从前一字不差；新调用方靠它说清
+   * 「这份名单是从哪条渠道读来的、具体缺哪一组」，而不是只拿一个 truncated 猜。
+   */
+  readonly provenance?: ReadProvenance
+}
+
+/**
+ * get 操作的返回：一张票 + 来源与按字段组完整度（#1685）。
+ *
+ * 为什么不再写成裸的 OpResult<Issue>：单票在两条渠道上的能力不一样——GraphQL 主路能带评论正文、
+ * 能看依赖的一侧，REST 降级只回行与正文，评论与依赖这几组一律表达不了。调用方必须能分清
+ * 「截断（本来有、没取全）」与「未表达（这条渠道本来就不提供）」；一个总体布尔会把两者糊成一句
+ * 「可能不全」，既冤枉了完整的部分，也会让人去补根本补不到的数据。
+ */
+export type IssueDetailResult = OpResult<Issue> & {
+  /** 这一趟读了什么：来源渠道、按字段组完整度、缺失字段组、耗时与取数开始版本。 */
+  readonly provenance?: ReadProvenance
 }
 
 /**
@@ -228,6 +248,19 @@ export interface PageResult {
   nextCursor: string | null
   /** 同一口径下的总数（非负整数），供界面写「已加载 x / 共 N」。 */
   total: number
+}
+
+/**
+ * listPage 操作的返回：一页票与总数 + 来源与按字段组完整度（#1685）。
+ *
+ * 为什么单列一份而不是把来源塞进 PageResult：PageResult 说的是「这一页装了什么」，
+ * 而来源信息说的是「这一页是怎么读来、有没有被渠道上限截住、这一趟从哪个版本开始取」——
+ * 前者是分页数据的定义，后者是读的轨迹；两者寿命不同，混在一起以后想单独给分页换后端就拖泥带水。
+ * 游标与总数的口径仍由 PageResult 定义，这一份只往上加一层来源交代。
+ */
+export type ReadPageResult = OpResult<PageResult> & {
+  /** 这一趟读了什么：来源渠道、按字段组完整度、缺失字段组、耗时与取数开始版本。 */
+  readonly provenance?: ReadProvenance
 }
 
 /**

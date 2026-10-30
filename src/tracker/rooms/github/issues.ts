@@ -20,7 +20,7 @@ import { STATE, ERROR_KIND } from '../../contract/vocabulary.js'
 import type { OpContext } from '../../contract/contexts.js';
 import type { Issue, RepositoryRef } from '../../contract/entities.js';
 import type { GetOpts, ListFilter } from '../../contract/inputs.js';
-import type { IssueListResult, OpResult } from '../../contract/results.js';
+import type { IssueDetailResult, IssueListResult, OpResult } from '../../contract/results.js';
 import { fail } from '../../kernel/preflight.js'
 import { emitReadDegraded } from './read-log.js'
 import { ghClient } from './client.js'
@@ -33,6 +33,17 @@ import type { MemoContext } from './roster.js'
 import { LIST_QUERY, GET_QUERY, LIST_PR_QUERY, GET_PR_QUERY, getIssueQuery } from './queries.js'
 import { fetchAllPullsREST, enrichRestPRs, enrichSinglePR } from './pulls.js'
 import { pickFallbackReason } from './fallback-reason.js'
+import { fetchAllIssuesREST } from './issues-rest-list.js'
+// 读结果的来源与按字段组完整度（#1685）：起点在这里收，组装统一走 routing（不在每条读路径各自算）。
+import { beginRead } from './routing/read-result.js'
+import {
+  detailProvenanceFromGraphql,
+  detailProvenanceFromPullRequest,
+  detailProvenanceFromRest,
+  listProvenanceFromGraphql,
+  listProvenanceFromRest,
+} from './routing/read-assembly.js'
+
 // 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
 import { debugOn, guardEmit } from '../../kernel/log-emit.js'
 import { PAGINATION } from '../../contract/pagination.js'
@@ -94,57 +105,6 @@ export function repoId(repo: RepositoryRef | null | undefined): string {
   return ''
 }
 
-/**
- * REST 降级通道（2026-09-02：#415 承接 #414 刷新现场修复）。
- * 背景：api.github.com/graphql 的 POST 在本机偶发 `unexpected EOF`（网络层），
- *   而 REST 单页（gh api repos/{o}/{n}/issues?page=k）稳定可用。
- * 方案与 GraphQL 同构：逐页 REST → normalizeIssue（normalize 兼容 REST 形状）→
- *   用 `/issues/{map}/sub_issues` 端点修复树边（parentKey），保证 compose 的 maps/tickets 不受损。
- * 失败语义：首页失败 = 双路皆挂，诚实返回错误；尾页失败 = 按已得数据截断上报。
- */
-async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext): Promise<OpResult<unknown[]>> {
-  const c = ghClient(ctx)
-  // 为什么标成未知数组：回包是 GitHub 的原始行，本函数只负责翻页搬运、不解读形状，解读是调用方的事。
-  const out: unknown[] = []
-  const MAX_PAGES = PAGINATION.github.restMaxPages
-  const PAGE = PAGINATION.github.restPageSize
-  // 本函数的起点：下面每一行降级日志带的是「这一笔从本函数入口到这里花掉的毫秒数」。
-  const startsAt = Date.now()
-  for (let p = 1; p <= MAX_PAGES; p++) {
-    // 这是 GraphQL 主路失败之后的 REST 降级翻页：标签与主路分开，事后一眼看出走的是哪条路。
-    const r = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=all&per_page=${PAGE}&page=${p}`], { cwd: ctx && ctx.cwd, via: 'list.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
-    if (!r.ok) {
-      if (!out.length) return { ok: false, error: r.error }
-      // 尾页失败按已得数据截断上报（本函数一贯的口径）：回的是成功，可翻到第 p 页就断了。
-      emitReadDegraded(ctx, 'list', 'list:page-fail', Date.now() - startsAt)
-      return { ok: true, data: out }
-    }
-    let j: unknown
-    try { j = JSON.parse(r.data.stdout || '') } catch (e) {
-      // 原文交这次 gh 的完整产出：人自己就能看出回包里到底是什么。
-      if (!out.length) {
-        emitReadDegraded(ctx, 'list', 'list:rest-json', Date.now() - startsAt)
-        return fail(ERROR_KIND.PARSE, `rest fallback: invalid json ${caughtMessage(e, 200)}`, r.data)
-      }
-      emitReadDegraded(ctx, 'list', 'list:page-fail', Date.now() - startsAt)
-      return { ok: true, data: out }
-    }
-    if (!Array.isArray(j)) {
-      if (!out.length) {
-        emitReadDegraded(ctx, 'list', 'list:rest-shape', Date.now() - startsAt)
-        return fail(ERROR_KIND.PARSE, 'rest fallback: non-array response', r.data)
-      }
-      emitReadDegraded(ctx, 'list', 'list:page-fail', Date.now() - startsAt)
-      return { ok: true, data: out }
-    }
-    for (const n of j) out.push(n)
-    if (j.length < PAGE) break
-  }
-  // 翻满十页还没到底这一支不记日志：REST 这条接口不报总数，看不出「库里真有这么多」还是「被十页截住了」，
-  // 本函数一贯按「翻到十页为止」的上报口径处理（不是故障）。
-  return { ok: true, data: out }
-}
-
 
 
 // 内存过滤（list 两路共用）
@@ -182,6 +142,8 @@ function applyIssueFilter(all: Issue[], filter: ListFilter | null | undefined): 
 export async function listIssues(repo: RepositoryRef, filter: ListFilter | undefined, ctx: MemoContext): Promise<ListIssuesResult> {
   // 这一笔的起点：只给降级日志算耗时用；主路失败原因要的那份耗时刻是下面单独的 `t0`，两者不混。
   const tList = Date.now()
+  // 读结果的起点（#1685）：来源、完整度与耗时要落在返回值上，取数一开始就记版本与时刻。
+  const clock = beginRead()
   try {
     const parsed = parseRepo(repo)
     if (!parsed) {
@@ -277,7 +239,7 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       const rest = await fetchAllIssuesREST(parsed, ctx)
       if (!rest.ok) return { ok: false, error: rest.error }
       const pulls = await fetchAllPullsREST(parsed, ctx)
-      const raws = enrichRestPRs(rest.data, pulls.ok ? pulls.data : [])
+      const raws = enrichRestPRs(rest.data.rows, pulls.ok ? pulls.data : [])
       const rawFixed = await repairParentLinksREST(raws, parsed, ctx)
       // 为什么断言：修树边返回的还是原来那份数组（原样回传）；断言只为过编译，迭代的还是原来那份值，运行时不变。
       const rawList = rawFixed as unknown[];
@@ -299,7 +261,16 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       // 同一个「不全」还要交给调用方：REST 自己有翻页上限（10 页 × 100 条），尾页失败时只回已经拿到的，
       // 所以这里一并标 truncated: true —— 壳层据此把名册继续按「不完整」收，工具层据此在回执里自曝。
       try { if (ctx && ctx.memo) rosterAdoptList(ctx.memo, restNorm, filter, { complete: false }) } catch (eU) {}
-      return { ok: true, data: applyIssueFilter(restNorm, filter), fallback: 'rest', fallbackReason: fbCause, truncated: true }
+      // 来源与完整度（#1685）：这一趟真的走了 REST，来源记 rest、降级来源记 graphql；
+      // REST 名册的完整度由翻页事实决定（翻到空页/尾页不满才算完整，触 10 页上限或尾页失败记截断）。
+      return {
+        ok: true,
+        data: applyIssueFilter(restNorm, filter),
+        fallback: 'rest',
+        fallbackReason: fbCause,
+        truncated: true,
+        provenance: listProvenanceFromRest(clock, { paging: rest.data.paging, rows: rawList }),
+      }
     }
     // 上限截断要能从日志里看出来：工单那条一到 500 就 break、拉取请求那条到 1000 才 break，
     // 两条都是「回成功、只装了一部分」。
@@ -310,7 +281,17 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
     // 所以这里要防的是「名册声明完整、实际少票」这件事本身。把「不全」同时交给名册与调用方。
     const truncated = issuesTruncated || prTruncated
     try { if (ctx && ctx.memo) rosterAdoptList(ctx.memo, all, filter, { complete: !truncated }) } catch (eU) {}
-    return { ok: true, data: applyIssueFilter(all, filter), truncated: truncated }
+    // 来源与完整度（#1685）：主路成功，来源记 graphql；行与标签两组各自的完整度由渠道层判。
+    return {
+      ok: true,
+      data: applyIssueFilter(all, filter),
+      truncated: truncated,
+      provenance: listProvenanceFromGraphql(clock, {
+        truncated,
+        dropped: droppedIssues + droppedPulls,
+        labelsPerRow: all.map((i) => (Array.isArray(i.labels) ? i.labels : [])),
+      }),
+    }
   } catch (e) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
     // 第三段把出错的那个值原样交出去当原文（合并、遮蔽、截断由 `fail` 统一做）。
@@ -323,9 +304,11 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
 /**
  * get(repo, key, opts, ctx) -> OpResult<Issue>
  */
-export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts | undefined, ctx: MemoContext): Promise<OpResult<Issue>> {
+export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts | undefined, ctx: MemoContext): Promise<IssueDetailResult> {
   // 这一笔的起点：本函数每一行降级日志都带「从入口到这里花了多久」。
   const tGet = Date.now()
+  // 读结果的起点（#1685）：来源、按字段组完整度与耗时要落在返回值上。
+  const clock = beginRead()
   try {
     const parsed = parseRepo(repo)
     if (!parsed) {
@@ -343,6 +326,8 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
     // 这样列表、详情与其他调用点的查询文本一行不变；带了就按调用方要的条数取，夹在 0..limitMax（200）。
     // 上限来自契约（GetOpts.comments.first 的约定），不在房间里私自放宽。夹取与首页条数住在 comment-paging.ts。
     const wantComments = commentsWantOf(opts)
+    // 评论翻页中途失败过没有（#1685）：失败时保留第一页、整票仍回成功，但评论那组完整度要记截断。
+    let commentsLost = false
     const query = wantComments === null ? GET_QUERY : getIssueQuery(firstPageSizeOf(wantComments), false)
     const args = ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `number=${num}`]
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'get.gql' })
@@ -389,7 +374,8 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
         prNorm.comments = prNorm.comments.slice(0, opts.comments.first)
       }
       try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, prNorm) } catch (eU) {}
-      return { ok: true, data: prNorm }
+      // 来源与完整度（#1685）：拉取请求主路走 GraphQL；评论、评审两组由渠道层按连接事实判，依赖这组不表达。
+      return { ok: true, data: prNorm, provenance: detailProvenanceFromPullRequest(clock, prFromGraphQL, { dropped: 0 }) }
     }
     if (!issueFromGraphQL) {
       // REST 降级（与 list 同一背景：GraphQL POST 偶发 unexpected EOF，REST 稳定；原因分类与列表同口径，不恒写 graphql-error）
@@ -406,7 +392,9 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
         if (jr && typeof jr === 'object' && jr.number != null) {
           if (jr.pull_request != null) await enrichSinglePR(jr, parsed, ctx)
           try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, jr) } catch (eU) {}
-          return { ok: true, data: normalizeIssue(jr) }
+          // 来源与完整度（#1685）：这一支走了 REST，来源记 rest、降级来源记 graphql；
+          // REST 单票只表达行与正文两组，评论与依赖两组一律记未表达（能力边界，不冒充截断）。
+          return { ok: true, data: normalizeIssue(jr), provenance: detailProvenanceFromRest(clock) }
         }
         // /issues 回的这份东西没有 number，不像一张票：降级路走了一半、形状不认，如实记一行再退到 /pulls。
         emitReadDegraded(ctx, 'get', 'get:shape', Date.now() - tGet)
@@ -422,7 +410,8 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
         if (prj && typeof prj === 'object' && prj.number != null) {
           await enrichSinglePR(prj, parsed, ctx)
           try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, prj) } catch (eU) {}
-          return { ok: true, data: normalizeIssue(prj) }
+          // 来源与完整度（#1685）：/pulls 单票同样是 REST 降级，字段组能力与 /issues 一致。
+          return { ok: true, data: normalizeIssue(prj), provenance: detailProvenanceFromRest(clock) }
         }
         // 原文交这次 /pulls 回包本身：形状里既没有 number，也就没有能当票看的东西。
         return fail(ERROR_KIND.NOTFOUND, `get: issue ${k} not found`, prr.data.stdout)
@@ -439,14 +428,23 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
     if (wantComments !== null) {
       await appendCommentPages({
         client: c, cwd: ctx && ctx.cwd, parsed: parsed, num: num, issue: issue, want: wantComments,
-        onLost: function () { emitReadDegraded(ctx, 'get', 'get:degraded', Date.now() - tGet) },
+        onLost: function () {
+          commentsLost = true
+          emitReadDegraded(ctx, 'get', 'get:degraded', Date.now() - tGet)
+        },
       })
     }
     let normalized = normalizeIssue(issue)
     // 截到调用方要的条数：最后一页是整页取回的，可能比要的多，契约说 first 是多少就交多少。
     trimCommentsToWant(normalized, wantComments)
     try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, normalized) } catch (eU) {}
-    return { ok: true, data: normalized }
+    // 来源与完整度（#1685）：工单主路走 GraphQL；行与正文完整，评论按「要了多少、拿到多少、翻页断没断」判，
+    // 依赖只查了 blockedBy 一侧，blocking 一侧记未表达。
+    return {
+      ok: true,
+      data: normalized,
+      provenance: detailProvenanceFromGraphql(clock, issue, { dropped: 0, want: wantComments, commentsLost }),
+    }
   } catch (e) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
     // 第三段把出错的那个值原样交出去当原文（合并、遮蔽、截断由 `fail` 统一做）。

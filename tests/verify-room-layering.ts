@@ -34,6 +34,8 @@ const LAYERS = ['transport', 'channels/graphql', 'channels/rest', 'routing', 're
 
 /**
  * 允许的层间依赖。键是导入方，值是它可以直接引用的层。
+ * 同一层内互相引用是允许的（层内拆文件不算跨层依赖，例如 routing/ 里组装函数引用同层的取数轨迹）；
+ * 表里 transport/model/routing 把自己写进允许清单就是这条的机器表达。
  * 这张表是 ADR 第 2 章的机器可读版本：改分层先改 ADR，再改这里，不要只改这里。
  */
 const ALLOWED: Record<string, string[]> = {
@@ -42,7 +44,7 @@ const ALLOWED: Record<string, string[]> = {
   model: ['model'],
   'channels/graphql': ['transport', 'support'],
   'channels/rest': ['transport', 'support'],
-  routing: ['channels/graphql', 'channels/rest', 'model', 'support', 'transport'],
+  routing: ['routing', 'channels/graphql', 'channels/rest', 'model', 'support', 'transport'],
   read: ['routing', 'model', 'support', 'transport'],
   write: ['routing', 'model', 'support', 'transport'],
   room: ['read', 'write', 'routing', 'model', 'support', 'transport'],
@@ -401,6 +403,10 @@ expectViolation('channels/rest 引用 room', sample({
 
 expectViolation('channels/graphql 引用 channels/rest', sample({
   'channels/graphql/gql.ts': "import { call } from '../rest/rest.js'\nexport const query = call\n",
+}), 'channels-cross')
+
+expectViolation('channels/rest 引用 channels/graphql', sample({
+  'channels/rest/rest.ts': "import { query } from '../graphql/gql.js'\nexport const call = query\n",
 }), 'channels-cross')
 
 expectViolation('read 引用 room（向上）', sample({

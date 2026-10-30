@@ -106,7 +106,7 @@ const {
   chooseDependenciesSummary,
   chooseSubIssuesSummary,
   needsDependencyDetail,
-} = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/rest-list-metadata.ts')).href)
+} = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/channels/rest/list-row-metadata.ts')).href)
 
 function loadFixture (name) {
   return JSON.parse(readFileSync(resolve(ROOT, 'tests/fixtures/1682', name), 'utf8'))
