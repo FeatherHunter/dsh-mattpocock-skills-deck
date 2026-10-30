@@ -159,6 +159,7 @@ zh:
   tip.refreshWs: 重新拉取后端绑定与选中态
   tip.copyLink: 复制 issue 链接到剪贴板
   tip.openInTracker: "跳转到原票，在当前 Tracker 打开 #{n}"
+  tip.detailClosedReadonly: 这张票已关闭，只能查看。
   tip.sendComment: 提交到当前 issue，支持 Markdown
   tip.sendingComment: 正在提交评论
   tip.unsupportedAction: 不支持的动作类型，请检查后端声明
@@ -407,6 +408,7 @@ en:
   tip.refreshWs: Refetch backend bindings and selections
   tip.copyLink: Copy issue link to clipboard
   tip.openInTracker: "Jump to original ticket, open #{n} in tracker"
+  tip.detailClosedReadonly: "This issue is closed. You can view it, but it can't be run."
   tip.sendComment: Submit to current issue (Markdown supported)
   tip.sendingComment: Submitting comment
   tip.unsupportedAction: Unsupported action, check backend declaration

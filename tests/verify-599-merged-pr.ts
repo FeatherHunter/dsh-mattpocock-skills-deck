@@ -336,6 +336,8 @@ if (!existsSync(PRODUCT)) {
       'const Tip = globalThis.__TIP__',
       'const DswsCtx = React.createContext(null)',
       'const prStateKind = globalThis.__PRSTATEKIND__',
+      // #1668：详情顶栏的点击判据不在本门禁的断言范围里，按改动前的行为给一个可点桩。
+      'const detailTopGate = () => ({ clickable: true, reason: "none", blockedNumbers: [] })',
       'const prFilterForList = () => ({ isPullRequest: true })',
       'const prIssuesOf = globalThis.__PRISSUES__',
       'const setActiveIssue = globalThis.__SETACTIVE__',

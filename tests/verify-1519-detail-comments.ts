@@ -166,6 +166,9 @@ const hostCalls: any[] = []
 ;(globalThis as any).hexA = () => ''
 ;(globalThis as any).darken = () => ''
 ;(globalThis as any).prStateKind = (x: any) => (String((x && x.state) || '').toUpperCase() === 'CLOSED' ? 'closed' : 'open')
+// #1668：详情顶栏的点击判据（票已关闭就只能查看）由 verify-1668-detail-top-gate-wire 单独覆盖；
+//   本门禁只测评论通路，按改动前的行为喂一个可点的桩，避免渲染时缺名字。
+;(globalThis as any).detailTopGate = () => ({ clickable: true, reason: 'none', blockedNumbers: [] })
 ;(globalThis as any).effortNamesOf = () => []
 ;(globalThis as any).enterSubDetail = () => {}
 ;(globalThis as any).containerKindOf = () => null

@@ -242,6 +242,8 @@ export default {
     // 行级动作全家（诊断/接手/…/执行八选一、容器三态按钮）从 store-derived 原样抽出，
     // 排在其后：它们要用 findMapByIdentity 与 isLightHex。
     // ==== kernel:rowActions (spliced by build) ====
+    // #1668：详情页顶栏的点击判据（票已关闭/已合并就只能查看）单独一片，理由见 kernel/detail-top-gate.ts 文件头。
+    // ==== kernel:detailTopGate (spliced by build) ====
 
     // ---- 环境检查链（#228/#284 · host.call('wf.chain')；通用链 + 后端链全链快照）----
     // #284：九格目录视图（wf.status/checks）退役，读数点位全部改从链快照派生

@@ -140,6 +140,8 @@ async function loadDetailModule (): Promise<any> {
     'const Tip = function (props) { return props && props.children ? props.children : null }',
     'const DswsCtx = React.createContext(null)',
     'const prStateKind = globalThis.__PRSTATEKIND__',
+    // #1668：详情顶栏的点击判据不在本门禁的断言范围里，按改动前的行为给一个可点桩。
+    'const detailTopGate = () => ({ clickable: true, reason: "none", blockedNumbers: [] })',
     'const buildColorOf = () => ({})',
     'const hexA = () => null',
     'const darken = () => null',

@@ -38,6 +38,9 @@ globalThis.effortOf = identityMod.effortOf
 globalThis.idOfParts = identityMod.idOfParts
 globalThis.idOf = identityMod.idOf
 globalThis.prStateKind = () => 'open'
+// #1668：详情顶栏的点击判据住在 kernel/detail-top-gate.ts。本门禁只测「打开的票照常开新会话」，
+//   灰态那一支由 verify-1668-detail-top-gate-wire 单独覆盖；这里按改动前的行为喂一个可点的桩。
+globalThis.detailTopGate = () => ({ clickable: true, reason: 'none', blockedNumbers: [] })
 globalThis.effortNamesOf = () => []
 globalThis.peekNav = () => null
 globalThis.repoStr = () => ''

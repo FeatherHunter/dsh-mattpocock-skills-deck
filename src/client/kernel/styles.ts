@@ -95,6 +95,12 @@ const CONTAINER_ACCENT_CSS: any = (typeof CONTAINER_ACCENT === 'object' && CONTA
       // #685：「体检」按钮收到「图标 + 件数」那一档（窄面板第二档）：件数是它的价值信号，不跟着按钮名一起收掉。
       '.dsws-btn.narrow-count{padding:1px 5px;gap:2px;width:auto}',
       '.dsws-btn.ghost{background:transparent;border-color:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa)}',
+      // #1668：详情顶栏的主动作与新会话在票已关闭/已合并时整体压灰（aria-disabled 由详情页判据挂上）。
+      //   用属性选择器而不是原生 disabled：原生 disabled 收不到悬停事件，Tip 会丢；Tab 落不上由 tabIndex=-1 管。
+      //   透明度与 cursor 沿用版本管理页的可点性口径（vcStyles.ts 那条 :disabled）；底色换回普通按钮的肤色，
+      //   主按钮的容器渐变因此不再显示。颜色全走 --dsw-alias-* 令牌，深浅两套皮肤自动跟随。
+      '[data-detail-topbar] .dsws-btn[aria-disabled="true"]{opacity:.4;cursor:not-allowed;background:var(--dsw-alias-bg-layer-1,#10131a);border-color:var(--dsw-alias-border-l1,#2a2d35);color:var(--dsw-alias-label-caption,#8b8b95)}',
+      '[data-detail-topbar] .dsws-btn[aria-disabled="true"]:hover{background:var(--dsw-alias-bg-layer-1,#10131a);border-color:var(--dsw-alias-border-l1,#2a2d35)}',
       '.dsws-grp{margin:12px 0 4px;font-size:11px;color:var(--dsw-alias-label-secondary,#a1a1aa);display:flex;align-items:center;gap:6px}',
       '.dsws-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}',
       '.dsws-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:10000}',

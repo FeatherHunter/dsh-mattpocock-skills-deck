@@ -17,6 +17,8 @@ declare function issueErrorViewOf(...args: any[]): any;
 declare function effortOf(...args: any[]): any;
 declare function popNav(...args: any[]): any;
 declare function prStateKind(...args: any[]): any;
+// #1668：详情顶栏动作按钮能不能点（票已关闭/已合并就压灰）的判据住在 kernel/detail-top-gate.ts。
+declare function detailTopGate(...args: any[]): any;
 declare function effortNamesOf(...args: any[]): any;
 // #1511 / #1564：号码写成「#目录/编号」的显示规则住在 kernel/ticket-label.ts，整颗徽标的画法（四种外壳）
 //   收在 views/shared/ticketBadge.ts；详情页头只提供票身份与状态色。
@@ -298,6 +300,9 @@ export const IssueDetail = function (props: any): any {
       const subNodes = (src.subIssues && src.subIssues.nodes) ? src.subIssues.nodes : []
       const subTotal = (src.subIssues && typeof src.subIssues.totalCount === 'number') ? src.subIssues.totalCount : subNodes.length
       const blockedNodes = (src.blockedBy && src.blockedBy.nodes) ? src.blockedBy.nodes : []
+      // #1668：顶栏两颗动作按钮同进退。被阻塞清单只认详情回包那一份（列表快照可能整块没有），
+      //   没取到就当没有；判据与原因文案收在 kernel/detail-top-gate.ts，本文件不自己判。
+      const topGate = detailTopGate(src, (detail && detail.blockedBy && detail.blockedBy.nodes) ? detail.blockedBy.nodes : [])
       // #693 评论也只认详情那次取数：快照那一行可能不带评论，拿它当「没有评论」会说错话。
       // #1519：详情回包里的评论只有一种形状 —— GraphQL 连接 {nodes, pageInfo}。宿主
       // src/refresh/rooms/host/comment-thread-fetch.ts 的 handleIssueDetail 与旧路 issue-detail-fetch.ts
@@ -326,7 +331,7 @@ export const IssueDetail = function (props: any): any {
         // 再收主动作按钮的字，最后收新会话按钮的字；一次只折一个控件，直至只剩图标再折下一个。
         // 宽度只由阶梯改字数决定，CSS 不并行收缩（除中间空隙外全 flex:none），所以不会多按钮同时半截。
         // 图标永不消失；看不见的字直接裁掉，不补省略号；完整串留悬停。
-        h('div', { ref: topBarRef, className: 'dsws-stickybar', style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', minWidth: 0, overflow: 'hidden' } }, [
+        h('div', { ref: topBarRef, className: 'dsws-stickybar', 'data-detail-topbar': 1, style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', minWidth: 0, overflow: 'hidden' } }, [
           // 返回按钮的悬停提示走 Tip（T2/T3 纪律），不再用原生 title
           h(Tip, { content: tr('list.back') }, h('button', { className: 'dsws-btn', 'data-press': 'button', 'data-log': 'issue.top.back', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: 'back', size: 12 }), h('span', { 'data-detail-back-text': 1, 'data-full': tr('list.back'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.back'))])),
           h(Tip, { content: navCrumb }, h('span', { 'data-detail-crumb': 1, 'data-full': navCrumb, style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap', flex: 'none', minWidth: 0, overflow: 'hidden' } }, navCrumb)),
@@ -334,8 +339,8 @@ export const IssueDetail = function (props: any): any {
           h('span', { style: { flex: 1, minWidth: 8 } }),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none', minWidth: 0, overflow: 'hidden', flexWrap: 'nowrap' } }, [
             detail ? h('span', { 'data-detail-snapshot': 1, 'data-full': (isStale ? '快照' : (mode === 'loading' ? tr('list.loading') : '')), style: { fontSize: 10, color: isStale ? '#f59e0b' : '#8b8b95', flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, isStale ? '快照' : (mode === 'loading' ? tr('list.loading') : '')) : null,
-            h(Tip, { content: primaryInfo.tip }, h('button', { className: 'dsws-btn primary', 'data-press': 'button', 'data-log': 'issue.top.exec', onClick: function (e: any) { e.stopPropagation(); try { inject(st, primaryInfo.text) } catch (err2) {} }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: primaryInfo.icon, size: primaryInfo.icon === 'prototype' ? 12 : 10 }), h('span', { 'data-detail-primary-text': 1, 'data-full': primaryInfo.label, style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, primaryInfo.label)])),
-            h(Tip, { content: tr('tip.newSession', { n: issueNumber }) }, h('button', { className: 'dsws-btn primary', 'data-press': 'button', 'data-log': 'issue.top.newsession', onClick: function (e: any) { e.stopPropagation(); openInNewSession(st, { number: issueNumber, ['title']: title, labels: labelArr, effortId: issueEffort }) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: 'external-link', size: 10 }), h('span', { 'data-detail-new-text': 1, 'data-full': tr('list.newSessionLabel'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.newSessionLabel'))])),
+            h(Tip, { content: topGate.clickable ? primaryInfo.tip : tr('tip.detailClosedReadonly') }, h('button', { className: 'dsws-btn primary', 'data-press': 'button', 'data-log': 'issue.top.exec', 'aria-disabled': topGate.clickable ? undefined : 'true', tabIndex: topGate.clickable ? undefined : -1, onClick: function (e: any) { e.stopPropagation(); if (!topGate.clickable) return; try { inject(st, primaryInfo.text) } catch (err2) {} }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: topGate.clickable ? actColor : undefined, borderColor: 'transparent', color: topGate.clickable ? actTextColor : undefined, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: primaryInfo.icon, size: primaryInfo.icon === 'prototype' ? 12 : 10 }), h('span', { 'data-detail-primary-text': 1, 'data-full': primaryInfo.label, style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, primaryInfo.label)])),
+            h(Tip, { content: topGate.clickable ? tr('tip.newSession', { n: issueNumber }) : tr('tip.detailClosedReadonly') }, h('button', { className: 'dsws-btn primary', 'data-press': 'button', 'data-log': 'issue.top.newsession', 'aria-disabled': topGate.clickable ? undefined : 'true', tabIndex: topGate.clickable ? undefined : -1, onClick: function (e: any) { e.stopPropagation(); if (!topGate.clickable) return; openInNewSession(st, { number: issueNumber, ['title']: title, labels: labelArr, effortId: issueEffort }) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: topGate.clickable ? actColor : undefined, borderColor: 'transparent', color: topGate.clickable ? actTextColor : undefined, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: 'external-link', size: 10 }), h('span', { 'data-detail-new-text': 1, 'data-full': tr('list.newSessionLabel'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.newSessionLabel'))])),
             h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost', 'data-press': 'icon', 'data-log': 'issue.top.copy', onClick: function (e: any) { e.stopPropagation(); copyUrl(issueNumber) }, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'clipboard', size: 13 }))),
                         // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
             h(Tip, { content: tr('tip.openInTracker', { n: issueNumber }) }, (function () {
