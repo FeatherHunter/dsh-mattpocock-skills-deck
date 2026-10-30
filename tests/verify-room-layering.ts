@@ -49,8 +49,14 @@ const ALLOWED: Record<string, string[]> = {
   'channels/rest': ['transport', 'support'],
   routing: ['routing', 'channels/graphql', 'channels/rest', 'model', 'support', 'transport'],
   read: ['read', 'routing', 'channels/graphql', 'channels/rest', 'model', 'support', 'transport'],
-  write: ['routing', 'model', 'support', 'transport'],
-  room: ['read', 'write', 'routing', 'model', 'support', 'transport'],
+  // #1687：写侧的真实依赖比 #1684 的初版登记宽三格，都是「写后读回」与「声明请求形状」这两类写语义本身：
+  //   - write 引用 write：关票原因要先发评论（close-reason → comments）、阻塞边写入委托给 blocked-by-write；
+  //   - write 引用 read：写之前/之后要读真值（getIssue / readDependencies / listLabels / 仓库写权限判定）；
+  //   - write 引用 channels/graphql：阻塞边主路是 GraphQL mutation，写侧要能直接声明这次请求的形状。
+  // 这几格记进 ADR 20261030-github-room-channel-layering 的变更记录，改之前先改 ADR。
+  write: ['write', 'routing', 'read', 'channels/graphql', 'model', 'support', 'transport'],
+  // room 是房间入口本层（index / backend / checks 三个文件互相引用），所以自己那一格要在。
+  room: ['room', 'read', 'write', 'routing', 'model', 'support', 'transport'],
 }
 
 const CHANNELS = ['channels/graphql', 'channels/rest']
