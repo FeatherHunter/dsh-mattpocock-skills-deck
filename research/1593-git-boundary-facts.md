@@ -144,3 +144,15 @@
 - 不同 git 版本的行为差异：本机只有 2.49，2.11 到 2.49 之间只在文档层面确认过选项存在（例如 `--force-with-lease` 与显式期望值很早就有了，`--force-if-includes` 是 2.30，`--update-refs` 是 2.38）。规格里凡依赖版本门的能力，都要在预检里按版本分支。
 - Windows 之外的系统上「编辑命令写成脚本」与 `cp` 是否同样可用：本机只走了 Windows，规格里要写成可替换的一步，并在失败时给出可读原因。
 - 图形界面里逐块暂存与逐块选边的性能（大文件、长行、CRLF 混合）没有实测，属于后续实施票的验收项。
+
+## 13. 第二轮补的实测（2026-10-30 晚，支撑复核后修订的推荐答案）
+
+复核 20 条推荐答案时，有几处机制原先只是推断，补跑了一遍。环境同上（`git 2.49.0.windows.1`，`GIT_CONFIG_GLOBAL` 指向空文件，`GIT_CONFIG_NOSYSTEM=1`），实验目录 `D:/Temp/wf1593-review3/`。
+
+1. 用 `cp` 充当 `GIT_SEQUENCE_EDITOR` 时，路径含空格也能用。待办清单放 `D:/Temp/wf1593-review3/plan with space.txt`，仓库放 `.../repo with space/`，设 `GIT_SEQUENCE_EDITOR='cp "D:/Temp/wf1593-review3/plan with space.txt"'`，`git rebase -i --root` 退出 0，重排的 3 个提交按清单顺序生效。后果：不必随包发「写入器」；git 自带 sh 的 `cp` 足够覆盖待办清单。
+2. 「改说明」与「压缩并自定说明」可以完全不经过编辑器：在待办清单里用 `pick`/`fixup` 加 `exec git commit --amend -F "<消息文件>"`。实测清单 `pick A`、`fixup B`、`exec ... -F msg1`、`fixup C`、`exec ... -F msg2`，退出 0，最终一个提交、说明精确等于 msg2 内容、文件集合等于 A+B+C。原因：`fixup` 不打开编辑器；`exec` 里的 `amend` 紧跟在刚生成的提交后面改说明。后果：交互式变基的清单只用 `pick`、`fixup`、`drop`、`exec` 四类行即可，不需要按原文匹配、也不需要 `GIT_EDITOR`；可以把 `GIT_EDITOR` 设成会失败的命令（如 `false`），意外触发时立刻中止而不是挂住。
+3. 冲突解决后继续，紧随其后的 `exec` 行仍会执行。清单 `pick D`（与目标分支冲突）、`exec git commit --amend -F msg`；rebase 停在冲突，解决并 `git add` 后 `git rebase --continue` 退出 0，输出出现 `Executing: git commit --amend`，最终提交说明变成 msg、内容保留解决后的文件。后果：逐提交改说明与手解冲突可以共存，不用在冲突后重新生成清单。
+4. 脏工作树可以先在它里面贮藏，再正常移除，不需要 `--force`。在链接工作树里改一个已跟踪文件、加一个未跟踪文件，`git stash push -u -m ...` 退出 0；回到主工作树 `git worktree remove <路径>` 退出 0；贮藏出现在共享的 stash 列表；在主工作树 `git stash apply` 退出 0，已跟踪改动与未跟踪文件都回来了。后果：面板可以「先贮藏再移除」，避免用 `--force` 毁掉未提交内容。
+
+版本门的数字核对（官方发布说明与分版手册）：`git stash push` 2.13、`git worktree remove` 2.17、`git submodule set-url` 2.25、`git init -b` 2.28、`git maintenance` 2.30、`--force-if-includes` 2.30、`git worktree list` 的 prunable 标注 2.31、`git rebase --update-refs` 2.38。`git config --show-scope` 是否需要 2.26 没再核，因为修订后的方案不再依赖它（只改身份时作用域由面板自己知道）。
+
