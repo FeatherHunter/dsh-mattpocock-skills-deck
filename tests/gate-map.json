@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T22:11:29.946Z",
+  "generatedAt": "2026-10-30T23:03:35.798Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 462,
   "gateCount": 462,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 27,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 667,
+  "graphFileCount": 641,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -318,7 +318,7 @@
         "src/shared/tracker/chain-types.ts",
         "src/shared/tracker/check-catalog-dirs.ts",
         "src/tracker/fix-contract.ts",
-        "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/github/room/index.ts",
         "tests/lib/locale-data.ts",
         "tests/lib/source-text.ts"
       ],
@@ -331,7 +331,7 @@
         "src/refresh/rooms/client",
         "src/shared/tracker",
         "src/tracker",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
         "tests/lib"
       ],
       "unattributed": false,
@@ -547,12 +547,12 @@
       "file": "tests/verify-deck-repo-resolve.ts",
       "guards": [
         "src/deck/tools/tracker-session.ts",
-        "src/tracker/rooms/github/backend.ts",
+        "src/tracker/rooms/github/room/backend.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
         "tests/lib"
       ],
       "unattributed": false,
@@ -579,7 +579,7 @@
         "src/shared/tracker/chain-validate.ts",
         "src/shared/ui/slots.ts",
         "src/tracker/fix-contract.ts",
-        "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/github/room/index.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -592,7 +592,7 @@
         "src/shared/tracker",
         "src/shared/ui",
         "src/tracker",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
         "tests/lib"
       ],
       "unattributed": false,
@@ -680,7 +680,7 @@
         "src/refresh/rooms/host/refresh-gate.ts",
         "src/shared/issue-file/src/marker.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/github/room/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/deck-tools-matrix-transports.ts",
@@ -695,7 +695,7 @@
         "src/refresh/rooms/host",
         "src/shared/issue-file/src",
         "src/tracker/registry",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown",
         "tests",
@@ -798,8 +798,6 @@
         "src/tracker/contract/operations.ts",
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/idempotency.ts",
-        "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "tests/same-layer-baseline.json",
         "tests/tracker-room-imports.json"
@@ -820,7 +818,6 @@
         "src/tracker",
         "src/tracker/contract",
         "src/tracker/registry",
-        "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab",
         "tests"
       ],
@@ -828,7 +825,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 22 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 20 条"
     },
     {
       "step": "node tests/verify-gate-map.ts",
@@ -1084,7 +1081,7 @@
         "src/refresh/rooms/host/outbound-control.ts",
         "src/shared/time-config/src/values.ts",
         "src/tracker/kernel/outbound-tiers.ts",
-        "src/tracker/rooms/github/client.ts"
+        "src/tracker/rooms/github/transport/client.ts"
       ],
       "dirs": [
         "config",
@@ -1092,7 +1089,7 @@
         "src/refresh/rooms/host",
         "src/shared/time-config/src",
         "src/tracker/kernel",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github/transport"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -1127,15 +1124,15 @@
       "file": "tests/verify-1053-issue-write.ts",
       "guards": [
         "src/refresh/rooms/host/outbound-control.ts",
-        "src/tracker/rooms/github/comments.ts",
-        "src/tracker/rooms/github/init-project.ts",
-        "src/tracker/rooms/github/issues-write.ts",
-        "src/tracker/rooms/github/label-colors-ops.ts",
-        "src/tracker/rooms/github/labels.ts"
+        "src/tracker/rooms/github/write/comments.ts",
+        "src/tracker/rooms/github/write/init-project.ts",
+        "src/tracker/rooms/github/write/issues.ts",
+        "src/tracker/rooms/github/write/label-colors.ts",
+        "src/tracker/rooms/github/write/labels.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github/write"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -1148,12 +1145,13 @@
       "file": "tests/verify-1054-edge-graph.ts",
       "guards": [
         "src/refresh/rooms/host/outbound-control.ts",
-        "src/tracker/rooms/github/graph.ts",
-        "src/tracker/rooms/github/parent-repair.ts"
+        "src/tracker/rooms/github/read/parent-repair.ts",
+        "src/tracker/rooms/github/write/graph.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github/read",
+        "src/tracker/rooms/github/write"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -1918,11 +1916,11 @@
       "file": "tests/verify-1223-catalog-runtime-parity.ts",
       "guards": [
         "src/shared/tracker/check-catalog-dirs.ts",
-        "src/tracker/rooms/github/checks.ts"
+        "src/tracker/rooms/github/room/checks.ts"
       ],
       "dirs": [
         "src/shared/tracker",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github/room"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -2145,13 +2143,13 @@
       "guards": [
         "src/host/tracker/snapshotAssemble.ts",
         "src/tracker/body-parse.ts",
-        "src/tracker/rooms/github/normalize.ts",
+        "src/tracker/rooms/github/model/normalize.ts",
         "src/tracker/rooms/gitlab/normalize.ts"
       ],
       "dirs": [
         "src/host/tracker",
         "src/tracker",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/model",
         "src/tracker/rooms/gitlab"
       ],
       "unattributed": false,
@@ -2297,11 +2295,11 @@
       "guards": [
         "src/refresh/rooms/host/outbound-control.ts",
         "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
-        "src/tracker/rooms/github/graph.ts"
+        "src/tracker/rooms/github/write/graph.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github/write"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -2858,14 +2856,16 @@
       "file": "tests/verify-1443-github-readbudget.ts",
       "guards": [
         "docs/tracker/capability-github.md",
-        "src/tracker/rooms/github/backend.ts",
-        "src/tracker/rooms/github/budget.ts",
-        "src/tracker/rooms/github/capability-register.ts",
+        "src/tracker/rooms/github/room/backend.ts",
+        "src/tracker/rooms/github/support/capability-register.ts",
+        "src/tracker/rooms/github/transport/budget.ts",
         "src/tracker/session/open-tracker.ts"
       ],
       "dirs": [
         "docs/tracker",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
+        "src/tracker/rooms/github/support",
+        "src/tracker/rooms/github/transport",
         "src/tracker/session"
       ],
       "unattributed": false,
@@ -2940,11 +2940,11 @@
       "guards": [
         "src/refresh/rooms/host/comment-thread-fetch.ts",
         "src/refresh/rooms/host/outbound-control.ts",
-        "src/tracker/rooms/github/issues.ts"
+        "src/tracker/rooms/github/read/issues.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github/read"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3202,12 +3202,12 @@
       "file": "tests/verify-1453-repo-locate-via-session.ts",
       "guards": [
         "src/refresh/rooms/host/session-opener.ts",
-        "src/tracker/rooms/github/repo.ts",
+        "src/tracker/rooms/github/model/repo.ts",
         "src/tracker/session/open-tracker.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/model",
         "src/tracker/session"
       ],
       "unattributed": false,
@@ -3355,7 +3355,6 @@
         "src/refresh/rooms/host/outbound-control.ts",
         "src/shared/time-config/src/values.ts",
         "src/tracker/kernel/outbound-tiers.ts",
-        "src/tracker/rooms/github/preflight.ts",
         "src/tracker/rooms/github/read/preflight.ts"
       ],
       "dirs": [
@@ -3364,7 +3363,6 @@
         "src/refresh/rooms/host",
         "src/shared/time-config/src",
         "src/tracker/kernel",
-        "src/tracker/rooms/github",
         "src/tracker/rooms/github/read"
       ],
       "unattributed": false,
@@ -3914,10 +3912,10 @@
       "step": "node tests/verify-1532-github-close-reason.ts",
       "file": "tests/verify-1532-github-close-reason.ts",
       "guards": [
-        "src/tracker/rooms/github/issues-write.ts"
+        "src/tracker/rooms/github/write/issues.ts"
       ],
       "dirs": [
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github/write"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -4235,10 +4233,10 @@
       "step": "node tests/verify-1603-map-thin-list.ts",
       "file": "tests/verify-1603-map-thin-list.ts",
       "guards": [
-        "src/tracker/rooms/github/maps.ts"
+        "src/tracker/rooms/github/read/maps.ts"
       ],
       "dirs": [
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github/read"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -4281,8 +4279,8 @@
       "file": "tests/verify-1605-map-routing-guard.ts",
       "guards": [
         "src/deck/tools/issue-list.ts",
-        "src/tracker/rooms/github/capability-register.ts",
-        "src/tracker/rooms/github/maps.ts",
+        "src/tracker/rooms/github/read/maps.ts",
+        "src/tracker/rooms/github/support/capability-register.ts",
         "src/tracker/rooms/gitlab/capability-register.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/gitlab/maps.ts",
@@ -4292,7 +4290,8 @@
       ],
       "dirs": [
         "src/deck/tools",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/read",
+        "src/tracker/rooms/github/support",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown"
       ],
@@ -4944,12 +4943,13 @@
       "file": "tests/verify-504-github-pr.ts",
       "guards": [
         "src/refresh/rooms/host/outbound-control.ts",
-        "src/tracker/rooms/github/issues.ts",
-        "src/tracker/rooms/github/normalize.ts"
+        "src/tracker/rooms/github/model/normalize.ts",
+        "src/tracker/rooms/github/read/issues.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github/model",
+        "src/tracker/rooms/github/read"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -4964,14 +4964,15 @@
         "src/host/tracker/snapshot.ts",
         "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/issues.ts",
-        "src/tracker/rooms/github/normalize.ts"
+        "src/tracker/rooms/github/model/normalize.ts",
+        "src/tracker/rooms/github/read/issues.ts"
       ],
       "dirs": [
         "src/host/tracker",
         "src/refresh/rooms/host",
         "src/tracker/registry",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github/model",
+        "src/tracker/rooms/github/read"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -5097,8 +5098,8 @@
         "src/client/views/shared/stateKind.ts",
         "src/client/views/shared/ticketBadge.ts",
         "src/refresh/rooms/host/outbound-control.ts",
-        "src/tracker/rooms/github/issues.ts",
-        "src/tracker/rooms/github/normalize.ts",
+        "src/tracker/rooms/github/model/normalize.ts",
+        "src/tracker/rooms/github/read/issues.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -5107,7 +5108,8 @@
         "src/client/views",
         "src/client/views/shared",
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/model",
+        "src/tracker/rooms/github/read",
         "tests/lib"
       ],
       "unattributed": false,
@@ -5297,7 +5299,7 @@
         "src/client/statusbar/bannerChain.ts",
         "src/shared/tracker/guide-steps.ts",
         "src/tracker/fix-contract.ts",
-        "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/github/room/index.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -5306,7 +5308,7 @@
         "src/client/statusbar",
         "src/shared/tracker",
         "src/tracker",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
         "tests/lib"
       ],
       "unattributed": false,
@@ -5329,7 +5331,7 @@
         "src/client/statusbar/bannerChain.ts",
         "src/shared/time-config/src/values.ts",
         "src/shared/tracker/guide-steps.ts",
-        "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/github/room/index.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/prompt-data.ts",
@@ -5341,7 +5343,7 @@
         "src/client/statusbar",
         "src/shared/time-config/src",
         "src/shared/tracker",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
         "src/tracker/rooms/markdown",
         "tests/lib"
       ],
@@ -5684,7 +5686,7 @@
         "src/client/kernel/prompts-backend.ts",
         "src/client/kernel/prompts.ts",
         "src/shared/time-config/src/values.ts",
-        "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/github/room/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/prompt-data.ts",
@@ -5693,7 +5695,7 @@
       "dirs": [
         "src/client/kernel",
         "src/shared/time-config/src",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -5749,13 +5751,13 @@
         "src/host/ticketGrouping.ts",
         "src/host/tracker/snapshot.ts",
         "src/refresh/rooms/host/outbound-control.ts",
-        "src/tracker/rooms/github/sub-issues.ts"
+        "src/tracker/rooms/github/read/sub-issues.ts"
       ],
       "dirs": [
         "src/host",
         "src/host/tracker",
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github/read"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -5859,7 +5861,7 @@
         "src/refresh/rooms/host/refresh-gate.ts",
         "src/shared/time-config/src/values.ts",
         "src/tracker/detection/detectionService.ts",
-        "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/github/room/index.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
@@ -5867,7 +5869,7 @@
         "src/refresh/rooms/host",
         "src/shared/time-config/src",
         "src/tracker/detection",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
         "tests/lib"
       ],
       "unattributed": false,
@@ -6090,7 +6092,7 @@
         "src/refresh/rooms/host/quota-ledger.ts",
         "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/graph.ts",
+        "src/tracker/rooms/github/write/graph.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
@@ -6098,7 +6100,7 @@
         "src/refresh/kernel",
         "src/refresh/rooms/host",
         "src/tracker/registry",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/write",
         "tests/lib"
       ],
       "unattributed": false,
@@ -6166,7 +6168,7 @@
         "src/refresh/rooms/host/quota-ledger.ts",
         "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/graph.ts",
+        "src/tracker/rooms/github/write/graph.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
@@ -6175,7 +6177,7 @@
         "src/refresh/kernel",
         "src/refresh/rooms/host",
         "src/tracker/registry",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/write",
         "tests/lib"
       ],
       "unattributed": false,
@@ -6375,7 +6377,7 @@
         "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/contract/pagination.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/github/room/index.ts",
         "tests/deck-tools-matrix-transports.ts"
       ],
       "dirs": [
@@ -6383,7 +6385,7 @@
         "src/refresh/rooms/host",
         "src/tracker/contract",
         "src/tracker/registry",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
         "tests"
       ],
       "unattributed": false,
@@ -6468,12 +6470,12 @@
         "src/refresh/rooms/host/outbound-admission.ts",
         "src/refresh/rooms/host/outbound-control.ts",
         "src/shared/tracker/guide-steps.ts",
-        "src/tracker/rooms/github/preflight.ts"
+        "src/tracker/rooms/github/read/preflight.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host",
         "src/shared/tracker",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github/read"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -6582,7 +6584,7 @@
         "src/refresh/kernel/tool-call-budget.ts",
         "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/github/room/index.ts",
         "tests/deck-tools-matrix-transports.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
@@ -6591,7 +6593,7 @@
         "src/refresh/kernel",
         "src/refresh/rooms/host",
         "src/tracker/registry",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
         "tests",
         "tests/lib"
       ],
@@ -6814,8 +6816,7 @@
         "src/shared/time-config/src/values.ts",
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/kernel/outbound-tiers.ts",
-        "src/tracker/rooms/github/client.ts",
-        "src/tracker/rooms/github/errors.ts",
+        "src/tracker/rooms/github/support/errors.ts",
         "src/tracker/rooms/github/transport/client.ts"
       ],
       "dirs": [
@@ -6823,14 +6824,14 @@
         "src/shared/time-config/src",
         "src/tracker/contract",
         "src/tracker/kernel",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/support",
         "src/tracker/rooms/github/transport"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 9 条"
+      "reason": "归属来自：源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-970-whole-document.ts",
@@ -6935,11 +6936,11 @@
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/kernel/preflight.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/errors.ts",
-        "src/tracker/rooms/github/index.ts",
-        "src/tracker/rooms/github/issues-write.ts",
-        "src/tracker/rooms/github/labels.ts",
-        "src/tracker/rooms/github/repo-permissions.ts",
+        "src/tracker/rooms/github/read/repo-permissions.ts",
+        "src/tracker/rooms/github/room/index.ts",
+        "src/tracker/rooms/github/support/errors.ts",
+        "src/tracker/rooms/github/write/issues.ts",
+        "src/tracker/rooms/github/write/labels.ts",
         "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
@@ -6950,7 +6951,10 @@
         "src/tracker/contract",
         "src/tracker/kernel",
         "src/tracker/registry",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/read",
+        "src/tracker/rooms/github/room",
+        "src/tracker/rooms/github/support",
+        "src/tracker/rooms/github/write",
         "tests/lib"
       ],
       "unattributed": false,
@@ -7702,7 +7706,7 @@
         "src/tracker/detection/detectionService.ts",
         "src/tracker/kernel/error-rules.ts",
         "src/tracker/kernel/preflight.ts",
-        "src/tracker/rooms/github/errors.ts",
+        "src/tracker/rooms/github/support/errors.ts",
         "src/tracker/rooms/gitlab/errors.ts",
         "src/tracker/rooms/markdown"
       ],
@@ -7710,7 +7714,7 @@
         "research",
         "src/tracker/detection",
         "src/tracker/kernel",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/support",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown"
       ],
@@ -7725,13 +7729,13 @@
       "file": "tests/verify-error-raw-samples.ts",
       "guards": [
         "src/refresh/rooms/host/outbound-control.ts",
-        "src/tracker/rooms/github/counts.ts",
+        "src/tracker/rooms/github/read/counts.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/issues.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/read",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown"
       ],
@@ -7749,7 +7753,7 @@
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/kernel/error-rules.ts",
         "src/tracker/rooms",
-        "src/tracker/rooms/github/errors.ts",
+        "src/tracker/rooms/github/support/errors.ts",
         "src/tracker/rooms/gitlab/errors.ts",
         "tests/fixtures/error-samples.ts"
       ],
@@ -7758,7 +7762,7 @@
         "src/tracker/contract",
         "src/tracker/kernel",
         "src/tracker/rooms",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/support",
         "src/tracker/rooms/gitlab",
         "tests/fixtures"
       ],
@@ -7786,10 +7790,10 @@
         "src/tracker/kernel/error-rules.ts",
         "src/tracker/kernel/outbound-tiers.ts",
         "src/tracker/kernel/preflight.ts",
-        "src/tracker/rooms/github/fallback-reason.ts",
-        "src/tracker/rooms/github/init-project.ts",
-        "src/tracker/rooms/github/issues-write.ts",
-        "src/tracker/rooms/github/support/init-project-error-kinds.ts"
+        "src/tracker/rooms/github/routing/fallback-reason.ts",
+        "src/tracker/rooms/github/support/init-project-error-kinds.ts",
+        "src/tracker/rooms/github/write/init-project.ts",
+        "src/tracker/rooms/github/write/issues.ts"
       ],
       "dirs": [
         "src/client",
@@ -7798,8 +7802,9 @@
         "src/tracker",
         "src/tracker/contract",
         "src/tracker/kernel",
-        "src/tracker/rooms/github",
-        "src/tracker/rooms/github/support"
+        "src/tracker/rooms/github/routing",
+        "src/tracker/rooms/github/support",
+        "src/tracker/rooms/github/write"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -7950,12 +7955,11 @@
       "guards": [
         "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/rooms/github/channels/graphql/comment-paging.ts",
-        "src/tracker/rooms/github/client.ts",
-        "src/tracker/rooms/github/issues.ts",
         "src/tracker/rooms/github/model/repo.ts",
         "src/tracker/rooms/github/read/counts.ts",
         "src/tracker/rooms/github/read/deps-read.ts",
         "src/tracker/rooms/github/read/issues-rest-list.ts",
+        "src/tracker/rooms/github/read/issues.ts",
         "src/tracker/rooms/github/read/page.ts",
         "src/tracker/rooms/github/read/preflight.ts",
         "src/tracker/rooms/github/read/pulls.ts",
@@ -7967,7 +7971,6 @@
       ],
       "dirs": [
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github",
         "src/tracker/rooms/github/channels/graphql",
         "src/tracker/rooms/github/model",
         "src/tracker/rooms/github/read",
@@ -7991,9 +7994,9 @@
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/detectionService.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/client.ts",
-        "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/github/read/labels.ts",
+        "src/tracker/rooms/github/room/index.ts",
+        "src/tracker/rooms/github/transport/client.ts",
         "tests/tracker-contract/sections/labels.ts"
       ],
       "dirs": [
@@ -8002,8 +8005,9 @@
         "src/refresh/rooms/host",
         "src/tracker/detection",
         "src/tracker/registry",
-        "src/tracker/rooms/github",
         "src/tracker/rooms/github/read",
+        "src/tracker/rooms/github/room",
+        "src/tracker/rooms/github/transport",
         "tests/tracker-contract/sections"
       ],
       "unattributed": false,
@@ -8018,13 +8022,13 @@
       "guards": [
         "src/refresh/rooms/host/outbound-control.ts",
         "src/tracker/rooms/github/channels/rest/list-row-metadata.ts",
-        "src/tracker/rooms/github/issues.ts",
+        "src/tracker/rooms/github/read/issues.ts",
         "tests/fixtures/1682"
       ],
       "dirs": [
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github",
         "src/tracker/rooms/github/channels/rest",
+        "src/tracker/rooms/github/read",
         "tests/fixtures/1682"
       ],
       "unattributed": false,
@@ -8084,7 +8088,7 @@
         "src/refresh/rooms/host/quota-ledger.ts",
         "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/normalize.ts",
+        "src/tracker/rooms/github/model/normalize.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/normalize.ts",
         "tests/lib/deck-decide-stub.ts"
@@ -8096,7 +8100,7 @@
         "src/refresh/kernel",
         "src/refresh/rooms/host",
         "src/tracker/registry",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/model",
         "src/tracker/rooms/markdown",
         "tests/lib"
       ],
@@ -8276,14 +8280,14 @@
         "package/lib/client.js",
         "package/lib/index.js",
         "src/tracker/contract/index.ts",
-        "src/tracker/rooms/github/index.ts",
-        "src/tracker/rooms/github/read/preflight.ts"
+        "src/tracker/rooms/github/read/preflight.ts",
+        "src/tracker/rooms/github/room/index.ts"
       ],
       "dirs": [
         "package/lib",
         "src/tracker/contract",
-        "src/tracker/rooms/github",
-        "src/tracker/rooms/github/read"
+        "src/tracker/rooms/github/read",
+        "src/tracker/rooms/github/room"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -8443,7 +8447,7 @@
         "src/client/views/NoRepoCard.ts",
         "src/tracker/contract/canonical-labels.ts",
         "src/tracker/label-names.ts",
-        "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/github/room/index.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -8452,7 +8456,7 @@
         "src/client/views",
         "src/tracker",
         "src/tracker/contract",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
         "tests/lib"
       ],
       "unattributed": false,
@@ -9120,14 +9124,14 @@
       "guards": [
         "src/refresh/kernel/budget-admission.ts",
         "src/tracker/contract/operations-encyclopedia.ts",
-        "src/tracker/rooms/github/read-sources.ts",
+        "src/tracker/rooms/github/read/read-sources.ts",
         "src/tracker/rooms/gitlab/read-sources.ts",
         "src/tracker/rooms/markdown/read-sources.ts"
       ],
       "dirs": [
         "src/refresh/kernel",
         "src/tracker/contract",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/read",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown"
       ],
@@ -9294,7 +9298,7 @@
         "src/host",
         "src/refresh/rooms/host",
         "src/tracker/rooms",
-        "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/github/room/index.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts",
         "tests/prompt-gate-exempt.json",
@@ -9314,7 +9318,7 @@
         "src/host",
         "src/refresh/rooms/host",
         "src/tracker/rooms",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
         "tests",
         "tests/lib"
       ],
@@ -9322,7 +9326,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 15 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 16 条"
     },
     {
       "step": "node tests/verify-read-result-provenance.ts",
@@ -9335,32 +9339,33 @@
         "src/tracker/rooms/github/channels/graphql/queries.ts",
         "src/tracker/rooms/github/channels/graphql/read-shapes.ts",
         "src/tracker/rooms/github/channels/rest/read-shapes.ts",
-        "src/tracker/rooms/github/issues.ts",
         "src/tracker/rooms/github/read/counts.ts",
         "src/tracker/rooms/github/read/deps-read.ts",
         "src/tracker/rooms/github/read/issues-rest-list.ts",
+        "src/tracker/rooms/github/read/issues.ts",
         "src/tracker/rooms/github/read/labels.ts",
         "src/tracker/rooms/github/read/maps.ts",
         "src/tracker/rooms/github/read/page.ts",
         "src/tracker/rooms/github/read/preflight.ts",
         "src/tracker/rooms/github/read/repo-permissions.ts",
         "src/tracker/rooms/github/read/sub-issues.ts",
+        "src/tracker/rooms/github/room/backend.ts",
         "src/tracker/rooms/github/routing/read-assembly.ts",
         "src/tracker/rooms/github/routing/read-result.ts"
       ],
       "dirs": [
         "src/tracker/contract",
-        "src/tracker/rooms/github",
         "src/tracker/rooms/github/channels/graphql",
         "src/tracker/rooms/github/channels/rest",
         "src/tracker/rooms/github/read",
+        "src/tracker/rooms/github/room",
         "src/tracker/rooms/github/routing"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 265,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 19 条）"
+      "expectedAssertions": 294,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 20 条）"
     },
     {
       "step": "node tests/verify-real-machine-fullscreen.ts",
@@ -9546,7 +9551,7 @@
         "package/lib/client.js",
         "src/client/views/shared/truthLines.ts",
         "src/shared/time-config/src/values.ts",
-        "src/tracker/rooms/github/fallback-reason.ts",
+        "src/tracker/rooms/github/routing/fallback-reason.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -9554,7 +9559,7 @@
         "package/lib",
         "src/client/views/shared",
         "src/shared/time-config/src",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/routing",
         "tests/lib"
       ],
       "unattributed": false,
@@ -9789,6 +9794,7 @@
         "src/client/kernel/prompts.ts",
         "src/host/workspaceCwd.ts",
         "src/shared/time-config/src/values.ts",
+        "src/tracker/rooms/github/room/index.ts",
         "src/tracker/ui-description.ts",
         "tests/lib/locale-data.ts",
         "tests/lib/prompt-data.ts",
@@ -9801,13 +9807,14 @@
         "src/host",
         "src/shared/time-config/src",
         "src/tracker",
+        "src/tracker/rooms/github/room",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-skill-detail-stack.ts",
@@ -9995,11 +10002,11 @@
       "file": "tests/verify-t1-initpublish.ts",
       "guards": [
         "package/lib/index.js",
-        "src/tracker/rooms/github/init-project.ts"
+        "src/tracker/rooms/github/write/init-project.ts"
       ],
       "dirs": [
         "package/lib",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github/write"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -10160,7 +10167,7 @@
         "src/tracker/detection/workspaceStore.ts",
         "src/tracker/kernel/outbound-tiers.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/issues.ts",
+        "src/tracker/rooms/github/read/issues.ts",
         "src/tracker/rooms/github/routing/idempotency.ts",
         "src/tracker/rooms/github/transport/client.ts",
         "src/tracker/rooms/gitlab/client.ts",
@@ -10200,7 +10207,7 @@
         "src/tracker/detection",
         "src/tracker/kernel",
         "src/tracker/registry",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/read",
         "src/tracker/rooms/github/routing",
         "src/tracker/rooms/github/transport",
         "src/tracker/rooms/gitlab",
@@ -10238,7 +10245,7 @@
         "examples/demo-mini/index.ts",
         "examples/demo-mini/matches.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/normalize.ts",
+        "src/tracker/rooms/github/model/normalize.ts",
         "src/tracker/rooms/gitlab/normalize.ts",
         "tests/tracker-contract/fixtures/compliant.ts",
         "tests/tracker-contract/fixtures/demo.ts",
@@ -10263,7 +10270,7 @@
         "examples/demo-mini",
         "examples/demo-mini/fixtures/demo-real",
         "src/tracker/registry",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/model",
         "src/tracker/rooms/gitlab",
         "tests/tracker-contract",
         "tests/tracker-contract/fixtures",
@@ -10288,7 +10295,7 @@
         "src/tracker/contract/results.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/registry/shape.ts",
-        "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/github/room/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/session/budget-reading.ts",
@@ -10301,7 +10308,7 @@
         "src/refresh/rooms/host",
         "src/tracker/contract",
         "src/tracker/registry",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/room",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown",
         "src/tracker/session"
@@ -12366,63 +12373,12 @@
       "node tests/verify-prompts.ts"
     ],
     "src/tracker/rooms/github": [
-      "node tests/verify-chain-renderer.ts",
-      "node tests/verify-deck-repo-resolve.ts",
-      "node tests/verify-deck-slots.ts",
-      "node tests/verify-deck-tools-matrix.ts",
-      "node tests/verify-dependency-rules.ts",
       "node tests/verify-no-mixed-session.ts",
-      "node tests/verify-1007-transport-cooldown.ts",
-      "node tests/verify-1053-issue-write.ts",
-      "node tests/verify-1054-edge-graph.ts",
-      "node tests/verify-1223-catalog-runtime-parity.ts",
       "node tests/verify-1242-panel-numbers.ts",
-      "node tests/verify-1286-snapshot.ts",
-      "node tests/verify-1304-deps-native.ts",
-      "node tests/verify-1443-github-readbudget.ts",
-      "node tests/verify-1444-comments.ts",
-      "node tests/verify-1453-repo-locate-via-session.ts",
-      "node tests/verify-1475-predicate-budget.ts",
-      "node tests/verify-1532-github-close-reason.ts",
       "node tests/verify-1533-git-remote-claim.ts",
       "node tests/verify-1571-gh-flag-writing.ts",
-      "node tests/verify-1603-map-thin-list.ts",
-      "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-1621-gh-missing-copy.ts",
-      "node tests/verify-504-github-pr.ts",
-      "node tests/verify-507-pr-offline.ts",
-      "node tests/verify-599-merged-pr.ts",
-      "node tests/verify-663-gh-install-inject.ts",
-      "node tests/verify-665-fresh-workspace-chain.ts",
-      "node tests/verify-686-accept.ts",
-      "node tests/verify-691-map-subissues.ts",
-      "node tests/verify-709-no-self-continuing-timers.ts",
-      "node tests/verify-790-parent-edge.ts",
-      "node tests/verify-829-parent-reread.ts",
-      "node tests/verify-895-github-memo.ts",
-      "node tests/verify-916-ghauth-crosscheck.ts",
-      "node tests/verify-929-batch-cycle.ts",
-      "node tests/verify-969-tiered-timeout.ts",
-      "node tests/verify-992-readonly-labels.ts",
-      "node tests/verify-error-normalize-log.ts",
-      "node tests/verify-error-raw-samples.ts",
-      "node tests/verify-error-rule-samples.ts",
-      "node tests/verify-error-single-source.ts",
-      "node tests/verify-github-gh-via.ts",
-      "node tests/verify-github-label-colors.ts",
-      "node tests/verify-github-rest-fallback.ts",
-      "node tests/verify-golden-receipts.ts",
-      "node tests/verify-issue195.ts",
-      "node tests/verify-labels-sync.ts",
-      "node tests/verify-operation-catalog.ts",
-      "node tests/verify-prompts.ts",
-      "node tests/verify-read-result-provenance.ts",
-      "node tests/verify-rest-fallback-reason.ts",
-      "node tests/verify-room-layering.ts",
-      "node tests/verify-t1-initpublish.ts",
-      "node tests/verify-time-config.ts",
-      "node tests/verify-tracker-contract.ts",
-      "node tests/verify-tracker-session.ts"
+      "node tests/verify-room-layering.ts"
     ],
     "src/tracker/rooms/github/channels": [],
     "src/tracker/rooms/github/channels/graphql": [
@@ -12436,33 +12392,98 @@
       "node tests/verify-read-result-provenance.ts"
     ],
     "src/tracker/rooms/github/model": [
+      "node tests/verify-1286-snapshot.ts",
       "node tests/verify-1443-static-gate.ts",
-      "node tests/verify-github-gh-via.ts"
+      "node tests/verify-1453-repo-locate-via-session.ts",
+      "node tests/verify-504-github-pr.ts",
+      "node tests/verify-507-pr-offline.ts",
+      "node tests/verify-599-merged-pr.ts",
+      "node tests/verify-github-gh-via.ts",
+      "node tests/verify-golden-receipts.ts",
+      "node tests/verify-tracker-contract.ts"
     ],
     "src/tracker/rooms/github/read": [
+      "node tests/verify-1054-edge-graph.ts",
       "node tests/verify-1418-probe-cost-and-failure.ts",
+      "node tests/verify-1444-comments.ts",
       "node tests/verify-1475-predicate-budget.ts",
+      "node tests/verify-1603-map-thin-list.ts",
+      "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
+      "node tests/verify-504-github-pr.ts",
+      "node tests/verify-507-pr-offline.ts",
+      "node tests/verify-599-merged-pr.ts",
+      "node tests/verify-691-map-subissues.ts",
+      "node tests/verify-916-ghauth-crosscheck.ts",
+      "node tests/verify-992-readonly-labels.ts",
+      "node tests/verify-error-raw-samples.ts",
       "node tests/verify-github-gh-via.ts",
       "node tests/verify-github-label-colors.ts",
+      "node tests/verify-github-rest-fallback.ts",
       "node tests/verify-issue195.ts",
-      "node tests/verify-read-result-provenance.ts"
+      "node tests/verify-operation-catalog.ts",
+      "node tests/verify-read-result-provenance.ts",
+      "node tests/verify-time-config.ts"
+    ],
+    "src/tracker/rooms/github/room": [
+      "node tests/verify-chain-renderer.ts",
+      "node tests/verify-deck-repo-resolve.ts",
+      "node tests/verify-deck-slots.ts",
+      "node tests/verify-deck-tools-matrix.ts",
+      "node tests/verify-1223-catalog-runtime-parity.ts",
+      "node tests/verify-1443-github-readbudget.ts",
+      "node tests/verify-663-gh-install-inject.ts",
+      "node tests/verify-665-fresh-workspace-chain.ts",
+      "node tests/verify-686-accept.ts",
+      "node tests/verify-709-no-self-continuing-timers.ts",
+      "node tests/verify-895-github-memo.ts",
+      "node tests/verify-929-batch-cycle.ts",
+      "node tests/verify-992-readonly-labels.ts",
+      "node tests/verify-github-label-colors.ts",
+      "node tests/verify-issue195.ts",
+      "node tests/verify-labels-sync.ts",
+      "node tests/verify-prompts.ts",
+      "node tests/verify-read-result-provenance.ts",
+      "node tests/verify-setup-describe.ts",
+      "node tests/verify-tracker-session.ts"
     ],
     "src/tracker/rooms/github/routing": [
+      "node tests/verify-error-single-source.ts",
       "node tests/verify-read-result-provenance.ts",
+      "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-time-config.ts"
     ],
     "src/tracker/rooms/github/support": [
       "node tests/verify-1418-probe-cost-and-failure.ts",
+      "node tests/verify-1443-github-readbudget.ts",
+      "node tests/verify-1605-map-routing-guard.ts",
+      "node tests/verify-969-tiered-timeout.ts",
+      "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-capability-register.ts",
+      "node tests/verify-error-normalize-log.ts",
+      "node tests/verify-error-rule-samples.ts",
       "node tests/verify-error-single-source.ts"
     ],
     "src/tracker/rooms/github/transport": [
+      "node tests/verify-1007-transport-cooldown.ts",
+      "node tests/verify-1443-github-readbudget.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-github-gh-via.ts",
+      "node tests/verify-github-label-colors.ts",
       "node tests/verify-time-config.ts"
+    ],
+    "src/tracker/rooms/github/write": [
+      "node tests/verify-1053-issue-write.ts",
+      "node tests/verify-1054-edge-graph.ts",
+      "node tests/verify-1304-deps-native.ts",
+      "node tests/verify-1532-github-close-reason.ts",
+      "node tests/verify-790-parent-edge.ts",
+      "node tests/verify-829-parent-reread.ts",
+      "node tests/verify-992-readonly-labels.ts",
+      "node tests/verify-error-single-source.ts",
+      "node tests/verify-t1-initpublish.ts"
     ],
     "src/tracker/rooms/gitlab": [
       "node tests/verify-deck-tools-matrix.ts",
@@ -12825,12 +12846,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 688,
+    "fileCount": 662,
     "dirCount": 84,
-    "coveredFileCount": 688,
+    "coveredFileCount": 662,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 64,
+    "dedicatedDirCount": 66,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -13359,10 +13380,6 @@
       "src/tracker/registry/shape.ts",
       "src/tracker/registry/views.ts",
       "src/tracker/rooms/README.md",
-      "src/tracker/rooms/github/backend.ts",
-      "src/tracker/rooms/github/blocked-by-write.ts",
-      "src/tracker/rooms/github/budget.ts",
-      "src/tracker/rooms/github/capability-register.ts",
       "src/tracker/rooms/github/channels/graphql/comment-paging.ts",
       "src/tracker/rooms/github/channels/graphql/index.ts",
       "src/tracker/rooms/github/channels/graphql/queries.ts",
@@ -13370,64 +13387,33 @@
       "src/tracker/rooms/github/channels/rest/index.ts",
       "src/tracker/rooms/github/channels/rest/list-row-metadata.ts",
       "src/tracker/rooms/github/channels/rest/read-shapes.ts",
-      "src/tracker/rooms/github/checks.ts",
-      "src/tracker/rooms/github/client-support.ts",
-      "src/tracker/rooms/github/client.ts",
-      "src/tracker/rooms/github/close-reason.ts",
-      "src/tracker/rooms/github/comment-paging.ts",
-      "src/tracker/rooms/github/comments.ts",
-      "src/tracker/rooms/github/counts.ts",
-      "src/tracker/rooms/github/cycle-check.ts",
-      "src/tracker/rooms/github/deps-read.ts",
-      "src/tracker/rooms/github/errors.ts",
-      "src/tracker/rooms/github/fallback-reason.ts",
-      "src/tracker/rooms/github/graph.ts",
-      "src/tracker/rooms/github/idempotency.ts",
-      "src/tracker/rooms/github/index.ts",
-      "src/tracker/rooms/github/init-project-error-kinds.ts",
-      "src/tracker/rooms/github/init-project.ts",
-      "src/tracker/rooms/github/issues-rest-list.ts",
-      "src/tracker/rooms/github/issues-write.ts",
-      "src/tracker/rooms/github/issues.ts",
-      "src/tracker/rooms/github/label-colors-ops.ts",
-      "src/tracker/rooms/github/labels.ts",
-      "src/tracker/rooms/github/maps.ts",
-      "src/tracker/rooms/github/model/cycle-check.ts",
       "src/tracker/rooms/github/model/index.ts",
+      "src/tracker/rooms/github/model/issue-key.ts",
       "src/tracker/rooms/github/model/normalize.ts",
       "src/tracker/rooms/github/model/repo.ts",
       "src/tracker/rooms/github/model/roster.ts",
-      "src/tracker/rooms/github/normalize.ts",
-      "src/tracker/rooms/github/op-usage.ts",
-      "src/tracker/rooms/github/page.ts",
-      "src/tracker/rooms/github/parent-repair.ts",
-      "src/tracker/rooms/github/preflight.ts",
-      "src/tracker/rooms/github/pulls.ts",
-      "src/tracker/rooms/github/queries.ts",
-      "src/tracker/rooms/github/read-log.ts",
-      "src/tracker/rooms/github/read-sources.ts",
       "src/tracker/rooms/github/read/counts.ts",
       "src/tracker/rooms/github/read/deps-read.ts",
       "src/tracker/rooms/github/read/index.ts",
       "src/tracker/rooms/github/read/issues-rest-list.ts",
+      "src/tracker/rooms/github/read/issues.ts",
       "src/tracker/rooms/github/read/labels.ts",
       "src/tracker/rooms/github/read/maps.ts",
       "src/tracker/rooms/github/read/page.ts",
       "src/tracker/rooms/github/read/parent-repair.ts",
       "src/tracker/rooms/github/read/preflight.ts",
       "src/tracker/rooms/github/read/pulls.ts",
+      "src/tracker/rooms/github/read/read-sources.ts",
       "src/tracker/rooms/github/read/repo-permissions.ts",
       "src/tracker/rooms/github/read/sub-issues.ts",
-      "src/tracker/rooms/github/repo-permissions.ts",
-      "src/tracker/rooms/github/repo.ts",
-      "src/tracker/rooms/github/rest-list-metadata.ts",
+      "src/tracker/rooms/github/room/backend.ts",
+      "src/tracker/rooms/github/room/checks.ts",
       "src/tracker/rooms/github/room/index.ts",
-      "src/tracker/rooms/github/roster.ts",
+      "src/tracker/rooms/github/routing/fallback-reason.ts",
       "src/tracker/rooms/github/routing/idempotency.ts",
       "src/tracker/rooms/github/routing/index.ts",
       "src/tracker/rooms/github/routing/read-assembly.ts",
       "src/tracker/rooms/github/routing/read-result.ts",
-      "src/tracker/rooms/github/sub-issues.ts",
       "src/tracker/rooms/github/support/capability-register.ts",
       "src/tracker/rooms/github/support/errors.ts",
       "src/tracker/rooms/github/support/index.ts",
@@ -13435,10 +13421,19 @@
       "src/tracker/rooms/github/support/op-usage.ts",
       "src/tracker/rooms/github/support/read-log.ts",
       "src/tracker/rooms/github/support/write-log.ts",
+      "src/tracker/rooms/github/transport/budget.ts",
       "src/tracker/rooms/github/transport/client-support.ts",
       "src/tracker/rooms/github/transport/client.ts",
-      "src/tracker/rooms/github/write-log.ts",
+      "src/tracker/rooms/github/write/blocked-by-write.ts",
+      "src/tracker/rooms/github/write/close-reason.ts",
+      "src/tracker/rooms/github/write/comments.ts",
+      "src/tracker/rooms/github/write/cycle-check.ts",
+      "src/tracker/rooms/github/write/graph.ts",
       "src/tracker/rooms/github/write/index.ts",
+      "src/tracker/rooms/github/write/init-project.ts",
+      "src/tracker/rooms/github/write/issues.ts",
+      "src/tracker/rooms/github/write/label-colors.ts",
+      "src/tracker/rooms/github/write/labels.ts",
       "src/tracker/rooms/gitlab/README.md",
       "src/tracker/rooms/gitlab/SETUP-PROMPT.md",
       "src/tracker/rooms/gitlab/budget.ts",
@@ -13665,9 +13660,11 @@
       "src/tracker/rooms/github/channels/rest",
       "src/tracker/rooms/github/model",
       "src/tracker/rooms/github/read",
+      "src/tracker/rooms/github/room",
       "src/tracker/rooms/github/routing",
       "src/tracker/rooms/github/support",
       "src/tracker/rooms/github/transport",
+      "src/tracker/rooms/github/write",
       "src/tracker/rooms/gitlab",
       "src/tracker/rooms/markdown",
       "src/tracker/rooms/markdown/format",
@@ -13745,14 +13742,6 @@
       {
         "path": "src/tracker/rooms/github/channels",
         "fileCount": 7
-      },
-      {
-        "path": "src/tracker/rooms/github/room",
-        "fileCount": 1
-      },
-      {
-        "path": "src/tracker/rooms/github/write",
-        "fileCount": 1
       }
     ],
     "ungated": [],
