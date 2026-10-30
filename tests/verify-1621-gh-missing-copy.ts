@@ -150,7 +150,8 @@ function main(): void {
 
   console.log('== 5. 分类 token 保留：新消息仍被认成「缺 gh 可执行」 ==')
   const preflightSrc = read('src/tracker/rooms/github/preflight.ts')
-  const clientSrc = read('src/tracker/rooms/github/client.ts')
+  // #1684 阶段 1：gh 客户端真身搬进 transport/，旧路径只留转发；文案看真身。
+  const clientSrc = read('src/tracker/rooms/github/transport/client.ts')
   const preflightMsg = literalAfter(preflightSrc, /message: '(gh not found: platform\.resolveExecutable returned null[^']*)'/)
   const clientMsg = literalAfter(clientSrc, /return fail\(ERROR_KIND\.ENV, '(gh not found: platform\.resolveExecutable returned null and gh --version probe failed[^']*)'/)
   check(!!preflightMsg && hasAll(preflightMsg, ['gh not found', 'platform.resolveExecutable', 'PATH inherited at process startup', 'DSH_GH_PATH']),

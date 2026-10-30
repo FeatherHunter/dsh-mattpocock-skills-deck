@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T19:51:48.042Z",
+  "generatedAt": "2026-10-30T19:57:20.149Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 460,
-  "gateCount": 460,
-  "attributedGates": 410,
+  "chainLength": 461,
+  "gateCount": 461,
+  "attributedGates": 411,
   "unattributedGates": 50,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 26,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 626,
+  "graphFileCount": 636,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -3403,7 +3403,6 @@
         "src/refresh/rooms/host/git-execution.ts",
         "src/refresh/rooms/host/refresh-gate.ts",
         "src/tracker/kernel/outbound-tiers.ts",
-        "src/tracker/rooms/github/client.ts",
         "src/tracker/rooms/github/queries.ts"
       ],
       "dirs": [
@@ -3417,7 +3416,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
       "step": "node tests/verify-1483-chain-session-cache.ts",
@@ -4321,13 +4320,14 @@
         "src/host/platformChannel.ts",
         "src/host/versionControl.ts",
         "src/refresh/rooms/host/gh-execution.ts",
-        "src/tracker/rooms/github/client.ts",
-        "src/tracker/rooms/github/preflight.ts"
+        "src/tracker/rooms/github/preflight.ts",
+        "src/tracker/rooms/github/transport/client.ts"
       ],
       "dirs": [
         "src/host",
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/transport"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -6811,20 +6811,22 @@
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/kernel/outbound-tiers.ts",
         "src/tracker/rooms/github/client.ts",
-        "src/tracker/rooms/github/errors.ts"
+        "src/tracker/rooms/github/errors.ts",
+        "src/tracker/rooms/github/transport/client.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host",
         "src/shared/time-config/src",
         "src/tracker/contract",
         "src/tracker/kernel",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/transport"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 8 条"
+      "reason": "归属来自：源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-970-whole-document.ts",
@@ -7914,7 +7916,7 @@
         "src/refresh/rooms/host/git-execution.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
         "src/refresh/rooms/host/refresh-gate.ts",
-        "src/tracker/rooms/github/client.ts",
+        "src/tracker/rooms/github/transport/client.ts",
         "src/tracker/rooms/gitlab/client.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/gitlab/preflight.ts",
@@ -7927,7 +7929,7 @@
         "src/host",
         "src/host/platform",
         "src/refresh/rooms/host",
-        "src/tracker/rooms/github",
+        "src/tracker/rooms/github/transport",
         "src/tracker/rooms/gitlab",
         "tests/fixtures/gh-gateway"
       ],
@@ -7942,7 +7944,6 @@
       "file": "tests/verify-github-gh-via.ts",
       "guards": [
         "src/refresh/rooms/host/outbound-control.ts",
-        "src/tracker/rooms/github/client-support.ts",
         "src/tracker/rooms/github/client.ts",
         "src/tracker/rooms/github/comment-paging.ts",
         "src/tracker/rooms/github/counts.ts",
@@ -7954,11 +7955,14 @@
         "src/tracker/rooms/github/repo-permissions.ts",
         "src/tracker/rooms/github/repo.ts",
         "src/tracker/rooms/github/sub-issues.ts",
+        "src/tracker/rooms/github/transport/client-support.ts",
+        "src/tracker/rooms/github/transport/client.ts",
         "tests/verify-github-gh-via.ts"
       ],
       "dirs": [
         "src/refresh/rooms/host",
         "src/tracker/rooms/github",
+        "src/tracker/rooms/github/transport",
         "tests"
       ],
       "unattributed": false,
@@ -9545,6 +9549,21 @@
       "reason": "归属来自：源码里的路径字面量 15 条"
     },
     {
+      "step": "node tests/verify-room-layering.ts",
+      "file": "tests/verify-room-layering.ts",
+      "guards": [
+        "src/tracker/rooms/github"
+      ],
+      "dirs": [
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-session-title.ts",
       "file": "tests/verify-session-title.ts",
       "guards": [
@@ -10090,9 +10109,9 @@
         "src/tracker/detection/workspaceStore.ts",
         "src/tracker/kernel/outbound-tiers.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/github/client.ts",
         "src/tracker/rooms/github/idempotency.ts",
         "src/tracker/rooms/github/issues.ts",
+        "src/tracker/rooms/github/transport/client.ts",
         "src/tracker/rooms/gitlab/client.ts",
         "src/tracker/rooms/markdown/scratch-listing.ts",
         "tests/verify-time-config.ts"
@@ -10131,6 +10150,7 @@
         "src/tracker/kernel",
         "src/tracker/registry",
         "src/tracker/rooms/github",
+        "src/tracker/rooms/github/transport",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown",
         "tests"
@@ -12340,7 +12360,6 @@
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-error-single-source.ts",
-      "node tests/verify-gh-gateway.ts",
       "node tests/verify-github-gh-via.ts",
       "node tests/verify-github-label-colors.ts",
       "node tests/verify-github-rest-fallback.ts",
@@ -12350,10 +12369,18 @@
       "node tests/verify-operation-catalog.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-rest-fallback-reason.ts",
+      "node tests/verify-room-layering.ts",
       "node tests/verify-t1-initpublish.ts",
       "node tests/verify-time-config.ts",
       "node tests/verify-tracker-contract.ts",
       "node tests/verify-tracker-session.ts"
+    ],
+    "src/tracker/rooms/github/transport": [
+      "node tests/verify-1607-gh-unc-cwd.ts",
+      "node tests/verify-969-tiered-timeout.ts",
+      "node tests/verify-gh-gateway.ts",
+      "node tests/verify-github-gh-via.ts",
+      "node tests/verify-time-config.ts"
     ],
     "src/tracker/rooms/gitlab": [
       "node tests/verify-deck-tools-matrix.ts",
@@ -12716,12 +12743,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 647,
-    "dirCount": 74,
-    "coveredFileCount": 647,
+    "fileCount": 657,
+    "dirCount": 84,
+    "coveredFileCount": 657,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 57,
+    "dedicatedDirCount": 58,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -13253,6 +13280,8 @@
       "src/tracker/rooms/github/blocked-by-write.ts",
       "src/tracker/rooms/github/budget.ts",
       "src/tracker/rooms/github/capability-register.ts",
+      "src/tracker/rooms/github/channels/graphql/index.ts",
+      "src/tracker/rooms/github/channels/rest/index.ts",
       "src/tracker/rooms/github/checks.ts",
       "src/tracker/rooms/github/client-support.ts",
       "src/tracker/rooms/github/client.ts",
@@ -13274,6 +13303,7 @@
       "src/tracker/rooms/github/label-colors-ops.ts",
       "src/tracker/rooms/github/labels.ts",
       "src/tracker/rooms/github/maps.ts",
+      "src/tracker/rooms/github/model/index.ts",
       "src/tracker/rooms/github/normalize.ts",
       "src/tracker/rooms/github/op-usage.ts",
       "src/tracker/rooms/github/page.ts",
@@ -13283,12 +13313,19 @@
       "src/tracker/rooms/github/queries.ts",
       "src/tracker/rooms/github/read-log.ts",
       "src/tracker/rooms/github/read-sources.ts",
+      "src/tracker/rooms/github/read/index.ts",
       "src/tracker/rooms/github/repo-permissions.ts",
       "src/tracker/rooms/github/repo.ts",
       "src/tracker/rooms/github/rest-list-metadata.ts",
+      "src/tracker/rooms/github/room/index.ts",
       "src/tracker/rooms/github/roster.ts",
+      "src/tracker/rooms/github/routing/index.ts",
       "src/tracker/rooms/github/sub-issues.ts",
+      "src/tracker/rooms/github/support/index.ts",
+      "src/tracker/rooms/github/transport/client-support.ts",
+      "src/tracker/rooms/github/transport/client.ts",
       "src/tracker/rooms/github/write-log.ts",
+      "src/tracker/rooms/github/write/index.ts",
       "src/tracker/rooms/gitlab/README.md",
       "src/tracker/rooms/gitlab/SETUP-PROMPT.md",
       "src/tracker/rooms/gitlab/budget.ts",
@@ -13442,6 +13479,16 @@
       "src/tracker/registry",
       "src/tracker/rooms",
       "src/tracker/rooms/github",
+      "src/tracker/rooms/github/channels",
+      "src/tracker/rooms/github/channels/graphql",
+      "src/tracker/rooms/github/channels/rest",
+      "src/tracker/rooms/github/model",
+      "src/tracker/rooms/github/read",
+      "src/tracker/rooms/github/room",
+      "src/tracker/rooms/github/routing",
+      "src/tracker/rooms/github/support",
+      "src/tracker/rooms/github/transport",
+      "src/tracker/rooms/github/write",
       "src/tracker/rooms/gitlab",
       "src/tracker/rooms/markdown",
       "src/tracker/rooms/markdown/format",
@@ -13501,6 +13548,7 @@
       "src/tracker/registry",
       "src/tracker/rooms",
       "src/tracker/rooms/github",
+      "src/tracker/rooms/github/transport",
       "src/tracker/rooms/gitlab",
       "src/tracker/rooms/markdown",
       "src/tracker/rooms/markdown/format",
@@ -13574,6 +13622,42 @@
       {
         "path": "src/shared/time-config",
         "fileCount": 4
+      },
+      {
+        "path": "src/tracker/rooms/github/channels",
+        "fileCount": 2
+      },
+      {
+        "path": "src/tracker/rooms/github/channels/graphql",
+        "fileCount": 1
+      },
+      {
+        "path": "src/tracker/rooms/github/channels/rest",
+        "fileCount": 1
+      },
+      {
+        "path": "src/tracker/rooms/github/model",
+        "fileCount": 1
+      },
+      {
+        "path": "src/tracker/rooms/github/read",
+        "fileCount": 1
+      },
+      {
+        "path": "src/tracker/rooms/github/room",
+        "fileCount": 1
+      },
+      {
+        "path": "src/tracker/rooms/github/routing",
+        "fileCount": 1
+      },
+      {
+        "path": "src/tracker/rooms/github/support",
+        "fileCount": 1
+      },
+      {
+        "path": "src/tracker/rooms/github/write",
+        "fileCount": 1
       }
     ],
     "ungated": [],

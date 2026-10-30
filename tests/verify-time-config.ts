@@ -141,7 +141,7 @@ const REFERENCES: RefRow[] = [
   // #1560 起算式搬进房间与宿主共用的 kernel（outbound-tiers.ts）；#1570 起到点与迟到名额归还也由准入闸自己执行。
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'GH_QUEUE_WAIT_TIMEOUT_MS', gen: 'GH_QUEUE_WAIT_TIMEOUT_MS', key: 'ghQueueWaitTimeoutMs' },
   { file: 'src/tracker/registry/core.ts', access: 'MATCHES_TIMEOUT_MS', gen: 'MATCHES_TIMEOUT_MS', key: 'matchesTimeoutMs' },
-  { file: 'src/tracker/rooms/github/client.ts', access: 'TIMEOUT_MS', gen: 'GITHUB_CLIENT_TIMEOUT_MS', key: 'githubClientTimeoutMs' },
+  { file: 'src/tracker/rooms/github/transport/client.ts', access: 'TIMEOUT_MS', gen: 'GITHUB_CLIENT_TIMEOUT_MS', key: 'githubClientTimeoutMs' },
   // —— 共享层：整份转出（budget）与直接引用 ——
   { file: 'src/refresh/kernel/host-budget.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
   { file: 'src/refresh/kernel/host-budget.ts', access: 'PROBE_INTERVAL_YELLOW_MS', gen: 'PROBE_INTERVAL_YELLOW_MS', key: 'probeIntervalYellowMs' },
@@ -375,7 +375,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/shared/version-control/src/parse-log.ts', name: 'cMs', reason: '测量用局部变量（两次读钟的差），不是可调参数' },
   { file: 'src/tracker/detection/backendDecision.ts', name: 'autoMs', reason: '测量用局部变量，不是可调参数' },
   { file: 'src/tracker/detection/detectionService.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
-  { file: 'src/tracker/rooms/github/client.ts', name: 'elapsedMs', reason: '测量用局部变量（耗时），不是可调参数' },
+  { file: 'src/tracker/rooms/github/transport/client.ts', name: 'elapsedMs', reason: '测量用局部变量（耗时），不是可调参数' },
   { file: 'src/tracker/rooms/github/idempotency.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
   { file: 'src/tracker/rooms/github/issues.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
   // —— 名字巧合：叫 Window 但不是时间 ——
@@ -433,7 +433,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/namingGuardian.ts', name: 'delay', reason: '派生变量：缺省接已登记的 NAMING_SWEEP_SOON_MS，正常路径用调用方给的 delayMs' },
   { file: 'src/shared/naming-tracking.ts', name: 'grace', reason: '派生变量：缺省接已登记的 NAMING_HINT_GRACE_MS，正常路径用调用方给的 hintGraceMs' },
   { file: 'src/refresh/kernel/failure-backoff.ts', name: 'delay', reason: '派生变量：backoffDelayMs(state) 算出来的本次等待时长，序列本身已登记为 chainBackoffMs' },
-  { file: 'src/tracker/rooms/github/client.ts', name: 'timeout', reason: '透传参数：值来自上层调用参数，本文件不决定时长（出站层的档位由 outbound-tiers.ts 定，已登记）' },
+  { file: 'src/tracker/rooms/github/transport/client.ts', name: 'timeout', reason: '透传参数：值来自上层调用参数，本文件不决定时长（出站层的档位由 outbound-tiers.ts 定，已登记）' },
   { file: 'src/tracker/rooms/gitlab/client.ts', name: 'timeout', reason: '同上，透传参数' },
   { file: 'src/refresh/rooms/host/issue-index-scan.ts', name: 'startedMs', reason: '读钟时刻（这趟扫描什么时候开始的），不是可调参数' },
   { file: 'src/refresh/rooms/host/issue-index-scan.ts', name: 'nextWatermarkMs', reason: '算出来的下一个水位时刻，不是可调参数' },
@@ -467,7 +467,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/gh-execution.ts', name: 'rkWaitedMs', reason: '测量用局部变量：排队段从开始等到现在过了多久，不是可调参数' },
   { file: 'src/refresh/rooms/host/issue-list-fetch.ts', name: 'sinceMs', reason: '由调用方给的起点时刻算出来的时间戳，不是可调参数' },
   { file: 'src/refresh/rooms/host/write-event-subscription.ts', name: 'waitedMs', reason: '算出来的等待时长（现在减上次动作时刻），不是输入参数' },
-  { file: 'src/tracker/rooms/github/client.ts', name: 'waitedMs', reason: '测量用耗时：这一笔在名额队列里等了多久，不是可调参数' },
+  { file: 'src/tracker/rooms/github/transport/client.ts', name: 'waitedMs', reason: '测量用耗时：这一笔在名额队列里等了多久，不是可调参数' },
   { file: 'src/refresh/rooms/host/outbound-admission.ts', name: 'waitedMs', reason: '算出来的等待时长（放行时刻减排队开始时刻），日志字段，不是输入参数' },
   { file: 'src/refresh/rooms/host/outbound-admission.ts', name: 'waitMs', reason: '透传变量：调用方（各出站路经 queueTimeoutForTier）传入的排队预算，闸只归一与执行，不新增时长来源' },
   // #1570：排队超时错误上的两个字段是「量出来的等多久」与「调用方当初给的预算」，都由调用方参数算出，不新增时长来源。
