@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T23:40:28.941Z",
+  "generatedAt": "2026-10-30T23:49:11.683Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 463,
   "gateCount": 463,
@@ -10168,6 +10168,7 @@
         "src/refresh/rooms/host/issue-index-scan.ts",
         "src/refresh/rooms/host/issue-list-fetch.ts",
         "src/refresh/rooms/host/outbound-admission.ts",
+        "src/refresh/rooms/host/probe-handler.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
         "src/refresh/rooms/host/quota-observer-types.ts",
         "src/refresh/rooms/host/quota-observer.ts",
@@ -10239,7 +10240,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 105 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 106 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
