@@ -4425,6 +4425,8 @@
       sync,
       syncChips,
       readAtText: timeText(nowMs, state.readAtMs),
+      // 上游写的是 <远端>/<分支>；只取第一段做标签，读者看到的是「远端 origin 12 分钟前」。
+      remoteName: currentBranch === void 0 || currentBranch.upstream === null ? null : currentBranch.upstream.split("/")[0],
       basisText: state.basisMs === null ? COPY.rail.basisUnknown : timeText(nowMs, state.basisMs),
       next: next.text,
       nextTone: next.tone,
@@ -7017,6 +7019,7 @@
   ];
 
   // docs/prototype/vc-redesign/src/domain/pages.ts
+  var MANAGE_PAGES = ["branch-tags", "remote", "submodules", "maintenance", "migrate", "config", "hooks", "diagnostics", "platform"];
   function createPageState() {
     return {
       stack: [],
@@ -7492,6 +7495,161 @@
     return h("span", { class: `note note-${tone}`, text });
   }
 
+  // docs/prototype/vc-redesign/src/ui/rail.ts
+  function renderRail(model, result, options = {}) {
+    const pageOpen = options.pageOpen === true;
+    const rail = h("header", { class: "rail" + (pageOpen ? " is-page" : ""), attrs: { "aria-label": "\u4ED3\u5E93\u72B6\u6001" } });
+    const idRow = h("div", { class: "rail-row rail-id" });
+    const idMain = h("div", { class: "rail-id-main" });
+    idMain.append(h("span", { class: "rail-repo mono", text: model.worktreeDisplay, title: model.worktreePath }));
+    if (model.branch === null) {
+      idMain.append(chip(COPY.rail.detached, "warn", { small: true }));
+    } else {
+      idMain.append(
+        h("span", { class: "rail-slash", text: "/", attrs: { "aria-hidden": "true" } }),
+        h(
+          "button",
+          {
+            class: "rail-branch-btn",
+            attrs: {
+              type: "button",
+              title: COPY.rail.branchHint,
+              "aria-label": `\u5F53\u524D\u5206\u652F ${model.branch}\u3002${COPY.rail.branchHint}`,
+              "data-focus-key": "branch-open"
+            },
+            dataset: { action: "branch-open" }
+          },
+          h("span", { class: "rail-branch mono", text: model.branch }),
+          h("span", { class: "rail-branch-chevron", attrs: { "aria-hidden": "true" } }, icon("chevron", 11))
+        )
+      );
+    }
+    if (model.oidShort !== null) {
+      idMain.append(h("span", { class: "rail-oid mono", text: model.oidShort, title: "\u5F53\u524D\u63D0\u4EA4\u7684\u77ED\u53F7" }));
+    }
+    const tools = h("div", { class: "rail-tools", attrs: { role: "group", "aria-label": "\u5168\u5C40\u5165\u53E3" } });
+    tools.append(
+      h("button", {
+        class: "icon-btn",
+        attrs: { type: "button", "aria-label": COPY.rail.copyRepoPath, title: COPY.rail.copyRepoPath, "data-focus-key": "copy-repo" },
+        dataset: { action: "copy-repo" }
+      }, icon("copy", 14)),
+      h("button", {
+        class: "icon-btn",
+        attrs: { type: "button", "aria-label": "\u628A\u5F53\u524D\u72B6\u6001\u4EA4\u7ED9 AI", title: "\u4EA4\u7ED9 AI\uFF1A\u628A\u4ED3\u5E93\u72B6\u6001\u3001\u5F53\u524D\u8FD9\u4E00\u9875\u548C\u96BE\u5904\u6574\u7406\u6210\u4E00\u6BB5\u53EF\u590D\u5236\u7684\u4EA4\u63A5\u8BF4\u660E", "data-focus-key": "handoff-general" },
+        dataset: { action: "handoff-open", kind: "general" }
+      }, icon("spark", 14)),
+      h("button", {
+        class: "icon-btn",
+        attrs: { type: "button", "aria-label": "\u547D\u4EE4\u9762\u677F\uFF1A\u641C\u7D22\u5168\u90E8 162 \u6761\u80FD\u529B", title: "\u547D\u4EE4\u9762\u677F\uFF08Ctrl/\u2318+K\uFF09\uFF1A\u6309\u540D\u79F0\u3001\u7F16\u53F7\u6216\u547D\u4EE4\u641C\u80FD\u529B", "data-focus-key": "palette-open" },
+        dataset: { action: "palette-open" }
+      }, icon("search", 14)),
+      h("button", {
+        class: "icon-btn" + (options.manageActive === true ? " is-on" : ""),
+        attrs: {
+          type: "button",
+          "aria-label": "\u6253\u5F00\u7BA1\u7406\uFF1A\u5206\u652F\u4E0E\u8FDC\u7AEF\u3001\u7EF4\u62A4\u3001\u8BCA\u65AD\u7B49\u4E5D\u4E2A\u5206\u533A",
+          title: "\u7BA1\u7406\uFF08\u5206\u652F\u4E0E\u8FDC\u7AEF\u3001\u5B50\u6A21\u5757\u3001\u7EF4\u62A4\u3001\u8FC1\u79FB\u3001\u914D\u7F6E\u3001\u94A9\u5B50\u3001\u8BCA\u65AD\u3001\u5E73\u53F0\uFF09",
+          "data-focus-key": "manage-open",
+          "aria-current": options.manageActive === true ? "page" : null
+        },
+        dataset: { action: "page-open", page: "manage" }
+      }, icon("settings", 14))
+    );
+    idRow.append(idMain, tools);
+    rail.append(idRow);
+    if (pageOpen) {
+      if (result !== null) rail.append(resultBanner(result));
+      return rail;
+    }
+    const syncRow = h("div", { class: "rail-row rail-sync" });
+    if (model.sync.kind === "counts") {
+      for (const item of model.syncChips) {
+        const tone = item.value === 0 ? " is-zero" : item.kind === "ahead" ? " is-ahead" : " is-behind";
+        syncRow.append(
+          h(
+            "span",
+            {
+              class: `sync-count${tone}`,
+              attrs: { title: COPY.rail.syncHint(item.label, item.value), "aria-label": COPY.rail.syncHint(item.label, item.value) }
+            },
+            h("span", { class: "sync-label", text: item.label }),
+            h("span", { class: "sync-value", text: String(item.value) })
+          )
+        );
+      }
+    } else {
+      syncRow.append(chip(model.sync.text, model.sync.tone === "warn" ? "warn" : "muted", { small: true }));
+    }
+    syncRow.append(
+      h(
+        "span",
+        { class: "fact" },
+        h("span", { class: "fact-k", text: "\u8BFB\u53D6\u4E8E" }),
+        h("span", { class: "fact-v", text: model.readAtText, attrs: { title: COPY.rail.readHint } })
+      ),
+      // 「远端依据」改成入口，标签带上远端名：读者一眼能看出这个时间是跟哪个远端比的。
+      h(
+        "button",
+        {
+          class: "fact fact-btn",
+          attrs: { type: "button", "data-focus-key": "basis-open", title: COPY.rail.basisHint + "\uFF1B\u70B9\u5F00\u67E5\u770B\u8FDC\u7AEF\u6E05\u5355\u4E0E\u540C\u6B65\u8BFB\u6570" },
+          dataset: { action: "page-open", page: "remote" }
+        },
+        h("span", { class: "fact-k", text: model.remoteName === null ? "\u8FDC\u7AEF\u4F9D\u636E" : `\u8FDC\u7AEF ${model.remoteName}` }),
+        h("span", { class: "fact-v", text: model.basisText })
+      )
+    );
+    syncRow.append(
+      h("button", {
+        class: `icon-text-btn${model.reloading ? " is-busy" : ""}`,
+        attrs: {
+          type: "button",
+          "data-focus-key": "reload",
+          disabled: model.reloading || model.busy !== null,
+          "aria-busy": model.reloading ? "true" : null,
+          title: `${COPY.rail.reload}\uFF08${COPY.rail.readAt(model.readAtText)}\uFF09`
+        },
+        dataset: { action: "reload" }
+      }, icon("refresh", 13), h("span", { text: model.reloading ? COPY.rail.reloadBusy : COPY.rail.reload }))
+    );
+    const actRow = h("div", { class: "rail-row rail-acts" });
+    actRow.append(
+      button({ label: model.pull.label, kind: "secondary", size: "sm", disabled: model.pull.disabled, busy: model.busy === "pull", busyLabel: COPY.busy.pull, title: model.pull.reason, action: "pull", focusKey: "pull" })
+    );
+    actRow.append(
+      button({ label: model.fetch.label, kind: "ghost", size: "sm", disabled: model.fetch.disabled, busy: model.busy === "fetch" || model.reloading, busyLabel: COPY.busy.fetch, title: model.fetch.reason, action: "fetch", focusKey: "fetch" })
+    );
+    const pushButton = button({ label: model.push.label, kind: "secondary", size: "sm", disabled: model.push.disabled, busy: model.busy === "push", busyLabel: COPY.busy.push, title: model.push.reason, action: "push", focusKey: "push" });
+    if (model.push.primary) pushButton.classList.add("is-suggested");
+    actRow.append(pushButton);
+    const nextChip = h(
+      "span",
+      { class: `next-step next-${model.nextTone}`, attrs: { title: COPY.rail.nextHint } },
+      h("span", { class: "next-k", text: COPY.rail.next }),
+      h("span", { class: "next-v", text: model.next })
+    );
+    actRow.append(nextChip);
+    const reasons = h("div", { class: "rail-reasons" });
+    const rows = [
+      [COPY.actions.pull, model.pull],
+      [COPY.actions.push, model.push]
+    ];
+    for (const [label, action] of rows) {
+      if (action.reason === null) continue;
+      reasons.append(h(
+        "div",
+        { class: `reason${action.disabled ? " is-block" : " is-warn"}` },
+        h("span", { class: "reason-k", text: label }),
+        h("span", { class: "reason-v", text: action.reason })
+      ));
+    }
+    rail.append(syncRow, actRow);
+    if (reasons.childElementCount > 0) rail.append(reasons);
+    if (result !== null) rail.append(resultBanner(result));
+    return rail;
+  }
+
   // docs/prototype/vc-redesign/src/ui/views/handoff.ts
   function renderHandoffSheet(model) {
     const { draft, copied } = model;
@@ -7555,9 +7713,9 @@
     layer.append(sheet);
     return layer;
   }
-  function handoffEntry(label, kind, variant) {
+  function handoffEntry(label, kind) {
     const node = h("button", {
-      class: `ai-entry ai-entry-${variant}`,
+      class: "ai-entry ai-entry-inline",
       attrs: {
         type: "button",
         title: COPY.ai.entryAria(label),
@@ -7566,149 +7724,7 @@
       },
       dataset: { action: "handoff-open", kind }
     }, icon("spark", 14), h("span", { class: "ai-entry-label", text: label }));
-    if (variant === "rail") node.append(h("span", { class: "ai-entry-sub", text: COPY.ai.railSub }));
     return node;
-  }
-
-  // docs/prototype/vc-redesign/src/ui/rail.ts
-  function renderRail(model, result) {
-    const rail = h("header", { class: "rail", attrs: { "aria-label": "\u4ED3\u5E93\u72B6\u6001" } });
-    const idRow = h("div", { class: "rail-row rail-id" });
-    idRow.append(h("span", { class: "rail-repo mono", text: model.worktreeDisplay, title: model.worktreePath }));
-    if (model.branch === null) {
-      idRow.append(chip(COPY.rail.detached, "warn", { small: true }));
-    } else {
-      idRow.append(
-        h("span", { class: "rail-slash", text: "/", attrs: { "aria-hidden": "true" } }),
-        h(
-          "button",
-          {
-            class: "rail-branch-btn",
-            attrs: {
-              type: "button",
-              title: COPY.rail.branchHint,
-              "aria-label": `\u5F53\u524D\u5206\u652F ${model.branch}\u3002${COPY.rail.branchHint}`,
-              "data-focus-key": "branch-open"
-            },
-            dataset: { action: "branch-open" }
-          },
-          h("span", { class: "rail-branch mono", text: model.branch }),
-          h("span", { class: "rail-branch-chevron", attrs: { "aria-hidden": "true" } }, icon("chevron", 11))
-        )
-      );
-    }
-    if (model.oidShort !== null) {
-      idRow.append(h("span", { class: "rail-oid mono", text: model.oidShort, title: "\u5F53\u524D\u63D0\u4EA4\u7684\u77ED\u53F7" }));
-    }
-    idRow.append(
-      h("button", {
-        class: "icon-btn",
-        attrs: { type: "button", "aria-label": COPY.rail.copyRepoPath, title: COPY.rail.copyRepoPath, "data-focus-key": "copy-repo" },
-        dataset: { action: "copy-repo" }
-      }, icon("copy", 14)),
-      h("button", {
-        class: "icon-btn icon-btn-wide",
-        attrs: { type: "button", "aria-label": "\u547D\u4EE4\u9762\u677F\uFF1A\u641C\u7D22\u5168\u90E8 162 \u6761\u80FD\u529B", title: "\u547D\u4EE4\u9762\u677F\uFF08Ctrl/\u2318+K\uFF09\uFF1A\u6309\u540D\u79F0\u3001\u7F16\u53F7\u6216\u547D\u4EE4\u641C\u80FD\u529B", "data-focus-key": "palette-open" },
-        dataset: { action: "palette-open" }
-      }, icon("search", 14)),
-      h("button", {
-        class: "icon-btn icon-btn-wide",
-        attrs: { type: "button", "aria-label": "\u6253\u5F00\u7BA1\u7406\uFF1A\u5206\u652F\u4E0E\u8FDC\u7AEF\u3001\u7EF4\u62A4\u3001\u8BCA\u65AD\u7B49\u4E5D\u4E2A\u5206\u533A", title: "\u7BA1\u7406\uFF08\u5206\u652F\u4E0E\u8FDC\u7AEF\u3001\u5B50\u6A21\u5757\u3001\u7EF4\u62A4\u3001\u8FC1\u79FB\u3001\u914D\u7F6E\u3001\u94A9\u5B50\u3001\u8BCA\u65AD\u3001\u5E73\u53F0\uFF09", "data-focus-key": "manage-open" },
-        dataset: { action: "page-open", page: "manage" }
-      }, icon("settings", 14))
-    );
-    const syncRow = h("div", { class: "rail-row rail-sync" });
-    if (model.sync.kind === "counts") {
-      for (const item of model.syncChips) {
-        const tone = item.value === 0 ? " is-zero" : item.kind === "ahead" ? " is-ahead" : " is-behind";
-        syncRow.append(
-          h(
-            "span",
-            {
-              class: `sync-count${tone}`,
-              attrs: { title: COPY.rail.syncHint(item.label, item.value), "aria-label": COPY.rail.syncHint(item.label, item.value) }
-            },
-            h("span", { class: "sync-label", text: item.label }),
-            h("span", { class: "sync-value", text: String(item.value) })
-          )
-        );
-      }
-    } else {
-      syncRow.append(chip(model.sync.text, model.sync.tone === "warn" ? "warn" : "muted", { small: true }));
-    }
-    syncRow.append(
-      h(
-        "span",
-        { class: "fact" },
-        h("span", { class: "fact-k", text: "\u8BFB\u53D6\u4E8E" }),
-        h("span", { class: "fact-v", text: model.readAtText, attrs: { title: COPY.rail.readHint } })
-      ),
-      // 「远端依据」改成入口：它说不清的时候，点开就是远端页（远端清单与同步读数都在那里）。
-      h(
-        "button",
-        {
-          class: "fact fact-btn",
-          attrs: { type: "button", "data-focus-key": "basis-open", title: COPY.rail.basisHint + "\uFF1B\u70B9\u5F00\u67E5\u770B\u8FDC\u7AEF\u6E05\u5355\u4E0E\u540C\u6B65\u8BFB\u6570" },
-          dataset: { action: "page-open", page: "remote" }
-        },
-        h("span", { class: "fact-k", text: "\u8FDC\u7AEF\u4F9D\u636E" }),
-        h("span", { class: "fact-v", text: model.basisText })
-      )
-    );
-    syncRow.append(
-      h("button", {
-        class: `icon-text-btn${model.reloading ? " is-busy" : ""}`,
-        attrs: {
-          type: "button",
-          "data-focus-key": "reload",
-          disabled: model.reloading || model.busy !== null,
-          "aria-busy": model.reloading ? "true" : null,
-          title: `${COPY.rail.reload}\uFF08${COPY.rail.readAt(model.readAtText)}\uFF09`
-        },
-        dataset: { action: "reload" }
-      }, icon("refresh", 13), h("span", { text: model.reloading ? COPY.rail.reloadBusy : COPY.rail.reload }))
-    );
-    const actRow = h("div", { class: "rail-row rail-acts" });
-    actRow.append(
-      button({ label: model.pull.label, kind: "secondary", size: "sm", disabled: model.pull.disabled, busy: model.busy === "pull", busyLabel: COPY.busy.pull, title: model.pull.reason, action: "pull", focusKey: "pull" })
-    );
-    actRow.append(
-      button({ label: model.fetch.label, kind: "ghost", size: "sm", disabled: model.fetch.disabled, busy: model.busy === "fetch" || model.reloading, busyLabel: COPY.busy.fetch, title: model.fetch.reason, action: "fetch", focusKey: "fetch" })
-    );
-    const pushButton = button({ label: model.push.label, kind: "secondary", size: "sm", disabled: model.push.disabled, busy: model.busy === "push", busyLabel: COPY.busy.push, title: model.push.reason, action: "push", focusKey: "push" });
-    if (model.push.primary) pushButton.classList.add("is-suggested");
-    actRow.append(pushButton);
-    const nextChip = h(
-      "span",
-      { class: `next-step next-${model.nextTone}`, attrs: { title: COPY.rail.nextHint } },
-      h("span", { class: "next-k", text: COPY.rail.next }),
-      h("span", { class: "next-v", text: model.next })
-    );
-    actRow.append(nextChip);
-    const pathRow = h(
-      "div",
-      { class: "rail-row rail-path" },
-      h("span", { class: "rail-path-label", text: "\u5DE5\u4F5C\u6811\u8DEF\u5F84" }),
-      h("span", { class: "rail-path-value mono", text: model.worktreePath })
-    );
-    const aiRow = h("div", { class: "rail-row rail-ai" }, handoffEntry(HANDOFF_ENTRY.general, "general", "rail"));
-    const reasons = h("div", { class: "rail-reasons" });
-    const rows = [
-      [COPY.actions.pull, model.pull],
-      [COPY.actions.push, model.push]
-    ];
-    for (const [label, action] of rows) {
-      if (action.reason === null) continue;
-      reasons.append(h(
-        "div",
-        { class: `reason${action.disabled ? " is-block" : " is-warn"}` },
-        h("span", { class: "reason-k", text: label }),
-        h("span", { class: "reason-v", text: action.reason })
-      ));
-    }
-    rail.append(idRow, syncRow, actRow, reasons, pathRow, aiRow);
-    if (result !== null) rail.append(resultBanner(result));
-    return rail;
   }
 
   // docs/prototype/vc-redesign/src/ui/views/changes.ts
@@ -7792,7 +7808,7 @@
       "div",
       { class: "composer-hint", id: "commit-hint" },
       h("span", { class: "hint-text", text: model.composer.hint }),
-      handoffEntry(HANDOFF_ENTRY.changes, "changes", "inline")
+      handoffEntry(HANDOFF_ENTRY.changes, "changes")
     );
     const commitButton = button({
       label: COPY.changes.commitLabel(model.composer.stagedCount),
@@ -8062,7 +8078,7 @@
     const list = h("div", { class: "branch-scroll" });
     for (const row of model.rows) list.append(renderRow(model, row));
     wrap.append(list);
-    wrap.append(h("div", { class: "branch-ai" }, handoffEntry(HANDOFF_ENTRY.branches, "branches", "inline")));
+    wrap.append(h("div", { class: "branch-ai" }, handoffEntry(HANDOFF_ENTRY.branches, "branches")));
     return wrap;
   }
   function renderRow(model, row) {
@@ -8625,7 +8641,7 @@
     view.append(h(
       "div",
       { class: "wt-foot" },
-      handoffEntry(model.abnormalCount > 0 ? HANDOFF_ENTRY.worktrees : COPY.ai.cleanEntry, "worktrees", "inline")
+      handoffEntry(model.abnormalCount > 0 ? HANDOFF_ENTRY.worktrees : COPY.ai.cleanEntry, "worktrees")
     ));
     if (result !== null) view.append(resultBanner(result));
     return view;
@@ -8857,15 +8873,20 @@
   // docs/prototype/vc-redesign/src/ui/views/page-shell.ts
   function pageShell(page, title, lede, count, body, options = {}) {
     const head = h("div", { class: "page-head" });
-    head.append(
+    const titleRow = h("div", { class: "page-title-row" });
+    const titleNode = h("h2", { class: "page-title", text: title });
+    if (options.focusKey !== void 0) {
+      titleNode.setAttribute("tabindex", "-1");
+      titleNode.setAttribute("data-focus-key", options.focusKey);
+    }
+    titleRow.append(
       h("button", {
         class: "page-back",
-        attrs: { type: "button", "data-focus-key": "page-back", title: "\u8FD4\u56DE\u4E0A\u4E00\u9875\uFF08Esc \u4E5F\u53EF\u4EE5\uFF09" },
+        attrs: { type: "button", "data-focus-key": "page-back", title: "\u8FD4\u56DE\u4E0A\u4E00\u9875\uFF08Esc \u4E5F\u53EF\u4EE5\uFF09", "aria-label": "\u8FD4\u56DE\u4E0A\u4E00\u9875" },
         dataset: { action: "page-back" }
-      }, icon("back", 14), h("span", { text: "\u8FD4\u56DE" }))
+      }, icon("back", 14), h("span", { class: "page-back-label", text: "\u8FD4\u56DE" })),
+      titleNode
     );
-    const titleRow = h("div", { class: "page-title-row" });
-    titleRow.append(h("h2", { class: "page-title", text: title }));
     if (count !== null) titleRow.append(chip(count, "muted", { small: true }));
     if (options.danger === true) titleRow.append(chip("\u542B\u4E0D\u53EF\u9006\u52A8\u4F5C", "error", { small: true }));
     if (options.actions !== void 0 && options.actions.length > 0) {
@@ -8949,10 +8970,12 @@
       dataset: { action, ...options.dataset ?? {} }
     }, label);
   }
-  function capabilitiesSection(page, state) {
+  function capabilitiesSection(page, state, skips = []) {
     const caps = capabilitiesOf(page);
-    const rows = caps.map((cap) => capabilityRow(cap, state));
-    return section("\u672C\u9875\u8D1F\u8D23\u7684\u80FD\u529B", caps.length + " \u6761", "\u8FD9\u6761\u9875\u9762\u4E0A\u6BCF\u4E00\u4EF6\u80FD\u505A\u7684\u4E8B\u90FD\u5728\u8FD9\u4EFD\u6E05\u5355\u91CC\uFF1B\u5E26\u300C\u6F14\u793A\u300D\u7684\u4F1A\u8D70\u4E00\u904D\u786E\u8BA4\u6D41\u7A0B\uFF0C\u53EA\u6539\u754C\u9762\u72B6\u6001\uFF0C\u4E0D\u78B0\u4ED3\u5E93\u3002", rows, { id: "cap-list" });
+    const skipped = caps.filter((cap) => skips.includes(cap.id));
+    const rows = caps.filter((cap) => skips.includes(cap.id) === false).map((cap) => capabilityRow(cap, state));
+    const note3 = skipped.length === 0 ? "\u8FD9\u6761\u9875\u9762\u4E0A\u6BCF\u4E00\u4EF6\u80FD\u505A\u7684\u4E8B\u90FD\u5728\u8FD9\u4EFD\u6E05\u5355\u91CC\uFF1B\u5E26\u300C\u6F14\u793A\u300D\u7684\u4F1A\u8D70\u4E00\u904D\u786E\u8BA4\u6D41\u7A0B\uFF0C\u53EA\u6539\u754C\u9762\u72B6\u6001\uFF0C\u4E0D\u78B0\u4ED3\u5E93\u3002" : "\u8FD9\u6761\u9875\u9762\u4E0A\u6BCF\u4E00\u4EF6\u80FD\u505A\u7684\u4E8B\u90FD\u5728\u8FD9\u4EFD\u6E05\u5355\u91CC\uFF1B\u5E26\u300C\u6F14\u793A\u300D\u7684\u4F1A\u8D70\u4E00\u904D\u786E\u8BA4\u6D41\u7A0B\uFF0C\u53EA\u6539\u754C\u9762\u72B6\u6001\uFF0C\u4E0D\u78B0\u4ED3\u5E93\u3002\u4E0A\u65B9\u5DF2\u6309\u52A8\u4F5C\u5217\u51FA\u7684 " + skipped.length + " \u6761\uFF08" + skipped.map((cap) => cap.id).join("\u3001") + "\uFF09\u4E0D\u5728\u8FD9\u91CC\u91CD\u590D\u3002";
+    return section("\u672C\u9875\u8D1F\u8D23\u7684\u80FD\u529B", caps.length + " \u6761", note3, rows, { id: "cap-list" });
   }
   function capabilityRow(cap, state) {
     const open = state.capOpen === cap.id;
@@ -8991,15 +9014,24 @@
     article.append(foot);
     if (open && !cap.readOnly) article.append(capConfirmCard(cap));
     if (openDanger && needsSecondConfirm(cap)) article.append(capConfirmCard(cap, true));
-    if (result !== null) {
-      article.append(h(
-        "div",
-        { class: "cap-result", attrs: { role: "status" } },
-        h("span", { class: "cap-result-tag", text: "\u7ED3\u679C" }),
-        h("span", { class: "cap-result-text", text: result.text })
-      ));
-    }
+    if (result !== null) article.append(capabilityResult(cap.id, result.text));
     return article;
+  }
+  function inlineConfirmCard(cap, state) {
+    if (cap.readOnly || state.capOpen !== cap.id) return null;
+    return capConfirmCard(cap);
+  }
+  function inlineCapabilityResult(cap, state) {
+    if (state.capResult === null || state.capResult.id !== cap.id) return null;
+    return capabilityResult(cap.id, state.capResult.text);
+  }
+  function capabilityResult(_id, text) {
+    return h(
+      "div",
+      { class: "cap-result", attrs: { role: "status" } },
+      h("span", { class: "cap-result-tag", text: "\u7ED3\u679C" }),
+      h("span", { class: "cap-result-text", text })
+    );
   }
   function capConfirmCard(cap, secondStage = false) {
     const dangerous = cap.level === "\u6BC1";
@@ -9367,6 +9399,23 @@
       dataset: dangerous ? { id: cap.id } : { id: cap.id }
     });
   }
+  function capWrap(cap, node, state) {
+    return h("div", {
+      class: "cap-block" + (state.highlight === cap.id ? " is-flash" : ""),
+      attrs: { "data-cap-id": cap.id }
+    }, node);
+  }
+  function capabilityBlock(cap, body, state, options = {}) {
+    const block = h("div", {
+      class: "cap-block" + (state.highlight === cap.id ? " is-flash" : "") + (state.capOpen === cap.id ? " is-open" : ""),
+      attrs: { "data-cap-id": cap.id }
+    }, objectRow(body, [capabilityAction(cap)], { danger: options.danger === true }));
+    const card = inlineConfirmCard(cap, state);
+    if (card !== null) block.append(card);
+    const result = inlineCapabilityResult(cap, state);
+    if (result !== null) block.append(result);
+    return block;
+  }
   function renderMaintenance(ctx) {
     const { data, state } = ctx;
     const looseMiB = (capturedCounts.sizeKiB / 1024).toFixed(2);
@@ -9379,14 +9428,14 @@
       { key: "\u5DE5\u4F5C\u6811", value: capturedWorktrees.length + " \u68F5" },
       { key: "\u5F15\u7528\u603B\u6570", value: capturedRefsTotal + " \u6761 \xB7 \u672C\u5730\u5206\u652F " + capturedLocalBranches + " \u6761" }
     ]);
-    const lines = ["11.5", "11.6", "11.7", "11.8", "11.9", "11.10", "11.11", "11.15"];
+    const lines = ["11.5", "11.7", "11.8", "11.9", "11.10", "11.11", "11.15"];
     const actionRows = lines.map((id) => {
       const cap = capOf(id);
-      return objectRow([
+      return capabilityBlock(cap, [
         capabilitySummary(cap),
         h("span", { class: "obj-meta mono", text: cap.command }),
         h("span", { class: "obj-sub", text: cap.opens + "\uFF1B" + cap.result })
-      ], [capabilityAction(cap)], { danger: cap.level === "\u6BC1" });
+      ], state);
     });
     const dangerRows = [];
     for (const id of ["5.11", "11.6", "5.13", "11.14"]) {
@@ -9399,33 +9448,33 @@
         h("p", { class: "danger-recovery", text: id === "11.6" ? "\u6E05\u7406\u4E4B\u540E\u4E0D\u53EF\u8FBE\u5BF9\u8C61\u4ECE\u672C\u5730\u6D88\u5931\uFF0C\u53EA\u6709\u91CD\u65B0\u4ECE\u8FDC\u7AEF\u6293\u53D6\u6216\u4ECE\u5907\u4EFD\u6062\u590D\u624D\u80FD\u627E\u56DE\u3002\u6267\u884C\u524D\u5148\u786E\u8BA4\u6CA1\u6709\u5176\u4ED6\u5DE5\u4F5C\u6811\u8FD8\u5F15\u7528\u5B83\u4EEC\u3002" : "\u8FD9\u4E00\u6B65\u4F1A\u91CD\u5199\u5168\u5E93\u5386\u53F2\u6216\u5F15\u7528\u683C\u5F0F\uFF0C\u5199\u51FA\u6765\u7684\u7ED3\u679C\u4E0D\u80FD\u64A4\u56DE\uFF1B\u9762\u677F\u53EA\u5C55\u793A\u540E\u679C\u4E0E\u5907\u4EFD\u4F4D\u7F6E\uFF0C\u771F\u5B9E\u6267\u884C\u4EA4\u7ED9\u4E13\u95E8\u7684\u5DE5\u5177\uFF0C\u5E76\u5148\u5728\u526F\u672C\u4E0A\u6F14\u7EC3\u3002" }),
         h("p", { class: "danger-meta", text: id === "11.6" ? "\u5BF9\u8C61\u6570\u91CF\uFF1A" + capturedCounts.prunePackable + " \u4E2A\u53EF\u56DE\u6536\u5BF9\u8C61 \xB7 " + capturedCounts.garbage + " \u4E2A\u5783\u573E\u6587\u4EF6" : "\u4ED3\u5E93\uFF1A" + capturedRepoRoot + " \xB7 \u5206\u652F\uFF1A" + capturedBranch })
       );
-      dangerRows.push(objectRow([body2], [capabilityAction(cap)], { danger: true }));
+      dangerRows.push(capabilityBlock(cap, [body2], state, { danger: true }));
     }
     const body = h(
       "div",
       { class: "page-stack" },
       section("\u4ED3\u5E93\u4F53\u91CF", null, "\u8FD9\u91CC\u6BCF\u4E00\u9879\u90FD\u662F git \u81EA\u5DF1\u7684\u8BFB\u6570\uFF08git count-objects -v\uFF09\uFF1B\u6570\u5B57\u968F\u771F\u5B9E\u4ED3\u5E93\u53D8\u5316\uFF0C\u4E0D\u662F\u793A\u4F8B\u503C\u3002", [facts]),
-      section("\u6574\u7406\u52A8\u4F5C", "8 \u6761", "\u53EF\u64A4\u9500\u7684\u6574\u7406\u52A8\u4F5C\u96C6\u4E2D\u5728\u8FD9\u91CC\uFF1A\u5B83\u4EEC\u53EA\u6539\u5BF9\u8C61\u5B58\u50A8\u4E0E\u5F15\u7528\u6253\u5305\u65B9\u5F0F\uFF0C\u4E0D\u6539\u63D0\u4EA4\u5185\u5BB9\u3002", actionRows),
+      section("\u6574\u7406\u52A8\u4F5C", lines.length + " \u6761", "\u53EF\u64A4\u9500\u7684\u6574\u7406\u52A8\u4F5C\u96C6\u4E2D\u5728\u8FD9\u91CC\uFF1A\u5B83\u4EEC\u53EA\u6539\u5BF9\u8C61\u5B58\u50A8\u4E0E\u5F15\u7528\u6253\u5305\u65B9\u5F0F\uFF0C\u4E0D\u6539\u63D0\u4EA4\u5185\u5BB9\uFF1B\u5E26\u300C\u53EA\u8BFB\u300D\u7684\u51E0\u6761\u53EA\u5C55\u793A\u8BFB\u5230\u7684\u5F62\u72B6\u3002", actionRows),
       section("\u5371\u9669\u533A", "4 \u6761", "\u6574\u4ED3\u4E0D\u53EF\u9006\u7684\u52A8\u4F5C\u4E0D\u653E\u5728\u884C\u5185\u786E\u8BA4\u5361\u91CC\uFF1A\u8981\u5148\u8FDB\u4E8C\u7EA7\u6838\u5BF9\u9875\uFF0C\u770B\u8FC7\u540E\u679C\u3001\u5907\u4EFD\u4F4D\u7F6E\u4E0E\u6062\u590D\u8DEF\u5F84\uFF0C\u624D\u80FD\u8D70\u5230\u6700\u540E\u4E00\u6B65\u3002", dangerRows, { danger: true, id: "danger-zone" }),
-      capabilitiesSection("maintenance", state)
+      capabilitiesSection("maintenance", state, [...lines, "5.11", "11.6", "5.13", "11.14"])
     );
     return pageShell("maintenance", PAGE_META.maintenance.title, PAGE_META.maintenance.lede, null, body, { danger: true });
   }
   function renderMigrate(ctx) {
     const { state } = ctx;
     const rows = [];
-    for (const id of ["8.16", "11.1", "11.12", "11.13", "14.1"]) {
+    for (const id of ["11.1", "14.1"]) {
       const cap = capOf(id);
-      rows.push(objectRow([
+      rows.push(capabilityBlock(cap, [
         capabilitySummary(cap),
         h("span", { class: "obj-meta mono", text: cap.command }),
         h("span", { class: "obj-sub", text: cap.opens + "\uFF1B" + cap.result })
-      ], [capabilityAction(cap)]));
+      ], state));
     }
-    const cloneEntry = objectRow([
+    const cloneEntry = capWrap(capOf("8.16"), objectRow([
       h("span", { class: "obj-title", text: "\u514B\u9686\u4E00\u4E2A\u4ED3\u5E93\u5230\u672C\u673A" }),
       h("span", { class: "obj-sub", text: "\u514B\u9686\u662F\u957F\u4EFB\u52A1\uFF1A\u5148\u9009\u76EE\u5F55\uFF0C\u518D\u770B\u5230\u5BF9\u8C61\u63A5\u6536\u4E0E\u68C0\u51FA\u8FDB\u5EA6\uFF1B\u4E2D\u9014\u53D6\u6D88\u8981\u5199\u6E05\u7559\u4E0B\u4E86\u54EA\u4E9B\u6587\u4EF6\u3002" })
-    ], [actionButton("\u6253\u5F00\u514B\u9686\u5411\u5BFC", "page-open", { kind: "primary", focusKey: "migrate-clone", dataset: { page: "task" } })]);
+    ], [actionButton("\u6253\u5F00\u514B\u9686\u5411\u5BFC", "page-open", { kind: "primary", focusKey: "migrate-clone", dataset: { page: "task" } })]), state);
     const archiveEntry = objectRow([
       h("span", { class: "obj-title", text: "\u751F\u6210\u4E00\u4EFD\u5F52\u6863\u6216\u79BB\u7EBF\u5305" }),
       h("span", { class: "obj-sub", text: "\u5F52\u6863\u53EA\u542B\u67D0\u6761\u63D0\u4EA4\u7684\u6587\u4EF6\u5FEB\u7167\uFF1B\u79BB\u7EBF\u5305\u5E26\u5B8C\u6574\u5386\u53F2\uFF0C\u53EF\u5728\u6CA1\u6709\u7F51\u7EDC\u65F6\u514B\u9686\u56DE\u6765\u3002" })
@@ -9439,11 +9488,11 @@
     const body = h(
       "div",
       { class: "page-stack" },
-      section("\u514B\u9686\u4E0E\u521D\u59CB\u5316", "2 \u6761\u80FD\u529B", "\u4E24\u4E2A\u52A8\u4F5C\u90FD\u4F1A\u65B0\u5EFA\u76EE\u5F55\uFF0C\u4E0D\u4F1A\u6539\u52A8\u5F53\u524D\u4ED3\u5E93\uFF1B\u9996\u6B21\u6253\u5F00\u65F6\u5148\u95EE\u6E05\u76EE\u6807\u8DEF\u5F84\u4E0E\u662F\u5426\u8981\u5B8C\u6574\u5386\u53F2\u3002", [cloneEntry, ...rows.slice(0, 2)]),
-      section("\u5F52\u6863\u4E0E\u79BB\u7EBF\u5305", "2 \u6761\u80FD\u529B", "\u4EA7\u51FA\u662F\u4E00\u4EFD\u6587\u4EF6\uFF1A\u754C\u9762\u8981\u5199\u6E05\u653E\u54EA\u3001\u591A\u5927\u3001\u662F\u5426\u542B\u5DE5\u4F5C\u533A\u3002\u751F\u6210\u65F6\u95F4\u957F\u7684\u8D70\u4EFB\u52A1\u8FDB\u5EA6\u9875\u3002", [archiveEntry, ...rows.slice(2, 4)]),
-      section("\u5386\u53F2\u4E0E\u90AE\u4EF6", "2 \u6761\u80FD\u529B", "\u5BFC\u51FA/\u5BFC\u5165\u5386\u53F2\u4E0E\u751F\u6210\u8865\u4E01\u90AE\u4EF6\u90FD\u4EA7\u51FA\u4E00\u4EFD\u6587\u4EF6\uFF1B\u524D\u8005\u6574\u4ED3\u4E0D\u53EF\u9006\uFF0C\u540E\u8005\u53EA\u5BFC\u51FA\u63D0\u4EA4\u3002", [rows[4]]),
+      section("\u514B\u9686\u4E0E\u521D\u59CB\u5316", "2 \u6761\u80FD\u529B", "\u4E24\u4E2A\u52A8\u4F5C\u90FD\u4F1A\u65B0\u5EFA\u76EE\u5F55\uFF0C\u4E0D\u4F1A\u6539\u52A8\u5F53\u524D\u4ED3\u5E93\uFF1B\u9996\u6B21\u6253\u5F00\u65F6\u5148\u95EE\u6E05\u76EE\u6807\u8DEF\u5F84\u4E0E\u662F\u5426\u8981\u5B8C\u6574\u5386\u53F2\u3002", [cloneEntry, rows[0]]),
+      section("\u5F52\u6863\u4E0E\u79BB\u7EBF\u5305", "2 \u6761\u80FD\u529B", "\u4EA7\u51FA\u662F\u4E00\u4EFD\u6587\u4EF6\uFF1A\u754C\u9762\u8981\u5199\u6E05\u653E\u54EA\u3001\u591A\u5927\u3001\u662F\u5426\u542B\u5DE5\u4F5C\u533A\u3002\u751F\u6210\u65F6\u95F4\u957F\u7684\u8D70\u4EFB\u52A1\u8FDB\u5EA6\u9875\u3002", [archiveEntry]),
+      section("\u5386\u53F2\u4E0E\u90AE\u4EF6", "2 \u6761\u80FD\u529B", "\u5BFC\u51FA/\u5BFC\u5165\u5386\u53F2\u4E0E\u751F\u6210\u8865\u4E01\u90AE\u4EF6\u90FD\u4EA7\u51FA\u4E00\u4EFD\u6587\u4EF6\uFF1B\u524D\u8005\u6574\u4ED3\u4E0D\u53EF\u9006\uFF0C\u540E\u8005\u53EA\u5BFC\u51FA\u63D0\u4EA4\u3002", [rows[1]]),
       section("\u5907\u4EFD\u4E0E\u6062\u590D", null, "\u5907\u4EFD\u4E0D\u662F git \u547D\u4EE4\uFF0C\u4F46\u5B83\u662F\u6240\u6709\u4E0D\u53EF\u9006\u52A8\u4F5C\u7684\u6700\u540E\u4E00\u9053\u4FDD\u9669\uFF0C\u6240\u4EE5\u5199\u5728\u8FD9\u4E00\u9875\u3002", [backup]),
-      capabilitiesSection("migrate", state)
+      capabilitiesSection("migrate", state, ["8.16", "11.1", "14.1"])
     );
     return pageShell("migrate", PAGE_META.migrate.title, PAGE_META.migrate.lede, null, body, { danger: true });
   }
@@ -9493,14 +9542,14 @@
     ], "\u6253\u5F00\u51ED\u636E\u8BF4\u660E", "\u51ED\u636E\u539F\u6587\u6C38\u8FDC\u4E0D\u4F1A\u663E\u793A\u5728\u9762\u677F\u91CC\uFF1B\u8FD9\u91CC\u53EA\u80FD\u770B\u5230\u6765\u6E90\u7C7B\u578B\u4E0E\u7531\u8C01\u63D0\u4F9B\u3002");
     const readOnlyRows = ["12.1", "12.7", "12.8"].map((id) => {
       const cap = capOf(id);
-      return objectRow([capabilitySummary(cap), h("span", { class: "obj-sub", text: cap.opens })], [capabilityAction(cap)]);
+      return capWrap(cap, objectRow([capabilitySummary(cap), h("span", { class: "obj-sub", text: cap.opens })], [capabilityAction(cap)]), state);
     });
     const body = h(
       "div",
       { class: "page-stack" },
       section("\u76F8\u5173\u914D\u7F6E", "8 \u6761\u952E", "\u53EA\u5217\u4E0E\u7248\u672C\u7BA1\u7406\u754C\u9762\u76F4\u63A5\u76F8\u5173\u7684\u952E\uFF1B\u503C\u6765\u81EA\u672C\u4ED3\u5E93\u7684\u771F\u5B9E\u914D\u7F6E\uFF0C\u6CA1\u914D\u7684\u5199\u300C\u672A\u914D\u7F6E\u300D\u3002", groups),
       section("\u53EA\u8BFB\u8BFB\u53D6", "3 \u6761", "\u5C5E\u6027\u89C4\u5219\u4E0E\u90AE\u4EF6\u6620\u5C04\u53EA\u5C55\u793A\u8BFB\u5230\u7684\u5185\u5BB9\uFF0C\u4E0D\u5728\u9762\u677F\u91CC\u7F16\u8F91\uFF1B\u8BFB\u53D6\u7ED3\u679C\u8D34\u5728\u884C\u5185\u3002", readOnlyRows),
-      capabilitiesSection("config", state)
+      capabilitiesSection("config", state, ["12.1", "12.7", "12.8"])
     );
     return pageShell("config", PAGE_META.config.title, PAGE_META.config.lede, null, body);
   }
@@ -9519,17 +9568,18 @@
       { key: "\u793A\u4F8B", value: samples.length + " \u4E2A" },
       { key: "\u7F16\u8F91\u65B9\u5F0F", value: "\u4EA4\u7ED9\u5916\u90E8\u7F16\u8F91\u5668\uFF1B\u9762\u677F\u4E0D\u5185\u5D4C\u7F16\u8F91\u5668" }
     ]);
-    const runRow = objectRow([
-      capabilitySummary(capOf("12.6")),
+    const runCap = capOf("12.6");
+    const runRow = capabilityBlock(runCap, [
+      capabilitySummary(runCap),
       h("span", { class: "obj-sub", text: "\u624B\u52A8\u8DD1\u4E00\u4E2A\u94A9\u5B50\u53EA\u5F71\u54CD\u672C\u6B21\u52A8\u4F5C\uFF1B\u6267\u884C\u524D\u63D0\u793A\u8FD9\u4E2A\u94A9\u5B50\u4F1A\u8BFB\u5199\u54EA\u4E9B\u8DEF\u5F84\u3002" })
-    ], [actionButton("\u6F14\u793A\u8FD0\u884C", "cap-open", { focusKey: "hook-run", dataset: { id: "12.6" } })]);
+    ], state);
     const body = h(
       "div",
       { class: "page-stack" },
       section("\u94A9\u5B50\u76EE\u5F55", null, "\u6E05\u5355\u6765\u81EA .git/hooks \u7684\u771F\u5B9E\u6587\u4EF6\uFF1B\u793A\u4F8B\u4E0D\u7B97\u5DF2\u542F\u7528\u3002", [facts]),
       section("\u94A9\u5B50\u6E05\u5355", capturedHooks.length + " \u4E2A\u6587\u4EF6", "\u6309\u6587\u4EF6\u540D\u6392\u5E8F\uFF1B\u6BCF\u4E2A\u6587\u4EF6\u90FD\u80FD\u770B\u5230\u5B83\u662F\u4E0D\u662F\u793A\u4F8B\u3001\u4F1A\u4E0D\u4F1A\u88AB\u6267\u884C\u3002", rows),
       section("\u624B\u52A8\u8FD0\u884C", "1 \u6761", null, [runRow]),
-      capabilitiesSection("hooks", state)
+      capabilitiesSection("hooks", state, ["12.6"])
     );
     return pageShell("hooks", PAGE_META.hooks.title, PAGE_META.hooks.lede, null, body);
   }
@@ -9555,31 +9605,34 @@
     ];
     const shapeRows = readShapes.map((item) => {
       const cap = capOf(item.id);
-      return objectRow([
+      return capWrap(cap, objectRow([
         capabilitySummary(cap),
         h("span", { class: "obj-meta mono", text: item.value }),
         h("span", { class: "obj-sub", text: item.hint })
-      ], [chip("\u53EA\u8BFB", "muted", { small: true })]);
+      ], [chip("\u53EA\u8BFB", "muted", { small: true })]), state);
     });
-    const fsckRow = objectRow([
-      capabilitySummary(capOf("11.2")),
+    const fsckCap = capOf("11.2");
+    const fsckRow = capWrap(fsckCap, objectRow([
+      capabilitySummary(fsckCap),
       h("span", { class: "obj-sub", text: "\u5B8C\u6574\u6027\u68C0\u67E5\u5728\u539F\u578B\u91CC\u6CA1\u6709\u8FD0\u884C\uFF1A\u5B83\u4F1A\u8BFB\u5168\u5E93\u5BF9\u8C61\uFF0C\u771F\u5B9E\u5B9E\u73B0\u91CC\u663E\u793A\u8FDB\u5EA6\u4E0E\u300C\u53D1\u73B0\u51E0\u4E2A\u95EE\u9898\u300D\uFF0C\u4E0D\u5199\u4ED3\u5E93\u3002" })
-    ], [actionButton("\u6F14\u793A\u4E00\u6B21\u68C0\u67E5", "page-demo", { focusKey: "diag-fsck", dataset: { note: "\u5B8C\u6574\u6027\u68C0\u67E5\u5DF2\u8DD1\u5B8C\uFF08\u539F\u578B\u6A21\u62DF\uFF09\uFF1A0 \u4E2A\u635F\u574F\u5BF9\u8C61\uFF0C0 \u4E2A\u7F3A\u5931\u5BF9\u8C61\u3002" } })]);
-    const bisectRow = objectRow([
-      capabilitySummary(capOf("13.1")),
+    ], [actionButton("\u6F14\u793A\u4E00\u6B21\u68C0\u67E5", "page-demo", { focusKey: "diag-fsck", dataset: { note: "\u5B8C\u6574\u6027\u68C0\u67E5\u5DF2\u8DD1\u5B8C\uFF08\u539F\u578B\u6A21\u62DF\uFF09\uFF1A0 \u4E2A\u635F\u574F\u5BF9\u8C61\uFF0C0 \u4E2A\u7F3A\u5931\u5BF9\u8C61\u3002" } })]), state);
+    const bisectCap = capOf("13.1");
+    const bisectRow = capabilityBlock(bisectCap, [
+      capabilitySummary(bisectCap),
       h("span", { class: "obj-sub", text: "\u4E8C\u5206\u5B9A\u4F4D\u8981\u9009\u4E00\u6BB5\u63D0\u4EA4\u8303\u56F4\u4E0E\u4E00\u4E2A\u597D/\u574F\u5224\u5B9A\uFF1B\u5B83\u4F1A\u68C0\u51FA\u4E2D\u95F4\u63D0\u4EA4\uFF0C\u7ED3\u675F\u540E\u8981\u56DE\u5230\u539F\u5206\u652F\u3002" })
-    ], [actionButton("\u6F14\u793A\u4E8C\u5206", "cap-open", { focusKey: "diag-bisect", dataset: { id: "13.1" } })]);
-    const logRow = objectRow([
-      capabilitySummary(capOf("3.11")),
+    ], state);
+    const logCap = capOf("3.11");
+    const logRow = capWrap(logCap, objectRow([
+      capabilitySummary(logCap),
       h("span", { class: "obj-sub", text: "\u5F15\u7528\u65E5\u5FD7\u6309\u65F6\u95F4\u5012\u5E8F\u5217\u51FA HEAD \u4E0E\u5206\u652F\u7684\u79FB\u52A8\u8BB0\u5F55\uFF1B\u5B83\u662F\u8BEF\u64CD\u4F5C\u540E\u7684\u7B2C\u4E00\u9053\u627E\u56DE\u5165\u53E3\u3002" })
-    ], [actionButton("\u770B\u5F15\u7528\u65E5\u5FD7\u5F62\u72B6", "page-demo", { focusKey: "diag-reflog", dataset: { note: "\u5F15\u7528\u65E5\u5FD7\u793A\u4F8B\uFF1AHEAD@{0} \u503C\uFF1A" + capturedHead.slice(0, 7) + "\uFF0810 \u5206\u949F\u524D\uFF09\uFF1BHEAD@{1} \u503C\uFF1A\u4E0A\u4E00\u63D0\u4EA4\uFF0812 \u5206\u949F\u524D\uFF09\u3002" } })]);
+    ], [actionButton("\u770B\u5F15\u7528\u65E5\u5FD7\u5F62\u72B6", "page-demo", { focusKey: "diag-reflog", dataset: { note: "\u5F15\u7528\u65E5\u5FD7\u793A\u4F8B\uFF1AHEAD@{0} \u503C\uFF1A" + capturedHead.slice(0, 7) + "\uFF0810 \u5206\u949F\u524D\uFF09\uFF1BHEAD@{1} \u503C\uFF1A\u4E0A\u4E00\u63D0\u4EA4\uFF0812 \u5206\u949F\u524D\uFF09\u3002" } })]), state);
     const body = h(
       "div",
       { class: "page-stack" },
       section("\u7248\u672C\u4E0E\u8BA1\u6570", null, "\u8FD9\u4E9B\u6570\u5B57\u5168\u90E8\u6765\u81EA\u672C\u4ED3\u5E93\u6B64\u523B\u7684 git \u8BFB\u6570\uFF1B\u8BFB\u4E0D\u5230\u65F6\u754C\u9762\u5199\u300C\u8BFB\u4E0D\u5230\u300D\uFF0C\u4E0D\u5199 0\u3002", [facts]),
       section("\u53EA\u8BFB\u5BF9\u8C61\u67E5\u770B", "6 \u6761", "\u5E95\u5C42\u6392\u67E5\u53EA\u5C55\u793A\u8BFB\u5230\u7684\u5F62\u72B6\uFF0C\u4E0D\u63D0\u4F9B\u53EF\u64CD\u4F5C\u6309\u94AE\uFF1B\u9700\u8981\u6267\u884C\u65F6\u4EA4\u7ED9\u7EC8\u7AEF\u6216\u8BCA\u65AD\u5DE5\u5177\u3002", shapeRows),
       section("\u68C0\u67E5\u4E0E\u5B9A\u4F4D", "4 \u6761", "\u5B8C\u6574\u6027\u68C0\u67E5\u3001\u53EF\u56DE\u6536\u5BF9\u8C61\u3001\u4E8C\u5206\u5B9A\u4F4D\u4E0E\u5F15\u7528\u65E5\u5FD7\uFF1A\u90FD\u80FD\u5728\u9762\u677F\u91CC\u53D1\u8D77\u5E76\u770B\u5230\u7ED3\u679C\uFF0C\u4F46\u90FD\u4E0D\u5199\u63D0\u4EA4\u3002", [fsckRow, bisectRow, logRow]),
-      capabilitiesSection("diagnostics", state)
+      capabilitiesSection("diagnostics", state, [...readShapes.map((item) => item.id), "11.2", "13.1", "3.11"])
     );
     return pageShell("diagnostics", PAGE_META.diagnostics.title, PAGE_META.diagnostics.lede, null, body);
   }
@@ -9615,11 +9668,11 @@
           attrs: { href: where.url, target: "_blank", rel: "noreferrer", "data-focus-key": "ext-" + cap.id }
         }, "\u5728\u7F51\u9875\u6253\u5F00"));
       }
-      return objectRow([
+      return capWrap(cap, objectRow([
         capabilitySummary(cap),
         h("span", { class: "obj-meta", text: where.where }),
         h("span", { class: "obj-sub", text: cap.command })
-      ], side);
+      ], side), state);
     });
     const boundaries = [
       ["\u4E0D\u5185\u5D4C\u7F16\u8F91\u5668", "\u63D0\u4EA4\u8BF4\u660E\u3001\u5408\u5E76\u8BF4\u660E\u3001\u94A9\u5B50\u6B63\u6587\u90FD\u53EF\u4EE5\u4EA4\u7ED9 AI \u8D77\u8349\uFF0C\u4F46\u300C\u7528\u7F16\u8F91\u5668\u5199\u5B8C\u6574\u8BF4\u660E\u300D\u8FD9\u7C7B\u80FD\u529B\u56DE\u5916\u90E8\u7F16\u8F91\u5668\u5B8C\u6210\uFF08#1588 \u7B2C 4 \u8282\uFF09\u3002"],
@@ -9636,7 +9689,7 @@
       { class: "page-stack" },
       section("\u4EA4\u51FA\u53BB\u7684\u516D\u6761\u80FD\u529B", platformCaps.length + " \u6761", "\u8FD9\u4E9B\u80FD\u529B\u6CA1\u6709\u9762\u677F\u5165\u53E3\uFF1A\u4E0D\u662F\u4E0D\u505A\uFF0C\u800C\u662F\u505A\u5728\u9762\u677F\u91CC\u4F1A\u8D8A\u8FC7\u6743\u9650\u8FB9\u754C\u6216\u66FF\u7528\u6237\u9690\u7792\u540E\u679C\u3002", rows),
       section("\u56DB\u6761\u8FB9\u754C", null, "\u8FB9\u754C\u5199\u5728\u8FD9\u91CC\uFF0C\u662F\u4E3A\u4E86\u8BA9\u4E0B\u6E38\u5199\u89C4\u683C\u65F6\u77E5\u9053\u300C\u4E0D\u8981\u5B9E\u73B0\u4EC0\u4E48\u300D\u3002", boundaryRows),
-      capabilitiesSection("platform", state)
+      capabilitiesSection("platform", state, platformCaps.map((cap) => cap.id))
     );
     return pageShell("platform", PAGE_META.platform.title, PAGE_META.platform.lede, null, body);
   }
@@ -10020,7 +10073,7 @@
       section("\u62FF\u4EC0\u4E48\u6838\u5BF9", "4 \u9879", "\u8FD9\u56DB\u9879\u5FC5\u987B\u9010\u6761\u8FC7\u4E00\u904D\uFF1B\u6838\u5BF9\u9875\u4E0D\u66FF\u4F60\u5224\u65AD\uFF0C\u53EA\u628A\u8981\u770B\u7684\u8BFB\u6570\u644A\u5F00\u3002", [facts, ...checklist]),
       section("\u6700\u540E\u4E00\u6B65", null, "\u8FD9\u4E00\u6B65\u5728\u539F\u578B\u91CC\u4E5F\u53EA\u5199\u6F14\u793A\u7ED3\u679C\uFF0C\u4E0D\u4F1A\u771F\u7684\u6E05\u7406\u4ED3\u5E93\u3002\u771F\u5B9E\u6267\u884C\u7531\u7EF4\u62A4\u8005\u5728\u7EC8\u7AEF\u5B8C\u6210\uFF0C\u590D\u6838\u4EBA FeatherHunter\u3002", [confirmBox])
     );
-    return pageShell("maintenance", meta.title + " \u203A \u5371\u9669\u52A8\u4F5C\u6838\u5BF9", "\u8FD9\u662F " + cap.id + " " + cap.name + " \u7684\u4E8C\u7EA7\u6838\u5BF9\u9875\uFF1A\u5148\u770B\u540E\u679C\uFF0C\u518D\u770B\u5907\u4EFD\uFF0C\u6700\u540E\u7167\u6284\u786E\u8BA4\u8BCD\u3002", null, body, { danger: true });
+    return pageShell("maintenance", meta.title + " \u203A \u5371\u9669\u52A8\u4F5C\u6838\u5BF9", "\u8FD9\u662F " + cap.id + " " + cap.name + " \u7684\u4E8C\u7EA7\u6838\u5BF9\u9875\uFF1A\u5148\u770B\u540E\u679C\uFF0C\u518D\u770B\u5907\u4EFD\uFF0C\u6700\u540E\u7167\u6284\u786E\u8BA4\u8BCD\u3002", null, body, { danger: true, focusKey: "danger-top" });
   }
 
   // docs/prototype/vc-redesign/src/ui/views/palette.ts
@@ -10105,6 +10158,9 @@
     let theme = DEFAULT_THEME;
     let embed = false;
     let lastFocusKey = null;
+    let dangerReturnKey = null;
+    let paletteReturnKey = null;
+    let capReturnKey = null;
     let historyListScroll = 0;
     let resultTimer = null;
     let resultRef = null;
@@ -10137,7 +10193,7 @@
       if (targetKey === null) return;
       const el = root2.querySelector(`[data-focus-key="${cssEscape(targetKey)}"]`);
       if (el === null) return;
-      el.focus();
+      el.focus({ preventScroll: true });
       if (caret !== null && caret.key === targetKey && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
         const start = caret.start ?? el.value.length;
         const end = caret.end ?? start;
@@ -10171,13 +10227,13 @@
     }
     function dispatchPage(action, options = {}) {
       const focus = snapshotFocus();
-      const before = activePageOf();
+      const before = scrollKeyOf();
       const scrollEl = root2.querySelector(".page-scroll");
       if (before !== null && scrollEl !== null) pageScrolls.set(before, scrollEl.scrollTop);
       const next = reducePage(pages, action);
       if (next === pages) return;
       pages = next;
-      const after = activePageOf();
+      const after = scrollKeyOf();
       const moved = before !== after;
       render({
         focusKey: options.focusKey ?? focus?.key ?? null,
@@ -10188,6 +10244,10 @@
     }
     function activePageOf() {
       return pages.stack.length === 0 ? null : pages.stack[pages.stack.length - 1];
+    }
+    function scrollKeyOf() {
+      if (pages.dangerId !== null) return "danger:" + pages.dangerId;
+      return activePageOf();
     }
     function asPageId(value) {
       if (value === void 0 || value === "") return null;
@@ -10239,7 +10299,7 @@
       }
     }
     function repaint(options = {}) {
-      render(options);
+      render({ ...options, scroll: options.scroll !== void 0 ? options.scroll : captureScroll() });
     }
     function render(options = {}) {
       const model = panelModelOf(base, state, Date.now());
@@ -10247,15 +10307,15 @@
       clear(root2);
       root2.append(liveRegion, frame);
       restoreScroll(options.scroll ?? null);
-      restoreFocus(options.focusKey ?? null, options.focusCaret ?? null);
       const pendingCard = root2.querySelector(".wt-confirm, .branch-confirm, .changes-confirm, .commit-confirm, .stash-confirm");
       if (pendingCard !== null) pendingCard.scrollIntoView({ block: "nearest" });
-      const highlighted = root2.querySelector(".cap-row.is-flash, .palette-row.is-highlight");
+      const highlighted = root2.querySelector(".cap-row.is-flash, .cap-block.is-flash, .palette-row.is-highlight");
       if (highlighted !== null) highlighted.scrollIntoView({ block: "nearest" });
       if (pages.highlight !== null) pages = reducePage(pages, { type: "highlight-clear" });
       positionPopconfirm();
       positionBranchPop();
       positionHandoff();
+      restoreFocus(options.focusKey ?? null, options.focusCaret ?? null);
       scheduleResultDismiss();
       liveRegion.textContent = state.result === null ? "" : state.result.text;
       options.post?.();
@@ -10334,10 +10394,13 @@
       });
       const frame = h("div", { class: "frame", attrs: { style: `width: ${panelWidth + 22}px` } });
       const railResult = model.result !== null && (model.result.source === "sync" || model.result.source === "reload" || model.result.source === "copy") ? model.result : null;
-      panel.append(renderRail(model.rail, railResult));
-      panel.append(renderTabs(model));
       const pageView = renderPageHost({ data, model, state: pages, nowMs: Date.now() });
-      const main = h("main", { class: "panel-body", attrs: { id: "view-panel", role: "tabpanel", "aria-labelledby": `tab-${state.view}` } });
+      const pageOpen = pageView !== null;
+      const manageActive = pages.stack.includes("manage") || pages.stack.some((page) => MANAGE_PAGES.includes(page));
+      panel.append(renderRail(model.rail, railResult, { pageOpen, manageActive }));
+      if (!pageOpen) panel.append(renderTabs(model));
+      const activePage2 = pages.stack.length === 0 ? null : pages.stack[pages.stack.length - 1];
+      const main = pageOpen ? h("main", { class: "panel-body is-page", attrs: { id: "view-panel", role: "region", "aria-label": "\u4E8C\u7EA7\u9875\uFF1A" + (PAGE_META[activePage2]?.title ?? "\u7BA1\u7406") } }) : h("main", { class: "panel-body", attrs: { id: "view-panel", role: "tabpanel", "aria-labelledby": `tab-${state.view}` } });
       if (pages.result !== null) {
         main.append(h(
           "div",
@@ -10848,7 +10911,7 @@
           return;
         }
         case "branch-open":
-          dispatch({ type: "branch-open" }, { focusKey: "branch-search", scroll: null });
+          dispatch({ type: "branch-open" }, { focusKey: "branch-query" });
           return;
         case "branch-close":
           dispatch({ type: "branch-close" }, { focusKey: "branch-open", scroll: null });
@@ -10928,11 +10991,11 @@
         case "page-open": {
           const page = asPageId(el.dataset.page);
           if (page === null) return;
-          dispatchPage({ type: "page-open", page }, { focusKey: "page-back", scroll: null });
+          dispatchPage({ type: "page-open", page }, { focusKey: "page-back" });
           return;
         }
         case "page-back":
-          dispatchPage({ type: "page-back" }, { focusKey: "page-back", scroll: null });
+          dispatchPage({ type: "page-back" }, { focusKey: "page-back" });
           return;
         case "page-close-all":
           dispatchPage({ type: "page-close-all" }, { focusKey: lastFocusKey, scroll: null });
@@ -10955,28 +11018,37 @@
           return;
         case "cap-open": {
           const id = el.dataset.id ?? "";
-          dispatchPage({ type: "cap-open", id }, { focusKey: "cap-open:" + id, scroll: null });
+          capReturnKey = el.getAttribute("data-focus-key") ?? lastFocusKey;
+          dispatchPage({ type: "cap-open", id }, {
+            focusKey: "cap-cancel-" + id,
+            // 确认卡长在「本页负责的能力」那一行下面；如果这一行不在视野里，把它滚进来，读者才看得到刚点出来的卡。
+            post: () => {
+              const card = root2.querySelector('[data-cap-id="' + id + '"] .cap-confirm');
+              if (card !== null) card.scrollIntoView({ block: "nearest" });
+            }
+          });
           return;
         }
         case "cap-close":
-          dispatchPage({ type: "cap-close" }, { focusKey: "cap-open:" + pages.capOpen });
+          dispatchPage({ type: "cap-close" }, { focusKey: capReturnKey ?? "cap-" + pages.capOpen });
           return;
         case "cap-next":
           dispatchPage({ type: "cap-next" }, { focusKey: "cap-run-" + pages.capOpen });
           return;
         case "cap-run":
-          dispatchPage({ type: "cap-run" }, { focusKey: lastFocusKey });
+          dispatchPage({ type: "cap-run" }, { focusKey: capReturnKey ?? lastFocusKey });
           return;
         case "danger-open": {
           const id = el.dataset.id ?? "";
-          dispatchPage({ type: "danger-open", id }, { focusKey: "danger-input", scroll: null });
+          dangerReturnKey = el.getAttribute("data-focus-key") ?? lastFocusKey;
+          dispatchPage({ type: "danger-open", id }, { focusKey: "danger-top" });
           return;
         }
         case "danger-close":
-          dispatchPage({ type: "danger-close" }, { focusKey: "danger-zone", scroll: null });
+          dispatchPage({ type: "danger-close" }, { focusKey: dangerReturnKey ?? "page-back" });
           return;
         case "danger-run":
-          dispatchPage({ type: "danger-run" }, { focusKey: "danger-zone", scroll: null });
+          dispatchPage({ type: "danger-run" }, { focusKey: dangerReturnKey ?? "page-back" });
           return;
         case "rebase-demo":
         case "rebase-step":
@@ -10994,25 +11066,26 @@
             "task-demo": "task-tick",
             "task-tick": "task-tick"
           };
-          dispatchPage({ type: action }, { focusKey: focusByAction[action] ?? lastFocusKey, scroll: null });
+          dispatchPage({ type: action }, { focusKey: focusByAction[action] ?? lastFocusKey });
           return;
         }
         case "conflict-choice": {
           const choice = el.dataset.choice === "theirs" ? "theirs" : "ours";
-          dispatchPage({ type: "conflict-choice", choice }, { focusKey: lastFocusKey, scroll: null });
+          dispatchPage({ type: "conflict-choice", choice }, { focusKey: lastFocusKey });
           return;
         }
         case "conflict-resolve": {
           const path = el.dataset.path ?? "";
-          dispatchPage({ type: "conflict-resolve", path }, { focusKey: "conflict-resolve:" + path, scroll: null });
+          dispatchPage({ type: "conflict-resolve", path }, { focusKey: "conflict-resolve:" + path });
           return;
         }
         case "palette-open":
-          dispatchPage({ type: "palette-open" }, { focusKey: "palette-input", scroll: null });
+          paletteReturnKey = lastFocusKey;
+          dispatchPage({ type: "palette-open" }, { focusKey: "palette-input" });
           return;
         case "palette-close": {
           if (target.closest(".palette") !== null) return;
-          dispatchPage({ type: "palette-close" }, { focusKey: lastFocusKey, scroll: null });
+          dispatchPage({ type: "palette-close" }, { focusKey: paletteReturnKey ?? lastFocusKey });
           return;
         }
         case "palette-select": {
@@ -11057,7 +11130,7 @@
       } else if (field === "history-query") {
         dispatch({ type: "history-query", value: target.value }, { focusKey: "history-query" });
       } else if (field === "branch-query") {
-        dispatch({ type: "branch-query", value: target.value }, { focusKey: "branch-search" });
+        dispatch({ type: "branch-query", value: target.value }, { focusKey: "branch-query" });
       } else if (field === "branch-draft") {
         dispatch({ type: "branch-draft", value: target.value }, { focusKey: "branch-draft" });
       } else if (field === "page-query") {
@@ -11104,27 +11177,25 @@
       if (!(target instanceof HTMLElement)) return;
       if ((event.ctrlKey || event.metaKey) && (event.key === "k" || event.key === "K")) {
         event.preventDefault();
-        if (!pages.paletteOpen) dispatchPage({ type: "palette-open" }, { focusKey: "palette-input", scroll: null });
+        if (!pages.paletteOpen) {
+          paletteReturnKey = lastFocusKey;
+          dispatchPage({ type: "palette-open" }, { focusKey: "palette-input" });
+        }
         return;
       }
       if (event.key === "Escape" && pages.paletteOpen) {
         event.preventDefault();
-        dispatchPage({ type: "palette-close" }, { focusKey: lastFocusKey, scroll: null });
+        dispatchPage({ type: "palette-close" }, { focusKey: paletteReturnKey ?? lastFocusKey });
         return;
       }
       if (event.key === "Escape" && pages.dangerId !== null) {
         event.preventDefault();
-        dispatchPage({ type: "danger-close" }, { focusKey: "danger-zone", scroll: null });
+        dispatchPage({ type: "danger-close" }, { focusKey: dangerReturnKey ?? "page-back" });
         return;
       }
       if (event.key === "Escape" && pages.capOpen !== "") {
         event.preventDefault();
-        dispatchPage({ type: "cap-close" }, { focusKey: "cap-open:" + pages.capOpen });
-        return;
-      }
-      if (event.key === "Escape" && pages.stack.length > 0) {
-        event.preventDefault();
-        dispatchPage({ type: "page-back" }, { focusKey: "page-back", scroll: null });
+        dispatchPage({ type: "cap-close" }, { focusKey: capReturnKey ?? "cap-" + pages.capOpen });
         return;
       }
       if (pages.paletteOpen && event.key === "Enter" && target.dataset.field === "palette-query") {
@@ -11178,6 +11249,11 @@
       if (event.key === "Escape" && state.confirmPull !== null) {
         event.preventDefault();
         dispatch({ type: "pull-confirm-close" }, { focusKey: "pull" });
+        return;
+      }
+      if (event.key === "Escape" && pages.stack.length > 0) {
+        event.preventDefault();
+        dispatchPage({ type: "page-back" }, { focusKey: "page-back" });
         return;
       }
       if (state.confirmPull !== null) return;

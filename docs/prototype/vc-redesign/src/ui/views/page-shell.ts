@@ -19,18 +19,30 @@ import { CAP_SAFE_NOTE, LEVEL_LABEL, PLACEMENT_HINT, PLACEMENT_LABEL, levelTone 
 import type { PrototypeData } from '../../data/screen'
 import type { PanelModel } from '../../domain/select'
 
-/** 二级页外壳：返回、标题、导语；actions 是页头右侧的操作按钮（例如新建分支）。 */
-export function pageShell(page: PageId, title: string, lede: string, count: string | null, body: HTMLElement, options: { actions?: HTMLElement[]; danger?: boolean } = {}): HTMLElement {
+/**
+ * 二级页外壳：返回、标题、数量与页头动作在同一行，导语在下一行。
+ *
+ * 页头必须尽量矮：页面是从身份行的齿轮点进来的，读者刚点完就应当在同一视野里看到页面标题，
+ * 所以返回键不再单独占一行——它贴在标题左边，和浏览器里的返回箭头是同一个阅读顺序。
+ */
+export function pageShell(page: PageId, title: string, lede: string, count: string | null, body: HTMLElement, options: { actions?: HTMLElement[]; danger?: boolean; focusKey?: string } = {}): HTMLElement {
   const head = h('div', { class: 'page-head' })
-  head.append(
+  const titleRow = h('div', { class: 'page-title-row' })
+  // 有些整页是从一条按钮点进来的（例如危险核对页）：焦点落在标题上，页面从顶部开始读，
+  // Esc 也有接收者。标题只是程序化焦点落点，不做 Tab 停靠，所以 tabindex 固定写 -1。
+  const titleNode = h('h2', { class: 'page-title', text: title })
+  if (options.focusKey !== undefined) {
+    titleNode.setAttribute('tabindex', '-1')
+    titleNode.setAttribute('data-focus-key', options.focusKey)
+  }
+  titleRow.append(
     h('button', {
       class: 'page-back',
-      attrs: { type: 'button', 'data-focus-key': 'page-back', title: '返回上一页（Esc 也可以）' },
+      attrs: { type: 'button', 'data-focus-key': 'page-back', title: '返回上一页（Esc 也可以）', 'aria-label': '返回上一页' },
       dataset: { action: 'page-back' },
-    }, icon('back', 14), h('span', { text: '返回' })),
+    }, icon('back', 14), h('span', { class: 'page-back-label', text: '返回' })),
+    titleNode,
   )
-  const titleRow = h('div', { class: 'page-title-row' })
-  titleRow.append(h('h2', { class: 'page-title', text: title }))
   if (count !== null) titleRow.append(chip(count, 'muted', { small: true }))
   if (options.danger === true) titleRow.append(chip('含不可逆动作', 'error', { small: true }))
   if (options.actions !== undefined && options.actions.length > 0) {
@@ -124,11 +136,20 @@ export function actionButton(label: string, action: string, options: { focusKey?
   }, label)
 }
 
-/** 「本页负责的能力」整段：页面底部统一出口，保证 162 条能一条条数出来。 */
-export function capabilitiesSection(page: PageId, state: PageState): HTMLElement {
+/**
+ * 「本页负责的能力」整段：页面底部统一出口，保证 162 条能一条条数出来。
+ *
+ * 页面上方已经按真实数据或流程列成动作行的能力，要传进 skips：同一条能力只留一个主入口，
+ * 否则顶部点「演示」却要把读者送到页面底部的重复行，视线和滚动位置都会被打断。
+ */
+export function capabilitiesSection(page: PageId, state: PageState, skips: string[] = []): HTMLElement {
   const caps = capabilitiesOf(page)
-  const rows = caps.map((cap) => capabilityRow(cap, state))
-  return section('本页负责的能力', caps.length + ' 条', '这条页面上每一件能做的事都在这份清单里；带「演示」的会走一遍确认流程，只改界面状态，不碰仓库。', rows, { id: 'cap-list' })
+  const skipped = caps.filter((cap) => skips.includes(cap.id))
+  const rows = caps.filter((cap) => skips.includes(cap.id) === false).map((cap) => capabilityRow(cap, state))
+  const note = skipped.length === 0
+    ? '这条页面上每一件能做的事都在这份清单里；带「演示」的会走一遍确认流程，只改界面状态，不碰仓库。'
+    : '这条页面上每一件能做的事都在这份清单里；带「演示」的会走一遍确认流程，只改界面状态，不碰仓库。上方已按动作列出的 ' + skipped.length + ' 条（' + skipped.map((cap) => cap.id).join('、') + '）不在这里重复。'
+  return section('本页负责的能力', caps.length + ' 条', note, rows, { id: 'cap-list' })
 }
 
 /** 单条能力行；展开时在它下面贴确认卡，结果也贴在这行下面。 */
@@ -170,12 +191,27 @@ export function capabilityRow(cap: Capability, state: PageState): HTMLElement {
 
   if (open && !cap.readOnly) article.append(capConfirmCard(cap))
   if (openDanger && needsSecondConfirm(cap)) article.append(capConfirmCard(cap, true))
-  if (result !== null) {
-    article.append(h('div', { class: 'cap-result', attrs: { role: 'status' } },
-      h('span', { class: 'cap-result-tag', text: '结果' }),
-      h('span', { class: 'cap-result-text', text: result.text })))
-  }
+  if (result !== null) article.append(capabilityResult(cap.id, result.text))
   return article
+}
+
+/** 行内确认卡：页面顶部的动作行展开时直接贴在触发按钮所在的那一行下面，不再把人送到页面底部。 */
+export function inlineConfirmCard(cap: Capability, state: PageState): HTMLElement | null {
+  if (cap.readOnly || state.capOpen !== cap.id) return null
+  return capConfirmCard(cap)
+}
+
+/** 行内结果：动作执行完贴回触发点，读者不用回到底部清单里找它落到哪。 */
+export function inlineCapabilityResult(cap: Capability, state: PageState): HTMLElement | null {
+  if (state.capResult === null || state.capResult.id !== cap.id) return null
+  return capabilityResult(cap.id, state.capResult.text)
+}
+
+/** 结果条本体：能力行与顶部动作行共用同一段结构，样式不会两处走样。 */
+function capabilityResult(_id: string, text: string): HTMLElement {
+  return h('div', { class: 'cap-result', attrs: { role: 'status' } },
+    h('span', { class: 'cap-result-tag', text: '结果' }),
+    h('span', { class: 'cap-result-text', text }))
 }
 
 /** 四段式确认卡：会动什么 / 不会动什么 / 可逆性与恢复路径 / 动词写后果。 */

@@ -21,7 +21,7 @@ import { buildHandoff } from '../domain/handoff'
 import type { HandoffKind } from '../domain/handoff'
 import { panelModelOf } from '../domain/select'
 import type { PanelModel } from '../domain/select'
-import { createPageState, reducePage, targetOfCapability } from '../domain/pages'
+import { MANAGE_PAGES, createPageState, reducePage, targetOfCapability } from '../domain/pages'
 import type { PageAction, PageId } from '../domain/pages'
 import { CAPABILITIES } from '../data/capabilities.generated'
 import { PAGE_META } from '../data/pages-copy'
@@ -90,6 +90,12 @@ export function mount(root: HTMLElement): void {
   /** 嵌入模式只留面板本体，用于截图与嵌进文档；顶部栏与页脚仍然存在，只是隐藏。 */
   let embed = false
   let lastFocusKey: string | null = null
+  /** 打开危险核对页之前焦点在哪条动作上：核对页关掉后要回到那个按钮，不能落在页面顶部。 */
+  let dangerReturnKey: string | null = null
+  /** 打开命令面板之前焦点在哪：面板关掉后回到那个控件，而不是落回页面顶部。 */
+  let paletteReturnKey: string | null = null
+  /** 打开行内确认卡之前焦点在哪条演示按钮上：卡收起来后回到那颗按钮。 */
+  let capReturnKey: string | null = null
   let historyListScroll = 0
   let resultTimer: number | null = null
   let resultRef: SessionState['result'] = null
@@ -113,7 +119,7 @@ export function mount(root: HTMLElement): void {
   // 切页签要收起页面，但从页面返回不会动任何请求状态。
   let pages = createPageState()
   // 每个二级页上次滚到哪：切走再回来时回到原处，读者不用重新找位置。
-  const pageScrolls = new Map<PageId, number>()
+  const pageScrolls = new Map<string, number>()
 
   const liveRegion = h('div', { class: 'sr-only', attrs: { 'aria-live': 'polite', role: 'status' } })
   root.append(liveRegion)
@@ -136,7 +142,8 @@ export function mount(root: HTMLElement): void {
     if (targetKey === null) return
     const el = root.querySelector<HTMLElement>(`[data-focus-key="${cssEscape(targetKey)}"]`)
     if (el === null) return
-    el.focus()
+    // 焦点不带滚动：调用方已经按页面记忆恢复过滚动位置，这里再让浏览器把焦点元素滚进视区会把位置改掉。
+    el.focus({ preventScroll: true })
     if (caret !== null && caret.key === targetKey && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
       const start = caret.start ?? el.value.length
       const end = caret.end ?? start
@@ -184,13 +191,13 @@ export function mount(root: HTMLElement): void {
    */
   function dispatchPage(action: PageAction, options: RenderOptions = {}): void {
     const focus = snapshotFocus()
-    const before = activePageOf()
+    const before = scrollKeyOf()
     const scrollEl = root.querySelector<HTMLElement>('.page-scroll')
     if (before !== null && scrollEl !== null) pageScrolls.set(before, scrollEl.scrollTop)
     const next = reducePage(pages, action)
     if (next === pages) return
     pages = next
-    const after = activePageOf()
+    const after = scrollKeyOf()
     const moved = before !== after
     render({
       focusKey: options.focusKey ?? focus?.key ?? null,
@@ -203,6 +210,15 @@ export function mount(root: HTMLElement): void {
   /** 当前二级页：没有打开页面时是 null，界面照旧画四个页签。 */
   function activePageOf(): PageId | null {
     return pages.stack.length === 0 ? null : pages.stack[pages.stack.length - 1]
+  }
+
+  /**
+   * 滚动记忆的键：普通二级页用页面编号；盖在页面上的危险核对页单独记一个键，
+   * 这样返回时能回到原页面原来的位置，而不是核对页自己的顶部。
+   */
+  function scrollKeyOf(): string | null {
+    if (pages.dangerId !== null) return 'danger:' + pages.dangerId
+    return activePageOf()
   }
 
   /** 页面编号的合法值：统一从 PAGE_META 的键来，新增页面只改一处。 */
@@ -266,8 +282,12 @@ export function mount(root: HTMLElement): void {
     }
   }
 
+  /**
+   * 只改界面、不换视图的重画：默认把当前滚动位置带上。
+   * 浮层开合、确认卡展开这类动作不该把读者正在读的位置冲掉；要重置位置的动作会显式传 scroll。
+   */
   function repaint(options: RenderOptions = {}): void {
-    render(options)
+    render({ ...options, scroll: options.scroll !== undefined ? options.scroll : captureScroll() })
   }
 
   function render(options: RenderOptions = {}): void {
@@ -275,21 +295,23 @@ export function mount(root: HTMLElement): void {
     const frame = buildFrame(model)
     clear(root)
     root.append(liveRegion, frame)
-    // 同步恢复滚动与焦点：整块重画后先让布局落定再赋值，不会出现「先被夹到 0、下一帧再跳回」的抖动。
+    // 同步恢复滚动：整块重画后先让布局落定再赋值，不会出现「先被夹到 0、下一帧再跳回」的抖动。
     restoreScroll(options.scroll ?? null)
-    restoreFocus(options.focusKey ?? null, options.focusCaret ?? null)
     // 确认卡可能落在滚动区底部之外：先把它滚进可视区，读者才看得到「确认 / 取消」。
     // 用 block:'nearest' 只做最小滚动；卡片上方那一行通常已经露着一半，不必把整行顶到最上面。
     const pendingCard = root.querySelector<HTMLElement>('.wt-confirm, .branch-confirm, .changes-confirm, .commit-confirm, .stash-confirm')
     if (pendingCard !== null) pendingCard.scrollIntoView({ block: 'nearest' })
     // 从命令面板或搜索跳过来的那一条能力：先滚进可视区，再把这个「一次性高亮」清掉，
     // 免得下一次重画还亮着——高亮只用来指路，不是选中态。
-    const highlighted = root.querySelector<HTMLElement>('.cap-row.is-flash, .palette-row.is-highlight')
+    const highlighted = root.querySelector<HTMLElement>('.cap-row.is-flash, .cap-block.is-flash, .palette-row.is-highlight')
     if (highlighted !== null) highlighted.scrollIntoView({ block: 'nearest' })
     if (pages.highlight !== null) pages = reducePage(pages, { type: 'highlight-clear' })
     positionPopconfirm()
     positionBranchPop()
     positionHandoff()
+    // 焦点放在浮层定位之后：交接浮层与分支浮层在 is-placed 之前是 visibility:hidden，
+    // 先把它们摆好、能接收焦点了再恢复，否则焦点会掉到 body 上，Esc 也收不到。
+    restoreFocus(options.focusKey ?? null, options.focusCaret ?? null)
     scheduleResultDismiss()
     liveRegion.textContent = state.result === null ? '' : state.result.text
     options.post?.()
@@ -364,11 +386,19 @@ export function mount(root: HTMLElement): void {
 
     const railResult = model.result !== null && (model.result.source === 'sync' || model.result.source === 'reload' || model.result.source === 'copy')
       ? model.result : null
-    panel.append(renderRail(model.rail, railResult))
-    panel.append(renderTabs(model))
     // 页面宿主接管内容区：没有打开二级页时返回 null，这里照旧画四个页签的内容。
     const pageView = renderPageHost({ data, model, state: pages, nowMs: Date.now() })
-    const main = h('main', { class: 'panel-body', attrs: { id: 'view-panel', role: 'tabpanel', 'aria-labelledby': `tab-${state.view}` } })
+    const pageOpen = pageView !== null
+    // 打开二级页时同步带只留身份行、页签整行收起：页面紧接齿轮下方铺开，不再隔着页签与路径。
+    // 管理这一族共用齿轮入口，用 is-on 标出齿轮还开着，返回后状态自然复原。
+    const manageActive = pages.stack.includes('manage') || pages.stack.some((page) => MANAGE_PAGES.includes(page))
+    panel.append(renderRail(model.rail, railResult, { pageOpen, manageActive }))
+    if (!pageOpen) panel.append(renderTabs(model))
+    // 页签收起时内容区不再是 tabpanel：改成普通区域并给出页面名，读屏器不会找不到被 aria-controls 的页签。
+    const activePage = pages.stack.length === 0 ? null : pages.stack[pages.stack.length - 1]
+    const main = pageOpen
+      ? h('main', { class: 'panel-body is-page', attrs: { id: 'view-panel', role: 'region', 'aria-label': '二级页：' + (PAGE_META[activePage as PageId]?.title ?? '管理') } })
+      : h('main', { class: 'panel-body', attrs: { id: 'view-panel', role: 'tabpanel', 'aria-labelledby': `tab-${state.view}` } })
     if (pages.result !== null) {
       main.append(h('div', { class: 'page-result', attrs: { role: 'status' } },
         h('span', { class: 'page-result-text', text: pages.result }),
@@ -900,7 +930,7 @@ export function mount(root: HTMLElement): void {
         return
       }
       case 'branch-open':
-        dispatch({ type: 'branch-open' }, { focusKey: 'branch-search', scroll: null })
+        dispatch({ type: 'branch-open' }, { focusKey: 'branch-query' })
         return
       case 'branch-close':
         dispatch({ type: 'branch-close' }, { focusKey: 'branch-open', scroll: null })
@@ -981,11 +1011,11 @@ export function mount(root: HTMLElement): void {
       case 'page-open': {
         const page = asPageId(el.dataset.page)
         if (page === null) return
-        dispatchPage({ type: 'page-open', page }, { focusKey: 'page-back', scroll: null })
+        dispatchPage({ type: 'page-open', page }, { focusKey: 'page-back' })
         return
       }
       case 'page-back':
-        dispatchPage({ type: 'page-back' }, { focusKey: 'page-back', scroll: null })
+        dispatchPage({ type: 'page-back' }, { focusKey: 'page-back' })
         return
       case 'page-close-all':
         dispatchPage({ type: 'page-close-all' }, { focusKey: lastFocusKey, scroll: null })
@@ -1008,28 +1038,39 @@ export function mount(root: HTMLElement): void {
         return
       case 'cap-open': {
         const id = el.dataset.id ?? ''
-        dispatchPage({ type: 'cap-open', id }, { focusKey: 'cap-open:' + id, scroll: null })
+        capReturnKey = el.getAttribute('data-focus-key') ?? lastFocusKey
+        dispatchPage({ type: 'cap-open', id }, {
+          focusKey: 'cap-cancel-' + id,
+          // 确认卡长在「本页负责的能力」那一行下面；如果这一行不在视野里，把它滚进来，读者才看得到刚点出来的卡。
+          post: () => {
+            const card = root.querySelector<HTMLElement>('[data-cap-id="' + id + '"] .cap-confirm')
+            if (card !== null) card.scrollIntoView({ block: 'nearest' })
+          },
+        })
         return
       }
       case 'cap-close':
-        dispatchPage({ type: 'cap-close' }, { focusKey: 'cap-open:' + pages.capOpen })
+        dispatchPage({ type: 'cap-close' }, { focusKey: capReturnKey ?? 'cap-' + pages.capOpen })
         return
       case 'cap-next':
         dispatchPage({ type: 'cap-next' }, { focusKey: 'cap-run-' + pages.capOpen })
         return
       case 'cap-run':
-        dispatchPage({ type: 'cap-run' }, { focusKey: lastFocusKey })
+        // 执行完卡会收起、结果贴回触发点：焦点跟着回到那颗触发按钮，不要落回页面顶部。
+        dispatchPage({ type: 'cap-run' }, { focusKey: capReturnKey ?? lastFocusKey })
         return
       case 'danger-open': {
         const id = el.dataset.id ?? ''
-        dispatchPage({ type: 'danger-open', id }, { focusKey: 'danger-input', scroll: null })
+        // 记住触发按钮：核对页关掉或执行完，焦点要回到刚才那条动作上。
+        dangerReturnKey = el.getAttribute('data-focus-key') ?? lastFocusKey
+        dispatchPage({ type: 'danger-open', id }, { focusKey: 'danger-top' })
         return
       }
       case 'danger-close':
-        dispatchPage({ type: 'danger-close' }, { focusKey: 'danger-zone', scroll: null })
+        dispatchPage({ type: 'danger-close' }, { focusKey: dangerReturnKey ?? 'page-back' })
         return
       case 'danger-run':
-        dispatchPage({ type: 'danger-run' }, { focusKey: 'danger-zone', scroll: null })
+        dispatchPage({ type: 'danger-run' }, { focusKey: dangerReturnKey ?? 'page-back' })
         return
       case 'rebase-demo':
       case 'rebase-step':
@@ -1047,26 +1088,27 @@ export function mount(root: HTMLElement): void {
           'task-demo': 'task-tick',
           'task-tick': 'task-tick',
         }
-        dispatchPage({ type: action } as PageAction, { focusKey: focusByAction[action] ?? lastFocusKey, scroll: null })
+        dispatchPage({ type: action } as PageAction, { focusKey: focusByAction[action] ?? lastFocusKey })
         return
       }
       case 'conflict-choice': {
         const choice = el.dataset.choice === 'theirs' ? 'theirs' : 'ours'
-        dispatchPage({ type: 'conflict-choice', choice }, { focusKey: lastFocusKey, scroll: null })
+        dispatchPage({ type: 'conflict-choice', choice }, { focusKey: lastFocusKey })
         return
       }
       case 'conflict-resolve': {
         const path = el.dataset.path ?? ''
-        dispatchPage({ type: 'conflict-resolve', path }, { focusKey: 'conflict-resolve:' + path, scroll: null })
+        dispatchPage({ type: 'conflict-resolve', path }, { focusKey: 'conflict-resolve:' + path })
         return
       }
       case 'palette-open':
-        dispatchPage({ type: 'palette-open' }, { focusKey: 'palette-input', scroll: null })
+        paletteReturnKey = lastFocusKey
+        dispatchPage({ type: 'palette-open' }, { focusKey: 'palette-input' })
         return
       case 'palette-close': {
         // 面板内部的空白点击不该关掉面板：只有点在遮罩上才算「点到了外面」。
         if (target.closest('.palette') !== null) return
-        dispatchPage({ type: 'palette-close' }, { focusKey: lastFocusKey, scroll: null })
+        dispatchPage({ type: 'palette-close' }, { focusKey: paletteReturnKey ?? lastFocusKey })
         return
       }
       case 'palette-select': {
@@ -1114,7 +1156,7 @@ export function mount(root: HTMLElement): void {
     } else if (field === 'history-query') {
       dispatch({ type: 'history-query', value: target.value }, { focusKey: 'history-query' })
     } else if (field === 'branch-query') {
-      dispatch({ type: 'branch-query', value: target.value }, { focusKey: 'branch-search' })
+      dispatch({ type: 'branch-query', value: target.value }, { focusKey: 'branch-query' })
     } else if (field === 'branch-draft') {
       dispatch({ type: 'branch-draft', value: target.value }, { focusKey: 'branch-draft' })
     } else if (field === 'page-query') {
@@ -1171,28 +1213,26 @@ export function mount(root: HTMLElement): void {
     // Ctrl/⌘ + K 打开命令面板：这是「我知道有这条能力，但找不到它在哪」的唯一快捷键。
     if ((event.ctrlKey || event.metaKey) && (event.key === 'k' || event.key === 'K')) {
       event.preventDefault()
-      if (!pages.paletteOpen) dispatchPage({ type: 'palette-open' }, { focusKey: 'palette-input', scroll: null })
+      if (!pages.paletteOpen) {
+        paletteReturnKey = lastFocusKey
+        dispatchPage({ type: 'palette-open' }, { focusKey: 'palette-input' })
+      }
       return
     }
     // Esc 的关闭顺序按「盖在上面的先关」：命令面板 → 危险核对页 → 行内确认卡 → 当前二级页。
     if (event.key === 'Escape' && pages.paletteOpen) {
       event.preventDefault()
-      dispatchPage({ type: 'palette-close' }, { focusKey: lastFocusKey, scroll: null })
+      dispatchPage({ type: 'palette-close' }, { focusKey: paletteReturnKey ?? lastFocusKey })
       return
     }
     if (event.key === 'Escape' && pages.dangerId !== null) {
       event.preventDefault()
-      dispatchPage({ type: 'danger-close' }, { focusKey: 'danger-zone', scroll: null })
+      dispatchPage({ type: 'danger-close' }, { focusKey: dangerReturnKey ?? 'page-back' })
       return
     }
     if (event.key === 'Escape' && pages.capOpen !== '') {
       event.preventDefault()
-      dispatchPage({ type: 'cap-close' }, { focusKey: 'cap-open:' + pages.capOpen })
-      return
-    }
-    if (event.key === 'Escape' && pages.stack.length > 0) {
-      event.preventDefault()
-      dispatchPage({ type: 'page-back' }, { focusKey: 'page-back', scroll: null })
+      dispatchPage({ type: 'cap-close' }, { focusKey: capReturnKey ?? 'cap-' + pages.capOpen })
       return
     }
     // 命令面板里回车打开第一条：键盘操作不用先 Tab 到列表再按空格。
@@ -1247,6 +1287,12 @@ export function mount(root: HTMLElement): void {
     if (event.key === 'Escape' && state.confirmPull !== null) {
       event.preventDefault()
       dispatch({ type: 'pull-confirm-close' }, { focusKey: 'pull' })
+      return
+    }
+    // 二级页的 Esc 放在所有浮层与就地确认之后：盖在页面上的东西先关，最后才退出这一页。
+    if (event.key === 'Escape' && pages.stack.length > 0) {
+      event.preventDefault()
+      dispatchPage({ type: 'page-back' }, { focusKey: 'page-back' })
       return
     }
     if (state.confirmPull !== null) return

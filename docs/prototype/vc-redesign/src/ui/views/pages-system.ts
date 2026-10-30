@@ -24,9 +24,10 @@ import {
   capturedWorktrees,
 } from '../../data/repo.generated'
 import { PAGE_META } from '../../data/pages-copy'
+import type { PageState } from '../../domain/pages'
 import { h } from '../dom'
 import { chip, note } from '../primitives'
-import { actionButton, capabilitiesSection, factGrid, fold, objectRow, pageShell, section } from './page-shell'
+import { actionButton, capabilitiesSection, factGrid, fold, inlineCapabilityResult, inlineConfirmCard, objectRow, pageShell, section } from './page-shell'
 import type { PageContext } from './page-shell'
 
 /** 按编号取能力：页面上的对象行与能力清单引用同一条记录，名字与级别不会两处打架。 */
@@ -54,6 +55,35 @@ function capabilityAction(cap: Capability): HTMLElement {
   })
 }
 
+/**
+ * 把一条「上方按真实数据列出」的只读能力行包成能力块：带上编号，命令面板跳过来时能滚到并闪一下。
+ * 只读能力没有动作按钮，所以不需要确认卡与结果条。
+ */
+function capWrap(cap: Capability, node: HTMLElement, state: PageState): HTMLElement {
+  return h('div', {
+    class: 'cap-block' + (state.highlight === cap.id ? ' is-flash' : ''),
+    attrs: { 'data-cap-id': cap.id },
+  }, node)
+}
+
+/**
+ * 顶部动作行 = 对象行 + 展开时就地贴出的确认卡 + 执行完的结果条。
+ *
+ * 这些能力不再进页面底部的「本页负责的能力」清单（见各页 capabilitiesSection 的 skips），
+ * 保证一个能力只有一个主入口；确认卡与结果都贴在触发按钮下面，读者不用换位置。
+ */
+function capabilityBlock(cap: Capability, body: HTMLElement[], state: PageState, options: { danger?: boolean } = {}): HTMLElement {
+  const block = h('div', {
+    class: 'cap-block' + (state.highlight === cap.id ? ' is-flash' : '') + (state.capOpen === cap.id ? ' is-open' : ''),
+    attrs: { 'data-cap-id': cap.id },
+  }, objectRow(body, [capabilityAction(cap)], { danger: options.danger === true }))
+  const card = inlineConfirmCard(cap, state)
+  if (card !== null) block.append(card)
+  const result = inlineCapabilityResult(cap, state)
+  if (result !== null) block.append(result)
+  return block
+}
+
 // ---------------------------------------------------------------------------
 // 维护
 // ---------------------------------------------------------------------------
@@ -71,14 +101,15 @@ export function renderMaintenance(ctx: PageContext): HTMLElement {
     { key: '引用总数', value: capturedRefsTotal + ' 条 · 本地分支 ' + capturedLocalBranches + ' 条' },
   ])
 
-  const lines = ['11.5', '11.6', '11.7', '11.8', '11.9', '11.10', '11.11', '11.15']
+  // 11.6（清理不可达对象）是整仓不可逆动作，只出现在危险区，不再同时列进「整理动作」。
+  const lines = ['11.5', '11.7', '11.8', '11.9', '11.10', '11.11', '11.15']
   const actionRows = lines.map((id) => {
     const cap = capOf(id)
-    return objectRow([
+    return capabilityBlock(cap, [
       capabilitySummary(cap),
       h('span', { class: 'obj-meta mono', text: cap.command }),
       h('span', { class: 'obj-sub', text: cap.opens + '；' + cap.result }),
-    ], [capabilityAction(cap)], { danger: cap.level === '毁' })
+    ], state)
   })
 
   const dangerRows: HTMLElement[] = []
@@ -91,14 +122,14 @@ export function renderMaintenance(ctx: PageContext): HTMLElement {
         ? '清理之后不可达对象从本地消失，只有重新从远端抓取或从备份恢复才能找回。执行前先确认没有其他工作树还引用它们。'
         : '这一步会重写全库历史或引用格式，写出来的结果不能撤回；面板只展示后果与备份位置，真实执行交给专门的工具，并先在副本上演练。' }),
       h('p', { class: 'danger-meta', text: id === '11.6' ? '对象数量：' + capturedCounts.prunePackable + ' 个可回收对象 · ' + capturedCounts.garbage + ' 个垃圾文件' : '仓库：' + capturedRepoRoot + ' · 分支：' + capturedBranch }))
-    dangerRows.push(objectRow([body], [capabilityAction(cap)], { danger: true }))
+    dangerRows.push(capabilityBlock(cap, [body], state, { danger: true }))
   }
 
   const body = h('div', { class: 'page-stack' },
     section('仓库体量', null, '这里每一项都是 git 自己的读数（git count-objects -v）；数字随真实仓库变化，不是示例值。', [facts]),
-    section('整理动作', '8 条', '可撤销的整理动作集中在这里：它们只改对象存储与引用打包方式，不改提交内容。', actionRows),
+    section('整理动作', lines.length + ' 条', '可撤销的整理动作集中在这里：它们只改对象存储与引用打包方式，不改提交内容；带「只读」的几条只展示读到的形状。', actionRows),
     section('危险区', '4 条', '整仓不可逆的动作不放在行内确认卡里：要先进二级核对页，看过后果、备份位置与恢复路径，才能走到最后一步。', dangerRows, { danger: true, id: 'danger-zone' }),
-    capabilitiesSection('maintenance', state))
+    capabilitiesSection('maintenance', state, [...lines, '5.11', '11.6', '5.13', '11.14']))
   return pageShell('maintenance', PAGE_META.maintenance.title, PAGE_META.maintenance.lede, null, body, { danger: true })
 }
 
@@ -108,20 +139,21 @@ export function renderMaintenance(ctx: PageContext): HTMLElement {
 
 export function renderMigrate(ctx: PageContext): HTMLElement {
   const { state } = ctx
+  // 克隆（8.16）与归档/离线包（11.12、11.13）各有自己的向导入口，不再重复列成能力行。
   const rows: HTMLElement[] = []
-  for (const id of ['8.16', '11.1', '11.12', '11.13', '14.1']) {
+  for (const id of ['11.1', '14.1']) {
     const cap = capOf(id)
-    rows.push(objectRow([
+    rows.push(capabilityBlock(cap, [
       capabilitySummary(cap),
       h('span', { class: 'obj-meta mono', text: cap.command }),
       h('span', { class: 'obj-sub', text: cap.opens + '；' + cap.result }),
-    ], [capabilityAction(cap)]))
+    ], state))
   }
 
-  const cloneEntry = objectRow([
+  const cloneEntry = capWrap(capOf('8.16'), objectRow([
     h('span', { class: 'obj-title', text: '克隆一个仓库到本机' }),
     h('span', { class: 'obj-sub', text: '克隆是长任务：先选目录，再看到对象接收与检出进度；中途取消要写清留下了哪些文件。' }),
-  ], [actionButton('打开克隆向导', 'page-open', { kind: 'primary', focusKey: 'migrate-clone', dataset: { page: 'task' } })])
+  ], [actionButton('打开克隆向导', 'page-open', { kind: 'primary', focusKey: 'migrate-clone', dataset: { page: 'task' } })]), state)
 
   const archiveEntry = objectRow([
     h('span', { class: 'obj-title', text: '生成一份归档或离线包' }),
@@ -133,11 +165,11 @@ export function renderMigrate(ctx: PageContext): HTMLElement {
     note('恢复路径：离线包用 git clone <包文件>；归档用解压；历史导出/导入属于整仓不可逆动作，先进维护页危险区核对。', 'muted'))
 
   const body = h('div', { class: 'page-stack' },
-    section('克隆与初始化', '2 条能力', '两个动作都会新建目录，不会改动当前仓库；首次打开时先问清目标路径与是否要完整历史。', [cloneEntry, ...rows.slice(0, 2)]),
-    section('归档与离线包', '2 条能力', '产出是一份文件：界面要写清放哪、多大、是否含工作区。生成时间长的走任务进度页。', [archiveEntry, ...rows.slice(2, 4)]),
-    section('历史与邮件', '2 条能力', '导出/导入历史与生成补丁邮件都产出一份文件；前者整仓不可逆，后者只导出提交。', [rows[4]]),
+    section('克隆与初始化', '2 条能力', '两个动作都会新建目录，不会改动当前仓库；首次打开时先问清目标路径与是否要完整历史。', [cloneEntry, rows[0]]),
+    section('归档与离线包', '2 条能力', '产出是一份文件：界面要写清放哪、多大、是否含工作区。生成时间长的走任务进度页。', [archiveEntry]),
+    section('历史与邮件', '2 条能力', '导出/导入历史与生成补丁邮件都产出一份文件；前者整仓不可逆，后者只导出提交。', [rows[1]]),
     section('备份与恢复', null, '备份不是 git 命令，但它是所有不可逆动作的最后一道保险，所以写在这一页。', [backup]),
-    capabilitiesSection('migrate', state))
+    capabilitiesSection('migrate', state, ['8.16', '11.1', '14.1']))
   return pageShell('migrate', PAGE_META.migrate.title, PAGE_META.migrate.lede, null, body, { danger: true })
 }
 
@@ -195,13 +227,13 @@ export function renderConfig(ctx: PageContext): HTMLElement {
 
   const readOnlyRows = ['12.1', '12.7', '12.8'].map((id) => {
     const cap = capOf(id)
-    return objectRow([capabilitySummary(cap), h('span', { class: 'obj-sub', text: cap.opens })], [capabilityAction(cap)])
+    return capWrap(cap, objectRow([capabilitySummary(cap), h('span', { class: 'obj-sub', text: cap.opens })], [capabilityAction(cap)]), state)
   })
 
   const body = h('div', { class: 'page-stack' },
     section('相关配置', '8 条键', '只列与版本管理界面直接相关的键；值来自本仓库的真实配置，没配的写「未配置」。', groups),
     section('只读读取', '3 条', '属性规则与邮件映射只展示读到的内容，不在面板里编辑；读取结果贴在行内。', readOnlyRows),
-    capabilitiesSection('config', state))
+    capabilitiesSection('config', state, ['12.1', '12.7', '12.8']))
   return pageShell('config', PAGE_META.config.title, PAGE_META.config.lede, null, body)
 }
 
@@ -228,16 +260,17 @@ export function renderHooks(ctx: PageContext): HTMLElement {
     { key: '编辑方式', value: '交给外部编辑器；面板不内嵌编辑器' },
   ])
 
-  const runRow = objectRow([
-    capabilitySummary(capOf('12.6')),
+  const runCap = capOf('12.6')
+  const runRow = capabilityBlock(runCap, [
+    capabilitySummary(runCap),
     h('span', { class: 'obj-sub', text: '手动跑一个钩子只影响本次动作；执行前提示这个钩子会读写哪些路径。' }),
-  ], [actionButton('演示运行', 'cap-open', { focusKey: 'hook-run', dataset: { id: '12.6' } })])
+  ], state)
 
   const body = h('div', { class: 'page-stack' },
     section('钩子目录', null, '清单来自 .git/hooks 的真实文件；示例不算已启用。', [facts]),
     section('钩子清单', capturedHooks.length + ' 个文件', '按文件名排序；每个文件都能看到它是不是示例、会不会被执行。', rows),
     section('手动运行', '1 条', null, [runRow]),
-    capabilitiesSection('hooks', state))
+    capabilitiesSection('hooks', state, ['12.6']))
   return pageShell('hooks', PAGE_META.hooks.title, PAGE_META.hooks.lede, null, body)
 }
 
@@ -268,33 +301,36 @@ export function renderDiagnostics(ctx: PageContext): HTMLElement {
   ]
   const shapeRows = readShapes.map((item) => {
     const cap = capOf(item.id)
-    return objectRow([
+    return capWrap(cap, objectRow([
       capabilitySummary(cap),
       h('span', { class: 'obj-meta mono', text: item.value }),
       h('span', { class: 'obj-sub', text: item.hint }),
-    ], [chip('只读', 'muted', { small: true })])
+    ], [chip('只读', 'muted', { small: true })]), state)
   })
 
-  const fsckRow = objectRow([
-    capabilitySummary(capOf('11.2')),
+  const fsckCap = capOf('11.2')
+  const fsckRow = capWrap(fsckCap, objectRow([
+    capabilitySummary(fsckCap),
     h('span', { class: 'obj-sub', text: '完整性检查在原型里没有运行：它会读全库对象，真实实现里显示进度与「发现几个问题」，不写仓库。' }),
-  ], [actionButton('演示一次检查', 'page-demo', { focusKey: 'diag-fsck', dataset: { note: '完整性检查已跑完（原型模拟）：0 个损坏对象，0 个缺失对象。' } })])
+  ], [actionButton('演示一次检查', 'page-demo', { focusKey: 'diag-fsck', dataset: { note: '完整性检查已跑完（原型模拟）：0 个损坏对象，0 个缺失对象。' } })]), state)
 
-  const bisectRow = objectRow([
-    capabilitySummary(capOf('13.1')),
+  const bisectCap = capOf('13.1')
+  const bisectRow = capabilityBlock(bisectCap, [
+    capabilitySummary(bisectCap),
     h('span', { class: 'obj-sub', text: '二分定位要选一段提交范围与一个好/坏判定；它会检出中间提交，结束后要回到原分支。' }),
-  ], [actionButton('演示二分', 'cap-open', { focusKey: 'diag-bisect', dataset: { id: '13.1' } })])
+  ], state)
 
-  const logRow = objectRow([
-    capabilitySummary(capOf('3.11')),
+  const logCap = capOf('3.11')
+  const logRow = capWrap(logCap, objectRow([
+    capabilitySummary(logCap),
     h('span', { class: 'obj-sub', text: '引用日志按时间倒序列出 HEAD 与分支的移动记录；它是误操作后的第一道找回入口。' }),
-  ], [actionButton('看引用日志形状', 'page-demo', { focusKey: 'diag-reflog', dataset: { note: '引用日志示例：HEAD@{0} 值：' + capturedHead.slice(0, 7) + '（10 分钟前）；HEAD@{1} 值：上一提交（12 分钟前）。' } })])
+  ], [actionButton('看引用日志形状', 'page-demo', { focusKey: 'diag-reflog', dataset: { note: '引用日志示例：HEAD@{0} 值：' + capturedHead.slice(0, 7) + '（10 分钟前）；HEAD@{1} 值：上一提交（12 分钟前）。' } })]), state)
 
   const body = h('div', { class: 'page-stack' },
     section('版本与计数', null, '这些数字全部来自本仓库此刻的 git 读数；读不到时界面写「读不到」，不写 0。', [facts]),
     section('只读对象查看', '6 条', '底层排查只展示读到的形状，不提供可操作按钮；需要执行时交给终端或诊断工具。', shapeRows),
     section('检查与定位', '4 条', '完整性检查、可回收对象、二分定位与引用日志：都能在面板里发起并看到结果，但都不写提交。', [fsckRow, bisectRow, logRow]),
-    capabilitiesSection('diagnostics', state))
+    capabilitiesSection('diagnostics', state, [...readShapes.map((item) => item.id), '11.2', '13.1', '3.11']))
   return pageShell('diagnostics', PAGE_META.diagnostics.title, PAGE_META.diagnostics.lede, null, body)
 }
 
@@ -327,11 +363,11 @@ export function renderPlatform(ctx: PageContext): HTMLElement {
         attrs: { href: where.url, target: '_blank', rel: 'noreferrer', 'data-focus-key': 'ext-' + cap.id },
       }, '在网页打开'))
     }
-    return objectRow([
+    return capWrap(cap, objectRow([
       capabilitySummary(cap),
       h('span', { class: 'obj-meta', text: where.where }),
       h('span', { class: 'obj-sub', text: cap.command }),
-    ], side)
+    ], side), state)
   })
 
   const boundaries = [
@@ -348,6 +384,6 @@ export function renderPlatform(ctx: PageContext): HTMLElement {
   const body = h('div', { class: 'page-stack' },
     section('交出去的六条能力', platformCaps.length + ' 条', '这些能力没有面板入口：不是不做，而是做在面板里会越过权限边界或替用户隐瞒后果。', rows),
     section('四条边界', null, '边界写在这里，是为了让下游写规格时知道「不要实现什么」。', boundaryRows),
-    capabilitiesSection('platform', state))
+    capabilitiesSection('platform', state, platformCaps.map((cap) => cap.id)))
   return pageShell('platform', PAGE_META.platform.title, PAGE_META.platform.lede, null, body)
 }

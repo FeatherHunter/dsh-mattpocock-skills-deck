@@ -94,7 +94,7 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
   // 两件事都发生在动手之前，合在一行不额外占高度，列表就能多露几行文件。
   const hint = h('div', { class: 'composer-hint', id: 'commit-hint' },
     h('span', { class: 'hint-text', text: model.composer.hint }),
-    handoffEntry(HANDOFF_ENTRY.changes, 'changes', 'inline'))
+    handoffEntry(HANDOFF_ENTRY.changes, 'changes'))
 
   const commitButton = button({
     label: COPY.changes.commitLabel(model.composer.stagedCount),

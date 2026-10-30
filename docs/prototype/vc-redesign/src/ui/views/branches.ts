@@ -106,7 +106,7 @@ function renderList(model: BranchesModel): HTMLElement {
   for (const row of model.rows) list.append(renderRow(model, row))
   wrap.append(list)
   // 分支页的交接入口放在列表下方：读完整份清单之后，如果还是拿不准顺序，这里可以整页交给 AI。
-  wrap.append(h('div', { class: 'branch-ai' }, handoffEntry(HANDOFF_ENTRY.branches, 'branches', 'inline')))
+  wrap.append(h('div', { class: 'branch-ai' }, handoffEntry(HANDOFF_ENTRY.branches, 'branches')))
   return wrap
 }
 

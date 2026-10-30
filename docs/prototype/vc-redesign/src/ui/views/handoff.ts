@@ -83,10 +83,10 @@ export function renderHandoffSheet(model: HandoffSheetModel): HTMLElement {
   return layer
 }
 
-/** 入口按钮：同步带用整行长按钮，列表页脚用一行轻链接，复用同一套结构与文案。 */
-export function handoffEntry(label: string, kind: string, variant: 'rail' | 'inline'): HTMLElement {
+/** 入口按钮：列表下的那行轻链接。 */
+export function handoffEntry(label: string, kind: string): HTMLElement {
   const node = h('button', {
-    class: `ai-entry ai-entry-${variant}`,
+    class: 'ai-entry ai-entry-inline',
     attrs: {
       type: 'button',
       title: COPY.ai.entryAria(label),
@@ -95,6 +95,5 @@ export function handoffEntry(label: string, kind: string, variant: 'rail' | 'inl
     },
     dataset: { action: 'handoff-open', kind },
   }, icon('spark', 14), h('span', { class: 'ai-entry-label', text: label }))
-  if (variant === 'rail') node.append(h('span', { class: 'ai-entry-sub', text: COPY.ai.railSub }))
   return node
 }

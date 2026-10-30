@@ -55,7 +55,7 @@ export function renderWorktrees(
   // 交接入口常驻：异常为零时也可能有人想把整页状态交给 AI 从头理一遍，
   // 所以这里不按 aiEnabled 隐藏，只按有没有异常换一句标题。
   view.append(h('div', { class: 'wt-foot' },
-    handoffEntry(model.abnormalCount > 0 ? HANDOFF_ENTRY.worktrees : COPY.ai.cleanEntry, 'worktrees', 'inline')))
+    handoffEntry(model.abnormalCount > 0 ? HANDOFF_ENTRY.worktrees : COPY.ai.cleanEntry, 'worktrees')))
   if (result !== null) view.append(resultBanner(result))
   return view
 }

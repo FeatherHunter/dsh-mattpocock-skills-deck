@@ -353,14 +353,23 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .rail {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 11px 13px 10px;
+  gap: 5px;
+  padding: 9px 12px 8px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--raised) 42%, var(--panel)) 0%, var(--panel) 100%);
   border-bottom: 1px solid var(--line-2);
 }
 
 .rail-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-.rail-id { gap: 6px; }
+/* 身份行只占一行：左边是仓库与分支，右边是四颗全局入口；两边都不换行，长名字由左边截断。 */
+.rail-id { gap: 6px; flex-wrap: nowrap; }
+.rail-id-main { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.rail-tools { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; margin-left: auto; }
+/* 管理入口开着时齿轮保持按下态：读者从管理页返回前都知道自己是从哪进来的。 */
+.rail-tools .icon-btn.is-on {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
 
 .rail-repo {
   font-size: 14.5px;
@@ -399,8 +408,7 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .rail-branch-chevron { display: inline-grid; place-items: center; color: color-mix(in srgb, var(--accent) 70%, var(--mut)); transform: rotate(-90deg); }
 .rail-branch { display: inline-flex; align-items: center; min-width: 0; color: inherit; font: inherit; }
 .rail-branch .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rail-oid { font-size: 10.5px; color: var(--faint); }
-.rail-id [data-action="copy-repo"] { margin-left: auto; }
+.rail-oid { flex: none; font-size: 10.5px; color: var(--faint); }
 
 .icon-btn {
   display: inline-grid;
@@ -503,16 +511,12 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .reason.is-block .reason-v { color: var(--danger); }
 .reason.is-warn .reason-v { color: var(--warn); }
 
-.rail-path { gap: 6px; color: var(--faint); align-items: baseline; }
-.rail-path-label { flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em; }
-.rail-path-value { font-size: 10.5px; color: var(--mut); overflow-wrap: anywhere; min-width: 0; }
-
 /* ---------- 页签：与设计稿一致，左对齐、无填充底、2 像素下划线 ---------- */
 
 .views {
   display: flex;
   gap: 2px;
-  padding: 8px 12px 0;
+  padding: 6px 12px 0;
   background: transparent;
   border-bottom: 1px solid var(--line-2);
 }
@@ -523,7 +527,7 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   align-items: baseline;
   gap: 5px;
   margin-bottom: -1px;
-  padding: 6px 10px 9px;
+  padding: 5px 10px 8px;
   border: 0;
   border-bottom: 2px solid transparent;
   border-radius: 6px 6px 0 0;
@@ -1380,6 +1384,7 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   .rail-repo { font-size: 13px; }
   .rail-branch { font-size: 11.5px; }
   .rail-oid { display: none; }
+  .rail-tools { gap: 0; }
   .sync-count { height: 20px; padding: 0 7px; }
   .next-step { margin-left: 0; }
   .tab { padding: 6px 7px 8px; gap: 4px; font-size: 11.5px; }
@@ -1410,7 +1415,7 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   .tab .unit { font-size: 10px; }
   .tab-count .count { font-size: 10.5px; }
   .sync-label { font-size: 9.5px; }
-  .rail-path-label { display: none; }
+  .page-back-label { display: none; }
   .file-dir { display: none; }
 }
 
@@ -1515,34 +1520,6 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .ai-entry:active { color: var(--accent); }
 .ai-entry:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* 同步带里的整行入口：一条细边加浅底，读起来是「这里还有一条路」，不是第二颗主按钮。 */
-.ai-entry-rail {
-  width: 100%;
-  padding: 7px 9px;
-  border-color: var(--line-2);
-  background: var(--raised);
-  border-radius: 8px;
-  color: var(--ink-2);
-  flex-wrap: wrap;
-}
-
-.ai-entry-rail:hover { background: var(--hover); border-color: var(--accent); }
-.ai-entry-rail .ai-entry-label { font-weight: 650; }
-
-/* 副行只在够宽时出现：460 以下的面板里，AI 入口压成一行，把高度留给文件列表。 */
-.ai-entry-rail .ai-entry-sub { display: none; }
-@container panel (min-width: 500px) { .ai-entry-rail .ai-entry-sub { display: block; } }
-
-/* 副行占满一行：300 宽下面板里，标题与副标题挤在同一行会先把动词截掉。 */
-.ai-entry-rail .ai-entry-sub {
-  flex-basis: 100%;
-  padding-left: 20px;
-  font-size: 10px;
-  font-weight: 400;
-  line-height: 1.45;
-  color: var(--faint);
-}
-
 /* 落在视图里的轻入口：一行文字，没有边框；只在悬停时变绿，不跟主按钮抢位置。 */
 .ai-entry-inline { padding: 3px 2px; color: var(--mut); font-weight: 550; }
 .ai-entry-inline:hover { color: var(--accent); }
@@ -1631,16 +1608,10 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .composer-hint .ai-entry { flex: none; white-space: nowrap; }
 
 @container panel (max-width: 339px) {
-  /* 300 宽时同步带本来就高：收起身份行里的复制按钮，别让它单独折成一行。
-     放大镜（命令面板）与齿轮（管理）留着——它们是这两个新入口唯一的常驻位置。 */
+  /* 300 宽时身份行只剩三颗图标：收起复制按钮（路径在仓库名的悬停提示里还在），
+     交给 AI、命令面板、管理三颗留着——它们是常驻入口，任何宽度都不能删。 */
   .rail-id [data-action="copy-repo"] { display: none; }
-  .ai-entry-rail { padding: 5px 7px; }
   .commit-input { min-height: 44px; }
-}
-
-@container panel (max-width: 319px) {
-  /* 最窄一档连路径行也收起：完整路径在 AI 交接说明与工作树页里都能看到。 */
-  .rail-path { display: none; }
 }
 
 /* ============================================================
@@ -1905,17 +1876,18 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 9px 12px 8px;
+  gap: 4px;
+  padding: 8px 12px 7px;
   border-bottom: 1px solid var(--line);
 }
+/* 返回键并进标题行：页面从身份行的齿轮点进来，标题和返回应当和入口在同一视野里。 */
 .page-back {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  align-self: flex-start;
+  gap: 4px;
+  flex: none;
   min-height: 22px;
-  padding: 0 7px 0 3px;
+  padding: 0 6px 0 2px;
   border: 1px solid transparent;
   border-radius: var(--r-btn);
   background: transparent;
@@ -1930,6 +1902,9 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .page-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .page-title-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
 .page-title { margin: 0; font-size: 13.5px; font-weight: 750; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere; }
+/* 标题是程序化焦点落点（打开整页时放焦点用），不当作可 Tab 的控件，也不画焦点框。 */
+.page-title:focus { outline: none; }
+.page-back-label { font-size: 10.5px; }
 .page-actions { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; }
 .page-lede { margin: 0; font-size: 10.5px; line-height: 1.6; color: var(--mut); }
 .page-scroll { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px 18px; }
@@ -2073,6 +2048,10 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .cap-row.is-open { border-color: color-mix(in srgb, var(--accent) 32%, var(--line-2)); background: var(--inset); }
 /* 从命令面板跳过来时闪一下：告诉眼睛「就是这一行」，不靠滚动位置猜。 */
 .cap-row.is-flash { border-color: var(--accent); animation: cap-flash 1.6s ease-out 1; }
+/* 顶部动作行：对象行 + 就地展开的确认卡与结果；整块代表一条能力，闪一下时连对象行一起亮。 */
+.cap-block { display: flex; flex-direction: column; gap: 4px; }
+.cap-block.is-open .obj-row { border-color: color-mix(in srgb, var(--accent) 32%, var(--line-2)); background: var(--inset); }
+.cap-block.is-flash .obj-row { border-color: var(--accent); animation: cap-flash 1.6s ease-out 1; }
 @keyframes cap-flash { 0% { box-shadow: 0 0 0 3px var(--accent-soft); } 100% { box-shadow: none; } }
 .cap-head { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .cap-id { font-size: 9.5px; color: var(--faint); }

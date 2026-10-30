@@ -57,6 +57,8 @@ export interface RailModel {
   sync: SyncModel
   syncChips: SyncChipModel[]
   readAtText: string
+  /** 跟踪的远端名（例如 origin）；没有上游时为 null，标签退回「远端依据」。 */
+  remoteName: string | null
   basisText: string
   next: string
   nextTone: Tone
@@ -403,6 +405,8 @@ export function railOf(base: SessionBase, state: SessionState, nowMs: number): R
     sync,
     syncChips,
     readAtText: timeText(nowMs, state.readAtMs),
+    // 上游写的是 <远端>/<分支>；只取第一段做标签，读者看到的是「远端 origin 12 分钟前」。
+    remoteName: currentBranch === undefined || currentBranch.upstream === null ? null : currentBranch.upstream.split('/')[0],
     basisText: state.basisMs === null ? COPY.rail.basisUnknown : timeText(nowMs, state.basisMs),
     next: next.text,
     nextTone: next.tone,

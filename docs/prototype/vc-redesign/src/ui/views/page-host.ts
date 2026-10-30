@@ -125,5 +125,5 @@ function renderDangerConfirm(ctx: PageContext, cap: Capability): HTMLElement {
     section('拿什么核对', '4 项', '这四项必须逐条过一遍；核对页不替你判断，只把要看的读数摊开。', [facts, ...checklist]),
     section('最后一步', null, '这一步在原型里也只写演示结果，不会真的清理仓库。真实执行由维护者在终端完成，复核人 FeatherHunter。', [confirmBox]),
   )
-  return pageShell('maintenance', meta.title + ' › 危险动作核对', '这是 ' + cap.id + ' ' + cap.name + ' 的二级核对页：先看后果，再看备份，最后照抄确认词。', null, body, { danger: true })
+  return pageShell('maintenance', meta.title + ' › 危险动作核对', '这是 ' + cap.id + ' ' + cap.name + ' 的二级核对页：先看后果，再看备份，最后照抄确认词。', null, body, { danger: true, focusKey: 'danger-top' })
 }
