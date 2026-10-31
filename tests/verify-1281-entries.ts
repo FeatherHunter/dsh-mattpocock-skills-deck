@@ -50,7 +50,8 @@ function enOf(id) {
 
 const newSpecEntry = templateOf('newSpec')
 // 2026-10-28：「## 调查（建议先查后问）」四条汇总成公共小节 investigation，newSpec 的正文改短、版本号 v4→v5，期望跟着改。
-check(!!newSpecEntry && newSpecEntry.version === 6, 'newSpec 条目存在且 v6')
+// 2026-10-31：工具节公共提醒行改成「每轮回复收尾先判断、想得到就调用」，newSpec 跟着升到 v7，期望同步。
+check(!!newSpecEntry && newSpecEntry.version === 7, 'newSpec 条目存在且 v7')
 check(zhOf('newSpec').indexOf('/grill-with-docs\n请帮我讨论一个需求') === 0, 'newSpec 首行是 /grill-with-docs 且收尾提醒 to-spec（正文在注册表）')
 check(zhOf('tpl.implement').indexOf('/implement\n{url}\n\n按 /implement 技能实施这张票。') === 0, 'tpl.implement 首行 /implement、次行 {url}')
 check(zhOf('specSplit').indexOf('/to-tickets\n{url}') === 0, 'specSplit 首行 /to-tickets')

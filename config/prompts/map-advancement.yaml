@@ -1,10 +1,10 @@
 complete:
-  version: 17
+  version: 18
   placeholders:
     - url
     - closed
     - total
-  use: map 完成态 · 按 wayfinder 技能核对探索完成，再按当前状态走分支：已做完的交接步骤跳过；结论需要接着做就提醒手动 /to-spec → /to-tickets，不需要就在正文记下结论、留一条总结评论后关闭这张地图（#1281；#1274 收口后补分支）；v17（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: map 完成态 · 按 wayfinder 技能核对探索完成，再按当前状态走分支：已做完的交接步骤跳过；结论需要接着做就提醒手动 /to-spec → /to-tickets，不需要就在正文记下结论、留一条总结评论后关闭这张地图（#1281；#1274 收口后补分支）；v17（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v18（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     /wayfinder
     {url}
@@ -60,9 +60,9 @@ complete:
 
     {{shared:sharedTools}}
 fixate:
-  version: 11
+  version: 12
   placeholders: []
-  use: "沉淀 · 思维对齐 · 成果沉淀 · v9 #1407 加 suggest_next_steps 提醒、删 /retro 提醒"
+  use: "沉淀 · 思维对齐 · 成果沉淀 · v9 #1407 加 suggest_next_steps 提醒、删 /retro 提醒；v12（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」"
   zh: |-
     告一段落。暂停推进，执行「思维对齐 · 成果沉淀」，从第一性原理出发：
 
@@ -112,10 +112,10 @@ fixate:
 
     {{shared:sharedTools}}
 healthCheck:
-  version: 6
+  version: 7
   placeholders:
     - subject
-  use: 「体检」按钮 · 所有后端共用的总纲（游离票归位：先出建议清单、人点头才动手）；后端自己的科目由后端声明、经 {subject} 填空；v6（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: 「体检」按钮 · 所有后端共用的总纲（游离票归位：先出建议清单、人点头才动手）；后端自己的科目由后端声明、经 {subject} 填空；v6（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v7（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     {{shared:firstPrinciples}}
 
@@ -199,9 +199,9 @@ healthCheck:
 
     {{shared:sharedTools}}
 mapExecute:
-  version: 23
+  version: 24
   placeholders: []
-  use: map 执行 / 新会话（未完成态）· 只写推进指令与收尾，推进规则交给 wayfinder 技能（#1281）；v22（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v23（2026-10-31）：补地图推进的开工、推进、关 issue、收尾四节操作约束，仍是插件增量——不复述技能规则、不定义认领生命周期
+  use: map 执行 / 新会话（未完成态）· 只写推进指令与收尾，推进规则交给 wayfinder 技能（#1281）；v22（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v23（2026-10-31）：补地图推进的开工、推进、关 issue、收尾四节操作约束，仍是插件增量——不复述技能规则、不定义认领生命周期；v24（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     {{shared:firstPrinciples}}
 
@@ -253,13 +253,13 @@ mapExecute:
 
     {{shared:sharedTools}}
 mapInspect:
-  version: 14
+  version: 15
   placeholders:
     - n
     - title
     - url
     - subIssue
-  use: map 空态 0/0 检查 · 诊断关联缺失；v14（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: map 空态 0/0 检查 · 诊断关联缺失；v14（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v15（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     {{shared:firstPrinciples}}
 
@@ -313,9 +313,9 @@ mapInspect:
 
     {{shared:sharedTools}}
 specComplete:
-  version: 8
+  version: 9
   placeholders: [url, closed, total]
-  use: '规格容器 · 完成态「完成」按钮：先认这次是怎么做的，把改动交付到仓库长期分支（没有版本库则以当前工作区为准），逐条核对用户故事与逐票证据后按边界关闭规格；关闭只经 deck_issue_patch，没有「顺手关」的旁路，重开只能由人做（#1281、#1350）；v8（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程'
+  use: '规格容器 · 完成态「完成」按钮：先认这次是怎么做的，把改动交付到仓库长期分支（没有版本库则以当前工作区为准），逐条核对用户故事与逐票证据后按边界关闭规格；关闭只经 deck_issue_patch，没有「顺手关」的旁路，重开只能由人做（#1281、#1350）；v8（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v9（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」'
   zh: |-
     {{shared:firstPrinciples}}
 
@@ -393,10 +393,10 @@ specComplete:
 
     {{shared:sharedTools}}
 specExecute:
-  version: 8
+  version: 9
   placeholders:
     - url
-  use: 规格容器 · 有未关实施票时「执行」按钮（首行 /implement-spec）（#1281）；v6（2026-10-29）：收尾小节标题从「## 收口」改成「## 收尾」，与其余模板统一；v7（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v8（2026-10-31）：降级路线的实现者子代理一条写明要用全新上下文的子代理、不要 fork 当前对话（#1725），与 /implement-spec 技能 v1.3.2 的「用全新上下文窗口启动子代理」口径一致
+  use: 规格容器 · 有未关实施票时「执行」按钮（首行 /implement-spec）（#1281）；v6（2026-10-29）：收尾小节标题从「## 收口」改成「## 收尾」，与其余模板统一；v7（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v8（2026-10-31）：降级路线的实现者子代理一条写明要用全新上下文的子代理、不要 fork 当前对话（#1725），与 /implement-spec 技能 v1.3.2 的「用全新上下文窗口启动子代理」口径一致；v9（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     /implement-spec
     {url}
@@ -438,10 +438,10 @@ specExecute:
 
     {{shared:sharedTools}}
 specSplit:
-  version: 6
+  version: 7
   placeholders:
     - url
-  use: 规格容器 · 空态「拆票」按钮（首行 /to-tickets）（#1281）；v6（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: 规格容器 · 空态「拆票」按钮（首行 /to-tickets）（#1281）；v6（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v7（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     /to-tickets
     {url}

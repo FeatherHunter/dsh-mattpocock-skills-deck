@@ -26,9 +26,9 @@ const promptConfig = require('../scripts/lib/prompt-config.mts')
 const ROOT = path.resolve(__dirname, '..')
 const GATE = 'verify-1407-next-steps-reminders'
 
-// 提醒行的两份原文：字面照 #1407 验收标准写，中英各一行；下面所有判据都从这里取，别在别处再抄一遍。
-const REMINDER_ZH = '- [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。'
-const REMINDER_EN = '- [ ] As the last step before replying, based on the current actual scenario and following the /ask-matt rules, determine whether the most suitable skill can be recommended, and call the suggest_next_steps tool to recommend it.'
+// 提醒行的两份原文：字面照当前验收标准写，中英各一行；下面所有判据都从这里取，别在别处再抄一遍。
+const REMINDER_ZH = '- [ ] 每轮回复收尾时先判断一次：用户接下来几乎一定会做什么？想得到就调用 suggest_next_steps 给出 2~4 条最可能被他选中的做法；这一轮在等用户拍板时，其中一条把每题的推荐答案列好；想不到就不调用。'
+const REMINDER_EN = '- [ ] As every reply ends, ask yourself once: what will the user almost certainly do next? If you can name it, call suggest_next_steps with 2–4 options the user is most likely to pick; when the turn is waiting for the user to decide, one of them lists your recommended answer to each question; if you cannot name it, do not call.'
 const TOOLS_ZH = '## 工具'
 const TOOLS_EN = '## Tools'
 

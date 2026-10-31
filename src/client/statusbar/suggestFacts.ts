@@ -18,8 +18,10 @@ export const SUGGEST_TOOL_NAME = 'suggest_next_steps'
 /** 建议条数的合法区间：少于下限整次不出结果，多于上限只留前几条。必须与工具侧一致。 */
 export const SUGGEST_MIN_ITEMS = 2
 export const SUGGEST_MAX_ITEMS = 4
-/** 单项文本上限：按 Unicode 码点数算，避免把 emoji 之类的代理对切坏。必须与工具侧一致。 */
-export const SUGGEST_INTRO_MAX_CHARS = 10
+/** 简介上限按显示宽度算：汉字、全角标点与 emoji 算 2 格，其余字符算 1 格，30 格等于 15 个汉字；
+ *  英文每个字母算 1 格，所以最多 30 个字符。必须与工具侧一致。 */
+export const SUGGEST_INTRO_MAX_WIDTH = 30
+/** 提示词与理由按 Unicode 码点数算，避免把 emoji 之类的代理对切坏。必须与工具侧一致。 */
 export const SUGGEST_PROMPT_MAX_CHARS = 500
 export const SUGGEST_REASON_MAX_CHARS = 200
 export const SUGGEST_PRIORITY_MIN = 0
@@ -47,6 +49,45 @@ export const suggestClipText = function (text: any, max: any) {
   const chars = Array.from(value)
   if (chars.length <= limit) return { text: value, clipped: false }
   return { text: chars.slice(0, Math.max(1, limit)).join('') + '…', clipped: true }
+}
+
+/** 一个字符占的显示格数：汉字、全角标点与 emoji 算 2 格，其余（英文、数字、半角标点、空格）算 1 格。
+ *  与工具侧 charWidthOf 用同一套区间，两边算出的简介截断位置才会一样。 */
+const suggestCharWidthOf = function (char: any) {
+  const cp = String(char).codePointAt(0) || 0
+  if (cp >= 0x1100 && (
+    cp <= 0x115f ||
+    cp === 0x2329 || cp === 0x232a ||
+    (cp >= 0x2e80 && cp <= 0xa4cf && cp !== 0x303f) ||
+    (cp >= 0xac00 && cp <= 0xd7a3) ||
+    (cp >= 0xf900 && cp <= 0xfaff) ||
+    (cp >= 0xfe30 && cp <= 0xfe6f) ||
+    (cp >= 0xff00 && cp <= 0xff60) ||
+    (cp >= 0xffe0 && cp <= 0xffe6) ||
+    (cp >= 0x1f300 && cp <= 0x1faff) ||
+    (cp >= 0x20000 && cp <= 0x3fffd)
+  )) return 2
+  return 1
+}
+
+/**
+ * 按显示宽度截断简介：没超宽原样返回；超宽保留前面放得下的字符，并在末尾另加一个省略号。
+ * 与工具侧 clipWidth 同形（#1540 口径：省略号是超长标记、不占宽度名额），按宽度算英文才不会白丢一半空间。
+ */
+export const suggestClipWidth = function (text: any, maxWidth: any) {
+  const value = typeof text === 'string' ? text : ''
+  const limit = Number(maxWidth)
+  if (!Number.isFinite(limit) || limit <= 0) return { text: '', clipped: value.length > 0 }
+  const chars = Array.from(value)
+  let width = 0
+  let end = chars.length
+  for (let i = 0; i < chars.length; i++) {
+    const unit = suggestCharWidthOf(chars[i])
+    if (width + unit > limit) { end = i; break }
+    width += unit
+  }
+  if (end === chars.length) return { text: value, clipped: false }
+  return { text: chars.slice(0, Math.max(1, end)).join('') + '…', clipped: true }
 }
 
 /**
@@ -87,7 +128,7 @@ export const suggestItemsOf = function (argumentsValue: any) {
     // 类型不是字符串也按空串收，不因此丢掉整条提示词；优先级没打分就记 null，排序时统一放末尾。
     const introText = typeof entry.intro === 'string' ? entry.intro.trim() : ''
     const reasonText = typeof entry.reason === 'string' ? entry.reason.trim() : ''
-    const introPart = suggestClipText(introText, SUGGEST_INTRO_MAX_CHARS)
+    const introPart = suggestClipWidth(introText, SUGGEST_INTRO_MAX_WIDTH)
     const promptPart = suggestClipText(promptText, SUGGEST_PROMPT_MAX_CHARS)
     const reasonPart = suggestClipText(reasonText, SUGGEST_REASON_MAX_CHARS)
     if (introPart.clipped || promptPart.clipped || reasonPart.clipped) clipped += 1

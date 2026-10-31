@@ -166,7 +166,7 @@ async function main() {
   check(facts.SUGGEST_TOOL_NAME === tool.SUGGEST_TOOL_NAME, '工具名两侧一致')
   check(facts.SUGGEST_MIN_ITEMS === tool.MIN_ITEMS && facts.SUGGEST_MIN_ITEMS === 2, '最少条数两侧一致且为 2')
   check(facts.SUGGEST_MAX_ITEMS === tool.MAX_ITEMS && facts.SUGGEST_MAX_ITEMS === 4, '最多条数两侧一致且为 4')
-  check(facts.SUGGEST_INTRO_MAX_CHARS === tool.INTRO_MAX_CHARS && facts.SUGGEST_INTRO_MAX_CHARS === 10, '简介上限两侧一致且为 10')
+  check(facts.SUGGEST_INTRO_MAX_WIDTH === tool.INTRO_MAX_WIDTH && facts.SUGGEST_INTRO_MAX_WIDTH === 30, '简介上限两侧一致且为 30 格（15 个汉字宽）')
   check(facts.SUGGEST_PROMPT_MAX_CHARS === tool.PROMPT_MAX_CHARS && facts.SUGGEST_PROMPT_MAX_CHARS === 500, '提示词上限两侧一致且为 500')
   check(facts.SUGGEST_REASON_MAX_CHARS === tool.REASON_MAX_CHARS && facts.SUGGEST_REASON_MAX_CHARS === 200, '理由上限两侧一致且为 200')
   check(facts.SUGGEST_PRIORITY_MIN === tool.PRIORITY_MIN && facts.SUGGEST_PRIORITY_MIN === 0, '优先级下限两侧一致且为 0')
@@ -194,6 +194,17 @@ async function main() {
   const clipEmoji = facts.suggestClipText('😀😀😀', 2)
   check(clipEmoji.text === '😀😀…' && clipEmoji.clipped === true, '按 Unicode 码点截断，不切坏代理对（#1540 保留前 2 个码点并另加省略号）')
   check(facts.suggestClipText(123, 5).text === '', '不是字符串按空串收（不抛）')
+
+  // ── 4b. 按显示宽度截断简介：15 个汉字与 30 个英文字母的宽度都正好是 30 格，多一格才算超宽 ──
+  const clipWidthHanExact = facts.suggestClipWidth('简'.repeat(15), facts.SUGGEST_INTRO_MAX_WIDTH)
+  check(clipWidthHanExact.text === '简'.repeat(15) && clipWidthHanExact.clipped === false, '15 个汉字正好放得下，不算截断')
+  const clipWidthHanLong = facts.suggestClipWidth('简'.repeat(16), facts.SUGGEST_INTRO_MAX_WIDTH)
+  check(clipWidthHanLong.text === '简'.repeat(15) + '…' && clipWidthHanLong.clipped === true, '16 个汉字保留前 15 个并另加省略号')
+  const clipWidthEnExact = facts.suggestClipWidth('a'.repeat(30), facts.SUGGEST_INTRO_MAX_WIDTH)
+  check(clipWidthEnExact.text === 'a'.repeat(30) && clipWidthEnExact.clipped === false, '30 个英文字母正好放得下（等效 15 个汉字宽）')
+  const clipWidthEnLong = facts.suggestClipWidth('a'.repeat(31), facts.SUGGEST_INTRO_MAX_WIDTH)
+  check(clipWidthEnLong.text === 'a'.repeat(30) + '…' && clipWidthEnLong.clipped === true, '31 个英文字母保留前 30 个并另加省略号')
+  check(facts.suggestClipWidth(123, 30).text === '', '宽度截断也不接受非字符串（不抛）')
 
   // ── 5. 参数解析与钳制：能救的救，救不了整次不出结果 ──
   const parsed = facts.suggestItemsOf(GOOD_ARGS)
@@ -239,7 +250,7 @@ async function main() {
   check(parsedClipped.items[0].reason.length === 201 && parsedClipped.items[0].reason.slice(-1) === '…', '理由保留前 200 个码点并另加省略号（#1540）')
   const parsedNoReason = facts.suggestItemsOf(JSON.stringify({ items: [{ prompt: '/a' }, { prompt: '/b' }] }))
   check(parsedNoReason.ok === true && parsedNoReason.items[0].reason === '', '缺理由的条目按空理由收（不因少一句解释丢掉整条提示词）')
-  // #1451 起每条多带一句十字以内的简介；旧事件里没有这一格，按空串收，界面只显示提示词。
+  // #1451 起每条多带一句十五个字以内的简介；旧事件里没有这一格，按空串收，界面只显示提示词。
   const parsedIntro = facts.suggestItemsOf(JSON.stringify({ items: [
     { intro: ' 拆票 ', prompt: '/to-tickets', reason: 'r' },
     { prompt: '/no-intro', reason: 'r2' },
@@ -287,8 +298,8 @@ async function main() {
     { intro: '简'.repeat(30), prompt: '/a', reason: 'r' },
     { prompt: '/b', reason: 'r2' },
   ] }))
-  check(parsedIntroLong.ok === true && parsedIntroLong.clipped === 1 && parsedIntroLong.items[0].intro.length === 11 && parsedIntroLong.items[0].intro.slice(-1) === '…' && parsedIntroLong.items[0].intro.slice(0, 10) === '简'.repeat(10),
-    '超长简介保留前 10 个码点并另加省略号，只算「被截断一条」（#1540）')
+  check(parsedIntroLong.ok === true && parsedIntroLong.clipped === 1 && parsedIntroLong.items[0].intro.length === 16 && parsedIntroLong.items[0].intro.slice(-1) === '…' && parsedIntroLong.items[0].intro.slice(0, 15) === '简'.repeat(15),
+    '超长简介保留前 15 个汉字（30 格宽）并另加省略号，只算「被截断一条」（#1540）')
 
   // ── 6. 事件识别：只认 durable 的调用事件（tool/call 与 tool/ptc-dispatch-start）与 turn/start、turn/end ──
   const foundCall = facts.suggestEventOf(callEvent('call_A', 3, GOOD_ARGS))
@@ -641,9 +652,9 @@ async function main() {
   check(factsSrc.indexOf("'suggest_next_steps'") >= 0, '界面侧工具名是字面量（不靠运行时拼）')
   check(factsSrc.indexOf("'tool/ptc-dispatch-start'") >= 0 && factsSrc.indexOf("'turn-start'") >= 0, '事件识别里显式包含 PTC 派发与 turn/start（两种预设都要认）')
   check(streamSrc.indexOf("'turn-start'") >= 0, '订阅层处理 turn/start（PTC 调用靠它补轮次）')
-  check(/SUGGEST_MIN_ITEMS = 2/.test(factsSrc) && /SUGGEST_MAX_ITEMS = 4/.test(factsSrc) && /SUGGEST_INTRO_MAX_CHARS = 10/.test(factsSrc) && /SUGGEST_PROMPT_MAX_CHARS = 500/.test(factsSrc) && /SUGGEST_REASON_MAX_CHARS = 200/.test(factsSrc), '界面侧五个上下限常量是字面量')
+  check(/SUGGEST_MIN_ITEMS = 2/.test(factsSrc) && /SUGGEST_MAX_ITEMS = 4/.test(factsSrc) && /SUGGEST_INTRO_MAX_WIDTH = 30/.test(factsSrc) && /SUGGEST_PROMPT_MAX_CHARS = 500/.test(factsSrc) && /SUGGEST_REASON_MAX_CHARS = 200/.test(factsSrc), '界面侧五个上下限常量是字面量')
   const toolSrc = fs.readFileSync(path.join(ROOT, 'src/deck/tools/suggest-next-steps.ts'), 'utf8')
-  check(/MIN_ITEMS = 2/.test(toolSrc) && /MAX_ITEMS = 4/.test(toolSrc) && /INTRO_MAX_CHARS = 10/.test(toolSrc) && /PROMPT_MAX_CHARS = 500/.test(toolSrc) && /REASON_MAX_CHARS = 200/.test(toolSrc), '工具侧五个上下限常量是字面量（两边数字由上面的导入比对钉住）')
+  check(/MIN_ITEMS = 2/.test(toolSrc) && /MAX_ITEMS = 4/.test(toolSrc) && /INTRO_MAX_WIDTH = 30/.test(toolSrc) && /PROMPT_MAX_CHARS = 500/.test(toolSrc) && /REASON_MAX_CHARS = 200/.test(toolSrc), '工具侧五个上下限常量是字面量（两边数字由上面的导入比对钉住）')
 
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   printGateResult('verify-1409-suggest-stream', total, failed ? 1 : 0)

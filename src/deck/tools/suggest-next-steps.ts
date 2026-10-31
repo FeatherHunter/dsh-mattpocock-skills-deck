@@ -3,9 +3,10 @@
 // 这颗工具的参数里就直接带着给界面用的建议清单：界面从这次工具调用的参数本身读走建议、
 // 渲染成气泡，工具这边只做校验、钳制、截断与回执，不写票、不落任何状态。
 //
-// 每条建议由三格必填加一格选填组成：选项框上只显示的一句简介（十个字以内，一眼说清这一步
-// 做什么）、一句可以直接执行的提示词（点选后才填进输入框，平时不显示）、一句理由（收进框正
-// 上方的悬停浮层），外加一个可选的推荐优先级（0 到 10 的数字，分高靠左，没打分的排最后）。
+// 每条建议由三格必填加一格选填组成：选项框上只显示的一句简介（十五个字以内，英文按显示宽度
+// 折算约三十个字符，一眼说清这一步做什么）、一句可以直接执行的提示词（点选后才填进输入框，
+// 平时不显示）、一句理由（收进框正上方的悬停浮层），外加一个可选的推荐优先级（0 到 10 的
+// 数字，分高靠左，没打分的排最后）。
 // 为什么单要一个简介：界面上的胶囊一行排不下整句提示词，三条竖着堆成一列也读不过来（#1451）。
 //
 // 为什么单独一份、不进九个 deck_* 工具的装配顺序表：那九颗是追踪器工具，参数表、回执表、
@@ -34,11 +35,13 @@ export const SUGGEST_TOOL_NAME = 'suggest_next_steps'
 /** 建议条数的合法区间：少于下限整次拒绝，多于上限按优先级留前几条（没打分的先被截掉）。界面侧按同一组数再校验一次。 */
 export const MIN_ITEMS = 2
 export const MAX_ITEMS = 4
-/** 单项文本上限：简介、提示词、理由各一个。按 Unicode 码点数算，避免把 emoji 之类的代理对切坏。 */
 /** 推荐优先级的合法区间：0 到 10，分越高越靠左；拿不准就别给，没给的排最后。 */
 export const PRIORITY_MIN = 0
 export const PRIORITY_MAX = 10
-export const INTRO_MAX_CHARS = 10
+/** 简介上限按显示宽度算：汉字、全角标点与 emoji 算 2 格，其余字符算 1 格，30 格等于 15 个汉字；
+ *  英文每个字母算 1 格，所以最多 30 个字符。 */
+export const INTRO_MAX_WIDTH = 30
+/** 提示词与理由按 Unicode 码点数算，避免把 emoji 之类的代理对切坏。 */
 export const PROMPT_MAX_CHARS = 500
 export const REASON_MAX_CHARS = 200
 
@@ -53,7 +56,7 @@ export const REASON_MAX_CHARS = 200
  *  不只靠禁止去拦。 */
 export const definition = {
   name: SUGGEST_TOOL_NAME,
-  description: '推荐 2~4 条下一步建议。这一轮已经告一段落，且你能说清下一步要做什么、对什么做时才调用；还有活没干完、在等用户回答时不调用。',
+  description: '推荐 2~4 条下一步建议。每轮回复收尾时先判断：用户接下来几乎一定会做什么？想得到就调用，想不到就不调用；这一轮在等用户拍板时，其中一条把他会选的答案列好；还有活没干完时不调用。',
   parameters: {
     type: 'object',
     properties: {
@@ -63,7 +66,7 @@ export const definition = {
         items: {
           type: 'object',
           properties: {
-            intro: { type: 'string', description: '一句话说清这一步做什么，10 字以内。' },
+            intro: { type: 'string', description: '一句话说清这一步做什么，15 个字以内；英文按显示宽度折算，最多 30 个字符。' },
             prompt: { type: 'string', description: '用用户的口气写用户下一轮会原样发出的话，只写现在就能确定的事，写清具体对象（文件、结论等），不写「继续推进」这类空话。还需要用户补充才能说全的话，只写前半句并留出待填位置（例如以冒号结尾，或用【在此填写…】标出要填的地方），还没发生的事留给用户填；实在写不清就换一条，不编具体值。' },
             reason: { type: 'string', description: '一句话说清为什么推荐这一步：写你凭什么这么推荐，用户看完就该知道该不该点。理由因事而异，写具体依据；不复述提示词，不用「值得做」「很合适」这类评价代替依据。' },
             priority: { type: 'number', description: '0 到 10，分越高越建议先做。' },
@@ -78,8 +81,8 @@ export const definition = {
   },
 }
 
-/** 一条建议：十字以内的简介、提示词、一句话理由（三者都已截断到上限之内），外加可选的推荐
- *  优先级（有效数字钳到 0~10 并留一位小数；没打分的是 null，界面统一排在最后）。 */
+/** 一条建议：十五个字以内（英文约三十个字符）的简介、提示词、一句话理由（三者都已截断到上限
+ *  之内），外加可选的推荐优先级（有效数字钳到 0~10 并留一位小数；没打分的是 null，界面统一排在最后）。 */
 export interface SuggestItem {
   intro: string
   prompt: string
@@ -114,13 +117,49 @@ export interface SuggestDeps {
 
 /**
  * 按 Unicode 码点截断文本：没超长原样返回；超长保留前上限个码点，并在末尾另加一个省略号。
- * 维护者在 #1540 定下这个口径：简介超过 10 个字时前 10 个字都要显示，省略号是超长标记，不占 10 个字的名额。
+ * 维护者在 #1540 定下这个口径：超长时前面的内容都要显示，省略号是超长标记，不占上限的名额。
  * 为什么不用 slice：UTF-16 单元切在代理对中间会切出半个字符，界面显示成乱码。
  */
 export function clipText(text: string, max: number): { text: string; clipped: boolean } {
   const chars = Array.from(text)
   if (chars.length <= max) return { text: text, clipped: false }
   return { text: chars.slice(0, Math.max(1, max)).join('') + '…', clipped: true }
+}
+
+/** 一个字符占的显示格数：汉字、全角标点与 emoji 算 2 格，其余（英文字母、数字、半角标点、空格）算 1 格。
+ *  简介要按宽度而不是按字数卡上限：同样的格数里，英文能放下的字符数大约是汉字的两倍。 */
+function charWidthOf(char: string): number {
+  const cp = (char.codePointAt(0) || 0)
+  if (cp >= 0x1100 && (
+    cp <= 0x115f ||
+    cp === 0x2329 || cp === 0x232a ||
+    (cp >= 0x2e80 && cp <= 0xa4cf && cp !== 0x303f) ||
+    (cp >= 0xac00 && cp <= 0xd7a3) ||
+    (cp >= 0xf900 && cp <= 0xfaff) ||
+    (cp >= 0xfe30 && cp <= 0xfe6f) ||
+    (cp >= 0xff00 && cp <= 0xff60) ||
+    (cp >= 0xffe0 && cp <= 0xffe6) ||
+    (cp >= 0x1f300 && cp <= 0x1faff) ||
+    (cp >= 0x20000 && cp <= 0x3fffd)
+  )) return 2
+  return 1
+}
+
+/**
+ * 按显示宽度截断简介：没超宽原样返回；超宽保留前面放得下的字符，并在末尾另加一个省略号。
+ * 省略号是超长标记、不占宽度名额（#1540 的口径），按宽度算而不是按字数算，英文才不会白丢一半空间。
+ */
+export function clipWidth(text: string, maxWidth: number): { text: string; clipped: boolean } {
+  const chars = Array.from(text)
+  let width = 0
+  let end = chars.length
+  for (let i = 0; i < chars.length; i += 1) {
+    const unit = charWidthOf(chars[i])
+    if (width + unit > maxWidth) { end = i; break }
+    width += unit
+  }
+  if (end === chars.length) return { text: text, clipped: false }
+  return { text: chars.slice(0, Math.max(1, end)).join('') + '…', clipped: true }
 }
 
 /** 把任意一格按字符串收：不是字符串就当空串（后面按「缺」处理）。 */
@@ -182,7 +221,7 @@ export function resolveSuggestItems(args: unknown): SuggestResolution {
         '这次的建议里第 ' + (i + 1) + ' 条缺简介、提示词或理由，我没记下任何建议：请每条都给 intro、prompt 与 reason 再调一次。',
         notes.concat(['bad-item:' + (i + 1)]), received)
     }
-    const introPart = clipText(intro, INTRO_MAX_CHARS)
+    const introPart = clipWidth(intro, INTRO_MAX_WIDTH)
     const promptPart = clipText(prompt, PROMPT_MAX_CHARS)
     const reasonPart = clipText(reason, REASON_MAX_CHARS)
     if (introPart.clipped || promptPart.clipped || reasonPart.clipped) clipped += 1
