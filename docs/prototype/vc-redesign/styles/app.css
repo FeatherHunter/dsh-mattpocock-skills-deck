@@ -760,8 +760,9 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .group-head { display: flex; align-items: center; gap: 6px; padding: 9px 12px 4px; }
 .group-title { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--faint); }
 .group-count { font-family: var(--mono); font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
+/* 分组动作作为一组靠右：只给容器 auto 外边距，组内按钮同侧紧挨。 */
+.group-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .group-action {
-  margin-left: auto;
   padding: 1px 3px;
   border: 0;
   border-bottom: 1px solid transparent;

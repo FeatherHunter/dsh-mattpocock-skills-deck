@@ -29,6 +29,8 @@ export interface TabModel {
   label: string
   count: number
   unit: string
+  /** 这个页签装的是什么，用平实的一句话写。只给需要解释的页签填，悬停时接在「贮藏：0 条」后面。 */
+  explain?: string
 }
 
 export interface SyncChipModel {
@@ -354,7 +356,7 @@ export function tabsOf(base: SessionBase, state: SessionState): TabModel[] {
     { id: 'changes', label: COPY.views.changes, count: changes, unit: COPY.units.change },
     { id: 'commits', label: COPY.views.commits, count: base.totalCommits, unit: COPY.units.commit },
     { id: 'worktrees', label: COPY.views.worktrees, count: base.screen.otherWorktrees.filter((item) => !item.current).length + (state.demoWorktrees ? DEMO_WORKTREE_COUNT : 0), unit: COPY.units.worktree },
-    { id: 'stash', label: COPY.views.stash, count: state.stashes.length, unit: COPY.units.stash },
+    { id: 'stash', label: COPY.views.stash, count: state.stashes.length, unit: COPY.units.stash, explain: '把暂时不想提交的改动打包收起来，之后能拿回来' },
   ]
 }
 

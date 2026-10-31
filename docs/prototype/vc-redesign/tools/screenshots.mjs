@@ -53,6 +53,9 @@ const SHOTS = [
   { name: '59-rebase-light-460', query: 'flow=rebase&rebasestep=1', theme: 'light' },
   { name: '60-embed-manage-520', query: 'manage=1', embed: true },
   { name: '61-embed-danger-520', query: 'page=maintenance&danger=11.6', embed: true },
+  // 分组标题右侧的两颗动作（全部暂存 / 丢弃全部）作为一组靠右：补一张改动页，评审看对齐时不用自己点数。
+  { name: '62-changes-460', query: 'view=changes' },
+  { name: '63-changes-300', query: 'view=changes', width: 300 },
 ]
 
 async function main() {

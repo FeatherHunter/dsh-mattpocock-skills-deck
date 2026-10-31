@@ -135,8 +135,13 @@ function renderGroup(group: GroupModel, model: ChangesModel): HTMLElement {
     h('span', { class: 'group-title', text: group.label }),
     h('span', { class: 'group-count', text: String(group.rows.length) }))
 
+  // 分组动作装在同一个容器里再靠右：只给容器一个 margin-left:auto，
+  // 两颗动作才会挨着排在同一侧。以前每颗按钮各自 margin-left:auto，
+  // 浏览器会把剩余空间平分成两份，第一颗就被推到行中间，看起来像「全部暂存」居中了。
+  const actions = h('div', { class: 'group-actions' })
+
   if (group.id === 'staged' && model.canUnstageAll) {
-    head.append(h('button', {
+    actions.append(h('button', {
       class: 'group-action',
       attrs: { type: 'button', 'aria-label': COPY.actions.unstageAll },
       dataset: { action: 'unstage-all' },
@@ -144,7 +149,7 @@ function renderGroup(group: GroupModel, model: ChangesModel): HTMLElement {
   }
   if (group.id === 'unstaged') {
     const blocked = model.conflictCount > 0
-    head.append(h('button', {
+    actions.append(h('button', {
       class: `group-action${blocked ? ' is-disabled' : ''}`,
       attrs: {
         type: 'button',
@@ -155,13 +160,14 @@ function renderGroup(group: GroupModel, model: ChangesModel): HTMLElement {
       dataset: { action: 'stage-all' },
     }, COPY.actions.stageAll))
     if (model.canDiscardAll) {
-      head.append(h('button', {
+      actions.append(h('button', {
         class: 'group-action is-danger',
         attrs: { type: 'button', 'aria-label': COPY.changes.discardAll, title: '把全部未暂存的改动丢弃（不能撤回）' },
         dataset: { action: 'changes-pending', kind: 'discard-all' },
       }, COPY.changes.discardAll))
     }
   }
+  if (actions.childElementCount > 0) head.append(actions)
 
   section.append(head)
   // 「丢弃全部」的确认卡紧贴分组标题出现，不再另开一层。

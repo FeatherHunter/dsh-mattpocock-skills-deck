@@ -445,7 +445,7 @@ export function mount(root: HTMLElement): void {
           'aria-controls': 'view-panel',
           tabindex: active ? 0 : -1,
           'data-focus-key': `tab-${tab.id}`,
-          title: `${tab.label}：${tab.count} ${tab.unit}`,
+          title: `${tab.label}：${tab.count} ${tab.unit}${tab.explain === undefined ? '' : ' · ' + tab.explain}`,
         },
         dataset: { action: 'tab', view: tab.id },
       },

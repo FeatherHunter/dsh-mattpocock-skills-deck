@@ -4380,7 +4380,7 @@
       { id: "changes", label: COPY.views.changes, count: changes, unit: COPY.units.change },
       { id: "commits", label: COPY.views.commits, count: base.totalCommits, unit: COPY.units.commit },
       { id: "worktrees", label: COPY.views.worktrees, count: base.screen.otherWorktrees.filter((item) => !item.current).length + (state.demoWorktrees ? DEMO_WORKTREE_COUNT : 0), unit: COPY.units.worktree },
-      { id: "stash", label: COPY.views.stash, count: state.stashes.length, unit: COPY.units.stash }
+      { id: "stash", label: COPY.views.stash, count: state.stashes.length, unit: COPY.units.stash, explain: "\u628A\u6682\u65F6\u4E0D\u60F3\u63D0\u4EA4\u7684\u6539\u52A8\u6253\u5305\u6536\u8D77\u6765\uFF0C\u4E4B\u540E\u80FD\u62FF\u56DE\u6765" }
     ];
   }
   function nextStepOf(state) {
@@ -7851,8 +7851,9 @@
       h("span", { class: "group-title", text: group.label }),
       h("span", { class: "group-count", text: String(group.rows.length) })
     );
+    const actions = h("div", { class: "group-actions" });
     if (group.id === "staged" && model.canUnstageAll) {
-      head.append(h("button", {
+      actions.append(h("button", {
         class: "group-action",
         attrs: { type: "button", "aria-label": COPY.actions.unstageAll },
         dataset: { action: "unstage-all" }
@@ -7860,7 +7861,7 @@
     }
     if (group.id === "unstaged") {
       const blocked = model.conflictCount > 0;
-      head.append(h("button", {
+      actions.append(h("button", {
         class: `group-action${blocked ? " is-disabled" : ""}`,
         attrs: {
           type: "button",
@@ -7871,13 +7872,14 @@
         dataset: { action: "stage-all" }
       }, COPY.actions.stageAll));
       if (model.canDiscardAll) {
-        head.append(h("button", {
+        actions.append(h("button", {
           class: "group-action is-danger",
           attrs: { type: "button", "aria-label": COPY.changes.discardAll, title: "\u628A\u5168\u90E8\u672A\u6682\u5B58\u7684\u6539\u52A8\u4E22\u5F03\uFF08\u4E0D\u80FD\u64A4\u56DE\uFF09" },
           dataset: { action: "changes-pending", kind: "discard-all" }
         }, COPY.changes.discardAll));
       }
     }
+    if (actions.childElementCount > 0) head.append(actions);
     section2.append(head);
     if (model.pending !== null && model.pending.kind === "discard-all") section2.append(renderConfirmCard(model.pending));
     for (const row of group.rows) section2.append(renderFileRow(row, model));
@@ -10448,7 +10450,7 @@
               "aria-controls": "view-panel",
               tabindex: active ? 0 : -1,
               "data-focus-key": `tab-${tab.id}`,
-              title: `${tab.label}\uFF1A${tab.count} ${tab.unit}`
+              title: `${tab.label}\uFF1A${tab.count} ${tab.unit}${tab.explain === void 0 ? "" : " \xB7 " + tab.explain}`
             },
             dataset: { action: "tab", view: tab.id }
           },
