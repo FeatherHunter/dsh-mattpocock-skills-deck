@@ -16,7 +16,7 @@ import { deriveDeck } from '../../tracker/deck-derive.js'
 // 「快照组合器的缓存有效期：5 秒」）：这里直接读中央常量，不再造新本地名，调时间改 YAML。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
 import { SNAPSHOT_TTL_MS } from '../../shared/time-config/src/values.js'
-import { assembleSnapshot, failKindOfListError } from './snapshotAssemble.js'
+import { assembleSnapshot, carryOverMapTickets, failKindOfListError } from './snapshotAssemble.js'
 import { snapshotVersionOf } from './snapshotVersion.js'
 
 // 类型只做编译期约束，不产生运行时引用：对外形状以共享层为准，内部动态行一律按 any 收。
@@ -261,16 +261,20 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       let all: any[] | null = null
       // #715：这一趟 list 到底走的 GraphQL 还是掉到了 REST —— 后端真的降级时才往上报（见 github/issues.js 的 REST 通道）。
       let listFallback: string | null = null
+      // #1696：这一趟列表是不是被后端截断了。截断 / 降级都算「不完整来源」——地图容器的子票与计数
+      //   只能补、不能删（见 snapshotAssemble.ts 的 carryOverMapTickets）；完整来源才允许以本次为准删缩。
+      let listTruncated = false
       // #734：降级原因随 fallback 一起上报（quota / other / 未知=null 三档；未知 = 老快路径没给、
       //   老快照本来就没有这个字段）。界面只有 quota 才说配额耗尽，other 与未知一律说中性那句。
       let listFallbackReason: string | null = null
       if (typeof tracker.snapshotFast === 'function') {
         const fast = await tracker.snapshotFast(ref, ctx)
-        if (fast && fast.ok === true && Array.isArray(fast.data)) { all = fast.data; if (fast.fallback === 'rest') { listFallback = 'rest'; listFallbackReason = fast.fallbackReason || null } }
+        if (fast && fast.ok === true && Array.isArray(fast.data)) { all = fast.data; if ((fast as any).truncated === true) listTruncated = true; if (fast.fallback === 'rest') { listFallback = 'rest'; listFallbackReason = fast.fallbackReason || null } }
       }
       if (!all) {
         const res = await tracker.list(ref, {}, ctx)
         if (!res.ok) return { ok: false, error: res.error, fail: { kind: failKindOfListError(res.error), at: Date.now() } }
+        if ((res as any).truncated === true) listTruncated = true
         if ((res as any).fallback === 'rest') { listFallback = 'rest'; listFallbackReason = (res as any).fallbackReason || null }
         all = res.data
       }
@@ -278,7 +282,13 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
         return { ok: false, error: { kind: (ERROR_KIND as any).PARSE, message: 'list returned non-array data; cannot compose snapshot' } }
       }
 
-      const snapshot: any = assembleSnapshot(ref, all)
+      // #1696：组装出来的 map.tickets 是后端原始行，客户端首帧画不出关系与计数；这里统一归一化，
+      //   并在列表被截断或降级时把上次快照已知的子票与计数按编号补回来（只补不删）。已关闭容器口径不动。
+      const assembled: any = assembleSnapshot(ref, all)
+      const snapshot: any = carryOverMapTickets(cachedEntry && cachedEntry.snapshot, assembled, {
+        sourceComplete: !listFallback && !listTruncated,
+        nowMs: Date.now(),
+      })
       const deck: any = deriveDeck(snapshot)
       // #689：数字改问后端要（契约的 counts），并把「这份行数据全不全」写成 deck.partial。
       //   没有 counts 之前，deck 里的数字是数「手上这份票池」数出来的，而票池会被后端悄悄截断

@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T03:47:26.359Z",
+  "generatedAt": "2026-10-31T04:34:59.041Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 473,
-  "gateCount": 473,
-  "attributedGates": 423,
+  "chainLength": 475,
+  "gateCount": 475,
+  "attributedGates": 425,
   "unattributedGates": 50,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 37,
+  "completionRecordedGates": 39,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 653,
@@ -8876,6 +8876,22 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
     },
     {
+      "step": "node tests/verify-map-first-frame.ts",
+      "file": "tests/verify-map-first-frame.ts",
+      "guards": [
+        "src/host/tracker/snapshot.ts",
+        "src/host/tracker/snapshotAssemble.ts"
+      ],
+      "dirs": [
+        "src/host/tracker"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 41,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
       "step": "node tests/verify-markdown-backend.ts",
       "file": "tests/verify-markdown-backend.ts",
       "guards": [
@@ -10349,6 +10365,7 @@
         "src/host/skillProbeCache.ts",
         "src/host/tracker/predicateCore.ts",
         "src/host/tracker/snapshot.ts",
+        "src/host/tracker/snapshotAssemble.ts",
         "src/host/versionControl.ts",
         "src/host/versionControlCheck.ts",
         "src/host/versionControlWrite.ts",
@@ -10455,7 +10472,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 112 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 113 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -10964,6 +10981,26 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-map-first-frame-freshness.ts",
+      "file": "tests/verify-map-first-frame-freshness.ts",
+      "guards": [
+        "src/client/views/mapDetailV2/model/tickets/ticketFeed.ts",
+        "src/client/views/mapDetailV2/view/MapDetailV2Page.ts",
+        "src/host/tracker/snapshot.ts",
+        "src/host/tracker/snapshotAssemble.ts"
+      ],
+      "dirs": [
+        "src/client/views/mapDetailV2/model/tickets",
+        "src/client/views/mapDetailV2/view",
+        "src/host/tracker"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 39,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
@@ -11743,7 +11780,11 @@
     ],
     "src/client/views/mapDetailV2/model": [],
     "src/client/views/mapDetailV2/model/tickets": [
-      "node tests/verify-retire-client-caches.ts"
+      "node tests/verify-retire-client-caches.ts",
+      "node tests/verify-map-first-frame-freshness.ts"
+    ],
+    "src/client/views/mapDetailV2/view": [
+      "node tests/verify-map-first-frame-freshness.ts"
     ],
     "src/client/views/pixel": [
       "node tests/verify-1522-skill-md-refs.ts",
@@ -12085,9 +12126,11 @@
       "node tests/verify-934-935-invariants.ts",
       "node tests/verify-dirwritable.ts",
       "node tests/verify-generic-catalog.ts",
+      "node tests/verify-map-first-frame.ts",
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.ts",
-      "node tests/verify-time-config.ts"
+      "node tests/verify-time-config.ts",
+      "node tests/verify-map-first-frame-freshness.ts"
     ],
     "src/refresh": [
       "node tests/verify-build-artifacts.ts",
@@ -13124,7 +13167,7 @@
     "coveredFileCount": 674,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 67,
+    "dedicatedDirCount": 68,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -13901,6 +13944,7 @@
       "src/client/views/labels",
       "src/client/views/mapDetailV2",
       "src/client/views/mapDetailV2/model/tickets",
+      "src/client/views/mapDetailV2/view",
       "src/client/views/pixel",
       "src/client/views/primitives",
       "src/client/views/shared",
@@ -13972,10 +14016,6 @@
       {
         "path": "src/client/views/mapDetailV2/model/contracts",
         "fileCount": 1
-      },
-      {
-        "path": "src/client/views/mapDetailV2/view",
-        "fileCount": 4
       },
       {
         "path": "src/client/views/mapDetailV2/view/flow",
