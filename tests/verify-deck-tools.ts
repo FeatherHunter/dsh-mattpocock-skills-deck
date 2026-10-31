@@ -176,6 +176,8 @@ async function main() {
     check(r.workspace && r.workspace.root === ws.rootPosix, 'deck_context 回显解析到的工作区根（' + (r.workspace && r.workspace.root) + '）')
     check(r.backend && r.backend.id === 'markdown' && r.backend.source === 'explicit', 'deck_context 回显后端与来源（' + JSON.stringify(r.backend) + '）')
     check(r.data && Array.isArray(r.data.maps), 'deck_context 带回地图清单（' + JSON.stringify((r.data || {}).maps) + '）')
+    check(r.data && r.data.preflight && r.data.preflight.ok === true, 'pending 不阻断预检')
+    check(Array.isArray(r.notes) && r.notes.some((w) => /无法验证/.test(w) && /写入可能失败/.test(w)), 'deck_context 显示可写性未验证及写入风险')
     check(r.cost && r.cost.estimated && typeof r.cost.estimated.points === 'number' && r.cost.actual, 'deck_context 带回调用前的预估与调用后的真实花费')
   }
 

@@ -7,15 +7,11 @@
 //
 // 三项判据与档位（#1512 的 D0 判定表，验收口径）：
 //   1. md:workspace          通过 = 有工作单元，或工作区确实是空的；失败 = .scratch 读不出来。
-//   2. md:scratchWritable    通过 = .scratch 可写，或还没有 .scratch 但仓库根可写；失败 = 两者都不可写。
+//   2. md:scratchWritable    当前无法安全验证可写性，始终返回 pending。
 //   3. md:containersReadable 通过 = 没有容器文件，或全部读得动且文件头格式是 md-v1；
 //                            失败 = 某个容器文件读不出，或声明了不认识的版本。
 //
-// 「量不出来」一律 pending，不冒充 pass/fail：沙箱拦掉写探测就是这个档（写文件服务拒信的口径与
-//   src/host/tracker/predicateFileProbes.ts 的写探测保持一致，别另写一套）。
-//
-// 不创建任何目录：md:scratchWritable 只在 .scratch 已存在时进去写探针；.scratch 不存在时退到仓库根写，
-//   绝不在探测里顺手把 .scratch 建出来（它该由写票/建图那一路按需创建）。
+// 未验证的可写性返回 pending，不创建或删除任何文件；新工作区没有 .scratch 仍是正常状态。
 import type { OpContext, SandboxFs, BackendPlatform } from '../../contract/contexts.js'
 import { listWorkUnits, getCwd, getPlat } from './issues-locate.js'
 import { listDir, readTextFile, exists, statFile, visibleNamesOf } from './read.js'
@@ -60,7 +56,7 @@ export interface WorkspaceCheckDeps {
   cwd?: unknown
   /** 语言：'en' 时出英文文案，其余出中文。 */
   lang?: string
-  /** 本次调用的沙箱写许可（宿主会话政策）。写探测原样透传给文件服务。 */
+  /** 本次调用的沙箱写许可；当前可写性检查不会写入。 */
   sandboxPolicy?: unknown
   /**
    * 同一趟房间预检的标记：runWorkspaceChecks 每趟新建一个对象并交给三项判据，让 `.scratch` 根目录的列举
@@ -106,13 +102,6 @@ function errorTextOf(e: unknown): string {
   const code = errorCodeOf(e)
   return code && msg.indexOf(code) < 0 ? code + ': ' + msg : msg
 }
-/** 沙箱拒信：与 predicateFileProbes 的写探测、write.ts 的写路径同一口径（read-only 会话也走这一档）。 */
-function isSandboxDeny(e: unknown): boolean {
-  const root = e as Record<string, unknown> | null | undefined
-  const msg = String((root && (root.message || root.stderr || root.stdout)) || e || '')
-  return /file access denied|workspace-write|read-only mode|FS_SANDBOX_DENIED/i.test(msg)
-}
-
 /**
  * 拼一个最小的房间上下文：只填判据真正会读的那几格（cwd、platform.fs、platform.path）。
  *
@@ -142,10 +131,6 @@ function fsOf(ctx: OpContext): LooseFs | null {
   if (c && typeof c.get === 'function') { try { const f = (c.get as (n: string) => unknown)('fs'); if (f) return f as LooseFs } catch (e) {} }
   return null
 }
-async function safeExists(ctx: OpContext, fullPath: string): Promise<boolean> {
-  try { return await exists(ctx, fullPath) } catch (e) { return false }
-}
-
 /** 一个工作单元给人看的名字：目录名不足以说明它是地图、规格还是票目录，所以两样都写。 */
 function unitLabel(u: WorkUnit): string {
   if (u && u.legacy) return '工作区根 issues/（旧版布局）'
@@ -202,100 +187,15 @@ export async function checkWorkspace(deps: WorkspaceCheckDeps): Promise<Workspac
   }
 }
 
-/** 写探针成功后清理：能删就删，删不掉也不影响结论（探测内容只有 'ok' 两个字）。 */
-async function cleanupProbe(fs: LooseFs, target: unknown, rawPath: string): Promise<void> {
-  try {
-    if (typeof fs.unlink === 'function') { await fs.unlink(target); return }
-  } catch (e) {}
-  try {
-    if (typeof fs.rm === 'function') { await fs.rm(target, { force: true }); return }
-  } catch (e) {}
-  try {
-    if (typeof fs.rm === 'function') { await fs.rm(rawPath, { force: true }); return }
-  } catch (e) {}
-  try {
-    if (typeof fs.delete === 'function') await fs.delete(target)
-  } catch (e) {}
-}
-
-/**
- * md:scratchWritable —— 问「本地数据目录 .scratch 写得进去吗？」。
- *
- * 行为必须保留（#1483 的会话相关重算就靠它）：先判 .scratch 在不在；在，就在它里面写一个探针再删掉；
- *   不在，就退到仓库根写同一个探针（同样写完删掉），绝不顺手创建 .scratch。
- * 为什么探测目录要分两处：.scratch 存在时只有它可写才算数（退到仓库根写成功说明不了数据目录能建起来）；
- *   它还不存在时，仓库根可写就足以说明「以后能建 .scratch」，这是全新工作区的正常通过路径。
- * 为什么沙箱拒信算 pending 而不是 fail：那是这一次会话的写许可问题，不是目录权限问题；
- *   按 fail 报会让人去改文件权限，方向错了。
- */
+/** 不写探针：文件服务没有经核验的带版本条件删除，无法安全清理。 */
 export async function checkScratchWritable(deps: WorkspaceCheckDeps): Promise<WorkspaceCheckResult> {
-  const ctx = roomCtxOf(deps)
-  const plat = getPlat(ctx)
-  const cwd = getCwd(ctx)
-  const fs = fsOf(ctx)
-  if (!fs || typeof fs.resolve !== 'function' || typeof fs.writeText !== 'function') {
-    return {
-      status: 'pending',
-      evidence: 'no-fs',
-      detail: pick(deps,
-        '量不出本地数据目录是否可写：这次调用没有可用的文件服务',
-        'cannot measure writability: no file service is available for this call'),
-    }
-  }
-  const scratchRoot = plat.join(cwd, '.scratch')
-  const scratchExists = await safeExists(ctx, scratchRoot)
-  const probeDir = scratchExists ? scratchRoot : cwd
-  const probePath = plat.join(probeDir, '.dsh-write-probe')
-  try {
-    const target = await fs.resolve(probePath)
-    if (deps && deps.sandboxPolicy !== undefined) await fs.writeText(target, 'ok', undefined, undefined, deps.sandboxPolicy)
-    else await fs.writeText(target, 'ok', undefined, undefined)
-    await cleanupProbe(fs, target, probePath)
-    return {
-      status: 'pass',
-      evidence: scratchExists ? 'probe=.scratch' : 'probe=repo-root',
-      detail: scratchExists
-        ? pick(deps,
-          '在 ' + scratchRoot + ' 里写了一个探针文件并已删掉：本地数据目录可写',
-          'wrote and removed a probe file inside ' + scratchRoot + ': the local data dir is writable')
-        : pick(deps,
-          '还没有 ' + scratchRoot + '；仓库根 ' + cwd + ' 可写，以后能创建它',
-          'no ' + scratchRoot + ' yet; the workspace root ' + cwd + ' is writable, so it can be created later'),
-    }
-  } catch (e) {
-    const hostError = errorTextOf(e)
-    // Win32 ERROR_INVALID_FUNCTION from this ACL query means the host file service
-    // cannot perform the check on WSL; it says nothing about directory permissions.
-    if (/^\\\\wsl(?:\.localhost|\$)\\/i.test(cwd) && /GetFileSecurityW/i.test(hostError) && /\b(?:Win32(?:\s+error)?[\s:=]*(?:\(?1\)?))(?!\d)/i.test(hostError)) {
-      return {
-        status: 'pending',
-        evidence: 'wsl-host-unsupported',
-        detail: pick(deps,
-          '宿主文件服务不支持对 WSL 路径执行安全信息检查（GetFileSecurityW，Win32 错误 1）；无法验证目录是否可写：' + hostError,
-          'the host file service does not support the security information check on WSL paths (GetFileSecurityW, Win32 error 1); directory writability could not be verified: ' + hostError),
-      }
-    }
-    if (isSandboxDeny(e)) {
-      return {
-        status: 'pending',
-        evidence: 'sbx-deny',
-        detail: pick(deps,
-          '插件的文件服务被沙箱拦住，量不出 ' + probeDir + ' 是否可写（目录本身是否存在不受影响；请按沙箱限制排查，别按目录权限排查）',
-          'the plugin file service was blocked by the sandbox, so writability of ' + probeDir + ' cannot be measured (the dir itself may well exist; check the sandbox limits, not dir permissions)'),
-      }
-    }
-    const evidence = errorTextOf(e)
-    return {
-      status: 'fail',
-      evidence: scratchExists ? 'write-fail:.scratch' : 'write-fail:repo-root',
-      detail: scratchExists
-        ? pick(deps,
-          '本地数据目录 ' + scratchRoot + ' 写不进去（试过在它里面写探针文件）：' + evidence,
-          'cannot write inside the local data dir ' + scratchRoot + ' (tried a probe file there): ' + evidence)
-        : pick(deps,
-          '既没有可用的 ' + scratchRoot + '，仓库根 ' + cwd + ' 也写不进去（试过在仓库根写探针文件）：' + evidence,
-          'neither ' + scratchRoot + ' exists nor is the workspace root ' + cwd + ' writable (tried a probe file in the workspace root): ' + evidence),
-    }
+  // .scratch 尚不存在是新工作区的正常状态；仓库根的可写性同样无法安全验证。
+  return {
+    status: 'pending',
+    evidence: 'writability-unverified',
+    detail: pick(deps,
+      '未进行写入探测，无法验证本地数据目录 .scratch 或工作区根目录是否可写；操作不受阻断，但实际写入可能失败',
+      'no write probe was attempted; writability of the local data directory .scratch or workspace root is unverified; operations are not blocked, but actual writes may fail'),
   }
 }
 

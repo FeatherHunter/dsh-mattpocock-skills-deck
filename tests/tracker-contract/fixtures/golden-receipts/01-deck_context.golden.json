@@ -67,7 +67,9 @@
     }
   },
   "items": [],
-  "notes": [],
+  "notes": [
+    "未进行写入探测，无法验证本地数据目录 .scratch 或工作区根目录是否可写；操作不受阻断，但实际写入可能失败"
+  ],
   "ok": true,
   "readBack": null,
   "reason": "",

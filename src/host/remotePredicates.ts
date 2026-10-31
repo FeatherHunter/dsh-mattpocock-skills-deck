@@ -12,7 +12,7 @@
 //   4. 给用户看的 detail 由判据按 lang 出中文或英文；这一层只截长度（界面一行放不下整段证据）。
 
 /** 谓词结果：status 三态 + 一句给人看的 detail（沿用搬出前的形状，不改）。 */
-type PredicateResult = { status: 'pass' | 'fail' | 'pending'; detail: string }
+type PredicateResult = { status: 'pass' | 'fail' | 'pending'; detail: string; evidence?: string }
 
 /** 检查项 id（带 md: 前缀的目录 id，或链上用的短 id）到 MarkdownHostExtras 里那个成员的映射。 */
 const CHECK_NAME_OF: Record<string, 'checkWorkspace' | 'checkScratchWritable' | 'checkContainersReadable'> = {
@@ -59,7 +59,7 @@ export function createRemotePredicates() {
       const r = await fn({ platform: platform, cwd: cwd, lang: lang, sandboxPolicy: sandboxPolicy })
       const status = r && (r.status === 'pass' || r.status === 'fail' || r.status === 'pending') ? r.status : 'pending'
       const detail = String((r && r.detail) || '').slice(0, 600)
-      return { status: status, detail: detail }
+      return { status: status, detail: detail, ...(r && r.evidence === 'writability-unverified' ? { evidence: r.evidence } : {}) }
     } catch (e) {
       return { status: 'pending', detail: errText(e).slice(0, 600) }
     }

@@ -157,8 +157,8 @@ zh:
   check.glab:repoAccess.fail: GitLab 仓库可达
   check.md:workspace.pass: 本地工作区可读取
   check.md:workspace.fail: 本地工作区可读取
-  check.md:scratchWritable.pass: 本地数据目录可读写
-  check.md:scratchWritable.fail: 本地数据目录可读写
+  check.md:scratchWritable.pass: 本地数据目录写入能力待验证
+  check.md:scratchWritable.fail: 本地数据目录写入能力待验证
   check.md:containersReadable.pass: 本地地图与规格可读取
   check.md:containersReadable.fail: 本地地图与规格可读取
   progress.todo: 未动工
@@ -359,8 +359,8 @@ en:
   check.glab:repoAccess.fail: GitLab repo is reachable
   check.md:workspace.pass: Local workspace is readable
   check.md:workspace.fail: Local workspace is readable
-  check.md:scratchWritable.pass: Local data dir is writable
-  check.md:scratchWritable.fail: Local data dir is writable
+  check.md:scratchWritable.pass: Local data directory writability not verified
+  check.md:scratchWritable.fail: Local data directory writability not verified
   check.md:containersReadable.pass: Local map and spec files are readable
   check.md:containersReadable.fail: Local map and spec files are readable
   progress.todo: Not started

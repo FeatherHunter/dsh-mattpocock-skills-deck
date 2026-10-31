@@ -1,7 +1,7 @@
 // src/refresh/rooms/host/chain-step-rows.ts —— 从 check-chain-evaluation.ts 搬出的「判定 → 步骤行 / 快照」三件套（#1483）。
 //
 // 为什么搬出来：同一份链快照除了正常求值要拼，缓存命中时若某一项的结果取决于「当前是哪个会话」
-//   （目前只有 md:scratchWritable 这一项，它读沙箱许可做写探测），也要按当前会话重算那一行。
+//   （目前标记了 md:scratchWritable；该谓词当前不做写探测，返回 pending），也要按当前会话重算那一行。
 //   两处必须用同一套「判定 → 状态 → 计数」口径，否则缓存命中时拼出来的行会和正常求值时不一样。
 //   搬出来只为了共用，逻辑逐字保留：状态怎么选、pending 行只留哪几格、计数怎么算，都与原来一致。
 //
@@ -14,7 +14,7 @@
 import type { CheckItem } from '../../../shared/tracker/chain-types.js'
 
 /** 一次求值按检查项 id 汇总的判定对象（resolveAll 给的就是这一份）。 */
-export type PredicateResultView = { status: 'pass' | 'fail' | 'pending'; detail?: string; hint?: string }
+export type PredicateResultView = { status: 'pass' | 'fail' | 'pending'; detail?: string; hint?: string; evidence?: string }
 /** 步骤判定表：可以放判定对象，也可以放 toPredicateResults 折出来的状态串。 */
 export type EvalMap = Record<string, PredicateResultView | 'pass' | 'fail' | null | undefined>
 /** 判定对象那一份（富化步骤用的 detail/hint 只在这一路里）。 */
@@ -75,11 +75,13 @@ export function stepEvalParallel(items: CheckItem[], resolved: EvalMap): ChainSn
     const rMap = resolved || {}
     const steps = (items || []).map(function (it: CheckItem) {
       const rd = rMap[it.id as string]
-      const isPass = rd === 'pass'
-      const isFail = rd === 'fail'
+      // 仅已明确完成的无探测结果允许兼容推进；异常和超时的 pending 仍阻塞。
+      const unverified = it.id === 'md:scratchWritable' && typeof rd === 'object' && rd !== null && rd.status === 'pending' && rd.evidence === 'writability-unverified'
+      const isPass = rd === 'pass' || (typeof rd === 'object' && rd !== null && rd.status === 'pass') || unverified
+      const isFail = rd === 'fail' || (typeof rd === 'object' && rd !== null && rd.status === 'fail')
       const status = isPass ? 'done' : (isFail ? (((it.onFail && Array.isArray(it.onFail.actions) && it.onFail.actions.length)) ? 'current' : 'fail') : 'pending')
       const _pendingShow = (function () { const bb: ShowView = (it.onFail && it.onFail.show) || {}; const oo: ShowView = {}; if (bb.fallback != null) oo.fallback = bb.fallback; if (bb.title != null) oo.title = bb.title; if (bb.i18nKey != null) oo.i18nKey = bb.i18nKey; return oo })()
-      const show = isPass ? ((it.onPass && it.onPass.show) || null) : (isFail ? ((it.onFail && it.onFail.show) || null) : _pendingShow)
+      const show = unverified ? Object.assign({}, _pendingShow, { level: 'warn', desc: rd.detail }) : (isPass ? ((it.onPass && it.onPass.show) || null) : (isFail ? ((it.onFail && it.onFail.show) || null) : _pendingShow))
       const actions = isFail && it.onFail && Array.isArray(it.onFail.actions) ? it.onFail.actions : []
       return { id: it.id, check: it.check, status: status, show: show, actions: actions, isApplicable: true, blockedBy: null, isCurrent: false, isBlocking: status !== 'done' }
     })

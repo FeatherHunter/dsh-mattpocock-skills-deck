@@ -1,7 +1,7 @@
 // tests/verify-1483-chain-session-cache.ts —— #1483：共享链缓存命中时，按当前会话重算依赖沙箱许可的行
 //
 // 背景：链快照的退避缓存按「工作区 + 后端 + 语言」共享（#324/#653 的设计，子目录会话要秒显）。
-//   md:scratchWritable 量的是「当前会话能不能往 .scratch 写」：只读会话量出来是 pending，可写会话是 done。
+//   测试使用独立模拟会话判据；生产 md:scratchWritable 始终无副作用 pending。
 //   缓存命中直接回上一份快照时，只读会话会看到别的会话量出的「可写」。
 //
 // 本文件的判据：
@@ -13,10 +13,10 @@
 //   F 两会话并发首挂：后到的那次搭前一次的车（没有缓存命中可走），拿到回包后同样按自己的会话重算
 //     ——只读会话看到 pending、先到的可写会话仍是 done；搭车这件事本身仍被记了一次（dedup）
 //   #1492 新增：
-//   G 新算的一趟只做一次写探测、缓存命中只再补一次（补算没有在入口与出口各做一遍）
+//   G 新算的一趟只做一次模拟判据、缓存命中只再补一次（补算没有在入口与出口各做一遍）
 //   H 补算整体失败：回包带 sessionPatchFailed 标记、是副本、缓存本体没被改；会话相关行落成「未确认」
 //     （不把别的会话量出的 done 显示出来），并留一行 warn 日志
-//   I 补算超时：卡住的写探测按 pending 返回（不把整条命中路径挂死），detail 说明超时；
+//   I 补算超时：卡住的模拟判据按 pending 返回（不把整条命中路径挂死），detail 说明超时；
 //     单项超时不算整趟失败，不打 sessionPatchFailed（那一行是诚实 pending，记成本会话产出也不会传错）
 //   J 结构棘轮：外层出口只有一个补算调用，且外层没有提前 return 绕开它（只防结构退化，不假装能证明语义）
 //
@@ -41,6 +41,9 @@ async function main(): Promise<void> {
   const chain: AnyObj[] = catalogFor('markdown')
     .filter((c: AnyObj) => c.scope === 'backend')
     .map((c: AnyObj) => catalogItemToCheckItem(c as any) as AnyObj)
+    // 缓存路径硬连真实后端判据，改用独立只读原语测试重算机制。
+    .map((item: AnyObj) => item.id === 'md:scratchWritable'
+      ? { ...item, check: { kind: 'primitive', primitive: 'homeDir' } } : item)
 
   const cachedResolved: AnyObj = {}
   const cachedEval: AnyObj = {}
@@ -69,11 +72,13 @@ async function main(): Promise<void> {
   // F 用：把第一次求值的 getPlatform 卡住，好让第二次请求在「第一轮还没跑完」时进来搭车。
   const platformGate: AnyObj = { promise: null, release: null }
   let dedupMode = false
-  // G/H/I 用：写探测计数、卡住写探测、整体失败（getPlatform 抛）、超时快档。
+  // G/H/I 用：模拟判据计数、卡住模拟判据、整体失败（getPlatform 抛）、超时快档。
   let writeCalls = 0
   let hangWrite = false
   let platformThrows = false
   let fastTimeout = false
+  let currentSession = ''
+  let countCachedMock = false
   const backoff = {
     verdict: async () => (dedupMode
       ? { needed: true, reason: 'due', waitMs: 0, cached: null }
@@ -81,16 +86,22 @@ async function main(): Promise<void> {
     note: async () => ({}),
   }
 
-  // 假的平台层：目录存在；写探测按本次调用带的沙箱许可决定成败（只读许可抛的错与 DSH 沙箱拒信同形）。
+  // 假的平台层：目录存在；模拟判据按本次调用带的沙箱许可决定成败（只读许可抛的错与 DSH 沙箱拒信同形）。
   const fakePlatform: AnyObj = {
     path: { join: (...parts: string[]) => parts.join('/') },
+    getHome: async () => {
+      if (countCachedMock) writeCalls += 1
+      if (hangWrite) return new Promise(() => undefined)
+      if (currentSession === 'readonly-session') throw new Error('模拟沙箱限制')
+      return '/mock-home'
+    },
     env: { get: () => undefined, has: () => false },
     fs: {
       resolve: async (p: string, o: AnyObj) => (o && o.cwd ? String(o.cwd) + '/' + String(p) : String(p)),
       exists: async (t: string) => /\.scratch$/.test(String(t)),
       listDir: async () => [],
       stat: async () => ({ isDirectory: () => true }),
-      // 写探测：G 数次数；I 让它永远不回来（验证出口侧的超时）；只读许可照旧抛沙箱拒信。
+      // 模拟判据：G 数次数；I 让它永远不回来（验证出口侧的超时）；只读许可照旧抛沙箱拒信。
       writeText: (_t: string, _d: string, _e: unknown, _f: unknown, policy: AnyObj) => {
         writeCalls += 1
         if (hangWrite) return new Promise(() => undefined)
@@ -113,13 +124,16 @@ async function main(): Promise<void> {
     // I 用：fastTimeout 时 5ms 就判超时；其余场景永不触发（与真实接线「定时器只用来兜超时」同形）。
     timer: { timeout: (ms: number) => (fastTimeout ? new Promise((resolve) => setTimeout(resolve, 5)) : new Promise(() => undefined)) },
     probeSkill: async () => ({ ok: false, level: 'pending' }),
-    // #1513：本地 Markdown 那三项已拆成三个 backend 谓词，写探测本体搬到房间的共用判据里。
-    // 这一道门禁关心的是「缓存命中时按本会话重算」这条路径，所以 scratchWritable 直接调真判据
-    //（真判据才会真的去写探针，writeCalls 才数得准）；另外两项给固定结论，本文件不测它们。
+    // #1513：本地 Markdown 那三项已拆成三个 backend 谓词，模拟判据本体搬到房间的共用判据里。
+    // 现算路径使用独立模拟；缓存重算路径使用缓存中注入的只读 homeDir 原语。
     mdPredicate: async (platform: AnyObj, cwd: string, lang: string, checkId: string, sandboxPolicy: unknown) => {
       if (String(checkId) === 'scratchWritable' || String(checkId) === 'md:scratchWritable') {
-        const { checkScratchWritable } = await import('../src/tracker/rooms/markdown/workspace-checks.js')
-        return checkScratchWritable({ platform: platform as never, cwd: cwd, lang: lang, sandboxPolicy: sandboxPolicy } as never)
+        // 独立模拟会话相关判据：不依赖生产可写性判据，也不执行文件写入。
+        writeCalls += 1
+        if (hangWrite) return new Promise(() => undefined)
+        return (sandboxPolicy as AnyObj)?.mode === 'read-only'
+          ? { status: 'pending', detail: '模拟沙箱限制' }
+          : { status: 'pass', detail: '模拟可写会话' }
       }
       return { status: 'pass', detail: 'fake' }
     },
@@ -136,10 +150,10 @@ async function main(): Promise<void> {
       },
     } as any,
     gate: null,
-    sandboxPolicyFor: async (info: { cwd: string; sessionId: string }) => ({
-      policy: { mode: info.sessionId === 'readonly-session' ? 'read-only' : 'workspace-write' },
-      sessionId: info.sessionId,
-    }),
+    sandboxPolicyFor: async (info: { cwd: string; sessionId: string }) => {
+      currentSession = info.sessionId
+      return { policy: { mode: info.sessionId === 'readonly-session' ? 'read-only' : 'workspace-write' }, sessionId: info.sessionId }
+    },
   } as any)
 
   const stepOf = (snap: AnyObj | null, id: string): AnyObj | null => {
@@ -190,22 +204,23 @@ async function main(): Promise<void> {
   ok(detect.rideStats().merged >= 1, 'F 第二次请求确实搭了车（没有另起一轮求值）', JSON.stringify(detect.rideStats()))
   ok(((first.backendChain.resolved['md:scratchWritable'] || {}).status) === 'pass', 'F 先到的可写会话仍是 pass')
   ok(((second.backendChain.resolved['md:scratchWritable'] || {}).status) === 'pending', 'F 搭车的只读会话按自己许可重算成 pending（实得 ' + ((second.backendChain.resolved['md:scratchWritable'] || {}).status) + '）')
-  ok((stepOf(second.backendChain.snapshot, 'md:scratchWritable') || {}).status === 'pending', 'F 搭车回包的 backendChain.snapshot 也变 pending')
-  ok((stepOf(second.fullSnapshot, 'md:scratchWritable') || {}).status === 'pending', 'F 搭车回包的 fullSnapshot 也变 pending')
+  ok((stepOf(second.backendChain.snapshot, 'md:scratchWritable') || {}).status === 'done' && (stepOf(second.backendChain.snapshot, 'md:scratchWritable') || {}).show?.level === 'warn', 'F 搭车时生产判据返回未验证警告，后端快照非阻塞')
+  ok((stepOf(second.fullSnapshot, 'md:scratchWritable') || {}).status === 'done' && (stepOf(second.fullSnapshot, 'md:scratchWritable') || {}).show?.level === 'warn', 'F 搭车回包完整快照保留未验证警告')
   ok(first !== second, 'F 两次回包是两个对象（搭车那次拿到的是重算后的副本）')
 
-  // G. 出口只补算一次：新算的一趟只做一次写探测；缓存命中只再补一次，不会入口补一遍、出口再补一遍。
+  // G. 出口只补算一次：新算的一趟只做一次模拟判据；缓存命中只再补一次，不会入口补一遍、出口再补一遍。
   dedupMode = true
   platformGate.promise = null
   writeCalls = 0
   const freshReply = await detect.handleChain({ cwd: '/ws', backendId: 'markdown', sessionId: 'writable-session', lang: 'zh' } as any) as AnyObj
   ok(freshReply.ok === true, 'G 新算的一趟拿到回包')
   ok(freshReply.sessionPatchFailed === undefined, 'G 现算的回包不带失败标记（标记只在补算失败时出现，钉住回包形状）', JSON.stringify(freshReply.sessionPatchFailed))
-  ok(writeCalls === 1, 'G 新算的一趟只做一次写探测（没有重复补算）', writeCalls)
+  ok(writeCalls === 1, 'G 新算的一趟只做一次模拟判据（没有重复补算）', writeCalls)
   dedupMode = false
+  countCachedMock = true
   const hitReply = await detect.handleChain({ cwd: '/ws', backendId: 'markdown', sessionId: 'writable-session', lang: 'zh' } as any) as AnyObj
   ok(hitReply.ok === true, 'G 缓存命中拿到回包')
-  ok(writeCalls === 2, 'G 缓存命中只再补算一次写探测', writeCalls)
+  ok(writeCalls === 2, 'G 缓存命中只再补算一次模拟判据', writeCalls)
 
   // H. 补算整体失败（取平台时抛）：回包带 sessionPatchFailed 标记、是副本、缓存本体没被改，并留一行 warn。
   //   #1492 复核：失败时不把别人量出的判定原样交出去——会话相关行落 pending（未确认）。
@@ -230,7 +245,7 @@ async function main(): Promise<void> {
   ok(!!failedBackSnapRow && failedBackSnapRow !== cachedScratchRow, 'H 会话相关行是新的行对象（没有与缓存共用），比「顶层是新对象」更强', failedBackSnapRow === cachedScratchRow)
   ok(warnLogs.some((w: AnyObj) => String(w.kind || '') === 'chain-session-patch'), 'H 补算整体失败留了一行 warn', JSON.stringify(warnLogs))
 
-  // I. 补算超时：写探测永远不回来时，按 pending 返回，不把命中路径挂死。
+  // I. 补算超时：模拟判据永远不回来时，按 pending 返回，不把命中路径挂死。
   hangWrite = true
   fastTimeout = true
   const timeoutReply = await Promise.race([
@@ -239,7 +254,7 @@ async function main(): Promise<void> {
   ]) as AnyObj
   hangWrite = false
   fastTimeout = false
-  ok(timeoutReply && timeoutReply.hung !== true && timeoutReply.ok === true, 'I 写探测卡住时补算按时返回（整条命中路径不挂死）')
+  ok(timeoutReply && timeoutReply.hung !== true && timeoutReply.ok === true, 'I 模拟判据卡住时补算按时返回（整条命中路径不挂死）')
   const timedRow = (timeoutReply && timeoutReply.backendChain && timeoutReply.backendChain.resolved && timeoutReply.backendChain.resolved['md:scratchWritable']) || {}
   ok(timedRow.status === 'pending', 'I 超时那一行按 pending（诚实未知）', timedRow.status)
   ok(/超时|timed out|timeout/i.test(String(timedRow.detail || '')), 'I detail 说明超时', timedRow.detail)

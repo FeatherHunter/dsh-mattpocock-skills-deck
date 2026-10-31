@@ -120,6 +120,8 @@ export interface OpUsage {
  */
 export interface PreflightResult {
   ok: boolean
+  /** 非阻断的未验证事项；不改变 ok 的既有门禁语义。 */
+  warnings?: string[]
   /** `ok:false` 时给出原因；`ok:true` 时不写。 */
   error?: TrackerError
   /**

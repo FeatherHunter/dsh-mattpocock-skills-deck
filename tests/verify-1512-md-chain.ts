@@ -15,15 +15,15 @@
  *   再抄一遍——实现错了、门禁跟着错。所以这里只做两件事：调外部入口、断言形状与证据。
  *
  * 六种场景（都按真实临时目录造，不打真网、不碰真实工作区，用完即删）：
- *   ① 空仓库（连 .scratch 都没有）          → 三项通过：空工作区是正常起点，不是故障
- *   ② 只有 .scratch/<名>/spec.md             → 三项通过：有规格就算有工作单元，不因没地图失败
- *   ③ 只有 .scratch/<名>/issues/             → 三项通过：普通票目录也算工作单元
- *   ④ .scratch/<名>/map.md 没有 DSH 头、正文乱 → 三项通过：手写旧文件按 md-v1 认，读得动就是读得动
- *   ⑤ 同一目录同时有 map.md 与 spec.md        → 三项通过：双容器不在本票判定范围内
- *   ⑥ 仓库根有旧布局 issues/01-*.md          → 三项通过：旧布局不在本票判定范围内（它另有一条兼容路径）
+ *   ① 空仓库（连 .scratch 都没有）          → 两项通过、可写性 pending：空工作区是正常起点，不是故障
+ *   ② 只有 .scratch/<名>/spec.md             → 两项通过、可写性 pending：有规格就算有工作单元，不因没地图失败
+ *   ③ 只有 .scratch/<名>/issues/             → 两项通过、可写性 pending：普通票目录也算工作单元
+ *   ④ .scratch/<名>/map.md 没有 DSH 头、正文乱 → 两项通过、可写性 pending：手写旧文件按 md-v1 认，读得动就是读得动
+ *   ⑤ 同一目录同时有 map.md 与 spec.md        → 两项通过、可写性 pending：双容器不在本票判定范围内
+ *   ⑥ 仓库根有旧布局 issues/01-*.md          → 两项通过、可写性 pending：旧布局不在本票判定范围内（它另有一条兼容路径）
  * 再把「预检与链一致」反过来钉（量不出来的那一侧与失败那一侧都要钉住）：
- *   ⑦ 只读会话：写探测被沙箱拦住 → md:scratchWritable = pending（诚实未知，不是 fail），预检仍通过
- *   ⑧ 写探测被拒（权限不足）      → md:scratchWritable = fail，预检不通过且点名「本地数据目录能不能写」
+ *   ⑦ 只读会话：不写探针 → md:scratchWritable = pending，预检仍通过
+ *   ⑧ 模拟拒写环境：不尝试写入，结果 pending，预检通过
  *   ⑨ .scratch 列不出来            → md:workspace = fail：读不出工作区不能谎报「空工作区」，容器判据也 fail，预检点名「本地工作区能不能读」
  *   ⑩ 容器文件写了不支持的版本号   → md:containersReadable = fail：md-v2 认不得，不能静默按 v1 读，预检点名「本地地图与规格文件能不能读」
  *   ⑪ 容器文件读不出来             → md:containersReadable = fail：权限坏掉要说读不出，不能当成没有容器文件，预检点名同一项
@@ -42,6 +42,7 @@ import * as path from 'node:path'
 import * as os from 'node:os'
 import { createDetectChain } from '../src/refresh/rooms/host/check-chain-evaluation.js'
 import { createRemotePredicates } from '../src/host/remotePredicates.js'
+import { patchCachedReplyForSession } from '../src/refresh/rooms/host/chain-session-patch.js'
 import { createMarkdownBackend } from '../src/tracker/rooms/markdown/index.js'
 
 type AnyObj = { [key: string]: any }
@@ -110,6 +111,7 @@ function makePlatform(trouble: FsTrouble = {}): AnyObj {
    *   只能从文件服务这一层看它被问了几次；记在平台对象上，场景在跑完之后自己数。
    */
   const listCalls: string[] = []
+  const mutationCalls: string[] = []
   const fsAdapter: AnyObj = {
     async resolve(p: unknown, opts?: unknown): Promise<string> {
       const raw = String(p)
@@ -144,6 +146,7 @@ function makePlatform(trouble: FsTrouble = {}): AnyObj {
     },
     async writeText(t: unknown, text: string, _enc?: unknown, _flag?: unknown, policy?: unknown): Promise<void> {
       const p = String(t)
+      mutationCalls.push('write:' + p)
       if (trouble.sandboxDenyOnReadonly && policy && (policy as AnyObj).mode === 'read-only') {
         // 与真实文件服务的沙箱拒信同一句话（判据按正则认它）。
         throw new Error('file access denied: workspace-write sandbox denies this write')
@@ -153,6 +156,7 @@ function makePlatform(trouble: FsTrouble = {}): AnyObj {
       fs.writeFileSync(p, String(text), 'utf8')
     },
     async unlink(t: unknown): Promise<void> {
+      mutationCalls.push('unlink:' + String(t))
       fs.unlinkSync(String(t))
     },
   }
@@ -160,6 +164,7 @@ function makePlatform(trouble: FsTrouble = {}): AnyObj {
     path: path.posix,
     fs: fsAdapter,
     listCalls: listCalls,
+    mutationCalls: mutationCalls,
     env: { get: () => undefined, has: () => false },
     os: process.platform,
     getHome: () => os.homedir(),
@@ -247,32 +252,42 @@ function detailOf(resolved: AnyObj, id: string): string {
   return row ? String(row.detail || '') : '（缺这一项）'
 }
 
-/** 六种场景共同的部分：三项都 pass、快照三处一致、房间预检通过。回包里的 resolved 交回给各场景补断言。 */
+/** 六种场景共同的部分：两项 pass、可写性 pending，快照一致、房间预检通过。回包里的 resolved 交回给各场景补断言。 */
 async function assertAllPass(label: string, ws: string): Promise<AnyObj> {
   const reply = await chainRun(ws)
   ok(reply.ok === true, label + '：链求值成功回包', JSON.stringify(reply.error))
   assertMdShape(label, reply)
   const resolved: AnyObj = (reply.backendChain || {}).resolved || {}
   for (const id of MD_IDS) {
-    ok(!!resolved[id] && resolved[id].status === 'pass', label + '：' + id + ' 通过（实得 ' + (resolved[id] && resolved[id].status) + '）', detailOf(resolved, id))
-    ok((stepOf((reply.backendChain || {}).snapshot, id) || {}).status === 'done', label + '：' + id + ' 在 backendChain.snapshot 里是 done')
-    ok((stepOf(reply.fullSnapshot, id) || {}).status === 'done', label + '：' + id + ' 在 fullSnapshot 里是 done')
+    const expected = id === 'md:scratchWritable' ? 'pending' : 'pass'
+    const stepStatus = 'done'
+    ok(!!resolved[id] && resolved[id].status === expected, label + '：' + id + ' 是 ' + expected, detailOf(resolved, id))
+    ok((stepOf((reply.backendChain || {}).snapshot, id) || {}).status === stepStatus, label + '：' + id + ' 在 backendChain.snapshot 里是 ' + stepStatus)
+    ok((stepOf(reply.fullSnapshot, id) || {}).status === stepStatus, label + '：' + id + ' 在 fullSnapshot 里是 ' + stepStatus)
   }
+  ok((reply.backendChain.snapshot || {}).chainState === 'allDone', label + '：可写性未验证不阻塞后端链完成')
+  const warning = stepOf(reply.backendChain.snapshot, 'md:scratchWritable') || {}
+  ok(warning.status === 'done' && warning.show && warning.show.level === 'warn' && /未进行写入探测/.test(warning.show.desc || ''), label + '：兼容完成行明确显示未验证警告')
   const pf = await preflightRun(ws)
   ok(pf.probe.ok === true, label + '：房间预检通过（三项无 fail）', pf.probe && pf.probe.error && pf.probe.error.message)
+  ok(Array.isArray(pf.probe.warnings) && pf.probe.warnings.some((w: string) => /无法验证/.test(w) && /写入可能失败/.test(w)), label + '：成功预检明确报告可写性未验证及写入风险')
   return resolved
 }
 
 async function main(): Promise<void> {
   try {
-    console.log('== 一、空仓库：三项都通过，空工作区是正常起点 ==')
+    console.log('== 一、空仓库：可写性未知，空工作区是正常起点 ==')
     {
       const ws = newWs('c1-empty-')
       currentPlatform = makePlatform()
       const resolved = await assertAllPass('场景①', ws)
+      const original = await chainRun(ws)
+      const patched = (await patchCachedReplyForSession(original, { platform: currentPlatform, cwd: ws, lang: 'zh', backendId: 'markdown' })).reply as AnyObj
+      const patchedRow = stepOf(patched.backendChain.snapshot, 'md:scratchWritable') || {}
+      ok(patched.backendChain.snapshot.chainState === 'allDone' && patchedRow.status === 'done' && patchedRow.show.level === 'warn', '场景①：缓存补算保留非阻塞未验证警告')
       const root = path.posix.join(ws, '.scratch')
       ok(detailOf(resolved, 'md:workspace').indexOf('空工作区：' + root) >= 0, '场景①：工作区判据说清「空工作区」并给出 .scratch 路径', detailOf(resolved, 'md:workspace'))
-      ok(detailOf(resolved, 'md:scratchWritable').indexOf('还没有 ' + root + '；仓库根 ' + ws + ' 可写') >= 0, '场景①：写判据说清还没有 .scratch、但仓库根可写', detailOf(resolved, 'md:scratchWritable'))
+      ok(/未进行写入探测/.test(detailOf(resolved, 'md:scratchWritable')), '场景①：写判据说明未验证可写性', detailOf(resolved, 'md:scratchWritable'))
       ok(detailOf(resolved, 'md:containersReadable').indexOf('没有容器文件（' + root + ' 里还没有 map.md / spec.md）') >= 0, '场景①：容器判据说清没有容器文件', detailOf(resolved, 'md:containersReadable'))
     }
 
@@ -284,9 +299,9 @@ async function main(): Promise<void> {
       const resolved = await assertAllPass('场景②', ws)
       const root = path.posix.join(ws, '.scratch')
       ok(detailOf(resolved, 'md:workspace').indexOf('找到 1 个工作单元') >= 0 && detailOf(resolved, 'md:workspace').indexOf('demo（规格）') >= 0, '场景②：工作区判据认出 1 个工作单元、类型是规格', detailOf(resolved, 'md:workspace'))
-      ok(detailOf(resolved, 'md:scratchWritable').indexOf(root) >= 0 && detailOf(resolved, 'md:scratchWritable').indexOf('可写') >= 0, '场景②：写判据在 .scratch 里真写过探针并给出可写结论（只钉路径与结论这类事实，不钉整句文案）', detailOf(resolved, 'md:scratchWritable'))
+      ok(/未进行写入探测/.test(detailOf(resolved, 'md:scratchWritable')), '场景②：不以写入验证可写性', detailOf(resolved, 'md:scratchWritable'))
       ok(detailOf(resolved, 'md:containersReadable').indexOf('读到 1 个容器文件') >= 0 && detailOf(resolved, 'md:containersReadable').indexOf(path.posix.join(root, 'demo', 'spec.md')) >= 0, '场景②：容器判据读到那张 spec.md', detailOf(resolved, 'md:containersReadable'))
-      ok(!fs.existsSync(path.posix.join(root, '.dsh-write-probe')), '场景②：写探针用完已删掉（不在工作区留垃圾）')
+      ok(!fs.existsSync(path.posix.join(root, '.dsh-write-probe')), '场景②：没有遗留固定名探针')
     }
 
     console.log('\n== 三、只有普通票目录：票目录也算工作单元 ==')
@@ -329,11 +344,11 @@ async function main(): Promise<void> {
       currentPlatform = makePlatform()
       const resolved = await assertAllPass('场景⑥', ws)
       ok(detailOf(resolved, 'md:workspace').indexOf('找到 1 个工作单元') >= 0 && detailOf(resolved, 'md:workspace').indexOf('工作区根 issues/（旧版布局）') >= 0, '场景⑥：旧布局的票目录被认成一个工作单元', detailOf(resolved, 'md:workspace'))
-      ok(detailOf(resolved, 'md:scratchWritable').indexOf('仓库根 ' + ws + ' 可写') >= 0, '场景⑥：没有 .scratch 时按仓库根量可写', detailOf(resolved, 'md:scratchWritable'))
+      ok(/未进行写入探测/.test(detailOf(resolved, 'md:scratchWritable')), '场景⑥：仓库根可写性未验证', detailOf(resolved, 'md:scratchWritable'))
       ok(detailOf(resolved, 'md:containersReadable').indexOf('没有容器文件') >= 0, '场景⑥：旧布局的票目录不算容器文件', detailOf(resolved, 'md:containersReadable'))
     }
 
-    console.log('\n== 七、只读会话：写探测被沙箱拦住 → pending，不是 fail ==')
+    console.log('\n== 七、只读会话：不写探针，结果 pending ==')
     {
       const ws = newWs('c7-sandbox-')
       writeTextAt(ws, '.scratch/demo/spec.md', SPEC_TEXT)
@@ -343,14 +358,14 @@ async function main(): Promise<void> {
       assertMdShape('场景⑦', reply)
       const resolved: AnyObj = (reply.backendChain || {}).resolved || {}
       ok((resolved['md:scratchWritable'] || {}).status === 'pending', '场景⑦：写判据按 pending（诚实未知）→ 实得 ' + (resolved['md:scratchWritable'] || {}).status, detailOf(resolved, 'md:scratchWritable'))
-      ok(/沙箱|sandbox/i.test(detailOf(resolved, 'md:scratchWritable')), '场景⑦：detail 说的是被沙箱拦住，不是目录不可写', detailOf(resolved, 'md:scratchWritable'))
+      ok(/未进行写入探测/.test(detailOf(resolved, 'md:scratchWritable')), '场景⑦：detail 说明没有写探测', detailOf(resolved, 'md:scratchWritable'))
       ok((resolved['md:workspace'] || {}).status === 'pass', '场景⑦：工作区判据不受影响，仍是 pass')
       ok((resolved['md:containersReadable'] || {}).status === 'pass', '场景⑦：容器判据不受影响，仍是 pass')
       const pf = await preflightRun(ws, { mode: 'read-only' })
       ok(pf.probe.ok === true, '场景⑦：pending 不算 fail，房间预检照旧通过', pf.probe && pf.probe.error && pf.probe.error.message)
     }
 
-    console.log('\n== 八、写探测被拒：md:scratchWritable = fail，预检不通过且点名那一项 ==')
+    console.log('\n== 八、模拟拒写：不写探针，结果 pending ==')
     {
       const ws = newWs('c8-writefail-')
       writeTextAt(ws, '.scratch/demo/spec.md', SPEC_TEXT)
@@ -359,14 +374,12 @@ async function main(): Promise<void> {
       const reply = await chainRun(ws)
       assertMdShape('场景⑧', reply)
       const resolved: AnyObj = (reply.backendChain || {}).resolved || {}
-      ok((resolved['md:scratchWritable'] || {}).status === 'fail', '场景⑧：写判据判 fail（写确实被拒，不是沙箱）→ 实得 ' + (resolved['md:scratchWritable'] || {}).status, detailOf(resolved, 'md:scratchWritable'))
+      ok((resolved['md:scratchWritable'] || {}).status === 'pending', '场景⑧：未探测写入，权限未知', detailOf(resolved, 'md:scratchWritable'))
       ok((resolved['md:workspace'] || {}).status === 'pass', '场景⑧：工作区判据仍是 pass')
       ok((resolved['md:containersReadable'] || {}).status === 'pass', '场景⑧：容器判据仍是 pass')
       const pf = await preflightRun(ws, { mode: 'workspace-write' })
-      ok(pf.probe.ok === false, '场景⑧：房间预检不通过（与链上那一项 fail 一致）')
-      const message = pf.probe && pf.probe.error ? String(pf.probe.error.message) : ''
-      ok(message.indexOf('预检没过：本地数据目录能不能写') >= 0, '场景⑧：预检那句话点名失败的是「本地数据目录能不能写」→ ' + message.slice(0, 160))
-      ok(message.indexOf('EACCES') >= 0, '场景⑧：失败证据里带着错误原文（EACCES）', message.slice(0, 300))
+      ok(pf.probe.ok === true, '场景⑧：未知不阻止预检')
+      ok(currentPlatform.mutationCalls.length === 0, '场景⑧：链和预检均没有写入或删除', JSON.stringify(currentPlatform.mutationCalls))
     }
 
     console.log('\n== 九、.scratch 列不出来：md:workspace 判 fail，不能谎报空工作区 ==')
@@ -384,6 +397,7 @@ async function main(): Promise<void> {
       ok((resolved['md:containersReadable'] || {}).status === 'fail', '场景⑨：容器判据也 fail（同一个目录列不出来）→ 实得 ' + (resolved['md:containersReadable'] || {}).status, detailOf(resolved, 'md:containersReadable'))
       const pf = await preflightRun(ws)
       ok(pf.probe.ok === false, '场景⑨：房间预检不通过（与链上那两项 fail 一致）')
+      ok(Array.isArray(pf.probe.warnings) && pf.probe.warnings.some((w: string) => /无法验证/.test(w) && /写入可能失败/.test(w)), '场景⑨：失败时也保留未验证警告')
       const message = String((pf.probe.error && pf.probe.error.message) || '')
       ok(message.indexOf('预检没过：本地工作区能不能读') >= 0, '场景⑨：预检点名「本地工作区能不能读」→ ' + message.slice(0, 160))
     }
@@ -401,6 +415,8 @@ async function main(): Promise<void> {
       ok((resolved['md:workspace'] || {}).status === 'pass', '场景⑩：工作区判据仍是 pass')
       ok((resolved['md:containersReadable'] || {}).status === 'fail', '场景⑩：容器判据判 fail（md-v2 认不得）→ 实得 ' + (resolved['md:containersReadable'] || {}).status, detailOf(resolved, 'md:containersReadable'))
       ok(detailOf(resolved, 'md:containersReadable').indexOf('声明了不支持的格式 md-v2') >= 0 && detailOf(resolved, 'md:containersReadable').indexOf('只支持 md-v1') >= 0, '场景⑩：证据说清文件声明的是 md-v2、插件只支持 md-v1', detailOf(resolved, 'md:containersReadable'))
+      const snap10 = reply.backendChain.snapshot || {}
+      ok(snap10.chainState === 'hasCurrent' && (snap10.steps[snap10.currentIndex] || {}).id === 'md:containersReadable', '场景⑩：未验证警告不遮蔽后续容器错误')
       const pf = await preflightRun(ws)
       ok(pf.probe.ok === false, '场景⑩：房间预检不通过')
       const message = String((pf.probe.error && pf.probe.error.message) || '')

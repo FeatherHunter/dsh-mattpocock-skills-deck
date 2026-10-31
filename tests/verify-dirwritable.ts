@@ -1,261 +1,89 @@
-/**
- * tests/verify-dirwritable.ts — dirWritable 原语契约（2026-08-29 研究实锤「md:scratchWritable 名不符实」修复验收）
- *
- * 背景：md:scratchWritable 原用 FILE_EXISTS 只判「存在」、从不测「可写」（research 笔记
- *   docs/research/environment-checks-platform-layer-20260829.md）；新增 PRIMITIVE_KIND.DIR_WRITABLE
- *   （写探测：往目标目录写 2 字节探针并尽力清理）作为跨 OS 唯一可靠的「可写」判据。
- *
- * 本文件断言：
- *   D1 目录存在且 writeText 成功 → pass（且确实尝试了写入与清理）
- *   D2 writeText 抛错 → fail（目录不可写）
- *   D3 目标不存在（fs 无该目录）→ fail
- *   D4 fs 无 writeText 能力 → 回退存在性判定，pass 时 detail 如实注明「未验证可写」
- *   D5 声明层：catalogFor('markdown').md:scratchWritable 是 markdown 后端的 backend 谓词；
- *      判据行为（.scratch 在就探 .scratch、不在就探仓库根，绝不创建 .scratch）由共用判据自己保证（#1513）
- *   D6 契约层 validateCheckItem 对 dirWritable 形状校验通过（非空 path）
- *
- * 运行：node tests/verify-dirwritable.ts（已接入 npm run verify）
+/** 目录可写检查：不存在路径 fail，其余不可安全验证时 pending，绝不写入或删除。
+ * 运行：node --import ./scripts/ts-hook.mts tests/verify-dirwritable.ts
  */
 const assert = require('node:assert/strict')
 
 async function main() {
-  const { createPredicateRegistry } = await import('../src/host/tracker/predicateCore.js') // V1 #461：predicateRegistry.js 已拆为两块
+  const { createPredicateRegistry } = await import('../src/host/tracker/predicateCore.js')
   const { PRIMITIVE_KIND } = await import('../src/shared/tracker/chain-types.js')
   const { validateCheckItem } = await import('../src/shared/tracker/chain-validate.js')
   const { catalogFor } = await import('../src/shared/tracker/check-catalog-dirs.js')
+  const { checkScratchWritable } = await import('../src/tracker/rooms/markdown/workspace-checks.js')
+  const chain = [{ id: 'md:scratchWritable', check: { kind: 'primitive', primitive: PRIMITIVE_KIND.DIR_WRITABLE, path: '.scratch' } }]
+  const run = async (platform, lang = 'en') => (await createPredicateRegistry({ timeout: 2000 }).resolveAll(chain, { platform, backendId: 'markdown', cwd: '/ws', lang }))['md:scratchWritable']
+  let writes = 0
+  let deletes = 0
+  const fsFor = (extra = {}) => ({
+    resolve: async (p, o) => o && o.cwd ? o.cwd + '/' + p : p,
+    writeText: async () => { writes++; throw new Error('write must not be called') },
+    unlink: async () => { deletes++; throw new Error('unlink must not be called') },
+    ...extra,
+  })
+  const platformFor = (fs) => ({ path: { join: (...a) => a.join('/') }, env: { get: () => undefined, has: () => false }, fs })
 
-  let failed = false
-  let total = 0
-  let passed = 0
-  const check = (ok, msg, detail = '') => {
-    total++
-    if (ok) { passed++; console.log('  PASS ' + msg) }
-    else { failed = true; console.log('  FAIL ' + msg + (detail ? ' — ' + String(detail).slice(0, 400) : '')) }
-  }
+  // 权限异常不是不存在的证据。
+  const denied = await run(platformFor(fsFor({ exists: async () => { throw Object.assign(new Error('permission denied'), { code: 'EACCES' }) } })))
+  assert.equal(denied.status, 'pending')
 
-  const runProbe = async (platform, cwd, lang) => {
-    const reg = createPredicateRegistry({ timeout: 2000 })
-    const chain = [{ id: 'md:scratchWritable', check: { kind: 'primitive', primitive: PRIMITIVE_KIND.DIR_WRITABLE, path: '.scratch' } }]
-    const resolved = await reg.resolveAll(chain, { platform, backendId: 'markdown', cwd: cwd || '/ws', ...(lang ? { lang } : {}) })
-    return resolved['md:scratchWritable']
-  }
-
-  console.log('== dirWritable 原语契约（可写探测修复验收） ==')
-
-  // D1：可写 → pass；写入与清理都尝试
-  {
-    const written = []
-    const cleaned = []
-    const platform = {
-      path: { join: (...a) => a.join('/') },
-      env: { get: () => undefined, has: () => false },
-      fs: {
-        resolve: async (p, o) => (o && o.cwd ? o.cwd + '/' + p : p),
-        writeText: async (p, c) => { written.push(p) },
-        unlink: async (p) => { cleaned.push(p) },
-      },
+  // 确认真实存在与缺失分别被识别；不得仅以 resolve 成功假装路径存在。
+  const exists = await run(platformFor(fsFor({ exists: async () => true })))
+  assert.equal(exists.status, 'pending')
+  assert.match(exists.detail, /unverified/i)
+  const missing = await run(platformFor(fsFor({ exists: async () => false })))
+  assert.equal(missing.status, 'pending')
+  const unknown = await run(platformFor(fsFor()))
+  assert.equal(unknown.status, 'pending')
+  const dirFallback = await run(platformFor(fsFor({ exists: async () => false, listDir: async () => [] })))
+  assert.equal(dirFallback.status, 'pending')
+  const missingFallback = await run(platformFor(fsFor({ exists: async () => false, listDir: async () => { throw new Error('ENOENT') }, stat: async () => null })))
+  assert.equal(missingFallback.status, 'fail')
+  const badResolve = await run(platformFor(fsFor({ resolve: async () => { throw new Error('ENOENT') } })))
+  assert.equal(badResolve.status, 'fail')
+  for (const method of ['resolve', 'exists', 'listDir', 'stat', 'lstat']) {
+    for (const code of ['EACCES', 'EPERM', 'EIO']) {
+      const result = await run(platformFor(fsFor({ [method]: async () => { throw Object.assign(new Error(code), { code }) } })))
+      assert.equal(result.status, 'pending', method + ' ' + code)
     }
-    const r = await runProbe(platform, '/ws')
-    check(r.status === 'pass', 'D1 可写目录 → pass', r.detail)
-    check(written.length === 1 && written[0] === '/ws/.scratch/.dsh-write-probe', 'D1 写探针确实写入目标目录', JSON.stringify(written))
-    check(cleaned.length === 1 && cleaned[0] === '/ws/.scratch/.dsh-write-probe', 'D1 探针随后被清理（unlink）', JSON.stringify(cleaned))
-    check(!/writable not verified/.test(r.detail || ''), 'D1 pass 不带「未验证可写」注记')
+    const result = await run(platformFor(fsFor({ [method]: async () => { throw Object.assign(new Error('missing'), { code: 'ENOENT' }) } })))
+    assert.equal(result.status, 'fail', method + ' ENOENT')
+  }
+  const nullStat = await run(platformFor(fsFor({ stat: async () => null })))
+  assert.equal(nullStat.status, 'pending')
+  const conflicting = await run(platformFor(fsFor({ exists: async () => { throw new Error('ENOENT') }, listDir: async () => [] })))
+  assert.equal(conflicting.status, 'pending')
+  const resolveUnknown = await run(platformFor(fsFor({ resolve: async () => { throw new Error('resolver unavailable') } })))
+  assert.equal(resolveUnknown.status, 'pending')
+  for (const target of [{ path: '/ws/.scratch' }, { kind: 'file', rel: '.scratch' }]) {
+    const result = await run(platformFor(fsFor({ resolve: async () => target, exists: async (p) => { assert.equal(p, target); return true } })))
+    assert.equal(result.status, 'pending')
+  }
+  for (const lang of ['zh', 'en']) {
+    const result = await run(platformFor(fsFor({ exists: async () => true })), lang)
+    assert.equal(result.status, 'pending')
+    assert.match(result.detail, lang === 'zh' ? /未验证/ : /unverified/i)
   }
 
-  // D2：写入抛错 → fail
-  {
-    const platform = {
-      path: { join: (...a) => a.join('/') },
-      env: { get: () => undefined, has: () => false },
-      fs: {
-        resolve: async (p, o) => (o && o.cwd ? o.cwd + '/' + p : p),
-        writeText: async () => { throw new Error('EACCES: permission denied') },
-      },
-    }
-    const r = await runProbe(platform, '/ws')
-    check(r.status === 'fail', 'D2 写入被拒（EACCES）→ fail', r.detail)
-    check(/not writable/i.test(r.detail || ''), 'D2 详情含不可写原因', r.detail)
-  }
-
-  // D3：目标不存在 → fail
-  {
-    const platform = {
-      path: { join: (...a) => a.join('/') },
-      env: { get: () => undefined, has: () => false },
-      fs: {
-        resolve: async () => { throw new Error('ENOENT') },
-        writeText: async () => { throw new Error('should not be called') },
-      },
-    }
-    const r = await runProbe(platform, '/ws')
-    check(r.status === 'fail', 'D3 目标目录不存在 → fail', r.detail)
-  }
-
-  // D4：无 writeText 能力 → 回退存在性 + 如实注明
-  {
-    const platformExists = {
-      path: { join: (...a) => a.join('/') },
-      env: { get: () => undefined, has: () => false },
-      fs: {
-        resolve: async (p, o) => (o && o.cwd ? o.cwd + '/' + p : p),
-        exists: async () => true,
-      },
-    }
-    const r1 = await runProbe(platformExists, '/ws')
-    check(r1.status === 'pass' && /writable not verified/.test(r1.detail || ''), 'D4 无写能力→回退存在性 pass（属实注明未验证可写）', r1.detail)
-    const platformMissing = {
-      path: { join: (...a) => a.join('/') },
-      env: { get: () => undefined, has: () => false },
-      fs: {
-        resolve: async (p, o) => (o && o.cwd ? o.cwd + '/' + p : p),
-        exists: async () => false,
-      },
-    }
-    const r2 = await runProbe(platformMissing, '/ws')
-    check(r2.status === 'fail', 'D4 无写能力+不存在 → fail（不误报可写）', r2.detail)
-  }
-
-  // D5：声明层 —— #1513 起这一行不再是 primitive：写探测搬进 markdown 房间的共用判据，
-  // 检查链与房间预检用同一份实现；catalog 只留「这是哪个后端、哪个判据」的接线。
-  {
-    const item = catalogFor('markdown').find((c) => c.id === 'md:scratchWritable')
-    check(!!item, 'D5 markdown 目录含 md:scratchWritable')
-    check(item && item.check && item.check.kind === 'backend' && item.check.id === 'scratchWritable' && item.check.backendId === 'markdown',
-      'D5 md:scratchWritable 已是 markdown 后端的 backend 谓词（与房间预检共用一套判据）', JSON.stringify(item && item.check))
-    check(item && item.sessionScoped === true, 'D5 仍是会话相关行（#1483 的按会话重算路径不变）')
-    const gh = catalogFor('github').find((c) => c.id === 'md:scratchWritable')
-    check(!gh, 'D5 github 目录不含 md:scratchWritable（后端物理隔离）')
-  }
-
-  // D5b：判据行为 —— 有 .scratch 就只在 .scratch 里写探针；没有 .scratch 就探仓库根，
-  // 两条路都不许「顺手创建 .scratch」（#1483 的既有行为，换成 backend 谓词后必须原样保留）。
-  {
-    const { checkScratchWritable } = await import('../src/tracker/rooms/markdown/workspace-checks.js')
-
-    const mkPlatform = ({ scratchExists }) => {
-      const written = []
-      const cleaned = []
-      const platform = {
-        path: { join: (...a) => a.join('/') },
-        env: { get: () => undefined, has: () => false },
-        fs: {
-          resolve: async (p, o) => (o && o.cwd ? o.cwd + '/' + p : p),
-          lstat: async (p) => (p === '/ws/.scratch' ? (scratchExists ? { isDirectory: () => true } : null) : null),
-          readText: async () => { throw new Error('ENOENT') },
-          writeText: async (p) => { if (p !== '/ws/.scratch/.dsh-write-probe' && p !== '/ws/.dsh-write-probe') throw new Error('unexpected probe path: ' + p); written.push(p) },
-          unlink: async (p) => { cleaned.push(p) },
-        },
-      }
-      return { platform, written, cleaned }
-    }
-
-    const withScratch = mkPlatform({ scratchExists: true })
-    const r1 = await checkScratchWritable({ platform: withScratch.platform, cwd: '/ws' })
-    check(r1.status === 'pass', 'D5b .scratch 存在且可写 → pass', r1.detail)
-    check(withScratch.written.length === 1 && withScratch.written[0] === '/ws/.scratch/.dsh-write-probe',
-      'D5b .scratch 存在时探针写在 .scratch 里', JSON.stringify(withScratch.written))
-    check(withScratch.cleaned.length === 1 && withScratch.cleaned[0] === '/ws/.scratch/.dsh-write-probe',
-      'D5b 探针写完全部清理', JSON.stringify(withScratch.cleaned))
-
-    const noScratch = mkPlatform({ scratchExists: false })
-    const r2 = await checkScratchWritable({ platform: noScratch.platform, cwd: '/ws' })
-    check(r2.status === 'pass', 'D5b 没有 .scratch 但仓库根可写 → pass', r2.detail)
-    check(noScratch.written.length === 1 && noScratch.written[0] === '/ws/.dsh-write-probe',
-      'D5b 没有 .scratch 时探针写在仓库根（不碰 .scratch）', JSON.stringify(noScratch.written))
-    check(!noScratch.written.some((p) => String(p).indexOf('/.scratch') >= 0),
-      'D5b 没有 .scratch 时绝不顺手创建它（探针路径不含 .scratch）', JSON.stringify(noScratch.written))
-  }
-
-  // WSL 宿主 ACL 查询不支持：不得误判目录权限，也不得改走其他写路径。
-  {
-    const { checkScratchWritable } = await import('../src/tracker/rooms/markdown/workspace-checks.js')
+  // backend 判据不读写磁盘，无论 .scratch 是否存在或是否传许可。
+  for (const scratchExists of [true, false]) {
+    const platform = platformFor(fsFor({ lstat: async () => scratchExists ? { isDirectory: () => true } : null }))
     for (const lang of ['zh', 'en']) {
-      let writes = 0
-      const platform = {
-        path: { join: (...a) => a.join('/') },
-        fs: {
-          resolve: async (p) => p,
-          lstat: async () => ({ isDirectory: () => true }),
-          writeText: async () => { writes++; throw new Error('GetFileSecurityW EIO (Win32 1): WSL probe') },
-        },
-      }
-      const r = await checkScratchWritable({ platform, cwd: '\\\\wsl.localhost\\Ubuntu\\home\\user\\project', lang })
-      check(r.status === 'pending' && /WSL/i.test(r.detail) && /GetFileSecurityW/.test(r.detail), 'WSL 宿主不支持 → pending 且说明原因', r.detail)
-      check(!/写不进去|不可写|not writable|cannot write/i.test(r.detail) && writes === 1, 'WSL 不谎称权限问题、不绕过写入', r.detail)
+      const result = await checkScratchWritable({ platform, cwd: '/ws', lang, sandboxPolicy: { p: 1 } })
+      assert.equal(result.status, 'pending')
+      assert.equal(result.evidence, 'writability-unverified')
+      assert.match(result.detail, lang === 'zh' ? /无法验证/ : /unverified/i)
     }
-    const platform = {
-      path: { join: (...a) => a.join('/') },
-      fs: { resolve: async (p) => p, writeText: async () => { throw new Error('GetFileSecurityW failed: Win32 error 5') } },
-    }
-    const r = await checkScratchWritable({ platform, cwd: '\\\\wsl.localhost\\Ubuntu\\home\\user\\project', lang: 'en' })
-    check(r.status === 'fail' && !/WSL/.test(r.detail), '其他 Win32 错误不误认 WSL 不支持', r.detail)
   }
+  assert.equal(writes, 0, '不可写入探针')
+  assert.equal(deletes, 0, '不可删除探针')
 
-  // D6：契约形状校验通过
-  {
-    const okItem = { id: 'md:scratchWritable', onPass: { show: { fallback: 'ok' }, actions: [] }, onFail: { show: { fallback: 'fail' }, actions: [] }, check: { kind: 'primitive', primitive: 'dirWritable', path: '.scratch' } }
-    check(validateCheckItem(okItem).length === 0, 'D6 dirWritable 合法形状（含 path）通过校验', JSON.stringify(validateCheckItem(okItem)))
-    const badItem = { id: 'x', onPass: { show: { fallback: 'ok' }, actions: [] }, onFail: { show: { fallback: 'fail' }, actions: [] }, check: { kind: 'primitive', primitive: 'dirWritable' } }
-    check(validateCheckItem(badItem).some((e) => /dirWritable needs path/.test(e)), 'D6 dirWritable 缺 path 被校验拦截', JSON.stringify(validateCheckItem(badItem)))
-  }
-
-  // D7：实机崩溃回归（用户反馈 "The path argument must be of type string. Received an instance of Object"）——
-  //   fs.resolve 返回 target 对象（无 .path 字符串 / 形状随宿主）时，绝不因 path.join 抛 TypeError 而误判失败
-  {
-    const mkWritable = (shape) => ({
-      path: { join: (...a) => a.join('/') },
-      env: { get: () => undefined, has: () => false },
-      fs: {
-        resolve: async (p, o) => {
-          const s = o && o.cwd ? o.cwd + '/' + p : p
-          return shape === 'with-path' ? { path: s } : { kind: 'file', rel: p }
-        },
-        writeText: async (t, c) => { /* 收到 target 即可，不比较内容 */ },
-      },
-    })
-    const rA = await runProbe(mkWritable('with-path'), '/ws')
-    check(rA.status === 'pass', 'D7 resolve 返回 {path} 对象 → 不抛 TypeError，判定 pass', rA.detail)
-    const rB = await runProbe(mkWritable('no-path'), '/ws')
-    check(rB.status === 'pass', 'D7 resolve 返回无 path 键的对象（最坏形状）→ 同样 pass', rB.detail)
-  }
-
-  // D8：沙箱拒绝（#476 实锤 workspace-write 栅栏）→ pending（诚实“量不出”，不谎报目录不可写）
-  {
-    const sandboxErr = 'cannot write "/ws/.scratch/.dsh-write-probe": file access denied under workspace-write mode'
-    const mkSandbox = () => ({
-      path: { join: (...a) => a.join('/') },
-      env: { get: () => undefined, has: () => false },
-      fs: {
-        resolve: async (p, o) => (o && o.cwd ? o.cwd + '/' + p : p),
-        writeText: async () => { throw new Error(sandboxErr) },
-      },
-    })
-    const rZh = await runProbe(mkSandbox(), '/ws', 'zh')
-    check(rZh.status === 'pending', 'D8 沙箱拒绝（中文）→ pending 而非 fail', rZh.detail)
-    check(/沙箱/.test(rZh.detail || '') && !/目录不可写/.test(rZh.detail || ''), 'D8 中文详情讲清沙箱、不写“目录不可写”', rZh.detail)
-    const rEn = await runProbe(mkSandbox(), '/ws')
-    check(rEn.status === 'pending', 'D8 沙箱拒绝（英文）→ pending 而非 fail', rEn.detail)
-    check(/sandbox/i.test(rEn.detail || ''), 'D8 英文详情含 sandbox 说明', rEn.detail)
-  }
-
-  // D9：系统级拒绝（EACCES，无沙箱关键词）→ 仍判 fail（D8 正则不过宽的护栏）
-  {
-    const platform = {
-      path: { join: (...a) => a.join('/') },
-      env: { get: () => undefined, has: () => false },
-      fs: {
-        resolve: async (p, o) => (o && o.cwd ? o.cwd + '/' + p : p),
-        writeText: async () => { throw new Error('EACCES: permission denied') },
-      },
-    }
-    const r = await runProbe(platform, '/ws', 'zh')
-    check(r.status === 'fail', 'D9 系统级 EACCES → 仍判 fail', r.detail)
-  }
-
-
-  console.log(`\ndirWritable 契约：${passed}/${total} 通过${failed ? ' — 有失败' : ''}`)
-  if (failed) process.exit(1)
-  console.log('全部通过 — 可写探测原语行为成立（存在≠可写，写探测为判据）')
+  const item = catalogFor('markdown').find((c) => c.id === 'md:scratchWritable')
+  assert.ok(item)
+  assert.deepEqual(item.check, { kind: 'backend', id: 'scratchWritable', backendId: 'markdown' })
+  assert.equal(item.sessionScoped, true)
+  assert.equal(catalogFor('github').find((c) => c.id === 'md:scratchWritable'), undefined)
+  const okItem = { id: 'md:scratchWritable', onPass: { show: { fallback: 'ok' }, actions: [] }, onFail: { show: { fallback: 'fail' }, actions: [] }, check: { kind: 'primitive', primitive: 'dirWritable', path: '.scratch' } }
+  assert.equal(validateCheckItem(okItem).length, 0)
+  assert.ok(validateCheckItem({ ...okItem, check: { kind: 'primitive', primitive: 'dirWritable' } }).some((e) => /dirWritable needs path/.test(e)))
+  console.log('全部通过 — 不存在路径 fail；可写性未验证 pending，零写入零删除')
 }
-
-main().catch((e) => { console.error(e); process.exit(1) })
+main().catch((e) => { console.error(e); process.exitCode = 1 })
