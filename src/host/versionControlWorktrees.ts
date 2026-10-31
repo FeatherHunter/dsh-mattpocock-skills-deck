@@ -22,7 +22,7 @@
  * 失败信封三件套、进程出口、仓库根解析、入参工作目录、路径存在性探测、时间与随机数。
  */
 import { parseWorktrees } from '../shared/version-control/src/parse-worktrees.js'
-import { parseVersion, tierFor, capabilityAvailability } from '../shared/version-control/src/capabilities.js'
+import { parseVersion, capabilityTierFor, capabilityAvailability } from '../shared/version-control/src/capabilities.js'
 import { CAPABILITIES } from '../shared/version-control/src/capability-ledger.js'
 import {
   WORKTREE_ACTIONS, worktreeArgsOf, worktreeCmdNameOf, worktreeJudge, worktreeRowsOf,
@@ -166,7 +166,7 @@ export function createWorktreePhones(deps: any): any {
     const badVer: any = d.failureFromExec(ver, '读 git 版本这一步')
     if (badVer) return badVer
     const gitVersion: string = d.firstLine(ver.stdout)
-    const tier: string = tierFor(parseVersion(gitVersion))
+    const tier: string = capabilityTierFor(parseVersion(gitVersion))
     if (tier === 'unsupported') return fail('version', 'git 版本太旧（' + (gitVersion || '读不出') + '），管理多份工作树至少需要 2.11', { gitVersion: gitVersion, tier: tier })
     let listing: any = await d.runPinned(exe, base.root, worktreeArgsOf('list', {}), { stdoutLimit: LIST_LIMIT, timeoutMs: VC_WORKTREE_OP_TIMEOUT_MS })
     let useNul: boolean = true

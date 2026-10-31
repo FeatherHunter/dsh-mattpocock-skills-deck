@@ -73,10 +73,10 @@ async function main() {
     '反证：不认 rev 的旧命令表在带 rev 的调用上拼出的命令与新形状不同（门禁会红）')
 
   // ---- 1) 版本能力：两条线 ----
-  check(caps.tierFor(caps.parseVersion('git version 2.49.0.windows.1')) === 'full', '2.49 完整档')
-  check(caps.tierFor(caps.parseVersion('git version 2.20.0')) === 'degraded', '2.20 降级档（锁标记未知）')
-  check(caps.tierFor(caps.parseVersion('git version 2.10.0')) === 'unsupported', '2.10 以下直说请升级')
-  check(caps.tierFor(caps.parseVersion('not git')) === 'unsupported', '解不出版本按不支持处理')
+  check(caps.capabilityTierFor(caps.parseVersion('git version 2.49.0.windows.1')) === 'full', '2.49 完整档')
+  check(caps.capabilityTierFor(caps.parseVersion('git version 2.20.0')) === 'degraded', '2.20 降级档（锁标记未知）')
+  check(caps.capabilityTierFor(caps.parseVersion('git version 2.10.0')) === 'unsupported', '2.10 以下直说请升级')
+  check(caps.capabilityTierFor(caps.parseVersion('not git')) === 'unsupported', '解不出版本按不支持处理')
 
   // ---- 2) 实采干净仓库 ----
   const clean = readJson('tests/fixtures/version-control/clean-repo.json')
