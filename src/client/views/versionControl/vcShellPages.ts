@@ -313,9 +313,10 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   }
   // 冲突向导的 15 条能力面板（#1747 T12）：页面把冲突状态与读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   // 判断与推入写成同一条物理行：本文件贴着 350 有效行上限。
-  if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' }))
   // 变基待办页的 9 条动作面板（#1749 T14）：页面把状态与待办读数传进来时才画；没传整块不出现，其它页渲染结果不变。
-  if (page === 'rebase' && opts.rebase !== undefined && typeof vcRebasePageNode === 'function') children.push(Object.assign({}, vcRebasePageNode(h, t, { rebase: opts.rebase }), { key: 'rebase' }))
+  //   为了守住 350 有效行上限，两条页面的挂载写在同一物理行（分号隔开），互不影响。
+  if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' })); if (page === 'rebase' && opts.rebase !== undefined && typeof vcRebasePageNode === 'function') children.push(Object.assign({}, vcRebasePageNode(h, t, { rebase: opts.rebase }), { key: 'rebase' }))
+
   return h('section', {
     id: 'vc-page-' + page,
     className: 'vcs-page-body',
