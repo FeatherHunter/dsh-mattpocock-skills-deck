@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T14:13:54.184Z",
+  "generatedAt": "2026-10-31T04:32:02.940Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 458,
   "gateCount": 458,
@@ -7237,19 +7237,21 @@
         "package/bundled-skills",
         "package/bundled-skills-zh",
         "package/package.json",
-        "src/shared/matt-skills.ts"
+        "src/shared/matt-skills.ts",
+        "tests/bundled-skills-upstream-hashes.json"
       ],
       "dirs": [
         "package",
         "package/bundled-skills",
         "package/bundled-skills-zh",
-        "src/shared"
+        "src/shared",
+        "tests"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
       "step": "node tests/verify-cap-fold-browser.ts",
@@ -12453,6 +12455,7 @@
       "node tests/verify-970-whole-document.ts",
       "node tests/verify-972-title-body.ts",
       "node tests/verify-bundled-skills-upstream.ts",
+      "node tests/verify-bundled-skills.ts",
       "node tests/verify-github-gh-via.ts",
       "node tests/verify-issue232-sync.ts",
       "node tests/verify-log-selfmon.ts",
