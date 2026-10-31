@@ -385,6 +385,10 @@ export function createVersionControl(deps: any): any {
   function firstScreenPhone(): any { if (!_firstP) _firstP = import('./versionControlFirstScreen.js').then(function (m: any) { return m.createFirstScreenPhone({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, collect: collect, readHasHead: readHasHead, readAutocrlf: readAutocrlf, basisReader: basisReader, readMarkers: function (gitDir: any, ctx: any): any { return markersPhone().then(function (p: any): any { return p.read(gitDir, ctx) }) }, logCount: FIRST_SCREEN_LOG_COUNT }) }); return _firstP }
   async function handleGitFirstScreen(args: any): Promise<any> { const p: any = await firstScreenPhone(); return p(args) }
 
+  // 历史高级查询十条能力（#1745）住 ./versionControlHistory.js：同一先例（自包含叶子、依赖全显式传入、单向引用）。
+  let _histP: any = null
+  function historyPhone(): any { if (!_histP) _histP = import('./versionControlHistory.js').then(function (m: any) { return m.createHistoryQueryPhone({ failPhone: failPhone, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf }) }); return _histP }
+
   /** 电话 wf.gitLog 的处理体：历史按批取；多要一条用来判断后面还有没有。 */
   async function handleGitLog(args: any): Promise<any> {
     const count: number = clampInt(args && args.count, FIRST_SCREEN_LOG_COUNT, 1, LOG_BATCH_MAX)
@@ -467,6 +471,8 @@ export function createVersionControl(deps: any): any {
     handleGitLog: loggedPhone('wf.gitLog', 'git-log', handleGitLog),
     // 首屏七片一次聚合（#1739 T04）：一次调用拿全，各片成败在回包里各自说。
     handleGitFirstScreen: loggedPhone('wf.gitFirstScreen', 'git-first-screen', handleGitFirstScreen),
+    // 历史高级查询十条能力（#1745）：3.4/3.6/3.7/3.8/3.10/3.12 落提交历史页，3.5/3.9/3.11/3.13 落诊断页。
+    handleGitHistoryQuery: loggedPhone('wf.gitHistoryQuery', 'git-history-query', async function (args: any): Promise<any> { const p: any = await historyPhone(); return p(args) }),
     // 写电话（1 预检 + 6 执行）：第一次调用时才装配，装完缓存；键名与只读那三条同形。
     handleGitWriteCheck: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.check(a) },
     handleGitStage: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.stage(a) },

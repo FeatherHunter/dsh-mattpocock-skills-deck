@@ -277,6 +277,8 @@ export default {
     harness.handle('wf.gitTaskStart', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskStart(args) })
     harness.handle('wf.gitTaskQuery', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskQuery(args) })
     harness.handle('wf.gitTaskCancel', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskCancel(args) })
+    // #1745 历史高级查询十条能力（3.4–3.13）：装配在 ./versionControl.js 那一族里，这里只注册。
+    harness.handle('wf.gitHistoryQuery', async function (args: WfArgs) { const h = await _vc(); return h.handleGitHistoryQuery(args) })
 
     harness.handle('wf.refresh', async function (args: WfArgs) { const h = await _sessRef(); return h.handleRefresh(args) })
 
