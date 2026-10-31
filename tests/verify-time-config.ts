@@ -501,6 +501,9 @@ const EXEMPTS: ExemptRow[] = [
   // #1743 提交页八条能力：两条新电话里的时间名字都是透传或读钟，不是本票新增的可调时长，沿用上面几行的口径。
   { file: 'src/host/versionControlCommitForm.ts', name: 'timeoutMs', reason: '透传参数，缺省 20000 只为直接调用兜底；装配层注入的 deps.timeoutMs 来自父文件已登记的 RUN_TIMEOUT_MS' },
   { file: 'src/client/views/versionControl/vcCommitOps.ts', name: 'nowMs', reason: '读钟时刻（Date.now），用来给 requestId 拼时间片，不是可调参数' },
+  // #1760 配置与钩子页域 12：读钟字段与中途选出来的时限变量，都不是本票新增的可调时长。
+  { file: 'src/client/views/versionControl/vcConfigOps.ts', name: 'readAtMs', reason: '读钟时刻（读数是什么时候回来的），照首屏同名字段的口径，不是可调参数' },
+  { file: 'src/host/versionControlConfigWrite.ts', name: 'timeoutMs', reason: '按动作二选一：手动跑钩子取已登记的 HOOK_TIMEOUT_MS，其余写动作取已登记的 WRITE_TIMEOUT_MS，本文件不自留数字' },
   { file: 'src/refresh/kernel/index-window-rules.ts', name: 'sinceMs', reason: '算出来的起点时刻（水位减容差），不是可调参数' },
   // —— 派生变量：正常路径取 SYNC 契约里的同名项（已登记），兜底取拼进闭包的中央常量 ——
   { file: 'src/refresh/rooms/client/refresh-timer.ts', name: 'PROBE_MS', reason: '派生变量，取 SYNC.FALLBACK_PROBE_MS（已登记为 syncFallbackProbeMs），兜底取拼进闭包的 SYNC_FALLBACK_PROBE_MS；引用即跟随' },
