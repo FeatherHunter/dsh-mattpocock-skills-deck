@@ -43,6 +43,8 @@
 import * as delta from '../../kernel/snapshot-diff.js'
 import * as merger from '../../kernel/snapshot-merge.js'
 import { fetchThinRows } from './thin-row-fetch.js'
+// #1692：按需细节的淘汰规则（上限、LRU 判据、淘汰后留什么记号）只住这一处；本文件只在写回前调它。
+import { evictDetailsInSnapshot } from '../../kernel/detail-eviction.js'
 
 /** 快照里那份增量状态：水印、世代号、待办三件（待办只记票键，不记路径与命令）。 */
 interface DeltaState {
@@ -112,6 +114,9 @@ export function createPatch(deps?: PatchDeps | null): any {
       // 335 契约 §2.4 的红线是「日志里不许出现工作区原始路径」，而上游错误原文经常带绝对路径：
       // 先把 Windows 盘符路径、UNC 路径与 POSIX 绝对路径整段换成 <path>，再截断 120 字符。
       if (e.err) fields.err = String(e.err).replace(/(?:[A-Za-z]:[\\/]|\\\\|\/(?:[^\s"'\u3001\uff0c\u3002\uff1b\uff09\u0029])+\/)[^\s"'\u3001\uff0c\u3002\uff1b\uff09\u0029]*/g, '<path>').slice(0, 120)
+      // #1692：本轮淘汰掉多少条内容、多少字节。只在真淘汰过时才加这两格，
+      // 成功行没有这回事时不多记两个 0（日志纪律：只收信号、不收垃圾）。
+      if (e.evicted) { fields.evicted = e.evicted; fields.evictedBytes = e.evictedBytes || 0 }
       logCtx.fire('debug', 'refresh.patch', fields)
     } catch (eL: any) { /* 日志不许把主流程带崩 */ }
   }
@@ -148,6 +153,26 @@ export function createPatch(deps?: PatchDeps | null): any {
 
   async function readSnap(cwd: any): Promise<any> { return await Promise.resolve(d.readSnapshot(cwd)) }
   async function writeSnap(cwd: any, snap: any): Promise<any> { return await Promise.resolve(d.writeSnapshot(cwd, snap)) }
+
+  /** 这一轮真拿到的行键。淘汰规则据此给行打「刚取到」的时间戳，没拿到的行沿用旧戳。 */
+  function freshKeysOf(rows: any): Record<string, boolean> {
+    const out: Record<string, boolean> = {}
+    const list: any[] = Array.isArray(rows) ? rows : []
+    for (let i = 0; i < list.length; i++) {
+      const r: any = list[i]
+      const k: any = r && (r.key !== undefined && r.key !== null ? r.key : r.number)
+      if (k !== undefined && k !== null && String(k)) out[String(k)] = true
+    }
+    return out
+  }
+
+  /**
+   * 写回前跑一遍淘汰（#1692）：只淘汰按需细节的内容字段，行、父子边、依赖边、子票计数不动。
+   * 三个挂点共用它，规则本身只在 kernel/detail-eviction.ts 一处。
+   */
+  function evictForWrite(snap: any, rows: any): any {
+    return evictDetailsInSnapshot(snap, { nowMs: now(), freshKeys: freshKeysOf(rows) })
+  }
 
   /** 待办现在有几条（给界面与日志用）。 */
   async function pendingCount(cwd: any): Promise<number> { return stateOf(await readSnap(cwd)).pending.length }
@@ -312,17 +337,20 @@ export function createPatch(deps?: PatchDeps | null): any {
     const deck: any = Object.assign({}, (latest.deck && typeof latest.deck === 'object') ? latest.deck : {})
     if (derived.markPartial) deck.partial = true
     const wv: any = delta.watermarkAfter({ previousMs: latestState.watermarkMs || watermarkMs, scanStartedMs: scanStartedMs, outcome: 'merged' })
+    // #1692：写回前按上限淘汰按需细节。本轮真拿到的行打新时间戳，其余沿用旧戳；
+    // 淘汰只删内容字段、留「曾取过」记号，行与三类边、计数一个不动（规则住 kernel/detail-eviction.ts）。
+    const ev: any = evictForWrite(merged.snapshot, got.rows)
     const nextState: DeltaState = {
       watermarkMs: wv.watermarkMs, generation: g.generation, pendingAt: latestState.pendingAt, pendingReason: latestState.pendingReason,
       pending: latestState.pending.filter(function (k: string): boolean { return merged.changes.updated.indexOf(k) < 0 }),
     }
     // 合并服务只把内容版本号放在回执里（快照里的 version 是信封契约版本，不归它改），由这里写回快照。
-    const next = withState(Object.assign({}, merged.snapshot, {
+    const next = withState(Object.assign({}, ev.snapshot, {
       version: merged.version, generatedMs: now(), updatedAt: new Date(now()).toISOString(), deck: deck,
     }), nextState)
     await writeSnap(cwd, next)
     stats.patched += 1
-    fire('patch', 'rows-changed', { keyHash: keyHash, changed: merged.changes.updated.length, queries: got.queries, watermark: wv.advanced ? 'advanced' : 'held', pending: nextState.pending.length })
+    fire('patch', 'rows-changed', { keyHash: keyHash, changed: merged.changes.updated.length, queries: got.queries, watermark: wv.advanced ? 'advanced' : 'held', pending: nextState.pending.length, evicted: ev.stats.evicted, evictedBytes: ev.stats.evictedBytes })
     return {
       mode: 'patch', reason: 'rows-changed', rows: merged.changes.updated, queries: got.queries,
       version: merged.version, mergeVersion: merged.merge.version, partial: deck.partial === true, counts: derived.countsAction,
@@ -411,18 +439,20 @@ export function createPatch(deps?: PatchDeps | null): any {
     const deck: any = Object.assign({}, (latest.deck && typeof latest.deck === 'object') ? latest.deck : {})
     if (derived.markPartial) deck.partial = true
     const changedKeys: any[] = merged.changes.updated.concat(merged.changes.added)
+    // #1692：同 run()，写事件这条写回前也按上限淘汰按需细节；本轮写回执拿到的行算「刚取到」。
+    const ev: any = evictForWrite(merged.snapshot, got.rows)
     const nextState: DeltaState = {
       // 水印一个字节都不动：写事件这一条不是窗口探测，动水印会让下一次探测错过窗口。
       watermarkMs: latestState.watermarkMs, generation: g.generation, pendingAt: latestState.pendingAt, pendingReason: latestState.pendingReason,
       pending: latestState.pending.filter(function (k: string): boolean { return changedKeys.indexOf(k) < 0 }),
     }
     // 合并服务只把内容版本号放在回执里（快照里的 version 是信封契约版本，不归它改），由这里写回快照。
-    const next = withState(Object.assign({}, merged.snapshot, {
+    const next = withState(Object.assign({}, ev.snapshot, {
       version: merged.version, generatedMs: now(), updatedAt: new Date(now()).toISOString(), deck: deck,
     }), nextState)
     await writeSnap(cwd, next)
     stats.patched += 1
-    fire('patch', 'write-patch', { keyHash: keyHash, changed: changedKeys.length, queries: got.queries, watermark: 'held', pending: nextState.pending.length })
+    fire('patch', 'write-patch', { keyHash: keyHash, changed: changedKeys.length, queries: got.queries, watermark: 'held', pending: nextState.pending.length, evicted: ev.stats.evicted, evictedBytes: ev.stats.evictedBytes })
     return { mode: 'patch', reason: 'write-patch', rows: changedKeys, version: merged.version, snapshot: next, queries: got.queries, partial: deck.partial === true, generation: g.generation, watermarkMs: nextState.watermarkMs }
   }
 

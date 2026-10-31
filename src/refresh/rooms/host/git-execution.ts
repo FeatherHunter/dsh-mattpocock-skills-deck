@@ -1,6 +1,8 @@
 // src/refresh/rooms/host/git-execution.ts —— git 本地执行与仓库钥匙（H1 #445 从 host/index.js 496–720 搬出，纯结构、行为零变化；#1429 C8 把 gh 命令执行并入 gh-execution.js，这里只组装、不再拥有 gh）
 // 以后谁改它：改外部进程执行（gh/git）、工作区钥匙规整或仓库根与磁盘缓存策略的人。预估约 270 行，超 350 打回。
-// 接线：由 index.js 动态 import 动态加载；getPlatform/getWorkspaceStore/setCache/clearWorkspaceStore/namingSweepSoon/parseGithubRepo 显式注入；本文件不引用其他新文件。
+// 接线：由 index.js 动态 import 动态加载；getPlatform/getWorkspaceStore/setCache/clearWorkspaceStore/namingSweepSoon/parseGithubRepo 显式注入。
+// #1692 起磁盘快照的格式（schema/来源/完整度）与按需细节淘汰规则住 src/refresh/kernel/，本文件只搬字节；
+// 除了这两个 kernel 模块与上面那些既有的跨层引用，本文件仍不引用其他新文件（同层互引只许减不许增）。
 // 显式传参编辑：共享状态归 index.js 持有——ghPath/ghLastError 经存取器读写，repoKeys/repoRoots 按引用共享，cache 重赋值改 setCache；resetGhCache 的 _workspaceStore 直访改 clearWorkspaceStore（状态归 platformChannel）。行为与搬前一致。
 //
 // #723（T19）闸接进取数层：宿主这一层的进程出口（本地 git 探测与仓库缓存由 execProc 出去；gh 出站
@@ -23,6 +25,9 @@ import { onceRelease, abandonCommand, startWaitTimeout, DISPOSED_MESSAGE } from 
 import { PROC_GRACE_MS } from '../../../shared/time-config/src/values.js'
 // #1566：第三级要扫 .git/config 里的全部远端，解析那一小段归 tracker/kernel（GitHub/GitLab 两边共用）。
 import { remoteUrlsOfGitConfig } from '../../../tracker/kernel/git-remote.js'
+// #1692：磁盘快照的格式版本与来源（写盘加信封、回放按来源未知兼容旧格式）与按需细节淘汰规则。
+import { readDiskSnapshot, buildDiskSnapshot, diskReplayFields } from '../../kernel/disk-snapshot-format.js'
+import { evictDetailsInSnapshot, DETAIL_EVICTION_LIMITS } from '../../kernel/detail-eviction.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1155 类型标注，只写类型不写实现）。
@@ -337,10 +342,15 @@ export function createRepoKeys(deps: RepoKeysDeps) {
         const txt = await fs.readText(p)
         if (!txt) return null
         const j = JSON.parse(txt)
-        // cacheFormat 3 之后才可读（2→3：1.7.5 新增 map 五区块解析；旧快照缺 decisions/fog/outOfScope,destination,notes，
-        // 视为陈旧强制重建，详情页不再抛且区块可展示；沿用 #327 的小写 state 防御）
-        if (j && j.ok === true && Array.isArray(j.maps) && typeof j.generatedMs === 'number' && j.cacheFormat === 3) return j
-        return null
+        // #1692：格式判据（ok / maps 数组 / generatedMs 是数 / 版本可读）收在 kernel/disk-snapshot-format.ts。
+        // 版本 4 = 带来源与完整度；版本 3 是升级前写下的文件，按「来源未知」回放，快照字段一个不删。
+        const read = readDiskSnapshot(j)
+        if (!read.ok) return null
+        // 读这一拍也清理一遍按需细节（#1692 的另一处挂点）：只淘汰内容字段，
+        // 行、父子边、依赖边、子票计数一律不动；上限与规则只住 kernel/detail-eviction.ts 一处。
+        const ev = evictDetailsInSnapshot(read.snapshot, { nowMs: Date.now(), limits: DETAIL_EVICTION_LIMITS })
+        const replay = diskReplayFields(read.meta)
+        return replay ? Object.assign({}, ev.snapshot, replay) : ev.snapshot
       } catch (e) { return null }
     }
     async function writeDiskCache(repo: RepoKey | null | undefined, snap: unknown) {
@@ -351,8 +361,13 @@ export function createRepoKeys(deps: RepoKeysDeps) {
         // T9 修复：fs 服务的 writeText 要求 resolve() 返回的 target 对象（{targetKey,displayPath}），不能直接传路径字符串
         const platform = await getPlatform()
         const t = await platform.fs.resolve(platform.path.join(dir, fn))
-        // 缓存格式版本 3：1.7.5 map 五区块（见上），旧格式一律视为不新鲜
-        await fs.writeText(t, JSON.stringify(Object.assign({}, snap, { cacheFormat: 3 })))
+        // #1692：写这一拍先按上限淘汰按需细节（只淘汰内容字段），再包上格式版本与整仓级来源一起落盘。
+        // 上一轮回放挂在快照上的 diskReplay 是给界面看的现场信息，不写回文件（否则越攒越旧）。
+        const clean: any = Object.assign({}, snap)
+        delete clean.diskReplay
+        const ev = evictDetailsInSnapshot(clean, { nowMs: Date.now(), limits: DETAIL_EVICTION_LIMITS })
+        await fs.writeText(t, JSON.stringify(buildDiskSnapshot(ev.snapshot, Date.now())))
+        return { evicted: ev.stats.evicted, evictedBytes: ev.stats.evictedBytes }
       } catch (e) { /* 写失败不影响主流程 */ }
     }
 

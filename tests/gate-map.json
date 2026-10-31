@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T01:07:45.195Z",
+  "generatedAt": "2026-10-31T01:36:48.486Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 465,
-  "gateCount": 465,
-  "attributedGates": 415,
+  "chainLength": 466,
+  "gateCount": 466,
+  "attributedGates": 416,
   "unattributedGates": 50,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 29,
+  "completionRecordedGates": 30,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 645,
+  "graphFileCount": 647,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4841,6 +4841,24 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1692-disk-replay-eviction.ts",
+      "file": "tests/verify-1692-disk-replay-eviction.ts",
+      "guards": [
+        "src/refresh/kernel/detail-eviction.ts",
+        "src/refresh/kernel/disk-snapshot-format.ts",
+        "src/refresh/rooms/host/git-execution.ts"
+      ],
+      "dirs": [
+        "src/refresh/kernel",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 85,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -11955,6 +11973,7 @@
       "node tests/verify-1482-graphql-accounting.ts",
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1610-parallel-read.ts",
+      "node tests/verify-1692-disk-replay-eviction.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
@@ -12101,6 +12120,7 @@
       "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-1612-deck-tool-gate.ts",
       "node tests/verify-1621-gh-missing-copy.ts",
+      "node tests/verify-1692-disk-replay-eviction.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -12923,9 +12943,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 666,
+    "fileCount": 668,
     "dirCount": 84,
-    "coveredFileCount": 666,
+    "coveredFileCount": 668,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 66,
@@ -13265,6 +13285,8 @@
       "src/refresh/kernel/budget-readings.ts",
       "src/refresh/kernel/chain-pruning.ts",
       "src/refresh/kernel/create-write-policy.ts",
+      "src/refresh/kernel/detail-eviction.ts",
+      "src/refresh/kernel/disk-snapshot-format.ts",
       "src/refresh/kernel/failure-backoff.ts",
       "src/refresh/kernel/failure-window.ts",
       "src/refresh/kernel/fallback-fetch-budget.ts",

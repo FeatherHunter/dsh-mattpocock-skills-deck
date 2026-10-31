@@ -35,6 +35,7 @@ zh:
   truth.deferred: 有更新，已推后
   truth.paused: 自动刷新已暂停
   truth.notRefreshing: 未在刷新（同时活跃上限 2）
+  truth.replayLastKnown: 上次已知（{time}）
   truth.lag: 数据可能落后 {min} 分钟
   truth.writing: 更新中
   truth.budgetGraphql: GraphQL 剩 {remaining}/{limit}
@@ -118,6 +119,7 @@ en:
   truth.deferred: Updates found; postponed
   truth.paused: Auto refresh paused
   truth.notRefreshing: Not refreshing (concurrent active limit 2)
+  truth.replayLastKnown: Last known ({time})
   truth.lag: Data may lag up to {min} min
   truth.writing: Updating
   truth.budgetGraphql: "GraphQL {remaining}/{limit} left"
