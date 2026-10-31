@@ -577,7 +577,10 @@ async function main() {
   const leafSources = { scene: sceneSrc, check: checkSrc, write: writeSrc, mount: mountSrc }
   const selfSpawn = Object.keys(leafSources).filter(function (k) { return /child_process|\.spawn\(/.test(leafSources[k]) })
   eq(selfSpawn, [], 'E29 写层与装配壳都不自己起进程（全走父层注入的 runPinned）')
-  has(settingsGate, 'nPhones === 85', 'E30 宿主电话总数登记为八十五条（三条冲突向导电话已计入）')
+  // 电话总数是个会随并行票一起长的共享数字（本票三条加进来时是 85，之后 #1743/#1755 又各加了），
+  // 所以这里不写死某一个值，只守住「计数行还在」且「已经把我这三条计进去」——少于 88 就说明漏记。
+  const nPhonesRegistered = (settingsGate.match(/nPhones === (\d+)/) || [])[1]
+  check(!!nPhonesRegistered && Number(nPhonesRegistered) >= 88, 'E30 宿主电话总数登记里已经算上冲突向导三条（实得 ' + nPhonesRegistered + ' 条，本票加完是 88 条起）')
   const writeTag = ['ticket-missing', 'ticket-op-mismatch', 'ticket-expired', 'need-confirm', 'stale-repo', 'target-changed', 'conflict-markers', 'bad-text', 'unknown-write-failure']
   const missingTag = writeTag.filter(function (id) { return writeSrc.indexOf("'" + id + "'") < 0 })
   eq(missingTag, [], 'E31 执行叶子按固定理由标识符拒绝（界面照同一套话术画）')

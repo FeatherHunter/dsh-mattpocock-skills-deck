@@ -28,6 +28,8 @@ declare function vcRemoteOnlineOf(reads: any): any
 declare function vcRemoteOnlineErrorOf(reads: any): any
 // 悬停统一走 Tip 薄预设（标题属性一律经它挂，不在控件上直接写 title）。
 declare const Tip: any
+// 同步段（域 8 的 8.5–8.14）画在正文末尾，见 vcSyncPage.ts；没有同步读数时它回 null，这里就少一段。
+declare function vcSyncPageNode(h: any, t: any, o: any): any
 
 /** 联网失败分类 → 词条键；不认识的分类落到 other（不把没见过的失败装进已知分类）。 */
 const VC_REMOTE_FAIL_KEYS: Record<string, string> = {
@@ -296,5 +298,7 @@ export const vcRemotePageNode = function (h: any, t: any, o: any) {
     kids.push(h('ul', { key: 'list', className: 'vcs-remote-list', role: 'list', 'aria-label': t('vc.remote.listLabel') }, model.remotes.map(function (remote: any) { return vcRemoteRowNode(h, t, model, remote) })))
   }
   kids.push(vcRemoteOnlineNode(h, t, model))
+  const syncNode = vcSyncPageNode(h, t, { reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs })
+  if (syncNode) kids.push(syncNode)
   return h('section', { className: 'vcs-remote', 'data-vc-remote-page': '1', 'data-vc-remote-state': model.state }, kids)
 }

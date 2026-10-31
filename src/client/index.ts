@@ -233,11 +233,17 @@ export default {
     // src/shared/version-control/rules.js）。界面按同一份判定画按钮状态，不自己算 —— 自己算就会与
     // 宿主执行前那次判定各说各话。
     // ==== shared:vcRules (spliced by build) ====
+    // #1743 提交计划（八条提交能力共用的形态与参数口径）也拼进界面闭包，与宿主读同一份 commit-plan.ts。
+    // ==== shared:vcCommitPlan (spliced by build) ====
     // #1738 页面注册表与命令面板的唯一数据源（能力账本），拼接做法与上面几份相同。
     // ==== shared:vcCapabilityLedger (spliced by build) ====
     // #1739 首屏七片一次取全的契约：片名、版本号、刷新三时机与形状判据只有一份真源（共享层 first-screen.ts），
     // 宿主聚合与客户端数据层都从这一份读；界面不许再写第二份片名或版本号。
     // ==== shared:vcFirstScreen (spliced by build) ====
+    // #1755 同步十个动作（域 8 的 8.5–8.14）的共享口径：动作表、argv 规划、现场判定与确认文案，
+    // 宿主与界面读同一份；界面不许自己再拼一遍命令或理由。
+    // ==== shared:vcSyncActions (spliced by build) ====
+    // ==== shared:vcSyncRules (spliced by build) ====
     // #1751 贮藏页十条（域 7）的规则单源：命令拼装、选择器与分支名校验、危险动作、2.35 版本门、
     // 丢弃后的 store 恢复都在共享层 stash-rules.ts；宿主执行层与界面读同一份，界面不自己再说一遍。
     // 拼接做法与上面几份相同（客户端半边今天没有任何对 src/shared 的运行时 import）。
@@ -352,8 +358,8 @@ export default {
     // ==== leaf:chainRenderer (spliced by build) ====
     // ==== leaf:skillFloatList (spliced by build) ====
     // ==== leaf:vcText (spliced by build) ==== // ==== leaf:vcFold (spliced by build) ==== // ==== leaf:vcDiff (spliced by build) ==== // ==== leaf:vcCommit (spliced by build) ==== // ==== leaf:vcRows (spliced by build) ==== // ==== leaf:vcWrite (spliced by build) ==== // ==== leaf:vcWriteRun (spliced by build) ==== // ==== leaf:vcWriteUi (spliced by build) ==== // ==== leaf:vcWriteOps (spliced by build) ==== // ==== leaf:vcWriteView (spliced by build) ==== // ==== leaf:vcDiffOps (spliced by build) ==== // ==== leaf:vcBlocks (spliced by build) ==== // ==== leaf:vcViews (spliced by build) ==== // ==== leaf:vcAiHandoff (spliced by build) ====
-    // #1752 工作树页三叶（数据 → 动作 → 画法），按依赖次序拼在这里；#1746 分支与标签面板排在任务区之后、改动页之前；#1754 远端两叶与 #1745 查询两叶都排在任务区之前
-    // ==== leaf:vcTabVisible (spliced by build) ==== // ==== leaf:vcData (spliced by build) ==== // ==== leaf:vcCache (spliced by build) ==== // ==== leaf:vcInView (spliced by build) ==== // ==== leaf:vcFirstScreen (spliced by build) ==== // ==== leaf:vcCapabilityPages (spliced by build) ==== // ==== leaf:vcShellPrimitives (spliced by build) ==== // ==== leaf:vcPalette (spliced by build) ==== // ==== leaf:vcHistory (spliced by build) ==== // ==== leaf:vcRemoteData (spliced by build) ==== // ==== leaf:vcRemotePage (spliced by build) ==== // ==== leaf:vcQuery (spliced by build) ==== // ==== leaf:vcQueryView (spliced by build) ==== // ==== leaf:vcTaskPanel (spliced by build) ==== // ==== leaf:vcBranches (spliced by build) ==== // ==== leaf:vcChangesPage (spliced by build) ==== // ==== leaf:vcStashOps (spliced by build) ==== // ==== leaf:vcStashPage (spliced by build) ==== // ==== leaf:vcWorktreesData (spliced by build) ==== // ==== leaf:vcWorktreesOps (spliced by build) ==== // ==== leaf:vcWorktreesPage (spliced by build) ==== // ==== leaf:vcConflictsOps (spliced by build) ==== // ==== leaf:vcConflictsPage (spliced by build) ==== // ==== leaf:vcShellPages (spliced by build) ==== // ==== leaf:versionControlTab (spliced by build) ====
+    // #1752 工作树页三叶（数据 → 动作 → 画法），按依赖次序拼在这里；#1746 分支与标签面板排在任务区之后、改动页之前；#1754 远端两叶、#1745 查询两叶、#1743 提交两叶与 #1755 同步两叶都排在任务区之前；#1747 冲突两叶排在页面壳之前
+    // ==== leaf:vcTabVisible (spliced by build) ==== // ==== leaf:vcData (spliced by build) ==== // ==== leaf:vcCache (spliced by build) ==== // ==== leaf:vcInView (spliced by build) ==== // ==== leaf:vcFirstScreen (spliced by build) ==== // ==== leaf:vcCapabilityPages (spliced by build) ==== // ==== leaf:vcShellPrimitives (spliced by build) ==== // ==== leaf:vcPalette (spliced by build) ==== // ==== leaf:vcHistory (spliced by build) ==== // ==== leaf:vcSyncData (spliced by build) ==== // ==== leaf:vcRemoteData (spliced by build) ==== // ==== leaf:vcRemotePage (spliced by build) ==== // ==== leaf:vcSyncPage (spliced by build) ==== // ==== leaf:vcQuery (spliced by build) ==== // ==== leaf:vcQueryView (spliced by build) ==== // ==== leaf:vcCommitOps (spliced by build) ==== // ==== leaf:vcCommitPage (spliced by build) ==== // ==== leaf:vcTaskPanel (spliced by build) ==== // ==== leaf:vcBranches (spliced by build) ==== // ==== leaf:vcChangesPage (spliced by build) ==== // ==== leaf:vcStashOps (spliced by build) ==== // ==== leaf:vcStashPage (spliced by build) ==== // ==== leaf:vcWorktreesData (spliced by build) ==== // ==== leaf:vcWorktreesOps (spliced by build) ==== // ==== leaf:vcWorktreesPage (spliced by build) ==== // ==== leaf:vcConflictsOps (spliced by build) ==== // ==== leaf:vcConflictsPage (spliced by build) ==== // ==== leaf:vcShellPages (spliced by build) ==== // ==== leaf:versionControlTab (spliced by build) ====
     // ==== leaf:tabs (spliced by build) ====
     // ==== leaf:truthLines (spliced by build) ====
     // #1699：降级提示不再占列表一行 —— 小标识画在列表头部 KPI 那一行里（判据仍是上面 truthLines 里的 restFallbackView）；历史由通知中心承载。

@@ -422,21 +422,21 @@ async function main(): Promise<void> {
   check(denyIs({ ok: true, requestId: 'x' }, 'ticket-missing') === false, 'J15 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
 
 
-  // K 冲突向导三条电话（#1747 T12）：读 / 预检签票 / 凭票执行。这一组守「合并冲突不误判成失败」、
+  // M 冲突向导三条电话（#1747 T12）：读 / 预检签票 / 凭票执行。这一组守「合并冲突不误判成失败」、
   //   「选边与继续都要票」以及「没有票、换动作、没确认时零进程」；判定细节与六类冲突分类由 verify-1586-conflicts 守。
-  console.log('K 冲突向导电话（#1747）')
-  const vcK = makeVc()
-  check(typeof vcK.handleGitConflicts === 'function' && typeof vcK.handleGitConflictCheck === 'function' && typeof vcK.handleGitConflictWrite === 'function', 'K1 冲突向导读 / 预检 / 执行三条电话都挂在同一个宿主对象上')
-  check(typeof vcK.conflictTickets === 'function', 'K2 冲突票表读取口只给门禁与测试，不注册成电话')
-  const rK = mkRepo('k')
-  git(rK, ['commit', '-q', '-m', '基线二'])
-  git(rK, ['checkout', '-q', '-b', 'side'])
-  fs.writeFileSync(path.join(rK, 'a.txt'), 'side\n'); git(rK, ['add', 'a.txt']); git(rK, ['commit', '-q', '-m', 'side 改'])
-  git(rK, ['checkout', '-q', 'main'])
-  fs.writeFileSync(path.join(rK, 'a.txt'), 'main\n'); git(rK, ['add', 'a.txt']); git(rK, ['commit', '-q', '-m', 'main 改'])
-  const kPreview = await vcK.handleGitConflicts({ cwd: rK, op: 'merge-preview', target: 'side' })
-  check(kPreview.ok === true && kPreview.clean === false && kPreview.paths.indexOf('a.txt') >= 0, 'K3 预演合并（6.10）：2.38 以上用 merge-tree 真算，干净地报出会冲突且点名 a.txt（有冲突不是命令失败）')
-  const conflictWrites = () => spawns.filter((a) => {
+  console.log('M 冲突向导电话（#1747）')
+  const vcM = makeVc()
+  check(typeof vcM.handleGitConflicts === 'function' && typeof vcM.handleGitConflictCheck === 'function' && typeof vcM.handleGitConflictWrite === 'function', 'M1 冲突向导读 / 预检 / 执行三条电话都挂在同一个宿主对象上')
+  check(typeof vcM.conflictTickets === 'function', 'M2 冲突票表读取口只给门禁与测试，不注册成电话')
+  const rM = mkRepo('k')
+  git(rM, ['commit', '-q', '-m', '基线二'])
+  git(rM, ['checkout', '-q', '-b', 'side'])
+  fs.writeFileSync(path.join(rM, 'a.txt'), 'side\n'); git(rM, ['add', 'a.txt']); git(rM, ['commit', '-q', '-m', 'side 改'])
+  git(rM, ['checkout', '-q', 'main'])
+  fs.writeFileSync(path.join(rM, 'a.txt'), 'main\n'); git(rM, ['add', 'a.txt']); git(rM, ['commit', '-q', '-m', 'main 改'])
+  const mPreview = await vcM.handleGitConflicts({ cwd: rM, op: 'merge-preview', target: 'side' })
+  check(mPreview.ok === true && mPreview.clean === false && mPreview.paths.indexOf('a.txt') >= 0, 'M3 预演合并（6.10）：2.38 以上用 merge-tree 真算，干净地报出会冲突且点名 a.txt（有冲突不是命令失败）')
+  const conflictWritesM = () => spawns.filter((a) => {
     const c = after(a)
     if (c[0] === 'merge') return true
     if (c[0] === 'checkout' && (c[1] === '--ours' || c[1] === '--theirs')) return true
@@ -444,42 +444,149 @@ async function main(): Promise<void> {
     if (c[0] === 'rebase' || c[0] === 'cherry-pick' || c[0] === 'revert') return false
     return false
   })
-  const kPre = await vcK.handleGitConflictCheck({ cwd: rK, op: 'merge', target: 'side' })
-  check(kPre.ok === true && !!kPre.ticket && kPre.ticket.expiresAtMs - kPre.ticket.checkedAtMs === 120000 && conflictWrites().length === 0, 'K4 预检合并：签 120 秒票，签票这一趟一条写命令都没起')
-  const kMerge = await vcK.handleGitConflictWrite({ cwd: rK, op: 'merge', target: 'side', ticketId: kPre.ticket.id, requestId: 'req-841-k1', confirmed: true })
-  check(kMerge.ok === true && kMerge.conflicted === true && kMerge.state === 'merge' && kMerge.conflictCount === 1, 'K5 合并撞上冲突：回包如实说「有冲突、现在在合并中、1 个冲突文件」，不把它报成 git-failed（Windows 上冲突说明在 stdout）')
-  const kList = await vcK.handleGitConflicts({ cwd: rK, op: 'conflict-list' })
-  check(kList.ok === true && kList.conflictCount === 1 && kList.conflicts[0].path === 'a.txt' && kList.conflicts[0].kind === 'both-changed', 'K6 冲突清单（6.5）：真仓库里读出 a.txt，分类是双方都改')
-  const kMarkers = await vcK.handleGitConflicts({ cwd: rK, op: 'marker-check' })
-  check(kMarkers.ok === true && kMarkers.clean === false && kMarkers.worktree.length > 0, 'K7 提交前查残留标记（6.15）：工作区那一半读出残留，没解决的冲突不会被当成干净')
-  const nK1 = spawns.length
-  const kNoTicket = await vcK.handleGitConflictWrite({ cwd: rK, op: 'take-side', path: 'a.txt', side: 'ours', ticketId: 'NOSUCHTICKET', requestId: 'req-841-k2', confirmed: true })
-  check(kNoTicket.ok === false && kNoTicket.error.reason === 'ticket-missing' && spawns.length === nK1, 'K8 伪造票：ticket-missing 且一个进程都没起')
-  const kPreSide = await vcK.handleGitConflictCheck({ cwd: rK, op: 'take-side', path: 'a.txt', side: 'ours' })
-  const nK2 = spawns.length
-  const kSwap = await vcK.handleGitConflictWrite({ cwd: rK, op: 'mark-resolved', path: 'a.txt', ticketId: kPreSide.ticket.id, requestId: 'req-841-k3', confirmed: true })
-  check(kSwap.ok === false && kSwap.error.reason === 'ticket-op-mismatch' && spawns.length === nK2, 'K9 换动作（选边的票拿去标记已解决）：ticket-op-mismatch 且零进程')
-  const kPreAbort = await vcK.handleGitConflictCheck({ cwd: rK, op: 'op-abort' })
-  const nK3 = spawns.length
-  const kNoConfirm = await vcK.handleGitConflictWrite({ cwd: rK, op: 'op-abort', ticketId: kPreAbort.ticket.id, requestId: 'req-841-k4' })
-  check(kPreAbort.confirmRequired === true && kNoConfirm.ok === false && kNoConfirm.error.reason === 'need-confirm' && spawns.length === nK3, 'K10 中止这类危险动作：预检标出必须确认，没带显式确认就零进程拒绝')
-  const kSide = await vcK.handleGitConflictWrite({ cwd: rK, op: 'take-side', path: 'a.txt', side: 'ours', ticketId: kPreSide.ticket.id, requestId: 'req-841-k5', confirmed: true })
-  const kList2 = await vcK.handleGitConflicts({ cwd: rK, op: 'conflict-list' })
-  check(kSide.ok === true && kList2.ok === true && kList2.conflictCount === 0 && git(rK, ['status', '--porcelain']).out.indexOf('UU') < 0, 'K11 选当前边：真仓库里这个文件不再处于未合并状态（冲突清单跟着变 0）')
+  const mPre = await vcM.handleGitConflictCheck({ cwd: rM, op: 'merge', target: 'side' })
+  check(mPre.ok === true && !!mPre.ticket && mPre.ticket.expiresAtMs - mPre.ticket.checkedAtMs === 120000 && conflictWritesM().length === 0, 'M4 预检合并：签 120 秒票，签票这一趟一条写命令都没起')
+  const mMerge = await vcM.handleGitConflictWrite({ cwd: rM, op: 'merge', target: 'side', ticketId: mPre.ticket.id, requestId: 'req-841-m1', confirmed: true })
+  check(mMerge.ok === true && mMerge.conflicted === true && mMerge.state === 'merge' && mMerge.conflictCount === 1, 'M5 合并撞上冲突：回包如实说「有冲突、现在在合并中、1 个冲突文件」，不把它报成 git-failed（Windows 上冲突说明在 stdout）')
+  const mList = await vcM.handleGitConflicts({ cwd: rM, op: 'conflict-list' })
+  check(mList.ok === true && mList.conflictCount === 1 && mList.conflicts[0].path === 'a.txt' && mList.conflicts[0].kind === 'both-changed', 'M6 冲突清单（6.5）：真仓库里读出 a.txt，分类是双方都改')
+  const mMarkers = await vcM.handleGitConflicts({ cwd: rM, op: 'marker-check' })
+  check(mMarkers.ok === true && mMarkers.clean === false && mMarkers.worktree.length > 0, 'M7 提交前查残留标记（6.15）：工作区那一半读出残留，没解决的冲突不会被当成干净')
+  const nM1 = spawns.length
+  const mNoTicket = await vcM.handleGitConflictWrite({ cwd: rM, op: 'take-side', path: 'a.txt', side: 'ours', ticketId: 'NOSUCHTICKET', requestId: 'req-841-m2', confirmed: true })
+  check(mNoTicket.ok === false && mNoTicket.error.reason === 'ticket-missing' && spawns.length === nM1, 'M8 伪造票：ticket-missing 且一个进程都没起')
+  const mPreSide = await vcM.handleGitConflictCheck({ cwd: rM, op: 'take-side', path: 'a.txt', side: 'ours' })
+  const nM2 = spawns.length
+  const mSwap = await vcM.handleGitConflictWrite({ cwd: rM, op: 'mark-resolved', path: 'a.txt', ticketId: mPreSide.ticket.id, requestId: 'req-841-m3', confirmed: true })
+  check(mSwap.ok === false && mSwap.error.reason === 'ticket-op-mismatch' && spawns.length === nM2, 'M9 换动作（选边的票拿去标记已解决）：ticket-op-mismatch 且零进程')
+  const mPreAbort = await vcM.handleGitConflictCheck({ cwd: rM, op: 'op-abort' })
+  const nM3 = spawns.length
+  const mNoConfirm = await vcM.handleGitConflictWrite({ cwd: rM, op: 'op-abort', ticketId: mPreAbort.ticket.id, requestId: 'req-841-m4' })
+  check(mPreAbort.confirmRequired === true && mNoConfirm.ok === false && mNoConfirm.error.reason === 'need-confirm' && spawns.length === nM3, 'M10 中止这类危险动作：预检标出必须确认，没带显式确认就零进程拒绝')
+  const mSide = await vcM.handleGitConflictWrite({ cwd: rM, op: 'take-side', path: 'a.txt', side: 'ours', ticketId: mPreSide.ticket.id, requestId: 'req-841-m5', confirmed: true })
+  const mList2 = await vcM.handleGitConflicts({ cwd: rM, op: 'conflict-list' })
+  check(mSide.ok === true && mList2.ok === true && mList2.conflictCount === 0 && git(rM, ['status', '--porcelain']).out.indexOf('UU') < 0, 'M11 选当前边：真仓库里这个文件不再处于未合并状态（冲突清单跟着变 0）')
   // 继续合并那一条命令必须带 per-call 的编辑器覆盖（GIT_EDITOR=true），否则本机 GIT_EDITOR 必失败会让继续失败。
-  const kEditorOf = (): boolean => {
+  const mEditorOf = (): boolean => {
     const q = requests.filter((r) => after(r.argv).slice(0, 2).join(',') === 'merge,--continue')[0]
     return !!(q && q.env && q.env.GIT_EDITOR === 'true')
   }
-  const kPreCont = await vcK.handleGitConflictCheck({ cwd: rK, op: 'op-continue' })
-  const parentsBefore = git(rK, ['rev-list', '--parents', '-n', '1', 'HEAD']).out.split(' ').length
-  const kCont = await vcK.handleGitConflictWrite({ cwd: rK, op: 'op-continue', ticketId: kPreCont.ticket.id, requestId: 'req-841-k6', confirmed: true })
-  const parentsAfter = git(rK, ['rev-list', '--parents', '-n', '1', 'HEAD']).out.split(' ').length
-  check(kCont.ok === true && kCont.state === null && parentsAfter > parentsBefore && kEditorOf() === true, 'K12 继续合并：冲突解决后凭票继续，真生成一条合并提交（GIT_EDITOR 走 per-call 覆盖，不弹编辑器）')
-  const kClean = await vcK.handleGitConflicts({ cwd: rK, op: 'marker-check' })
-  check(kClean.ok === true && kClean.clean === true, 'K13 合并完成后残留标记检查变干净（两半都没残留）')
-  check(denyIs({ ok: true, conflictCount: 0 }, 'ticket-missing') === false, 'K14 反证装置自检：把放行的读回包喂给「拒绝」判据必须判假')
+  const mPreCont = await vcM.handleGitConflictCheck({ cwd: rM, op: 'op-continue' })
+  const parentsBefore = git(rM, ['rev-list', '--parents', '-n', '1', 'HEAD']).out.split(' ').length
+  const mCont = await vcM.handleGitConflictWrite({ cwd: rM, op: 'op-continue', ticketId: mPreCont.ticket.id, requestId: 'req-841-m6', confirmed: true })
+  const parentsAfter = git(rM, ['rev-list', '--parents', '-n', '1', 'HEAD']).out.split(' ').length
+  check(mCont.ok === true && mCont.state === null && parentsAfter > parentsBefore && mEditorOf() === true, 'M12 继续合并：冲突解决后凭票继续，真生成一条合并提交（GIT_EDITOR 走 per-call 覆盖，不弹编辑器）')
+  const mClean = await vcM.handleGitConflicts({ cwd: rM, op: 'marker-check' })
+  check(mClean.ok === true && mClean.clean === true, 'M13 合并完成后残留标记检查变干净（两半都没残留）')
+  check(denyIs({ ok: true, conflictCount: 0 }, 'ticket-missing') === false, 'M14 反证装置自检：把放行的读回包喂给「拒绝」判据必须判假')
 
+
+  // K 组：#1755 同步十个动作（域 8 的 8.5–8.14）—— 预检签票与凭票执行走真仓库，写动作仍只经长任务通道。
+  console.log('K 同步十动作（真仓库）')
+  const rK = mkRepo('k')
+  const vcK = makeVc()
+  check(typeof vcK.handleGitSyncCheck === 'function' && typeof vcK.handleGitSyncWrite === 'function', 'K1 同步预检与执行两条电话挂在同一个宿主对象上')
+  check(typeof vcK.handleGitTaskStart === 'function', 'K2 执行走长任务通道的电话就绪（同步自己不另起进程）')
+  const kBefore = spawns.length
+  const kNoRemote = await vcK.handleGitSyncCheck({ cwd: rK, action: 'fetch' })
+  check(kNoRemote.ok === false && kNoRemote.error.kind === 'blocked' && kNoRemote.reason === 'no-remote', 'K3 仓库没有远端时获取被预检拦下，理由常驻（no-remote）')
+  check(spawns.slice(kBefore).indexOf(kNoRemote) < 0 && writeSpawns().length === 0 && spawns.slice(kBefore).every((a) => after(a)[0] !== 'fetch' && after(a)[0] !== 'push' && after(a)[0] !== 'pull'), 'K4 预检只跑读命令：一条写命令与 fetch 都没起')
+  const kBadBefore = spawns.length
+  const kBad = await vcK.handleGitSyncCheck({ cwd: rK, action: 'nope' })
+  check(kBad.ok === false && kBad.error.kind === 'bad-target' && spawns.length === kBadBefore, 'K5 不认识的动作当场拒绝，一个进程都不起（不落到默认推送）')
+  git(rK, ['remote', 'add', 'origin', 'https://example.com/acme/repo.git'])
+  const kPre = await vcK.handleGitSyncCheck({ cwd: rK, action: 'fetch' })
+  check(kPre.ok === true && !!kPre.ticket && kPre.ticket.op === 'fetch' && kPre.confirmRequired === true, 'K6 预检获取成功：签票、票上记动作、确认卡要求确认')
+  const kArgvBefore = spawns.length
+  const kForged = await vcK.handleGitSyncWrite({ cwd: rK, action: 'fetch', ticketId: 'NOSUCHTICKET', requestId: 'k-req-forged', confirmed: true })
+  check(kForged.ok === false && kForged.reason === 'ticket-missing' && spawns.length === kArgvBefore, 'K7 伪造票：ticket-missing 且零进程（执行前不读现场也不起 fetch）')
+  const kNoConfirm = await vcK.handleGitSyncWrite({ cwd: rK, action: 'fetch', ticketId: kPre.ticket.id, requestId: 'k-req-noconfirm' })
+  check(kNoConfirm.ok === false && kNoConfirm.reason === 'need-confirm' && spawns.slice(kArgvBefore).every((a) => after(a)[0] !== 'fetch' && after(a)[0] !== 'push'), 'K8 没带显式确认：need-confirm 且零写进程（确认卡四段先给用户看）')
+  const kWrongRepo = await vcK.handleGitSyncWrite({ cwd: rA, action: 'fetch', ticketId: kPre.ticket.id, requestId: 'k-req-repo', confirmed: true })
+  check(kWrongRepo.ok === false && kWrongRepo.reason === 'stale-repo' && spawns.slice(kArgvBefore).every((a) => after(a)[0] !== 'fetch'), 'K9 换仓库用票：stale-repo 且没有起 fetch（票绑定签发时那个仓库）')
+  const kLogs = logs.filter((l) => l.fields && l.fields.method === 'wf.gitSyncCheck')
+  check(kLogs.length > 0 && logs.every((l) => ['git.exec', 'git.exec.fail', 'host.call', 'host.call.fail'].indexOf(l.event) >= 0), 'K10 同步预检走既有日志事件：host.call 记下电话名，没有新事件名')
+  check(denyIs({ ok: true, ticketId: 'x' }, 'ticket-missing') === false, 'K11 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
+
+
+  // L 提交页域 2（#1743）：八条提交能力共用一份计划真源，危险动作靠 planDigest 绑票，失败分类不落 unknown。
+  console.log('L 提交页八条能力（计划绑定 / 危险动作 / 失败分类）')
+  const rL = mkRepo('i')
+  const vcL = makeVc()
+  const lPlan = { mode: 'staged', target: '', skipHooks: false, sign: false, signoff: false }
+  const lCheck = await vcL.handleGitWriteCheck({ cwd: rL, op: 'commit', message: '页 2.1 标题', plan: lPlan })
+  check(lCheck.ok === true && lCheck.plan && lCheck.plan.mode === 'staged' && lCheck.ticket && lCheck.ticket.op === 'commit', 'L1 预检收下提交计划并回一张 commit 票（计划与票据一起回包）')
+  const lTicketFull = (await vcL.writeTickets()).get(lCheck.ok ? lCheck.ticket.id : 'x') || {}
+  check(lCheck.ok === true && !!lTicketFull.bindings && !!lTicketFull.bindings.preconditions && /^[0-9a-f]{16}$/.test(String(lTicketFull.bindings.preconditions.planDigest || '')) && !!lTicketFull.target && lTicketFull.target.mode === 'staged', 'L2 提交票绑定计划摘要（planDigest）与计划本体（2.1 的形态写进 target）')
+  const lTicket = lCheck.ok ? lCheck.ticket : {}
+  // 2.1 正常提交：argv 在固定前缀之后逐元素独立，cwd 钉在票据那个仓库。
+  const lWriteSpawns0 = writeSpawns().length
+  const lCommit = await vcL.handleGitCommit({ cwd: rL, ticketId: lTicket.id, requestId: 'i-r1', message: '页 2.1 标题', plan: lPlan })
+  const lNew = writeSpawns()[lWriteSpawns0] || []
+  check(lCommit.ok === true && lCommit.committed === true && lCommit.mode === 'staged', 'L3 2.1 提交成功，回包带形态（staged）与新旧提交号')
+  check(after(lNew).join(' ') === 'commit -m 页 2.1 标题' && after(lNew).every((x) => typeof x === 'string'), 'L4 2.1 的 argv 是「commit -m <说明>」三段独立元素（不经 shell 拼接）')
+  const lCwdOk = requests.filter((q) => after(q.argv)[0] === 'commit').every((q) => q.cwd === rL)
+  check(lCwdOk, 'L5 每一次提交调用的 cwd 都钉在票据那个仓库上')
+  // 同一 requestId 重放：不再起第二次 commit 进程，回包还是那一份。
+  const lSpawnsBeforeReplay = writeSpawns().length
+  const lReplay = await vcL.handleGitCommit({ cwd: rL, ticketId: lTicket.id, requestId: 'i-r1', message: '页 2.1 标题', plan: lPlan })
+  check(lReplay.ok === true && lReplay.committed === true && writeSpawns().length === lSpawnsBeforeReplay, 'L6 同一 requestId 重放不重复执行（没有再起 commit 进程，回包与第一次一致）')
+  // 预检是 2.1、执行改成 2.3：计划摘要对不上，零写进程、HEAD 不动（绕过确认卡走不通）。
+  const rL2 = mkRepo('i2')
+  const vcL2 = makeVc()
+  const lHead2 = git(rL2, ['rev-parse', 'HEAD']).out
+  const lCheck2 = await vcL2.handleGitWriteCheck({ cwd: rL2, op: 'commit', message: '预检 2.1', plan: lPlan })
+  const lSwapSpawns0 = writeSpawns().length
+  const lSwap = await vcL2.handleGitCommit({ cwd: rL2, ticketId: lCheck2.ok ? lCheck2.ticket.id : 'x', requestId: 'i-r2', message: '执行 2.3', plan: { mode: 'amend', target: '', skipHooks: false, sign: false, signoff: false } })
+  check(lSwap.ok === false && lSwap.error && lSwap.error.reason === 'target-changed' && writeSpawns().length === lSwapSpawns0 && git(rL2, ['rev-parse', 'HEAD']).out === lHead2, 'L7 预检 2.1 却按 2.3 执行：planDigest 对不上，拒成 target-changed、零写进程、HEAD 不动（危险动作必须走确认卡）')
+  // 危险动作 2.3：仓库没有暂存内容也能提交（只改说明），执行 argv 是 --amend + -m。
+  const rL3 = mkRepo('i3')
+  git(rL3, ['reset', '-q'])
+  const vcL3 = makeVc()
+  const lCheck3 = await vcL3.handleGitWriteCheck({ cwd: rL3, op: 'commit', message: '只改说明', plan: { mode: 'amend', target: '', skipHooks: false, sign: false, signoff: false } })
+  check(lCheck3.ok === true && lCheck3.decision && lCheck3.decision.verdict === 'allow', 'L8 2.3 修订只需改说明：没有暂存内容也放行预检（普通提交这一态会被 nothing-staged 拦住）')
+  const lAmendSpawns0 = writeSpawns().length
+  const lAmend = await vcL3.handleGitCommit({ cwd: rL3, ticketId: lCheck3.ok ? lCheck3.ticket.id : 'x', requestId: 'i-r3', message: '只改说明', plan: { mode: 'amend', target: '', skipHooks: false, sign: false, signoff: false } })
+  const lAmendArgv = after(writeSpawns()[lAmendSpawns0] || [])
+  check(lAmend.ok === true && lAmendArgv.join(' ') === 'commit --amend -m 只改说明', 'L9 2.3 的 argv 是「commit --amend -m <说明>」（修订上一条提交）')
+  // 危险动作 2.4：目标不存在时预检直接拒、零写进程；目标存在时 argv 是 --fixup=<oid>。
+  const rL4 = mkRepo('i4')
+  const vcL4 = makeVc()
+  const lFixBad = await vcL4.handleGitWriteCheck({ cwd: rL4, op: 'commit', message: '吸收', plan: { mode: 'fixup', target: 'deadbeef', skipHooks: false, sign: false, signoff: false } })
+  check(lFixBad.ok === false && lFixBad.error && lFixBad.error.reason === 'bad-commit-target' && writeSpawns().length === 0, 'L10 2.4 找不到可吸收目标时预检就拒（bad-commit-target），零写进程')
+  const lFixMissing = await vcL4.handleGitWriteCheck({ cwd: rL4, op: 'commit', message: '吸收', plan: { mode: 'fixup', target: '', skipHooks: false, sign: false, signoff: false } })
+  check(lFixMissing.ok === false && lFixMissing.error && lFixMissing.error.reason === 'need-commit-target', 'L11 2.4 没给目标时拒成 need-commit-target（按钮该禁用的那一档）')
+  const lTargetOid = git(rL4, ['rev-parse', 'HEAD']).out
+  const lFixPlan = { mode: 'fixup', target: lTargetOid, skipHooks: false, sign: false, signoff: false }
+  const lFixCheck = await vcL4.handleGitWriteCheck({ cwd: rL4, op: 'commit', message: '吸收', plan: lFixPlan })
+  const lFixSpawns0 = writeSpawns().length
+  const lFix = await vcL4.handleGitCommit({ cwd: rL4, ticketId: lFixCheck.ok ? lFixCheck.ticket.id : 'x', requestId: 'i-r4', message: '', plan: lFixPlan })
+  const lFixArgv = after(writeSpawns()[lFixSpawns0] || [])
+  check(lFix.ok === true && lFixArgv.join(' ') === 'commit --fixup=' + lTargetOid, 'L12 2.4 的 fixup argv 是「commit --fixup=<目标提交>」（说明由 git 抄目标提交）')
+  // 2.5 跳过钩子的 argv 是 --no-verify；2.6 追加签名行是 -s（与 -S 签名提交分开）。
+  const rL5 = mkRepo('i5')
+  const vcL5 = makeVc()
+  const lSkipPlan = { mode: 'staged', target: '', skipHooks: true, sign: false, signoff: false }
+  const lSkipCheck = await vcL5.handleGitWriteCheck({ cwd: rL5, op: 'commit', message: '跳过钩子', plan: lSkipPlan })
+  const lSkipSpawns0 = writeSpawns().length
+  const lSkip = await vcL5.handleGitCommit({ cwd: rL5, ticketId: lSkipCheck.ok ? lSkipCheck.ticket.id : 'x', requestId: 'i-r5', message: '跳过钩子', plan: lSkipPlan })
+  const lSkipArgv = after(writeSpawns()[lSkipSpawns0] || [])
+  check(lSkip.ok === true && lSkip.skipHooks === true && lSkipArgv.join(' ') === 'commit --no-verify -m 跳过钩子', 'L13 2.5 跳过钩子单独勾选：argv 只多 --no-verify，不给别的提交加默认值')
+  const rL6 = mkRepo('i6')
+  const vcL6 = makeVc()
+  const lSignPlan = { mode: 'staged', target: '', skipHooks: false, sign: false, signoff: true }
+  const lSignCheck = await vcL6.handleGitWriteCheck({ cwd: rL6, op: 'commit', message: '追加签名行', plan: lSignPlan })
+  const lSignSpawns0 = writeSpawns().length
+  const lSign = await vcL6.handleGitCommit({ cwd: rL6, ticketId: lSignCheck.ok ? lSignCheck.ticket.id : 'x', requestId: 'i-r6', message: '追加签名行', plan: lSignPlan })
+  const lSignArgv = after(writeSpawns()[lSignSpawns0] || [])
+  check(lSign.ok === true && lSign.sign === false && lSign.signoff === true && lSignArgv.join(' ') === 'commit -s -m 追加签名行', 'L14 2.6 追加签名行只写尾部行（argv 是 -s），与签名提交（-S）是两个独立开关')
+  // 失败分类与信封：签名失败归到 signing-failed（不落 unknown-write-failure），信封固定四键。
+  const rL7 = mkRepo('i7')
+  const vcL7 = makeVc()
+  const lFailPlan = { mode: 'staged', target: '', skipHooks: false, sign: true, signoff: false }
+  const lFailCheck = await vcL7.handleGitWriteCheck({ cwd: rL7, op: 'commit', message: '签名提交', plan: lFailPlan })
+  const lFail = await vcL7.handleGitCommit({ cwd: rL7, ticketId: lFailCheck.ok ? lFailCheck.ticket.id : 'x', requestId: 'i-r7', message: '签名提交', plan: lFailPlan })
+  check(lFail.ok === false && lFail.error && lFail.error.reason === 'signing-failed' && Object.keys(lFail.error).sort().join(',') === 'hint,kind,message,reason', 'L15 2.6 签名失败归到 signing-failed（不是 unknown-write-failure），失败信封固定 {kind,reason,message,hint}')
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }

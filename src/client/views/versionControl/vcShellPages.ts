@@ -34,6 +34,8 @@ declare function vcHistoryPageNode(h: any, t: any, o: any): any
 declare function vcRemotePageNode(h: any, t: any, o: any): any
 // 历史高级查询面板（#1745，vcQueryView.ts）：提交历史页与「管理 › 诊断」页各挂一段，按能力账本筛。
 declare function vcQueryPageNode(h: any, t: any, o: any): any
+// 提交页正文叶子（#1743，vcCommitPage.ts）：改动页拿到读数时画在能力清单之前。
+declare function vcCommitPageNode(h: any, t: any, o: any): any
 // 长任务区叶子（#1740，vcTaskPanel.ts）：由构建按叶子登记次序拼进同一个闭包，这里只声明形状。
 declare function vcTaskPanelNode(h: any, t: any, o: any): any
 // 工作树页叶子（#1752，vcWorktreesPage.ts）：同样由构建拼进同一个闭包，壳的挂载段只调用它。
@@ -42,10 +44,9 @@ declare function vcWorktreesPageNode(h: any, t: any, o: any): any
 declare function vcChangesPageNode(h: any, t: any, o: any): any
 // 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）：同上由构建拼进闭包，这里只声明形状。
 declare function vcBranchBoardNode(h: any, t: any, o: any): any
-// 贮藏页叶子（#1751，vcStashPage.ts）：同样由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。
-declare function vcStashPageNode(h: any, t: any, o: any): any
-// 冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）：同样由构建拼进闭包，这里只声明形状；挂载条件在下面。
-declare function vcConflictsPageNode(h: any, t: any, o: any): any
+// 贮藏页叶子（#1751，vcStashPage.ts）与冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）：同样由构建拼进同一个闭包，
+// 这里只声明形状；挂载条件在下面。两条声明并进同一条物理行：本文件贴着 350 有效行上限。
+declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcConflictsPageNode(h: any, t: any, o: any): any
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']
@@ -275,6 +276,13 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     children.push(Object.assign({}, vcRemotePageNode(h, t, {
       reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs,
     }), { key: 'remote' }))
+  } else if (page === 'changes' && opts.reads) {
+    // #1743 域 2：改动页拿到读数时，提交面板画在能力清单之前（能力清单本身不动，唯一主入口计数仍是 162）。
+    children.push(Object.assign({}, vcCommitPageNode(h, t, {
+      reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs,
+      ops: opts.commitOps || null, targets: opts.commitTargets || [],
+      panel: opts.commitPanel || null,
+    }), { key: 'commit' }))
   } else {
     // 骨架自检：三种表单形态与四种状态各画一遍，T03 只交壳，业务入口由后续票逐条接。
     children.push(h('div', { key: 'skeleton', className: 'vcs-skeleton', 'data-vc-skeleton': '1' }, [
@@ -304,9 +312,8 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     children.push(Object.assign({}, vcChangesPageNode(h, t, { changes: opts.changes }), { key: 'changes' }))
   }
   // 冲突向导的 15 条能力面板（#1747 T12）：页面把冲突状态与读数传进来时才画；没传整块不出现，其它页渲染结果不变。
-  if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') {
-    children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' }))
-  }
+  // 判断与推入写成同一条物理行：本文件贴着 350 有效行上限。
+  if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' }))
   return h('section', {
     id: 'vc-page-' + page,
     className: 'vcs-page-body',
@@ -358,15 +365,15 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     openSurface: openSurface,
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,
-    changes: opts.changes,
-    // #1747 T12：冲突向导的进行中状态、冲突清单与 15 条动作的交互态，原样往下传，壳不改形状。
-    conflicts: opts.conflicts,
+    changes: opts.changes, conflicts: opts.conflicts, // #1747 T12：冲突向导的进行中状态、冲突清单与 15 条动作的交互态，原样往下传，壳不改形状。
     // #1744 T09：提交历史页要真读数与交互态，页面壳原样往下传，不在壳里改形状。
     reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
     // #1746 T11：分支与标签业务面板的读数与确认卡/结果（没给就不画，T03 既有渲染不变）。
     branchBoard: opts.branchBoard, branchConfirm: opts.branchConfirm, branchResult: opts.branchResult, onBranchRetry: opts.onBranchRetry,
     // #1745：历史高级查询面板的输入与四态由调用方带着走（不传就是空的「还没跑」）。
     queries: opts.queries, inputs: opts.inputs,
+    // #1743：#1743 提交页的动作层、目标提交候选与现成面板模型也从调用方传进来（壳不自己造）。
+    commitOps: opts.commitOps || null, commitTargets: opts.commitTargets || [], commitPanel: opts.commitPanel || null,
     ops: opts.ops, handlers: opts.handlers, // #1752 工作树页要真数据与处理函数
   }), 'body'))
   // #1751 贮藏页（域 7）：只在贮藏页挂这一块；十条动作的入口、确认卡与最近丢弃都在叶子里，

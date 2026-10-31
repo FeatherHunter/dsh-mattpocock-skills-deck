@@ -67,6 +67,12 @@ const VC_FILES = [
   'src/shared/version-control/src/capability-ledger.ts',
   // #1739 首屏七片契约（契约名、版本号、七片名单、刷新三时机与形状判据的唯一真源）：排在客户端那片之前。
   'src/shared/version-control/src/first-screen.ts',
+  // #1743 提交计划（八条提交能力共用的形态、目标、跳过钩子、签名、追加签名行与各自 argv）：宿主与界面读同一份。
+  'src/shared/version-control/src/commit-plan.ts',
+  // #1755：同步十个动作（域 8 的 8.5–8.14）的共享口径（动作表、argv 规划、现场判定与确认文案），
+  //   与构建同序排在客户端两叶之前。
+  'src/shared/version-control/src/sync-actions.ts',
+  'src/shared/version-control/src/sync-rules.ts',
   // #1751：贮藏十条的规则真源（动作名单、版本门、危险档、命令拼装与恢复路径）。
   'src/shared/version-control/src/stash-rules.ts',
   // #1752 工作树八条能力的纯规则层（八条动作 / argv / 判定 / 清单行模型），与构建同序排在客户端那片之前。
@@ -105,11 +111,16 @@ const VC_FILES = [
   // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）。
   'src/client/views/versionControl/vcHistory.js',
   // #1754 远端与同步页（域 8 的 8.1–8.4）：数据层在前、画法在后，最后才是调它们的页面壳。
+  'src/client/views/versionControl/vcSyncData.js', // #1755：同步段数据层（两条电话、预检与执行回包落位；与构建同序排在远端数据层之前）
   'src/client/views/versionControl/vcRemoteData.js',
   'src/client/views/versionControl/vcRemotePage.js',
+  'src/client/views/versionControl/vcSyncPage.js', // #1755：同步段正文（十个动作、理由、租约、确认卡、任务区；挂在远端页正文末尾）
   // #1745 历史高级查询：数据层（十条能力的目录与读取）与面板画法都排在页面壳之前。
   'src/client/views/versionControl/vcQuery.js',
   'src/client/views/versionControl/vcQueryView.js',
+  // #1743 提交页：动作层与正文叶子（与构建同序，排在页面壳之前，壳要调 vcCommitPageNode）。
+  'src/client/views/versionControl/vcCommitOps.js',
+  'src/client/views/versionControl/vcCommitPage.js',
   // #1742 改动页操作面板（13 条动作的渲染面板）：页面壳只在传了改动读数时才挂它；与构建同序，排在页面壳之前。
   'src/client/views/versionControl/vcChangesPage.js',
   // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
@@ -165,11 +176,20 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcRemoteOnlineStateOf', 'vcRemoteOnlineOf', 'vcRemoteOnlineErrorOf', 'vcRemoteOnlineNameOf',
   'vcApplyRemoteReply', 'vcReadRemoteList', 'vcReadRemoteOnline', 'vcRunRemoteWrite',
   'vcRemoteModelOf', 'vcRemotePageNode',
+  // #1755 同步十个动作：共享口径（动作表、规划、判定、确认文案）与客户端数据层、页面叶。
+  'SYNC_ACTIONS', 'SYNC_CHECK_CONTRACT', 'SYNC_CHECK_VERSION', 'syncActionOf', 'syncPlanOf', 'syncPlanDigestInput', 'syncVersionAtLeast',
+  'judgeSync', 'syncConfirmOf', 'syncReasonTextOf',
+  'VC_SYNC_PHONES', 'VC_SYNC_ACTION_ROWS', 'vcNewSyncReads', 'vcSyncStateOf', 'vcSyncDataOf', 'vcSyncErrorOf', 'vcSyncTaskOf',
+  'vcApplySyncReply', 'vcApplySyncWriteReply', 'vcReadSyncCheck', 'vcRunSyncWrite', 'vcSyncModelOf', 'vcSyncPageNode',
   // #1745 历史高级查询（3.4–3.13）：目录、输入校验、一次读取、空结果与截断读数、面板节点与组件。
   'VC_QUERY_PHONE', 'VC_QUERY_COUNT_MAX', 'VC_QUERY_BLAME_SPAN_MAX', 'VC_QUERY_COMPARE_MAX', 'VC_QUERY_RANGE_MAX',
   'vcQueryCatalogOf', 'vcQueryEntriesOf', 'vcQueryEntryOf', 'vcQueryDefaultsOf', 'vcQueryInputsOf', 'vcQueryInputValueOf',
   'vcNewQueries', 'vcQueryStateOf', 'vcMarkQueryLoading', 'vcApplyQueryReply', 'vcQueryParamsOf', 'vcQueryShapeOk',
   'vcReadHistoryQuery', 'vcQueryEmptyOf', 'vcQueryTruncatedOf', 'vcQueryShownOf', 'vcQueryPageNode', 'VC_QUERY_PANEL',
+  // #1743 提交页：计划真源、动作层、正文模型与八条能力的控件都在这个闭包里渲染。
+  'commitPlanOf', 'commitPlanProblem', 'commitPlanDangerous', 'commitArgvOf', 'commitDecisionOf', 'commitTrailerOf',
+  'VC_COMMIT_MODES', 'VC_COMMIT_MODE_CAPS', 'VC_COMMIT_PHONES',
+  'vcCommitInitialState', 'vcCommitOpsOf', 'vcCommitPanelOf', 'vcCommitPageNode', 'vcCommitConfirmNode', 'commitBlockKeyOf',
   'vcRenderTabAt', 'vcRenderAllPages',
   // #1742 改动页：两条电话表、13 条动作清单、参数构造与渲染入口。
   'VC_CHANGES_PHONES', 'VC_CHANGES_OPS', 'vcChangesPageNode', 'vcChangesCheckArgsOf', 'vcChangesWriteArgsOf',
@@ -1202,6 +1222,79 @@ async function main() {
   check(okSeg.length > 0 && failSeg.indexOf('data-vc-old-read') < 0, 'Z15c 结果里不把旧读数当新读数（新旧分开画）')
   check(allShell.indexOf('data-vc-skeleton="1"') >= 0, 'Z15d 每页骨架自检位存在（形态与状态的画法在这壳里可见）')
 
+  // ---- P 组：#1743 提交页（域 2 八条提交能力）----
+  // 断言只落在渲染出来的外部行为与共享真源上：八条能力各有自己的控件、2.7 是多行输入、
+  //   2.6 的签名提交与追加签名行是两个独立勾选、确认卡四段、结果落在提交面板里（= 触发点）。
+  const pForm = {
+    identity: { name: '张三', email: 'z@example.com' },
+    signing: { key: 'ABC123', format: 'ssh', gpgsign: true },
+    template: { configured: true, path: '.gitmessage', text: '模板第一行\n- 模板第二行', truncated: false, problem: '' },
+    trailer: 'Signed-off-by: 张三 <z@example.com>',
+    amend: { available: true, oid: 'b'.repeat(40), short: 'bbbbbbb', subject: '上一条提交', message: '上一条提交\n\n正文' },
+  }
+  const pScreen = screenOf({ staged: [], unstaged: [{ path: '改.txt', origPath: null, staged: false, unstaged: true, conflict: false, change: 'modified', addedLines: 1, deletedLines: 0 }], stagedCount: 0, unstagedCount: 1 })
+  const pUiOf = function (v: any, patch: any) {
+    return { commit: Object.assign({}, v.vcCommitInitialState(), { form: pForm }, patch || {}) }
+  }
+  const pRenderOf = function (v: any, patch: any) {
+    const opts: any = { page: 'changes', width: 460, skin: 'dark', reads: readsOf(pScreen), ui: pUiOf(v, patch) }
+    try { return renderToStaticMarkup(v.vcRenderTabAt(h, tZh, opts)) } catch (e) { console.log('    （提交面板渲染抛错：' + ((e && e.message) || e) + '）'); return '' }
+  }
+  // 八条能力各自的控件：2.1–2.4 是形态按钮，2.5/2.6 是勾选框（2.6 有两颗：签名提交与追加签名行），2.7 是说明输入，2.8 是套用模板。
+  const pCapControlJudgmentOf = function (v: any) {
+    const caps = attrValuesOf(pRenderOf(v, null), 'data-cap-control')
+    const count = function (id: string) { return caps.filter(function (c) { return c === id }).length }
+    // 2.4 是一条能力两个互斥形态（fixup / squash），所以它有两颗按钮；2.6 按规格拆成签名提交与追加签名行两颗。
+    return count('2.1') === 1 && count('2.2') === 1 && count('2.3') === 1 && count('2.4') === 2 &&
+      count('2.5') === 1 && count('2.6') === 2 && count('2.7') === 1 && count('2.8') === 1 && caps.length === 10
+  }
+  // 2.7 必须是面板内的多行输入框：textarea 带 rows、带同一个 data-vc-commit-msg 标记，而且没有单行 input 顶替它。
+  const pMultilineJudgmentOf = function (v: any) {
+    const html = pRenderOf(v, null)
+    return /<textarea[^>]*data-vc-commit-msg="1"/.test(html) && /<textarea[^>]*rows="6"/.test(html) && !/<input[^>]*data-vc-commit-msg/.test(html)
+  }
+  // 确认卡四段必须齐全，且默认焦点在取消键上。
+  const pConfirmJudgmentOf = function (v: any) {
+    const plan = v.commitPlanOf({ mode: 'amend' })
+    const html = pRenderOf(v, { plan: plan, confirm: { plan: plan, ticketId: 't1' } })
+    const segs = attrValuesOf(html, 'data-vc-commit-seg')
+    return segs.join(',') === 'what,wont,reversible,verb' && html.indexOf('data-vc-commit-confirm="1"') >= 0 &&
+      html.indexOf('data-focus-default="cancel"') >= 0
+  }
+  // 结果节点的位置：在提交面板里、在提交按钮之后（结果贴触发点，不是全局横幅）。
+  const pResultJudgmentOf = function (v: any) {
+    const html = pRenderOf(v, { plan: v.commitPlanOf({ mode: 'amend' }), result: { state: 'ok', mode: 'amend', ms: 12, cmd: 'commit' } })
+    const panelAt = html.indexOf('data-vc-commit-panel')
+    const submitAt = html.indexOf('data-vc-commit-submit')
+    const resultAt = html.indexOf('data-vc-commit-result="ok"')
+    const firstCapAt = html.indexOf('data-cap-primary')
+    return panelAt >= 0 && submitAt > panelAt && resultAt > submitAt && firstCapAt > resultAt
+  }
+  check(typeof VIEW.vcCommitPageNode === 'function' && typeof VIEW.vcCommitOpsOf === 'function' && typeof VIEW.commitArgvOf === 'function', 'P1 提交页叶子与共享提交计划已按构建次序拼进闭包（八条能力共用一份 argv 真源）')
+  const pDefault = pRenderOf(VIEW, null)
+  check(pDefault.indexOf('data-vc-commit-panel="1"') >= 0 && pDefault.indexOf('data-vc-page="changes"') >= 0, 'P2 改动页拿到读数时画出提交面板（面板挂在改动页，不在别的页签）')
+  check(pCapControlJudgmentOf(VIEW), 'P3 八条提交能力各有自己的控件（2.4 的 fixup / squash 两个互斥形态各一颗、2.6 拆成签名提交与追加签名行两颗，共 10 颗；实得 ' + attrValuesOf(pDefault, 'data-cap-control').join('、') + '）')
+  const pPrimaryIds = attrValuesOf(pDefault, 'data-cap-primary')
+  check(pPrimaryIds.length === VIEW.PAGE_COUNTS.changes && pPrimaryIds.filter(function (id) { return id === '2.4' }).length === 1, 'P3b 面板外的能力清单仍是一条能力一个主入口（改动页 ' + VIEW.PAGE_COUNTS.changes + ' 条 data-cap-primary，2.4 恰一条；面板控件不抢这个标记）')
+  check(pMultilineJudgmentOf(VIEW), 'P4 2.7 的说明是面板内多行输入框（textarea rows=6，没有单行 input 顶替；不弹外部编辑器）')
+  check(pDefault.indexOf('data-vc-commit-template="1"') >= 0 && pDefault.indexOf('模板第二行') >= 0 && pDefault.indexOf('data-vc-template-text') >= 0, 'P5 2.8 把 commit.template 的原文读进面板并原样显示（套用前先让人看见要写什么）')
+  const pOpts = attrValuesOf(pDefault, 'data-vc-commit-opt')
+  check(pOpts.join(',') === 'skipHooks,sign,signoff' && pDefault.indexOf('data-vc-commit-trailer="1"') >= 0 && pDefault.indexOf('Signed-off-by: 张三') >= 0 && pDefault.indexOf('example.com') >= 0, 'P6 2.5 / 2.6 各自独立勾选：跳过钩子、签名提交、追加签名行是三颗分开的勾选框，追加签名行的原文显示在面板里')
+  check(pConfirmJudgmentOf(VIEW), 'P7 危险动作（修订 / 吸收提交）的确认卡贴触发点、四段齐全、默认焦点在取消键')
+  check(pResultJudgmentOf(VIEW), 'P8 成功结果画在提交面板里、在提交按钮之后（结果贴触发点）')
+  const pFail = pRenderOf(VIEW, { result: { state: 'fail', reason: 'signing-failed', message: 'gpg failed to sign the data', hint: '按本机签名配置检查' } })
+  check(pFail.indexOf('data-vc-commit-result="fail"') >= 0 && pFail.indexOf('role="alert"') >= 0 && pFail.indexOf(LOC.zh['vc.block.signingFailed']) >= 0 && pFail.indexOf('gpg failed to sign the data') >= 0, 'P9 失败结果带上分类词条与 git 原话（签名失败归到 signingFailed，不落 unknown）')
+  const pNoHead = pRenderOf(VIEW, { form: Object.assign({}, pForm, { amend: { available: false, oid: '', short: '', subject: '', message: '' } }) })
+  check(pNoHead.indexOf('data-cap-why="vc.block.nothingToAmend"') >= 0 && pNoHead.indexOf('disabled') >= 0, 'P10 没有上一条提交时 2.3 / 2.4 禁用并常驻原因（理由键与宿主判定同源）')
+  const pFixup = pRenderOf(VIEW, { plan: VIEW.commitPlanOf({ mode: 'fixup', target: '' }) })
+  check(pFixup.indexOf('data-vc-commit-target="1"') >= 0 && pFixup.indexOf(LOC.zh['vc.block.needCommitTarget']) >= 0 && pFixup.indexOf('data-vc-commit-submit-tip') >= 0, 'P11 fixup / squash 缺可吸收目标时按钮禁用并给原因（目标候选行同时出现）')
+  const pLong = pRenderOf(VIEW, { message: '第一行摘要\n\n第二段正文' })
+  check(pLong.indexOf('第一行摘要') >= 0 && pLong.indexOf('第二段正文') >= 0 && pLong.indexOf('data-vc-commit-preview') >= 0, 'P12 长相说明与换行在面板里写、在预览里看得到（外部编辑器不再是必经路径）')
+  // 判定同源：仓库没有暂存内容时，普通提交被拦（nothing-staged），但修订上一条提交仍放行（只改说明也能提交）。
+  const pPlainDecision = VIEW.judge(pScreen, 'commit')
+  const pAmendDecision = VIEW.commitDecisionOf(pPlainDecision, VIEW.commitPlanOf({ mode: 'amend' }), pScreen)
+  check(pPlainDecision.verdict === 'block' && pPlainDecision.reasons.indexOf('nothing-staged') >= 0 && pAmendDecision.verdict === 'allow', 'P13 提交形态判定与宿主同源（普通提交拦住 nothing-staged，修订只改说明时放行）')
+
   // ---- W 组：首屏一次取全（#1739 T04）—— 七片一份快照、一次聚合调用、单片失败不阻塞 ----
   // 契约真源在共享层 first-screen.ts（已拼进这个闭包）；这里断言的是界面侧拿到的那一份快照与调用次数，
   // 不落在内部字段名以外的东西上。快照构造与仓里的版本化快照同一形状：contract + version + readAtMs + 七片。
@@ -2093,6 +2186,82 @@ async function main() {
     }
     return { src: cur, allHit: hits.every(Boolean) }
   }
+  // ---------- S 组：#1755 同步十个动作（域 8 的 8.5–8.14）在「远端与同步」页里的画法 ----------
+  // 这一段只喂读数，不发请求：预检回包按宿主真实形状造（plan / ticket / confirm / baseline / decision），
+  // 断言界面上十个入口、命令原文、理由、租约、确认卡、结果与任务区都按票面画法出现。
+  const syOidOld = 'a'.repeat(40)
+  const syOidNew = 'c'.repeat(40)
+  const syReplyOf = function (action, id, extra) {
+    const e = extra || {}
+    const cap = VIEW.vcCapabilityOf(id)
+    const plan = {
+      action: action, id: id, op: action === 'force-push' ? 'push' : action, level: cap.level, needsConfirm: true,
+      commandText: cap.command, remote: 'origin', branch: 'main', localBranch: 'main', upstream: '', ref: '', refKind: '',
+      mode: '', leaseBranch: 'main', leaseOid: syOidOld, forceIfIncludes: true, versionNeed: '', versionNote: '',
+      targetText: '远端分支 origin/main', taskArgs: { remote: 'origin', localBranch: 'main', branch: 'main' }
+    }
+    return Object.assign({
+      ok: true, contract: 'version-control.sync-check', version: 1, action: action, capabilityId: id, op: plan.op,
+      level: cap.level, command: cap.command, decision: 'warn', reasons: [{ id: 'dirty-tree', text: '工作区有未提交改动', blocking: false }],
+      confirmRequired: true,
+      confirm: { verb: '强推', target: '远端分支 origin/main（远端现在是 ' + syOidOld.slice(0, 12) + '，准备推成 ' + syOidNew.slice(0, 12) + '）', what: '会把远端分支推成新位置', wont: '不会覆盖预检之后出现的提交', reversible: '推错可以按旧提交号推回去' },
+      plan: plan, ticket: { id: 'sync-1700000000000-1', op: plan.op, target: plan },
+      oldOid: syOidOld, newOid: syOidNew,
+      baseline: { source: 'network', oid: syOidOld, readAtMs: NOW },
+      scene: { remotes: ['origin'], remotesKnown: true }, readAtMs: NOW,
+      versionPolicy: { need: '2.30', satisfied: true, note: '', degraded: false }
+    }, e || {})
+  }
+  const syReadsOf = function (data, extra) {
+    return Object.assign({
+      sync: { state: 'ok', data: data, error: null },
+      task: { state: 'idle', data: null, error: null }
+    }, extra || {})
+  }
+  const syShellOf = function (reads, ui, width, skin) {
+    return shellHtmlOf({ page: 'remote', width: width || 460, skin: skin || 'dark', reads: reads, ui: ui || {} })
+  }
+  const syIds = VIEW.SYNC_ACTIONS.map(function (row) { return row.id })
+  const syOpen = syShellOf(syReadsOf(syReplyOf('force-push', '8.12')), { open: '8.12' })
+  const syActs = attrValuesOf(syOpen, 'data-vc-sync-act')
+  check(syActs.length === 10 && JSON.stringify(syActs) === JSON.stringify(syIds), 'S1 同步段一次画出十个动作入口，顺序与账本 8.5–8.14 一致（' + syActs.join(',') + '）')
+  const syPanels = attrValuesOf(syOpen, 'data-vc-sync-panel')
+  check(syPanels.length === 1 && syPanels[0] === '8.12', 'S2 同时只展开一个动作面板（面板带 data-vc-sync-panel，值是这次展开的动作 id）')
+  check(syOpen.indexOf('aria-controls="vc-sync-panel-8.12"') >= 0 && syOpen.indexOf('id="vc-sync-panel-8.12"') >= 0, 'S3 展开按钮的 aria-controls 指向真实存在的面板 id（键盘与读屏跟得到）')
+  check(attrValuesOf(syOpen, 'data-vc-sync-command')[0] === '8.12' && syOpen.indexOf(String(VIEW.vcCapabilityOf('8.12').command)) >= 0, 'S4 面板里画命令原文，且直接取自能力账本（不在界面另写一份命令）')
+  check(attrValuesOf(syOpen, 'data-vc-sync-decision')[0] === 'warn' && syOpen.indexOf('data-vc-sync-why="1"') >= 0 && syOpen.indexOf('data-vc-sync-reason="dirty-tree"') >= 0, 'S5 判定为 warn 时标题写「可以执行但先看理由」，理由逐条常驻在触发点（不是灰按钮不说为什么）')
+  check(attrValuesOf(syOpen, 'data-vc-sync-old')[0] === syOidOld && attrValuesOf(syOpen, 'data-vc-sync-new')[0] === syOidNew, 'S6 强推面板点名远端当前提交号与准备推上去的提交号（两个都是完整 40 位）')
+  check(syOpen.indexOf('data-vc-sync-lease="1"') >= 0 && syOpen.indexOf(syOidOld.slice(0, 7)) >= 0, 'S7 租约段写明基准来自这次联网读取与读取时刻（租约不能是别的来源）')
+  check((syOpen.match(/data-vc-confirm-seg="/g) || []).length === 4 && syOpen.indexOf('data-focus-default="cancel"') >= 0 && syOpen.indexOf('data-vc-sync-confirm="1"') >= 0, 'S8 确认卡贴触发点、四段齐全、默认焦点在取消；外层带 aria-label 负责念出确认对象')
+  check(syOpen.indexOf('data-vc-sync-ticket="sync-1700000000000-1"') >= 0, 'S9 确认卡旁写清这次凭哪张票执行（票过期或现场变了会被拒绝、不自动重放）')
+  const syOk = syShellOf(syReadsOf(syReplyOf('push', '8.9')), { open: '8.9', result: { ok: true, cmd: 'git push --progress origin main:main', ms: 180, n: 1, next: '去远端页核对分支位置' } })
+  check(attrValuesOf(syOk, 'data-vc-result')[0] === 'ok' && syOk.indexOf('180') >= 0 && syOk.indexOf('data-vc-sync-panel="8.9"') >= 0, 'S10 成功结果回到触发点：命令、耗时与下一步都画在同一个动作面板里')
+  const syFail = syShellOf(syReadsOf(syReplyOf('fetch', '8.5')), { open: '8.5', result: { ok: false, git: 'fatal: 远端没有响应', step: '获取远端更新这一步', expected: '读到引用清单', actual: '连接超时', cause: '网络不可用' } })
+  check(attrValuesOf(syFail, 'data-vc-result')[0] === 'fail' && syFail.indexOf('fatal: 远端没有响应') >= 0 && syFail.indexOf('data-vc-result-action="retry"') >= 0, 'S11 失败结果贴触发点：git 原话、环节、期望与实际、上游原因与重试入口一样不少')
+  const syTaskReads = syReadsOf(syReplyOf('fetch', '8.5'), { task: { state: 'ok', data: { taskId: 'task-9', state: 'running', phase: 'receiving', conclusion: '', residual: 'x' }, error: null } })
+  const syTask = syShellOf(syTaskReads, { open: '8.5' })
+  check(syTask.indexOf('data-vc-sync-task="1"') >= 0 && syTask.indexOf('data-vc-sync-task-id="task-9"') >= 0 && syTask.indexOf('data-vc-sync-cancel="1"') >= 0, 'S12 执行后交给长任务通道：任务号、状态与取消按钮都画出来（取消要有残留说明）')
+  check(syTask.indexOf('data-vc-sync-task-residual="1"') >= 0, 'S13 取消后的残留说明常驻在任务区（下载的对象与已发出的引用不会自己回去）')
+  check(attrValuesOf(syOk, 'data-cap-primary').join(',') === VIEW.vcPageCapabilitiesOf('remote').map(function (cap) { return cap.id }).join(','), 'S14 远端页的主入口仍只有账本登记的那 16 条（同步段不许自己再挂 data-cap-primary）')
+  for (const sw of VIEW.VC_SHELL_WIDTHS) {
+    const wHtml = syShellOf(syReadsOf(syReplyOf('push', '8.9')), { open: '8.9' }, sw, sw % 2 === 0 ? 'dark' : 'light')
+    check(wHtml.indexOf('data-vc-sync-page="1"') >= 0 && attrValuesOf(wHtml, 'data-vc-sync-act').length === 10, 'S15 宽 ' + sw + '：同步段十个入口一个不少（窄档不删入口）')
+  }
+  const syNarrow = syShellOf(syReadsOf(syReplyOf('push', '8.9')), { open: '8.9' }, 300, 'dark')
+  const syWide = syShellOf(syReadsOf(syReplyOf('push', '8.9')), { open: '8.9' }, 460, 'dark')
+  check(attrValuesOf(syNarrow, 'data-vc-sync-command').length === 0 && attrValuesOf(syWide, 'data-vc-sync-command').length === 1, 'S16 命令原文按宽度收放：300 收起、460 起恢复（收起不删除，仍在面板里可开）')
+  const syErr = syShellOf({ sync: { state: 'err', data: null, error: { kind: 'env', message: '找不到 git 命令' } }, task: { state: 'idle', data: null, error: null } }, {})
+  check(attrValuesOf(syErr, 'data-vc-sync-state')[0] === 'error' && syErr.indexOf('data-vc-sync-error="env"') >= 0 && syErr.indexOf('找不到 git 命令') >= 0, 'S17 读数失败时同步段画失败态并带上宿主原话（不把读不到画成没有动作）')
+  const syDelete = syShellOf(syReadsOf(syReplyOf('delete-remote-ref', '8.11')), { open: '8.11' })
+  check(attrValuesOf(syDelete, 'data-vc-sync-kind').length === 2 && syDelete.indexOf('data-vc-sync-kind="branch"') >= 0 && syDelete.indexOf('data-vc-sync-kind="tag"') >= 0, 'S18 删远端引用要分清分支还是标签：两个按钮常驻在触发点（不靠下拉藏起来）')
+  const syLight = syShellOf(syReadsOf(syReplyOf('push', '8.9')), { open: '8.9' }, 460, 'light')
+  check(attrValuesOf(syLight, 'data-vc-skin')[0] === 'light' && attrValuesOf(syLight, 'data-vc-sync-act').length === 10, 'S19 另一套皮肤同样能渲染同步段（两套皮肤都只换颜色，不删入口）')
+  const syClosedHtml = syShellOf(syReadsOf(syReplyOf('push', '8.9')), {}, 460, 'dark')
+  const syAuto = syClosedHtml.match(/data-vc-sync-act="([^"]+)"[^>]*aria-expanded="true"/g) || []
+  check(syAuto.length === 1 && syAuto[0].indexOf('8.9') >= 0, 'S20 预检回包默认展开它对应的那一个动作面板（同时只开一个，用户不用自己再找）')
+  const syIdleHtml = syShellOf({ sync: { state: 'idle', data: null, error: null }, task: { state: 'idle', data: null, error: null } }, {}, 460, 'dark')
+  const syIdleClosed = syIdleHtml.match(/data-vc-sync-act="[^"]+"[^>]*aria-expanded="false"/g) || []
+  check(syIdleClosed.length === 10, 'S20b 没有预检回包时十个按钮都写 aria-expanded="false"（不靠视觉猜展开没展开）')
   const antiCases: AntiCase[] = [
     // #1253：真源已经转成 .ts，形参后面多了类型标注（st: any），锚点用正则把标注写成可选的，
     //   写法上仍只认「这一处原样」，不放大到别的地方。
@@ -2136,6 +2305,12 @@ async function main() {
     { name: '截断不再显式标出', patch: (s) => s.replace('  if (cut) {', '  if (false) {'), test: qTruncJudgmentOf, what: 'Q5k' },
     // #1745：本地必填校验放行（空路径也发）—— Q3a 必须当场红。
     { name: '必填校验放行', patch: (s) => s.replace("if (f.required && text === '') return bad(f.name, 'required-missing')", "if (false) return bad(f.name, 'required-missing')"), test: (v) => { const r = v.vcQueryParamsOf('file-history', { path: '', count: '50' }); return r.ok === false && r.reason === 'required-missing' && r.field === 'path' }, what: 'Q3a' },
+    // #1743：提交说明退回单行输入框 —— P4 的多行判据必须当场红。
+    { name: '提交说明退回单行输入框', patch: (s) => s.replace("    h('textarea', {\n      key: 'area', rows: 6, className: 'vcs-commit-area', value: p.message,", "    h('input', {\n      key: 'area', type: 'text', className: 'vcs-commit-area', value: p.message,"), test: pMultilineJudgmentOf, what: 'P4' },
+    // #1743：追加签名行与跳过钩子挤到同一条能力上 —— P3 的「每条能力各自一个控件」必须当场红。
+    { name: '追加签名行挂到别条能力上', patch: (s) => s.replace("{ key: 'signoff', cap: '2.6',", "{ key: 'signoff', cap: '2.5',"), test: pCapControlJudgmentOf, what: 'P3' },
+    // #1743：确认卡删掉「可逆性与恢复路径」那一段 —— P7 的四段判据必须当场红。
+    { name: '确认卡删掉可逆性与恢复路径', patch: (s) => s.replace("          { seg: 'reversible', text: t('vc.commit.confirm.reversible', params) },\n", ''), test: pConfirmJudgmentOf, what: 'P7' },
     // #1751：贮藏页的三处反证 —— 挂载被摘掉、版本门恒放行、危险动作不出确认卡，对应断言必须当场红。
     { name: '贮藏页不再挂进页面壳（十条入口全没了）', patch: (s) => s.replace("if (page === 'stash' && typeof vcStashPageNode === 'function') {", 'if (false) {'), test: stashMountedJudgmentOf, what: 'Z16a' },
     { name: '7.3 的版本门恒放行（低版本也画按钮）', patch: (s) => s.replace('const state = vcStashOpVersionStateOf(VC_STASH_STAGED_OP, versionText)', "const state = 'full'"), test: stashGateJudgmentOf, what: 'Z16m' },
@@ -2148,6 +2323,10 @@ async function main() {
     { name: '工作树页删掉 9.7 移动的入口', patch: (s) => s.replace("  { capId: '9.7', op: 'move', row: true },\n", ''), test: worktreesEntryJudgmentOf, what: 'W22' },
     // #1752：工作树执行电话改走长任务通道 —— 界面就不再走同步短写那一对电话，W32 那一组必须当场红。
     { name: '工作树执行电话改走长任务通道', patch: (s) => s.replace("run: 'wf.gitWorktreeRun'", "run: 'wf.gitTaskStart'"), test: worktreesPhoneJudgmentOf, what: 'W32' },
+    // #1755：同步段十个入口的属性名换掉 —— S1 的数入口断言必须当场红。
+    { name: '同步段十个入口换成别的属性名', patch: (s) => s.replace("'data-vc-sync-act': id,", "'data-vc-sync-entry': id,"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'remote', width: 460, skin: 'dark', reads: syReadsOf(syReplyOf('force-push', '8.12')), ui: { open: '8.12' } })); return (html.match(/data-vc-sync-act="/g) || []).length === 10 }, what: 'S1' },
+    // #1755：确认语义退回「不是 block 就弹卡」—— allow 也会弹卡，S 组的判定语义必须当场红。
+    { name: '确认语义退回不是 block 就弹卡', patch: (s) => s.replace("confirmRequired: decision === 'warn' }", "confirmRequired: decision !== 'block' }"), test: (v) => { const plan = Object.assign({}, syReplyOf('fetch', '8.5').plan, { needsConfirm: false }); return v.judgeSync({ remotes: ['origin'], remotesKnown: true }, plan).confirmRequired === false }, what: 'S5' },
   ]
   // #845c：反证自证提到循环里 —— 每一处改法先确认它真的落到了源码上（改不中等于没证）。
   //   旧写法只在循环外用一条聚合自检兜底，于是某一条改法失效时，它自己仍会以 broke=true 假绿
