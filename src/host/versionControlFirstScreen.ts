@@ -114,7 +114,7 @@ export function createFirstScreenPhone(deps: any): any {
     if (base.ok !== true) return allErr((base.error && base.error.kind) || 'parse', (base.error && base.error.message) || '确认仓库这一步失败')
 
     // 版本片先读：其余各片都要知道能力档；版本太旧（<2.11）时其余片统一标「请先升级」，不假装读到了空数据。
-    let tier: string = 'unsupported'
+    let tier: any = 'unsupported'
     let gitVersion: string = ''
     try {
       const vres: any = await runPinned(exe, base.root, ['--version'], { stdoutLimit: 4096 })

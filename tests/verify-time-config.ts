@@ -470,6 +470,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/chain-backoff.ts', name: 'waitMs', reason: '算出来的等待结果（退避结论的输出），不是输入参数' },
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'scanStartedMs', reason: '读钟时刻（这趟核对什么时候开始的），不是可调参数' },
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'sinceMs', reason: '算出来的起点时刻（上次水位减容差），不是可调参数' },
+  { file: 'src/host/versionControlFirstScreen.ts', name: 'readAtMs', reason: '读钟时刻（这一趟首屏聚合读取是什么时候开始的），不是可调参数' },
   { file: 'src/refresh/rooms/host/probe-handler.ts', name: 'nowMs', reason: '读钟时刻（Date.now），降级探测与校准的窗口判定用，不是可调参数' },
   { file: 'src/host/skillProbeCache.ts', name: 'ttlMs', reason: '透传参数，缺省接 SKILL_PROBE_CACHE_MS（已登记）' },
   { file: 'src/host/skillProbe.ts', name: 'SKILL_CACHE_TTL_MS', reason: '函数内局部变量：接线给了正数就听接线的，没给时取中央常量 SKILL_LIST_CACHE_TTL_MS（已登记为 skillListCacheTtlMs）' },
