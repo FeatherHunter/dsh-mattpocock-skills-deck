@@ -130,16 +130,25 @@ export function createStashPhones(deps: any): { handle: (args: any) => Promise<a
     return failPhone('branch-exists', '这个分支名已经存在：' + branch, { branch: branch })
   }
 
+  /** 查看贮藏内容时带上未跟踪文件（7.2 贮藏的就是它们，不带就看不到）。
+   *  git 2.11 时代的 show 不认识 --include-untracked（用法错误退出码 129）：那一版退回原命令，
+   *  宁可少看到未跟踪内容，也不许把「不认识这个选项」当成「读不了差异」。 */
+  const showWithUntracked = async function (exe: string, root: string, extra: string[], selector: string, limit: number): Promise<any> {
+    const withFlag = await runPinned(exe, root, ['stash', 'show', '--include-untracked'].concat(extra, [selector]), { timeoutMs: timeoutMs, stdoutLimit: limit })
+    if (withFlag.kind !== 'non-zero' || Number(withFlag.exitCode) !== 129) return withFlag
+    return runPinned(exe, root, ['stash', 'show'].concat(extra, [selector]), { timeoutMs: timeoutMs, stdoutLimit: limit })
+  }
+
   /** 查看贮藏内容：先取涉及的文件名（界面要显示文件数），再取完整差异。 */
   const showOne = async function (exe: string, root: string, selector: string, entry: StashEntry): Promise<any> {
-    const names = await runPinned(exe, root, ['stash', 'show', '--name-only', selector], { timeoutMs: timeoutMs, stdoutLimit: stdoutLimit })
+    const names = await showWithUntracked(exe, root, ['--name-only'], selector, stdoutLimit)
     const nameFailure = failureFromExec(names, '读贮藏涉及的文件')
     if (nameFailure) return nameFailure
     const fileList = String(names.stdout || '')
       .replace(/\r/g, '')
       .split('\n')
       .filter(function (line: string) { return line !== '' })
-    const patch = await runPinned(exe, root, ['stash', 'show', '-p', selector], { timeoutMs: timeoutMs, stdoutLimit: patchLimit })
+    const patch = await showWithUntracked(exe, root, ['-p'], selector, patchLimit)
     const patchFailure = failureFromExec(patch, '读贮藏差异')
     if (patchFailure) return patchFailure
     return okReply('show', [], {

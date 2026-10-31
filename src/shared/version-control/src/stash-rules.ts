@@ -163,7 +163,11 @@ export const stashOperationArgs = function (op: any, payload: any): StashArgsRes
     if (why !== '') return argsFail('branch', '分支名不合法（' + why + '）：' + branch)
   }
   if (def.op === 'push') return { ok: true, args: ['stash', 'push', '-m', message] }
-  if (def.op === 'push-untracked') return { ok: true, args: ['stash', 'push', '-u', '-m', message] }
+  // 7.2 前面多带一个全局开关 --no-literal-pathspecs：宿主统一前缀里有 --literal-pathspecs（见 commands.fixedPrefix），
+  // 而 git 2.49 在 --literal-pathspecs 生效时执行 stash push -u 会**静默地不收未跟踪文件**（退出码 0、命令照常打印
+  // Saved working directory，文件却留在原地）。实测复现：-u 与 --include-untracked 都受影响；把开关在子命令前关掉即恢复。
+  // 这条只影响 7.2 一个动作，其余动作不需要路径魔法。
+  if (def.op === 'push-untracked') return { ok: true, args: ['--no-literal-pathspecs', 'stash', 'push', '-u', '-m', message] }
   if (def.op === 'push-staged') return { ok: true, args: ['stash', 'push', '--staged', '-m', message] }
   if (def.op === 'list') return { ok: true, args: ['stash', 'list', '--format=' + STASH_LIST_FORMAT] }
   if (def.op === 'show') return { ok: true, args: ['stash', 'show', '-p', selector] }
