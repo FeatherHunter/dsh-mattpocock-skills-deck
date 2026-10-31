@@ -50,12 +50,19 @@ import { failPhone, firstLine, failureFromExec } from '../shared/version-control
 import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/time-config/src/values.js'
 // #1741：fast-import 那个只读文件流窄例外要宿主自己打开并核对普通文件、大小与摘要；
 // 这条边只服务 stdinFile，读命令与其余写命令仍走注入的 subprocess 服务。
+// 本域 tsconfig 有意不加载 Node 类型包（types 为空），运行时一定是 Node，这些内建模块必然存在。
+// @ts-expect-error
 import { lstat as fsLstat, readFile as fsReadFile } from 'node:fs/promises'
+// @ts-expect-error
 import { isAbsolute as pathIsAbsolute } from 'node:path'
+// @ts-expect-error
 import { createHash as cryptoCreateHash } from 'node:crypto'
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
+// 本域 types 为空，Node 的 Buffer 声明随 @types/node 一起缺席；运行时一定是 Node，进程内必然存在。
+// 按存在声明只为过编译器，不产生运行时代码。
+declare const Buffer: { byteLength(s: string, encoding: string): number }
 const STDOUT_LIMIT: number = 8 * 1024 * 1024   // 状态、工作树、分支、历史、文件清单的字节上限
 const PATCH_LIMIT: number = 4 * 1024 * 1024    // 单个文件差异的字节上限
 const STDERR_LIMIT: number = 256 * 1024        // 错误信息的上限（只用来拼失败说明）
