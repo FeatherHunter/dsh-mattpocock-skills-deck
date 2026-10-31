@@ -46,6 +46,14 @@ async function imp(rel: string): Promise<any> {
   return await import(pathToFileURL(path.join(ROOT, rel)).href)
 }
 function section(title: string): void { console.log('\n## ' + title) }
+// 事件正文只许是结构化内容（机器码与短参数），不许出现中文界面文案：这个判据用来看落盘 JSON。
+const hasCjk = (v: unknown): boolean => /[\u4e00-\u9fff]/.test(String(v))
+// 静态扫描只看看代码行：注释里出现中文是正常的（注释是给人看的），代码里出现中文才可能是写死的文案。
+const codeOnly = (src: string): string => String(src)
+  .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  .split(/\r?\n/)
+  .map((line: string) => line.replace(/\/\/.*$/, ''))
+  .join('\n')
 
 const KERNEL = 'src/refresh/kernel/notification-events.ts'
 const STORE = 'src/refresh/rooms/host/notification-store.ts'
@@ -64,13 +72,16 @@ const kernelSrc = exists(KERNEL) ? srcText(KERNEL) : ''
 const storeSrc = exists(STORE) ? srcText(STORE) : ''
 check(!/setInterval|setTimeout/.test(kernelSrc), '纯逻辑模块里没有任何定时器（不新增后台节拍）')
 check(!/setInterval|setTimeout/.test(storeSrc), '落盘模块里没有任何定时器（清理挂在写入与读取两头）')
+check(!hasCjk(codeOnly(storeSrc)), '落盘模块的代码里没有中文界面文案：只写机器码与短参数，文案在客户端按词条渲染')
 check(storeSrc.includes('NOTIFICATION_EVENT_DEDUPE_MS'), '去重窗引用中央生成的常量，不自己写数字')
 check(storeSrc.includes('NOTIFICATION_EVENT_RETENTION_MS'), '保留期引用中央生成的常量，不自己写数字')
 check(srcText('config/intervals.yaml').includes('notificationEventDedupeMs:'), '去重窗住 config/intervals.yaml')
 check(srcText('config/ttl.yaml').includes('notificationEventRetentionMs:'), '保留期住 config/ttl.yaml')
 check(srcText('scripts/generate-time-config.mts').includes("'NOTIFICATION_EVENT_DEDUPE_MS'") && srcText('scripts/generate-time-config.mts').includes("'NOTIFICATION_EVENT_RETENTION_MS'"), '两个键都登记进时间配置生成器的 KEYS 表')
 const indexSrc = srcText('src/host/index.ts')
-check(indexSrc.includes('notification-store'), '宿主入口动态接线事件库（D7：不静态 import）')
+const hostNotifSrc = srcText('src/host/notifications.ts')
+check(indexSrc.includes("import('./notifications.js')") && !indexSrc.includes('notification-store.js'), '#1681：宿主入口只懒加载 ./notifications.ts，不直接摸事件库（D7：不静态 import）')
+check(hostNotifSrc.includes('notification-store.js') && hostNotifSrc.includes('createNotificationStore'), '#1681：事件库加载落在 src/host/notifications.ts')
 check(indexSrc.includes('noteSnapshot'), '宿主入口把降级开始/恢复的记事件口注入列表取数')
 check(indexSrc.includes('noteRefreshFailure'), '宿主入口把刷新失败记事件口注入刷新路')
 check(indexSrc.includes('noteWriteFailure'), '宿主入口把写失败记事件口注入代执行')
@@ -98,11 +109,14 @@ if (K) {
   check(id1 !== K.eventIdOf('other/repo', WRITE, 1000), '仓库不同即不同身份')
   check(id1 !== K.eventIdOf('acme/demo', WRITE, 1001), '开始时刻不同即不同身份')
 
-  const startAt = (now: number, repo?: string) => ({ repo: repo || 'acme/demo', now: now, summary: '数据源降级', detail: '主路失败' })
+  const startAt = (now: number, repo?: string) => ({ repo: repo || 'acme/demo', now: now, code: START, params: { reason: 'other' } })
   check(K.openDegradedStartOf([]) === null, '空历史里没有未闭合的降级开始')
   let evs = K.appendDegradedStart([], startAt(1000))
   check(evs.length === 1 && evs[0].type === START && evs[0].repo === 'acme/demo', '降级开始落一条事件')
   check(evs[0].endedAt === null && evs[0].count === 1, '降级开始默认未闭合、次数 1')
+  check(evs[0].code === START && evs[0].params && evs[0].params.reason === 'other', '事件正文只存机器码与短参数（降级原因记成 quota/other 枚举）')
+  check(!('summary' in evs[0]) && !('detail' in evs[0]), '新事件不再写 summary/detail 这类界面文案字段')
+  check(!hasCjk(JSON.stringify(evs[0])), '新事件落进 JSON 的中文文案为零（文案由客户端按词条渲染）')
   check(K.appendDegradedStart(evs, startAt(1500)).length === 1, '已有一条未闭合的降级开始时不重复记（同一段降级只有一个开始）')
   evs = K.appendDegradedStart(evs, startAt(1600))
   evs = K.appendDegradedRecovery(evs, startAt(2000))
@@ -114,7 +128,7 @@ if (K) {
   evs = K.appendDegradedStart(evs, startAt(2200))
   check(K.openDegradedStartOf(evs) !== null && K.openDegradedStartOf(evs).startedAt === 2200, '新一段降级重新开一条未闭合的开始')
 
-  const openEvent = (at: number) => ({ id: K.eventIdOf('acme/demo', START, at), type: START, repo: 'acme/demo', startedAt: at, endedAt: null, count: 1, summary: '降级', detail: '', updatedAt: at })
+  const openEvent = (at: number) => ({ id: K.eventIdOf('acme/demo', START, at), type: START, repo: 'acme/demo', startedAt: at, endedAt: null, count: 1, code: START, params: {}, updatedAt: at })
   const two = [openEvent(1000), openEvent(2000)]
   const open = K.openDegradedStartOf(two)
   check(open !== null && open.startedAt === 2000, '有两条未闭合时只挑开始时刻最晚的那条配对')
@@ -126,7 +140,7 @@ if (K) {
   check(K.appendDegradedRecovery(K.appendDegradedStart([], startAt(1000)), startAt(1100, 'other/repo')).filter((e: any) => e.repo === 'acme/demo')[0].endedAt === null, '跨仓库的恢复不会误配别人的降级开始')
 
   section('1b 纯逻辑：去重与清理')
-  const inst = (now: number, dedupeMs?: number) => ({ repo: 'acme/demo', now: now, type: INSTANT, summary: '刷新失败', detail: '超时', dedupeMs: dedupeMs || 600 })
+  const inst = (now: number, dedupeMs?: number) => ({ repo: 'acme/demo', now: now, type: INSTANT, code: INSTANT, params: { reason: '超时' }, dedupeMs: dedupeMs || 600 })
   let dedup = K.appendInstant([], inst(1000))
   check(dedup.length === 1 && dedup[0].count === 1, '第一条瞬时事件落一条')
   dedup = K.appendInstant(dedup, inst(1500))
@@ -134,7 +148,7 @@ if (K) {
   check(dedup[0].startedAt === 1000 && dedup[0].updatedAt === 1500, '并入时保留首次开始时刻、更新最后时刻')
   dedup = K.appendInstant(dedup, inst(2100))
   check(dedup.length === 2, '超出去重窗后再出现记新的一条')
-  const mixed = K.appendInstant(K.appendInstant([], inst(1000)), { repo: 'acme/demo', now: 1001, type: WRITE, summary: '写失败', detail: '拒绝', dedupeMs: 600 })
+  const mixed = K.appendInstant(K.appendInstant([], inst(1000)), { repo: 'acme/demo', now: 1001, type: WRITE, code: WRITE, params: { reason: '拒绝' }, dedupeMs: 600 })
   check(mixed.length === 2, '不同类型的瞬时事件不互相合并')
 
   const closed = { id: K.eventIdOf('acme/demo', INSTANT, 1000), type: INSTANT, repo: 'acme/demo', startedAt: 1000, endedAt: 1100, count: 1, summary: '旧', detail: '', updatedAt: 1100 }
@@ -157,6 +171,9 @@ if (K) {
   check(K.parseNotificationEventFile(goodFile, 'acme/demo').length === 1, '合法文件能完整读回历史')
   check(K.parseNotificationEventFile({ schema: 1, repo: 'acme/demo', events: [openOld, { ...openOld, repo: 'other/repo' }] }, 'acme/demo').length === 1, '别的仓库的事件不混进本仓库历史')
   check(K.parseNotificationEventFile({ schema: 1, repo: 'acme/demo', events: [openOld, { ...openOld, type: 'bogus' }] }, 'acme/demo').length === 1, '类型不认识的条目丢弃，不影响其余历史')
+  const oldRead = K.parseNotificationEventFile(goodFile, 'acme/demo')[0]
+  check(oldRead.code === START && oldRead.params && Object.keys(oldRead.params).length === 0, '旧文件没有 code/params 也能读：代码回事件类型名、参数空对象')
+  check(oldRead.summary === '降级', '旧文件里的文案读回来兼容保留（只给排查看，不作为界面文案）')
   const built = K.buildNotificationEventFile('acme/demo', [openOld], 1234)
   check(built.schema === 1 && built.repo === 'acme/demo' && built.writtenAtMs === 1234 && built.events.length === 1, '落盘文件形状：版本、仓库、事件、写入时刻')
   const healthy = { fallback: 'github' }
@@ -170,6 +187,13 @@ if (K) {
   check(K.normalizeRepoKey(null) === '' && K.normalizeRepoKey('') === '', '拿不到仓库时回空串（没有仓库就不产事件）')
   check(K.clipNotificationText('  a   b  ', 10) === 'a b', '事件文本压成一行并去首尾空白')
   check(K.clipNotificationText('x'.repeat(500), 20).length === 20, '事件文本超长按上限裁剪（长原文不落盘）')
+  check(K.notificationCodeOf('', START) === START && K.notificationCodeOf('write-failed', WRITE) === 'write-failed', '事件代码缺省回事件类型名，给了就用机器码')
+  const dirtyCode = K.notificationCodeOf(' x; drop table ', WRITE)
+  check(dirtyCode.length <= 60 && !/[^A-Za-z0-9._:-]/.test(dirtyCode), '事件代码只留安全字符并截到 60 字')
+  const sanitized = K.sanitizeNotificationParams({ tool: 'deck_issue_patch', n: 3, ok: true, nested: { a: 1 }, long: 'y'.repeat(300) })
+  check(sanitized.tool === 'deck_issue_patch' && sanitized.n === '3' && sanitized.ok === 'true', '事件参数只留标量（数字布尔转字符串），嵌套对象丢弃')
+  check(sanitized.long.length <= 80, '参数里的长字符串按上限裁剪（不落长原文）')
+  check(Object.keys(K.sanitizeNotificationParams({ a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7 })).length === 6, '事件参数最多留 6 个键')
 }
 
 // ---------------------------------------------------------------------------
@@ -213,7 +237,8 @@ if (S) {
   check(parsed && parsed.schema === 1 && parsed.repo === 'acme/demo', '落盘内容是带版本与仓库的文件（复用快照信封的版本语义）')
   let ev = await store.read('/ws')
   check(ev.length === 1 && ev[0].type === START && ev[0].endedAt === null, '降级开始读得回来且未闭合')
-  check(typeof ev[0].detail === 'string' && ev[0].detail.indexOf('主路失败') >= 0, '降级原因带进事件详情（只记短文本）')
+  check(ev[0].code === START && ev[0].params && ev[0].params.reason === 'other', '降级开始只记原因枚举（非配额记 other），不带界面文案')
+  check(!hasCjk(JSON.stringify(ev[0])) && !('summary' in ev[0]), '落盘事件里没有中文界面文案，也没有 summary 字段')
   await store.noteSnapshot({ fallback: 'rest' }, '/ws')
   ev = await store.read('/ws')
   check(ev.length === 1, '降级常驻期间反复写快照不重复记开始')
@@ -249,11 +274,12 @@ if (S) {
   ev3 = await store.read('/ws')
   refreshEvents = ev3.filter((e: any) => e.type === INSTANT)
   check(refreshEvents.length === 2, '超出去重窗后再记一条')
-  await store.noteWriteFailure({ tool: 'deck_issue_patch', cwd: '/ws', status: 'failed', reason: '被拒绝' })
+  await store.noteWriteFailure({ tool: 'deck_issue_patch', cwd: '/ws', status: 'failed', reason: 'rejected-by-host' })
   ev3 = await store.read('/ws')
   const writeEvents = ev3.filter((e: any) => e.type === WRITE)
-  check(writeEvents.length === 1 && writeEvents[0].detail.indexOf('deck_issue_patch') >= 0, '写失败落盘且带上工具名')
-  check(writeEvents[0].summary.length <= 200 && writeEvents[0].detail.length <= 200, '事件摘要与详情都按上限裁剪')
+  check(writeEvents.length === 1 && writeEvents[0].code === WRITE && writeEvents[0].params.tool === 'deck_issue_patch', '写失败落盘且把工具名记进结构化参数')
+  check(!hasCjk(JSON.stringify(writeEvents[0])), '写失败事件里没有中文界面文案（文案在客户端按词条渲染）')
+  check(writeEvents[0].code.length <= 60 && JSON.stringify(writeEvents[0].params).length <= 200, '事件代码与参数都按上限裁剪')
 
   section('2d 工作区隔离、拿不到仓库、坏文件、清理')
   await store.noteSnapshot({ fallback: 'rest' }, '/ws2')
@@ -290,6 +316,22 @@ if (S) {
   const brokenNote = await storeBroken.noteRefreshFailure('/ws', new Error('x'))
   check(brokenNote === null, '事件库读写失败时安静返回，不影响主流程')
   check((await storeBroken.read('/ws')).length === 0, '读盘失败时回空历史，不抛')
+
+  section('2f 只有新事件落盘才记一手日志（清理不伪造历史行）')
+  clock += 1000
+  const firedNames: string[] = []
+  const logCtx = { fire: (level: string, name: string) => { firedNames.push(String(name)) } }
+  const storeLogged = S.createNotificationStore(depsOf({ logCtx: logCtx }))
+  fs.writeFileSync(fileOf('acme', 'demo'), JSON.stringify({ schema: 1, repo: 'acme/demo', events: [
+    { id: K.eventIdOf('acme/demo', INSTANT, 1000), type: INSTANT, repo: 'acme/demo', startedAt: 1000, endedAt: 1100, count: 1, summary: '旧', detail: '', updatedAt: 1100 },
+  ], writtenAtMs: 1100 }))
+  const prunedQuiet = await storeLogged.read('/ws')
+  check(prunedQuiet.length === 0 && firedNames.length === 0, '读盘触发清理时只落盘、不打 notification.event 日志（清理不是新历史）')
+  clock += 1000
+  await storeLogged.noteRefreshFailure('/ws', new Error('boom'))
+  check(firedNames.length === 1 && firedNames[0] === 'notification.event', '真正记一条新事件时才打一行 notification.event 日志')
+  const loggedFile = JSON.parse(fs.readFileSync(fileOf('acme', 'demo'), 'utf8'))
+  check(loggedFile.events.length === 1 && loggedFile.events[0].code === INSTANT, '这一行日志对应的是盘上真实存在的新事件')
 }
 
 // ---------------------------------------------------------------------------
@@ -341,7 +383,7 @@ if (S) {
   check(refreshed && refreshed.ok === false, '刷新失败仍然如实回失败（不假装成功）')
   wireEvents = await wireStore.read('/ws')
   check(wireEvents.filter((e: any) => e.type === INSTANT).length === 1, '刷新失败会记进事件库')
-  check(wireEvents.filter((e: any) => e.type === INSTANT)[0].detail.indexOf('早选失败') >= 0, '刷新失败的原因带进事件详情')
+  check(wireEvents.filter((e: any) => e.type === INSTANT)[0].params.reason.indexOf('早选失败') >= 0, '刷新失败的原因以短参数记进事件（诊断文本，不是界面文案）')
 
   const deckMod = await imp('src/deck/registration/host-delegate.ts')
   const failingTable = async () => ({ tools: {
@@ -351,7 +393,7 @@ if (S) {
   const deck = deckMod.createDeckExec({ getTable: failingTable, logCtx: null, noteWriteFailure: async (info: any) => await wireStore.noteWriteFailure(info) })
   await deck.handleDeckExec({ tool: 'deck_issue_patch', args: {}, session: { cwd: '/ws' } })
   let deckEvents = (await wireStore.read('/ws')).filter((e: any) => e.type === WRITE)
-  check(deckEvents.length === 1 && deckEvents[0].detail.indexOf('deck_issue_patch') >= 0, '写工具失败会记进事件库（写失败一类）')
+  check(deckEvents.length === 1 && deckEvents[0].params.tool === 'deck_issue_patch', '写工具失败会记进事件库（写失败一类，工具名记进参数）')
   await deck.handleDeckExec({ tool: 'deck_issue_get', args: {}, session: { cwd: '/ws' } })
   deckEvents = (await wireStore.read('/ws')).filter((e: any) => e.type === WRITE)
   check(deckEvents.length === 1, '读工具失败不记成写失败（只记写工具）')

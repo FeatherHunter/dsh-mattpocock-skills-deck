@@ -4,9 +4,10 @@
  * 的 leaf:notificationCenter 标记处（源码树里只有这一份真源）。
  *
  * 两个组件：
- *   NotificationCenter —— 面板头部的入口：有未读才画一颗带数字的铃铛（没有未读整颗不画，不占窄面板的地方），
- *     点开把历史浮层挂到 document.body（portalTop），不占列表页高度。这一格挂在 panel/Dock.ts 头部那一排里，
- *     折叠阶梯（panel/headFold.ts 的 badge 步）在窄面板里先收它、再收时间与仓库名。
+ *   NotificationCenter —— 面板头部的入口：读得到历史且历史非空就画一颗铃铛（有未读再带上数字），
+ *     点开把历史浮层挂到 document.body（portalTop），不占列表页高度。没有未读也留着入口，否则读过的通知
+ *     就再也打不开了；只有读不到历史或历史为空才整颗不画，不占窄面板的地方。这一格挂在 panel/Dock.ts
+ *     头部那一排里，折叠阶梯（panel/headFold.ts 的 badge 步）在窄面板里先收它、再收时间与仓库名。
  *   NotificationHistoryPanel —— 历史浮层本身：当前状态一句话（只读快照）、按类型筛选、按时间从新到旧的列表、
  *     「全部已读」与「清除已读标记」。
  *
@@ -106,6 +107,8 @@ export const NotificationCenter = ({ st, view, folded }: any) => {
   const close = function () { setOpen(false) }
   const readable = !!(view && view.readable)
   const unread = (view && Number(view.unread)) || 0
+  // 入口在不在只看「有没有历史可看」，不看未读：未读清零后历史仍要能打开（#1681 复审修复）。
+  const hasHistory = !!(view && Array.isArray(view.events) && view.events.length > 0)
   const toggle = function (e: any) {
     if (e && typeof e.stopPropagation === 'function') e.stopPropagation()
     if (open) { close(); return }
@@ -132,7 +135,7 @@ export const NotificationCenter = ({ st, view, folded }: any) => {
       }
     }
   }, [open])
-  if (!readable || (!unread && !open)) return null
+  if (!readable || (!hasHistory && !open)) return null
   const countText = noticeUnreadTextOf(view)
   const label = countText ? tr('notice.unreadCount', { n: countText }) : tr('notice.entryLabel')
   const entry = h('button', { ref: entryRef, 'data-notice-entry': 1, className: 'dsws-btn dsws-hov', 'data-press': 'icon', 'data-log': 'notice.entry', type: 'button', 'aria-label': label, 'aria-expanded': open ? 'true' : 'false', onClick: toggle, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 5px', lineHeight: 0 } }, [

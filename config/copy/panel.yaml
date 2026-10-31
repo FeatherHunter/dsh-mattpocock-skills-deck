@@ -340,11 +340,13 @@ zh:
   notice.event.refreshFailed: 刷新失败
   notice.event.writeFailed: 写票失败
   notice.event.unknown: 通知
+  notice.detail.degradedQuota: 这次取数因配额耗尽改走 REST 通道
+  notice.detail.degradedOther: 这次取数的主路不可用，改走 REST 通道
+  notice.detail.refreshFailed: 这次刷新没有成功，界面仍是上一次的结果
+  notice.detail.writeFailed: 写操作没有成功（工具：{tool}）
+  notice.detail.legacyDegradedStart: 旧版记录：降级开始（没有记录原因）
+  notice.detail.legacyFailure: 旧版记录：没有记录失败细节
   notice.times: 发生 {n} 次
-  notice.time.justNow: 刚刚
-  notice.time.minutesAgo: "{n} 分钟前"
-  notice.time.hoursAgo: "{n} 小时前"
-  notice.time.daysAgo: "{n} 天前"
   notice.markAllRead: 全部已读
   notice.clearRead: 清除已读标记
   notice.close: 关闭
@@ -681,11 +683,13 @@ en:
   notice.event.refreshFailed: "Refresh failed"
   notice.event.writeFailed: "Write failed"
   notice.event.unknown: Notification
+  notice.detail.degradedQuota: "This read went over the REST channel because the quota ran out"
+  notice.detail.degradedOther: "This read could not use the main path, so it went over the REST channel"
+  notice.detail.refreshFailed: "This refresh did not succeed; the panel still shows the previous result"
+  notice.detail.writeFailed: "The write did not succeed (tool: {tool})"
+  notice.detail.legacyDegradedStart: "Older record: degraded start (reason was not recorded)"
+  notice.detail.legacyFailure: "Older record: no failure details were recorded"
   notice.times: "happened {n} times"
-  notice.time.justNow: just now
-  notice.time.minutesAgo: "{n} min ago"
-  notice.time.hoursAgo: "{n} h ago"
-  notice.time.daysAgo: "{n} d ago"
   notice.markAllRead: Mark all read
   notice.clearRead: Clear read marks
   notice.close: Close

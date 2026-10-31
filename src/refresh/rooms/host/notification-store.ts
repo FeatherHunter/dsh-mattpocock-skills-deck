@@ -7,16 +7,19 @@
  * （ADR「按工作区共享」）。拿不到仓库坐标（markdown / gitlab 这类没有 GitHub 仓库的后端）就不产事件，
  * 不猜一个目录代替。
  *
- * 三条不能改的约定：
+ * 四条不能改的约定：
  * 1. 本模块只记历史，不回答「现在降不降级」——那是快照的职责（currentDegradedOf 只负责把两者对不上的
  *    情况标出来）。
  * 2. 所有读改写串成一条 promise 链：同一个进程里并发的几次记录不会互相覆盖事件文件；跨进程并发靠
  *    整份覆写 + 版本校验兜底，读到坏文件就重写。
+ *    （事件的界面文案不在本模块拼：本模块只写 code 与 params，文案在客户端按词条渲染。）
  * 3. 一个定时器都不排（票面：清理挂写入、读取与刷新节拍上）。刷新节拍本来就会调 noteSnapshot，
  *    所以「刷新时清理」由这条写入路径承担，不另起后台节拍。
+ * 4. 只有真正因新事件而落盘的那一趟才记一行 notification.event 日志。读盘时顺手做的清理、纯清理落盘
+ *    与落盘失败都不记——否则日志里出现一行会让排查的人以为盘上多了一段新历史（本票 #1681 复审修复）。
  *
- * 事件正文只留短句（上限在纯逻辑模块的 NOTIFICATION_EVENT_MAX_TEXT），日志只记类型、仓库散列与条数，
- * 不记原文。
+ * 事件正文只存结构化内容（类型 + 机器码 + 短参数，上限在纯逻辑模块的 NOTIFICATION_EVENT_MAX_TEXT），
+ * 不存界面文案；日志只记类型、仓库散列与条数，不记原文。
  */
 import { NOTIFICATION_EVENT_DEDUPE_MS } from '../../../shared/time-config/src/values.js'
 import { NOTIFICATION_EVENT_RETENTION_MS } from '../../../shared/time-config/src/values.js'
@@ -122,17 +125,22 @@ export function createNotificationStore(deps: unknown) {
     return { events: kept, pruned: kept.length !== events.length }
   }
 
-  /** 整份覆写落盘，回 this time 有没有落上（写失败静默：下一次有事件时会再写一遍）。 */
-  async function persist(repo: string, events: NotificationEvent[]): Promise<boolean> {
+  /**
+   * 整份覆写落盘，回 this time 有没有落上（写失败静默：下一次有事件时会再写一遍）。
+   * quiet 为真时只落盘不记日志：读盘清理与纯 prune 落盘不算「新历史」，不能伪造一行 notification.event。
+   */
+  async function persist(repo: string, events: NotificationEvent[], quiet?: boolean): Promise<boolean> {
     try {
       const file = await pathOf(repo)
       if (!file) return false
       await (d.fs as any).writeText(file, JSON.stringify(buildNotificationEventFile(repo, events, nowMs())))
       writes += 1
-      try {
-        const logCtx = d.logCtx as any
-        if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'notification.event', { repoHash: hash8(repo), events: events.length, type: events.length ? events[events.length - 1].type : '' })
-      } catch (eL) { /* 日志失败不影响落盘 */ }
+      if (!quiet) {
+        try {
+          const logCtx = d.logCtx as any
+          if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'notification.event', { repoHash: hash8(repo), events: events.length, type: events.length ? events[events.length - 1].type : '' })
+        } catch (eL) { /* 日志失败不影响落盘 */ }
+      }
       return true
     } catch (e) { return false }
   }
@@ -144,7 +152,8 @@ export function createNotificationStore(deps: unknown) {
       if (!repo) return []
       const loaded = await loadHistory(repo)
       reads += 1
-      if (loaded.pruned) await persist(repo, loaded.events)
+      // 读盘清理是维护动作，不是新历史：落盘可以，日志不打（quiet）。
+      if (loaded.pruned) await persist(repo, loaded.events, true)
       return loaded.events
     }, [])
   }
@@ -162,15 +171,17 @@ export function createNotificationStore(deps: unknown) {
       let changed = false
       const view = currentDegradedOf(snap, events)
       if (view.degraded && view.openStartedAt === null) {
-        const reason = (snap && typeof snap === 'object') ? (snap as any).fallbackReason : ''
-        events = appendDegradedStart(events, { repo: repo, now: nowMs(), summary: '数据源降级为 REST', detail: clipNotificationText(reason) || '主路不可用' })
+        // 只记「哪种原因」这一枚机器码（quota 才允许界面提配额），具体说法由客户端按词条渲染。
+        const rawReason = (snap && typeof snap === 'object') ? (snap as any).fallbackReason : ''
+        events = appendDegradedStart(events, { repo: repo, now: nowMs(), code: 'degraded-start', params: { reason: String(rawReason) === 'quota' ? 'quota' : 'other' } })
         changed = true
       } else if (!view.degraded && view.openStartedAt !== null) {
-        events = appendDegradedRecovery(events, { repo: repo, now: nowMs(), summary: '数据源恢复', detail: '主路恢复' })
+        events = appendDegradedRecovery(events, { repo: repo, now: nowMs(), code: 'degraded-recovery', params: {} })
         changed = true
       }
       if (!changed && !loaded.pruned) return null
-      const written = await persist(repo, events)
+      // 有病历（changed）落盘才记一行日志；这次只是顺手清理（!changed && pruned）就安静落盘。
+      const written = await persist(repo, events, !changed)
       return changed && written ? events.length : null
     }, null)
   }
@@ -181,7 +192,10 @@ export function createNotificationStore(deps: unknown) {
       const repo = await repoOf(cwd)
       if (!repo) return null
       const loaded = await loadHistory(repo)
-      const events = appendInstant(loaded.events, { repo: repo, now: nowMs(), type: 'refresh-failed', summary: '刷新失败', detail: error, dedupeMs: dedupeMs })
+      const reason = clipNotificationText(error, 80)
+      const params: Record<string, string> = {}
+      if (reason) params.reason = reason
+      const events = appendInstant(loaded.events, { repo: repo, now: nowMs(), type: 'refresh-failed', code: 'refresh-failed', params: params, dedupeMs: dedupeMs })
       const written = await persist(repo, events)
       return written ? events.length : null
     }, null)
@@ -194,9 +208,11 @@ export function createNotificationStore(deps: unknown) {
       const repo = await repoOf(bag.cwd)
       if (!repo) return null
       const tool = clipNotificationText(bag.tool) || 'deck-write'
-      const reason = clipNotificationText(bag.reason)
+      const reason = clipNotificationText(bag.reason, 80)
+      const params: Record<string, string> = { tool: tool }
+      if (reason) params.reason = reason
       const loaded = await loadHistory(repo)
-      const events = appendInstant(loaded.events, { repo: repo, now: nowMs(), type: 'write-failed', summary: '写票失败：' + tool, detail: (reason ? reason + '｜' : '') + tool, dedupeMs: dedupeMs })
+      const events = appendInstant(loaded.events, { repo: repo, now: nowMs(), type: 'write-failed', code: 'write-failed', params: params, dedupeMs: dedupeMs })
       const written = await persist(repo, events)
       return written ? events.length : null
     }, null)

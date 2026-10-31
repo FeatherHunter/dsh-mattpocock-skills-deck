@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T07:24:27.563Z",
+  "generatedAt": "2026-10-31T07:32:27.670Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 480,
   "gateCount": 480,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 45,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 658,
+  "graphFileCount": 659,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -9326,6 +9326,7 @@
         "src/client/views/shared/notificationCenterModel.ts",
         "src/client/views/shared/truthLines.ts",
         "src/host/index.ts",
+        "src/host/notifications.ts",
         "src/refresh/kernel/notification-events.ts",
         "tests/lib/gate-result.ts"
       ],
@@ -9340,8 +9341,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 83,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 5 条"
+      "expectedAssertions": 104,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-notification-events.ts",
@@ -9352,6 +9353,7 @@
         "scripts/generate-time-config.mts",
         "src/deck/registration/host-delegate.ts",
         "src/host/index.ts",
+        "src/host/notifications.ts",
         "src/refresh/kernel/notification-events.ts",
         "src/refresh/kernel/write-event-detection.ts",
         "src/refresh/rooms/host/issue-list-fetch.ts",
@@ -9371,8 +9373,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 102,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 10 条"
+      "expectedAssertions": 119,
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-operation-catalog.ts",
@@ -9847,7 +9849,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 37,
+      "expectedAssertions": 47,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 9 条；源码里的路径字面量 7 条"
     },
     {
@@ -13309,9 +13311,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 679,
+    "fileCount": 680,
     "dirCount": 84,
-    "coveredFileCount": 679,
+    "coveredFileCount": 680,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13598,6 +13600,7 @@
       "src/host/mapBody.ts",
       "src/host/mapTickets.ts",
       "src/host/namingGuardian.ts",
+      "src/host/notifications.ts",
       "src/host/pickerShell.ts",
       "src/host/platform/README.md",
       "src/host/platform/darwin/index.ts",

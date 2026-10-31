@@ -70,10 +70,16 @@ const trDict = {
   'notice.event.writeFailed': '写票失败',
   'notice.event.unknown': '通知',
   'notice.times': '发生 {n} 次',
-  'notice.time.justNow': '刚刚',
-  'notice.time.minutesAgo': '{n} 分钟前',
-  'notice.time.hoursAgo': '{n} 小时前',
-  'notice.time.daysAgo': '{n} 天前',
+  'notice.detail.degradedQuota': '这次取数因配额耗尽改走 REST 通道',
+  'notice.detail.degradedOther': '这次取数的主路不可用，改走 REST 通道',
+  'notice.detail.refreshFailed': '这次刷新没有成功，界面仍是上一次的结果',
+  'notice.detail.writeFailed': '写操作没有成功（工具：{tool}）',
+  'notice.detail.legacyDegradedStart': '旧版记录：降级开始（没有记录原因）',
+  'notice.detail.legacyFailure': '旧版记录：没有记录失败细节',
+  'truth.updatedJustNow': '刚刚',
+  'truth.updatedMinAgo': '{n} 分钟前',
+  'truth.updatedHourAgo': '{n} 小时前',
+  'truth.updatedDayAgo': '{n} 天前',
   'notice.markAllRead': '全部已读',
   'notice.clearRead': '清除已读标记',
   'notice.close': '关闭',
@@ -102,6 +108,8 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   // 语气颜色复用 views/shared/truthLines.ts 的新鲜度三档映射（真实现，不在这里另写一份琥珀）。
   const truth = await import('../src/client/views/shared/truthLines.js')
   globalThis.freshnessToneColor = truth.freshnessToneColor
+  // 「多久以前」的阶梯也从真源注入（同下文的 tr）：模型不自己算阈值，以免两份说法又分开。
+  globalThis.truthAgoViewOf = truth.truthAgoViewOf
   globalThis.noticeToneColorOf = model.noticeToneColorOf
   globalThis.NOTICE_TYPES = model.NOTICE_TYPES
   globalThis.noticeRowsOf = model.noticeRowsOf
@@ -162,6 +170,19 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   check(model.noticeTimeTextOf(NOW, NOW - 5 * MIN) === '5 分钟前', '五分钟前 → 5 分钟前')
   check(model.noticeTimeTextOf(NOW, NOW - 2 * HOUR) === '2 小时前', '两小时前 → 2 小时前')
   check(model.noticeTimeTextOf(NOW, NOW - 3 * 24 * HOUR) === '3 天前', '三天前 → 3 天前')
+  const modelSrcEarly = read('src/client/views/shared/notificationCenterModel.ts')
+  const truthSrcEarly = read('src/client/views/shared/truthLines.ts')
+  check(!/60000|3600000|86400000/.test(modelSrcEarly), '时间阶梯不再在通知中心里各写一份（60000/3600000/86400000 已删）')
+  check(modelSrcEarly.indexOf('notice.time.') < 0, '通知中心不再自带一套「多久以前」词条（统一取 truth.updated*）')
+  check(truthSrcEarly.indexOf('truthAgoViewOf') >= 0 && truthSrcEarly.indexOf('agoKey: ago.key') >= 0, '「多久以前」的阶梯收在 truthLines 一处（头部时间控件与通知历史共用）')
+  check(countOf(read('config/copy/panel.yaml'), 'notice.time.') === 0, '重复的 notice.time.* 词条已从词表删干净（说法只剩 truth.updated*）')
+  // 事件正文：按机器码与参数走词条，历史里的中文旧文案不贴到界面上
+  check(model.noticeDetailOf({ type: 'degraded-start', code: 'degraded-start', params: { reason: 'quota' } }).indexOf('配额') >= 0, '降级开始（配额原因）按机器码说「配额耗尽」')
+  check(model.noticeDetailOf({ type: 'degraded-start', code: 'degraded-start', params: { reason: 'other' } }).indexOf('配额') < 0, '负例：非配额降级不提配额（按参数分岔，不猜原因）')
+  check(model.noticeDetailOf({ type: 'write-failed', code: 'write-failed', params: { tool: 'deck_issue_patch' } }) === '写操作没有成功（工具：deck_issue_patch）', '写失败按机器码与工具名渲染说明')
+  check(model.noticeDetailOf({ type: 'refresh-failed', code: 'refresh-failed', params: { reason: 'unexpected EOF' } }).indexOf('unexpected EOF') < 0, '诊断原因不直接贴成界面文案（刷新失败只说一句概括）')
+  check(model.noticeDetailOf({ type: 'refresh-failed', detail: '写死的中文旧文案' }) === '旧版记录：没有记录失败细节', '旧事件没有 code：按类型给通用说明，不把旧中文当界面文案')
+  check(JSON.stringify(model.noticeRowsOf([{ id: 'old', type: 'refresh-failed', startedAt: NOW, updatedAt: NOW, detail: '写死的中文旧文案' }], 'all', {}, NOW)).indexOf('写死的中文旧文案') < 0, '负例：旧文件的中文旧文案不会进到历史行里')
   const firstRead = model.noticeEchoOf(undefined, EVENTS)
   check(firstRead.next === 'ev-4' && firstRead.echo === null, '第一次读到历史：只记基线、不补响（历史永不靠轻提示补）')
   check(model.noticeEchoOf('ev-4', EVENTS).echo === null, '最新一条没换 → 不响')
@@ -175,9 +196,10 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   check(model.noticeUnreadTextOf({ readable: true, unread: 0 }) === '', '没有未读 → 不画数字')
   check(model.noticeUnreadTextOf({ readable: true, unread: 120 }) === '99+', '超过 99 条 → 说 99+')
   check(model.noticeUnreadTextOf({ readable: false, unread: 5 }) === '', '读不到历史 → 不画数字（不冒充 0）')
-  check(model.noticeHeadBadgeOf({ readable: true, unread: 2 }) === 'badge', '有未读 → 头部让一格给徽标')
-  check(model.noticeHeadBadgeOf({ readable: true, unread: 0 }) === '', '没有未读 → 不让位，不占窄面板的地方')
-  check(model.noticeHeadBadgeOf({ readable: false, unread: 2 }) === '', '读不到历史 → 不画入口')
+  check(model.noticeHeadBadgeOf({ readable: true, unread: 2, events: EVENTS }) === 'badge', '有未读 → 头部让一格给徽标')
+  check(model.noticeHeadBadgeOf({ readable: true, unread: 0, events: EVENTS }) === 'badge', '没有未读但有历史 → 仍让一格（读过的通知也要能点开）')
+  check(model.noticeHeadBadgeOf({ readable: true, unread: 0, events: [] }) === '', '历史为空 → 不让位，不占窄面板的地方')
+  check(model.noticeHeadBadgeOf({ readable: false, unread: 2, events: EVENTS }) === '', '读不到历史 → 不画入口')
   check(model.noticeReadIdsOf(['a', 'b']).a === 1, '数组形态的已读标记也认')
   check(model.noticeReadIdsOf({ a: NOW }).a === NOW, '对象形态保留标记时刻')
   check(model.noticeReadKeyOf({ cwd: '/w/acme' }) === 'dsws.noticeRead:/w/acme', '已读标记的存储键带工作区')
@@ -245,6 +267,12 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   const rowReads = attr(listMarkup, 'data-notice-read')
   check(rowReads[0] === '0' && rowReads[1] === '1', '渲染出来的行：读过的标已读、没读过的不标（实测 ' + JSON.stringify(rowReads) + '）')
   check(listMarkup.indexOf('data-notice-times') >= 0 && listMarkup.indexOf('发生 3 次') >= 0, '合并过的同一原因显示发生次数')
+  // 历史文件里旧版留下的中文说明不再贴到界面上：有机器码按词条渲染，没有机器码用通用说明占位。
+  const oldDetailMarkup = renderPanel(stNormal(), viewOf([ev('ev-old', 'refresh-failed', NOW - HOUR, { detail: '写死的中文旧文案' })], {}))
+  check(oldDetailMarkup.indexOf('写死的中文旧文案') < 0, '负例：旧文件里的中文旧说明不贴到界面上（渲染出来就会红）')
+  check(oldDetailMarkup.indexOf('旧版记录：没有记录失败细节') >= 0, '旧事件没有机器码 → 用通用说明占位，不冒充具体原因')
+  const codedMarkup = renderPanel(stNormal(), viewOf([ev('ev-code', 'write-failed', NOW - HOUR, { code: 'write-failed', params: { tool: 'deck_issue_patch' } })], {}))
+  check(codedMarkup.indexOf('写操作没有成功（工具：deck_issue_patch）') >= 0, '带机器码与参数的事件按词条渲染说明')
   const filterValues = attr(listMarkup, 'data-notice-filter')
   check(filterValues.join(',') === 'all,degraded-start,degraded-recovery,refresh-failed,write-failed', '筛选按钮：全部加四类事件（实测 ' + filterValues.join(',') + '）')
   check(listMarkup.indexOf('data-notice-filter-on="1"') >= 0, '默认选中「全部」')
@@ -258,7 +286,15 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   check(entryMarkup.indexOf('dsws-folded') < 0, '没折叠到这一档时不带折叠类')
   check(renderEntry(viewOf(EVENTS, {}), true).indexOf('dsws-folded') >= 0, '折叠到这一档 → 整格带 dsws-folded，窄面板里让出位置')
   const readAllView = viewOf(EVENTS, { 'ev-1': 1, 'ev-2': 1, 'ev-3': 1, 'ev-4': 1 })
-  check(renderEntry(readAllView, false) === '', '负例：全部已读 → 不画入口，不占窄面板的地方')
+  check(model.noticeHeadBadgeOf(readAllView) === 'badge', '没有未读但有历史 → 仍让出一格（入口要能点开看历史）')
+  check(model.noticeHeadBadgeOf(viewOf([], {})) === '', '负例：历史为空 → 不让格（空历史没东西可看，不占窄面板的地方）')
+  check(model.noticeHeadBadgeOf({ readable: false, unread: 5, events: EVENTS }) === '', '负例：读不到历史 → 不让格（不拿未读数冒充能看的历史）')
+  const readAllMarkup = renderEntry(readAllView, false)
+  check(readAllMarkup.indexOf('data-notice-entry') >= 0, '全部已读但历史非空 → 入口仍在（还能点开看历史）')
+  check(readAllMarkup.indexOf('data-notice-unread') < 0, '…但没有未读就不带数字')
+  check(readAllMarkup.indexOf('aria-label="通知中心"') >= 0, '…说明用「通知中心」，不冒充未读')
+  const emptyEntryView = viewOf([], {})
+  check(renderEntry(emptyEntryView, false) === '', '负例：历史为空 → 不画入口，不占窄面板的地方')
   const unreadableView = viewOf(EVENTS, {})
   unreadableView.readable = false
   check(renderEntry(unreadableView, false) === '', '负例：读不到历史 → 不画入口（不拿「没有通知」冒充读不到）')
@@ -273,7 +309,8 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   const keyRe = /tr\('(notice\.[A-Za-z0-9_.]+)'/g
   let km = keyRe.exec(sources)
   while (km) { if (usedKeys.indexOf(km[1]) < 0) usedKeys.push(km[1]); km = keyRe.exec(sources) }
-  check(usedKeys.length >= 20, '界面用到的 notice.* 词条不少于 20 条（实测 ' + usedKeys.length + '）')
+  // 说明词条（notice.detail.*）按机器码动态拼键，这里数不到；数量门槛按静态键的现状定。
+  check(usedKeys.length >= 19, '界面用到的 notice.* 词条不少于 19 条（实测 ' + usedKeys.length + '）')
   const zhMissing = []
   const enMissing = []
   const phBad = []
@@ -289,8 +326,10 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   check(enMissing.length === 0, '界面用到的每条词条英文都有（缺：' + enMissing.join(',') + '）')
   check(phBad.length === 0, '中英词条的占位符一致（不一致：' + phBad.join(',') + '）')
   const hostSrc = read('src/host/index.ts')
-  check(hostSrc.indexOf("harness.handle('wf.notifications'") >= 0, '宿主注册了 wf.notifications 读历史电话')
-  check(hostSrc.indexOf('st.read((args && args.cwd) || DEFAULT_CWD)') >= 0, '电话只读事件库（read），不写历史')
+  const notifHostSrc = read('src/host/notifications.ts')
+  check(hostSrc.indexOf("harness.handle('wf.notifications'") >= 0 && hostSrc.indexOf("import('./notifications.js')") >= 0, '宿主注册了 wf.notifications 读历史电话（加载器搬进 ./notifications.ts）')
+  check(hostSrc.indexOf('notification-store.js') < 0, '宿主入口不再直接加载事件库，加载与电话都在 ./notifications.ts')
+  check(notifHostSrc.indexOf('await st.read(') >= 0 && notifHostSrc.indexOf('st.write') < 0 && notifHostSrc.indexOf('persist') < 0, '电话只读事件库（read），不写历史')
   check(lineCount(hostSrc) <= 400, '宿主入口不超过四百行（实测 ' + lineCount(hostSrc) + ' 行）')
   const modelSrc = read('src/client/views/shared/notificationCenterModel.ts')
   const centerSrc = read('src/client/views/shared/notificationCenter.ts')

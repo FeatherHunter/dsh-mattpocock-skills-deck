@@ -25,6 +25,8 @@ declare const flash: any
 declare const tr: any
 // 新鲜度三档取色映射（views/shared/truthLines.ts）：警告档的琥珀只住那个文件，这里不再抄一份。
 declare function freshnessToneColor(...args: any[]): any
+// 相对时间阶梯与词条的唯一真源（views/shared/truthLines.ts）：通知中心不另写一套毫秒阈值。
+declare function truthAgoViewOf(...args: any[]): any
 
 /** 宿主侧四类事件，顺序与 src/refresh/kernel/notification-events.ts 的类型清单一致（筛选按钮照它排）。 */
 export const NOTICE_TYPES = ['degraded-start', 'degraded-recovery', 'refresh-failed', 'write-failed']
@@ -74,18 +76,14 @@ export const noticeColorOf = function (event: any) {
 }
 
 /**
- * 事件开始时刻 → 人话。刚发生说「刚刚」，一小时内按分钟、一天内按小时、再久按天；
- * 超过一天不细到小时是故意的：历史里要的是「大概多久以前」，不是精确时间戳。
+ * 事件开始时刻 → 人话。阶梯与词条都取面板头部时间控件那一份（views/shared/truthLines.ts 的
+ * truthAgoViewOf 与 truth.updated* 四个词条）：刚刚 / N 分钟前 / N 小时前 / N 天前。
+ * 这里只把真源给来的键拼成一句话，不另写阈值、也不另备一套词条（#1681 复审修复收成一份）。
  */
 export const noticeTimeTextOf = function (now: any, at: any) {
-  const n = typeof now === 'number' ? now : Date.now()
-  const t = Number(at) || 0
-  if (!t) return ''
-  const gap = Math.max(0, n - t)
-  if (gap < 60000) return tr('notice.time.justNow')
-  if (gap < 3600000) return tr('notice.time.minutesAgo', { n: Math.floor(gap / 60000) })
-  if (gap < 86400000) return tr('notice.time.hoursAgo', { n: Math.floor(gap / 3600000) })
-  return tr('notice.time.daysAgo', { n: Math.floor(gap / 86400000) })
+  if (typeof truthAgoViewOf !== 'function') return ''
+  const view = truthAgoViewOf(now, at)
+  return view ? tr(view.key, view.params) : ''
 }
 
 /** 排序键：开始时刻、最后更新时刻、事件 id（三道都相同才并列，保证每次渲染顺序一致）。 */
@@ -135,6 +133,32 @@ export const noticeUnreadOf = function (events: any, readIds: any) {
 }
 
 /**
+ * 一行说明该说哪句：按事件类型与机器码（code）取词条键，参数只取稳定的短标识（如写工具名）。
+ * 事件库里只存代码与参数，界面文案在客户端按词条渲染；历史文件里旧版留下的中文 summary/detail
+ * 一律不贴到界面上 —— 没有 code 的旧事件按类型给一句通用说明，读盘不丢、显示不冒充。
+ */
+export const noticeDetailKeyOf = function (event: any) {
+  const e = event || {}
+  const code = String(e.code || '')
+  const params = (e.params && typeof e.params === 'object') ? e.params : {}
+  if (code === 'degraded-start') return params.reason === 'quota' ? 'notice.detail.degradedQuota' : 'notice.detail.degradedOther'
+  if (code === 'degraded-recovery') return ''
+  if (code === 'refresh-failed') return 'notice.detail.refreshFailed'
+  if (code === 'write-failed') return 'notice.detail.writeFailed'
+  const t = String(e.type || '')
+  if (t === 'degraded-start') return 'notice.detail.legacyDegradedStart'
+  if (t === 'refresh-failed' || t === 'write-failed') return 'notice.detail.legacyFailure'
+  return ''
+}
+export const noticeDetailOf = function (event: any) {
+  const key = noticeDetailKeyOf(event)
+  if (!key) return ''
+  const e = event || {}
+  const params = (e.params && typeof e.params === 'object') ? e.params : {}
+  return tr(key, { tool: String(params.tool || '') })
+}
+
+/**
  * 历史列表要画的那些行：先按筛选（all 或四类之一）过滤，再按新的在上排。
  * 行里只带画界面要用的东西（标题、时间、次数、说明、已读），不把事件原样漏给视图层。
  */
@@ -158,7 +182,7 @@ export const noticeRowsOf = function (events: any, filter: any, readIds: any, no
       color: noticeColorOf(e),
       time: noticeTimeTextOf(now, e.startedAt),
       count: Math.max(1, Number(e.count) || 1),
-      detail: String(e.detail || ''),
+      detail: noticeDetailOf(e),   // 说明按 code/params 走词条；旧文件的 summary/detail 中文不贴到界面
       read: noticeIsReadOf(readIds, id),
     })
   }
@@ -272,9 +296,10 @@ export const noticeHistoryMismatchOf = function (st: any, events: any) {
   return open !== noticeCurrentDegradedOf(st)
 }
 
-/** 头部要不要让出一格给徽标：读得到历史且有未读才出现（没有未读就整颗不画，不占窄面板的地方）。 */
+/** 头部要不要让出一格给徽标：读得到历史且历史非空就让出（没有未读也要能点开看历史，不再整颗藏起来）；
+ * 读不到历史或历史为空才不让格 —— 空历史没有可看的东西，不占窄面板的地方。 */
 export const noticeHeadBadgeOf = function (view: any) {
-  return (view && view.readable && Number(view.unread) > 0) ? 'badge' : ''
+  return (view && view.readable && Array.isArray(view.events) && view.events.length > 0) ? 'badge' : ''
 }
 
 /** 徽标上的数字：0 或读不到给空串（不画数字），超过 99 说 99+。 */
