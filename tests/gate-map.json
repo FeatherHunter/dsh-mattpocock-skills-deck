@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T21:13:46.042Z",
+  "generatedAt": "2026-10-31T21:57:24.026Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 505,
-  "gateCount": 505,
-  "attributedGates": 454,
+  "chainLength": 506,
+  "gateCount": 506,
+  "attributedGates": 455,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 69,
+  "completionRecordedGates": 70,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 794,
+  "graphFileCount": 803,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4377,6 +4377,21 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
+      "step": "node tests/verify-1586-maintenance.ts",
+      "file": "tests/verify-1586-maintenance.ts",
+      "guards": [
+        "src/shared/version-control/src/maintenance-ops.ts"
+      ],
+      "dirs": [
+        "src/shared/version-control/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 366,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-1586-migrate.ts",
       "file": "tests/verify-1586-migrate.ts",
       "guards": [
@@ -6668,6 +6683,9 @@
         "src/client/views/versionControl/vcHistory.ts",
         "src/client/views/versionControl/vcHooksPage.ts",
         "src/client/views/versionControl/vcInView.ts",
+        "src/client/views/versionControl/vcMaintenanceData.ts",
+        "src/client/views/versionControl/vcMaintenanceDiag.ts",
+        "src/client/views/versionControl/vcMaintenancePage.ts",
         "src/client/views/versionControl/vcMigrateData.ts",
         "src/client/views/versionControl/vcMigrateExport.ts",
         "src/client/views/versionControl/vcMigratePage.ts",
@@ -6715,6 +6733,7 @@
         "src/shared/version-control/src/config-rules.ts",
         "src/shared/version-control/src/conflict-text.ts",
         "src/shared/version-control/src/first-screen.ts",
+        "src/shared/version-control/src/maintenance-ops.ts",
         "src/shared/version-control/src/migrate-actions.ts",
         "src/shared/version-control/src/platform-inspect.ts",
         "src/shared/version-control/src/recovery-point.ts",
@@ -6743,7 +6762,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 82 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 86 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -11084,6 +11103,8 @@
         "src/host/versionControlDiagnosticsRead.ts",
         "src/host/versionControlDiagnosticsWrite.ts",
         "src/host/versionControlFirstScreen.ts",
+        "src/host/versionControlMaintenanceRead.ts",
+        "src/host/versionControlMaintenanceWrite.ts",
         "src/host/versionControlMigrateCheck.ts",
         "src/host/versionControlMigrateWrite.ts",
         "src/host/versionControlPlatform.ts",
@@ -11211,7 +11232,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 152 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 154 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -13335,6 +13356,7 @@
       "node tests/verify-1586-diagnostics.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-history-query.ts",
+      "node tests/verify-1586-maintenance.ts",
       "node tests/verify-1586-migrate.ts",
       "node tests/verify-1586-rebase.ts",
       "node tests/verify-1586-remote.ts",
@@ -13991,9 +14013,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 815,
+    "fileCount": 824,
     "dirCount": 84,
-    "coveredFileCount": 815,
+    "coveredFileCount": 824,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -14211,6 +14233,9 @@
       "src/client/views/versionControl/vcHistory.ts",
       "src/client/views/versionControl/vcHooksPage.ts",
       "src/client/views/versionControl/vcInView.ts",
+      "src/client/views/versionControl/vcMaintenanceData.ts",
+      "src/client/views/versionControl/vcMaintenanceDiag.ts",
+      "src/client/views/versionControl/vcMaintenancePage.ts",
       "src/client/views/versionControl/vcMigrateData.ts",
       "src/client/views/versionControl/vcMigrateExport.ts",
       "src/client/views/versionControl/vcMigratePage.ts",
@@ -14360,6 +14385,7 @@
       "src/host/tsconfig.json",
       "src/host/updateFromPackage.ts",
       "src/host/versionControl.ts",
+      "src/host/versionControlBackup.ts",
       "src/host/versionControlBasis.ts",
       "src/host/versionControlBranch.ts",
       "src/host/versionControlBranchCheck.ts",
@@ -14387,6 +14413,10 @@
       "src/host/versionControlFiles.ts",
       "src/host/versionControlFirstScreen.ts",
       "src/host/versionControlHistory.ts",
+      "src/host/versionControlMaintenanceCheck.ts",
+      "src/host/versionControlMaintenanceMount.ts",
+      "src/host/versionControlMaintenanceRead.ts",
+      "src/host/versionControlMaintenanceWrite.ts",
       "src/host/versionControlMigrateCheck.ts",
       "src/host/versionControlMigrateMount.ts",
       "src/host/versionControlMigrateWrite.ts",
@@ -14590,6 +14620,7 @@
       "src/shared/version-control/src/filter-repo-args.ts",
       "src/shared/version-control/src/first-screen.ts",
       "src/shared/version-control/src/history-query-commands.ts",
+      "src/shared/version-control/src/maintenance-ops.ts",
       "src/shared/version-control/src/migrate-actions.ts",
       "src/shared/version-control/src/parse-branch.ts",
       "src/shared/version-control/src/parse-diff-files.ts",
