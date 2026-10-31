@@ -408,6 +408,8 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/kernel/failure-backoff.ts', name: 'MIN_BACKOFF_STEPS', reason: '步数下限（次数），不是毫秒' },
   { file: 'src/refresh/kernel/failure-backoff.ts', name: 'evaluatedAtMs', reason: '状态里的时间戳（上次求值时刻），不是可调参数' },
   { file: 'src/refresh/kernel/failure-backoff.ts', name: 'waitMs', reason: '算出来的等待结果（verdict 的输出），不是输入参数' },
+  // #1690：合并版本门记「上一轮合并开始时刻」，是读钟记下来的状态字段，调 YAML 改不了它。
+  { file: 'src/refresh/kernel/snapshot-merge.ts', name: 'lastStartMs', reason: '状态字段：上一轮合并开始时刻（读钟记下来的时刻），不是可调时长' },
   // —— 存量 JavaScript（覆盖率扫描从 .ts 扩到 .js 后新捞出来的）——
   // 分三类：测量值与时刻（调 YAML 改不了它）、状态字段与初值（0 表示“还没有”）、
   // 透传变量（值由调用方按已登记参数装进来）。
