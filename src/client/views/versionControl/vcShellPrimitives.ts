@@ -9,8 +9,8 @@
 //   4. 结果信息：成功 / 失败两形，始终挂在触发它的那条能力行里（结果贴触发点）；
 //   5. 能力行：每条能力恰有一个 data-cap-primary 主入口标记；打开操作面时行内出现 data-surface。
 //
-// 未实现的能力不画假按钮：主入口行里画的是「入口由后续票实现」的说明，并标 data-cap-pending；
-// 但能力仍可从命令面板搜到、跳到这个位置（第二入口 data-cap-secondary）。
+// 能力行不画假按钮：操作面没在当前渲染里展开时，只画一句入口提示并标 data-cap-hint —— 这一行列的是
+// 能力与命令原文，点开同一个位置（或从命令面板搜到跳过来）才画出它的控件（data-surface）。
 
 declare function vcBlockKeyOf(reason: any): string
 declare function vcPageDepthOf(pageId: any): number
@@ -97,13 +97,13 @@ export const vcShellResultNode = function (h: any, t: any, o: any) {
   return h('div', attrs, kids)
 }
 
-// 一条能力的主入口判定：终局形态决定画什么，没实现的不画假按钮。
+// 一条能力的主入口画法：终局形态决定画说明、只读读数还是入口提示；这里从不画假按钮。
 export const vcCapabilitySurfaceKindOf = function (cap: any) {
   if (!cap) return 'note'
   if (cap.page === 'search') return 'palette'
   if (cap.finalForm === '说明') return 'note'
   if (cap.finalForm === '只读') return 'readonly'
-  return 'pending'
+  return 'hint'
 }
 
 export const vcShellSurfaceNode = function (h: any, t: any, o: any) {
@@ -127,7 +127,7 @@ export const vcShellSurfaceNode = function (h: any, t: any, o: any) {
   } else if (kind === 'readonly') {
     kids.push(h('p', { key: 'ro', className: 'vcs-surface-note', 'data-cap-main': 'readonly' }, t('vc.shell.cap.readonly')))
   } else {
-    kids.push(h('p', { key: 'pending', className: 'vcs-surface-pending', 'data-cap-pending': '1', 'data-cap-main': 'pending' }, t('vc.shell.cap.pending')))
+    kids.push(h('p', { key: 'hint', className: 'vcs-surface-hint', 'data-cap-hint': '1', 'data-cap-main': 'hint' }, t('vc.shell.cap.hint')))
   }
   return h('div', { className: 'vcs-surface', 'data-surface': cap ? String(cap.id) : '' }, kids)
 }
@@ -147,10 +147,10 @@ export const vcShellCapabilityRowNode = function (h: any, t: any, o: any) {
   if (cap.command) kids.push(h('code', { key: 'cmd', className: 'vcs-cap-cmd' }, String(cap.command)))
   if (!opts.surface) {
     kids.push(h('p', {
-      key: 'pending',
-      className: 'vcs-cap-pending',
-      'data-cap-pending': '1',
-    }, t('vc.shell.cap.pending')))
+      key: 'hint',
+      className: 'vcs-cap-hint',
+      'data-cap-hint': '1',
+    }, t('vc.shell.cap.hint')))
   } else {
     kids.push(Object.assign({}, vcShellSurfaceNode(h, t, { cap: cap, paletteNode: opts.paletteNode }), { key: 'surface' }))
   }
