@@ -130,27 +130,27 @@ async function main(): Promise<void> {
   const base = snapshot({ issues: [row(1, { title: '旧标题' })] })
   const oldRow1 = base.issues[0]
 
-  const keptOut: any = merge.mergeSnapshot(base, { kind: 'read', startVersion: 5, startedMs: CLOCK0, rows: [row(1, { title: '旧标题' })] })
+  const keptOut: any = merge.mergeSnapshot(base, { kind: 'read', startMergeVersion: 5, startedMs: CLOCK0, rows: [row(1, { title: '旧标题' })] })
   check(keptOut.verdict === 'merged' && keptOut.reason === 'nothing-changed', 'A 保留：内容没变也照收，回 nothing-changed（实得 ' + keptOut.verdict + ' / ' + keptOut.reason + '）')
   check(keptOut.changes.kept.join('|') === '1' && keptOut.changes.updated.length === 0, 'A 保留：changes.kept 命中 1，updated 为空（实得 ' + JSON.stringify(keptOut.changes) + '）')
   check(keptOut.snapshot.issues[0] === oldRow1, 'A 保留：没变的那一行仍是原来那个对象（引用原样保留）')
 
-  const updOut: any = merge.mergeSnapshot(base, { kind: 'read', startVersion: 5, startedMs: CLOCK0, rows: [row(1, { title: '新标题' })] })
+  const updOut: any = merge.mergeSnapshot(base, { kind: 'read', startMergeVersion: 5, startedMs: CLOCK0, rows: [row(1, { title: '新标题' })] })
   check(updOut.changes.updated.join('|') === '1' && updOut.counts.updated === 1, 'A 修改：changes.updated 命中 1，counts.updated 也是 1')
   check(updOut.snapshot.issues[0] !== oldRow1 && updOut.snapshot.issues[0].title === '新标题', 'A 修改：换成了新对象，标题是新的')
   check(updOut.snapshot.issues.length === 1 && updOut.version !== base.version, 'A 修改：行数没变，内容版本号必变（' + base.version + ' → ' + updOut.version + '）')
 
-  const addOut: any = merge.mergeSnapshot(base, { kind: 'write', startVersion: 5, startedMs: CLOCK0, rows: [row(1, { title: '旧标题' }), row(2)], allowNewRows: true })
+  const addOut: any = merge.mergeSnapshot(base, { kind: 'write', startMergeVersion: 5, startedMs: CLOCK0, rows: [row(1, { title: '旧标题' }), row(2)], allowNewRows: true })
   check(addOut.changes.added.join('|') === '2' && addOut.counts.added === 1, 'A 新增：changes.added 命中 2（实得 ' + JSON.stringify(addOut.changes) + '）')
   check(addOut.snapshot.issues.length === 2 && addOut.snapshot.issues[1].number === 2, 'A 新增：新行追加在列表尾部')
   check(addOut.snapshot.issues[0] === oldRow1, 'A 新增：旧行位置与引用都没动')
 
-  const missOut: any = merge.mergeSnapshot(base, { kind: 'read', startVersion: 5, startedMs: CLOCK0, rows: [row(9)] })
+  const missOut: any = merge.mergeSnapshot(base, { kind: 'read', startMergeVersion: 5, startedMs: CLOCK0, rows: [row(9)] })
   check(missOut.changes.added.length === 0 && missOut.missing.join('|') === '9', 'A 新增：读路径不许凭空加行，没见过的键进 missing（实得 ' + JSON.stringify(missOut.missing) + '）')
 
   const twoRows = snapshot({ issues: [row(1), row(2)] })
   const remOut: any = merge.mergeSnapshot(twoRows, {
-    kind: 'read', startVersion: 5, startedMs: CLOCK0, rows: [row(1)], enumeratesAll: true,
+    kind: 'read', startMergeVersion: 5, startedMs: CLOCK0, rows: [row(1)], enumeratesAll: true,
     provenance: provenance({ fieldGroups: { row: 'complete' } }),
   })
   check(remOut.changes.removed.join('|') === '2' && remOut.counts.removed === 1, 'A 删除：完整枚举下没出现的 2 被删（实得 ' + JSON.stringify(remOut.changes) + '）')
@@ -161,7 +161,7 @@ async function main(): Promise<void> {
   // ===========================================================================
   const b1base = snapshot({ issues: [row(1, { parentKey: '7' })] })
   const b1: any = merge.mergeSnapshot(b1base, {
-    kind: 'read', startVersion: 5, startedMs: CLOCK0,
+    kind: 'read', startMergeVersion: 5, startedMs: CLOCK0,
     rows: [row(1, { parentKey: null, fieldStates: statesWith({ parents: fieldState(true, null) }) })],
     provenance: provenance({ fieldGroups: { row: 'complete', parents: 'complete' } }),
   })
@@ -169,7 +169,7 @@ async function main(): Promise<void> {
 
   const b2base = snapshot({ issues: [row(1, { comments: [{ body: '旧评论' }], commentCount: 1 })] })
   const b2: any = merge.mergeSnapshot(b2base, {
-    kind: 'read', startVersion: 5, startedMs: CLOCK0,
+    kind: 'read', startMergeVersion: 5, startedMs: CLOCK0,
     rows: [row(1, { comments: [], commentCount: 0, fieldStates: statesWith({ comments: fieldState(true, 0) }) })],
     provenance: provenance({ fieldGroups: { row: 'complete', comments: 'complete' } }),
   })
@@ -177,7 +177,7 @@ async function main(): Promise<void> {
 
   const b3base = snapshot({ issues: [row(1, { body: '旧正文', labels: [{ name: 'a' }] })] })
   const b3: any = merge.mergeSnapshot(b3base, {
-    kind: 'read', startVersion: 5, startedMs: CLOCK0,
+    kind: 'read', startMergeVersion: 5, startedMs: CLOCK0,
     rows: [row(1, { body: '新正文', labels: [{ name: 'b' }] })],
     provenance: provenance({ fieldGroups: { row: 'complete', body: 'complete', labels: 'complete' } }),
   })
@@ -197,7 +197,7 @@ async function main(): Promise<void> {
     comments: fieldState(false), review: fieldState(false), mergeInfo: fieldState(false),
   })
   const b4: any = merge.mergeSnapshot(snapshot({ issues: [fullOld] }), {
-    kind: 'read', startVersion: 5, startedMs: CLOCK0,
+    kind: 'read', startMergeVersion: 5, startedMs: CLOCK0,
     rows: [row(1, { title: '降级标题', fieldStates: unknownStates })],
     provenance: provenance({
       source: 'rest', completeness: 'partial', degradedFrom: 'graphql',
@@ -222,7 +222,7 @@ async function main(): Promise<void> {
     commentCount: 1,
   })] })
   const truncOut: any = merge.mergeSnapshot(truncBase, {
-    kind: 'read', startVersion: 5, startedMs: CLOCK0,
+    kind: 'read', startMergeVersion: 5, startedMs: CLOCK0,
     rows: [row(1, {
       blockedBy: [{ number: 302, key: '302', state: 'OPEN', title: '新前置' }],
       comments: [],
@@ -240,14 +240,14 @@ async function main(): Promise<void> {
 
   const gapBase = snapshot({ issues: [row(1, { comments: [], commentCount: 0 })] })
   const gapOut: any = merge.mergeSnapshot(gapBase, {
-    kind: 'read', startVersion: 5, startedMs: CLOCK0,
+    kind: 'read', startMergeVersion: 5, startedMs: CLOCK0,
     rows: [row(1, { comments: [{ body: '补进来的' }], commentCount: 1, fieldStates: statesWith({ comments: fieldState(true, 1) }) })],
     provenance: provenance({ fieldGroups: { row: 'complete', comments: 'truncated' } }),
   })
   check(gapOut.snapshot.issues[0].comments.length === 1 && gapOut.snapshot.issues[0].commentCount === 1, 'B 截断来源：旧值是空数组时把新取到的补进来')
 
   const b5: any = merge.mergeSnapshot(snapshot({ issues: [row(1, { parentKey: '7' })] }), {
-    kind: 'read', startVersion: 5, startedMs: CLOCK0,
+    kind: 'read', startMergeVersion: 5, startedMs: CLOCK0,
     rows: [row(1, { parentKey: null, fieldStates: statesWith({ parents: fieldState(false) }) })],
     provenance: provenance({ fieldGroups: { row: 'complete', parents: 'complete' } }),
   })
@@ -255,7 +255,7 @@ async function main(): Promise<void> {
 
   const b6base = snapshot({ issues: [row(1, { isPullRequest: true, mergedAt: '2026-09-10T00:00:00Z', url: 'https://x/1', reason: 'completed' })] })
   const b6: any = merge.mergeSnapshot(b6base, {
-    kind: 'read', startVersion: 5, startedMs: CLOCK0,
+    kind: 'read', startMergeVersion: 5, startedMs: CLOCK0,
     rows: [row(1, { mergedAt: null, fieldStates: statesWith({ mergeInfo: fieldState(true, null) }) })],
     provenance: provenance({ fieldGroups: { row: 'complete', mergeInfo: 'complete' } }),
   })
@@ -273,18 +273,79 @@ async function main(): Promise<void> {
   // C. 版本门与 304：过期整份丢弃、版本单调、新字段不参与 etag
   // ===========================================================================
   const gateBase = snapshot({ issues: [row(1)] })
-  const staleOut: any = merge.mergeSnapshot(gateBase, { kind: 'read', startVersion: 4, startedMs: CLOCK0, rows: [row(1, { title: '迟到的' })] })
+  const staleOut: any = merge.mergeSnapshot(gateBase, { kind: 'read', startMergeVersion: 4, startedMs: CLOCK0, rows: [row(1, { title: '迟到的' })] })
   check(staleOut.verdict === 'stale-dropped' && staleOut.reason === 'stale-result', 'C 版本门：起读版本比当前旧 → 整份丢弃（实得 ' + staleOut.verdict + ' / ' + staleOut.reason + '）')
   check(staleOut.snapshot === gateBase, 'C 版本门：丢弃时连快照对象都不换')
   check(staleOut.merge.version === 5 && staleOut.version === gateBase.version, 'C 版本门：合并版本与内容版本都一个字不动')
   check(staleOut.changes.added.length === 0 && staleOut.changes.updated.length === 0 && staleOut.changes.removed.length === 0 && staleOut.changes.kept.length === 0, 'C 版本门：丢弃时四类计数全空')
 
-  const acc1: any = merge.mergeSnapshot(gateBase, { kind: 'read', startVersion: 5, startedMs: CLOCK0, rows: [row(1)] })
+  const acc1: any = merge.mergeSnapshot(gateBase, { kind: 'read', startMergeVersion: 5, startedMs: CLOCK0, rows: [row(1)] })
   check(acc1.verdict === 'merged' && acc1.merge.version === 6, 'C 版本门：起读版本等于当前 → 接受，合并版本 +1（实得 ' + acc1.merge.version + '）')
-  const acc2: any = merge.mergeSnapshot(acc1.snapshot, { kind: 'read', startVersion: 6, startedMs: CLOCK0 + 1000, rows: [row(1)] })
+  const acc2: any = merge.mergeSnapshot(acc1.snapshot, { kind: 'read', startMergeVersion: 6, startedMs: CLOCK0 + 1000, rows: [row(1)] })
   check(acc2.merge.version === 7 && acc2.merge.lastStartMs === CLOCK0 + 1000, 'C 版本门：连续合并单调递增，并记下本次读取起点')
-  const stale2: any = merge.mergeSnapshot(acc2.snapshot, { kind: 'read', startVersion: 5, startedMs: CLOCK0 + 2000, rows: [row(1)] })
+  const stale2: any = merge.mergeSnapshot(acc2.snapshot, { kind: 'read', startMergeVersion: 5, startedMs: CLOCK0 + 2000, rows: [row(1)] })
   check(stale2.verdict === 'stale-dropped' && stale2.merge.version === 7, 'C 版本门：更新落地之后，旧起读版本的结果照样被丢')
+
+  // #1681 复审修复：版本门按字段组判，不再按全局版本一刀切。
+  const gateStamp = function (version: number): any {
+    return { version: version, atMs: CLOCK0 - 1000, source: 'graphql', operation: 'get', completeness: 'complete' }
+  }
+  // (a) 这一趟表达的组里，有一组上次写入版本比本次起读版本更晚 → 整份丢弃，并带出冒犯的组名。
+  const groupGateBase = snapshot({
+    issues: [row(1, { title: '旧标题' })],
+    merge: { version: 7, lastStartMs: CLOCK0 - 5000, groups: { row: gateStamp(7) } },
+  })
+  const groupStale: any = merge.mergeSnapshot(groupGateBase, {
+    kind: 'read', startMergeVersion: 6, startedMs: CLOCK0,
+    rows: [row(1, { title: '迟到的' })],
+    provenance: provenance({ fieldGroups: { row: 'complete' } }),
+  })
+  check(groupStale.verdict === 'stale-dropped' && groupStale.staleGroups.join(',') === 'row', 'C 字段组版本门：表达组的上次写入版本更晚 → 整份丢弃并带出组名（实得 ' + groupStale.staleGroups.join(',') + '）')
+  check(groupStale.snapshot === groupGateBase && groupStale.merge.version === 7 && groupStale.changes.updated.length === 0, 'C 字段组版本门：丢弃时快照原引用、合并版本不前进、四类结果全空')
+  // (b) 只有本趟不表达的组版本更晚 → 必须接受（不相关的写入不许拦下只补父边的读）。
+  const disjointBase = snapshot({
+    issues: [row(1, { title: '旧标题', parentKey: null })],
+    merge: { version: 7, lastStartMs: CLOCK0 - 5000, groups: { subIssues: gateStamp(7) } },
+  })
+  const disjointOut: any = merge.mergeSnapshot(disjointBase, {
+    kind: 'read', startMergeVersion: 6, startedMs: CLOCK0,
+    rows: [row(1, { title: '新标题', parentKey: '100' })],
+    provenance: provenance({ fieldGroups: { row: 'complete', parents: 'complete' } }),
+  })
+  check(disjointOut.verdict === 'merged' && disjointOut.merge.version === 8, 'C 字段组版本门：只有不表达的组版本更晚 → 照常接受（合并版本 +1，实得 ' + disjointOut.verdict + '）')
+  check(disjointOut.snapshot.issues[0].title === '新标题' && disjointOut.snapshot.issues[0].parentKey === '100', 'C 字段组版本门：接受时本趟表达的组照常写入')
+  // (c) 起读版本传成字符串/NaN：归一成 0，绝不把 NaN 写进 snapshot.merge.version。
+  const noMergeBase = snapshot({ issues: [row(1), row(2)] })
+  delete noMergeBase.merge
+  const invalidAccepted: any = merge.mergeSnapshot(noMergeBase, {
+    kind: 'read', startMergeVersion: 'read-v1-1-000001' as any, startedMs: CLOCK0,
+    rows: [row(1), row(2)],
+  })
+  check(invalidAccepted.verdict === 'merged' && invalidAccepted.invalidStartVersion === true, 'C 起读版本校验：字符串/NaN 归一成 0，并标出「非法取数版本」')
+  check(Number.isInteger(invalidAccepted.merge.version) && invalidAccepted.merge.version === 1, 'C 起读版本校验：非法值不会把合并版本写成 NaN（实得 ' + String(invalidAccepted.merge.version) + '）')
+  const invalidStale: any = merge.mergeSnapshot(groupGateBase, {
+    kind: 'read', startMergeVersion: Number.NaN, startedMs: CLOCK0,
+    rows: [row(1, { title: '迟到的' })],
+    provenance: provenance({ fieldGroups: { row: 'complete' } }),
+  })
+  check(invalidStale.verdict === 'stale-dropped' && invalidStale.merge.version === 7 && invalidStale.invalidStartVersion === true, 'C 起读版本校验：非法值按 0 参与字段组版本门，被拦下且版本不写坏')
+  // (d) 值回退：closed → open 的回退同样被字段组版本门拦住。
+  const rollbackBase = snapshot({
+    issues: [row(1, { state: 'CLOSED' })],
+    merge: { version: 7, lastStartMs: CLOCK0 - 5000, groups: { row: gateStamp(7) } },
+  })
+  const rollbackOut: any = merge.mergeSnapshot(rollbackBase, {
+    kind: 'read', startMergeVersion: 6, startedMs: CLOCK0,
+    rows: [row(1, { state: 'OPEN' })],
+    provenance: provenance({ fieldGroups: { row: 'complete' } }),
+  })
+  check(rollbackOut.verdict === 'stale-dropped' && rollbackOut.snapshot.issues[0].state === 'CLOSED', 'C 字段组版本门：closed→open 的值回退被拦住，行状态不动')
+  const reopenOut: any = merge.mergeSnapshot(rollbackBase, {
+    kind: 'read', startMergeVersion: 7, startedMs: CLOCK0,
+    rows: [row(1, { state: 'OPEN' })],
+    provenance: provenance({ fieldGroups: { row: 'complete' } }),
+  })
+  check(reopenOut.verdict === 'merged' && reopenOut.snapshot.issues[0].state === 'OPEN', 'C 字段组版本门：起读版本不旧时，合法的重开照常合并')
 
   check(merge.mergeVersionOf({ issues: [] }) === 0, 'C 兼容：老快照没有 merge 字段 → 合并版本按 0 起算')
   check(merge.mergeVersionOf({ merge: { version: 9 } }) === 9, 'C 兼容：有 merge 字段 → 读出持久化的合并版本')
@@ -296,26 +357,26 @@ async function main(): Promise<void> {
   const withMergeSnap = snapshot({ issues: [row(1), row(2)] })
   withMergeSnap.merge = { version: 42, lastStartMs: 123, groups: { row: { version: 42, atMs: 123, source: 'graphql', operation: 'get', completeness: 'complete' } } }
   check(snapshotVersionOf(withMergeSnap) === snapshotVersionOf(noMergeSnap), 'C 304 语义：内容散列（etag）不读 snapshot.merge，合并簿记不进版本号')
-  check(merge.mergeSnapshot(noMergeSnap, { kind: 'read', startVersion: 0, startedMs: CLOCK0, rows: [row(1), row(2)] }).snapshot.version === noMergeSnap.version, 'C 信封契约版本 snapshot.version 不被合并服务改写')
+  check(merge.mergeSnapshot(noMergeSnap, { kind: 'read', startMergeVersion: 0, startedMs: CLOCK0, rows: [row(1), row(2)] }).snapshot.version === noMergeSnap.version, 'C 信封契约版本 snapshot.version 不被合并服务改写')
 
   // ===========================================================================
   // D. 只有完整来源允许删除或清空
   // ===========================================================================
   const dTwo = snapshot({ issues: [row(1), row(2)] })
-  const notEnumerated: any = merge.mergeSnapshot(dTwo, { kind: 'read', startVersion: 5, startedMs: CLOCK0, rows: [row(1)] })
+  const notEnumerated: any = merge.mergeSnapshot(dTwo, { kind: 'read', startMergeVersion: 5, startedMs: CLOCK0, rows: [row(1)] })
   check(notEnumerated.snapshot.issues.length === 2 && notEnumerated.changes.removed.length === 0, 'D 删清：没声明「枚举了全部」就不许删（两行都在）')
 
   const truncEnum: any = merge.mergeSnapshot(dTwo, {
-    kind: 'read', startVersion: 5, startedMs: CLOCK0, rows: [row(1)], enumeratesAll: true,
+    kind: 'read', startMergeVersion: 5, startedMs: CLOCK0, rows: [row(1)], enumeratesAll: true,
     provenance: provenance({ fieldGroups: { row: 'truncated' } }),
   })
   check(truncEnum.snapshot.issues.length === 2 && truncEnum.changes.removed.length === 0, 'D 删清：行组只是截断（没取全）就不许删')
 
-  const explicitNo: any = merge.mergeSnapshot(dTwo, { kind: 'write', startVersion: 5, startedMs: CLOCK0, rows: [], removedKeys: ['2'] })
+  const explicitNo: any = merge.mergeSnapshot(dTwo, { kind: 'write', startMergeVersion: 5, startedMs: CLOCK0, rows: [], removedKeys: ['2'] })
   check(explicitNo.snapshot.issues.length === 2 && explicitNo.changes.removed.length === 0, 'D 删清：没有完整来源证据，显式点名删除也不执行')
 
   const explicitOk: any = merge.mergeSnapshot(dTwo, {
-    kind: 'write', startVersion: 5, startedMs: CLOCK0, rows: [row(1)], removedKeys: ['2'], completeness: 'complete',
+    kind: 'write', startMergeVersion: 5, startedMs: CLOCK0, rows: [row(1)], removedKeys: ['2'], completeness: 'complete',
   })
   check(explicitOk.changes.removed.join('|') === '2' && explicitOk.snapshot.issues.length === 1, 'D 删清：完整来源下，显式点名的那一行被删掉')
 
@@ -328,7 +389,7 @@ async function main(): Promise<void> {
     row(3, { updatedAt: '2026-09-18T00:00:00Z' }),
   ] })
   const ordOut: any = merge.mergeSnapshot(ordBase, {
-    kind: 'write', startVersion: 5, startedMs: CLOCK0,
+    kind: 'write', startMergeVersion: 5, startedMs: CLOCK0,
     rows: [row(3, { title: '三改' }), row(1, { title: '一改' }), row(4)],
     allowNewRows: true,
   })

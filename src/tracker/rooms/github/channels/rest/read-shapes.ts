@@ -44,6 +44,16 @@ export interface RestListPagingFacts {
   readonly hitPageCap: boolean
   /** 是否有一页（含尾页）请求或解析失败、只拿到前面几页就停。 */
   readonly pageFailure: boolean
+  /**
+   * 是否发过「第 11 页空页探测」（#1681 复审修复）：只有恰好翻满 10 页且每页都满时才会发。
+   * 老调用方/老夹具没有这一格时按「没探测过」处理。
+   */
+  readonly probeAttempted?: boolean
+  /**
+   * 空页探测这一页是否请求或解析失败。失败同样只能记截断，不能当完整——
+   * 它与 `pageFailure` 分开，是因为前者不是数据页失败（前十页照常回成功），不该混成「双路皆挂」。
+   */
+  readonly probeFailed?: boolean
 }
 
 /**
@@ -61,14 +71,15 @@ export function restRowsOf(json: unknown): unknown[] | null {
  *
  * 规则就是文件头第 1、2 条：
  * - 撞 10 页上限或有一页失败 → `truncated`；
- * - 翻到空页 → `complete`；尾页不满一页 → `complete`（尾页少了条数就是到底的证据）；
+ * - 翻到空页（含第 11 页空页探测）→ `complete`；尾页不满一页 → `complete`（尾页少了条数就是到底的证据）；
+ * - 空页探测请求/解析失败 → `truncated`（探测没做成，就不能证明到底）；
  * - 每页都满、又没翻到空页 → `truncated`（「可能还有下一页」不能算完整）。
  *
  * 为什么尾页不满也算完整：REST 没有 `hasNextPage`，尾页不满条数是客户端唯一能相信的「到底」信号，
  * 与「空页探测」是同一件事的两种出现方式。
  */
 export function restListCompleteness(facts: RestListPagingFacts): FieldGroupCompleteness {
-  if (facts.hitPageCap || facts.pageFailure) return 'truncated'
+  if (facts.hitPageCap || facts.pageFailure || facts.probeFailed === true) return 'truncated'
   if (facts.sawEmptyPage) return 'complete'
   if (facts.lastPageRows < facts.pageSize) return 'complete'
   return 'truncated'

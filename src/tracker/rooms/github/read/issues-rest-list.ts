@@ -8,7 +8,10 @@
  * 房内唯一的 gh 出口仍是 client.ts，这里只是它的一个使用者。
  *
  * 失败语义沿用 #415：首页失败 = 双路皆挂，诚实返回错误；尾页失败 = 按已得数据截断上报。
- * 完整度（#1685）：翻到空页、或尾页不满一页才算到底；触 10 页上限、尾页失败、恰好每页都满却没空页探测，都算截断。
+ * 完整度（#1685）：翻到空页、或尾页不满一页才算到底；触 10 页上限、尾页失败都算截断。
+ * #1681 复审修复：恰好翻满 10 页且每页都满时，再打第 11 页做一次空页探测（只多 1 个请求，
+ * 探测页的行不并入结果）——探测为空 = 真到底（complete），探测非空 = 仍按上限截断，
+ * 探测请求/解析失败 = 截断；三种事实都随翻页事实交出去，完整度判定只在 read-shapes 一处做。
  */
 
 import { ERROR_KIND } from '../../../contract/vocabulary.js'
@@ -60,6 +63,10 @@ export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext): Pr
   let lastPageRows = 0
   let sawEmptyPage = false
   let pageFailure = false
+  // 空页探测（#1681 复审修复）：只有「恰好翻满十页且每页都满」时才打第 11 页，
+  // 目的是给完整度一个协议证据；探测页本身不算数据页，行不并入 out。
+  let probeAttempted = false
+  let probeFailed = false
   // 本函数的起点：下面每一行降级日志带的是「这一笔从本函数入口到这里花掉的毫秒数」。
   const startsAt = Date.now()
   for (let p = 1; p <= MAX_PAGES; p++) {
@@ -99,15 +106,35 @@ export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext): Pr
     for (const n of j) out.push(n)
     if (j.length < PAGE) break
   }
-  // 翻满十页还没到底这一支不记日志：REST 这条接口不报总数，看不出「库里真有这么多」还是「被十页截住了」，
-  // 本函数一贯按「翻到十页为止」的上报口径处理（不是故障）；完整度上按截断记（#1685）。
-  // 恰好每页都满、又没做空页探测时也不能算完整——只有真翻到空页或尾页不满才算到底。
-  const hitPageCap = !sawEmptyPage && !pageFailure && pagesFetched >= MAX_PAGES && lastPageRows >= PAGE
+  // 恰好每页都满：REST 没有 hasNextPage，只有「再打一页、看它是不是空页」才能证明到底。
+  // 这一页只用来探测：空页 = 到底（complete）；还有行 = 说明被十页上限截住了（truncated）；
+  // 请求或解析失败 = 截断，但不算「双路皆挂」——前面十页是真拿到的，照旧按已得数据回成功。
+  if (!sawEmptyPage && !pageFailure && pagesFetched >= MAX_PAGES && lastPageRows >= PAGE) {
+    probeAttempted = true
+    const probe = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=all&per_page=${PAGE}&page=${MAX_PAGES + 1}`], { cwd: ctx && ctx.cwd, via: 'list.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
+    let probeRows: unknown = null
+    if (!probe.ok) probeFailed = true
+    else {
+      try { probeRows = JSON.parse(probe.data.stdout || '') } catch (e) { probeFailed = true }
+      if (!probeFailed && !Array.isArray(probeRows)) probeFailed = true
+    }
+    if (probeFailed) {
+      emitReadDegraded(ctx, 'list', 'list:page-fail', Date.now() - startsAt)
+    } else {
+      pagesFetched += 1
+      const probeCount = (probeRows as unknown[]).length
+      lastPageRows = probeCount
+      if (probeCount === 0) sawEmptyPage = true
+    }
+  }
+  // 翻满十页且探测回来还有行：按「翻到十页为止」的上报口径处理（不是故障），完整度上按截断记（#1685）。
+  // 探测失败时 hitPageCap 为假，完整度由 probeFailed 单独判截断——两件事别混成一个。
+  const hitPageCap = !sawEmptyPage && !pageFailure && !probeFailed && pagesFetched >= MAX_PAGES && lastPageRows >= PAGE
   return {
     ok: true,
     data: {
       rows: out,
-      paging: { pagesFetched, pageSize: PAGE, lastPageRows, sawEmptyPage, hitPageCap, pageFailure },
+      paging: { pagesFetched, pageSize: PAGE, lastPageRows, sawEmptyPage, hitPageCap, pageFailure, probeAttempted, probeFailed },
     },
   }
 }

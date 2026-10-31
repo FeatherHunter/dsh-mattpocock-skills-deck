@@ -276,7 +276,7 @@ if (st6) {
   row6.fieldStates = st6
 }
 const merged = merge.mergeSnapshot(snapshot, {
-  kind: 'read', startVersion: 5, startedMs: CLOCK0, rows: [row6], allowNewRows: false,
+  kind: 'read', startMergeVersion: 5, startedMs: CLOCK0, rows: [row6], allowNewRows: false,
 })
 check(merged.verdict === 'merged', '降级读结果被合并服务接受（got ' + merged.verdict + '）')
 check(merged.merge.version === 6, '合并版本单调加一（got ' + merged.merge.version + '）')
