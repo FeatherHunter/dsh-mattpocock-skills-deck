@@ -18,7 +18,9 @@
 //
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-1586-branches.ts
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
+const { spawnSync } = require('child_process')
 const { pathToFileURL } = require('url')
 const { compileFn } = require('./lib/eval-probe.ts')
 const { printGateResult } = require('./lib/gate-result.ts')
@@ -43,7 +45,7 @@ const CLIENT_EXPORTS = ['BRANCH_REASONS', 'BRANCH_REASON_IDS', 'BRANCH_OP_IDS', 
   'upstreamNameProblem', 'descriptionTextProblem', 'decideBranchSwitch', 'decideBranchDelete', 'decideBranchCreate', 'decideTagCreate',
   'decideDescriptionWrite', 'branchReasonText', 'VC_BRANCHES_PHONE', 'VC_BRANCH_CHECK_PHONE', 'VC_BRANCH_WRITE_PHONE', 'VC_BRANCH_BOARD_CONTRACT',
   'VC_BRANCH_BOARD_VERSION', 'VC_BRANCH_CHECK_CONTRACT', 'VC_BRANCH_CHECK_VERSION', 'VC_BRANCH_OP_IDS', 'VC_BRANCH_WRITE_OPS', 'VC_BRANCH_ACTIONS',
-  'vcNewBranchRead', 'vcBranchShapeOk', 'vcBranchCheckShapeOk', 'vcReadBranches', 'vcBranchBoardOf', 'vcBranchStateOf', 'vcBranchCheckOf',
+  'vcNewBranchRead', 'vcBranchShapeOk', 'vcBranchCheckShapeOk', 'vcReadBranches', 'vcBranchBoardOf', 'vcBranchDegradedOf', 'vcBranchStateOf', 'vcBranchCheckOf',
   'vcBranchWriteResultOf', 'vcBranchTicketOf', 'vcBranchCheckDecisionOf', 'vcBranchRequestOf', 'vcBranchCheck', 'vcBranchWrite',
   'vcBranchCheckKindOf', 'vcBranchReplyKindOf', 'vcBranchReasonsOf', 'vcBranchConfirmOf', 'vcBranchResultOf', 'vcBranchBoardNode', 'VC_BRANCHES_SOURCE']
 const stripExports = (s) => s.replace(/^(\s*)export\s+/gm, '$1')
@@ -193,6 +195,39 @@ function makeHostDeps(route, clock) {
   }
   return { deps: deps, logs: logs }
 }
+// 真 git 适配器：形状与宿主注入的 subprocess 一样，但把命令真的交给本机 git。
+// 只为一件假路由说不清的事：git config --unset-all 在键不存在时退 5 且无输出，那表示「本来就没有」。
+function makeRealDeps() {
+  const logs = []
+  const deps = {
+    subprocess: { spawn(req) {
+      const r = spawnSync(req.argv[0], req.argv.slice(1), { cwd: req.cwd, encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 26 })
+      const mk = function (t) { return { finalize() { return { text: String(t || ''), truncated: false } } } }
+      return { done: Promise.resolve({ exitCode: r.status === null ? 1 : r.status }), collected: { stdout: mk(r.stdout), stderr: mk(r.stderr) }, terminate() {} }
+    } },
+    timer: { timeout() { return new Promise(function (resolve) { setTimeout(resolve, 1) }) } },
+    fs: { stat() { return Promise.reject(Object.assign(new Error('没有这个文件'), { code: 'ENOENT' })) }, lstat() { return Promise.resolve(null) }, exists() { return Promise.resolve(false) } },
+    getPlatform: async function () { return { resolveExecutable: async function (name) { return name === 'git' ? 'git' : null } } },
+    DEFAULT_CWD: ROOT, TIMEOUT_MS: 30000, gate: { noteOutbound() {} },
+    logCtx: { fire(level, event, fields) { logs.push({ level: level, event: event, fields: fields }) } },
+    now: function () { return T0 },
+  }
+  return { deps: deps, logs: logs }
+}
+// 造一个真临时仓库：一条空提交 + 一个没有说明的分支 no-desc。
+function mkGateRepo() {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws1586b-'))
+  const git = function (args) {
+    const r = spawnSync('git', args, { cwd: base, encoding: 'utf8', windowsHide: true })
+    return { code: r.status, out: String(r.stdout || ''), err: String(r.stderr || '') }
+  }
+  git(['init', '-q', '-b', 'main'])
+  git(['config', 'user.name', 'x'])
+  git(['config', 'user.email', 'x@y'])
+  git(['commit', '-q', '--allow-empty', '-m', '基线'])
+  git(['branch', 'no-desc'])
+  return { dir: base, git: git }
+}
 // 写命令计数：只数真正改仓库的那几条（读分支名单用的是 branch --merged / --no-merged，不算写）。
 function writeCmds(seen) {
   const out = []
@@ -217,6 +252,7 @@ async function main() {
   const CM = await import(sharedUrl('commands.js'))
   const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.js')).href)
   const ledger = await import(sharedUrl('capability-ledger.js'))
+  const WR = await import(sharedUrl('write-reasons.js'))
 
   // A 组：共享判定与取名规则
   check(BD.BRANCH_OP_IDS.join(',') === '4.1,4.2,4.3,4.4,4.5,4.6,4.7,4.8,4.9,4.10,4.11,4.12,4.13', 'A1 域 4 能力号恰好 4.1–4.13（实得 ' + BD.BRANCH_OP_IDS.join(',') + '）')
@@ -249,9 +285,13 @@ async function main() {
   check(BT.branchPlanOf('nope', {}).ok === false && BT.branchPlanDigestInput({ b: 1, a: 2 }) === BT.branchPlanDigestInput({ a: 2, b: 1 }), 'A25 计划摘要输入与键顺序无关、未知动作拒签')
 
   // B 组：命令 argv（与共享层同一份真源）
-  check(CM.branchCreateArgs('x', 'HEAD').join(' ') === 'switch -c x HEAD' && CM.branchCreateCheckoutArgs('x').join(' ') === 'checkout -b x', 'B1 4.2 新建并切换：switch -c（2.23 以下降级 checkout -b）')
-  check(CM.branchSwitchArgs('x').join(' ') === 'switch x' && CM.branchSwitchCheckoutArgs('x').join(' ') === 'checkout x', 'B2 4.3 切换：switch（降级 checkout）')
-  check(CM.branchDetachArgs(OID).join(' ') === 'switch --detach ' + OID && CM.branchDetachCheckoutArgs(OID).join(' ') === 'checkout ' + OID, 'B3 4.4 分离头：switch --detach（降级 checkout）')
+  // 完整档与降级档的命令词都从能力账本取：账本写的是 git switch 与「2.23 以下改用 git checkout」，
+  // 这里不再抄一遍字面量，账本改口径时这组断言跟着动。
+  const capOf = function (id: string) { return domain4.filter(function (cap) { return cap.id === id })[0] }
+  const gitWordOf = function (text: string) { const m = String(text || '').match(/git ([a-z-]+)/); return m ? m[1] : '' }
+  check(!!capOf('4.2') && capOf('4.2').versionPolicy === 'degrade' && CM.branchCreateArgs('x', 'HEAD')[0] === gitWordOf(capOf('4.2').command) && CM.branchCreateArgs('x', 'HEAD').indexOf('-c') > 0 && CM.branchCreateCheckoutArgs('x')[0] === gitWordOf(capOf('4.2').versionAlternative) && CM.branchCreateCheckoutArgs('x').indexOf('-b') > 0, 'B1 4.2 新建并切换：完整档用账本登记的 switch -c，降级档用替代说明里的 checkout -b')
+  check(capOf('4.3').versionPolicy === 'degrade' && CM.branchSwitchArgs('x')[0] === gitWordOf(capOf('4.3').command) && CM.branchSwitchCheckoutArgs('x')[0] === gitWordOf(capOf('4.3').versionAlternative), 'B2 4.3 切换：完整档 switch、降级档 checkout（命令词都从账本取）')
+  check(capOf('4.4').versionPolicy === 'degrade' && CM.branchDetachArgs(OID)[0] === gitWordOf(capOf('4.4').command) && CM.branchDetachCheckoutArgs(OID)[0] === gitWordOf(capOf('4.4').versionAlternative), 'B3 4.4 分离头：完整档 switch --detach、降级档 checkout（命令词都从账本取）')
   check(CM.branchRenameArgs('a', 'b').join(' ') === 'branch -m a b', 'B4 4.5 重命名：branch -m')
   check(CM.branchDeleteArgs('x', false).join(' ') === 'branch -d x' && CM.branchDeleteArgs('x', true).join(' ') === 'branch -D x', 'B5 4.6 删除：默认 -d、确认后 -D')
   check(CM.setUpstreamArgs('origin/main', 'main').join(' ') === 'branch -u origin/main main' && CM.unsetUpstreamArgs('main').join(' ') === 'branch --unset-upstream main', 'B6 4.7 上游：设置与取消')
@@ -339,6 +379,13 @@ async function main() {
   check(evs.indexOf('host.call') >= 0 && evs.indexOf('host.call.fail') >= 0, 'D31 预检成功与 block 都落在既有日志事件上（host.call / host.call.fail）')
   const okLog = logsBox.logs.filter(function (l) { return l.event === 'host.call' })[0]
   check(!!okLog && !!okLog.fields && okLog.fields.kind === 'delete', 'D32 预检成功日志带 kind=动作名（git-branch-check 由宿主那层加）')
+  const degradedBoard = Object.assign({}, BOARD, { capabilities: { gitVersion: 'git version 2.20.1', tier: 'degraded', actions: [
+    { op: 'create', capId: '4.2', state: 'degraded', needed: '2.23', alternative: '2.23 以下改用 git checkout -b 新建并切换分支' },
+    { op: 'switch', capId: '4.3', state: 'full', needed: '2.23', alternative: null },
+  ] } })
+  const dTree = V.vcBranchBoardNode(fakeH, tZh, { board: degradedBoard })
+  check(attrsOf(dTree, 'data-vc-branch-degraded').join(',') === '1' && attrsOf(dTree, 'data-vc-branch-git-version')[0] === 'git version 2.20.1', 'D33 降级现场画一行说明：带 git 版本与降级动作条数')
+  check(V.vcBranchDegradedOf(degradedBoard).length === 1 && V.vcBranchDegradedOf(BOARD).length === 0 && attrsOf(tree, 'data-vc-branch-degraded').length === 0, 'D34 只列降级动作；完整档不画这一行')
 
   // E 组：真宿主假路由（预检签票 → 凭票执行）
   const clock = { t: T0 }
@@ -361,7 +408,7 @@ async function main() {
   check(writeCmds(happy.seen).length === writesBefore, 'E10 预检这一趟没有执行任何写命令（票签完还没动手）')
   const createId = createCheck.ticket.id
   const createNoConfirm = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: createId, requestId: 'req-create-1', op: 'create', name: 'feature2' })
-  check(createNoConfirm.ok === true && createNoConfirm.command.indexOf('switch -c') === 0 && writeCmds(happy.seen).length === writesBefore + 1, 'E11 凭票执行：一次写命令，命令原文 switch -c feature2')
+  check(createNoConfirm.ok === true && createNoConfirm.command === gitWordOf(capOf('4.2').command) + ' -c feature2' && writeCmds(happy.seen).length === writesBefore + 1, 'E11 凭票执行：一次写命令，命令原文与账本登记的 switch -c 一致')
   const createReplay = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: createId, requestId: 'req-create-1', op: 'create', name: 'feature2' })
   check(createReplay.reused === true && createReplay.ok === true && createReplay.result.command === createNoConfirm.command && writeCmds(happy.seen).length === writesBefore + 1, 'E12 同一 requestId 重放：回同一份结果，不再起进程')
   // 4.3 切换：工作区有未提交改动 → warn 要确认；未确认拒绝（零进程）
@@ -370,13 +417,16 @@ async function main() {
   check(!!switchCheck.confirm && switchCheck.confirm.target === 'feature' && switchCheck.confirm.verb.indexOf('切换') >= 0, 'E14 4.3 警告给确认卡四段素材（动词/目标）')
   const switchId = switchCheck.ticket.id
   const afterConfirm = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: switchId, requestId: 'req-switch-1', op: 'switch', name: 'feature', confirmed: true })
-  check(afterConfirm.ok === true && afterConfirm.command === 'switch feature' && writeCmds(happy.seen).length === writesBefore + 2, 'E15 4.3 确认后凭票执行切换（switch feature）')
+  check(afterConfirm.ok === true && afterConfirm.command === gitWordOf(capOf('4.3').command) + ' feature' && writeCmds(happy.seen).length === writesBefore + 2, 'E15 4.3 确认后凭票执行切换（命令词来自账本）')
   // 伪造票 / 过期票 / 换动作：三种零进程拒绝
   const forgedSpawns = happy.seen.length
   const forged = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: 'forged-ticket-1', requestId: 'req-forged', op: 'switch', name: 'feature', confirmed: true })
   check(forged.ok === false && forged.error.kind === 'blocked' && forged.reason === 'ticket-missing' && happy.seen.length === forgedSpawns, 'E16 伪造票：ticket-missing 零进程拒绝（spawns 不动）')
   const mismatched = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: createId, requestId: 'req-mismatch', op: 'switch', name: 'feature', confirmed: true })
   check(mismatched.ok === false && mismatched.reason === 'ticket-op-mismatch' && happy.seen.length === forgedSpawns, 'E17 换动作的票：ticket-op-mismatch 零进程拒绝（spawns 不动）')
+  // 重放表只按 requestId 键是不够的：同一个 requestId 换成别的动作必须拒绝，不能把上一份结果冒充这一次的。
+  const reusedOther = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: switchId, requestId: 'req-create-1', op: 'switch', name: 'feature', confirmed: true })
+  check(reusedOther.ok === false && reusedOther.reason === 'request-reused' && happy.seen.length === forgedSpawns, 'E17b 同一个 requestId 换动作：明确拒绝（request-reused）且零进程')
   const staleClock = { t: T0 }
   const timed = makeRoute({})
   const timedDeps = makeHostDeps(timed.route, staleClock)
@@ -453,6 +503,34 @@ async function main() {
   await logVc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'switch', name: 'feature' })
   const kinds = logDeps.logs.filter(function (l) { return l.event === 'host.call' && l.fields }).map(function (l) { return String(l.fields.kind) })
   check(kinds.indexOf('git-branches') >= 0 && kinds.indexOf('git-branch-check') >= 0, 'E38 读与预检都落在 host.call 日志上（kind 区分两条电话）')
+  // 版本门真接线（评审必修 1）：档位由预检按能力账本判定、写进计划摘要，执行时只照计划走。
+  const ticketIn = async function (vc2, id) { const m = vc2.branchTickets; const box = typeof m === 'function' ? await m() : m; return box && box.get ? box.get(id) : null }
+  const oldVc = hostMod.createVersionControl(makeHostDeps(makeRoute({ version: 'git version 2.20.1' }).route, { t: T0 }).deps)
+  const oldCheck = await oldVc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'create', name: 'feature3' })
+  const oldTicket = oldCheck.ok === true ? await ticketIn(oldVc, oldCheck.ticket.id) : null
+  check(!!oldTicket && oldTicket.plan.tier === 'degraded' && String(oldTicket.plan.gitVersion).indexOf('2.20') >= 0, 'E39 2.20 的现场：预检把 degraded 与 git 版本一起落进计划摘要')
+  const oldWrite = await oldVc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: oldCheck.ticket && oldCheck.ticket.id, requestId: 'req-old-git', op: 'create', name: 'feature3' })
+  check(oldWrite.ok === true && oldWrite.argv[0] === 'checkout' && oldWrite.command.indexOf('checkout -b') === 0 && String(oldWrite.command).indexOf('switch') < 0, 'E40 2.20 的现场：凭票执行真的走 checkout -b（argv 里没有 switch）')
+  const newVc = hostMod.createVersionControl(makeHostDeps(makeRoute({ version: 'git version 2.30.0' }).route, { t: T0 }).deps)
+  const newCheck = await newVc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'create', name: 'feature4' })
+  const newTicket = newCheck.ok === true ? await ticketIn(newVc, newCheck.ticket.id) : null
+  check(!!newTicket && newTicket.plan.tier === 'full', 'E41 2.30 的现场：计划档位是 full（不降级）')
+  const newWrite = await newVc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: newCheck.ticket && newCheck.ticket.id, requestId: 'req-new-git', op: 'create', name: 'feature4' })
+  check(newWrite.ok === true && newWrite.argv[0] === 'switch' && newWrite.command.indexOf('switch -c') === 0, 'E42 2.30 的现场：凭票执行走 switch -c（完整档）')
+  // 评审必修 5：真临时仓库上，没有说明的分支清说明 / 写说明都要整步走完。
+  const real = mkGateRepo()
+  const realVc = hostMod.createVersionControl(makeRealDeps().deps)
+  const realCheck = await realVc.handleGitBranchCheck({ cwd: real.dir, op: 'describe', branch: 'no-desc', text: '' })
+  check(realCheck.ok === true, 'E43 真仓库：没有说明的分支做「清说明」预检能签票')
+  const realWrite = await realVc.handleGitBranchWrite({ cwd: real.dir, ticketId: realCheck.ticket && realCheck.ticket.id, requestId: 'req-real-desc', op: 'describe', branch: 'no-desc', text: '' })
+  check(realWrite.ok === true && realWrite.alreadyAbsent === true && String(realWrite.summary).indexOf('本来就没有') >= 0, 'E44 真仓库：git 退 5 且无输出视为「本来就没有」——整步成功，不拼空原话')
+  const afterClear = real.git(['config', '--local', '--get', 'branch.no-desc.description'])
+  check(afterClear.code !== 0 && afterClear.out.trim() === '', 'E45 真仓库：这一步确实没往配置里写任何东西（分支仍然没有说明）')
+  const realSetCheck = await realVc.handleGitBranchCheck({ cwd: real.dir, op: 'describe', branch: 'no-desc', text: '说明' })
+  const realSet = await realVc.handleGitBranchWrite({ cwd: real.dir, ticketId: realSetCheck.ticket && realSetCheck.ticket.id, requestId: 'req-real-desc2', op: 'describe', branch: 'no-desc', text: '说明' })
+  check(realSet.ok === true && String(realSet.command).indexOf('branch.no-desc.description') >= 0 && real.git(['config', '--local', '--get', 'branch.no-desc.description']).out.trim() === '说明', 'E46 真仓库：给没有说明的分支写说明整步成功（config 直写并落进配置）')
+  check(!!WR.WRITE_REASONS[failedWrite.reason], 'E47 写失败的理由落在共享理由表里（不出现门禁不认识的自由文本）')
+  fs.rmSync(real.dir, { recursive: true, force: true })
 
   // F 组：反证组（把被守的东西改坏，原判据必须当场判红）
   const antiConfirm = buildClient(function (s) { return s.replace('if (f.confirmed === true) body.confirmed = true', 'if (false) body.confirmed = true') })
@@ -481,7 +559,7 @@ async function main() {
   const confirmBlock = checkSrc.slice(checkSrc.indexOf('function confirmOf'), checkSrc.indexOf('function sceneSummaryOf'))
   check(['create', 'switch', 'detach', 'rename', 'delete', 'upstream', 'tag-create', 'tag-delete'].every(function (op) { return confirmBlock.indexOf("op === '" + op + "'") >= 0 }), 'G3 确认卡素材覆盖全部八个凭票写动作（describe 走默认分支）')
   const argvBlock = writeSrc.slice(writeSrc.indexOf('function argvOf'), writeSrc.indexOf('function resultFields'))
-  check(['create', 'switch', 'detach', 'rename', 'delete', 'upstream', 'tag-create', 'tag-delete'].every(function (op) { return argvBlock.indexOf("op === '" + op + "'") >= 0 }) && argvBlock.indexOf('branchDescriptionSetArgs') >= 0 && argvBlock.indexOf('branchDescriptionUnsetArgs') >= 0, 'G4 执行叶子按九个动作各自的 argv 拼装（八个分支 + 说明走默认分支）')
+  check(BT.BRANCH_TICKET_OPS.every(function (op) { return argvBlock.indexOf("op === '" + op + "'") >= 0 }) && argvBlock.indexOf("plan.tier === 'degraded'") >= 0 && argvBlock.indexOf('branchDescriptionSetArgs') >= 0 && argvBlock.indexOf('branchDescriptionUnsetArgs') >= 0 && argvBlock.indexOf("reason: 'bad-target'") >= 0, 'G4 执行叶子九个动作各有显式 argv 分支、未知动作显式拒绝、版本档从计划里取（不再静默兜底当写说明）')
   check(['branchCreateArgs', 'branchSwitchArgs', 'branchDetachArgs', 'branchRenameArgs', 'branchDeleteArgs', 'setUpstreamArgs', 'tagCreateArgs', 'tagDeleteArgs', 'branchDescriptionSetArgs'].every(function (n) { return writeSrc.indexOf(n) >= 0 }), 'G5 执行叶子只从共享层 commands.ts 取 argv（九种动作一个不少）')
   check(parentSrc.indexOf('createBranchMount') >= 0 && parentSrc.indexOf('handleGitBranchCheck') >= 0 && parentSrc.indexOf('handleGitBranchWrite') >= 0 && parentSrc.indexOf('handleGitBranches') >= 0, 'G6 宿主父文件登记了读/预检/执行三条电话（装配走 Mount 一层）')
   check(indexSrc.indexOf("'wf.gitBranches'") >= 0 && indexSrc.indexOf("'wf.gitBranchCheck'") >= 0 && indexSrc.indexOf("'wf.gitBranchWrite'") >= 0, 'G7 宿主入口把三条电话注册成 wf.* 方法')
@@ -497,6 +575,7 @@ async function main() {
   check(BT.BRANCH_CHECK_CONTRACT === 'version-control.branch-check' && BT.BRANCH_CHECK_VERSION === 1 && readSrc.indexOf('BRANCH_BOARD_CONTRACT') >= 0, 'G13 预检契约名/版本只有共享层一份，读面板契约仍由只读叶子导出')
   check(writeSrc.indexOf('ticketPureVerdict') >= 0 && writeSrc.indexOf('bindingsVerdict') >= 0 && writeSrc.indexOf('requestIdProblem') >= 0 && writeSrc.indexOf('results.has(requestId)') >= 0, 'G14 执行叶子凭票执行：票据过期判据、绑定表比对、requestId 去重都走共享层')
   check(checkSrc.indexOf('runPinned') >= 0 && writeSrc.indexOf('runPinned') >= 0, 'G15 预检与执行都不自己起进程（一律走注入的 runPinned 出口）')
+  check(checkSrc.indexOf('plan.tier = ver.tier') >= 0 && checkSrc.indexOf('capabilityAvailability(cap, gitVersion)') >= 0 && checkSrc.indexOf("avail.state === 'hidden'") >= 0 && readSrc.indexOf('capabilityAvailability(cap, gitVersion)') >= 0, 'G16 版本门真的接线：预检按账本判档位并写进计划，读面板按同一账本算降级说明')
 
   console.log(failed ? '有失败 — 分支与标签域门禁未通过' : '全部通过 — 分支与标签域门禁生效（' + total + ' 项断言）')
   printGateResult(GATE, total, failed ? 1 : 0)

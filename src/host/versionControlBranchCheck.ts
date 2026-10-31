@@ -17,8 +17,10 @@ import { parseTagList, parseBranchNameList, parseBranchDescriptions } from '../s
 import { branchNameProblem, tagNameProblem, upstreamNameProblem, decideBranchSwitch, decideBranchDelete,
   decideBranchCreate, decideTagCreate, decideDescriptionWrite, branchReasonText } from '../shared/version-control/src/branch-decisions.js'
 import { makeTicket, makeBindings, pathAbsentFromScreen } from '../shared/version-control/src/write-ticket.js'
-import { BRANCH_CHECK_CONTRACT, BRANCH_CHECK_VERSION, BRANCH_TICKET_OPS, BRANCH_TICKET_READ_OP,
+import { BRANCH_CHECK_CONTRACT, BRANCH_CHECK_VERSION, BRANCH_TICKET_OPS, BRANCH_TICKET_READ_OP, BRANCH_OP_CAP_IDS,
   branchPlanOf, branchPlanDigestInput, branchWorktreeInput, branchConfigInput, branchSceneSummary } from '../shared/version-control/src/branch-ticket.js'
+import { capabilityAvailability } from '../shared/version-control/src/capabilities.js'
+import { CAPABILITIES } from '../shared/version-control/src/capability-ledger.js'
 // @ts-expect-error 本域 tsconfig 有意不加载 Node 类型包（types 为空）；运行时一定是 Node，内建模块必然存在。
 import { createHash as cryptoCreateHash } from 'node:crypto'
 import { VC_BRANCH_READ_TIMEOUT_MS as READ_TIMEOUT_MS } from '../shared/time-config/src/values.js'
@@ -41,6 +43,24 @@ export function createBranchCheck(deps: any): any {
   const nowFn: any = (typeof d.now === 'function') ? d.now : Date.now
   const tickets: Map<string, any> = new Map()
   const results: Map<string, any> = new Map()
+  // 账本按能力号索引一次：预检要查「这个动作在哪版 git 上要换做法」，账本是唯一数据源。
+  const capsById: any = {}
+  for (let i: number = 0; i < CAPABILITIES.length; i += 1) capsById[String(CAPABILITIES[i].id)] = CAPABILITIES[i]
+
+  /** 读一次 git 版本，把这个动作的版本档定下来。
+   *  低于 minVersion 且账本登记了 versionPolicy:"degrade"（4.2 / 4.3 / 4.4 的 2.23）就退成 degraded，
+   *  执行层据此换 checkout 等价动作；低于硬底线（2.11）或没有降级做法则当场拒，不签一张注定失败的票。 */
+  async function versionFor(exe: any, root: any, op: string): Promise<any> {
+    const capId: string = String(BRANCH_OP_CAP_IDS[op] || '')
+    const cap: any = capsById[capId]
+    if (!cap) return { ok: false, envelope: fail('env', 'env', '能力账本里找不到这个分支动作的版本登记：' + capId) }
+    const v: any = await readOut(exe, root, '读 git 版本这一步', ['--version'])
+    if (v.ok !== true) return { ok: false, envelope: v.envelope }
+    const gitVersion: string = firstLine(v.stdout)
+    const avail: any = capabilityAvailability(cap, gitVersion)
+    if (avail.state === 'hidden') return { ok: false, envelope: fail('unsupported', 'version-unsupported', '这台机器上的 git 版本太旧（' + gitVersion + '），这个分支动作至少需要 ' + String(avail.needed) + '；升级 git 之后再试', { gitVersion: gitVersion, needed: avail.needed, capId: capId }) }
+    return { ok: true, tier: avail.state === 'degraded' ? 'degraded' : 'full', gitVersion: gitVersion, capId: capId, needed: avail.needed, alternative: avail.alternative }
+  }
 
   /** 失败信封：kind 是环节，reason 给固定理由标识符（票据门用），附加字段（decision/scene 等）平铺在顶层。 */
   function fail(kind: string, reason: string, message: string, extra?: any): any {
@@ -303,6 +323,15 @@ export function createBranchCheck(deps: any): any {
     // 4.5 改名到已存在的名字、4.6 删当前分支这类判定在共享层给 block；这里统一转成失败信封并回现场。
     const confirm: any = confirmOf(op, plan, scene, merged)
     if (decision.verdict === 'block') return fail('blocked', String(decision.reasons[0] || 'other'), branchReasonText(decision.reasons[0]) + '（理由：' + decision.reasons.join('、') + '）', { contract: BRANCH_CHECK_CONTRACT, version: BRANCH_CHECK_VERSION, op: op, decision: decision, reasons: decision.reasons, confirm: confirm, scene: sceneSummaryOf(scene, plan, merged), readAtMs: nowFn() })
+    // 版本档必须在签票之前算好并写进计划：票里保存的就是执行层要照做的 argv 依据，
+    // 计划摘要（bindingsOf 的 planDigest）也因此把 tier 算进去——预检与执行不会各判一次版本。
+    const ver: any = await versionFor(b.exe, b.root, op)
+    if (ver.ok !== true) return ver.envelope
+    plan.tier = ver.tier
+    plan.gitVersion = ver.gitVersion
+    plan.capId = ver.capId
+    plan.needed = ver.needed
+    plan.versionAlternative = ver.alternative
     const facts: any = await factsOf(b.exe, b.root, scene, plan)
     if (facts.ok !== true) return facts.envelope
     const confirmRequired: boolean = decision.verdict === 'warn' || op === 'delete' || op === 'tag-delete'

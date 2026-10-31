@@ -1,7 +1,9 @@
 // shared/version-control/src/branch-decisions.ts —— 域 4（分支与标签）的判定与取名规则（#1746 T11）
 //
-// 这一片是纯函数：不读磁盘、不起进程、不 import 任何东西（shared 同层互相 import 会被依赖门禁拦下，
-//   域内小文件只能自包含）。宿主与界面都从这一份读判定，界面不自己另判一遍（规格第 4 节「写动作三段式」：
+// 这一片是纯函数：不读磁盘、不起进程、不 import 任何东西。零 import 是为了让门禁能拿这份源码单独求值；
+//   shared 层内新增同层 import 会被依赖门禁的存量清单拦下（same-layer-import-shared 只许减不许增），
+//   但「同层 import 一定会被拦」不是真话——changes-protocol.ts:14-15 就有存量 import。
+//   宿主与界面都从这一份读判定，界面不自己另判一遍（规格第 4 节「写动作三段式」：
 //   禁用原因与核心判定函数同源）。
 //
 // 与 #1737 T02 的 rules.ts 的关系：rules.ts 的 judge() 只覆盖 stage/commit/pull/push/fetch 五种写操作，
@@ -33,6 +35,7 @@ export const BRANCH_REASONS = {
   'bad-upstream': '上游写法不合法：要写成「远端名/分支名」',
   'signing-needs-key': '签名要用本机的 GPG 密钥：密钥不可用时 git 会失败，失败原话照实显示',
   'rev-missing': '要切过去的提交号或引用是空的',
+  'version-unsupported': '这台机器上的 git 版本太旧，做不了这个分支动作：升级 git 之后再试',
   'nothing-to-do': '没有需要改动的内容',
 } as const
 
