@@ -766,6 +766,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcShellPrimitives', file: 'src/client/views/versionControl/vcShellPrimitives.ts' },
   { id: 'vcPalette', file: 'src/client/views/versionControl/vcPalette.ts' },
   { id: 'vcHistory', file: 'src/client/views/versionControl/vcHistory.ts' }, // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）
+  { id: 'vcQuery', file: 'src/client/views/versionControl/vcQuery.ts' }, // #1745 历史高级查询的数据层：十条能力的目录、输入校验与一次读取（纯逻辑，不画界面）
+  { id: 'vcQueryView', file: 'src/client/views/versionControl/vcQueryView.ts' }, // #1745 历史高级查询面板的画法（提交历史页六组、管理·诊断页四组；排在页面壳之前，壳要调它）
   { id: 'vcTaskPanel', file: 'src/client/views/versionControl/vcTaskPanel.ts' }, // #1740 长任务区（进度、四类结论、取消按钮、重启标注中断；由页面壳挂进任务区）
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
