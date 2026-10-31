@@ -53,7 +53,7 @@ import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/ti
 import { prepareStdinFile, createTaskPhones } from './versionControlTask.js'
 // #1742：改动页两条电话（预检发票、凭票写）的懒加载与日志包装住同层叶子 versionControlChangesMount.ts，
 // 本文件只把上面已经造好的宿主闭包递进去——父文件贴着 350 有效行上限，装配壳不在这里再摊开一份。
-import { createChangesMount } from './versionControlChangesMount.js'
+import { createChangesMount } from './versionControlChangesMount.js'; import { createWorktreesMount } from './versionControlWorktreesMount.js' // #1752：工作树装配壳与改动页装配壳的 import 合在一行，给父文件腾回 350 有效行的额度
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -464,31 +464,6 @@ export function createVersionControl(deps: any): any {
     return _taskP
   }
 
-  /** 工作树八条能力（#1752 T17）：一条预检 + 一条执行，首次调用时装配 ./versionControlWorktrees.js。
-   *  两条电话共用同一个执行出口 runPinned（固定前缀、-C 钉仓库、报闸、git.exec 日志），不另起进程；
-   *  八条都是本地短写，规格第 5 节的长任务清单不含它们，所以不走任务通道。 */
-  let _worktreeP: any = null
-  function worktreePhone(): Promise<any> {
-    if (!_worktreeP) {
-      _worktreeP = (async function (): Promise<any> {
-        const mod: any = await import('./versionControlWorktrees.js')
-        return mod.createWorktreePhones({
-          resolveGitExecutable: resolveGitExecutable,
-          resolveRepoRoot: resolveRepoRoot,
-          runPinned: runPinned,
-          failPhone: failPhone,
-          firstLine: firstLine,
-          failureFromExec: failureFromExec,
-          cwdOf: cwdOf,
-          pathExists: pathExists,
-          nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now,
-          randomId: function (): string { return Math.random().toString(36).slice(2) },
-        })
-      })()
-      _worktreeP.catch(function (): void { _worktreeP = null })
-    }
-    return _worktreeP
-  }
   // ---- #1742 改动页两条电话（追加段，不改上面任何既有行为）----
   // 预检（发票）与执行（凭票写）的装配住 ./versionControlChanges.js：那一片只做「同一个首屏读数、
   // 同一条进程出口、同一套 loggedPhone 日志口径」的拼接，改动页自己的票据表与 requestId 结果表留在它自己的闭包里。
@@ -517,9 +492,8 @@ export function createVersionControl(deps: any): any {
     handleGitTaskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) },
     handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) },
     handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) },
-    // #1752 工作树页八条能力：预检与执行两条电话（装配在 ./versionControlWorktrees.js）。
-    handleGitWorktreeCheck: async function (a: any): Promise<any> { const wt: any = await worktreePhone(); return wt.handleGitWorktreeCheck(a) },
-    handleGitWorktreeRun: async function (a: any): Promise<any> { const wt: any = await worktreePhone(); return wt.handleGitWorktreeRun(a) },
+    // #1752 工作树页八条能力：预检与执行两条电话（装配壳在 ./versionControlWorktreesMount.ts，懒加载、失败兜底与日志包装都在那里）。
+    ...createWorktreesMount({ resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, runPinned: runPinned, failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, cwdOf: cwdOf, pathExists: pathExists, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now, randomId: function (): string { return Math.random().toString(36).slice(2) } }),
     // #1742 改动页两条电话（预检、执行）与票据表：装配在 ./versionControlChangesMount.ts，进程出口照旧是上面那条固定前缀与报闸。
     // 只读动作 1.13（查为什么被忽略）走预检电话的 op，不再单开第三条电话；changesTickets 只给门禁与测试读票据表（与 #1741 的 writeTickets 同一条口径，不注册成电话、客户端拿不到）。
     handleGitChangesCheck: changes.check, handleGitChangesWrite: changes.write, changesTickets: changes.tickets,

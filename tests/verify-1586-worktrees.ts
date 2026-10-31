@@ -40,6 +40,7 @@ const SRC = {
   data: raw(read('src/client/views/versionControl/vcWorktreesData.ts')),
   hostLeaf: raw(read('src/host/versionControlWorktrees.ts')),
   host: raw(read('src/host/versionControl.ts')),
+  mount: raw(read('src/host/versionControlWorktreesMount.ts')),
   hostIndex: raw(read('src/host/index.ts')),
   shell: raw(read('src/client/views/versionControl/vcShellPages.ts')),
   build: raw(read('scripts/build.mts')),
@@ -211,7 +212,8 @@ async function main(): Promise<void> {
   // ---------- 四、宿主电话：真进程只走 runPinned，票据与重验一个不少 ----------
   for (const name of ['phones', 'runArgs', 'noLongTask', 'pinnedOnly', 'ticketFlow']) check((J as any)[name](SRC), '四·' + name + ' 宿主与处理层的约定守住了（' + name + '）')
   check(SRC.hostLeaf.indexOf('createWorktreePhones') >= 0 && SRC.hostLeaf.indexOf('handleGitWorktreeCheck: handleGitWorktreeCheck') >= 0 && SRC.hostLeaf.indexOf('handleGitWorktreeRun: handleGitWorktreeRun') >= 0, '四·6 宿主叶子导出两条处理函数并原样装配返回（定义了却没装配出去也算缺）')
-  check(SRC.host.indexOf('handleGitWorktreeCheck') >= 0 && SRC.host.indexOf('handleGitWorktreeRun') >= 0 && SRC.host.indexOf('versionControlWorktrees.js') >= 0, '四·7 父文件把两条电话装配进返回对象（首次调用时才 import 叶子）')
+  check(SRC.host.indexOf('createWorktreesMount(') >= 0 && SRC.host.indexOf('versionControlWorktreesMount.js') >= 0, '四·7 父文件把两条电话的装配壳接进返回对象（父文件只留一行调用，实现搬去同层壳）')
+  check(SRC.mount.indexOf("import('./versionControlWorktrees.js')") >= 0 && SRC.mount.indexOf('handleGitWorktreeCheck') >= 0 && SRC.mount.indexOf('handleGitWorktreeRun') >= 0 && SRC.mount.indexOf("'wf.gitWorktreeCheck'") >= 0 && SRC.mount.indexOf("'wf.gitWorktreeRun'") >= 0 && SRC.mount.indexOf('loggedPhone') >= 0, '四·7b 装配壳首次调用时才 import 叶子，两条电话都包上日志再交出去（载入失败回明确失败）')
   check(SRC.hostLeaf.indexOf('capabilityAvailability(cap,') >= 0, '四·8 宿主的版本门用共享层 capabilityAvailability 算，不自己写一份版本比较')
 
   // ---------- 五、界面三层：数据层 / 处理层 / 页面体 ----------
