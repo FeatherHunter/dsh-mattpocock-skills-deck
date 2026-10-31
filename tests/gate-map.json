@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T04:16:52.774Z",
+  "generatedAt": "2026-10-31T04:28:09.387Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 474,
   "gateCount": 474,
@@ -9233,6 +9233,7 @@
         "src/client/panel/headFold.ts",
         "src/client/views/shared/notificationCenter.ts",
         "src/client/views/shared/notificationCenterModel.ts",
+        "src/client/views/shared/truthLines.ts",
         "src/host/index.ts",
         "src/refresh/kernel/notification-events.ts",
         "tests/lib/gate-result.ts"
@@ -9249,7 +9250,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 83,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-notification-events.ts",
