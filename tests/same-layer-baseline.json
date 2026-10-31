@@ -749,6 +749,33 @@
       "count": 1,
       "owner": "#1739（规格 #1586 T04 首屏一次取全）",
       "note": "装配扇入：首屏七项聚合读取要一次拿全（工作区状态、改动、历史首页、工作树、贮藏、同步带、版本开关），versionControl.ts 已 346 有效行、只剩 4 行，照 #500/#821 同一条先例把聚合电话体搬成自包含叶子（起进程的唯一出口、失败信封、仓库根解析、版本与能力可用性全由父文件显式传入，叶子不引用父文件），父文件只留一行动态加载器。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
+      "spec": "./versionControlTask.js",
+      "resolved": "src/host/versionControlTask.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1740（规格 #1586 T05 长任务通道）",
+      "note": "装配扇入：长任务通道要在 versionControl.ts 里加起进程出口、非交互环境、标准输入窄例外与输出增量读取，父文件已过 350 行上限（#1739 之后仍有 492 行）；照 #500/#821 同一条先例把执行层与通道装配整块搬成同层叶子 versionControlTask.ts（进程、计时、文件、闸与日志全由父文件显式传入，叶子不反向引用父文件），父文件只留 createTaskPhones 一行动态装配与三条电话日志包装。"
+    },
+    {
+      "file": "src/host/versionControlTask.ts",
+      "spec": "./versionControlTaskRun.js",
+      "resolved": "src/host/versionControlTaskRun.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1740（规格 #1586 T05 长任务通道）",
+      "note": "叶子装配：任务通道叶子要把运行器接上（在途去重、四类结论、软取消与残留、重启后如实标中断都在运行器里）。方向单向：运行器不引用通道叶子，命令拼装走共享协议 task-protocol，进程出口由通道叶子注入。"
+    },
+    {
+      "file": "src/host/versionControlTask.ts",
+      "spec": "./versionControlTaskStore.js",
+      "resolved": "src/host/versionControlTaskStore.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1740（规格 #1586 T05 长任务通道）",
+      "note": "叶子装配：任务通道叶子要把任务记录库接上（记录只落缓存目录、不落仓库工作区，参数原文与输入文件内容不进记录文件）。方向单向：任务库只认注入的 fs 门面与缓存目录，不引用通道叶子。"
     }
   ]
 }

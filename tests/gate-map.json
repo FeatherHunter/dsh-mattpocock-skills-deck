@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T13:49:52.829Z",
+  "generatedAt": "2026-10-31T15:21:14.502Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 486,
-  "gateCount": 486,
-  "attributedGates": 435,
+  "chainLength": 487,
+  "gateCount": 487,
+  "attributedGates": 436,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 50,
+  "completionRecordedGates": 51,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 669,
+  "graphFileCount": 675,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4222,28 +4222,49 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
+      "step": "node tests/verify-1586-task-channel.ts",
+      "file": "tests/verify-1586-task-channel.ts",
+      "guards": [
+        "src/shared/version-control/src/task-protocol.ts"
+      ],
+      "dirs": [
+        "src/shared/version-control/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 136,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-1586-vc-visual-browser.ts",
       "file": "tests/verify-1586-vc-visual-browser.ts",
       "guards": [
         "src/client/views/versionControl/vcCapabilityPages.ts",
+        "src/client/views/versionControl/vcData.ts",
+        "src/client/views/versionControl/vcFirstScreen.ts",
+        "src/client/views/versionControl/vcHistory.ts",
         "src/client/views/versionControl/vcPalette.ts",
         "src/client/views/versionControl/vcShellPages.ts",
         "src/client/views/versionControl/vcShellPrimitives.ts",
         "src/client/views/versionControl/vcShellStyles.ts",
+        "src/client/views/versionControl/vcText.ts",
         "src/client/views/versionControl/vcWrite.ts",
+        "src/shared/time-config/src/values.ts",
         "tests/lib/browser-pool.ts",
         "tests/lib/gate-result.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/views/versionControl",
+        "src/shared/time-config/src",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 118,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-1586-write-contracts.ts",
@@ -6252,6 +6273,7 @@
         "src/client/views/versionControl/vcDiffOps.ts",
         "src/client/views/versionControl/vcFirstScreen.ts",
         "src/client/views/versionControl/vcFold.ts",
+        "src/client/views/versionControl/vcHistory.ts",
         "src/client/views/versionControl/vcInView.ts",
         "src/client/views/versionControl/vcPalette.ts",
         "src/client/views/versionControl/vcRows.ts",
@@ -6288,7 +6310,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 28 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 29 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -10609,6 +10631,8 @@
         "src/host/versionControl.ts",
         "src/host/versionControlCheck.ts",
         "src/host/versionControlFirstScreen.ts",
+        "src/host/versionControlTask.ts",
+        "src/host/versionControlTaskRun.ts",
         "src/host/versionControlWrite.ts",
         "src/host/workspaceKey.ts",
         "src/refresh/contract/tuning-parameters.ts",
@@ -10716,7 +10740,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 118 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 120 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -11038,6 +11062,7 @@
         "tests/fixtures/version-control/dirty-rename-chinese.json",
         "tests/fixtures/version-control/edge-cases.json",
         "tests/fixtures/version-control/live-819-review-shapes.json",
+        "tests/fixtures/version-control/live-log-shapes.json",
         "tests/fixtures/version-control/live-numstat-shapes.json",
         "tests/fixtures/version-control/live-patch-shapes.json"
       ],
@@ -11049,7 +11074,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-version-control-rules.ts",
@@ -12721,6 +12746,7 @@
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1522-skill-md-refs.ts",
+      "node tests/verify-1586-vc-visual-browser.ts",
       "node tests/verify-1612-settings-switches.ts",
       "node tests/verify-1640-unopened-merge.ts",
       "node tests/verify-1641-listed-workspace-flags.ts",
@@ -12803,6 +12829,7 @@
       "node tests/verify-1231-ws-overview-rows.ts",
       "node tests/verify-1586-capability-ledger.ts",
       "node tests/verify-1586-first-screen.ts",
+      "node tests/verify-1586-task-channel.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-841-write-phones.ts",
       "node tests/verify-842-version-control-write-view.ts",
@@ -13443,9 +13470,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 690,
+    "fileCount": 696,
     "dirCount": 84,
-    "coveredFileCount": 690,
+    "coveredFileCount": 696,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13648,6 +13675,7 @@
       "src/client/views/versionControl/vcDiffOps.ts",
       "src/client/views/versionControl/vcFirstScreen.ts",
       "src/client/views/versionControl/vcFold.ts",
+      "src/client/views/versionControl/vcHistory.ts",
       "src/client/views/versionControl/vcInView.ts",
       "src/client/views/versionControl/vcPalette.ts",
       "src/client/views/versionControl/vcRows.ts",
@@ -13656,6 +13684,7 @@
       "src/client/views/versionControl/vcShellStyles.ts",
       "src/client/views/versionControl/vcStyles.ts",
       "src/client/views/versionControl/vcTabVisible.ts",
+      "src/client/views/versionControl/vcTaskPanel.ts",
       "src/client/views/versionControl/vcText.ts",
       "src/client/views/versionControl/vcViews.ts",
       "src/client/views/versionControl/vcWrite.ts",
@@ -13776,6 +13805,9 @@
       "src/host/versionControlCheck.ts",
       "src/host/versionControlFiles.ts",
       "src/host/versionControlFirstScreen.ts",
+      "src/host/versionControlTask.ts",
+      "src/host/versionControlTaskRun.ts",
+      "src/host/versionControlTaskStore.ts",
       "src/host/versionControlWrite.ts",
       "src/host/workspaceCwd.ts",
       "src/host/workspaceKey.ts",
@@ -13945,6 +13977,7 @@
       "src/shared/version-control/src/push-plan.ts",
       "src/shared/version-control/src/rules.ts",
       "src/shared/version-control/src/state.ts",
+      "src/shared/version-control/src/task-protocol.ts",
       "src/shared/version-control/src/write-reasons.ts",
       "src/shared/version-control/src/write-ticket.ts",
       "src/shared/version-control/tsconfig.json",

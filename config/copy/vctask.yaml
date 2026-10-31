@@ -1,0 +1,93 @@
+# config/copy/vctask.yaml —— 界面词表 —— 长任务区那一族（#1740）
+#
+# 这是长任务区文案的真源：界面标题、进度说法、四类结论、取消按钮，以及十七种动作的名字。
+# 运行时读生成物 src/client/kernel/locale-data.ts（由 scripts/generate-locale-config.mts
+# 按本文件生成、不入库）。
+#
+# 写法约定：
+#   · 每种语言一段（今天 zh / en；加一门语言 = 在这里补一段同名键的词条）。
+#   · 同一段里每个键都要有，缺一条生成器就报错；值一律是字符串。
+#   · 值里的 {name} 是占位符，由界面渲染处替换；同一键的中英两份占位符必须一字不差。
+#   · 想改界面上的字：改这里 → 跑 node scripts/generate-locale-config.mts → 重新构建。
+
+zh:
+  vc.task.title: 长任务
+  vc.task.count: 正在运行 {n} 项
+  vc.task.empty: 暂无长任务。克隆、抓取、清理这类耗时命令会在这里显示进度。
+  vc.task.running: 正在运行
+  vc.task.phase: 阶段：{phase}
+  vc.task.phaseUnknown: 阶段：等待 git 报告
+  vc.task.percent: 进度 {percent}%
+  vc.task.percentUnknown: 进度暂时无法确定（git 还没有报出百分比）
+  vc.task.bytes: 已接收 {bytes}
+  vc.task.elapsed: 已用 {ms} 毫秒
+  vc.task.cancel: 取消任务
+  vc.task.doneSucceeded: 已完成
+  vc.task.doneFailed: 已失败
+  vc.task.doneFailedLine: 失败原因：{line}
+  vc.task.doneCancelled: 已取消
+  vc.task.doneInterrupted: 上一次任务已中断
+  vc.task.interruptedNote: 宿主进程重启过，无法确认这条任务最后停在哪一步，请按命令手册核对产物后再重试。
+  vc.task.residual: 残留说明：{residual}
+  vc.task.truncated: 输出超过上限，已截断显示
+  vc.task.start: 开始
+  vc.task.query: 刷新
+  vc.task.confirmRequired: 这个动作会改写历史或清理对象，需要先确认
+  vc.task.op.clone: 克隆仓库
+  vc.task.op.fetch: 抓取远端
+  vc.task.op.pull: 拉取并合并
+  vc.task.op.push: 推送
+  vc.task.op.submoduleInit: 初始化子模块
+  vc.task.op.submoduleUpdate: 更新子模块
+  vc.task.op.archive: 导出归档包
+  vc.task.op.bundle: 生成离线包
+  vc.task.op.formatPatch: 导出补丁
+  vc.task.op.fastExport: 导出对象流
+  vc.task.op.fastImport: 导入对象流
+  vc.task.op.filterRepo: 改写历史（filter-repo）
+  vc.task.op.svnFetch: 从 svn 抓取
+  vc.task.op.gc: 清理对象
+  vc.task.op.prune: 清理不可达对象
+  vc.task.op.fsck: 校验对象库
+  vc.task.op.maintenanceRun: 运行仓库维护
+
+en:
+  vc.task.title: Long-running tasks
+  vc.task.count: "{n} running"
+  vc.task.empty: No long-running tasks yet. Commands like clone, fetch, and gc show their progress here.
+  vc.task.running: Running
+  vc.task.phase: "Phase {phase}"
+  vc.task.phaseUnknown: Waiting for git to report a phase
+  vc.task.percent: "{percent}% complete"
+  vc.task.percentUnknown: Progress not available yet (git has not reported a percentage)
+  vc.task.bytes: Received {bytes}
+  vc.task.elapsed: Elapsed {ms} ms
+  vc.task.cancel: Cancel task
+  vc.task.doneSucceeded: Succeeded
+  vc.task.doneFailed: Failed
+  vc.task.doneFailedLine: "Reason {line}"
+  vc.task.doneCancelled: Cancelled
+  vc.task.doneInterrupted: The previous task was interrupted
+  vc.task.interruptedNote: The host process restarted, so the last completed step is unknown. Check the artifacts against the command guide before retrying.
+  vc.task.residual: "Remaining artifacts {residual}"
+  vc.task.truncated: Output exceeded the limit and was truncated
+  vc.task.start: Start
+  vc.task.query: Refresh
+  vc.task.confirmRequired: This action rewrites history or removes objects; confirm it first
+  vc.task.op.clone: Clone repository
+  vc.task.op.fetch: Fetch from remote
+  vc.task.op.pull: Pull and merge
+  vc.task.op.push: Push
+  vc.task.op.submoduleInit: Initialize submodules
+  vc.task.op.submoduleUpdate: Update submodules
+  vc.task.op.archive: Export archive
+  vc.task.op.bundle: Create bundle
+  vc.task.op.formatPatch: Export patches
+  vc.task.op.fastExport: Export object stream
+  vc.task.op.fastImport: Import object stream
+  vc.task.op.filterRepo: Rewrite history (filter-repo)
+  vc.task.op.svnFetch: Fetch from svn
+  vc.task.op.gc: Collect objects
+  vc.task.op.prune: Prune unreachable objects
+  vc.task.op.fsck: Verify object database
+  vc.task.op.maintenanceRun: Run repository maintenance

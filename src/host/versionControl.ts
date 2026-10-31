@@ -48,15 +48,9 @@ import { failPhone, firstLine, failureFromExec } from '../shared/version-control
 // 路径走域构建产物写法（与 src/refresh/rooms/host/chain-coalescing.ts 引 values.js 同例），
 // 值由 tests/verify-time-config.ts 看守一致。
 import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/time-config/src/values.js'
-// #1741：fast-import 那个只读文件流窄例外要宿主自己打开并核对普通文件、大小与摘要；
-// 这条边只服务 stdinFile，读命令与其余写命令仍走注入的 subprocess 服务。
-// 本域 tsconfig 有意不加载 Node 类型包（types 为空），运行时一定是 Node，这些内建模块必然存在。
-// @ts-expect-error
-import { lstat as fsLstat, readFile as fsReadFile } from 'node:fs/promises'
-// @ts-expect-error
-import { isAbsolute as pathIsAbsolute } from 'node:path'
-// @ts-expect-error
-import { createHash as cryptoCreateHash } from 'node:crypto'
+// #1741/#1740：fast-import 的只读文件流窄例外与长任务执行层（起进程、送标准输入、增量读）都住
+// 同层叶子 versionControlTask.ts；本文件只递宿主依赖与日志包装，两条入口共用同一份文件核对实现。
+import { prepareStdinFile, createTaskPhones } from './versionControlTask.js'
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -72,45 +66,6 @@ const LOG_BATCH_MAX: number = 200              // 历史按批取时一批最多
 /** stdinFile 只读文件流的命令白名单：整份规格里只有 fast-import 需要标准输入（规格第 8 节唯一例外）。 */
 const STDIN_FILE_COMMAND: string = 'fast-import'
 
-/** 路径守卫：只收绝对路径、不许含 NUL、不许出现 .. 段。返回空串表示通过，否则返回给人看的理由。
- *  为什么连 .. 也挡：票据把路径绑成了字符串，`repo/../outside` 与 `outside` 是同一份文件，
- *  只做「开头是不是绝对路径」的检查会让路径比较失去意义。 */
-function stdinPathProblem(p: any): string {
-  if (typeof p !== 'string' || !p) return '路径为空或不是字符串'
-  if (p.indexOf('\u0000') >= 0) return '路径里含 NUL'
-  if (!pathIsAbsolute(p)) return '不是绝对路径'
-  const segments: string[] = p.split(/[\\/]+/)
-  if (segments.indexOf('..') >= 0) return '路径里含 .. 段'
-  return ''
-}
-
-/** 打开 fast-import 的只读输入文件并核对票据绑定的「普通文件、大小、摘要」三件事。
- *  任何一项不符都在起进程之前给明确失败（零进程）；读文件留到最后，读出来再按字节数复核一次，
- *  防「查 stat 之后文件被换掉」这种小窗口。 */
-async function prepareStdinFile(spec: any): Promise<any> {
-  if (!spec || typeof spec !== 'object') return { ok: false, reason: 'bad-spec', message: 'stdinFile 必须给出 path、sizeBytes 与 sha256' }
-  const problem: string = stdinPathProblem(spec.path)
-  if (problem) return { ok: false, reason: 'bad-path', message: problem }
-  const sizeBytes: any = spec.sizeBytes
-  const sha256: string = (typeof spec.sha256 === 'string') ? spec.sha256.toLowerCase() : ''
-  if (!Number.isInteger(sizeBytes) || sizeBytes < 0) return { ok: false, reason: 'bad-spec', message: 'sizeBytes 必须是非负整数' }
-  if (!/^[0-9a-f]{64}$/.test(sha256)) return { ok: false, reason: 'bad-spec', message: 'sha256 必须是 64 位十六进制摘要' }
-  let st: any
-  try { st = await fsLstat(spec.path) } catch (e) {
-    const code: string = (e && (e as any).code) ? String((e as any).code) : ''
-    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: false, reason: 'missing-file', message: 'stdinFile 指向的文件不存在' }
-    return { ok: false, reason: 'unreadable', message: '读不了 stdinFile 的文件信息：' + String(((e as any) && (e as any).message) || e) }
-  }
-  // lstat：符号链接本身不是普通文件，不收（否则「路径绑定」可以绕过成任意目标）。
-  if (!st || typeof st.isFile !== 'function' || !st.isFile()) return { ok: false, reason: 'not-regular-file', message: 'stdinFile 只收普通文件' }
-  if (st.size !== sizeBytes) return { ok: false, reason: 'size-mismatch', message: '文件大小与票据绑定的不一致（实际 ' + st.size + '，票据 ' + sizeBytes + '）' }
-  let bytes: any
-  try { bytes = await fsReadFile(spec.path) } catch (e) { return { ok: false, reason: 'unreadable', message: '读不了 stdinFile 的文件内容：' + String(((e as any) && (e as any).message) || e) } }
-  if (bytes.length !== sizeBytes) return { ok: false, reason: 'size-mismatch', message: '读出来的字节数与票据绑定的不一致（实际 ' + bytes.length + '，票据 ' + sizeBytes + '）' }
-  const actual: string = cryptoCreateHash('sha256').update(bytes).digest('hex')
-  if (actual !== sha256) return { ok: false, reason: 'digest-mismatch', message: '文件摘要与票据绑定的不一致（实际 ' + actual.slice(0, 16) + '…，票据 ' + sha256.slice(0, 16) + '…）' }
-  return { ok: true, bytes: bytes }
-}
 
 /** 宿主注入的依赖：进程、计时、文件、平台与日志都在这里，本文件不自取任何环境。 */
 export interface VersionControlDeps {
@@ -474,6 +429,38 @@ export function createVersionControl(deps: any): any {
   let _writeP: any = null
   function writePhone(): any { if (!_writeP) _writeP = Promise.all([import('../refresh/rooms/host/gh-execution.js'), import('./versionControlCheck.js'), import('./versionControlWrite.js')]).then(function (ms: any) { const sg: any = ms[0].createCredentialSafeGit({ runGit: runGit, getPlatform: getPlatform, DEFAULT_CWD: DEFAULT_CWD }); const nowFn: any = (deps && typeof deps.now === 'function') ? deps.now : Date.now; const c: any = ms[1].createWriteCheck({ vc: { readScreenOf: readScreenOf }, safeGit: sg, failPhone: failPhone, nowMs: nowFn, randomId: function (): string { return Math.random().toString(36).slice(2) } }); const w: any = ms[2].createWritePhones({ vc: { readScreenOf: readScreenOf }, safeGit: sg, tickets: c.tickets, results: c.results, nowMs: nowFn }); return { check: loggedPhone('wf.gitWriteCheck', 'git-write-check', c.handleGitWriteCheck), stage: loggedPhone('wf.gitStage', 'git-stage', w.handleGitStage), unstage: loggedPhone('wf.gitUnstage', 'git-unstage', w.handleGitUnstage), commit: loggedPhone('wf.gitCommit', 'git-commit', w.handleGitCommit), pull: loggedPhone('wf.gitPull', 'git-pull', w.handleGitPull), fetch: loggedPhone('wf.gitFetch', 'git-fetch', w.handleGitFetch), push: loggedPhone('wf.gitPush', 'git-push', w.handleGitPush), tickets: c.tickets } }).catch(function (e: any): any { const f: any = function (): any { return failPhone('env', '写操作那一族加载失败：' + String(((e as any) && (e as any).message) || (e as any))) }; return { check: f, stage: f, unstage: f, commit: f, pull: f, fetch: f, push: f } }); return _writeP }
 
+  // ---- #1740 长任务通道（执行层已搬进同层叶子 versionControlTask.ts）----
+  // 父文件只剩装配：把进程、计时、文件、闸与日志这些宿主依赖递进去，三条电话与写电话同一个
+  // loggedPhone 日志口径（host.call / host.call.fail）。命令拼装、非交互环境、-C 钉仓库、
+  // 标准输入窄例外与输出增量读取都在叶子里，本文件不再写第二份。
+  /** 长任务通道：首次调用时装配执行层；三条电话与写电话同一个 loggedPhone 日志口径（host.call / host.call.fail）。 */
+  let _taskP: any = null
+  function taskPhone(): Promise<any> {
+    if (!_taskP) {
+      _taskP = Promise.resolve(createTaskPhones({
+        fs: fs,
+        getCacheDir: (deps && typeof deps.getCacheDir === 'function') ? deps.getCacheDir : null,
+        timer: timer,
+        now: (deps && typeof deps.now === 'function') ? deps.now : Date.now,
+        hash8: hash8,
+        repoRoot: DEFAULT_CWD,
+        fire: fire,
+        loggedPhone: loggedPhone,
+        subprocess: subprocess,
+        resolveGitExecutable: resolveGitExecutable,
+        reportOutbound: reportOutbound,
+        readCollector: readCollector,
+        dirHash: dirHash,
+        gitName: GIT_NAME,
+        via: VIA,
+        stdoutLimit: STDOUT_LIMIT,
+        stderrLimit: STDERR_LIMIT,
+      }))
+      _taskP.catch(function (): void { _taskP = null })
+    }
+    return _taskP
+  }
+
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
@@ -492,5 +479,9 @@ export function createVersionControl(deps: any): any {
     // 票据原值仍只留在宿主进程内存里，不落盘、不进日志。
     writeTickets: async function (): Promise<any> { const w: any = await writePhone(); return w.tickets || null },
     runGitCommand: runGit, // #839：那一族「可能弹凭据提示」的命令复用同一条进程出口（同一个报闸、同一条 git.exec 日志、同一套字节上限）
+    // #1740 长任务通道三条电话（开始、查询、取消）：装配在 ./versionControlTask.js，进程出口是上面那条固定前缀与报闸。
+    handleGitTaskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) },
+    handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) },
+    handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) },
   }
 }
