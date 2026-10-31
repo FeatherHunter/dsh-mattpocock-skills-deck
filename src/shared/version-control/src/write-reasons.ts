@@ -30,6 +30,11 @@ export const WRITE_REASONS: Record<string, string> = {
   'no-remote': '这个仓库还没有配置任何远端。请先在侧栏终端里加一个远端（git remote add）再回来推送。',
   'nothing-to-stage': '没有可暂存的东西。',
   'nothing-staged': '暂存区是空的，没有可提交的内容。',
+  // —— 提交页（#1743）新增的失败理由：2.4 的目标提交与 2.6 的签名 ——
+  'need-commit-target': '生成 fixup / squash 提交要先选一个能被吸收的目标提交。',
+  'bad-commit-target': '这个目标提交形状不对，或它在仓库里已经不在了。请重新选一个。',
+  'nothing-to-amend': '这个分支还没有任何提交，没有可以修订的上一条。',
+  'signing-failed': '本机的签名配置没能给这次提交签名（缺密钥、口令或 gpg 出错），提交没有发生。请到侧栏终端看一次 git commit 的签名输出。',
   'intent-to-add': '暂存区里有「只标记了要加、内容还没定」的条目（git add -N）。这种条目提交进去的会是工作区此刻的内容，面板不替你赌。请到侧栏终端处理这个文件。',
   // 拉取被拒时 fetch 那一半已经成功（远端的新提交已经取回来了）——话术要说清这一点，别让用户以为白跑一趟。
   'rejected-by-server': '远端拒绝了这次推送（服务端的钩子或保护规则拦下了）。面板改不了远端的规则；上面那行是远端原话，按它处理。',
@@ -83,6 +88,11 @@ export function classifyWriteFailure(op: WriteOp, exitCode: number, stderrText: 
   if (exitCode === 0) return 'unknown-write-failure'
   const t = String(stderrText || '').toLowerCase()
   if (op === 'commit') {
+    // 顺序有意义（#1743）：签名失败、无可修订提交、目标提交不存在各有自己的话术，
+    // 都要排在「没有暂存内容」「钩子拒绝」这些通用分类之前，否则会被兜底吞成笼统的一句。
+    if (/gpg failed to sign|failed to sign the data|gpg: signing failed|secret key not available|no secret key|gpg: .*failed|signing failed/.test(t)) return 'signing-failed'
+    if (/nothing to amend|no commits on branch|no commit to amend/.test(t)) return 'nothing-to-amend'
+    if (/could not lookup commit|unknown revision or path not in the working tree|bad revision/.test(t)) return 'bad-commit-target'
     if (/nothing to commit|no changes added to commit|nothing added to commit/.test(t)) return 'nothing-staged'
     // 词表收紧（对抗审查：原来只写 /hook/ 会把任何含 hook 字样的失败都算钩子）：必须真的是钩子拒绝。
     // exitCode === 0 已在函数开头排除，所以这里不用再判一次退出码。

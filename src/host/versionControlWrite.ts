@@ -22,7 +22,8 @@
  */
 // @ts-expect-error
 import { createHash } from 'node:crypto'
-import { fixedPrefix, stageArgs, unstageArgs, commitArgs, pullArgs, pushArgs, fetchArgs, lsFilesStageArgs, remoteListArgs, checkRefArgs, REMOTE_PATTERN } from '../shared/version-control/src/commands.js'
+import { fixedPrefix, stageArgs, unstageArgs, pullArgs, pushArgs, fetchArgs, lsFilesStageArgs, remoteListArgs, checkRefArgs, REMOTE_PATTERN } from '../shared/version-control/src/commands.js'
+import { commitPlanOf, commitPlanProblem, commitArgvOf } from '../shared/version-control/src/commit-plan.js'
 import { ticketVerdict, ticketPureVerdict, requestIdProblem, indexRecordCount, fingerprintInputOf, bindingsVerdict, makeBindings, planBindingInput, worktreeBindingInput, pathAbsentFromScreen, configOldValueOf } from '../shared/version-control/src/write-ticket.js'
 import { pushPlanOf } from '../shared/version-control/src/push-plan.js'
 import { classifyWriteFailure, writeHintFor, pathsProblem, messageProblem, idShapeProblem } from '../shared/version-control/src/write-reasons.js'
@@ -131,6 +132,9 @@ export function createWritePhones(deps: any): any {
       } })
     }
     if (op === 'commit') {
+      // #1743：执行前把票里记的提交计划拿回来（模式、fixup 目标、跳过钩子、签名、追加签名行都在这份计划里），
+      // 它的摘要与预检那一侧同一口径（planBindingInput），预检之后换了选项就会在 bindingsVerdict 里被拒成 target-changed。
+      cur.target = ticket.target || null
       // 读暂存区清单这一步：单条超时 VC_LSFILES_TIMEOUT_MS（清单可能很大，单独给 15 秒），
       // 整趟预算 VC_LSFILES_CALL_BUDGET_MS（这一步所有命令合起来的上限）——两者不是一回事。
       const lf: any = await runOne(cwd, lsFilesStageArgs(), VC_LSFILES_TIMEOUT_MS, LSFILES_LIMIT, VC_LSFILES_CALL_BUDGET_MS)
@@ -138,8 +142,16 @@ export function createWritePhones(deps: any): any {
         cur.indexFingerprint = fingerprintOf(lf.stdout)
         cur.indexAvailable = true
       }
-      // 提交的绑定格：索引条数（#1741）。读不到或截断时留 null —— 票里记了值就会按 stale-index 拒，不会假装通过。
-      cur.bindings = makeBindings({ counters: { indexEntries: (lf && lf.ok === true && lf.truncated !== true) ? indexRecordCount(lf.stdout) : null } })
+      // 提交绑两格：索引条数与计划摘要；2.2 的 commit -a 还要绑工作树形状（与预检同一份 worktreeBindingInput），
+      // 否则「预检之后又改了一个已跟踪文件」会被 -a 静默带进这次提交。
+      const pre: any = { planDigest: digest16(planBindingInput(cur.target)) }
+      if (cur.target && cur.target.mode === 'all') {
+        const sr: any = await vc.readScreenOf(cwd)
+        const screen: any = (sr && sr.ok === true) ? sr.screen : null
+        pre.worktreeDigest = screen ? digest16(worktreeBindingInput(screen)) : null
+      }
+      // 读不到或截断时留 null —— 票里记了值就会按 stale-index 拒，不会假装通过。
+      cur.bindings = makeBindings({ counters: { indexEntries: (lf && lf.ok === true && lf.truncated !== true) ? indexRecordCount(lf.stdout) : null }, preconditions: pre })
     }
     if (op === 'push' && ticket.target) {
       // 列远端这一步：单条超时走只读命令那一档（VC_READ_CMD_TIMEOUT_MS，纯本地读很快），
@@ -263,20 +275,33 @@ export function createWritePhones(deps: any): any {
     const reason: any = classifyWriteFailure('commit', r ? r.exitCode : -1, text)
     return wfail((r && r.kind && r.kind !== 'ok') ? r.kind : 'other', reason === 'unknown-write-failure' ? 'unknown-write-failure' : reason, (r && r.message) || '', { transportHint: r && r.hint })
   }
-  /** 提交：票据绑 HEAD + 索引指纹；失败后按 HEAD 有没有变说话，绝不自动重试。 */
+  /** 提交（#1743 扩到八条能力）：票据绑 HEAD + 索引指纹 + 提交计划；失败后按 HEAD 有没有变说话，绝不自动重试。 */
   async function handleGitCommit(args: any): Promise<any> {
     const a: any = args || {}
-    const bad: any = messageProblem(a.message)
-    if (bad) return wfail('args', bad, writeHintFor(bad))
+    // 提交计划是外部输入：先在写层归一、校验一遍（缺目标 / 坏目标当场拒，零 git 进程），
+    // 再让票据核对同一份计划摘要——预检之后客户端换了模式或目标都过不了闸。
+    const plan: any = commitPlanOf(a.plan)
+    const planBad: any = commitPlanProblem(a.plan)
+    if (planBad) return wfail('args', planBad, writeHintFor(planBad))
+    // 说明校验按模式分开（与预检同一口径）：修订可空（--no-edit 只改文件），fixup / squash 不写说明，其余必须有。
+    let messageBad: any = null
+    if (plan.mode === 'amend') messageBad = String(a.message === undefined || a.message === null ? '' : a.message).trim() === '' ? null : messageProblem(a.message)
+    else if (plan.mode !== 'fixup') messageBad = messageProblem(a.message)
+    if (messageBad) return wfail('args', messageBad, writeHintFor(messageBad))
     const g: any = await gateTicket(a, 'commit')
     if (g.replay) return g.replay
     if (g.denied) return g.denied
+    // 执行用的计划必须与开票时那份一致：票据绑的是那份计划的摘要，客户端此刻换模式 / 换目标都要拒，
+    // 否则「预检的是普通提交、执行的是修订上一条」这种改写历史的动作会绕过确认卡。
+    if (digest16(planBindingInput(plan)) !== digest16(planBindingInput(g.ticket.target || null))) return remember(g.requestId, wfail('args', 'target-changed', writeHintFor('target-changed')))
     const headBefore: string = String(g.ticket.headOid || '')
-    const r: any = await runOne(g.cwd, commitArgs(String(a.message)), COMMIT_TIMEOUT_MS, SMALL_LIMIT, COMMIT_TIMEOUT_MS + VC_WRITE_CALL_MARGIN_MS)
+    // argv 由共享模块按计划拼：模式开关各自一个元素，-S / -s / --no-verify 各自一个元素，绝不经 shell。
+    const argv: string[] = commitArgvOf(plan, String(a.message === undefined || a.message === null ? '' : a.message))
+    const r: any = await runOne(g.cwd, argv, COMMIT_TIMEOUT_MS, SMALL_LIMIT, COMMIT_TIMEOUT_MS + VC_WRITE_CALL_MARGIN_MS)
     const headAfter: string | null = await readHead(g.cwd)
     // 读不到 HEAD 就如实说「结果未知」——绝不在不知道结果时说成功（#841 第三批 ⑤）。
     if (headAfter === null) return remember(g.requestId, wfail('other', 'head-unreadable', writeHintFor('head-unreadable'), { extra: { headBefore: headBefore, headAfter: '' } }))
-    if (r && r.ok === true) return remember(g.requestId, { ok: true, committed: true, headBefore: headBefore, headAfter: headAfter || '', atMs: now() })
+    if (r && r.ok === true) return remember(g.requestId, { ok: true, committed: true, mode: plan.mode, target: plan.target, skipHooks: plan.skipHooks === true, sign: plan.sign === true, signoff: plan.signoff === true, headBefore: headBefore, headAfter: headAfter || '', atMs: now() })
     // 不幂等：HEAD 变了就如实说「HEAD 已经变了」，既不声称成功也不自动重试。
     if (headAfter && headBefore && headAfter !== headBefore) return remember(g.requestId, wfail('other', 'head-moved', writeHintFor('head-moved'), { extra: { headBefore: headBefore, headAfter: headAfter } }))
     const text: string = failText(r)

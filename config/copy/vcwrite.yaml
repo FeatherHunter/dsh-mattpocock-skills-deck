@@ -113,6 +113,63 @@ zh:
   vc.ai.seen: 看到：{text}
   vc.ai.goal: 目标：
   vc.ai.extra: 补充：
+  vc.block.needCommitTarget: 先选一条要吸收进去的提交
+  vc.block.badCommitTarget: 目标提交不对：选一条这个仓库里存在的提交
+  vc.block.nothingToAmend: 这个分支还没有提交，没有可以修订的内容
+  vc.block.signingFailed: 本机签名配置或密钥有问题，这次签不了名
+  vc.commit.panelTitle: 提交
+  vc.commit.modeLabel: 提交什么
+  vc.commit.mode.staged: 只提交已暂存内容
+  vc.commit.mode.all: 提交全部已跟踪改动
+  vc.commit.mode.amend: 修订上一条提交
+  vc.commit.mode.fixup: 生成 fixup 提交
+  vc.commit.mode.squash: 生成 squash 提交
+  vc.commit.mode.hint.staged: 只提交暂存区里的内容；未暂存与未跟踪的文件都不动。
+  vc.commit.mode.hint.all: 把已跟踪文件的改动一起提交；未跟踪文件不会进这次提交。
+  vc.commit.mode.hint.amend: 改写上一条提交，提交号会变；只改说明时不必先暂存。
+  vc.commit.mode.hint.fixup: 生成一条 fixup! 提交，留给之后变基时自动吸收进目标提交。
+  vc.commit.mode.hint.squash: 生成一条 squash! 提交，说明要自己写，变基时自动合并进目标提交。
+  vc.commit.msgLabel: 提交说明
+  vc.commit.msgPlaceholder: 第一行写摘要，空一行再写正文；支持多行与换行。
+  vc.commit.msgHint: 说明会原样写进提交，换行保留。
+  vc.commit.msgPreview: 预览
+  vc.commit.template: 套用提交说明模板
+  vc.commit.templateHint: 模板来自这个仓库的 commit.template 配置：{path}
+  vc.commit.templateMissing: 配置里的模板文件读不到（{path}），没有可以套用的内容
+  vc.commit.templateNone: 这个仓库没有配置提交说明模板
+  vc.commit.templateApplied: 已套用模板
+  vc.commit.amendPrefill: 将修订提交 {oid}：{subject}
+  vc.commit.amendNoHead: 这个分支还没有提交，修订不了
+  vc.commit.targetLabel: 吸收进哪条提交
+  vc.commit.targetPlaceholder: 选择一条提交
+  vc.commit.opt.skipHooks: 跳过钩子
+  vc.commit.opt.skipHooksHint: 本次提交不跑 pre-commit / commit-msg 钩子；只这一次，不改全局设置
+  vc.commit.opt.sign: 签名提交
+  vc.commit.opt.signHint: 用本机签名配置（{format}，{key}）给这次提交签名
+  vc.commit.opt.signNoKey: 本机没有配置签名密钥，这一项用不了
+  vc.commit.opt.signoff: 追加签名行
+  vc.commit.opt.signoffHint: 只在说明末尾追加这一行：{trailer}
+  vc.commit.opt.signoffNoIdentity: 引用身份没配置，这一行写不出来
+  vc.commit.action.submit: 提交
+  vc.commit.action.applyTemplate: 套用模板
+  vc.commit.running: 正在提交…
+  vc.commit.result.ok: 提交完成（{mode}），耗时 {ms} 毫秒，命令 {cmd}
+  vc.commit.result.okAmend: 已修订上一条提交（{mode}），耗时 {ms} 毫秒，命令 {cmd}
+  vc.commit.result.fail: 提交失败（{mode}），耗时 {ms} 毫秒
+  vc.commit.result.retry: 重试
+  vc.commit.confirm.whatAmend: 会改写上一次提交：原提交 {oid} 会被新提交替换，提交号随之变化。
+  vc.commit.confirm.whatFixup: 会新建一条吸收提交：说明写成 fixup! {target}，留给之后变基时自动吸收。
+  vc.commit.confirm.whatSquash: 会新建一条吸收提交：说明写成 squash! {target}，留给之后变基时自动吸收。
+  vc.commit.confirm.wontAmend: 不会动工作区里的文件，也不会动远端；要撤销只能改回内容后重新提交，旧提交还能从 reflog 找回。
+  vc.commit.confirm.wontFixup: 不会动已有提交与工作区文件，也不会动远端；这条吸收提交要等变基时才真正生效。
+  vc.commit.confirm.reversible: 可逆性与恢复路径：修订后旧提交号还能在 reflog 里找回；吸收提交在变基前可以随时删掉。
+  vc.commit.confirm.verbAmend: 这会把「{mode}」真的做下去：改写已经存在的提交历史。
+  vc.commit.confirm.verbFixup: 这会把「{mode}」真的做下去：在历史里多留一条待吸收的提交。
+  vc.commit.confirm.cancel: 先不提交
+  vc.commit.confirm.go: 确认{mode}
+  vc.commit.confirm.trailer: 将追加到说明末尾的原文：{trailer}
+  vc.commit.confirm.commitMsg: 这次提交的说明原文：{message}
+  vc.commit.confirm.emptyMsg: （空）
 en:
   vc.action.stage: add
   vc.action.stageAll: add all
@@ -216,3 +273,60 @@ en:
   vc.ai.seen: "Seeing: {text}"
   vc.ai.goal: "Goal: "
   vc.ai.extra: "More: "
+  vc.block.needCommitTarget: Select the commit to absorb into
+  vc.block.badCommitTarget: "That target commit is not usable: select a commit that exists in this repository"
+  vc.block.nothingToAmend: This branch has no commit yet; there is nothing to amend
+  vc.block.signingFailed: Signing is not available on this machine; check the signing configuration and key
+  vc.commit.panelTitle: Commit
+  vc.commit.modeLabel: What to commit
+  vc.commit.mode.staged: Only staged content
+  vc.commit.mode.all: All tracked changes
+  vc.commit.mode.amend: Amend the last commit
+  vc.commit.mode.fixup: Create a fixup commit
+  vc.commit.mode.squash: Create a squash commit
+  vc.commit.mode.hint.staged: Commits only what is staged; unstaged and untracked files stay put.
+  vc.commit.mode.hint.all: Commits changes to tracked files; untracked files are not included in this commit.
+  vc.commit.mode.hint.amend: Rewrites the last commit, so its hash changes; you do not have to stage anything to edit only the message.
+  vc.commit.mode.hint.fixup: Creates a fixup! commit that a later rebase absorbs into the target commit.
+  vc.commit.mode.hint.squash: Creates a squash! commit; write its message yourself and a later rebase merges it into the target commit.
+  vc.commit.msgLabel: Commit message
+  vc.commit.msgPlaceholder: Short summary on the first line, a blank line, then the body. Multiple lines are supported.
+  vc.commit.msgHint: The message is written into the commit verbatim; line breaks are preserved.
+  vc.commit.msgPreview: Preview
+  vc.commit.template: Apply the commit message template
+  vc.commit.templateHint: "The template comes from this repository's commit.template setting: {path}"
+  vc.commit.templateMissing: The configured template file cannot be read ({path}); there is nothing to apply
+  vc.commit.templateNone: This repository has no commit message template configured
+  vc.commit.templateApplied: Template applied
+  vc.commit.amendPrefill: "Will amend commit {oid}: {subject}"
+  vc.commit.amendNoHead: This branch has no commit yet, so it cannot be amended
+  vc.commit.targetLabel: Commit to absorb into
+  vc.commit.targetPlaceholder: Select a commit
+  vc.commit.opt.skipHooks: Skip hooks
+  vc.commit.opt.skipHooksHint: This commit does not run the pre-commit / commit-msg hooks; only this time, with no global default changed
+  vc.commit.opt.sign: Sign this commit
+  vc.commit.opt.signHint: Signs this commit with the local signing configuration ({format}, {key})
+  vc.commit.opt.signNoKey: No signing key is configured on this machine, so this option is unavailable
+  vc.commit.opt.signoff: Append a Signed-off-by line
+  vc.commit.opt.signoffHint: "Only appends this line to the end of the message: {trailer}"
+  vc.commit.opt.signoffNoIdentity: The commit identity is not configured, so this line cannot be written
+  vc.commit.action.submit: Commit
+  vc.commit.action.applyTemplate: Apply template
+  vc.commit.running: Committing…
+  vc.commit.result.ok: "Commit finished ({mode}) in {ms} ms; command {cmd}"
+  vc.commit.result.okAmend: "Amended the last commit ({mode}) in {ms} ms; command {cmd}"
+  vc.commit.result.fail: "Commit failed ({mode}) after {ms} ms"
+  vc.commit.result.retry: Retry
+  vc.commit.confirm.whatAmend: "Rewrites the last commit: the original commit {oid} is replaced by a new one, so its hash changes."
+  vc.commit.confirm.whatFixup: Creates a fixup commit whose message is fixup! {target}, to be absorbed by a later rebase.
+  vc.commit.confirm.whatSquash: Creates a squash commit whose message is squash! {target}, to be absorbed by a later rebase.
+  vc.commit.confirm.wontAmend: Does not touch files in the working tree and does not touch the remote; to undo, change the content back and commit again — the old commit is still recoverable from the reflog.
+  vc.commit.confirm.wontFixup: Does not touch existing commits, working tree files, or the remote; this absorb commit only takes effect during a rebase.
+  vc.commit.confirm.reversible: "Reversible: after amending, the old commit hash can still be found in the reflog; before the rebase, the absorb commit can be deleted at any time."
+  vc.commit.confirm.verbAmend: 'This really performs "{mode}": it rewrites existing commit history.'
+  vc.commit.confirm.verbFixup: 'This really performs "{mode}": it leaves one more commit waiting to be absorbed.'
+  vc.commit.confirm.cancel: Not now
+  vc.commit.confirm.go: Confirm {mode}
+  vc.commit.confirm.trailer: "Text that will be appended to the message: {trailer}"
+  vc.commit.confirm.commitMsg: "Exact commit message for this commit: {message}"
+  vc.commit.confirm.emptyMsg: (empty)
