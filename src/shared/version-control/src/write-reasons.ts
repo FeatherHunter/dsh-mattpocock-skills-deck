@@ -81,6 +81,13 @@ export const WRITE_REASONS: Record<string, string> = {
   'unmerged-files': '还有文件没解决。请先把冲突文件逐个处理完（选边、整份编辑或标记已解决）再继续。',
   'bad-side': '这次没有给出可用的「选哪一边」，请重新选。',
   'fast-forward-impossible': '这次合并不可能快进（两边历史已经分开）。请改用普通合并，或先在终端里变基。',
+  // —— 变基待办页（#1749）新增的失败理由 ——
+  'update-refs-on': '这个仓库开着 rebase.updateRefs，变基时会顺带挪动其他分支的指针。面板不替你改仓库配置：请先在侧栏终端执行 git config --local rebase.updateRefs false，再回来变基。',
+  'bad-todo': '这次给出的待办清单形状不对（空、有重复提交号、或某个提交不在待办窗口里）。请刷新待办窗口后重新排。',
+  'todo-too-long': '待办清单最多一次排 200 行，请分批处理。',
+  'todo-mismatch': '待办窗口在你排完之后又变了（基座或分支动过），这次重放会和你看的不一样。请刷新待办窗口重新排。',
+  'missing-message': '有要改说明的提交没有填新说明。请逐条填好再点。',
+  'bad-action': '待办里有一个面板不提供的小动作（面板只做保留、改说明、压缩、丢弃与上下移动）。请刷新待办窗口。',
   'unknown-write-failure': 'git 报了一个我们没归类的失败；上面那行是它的原话。',
 }
 

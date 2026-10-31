@@ -78,12 +78,13 @@ async function main() {
   const storeMod = await import(pathToFileURL(path.join(ROOT, 'src/host/versionControlTaskStore.js')).href)
   const runMod = await import(pathToFileURL(path.join(ROOT, 'src/host/versionControlTaskRun.js')).href)
 
-  // 一、长任务清单：票面点名十七种动作一个不少，且全是纯协议常量（不散落在界面或宿主判断里）。
-  const wantOps = ['clone', 'fetch', 'pull', 'push', 'submodule-init', 'submodule-update', 'archive', 'bundle',
-    'format-patch', 'fast-export', 'fast-import', 'filter-repo', 'svn-fetch', 'gc', 'prune', 'fsck', 'maintenance-run']
+  // 一、长任务清单：票面点名二十种动作一个不少（#1757 加了子模块新增/抓取/更新到远端三条），且全是纯协议常量（不散落在界面或宿主判断里）。
+  const wantOps = ['clone', 'fetch', 'pull', 'push', 'submodule-init', 'submodule-update', 'submodule-add',
+    'submodule-fetch', 'submodule-remote-update', 'archive', 'bundle', 'format-patch', 'fast-export', 'fast-import',
+    'filter-repo', 'svn-fetch', 'gc', 'prune', 'fsck', 'maintenance-run']
   check(Array.isArray(proto.TASK_OPS), '协议导出 TASK_OPS 数组')
   const gotOps = proto.TASK_OPS.map((o) => o.id)
-  check(wantOps.every((id) => gotOps.indexOf(id) >= 0), '十七种长任务全部登记（实得 ' + gotOps.join('、') + '）')
+  check(wantOps.every((id) => gotOps.indexOf(id) >= 0), '二十种长任务全部登记（实得 ' + gotOps.join('、') + '）')
   check(gotOps.every((id) => wantOps.indexOf(id) >= 0), '长任务清单不许扩成任意命令执行（多余 ' + gotOps.filter((id) => wantOps.indexOf(id) < 0).join('、') + '）')
   check(proto.TASK_CONCLUSIONS.join('|') === 'succeeded|failed|cancelled|interrupted', '四类结论字面固定为成功/失败/取消/中断')
   check(proto.isTaskOp('clone') === true && proto.isTaskOp('status') === false, 'isTaskOp 只认清单内的动作')
@@ -328,7 +329,7 @@ async function main() {
   const TASK_TIMEOUT_CONSTS = ['VC_TASK_POLL_INTERVAL_MS', 'VC_TASK_CANCEL_GRACE_MS', 'VC_TASK_HARD_KILL_MS']
   const registrationProblems = (tx) => {
     const problems = []
-    // 1 操作枚举：十七种动作都在协议的 TASK_OPS 里，不许另外再写一份清单。
+    // 1 操作枚举：二十种动作都在协议的 TASK_OPS 里，不许另外再写一份清单。
     if (!wantOps.every((id) => tx.protocol.indexOf('meta(\'' + id + '\'') >= 0)) problems.push('op-enum')
     // 2 判定分支：运行器按动作元数据决定行为，认不出的动作必须落到 unknown-op。
     if (tx.runner.indexOf('taskOpMetaOf(req.op)') < 0 || tx.runner.indexOf('unknown-op') < 0) problems.push('decision-branch')

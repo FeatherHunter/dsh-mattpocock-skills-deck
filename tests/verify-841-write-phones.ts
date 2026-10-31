@@ -1,4 +1,4 @@
-// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–K 十一组，每组带反证；J 组是 #1752 工作树页的写通道，K 组是 #1747 冲突向导的写通道。
+// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–O 十五组，每组带反证；J 组是 #1752 工作树页的写通道，K 组是 #1755 同步域与 #1747 冲突向导的写通道，L 组是 #1743 提交页，M 组是 #1748 历史改写五条动作的写通道，N 组是 #1757 子模块页的写与任务通道，O 组是 #1749 变基待办页的读 / 预检 / 凭票执行三电话。
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-841-write-phones.ts
 // 夹具：真 git 临时仓库（每个用例自己造）+ 真 subprocess 形状的垫片（argv 直传、不经 shell），
 // 这样「真跑过的 argv」与「真仓库有没有被动过」都能断言；只在纯归类那组不碰 git。
@@ -610,6 +610,60 @@ async function main(): Promise<void> {
   check(kLogs.length > 0 && logs.every((l) => ['git.exec', 'git.exec.fail', 'host.call', 'host.call.fail'].indexOf(l.event) >= 0), 'K10 同步预检走既有日志事件：host.call 记下电话名，没有新事件名')
   check(denyIs({ ok: true, ticketId: 'x' }, 'ticket-missing') === false, 'K11 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
 
+  // N 子模块页（#1757）：预检签票 → 写通道凭票执行 / 任务通道凭票转任务；伪造、过期、缺确认、现场不符都必须零进程。
+  console.log('N 子模块页写与任务两条电话（#1757）')
+  const subSrcN = mkRepo('ks')
+  const rN = mkRepo('k')
+  // 真子模块才验得出「配置真的变了、目录真的可能被移动」；本机 file 协议默认关闭，只在这一次命令上放开。
+  const subAddN = git(rN, ['-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', subSrcN, 'libs/lib'])
+  if (subAddN.code !== 0) throw new Error('造真子模块失败：' + subAddN.err)
+  git(rN, ['commit', '-q', '-m', '加入子模块'])
+  const vcN = makeVc()
+  // 只有真正动配置/目录的子命令算写；预检读的 status / config / rev-parse 不算。
+  const SUB_WRITE_SUBS = ['set-url', 'sync', 'set-branch', 'deinit', 'absorbgitdirs']
+  const submoduleWrites = (): string[][] => spawns.filter((a) => { const c = after(a); return c[0] === 'submodule' && SUB_WRITE_SUBS.indexOf(c[1]) >= 0 })
+  const taskSpawnsN = (): string[][] => spawns.filter((a) => { const c = after(a); return c[0] === 'submodule' && c[1] === 'update' })
+  check(typeof vcN.handleGitSubmodules === 'function' && typeof vcN.handleGitSubmoduleCheck === 'function' && typeof vcN.handleGitSubmoduleWrite === 'function' && typeof vcN.handleGitSubmoduleTask === 'function', 'N1 子模块四条电话都挂在同一个宿主对象上（读数 / 预检 / 凭票执行 / 凭票转任务）')
+  const nBoard = await vcN.handleGitSubmodules({ cwd: rN })
+  check(nBoard.ok === true && nBoard.contract === 'version-control.submodule-board' && nBoard.version === 1 && Array.isArray(nBoard.rows) && nBoard.rows.length === 1 && nBoard.rows[0].path === 'libs/lib' && nBoard.counts.total === 1 && submoduleWrites().length === 0, 'N2 读数电话回契约 version-control.submodule-board / 版本 1，真子模块出现在行里，且一条写命令都没起')
+  const nPre = await vcN.handleGitSubmoduleCheck({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git' })
+  check(nPre.ok === true && nPre.ticket && nPre.ticket.op === 'set-url' && nPre.confirmRequired === true && nPre.decision === 'allow' && submoduleWrites().length === 0, 'N3 预检改地址：放行 + 签票（需要确认），一条写命令都没起')
+  const nCount1 = spawns.length
+  const subForged = await vcN.handleGitSubmoduleWrite({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git', ticketId: 'NOSUCHTICKET', requestId: 'k-req-forged', confirmed: true })
+  check(denyIs(subForged, 'ticket-missing') && spawns.length === nCount1, 'N4 伪造票：ticket-missing 且零进程（纯判定先行）')
+  const nCount2 = spawns.length
+  const nNoConfirm = await vcN.handleGitSubmoduleWrite({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git', ticketId: nPre.ticket.id, requestId: 'k-req-noconfirm' })
+  check(nNoConfirm.ok === false && nNoConfirm.error.reason === 'confirm-required' && spawns.length === nCount2, 'N5 没带显式确认：confirm-required 且零进程')
+  clock.t = nPre.ticket.expiresAtMs + 1
+  const nCount3 = spawns.length
+  const subExpired = await vcN.handleGitSubmoduleWrite({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git', ticketId: nPre.ticket.id, requestId: 'k-req-expired', confirmed: true })
+  clock.t = 1000
+  check(subExpired.ok === false && subExpired.error.reason === 'ticket-expired' && spawns.length === nCount3, 'N6 过期票：ticket-expired 且零进程（不自动重签、不重放）')
+  const nPre2 = await vcN.handleGitSubmoduleCheck({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git' })
+  const nBefore = submoduleWrites().length
+  const nSet = await vcN.handleGitSubmoduleWrite({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git', ticketId: nPre2.ticket.id, requestId: 'k-req-set-url', confirmed: true })
+  const nSetArgv = after(submoduleWrites()[nBefore] || [])
+  check(nSet.ok === true && nSet.kind === 'git-submodule-write' && nSet.n === 1 && submoduleWrites().length === nBefore + 1 && nSetArgv.join(' ') === 'submodule set-url -- libs/lib https://example.com/lib2.git', 'N7 凭票改地址：成功一次只起一条写命令，argv 逐元素（submodule set-url -- <路径> <地址>）')
+  check(git(rN, ['config', '-f', '.gitmodules', '--get', 'submodule.libs/lib.url']).out === 'https://example.com/lib2.git', 'N8 改地址真的落到 .gitmodules（真仓库状态变了，不是只回了成功包）')
+  // 仓库根由宿主从 git rev-parse 读回来（斜杠方向与大小写都可能与 mkdtemp 的写法不同），比对前先归成真实路径。
+  const sameRealPath = (a: string, b: string): boolean => { try { return fs.realpathSync(a).replace(/\\/g, '/').toLowerCase() === fs.realpathSync(b).replace(/\\/g, '/').toLowerCase() } catch (e) { return false } }
+  const nCwdOk = requests.filter((q) => { const c = after(q.argv); return c[0] === 'submodule' && SUB_WRITE_SUBS.indexOf(c[1]) >= 0 }).every((q) => sameRealPath(q.cwd, rN))
+  check(nCwdOk, 'N9 每一条子模块写命令的 cwd 都钉在票据那个仓库上')
+  const subReplay = await vcN.handleGitSubmoduleWrite({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git', ticketId: 'NOSUCH', requestId: 'k-req-set-url', confirmed: true })
+  check(JSON.stringify(subReplay) === JSON.stringify(nSet) && submoduleWrites().length === nBefore + 1, 'N10 同一个请求号重放：回同一份结果、不再起第二条写命令（重复点按钮不会重复写配置）')
+  const nAbsorb = await vcN.handleGitSubmoduleCheck({ cwd: rN, op: 'absorb', path: 'libs/lib' })
+  check(nAbsorb.ok === false && nAbsorb.error.kind === 'blocked' && nAbsorb.error.reason === 'nothing-to-absorb' && submoduleWrites().length === nBefore + 1, 'N11 吸收 .git 受控：真子模块的 .git 已经吸收过，预检如实拦成 nothing-to-absorb、零写命令（不无脑动目录）')
+  const nTaskPre = await vcN.handleGitSubmoduleCheck({ cwd: rN, op: 'init', path: 'libs/lib' })
+  check(nTaskPre.ok === true && nTaskPre.plan && nTaskPre.plan.kind === 'task' && nTaskPre.task && nTaskPre.task.op === 'submodule-init' && nTaskPre.confirmRequired === true, 'N12 预检「初始化并检出」：计划是长任务、任务动作 submodule-init，需要确认（10.2/10.3 走任务通道）')
+  const nTaskCount = taskSpawnsN().length
+  const nTaskForged = await vcN.handleGitSubmoduleTask({ cwd: rN, op: 'init', ticketId: 'NOSUCHTICKET', requestId: 'k-task-forged', confirmed: true })
+  check(denyIs(nTaskForged, 'ticket-missing') && taskSpawnsN().length === nTaskCount, 'N13 任务电话伪造票：ticket-missing 且零任务进程')
+  const nTaskPre2 = await vcN.handleGitSubmoduleCheck({ cwd: rN, op: 'init', path: 'libs/lib' })
+  const nTask = await vcN.handleGitSubmoduleTask({ cwd: rN, op: 'init', ticketId: nTaskPre2.ticket.id, requestId: 'k-req-task-init', confirmed: true })
+  const nInitArgv = after(taskSpawnsN().pop() || [])
+  check(nTask.ok === true && nTask.task && nTask.task.op === 'submodule-init' && nInitArgv.join(' ') === 'submodule update --init --recursive -- libs/lib', 'N14 凭票「初始化并检出」：真起长任务 submodule update --init --recursive -- <路径>（客户端参数不采信）')
+  check(submoduleWrites().every((a) => a.indexOf('--force') < 0 && a.indexOf('-f') < 0), 'N15 本组所有子模块写命令都不带 --force / -f（边界：面板不提供强制开关）')
+  check(denyIs({ ok: true, kind: 'git-submodule-write' }, 'ticket-missing') === false, 'N16 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
 
   // L 提交页域 2（#1743）：八条提交能力共用一份计划真源，危险动作靠 planDigest 绑票，失败分类不落 unknown。
   console.log('L 提交页八条能力（计划绑定 / 危险动作 / 失败分类）')
@@ -690,74 +744,231 @@ async function main(): Promise<void> {
   const lFail = await vcL7.handleGitCommit({ cwd: rL7, ticketId: lFailCheck.ok ? lFailCheck.ticket.id : 'x', requestId: 'i-r7', message: '签名提交', plan: lFailPlan })
   check(lFail.ok === false && lFail.error && lFail.error.reason === 'signing-failed' && Object.keys(lFail.error).sort().join(',') === 'hint,kind,message,reason', 'L15 2.6 签名失败归到 signing-failed（不是 unknown-write-failure），失败信封固定 {kind,reason,message,hint}')
 
-  // K 配置与钩子域 12（#1760）：身份两键可写、作用域反推、其余键只读；手动跑钩子凭 2.36 版本门后的票执行。
+  // M 历史改写五条动作（#1748）：票据门四档拒绝必须零写命令；三种重置 argv 分明；还原两步、拣选一条命令保序。
+  console.log('M 历史改写五条动作（票据门 / 危险档恢复点 / 还原两步 / 拣选保序）')
+  // 只数「真正会被 git 执行的历史改写命令」，预检与重验读出来的 status/log/rev-parse 不算写。
+  const undoWrites = (): string[][] => spawns.filter((a) => ['reset', 'revert', 'cherry-pick'].indexOf(after(a)[0]) >= 0)
+  // 造一条三条提交的历史（mkRepo 只给一条，重置/还原要能往回走）。
+  function mkHistory(tag: string): string {
+    const base = mkRepo(tag)
+    git(base, ['commit', '-q', '-m', '第二笔'])
+    fs.writeFileSync(path.join(base, 'b.txt'), 'b\n'); git(base, ['add', 'b.txt']); git(base, ['commit', '-q', '-m', '第三笔'])
+    return base
+  }
+  const rUndo = mkHistory('m')
+  const vcUndo = makeVc()
+  const mHead = git(rUndo, ['rev-parse', 'HEAD']).out
+  const mSoft = await vcUndo.handleGitUndoCheck({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1' })
+  check(mSoft.ok === true && mSoft.ticket && mSoft.ticket.op === 'reset-soft' && mSoft.steps.length === 1 && mSoft.steps[0].join(' ') === 'reset --soft ' + git(rUndo, ['rev-parse', 'HEAD~1']).out, 'M1 软重置预检：回一张 reset-soft 票，命令计划只有「reset --soft <目标提交>」一条')
+  const mNoProcess = spawns.length
+  const mFake = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1', ticketId: 'NOSUCHTICKET', requestId: 'm-fake' })
+  check(mFake.ok === false && mFake.error.reason === 'ticket-missing' && undoWrites().length === 0 && spawns.length === mNoProcess, 'M2 伪造票：ticket-missing 且一个进程都没起（票据门在任何 git 命令之前）')
+  clock.t = mSoft.ticket.expiresAtMs + 1
+  const mNoProcess2 = spawns.length
+  const mExpired = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1', ticketId: mSoft.ticket.id, requestId: 'm-expired' })
+  clock.t = 1000
+  check(mExpired.ok === false && mExpired.error.kind === 'stale' && mExpired.error.reason === 'ticket-expired' && undoWrites().length === 0 && spawns.length === mNoProcess2, 'M3 过期票：stale / ticket-expired 且零写命令（120 秒有效期照票据堂的同一把尺）')
+  const mNoProcess3 = spawns.length
+  const mSwapU = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-hard', target: 'HEAD~1', ticketId: mSoft.ticket.id, requestId: 'm-swap' })
+  check(mSwapU.ok === false && mSwapU.error.kind === 'stale' && mSwapU.error.reason === 'ticket-op-mismatch' && undoWrites().length === 0 && spawns.length === mNoProcess3, 'M4 换动作（软重置的票拿去硬重置）：ticket-op-mismatch 且零写命令')
+  const mNoProcess4 = spawns.length
+  const mBadReq = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1', ticketId: mSoft.ticket.id, requestId: 'bad id!' })
+  check(mBadReq.ok === false && mBadReq.error.kind === 'usage' && undoWrites().length === 0 && spawns.length === mNoProcess4, 'M5 请求号形状不对：usage 拒绝且零写命令（重放表的键先过形状关）')
+  const mSoftRun = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1', ticketId: mSoft.ticket.id, requestId: 'm-soft-1' })
+  const mSoftArgv = after(undoWrites()[0] || [])
+  check(mSoftRun.ok === true && mSoftRun.before.headOid === mHead && mSoftRun.after.headOid === git(rUndo, ['rev-parse', 'HEAD']).out && mSoftArgv.join(' ') === 'reset --soft ' + mSoftRun.after.headOid, 'M6 软重置成功：HEAD 退回上一笔、改动留在已暂存，argv 是「reset --soft <目标提交>」（一个写命令、不动工作区）')
+  const mReplayWrites = undoWrites().length
+  const mReplay = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-hard', target: 'HEAD', ticketId: 'NOSUCHTICKET', requestId: 'm-soft-1' })
+  check(mReplay.ok === true && mReplay.replayed === true && mReplay.after.headOid === mSoftRun.after.headOid && undoWrites().length === mReplayWrites, 'M7 同一个请求号重放：回第一次那份结果、不再起第二条写命令（连点两下确认不会重置两次）')
+  const mStaleCheck = await vcUndo.handleGitUndoCheck({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1' })
+  git(rUndo, ['commit', '-q', '-m', '预检后又提交了一笔'])
+  const mStaleWrites = undoWrites().length
+  const mStaleHead = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1', ticketId: mStaleCheck.ticket.id, requestId: 'm-stale-head' })
+  check(mStaleHead.ok === false && mStaleHead.error.kind === 'stale' && mStaleHead.error.reason === 'stale-head' && undoWrites().length === mStaleWrites, 'M8 票据签完后 HEAD 换了一条：stale-head、零写命令（不把旧判断套到新现场）')
+  const rM9 = mkHistory('m9')
+  const vcM9 = makeVc()
+  const mIndexCheck = await vcM9.handleGitUndoCheck({ cwd: rM9, op: 'reset-soft', target: 'HEAD~1' })
+  fs.appendFileSync(path.join(rM9, 'a.txt'), '预检后新改的一行\n')
+  const mIndexWrites = undoWrites().length
+  const mIndex = await vcM9.handleGitUndoWrite({ cwd: rM9, op: 'reset-soft', target: 'HEAD~1', ticketId: mIndexCheck.ticket.id, requestId: 'm-stale-index' })
+  check(mIndex.ok === false && mIndex.error.kind === 'stale' && mIndex.error.reason === 'stale-index' && undoWrites().length === mIndexWrites, 'M9 票据签完后工作区又改了：stale-index、零写命令（确认卡上的形状变了就重新来）')
+  const rM10 = mkHistory('m10')
+  const vcM10 = makeVc()
+  const mHardCheck = await vcM10.handleGitUndoCheck({ cwd: rM10, op: 'reset-hard', target: 'HEAD~1' })
+  check(mHardCheck.ok === true && mHardCheck.danger === true && mHardCheck.recovery && mHardCheck.recovery.restore.reflogBefore === 'HEAD@{0}' && Number(mHardCheck.recovery.discard.files) >= 1 && mHardCheck.recovery.commits === 1, 'M10 硬重置预检：标危险档并给出恢复点（将丢的文件数、会被移出历史的提交数、reflog 位置）')
+  const mHardRun = await vcM10.handleGitUndoWrite({ cwd: rM10, op: 'reset-hard', target: 'HEAD~1', ticketId: mHardCheck.ticket.id, requestId: 'm-hard-1' })
+  const mHardArgv = after(undoWrites()[undoWrites().length - 1] || [])
+  check(mHardRun.ok === true && mHardRun.danger === true && mHardRun.recovery && mHardRun.recovery.restore.reflogBefore === 'HEAD@{0}' && mHardArgv.join(' ') === 'reset --hard ' + mHardRun.after.headOid && git(rM10, ['status', '--porcelain']).out === '', 'M11 硬重置成功：argv 是「reset --hard <目标提交>」，回包把恢复点原样交回（对可逆边界说真话）')
+  const rM12 = mkHistory('m12')
+  const vcM12 = makeVc()
+  const mRevCheck = await vcM12.handleGitUndoCheck({ cwd: rM12, op: 'revert', target: 'HEAD' })
+  check(mRevCheck.ok === true && mRevCheck.defaultMessage === 'Revert "第三笔"' && mRevCheck.steps.length === 2 && mRevCheck.steps[0].join(' ').indexOf('revert --no-commit ') === 0 && mRevCheck.steps[1].slice(0, 2).join(' ') === 'commit -m', 'M12 还原提交预检：默认说明按 git 惯例写「Revert "原标题"」，计划是「revert --no-commit」再「commit -m」两步')
+  const mRevRun = await vcM12.handleGitUndoWrite({ cwd: rM12, op: 'revert', target: 'HEAD', ticketId: mRevCheck.ticket.id, requestId: 'm-revert-1' })
+  const mRevParents = git(rM12, ['log', '-1', '--format=%P']).out.split(' ')
+  check(mRevRun.ok === true && mRevRun.stepsDone === 2 && git(rM12, ['log', '-1', '--format=%s']).out === 'Revert "第三笔"' && mRevParents.length === 1 && mRevParents[0] === mRevRun.before.headOid, 'M13 还原提交成功：反向改动真的成了一条新提交（说明可编辑、父提交指向被还原的那条）')
+  const rM14 = mkRepo('m14')
+  git(rM14, ['commit', '-q', '-m', '基线二'])
+  git(rM14, ['checkout', '-q', '-b', 'feat'])
+  fs.writeFileSync(path.join(rM14, 'f1.txt'), '1\n'); git(rM14, ['add', 'f1.txt']); git(rM14, ['commit', '-q', '-m', '拣选甲'])
+  fs.writeFileSync(path.join(rM14, 'f2.txt'), '2\n'); git(rM14, ['add', 'f2.txt']); git(rM14, ['commit', '-q', '-m', '拣选乙'])
+  const picks = git(rM14, ['log', '--reverse', '--format=%H', 'main..feat']).out.split('\n').filter((x) => x !== '')
+  git(rM14, ['checkout', '-q', 'main'])
+  const vcM14 = makeVc()
+  const mPickCheck = await vcM14.handleGitUndoCheck({ cwd: rM14, op: 'cherry-pick', commits: picks })
+  check(mPickCheck.ok === true && mPickCheck.plan.commits.length === 2 && mPickCheck.steps.length === 1 && mPickCheck.steps[0].join(' ') === 'cherry-pick ' + picks.join(' '), 'M14 拣选多选预检：一条命令按原序带上全部提交（乱序就换个结果，故次序写进票据）')
+  const mPickBase = undoWrites().length
+  const mPickRun = await vcM14.handleGitUndoWrite({ cwd: rM14, op: 'cherry-pick', commits: picks, ticketId: mPickCheck.ticket.id, requestId: 'm-pick-1' })
+  const mPickNew = undoWrites().slice(mPickBase)
+  const mPickOrder = git(rM14, ['log', '--reverse', '-2', '--format=%s']).out.split('\n')
+  check(mPickRun.ok === true && mPickNew.length === 1 && after(mPickNew[0] || []).join(' ') === 'cherry-pick ' + picks.join(' ') && mPickOrder.join('|') === '拣选甲|拣选乙', 'M15 拣选成功：只起一条 cherry-pick 命令，日志里两条提交的先后与预检时给的次序一致（原序落进历史）')
+  check(denyIs({ ok: true, requestId: 'x' }, 'usage') === false, 'M16 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
+
+  // O 组：#1749 变基待办三电话（读 / 预检签票 / 凭票执行）—— 真仓库里跑一次「丢提交」的最小变基。
+  console.log('O 变基待办电话（#1749）')
+  const vcO = makeVc()
+  check(typeof vcO.handleGitRebaseRead === 'function' && typeof vcO.handleGitRebaseCheck === 'function' && typeof vcO.handleGitRebaseWrite === 'function', 'O1 变基待办读 / 预检 / 执行三条电话都挂在同一个宿主对象上')
+  check(typeof vcO.rebaseTickets === 'function', 'O2 变基票表读取口只给门禁与测试，不注册成电话')
+  const rO = mkRepo('n')
+  git(rO, ['commit', '-q', '-m', 'c1'])
+  fs.writeFileSync(path.join(rO, 'b.txt'), 'b\n'); git(rO, ['add', '-A']); git(rO, ['commit', '-q', '-m', 'c2'])
+  fs.writeFileSync(path.join(rO, 'c.txt'), 'c\n'); git(rO, ['add', '-A']); git(rO, ['commit', '-q', '-m', 'c3'])
+  const oBase = git(rO, ['rev-parse', 'HEAD~2']).out
+  const oOid2 = git(rO, ['rev-parse', 'HEAD~1']).out
+  const oOid3 = git(rO, ['rev-parse', 'HEAD']).out
+  const oRows = [{ oid: oOid2, action: 'pick' }, { oid: oOid3, action: 'drop' }]
+  const oBefore = spawns.length
+  const oBadCwd = await vcO.handleGitRebaseCheck({ cwd: '', op: 'rebase-todo', base: oBase, rows: oRows })
+  check(oBadCwd.ok === false && oBadCwd.reason === 'bad-target' && spawns.length === oBefore, 'O3 不给仓库目录时预检直接回 bad-target，一个进程都不起')
+  const oPre = await vcO.handleGitRebaseCheck({ cwd: rO, op: 'rebase-todo', base: oBase, rows: oRows })
+  check(oPre.ok === true && !!oPre.ticket && oPre.ticket.expiresAtMs - oPre.ticket.checkedAtMs === 120000, 'O4 预检交互式变基：按面板给的待办签 120 秒票（丢最后一个提交）')
+  const oBeforeFake = spawns.length
+  const oFake = await vcO.handleGitRebaseWrite({ cwd: rO, op: 'rebase-todo', base: oBase, rows: oRows, ticketId: 'NOSUCHTICKET', requestId: 'req-841-n1', confirmed: true })
+  check(oFake.ok === false && oFake.error.reason === 'ticket-missing' && spawns.length === oBeforeFake, 'O5 伪造票：ticket-missing 且一个进程都没起')
+  const oWrite = await vcO.handleGitRebaseWrite({ cwd: rO, op: 'rebase-todo', base: oBase, rows: oRows, ticketId: oPre.ticket.id, requestId: 'req-841-n2', confirmed: true })
+  const oCount = Number(git(rO, ['rev-list', '--count', 'HEAD']).out)
+  const oSeq = requests.filter((q) => after(q.argv)[0] === 'rebase')[0]
+  check(oWrite.ok === true && oWrite.conflicted === false && oCount === 3, 'O6 凭票执行最小交互式变基：按面板待办丢掉一个提交（历史从 4 条变 3 条），回包说成功且没停在冲突里')
+  check(!!oSeq && after(oSeq.argv).slice(0, 2).join(',') === 'rebase,-i' && typeof oSeq.env.GIT_SEQUENCE_EDITOR === 'string' && oSeq.env.GIT_SEQUENCE_EDITOR.indexOf('cp ') === 0, 'O7 变基那一条命令的 argv 里 -i 独立成项，待办靠 GIT_SEQUENCE_EDITOR 的 cp 覆盖进去（不弹编辑器）')
+  check(typeof vcO.handleGitRebaseRead === 'function' && (await vcO.handleGitRebaseRead({ cwd: rO, op: 'rebase-state' })).ok === true, 'O8 变基读电话可用：变基完成后读状态照常回包（走同一条读路径）')
+
+  // P 组：#1759 迁移与备份域（11.1 / 11.12 / 11.13 / 5.13）—— init 直接执行，其余动作凭票交给长任务通道。
+  console.log('P 迁移与备份（真仓库）')
+  const t23NDeny = (r, reason) => !!(r && r.ok === false && r.reason === reason)
+  const t23VcN = makeVc()
+  check(typeof t23VcN.handleGitMigrateCheck === 'function' && typeof t23VcN.handleGitMigrateWrite === 'function', 'P1 迁移预检与执行两条电话挂在同一个宿主对象上')
+  const t23NInitDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws841-init-'))
+  const t23NInitCheck = await t23VcN.handleGitMigrateCheck({ cwd: t23NInitDir, action: 'init', path: t23NInitDir, branch: 'main' })
+  check(t23NInitCheck.ok === true && !!t23NInitCheck.ticket && t23NInitCheck.ticket.op === 'init' && t23NInitCheck.decision === 'allow' && t23NInitCheck.confirmRequired === false, 'P2 空目录初始化预检成功：签一张 init 票、放行且不需要确认（目录本来就是空的）')
+  const t23NInit = await t23VcN.handleGitMigrateWrite({ cwd: t23NInitDir, action: 'init', ticketId: t23NInitCheck.ticket.id, requestId: 'n-req-init', confirmed: true })
+  check(t23NInit.ok === true && t23NInit.init && t23NInit.init.created === true && fs.existsSync(path.join(t23NInitDir, '.git')) && git(t23NInitDir, ['symbolic-ref', '--short', 'HEAD']).out === 'main', 'P3 凭票初始化：真建出仓库、初始分支就是签名时写的 main（不用靠建后猜测默认分支）')
+  const t23NRepo = mkRepo('n')
+  const t23VcN2 = makeVc()
+  const t23NOut = path.join(os.tmpdir(), 'dsws841-archive-' + process.pid + '-' + Date.now() + '.tar')
+  const t23NReadBefore = spawns.length
+  const t23NArchive = await t23VcN2.handleGitMigrateCheck({ cwd: t23NRepo, action: 'archive', outputPath: t23NOut, ref: 'HEAD' })
+  check(t23NArchive.ok === true && !!t23NArchive.ticket && t23NArchive.ticket.op === 'archive' && t23NArchive.plan.outputPath === t23NOut, 'P4 归档导出预检成功：签一张 archive 票，产物路径写进票里')
+  check(spawns.slice(t23NReadBefore).every((a) => after(a)[0] !== 'archive'), 'P5 预检只跑读命令：没有起 archive 进程（真正导出留给执行那一步）')
+  const t23NBeforeWrite = spawns.length
+  const t23NForged = await t23VcN2.handleGitMigrateWrite({ cwd: t23NRepo, action: 'archive', ticketId: 'NOSUCHTICKET', requestId: 'n-req-forged', confirmed: true })
+  check(t23NDeny(t23NForged, 'ticket-missing') && spawns.length === t23NBeforeWrite, 'P6 伪造票：ticket-missing 且零进程（执行前不读现场也不起 archive）')
+  const t23NWrite = await t23VcN2.handleGitMigrateWrite({ cwd: t23NRepo, action: 'archive', ticketId: t23NArchive.ticket.id, requestId: 'n-req-archive', confirmed: true })
+  const t23NArchiveArgv = spawns.filter((a) => after(a)[0] === 'archive')[0] || []
+  check(t23NWrite.ok === true && !!t23NWrite.task && t23NWrite.path === t23NOut && after(t23NArchiveArgv).join(' ') === 'archive --format=tar --output=' + t23NOut + ' HEAD', 'P7 凭票导出：只起一条 archive 命令（argv 逐元素独立、产物路径与引用都是独立参数）')
+  const t23NReplay = await t23VcN2.handleGitMigrateWrite({ cwd: t23NRepo, action: 'archive', ticketId: 'NOSUCH', requestId: 'n-req-archive', confirmed: true })
+  check(t23NReplay.ok === true && t23NReplay.reused === true && t23NReplay.result && t23NReplay.result.path === t23NOut, 'P8 同一个请求号重放：回同一份结果、不再起第二条 archive（重复点按钮不会重复导出）')
+  const t23NRepo2 = mkRepo('n2')
+  const t23VcN3 = makeVc()
+  const t23NOut2 = path.join(os.tmpdir(), 'dsws841-archive2-' + process.pid + '-' + Date.now() + '.tar')
+  const t23NArchive2 = await t23VcN3.handleGitMigrateCheck({ cwd: t23NRepo2, action: 'archive', outputPath: t23NOut2 })
+  git(t23NRepo2, ['commit', '-q', '--allow-empty', '-m', '预检之后别的进程提交了'])
+  const t23NArchSpawns = spawns.filter((a) => after(a)[0] === 'archive').length
+  const t23NStale = await t23VcN3.handleGitMigrateWrite({ cwd: t23NRepo2, action: 'archive', ticketId: t23NArchive2.ticket.id, requestId: 'n-req-stale', confirmed: true })
+  check(t23NDeny(t23NStale, 'stale-head') && spawns.filter((a) => after(a)[0] === 'archive').length === t23NArchSpawns, 'P9 预检之后 HEAD 动了：stale-head 且零 archive 命令（不把旧判断套到新现场）')
+  const t23NRepo3 = mkRepo('n3')
+  const t23VcN4 = makeVc()
+  const t23NTarget = path.join(os.tmpdir(), 'dsws841-import-' + process.pid + '-' + Date.now())
+  const t23NInput = path.join(os.tmpdir(), 'dsws841-hist-' + process.pid + '.fi')
+  fs.writeFileSync(t23NInput, 'PACK\ndata 0\n')
+  const t23NImportCheck = await t23VcN4.handleGitMigrateCheck({ cwd: t23NRepo3, action: 'fast-import', targetPath: t23NTarget, filePath: t23NInput, branch: 'main' })
+  check(t23NImportCheck.ok === true && t23NImportCheck.confirmRequired === true && t23NImportCheck.plan.pathAbsent.indexOf(t23NTarget) >= 0 && t23NImportCheck.plan.input && t23NImportCheck.plan.input.sha256, 'P10 历史导入预检：需要确认，目标路径登记为「必须不存在」，输入文件的大小与摘要写进票里')
+  const t23NNoConfirm = await t23VcN4.handleGitMigrateWrite({ cwd: t23NRepo3, action: 'fast-import', ticketId: t23NImportCheck.ticket.id, requestId: 'n-req-noconfirm' })
+  check(t23NDeny(t23NNoConfirm, 'need-confirm') && fs.existsSync(t23NTarget) === false, 'P11 没带显式确认：need-confirm 且目标目录都没建（确认卡先给用户看）')
+  const t23NImport = await t23VcN4.handleGitMigrateWrite({ cwd: t23NRepo3, action: 'fast-import', ticketId: t23NImportCheck.ticket.id, requestId: 'n-req-import', confirmed: true })
+  const t23NImportSpawn = spawns.filter((a) => after(a)[0] === 'fast-import')[0] || []
+  const t23NImportReq = requests.filter((q) => after(q.argv)[0] === 'fast-import')[0] || null
+  check(t23NImport.ok === true && fs.existsSync(t23NTarget) === true && git(t23NTarget, ['rev-parse', '--is-inside-work-tree']).out === 'true', 'P12 确认后先建新目录并 init，再导入：目标目录是这次新建的仓库（绝不覆盖已有仓库）')
+  check(after(t23NImportSpawn).join(' ') === 'fast-import --quiet' && !!t23NImportReq && t23NImportReq.stdio && t23NImportReq.stdio.stdin === 'pipe' && t23NImportReq.cwd === t23NTarget, 'P13 导入命令走标准输入通道：argv 是 fast-import --quiet，文件流经管道送进新仓库，不经过 shell')
+  check(typeof t23NForged.error === 'object' && typeof t23NForged.error.kind === 'string' && typeof t23NForged.error.message === 'string' && typeof t23NForged.reason === 'string', 'P14 拒绝信封固定三段：kind、message 与顶层 reason 都给了（界面能分流程也能说人话）')
+  check(t23NDeny({ ok: true, reused: true }, 'ticket-missing') === false, 'P15 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
+
+  // Q 配置与钩子域 12（#1760）：身份两键可写、作用域反推、其余键只读；手动跑钩子凭 2.36 版本门后的票执行。
   // 本组只认真跑：真仓库、真 git、真的 argv；零命令拒绝一律数「配置写或钩子运行」的进程条数。
-  console.log('K 配置与钩子八条（身份两键 / 只读边界 / 2.36 版本门 / 凭票执行）')
+  console.log('Q 配置与钩子八条（身份两键 / 只读边界 / 2.36 版本门 / 凭票执行）')
   const cfgRK = mkRepo('k')
   const configWrites = (): string[][] => spawns.filter((a) => { const cfgC = after(a); return cfgC[0] === 'config' && (cfgC[1] === '--local' || cfgC[1] === '--global') })
   const hookRuns = (): string[][] => spawns.filter((a) => { const cfgC = after(a); return cfgC[0] === 'hook' && cfgC[1] === 'run' })
   const cfgVcK = makeVc()
   const kRead = await cfgVcK.handleGitConfigRead({ cwd: cfgRK })
   const kNameRow = kRead && Array.isArray(kRead.groups) ? kRead.groups.filter((g: any) => g.key === 'user.name')[0] : null
-  check(kRead.ok === true && kRead.contract === 'version-control.config-read' && !!kNameRow && kNameRow.value === 'x' && kNameRow.scope === 'local', 'K1 读配置真跑：身份键的值与作用域都从 --show-origin 反推（真仓库里 user.name 是 x、作用域 local）')
-  check(kRead.ok === true && Array.isArray(kRead.entries) && kRead.entries.length === 8, 'K2 八条能力的读法随读数一起回来（12.1–12.8 各一条，界面不另写命令清单）')
+  check(kRead.ok === true && kRead.contract === 'version-control.config-read' && !!kNameRow && kNameRow.value === 'x' && kNameRow.scope === 'local', 'Q1 读配置真跑：身份键的值与作用域都从 --show-origin 反推（真仓库里 user.name 是 x、作用域 local）')
+  check(kRead.ok === true && Array.isArray(kRead.entries) && kRead.entries.length === 8, 'Q2 八条能力的读法随读数一起回来（12.1–12.8 各一条，界面不另写命令清单）')
   // 12.2 改身份：预检签票，凭票执行一条 config --local。
   const kCheck = await cfgVcK.handleGitConfigCheck({ cwd: cfgRK, op: 'config-set', key: 'user.name', scope: 'local', value: '新名字' })
-  check(kCheck.ok === true && kCheck.ticket && kCheck.ticket.id && kCheck.confirmRequired === false, 'K3 12.2 预检签票（改身份不需要二次确认）')
+  check(kCheck.ok === true && kCheck.ticket && kCheck.ticket.id && kCheck.confirmRequired === false, 'Q3 12.2 预检签票（改身份不需要二次确认）')
   const kWriteSpawns0 = configWrites().length
   const kWrite = await cfgVcK.handleGitConfigWrite({ cwd: cfgRK, ticketId: kCheck.ok ? kCheck.ticket.id : 'x', requestId: 'k-r1', op: 'config-set' })
   const kArgv = after(configWrites()[kWriteSpawns0] || [])
-  check(kWrite.ok === true && kWrite.oldValue === 'x' && kWrite.newValue === '新名字', 'K4 12.2 执行成功并回旧值与新值（界面显示的是真的改前改后）')
+  check(kWrite.ok === true && kWrite.oldValue === 'x' && kWrite.newValue === '新名字', 'Q4 12.2 执行成功并回旧值与新值（界面显示的是真的改前改后）')
   // cwd 比大小写与斜杠方向：本机 git 会把 D:\Temp 规范成 D:/temp，两边必须用同一份写法（照 #1752 造工作树那条注释的口径）。
   const kFlat = (p: any): string => String(p || '').toLowerCase().replace(/\\/g, '/')
   const kWriteCwds = requests.filter((q) => after(q.argv)[0] === 'config' && after(q.argv)[1] === '--local').map((q) => q.cwd)
-  check(kArgv.join(' ') === 'config --local user.name 新名字' && kWriteCwds.length > 0 && kWriteCwds.every((cfgC) => kFlat(cfgC) === kFlat(cfgRK)), 'K5 12.2 的 argv 是「config --local user.name <新值>」且 cwd 钉在票据那个仓库（--local 是默认作用域）')
-  check(git(cfgRK, ['config', '--local', 'user.name']).out.trim() === '新名字', 'K6 12.2 真的落到仓库配置里（用真 git 读回来是新值）')
+  check(kArgv.join(' ') === 'config --local user.name 新名字' && kWriteCwds.length > 0 && kWriteCwds.every((cfgC) => kFlat(cfgC) === kFlat(cfgRK)), 'Q5 12.2 的 argv 是「config --local user.name <新值>」且 cwd 钉在票据那个仓库（--local 是默认作用域）')
+  check(git(cfgRK, ['config', '--local', 'user.name']).out.trim() === '新名字', 'Q6 12.2 真的落到仓库配置里（用真 git 读回来是新值）')
   const kReplaySpawns0 = configWrites().length
   const kReplay = await cfgVcK.handleGitConfigWrite({ cwd: cfgRK, ticketId: kCheck.ok ? kCheck.ticket.id : 'x', requestId: 'k-r1', op: 'config-set' })
-  check(kReplay.ok === true && configWrites().length === kReplaySpawns0, 'K7 同一 requestId 重放只执行一次（没有再起 config 进程，回包仍是那一份）')
+  check(kReplay.ok === true && configWrites().length === kReplaySpawns0, 'Q7 同一 requestId 重放只执行一次（没有再起 config 进程，回包仍是那一份）')
   const kForgedSpawns0 = configWrites().length
   const cfgKForged = await cfgVcK.handleGitConfigWrite({ cwd: cfgRK, ticketId: 'forged-k1', requestId: 'k-r2', op: 'config-set' })
-  check(cfgKForged.ok === false && cfgKForged.error && cfgKForged.error.reason === 'ticket-missing' && configWrites().length === kForgedSpawns0, 'K8 伪造票号拒成 ticket-missing 且零写进程（票只认预检签出来的那一张）')
+  check(cfgKForged.ok === false && cfgKForged.error && cfgKForged.error.reason === 'ticket-missing' && configWrites().length === kForgedSpawns0, 'Q8 伪造票号拒成 ticket-missing 且零写进程（票只认预检签出来的那一张）')
   // 换动作：预检改身份、执行删身份，动作不符零命令。
   const kSwapCheck = await cfgVcK.handleGitConfigCheck({ cwd: cfgRK, op: 'config-set', key: 'user.name', scope: 'local', value: '又一个名字' })
   const kSwapSpawns0 = configWrites().length
   const kSwap = await cfgVcK.handleGitConfigWrite({ cwd: cfgRK, ticketId: kSwapCheck.ok ? kSwapCheck.ticket.id : 'x', requestId: 'k-r3', op: 'config-unset', confirmed: true })
-  check(kSwap.ok === false && kSwap.error && kSwap.error.reason === 'ticket-op-mismatch' && configWrites().length === kSwapSpawns0, 'K9 预检是改身份却按删身份执行：动作不符拒成 ticket-op-mismatch，零写进程')
+  check(kSwap.ok === false && kSwap.error && kSwap.error.reason === 'ticket-op-mismatch' && configWrites().length === kSwapSpawns0, 'Q9 预检是改身份却按删身份执行：动作不符拒成 ticket-op-mismatch，零写进程')
   // 12.3 删身份：必须先确认；不带确认零命令。
   const kUnsetCheck = await cfgVcK.handleGitConfigCheck({ cwd: cfgRK, op: 'config-unset', key: 'user.name', scope: 'local' })
-  check(kUnsetCheck.ok === true && kUnsetCheck.confirmRequired === true, 'K10 12.3 删身份：预检要求二次确认（删了要恢复得重配，确认卡上会写明）')
+  check(kUnsetCheck.ok === true && kUnsetCheck.confirmRequired === true, 'Q10 12.3 删身份：预检要求二次确认（删了要恢复得重配，确认卡上会写明）')
   const kNoConfirmSpawns0 = configWrites().length
   const cfgKNoConfirm = await cfgVcK.handleGitConfigWrite({ cwd: cfgRK, ticketId: kUnsetCheck.ok ? kUnsetCheck.ticket.id : 'x', requestId: 'k-r4', op: 'config-unset' })
-  check(cfgKNoConfirm.ok === false && cfgKNoConfirm.error && cfgKNoConfirm.error.kind === 'need-confirm' && configWrites().length === kNoConfirmSpawns0, 'K11 12.3 不带确认就执行：拒成 need-confirm 且零写进程（绕过确认卡走不通）')
+  check(cfgKNoConfirm.ok === false && cfgKNoConfirm.error && cfgKNoConfirm.error.kind === 'need-confirm' && configWrites().length === kNoConfirmSpawns0, 'Q11 12.3 不带确认就执行：拒成 need-confirm 且零写进程（绕过确认卡走不通）')
   const kStaleCheck = await cfgVcK.handleGitConfigCheck({ cwd: cfgRK, op: 'config-unset', key: 'user.name', scope: 'local' })
   git(cfgRK, ['config', '--local', 'user.name', '别人改的名字'])
   const kStaleSpawns0 = configWrites().length
   const kStale = await cfgVcK.handleGitConfigWrite({ cwd: cfgRK, ticketId: kStaleCheck.ok ? kStaleCheck.ticket.id : 'x', requestId: 'k-r5', op: 'config-unset', confirmed: true })
-  check(kStale.ok === false && kStale.error && kStale.error.reason === 'target-changed' && configWrites().length === kStaleSpawns0, 'K12 预检后配置被别处改掉：凭票执行拒 target-changed、零写进程（票里的旧值绑住了现场）')
+  check(kStale.ok === false && kStale.error && kStale.error.reason === 'target-changed' && configWrites().length === kStaleSpawns0, 'Q12 预检后配置被别处改掉：凭票执行拒 target-changed、零写进程（票里的旧值绑住了现场）')
   const kExpCheck = await cfgVcK.handleGitConfigCheck({ cwd: cfgRK, op: 'config-set', key: 'user.email', scope: 'local', value: 'new@example.com' })
   clock.t += 120001
   const kExpSpawns0 = configWrites().length
   const kExp = await cfgVcK.handleGitConfigWrite({ cwd: cfgRK, ticketId: kExpCheck.ok ? kExpCheck.ticket.id : 'x', requestId: 'k-r6', op: 'config-set' })
-  check(kExp.ok === false && kExp.error && kExp.error.reason === 'ticket-expired' && configWrites().length === kExpSpawns0, 'K13 票过期（预检后 120 秒零 1 毫秒）：拒 ticket-expired、零写进程，提示重新确认')
+  check(kExp.ok === false && kExp.error && kExp.error.reason === 'ticket-expired' && configWrites().length === kExpSpawns0, 'Q13 票过期（预检后 120 秒零 1 毫秒）：拒 ticket-expired、零写进程，提示重新确认')
   // 12.6 手动跑钩子：2.49 上预检签票并要求确认，凭票执行一条 hook run。
   const kHookFile = path.join(cfgRK, '.git', 'hooks', 'pre-commit')
   fs.mkdirSync(path.dirname(kHookFile), { recursive: true })
   fs.writeFileSync(kHookFile, '#!/bin/sh\necho k-hook-ran\nexit 0\n', { mode: 0o755 })
   const kHookCheck = await cfgVcK.handleGitConfigCheck({ cwd: cfgRK, op: 'hook-run', name: 'pre-commit' })
-  check(kHookCheck.ok === true && kHookCheck.confirmRequired === true && kHookCheck.ticket && kHookCheck.ticket.id, 'K14 12.6 手动跑钩子：预检签票并要求确认（要说清跑的是仓库里的哪个脚本）')
+  check(kHookCheck.ok === true && kHookCheck.confirmRequired === true && kHookCheck.ticket && kHookCheck.ticket.id, 'Q14 12.6 手动跑钩子：预检签票并要求确认（要说清跑的是仓库里的哪个脚本）')
   const kRunSpawns0 = hookRuns().length
   const kRun = await cfgVcK.handleGitConfigWrite({ cwd: cfgRK, ticketId: kHookCheck.ok ? kHookCheck.ticket.id : 'x', requestId: 'k-r7', op: 'hook-run', confirmed: true })
   const kRunArgv = after(hookRuns()[kRunSpawns0] || [])
-  check(kRun.ok === true && kRun.hookFailed === false && kRunArgv.join(' ') === 'hook run pre-commit' && String(kRun.output || '').indexOf('k-hook-ran') >= 0, 'K15 12.6 的 argv 是「hook run pre-commit」，钩子输出原样回来（hook run 把输出写 stderr，这里两边都收）')
+  check(kRun.ok === true && kRun.hookFailed === false && kRunArgv.join(' ') === 'hook run pre-commit' && String(kRun.output || '').indexOf('k-hook-ran') >= 0, 'Q15 12.6 的 argv 是「hook run pre-commit」，钩子输出原样回来（hook run 把输出写 stderr，这里两边都收）')
   fs.writeFileSync(kHookFile, '#!/bin/sh\necho k-hook-failed\nexit 7\n', { mode: 0o755 })
   const kFailCheck = await cfgVcK.handleGitConfigCheck({ cwd: cfgRK, op: 'hook-run', name: 'pre-commit' })
   const kFail = await cfgVcK.handleGitConfigWrite({ cwd: cfgRK, ticketId: kFailCheck.ok ? kFailCheck.ticket.id : 'x', requestId: 'k-r8', op: 'hook-run', confirmed: true })
-  check(kFail.ok === true && kFail.hookFailed === true && Number(kFail.exitCode) === 7 && String(kFail.output || '').indexOf('k-hook-failed') >= 0, 'K16 钩子自己退出 7：电话仍回成功并标 hookFailed + exitCode（钩子失败与电话故障是两回事）')
+  check(kFail.ok === true && kFail.hookFailed === true && Number(kFail.exitCode) === 7 && String(kFail.output || '').indexOf('k-hook-failed') >= 0, 'Q16 钩子自己退出 7：电话仍回成功并标 hookFailed + exitCode（钩子失败与电话故障是两回事）')
   // 2.36 版本门：低版本预检直接拒，零钩子进程。
   const vcKLow = makeVc((argv: string[]) => (argv.indexOf('--version') >= 0 ? { stdout: 'git version 2.34.1', code: 0 } : null))
   const kLowCheck = await vcKLow.handleGitConfigCheck({ cwd: cfgRK, op: 'hook-run', name: 'pre-commit' })
-  check(kLowCheck.ok === false && kLowCheck.error && kLowCheck.error.kind === 'blocked' && kLowCheck.reason === 'hook-version' && hookRuns().length === 0, 'K17 2.36 以下预检 12.6 拒成 hook-version，零钩子进程（隐藏不等于沉默，替代做法随回包给）')
+  check(kLowCheck.ok === false && kLowCheck.error && kLowCheck.error.kind === 'blocked' && kLowCheck.reason === 'hook-version' && hookRuns().length === 0, 'Q17 2.36 以下预检 12.6 拒成 hook-version，零钩子进程（隐藏不等于沉默，替代做法随回包给）')
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }

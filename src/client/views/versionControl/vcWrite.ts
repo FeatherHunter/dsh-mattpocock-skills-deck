@@ -134,6 +134,15 @@ export const VC_WRITE_ERR_FAMILY: Record<string, string> = {
   'no-operation': 'notReady',
   'unmerged-files': 'notReady',
   'bad-side': 'notReady',
+
+  // #1749 变基待办页新增的六种理由（共享真源 write-reasons.ts 已登记话术）：
+  // 待办窗口在执行前又变了的「对不上」归 stale（要人刷新重新排，不能拿旧判断重试）；其余是输入或现场不满足，归 notReady。
+  'update-refs-on': 'notReady',
+  'bad-todo': 'notReady',
+  'todo-too-long': 'notReady',
+  'todo-mismatch': 'stale',
+  'missing-message': 'notReady',
+  'bad-action': 'notReady',
   'unknown-write-failure': 'unknown',
 }
 
