@@ -1891,6 +1891,9 @@ const CLIENT_TIME_NAMES: string[] = [
   'QUOTA_SYNC_INTERVAL_MS',
   'FRESHNESS_YELLOW_MS',
   'FRESHNESS_RED_MS',
+  // 降级取数的两个节流窗口（#1689）：host-budget.ts 拼进闭包时 import 行剥掉，名字由这一片提供。
+  'FALLBACK_PROBE_INTERVAL_MS',
+  'FALLBACK_CALIBRATION_INTERVAL_MS',
   // 界面叶子里的三处停留与两处延时（SkillFloatList / LabelColorDialog / PixelSkillDetailModal /
   // panelAssembly / PixelSkillOps）：import 行剥掉之后名字由这一片提供。
   'SKILL_FLOAT_CLOSE_DELAY_MS',

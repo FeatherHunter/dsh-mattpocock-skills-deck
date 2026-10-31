@@ -260,8 +260,17 @@ export function createPatch(deps?: PatchDeps | null): any {
     // ⑦ 变的那几条太多：一条一请求地补过去已经不划算，交给整池（整池 13 点 7 条请求，见 budget.js）。
     if (plan.changed.length > maxRows) { stats.rebuildNeeded += 1; fire('rebuild', 'too-many-rows', { keyHash: keyHash, changed: plan.changed.length, pending: st.pending.length }); return { mode: 'rebuild', reason: 'too-many-rows', changed: plan.changed.length } }
     // ⑧ 取那几条薄的（取数三件套在 ./thin-row-fetch.js，依赖由这里注入）。
+    //    #1689 降级常驻时这一轮先过预算闸：探测那一条已经预扣过，增量这一轮最多 3 条；
+    //    要补的行超过预算剩余就整轮推迟 —— 水印不动、变化进待办，下一拍或整仓枚举再补，绝不超发。
+    const roundBudget: any = o.fallbackBudget || null
+    if (roundBudget && plan.changed.length > roundBudget.view().remaining) {
+      const pending = await rememberPending(cwd, snap, plan.changed, 'fallback-budget')
+      stats.deferred += 1
+      fire('deferred', 'fallback-budget', { keyHash: keyHash, changed: plan.changed.length, watermark: 'held', pending: pending })
+      return { mode: 'deferred', reason: 'fallback-budget', pending: pending, keys: plan.changed }
+    }
     const startedGeneration = st.generation
-    const got: any = await fetchThinRows({ openSession: d.openSession, stats: stats }, cwd, repo, plan.changed)
+    const got: any = await fetchThinRows({ openSession: d.openSession, stats: stats, budget: roundBudget }, cwd, repo, plan.changed)
     if (!got.ok) {
       const pending = await rememberPending(cwd, snap, got.keys || plan.changed, got.reason)
       if (got.outcome === 'deferred') stats.deferred += 1; else stats.failed += 1
