@@ -7,7 +7,7 @@
  *   ① 现在能不能点（用真实 rules.ts 的 judge 算，不在原型里复述规则）；
  *   ② 点了以后忙什么（busy）；
  *   ③ 做完说了什么、说在哪里（result.source 决定结果出现的位置，这是本次重构的重点之一）；
- *   ④ 「已加入这次提交」的清单改过之后，计数与可点性怎么跟着变；
+ *   ④ 「已暂存」的清单改过之后，计数与可点性怎么跟着变；
  *   ⑤ 提交历史里打开的是哪一条、展开的是哪个文件。
  *
  * 不真实执行 git：commit/pull/push/fetch 由 ui 层起一个定时器，模拟宿主往返。
@@ -68,7 +68,7 @@ export interface BranchPending {
   name: string
 }
 
-/** 工作树动作的二次确认：三个动作都直接改状态，不再走复制命令。 */
+/** 工作区动作的二次确认：三个动作都直接改状态，不再走复制命令。 */
 export interface WorktreePending {
   kind: 'unlock' | 'prune' | 'remove'
   path: string
@@ -76,8 +76,8 @@ export interface WorktreePending {
 }
 
 /**
- * 一条收起记录：git stash 会把「工作区与『已加入这次提交』清单此刻的样子」打包成一条记录。
- * paths 存的是被打包的文件路径，放回工作区时原样恢复；原型不保存文件内容。
+ * 一条储藏记录：git stash 会把「工作区与『已暂存』清单此刻的样子」打包成一条记录。
+ * paths 存的是被打包的文件路径，应用回工作区时原样恢复；原型不保存文件内容。
  */
 export interface StashEntry {
   id: string
@@ -86,7 +86,7 @@ export interface StashEntry {
   paths: string[]
 }
 
-/** 收起动作里唯一需要二次确认的是丢弃记录：两种放回方式都不删内容，丢弃记录之后找不回来。 */
+/** 储藏动作里唯一需要二次确认的是丢弃记录：两种应用方式都不删内容，丢弃记录之后找不回来。 */
 export interface StashPending {
   kind: 'drop'
   id: string
@@ -136,21 +136,21 @@ export interface SessionState {
   branchQuery: string
   branchPending: BranchPending | null
   branches: BranchRow[]
-  /** 工作树动作的确认与结果：三个动作都在面板里执行，状态改在这里。 */
+  /** 工作区动作的确认与结果：三个动作都在面板里执行，状态改在这里。 */
   worktreePending: WorktreePending | null
   hiddenWorktrees: string[]
   unlockedWorktrees: string[]
   prunedWorktrees: string[]
-  /** 改动行的危险动作确认：丢弃、加入忽略、删除未跟踪文件、解决冲突。 */
+  /** 改动行的危险动作确认：丢弃、暂存忽略、删除未跟踪文件、解决冲突。 */
   changesPending: ChangesPending | null
   /** 哪一行的「更多」菜单被点开了：菜单紧贴这一行画，不再另开一层页面。 */
   openMenuPath: string | null
   /** 原型里「已经加入 .gitignore」的文件：接回宿主后它们会在下一次读取时从列表消失。 */
   ignored: string[]
-  /** 收起清单：按 git stash 的顺序，最近一条在最前面。 */
+  /** 储藏清单：按 git stash 的顺序，最近一条在最前面。 */
   stashes: StashEntry[]
   stashPending: StashPending | null
-  /** 被「撤销这次提交」撤掉的那条提交：从历史里暂时隐去，改动回到「已加入这次提交」。 */
+  /** 被「撤销这次提交」撤掉的那条提交：从历史里暂时隐去，改动回到「已暂存」。 */
   undoneOid: string | null
 }
 
@@ -310,7 +310,7 @@ function finishBusy(state: SessionState, op: OpName, nowMs: number): SessionStat
       }
       return withResult(next, {
         tone: fastForward ? 'ok' : 'info',
-        text: fastForward ? '已直接更新到远端最新。' : '已是最新状态。',
+        text: fastForward ? '已快进到远端最新。' : '已是最新状态。',
         detail: fastForward ? '本地提交没有被改写。远端新提交已经接到当前分支后面。' : '远端没有新的提交需要整合。',
         source: 'sync',
       })
@@ -329,15 +329,15 @@ function finishBusy(state: SessionState, op: OpName, nowMs: number): SessionStat
       return withResult(next, {
         tone: 'ok',
         text: `推送完成：${pushed} 笔提交已到达远端。`,
-        detail: '推送成功后远端跟踪引用已经刷新，超前与落后都归零。',
+        detail: '推送成功后远端跟踪引用已经刷新，领先与落后都归零。',
         source: 'sync',
       })
     }
     case 'fetch': {
       return withResult({ ...state, busy: null, basisMs: nowMs, readAtMs: nowMs }, {
         tone: 'ok',
-        text: '更新完成：远端依据已刷新。',
-        detail: unique(['远端跟踪引用已更新。工作树与「已加入这次提交」的清单没有变化。']).join(''),
+        text: '获取完成：远端依据已刷新。',
+        detail: unique(['远端跟踪引用已更新。工作区与「已暂存」的清单没有变化。']).join(''),
         source: 'sync',
       })
     }
@@ -403,7 +403,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         return {
           ...state,
           busy: null,
-          result: { tone: 'error', text: staged.length === 0 ? '还没有文件加入这次提交，先加入要提交的文件。' : '填写提交说明后即可提交。', detail: null, source: 'commit' },
+          result: { tone: 'error', text: staged.length === 0 ? '还没有暂存的文件，先暂存要提交的文件。' : '填写提交说明后即可提交。', detail: null, source: 'commit' },
         }
       }
       const files = staged.map((path) => {
@@ -429,7 +429,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         result: {
           tone: 'ok',
           text: `提交完成：${files.length} 个文件已进入历史。`,
-          detail: '这次提交只包含已加入这次提交的文件。这份清单已经清空，可以接着加入下一批。',
+          detail: '这次提交只包含已暂存的文件。这份清单已经清空，可以接着暂存下一批。',
           source: 'commit',
         },
       }
@@ -448,7 +448,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         reloading: false,
         readAtMs: action.readAtMs,
         basisMs: action.basisMs,
-        result: { tone: 'info', text: '已重新读取。', detail: '首屏读数与远端依据都已刷新。远端引用有没有变化看「更新」。', source: 'reload' },
+        result: { tone: 'info', text: '已重新读取。', detail: '首屏读数与远端依据都已刷新。远端引用有没有变化看「获取」。', source: 'reload' },
       }
     case 'pull-confirm-open':
       return { ...state, confirmPull: { dirtyCount: action.dirtyCount, files: action.files } }
@@ -477,7 +477,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
       return withResult(state, {
         tone: 'info',
         text: '原型里 AI 交接只做提示。',
-        detail: '真实页面会打开本机 DSH 会话，并在提示里带上异常工作树的路径与状态。',
+        detail: '真实页面会打开本机 DSH 会话，并在提示里带上异常工作区的路径与状态。',
         source: 'ai',
       })
     case 'wt-pending':
@@ -501,13 +501,13 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
           worktreePending: null,
           hiddenWorktrees: hidden,
           prunedWorktrees: unique([...state.prunedWorktrees, pending.path]),
-        }, { tone: 'ok', text: `已清理记录：${pending.name}。`, detail: '这条记录对应的目录本来就不存在，清理不会删除任何文件。', source: 'worktree' })
+        }, { tone: 'ok', text: `已清除记录：${pending.name}。`, detail: '这条记录对应的目录本来就不存在，清除不会删除任何文件。', source: 'worktree' })
       }
       return withResult({
         ...state,
         worktreePending: null,
         hiddenWorktrees: hidden,
-      }, { tone: 'ok', text: `已移除工作树：${pending.name}。`, detail: '分支与提交都还在仓库里。这一步只删掉了检出记录与工作目录。', source: 'worktree' })
+      }, { tone: 'ok', text: `已移除工作区：${pending.name}。`, detail: '分支与提交都还在仓库里。这一步只删掉了检出记录与工作目录。', source: 'worktree' })
     }
     case 'changes-pending':
       return { ...state, changesPending: action.pending, openMenuPath: null }
@@ -528,7 +528,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
             unstaged: state.unstaged.filter((item) => item !== path),
           }, {
             tone: 'warn',
-            text: `已丢弃 ${name} 的未加入改动。`,
+            text: `已丢弃 ${name} 的未暂存改动。`,
             detail: lines === '' ? '文件回到上一次提交时的内容。面板不能撤回这一步。' : `文件回到上一次提交时的内容，${lines} 一起丢掉了。面板不能撤回这一步。`,
             source: 'changes',
           })
@@ -538,7 +538,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
           if (count === 0) return cleared
           return withResult({ ...cleared, unstaged: [] }, {
             tone: 'warn',
-            text: `已丢弃 ${count} 个文件的未加入改动。`,
+            text: `已丢弃 ${count} 个文件的未暂存改动。`,
             detail: '这些文件都回到上一次提交时的内容。面板不能撤回这一步。',
             source: 'changes',
           })
@@ -579,7 +579,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
             staged: unique([...state.staged, path]),
           }, {
             tone: 'ok',
-            text: `已按${side}的版本解决 ${name}，文件已加入这次提交。`,
+            text: `已按${side}的版本解决 ${name}，文件已暂存。`,
             detail: conflicts.length === 0
               ? '冲突已经全部解决，现在可以提交这次合并的结果。'
               : `还有 ${conflicts.length} 个冲突文件没有解决。`,
@@ -720,18 +720,18 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
       }, {
         tone: 'warn',
         text: `已把 ${current.name} 变基到 ${target.name} 上。`,
-        detail: '本地历史被重写成「先放对方分支，再接上自己的提交」。提交号变了，如果这条分支已经推送过，远端需要强推才能对齐。原型只演示结果与状态变化，不改写真实历史。',
+        detail: '本地历史被重写成「先放对方分支，再接上自己的提交」。提交号变了，如果这条分支已经推送过，远端需要强制推送才能对齐。原型只演示结果与状态变化，不改写真实历史。',
         source: 'branch',
       })
     }
     case 'stash-create': {
       if (state.busy !== null || state.reloading) return state
       if (state.conflicts.length > 0) {
-        return withResult(state, { tone: 'error', text: '有冲突文件时不能收起改动。', detail: '收起改动会把工作树恢复成上次提交时的样子，冲突文件没有可以安全恢复的版本。先解决冲突，再收起剩下的改动。', source: 'changes' })
+        return withResult(state, { tone: 'error', text: '有冲突文件时不能储藏。', detail: '储藏会把工作区恢复成上次提交时的样子，冲突文件没有可以安全恢复的版本。先解决冲突，再储藏剩下的改动。', source: 'changes' })
       }
       const paths = unique([...state.staged, ...state.unstaged])
       if (paths.length === 0) {
-        return withResult(state, { tone: 'info', text: '工作区是干净的，没有可收起的改动。', detail: null, source: 'changes' })
+        return withResult(state, { tone: 'info', text: '工作区是干净的，没有可储藏的内容。', detail: null, source: 'changes' })
       }
       const branchName = state.branches.find((row) => row.current)?.name ?? base.branch ?? 'detached'
       const message = state.message.trim() === '' ? `WIP on ${branchName}` : state.message.trim()
@@ -749,8 +749,8 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         message: '',
       }, {
         tone: 'ok',
-        text: `已收起 ${paths.length} 个文件的改动。`,
-        detail: `收起记录 ${entry.id} 里放着这些文件。工作区与「已加入这次提交」的清单都恢复成上次提交时的样子，放回工作区或放回并删掉记录都能把它拿回来。`,
+        text: `已储藏 ${paths.length} 个文件的改动。`,
+        detail: `储藏记录 ${entry.id} 里放着这些文件。工作区与「已暂存」的清单都恢复成上次提交时的样子，应用回工作区或弹出都能把它拿回来。`,
         source: 'changes',
       })
     }
@@ -769,10 +769,10 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         stashPending: null,
       }, {
         tone: 'ok',
-        text: action.type === 'stash-pop' ? `已把 ${entry.id} 放回工作区并删掉记录，${restored.length} 个文件回到工作区。` : `已把 ${entry.id} 放回工作区，${restored.length} 个文件回到工作区。`,
+        text: action.type === 'stash-pop' ? `已弹出 ${entry.id}，${restored.length} 个文件回到工作区。` : `已应用 ${entry.id}，${restored.length} 个文件回到工作区。`,
         detail: action.type === 'stash-pop'
-          ? `「放回并删掉记录」等于「放回 + 删除记录」：这条记录已经从清单里移除（原来 ${before} 条）。改动现在在「未加入这次提交」里，需要重新加入再提交。`
-          : `「放回工作区」只把改动恢复出来，记录仍然保留在清单里（${before} 条），可以再放回一次，之后也可以丢弃记录。`,
+          ? `「弹出」等于「应用 + 删除记录」：这条记录已经从清单里移除（原来 ${before} 条）。改动现在在「未暂存」里，需要重新暂存再提交。`
+          : `「应用」只把改动恢复出来，记录仍然保留在清单里（${before} 条），可以再应用一次，之后也可以丢弃记录。`,
         source: 'stash',
       })
     }
@@ -802,7 +802,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         return withResult(state, {
           tone: 'error',
           text: '只能撤销最新一条提交。',
-          detail: '撤销会把提交里的改动放回「已加入这次提交」、并让分支退一步。选择更早的提交就得改写它后面的历史，原型不做这一步。',
+          detail: '撤销会把提交里的改动放回「已暂存」、并让分支退一步。选择更早的提交就得改写它后面的历史，原型不做这一步。',
           source: 'history',
         })
       }
@@ -823,8 +823,8 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         tone: 'warn',
         text: `已撤销提交 ${subject === '' ? action.oid.slice(0, 7) : subject}。`,
         detail: pushed
-          ? `提交里的 ${files.length} 个文件回到「已加入这次提交」，提交说明留在输入框里。这条提交已经推送过，所以本地现在比远端各少一步，需要重新提交后再推送。`
-          : `提交里的 ${files.length} 个文件回到「已加入这次提交」，提交说明留在输入框里。可以改完再重新提交。`,
+          ? `提交里的 ${files.length} 个文件回到「已暂存」，提交说明留在输入框里。这条提交已经推送过，所以本地现在比远端各少一步，需要重新提交后再推送。`
+          : `提交里的 ${files.length} 个文件回到「已暂存」，提交说明留在输入框里。可以改完再重新提交。`,
         source: 'history',
       })
     }
@@ -835,8 +835,8 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
       if (entry === undefined) return state
       return withResult({ ...state, ahead: state.ahead + 1 }, {
         tone: 'ok',
-        text: `已生成一次反向提交，抵消「${entry.subject}」。`,
-        detail: '回退不是删除历史：原提交还在，后面多了一笔把它的改动撤回去的新提交。这笔新提交还没有推送。如果和别的分支冲突，需要先解决冲突。原型不真的写历史。',
+        text: `已生成一次还原提交，抵消「${entry.subject}」。`,
+        detail: '还原不是删除历史：原提交还在，后面多了一笔把它的改动撤回去的新提交。这笔新提交还没有推送。如果和别的分支冲突，需要先解决冲突。原型不真的写历史。',
         source: 'history',
       })
     }

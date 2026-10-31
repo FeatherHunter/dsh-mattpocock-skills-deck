@@ -1,9 +1,9 @@
 /**
- * ui/views/pages-manage.ts —— 「管理」索引与它下面的四个日常分区：分支与标签、远端与同步、子模块。
+ * ui/views/pages-manage.ts —— 「管理」索引与它下面的四个日常分区：分支与标签、远端与同步、子模组。
  *
  * 四个页面共用同一套骨架（pageShell + section + 能力清单），区别只在数据从哪来：
- * 分支与标签、远端读采集到的真实引用与配置；子模块这个仓库里是空集，空态也照实画。
- * 页面里的对象级动作只有两种出口：真正属于四页签状态机的（拉取/更新/推送）直接走 session 动作，
+ * 分支与标签、远端读采集到的真实引用与配置；子模组这个仓库里是空集，空态也照实画。
+ * 页面里的对象级动作只有两种出口：真正属于四页签状态机的（拉取/获取/推送）直接走 session 动作，
  * 其余整理动作走能力清单里的演示流程——这样每个按钮的去向在原型里都能说清。
  */
 import { capturedBranch, capturedCounts, capturedHooks, capturedLocalBranchNames, capturedLocalBranches, capturedRemotes, capturedSubmodules, capturedTags } from '../../data/repo.generated'
@@ -60,7 +60,7 @@ function manageCountOf(page: string): string {
   switch (page) {
     case 'branch-tags': return capturedLocalBranches + ' 条分支 · ' + capturedTags.length + ' 个标签'
     case 'remote': return capturedRemotes.length + ' 个远端'
-    case 'submodules': return submoduleNames().length + ' 个子模块'
+    case 'submodules': return submoduleNames().length + ' 个子模组'
     case 'maintenance': return '松散对象 ' + capturedCounts.loose + ' · 包 ' + capturedCounts.packs
     case 'migrate': return '6 条能力 · 3 类产出'
     case 'config': return '8 条相关键 · 2 层作用域'
@@ -71,7 +71,7 @@ function manageCountOf(page: string): string {
   }
 }
 
-/** git submodule status 在空集时输出空串；一行一个子模块。 */
+/** git submodule status 在空集时输出空串；一行一个子模组。 */
 export function submoduleNames(): string[] {
   return capturedSubmodules.split('\n').map((line) => line.trim()).filter((line) => line !== '')
 }
@@ -197,7 +197,7 @@ export function renderRemote(ctx: PageContext): HTMLElement {
     actionButton(model.rail.pull.label, 'pull', { focusKey: 'remote-pull', title: model.rail.pull.reason ?? undefined }),
     actionButton(model.rail.fetch.label, 'fetch', { focusKey: 'remote-fetch', title: model.rail.fetch.reason ?? undefined }),
     actionButton(model.rail.push.label, 'push', { focusKey: 'remote-push', title: model.rail.push.reason ?? undefined }),
-    actionButton('抓取所有远端', 'page-demo', { focusKey: 'remote-fetch-all', dataset: { note: '已抓取全部远端（原型模拟）。只更新远端跟踪引用，不动工作区。' } }),
+    actionButton('获取所有远端', 'page-demo', { focusKey: 'remote-fetch-all', dataset: { note: '已获取全部远端（原型模拟）。只更新远端跟踪引用，不动工作区。' } }),
     actionButton('修剪已删除的远端分支', 'page-demo', { focusKey: 'remote-prune', dataset: { note: '已修剪远端已删除的跟踪分支（原型模拟）。本地分支不受影响。' } }))
 
   const syncFacts = factGrid([
@@ -205,7 +205,7 @@ export function renderRemote(ctx: PageContext): HTMLElement {
     { key: '同步状态', value: model.rail.sync.kind === 'text' ? model.rail.sync.text : '领先 ' + (model.rail.syncChips[0]?.value ?? 0) + ' · 落后 ' + (model.rail.syncChips[1]?.value ?? 0) },
     { key: '读取于', value: model.rail.readAtText },
     { key: '远端依据', value: model.rail.basisText },
-    { key: '工作区改动', value: model.changes.stagedCount + ' 个已加入 · ' + model.changes.unstagedCount + ' 个未加入 · ' + model.changes.conflictCount + ' 个冲突' },
+    { key: '工作区改动', value: model.changes.stagedCount + ' 个已暂存 · ' + model.changes.unstagedCount + ' 个未暂存 · ' + model.changes.conflictCount + ' 个冲突' },
   ])
 
   const addForm = h('div', { class: 'inline-form' },
@@ -215,7 +215,7 @@ export function renderRemote(ctx: PageContext): HTMLElement {
     actionButton('添加远端', 'page-form-submit', { kind: 'primary', focusKey: 'remote-add', dataset: { kind: 'remote-add' } }))
 
   const body = h('div', { class: 'page-stack' },
-    section('远端清单', capturedRemotes.length + ' 个', '名字、抓取地址、推送地址分开写：三者的用途不一样，合成一句会让「推到哪里」看不出来。', [...remoteRows, addForm]),
+    section('远端清单', capturedRemotes.length + ' 个', '名字、获取地址、推送地址分开写：三者的用途不一样，合成一句会让「推到哪里」看不出来。', [...remoteRows, addForm]),
     section('同步', null, '三颗同步按钮沿用顶部同步带的判定：禁用的原因写在按钮 title 里，拉取与推送的结果出现在顶部同步带，不会跑到页面底部。', [syncFacts, syncButtons]),
     section('远端依据', null, '「远端依据」不再是只读的时间事实，它本身是打开这一页的入口之一。这一页解释了数字来自哪一次读取。', [
       h('p', { class: 'page-note' }, h('span', { text: '顶部同步带写「远端依据 origin · 12 分钟前」，点它就是打开本页。数字与时间来自同一次读取。读取失败时写「读不到」，不写 0。' })),
@@ -225,7 +225,7 @@ export function renderRemote(ctx: PageContext): HTMLElement {
 }
 
 // ---------------------------------------------------------------------------
-// 子模块
+// 子模组
 // ---------------------------------------------------------------------------
 
 export function renderSubmodules(ctx: PageContext): HTMLElement {
@@ -233,23 +233,23 @@ export function renderSubmodules(ctx: PageContext): HTMLElement {
   const names = submoduleNames()
   const rows: HTMLElement[] = names.map((name) => objectRow([
     h('span', { class: 'obj-title mono', text: name }),
-    h('span', { class: 'obj-sub', text: '子模块路径与当前指向的提交需要真实读取 .gitmodules 与「已加入这次提交」的清单。原型没有造。' }),
-  ], [actionButton('更新', 'page-demo', { focusKey: 'sub-update-' + name, dataset: { note: '已更新子模块 ' + name + ' 到登记提交（原型模拟）。' } })]))
+    h('span', { class: 'obj-sub', text: '子模组路径与当前指向的提交需要真实读取 .gitmodules 与「已暂存」的清单。原型没有造。' }),
+  ], [actionButton('更新', 'page-demo', { focusKey: 'sub-update-' + name, dataset: { note: '已更新子模组 ' + name + ' 到登记提交（原型模拟）。' } })]))
 
   const installForm = h('div', { class: 'inline-form' },
     h('label', { class: 'inline-field' },
-      h('span', { class: 'inline-label', text: '子模块地址' }),
+      h('span', { class: 'inline-label', text: '子模组地址' }),
       h('input', { class: 'inline-input', attrs: { type: 'text', placeholder: 'https://… 或 ../仓库路径', value: state.draft }, dataset: { field: 'page-query' } })),
-    actionButton('添加子模块', 'page-form-submit', { kind: 'primary', focusKey: 'sub-add', dataset: { kind: 'sub-add' } }))
+    actionButton('添加子模组', 'page-form-submit', { kind: 'primary', focusKey: 'sub-add', dataset: { kind: 'sub-add' } }))
 
   const empty = h('div', { class: 'empty-block' },
-    emptyState('这个仓库没有子模块', '.gitmodules 不存在。空态也要能评审，所以这里照实画，不拿演示行填满。'),
+    emptyState('这个仓库没有子模组', '.gitmodules 不存在。空态也要能评审，所以这里照实画，不拿演示行填满。'),
     installForm)
 
   const body = h('div', { class: 'page-stack' },
-    section('子模块清单', names.length + ' 个', '每一行只回答三件事：路径、指向哪条提交、现在是不是登记的样子。批量动作收在能力清单里。', names.length === 0 ? [empty] : [...rows, installForm]),
+    section('子模组清单', names.length + ' 个', '每一行只回答三件事：路径、指向哪条提交、现在是不是登记的样子。批量动作收在能力清单里。', names.length === 0 ? [empty] : [...rows, installForm]),
     section('批量动作', null, '批量更新与批量执行会一次改动多个仓库。超过三个对象时用二级确认页逐条核对，不在行内弹确认卡。', [
-      h('p', { class: 'page-note' }, h('span', { text: '真实实现里每个子模块是独立仓库：面板能发起批量命令并展示逐个子模块的结果，但不会替你解决子模块内部的分支冲突。' })),
+      h('p', { class: 'page-note' }, h('span', { text: '真实实现里每个子模组是独立仓库：面板能发起批量命令并展示逐个子模组的结果，但不会替你解决子模组内部的分支冲突。' })),
     ]),
     capabilitiesSection('submodules', state))
   return pageShell('submodules', PAGE_META.submodules.title, PAGE_META.submodules.lede, null, body)

@@ -34,7 +34,7 @@ interface RebaseStage {
 const REBASE_STAGES: RebaseStage[] = [
   {
     title: '冻结工作区',
-    detail: '先把未提交的改动收起来或提示先提交。变基过程中工作区必须是干净的，否则每一步的冲突都分不清来自谁。',
+    detail: '先把未提交的改动储藏起来或提示先提交。变基过程中工作区必须是干净的，否则每一步的冲突都分不清来自谁。',
     command: 'git stash push --keep-index',
     tone: 'ok',
   },
@@ -116,9 +116,9 @@ export function renderRebase(ctx: PageContext): HTMLElement {
     section('六步待办', state.rebaseDemo ? '第 ' + Math.min(state.rebaseStep + 1, 6) + ' / 6 步' : null, '顺序固定，但每一步都可以停下来看。演示不会跳过「工作区是否干净」这一关。', steps),
     section('会动与不会动', null, null, [factGrid([
       { key: '会动', value: '当前分支的提交号与这页的演示状态' },
-      { key: '不会动', value: '其他分支、远端、收起的改动' },
+      { key: '不会动', value: '其他分支、远端、储藏记录' },
       { key: '可按撤销', value: '中止后分支回到开始前记下的提交号' },
-      { key: '不可按撤销', value: '已经推送过的重写需要强推，属于服务端协作问题' },
+      { key: '不可按撤销', value: '已经推送过的重写需要强制推送，属于服务端协作问题' },
     ])]),
     capabilitiesSection('rebase', state))
   return pageShell('rebase', PAGE_META.rebase.title, PAGE_META.rebase.lede, null, body, { danger: true })
@@ -177,7 +177,7 @@ export function renderConflicts(ctx: PageContext): HTMLElement {
     section('冲突文件', CONFLICT_FILES.length + ' 个文件', '每一行只做三件事：选边、手改、标记已解决。选边按钮的状态跟着本页内存走，不写仓库。', [...(state.conflictDemo ? rows : [note('演示还没开始：点「开始演示」才会出现三个冲突文件。', 'muted')]), ...(state.conflictDemo ? [summary] : [])]),
     section('会动与不会动', null, null, [factGrid([
       { key: '会动', value: state.conflictDemo ? '三个冲突文件的解决标记与本页结果' : '当前什么都不会动' },
-      { key: '不会动', value: '工作区文件、「已加入这次提交」的清单、已有提交' },
+      { key: '不会动', value: '工作区文件、「已暂存」的清单、已有提交' },
       { key: '恢复路径', value: '中止合并回到开始前的提交与工作区' },
       { key: '外部编辑器', value: '面板不内嵌编辑器，只把文件交给它' },
     ])]),
@@ -230,7 +230,7 @@ export function renderTask(ctx: PageContext): HTMLElement {
   const controls = state.taskDemo
     ? h('div', { class: 'flow-controls' },
       actionButton('推进进度', 'task-tick', { kind: 'primary', focusKey: 'task-tick', dataset: {}, disabled: progress >= 100 }),
-      actionButton('取消任务', 'page-demo', { kind: 'danger', focusKey: 'task-cancel', dataset: { note: '任务已取消（原型模拟）：已写入的临时文件列在结果里，可以一键清理，不会留下半个仓库。' } }))
+      actionButton('取消任务', 'page-demo', { kind: 'danger', focusKey: 'task-cancel', dataset: { note: '任务已取消（原型模拟）：已写入的临时文件列在结果里，可以一键清除，不会留下半个仓库。' } }))
     : note('演示还没开始：选一种任务打开向导，进度条会从 62% 继续走到 100%。', 'muted')
 
   const done = state.taskDemo && progress >= 100
@@ -243,7 +243,7 @@ export function renderTask(ctx: PageContext): HTMLElement {
   const body = h('div', { class: 'page-stack' },
     section('选一种长任务', '3 种', '三种任务共用同一个进度页：都会先把目标写清楚，再开始。取消后必须能说清留下了什么。', chooser),
     section('进度', state.taskDemo ? progress + '%' : null, '进度来自 git 的输出（真实实现里是 --progress 的读数），不是假动画。', [meter, ...stageRows, ...(state.taskDemo ? [controls] : [controls]), ...(done === null ? [] : [done])]),
-    section('取消之后', null, null, [note('取消长任务不留半个仓库：写进临时目录的内容要么清理掉，要么原样列出让人自己删。目标目录里已有的文件一律不动。', 'muted')]),
+    section('取消之后', null, null, [note('取消长任务不留半个仓库：写进临时目录的内容要么清除掉，要么原样列出让人自己删。目标目录里已有的文件一律不动。', 'muted')]),
     capabilitiesSection('task', state))
   return pageShell('task', PAGE_META.task.title, PAGE_META.task.lede, null, body)
 }

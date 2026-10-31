@@ -221,7 +221,7 @@ function capConfirmCard(cap: Capability, secondStage = false): HTMLElement {
     ? '这次会重写已有提交与引用，写出来的新历史不能撤回。'
     : cap.level === '改写'
       ? '会改写历史。面板里保留旧提交的引用日志，误操作还能照 reflog 找回来。'
-      : '会先写工作区或「已加入这次提交」的清单。结果可以再撤销。'
+      : '会先写工作区或「已暂存」的清单。结果可以再撤销。'
   const card = h('div', { class: 'cap-confirm' + (dangerous ? ' is-danger' : '') + (secondStage ? ' is-stage2' : ''), attrs: { role: 'group', 'aria-label': '确认这条能力会动什么' } })
   const rows: Array<[string, string]> = [
     ['会动什么', cap.opens + '。完成后' + cap.result],

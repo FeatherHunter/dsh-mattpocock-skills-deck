@@ -97,11 +97,11 @@ export function renderMaintenance(ctx: PageContext): HTMLElement {
     { key: '包内对象', value: capturedCounts.inPack + ' 个 · ' + capturedCounts.packs + ' 个包 · ' + packMiB + ' MiB' },
     { key: '可回收对象', value: capturedCounts.prunePackable + ' 个', tone: capturedCounts.prunePackable > 0 ? 'warn' : 'muted' },
     { key: '垃圾文件', value: String(capturedCounts.garbage) },
-    { key: '工作树', value: capturedWorktrees.length + ' 棵' },
+    { key: '工作区', value: capturedWorktrees.length + ' 棵' },
     { key: '引用总数', value: capturedRefsTotal + ' 条 · 本地分支 ' + capturedLocalBranches + ' 条' },
   ])
 
-  // 11.6（清理不可达对象）是整仓不可逆动作，只出现在危险区，不再同时列进「整理动作」。
+  // 11.6（清除不可达对象）是整仓不可逆动作，只出现在危险区，不再同时列进「整理动作」。
   const lines = ['11.5', '11.7', '11.8', '11.9', '11.10', '11.11', '11.15']
   const actionRows = lines.map((id) => {
     const cap = capOf(id)
@@ -119,7 +119,7 @@ export function renderMaintenance(ctx: PageContext): HTMLElement {
       capabilitySummary(cap),
       h('p', { class: 'danger-consequence', text: cap.opens + '。' + cap.result }),
       h('p', { class: 'danger-recovery', text: id === '11.6'
-        ? '清理之后不可达对象从本地消失，只有重新从远端抓取或从备份恢复才能找回。执行前先确认没有其他工作树还引用它们。'
+        ? '清除之后不可达对象从本地消失，只有重新从远端获取或从备份恢复才能找回。执行前先确认没有其他工作区还引用它们。'
         : '这一步会重写全库历史或引用格式，写出来的结果不能撤回。面板只展示后果与备份位置，真实执行交给专门的工具，并先在副本上演练。' }),
       h('p', { class: 'danger-meta', text: id === '11.6' ? '对象数量：' + capturedCounts.prunePackable + ' 个可回收对象 · ' + capturedCounts.garbage + ' 个垃圾文件' : '仓库：' + capturedRepoRoot + ' · 分支：' + capturedBranch }))
     dangerRows.push(capabilityBlock(cap, [body], state, { danger: true }))
@@ -286,7 +286,7 @@ export function renderDiagnostics(ctx: PageContext): HTMLElement {
     { key: 'describe', value: capturedDescribe, mono: true },
     { key: 'HEAD', value: capturedHead.slice(0, 7) + '（' + capturedBranch + '）', mono: true },
     { key: '引用总数', value: capturedRefsTotal + ' 条 · 本地分支 ' + capturedLocalBranches + ' 条' },
-    { key: '工作树', value: capturedWorktrees.length + ' 棵' },
+    { key: '工作区', value: capturedWorktrees.length + ' 棵' },
     { key: '工作区状态行', value: statusLines.length + ' 行' },
     { key: '仓库根', value: capturedRepoRoot, mono: true },
   ])
@@ -317,7 +317,7 @@ export function renderDiagnostics(ctx: PageContext): HTMLElement {
   const bisectCap = capOf('13.1')
   const bisectRow = capabilityBlock(bisectCap, [
     capabilitySummary(bisectCap),
-    h('span', { class: 'obj-sub', text: '二分定位要选一段提交范围与一个好/坏判定。它会检出中间提交，结束后要回到原分支。' }),
+    h('span', { class: 'obj-sub', text: '二分查找要选一段提交范围与一个好/坏判定。它会检出中间提交，结束后要回到原分支。' }),
   ], state)
 
   const logCap = capOf('3.11')
@@ -329,7 +329,7 @@ export function renderDiagnostics(ctx: PageContext): HTMLElement {
   const body = h('div', { class: 'page-stack' },
     section('版本与计数', null, '这些数字全部来自本仓库此刻的 git 读数。读不到时界面写「读不到」，不写 0。', [facts]),
     section('只读对象查看', '6 条', '底层排查只展示读到的形状，不提供可操作按钮。需要执行时交给终端或诊断工具。', shapeRows),
-    section('检查与定位', '4 条', '完整性检查、可回收对象、二分定位与引用日志：都能在面板里发起并看到结果，但都不写提交。', [fsckRow, bisectRow, logRow]),
+    section('检查与定位', '4 条', '完整性检查、可回收对象、二分查找与引用日志：都能在面板里发起并看到结果，但都不写提交。', [fsckRow, bisectRow, logRow]),
     capabilitiesSection('diagnostics', state, [...readShapes.map((item) => item.id), '11.2', '13.1', '3.11']))
   return pageShell('diagnostics', PAGE_META.diagnostics.title, PAGE_META.diagnostics.lede, null, body)
 }
@@ -349,7 +349,7 @@ export function renderPlatform(ctx: PageContext): HTMLElement {
       case '14.4': return { where: '在托管平台的网页上处理 PR、Issue 与 Release。', url: webUrl }
       case '14.5': return { where: 'Actions 与 CI 状态在平台网页看。本仓库已于 2026-10-26 下线远端验证工作流（#1542），本地 npm run verify:parallel 是唯一裁决入口。', url: webUrl + '/actions' }
       case '14.6': return { where: '账号、令牌与权限在平台设置页管理。面板不持有平台令牌。', url: webUrl + '/settings' }
-      case '14.7': return { where: '分支保护与禁止强推是服务端规则，在平台设置页配置。', url: webUrl + '/settings/branches' }
+      case '14.7': return { where: '分支保护与禁止强制推送是服务端规则，在平台设置页配置。', url: webUrl + '/settings/branches' }
       case '14.8': return { where: '仓库转移与归档在平台设置页完成，成功后本地远端地址要跟着改。', url: webUrl + '/settings' }
       default: return { where: '面板不代做这一步。', url: null }
     }

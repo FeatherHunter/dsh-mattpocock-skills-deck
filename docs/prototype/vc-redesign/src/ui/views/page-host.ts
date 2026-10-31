@@ -20,7 +20,7 @@ import { renderConfig, renderDiagnostics, renderHooks, renderMaintenance, render
 import { renderConflicts, renderRebase, renderSearch, renderTask } from './pages-flow'
 
 /** 二级核对页要求照着敲的确认词：只在这一页里出现，不复制到别处。 */
-const DANGER_WORD = '确认清理'
+const DANGER_WORD = '确认清除'
 
 /** 整仓不可逆动作的后果与恢复路径：按能力编号写死，写的是这一条命令真正会发生什么。 */
 interface DangerCopy {
@@ -34,8 +34,8 @@ function dangerCopyOf(cap: Capability, prunePackable: number): DangerCopy {
     case '11.6':
       return {
         moves: '删除本地不可达的对象（当前 ' + prunePackable + ' 个可回收对象）与垃圾文件。这些对象从本地消失，引用日志里的旧记录也不再能找回它们。',
-        keeps: '可达的提交、标签、远端引用与工作区文件一个都不会动。其他工作树引用的对象仍然可达，不会被删。',
-        recovery: '执行前把整个仓库目录（含 .git）复制一份就是最稳的恢复路径。执行后只能从远端重新抓取，或从备份恢复。',
+        keeps: '可达的提交、标签、远端引用与工作区文件一个都不会动。其他工作区引用的对象仍然可达，不会被删。',
+        recovery: '执行前把整个仓库目录（含 .git）复制一份就是最稳的恢复路径。执行后只能从远端重新获取，或从备份恢复。',
       }
     default:
       return {
@@ -86,8 +86,8 @@ function renderDangerConfirm(ctx: PageContext, cap: Capability): HTMLElement {
   const meta = PAGE_META.maintenance
   const typedOk = ctx.state.confirmText.trim() === DANGER_WORD
   const todo = [
-    '确认没有别的工作树还在引用这些对象：工作树清单里 ' + '每一棵都能看到自己的 HEAD 与分支。',
-    '确认最近的引用日志已经不需要：清理之后旧记录指向的对象不再能找回。',
+    '确认没有别的工作区还在引用这些对象：工作区清单里 ' + '每一棵都能看到自己的 HEAD 与分支。',
+    '确认最近的引用日志已经不需要：清除之后旧记录指向的对象不再能找回。',
     '确认已经有一份可用的备份：整个仓库目录复制到另一块磁盘即可。',
     '确认执行窗口：执行期间不要同时跑其他会写仓库的命令（或其他会话的校验）。',
   ]
@@ -123,7 +123,7 @@ function renderDangerConfirm(ctx: PageContext, cap: Capability): HTMLElement {
     ]),
     section('可逆性与恢复路径', null, null, [note(copy.recovery, 'warn')]),
     section('拿什么核对', '4 项', '这四项必须逐条过一遍。核对页不替你判断，只把要看的读数摊开。', [facts, ...checklist]),
-    section('最后一步', null, '这一步在原型里也只写演示结果，不会真的清理仓库。真实执行由维护者在终端完成，复核人 FeatherHunter。', [confirmBox]),
+    section('最后一步', null, '这一步在原型里也只写演示结果，不会真的清除仓库。真实执行由维护者在终端完成，复核人 FeatherHunter。', [confirmBox]),
   )
   return pageShell('maintenance', meta.title + ' › 危险动作核对', '这是 ' + cap.id + ' ' + cap.name + ' 的二级核对页：先看后果，再看备份，最后照抄确认词。', null, body, { danger: true, focusKey: 'danger-top' })
 }

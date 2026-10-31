@@ -26,7 +26,7 @@ export const MANAGE_INDEX: PageMeta = {
   id: 'manage',
   title: '管理',
   card: '版本管理面板里不常点、但需要负责任的动作都收在这九个分区里。',
-  lede: '索引本身不写仓库，只负责把「分支与标签、远端、子模块、维护、迁移、配置、钩子、诊断、平台边界」九个分区摆出来。每个分区入口都写清它管什么。',
+  lede: '索引本身不写仓库，只负责把「分支与标签、远端、子模组、维护、迁移、配置、钩子、诊断、平台边界」九个分区摆出来。每个分区入口都写清它管什么。',
   count: '9 个分区 · 162 条能力里的 104 条可交互能力都有落点',
 }
 
@@ -42,16 +42,16 @@ export const PAGE_META: Record<PageId, PageMeta> = {
   remote: {
     id: 'remote',
     title: '远端与同步',
-    card: '三个远端、各自地址、抓取与推送规则，以及「上一次从远端读到什么」的依据。',
+    card: '三个远端、各自地址、获取与推送规则，以及「上一次从远端读到什么」的依据。',
     lede: '远端地址是从 git 配置里读到的真实值，标了 fetch 与 push 两条地址。同步数字沿用顶部同步带的读数，读不到时如实写读不到。',
     count: '3 个远端 · 1 条上游跟踪',
   },
   submodules: {
     id: 'submodules',
-    title: '子模块',
-    card: '登记、初始拉取、批量更新与移除子模块。这个仓库目前一个都没有，空态也如实画出来。',
-    lede: '这个仓库没有 .gitmodules，所以下面没有子模块行。界面仍然给出添加入口与批量动作的说明，因为空态本身就是要评审的状态之一。',
-    count: '0 个子模块',
+    title: '子模组',
+    card: '登记、初始拉取、批量更新与移除子模组。这个仓库目前一个都没有，空态也如实画出来。',
+    lede: '这个仓库没有 .gitmodules，所以下面没有子模组行。界面仍然给出添暂存口与批量动作的说明，因为空态本身就是要评审的状态之一。',
+    count: '0 个子模组',
   },
   maintenance: {
     id: 'maintenance',
@@ -131,8 +131,8 @@ export const PAGE_META: Record<PageId, PageMeta> = {
 export const VIEW_LABEL: Record<string, string> = {
   changes: '改动',
   commits: '历史',
-  worktrees: '工作树',
-  stash: '收起的改动',
+  worktrees: '工作区',
+  stash: '储藏',
 }
 
 /** 能力级别：读 / 写 / 改写 / 毁 用同一种徽章语言，非 git 单独一色。 */

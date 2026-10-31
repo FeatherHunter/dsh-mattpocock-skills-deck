@@ -101,7 +101,7 @@ export function mount(root: HTMLElement): void {
   let resultRef: SessionState['result'] = null
   let opTimer: number | null = null
   let pendingOp: OpName | null = null
-  // 工作树视图的三个局部界面状态：筛选、说明条是否展开、展开的是哪一棵。
+  // 工作区视图的三个局部界面状态：筛选、说明条是否展开、展开的是哪一棵。
   // 它们不进入状态机：真实页面里这类状态也只属于这一次浏览，不参与任何判定。
   let wtFilter: WorktreeFilter = 'all'
   let wtNoteOpen = true
@@ -514,7 +514,7 @@ export function mount(root: HTMLElement): void {
 
   /**
    * 交接说明贴在点开的那个入口旁边：rail 的整行入口、改动页的「拿不准怎么拆提交」、
-   * 工作树页与分支页的入口都可能是触发点，按 data-kind 找到当前可见的那一个。
+   * 工作区页与分支页的入口都可能是触发点，按 data-kind 找到当前可见的那一个。
    * 找不到触发点（例如深链直接打开）时退回面板中间偏上，仍然不铺满整屏。
    */
   function positionHandoff(): void {
@@ -543,7 +543,7 @@ export function mount(root: HTMLElement): void {
 
   /**
    * 拉取前的提醒做成贴着「拉取」按钮的浮层，不再铺满面板：
-   * 遮罩会把列表和工作树一起盖住，读的人还得先找哪块被压暗了才敢点。
+   * 遮罩会把列表和工作区一起盖住，读的人还得先找哪块被压暗了才敢点。
    * 浮层的位置在重画之后按按钮的实际矩形算，宽度变化与换皮肤都不用另写一套定位。
    */
   function renderPopconfirm(confirm: { title: string; lead: string; points: ReadonlyArray<{ tone: 'ok' | 'warn'; label: string; text: string }>; files: string[]; continueLabel: string; cancelLabel: string }): HTMLElement {
@@ -670,13 +670,13 @@ export function mount(root: HTMLElement): void {
       return detail === null ? '提交历史视图的列表' : `提交历史视图，正在看提交 ${detail.short} 的详情`
     }
     if (state.view === 'worktrees') {
-      return `工作树视图，筛选是${wtFilter === 'all' ? '全部' : '只看需要处理'}`
+      return `工作区视图，筛选是${wtFilter === 'all' ? '全部' : '只看需要处理'}`
     }
     if (state.view === 'stash') {
-      return `收起改动视图，列表里有 ${model.stash.total} 条记录`
+      return `储藏视图，列表里有 ${model.stash.total} 条记录`
     }
     const filter = state.changesFilter
-    const filterLabel = filter === 'conflict' ? '只看冲突' : filter === 'staged' ? '只看已加入' : filter === 'unstaged' ? '只看未加入' : '全部'
+    const filterLabel = filter === 'conflict' ? '只看冲突' : filter === 'staged' ? '只看已暂存' : filter === 'unstaged' ? '只看未暂存' : '全部'
     return `改动视图，筛选是${filterLabel}`
   }
 
@@ -1128,7 +1128,7 @@ export function mount(root: HTMLElement): void {
         const kind = el.dataset.kind ?? ''
         const text = kind === 'remote-add'
           ? '已添加远端（原型模拟）：列表里会多一行，拉取与推送按钮随即可用。'
-          : '已添加子模块（原型模拟）：克隆完成后才出现在清单里。'
+          : '已添加子模组（原型模拟）：克隆完成后才出现在清单里。'
         dispatchPage({ type: 'page-result', text }, { focusKey: lastFocusKey })
         return
       }
@@ -1357,7 +1357,7 @@ export function mount(root: HTMLElement): void {
   // ---------- 首次绘制与定时刷新 ----------
 
   /**
-   * 深链：评审时经常要直接指到某一个状态（「工作树页、300 宽」），
+   * 深链：评审时经常要直接指到某一个状态（「工作区页、300 宽」），
    * 每次都手点三下再在截图里描述太费劲，所以把关键状态放进查询串。
    * 这些都是只读的初始状态，不改变任何交互语义。
    */
@@ -1368,7 +1368,7 @@ export function mount(root: HTMLElement): void {
     const themeParam = params.get('theme')
     if (themeParam === 'dark' || themeParam === 'light') theme = themeParam
     embed = params.get('embed') === '1'
-    // 工作树视图的三个局部状态也给深链：评审要截「只看异常」或「展开某一棵」时不用手点。
+    // 工作区视图的三个局部状态也给深链：评审要截「只看异常」或「展开某一棵」时不用手点。
     const wt = params.get('wt')
     if (wt === 'abnormal' || wt === 'all') wtFilter = wt
     if (params.get('wtnote') === '0') wtNoteOpen = false
@@ -1377,7 +1377,7 @@ export function mount(root: HTMLElement): void {
       const first = panelModelOf(base, state, Date.now()).worktrees.others.find((row) => row.abnormal)
       expandedWorktree = first === undefined ? null : first.path
     }
-    // 工作树动作的确认卡也留深链入口：评审要截「移除前确认」时不用先展开再点按钮。
+    // 工作区动作的确认卡也留深链入口：评审要截「移除前确认」时不用先展开再点按钮。
     const wtPendingParam = params.get('wtpending')
     if (wtPendingParam === 'unlock' || wtPendingParam === 'prune' || wtPendingParam === 'remove') {
       const path = params.get('wtpath') ?? ''
@@ -1404,14 +1404,14 @@ export function mount(root: HTMLElement): void {
     const commitMenu = params.get('commitmenu')
     if (commitMenu !== null && commitMenu !== '') commitMenuOid = commitMenu
     if (params.get('commitconfirm') === '1' && commitMenuOid !== null) commitConfirmOid = commitMenuOid
-    // 收起记录用一条演示数据起底：真实仓库里没有收起记录，也要能截到「放回工作区 / 放回并删掉记录 / 丢弃记录」这一页。
+    // 储藏记录用一条演示数据起底：真实仓库里没有储藏记录，也要能截到「应用回工作区 / 弹出 / 丢弃记录」这一页。
     if (params.get('stashdemo') === '1') state = reduce(state, { type: 'stash-create' }, base)
     const stashPending = params.get('stashpending')
     if (stashPending === 'drop') {
       const stashId = params.get('stashid') ?? 'stash@{0}'
       state = reduce(state, { type: 'stash-pending', pending: { kind: 'drop', id: stashId } }, base)
     }
-    // 分支页是覆盖层，放在视图之后应用：?branches=1&view=worktrees 表示「工作树页盖着分支页」。
+    // 分支页是覆盖层，放在视图之后应用：?branches=1&view=worktrees 表示「工作区页盖着分支页」。
     if (params.get('branches') === '1') state = reduce(state, { type: 'branch-open' }, base)
     const branchName = params.get('branch')
     if (branchName !== null && branchName !== '') state = reduce(state, { type: 'branch-select', name: branchName }, base)
