@@ -11,6 +11,8 @@
 //      而不是编一个假进度。clone/fetch/pull/push 的 Receiving objects 行就是真实百分比来源。
 
 /** 四类结束结论。中断专指宿主进程重启后对上一次在途任务的如实说明，不是进程自己退出。 */
+import { filterRepoArgs } from './filter-repo-args.js'
+
 export const TASK_CONCLUSIONS = ['succeeded', 'failed', 'cancelled', 'interrupted']
 
 /** 任务状态只有两种：在途、已结束。四类结论只挂在已结束上。 */
@@ -309,13 +311,9 @@ export function taskArgsFor(op: any, args: any): TaskArgResult {
   if (op === 'filter-repo') {
     const out = ['filter-repo', '--force']
     if (a.args !== undefined) {
-      if (!Array.isArray(a.args)) return badArg('bad-args', '外部工具参数必须是数组')
-      const allowed = ['--path', '--invert-paths', '--replace-refs', '--strip-blobs-bigger-than']
-      for (const item of a.args) {
-        if (typeof item !== 'string' || item.length === 0) return badArg('bad-args', '外部工具参数必须是文本')
-        if (item.charAt(0) !== '-' || allowed.indexOf(item) < 0) return badArg('bad-args', '外部工具参数只接受登记过的选项')
-        out.push(item)
-      }
+      const parsed: any = filterRepoArgs(a.args)
+      if (parsed.ok !== true) return badArg(parsed.reason, parsed.message, parsed.hint)
+      for (const tok of parsed.args) out.push(tok)
     }
     return { ok: true, args: out }
   }

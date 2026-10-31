@@ -143,6 +143,9 @@ const KEYS: Array<[string, string, string]> = [
   // #1749 变基待办页：预检只读与变基执行各一档。
   ['vcRebaseReadTimeoutMs', 'VC_REBASE_READ_TIMEOUT_MS', 'timeouts'],
   ['vcRebaseWriteTimeoutMs', 'VC_REBASE_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1750 维护页整仓重写：预检只读与前置整仓备份两条命令超时。
+  ['vcRewriteReadTimeoutMs', 'VC_REWRITE_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcRewriteWriteTimeoutMs', 'VC_REWRITE_WRITE_TIMEOUT_MS', 'timeouts'],
   ['gitCredentialCallBudgetMs', 'GIT_CREDENTIAL_CALL_BUDGET_MS', 'timeouts'],
   ['gitCredentialMinBudgetMs', 'GIT_CREDENTIAL_MIN_BUDGET_MS', 'timeouts'],
   ['gitCredentialMaxBudgetMs', 'GIT_CREDENTIAL_MAX_BUDGET_MS', 'timeouts'],

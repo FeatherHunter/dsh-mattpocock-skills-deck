@@ -706,6 +706,11 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // #1747 冲突文本的解析与拼装（逐块读出当前边/对方边、按选择拼回整份、残留标记判定）：宿主预检执行与界面冲突视图、
   //   6.7 整份编辑必须读同一份行号与同一套行尾口径，所以把这份零依赖模块拼进界面闭包；宿主半走普通相对 import。
   { marker: '// ==== shared:vcConflictText (spliced by build) ====', file: 'src/shared/version-control/src/conflict-text.ts' },
+  // #1750 T15 整仓重写（能力 5.11）：五张 filter-repo 表单的输入守卫、计划与 argv 拼装（rewrite-ops.ts），以及前置强制备份的
+  //   备份点与还原步骤（recovery-point.ts，T13 恢复点装置在这里扩成整仓备份）。两份都是零依赖纯模块，宿主预检/执行与界面判定
+  //   必须读同一份，所以拼进界面闭包；宿主半走普通相对 import。
+  { marker: '// ==== shared:vcRewriteOps (spliced by build) ====', file: 'src/shared/version-control/src/rewrite-ops.ts' },
+  { marker: '// ==== shared:vcRecoveryPoint (spliced by build) ====', file: 'src/shared/version-control/src/recovery-point.ts' },
 ]
 
 // ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------
@@ -840,6 +845,10 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   //   排在页面壳之前，壳的挂载段才看得到 vcRebasePageNode。
   { id: 'vcRebaseOps', file: 'src/client/views/versionControl/vcRebaseOps.ts' },
   { id: 'vcRebasePage', file: 'src/client/views/versionControl/vcRebasePage.ts' },
+  // #1750 T15 维护页整仓重写两叶：动作模型（五张表单的字段、多行文本解析、回包分类）→ 页面正文（filter-branch 只读说明、
+  //   预览计数、四段确认卡、备份与还原、长任务进度与四类结论）。排在页面壳之前，壳的挂载段才看得到 vcRewritePageNode。
+  { id: 'vcRewriteOps', file: 'src/client/views/versionControl/vcRewriteOps.ts' },
+  { id: 'vcRewritePage', file: 'src/client/views/versionControl/vcRewritePage.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },

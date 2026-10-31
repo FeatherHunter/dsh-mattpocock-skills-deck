@@ -90,6 +90,9 @@ const VC_FILES = [
   // #1747 冲突文本的解析与拼装（冲突块切分、按选择拼回整份、残留标记判定）：宿主保存前扫标记与界面冲突视图同源，
   //   与构建同序排在客户端那片之前。
   'src/shared/version-control/src/conflict-text.ts',
+  // #1750 T15 整仓重写的共享两片（与构建同序）：五张 filter-repo 表单的输入守卫/计划/argv 拼装，以及整仓备份点与还原步骤。
+  'src/shared/version-control/src/rewrite-ops.ts',
+  'src/shared/version-control/src/recovery-point.ts',
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js',
@@ -160,6 +163,9 @@ const VC_FILES = [
   // #1749 变基待办页两叶（与构建同序）：先动作模型（九条能力的出入参形状），再页面正文；壳的挂载段要看到页面体那一叶。
   'src/client/views/versionControl/vcRebaseOps.js',
   'src/client/views/versionControl/vcRebasePage.js',
+  // #1750 T15 维护页整仓重写两叶（与构建同序）：动作模型在前、页面正文在后，壳的挂载段要看到页面体那一叶。
+  'src/client/views/versionControl/vcRewriteOps.js',
+  'src/client/views/versionControl/vcRewritePage.js',
   'src/client/views/versionControl/vcShellPages.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -311,6 +317,12 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcRebaseRequestIdOf', 'vcRebaseVisibleOf', 'vcRebasePayloadOf', 'vcRebaseCheckArgsOf', 'vcRebaseWriteArgsOf',
   'vcRebaseTargetOf', 'vcRebaseRowsOf', 'vcRebaseRowPatchOf', 'vcRebaseRowTextOf', 'vcRebaseMoveOf',
   'vcRebasePageNode', 'vcRebaseRowNode',
+  // #1750 T15 维护页整仓重写：动作模型（五表单、多行文本解析、回包分类）与页面正文叶子。
+  'VC_REWRITE_PAGE_SOURCE', 'VC_REWRITE_PHONES', 'VC_REWRITE_FORM_IDS', 'VC_REWRITE_FIELDS', 'VC_REWRITE_FORM_DEFAULT', 'VC_REWRITE_REASON_KEYS',
+  'vcRewriteFieldOf', 'vcRewriteFieldLabelKeyOf', 'vcRewriteFieldHintKeyOf', 'vcRewriteLinesOf', 'vcRewriteRenamesOf', 'vcRewriteReplacementsOf',
+  'vcRewriteAuthorsOf', 'vcRewritePlanOf', 'vcRewritePreviewArgsOf', 'vcRewriteCheckArgsOf', 'vcRewriteRunArgsOf', 'vcRewriteRequestIdOf',
+  'vcRewriteReasonOf', 'vcRewriteReplyKindOf', 'vcRewriteTicketOf', 'vcRewriteCountRowsOf', 'vcRewriteBackupOf', 'vcRewriteBackupSummaryOf',
+  'vcRewriteRestoreStepsOf', 'vcRewriteTaskOf', 'vcRewriteTaskEndedOf', 'vcRewriteProgressOf', 'vcRewriteFailTextOf', 'vcRewritePageNode',
   'VersionControlTab']
 // #1253：这 20 份现在都是 .ts 真源（2026-10-19 第三阶段起 rules 的产物也搬到了 .build/shared/，
 //   列表里直接写 rules.ts 真源路径，不再指向源码树里的产物 .js）。

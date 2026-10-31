@@ -160,6 +160,23 @@ export const VC_WRITE_ERR_FAMILY: Record<string, string> = {
   'config-failed': 'notReady',
   'hook-failed': 'notReady',
 
+  // #1750 维护页整仓重写新增的十三种理由（共享真源 write-reasons.ts 已登记话术）：
+  // 工具没装、仓库是浅克隆、工作区不干净、表单输入不合规、备份没做成或读不全、临时目录不可用、任务起不来，
+  // 都是「输入或现场不满足这一步」，归 notReady——照提示处理后重试同一动作即可，不需要重新看一眼旧判断。
+  'tool-missing': 'notReady',
+  'shallow-repo': 'notReady',
+  'dirty-worktree': 'notReady',
+  'bad-form': 'notReady',
+  'bad-rename': 'notReady',
+  'bad-identity': 'notReady',
+  'bad-threshold': 'notReady',
+  'bad-replacement': 'notReady',
+  'too-many-items': 'notReady',
+  'backup-failed': 'notReady',
+  'backup-unreadable': 'notReady',
+  'temp-unavailable': 'notReady',
+  'task-start-failed': 'notReady',
+
   'unknown-write-failure': 'unknown',
 }
 

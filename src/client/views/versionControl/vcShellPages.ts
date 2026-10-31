@@ -43,9 +43,9 @@ declare function vcSubmodulesPageNode(h: any, t: any, o: any): any
 declare function vcChangesPageNode(h: any, t: any, o: any): any
 // 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）、贮藏页叶子（#1751，vcStashPage.ts）、克隆向导页叶子（#1756，
 // vcClonePage.ts）、冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）、变基待办页的历史改写面板（#1748 T13，vcUndoPage.ts）
-// 与动作面板（#1749 T14，vcRebasePage.ts）、配置页与钩子页两叶（#1760）以及诊断页正文一叶（#1761）都由构建拼进同一个闭包，这里只声明形状；
-// 挂载条件在下面。十条声明并进同一条物理行：本文件贴着 350 有效行上限。
-declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcMigratePageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any; declare function vcRebasePageNode(h: any, t: any, o: any): any; declare function vcConfigPageNode(h: any, t: any, o: any): any; declare function vcHooksPageNode(h: any, t: any, o: any): any; declare function vcDiagnosticsMountNode(h: any, t: any, o: any): any // #1761 诊断页正文（只在诊断页且传了读数时挂载）
+// 与动作面板（#1749 T14，vcRebasePage.ts）、配置页与钩子页两叶（#1760）、维护页整仓重写一叶（#1750 T15，vcRewritePage.ts）以及诊断页正文一叶（#1761）都由构建拼进同一个闭包，这里只声明形状；
+// 挂载条件在下面。十一条声明并进同一条物理行：本文件贴着 350 有效行上限。
+declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcMigratePageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any; declare function vcRebasePageNode(h: any, t: any, o: any): any; declare const vcRewritePageNode: any; declare function vcConfigPageNode(h: any, t: any, o: any): any; declare function vcHooksPageNode(h: any, t: any, o: any): any; declare function vcDiagnosticsMountNode(h: any, t: any, o: any): any // #1761 诊断页正文（只在诊断页且传了读数时挂载）
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']; // 两套皮肤：深浅各一套语义色，页面壳只把皮肤名透传给 CSS 与根属性。
@@ -304,7 +304,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     ]))
   }
   // #1756 T20 克隆向导（能力 8.16）：迁移与备份页的正文；组件自己保存表单与进度，壳只把取词、工作区与发电话的函数递进去。
-  if (page === 'migrate') children.push(h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null }))
+  if (page === 'migrate') children.push(h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcRewritePageNode, { key: 'rewrite', t: t, cwd: opts.cwd || '', call: opts.call || null })) // #1750 T15 维护页整仓重写（能力 5.11）正文；与克隆向导同一物理行：本文件贴着 350 有效行上限
   // 分支与标签页的业务面板（#1746 T11）：调用方把一份读数传进来才画；没传整块不出现，其它页渲染不变。
   if (page === 'branch-tags' && opts.branchBoard !== undefined) {
     children.push(Object.assign({}, vcBranchBoardNode(h, t, {

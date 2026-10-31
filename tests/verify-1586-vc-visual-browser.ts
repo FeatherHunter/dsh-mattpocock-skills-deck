@@ -44,9 +44,16 @@ const strip = (s: string): string => s.replace(/^(\s*)export\s+/gm, '$1')
 // 闭包按构建顺序：共享账本 → 页面注册表 / 壳零件 / 命令面板 / 页面壳。
 // 页面壳只读能力账本（CAPABILITIES / PAGE_SURFACES / PAGE_COUNTS / PRIMARY_ENTRY_PAGE），不碰 host。
 const VC_FILES = [
+  // 中央时间参数：真机闭包里由构建按 shared:timeConfig 拼进来（一次摘出闭包要用的常量）；
+  // 这里读构建留下的同一份片段——维护页整仓重写页要用 VC_TASK_POLL_INTERVAL_MS 轮询长任务。
+  '.tmp/time-config.client.js',
   '.build/shared/version-control/capability-ledger.js',
   // #1744：首屏七片契约的产物（历史页的列表直接来自首屏快照的 history 片，不另造一条读取）。
   '.build/shared/version-control/first-screen.js',
+  // #1750：维护页整仓重写页依赖两份零依赖共享模块（rewrite-ops 的表单与计划、recovery-point 的备份点与还原步骤），
+  // 真机闭包里由构建按 shared:vcRewriteOps / shared:vcRecoveryPoint 拼进来；这里按同两份源码拼，闭包才闭得上。
+  '.build/shared/version-control/rewrite-ops.js',
+  '.build/shared/version-control/recovery-point.js',
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcData.js',
   'src/client/views/versionControl/vcFirstScreen.js',
@@ -58,6 +65,9 @@ const VC_FILES = [
   // #1745：提交历史页六组 / 诊断页四组的历史高级查询面板（页面壳要调它，闭包里少一片就 ReferenceError）。
   'src/client/views/versionControl/vcQuery.js',
   'src/client/views/versionControl/vcQueryView.js',
+  // #1750：维护页会挂整仓重写面板（vcRewritePage），页面壳渲染 maintenance 页时要调它；按构建次序排在页面壳之前。
+  'src/client/views/versionControl/vcRewriteOps.js',
+  'src/client/views/versionControl/vcRewritePage.js',
   'src/client/views/versionControl/vcShellPages.js',
 ]
 
