@@ -135,10 +135,10 @@ const vcMaintActionCardOf = function (h: any, t: any, op: any, state: any, handl
     h('p', { key: 'command' }, h('code', null, String((meta && meta.command) || ''))),
   ]
   if (state.busy === true) kids.push(h('p', { key: 'busy', 'data-vc-maint-busy': op }, t('vc.maintenance.busy')))
-  else if (state.confirm) kids.push(vcMaintConfirmOf(h, t, op, state.confirm, state.backup, state.preview, function () { handlers.go(op) }, function () { handlers.cancel(op) }))
-  else kids.push(vcMaintButtonOf(h, t, vcMaintenanceOpVerbKeyOf(op), 'vc.maint.begin.' + op, false, function () { handlers.begin(op) }, 'vc.maintenance.op.tip.' + op))
+  else if (state.confirm) kids.push(Object.assign({}, vcMaintConfirmOf(h, t, op, state.confirm, state.backup, state.preview, function () { handlers.go(op) }, function () { handlers.cancel(op) }), { key: 'confirm' }))
+  else kids.push(Object.assign({}, vcMaintButtonOf(h, t, vcMaintenanceOpVerbKeyOf(op), 'vc.maint.begin.' + op, false, function () { handlers.begin(op) }, 'vc.maintenance.op.tip.' + op), { key: 'begin' }))
   const result = vcMaintResultOf(h, t, op, Object.assign({}, state, { onRetry: function () { handlers.begin(op) } }))
-  if (result) kids.push(result)
+  if (result) kids.push(Object.assign({}, result, { key: 'result' }))
   return h('div', { key: op, className: 'vcs-card', 'data-vc-maint-action': op, 'data-vc-maint-kind': 'write', 'data-vc-maint-danger': meta && meta.dangerous === true ? '1' : '0' }, kids)
 }
 

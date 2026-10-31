@@ -60,7 +60,7 @@ const vcMaintDiagTaskCardOf = function (h: any, t: any, op: any, state: any, tas
     h('p', { key: 'hint', className: 'vcs-muted' }, t('vc.maintenance.diag.taskHint.' + String(op || ''))),
   ]
   if (state.busy === true) kids.push(h('p', { key: 'busy', 'data-vc-maint-diag-busy': op }, t('vc.maintenance.busy')))
-  else kids.push(vcMaintDiagButtonOf(h, t, vcMaintenanceOpVerbKeyOf(op), 'vc.maint.diag.start.' + op, false, function () { handlers.start(op) }, 'vc.maintenance.diag.taskTip.' + op))
+  else kids.push(Object.assign({}, vcMaintDiagButtonOf(h, t, vcMaintenanceOpVerbKeyOf(op), 'vc.maint.diag.start.' + op, false, function () { handlers.start(op) }, 'vc.maintenance.diag.taskTip.' + op), { key: 'start-' + op }))
   if (state.error) kids.push(h('p', { key: 'error', 'data-vc-maint-diag-error': op }, String(state.error)))
   if (task) kids.push(h('div', { key: 'task', 'data-vc-maint-diag-task': op }, vcTaskRowNode(h, t, task, { onCancel: function (taskId: any) { handlers.cancel(taskId) } })))
   return h('div', { key: op, className: 'vcs-card', 'data-vc-maint-diag-card': op }, kids)

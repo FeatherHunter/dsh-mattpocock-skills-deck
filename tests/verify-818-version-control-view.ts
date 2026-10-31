@@ -95,6 +95,8 @@ const VC_FILES = [
   // #1750 T15 整仓重写的共享两片（与构建同序）：五张 filter-repo 表单的输入守卫/计划/argv 拼装，以及整仓备份点与还原步骤。
   'src/shared/version-control/src/rewrite-ops.ts',
   'src/shared/version-control/src/recovery-point.ts',
+  // #1758 T22 维护页十条能力的共享协议（动作表、计划、任务请求、版本门，与构建同序排在客户端那片之前）。
+  'src/shared/version-control/src/maintenance-ops.ts',
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js',
@@ -174,6 +176,10 @@ const VC_FILES = [
   // #1750 T15 维护页整仓重写两叶（与构建同序）：动作模型在前、页面正文在后，壳的挂载段要看到页面体那一叶。
   'src/client/views/versionControl/vcRewriteOps.js',
   'src/client/views/versionControl/vcRewritePage.js',
+  // #1758 T22 维护页与诊断页三叶（与构建同序）：数据模型在前，两个页面正文在后；壳的挂载段要看到页面体那两叶。
+  'src/client/views/versionControl/vcMaintenanceData.js',
+  'src/client/views/versionControl/vcMaintenancePage.js',
+  'src/client/views/versionControl/vcMaintenanceDiag.js',
   'src/client/views/versionControl/vcShellPages.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -340,6 +346,14 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcRewriteAuthorsOf', 'vcRewritePlanOf', 'vcRewritePreviewArgsOf', 'vcRewriteCheckArgsOf', 'vcRewriteRunArgsOf', 'vcRewriteRequestIdOf',
   'vcRewriteReasonOf', 'vcRewriteReplyKindOf', 'vcRewriteTicketOf', 'vcRewriteCountRowsOf', 'vcRewriteBackupOf', 'vcRewriteBackupSummaryOf',
   'vcRewriteRestoreStepsOf', 'vcRewriteTaskOf', 'vcRewriteTaskEndedOf', 'vcRewriteProgressOf', 'vcRewriteFailTextOf', 'vcRewritePageNode',
+  // #1758 T22 维护页与诊断页：动作模型（16 条能力与版本门）与两个页面正文叶子。
+  'VC_MAINTENANCE_PAGE_SOURCE', 'VC_MAINTENANCE_PHONES', 'VC_MAINTENANCE_ACTIONS', 'VC_MAINTENANCE_VERSION_GATES', 'VC_MAINTENANCE_DANGER_IDS',
+  'vcMaintenanceOpMetaOf', 'vcMaintenanceOpLabelKeyOf', 'vcMaintenanceOpVerbKeyOf', 'vcMaintenanceOpsOfPage', 'vcMaintenanceVisibleOf',
+  'vcMaintenanceRequestIdOf', 'vcMaintenanceReadArgsOf', 'vcMaintenanceCheckArgsOf', 'vcMaintenanceWriteArgsOf', 'vcMaintenanceTaskArgsOf',
+  'vcMaintenanceReplyKindOf', 'vcMaintenanceReasonOf', 'vcMaintenanceTicketOf', 'vcMaintenanceConfirmOf', 'vcMaintenanceBackupOf',
+  'vcMaintenancePreviewOf', 'vcMaintenanceObjectsOf', 'vcMaintenanceStatusOf', 'vcMaintenanceTaskOf', 'vcMaintenanceProgressOf',
+  'vcMaintenanceFailTextOf', 'VC_MAINTENANCE_PAGE_BODY_SOURCE', 'VC_MAINTENANCE_PAGE_WRITES', 'VC_MAINTENANCE_PAGE_READS', 'VC_MAINTENANCE_PAGE_DANGER', 'vcMaintenancePageNode',
+  'VC_MAINTENANCE_DIAG_SOURCE', 'VC_MAINTENANCE_DIAG_TASKS', 'VC_MAINTENANCE_DIAG_ITEM_LIMIT', 'VC_MAINTENANCE_DIAG_EXITS', 'vcMaintenanceDiagNode',
   'VersionControlTab']
 // #1253：这 20 份现在都是 .ts 真源（2026-10-19 第三阶段起 rules 的产物也搬到了 .build/shared/，
 //   列表里直接写 rules.ts 真源路径，不再指向源码树里的产物 .js）。

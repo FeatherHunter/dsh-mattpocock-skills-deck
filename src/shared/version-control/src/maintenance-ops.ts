@@ -84,10 +84,10 @@ export const MAINTENANCE_PHONES: any = {
 }
 
 // 计划摘要输入必须跨机器稳定，所以自己写一份键排序的 JSON，不 import 别的模块。
-function canonicalJson(value: any): string {
+function maintenanceCanonicalJson(value: any): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value)
-  if (Array.isArray(value)) return '[' + value.map(canonicalJson).join(',') + ']'
-  return '{' + Object.keys(value).sort().map(function (key) { return JSON.stringify(key) + ':' + canonicalJson(value[key]) }).join(',') + '}'
+  if (Array.isArray(value)) return '[' + value.map(maintenanceCanonicalJson).join(',') + ']'
+  return '{' + Object.keys(value).sort().map(function (key) { return JSON.stringify(key) + ':' + maintenanceCanonicalJson(value[key]) }).join(',') + '}'
 }
 
 export function maintenancePlanOf(partial?: any): any {
@@ -99,7 +99,7 @@ export function maintenancePlanOf(partial?: any): any {
 }
 
 export function maintenancePlanInput(plan: any): string {
-  return canonicalJson(maintenancePlanOf(plan))
+  return maintenanceCanonicalJson(maintenancePlanOf(plan))
 }
 
 export function maintenanceOpMetaOf(opId: any): MaintenanceOpMeta | null {
