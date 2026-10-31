@@ -133,6 +133,16 @@ timeouts:
   # 手动跑一个钩子（git hook run）的超时：2 分钟。钩子是仓库里的脚本，可能真的在跑构建、跑测试、
   # 调外部工具；给足时间但仍要上限，到点按超时失败、不假装跑完。
   vcHookRunTimeoutMs: 120000
+  # —— 克隆向导的单条命令超时（#1756 T20，能力 8.16）——
+  # 预检里单条只读命令的超时：15 秒。当前仓库地址、目标目录探测都是本地读，与分支域只读同一档。
+  vcCloneReadTimeoutMs: 15000
+  # 清理残留目录这一步的单条命令超时：15 秒。只读一次 HEAD 复核，不删不改别的东西。
+  vcCloneWriteTimeoutMs: 15000
+  # —— 冲突向导的单条命令超时（#1747）——
+  # 冲突向导预检里单条只读 git 命令的超时：15 秒。冲突清单、文件内容、merge-tree 预演、rerere 都是本地读取。
+  vcConflictReadTimeoutMs: 15000
+  # 冲突向导凭票执行里单条写命令的超时：15 秒。merge / checkout / add / rm 都是本地动作，不推远端。
+  vcConflictWriteTimeoutMs: 15000
   # git 凭据代执行的整趟预算：4 分钟。上下限 5 秒与 10 分钟：接线给的预算会被钳进这个范围
   # （下限从 1 秒提到 5 秒；1 秒的预算在慢机器上连子进程启动都盖不住，等于没给）。
   gitCredentialCallBudgetMs: 240000

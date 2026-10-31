@@ -95,6 +95,8 @@ const REFERENCES: RefRow[] = [
   { file: 'src/host/versionControlConfig.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_CONFIG_READ_TIMEOUT_MS', key: 'vcConfigReadTimeoutMs' },
   { file: 'src/host/versionControlConfigWrite.ts', access: 'WRITE_TIMEOUT_MS', gen: 'VC_CONFIG_WRITE_TIMEOUT_MS', key: 'vcConfigWriteTimeoutMs' },
   { file: 'src/host/versionControlConfigWrite.ts', access: 'HOOK_TIMEOUT_MS', gen: 'VC_HOOK_RUN_TIMEOUT_MS', key: 'vcHookRunTimeoutMs' },
+  { file: 'src/host/versionControlConflictScene.ts', access: 'VC_CONFLICT_READ_TIMEOUT_MS', gen: 'VC_CONFLICT_READ_TIMEOUT_MS', key: 'vcConflictReadTimeoutMs' },
+  { file: 'src/host/versionControlConflictWrite.ts', access: 'VC_CONFLICT_WRITE_TIMEOUT_MS', gen: 'VC_CONFLICT_WRITE_TIMEOUT_MS', key: 'vcConflictWriteTimeoutMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'CALL_BUDGET_MS', gen: 'GIT_CREDENTIAL_CALL_BUDGET_MS', key: 'gitCredentialCallBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MIN_BUDGET_MS', gen: 'GIT_CREDENTIAL_MIN_BUDGET_MS', key: 'gitCredentialMinBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MAX_BUDGET_MS', gen: 'GIT_CREDENTIAL_MAX_BUDGET_MS', key: 'gitCredentialMaxBudgetMs' },
@@ -295,6 +297,8 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/client/views/primitives/Tip.ts', name: 'TIP_SHOW_DELAY_MS', key: 'tipShowDelayMs' },
   { file: 'src/client/views/primitives/Tip.ts', name: 'TIP_HIDE_DELAY_MS', key: 'tipHideDelayMs' },
   { file: 'src/client/views/versionControl/vcText.ts', name: 'VC_RELATIVE_WINDOW_MS', key: 'vcRelativeWindowMs' },
+  // #1756：克隆向导页按长任务通道的中央节拍轮询进度（源码里只声明名字，值由这一片给）。
+  { file: 'src/client/views/versionControl/vcClonePage.ts', name: 'VC_TASK_POLL_INTERVAL_MS', key: 'vcTaskPollIntervalMs' },
   { file: 'src/client/kernel/api-io.ts', name: 'DRAFT_REFOCUS_RETRY_MS', key: 'draftRefocusRetryMs' },
   // 「下一步建议」读自己那份工作路线的两档重试等待（work-route-own.ts）：数组常量同样由拼接片段提供。
   { file: 'src/client/kernel/work-route-own.ts', name: 'OWN_ROUTE_RETRY_MS', key: 'ownRouteRetryMs' },
@@ -488,6 +492,10 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'scanStartedMs', reason: '读钟时刻（这趟核对什么时候开始的），不是可调参数' },
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'sinceMs', reason: '算出来的起点时刻（上次水位减容差），不是可调参数' },
   { file: 'src/host/versionControlFirstScreen.ts', name: 'readAtMs', reason: '读钟时刻（这一趟首屏聚合读取是什么时候开始的），不是可调参数' },
+  { file: 'src/host/versionControlSyncCheck.ts', name: 'readAtMs', reason: '读钟时刻（这一趟同步预检是什么时候读的现场），不是可调参数' },
+  // #1756：克隆预检与执行的回包都带自己那一刻的读钟时刻，用来和票据过期对上，不是可调参数。
+  { file: 'src/host/versionControlClone.ts', name: 'readAtMs', reason: '读钟时刻（这一趟克隆预检是什么时候读的现场），不是可调参数' },
+  { file: 'src/host/versionControlClone.ts', name: 'atMs', reason: '读钟时刻（这次克隆执行是什么时候起手的），不是可调参数' },
   { file: 'src/refresh/rooms/host/probe-handler.ts', name: 'nowMs', reason: '读钟时刻（Date.now），降级探测与校准的窗口判定用，不是可调参数' },
   { file: 'src/host/skillProbeCache.ts', name: 'ttlMs', reason: '透传参数，缺省接 SKILL_PROBE_CACHE_MS（已登记）' },
   { file: 'src/host/skillProbe.ts', name: 'SKILL_CACHE_TTL_MS', reason: '函数内局部变量：接线给了正数就听接线的，没给时取中央常量 SKILL_LIST_CACHE_TTL_MS（已登记为 skillListCacheTtlMs）' },

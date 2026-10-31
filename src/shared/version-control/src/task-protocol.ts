@@ -154,14 +154,32 @@ export function taskArgsFor(op: any, args: any): TaskArgResult {
       if (!Number.isInteger(depth) || depth < 1 || depth > 100000) return badArg('bad-args', 'depth 必须是正整数')
       out.push('--depth', String(depth))
     }
+    // #1756 T20 克隆向导：分支、递归子模块、浅克隆子模块三个可选开关，只在不给/给假时完全不出现在 argv 里
+    //   （老调用方的 argv 一个字节都不变）。--shallow-submodules 依赖 --depth，缺了 git 会自己报错，
+    //   这里提前给人话，免得用户等到任务跑起来才看到一句英文。
+    if (a.branch !== undefined && a.branch !== null && String(a.branch).trim() !== '') {
+      const branchProblem = taskRefProblem(String(a.branch).trim())
+      if (branchProblem) return badArg('bad-branch', branchProblem)
+      out.push('--branch', String(a.branch).trim())
+    }
+    if (a.shallowSubmodules === true) {
+      if (a.depth === undefined) return badArg('bad-args', '浅克隆子模块必须同时给深度（--shallow-submodules 要有 --depth 才有意义）')
+      out.push('--shallow-submodules')
+    }
+    if (a.recurseSubmodules === true) out.push('--recurse-submodules')
     return { ok: true, args: out.concat([a.url, a.dir]) }
   }
   if (op === 'fetch') {
     const remoteProblem = taskRemoteProblem(a.remote || 'origin')
     if (remoteProblem) return badArg('bad-remote', remoteProblem)
-    const out = ['fetch', '--progress', a.remote || 'origin']
+    // #1755 T19：--all / --prune / --tags 是 8.5 票面点名的三种取法；缺省参数下 argv 与既有行为逐字一致。
+    const all = a.all === true
+    const out = all ? ['fetch', '--progress', '--all'] : ['fetch', '--progress', a.remote || 'origin']
+    if (a.prune === true) out.push('--prune')
+    if (a.tags === true) out.push('--tags')
     const refspecs = a.refspecs === undefined ? [] : a.refspecs
     if (!Array.isArray(refspecs)) return badArg('bad-args', 'refspecs 必须是数组')
+    if (all && refspecs.length > 0) return badArg('bad-args', '--all 与具体引用不能同时使用')
     for (const ref of refspecs) {
       const problem = taskRefspecProblem(ref)
       if (problem) return badArg('bad-refspec', problem)
@@ -179,12 +197,36 @@ export function taskArgsFor(op: any, args: any): TaskArgResult {
   if (op === 'push') {
     const remoteProblem = taskRemoteProblem(a.remote || 'origin')
     if (remoteProblem) return badArg('bad-remote', remoteProblem)
+    // #1755 T19：删除远端引用（8.11）只收完整引用名，避免把名字当选项传进去。
+    if (a.deleteRef !== undefined) {
+      if (typeof a.deleteRef !== 'string' || !/^refs\/(heads|tags)\/[^\s\u0000]+$/.test(a.deleteRef)) return badArg('bad-ref', '删除的远端引用必须是 refs/heads/ 或 refs/tags/ 下的完整名字')
+      if (/^[-+]/.test(a.deleteRef) || a.deleteRef.indexOf('..') >= 0) return badArg('bad-ref', '删除的远端引用里不许有上跳段或以减号开头')
+      return { ok: true, args: ['push', '--progress', '--no-follow-tags', '--delete', a.remote || 'origin', a.deleteRef] }
+    }
+    // 推送标签（8.14）只有两种模式；这两种都不带 --no-follow-tags，否则标签根本不会被推上去。
+    if (a.tags !== undefined) {
+      const mode = a.tags === 'tags' ? '--tags' : a.tags === 'follow-tags' ? '--follow-tags' : ''
+      if (mode === '') return badArg('bad-args', '推送标签的模式只有 follow-tags 或 tags')
+      return { ok: true, args: ['push', '--progress', mode, a.remote || 'origin'] }
+    }
     const localProblem = taskRefProblem(a.localBranch)
     if (localProblem) return badArg('bad-local-branch', localProblem)
     const branchProblem = taskRefProblem(a.branch)
     if (branchProblem) return badArg('bad-branch', branchProblem)
     const out = ['push', '--progress', '--no-follow-tags']
     if (a.setUpstream === true) out.push('--set-upstream')
+    // 原子推送（8.13）：所有引用要么全成要么全不成。
+    if (a.atomic === true) out.push('--atomic')
+    // 强推（8.12）只接受显式租约：租约是「分支:提交号」，没有提交号的强推在这里就被拒绝。
+    if (a.forceWithLease !== undefined) {
+      const lease = a.forceWithLease
+      if (lease === null || typeof lease !== 'object') return badArg('bad-lease', '强推必须带租约对象')
+      const leaseBranchProblem = taskRefProblem(lease.branch)
+      if (leaseBranchProblem) return badArg('bad-lease', leaseBranchProblem)
+      if (typeof lease.oid !== 'string' || !/^[0-9a-fA-F]{7,64}$/.test(lease.oid)) return badArg('bad-lease', '租约基准必须是完整的十六进制提交号')
+      out.push('--force-with-lease=' + lease.branch + ':' + lease.oid)
+      if (a.forceIfIncludes === true) out.push('--force-if-includes')
+    }
     out.push(a.remote || 'origin', a.localBranch + ':' + a.branch)
     return { ok: true, args: out }
   }
