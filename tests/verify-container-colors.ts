@@ -122,8 +122,8 @@ const STATUS_EXCEPTIONS = [
   },
   {
     file: 'src/client/views/IssueDetail.ts',
-    segment: "isStale ? '#f59e0b'",
-    reason: '详情快照已过期的琥珀提示：提醒人这份数据可能是旧的。',
+    segment: 'data-detail-last-known',
+    reason: '详情页「上次数据（时间）」提示的琥珀色（#1694）：提醒人当前画的是上一次取到的内容、不是最新的；与容器空态无关。',
   },
   {
     file: 'src/client/views/IssueDetail.ts',

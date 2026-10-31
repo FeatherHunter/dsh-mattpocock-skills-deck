@@ -772,6 +772,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'mapV2ProfileHeader', file: 'src/client/views/mapDetailV2/view/profile/MapProfileHeader.ts' },
   { id: 'mapV2CardFlow', file: 'src/client/views/mapDetailV2/view/flow/TicketCardFlow.ts' },
   { id: 'mapV2Page', file: 'src/client/views/mapDetailV2/view/MapDetailV2Page.ts' },
+  // #1694：详情页读快照投影（上次数据先画、失败不清空、读投影开关）；排在 IssueDetail 之前拼进闭包。
+  { id: 'detailProjection', file: 'src/client/views/shared/detailProjection.ts' },
   { id: 'IssueDetailComments', file: 'src/client/views/IssueDetailComments.ts' },
   { id: 'issueDetailFold', file: 'src/client/views/issueDetailFold.ts' }, // #763 新增：详情页顶栏逐字折叠阶梯（纯函数，返回优先收到图标）
   { id: 'useIssueDetailFold', file: 'src/client/views/useIssueDetailFold.ts' }, // #763 新增：同一处的折叠机（读写顶栏 DOM；判据在上一项）

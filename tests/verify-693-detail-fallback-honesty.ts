@@ -170,6 +170,10 @@ async function loadDetailModule (): Promise<any> {
     'const selectIssueComment = () => null',
     'const mdImgOverlay = () => null',
     'const mdToHtml = (x) => String(x == null ? "" : x)',
+    // #1694：详情页读快照投影（detailViewFor 与它依赖的纯函数）也按「真实现从产物切出来」的口径拼上；
+    //   这两格常量是投影模块的顶层声明，函数体从产物里切，门禁不另造一份实现。
+    'const READ_PROJECTION_KEY = "dsws.readProjection"',
+    'const READ_PROJECTION_MODES = ["snapshot", "legacy"]',
     '',
   ].join('\n')
   // #845：IssueDetail 现在会调 #763 加的 useIssueDetailFold（顶栏折叠 hook），旧垫片清单里没有它 →
@@ -184,8 +188,12 @@ async function loadDetailModule (): Promise<any> {
   //   与上面两个函数同一口径：把产物里那份 MOTION 对象整段切出来拼上，而不是塞一个抄了数字的空桩，
   //   否则这里测的就是门禁自己编的时长，实现改成别的值也看不出来。
   const motionSrc = extractFn(bundle, 'const MOTION = {')
+  // #1694：详情读投影的纯函数在产物里是函数声明（export function 拼进闭包后去掉了 export）。
+  //   逐个从句柄切出真身，顺序按依赖先后拼；不塞桩，否则「上次数据先画/失败不清空」测的就不是真实现。
+  const projSrc = ['function readProjectionMode(', 'function projectionUsesSnapshot(', 'function hhmmOf(', 'function snapshotRowFor(', 'function lastKnownDetailAtMs(', 'function detailFromRow(', 'function knownBlockedNodes(', 'function detailViewFor(']
+    .map(function (header) { return extractFn(bundle, header) }).join('\n')
   const dir = mkdtempSync(join(tmpdir(), 'dsws693-'))
-  const code = shim + motionSrc + '\n' + foldHookSrc + '\n' + errViewSrc + '\n' + ridcSrc + '\nconst renderIssueDetailComments = __ridc\n' + detailFnSrc + '\nexport { IssueDetail }\n'
+  const code = shim + motionSrc + '\n' + projSrc + '\n' + foldHookSrc + '\n' + errViewSrc + '\n' + ridcSrc + '\nconst renderIssueDetailComments = __ridc\n' + detailFnSrc + '\nexport { IssueDetail }\n'
   const built = esbuild.transformSync(code, { loader: 'js', format: 'esm' }).code
   const file = join(dir, 'IssueDetail.mjs')
   writeFileSync(file, built, 'utf8')

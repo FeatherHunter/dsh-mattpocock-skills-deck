@@ -340,6 +340,10 @@ if (!existsSync(PRODUCT)) {
       'const prStateKind = globalThis.__PRSTATEKIND__',
       // #1668：详情顶栏的点击判据不在本门禁的断言范围里，按改动前的行为给一个可点桩。
       'const detailTopGate = () => ({ clickable: true, reason: "none", blockedNumbers: [] })',
+      // #1694：详情页读快照投影。本门禁的断言只与 PR 合并状态显示有关，不是投影本身的门禁，
+      //   所以按改动前的取数口径给一个最小桩：只认这一趟取回的详情（live），不做快照投影。
+      'const detailViewFor = (st, n, e) => { const d = st.issueDetail; const ok = !!d && Number(d.number) === Number(n) && (d.effortId === undefined || d.effortId === null || String(d.effortId) === String(e || "")); return { issue: ok ? d : null, source: ok ? "live" : "none", lastKnownAtMs: 0, noticeKey: "", notice: "" } }',
+      'const knownBlockedNodes = (src) => { if (!src) return []; const b = src.blockedBy; return Array.isArray(b) ? b : (b && Array.isArray(b.nodes) ? b.nodes : []) }',
       'const prFilterForList = () => ({ isPullRequest: true })',
       'const prIssuesOf = globalThis.__PRISSUES__',
       'const setActiveIssue = globalThis.__SETACTIVE__',
