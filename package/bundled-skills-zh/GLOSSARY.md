@@ -65,15 +65,16 @@
 | 英文 | 中文 | 说明 |
 | --- | --- | --- |
 | agent | 代理 | 泛指执行任务的 AI；不要译成「智能体」。 |
-| subagent / sub-agent | 子代理 | 由主代理起出来、在独立上下文里干活的代理。 |
+| subagent / sub-agent | 子代理 | 由主代理起出来、在自己的上下文窗口里干活的代理；带不带连字符是同一个词。译「子代理」是因为本表把 `agent` 统一译「代理」（见上一行），「子智能体」是门禁明令废弃的旧译，「分代理」「子 AI」也不是通行说法。 |
 | background agent | 后台代理 | 放出去查资料、主代理继续干活的代理。 |
 | AFK agent | AFK 代理 | 无人值守、按简报自主干活的代理；AFK 保留英文。 |
 | HITL | HITL | human in the loop，保留英文。 |
 | session | 会话 | 一次连续的对话与工作过程。 |
 | context | 上下文 | 代理当前能看到的材料。 |
-| context window | 上下文窗口 | 模型一次能容纳的上下文容量。 |
+| context window | 上下文窗口 | 模型一次调用能容纳的上下文容量，常以词元数描述（例如 100K token 的会话）。这是通行译法；不要译成「上下文长度」「上下文大小」，也不要拿它泛指整个上下文。本轮升级反复出现的 `fresh context window` 译「全新上下文窗口」。 |
 | context pointer | 上下文指针 | 上下文里指向外部材料、并写明何时去够它的一条引用。 |
 | context load | 上下文负载 | 常驻上下文的材料在每一轮花掉的词元与注意力。 |
+| context pressure | 上下文压力 | 会话里上下文被占用的程度；压力越大，越要把内容推到子代理或文件里。 |
 | cognitive load | 认知负载 | 压在人身上的成本：有哪些文档、何时该用哪一份。 |
 | compact | 压缩 | 把会话历史压缩成摘要。 |
 | clear | 清空 | 清空上下文。 |
@@ -92,6 +93,7 @@
 | 英文 | 中文 | 说明 |
 | --- | --- | --- |
 | flow | 流程 | 一条穿过若干技能的路径。 |
+| process | 流程 | 做一件事的步骤序列；技能里的小节标题 `## Process` 也译「流程」，全树不要一半写「过程」一半写「流程」。 |
 | main flow | 主流程 | 从想法到交付的主线。 |
 | on-ramp | 上匝道 | 并入主流程的入口。 |
 | phase | 阶段 | 一次会话里的一块工作（盘问、实现、验收等）。 |
@@ -102,8 +104,9 @@
 | ticket | 工单 | 从计划或规格里拆出来的一张工作单元，会落到议题跟踪器上；不要只写「票」。 |
 | issue | 议题 | 议题跟踪器上的 issue；与「工单」区分开。 |
 | decision ticket | 决策工单 | 只产出决定、不产出交付物的工单。 |
-| blocking edge / blocked by | 阻塞边 / 被谁阻塞 | 工单之间的先后依赖。 |
-| blocker | 阻塞项 | 必须先行完成的工单。 |
+| blocking edge / blocked by | 阻塞边 / 被谁阻塞 | 工单之间的先后依赖：这张工单被哪些工单拦住。英文写 `blocking edge` 时一律译「阻塞边」，`blocked by` 那一栏的名字写成「被谁阻塞」；不要改译「依赖边」（那是 dependency edge 的译法），也不要写成「阻塞链接」——链接是跟踪器平台自己的对象。 |
+| blocker | 阻塞项 | 拦住某张工单、必须先行完成的工单；`open blockers` 指还没关闭的阻塞项，`unblocked` 译「已解除阻塞」。 |
+| dependency edge / edge | 依赖边 / 边 | 议题或工单之间「先做完甲，才能做乙」的关系。作为概念讲时译「依赖边」；单说「加一条边」「连边」时译「边」，不译「连线」「链接」。它与 `blocking edge` 是同一种关系，只是英文叫法不同：英文写 `blocking edge` 就译「阻塞边」，写 `dependency edge` 就译「依赖边」，不要把一处英文的译法挪到另一处。 |
 | frontier | 前沿 | 当前已经可以推进的一批工单或问题；保持同一个译法。 |
 | vertical slice | 垂直切片 | 一次穿过各层、能独立演示的一条窄而完整的实现路径。 |
 | horizontal slice | 水平切片 | 只做某一层的切片；技能里通常是要避免的做法。 |
@@ -143,8 +146,8 @@
 | store | 存储 | 长期存东西的地方；与「索引」相对（地图是索引，不是存储）。 |
 | effort | 这项工作 | 一次寻路要完成的那件事；不译成「努力」。 |
 | QA | 验收 | 阶段语境里指验收；命令示例 `/compact we're going to QA this area` 里的 QA 原样保留。 |
-| child issue / sub-issue | 子议题 | 挂在父议题下的议题。 |
-| child ticket | 子工单 | 从一张工单里拆出来、挂在它下面的工单。 |
+| child issue / sub-issue | 子议题 | 挂在父议题下的议题，也就是把一张议题建到父议题底下（GitHub 的 `sub-issues`）；`make each ticket its sub-issue` 里的 `sub-issue` 同样译「子议题」。不要译「子工单」——那个词留给下一行的 `child ticket`；也别译「子票」。 |
+| child ticket | 子工单 | 从一张工单里拆出来、挂在它下面的工单；只用在工单这一层，议题之间的上下关系写「子议题」。 |
 | tool economy | 工具开销 | 用工具时消耗的时间、词元与判断力。 |
 | guardrail | 护栏 | 防止改动滑出安全范围、但不改变功能的检查或约定。 |
 
@@ -160,7 +163,7 @@
 | agent brief | 代理简报 | 分诊时写在议题上的结构化说明，AFK 代理按它干活。 |
 | brief | 任务说明 | 交给子代理的一段任务说明；与「代理简报」区分开。 |
 | label | 标签 | 标签值保留英文。 |
-| native blocking link | 原生阻塞链接 | 平台自带的阻塞关系。 |
+| native blocking link / native issue dependencies / native edges | 原生阻塞链接 / 原生议题依赖 / 原生依赖边 | 跟踪器平台（GitHub 的 `issue dependencies`、GitLab 的 `blocking links`）自带、在界面里直接可见的依赖关系；这三种叫法讲的都是同一种平台自带的依赖关系，可统称「原生依赖」。「原生」强调平台内建，与「退回在正文里写 `Blocked by` 行」相对；不要译成「本地依赖」「内置依赖」，也不要省略「原生」只写「依赖」或「链接」。 |
 | merge request / MR | 合并请求 | GitLab 的叫法；标题与字面量保留英文。 |
 | pull request / PR | PR | 不强行翻译成「拉取请求」；正文里首次出现可写「PR（拉取请求）」。 |
 | triage surface | 分诊入口 | 把 PR 也当作需要分诊的对象。 |
@@ -195,7 +198,14 @@
 | invariant | 不变量 | 任何时候都必须成立的条件。 |
 | error mode | 错误模式 | 出错时的表现方式。 |
 | AI-navigable | 适合 AI 导航 | 代理容易找到、读懂、改动。 |
+| navigation pointer | 导航指针 | 指向正确文件或目录的简短线索，常放进 `AGENTS.md`。 |
 | deepening opportunity | 加深机会 | 把浅模块改成深模块的重构机会。 |
+| candidate | 候选方案 | 待挑选、待加深的模块方案；不要译「候选对象」。 |
+| scaffold | 骨架 | 先搭出的结构框架，之后往里填内容。 |
+| custom tooling | 自定义工具 | 自己写的小工具（CLI、MCP 这类），区别于现成工具。 |
+| workhorse | 主力 | 承担大部分工作的那一种。 |
+| mass diagram | 体量图 | 用面积对比接口与实现宽窄的示意图。 |
+| cross-section | 剖面图 | 把层层浅模块切开来看的示意图。 |
 | design it twice | 设计两遍 | 起多个并行子代理，用不同约束各设计一版再比较。 |
 
 #### 测试与调试
@@ -286,6 +296,7 @@
 | teaching workspace | 教学工作区 | 教一个主题时建在用户仓库里的目录。 |
 | mission | 使命 | 用户为什么想学这个主题；`MISSION.md` 保留文件名。 |
 | lesson | 课程 | 一份自包含、只教一件事的 HTML 产物。 |
+| explainer | 讲解材料 | 用来解释某个概念的一段材料；与「课程」区分，课程是可交互产物。 |
 | learning record | 学习记录 | 记录已经学会了什么、以后可能要修订的条目。 |
 | reference document | 参考文档 | 课程压缩出来的速查材料。 |
 | resource | 资源 | 用户可以去读、去看的一手来源。 |
@@ -336,7 +347,7 @@
 | refresh | 刷新 | 重新读取或重建已缓存的东西。 |
 | plugin | 插件 | 本插件本身。 |
 | skill detail page | 技能详情页 | 界面上看技能描述与文件的地方。 |
-| gate | 门禁 | 自动检查；本仓术语，保留「门禁」。 |
+| gate | 门禁 | 自动检查；本仓术语，保留「门禁」。人工确认节点（例如 `/wizard` 里要人点头的那一步）译「确认关卡」，与自动检查的「门禁」区分开。 |
 | deck | deck | 本插件界面与技能总览的统称，保留英文。 |
 | DSH | DSH | DeepSeek Harness，保留英文。 |
 

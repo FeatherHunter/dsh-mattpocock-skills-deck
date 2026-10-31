@@ -393,10 +393,10 @@ specComplete:
 
     {{shared:sharedTools}}
 specExecute:
-  version: 7
+  version: 8
   placeholders:
     - url
-  use: 规格容器 · 有未关实施票时「执行」按钮（首行 /implement-spec）（#1281）；v6（2026-10-29）：收尾小节标题从「## 收口」改成「## 收尾」，与其余模板统一；v7（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: 规格容器 · 有未关实施票时「执行」按钮（首行 /implement-spec）（#1281）；v6（2026-10-29）：收尾小节标题从「## 收口」改成「## 收尾」，与其余模板统一；v7（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v8（2026-10-31）：降级路线的实现者子代理一条写明要用全新上下文的子代理、不要 fork 当前对话（#1725），与 /implement-spec 技能 v1.3.2 的「用全新上下文窗口启动子代理」口径一致
   zh: |-
     /implement-spec
     {url}
@@ -407,7 +407,7 @@ specExecute:
 
     ## 降级路线（技能前提不成立时）
     - [ ] 开工先验证：当前目录在 git 仓库内且有提交。之后建不出技能要的工作树，也切到这条路线。
-    - [ ] 默认串行：一次一个实现者子代理，地基票（类型、数据层、共享组件）先做，该票验证通过并关票后再起下一个。
+    - [ ] 默认串行：一次一个实现者子代理，每次都用全新上下文的子代理、不要 fork 当前对话；地基票（类型、数据层、共享组件）先做，该票验证通过并关票后再起下一个。
     - [ ] 两张票的文件不重叠才并发：子代理只改本票文件、只跑本票单测；构建、代码生成、全量测试与共享清单、索引文件的改动由你串行做。
     - [ ] 提交与评审基线：git 可用、只是工作树建不出 → 集成分支按技能建，每票完成后由你在分支上串行提交，只暂存本票改动的路径；没有 git → 动手前把仓库复制到仓库外临时目录，收尾用 diff 作评审与回退依据，票里写「未提交」。
     - [ ] 全部票关完后跑一次全量验证；交付时说明降级原因与验证结果。
@@ -427,7 +427,7 @@ specExecute:
 
     ## Fallback route (when the skill's prerequisites do not hold)
     - [ ] Verify the premise first: the current directory is inside a git repository and has commits. If you later cannot create the worktrees the skill needs, switch to this route too.
-    - [ ] Default to serial: one implementer subagent at a time; foundation tickets (types, data layer, shared components) first; start the next one only after the current ticket is verified and closed.
+    - [ ] Default to serial: one implementer subagent at a time; use a subagent with a fresh context window, and do not fork the current conversation; foundation tickets (types, data layer, shared components) first; start the next one only after the current ticket is verified and closed.
     - [ ] Go concurrent only when two tickets touch disjoint files: a subagent only edits its own ticket's files and only runs its own ticket's unit tests; builds, code generation, the full test suite, and changes to shared manifests or index files are done by you serially.
     - [ ] Commit and review baseline: when git works and only worktrees cannot be created, build the integration branch per the skill, and after each ticket you commit serially on the branch, staging only that ticket's changed paths; when there is no git, copy the repository to a temporary directory outside the repository before starting, use the diff as the review and rollback basis at the end, and write uncommitted in the tickets.
     - [ ] After all tickets are closed, run one full verification; in the delivery note, state why the fallback was taken and the verification results.

@@ -1,6 +1,6 @@
 {
   "name": "dsh-mattpocock-skills-deck",
-  "version": "1.9.0-beta.32",
+  "version": "1.9.0-beta.33",
   "repository": {
     "type": "git",
     "url": "https://github.com/FeatherHunter/dsh-mattpocock-skills-deck.git"
@@ -25,7 +25,7 @@
     "verify:fast": "node scripts/verify-parallel.mts --tier fast",
     "verify:changed": "node scripts/verify-parallel.mts --changed",
     "verify": "node scripts/verify-chain.ts",
-    "sync:matt": "node scripts/sync-matt-skills.mts --pin v1.3.1 --verify",
+    "sync:matt": "node scripts/sync-matt-skills.mts --verify",
     "thanks:update": "node scripts/update-thanks.mts"
   },
   "dependencies": {

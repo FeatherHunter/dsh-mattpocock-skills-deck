@@ -246,9 +246,12 @@ for (const one of imageCases) {
 }
 check(imageProblems.length === 0, '图片的 alt 与 title 里的引号文字不会被当成技能名' + (imageProblems.length ? '：' + imageProblems.join('；') : ''))
 
-// #1556：普通文字里斜杠写出来的技能名也要能点（/implement 正文里的 /tdd、/code-review）。
+// #1556：普通文字里斜杠写出来的技能名也要能点（#1556 定版时 /implement 正文里写的是 /tdd、/code-review）。
 // 做法与双引号那段同形：扫随包英中正文（剥掉 frontmatter、跳过围栏代码块），把每行里
 // 反引号与直双引号之外的普通文字里「斜杠 + 名单内技能名」逐处断言是入口；另加一组反证。
+// v1.3.2 起上游把 implement 正文改成用引号写技能名（Call the Skill tool with "tdd"），随包英中正文里
+// 已经没有普通文字的斜杠写法，所以不再要求真实语料必须出现；出现一处就核一处（plainBad 照旧），
+// 渲染行为本身由下面四条历史写法回归行与正反例守住。
 const SLASH_NAME = /\/([A-Za-z0-9][A-Za-z0-9_-]*)/g
 const stripFrontmatterForGate = (src: string): string => {
   const lines = String(src == null ? '' : src).split(/\r?\n/)
@@ -303,7 +306,6 @@ for (const root of bundledRootsForSlash) {
     }
   }
 }
-check(plainWanted.length > 0, '真实语料里确实有普通文字写出来的技能名（实得 ' + plainWanted.length + ' 处：' + plainWanted.slice(0, 8).join('、') + '；当前已知全在 implement 英中各 2 处，这里不钉死数字）')
 check(plainBad.length === 0, '真实语料里每一处普通文字技能名都做成了入口' + (plainBad.length ? '；没做成：' + plainBad.slice(0, 5).join('；') : ''))
 // 反证组：名单外、地址路径、文件写法、前缀回退、大小写，每组一处入口都不做。
 const slashCounters: string[] = [
@@ -326,7 +328,8 @@ check(specGot.indexOf('/implement-spec') >= 0, '普通文字里的 /implement-sp
 const hyphenBeforeGot = (await renderLine('Use -/tdd where possible.')).refs
 check(hyphenBeforeGot.indexOf('/tdd') >= 0, '连字符后的 /tdd 仍做成入口（实得 ' + JSON.stringify(hyphenBeforeGot) + '）')
 check(slashCounterBad.length === 0, '普通文字反证一处入口都不做' + (slashCounterBad.length ? '：' + slashCounterBad.join('；') : '（/nope、地址路径、文件写法、/tdd-x、/TDD 各 1 句）'))
-// 实现验收：/implement 英中正文里的四处普通文字写法逐行是入口。
+// 历史写法回归：/implement 在 v1.3.1 及更早的英中正文里用普通文字的 /tdd、/code-review，
+// 这四行按当时的原句逐行断言仍是入口，保证渲染器改坏时这一支还能红。
 const implementEnTdd = await renderLine('Use /tdd where possible, at pre-agreed seams.')
 check(implementEnTdd.refs.indexOf('/tdd') >= 0, '英文 /implement 的 /tdd 是入口（实得 ' + JSON.stringify(implementEnTdd.refs) + '）')
 const implementEnReview = await renderLine('Once done, use /code-review to review the work.')
