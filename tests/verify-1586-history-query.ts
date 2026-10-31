@@ -1,7 +1,13 @@
 // 门禁归属: src/shared/version-control/src/history-query-commands.ts
+// 门禁归属: src/shared/version-control/src/parse-history-query.ts
+// 门禁归属: src/host/versionControlHistory.ts
+// 门禁归属: src/host/versionControl.ts
+// 门禁归属: src/client/views/versionControl/vcQuery.ts
+// 门禁归属: src/client/views/versionControl/vcQueryView.ts
+// 门禁归属: src/client/views/versionControl/vcShellPages.ts
 // 历史高级查询与追溯（#1745 T10，规格 #1586 能力 3.4–3.13）的参数口径与回包解析门禁。
 // 这里只查「拼出来的 argv 是不是那一条」与「真 git 输出能不能读成对的结构」；
-// 界面与宿主接线在同一个门禁的后半段（同一份文件，按 A/B/C/D 四段）。
+// 界面与宿主接线在同一个门禁的后半段（同一份文件，按 A/B/C/D/E 五段）。
 //
 // 真样本来源：tests/fixtures/version-control/live-history-query-shapes.json，
 // 由本机 git 2.49.0.windows.1 在临时样本仓库上采样（采样脚本与命令见该文件 source 字段）。
@@ -33,6 +39,123 @@ function hasSeq(list, seq) {
   }
   return false
 }
+// ---------- 假 subprocess 适配器：形状照 DSH subprocess 服务（同 verify-818 与 verify-1586-first-screen） ----------
+const QFX_REL = 'tests/fixtures/version-control/live-history-query-shapes.json'
+const QFX = JSON.parse(fs.readFileSync(path.join(ROOT, QFX_REL), 'utf8'))
+/** 宿主的固定前缀之后才是这条 git 命令本身；路由按这一段判命令。 */
+function qAfterPrefix(argv) {
+  const at = argv.indexOf('i18n.logOutputEncoding=UTF-8')
+  return at < 0 ? null : argv.slice(at + 1)
+}
+/** 把一条 git 命令认回十条查询里的哪一种（route 与门禁都用这一份，不各认各的）。 */
+function qKindOfArgv(a) {
+  if (!a || a.length === 0) return ''
+  if (a[0] === 'log') {
+    if (a.indexOf('--follow') >= 0) return 'file-history'
+    if (a.some(function (x) { return x === '--grep' || x.indexOf('--grep=') === 0 })) return 'grep'
+    if (a.some(function (x) { return x.indexOf('-S') === 0 || x.indexOf('-G') === 0 })) return 'pickaxe'
+    return 'file-history'
+  }
+  if (a[0] === 'blame') return 'blame'
+  if (a[0] === 'diff') return 'compare'
+  if (a[0] === 'range-diff') return 'range-diff'
+  if (a[0] === 'describe') return 'describe'
+  if (a[0] === 'reflog') return 'reflog'
+  if (a[0] === 'notes') return 'notes'
+  if (a[0] === 'show') return 'show-file'
+  return ''
+}
+// 每条查询默认回哪一份真样本；个别用例要换样本时用 opts.fixture 覆盖。
+const Q_DEFAULT_FIXTURE = {
+  'file-history': 'fileHistory', blame: 'blame', grep: 'grep', pickaxe: 'pickaxeS',
+  compare: 'diffTwoDot', 'range-diff': 'rangeDiff', describe: 'describeTagged',
+  reflog: 'reflogIso', notes: 'notesHas', 'show-file': 'showFile',
+}
+/** 路线：第 0 步与仓库根按真值回，十条命令各回对应的真样本；opts 可逐路改坏。 */
+function makeQueryRoute(opts) {
+  const o = opts || {}
+  const seen = []
+  function route(argv) {
+    seen.push(argv.slice())
+    const a = qAfterPrefix(argv)
+    if (a === null) return { code: 1, stderr: '缺少固定前缀' }
+    if (a[0] === 'rev-parse' && a.indexOf('--absolute-git-dir') >= 0) {
+      if (o.noRepo) return { code: 128, stdout: '', stderr: 'fatal: not a git repository (or any of the parent directories): .git\n' }
+      return { code: 0, stdout: 'D:/假工作区/repo/.git\ntrue\nfalse\n' }
+    }
+    if (a[0] === 'rev-parse' && a.indexOf('--show-toplevel') >= 0) return { code: 0, stdout: 'D:/假工作区/repo\n' }
+    const kind = qKindOfArgv(a)
+    const over = o.over && o.over[kind]
+    if (over) return over
+    const rec = QFX[(o.fixture && o.fixture[kind]) || Q_DEFAULT_FIXTURE[kind]]
+    if (!rec) return { code: 0, stdout: '' }
+    const out = { code: rec.code === undefined ? 0 : rec.code, stdout: rec.out || '', stderr: rec.err || '' }
+    if (o.truncated && o.truncated[kind]) out.truncated = true
+    return out
+  }
+  return { route: route, seen: seen }
+}
+function makeQueryCollector(text, truncated) {
+  return { finalize() { return { text: String(text), truncated: truncated === true } } }
+}
+function makeQueryHostDeps(route, opts) {
+  const o = opts || {}
+  const logs = []
+  const deps = {
+    subprocess: {
+      spawn(req) {
+        const hit = route(req.argv) || { code: 0, stdout: '' }
+        return {
+          done: Promise.resolve({ exitCode: hit.code === undefined ? 0 : hit.code, signal: hit.signal }),
+          collected: { stdout: makeQueryCollector(hit.stdout || '', hit.truncated), stderr: makeQueryCollector(hit.stderr || '', false) },
+          terminate() {},
+        }
+      },
+    },
+    timer: { timeout() { return new Promise(function (resolve) { setTimeout(resolve, 1) }) } },
+    fs: {
+      stat() { return Promise.reject(Object.assign(new Error('没有这个文件'), { code: 'ENOENT' })) },
+      lstat() { return Promise.resolve(null) },
+      exists() { return Promise.resolve(false) },
+    },
+    getPlatform: async function () {
+      return { resolveExecutable: async function (name) { return name === 'git' ? (o.gitExe === null ? null : 'git') : null } }
+    },
+    DEFAULT_CWD: 'D:/假工作区/repo',
+    TIMEOUT_MS: 30000,
+    gate: { noteOutbound() {} },
+    logCtx: { fire(level, event, fields) { logs.push({ level: level, event: event, fields: fields }) } },
+  }
+  return { deps: deps, logs: logs }
+}
+
+// ---------- 客户端闭包：能力账本 + 页面注册表 + 读数层 + 查询数据层 ----------
+// 与 scripts/build.mts 同一个拼装次序、同一份转译参数；源码树里没有构建产物之外的副本。
+const Q_STRIP_EXPORTS = function (s) { return s.replace(/^(\s*)export\s+/gm, '$1') }
+const Q_CLIENT_FILES = [
+  '.build/shared/version-control/capability-ledger.js',
+  'src/client/views/versionControl/vcCapabilityPages.ts',
+  'src/client/views/versionControl/vcData.ts',
+  'src/client/views/versionControl/vcQuery.ts',
+]
+const Q_CLIENT_EXPORTS = [
+  'VC_QUERY_PHONE', 'VC_QUERY_COUNT_MAX', 'VC_QUERY_BLAME_SPAN_MAX', 'VC_QUERY_COMPARE_MAX', 'VC_QUERY_RANGE_MAX',
+  'vcQueryCatalogOf', 'vcQueryEntriesOf', 'vcQueryEntryOf', 'vcQueryDefaultsOf', 'vcQueryInputsOf', 'vcQueryInputValueOf',
+  'vcNewQueries', 'vcQueryStateOf', 'vcMarkQueryLoading', 'vcApplyQueryReply', 'vcQueryParamsOf', 'vcQueryShapeOk',
+  'vcReadHistoryQuery', 'vcQueryEmptyOf', 'vcQueryTruncatedOf', 'vcQueryShownOf', 'vcFailureOf', 'vcShouldRead',
+]
+function queryClientSourceOf(patch) {
+  let src = Q_CLIENT_FILES.map(function (rel) { return Q_STRIP_EXPORTS(fs.readFileSync(path.join(ROOT, rel), 'utf8')) }).join('\n')
+  if (patch) src = patch(src)
+  return src
+}
+function buildQueryClient(patch) {
+  const js = require('esbuild').transformSync(queryClientSourceOf(patch), require('../scripts/lib/transpile-unit.mts').TRANSPILE_OPTIONS).code
+  const body = js + '\nreturn { ' + Q_CLIENT_EXPORTS.join(', ') + ' }\n'
+  const fn = require('./lib/eval-probe.ts').compileFn(['log', 'dswsLogHash', 'dswsLogTrunc'], body)
+  return fn(function () {}, function () { return 'h8' }, function (s) { return String(s) })
+}
+
 
 async function main() {
   const base = pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'src') + path.sep).href
@@ -237,6 +360,210 @@ async function main() {
   check(textOf(fx.rangeDiffBad.err).indexOf('bad revision') >= 0, '3.9 坏区间时 git 原话在 stderr')
   check(textOf(fx.showFileMissing.err).indexOf('does not exist') >= 0, '3.13 文件不在那个版本时 git 原话在 stderr')
   check(textOf(fx.blameBadRange.err).indexOf('has only 3 lines') >= 0, '3.5 行号超出文件时 git 原话在 stderr')
+
+
+  // ---- C 组：客户端数据层（目录与账本同源、上限同值、本地校验四类、空/截断/形状判定） ----
+  // 闭包拼的是构建同一份拼装次序与同一份转译参数；这里只查数据层算出来的读数，不重复画界面
+  //   （界面那一层在 verify-818 的 Q 组里按真渲染查）。
+  const LH = await import(base + 'capability-ledger.ts')
+  const CV = buildQueryClient()
+  check(CV.VC_QUERY_PHONE === 'wf.gitHistoryQuery', 'C1 客户端只发一条历史查询电话 wf.gitHistoryQuery（实测 ' + CV.VC_QUERY_PHONE + '）')
+  check(CV.VC_QUERY_COUNT_MAX === CR.HISTORY_QUERY_COUNT_MAX && CV.VC_QUERY_BLAME_SPAN_MAX === CR.HISTORY_QUERY_BLAME_LINES_MAX && CV.VC_QUERY_COMPARE_MAX === CR.HISTORY_QUERY_COMPARE_FILES_MAX && CV.VC_QUERY_RANGE_MAX === CR.HISTORY_QUERY_RANGE_PAIRS_MAX, 'C2 客户端四条上限与共享层常量逐条相等（实测 ' + [CV.VC_QUERY_COUNT_MAX, CV.VC_QUERY_BLAME_SPAN_MAX, CV.VC_QUERY_COMPARE_MAX, CV.VC_QUERY_RANGE_MAX].join('/') + '，共享层 ' + [CR.HISTORY_QUERY_COUNT_MAX, CR.HISTORY_QUERY_BLAME_LINES_MAX, CR.HISTORY_QUERY_COMPARE_FILES_MAX, CR.HISTORY_QUERY_RANGE_PAIRS_MAX].join('/') + '）')
+  const qCat = CV.vcQueryCatalogOf()
+  check(qCat.length === 10, 'C3 客户端目录恰好十条（实测 ' + qCat.length + ' 条）')
+  let qCatOk = qCat.length === 10
+  qCat.forEach(function (e) {
+    const cap = LH.CAPABILITIES.filter(function (c) { return c.id === e.capId })[0]
+    if (!cap || e.page !== cap.page || e.name !== cap.name || e.command !== cap.command || e.primaryEntry !== cap.primaryEntry) qCatOk = false
+  })
+  check(qCatOk, 'C4 十条的名称 / 页面 / 命令原文 / 主入口逐条回能力账本取（界面不另写一份命令清单）')
+  check(CV.vcQueryEntriesOf('commits').map(function (e) { return e.capId }).join(',') === '3.4,3.6,3.7,3.8,3.10,3.12' && CV.vcQueryEntriesOf('diagnostics').map(function (e) { return e.capId }).join(',') === '3.5,3.9,3.11,3.13', 'C5 按账本的页面归属分组：提交历史页六条（3.4/3.6/3.7/3.8/3.10/3.12）、管理·诊断页四条（3.5/3.9/3.11/3.13）')
+  check(CV.vcQueryEntryOf('blame').diagnostic === true && CV.vcQueryEntryOf('file-history').diagnostic === false && CV.vcQueryEntryOf('没有这种查询') === null, 'C6 单条：诊断页那条标着诊断页来源，提交历史页那条不标，不认识的回 null（不造空壳）')
+  const qIn = CV.vcQueryInputsOf()
+  check(CV.vcQueryInputValueOf(qIn, 'file-history', 'count') === '50' && CV.vcQueryInputValueOf(qIn, 'compare', 'mode') === 'two-dot' && CV.vcQueryInputValueOf(qIn, 'pickaxe', 'mode') === 'occurrence' && CV.vcQueryInputValueOf(qIn, 'describe', 'count') === '', 'C7 输入初值：条数 50、两种下拉各自的初值、没有的字段回空串（不凭空造一个值）')
+  check(qCat.filter(function (e) { return e.limit > 0 }).length === 7 && CV.vcQueryEntryOf('describe').limit === 0 && CV.vcQueryEntryOf('notes').limit === 0 && CV.vcQueryEntryOf('show-file').limit === 0, 'C8 七条有显式条数上限、三条只有一条读数（limit 0，不放假上限）')
+  const qBadCases = [
+    ['file-history', { path: '' }, 'path', 'required-missing'],
+    ['file-history', { path: 'a', count: '不少' }, 'count', 'not-number'],
+    ['blame', { path: 'a', lineStart: '9', lineEnd: '3' }, 'lineEnd', 'range-order'],
+    ['blame', { path: 'a', lineStart: '1', lineEnd: '501' }, 'lineEnd', 'range-span'],
+    ['grep', { pattern: '' }, 'pattern', 'required-missing'],
+    ['compare', { left: 'main' }, 'right', 'required-missing'],
+    ['range-diff', { base: 'main', left: 'a' }, 'right', 'required-missing'],
+    ['show-file', { rev: 'HEAD' }, 'path', 'required-missing'],
+  ]
+  let qBadOk = true
+  const qBadDetail = []
+  qBadCases.forEach(function (c) {
+    const r = CV.vcQueryParamsOf(c[0], c[1])
+    if (!(r.ok === false && r.field === c[2] && r.reason === c[3])) { qBadOk = false; qBadDetail.push(c[0] + ':' + JSON.stringify(r)) }
+  })
+  check(qBadOk, 'C9 本地预检四类错误各指到具体字段（必填没填 / 整数写歪 / 行号颠倒 / 跨度超限；不符的 ' + (qBadDetail.join('；') || '无') + '）')
+  const qGood = {
+    'file-history': { path: 'a', count: '10' }, blame: { path: 'a', lineStart: '1', lineEnd: '2' },
+    grep: { pattern: 'x' }, pickaxe: { text: 'x', mode: 'change' }, compare: { left: 'a', right: 'b' },
+    'range-diff': { base: 'a', left: 'b', right: 'c' }, describe: {}, reflog: { ref: 'HEAD', count: '5' },
+    notes: { rev: 'HEAD' }, 'show-file': { rev: 'HEAD', path: 'a.txt' },
+  }
+  const qWantKeys = { 'file-history': 'count,path', blame: 'lineEnd,lineStart,path', grep: 'pattern', pickaxe: 'mode,text', compare: 'left,right', 'range-diff': 'base,left,right', describe: '', reflog: 'count,ref', notes: 'rev', 'show-file': 'path,rev' }
+  let qGoodOk = true
+  const qGoodDetail = []
+  Object.keys(qGood).forEach(function (kind) {
+    const r = CV.vcQueryParamsOf(kind, qGood[kind])
+    if (!r.ok || Object.keys(r.params).sort().join(',') !== qWantKeys[kind]) { qGoodOk = false; qGoodDetail.push(kind + ':' + JSON.stringify(r)) }
+  })
+  check(qGoodOk, 'C10 十条的合法输入各自拼出宿主要的那份参数（键名与能力目录同源；不符的 ' + (qGoodDetail.join('；') || '无') + '）')
+  check(CV.vcQueryParamsOf('没有这种', {}).ok === false && CV.vcQueryParamsOf('没有这种', {}).reason === 'unknown-kind', 'C11 不认识的查询种类：当场拒（不猜成最近的一条）')
+  check(CV.vcQueryParamsOf('file-history', { path: 'a', count: '10' }).params.count === 10 && CV.vcQueryParamsOf('blame', { path: 'a', lineStart: '1', lineEnd: '2' }).params.lineEnd === 2, 'C12 条数与行号到宿主那一侧已经是数字（不是字符串 "10"）')
+  check(CV.vcQueryEmptyOf('notes', { note: null }) === 'no-note' && CV.vcQueryEmptyOf('file-history', { reason: 'empty', commits: [] }) === 'commits' && CV.vcQueryEmptyOf('compare', { reason: 'same', files: [] }) === 'same' && CV.vcQueryEmptyOf('range-diff', { reason: 'same', pairs: [] }) === 'rangeSame' && CV.vcQueryEmptyOf('show-file', { text: '', binary: false }) === 'content' && CV.vcQueryEmptyOf('reflog', { reason: 'ok', entries: [{}] }) === '', 'C13 空结果的五种说法各按宿主 reason 说（没有提交 / 两边一样 / 两组对照一样 / 没有备注 / 这个版本里这个文件是空的），不猜成「没有历史」')
+  const qTr1 = CV.vcQueryTruncatedOf({ truncated: true, files: [1, 2, 3], total: 9 })
+  const qTr2 = CV.vcQueryTruncatedOf({ truncated: true, pairs: [1], total: 4 })
+  check(!!qTr1 && qTr1.shown === 3 && qTr1.total === 9 && !!qTr2 && qTr2.shown === 1 && qTr2.total === 4 && CV.vcQueryTruncatedOf({ truncated: false, files: [1] }) === null, 'C14 截断读数：给「已显示几条 / 一共几条」，没截断回 null（不把「没截断」画成上限）')
+  check(CV.vcQueryShownOf('file-history', { commits: [1, 2] }) === 2 && CV.vcQueryShownOf('blame', { lines: [1] }) === 1 && CV.vcQueryShownOf('reflog', { entries: [1, 2, 3] }) === 3 && CV.vcQueryShownOf('describe', { text: 'v1' }) === 0, 'C15 清单条数按各类型真读出来的数组算（单条读数的类型算 0 条）')
+  const qShapes = {
+    'file-history': { ok: true, kind: 'file-history', commits: [{}], count: 1 },
+    blame: { ok: true, kind: 'blame', lines: [{}], count: 1 },
+    grep: { ok: true, kind: 'grep', commits: [], count: 0 },
+    pickaxe: { ok: true, kind: 'pickaxe', commits: [], count: 0 },
+    compare: { ok: true, kind: 'compare', files: [], total: 0, truncated: false },
+    'range-diff': { ok: true, kind: 'range-diff', pairs: [], extraLines: [], truncated: false },
+    describe: { ok: true, kind: 'describe', text: 'v1', dirty: false },
+    reflog: { ok: true, kind: 'reflog', entries: [], count: 0 },
+    notes: { ok: true, kind: 'notes', note: null, reason: 'no-note' },
+    'show-file': { ok: true, kind: 'show-file', text: 'x', binary: false },
+  }
+  const qShapeBad = Object.keys(qShapes).filter(function (k) { return CV.vcQueryShapeOk(k, qShapes[k]) !== true })
+  check(qShapeBad.length === 0, 'C16 十类回包的形状判据逐类放行各自的真形状（判红的 ' + (qShapeBad.join(',') || '无') + '）')
+  let qShapeCutOk = true
+  const qShapeCutDetail = []
+  Object.keys(qShapes).forEach(function (k) {
+    const broken = Object.assign({}, qShapes[k])
+    const first = Object.keys(broken).filter(function (f) { return f !== 'ok' && f !== 'kind' })[0]
+    delete broken[first]
+    if (CV.vcQueryShapeOk(k, broken) !== false) { qShapeCutOk = false; qShapeCutDetail.push(k + ' 缺 ' + first) }
+  })
+  check(qShapeCutOk, 'C17 十类回包各缺一个字段都判形状失败（不拿半份数据冒充成功；漏判的 ' + (qShapeCutDetail.join('；') || '无') + '）')
+  const qFailEnv = CV.vcFailureOf({ ok: false, error: { kind: 'exit', message: 'git 说不行' } })
+  check(qFailEnv.kind === 'exit' && qFailEnv.message === 'git 说不行' && CV.vcFailureOf({ ok: true }).kind === 'shape', 'C18 失败归一：真失败信封照原 kind 与原文；ok:true 却缺字段的一律记 shape（与读数层同一个判据）')
+
+  // ---- D 组：宿主电话（真 createVersionControl + 假 subprocess，回路线都按真样本） ----
+  const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.js')).href)
+  const dParams = {
+    'file-history': { path: '文件 一.txt' },
+    blame: { path: '文件 一.txt', lineStart: 1, lineEnd: 2 },
+    grep: { pattern: 'MAGIC' },
+    pickaxe: { text: 'MAGIC_TOKEN', mode: 'occurrence' },
+    compare: { left: 'HEAD~1', right: 'HEAD' },
+    'range-diff': { base: 'main', left: 'feat-a', right: 'feat-b' },
+    describe: {},
+    reflog: { count: 20 },
+    notes: { rev: 'HEAD' },
+    'show-file': { rev: 'HEAD', path: '文件 二.txt' },
+  }
+  const dRoute = makeQueryRoute({})
+  const dRun = makeQueryHostDeps(dRoute.route)
+  const DVC = hostMod.createVersionControl(dRun.deps)
+  const dReplies = {}
+  const dKinds = CR.HISTORY_QUERY_KINDS
+  for (let i = 0; i < dKinds.length; i += 1) {
+    dReplies[dKinds[i]] = await DVC.handleGitHistoryQuery({ cwd: 'D:/假工作区/repo', kind: dKinds[i], params: dParams[dKinds[i]] || {} })
+  }
+  const dBadKinds = dKinds.filter(function (k) { const r = dReplies[k]; return !(r && r.ok === true && r.kind === k) })
+  check(dBadKinds.length === 0, 'D1 十条查询逐条走通 wf.gitHistoryQuery（失败的 ' + (dBadKinds.join(',') || '无') + '）')
+  let dArgvBad = ''
+  dKinds.forEach(function (k, i) {
+    const want = CR.historyQueryCommandFor(k, dParams[k] || {})
+    const got = qAfterPrefix(dRoute.seen[i * 3 + 2])
+    if (!want.ok || JSON.stringify(want.args) !== JSON.stringify(got)) dArgvBad = dArgvBad || (k + ' 期望 ' + JSON.stringify(want.args) + ' 实得 ' + JSON.stringify(got))
+  })
+  check(dArgvBad === '', 'D2 十条电话发出的 argv 与共享层的命令口径逐条相同（' + (dArgvBad || '十条全同') + '）')
+  const dFH = dReplies['file-history']
+  check(dFH.commits.length === 2 && dFH.count === 2 && dFH.reason === 'ok' && !!dFH.commits[0].oid, 'D3 3.4 单文件历史：真样本两条提交、count 与 reason 都在（实测 ' + dFH.count + ' 条，reason ' + dFH.reason + '）')
+  const dBL = dReplies.blame
+  check(dBL.lines.length === 3 && dBL.count === 3 && dBL.lines[0].line === 1 && String(dBL.lines[0].text).indexOf('第一行甲') >= 0, 'D4 3.5 行级追溯：真样本三行、首行行号 1、原文照抄（实测 ' + dBL.count + ' 行，首行 ' + dBL.lines[0].line + '）')
+  check(dReplies.grep.commits.length === 1 && String(dReplies.grep.commits[0].subject).indexOf('MAGIC_TOKEN') >= 0 && dReplies.grep.reason === 'ok', 'D5 3.6 按说明搜提交：真样本一条提交，说明原样带出（实测 ' + dReplies.grep.count + ' 条）')
+  check(dReplies.pickaxe.commits.length === 1 && dReplies.pickaxe.reason === 'ok', 'D6 3.7 按代码变化搜提交：真样本（-S）一条提交（实测 ' + dReplies.pickaxe.count + ' 条）')
+  const dCP = dReplies.compare
+  check(dCP.files.length === 5 && dCP.total === 5 && dCP.truncated === false && dCP.reason === 'ok' && dCP.files[2].origPath === '旧名.txt' && dCP.files[4].added === null, 'D7 3.8 比较两个引用：真样本五个文件、重命名分开记原名、二进制没有增删行数、truncated 为假（实测 ' + dCP.total + ' 个）')
+  const dRD = dReplies['range-diff']
+  check(dRD.pairs.length === 4 && dRD.extraLines.length === 0 && dRD.truncated === false && dRD.reason === 'ok' && dRD.pairs[0].mark === '<' && dRD.pairs[2].mark === '=', 'D8 3.9 两组提交对照：真样本四对（一边独有两条、同名两条各占一行）、多行说明为空、truncated 为假（实测 ' + dRD.pairs.length + ' 对，记号 ' + dRD.pairs.map(function (x) { return x.mark }).join('') + '）')
+  check(dReplies.describe.text === 'v1.0.0-6-g437a134' && dReplies.describe.dirty === false, 'D9 3.10 版本名：真样本带 tag 的描述串与干净标记（实测 ' + dReplies.describe.text + '，dirty ' + dReplies.describe.dirty + '）')
+  check(dReplies.reflog.entries.length === 12 && dReplies.reflog.count === 12 && String(dReplies.reflog.entries[0].selector).indexOf('HEAD@{') === 0, 'D10 3.11 引用日志：真样本十二条、选择器原样带出（实测 ' + dReplies.reflog.count + ' 条）')
+  check(dReplies.notes.note === '备注：这条提交是发布点，别动' && dReplies.notes.reason === 'ok', 'D11 3.12 提交备注：作者写的原文照抄（只去掉行尾换行；实测 ' + JSON.stringify(dReplies.notes.note) + '）')
+  check(dReplies['show-file'].text === QFX.showFile.out && dReplies['show-file'].binary === false, 'D13 3.13 取某版本的文件内容：真样本逐字节照抄（实测 ' + JSON.stringify(dReplies['show-file'].text) + '）')
+
+  const dEmptyRun = makeQueryHostDeps(makeQueryRoute({ fixture: { grep: 'grepEmpty' } }).route)
+  const dEmpty = await hostMod.createVersionControl(dEmptyRun.deps).handleGitHistoryQuery({ cwd: 'D:/假工作区/repo', kind: 'grep', params: { pattern: '没有这个' } })
+  check(dEmpty.ok === true && dEmpty.commits.length === 0 && dEmpty.reason === 'empty' && dEmpty.count === 0, 'D14 3.6 搜不到：ok:true 空清单 + reason=empty（不当失败，也不猜成没有历史）')
+  const dSameRun = makeQueryHostDeps(makeQueryRoute({ fixture: { compare: 'diffSame', 'range-diff': 'rangeDiffSame' } }).route)
+  const dSameVC = hostMod.createVersionControl(dSameRun.deps)
+  const dSameCompare = await dSameVC.handleGitHistoryQuery({ cwd: 'D:/假工作区/repo', kind: 'compare', params: { left: 'HEAD', right: 'HEAD' } })
+  const dSameRange = await dSameVC.handleGitHistoryQuery({ cwd: 'D:/假工作区/repo', kind: 'range-diff', params: { base: 'main', left: 'a', right: 'b' } })
+  check(dSameCompare.ok === true && dSameCompare.reason === 'same' && dSameCompare.files.length === 0 && dSameRange.ok === true && dSameRange.reason === 'ok' && dSameRange.pairs.length === 2 && dSameRange.pairs.every(function (x) { return x.mark === '=' }), 'D15 两边一样：比较两个引用回 reason=same 明说没差异；两组提交完全一样：range-diff 逐对给 = 记号（两边方向一致，不当空结果）（实测 compare files ' + dSameCompare.files.length + '，range pairs ' + dSameRange.pairs.length + ' 个 =）')
+  const dNoNoteRun = makeQueryHostDeps(makeQueryRoute({ fixture: { notes: 'notesNone' } }).route)
+  const dNoNote = await hostMod.createVersionControl(dNoNoteRun.deps).handleGitHistoryQuery({ cwd: 'D:/假工作区/repo', kind: 'notes', params: { rev: 'HEAD' } })
+  check(dNoNote.ok === true && dNoNote.note === null && dNoNote.reason === 'no-note', 'D16 3.12 目标没有备注：git 退出码 1 不算失败，回 note:null + reason=no-note（不猜成「备注是空串」）')
+
+  const dFailRoute = makeQueryRoute({ fixture: { grep: 'grepBadRegex', 'range-diff': 'rangeDiffBad', 'show-file': 'showFileMissing', blame: 'blameBadRange' } })
+  const dFailRun = makeQueryHostDeps(dFailRoute.route)
+  const dFailVC = hostMod.createVersionControl(dFailRun.deps)
+  const dFailGrep = await dFailVC.handleGitHistoryQuery({ cwd: 'D:/假工作区/repo', kind: 'grep', params: { pattern: '[' } })
+  check(dFailGrep.ok === false && dFailGrep.error.kind === 'exit' && String(dFailGrep.error.message).indexOf('Invalid regular expression') >= 0, 'D17 坏正则：失败信封带 git 原话（实测 ' + JSON.stringify(dFailGrep.error && dFailGrep.error.message) + '）')
+  const dFailRange = await dFailVC.handleGitHistoryQuery({ cwd: 'D:/假工作区/repo', kind: 'range-diff', params: { base: 'nope', left: 'main', right: 'main' } })
+  check(dFailRange.ok === false && String(dFailRange.error.message).indexOf('bad revision') >= 0, 'D18 坏区间：失败信封带 git 原话（不猜哪边是新）')
+  const dFailShow = await dFailVC.handleGitHistoryQuery({ cwd: 'D:/假工作区/repo', kind: 'show-file', params: { rev: 'HEAD', path: '不存在的文件.txt' } })
+  check(dFailShow.ok === false && String(dFailShow.error.message).indexOf('does not exist') >= 0, 'D19 文件不在那个版本：失败信封带 git 原话（不拿空内容冒充空文件）')
+  const dFailBlame = await dFailVC.handleGitHistoryQuery({ cwd: 'D:/假工作区/repo', kind: 'blame', params: { path: '文件 一.txt', lineStart: 1, lineEnd: 99 } })
+  check(dFailBlame.ok === false && String(dFailBlame.error.message).indexOf('has only 3 lines') >= 0, 'D20 行号超出文件：失败信封带 git 原话（不截到文件末尾凑一个结果）')
+
+  const dNoCallRoute = makeQueryRoute({})
+  const dNoCall = await hostMod.createVersionControl(makeQueryHostDeps(dNoCallRoute.route).deps).handleGitHistoryQuery({ cwd: 'D:/假工作区/repo', kind: 'file-history', params: { path: '' } })
+  check(dNoCall.ok === false && dNoCall.error.kind === 'args' && dNoCallRoute.seen.length === 0, 'D21 空路径这类不合口径的输入在宿主侧就拒：一个 git 进程都不起（实测起了 ' + dNoCallRoute.seen.length + ' 个）')
+  const dTruncRoute = makeQueryRoute({ truncated: { blame: true } })
+  const dTrunc = await hostMod.createVersionControl(makeQueryHostDeps(dTruncRoute.route).deps).handleGitHistoryQuery({ cwd: 'D:/假工作区/repo', kind: 'blame', params: { path: '文件 一.txt', lineStart: 1, lineEnd: 2 } })
+  check(dTrunc.ok === false && dTrunc.error.kind === 'truncated' && String(dTrunc.error.message).indexOf('读不全就不给半份') >= 0 && dTrunc.lines === undefined, 'D22 读不全：blame 输出超上限时显式失败并写清「读不全就不给半份」，回包里没有半份 lines（实测 ' + JSON.stringify(dTrunc.error) + '）')
+  const dNoRepo = await hostMod.createVersionControl(makeQueryHostDeps(makeQueryRoute({ noRepo: true }).route).deps).handleGitHistoryQuery({ cwd: 'D:/不在仓库里', kind: 'describe', params: {} })
+  check(dNoRepo.ok === false && dNoRepo.error.kind === 'not-repo', 'D23 不在仓库里：明确回 not-repo（不试出一条空命令当成功）')
+  const dNoGit = await hostMod.createVersionControl(makeQueryHostDeps(makeQueryRoute({}).route, { gitExe: null }).deps).handleGitHistoryQuery({ cwd: 'D:/假工作区/repo', kind: 'describe', params: {} })
+  check(dNoGit.ok === false && dNoGit.error.kind === 'env', 'D24 找不到 git 命令：明确回 env（历史查询起不了进程）')
+
+  const dPhoneLogs = dRun.logs.filter(function (l) { return l.event === 'host.call' && l.fields && l.fields.method === 'wf.gitHistoryQuery' })
+  const dExecLogs = dRun.logs.filter(function (l) { return l.event === 'git.exec' })
+  check(dPhoneLogs.length >= 10 && dExecLogs.length >= 30 && JSON.stringify(dRun.logs).indexOf('文件 一.txt') < 0, 'D25 每次读取落一行 host.call、每次进程落一行 git.exec；日志里不出现路径原文（规格第 8 节字段白名单；电话日志 ' + dPhoneLogs.length + ' 行、进程日志 ' + dExecLogs.length + ' 行）')
+  const dFailExecBad = dFailRun.logs.filter(function (l) { return l.event === 'git.exec' && l.fields && typeof l.fields.exitCode === 'number' && l.fields.exitCode !== 0 })
+  const dFailPhoneFails = dFailRun.logs.filter(function (l) { return l.event === 'host.call.fail' && l.fields && l.fields.method === 'wf.gitHistoryQuery' })
+  const dFailLogsText = JSON.stringify(dFailRun.logs)
+  check(dFailExecBad.length >= 4 && dFailPhoneFails.length >= 4 && dFailLogsText.indexOf('Invalid regular expression') < 0 && dFailLogsText.indexOf('文件 一.txt') < 0, 'D26 失败那一趟逐次落 git.exec（记退出码）与 host.call.fail，只记哈希不记 stderr 原文与路径原文（实测非零退出日志 ' + dFailExecBad.length + ' 行、电话失败日志 ' + dFailPhoneFails.length + ' 行；规格第 8 节字段白名单）')
+
+  // ---- E 组：反证（把本门依赖的判据改坏，原判据必须当场变红） ----
+  const eBaseSrc = queryClientSourceOf(null)
+  const eAntiCases = [
+    {
+      name: '本地必填校验被放行',
+      patch: function (s) { return s.replace("if (f.required && text === '') return bad(f.name, 'required-missing')", "if (false) return bad(f.name, 'required-missing')") },
+      judge: function (v) { const r = v.vcQueryParamsOf('file-history', { path: '' }); return r.ok === false && r.reason === 'required-missing' && r.field === 'path' },
+      what: 'C9',
+    },
+    {
+      name: '回包形状判据放行缺字段',
+      patch: function (s) { return s.replace("if (kind === 'file-history' || kind === 'grep' || kind === 'pickaxe') return Array.isArray(reply.commits) && typeof reply.count === 'number'", "if (kind === 'file-history' || kind === 'grep' || kind === 'pickaxe') return true") },
+      judge: function (v) { return v.vcQueryShapeOk('file-history', { ok: true, kind: 'file-history', commits: [] }) === false && v.vcQueryShapeOk('file-history', { ok: true, kind: 'file-history', commits: [], count: 0 }) === true },
+      what: 'C16/C17',
+    },
+    {
+      name: '截断读数不再判',
+      patch: function (s) { return s.replace("if (!reply || reply.truncated !== true) return null", "return null") },
+      judge: function (v) { const t = v.vcQueryTruncatedOf({ truncated: true, files: [1, 2], total: 5 }); return !!t && t.shown === 2 && t.total === 5 },
+      what: 'C14',
+    },
+  ]
+  eAntiCases.forEach(function (c) {
+    const eBrokenSrc = c.patch(eBaseSrc)
+    check(eBrokenSrc !== eBaseSrc, 'E 反证自证：' + c.name + ' 的改法真的改得到源码')
+    let eBroke = false
+    try { eBroke = c.judge(buildQueryClient(c.patch)) === false } catch (e) { eBroke = false }
+    check(eBroke, 'E 反证：' + c.name + ' 之后 ' + c.what + ' 那条当场变红')
+  })
 
   printGateResult(GATE, total, failed)
   process.exit(failed ? 1 : 0)

@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T15:28:32.626Z",
+  "generatedAt": "2026-10-31T16:46:17.972Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 487,
-  "gateCount": 487,
-  "attributedGates": 436,
+  "chainLength": 488,
+  "gateCount": 488,
+  "attributedGates": 437,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 51,
+  "completionRecordedGates": 52,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 675,
+  "graphFileCount": 680,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4222,6 +4222,29 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
+      "step": "node tests/verify-1586-history-query.ts",
+      "file": "tests/verify-1586-history-query.ts",
+      "guards": [
+        "src/client/views/versionControl/vcQuery.ts",
+        "src/client/views/versionControl/vcQueryView.ts",
+        "src/client/views/versionControl/vcShellPages.ts",
+        "src/host/versionControl.ts",
+        "src/host/versionControlHistory.ts",
+        "src/shared/version-control/src/history-query-commands.ts",
+        "src/shared/version-control/src/parse-history-query.ts"
+      ],
+      "dirs": [
+        "src/client/views/versionControl",
+        "src/host",
+        "src/shared/version-control/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 156,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
+    },
+    {
       "step": "node tests/verify-1586-task-channel.ts",
       "file": "tests/verify-1586-task-channel.ts",
       "guards": [
@@ -4245,6 +4268,8 @@
         "src/client/views/versionControl/vcFirstScreen.ts",
         "src/client/views/versionControl/vcHistory.ts",
         "src/client/views/versionControl/vcPalette.ts",
+        "src/client/views/versionControl/vcQuery.ts",
+        "src/client/views/versionControl/vcQueryView.ts",
         "src/client/views/versionControl/vcShellPages.ts",
         "src/client/views/versionControl/vcShellPrimitives.ts",
         "src/client/views/versionControl/vcShellStyles.ts",
@@ -4264,7 +4289,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 202,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-1586-write-contracts.ts",
@@ -6276,6 +6301,8 @@
         "src/client/views/versionControl/vcHistory.ts",
         "src/client/views/versionControl/vcInView.ts",
         "src/client/views/versionControl/vcPalette.ts",
+        "src/client/views/versionControl/vcQuery.ts",
+        "src/client/views/versionControl/vcQueryView.ts",
         "src/client/views/versionControl/vcRows.ts",
         "src/client/views/versionControl/vcShellPages.ts",
         "src/client/views/versionControl/vcShellPrimitives.ts",
@@ -6310,7 +6337,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 29 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 31 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -12134,6 +12161,7 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-gate-map.ts",
       "node tests/verify-1586-first-screen.ts",
+      "node tests/verify-1586-history-query.ts",
       "node tests/verify-1586-vc-visual-browser.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-842-version-control-write-view.ts",
@@ -12302,6 +12330,7 @@
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
       "node tests/verify-1586-first-screen.ts",
+      "node tests/verify-1586-history-query.ts",
       "node tests/verify-1586-write-contracts.ts",
       "node tests/verify-1586-write-registration.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
@@ -12829,6 +12858,7 @@
       "node tests/verify-1231-ws-overview-rows.ts",
       "node tests/verify-1586-capability-ledger.ts",
       "node tests/verify-1586-first-screen.ts",
+      "node tests/verify-1586-history-query.ts",
       "node tests/verify-1586-task-channel.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-841-write-phones.ts",
@@ -13470,9 +13500,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 696,
+    "fileCount": 701,
     "dirCount": 84,
-    "coveredFileCount": 696,
+    "coveredFileCount": 701,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13678,6 +13708,8 @@
       "src/client/views/versionControl/vcHistory.ts",
       "src/client/views/versionControl/vcInView.ts",
       "src/client/views/versionControl/vcPalette.ts",
+      "src/client/views/versionControl/vcQuery.ts",
+      "src/client/views/versionControl/vcQueryView.ts",
       "src/client/views/versionControl/vcRows.ts",
       "src/client/views/versionControl/vcShellPages.ts",
       "src/client/views/versionControl/vcShellPrimitives.ts",
@@ -13805,6 +13837,7 @@
       "src/host/versionControlCheck.ts",
       "src/host/versionControlFiles.ts",
       "src/host/versionControlFirstScreen.ts",
+      "src/host/versionControlHistory.ts",
       "src/host/versionControlTask.ts",
       "src/host/versionControlTaskRun.ts",
       "src/host/versionControlTaskStore.ts",
@@ -13966,7 +13999,9 @@
       "src/shared/version-control/src/capability-ledger.ts",
       "src/shared/version-control/src/commands.ts",
       "src/shared/version-control/src/first-screen.ts",
+      "src/shared/version-control/src/history-query-commands.ts",
       "src/shared/version-control/src/parse-diff-files.ts",
+      "src/shared/version-control/src/parse-history-query.ts",
       "src/shared/version-control/src/parse-log.ts",
       "src/shared/version-control/src/parse-patch.ts",
       "src/shared/version-control/src/parse-refs.ts",
