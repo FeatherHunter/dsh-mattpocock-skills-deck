@@ -91,6 +91,9 @@ const REFERENCES: RefRow[] = [
   // #1742 改动页：预检与只读命令、凭票写命令各一个时限键，叶子直接导入生成常量，不再由装配方传数字。
   { file: 'src/host/versionControlChanges.ts', access: 'VC_CHANGES_READ_TIMEOUT_MS', gen: 'VC_CHANGES_READ_TIMEOUT_MS', key: 'vcChangesReadTimeoutMs' },
   { file: 'src/host/versionControlChanges.ts', access: 'VC_CHANGES_WRITE_TIMEOUT_MS', gen: 'VC_CHANGES_WRITE_TIMEOUT_MS', key: 'vcChangesWriteTimeoutMs' },
+  // #1757 T21 子模块域：预检只读与凭票执行各一档（叶子直接导入生成常量，别名只改名不改值）。
+  { file: 'src/host/versionControlSubmodulesCheck.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_SUBMODULE_READ_TIMEOUT_MS', key: 'vcSubmoduleReadTimeoutMs' },
+  { file: 'src/host/versionControlSubmodulesWrite.ts', access: 'WRITE_TIMEOUT_MS', gen: 'VC_SUBMODULE_WRITE_TIMEOUT_MS', key: 'vcSubmoduleWriteTimeoutMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'CALL_BUDGET_MS', gen: 'GIT_CREDENTIAL_CALL_BUDGET_MS', key: 'gitCredentialCallBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MIN_BUDGET_MS', gen: 'GIT_CREDENTIAL_MIN_BUDGET_MS', key: 'gitCredentialMinBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MAX_BUDGET_MS', gen: 'GIT_CREDENTIAL_MAX_BUDGET_MS', key: 'gitCredentialMaxBudgetMs' },

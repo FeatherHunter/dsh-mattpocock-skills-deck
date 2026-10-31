@@ -125,6 +125,13 @@ timeouts:
   vcBranchReadTimeoutMs: 15000
   # 分支域写命令的单条超时：15 秒。branch / tag / config --local 都是本地动作，不推远端。
   vcBranchWriteTimeoutMs: 15000
+  # —— 子模块域的单条命令超时（#1757 T21）——
+  # 预检里单条只读 git 命令的超时：15 秒。submodule status / config -f .gitmodules 与逐个子模块的
+  # rev-parse / rev-list 都是本地读取，与分支域只读同一档。
+  vcSubmoduleReadTimeoutMs: 15000
+  # 子模块写命令的单条超时：15 秒。set-url / sync / set-branch / deinit / absorbgitdirs 都是本地动作，
+  # 只有 absorbgitdirs 会移动目录里的 .git，仍不跟远端协商，用同一档。
+  vcSubmoduleWriteTimeoutMs: 15000
   # git 凭据代执行的整趟预算：4 分钟。上下限 5 秒与 10 分钟：接线给的预算会被钳进这个范围
   # （下限从 1 秒提到 5 秒；1 秒的预算在慢机器上连子进程启动都盖不住，等于没给）。
   gitCredentialCallBudgetMs: 240000
