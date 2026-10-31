@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T16:05:13.973Z",
+  "generatedAt": "2026-10-31T16:07:56.856Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 489,
   "gateCount": 489,
@@ -4233,7 +4233,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 85,
+      "expectedAssertions": 86,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
@@ -10663,6 +10663,7 @@
         "src/host/tracker/snapshot.ts",
         "src/host/tracker/snapshotAssemble.ts",
         "src/host/versionControl.ts",
+        "src/host/versionControlChanges.ts",
         "src/host/versionControlCheck.ts",
         "src/host/versionControlFirstScreen.ts",
         "src/host/versionControlTask.ts",
@@ -10774,7 +10775,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 120 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 121 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",

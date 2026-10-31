@@ -474,6 +474,7 @@ export function createVersionControl(deps: any): any {
   // store 恢复由叶子收进一条 wf.gitStash；进程出口、仓库根解析、失败信封与日志包装都显式递进去
   // （动态加载，不在同层新增静态边）。父文件只留返回对象里那一行注册，装配一行都不在这里摊开：
   // 这一层贴着 350 有效行上限（#1751 合并 #1742 后需要），装配与缓存收在叶子，行为不变。
+
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
