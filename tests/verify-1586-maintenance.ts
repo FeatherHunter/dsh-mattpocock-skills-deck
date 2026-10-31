@@ -149,6 +149,305 @@ async function main() {
   check(['fsck', 'gc', 'prune', 'maintenance-run'].every(function (id) { return taskIds.indexOf(id) >= 0 }), 'A92 维护动作要用到的任务类型都在任务通道清单里')
   eq(ops.MAINTENANCE_OPS.filter(function (m) { return m.kind === 'task' }).length, taskIds.filter(function (id) { return id === 'fsck' }).length + 1, 'A93 任务动作两条都指向同一个 fsck 任务类型')
   console.log('  A 组完成：' + total + ' 条')
+
+  // ---------- B 组：宿主预检与执行（假依赖，零真进程；拒绝栈必须一条命令都不起） ----------
+  const ticketMod = await loadModule('src/shared/version-control/src/write-ticket.js')
+  const envelope = await loadModule('src/shared/version-control/exec-envelope.js')
+  const readMod = await loadModule('src/host/versionControlMaintenanceRead.js')
+  const checkMod = await loadModule('src/host/versionControlMaintenanceCheck.js')
+  const writeMod = await loadModule('src/host/versionControlMaintenanceWrite.js')
+  const OID1 = 'a'.repeat(40)
+  const OID2 = 'b'.repeat(40)
+  function makeScreen(over) {
+    const base = { identity: { oid: 'h1' }, repo: { merging: false, rebasing: false, cherryPicking: false, reverting: false }, staged: [], unstaged: [], conflictCount: 0 }
+    const o = over || {}
+    return { identity: Object.assign({}, base.identity, o.identity || {}), repo: Object.assign({}, base.repo, o.repo || {}), staged: o.staged || base.staged, unstaged: o.unstaged || base.unstaged, conflictCount: o.conflictCount === undefined ? 0 : o.conflictCount }
+  }
+  function makeRig(spec) {
+    const s = spec || {}
+    const state = { screenCalls: 0, runCalls: [], runOpts: [], taskStarts: [], backups: [] }
+    const clock = { t: 1000 }
+    const root = s.root || 'C:/repo'
+    const gitVersion = s.gitVersion || 'git version 2.49.0.windows.1'
+    function screenNow() {
+      state.screenCalls += 1
+      if (s.screenSecond && state.screenCalls >= 2) return makeScreen(s.screenSecond)
+      return s.screen || makeScreen()
+    }
+    async function runPinned(exe, dir, args, opts) {
+      state.runCalls.push(args.slice())
+      state.runOpts.push(opts || null)
+      if (typeof s.runPinned === 'function') {
+        const r = await s.runPinned(args, state)
+        if (r) return r
+      }
+      const key = args.join(' ')
+      if (key === 'version') return { kind: 'ok', stdout: gitVersion + '\n', stderr: '' }
+      if (key === 'rev-parse --git-dir') return { kind: 'ok', stdout: '.git\n', stderr: '' }
+      if (key === 'rev-parse --abbrev-ref HEAD') return { kind: 'ok', stdout: 'main\n', stderr: '' }
+      if (key === 'count-objects -v') return { kind: 'ok', stdout: 'count: 5\nsize: 8\nin-pack: 2\npacks: 1\nsize-pack: 4\nprune-packable: 0\ngarbage: 0\n', stderr: '' }
+      if (key === 'fsck --unreachable --no-progress') return { kind: 'ok', stdout: s.unreachableText === undefined ? ('unreachable blob ' + OID1 + '\n') : s.unreachableText, stderr: '' }
+      if (key === 'prune -n -v') return { kind: 'ok', stdout: s.pruneText === undefined ? (OID1 + ' blob\n') : s.pruneText, stderr: '' }
+      if (key === 'config --get-all maintenance.repo') return s.repos ? { kind: 'ok', stdout: s.repos, stderr: '' } : { kind: 'non-zero', exitCode: 1, stdout: '', stderr: '' }
+      if (key === 'config --get-regexp ^maintenance.') return s.maintConfig ? { kind: 'ok', stdout: s.maintConfig, stderr: '' } : { kind: 'non-zero', exitCode: 1, stdout: '', stderr: '' }
+      if (key === 'commit-graph verify' || key === 'multi-pack-index verify') return { kind: 'ok', stdout: '', stderr: '' }
+      return { kind: 'ok', stdout: '', stderr: '' }
+    }
+    const readDeps = {
+      runPinned: runPinned,
+      resolveGitExecutable: async function () { return 'git' },
+      resolveRepoRoot: async function () { return { ok: true, root: root, kind: 'worktree' } },
+      readScreenOf: async function () { return { ok: true, screen: screenNow() } },
+      fs: { statfs: async function () { return { bsize: 4096, bavail: 262144 } } },
+      now: function () { return clock.t },
+      readTimeoutMs: 15000,
+    }
+    const read = readMod.createMaintenanceRead(readDeps)
+    const failPhone = envelope.failPhone
+    const check = checkMod.createMaintenanceCheck({ read: read, failPhone: failPhone, now: function () { return clock.t }, randomId: function () { return 'tkt-' + String(state.screenCalls) + '-' + String(state.runCalls.length) } })
+    const backup = {
+      runBackup: async function (exe, r, plan) {
+        state.backups.push({ exe: exe, root: r, plan: plan })
+        if (s.backupFail) return { ok: false, reason: 'backup-failed', message: '磁盘满了，备份没做成' }
+        return { ok: true, point: { kind: plan.kind, path: plan.path, bytes: 4096, elapsedMs: 9, atMs: clock.t } }
+      },
+    }
+    const taskStart = async function (req) {
+      state.taskStarts.push(req)
+      if (typeof s.taskStart === 'function') return s.taskStart(req)
+      return { ok: true, task: { id: 'task-1', op: req.op } }
+    }
+    const write = writeMod.createMaintenanceWrite({ read: read, failPhone: failPhone, runPinned: runPinned, taskStart: taskStart, backup: backup, now: function () { return clock.t }, tickets: check.tickets, results: check.results, writeTimeoutMs: 123456 })
+    return { read: read, check: check, write: write, state: state, clock: clock }
+  }
+
+  {
+    const rig = makeRig({})
+    const badOp = await rig.check.handleMaintenanceRead({ cwd: 'C:/repo', op: '不存在的动作' })
+    eq(badOp.ok, false, 'B1 只读电话认不出动作时回失败')
+    eq(badOp.reason, 'bad-target', 'B2 认不出动作的理由是 bad-target')
+    eq(badOp.error.kind, 'args', 'B3 认不出动作归输入类失败')
+    const noCwd = await rig.check.handleMaintenanceRead({ op: 'objects' })
+    eq(noCwd.ok, false, 'B4 只读电话缺仓库目录时回失败')
+    eq(noCwd.reason, 'bad-target', 'B5 缺仓库目录的理由是 bad-target')
+    const writeOpAsRead = await rig.check.handleMaintenanceRead({ cwd: 'C:/repo', op: 'gc' })
+    eq(writeOpAsRead.ok, false, 'B6 写动作不能当只读动作读')
+    const objs = await rig.check.handleMaintenanceRead({ cwd: 'C:/repo', op: 'objects' })
+    eq(objs.ok, true, 'B7 对象读数能读出来')
+    eq(objs.looseCount, 5, 'B8 松散对象条数按 count-objects 解析')
+    eq(objs.looseSizeBytes, 8192, 'B9 松散对象体积按 KiB 换算成字节')
+    eq(objs.repoSizeBytes, 12288, 'B10 仓库体积等于松散加打包')
+    eq(objs.contract, 'vc-maintenance-check', 'B11 只读回包也带契约名，界面只认一种形状')
+    eq(objs.capId, '11.4', 'B12 对象读数标注能力编号 11.4')
+    const overview = await rig.check.handleMaintenanceRead({ cwd: 'C:/repo', op: 'overview' })
+    eq(overview.ok, true, 'B13 总览一次读完')
+    check(overview.objects && overview.repack && overview.maintenance, 'B14 总览三块读数都在')
+    eq(overview.gitVersion, 'git version 2.49.0.windows.1', 'B15 总览带上完整 git 版本串')
+    const verGate = makeRig({ gitVersion: 'git version 2.10.0' })
+    const gated = await verGate.check.handleMaintenanceRead({ cwd: 'C:/repo', op: 'commit-graph' })
+    eq(gated.ok, false, 'B16 版本不够的只读能力拒绝')
+    eq(gated.reason, 'version-unsupported', 'B17 版本不够的理由是 version-unsupported')
+    eq(gated.capId, '11.9', 'B18 拒绝回包点名是哪条能力')
+  }
+
+  {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws-maint-b-'))
+    fs.mkdirSync(path.join(dir, '.git', 'objects', OID1.slice(0, 2)), { recursive: true })
+    fs.writeFileSync(path.join(dir, '.git', 'objects', OID1.slice(0, 2), OID1.slice(2)), 'x')
+    const rig = makeRig({ root: dir.replace(/\\/g, '/'), unreachableText: 'unreachable blob ' + OID1 + '\nunreachable commit ' + OID2 + '\n' })
+    const un = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'unreachable' })
+    eq(un.ok, true, 'B19 不可达对象读数能读出来')
+    eq(un.count, 2, 'B20 不可达对象条数按清单解析')
+    eq(un.items[0].oid, OID1, 'B21 清单第一项带完整提交号')
+    eq(un.items[1].type, 'commit', 'B22 清单带对象类型')
+    eq(un.looseFound, 1, 'B23 只有松散对象读得到修改时间')
+    eq(un.packedUnknown, 1, 'B24 打包对象读不到时间就如实计数')
+    eq(typeof un.earliestAtMs, 'number', 'B25 读得到最早时间时回毫秒数')
+    const pv = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'prune-preview' })
+    eq(pv.ok, true, 'B26 清除预演能读出来')
+    eq(pv.count, 1, 'B27 预演清单条数按 prune -n -v 解析')
+    eq(typeof pv.earliestAtMs, 'number', 'B28 预演也给最早时间')
+    const scene = await rig.read.sceneOf(dir)
+    eq(scene.ok, true, 'B29 量现场成功')
+    eq(scene.scene.branch, 'main', 'B30 现场带当前分支')
+    eq(scene.scene.dirty, false, 'B31 干净工作区判不脏')
+    eq(scene.scene.operation, null, 'B32 没有进行中操作')
+    eq(scene.scene.objects.looseCount, 5, 'B33 现场带上对象统计')
+    const dirty = makeRig({ root: dir.replace(/\\/g, '/'), screen: makeScreen({ staged: [{ path: 'a.txt' }] }) })
+    const scene2 = await dirty.read.sceneOf(dir)
+    eq(scene2.scene.dirty, true, 'B34 有暂存改动判脏')
+    const merging = makeRig({ root: dir.replace(/\\/g, '/'), screen: makeScreen({ repo: { merging: true } }) })
+    const scene3 = await merging.read.sceneOf(dir)
+    eq(scene3.scene.operation, 'merge', 'B35 合并中能认出来')
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+
+  {
+    const rig = makeRig({})
+    const bad = await rig.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: '不存在的动作' })
+    eq(bad.ok, false, 'B36 预检认不出动作时拒绝')
+    eq(bad.reason, 'bad-target', 'B37 认不出动作的理由是 bad-target')
+    eq(rig.state.runCalls.length, 0, 'B38 认不出动作时一条命令都不起')
+    const noCwd = await rig.check.handleMaintenanceCheck({ op: 'gc' })
+    eq(noCwd.reason, 'bad-target', 'B39 预检缺仓库目录拒绝')
+    const busy = makeRig({ screen: makeScreen({ repo: { rebasing: true } }) })
+    const busyOut = await busy.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'gc' })
+    eq(busyOut.ok, false, 'B40 变基进行中拒绝维护动作')
+    eq(busyOut.reason, 'operation-in-progress', 'B41 进行中操作的拒绝理由是 operation-in-progress')
+    const old = makeRig({ gitVersion: 'git version 2.20.0' })
+    const oldOut = await old.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'maintenance-run' })
+    eq(oldOut.ok, false, 'B42 版本不够时预检拒绝')
+    eq(oldOut.reason, 'version-unsupported', 'B43 版本不够的预检理由是 version-unsupported')
+    eq(oldOut.needed, '2.30', 'B44 拒绝回包点名需要的版本')
+    const reg = makeRig({ repos: 'C:/repo\n', maintConfig: 'maintenance.gc.enabled true\n' })
+    const regOut = await reg.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'maintenance-enable' })
+    eq(regOut.ok, false, 'B45 已经登记后台维护时不再重复开启')
+    eq(regOut.reason, 'nothing-to-do', 'B46 重复开启的理由是 nothing-to-do')
+    const unreg = makeRig({})
+    const unregOut = await unreg.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'maintenance-disable' })
+    eq(unregOut.ok, false, 'B47 没登记时不能关闭')
+    eq(unregOut.reason, 'nothing-to-do', 'B48 没登记关闭的理由是 nothing-to-do')
+    const nothing = makeRig({ unreachableText: '', pruneText: '' })
+    const nothingOut = await nothing.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'prune' })
+    eq(nothingOut.ok, false, 'B49 没有不可达对象时拒绝清理')
+    eq(nothingOut.reason, 'nothing-to-do', 'B50 没有可清理对象的理由是 nothing-to-do')
+    check(nothingOut.preview && nothingOut.preview.count === 0, 'B51 拒绝回包仍带上预演事实（零个）')
+  }
+
+  {
+    const rig = makeRig({})
+    const signed = await rig.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'gc' })
+    eq(signed.ok, true, 'B52 普通维护动作能签票')
+    eq(signed.decision.verdict, 'allow', 'B53 签票的决策是放行')
+    eq(signed.confirmRequired, true, 'B54 维护动作都要确认')
+    eq(signed.ticket.op, 'gc', 'B55 票上记着动作')
+    eq(signed.ticket.expiresAtMs - signed.ticket.checkedAtMs, 120000, 'B56 票据时限一百二十秒')
+    eq(signed.plan.mode, '', 'B57 不需要模式的动作计划里模式为空串')
+    check(signed.confirm && signed.confirm.what && signed.confirm.wont && signed.confirm.verb, 'B58 确认卡四段齐全')
+    eq(signed.confirm.reversible, true, 'B59 垃圾回收在确认卡上标明可恢复（旧提交还有引用）')
+    const pRun = await rig.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'maintenance-run' })
+    eq(pRun.ticket.op, 'maintenance-run', 'B60 立即跑自动维护也能签票')
+    const pruneRig = makeRig({})
+    const pruneSigned = await pruneRig.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'prune' })
+    eq(pruneSigned.ok, true, 'B61 清除不可达对象能签票')
+    eq(pruneSigned.confirm.reversible, false, 'B62 清除不可达对象在确认卡上标明不可自动恢复')
+    eq(pruneSigned.backup.required, true, 'B63 签票回包带上强制备份计划')
+    check(String(pruneSigned.backup.path).indexOf('-backup-') >= 0, 'B64 备份路径带 -backup- 便于人找')
+    check(pruneSigned.preview && pruneSigned.preview.count === 1, 'B65 签票回包带上不可达对象个数')
+    check(pruneSigned.confirm.backup && pruneSigned.confirm.backup.path === pruneSigned.backup.path, 'B66 确认卡里也写着备份放哪')
+  }
+
+  {
+    const rig = makeRig({})
+    const pre = await rig.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'gc' })
+    const ticketId = pre.ticket.id
+    const missing = await rig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'gc', ticketId: 'nope', requestId: 'r1', confirmed: true })
+    eq(missing.ok, false, 'B67 找不到票时拒绝')
+    eq(missing.reason, 'ticket-missing', 'B68 找不到票的理由是 ticket-missing')
+    const badRid = await rig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'gc', ticketId: ticketId, requestId: 'bad id!', confirmed: true })
+    eq(badRid.reason, 'bad-target', 'B69 请求号形状不对时拒绝')
+    const mismatch = await rig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'maintenance-run', ticketId: ticketId, requestId: 'r2', confirmed: true })
+    eq(mismatch.reason, 'ticket-op-mismatch', 'B70 票上动作与这次动作不符时拒绝')
+    const noConfirm = await rig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'gc', ticketId: ticketId, requestId: 'r3' })
+    eq(noConfirm.reason, 'need-confirm', 'B71 没确认时拒绝')
+    eq(noConfirm.error.kind, 'need-confirm', 'B72 没确认的失败类型是 need-confirm')
+    rig.clock.t = 1000 + 121000
+    const expired = await rig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'gc', ticketId: ticketId, requestId: 'r4', confirmed: true })
+    eq(expired.reason, 'ticket-expired', 'B73 票过期后拒绝')
+    check(rig.state.taskStarts.length === 0, 'B74 拒绝栈里一条任务都没起')
+    check(rig.state.backups.length === 0, 'B75 拒绝栈里一次备份都没做')
+  }
+
+  {
+    const rig = makeRig({ screenSecond: makeScreen({ identity: { oid: 'h2' } }) })
+    const pre = await rig.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'gc' })
+    const moved = await rig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'gc', ticketId: pre.ticket.id, requestId: 'r5', confirmed: true })
+    eq(moved.ok, false, 'B76 预检后 HEAD 动了拒绝')
+    eq(moved.reason, 'target-changed', 'B77 HEAD 动了的理由是 target-changed')
+    check(rig.state.taskStarts.length === 0, 'B78 HEAD 动了时一条任务都不起')
+    const dirtyRig = makeRig({ screenSecond: makeScreen({ staged: [{ path: 'a.txt' }] }) })
+    const pre2 = await dirtyRig.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'gc' })
+    const changed = await dirtyRig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'gc', ticketId: pre2.ticket.id, requestId: 'r6', confirmed: true })
+    eq(changed.reason, 'target-changed', 'B79 预检后工作区变了拒绝')
+  }
+
+  {
+    const rig = makeRig({})
+    const pre = await rig.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'gc' })
+    const same = await rig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'gc', ticketId: pre.ticket.id, requestId: 'r7', confirmed: true })
+    eq(same.ok, true, 'B80 现场没变时凭票执行成功')
+    eq(same.kind, 'task', 'B81 垃圾回收走长任务通道')
+    eq(same.task.op, 'gc', 'B82 起的是垃圾回收任务')
+    eq(rig.state.taskStarts.length, 1, 'B83 只起一次任务')
+    eq(rig.state.taskStarts[0].op, 'gc', 'B84 任务参数里的动作是 gc')
+    eq(JSON.stringify(same.steps), JSON.stringify(['task']), 'B85 不需要备份的动作只有任务一步')
+    const replay = await rig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'gc', ticketId: pre.ticket.id, requestId: 'r7', confirmed: true })
+    eq(replay.reused, true, 'B86 同一请求号重放回上次结果')
+    eq(rig.state.taskStarts.length, 1, 'B87 重放不重复起任务')
+    const runRig = makeRig({})
+    const pre2 = await runRig.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'maintenance-run' })
+    const ran = await runRig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'maintenance-run', ticketId: pre2.ticket.id, requestId: 'r8', confirmed: true })
+    eq(ran.task.op, 'maintenance-run', 'B88 立即跑自动维护也走任务通道')
+  }
+
+  {
+    const failRig = makeRig({ backupFail: true })
+    const pre = await failRig.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'prune' })
+    const blocked = await failRig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'prune', ticketId: pre.ticket.id, requestId: 'r9', confirmed: true })
+    eq(blocked.ok, false, 'B89 备份失败时中止')
+    eq(blocked.reason, 'backup-failed', 'B90 备份失败的理由是 backup-failed')
+    eq(failRig.state.taskStarts.length, 0, 'B91 备份失败时绝不启动清除任务')
+    eq(failRig.state.backups.length, 1, 'B92 备份确实尝试过一次')
+  }
+
+  {
+    const rig = makeRig({})
+    const pre = await rig.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'prune' })
+    const done = await rig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'prune', ticketId: pre.ticket.id, requestId: 'r10', confirmed: true })
+    eq(done.ok, true, 'B93 备份成功后才执行清除')
+    eq(JSON.stringify(done.steps), JSON.stringify(['backup', 'task']), 'B94 清除动作两步：先备份再起任务')
+    eq(rig.state.backups.length, 1, 'B95 备份只做一次')
+    eq(rig.state.taskStarts.length, 1, 'B96 备份成功后才起任务')
+    eq(rig.state.taskStarts[0].op, 'prune', 'B97 起的是清除不可达对象任务')
+    check(done.backup && done.backup.bytes === 4096, 'B98 回包带上备份实际大小')
+    has(String(done.backupSummary), '备份在', 'B99 回包带上人话备份摘要')
+    eq(done.backupRestoreSteps.length, 3, 'B100 回包带上三步还原指引')
+  }
+
+  {
+    const rig = makeRig({})
+    const pre = await rig.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'maintenance-enable' })
+    const enabled = await rig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'maintenance-enable', ticketId: pre.ticket.id, requestId: 'r11', confirmed: true })
+    eq(enabled.ok, true, 'B101 开启自动维护走本地命令并成功')
+    eq(enabled.kind, 'local', 'B102 开启自动维护是本地动作')
+    eq(JSON.stringify(enabled.argv), JSON.stringify([['maintenance', 'start']]), 'B103 开启执行 maintenance start')
+    check(rig.state.runCalls.some(function (a) { return a.join(' ') === 'maintenance start' }), 'B104 本地命令真的跑过 maintenance start')
+    check(rig.state.taskStarts.length === 0, 'B105 本地动作不起长任务')
+    eq(enabled.maintenance.registered, false, 'B106 执行后回读自动维护状态')
+    const stepCall = rig.state.runCalls.filter(function (a) { return a.join(' ') === 'maintenance start' })[0]
+    const startAt = rig.state.runCalls.findIndex(function (a) { return a.join(' ') === 'maintenance start' })
+    eq(rig.state.runOpts[startAt] && rig.state.runOpts[startAt].timeoutMs, 123456, 'B107 本地命令带着写层注入的超时预算')
+  }
+
+  {
+    const failLocal = makeRig({ runPinned: async function (args) { if (args.join(' ') === 'maintenance start') return { kind: 'non-zero', exitCode: 128, stdout: '', stderr: 'fatal: 系统调度任务装不上\n' }; return null } })
+    const pre = await failLocal.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'maintenance-enable' })
+    const bad = await failLocal.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'maintenance-enable', ticketId: pre.ticket.id, requestId: 'r12', confirmed: true })
+    eq(bad.ok, false, 'B108 本地维护命令失败时如实报错')
+    eq(bad.error.kind, 'git-failed', 'B109 本地命令失败的失败类型是 git-failed')
+    has(String(bad.error && bad.error.message), 'fatal: 系统调度任务装不上', 'B110 失败信封带 git 原话')
+    eq(bad.step, 'maintenance start', 'B111 失败信封点名是哪一步')
+  }
+
+  {
+    const disableRig = makeRig({ repos: 'C:/repo\n', maintConfig: 'maintenance.gc.enabled true\n' })
+    const pre = await disableRig.check.handleMaintenanceCheck({ cwd: 'C:/repo', op: 'maintenance-disable' })
+    const off = await disableRig.write.handleMaintenanceWrite({ cwd: 'C:/repo', op: 'maintenance-disable', ticketId: pre.ticket.id, requestId: 'r13', confirmed: true })
+    eq(off.ok, true, 'B112 关闭自动维护能成功')
+    eq(JSON.stringify(off.argv), JSON.stringify([['maintenance', 'stop'], ['maintenance', 'unregister']]), 'B113 关闭按 stop 再 unregister 顺序执行')
+    check(disableRig.state.runCalls.some(function (a) { return a.join(' ') === 'maintenance stop' }) && disableRig.state.runCalls.some(function (a) { return a.join(' ') === 'maintenance unregister' }), 'B114 两条本地命令都跑过')
+  }
+  console.log('  B 组完成：' + total + ' 条')
 }
 
 main().then(function () { return printGateResult(GATE, total, failed) }).then(function () { process.exit(failed ? 1 : 0) }).catch(function (err) {
