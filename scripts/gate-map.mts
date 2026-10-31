@@ -75,6 +75,9 @@ export const MAP_PATH: string = path.join(ROOT, 'tests', 'gate-map.json')
 //   期望比实际小 = 有人加了断言却忘了改这里，也判红，顺手把数字改准。
 // 还没开闸的门禁一律不许写在这里 —— 编一个数字出来，真红就会变假绿。
 export const COMPLETION_RECORDED_GATES: Record<string, number> = {
+  // 2026-10-31 #1737（规格 #1586 T02）：能力账本 162 条单一数据源 + 生成器对账 + 反证组，
+  // 分四组：生成物新鲜 5、账本形状 27、版本可用性 1、反证 9，单跑实测 42 条。
+  'verify-1586-capability-ledger': 42,
   // 2026-10-29 #1600：词表里 gate.wipNotice 已退役（GitLab 可用后不再有「筹备中」注解），
   // 这扇改成先钉「键已不在词表里」、再钉「初始化小卡上不再出现该文案」，单跑实测 31 条。
   'verify-669-collapsed-recoverable': 31,

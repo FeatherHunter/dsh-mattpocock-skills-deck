@@ -51,6 +51,7 @@
     "generate-github-fixtures.ts",
     "generate-markdown-fixtures.ts",
     "generate-star-history-svg.mts",
+    "generate-1586-capability-ledger.mts",
     "generate-time-config.mts",
     "generate-prompt-config.mts",
     "generate-locale-config.mts",

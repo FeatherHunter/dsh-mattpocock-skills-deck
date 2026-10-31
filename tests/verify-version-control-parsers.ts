@@ -5,6 +5,8 @@
 // 六组解析器各自：实采干净仓库能解出手写脏仓库中文重命名能解出、冲突不丢、游离与零提交
 // 不误判、上游被删单独成态、旧版降级有路、截断半截显式失败（不装作成功）。
 // 最后带一层断言装置自检：把样本改坏（字段数、行首字符、哈希），同一套解析必须显式失败。
+// #1737 票 T02 补两组公共约定：「六解析器读不全必须显式失败、不交半份结果」与「版本可用性纯函数
+// 按账本里的最低版本算完整/降级/隐藏」。域票（#1738 起）沿用这两条约定，不另立失败形状。
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
@@ -410,6 +412,48 @@ async function main() {
     '显示名用的是归一后算出的最短唯一后缀长度（实得 ' + (mixedAsm.ok === true ? mixedAsm.screen.identity.worktreeDisplay : '失败') + '——按原始字符串找下标会退化成 1 段「同名」）')
   const oldOthers = mixedWt.filter((w) => w.path !== 'd:/b/同名')
   check(oldOthers.length === 2, '反证：当前工作树写法与清单不一致时，按原始字符串比较会把当前那棵也列进「其他工作树」（实得 ' + oldOthers.length + ' 棵）')
+
+  // ---- 6.5) 公共失败约定（#1737 票 T02 立）：六个解析器读不全时一律显式失败，不装作成功、不交半份结果 ----
+  // 约定写在 ports.ts 的 ParseFailure 上：ok:false、error 是稳定标识符、detail 说清哪里断了；
+  // 失败对象里不许夹带半份结果（screen / worktrees / refs / commits / files / lines 都不许出现）。
+  const failureCases = [
+    ['status', () => status.parseStatus('1 M. N... 100644'), 'status-malformed'],
+    ['worktrees', () => worktrees.parseWorktrees('worktree \0HEAD abc\0', true), 'worktrees-malformed'],
+    ['refs', () => refs.parseRefs('refs/heads/a\0a\0'), 'refs-malformed'],
+    ['log', () => log.parseLog('H\0h\0'), 'log-malformed'],
+    ['diffFiles', () => diffFiles.parseDiffFiles('1\t2\t\0'), 'diff-files-malformed'],
+    ['patch', () => patch.parsePatch('diff --git a\n?\n'), 'patch-malformed'],
+  ]
+  for (const item of failureCases) {
+    const name = item[0]
+    let r = null
+    try { r = item[1]() } catch (e) { r = null }
+    const keys = r && typeof r === 'object' ? Object.keys(r).sort().join(',') : '（没返回对象）'
+    check(!!r && r.ok === false && keys === 'detail,error,ok', name + ' 读不全时显式失败，失败对象恰好三键、不夹带半份结果（实得 ' + keys + '）')
+    check(!!r && r.ok === false && r.error === item[2], name + ' 的失败标识符稳定为 ' + item[2] + '（实得 ' + (r && r.error) + '）')
+    check(!!r && r.ok === false && typeof r.detail === 'string' && r.detail.length > 0, name + ' 的 detail 说清断在哪里（' + (r && r.detail) + '）')
+  }
+
+  // ---- 6.6) 版本可用性纯函数（#1737 票 T02）：按 git 版本算「完整 / 降级 / 隐藏」，账本是唯一数据源 ----
+  const ledger = await import(vc('capability-ledger.js'))
+  const capabilityOf = (id) => ledger.CAPABILITIES.filter((c) => c.id === id)[0]
+  const availabilityOf = (id, version) => caps.capabilityAvailability(capabilityOf(id), version)
+  check(typeof caps.capabilityAvailability === 'function' && ledger.CAPABILITIES.length === 162, '版本可用性纯函数导出，账本 162 条可作为输入')
+  const restoreFull = availabilityOf('1.5', '2.23.0')
+  check(restoreFull.state === 'full' && restoreFull.needed === '2.23', '1.5 撤回暂存：2.23 起完整（实得 ' + restoreFull.state + '，要求 ' + restoreFull.needed + '）')
+  const restoreDegraded = availabilityOf('1.5', '2.22.1')
+  check(restoreDegraded.state === 'degraded' && typeof restoreDegraded.alternative === 'string' && restoreDegraded.alternative.length > 0,
+    '1.5 在 2.23 以下降级，并给出替代做法（' + restoreDegraded.alternative + '）')
+  check(availabilityOf('4.3', '2.20').state === 'degraded', '4.3 切换分支：2.23 以下降级（用 git checkout）')
+  check(availabilityOf('9.8', '2.25').state === 'full' && availabilityOf('9.8', '2.20').state === 'hidden',
+    '9.8 稀疏检出：2.25 起完整、以下隐藏（实得 ' + availabilityOf('9.8', '2.20').state + '）')
+  check(availabilityOf('9.4', '2.16').state === 'hidden' && availabilityOf('8.12', '2.20').state === 'degraded' && availabilityOf('8.12', '2.30').state === 'full',
+    '9.4 工作树删除在 2.17 以下隐藏；8.12 租约强推在 2.11–2.29 降级、2.30 起完整')
+  check(availabilityOf('13.14', '2.11').state === 'full' && availabilityOf('13.14', '2.10').state === 'hidden',
+    '2.11 硬底线内完整、以下隐藏（13.14 在 2.10 以下隐藏）')
+  check(availabilityOf('1.5', 'not-a-version').state === 'hidden' && availabilityOf('1.5', null).state === 'hidden',
+    '版本解析不出按隐藏处理（宁缺勿错，不冒充完整）')
+  check(availabilityOf('1.5', caps.VERSION_FLOOR).state === 'degraded', '低于能力要求但达到 2.11 底线时按策略降级，不误判成隐藏')
 
   // ---- 7) 断言装置自检：改坏样本必须红 ----
   const badStatus = status.parseStatus('1 M. N... 100644')

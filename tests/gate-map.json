@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T09:54:10.726Z",
+  "generatedAt": "2026-10-31T11:19:20.564Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 481,
-  "gateCount": 481,
-  "attributedGates": 430,
+  "chainLength": 482,
+  "gateCount": 482,
+  "attributedGates": 431,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 45,
+  "completionRecordedGates": 46,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 659,
+  "graphFileCount": 660,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4183,6 +4183,23 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+    },
+    {
+      "step": "node tests/verify-1586-capability-ledger.ts",
+      "file": "tests/verify-1586-capability-ledger.ts",
+      "guards": [
+        "scripts/generate-1586-capability-ledger.mts",
+        "src/shared/version-control/src/capability-ledger.ts"
+      ],
+      "dirs": [
+        "scripts",
+        "src/shared/version-control/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 42,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-1595-resolvespec.ts",
@@ -11517,6 +11534,7 @@
       "node tests/verify-1411-suggest-appearance.ts",
       "node tests/verify-1411-suggest-bubble.ts",
       "node tests/verify-1530-generated-outputs-not-inputs.ts",
+      "node tests/verify-1586-capability-ledger.ts",
       "node tests/verify-1612-deck-door.ts",
       "node tests/verify-1612-deck-state.ts",
       "node tests/verify-1646-publish-token-file.ts",
@@ -12694,6 +12712,7 @@
     "src/shared/version-control/src": [
       "node tests/verify-build-artifacts.ts",
       "node tests/verify-1231-ws-overview-rows.ts",
+      "node tests/verify-1586-capability-ledger.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-841-write-phones.ts",
       "node tests/verify-842-version-control-write-view.ts",
@@ -13332,9 +13351,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 680,
+    "fileCount": 681,
     "dirCount": 84,
-    "coveredFileCount": 680,
+    "coveredFileCount": 681,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13813,6 +13832,7 @@
       "src/shared/version-control/README.md",
       "src/shared/version-control/exec-envelope.ts",
       "src/shared/version-control/src/capabilities.ts",
+      "src/shared/version-control/src/capability-ledger.ts",
       "src/shared/version-control/src/commands.ts",
       "src/shared/version-control/src/parse-diff-files.ts",
       "src/shared/version-control/src/parse-log.ts",
