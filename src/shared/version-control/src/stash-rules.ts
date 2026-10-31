@@ -74,8 +74,6 @@ export const STASH_STAGED_ALTERNATIVE = '先做一次全量贮藏，再恢复未
 export const STASH_VERSION_FLOOR = '2.11.0'
 /** 只贮藏已暂存的文件（--staged）要求的最低版本（规格第 6 节）。 */
 export const STASH_STAGED_MIN_VERSION = '2.35.0'
-/** 列表命令的形状（与 commands.ts 的 stashListArgs 同一份：四条 NUL 字段）。 */
-export const STASH_LIST_FORMAT = '%gd%x00%H%x00%ct%x00%gs'
 /** 贮藏说明上限：写进 reflog 主题，太长会让列表没法读。 */
 export const STASH_MESSAGE_MAX = 200
 /** 分支名上限（git 自己按字节限制到 255 左右；这里按字符数收在 200，避免宽字符越界）。 */
@@ -185,7 +183,9 @@ export const stashOperationArgs = function (op: any, payload: any): StashArgsRes
   // 这条只影响 7.2 一个动作，其余动作不需要路径魔法。
   if (def.op === 'push-untracked') return { ok: true, args: ['--no-literal-pathspecs', 'stash', 'push', '-u', '-m', message] }
   if (def.op === 'push-staged') return { ok: true, args: ['stash', 'push', '--staged', '-m', message] }
-  if (def.op === 'list') return { ok: true, args: ['stash', 'list', '--format=' + STASH_LIST_FORMAT] }
+  // 列表格式与 commands.ts 的 stashListArgs 是同一份形状（四条 NUL 字段）。这里不导出常量：共享层内部自用的导出常量
+  // 会被「死了的常量」门禁判红（那道门禁只认生产树与测试里的读者）。两边同一份形状由 tests/verify-1586-stash-page.ts 逐字节对账。
+  if (def.op === 'list') return { ok: true, args: ['stash', 'list', '--format=%gd%x00%H%x00%ct%x00%gs'] }
   if (def.op === 'show') return { ok: true, args: ['stash', 'show', '-p', selector] }
   if (def.op === 'apply') return { ok: true, args: ['stash', 'apply', selector] }
   if (def.op === 'pop') return { ok: true, args: ['stash', 'pop', selector] }

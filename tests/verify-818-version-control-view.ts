@@ -299,7 +299,14 @@ async function main() {
   }
   tZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
   tEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
-  VIEW = buildView(null, [])
+  // 页面壳渲染要用到全局提示叶子 Tip 与图标叶子 Ic（真实构建里它们在视图叶子之前已拼进同一个闭包）；
+  // 这里先把垫片备好再建闭包，否则页面渲染到 Tip 时会拿到 null（#1751 贮藏页的提交号提示就走 Tip）。
+  const React = require('react')
+  const { renderToStaticMarkup } = require('react-dom/server')
+  const DswsCtx = React.createContext(null)
+  const TipStub = function (props) { return props && props.children ? props.children : null }
+  const IcStub = function () { return null }
+  VIEW = buildView(null, [], React, DswsCtx, TipStub, IcStub)
 
   // ---- A 组：显隐与接线 ----
   // #845c：A1 那条判据抽成可复用的一份 —— H 组的反证要评的就是这一份判断，两边不许各写一份。
@@ -671,11 +678,7 @@ async function main() {
   check(stamps.every((ms) => VIEW.vcTimeKind(NOW, ms) === core.describeTime(NOW, ms).style), 'G2 vcTimeKind 与核心 describeTime 同一条 7 天分界（相对 / 绝对不说两套话）')
 
   // ---- G4：首帧真渲染一次（空态不许崩、也不许冒字）----
-  const React = require('react')
-  const { renderToStaticMarkup } = require('react-dom/server')
-  const DswsCtx = React.createContext(null)
-  const TipStub = function (props) { return props && props.children ? props.children : null }
-  const IcStub = function () { return null }
+  // React、DswsCtx 与 Tip / Ic 垫片在上面建 VIEW 之前就备好了（#1751 贮藏页的提示走 Tip）。
   const renderView = buildView(null, [], React, DswsCtx, TipStub, IcStub)
   let html = ''
   let renderErr = ''
@@ -1400,7 +1403,7 @@ async function main() {
   check(stashHtml.indexOf('data-vc-stash-list="ok"') >= 0 && attrValuesOf(stashHtml, 'data-vc-stash-entry').length === 2, 'Z16b 列表按 T04 首屏的贮藏分片渲染两条记录（不重复建读命令）')
   check(attrValuesOf(stashHtml, 'data-vc-stash-selector').join(',') === 'stash@{0},stash@{1}', 'Z16c 每条记录带选择器 stash@{n}（第 3 节的列表字段之一）')
   check(stashHtml.indexOf('第一条贮藏') >= 0 && stashHtml.indexOf('第二条贮藏') >= 0, 'Z16d 每条记录带说明（reflog 主题原样读出来，不自己编）')
-  check(attrValuesOf(stashHtml, 'data-vc-stash-oid').length === 2 && stashHtml.indexOf(VIEW.vcStashShortOidOf('a'.repeat(40))) >= 0 && stashHtml.indexOf('title="' + 'a'.repeat(40) + '"') >= 0, 'Z16e 每条记录带提交号（正文印短号、完整号进悬停）')
+  check(attrValuesOf(stashHtml, 'data-vc-stash-oid').length === 2 && stashHtml.indexOf(VIEW.vcStashShortOidOf('a'.repeat(40))) >= 0 && attrValuesOf(stashHtml, 'data-vc-stash-oid-full').join(',') === 'a'.repeat(40) + ',' + 'b'.repeat(40), 'Z16e 每条记录带提交号（正文印短号、完整号留给悬停提示与记录属性）')
   check(attrValuesOf(stashHtml, 'data-vc-stash-at').length === 2 && /\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(stashHtml), 'Z16f 每条记录带时间（本地「年-月-日 时:分」）')
   check(stashHtml.indexOf(LOC.zh['vc.stash.entry.filesUnknown']) >= 0 && attrValuesOf(stashHtml, 'data-vc-stash-files').length === 2, 'Z16g 列表读法不给涉及文件数时如实说「不知道」（不拿 0 冒充）')
   check(VIEW.STASH_OPS.length === 10 && VIEW.STASH_OPS.every(function (c) { return stashCapCount(c.id) >= 1 }), 'Z16h 十条能力在贮藏页各有 data-vc-stash-cap 入口（7.1–7.10 一条不缺）')
