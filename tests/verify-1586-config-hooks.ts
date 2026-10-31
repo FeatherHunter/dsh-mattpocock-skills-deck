@@ -7,7 +7,9 @@
 //   ② 只读读数：真 git 临时仓库里读回四组配置、身份各作用域的旧值、钩子清单、属性规则与邮件映射；
 //   ③ 身份两键的写入：先预检签 120 秒票（显示旧值、非身份键当场拒、块时不签票），再凭票执行；
 //      伪造票 / 过期票 / 换动作 / 现场变化全部零进程拒绝，同一 requestId 重放只执行一次；
-//   ④ 手动跑钩子：2.36 以下只读说明给替代做法，2.36 起先确认再执行，输出有上限、超时走配置档。
+//   ④ 手动跑钩子：2.36 以下只读说明给替代做法，2.36 起先确认再执行，输出有上限、超时走配置档；
+//   ⑤ 反证：把只读边界、2.36 版本门、钩子名字校验分别改坏成恒放行，前面几组依托的判据必须当场变红，
+//      且补丁真的落在源码文本上（不是自己骗自己）。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1586-config-hooks.ts
 const fs = require('fs')
@@ -238,6 +240,39 @@ async function main(): Promise<void> {
   const wrChanged = await vcA.handleGitConfigWrite({ cwd: repoA, op: 'hook-run', ticketId: ckDigest.ticket.id, requestId: 'e-changed', confirmed: true })
   check(wrChanged.ok === false && wrChanged.error.reason === 'target-changed', 'E7 预检之后钩子文件被改过，凭票执行拒绝（绑定的是钩子内容摘要）')
   check(countHookRuns() === beforeChanged, 'E8 钩子文件变化后的拒绝发生在起写命令之前（零写进程）')
+
+  console.log('F 反证（把被守的守卫改坏，同一判据必须当场变红）')
+  const { sourceText } = require('./lib/source-text.ts')
+  const { compileFn } = require('./lib/eval-probe.ts')
+  const rulesSrc = sourceText('src/shared/version-control/src/config-rules.ts')
+  const GUARDS = [
+    { name: '只读边界', anchor: '  if (!configKeyEditable(key)) return {', broken: '  if (false) return {' },
+    { name: '2.36 版本门', anchor: '  if (!atLeast(v, 2, 36, 0)) return {', broken: '  if (false) return {' },
+    { name: '钩子名字校验', anchor: "  if (!/^[a-z0-9][a-z0-9-]*$/.test(s) || s.length > 64) return 'hook-name'", broken: "  if (false) return 'hook-name'" },
+  ]
+  check(GUARDS.every(function (g: any): boolean { return rulesSrc.indexOf(g.anchor) >= 0 }), 'F1 三处被反证的守卫原文都还在规则层源码里（锚点漂了这组反证就等于没证，先跟着改这里）')
+  const patches = GUARDS.map(function (g: any): string { return rulesSrc.split(g.anchor).join(g.broken) })
+  check(patches.every(function (p: string, i: number): boolean { return p !== rulesSrc && p.indexOf(GUARDS[i].broken) >= 0 }), 'F2 三处反证补丁都真的落到了源码文本上（不是只在本文件里假设改坏了）')
+  // 反证求值按 CJS 单独转译：这里只把规则层当成一个自包含模块跑起来改坏副本，与拼进产物的 ESM 口径无关。
+  const evalRules = function (text: string): any {
+    const js: string = require('esbuild').transformSync(text, { loader: 'ts', format: 'cjs', target: 'es2020', charset: 'utf8' }).code
+    const body: string = 'var module = { exports: {} };\nvar exports = module.exports;\n' + js + '\nreturn module.exports;'
+    return compileFn([], body)()
+  }
+  const mutReadonly = evalRules(patches[0])
+  const mutVersion = evalRules(patches[1])
+  const mutHookName = evalRules(patches[2])
+  const realReadonly = rules.configCheckPlanOf('config-set', { key: 'core.autocrlf', scope: 'local', value: 'true' })
+  const mutReadonlyPlan = mutReadonly.configCheckPlanOf('config-set', { key: 'core.autocrlf', scope: 'local', value: 'true' })
+  check(realReadonly.ok === false && realReadonly.reason === 'key-readonly' && !(mutReadonlyPlan.ok === false && mutReadonlyPlan.reason === 'key-readonly'), 'F3 把只读边界改成恒放行之后，C7 的判据当场变红（非身份键重新写得进去）')
+  const realVer = rules.configHookRunStateOf('git version 2.34.1')
+  const mutVer = mutVersion.configHookRunStateOf('git version 2.34.1')
+  check(realVer.state === 'hidden' && mutVer.state === 'full', 'F4 把 2.36 版本门改成恒放行之后，D1 的判据当场变红（低版本被画成可运行）')
+  const realHook = rules.hookNameProblem('Bad Name')
+  const mutHook = mutHookName.hookNameProblem('Bad Name')
+  check(realHook === 'hook-name' && mutHook === null, 'F5 把钩子名字校验改成恒放行之后，坏名字会被当成合法（判据当场变红）')
+  const mutScope = mutReadonly.configCheckPlanOf('config-set', { key: 'user.name', scope: 'system', value: 'x' })
+  check(mutScope.ok === false && mutScope.reason === 'scope-invalid', 'F6 反证只改坏那一处守卫：同一份改坏副本里的作用域校验照旧拒绝，不是整份规则都废了')
 
   printGateResult(GATE, total, failed)
   process.exit(failed ? 1 : 0)
