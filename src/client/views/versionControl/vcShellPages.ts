@@ -30,6 +30,8 @@ declare function vcShellCapabilityRowNode(h: any, t: any, o: any): any
 declare function vcCapabilitySurfaceKindOf(cap: any): string
 declare const VC_SHELL_STATES: string[]
 declare function vcHistoryPageNode(h: any, t: any, o: any): any
+// 远端与同步页叶子（#1754 T18，vcRemotePage.ts）：build 按叶子登记次序拼进同一闭包，这里只声明形状。
+declare function vcRemotePageNode(h: any, t: any, o: any): any
 // 长任务区叶子（#1740，vcTaskPanel.ts）：由构建按叶子登记次序拼进同一个闭包，这里只声明形状。
 declare function vcTaskPanelNode(h: any, t: any, o: any): any
 
@@ -247,6 +249,13 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     children.push(Object.assign({}, vcHistoryPageNode(h, t, {
       reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs,
     }), { key: 'history' }))
+  } else if (page === 'remote' && opts.reads) {
+    // 远端与同步页正文（#1754 T18，域 8 的 8.1–8.4）。同样只在拿到读数时换成真正文，
+    // 没读数（壳自检、Z 组骨架断言）仍旧画骨架。这个页面不自己画 data-cap-primary，
+    // 8.1–8.4 的主入口标记由下面的能力行统一给，保证「每能力一个主入口」。
+    children.push(Object.assign({}, vcRemotePageNode(h, t, {
+      reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs,
+    }), { key: 'remote' }))
   } else {
     // 骨架自检：三种表单形态与四种状态各画一遍，T03 只交壳，业务入口由后续票逐条接。
     children.push(h('div', { key: 'skeleton', className: 'vcs-skeleton', 'data-vc-skeleton': '1' }, [
