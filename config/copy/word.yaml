@@ -172,7 +172,6 @@ zh:
   err.snapshotEmpty: wf.snapshot 返回异常
   err.guideMissing: 当前后端没有声明这条指引文案，本次没有注入任何内容——请按上面的错误提示手动处理
   cfg.starTip: 去 GitHub 点 Star
-  cfg.feedbackTip: 反馈问题
   cfg.updateCheck: 检查更新
   cfg.updateChecking: 检查中…
   cfg.updateToVersion: 更新至 {v}
@@ -374,7 +373,6 @@ en:
   err.snapshotEmpty: wf.snapshot returned an error
   err.guideMissing: The current backend declares no guide text for this, so nothing was injected — follow the error bar above and handle it by hand
   cfg.starTip: Star on GitHub
-  cfg.feedbackTip: Report an issue
   cfg.updateCheck: Check for updates
   cfg.updateChecking: Checking…
   cfg.updateToVersion: Update to {v}

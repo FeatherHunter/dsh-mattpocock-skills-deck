@@ -1,15 +1,15 @@
-// 派生文件（base 包接入）：由已安装的 dsh-featherhunter-plugin-base@0.1.1 的 dist/client/index.js 内联生成，内容与安装版本一致，人手不改。
+// 派生文件（base 包接入）：由已安装的 dsh-featherhunter-plugin-base@0.1.2 的 dist/client/index.js 内联生成，内容与安装版本一致，人手不改。
 // 构建时拼入客户端闭包（src/client/index.ts 的 kernel:baseClient 标记处）；首行保留包的版本横幅供 doctor 的 inline-bundle-version 核对。
 // 重新生成：node scripts/derive-base-from-package.mts（重跑零 diff）。
 // ---- 作用域隔离：包体顶层声明包进 IIFE 藏起来，只留两个外面要用的 ----
 const __basePkgScope = (() => {
-  /*! dsh-featherhunter-plugin-base v0.1.1 */
+  /*! dsh-featherhunter-plugin-base v0.1.2 */
 
   // src/core/baseline.ts
   var BASELINE = {
     "manifest": {
       "schema": 1,
-      "version": "0.1.1",
+      "version": "0.1.2",
       "revision": 2,
       "updatedAt": "2026-10-31T00:00:00+08:00",
       "fallbackUrl": "https://github.com/FeatherHunter/featherhunter-plugin-manage",
@@ -233,6 +233,12 @@ const __basePkgScope = (() => {
     const days = Math.round((until.getTime() - startOfLocalDay(now)) / DAY_MS);
     const month = until.getUTCMonth() + 1;
     const day = until.getUTCDate();
+    if (days <= 0) {
+      if (options.lang === "en") {
+        return `Valid today (until ${month}/${day}), refreshed on re-entry`;
+      }
+      return `\u8BE5\u4E8C\u7EF4\u7801\u4ECA\u5929\uFF08${month} \u6708 ${day} \u65E5\u524D\uFF09\u6709\u6548\uFF0C\u91CD\u65B0\u8FDB\u5165\u5C06\u66F4\u65B0`;
+    }
     if (options.lang === "en") {
       return `Valid for ${days} day${days === 1 ? "" : "s"} (until ${month}/${day}), refreshed on re-entry`;
     }
@@ -364,6 +370,62 @@ const __basePkgScope = (() => {
   var EDGE = 8;
   var activeDispose = null;
   var tipSerial = 0;
+  function mountTip(anchor, content, options = {}) {
+    if (typeof document === "undefined") {
+      return { id: "", dispose: () => {
+      } };
+    }
+    const exclusive = options.exclusive ?? true;
+    if (exclusive) activeDispose?.();
+    const el = document.createElement("div");
+    el.className = TIP_CLASS;
+    el.id = "dsh-base-tip-" + (tipSerial += 1);
+    el.setAttribute("role", "tooltip");
+    el.textContent = content;
+    el.style.maxWidth = String(options.maxWidth ?? 320) + "px";
+    const place = () => {
+      if (!el.isConnected || !anchor.isConnected) return;
+      const rect = anchor.getBoundingClientRect();
+      const width = el.offsetWidth;
+      const height = el.offsetHeight;
+      const viewW = window.innerWidth;
+      const viewH = window.innerHeight;
+      let side = options.placement ?? "top";
+      if (side === "top" && rect.top - height - GAP < EDGE) side = "bottom";
+      if (side === "bottom" && rect.bottom + height + GAP > viewH - EDGE) {
+        side = rect.top - height - GAP >= EDGE ? "top" : "bottom";
+      }
+      const centered = rect.left + rect.width / 2 - width / 2;
+      const maxLeft = Math.max(EDGE, viewW - width - EDGE);
+      const left = Math.min(Math.max(centered, EDGE), maxLeft);
+      const wanted = side === "top" ? rect.top - height - GAP : rect.bottom + GAP;
+      el.style.left = Math.round(left) + "px";
+      el.style.top = Math.round(Math.max(EDGE, Math.min(wanted, viewH - height - EDGE))) + "px";
+      el.dataset.side = side;
+    };
+    document.body.appendChild(el);
+    place();
+    let frame = 0;
+    if (typeof window.requestAnimationFrame === "function") {
+      frame = window.requestAnimationFrame(() => {
+        el.dataset.show = "true";
+      });
+    } else {
+      el.dataset.show = "true";
+    }
+    const onViewportChange = () => place();
+    window.addEventListener("scroll", onViewportChange, true);
+    window.addEventListener("resize", onViewportChange);
+    const dispose = () => {
+      window.removeEventListener("scroll", onViewportChange, true);
+      window.removeEventListener("resize", onViewportChange);
+      if (typeof window.cancelAnimationFrame === "function") window.cancelAnimationFrame(frame);
+      el.remove();
+      if (activeDispose === dispose) activeDispose = null;
+    };
+    if (exclusive) activeDispose = dispose;
+    return { id: el.id, dispose };
+  }
   function createHoverTip(React) {
     const h = React.createElement;
     function HoverTip(props) {
@@ -400,68 +462,29 @@ const __basePkgScope = (() => {
         if (typeof document === "undefined") return void 0;
         const anchor = anchorRef.current;
         if (!anchor) return void 0;
-        if (!controlled) activeDispose?.();
-        const el = document.createElement("div");
-        el.className = TIP_CLASS;
-        el.id = "dsh-base-tip-" + (tipSerial += 1);
-        el.setAttribute("role", "tooltip");
-        el.textContent = props.content;
-        el.style.maxWidth = String(props.maxWidth ?? 320) + "px";
-        const place = () => {
-          if (!el.isConnected || !anchor.isConnected) return;
-          const rect = anchor.getBoundingClientRect();
-          const width = el.offsetWidth;
-          const height = el.offsetHeight;
-          const viewW = window.innerWidth;
-          const viewH = window.innerHeight;
-          let side = props.placement ?? "top";
-          if (side === "top" && rect.top - height - GAP < EDGE) side = "bottom";
-          if (side === "bottom" && rect.bottom + height + GAP > viewH - EDGE) {
-            side = rect.top - height - GAP >= EDGE ? "top" : "bottom";
-          }
-          const centered = rect.left + rect.width / 2 - width / 2;
-          const maxLeft = Math.max(EDGE, viewW - width - EDGE);
-          const left = Math.min(Math.max(centered, EDGE), maxLeft);
-          const wanted = side === "top" ? rect.top - height - GAP : rect.bottom + GAP;
-          el.style.left = Math.round(left) + "px";
-          el.style.top = Math.round(Math.max(EDGE, Math.min(wanted, viewH - height - EDGE))) + "px";
-          el.dataset.side = side;
-        };
-        document.body.appendChild(el);
-        place();
-        let frame = 0;
-        if (typeof window.requestAnimationFrame === "function") {
-          frame = window.requestAnimationFrame(() => {
-            el.dataset.show = "true";
-          });
-        } else {
-          el.dataset.show = "true";
-        }
-        const onViewportChange = () => place();
-        window.addEventListener("scroll", onViewportChange, true);
-        window.addEventListener("resize", onViewportChange);
+        const tip = mountTip(anchor, props.content, {
+          maxWidth: props.maxWidth,
+          placement: props.placement,
+          exclusive: !controlled
+        });
         const onKeyDown = (event) => {
           if (event.key !== "Escape") return;
           setHovered(false);
           setDismissed(true);
-          el.remove();
+          tip.dispose();
         };
         document.addEventListener("keydown", onKeyDown, true);
-        const dispose = () => {
-          window.removeEventListener("scroll", onViewportChange, true);
-          window.removeEventListener("resize", onViewportChange);
+        return () => {
           document.removeEventListener("keydown", onKeyDown, true);
-          if (typeof window.cancelAnimationFrame === "function") window.cancelAnimationFrame(frame);
-          el.remove();
-          if (activeDispose === dispose) activeDispose = null;
+          tip.dispose();
         };
-        if (!controlled) activeDispose = dispose;
-        return dispose;
       }, [active, controlled, props.content, props.maxWidth, props.placement]);
       return h(
         "span",
         {
-          ref: anchorRef,
+          ref: (node) => {
+            anchorRef.current = node;
+          },
           className: "dsh-base-tip-anchor" + (props.className ? " " + props.className : ""),
           onMouseEnter: show,
           onMouseLeave: hideSoon,
@@ -694,6 +717,556 @@ const __basePkgScope = (() => {
       return actionSet(props, true);
     }
     return { ContactButton, StarButton, IssueButton, ActionButtons, ActionGroup, HoverTip };
+  }
+
+  // src/client/cluster-icons.ts
+  function gradientId(name, uid) {
+    const suffix = uid && uid.length > 0 ? uid : "base";
+    return "dsh-base-cluster-" + name + "-" + suffix;
+  }
+  var SVG_CLASS = "dsh-base-cluster__svg";
+  function contactClusterIcon(h, size = 16, uid) {
+    return h(
+      "svg",
+      {
+        width: size,
+        height: size,
+        viewBox: "0 0 24 24",
+        className: SVG_CLASS + " dsh-base-cluster__svg--contact",
+        "aria-hidden": "true",
+        focusable: "false"
+      },
+      h(
+        "defs",
+        { key: "defs" },
+        h(
+          "linearGradient",
+          { id: gradientId("ca", uid), x1: "0", y1: "0", x2: "1", y2: "1", key: "ca" },
+          h("stop", { offset: "0", stopColor: "#7cc4ff", key: "s1" }),
+          h("stop", { offset: ".55", stopColor: "#4f8bff", key: "s2" }),
+          h("stop", { offset: "1", stopColor: "#3f5cff", key: "s3" })
+        ),
+        h(
+          "linearGradient",
+          { id: gradientId("cb", uid), x1: "0", y1: "0", x2: "1", y2: "1", key: "cb" },
+          h("stop", { offset: "0", stopColor: "#c79bff", key: "s1" }),
+          h("stop", { offset: "1", stopColor: "#8b5cf6", key: "s2" })
+        )
+      ),
+      h(
+        "g",
+        { className: "dsh-base-ico-bob", key: "bob" },
+        h("path", {
+          d: "M3 7.4A3.4 3.4 0 0 1 6.4 4h7.1A3.4 3.4 0 0 1 16.9 7.4v3.1a3.4 3.4 0 0 1-3.4 3.4H8.3l-3.9 3.05a.65.65 0 0 1-1.05-.51v-2.9A3.4 3.4 0 0 1 3 10.5z",
+          fill: "url(#" + gradientId("ca", uid) + ")",
+          key: "back"
+        }),
+        h("ellipse", {
+          cx: 6.8,
+          cy: 7.4,
+          rx: 3.1,
+          ry: 1.35,
+          fill: "#fff",
+          opacity: ".32",
+          key: "shine"
+        }),
+        h("path", {
+          d: "M10.5 11.2A3.5 3.5 0 0 1 14 7.7h5.2a3.5 3.5 0 0 1 3.5 3.5v3a3.5 3.5 0 0 1-3.5 3.5h-4.9l-3.15 2.5a.62.62 0 0 1-1-.49v-2.24a3.5 3.5 0 0 1-1.86-3.12z",
+          fill: "url(#" + gradientId("cb", uid) + ")",
+          key: "front"
+        }),
+        h("circle", {
+          className: "dsh-base-ico-dot dsh-base-ico-dot--1",
+          cx: 13.1,
+          cy: 14.1,
+          r: 1.2,
+          fill: "#fff",
+          key: "d1"
+        }),
+        h("circle", {
+          className: "dsh-base-ico-dot dsh-base-ico-dot--2",
+          cx: 16.2,
+          cy: 14.1,
+          r: 1.2,
+          fill: "#fff",
+          key: "d2"
+        }),
+        h("circle", {
+          className: "dsh-base-ico-dot dsh-base-ico-dot--3",
+          cx: 19.3,
+          cy: 14.1,
+          r: 1.2,
+          fill: "#fff",
+          key: "d3"
+        })
+      )
+    );
+  }
+  function starClusterIcon(h, size = 16, uid) {
+    return h(
+      "svg",
+      {
+        width: size,
+        height: size,
+        viewBox: "0 0 24 24",
+        className: SVG_CLASS + " dsh-base-cluster__svg--star",
+        "aria-hidden": "true",
+        focusable: "false"
+      },
+      h(
+        "defs",
+        { key: "defs" },
+        h(
+          "linearGradient",
+          { id: gradientId("sa", uid), x1: "0", y1: "0", x2: ".85", y2: "1", key: "sa" },
+          h("stop", { offset: "0", stopColor: "#ffe98a", key: "s1" }),
+          h("stop", { offset: ".45", stopColor: "#ffc12e", key: "s2" }),
+          h("stop", { offset: "1", stopColor: "#ff8a1e", key: "s3" })
+        ),
+        h(
+          "radialGradient",
+          { id: gradientId("sg", uid), cx: ".5", cy: ".5", r: ".5", key: "sg" },
+          h("stop", { offset: "0", stopColor: "#ffd75e", stopOpacity: ".55", key: "s1" }),
+          h("stop", { offset: "1", stopColor: "#ffd75e", stopOpacity: "0", key: "s2" })
+        )
+      ),
+      h("circle", {
+        className: "dsh-base-ico-halo",
+        cx: 12,
+        cy: 12,
+        r: 10.6,
+        fill: "url(#" + gradientId("sg", uid) + ")",
+        key: "halo"
+      }),
+      h(
+        "g",
+        { className: "dsh-base-ico-bigstar", key: "bigstar" },
+        h("path", {
+          d: "M12 2.7l2.72 5.49 6.06.89-4.39 4.27 1.04 6.04L12 16.55l-5.43 2.84 1.04-6.04L3.22 9.08l6.06-.89z",
+          fill: "url(#" + gradientId("sa", uid) + ")",
+          stroke: "#ffb020",
+          strokeWidth: ".35",
+          strokeLinejoin: "round",
+          key: "star"
+        }),
+        h("path", {
+          d: "M12 5.35l1.55 3.13 3.45.51-2.5 2.43.6 3.44L12 13.2l-3.1 1.66.6-3.44-2.5-2.43 3.45-.51z",
+          fill: "#fff",
+          opacity: ".33",
+          key: "shine"
+        })
+      ),
+      h("g", { className: "dsh-base-ico-spark dsh-base-ico-spark--1", fill: "#fff", key: "sp1" }, h("path", { d: "M19.9 3.0l.52 1.3 1.3.52-1.3.52-.52 1.3-.52-1.3-1.3-.52 1.3-.52z", key: "p" })),
+      h("g", { className: "dsh-base-ico-spark dsh-base-ico-spark--2", fill: "#ffe27a", key: "sp2" }, h("path", { d: "M4.2 16.4l.38.95.95.38-.95.38-.38.95-.38-.95-.95-.38.95-.38z", key: "p" })),
+      h("g", { className: "dsh-base-ico-spark dsh-base-ico-spark--3", fill: "#fff", key: "sp3" }, h("path", { d: "M21.1 17.2l.3.76.76.3-.76.3-.3.76-.3-.76-.76-.3.76-.3z", key: "p" })),
+      h("g", { className: "dsh-base-ico-spark dsh-base-ico-spark--4", fill: "#ffd75e", key: "sp4" }, h("path", { d: "M5.7 3.9l.3.76.76.3-.76.3-.3.76-.3-.76-.76-.3.76-.3z", key: "p" }))
+    );
+  }
+  function issueClusterIcon(h, size = 16, uid) {
+    return h(
+      "svg",
+      {
+        width: size,
+        height: size,
+        viewBox: "0 0 24 24",
+        className: SVG_CLASS + " dsh-base-cluster__svg--issue",
+        "aria-hidden": "true",
+        focusable: "false"
+      },
+      h(
+        "defs",
+        { key: "defs" },
+        h(
+          "linearGradient",
+          { id: gradientId("ia", uid), x1: "0", y1: "0", x2: "1", y2: "1", key: "ia" },
+          h("stop", { offset: "0", stopColor: "#ffa3b5", key: "s1" }),
+          h("stop", { offset: ".5", stopColor: "#ff6b8a", key: "s2" }),
+          h("stop", { offset: "1", stopColor: "#f43f5e", key: "s3" })
+        )
+      ),
+      h(
+        "g",
+        { className: "dsh-base-ico-bubble", key: "bubble" },
+        h("path", {
+          d: "M6.6 4.4h10.8A3.6 3.6 0 0 1 21 8v6.2a3.6 3.6 0 0 1-3.6 3.6h-6.1l-4.4 3.4a.72.72 0 0 1-1.15-.57v-2.83H6.6A3.6 3.6 0 0 1 3 14.2V8a3.6 3.6 0 0 1 3.6-3.6z",
+          fill: "url(#" + gradientId("ia", uid) + ")",
+          key: "bubble"
+        }),
+        h("ellipse", {
+          cx: 7.3,
+          cy: 6.2,
+          rx: 3.3,
+          ry: 1.3,
+          fill: "#fff",
+          opacity: ".3",
+          key: "shine"
+        }),
+        h("rect", {
+          className: "dsh-base-ico-bang",
+          x: 11.05,
+          y: 6.55,
+          width: 1.9,
+          height: 5.35,
+          rx: ".95",
+          fill: "#fff",
+          key: "stem"
+        }),
+        h("circle", {
+          className: "dsh-base-ico-bang",
+          cx: 12,
+          cy: 14.15,
+          r: 1.02,
+          fill: "#fff",
+          key: "dot"
+        })
+      ),
+      h(
+        "g",
+        { className: "dsh-base-ico-spark", fill: "#fff", opacity: ".9", key: "spark" },
+        h("path", {
+          d: "M19.7 2.2l.46 1.15 1.15.46-1.15.46-.46 1.15-.46-1.15-1.15-.46 1.15-.46z",
+          key: "p"
+        })
+      )
+    );
+  }
+  function moreClusterIcon(h, size = 16) {
+    return h(
+      "svg",
+      {
+        width: size,
+        height: size,
+        viewBox: "0 0 24 24",
+        className: SVG_CLASS + " dsh-base-cluster__svg--more",
+        "aria-hidden": "true",
+        focusable: "false"
+      },
+      h(
+        "g",
+        { fill: "currentColor", key: "dots" },
+        h("circle", { cx: 5.5, cy: 12, r: 1.8, key: "a" }),
+        h("circle", { cx: 12, cy: 12, r: 1.8, key: "b" }),
+        h("circle", { cx: 18.5, cy: 12, r: 1.8, key: "c" })
+      )
+    );
+  }
+
+  // src/client/cluster.ts
+  var DEFAULT_SIZE = 16;
+  var DEFAULT_GAP = 4;
+  var TIP_HIDE_DELAY = 160;
+  var BUTTON_PADDING = 12;
+  function trimSlashes2(url) {
+    return url.replace(/\/+$/, "");
+  }
+  function classes2(...parts) {
+    return parts.filter(Boolean).join(" ");
+  }
+  function actionClass(id) {
+    return "dsh-base-cluster__btn--" + id.replace(/[^a-zA-Z0-9_-]/g, "-");
+  }
+  function createClusterTip() {
+    let handle = null;
+    let described = null;
+    let hideTimer = null;
+    let onKeyDown = null;
+    function boundedDocument() {
+      return typeof document === "undefined" ? null : document;
+    }
+    function unbindEscape() {
+      const doc = boundedDocument();
+      if (!doc || !onKeyDown) return;
+      doc.removeEventListener("keydown", onKeyDown, true);
+      onKeyDown = null;
+    }
+    function clearDescribed() {
+      if (!described) return;
+      described.removeAttribute("aria-describedby");
+      described = null;
+    }
+    function hideNow() {
+      if (hideTimer !== null) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+      unbindEscape();
+      if (handle) {
+        handle.dispose();
+        handle = null;
+      }
+      clearDescribed();
+    }
+    return {
+      show(anchor, content) {
+        if (hideTimer !== null) {
+          clearTimeout(hideTimer);
+          hideTimer = null;
+        }
+        if (handle) {
+          handle.dispose();
+          handle = null;
+        }
+        clearDescribed();
+        const tip = mountTip(anchor, content, { exclusive: true });
+        handle = tip;
+        if (tip.id) {
+          anchor.setAttribute("aria-describedby", tip.id);
+          described = anchor;
+        }
+        const doc = boundedDocument();
+        if (doc && !onKeyDown) {
+          onKeyDown = (event) => {
+            if (event.key === "Escape") hideNow();
+          };
+          doc.addEventListener("keydown", onKeyDown, true);
+        }
+      },
+      hideSoon() {
+        if (hideTimer !== null) clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => {
+          hideTimer = null;
+          hideNow();
+        }, TIP_HIDE_DELAY);
+      },
+      hideNow,
+      dispose: hideNow
+    };
+  }
+  function createActionCluster(React, deps) {
+    const h = React.createElement;
+    function defaultItems(size, uid) {
+      const repo = deps.repoUrl;
+      const issues = deps.issuesUrl ?? (repo ? trimSlashes2(repo) + "/issues" : void 0);
+      const items = [
+        {
+          id: "contact",
+          icon: contactClusterIcon(h, size, uid + "c"),
+          label: deps.text("contact"),
+          tip: deps.text("contactTip"),
+          onClick: (trigger) => deps.openContact(trigger)
+        }
+      ];
+      if (repo) {
+        items.push({
+          id: "star",
+          icon: starClusterIcon(h, size, uid + "s"),
+          label: deps.text("starLabel"),
+          tip: deps.text("starTip"),
+          href: repo
+        });
+      }
+      if (issues) {
+        items.push({
+          id: "issue",
+          icon: issueClusterIcon(h, size, uid + "i"),
+          label: deps.text("issueLabel"),
+          tip: deps.text("issueTip"),
+          href: issues
+        });
+      }
+      return items;
+    }
+    function ActionCluster(props) {
+      const size = props.size ?? DEFAULT_SIZE;
+      const gap = props.gap ?? DEFAULT_GAP;
+      const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, "");
+      const tip = React.useMemo(() => createClusterTip(), []);
+      const [menuOpen, setMenuOpen] = React.useState(false);
+      const moreRef = React.useRef(null);
+      const menuRef = React.useRef(null);
+      React.useEffect(() => () => tip.dispose(), [tip]);
+      const items = props.items ?? defaultItems(size, uid);
+      const cap = props.maxVisible === void 0 ? items.length : Math.max(0, Math.floor(props.maxVisible));
+      const visible = items.slice(0, Math.min(items.length, cap));
+      const overflow = items.slice(visible.length);
+      const overflowLabel = props.overflowLabel ?? deps.text("moreActions");
+      const showTip = (anchor, item) => {
+        if (item.disabled || !item.tip) return;
+        tip.show(anchor, item.tip);
+      };
+      const hideTip = () => tip.hideSoon();
+      const renderButton = (item) => {
+        const icon = h(
+          "span",
+          { className: "dsh-base-cluster__icon", key: "icon", "aria-hidden": "true" },
+          item.icon
+        );
+        const shared = {
+          className: classes2("dsh-base-cluster__btn", actionClass(item.id), item.className),
+          style: { width: size + BUTTON_PADDING, height: size + BUTTON_PADDING },
+          "aria-label": item.label,
+          "data-cluster-item": item.id,
+          onMouseEnter: (event) => showTip(event.currentTarget, item),
+          onMouseLeave: hideTip,
+          onFocus: (event) => showTip(event.currentTarget, item),
+          onBlur: hideTip
+        };
+        if (item.disabled) {
+          return h(
+            "button",
+            { ...shared, key: item.id, type: "button", disabled: true, "aria-disabled": "true" },
+            icon
+          );
+        }
+        if (item.href) {
+          return h(
+            "a",
+            {
+              ...shared,
+              key: item.id,
+              href: item.href,
+              target: "_blank",
+              rel: "noreferrer noopener",
+              onClick: (event) => {
+                item.onClick?.(event.currentTarget);
+              }
+            },
+            icon
+          );
+        }
+        return h(
+          "button",
+          {
+            ...shared,
+            key: item.id,
+            type: "button",
+            onClick: (event) => {
+              item.onClick?.(event.currentTarget);
+            }
+          },
+          icon
+        );
+      };
+      const renderMenuItem = (item) => {
+        const icon = h(
+          "span",
+          { className: "dsh-base-cluster__icon", key: "icon", "aria-hidden": "true" },
+          item.icon
+        );
+        const label = h("span", { className: "dsh-base-cluster__menu-label", key: "label" }, item.label);
+        const shared = {
+          className: "dsh-base-cluster__menu-item",
+          role: "menuitem",
+          "data-cluster-item": item.id
+        };
+        if (item.disabled) {
+          return h("button", { ...shared, key: item.id, type: "button", disabled: true }, icon, label);
+        }
+        if (item.href) {
+          return h(
+            "a",
+            {
+              ...shared,
+              key: item.id,
+              href: item.href,
+              target: "_blank",
+              rel: "noreferrer noopener",
+              onClick: (event) => {
+                item.onClick?.(event.currentTarget);
+                setMenuOpen(false);
+              }
+            },
+            icon,
+            label
+          );
+        }
+        return h(
+          "button",
+          {
+            ...shared,
+            key: item.id,
+            type: "button",
+            onClick: (event) => {
+              item.onClick?.(event.currentTarget);
+              setMenuOpen(false);
+            }
+          },
+          icon,
+          label
+        );
+      };
+      const overflowButton = overflow.length > 0 ? h(
+        "button",
+        {
+          key: "__more",
+          ref: moreRef,
+          type: "button",
+          className: classes2("dsh-base-cluster__btn", "dsh-base-cluster__btn--more", menuOpen && "is-open"),
+          style: { width: size + BUTTON_PADDING, height: size + BUTTON_PADDING },
+          "aria-label": overflowLabel,
+          "aria-haspopup": "menu",
+          "aria-expanded": menuOpen,
+          "data-cluster-item": "__more",
+          onMouseEnter: (event) => {
+            if (!menuOpen) tip.show(event.currentTarget, overflowLabel);
+          },
+          onMouseLeave: hideTip,
+          onFocus: (event) => {
+            if (!menuOpen) tip.show(event.currentTarget, overflowLabel);
+          },
+          onBlur: hideTip,
+          onClick: (event) => {
+            event.stopPropagation();
+            setMenuOpen((open) => !open);
+          }
+        },
+        h(
+          "span",
+          { className: "dsh-base-cluster__icon", key: "icon", "aria-hidden": "true" },
+          moreClusterIcon(h, size)
+        )
+      ) : null;
+      const menu = overflow.length > 0 && menuOpen ? h(
+        "div",
+        {
+          key: "menu",
+          ref: menuRef,
+          className: "dsh-base-cluster__menu",
+          role: "menu",
+          "aria-label": props.ariaLabel ?? deps.text("actionsLabel")
+        },
+        overflow.map(renderMenuItem)
+      ) : null;
+      React.useEffect(() => {
+        if (!menuOpen) return void 0;
+        if (typeof document === "undefined") return void 0;
+        const onPointerDown = (event) => {
+          const target = event.target;
+          if (target && (menuRef.current?.contains(target) || moreRef.current?.contains(target))) return;
+          setMenuOpen(false);
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== "Escape") return;
+          setMenuOpen(false);
+          moreRef.current?.focus();
+        };
+        document.addEventListener("pointerdown", onPointerDown, true);
+        document.addEventListener("keydown", onKeyDown, true);
+        const first = menuRef.current?.querySelector("[role='menuitem']");
+        first?.focus();
+        return () => {
+          document.removeEventListener("pointerdown", onPointerDown, true);
+          document.removeEventListener("keydown", onKeyDown, true);
+        };
+      }, [menuOpen]);
+      return h(
+        "div",
+        {
+          className: classes2(
+            "dsh-base-cluster",
+            props.variant === "tray" && "dsh-base-cluster--tray",
+            props.className
+          ),
+          role: "group",
+          "aria-label": props.ariaLabel ?? deps.text("actionsLabel"),
+          style: { gap: gap + "px" }
+        },
+        visible.map(renderButton),
+        overflowButton,
+        menu
+      );
+    }
+    return ActionCluster;
   }
 
   // src/client/content.ts
@@ -1027,10 +1600,57 @@ const __basePkgScope = (() => {
     ".dsh-base-icon-action__icon svg{display:block}",
     // Three separate buttons: 2px apart, no background of their own.
     ".dsh-base-actions{display:inline-flex;flex:0 0 auto;align-items:center;gap:2px}",
-    // Combined capsule: 1px frame + hairline dividers between the three actions.
+    // One container, N independent buttons: the tray only groups the buttons, it
+    // never splits them into segments (no dividers, buttons keep their own radius).
     ".dsh-base-actions--group{gap:0;padding:1px;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.2));border-radius:10px;background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.04))}",
-    ".dsh-base-actions--group>.dsh-base-icon-action{border-radius:7px}",
-    ".dsh-base-actions--group>.dsh-base-icon-action+.dsh-base-icon-action{box-shadow:inset 1px 0 0 var(--dsw-alias-border-l1,rgba(127,127,127,.2))}",
+    // --- header action cluster (v2): one container, N independent buttons -------
+    // Quiet (default): no frame, no divider, no selected state. Only a button
+    // reacts to the pointer; the container itself never answers hover.
+    ".dsh-base-cluster{position:relative;display:inline-flex;flex:0 0 auto;align-items:center;gap:var(--dsh-base-cluster-gap,4px);color:inherit}",
+    ".dsh-base-cluster--tray{gap:0;padding:1px;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.2));border-radius:10px;background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.04))}",
+    ".dsh-base-cluster__btn{--dsh-base-glow:rgba(127,127,127,.42);position:relative;isolation:isolate;display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;padding:0;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;line-height:0;text-decoration:none;cursor:pointer;transition:transform .1s ease}",
+    ".dsh-base-cluster__btn::before{content:'';position:absolute;inset:-10px;z-index:0;border-radius:50%;background:radial-gradient(circle at 50% 50%,var(--dsh-base-glow) 0%,transparent 62%);opacity:0;transform:scale(.5);transition:opacity .16s ease,transform .2s ease;pointer-events:none}",
+    ".dsh-base-cluster__btn:hover::before,.dsh-base-cluster__btn.is-hover::before,.dsh-base-cluster__btn.is-open::before{opacity:.85;transform:scale(1)}",
+    ".dsh-base-cluster__btn:active,.dsh-base-cluster__btn.is-active{transform:translateY(1px) scale(.88)}",
+    ".dsh-base-cluster__btn:active::before,.dsh-base-cluster__btn.is-active::before{opacity:.95;transform:scale(1.02)}",
+    ".dsh-base-cluster__btn:focus-visible,.dsh-base-cluster__btn.is-focus{outline:2px solid var(--dsw-alias-link,#4d6bfe);outline-offset:2px}",
+    ".dsh-base-cluster__btn:disabled{opacity:.38;filter:grayscale(1) saturate(.25);cursor:default}",
+    ".dsh-base-cluster__btn:disabled::before{display:none}",
+    ".dsh-base-cluster__icon{position:relative;z-index:1;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;line-height:0}",
+    ".dsh-base-cluster__icon svg{display:block;overflow:visible}",
+    ".dsh-base-cluster__btn--contact{--dsh-base-glow:rgba(79,139,255,.55)}",
+    ".dsh-base-cluster__btn--star{--dsh-base-glow:rgba(255,193,46,.6)}",
+    ".dsh-base-cluster__btn--issue{--dsh-base-glow:rgba(255,107,138,.55)}",
+    // Hover motion: the icon moves on its own, the button keeps no grey fill.
+    // Only the hovered button animates; reduced motion turns every rule off.
+    ".dsh-base-cluster__btn:hover .dsh-base-cluster__svg--contact .dsh-base-ico-bob,.dsh-base-cluster__btn.is-hover .dsh-base-cluster__svg--contact .dsh-base-ico-bob{animation:dsh-base-cluster-floaty 2.4s ease-in-out infinite}",
+    ".dsh-base-cluster__btn:hover .dsh-base-cluster__svg--contact .dsh-base-ico-dot,.dsh-base-cluster__btn.is-hover .dsh-base-cluster__svg--contact .dsh-base-ico-dot{animation:dsh-base-cluster-dotpulse 1.2s ease-in-out infinite}",
+    ".dsh-base-cluster__btn:hover .dsh-base-cluster__svg--contact .dsh-base-ico-dot--2,.dsh-base-cluster__btn.is-hover .dsh-base-cluster__svg--contact .dsh-base-ico-dot--2{animation-delay:.18s}",
+    ".dsh-base-cluster__btn:hover .dsh-base-cluster__svg--contact .dsh-base-ico-dot--3,.dsh-base-cluster__btn.is-hover .dsh-base-cluster__svg--contact .dsh-base-ico-dot--3{animation-delay:.36s}",
+    ".dsh-base-cluster__btn:hover .dsh-base-cluster__svg--star .dsh-base-ico-bigstar,.dsh-base-cluster__btn.is-hover .dsh-base-cluster__svg--star .dsh-base-ico-bigstar{animation:dsh-base-cluster-twinkle 1.7s ease-in-out infinite}",
+    ".dsh-base-cluster__btn:hover .dsh-base-cluster__svg--star .dsh-base-ico-halo,.dsh-base-cluster__btn.is-hover .dsh-base-cluster__svg--star .dsh-base-ico-halo{animation:dsh-base-cluster-halo 1.7s ease-in-out infinite}",
+    ".dsh-base-cluster__btn:hover .dsh-base-cluster__svg--star .dsh-base-ico-spark,.dsh-base-cluster__btn.is-hover .dsh-base-cluster__svg--star .dsh-base-ico-spark{animation:dsh-base-cluster-blink 1.3s ease-in-out infinite}",
+    ".dsh-base-cluster__btn:hover .dsh-base-cluster__svg--star .dsh-base-ico-spark--2,.dsh-base-cluster__btn.is-hover .dsh-base-cluster__svg--star .dsh-base-ico-spark--2{animation-delay:.22s}",
+    ".dsh-base-cluster__btn:hover .dsh-base-cluster__svg--star .dsh-base-ico-spark--3,.dsh-base-cluster__btn.is-hover .dsh-base-cluster__svg--star .dsh-base-ico-spark--3{animation-delay:.44s}",
+    ".dsh-base-cluster__btn:hover .dsh-base-cluster__svg--star .dsh-base-ico-spark--4,.dsh-base-cluster__btn.is-hover .dsh-base-cluster__svg--star .dsh-base-ico-spark--4{animation-delay:.66s}",
+    ".dsh-base-cluster__btn:hover .dsh-base-cluster__svg--issue .dsh-base-ico-bubble,.dsh-base-cluster__btn.is-hover .dsh-base-cluster__svg--issue .dsh-base-ico-bubble{animation:dsh-base-cluster-wiggle 1.1s ease-in-out infinite}",
+    ".dsh-base-cluster__btn:hover .dsh-base-cluster__svg--issue .dsh-base-ico-bang,.dsh-base-cluster__btn.is-hover .dsh-base-cluster__svg--issue .dsh-base-ico-bang{animation:dsh-base-cluster-bounce 1.1s ease-in-out infinite}",
+    ".dsh-base-cluster__btn:hover .dsh-base-cluster__svg--issue .dsh-base-ico-spark,.dsh-base-cluster__btn.is-hover .dsh-base-cluster__svg--issue .dsh-base-ico-spark{animation:dsh-base-cluster-blink 1.2s ease-in-out .3s infinite}",
+    "@keyframes dsh-base-cluster-floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.8px)}}",
+    "@keyframes dsh-base-cluster-dotpulse{0%,100%{opacity:.35;transform:scale(.75)}50%{opacity:1;transform:scale(1.18)}}",
+    "@keyframes dsh-base-cluster-twinkle{0%,100%{transform:scale(1) rotate(0);filter:brightness(1)}45%{transform:scale(1.1) rotate(7deg);filter:brightness(1.2)}}",
+    "@keyframes dsh-base-cluster-halo{0%,100%{opacity:.3;transform:scale(.9)}50%{opacity:.85;transform:scale(1.1)}}",
+    "@keyframes dsh-base-cluster-blink{0%,100%{opacity:.18;transform:scale(.55)}50%{opacity:1;transform:scale(1.15)}}",
+    "@keyframes dsh-base-cluster-wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-5deg)}70%{transform:rotate(5deg)}}",
+    "@keyframes dsh-base-cluster-bounce{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-1.6px) scale(1.05)}}",
+    // Overflow menu: entries past maxVisible collapse into this popover.
+    ".dsh-base-cluster__menu{position:absolute;top:calc(100% + 6px);right:0;z-index:2147482000;display:flex;flex-direction:column;gap:2px;min-width:170px;padding:6px;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.2));border-radius:10px;background:var(--dsw-alias-bg-layer-2,#fff);box-shadow:0 12px 32px rgba(0,0,0,.18)}",
+    ".dsh-base-cluster__menu-item{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;font-size:12.5px;line-height:1.5;text-align:left;text-decoration:none;cursor:pointer}",
+    ".dsh-base-cluster__menu-item:hover{background:rgba(127,127,127,.12)}",
+    ".dsh-base-cluster__menu-item:focus-visible{outline:2px solid var(--dsw-alias-link,#4d6bfe);outline-offset:-2px}",
+    ".dsh-base-cluster__menu-item:disabled{opacity:.38;cursor:default}",
+    ".dsh-base-cluster__menu-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+    "@media (prefers-reduced-motion:reduce){.dsh-base-cluster__btn,.dsh-base-cluster__btn::before,.dsh-base-cluster__btn svg *{animation:none!important;transition:none!important}}",
     // --- hover tooltip (deck-style): dark one-liner above the trigger ----------
     ".dsh-base-tip-anchor{display:inline-flex;align-items:center}",
     ".dsh-base-tip{position:fixed;z-index:2147483000;max-width:320px;padding:6px 10px;border-radius:8px;background:rgba(23,23,26,.94);color:#fff;font-size:12px;font-weight:400;line-height:1.55;letter-spacing:0;text-align:left;white-space:normal;overflow-wrap:anywhere;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.28);opacity:0;transform:translateY(2px);transition:opacity .12s ease,transform .12s ease}",
@@ -1120,7 +1740,8 @@ const __basePkgScope = (() => {
       issueTip: "\u4EFB\u4F55\u529F\u80FD\u9700\u6C42\u3001\u6545\u969C\u3001\u5EFA\u8BAE\u3001\u610F\u89C1\u90FD\u53EF\u4EE5\u63D0 ISSUE",
       starLabel: "Star \u8FD9\u4E2A\u9879\u76EE",
       issueLabel: "\u63D0\u4EA4 Issue",
-      actionsLabel: "\u8054\u7CFB\u3001Star \u4E0E Issue"
+      actionsLabel: "\u5FEB\u6377\u64CD\u4F5C",
+      moreActions: "\u66F4\u591A\u64CD\u4F5C"
     },
     en: {
       contact: "Contact us",
@@ -1141,7 +1762,8 @@ const __basePkgScope = (() => {
       issueTip: "Report bugs or request features in Issues",
       starLabel: "Star this project",
       issueLabel: "Open an issue",
-      actionsLabel: "Contact, Star and Issue"
+      actionsLabel: "Quick actions",
+      moreActions: "More actions"
     }
   };
   function resolveText(key, lang, overrides) {
@@ -1461,7 +2083,7 @@ const __basePkgScope = (() => {
     if (!overrides && !extra) return void 0;
     return { ...overrides, ...extra };
   }
-  function classes2(base, extra) {
+  function classes3(base, extra) {
     return extra ? base + " " + extra : base;
   }
   function createBaseUI(React, options = {}) {
@@ -1572,13 +2194,27 @@ const __basePkgScope = (() => {
       repoUrl: options.repoUrl,
       issuesUrl: options.issuesUrl
     });
+    const cluster = createActionCluster(React, {
+      text: widgetText,
+      openContact: (trigger) => {
+        openContactModal({ trigger });
+      },
+      repoUrl: options.repoUrl,
+      issuesUrl: options.issuesUrl
+    });
+    let hostIconSerial = 0;
+    const clusterIcons = {
+      contact: (size = 16) => contactClusterIcon(React.createElement, size, "host" + (hostIconSerial += 1)),
+      star: (size = 16) => starClusterIcon(React.createElement, size, "host" + (hostIconSerial += 1)),
+      issue: (size = 16) => issueClusterIcon(React.createElement, size, "host" + (hostIconSerial += 1))
+    };
     function ContactRow(props) {
       const h = React.createElement;
       return h(
         "button",
         {
           type: "button",
-          className: classes2("dsh-base-contact-row", props.className),
+          className: classes3("dsh-base-contact-row", props.className),
           onClick: (event) => {
             openContactModal({ trigger: event.currentTarget });
           }
@@ -1652,6 +2288,8 @@ const __basePkgScope = (() => {
       IssueButton: actions.IssueButton,
       ActionButtons: actions.ActionButtons,
       ActionGroup: actions.ActionGroup,
+      ActionCluster: cluster,
+      clusterIcons,
       HoverTip: actions.HoverTip,
       ContactRow,
       AuthorPlugins,

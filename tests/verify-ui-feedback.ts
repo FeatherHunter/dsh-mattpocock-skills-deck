@@ -11,12 +11,12 @@
 // 3. 点完之后能凭一条日志唯一定位到被点的那一颗：每个可点控件带同屏唯一的 data-log，
 //    统一由 kernel/ui-feedback.ts 写 debug 级 ui.action（调试开关关着时第一行早退、零开销）。
 // 4. 分流/分支里重复写的同名按钮（返回列表在多个渲染分支各一份）允许字面量重复；不同控件不许共用。
-// 5. 这扇门禁自己也要能判红：A–H 八组跑真实源码必须全绿，再喂一批反例（漏接线、命名重复、
+// 5. 这扇门禁自己也要能判红：A–I 九组跑真实源码必须全绿，再喂一批反例（漏接线、命名重复、
 //    大写混入、另写一套样式、日志少一条、选中项重新露底色形成双底、对位改用会触发布局的尺寸接口、
 //    新叶子只加源码不登记构建清单、墨块拉伸的关键帧被删、墨块宿主的早退守卫被删、墨块的尺寸监听被删、
 //    悬停规则不再排除按压态、日志形状不再取最近的按压元素、静态角标又出现假悬停、焦点环又往外画、
 //    焦点环颜色又写死、地图卡片悬停边框又变灰、悬停高亮环又变回白色半透明、悬停灰边框又变回灰、按下确认圈又变回白、外扩环颜色又写死、
-//    胶囊里的环没淡到五成、环色绕过了可继承的那一层、交接两段又变回整块直角、整条胶囊自己的环又挂回来、
+//    胶囊里的环没淡到五成、环色绕过了可继承的那一层、页头退回旧 ActionGroup 胶囊、交接两段又变回整块直角、整条胶囊自己的环又挂回来、
 //    交接两段又没撑满整行高度、会话链胶囊的焦点圈又变回直角、列表整行的悬停环又变回 1px、入口浮层的卡又被通用悬停规则多画一圈环、入口卡又挂回 dsws-hov、入口卡自己的焦点圈被删、入口卡按下又没反馈、五处浅色个例只改样式没挂标记、只挂标记没改样式、卡片与技能两份皮肤的焦点前缀被摘、浅色层引用的宿主令牌名拼错、多行提示浮层退回按内联样式命中）各一次，每种反例至少要在预期那一组里报一条 FAIL。
 //    反例只在内存里改文本、不落盘，做法同 tests/verify-1327-freshness-content.ts 的判据自证。
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-ui-feedback.ts
@@ -77,8 +77,8 @@ const MATRIX: [string, string, string[]][] = [
   ['src/client/views/IssueDetail.ts', '工单详情顶栏、父链接、子票与被阻塞行', ['issue.top.back', 'issue.top.exec', 'issue.top.newsession', 'issue.top.copy', 'issue.top.link', 'issue.parent.', 'issue.sub.', 'issue.blocked.']],
   ['src/client/views/IssueDetailComments.ts', '评论发送', ['issue.comment.send']],
   // base 包接入：底部「作者其他插件」四行静态链接改由 base 包渲染（SettingsPage 里已无插件行）；
-  //   base 0.1.1 起标题行的 star/issue 两枚表情也并入包里的页头三件套（联系/Star/Issue），
-  //   本页自己只剩版本号这一颗可点控件；页头三件套、联系入口与推荐卡的点击日志由 base 包自己带，不归这份清单。
+  //   base 0.1.2 起标题行的 star/issue 两枚表情升级成包里的页头静默簇（ActionCluster：联系/Star/Issue），
+  //   本页自己只剩版本号这一颗可点控件；页头静默簇与推荐卡的点击日志由 base 包自己带，不归这份清单。
   ['src/client/views/SettingsPage.ts', '设置页版本号', ['settings.version']],
   ['src/client/views/SettingsWorkspaces.ts', '工作区总览刷新与展开收起', ['settings.workspaces.toggle', 'settings.workspaces.refresh']],
   ['src/client/views/diagnosticLog/DiagnosticLogSection.ts', '调试开关与四颗日志按钮', ['settings.debug.toggle', 'settings.log.export', 'settings.log.open', 'settings.log.copy', 'settings.log.clear']],
@@ -228,6 +228,18 @@ function audit(read: (p: string) => string): AuditResult[] {
     const miss = names.filter((n) => src.indexOf(n) < 0)
     check(miss.length === 0, 'D ' + what + '（' + file.split('/').pop() + '）都有 data-log' + (miss.length ? '；缺：' + miss.join(', ') : ''))
   }
+
+  // ============ I 组：设置页页头交给 base 0.1.2 的静默簇（ActionGroup 胶囊退役） ============
+  // 这里守源码这一侧：用错组件、退回旧落点、旧表情按钮与旧悬停文案又回来都要报红。
+  // 页面真实渲染出的 DOM（.dsh-base-cluster、三枚彩色按钮、逐钮 aria-label）由
+  // tests/smoke-render.test.ts 在产物上真挂一遍验（图标形状、悬停文案与点击日志都由 base 包自己带）。
+  const settingsSrc = read('src/client/views/SettingsPage.ts')
+  check(settingsSrc.indexOf('ui.ActionCluster') >= 0, 'I1 页头用 base 0.1.2 的 ActionCluster（静默簇）渲染')
+  check(settingsSrc.indexOf('ui.ActionGroup') < 0, 'I2 旧的 ActionGroup 用法已退役（0.1.2 起不再走胶囊）')
+  check(settingsSrc.indexOf('DeckContactRow') < 0 && settingsSrc.indexOf('ui.ContactRow') < 0, 'I3 设置面板底部不再单独画联系行（联系入口已收进页头静默簇）')
+  check(settingsSrc.indexOf("dsh-mattpocock-skills-deck/issues'") >= 0 && settingsSrc.indexOf('/issues/new') < 0, 'I4 Issue 落点是工单列表页 .../issues（不再直开新建工单页）')
+  check(settingsSrc.indexOf('去 GitHub 点 Star') < 0 && settingsSrc.indexOf('反馈问题') < 0, 'I5 自绘表情按钮的旧悬停文案已删（图标与提示由 base 包提供）')
+  check(settingsSrc.indexOf('size: 16') >= 0, 'I6 页头静默簇按 base 默认 16 号图标排（按钮 28×28）')
 
   // ============ E 组：日志定位串的命名纪律 ============
   const literals: string[] = []
@@ -882,6 +894,12 @@ const variants: Variant[] = [
     file: 'src/client/views/feedback/feedback-styles.ts',
     group: 'F31',
     change: (s) => replaceAll(s, 'body:not([data-ds-dark-theme]) .dsws-chain-form label', '.dsws-chain-form label'),
+  },
+  {
+    label: '页头退回旧 ActionGroup 胶囊：0.1.2 的静默簇白升了',
+    file: 'src/client/views/SettingsPage.ts',
+    group: 'I2',
+    change: (s) => s + "\n// 反例：页头又用回旧胶囊\nconst fakeOldGroup = 'ui.ActionGroup'\n",
   },
   {
     label: '浅色修复层里把宿主变量换成了写死的 #61666b：换肤时不会跟着宿主走',

@@ -31,7 +31,7 @@ jobs:
           node scripts/update-thanks.mts
       # 数据改了，README 里的致谢表交给 base 包同源渲染（别在本仓再手写一套表格；readme:sync 也负责联系块与星图块）。
       - name: Sync managed README blocks
-        run: npx -y dsh-featherhunter-plugin-base@0.1.1 readme:sync --repo .
+        run: npx -y dsh-featherhunter-plugin-base@0.1.2 readme:sync --repo .
       - name: Commit if changed
         run: |
           if git diff --quiet README.md docs/README.en.md docs/thanks-data.json package/README.md; then echo "No change"; exit 0; fi

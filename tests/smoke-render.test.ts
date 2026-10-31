@@ -217,6 +217,40 @@ if (PanelTitleComp) {
   check(false, '右侧边栏标题栏组件未捕获')
 }
 
+// ---- 设置页渲染（base 0.1.2 页头静默簇：ActionCluster 三枚彩色图标按钮）----
+// ticket 05 起设置页页头不再自画表情按钮：这里在产物上真挂一遍，钉住「0.1.2 的静默簇真的渲染出来了」，
+// 而不只是源码里写了 ActionCluster；同时钉住旧 ActionGroup 胶囊与旧悬停文案不在场。
+if (SettingsComp) {
+  const settingsContainer = window.document.createElement('div')
+  window.document.body.appendChild(settingsContainer)
+  let settingsRoot: any = null
+  try {
+    await act(async () => {
+      settingsRoot = ReactDOMClient.createRoot(settingsContainer)
+      settingsRoot.render(React.createElement(SettingsComp, { sessionId: 'test-sid' }))
+      await new Promise(r => setTimeout(r, 30))
+    })
+    const settingsHtml = settingsContainer.innerHTML
+    const cluster = settingsContainer.querySelector('.dsh-base-cluster')
+    check(!!cluster, '设置页页头渲染出 base 0.1.2 的静默簇（.dsh-base-cluster）')
+    const clusterBtns = settingsContainer.querySelectorAll('.dsh-base-cluster__btn')
+    check(clusterBtns.length === 3, `静默簇是三枚按钮（实际 ${clusterBtns.length}）`)
+    const ariaLabels = Array.prototype.map.call(clusterBtns, (b: any) => b.getAttribute('aria-label')).join('|')
+    check(ariaLabels === '联系我们|Star 这个项目|提交 Issue', `逐钮 aria-label 是 联系我们 / Star 这个项目 / 提交 Issue（实际 ${ariaLabels}）`)
+    check(!!cluster && cluster.getAttribute('role') === 'group' && cluster.getAttribute('aria-label') === '快捷操作', '静默簇是 role=group、aria-label=快捷操作 的一个组')
+    check(/lineargradient/i.test(settingsHtml) && /radialgradient/i.test(settingsHtml), '静默簇图标是彩色渐变 SVG（linearGradient / radialGradient 都在场）')
+    check(!settingsHtml.includes('dsh-base-actions'), '旧 ActionGroup 胶囊不在场（dsh-base-actions）')
+    check(!settingsHtml.includes('去 GitHub 点 Star') && !settingsHtml.includes('反馈问题'), '自绘表情按钮的旧悬停文案不在场')
+  } catch (e: any) {
+    check(false, `设置页渲染异常: ${(e && e.message) || e}`)
+  } finally {
+    try { if (settingsRoot) settingsRoot.unmount() } catch (e) {}
+    try { if (settingsContainer.parentNode) settingsContainer.parentNode.removeChild(settingsContainer) } catch (e) {}
+  }
+} else {
+  check(false, '设置页组件未捕获（settings.plugins.tab）')
+}
+
 // ---- 直接测试 src 叶子小件（确保单文件 ≤350 且 runtime 可挂载）----
 // 这些小件不通过 slots 注册，直接从 src 导入渲染以验证视图层无静默空白回归
 try {
