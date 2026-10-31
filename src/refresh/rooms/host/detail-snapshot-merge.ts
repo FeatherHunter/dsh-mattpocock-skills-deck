@@ -19,9 +19,13 @@
 import * as merger from '../../kernel/snapshot-merge.js'
 import { rowOf } from './thin-row-fetch.js'
 
-/** 一次详情取数的起点凭证：合并版本与开始时刻。取数前拿、取回后交回，中间不许改。 */
+/**
+ * 一次详情取数的起点凭证：合并版本与开始时刻。取数前拿、取回后交回，中间不许改。
+ * startMergeVersion 是取数开始那一刻的合并版本号（数字），不是读结果 provenance 里的
+ * startVersion（那个是 read-v1-… 数据窗口标记，两者不是同一个东西）。
+ */
 export interface DetailMergeToken {
-  startVersion: number
+  startMergeVersion: number
   startedMs: number
 }
 
@@ -36,6 +40,8 @@ export interface DetailMergeOutcome {
   counts: any
   /** 这次详情结果对应的时刻（毫秒）；界面说「上次数据（时间）」用它。 */
   atMs: number
+  /** 被字段组版本门拦下的组名（accepted 为假时带出，供调用方记日志）。 */
+  staleGroups?: string[]
 }
 
 /**
@@ -54,7 +60,7 @@ export function createDetailSnapshotMerge(deps: any): any {
       const entry: any = getCache ? getCache(cwd) : null
       snapshot = entry && entry.snapshot ? entry.snapshot : null
     } catch (e) { snapshot = null }
-    return { startVersion: snapshot ? merger.mergeVersionOf(snapshot) : 0, startedMs: nowOf() }
+    return { startMergeVersion: snapshot ? merger.mergeVersionOf(snapshot) : 0, startedMs: nowOf() }
   }
 
   /**
@@ -73,17 +79,17 @@ export function createDetailSnapshotMerge(deps: any): any {
     // 没有基线快照：不凭空造。详情结果仍按旧形状交回调用方，等主刷新建立快照后再合并。
     if (!snapshot || !Array.isArray(snapshot.issues)) return null
     const atMs = nowOf()
-    const started: DetailMergeToken = token && typeof token.startVersion === 'number' ? token : { startVersion: merger.mergeVersionOf(snapshot), startedMs: atMs }
+    const started: DetailMergeToken = token && typeof token.startMergeVersion === 'number' ? token : { startMergeVersion: merger.mergeVersionOf(snapshot), startedMs: atMs }
     const out: any = merger.mergeSnapshot(snapshot, {
       kind: 'read',
-      startVersion: started.startVersion,
+      startMergeVersion: started.startMergeVersion,
       startedMs: started.startedMs,
       // 详情可能取到列表里被筛掉/未收录的票（例如已关闭容器），它是完整行来源，允许补行。
       rows: [rowOf(issue, detail.provenance)],
       allowNewRows: true,
     })
     if (out.verdict !== 'merged') {
-      return { accepted: false, stale: true, reason: out.reason, snapshot: snapshot, version: snapshot.version, mergeVersion: merger.mergeVersionOf(snapshot), counts: out.counts, atMs: atMs }
+      return { accepted: false, stale: true, reason: out.reason, snapshot: snapshot, version: snapshot.version, mergeVersion: merger.mergeVersionOf(snapshot), counts: out.counts, atMs: atMs, staleGroups: out.staleGroups }
     }
     // generatedMs/updatedAt 只用于显示「这份快照什么时候更新过」，不参与合并版本与 etag。
     const next: any = Object.assign({}, out.snapshot, { generatedMs: atMs, updatedAt: new Date(atMs).toISOString() })

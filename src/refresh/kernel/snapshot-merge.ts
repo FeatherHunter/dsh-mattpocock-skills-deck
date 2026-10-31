@@ -10,10 +10,16 @@
  *   · 只有「完整」的来源能覆盖或清空一个字段组；「截断」的来源只补空缺（旧值非空就保留旧的），
  *     「未表达」的来源整组跳过。来源声明之外还有行内三态（IssueFieldStates）：行里说
  *     parents 不认识时，即使来源说完整也不许清旧父边。
- *   · 版本门另立字段 snapshot.merge.version，与信封契约版本 snapshot.version、内容散列
- *     version/etag（snapshotVersionOf，304 语义）彻底分开：本文件永远不改 snapshot.version，
- *     也不读 snapshot.merge 算内容散列。起读版本比当前合并版本旧的结果整份丢弃（对象都不换），
- *     并记日志由调用方做；接受时合并版本单调 +1。
+ *   · 版本门按字段组判，另立字段 snapshot.merge.version，与信封契约版本 snapshot.version、
+ *     内容散列 version/etag（snapshotVersionOf，304 语义）彻底分开：本文件永远不改
+ *     snapshot.version，也不读 snapshot.merge 算内容散列。判据是「这一趟真正表达的组」：
+ *     任一个表达组的上次写入版本比本次取数开始版本（startMergeVersion，数字）更晚，整份结果
+ *     丢弃（快照原引用、四类结果全空、合并版本不前进），并把拦下它的组名交给调用方记日志；
+ *     本趟不表达的组版本再晚也不影响接受（只补评论的读不该被子票计数写入拦下）。
+ *     老快照没有分组盖章证据时退回全局判定（起读版本比当前旧就保守丢弃）。
+ *     注意 startMergeVersion 与 ReadProvenance.startVersion 不是同一个东西：后者是这一趟读的
+ *     数据窗口标记（read-v1-<毫秒>-<序号> 字符串），传错会被归一成 0 并标 invalidStartVersion，
+ *     绝不把 NaN 写进合并版本。接受时合并版本单调 +1。
  *   · 删除只认完整枚举：只有行组完整且调用方明确说「这次枚举了全部票据」时才删没出现的行；
  *     显式 removedKeys 也必须带着完整行组证据才执行。非完整来源一条都不删。
  *
@@ -72,8 +78,13 @@ export interface MergeState {
 /** 调用方交给合并服务的一次读结果或写回执。 */
 export interface MergeInput {
   kind: 'read' | 'write'
-  /** 这次取数开始时的合并版本（版本门拿它比当前快照）。 */
-  startVersion: number
+  /**
+   * 取数开始那一刻的合并版本号（数字，来自 mergeVersionOf）；版本门拿它和每个表达组的
+   * 上次写入版本比。它不是 ReadProvenance.startVersion——那个是这一趟读的数据窗口标记
+   * （read-v1-<毫秒>-<序号> 字符串），两者不是同一个东西，别混着传。
+   * 非法值（字符串/NaN/负数）归一成 0 并标 invalidStartVersion，绝不写坏合并版本。
+   */
+  startMergeVersion: number
   /** 这次取数的起点毫秒（盖章与 lastStartMs 用，不参与过期判断）。 */
   startedMs: number
   /** 取回来的行；行自带 provenance / fieldStates 时按行判完整度。 */
@@ -119,6 +130,10 @@ export interface MergeOutput {
   merge: MergeState
   /** 本次真正表达过的组的盖章（merge.groups 里刚写进去的那几项）。 */
   groups: Partial<Record<FieldGroup, MergeGroupStamp>>
+  /** 被字段组版本门拦下的组名；没被拦时是空数组（调用方拼进既有 reason 值记日志）。 */
+  staleGroups: FieldGroup[]
+  /** 起读的合并版本不是有限非负整数（已归一成 0，绝不写 NaN）。 */
+  invalidStartVersion: boolean
 }
 
 /** 从快照读出合并版本；老快照没有 merge 字段时按 0 起算（兼容 1692 落盘前的格式）。 */
@@ -268,6 +283,26 @@ function expressedGroups(rows: readonly any[], input: MergeInput): Partial<Recor
   return out
 }
 
+/**
+ * 起读的合并版本归一：只认有限非负整数，其余（字符串/NaN/负数/小数）一律当 0 并标非法。
+ * 为什么不能直接 Number()：ReadProvenance.startVersion 是 read-v1-… 字符串，传错时 Number 出
+ * NaN，比较静默为假、Math.max(prev+1, NaN) 还会把 NaN 写进快照并落盘。
+ */
+function normalizeStartMergeVersion(raw: any): { version: number; invalid: boolean } {
+  return typeof raw === 'number' && Number.isFinite(raw) && Number.isInteger(raw) && raw >= 0 ? { version: raw, invalid: false } : { version: 0, invalid: true }
+}
+
+/**
+ * 字段组版本门：这一趟表达的组里，哪些组的上次写入版本比本次起读版本新。
+ * 只比表达的组——不表达的组版本再晚也不拦（补评论的读不该被子票计数写入整份丢掉）。
+ */
+function staleGroupsOf(prev: MergeState, expressed: Partial<Record<FieldGroup, FieldGroupCompleteness>>, start: number): FieldGroup[] {
+  return MERGE_GROUPS.filter(function (group: FieldGroup): boolean {
+    const stamp: any = expressed[group] && prev.groups && prev.groups[group]
+    return !!(stamp && typeof stamp.version === 'number' && Number.isFinite(stamp.version) && stamp.version > start)
+  })
+}
+
 /** 这份合并有没有任何变化（四类全空就是没变）。 */
 function hasChanges(changes: MergeChanges): boolean {
   return changes.added.length > 0 || changes.updated.length > 0 || changes.removed.length > 0
@@ -276,23 +311,21 @@ function hasChanges(changes: MergeChanges): boolean {
 /**
  * 快照写入的唯一入口：把一次读结果或写回执并进当前快照。
  *
- * 过期结果（startVersion 比快照里的合并版本旧）整份丢弃——返回原快照引用、四类结果全空，
- * 调用方据此记 staleDropped 日志；接受的合并给 snapshot.merge.version 单调 +1，
- * 并按「哪些组这次表达了」更新各组盖章。snapshot.version（信封契约版本）永远不动。
+ * 过期结果（任一本趟表达的组，其上次写入版本比 startMergeVersion 新）整份丢弃——返回原快照
+ * 引用、四类结果全空、合并版本不前进，staleGroups 带出拦下它的组名供调用方记日志；
+ * 接受的合并给 snapshot.merge.version 单调 +1，并按「哪些组这次表达了」更新各组盖章。
+ * snapshot.version（信封契约版本）永远不动。
  */
 export function mergeSnapshot(snapshot: any, input: MergeInput): MergeOutput {
   const prev = mergeStateOf(snapshot)
-  const emptyChanges: MergeChanges = { added: [], updated: [], removed: [], kept: [] }
-  const emptyCounts: MergeCounts = { added: 0, updated: 0, removed: 0, kept: 0 }
-  if (Number(input.startVersion) < prev.version) {
-    return {
-      verdict: 'stale-dropped', reason: 'stale-result', snapshot: snapshot,
-      version: snapshot && snapshot.version, changes: emptyChanges, counts: emptyCounts,
-      missing: [], merge: prev, groups: {},
-    }
-  }
-
+  const emptyChanges: MergeChanges = { added: [], updated: [], removed: [], kept: [] }, emptyCounts: MergeCounts = { added: 0, updated: 0, removed: 0, kept: 0 }
+  const startInfo = normalizeStartMergeVersion(input.startMergeVersion)
   const rows: any[] = Array.isArray(input.rows) ? input.rows.filter(function (row: any) { return row && typeof row === 'object' }) : []
+  const expressed = expressedGroups(rows, input)
+  const staleGroups = staleGroupsOf(prev, expressed, startInfo.version)
+  // 老快照（重建/回放留下）没有分组盖章证据时退回全局判定：起读版本比当前旧就保守丢弃。
+  const noStampEvidence = Object.keys(expressed).length > 0 && !Object.keys(prev.groups || {}).some(function (key: string) { const s: any = (prev.groups as any)[key]; return !!(s && typeof s.version === 'number' && Number.isFinite(s.version)) }) && startInfo.version < prev.version
+  if (staleGroups.length > 0 || noStampEvidence) return { verdict: 'stale-dropped', reason: 'stale-result', snapshot: snapshot, version: snapshot && snapshot.version, changes: emptyChanges, counts: emptyCounts, missing: [], merge: prev, groups: {}, staleGroups: staleGroups, invalidStartVersion: startInfo.invalid }
   const issues: any[] = Array.isArray(snapshot && snapshot.issues) ? snapshot.issues : []
   const maps: any[] = Array.isArray(snapshot && snapshot.maps) ? snapshot.maps : []
   const incomingByKey = new Map<string, any>()
@@ -411,9 +444,8 @@ export function mergeSnapshot(snapshot: any, input: MergeInput): MergeOutput {
   }
 
   // ---------- 五、版本门：接受则合并版本单调 +1，按表达的组盖章；信封契约版本不动 ----------
-  const nextMergeVersion = Math.max(prev.version + 1, Number(input.startVersion) + 1)
+  const nextMergeVersion = Math.max(prev.version + 1, startInfo.version + 1)
   const stamped: Partial<Record<FieldGroup, MergeGroupStamp>> = {}
-  const expressed = expressedGroups(rows, input)
   const stampSource: any = input.provenance || (rows.length > 0 ? rows[0].provenance : null)
   const source = stampSource && typeof stampSource.source === 'string' ? stampSource.source : 'unknown'
   const operation = stampSource && typeof stampSource.operation === 'string' ? stampSource.operation : 'merge'
@@ -426,8 +458,7 @@ export function mergeSnapshot(snapshot: any, input: MergeInput): MergeOutput {
     }
     stamped[group] = stamp
   }
-  const nextGroups: any = Object.assign({}, prev.groups, stamped)
-  const nextMerge: MergeState = { version: nextMergeVersion, lastStartMs: input.startedMs, groups: nextGroups }
+  const nextMerge: MergeState = { version: nextMergeVersion, lastStartMs: input.startedMs, groups: Object.assign({}, prev.groups, stamped) }
 
   const finalByKey = new Map<string, any>()
   for (let i = 0; i < finalIssues.length; i += 1) finalByKey.set(delta.rowKey(finalIssues[i]), finalIssues[i])
@@ -451,8 +482,7 @@ export function mergeSnapshot(snapshot: any, input: MergeInput): MergeOutput {
     removed: changes.removed.length, kept: changes.kept.length,
   }
   return {
-    verdict: 'merged', reason: hasChanges(changes) ? 'rows-changed' : 'nothing-changed',
-    snapshot: nextSnapshot, version: version, changes: changes, counts: counts,
-    missing: missing, merge: nextMerge, groups: stamped,
+    verdict: 'merged', reason: hasChanges(changes) ? 'rows-changed' : 'nothing-changed', snapshot: nextSnapshot, version: version,
+    changes: changes, counts: counts, missing: missing, merge: nextMerge, groups: stamped, staleGroups: [], invalidStartVersion: startInfo.invalid,
   }
 }

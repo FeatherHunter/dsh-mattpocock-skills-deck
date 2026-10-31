@@ -46,6 +46,18 @@ import { fetchThinRows } from './thin-row-fetch.js'
 // #1692：按需细节的淘汰规则（上限、LRU 判据、淘汰后留什么记号）只住这一处；本文件只在写回前调它。
 import { evictDetailsInSnapshot } from '../../kernel/detail-eviction.js'
 
+/**
+ * 合并版本门丢弃时的原因后缀：把拦下它的字段组名拼进既有 reason 值（例如 merge-stale:comments），
+ * 不新增 refresh.patch 的字段——那组字段被 tests/verify-log-fields.ts 的白名单锁着；
+ * 起读版本非法时单独标出来，方便排查「把读窗口标记当合并版本传」这类调用错。
+ */
+function staleSuffix(out: any): string {
+  const groups = out && Array.isArray(out.staleGroups) ? out.staleGroups : []
+  if (groups.length) return ':' + groups.join(',')
+  if (out && out.invalidStartVersion === true) return ':invalid-start-version'
+  return ''
+}
+
 /** 快照里那份增量状态：水印、世代号、待办三件（待办只记票键，不记路径与命令）。 */
 interface DeltaState {
   structureVersion?: number
@@ -317,13 +329,14 @@ export function createPatch(deps?: PatchDeps | null): any {
     // ⑩ 并进列表（唯一写入入口在 kernel/snapshot-merge.ts）：字段组级合并——位置不动、读路径不新增行、
     //    只有完整来源能覆盖或清空字段组；降级/截断来源只能补空缺，已知的父边、依赖、计数、正文、评论、评审一条不丢。
     const merged: any = merger.mergeSnapshot(latest, {
-      kind: 'read', startVersion: startedMergeVersion, startedMs: scanStartedMs,
+      kind: 'read', startMergeVersion: startedMergeVersion, startedMs: scanStartedMs,
       rows: got.rows, allowNewRows: false,
     })
     if (merged.verdict !== 'merged') {
       stats.staleDropped += 1
-      fire('patch', 'merge-stale', { keyHash: keyHash, changed: plan.changed.length, watermark: 'held' })
-      return { mode: 'stale-dropped', reason: 'merge-stale' }
+      const staleReason = 'merge-stale' + staleSuffix(merged)
+      fire('patch', staleReason, { keyHash: keyHash, changed: plan.changed.length, watermark: 'held' })
+      return { mode: 'stale-dropped', reason: staleReason }
     }
     if (merged.missing.length) {
       const pending = await rememberPending(cwd, latest, merged.missing, 'merge-missing')
@@ -425,12 +438,13 @@ export function createPatch(deps?: PatchDeps | null): any {
     // 写回执走同一条合并入口：允许新增行（新建票要立刻出现在列表里），已有行按字段组掩码合并，
     // 降级来源只补空缺。地图下面那一份只并已有行，新行等整池统一挂父。
     const merged: any = merger.mergeSnapshot(latest, {
-      kind: 'write', startVersion: startedMergeVersion, startedMs: now(), rows: got.rows, allowNewRows: true,
+      kind: 'write', startMergeVersion: startedMergeVersion, startedMs: now(), rows: got.rows, allowNewRows: true,
     })
     if (merged.verdict !== 'merged') {
       stats.staleDropped += 1
-      fire('patch', 'merge-stale', { keyHash: keyHash, changed: list.length, watermark: 'held' })
-      return { mode: 'stale-dropped', reason: 'merge-stale' }
+      const staleReason = 'merge-stale' + staleSuffix(merged)
+      fire('patch', staleReason, { keyHash: keyHash, changed: list.length, watermark: 'held' })
+      return { mode: 'stale-dropped', reason: staleReason }
     }
     if (merged.missing.length) {
       const pending = await rememberPending(cwd, latest, merged.missing, 'merge-missing')
