@@ -455,6 +455,57 @@ async function main() {
     '版本解析不出按隐藏处理（宁缺勿错，不冒充完整）')
   check(availabilityOf('1.5', caps.VERSION_FLOOR).state === 'degraded', '低于能力要求但达到 2.11 底线时按策略降级，不误判成隐藏')
 
+  // ---- 6.7) 提交历史页要用的真 git 输出（#1744 T09）：根提交、合并提交、截断与旧版本降级 ----
+  // 样本 tests/fixtures/version-control/live-log-shapes.json 是在真实仓库里按 commands.ts 的 log 格式串
+  //   逐字采下来的（git 2.49.0.windows.1）：一条合并提交、一条根提交、一条单父提交，外加根提交的
+  //   numstat / patch 与「少一个字段的记录」两个边界样本。这里只断言外部行为，不测解析实现。
+  const liveLog = readJson('tests/fixtures/version-control/live-log-shapes.json')
+  const logSpec = commands.commandFor('log', { logCount: 50, logSkip: 100 })
+  check(logSpec.args.join(' ').indexOf('-n 50') >= 0 && logSpec.args.join(' ').indexOf('--skip=100') >= 0
+    && logSpec.args.join(' ').indexOf('%x00%P%x00') >= 0,
+    'T09a log 命令形状：批次大小与跳过数进 argv，父提交字段就在同一条格式串里（合并提交才画得出两条连线）')
+  const liveParsed = log.parseLog(liveLog.log.out)
+  check(liveParsed.ok === true && liveParsed.commits.length === 5,
+    'T09b 真 git 的 log 输出解得出 5 条提交（实得 ' + (liveParsed.ok === true ? liveParsed.commits.length : liveParsed.error) + ' 条）')
+  check(liveParsed.ok === true && liveParsed.commits[0].parents.length === 2 && liveParsed.commits[0].subject.indexOf('合并分支') >= 0,
+    'T09c 合并提交带两个父提交（图形化视图据此画两条连线）')
+  check(liveParsed.ok === true && liveParsed.commits[4].parents.length === 0 && liveParsed.commits[4].subject.indexOf('首次提交') >= 0,
+    'T09d 根提交没有父提交（详情里按空树算差异，不按普通提交比）')
+  check(liveParsed.ok === true && liveParsed.commits.every((c) => c.author === '林可' && c.authorDateMs === Date.parse('2026-10-01T10:00:00+08:00')),
+    'T09e 作者与作者时间逐条解得出（列表 460 宽起要显示作者与时间）')
+  const liveLogOut = String(liveLog.log.out)
+  const cutReads = [
+    ['按 70% 截断', liveLogOut.slice(0, Math.floor(liveLogOut.length * 0.7))],
+    ['在第一个 NUL 后再截', liveLogOut.slice(0, liveLogOut.indexOf('\u0000') + 20)],
+  ]
+  for (const item of cutReads) {
+    const r = log.parseLog(item[1])
+    const keys = r && typeof r === 'object' ? Object.keys(r).sort().join(',') : '（没返回对象）'
+    check(!!r && r.ok === false && r.error === 'log-malformed' && keys === 'detail,error,ok',
+      'T09f log 输出' + item[0] + '：显式失败、不交半份提交（实得 ' + keys + '）')
+  }
+  const rootNumstat = diffFiles.parseDiffFiles(liveLog.edge.rootNumstat.out)
+  check(rootNumstat.ok === true && rootNumstat.files.length === 1 && rootNumstat.files[0].path === 'a.txt'
+    && rootNumstat.files[0].added === 1 && rootNumstat.files[0].deleted === 0,
+    'T09g 根提交的 numstat 解得出（根提交要加 --root 才有这份输出，详情里照常列文件）')
+  const mergeNumstat = diffFiles.parseDiffFiles(liveLog.edge.mergeNumstat.out)
+  check(mergeNumstat.ok === true && mergeNumstat.files.length === 1 && mergeNumstat.files[0].path === 'b.txt',
+    'T09h 合并提交的 numstat 解得出（逐文件差异按合并结果看）')
+  const rootPatch = patch.parsePatch(liveLog.edge.rootPatch.out)
+  const rootKinds = rootPatch.ok === true ? rootPatch.lines.map((l) => l.kind) : []
+  check(rootPatch.ok === true && rootKinds.indexOf('filehead') >= 0 && rootKinds.indexOf('hunk') >= 0 && rootKinds.indexOf('add') >= 0,
+    'T09i 根提交的 patch 解得出（文件头 / 段头 / 增行都在，逐文件差异画得出来）')
+  const oneNoParent = log.parseLog(liveLog.edge.oneRecordNoParentField)
+  check(oneNoParent.ok === true && oneNoParent.commits.length === 1 && oneNoParent.commits[0].parents.length === 0,
+    'T09j 父提交字段为空的记录照常解出（根提交的历史写法，不误判成坏样本）')
+  // 旧版本降级：历史页这三条读动作在 2.11 底线上完整可用，底线以下照账本隐藏，不冒充能读。
+  const historyCaps = ['3.1', '3.2', '3.3', '13.14']
+  const historyAtFloor = historyCaps.map((id) => availabilityOf(id, caps.VERSION_FLOOR))
+  check(historyAtFloor.every((a) => a.state === 'full'),
+    'T09k 提交列表 / 详情 / 逐文件差异 / 图形化视图在 2.11 底线上都完整可用（' + historyAtFloor.map((a) => a.state).join(',') + '）')
+  check(historyCaps.every((id) => availabilityOf(id, '2.10').state === 'hidden'),
+    'T09l 底线以下这四条按账本隐藏（旧 git 上不冒充能读，也不降级成半份）')
+
   // ---- 7) 断言装置自检：改坏样本必须红 ----
   const badStatus = status.parseStatus('1 M. N... 100644')
   check(badStatus.ok === false, '自检：字段数不对必须失败')

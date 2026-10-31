@@ -261,5 +261,21 @@ export function createStashPhones(deps: any): { handle: (args: any) => Promise<a
   return { handle: handle }
 }
 
+// #1751：父文件只留一行注册（它贴着 350 有效行上限，装配不能再摊开）。装配与缓存都收在这里：
+// 首次调用时才 createStashPhones，装好的那一个对象活在模块里，所以「最近丢弃」跨多次调用不丢；
+// 装配抛错时回同一封 env 信封，界面照常打得开、只是十条动作会说原因，下一次调用再重试装配。
+let _stashPhonesP: any = null
+export function stashHandleOf(deps: any): any {
+  if (!_stashPhonesP) {
+    _stashPhonesP = Promise.resolve().then(function (): any {
+      return { handle: deps.loggedPhone('wf.gitStash', 'git-stash', createStashPhones(deps).handle) }
+    }).catch(function (e: any): any {
+      _stashPhonesP = null
+      return { handle: function (): any { return failPhone('env', '贮藏页十条能力的执行层装配失败：' + firstLine(String((e && e.message) || e))) } }
+    })
+  }
+  return _stashPhonesP
+}
+
 /** 十条能力的编号名单：门禁据此对账账本，别处不再抄一份。 */
 export const STASH_PHONE_OPS = STASH_OPS.map(function (one: any) { return one.id })

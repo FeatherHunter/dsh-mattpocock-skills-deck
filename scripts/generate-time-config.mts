@@ -111,6 +111,9 @@ const KEYS: Array<[string, string, string]> = [
   ['vcTaskPollIntervalMs', 'VC_TASK_POLL_INTERVAL_MS', 'timeouts'],
   ['vcTaskCancelGraceMs', 'VC_TASK_CANCEL_GRACE_MS', 'timeouts'],
   ['vcTaskHardKillGraceMs', 'VC_TASK_HARD_KILL_MS', 'timeouts'],
+  // #1742 改动页：预检只读命令与写命令各自的单条超时。
+  ['vcChangesReadTimeoutMs', 'VC_CHANGES_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcChangesWriteTimeoutMs', 'VC_CHANGES_WRITE_TIMEOUT_MS', 'timeouts'],
   ['gitCredentialCallBudgetMs', 'GIT_CREDENTIAL_CALL_BUDGET_MS', 'timeouts'],
   ['gitCredentialMinBudgetMs', 'GIT_CREDENTIAL_MIN_BUDGET_MS', 'timeouts'],
   ['gitCredentialMaxBudgetMs', 'GIT_CREDENTIAL_MAX_BUDGET_MS', 'timeouts'],

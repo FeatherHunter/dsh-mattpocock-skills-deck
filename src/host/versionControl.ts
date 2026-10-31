@@ -51,6 +51,9 @@ import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/ti
 // #1741/#1740：fast-import 的只读文件流窄例外与长任务执行层（起进程、送标准输入、增量读）都住
 // 同层叶子 versionControlTask.ts；本文件只递宿主依赖与日志包装，两条入口共用同一份文件核对实现。
 import { prepareStdinFile, createTaskPhones } from './versionControlTask.js'
+// #1742：改动页两条电话（预检发票、凭票写）的懒加载与日志包装住同层叶子 versionControlChangesMount.ts，
+// 本文件只把上面已经造好的宿主闭包递进去——父文件贴着 350 有效行上限，装配壳不在这里再摊开一份。
+import { createChangesMount } from './versionControlChangesMount.js'
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -461,15 +464,16 @@ export function createVersionControl(deps: any): any {
     return _taskP
   }
 
-  // ---- #1751 贮藏页十条（域 7）：执行层在 ./versionControlStash.ts，本文件只剩下装配与日志包装 ----
+  // ---- #1742 改动页两条电话（追加段，不改上面任何既有行为）----
+  // 预检（发票）与执行（凭票写）的装配住 ./versionControlChanges.js：那一片只做「同一个首屏读数、
+  // 同一条进程出口、同一套 loggedPhone 日志口径」的拼接，改动页自己的票据表与 requestId 结果表留在它自己的闭包里。
+  // 本文件只把上面已经造好的闭包交给 ./versionControlChangesMount.ts，懒加载、失败兜底与日志包装都在那一片。
+  const changes: any = createChangesMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable, runGit: runGit, fixedPrefix: fixedPrefix, pathExists: pathExists, readScreenOf: readScreenOf, loggedPhone: loggedPhone, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs, STDOUT_LIMIT: STDOUT_LIMIT, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now })
+  // ---- #1751 贮藏页十条（域 7）：执行层与「最近丢弃」的缓存都在 ./versionControlStash.ts ----
   // 十条动作（新建两条、只贮藏已暂存、列出、查看、应用、弹出、进分支、删除、清空）与丢弃后的
-  // store 恢复由叶子收进一条 wf.gitStash；进程出口、仓库根解析、失败信封都显式递进去
-  // （动态加载，不在同层新增静态边）。叶子自己记「最近丢弃」，只活在进程内存里，不落盘。
-  // 写法跟上面的 writePhone 一样收成一行：这一层是装配，不在这增长逻辑；宿主依赖整份递过去，
-  // 装配失败也回同一封信封（env），界面照常能打开、只是十条动作会说原因。
-  let _stashP: any = null
-  function stashPhone(): any { if (!_stashP) { const nowFn: any = (deps && typeof deps.now === 'function') ? deps.now : Date.now; const sd: any = { runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, timeoutMs: timeoutMs, stdoutLimit: STDOUT_LIMIT, patchLimit: PATCH_LIMIT, defaultCwd: DEFAULT_CWD, nowMs: nowFn }; _stashP = import('./versionControlStash.js').then(function (m: any): any { return { handle: loggedPhone('wf.gitStash', 'git-stash', m.createStashPhones(sd).handle) } }).catch(function (e: any): any { const f: any = function (): any { return failPhone('env', '贮藏页十条能力的执行层加载失败：' + String((e && e.message) || e)) }; return { handle: f } }) } return _stashP }
-
+  // store 恢复由叶子收进一条 wf.gitStash；进程出口、仓库根解析、失败信封与日志包装都显式递进去
+  // （动态加载，不在同层新增静态边）。父文件只留返回对象里那一行注册，装配一行都不在这里摊开：
+  // 这一层贴着 350 有效行上限（#1751 合并 #1742 后需要），装配与缓存收在叶子，行为不变。
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
@@ -493,6 +497,9 @@ export function createVersionControl(deps: any): any {
     handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) },
     handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) },
     // #1751 贮藏页十条（域 7）：第一次调用时才装配执行层，键名与写电话、长任务那几条同形。
-    handleGitStash: async function (a: any): Promise<any> { const s: any = await stashPhone(); return s.handle(a) },
+    handleGitStash: async function (a: any): Promise<any> { try { const m: any = await import('./versionControlStash.js'); const s: any = await m.stashHandleOf({ runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, timeoutMs: timeoutMs, stdoutLimit: STDOUT_LIMIT, patchLimit: PATCH_LIMIT, defaultCwd: DEFAULT_CWD, nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now, loggedPhone: loggedPhone }); return s.handle(a) } catch (e) { return failPhone('env', '贮藏页十条能力的执行层加载失败：' + firstLine(String((e && (e as any).message) || e))) } },
+    // #1742 改动页两条电话（预检、执行）与票据表：装配在 ./versionControlChangesMount.ts，进程出口照旧是上面那条固定前缀与报闸。
+    // 只读动作 1.13（查为什么被忽略）走预检电话的 op，不再单开第三条电话；changesTickets 只给门禁与测试读票据表（与 #1741 的 writeTickets 同一条口径，不注册成电话、客户端拿不到）。
+    handleGitChangesCheck: changes.check, handleGitChangesWrite: changes.write, changesTickets: changes.tickets,
   }
 }

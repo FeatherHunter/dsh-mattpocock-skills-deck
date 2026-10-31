@@ -769,7 +769,9 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcCapabilityPages', file: 'src/client/views/versionControl/vcCapabilityPages.ts' },
   { id: 'vcShellPrimitives', file: 'src/client/views/versionControl/vcShellPrimitives.ts' },
   { id: 'vcPalette', file: 'src/client/views/versionControl/vcPalette.ts' },
+  { id: 'vcHistory', file: 'src/client/views/versionControl/vcHistory.ts' }, // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）
   { id: 'vcTaskPanel', file: 'src/client/views/versionControl/vcTaskPanel.ts' }, // #1740 长任务区（进度、四类结论、取消按钮、重启标注中断；由页面壳挂进任务区）
+  { id: 'vcChangesPage', file: 'src/client/views/versionControl/vcChangesPage.ts' }, // #1742 改动页 13 条动作的操作面板（由页面壳在 changes 页挂进页面体）
   { id: 'vcStashOps', file: 'src/client/views/versionControl/vcStashOps.ts' }, // #1751 贮藏页的数据与动作层（首屏贮藏片怎么读、十条动作怎么拼、回包怎么落状态；不画界面）
   { id: 'vcStashPage', file: 'src/client/views/versionControl/vcStashPage.ts' }, // #1751 贮藏页的入口与真实动作画法（十条动作、确认卡、最近丢弃、版本门提示；由页面壳挂进贮藏页）
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
