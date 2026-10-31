@@ -83,6 +83,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 关键句不被截断；最后用「根节点强加 640px 最小宽度后 300 宽必须量出溢出」的反证证明量尺有效，
   // 单跑实测 118 条。
   'verify-1586-vc-visual-browser': 118,
+  // 2026-10-31 #1739（规格 #1586 T04）：首屏一次取全——七片一份版本化快照、一次聚合调用、单片失败
+  // 各自独立态与重试、刷新三时机；真宿主聚合与反证组也在这一扇里，单跑实测 85 条。
+  'verify-1586-first-screen': 85,
   // 2026-10-29 #1600：词表里 gate.wipNotice 已退役（GitLab 可用后不再有「筹备中」注解），
   // 这扇改成先钉「键已不在词表里」、再钉「初始化小卡上不再出现该文案」，单跑实测 31 条。
   'verify-669-collapsed-recoverable': 31,
