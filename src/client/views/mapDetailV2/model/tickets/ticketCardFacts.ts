@@ -165,8 +165,9 @@ function blockerBlocksPage(
 }
 
 /**
- * 一张票的卡片状态。判定次序与宿主两份 groupTickets（src/tracker/body-parse.ts 与
- * src/host/ticketGrouping.ts）同一口径：已关闭 → closed；仍开着且有人认领 → doing（在办优先，被挡也先算在办）；
+ * 一张票的卡片状态。判定次序与宿主两份 groupTickets（实现分别在 src/tracker/kernel/grouping.ts 与
+ * src/host/ticketGrouping.ts；tracker 那份由 src/tracker/body-parse.ts 转出名字）同一口径：
+ * 已关闭 → closed；仍开着且有人认领 → doing（在办优先，被挡也先算在办）；
  * 仍开着、没人认领、且至少有一个「还挡着」的阻塞者 → blocked；其余 → ready。
  *
  * 阻塞者在不在本图分开判（见 blockerBlocksPage）：本图内看行状态，图外看引用态；

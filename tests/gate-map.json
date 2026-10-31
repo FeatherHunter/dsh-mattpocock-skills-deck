@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T15:22:50.008Z",
+  "generatedAt": "2026-10-31T15:32:06.130Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 483,
   "gateCount": 483,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 45,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 660,
+  "graphFileCount": 661,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -9520,6 +9520,7 @@
         "src/refresh/rooms/host/issue-detail-fetch.ts",
         "src/refresh/rooms/host/issue-list-fetch.ts",
         "src/tracker/body-parse.ts",
+        "src/tracker/kernel/grouping.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -9531,13 +9532,14 @@
         "src/host",
         "src/refresh/rooms/host",
         "src/tracker",
+        "src/tracker/kernel",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-platform-contract.ts",
@@ -12851,6 +12853,7 @@
       "node tests/verify-map-drill.ts",
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.ts",
+      "node tests/verify-parse-leaf.ts",
       "node tests/verify-rest-fallback-banner.ts",
       "node tests/verify-time-config.ts"
     ],
@@ -13394,9 +13397,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 681,
+    "fileCount": 682,
     "dirCount": 84,
-    "coveredFileCount": 681,
+    "coveredFileCount": 682,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13930,6 +13933,7 @@
       "src/tracker/kernel/README.md",
       "src/tracker/kernel/error-rules.ts",
       "src/tracker/kernel/git-remote.ts",
+      "src/tracker/kernel/grouping.ts",
       "src/tracker/kernel/identity-keys.ts",
       "src/tracker/kernel/issue-tracker-declaration.ts",
       "src/tracker/kernel/log-emit.ts",

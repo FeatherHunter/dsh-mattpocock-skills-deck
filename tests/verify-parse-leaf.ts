@@ -38,6 +38,8 @@ const SOURCES = [
   sourcePath('src/refresh/rooms/host/issue-detail-fetch.js'),
   // #1090：mapBody 的 parseProgress 改为从这份叶子引入，产物新鲜度要把叶子也算进来。
   sourcePath('src/tracker/body-parse.ts'),
+  // #1768：分组/分层判定搬进内核，body-parse 只转出名字；新鲜度要跟到真正实现的那份。
+  sourcePath('src/tracker/kernel/grouping.ts'),
   'scripts/build.mts',
   'package/package.json',
 ]
@@ -46,7 +48,8 @@ const SOURCES = [
 // 产物 = src/host/index.js 函数体逐字嵌入（scripts/build.mts 文本组合），4 空格缩进；2 空格为兼容回退
 // #1090：parseProgress 不在这里抽了——它已搬去 tracker 叶子，mapBody 只 import，差分改在下面直接比模块导出。
 const extractFns = (src) => {
-  const names = ['normalizeBody', 'parseMapBody', 'computeLevels', 'groupTickets']
+  // #1768：computeLevels/groupTickets 依赖同作用域的阻塞判定帮手，抽的时候要一起带上，否则求值当场 ReferenceError。
+  const names = ['normalizeBody', 'parseMapBody', 'computeLevels', 'groupTickets', 'refKeyOf', 'blockerBlocks']
   const grabOne = (indentSpaces) => {
     const body = names.map((n) => {
       const m = src.match(new RegExp('function\\s+' + n + '\\([\\s\\S]*?\\n {' + indentSpaces + '}\\}'))
@@ -54,7 +57,7 @@ const extractFns = (src) => {
     }).join('\n')
     if (!body.trim()) return null
     try {
-      // 五个函数在同一个括号里声明、互相调用也在其中，外层一个变量都不用：改走共用入口 evalWithScope，作用域留空。
+      // 六个函数在同一个括号里声明、互相调用也在其中，外层一个变量都不用：改走共用入口 evalWithScope，作用域留空。
       return evalWithScope('(function(){' + body + ';return {normalizeBody,parseMapBody,computeLevels,groupTickets}})()', {})
     } catch (e) { return null }
   }
