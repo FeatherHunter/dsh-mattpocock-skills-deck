@@ -11,7 +11,8 @@
 //   C 折叠让位表没被动过（还是 12 段）与环境段那条词条已经落了。
 //   D 同一份读数：胶囊判据与面板在办表读的是同一格（与 workRouteTableOf 对拍，不另抄一份期望值）。
 //   E 地图那一条：认身份换图标，文字通道仍留号（#780）。
-//   F #1404 表头单行：左右两簇、四段词条、两枚分隔线，外加 420 宽、跨天与陈旧标记。
+//   F #1404 表头单行：左右两簇、四段词条、两枚分隔线，外加 420 宽、跨天与陈旧标记；
+//     末尾接 #1702 界面反馈三条：单子打开即沉底、表头吸顶不跟着滚走、高度跟着 DSH 窗口长。
 // 【2026-10-12 清理】原先 B、C 两组里还有一批读文件文本钉形状的断言，断言对象都是
 //   文件文本，按维护者「清掉读源码文本钉形状的门禁」的要求撤掉，逐条说明留在各组的注释里。
 import { readFileSync, existsSync } from 'node:fs'
@@ -614,7 +615,7 @@ console.log('F) #1404 表头单行：左右两簇、四段词条、两枚分隔�
   const menuNode: any = findMenu(open)
   check(!!menuNode, 'menu opens')
   const menuStyle: any = (menuNode && menuNode.props && menuNode.props.style) || {}
-  check(menuStyle.width === 420 && menuStyle.maxWidth === 420 && menuStyle.maxHeight === 380, 'popover width 420 and max height 380')
+  check(menuStyle.width === 420 && menuStyle.maxWidth === 420 && menuStyle.maxHeight === 380, 'popover width 420 and max height 380（门禁里没有视口，退回旧值）')
   const menuKids: any[] = childrenOf(menuNode)
   check(!!menuKids[0] && menuKids[0].t === 'div', '表头是弹层里的第一个节点')
   const headerNodes = menuKids.filter(isHeaderNode)
@@ -686,6 +687,41 @@ console.log('F) #1404 表头单行：左右两簇、四段词条、两枚分隔�
   check(soloSvgs.length === 1 && soloSvgs.every(hiddenSvg), '没有其他会话时只剩内部那条分隔线')
   check(!soloCalls.some(function (c: any) { return c.k === 'chainView.capsuleHeaderOthers' }), '没有其他会话时不调用「另有 …」词条')
   check(stringStyle(soloHead).lineHeight === '18px' && stringStyle(soloHead).padding === '2px 8px', '表头恒为一行高（18 + 2 + 2 = 22px）')
+
+  // 三、#1702 界面反馈（三条）：单子打开就沉底（最新一条贴底、离鼠标最近）、表头吸顶不跟着滚走、
+  //   高度跟着 DSH 窗口长（底边钉在胶囊上沿，上方可用高度都用上，窗口矮时收回下限）。
+  check(menuStyle.boxSizing === 'border-box', '高度上限含内边距与边框（box-sizing: border-box）')
+  check(hs.position === 'sticky' && hs.top === 0, '表头吸顶（sticky，贴在滚动容器顶上）')
+  check(!!hs.background && hs.zIndex >= 1, '吸顶表头有底色且盖在行上面（行从它底下滚过去不透出来）')
+  const refFn = (menuNode && menuNode.props) ? menuNode.props.ref : null
+  check(typeof refFn === 'function', '滚动容器上挂了 ref 回调（打开时用它滚到底）')
+  const scroller: any = { scrollTop: 0, scrollHeight: 640 }
+  let refThrew = false
+  try { refFn(scroller) } catch (eRef) { refThrew = true }
+  check(!refThrew && scroller.scrollTop === 640, '一挂上就把列表滚到底（scrollTop = scrollHeight，实得 ' + scroller.scrollTop + '）')
+  let nullRefThrew = false
+  try { refFn(null) } catch (eNull) { nullRefThrew = true }
+  check(!nullRefThrew, '卸载时 ref 回调收 null 不抛（同一函数兼作卸载清理）')
+  const openAgain: any = findMenu(built.SessionChainCapsule({ st: st, sid: 's1' }))
+  check(!!openAgain && openAgain.props.ref === refFn, 'ref 回调跨渲染保持同一个引用（悬停重渲染不把列表拽回底部）')
+  const withViewport = function (vh: any, fn: any) {
+    const had = Object.prototype.hasOwnProperty.call(globalThis, 'window')
+    const prev = (globalThis as any).window
+    ;(globalThis as any).window = { innerHeight: vh }
+    try { fn() } finally { if (had) (globalThis as any).window = prev; else delete (globalThis as any).window }
+  }
+  const heightAt = function (vh: any, bottom: any) {
+    let got: any = null
+    withViewport(vh, function () {
+      const probeSt: any = { snapshot: st.snapshot, chainMenuOpen: true, chainMenuPos: { left: 1, bottom: bottom } }
+      const probeMenu: any = findMenu(built.SessionChainCapsule({ st: probeSt, sid: 's1' }))
+      got = (probeMenu && probeMenu.props && probeMenu.props.style) ? probeMenu.props.style.maxHeight : null
+    })
+    return got
+  }
+  check(heightAt(900, 2) === 890, 'DSH 窗口高时单子跟着长（视口 900 - 底边 2 - 缝 8 = 890，实得 ' + heightAt(900, 2) + '）')
+  check(heightAt(700, 658) === 160, '窗口矮时收到下限 160（不给压成一条缝，实得 ' + heightAt(700, 658) + '）')
+  check(heightAt(0, 2) === 380, '读不到视口时退回旧值 380（不至于算成 0 高）')
 }
 
 console.log('H) #1563 窄栏：目录先让位，编号永不缩写')

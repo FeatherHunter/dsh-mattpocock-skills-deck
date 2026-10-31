@@ -381,9 +381,7 @@ const chainHeaderOf = function (h: any, tr: any, ownCount: any, otherCount: any,
   const numStyle = { fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-secondary,#a1a1aa)' }
   const left = h('span', { key: 'ownSide', style: { display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', whiteSpace: 'nowrap' } }, [
     h('span', { key: 'title', style: { flex: 'none', fontWeight: 600, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, tr('chainView.capsuleHeaderTitle')),
-    h('span', { key: 'own', style: { flex: 'none', whiteSpace: 'nowrap' } }, chainSegmentedOf(h, tr('chainView.capsuleHeaderOwn'), { n: ownCount }, numStyle)),
-    chainSeparatorOf(h, 'sepInner', 7, 15, 0.62),
-    h('span', { key: 'time', style: { flex: 'none', color: captionColor } }, tr('chainView.readAtFull', { time: headTime }))])
+    h('span', { key: 'own', style: { flex: 'none', whiteSpace: 'nowrap' } }, chainSegmentedOf(h, tr('chainView.capsuleHeaderOwn'), { n: ownCount }, numStyle)), chainSeparatorOf(h, 'sepInner', 7, 15, 0.62), h('span', { key: 'time', style: { flex: 'none', color: captionColor } }, tr('chainView.readAtFull', { time: headTime }))])
   // 右簇靠自动外边距推到行尾：marginLeft:'auto' 吸收两簇之间的空白，容器上的 justifyContent:'space-between'
   //   只是原先的写法、留着无害；空间不足时 flex-shrink 收窄，里面的文字仍以省略号收尾。
   const others = otherCount > 0
@@ -395,11 +393,19 @@ const chainHeaderOf = function (h: any, tr: any, ownCount: any, otherCount: any,
   return h('div', {
     key: 'head',
     style: {
+      // #1702 界面反馈：表头吸顶——单子里的行是滚动内容，标题栏始终贴在最上面，不跟着滚走。
+      //   背景用与单子同一层底色，行从它底下滚过去时不会透出来。
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, whiteSpace: 'nowrap',
-      fontSize: 11, lineHeight: '18px', padding: '2px 8px', color: captionColor,
+      fontSize: 11, lineHeight: '18px', padding: '2px 8px', color: captionColor, position: 'sticky', top: 0, zIndex: 1, background: 'var(--dsw-alias-bg-layer-2,#16181d)',
     },
   }, [left, others])
 };
+
+/** #1702 界面反馈：单子打开时滚到底——最新那一条沉底、离鼠标最近，不用先往下翻；
+ * 单子的高用「视口高度 - 单子底边位置」算，DSH 窗口高时跟着长，窗口矮时收，最小 160 保证表头与几行仍看得见。
+ * 读不到视口（门禁里没有 window）时退回旧值 380；absent 参数据一律当 0 处理，不抛。 */
+const chainMenuHeightOf = function (bottom: any) { const room = Math.round(((typeof window !== 'undefined' && window && window.innerHeight) || 0) - (Number(bottom) || 0) - 8); return room > 0 ? Math.max(160, room) : 380 };
+const chainMenuScrollEnd = function (el: any) { if (el) try { el.scrollTop = el.scrollHeight } catch (eEnd) {} };
 
 /**
  * 胶囊里那一段。idle / empty 返回 null（不占位）；unreadable 返回一枚小图标；
@@ -462,12 +468,15 @@ export const SessionChainCapsule = function (props: any) {
   }
   const menu = (st.chainMenuOpen && st.chainMenuPos) ? PortalOverlay({
     className: 'dsws-chainmenu',
+    // #1702 界面反馈：单子一打开就滚到底（最新一条沉底）。ref 回调挂在滚动容器自己身上，
+    //   模块级同一个函数引用：重渲染（悬停某一行）不会把列表拽回底部，只有重新挂载才再滚一次。
+    ref: chainMenuScrollEnd,
     onMouseEnter: function () { try { clearStatusClose(closeRef) } catch (eKeep) {} },
     onMouseLeave: function () { chainLater(st, closeRef) },
     onClick: function (ev: any) { if (ev && ev.stopPropagation) ev.stopPropagation() },
     style: {
       position: 'fixed', left: st.chainMenuPos.left, bottom: st.chainMenuPos.bottom,
-      width: 420, maxWidth: 420, maxHeight: 380, overflowY: 'auto', padding: 4, zIndex: 2147483000,
+      width: 420, maxWidth: 420, boxSizing: 'border-box', maxHeight: chainMenuHeightOf(st.chainMenuPos.bottom), overflowY: 'auto', padding: 4, zIndex: 2147483000,
       background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)',
       borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)',
     },
