@@ -458,12 +458,115 @@ async function commitGroup() {
   check(!/child_process|spawnSync|execSync/.test(sourceText('src/host/versionControlWrite.ts')), 'E17 源码断言：写层不自己起进程，提交只经安全执行层那一个出口')
 }
 
+// ---------- F 组：客户端提交面板（多行输入 / 签名分开 / 模板 / 确认卡 / 结果贴触发点） ----------
+// 做法与 A 组同一套：把 commit-plan 与 vcCommitPage 两份真源原文拼成闭包求值，再用 react-dom/server
+// 渲成静态 HTML 读外部行为。反证（F11 起）把真源文本改坏，同一套判据必须判红。
+const PAGE_SOURCE = 'src/client/views/versionControl/vcCommitPage.ts'
+const PAGE_EXPORTS = ['vcCommitPanelOf', 'vcCommitPageNode', 'vcCommitConfirmNode', 'commitBlockKeyOf']
+const React = require('react')
+const renderToStaticMarkup = require('react-dom/server').renderToStaticMarkup
+
+/** 界面词条桩：把键与占位符参数都摊在文本里，断言才能看到「将写入的原文」这类内容。 */
+const tStub = function (key, params) {
+  const extra = (params && typeof params === 'object') ? Object.keys(params).map(function (k) { return k + '=' + String(params[k]) }).join(',') : ''
+  return extra ? String(key) + ' ' + extra : String(key)
+}
+
+/** 把两份真源原文（可先按 patch 改坏）求值成页面模块：反证装置就靠 patch 这个入口。 */
+function evalPage(patch) {
+  let src = stripExports(sourceText(PLAN_SOURCE)) + '\n' + stripExports(sourceText(PAGE_SOURCE))
+  if (patch) src = patch(src)
+  src = toEvalJs(src)
+  const body = src + '\nreturn { ' + PAGE_EXPORTS.join(', ') + ', commitPlanOf, commitTrailerOf }\n'
+  return compileFn(['unused'], body)(null)
+}
+
+const PAGE_FORM = {
+  identity: { name: '张三', email: 'z@example.com' },
+  signing: { key: 'ABC123', format: 'ssh', gpgsign: true },
+  template: { configured: true, path: '.gitmessage', text: '模板第一行\n- 模板第二行', problem: '', truncated: false },
+  trailer: 'Signed-off-by: 张三 <z@example.com>',
+  amend: { available: true, short: 'abc1234', subject: '上一条提交', message: '原说明' },
+}
+const PAGE_TARGETS = [{ oid: 'abc1234', short: 'abc1234', subject: '上一条提交' }]
+
+function pageUi(over) {
+  const commit = Object.assign({
+    plan: { mode: 'staged', target: '', skipHooks: false, sign: false, signoff: false },
+    message: '标题\n\n正文第一段', state: 'idle', form: PAGE_FORM,
+    decision: null, result: null, confirm: null, formProblem: '',
+  }, over || {})
+  return { commit: commit }
+}
+
+function renderPanel(ui, module) {
+  const M = module || PAGE
+  return renderToStaticMarkup(M.vcCommitPageNode(React.createElement, tStub, { ui: ui, targets: PAGE_TARGETS }))
+}
+
+const countOf = function (html, token) { return html.split(token).length - 1 }
+
+/** F2 的判据本体：说明输入必须是多行 textarea（反证会把 textarea 改回单行 input）。 */
+const multiLineOkUi = function (html) {
+  return /<textarea[^>]*data-vc-commit-msg="1"/.test(html) && !/<input[^>]*data-vc-commit-msg="1"/.test(html)
+}
+/** F3 的判据本体：签名提交与追加签名行各占一枚 2.6 勾选框（反证会把其中一枚挂到 2.5）。 */
+const signSplitOk = function (html) {
+  return countOf(html, 'data-cap-control="2.6"') === 2 && countOf(html, 'data-cap-control="2.5"') === 1 &&
+    html.indexOf('data-vc-commit-opt="sign"') >= 0 && html.indexOf('data-vc-commit-opt="signoff"') >= 0
+}
+/** F5 的判据本体：确认卡固定四段（反证会删掉可逆性与恢复路径那一段）。 */
+const confirmSegsOk = function (html) {
+  return ['what', 'wont', 'reversible', 'verb'].every(function (seg) { return html.indexOf('data-vc-commit-seg="' + seg + '"') >= 0 })
+}
+
+const PAGE = evalPage(null)
+
+function pageGroup() {
+  const html = renderPanel(pageUi())
+  check(html.indexOf('data-vc-commit-panel="1"') >= 0 && html.indexOf('data-vc-page="changes"') >= 0, 'F1 提交面板挂在改动页上：面板根节点带 data-vc-commit-panel 与 data-vc-page=changes')
+  check(multiLineOkUi(html), 'F2 2.7 提交说明是面板内多行输入框（textarea，rows=6），不是单行输入框，也没有把用户推给外部编辑器')
+  check(html.indexOf('正文第一段') >= 0, 'F2b 多行说明的换行内容原样出现在 textarea 的值里（长文与换行不被压成一行）')
+  check(signSplitOk(html), 'F3 2.6 签名提交（sign）与追加签名行（signoff）是两枚独立勾选框，各自 data-cap-control=2.6；2.5 跳过钩子单独一枚（三件事不合并）')
+  check(html.indexOf('data-vc-commit-template') >= 0 && html.indexOf('data-cap-control="2.8"') >= 0 && html.indexOf('模板第一行') >= 0, 'F4 2.8 套用提交说明模板：按钮与模板原文都在面板内可见（读回 commit.template 后照原文套用）')
+  check(html.indexOf('data-vc-commit-trailer') >= 0 && html.indexOf('Signed-off-by: 张三') >= 0, 'F4b 2.6 面板内显示将写入的尾部签名行原文（追加签名行写什么，确认之前就能看见）')
+  const counts = {}
+  ;['2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8'].forEach(function (cap) { counts[cap] = countOf(html, 'data-cap-control="' + cap + '"') })
+  check(counts['2.1'] === 1 && counts['2.2'] === 1 && counts['2.3'] === 1 && counts['2.4'] === 2 && counts['2.5'] === 1 && counts['2.6'] === 2 && counts['2.7'] === 1 && counts['2.8'] === 1, 'F5 八条能力各自恰好一个主入口（2.4 的 fixup 与 squash 共用一条能力、两枚形态按钮）：共 10 个 data-cap-control')
+
+  const confirmHtml = renderPanel(pageUi({ confirm: {} }))
+  check(confirmSegsOk(confirmHtml) && confirmHtml.indexOf('data-focus-default="cancel"') >= 0 && confirmHtml.indexOf('data-vc-commit-confirm="1"') >= 0, 'F6 危险动作的确认卡贴面板内（不是居中模态）：四段「会动什么/不会动什么/可逆性与恢复路径/动词写后果」齐全，默认焦点在取消')
+  check(confirmHtml.indexOf('data-vc-commit-confirm-trailer') >= 0 && confirmHtml.indexOf('data-vc-commit-confirm-msg') >= 0, 'F6b 确认卡显示将写入的签名行与提交说明原文（提交前能核对到底写什么）')
+
+  const okHtml = renderPanel(pageUi({ result: { state: 'ok', ms: 12, cmd: 'commit' } }))
+  const okIdx = okHtml.indexOf('data-vc-commit-result="ok"')
+  check(okIdx > okHtml.indexOf('data-vc-commit-submit') && okIdx < okHtml.lastIndexOf('</section>'), 'F7 成功回执贴在触发点：结果节点在提交按钮之后、仍在本面板 section 之内（不是全局横幅）')
+
+  const failHtml = renderPanel(pageUi({ result: { state: 'fail', reason: 'signing-failed', message: 'gpg: signing failed', hint: '检查签名配置', ms: 3 } }))
+  check(failHtml.indexOf('data-vc-commit-result="fail"') >= 0 && failHtml.indexOf('role="alert"') >= 0 && failHtml.indexOf('vc.block.signingFailed') >= 0 && failHtml.indexOf('gpg: signing failed') >= 0, 'F8 失败回执也贴触发点：分类词条（signing-failed 那一族）与 git 原话一起显示，读屏用 role=alert')
+
+  const fixHtml = renderPanel(pageUi({ plan: { mode: 'fixup', target: '', skipHooks: false, sign: false, signoff: false } }))
+  check(fixHtml.indexOf('data-vc-commit-target="1"') >= 0 && fixHtml.indexOf('data-vc-commit-target-tip') >= 0 && fixHtml.indexOf('vc.block.needCommitTarget') >= 0, 'F9 2.4 fixup / squash 没有可吸收目标时：目标选择行给出 needCommitTarget 常驻原因，提交按钮一并禁用')
+
+  const noHeadHtml = renderPanel(pageUi({ form: Object.assign({}, PAGE_FORM, { amend: { available: false, short: '', subject: '', message: '' } }), plan: { mode: 'amend', target: '', skipHooks: false, sign: false, signoff: false } }))
+  check(noHeadHtml.indexOf('data-cap-why="vc.block.nothingToAmend"') >= 0 && /<button[^>]*data-vc-commit-mode="amend"[^>]*disabled/.test(noHeadHtml), 'F10 2.3 分支还没有任何提交时：修订按钮禁用，并把 nothingToAmend 的常驻原因挂在按钮上')
+
+  // F11–F13 反证：把真源文本改坏，上面同一套判据必须判红（证明这扇门禁会咬，不是永远绿）。
+  const broken1 = evalPage(function (s) { return s.replace("h('textarea'", "h('input'") })
+  check(multiLineOkUi(renderPanel(pageUi(), broken1)) === false, 'F11 反证：把多行 textarea 改回单行 input，F2 同一套判据判红（多行输入不是摆设）')
+  const broken2 = evalPage(function (s) { return s.replace("{ key: 'signoff', cap: '2.6',", "{ key: 'signoff', cap: '2.5',") })
+  check(signSplitOk(renderPanel(pageUi(), broken2)) === false, 'F12 反证：把追加签名行的能力标号挂到 2.5 上，F3 同一套判据判红（签名与追加签名行不许混成一条）')
+  const broken3 = evalPage(function (s) { return s.replace(/\s*\{ seg: 'reversible'[^\n]*\n/, '\n') })
+  check(confirmSegsOk(renderPanel(pageUi({ confirm: {} }), broken3)) === false, 'F13 反证：删掉确认卡的可逆性与恢复路径那一段，F6 同一套判据判红（四段少一段就挡住）')
+}
+
 // C 组起是异步的（要真的拨宿主电话、等回包）：汇总与 GATE-RESULT 等它们跑完再打。
 main().catch(function (e) { console.error('门禁执行异常：' + String((e && e.stack) || e)); process.exit(1) })
 
 async function main() {
   await formGroup()
   await commitGroup()
+  pageGroup()
   console.log('')
   console.log('汇总：' + total + ' 条断言，' + failed + ' 条失败')
   printGateResult(GATE, total, failed)
