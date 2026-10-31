@@ -29,6 +29,7 @@ declare function vcShellFormNodes(h: any, t: any, o: any): any
 declare function vcShellCapabilityRowNode(h: any, t: any, o: any): any
 declare function vcCapabilitySurfaceKindOf(cap: any): string
 declare const VC_SHELL_STATES: string[]
+declare function vcHistoryPageNode(h: any, t: any, o: any): any
 // 长任务区叶子（#1740，vcTaskPanel.ts）：由构建按叶子登记次序拼进同一个闭包，这里只声明形状。
 declare function vcTaskPanelNode(h: any, t: any, o: any): any
 // 改动页操作面板叶子（#1742，vcChangesPage.ts）：同样由构建拼进闭包；只在 changes 页且页面传入改动读数时挂载。
@@ -242,13 +243,21 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   ]))
   const notes = vcPageNotesOf(h, t, page)
   for (let i = 0; i < notes.length; i += 1) children.push(notes[i])
-  // 骨架自检：三种表单形态与四种状态各画一遍，T03 只交壳，业务入口由后续票逐条接。
-  children.push(h('div', { key: 'skeleton', className: 'vcs-skeleton', 'data-vc-skeleton': '1' }, [
-    h('div', { key: 'forms', className: 'vcs-forms' }, vcShellFormNodes(h, t, o)),
-    h('div', { key: 'states', className: 'vcs-states' }, VC_SHELL_STATES.map(function (state: string) {
-      return vcShellStateNode(h, t, { state: state })
-    })),
-  ]))
+  // 提交历史页有自己的正文（#1744 T09：列表 / 详情 / 逐文件差异 / 13.14 图形化视图）。
+  // 只有在拿到了首屏读数时才换成真正文；没有读数（壳自检、Z 组骨架断言）仍旧画骨架。
+  if (page === 'commits' && opts.reads) {
+    children.push(Object.assign({}, vcHistoryPageNode(h, t, {
+      reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs,
+    }), { key: 'history' }))
+  } else {
+    // 骨架自检：三种表单形态与四种状态各画一遍，T03 只交壳，业务入口由后续票逐条接。
+    children.push(h('div', { key: 'skeleton', className: 'vcs-skeleton', 'data-vc-skeleton': '1' }, [
+      h('div', { key: 'forms', className: 'vcs-forms' }, vcShellFormNodes(h, t, o)),
+      h('div', { key: 'states', className: 'vcs-states' }, VC_SHELL_STATES.map(function (state: string) {
+        return vcShellStateNode(h, t, { state: state })
+      })),
+    ]))
+  }
   children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
   // 改动页的 13 条动作面板（#1742）：页面把改动读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
@@ -306,6 +315,8 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,
     changes: opts.changes,
+    // #1744 T09：提交历史页要真读数与交互态，页面壳原样往下传，不在壳里改形状。
+    reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
   }), 'body'))
   // 长任务区（#1740）：页面把任务清单传进来时才画；没传整块不出现，既有页面的渲染结果不受影响。
   if (opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {
