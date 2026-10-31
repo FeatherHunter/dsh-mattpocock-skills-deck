@@ -118,6 +118,22 @@ export const VC_WRITE_ERR_FAMILY: Record<string, string> = {
   'signing-failed': 'notReady',
   'head-unreadable': 'moved',
   'head-moved': 'moved',
+
+  // #1747 冲突向导新增的十二种理由（共享真源 write-reasons.ts 已登记话术）：
+  // 「现场又被改过」的两条归 stale（要人刷新后重新看一眼）；「不可能快进」归 notFastForward（面板只做快进，合成/变基去终端）；
+  // 其余都属 notReady——输入或现场不满足这一步，照提示处理后重试同一动作即可。
+  'path-not-conflicted': 'stale',
+  'target-missing': 'stale',
+  'fast-forward-impossible': 'notFastForward',
+  'conflict-markers': 'notReady',
+  'side-missing': 'notReady',
+  'binary-file': 'notReady',
+  'version-unsupported': 'notReady',
+  'text-too-large': 'notReady',
+  'wrong-operation': 'notReady',
+  'no-operation': 'notReady',
+  'unmerged-files': 'notReady',
+  'bad-side': 'notReady',
   'unknown-write-failure': 'unknown',
 }
 

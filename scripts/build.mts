@@ -667,10 +667,17 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // #1739 首屏七片一次取全的契约（契约名、版本号、七片名单、刷新三时机、形状与逐片成败判据）只有一份真源
   //   src/shared/version-control/src/first-screen.ts；宿主聚合电话与客户端数据层都从它读，界面不许再写第二份片名或版本号。
   { marker: '// ==== shared:vcFirstScreen (spliced by build) ====', file: 'src/shared/version-control/src/first-screen.ts' },
+  // #1755 同步十个动作（域 8 的 8.5–8.14）的共享口径只有一份：动作表、argv 规划、现场判定与确认文案。
+  //   宿主预检/执行与界面都读同一份；界面自己再拼一遍命令或理由，就会与宿主执行前那次校验各说各话。
+  { marker: '// ==== shared:vcSyncActions (spliced by build) ====', file: 'src/shared/version-control/src/sync-actions.ts' },
+  { marker: '// ==== shared:vcSyncRules (spliced by build) ====', file: 'src/shared/version-control/src/sync-rules.ts' },
   // #1751 贮藏页十条（域 7）的唯一规则层：命令怎么拼、选择器与分支名怎么校验、哪两条要确认、
   //   哪一条要 2.35 版本门、丢掉的提交号怎么 store 回去，只有这一份。宿主执行层与界面读同一份；
   //   界面自己再说一遍，就会与宿主执行前那次校验各说各话。
   { marker: '// ==== shared:vcStashRules (spliced by build) ====', file: 'src/shared/version-control/src/stash-rules.ts' },
+  // #1756 T20 克隆向导：地址与选项口径（深度/分支/两个子模块开关/离线）、预检票据两片，宿主与界面读同一份。
+  { marker: '// ==== shared:vcCloneOptions (spliced by build) ====', file: 'src/shared/version-control/src/clone-options.ts' },
+  { marker: '// ==== shared:vcCloneTicket (spliced by build) ====', file: 'src/shared/version-control/src/clone-ticket.ts' },
   // #1342 域文档布局的取值（单上下文 / 多上下文）只有一份真源 src/shared/doc-layout/src/layouts.ts。
   //   界面侧状态栏与初始化卡要按同一份名单校验用户选的那一项（拒收第三档取值），所以拼进界面闭包；
   //   宿主侧选择记忆与工作区配置核按普通相对 import 取同一份源文件（不是拼接，是同一个文件）。
@@ -686,6 +693,9 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // #1752 工作树的八条动作（argv、行模型、判定与理由、剪枝清单、稀疏检出规则）：宿主执行前与界面判定必须读同一份，
   //   界面不许自己再拼第二份 argv 或第二套理由。文件不带 import，可直接拼进界面闭包；宿主半走普通相对 import。
   { marker: '// ==== shared:vcWorktreeOps (spliced by build) ====', file: 'src/shared/version-control/src/worktree-ops.ts' },
+  // #1747 冲突文本的解析与拼装（逐块读出当前边/对方边、按选择拼回整份、残留标记判定）：宿主预检执行与界面冲突视图、
+  //   6.7 整份编辑必须读同一份行号与同一套行尾口径，所以把这份零依赖模块拼进界面闭包；宿主半走普通相对 import。
+  { marker: '// ==== shared:vcConflictText (spliced by build) ====', file: 'src/shared/version-control/src/conflict-text.ts' },
 ]
 
 // ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------
@@ -776,8 +786,10 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcShellPrimitives', file: 'src/client/views/versionControl/vcShellPrimitives.ts' },
   { id: 'vcPalette', file: 'src/client/views/versionControl/vcPalette.ts' },
   { id: 'vcHistory', file: 'src/client/views/versionControl/vcHistory.ts' }, // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）
+  { id: 'vcSyncData', file: 'src/client/views/versionControl/vcSyncData.ts' }, // #1755 T19 同步段的数据层（两条电话、预检与执行回包落位；排在页面壳之前）
   { id: 'vcRemoteData', file: 'src/client/views/versionControl/vcRemoteData.ts' }, // #1754 T18 远端与同步页的数据层（六条电话、读数状态、联网与写动作回包落位）
   { id: 'vcRemotePage', file: 'src/client/views/versionControl/vcRemotePage.ts' }, // #1754 T18 远端与同步页的正文（本地记录 / 联网查看 / 四种表单形态；排在页面壳之前，壳要调它）
+  { id: 'vcSyncPage', file: 'src/client/views/versionControl/vcSyncPage.ts' }, // #1755 T19 同步段正文（十个动作、理由、租约、确认卡、任务区；由 vcRemotePage 调用）
   { id: 'vcQuery', file: 'src/client/views/versionControl/vcQuery.ts' }, // #1745 历史高级查询的数据层：十条能力的目录、输入校验与一次读取（纯逻辑，不画界面）
   { id: 'vcQueryView', file: 'src/client/views/versionControl/vcQueryView.ts' }, // #1745 历史高级查询面板的画法（提交历史页六组、管理·诊断页四组；排在页面壳之前，壳要调它）
   { id: 'vcCommitOps', file: 'src/client/views/versionControl/vcCommitOps.ts' }, // #1743 提交页的动作层（预检拿票、危险动作确认、写电话、模板套用；不画界面）
@@ -794,6 +806,12 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcWorktreesData', file: 'src/client/views/versionControl/vcWorktreesData.ts' },
   { id: 'vcWorktreesOps', file: 'src/client/views/versionControl/vcWorktreesOps.ts' },
   { id: 'vcWorktreesPage', file: 'src/client/views/versionControl/vcWorktreesPage.ts' },
+  // #1756 T20 克隆向导：填地址与选项 → 预检签票 → 凭票执行（长任务通道）→ 取消后的残留清理入口；由页面壳挂进迁移与备份页。
+  { id: 'vcClonePage', file: 'src/client/views/versionControl/vcClonePage.ts' },
+  // #1747 冲突向导两叶：动作模型（15 条能力的出入参形状）→ 页面正文（状态、冲突清单、逐块选择、四段确认卡）。
+  //   排在页面壳之前，壳的挂载段才看得到 vcConflictsPageNode。
+  { id: 'vcConflictsOps', file: 'src/client/views/versionControl/vcConflictsOps.ts' },
+  { id: 'vcConflictsPage', file: 'src/client/views/versionControl/vcConflictsPage.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },
@@ -1924,6 +1942,8 @@ const CLIENT_TIME_NAMES: string[] = [
   'SYNC_DIRTY_ECHO_TTL_MS',
   'SYNC_POLL_GRID_MS',
   'SYNC_ACTION_PROBE_WINDOW_MS',
+  // #1756：克隆向导页按长任务通道的中央节拍轮询进度（vcClonePage.ts 只声明名字，值由这一片给）。
+  'VC_TASK_POLL_INTERVAL_MS',
   'SNAP_WAIT_MS',
   'VIEW_FLAG_WRITE_DEBOUNCE_MS',
   'REST_FALLBACK_STALE_MS',

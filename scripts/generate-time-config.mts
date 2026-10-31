@@ -124,6 +124,12 @@ const KEYS: Array<[string, string, string]> = [
   // #1761 诊断页与替换对象：预检只读与凭票执行各一档，都是本地动作。
   ['vcDiagnosticsReadTimeoutMs', 'VC_DIAGNOSTICS_READ_TIMEOUT_MS', 'timeouts'],
   ['vcDiagnosticsWriteTimeoutMs', 'VC_DIAGNOSTICS_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1756 T20 克隆向导：预检只读与清理各一档；克隆本体走长任务通道，不在这里给超时。
+  ['vcCloneReadTimeoutMs', 'VC_CLONE_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcCloneWriteTimeoutMs', 'VC_CLONE_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1747 冲突向导：预检只读与凭票执行各一档，都是本地动作。
+  ['vcConflictReadTimeoutMs', 'VC_CONFLICT_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcConflictWriteTimeoutMs', 'VC_CONFLICT_WRITE_TIMEOUT_MS', 'timeouts'],
   ['gitCredentialCallBudgetMs', 'GIT_CREDENTIAL_CALL_BUDGET_MS', 'timeouts'],
   ['gitCredentialMinBudgetMs', 'GIT_CREDENTIAL_MIN_BUDGET_MS', 'timeouts'],
   ['gitCredentialMaxBudgetMs', 'GIT_CREDENTIAL_MAX_BUDGET_MS', 'timeouts'],
