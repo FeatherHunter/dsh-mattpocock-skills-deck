@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T22:03:00.275Z",
+  "generatedAt": "2026-10-31T22:10:33.320Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 506,
   "gateCount": 506,
@@ -4597,6 +4597,9 @@
         "src/client/views/versionControl/vcData.ts",
         "src/client/views/versionControl/vcFirstScreen.ts",
         "src/client/views/versionControl/vcHistory.ts",
+        "src/client/views/versionControl/vcMaintenanceData.ts",
+        "src/client/views/versionControl/vcMaintenanceDiag.ts",
+        "src/client/views/versionControl/vcMaintenancePage.ts",
         "src/client/views/versionControl/vcPalette.ts",
         "src/client/views/versionControl/vcQuery.ts",
         "src/client/views/versionControl/vcQueryView.ts",
@@ -4621,7 +4624,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 202,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 15 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 18 条"
     },
     {
       "step": "node tests/verify-1586-worktrees.ts",
