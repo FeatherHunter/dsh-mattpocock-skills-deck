@@ -787,6 +787,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcChangesPage', file: 'src/client/views/versionControl/vcChangesPage.ts' }, // #1742 改动页 13 条动作的操作面板（由页面壳在 changes 页挂进页面体）
   { id: 'vcStashOps', file: 'src/client/views/versionControl/vcStashOps.ts' }, // #1751 贮藏页的数据与动作层（首屏贮藏片怎么读、十条动作怎么拼、回包怎么落状态；不画界面）
   { id: 'vcStashPage', file: 'src/client/views/versionControl/vcStashPage.ts' }, // #1751 贮藏页的入口与真实动作画法（十条动作、确认卡、最近丢弃、版本门提示；由页面壳挂进贮藏页）
+  { id: 'vcDiagnostics', file: 'src/client/views/versionControl/vcDiagnostics.ts' }, // #1761 诊断页的数据与动作层（域 13 只读查询与二分、5.12 替换对象；不画界面）
+  { id: 'vcDiagnosticsPage', file: 'src/client/views/versionControl/vcDiagnosticsPage.ts' }, // #1761 诊断页正文（十四条能力各一个入口、13.13 只读展示、13.3/13.14 只放指针；壳要调它）
   // #1752 工作树页三叶，依赖次序固定：读首屏那一片的数据层 → 动作层（判定与两条写电话）→ 页面画法（八条入口、行、确认与结果）。
   //   排在 vcShellPages 之前，壳的挂载段才看得到 vcWorktreesPageNode；也排在 vcFirstScreen 之后，数据层只问那一份片。
   { id: 'vcWorktreesData', file: 'src/client/views/versionControl/vcWorktreesData.ts' },

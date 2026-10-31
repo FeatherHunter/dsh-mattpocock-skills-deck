@@ -45,7 +45,7 @@ declare function vcChangesPageNode(h: any, t: any, o: any): any
 // 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）：同上由构建拼进闭包，这里只声明形状。
 declare function vcBranchBoardNode(h: any, t: any, o: any): any
 // 贮藏页叶子（#1751，vcStashPage.ts）：同样由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。
-declare function vcStashPageNode(h: any, t: any, o: any): any
+declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcDiagnosticsMountNode(h: any, t: any, o: any): any // #1761 诊断页正文（只在诊断页且传了读数时挂载）
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']
@@ -253,8 +253,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     h('span', { key: 'kind', className: 'vcs-page-kind' }, surface ? String(surface.kind) : ''),
     h('span', { key: 'depth', className: 'vcs-page-depth' }, t('vc.shell.depth', { n: vcPageDepthOf(page) })),
   ]))
-  const notes = vcPageNotesOf(h, t, page)
-  for (let i = 0; i < notes.length; i += 1) children.push(notes[i])
+  children.push.apply(children, vcPageNotesOf(h, t, page))
   // #1752 工作树页正文：读首屏聚合里那一份工作树片，八条能力的入口与执行面由 vcWorktreesPage 自己画；
   //   壳只负责把宿主数据与处理函数透传进去（没有传入时页面自己画空态，不影响其它页）。
   if (page === 'worktrees' && typeof vcWorktreesPageNode === 'function') {
@@ -305,6 +304,8 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。
   const queryNode = vcQueryPageNode(h, t, opts)
   if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' }))
+  // #1761 诊断页正文：二分与替换是仅有的两个受控写，其余只读；没读数仍画骨架，其它页渲染不变。
+  const diagNode: any = typeof vcDiagnosticsMountNode === 'function' ? vcDiagnosticsMountNode(h, t, opts) : null; if (diagNode) children.push(Object.assign({}, diagNode, { key: 'diagnostics' }))
   children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
   // 改动页的 13 条动作面板（#1742）：页面把改动读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
@@ -370,6 +371,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     queries: opts.queries, inputs: opts.inputs,
     // #1743：#1743 提交页的动作层、目标提交候选与现成面板模型也从调用方传进来（壳不自己造）。
     commitOps: opts.commitOps || null, commitTargets: opts.commitTargets || [], commitPanel: opts.commitPanel || null,
+    diagnostics: opts.diagnostics || null, onDiagnosticsRead: opts.onDiagnosticsRead, onDiagnosticsWrite: opts.onDiagnosticsWrite, onDiagnosticsEdit: opts.onDiagnosticsEdit, onDiagnosticsConfirm: opts.onDiagnosticsConfirm, onDiagnosticsCancel: opts.onDiagnosticsCancel, // #1761 诊断页读数与五个回调
     ops: opts.ops, handlers: opts.handlers, // #1752 工作树页要真数据与处理函数
   }), 'body'))
   // #1751 贮藏页（域 7）：只在贮藏页挂这一块；十条动作的入口、确认卡与最近丢弃都在叶子里，

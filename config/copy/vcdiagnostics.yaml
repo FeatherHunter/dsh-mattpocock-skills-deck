@@ -1,0 +1,143 @@
+# 诊断页（#1761 T25，规格 #1586 域 13 十四条 + 5.12 替换对象）的可见文字。
+# 一个键要在 zh 与 en 两段里同时存在、占位符一致，生成器 scripts/generate-locale-config.mts 会当场报错。
+# 文案口径：只读查询说清「查什么」，受控写说清「改的是哪一份记录」；13.3 / 13.14 的主入口不在本页，指针写清去哪里。
+zh:
+  vc.diag.title: 诊断
+  vc.diag.lede: 这一页做只读查询与两个受控写：二分查找的记录、替换对象的清单。图形历史与全文搜索仍在各自的页面。
+  vc.diag.section.bisect: 二分查找
+  vc.diag.section.read: 只读查询
+  vc.diag.section.patch: 预演补丁
+  vc.diag.section.trailer: 尾部签名行
+  vc.diag.section.replace: 替换对象
+  vc.diag.section.pointer: 其他页面的入口
+  vc.diag.bisect.range: 开始二分要同时给最近的坏提交与好提交；之后的标坏、标好、跳过只改二分记录。
+  vc.diag.bisect.start: 开始二分
+  vc.diag.bisect.bad: 标为坏
+  vc.diag.bisect.good: 标为好
+  vc.diag.bisect.skip: 跳过这个
+  vc.diag.bisect.reset: 结束二分
+  vc.diag.bisect.refresh: 看范围与日志
+  vc.diag.bisect.inactive: 现在不在二分里。
+  vc.diag.read.query: 查询
+  vc.diag.read.empty: 还没有读数；先填好条件再点「查询」。
+  vc.diag.field.paths: 路径过滤（可留空）
+  vc.diag.field.object: 对象（提交、分支或文件）
+  vc.diag.field.mode: 查看方式
+  vc.diag.field.modePretty: 看内容
+  vc.diag.field.modeType: 只看类型
+  vc.diag.field.rev: 版本（留空默认 HEAD）
+  vc.diag.field.prefix: 引用命名空间（如 refs/heads/）
+  vc.diag.field.ancestor: 祖先提交
+  vc.diag.field.descendant: 后代提交
+  vc.diag.field.upstream: 上游分支或提交
+  vc.diag.field.head: 要比较的提交
+  vc.diag.field.modeCount: 只数个数
+  vc.diag.field.modeLeftRight: 左右各多少
+  vc.diag.field.left: 左边（第一个版本）
+  vc.diag.field.right: 右边（第二个版本）
+  vc.diag.field.bad: 最近的坏提交
+  vc.diag.field.good: 最近的好提交
+  vc.diag.field.from: 被替换对象
+  vc.diag.field.to: 被指向对象
+  vc.diag.patch.note: 只做预演：git 会检查这个补丁能不能打上，不会改动工作区。
+  vc.diag.patch.placeholder: 贴一段 diff（git diff 的输出）
+  vc.diag.patch.preview: 预演补丁
+  vc.diag.trailer.note: 这里只读展示提交说明末尾的签名行；要写入 Signed-off-by，请到提交页勾选「追加签名行」。
+  vc.diag.replace.note: 建立替换后，所有命令看到被替换对象时读到的其实是被指向对象；撤销就删掉这一条记录。
+  vc.diag.replace.create: 建立替换
+  vc.diag.replace.refresh: 刷新清单
+  vc.diag.replace.undo: 撤销替换
+  vc.diag.pointer.search: 全文搜索的主入口在「全库搜索」，从那里按内容搜工作区。
+  vc.diag.pointer.commits: 图形化历史在「提交历史」页；这里不打开 gitk，也不弹外部窗口。
+  vc.diag.confirm.cancel: 取消
+  vc.diag.confirm.go: 确认
+  vc.diag.result.ok: 这一步做完了
+  vc.diag.result.fail: 这一步没成
+  vc.diag.result.running: 正在和 git 打交道…
+  vc.diag.fail.args: 参数不合规，请检查填的内容
+  vc.diag.fail.blocked: 当前状态不允许这个动作
+  vc.diag.fail.timeout: git 没有在限定时间内回音
+  vc.diag.fail.truncated: 输出太大，这里显示的是截断后的内容
+  vc.diag.fail.exit: git 报了错，原文见下面
+  vc.diag.fail.git: git 报了错，原文见下面
+  vc.diag.fail.env: 宿主环境没准备好，稍后重试
+  vc.diag.fail.parse: git 的输出看不懂，可能是版本不一致
+  vc.diag.fail.unknown: 没见过这一类失败，原文见下面
+  vc.diag.reason.notACommit: 填的版本名不是一个提交
+  vc.diag.reason.alreadyBisecting: 已经在一趟二分里，先结束或重置
+  vc.diag.reason.notBisecting: 现在不在二分里，先开始二分
+  vc.diag.reason.sameObject: 两个版本是同一个对象，换了没意义
+  vc.diag.reason.alreadyReplaced: 这个对象已经有替换记录
+  vc.diag.reason.noReplace: 这个对象没有替换记录，撤销不了
+  vc.diag.reason.badTarget: 目标不合法，请检查填的内容
+  vc.diag.reason.needConfirm: 这个动作会改仓库状态，先点确认卡上的确认
+en:
+  vc.diag.title: Diagnostics
+  vc.diag.lede: 'Read-only queries plus two controlled writes on this page: bisect records and replace references. The graphical history and full-text search stay on their own pages.'
+  vc.diag.section.bisect: Bisect
+  vc.diag.section.read: Read-only queries
+  vc.diag.section.patch: Preview a patch
+  vc.diag.section.trailer: Trailer lines
+  vc.diag.section.replace: Replace references
+  vc.diag.section.pointer: Entries on other pages
+  vc.diag.bisect.range: Starting a bisect needs both the latest bad commit and a good commit; marking bad, good or skipping only changes the bisect record.
+  vc.diag.bisect.start: Start bisect
+  vc.diag.bisect.bad: Mark bad
+  vc.diag.bisect.good: Mark good
+  vc.diag.bisect.skip: Skip this one
+  vc.diag.bisect.reset: End bisect
+  vc.diag.bisect.refresh: Show range and log
+  vc.diag.bisect.inactive: Not in a bisect right now.
+  vc.diag.read.query: Query
+  vc.diag.read.empty: No reading yet; fill in the conditions and press "Query".
+  vc.diag.field.paths: Path filter (may be empty)
+  vc.diag.field.object: Object (commit, branch or file)
+  vc.diag.field.mode: View mode
+  vc.diag.field.modePretty: Show content
+  vc.diag.field.modeType: Type only
+  vc.diag.field.rev: Revision (empty means HEAD)
+  vc.diag.field.prefix: Ref namespace (e.g. refs/heads/)
+  vc.diag.field.ancestor: Ancestor commit
+  vc.diag.field.descendant: Descendant commit
+  vc.diag.field.upstream: Upstream branch or commit
+  vc.diag.field.head: Commit to compare
+  vc.diag.field.modeCount: Count only
+  vc.diag.field.modeLeftRight: Count each side
+  vc.diag.field.left: Left side (first revision)
+  vc.diag.field.right: Right side (second revision)
+  vc.diag.field.bad: Latest bad commit
+  vc.diag.field.good: Latest good commit
+  vc.diag.field.from: Replaced object
+  vc.diag.field.to: Replacement object
+  vc.diag.patch.note: 'Preview only: git checks whether the patch applies, without touching the working tree.'
+  vc.diag.patch.placeholder: Paste a diff (output of git diff)
+  vc.diag.patch.preview: Preview patch
+  vc.diag.trailer.note: This shows the trailer lines at the end of the commit message; to write a Signed-off-by, use "Append sign-off line" on the commit page.
+  vc.diag.replace.note: Once a replacement exists, every command reading the replaced object sees the replacement object instead; undoing it removes the record.
+  vc.diag.replace.create: Create replacement
+  vc.diag.replace.refresh: Refresh list
+  vc.diag.replace.undo: Undo replacement
+  vc.diag.pointer.search: Full-text search lives on the global search page; search the working tree by content there.
+  vc.diag.pointer.commits: The graphical history is on the commit history page; gitk is never opened here.
+  vc.diag.confirm.cancel: Cancel
+  vc.diag.confirm.go: Confirm
+  vc.diag.result.ok: Done
+  vc.diag.result.fail: This step failed
+  vc.diag.result.running: Talking to git...
+  vc.diag.fail.args: Invalid arguments, check what you filled in
+  vc.diag.fail.blocked: The current state does not allow this action
+  vc.diag.fail.timeout: git did not answer in time
+  vc.diag.fail.truncated: Output too large; what you see is truncated
+  vc.diag.fail.exit: git reported an error; see the text below
+  vc.diag.fail.git: git reported an error; see the text below
+  vc.diag.fail.env: The host environment is not ready; try again later
+  vc.diag.fail.parse: Could not parse git output, possibly a version mismatch
+  vc.diag.fail.unknown: Unrecognized failure; see the text below
+  vc.diag.reason.notACommit: The revision you entered is not a commit
+  vc.diag.reason.alreadyBisecting: A bisect is already running; end or reset it first
+  vc.diag.reason.notBisecting: Not in a bisect; start one first
+  vc.diag.reason.sameObject: Both revisions are the same object; nothing to change
+  vc.diag.reason.alreadyReplaced: This object already has a replacement
+  vc.diag.reason.noReplace: This object has no replacement to undo
+  vc.diag.reason.badTarget: Invalid target, check what you filled in
+  vc.diag.reason.needConfirm: This action changes repository state; confirm it on the card first
