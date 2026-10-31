@@ -97,7 +97,9 @@ export function commitPlanDangerous(raw: any): boolean {
   return mode === 'amend' || mode === 'fixup' || mode === 'squash'
 }
 
-/** 拼 git 参数（固定前缀之后的切片）：每个开关一个元素，提交说明也只占一个元素。 */
+/** 拼 git 参数（固定前缀之后的切片）：每个开关一个元素，提交说明也只占一个元素。
+ *  fixup 的说明由 git 从目标提交抄（这里不带 -m）；squash 必须由人写一句（git 会开编辑器要说明，
+ *  而执行层把编辑器钉成必定失败，所以说明只能走 -m 传进去）。 */
 export function commitArgvOf(raw: any, message: any): string[] {
   const p: CommitPlan = commitPlanOf(raw)
   const msg: string = String(message === undefined || message === null ? '' : message)
@@ -109,7 +111,7 @@ export function commitArgvOf(raw: any, message: any): string[] {
   if (p.sign) argv.push('-S')
   if (p.signoff) argv.push('-s')
   if (p.skipHooks) argv.push('--no-verify')
-  if (p.mode === 'fixup' || p.mode === 'squash') return argv
+  if (p.mode === 'fixup') return argv
   if (p.mode === 'amend' && msg.trim() === '') {
     argv.push('--no-edit')
     return argv

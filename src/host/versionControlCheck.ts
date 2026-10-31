@@ -25,6 +25,7 @@
 import { createHash } from 'node:crypto'
 import { fixedPrefix, lsFilesStageArgs, remoteListArgs, REMOTE_PATTERN } from '../shared/version-control/src/commands.js'
 import { judge } from '../shared/version-control/src/rules.js'
+import { commitPlanOf, commitPlanProblem } from '../shared/version-control/src/commit-plan.js'
 import { makeTicket, indexRecordCount, fingerprintInputOf, hasIntentToAdd, makeBindings, planBindingInput, worktreeBindingInput, pathAbsentFromScreen, configOldValueOf } from '../shared/version-control/src/write-ticket.js'
 import { pushPlanOf } from '../shared/version-control/src/push-plan.js'
 import { messageProblem, writeHintFor } from '../shared/version-control/src/write-reasons.js'
@@ -45,6 +46,36 @@ const REMOTE_LIMIT: number = 4096
 /** 绑定表用的短摘要（#1741）：与索引指纹同一把尺 —— sha256 前 16 位十六进制，两个宿主文件的算法必须一致。 */
 function digest16(text: any): string {
   return createHash('sha256').update(String(text === undefined || text === null ? '' : text), 'utf8').digest('hex').slice(0, 16)
+}
+
+/**
+ * 按提交计划修正 judge 的判定（#1743，域 2）：
+ *   · 2.2 提交全部已跟踪改动（-a）不要求暂存区有东西，只要工作区里有已跟踪文件的改动就能提交；
+ *   · 2.3 修订上一条提交可以只改说明（--no-edit），所以同样摘掉「没有暂存内容」；但分支还没有任何提交时
+ *     要给一个更具体的理由 nothing-to-amend，界面据此把按钮禁用并说清楚为什么；
+ *   · 其余模式（2.1 暂存内容、2.4 fixup / squash）仍然要求暂存区有内容。
+ * 判定的唯一真源仍是 rules.judge，这里只按模式摘理由 / 补理由，不另写一套判定。
+ */
+function adjustCommitDecision(decision: any, plan: any, screen: any): any {
+  const verdict: string = (decision && decision.verdict) ? String(decision.verdict) : 'block'
+  const reasons: any[] = Array.isArray(decision && decision.reasons) ? decision.reasons.slice() : []
+  const hasHead: boolean = !(screen && screen.repo && screen.repo.hasCommits === false)
+  const without = function (item: any): any[] { return reasons.filter(function (x: any): boolean { return x !== item }) }
+  if (plan.mode === 'amend') {
+    // 只改说明的修订不需要暂存内容；分支还没有提交时换成更具体的 nothing-to-amend。
+    const left: any[] = without('nothing-staged')
+    if (!hasHead) return { verdict: 'block', reasons: left.concat(['nothing-to-amend']) }
+    if (left.length === 0) return { verdict: 'allow', reasons: ['ok'] }
+    return { verdict: (verdict === 'warn') ? 'warn' : (verdict === 'allow' ? 'allow' : 'block'), reasons: left }
+  }
+  if (plan.mode === 'all') {
+    // 提交全部已跟踪改动（-a）不要求暂存区有东西；工作区里一处改动都没有时仍然挡住。
+    const changes: number = Number(screen && screen.stagedCount ? screen.stagedCount : 0) + Number(screen && screen.unstagedCount ? screen.unstagedCount : 0)
+    const left: any[] = (changes > 0) ? without('nothing-staged') : reasons
+    if (left.length === 0) return { verdict: 'allow', reasons: ['ok'] }
+    return { verdict: (verdict === 'warn') ? 'warn' : (verdict === 'allow' ? 'allow' : 'block'), reasons: left }
+  }
+  return decision
 }
 
 /** 父文件注入的依赖：首屏读数、安全执行层与时钟票据口都在这里，本文件不自取任何环境。 */
@@ -89,6 +120,13 @@ export function createWriteCheck(deps: any): any {
     if (!sr || sr.ok !== true) return sr || fail('env', 'unknown-write-failure', '读不到这个仓库的首屏')
     const screen: any = sr.screen
     let decision: any = judge(screen, op)
+    // #1743：提交计划先归一、再校验（缺目标 / 坏目标当场拒，不起任何进程），然后按模式修正判定。
+    const commitPlan: any = (op === 'commit') ? commitPlanOf(a.plan) : null
+    if (op === 'commit') {
+      const planBad: any = commitPlanProblem(a.plan)
+      if (planBad) return fail('args', planBad, writeHintFor(planBad))
+      decision = adjustCommitDecision(decision, commitPlan, screen)
+    }
     // D3 + 裁决 1：推送时「没有上游 / 上游被删」不是「不能推」，而是「走 set-upstream 档、显式 -u」——
     // 把这两条理由从 block 里摘掉，剩下的理由还成立才真挡（rules.ts 是只读版写的，这两档归写操作自己判）。
     if (op === 'push') {
@@ -177,8 +215,18 @@ export function createWriteCheck(deps: any): any {
       bindings = makeBindings({ preconditions: { planDigest: digest16(planBindingInput(plan)) } })
     }
     if (op === 'commit') {
-      const bad: any = messageProblem(a.message)
-      if (bad) return fail('args', bad, writeHintFor(bad))
+      plan = commitPlan
+      // 2.4 的 fixup / squash 先要有一个能被吸收的目标提交：目标不在仓库里就当参数错拒掉，零写命令。
+      // 目标本身是外部输入，先过 commitPlanProblem 的白名单（在 adjustCommitDecision 之前已经做过），这里再让 git 核一次在不在。
+      if (plan.mode === 'fixup' || plan.mode === 'squash') {
+        const tv: any = await readOut(cwd, ['rev-parse', '--verify', String(plan.target) + '^{commit}'], REMOTE_TIMEOUT_MS, REMOTE_LIMIT)
+        if (!tv || tv.ok !== true) return fail('args', 'bad-commit-target', writeHintFor('bad-commit-target'))
+      }
+      // 说明校验按模式分开：修订可以只改文件（--no-edit），fixup / squash 不写说明；其余两种必须有说明。
+      let msgBad: any = null
+      if (plan.mode === 'amend') msgBad = String(a.message === undefined || a.message === null ? '' : a.message).trim() === '' ? null : messageProblem(a.message)
+      else if (plan.mode !== 'fixup') msgBad = messageProblem(a.message)
+      if (msgBad) return fail('args', msgBad, writeHintFor(msgBad))
       // ③ 索引指纹与 i-t-a：两条都只读，且与执行前那次逐字节同一口径（同一固定前缀、同一 -z、不截断）。
       const lf: any = await readOut(cwd, lsFilesStageArgs(), LSFILES_TIMEOUT_MS, LSFILES_LIMIT)
       if (!lf || lf.ok !== true) return fail(lf && lf.kind ? lf.kind : 'other', 'fingerprint-unavailable', (lf && lf.message) || '读不到暂存区清单', { hint: writeHintFor('fingerprint-unavailable') })
@@ -186,8 +234,11 @@ export function createWriteCheck(deps: any): any {
       const text: any = fingerprintInputOf(lf.stdout)
       indexFingerprint = createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 16)
       indexEntries = indexRecordCount(lf.stdout)
-      // 提交绑索引条数：多一条少一条都算状态变过（理由沿用 stale-index，不新增词表项）。
-      bindings = makeBindings({ counters: { indexEntries: indexEntries } })
+      // 提交绑两格：计划摘要（模式、目标、危险开关）与索引条数；2.2 的 commit -a 还要绑工作树形状，
+      // 否则「预检之后又改了一个已跟踪文件」会被 -a 静默带进这次提交。比对口径与执行前那一侧逐字节一致。
+      const pre: any = { planDigest: digest16(planBindingInput(commitPlan)) }
+      if (commitPlan.mode === 'all') pre.worktreeDigest = digest16(worktreeBindingInput(screen))
+      bindings = makeBindings({ counters: { indexEntries: indexEntries }, preconditions: pre })
       // i-t-a（git add -N）：与「真暂存一个空文件」指纹相同但提交结局不同，直接拒绝（总工订正 3）。
       const st: any = await readOut(cwd, ['status', '--porcelain=v2', '-z', '--untracked-files=all', '--find-renames'], LSFILES_TIMEOUT_MS, LSFILES_LIMIT)
       if (!st || st.ok !== true) return fail(st && st.kind ? st.kind : 'other', 'unknown-write-failure', (st && st.message) || '读不到工作区状态')

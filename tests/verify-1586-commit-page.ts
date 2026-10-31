@@ -70,7 +70,7 @@ check(av({ mode: 'all' }, '标题') === 'commit|-a|-m|标题', 'A2 2.2 提交全
 check(av({ mode: 'amend' }, '') === 'commit|--amend|--no-edit', 'A3a 2.3 修订上一条提交且不写新说明：用 --amend 与 --no-edit')
 check(av({ mode: 'amend' }, '改说明') === 'commit|--amend|-m|改说明', 'A3b 2.3 修订并改说明：--amend 与 -m 说明各自独立')
 check(av({ mode: 'fixup', target: 'HEAD~1' }, '随便') === 'commit|--fixup=HEAD~1', 'A4a 2.4 fixup：目标以 --fixup=<目标> 一个元素传入，不拼 -m')
-check(av({ mode: 'squash', target: 'abc123' }, '随便') === 'commit|--squash=abc123', 'A4b 2.4 squash：目标以 --squash=<目标> 一个元素传入，不拼 -m')
+check(av({ mode: 'squash', target: 'abc123' }, '随便') === 'commit|--squash=abc123|-m|随便', 'A4b 2.4 squash：目标以 --squash=<目标> 一个元素传入，说明另用 -m 传（执行层把编辑器钉成必定失败，git 不接受空说明）')
 check(skipHooksOk(P), 'A5 2.5 跳过钩子：--no-verify 是独立元素，且恰好一次')
 check(av({ mode: 'staged', sign: true }, '标题') === 'commit|-S|-m|标题' && av({ mode: 'staged', signoff: true }, '标题') === 'commit|-s|-m|标题', 'A6a 2.6 签名提交（-S）与追加签名行（-s）各是各的元素')
 check(av({ mode: 'staged', sign: true, signoff: true }, '标题') === 'commit|-S|-s|-m|标题', 'A6b 2.6 两者同时勾选：-S 与 -s 分别是独立元素，不是一个合并开关')
@@ -254,11 +254,216 @@ async function formGroup() {
   check(sourceText(MOUNT_SOURCE).indexOf("loggedPhone('wf.gitCommitForm'") >= 0, 'C25 装配壳用同一套 loggedPhone 日志口径包住这条电话')
 }
 
+
+// ---- D/E 组：宿主预检与执行（真临时仓库 + 可路由假 subprocess）----
+// 做法与 tests/verify-841-write-phones.ts 同一套：只读命令真跑 git，写命令可被 override 拦下来，
+// 这样「真跑过的 argv」「真仓库有没有被动过」「票据门有没有拦住」都能断言，不必摸私有函数。
+const { spawnSync } = require('child_process')
+const { pathToFileURL } = require('url')
+
+function realGit(cwd, args) {
+  const r = spawnSync('git', args, { cwd: cwd, encoding: 'utf8', windowsHide: true, env: Object.assign({}, process.env, { GIT_EDITOR: 'false', GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'false' }) })
+  return { code: r.status, out: String(r.stdout || '').trim(), err: String(r.stderr || '').trim() }
+}
+
+/** 造一个真临时仓库：默认带一条基线提交并把 a.txt 的改动暂存好（2.1 的起点）。 */
+function mkRealRepo(tag, withCommit) {
+  const dir = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'dsws1743-' + tag + '-'))
+  realGit(dir, ['init', '-q', '-b', 'main'])
+  realGit(dir, ['config', 'user.name', '测试员'])
+  realGit(dir, ['config', 'user.email', 't@example.com'])
+  require('fs').writeFileSync(require('path').join(dir, 'a.txt'), 'a\n')
+  if (withCommit !== false) {
+    realGit(dir, ['add', '-A'])
+    realGit(dir, ['commit', '-q', '-m', '基线提交'])
+    require('fs').writeFileSync(require('path').join(dir, 'a.txt'), 'a\nb\n')
+    realGit(dir, ['add', 'a.txt'])
+  }
+  return dir
+}
+
+/** 造一个宿主版控实例：deps 形状照 verify-841；写命令默认真跑，用例可 setOverride 拦截。 */
+async function makeCommitVc(tag, withCommit) {
+  const dir = mkRealRepo(tag, withCommit)
+  const spawns = []
+  const requests = []
+  const logs = []
+  const clock = { t: 1000 }
+  let override = null
+  const deps = {
+    subprocess: {
+      spawn: function (req) {
+        spawns.push(req.argv.slice())
+        requests.push({ argv: req.argv.slice(), cwd: req.cwd })
+        const hit = override ? override(req.argv, req) : null
+        if (hit) {
+          const mk = function (t, trunc) { return { finalize: function () { return { text: String(t === undefined || t === null ? '' : t), truncated: trunc === true } } } }
+          return { done: Promise.resolve({ exitCode: hit.code || 0 }), collected: { stdout: mk(hit.stdout, hit.truncated), stderr: mk(hit.stderr) }, terminate: function () {} }
+        }
+        const r = spawnSync(req.argv[0], req.argv.slice(1), { cwd: req.cwd, encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 26, env: Object.assign({}, process.env, { GIT_EDITOR: 'false', GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'false' }) })
+        const mk2 = function (b) { return { finalize: function () { return { text: String(b || ''), truncated: false } } } }
+        return { done: Promise.resolve({ exitCode: r.status }), collected: { stdout: mk2(r.stdout), stderr: mk2(r.stderr) }, terminate: function () {} }
+      },
+    },
+    timer: { timeout: function (ms) { return new Promise(function (res) { setTimeout(res, ms) }) } },
+    fs: { stat: async function (p) { return await require('fs').promises.stat(p) }, lstat: async function (p) { return await require('fs').promises.lstat(p) }, exists: async function (p) { try { await require('fs').promises.access(p); return true } catch (e) { return false } } },
+    getPlatform: async function () { return { resolveExecutable: async function (n) { return n === 'git' ? 'git' : null } } },
+    DEFAULT_CWD: ROOT,
+    TIMEOUT_MS: 30000,
+    gate: { noteOutbound: function () {} },
+    logCtx: { fire: function (level, event, fields) { logs.push({ level: level, event: event, fields: fields }) } },
+    now: function () { return clock.t },
+  }
+  const vcMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.js')).href)
+  const vc = vcMod.createVersionControl(deps)
+  const apps = require('../src/shared/version-control/src/commit-plan.js')
+  function after(argv) { const i = argv.indexOf('i18n.logOutputEncoding=UTF-8'); return i < 0 ? argv : argv.slice(i + 1) }
+  function writeSpawns() { return spawns.filter(function (a) { return ['add', 'reset', 'commit', 'pull', 'push', 'fetch'].indexOf(after(a)[0]) >= 0 }) }
+  return { dir: dir, vc: vc, spawns: spawns, requests: requests, clock: clock, after: after, writeSpawns: writeSpawns, setOverride: function (fn) { override = fn }, logs: logs, plans: apps }
+}
+
+async function commitGroup() {
+  const plans = require('../src/shared/version-control/src/commit-plan.js')
+  const defaultPlan = plans.commitPlanDefault()
+
+  console.log('D 提交计划预检（真仓库）')
+  // D1 2.1 提交暂存内容：默认计划在「有暂存」时放行，票据里绑计划摘要与索引条数。
+  const h1 = await makeCommitVc('d1')
+  const p1 = await h1.vc.handleGitWriteCheck({ cwd: h1.dir, op: 'commit', message: '标题一', plan: null })
+  check(p1.ok === true && p1.decision.verdict === 'allow' && p1.plan.mode === 'staged', 'D1 2.1 有暂存内容时默认计划放行（plan.mode=staged）')
+  const t1 = (await h1.vc.writeTickets()).get(p1.ticket.id)
+  check(!!t1 && t1.target.mode === 'staged' && typeof t1.bindings.preconditions.planDigest === 'string' && t1.bindings.preconditions.planDigest.length === 16, 'D2 票据里绑了提交计划摘要（16 位短摘要），执行前会重算比对')
+
+  // D3 2.2 全部已跟踪改动：只有未暂存改动时也能提交；另外默认计划此时应被挡（nothing-staged）。
+  const h2 = await makeCommitVc('d2')
+  realGit(h2.dir, ['reset', '-q'])
+  const p2 = await h2.vc.handleGitWriteCheck({ cwd: h2.dir, op: 'commit', message: '标题二', plan: { mode: 'all' } })
+  check(p2.ok === true && p2.decision.verdict === 'allow' && p2.plan.mode === 'all', 'D3 2.2 只有未暂存改动时 -a 计划仍放行（不逼人先暂存）')
+  const t2 = (await h2.vc.writeTickets()).get(p2.ticket.id)
+  check(!!t2 && typeof t2.bindings.preconditions.worktreeDigest === 'string' && t2.bindings.preconditions.worktreeDigest.length === 16, 'D4 2.2 额外绑工作树形状（预检后改过的已跟踪文件不会被 -a 静默带走）')
+  const p2default = await h2.vc.handleGitWriteCheck({ cwd: h2.dir, op: 'commit', message: '标题二', plan: null })
+  check(p2default.ok === false && p2default.error.kind === 'blocked' && p2default.decision.reasons.indexOf('nothing-staged') >= 0, 'D5 反证：同一仓库用默认计划（只提交暂存区）必须被挡，理由 nothing-staged')
+
+  // D6 2.3 修订：没有暂存内容也能只改说明；但分支还没有提交时给 nothing-to-amend。
+  const h3 = await makeCommitVc('d3')
+  realGit(h3.dir, ['reset', '-q'])
+  const p3 = await h3.vc.handleGitWriteCheck({ cwd: h3.dir, op: 'commit', message: '只改说明', plan: { mode: 'amend' } })
+  check(p3.ok === true && p3.decision.verdict === 'allow' && p3.plan.mode === 'amend', 'D6 2.3 没有暂存内容也能修订（只改说明这一档不再被 nothing-staged 挡）')
+  const h3empty = await makeCommitVc('d3empty', false)
+  const p3empty = await h3empty.vc.handleGitWriteCheck({ cwd: h3empty.dir, op: 'commit', message: '', plan: { mode: 'amend' } })
+  check(p3empty.ok === false && p3empty.error.kind === 'blocked' && p3empty.decision.reasons.indexOf('nothing-to-amend') >= 0, 'D7 2.3 分支还没有任何提交时挡下来，理由 nothing-to-amend（按钮据此禁用并说清原因）')
+
+  // D8 2.4 目标核验：目标不在仓库里、目标形状不对，都要当场拒且零写命令。
+  const h4 = await makeCommitVc('d4')
+  const n4 = h4.writeSpawns().length
+  const p4 = await h4.vc.handleGitWriteCheck({ cwd: h4.dir, op: 'commit', message: '', plan: { mode: 'fixup', target: 'deadbeef' } })
+  check(p4.ok === false && p4.error.reason === 'bad-commit-target' && h4.writeSpawns().length === n4, 'D8 2.4 fixup 目标不在仓库里：bad-commit-target 且零写命令')
+  const p4shape = await h4.vc.handleGitWriteCheck({ cwd: h4.dir, op: 'commit', message: '', plan: { mode: 'squash', target: '--junk' } })
+  check(p4shape.ok === false && p4shape.error.reason === 'bad-commit-target', 'D9 2.4 目标形状不对（像开关）：bad-commit-target，连同形状一起拒')
+  const p4miss = await h4.vc.handleGitWriteCheck({ cwd: h4.dir, op: 'commit', message: '', plan: { mode: 'fixup' } })
+  check(p4miss.ok === false && p4miss.error.reason === 'need-commit-target', 'D10 2.4 没选目标：need-commit-target（界面同一理由禁用按钮）')
+
+  // D11 票据绑计划：预检按 2.1 开的票，执行时换成 2.3 修订必须拒，且 HEAD 不动。
+  const h5 = await makeCommitVc('d5')
+  const p5 = await h5.vc.handleGitWriteCheck({ cwd: h5.dir, op: 'commit', message: '普通提交', plan: null })
+  const head5 = realGit(h5.dir, ['rev-parse', 'HEAD']).out
+  const n5 = h5.writeSpawns().length
+  const x5 = await h5.vc.handleGitCommit({ cwd: h5.dir, ticketId: p5.ticket.id, requestId: 'mismatch-1', message: '普通提交', plan: { mode: 'amend' } })
+  check(x5.ok === false && x5.error.reason === 'target-changed' && h5.writeSpawns().length === n5 && realGit(h5.dir, ['rev-parse', 'HEAD']).out === head5, 'D11 票据绑定生效：执行时把 2.1 换成 2.3 被拒 target-changed，零写命令、HEAD 不动')
+
+  console.log('E 提交执行（argv 逐元素与失败分类）')
+  // E1 2.1：真跑一条 git commit -m，argv 每个元素独立、cwd 钉在票的那棵树。
+  const h6 = await makeCommitVc('e1')
+  const p6 = await h6.vc.handleGitWriteCheck({ cwd: h6.dir, op: 'commit', message: '第一行标题' })
+  const x6 = await h6.vc.handleGitCommit({ cwd: h6.dir, ticketId: p6.ticket.id, requestId: 'e1-1', message: '第一行标题', plan: null })
+  const c6 = h6.spawns.filter(function (a) { return h6.after(a)[0] === 'commit' })[0] || []
+  const r6 = h6.requests[h6.spawns.indexOf(c6)] || {}
+  check(x6.ok === true && x6.committed === true && x6.mode === 'staged', 'E1 2.1 提交成功，回包带形态 staged 与前后 HEAD')
+  check(h6.after(c6).join('\u0001') === 'commit\u0001-m\u0001第一行标题', 'E2 2.1 argv 逐元素：commit / -m / 整段说明各占一个元素（说明里的换行与空格不被拆开）')
+  check(c6.every(function (x) { return typeof x === 'string' }) && c6.indexOf('--no-pager') > 0 && c6.indexOf('i18n.logOutputEncoding=UTF-8') > 0 && c6.indexOf('--literal-pathspecs') > 0 && h6.after(c6)[0] === 'commit', 'E3 子命令排在固定前缀之后，且全是独立的字符串元素（没有 shell 拼接过的一整行）')
+  check(r6.cwd === h6.dir, 'E4 执行时的 cwd 钉在票据那条仓库上（不是调用方随便给的目录）')
+
+  // E5 2.2：argv 带 -a。
+  const h7 = await makeCommitVc('e2')
+  realGit(h7.dir, ['reset', '-q'])
+  const p7 = await h7.vc.handleGitWriteCheck({ cwd: h7.dir, op: 'commit', message: '全部已跟踪改动', plan: { mode: 'all' } })
+  const x7 = await h7.vc.handleGitCommit({ cwd: h7.dir, ticketId: p7.ticket.id, requestId: 'e2-1', message: '全部已跟踪改动', plan: { mode: 'all' } })
+  const c7 = h7.spawns.filter(function (a) { return h7.after(a)[0] === 'commit' })[0] || []
+  check(x7.ok === true && x7.mode === 'all' && h7.after(c7).join('\u0001') === 'commit\u0001-a\u0001-m\u0001全部已跟踪改动', 'E5 2.2 argv 是 commit -a -m：-a 独立元素且排在说明前')
+
+  // E6 2.3：修订上一条提交，argv 是 --amend；说明为空时用 --no-edit 不逼人重写。
+  const h8 = await makeCommitVc('e3')
+  realGit(h8.dir, ['reset', '-q'])
+  const p8 = await h8.vc.handleGitWriteCheck({ cwd: h8.dir, op: 'commit', message: '改写后的说明', plan: { mode: 'amend' } })
+  const x8 = await h8.vc.handleGitCommit({ cwd: h8.dir, ticketId: p8.ticket.id, requestId: 'e3-1', message: '改写后的说明', plan: { mode: 'amend' } })
+  const c8 = h8.spawns.filter(function (a) { return h8.after(a)[0] === 'commit' })[0] || []
+  check(x8.ok === true && x8.mode === 'amend' && h8.after(c8).join('\u0001') === 'commit\u0001--amend\u0001-m\u0001改写后的说明', 'E6 2.3 argv 是 commit --amend -m，仍是独立元素')
+  check(realGit(h8.dir, ['log', '-1', '--format=%s']).out === '改写后的说明', 'E7 2.3 真仓库的上一条提交说明确实被改写（HEAD 换了新提交，说明是新写的）')
+  const p8b = await h8.vc.handleGitWriteCheck({ cwd: h8.dir, op: 'commit', message: '', plan: { mode: 'amend' } })
+  const x8b = await h8.vc.handleGitCommit({ cwd: h8.dir, ticketId: p8b.ticket.id, requestId: 'e3-2', message: '', plan: { mode: 'amend' } })
+  const c8b = h8.spawns.filter(function (a) { return h8.after(a)[0] === 'commit' })[1] || []
+  check(x8b.ok === true && h8.after(c8b).join('\u0001') === 'commit\u0001--amend\u0001--no-edit', 'E8 2.3 不带新说明时 argv 用 --no-edit（允许只改内容，不逼人重写说明）')
+
+  // E9 2.4：fixup / squash 的 argv 把目标提交写成 --fixup=<目标> / --squash=<目标>，不带 -m。
+  const h9 = await makeCommitVc('e4')
+  const target9 = realGit(h9.dir, ['rev-parse', 'HEAD']).out
+  const p9 = await h9.vc.handleGitWriteCheck({ cwd: h9.dir, op: 'commit', message: '', plan: { mode: 'fixup', target: target9 } })
+  const x9 = await h9.vc.handleGitCommit({ cwd: h9.dir, ticketId: p9.ticket.id, requestId: 'e4-1', message: '', plan: { mode: 'fixup', target: target9 } })
+  const c9 = h9.spawns.filter(function (a) { return h9.after(a)[0] === 'commit' })[0] || []
+  check(x9.ok === true && x9.mode === 'fixup' && h9.after(c9).join('\u0001') === 'commit\u0001--fixup=' + target9, 'E9 2.4 fixup argv 是 commit --fixup=<目标>，说明由 git 自己写（不带 -m）')
+  const h10 = await makeCommitVc('e5')
+  const target10 = realGit(h10.dir, ['rev-parse', 'HEAD']).out
+  const p10 = await h10.vc.handleGitWriteCheck({ cwd: h10.dir, op: 'commit', message: '压缩说明', plan: { mode: 'squash', target: target10 } })
+  const x10 = await h10.vc.handleGitCommit({ cwd: h10.dir, ticketId: p10.ticket.id, requestId: 'e5-1', message: '压缩说明', plan: { mode: 'squash', target: target10 } })
+  const c10 = h10.spawns.filter(function (a) { return h10.after(a)[0] === 'commit' })[0] || []
+  check(x10.ok === true && x10.mode === 'squash' && h10.after(c10).join('\u0001') === 'commit\u0001--squash=' + target10 + '\u0001-m\u0001压缩说明', 'E10 2.4 squash argv 是 commit --squash=<目标> -m <说明>（编辑器钉成败型，说明只能走 -m）')
+
+  // E11 2.5 / 2.6：跳过钩子、签名提交、追加签名行三个开关各自独立成一个元素，次序固定。
+  const h11 = await makeCommitVc('e6')
+  const plan11 = { mode: 'staged', skipHooks: true, sign: true, signoff: true }
+  const p11 = await h11.vc.handleGitWriteCheck({ cwd: h11.dir, op: 'commit', message: '带开关的提交', plan: plan11 })
+  h11.setOverride(function (argv) { return h11.after(argv)[0] === 'commit' ? { code: 0 } : null })
+  const x11 = await h11.vc.handleGitCommit({ cwd: h11.dir, ticketId: p11.ticket.id, requestId: 'e6-1', message: '带开关的提交', plan: plan11 })
+  const c11 = h11.spawns.filter(function (a) { return h11.after(a)[0] === 'commit' })[0] || []
+  check(h11.after(c11).join('\u0001') === 'commit\u0001-S\u0001-s\u0001--no-verify\u0001-m\u0001带开关的提交', 'E11 2.5/2.6 开关次序固定：-S（签名提交）→ -s（追加签名行）→ --no-verify（跳过钩子）→ -m，三者互不替代')
+  check(x11.ok === true && x11.sign === true && x11.signoff === true && x11.skipHooks === true, 'E12 回包如实说这次用了哪些开关（界面据此写结果细节）')
+
+  // E13 同一 requestId 重放：回到同一份结果，不再起第二条提交进程。
+  const h12 = await makeCommitVc('e7')
+  const p12 = await h12.vc.handleGitWriteCheck({ cwd: h12.dir, op: 'commit', message: '只提交一次' })
+  const x12a = await h12.vc.handleGitCommit({ cwd: h12.dir, ticketId: p12.ticket.id, requestId: 'e7-1', message: '只提交一次', plan: null })
+  const n12 = h12.writeSpawns().length
+  const x12b = await h12.vc.handleGitCommit({ cwd: h12.dir, ticketId: p12.ticket.id, requestId: 'e7-1', message: '只提交一次', plan: null })
+  check(x12a.ok === true && x12b.ok === true && x12b.headAfter === x12a.headAfter && h12.writeSpawns().length === n12, 'E13 同一 requestId 重放回同一份结果，不重复执行（提交不幂等，重放不能被当成第二次提交）')
+
+  // E14–E16 失败分类：签名失败 / 没有可修订的提交 / 认不出的失败，都不许落 unknown-operation。
+  const h13 = await makeCommitVc('e8')
+  const p13 = await h13.vc.handleGitWriteCheck({ cwd: h13.dir, op: 'commit', message: '签名提交', plan: { mode: 'staged', sign: true } })
+  h13.setOverride(function (argv) { return h13.after(argv)[0] === 'commit' ? { code: 1, stderr: 'gpg: signing failed: No secret key' } : null })
+  const x13 = await h13.vc.handleGitCommit({ cwd: h13.dir, ticketId: p13.ticket.id, requestId: 'e8-1', message: '签名提交', plan: { mode: 'staged', sign: true } })
+  check(x13.ok === false && x13.error.reason === 'signing-failed' && Object.keys(x13.error).sort().join(',') === 'hint,kind,message,reason', 'E14 2.6 签名失败分类为 signing-failed，信封固定 { ok, error:{ kind, reason, message, hint } }')
+  const h14 = await makeCommitVc('e9')
+  realGit(h14.dir, ['reset', '-q'])
+  const p14 = await h14.vc.handleGitWriteCheck({ cwd: h14.dir, op: 'commit', message: '', plan: { mode: 'amend' } })
+  h14.setOverride(function (argv) { return h14.after(argv)[0] === 'commit' ? { code: 128, stderr: 'fatal: You have nothing to amend.' } : null })
+  const x14 = await h14.vc.handleGitCommit({ cwd: h14.dir, ticketId: p14.ticket.id, requestId: 'e9-1', message: '', plan: { mode: 'amend' } })
+  check(x14.ok === false && x14.error.reason === 'nothing-to-amend', 'E15 2.3 执行时才发现没有可修订的提交：分类为 nothing-to-amend（不落 unknown）')
+  const h15 = await makeCommitVc('e10')
+  const p15 = await h15.vc.handleGitWriteCheck({ cwd: h15.dir, op: 'commit', message: '普通提交' })
+  h15.setOverride(function (argv) { return h15.after(argv)[0] === 'commit' ? { code: 1, stderr: 'some weird failure from git' } : null })
+  const x15 = await h15.vc.handleGitCommit({ cwd: h15.dir, ticketId: p15.ticket.id, requestId: 'e10-1', message: '普通提交', plan: null })
+  check(x15.ok === false && x15.error.reason === 'unknown-write-failure', 'E16 认不出的失败如实落 unknown-write-failure（不猜原因、不假装成功）')
+
+  // E17 源码断言：写层不自己起进程（只走注入的安全执行层）。
+  check(!/child_process|spawnSync|execSync/.test(sourceText('src/host/versionControlWrite.ts')), 'E17 源码断言：写层不自己起进程，提交只经安全执行层那一个出口')
+}
+
 // C 组起是异步的（要真的拨宿主电话、等回包）：汇总与 GATE-RESULT 等它们跑完再打。
 main().catch(function (e) { console.error('门禁执行异常：' + String((e && e.stack) || e)); process.exit(1) })
 
 async function main() {
   await formGroup()
+  await commitGroup()
   console.log('')
   console.log('汇总：' + total + ' 条断言，' + failed + ' 条失败')
   printGateResult(GATE, total, failed)
