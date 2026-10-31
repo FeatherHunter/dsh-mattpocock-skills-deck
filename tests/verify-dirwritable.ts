@@ -166,6 +166,31 @@ async function main() {
       'D5b 没有 .scratch 时绝不顺手创建它（探针路径不含 .scratch）', JSON.stringify(noScratch.written))
   }
 
+  // WSL 宿主 ACL 查询不支持：不得误判目录权限，也不得改走其他写路径。
+  {
+    const { checkScratchWritable } = await import('../src/tracker/rooms/markdown/workspace-checks.js')
+    for (const lang of ['zh', 'en']) {
+      let writes = 0
+      const platform = {
+        path: { join: (...a) => a.join('/') },
+        fs: {
+          resolve: async (p) => p,
+          lstat: async () => ({ isDirectory: () => true }),
+          writeText: async () => { writes++; throw new Error('GetFileSecurityW EIO (Win32 1): WSL probe') },
+        },
+      }
+      const r = await checkScratchWritable({ platform, cwd: '\\\\wsl.localhost\\Ubuntu\\home\\user\\project', lang })
+      check(r.status === 'pending' && /WSL/i.test(r.detail) && /GetFileSecurityW/.test(r.detail), 'WSL 宿主不支持 → pending 且说明原因', r.detail)
+      check(!/写不进去|不可写|not writable|cannot write/i.test(r.detail) && writes === 1, 'WSL 不谎称权限问题、不绕过写入', r.detail)
+    }
+    const platform = {
+      path: { join: (...a) => a.join('/') },
+      fs: { resolve: async (p) => p, writeText: async () => { throw new Error('GetFileSecurityW failed: Win32 error 5') } },
+    }
+    const r = await checkScratchWritable({ platform, cwd: '\\\\wsl.localhost\\Ubuntu\\home\\user\\project', lang: 'en' })
+    check(r.status === 'fail' && !/WSL/.test(r.detail), '其他 Win32 错误不误认 WSL 不支持', r.detail)
+  }
+
   // D6：契约形状校验通过
   {
     const okItem = { id: 'md:scratchWritable', onPass: { show: { fallback: 'ok' }, actions: [] }, onFail: { show: { fallback: 'fail' }, actions: [] }, check: { kind: 'primitive', primitive: 'dirWritable', path: '.scratch' } }
