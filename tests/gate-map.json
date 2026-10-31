@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T00:04:32.438Z",
+  "generatedAt": "2026-10-31T00:06:10.880Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 463,
-  "gateCount": 463,
-  "attributedGates": 413,
+  "chainLength": 464,
+  "gateCount": 464,
+  "attributedGates": 414,
   "unattributedGates": 50,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 27,
+  "completionRecordedGates": 28,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 642,
+  "graphFileCount": 644,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -7855,6 +7855,29 @@
       "reason": "归属来自：源码里的路径字面量 8 条"
     },
     {
+      "step": "node tests/verify-field-tri-state.ts",
+      "file": "tests/verify-field-tri-state.ts",
+      "guards": [
+        "src/tracker/contract/entities.ts",
+        "src/tracker/rooms/github/model/normalize.ts",
+        "src/tracker/rooms/gitlab/normalize.ts",
+        "src/tracker/rooms/markdown/normalize.ts",
+        "tests/lib/gate-result.ts"
+      ],
+      "dirs": [
+        "src/tracker/contract",
+        "src/tracker/rooms/github/model",
+        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/markdown",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 65,
+      "reason": "归属来自：静态 import 说明符 5 条"
+    },
+    {
       "step": "node tests/verify-file-granularity.ts",
       "file": "tests/verify-file-granularity.ts",
       "guards": [
@@ -9388,7 +9411,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 294,
+      "expectedAssertions": 316,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 20 条）"
     },
     {
@@ -12301,6 +12324,7 @@
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-error-single-source.ts",
+      "node tests/verify-field-tri-state.ts",
       "node tests/verify-issue195.ts",
       "node tests/verify-labels-sync.ts",
       "node tests/verify-markdown-label-colors.ts",
@@ -12426,6 +12450,7 @@
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-599-merged-pr.ts",
+      "node tests/verify-field-tri-state.ts",
       "node tests/verify-github-gh-via.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-tracker-contract.ts"
@@ -12534,6 +12559,7 @@
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-error-rule-samples.ts",
+      "node tests/verify-field-tri-state.ts",
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-gitlab-single-write.ts",
       "node tests/verify-operation-catalog.ts",
@@ -12600,6 +12626,7 @@
       "node tests/verify-dirwritable.ts",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-raw-samples.ts",
+      "node tests/verify-field-tri-state.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-log-fields.ts",
       "node tests/verify-markdown-backend.ts",
@@ -12803,6 +12830,7 @@
       "node tests/verify-delta-wiring.ts",
       "node tests/verify-detection-cascade.ts",
       "node tests/verify-diagnostic-log-model.ts",
+      "node tests/verify-field-tri-state.ts",
       "node tests/verify-generated-no-shadow.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-handoff-isolation-787.ts",
@@ -12874,9 +12902,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 663,
+    "fileCount": 665,
     "dirCount": 84,
-    "coveredFileCount": 663,
+    "coveredFileCount": 665,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 66,
@@ -13372,6 +13400,7 @@
       "src/tracker/contract/contract-label-colors.ts",
       "src/tracker/contract/contract-page.ts",
       "src/tracker/contract/entities.ts",
+      "src/tracker/contract/field-state.ts",
       "src/tracker/contract/identity.ts",
       "src/tracker/contract/index.ts",
       "src/tracker/contract/inputs.ts",
@@ -13416,6 +13445,7 @@
       "src/tracker/rooms/github/channels/rest/index.ts",
       "src/tracker/rooms/github/channels/rest/list-row-metadata.ts",
       "src/tracker/rooms/github/channels/rest/read-shapes.ts",
+      "src/tracker/rooms/github/model/field-states.ts",
       "src/tracker/rooms/github/model/index.ts",
       "src/tracker/rooms/github/model/issue-key.ts",
       "src/tracker/rooms/github/model/normalize.ts",

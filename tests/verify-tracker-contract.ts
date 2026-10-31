@@ -89,7 +89,9 @@ try {
       { from: 'title', to: 'title' },
       { from: 'state', to: 'state' },
     ],
-    implementedFields: ['labels', 'assignees', 'comments', 'blockedBy', 'reason'],
+    // #1688 起 comments/blockedBy 走字段三态：emptyData 没表达这两组时票上省略字段（不再编空值），
+    // 所以它们不再算「无数据也必在」的能力位；有数据时字段照常在（withData 已覆盖）。
+    implementedFields: ['labels', 'assignees', 'reason'],
     missingFields: ['customFields'],
   }
   results.push(...runContractTests(githubFixture))

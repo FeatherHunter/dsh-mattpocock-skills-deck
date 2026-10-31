@@ -43,13 +43,19 @@ check(a.isPullRequest === true && b.isPullRequest === true, '双源等价：两�
 check(a.mergedAt === '2024-02-01T00:00:00Z' && b.mergedAt === '2024-02-01T00:00:00Z', '双源等价：合并时间一致')
 check(Array.isArray(a.reviews) && a.reviews.length === 1 && b.reviews.length === 1 && a.reviews[0].state === 'approved', '双源等价：评审明细一致')
 
-// ---------- 2) 行为：坏值收空 ----------
+// ---------- 2) 行为：坏值不编事实，缺失不冒充为空（#1688 字段三态口径）----------
+// 评审整组表达了（已知），所以就事论事：坏节点逐条丢弃，好节点一条不丢；
+// 合并时间给了数字是「读不懂」，整组记成不知道，票上省略字段——不收敛成「还没合并」。
 const badReviews = normalizeIssue({ number: 1, title: 't', state: 'open', reviews: [{ reviewer: { login: 'x' } }, null, 'nope'], mergedAt: 12345 })
+const badStates = (badReviews.fieldStates || {}) as Record<string, { known: boolean; reason: string | null }>
 check(Array.isArray(badReviews.reviews) && badReviews.reviews.length === 0, '坏值收空：缺结论的评审被丢弃（got ' + JSON.stringify(badReviews.reviews) + '）')
-check(badReviews.mergedAt === null, '坏值收空：数字合并时间收敛为空')
+check(!!badStates.review && badStates.review.known === true && !!badStates.mergeInfo && badStates.mergeInfo.known === false && badStates.mergeInfo.reason === 'unreadable', '坏值不编事实：好评审仍算已知，数字合并时间记为读不懂')
+check(!('mergedAt' in badReviews), '坏值不编事实：合并时间未知时票上省略 mergedAt（不再写 null 冒充未合并）')
 check(badReviews.isPullRequest === true, '坏值收空：评审键存在仍判为拉取请求（布尔不断言缺失）')
+// 空来源：六组三态全部「未表达」，票上不写空数组/空值冒充事实；
+// isPullRequest 仍是布尔（资源类型由查询端点判定，不属于这六组，见票的遗留说明）。
 const empty = normalizeIssue({})
-check(empty.isPullRequest === false && empty.mergedAt === null && Array.isArray(empty.reviews) && empty.reviews.length === 0, '能力位：空来源逐票必带三字段空值（假、空、空数组）')
+check(empty.isPullRequest === false && !('mergedAt' in empty) && !('reviews' in empty) && !('blockedBy' in empty) && !('commentCount' in empty), '能力位：空来源不编「没有评审」「还没合并」「没有依赖」等假事实')
 
 // ---------- 3) 行为：雾证据四原因（合成，不碰真仓） ----------
 function makeCtx(failStderr: string, ghHost: string) {

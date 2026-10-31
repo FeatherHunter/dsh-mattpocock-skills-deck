@@ -223,11 +223,13 @@ function prsOf(res: { ok: boolean; data: ListedPr[] } | null | undefined): Liste
   const restIssuesEntry = (normalizeIssue as (raw: unknown) => { state: string; isPullRequest: boolean; mergedAt: string | null })(restIssue(575))
   check(restIssuesEntry.state === 'closed' && restIssuesEntry.isPullRequest === true && restIssuesEntry.mergedAt === MERGED_AT[575], '归一：兜底路 /issues 里的已合并条目收成已关闭且合并时间保留')
   const plainIssue = (normalizeIssue as (raw: unknown) => ListedPr)({ number: 506, title: '普通工单', state: 'open', html_url: 'https://github.com/o/r/issues/506', user: { login: 'a' }, labels: [] })
-  check(plainIssue.state === 'open' && plainIssue.mergedAt === null, '归一：普通工单不受影响（仍是打开，合并时间为空）')
+  // #1688：普通工单没有合并时间这条边，来源就是「未表达」——票上省略 mergedAt，不再写 null 冒充「还没合并」。
+  check(plainIssue.state === 'open' && !('mergedAt' in plainIssue), '归一：普通工单不受影响（仍是打开，合并时间未表达）')
   const noState = (normalizeIssue as (raw: unknown) => ListedPr)({ number: 2, title: 't' })
   check(noState.state === 'open', '坏值：来源缺 state 时收敛为打开（不抛错）')
   const weird = (normalizeIssue as (raw: unknown) => ListedPr)({ number: 3, title: 't', state: 42, mergedAt: 12345 })
-  check(weird.state === 'open' && weird.mergedAt === null, '坏值：state 是数字、合并时间是数字时都收敛（state=open、mergedAt=null）')
+  // #1688：数字合并时间读不懂 → mergeInfo 记 unreadable，票上省略字段；state 仍按打开收敛。
+  check(weird.state === 'open' && !('mergedAt' in weird), '坏值：state 是数字时收敛为打开，合并时间是数字时记为读不懂并省略字段')
   const upper = (normalizeIssue as (raw: unknown) => ListedPr)({ number: 4, title: 't', state: 'MERGED' })
   check(upper.state === 'closed', '坏值：合并时间缺失但 state 写着 MERGED 时仍收成已关闭（不画成打开）')
 }

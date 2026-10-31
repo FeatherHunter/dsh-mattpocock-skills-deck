@@ -156,8 +156,16 @@ export const OPERATION_ENCYCLOPEDIA = {
   preflight: { kind: 'read', channels: 'either', result: 'check', fieldGroups: ['permissions'], budget: 'both' },
   // 整仓列表：规格第 5 节写明两个渠道都能取；行级字段与标签由列表端点表达。
   list: { kind: 'read', channels: 'either', result: 'rows', fieldGroups: ['row', 'labels'], budget: 'graphql' },
-  // 单票详情：行级字段、正文、评论按需、依赖前 50；REST 不表达依赖与评论正文。
-  get: { kind: 'read', channels: 'either', result: 'detail', fieldGroups: ['row', 'body', 'comments', 'dependencies'], budget: 'graphql' },
+  // 单票详情：行级字段、正文、评论按需、父子边、依赖每侧前 50、子票计数、评审、合并时间。
+  // 这次没取或端点没有的组如实记未表达——GitHub 的工单查询不取子票/评审/合并时间，
+  // 拉取请求查询没有父子边与依赖边，REST 单票端点除回包自带的子票计数、评审数组外都不表达。
+  get: {
+    kind: 'read',
+    channels: 'either',
+    result: 'detail',
+    fieldGroups: ['row', 'body', 'comments', 'parents', 'dependencies', 'subIssues', 'review', 'mergeInfo'],
+    budget: 'graphql',
+  },
   // 依赖边：每侧前 50，触上限即截断。
   getDependencies: { kind: 'read', channels: 'either', result: 'dependencies', fieldGroups: ['dependencies'], budget: 'graphql' },
   // 建票：写；回执能表达新建出来的那一行。

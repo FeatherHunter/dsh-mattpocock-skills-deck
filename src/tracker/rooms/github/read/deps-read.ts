@@ -63,6 +63,8 @@ async function readNativeDependencies(parsed: ParsedRepo, k: string, ctx: MemoCo
   if (!rawBag.blockedBy || typeof rawBag.blockedBy !== 'object') return null
   if (!rawBag.blocking || typeof rawBag.blocking !== 'object') return null
   const edges = normalizeDependencyEdges(issueRaw)
+  // #1688 起归一化不再为「没表达」的边编空连接：读不懂形状时这里拿不到边，交回兜底路。
+  if (!edges) return null
   const data: Dependencies = {
     blockedBy: edges.blockedBy,
     blocking: edges.blocking,
