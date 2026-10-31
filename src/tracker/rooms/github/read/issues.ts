@@ -28,10 +28,16 @@ import { appendCommentPages, commentsWantOf, firstPageSizeOf, trimCommentsToWant
 import { normalizeIssue } from '../model/normalize.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { repairParentLinksREST } from './parent-repair.js'
+// #1691：REST 列表行自带的关系字段（父票链接、依赖摘要、子票摘要）先在行内补齐，
+// 不再逐张容器票发 sub_issues 兜底（只有当整页都没有父票链接时才退回旧兜底）。
+import { completeRestListRelations } from './rest-list-relations.js'
 import { rosterAdoptList, rosterUpsert } from '../model/roster.js'
 import type { MemoContext } from '../model/roster.js'
 import { LIST_QUERY, GET_QUERY, LIST_PR_QUERY, GET_PR_QUERY, getIssueQuery } from '../channels/graphql/queries.js'
-import { fetchAllPullsREST, enrichRestPRs, enrichSinglePR } from './pulls.js'
+import { fetchAllPullsREST, enrichRestPRs } from './pulls.js'
+// #1691：REST 单票降级时按需补评论正文、依赖边、评审与合并时间；每类最多一次请求，补不到记未知。
+import { completeRestDetail } from './rest-detail-completion.js'
+import type { RestDetailCompletion } from './rest-detail-completion.js'
 import { pickFallbackReason } from '../routing/fallback-reason.js'
 import { fetchAllIssuesREST } from './issues-rest-list.js'
 // 读结果的来源与按字段组完整度（#1685）：起点在这里收，组装统一走 routing（不在每条读路径各自算）。
@@ -90,7 +96,14 @@ function emitBadNodes(ctx: OpContext, scope: string, dropped: number, total: num
   }, () => debugOn(ctx))
 }
 
-
+// 按需补取没补成的那几类各记一行降级（#1691）：补到了不记，补不到才记，理由词在 read-log.ts 的 get 组。
+function emitRestDetailGaps(ctx: OpContext, latencyMs: number, completion: RestDetailCompletion): void {
+  const outcomes = completion && completion.outcomes ? completion.outcomes : {}
+  if (outcomes.comments === 'failed') emitReadDegraded(ctx, 'get', 'get:rest-comments', latencyMs)
+  if (outcomes.dependencies === 'failed') emitReadDegraded(ctx, 'get', 'get:rest-deps', latencyMs)
+  if (outcomes.review === 'failed') emitReadDegraded(ctx, 'get', 'get:rest-review', latencyMs)
+  if (outcomes.mergeInfo === 'failed') emitReadDegraded(ctx, 'get', 'get:rest-merge', latencyMs)
+}
 
 // 内存过滤（list 两路共用）
 function applyIssueFilter(all: Issue[], filter: ListFilter | null | undefined): Issue[] {
@@ -225,7 +238,14 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       if (!rest.ok) return { ok: false, error: rest.error }
       const pulls = await fetchAllPullsREST(parsed, ctx)
       const raws = enrichRestPRs(rest.data.rows, pulls.ok ? pulls.data : [])
-      const rawFixed = await repairParentLinksREST(raws, parsed, ctx)
+      // #1691：先把每行自带的关系字段补进行内（父票边、依赖边、子票计数）；
+      // 都在行里表达时，这一趟一张容器票的子票请求都不用发。
+      const rawArr = raws as unknown[]
+      const relations = await completeRestListRelations(rawArr, parsed, ctx)
+      if (!relations.presence.parent) emitReadDegraded(ctx, 'list', 'list:rest-relations', Date.now() - tList)
+      if (relations.dependencyFailed) emitReadDegraded(ctx, 'list', 'list:rest-deps', Date.now() - tList)
+      // 父票链接整页没表达时才走旧的 sub_issues 兜底；行里已经给出父边就不再翻容器子票。
+      const rawFixed = relations.parentFromRows ? rawArr : await repairParentLinksREST(rawArr, parsed, ctx)
       // 为什么断言：修树边返回的还是原来那份数组（原样回传）；断言只为过编译，迭代的还是原来那份值，运行时不变。
       const rawList = rawFixed as unknown[];
       const restNorm: Issue[] = []
@@ -375,12 +395,14 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
           return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${caughtMessage(e, 200)}`, rr.data.stdout)
         }
         if (jr && typeof jr === 'object' && jr.number != null) {
-          if (jr.pull_request != null) await enrichSinglePR(jr, parsed, ctx)
+          // #1691：REST 单票只保证行与正文，评论正文、依赖边、PR 评审与合并时间在这里按需补；
+          // 每类最多一次请求，补到的写回原始行、补不到的写行内三态记未知（不写空值）。
+          const completion = await completeRestDetail(jr, parsed, ctx, { wantComments: wantComments })
+          emitRestDetailGaps(ctx, Date.now() - tGet, completion)
           try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, jr) } catch (eU) {}
           // 来源与完整度（#1685）：这一支走了 REST，来源记 rest、降级来源记 graphql；
-          // 八组表态按这次回包算：评论正文、父子边、依赖边恒未表达，子票计数、评审、合并时间
-          // 三组看回包（#1688 起由渠道层 restDetailFieldGroups 判，这里交出原始行）。
-          return { ok: true, data: normalizeIssue(jr), provenance: detailProvenanceFromRest(clock, jr) }
+          // 八组表态按这次回包算，逐行补取动过的组用补取的结局覆盖（#1691）。
+          return { ok: true, data: normalizeIssue(jr), provenance: detailProvenanceFromRest(clock, jr, completion.fieldGroups) }
         }
         // /issues 回的这份东西没有 number，不像一张票：降级路走了一半、形状不认，如实记一行再退到 /pulls。
         emitReadDegraded(ctx, 'get', 'get:shape', Date.now() - tGet)
@@ -394,11 +416,12 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
           return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${caughtMessage(e, 200)}`, prr.data.stdout)
         }
         if (prj && typeof prj === 'object' && prj.number != null) {
-          await enrichSinglePR(prj, parsed, ctx)
+          // #1691：/pulls 单票自带 merged_at，评审明细仍按需补一次；合并时间已有值时不重复请求。
+          const completion = await completeRestDetail(prj, parsed, ctx, { wantComments: wantComments })
+          emitRestDetailGaps(ctx, Date.now() - tGet, completion)
           try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, prj) } catch (eU) {}
-          // 来源与完整度（#1685）：/pulls 单票同样是 REST 降级；八组表态同样按回包算，
-          // /pulls 行自带 merged_at（字符串或 null），合并时间这一组会是 complete。
-          return { ok: true, data: normalizeIssue(prj), provenance: detailProvenanceFromRest(clock, prj) }
+          // 来源与完整度（#1685）：/pulls 单票同样是 REST 降级；八组表态按回包算，补取动过的组按结局覆盖（#1691）。
+          return { ok: true, data: normalizeIssue(prj), provenance: detailProvenanceFromRest(clock, prj, completion.fieldGroups) }
         }
         // 原文交这次 /pulls 回包本身：形状里既没有 number，也就没有能当票看的东西。
         return fail(ERROR_KIND.NOTFOUND, `get: issue ${k} not found`, prr.data.stdout)

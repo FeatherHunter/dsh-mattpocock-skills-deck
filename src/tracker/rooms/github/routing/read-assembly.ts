@@ -21,7 +21,8 @@
  * 3. 耗时与取数开始版本由调用方在入口调 `beginRead()` 收下、一路传到这里；这里只做减法，
  *    不自己取起点——起点晚了会把「翻页花了多久」算漏。
  */
-import type { ReadProvenance } from '../../../contract/read-provenance.js'
+import type { FieldGroupCompleteness, ReadProvenance } from '../../../contract/read-provenance.js'
+import type { FieldGroup } from '../../../contract/operations-encyclopedia.js'
 import {
   graphqlCommentsCompleteness,
   graphqlDependenciesCompleteness,
@@ -191,12 +192,16 @@ export function detailProvenanceFromPullRequest(clock: ReadClock, rawPullRequest
  * `unexpressed`。子票计数、评审、合并时间三组要看这一次回包：降级路径单票富化会补一页
  * `/reviews`，`/issues` 回包可能带 `sub_issues_summary` 与 `pull_request.merged_at`。
  * 具体判定交给渠道层 `restDetailFieldGroups`，这里只负责把原始回包递进去。
+ *
+ * #1691 起多接一个 overrides：REST 单票降级会在返回前按需补评论正文、依赖边、评审与合并时间
+ * （每类最多一次请求），补到的组由调用方把结局传进来覆盖默认表态；没传时与旧调用一字不差。
  */
-export function detailProvenanceFromRest(clock: ReadClock, raw?: unknown): ReadProvenance {
+export function detailProvenanceFromRest(clock: ReadClock, raw?: unknown, overrides?: Partial<Record<FieldGroup, FieldGroupCompleteness>>): ReadProvenance {
+  const base = restDetailFieldGroups(raw)
   return buildReadProvenance('get', {
     source: 'rest',
     degradedFrom: 'graphql',
-    fieldGroups: restDetailFieldGroups(raw),
+    fieldGroups: overrides ? Object.assign({}, base, overrides) : base,
     durationMs: elapsedOf(clock),
     startVersion: clock.startVersion,
   })

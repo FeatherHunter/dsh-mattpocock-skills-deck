@@ -83,6 +83,10 @@ export const READ_DEGRADED_REASONS = Object.freeze([
   'list:rest-ref',
   'list:rest-json',
   'list:rest-shape',
+  // #1691：REST 列表行里没有表达关系字段（父票链接整页缺失），父边只能退回 sub_issues 或记未知。
+  'list:rest-relations',
+  // #1691：逐票拉依赖明细时有失败，已把那一组记成未知（不是「没有依赖」）。
+  'list:rest-deps',
   'list:transport',
   'get:repo-ref',
   'get:gql-err',
@@ -90,6 +94,12 @@ export const READ_DEGRADED_REASONS = Object.freeze([
   'get:shape',
   'get:degraded',
   'get:rest-json',
+  // #1691：单票降级按需补四类细节时有一类没补成（评论正文 / 依赖边 / 评审 / 合并时间），
+  // 那一组已记成未知，不是「确实为空」。四类分开取词，排查时能看出是哪一类没成。
+  'get:rest-comments',
+  'get:rest-deps',
+  'get:rest-review',
+  'get:rest-merge',
   'get:transport',
   'deps:shape',
   'deps:truncated',

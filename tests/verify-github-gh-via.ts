@@ -37,6 +37,12 @@ const READ_CALL_FILES = [
   // 不把新文件加进扫描表，登记册里的 list.rest 就会被判成「没人用」，标签也会漏检。
   // #1686 阶段 1：这份读实现随 read 层搬进 read/，扫描点跟着改到新位置。
   'src/tracker/rooms/github/read/issues-rest-list.ts',
+  // #1691：列表行关系补齐（依赖明细自己起 gh，via 写 list.rest-deps）与容器子票兜底（list.rest-sub）。
+  // 两份都不在扫描表里的话，登记册新加的两支会被判成「没人用」。
+  'src/tracker/rooms/github/read/rest-list-relations.ts',
+  'src/tracker/rooms/github/read/parent-repair.ts',
+  // #1691：REST 单票降级按需补评论正文、依赖边、评审与合并时间，四支 via 落在新文件里。
+  'src/tracker/rooms/github/read/rest-detail-completion.ts',
   'src/tracker/rooms/github/read/counts.ts',
   'src/tracker/rooms/github/read/page.ts',
   'src/tracker/rooms/github/read/preflight.ts',
@@ -63,8 +69,11 @@ const TAG_SPEC: Record<string, { branches: string[]; opsWithNoNeed?: number; why
     branches: ['auth', 'auth-crosscheck', 'repo-view', 'api'],
     whyNoNeed: '第一项门禁失败时连进程都不起（没有仓库标识可探），所以失败那一路日志里没有它自己的行；第三项门禁（能连上接口）这一笔 via 写 preflight.api，于是「走到第三项、这一项过没过」在日志里直接读得出来。',
   },
-  list: { branches: ['gql', 'rest', 'pr'] },
-  get: { branches: ['gql', 'rest', 'rest-pr', 'pr'] },
+  // #1691：列表行没表达父票链接时退回容器子票兜底（list.rest-sub），
+  // 依赖计数大于零的票逐张拉一次明细（list.rest-deps）。
+  list: { branches: ['gql', 'rest', 'pr', 'rest-deps', 'rest-sub'] },
+  // #1691：单票 REST 降级按需补取的四类明细，每类一支标签（补取失败时 read.degraded 的 reason 与之一一对应）。
+  get: { branches: ['gql', 'rest', 'rest-pr', 'pr', 'rest-comments', 'rest-deps', 'rest-merge', 'rest-review'] },
   counts: { branches: ['gql'] },
   listPage: { branches: ['gql'] },
   subIssues: { branches: ['gql', 'retry'] },
