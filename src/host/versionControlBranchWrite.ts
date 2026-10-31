@@ -108,7 +108,7 @@ export function createBranchWrite(deps: any): any {
     if (!ticket) return wfail('blocked', 'ticket-missing', '这张票不存在或已经被执行过：重新预检拿一张新票')
     // 票的形状校验用请求里的动作（不是票上写的那个）：这样「票不是为这个动作签的」与「票过期了」
     // 由同一个判据给出，不再先手比一遍 op、再让判据拿票自己的 op 跟自己比一遍（那样永远比不出东西）。
-    const pure: any = ticketPureVerdict(ticket, op, nowFn())
+    const pure: any = ticketPureVerdict(ticket, op as any, nowFn())
     if (!pure || pure.ok !== true) {
       const reason: string = String((pure && pure.reason) || 'ticket-expired')
       return wfail('blocked', reason, reason === 'ticket-op-mismatch' ? '这张票不是为这个动作签的：重新预检' : '这张票已经过期或不能用：重新预检')
