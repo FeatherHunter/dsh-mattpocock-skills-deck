@@ -43,8 +43,10 @@ const LIST_LIMIT: number = 1048576
 const OP_STDOUT_LIMIT: number = 65536
 /** 目标工作树里 `git status --porcelain -z` 的上限（脏计数只要条数，不需要完整差异）。 */
 const DIRTY_LIMIT: number = 1048576
-/** 预检票据表与请求号去重表的容量上限：界面上不会有这么多并发，超了按最旧淘汰。 */
-const TICKET_MAX: number = 64
+/** 预检票据表与请求号去重表的容量上限：界面上不会有这么多并发，超了按最旧淘汰。
+ *  票据表 200 条与其它四套票表对齐（ADR 20261004 第 5 节写的就是 200）：这五套票走同一套「先预检、
+ *  拿票、凭票执行」的流程，容量不该在这里忽然变成 64。请求号表按重放需要留 128 条。 */
+const TICKET_MAX: number = 200
 const REQUEST_MAX: number = 128
 
 /** 一份预检票据：预检时读到的现场全部记下来，执行时逐条重验。只在宿主进程内存里，不落盘、不进日志。 */
@@ -105,12 +107,14 @@ export function createWorktreePhones(deps: any): any {
     while (ticketOrder.length > 0) {
       const id: string = ticketOrder[0]
       const tk: any = tickets[id]
-      if (!tk || tk.expiresAtMs < t) { ticketOrder.shift(); delete tickets[id] } else break
+      // 过期判据与 write-ticket.ts 的 ticketPureVerdict 同一句：now < expiresAtMs 才算有效，
+      // 恰好到期的这一刻已经过期。原来写成 expiresAtMs < t 会让票据多活一毫秒。
+      if (!tk || !(t < tk.expiresAtMs)) { ticketOrder.shift(); delete tickets[id] } else break
     }
     while (resultOrder.length > 0) {
       const id: string = resultOrder[0]
       const r: any = results[id]
-      if (!r || r.expiresAtMs < t) { resultOrder.shift(); delete results[id] } else break
+      if (!r || !(t < r.expiresAtMs)) { resultOrder.shift(); delete results[id] } else break
     }
     while (ticketOrder.length > TICKET_MAX) { const old: any = ticketOrder.shift(); if (old) delete tickets[old] }
     while (resultOrder.length > REQUEST_MAX) { const old: any = resultOrder.shift(); if (old) delete results[old] }
@@ -353,13 +357,13 @@ export function createWorktreePhones(deps: any): any {
     const requestId: string = strOf(a.requestId)
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(requestId)) return fail('bad-request', '这次执行缺少可复用的请求号（1–64 位字母、数字、下划线或连字符），没法防止重复执行')
     const replay: any = results[requestId]
-    if (replay && replay.expiresAtMs >= now()) return replay.reply
+    if (replay && now() < replay.expiresAtMs) return replay.reply
     if (a.confirm !== true) return fail('confirm-required', '这是要真正动工作树的操作：先走预检，并在确认卡上确认后再执行')
     const ticketId: string = strOf(a.ticketId)
     const ticket: any = ticketId ? tickets[ticketId] : null
     if (!ticket) return fail('ticket-missing', '预检票据不在（可能已经执行过、刷新过或过期），请重新预检再确认')
     if (ticket.op !== strOf(a.op)) return fail('ticket-op-mismatch', '票据上的动作是 ' + ticket.op + '，与这次要执行的 ' + strOf(a.op) + ' 不一致：请重新预检')
-    if (ticket.expiresAtMs < now()) { delete tickets[ticketId]; return fail('ticket-expired', '预检票据已经过期（有效期 ' + Math.round(TICKET_TTL_MS / 1000) + ' 秒），过期不自动重放：请重新预检并确认') }
+    if (!(now() < ticket.expiresAtMs)) { delete tickets[ticketId]; return fail('ticket-expired', '预检票据已经过期（有效期 ' + Math.round(TICKET_TTL_MS / 1000) + ' 秒），过期不自动重放：请重新预检并确认') }
     const base: any = await readBase(d.cwdOf(a))
     if (base.ok !== true) return base
     if (!worktreeSamePathOf(base.root, ticket.repoRoot)) return fail('stale-repo', '预检时钉的仓库是 ' + ticket.repoRoot + '，现在读到的是 ' + base.root + '：换仓库了，请重新预检')

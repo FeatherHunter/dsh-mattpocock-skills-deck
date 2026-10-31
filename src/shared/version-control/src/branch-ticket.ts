@@ -4,12 +4,21 @@
 //   凭票执行」三段式（规格第 8 节、方案第 4 节主缝 B）。预检与执行之间隔着用户点确认的那几秒，
 //   这几秒里仓库仍可被终端里的命令改动；票只管「预检那一刻看到的事实」，执行前必须逐格重算比对。
 //
-// 这一片只放纯逻辑：动作清单、参数规范化、票据比对的输入字节。零 import 自包含——shared 同层
-//   互相 import 会被依赖门禁拦下，所以宁可在这里把参数形状写死一份，也不 import 旁边的文件。
+// 这一片只放纯逻辑：动作清单、参数规范化、票据比对的输入字节。本文件保持零 import 自包含，理由是真话：
+//   shared 层内**新增**同层 import 会被依赖门禁的存量清单拦下（.dependency-cruiser.ts 的
+//   same-layer-import-shared 只许减不许增），而门禁要能把这一片单独求值——直接拿这份源码拼出函数，
+//   不必先解析一张依赖图。changes-protocol.ts:14-15 的 import 是清单里已有的存量，不是照着加的意思。
+//   稳定序列化（branchStableValue）与 write-ticket.ts 的 canonicalJson 是同一算法的两份拷贝，跨票复制是
+//   刻意的：票据模块之间互相 import 会让一张票的改动牵动另一张票。一致性由
+//   tests/verify-1586-write-contracts.ts 逐字节守，改一处必须同步改另一处。
 //   哈希与起进程都在宿主做（node:crypto 与 runGit 由宿主注入），这里只决定「取哪一份字节」。
 //
 // 与 write-ticket.ts 的分工：那张票的通用形状（makeTicket / bindingsVerdict / ticketPureVerdict /
 //   requestIdProblem）在 write-ticket.ts；这一片补的是分支域自己的动作表与「哪些参数算同一件事」。
+
+/** 九个写动作对应的账本能力号（capability-ledger.ts 域 4）：预检按它查 minVersion 与降级做法。
+ *  这里只放编号不 import 账本——本文件零 import 自包含，账本条目由调用方查好之后写进计划。 */
+export const BRANCH_OP_CAP_IDS: any = { create: '4.2', switch: '4.3', detach: '4.4', rename: '4.5', delete: '4.6', upstream: '4.7', 'tag-create': '4.10', 'tag-delete': '4.11', describe: '4.13' }
 
 /** 域 4 九个写动作（4.12 验签是只读，不在这张表里，走预检电话直接执行）。顺序与界面动作表一致。 */
 export const BRANCH_TICKET_OPS: string[] = ['create', 'switch', 'detach', 'rename', 'delete', 'upstream', 'tag-create', 'tag-delete', 'describe']
@@ -22,7 +31,8 @@ export const BRANCH_CHECK_CONTRACT = 'version-control.branch-check'
 export const BRANCH_CHECK_VERSION = 1
 
 /** 把任意值写成稳定字符串：对象键排序、undefined 当 null、数组保序。
- *  预检与执行各算一遍再比相等，只有同一口径才能比；直接 JSON.stringify 会因键顺序不同误判。 */
+ *  预检与执行各算一遍再比相等，只有同一口径才能比；直接 JSON.stringify 会因键顺序不同误判。
+ *  这份实现与另外四份由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须五份一起改。 */
 export function branchStableValue(value: any): string {
   if (value === null || value === undefined) return 'null'
   const t = typeof value

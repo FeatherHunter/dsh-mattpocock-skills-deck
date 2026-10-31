@@ -30,6 +30,8 @@ const REASON_TEXT: Record<string, string> = {
 }
 function reasonTextOf(reason: string): string { return REASON_TEXT[reason] || '这次动作现在不能做（理由：' + reason + '）' }
 
+/** 票据绑定用的 16 位摘要。
+ *  这八份的算法体由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须八处一起改。 */
 function digest16Of(text: any): string { try { return cryptoCreateHash('sha256').update(String(text === undefined || text === null ? '' : text), 'utf8').digest('hex').slice(0, 16) } catch (e) { return '0000000000000000' } }
 
 function firstLineOf(text: any): string { const t: string = String(text === undefined || text === null ? '' : text).replace(/\r/g, '').trim(); if (!t) return 'git 没有给出说明'; const i: number = t.indexOf('\n'); return (i >= 0 ? t.slice(0, i) : t).slice(0, 300) }

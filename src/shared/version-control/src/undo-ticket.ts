@@ -19,26 +19,26 @@ export const UNDO_CHECK_CONTRACT: string = 'version-control.undo-check'
 export const UNDO_CHECK_VERSION: number = 1
 
 /**
- * 稳定序列化：对象键排序、数组保序、undefined 归一成 null、非有限数字写成字符串。
+ * 稳定序列化：对象键排序、数组保序、undefined 与非有限数字一律归一成 null（与写层票表同一口径）。
  * 返回 JSON 文本（同一份值恒得同一串字符），供摘要使用。
+ * 这份实现与另外四份由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须五份一起改。
  */
-function undoStableInner(value: any): any {
-  if (value === undefined || value === null) return null
-  if (Array.isArray(value)) return value.map(undoStableInner)
-  const kind: string = typeof value
-  if (kind === 'number') return isFinite(value) ? value : String(value)
-  if (kind !== 'object') return value
-  const out: any = {}
-  const keys: string[] = Object.keys(value).sort()
-  for (let i = 0; i < keys.length; i += 1) out[keys[i]] = undoStableInner(value[keys[i]])
-  return out
-}
-
 export function undoStableValue(value: any): string {
-  return JSON.stringify(undoStableInner(value))
+  if (value === null || value === undefined) return 'null'
+  const t = typeof value
+  if (t === 'number') return isFinite(value) ? String(value) : 'null'
+  if (t === 'boolean') return value ? 'true' : 'false'
+  if (t === 'string') return JSON.stringify(value)
+  if (Array.isArray(value)) return '[' + value.map(undoStableValue).join(',') + ']'
+  if (t === 'object') {
+    const keys: string[] = Object.keys(value).filter(function (k: string) { return value[k] !== undefined }).sort()
+    return '{' + keys.map(function (k: string) { return JSON.stringify(k) + ':' + undoStableValue(value[k]) }).join(',') + '}'
+  }
+  return 'null'
 }
 
-/** 64 位 FNV 变体短哈希：16 位十六进制，只用于比对，不用于任何密码学用途。 */
+/** 64 位 FNV 变体短哈希：16 位十六进制，只用于比对，不用于任何密码学用途。
+ *  两份 FNV 由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须两份一起改。 */
 export function undoHash16(text: any): string {
   const s: string = String(text === undefined || text === null ? '' : text)
   let h1: number = 0x811c9dc5

@@ -101,6 +101,7 @@ export const VC_WRITE_ERR_FAMILY: Record<string, string> = {
   'operation-in-progress': 'notReady',
   'repo-bare': 'notReady',
   'bad-target': 'notReady',
+  'request-reused': 'notReady',
   'need-remote-choice': 'notReady',
   'no-remote': 'notReady',
   'nothing-to-stage': 'notReady',

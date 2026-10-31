@@ -16,6 +16,9 @@
 import { commandFor, tagListArgs, branchDescriptionsArgs, mergedBranchesArgs } from '../shared/version-control/src/commands.js'
 import { parseRefs } from '../shared/version-control/src/parse-refs.js'
 import { parseTagList, parseBranchNameList, parseBranchDescriptions } from '../shared/version-control/src/parse-branch.js'
+import { BRANCH_TICKET_OPS, BRANCH_OP_CAP_IDS } from '../shared/version-control/src/branch-ticket.js'
+import { parseVersion, tierFor, capabilityAvailability } from '../shared/version-control/src/capabilities.js'
+import { CAPABILITIES } from '../shared/version-control/src/capability-ledger.js'
 
 export const BRANCH_BOARD_CONTRACT = 'version-control.branch-board'
 export const BRANCH_BOARD_VERSION = 1
@@ -29,6 +32,9 @@ export function createBranchPhones(deps: any): any {
   const resolveRepoRoot: any = deps.resolveRepoRoot
   const cwdOf: any = deps.cwdOf
   const nowFn: any = (deps && typeof deps.now === 'function') ? deps.now : Date.now
+  // 账本按能力号索引一次：分支页要按当前 git 版本算出每个写动作是完整可用还是降级。
+  const capsById: any = {}
+  for (let i: number = 0; i < CAPABILITIES.length; i += 1) capsById[String(CAPABILITIES[i].id)] = CAPABILITIES[i]
 
   /** 失败信封：kind 是环节，git 原话与期望/实际放 extra 顶层（与改动页同一口径）。 */
   function fail(kind: string, message: string, extra?: any): any {
@@ -111,6 +117,20 @@ export function createBranchPhones(deps: any): any {
     if (tags.ok !== true) return tags.envelope
     const desc: any = await descriptionsOf(b.exe, b.root)
     if (desc.ok !== true) return desc.envelope
+    // 版本片：git 版本 + 九个写动作各自的可用档。4.2 / 4.3 / 4.4 在 2.23 以下退成 degraded（改用 checkout），
+    // 界面据此画一行「当前 git 版本用 checkout 等价动作」——不让用户点了按钮才看到 git: 'switch' is not a git command。
+    const ver: any = await readOut(b.exe, b.root, '读 git 版本这一步', ['--version'])
+    if (ver.ok !== true) return ver.envelope
+    const gitVersion: string = firstLine(ver.stdout)
+    const actions: any[] = []
+    for (let i: number = 0; i < BRANCH_TICKET_OPS.length; i += 1) {
+      const op: string = BRANCH_TICKET_OPS[i]
+      const capId: string = String(BRANCH_OP_CAP_IDS[op] || '')
+      const cap: any = capsById[capId]
+      if (!cap) continue
+      const av: any = capabilityAvailability(cap, gitVersion)
+      actions.push({ op: op, capId: capId, state: av.state, needed: av.needed, alternative: av.alternative })
+    }
     const current: any = currentBranchOf(refs.refs)
     let merged: any = null
     let notMerged: any = null
@@ -133,6 +153,8 @@ export function createBranchPhones(deps: any): any {
       descriptions: desc.descriptions,
       merged: merged,
       notMerged: notMerged,
+      // 版本片叫 capabilities 不叫 version：回包顶层的 version 是契约版本号（数字），两个不能同名。
+      capabilities: { gitVersion: gitVersion, tier: tierFor(parseVersion(gitVersion)), actions: actions },
     }
   }
 

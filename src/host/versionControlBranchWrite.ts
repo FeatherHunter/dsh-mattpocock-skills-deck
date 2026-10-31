@@ -32,16 +32,15 @@ function firstLineOf(text: any): string {
   const i: number = s.indexOf('\n')
   return (i < 0 ? s : s.slice(0, i)).trim()
 }
-/** 写失败按固定理由表归类（与改动页同一套：超时 / 冲突 / 钩子 / 权限 / 其它）。 */
-function classifyFailure(sub: string, exitCode: any, stderr: any): string {
+/** 写失败按固定理由表归类（与改动页同一套：冲突 / 钩子 / 权限 / 其它）。超时不在这里判：
+ *  超时是起进程那一层给的 kind（res.kind === 'timeout'），不是 git 原话里的一句话，硬从文本里猜会把
+ *  「某个钩子打印了 timeout 字样」误判成超时。 */
+function classifyFailure(stderr: any): string {
   const text: string = String(stderr || '').toLowerCase()
-  if (text.indexOf('timed out') >= 0 || text.indexOf('timeout') >= 0) return 'unknown-write-failure'
   if (text.indexOf('conflict') >= 0) return 'conflicts-unresolved'
   if (text.indexOf('hook') >= 0) return 'hook-failed'
   if (text.indexOf('permission denied') >= 0 || text.indexOf('access denied') >= 0) return 'no-permission'
   if (text.indexOf('not a git repository') >= 0) return 'not-a-repo'
-  void sub
-  void exitCode
   return 'unknown-write-failure'
 }
 
@@ -55,21 +54,24 @@ export function createBranchWrite(deps: any): any {
   const tickets: Map<string, any> = (d.tickets instanceof Map) ? d.tickets : new Map()
   const results: Map<string, any> = (d.results instanceof Map) ? d.results : new Map()
 
-  /** 按票里的计划拼 argv：这里不判断业务语义，只把已经规范化过的参数逐个放进数组元素。 */
-  function argvOf(plan: any): string[] {
-    const tier: string = String(plan.tier || 'full')
+  /** 按票里的计划拼 argv：这里不判断业务语义，只把已经规范化过的参数逐个放进数组元素。
+   *  tier 只认预检写进计划的那一个值：degraded 时 4.2 / 4.3 / 4.4 改用 checkout 等价动作，其余动作两种档位同一条命令。
+   *  未知动作不猜（不再把任何东西默认当成「写分支说明」），直接回失败信封由调用方转给界面。 */
+  function argvOf(plan: any): any {
+    const tier: string = plan.tier === 'degraded' ? 'degraded' : 'full'
     const op: string = String(plan.op || '')
-    if (op === 'create') return tier === 'degraded' ? branchCreateCheckoutArgs(plan.name, plan.from || undefined) : branchCreateArgs(plan.name, plan.from || undefined)
-    if (op === 'switch') return tier === 'degraded' ? branchSwitchCheckoutArgs(plan.name) : branchSwitchArgs(plan.name)
-    if (op === 'detach') return tier === 'degraded' ? branchDetachCheckoutArgs(plan.rev) : branchDetachArgs(plan.rev)
-    if (op === 'rename') return branchRenameArgs(plan.from, plan.to)
-    if (op === 'delete') return branchDeleteArgs(plan.name, plan.force === true)
-    if (op === 'upstream') return plan.unset === true ? unsetUpstreamArgs(plan.branch) : setUpstreamArgs(plan.upstream, plan.branch)
-    if (op === 'tag-create') return tagCreateArgs(plan.name, plan.mode, plan.target || undefined, plan.message)
-    if (op === 'tag-delete') return tagDeleteArgs(plan.name)
-    return plan.text ? branchDescriptionSetArgs(plan.branch, plan.text) : branchDescriptionUnsetArgs(plan.branch)
+    if (op === 'create') return { ok: true, argv: tier === 'degraded' ? branchCreateCheckoutArgs(plan.name, plan.from || undefined) : branchCreateArgs(plan.name, plan.from || undefined) }
+    if (op === 'switch') return { ok: true, argv: tier === 'degraded' ? branchSwitchCheckoutArgs(plan.name) : branchSwitchArgs(plan.name) }
+    if (op === 'detach') return { ok: true, argv: tier === 'degraded' ? branchDetachCheckoutArgs(plan.rev) : branchDetachArgs(plan.rev) }
+    if (op === 'rename') return { ok: true, argv: branchRenameArgs(plan.from, plan.to) }
+    if (op === 'delete') return { ok: true, argv: branchDeleteArgs(plan.name, plan.force === true) }
+    if (op === 'upstream') return { ok: true, argv: plan.unset === true ? unsetUpstreamArgs(plan.branch) : setUpstreamArgs(plan.upstream, plan.branch) }
+    if (op === 'tag-create') return { ok: true, argv: tagCreateArgs(plan.name, plan.mode, plan.target || undefined, plan.message) }
+    if (op === 'tag-delete') return { ok: true, argv: tagDeleteArgs(plan.name) }
+    if (op === 'describe') return { ok: true, argv: plan.text ? branchDescriptionSetArgs(plan.branch, plan.text) : branchDescriptionUnsetArgs(plan.branch) }
+    return { ok: false, reason: 'bad-target', message: '不认识的分支写动作：' + op + '（允许：' + BRANCH_TICKET_OPS.join(' / ') + '）' }
   }
-  function resultFields(op: string, plan: any, argv: string[]): any {
+  function resultFields(op: string, plan: any): any {
     if (op === 'create' || op === 'switch' || op === 'delete') return { branch: plan.name }
     if (op === 'detach') return { rev: plan.rev }
     if (op === 'rename') return { from: plan.from, to: plan.to }
@@ -77,9 +79,9 @@ export function createBranchWrite(deps: any): any {
     if (op === 'tag-create' || op === 'tag-delete') return { tag: plan.name }
     return { branch: plan.branch, description: plan.text }
   }
-  function remember(requestId: any, out: any): void {
+  function remember(requestId: any, op: string, ticketId: string, out: any): void {
     if (!requestId) return
-    results.set(String(requestId), out)
+    results.set(String(requestId), { out: out, op: op, ticketId: ticketId })
     while (results.size > 500) { const k: any = results.keys().next().value; results.delete(k) }
   }
 
@@ -87,23 +89,30 @@ export function createBranchWrite(deps: any): any {
   async function handleBranchWrite(args: any): Promise<any> {
     const a: any = args || {}
     const requestId: string = String(a.requestId || '')
-    // ① 重放：同一个 requestId 回同一份结果（成功与失败都重放，且不再起进程）。
-    if (requestId && results.has(requestId)) {
-      const prev: any = results.get(requestId)
-      return { ok: prev && prev.ok === true, reused: true, result: prev }
-    }
     const ticketId: string = String(a.ticketId || '')
     const op: string = String(a.op || '')
+    // ① 重放：同一个 requestId 回同一份结果（成功与失败都重放，且不再起进程）。
+    // 记录里带 op 与 ticketId：同一个 requestId 换动作不能当成重放——只按 requestId 键时，
+    // 换一件事会拿到上一件事的回包，界面会显示「成功」而实际上什么都没做。
+    if (requestId && results.has(requestId)) {
+      const prev: any = results.get(requestId)
+      if (String(prev.op || '') !== op || String(prev.ticketId || '') !== ticketId) return wfail('args', 'request-reused', '这个 requestId 已经用在另一个动作上了：同一个 requestId 只能重放同一动作，换一个 requestId 再发一次')
+      return { ok: prev.out && prev.out.ok === true, reused: true, result: prev.out }
+    }
     const idProblem: any = idShapeProblem(ticketId)
     if (idProblem) return wfail('args', 'bad-target', '票号格式不合法：' + String(ticketId).slice(0, 80))
     const ridProblem: any = requestIdProblem(requestId)
     if (ridProblem) return wfail('args', ridProblem, 'requestId 格式不合法：只能用字母、数字、下划线与连字符，长度不超过 64')
+    if (BRANCH_TICKET_OPS.indexOf(op) < 0) return wfail('args', 'bad-target', '这个动作不需要凭票执行：' + op)
     const ticket: any = tickets.get(ticketId)
     if (!ticket) return wfail('blocked', 'ticket-missing', '这张票不存在或已经被执行过：重新预检拿一张新票')
-    if (String(ticket.op || '') !== op) return wfail('args', 'ticket-op-mismatch', '这张票不是为这个动作签的：重新预检')
-    if (BRANCH_TICKET_OPS.indexOf(op) < 0) return wfail('args', 'bad-target', '这个动作不需要凭票执行：' + op)
-    const pure: any = ticketPureVerdict(ticket, ticket.op, nowFn())
-    if (!pure || pure.ok !== true) return wfail('blocked', String((pure && pure.reason) || 'ticket-expired'), '这张票已经过期或不能用：重新预检')
+    // 票的形状校验用请求里的动作（不是票上写的那个）：这样「票不是为这个动作签的」与「票过期了」
+    // 由同一个判据给出，不再先手比一遍 op、再让判据拿票自己的 op 跟自己比一遍（那样永远比不出东西）。
+    const pure: any = ticketPureVerdict(ticket, op as any, nowFn())
+    if (!pure || pure.ok !== true) {
+      const reason: string = String((pure && pure.reason) || 'ticket-expired')
+      return wfail('blocked', reason, reason === 'ticket-op-mismatch' ? '这张票不是为这个动作签的：重新预检' : '这张票已经过期或不能用：重新预检')
+    }
     if (ticket.confirmRequired === true && a.confirmed !== true) return wfail('need-confirm', 'need-confirm', '这个动作要先确认（确认卡上写清后果），确认后带 confirmed:true 再发一次', { decision: ticket.decision || null })
     const cwd: string = typeof a.cwd === 'string' && a.cwd.trim() !== '' ? a.cwd : ''
     if (!cwd) return wfail('args', 'bad-target', '缺少工作目录：执行必须说清在哪个仓库做')
@@ -118,19 +127,25 @@ export function createBranchWrite(deps: any): any {
     const exe: any = await resolveGitExecutable()
     if (!exe) return wfail('env', 'env', '找不到 git 命令（platform.resolveExecutable("git") 没有给出路径）')
     const plan: any = ticket.plan || {}
-    const argv: string[] = argvOf(plan)
+    const argsRes: any = argvOf(plan)
+    if (argsRes.ok !== true) return wfail('args', String(argsRes.reason || 'bad-target'), String(argsRes.message || '这个动作拼不出命令'))
+    const argv: string[] = argsRes.argv
     const res: any = await runPinned(exe, cur.repoRoot, argv, { stdoutLimit: 8 * 1024 * 1024, timeoutMs: WRITE_TIMEOUT_MS })
+    // git config --unset-all 在键本来就不存在时退 5，且一个字都不打印。这说明「本来就没有说明」，
+    // 正是这次要的结果，不能拼成「git 原话「」」的失败；其余非零照旧按已知理由分类报。
+    const outText: string = String((res && res.stdout) || '') + String((res && res.stderr) || '')
+    const alreadyAbsent: boolean = res.kind === 'non-zero' && Number(res.exitCode) === 5 && outText.trim() === '' && op === 'describe' && String(plan.text || '') === ''
     let out: any
-    if (res.kind === 'ok') {
-      out = Object.assign({ ok: true, op: op, kind: op, command: argv.slice(0, 3).join(' '), argv: argv, decision: ticket.decision || null, ticketId: ticketId, atMs: nowFn() }, resultFields(op, plan, argv))
+    if (res.kind === 'ok' || alreadyAbsent) {
+      out = Object.assign({ ok: true, op: op, kind: op, command: argv.slice(0, 3).join(' '), argv: argv, decision: ticket.decision || null, ticketId: ticketId, atMs: nowFn() }, alreadyAbsent ? { alreadyAbsent: true, summary: '这个分支本来就没有说明，这一步没有改动任何东西' } : {}, resultFields(op, plan))
     } else {
       const says: string = firstLineOf(String((res && res.stderr) || '').trim() !== '' ? res.stderr : (res && res.stdout))
-      out = wfail('git-failed', classifyFailure(argv[0], res && res.exitCode, says), stepOf(op) + '失败：git 原话「' + says.slice(0, 400) + '」', {
+      out = wfail('git-failed', classifyFailure(says), stepOf(op) + '失败：git 原话「' + says.slice(0, 400) + '」', {
         git: says.slice(0, 400), step: stepOf(op), expected: expectedOf(op, plan), actual: '退出码 ' + String(res && res.exitCode), cause: (res && res.kind) || '', exitCode: res && typeof res.exitCode === 'number' ? res.exitCode : null,
         decision: ticket.decision || null,
       })
     }
-    remember(requestId, out)
+    remember(requestId, op, ticketId, out)
     return out
   }
   function stepOf(op: string): string {

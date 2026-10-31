@@ -23,7 +23,8 @@ export const CLONE_CHECK_VERSION = 1
 export const CLONE_TARGET_STATES: string[] = ['absent', 'empty-dir', 'non-empty-dir', 'file', 'unreadable']
 
 /** 把任意值写成稳定字符串：对象键排序、undefined 当 null、数组保序。
- *  预检与执行各算一遍再比相等，只有同一口径才能比；直接 JSON.stringify 会因键顺序不同误判。 */
+ *  预检与执行各算一遍再比相等，只有同一口径才能比；直接 JSON.stringify 会因键顺序不同误判。
+ *  这份实现与另外四份由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须五份一起改。 */
 export function cloneStableValue(value: any): string {
   if (value === null || value === undefined) return 'null'
   const t = typeof value

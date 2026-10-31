@@ -26,6 +26,7 @@ export const WRITE_REASONS: Record<string, string> = {
   'message-too-long': '提交信息太长了（标题最多 200 字、整体最多 5000 字）。',
   'bad-paths': '这次没有给出要暂存的文件，或路径形状不对。',
   'bad-target': '这次没有解析出可用的推送目标。请重新确认一次。',
+  'request-reused': '这个 requestId 已经用在另一个动作上了：同一个 requestId 只能重放同一动作，换一个再发一次。',
   'need-remote-choice': '这个仓库有多个远端，面板不替你挑。请选一个远端再确认。',
   'no-remote': '这个仓库还没有配置任何远端。请先在侧栏终端里加一个远端（git remote add）再回来推送。',
   'nothing-to-stage': '没有可暂存的东西。',

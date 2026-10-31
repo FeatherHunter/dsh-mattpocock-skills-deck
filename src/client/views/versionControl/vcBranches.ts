@@ -246,6 +246,14 @@ export const vcBranchResultOf = function (reply: any) {
 // ———— 业务面板 ————
 // 面板只读一份读数（board），按读数画四块：当前分支与列表、标签列表、十个写动作的入口、结果与确认卡。
 // 每个动作按钮都带 data-vc-branch-action（宿主 kind）与 data-vc-op（能力号），一行一条、不重复。
+/** 版本降级那一行要的几条：只挑账本判成 degraded 的动作（4.2 / 4.3 / 4.4 在 2.23 以下），
+ *  完整可用的与低于硬底线藏起来的不画——这一行说的是「能做，但换一种做法」，不是「能做」或「不能做」。 */
+export const vcBranchDegradedOf = function (board: any) {
+  const v: any = board && board.capabilities ? board.capabilities : null
+  const rows: any[] = v && Array.isArray(v.actions) ? v.actions : []
+  return rows.filter(function (a: any) { return a && a.state === 'degraded' })
+}
+
 export const vcBranchBoardNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const board = vcBranchShapeOk(opts.board) ? opts.board : null
@@ -253,6 +261,13 @@ export const vcBranchBoardNode = function (h: any, t: any, o: any) {
   kids.push(h('h4', { key: 'title', className: 'vcs-branch2-title' }, t('vc.shell.branch2.title')))
   const current = board && board.current ? String(board.current.name || '') : ''
   kids.push(h('p', { key: 'cur', className: 'vcs-branch2-cur', 'data-vc-branch-current': current }, t('vc.shell.branch2.current', { branch: current || t('vc.shell.branch2.unknown') })))
+  // 降级说明：低版本 git 上新建/切换/切提交改用 checkout 等价动作，替代做法逐条来自账本，界面不自己编。
+  const degraded: any[] = board ? vcBranchDegradedOf(board) : []
+  if (degraded.length > 0) {
+    const gitVersion: string = String((board.capabilities || {}).gitVersion || '')
+    const alternatives: string = degraded.map(function (a: any) { return String(a.alternative || '') }).filter(function (s: string) { return s !== '' }).join('；')
+    kids.push(h('p', { key: 'degraded', className: 'vcs-branch2-degraded', 'data-vc-branch-degraded': String(degraded.length), 'data-vc-branch-git-version': gitVersion }, t('vc.shell.branch2.degraded', { version: gitVersion, alternatives: alternatives })))
+  }
   if (!board) {
     kids.push(h('p', { key: 'none', className: 'vcs-branch2-empty', 'data-vc-branch2-empty': '1' }, t('vc.shell.branch2.empty')))
     if (opts.onRetry) kids.push(h('button', { key: 'retry', type: 'button', className: 'vcs-branch2-retry', 'data-vc-branch2-retry': '1', 'data-press': 'button', 'data-log': 'vc.branch.retry', onClick: opts.onRetry }, t('vc.shell.state.retry')))

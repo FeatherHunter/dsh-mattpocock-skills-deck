@@ -26,7 +26,8 @@ import { stat as fsStat, readdir as fsReaddir } from 'node:fs/promises'
 
 const STDOUT_LIMIT: number = 8 * 1024 * 1024
 
-/** 摘要：绑定表只用 16 位十六进制，够区分同一份计划/现场，也不把原文带进票据。 */
+/** 摘要：绑定表只用 16 位十六进制，够区分同一份计划/现场，也不把原文带进票据。
+ *  这八份的算法体由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须八处一起改。 */
 function digest16Of(text: any): string {
   try { return cryptoCreateHash('sha256').update(String(text === undefined || text === null ? '' : text), 'utf8').digest('hex').slice(0, 16) } catch (e) { return '0000000000000000' }
 }

@@ -68,6 +68,7 @@ function strOrNull(v: any): string | null {
 /**
  * 规范化 JSON：对象键递归排序、数组保序、数值与布尔按字面量、undefined 当 null。
  * 两处（预检与执行）各自算一遍，只有同一口径才能比相等；直接 JSON.stringify 会因为键顺序不同判成不一致。
+ * 这一份是正本；另外四份拷贝由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对，改一处必须五份一起改。
  */
 export function canonicalJson(value: any): string {
   if (value === null || value === undefined) return 'null'

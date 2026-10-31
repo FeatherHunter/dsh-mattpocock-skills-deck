@@ -22,7 +22,8 @@ import { createHash as cryptoCreateHash } from 'node:crypto'
 /** 读命令的输出上限：待办窗口与范围清单都很小，但统一给上限，超了显式失败而不是悄悄截断。 */
 const READ_LIMIT = 8 * 1024 * 1024
 
-/** 票据绑定用的 16 位摘要。 */
+/** 票据绑定用的 16 位摘要。
+ *  这八份的算法体由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须八处一起改。 */
 function digest16Of(text: any): string { try { return cryptoCreateHash('sha256').update(String(text === undefined || text === null ? '' : text), 'utf8').digest('hex').slice(0, 16) } catch (e) { return '0000000000000000' } }
 
 /** 造变基待办页的现场读数器：返回一组只读能力与绑定表算法，供预检、执行与只读电话共用。 */
