@@ -137,21 +137,45 @@ function blockerNumbersOf(row: MapTicketRow): string[] {
 }
 
 /**
- * 一张票的卡片状态。判定次序与宿主 src/tracker/body-parse.ts 的 groupTickets 完全同口径：
- * 已关闭 → closed；仍开着且有人认领 → doing（在办优先，被挡也先算在办）；
- * 仍开着、没人认领、且至少有一个「页面上仍在开着」的阻塞者 → blocked；其余 → ready。
+ * 一个阻塞者挡不挡这张票（#1768：跨容器的票不再默认算可接）。
  *
- * 只把页面内的票算作阻塞者：阻塞者不在本图或已关闭时，这张票就是可以动的（与 frontier 同口径）。
+ * 阻塞者在页面里（`openByNumber` 有这个编号——那是它自己的行状态）→ 只看它开没开，老口径不变。
+ * 阻塞者不在本图 → 看宿主带回来的引用态旁表（`blockerStates`，由 blockedByRefs 折出来）：
+ * 明确读到 CLOSED 才放行；明确 OPEN、读不到状态、连旁表都没有——一律按挡着收口。
+ * 这是安全侧：与宿主两份 groupTickets（body-parse / ticketGrouping）以及 deck 派生同侧，
+ * 宁可把一张已关掉的图外票多算成挡着，也不把还被挡着的票推给人做。
+ */
+function blockerBlocksPage(
+  blockerNo: string,
+  openByNumber: Record<string, boolean>,
+  blockerStates?: Record<string, 'open' | 'closed'> | null,
+): boolean {
+  if (Object.prototype.hasOwnProperty.call(openByNumber, blockerNo)) return openByNumber[blockerNo] === true
+  return !blockerStates || blockerStates[blockerNo] !== 'closed'
+}
+
+/**
+ * 一张票的卡片状态。判定次序与宿主两份 groupTickets（src/tracker/body-parse.ts 与
+ * src/host/ticketGrouping.ts）同一口径：已关闭 → closed；仍开着且有人认领 → doing（在办优先，被挡也先算在办）；
+ * 仍开着、没人认领、且至少有一个「还挡着」的阻塞者 → blocked；其余 → ready。
+ *
+ * 阻塞者在不在本图分开判（见 blockerBlocksPage）：本图内看行状态，图外看引用态；
+ * 图外读不到状态按挡着收口（#1768）。第三个参数可以不给：不给时图外引用一律算挡着，
+ * 与安全侧一致，只是没有「明确已关闭可放行」这条更细的路。
  *
  * 一处有意的放宽：宿主只会给 OPEN / CLOSED 两种状态；万一某行状态缺失或写法不认识，这里不把它
  * 当已关闭（那会让它悄悄从看板上消失），而是照开着的流程继续判。代价是它可能被算成「可接」，
  * 与宿主 groupTickets 的计数在这种脏行上会对不上——脏行值得被看见，不该被静默抹掉。
  */
-export function ticketCardStatusOf(row: MapTicketRow, openByNumber: Record<string, boolean>): TicketCardStatus {
+export function ticketCardStatusOf(
+  row: MapTicketRow,
+  openByNumber: Record<string, boolean>,
+  blockerStates?: Record<string, 'open' | 'closed'> | null,
+): TicketCardStatus {
   if (text(row && row.state).toUpperCase() === CLOSED_STATE) return 'closed'
   if (claimedPersonOf(row)) return 'doing'
   for (const blockerNo of blockerNumbersOf(row)) {
-    if (openByNumber[blockerNo]) return 'blocked'
+    if (blockerBlocksPage(blockerNo, openByNumber, blockerStates)) return 'blocked'
   }
   return 'ready'
 }
@@ -229,9 +253,13 @@ export function rowCardIdOf(prefix: string | null | undefined, numberKey: string
  * 每张卡都去扫全表就是 O(票数²)；索引建一次，之后每张卡 O(1) 查。
  * 第三趟只认「确实处于被挡状态」的目标：在办（已认领）的票虽然也列着阻塞者，
  * 但它不会画成被挡卡，挡路卡上的红条就不该指向它。
+ *
+ * #1768：第二趟把行上的阻塞者引用态旁表（blockedByRefs）收成 blockerStates，
+ * 顺带补上页外阻塞者的标题（被挡卡与被挡封条要写「被 #N 挡住」时，编号之外还能有标题）。
  */
 export function ticketFactsContextOf(rows: MapTicketRow[], env: TicketFactsEnv): TicketFactsContext {
   const openByNumber: Record<string, boolean> = {}
+  const blockerStates: Record<string, 'open' | 'closed'> = {}
   const titleByNumber: Record<string, string> = {}
   const cardIdByNumber: Record<string, string | null> = {}
   const firstBlockedByBlocker: Record<string, string> = {}
@@ -248,13 +276,28 @@ export function ticketFactsContextOf(rows: MapTicketRow[], env: TicketFactsEnv):
     }
   }
 
+  // 引用态索引：只记明确读到的 OPEN / CLOSED；同号冲突「开优先」（宁可多算挡着）。
+  for (const row of rows) {
+    const refs = row && Array.isArray(row.blockedByRefs) ? row.blockedByRefs : []
+    for (const ref of refs) {
+      const key = numberKeyOf(ref && ref.key)
+      if (!key) continue
+      const state = text(ref && ref.state).trim().toUpperCase()
+      if (state === 'OPEN') blockerStates[key] = 'open'
+      else if (state === CLOSED_STATE && blockerStates[key] !== 'open') blockerStates[key] = 'closed'
+      // 本图内那张行自己的标题更可信；只有它没给标题（图外的票不在 rows 里）时才用引用带的。
+      const refTitle = text(ref && ref.title)
+      if (refTitle && !titleByNumber[key]) titleByNumber[key] = refTitle
+    }
+  }
+
   for (const row of rows) {
     const number = ticketNumberOf(row)
     if (number === null) continue
-    if (ticketCardStatusOf(row, openByNumber) !== 'blocked') continue
+    if (ticketCardStatusOf(row, openByNumber, blockerStates) !== 'blocked') continue
     // 只记「主阻塞者」挡住的那张：被挡卡画的是主阻塞者，挡路卡也得指回同一张，
     // 否则同一对票会两边说法不一致（A 说挡住 B，B 却说自己被 D 挡住）。
-    const primary = primaryBlockerNumberOf(row, openByNumber)
+    const primary = primaryBlockerNumberOf(row, openByNumber, blockerStates)
     if (!primary) continue
     const blockedKey = String(number)
     const previous = firstBlockedByBlocker[primary]
@@ -272,17 +315,26 @@ export function ticketFactsContextOf(rows: MapTicketRow[], env: TicketFactsEnv):
     actionOf: env.actionOf,
     textOf: env.textOf,
     openByNumber,
+    blockerStates,
     titleByNumber,
     cardIdByNumber,
     firstBlockedByBlocker,
   }
 }
 
-/** 主阻塞者：页面上还开着的那几张阻塞者里编号最小的一个；按编号取保证每次跑结果一样。 */
-function primaryBlockerNumberOf(row: MapTicketRow, openByNumber: Record<string, boolean>): string {
+/**
+ * 主阻塞者：还挡着这张票的阻塞者里编号最小的一个；按编号取保证每次跑结果一样。
+ * 判定与 ticketCardStatusOf 共用 blockerBlocksPage（本图内看行状态、图外看引用态），
+ * 所以「被挡」与「被谁挡」两侧的说法不会矛盾；跨容器的挡路者也可能当上主阻塞者（#1768）。
+ */
+function primaryBlockerNumberOf(
+  row: MapTicketRow,
+  openByNumber: Record<string, boolean>,
+  blockerStates?: Record<string, 'open' | 'closed'> | null,
+): string {
   let best = ''
   for (const blockerNo of blockerNumbersOf(row)) {
-    if (!openByNumber[blockerNo]) continue
+    if (!blockerBlocksPage(blockerNo, openByNumber, blockerStates)) continue
     if (!best || parseInt(blockerNo, 10) < parseInt(best, 10)) best = blockerNo
   }
   return best
@@ -312,13 +364,13 @@ export function ticketCardFactsOf(row: MapTicketRow, ctx: TicketFactsContext): T
   const numberKey = number === null ? '' : String(number)
   // 行自己的 key 优先：它是同屏唯一性的第一道保险（脏数据里撞号时靠它区分两张行）。
   const rowKey = text(row.key) || numberKey
-  const status = ticketCardStatusOf(row, ctx.openByNumber)
+  const status = ticketCardStatusOf(row, ctx.openByNumber, ctx.blockerStates)
   const closed = status === 'closed'
   const action = cardActionOf(ctx.actionOf(row))
 
   let blockedBy: CardTicketRef | null = null
   if (status === 'blocked') {
-    const blockerNo = primaryBlockerNumberOf(row, ctx.openByNumber)
+    const blockerNo = primaryBlockerNumberOf(row, ctx.openByNumber, ctx.blockerStates)
     if (blockerNo) blockedBy = refOf(blockerNo, ctx)
   }
 

@@ -278,8 +278,38 @@ const cardIds = (html: string) => (html.match(/id="m2-default-100-(\d+)"/g) || [
   const rawMap = mapOf(rawSnapshot)
   check(!rawMap.stats, 'F1 反例：未经宿主归一的快照行没有容器计数', rawMap.stats)
   const rawHtml = renderPage(rawSnapshot, '100', null)
-  check(blockedCountText(rawHtml) === trFn('map.grpBlocked', { n: 0 }), 'F2 反例：原始行（阻塞者是对象）首帧被阻塞计数是 0——本票修的就是它', blockedCountText(rawHtml))
-  check(rawHtml.indexOf('data-log="card.blockedSeal"') < 0, 'F3 反例：原始行首帧画不出被挡封印')
+  check(blockedCountText(rawHtml) === trFn('map.grpBlocked', { n: 1 }),
+    'F2 反例：原始行的阻塞者是对象、读不出编号，首帧只能按安全侧兜底算被挡（#1768 之后不再默认算可接）', blockedCountText(rawHtml))
+  check(rawHtml.indexOf('data-log="card.blockedSeal"') >= 0 && rawHtml.indexOf('被 #301 阻塞') < 0,
+    'F3 反例：原始行画不出「被 #301 阻塞」——归一化补上的编号与引用态才是关系可画的原因', rawHtml.indexOf('被 #301 阻塞'))
+}
+
+// ---- J 跨容器阻塞者首帧真投影（#1768）：阻塞者不在本图，按引用态判并被卡片画出来 ----
+// 阻塞者 6001/6002/6003 都不在容器 600 里：引用态 OPEN → 被挡；CLOSED → 可接；读不到状态 → 按安全侧算被挡。
+{
+  const crossRows = [
+    issue(600, { type: 'map', title: '地图 600' }),
+    issue(1602, { parentKey: '600', title: '跨图被挡', blockedBy: [{ key: '6001', title: '别图里开着', state: 'OPEN' }] }),
+    issue(1603, { parentKey: '600', title: '跨图可接', blockedBy: [{ key: '6002', title: '别图里已关', state: 'CLOSED' }] }),
+    issue(1604, { parentKey: '600', title: '读不到状态', blockedBy: [{ key: '6003', title: '读不到状态' }] }),
+  ]
+  const crossSnapshot: any = carryOverMapTickets(null, assembleSnapshot({ owner: 'o', name: 'r' }, crossRows), { sourceComplete: true, nowMs: NOW })
+  const crossMap = mapOf(crossSnapshot, '600')
+  check(crossMap.stats && crossMap.stats.total === 3 && crossMap.stats.blocked === 2 && crossMap.stats.frontier === 1,
+    'J1 跨容器三态计数：OPEN 与未知各挡一张，CLOSED 放行一张', crossMap.stats)
+  const crossBlocked = (crossMap.tickets || []).filter((t: any) => Number(t.number) === 1602)[0]
+  check(!!crossBlocked && Array.isArray(crossBlocked.blockedByRefs) && crossBlocked.blockedByRefs[0].state === 'OPEN' &&
+    crossBlocked.blockedByRefs[0].title === '别图里开着',
+    'J2 首帧子票行带阻塞者引用态（编号/标题/状态）', crossBlocked && JSON.stringify(crossBlocked.blockedByRefs))
+  const crossHtml = renderPage(crossSnapshot, '600', null)
+  check(blockedCountText(crossHtml) === trFn('map.grpBlocked', { n: 2 }),
+    'J3 真投影首帧：跨容器被挡计数是 2（不是 0，也不再算成可接）', blockedCountText(crossHtml))
+  check(crossHtml.indexOf(trFn('map.grpTakeable', { n: 1 })) >= 0,
+    'J4 真投影首帧：只有引用态明确关闭的那张算可接')
+  check(crossHtml.indexOf('data-log="card.blockedSeal"') >= 0 && crossHtml.indexOf('被 #6001 阻塞') >= 0,
+    'J5 首帧画出跨容器被挡封印（被 #6001 阻塞）')
+  check(crossHtml.indexOf('被 #6003 阻塞') >= 0,
+    'J6 读不到状态的阻塞者也画出来（按安全侧算被挡，不装作可接）')
 }
 
 // ---- G 构建产物：这页与投影函数确实在 package/lib/client.js 里（构建没跟上源码时判红） ----

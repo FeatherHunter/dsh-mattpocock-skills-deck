@@ -288,6 +288,25 @@ export interface GroupingTicket {
    * 想把两处统一成「缺了就按空数组」，那是另一件事，别在类型迁移里顺手改（见本文件尾部说明）。
    */
   blockedBy: readonly (number | string)[]
+  /**
+   * 阻塞者引用态旁表（#1768）：`blockedBy` 里每个引用在本行带得动的信息——编号之外还可能有标题与状态。
+   * 只有在阻塞者不属于本批票时才有用：那时 `blockedBy` 里只剩编号，本批查不到人，只能靠这一格判断
+   * 「跨容器的那张票到底关没关」。读不到状态就表示未知。
+   *
+   * 为什么是旁表、不改 `blockedBy` 的编号语义：编号是三条取数来路（快照 / 按需取回 / deck 派生）共用的
+   * 稳定键，状态是会变的信息；混进同一个数组会让每个消费方都得先认形状。
+   */
+  blockedByRefs?: readonly BlockingRef[]
+}
+
+/** 一条阻塞者引用：编号必能折出（折不出的引用在装配阶段就丢掉了），标题与状态有才带。 */
+export interface BlockingRef {
+  /** 阻塞者编号（数字或数字串，与 `blockedBy` 里那一格同值）。 */
+  key?: number | string | null
+  /** 阻塞者标题。有的话，跨容器的「被 #N 挡住」卡片能直接把标题写出来。 */
+  title?: string | null
+  /** 阻塞者状态（后端原文，比较时统一大写）。缺席表示读不到，按未知收口。 */
+  state?: string | null
 }
 
 /** 同深度的一层票与状态细分。 */
@@ -318,6 +337,55 @@ export interface LevelsResult {
   levels: TicketLevel[]
 }
 
+// ——— 阻塞判定的唯一口径（本文件与 src/host/ticketGrouping.ts 两份副本必须逐字同源，#1768） ———
+
+/**
+ * 编号规范键：补零、带前后空白的写法折成同一个键（' 01 ' / '01' / 1 都折成 '1'）。
+ * 与客户端 `numberKeyOf` 同一套折法——跨容器引用比对时两边不能各认各的写法。
+ */
+function refKeyOf(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'object') {
+    const ref = value as { key?: unknown; number?: unknown }
+    const inner = ref.key !== null && ref.key !== undefined ? ref.key : ref.number
+    return inner === null || inner === undefined ? '' : refKeyOf(inner)
+  }
+  const raw = String(value).trim()
+  if (!raw) return ''
+  const digits = /^0*(\d+)$/.exec(raw)
+  return digits ? String(Number(digits[1])) : raw
+}
+
+/**
+ * 这张票是不是被 `blocker` 挡住（#1768：跨容器的票不再一律算可接）。
+ *
+ * 两种情形分开判：
+ *  · 阻塞者在本批票里：沿用老口径，只有明确 `'OPEN'` 才算挡（状态不明的本批票不算挡——本来就在手边，
+ *    行状态由别处收口）；
+ *  · 阻塞者不在本批：看本行的引用态旁表 `blockedByRefs`。明确 `'CLOSED'` 不算挡；明确 `'OPEN'`、
+ *    读不到状态、连对应引用都找不到——一律按挡着收口。这是安全侧：与 deck 派生把 NOT-FOUND 算 blocked
+ *    （src/tracker/deck-derive.ts:203-218）同侧，宁可少说一张可接，也不把还被挡着的票推给人做。
+ *
+ * 找不到旁表时按挡着算，是有意的：老快照、别的取数来路没有这一格，但它们给的都是编号，
+ * 「编号在、人不在本批」本身就是「还可能在挡着」的证据，不能当成可接。
+ */
+function blockerBlocks(ticket: GroupingTicket, blocker: number | string, byNum: Record<string, GroupingTicket>): boolean {
+  const key = refKeyOf(blocker)
+  const local = byNum[key]
+  if (local !== undefined) return local.state === 'OPEN'
+  const refs = Array.isArray(ticket.blockedByRefs) ? ticket.blockedByRefs : []
+  let seen = false
+  for (const ref of refs) {
+    if (refKeyOf(ref) !== key) continue
+    seen = true
+    const state = ref && ref.state != null ? String(ref.state).trim().toUpperCase() : ''
+    if (state !== 'CLOSED') return true
+  }
+  // 有旁表但全说 CLOSED → 不挡；一条对应引用都没找到 → 按未知挡着收口。
+  if (!seen) return true
+  return false
+}
+
 // ——— computeLevels：blockedBy DAG 最长路径深度分层（level(root)=0；level(x)=1+max(level(直接阻塞者))） ———
 
 /**
@@ -328,12 +396,14 @@ export interface LevelsResult {
  */
 export function computeLevels(tickets: readonly GroupingTicket[]): LevelsResult {
   // 票号表：每张票都在里面，所以下面查不到只可能是「阻塞者不在本批票里」。
+  // 键走 refKeyOf：'01'、1、' 1 ' 必须落在同一格，否则跨容器比对会认错人。
   const byNum: Record<string, GroupingTicket> = {}
-  tickets.forEach((t) => { byNum[t.number] = t })
+  tickets.forEach((t) => { byNum[refKeyOf(t.number)] = t })
   const memo: Record<string, number> = {}
   const levelOf = (t: GroupingTicket): number => {
     if (memo[t.number] !== undefined) return memo[t.number]
-    const blockers = (t.blockedBy || []).map((b) => byNum[b]).filter(Boolean)
+    // 深度只由本批内的阻塞关系决定；图外的引用按叶子算（不改变分层，只影响 frontier 的判定）。
+    const blockers = (t.blockedBy || []).map((b) => byNum[refKeyOf(b)]).filter(Boolean)
     if (!blockers.length) { memo[t.number] = 0; return 0 }
     let maxL = -1
     blockers.forEach((b) => { const l = levelOf(b); if (l > maxL) maxL = l })
@@ -353,15 +423,15 @@ export function computeLevels(tickets: readonly GroupingTicket[]): LevelsResult 
     if (t.state === 'CLOSED') layer.closed++
     else layer.open++
   })
-  // 层内状态细分（frontier/claimed/blocked 归层）
-  const openBlocker = (b: number | string): boolean => { const t = byNum[b]; return t !== undefined && t.state === 'OPEN' }
+  // 层内状态细分（frontier/claimed/blocked 归层）：判定走 blockerBlocks，与本文件 groupTickets、
+  // 宿主 src/host/ticketGrouping.ts 同一口径（跨容器引用按引用态收口，#1768）。
   levels.forEach((layer) => {
     // 稀疏数组的空洞不会被 forEach 访问，这一句只是让编译器知道 layer 一定在。
     if (!layer) return
     const openT = tickets.filter((t) => byNumber[t.number] === layer.level && t.state === 'OPEN')
-    layer.frontier = openT.filter((t) => !t.claimedBy && !t.blockedBy.some(openBlocker)).length
+    layer.frontier = openT.filter((t) => !t.claimedBy && !t.blockedBy.some((b) => blockerBlocks(t, b, byNum))).length
     layer.claimed = openT.filter((t) => t.claimedBy).length
-    layer.blocked = openT.filter((t) => !t.claimedBy && t.blockedBy.some(openBlocker)).length
+    layer.blocked = openT.filter((t) => !t.claimedBy && t.blockedBy.some((b) => blockerBlocks(t, b, byNum))).length
   })
   // 剔除空洞（levels 数组可能因跳级出现 undefined）
   const compact = levels.filter((layer): layer is TicketLevel => Boolean(layer))
@@ -390,16 +460,20 @@ export interface TicketGroups {
  * 五组里只有 open/closed 是「按状态分组」，另外三组是**可以重叠**的视角：
  * frontier 是「未关闭、认领已知且空、阻塞都关掉了」（#1 明确写着的可接票），
  * claimed 是「有人认领」，blocked 是「还有开着的票挡着」。
+ *
+ * #1768：阻塞者不在本批票里时不再默认「不算挡」——看本行 `blockedByRefs` 的引用态，
+ * 明确 CLOSED 才放行，OPEN / 未知 / 没有旁表都按挡着收口。判定细节见 blockerBlocks。
+ * 本函数与 src/host/ticketGrouping.ts 的同名函数是两份副本，必须同一口径；
+ * tests/verify-map-first-frame.ts 有交叉核对，改一处必须同步改另一处。
  */
 export function groupTickets(tickets: readonly GroupingTicket[]): TicketGroups {
   const byNum: Record<string, GroupingTicket> = {}
-  tickets.forEach((t) => { byNum[t.number] = t })
-  const openBlocker = (b: number | string): boolean => { const t = byNum[b]; return t !== undefined && t.state === 'OPEN' }
+  tickets.forEach((t) => { byNum[refKeyOf(t.number)] = t })
   const open = tickets.filter((t) => t.state === 'OPEN')
   const closed = tickets.filter((t) => t.state === 'CLOSED')
-  const frontier = open.filter((t) => !t.claimedBy && !t.blockedBy.some(openBlocker))
+  const frontier = open.filter((t) => !t.claimedBy && !t.blockedBy.some((b) => blockerBlocks(t, b, byNum)))
   const claimed = open.filter((t) => t.claimedBy)
-  const blocked = open.filter((t) => !t.claimedBy && t.blockedBy.some(openBlocker))
+  const blocked = open.filter((t) => !t.claimedBy && t.blockedBy.some((b) => blockerBlocks(t, b, byNum)))
   // v1.4（T1 #442）：附 DAG 分层（client 渲染漏斗分层用）
   const lv = computeLevels(tickets)
   return {

@@ -214,6 +214,35 @@ function claimedByOf(row: any): string {
   return ''
 }
 
+/**
+ * 阻塞者引用态旁表（#1768）：`blockedBy` 压成编号之后，编号之外的信息（标题、状态）留在这里。
+ *
+ * 为什么需要：跨容器的阻塞者不在本批子票里，首帧只剩一个编号，判断不了「那张票关没关」。
+ * 读层本来带回来了引用态（GitHub 的 blockedBy.nodes 有 number/title/state），
+ * 压成编号时把标题与状态收进旁表，frontier 与被挡计数才有依据；读不到状态表示未知（按挡着收口）。
+ *
+ * 为什么从旧旁表回填：上一趟快照的行已经压成编号了，降级 / 补回那一趟会重新归一，
+ * 不把旧旁表里的标题与状态取回来，已知的 CLOSED 会变成未知，本来可接的票会被错收成被挡。
+ */
+function blockedByRefsOf(row: any, blockers: any[]): any[] {
+  const previous = Array.isArray(row && row.blockedByRefs) ? row.blockedByRefs : []
+  const previousByKey: Record<string, any> = {}
+  previous.forEach((ref: any) => { const k = keyOf(ref); if (k && previousByKey[k] === undefined) previousByKey[k] = ref })
+  const refs: any[] = []
+  blockers.forEach((raw: any) => {
+    const key = keyOf(raw)
+    if (!key) return
+    const ref: any = { key: refNumberOf(raw) }
+    const old = previousByKey[key]
+    const title = raw && typeof raw === 'object' && raw.title != null && String(raw.title) !== '' ? raw.title : (old ? old.title : null)
+    const state = raw && typeof raw === 'object' && raw.state != null && String(raw.state) !== '' ? raw.state : (old ? old.state : null)
+    if (title != null && String(title) !== '') ref.title = String(title)
+    if (state != null && String(state) !== '') ref.state = String(state)
+    refs.push(ref)
+  })
+  return refs
+}
+
 /** 单张子票归一化：保留原行全部字段，只补客户端首帧要读的那几格。 */
 function normalizeTicket(row: any): any {
   const out = Object.assign({}, row)
@@ -221,6 +250,8 @@ function normalizeTicket(row: any): any {
   if (Number.isFinite(number)) out.number = number
   const blockers = Array.isArray(row && row.blockedBy) ? row.blockedBy : []
   out.blockedBy = blockers.map(refNumberOf).filter((v: any) => v !== null)
+  // #1768：编号语义不动，引用态另放一格（跨容器判定与卡片标题都靠它）。
+  out.blockedByRefs = blockedByRefsOf(row, blockers)
   if (!Array.isArray(out.blocks)) out.blocks = []
   const claimed = claimedByOf(row)
   if (claimed) out.claimedBy = claimed
@@ -277,6 +308,7 @@ export function mergeKnownTickets(prevRows: any[], nextRows: any[]): { tickets: 
       if (empty && prev[field] !== undefined && prev[field] !== null) out[field] = prev[field]
     }
     fillIfEmpty('blockedBy')
+    fillIfEmpty('blockedByRefs')
     fillIfEmpty('blocks')
     fillIfEmpty('labels')
     fillIfEmpty('assignees')
