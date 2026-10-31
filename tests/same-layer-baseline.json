@@ -965,6 +965,33 @@
       "count": 1,
       "owner": "#1743（规格 #1586 T08 提交页）",
       "note": "外壳装配：外壳只做懒加载与电话日志包装，读实现（身份、签名配置、提交说明模板、上一条提交原文）在同层叶子 versionControlCommitForm.ts；方向单向，读取叶子只认注入的宿主依赖，不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
+      "spec": "./versionControlUndoMount.js",
+      "resolved": "src/host/versionControlUndoMount.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1748（规格 #1586 T13 撤销、重置与拣选）",
+      "note": "装配扇入：历史改写两条电话要挂到版本管理入口，但父文件贴着 350 有效行上限；照 #500/#821/#1742 先例把装配拆成同层外壳，父文件只剩 createUndoMount 那一行调用，外壳不反向引用父文件。"
+    },
+    {
+      "file": "src/host/versionControlUndoMount.ts",
+      "spec": "./versionControlUndoCheck.js",
+      "resolved": "src/host/versionControlUndoCheck.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1748（规格 #1586 T13 撤销、重置与拣选）",
+      "note": "外壳装配：外壳只做懒加载与电话日志包装，预检判定（现场测量、恢复点计数、签票）在同层叶子 versionControlUndoCheck.ts；方向单向，预检叶子只认注入的宿主依赖，不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControlUndoMount.ts",
+      "spec": "./versionControlUndoWrite.js",
+      "resolved": "src/host/versionControlUndoWrite.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1748（规格 #1586 T13 撤销、重置与拣选）",
+      "note": "外壳装配：执行层（逐格重验、按步骤跑写命令、冲突与部分失败交代）在同层叶子 versionControlUndoWrite.ts，由外壳把预检层实例的票表与结果表显式交给它；两片叶子互不引用。"
     }
   ]
 }

@@ -45,7 +45,9 @@ declare function vcChangesPageNode(h: any, t: any, o: any): any
 // 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）：同上由构建拼进闭包，这里只声明形状。
 declare function vcBranchBoardNode(h: any, t: any, o: any): any
 // 贮藏页叶子（#1751，vcStashPage.ts）：同样由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。
-declare function vcStashPageNode(h: any, t: any, o: any): any
+declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any
+// #1748 T13 变基待办页的历史改写面板（vcUndoPage.ts）：五种破坏性动作的预检、确认卡与执行结果都在叶子里，
+// 壳只负责在 rebase 页把它挂进页面根节点；没有传状态时叶子画空面板，不自己造读数。
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']
@@ -378,6 +380,9 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     // 页面叶子的入参名是 state（本地编辑状态）与 seed（首屏读数）；这里按叶子认的名字递，不改叶子的形状。
     children.push(keyed(vcStashPageNode(h, t, { seed: seed, state: opts.stash, onStash: opts.onStash, onStashEdit: opts.onStashEdit }), 'stashPage'))
   }
+  // #1748 变基待办页（域 5 历史改写）：五种动作都是「预检出票 → 确认 → 凭票执行」三段式，
+  // 页面壳只把调用方持有的状态与回调递进叶子；续作与拒绝理由都在叶子里讲，壳不重复。
+  if (page === 'rebase' && typeof vcUndoPageNode === 'function') children.push(keyed(vcUndoPageNode(h, t, { seed: seed, state: opts.undo, onUndoCheck: opts.onUndoCheck, onUndoWrite: opts.onUndoWrite, onUndoInput: opts.onUndoInput }), 'undoPage'))
   // 长任务区（#1740）：页面把任务清单传进来时才画；没传整块不出现，既有页面的渲染结果不受影响。
   if (opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {
     children.push(keyed(vcTaskPanelNode(h, t, { tasks: opts.tasks, running: opts.running, onCancel: opts.onCancel }), 'tasks'))

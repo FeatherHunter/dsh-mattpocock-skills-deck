@@ -125,6 +125,12 @@ timeouts:
   vcBranchReadTimeoutMs: 15000
   # 分支域写命令的单条超时：15 秒。branch / tag / config --local 都是本地动作，不推远端。
   vcBranchWriteTimeoutMs: 15000
+  # 历史改写域（#1748 T13）预检里单条只读 git 命令的超时：15 秒。看现场、解析目标提交、数硬重置会丢多少东西
+  # 都是本地读取，与分支域只读同一档；数不全就整趟失败（不拿半份计数签票）。
+  vcUndoReadTimeoutMs: 15000
+  # 历史改写域写命令的单条超时：15 秒。reset / revert / commit / cherry-pick 全是本地动作，不推远端；
+  # 写命令的整趟预算 = 单条超时 + vcWriteCallMarginMs，与其它写电话同一套算法。
+  vcUndoWriteTimeoutMs: 15000
   # git 凭据代执行的整趟预算：4 分钟。上下限 5 秒与 10 分钟：接线给的预算会被钳进这个范围
   # （下限从 1 秒提到 5 秒；1 秒的预算在慢机器上连子进程启动都盖不住，等于没给）。
   gitCredentialCallBudgetMs: 240000

@@ -1,4 +1,4 @@
-// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–J 十组，每组带反证；J 组是 #1752 工作树页的写通道。
+// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–L 各组，每组带反证；J 组是 #1752 工作树页的写通道，M 组是 #1748 历史改写五条动作的写通道。
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-841-write-phones.ts
 // 夹具：真 git 临时仓库（每个用例自己造）+ 真 subprocess 形状的垫片（argv 直传、不经 shell），
 // 这样「真跑过的 argv」与「真仓库有没有被动过」都能断言；只在纯归类那组不碰 git。
@@ -494,6 +494,86 @@ async function main(): Promise<void> {
   const lFailCheck = await vcL7.handleGitWriteCheck({ cwd: rL7, op: 'commit', message: '签名提交', plan: lFailPlan })
   const lFail = await vcL7.handleGitCommit({ cwd: rL7, ticketId: lFailCheck.ok ? lFailCheck.ticket.id : 'x', requestId: 'i-r7', message: '签名提交', plan: lFailPlan })
   check(lFail.ok === false && lFail.error && lFail.error.reason === 'signing-failed' && Object.keys(lFail.error).sort().join(',') === 'hint,kind,message,reason', 'L15 2.6 签名失败归到 signing-failed（不是 unknown-write-failure），失败信封固定 {kind,reason,message,hint}')
+
+  // M 历史改写五条动作（#1748）：票据门四档拒绝必须零写命令；三种重置 argv 分明；还原两步、拣选一条命令保序。
+  console.log('M 历史改写五条动作（票据门 / 危险档恢复点 / 还原两步 / 拣选保序）')
+  // 只数「真正会被 git 执行的历史改写命令」，预检与重验读出来的 status/log/rev-parse 不算写。
+  const undoWrites = (): string[][] => spawns.filter((a) => ['reset', 'revert', 'cherry-pick'].indexOf(after(a)[0]) >= 0)
+  // 造一条三条提交的历史（mkRepo 只给一条，重置/还原要能往回走）。
+  function mkHistory(tag: string): string {
+    const base = mkRepo(tag)
+    git(base, ['commit', '-q', '-m', '第二笔'])
+    fs.writeFileSync(path.join(base, 'b.txt'), 'b\n'); git(base, ['add', 'b.txt']); git(base, ['commit', '-q', '-m', '第三笔'])
+    return base
+  }
+  const rM = mkHistory('m')
+  const vcM = makeVc()
+  const mHead = git(rM, ['rev-parse', 'HEAD']).out
+  const mSoft = await vcM.handleGitUndoCheck({ cwd: rM, op: 'reset-soft', target: 'HEAD~1' })
+  check(mSoft.ok === true && mSoft.ticket && mSoft.ticket.op === 'reset-soft' && mSoft.steps.length === 1 && mSoft.steps[0].join(' ') === 'reset --soft ' + git(rM, ['rev-parse', 'HEAD~1']).out, 'M1 软重置预检：回一张 reset-soft 票，命令计划只有「reset --soft <目标提交>」一条')
+  const mNoProcess = spawns.length
+  const mFake = await vcM.handleGitUndoWrite({ cwd: rM, op: 'reset-soft', target: 'HEAD~1', ticketId: 'NOSUCHTICKET', requestId: 'm-fake' })
+  check(mFake.ok === false && mFake.error.reason === 'ticket-missing' && undoWrites().length === 0 && spawns.length === mNoProcess, 'M2 伪造票：ticket-missing 且一个进程都没起（票据门在任何 git 命令之前）')
+  clock.t = mSoft.ticket.expiresAtMs + 1
+  const mNoProcess2 = spawns.length
+  const mExpired = await vcM.handleGitUndoWrite({ cwd: rM, op: 'reset-soft', target: 'HEAD~1', ticketId: mSoft.ticket.id, requestId: 'm-expired' })
+  clock.t = 1000
+  check(mExpired.ok === false && mExpired.error.kind === 'stale' && mExpired.error.reason === 'ticket-expired' && undoWrites().length === 0 && spawns.length === mNoProcess2, 'M3 过期票：stale / ticket-expired 且零写命令（120 秒有效期照票据堂的同一把尺）')
+  const mNoProcess3 = spawns.length
+  const mSwap = await vcM.handleGitUndoWrite({ cwd: rM, op: 'reset-hard', target: 'HEAD~1', ticketId: mSoft.ticket.id, requestId: 'm-swap' })
+  check(mSwap.ok === false && mSwap.error.kind === 'stale' && mSwap.error.reason === 'ticket-op-mismatch' && undoWrites().length === 0 && spawns.length === mNoProcess3, 'M4 换动作（软重置的票拿去硬重置）：ticket-op-mismatch 且零写命令')
+  const mNoProcess4 = spawns.length
+  const mBadReq = await vcM.handleGitUndoWrite({ cwd: rM, op: 'reset-soft', target: 'HEAD~1', ticketId: mSoft.ticket.id, requestId: 'bad id!' })
+  check(mBadReq.ok === false && mBadReq.error.kind === 'usage' && undoWrites().length === 0 && spawns.length === mNoProcess4, 'M5 请求号形状不对：usage 拒绝且零写命令（重放表的键先过形状关）')
+  const mSoftRun = await vcM.handleGitUndoWrite({ cwd: rM, op: 'reset-soft', target: 'HEAD~1', ticketId: mSoft.ticket.id, requestId: 'm-soft-1' })
+  const mSoftArgv = after(undoWrites()[0] || [])
+  check(mSoftRun.ok === true && mSoftRun.before.headOid === mHead && mSoftRun.after.headOid === git(rM, ['rev-parse', 'HEAD']).out && mSoftArgv.join(' ') === 'reset --soft ' + mSoftRun.after.headOid, 'M6 软重置成功：HEAD 退回上一笔、改动留在已暂存，argv 是「reset --soft <目标提交>」（一个写命令、不动工作区）')
+  const mReplayWrites = undoWrites().length
+  const mReplay = await vcM.handleGitUndoWrite({ cwd: rM, op: 'reset-hard', target: 'HEAD', ticketId: 'NOSUCHTICKET', requestId: 'm-soft-1' })
+  check(mReplay.ok === true && mReplay.replayed === true && mReplay.after.headOid === mSoftRun.after.headOid && undoWrites().length === mReplayWrites, 'M7 同一个请求号重放：回第一次那份结果、不再起第二条写命令（连点两下确认不会重置两次）')
+  const mStaleCheck = await vcM.handleGitUndoCheck({ cwd: rM, op: 'reset-soft', target: 'HEAD~1' })
+  git(rM, ['commit', '-q', '-m', '预检后又提交了一笔'])
+  const mStaleWrites = undoWrites().length
+  const mStaleHead = await vcM.handleGitUndoWrite({ cwd: rM, op: 'reset-soft', target: 'HEAD~1', ticketId: mStaleCheck.ticket.id, requestId: 'm-stale-head' })
+  check(mStaleHead.ok === false && mStaleHead.error.kind === 'stale' && mStaleHead.error.reason === 'stale-head' && undoWrites().length === mStaleWrites, 'M8 票据签完后 HEAD 换了一条：stale-head、零写命令（不把旧判断套到新现场）')
+  const rM9 = mkHistory('m9')
+  const vcM9 = makeVc()
+  const mIndexCheck = await vcM9.handleGitUndoCheck({ cwd: rM9, op: 'reset-soft', target: 'HEAD~1' })
+  fs.appendFileSync(path.join(rM9, 'a.txt'), '预检后新改的一行\n')
+  const mIndexWrites = undoWrites().length
+  const mIndex = await vcM9.handleGitUndoWrite({ cwd: rM9, op: 'reset-soft', target: 'HEAD~1', ticketId: mIndexCheck.ticket.id, requestId: 'm-stale-index' })
+  check(mIndex.ok === false && mIndex.error.kind === 'stale' && mIndex.error.reason === 'stale-index' && undoWrites().length === mIndexWrites, 'M9 票据签完后工作区又改了：stale-index、零写命令（确认卡上的形状变了就重新来）')
+  const rM10 = mkHistory('m10')
+  const vcM10 = makeVc()
+  const mHardCheck = await vcM10.handleGitUndoCheck({ cwd: rM10, op: 'reset-hard', target: 'HEAD~1' })
+  check(mHardCheck.ok === true && mHardCheck.danger === true && mHardCheck.recovery && mHardCheck.recovery.restore.reflogBefore === 'HEAD@{0}' && Number(mHardCheck.recovery.discard.files) >= 1 && mHardCheck.recovery.commits === 1, 'M10 硬重置预检：标危险档并给出恢复点（将丢的文件数、会被移出历史的提交数、reflog 位置）')
+  const mHardRun = await vcM10.handleGitUndoWrite({ cwd: rM10, op: 'reset-hard', target: 'HEAD~1', ticketId: mHardCheck.ticket.id, requestId: 'm-hard-1' })
+  const mHardArgv = after(undoWrites()[undoWrites().length - 1] || [])
+  check(mHardRun.ok === true && mHardRun.danger === true && mHardRun.recovery && mHardRun.recovery.restore.reflogBefore === 'HEAD@{0}' && mHardArgv.join(' ') === 'reset --hard ' + mHardRun.after.headOid && git(rM10, ['status', '--porcelain']).out === '', 'M11 硬重置成功：argv 是「reset --hard <目标提交>」，回包把恢复点原样交回（对可逆边界说真话）')
+  const rM12 = mkHistory('m12')
+  const vcM12 = makeVc()
+  const mRevCheck = await vcM12.handleGitUndoCheck({ cwd: rM12, op: 'revert', target: 'HEAD' })
+  check(mRevCheck.ok === true && mRevCheck.defaultMessage === 'Revert "第三笔"' && mRevCheck.steps.length === 2 && mRevCheck.steps[0].join(' ').indexOf('revert --no-commit ') === 0 && mRevCheck.steps[1].slice(0, 2).join(' ') === 'commit -m', 'M12 还原提交预检：默认说明按 git 惯例写「Revert "原标题"」，计划是「revert --no-commit」再「commit -m」两步')
+  const mRevRun = await vcM12.handleGitUndoWrite({ cwd: rM12, op: 'revert', target: 'HEAD', ticketId: mRevCheck.ticket.id, requestId: 'm-revert-1' })
+  const mRevParents = git(rM12, ['log', '-1', '--format=%P']).out.split(' ')
+  check(mRevRun.ok === true && mRevRun.stepsDone === 2 && git(rM12, ['log', '-1', '--format=%s']).out === 'Revert "第三笔"' && mRevParents.length === 1 && mRevParents[0] === mRevRun.before.headOid, 'M13 还原提交成功：反向改动真的成了一条新提交（说明可编辑、父提交指向被还原的那条）')
+  const rM14 = mkRepo('m14')
+  git(rM14, ['commit', '-q', '-m', '基线二'])
+  git(rM14, ['checkout', '-q', '-b', 'feat'])
+  fs.writeFileSync(path.join(rM14, 'f1.txt'), '1\n'); git(rM14, ['add', 'f1.txt']); git(rM14, ['commit', '-q', '-m', '拣选甲'])
+  fs.writeFileSync(path.join(rM14, 'f2.txt'), '2\n'); git(rM14, ['add', 'f2.txt']); git(rM14, ['commit', '-q', '-m', '拣选乙'])
+  const picks = git(rM14, ['log', '--reverse', '--format=%H', 'main..feat']).out.split('\n').filter((x) => x !== '')
+  git(rM14, ['checkout', '-q', 'main'])
+  const vcM14 = makeVc()
+  const mPickCheck = await vcM14.handleGitUndoCheck({ cwd: rM14, op: 'cherry-pick', commits: picks })
+  check(mPickCheck.ok === true && mPickCheck.plan.commits.length === 2 && mPickCheck.steps.length === 1 && mPickCheck.steps[0].join(' ') === 'cherry-pick ' + picks.join(' '), 'M14 拣选多选预检：一条命令按原序带上全部提交（乱序就换个结果，故次序写进票据）')
+  const mPickBase = undoWrites().length
+  const mPickRun = await vcM14.handleGitUndoWrite({ cwd: rM14, op: 'cherry-pick', commits: picks, ticketId: mPickCheck.ticket.id, requestId: 'm-pick-1' })
+  const mPickNew = undoWrites().slice(mPickBase)
+  const mPickOrder = git(rM14, ['log', '--reverse', '-2', '--format=%s']).out.split('\n')
+  check(mPickRun.ok === true && mPickNew.length === 1 && after(mPickNew[0] || []).join(' ') === 'cherry-pick ' + picks.join(' ') && mPickOrder.join('|') === '拣选甲|拣选乙', 'M15 拣选成功：只起一条 cherry-pick 命令，日志里两条提交的先后与预检时给的次序一致（原序落进历史）')
+  check(denyIs({ ok: true, requestId: 'x' }, 'usage') === false, 'M16 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
+
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }
