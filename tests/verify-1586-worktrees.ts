@@ -216,6 +216,64 @@ async function main(): Promise<void> {
   check(SRC.mount.indexOf("import('./versionControlWorktrees.js')") >= 0 && SRC.mount.indexOf('handleGitWorktreeCheck') >= 0 && SRC.mount.indexOf('handleGitWorktreeRun') >= 0 && SRC.mount.indexOf("'wf.gitWorktreeCheck'") >= 0 && SRC.mount.indexOf("'wf.gitWorktreeRun'") >= 0 && SRC.mount.indexOf('loggedPhone') >= 0, '四·7b 装配壳首次调用时才 import 叶子，两条电话都包上日志再交出去（载入失败回明确失败）')
   check(SRC.hostLeaf.indexOf('capabilityAvailability(cap,') >= 0, '四·8 宿主的版本门用共享层 capabilityAvailability 算，不自己写一份版本比较')
 
+  // ---------- 四·9 / 四·10 票据的边界时刻与容量：真宿主叶子 + 假 git 现场 ----------
+  // 为什么要加载宿主叶子：过期判据与容量上限写在 sweep 与执行电话里，只读源码文本看不出「恰好到期算不算过期」。
+  // 这里的现场全来自假 route、时间全来自 clock，所以边界时刻能精确到毫秒；同一份清单读两次摘要不变，重验才放行。
+  const wtLeaf: any = await import(pathToFileURL(path.join(ROOT, 'src/host/versionControlWorktrees.ts')).href)
+  const T0 = 1800000000000
+  const clock: any = { t: T0 }
+  let seq = 0
+  const OID_A = 'a'.repeat(40)
+  const OID_B = 'b'.repeat(40)
+  const WT_LISTING = 'worktree D:/w/repo\u0000HEAD ' + OID_A + '\u0000branch refs/heads/main\u0000\u0000worktree D:/w/repo/.wt/a\u0000HEAD ' + OID_B + '\u0000branch refs/heads/t/a\u0000\u0000'
+  const mkDeps = (): any => ({
+    resolveGitExecutable: async (): Promise<any> => 'git',
+    resolveRepoRoot: async (): Promise<any> => ({ ok: true, root: 'D:/w/repo', gitDir: 'D:/w/repo/.git' }),
+    runPinned: async (exe: any, dir: any, argv: any, opts?: any): Promise<any> => {
+      if (argv[0] === '--version') return { kind: 'ok', stdout: 'git version 2.30.0\n' }
+      if (argv[0] === 'worktree' && argv[1] === 'list') return { kind: 'ok', stdout: WT_LISTING }
+      return { kind: 'ok', stdout: '' }
+    },
+    failPhone: (kind: any, message: any, extra?: any): any => Object.assign({ ok: false, error: { kind: kind, message: message } }, extra || {}),
+    firstLine: (s: any): string => String(s === undefined || s === null ? '' : s).split(/\r?\n/)[0],
+    failureFromExec: (res: any, what: any): any => (res && res.kind === 'ok') ? null : { ok: false, error: { kind: 'git-failed', message: String(what) } },
+    cwdOf: (a: any): string => 'D:/w/repo',
+    pathExists: async (): Promise<boolean> => false,
+    nowMs: (): number => clock.t,
+    randomId: (): string => 'r' + (++seq),
+  })
+  const mintWt = async (phones: any, p: string): Promise<any> => phones.handleGitWorktreeCheck({ op: 'add', path: p })
+  const runWt = async (phones: any, ticketId: string, requestId: string, p: string): Promise<any> => phones.handleGitWorktreeRun({ op: 'add', ticketId: ticketId, requestId: requestId, path: p, confirm: true })
+
+  const phonesA: any = wtLeaf.createWorktreePhones(mkDeps())
+  clock.t = T0
+  const mintEarly: any = await mintWt(phonesA, 'D:/w/repo/.wt/fresh')
+  check(mintEarly.ok === true && !!mintEarly.ticket && mintEarly.ticket.expiresAtMs === T0 + 120000, '四·9 预检签出的票据有效期是 120000 毫秒（下面两条毫秒边界的前提）')
+  clock.t = T0 + 119999
+  const early: any = await runWt(phonesA, mintEarly.ticket.id, 'req-early', 'D:/w/repo/.wt/fresh')
+  check(early.ok === true, '四·9a 还差 1 毫秒到期时票据仍有效，动作照常执行')
+  clock.t = T0
+  const mintLate: any = await mintWt(phonesA, 'D:/w/repo/.wt/late')
+  clock.t = T0 + 120000
+  const late: any = await runWt(phonesA, mintLate.ticket.id, 'req-late', 'D:/w/repo/.wt/late')
+  // 恰好到期的这一刻，票据必须已经不在表里：sweep 在查找之前按「now < expiresAtMs 才算有效」清掉它，
+  // 所以理由是 ticket-missing。旧写法 expiresAtMs < t 会把它留到下一毫秒，放行这次执行（那时会回 ok:true）。
+  check(late.ok === false && late.error.kind === 'ticket-missing', '四·9b 恰好到期的那一刻票据已经作废，凭它执行被拒（旧写法在这一毫秒还会放行）')
+
+  clock.t = T0
+  const phonesB: any = wtLeaf.createWorktreePhones(mkDeps())
+  const capIds: string[] = []
+  for (let i = 0; i < 201; i += 1) {
+    const m: any = await mintWt(phonesB, 'D:/w/repo/.wt/new-' + i)
+    if (m.ok === true && m.ticket) capIds.push(m.ticket.id)
+  }
+  check(capIds.length === 201, '四·10 连续预检 201 次都拿到票据（容量上界断言的前提）')
+  const oldest: any = await runWt(phonesB, capIds[0], 'req-new-0', 'D:/w/repo/.wt/new-0')
+  check(oldest.ok === false && oldest.error.kind === 'ticket-missing', '四·10a 票据表只留 200 张：第 201 张签出后最旧的一张已被淘汰，凭它执行被拒')
+  const second: any = await runWt(phonesB, capIds[1], 'req-new-1', 'D:/w/repo/.wt/new-1')
+  const mid: any = await runWt(phonesB, capIds[100], 'req-new-100', 'D:/w/repo/.wt/new-100')
+  check(second.ok === true && mid.ok === true, '四·10b 第 2 张与第 101 张仍在表里、照常执行（容量若退回 64，这两张早被淘汰）')
+
   // ---------- 五、界面三层：数据层 / 处理层 / 页面体 ----------
   for (const name of ['entries', 'rowActions', 'phones', 'runArgs', 'noLongTask', 'sameSlice', 'oneJudge', 'dataNoPhone', 'confirmCard', 'versionHint', 'noPrimary']) check((J as any)[name](SRC), '五·' + name + ' 界面三层的约定守住了（' + name + '）')
   check(SRC.ops.indexOf("'idle', 'checking', 'plan', 'confirm', 'blocked', 'running', 'done', 'failed'") >= 0, '五·12 处理层的八个状态齐全（预检 / 计划 / 确认 / 拦下 / 执行 / 完成 / 失败各有落点）')
