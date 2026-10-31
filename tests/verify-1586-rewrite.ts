@@ -11,7 +11,7 @@ const crypto = require('node:crypto')
 const cp = require('node:child_process')
 const { pathToFileURL } = require('node:url')
 const { printGateResult } = require('./lib/gate-result.ts')
-const { sourceText } = require('./lib/source-text.ts')
+const { sourceText, spliceableJs } = require('./lib/source-text.ts')
 const { compileFn } = require('./lib/eval-probe.ts')
 const { localeDataText } = require('./lib/locale-data.ts')
 
@@ -507,6 +507,336 @@ async function main() {
 
   for (const d of [repo, dirtyRepo, shallowParent]) { try { fs.rmSync(d, { recursive: true, force: true }) } catch (e) { /* 临时目录删不掉不影响结论 */ } }
 
+
+  // ---------- D 组：客户端维护页两叶（五表单、多行文本解析、回包分类与真渲染） ----------
+  const rwPageSrc = sourceText('src/client/views/versionControl/vcRewritePage.ts')
+  const rwOpsSrc = sourceText('src/client/views/versionControl/vcRewriteOps.ts')
+  const rwYamlSrc = sourceText('config/copy/vcrewrite.yaml')
+  const rwLocaleText = localeDataText()
+  const rwClientBody = [
+    spliceableJs('src/shared/version-control/src/rewrite-ops.ts'),
+    spliceableJs('src/shared/version-control/src/recovery-point.ts'),
+    spliceableJs('src/client/views/versionControl/vcRewriteOps.ts'),
+    spliceableJs('src/client/views/versionControl/vcRewritePage.ts'),
+    'return {',
+    '  VC_REWRITE_PHONES: VC_REWRITE_PHONES, VC_REWRITE_FORM_IDS: VC_REWRITE_FORM_IDS,',
+    '  VC_REWRITE_FIELDS: VC_REWRITE_FIELDS, VC_REWRITE_FORM_DEFAULT: VC_REWRITE_FORM_DEFAULT,',
+    '  VC_REWRITE_REASON_KEYS: VC_REWRITE_REASON_KEYS, vcRewriteFieldOf: vcRewriteFieldOf,',
+    '  vcRewriteFieldLabelKeyOf: vcRewriteFieldLabelKeyOf, vcRewriteFieldHintKeyOf: vcRewriteFieldHintKeyOf,',
+    '  vcRewriteLinesOf: vcRewriteLinesOf, vcRewriteRenamesOf: vcRewriteRenamesOf, vcRewriteReplacementsOf: vcRewriteReplacementsOf,',
+    '  vcRewriteAuthorsOf: vcRewriteAuthorsOf, vcRewritePlanOf: vcRewritePlanOf, vcRewritePreviewArgsOf: vcRewritePreviewArgsOf,',
+    '  vcRewriteCheckArgsOf: vcRewriteCheckArgsOf, vcRewriteRunArgsOf: vcRewriteRunArgsOf, vcRewriteRequestIdOf: vcRewriteRequestIdOf,',
+    '  vcRewriteReplyKindOf: vcRewriteReplyKindOf, vcRewriteReasonOf: vcRewriteReasonOf, vcRewriteTicketOf: vcRewriteTicketOf,',
+    '  vcRewriteCountRowsOf: vcRewriteCountRowsOf, vcRewriteBackupOf: vcRewriteBackupOf,',
+    '  vcRewriteBackupSummaryOf: vcRewriteBackupSummaryOf, vcRewriteRestoreStepsOf: vcRewriteRestoreStepsOf,',
+    '  vcRewriteTaskOf: vcRewriteTaskOf, vcRewriteTaskEndedOf: vcRewriteTaskEndedOf, vcRewriteProgressOf: vcRewriteProgressOf,',
+    '  vcRewriteFailTextOf: vcRewriteFailTextOf, vcRewritePageNode: vcRewritePageNode,',
+    '  REWRITE_FORMS: REWRITE_FORMS, REWRITE_PHONES: REWRITE_PHONES, rewritePlanOf: rewritePlanOf,',
+    '  rewriteBackupPlanOf: rewriteBackupPlanOf, backupPointOf: backupPointOf, backupSummaryOf: backupSummaryOf,',
+    '  backupRestoreStepsOf: backupRestoreStepsOf, humanBytesOf: humanBytesOf,',
+    '  __nodes: { tabs: vcRewriteFormTabsNode, field: vcRewriteFieldNode, preview: vcRewritePreviewNode,',
+    '    verdict: vcRewriteVerdictNode, confirm: vcRewriteConfirmNode, task: vcRewriteTaskNode, result: vcRewriteResultNode },',
+    '};',
+  ].join('\n')
+  const rwFakeT = function (key, params) { return params ? String(key) + '(' + JSON.stringify(params) + ')' : String(key) }
+  const rwFakeH = function (tag, props) {
+    const bag = []
+    for (let i = 2; i < arguments.length; i += 1) {
+      const v = arguments[i]
+      if (Array.isArray(v)) { for (let k = 0; k < v.length; k += 1) { if (v[k] !== null && v[k] !== undefined) bag.push(v[k]) } }
+      else if (v !== null && v !== undefined) bag.push(v)
+    }
+    return { tag: tag, props: props || {}, children: bag }
+  }
+  const rwTipTag = function () { return null }
+  const rwFakeReact = {
+    createElement: rwFakeH,
+    useState: function (init) { return [typeof init === 'function' ? init() : init, function () {}] },
+    useEffect: function () {},
+    useRef: function (v) { return { current: v } },
+  }
+  const rwLeaf = compileFn(['h', 't', 'React', 'Tip', 'setInterval', 'clearInterval'], rwClientBody)(rwFakeH, rwFakeT, rwFakeReact, rwTipTag, function () {}, function () {})
+  const rwWalk = function (node, visit) {
+    if (node === null || node === undefined) return
+    if (typeof node !== 'object') { visit(node); return }
+    visit(node)
+    const kids = Array.isArray(node.children) ? node.children : []
+    for (let i = 0; i < kids.length; i += 1) rwWalk(kids[i], visit)
+  }
+  const rwFind = function (root, pred) {
+    const out = []
+    rwWalk(root, function (n) { if (n && typeof n === 'object' && pred(n)) out.push(n) })
+    return out
+  }
+  const rwText = function (root) { let s = ''; rwWalk(root, function (n) { if (typeof n === 'string') s += n }); return s }
+  const rwProp = function (node, name) { return node && node.props ? node.props[name] : undefined }
+  const rwAllNodes = function (root) { return rwFind(root, function () { return true }) }
+
+  eq(JSON.stringify(rwLeaf.VC_REWRITE_PHONES), JSON.stringify({ preview: 'wf.gitRewritePreview', check: 'wf.gitRewriteCheck', run: 'wf.gitRewriteRun', query: 'wf.gitTaskQuery', cancel: 'wf.gitTaskCancel' }), 'D1 维护页五条电话逐条对上')
+  eq(rwLeaf.VC_REWRITE_PHONES.preview, rwLeaf.REWRITE_PHONES.preview, 'D2 预览电话与共享协议同一份名字')
+  eq(rwLeaf.VC_REWRITE_PHONES.check, rwLeaf.REWRITE_PHONES.check, 'D3 预检电话与共享协议同一份名字')
+  eq(rwLeaf.VC_REWRITE_PHONES.run, rwLeaf.REWRITE_PHONES.run, 'D4 执行电话与共享协议同一份名字')
+  eq(rwLeaf.VC_REWRITE_FORM_IDS.join(','), rwLeaf.REWRITE_FORMS.map(function (f) { return f.id }).join(','), 'D5 五张表单顺序与共享层逐条一致')
+  eq(rwLeaf.VC_REWRITE_FORM_IDS.length, 5, 'D6 表单数正好五张')
+  const rwFieldPairs = rwLeaf.REWRITE_FORMS.map(function (f) { return f.id + '=' + rwLeaf.VC_REWRITE_FIELDS[f.id] }).join(',')
+  eq(rwFieldPairs, 'remove-paths=paths,rename-paths=renames,rewrite-authors=authors,remove-large=threshold,replace-text=replacements', 'D7 每张表单只开自己那一格')
+  eq(rwLeaf.vcRewriteFieldOf('remove-large'), 'threshold', 'D8 按表单取字段名')
+  eq(rwLeaf.vcRewriteFieldOf('nope'), 'paths', 'D9 认不出的表单退回第一个字段')
+  eq(rwLeaf.vcRewriteFieldLabelKeyOf('paths'), 'vc.rewrite.field.paths', 'D10 字段标签词条键')
+  eq(rwLeaf.vcRewriteFieldHintKeyOf('paths'), 'vc.rewrite.field.pathsHint', 'D11 字段填写提示词条键')
+  eq(rwLeaf.vcRewriteLinesOf(' a \n\n b\r\nc ').join(','), 'a,b,c', 'D12 多行文本去空行去两端空白')
+  eq(JSON.stringify(rwLeaf.vcRewriteRenamesOf('a.txt => b.txt\nold/x => new/x')), JSON.stringify([{ from: 'a.txt', to: 'b.txt' }, { from: 'old/x', to: 'new/x' }]), 'D13 重命名逐行解析')
+  eq(rwLeaf.vcRewriteRenamesOf('a.txt'), null, 'D14 缺箭头的重命名整张不提交')
+  eq(rwLeaf.vcRewriteRenamesOf('a.txt => '), null, 'D15 缺新名字的重命名整张不提交')
+  eq(JSON.stringify(rwLeaf.vcRewriteReplacementsOf('secret => ***\ntoken =>')), JSON.stringify([{ from: 'secret', to: '***' }, { from: 'token', to: '' }]), 'D16 字面量替换允许把右侧留空')
+  eq(rwLeaf.vcRewriteReplacementsOf('=> x'), null, 'D17 空原文的替换整张不提交')
+  eq(JSON.stringify(rwLeaf.vcRewriteAuthorsOf('张三 <new@example.com>\n李四 <li@example.com> | 李四 <old@example.com>')), JSON.stringify([{ name: '张三', email: 'new@example.com' }, { name: '李四', email: 'li@example.com', oldName: '李四', oldEmail: 'old@example.com' }]), 'D18 作者改写两种写法都解析')
+  eq(rwLeaf.vcRewriteAuthorsOf('只有名字'), null, 'D19 缺邮箱的作者行整张不提交')
+  const rwDefaultPlan = rwLeaf.vcRewritePlanOf(rwLeaf.VC_REWRITE_FORM_DEFAULT)
+  eq(Object.keys(rwDefaultPlan).join(','), 'op,form,paths,renames,authors,threshold,replacements', 'D20 表单初值能直接出计划且键序固定')
+  const rwRenamePlan = rwLeaf.vcRewritePlanOf({ form: 'rename-paths', renamesText: 'a => b' })
+  eq(JSON.stringify(rwRenamePlan.renames), JSON.stringify([{ from: 'a', to: 'b' }]), 'D21 重命名表单的值进了计划')
+  eq(rwLeaf.vcRewritePlanOf({ form: 'rename-paths', renamesText: 'a' }), null, 'D22 坏文本回 null 且不发电话')
+  eq(JSON.stringify(rwLeaf.vcRewritePreviewArgsOf('C:/repo', { form: 'remove-paths', pathsText: 'secret' }).plan.paths), JSON.stringify(['secret']), 'D23 预览参数带工作区与计划')
+  eq(rwLeaf.vcRewriteCheckArgsOf('C:/repo', { form: 'remove-paths', pathsText: 'secret' }).cwd, 'C:/repo', 'D24 预检参数带工作区')
+  const rwRunArgs = rwLeaf.vcRewriteRunArgsOf('C:/repo', 'tk1', 'req1')
+  eq(rwRunArgs.confirmed, true, 'D25 执行参数带显式确认')
+  eq(rwRunArgs.ticketId + '/' + rwRunArgs.requestId, 'tk1/req1', 'D26 执行参数带票号与请求号')
+  const rwReqId = rwLeaf.vcRewriteRequestIdOf(1700000000000, 'C:/repo')
+  check(/^[A-Za-z0-9_-]{1,64}$/.test(rwReqId) && rwReqId.charAt(0) === 'w', 'D27 请求号形状能被宿主接受')
+  check(rwLeaf.vcRewriteRequestIdOf(1700000000000, 'C:/repo !').slice(-5) === 'Crepo', 'D28 请求号把盐里不合法字符清掉')
+  eq(rwLeaf.vcRewriteReplyKindOf({ ok: true, preview: { counts: {} } }), 'previewed', 'D29 预览成功分类')
+  eq(rwLeaf.vcRewriteReplyKindOf({ ok: true, confirm: { what: [] }, ticket: { id: 't' } }), 'checked', 'D30 预检签票分类')
+  eq(rwLeaf.vcRewriteReplyKindOf({ ok: true, task: { taskId: 't1' } }), 'running', 'D31 任务已起分类')
+  eq(rwLeaf.vcRewriteReplyKindOf({ ok: true, reused: true, result: {} }), 'done', 'D32 重放回上次结果分类')
+  eq(rwLeaf.vcRewriteReplyKindOf({ ok: false, reason: 'ticket-expired' }), 'stale', 'D33 票据过期归刷新那一档')
+  eq(rwLeaf.vcRewriteReplyKindOf({ ok: false, reason: 'need-confirm' }), 'need-confirm', 'D34 需要确认单独一档')
+  eq(rwLeaf.vcRewriteReplyKindOf({ ok: false, error: { kind: 'blocked', reason: 'dirty-worktree' }, decision: { verdict: 'block' } }), 'blocked', 'D35 现场不放行归 blocked')
+  eq(rwLeaf.vcRewriteReplyKindOf({ ok: false, error: { kind: 'git-failed', reason: 'backup-failed' } }), 'fail', 'D36 执行失败归 fail')
+  eq(rwLeaf.vcRewriteReasonOf({ error: { reason: 'tool-missing', kind: 'blocked' } }), 'tool-missing', 'D37 失败理由先读 error.reason')
+  eq(rwLeaf.vcRewriteReasonOf({ ok: false, error: { kind: 'args' } }), 'args', 'D38 没有 reason 时退回 error.kind')
+  eq(rwLeaf.vcRewriteTicketOf({ ticket: { id: 'tk' } }).id, 'tk', 'D39 票号从回包取出')
+  const rwRows = rwLeaf.vcRewriteCountRowsOf({ commits: 3, matchedCommits: null, matchedPaths: 2, thresholdBytes: null, replacementHits: [{ from: 'secret', commits: 1 }] })
+  eq(rwRows.map(function (r) { return r.key + '=' + r.value }).join(','), 'vc.rewrite.counts.commits=3,vc.rewrite.counts.matchedPaths=2,vc.rewrite.counts.replacementHit=1', 'D40 预览计数空值不画、命中逐条画')
+  const rwPoint = { kind: 'mirror', required: true, path: 'C:/backup-x', bytes: 1048576, estimateBytes: 1048576, repoSizeBytes: 1048576, elapsedMs: 12, atMs: 5 }
+  check(rwLeaf.vcRewriteBackupSummaryOf({ backup: rwPoint }).indexOf('C:/backup-x') >= 0, 'D41 备份摘要带路径')
+  check(rwLeaf.vcRewriteBackupSummaryOf({ backup: rwPoint }).indexOf('1.0 MB') >= 0, 'D42 备份摘要用人读的大小')
+  eq(rwLeaf.vcRewriteRestoreStepsOf({ backup: rwPoint }).length, 3, 'D43 还原步骤三条')
+  check(rwLeaf.vcRewriteRestoreStepsOf({ backup: rwPoint })[0].indexOf('git clone C:/backup-x') === 0, 'D44 还原第一步是真命令')
+  eq(rwLeaf.vcRewriteBackupOf({ backupPoint: rwPoint }).path, 'C:/backup-x', 'D45 备份点两种字段名都认')
+  const rwTask = { taskId: 't-1', state: 'running', phase: 'Receiving objects', percent: 42 }
+  eq(rwLeaf.vcRewriteTaskOf({ tasks: [{ taskId: 'x' }, rwTask] }, 't-1').taskId, 't-1', 'D46 按任务号从清单里找')
+  eq(rwLeaf.vcRewriteTaskEndedOf(rwTask), false, 'D47 在途任务没结束')
+  eq(rwLeaf.vcRewriteTaskEndedOf({ state: 'done', conclusion: 'succeeded' }), true, 'D48 有结论才算结束')
+  const rwProgress = rwLeaf.vcRewriteProgressOf(rwTask)
+  eq(rwProgress.percent + '/' + rwProgress.uncertain, '42/false', 'D49 真实百分比原样显示')
+  const rwUncertain = rwLeaf.vcRewriteProgressOf({ state: 'running' })
+  eq(rwUncertain.percent + '/' + rwUncertain.uncertain, 'null/true', 'D50 报不出百分比时标不确定')
+  check(rwLeaf.vcRewriteFailTextOf(rwFakeT, { ok: false, reason: 'backup-failed' }).indexOf('vc.rewrite.reason.backupFailed') >= 0, 'D51 失败话术走固定词条而不是标识符')
+  check(rwLeaf.vcRewriteFailTextOf(rwFakeT, { ok: false, error: { kind: 'noise' } }).indexOf('vc.rewrite.reason.unknown') >= 0, 'D52 认不出的失败退回 unknown 词条')
+
+  // 真渲染：默认状态的维护页（表单、只读说明、预览按钮、输入格）
+  const rwPageNode = rwLeaf.vcRewritePageNode({ t: rwFakeT, cwd: 'C:/repo', call: function () { return Promise.reject(new Error('no-call')) } })
+  eq(rwProp(rwPageNode, 'data-vc-rewrite-page'), '1', 'D53 页面根节点带页标记')
+  eq(rwProp(rwPageNode, 'data-vc-rewrite-form'), 'remove-paths', 'D54 默认停第一张表单')
+  eq(rwProp(rwPageNode, 'data-vc-rewrite-plan'), '1', 'D55 初值能出计划（预览按钮可点）')
+  const rwTabs = rwFind(rwPageNode, function (n) { return rwProp(n, 'data-vc-rewrite-form') !== undefined && n.tag === 'button' })
+  eq(rwTabs.length, 5, 'D56 五张表单各一个入口')
+  eq(rwTabs.filter(function (n) { return rwProp(n, 'data-vc-rewrite-form-current') === '1' }).length, 1, 'D57 当前表单只标一个')
+  const rwFilterBranch = rwFind(rwPageNode, function (n) { return rwProp(n, 'data-vc-rewrite-filter-branch') === 'readonly' })[0]
+  check(!!rwFilterBranch, 'D58 filter-branch 只读说明块在')
+  eq(rwFind(rwFilterBranch, function (n) { return n.tag === 'button' }).length, 0, 'D59 只读说明块里没有任何按钮')
+  eq(rwProp(rwFind(rwFilterBranch, function (n) { return rwProp(n, 'data-vc-rewrite-filter-branch-command') !== undefined })[0], 'data-vc-rewrite-filter-branch-command'), 'git filter-branch', 'D60 只读块给出命令原文')
+  const rwFieldNodes = rwFind(rwPageNode, function (n) { return rwProp(n, 'data-vc-rewrite-field') !== undefined })
+  eq(rwFieldNodes.length, 1, 'D61 一张表单只显示一格输入')
+  eq(rwFieldNodes[0].tag, 'textarea', 'D62 路径表单用多行输入框')
+  eq(rwProp(rwFieldNodes[0], 'data-vc-rewrite-field'), 'paths', 'D63 输入格标着字段名')
+  check(rwFind(rwPageNode, function (n) { return rwProp(n, 'data-vc-rewrite-preview') === '1' && n.tag === 'button' }).length === 1, 'D64 影响预览按钮在')
+  const rwPreviewBtn = rwFind(rwPageNode, function (n) { return rwProp(n, 'data-vc-rewrite-preview') === '1' })[0]
+  eq(rwProp(rwPreviewBtn, 'disabled'), false, 'D65 计划有效时预览按钮可用')
+  eq(rwFind(rwPageNode, function (n) { return rwProp(n, 'data-vc-rewrite-confirm') === '1' }).length, 0, 'D66 还没签票时确认卡不出现')
+
+  // 直接画各个状态块：预览、判定、四段确认卡、任务、结果
+  eq(rwLeaf.__nodes.preview(rwFakeH, rwFakeT, { preview: null }), null, 'D67 没有预览时整块不出现')
+  const rwPreviewNode = rwLeaf.__nodes.preview(rwFakeH, rwFakeT, { preview: { ok: true, preview: { counts: { commits: 3, matchedPaths: 2 }, command: 'git filter-repo --force --path x' } } })
+  eq(rwFind(rwPreviewNode, function (n) { return rwProp(n, 'data-vc-rewrite-count') !== undefined }).length, 2, 'D68 预览计数逐行画')
+  check(rwText(rwFind(rwPreviewNode, function (n) { return rwProp(n, 'data-vc-rewrite-command') === '1' })[0]).indexOf('git filter-repo') >= 0, 'D69 预览给命令原文')
+  const rwVerdictNode = rwLeaf.__nodes.verdict(rwFakeH, rwFakeT, { ok: false, error: { kind: 'blocked', reason: 'dirty-worktree' }, decision: { verdict: 'block' } })
+  eq(rwProp(rwVerdictNode, 'data-vc-rewrite-check'), 'blocked', 'D70 判定形状挂在块上')
+  check(rwText(rwVerdictNode).indexOf('vc.rewrite.verdict.blocked') >= 0, 'D71 判定说人话不是标识符')
+  const rwConfirmCheck = { ok: true, confirm: { what: ['全部提交号会变'], wont: ['不自动恢复'], reversible: true, verb: ['点确认后先备份'] }, backup: { kind: 'mirror', path: 'C:/backup-x', estimateBytes: 1048576, repoSizeBytes: 1048576 } }
+  const rwConfirmNode = rwLeaf.__nodes.confirm(rwFakeH, rwFakeT, { check: rwConfirmCheck, onConfirm: function () {}, onCancel: function () {} })
+  const rwSegs = rwFind(rwConfirmNode, function (n) { return rwProp(n, 'data-vc-rewrite-confirm-seg') !== undefined }).map(function (n) { return rwProp(n, 'data-vc-rewrite-confirm-seg') })
+  eq(rwSegs.join(','), 'what,wont,reversible,verb', 'D72 确认卡四段齐全')
+  const rwBackupNode = rwFind(rwConfirmNode, function (n) { return rwProp(n, 'data-vc-rewrite-backup') !== undefined })[0]
+  eq(rwProp(rwBackupNode, 'data-vc-rewrite-backup-path'), 'C:/backup-x', 'D73 确认卡写明备份在哪')
+  eq(rwProp(rwBackupNode, 'data-vc-rewrite-backup-size'), '1048576', 'D74 确认卡写明备份预计多大')
+  eq(rwProp(rwFind(rwConfirmNode, function (n) { return rwProp(n, 'data-vc-rewrite-restore') !== undefined })[0], 'data-vc-rewrite-restore'), '3', 'D75 确认卡列出三条还原步骤')
+  const rwCancel = rwFind(rwConfirmNode, function (n) { return rwProp(n, 'data-vc-rewrite-confirm-cancel') === '1' })
+  const rwGo = rwFind(rwConfirmNode, function (n) { return rwProp(n, 'data-vc-rewrite-confirm-go') === '1' })
+  eq(rwCancel.length + rwGo.length, 2, 'D76 确认卡有取消与确认两颗按钮')
+  eq(rwProp(rwCancel[0], 'data-focus-default'), 'cancel', 'D77 取消是默认落点')
+  check(rwFind(rwConfirmNode, function (n) { return n.tag === rwTipTag }).length >= 1, 'D78 危险确认按钮包了悬停提示')
+  const rwTaskRun = rwLeaf.__nodes.task(rwFakeH, rwFakeT, { task: { taskId: 't-1', state: 'running', phase: 'Receiving', percent: null }, onCancel: function () {} })
+  eq(rwProp(rwFind(rwTaskRun, function (n) { return rwProp(n, 'data-vc-rewrite-task') !== undefined })[0], 'data-vc-rewrite-task'), 't-1', 'D79 任务块带任务号')
+  eq(rwProp(rwFind(rwTaskRun, function (n) { return rwProp(n, 'data-vc-rewrite-task') !== undefined })[0], 'data-vc-rewrite-task-percent'), '', 'D80 报不出百分比时进度留空')
+  eq(rwFind(rwTaskRun, function (n) { return rwProp(n, 'data-vc-rewrite-task-cancel') === '1' }).length, 1, 'D81 在途任务有取消按钮')
+  const rwTaskDone = rwLeaf.__nodes.task(rwFakeH, rwFakeT, { task: { taskId: 't-2', state: 'failed', conclusion: 'failed', residual: '一半历史已被改写' }, onCancel: function () {} })
+  check(rwText(rwTaskDone).indexOf('vc.rewrite.conclusion.failed') >= 0, 'D82 结束任务画结论')
+  eq(rwFind(rwTaskDone, function (n) { return rwProp(n, 'data-vc-rewrite-task-cancel') === '1' }).length, 0, 'D83 结束任务不再给取消')
+  check(rwText(rwTaskDone).indexOf('一半历史已被改写') >= 0, 'D84 取消残留如实转述')
+  const rwResultOk = rwLeaf.__nodes.result(rwFakeH, rwFakeT, { result: { ok: true, backup: rwPoint }, onRetry: function () {} })
+  eq(rwProp(rwResultOk, 'data-vc-rewrite-result'), '1', 'D85 成功结果标成功')
+  check(rwText(rwResultOk).indexOf('C:/backup-x') >= 0, 'D86 成功结果给出备份摘要')
+  const rwResultFail = rwLeaf.__nodes.result(rwFakeH, rwFakeT, { result: { ok: false, reason: 'backup-failed' }, onRetry: function () {} })
+  eq(rwProp(rwResultFail, 'data-vc-rewrite-result'), '0', 'D87 失败结果标失败')
+  eq(rwFind(rwResultFail, function (n) { return rwProp(n, 'data-vc-rewrite-retry') === '1' }).length, 1, 'D88 失败给重试按钮')
+  check(rwText(rwResultFail).indexOf('vc.rewrite.reason.backupFailed') >= 0, 'D89 失败话术走固定词条')
+
+  // 点击日志纪律：所有可点控件都有 data-press 与唯一的 data-log（小写字母数字点横线）
+  const rwClickables = []
+  const rwCollectAttrs = function (root) {
+    rwWalk(root, function (n) {
+      if (!n || typeof n !== 'object') return
+      const p = n.props || {}
+      if (typeof p.onclick === 'function' || typeof p.onClick === 'function') rwClickables.push(p)
+    })
+  }
+  ;[rwPageNode, rwConfirmNode, rwTaskRun, rwResultFail, rwResultOk].forEach(rwCollectAttrs)
+  check(rwClickables.length >= 5, 'D90 渲染里确实有可点控件（实得 ' + String(rwClickables.length) + ' 个）')
+  check(rwClickables.every(function (p) { return typeof p['data-press'] === 'string' && p['data-press'] !== '' }), 'D91 每个可点控件都有 data-press')
+  const rwLogs = rwClickables.map(function (p) { return String(p['data-log'] || '') })
+  check(rwLogs.every(function (x) { return /^[a-z0-9._-]+$/.test(x) }), 'D92 每个 data-log 都是小写字母数字点横线下划线（实得 ' + rwLogs.join(',') + '）')
+  check(new Set(rwLogs).size >= 5, 'D93 这套渲染里至少五条不同的点击日志（实得 ' + String(new Set(rwLogs).size) + '）')
+
+  // 源码纪律：两叶除注释外不许有中文字面量
+  check(!/[\u4e00-\u9fff]/.test(stripComments(rwPageSrc)), 'D94 页面叶子除注释外没有中文字面量')
+  check(!/[\u4e00-\u9fff]/.test(stripComments(rwOpsSrc)), 'D95 动作叶子除注释外没有中文字面量')
+
+  // 词条真源：88 键、中英同键、都进生成物、页面静态键全在真源里
+  const rwYamlLines = rwYamlSrc.split(/\r?\n/)
+  const rwEnAt = rwYamlLines.findIndex(function (line) { return line === 'en:' })
+  check(rwEnAt > 0, 'D96 词表分中英两段')
+  const rwKeyOf = function (line) { const m = /^  ([A-Za-z0-9_.-]+):/.exec(line); return m ? m[1] : '' }
+  const rwZhKeys = rwYamlLines.slice(0, rwEnAt).map(rwKeyOf).filter(function (k) { return k !== '' })
+  const rwEnKeys = rwYamlLines.slice(rwEnAt + 1).map(rwKeyOf).filter(function (k) { return k !== '' })
+  eq(rwZhKeys.length >= 88, true, 'D97 中文词条至少八十八条（实得 ' + String(rwZhKeys.length) + '）')
+  eq(rwZhKeys.join(','), rwEnKeys.join(','), 'D98 中英两份键集合与顺序一字不差')
+  const rwMissingLocale = rwZhKeys.filter(function (k) { return rwLocaleText.indexOf("'" + k + "'") < 0 })
+  eq(rwMissingLocale.length, 0, 'D99 每一条词条都进了生成物（缺 ' + rwMissingLocale.join(',') + '）')
+  const rwFiveForms = rwLeaf.REWRITE_FORMS.map(function (f) { return f.labelKey })
+  eq(rwFiveForms.filter(function (k) { return rwZhKeys.indexOf(k) < 0 }).length, 0, 'D100 五张表单的标题都有词条')
+  const rwFiveFields = ['paths', 'renames', 'authors', 'threshold', 'replacements']
+  eq(rwFiveFields.filter(function (f) { return rwZhKeys.indexOf('vc.rewrite.field.' + f) < 0 || rwZhKeys.indexOf('vc.rewrite.field.' + f + 'Hint') < 0 }).length, 0, 'D101 五个字段的标签与提示都有词条')
+  eq(Object.keys(rwLeaf.VC_REWRITE_REASON_KEYS).filter(function (r) { return rwZhKeys.indexOf(rwLeaf.VC_REWRITE_REASON_KEYS[r]) < 0 }).length, 0, 'D102 二十五条失败理由都有词条')
+  const rwStaticKeys = []
+  const rwCatch = function (src, re) { let m = re.exec(src); while (m) { rwStaticKeys.push(m[1]); m = re.exec(src) } }
+  rwCatch(rwPageSrc + '\n' + rwOpsSrc, /'(vc\.rewrite\.[A-Za-z0-9_.]+)'/g)
+  // 这两条是点击日志（data-log），不是词条键；它们也被正则捕获，从词条对账里排掉。
+  const rwLogKeys = ['vc.rewrite.form', 'vc.rewrite.retry']
+  const rwStaticNow = rwStaticKeys.filter(function (k) { return k.charAt(k.length - 1) !== '.' && rwLogKeys.indexOf(k) < 0 })
+  const rwStaticMissing = rwStaticNow.filter(function (k) { return rwZhKeys.indexOf(k) < 0 })
+  eq(rwStaticMissing.join(','), '', 'D103 两叶写死的词条键全在真源里（缺 ' + rwStaticMissing.join(',') + '）')
+  check(rwZhKeys.indexOf('vc.rewrite.verdict.allow') >= 0 && rwZhKeys.indexOf('vc.rewrite.conclusion.interrupted') >= 0, 'D104 判定与四类结论的词条都在')
+
+  // 与能力账本对账：5.11 一条，主入口管理·维护，页面 maintenance；5.12/5.13 不归本页
+  const rwLedger = await loadModule('src/shared/version-control/src/capability-ledger.js')
+  const rwReconcile = function (forms, caps) {
+    const problems = []
+    const target = caps.filter(function (c) { return c.id === '5.11' })[0]
+    if (!target) problems.push('missing-5.11')
+    forms.forEach(function (f) {
+      if (f.capId !== '5.11') problems.push('cap:' + f.id)
+      if (!target) return
+      if (target.page !== 'maintenance') problems.push('page:' + f.id)
+      if (target.primaryEntry !== '管理·维护') problems.push('entry:' + f.id)
+    })
+    return problems
+  }
+  eq(rwReconcile(rwLeaf.REWRITE_FORMS, rwLedger.CAPABILITIES).length, 0, 'D105 五张表单与账本 5.11 对账零缺口')
+  const rwCap511 = rwLedger.CAPABILITIES.filter(function (c) { return c.id === '5.11' })[0]
+  eq(rwCap511.command, 'git filter-branch', 'D106 账本 5.11 的命令原文是 filter-branch')
+  check(String(rwCap511.panelPath).indexOf('filter-repo') >= 0, 'D107 账本写明面板改用 filter-repo 五张表单')
+  check(String(rwCap511.panelPath).indexOf('只读') >= 0, 'D108 账本写明 filter-branch 本体只读')
+  eq(rwLedger.CAPABILITIES.filter(function (c) { return c.id === '5.12' || c.id === '5.13' }).filter(function (c) { return c.page === 'maintenance' }).length, 0, 'D109 5.12/5.13 不归维护页（本票不吸收别的票）')
+  const rwCorrupted = rwLeaf.REWRITE_FORMS.map(function (f) { return Object.assign({}, f, { capId: '5.9' }) })
+  check(rwReconcile(rwCorrupted, rwLedger.CAPABILITIES).indexOf('cap:remove-paths') >= 0, 'D110 反证：把一条表单挂到别的能力上，对账当场报错')
+  const rwNoEntry = rwLedger.CAPABILITIES.map(function (c) { return c.id === '5.11' ? Object.assign({}, c, { page: 'diagnostics' }) : c })
+  check(rwReconcile(rwLeaf.REWRITE_FORMS, rwNoEntry).indexOf('page:remove-paths') >= 0, 'D111 反证：账本页面被改走，对账当场报错')
+
+  // ---------- E 组：七个登记点、装配扇入与源码断言（含反证） ----------
+  const mountSrc = sourceText('src/host/versionControlRewriteMount.ts')
+  const parentSrc = sourceText('src/host/versionControl.ts')
+  const entrySrc = sourceText('src/host/index.ts')
+  const sceneSrc = sourceText('src/host/versionControlRewriteScene.ts')
+  const checkSrc = sourceText('src/host/versionControlRewriteCheck.ts')
+  const writeSrc = sourceText('src/host/versionControlRewriteWrite.ts')
+  const shellSrc = sourceText('src/client/views/versionControl/vcShellPages.ts')
+  const buildSrc = sourceText('scripts/build.mts')
+  const indexSrc = sourceText('src/client/index.ts')
+  const settingsSrc = sourceText('tests/verify-settings-phones.ts')
+  const timeoutsSrc = sourceText('config/timeouts.yaml')
+  const genSrc = sourceText('scripts/generate-time-config.mts')
+  const verifyTimeSrc = sourceText('tests/verify-time-config.ts')
+  const portsSrc = sourceText('src/shared/version-control/src/ports.ts')
+
+  function countOf(text: any, needle: any): number { return String(text).split(String(needle)).length - 1 }
+
+  check(mountSrc.indexOf('export function createRewriteMount') >= 0, 'E1 装配壳导出 createRewriteMount')
+  eq(['versionControlRewriteScene.js', 'versionControlRewriteCheck.js', 'versionControlRewriteWrite.js'].filter(function (x) { return mountSrc.indexOf(x) >= 0 }).length, 3, 'E2 装配壳把现场、预检、执行三片都装起来')
+  const mountPhones = ['wf.gitRewritePreview', 'wf.gitRewriteCheck', 'wf.gitRewriteRun']
+  eq(mountPhones.filter(function (x) { return mountSrc.indexOf(x) >= 0 }).length, 3, 'E3 装配壳注册三条电话')
+  check(mountSrc.indexOf('loggedPhone') >= 0 && mountSrc.indexOf('装配失败') >= 0, 'E4 装配失败时有明确失败电话而不是静默')
+  eq(['createRewriteMount(', 'handleGitRewritePreview: rewrites.preview', 'handleGitRewriteCheck: rewrites.check', 'handleGitRewriteRun: rewrites.run', 'rewriteTickets: rewrites.tickets'].filter(function (x) { return parentSrc.indexOf(x) >= 0 }).length, 5, 'E5 父层把装配壳接进宿主对象（含只给门禁的票表读数口）')
+  eq(['wf.gitRewritePreview', 'wf.gitRewriteCheck', 'wf.gitRewriteRun'].filter(function (x) { return countOf(entrySrc, "'" + x + "'") === 1 }).length, 3, 'E6 宿主入口三条注册各一次')
+  eq(countOf(parentSrc, 'createRewriteMount('), 1, 'E7 装配壳在父层只创建一次')
+  check(entrySrc.split('\n').length - 1 <= 400, 'E8 宿主入口物理行不超过四百（实测 ' + String(entrySrc.split('\n').length - 1) + '）')
+  has(settingsSrc, 'check(nPhones === 102', 'E9 宿主电话总数登记到一百零二条')
+  has(settingsSrc, '#1750', 'E10 电话计数的历史注释记下本票这次加三条')
+  has(timeoutsSrc, 'vcRewriteReadTimeoutMs: 15000', 'E11 时间配置有读命令超时键')
+  has(timeoutsSrc, 'vcRewriteWriteTimeoutMs: 600000', 'E12 时间配置有备份命令超时键（单条十分钟）')
+  eq(countOf(genSrc, "'vcRewriteReadTimeoutMs'") + countOf(genSrc, "'vcRewriteWriteTimeoutMs'"), 2, 'E13 时间常量生成器登记两键')
+  check(verifyTimeSrc.indexOf('versionControlRewriteScene.ts') >= 0 && verifyTimeSrc.indexOf('versionControlRewriteWrite.ts') >= 0, 'E14 时间配置门禁登记两处使用点')
+  has(sceneSrc, 'VC_REWRITE_READ_TIMEOUT_MS', 'E15 现场读数层用读命令超时常量')
+  has(writeSrc, 'VC_REWRITE_WRITE_TIMEOUT_MS', 'E16 执行层用备份命令超时常量')
+  const reasonsMod = await loadModule('src/shared/version-control/src/write-reasons.js')
+  const rwNewReasons = ['tool-missing', 'shallow-repo', 'dirty-worktree', 'bad-form', 'bad-rename', 'bad-identity', 'bad-threshold', 'bad-replacement', 'too-many-items', 'backup-failed', 'backup-unreadable', 'temp-unavailable', 'task-start-failed']
+  const rwUnknownHint = String(reasonsMod.writeHintFor('unknown-write-failure'))
+  eq(rwNewReasons.filter(function (r) { return String(reasonsMod.writeHintFor(r)) === rwUnknownHint }).length, 0, 'E17 十三条新理由都有各自的失败话术（不是兜底那句）')
+  eq(rwNewReasons.filter(function (r) { return String(reasonsMod.WRITE_REASONS[r] || '').length > 8 }).length, 13, 'E18 十三条新理由都在理由表里且写得能照着做')
+  eq(['child_process', '.spawn('].filter(function (x) { return [sceneSrc, checkSrc, writeSrc, mountSrc].some(function (s) { return s.indexOf(x) >= 0 }) }).length, 0, 'E19 四片宿主叶子都不自己起进程（只经注入的 runPinned）')
+  check(writeSrc.indexOf('.taskStart(') > writeSrc.indexOf('runBackup('), 'E20 执行层先备份、备份成功之后才起重写任务')
+  check(writeSrc.indexOf('backup-failed') >= 0 && writeSrc.indexOf('task-start-failed') >= 0, 'E21 备份失败与任务起不来是两种明确失败')
+  has(writeSrc, 'ticket.backup', 'E22 执行层用票里的备份路径（预检时定下、执行时不再自己换路径）')
+  const fr = await loadModule('src/shared/version-control/src/filter-repo-args.js')
+  const frOk = fr.filterRepoArgs(['--invert-paths', '--path', 'secret'])
+  eq(frOk.ok, true, 'E23 filter-repo 语法接受带值选项')
+  eq(String(frOk.args && frOk.args.join('|')), '--invert-paths|--path|secret', 'E24 filter-repo 语法保留独立参数（不拼成一条 shell 字符串）')
+  eq(fr.filterRepoArgs(['--exec', 'rm -rf']).ok, false, 'E25 未登记的破坏性开关被拒')
+  eq(fr.filterRepoArgs(['--path', 'C:/repo/x']).reason, 'bad-path', 'E26 绝对路径被拒')
+  eq(fr.filterRepoArgs(['--strip-blobs-bigger-than', '10M']).ok, true, 'E27 大小阈值放行')
+  eq(fr.filterRepoArgs(['--strip-blobs-bigger-than', '10MB']).ok, false, 'E28 坏阈值被拒')
+  has(sourceText('src/shared/version-control/src/task-protocol.ts'), "from './filter-repo-args.js'", 'E29 长任务协议层用这份语法（不自己另写一套）')
+  const proto = await loadModule('src/shared/version-control/src/task-protocol.js')
+  check(proto.TASK_OPS.some(function (o: any) { return o.id === 'filter-repo' }), 'E30 长任务清单里 filter-repo 仍在（本票没删别的票的东西）')
+  const baseline = JSON.parse(sourceText('tests/same-layer-baseline.json'))
+  const baselineText = (baseline.entries || []).map(function (e: any) { return String(e.file) + '|' + String(e.spec) + '|' + String(e.resolved) }).join('\n')
+  eq(['versionControlRewriteMount', 'versionControlRewriteScene', 'versionControlRewriteCheck', 'versionControlRewriteWrite', 'filter-repo-args'].filter(function (f) { return baselineText.indexOf(f) >= 0 }).length, 5, 'E31 同层引用基线登记了本票五处新引用')
+  check(shellSrc.indexOf("page === 'maintenance'") >= 0 && countOf(shellSrc, 'vcRewritePageNode') >= 2, 'E32 维护页把重写面板挂进页面壳（声明一次、挂载一次）')
+  check(buildSrc.indexOf("id: 'vcRewriteOps'") >= 0 && buildSrc.indexOf("id: 'vcRewritePage'") >= 0, 'E33 构建登记两片客户端叶子')
+  check(buildSrc.indexOf('shared:vcRewriteOps') >= 0 && buildSrc.indexOf('shared:vcRecoveryPoint') >= 0, 'E34 构建把共享协议与备份点拼进界面闭包')
+  eq(['leaf:vcRewriteOps', 'leaf:vcRewritePage', 'shared:vcRewriteOps', 'shared:vcRecoveryPoint'].filter(function (m) { return countOf(indexSrc, m) === 1 }).length, 4, 'E35 界面入口四个拼装标记各出现一次')
+  has(portsSrc, "export type WriteOp = 'commit' | 'pull' | 'push' | 'fetch' | ChangesWriteOp", 'E36 本票没有扩共享 WriteOp 联合类型（七登记点门禁按精确记号断言）')
+  has(fs.readFileSync(__filename, 'utf8').split('\n')[0], '// 门禁归属: src/shared/version-control/src/rewrite-ops.ts', 'E37 门禁文件头写明归属源码')
+  function rwMountProblems(text: any): string[] {
+    const problems: string[] = []
+    if (String(text).indexOf('export function createRewriteMount') < 0) problems.push('no-export')
+    mountPhones.forEach(function (name) { if (String(text).indexOf(name) < 0) problems.push('missing-phone:' + name) })
+    return problems
+  }
+  eq(rwMountProblems(mountSrc).length, 0, 'E38 装配壳对账零缺口')
+  eq(rwMountProblems(mountSrc.replace('wf.gitRewriteRun', 'wf.gitRewriteExecute')).join(','), 'missing-phone:wf.gitRewriteRun', 'E39 反证：把一条电话名改错，对账当场报错')
+  console.log('  E 组完成：' + total + ' 条')
 
   await printGateResult(GATE, total, failed)
   process.exit(failed ? 1 : 0)
