@@ -17,7 +17,7 @@ import { makeBindings, makeTicket, requestIdProblem, ticketPureVerdict } from '.
 import { idShapeProblem } from '../shared/version-control/src/write-reasons.js'
 import { CLONE_CHECK_CONTRACT, CLONE_CHECK_VERSION, cloneCleanupProblem, clonePlanDigestInput, clonePlanOf, cloneTargetProblem, cloneTargetStateOk, cloneTargetSummaryOf, cloneTaskArgsOf } from '../shared/version-control/src/clone-ticket.js'
 import { cloneHardlinkNote, cloneMaskedUrl, cloneOfflineProblem, cloneOptionsOf, clonePathProblem, cloneUrlProblem } from '../shared/version-control/src/clone-options.js'
-import { CLONE_READ_TIMEOUT_MS } from '../shared/time-config/values.js'
+import { VC_CLONE_READ_TIMEOUT_MS as CLONE_READ_TIMEOUT_MS } from '../shared/time-config/src/values.js'
 
 /** 克隆域自己的理由表：标识符只在这一个文件里出现，界面按标识符翻词条，英文界面不会串出中文。 */
 const CLONE_REASONS: any = {

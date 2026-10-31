@@ -185,9 +185,11 @@ export const vcCloneReplyKindOf = function (reply: any): string {
   const reason = vcCloneReasonOf(r)
   const e = r.error || {}
   const kind = String(e.kind || '')
+  // 票过期与现场变了要先判：宿主这两类拒绝用的也是 error.kind='blocked'，
+  // 如果先按 blocked 分类，它们会被画成「判定不放行」，界面就没了「重新预检」这句指路。
+  if (reason === 'ticket-missing' || reason === 'ticket-expired' || reason === 'ticket-op-mismatch' || reason === 'target-changed' || reason === 'stale-repo') return 'stale'
   if (kind === 'blocked' || reason === 'target-not-empty' || reason === 'target-not-directory' || reason === 'target-unreadable' || reason === 'cleanup-unregistered' || reason === 'nothing-to-clean' || reason === 'target-looks-complete') return 'blocked'
   if (kind === 'need-confirm' || reason === 'need-confirm') return 'need-confirm'
-  if (reason === 'ticket-missing' || reason === 'ticket-expired' || reason === 'ticket-op-mismatch' || reason === 'target-changed' || reason === 'stale-repo') return 'stale'
   if (r && r.ok === false) return 'fail'
   return 'unknown'
 }
