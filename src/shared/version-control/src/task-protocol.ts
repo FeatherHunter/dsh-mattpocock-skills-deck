@@ -2,7 +2,8 @@
 //
 // 这一层不碰进程、不碰文件、不碰界面：宿主侧的运行器与客户端侧的任务区都从这里取同一份
 // 动作清单与同一套守卫规则。做这样切分的原因是三条硬要求：
-//   1. 长任务只做票面点名的那十七种动作，不许扩成「任意 git 命令执行」。清单只写在这里，
+//   1. 长任务只做票面点名的二十种动作（#1757 T21 加了子模块新增/抓取/更新到远端三条），
+//      不许扩成「任意 git 命令执行」。清单只写在这里，
 //      宿主注册、界面任务区、门禁都从这里读，另写一份就会漂移。
 //   2. 参数一律逐项组成 argv，不拼 shell 字符串；任何以短横线开头的远程地址、目录、分支
 //      都当选项注入拒掉。历史改写类动作还会进来问一次显式确认。
@@ -46,7 +47,7 @@ function meta(id: any, labelKey: any, progress: any, extra?: any): TaskOpMeta {
 }
 
 /**
- * 票面点名的十七种长任务，一个不多一个不少。
+ * 票面点名的二十种长任务，一个不多一个不少。
  * 这里刻意不接收任意命令名：命令名不在清单里就直接拒绝，避免把通道做成通用执行器。
  */
 export const TASK_OPS: TaskOpMeta[] = [
@@ -56,6 +57,9 @@ export const TASK_OPS: TaskOpMeta[] = [
   meta('push', 'vc.task.op.push', true, { residual: '远端可能只收到了部分引用，重试前先核对该分支在远端的位置' }),
   meta('submodule-init', 'vc.task.op.submoduleInit', true, { residual: '子模块目录可能只初始化了一半，重新执行会从断点继续' }),
   meta('submodule-update', 'vc.task.op.submoduleUpdate', true, { residual: '子模块内容可能只更新了一半，重新执行会从断点继续' }),
+  meta('submodule-add', 'vc.task.op.submoduleAdd', true, { residual: '子模块目录可能只写了一半，删除这个目录后可以重试' }),
+  meta('submodule-fetch', 'vc.task.op.submoduleFetch', false, { residual: '抓取被取消时已有对象留在本地库里，重新抓取会接着用' }),
+  meta('submodule-remote-update', 'vc.task.op.submoduleRemoteUpdate', true, { residual: '子模块内容可能只更新了一半，重新执行会从断点继续' }),
   meta('archive', 'vc.task.op.archive', false, { residual: '输出文件可能不完整，删除后重试' }),
   meta('bundle', 'vc.task.op.bundle', false, { residual: '输出文件可能不完整，删除后重试' }),
   meta('format-patch', 'vc.task.op.formatPatch', false, { residual: '输出目录里可能留下不完整的补丁文件，按日期核对后删掉重试' }),
@@ -141,7 +145,7 @@ export function taskRevProblem(value: any): string | null {
  * 返回的数组每一项都是独立参数，调用方把整段直接交给 spawn，不经过 shell 拼接。
  */
 export function taskArgsFor(op: any, args: any): TaskArgResult {
-  if (!isTaskOp(op)) return badArg('unknown-op', '长任务清单里没有这个动作', '只接受票面点名的十七种动作')
+  if (!isTaskOp(op)) return badArg('unknown-op', '长任务清单里没有这个动作', '只接受票面点名的二十种动作')
   const a = args && typeof args === 'object' ? args : {}
   if (op === 'clone') {
     const urlProblem = taskRemoteProblem(a.url)
@@ -230,8 +234,32 @@ export function taskArgsFor(op: any, args: any): TaskArgResult {
     out.push(a.remote || 'origin', a.localBranch + ':' + a.branch)
     return { ok: true, args: out }
   }
-  if (op === 'submodule-init') return { ok: true, args: ['submodule', 'update', '--init', '--recursive'] }
-  if (op === 'submodule-update') return { ok: true, args: ['submodule', 'update', '--recursive'] }
+  if (op === 'submodule-init' || op === 'submodule-update' || op === 'submodule-remote-update') {
+    // 逐行模式带一个路径（批量菜单不带，走整批）；路径只当 update 的收窄参数，不能变成选项。
+    const out = ['submodule', 'update']
+    if (op === 'submodule-init') out.push('--init')
+    if (op === 'submodule-remote-update') out.push('--remote')
+    out.push('--recursive')
+    if (a.path !== undefined) {
+      const pathProblem = taskPathProblem(a.path)
+      if (pathProblem) return badArg('bad-path', pathProblem)
+      out.push('--', a.path)
+    }
+    return { ok: true, args: out }
+  }
+  if (op === 'submodule-add') {
+    // 10.2 新增子模块：地址与路径逐项独立成参数，-- 隔开，任何一项都不许以短横线开头。
+    const urlProblem = taskRemoteProblem(a.url)
+    if (urlProblem) return badArg('bad-remote', urlProblem)
+    const pathProblem = taskPathProblem(a.path)
+    if (pathProblem) return badArg('bad-path', pathProblem)
+    return { ok: true, args: ['submodule', 'add', '--', a.url, a.path] }
+  }
+  if (op === 'submodule-fetch') {
+    // 10.4 的「逐个抓取」是固定菜单：命令字符串写死成 git fetch，调用方连字段都没有地方塞。
+    // foreach 本身不接受路径收窄参数，所以这里刻意忽略 a.path，避免有人用路径字段改命令形状。
+    return { ok: true, args: ['submodule', 'foreach', '--recursive', 'git fetch'] }
+  }
   if (op === 'archive') {
     const revProblem = taskRevProblem(a.ref)
     if (revProblem) return badArg('bad-ref', revProblem)

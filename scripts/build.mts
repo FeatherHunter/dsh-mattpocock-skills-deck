@@ -693,6 +693,9 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // #1752 工作树的八条动作（argv、行模型、判定与理由、剪枝清单、稀疏检出规则）：宿主执行前与界面判定必须读同一份，
   //   界面不许自己再拼第二份 argv 或第二套理由。文件不带 import，可直接拼进界面闭包；宿主半走普通相对 import。
   { marker: '// ==== shared:vcWorktreeOps (spliced by build) ====', file: 'src/shared/version-control/src/worktree-ops.ts' },
+  // #1757 T21 子模块域的十一个动作（argv、判定与理由、批量菜单、地址打码、任务动作对照）：宿主预检/执行与界面判定必须读同一份，
+  //   界面不许自己再拼第二份 argv 或第二套理由。文件不带 import，可直接拼进界面闭包；宿主半走普通相对 import。
+  { marker: '// ==== shared:vcSubmoduleOps (spliced by build) ====', file: 'src/shared/version-control/src/submodule-ops.ts' },
   // #1747 冲突文本的解析与拼装（逐块读出当前边/对方边、按选择拼回整份、残留标记判定）：宿主预检执行与界面冲突视图、
   //   6.7 整份编辑必须读同一份行号与同一套行尾口径，所以把这份零依赖模块拼进界面闭包；宿主半走普通相对 import。
   { marker: '// ==== shared:vcConflictText (spliced by build) ====', file: 'src/shared/version-control/src/conflict-text.ts' },
@@ -809,6 +812,11 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcWorktreesPage', file: 'src/client/views/versionControl/vcWorktreesPage.ts' },
   // #1756 T20 克隆向导：填地址与选项 → 预检签票 → 凭票执行（长任务通道）→ 取消后的残留清理入口；由页面壳挂进迁移与备份页。
   { id: 'vcClonePage', file: 'src/client/views/versionControl/vcClonePage.ts' },
+  // #1757 T21 子模块页三叶，依赖次序固定：数据层（八条入口、批量菜单、读数状态）→ 动作层（预检、确认、写/任务电话、回包落位）→ 页面画法。
+  //   排在 vcShellPages 之前，壳的挂载段才看得到 vcSubmodulesPageNode。
+  { id: 'vcSubmodulesData', file: 'src/client/views/versionControl/vcSubmodulesData.ts' },
+  { id: 'vcSubmodulesOps', file: 'src/client/views/versionControl/vcSubmodulesOps.ts' },
+  { id: 'vcSubmodulesPage', file: 'src/client/views/versionControl/vcSubmodulesPage.ts' },
   // #1747 冲突向导两叶：动作模型（15 条能力的出入参形状）→ 页面正文（状态、冲突清单、逐块选择、四段确认卡）。
   //   排在页面壳之前，壳的挂载段才看得到 vcConflictsPageNode。
   { id: 'vcConflictsOps', file: 'src/client/views/versionControl/vcConflictsOps.ts' },

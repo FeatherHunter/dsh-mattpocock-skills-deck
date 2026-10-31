@@ -1,4 +1,4 @@
-// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–M 各组，每组带反证；J 组是 #1752 工作树页的写通道，K 组是 #1747 冲突向导的写通道，L 组是 #1743 提交页，M 组是 #1748 历史改写五条动作的写通道。
+// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–N 十四组，每组带反证；J 组是 #1752 工作树页的写通道，K 组是 #1755 同步域与 #1747 冲突向导的写通道，L 组是 #1743 提交页，M 组是 #1748 历史改写五条动作的写通道，N 组是 #1757 子模块页的写与任务通道。
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-841-write-phones.ts
 // 夹具：真 git 临时仓库（每个用例自己造）+ 真 subprocess 形状的垫片（argv 直传、不经 shell），
 // 这样「真跑过的 argv」与「真仓库有没有被动过」都能断言；只在纯归类那组不碰 git。
@@ -610,6 +610,60 @@ async function main(): Promise<void> {
   check(kLogs.length > 0 && logs.every((l) => ['git.exec', 'git.exec.fail', 'host.call', 'host.call.fail'].indexOf(l.event) >= 0), 'K10 同步预检走既有日志事件：host.call 记下电话名，没有新事件名')
   check(denyIs({ ok: true, ticketId: 'x' }, 'ticket-missing') === false, 'K11 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
 
+  // N 子模块页（#1757）：预检签票 → 写通道凭票执行 / 任务通道凭票转任务；伪造、过期、缺确认、现场不符都必须零进程。
+  console.log('N 子模块页写与任务两条电话（#1757）')
+  const subSrcN = mkRepo('ks')
+  const rN = mkRepo('k')
+  // 真子模块才验得出「配置真的变了、目录真的可能被移动」；本机 file 协议默认关闭，只在这一次命令上放开。
+  const subAddN = git(rN, ['-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', subSrcN, 'libs/lib'])
+  if (subAddN.code !== 0) throw new Error('造真子模块失败：' + subAddN.err)
+  git(rN, ['commit', '-q', '-m', '加入子模块'])
+  const vcN = makeVc()
+  // 只有真正动配置/目录的子命令算写；预检读的 status / config / rev-parse 不算。
+  const SUB_WRITE_SUBS = ['set-url', 'sync', 'set-branch', 'deinit', 'absorbgitdirs']
+  const submoduleWrites = (): string[][] => spawns.filter((a) => { const c = after(a); return c[0] === 'submodule' && SUB_WRITE_SUBS.indexOf(c[1]) >= 0 })
+  const taskSpawnsN = (): string[][] => spawns.filter((a) => { const c = after(a); return c[0] === 'submodule' && c[1] === 'update' })
+  check(typeof vcN.handleGitSubmodules === 'function' && typeof vcN.handleGitSubmoduleCheck === 'function' && typeof vcN.handleGitSubmoduleWrite === 'function' && typeof vcN.handleGitSubmoduleTask === 'function', 'N1 子模块四条电话都挂在同一个宿主对象上（读数 / 预检 / 凭票执行 / 凭票转任务）')
+  const nBoard = await vcN.handleGitSubmodules({ cwd: rN })
+  check(nBoard.ok === true && nBoard.contract === 'version-control.submodule-board' && nBoard.version === 1 && Array.isArray(nBoard.rows) && nBoard.rows.length === 1 && nBoard.rows[0].path === 'libs/lib' && nBoard.counts.total === 1 && submoduleWrites().length === 0, 'N2 读数电话回契约 version-control.submodule-board / 版本 1，真子模块出现在行里，且一条写命令都没起')
+  const nPre = await vcN.handleGitSubmoduleCheck({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git' })
+  check(nPre.ok === true && nPre.ticket && nPre.ticket.op === 'set-url' && nPre.confirmRequired === true && nPre.decision === 'allow' && submoduleWrites().length === 0, 'N3 预检改地址：放行 + 签票（需要确认），一条写命令都没起')
+  const nCount1 = spawns.length
+  const subForged = await vcN.handleGitSubmoduleWrite({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git', ticketId: 'NOSUCHTICKET', requestId: 'k-req-forged', confirmed: true })
+  check(denyIs(subForged, 'ticket-missing') && spawns.length === nCount1, 'N4 伪造票：ticket-missing 且零进程（纯判定先行）')
+  const nCount2 = spawns.length
+  const nNoConfirm = await vcN.handleGitSubmoduleWrite({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git', ticketId: nPre.ticket.id, requestId: 'k-req-noconfirm' })
+  check(nNoConfirm.ok === false && nNoConfirm.error.reason === 'confirm-required' && spawns.length === nCount2, 'N5 没带显式确认：confirm-required 且零进程')
+  clock.t = nPre.ticket.expiresAtMs + 1
+  const nCount3 = spawns.length
+  const subExpired = await vcN.handleGitSubmoduleWrite({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git', ticketId: nPre.ticket.id, requestId: 'k-req-expired', confirmed: true })
+  clock.t = 1000
+  check(subExpired.ok === false && subExpired.error.reason === 'ticket-expired' && spawns.length === nCount3, 'N6 过期票：ticket-expired 且零进程（不自动重签、不重放）')
+  const nPre2 = await vcN.handleGitSubmoduleCheck({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git' })
+  const nBefore = submoduleWrites().length
+  const nSet = await vcN.handleGitSubmoduleWrite({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git', ticketId: nPre2.ticket.id, requestId: 'k-req-set-url', confirmed: true })
+  const nSetArgv = after(submoduleWrites()[nBefore] || [])
+  check(nSet.ok === true && nSet.kind === 'git-submodule-write' && nSet.n === 1 && submoduleWrites().length === nBefore + 1 && nSetArgv.join(' ') === 'submodule set-url -- libs/lib https://example.com/lib2.git', 'N7 凭票改地址：成功一次只起一条写命令，argv 逐元素（submodule set-url -- <路径> <地址>）')
+  check(git(rN, ['config', '-f', '.gitmodules', '--get', 'submodule.libs/lib.url']).out === 'https://example.com/lib2.git', 'N8 改地址真的落到 .gitmodules（真仓库状态变了，不是只回了成功包）')
+  // 仓库根由宿主从 git rev-parse 读回来（斜杠方向与大小写都可能与 mkdtemp 的写法不同），比对前先归成真实路径。
+  const sameRealPath = (a: string, b: string): boolean => { try { return fs.realpathSync(a).replace(/\\/g, '/').toLowerCase() === fs.realpathSync(b).replace(/\\/g, '/').toLowerCase() } catch (e) { return false } }
+  const nCwdOk = requests.filter((q) => { const c = after(q.argv); return c[0] === 'submodule' && SUB_WRITE_SUBS.indexOf(c[1]) >= 0 }).every((q) => sameRealPath(q.cwd, rN))
+  check(nCwdOk, 'N9 每一条子模块写命令的 cwd 都钉在票据那个仓库上')
+  const subReplay = await vcN.handleGitSubmoduleWrite({ cwd: rN, op: 'set-url', path: 'libs/lib', url: 'https://example.com/lib2.git', ticketId: 'NOSUCH', requestId: 'k-req-set-url', confirmed: true })
+  check(JSON.stringify(subReplay) === JSON.stringify(nSet) && submoduleWrites().length === nBefore + 1, 'N10 同一个请求号重放：回同一份结果、不再起第二条写命令（重复点按钮不会重复写配置）')
+  const nAbsorb = await vcN.handleGitSubmoduleCheck({ cwd: rN, op: 'absorb', path: 'libs/lib' })
+  check(nAbsorb.ok === false && nAbsorb.error.kind === 'blocked' && nAbsorb.error.reason === 'nothing-to-absorb' && submoduleWrites().length === nBefore + 1, 'N11 吸收 .git 受控：真子模块的 .git 已经吸收过，预检如实拦成 nothing-to-absorb、零写命令（不无脑动目录）')
+  const nTaskPre = await vcN.handleGitSubmoduleCheck({ cwd: rN, op: 'init', path: 'libs/lib' })
+  check(nTaskPre.ok === true && nTaskPre.plan && nTaskPre.plan.kind === 'task' && nTaskPre.task && nTaskPre.task.op === 'submodule-init' && nTaskPre.confirmRequired === true, 'N12 预检「初始化并检出」：计划是长任务、任务动作 submodule-init，需要确认（10.2/10.3 走任务通道）')
+  const nTaskCount = taskSpawnsN().length
+  const nTaskForged = await vcN.handleGitSubmoduleTask({ cwd: rN, op: 'init', ticketId: 'NOSUCHTICKET', requestId: 'k-task-forged', confirmed: true })
+  check(denyIs(nTaskForged, 'ticket-missing') && taskSpawnsN().length === nTaskCount, 'N13 任务电话伪造票：ticket-missing 且零任务进程')
+  const nTaskPre2 = await vcN.handleGitSubmoduleCheck({ cwd: rN, op: 'init', path: 'libs/lib' })
+  const nTask = await vcN.handleGitSubmoduleTask({ cwd: rN, op: 'init', ticketId: nTaskPre2.ticket.id, requestId: 'k-req-task-init', confirmed: true })
+  const nInitArgv = after(taskSpawnsN().pop() || [])
+  check(nTask.ok === true && nTask.task && nTask.task.op === 'submodule-init' && nInitArgv.join(' ') === 'submodule update --init --recursive -- libs/lib', 'N14 凭票「初始化并检出」：真起长任务 submodule update --init --recursive -- <路径>（客户端参数不采信）')
+  check(submoduleWrites().every((a) => a.indexOf('--force') < 0 && a.indexOf('-f') < 0), 'N15 本组所有子模块写命令都不带 --force / -f（边界：面板不提供强制开关）')
+  check(denyIs({ ok: true, kind: 'git-submodule-write' }, 'ticket-missing') === false, 'N16 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
 
   // L 提交页域 2（#1743）：八条提交能力共用一份计划真源，危险动作靠 planDigest 绑票，失败分类不落 unknown。
   console.log('L 提交页八条能力（计划绑定 / 危险动作 / 失败分类）')

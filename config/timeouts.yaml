@@ -136,6 +136,13 @@ timeouts:
   # 历史改写域写命令的单条超时：15 秒。reset / revert / commit / cherry-pick 全是本地动作，不推远端；
   # 写命令的整趟预算 = 单条超时 + vcWriteCallMarginMs，与其它写电话同一套算法。
   vcUndoWriteTimeoutMs: 15000
+  # —— 子模块域的单条命令超时（#1757 T21）——
+  # 预检里单条只读 git 命令的超时：15 秒。submodule status / config -f .gitmodules 与逐个子模块的
+  # rev-parse / rev-list 都是本地读取，与分支域只读同一档。
+  vcSubmoduleReadTimeoutMs: 15000
+  # 子模块写命令的单条超时：15 秒。set-url / sync / set-branch / deinit / absorbgitdirs 都是本地动作，
+  # 只有 absorbgitdirs 会移动目录里的 .git，仍不跟远端协商，用同一档。
+  vcSubmoduleWriteTimeoutMs: 15000
   # —— 冲突向导的单条命令超时（#1747）——
   # 冲突向导预检里单条只读 git 命令的超时：15 秒。冲突清单、文件内容、merge-tree 预演、rerere 都是本地读取。
   vcConflictReadTimeoutMs: 15000
