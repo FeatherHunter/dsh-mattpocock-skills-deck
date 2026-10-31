@@ -3,7 +3,7 @@ installSkills:
   placeholders:
     - probeList
     - probeCount
-  use: "技能安装引导 · DSH 专用（横幅 / 引导 g4 / 设置页复制）· v3 #fix-banner：probeList 动态从 shared/matt-skills.js 注入（27 项，v1.3.1）；v6 T2 对齐 27；v5 #792 撤掉末尾的工具节（装技能与跟踪器无关）"
+  use: "技能安装引导 · DSH 专用（横幅 / 引导 g4 / 设置页复制）· v3 #fix-banner：probeList 动态从 shared/matt-skills.js 注入（27 项，随包 pin 现为 v1.3.2）；v6 T2 对齐 27；v5 #792 撤掉末尾的工具节（装技能与跟踪器无关）"
   zh: |-
     请为 DSH 安装 Matt Pocock 的 skills 技能套件（mattpocock/skills）：
 

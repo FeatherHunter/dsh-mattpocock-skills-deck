@@ -1715,7 +1715,7 @@ function gateBuildArtifacts(): void {
 function ensureBundledSkills(): void {
   const bundledDir: string = resolve(ROOT, 'package/bundled-skills')
   if (!existsSync(bundledDir)) {
-    console.warn('[build] 警告：package/bundled-skills 不存在，跳过捆绑校验（早期分支容忍）。请运行 node scripts/sync-matt-skills.mts --pin v1.3.1 --verify 同步')
+    console.warn('[build] 警告：package/bundled-skills 不存在，跳过捆绑校验（早期分支容忍）。请运行 node scripts/sync-matt-skills.mts --pin v1.3.2 --verify 同步')
     return
   }
   const entries: string[] = readdirSync(bundledDir, { withFileTypes: true }).filter((d: any) => d.isDirectory()).map((d: any) => d.name)
