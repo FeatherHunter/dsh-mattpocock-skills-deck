@@ -45,7 +45,10 @@ declare function vcChangesPageNode(h: any, t: any, o: any): any
 // 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）：同上由构建拼进闭包，这里只声明形状。
 declare function vcBranchBoardNode(h: any, t: any, o: any): any
 // 贮藏页叶子（#1751，vcStashPage.ts）：同样由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。
-declare function vcStashPageNode(h: any, t: any, o: any): any
+// #1760 配置页与钩子页叶子（vcConfigPage.ts / vcHooksPage.ts）同样由构建拼进闭包，这里只声明形状；
+//   挂载条件在页面体里（拿到读数与编辑状态才换成真正文，否则画骨架）。为了守 350 有效行，
+//   这两个声明与贮藏页的声明写在同一行。
+declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcConfigPageNode(h: any, t: any, o: any): any; declare function vcHooksPageNode(h: any, t: any, o: any): any
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']
@@ -264,7 +267,10 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   }
   // 提交历史页有自己的正文（#1744 T09：列表 / 详情 / 逐文件差异 / 13.14 图形化视图）。
   // 只有在拿到了首屏读数时才换成真正文；没有读数（壳自检、Z 组骨架断言）仍旧画骨架。
-  if (page === 'commits' && opts.reads) {
+  // #1760 配置页与钩子页（域 12）：调用方把读数与本地编辑状态传进来时才换成真正文；没传（壳自检、
+  //   全页渲染）仍旧画骨架。这两页不自己画 data-cap-primary，12.1–12.8 的入口仍由能力行统一给。
+  //   为了守 350 有效行，两条挂载与提交历史页的分支写在同一行（条件互斥，行为同分开写）。
+  if (page === 'config' && opts.config !== undefined && typeof vcConfigPageNode === 'function') children.push(Object.assign({}, vcConfigPageNode(h, t, { state: opts.config, onConfig: opts.onConfig, onConfigEdit: opts.onConfigEdit }), { key: 'config' })); else if (page === 'hooks' && opts.hooks !== undefined && typeof vcHooksPageNode === 'function') children.push(Object.assign({}, vcHooksPageNode(h, t, { state: opts.hooks, onHooks: opts.onHooks, onHooksEdit: opts.onHooksEdit }), { key: 'hooks' })); else if (page === 'commits' && opts.reads) {
     children.push(Object.assign({}, vcHistoryPageNode(h, t, {
       reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs,
     }), { key: 'history' }))
@@ -371,6 +377,8 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     // #1743：#1743 提交页的动作层、目标提交候选与现成面板模型也从调用方传进来（壳不自己造）。
     commitOps: opts.commitOps || null, commitTargets: opts.commitTargets || [], commitPanel: opts.commitPanel || null,
     ops: opts.ops, handlers: opts.handlers, // #1752 工作树页要真数据与处理函数
+    // #1760 配置页与钩子页的读数与回调也原样往下传（不传就是骨架，既有页面渲染不变）
+    config: opts.config, onConfig: opts.onConfig, onConfigEdit: opts.onConfigEdit, hooks: opts.hooks, onHooks: opts.onHooks, onHooksEdit: opts.onHooksEdit,
   }), 'body'))
   // #1751 贮藏页（域 7）：只在贮藏页挂这一块；十条动作的入口、确认卡与最近丢弃都在叶子里，
   // 这里只把首屏数据（seed）与回调递进去，页面壳不多说一句规则。

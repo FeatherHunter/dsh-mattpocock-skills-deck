@@ -671,6 +671,10 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   //   哪一条要 2.35 版本门、丢掉的提交号怎么 store 回去，只有这一份。宿主执行层与界面读同一份；
   //   界面自己再说一遍，就会与宿主执行前那次校验各说各话。
   { marker: '// ==== shared:vcStashRules (spliced by build) ====', file: 'src/shared/version-control/src/stash-rules.ts' },
+  // #1760 配置与钩子（域 12）的规则层：哪些键能写（只有身份两键）、作用域怎么反推、钩子名形状、
+  //   git hook run 的 2.36 版本门与替代做法，只有这一份。宿主预检/执行与配置页、钩子页读同一份，
+  //   界面不自己再说一遍——自己说一遍就会与宿主执行前那次判定各说各话。
+  { marker: '// ==== shared:vcConfigRules (spliced by build) ====', file: 'src/shared/version-control/src/config-rules.ts' },
   // #1342 域文档布局的取值（单上下文 / 多上下文）只有一份真源 src/shared/doc-layout/src/layouts.ts。
   //   界面侧状态栏与初始化卡要按同一份名单校验用户选的那一项（拒收第三档取值），所以拼进界面闭包；
   //   宿主侧选择记忆与工作区配置核按普通相对 import 取同一份源文件（不是拼接，是同一个文件）。
@@ -792,6 +796,10 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcWorktreesData', file: 'src/client/views/versionControl/vcWorktreesData.ts' },
   { id: 'vcWorktreesOps', file: 'src/client/views/versionControl/vcWorktreesOps.ts' },
   { id: 'vcWorktreesPage', file: 'src/client/views/versionControl/vcWorktreesPage.ts' },
+  // #1760 配置页与钩子页三叶，依赖次序固定：数据与动作层 → 配置页画法 → 钩子页画法（都排在页面壳之前，壳要调它们）。
+  { id: 'vcConfigOps', file: 'src/client/views/versionControl/vcConfigOps.ts' },
+  { id: 'vcConfigPage', file: 'src/client/views/versionControl/vcConfigPage.ts' },
+  { id: 'vcHooksPage', file: 'src/client/views/versionControl/vcHooksPage.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },
