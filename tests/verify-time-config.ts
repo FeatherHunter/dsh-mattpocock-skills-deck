@@ -98,6 +98,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/host/versionControlConflictWrite.ts', access: 'VC_CONFLICT_WRITE_TIMEOUT_MS', gen: 'VC_CONFLICT_WRITE_TIMEOUT_MS', key: 'vcConflictWriteTimeoutMs' },
   { file: 'src/host/versionControlRebaseScene.ts', access: 'VC_REBASE_READ_TIMEOUT_MS', gen: 'VC_REBASE_READ_TIMEOUT_MS', key: 'vcRebaseReadTimeoutMs' },
   { file: 'src/host/versionControlRebaseWrite.ts', access: 'VC_REBASE_WRITE_TIMEOUT_MS', gen: 'VC_REBASE_WRITE_TIMEOUT_MS', key: 'vcRebaseWriteTimeoutMs' },
+  // #1750 维护页整仓重写两片叶子各自直接导入的时间常量。
+  { file: 'src/host/versionControlRewriteScene.ts', access: 'VC_REWRITE_READ_TIMEOUT_MS', gen: 'VC_REWRITE_READ_TIMEOUT_MS', key: 'vcRewriteReadTimeoutMs' },
+  { file: 'src/host/versionControlRewriteWrite.ts', access: 'VC_REWRITE_WRITE_TIMEOUT_MS', gen: 'VC_REWRITE_WRITE_TIMEOUT_MS', key: 'vcRewriteWriteTimeoutMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'CALL_BUDGET_MS', gen: 'GIT_CREDENTIAL_CALL_BUDGET_MS', key: 'gitCredentialCallBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MIN_BUDGET_MS', gen: 'GIT_CREDENTIAL_MIN_BUDGET_MS', key: 'gitCredentialMinBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MAX_BUDGET_MS', gen: 'GIT_CREDENTIAL_MAX_BUDGET_MS', key: 'gitCredentialMaxBudgetMs' },
@@ -434,6 +437,9 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/versionControlUndoCheck.ts', name: 'readTimeoutMs', reason: '注入字段，接的是 VC_UNDO_READ_TIMEOUT_MS（已登记），不是新参数' },
   { file: 'src/host/versionControlUndoWrite.ts', name: 'writeTimeoutMs', reason: '注入字段，接的是 VC_UNDO_WRITE_TIMEOUT_MS（已登记），不是新参数' },
   { file: 'src/shared/version-control/src/recovery-point.ts', name: 'atMs', reason: '恢复点里的时刻，由调用方（宿主时钟）给，本文件不读钟，不是可调参数' },
+  // #1750 维护页整仓重写：备份要记录实际耗时（由调用方用起止时刻相减算出），不是可配时长旋钮。
+  { file: 'src/shared/version-control/src/recovery-point.ts', name: 'elapsedMs', reason: '备份实际耗时字段，调用方用起止时刻算，不是可配时长' },
+  { file: 'src/shared/version-control/src/rewrite-ops.ts', name: 'nowMs', reason: '备份路径时间戳用的当前时刻，由调用方传入，本文件不读钟' },
   { file: 'src/refresh/rooms/host/chain-coalescing.ts', name: 'nowMs', reason: '测试注钟口（生产用 Date.now），不是可调参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'lingerMs', reason: '注入字段的本地接住（上游是 ACTIVE_LINGER_MS），不是新参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'expiryMs', reason: '注入字段的本地接住（上游是 ATTENTION_EXPIRY_MS），不是新参数' },
