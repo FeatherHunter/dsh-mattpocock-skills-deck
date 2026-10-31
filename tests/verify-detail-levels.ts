@@ -172,11 +172,15 @@ async function main() {
     expect('map #' + m.number + ' DAG 语义：被阻塞者 level 严格大于阻塞者（bad=' + bad + '）', bad === 0)
   })
 
-  // T1d：真实数据层级数合理（1..10 层内）
+  // T1d：层级数的结构性上限。#1702：level 是阻塞依赖链的最长路径深度（src/tracker/body-parse.ts 的
+  // computeLevels），票链越串行层级越深，13 层甚至几十层都可能是合法数据；原来写死的「1..10 层」只是
+  // 早期数据少时的经验值，会把合法计划误判成红（规格 #1703 的串行票链就是 13 层）。能成立的硬约束只有一条：
+  // 每层至少挂一张票，所以层数不可能超过票数；超过才说明分层算坏了，这时才该红。
   withTickets.forEach(function (m) {
     const lv = m.stats && m.stats.levels
     if (Array.isArray(lv)) {
-      expect('map #' + m.number + ' 层级数 ' + lv.length + ' 在 1..10', lv.length >= 1 && lv.length <= 10)
+      const ticketCount = Array.isArray(m.tickets) ? m.tickets.length : 0
+      expect('map #' + m.number + ' 层级数 ' + lv.length + ' 不超过票数 ' + ticketCount + '（每层至少一张票）', lv.length >= 1 && lv.length <= ticketCount)
     }
   })
 
