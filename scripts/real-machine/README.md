@@ -184,6 +184,34 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/seed-gitlab.mt
 - 部分失败时退出码 1，stdout 仍打一份 JSON 回执，`errors` 里指到第几张票、哪个稳定键、试了几次；manifest 已落盘，重跑只补那几项。
 - 规模可以用 `--ticket-count` / `--closed` / `--maps` / `--children` / `--blocking` 调，默认 101/5/2/5/8；同一个批次目录只按第一次的规模补种。
 
+### 直调 deck 写工具：`deck-write` 与 `deck-readback`
+
+规格 #1703 阶段 0 要证明「隔离实例里能直调 deck 写工具、回执是无损 JSON、再用 glab 独立读回」。首选路线是在已开实例的页面上下文里走宿主代执行通道（`wf.deckExec`），但那需要真实例与 Playwright，进程外直接 POST `/api/dsws` 实测回 401；所以工具台先提供备选路线的两条命令：
+
+```
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/deck-write.mts --tool <工具名> --args <入参 JSON 文件> --ref <group>/<project> --workspace <工作区目录> [--out <回执文件>]
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/deck-readback.mts --ref <group>/<project> --key <票号> [--out <读回文件>]
+```
+
+- `deck-write` 固定 GitLab 后端，按 `--args` 文件里的 JSON 调一次 `deck_issue_create` / `deck_issue_patch` / `deck_map_link`，把工具回执原样写成 JSON（stdout 一份，`--out` 一份，缺省是当前目录的 `tool-response.json`）。回执必须无损：JSON 表达不了的值（NaN、Infinity、函数、Symbol）直接报错，不悄悄变成 null；对象里值为 `undefined` 的键显式剥掉，剥掉后必须能往返等值。
+- 退出码分四档：0 成功；1 工具自己回了失败（回执里 status 不是 ok）；2 参数或入口错（工具名不在可直调清单、入参文件读不了、缺 `--tool`）；3 环境不齐（缺 `GLAB_BIN`、`GLAB_BIN` 指向的文件不存在、工作区不存在、仓库标识不是 `<group>/<project>`）；4 内部装配错。缺 `GLAB_BIN` 时不会去 PATH 上找 glab，所以「没装」不会被误判成「装好了」。
+- `deck-readback` 不经过 deck 装配，直接用 `glab api` 读 `projects/<编码后的 group%2Fproject>/issues/<票号>?with_labels_details=true`，输出票号、标题、正文、状态、标签名、父票号（读正文里的 `<!-- DSH-PARENT: n -->`）、web 地址与原始响应。写命令与读命令是两条独立路径，读回一致才有证据力。
+- 门禁 `tests/verify-1709-deck-entry.ts` 只起子进程：入口与夹具存在、三条写场景（建票 / 评论 / 挂父票）各直调一次并核对回执与假 glab 的调用记录、`deck-readback` 独立读回、七条拒绝路径逐条单独触发且一次 glab 都不调、回执无损单测、`--negative` 自证会红。门禁不联网、不需要真 glab、不碰真实凭据；真机上写成功与否由 B0 批次取证。
+
+### 批次前置巡检：`preflight`
+
+每批开始前先跑一次前置巡检，一条命令把「这批环境到底能不能开始」核对完：
+
+```
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/preflight.mts --batch <批次目录>
+```
+
+- 九项硬检查：候选包身份（candidate.json 的提交与 tgz SHA256）、隔离 home 与 profile（已装插件版本是否等于候选版本）、工作区文件与 git remote（backendId: gitlab、origin 是否指向本批项目）、glab 版本与认证（GLAB_BIN 指到哪个 glab、登录的是哪个 gitlab.com 账号）、沙箱项目 id 与状态（按 id 用 glab api 读回，确认没被标记删除）、票池数量（默认至少 101 张，能用 issues_statistics 独立读回时一并记下）、日志目录可写（真写一个探针文件再删掉）、屏幕分辨率与主屏（预检自己跑屏幕命令，不靠人抄）、Node 版本（默认要求 24.15.0 及以上）。
+- stdout 只有一段 JSON，同一段也写进 `<批次目录>/preflight.json`（`--out` 可改位置）；批次开始评论直接抄这段 JSON 的相关字段，包括屏幕分辨率与主屏。
+- 每项都有稳定 id、中文名、是否硬项、ok、失败原因（写明期望与实际差在哪）与可复核的 details。全部通过时退出码 0；任一硬项失败退出码非 0，stderr 还会用一行汇总点到失败项的 id 与中文名。
+- 屏幕信息默认用本机 powershell 取；要换命令用 `--screen-cmd` 或环境变量 `DSH_PREFLIGHT_SCREEN_CMD`（门禁就是用假命令替换的，不依赖本机显示器）。
+- 只读：不访问网络（glab 由 GLAB_BIN 注入）、不写真实 DSH 配置，日志目录探针写完立刻删。
+
 ## 带 GitLab 环境起实例：`--instance-env-file` 与 `--launch-plan`
 
 隔离实例默认读不到本机的 glab 配置，也没有 GitLab token。要让它按批次环境访问 GitLab，把要传的变量写进一个环境文件，再用 `--instance-env-file` 把文件路径交给 `start-instance`：
@@ -235,6 +263,8 @@ GitLab 沙箱项目（建删细节见上面的「GitLab 沙箱项目」一节）
 | `gitlab-sandbox create` | 在 gitlab.com 建带批次标记的私有空项目，读回 id、path、web_url 写进批次清单 |
 | `gitlab-sandbox delete` | 只删批次清单里记过、仍带本批次标记的项目，读回 marked_for_deletion_at 才算删掉 |
 | `seed-gitlab` | 把 101 张票、两张地图与子票、标签、指派、父子与阻塞关系幂等种进 GitLab 沙箱项目，写批次 manifest，重跑只补缺项 |
+| `deck-write` | 按固定入参直调一次 deck 写工具（建票/改票/挂边），回执写成无损 JSON，退出码区分成功与各类失败 |
+| `deck-readback` | 不经过 deck 装配，直接用 `glab api` 读回一张 GitLab 票，用来独立核对 `deck-write` 的回执 |
 
 核对与证据：
 
@@ -247,6 +277,7 @@ GitLab 沙箱项目（建删细节见上面的「GitLab 沙箱项目」一节）
 | `backup-settings` / `restore-settings` | 备份与恢复真实用户设置（需要临时改真实设置做对照时才用） |
 | `global-lock` | 多人同时做真机验证时的互斥锁：拿锁、放锁 |
 | `report-index` | 汇总全局 index.jsonl 与 conditions.jsonl，输出断言分组计数、缺陷等级、候选通过率、条件账本，并可渲染 Markdown 摘要 |
+| `preflight` | 批次开始前一条命令输出九项环境预检 JSON（候选身份、隔离 home、工作区、glab 认证、沙箱项目、票池、日志目录、屏幕、Node），任一硬项失败退出码非 0 |
 
 冻结与清理：
 

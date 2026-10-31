@@ -75,11 +75,13 @@
 - **工作区注入**：无头环境点不了原生目录选择器，所以由 `seed-workspace` 直接写 home 的 `storages/workspace.json` 完成登记。验证用的工作区夹具放在批次目录里，不要放在本仓库里，否则插件会把本仓库的 git 根当成仓库身份，结论会被污染。
 - **GitLab 沙箱项目**：需要 GitLab 后端时，先用 `gitlab-sandbox create --batch <批次目录> --path <group>/<project>` 在 gitlab.com 建一个带批次标记的私有空项目（记录写在 `<批次目录>/gitlab-projects.json`），再用 `make-workspace --kind gitlab --project <group>/<project>` 生成工作区：本地空仓库，`origin` 指向沙箱项目地址，工作区文件写 GitLab 后端。GitLab 的删除接口返回 202 之后延迟生效，所以 `gitlab-sandbox delete --batch <批次目录> --id <项目 id>` 会按 id 读回 `marked_for_deletion_at`，读到才算删掉；读回失败时项目 id 保留在清单里、状态标成 `delete-failed`，重跑 delete 可以补完。每批只建 1-2 个，场景验完立刻删。
 - **GitLab 种子票池**：票池用 `seed-gitlab --batch <批次目录> --project <group>/<project>` 幂等种出：默认 101 张票（含 5 张已关闭）、两张地图与子票、5 个标签、指派、父子与阻塞关系。每张票正文文件头带稳定键 `<!-- DSH-SEED-KEY: … -->`（子票另带 `<!-- DSH-PARENT: <地图 iid> -->`），重跑按稳定键认回已有的，只补缺的；种好后 `<批次目录>/gitlab-seed.json` 的 `mode` 是 `read-only`，之后补种必须显式加 `--unlock-readonly`，补完自动恢复只读。免费档可能拿不到原生 `is_blocked_by` 边，命令会自动回落成正文成对两行（`Blocked by: #N` 与 `<!-- DSH-BLOCKED-BY: N -->`），验证结论里要写清实际用了哪种。B1 批次要核对票数与关系，并把 `gitlab-seed.json` 的 `stats` 抄进批次记录。
+- **批次前置巡检**：每批开始前先跑 `preflight --batch <批次目录>`（写法见工具台 README 的「批次前置巡检」一节），它以一段 JSON 回执回答九项环境预检：候选包身份、隔离 home 与 profile、工作区与 git remote、glab 版本与认证、沙箱项目 id 与状态、票池数量、日志目录可写、屏幕分辨率与主屏、Node 版本。任一硬项失败退出码非 0 并逐项写清原因；全绿之前不开批。
 - **证据目录**：每个批次一个目录 `<工作根>/batches/<批次名>/`，证据先落在 `evidence/` 下，再由 `collect-evidence` 生成带每个文件 SHA256 的 `evidence.json`。规则要求证据能独立看懂：评论里贴截图关键区域、日志关键行或接口返回字段，不把临时目录路径当唯一证据。
 - **候选身份判据**：用 `freeze-candidate` 冻结候选，清单写在 `<工作根>/pkg/candidate.json`，记着提交、版本、包内每个文件的 SHA256 与 tgz 的 SHA256。界面里的插件脚本是宿主把多个插件合并成一次请求加载的，所以界面核对比的是「这段内容里本版的版本常量是不是期望值」，不要拿合并后的包哈希当身份（带启动期构建标识的产物每次启动哈希都会变）。
 - **清理要求与上限**：用 `cleanup` 先报账、确认后再删。工作根总量建议不超过 15GB、批次目录不超过 20 个、单个批次不超过 2GB；每次批次结束、发布前、换版本重跑之前各清一次。批次里的 GitHub 工作区是源仓库的 `git worktree`，批次目录删掉之后在源仓库跑一次 `git worktree prune` 清掉失效登记。
 - **从零可用**：`two-instance-smoke` 用一条命令在一个从没跑过真机验证的检出里跑通双实例冒烟（复制两份 home、造两种后端工作区、起两个实例、浏览器核对、收证据、停实例），用来证明工具台本身是好的。
 - **GitLab 实例环境**：批次实例要访问 GitLab 时，用 `start-instance --instance-env-file <批次>/env.txt` 把 `GLAB_CONFIG_DIR`、`PATH`、`GITLAB_TOKEN` 传进实例进程；token 只写在环境文件里，不进命令行、批次评论、证据文件与日志。先加 `--launch-plan` 可以只看启动命令与变量名、不起进程。写法与失败行为见 `scripts/real-machine/README.md` 的「带 GitLab 环境起实例」一节。
+- **GitLab 写场景直调入口**：要证明「隔离实例里能直调 deck 写工具」时，用 `deck-write --tool <工具名> --args <入参 JSON 文件> --ref <group>/<project> --workspace <工作区目录>` 按固定入参调一次 `deck_issue_create` / `deck_issue_patch` / `deck_map_link`，回执是无损 JSON（`--out` 另存一份，缺省 `tool-response.json`）；再用 `deck-readback --ref <group>/<project> --key <票号>` 直接走 `glab api` 独立读回，写与读是两条路径，读回一致才算数。缺 `GLAB_BIN`、`GLAB_BIN` 指向的文件不存在、工作区不存在或仓库标识不是 `<group>/<project>` 时退出码 3 并说明原因；工具名不在清单或入参文件读不了时退出码 2；工具回失败时退出码 1。命令细节见 `scripts/real-machine/README.md` 的「直调 deck 写工具」一节，提交门禁是 `tests/verify-1709-deck-entry.ts`（加 `--negative` 可单独触发负例）。B0 批次要真建一张票、真改一次、真挂一次父票，再用 `deck-readback` 读回并把回执与读回两份 JSON 贴进证据。
 
 ### 证据归档、不可变与批次环境记录
 
@@ -87,11 +89,7 @@
 
 - **每批结束立刻归档**：结果评论发出前后，把整批证据复制到 `<工作根>/evidence-archive/<批次名>-<时间戳>/`。归档目录放在批次目录之外（`cleanup` 只删批次目录，不碰归档），原文件不删不改；同时复制 `pkg/candidate.json`，并生成一份 `SHA256SUMS.txt` 记录每个文件的哈希。归档副本至少保留到下一版发布结束。起因：2026-10-30 beta.32 批次重跑一次就覆盖了 `measure-banner.json`，1661-02 矮窗的机器可读证据丢失，只剩一张截图和一份日志。
 - **证据不可变**：证据 JSON 与截图写出之后不再编辑。需要更正（例如脚本里残留了旧提交号）时，新写一份旁注文件说明「哪个文件、哪个字段、为什么改、以哪份为准」，再在清单票评论里写清楚，不要直接改原件冒充当时的记录。beta.32 批次手动改过证据副本里的 `commit` 字段，虽然测量数值没动，但「测量当刻写下的原件」因此不复存在。
-- **每批开始记录宿主显示状态**：批次开始那条评论的「验证环境」里要有这一项。先跑下面这条只读命令把当前显示拓扑记下来：
-
-```powershell
-powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Screen]::AllScreens | ForEach-Object { '{0} {1}x{2} primary={3}' -f $_.DeviceName, $_.Bounds.Width, $_.Bounds.Height, $_.Primary }"
-```
+- **每批开始记录宿主显示状态**：批次开始那条评论的「验证环境」里要有这一项。直接抄 `preflight` JSON 的 `items[]` 里 id 为 `screen` 的那一项：`details.primaryDevice` 是主屏的宽、高与设备名，`details.devices` 是全部显示器及是否主屏。预检自己执行屏幕命令，不靠人抄；批次记录以这份 JSON 为准。
 
 这只是「批次开始那一刻主机是什么样」的快照，不能证明整个批次期间都稳定；真正的视口以真全屏实例的 `page-diagnostics.json` 里 `fullscreen` 与 `viewport` 字段为准。宿主在多个显示器或分辨率之间自动切换时，先请人把显示器固定住再开批；不要用看门狗去抢每次只出现两三分钟的横屏窗口——切屏会打断测量，留下的证据不可信，还要整批重跑。beta.32 批次因此两次作废 1660 的证据，最终 wide/short 没能按登记尺寸复跑。
 
@@ -109,7 +107,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/report-index.m
 
 验证主持人在候选构建（即准备发布的那个产物）上跑一批。每批做四件事：
 
-1. **批次开始时发一条评论**：批次号、版本与提交、构建产物及其 sha256、验证环境（操作系统、DSH 版本、隔离的 home/profile、已装插件版本、网络条件）、本批要验的场景编号清单、开始时间。
+1. **批次开始时发一条评论**：批次号、版本与提交、构建产物及其 sha256、验证环境（操作系统、DSH 版本、隔离的 home/profile、已装插件版本、网络条件、前置巡检结果（preflight JSON，含屏幕分辨率与主屏））、本批要验的场景编号清单、开始时间。
 2. **逐场景执行并记录结果**。每验完一条就记下通过还是失败，不要等整批结束再凭记忆补。
 3. **批次结束时发一条结果评论**：逐场景写 `通过` / `失败（→ #新票号）` / `未测（原因）`，每条附决定性证据。证据要能独立看懂：截图路径、关键日志行、接口返回字段；临时目录里的文件路径不能作为唯一证据，因为目录会删，要把关键几行贴进评论。
 
