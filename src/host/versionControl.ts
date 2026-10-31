@@ -213,7 +213,7 @@ export function createVersionControl(deps: any): any {
     // 参数内容、输出原文、目录原文都不进日志。
     fire('info', 'git.exec', { argv0: GIT_NAME, cwdHash: dirHash(dir), cmd: cmd, argc: Array.isArray(args) ? args.length : 0, latencyMs: Date.now() - t0, exitCode: exitCode, stdoutBytes: Buffer.byteLength(String(out.text || ''), 'utf8'), truncated: out.truncated === true, stdinBytes: stdinBytes, via: VIA })
     if (exitCode !== 0) { return { kind: 'non-zero', exitCode: exitCode, stderr: err.text } }
-    return { kind: 'ok', stdout: out.text, truncated: out.truncated, stdinBytes: stdinBytes }
+    return { kind: 'ok', stdout: out.text, stderr: err.text, truncated: out.truncated, stdinBytes: stdinBytes } // stderr 照带：`git hook run` 把钩子输出写标准错误，成功时丢掉界面就看不到钩子说了什么（#1760）
     }, function (): any { return { kind: 'cancelled', cancelled: true, message: '已取消排队，可重试' } })
   }
   /** 找 git 命令；找不到或平台服务缺席都转成明确失败值，不抛。 */
