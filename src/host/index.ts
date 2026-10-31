@@ -273,6 +273,8 @@ export default {
     harness.handle('wf.gitPull', async function (args: WfArgs) { const h = await _vc(); return h.handleGitPull(args) })
     harness.handle('wf.gitFetch', async function (args: WfArgs) { const h = await _vc(); return h.handleGitFetch(args) })
     harness.handle('wf.gitPush', async function (args: WfArgs) { const h = await _vc(); return h.handleGitPush(args) })
+    // #1743 提交表单的只读取数（身份、签名配置、commit.template、上一条提交原文）：只读，不写仓库。
+    harness.handle('wf.gitCommitForm', async function (args: WfArgs) { const h = await _vc(); return h.handleGitCommitForm(args) })
     // #1740 长任务通道三条电话（开始、查询、取消）：装配在 ./versionControl.js 那一族里，这里只注册。
     harness.handle('wf.gitTaskStart', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskStart(args) })
     harness.handle('wf.gitTaskQuery', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskQuery(args) })

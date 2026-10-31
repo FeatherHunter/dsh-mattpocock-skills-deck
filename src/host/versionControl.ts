@@ -51,6 +51,9 @@ import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/ti
 // #1741/#1740：fast-import 的只读文件流窄例外与长任务执行层（起进程、送标准输入、增量读）都住
 // 同层叶子 versionControlTask.ts；本文件只递宿主依赖与日志包装，两条入口共用同一份文件核对实现。
 import { prepareStdinFile, createTaskPhones } from './versionControlTask.js'
+// #1743：提交表单的只读取数电话（身份、签名配置、提交说明模板、上一条提交原文）住同层叶子
+// versionControlCommitForm.ts，懒加载与日志包装在 versionControlCommitFormMount.ts；本文件只递宿主依赖。
+import { createCommitFormMount } from './versionControlCommitFormMount.js'
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -483,6 +486,16 @@ export function createVersionControl(deps: any): any {
     return _changesP
   }
 
+  // ---- #1743 提交表单读取电话（追加段，不改上面任何既有行为）----
+  // 一条只读电话：身份、签名配置、commit.template 全文、上一条提交原文（修订预填用）。
+  // 装配壳与业务解析都在同层叶子里，本文件只把已经造好的宿主闭包递进去。
+  const commitForm: any = createCommitFormMount({
+    fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable,
+    runGit: runGit, fixedPrefix: fixedPrefix, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs,
+    STDOUT_LIMIT: STDOUT_LIMIT, loggedPhone: loggedPhone,
+    now: (deps && typeof deps.now === 'function') ? deps.now : Date.now,
+  })
+
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
@@ -511,5 +524,7 @@ export function createVersionControl(deps: any): any {
     handleGitChangesWrite: async function (a: any): Promise<any> { const c: any = await changesPhone(); return c.write(a) },
     // 只给门禁与测试读取改动页票据表（#1742），与 #1741 的 writeTickets 同一条口径：不注册成电话、客户端拿不到。
     changesTickets: async function (): Promise<any> { const c: any = await changesPhone(); return c.tickets || null },
+    // #1743 提交表单读取电话：装配在 ./versionControlCommitFormMount.ts，进程出口照旧是上面那条固定前缀与报闸。
+    handleGitCommitForm: commitForm.handleGitCommitForm,
   }
 }

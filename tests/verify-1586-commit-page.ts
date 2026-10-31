@@ -107,7 +107,160 @@ const mut2 = evalPlan(mutant2Patch)
 check(multiLineOk(P) === true && multiLineOk(mut2) === false, 'B6 反证二：把多行说明改成只取第一行后，A7 的同一断言必须判红')
 check(skipHooksOk(mut1) === false && multiLineOk(mut2) === false, 'B7 反证装置自检：两条反证各自改中的那一半判红（不是所有断言一起红）')
 
-console.log('')
-console.log('汇总：' + total + ' 条断言，' + failed + ' 条失败')
-printGateResult(GATE, total, failed)
-process.exit(failed > 0 ? 1 : 0)
+
+// ---- C 组：宿主只读取数电话（wf.gitCommitForm）----
+// 这一组真的把叶子模块装配起来拨电话，假的只是 git 进程出口与文件服务：
+// 断言 argv 逐元素、身份/签名/模板/修订四块回包、软降级与固定失败信封。
+const FORM_SOURCE = 'src/host/versionControlCommitForm.ts'
+const MOUNT_SOURCE = 'src/host/versionControlCommitFormMount.ts'
+const HOST_SOURCE = 'src/host/versionControl.ts'
+const INDEX_SOURCE = 'src/host/index.ts'
+const CWD = 'C:/repo'
+
+/** 造一个只读电话的宿主替身：记录每次 git 调用的 argv、每次文件解析的路径，按 route 回假结果。 */
+function makeFormHost(route, files) {
+  const calls = []
+  const resolves = []
+  const fixed = require('../src/shared/version-control/src/commands.js').fixedPrefix
+  const host = {
+    failPhone: function (kind, message) { return { ok: false, error: { kind: kind, message: message } } },
+    fs: {
+      resolve: async function (p) { resolves.push(p); return p },
+      readText: async function (p) {
+        if (files && Object.prototype.hasOwnProperty.call(files, p)) return files[p]
+        const e = new Error('ENOENT: no such file: ' + p)
+        e.code = 'ENOENT'
+        throw e
+      },
+    },
+    fsAbsence: async function () { return { isAbsenceError: function (e) { return !!e && (e.code === 'ENOENT' || e.code === 'ENOTDIR') } } },
+    resolveGitExecutable: async function () { return 'git' },
+    runGit: async function (exe, dir, argv, opts) {
+      calls.push(argv)
+      const rest = argv.slice(['-C', dir].concat(fixed()).length)
+      const hit = route(rest, argv, opts)
+      return Object.assign({ kind: 'ok', stdout: '', truncated: false }, hit || {})
+    },
+    fixedPrefix: fixed,
+    DEFAULT_CWD: CWD,
+    timeoutMs: 1234,
+    STDOUT_LIMIT: 4096,
+    now: function () { return 777 },
+  }
+  return { host: host, calls: calls, resolves: resolves }
+}
+
+/** 本机配置的假输出：六项表单要读的键各一行，值与键之间用 \n 分隔、条目之间用 NUL 分隔（git config --null --list 的形状）。 */
+function formConfigOut(extra) {
+  const pairs = [
+    ['user.name', '张三'],
+    ['user.email', 'z@example.com'],
+    ['user.signingkey', 'ABC123'],
+    ['gpg.format', 'ssh'],
+    ['commit.gpgsign', 'true'],
+    ['commit.template', '.gitmessage'],
+  ]
+  if (extra) pairs.push(extra)
+  return pairs.map(function (p) { return p[0] + '\n' + p[1] }).join('\u0000') + '\u0000'
+}
+
+const FORM_TEMPLATE = '第一行摘要\n\n- 改动：把提交面板接进改动页\n- 原因：2.7 不再推外部编辑器\n'
+const FORM_OID = 'a'.repeat(40)
+const FORM_LOG_OUT = 'aaaaaaa\u0000原说明标题\u0000原说明标题\n\n正文第一段\n第二段\n'
+
+async function formGroup() {
+  const { pathToFileURL } = require('url')
+  const formMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControlCommitForm.js')).href)
+  const fixed = require('../src/shared/version-control/src/commands.js').fixedPrefix()
+
+  /** 正常仓库的假命令出口：config 回六项配置、rev-parse 回一个满长 oid、log 回短号+主题+多行正文。 */
+  function okRoute(rest) {
+    if (rest[0] === 'config') return { stdout: formConfigOut(null) }
+    if (rest[0] === 'rev-parse') return { stdout: FORM_OID + '\n' }
+    if (rest[0] === 'log') return { stdout: FORM_LOG_OUT }
+    return { kind: 'non-zero', exitCode: 2, stderr: 'unexpected command' }
+  }
+
+  const files = { 'C:/repo/.gitmessage': FORM_TEMPLATE }
+  const made = makeFormHost(okRoute, files)
+  const phone = formMod.createCommitFormPhone(made.host)
+  const r = await phone.handleGitCommitForm({ cwd: CWD })
+
+  // C1 命令拼装：-C 钉仓库 + 固定前缀之后，子命令与选项各自独立成元素，不经 shell。
+  const expected = ['-C', CWD].concat(fixed).concat(['config', '--null', '--list'])
+  check(made.calls.length >= 3 && made.calls[0].join('\u0001') === expected.join('\u0001'), 'C1 读配置的 argv 是「-C 钉仓库 + 固定前缀 + config --null --list」，每个元素独立')
+  check(made.calls.every(function (a) { return a.every(function (x) { return typeof x === 'string' }) }), 'C2 每次 git 调用的参数全是独立字符串（没有整行拼接的命令串）')
+  check(made.calls.every(function (a) { return a[0] === '-C' && a[1] === CWD }), 'C3 每次调用都用 -C 钉在请求的那棵仓库上')
+  check(!made.calls.some(function (a) { return a.some(function (x) { return /[;&|]/.test(x) }) }), 'C4 参数里没有 shell 连接符（不经过 shell 拼命令）')
+
+  // C5 身份、签名、追加签名行原文：都从本机配置读，追加签名行不依赖任何全局设置。
+  check(r.ok === true && r.identity.name === '张三' && r.identity.email === 'z@example.com', 'C5 回包带上 git 配置里的提交身份（user.name / user.email）')
+  check(r.signing.key === 'ABC123' && r.signing.format === 'ssh' && r.signing.gpgsign === true, 'C6 回包带上签名三项（密钥 / 格式 / 是否默认签名）')
+  check(r.trailer === 'Signed-off-by: 张三 <z@example.com>', 'C7 追加签名行原文由身份拼出，与签名提交是两回事')
+
+  // C8 模板（2.8）：读全文、按 cwd 拼相对路径、多行原样保留。
+  check(r.template.configured === true && r.template.text === FORM_TEMPLATE && r.template.problem === '', 'C8 commit.template 读回全文（多行原样保留）')
+  check(made.resolves.indexOf(CWD + '/.gitmessage') >= 0, 'C9 相对路径的模板按请求的工作目录拼成绝对路径再读')
+  check(r.template.truncated === false, 'C10 正常长度的模板不标截断')
+
+  // C11 修订（2.3）预填：原提交号、短号、主题与多行说明原样拿回。
+  check(r.amend.available === true && r.amend.oid === FORM_OID && r.amend.short === 'aaaaaaa', 'C11 修订目标读回原提交号与短号（面板据此显示「修订哪一条」）')
+  check(r.amend.subject === '原说明标题' && r.amend.message === '原说明标题\n\n正文第一段\n第二段', 'C12 修订预填拿回原说明原文，多行保留且不留行尾空行')
+  check(made.calls.some(function (a) { return a.slice(['-C', CWD].concat(fixed).length).join('|') === 'log|-1|--format=%h%x00%s%x00%B' }), 'C13 读原说明的 log 参数各自独立成元素（格式串是一个元素，不是拼出来的命令）')
+
+  // C14 还没有任何提交时只是「不能修订」，整条电话仍成功：表单不能因此打不开。
+  const noHead = makeFormHost(function (rest) {
+    if (rest[0] === 'config') return { stdout: formConfigOut(null) }
+    if (rest[0] === 'rev-parse') return { kind: 'non-zero', exitCode: 128, stderr: 'fatal: Needed a single revision' }
+    return { kind: 'non-zero', exitCode: 2, stderr: 'unexpected command' }
+  }, files)
+  const rNoHead = await formMod.createCommitFormPhone(noHead.host).handleGitCommitForm({ cwd: CWD })
+  check(rNoHead.ok === true && rNoHead.amend.available === false && rNoHead.amend.problem === 'no-commits', 'C14 没有上一条提交时电话仍 ok:true，修订项回 problem=no-commits 让按钮禁用')
+  check(noHead.calls.length === 2 && noHead.calls.every(function (a) { return a.slice(-1)[0] !== 'log' && a[a.length - 3] !== 'log' }), 'C15 没有提交时不再多跑读说明那条 log 命令')
+
+  // C16 模板配了但文件不在：软降级（prolem=missing），不把整张表单判死。
+  const noTpl = makeFormHost(okRoute, {})
+  const rNoTpl = await formMod.createCommitFormPhone(noTpl.host).handleGitCommitForm({ cwd: CWD })
+  check(rNoTpl.ok === true && rNoTpl.template.configured === true && rNoTpl.template.text === '' && rNoTpl.template.problem === 'missing', 'C16 模板文件缺失时回 problem=missing（软降级，表单照常打开）')
+
+  // C17 没配模板：configured=false，不报问题。
+  const withoutTpl = makeFormHost(function (rest) {
+    if (rest[0] === 'config') return { stdout: formConfigOut(null).split('\u0000').filter(function (x) { return x !== '' && x.indexOf('commit.template\n') < 0 }).join('\u0000') + '\u0000' }
+    if (rest[0] === 'rev-parse') return { stdout: FORM_OID + '\n' }
+    if (rest[0] === 'log') return { stdout: FORM_LOG_OUT }
+    return { kind: 'non-zero', exitCode: 2, stderr: 'unexpected command' }
+  }, {})
+  const rWithout = await formMod.createCommitFormPhone(withoutTpl.host).handleGitCommitForm({ cwd: CWD })
+  check(rWithout.template.configured === false && rWithout.template.problem === '', 'C17 没配 commit.template 时回 configured=false，界面显示「没有模板」而不是失败')
+
+  // C18/C19 失败信封：读配置超时与非零退出都回固定形状 { ok:false, error:{ kind, message } }。
+  const timeout = makeFormHost(function (rest) { if (rest[0] === 'config') return { kind: 'timeout', timeoutMs: 1234 }; return { kind: 'ok', stdout: '' } }, {})
+  const rTimeout = await formMod.createCommitFormPhone(timeout.host).handleGitCommitForm({ cwd: CWD })
+  check(rTimeout.ok === false && rTimeout.error.kind === 'timeout', 'C18 读配置超时回 ok:false + kind=timeout（不假装成功）')
+  check(Object.keys(rTimeout.error).sort().join(',') === 'kind,message', 'C19 失败信封固定为 { ok:false, error:{ kind, message } }，不多带字段')
+  const rejected = makeFormHost(function (rest) { if (rest[0] === 'config') return { kind: 'non-zero', exitCode: 128, stderr: 'fatal' }; return { kind: 'ok', stdout: '' } }, {})
+  const rRejected = await formMod.createCommitFormPhone(rejected.host).handleGitCommitForm({ cwd: CWD })
+  check(rRejected.ok === false && rRejected.error.kind === 'git', 'C20 配置被 git 拒绝时回 kind=git，不落 unknown')
+
+  // C21 反证：把正常回包里的邮箱去掉，C5 的同一套断言本体必须判红（证明这几条断言会咬）。
+  const identityOk = function (res) { return res.ok === true && res.identity.name === '张三' && res.identity.email === 'z@example.com' }
+  check(identityOk(r) === true, 'C21 反证前件：同一套身份断言在真回包上成立')
+  check(identityOk({ ok: true, identity: { name: '张三', email: '' } }) === false, 'C22 反证：身份回包里少了邮箱，同一套断言必须判红')
+
+  // C23 源码断言：读电话的叶子不自己起进程；装配线三处都在。
+  const formSrc = sourceText(FORM_SOURCE)
+  check(!/child_process|spawnSync|execSync/.test(formSrc), 'C23 源码断言：读电话叶子不自己起进程（只走注入的 git 出口）')
+  check(sourceText(HOST_SOURCE).indexOf('createCommitFormMount') >= 0 && sourceText(INDEX_SOURCE).indexOf("harness.handle('wf.gitCommitForm'") >= 0, 'C24 父文件与宿主注册表都已接上 wf.gitCommitForm 电话')
+  check(sourceText(MOUNT_SOURCE).indexOf("loggedPhone('wf.gitCommitForm'") >= 0, 'C25 装配壳用同一套 loggedPhone 日志口径包住这条电话')
+}
+
+// C 组起是异步的（要真的拨宿主电话、等回包）：汇总与 GATE-RESULT 等它们跑完再打。
+main().catch(function (e) { console.error('门禁执行异常：' + String((e && e.stack) || e)); process.exit(1) })
+
+async function main() {
+  await formGroup()
+  console.log('')
+  console.log('汇总：' + total + ' 条断言，' + failed + ' 条失败')
+  printGateResult(GATE, total, failed)
+  process.exit(failed > 0 ? 1 : 0)
+}
