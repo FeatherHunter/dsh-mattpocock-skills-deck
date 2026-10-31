@@ -334,8 +334,10 @@ async function main() {
     if (tx.runner.indexOf('taskOpMetaOf(req.op)') < 0 || tx.runner.indexOf('unknown-op') < 0) problems.push('decision-branch')
     // 3 检查白名单：只有 fast-import 能带输入文件，其余一律 stdin-not-allowed。
     if (tx.runner.indexOf('meta.stdinFile') < 0 || tx.runner.indexOf('stdin-not-allowed') < 0) problems.push('check-whitelist')
-    // 4 写处理函数：执行层有起进程闭包与通道装配，三个处理函数齐全。
-    if (tx.host.indexOf('makeLaunchTaskGit') < 0 || tx.host.indexOf('taskPhone()') < 0) problems.push('write-handler')
+    // 4 写处理函数：执行层（起进程闭包 makeLaunchTaskGit 与通道装配）住同层叶子 versionControlTask.ts，
+    //   父文件只留 taskPhone() 装配与三个处理函数；两段源码合起来看，缺一样都判红。
+    const hostText = tx.host + '\n' + tx.taskHost
+    if (hostText.indexOf('makeLaunchTaskGit') < 0 || tx.host.indexOf('taskPhone()') < 0) problems.push('write-handler')
     else if (!/handleGitTask(Start|Query|Cancel)/.test(tx.host)) problems.push('write-handler')
     // 5 宿主注册：三条电话在入口一个字面一条地注册（循环注册躲不过检查）。
     if (!TASK_PHONE_NAMES.every((name) => tx.index.indexOf('harness.handle(\'' + name + '\'') >= 0)) problems.push('host-registration')
