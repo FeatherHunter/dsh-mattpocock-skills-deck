@@ -170,6 +170,20 @@ GitLab 后端的验证需要一个真的 gitlab.com 项目，手工建删既慢�
 - 建完项目用 `make-workspace --kind gitlab --project <group>/<project>` 生成工作区：本地 `git init`，`origin` 指向 `https://gitlab.com/<group>/<project>.git`，工作区文件写 `backendId: gitlab`，不 clone、不联网。
 - 命令依赖本机已登录 gitlab.com 的 `glab`。门禁不联网，用假 glab 与本地空仓库覆盖，所以门禁绿只说明逻辑对，真机还要跑一遍。每批只建 1-2 个沙箱项目，场景验完立刻删，避免 pending-deletion 配额被占满。
 
+### 种子票池：`seed-gitlab`
+
+真机验证要一个形状固定、能反复重建的票池（默认 101 张票、两张地图与子票、标签、指派、父子与阻塞关系），手工点太慢也容易漏，所以用 `seed-gitlab` 幂等地种：
+
+```
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/seed-gitlab.mts --batch <批次目录> --project <group>/<project>
+```
+
+- 目标项目必须已经存在（先 `gitlab-sandbox create`，或用批次里已有的项目）；这条命令只种票与关系，不建项目。
+- 每张票正文文件头都写稳定键 `<!-- DSH-SEED-KEY: seed-issue-007 -->`，子票另带 `<!-- DSH-PARENT: <地图 iid> -->`。重跑先按 `state=all` 读回整池票，按稳定键认回已有的，只补缺的；种好后 `<批次目录>/gitlab-seed.json` 的 `mode` 是 `read-only`，之后要补种（远端少了票或被改坏）必须显式加 `--unlock-readonly`，补完自动恢复只读。
+- 阻塞关系优先写原生 `is_blocked_by` 边；免费档拿不到原生能力时自动回落成正文成对两行：人读 `Blocked by: #N`、程序读 `<!-- DSH-BLOCKED-BY: N -->`。
+- 部分失败时退出码 1，stdout 仍打一份 JSON 回执，`errors` 里指到第几张票、哪个稳定键、试了几次；manifest 已落盘，重跑只补那几项。
+- 规模可以用 `--ticket-count` / `--closed` / `--maps` / `--children` / `--blocking` 调，默认 101/5/2/5/8；同一个批次目录只按第一次的规模补种。
+
 ## 带 GitLab 环境起实例：`--instance-env-file` 与 `--launch-plan`
 
 隔离实例默认读不到本机的 glab 配置，也没有 GitLab token。要让它按批次环境访问 GitLab，把要传的变量写进一个环境文件，再用 `--instance-env-file` 把文件路径交给 `start-instance`：
@@ -220,6 +234,7 @@ GitLab 沙箱项目（建删细节见上面的「GitLab 沙箱项目」一节）
 | --- | --- |
 | `gitlab-sandbox create` | 在 gitlab.com 建带批次标记的私有空项目，读回 id、path、web_url 写进批次清单 |
 | `gitlab-sandbox delete` | 只删批次清单里记过、仍带本批次标记的项目，读回 marked_for_deletion_at 才算删掉 |
+| `seed-gitlab` | 把 101 张票、两张地图与子票、标签、指派、父子与阻塞关系幂等种进 GitLab 沙箱项目，写批次 manifest，重跑只补缺项 |
 
 核对与证据：
 
