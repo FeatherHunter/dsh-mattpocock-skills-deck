@@ -37,18 +37,6 @@ import { startInstance } from '../lib/launch.mts'
 import { assertWritableTarget, batchDir, realDshHome, repo, resolveBatchPath, workRoot } from '../lib/paths.mts'
 import { assert, ensureDir, exists, info, isEmptyDir, nowIso, parseArgs, printJson, runCli, stamp, writeJson } from '../lib/util.mts'
 
-function parseLastJson(stdout: string): any {
-  const lines = stdout.trim().split(/\r?\n/).filter(Boolean)
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    try {
-      return JSON.parse(lines[index])
-    } catch {
-      // 继续往上找：子进程可能先打了几行普通输出。
-    }
-  }
-  throw new Error('子进程没有输出可解析的 JSON。')
-}
-
 function tail(text: string, limit = 4000): string {
   return text.length > limit ? text.slice(-limit) : text
 }
@@ -132,7 +120,6 @@ runCli(async () => {
         '\n批次目录里可能留下半成品：换一个批次名重来，或先人工确认「' + targetDir + '」里没有要保留的东西。',
     )
   }
-  const frozenSummary = parseLastJson(String(frozen.stdout || ''))
   const candidatePath = path.join(candidateOut, 'candidate.json')
   const candidate = readCandidateFile(candidatePath)
   const verdict = judgeCandidateForBatch({
