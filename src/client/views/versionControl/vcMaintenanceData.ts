@@ -124,7 +124,11 @@ export const vcMaintenanceTaskArgsOf = function (cwd: any, op: any, requestId: a
 /** 回包分类：读成功 / 可签票 / 被拦 / 失败。界面只认这四种，不自己猜字段。 */
 export const vcMaintenanceReplyKindOf = function (reply: any): string {
   if (!reply) return 'fail'
-  if (reply.ok !== true) return reply.reason === 'bad-target' || reply.reason === 'need-confirm' ? 'block' : 'fail'
+  if (reply.ok !== true) {
+    const kind: string = reply.error && reply.error.kind ? String(reply.error.kind) : ''
+    if (kind === 'blocked' || kind === 'need-confirm' || (reply.decision && reply.decision.verdict === 'block')) return 'block'
+    return 'fail'
+  }
   if (reply.decision && reply.decision.verdict === 'block') return 'block'
   if (reply.ticket) return 'allow'
   return 'read'
