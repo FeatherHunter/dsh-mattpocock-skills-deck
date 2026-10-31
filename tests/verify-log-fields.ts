@@ -34,7 +34,7 @@ console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#7
 // 其中 error.normalize 的 httpCode 只在归一出状态码时才带，其余两键常带。
 const ALLOWED = {
   'snapshot.request': ['cwdHash', 'backend', 'force'],
-  'snapshot.cache.hit': ['kind', 'ageMs'],
+  'snapshot.cache.hit': ['kind', 'ageMs', 'schema', 'source', 'completeness', 'legacy'],
   'snapshot.cache.miss': ['reason'],
   'repo.resolve.tier': ['tier', 'ok', 'latencyMs'],
   // 2026-10-14（#1052）常驻 #5 `gh.exec` 增补一格 `via`：这一次 gh 调用是谁发的、走到哪一支
@@ -381,7 +381,7 @@ const ALLOWED = {
   //   这一次走的是哪一档（补那几条薄查询 / 该整池 / 没变 / 被推迟 / 过期丢弃）、为什么、变了几行、
   //   真发出去几条薄查询、水印推没推、待办里现在几条。只记短散列、枚举与数字，不记路径与命令原文。
   // 2026-10-24 #1472：写事件触发的补取数也借这一行报账，失败那一行多带一个 err（上游原话截断 120 字符）。
-  'refresh.patch': ['keyHash', 'mode', 'reason', 'changed', 'queries', 'watermark', 'pending', 'err'],
+  'refresh.patch': ['keyHash', 'mode', 'reason', 'changed', 'queries', 'watermark', 'pending', 'err', 'evicted', 'evictedBytes'],
   // 2026-09-23 #707（T3 第二批）新增两条按需事件（附录 1.5 节 #78～#79）：视野模型自己产生的两条轨迹 ——
   //   一次上报（哪一种信号、窗口散列、工作区根散列、面板可不可见、这一笔算不算数）、
   //   一次收摊结论（活跃几个、保留几个定时器、停掉几个、有没有一个收尾节拍、整桌收没收、正在看的几个）。
@@ -913,12 +913,13 @@ async function captureGhTransport(rows) {
 
 // refresh.patch：成功行走 createPatch 里唯一那份字段口径；失败行借 write-event-fetch 的真实失败分支
 // 把上游原话带进同一个 fire（err 是 #1472 定下的唯一原文类键，路径替换与 120 字截断都在 fire 里做）。
+// 2026-10-31（#1692）：真淘汰过一行时成功行再带 evicted / evictedBytes 两格，这里按真淘汰行补一笔。
 async function captureRefreshPatch(rows) {
   const patchMod = await loadProductModule('src/refresh/rooms/host/row-patch.js')
   const writeEventMod = await loadProductModule('src/refresh/rooms/host/write-event-fetch.js')
   const sink = { isEnabled: (level) => level === 'debug', fire: (level, event, fields) => pushRuntimeRow(rows, level, event, fields) }
   const patch = patchMod.createPatch({ logCtx: sink, workspaceKeyOf: () => 'verify-log-fields-runtime' })
-  patch.log('patch', 'rows-changed', { keyHash: 'h-1617', changed: 2, queries: 1, watermark: 'advanced', pending: 0 })
+  patch.log('patch', 'rows-changed', { keyHash: 'h-1617', changed: 2, queries: 1, watermark: 'advanced', pending: 0, evicted: 1, evictedBytes: 2048 })
   const fetcher = writeEventMod.createWriteEventFetch({
     patchOf: () => ({ log: patch.log, patchTickets: async () => { throw new Error('取数爆了') } }),
     hash8: (s) => 'h:' + String(s),

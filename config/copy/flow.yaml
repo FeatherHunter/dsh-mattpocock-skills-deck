@@ -70,6 +70,7 @@ zh:
   detail.readOnlyHint: read-only · 写操作请走 新会话 / 打开原票
   detail.noBody: 无描述
   detail.bodyNotYet: 正文还没拿到
+  detail.evictedAt: 未取（曾在 {time}）
   detail.notYet: 还没拿到
   detail.noComments: 无评论
   detail.commentsLoading: 加载中
@@ -325,6 +326,7 @@ en:
   detail.readOnlyHint: read-only · write actions live in a new session or on the platform
   detail.noBody: No description
   detail.bodyNotYet: Description not loaded yet
+  detail.evictedAt: Not loaded (last fetched at {time})
   detail.notYet: Not loaded yet
   detail.noComments: No comments
   detail.commentsLoading: Loading

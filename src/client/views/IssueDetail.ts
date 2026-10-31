@@ -216,14 +216,20 @@ export const IssueDetail = function (props: any): any {
       const effortChip = (SHOW_EFFORT_BADGE && issueEffort && effortNamesOf(st).length > 1) ? h(Tip, { content: issueEffort }, h('span', { className: 'dsws-chip dsws-eff', 'aria-label': issueEffort, style: { fontSize: 10, lineHeight: 1.6, padding: '0 6px', flex: 'none', maxWidth: 140, overflow: 'hidden', whiteSpace: 'nowrap', background: 'rgba(88,166,255,.14)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.45)' } }, issueEffort)) : null
       // #693 正文格：**只有详情回来了才能说「无描述」**。详情没回来时说加载中，取不到时说「还没拿到」。
       //   取数失败的失败原因与重试在页面顶部那条横幅上（这里不重复放一个按钮）。
+      // #1692：快照行上的正文曾被清理过（只删内容、留记号）而详情页又还没取回来时，说「未取（曾在某时）」，
+      //   不画「加载中」也不画「无描述」——那两句都会把「取过、后来清掉了」说成别的意思。
+      const evictedAtMs = (!detail && snapIssue && snapIssue.detailEvicted && typeof snapIssue.detailEvicted.lastKnownAtMs === 'number' && snapIssue.detailEvicted.lastKnownAtMs > 0) ? snapIssue.detailEvicted.lastKnownAtMs : 0
+      const evictedTime = evictedAtMs ? (function () { const ed = new Date(evictedAtMs); const epad = function (n: any) { return (n < 10 ? '0' : '') + n }; return epad(ed.getHours()) + ':' + epad(ed.getMinutes()) })() : ''
       const bodySlot = detail
         ? ((detail.body && String(detail.body).trim())
             ? h('div', { style: { fontSize: 12, lineHeight: 1.6, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, (typeof mdToHtml === 'function' ? mdToHtml(detail.body, { st: st }) : String(detail.body)))
             : h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('detail.noBody')))
-        : h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)', display: 'flex', alignItems: 'center', gap: 6 } }, [
-            mode === 'err' ? null : h('div', { className: 'dsws-spinner', style: { width: 11, height: 11, border: '2px solid rgba(255,255,255,.15)', borderTopColor: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', borderRadius: '50%', animation: 'dsws-spin ' + MOTION.inlineSpinnerMs + 'ms linear infinite' } }),
-            h('span', null, mode === 'err' ? tr('detail.bodyNotYet') : tr('list.loading')),
-          ])
+        : (evictedTime
+            ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, tr('detail.evictedAt', { time: evictedTime }))
+            : h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-caption,#8b8b95)', display: 'flex', alignItems: 'center', gap: 6 } }, [
+                mode === 'err' ? null : h('div', { className: 'dsws-spinner', style: { width: 11, height: 11, border: '2px solid rgba(255,255,255,.15)', borderTopColor: (typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '', borderRadius: '50%', animation: 'dsws-spin ' + MOTION.inlineSpinnerMs + 'ms linear infinite' } }),
+                h('span', null, mode === 'err' ? tr('detail.bodyNotYet') : tr('list.loading')),
+              ]))
       const has = function (nm: any) { return labelArr.some(function (l: any) { return (l.name || l) === nm }) }
       const _isTriageLikeLocal = !labelArr.length || has('needs-triage')
       // #1595：这个假票对象会走行动作那条注入链（rowActionText 按 effort 取链接），必须带上本票所属 effort，否则多 effort 仓库里注入的链接会指到别的目录。

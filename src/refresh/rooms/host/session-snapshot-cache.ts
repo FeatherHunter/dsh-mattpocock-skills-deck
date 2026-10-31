@@ -342,7 +342,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         const diskb = await readDiskCache(repo0b)
         if (diskb && diskb.selection && diskb.selection.backendId === backendId2) {
           const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
-          if (currentb !== false) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { return { kind: 'disk', ageMs: Date.now() - (diskb.generatedMs || Date.now()) } }) } catch (eL) {}; const freshModules = await freshBackendModules(); return adoptSnapLog(Object.assign({}, diskb, freshModules ? { backendModules: freshModules } : null, { fromCache: true, setupLayout: _layEarly }), cwd) } // #1433：磁盘回放也按这一轮的布局盖（文件为准，空就抹掉旧答案）
+          if (currentb !== false) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { const rv = (diskb as any).diskReplay || {}; return { kind: 'disk', ageMs: Date.now() - (diskb.generatedMs || Date.now()), schema: rv.schema, source: rv.source, completeness: rv.completeness, legacy: rv.legacy === true } }) } catch (eL) {}; const freshModules = await freshBackendModules(); return adoptSnapLog(Object.assign({}, diskb, freshModules ? { backendModules: freshModules } : null, { fromCache: true, setupLayout: _layEarly }), cwd) } // #1433：磁盘回放也按这一轮的布局盖（文件为准，空就抹掉旧答案）；#1692：回放把格式版本/来源/完整度/上次已知时刻随日志说出来
         }
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { return detectionExec(c, a, o, 'snapshot') } }
         const { createSnapshotComposer: createComposer2 } = await import('../../../host/tracker/snapshot.js')

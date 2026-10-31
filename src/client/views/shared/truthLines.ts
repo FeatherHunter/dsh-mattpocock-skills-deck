@@ -217,6 +217,13 @@ export const truthNoticeLines = function (st: any, nowMs: any) {
   // 四、有更新但被推后了；五、这个窗口没在刷新（同时活跃上限 2 个窗口，第 3 个在这里明说）。
   if (refresh && refresh.deferred === true) push({ key: 'truth.deferred', params: {}, tone: 'yellow', kind: 'deferred' })
   if (refresh && refresh.notRefreshing === true) push({ key: 'truth.notRefreshing', params: {}, tone: 'fresh', kind: 'notRefreshing' })
+  // 七、磁盘回放（#1692）：这份快照是从磁盘上的旧文件回放出来的，内容只到「上次已知」那一刻。
+  //   说清那一刻，免得把回放出来的旧数据当成刚取到的；时刻由宿主在回放时挂到快照的 diskReplay 上。
+  if (snap.diskReplay && typeof snap.diskReplay.lastKnownAtMs === 'number' && snap.diskReplay.lastKnownAtMs > 0) {
+    const rd = new Date(snap.diskReplay.lastKnownAtMs)
+    const rpad = function (n: any) { return (n < 10 ? '0' : '') + n }
+    push({ key: 'truth.replayLastKnown', params: { time: rpad(rd.getHours()) + ':' + rpad(rd.getMinutes()) }, tone: 'yellow', kind: 'replay' })
+  }
   // 六、额度读数（#1446）：面板那一行只调 truthNoticeLines，所以额度这句要并进同一份列表里；
   //   按键去重，与上面几句不会重复说同一件事。
   const budgetLines = budgetNoticeLines(refresh)
