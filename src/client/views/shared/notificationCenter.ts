@@ -29,9 +29,10 @@ declare function noticeHistoryMismatchOf(...args: any[]): any
 declare function noticeUnreadTextOf(...args: any[]): any
 declare function noticeTypeKeyOf(...args: any[]): any
 declare function noticeHeadBadgeOf(...args: any[]): any
+declare function noticeToneColorOf(...args: any[]): any
 
 /** 浮层最小宽度：面板再窄也读得下发时间与标题（与尾部注释「宽度怎么定」一条）。 */
-const NOTICE_POPOVER_MIN_WIDTH = 260
+const NOTICE_POPOVER_MIN_WIDTH = 320
 
 /**
  * 历史浮层。props：{ st, view, onClose }。view 是 model 的 useNotifications 回包。
@@ -59,7 +60,7 @@ export const NotificationHistoryPanel = ({ st, view, onClose }: any) => {
     actionBtn(tr('notice.clearRead'), 'notice.clearread', function () { if (view && typeof view.clearRead === 'function') view.clearRead() }),
     h('button', { key: 'close', className: 'dsws-btn dsws-hov', 'data-press': 'icon', 'data-log': 'notice.close', 'data-notice-close': 1, type: 'button', 'aria-label': tr('notice.close'), onClick: function () { if (typeof onClose === 'function') onClose() }, style: { lineHeight: 0, padding: '2px 5px' } }, Ic({ n: 'x', size: 11 })),
   ])
-  const current = h('div', { key: 'current', 'data-notice-current': degraded ? 'degraded' : 'normal', style: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '0 2px 6px', color: degraded ? '#f59e0b' : 'var(--dsw-alias-label-caption,#8b8b95)' } }, [
+  const current = h('div', { key: 'current', 'data-notice-current': degraded ? 'degraded' : 'normal', style: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '0 2px 6px', color: degraded ? noticeToneColorOf('warn') : 'var(--dsw-alias-label-caption,#8b8b95)' } }, [
     h('span', { key: 'label' }, tr('notice.current') + '：'),
     h('span', { key: 'value' }, degraded ? tr('notice.currentDegraded') : tr('notice.currentNormal')),
     unread > 0 ? h('span', { key: 'unread', 'data-notice-unread-count': 1, style: { marginLeft: 'auto' } }, tr('notice.unreadCount', { n: unread })) : null,
@@ -93,30 +94,23 @@ export const NotificationHistoryPanel = ({ st, view, onClose }: any) => {
 /**
  * 头部入口：一颗带未读数字的铃铛 + 点开的历史浮层。
  * props：{ st, view, folded }。folded 为真时这整格先收走（折叠阶梯的 badge 步），浮层跟着一起不画。
- * 宽度与位置怎么定：按入口那一格的 getBoundingClientRect 贴到它下缘、右缘对齐（同 WorkRouteTrigger 的做法），
- * 至少 NOTICE_POPOVER_MIN_WIDTH 宽；视口更窄时跟着缩，不越出屏幕。
+ * 位置怎么定：不量入口那一格的坐标，浮层交给 kernel/portal 挂到 body 上、由 CSS 贴着头部右缘摆；
+ * 宽 min(NOTICE_POPOVER_MIN_WIDTH, 视口宽减两侧留白)，高不超过视口，这样 300 至 520 像素的窄面板也不会越界。
  */
 export const NotificationCenter = ({ st, view, folded }: any) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
-  const [ui, setUi]: any = React.useState({ open: false, pos: null })
+  const [open, setOpen]: any = React.useState(false)
   const entryRef: any = React.useRef(null)
   const popRef: any = React.useRef(null)
-  const close = function () { setUi({ open: false, pos: null }) }
+  const close = function () { setOpen(false) }
   const readable = !!(view && view.readable)
   const unread = (view && Number(view.unread)) || 0
   const toggle = function (e: any) {
     if (e && typeof e.stopPropagation === 'function') e.stopPropagation()
-    if (ui.open) { close(); return }
+    if (open) { close(); return }
     if (view && typeof view.refresh === 'function') { try { view.refresh() } catch (eR) {} }
-    const el = entryRef.current
-    if (!el || typeof el.getBoundingClientRect !== 'function') { close(); return }
-    const rect = el.getBoundingClientRect()
-    const vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1024
-    const vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 768
-    const right = Math.max(12, Math.round(vw - rect.right))
-    const top = Math.round(rect.bottom + 6)
-    setUi({ open: true, pos: { right: right, top: top, width: Math.min(Math.max(NOTICE_POPOVER_MIN_WIDTH, Math.round(rect.width)), vw - 24), maxHeight: Math.max(160, vh - top - 12) } })
+    setOpen(true)
   }
   React.useEffect(function () {
     if (!ui.open) return undefined
@@ -137,25 +131,24 @@ export const NotificationCenter = ({ st, view, folded }: any) => {
         document.removeEventListener('keydown', onKey)
       }
     }
-  }, [ui.open])
-  if (!readable || (!unread && !ui.open)) return null
+  }, [open])
+  if (!readable || (!unread && !open)) return null
   const countText = noticeUnreadTextOf(view)
   const label = countText ? tr('notice.unreadCount', { n: countText }) : tr('notice.entryLabel')
-  const entry = h('button', { ref: entryRef, 'data-notice-entry': 1, className: 'dsws-btn dsws-hov', 'data-press': 'icon', 'data-log': 'notice.entry', type: 'button', 'aria-label': label, 'aria-expanded': ui.open ? 'true' : 'false', onClick: toggle, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 5px', lineHeight: 0 } }, [
+  const entry = h('button', { ref: entryRef, 'data-notice-entry': 1, className: 'dsws-btn dsws-hov', 'data-press': 'icon', 'data-log': 'notice.entry', type: 'button', 'aria-label': label, 'aria-expanded': open ? 'true' : 'false', onClick: toggle, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 5px', lineHeight: 0 } }, [
     h('span', { key: 'icon', style: { lineHeight: 0 } }, Ic({ n: 'bell', size: 12 })),
-    countText ? h('span', { key: 'count', 'data-notice-unread': 1, style: { fontSize: 10, fontWeight: 700, color: '#f59e0b', lineHeight: '12px' } }, countText) : null,
+    countText ? h('span', { key: 'count', 'data-notice-unread': 1, style: { fontSize: 10, fontWeight: 700, color: noticeToneColorOf('warn'), lineHeight: '12px' } }, countText) : null,
   ])
-  const pop = (ui.open && ui.pos) ? portalTop(h('div', {
+  const pop = open ? portalTop(h('div', {
     ref: popRef,
     'data-notification-center': 1,
     'data-notice-popover': 1,
     style: {
       position: 'fixed',
-      right: ui.pos.right,
-      top: ui.pos.top,
-      width: ui.pos.width,
-      maxWidth: 'calc(100vw - 24px)',
-      maxHeight: ui.pos.maxHeight,
+      top: 44,
+      right: 12,
+      width: 'min(' + NOTICE_POPOVER_MIN_WIDTH + 'px, calc(100vw - 24px))',
+      maxHeight: 'calc(100vh - 56px)',
       overflowY: 'auto',
       zIndex: 2147483000,
       background: 'var(--dsw-alias-bg-layer-2,#16181d)',

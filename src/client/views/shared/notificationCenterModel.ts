@@ -23,6 +23,8 @@ declare const React: any
 declare const host: any
 declare const flash: any
 declare const tr: any
+// 新鲜度三档取色映射（views/shared/truthLines.ts）：警告档的琥珀只住那个文件，这里不再抄一份。
+declare function freshnessToneColor(...args: any[]): any
 
 /** 宿主侧四类事件，顺序与 src/refresh/kernel/notification-events.ts 的类型清单一致（筛选按钮照它排）。 */
 export const NOTICE_TYPES = ['degraded-start', 'degraded-recovery', 'refresh-failed', 'write-failed']
@@ -55,12 +57,20 @@ export const noticeToneOf = function (event: any) {
   return 'muted'
 }
 
-/** 语气的颜色（只用于圆点；正文颜色仍由主题令牌决定）。 */
+/**
+ * 语气的颜色（只用于圆点与未读数字；正文颜色仍由主题令牌决定）。
+ * 警告档不自己写一份琥珀：借 views/shared/truthLines.ts 的 freshnessToneColor（新鲜度三档映射）
+ * 里的 yellow 档，颜色值只住那一个文件；成功与中性档取设计系统变量、取不到时用同义兜底色，
+ * 避免把容器空态橙与完成态绿的两个字面量在这条通知呈现路径上再抄一遍。
+ */
+export const noticeToneColorOf = function (tone: any) {
+  if (tone === 'ok') return 'var(--dsw-alias-state-success-primary,#4ade80)'
+  if (tone === 'warn') return freshnessToneColor('yellow')
+  return 'var(--dsw-alias-label-caption,#8b8b95)'
+}
+
 export const noticeColorOf = function (event: any) {
-  const tone = noticeToneOf(event)
-  if (tone === 'ok') return '#3fb950'
-  if (tone === 'warn') return '#f59e0b'
-  return '#8b8b95'
+  return noticeToneColorOf(noticeToneOf(event))
 }
 
 /**

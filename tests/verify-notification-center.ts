@@ -99,6 +99,10 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
 
 ;(async function () {
   const model = await import('../src/client/views/shared/notificationCenterModel.js')
+  // 语气颜色复用 views/shared/truthLines.ts 的新鲜度三档映射（真实现，不在这里另写一份琥珀）。
+  const truth = await import('../src/client/views/shared/truthLines.js')
+  globalThis.freshnessToneColor = truth.freshnessToneColor
+  globalThis.noticeToneColorOf = model.noticeToneColorOf
   globalThis.NOTICE_TYPES = model.NOTICE_TYPES
   globalThis.noticeRowsOf = model.noticeRowsOf
   globalThis.noticeCurrentDegradedOf = model.noticeCurrentDegradedOf
