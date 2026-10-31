@@ -276,7 +276,7 @@ export default {
     // #1740 长任务通道三条电话（开始、查询、取消）：装配在 ./versionControl.js 那一族里，这里只注册。
     harness.handle('wf.gitTaskStart', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskStart(args) })
     harness.handle('wf.gitTaskQuery', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskQuery(args) })
-    harness.handle('wf.gitTaskCancel', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskCancel(args) })
+    harness.handle('wf.gitTaskCancel', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskCancel(args) }); harness.handle('wf.gitChangesCheck', async function (args: WfArgs) { const h = await _vc(); return h.handleGitChangesCheck(args) }); harness.handle('wf.gitChangesWrite', async function (args: WfArgs) { const h = await _vc(); return h.handleGitChangesWrite(args) }) // #1742 改动页两条电话（预检、执行）：装配在 ./versionControlChangesMount.js 那一叶里，这里只注册；与上一族写在同一物理行、用分号隔开，是因为宿主入口有四百行上限，单独立行会超。
 
     harness.handle('wf.refresh', async function (args: WfArgs) { const h = await _sessRef(); return h.handleRefresh(args) })
 
