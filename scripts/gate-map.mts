@@ -104,7 +104,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 文字与常量一起改，另加 15 个汉字、30 个英文、16 个汉字、31 个英文四处边界断言，单跑实测 178 条。
   // 2026-10-31 理由拆成 reason/gain/cost 三格、priority 改必填：schema 六格与说明、三格各 30 码点上限、
   // 缺 gain/缺 cost/缺 priority 与推荐分不是数字四条整次拒绝，单跑实测 184 条。
-  'verify-suggest-next-steps': 184,
+  // 2026-10-31 参数说明按「每格答一个读者问题」重写（理由答时机、优点答收益、缺点答成本、推荐分排先后），
+  // 另加一条分工断言，单跑实测 185 条。
+  'verify-suggest-next-steps': 185,
   // 2026-10-26 规格收尾提示词落地：模板里的「## 工具」节收进公共小节 shared-sections.yaml，
   // 这扇的 ⑤ 从「扫三份 YAML 原文数提醒行」改成「经共享读取核展开后数」，少了两条文件存在性断言，
   // 单跑实测 29 条，期望数同步改准。

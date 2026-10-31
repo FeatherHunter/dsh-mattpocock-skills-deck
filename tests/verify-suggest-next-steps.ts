@@ -90,6 +90,8 @@ async function main() {
   check(itemsSpec && itemsSpec.type === 'array', 'items 是数组')
   check(String(itemsSpec.description || '').indexOf('/xxxx') >= 0, 'items 的说明写清技能指令的写法（/xxxx）')
   check(String(itemsSpec.description || '').indexOf('技能') >= 0, 'items 的说明提醒传入者：有对应技能就优先用技能指令')
+  check(String(itemsSpec.description || '').indexOf('为什么是现在') >= 0 && String(itemsSpec.description || '').indexOf('要付出什么') >= 0,
+    'items 的说明用四个读者问题分工：理由答时机、优点答收益、缺点答成本、推荐分排先后')
   check(String(itemsSpec.description || '').indexOf('开头') >= 0, 'items 的说明写清技能指令放在 prompt 开头')
   check(String(itemsSpec.description || '').indexOf('下一轮') >= 0, 'items 的说明写清每条是用户下一轮要说的话（#1666）')
   check(String(itemsSpec.description || '').indexOf('半句话') >= 0 && String(itemsSpec.description || '').indexOf('最开头') >= 0,
@@ -116,21 +118,21 @@ async function main() {
     'prompt 说明要求没发生的事留给用户填（#1666）')
   check(String(promptSpec.description || '').indexOf('不编') >= 0, 'prompt 说明要求不编具体值（#1666）')
   check(String(promptSpec.description || '').indexOf('我已回答') < 0, 'prompt 说明不引用错误的已完成句式，避免把禁句带进上下文（#1666）')
-  check(reasonSpec && reasonSpec.type === 'string' && String(reasonSpec.description || '').indexOf('为什么现在提') >= 0, 'reason 是「为什么现在提」的前因')
-  check(String(reasonSpec.description || '').indexOf('前因') >= 0 && String(reasonSpec.description || '').indexOf('30 字以内') >= 0,
-    'reason 说明写清理由怎么写（前因、这一轮看得见的事实、30 字以内）')
+  check(reasonSpec && reasonSpec.type === 'string' && String(reasonSpec.description || '').indexOf('理由（前因）') >= 0, 'reason 是「理由（前因）」格')
+  check(String(reasonSpec.description || '').indexOf('用户自己看得见') >= 0 && String(reasonSpec.description || '').indexOf('30 字以内') >= 0,
+    'reason 说明写清前因怎么写（这一轮用户自己看得见的那件事、它是现在该做的原因、30 字以内）')
   const gainSpec = itemsSpec.items.properties && itemsSpec.items.properties.gain
   const costSpec = itemsSpec.items.properties && itemsSpec.items.properties.cost
   check(gainSpec && gainSpec.type === 'string' && String(gainSpec.description || '').indexOf('优点') >= 0 && String(gainSpec.description || '').indexOf('30 字以内') >= 0,
-    'gain 是「优点」格：做了能得到什么，30 字以内')
+    'gain 是「优点」格：点下去马上拿到的具体东西，30 字以内')
   check(costSpec && costSpec.type === 'string' && String(costSpec.description || '').indexOf('缺点') >= 0 && String(costSpec.description || '').indexOf('30 字以内') >= 0,
-    'cost 是「缺点」格：代价、风险或它不解决的问题，30 字以内')
+    'cost 是「缺点」格：时间、风险或这次先搁下的事，30 字以内')
   const prioritySpec = itemsSpec.items.properties && itemsSpec.items.properties.priority
   check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.join(',') === 'intro,prompt,reason,gain,cost,priority', '每条必须同时给简介、提示词、理由、优点、缺点与推荐分六格')
   check(!!prioritySpec && prioritySpec.type === 'number', 'priority 是数字（推荐分）')
   check(!!prioritySpec && String(prioritySpec.description || '').indexOf('0 到 10') >= 0, 'priority 说明写清合法区间是 0 到 10')
-  check(String(prioritySpec.description || '').indexOf('分越高') >= 0 && String(prioritySpec.description || '').indexOf('先做') >= 0,
-    'priority 说明写清方向：分越高越建议先做')
+  check(String(prioritySpec.description || '').indexOf('只能点一条') >= 0 && String(prioritySpec.description || '').indexOf('给 10') >= 0,
+    'priority 说明用「只能点一条时给 10」校准分档，几条之间才有先后')
   check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.indexOf('priority') >= 0, 'priority 必填（每条都要打分，几条之间才有先后）')
   check(itemsSpec.items.additionalProperties === false, '每条不收未知字段')
   // 注册表只接受受支持的 JSON Schema 子集（没有 minItems / maxItems），2~4 的约束由代码钳制，
