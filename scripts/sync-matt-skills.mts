@@ -10,8 +10,8 @@
  *  - 拷 LICENSE 到 package/bundled-skills/LICENSE，并写入 package/bundled-skills/VERSION 为 pin 值
  *
  * 用法：
- *   node scripts/sync-matt-skills.mts --pin v1.3.1 --verify
- *   node scripts/sync-matt-skills.mts --pin v1.3.1          # 仅同步，不校验
+ *   node scripts/sync-matt-skills.mts --pin v1.3.2 --verify
+ *   node scripts/sync-matt-skills.mts --pin v1.3.2          # 仅同步，不校验
  *   node scripts/sync-matt-skills.mts --help
  *
  * 设计要点（对齐 G2 定版）：
@@ -29,7 +29,7 @@ import { tmpdir } from 'node:os'
 import { MATT_SKILL_PROBE_NAMES } from '../src/shared/matt-skills.ts'
 
 const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const PIN_DEFAULT: string = 'v1.3.1'
+const PIN_DEFAULT: string = 'v1.3.2'
 const REPO_URL: string = 'https://github.com/mattpocock/skills'
 const DEST_DIR: string = join(ROOT, 'package', 'bundled-skills')
 
@@ -51,10 +51,10 @@ function helpText(): string {
   return `sync-matt-skills.mts — 同步 mattpocock/skills 到 package/bundled-skills/
 
 用法：
-  node scripts/sync-matt-skills.mts [--pin v1.3.1] [--verify]
+  node scripts/sync-matt-skills.mts [--pin v1.3.2] [--verify]
 
 选项：
-  --pin <tag>   上游 tag，默认 v1.3.1（带或不带 v 前缀均可）
+  --pin <tag>   上游 tag，默认 v1.3.2（带或不带 v 前缀均可）
   --verify      同步后自校验（27 项一致、frontmatter、LICENSE、VERSION）
   --help        显示此帮助
 `
@@ -170,7 +170,7 @@ async function main(): Promise<void> {
   const extra: string[] = upstreamNames.filter((n: string) => !expected.includes(n))
   if (missing.length || extra.length) {
     console.error(`[sync:matt] 上游集合与单源不一致：缺 ${missing.join(', ') || '无'}；多 ${extra.join(', ') || '无'}`)
-    console.error('[sync:matt] 请检查 pin 是否为 v1.3.1，或 shared 单源是否已漂移')
+    console.error('[sync:matt] 请检查 pin 是否为 v1.3.2，或 shared 单源是否已漂移')
     process.exit(1)
   }
 

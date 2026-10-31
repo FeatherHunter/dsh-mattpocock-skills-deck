@@ -3,7 +3,7 @@
 #
 # 为什么有这个文件（#1480）：
 #   本地 Markdown 后端的磁盘格式来自 Matt Pocock 的随包技能原文（package/bundled-skills/，
-#   上游 mattpocock/skills 的 v1.3.1），不是本插件发明的。原文要求的目录、标题、字段行，
+#   上游 mattpocock/skills 的 v1.3.2），不是本插件发明的。原文要求的目录、标题、字段行，
 #   与本插件额外加的隐藏注释、编号寻址、幂等标记之间的对应关系，只在这里写一遍；
 #   生成器把它写成 src/tracker/rooms/markdown/format/generated.ts，代码读生成物，
 #   运行时不再读 YAML——这样两边不会悄悄分叉，改了 YAML 忘跑生成器会被门禁判红。
@@ -21,7 +21,7 @@ version: 1
 
 upstream:
   repo: mattpocock/skills
-  pin: v1.3.1
+  pin: v1.3.2
   hash-manifest: tests/bundled-skills-upstream-hashes.json
   verify-gate: tests/verify-bundled-skills-upstream.ts
 
@@ -247,6 +247,9 @@ upgrade:
     - pin: v1.3.1
       recorded-at: 2026-10-24
       note: 首次建立映射，以随包原文逐字为准。
+    - pin: v1.3.2
+      recorded-at: 2026-10-31
+      note: 升到 v1.3.2；核对了 13 条锚点逐字仍在，对象与字段未变。
   checklist:
     - 先跑 node --import ./scripts/ts-hook.mts tests/verify-md-format-config.ts，看哪些原文锚点对不上。
     - 只改这份 YAML 与生成器，然后跑 node scripts/generate-md-format-config.mts 重算生成物。
