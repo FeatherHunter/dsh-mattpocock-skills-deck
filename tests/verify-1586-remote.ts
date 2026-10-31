@@ -16,6 +16,11 @@ let failed = false
 let total = 0
 const check = (ok: unknown, msg: string): void => { total += 1; if (!ok) failed = true; console.log((ok ? '  PASS ' : '  FAIL ') + msg) }
 
+// git.exec 的字段白名单：这十个键是既有事件的全部字段，远端电话只许复用、不许往里加新键。
+// 判据遍历 fields 的每一个键，而不是只看第一个有值的键——只看第一个的话，把非法键放在第二个位置就漏过去了。
+const GIT_EXEC_FIELDS = ['argv0', 'cwdHash', 'cmd', 'argc', 'latencyMs', 'exitCode', 'stdoutBytes', 'truncated', 'stdinBytes', 'via']
+const gitExecFieldsOk = (fields: unknown): boolean => Object.keys((fields as Record<string, unknown>) || {}).every((k) => GIT_EXEC_FIELDS.indexOf(k) >= 0)
+
 // ---------- P 组夹具：真 git 的输出形状 ----------
 const NUL = '\u0000'
 const OID_A = 'a'.repeat(40)
@@ -278,7 +283,8 @@ async function hGroup() {
   const allText = allLogText()
   check(allText.indexOf('secret-token') < 0, 'H30 日志里不出现口令原文（含失败原话那一路）')
   check(logs.some((l) => l.event === 'host.call' && String(l.fields.method || '').indexOf('wf.gitRemote') === 0), 'H31 远端电话成功时落既有 host.call（电话名进 method，不新开事件名）')
-  check(logs.every((l) => l.event !== 'git.exec' || ['argv0', 'cwdHash', 'cmd', 'argc', 'latencyMs', 'exitCode', 'stdoutBytes', 'truncated', 'stdinBytes', 'via'].indexOf(Object.keys(l.fields).filter((k) => l.fields[k] !== undefined)[0] || '') >= 0) || logs.every((l) => l.event !== 'git.exec'), 'H32 远端电话不往既有 git.exec 里塞新字段（不新开事件名、不动字段白名单）')
+  check(logs.every((l) => l.event !== 'git.exec' || gitExecFieldsOk(l.fields)), 'H32 远端电话不往既有 git.exec 里塞新字段（逐键比对白名单，不新开事件名、不动字段含义）')
+  check(gitExecFieldsOk({ cwdHash: 'x', bogus: 1 }) === false && gitExecFieldsOk({ cwdHash: 'x', via: 'exec' }) === true, 'H33 反证装置自检：非法键放在第二个位置也必须判红，合法键放几个都放行')
 
   // R 组：两边登记点（宿主注册表 + 客户端电话表），缺一处就红。
   const methods = ['wf.gitRemoteList', 'wf.gitRemoteAdd', 'wf.gitRemoteRename', 'wf.gitRemoteRemove', 'wf.gitRemoteSetUrl', 'wf.gitRemoteOnline']
