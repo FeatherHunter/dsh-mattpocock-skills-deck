@@ -59,6 +59,18 @@ export function batchDir(name: string, workRootOverride?: string): string {
 }
 
 /**
+ * 收 --batch 参数：批次名或批次目录路径都认。
+ * 只写一个名字时按默认约定放到 <工作根>/batches/<名字>；带路径分隔符或盘符时按路径解析。
+ * 命令层统一用它，避免同一个参数在不同命令里一个当名字、一个当路径。
+ */
+export function resolveBatchPath(value: string): string {
+  const text = String(value || '').trim()
+  if (!text) throw new Error('--batch 不能是空值：给批次名（默认在 <工作根>/batches 下）或批次目录路径。')
+  if (path.isAbsolute(text) || text.includes('/') || text.includes('\\')) return path.resolve(text)
+  return batchDir(text)
+}
+
+/**
  * 允许写的位置：验证工作根、系统临时目录，以及调用方显式传进来的额外目录（例如已存在的批次目录）。
  * 刻意不包含真实 DSH home：本工具只读真实 home，绝不往里面写。
  */

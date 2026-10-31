@@ -59,6 +59,8 @@
     "lib/build-lock.mts",
     "lib/build-products.mts",
     "lib/select-gates.mts",
+    // #1766：候选清单校验、发布字节对账与身份行解析共用的纯规则。
+    "lib/release-candidate-audit.mts",
     "lib/transpile-domains.mts",
     "lib/transpile-unit.mts",
     "lib/prompt-config.mts",
@@ -69,6 +71,9 @@
     "measure-967-outbound.ts",
     // #1648：发布自证脚本（发布包逐文件清单与 dist-tag 策略的纯计算部分，tests 直接 import）。
     "release-integrity.mts",
+    // #1766：候选清单校验与发布字节对账的命令行入口（发布脚本调它，测试也直接跑）。
+    "release-candidate-check.mts",
+    "release-preflight.mts",
     "seed-1460-dedup-drill.ts",
     "star-history.mts",
     "sync-matt-skills.mts",
@@ -86,6 +91,7 @@
     "verify-parallel.mts",
     "wire-subissues.mts",
     // #1645：真机验证工具台进仓库（scripts/real-machine/），库与命令逐条登记。
+    "real-machine/lib/batch.mts",
     "real-machine/lib/browser.mts",
     "real-machine/lib/candidate.mts",
     "real-machine/lib/evidence.mts",
@@ -98,6 +104,7 @@
     "real-machine/lib/workspaces.mts",
     "real-machine/commands/backup-settings.mts",
     "real-machine/commands/browser-check.mts",
+    "real-machine/commands/check-batch.mts",
     "real-machine/commands/cleanup.mts",
     "real-machine/commands/collect-evidence.mts",
     "real-machine/commands/copy-home.mts",
@@ -106,6 +113,7 @@
     "real-machine/commands/isolation-probe.mts",
     "real-machine/commands/log-query.mts",
     "real-machine/commands/make-workspace.mts",
+    "real-machine/commands/prepare-batch.mts",
     "real-machine/commands/restore-settings.mts",
     "real-machine/commands/seed-workspace.mts",
     "real-machine/commands/settings-fallback.mts",

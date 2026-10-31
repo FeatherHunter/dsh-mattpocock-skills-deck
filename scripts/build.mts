@@ -28,6 +28,8 @@
  *   - dev 产物：precheckCode 包装编译（等价宿主 (async () => {code})() 校验）
  *   - pkg 产物：vm 编译 + __ModuleLoader__ 特征 + 单组件单声明
  *   - DSW_VERSION：从 package/package.json 注入（__DSW_VERSION__ 占位符替换）
+ *   - DSW_BUILD_COMMIT：构建时的 git 提交，优先取环境变量 DSW_BUILD_COMMIT，否则取当前仓库 HEAD；
+ *     取不到时写 'unknown'（#1766：冻结候选时用它核对产物与冻结提交是不是同一个）
  *
  * 用法：node scripts/build.mts [--dev-only|--pkg-only]
  *
@@ -309,8 +311,27 @@ function dswRepoUrl(): string {
   return url
 }
 
-function injectVersion(body: string, version: string, repoUrl: string): string {
-  return body.split('__DSW_VERSION__').join(`'${version}'`).split('__DSW_REPO_URL__').join(`'${repoUrl}'`)
+/**
+ * 读这次构建要写进产物的提交号。
+ *
+ * 优先用环境变量：冻结候选时调用方明确要求「产物必须标记成这个提交」，构建就应该无条件照办，
+ * 而不是自己再去读一次 HEAD（构建与冻结之间 HEAD 可能被人切换）。没有环境变量时才读当前 HEAD，
+ * 这样日常开发构建也能在产物里留下可核对的身份。读不到 git（例如从没有 .git 的源码包构建）时写
+ * 'unknown'：明确表示这份产物没有可核对的构建提交，而不是猜一个。
+ */
+function readBuildCommit(): string {
+  const fromEnv: string = String(process.env.DSW_BUILD_COMMIT || '').trim()
+  if (/^[0-9a-f]{40}$/.test(fromEnv)) return fromEnv
+  const result: any = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' })
+  const fromGit: string = String((result && result.stdout) || '').trim()
+  return /^[0-9a-f]{40}$/.test(fromGit) ? fromGit : 'unknown'
+}
+
+function injectVersion(body: string, version: string, repoUrl: string, buildCommit: string): string {
+  return body
+    .split('__DSW_VERSION__').join(`'${version}'`)
+    .split('__DSW_REPO_URL__').join(`'${repoUrl}'`)
+    .split('__DSW_BUILD_COMMIT__').join(`'${buildCommit}'`)
 }
 
 // ---------- 说明同步（单说明源头 · #479 最简收口） ----------
@@ -1013,7 +1034,7 @@ function wirePlaceholders(body: string, slots: { ph: string; file: string }[]): 
  */
 
 // ---------- 构建 client ----------
-async function buildClient({ version, repoUrl }: { version: string; repoUrl: string }): Promise<{ devCode: string; pkgCode: string }> {
+async function buildClient({ version, repoUrl, buildCommit }: { version: string; repoUrl: string; buildCommit: string }): Promise<{ devCode: string; pkgCode: string }> {
   // #1254（修：构建先行兼容）：客户端入口真源可能是手写 .js（转制前）或 .ts（转制后）。
   //   .ts 先抽取（头与体分离），骨架经占位、转译、复原、再抽取后按占位接回片段（见下）；
   //   .js 路径仍在时走老路。转制提交只换真源扩展名，构建不用再动。
@@ -1035,7 +1056,7 @@ async function buildClient({ version, repoUrl }: { version: string; repoUrl: str
     ? extracted.header.split('\n').filter((l: string) => !/^\s*declare\s/.test(l)).join('\n').replace(/\n{3,}/g, '\n\n')
     : extracted.header
   // ctx 接线与版本注入只做纯文本替换，不认拼接标记，先做；转译只吃骨架，片段随后。
-  const wired: string = wireCtx(injectVersion(extracted.body, version, repoUrl))
+  const wired: string = wireCtx(injectVersion(extracted.body, version, repoUrl, buildCommit))
   // #1254：转译骨架时外面必须包着 `export default `——裸的 `{ apply(ctx) {…} }` 会被当成语句块，
   //   转译完复原降级、再抽一次体，最后按占位接回片段。
   const bodyW: string = useClientTs
@@ -1779,8 +1800,10 @@ if (tryBuildCacheHit(args)) {
 }
 const version: string = dswVersion()
 const repoUrl: string = dswRepoUrl()
+const buildCommit: string = readBuildCommit()
 console.log(`[build] DSW_VERSION=${version} (package/package.json)`)
 console.log(`[build] DSW_REPO_URL=${repoUrl} (package/package.json repository)`)
+console.log(`[build] DSW_BUILD_COMMIT=${buildCommit} (${process.env.DSW_BUILD_COMMIT ? '环境变量 DSW_BUILD_COMMIT' : '当前仓库 HEAD'})`)
 
 // A 自检（build 前）：若产物存在但无横幅，给 warn（不阻断，防旧产物）
 gateBuildArtifacts()
@@ -2202,8 +2225,8 @@ try {
 guardBuildLock(buildLock, '开始打包')
 
 const out: { clientDev?: string; clientPkg?: string; hostDev?: string; hostPkg?: string } = {}
-if (!pkgOnly) out.clientDev = (await buildClient({ version, repoUrl })).devCode
-if (!devOnly) out.clientPkg = (await buildClient({ version, repoUrl })).pkgCode
+if (!pkgOnly) out.clientDev = (await buildClient({ version, repoUrl, buildCommit })).devCode
+if (!devOnly) out.clientPkg = (await buildClient({ version, repoUrl, buildCommit })).pkgCode
 if (!pkgOnly) out.hostDev = (await buildHost({ version })).devCode
 if (!devOnly) out.hostPkg = (await buildHost({ version })).pkgCode
 

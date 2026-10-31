@@ -70,6 +70,10 @@ declare const localeAdopt: any;
 declare const SKILLS: any;
 declare const __DSW_VERSION__: any;
 declare const __DSW_REPO_URL__: any;
+// #1766：构建产物里也写一份「这份产物是由哪个提交构建出来的」。同一个版本号可能对应多个提交
+//   （同一版本的多次修复、同一批次的脏树构建），只靠版本串分不清。构建时注入占位符，
+//   真机验证从 lib/client.js 读出它，用来核对「装进去的包确实是这次冻结的那个提交构建的」。
+declare const __DSW_BUILD_COMMIT__: any;
 
 // ===== 规范方言（dynamic dialect）：host/styles/React/timer 为自由变量；pkg entry 提供 shim =====
 export default {
@@ -84,6 +88,9 @@ export default {
     // #repo-link：版本号可点，新窗打开插件仓库主页；URL 构建期从 package/package.json 的 repository 字段
     // 注入（客户端源码零 URL 字面量，过硬编码门禁 F2；产物字面量已在门禁 RE_LICENSED 登记）。
     const DSW_REPO_URL = __DSW_REPO_URL__
+    // #1766：构建提交。取不到 git 提交的构建（例如从没有 .git 的源码包直接构建）写 'unknown'，
+    //   任何情况下都不要把它当成候选身份——真机验证冻结候选时会要求它是 40 位提交号。
+    const DSW_BUILD_COMMIT = __DSW_BUILD_COMMIT__
 
     // #1286：容器（探索地图与规格）的判定、取色与提示词单一真源，列表页与详情页都从它取。
     // #1296：中央色表 CONTAINER_ACCENT 也在这份文件里，所以它必须排在 styles 之前 ——
