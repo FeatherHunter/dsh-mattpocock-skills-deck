@@ -202,6 +202,7 @@
 | deepening opportunity | 加深机会 | 把浅模块改成深模块的重构机会。 |
 | candidate | 候选方案 | 待挑选、待加深的模块方案；不要译「候选对象」。 |
 | scaffold | 骨架 | 先搭出的结构框架，之后往里填内容。 |
+| custom tooling | 自定义工具 | 自己写的小工具（CLI、MCP 这类），区别于现成工具。 |
 | workhorse | 主力 | 承担大部分工作的那一种。 |
 | mass diagram | 体量图 | 用面积对比接口与实现宽窄的示意图。 |
 | cross-section | 剖面图 | 把层层浅模块切开来看的示意图。 |
