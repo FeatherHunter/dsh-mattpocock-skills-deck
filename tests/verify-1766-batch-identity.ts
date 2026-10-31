@@ -10,6 +10,7 @@
 //   5. 候选文件被改过（清单重算内容指纹对不上）。
 // 门禁归属: scripts/real-machine/lib/batch.mts
 import crypto from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -17,6 +18,7 @@ import path from 'node:path'
 import { digestOfFiles } from '../scripts/release-integrity.mts'
 import { printGateResult } from './lib/gate-result.ts'
 import {
+  assertBatchName,
   batchIdentityLine,
   candidateIdentity,
   createBatchRecord,
@@ -34,6 +36,16 @@ const COMMIT_A = 'a'.repeat(40)
 const COMMIT_B = 'b'.repeat(40)
 const MANIFEST_DIGEST = 'd'.repeat(64)
 
+// 批次名会被当成目录名：`.` 与 `..` 能通过字符集却会解析到 batches 目录或工作根本身，必须拒绝。
+function rejectsBatchName(name: string): boolean {
+  try {
+    assertBatchName(name)
+    return false
+  } catch {
+    return true
+  }
+}
+
 let failed = false
 let total = 0
 const check = (ok: boolean, message: string): void => {
@@ -41,6 +53,10 @@ const check = (ok: boolean, message: string): void => {
   if (!ok) failed = true
   console.log((ok ? '  PASS ' : '  FAIL ') + message)
 }
+
+console.log('批次名校验')
+check(rejectsBatchName('.'), '批次名不能是单个点（会指到 batches 目录本身）')
+check(rejectsBatchName('..'), '批次名不能是两个点（会指到工作根）')
 
 const base = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-1766-'))
 const batchDir = path.join(base, 'batches', 'batch-a')
@@ -186,6 +202,44 @@ check(!changedTgzVerdict.ok && changedTgzVerdict.problems.some((item) => item.in
 const saved = writeBatch(batchDir, record, startedAt)
 const reloaded = readBatch(batchDir)
 check(reloaded.candidate?.fileDigest === saved.candidate?.fileDigest, 'batch.json 写盘再读回后候选指纹仍然在')
+
+// 8. 命令层接线也真跑一遍：纯函数绿不代表 collect-evidence 真的把候选身份写进了证据。
+// 这里造一个通过前置巡检的批次，起子进程收一条证据，再改坏候选文件看它会不会拒。
+console.log('[collect-evidence 接线]')
+record.preflight = { ok: true }
+writeBatch(batchDir, record, startedAt)
+fs.writeFileSync(tgzPath, tgzBytes)
+const evidenceInput = path.join(base, 'note.txt')
+fs.writeFileSync(evidenceInput, 'evidence for collect-evidence smoke')
+const collectArgs = [
+  '--import',
+  './scripts/ts-hook.mts',
+  'scripts/real-machine/commands/collect-evidence.mts',
+  '--batch',
+  batchDir,
+  '--file',
+  evidenceInput,
+  '--check',
+  'ok=true',
+]
+const runCollect = (): { code: number | null; output: string } => {
+  const result = spawnSync(process.execPath, collectArgs, { cwd: process.cwd(), encoding: 'utf8' })
+  return { code: result.status, output: String(result.stdout || '') + String(result.stderr || '') }
+}
+const collectRun = runCollect()
+check(collectRun.code === 0, 'collect-evidence 对通过巡检的批次收证据时退出 0（实际 code=' + String(collectRun.code) + '，输出=' + JSON.stringify(collectRun.output.slice(0, 200)) + '）')
+const evidenceManifest = JSON.parse(fs.readFileSync(path.join(batchDir, 'evidence.json'), 'utf8'))
+const expectedBinding = evidenceCandidate(record)
+check(
+  evidenceManifest.candidate?.batchName === expectedBinding?.batchName &&
+    evidenceManifest.candidate?.commit === expectedBinding?.commit &&
+    evidenceManifest.candidate?.packageSha256 === expectedBinding?.packageSha256,
+  'evidence.json 顶层的候选身份与批次记录一致',
+)
+fs.appendFileSync(good.path, ' ')
+const tamperedRun = runCollect()
+check(tamperedRun.code !== 0 && tamperedRun.output.includes('候选文件'), '候选文件在批次开始后被改过时 collect-evidence 拒收')
+fs.writeFileSync(good.path, JSON.stringify(good.manifest, null, 2))
 
 printGateResult('verify-1766-batch-identity', total, failed ? total : 0)
 if (failed) process.exitCode = 1

@@ -60,8 +60,38 @@ export type CandidateAuditCandidate = {
   fileDigest: string
   /** 候选包 tgz 的 sha256，64 位小写十六进制；用来核对票面身份行里的「候选包 sha256」确实属于这份候选清单。 */
   packageSha256: string
-  /** 候选包在本机的路径，只用于报错时指路，不参与判断。 */
-  packagePath?: string
+}
+
+/** 候选清单缺字段时给调用方看的统一说明；发布前检查与发布脚本共用，避免两处文案各写一份。 */
+export const CANDIDATE_MANIFEST_FIELDS_HINT =
+  '候选清单缺字段：要 validity（字符串）、sourceStable（布尔）、git.commit（字符串）、' +
+  'package.fileDigest（字符串）、package.tgzSha256（字符串）。'
+
+/**
+ * 从解析好的候选清单 JSON 里取出判据关心的字段；字段不全返回 null。
+ * 这里只做类型与存在性检查，值是否合格交给 checkCandidateManifest：两个调用方
+ * （发布前检查、发布脚本的候选校验）共用这一处取字段的逻辑，不再各写一套。
+ */
+export function candidateFromRecord(record: unknown): CandidateAuditCandidate | null {
+  if (record === null || typeof record !== 'object') return null
+  const root = record as Record<string, unknown>
+  const gitRecord =
+    root.git !== null && typeof root.git === 'object' ? (root.git as Record<string, unknown>) : null
+  const packageRecord =
+    root.package !== null && typeof root.package === 'object' ? (root.package as Record<string, unknown>) : null
+  const commit = gitRecord === null ? undefined : gitRecord.commit
+  const fileDigest = packageRecord === null ? undefined : packageRecord.fileDigest
+  const packageSha256 = packageRecord === null ? undefined : packageRecord.tgzSha256
+  if (
+    typeof root.validity !== 'string' ||
+    typeof root.sourceStable !== 'boolean' ||
+    typeof commit !== 'string' ||
+    typeof fileDigest !== 'string' ||
+    typeof packageSha256 !== 'string'
+  ) {
+    return null
+  }
+  return { commit, validity: root.validity, sourceStable: root.sourceStable, fileDigest, packageSha256 }
 }
 
 /** checkCandidateAudit 的输入。 */
@@ -394,29 +424,28 @@ export function checkCandidateAudit(options: CandidateAuditOptions): CandidateAu
     })
   })
 
-  // 二、至少要有一条带身份行的批次开始评论：没有它，这批证据没有起点，也不知道属于哪个候选。
+  // 二、至少要有一条带格式正确身份行的批次评论：没有它，这批证据没有起点，也不知道属于哪个候选。
+  // 不硬性要求标题写「批次开始」：规则只规定身份行的精确格式，标题是给人看的；有身份行就能认出批次。
   const startComments = comments
     .map((comment, commentIndex) => ({ body: String(comment.body || ''), commentIndex }))
     .filter((item) => batchStartName(item.body) !== '')
-  if (startComments.length === 0) {
+  const identityComments = comments
+    .map((comment, commentIndex) => ({ body: String(comment.body || ''), commentIndex }))
+    .filter((item) => hasIdentityLine(item.body))
+  if (identityComments.length === 0) {
     findings.push({
       code: 'batch-start-missing',
-      message: '清单票评论里没有「批次开始：<批次名>」评论：发布前检查找不到这批真机验证的起点。',
+      message: '清单票评论里没有一条带格式正确「验证身份」行的批次记录：发布前检查找不到这批真机验证的起点。',
       fix:
         '按 docs/agents/real-machine-verification.md 第二节的模板发一条批次开始评论：写清批次号、候选提交、候选包 sha256、' +
-        '验证环境与本批场景，并带一行「验证身份」。',
-    })
-  } else if (!startComments.some((item) => hasIdentityLine(item.body))) {
-    findings.push({
-      code: 'batch-start-missing',
-      message: '有批次开始评论，但没有一条带格式正确的「验证身份」行：发布前检查不知道这批验的是哪个候选。',
-      fix:
-        '在批次开始评论里补一行：' + IDENTITY_PREFIX + (batchStartName(startComments[0].body) || '<批次名>') +
-        '；候选提交 <40 位小写候选提交>；候选包 sha256 <64 位小写候选包 tgz 哈希>（与 batch.json 的记录一致）。',
+        '验证环境与本批场景，并带一行：' + IDENTITY_PREFIX +
+        '<批次名>；候选提交 <40 位小写候选提交>；候选包 sha256 <64 位小写候选包 tgz 哈希>。',
     })
   }
 
-  // 三、评论里的候选提交必须是发布提交的祖先，并且与发布提交不同时要有差异审计。
+  // 三、评论里的候选提交都必须是发布提交的祖先；差异审计只要求覆盖最新一批。
+  // 旧批次的历史评论按当时的规则写，要求每一批都补审计等于逼人改写历史；发布收口只认最后一批候选，
+  // 所以只对最新一批要求审计，祖先关系仍然对所有证据生效。
   const audits = collectAuditLines(body)
   const differingCommits = new Set<string>()
   const identityCommits: string[] = []
@@ -426,8 +455,15 @@ export function checkCandidateAudit(options: CandidateAuditOptions): CandidateAu
     if (identity.commit === releaseCommit) continue
     if (!identityCommits.includes(identity.commit)) identityCommits.push(identity.commit)
   }
+  const latestStart = startComments.length > 0 ? startComments[startComments.length - 1] : null
+  const latestBatchName = latestStart
+    ? batchStartName(latestStart.body)
+    : identities.length > 0
+      ? identities[identities.length - 1].batchName
+      : ''
+  const latestIdentity = [...identities].reverse().find((identity) => identity.batchName === latestBatchName) || null
+  const latestCommit = latestIdentity ? latestIdentity.commit : ''
   for (const commit of identityCommits) {
-    differingCommits.add(commit)
     const batchName = batchNameOfCommit.get(commit) || '<批次名>'
     if (ancestorCheck && !ancestorCheck(commit)) {
       findings.push({
@@ -438,11 +474,13 @@ export function checkCandidateAudit(options: CandidateAuditOptions): CandidateAu
         fix: '用发布提交（或它的祖先）重新冻结候选、重跑这一批真机验证，再关闭清单票；或者把发布提交换成包含这个候选提交的版本。',
       })
     }
+    if (commit !== latestCommit) continue
+    differingCommits.add(commit)
     if (!isAudited(audits, commit, releaseCommit)) {
       findings.push({
         code: 'audit-missing',
         message:
-          '批次「' + batchName + '」的候选提交 ' + commit + ' 与发布提交 ' + releaseCommit +
+          '最新一批（批次「' + batchName + '」）的候选提交 ' + commit + ' 与发布提交 ' + releaseCommit +
           ' 不同，但清单票正文没有对应的差异审计行。',
         fix: '在清单票正文补一行：- 候选提交 ' + commit + ' → 发布提交 ' + releaseCommit + '：<一句话说明这段差异为什么可以接受>。',
       })
@@ -466,7 +504,8 @@ export function checkCandidateAudit(options: CandidateAuditOptions): CandidateAu
             fix: '换一个发布提交，或者从发布提交（或它的祖先）重新冻结候选、重跑真机验证。',
           })
         }
-        if (!isAudited(audits, candidateCommit, releaseCommit)) {
+        // 候选提交就是最新一批时，上面第三段已经报过 audit-missing，不再报第二条。
+        if (candidateCommit !== latestCommit && !isAudited(audits, candidateCommit, releaseCommit)) {
           findings.push({
             code: 'candidate-audit-missing',
             message:

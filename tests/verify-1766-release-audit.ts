@@ -301,10 +301,37 @@ check(auditedRun.code === 0 && auditedRun.output.includes('CANDIDATE-DIFF-AUDITE
 const missingManifestRun = runCli(['match', '--candidate', cliCandidate, '--manifest', path.join(cliDir, 'nope.json')])
 check(missingManifestRun.code === 2 && missingManifestRun.output.includes('CANDIDATE-ENV'), '清单读不到时打印 CANDIDATE-ENV 并退出 2（实际 code=' + String(missingManifestRun.code) + '，输出=' + JSON.stringify(missingManifestRun.output.slice(0, 160)) + '）')
 
+// ── 十二、发布脚本真的把候选校验接上了 ──────────────────────────────────
+// 为什么单跑一次 publish-token.ps1：函数定义顺序这类错误只在 PowerShell 运行时才暴露，纯函数测试看不出来。
+// 这里故意不给 token：如果候选校验真的执行了，脚本会先打 CANDIDATE-VALID，再在取 token 那一步退出 2；
+// 如果它又变成了「调用还没定义的函数」，输出里会出现 CommandNotFound / 术语不被识别，退出码也不会是 2。
+console.log('[发布脚本 -Candidate 冒烟]')
+const psRun = spawnSync(
+  'pwsh',
+  [
+    '-NoProfile',
+    '-File',
+    'scripts/publish-token.ps1',
+    '-Candidate',
+    cliCandidate,
+    '-DryRun',
+    '-SkipGate',
+    '-TokenEnv',
+    'VERIFY_1766_TOKEN_THAT_DOES_NOT_EXIST',
+    '-LogPath',
+    path.join(cliDir, 'publish-token.log'),
+  ],
+  { cwd: process.cwd(), encoding: 'utf8' },
+)
+const psOutput = String(psRun.stdout || '') + String(psRun.stderr || '')
+check(psRun.status === 2, '发布脚本传 -Candidate 且缺 token 时退出 2（实际 code=' + String(psRun.status) + '）')
+check(psOutput.includes('CANDIDATE-VALID commit=' + RELEASE), '发布脚本在取 token 之前真的跑了候选校验并打印 CANDIDATE-VALID')
+check(
+  !/Invoke-CandidateCheck|Write-ToolOutput|CommandNotFound|不支持.*cmdlet|不被识别/u.test(psOutput),
+  '候选校验没有因为函数定义顺序报「找不到命令」' + (psOutput ? '（输出=' + JSON.stringify(psOutput.slice(0, 200)) + '）' : ''),
+)
+
 // ── 收尾 ────────────────────────────────────────────────────────────────
-if (failed) {
-  console.log('\n存在失败（共 ' + total + ' 项）')
-  process.exit(1)
-}
-console.log('\n全部通过（共 ' + total + ' 项）')
-printGateResult('verify-1766-release-audit', total, 0)
+console.log(failed ? '\n存在失败（共 ' + total + ' 项）' : '\n全部通过（共 ' + total + ' 项）')
+printGateResult('verify-1766-release-audit', total, failed ? total : 0)
+if (failed) process.exitCode = 1

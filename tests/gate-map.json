@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T16:05:28.613Z",
+  "generatedAt": "2026-10-31T16:22:42.934Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 485,
   "gateCount": 485,
@@ -4939,7 +4939,7 @@
       "unattributed": true,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 24,
+      "expectedAssertions": 29,
       "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -4954,7 +4954,7 @@
       "unattributed": true,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 56,
+      "expectedAssertions": 59,
       "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {

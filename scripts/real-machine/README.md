@@ -116,7 +116,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/freeze-candida
 node --import ./scripts/ts-hook.mts scripts/real-machine/commands/prepare-batch.mts --name <批次名> --ticket <票号>
 ```
 
-参数：`--batch <批次目录>` 直接指定批次目录；`--name <批次名>` 指定批次名，默认批次目录是 `<工作根>/batches/<批次名>`；`--ticket <票号>` 记下这批属于哪张票；`--allow-dirty` 允许在脏树上准备（这样冻结出来的候选 `validity` 是 `development`，只能算开发验证）；`--profile <profile>` 选要核对的界面 profile（默认 `web`）；`--install-method extract|cli` 选安装方式；`--no-start` 只准备、不起实例；`--no-ui` 跳过界面版本串核对；`--timeout <毫秒>` 给构建与打包设上限。批次目录里已经存在 `batch.json` 的同名批次会被拒绝复用，免得把旧批次的产物当成新批次。冻结完成之后命令会再读一次 git 状态：HEAD 前进了、或者 release 候选对应的工作树不干净，都会拒绝开批。
+参数：`--batch <批次目录>` 直接指定批次目录；`--name <批次名>` 指定批次名，默认批次目录是 `<工作根>/batches/<批次名>`；`--ticket <票号>` 记下这批属于哪张票；`--allow-dirty` 允许在脏树上准备（这样冻结出来的候选 `validity` 是 `development`，只能算开发验证）；`--profile <profile>` 选要核对的界面 profile（默认 `web`）；`--install-method extract|cli` 选安装方式；`--no-start` 只准备、不起实例；`--no-ui` 跳过界面版本串核对；`--timeout <毫秒>` 给构建与打包设上限。批次目录里已经存在 `batch.json` 的同名批次会被拒绝复用，免得把旧批次的产物当成新批次。冻结完成之后命令会再读一次 git 状态：HEAD 前进了、或者 release 候选对应的工作树不干净，都会拒绝开批；实例启动或前置巡检没通过时不写 `batch.json`，这一批不能开始收证据。
 
 批次目录里的东西：
 
@@ -145,7 +145,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/check-batch.mt
 - 验证身份：批次 <批次名>；候选提交 <40位小写提交>；候选包 sha256 <64位小写tgz哈希>
 ```
 
-发布前检查靠这一行把评论与 `batch.json` 对上；格式不对或身份对不上的结果不算通过。收证据前 `collect-evidence` 还会重新读一遍 `candidate.json` 与候选包，核对它们的 sha256 是否仍是批次记录里的那一份：候选文件被改过、候选包被换过，都会拒绝收证据。
+发布前检查靠这一行把评论与候选清单对上；它只读票面评论与 `--candidate` 传来的 `candidate.json`，不读本机 `batch.json`（发布可能不在做真机验证的那台机器上）。格式不对或身份对不上的结果不算通过。收证据前 `collect-evidence` 还会拒绝状态不是 `active` 或前置巡检没通过的批次，并重新读一遍 `candidate.json` 与候选包，核对它们的 sha256 是否仍是批次记录里的那一份：候选文件被改过、候选包被换过，都会拒绝收证据。
 
 ### 双实例冒烟：`two-instance-smoke`
 
@@ -258,7 +258,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 所以界面核对比的是「这段加载出来的内容里，我们这一版的版本常量是不是期望值」，外加「内容里确实带了
 本插件名」，而不是拿整段内容的哈希去和安装目录比——那个比法只会得到假红。
 
-批次评论里那行「验证身份」、`candidate.json` 的 `package.fileDigest` 与 `batch.json` 的 `candidate.fileDigest` 是同一套身份在票面与文件里的写法：票面那行供发布前检查把评论和批次记录对上，两个 `fileDigest` 供 `publish-token.ps1 -Candidate` 把候选包和真正要发布的字节对上。
+批次评论里那行「验证身份」、`candidate.json` 的 `package.fileDigest` 与 `batch.json` 的 `candidate.fileDigest` 是同一套身份在票面与文件里的写法：票面那行供发布前检查把评论和候选清单对上（不读本机 `batch.json`），两个 `fileDigest` 供 `publish-token.ps1 -Candidate` 把候选包和真正要发布的字节对上。
 
 ## 已知限制
 

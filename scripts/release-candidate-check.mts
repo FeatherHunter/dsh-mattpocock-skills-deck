@@ -23,7 +23,9 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import {
+  CANDIDATE_MANIFEST_FIELDS_HINT,
   PACKAGE_SHA256_PATTERN,
+  candidateFromRecord,
   checkCandidateManifest,
   judgeReleaseBytes,
 } from './lib/release-candidate-audit.mts'
@@ -67,38 +69,14 @@ function readJsonFile(filePath: string, label: string): Record<string, unknown> 
   return parsed as Record<string, unknown>
 }
 
-/** 读候选清单并只做结构检查；语义规则交给 checkCandidateManifest。 */
+/** 读候选清单并只做结构检查；字段怎么取与语义规则都和发布前检查共用同一处实现。 */
 function readCandidate(candidatePath: string): CandidateAuditCandidate {
   const record = readJsonFile(candidatePath, '候选清单')
-  const gitRecord =
-    record.git !== null && typeof record.git === 'object' ? (record.git as Record<string, unknown>) : null
-  const packageRecord =
-    record.package !== null && typeof record.package === 'object'
-      ? (record.package as Record<string, unknown>)
-      : null
-  const commit = gitRecord === null ? undefined : gitRecord.commit
-  const fileDigest = packageRecord === null ? undefined : packageRecord.fileDigest
-  const packageSha256 = packageRecord === null ? undefined : packageRecord.tgzSha256
-  if (
-    typeof record.validity !== 'string' ||
-    typeof record.sourceStable !== 'boolean' ||
-    typeof commit !== 'string' ||
-    typeof fileDigest !== 'string' ||
-    typeof packageSha256 !== 'string'
-  ) {
-    envFail(
-      '候选清单缺字段：要 validity（字符串）、sourceStable（布尔）、git.commit（字符串）、' +
-        'package.fileDigest（字符串）、package.tgzSha256（字符串）。文件：' + path.resolve(process.cwd(), candidatePath),
-    )
+  const candidate = candidateFromRecord(record)
+  if (!candidate) {
+    envFail(CANDIDATE_MANIFEST_FIELDS_HINT + '文件：' + path.resolve(process.cwd(), candidatePath))
   }
-  return {
-    commit,
-    validity: record.validity,
-    sourceStable: record.sourceStable,
-    fileDigest,
-    packageSha256,
-    packagePath: typeof packageRecord?.tgzPath === 'string' ? packageRecord.tgzPath : undefined,
-  }
+  return candidate
 }
 
 function failCandidate(candidate: CandidateAuditCandidate): void {

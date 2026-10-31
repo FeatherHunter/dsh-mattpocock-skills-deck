@@ -75,7 +75,7 @@
 - **工作区注入**：无头环境点不了原生目录选择器，所以由 `seed-workspace` 直接写 home 的 `storages/workspace.json` 完成登记。验证用的工作区夹具放在批次目录里，不要放在本仓库里，否则插件会把本仓库的 git 根当成仓库身份，结论会被污染。
 - **证据目录**：每个批次一个目录 `<工作根>/batches/<批次名>/`，证据先落在 `evidence/` 下，再由 `collect-evidence` 生成带每个文件 SHA256 的 `evidence.json`。批次目录里还有候选、隔离 home、实例启动目录与批次记录，见下两条。规则要求证据能独立看懂：评论里贴截图关键区域、日志关键行或接口返回字段，不把临时目录路径当唯一证据。
 - **批次准备与收尾**：用 `prepare-batch` 一条命令完成「用当前 HEAD 重新冻结候选 → 构建 → 打包 → 装隔离 home → 起实例 → 前置巡检」，不再由人把几条命令串起来。批次目录默认 `<工作根>/batches/<批次名>/`：候选清单与候选包在 `<批次>/pkg/`，隔离 home 在 `<批次>/home`，实例启动目录在 `<批次>/run`，前置巡检结论写在 `<批次>/batch-preflight.json`。参数有 `--batch <批次目录>`、`--name <批次名>`、`--ticket <票号>`、`--allow-dirty`、`--profile <profile>`、`--install-method extract|cli`、`--no-start`、`--no-ui`、`--timeout <毫秒>`。批次目录里已经存在 `batch.json` 的同名批次会被拒绝复用，免得把旧批次的产物当成新批次；冻结完成之后会再读一次 git 状态，HEAD 前进了、或 release 候选对应的工作树不干净，都拒绝开批。批次结束时用 `check-batch --batch <批次目录>` 收尾：它读 `batch.json`，比较当前 git HEAD 与候选提交，不同就把状态改成 `stale`、写 `endHead` 与 `endCheckedAt`，并提示这条批次不能用于发布收口（原件不删）；相同就只记 `endCheckedAt`，状态保持 `active`。
-- **批次记录文件**：批次目录里有三份机器可读记录。`batch.json` 记 `schemaVersion`、`batchName`、`batchDir`、`createdAt`、`updatedAt`、`status`（`active` 或 `stale`）、`startHead`、`startBranch`、`endHead`、`endCheckedAt`，以及 `candidate`（`path`、`sha256`、`commit`、`version`、`validity`、`tgzPath`、`tgzSha256`、`manifestDigest`、`fileDigest`）、`preflight`、`instance`。`candidate.json` 在原有字段上新增四个：`validity`（`release` 表示干净树冻结、可以用于发布，`development` 表示带 `--allow-dirty` 的开发验证）、`sourceStable`（冻结前后 HEAD 与未提交文件集合是否一致）、`package.buildCommit`（构建产物里的提交）、`package.fileDigest`（不含提交与版本的逐文件清单指纹，与 `scripts/release-integrity.mts` 的 digest 同一算法）。`batch-preflight.json` 是前置巡检的结论。收证据前 `collect-evidence` 会重新读一遍 `candidate.json` 与候选包，核对它们的 SHA256 是否仍是 `batch.json` 里的那一份：候选文件被改过、候选包被换过，都拒绝收证据。评论里引用这些记录时写清路径与关键字段，不要只贴一个目录。
+- **批次记录文件**：批次目录里有三份机器可读记录。`batch.json` 记 `schemaVersion`、`batchName`、`batchDir`、`createdAt`、`updatedAt`、`status`（`active` 或 `stale`）、`startHead`、`startBranch`、`endHead`、`endCheckedAt`，以及 `candidate`（`path`、`sha256`、`commit`、`version`、`validity`、`tgzPath`、`tgzSha256`、`manifestDigest`、`fileDigest`）、`preflight`、`instance`。`candidate.json` 在原有字段上新增四个：`validity`（`release` 表示干净树冻结、可以用于发布，`development` 表示带 `--allow-dirty` 的开发验证）、`sourceStable`（冻结前后 HEAD 与未提交文件集合是否一致）、`package.buildCommit`（构建产物里的提交）、`package.fileDigest`（不含提交与版本的逐文件清单指纹，与 `scripts/release-integrity.mts` 的 digest 同一算法）。`batch-preflight.json` 是前置巡检的结论；实例启动或前置巡检没通过时，`prepare-batch` 不写 `batch.json`，这一批不能开始收证据。收证据前 `collect-evidence` 会拒绝 `status` 不是 `active` 或前置巡检没通过的批次，并重新读一遍 `candidate.json` 与候选包，核对它们的 SHA256 是否仍是 `batch.json` 里的那一份：候选文件被改过、候选包被换过，都拒绝收证据。评论里引用这些记录时写清路径与关键字段，不要只贴一个目录。
 - **候选身份判据**：用 `prepare-batch` 冻结候选（单独跑 `freeze-candidate` 也可以，只是不会准备整个批次），清单写在批次目录的 `pkg/candidate.json`；单独跑 `freeze-candidate` 时默认在 `<工作根>/pkg/candidate.json`。清单记着提交、版本、包内每个文件的 SHA256、tgz 的 SHA256，以及 `validity`、`sourceStable`、`package.buildCommit`、`package.fileDigest`（含义见上一条）。界面里的插件脚本是宿主把多个插件合并成一次请求加载的，所以界面核对比的是「这段内容里本版的版本常量是不是期望值」，不要拿合并后的包哈希当身份（带启动期构建标识的产物每次启动哈希都会变）。
 - **清理要求与上限**：用 `cleanup` 先报账、确认后再删。工作根总量建议不超过 15GB、批次目录不超过 20 个、单个批次不超过 2GB；每次批次结束、发布前、换版本重跑之前各清一次。批次里的 GitHub 工作区是源仓库的 `git worktree`，批次目录删掉之后在源仓库跑一次 `git worktree prune` 清掉失效登记。
 - **从零可用**：`two-instance-smoke` 用一条命令在一个从没跑过真机验证的检出里跑通双实例冒烟（复制两份 home、造两种后端工作区、起两个实例、浏览器核对、收证据、停实例），用来证明工具台本身是好的。
@@ -98,7 +98,7 @@ powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [Sy
 
 验证主持人从当前 HEAD 重新冻结的候选上跑一批（`prepare-batch` 默认就是这样做的）。每批做四件事：
 
-1. **批次开始时发一条评论**：批次号、版本与提交、构建产物及其 sha256、验证环境（操作系统、DSH 版本、隔离的 home/profile、已装插件版本、网络条件）、本批要验的场景编号清单、开始时间。这条评论必须含一行机器可读的验证身份，精确格式是 `- 验证身份：批次 <批次名>；候选提交 <40位小写提交>；候选包 sha256 <64位小写tgz哈希>`；批次名、候选提交与候选包 sha256 要和 `batch.json` 里的记录一致，发布前检查靠这一行把评论和批次记录对上。
+1. **批次开始时发一条评论**：批次号、版本与提交、构建产物及其 sha256、验证环境（操作系统、DSH 版本、隔离的 home/profile、已装插件版本、网络条件）、本批要验的场景编号清单、开始时间。这条评论必须含一行机器可读的验证身份，精确格式是 `- 验证身份：批次 <批次名>；候选提交 <40位小写提交>；候选包 sha256 <64位小写tgz哈希>`；批次名、候选提交与候选包 sha256 要和本批 `batch.json` 里的记录一致（`collect-evidence` 收证据时会核；发布前检查不读本机批次目录，只核对票面评论与传入的 `candidate.json`）。
 2. **逐场景执行并记录结果**。每验完一条就记下通过还是失败，不要等整批结束再凭记忆补。每条记录场景结果的评论都要带同一行验证身份（同一个批次名、候选提交、候选包 sha256）；缺这一行或身份与批次开始评论对不上，这条结果不算进通过项。
 3. **批次结束时发一条结果评论**（同样要带验证身份行）：逐场景写 `通过` / `失败（→ #新票号）` / `未测（原因）`，每条附决定性证据。证据要能独立看懂：截图路径、关键日志行、接口返回字段；临时目录里的文件路径不能作为唯一证据，因为目录会删，要把关键几行贴进评论。
 
@@ -138,7 +138,7 @@ powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [Sy
 1. 本版清单票**恰好一张**。
 2. 这张清单票**已经关闭**。
 3. 这张票的**正文与评论记录内部一致**：场景总览表的编号集合、每条场景的状态，与评论里的场景块、批次结果、收口计数对得上；正文自称的条数、分组计数、发布计数也和表的实际统计一致。
-4. 本版**批次评论都带验证身份**：批次开始评论与每条场景结果评论里都有格式正确的「验证身份」行，批次名、候选提交与候选包 sha256 和 `batch.json` 的记录一致；找不到身份行、格式不对或同一批次的记录互相矛盾的，不算通过。
+4. 本版**批次评论都带验证身份**：批次开始评论与每条场景结果评论里都有格式正确的「验证身份」行，批次名、候选提交与候选包 sha256 和传入的 `candidate.json`（`--candidate`）记录一致。发布前检查不读本机 `batch.json`：发布可能不在做真机验证的那台机器上，机器检查只凭票面评论与候选清单判断；找不到身份行、格式不对或同一批次的记录互相矛盾的，不算通过。
 5. **候选提交与发布提交的关系成立**：所有候选提交都能在发布提交的历史里找到（是发布提交的祖先）；候选提交与发布提交不同时，清单票正文的「候选与发布差异审计」一节必须写清差异为什么可以接受（一行 `- 候选提交 <40位小写提交> → 发布提交 <40位小写提交>：<一句话说明差异为什么可接受>`）。候选提交不是发布提交的祖先，或两者不同却没有差异审计，都拦住发布。
 
 五条都满足才能继续发布。检查挂在两条发布路径上，走的都是同一个脚本：
@@ -152,7 +152,7 @@ powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [Sy
 
 关闭评论里写一行计数给读的人看（例如 `[发布就绪] 通过 12 / 失败 0 / 豁免 3`；开发期已验过的场景计入「通过」，在备注里写明验证时间与证据出处）。这一行以及正文里各处的数字现在也参与机器核对：正文「## 场景总览」一节开头写的条数、各状态分组计数、来源票数，正文「## 发布前对账」与关闭评论里的通过/失败/豁免计数，以及收口评论里「N 条已登记场景」「N 条登记前已验证」「N 条本版真机通过」「N 条豁免」这类自称计数，都必须和场景总览表的实际统计一致；对不上会逐条列出「哪里写了什么、实际是什么、按什么改」，修正前发布被拦住。脚本只核对记录是否自洽；某个豁免该不该接受、场景是不是真的验过，仍然由人判断。
 
-发布前建议再做一次人工对账：用 CHANGELOG 里的「对应提交」与自上一版发布以来合并的提交逐票对照，确认每个影响使用方的票都有场景块。代码冻结是规则的一部分，不是「安排批次的建议」：每一批都必须从当前 HEAD 重新冻结候选（`prepare-batch` 默认这样做），不能拿早先冻结的旧候选冒充新批次；批次结束后用 `check-batch` 收尾，HEAD 前进了就把这条批次标成 `stale`，它的证据只对它自己那个候选提交有效，不能用于发布收口。发布前只认最后一批干净批次（`validity=release`）且候选提交是发布提交祖先的那条记录；候选提交与发布提交不同时，清单票的「候选与发布差异审计」必须写清差异为什么可以接受。验完之后如果必须再改代码，只补验受影响的那几条场景，不必重验全清单——但下一批仍然要从新的 HEAD 重新冻结。
+发布前建议再做一次人工对账：用 CHANGELOG 里的「对应提交」与自上一版发布以来合并的提交逐票对照，确认每个影响使用方的票都有场景块。代码冻结是规则的一部分，不是「安排批次的建议」：每一批都必须从当前 HEAD 重新冻结候选（`prepare-batch` 默认这样做），不能拿早先冻结的旧候选冒充新批次；批次结束后用 `check-batch` 收尾，HEAD 前进了就把这条批次标成 `stale`，它的证据只对它自己那个候选提交有效，不能用于发布收口。发布前人工对账只认最后一批干净批次（`validity=release`）且候选提交是发布提交祖先的那条记录（机器检查只看票面评论与候选清单，见第五节）；候选提交与发布提交不同时，清单票的「候选与发布差异审计」必须写清差异为什么可以接受。验完之后如果必须再改代码，只补验受影响的那几条场景，不必重验全清单——但下一批仍然要从新的 HEAD 重新冻结。
 
 ## 六、发布之后
 

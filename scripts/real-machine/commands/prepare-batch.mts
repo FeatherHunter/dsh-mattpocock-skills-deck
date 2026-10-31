@@ -158,7 +158,9 @@ runCli(async () => {
     git: { commit: verdict.identity.commit, branch: String(candidate.manifest.git?.branch || '') },
   })
   record.candidate = verdict.identity
-  writeBatch(targetDir, record, nowIso())
+  // batch.json 先不落盘：等实例与前置巡检都通过再写。否则一个巡检失败的半成品批次
+  // 会以 status=active 留在盘上，后面 collect-evidence 还得再拦一次；不如让「没有 batch.json」
+  // 直接表示这一批没准备好。
 
   // 2. 起实例（除非明确只准备不启动）。实例留在后台，人接着在上面逐条验。
   const checks: { name: string; ok: boolean; detail: string }[] = []
@@ -237,13 +239,37 @@ runCli(async () => {
   writeJson(path.join(targetDir, 'batch-preflight.json'), preflight)
   record.preflight = preflight as unknown as Record<string, any>
   record.instance = instance
-  const saved = writeBatch(targetDir, record, nowIso())
 
+  const passed = Boolean(preflight.ok) && !instanceError
+  const preparedBinding = evidenceCandidate(record)
+  assert(preparedBinding, '批次记录里没有候选身份：这是内部错误，停止继续。')
+  if (!passed) {
+    // 不写 batch.json：这一批还没准备好，不能开始收证据。候选、巡检结论与日志都留在目录里供排查；
+    // 修好环境后换一个批次名重新开批（目录已占用，不复用）。
+    printJson({
+      ok: false,
+      batchName,
+      batchDir: targetDir,
+      batchJson: null,
+      candidate: record.candidate,
+      instance,
+      preflight: { ok: preflight.ok, checks },
+      identityLine: batchIdentityLine(preparedBinding),
+      error:
+        '前置巡检没有通过' + (instanceError ? '（实例启动失败：' + instanceError + '）' : '') +
+        '：没有写 batch.json，这一批不能开始收证据。按 batch-preflight.json 的检查项修好环境后换一个批次名重来。',
+      nextSteps: [],
+    })
+    process.exitCode = 1
+    return
+  }
+
+  const saved = writeBatch(targetDir, record, nowIso())
   const binding = evidenceCandidate(saved)
   assert(binding, '批次记录里没有候选身份：这是内部错误，停止继续。')
   const identityLine = batchIdentityLine(binding)
   printJson({
-    ok: Boolean(preflight.ok) && !instanceError,
+    ok: true,
     batchName,
     batchDir: targetDir,
     batchJson: path.join(targetDir, 'batch.json'),
@@ -257,5 +283,4 @@ runCli(async () => {
       '批次结束跑 check-batch --batch ' + batchName + '；HEAD 前进会标 stale，不能用于发布收口。',
     ],
   })
-  if (!preflight.ok || instanceError) process.exitCode = 1
 })

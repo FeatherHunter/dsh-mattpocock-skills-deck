@@ -98,6 +98,22 @@ function ShowPath([string]$p) {
   return ((Mask $p) -replace '[A-Za-z0-9_-]{32,}', '***')
 }
 
+# 把子命令的多行输出逐行转进发布日志（空行丢掉）。抽出来是因为发布前后共有四处要做同一件事，
+# 以前每处抄一遍循环，改日志格式时容易漏掉其中一处。
+function Write-ToolOutput([string]$text) {
+  foreach ($line in ($text -split '\r?\n')) { if ($line.Trim() -ne '') { Log $line.Trim() } }
+}
+# 候选清单校验与发布字节对账（#1766）：规则在 scripts/lib/release-candidate-audit.mts，
+# 这里只负责在仓根调 CLI、把输出转进日志。PowerShell 不再自己写一遍字段校验与指纹比较，
+# 两处规则就不会在改一边时漂掉。
+function Invoke-CandidateCheck([string[]]$arguments) {
+  Push-Location $RepoRoot
+  $out = (node --import ./scripts/ts-hook.mts scripts/release-candidate-check.mts @arguments 2>&1 | Out-String)
+  $code = $LASTEXITCODE
+  Pop-Location
+  return [pscustomobject]@{ code = $code; out = (Mask $out).Trim() }
+}
+
 # ── 候选清单（#1766）：先确认这次要发的字节绑在一个允许发布的候选上 ──────────────
 # 候选清单由候选冻结那一步写出，字段见 docs/agents/real-machine-verification.md。这里只做「能不能拿它发布」
 # 的格式与状态检查；候选提交是不是发布提交的祖先、清单票有没有差异审计，交给 preflight 读票面判断。
@@ -249,11 +265,6 @@ function Format-ManifestSummary($manifest) {
   if ($null -eq $manifest) { return '(无清单)' }
   return ('files=' + [string]$manifest.fileCount + ' bytes=' + [string]$manifest.totalBytes + ' digest=' + [string]$manifest.digest)
 }
-# 把子命令的多行输出逐行转进发布日志（空行丢掉）。抽出来是因为发布前后共有四处要做同一件事，
-# 以前每处抄一遍循环，改日志格式时容易漏掉其中一处。
-function Write-ToolOutput([string]$text) {
-  foreach ($line in ($text -split '\r?\n')) { if ($line.Trim() -ne '') { Log $line.Trim() } }
-}
 # 打一个包并找出 tarball：target 可以是目录（打当前目录的包），也可以是「包名@版本」（从 registry 拉回已发布的包）。
 # 每次先把目标目录清空，避免上一次留下的 .tgz 被当成这一次的产物。
 function Get-NpmPack([string]$target, [string]$destination) {
@@ -284,16 +295,6 @@ function Get-FileManifest([string]$tarball, [string]$outPath, [string]$name, [st
 }
 function Compare-FileManifests([string]$expected, [string]$actual) {
   return (Invoke-Integrity @('scripts/release-integrity.mts', 'compare', '--expected', $expected, '--actual', $actual))
-}
-# 候选清单校验与发布字节对账（#1766）：规则在 scripts/lib/release-candidate-audit.mts，
-# 这里只负责在仓根调 CLI、把输出转进日志。PowerShell 不再自己写一遍字段校验与指纹比较，
-# 两处规则就不会在改一边时漂掉。
-function Invoke-CandidateCheck([string[]]$arguments) {
-  Push-Location $RepoRoot
-  $out = (node --import ./scripts/ts-hook.mts scripts/release-candidate-check.mts @arguments 2>&1 | Out-String)
-  $code = $LASTEXITCODE
-  Pop-Location
-  return [pscustomobject]@{ code = $code; out = (Mask $out).Trim() }
 }
 
 try {

@@ -50,7 +50,7 @@ import {
 } from './lib/release-checklist.mts'
 import type { ChecklistComment, ChecklistIssue } from './lib/release-checklist.mts'
 import { checkChecklistConsistency, formatConsistencyFindings } from './lib/checklist-consistency.mts'
-import { COMMIT_PATTERN, checkCandidateAudit } from './lib/release-candidate-audit.mts'
+import { CANDIDATE_MANIFEST_FIELDS_HINT, COMMIT_PATTERN, candidateFromRecord, checkCandidateAudit } from './lib/release-candidate-audit.mts'
 import type { CandidateAuditCandidate, CandidateAuditReport } from './lib/release-candidate-audit.mts'
 
 type Options = {
@@ -175,34 +175,11 @@ function readCandidateManifest(filePath: string): CandidateAuditCandidate {
       2,
     )
   }
-  const record = parsed !== null && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
-  const gitRecord =
-    record !== null && record.git !== null && typeof record.git === 'object'
-      ? (record.git as Record<string, unknown>)
-      : null
-  const packageRecord =
-    record !== null && record.package !== null && typeof record.package === 'object'
-      ? (record.package as Record<string, unknown>)
-      : null
-  const validity = record === null ? undefined : record.validity
-  const sourceStable = record === null ? undefined : record.sourceStable
-  const commit = gitRecord === null ? undefined : gitRecord.commit
-  const fileDigest = packageRecord === null ? undefined : packageRecord.fileDigest
-  const packageSha256 = packageRecord === null ? undefined : packageRecord.tgzSha256
-  if (
-    typeof validity !== 'string' ||
-    typeof sourceStable !== 'boolean' ||
-    typeof commit !== 'string' ||
-    typeof fileDigest !== 'string' ||
-    typeof packageSha256 !== 'string'
-  ) {
-    fail(
-      '候选清单缺字段：要 validity（字符串）、sourceStable（布尔）、git.commit（字符串）、' +
-        'package.fileDigest（字符串）、package.tgzSha256（字符串）。文件：' + resolved,
-      2,
-    )
+  const candidate = candidateFromRecord(parsed)
+  if (!candidate) {
+    fail(CANDIDATE_MANIFEST_FIELDS_HINT + '文件：' + resolved, 2)
   }
-  return { commit, validity, sourceStable, fileDigest, packageSha256 }
+  return candidate
 }
 
 function main(): void {

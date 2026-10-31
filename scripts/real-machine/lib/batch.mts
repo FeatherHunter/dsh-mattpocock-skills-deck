@@ -94,9 +94,13 @@ export interface BatchRecord {
   instance: Record<string, any> | null
 }
 
-const BATCH_NAME = /^[A-Za-z0-9._-]+$/
+const BATCH_NAME = /^(?=.*[A-Za-z0-9])[A-Za-z0-9._-]+$/
 
-/** 批次名会直接当目录名用，只允许字母数字与 . _ -，避免 ../ 之类跳出工作根。 */
+/**
+ * 批次名会直接当目录名用，只允许字母数字与 . _ -，避免 ../ 之类跳出工作根。
+ * 光有字母数字之外的字符还不够：`.` 与 `..` 本身能通过字符集，却会解析到 batches 目录或工作根本身，
+ * 所以要求至少含一个字母或数字；`.`、`..` 与全是点的名字一律拒绝。
+ */
 export function assertBatchName(name: string): string {
   if (!BATCH_NAME.test(name)) {
     throw new Error('批次名「' + name + '」不合法：只能用字母、数字、点、下划线与连字符，且不能带路径分隔符。')
@@ -228,7 +232,8 @@ export interface CandidateVerdict {
  *   2. 候选早于批次开始：说明它是批次开始之前就冻结好的旧候选；
  *   3. 候选提交不是当前 HEAD：批次必须从当前 HEAD 重新冻结；
  *   4. 候选产物标记的构建提交不是当前 HEAD：产物不是从这份源码构建的（常见于缓存或 --skip-build）；
- *   5. 候选文件本身缺字段、不是 release、或标记自己构建期间源码变过。
+ *   5. 候选文件本身缺字段、validity 不是合法值、或标记自己构建期间源码变过。
+ * development 候选允许开批（脏树上的开发验证），但发布前检查会拒绝它；这里不替发布环节做决定。
  */
 export function judgeCandidateForBatch(options: {
   candidatePath: string
@@ -314,6 +319,10 @@ export function judgeCandidateForBatch(options: {
 export function judgeBatchCandidateFile(batch: BatchRecord): { ok: boolean; problems: string[]; binding: EvidenceCandidateBinding | null } {
   const problems: string[] = []
   const recorded = batch.candidate
+  // 身份从磁盘上的候选文件与候选包重新算，不直接拿 batch.json 的字段回填；
+  // 这样 collect-evidence 再拿它和 batch.json 比一次，才有「两边独立算过」的意义。
+  let actualCommit = ''
+  let actualTgzSha256 = ''
   if (!recorded) {
     return { ok: false, problems: ['batch.json 里没有候选身份：先跑 prepare-batch 建批次，再收证据。'], binding: null }
   }
@@ -333,7 +342,8 @@ export function judgeBatchCandidateFile(batch: BatchRecord): { ok: boolean; prob
     if (manifest) {
       const git = manifest.git && typeof manifest.git === 'object' ? manifest.git : {}
       const pkg = manifest.package && typeof manifest.package === 'object' ? manifest.package : {}
-      if (String(git.commit || '') !== recorded.commit) {
+      actualCommit = String(git.commit || '')
+      if (actualCommit !== recorded.commit) {
         problems.push('候选文件里的 git.commit「' + String(git.commit) + '」与批次记录的「' + recorded.commit + '」不一致。')
       }
       if (String(manifest.version || '') !== recorded.version) {
@@ -355,14 +365,23 @@ export function judgeBatchCandidateFile(batch: BatchRecord): { ok: boolean; prob
   }
   if (!recorded.tgzPath || !exists(recorded.tgzPath)) {
     problems.push('批次记录里的候选包文件不存在：「' + recorded.tgzPath + '」。')
-  } else if (sha256File(recorded.tgzPath) !== recorded.tgzSha256) {
-    problems.push('候选包文件 ' + recorded.tgzPath + ' 的 sha256 与批次记录不一致：包在批次开始后被换过或改过。')
+  } else {
+    actualTgzSha256 = sha256File(recorded.tgzPath)
+    if (actualTgzSha256 !== recorded.tgzSha256) {
+      problems.push('候选包文件 ' + recorded.tgzPath + ' 的 sha256 与批次记录不一致：包在批次开始后被换过或改过。')
+    }
   }
   const ok = problems.length === 0
   return {
     ok,
     problems,
-    binding: ok ? { batchName: batch.batchName, commit: recorded.commit, packageSha256: recorded.tgzSha256 } : null,
+    binding: ok
+      ? {
+          batchName: batch.batchName,
+          commit: actualCommit || recorded.commit,
+          packageSha256: actualTgzSha256 || recorded.tgzSha256,
+        }
+      : null,
   }
 }
 
