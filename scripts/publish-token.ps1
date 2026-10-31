@@ -35,6 +35,9 @@
 #                所以预发布通道也必须让 latest 指向新版本（这一步由本脚本在 publish 之后自动补）。
 #                显式 -Tag 与自动推导不一致时脚本会拒绝：一个沿 latest、一个沿 beta，正是 #1648 要防的
 #                「latest 与 beta 指向不一致」。
+#     -Candidate 候选清单 JSON 路径（#1766）。传了才做候选审计与发布字节对账：读候选冻结那一步写出的
+#                validity / sourceStable / git.commit / package.fileDigest，让 preflight 查清单票里的验证身份行
+#                与差异审计，发布前再把主包指纹与候选包指纹对账。不传则按旧口径发布，只打一行 CANDIDATE-SKIP。
 #
 # 发布自证（#1648，机器判据，不再靠人翻日志）：
 #   - 字节对账：门禁跑完先给每个待发包拍一次「逐文件清单 + 每文件 sha256」（npm pack 后用 release-integrity
@@ -47,6 +50,11 @@
 #     scripts/release-postflight.mts，发布记录评论里不再只有「发了」两个字（见 #1648 的验收判据）。
 #   - 本仓有 scripts/release-integrity.mts 才启用；五仓同步的 token 协议别处没有这套脚本时记 BYTES-SKIP，
 #     行为退回旧口径（-Tag 缺省 latest）并继续发布，不阻断。
+#   - 候选对账（#1766）：传 -Candidate <候选清单.json> 时，先校验候选清单（validity 必须是 release、
+#     sourceStable 必须是 true、提交与包指纹格式要对），再让 preflight 查清单票里的验证身份行、候选提交祖先
+#     与差异审计；发布前拍好逐文件清单后，把主包的清单指纹与候选包指纹对账：一致记 CANDIDATE-SAME；
+#     不一致但清单票有差异审计记 CANDIDATE-DIFF-AUDITED；不一致且没有审计就在发布前停下（CANDIDATE-DIFF）。
+#     没传 -Candidate 记 CANDIDATE-SKIP，按旧口径发布。
 #
 # 快协议（受理≠可见，两者解耦）：publish exit 0（+包名@版本回执）或 E409 previously-staged
 # 即证明 registry 收下，此时记 DONE（附 STAGED-待可见），不再盲等；可见性只一次采样，
@@ -63,7 +71,8 @@ param(
   [switch]$Probe,
   [switch]$FullPost,
   [switch]$SkipGate,
-  [string]$Tag = ''
+  [string]$Tag = '',
+  [string]$Candidate = ''
 )
 $ErrorActionPreference = 'Continue'
 if ($LogPath -eq '') { $LogPath = Join-Path $RepoRoot '.tmp-publish-token.log' }
@@ -87,6 +96,41 @@ function ShowPath([string]$p) {
   if ([string]::IsNullOrEmpty($p)) { return '' }
   return ((Mask $p) -replace '[A-Za-z0-9_-]{32,}', '***')
 }
+
+# ── 候选清单（#1766）：先确认这次要发的字节绑在一个允许发布的候选上 ──────────────
+# 候选清单由候选冻结那一步写出，字段见 docs/agents/real-machine-verification.md。这里只做「能不能拿它发布」
+# 的格式与状态检查；候选提交是不是发布提交的祖先、清单票有没有差异审计，交给 preflight 读票面判断。
+# 只在传了 -Candidate 时生效；没传就按旧口径发布，发布循环前打一行 CANDIDATE-SKIP 说明跳过了对账。
+$candidateCommit = ''
+$candidateDigest = ''
+$candidatePathResolved = ''
+if (-not [string]::IsNullOrWhiteSpace($Candidate)) {
+  try { $candidatePathResolved = (Resolve-Path -LiteralPath $Candidate -ErrorAction Stop).Path }
+  catch { Log ('CANDIDATE-FAIL 读不到候选清单：' + (ShowPath $Candidate) + '（路径写错、文件不存在或没有读权限）'); exit 1 }
+  $candidateJson = $null
+  try { $candidateJson = [System.IO.File]::ReadAllText($candidatePathResolved) | ConvertFrom-Json }
+  catch { Log ('CANDIDATE-FAIL 候选清单不是合法 JSON：' + (ShowPath $candidatePathResolved)); exit 1 }
+  if ([string]$candidateJson.validity -ne 'release') {
+    Log ('CANDIDATE-FAIL 候选清单的 validity 是 ' + [string]$candidateJson.validity + '，只有 release 候选能发布（development 候选不进入发布）')
+    exit 1
+  }
+  if ($candidateJson.sourceStable -ne $true) {
+    Log 'CANDIDATE-FAIL 候选清单的 sourceStable 不是 true：候选冻结之后工作树又改过，先重新冻结候选再发布'
+    exit 1
+  }
+  $candidateCommit = [string]$candidateJson.git.commit
+  if ($candidateCommit -notmatch '^[0-9a-f]{40}$') {
+    Log ('CANDIDATE-FAIL 候选清单的 git.commit 不是 40 位小写提交号：' + (Mask $candidateCommit))
+    exit 1
+  }
+  $candidateDigest = [string]$candidateJson.package.fileDigest
+  if ($candidateDigest -notmatch '^[0-9a-f]{64}$') {
+    Log ('CANDIDATE-FAIL 候选清单的 package.fileDigest 不是 64 位小写指纹：' + (Mask $candidateDigest))
+    exit 1
+  }
+  Log ('CANDIDATE ' + (ShowPath $candidatePathResolved) + ' commit=' + $candidateCommit + ' fileDigest=' + $candidateDigest)
+}
+$candidateAuditOk = $false
 
 # ── 阶段 0：取 token（只记来源，不记值） ──────────────────────────────────
 # 优先级：-TokenFile > 环境变量（$TokenEnv → NPM_TOKEN → NODE_AUTH_TOKEN）。
@@ -316,14 +360,25 @@ try {
     Push-Location $RepoRoot
     $chkArgs = @('scripts/release-preflight.mts')
     if ($DryRun) { $chkArgs += '--soft' }
+    if ($candidatePathResolved -ne '') { $chkArgs += @('--candidate', $candidatePathResolved) }
     $chkOut = (node @chkArgs 2>&1 | Out-String)
     $chkCode = $LASTEXITCODE
     Pop-Location
+    # 这一行只会在候选审计通过、且候选提交与发布提交不同但票面有差异审计时出现；
+    # 记下来给后面的发布字节对账用：指纹不同但有它，说明差异已经在清单票里说清了。
+    if ($chkOut -match 'PREFLIGHT-CANDIDATE-AUDIT') { $candidateAuditOk = $true }
     $chkTrim = $chkOut.Trim(); if ($chkTrim.Length -gt 1200) { $chkTrim = $chkTrim.Substring($chkTrim.Length - 1200) }
     if (($chkCode -ne 0) -and (-not $DryRun)) { Log ('CHECK-FAIL 真机验证清单没通过（exit=' + $chkCode + '）：' + $chkTrim); exit 1 }
     if ($chkCode -ne 0) { Log ('CHECK-SOFT 演练模式不阻断：' + $chkTrim) } else { Log ('CHECK-OK ' + $chkTrim) }
   }
-  if ($DryRun) { Log 'DRYRUN 只验到这里，不跑门禁不发布'; exit 0 }
+  if ($candidatePathResolved -eq '') { Log 'CANDIDATE-SKIP 未给 -Candidate：跳过候选包对账' }
+  if ($DryRun) {
+    if ($candidatePathResolved -ne '') {
+      Log ('CANDIDATE-PLAN 候选已校验（commit=' + $candidateCommit + ' fileDigest=' + $candidateDigest + '）；DryRun 不跑对账，真实发布时才会比对要发的字节')
+    }
+    Log 'DRYRUN 只验到这里，不跑门禁不发布'
+    exit 0
+  }
 
   # ── #1648 发布自证（一）：发布前读当前 dist-tag，算好发完应该指向哪里 ─────────────────
   # 每包一份计划：预发布版本发 beta 后还要把 latest 指过去；稳定版本只动 latest、beta 保持原样。
@@ -434,6 +489,20 @@ try {
         }
         Log ('PRE-PACK-SAME ' + $p.name + '@' + $p.version + ' ' + (Format-ManifestSummary $preManifest))
       } else { Log ('BYTES-SKIP ' + $p.name + ' 没有门禁快照可比（-SkipGate），只留发布前清单') }
+      # 候选包对账（#1766）：候选清单只描述主包（package）的字节，所以只比主包。
+      # 一致说明要发的就是候选包；不同时，只有清单票写了差异审计（preflight 打出 PREFLIGHT-CANDIDATE-AUDIT）
+      # 才继续，否则停下——发布之后 registry 不支持撤回。
+      if ($candidatePathResolved -ne '' -and $p.rel -eq 'package') {
+        $preDigest = [string]$preManifest.digest
+        if ($preDigest -eq $candidateDigest) {
+          Log ('CANDIDATE-SAME ' + $p.name + '@' + $p.version + ' 要发的字节与候选包清单一致 fileDigest=' + $candidateDigest)
+        } elseif ($candidateAuditOk) {
+          Log ('CANDIDATE-DIFF-AUDITED ' + $p.name + '@' + $p.version + ' 要发的字节与候选包清单不一致，但清单票有差异审计（preflight 的 PREFLIGHT-CANDIDATE-AUDIT）候选 fileDigest=' + $candidateDigest + ' 要发 fileDigest=' + $preDigest)
+        } else {
+          Log ('CANDIDATE-DIFF ' + $p.name + '@' + $p.version + ' 要发字节与候选包清单不一致且清单票没有差异审计，发布前停下（候选 fileDigest=' + $candidateDigest + ' 要发 fileDigest=' + $preDigest + '）')
+          exit 1
+        }
+      }
     }
 
     Push-Location $p.dir

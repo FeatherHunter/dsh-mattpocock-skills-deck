@@ -119,9 +119,11 @@
 
 > **执行主体：AI** — 下述 6 步均由 AI 按序执行，人不敲命令；第 2 步的人机交接仅为浏览器扫码一次。
 
-> **发布前必须收口真机验证清单**：本版 `[真机验证] vX.Y.Z` 清单票必须恰好一张、已关闭，而且票面正文与评论记录内部一致（场景总览表的编号集合、每条场景的结论、正文与收口评论里的各处计数都对得上），否则发布被阻断。两条发布路径都会自动跑这个检查（`scripts/publish-token.ps1` 在发布前；`scripts/wizard-release.sh` 在 Stage 3 第五步，也就是上面第 2 步之前），检查实现是 `node scripts/release-preflight.mts`；手工执行 `npm publish` 时请先自己跑一次，对不上的地方它会逐条列出并给出改法。发布成功后 `scripts/release-postflight.mts` 会给清单票补发布记录并建下一版占位票。规则见 [`docs/agents/real-machine-verification.md`](../agents/real-machine-verification.md)。
+> **发布前必须收口真机验证清单**：本版 `[真机验证] vX.Y.Z` 清单票必须恰好一张、已关闭，而且票面正文与评论记录内部一致（场景总览表的编号集合、每条场景的结论、正文与收口评论里的各处计数都对得上）；批次开始评论与每条场景结果评论都要带候选身份行，所有候选提交都要是发布提交的祖先（候选提交与发布提交不同时，票面要有「候选与发布差异审计」说明差异为什么可以接受），否则发布被阻断。两条发布路径都会自动跑这个检查（`scripts/publish-token.ps1` 在发布前；`scripts/wizard-release.sh` 在 Stage 3 第五步，也就是上面第 2 步之前），检查实现是 `node scripts/release-preflight.mts`；手工执行 `npm publish` 时请先自己跑一次，对不上的地方它会逐条列出并给出改法。发布成功后 `scripts/release-postflight.mts` 会给清单票补发布记录并建下一版占位票。规则见 [`docs/agents/real-machine-verification.md`](../agents/real-machine-verification.md)。
 
 > **发布脚本自己证明「发出去的字节 = 门禁验过的字节」（#1648）**：`scripts/release-integrity.mts` 把 npm 的 tarball 解包成「逐文件清单」——每个文件的路径、字节数、sha256，再加一个整份清单的指纹——三处各拍一次：门禁构建完之后拍一次（`GATE-SNAPSHOT`）；发布前在包目录里补跑该包的 `prepublishOnly`（发布时 npm 会跑它，可能重新生成文件）再拍一次，与门禁那份比对，不一致打 `PRE-PACK-DIFF` 并停在发布之前，一致打 `PRE-PACK-SAME`；发布完成后按 `包名@版本` 从 registry 拉回 tarball 再拍一次，与发布前那份比对，一致打 `BYTES-SAME`，不一致打 `BYTES-DIFF` 并以非零退出——此时已经发出去、npm 不支持撤回，脚本会把「必须人工核对」写进日志与退出码。比对按逐文件 sha256，不按整个 tarball 的哈希：打包元数据（时间戳、写入顺序）会让同一份内容两次打包的整体哈希不同，那个差异说明不了内容变了。
+
+> **发布前还会核一次候选身份（#1766）**：`scripts/publish-token.ps1` 支持可选 `-Candidate <candidate.json>`，在发布前把待发字节的逐文件清单指纹与候选包的 `package.fileDigest` 对账——两份指纹用同一算法（`scripts/release-integrity.mts` 的清单指纹），所以能直接比。一致就继续发布；不一致但清单票正文的「候选与发布差异审计」一节已经写清差异为什么可以接受（发布前检查会打 `PREFLIGHT-CANDIDATE-AUDIT`）时继续发布并记 `CANDIDATE-DIFF-AUDITED`；不一致又没有差异审计时打 `CANDIDATE-DIFF` 并中止发布。候选的 `validity` 是 `development`（脏树冻结的开发验证）时直接拒绝发布。不传 `-Candidate` 时记 `CANDIDATE-SKIP`，行为与今天一致，只做票面检查、不做字节对账。
 
 > **dist-tag 指向按版本形态定，发布前后各核一次**：预发布版本（版本号里带 `-`，例如 `1.9.0-beta.32`）发布时发到 `beta`，发布成功后脚本再把 `latest` 指到同一个版本，这样面板与市场拿到的都是新版；稳定版本发布时发到 `latest`，`beta` 保持发布前的指向不动。发布前脚本读一次当前各 tag，算出「发布后应该是什么样」（`TAG-PLAN`）；发布后再读一次核对（`TAG-VERIFY-OK`，不符打 `TAG-VERIFY-FAIL` 并非零退出）。发完把每包的文件数、字节数、清单指纹与各 tag 的最终指向写进发布记录评论。
 
@@ -196,6 +198,8 @@ pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish
 pwsh -NoProfile -File scripts\publish-token.ps1 -TokenFile $env:TEMP\dsh-publish-token.txt           # 正式发布（门禁 → 发布 → 一次采样）
 ```
 
+要做候选字节对账时，在正式发布那条命令后面加 `-Candidate <批次目录>\pkg\candidate.json`；对账语义见第 8 节。
+
 4. 脚本只记录来源（`TOKEN source=file path=…`），不打印 token 值；缺 token 或读不到文件时报错也只提 `-TokenFile` 与变量名，不给任何片段（误把 token 值当路径传进来时，长令牌串会先被打码再回显）。
 5. 脚本发现 token 文件放在仓库目录里时只打一行 WARN 提醒，不阻断发布；仍按第 1 条放在 `%TEMP%`，不要依赖这条提醒。
 6. 跑完立刻删：`Remove-Item -LiteralPath "$env:TEMP\dsh-publish-token.txt" -Force`。临时文件没删，等于把 token 留在磁盘上。
@@ -248,6 +252,8 @@ npm dist-tag add dsh-mattpocock-skills-deck@<版本> latest --registry https://r
 ---
 
 ## 附：修订记录
+
+- 2026-10-31 增补（#1766 候选身份与发布字节对账）：`scripts/publish-token.ps1` 新增可选 `-Candidate <candidate.json>`，发布前把待发字节的逐文件清单指纹与候选包 `package.fileDigest` 对账；一致继续，不一致但清单票有差异审计（发布前检查打 `PREFLIGHT-CANDIDATE-AUDIT`）时记 `CANDIDATE-DIFF-AUDITED` 继续，没有差异审计则 `CANDIDATE-DIFF` 中止；`development` 候选拒绝发布；不传 `-Candidate` 时记 `CANDIDATE-SKIP`，行为与以前一致。第 8 节同步，发布前清单检查补上「批次评论带候选身份行」「候选提交是发布提交祖先（不同时有差异审计）」两条。
 
 - 2026-10-30 增补（beta.32 发布实测 FETCH-FAIL 与人工恢复）：新增第 13 节，写明发布一旦失败就停止重跑（脚本对云端已可见的版本记 `SKIP 云端已有`，没有要发的包时直接输出 `DONE 本次没有要发的包` 并以 0 退出，重跑会把失败洗成成功）、只读核对三步（拉回 tarball 比 sha256、读 dist-tag）、需要时单独补 tag（E429 退避）、发布记录只追加不改写；引用 beta.32 实测的可见延迟（约 3 分钟，长于脚本 60 秒预算）。
 
