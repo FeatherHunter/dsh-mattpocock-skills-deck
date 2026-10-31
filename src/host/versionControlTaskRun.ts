@@ -223,6 +223,13 @@ export function createTaskRunner(deps: any): any {
       }
       stdinBytes = prepared.bytes
     }
+    // fast-import 靠标准输入吃饭：没给文件引用就不能空着管道跑，否则 git 会一直等输入、界面一直转圈。
+    if (meta.stdinFile && (req.stdinFile === undefined || req.stdinFile === null)) {
+      return taskFail('invalid-request', 'fast-import 必须给出输入文件引用，输入文件不能缺', {
+        reason: 'stdin-required',
+        hint: '给出普通文件的绝对路径、大小与摘要，文件内容由宿主自己打开并校验',
+      })
+    }
     const cwd: string = typeof req.cwd === 'string' && req.cwd.length > 0 ? req.cwd : repoRoot
     const cwdHash: string = hash8(cwd)
     if (typeof req.requestId === 'string' && req.requestId.length > 0) {
@@ -266,7 +273,9 @@ export function createTaskRunner(deps: any): any {
       if (parsed.percent !== null) snapshot.percent = parsed.percent
       if (parsed.bytes !== null) snapshot.receivedBytes = parsed.bytes
     }
-    const launched: any = launch({ op: req.op, args: built.args, cwd, stdinBytes, onLine, onStdoutLine: onLine })
+    // 起进程闭包是异步的（宿主执行层要先解析 git 可执行文件、报闸、再 spawn），必须等它把进程句柄交回来。
+    // 不 await 会把 Promise 当成「进程没有起来」：命令其实起了，任务却当场判失败。
+    const launched: any = await launch({ op: req.op, args: built.args, cwd, stdinBytes, onLine, onStdoutLine: onLine })
     if (!launched || launched.ok !== true) {
       const failureKind: string = (launched && launched.kind) || 'spawn-failed'
       const failedRecord: any = {
@@ -312,6 +321,21 @@ export function createTaskRunner(deps: any): any {
       }
       return summaryOf(record)
     })
+    // 在途任务还没落盘（落盘发生在收尾那一刻），查询必须把内存里的在途记录并进来，
+    // 否则任务刚开始时界面看到的是空清单——这是「查询」这条电话存在的意义。
+    const seen: Record<string, boolean> = {}
+    for (const task of tasks) seen[String(task.taskId)] = true
+    for (const entry of inflight.values()) {
+      const rec: any = entry && entry.record
+      if (!rec || rec.state !== 'running' || seen[String(rec.taskId)]) continue
+      tasks.unshift(summaryOf({
+        ...rec,
+        phase: entry.snapshot.phase,
+        percent: entry.snapshot.percent,
+        receivedBytes: entry.snapshot.receivedBytes,
+        elapsedMs: Math.max(0, now() - (rec.startedAt || now())),
+      }))
+    }
     return { ok: true, tasks, running: tasks.filter((task: any) => task.state === 'running').length }
   }
 
