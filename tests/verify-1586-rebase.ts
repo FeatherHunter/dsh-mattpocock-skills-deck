@@ -898,8 +898,10 @@ async function main() {
   const selfSpawn: string[] = hostLeaves.filter(function (rel: string) { const s: string = sourceText(rel); return s.indexOf('child_process') >= 0 || /\.spawn\s*\(/.test(s) })
   eq(selfSpawn.length, 0, 'E25 写层四片叶子都不自己起进程（全部走父文件注入的 runPinned；越界：' + selfSpawn.join(',') + '）')
   const settingsGateSource: string = sourceText('tests/verify-settings-phones.ts')
-  // 电话总数随并行票一起涨：本票合并时是 99 条，之后 #1759 迁移与备份页两��把总数推到 101，所以这格只认「更早的历史数字已退场、当前数字已在场」，不写死单一历史值。
-  check(settingsGateSource.indexOf('check(nPhones === 91') < 0 && settingsGateSource.indexOf('check(nPhones === 95') < 0 && settingsGateSource.indexOf('check(nPhones === 99') < 0 && settingsGateSource.indexOf('check(nPhones === 101') >= 0, 'E26 宿主电话计数门禁登记到一百零一条（本票合并后总数从 99 涨到 101）')
+  // 电话总数随并行票一起涨，所以这格不写死历史数字：从宿主入口数真实注册条数，再要求电话表里的期望数与它一致，并确认本票三条在表里。
+  const phoneCountE26: number = (hostIndexSource.match(/harness\.handle\(/g) || []).length
+  const declaredPhonesE26: string = (settingsGateSource.match(/check\(nPhones === (\d+),/) || [])[1]
+  check(declaredPhonesE26 !== undefined && Number(declaredPhonesE26) === phoneCountE26 && settingsGateSource.indexOf('wf.gitRebaseRead') >= 0 && settingsGateSource.indexOf('wf.gitRebaseCheck') >= 0 && settingsGateSource.indexOf('wf.gitRebaseWrite') >= 0, 'E26 宿主电话表与本票三条同名同数（当前 ' + phoneCountE26 + ' 条；写死旧数字会被并行票误伤）')
   const sameLayer: string = sourceText('tests/same-layer-baseline.json')
   const rebaseEntryFiles: string[] = ['versionControlRebaseMount.ts', 'versionControlRebaseScene.ts', 'versionControlRebaseCheck.ts', 'versionControlRebaseWrite.ts'].filter(function (name: string) { return sameLayer.indexOf(name) >= 0 })
   eq(rebaseEntryFiles.length, 4, 'E27 同层引用基线登记了变基页四片的装配扇入（缺：' + rebaseEntryFiles.join(',') + '）')

@@ -342,7 +342,10 @@ async function main(): Promise<void> {
   const copy = readText('config/copy/vcshell.yaml')
   check(copy.indexOf('vc.migrate.action.fastImport') >= 0 && copy.indexOf('vc.migrate.confirmLabel') >= 0, 'R6 界面文字走词表，键名成对存在')
   const settings = readText('tests/verify-settings-phones.ts')
-  check(settings.indexOf('宿主电话一百零一条') >= 0 && settings.indexOf('#1759') >= 0, 'R7 宿主电话条数期望已随合并后的总数更新（合到集成分支后是一百零一条，含本票两名）')
+  // 电话总数随并行票一起涨，所以这格不写死历史数字：从宿主入口数真实注册条数，再要求电话表里的期望数与它一致，并确认本票两条在表里。
+  const phoneCount = (hostIndex.match(/harness\.handle\(/g) || []).length
+  const declaredPhones = (settings.match(/check\(nPhones === (\d+),/) || [])[1]
+  check(declaredPhones !== undefined && Number(declaredPhones) === phoneCount && settings.indexOf('wf.gitMigrateCheck') >= 0 && settings.indexOf('wf.gitMigrateWrite') >= 0, 'R7 宿主电话表与本票两条同名同数（当前 ' + phoneCount + ' 条；写死旧数字会被并行票误伤）')
 
   printGateResult(GATE, total, failed ? 1 : 0)
   if (failed) process.exit(1)
