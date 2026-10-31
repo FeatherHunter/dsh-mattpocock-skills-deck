@@ -83,7 +83,9 @@ export function createConflictWrite(deps: any): any {
   function mergeConflicted(res: any): boolean {
     if (!res || res.kind !== 'non-zero') return false
     if (Number(res.exitCode) !== 1) return false
-    return /CONFLICT|Automatic merge failed|fix conflicts/i.test(String(res.stderr || ''))
+    // git merge 把冲突说明写在 stdout（Windows git 2.49 实测 stderr 为空），所以两股都要看，只看 stderr 会把「有冲突」误判成执行失败。
+    const said: string = String(res.stderr || '') + '\n' + String(res.stdout || '')
+    return /CONFLICT|Automatic merge failed|fix conflicts/i.test(said)
   }
   /** 按票里的计划跑一条或几条命令；take-side 是「先 checkout 再 add」两步，两步之间不留半途状态。 */
   async function executeSteps(exe: any, root: string, plan: any): Promise<any> {

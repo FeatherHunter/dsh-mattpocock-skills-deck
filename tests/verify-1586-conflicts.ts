@@ -33,6 +33,17 @@ function eq(actual, expected, msg) {
 function has(text, needle, msg) {
   check(String(text).indexOf(needle) >= 0, msg + '（源码里找不到 ' + needle + '）')
 }
+/** 被拒回包的固定形状：kind 在 error 里，reason 与附加字段（line 等）平铺在顶层——failPhone 的约定。 */
+function reasonOf(out) {
+  if (!out) return undefined
+  if (out.reason !== undefined) return out.reason
+  return out.error ? out.error.reason : undefined
+}
+function fieldOf(out, key) {
+  if (!out) return undefined
+  if (out[key] !== undefined) return out[key]
+  return out.error ? out.error[key] : undefined
+}
 const { createHash } = require('node:crypto')
 
 function digest16(text) {
@@ -150,6 +161,430 @@ async function main() {
   eq(textMod.conflictTextProblem('clean\n', 1024), null, 'B22 没有残留标记的整份文本可保存')
   const tBig = textMod.conflictTextProblem('x'.repeat(64), 32)
   check(tBig && tBig.reason === 'text-too-large', 'B23 超过上限的整份文本拒绝保存（实得 ' + JSON.stringify(tBig) + '）')
+
+
+  // ———— C 组：真临时 git 仓库里的冲突现场（预检签票、整份保存、选边、继续/跳过/中止、预演、rerere、标记检查） ————
+  const fixedPkg = await import(pathToFileURL(path.join(ROOT, 'src/shared/version-control/src/commands.js')).href)
+  const fixedPrefix = fixedPkg.fixedPrefix
+  const execEnv = await import(pathToFileURL(path.join(ROOT, 'src/shared/version-control/exec-envelope.js')).href)
+  const sceneMod = await import(pathToFileURL(path.join(ROOT, 'src/host/versionControlConflictScene.js')).href)
+  const checkMod = await import(pathToFileURL(path.join(ROOT, 'src/host/versionControlConflictCheck.js')).href)
+  const writeMod = await import(pathToFileURL(path.join(ROOT, 'src/host/versionControlConflictWrite.js')).href)
+  const ticketMod = await import(pathToFileURL(path.join(ROOT, 'src/shared/version-control/src/write-ticket.js')).href)
+  const GIT_VERSION = (function () {
+    // 保留「git version 」前缀原样：scene 的预演用 /git version (\d+)\.(\d+)/ 认版本，截掉前缀会让它以为读不出 git 版本。
+    const r = cp.spawnSync('git', ['--version'], { encoding: 'utf8' })
+    return String((r && r.stdout) || '').trim()
+  })()
+  const TMP_ROOT = process.env.TEMP || process.env.TMP || os.tmpdir()
+  const tmpDirs = []
+  function mkTmp(tag) { const dir = fs.mkdtempSync(path.join(TMP_ROOT, 'dswsc1586-' + tag + '-')); tmpDirs.push(dir); return dir }
+  function gitEnv(extra) { return Object.assign({}, process.env, { GIT_EDITOR: 'false' }, extra || {}) }
+  function gitRun(cwd, args, env) {
+    const res = cp.spawnSync('git', ['-C', cwd].concat(args), { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: gitEnv(env) })
+    const code = res.status === null ? -1 : res.status
+    return { code: code, stdout: res.stdout || '', stderr: res.stderr || '' }
+  }
+  function gitMust(cwd, args, env) {
+    const res = gitRun(cwd, args, env)
+    if (res.code !== 0) throw new Error('夹具 git 失败：git ' + args.join(' ') + '（退出码 ' + res.code + '，' + JSON.stringify(String(res.stderr).slice(0, 300)) + '）')
+    return res.stdout
+  }
+  function initRepo(tag) {
+    const dir = mkTmp(tag)
+    gitMust(dir, ['init', '-q', '-b', 'main'])
+    gitMust(dir, ['config', 'user.name', '门禁夹具'])
+    gitMust(dir, ['config', 'user.email', 'gate@example.invalid'])
+    gitMust(dir, ['config', 'core.autocrlf', 'false'])
+    return dir
+  }
+  function writeFileIn(dir, rel, data) {
+    const p = path.join(dir, rel)
+    fs.mkdirSync(path.dirname(p), { recursive: true })
+    fs.writeFileSync(p, data)
+    return p
+  }
+  function commitAll(dir, msg) { gitMust(dir, ['add', '-A']); gitMust(dir, ['commit', '-q', '-m', msg || '夹具提交']) }
+  /** 双方都改同一个文件：真合并一定冲突（退出码 1），留给选边、整份保存、继续、中止用。 */
+  function mergeConflictRepo(tag) {
+    const dir = initRepo(tag)
+    writeFileIn(dir, 'a.txt', 'base\n'); commitAll(dir, '基线 a')
+    gitMust(dir, ['checkout', '-q', '-b', 'other'])
+    writeFileIn(dir, 'a.txt', 'theirs\n'); commitAll(dir, '对方改 a')
+    gitMust(dir, ['checkout', '-q', 'main'])
+    writeFileIn(dir, 'a.txt', 'ours\n'); commitAll(dir, '当前改 a')
+    const m = gitRun(dir, ['merge', 'other'])
+    if (m.code !== 1) throw new Error('夹具没造出合并冲突（退出码 ' + m.code + '）：' + String(m.stderr).slice(0, 300))
+    return dir
+  }
+  /** 改/删冲突：对方删了而当前改了，索引只有阶段 1 与 2，没有「对方边」可选。 */
+  function deleteTheirsRepo(tag) {
+    const dir = initRepo(tag)
+    writeFileIn(dir, 'c.txt', 'x\n'); commitAll(dir, '基线 c')
+    gitMust(dir, ['checkout', '-q', '-b', 'other'])
+    gitMust(dir, ['rm', '-q', 'c.txt']); commitAll(dir, '对方删 c')
+    gitMust(dir, ['checkout', '-q', 'main'])
+    writeFileIn(dir, 'c.txt', 'ours\n'); commitAll(dir, '当前改 c')
+    const m = gitRun(dir, ['merge', 'other'])
+    if (m.code !== 1) throw new Error('夹具没造出改/删冲突（退出码 ' + m.code + '）：' + String(m.stderr).slice(0, 300))
+    return dir
+  }
+  /** 改名冲突：两边各改名成不同名字，未合并条目的每个路径只剩一个阶段。 */
+  function renameConflictRepo(tag) {
+    const dir = initRepo(tag)
+    writeFileIn(dir, 'r.txt', 'r\n'); writeFileIn(dir, 'keep.txt', 'k\n'); commitAll(dir, '基线 r')
+    gitMust(dir, ['checkout', '-q', '-b', 'other'])
+    gitMust(dir, ['mv', 'r.txt', 'o.txt']); commitAll(dir, '对方改名 o')
+    gitMust(dir, ['checkout', '-q', 'main'])
+    gitMust(dir, ['mv', 'r.txt', 't.txt']); commitAll(dir, '当前改名 t')
+    const m = gitRun(dir, ['merge', 'other'])
+    if (m.code !== 1) throw new Error('夹具没造出改名冲突（退出码 ' + m.code + '）：' + String(m.stderr).slice(0, 300))
+    return dir
+  }
+  /** 二进制冲突：两边改同一个带 NUL 的文件，判二进制靠读阶段内容扫 NUL。 */
+  function binaryConflictRepo(tag) {
+    const dir = initRepo(tag)
+    writeFileIn(dir, 'bin.dat', Buffer.from([0, 1, 2, 3])); commitAll(dir, '基线 bin')
+    gitMust(dir, ['checkout', '-q', '-b', 'other'])
+    writeFileIn(dir, 'bin.dat', Buffer.from([0, 9, 9, 9])); commitAll(dir, '对方改 bin')
+    gitMust(dir, ['checkout', '-q', 'main'])
+    writeFileIn(dir, 'bin.dat', Buffer.from([0, 7, 7, 7])); commitAll(dir, '当前改 bin')
+    const m = gitRun(dir, ['merge', 'other'])
+    if (m.code !== 1) throw new Error('夹具没造出二进制冲突（退出码 ' + m.code + '）：' + String(m.stderr).slice(0, 300))
+    return dir
+  }
+  /** 分支分叉但还没合并：留给 merge-tree 预演与「合并撞上冲突不算失败」两组。 */
+  function previewRepo(tag) {
+    const dir = initRepo(tag)
+    writeFileIn(dir, 'a.txt', 'base\n'); commitAll(dir, '基线 a')
+    gitMust(dir, ['checkout', '-q', '-b', 'other'])
+    writeFileIn(dir, 'a.txt', 'theirs\n'); commitAll(dir, '对方改 a')
+    gitMust(dir, ['checkout', '-q', 'main'])
+    writeFileIn(dir, 'a.txt', 'ours\n'); commitAll(dir, '当前改 a')
+    return dir
+  }
+  /** 变基冲突：topic 上那条提交在 main 上撞冲突，留给 --skip 用。 */
+  function rebaseConflictRepo(tag) {
+    const dir = initRepo(tag)
+    writeFileIn(dir, 'a.txt', 'base\n'); commitAll(dir, '基线 a')
+    gitMust(dir, ['checkout', '-q', '-b', 'topic'])
+    writeFileIn(dir, 'a.txt', 'topic\n'); commitAll(dir, 'topic 改 a')
+    gitMust(dir, ['checkout', '-q', 'main'])
+    writeFileIn(dir, 'a.txt', 'main\n'); commitAll(dir, 'main 改 a')
+    gitMust(dir, ['checkout', '-q', 'topic'])
+    const rb = gitRun(dir, ['rebase', 'main'])
+    if (rb.code === 0) throw new Error('夹具没造出变基冲突')
+    return dir
+  }
+  /** 工作区里留着冲突标记的普通文件（不是未合并条目），留给 6.15 的两半检查。 */
+  function markerRepo(tag) {
+    const dir = initRepo(tag)
+    writeFileIn(dir, 'd.txt', 'one\ntwo\nthree\n'); commitAll(dir, '基线 d')
+    writeFileIn(dir, 'd.txt', 'one\n<<<<<<< HEAD\ntwo\n=======\ntwo2\n>>>>>>> other\nthree\n')
+    return dir
+  }
+  /** 按首屏那份读数造出冲突现场需要的 screen；只取状态机与 HEAD 用到的字段，够本组断言。 */
+  function screenOf(cwd) {
+    const head = gitRun(cwd, ['rev-parse', 'HEAD'])
+    const gitDir = path.join(cwd, '.git')
+    return {
+      identity: { oid: head.code === 0 ? String(head.stdout).trim() : '' },
+      repo: {
+        merging: fs.existsSync(path.join(gitDir, 'MERGE_HEAD')),
+        rebasing: fs.existsSync(path.join(gitDir, 'rebase-merge')) || fs.existsSync(path.join(gitDir, 'rebase-apply')),
+        cherryPicking: fs.existsSync(path.join(gitDir, 'CHERRY_PICK_HEAD')),
+        reverting: fs.existsSync(path.join(gitDir, 'REVERT_HEAD')),
+      },
+      staged: [], unstaged: [], stagedCount: 0, unstagedCount: 0, conflictCount: 0, files: [],
+    }
+  }
+  /** 一套真现场夹具：读、预检、执行三件接同一份注入依赖，进程走真 git（argv 逐条记下来）。 */
+  function makeRig() {
+    const spawns = []
+    const clock = { t: 1700000000000 }
+    const deps = {
+      failPhone: function (kind, message, extra) { return Object.assign({ ok: false, error: { kind: kind, message: message } }, extra || {}) },
+      firstLine: function (text) { const lines = String(text === undefined || text === null ? '' : text).split(/\r?\n/); return String(lines[0] || '').trim() },
+      failureFromExec: execEnv.failureFromExec,
+      runPinned: async function (exe, dir, args, opts) {
+        spawns.push(args.slice())
+        const res = cp.spawnSync('git', ['-C', dir].concat(fixedPrefix(), args), { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: gitEnv({ GIT_EDITOR: (opts && opts.gitEditor) ? String(opts.gitEditor) : 'false' }) })
+        const code = res.status === null ? -1 : res.status
+        return { kind: code === 0 ? 'ok' : 'non-zero', exitCode: code, stdout: res.stdout || '', stderr: res.stderr || '', truncated: false }
+      },
+      resolveGitExecutable: async function () { return 'git' },
+      resolveRepoRoot: async function (exe, dir) { return { ok: true, root: String(dir) } },
+      readScreenOf: async function (dir) { return { ok: true, screen: screenOf(dir), tier: 'full', gitVersion: GIT_VERSION } },
+      fs: { resolve: async function (p) { return p }, readText: async function (p) { return await fsp.readFile(p, 'utf8') }, writeText: async function (p, t) { await fsp.writeFile(p, String(t), 'utf8') } },
+      fsAbsence: async function () { return { isAbsenceError: function (e) { return !!e && (e.code === 'ENOENT' || /ENOENT/.test(String((e && e.message) || ''))) } } },
+      now: function () { return clock.t },
+    }
+    const scene = sceneMod.createConflictScene(deps)
+    const seq = { n: 0 }
+    const check = checkMod.createConflictCheck({ scene: scene, failPhone: deps.failPhone, now: deps.now, randomId: function () { seq.n += 1; return 'tkt' + seq.n } })
+    const write = writeMod.createConflictWrite({ failPhone: deps.failPhone, runPinned: deps.runPinned, resolveGitExecutable: deps.resolveGitExecutable, measure: scene.measure, scene: scene, now: deps.now, tickets: check.tickets, results: check.results })
+    return { scene: scene, check: check, write: write, spawns: spawns, clock: clock }
+  }
+
+  const mergeDir = mergeConflictRepo('merge')
+  const rig = makeRig()
+  const list = await rig.check.handleConflictRead({ cwd: mergeDir, op: 'conflict-list' })
+  check(list && list.ok === true, 'C1 真合并冲突下冲突清单读得回来（实得 ' + JSON.stringify(list && list.error) + '）')
+  eq(list && list.state, 'merge', 'C2 进行中操作按 MERGE_HEAD 认成 merge')
+  check(list && list.conflictCount === 1, 'C3 冲突文件恰好一个（实得 ' + (list && list.conflictCount) + '）')
+  const firstEntry = list && list.conflicts && list.conflicts[0]
+  eq(firstEntry && firstEntry.path, 'a.txt', 'C4 冲突路径是 a.txt')
+  eq(firstEntry && firstEntry.kind, 'both-changed', 'C5 双方都改的文件归「双方改」一类')
+  eq(firstEntry && firstEntry.textKind, 'text', 'C6 文本冲突按文本处理（不误判成二进制）')
+  eq(firstEntry && firstEntry.sides, { ours: true, theirs: true, delete: true }, 'C7 双方改的三种边都可用')
+  const view = await rig.check.handleConflictRead({ cwd: mergeDir, op: 'conflict-view', path: 'a.txt' })
+  check(view && view.ok === true && view.hunkCount === 1, 'C8 面板冲突视图切出一块（实得 ' + (view && view.hunkCount) + '）')
+  check(view && String(view.text).indexOf('<<<<<<<') >= 0, 'C9 冲突视图给的是工作区原文，不是自己拼的')
+  const noView = await rig.check.handleConflictRead({ cwd: mergeDir, op: 'conflict-view', path: 'b.txt' })
+  check(noView && noView.ok === false && reasonOf(noView) === 'path-not-conflicted', 'C10 查一个没冲突的文件被拒（实得 ' + JSON.stringify(reasonOf(noView)) + '）')
+  const blockedMark = await rig.check.handleConflictCheck({ cwd: mergeDir, op: 'mark-resolved', payload: { path: 'a.txt' } })
+  check(blockedMark && blockedMark.ok === false && reasonOf(blockedMark) === 'conflict-markers', 'C11 带残留标记的文件不许标已解决（实得 ' + JSON.stringify(reasonOf(blockedMark)) + '）')
+  const saveBad = await rig.check.handleConflictCheck({ cwd: mergeDir, op: 'save-file', payload: { path: 'a.txt', text: '<<<<<<< HEAD\n' } })
+  check(saveBad && saveBad.ok === false && reasonOf(saveBad) === 'conflict-markers' && fieldOf(saveBad, 'line') === 1, 'C12 整份保存前先扫残留标记并给行号（实得 ' + JSON.stringify(saveBad && reasonOf(saveBad)) + '）')
+  const saveOk = await rig.check.handleConflictCheck({ cwd: mergeDir, op: 'save-file', payload: { path: 'a.txt', text: 'resolved\n' } })
+  check(saveOk && saveOk.ok === true && saveOk.ticket, 'C13 干净文本可预检签票')
+  const saveOut = await rig.write.handleConflictWrite({ cwd: mergeDir, op: 'save-file', ticketId: saveOk.ticket.id, requestId: 'sf-1', text: 'resolved\n' })
+  check(saveOut && saveOut.ok === true && saveOut.saved === true && saveOut.markerClean === true, 'C14 整份保存写进工作区且写后复查无残留标记（实得 ' + JSON.stringify(saveOut && saveOut.error) + '）')
+  eq(fs.readFileSync(path.join(mergeDir, 'a.txt'), 'utf8'), 'resolved\n', 'C15 保存后的文件内容就是面板提交的那份文本')
+  const saveAgain = await rig.check.handleConflictCheck({ cwd: mergeDir, op: 'save-file', payload: { path: 'a.txt', text: 'resolved2\n' } })
+  const saveDrift = await rig.write.handleConflictWrite({ cwd: mergeDir, op: 'save-file', ticketId: saveAgain.ticket.id, requestId: 'sf-2', text: 'tampered\n' })
+  check(saveDrift && saveDrift.ok === false && String(saveDrift.reason || (saveDrift.error && saveDrift.error.reason)) === 'target-changed', 'C16 保存的文本与预检摘要不符时零写入（实得 ' + JSON.stringify(saveDrift && (saveDrift.error || saveDrift.reason)) + '）')
+  eq(fs.readFileSync(path.join(mergeDir, 'a.txt'), 'utf8'), 'resolved\n', 'C17 摘要不符那一次没有动文件')
+  const markOk = await rig.check.handleConflictCheck({ cwd: mergeDir, op: 'mark-resolved', payload: { path: 'a.txt' } })
+  check(markOk && markOk.ok === true, 'C18 标记已解决可预检（实得 ' + JSON.stringify(markOk && markOk.error) + '）')
+  const markOut = await rig.write.handleConflictWrite({ cwd: mergeDir, op: 'mark-resolved', ticketId: markOk.ticket.id, requestId: 'mk-1' })
+  check(markOut && markOut.ok === true, 'C19 标记已解决执行成功（实得 ' + JSON.stringify(markOut && markOut.error) + '）')
+  const stagedStage = String(gitMust(mergeDir, ['ls-files', '--stage', '--', 'a.txt'])).trim()
+  check(stagedStage !== '' && stagedStage.indexOf(' 0\t') >= 0, 'C20 标记已解决后索引只剩阶段 0（实得 ' + JSON.stringify(stagedStage) + '）')
+  const contCheck = await rig.check.handleConflictCheck({ cwd: mergeDir, op: 'op-continue' })
+  check(contCheck && contCheck.ok === true && contCheck.confirmRequired !== true, 'C21 冲突解完可继续合并（非危险动作不要确认卡；实得 ' + JSON.stringify(contCheck && contCheck.error) + '）')
+  const contOut = await rig.write.handleConflictWrite({ cwd: mergeDir, op: 'op-continue', ticketId: contCheck.ticket.id, requestId: 'ct-1' })
+  check(contOut && contOut.ok === true, 'C22 继续合并执行成功（实得 ' + JSON.stringify(contOut && contOut.error) + '）')
+  check(fs.existsSync(path.join(mergeDir, '.git', 'MERGE_HEAD')) === false, 'C23 继续之后 MERGE_HEAD 清掉，合并真的结束了')
+  eq(String(gitMust(mergeDir, ['log', '-1', '--format=%P'])).trim().split(/\s+/).length, 2, 'C24 继续之后的提交有两个父提交')
+
+  const abortDir = mergeConflictRepo('abort')
+  const abortRig = makeRig()
+  const headBefore = String(gitMust(abortDir, ['rev-parse', 'HEAD'])).trim()
+  const abortCheck = await abortRig.check.handleConflictCheck({ cwd: abortDir, op: 'op-abort' })
+  check(abortCheck && abortCheck.ok === true && abortCheck.confirmRequired === true, 'C25 中止合并要确认卡（危险动作）')
+  const abortNo = await abortRig.write.handleConflictWrite({ cwd: abortDir, op: 'op-abort', ticketId: abortCheck.ticket.id, requestId: 'ab-0' })
+  check(abortNo && abortNo.ok === false && abortNo.error.kind === 'need-confirm', 'C26 没确认的凭证执行被拒（实得 ' + JSON.stringify(abortNo && abortNo.error) + '）')
+  const abortOut = await abortRig.write.handleConflictWrite({ cwd: abortDir, op: 'op-abort', ticketId: abortCheck.ticket.id, requestId: 'ab-1', confirmed: true })
+  check(abortOut && abortOut.ok === true, 'C27 确认后中止执行成功（实得 ' + JSON.stringify(abortOut && abortOut.error) + '）')
+  check(fs.existsSync(path.join(abortDir, '.git', 'MERGE_HEAD')) === false, 'C28 中止后 MERGE_HEAD 清掉')
+  eq(String(gitMust(abortDir, ['rev-parse', 'HEAD'])).trim(), headBefore, 'C29 中止后 HEAD 回到预检时那个提交')
+
+  const oursDir = mergeConflictRepo('ours')
+  const oursRig = makeRig()
+  const takeCheck = await oursRig.check.handleConflictCheck({ cwd: oursDir, op: 'take-side', payload: { path: 'a.txt', side: 'theirs' } })
+  check(takeCheck && takeCheck.ok === true, 'C30 整文件选对方边可预检（实得 ' + JSON.stringify(takeCheck && takeCheck.error) + '）')
+  const takeOut = await oursRig.write.handleConflictWrite({ cwd: oursDir, op: 'take-side', ticketId: takeCheck.ticket.id, requestId: 'tk-1' })
+  check(takeOut && takeOut.ok === true, 'C31 整文件选边执行成功（实得 ' + JSON.stringify(takeOut && takeOut.error) + '）')
+  eq(fs.readFileSync(path.join(oursDir, 'a.txt'), 'utf8'), 'theirs\n', 'C32 选对方边后工作区是对方版本')
+  check(String(gitMust(oursDir, ['ls-files', '--stage', '--', 'a.txt'])).indexOf(' 0\t') >= 0, 'C33 选边之后索引登记成阶段 0')
+
+  const delDir = deleteTheirsRepo('del')
+  const delRig = makeRig()
+  const delTheirs = await delRig.check.handleConflictCheck({ cwd: delDir, op: 'take-side', payload: { path: 'c.txt', side: 'theirs' } })
+  check(delTheirs && delTheirs.ok === false && reasonOf(delTheirs) === 'side-missing', 'C34 对方已删的文件不能选「对方边」（实得 ' + JSON.stringify(reasonOf(delTheirs)) + '）')
+  const delCheck = await delRig.check.handleConflictCheck({ cwd: delDir, op: 'take-side', payload: { path: 'c.txt', side: 'delete' } })
+  check(delCheck && delCheck.ok === true, 'C35 改/删冲突可预检「保留删除」（实得 ' + JSON.stringify(delCheck && delCheck.error) + '）')
+  const delOut = await delRig.write.handleConflictWrite({ cwd: delDir, op: 'take-side', ticketId: delCheck.ticket.id, requestId: 'del-1' })
+  check(delOut && delOut.ok === true, 'C36 保留删除执行成功（实得 ' + JSON.stringify(delOut && delOut.error) + '）')
+  eq(String(gitMust(delDir, ['ls-files', '--stage', '--', 'c.txt'])).trim(), '', 'C37 保留删除后索引里没有这个文件')
+  check(fs.existsSync(path.join(delDir, 'c.txt')) === false, 'C38 保留删除后工作区也没有这个文件')
+
+  const renameDir = renameConflictRepo('rename')
+  const renameRig = makeRig()
+  const rn = await renameRig.check.handleConflictRead({ cwd: renameDir, op: 'conflict-list' })
+  check(rn && rn.conflictCount === 3, 'C39 改名冲突的清单是三条未合并条目（实得 ' + (rn && rn.conflictCount) + '）')
+  eq((rn && rn.conflicts ? rn.conflicts.map(function (x) { return x.kind }) : []).sort(), ['both-deleted', 'renamed', 'renamed'], 'C40 改名冲突按「只剩单边阶段」认出来')
+
+  const binDir = binaryConflictRepo('binary')
+  const binRig = makeRig()
+  const binList = await binRig.check.handleConflictRead({ cwd: binDir, op: 'conflict-list' })
+  check(binList && binList.conflicts && binList.conflicts[0].textKind === 'binary', 'C41 二进制冲突按二进制处理，不给逐块')
+  const binView = await binRig.check.handleConflictRead({ cwd: binDir, op: 'conflict-view', path: 'bin.dat' })
+  check(binView && binView.ok === true && binView.kind === 'binary' && binView.hunks === null && binView.text === null, 'C42 二进制冲突视图只回整份、不回冲突块')
+
+  const markerDir = markerRepo('marker')
+  const markerRig = makeRig()
+  const mc1 = await markerRig.check.handleConflictRead({ cwd: markerDir, op: 'marker-check' })
+  check(mc1 && mc1.ok === true && mc1.clean === false && mc1.worktree.length === 3 && mc1.staged.length === 0, 'C43 6.15 工作区半查得出残留标记三行（实得 ' + JSON.stringify(mc1) + '）')
+  gitMust(markerDir, ['add', '--', 'd.txt'])
+  const mc2 = await markerRig.check.handleConflictRead({ cwd: markerDir, op: 'marker-check' })
+  check(mc2 && mc2.ok === true && mc2.worktree.length === 0 && mc2.staged.length === 3, 'C44 6.15 已暂存半查得出残留标记（只查工作区会漏掉这一半）')
+
+  const previewDir = previewRepo('preview')
+  const previewRig = makeRig()
+  const preview = await previewRig.check.handleConflictRead({ cwd: previewDir, op: 'merge-preview', target: 'other' })
+  check(preview && preview.ok === true && preview.clean === false, 'C45 6.10 预演给出「会冲突」而不是命令失败（实得 ' + JSON.stringify(preview && preview.error) + '）')
+  eq(preview && preview.paths, ['a.txt'], 'C46 6.10 预演点出会冲突的路径')
+  eq(fs.readFileSync(path.join(previewDir, 'a.txt'), 'utf8'), 'ours\n', 'C47 6.10 预演之后工作区仍是当前边内容（预演不动工作区）')
+  const rrView = await previewRig.check.handleConflictRead({ cwd: previewDir, op: 'rerere-view' })
+  check(rrView && rrView.ok === true && rrView.enabled === false && rrView.paths.length === 0, 'C48 6.14 rerere 未启用时如实说不启用（不假装有解法）')
+
+  const mergeRunDir = previewRepo('merge-run')
+  const mergeRunRig = makeRig()
+  const mCheck = await mergeRunRig.check.handleConflictCheck({ cwd: mergeRunDir, op: 'merge', payload: { target: 'other' } })
+  check(mCheck && mCheck.ok === true, 'C49 合并预检签票成功（实得 ' + JSON.stringify(mCheck && mCheck.error) + '）')
+  const mOut = await mergeRunRig.write.handleConflictWrite({ cwd: mergeRunDir, op: 'merge', ticketId: mCheck.ticket.id, requestId: 'mg-1' })
+  check(mOut && mOut.ok === true && mOut.conflicted === true, 'C50 合并撞上冲突不算执行失败，回包里明说有冲突（实得 ' + JSON.stringify(mOut && (mOut.error || mOut.conflicted)) + '）')
+  eq(mOut && mOut.state, 'merge', 'C51 冲突出现在回包里，界面可以立刻切到冲突视图')
+  const missingTarget = await mergeRunRig.check.handleConflictCheck({ cwd: mergeRunDir, op: 'merge', payload: { target: 'nope' } })
+  check(missingTarget && missingTarget.ok === false && reasonOf(missingTarget) === 'operation-in-progress', 'C52 合并进行中再点合并被状态机拦住（实得 ' + JSON.stringify(reasonOf(missingTarget)) + '）')
+
+  const ttlDir = mergeConflictRepo('ttl')
+  const ttlRig = makeRig()
+  const ttlCheck = await ttlRig.check.handleConflictCheck({ cwd: ttlDir, op: 'take-side', payload: { path: 'a.txt', side: 'ours' } })
+  ttlRig.clock.t += 130000
+  const ttlOut = await ttlRig.write.handleConflictWrite({ cwd: ttlDir, op: 'take-side', ticketId: ttlCheck.ticket.id, requestId: 'ttl-1' })
+  check(ttlOut && ttlOut.ok === false && ttlOut.error.reason === 'ticket-expired', 'C53 过了 120 秒票据时限就拒（实得 ' + JSON.stringify(ttlOut && ttlOut.error) + '）')
+
+  const staleDir = mergeConflictRepo('stale')
+  const staleRig = makeRig()
+  const staleCheck = await staleRig.check.handleConflictCheck({ cwd: staleDir, op: 'take-side', payload: { path: 'a.txt', side: 'ours' } })
+  gitMust(staleDir, ['add', '--', 'a.txt'])
+  const staleOut = await staleRig.write.handleConflictWrite({ cwd: staleDir, op: 'take-side', ticketId: staleCheck.ticket.id, requestId: 'st-1' })
+  check(staleOut && staleOut.ok === false && String(staleOut.reason || (staleOut.error && staleOut.error.reason)) === 'target-changed', 'C54 预检之后现场变了就零进程拒绝（实得 ' + JSON.stringify(staleOut && (staleOut.error || staleOut.reason)) + '）')
+
+  // ———— D 组：凭票执行的拒绝栈（全假依赖；每条拒绝都必须零进程、零预检重算） ————
+  const fakeClock = { t: 1700000000000 }
+  function fakeFailPhone(kind, message, extra) {
+    return Object.assign({ ok: false, error: { kind: kind, message: message } }, extra || {})
+  }
+  function fakeTicket(id, op, over) {
+    const o = over || {}
+    const ticket = ticketMod.makeTicket({ id: id, op: op, nowMs: (o.nowMs !== undefined) ? o.nowMs : fakeClock.t, headOid: 'abc123', indexFingerprint: null, indexEntries: null, target: null, repoRoot: 'C:/repo', changes: null, bindings: ticketMod.makeBindings(o.bindings || {}) })
+    ticket.plan = o.plan || { op: op, state: 'merge', target: 'other', path: 'a.txt', side: 'ours', textDigest: null, oldDigest: null }
+    ticket.confirmRequired = o.confirmRequired === true
+    ticket.decision = { verdict: 'allow', reasons: ['ok'] }
+    return ticket
+  }
+  function makeWriteRig() {
+    const calls = { measure: 0, run: 0, scene: 0 }
+    const tickets = new Map()
+    const results = new Map()
+    const emptyBindings = ticketMod.makeBindings({})
+    const scene = {
+      sceneOf: async function () { calls.scene += 1; return { ok: true, state: 'merge', conflictCount: 1, conflicts: [], headOid: 'abc123' } },
+      digest16: digest16,
+      readTextFile: async function () { return { ok: false, reason: 'missing' } },
+      writeTextFile: async function () { return { ok: true } },
+      markerCheckPathOf: async function () { return { ok: true, clean: true, markers: [] } },
+    }
+    const write = writeMod.createConflictWrite({
+      failPhone: fakeFailPhone,
+      runPinned: async function () { calls.run += 1; return { kind: 'ok', exitCode: 0, stdout: '', stderr: '', truncated: false } },
+      resolveGitExecutable: async function () { return 'git' },
+      measure: async function () { calls.measure += 1; return { ok: true, repoRoot: 'C:/repo', headOid: 'abc123', state: 'merge', conflictCount: 1, bindings: emptyBindings, scene: {} } },
+      scene: scene,
+      now: function () { return fakeClock.t },
+      tickets: tickets,
+      results: results,
+    })
+    return { write: write, tickets: tickets, results: results, calls: calls }
+  }
+  const dRig = makeWriteRig()
+  const dMissing = await dRig.write.handleConflictWrite({ cwd: 'C:/repo', op: 'merge', ticketId: 'T-no-such-ticket', requestId: 'd-missing' })
+  check(dMissing && dMissing.ok === false && reasonOf(dMissing) === 'ticket-missing' && dRig.calls.measure === 0 && dRig.calls.run === 0, 'D1 票不存在零进程拒绝（实得 ' + JSON.stringify(reasonOf(dMissing)) + '）')
+  const dRid = await dRig.write.handleConflictWrite({ cwd: 'C:/repo', op: 'merge', ticketId: 'T-rid', requestId: 'bad id!' })
+  check(dRid && dRid.ok === false && reasonOf(dRid) === 'bad-target' && dRig.calls.measure === 0 && dRig.calls.run === 0, 'D2 requestId 形状不合法当场拒（实得 ' + JSON.stringify(reasonOf(dRid)) + '）')
+  dRig.tickets.set('T-op', fakeTicket('T-op', 'merge'))
+  const dOpMismatch = await dRig.write.handleConflictWrite({ cwd: 'C:/repo', op: 'op-abort', ticketId: 'T-op', requestId: 'd-op' })
+  check(dOpMismatch && dOpMismatch.ok === false && reasonOf(dOpMismatch) === 'ticket-op-mismatch' && dRig.calls.measure === 0 && dRig.calls.run === 0, 'D3 票不是为这个动作签的零进程拒绝（实得 ' + JSON.stringify(reasonOf(dOpMismatch)) + '）')
+  dRig.tickets.set('T-confirm', fakeTicket('T-confirm', 'op-skip', { confirmRequired: true }))
+  const dNeedConfirm = await dRig.write.handleConflictWrite({ cwd: 'C:/repo', op: 'op-skip', ticketId: 'T-confirm', requestId: 'd-confirm' })
+  check(dNeedConfirm && dNeedConfirm.ok === false && reasonOf(dNeedConfirm) === 'need-confirm' && dRig.calls.measure === 0 && dRig.calls.run === 0, 'D4 危险动作没带确认当场拒（实得 ' + JSON.stringify(reasonOf(dNeedConfirm)) + '）')
+  dRig.tickets.set('T-expired', fakeTicket('T-expired', 'op-abort', { confirmRequired: true, nowMs: fakeClock.t - 130000 }))
+  const dExpired = await dRig.write.handleConflictWrite({ cwd: 'C:/repo', op: 'op-abort', ticketId: 'T-expired', requestId: 'd-expired', confirmed: true })
+  check(dExpired && dExpired.ok === false && reasonOf(dExpired) === 'ticket-expired' && dRig.calls.measure === 0 && dRig.calls.run === 0, 'D5 过了 120 秒票据时限零进程拒绝（实得 ' + JSON.stringify(reasonOf(dExpired)) + '）')
+  dRig.tickets.set('T-bogus', fakeTicket('T-bogus', 'bogus-op'))
+  const dBogus = await dRig.write.handleConflictWrite({ cwd: 'C:/repo', op: 'bogus-op', ticketId: 'T-bogus', requestId: 'd-bogus' })
+  check(dBogus && dBogus.ok === false && reasonOf(dBogus) === 'bad-target' && dRig.calls.measure === 0 && dRig.calls.run === 0, 'D6 动作不在白名单里零进程拒绝（实得 ' + JSON.stringify(reasonOf(dBogus)) + '）')
+  dRig.tickets.set('T-replay', fakeTicket('T-replay', 'op-continue'))
+  const dFirst = await dRig.write.handleConflictWrite({ cwd: 'C:/repo', op: 'op-continue', ticketId: 'T-replay', requestId: 'd-replay' })
+  const dRunAfterFirst = dRig.calls.run
+  const dSecond = await dRig.write.handleConflictWrite({ cwd: 'C:/repo', op: 'op-continue', ticketId: 'T-replay', requestId: 'd-replay' })
+  check(dFirst && dFirst.ok === true && dRunAfterFirst === 1, 'D7 第一次执行真的跑了一条命令（实得跑 ' + dRunAfterFirst + ' 条）')
+  check(dSecond && dSecond.reused === true && dSecond.ok === true && dRig.calls.run === dRunAfterFirst, 'D8 同一个 requestId 重放不重复执行（跑命令次数 ' + dRunAfterFirst + ' → ' + dRig.calls.run + '）')
+
+  // ———— E 组：七个登记点、理由词条、能力账本对账与「写层不自起进程」 ————
+  const ledger = await import(pathToFileURL(path.join(ROOT, 'src/shared/version-control/src/capability-ledger.js')).href)
+  const opsSrc = sourceText('src/shared/version-control/src/conflict-ops.ts')
+  const sceneSrc = sourceText('src/host/versionControlConflictScene.ts')
+  const checkSrc = sourceText('src/host/versionControlConflictCheck.ts')
+  const writeSrc = sourceText('src/host/versionControlConflictWrite.ts')
+  const mountSrc = sourceText('src/host/versionControlConflictMount.ts')
+  const hostSrc = sourceText('src/host/versionControl.ts')
+  const indexSrc = sourceText('src/host/index.ts')
+  const timeoutsYaml = sourceText('config/timeouts.yaml')
+  const timeGen = sourceText('scripts/generate-time-config.mts')
+  const timeGate = sourceText('tests/verify-time-config.ts')
+  const reasonSrc = sourceText('src/shared/version-control/src/write-reasons.ts')
+  const writeReasonsMod = await import(pathToFileURL(path.join(ROOT, 'src/shared/version-control/src/write-reasons.js')).href)
+  const settingsGate = sourceText('tests/verify-settings-phones.ts')
+  function countOf(text, needle) { return String(text).split(needle).length - 1 }
+  eq(shared.CONFLICT_PHONES, { check: 'wf.gitConflictCheck', write: 'wf.gitConflictWrite' }, 'E1 客户端电话表登记两条冲突向导电话')
+  check(countOf(mountSrc, "loggedPhone('wf.gitConflictCheck'") === 1 && countOf(mountSrc, "loggedPhone('wf.gitConflictWrite'") === 1, 'E2 装配壳把预检与执行各包一层 host.call 日志')
+  has(mountSrc, 'createConflictMount', 'E3 装配壳导出 createConflictMount')
+  check(countOf(hostSrc, 'createConflictMount(') === 1 && countOf(hostSrc, 'handleGitConflicts:') === 1 && countOf(hostSrc, 'handleGitConflictCheck:') === 1 && countOf(hostSrc, 'handleGitConflictWrite:') === 1, 'E4 父层装配冲突向导三条电话并接出票表')
+  check(countOf(indexSrc, "'wf.gitConflicts'") === 1 && countOf(indexSrc, "'wf.gitConflictCheck'") === 1 && countOf(indexSrc, "'wf.gitConflictWrite'") === 1, 'E5 宿主入口注册三条电话各一次')
+  check(indexSrc.indexOf('h.handleGitConflicts(args)') >= 0 && indexSrc.indexOf('h.handleGitConflictCheck(args)') >= 0 && indexSrc.indexOf('h.handleGitConflictWrite(args)') >= 0, 'E6 宿主入口三条注册转调父层对应方法')
+  has(timeoutsYaml, 'vcConflictReadTimeoutMs: 15000', 'E7 超时配置登记冲突向导读时限')
+  has(timeoutsYaml, 'vcConflictWriteTimeoutMs: 15000', 'E8 超时配置登记冲突向导写时限')
+  has(timeGen, "['vcConflictReadTimeoutMs', 'VC_CONFLICT_READ_TIMEOUT_MS'", 'E9 时间常量生成器登记读时限键')
+  has(timeGen, "['vcConflictWriteTimeoutMs', 'VC_CONFLICT_WRITE_TIMEOUT_MS'", 'E10 时间常量生成器登记写时限键')
+  has(timeGate, "access: 'VC_CONFLICT_READ_TIMEOUT_MS'", 'E11 时间配置门禁登记读数叶子用的常量')
+  has(timeGate, "access: 'VC_CONFLICT_WRITE_TIMEOUT_MS'", 'E12 时间配置门禁登记执行叶子用的常量')
+  has(sceneSrc, 'VC_CONFLICT_READ_TIMEOUT_MS', 'E13 读数叶子真的从时间常量取超时')
+  has(writeSrc, 'VC_CONFLICT_WRITE_TIMEOUT_MS', 'E14 执行叶子真的从时间常量取超时')
+  const writeIds = ['merge', 'merge-ff-only', 'merge-no-ff', 'merge-squash', 'take-side', 'save-file', 'mark-resolved', 'op-continue', 'op-skip', 'op-abort']
+  const missingInCheck = writeIds.filter(function (id) { return countOf(checkSrc, "'" + id + "'") < 1 })
+  eq(missingInCheck, [], 'E15 预检判定分支覆盖十条写动作（缺一条就会永远落 unknown）')
+  const missingInWrite = writeIds.filter(function (id) { return countOf(writeSrc, "'" + id + "'") < 1 })
+  eq(missingInWrite, ['op-abort'], 'E16 执行叶子按动作拼 argv：只有中止走兜底分支（其余九个都点名）')
+  const readIds = ['conflict-list', 'conflict-view', 'merge-preview', 'rerere-view']
+  const missingRead = readIds.filter(function (id) { return countOf(checkSrc, "'" + id + "'") < 1 })
+  eq(missingRead, [], 'E17 只读四类分发都在预检叶子里（第 5 类标记检查走兜底分支）')
+  has(checkSrc, 'scene.markerCheckOf(', 'E18 6.15 标记检查接在预检叶子上')
+  has(checkSrc, 'CONFLICT_CHECK_CONTRACT', 'E19 预检回包带契约名（界面据此判版本）')
+  has(opsSrc, 'CONFLICT_CHECK_VERSION', 'E20 协议层声明契约版本')
+  has(writeSrc, 'gitEditor', 'E21 继续操作把编辑器换成必定成功的 true（第 7 节：其余动作保持必失败编辑器）')
+  const reasonIds = ['conflict-markers', 'path-not-conflicted', 'side-missing', 'binary-file', 'target-missing', 'version-unsupported', 'text-too-large', 'wrong-operation', 'no-operation', 'unmerged-files', 'bad-side', 'fast-forward-impossible']
+  const missingReason = reasonIds.filter(function (id) { return reasonSrc.indexOf("'" + id + "'") < 0 })
+  eq(missingReason, [], 'E22 十二种新理由都进了理由表')
+  const hintless = reasonIds.filter(function (id) { const hint = writeReasonsMod.writeHintFor(id); return typeof hint !== 'string' || hint === '' })
+  eq(hintless, [], 'E23 每种新理由都有给人看的一句话（失败话术同源，不各写一套）')
+  const conflictCaps = ledger.CAPABILITIES.filter(function (c) { return c.page === 'conflicts' })
+  eq(conflictCaps.map(function (c) { return c.id }).sort(), writeIds.concat(readIds.concat(['marker-check'])).map(function (id) { return shared.conflictOpMetaOf(id).capId }).sort(), 'E24 能力账本域 6 的十五条与动作表逐条对上')
+  check(conflictCaps.length === 15 && conflictCaps.every(function (c) { return c.primaryEntry === '冲突向导' }), 'E25 域 6 十五条的主入口都是冲突向导（实得 ' + conflictCaps.length + ' 条）')
+  function conflictGap(caps) {
+    const have = caps.map(function (c) { return c.id })
+    return shared.CONFLICT_OPS.map(function (o) { return o.capId }).filter(function (id) { return have.indexOf(id) < 0 })
+  }
+  eq(conflictGap(conflictCaps), [], 'E26 账本与动作表对账零缺口')
+  const factBite = conflictGap(conflictCaps.filter(function (c) { return c.id !== '6.8' }))
+  eq(factBite, ['6.8'], 'E27 反证：账本里少一条对账必须立刻点名（实得 ' + JSON.stringify(factBite) + '）')
+  const ttlTicket = fakeTicket('T-ttl', 'merge')
+  eq(ttlTicket.expiresAtMs - ttlTicket.checkedAtMs, 120000, 'E28 票据时限仍是 120 秒（只管预检新鲜度）')
+  const leafSources = { scene: sceneSrc, check: checkSrc, write: writeSrc, mount: mountSrc }
+  const selfSpawn = Object.keys(leafSources).filter(function (k) { return /child_process|\.spawn\(/.test(leafSources[k]) })
+  eq(selfSpawn, [], 'E29 写层与装配壳都不自己起进程（全走父层注入的 runPinned）')
+  has(settingsGate, 'nPhones === 85', 'E30 宿主电话总数登记为八十五条（三条冲突向导电话已计入）')
+  const writeTag = ['ticket-missing', 'ticket-op-mismatch', 'ticket-expired', 'need-confirm', 'stale-repo', 'target-changed', 'conflict-markers', 'bad-text', 'unknown-write-failure']
+  const missingTag = writeTag.filter(function (id) { return writeSrc.indexOf("'" + id + "'") < 0 })
+  eq(missingTag, [], 'E31 执行叶子按固定理由标识符拒绝（界面照同一套话术画）')
+
+  for (let i = 0; i < tmpDirs.length; i += 1) {
+    try { fs.rmSync(tmpDirs[i], { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }) } catch (e) { console.log('  INFO 临时仓库没删干净（不影响结论）：' + tmpDirs[i]) }
+  }
 
   await printGateResult(GATE, total, failed)
   process.exit(failed ? 1 : 0)

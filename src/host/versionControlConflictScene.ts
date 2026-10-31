@@ -238,7 +238,8 @@ export function createConflictScene(deps: any): any {
     } else {
       return { ok: false, envelope: fail('unsupported', 'version-unsupported', '读不出 git 版本，预演合并这一步先不做（它需要 2.38 及以上）', { needed: '2.38', gitVersion: ver }) }
     }
-    const argv: string[] = ['merge-tree', '--write-tree', '--name-only', String(target)]
+    // merge-tree 要两个分支名：第一个钉死当前 HEAD，第二个是面板选的合并目标；只传一个会被 git 当用法错误。
+    const argv: string[] = ['merge-tree', '--write-tree', '--name-only', 'HEAD', String(target)]
     const res: any = await runPinned(b.exe, b.root, argv, { stdoutLimit: READ_LIMIT, timeoutMs: VC_CONFLICT_READ_TIMEOUT_MS })
     const bad: any = res.kind === 'ok' || res.kind === 'non-zero' ? null : failureFromExec(res, '预演合并这一步')
     if (bad) return { ok: false, envelope: bad }
