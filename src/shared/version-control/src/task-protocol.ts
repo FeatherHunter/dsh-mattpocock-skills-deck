@@ -270,6 +270,16 @@ export function taskArgsFor(op: any, args: any): TaskArgResult {
     return { ok: true, args: ['archive', '--format=tar', '--output=' + a.outputPath, a.ref] }
   }
   if (op === 'bundle') {
+    // 离线包三件事（#1759 T23，11.13）：create 产文件、verify 只校验、unbundle 把包里的引用装回当前仓库。
+    // mode 缺省是 create，此时 argv 与 T19 之前逐字一致；verify / unbundle 吃的是 filePath（已存在的包），
+    // 两者的 argv 形状固定为 bundle <verify|unbundle> <文件>，没有别的选项可传。
+    const mode = a.mode === undefined ? 'create' : String(a.mode)
+    if (mode !== 'create' && mode !== 'verify' && mode !== 'unbundle') return badArg('bad-mode', '离线包只支持 create、verify 与 unbundle 三种动作')
+    if (mode !== 'create') {
+      const inputProblem = taskPathProblem(a.filePath)
+      if (inputProblem) return badArg('bad-path', inputProblem)
+      return { ok: true, args: ['bundle', mode, a.filePath] }
+    }
     const pathProblem = taskPathProblem(a.outputPath)
     if (pathProblem) return badArg('bad-path', pathProblem)
     const out = ['bundle', 'create', a.outputPath]

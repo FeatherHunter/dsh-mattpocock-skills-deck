@@ -73,6 +73,9 @@ const VC_FILES = [
   //   与构建同序排在客户端两叶之前。
   'src/shared/version-control/src/sync-actions.ts',
   'src/shared/version-control/src/sync-rules.ts',
+  // #1759：迁移与备份域（11.1 / 11.12 / 11.13 与 5.13，加 svn 补充块）的动作表、参数守卫与计划摘要，
+  //   与构建同序排在客户端两叶之前；界面不手抄动作名单与命令原文。
+  'src/shared/version-control/src/migrate-actions.ts',
   // #1751：贮藏十条的规则真源（动作名单、版本门、危险档、命令拼装与恢复路径）。
   'src/shared/version-control/src/stash-rules.ts',
   // #1756 克隆向导的共享层两片（与构建同序）：地址与选项口径 → 预检票据的契约与目标现场形状。
@@ -127,6 +130,8 @@ const VC_FILES = [
   'src/client/views/versionControl/vcRemoteData.js',
   'src/client/views/versionControl/vcRemotePage.js',
   'src/client/views/versionControl/vcSyncPage.js', // #1755：同步段正文（十个动作、理由、租约、确认卡、任务区；挂在远端页正文末尾）
+  // #1759 迁移与备份页：数据层在前、正文在后（与构建同序，页面壳的挂载段要看到正文那一叶）。
+  'src/client/views/versionControl/vcMigrateData.js',
   // #1745 历史高级查询：数据层（十条能力的目录与读取）与面板画法都排在页面壳之前。
   'src/client/views/versionControl/vcQuery.js',
   'src/client/views/versionControl/vcQueryView.js',
@@ -138,9 +143,13 @@ const VC_FILES = [
   // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
   'src/client/views/versionControl/vcStashOps.js',
   'src/client/views/versionControl/vcStashPage.js',
+  // #1761 诊断页两片（与构建同序）：先数据与动作层，再页面正文；页面壳只在诊断页且拿到读数时挂它。
+  'src/client/views/versionControl/vcDiagnostics.js',
+  'src/client/views/versionControl/vcDiagnosticsPage.js',
   // #1748 变基待办页的历史改写面板（与构建同序）：先数据层，再页面本体，都排在页面壳之前。
   'src/client/views/versionControl/vcUndoOps.js',
   'src/client/views/versionControl/vcUndoPage.js',
+  'src/client/views/versionControl/vcMigratePage.js', // #1759：迁移与备份页正文（九个动作、只读结果、确认卡与任务区；壳要调它）
   'src/client/views/versionControl/vcClonePage.js', // #1756：迁移页 › 克隆向导（自持表单与进度状态；排在页面壳之前，壳里会挂它）
   // #1747 冲突向导两叶（与构建同序）：先动作模型（15 条能力的出入参形状），再页面正文；壳的挂载段要看到页面体那一叶。
   'src/client/views/versionControl/vcConflictsOps.js',
@@ -203,6 +212,13 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'judgeSync', 'syncConfirmOf', 'syncReasonTextOf',
   'VC_SYNC_PHONES', 'VC_SYNC_ACTION_ROWS', 'vcNewSyncReads', 'vcSyncStateOf', 'vcSyncDataOf', 'vcSyncErrorOf', 'vcSyncTaskOf',
   'vcApplySyncReply', 'vcApplySyncWriteReply', 'vcReadSyncCheck', 'vcRunSyncWrite', 'vcSyncModelOf', 'vcSyncPageNode',
+  // #1759 迁移与备份：共享动作表与计划、客户端数据层与正文叶。
+  'MIGRATE_ACTIONS', 'MIGRATE_CHECK_CONTRACT', 'MIGRATE_CHECK_VERSION', 'migrateActionOf', 'migrateActionIds',
+  'migratePathProblem', 'migrateRefProblem', 'migrateBranchProblem', 'migrateUrlProblem', 'migrateVersionAtLeast',
+  'migratePlanOf', 'migratePlanDigestInput',
+  'VC_MIGRATE_PHONES', 'VC_MIGRATE_ACTION_ROWS', 'vcNewMigrateReads', 'vcMigrateStateOf', 'vcMigrateDataOf',
+  'vcMigrateErrorOf', 'vcMigrateTaskOf', 'vcApplyMigrateReply', 'vcApplyMigrateWriteReply', 'vcReadMigrateCheck',
+  'vcRunMigrateWrite', 'vcMigrateModelOf', 'vcMigratePageNode',
   // #1745 历史高级查询（3.4–3.13）：目录、输入校验、一次读取、空结果与截断读数、面板节点与组件。
   'VC_QUERY_PHONE', 'VC_QUERY_COUNT_MAX', 'VC_QUERY_BLAME_SPAN_MAX', 'VC_QUERY_COMPARE_MAX', 'VC_QUERY_RANGE_MAX',
   'vcQueryCatalogOf', 'vcQueryEntriesOf', 'vcQueryEntryOf', 'vcQueryDefaultsOf', 'vcQueryInputsOf', 'vcQueryInputValueOf',
@@ -236,6 +252,14 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcStashStagedStateOf', 'vcStashOpVisibleOf', 'vcStashNeedsConfirmOf', 'vcStashConfirmOf', 'vcStashConfirmPayloadOf', 'vcStashActionPayloadOf', 'vcStashCallOf',
   'vcStashFailKeyOf', 'vcStashResultOf', 'vcStashApplyReply', 'vcStashRecentOf', 'vcStashShortOidOf', 'vcStashWhenOf',
   'vcStashPageNode', 'VC_STASH_PAGE_SOURCE',
+  // #1761 诊断页与 5.12 替换：电话名、查询目录、动作层、页面正文（13.3 / 13.14 只画指针，13.13 只读）。
+  'VC_DIAG_PHONES', 'VC_DIAG_QUERY_ROWS', 'VC_DIAG_BISECT_ACTIONS', 'VC_DIAG_POINTERS',
+  'VC_DIAG_BISECT_CAP', 'VC_DIAG_PATCH_CAP', 'VC_DIAG_TRAILER_CAP', 'VC_DIAG_REPLACE_CAP',
+  'vcDiagnosticsStateNew', 'vcDiagnosticsInputOf', 'vcDiagnosticsReadPayloadOf', 'vcDiagnosticsPatchPayloadOf',
+  'vcDiagnosticsTrailerPayloadOf', 'vcDiagnosticsReplaceListPayloadOf', 'vcDiagnosticsWritePayloadOf', 'vcDiagnosticsDangerousOf',
+  'vcDiagnosticsCallOf', 'vcDiagnosticsFailKeyOf', 'vcDiagnosticsShortOidOf', 'vcDiagnosticsResultOf', 'vcDiagnosticsRowsOf',
+  'vcDiagnosticsApplyReadReply', 'vcDiagnosticsApplyWriteReply', 'vcDiagnosticsActionsOf',
+  'vcDiagnosticsMountNode', 'vcDiagnosticsPageNode', 'VC_DIAGNOSTICS_SOURCE', 'VC_DIAG_PAGE_SOURCE',
   // #1752 工作树页：共享动作层的八条动作与判定、数据层模型、处理层参数整形、页面体与八条入口。
   'WORKTREE_ACTIONS', 'WORKTREE_CAP_IDS', 'WORKTREE_REASONS', 'worktreeJudge', 'worktreeArgsOf', 'worktreeRowsOf', 'worktreePruneEntriesOf',
   'VC_WORKTREES_ENTRY_DEFS', 'VC_WORKTREE_PHONES', 'VC_WORKTREES_PAGE_SOURCE', 'VC_WORKTREES_DATA_SOURCE',
@@ -403,12 +427,15 @@ async function main() {
   // #1751 贮藏页那一族（十条动作名、版本门、确认卡、最近丢弃与失败话术）。
   const vcStashMod = await import(locUrl('src/client/kernel/locale-vcstash.js'))
   const L_VCSTASH = vcStashMod.L_VCSTASH
+  // #1761 诊断页那一族（十三条只读查询与替换对象的说明、字段、失败分类与九个理由）。
+  const vcDiagLocMod = await import(locUrl('src/client/kernel/locale-vcdiagnostics.js'))
+  const L_VCDIAGNOSTICS = vcDiagLocMod.L_VCDIAGNOSTICS
   // #1748 变基待办页历史改写那一族（五条动作名、字段说明、确认卡与恢复点、失败话术）。
   const vcUndoMod = await import(locUrl('src/client/kernel/locale-vcundo.js'))
   const L_VCUNDO = vcUndoMod.L_VCUNDO
   LOC = {
-    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh, L_VCUNDO.zh, L_VCSUBMODULES.zh),
-    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en, L_VCUNDO.en, L_VCSUBMODULES.en),
+    zh: Object.assign({}, L_VCDIAGNOSTICS.zh, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh, L_VCUNDO.zh, L_VCSUBMODULES.zh),
+    en: Object.assign({}, L_VCDIAGNOSTICS.en, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en, L_VCUNDO.en, L_VCSUBMODULES.en)
   }
   tZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
   tEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
@@ -1355,6 +1382,113 @@ async function main() {
   const pPlainDecision = VIEW.judge(pScreen, 'commit')
   const pAmendDecision = VIEW.commitDecisionOf(pPlainDecision, VIEW.commitPlanOf({ mode: 'amend' }), pScreen)
   check(pPlainDecision.verdict === 'block' && pPlainDecision.reasons.indexOf('nothing-staged') >= 0 && pAmendDecision.verdict === 'allow', 'P13 提交形态判定与宿主同源（普通提交拦住 nothing-staged，修订只改说明时放行）')
+
+  // ---- DG 组：#1761 诊断页（域 13 十四条 + 5.12 替换对象）----
+  // 口径按票面写死：13.1 与 5.12 是本页仅有的两个受控写（都走预检签票 → 确认 → 凭票执行）；
+  //   13.2 是二分范围读数（刷新按钮，不另算一条主入口）；13.3 / 13.14 的主入口在别的页，只画指针；
+  //   13.13 只读展示（写入在提交页的「追加签名行」）；13.12 只做 apply --check 预演。
+  const dgReads = readsOf(pScreen)
+  const dgStateOf = function (v: any, patch: any) { return Object.assign({}, v.vcDiagnosticsStateNew(), patch || {}) }
+  const dgRenderOf = function (v: any, patch: any) {
+    const opts: any = {
+      page: 'diagnostics', width: 460, skin: 'dark', reads: dgReads, diagnostics: dgStateOf(v, patch),
+      onDiagnosticsRead: function () {}, onDiagnosticsWrite: function () {}, onDiagnosticsEdit: function () {},
+      onDiagnosticsConfirm: function () {}, onDiagnosticsCancel: function () {},
+    }
+    try { return renderToStaticMarkup(v.vcRenderTabAt(h, tZh, opts)) } catch (e) { console.log('    （诊断页渲染抛错：' + ((e && e.message) || e) + '）'); return '' }
+  }
+  const dgCapCountOf = function (html: string, cap: string) { return attrValuesOf(html, 'data-cap-control').filter(function (x) { return x === cap }).length }
+  const dgReplaceRows = ['aaaa1111bbbb', 'cccc2222dddd']
+  const dgPlain = dgRenderOf(VIEW, null)
+  check(typeof VIEW.vcDiagnosticsPageNode === 'function' && typeof VIEW.vcDiagnosticsMountNode === 'function' && VIEW.VC_DIAG_PHONES.read === 'wf.gitDiagnosticsRead' && VIEW.VC_DIAG_PHONES.check === 'wf.gitDiagnosticsCheck' && VIEW.VC_DIAG_PHONES.write === 'wf.gitDiagnosticsWrite' && VIEW.VC_DIAG_PAGE_SOURCE === 'src/client/views/versionControl/vcDiagnosticsPage.ts', 'DG1 诊断页两片与三条电话已按构建次序拼进闭包（读 / 预检 / 凭票执行各一条，电话名只有一处定义）')
+  const dgChangesHtml = shellHtmlOf({ page: 'changes', width: 460, skin: 'dark', reads: dgReads })
+  check(dgPlain.indexOf('data-vc-diag-panel="1"') >= 0 && dgPlain.indexOf('data-vc-page="diagnostics"') >= 0 && dgChangesHtml.indexOf('data-vc-diag-panel') < 0, 'DG2 只有诊断页画出正文面板（拿到读数才挂，别的页签不被塞进来）')
+  const dgOps = attrValuesOf(dgPlain, 'data-vc-diag-op')
+  check(dgCapCountOf(dgPlain, '13.1') === 5 && ['bisect-start', 'bisect-bad', 'bisect-good', 'bisect-skip', 'bisect-reset'].every(function (op) { return dgOps.indexOf(op) >= 0 }), 'DG3 13.1 二分是受控写：开始 / 标坏 / 标好 / 跳过 / 重置五颗按钮（各自带动作名，不提供任意命令）')
+  const dgReadCaps = ['13.4', '13.5', '13.6', '13.7', '13.8', '13.9', '13.10', '13.11']
+  check(dgReadCaps.every(function (cap) { return dgCapCountOf(dgPlain, cap) === 1 && attrValuesOf(dgPlain, 'data-vc-diag-row').indexOf(cap) >= 0 }), 'DG4 13.4–13.11 八条只读查询各有一个查询按钮和一个输入行（能力与查询种类都在数据层一处定义）')
+  check(dgCapCountOf(dgPlain, '13.2') === 0 && attrValuesOf(dgPlain, 'data-vc-diag-read-btn').indexOf('13.2') >= 0, 'DG5 13.2 二分范围是刷新式读数：有刷新按钮、不另占一个 data-cap-control（主入口仍由能力行负责）')
+  const dgPatch = dgRenderOf(VIEW, { inputs: { '13.12': { patch: 'diff --git a/a.txt b/a.txt' } } })
+  check(dgPatch.split('<textarea').length - 1 === 1 && dgPatch.indexOf('data-vc-diag-input="13.12.patch"') >= 0 && dgPatch.indexOf('rows="6"') >= 0 && dgCapCountOf(dgPatch, '13.12') === 1 && dgPatch.indexOf(tZh('vc.diag.patch.preview')) >= 0, 'DG6 13.12 只做预演：补丁写在多行输入框里，按钮文字就是「预演补丁」（不提供真实应用）')
+  check(dgCapCountOf(dgPlain, '13.13') === 0 && dgPlain.indexOf('data-vc-diag-readonly="13.13"') >= 0 && dgPlain.indexOf(tZh('vc.diag.trailer.note')) >= 0, 'DG7 13.13 尾部签名行本页只读：没有按钮、明说写入在提交页的「追加签名行」')
+  check(attrValuesOf(dgPlain, 'data-vc-diag-pointer').join(',') === '13.3,13.14' && attrValuesOf(dgPlain, 'data-vc-diag-pointer-page').join(',') === 'search,commits' && dgCapCountOf(dgPlain, '13.3') === 0 && dgCapCountOf(dgPlain, '13.14') === 0, 'DG8 13.3 / 13.14 的主入口在别的页：本页只画一条指回全库搜索、提交历史页的指针，不给按钮')
+  const dgReadOnlyJudgmentOf = function (v: any) {
+    const html = dgRenderOf(v, null)
+    return dgCapCountOf(html, '13.13') === 0 && html.indexOf('data-vc-diag-readonly="13.13"') >= 0
+  }
+  const dgReplaceJudgmentOf = function (v: any) {
+    const html = dgRenderOf(v, { reads: { '5.12': { kind: 'replace-list', atMs: NOW, rows: dgReplaceRows } } })
+    const at = html.indexOf('data-vc-diag-undo="' + dgReplaceRows[0] + '"')
+    const seg = at < 0 ? '' : html.slice(at, at + 500)
+    return dgCapCountOf(html, '5.12') === 3 && seg.indexOf('replace-delete') >= 0 && seg.indexOf('data-cap-control="5.12"') >= 0
+  }
+  const dgPointerJudgmentOf = function (v: any) {
+    const html = dgRenderOf(v, null)
+    return attrValuesOf(html, 'data-vc-diag-pointer').join(',') === '13.3,13.14'
+  }
+  check(dgReplaceJudgmentOf(VIEW), 'DG9 5.12 替换对象：一颗建替换按钮、每条替换各一颗撤销按钮（撤销就在那一行上，--delete 才能一键撤）')
+  const dgPrimary = attrValuesOf(dgPlain, 'data-cap-primary')
+  check(dgPrimary.length === VIEW.PAGE_COUNTS.diagnostics && new Set(dgPrimary).size === dgPrimary.length && dgPrimary.indexOf('13.1') >= 0 && dgPrimary.indexOf('13.13') >= 0, 'DG10 面板不抢主入口标记：诊断页仍是 ' + VIEW.PAGE_COUNTS.diagnostics + ' 条 data-cap-primary，本页面板的按钮只带 data-cap-control')
+  const dgConfirm = dgRenderOf(VIEW, { confirm: { cap: '5.12', op: 'replace-create', ticketId: 't1', verb: '建立替换', target: 'aaaa → bbbb' } })
+  check(dgConfirm.indexOf('data-vc-diag-confirm="replace-create"') >= 0 && attrValuesOf(dgConfirm, 'data-vc-confirm-seg').join(',') === 'what,wont,reversible,verb' && dgConfirm.indexOf('data-focus-default="cancel"') >= 0 && dgConfirm.indexOf('data-vc-diag-confirm-go') >= 0, 'DG11 5.12 建替换是危险动作：确认卡贴在这一块里、四段齐全、默认焦点在取消键')
+  const dgFail = dgRenderOf(VIEW, { results: { '5.12': { ok: false, failKey: 'vc.diag.reason.noReplace', git: 'fatal: replace ref ... does not exist', message: '撤销失败' } } })
+  const dgReplaceBlockAt = dgFail.indexOf('data-vc-diag-block="replace"')
+  const dgCreateAt = dgFail.indexOf('data-vc-diag-op="replace-create"')
+  const dgReplaceFailAt = dgFail.indexOf('data-vc-diag-result="fail"')
+  check(dgReplaceBlockAt >= 0 && dgReplaceFailAt > dgCreateAt && dgFail.indexOf('role="alert"') >= 0 && dgFail.indexOf(LOC.zh['vc.diag.reason.noReplace']) >= 0 && dgFail.indexOf('fatal: replace ref') >= 0, 'DG12 失败结果画在触发它的替换块里（在按钮之后）、带分类词条与 git 原话（结果贴触发点，不是全局横幅）')
+  const dgReadOk = dgRenderOf(VIEW, { results: { '13.4': { ok: true, command: 'ls-files -z', kind: 'ls-files' } }, reads: { '13.4': { kind: 'ls-files', atMs: NOW, rows: ['a.txt'] } } })
+  const dgRowAt = dgReadOk.indexOf('data-vc-diag-row="13.4"')
+  check(dgRowAt >= 0 && dgReadOk.indexOf('data-vc-diag-result="ok"', dgRowAt) > dgRowAt && dgReadOk.indexOf('ls-files -z', dgRowAt) > dgRowAt && dgReadOk.indexOf('a.txt', dgRowAt) > dgRowAt, 'DG13 只读结果画在那一行查询里（命令原文与结果行都在同一行内）')
+  const dgBisectOk = dgRenderOf(VIEW, { results: { '13.1': { ok: true, command: 'bisect start', op: 'bisect-start' } } })
+  const dgBisectBlockAt = dgBisectOk.indexOf('data-vc-diag-block="bisect"')
+  const dgReadBlockAt = dgBisectOk.indexOf('data-vc-diag-block="read"')
+  const dgBisectResultAt = dgBisectOk.indexOf('data-vc-diag-result="ok"')
+  check(dgBisectResultAt > dgBisectBlockAt && dgBisectResultAt < dgReadBlockAt, 'DG14 13.1 的结果落在二分块里，不跑到别的块')
+  const dgInactive = dgRenderOf(VIEW, { reads: { '13.2': { kind: 'bisect-status', atMs: NOW, rows: ['0'] } } })
+  check(dgInactive.indexOf('data-vc-diag-bisect-inactive="1"') >= 0 && dgInactive.indexOf(tZh('vc.diag.bisect.inactive')) >= 0, 'DG15 不在二分时不画假范围：明说「没有正在进行的二分」（读数与按钮状态分开）')
+  check(VIEW.vcDiagnosticsFailKeyOf('blocked', 'not-a-commit') === 'vc.diag.reason.notACommit' && VIEW.vcDiagnosticsFailKeyOf('git-failed', 'no-replace') === 'vc.diag.reason.noReplace' && VIEW.vcDiagnosticsFailKeyOf('args', 'x') === 'vc.diag.fail.args' && VIEW.vcDiagnosticsFailKeyOf('weird', 'y') === 'vc.diag.fail.unknown', 'DG16 失败分类只翻词条键：理由优先、其次按 kind 归族、认不出的一律落 unknown（不现编人话）')
+  const dgPaths = VIEW.vcDiagnosticsReadPayloadOf('13.4', { '13.4': { paths: 'a.txt b.txt' } })
+  check(dgPaths.phone === 'read' && dgPaths.args.kind === 'ls-files' && JSON.stringify(dgPaths.args.params.paths) === JSON.stringify(['a.txt', 'b.txt']) && VIEW.vcDiagnosticsReadPayloadOf('13.2', {}).args.kind === 'bisect-status' && VIEW.vcDiagnosticsReadPayloadOf('5.12', {}).args.kind === 'replace-list', 'DG17 只读参数只从界面表翻出来：路径拆成数组、13.2 是二分状态、5.12 是替换清单（界面不拼 git 参数）')
+  const dgApply = VIEW.vcDiagnosticsPatchPayloadOf({ '13.12': { patch: 'p' } })
+  const dgTrailer = VIEW.vcDiagnosticsTrailerPayloadOf({})
+  const dgWrite = VIEW.vcDiagnosticsWritePayloadOf('replace-create', { from: 'aaaa', to: 'bbbb' })
+  check(dgApply.args.kind === 'apply-check' && dgApply.args.params.patch === 'p' && dgTrailer.args.kind === 'trailers' && dgTrailer.args.params.object === 'HEAD' && dgWrite.phone === 'check' && dgWrite.args.op === 'replace-create' && dgWrite.args.from === 'aaaa' && dgWrite.args.to === 'bbbb', 'DG18 13.12 只送 apply-check、13.13 尾部签名行读的是 trailers、5.12 写动作先走预检（check 电话，不直接写）')
+  let dgCallArgs: any = null
+  const dgCall = function (name: string, args: any) { dgCallArgs = { name: name, args: args }; return { ok: true } }
+  VIEW.vcDiagnosticsCallOf(dgCall, 'D:/w/repo', { phone: 'read', args: { kind: 'ls-files' } })
+  check(dgCallArgs.name === 'wf.gitDiagnosticsRead' && dgCallArgs.args.cwd === 'D:/w/repo' && dgCallArgs.args.kind === 'ls-files' && dgCallArgs.args.phone === undefined, 'DG19 三条电话只有一个出口：电话名按 read / check / write 三档翻，仓库路径由调用方给，界面不往参数里塞别的键')
+  check(VIEW.vcDiagnosticsDangerousOf('bisect-start') === true && VIEW.vcDiagnosticsDangerousOf('bisect-reset') === true && VIEW.vcDiagnosticsDangerousOf('replace-create') === true && VIEW.vcDiagnosticsDangerousOf('replace-delete') === true && VIEW.vcDiagnosticsDangerousOf('bisect-bad') === false && VIEW.vcDiagnosticsDangerousOf('bisect-skip') === false, 'DG20 危险档只认会改仓库状态的四个动作（开始 / 重置二分、建替换、删替换），标坏标好跳过是一步一下')
+  let dgUi: any = { diagnostics: VIEW.vcDiagnosticsStateNew() }
+  const dgCalls: any[] = []
+  const dgReplies = [
+    { ok: true, confirmRequired: true, confirm: { verb: '建立替换', target: 'aaaa → bbbb' }, ticket: { id: 'T-1' } },
+    { ok: true, op: 'replace-create', command: 'replace aaaa bbbb' },
+  ]
+  const dgActions = VIEW.vcDiagnosticsActionsOf({
+    ui: dgUi,
+    setUi: function (fn: any) { dgUi = fn(dgUi) },
+    callHost: function (name: string, args: any) { dgCalls.push({ name: name, args: args }); return Promise.resolve(dgReplies[dgCalls.length - 1]) },
+    cwd: 'D:/w/repo', nowMs: function () { return NOW },
+  })
+  await dgActions.submit('5.12', 'replace-create', { from: 'aaaa', to: 'bbbb' })
+  const dgConfirmState = dgUi.diagnostics.confirm
+  check(!!dgConfirmState && dgConfirmState.op === 'replace-create' && dgConfirmState.ticketId === 'T-1' && dgCalls.length === 1 && dgCalls[0].name === 'wf.gitDiagnosticsCheck' && dgCalls[0].args.op === 'replace-create', 'DG21 危险动作先预检签票：拿到票与确认文案才立确认卡，确认前一个写进程都不发')
+  await dgActions.confirmNow()
+  check(dgCalls.length === 2 && dgCalls[1].name === 'wf.gitDiagnosticsWrite' && dgCalls[1].args.ticketId === 'T-1' && dgCalls[1].args.op === 'replace-create' && dgCalls[1].args.confirmed === true && !!dgCalls[1].args.requestId && dgUi.diagnostics.confirm === null && dgUi.diagnostics.results['5.12'].ok === true, 'DG22 点确认才凭票执行：一条写电话带票据号、请求号与确认标记，结果落回 5.12 那一格并收起确认卡')
+  let dgUi2: any = { diagnostics: VIEW.vcDiagnosticsStateNew() }
+  const dgCalls2: any[] = []
+  const dgActions2 = VIEW.vcDiagnosticsActionsOf({
+    ui: dgUi2,
+    setUi: function (fn: any) { dgUi2 = fn(dgUi2) },
+    callHost: function (name: string, args: any) { dgCalls2.push({ name: name, args: args }); return Promise.resolve({ ok: true, op: 'bisect-bad', command: 'bisect bad' }) },
+    cwd: 'D:/w/repo', nowMs: function () { return NOW },
+  })
+  await dgActions2.submit('13.1', 'bisect-bad', {})
+  check(dgCalls2.length === 2 && dgCalls2[0].name === 'wf.gitDiagnosticsCheck' && dgCalls2[0].args.op === 'bisect-bad' && dgCalls2[1].name === 'wf.gitDiagnosticsWrite' && dgUi2.diagnostics.confirm === null, 'DG23 一步一下的动作也要先预检再执行（只是不立确认卡）：两次调用都走同一对电话，路径不另开一条')
+  const dgRunning = dgRenderOf(VIEW, { running: '13.1' })
+  const dgStartAt = dgRunning.indexOf('data-vc-diag-op="bisect-start"')
+  const dgStartTag = dgStartAt < 0 ? '' : dgRunning.slice(dgRunning.lastIndexOf('<button', dgStartAt), dgRunning.indexOf('>', dgStartAt))
+  check(dgRunning.indexOf('data-vc-diag-running="1"') >= 0 && dgStartTag.indexOf('disabled') >= 0, 'DG24 有动作在跑时页面显示进行中、按钮禁用（同一时刻只允许一次调用，避免重复签票）')
 
   // ---- W 组：首屏一次取全（#1739 T04）—— 七片一份快照、一次聚合调用、单片失败不阻塞 ----
   // 契约真源在共享层 first-screen.ts（已拼进这个闭包）；这里断言的是界面侧拿到的那一份快照与调用次数，
@@ -2536,6 +2670,97 @@ async function main() {
   const syIdleHtml = syShellOf({ sync: { state: 'idle', data: null, error: null }, task: { state: 'idle', data: null, error: null } }, {}, 460, 'dark')
   const syIdleClosed = syIdleHtml.match(/data-vc-sync-act="[^"]+"[^>]*aria-expanded="false"/g) || []
   check(syIdleClosed.length === 10, 'S20b 没有预检回包时十个按钮都写 aria-expanded="false"（不靠视觉猜展开没展开）')
+  // ---------- M 组：#1759 迁移与备份页（域 11 的 11.1 / 11.12 / 11.13 与 5.13 加 svn 补充块） ----------
+  // 只喂预检回包，不发请求：九个动作入口、命令原文、禁用理由、只读结果、确认卡、结果与任务区按票面画法。
+  // 计划字段照共享层 migratePlanOf 的真实形状造，避免界面自己补字段掩盖宿主缺参。
+  const mgRows = VIEW.VC_MIGRATE_ACTION_ROWS
+  const mgIds = mgRows.map(function (row) { return row.action })
+  const mgPlanOf = function (action, patch) {
+    const row = mgRows.filter(function (r) { return r.action === action })[0] || {}
+    const cap = row.id ? (VIEW.vcCapabilityOf(row.id) || {}) : {}
+    return Object.assign({
+      action: action, id: String(row.id || ''), op: row.id === '11.1' ? 'init' : row.id === '11.12' ? 'archive' : row.id === '5.13' ? 'fast-export' : 'bundle',
+      level: String(cap.level || '写'), needsConfirm: row.needsConfirm === true, commandText: String(cap.command || ''),
+      mode: '', path: '', outputPath: '', inputPath: '', targetPath: '', ref: '', branch: '', bare: false, initMode: '',
+      versionNeed: '', versionNote: '', pathAbsent: [], input: null, targetText: '', taskArgs: {}
+    }, patch || {})
+  }
+  const mgReplyOf = function (action, extra, patch) {
+    const row = mgRows.filter(function (r) { return r.action === action })[0] || {}
+    const cap = row.id ? (VIEW.vcCapabilityOf(row.id) || {}) : {}
+    const plan = mgPlanOf(action, patch)
+    return Object.assign({
+      ok: true, contract: 'version-control.migrate-check', version: 1, action: action, capabilityId: String(row.id || ''),
+      op: plan.op, level: plan.level, command: String(cap.command || ''), decision: 'allow', reasons: [], confirmRequired: false,
+      confirm: null, plan: plan, ticket: null, readOnly: row.readOnly === true, scene: {}, readAtMs: NOW,
+      versionPolicy: { need: '2.28', ok: true, degraded: false, note: '' }
+    }, extra || {})
+  }
+  const mgReadsOf = function (data, extra) {
+    return Object.assign({
+      migrate: { state: 'ok', data: data, error: null },
+      task: { state: 'idle', data: null, error: null }
+    }, extra || {})
+  }
+  const mgShellOf = function (reads, ui, width, skin) {
+    return shellHtmlOf({ page: 'migrate', width: width || 460, skin: skin || 'dark', reads: reads, ui: ui || {} })
+  }
+  const mgArchive = mgReplyOf('archive', {}, { outputPath: '/tmp/out.tar', ref: 'HEAD', targetText: '归档文件 /tmp/out.tar（来源 HEAD）' })
+  const mgClosed = mgShellOf(mgReadsOf(mgArchive), {})
+  const mgActs = attrValuesOf(mgClosed, 'data-vc-migrate-act')
+  check(mgActs.length === 9 && JSON.stringify(mgActs) === JSON.stringify(mgIds), 'M1 迁移页一次画出九个动作入口，顺序与 VC_MIGRATE_ACTION_ROWS 一致（' + mgActs.join(',') + '）')
+  const mgOpen = mgShellOf(mgReadsOf(mgArchive), { open: 'archive' })
+  check(attrValuesOf(mgOpen, 'data-vc-migrate-panel').join(',') === 'archive', 'M2 同时只展开一个动作面板（面板写 data-vc-migrate-panel，值是动作名）')
+  check(mgOpen.indexOf('aria-controls="vc-migrate-panel-archive"') >= 0 && mgOpen.indexOf('id="vc-migrate-panel-archive"') >= 0, 'M3 展开按钮的 aria-controls 指向真实存在的面板 id（键盘与读屏跟得到）')
+  check(attrValuesOf(mgOpen, 'data-vc-migrate-command')[0] === 'archive' && mgOpen.indexOf(String(VIEW.vcCapabilityOf('11.12').command)) >= 0, 'M4 面板里画命令原文，且直接取自能力账本（界面不另写一份命令）')
+  const mgWarn = mgShellOf(mgReadsOf(mgReplyOf('archive', {
+    decision: 'warn', reasons: [{ id: 'export-readonly-source', text: '导出只读源仓库，不会改它的历史', blocking: false }]
+  }, { outputPath: '/tmp/out.tar', ref: 'HEAD' })), { open: 'archive' })
+  check(attrValuesOf(mgWarn, 'data-vc-migrate-decision')[0] === 'warn' && mgWarn.indexOf('data-vc-migrate-why="1"') >= 0 && mgWarn.indexOf('data-vc-migrate-reason="export-readonly-source"') >= 0, 'M5 判定为 warn 时理由逐条常驻在触发点（不是灰按钮不说为什么）')
+  const mgReadOnly = mgShellOf(mgReadsOf(mgReplyOf('bundle-verify', {
+    readOnly: true, result: { ok: true, command: 'git bundle verify', ms: 30, n: 2, lines: ['refs/heads/main', 'HEAD'] }
+  }, { filePath: '/tmp/repo.bundle' })), { open: 'bundle-verify' })
+  check(mgReadOnly.indexOf('data-vc-migrate-readonly="bundle-verify"') >= 0 && mgReadOnly.indexOf('data-vc-migrate-form="bundle-verify"') < 0 && mgReadOnly.indexOf('data-vc-migrate-go=') < 0, 'M6 只读动作（离线包校验）只画只读说明与一个运行按钮，没有表单、没有执行确认（它不改任何东西）')
+  check(attrValuesOf(mgReadOnly, 'data-vc-migrate-result')[0] === 'ok' && mgReadOnly.indexOf('git bundle verify') >= 0 && mgReadOnly.indexOf('data-vc-migrate-panel="bundle-verify"') >= 0, 'M7 只读动作的结果在预检这一步就回到触发点：命令、耗时与条数都画在同一个面板里')
+  const mgImportPlan = { targetPath: '/tmp/imported', branch: 'main', inputPath: '/tmp/hist.fi', pathAbsent: ['/tmp/imported'], targetText: '新目录 /tmp/imported（来源文件 /tmp/hist.fi）' }
+  const mgImport = mgShellOf(mgReadsOf(mgReplyOf('fast-import', {
+    decision: 'warn', reasons: [{ id: 'import-new-dir', text: '只导进新的空目录；现有仓库不会被覆盖', blocking: false }], confirmRequired: true,
+    confirm: { verb: '导入历史', target: '新目录 /tmp/imported（来源文件 /tmp/hist.fi）', what: '会在新目录里建仓库并导入提交', wont: '不会覆盖或复用任何现有仓库', reversible: '导入失败时删掉这个新目录重来' },
+    ticket: { id: 'migrate-1700000000000-1', op: 'fast-import', target: mgPlanOf('fast-import', mgImportPlan) }
+  }, mgImportPlan)), { open: 'fast-import' })
+  check((mgImport.match(/data-vc-confirm-seg="/g) || []).length === 4 && mgImport.indexOf('data-focus-default="cancel"') >= 0 && mgImport.indexOf('data-vc-migrate-confirm="1"') >= 0, 'M8 历史导入要确认：确认卡贴触发点、四段齐全、默认焦点在取消')
+  check(mgImport.indexOf('data-vc-migrate-ticket="migrate-1700000000000-1"') >= 0 && mgImport.indexOf('/tmp/imported') >= 0, 'M9 确认卡旁写清凭哪张票执行，外层 aria-label 念出确认对象（读屏不靠颜色）')
+  const mgDegraded = mgShellOf(mgReadsOf(mgReplyOf('init', {
+    decision: 'warn', reasons: [{ id: 'dir-not-empty', text: '目录里已经有 2 项内容；初始化只会新增 .git', blocking: false }],
+    versionPolicy: { need: '2.28', ok: false, degraded: true, note: '改用建后改名' }
+  }, { path: '/tmp/newrepo', branch: 'main', initMode: 'rename', targetText: '仓库 /tmp/newrepo（初始分支 main）' })), { open: 'init' })
+  check(mgDegraded.indexOf('data-vc-migrate-version-note="1"') >= 0 && mgDegraded.indexOf('2.28') >= 0, 'M10 旧版本 git 走降级路线时如实写出版本要求与替代做法（不把降级藏起来）')
+  const mgOkResult = mgShellOf(mgReadsOf(mgArchive), { open: 'archive', result: { ok: true, command: 'git archive --format=tar --output=/tmp/out.tar HEAD', ms: 120, n: 0, path: '/tmp/out.tar' } }, 460)
+  check(attrValuesOf(mgOkResult, 'data-vc-migrate-result')[0] === 'ok' && mgOkResult.indexOf('120') >= 0 && attrValuesOf(mgOkResult, 'data-vc-migrate-path')[0] === '/tmp/out.tar', 'M11 成功结果回到触发点：命令、耗时与产物路径都画在同一个动作面板里（460 宽起给路径）')
+  const mgFailResult = mgShellOf(mgReadsOf(mgArchive), { open: 'archive', result: { ok: false, git: 'fatal: 路径不可写', step: '导出归档这一步', expected: '写文件成功', actual: '权限被拒绝', cause: '目录只读' } }, 460)
+  check(attrValuesOf(mgFailResult, 'data-vc-migrate-result')[0] === 'fail' && mgFailResult.indexOf('fatal: 路径不可写') >= 0 && mgFailResult.indexOf('data-vc-result-action="retry"') >= 0, 'M12 失败结果贴触发点：git 原话、环节、期望与实际、上游原因与重试入口一样不少')
+  const mgTask = mgShellOf(mgReadsOf(mgArchive, { task: { state: 'ok', data: { taskId: 'task-9', state: 'running', phase: 'receiving', conclusion: 'cancelled', residual: '已经写出的文件不会自己删掉' }, error: null } }), { open: 'archive' })
+  check(mgTask.indexOf('data-vc-migrate-task="1"') >= 0 && mgTask.indexOf('data-vc-migrate-task-id="task-9"') >= 0 && mgTask.indexOf('data-vc-migrate-cancel="1"') >= 0, 'M13 写动作交给长任务通道：任务号、状态与取消按钮都画出来')
+  check(mgTask.indexOf('data-vc-migrate-task-residual="1"') >= 0 && mgTask.indexOf('data-vc-migrate-task-conclusion="cancelled"') >= 0, 'M14 取消后的结论与残留说明常驻在任务区（已写出的文件与已下载的对象不会自己回去）')
+  for (const mw of VIEW.VC_SHELL_WIDTHS) {
+    const mwHtml = mgShellOf(mgReadsOf(mgArchive), { open: 'archive' }, mw, mw % 2 === 0 ? 'dark' : 'light')
+    check(mwHtml.indexOf('data-vc-migrate-page="1"') >= 0 && attrValuesOf(mwHtml, 'data-vc-migrate-act').length === 9, 'M15 宽 ' + mw + '：迁移页九个入口一个不少（窄档不删入口）')
+  }
+  const mgNarrow = mgShellOf(mgReadsOf(mgArchive), { open: 'archive' }, 300, 'dark')
+  const mgWide = mgShellOf(mgReadsOf(mgArchive), { open: 'archive' }, 460, 'dark')
+  check(attrValuesOf(mgNarrow, 'data-vc-migrate-command').length === 0 && attrValuesOf(mgWide, 'data-vc-migrate-command').length === 1, 'M16 命令原文按宽度收放：300 收起、460 起恢复（收起不是删除，面板仍可开）')
+  check(attrValuesOf(mgNarrow, 'data-vc-migrate-path').length === 0 && attrValuesOf(mgWide, 'data-vc-migrate-path').length === 1, 'M17 产物路径按宽度收放：300 与 380 不挤，460 起在面板里点名文件路径')
+  const mgLight = mgShellOf(mgReadsOf(mgArchive), { open: 'archive' }, 460, 'light')
+  check(attrValuesOf(mgLight, 'data-vc-skin')[0] === 'light' && attrValuesOf(mgLight, 'data-vc-migrate-act').length === 9, 'M18 另一套皮肤同样能渲染迁移页（两套皮肤都只换颜色，不删入口）')
+  check(attrValuesOf(mgClosed, 'data-cap-primary').join(',') === VIEW.vcPageCapabilitiesOf('migrate').map(function (cap) { return cap.id }).join(','), 'M19 迁移页的主入口仍只有账本登记的那几条（迁移页正文不许自己再挂 data-cap-primary）')
+  const mgMaint = shellHtmlOf({ page: 'maintenance', width: 460, skin: 'dark' })
+  check(mgMaint.indexOf('data-vc-note="maintenance-readonly"') >= 0 && mgMaint.indexOf('data-vc-migrate-act') < 0, 'M20 维护页只放 11.14 与 11.15 的只读指路说明，不给迁移页的触发按钮（只读项不出现触发按钮）')
+  const mgErr = mgShellOf({ migrate: { state: 'err', data: null, error: { kind: 'env', message: '找不到 git 命令' } }, task: { state: 'idle', data: null, error: null } }, {})
+  check(attrValuesOf(mgErr, 'data-vc-migrate-state')[0] === 'error' && mgErr.indexOf('data-vc-migrate-error="env"') >= 0 && mgErr.indexOf('找不到 git 命令') >= 0, 'M21 读数失败时迁移页画失败态并带宿主原话（不把读不到画成没有动作）')
+  const mgSvn = mgShellOf(mgReadsOf(mgReplyOf('svn-probe', { readOnly: true, result: { ok: true, readOnly: true, linked: false, command: 'git config --get svn-remote.svn.url', note: '这个仓库没有登记 svn 远端' } }, { targetText: 'svn 桥探测（补充块，账本无独立条目）' })), { open: 'svn-probe' })
+  check(mgSvn.indexOf('data-vc-migrate-extra="1"') >= 0 && mgSvn.indexOf('data-vc-migrate-readonly="svn-probe"') >= 0, 'M22 svn 探测画成补充块（不冒充账本条目），只读且不出现表单')
+  check(mgImport.indexOf('data-vc-migrate-form="fast-import"') >= 0 && mgImport.indexOf('data-vc-migrate-field="targetPath"') >= 0 && mgImport.indexOf('data-vc-migrate-field="filePath"') >= 0, 'M23 历史导入的表单三个字段（目标目录、来源文件、分支）都画出来，字段与说明逐项对应')
+
   const antiCases: AntiCase[] = [
     // #1253：真源已经转成 .ts，形参后面多了类型标注（st: any），锚点用正则把标注写成可选的，
     //   写法上仍只认「这一处原样」，不放大到别的地方。
@@ -2585,6 +2810,12 @@ async function main() {
     { name: '追加签名行挂到别条能力上', patch: (s) => s.replace("{ key: 'signoff', cap: '2.6',", "{ key: 'signoff', cap: '2.5',"), test: pCapControlJudgmentOf, what: 'P3' },
     // #1743：确认卡删掉「可逆性与恢复路径」那一段 —— P7 的四段判据必须当场红。
     { name: '确认卡删掉可逆性与恢复路径', patch: (s) => s.replace("          { seg: 'reversible', text: t('vc.commit.confirm.reversible', params) },\n", ''), test: pConfirmJudgmentOf, what: 'P7' },
+    // #1761：13.13 尾部签名行从只读变成又一颗按钮 —— DG7 的只读判据必须当场红。
+    { name: '13.13 尾部签名行加回按钮', patch: (s) => s.replace("  kids.push(h('p', { key: 'note', className: 'vcs-diag-note', 'data-vc-diag-trailer-note': '1' }, t('vc.diag.trailer.note')))", "  kids.push(h('p', { key: 'note', className: 'vcs-diag-note', 'data-vc-diag-trailer-note': '1' }, t('vc.diag.trailer.note')))\n  kids.push(h('button', { key: 'extra', 'data-cap-control': '13.13' }, 'x'))"), test: dgReadOnlyJudgmentOf, what: 'DG7' },
+    // #1761：5.12 的撤销按钮挂到 13.1 上 —— DG9 的「撤销就在那一行」判据必须当场红。
+    { name: '5.12 撤销按钮挂到 13.1', patch: (s) => s.replace("cap: VC_DIAG_REPLACE_CAP, logId: 'vc.diag.replace.undo', label: t('vc.diag.replace.undo')", "cap: '13.1', logId: 'vc.diag.replace.undo', label: t('vc.diag.replace.undo')"), test: dgReplaceJudgmentOf, what: 'DG9' },
+    // #1761：13.3 / 13.14 的指针整块不画（只剩骨架）—— DG8 的指针判据必须当场红。
+    { name: '诊断页不再指回 13.3 与 13.14 的主入口', patch: (s) => s.replace('    vcDiagPointerBlock(h, t),', '    null,'), test: dgPointerJudgmentOf, what: 'DG8' },
     // #1751：贮藏页的三处反证 —— 挂载被摘掉、版本门恒放行、危险动作不出确认卡，对应断言必须当场红。
     { name: '贮藏页不再挂进页面壳（十条入口全没了）', patch: (s) => s.replace("if (page === 'stash' && typeof vcStashPageNode === 'function') {", 'if (false) {'), test: stashMountedJudgmentOf, what: 'Z16a' },
     { name: '7.3 的版本门恒放行（低版本也画按钮）', patch: (s) => s.replace('const state = vcStashOpVersionStateOf(VC_STASH_STAGED_OP, versionText)', "const state = 'full'"), test: stashGateJudgmentOf, what: 'Z16m' },
@@ -2611,6 +2842,12 @@ async function main() {
     { name: '同步段十个入口换成别的属性名', patch: (s) => s.replace("'data-vc-sync-act': id,", "'data-vc-sync-entry': id,"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'remote', width: 460, skin: 'dark', reads: syReadsOf(syReplyOf('force-push', '8.12')), ui: { open: '8.12' } })); return (html.match(/data-vc-sync-act="/g) || []).length === 10 }, what: 'S1' },
     // #1755：确认语义退回「不是 block 就弹卡」—— allow 也会弹卡，S 组的判定语义必须当场红。
     { name: '确认语义退回不是 block 就弹卡', patch: (s) => s.replace("confirmRequired: decision === 'warn' }", "confirmRequired: decision !== 'block' }"), test: (v) => { const plan = Object.assign({}, syReplyOf('fetch', '8.5').plan, { needsConfirm: false }); return v.judgeSync({ remotes: ['origin'], remotesKnown: true }, plan).confirmRequired === false }, what: 'S5' },
+    // #1759：迁移页九个入口的属性名换掉 —— M1 的数入口断言必须当场红。
+    { name: '迁移页九个入口换成别的属性名', patch: (s) => s.replace("'data-vc-migrate-act': action,", "'data-vc-migrate-entry': action,"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'migrate', width: 460, skin: 'dark', reads: mgReadsOf(mgArchive), ui: { open: 'archive' } })); return (html.match(/data-vc-migrate-act="/g) || []).length === 9 }, what: 'M1' },
+    // #1759：只读动作也长出表单与执行按钮 —— M6 的只读判据必须当场红。
+    { name: '只读动作也长出表单', patch: (s) => s.replace('    if (row.readOnly === true) {', '    if (false) {'), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'migrate', width: 460, skin: 'dark', reads: mgReadsOf(mgReplyOf('bundle-verify', { readOnly: true, result: { ok: true, command: 'git bundle verify', ms: 30, n: 2 } }, { filePath: '/tmp/repo.bundle' })), ui: { open: 'bundle-verify' } })); return html.indexOf('data-vc-migrate-form="bundle-verify"') < 0 && html.indexOf('data-vc-migrate-readonly="bundle-verify"') >= 0 }, what: 'M6' },
+    // #1759：需要确认的动作不再出确认卡 —— M8 的四段判据必须当场红。
+    { name: '需要确认的动作不再出确认卡', patch: (s) => s.replace("    if (model.confirmRequired && model.confirm) {\n      panelKids.push(h('div', { key: 'confirm', className: 'vcs-migrate-confirm'", "    if (false) {\n      panelKids.push(h('div', { key: 'confirm', className: 'vcs-migrate-confirm'"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'migrate', width: 460, skin: 'dark', reads: mgReadsOf(mgReplyOf('fast-import', { decision: 'warn', confirmRequired: true, confirm: { verb: '导入历史', target: '新目录 /tmp/imported', what: 'a', wont: 'b', reversible: 'c' }, ticket: { id: 'migrate-1700000000000-1', op: 'fast-import', target: mgPlanOf('fast-import', mgImportPlan) } }, mgImportPlan)), ui: { open: 'fast-import' } })); return (html.match(/data-vc-confirm-seg="/g) || []).length === 4 && html.indexOf('data-vc-migrate-confirm="1"') >= 0 }, what: 'M8' },
   ]
   // #845c：反证自证提到循环里 —— 每一处改法先确认它真的落到了源码上（改不中等于没证）。
   //   旧写法只在循环外用一条聚合自检兜底，于是某一条改法失效时，它自己仍会以 broke=true 假绿

@@ -94,6 +94,10 @@ const REFERENCES: RefRow[] = [
   // #1757 T21 子模块域：预检只读与凭票执行各一档（叶子直接导入生成常量，别名只改名不改值）。
   { file: 'src/host/versionControlSubmodulesCheck.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_SUBMODULE_READ_TIMEOUT_MS', key: 'vcSubmoduleReadTimeoutMs' },
   { file: 'src/host/versionControlSubmodulesWrite.ts', access: 'WRITE_TIMEOUT_MS', gen: 'VC_SUBMODULE_WRITE_TIMEOUT_MS', key: 'vcSubmoduleWriteTimeoutMs' },
+  // #1761 诊断页与替换对象：只读查询与预检读同一条时限，凭票执行读另一条；三条都 direct import 生成常量（别名）。
+  { file: 'src/host/versionControlDiagnosticsRead.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_DIAGNOSTICS_READ_TIMEOUT_MS', key: 'vcDiagnosticsReadTimeoutMs' },
+  { file: 'src/host/versionControlDiagnosticsCheck.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_DIAGNOSTICS_READ_TIMEOUT_MS', key: 'vcDiagnosticsReadTimeoutMs' },
+  { file: 'src/host/versionControlDiagnosticsWrite.ts', access: 'WRITE_TIMEOUT_MS', gen: 'VC_DIAGNOSTICS_WRITE_TIMEOUT_MS', key: 'vcDiagnosticsWriteTimeoutMs' },
   { file: 'src/host/versionControlConflictScene.ts', access: 'VC_CONFLICT_READ_TIMEOUT_MS', gen: 'VC_CONFLICT_READ_TIMEOUT_MS', key: 'vcConflictReadTimeoutMs' },
   { file: 'src/host/versionControlConflictWrite.ts', access: 'VC_CONFLICT_WRITE_TIMEOUT_MS', gen: 'VC_CONFLICT_WRITE_TIMEOUT_MS', key: 'vcConflictWriteTimeoutMs' },
   { file: 'src/host/versionControlRebaseScene.ts', access: 'VC_REBASE_READ_TIMEOUT_MS', gen: 'VC_REBASE_READ_TIMEOUT_MS', key: 'vcRebaseReadTimeoutMs' },
@@ -508,6 +512,9 @@ const EXEMPTS: ExemptRow[] = [
   // #1756：克隆预检与执行的回包都带自己那一刻的读钟时刻，用来和票据过期对上，不是可调参数。
   { file: 'src/host/versionControlClone.ts', name: 'readAtMs', reason: '读钟时刻（这一趟克隆预检是什么时候读的现场），不是可调参数' },
   { file: 'src/host/versionControlClone.ts', name: 'atMs', reason: '读钟时刻（这次克隆执行是什么时候起手的），不是可调参数' },
+  // #1759：迁移与备份的预检与执行也各自带注入的时钟，用来判票据过期与记回包时刻。
+  { file: 'src/host/versionControlMigrateCheck.ts', name: 'nowMs', reason: '读钟函数（宿主注入的时钟，预检签票与回包读钟时刻都从它取），不是可调参数' },
+  { file: 'src/host/versionControlMigrateWrite.ts', name: 'nowMs', reason: '读钟函数（宿主注入的时钟，凭票执行时判票据过期并记回包时刻），不是可调参数' },
   { file: 'src/refresh/rooms/host/probe-handler.ts', name: 'nowMs', reason: '读钟时刻（Date.now），降级探测与校准的窗口判定用，不是可调参数' },
   { file: 'src/host/skillProbeCache.ts', name: 'ttlMs', reason: '透传参数，缺省接 SKILL_PROBE_CACHE_MS（已登记）' },
   { file: 'src/host/skillProbe.ts', name: 'SKILL_CACHE_TTL_MS', reason: '函数内局部变量：接线给了正数就听接线的，没给时取中央常量 SKILL_LIST_CACHE_TTL_MS（已登记为 skillListCacheTtlMs）' },
