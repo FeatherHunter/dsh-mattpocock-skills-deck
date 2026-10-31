@@ -494,6 +494,75 @@ async function main(): Promise<void> {
   const lFailCheck = await vcL7.handleGitWriteCheck({ cwd: rL7, op: 'commit', message: '签名提交', plan: lFailPlan })
   const lFail = await vcL7.handleGitCommit({ cwd: rL7, ticketId: lFailCheck.ok ? lFailCheck.ticket.id : 'x', requestId: 'i-r7', message: '签名提交', plan: lFailPlan })
   check(lFail.ok === false && lFail.error && lFail.error.reason === 'signing-failed' && Object.keys(lFail.error).sort().join(',') === 'hint,kind,message,reason', 'L15 2.6 签名失败归到 signing-failed（不是 unknown-write-failure），失败信封固定 {kind,reason,message,hint}')
+
+  // K 配置与钩子域 12（#1760）：身份两键可写、作用域反推、其余键只读；手动跑钩子凭 2.36 版本门后的票执行。
+  // 本组只认真跑：真仓库、真 git、真的 argv；零命令拒绝一律数「配置写或钩子运行」的进程条数。
+  console.log('K 配置与钩子八条（身份两键 / 只读边界 / 2.36 版本门 / 凭票执行）')
+  const rK = mkRepo('k')
+  const configWrites = (): string[][] => spawns.filter((a) => { const c = after(a); return c[0] === 'config' && (c[1] === '--local' || c[1] === '--global') })
+  const hookRuns = (): string[][] => spawns.filter((a) => { const c = after(a); return c[0] === 'hook' && c[1] === 'run' })
+  const vcK = makeVc()
+  const kRead = await vcK.handleGitConfigRead({ cwd: rK })
+  const kNameRow = kRead && Array.isArray(kRead.groups) ? kRead.groups.filter((g: any) => g.key === 'user.name')[0] : null
+  check(kRead.ok === true && kRead.contract === 'version-control.config-read' && !!kNameRow && kNameRow.value === 'x' && kNameRow.scope === 'local', 'K1 读配置真跑：身份键的值与作用域都从 --show-origin 反推（真仓库里 user.name 是 x、作用域 local）')
+  check(kRead.ok === true && Array.isArray(kRead.entries) && kRead.entries.length === 8, 'K2 八条能力的读法随读数一起回来（12.1–12.8 各一条，界面不另写命令清单）')
+  // 12.2 改身份：预检签票，凭票执行一条 config --local。
+  const kCheck = await vcK.handleGitConfigCheck({ cwd: rK, op: 'config-set', key: 'user.name', scope: 'local', value: '新名字' })
+  check(kCheck.ok === true && kCheck.ticket && kCheck.ticket.id && kCheck.confirmRequired === false, 'K3 12.2 预检签票（改身份不需要二次确认）')
+  const kWriteSpawns0 = configWrites().length
+  const kWrite = await vcK.handleGitConfigWrite({ cwd: rK, ticketId: kCheck.ok ? kCheck.ticket.id : 'x', requestId: 'k-r1', op: 'config-set' })
+  const kArgv = after(configWrites()[kWriteSpawns0] || [])
+  check(kWrite.ok === true && kWrite.oldValue === 'x' && kWrite.newValue === '新名字', 'K4 12.2 执行成功并回旧值与新值（界面显示的是真的改前改后）')
+  // cwd 比大小写与斜杠方向：本机 git 会把 D:\Temp 规范成 D:/temp，两边必须用同一份写法（照 #1752 造工作树那条注释的口径）。
+  const kFlat = (p: any): string => String(p || '').toLowerCase().replace(/\\/g, '/')
+  const kWriteCwds = requests.filter((q) => after(q.argv)[0] === 'config' && after(q.argv)[1] === '--local').map((q) => q.cwd)
+  check(kArgv.join(' ') === 'config --local user.name 新名字' && kWriteCwds.length > 0 && kWriteCwds.every((c) => kFlat(c) === kFlat(rK)), 'K5 12.2 的 argv 是「config --local user.name <新值>」且 cwd 钉在票据那个仓库（--local 是默认作用域）')
+  check(git(rK, ['config', '--local', 'user.name']).out.trim() === '新名字', 'K6 12.2 真的落到仓库配置里（用真 git 读回来是新值）')
+  const kReplaySpawns0 = configWrites().length
+  const kReplay = await vcK.handleGitConfigWrite({ cwd: rK, ticketId: kCheck.ok ? kCheck.ticket.id : 'x', requestId: 'k-r1', op: 'config-set' })
+  check(kReplay.ok === true && configWrites().length === kReplaySpawns0, 'K7 同一 requestId 重放只执行一次（没有再起 config 进程，回包仍是那一份）')
+  const kForgedSpawns0 = configWrites().length
+  const kForged = await vcK.handleGitConfigWrite({ cwd: rK, ticketId: 'forged-k1', requestId: 'k-r2', op: 'config-set' })
+  check(kForged.ok === false && kForged.error && kForged.error.reason === 'ticket-missing' && configWrites().length === kForgedSpawns0, 'K8 伪造票号拒成 ticket-missing 且零写进程（票只认预检签出来的那一张）')
+  // 换动作：预检改身份、执行删身份，动作不符零命令。
+  const kSwapCheck = await vcK.handleGitConfigCheck({ cwd: rK, op: 'config-set', key: 'user.name', scope: 'local', value: '又一个名字' })
+  const kSwapSpawns0 = configWrites().length
+  const kSwap = await vcK.handleGitConfigWrite({ cwd: rK, ticketId: kSwapCheck.ok ? kSwapCheck.ticket.id : 'x', requestId: 'k-r3', op: 'config-unset', confirmed: true })
+  check(kSwap.ok === false && kSwap.error && kSwap.error.reason === 'ticket-op-mismatch' && configWrites().length === kSwapSpawns0, 'K9 预检是改身份却按删身份执行：动作不符拒成 ticket-op-mismatch，零写进程')
+  // 12.3 删身份：必须先确认；不带确认零命令。
+  const kUnsetCheck = await vcK.handleGitConfigCheck({ cwd: rK, op: 'config-unset', key: 'user.name', scope: 'local' })
+  check(kUnsetCheck.ok === true && kUnsetCheck.confirmRequired === true, 'K10 12.3 删身份：预检要求二次确认（删了要恢复得重配，确认卡上会写明）')
+  const kNoConfirmSpawns0 = configWrites().length
+  const kNoConfirm = await vcK.handleGitConfigWrite({ cwd: rK, ticketId: kUnsetCheck.ok ? kUnsetCheck.ticket.id : 'x', requestId: 'k-r4', op: 'config-unset' })
+  check(kNoConfirm.ok === false && kNoConfirm.error && kNoConfirm.error.kind === 'need-confirm' && configWrites().length === kNoConfirmSpawns0, 'K11 12.3 不带确认就执行：拒成 need-confirm 且零写进程（绕过确认卡走不通）')
+  const kStaleCheck = await vcK.handleGitConfigCheck({ cwd: rK, op: 'config-unset', key: 'user.name', scope: 'local' })
+  git(rK, ['config', '--local', 'user.name', '别人改的名字'])
+  const kStaleSpawns0 = configWrites().length
+  const kStale = await vcK.handleGitConfigWrite({ cwd: rK, ticketId: kStaleCheck.ok ? kStaleCheck.ticket.id : 'x', requestId: 'k-r5', op: 'config-unset', confirmed: true })
+  check(kStale.ok === false && kStale.error && kStale.error.reason === 'target-changed' && configWrites().length === kStaleSpawns0, 'K12 预检后配置被别处改掉：凭票执行拒 target-changed、零写进程（票里的旧值绑住了现场）')
+  const kExpCheck = await vcK.handleGitConfigCheck({ cwd: rK, op: 'config-set', key: 'user.email', scope: 'local', value: 'new@example.com' })
+  clock.t += 120001
+  const kExpSpawns0 = configWrites().length
+  const kExp = await vcK.handleGitConfigWrite({ cwd: rK, ticketId: kExpCheck.ok ? kExpCheck.ticket.id : 'x', requestId: 'k-r6', op: 'config-set' })
+  check(kExp.ok === false && kExp.error && kExp.error.reason === 'ticket-expired' && configWrites().length === kExpSpawns0, 'K13 票过期（预检后 120 秒零 1 毫秒）：拒 ticket-expired、零写进程，提示重新确认')
+  // 12.6 手动跑钩子：2.49 上预检签票并要求确认，凭票执行一条 hook run。
+  const kHookFile = path.join(rK, '.git', 'hooks', 'pre-commit')
+  fs.mkdirSync(path.dirname(kHookFile), { recursive: true })
+  fs.writeFileSync(kHookFile, '#!/bin/sh\necho k-hook-ran\nexit 0\n', { mode: 0o755 })
+  const kHookCheck = await vcK.handleGitConfigCheck({ cwd: rK, op: 'hook-run', name: 'pre-commit' })
+  check(kHookCheck.ok === true && kHookCheck.confirmRequired === true && kHookCheck.ticket && kHookCheck.ticket.id, 'K14 12.6 手动跑钩子：预检签票并要求确认（要说清跑的是仓库里的哪个脚本）')
+  const kRunSpawns0 = hookRuns().length
+  const kRun = await vcK.handleGitConfigWrite({ cwd: rK, ticketId: kHookCheck.ok ? kHookCheck.ticket.id : 'x', requestId: 'k-r7', op: 'hook-run', confirmed: true })
+  const kRunArgv = after(hookRuns()[kRunSpawns0] || [])
+  check(kRun.ok === true && kRun.hookFailed === false && kRunArgv.join(' ') === 'hook run pre-commit' && String(kRun.output || '').indexOf('k-hook-ran') >= 0, 'K15 12.6 的 argv 是「hook run pre-commit」，钩子输出原样回来（hook run 把输出写 stderr，这里两边都收）')
+  fs.writeFileSync(kHookFile, '#!/bin/sh\necho k-hook-failed\nexit 7\n', { mode: 0o755 })
+  const kFailCheck = await vcK.handleGitConfigCheck({ cwd: rK, op: 'hook-run', name: 'pre-commit' })
+  const kFail = await vcK.handleGitConfigWrite({ cwd: rK, ticketId: kFailCheck.ok ? kFailCheck.ticket.id : 'x', requestId: 'k-r8', op: 'hook-run', confirmed: true })
+  check(kFail.ok === true && kFail.hookFailed === true && Number(kFail.exitCode) === 7 && String(kFail.output || '').indexOf('k-hook-failed') >= 0, 'K16 钩子自己退出 7：电话仍回成功并标 hookFailed + exitCode（钩子失败与电话故障是两回事）')
+  // 2.36 版本门：低版本预检直接拒，零钩子进程。
+  const vcKLow = makeVc((argv: string[]) => (argv.indexOf('--version') >= 0 ? { stdout: 'git version 2.34.1', code: 0 } : null))
+  const kLowCheck = await vcKLow.handleGitConfigCheck({ cwd: rK, op: 'hook-run', name: 'pre-commit' })
+  check(kLowCheck.ok === false && kLowCheck.error && kLowCheck.error.kind === 'blocked' && kLowCheck.reason === 'hook-version' && hookRuns().length === 0, 'K17 2.36 以下预检 12.6 拒成 hook-version，零钩子进程（隐藏不等于沉默，替代做法随回包给）')
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }
