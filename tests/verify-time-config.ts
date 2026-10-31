@@ -109,6 +109,9 @@ const REFERENCES: RefRow[] = [
   // #1750 维护页整仓重写两片叶子各自直接导入的时间常量。
   { file: 'src/host/versionControlRewriteScene.ts', access: 'VC_REWRITE_READ_TIMEOUT_MS', gen: 'VC_REWRITE_READ_TIMEOUT_MS', key: 'vcRewriteReadTimeoutMs' },
   { file: 'src/host/versionControlRewriteWrite.ts', access: 'VC_REWRITE_WRITE_TIMEOUT_MS', gen: 'VC_REWRITE_WRITE_TIMEOUT_MS', key: 'vcRewriteWriteTimeoutMs' },
+  // #1758 维护页两片叶子各自直接导入的时间常量。
+  { file: 'src/host/versionControlMaintenanceRead.ts', access: 'VC_MAINTENANCE_READ_TIMEOUT_MS', gen: 'VC_MAINTENANCE_READ_TIMEOUT_MS', key: 'vcMaintenanceReadTimeoutMs' },
+  { file: 'src/host/versionControlMaintenanceWrite.ts', access: 'VC_MAINTENANCE_WRITE_TIMEOUT_MS', gen: 'VC_MAINTENANCE_WRITE_TIMEOUT_MS', key: 'vcMaintenanceWriteTimeoutMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'CALL_BUDGET_MS', gen: 'GIT_CREDENTIAL_CALL_BUDGET_MS', key: 'gitCredentialCallBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MIN_BUDGET_MS', gen: 'GIT_CREDENTIAL_MIN_BUDGET_MS', key: 'gitCredentialMinBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MAX_BUDGET_MS', gen: 'GIT_CREDENTIAL_MAX_BUDGET_MS', key: 'gitCredentialMaxBudgetMs' },

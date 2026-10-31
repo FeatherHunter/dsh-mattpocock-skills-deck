@@ -144,6 +144,9 @@ export const VC_WRITE_ERR_FAMILY: Record<string, string> = {
   'missing-message': 'notReady',
   'bad-action': 'notReady',
 
+  // #1758 维护页新增的一种理由：完整性检查的模式认不出，属输入不满足，归 notReady。
+  'bad-mode': 'notReady',
+
   // #1760 配置与钩子页新增的十二种理由（共享真源 write-reasons.ts 已登记话术）：
   // 这些都属 notReady——要么输入不合规（键只读、作用域不对、值为空或过长、邮箱格式、钩子名字），
   // 要么现场不满足（钩子文件不存在、版本低、配置读失败）；hook-failed 是钩子自己退出码非零，属结果不是这次电话失败，也归 notReady。

@@ -324,7 +324,15 @@ export function taskArgsFor(op: any, args: any): TaskArgResult {
   }
   if (op === 'gc') return { ok: true, args: ['gc', '--quiet'] }
   if (op === 'prune') return { ok: true, args: ['prune', '--progress'] }
-  if (op === 'fsck') return { ok: true, args: ['fsck', '--no-progress'] }
+  if (op === 'fsck') {
+    // 维护页的完整性检查另一档是「找还能捞回来的对象」：追加 --unreachable 只列不可达对象。
+    // --lost-found 会往 .git/lost-found 写文件，不在面板里跑；不认识的模式明确拒绝。
+    const mode: any = (a.args && a.args.mode !== undefined) ? a.args.mode : a.mode;
+    if (mode !== undefined && mode !== null && mode !== 'default' && mode !== 'unreachable') return badArg('bad-mode', 'fsck 只接受 default 与 unreachable 两种模式');
+    const args = ['fsck', '--no-progress'];
+    if (mode === 'unreachable') args.push('--unreachable');
+    return { ok: true, args: args };
+  }
   if (op === 'maintenance-run') return { ok: true, args: ['maintenance', 'run'] }
   return badArg('unknown-op', '长任务清单里没有这个动作')
 }

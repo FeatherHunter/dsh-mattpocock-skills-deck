@@ -1315,6 +1315,60 @@
       "count": 1,
       "owner": "#1760（规格 #1586 T24 配置与钩子页）",
       "note": "外壳装配：凭票执行的写层单独成叶子（身份两键 set/unset、手动跑钩子），与预检共用同一张票表与同一个现场重算，由外壳把两片装到一起；方向单向，写叶子不引用外壳也不引用读数叶子。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
+      "spec": "./versionControlMaintenanceMount.js",
+      "resolved": "src/host/versionControlMaintenanceMount.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1758（规格 #1586 T22 维护页域 11）",
+      "note": "装配扇入：维护页十条能力的读数、预检与写入电话要挂到版本管理入口，但父文件贴着 350 有效行上限；照 #500/#821/#1739 先例把装配拆成同层外壳，父文件只剩 createMaintenanceMount 那一行调用，外壳不反向引用父文件。"
+    },
+    {
+      "file": "src/host/versionControlMaintenanceMount.ts",
+      "spec": "./versionControlMaintenanceRead.js",
+      "resolved": "src/host/versionControlMaintenanceRead.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1758（规格 #1586 T22 维护页域 11）",
+      "note": "外壳装配：外壳只做懒加载与电话日志包装，读数实现（count-objects、不可达对象、prune 预览、提交图 / 多包索引 / packed-refs、自动维护状态）在同层叶子 versionControlMaintenanceRead；方向单向，读数叶子只认注入的宿主依赖，不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControlMaintenanceMount.ts",
+      "spec": "./versionControlMaintenanceCheck.js",
+      "resolved": "src/host/versionControlMaintenanceCheck.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1758（规格 #1586 T22 维护页域 11）",
+      "note": "外壳装配：预检签票单独成叶子（版本门、危险区四段确认、prune 前先列出不可达对象数与最早时间），与装配外壳方向单向；票表由外壳装好后转交写层共用。"
+    },
+    {
+      "file": "src/host/versionControlMaintenanceMount.ts",
+      "spec": "./versionControlMaintenanceWrite.js",
+      "resolved": "src/host/versionControlMaintenanceWrite.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1758（规格 #1586 T22 维护页域 11）",
+      "note": "外壳装配：凭票执行的写层单独成叶子（本地维护步骤与 gc / prune / maintenance run 长任务转交），与预检共用同一张票表与同一个现场重算；方向单向，写叶子不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControlMaintenanceMount.ts",
+      "spec": "./versionControlBackup.js",
+      "resolved": "src/host/versionControlBackup.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1758（规格 #1586 T22 维护页域 11）",
+      "note": "外壳装配：危险动作（prune）动手前的整仓备份跑器由外壳建好注入写层，备份逻辑与 #1750 重写页共用同一份实现（镜像克隆、磁盘不够降级整仓打包、字节数校验），避免两页各造一套。"
+    },
+    {
+      "file": "src/host/versionControlRewriteWrite.ts",
+      "spec": "./versionControlBackup.js",
+      "resolved": "src/host/versionControlBackup.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1758（规格 #1586 T22 维护页域 11）",
+      "note": "共用备份装置：整仓重写页原先自己实现镜像克隆与字节数统计，本票抽成同层备份跑器后改为调用它，两页共用一份「备份成功才继续」的实现与失败话术。"
     }
   ]
 }
