@@ -104,6 +104,9 @@ const VC_FILES = [
   // #1754 远端与同步页（域 8 的 8.1–8.4）：数据层在前、画法在后，最后才是调它们的页面壳。
   'src/client/views/versionControl/vcRemoteData.js',
   'src/client/views/versionControl/vcRemotePage.js',
+  // #1745 历史高级查询：数据层（十条能力的目录与读取）与面板画法都排在页面壳之前。
+  'src/client/views/versionControl/vcQuery.js',
+  'src/client/views/versionControl/vcQueryView.js',
   // #1742 改动页操作面板（13 条动作的渲染面板）：页面壳只在传了改动读数时才挂它；与构建同序，排在页面壳之前。
   'src/client/views/versionControl/vcChangesPage.js',
   // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
@@ -156,6 +159,11 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcRemoteOnlineStateOf', 'vcRemoteOnlineOf', 'vcRemoteOnlineErrorOf', 'vcRemoteOnlineNameOf',
   'vcApplyRemoteReply', 'vcReadRemoteList', 'vcReadRemoteOnline', 'vcRunRemoteWrite',
   'vcRemoteModelOf', 'vcRemotePageNode',
+  // #1745 历史高级查询（3.4–3.13）：目录、输入校验、一次读取、空结果与截断读数、面板节点与组件。
+  'VC_QUERY_PHONE', 'VC_QUERY_COUNT_MAX', 'VC_QUERY_BLAME_SPAN_MAX', 'VC_QUERY_COMPARE_MAX', 'VC_QUERY_RANGE_MAX',
+  'vcQueryCatalogOf', 'vcQueryEntriesOf', 'vcQueryEntryOf', 'vcQueryDefaultsOf', 'vcQueryInputsOf', 'vcQueryInputValueOf',
+  'vcNewQueries', 'vcQueryStateOf', 'vcMarkQueryLoading', 'vcApplyQueryReply', 'vcQueryParamsOf', 'vcQueryShapeOk',
+  'vcReadHistoryQuery', 'vcQueryEmptyOf', 'vcQueryTruncatedOf', 'vcQueryShownOf', 'vcQueryPageNode', 'VC_QUERY_PANEL',
   'vcRenderTabAt', 'vcRenderAllPages',
   // #1742 改动页：两条电话表、13 条动作清单、参数构造与渲染入口。
   'VC_CHANGES_PHONES', 'VC_CHANGES_OPS', 'vcChangesPageNode', 'vcChangesCheckArgsOf', 'vcChangesWriteArgsOf',
@@ -299,12 +307,15 @@ async function main() {
   // #1738 页面壳那一族（页签 / 齿轮九分区 / 命令面板 / 三形态 / 四态 / 确认卡四段 / 结果信息）。
   const vcShellMod = await import(locUrl('src/client/kernel/locale-vcshell.js'))
   const L_VCSHELL = vcShellMod.L_VCSHELL
+  // #1745 历史高级查询那一族（面板标题 / 说明 / 字段 / 十类结果 / 空结果与截断）。
+  const vcQueryMod = await import(locUrl('src/client/kernel/locale-vcquery.js'))
+  const L_VCQUERY = vcQueryMod.L_VCQUERY
   // #1751 贮藏页那一族（十条动作名、版本门、确认卡、最近丢弃与失败话术）。
   const vcStashMod = await import(locUrl('src/client/kernel/locale-vcstash.js'))
   const L_VCSTASH = vcStashMod.L_VCSTASH
   LOC = {
-    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCSTASH.zh, L_VCWORKTREES.zh),
-    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCSTASH.en, L_VCWORKTREES.en),
+    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh),
+    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en),
   }
   tZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
   tEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
@@ -1826,6 +1837,217 @@ async function main() {
   check(attrValuesOf(r2OkHtml, 'aria-controls').indexOf('vc-remote-online') >= 0 && idSetOf(r2OkHtml).has('vc-remote-online'), 'R7d 联网按钮 aria-controls 指向真实结果面板 id')
   check(r2OkHtml.indexOf('role="list"') >= 0 && /aria-label="[^"]*远端/.test(r2OkHtml), 'R7e 远端列表按读屏可念的列表画（role=list 与名称都在）')
   check(r4RemoveSeg.indexOf('role="dialog"') >= 0 && r4RemoveSeg.indexOf('aria-modal="false"') >= 0 && /aria-label="[^"]*mirror/.test(r4RemoveSeg), 'R7f 删除确认卡是带名称的非模态对话框（读屏念得清在做什么、不抢焦点）')
+  // ---- Q 组：历史高级查询面板（#1745 T10：能力 3.4–3.13 十条）----
+  // 落点（票面写死）：3.5 / 3.9 / 3.11 / 3.13 的主入口在「管理 › 诊断」页，其余六条落提交历史页。
+  //   能力归属不在这里另写名单：面板按能力账本的 page 字段筛，断言逐条回账本对。
+  // 先量一量页面归属与主入口标记，再判输入、校验、读取四态与十种结果的画法。
+  const qEsc = function (s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
+  const qPageHtmlOf = function (page) { return shellHtmlOf({ page: page, width: 460, skin: 'dark' }) }
+  const qKindsOf = function (html) { return attrValuesOf(html, 'data-vc-query') }
+  const qCapsOf = function (html) { return attrValuesOf(html, 'data-vc-query-cap') }
+  const qDiagPrimaryJudgmentOf = function (v) {
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'diagnostics', width: 460 }))
+    const prim = attrValuesOf(html, 'data-vc-query-primary')
+    return prim.length === 4 && prim.every(function (x) { return x === '1' }) && attrValuesOf(html, 'data-vc-query-primary-badge').length === 4
+  }
+  const qCommitsHtml = qPageHtmlOf('commits')
+  const qDiagHtml = qPageHtmlOf('diagnostics')
+  check(qKindsOf(qCommitsHtml).join(',') === 'file-history,grep,pickaxe,compare,describe,notes' && qCapsOf(qCommitsHtml).join(',') === '3.4,3.6,3.7,3.8,3.10,3.12', 'Q1a 提交历史页挂六组历史高级查询（3.4 单文件历史 / 3.6 说明搜索 / 3.7 代码变化搜索 / 3.8 比较引用 / 3.10 版本名 / 3.12 提交备注）')
+  check(qKindsOf(qDiagHtml).join(',') === 'blame,range-diff,reflog,show-file' && qCapsOf(qDiagHtml).join(',') === '3.5,3.9,3.11,3.13', 'Q1b 管理·诊断页挂四组只读查询（3.5 行级追溯 / 3.9 两组提交对照 / 3.11 引用日志 / 3.13 取某版本文件内容）')
+  check(attrValuesOf(qCommitsHtml, 'data-vc-query-page').every(function (p) { return p === 'commits' }) && attrValuesOf(qDiagHtml, 'data-vc-query-page').every(function (p) { return p === 'diagnostics' }), 'Q1c 每组都带着自己所在的页面读数（页面归属不靠代码里的书写次序猜）')
+  check(attrValuesOf(qCommitsHtml, 'data-vc-query-primary').join(',') === '0,0,0,0,0,0' && attrValuesOf(qCommitsHtml, 'data-vc-query-primary-badge').length === 0, 'Q1d 提交历史页六组都不是「诊断页主入口」（不抢 3.5/3.9/3.11/3.13 的说法）')
+  check(qDiagPrimaryJudgmentOf(VIEW), 'Q1e 诊断页四组都标主入口并挂「主入口」徽标，页面正文写着这四条的主入口就在本页（共 4 组）')
+  check(qDiagHtml.indexOf('data-vc-query-diagnostics="1"') >= 0 && qDiagHtml.indexOf(tZh('vc.query.diagnosticsNote')) >= 0, 'Q1f 诊断页正文有「本页是四条只读能力主入口」的说明段（不是只靠徽标暗示）')
+  // 「历史查看」域一共十三条：3.1 提交列表 / 3.2 单条提交详情 / 3.3 提交内逐文件差异 由 #1744 的提交历史页正文承担，
+  //   本票接 3.4–3.13 这十条（逐条列在这里，是票面写死的范围，不是从代码里反推的名单）。
+  const qWantCapIds = ['3.4', '3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+  const qAllPagesCaps: string[] = []
+  VIEW.PAGE_SURFACES.forEach(function (surface) {
+    const html = qPageHtmlOf(String(surface.id))
+    qCapsOf(html).forEach(function (id) { qAllPagesCaps.push(id) })
+  })
+  const qCapOrder = function (a: string, b: string) { return Number(a) - Number(b) }
+  check(qAllPagesCaps.slice().sort(qCapOrder).join(',') === qWantCapIds.slice().sort(qCapOrder).join(','), 'Q1g 全页面板的能力并集 = 票面那十条（3.4–3.13，一个不多一个不少；3.1–3.3 由提交历史页正文承担）实测：' + qAllPagesCaps.slice().sort(qCapOrder).join(','))
+  let qLedgerOk = VIEW.vcQueryCatalogOf().length === 10
+  VIEW.vcQueryCatalogOf().forEach(function (entry) {
+    const cap = VIEW.vcCapabilityOf(entry.capId)
+    const html = qPageHtmlOf(String(entry.page))
+    if (!cap || entry.page !== cap.page || entry.name !== cap.name || html.indexOf(qEsc(cap.command)) < 0) qLedgerOk = false
+  })
+  check(qLedgerOk, 'Q1h 十条的名称、页面归属与命令原文都逐条回能力账本取（界面不另写一份命令清单）')
+  let qOtherPagesClean = true
+  VIEW.PAGE_SURFACES.forEach(function (surface) {
+    const id = String(surface.id)
+    if (id === 'commits' || id === 'diagnostics') return
+    if (qPageHtmlOf(id).indexOf('data-vc-query-panel') >= 0) qOtherPagesClean = false
+  })
+  check(qOtherPagesClean, 'Q1i 其余十四页不出现历史高级查询面板（入口不扩散到所有页面）')
+
+  // Q2 输入面：每组的字段名与能力目录一一对应，条数初值与两种下拉的初值有真实默认
+  const qFieldCountOf = function (kind) { return VIEW.vcQueryEntryOf(kind).fields.length }
+  const qInputsOn = function (html, kind) { return attrValuesOf(html, 'data-vc-query-field-for').filter(function (k) { return k === kind }).length }
+  let qFieldsOk = true
+  VIEW.vcQueryCatalogOf().forEach(function (entry) {
+    const html = qPageHtmlOf(String(entry.page))
+    if (qInputsOn(html, entry.kind) !== entry.fields.length) qFieldsOk = false
+    entry.fields.forEach(function (f) { if (html.indexOf('data-vc-query-input="' + f.name + '"') < 0) qFieldsOk = false })
+  })
+  check(qFieldsOk, 'Q2a 十条的输入框逐字段画出来（字段名与能力目录同源，不多不少）')
+  check(VIEW.vcQueryInputValueOf(VIEW.vcQueryInputsOf(), 'file-history', 'count') === '50' && VIEW.vcQueryInputValueOf(VIEW.vcQueryInputsOf(), 'compare', 'mode') === 'two-dot' && VIEW.vcQueryInputValueOf(VIEW.vcQueryInputsOf(), 'pickaxe', 'mode') === 'occurrence', 'Q2b 条数初值 50、比较方式初值两点（a..b）、搜索方式初值按出现次数（-S）')
+  check(qCommitsHtml.indexOf('value="50"') >= 0 && qCommitsHtml.indexOf('value="two-dot"') >= 0 && qCommitsHtml.indexOf('value="occurrence"') >= 0, 'Q2c 初值真的画进输入框（不是只存在状态里）')
+  const qLimitsOk = ['file-history', 'blame', 'compare', 'range-diff'].every(function (kind) {
+    const entry = VIEW.vcQueryEntryOf(kind)
+    return qPageHtmlOf(String(entry.page)).indexOf('data-vc-query-limit="' + entry.limit + '"') >= 0 && entry.limit > 0
+  }) && qPageHtmlOf('commits').indexOf('data-vc-query-limit="0"') < 0
+  check(qLimitsOk, 'Q2d 有上限的四条写着各自的显式条数上限，没有上限的三条不放假上限')
+
+  // Q3 本地预检：四类错各指到字段，十条合法输入各自拼出宿主要的那份参数
+  const qReq = VIEW.vcQueryParamsOf('file-history', { path: '', count: '50' })
+  const qNum = VIEW.vcQueryParamsOf('grep', { pattern: 'x', count: '三' })
+  const qOrder = VIEW.vcQueryParamsOf('blame', { path: 'a.txt', lineStart: '9', lineEnd: '3' })
+  const qSpan = VIEW.vcQueryParamsOf('blame', { path: 'a.txt', lineStart: '1', lineEnd: '1' + '0'.repeat(3) })
+  check(qReq.ok === false && qReq.reason === 'required-missing' && qReq.field === 'path', 'Q3a 必填没填：当场指到 path 字段（不把空路径发出去）')
+  check(qNum.ok === false && qNum.reason === 'not-number' && qNum.field === 'count', 'Q3b 条数写歪：当场指到 count 字段（不是拿 NaN 去问 git）')
+  check(qOrder.ok === false && qOrder.reason === 'range-order' && qOrder.field === 'lineEnd', 'Q3c 行号区间颠倒：指到 lineEnd（不猜用户想要哪一段）')
+  check(qSpan.ok === false && qSpan.reason === 'range-span', 'Q3d 行数跨度超过 ' + VIEW.VC_QUERY_BLAME_SPAN_MAX + '：拒绝并说清上限（不偷偷截小）')
+  let qParamsOk = true
+  VIEW.vcQueryCatalogOf().forEach(function (entry) {
+    const values: any = {}
+    entry.fields.forEach(function (f) { if (f.required) values[f.name] = f.type === 'number' ? '50' : 'x' })
+    const built = VIEW.vcQueryParamsOf(entry.kind, values)
+    entriesOk: {
+      if (!built.ok) { qParamsOk = false; break entriesOk }
+      const keys = Object.keys(built.params).sort().join(',')
+      const want = entry.fields.filter(function (f) { return values[f.name] !== undefined }).map(function (f) { return f.name }).sort().join(',')
+      if (keys !== want) qParamsOk = false
+      entry.fields.forEach(function (f) { if (f.type === 'number' && values[f.name] !== undefined && typeof built.params[f.name] !== 'number') qParamsOk = false })
+    }
+  })
+  check(qParamsOk, 'Q3e 十条的合法输入各自拼出宿主要的那份参数（键名与能力目录同源，条数转成数字）')
+  check(VIEW.vcQueryParamsOf('range-diff', { base: 'main', left: 'feat-a', right: 'feat-b' }).params.right === 'feat-b', 'Q3f 两组提交对照把三个引用原样交给宿主（不在本地猜哪边是新）')
+
+  // Q4 读取路径：一次读 = 电话名 + 参数，成功 / 失败 / 形状不对 / 异常 / 空目录 / 迟到回包各有落点
+  const qCalls: any[] = []
+  const qCallOk = function (kind, reply) { return function (method, args) { qCalls.push({ method: method, args: args }); return Promise.resolve(reply) } }
+  const qCommitsReply = { ok: true, kind: 'file-history', commits: hcRows4.slice(0, 2), count: 2, total: 2, truncated: false, reason: '' }
+  const qReadOk = await VIEW.vcReadHistoryQuery({ queries: {} }, qCallOk('file-history', qCommitsReply), 'D:/w/repo', 'file-history', { path: 'src/a.ts', count: '50' })
+  check(qReadOk.queries['file-history'].state === 'ok' && qReadOk.queries['file-history'].data === qCommitsReply, 'Q4a 读到就落成成功态（回包原样存着，不在半路改形状）实测：' + JSON.stringify(qReadOk.queries['file-history']).slice(0, 200))
+  check(qCalls.length === 1 && qCalls[0].method === VIEW.VC_QUERY_PHONE && qCalls[0].args.cwd === 'D:/w/repo' && qCalls[0].args.kind === 'file-history' && qCalls[0].args.params.path === 'src/a.ts' && qCalls[0].args.params.count === 50, 'Q4b 打的是 wf.gitHistoryQuery：带目录、能力种类与参数（条数已是数字）')
+  const qOld = { state: 'ok', seq: 3, data: qCommitsReply, error: null }
+  const qReadFail = await VIEW.vcReadHistoryQuery({ queries: { 'file-history': qOld } }, function () { return Promise.resolve({ ok: false, error: { kind: 'non-zero', message: 'fatal: bad revision' } }) }, 'D:/w/repo', 'file-history', { path: 'src/a.ts', count: '50' })
+  check(qReadFail.queries['file-history'].state === 'err' && qReadFail.queries['file-history'].error.kind === 'non-zero' && qReadFail.queries['file-history'].error.message === 'fatal: bad revision' && qReadFail.queries['file-history'].data === qCommitsReply, 'Q4c 宿主失败：落失败态并保留上一次读到的数据（错误原文照实存着）')
+  const qReadShape = await VIEW.vcReadHistoryQuery({ queries: {} }, function () { return Promise.resolve({ ok: true, kind: 'file-history' }) }, 'D:/w/repo', 'file-history', { path: 'a' })
+  check(qReadShape.queries['file-history'].state === 'err' && qReadShape.queries['file-history'].error.kind === 'shape', 'Q4d 回包缺字段判形状失败（不拿半份数据冒充成功）')
+  const qReadThrow = await VIEW.vcReadHistoryQuery({ queries: {} }, function () { throw new Error('管道断了') }, 'D:/w/repo', 'grep', { pattern: 'x' })
+  check(qReadThrow.queries.grep.state === 'err' && qReadThrow.queries.grep.error.kind === 'throw' && qReadThrow.queries.grep.error.message === '管道断了', 'Q4e 电话抛异常也落失败态（不把异常漏到渲染那一帧）')
+  qCalls.length = 0
+  const qReadNoCwd = await VIEW.vcReadHistoryQuery({ queries: {} }, qCallOk('grep', { ok: true }), '', 'grep', { pattern: 'x' })
+  check(qReadNoCwd.queries.grep.state === 'err' && qReadNoCwd.queries.grep.error.kind === 'no-cwd' && qCalls.length === 0, 'Q4f 没有工作区就不打这一枪（如实说没目录，不发一条注定失败的 git）')
+  const qLate = { queries: { grep: { state: 'ok', seq: 2, data: { ok: true }, error: null } } }
+  const qLateNext = { queries: { grep: { state: 'ok', seq: 1, data: { ok: true, stale: true }, error: null } } }
+  check(VIEW.vcApplyQueryReply(qLate, qLateNext, 'grep') === qLate, 'Q4g 晚到的旧回包丢掉（代际号小的不盖新的）')
+  const qLogs: any[] = []
+  const qLoggedView = buildView(null, qLogs)
+  await qLoggedView.vcReadHistoryQuery({ queries: {} }, function () { return Promise.resolve(qCommitsReply) }, 'D:/w/repo', 'file-history', { path: 'a' })
+  await qLoggedView.vcReadHistoryQuery({ queries: {} }, function () { return Promise.resolve({ ok: false, error: { kind: 'timeout', message: '超时了' } }) }, 'D:/w/repo', 'file-history', { path: 'a' })
+  const qCallLogs = qLogs.filter(function (l) { return l.event === 'host.call' || l.event === 'host.call.fail' })
+  const qOkLog = qCallLogs.filter(function (l) { return l.event === 'host.call' })[0]
+  const qFailLog = qCallLogs.filter(function (l) { return l.event === 'host.call.fail' })[0]
+  check(!!qOkLog && qOkLog.fields.method === VIEW.VC_QUERY_PHONE && qOkLog.fields.kind === 'git-history-query' && qOkLog.fields.ok === true, 'Q4h 读成功落一条 host.call（电话名、历史查询种类、成功都在）实测：' + JSON.stringify(qCallLogs).slice(0, 300))
+  check(!!qFailLog && qFailLog.fields.method === VIEW.VC_QUERY_PHONE && qFailLog.fields.kind === 'git-history-query' && typeof qFailLog.fields.errorHash === 'string' && JSON.stringify(qFailLog.fields).indexOf('超时了') < 0, 'Q4i 读失败落一条 host.call.fail：只留错误散列，不把 git 原话倒进日志')
+
+  // Q5 十种结果的画法：清单条数、行号与原文、文件与二进制、四种对照记号、版本名脏净、引用日志、
+  //   备注原文、文件内容或二进制标记、五种空结果的说明、截断的显式读数与那句「读不全不给半份」
+  const Q_NOW = NOW
+  const qBlameLines = [
+    { oid: 'a'.repeat(40), author: '林可', authorTimeMs: Q_NOW, summary: '初始提交', filename: '文件 一.txt', line: 1, origLine: 1, text: '第一行甲', boundary: true, previous: null },
+    { oid: 'b'.repeat(40), author: '林可', authorTimeMs: Q_NOW, summary: '改第二行', filename: '文件 一.txt', line: 2, origLine: 2, text: '第二行乙改', boundary: false, previous: 'c'.repeat(40) },
+  ]
+  const qCompareFiles = [
+    { path: 'code.js', origPath: null, added: 3, deleted: 0 },
+    { path: '混入 空字节.bin', origPath: null, added: null, deleted: null },
+  ]
+  const qRangePairs = [
+    { leftNo: 1, leftOid: 'ee3fe73', mark: '<', rightNo: null, rightOid: null, subject: 'feat: 对照甲' },
+    { leftNo: null, leftOid: null, mark: '>', rightNo: 3, rightOid: 'ce543a2', subject: '只在新分支的提交' },
+    { leftNo: 2, leftOid: '195b21e', mark: '=', rightNo: 2, rightOid: '305a2a5', subject: 'feat: 对照乙' },
+    { leftNo: 1, leftOid: 'aaaaaaa', mark: '!', rightNo: 1, rightOid: 'bbbbbbb', subject: '改过的提交' },
+  ]
+  const qRenderOf = function (kind, data, width) {
+    const entry = VIEW.vcQueryEntryOf(kind)
+    const queries: any = {}
+    queries[kind] = { state: 'ok', seq: 1, data: data, error: null }
+    return renderToStaticMarkup(VIEW.vcQueryPageNode(h, tZh, { page: entry.page, width: width === undefined ? 460 : width, nowMs: Q_NOW, queries: queries }))
+  }
+  const qCommitsHtml2 = qRenderOf('file-history', qCommitsReply)
+  check(attrValuesOf(qCommitsHtml2, 'data-vc-query-list').join(',') === 'commits' && attrValuesOf(qCommitsHtml2, 'data-vc-query-item').length === 2 && qCommitsHtml2.indexOf(hcRows4[0].subject) >= 0, 'Q5a 单文件历史画出提交清单（条数与提交说明都在，读到的才画）')
+  const qBlameHtml = qRenderOf('blame', { ok: true, kind: 'blame', lines: qBlameLines, count: qBlameLines.length, total: qBlameLines.length, truncated: false, reason: '' })
+  check(attrValuesOf(qBlameHtml, 'data-vc-query-blame-line').join(',') === '1,2' && qBlameHtml.indexOf('第二行乙改') >= 0 && qBlameHtml.indexOf('林可') >= 0 && qBlameHtml.indexOf(tZh('vc.query.blame.from').split('{short}')[0]) >= 0, 'Q5b 行级追溯逐行画出最终行号、来源提交与这一行的原文（' + qBlameLines.length + ' 行）')
+  const qCompareHtml = qRenderOf('compare', { ok: true, kind: 'compare', files: qCompareFiles, total: qCompareFiles.length, truncated: false, reason: '' })
+  check(attrValuesOf(qCompareHtml, 'data-vc-query-file').join(',') === 'code.js,混入 空字节.bin' && qCompareHtml.indexOf('+' + '3') >= 0 && qCompareHtml.indexOf('—') >= 0, 'Q5c 比较两个引用逐文件画出增删行数（二进制文件答不出增删就画「—」，不猜 0）')
+  const qRangeHtml = qRenderOf('range-diff', { ok: true, kind: 'range-diff', pairs: qRangePairs, extraLines: [' 第二行说明'], total: qRangePairs.length, truncated: false, reason: '' })
+  check(attrValuesOf(qRangeHtml, 'data-vc-query-mark').join(',') === '&lt;,&gt;,=,!' && qRangeHtml.indexOf(tZh('vc.query.range.onlyOld')) >= 0 && qRangeHtml.indexOf(tZh('vc.query.range.onlyNew')) >= 0 && qRangeHtml.indexOf(tZh('vc.query.range.same')) >= 0 && qRangeHtml.indexOf(tZh('vc.query.range.diff')) >= 0, 'Q5d 两组提交对照四种记号各说各的话（只在旧组 / 只在新组 / 两边同形 / 两边不同）')
+  check(attrValuesOf(qRangeHtml, 'data-vc-query-range-extra')[0] === '1' && qRangeHtml.indexOf(tZh('vc.query.result.rangeExtra').replace('{n}', '1')) >= 0, 'Q5e 对照里多行的提交说明单独说还有几行（不当成对照行混进去）')
+  const qDescHtml = qRenderOf('describe', { ok: true, kind: 'describe', text: 'v1.0.0-6-g437a134', dirty: false, truncated: false, reason: '' })
+  const qDirtyHtml = qRenderOf('describe', { ok: true, kind: 'describe', text: 'v1.0.0-6-g437a134-dirty', dirty: true, truncated: false, reason: '' })
+  check(qDescHtml.indexOf('v1.0.0-6-g437a134') >= 0 && attrValuesOf(qDescHtml, 'data-vc-query-dirty')[0] === '0' && qDirtyHtml.indexOf(tZh('vc.query.result.dirty')) >= 0 && attrValuesOf(qDirtyHtml, 'data-vc-query-dirty')[0] === '1', 'Q5f 版本名画出 describe 原文，并明确说工作区脏不脏（-dirty 不当成版本名的一部分藏起来）')
+  const qReflogReply = { ok: true, kind: 'reflog', entries: [{ oid: 'a'.repeat(40), short: '437a134', selector: 'HEAD@{0}', actor: '样本作者', subject: 'commit: 初始' }], count: 1, total: 1, truncated: false, reason: '' }
+  const qReflogWide = qRenderOf('reflog', qReflogReply, 460)
+  const qReflogNarrow = qRenderOf('reflog', qReflogReply, 300)
+  check(attrValuesOf(qReflogWide, 'data-vc-query-reflog-entry').join(',') === 'HEAD@{0}' && attrValuesOf(qReflogWide, 'data-vc-query-author').length === 1 && attrValuesOf(qReflogNarrow, 'data-vc-query-author').length === 0, 'Q5g 引用日志画出选择器与动作；300 宽收起执行者、入口一个不少（宽度只改排布）')
+  const qNotesHtml = qRenderOf('notes', { ok: true, kind: 'notes', note: '这条提交是发布点，别动', reason: 'ok', truncated: false, total: 1 })
+  check(qNotesHtml.indexOf('data-vc-query-note="1"') >= 0 && qNotesHtml.indexOf('这条提交是发布点，别动') >= 0, 'Q5h 提交备注原样写出来（不改写作者写的文字）')
+  const qShowHtml = qRenderOf('show-file', { ok: true, kind: 'show-file', text: '第一行甲\n第二行', binary: false, truncated: false, total: 1, reason: '' })
+  const qBinaryHtml = qRenderOf('show-file', { ok: true, kind: 'show-file', text: '', binary: true, truncated: false, total: 1, reason: '' })
+  check(qShowHtml.indexOf('data-vc-query-content="1"') >= 0 && qShowHtml.indexOf('第二行') >= 0 && qBinaryHtml.indexOf('data-vc-query-binary="1"') >= 0 && qBinaryHtml.indexOf(tZh('vc.query.result.binary')) >= 0, 'Q5i 取某版本的文件内容：文本原样画出，二进制只标出来不硬塞乱码')
+  const qEmptyChecks = [
+    ['grep', { ok: true, kind: 'grep', commits: [], count: 0, total: 0, truncated: false, reason: 'empty' }, 'commits'],
+    ['compare', { ok: true, kind: 'compare', files: [], total: 0, truncated: false, reason: 'same' }, 'same'],
+    ['range-diff', { ok: true, kind: 'range-diff', pairs: [], extraLines: [], total: 0, truncated: false, reason: 'same' }, 'rangeSame'],
+    ['notes', { ok: true, kind: 'notes', note: null, reason: 'no-note', truncated: false, total: 0 }, 'no-note'],
+    ['show-file', { ok: true, kind: 'show-file', text: '', binary: false, truncated: false, total: 1, reason: '' }, 'content'],
+  ]
+  const qEmptyOk = qEmptyChecks.every(function (one) { return attrValuesOf(qRenderOf(one[0], one[1]), 'data-vc-query-empty').join(',') === one[2] })
+  check(qEmptyOk, 'Q5j 五种空结果各说各的情形（没有提交 / 两边一样 / 两组对照一样 / 没有备注 / 这个版本里这个文件是空的）')
+  const qTruncReply = { ok: true, kind: 'compare', files: qCompareFiles, total: 5000, truncated: true, reason: '' }
+  const qTruncView = { queries: { compare: { state: 'ok', seq: 1, data: qTruncReply, error: null } } }
+  const qTruncHtml = renderToStaticMarkup(VIEW.vcQueryPageNode(h, tZh, { page: 'commits', width: 460, nowMs: Q_NOW, queries: qTruncView.queries }))
+  check(qTruncHtml.indexOf('data-vc-query-truncated="1"') >= 0 && qTruncHtml.indexOf(tZh('vc.query.truncated').replace('{shown}', String(qCompareFiles.length)).replace('{total}', '5000')) >= 0 && qTruncHtml.indexOf(tZh('vc.query.truncatedHint').slice(0, 8)) >= 0, 'Q5k 回包被截断时显式写出「已显示 2 / 共 5000」与补齐办法（不悄悄少画几条）')
+  const qTruncJudgmentOf = function (v) {
+    const html = renderToStaticMarkup(v.vcQueryPageNode(h, tZh, { page: 'commits', width: 460, nowMs: Q_NOW, queries: { compare: { state: 'ok', seq: 1, data: qTruncReply, error: null } } }))
+    return html.indexOf('data-vc-query-truncated="1"') >= 0
+  }
+  const qInvalidView = { queries: { 'file-history': { state: 'err', seq: 1, data: null, error: { kind: 'invalid-input', field: 'path', reason: 'required-missing', message: '' } } } }
+  const qInvalidHtml = renderToStaticMarkup(VIEW.vcQueryPageNode(h, tZh, { page: 'commits', width: 460, nowMs: Q_NOW, queries: qInvalidView.queries }))
+  check(attrValuesOf(qInvalidHtml, 'data-vc-query-error').join(',') === 'required-missing' && qInvalidHtml.indexOf(tZh('vc.query.invalid.required').replace('{field}', tZh('vc.query.field.path'))) >= 0, 'Q5l 本地预检失败说清哪个字段要填（用字段真名，不是 field 变量名）')
+  const qGitErrView = { queries: { 'file-history': { state: 'err', seq: 1, data: null, error: { kind: 'non-zero', field: '', reason: 'git', message: 'fatal: bad revision' } } } }
+  const qGitErrHtml = renderToStaticMarkup(VIEW.vcQueryPageNode(h, tZh, { page: 'commits', width: 460, nowMs: Q_NOW, queries: qGitErrView.queries }))
+  const qTruncErrView = { queries: { 'file-history': { state: 'err', seq: 1, data: null, error: { kind: 'truncated', field: '', reason: 'git', message: '' } } } }
+  const qTruncErrHtml = renderToStaticMarkup(VIEW.vcQueryPageNode(h, tZh, { page: 'commits', width: 460, nowMs: Q_NOW, queries: qTruncErrView.queries }))
+  check(qGitErrHtml.indexOf('fatal: bad revision') >= 0 && qTruncErrHtml.indexOf(tZh('vc.query.truncatedFail')) >= 0, 'Q5m 宿主失败显示 git 原话；读不全时明说「读不全就不给半份」（两种失败不混成一句）')
+  check(attrValuesOf(qGitErrHtml, 'data-vc-query-retry').length === 0, 'Q5n 静态渲染里失败态不给假重试按钮（没有回调就不画能点的东西）')
+  const qIdleHtml = qPageHtmlOf('commits')
+  check(qIdleHtml.indexOf('data-vc-query-state="idle"') >= 0 && qIdleHtml.indexOf(tZh('vc.query.idle')) >= 0, 'Q5o 还没跑过任何一条时每组都写「还没查」（不冒充空结果）')
+  const qLoadingView = { 'file-history': { state: 'loading', seq: 2, data: null, error: null } }
+  const qLoadingHtml = renderToStaticMarkup(VIEW.vcQueryPageNode(h, tZh, { page: 'commits', width: 460, nowMs: Q_NOW, queries: qLoadingView }))
+  check(qLoadingHtml.indexOf('data-vc-query-running="1"') >= 0 && qLoadingHtml.indexOf(tZh('vc.query.running')) >= 0, 'Q5p 正在读时写「正在查」（不拿上一次的结果冒充新读数）')
+  let qWidthOk = true
+  VIEW.VC_SHELL_WIDTHS.forEach(function (width) {
+    const html = qRenderOf('file-history', qCommitsReply, width)
+    if (attrValuesOf(html, 'data-vc-query-item').length !== 2) qWidthOk = false
+    if (width < 460 && attrValuesOf(html, 'data-vc-query-author').length !== 0) qWidthOk = false
+    if (width >= 460 && attrValuesOf(html, 'data-vc-query-author').length !== 2) qWidthOk = false
+  })
+  check(qWidthOk, 'Q5q 四档宽下结果条数不变：300/380 收起作者，460 起补上作者（宽度只改排布、不删结果）')
+
+  // Q6 页面壳集成：面板只挂两页、组数对、全页渲染 id 不重复
+  check(qCommitsHtml.indexOf('data-vc-query-panel="commits"') >= 0 && qDiagHtml.indexOf('data-vc-query-panel="diagnostics"') >= 0 && attrValuesOf(qCommitsHtml, 'data-vc-query-panel-count')[0] === '6' && attrValuesOf(qDiagHtml, 'data-vc-query-panel-count')[0] === '4', 'Q6a 页面壳把面板挂进提交历史页与诊断页（组数读数 6 / 4 与账本一致）')
+  const qAllHtml = allShellHtmlOf({ width: 460, skin: 'dark' })
+  const qIds = attrValuesOf(qAllHtml, 'id')
+  check(new Set(qIds).size === qIds.length, 'Q6b 全页渲染时面板不造重复 id（' + qIds.length + ' 个 id 全不相同，输入框的 label/for 不会指错）')
+  const qCapsListOf = function (html) { return attrValuesOf(html, 'data-cap-primary').length }
+  check(qCapsListOf(qCommitsHtml) === VIEW.vcPageCapabilitiesOf('commits').length && qCapsListOf(qDiagHtml) === VIEW.vcPageCapabilitiesOf('diagnostics').length, 'Q6c 面板插在能力清单之前、不吞掉本页的能力行（两页能力行数与原页面一致）')
+  check(qCommitsHtml.indexOf('vc-query-commits') >= 0 && qDiagHtml.indexOf('vc-query-diagnostics') >= 0, 'Q6d 两页各有自己的面板 id（锚点与深链指得清是哪一页的面板）')
 
   // ---- H 组：反证（把被守的东西改坏，同一套断言必须当场变红）----
   // 反证锚点的两种落点：还住在手写 .js 里的代码写成单引号，已经变成构建产物的界面叶子被 esbuild
@@ -1896,6 +2118,12 @@ async function main() {
     { name: '图形化视图丢掉父提交连线', patch: (s) => s.replace('      parents: parentList.slice()', '      parents: []'), test: (v) => { const g = v.vcHistoryGraphOf(hcRows4); return g.rows[1].parents.length === 2 && g.rows[3].parents.length === 0 }, what: 'Y6b' },
     // #1744：点开提交不再画详情（整页替换那一层没了）—— Y4a 必须当场红。
     { name: '点开提交不再画详情', patch: (s) => s.replace('  const detail = ui.openCommit ? vcHistoryDetailOf(', '  const detail = false ? vcHistoryDetailOf('), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'commits', width: 460, skin: 'dark', reads: y4Reads, ui: { openCommit: hcRev.oid } })); return html.indexOf('data-vc-history-detail') >= 0 }, what: 'Y4a' },
+    // #1745：诊断页四组的主入口标记拿掉 —— Q1e 必须当场红。
+    { name: '诊断页四组不再标主入口', patch: (s) => s.replace("'data-vc-query-primary': primary ? '1' : '0',", "'data-vc-query-primary': '0',"), test: qDiagPrimaryJudgmentOf, what: 'Q1e' },
+    // #1745：截断标记删掉（少画几条也不说）—— Q5k 必须当场红。
+    { name: '截断不再显式标出', patch: (s) => s.replace('  if (cut) {', '  if (false) {'), test: qTruncJudgmentOf, what: 'Q5k' },
+    // #1745：本地必填校验放行（空路径也发）—— Q3a 必须当场红。
+    { name: '必填校验放行', patch: (s) => s.replace("if (f.required && text === '') return bad(f.name, 'required-missing')", "if (false) return bad(f.name, 'required-missing')"), test: (v) => { const r = v.vcQueryParamsOf('file-history', { path: '', count: '50' }); return r.ok === false && r.reason === 'required-missing' && r.field === 'path' }, what: 'Q3a' },
     // #1751：贮藏页的三处反证 —— 挂载被摘掉、版本门恒放行、危险动作不出确认卡，对应断言必须当场红。
     { name: '贮藏页不再挂进页面壳（十条入口全没了）', patch: (s) => s.replace("if (page === 'stash' && typeof vcStashPageNode === 'function') {", 'if (false) {'), test: stashMountedJudgmentOf, what: 'Z16a' },
     { name: '7.3 的版本门恒放行（低版本也画按钮）', patch: (s) => s.replace('const state = vcStashOpVersionStateOf(VC_STASH_STAGED_OP, versionText)', "const state = 'full'"), test: stashGateJudgmentOf, what: 'Z16m' },

@@ -394,6 +394,7 @@ export function createVersionControl(deps: any): any {
 
   // 分支与标签域（#1746 T11）：读电话 wf.gitBranches 与写电话 wf.gitBranchWrite 住 ./versionControlBranch.js，
   // 与差异电话、首屏电话同一先例（自包含叶子、依赖显式传入）；装配写在下面同一条注册行的两个值里，不另占装载行。
+  // 历史高级查询十条能力（#1745）住 ./versionControlHistory.js：同一先例（自包含叶子、依赖全显式传入、单向引用）。
   /** 电话 wf.gitLog 的处理体：历史按批取；多要一条用来判断后面还有没有。 */
   async function handleGitLog(args: any): Promise<any> {
     const count: number = clampInt(args && args.count, FIRST_SCREEN_LOG_COUNT, 1, LOG_BATCH_MAX)
@@ -482,7 +483,7 @@ export function createVersionControl(deps: any): any {
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
     handleGitLog: loggedPhone('wf.gitLog', 'git-log', handleGitLog),
     // 首屏七片一次聚合（#1739 T04）：一次调用拿全，各片成败在回包里各自说。
-    handleGitFirstScreen: loggedPhone('wf.gitFirstScreen', 'git-first-screen', handleGitFirstScreen),
+    handleGitFirstScreen: loggedPhone('wf.gitFirstScreen', 'git-first-screen', handleGitFirstScreen), handleGitHistoryQuery: (function (): any { let p: any = null; return loggedPhone('wf.gitHistoryQuery', 'git-history-query', async function (args: any): Promise<any> { if (!p) p = import('./versionControlHistory.js').then(function (m: any) { return m.createHistoryQueryPhone({ failPhone: failPhone, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf }) }); const q: any = await p; return q(args) }) })(),
     // 分支与标签域（#1746 T11）：读一次取全、预检签票、凭票执行三条电话共用一个装配壳（懒加载与日志包装在那片叶子）。
     // 写电话（1 预检 + 6 执行）：第一次调用时才装配，装完缓存；键名与只读那三条同形。
     handleGitWriteCheck: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.check(a) },
@@ -497,9 +498,7 @@ export function createVersionControl(deps: any): any {
     writeTickets: async function (): Promise<any> { const w: any = await writePhone(); return w.tickets || null },
     runGitCommand: runGit, // #839：那一族「可能弹凭据提示」的命令复用同一条进程出口（同一个报闸、同一条 git.exec 日志、同一套字节上限）
     // #1740 长任务通道三条电话（开始、查询、取消）：装配在 ./versionControlTask.js，进程出口是上面那条固定前缀与报闸。
-    handleGitTaskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) },
-    handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) },
-    handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) },
+    handleGitTaskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) }, handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) }, handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) }, // 三条独立成行是 353 有效行，超过 350 上限 3 行；写在同一物理行、用逗号接续，代码与独立成行时逐字一致。
     // #1751 贮藏页十条（域 7）：第一次调用时才装配执行层，键名与写电话、长任务那几条同形。
     // #1752 工作树页八条能力：预检与执行两条电话（装配壳在 ./versionControlWorktreesMount.ts，懒加载、失败兜底与日志包装都在那里）。
     ...createWorktreesMount({ resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, runPinned: runPinned, failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, cwdOf: cwdOf, pathExists: pathExists, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now, randomId: function (): string { return Math.random().toString(36).slice(2) } }), handleGitStashCheck: async function (a: any): Promise<any> { try { const m: any = await import('./versionControlStash.js'); const s: any = await m.stashPhonesOf({ runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, timeoutMs: timeoutMs, stdoutLimit: STDOUT_LIMIT, patchLimit: PATCH_LIMIT, defaultCwd: DEFAULT_CWD, nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now, loggedPhone: loggedPhone }); return s.check(a) } catch (e) { return failPhone('env', '贮藏页十条能力的执行层加载失败：' + firstLine(String((e && (e as any).message) || e))) } }, handleGitStash: async function (a: any): Promise<any> { try { const m: any = await import('./versionControlStash.js'); const s: any = await m.stashPhonesOf({ runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, timeoutMs: timeoutMs, stdoutLimit: STDOUT_LIMIT, patchLimit: PATCH_LIMIT, defaultCwd: DEFAULT_CWD, nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now, loggedPhone: loggedPhone }); return s.write(a) } catch (e) { return failPhone('env', '贮藏页十条能力的执行层加载失败：' + firstLine(String((e && (e as any).message) || e))) } }, handleGitBranches: branches.read, handleGitBranchCheck: branches.check, handleGitBranchWrite: branches.write, branchTickets: branches.tickets, // #1751 贮藏两条电话与 #1752 工作树的装配写在同一物理行、用逗号接续：本文件有效行以 350 为上限，合并时独立成行是 351，单独立行会超线；两个条目的代码与独立成行时逐字一致。

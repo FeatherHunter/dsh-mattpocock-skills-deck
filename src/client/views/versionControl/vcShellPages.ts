@@ -32,6 +32,8 @@ declare const VC_SHELL_STATES: string[]
 declare function vcHistoryPageNode(h: any, t: any, o: any): any
 // 远端与同步页叶子（#1754 T18，vcRemotePage.ts）：build 按叶子登记次序拼进同一闭包，这里只声明形状。
 declare function vcRemotePageNode(h: any, t: any, o: any): any
+// 历史高级查询面板（#1745，vcQueryView.ts）：提交历史页与「管理 › 诊断」页各挂一段，按能力账本筛。
+declare function vcQueryPageNode(h: any, t: any, o: any): any
 // 长任务区叶子（#1740，vcTaskPanel.ts）：由构建按叶子登记次序拼进同一个闭包，这里只声明形状。
 declare function vcTaskPanelNode(h: any, t: any, o: any): any
 // 工作树页叶子（#1752，vcWorktreesPage.ts）：同样由构建拼进同一个闭包，壳的挂载段只调用它。
@@ -289,6 +291,11 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
       onRetry: opts.onBranchRetry,
     }), { key: 'branch-board' }))
   }
+  // 历史高级查询面板（#1745 T10）：提交历史页落 3.4 / 3.6 / 3.7 / 3.8 / 3.10 / 3.12 六组，
+  //   「管理 › 诊断」页落 3.5 / 3.9 / 3.11 / 3.13 四组（四条的主入口就在那一页，面板自己标主入口）。
+  //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。
+  const queryNode = vcQueryPageNode(h, t, opts)
+  if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' }))
   children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
   // 改动页的 13 条动作面板（#1742）：页面把改动读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
@@ -350,6 +357,8 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
     // #1746 T11：分支与标签业务面板的读数与确认卡/结果（没给就不画，T03 既有渲染不变）。
     branchBoard: opts.branchBoard, branchConfirm: opts.branchConfirm, branchResult: opts.branchResult, onBranchRetry: opts.onBranchRetry,
+    // #1745：历史高级查询面板的输入与四态由调用方带着走（不传就是空的「还没跑」）。
+    queries: opts.queries, inputs: opts.inputs,
     ops: opts.ops, handlers: opts.handlers, // #1752 工作树页要真数据与处理函数
   }), 'body'))
   // #1751 贮藏页（域 7）：只在贮藏页挂这一块；十条动作的入口、确认卡与最近丢弃都在叶子里，

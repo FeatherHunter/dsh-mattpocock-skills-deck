@@ -55,6 +55,9 @@ const VC_FILES = [
   'src/client/views/versionControl/vcShellPrimitives.js',
   'src/client/views/versionControl/vcPalette.js',
   'src/client/views/versionControl/vcHistory.js',
+  // #1745：提交历史页六组 / 诊断页四组的历史高级查询面板（页面壳要调它，闭包里少一片就 ReferenceError）。
+  'src/client/views/versionControl/vcQuery.js',
+  'src/client/views/versionControl/vcQueryView.js',
   'src/client/views/versionControl/vcShellPages.js',
 ]
 
@@ -349,7 +352,9 @@ async function run(browser: any, env: any) {
   const locUrl = (f: string) => 'file://' + path.join(ROOT, sourcePath(f)).replace(/\\/g, '/')
   const shellLoc = await import(locUrl('src/client/kernel/locale-vcshell.js'))
   const vcw = await import(locUrl('src/client/kernel/locale-vcwrite.js'))
-  const dict = Object.assign({}, shellLoc.L_VCSHELL.zh, vcw.L_VCWRITE.zh)
+  // #1745：查询面板的文案在新词族 vcquery 里，缺了它 t() 取不到键。
+  const vcq = await import(locUrl('src/client/kernel/locale-vcquery.js'))
+  const dict = Object.assign({}, shellLoc.L_VCSHELL.zh, vcw.L_VCWRITE.zh, vcq.L_VCQUERY.zh)
   // vcText.js 单独拼进闭包时，相对时间窗口常量在真机闭包里由共享层提供；这里从 time-config 的
   // 生成物取同一份真值，挂到 window 上让闭包里的裸名读得到（与 verify-997 的手法一致）。
   const valuesMod = await import('file://' + path.join(ROOT, sourcePath('src/shared/time-config/values.js')).replace(/\\/g, '/'))
