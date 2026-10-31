@@ -131,7 +131,7 @@
 - **门禁真名**：阶段 4 的降级补齐门禁实际是 `verify-rest-fallback-completion`（46 项）与 `verify-rest-detail-completion`（61 项），旧称 `verify-fallback-merge` 已不存在；磁盘回放门禁实际是 `verify-1692-disk-replay-eviction`（85 项）。迁移计划与 ADR 已按真名改准。
 - **两份 ADR**：`docs/adr/20261030-panel-snapshot-single-source.md` 与 `docs/adr/20261030-github-room-channel-layering.md` 各补「收口记录」节；迁移计划补「收口记录」与 #1690–#1700 变更记录。
 - **复审后条数**：`verify-read-result-provenance` 341、`verify-panel-snapshot-merge` 89、`verify-notification-events` 119、`verify-notification-center` 104、`verify-rest-fallback-banner` 47；`tests/gate-map.json` 已在 `271c2949` 按最终树重录。
-- **全链**：`npm run verify:parallel` 在集成分支 `271c2949` 跑 480/480 步、真红 0、冒烟 5 条真红 0；票级分支的结构性已知红见第 5 节。两轴复审与修复的逐条处置见第 9 节。
+- **全链**：`npm run verify:parallel` 在集成分支 `271c2949` 跑 480/480 步、真红 0、冒烟 5 条真红 0；票级分支的结构性已知红见第 5 节。两轴复审与修复的逐条处置见第 9 节。 2026-10-31 该分支以合并提交 `c92fb243` 合入 main（同时带入主线 #1702、#1725、#1732 等的改动）；合入后在 main 上复跑 `npm run verify:parallel`：主链 481/481 步、真红 0、冒烟 5/5 真红 0（主线新增的一扇门禁把主链从 480 步加到 481 步）。
 
 ## 9. code-review 两轴复审与修复记录（2026-10-31）
 
