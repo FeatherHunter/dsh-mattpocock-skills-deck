@@ -788,6 +788,33 @@
     },
     {
       "file": "src/host/versionControl.ts",
+      "spec": "./versionControlSyncMount.js",
+      "resolved": "src/host/versionControlSyncMount.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1755（规格 #1586 T19 同步十个动作）",
+      "note": "装配扇入：同步域拆出预检签票与凭票执行两叶后，父文件贴着 350 有效行上限，只留 createSyncMount 一行装配调用；外壳负责懒加载与两条电话的日志包装，自己不解析仓库、不起进程。"
+    },
+    {
+      "file": "src/host/versionControlSyncMount.ts",
+      "spec": "./versionControlSyncCheck.js",
+      "resolved": "src/host/versionControlSyncCheck.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1755（规格 #1586 T19 同步十个动作）",
+      "note": "外壳装配：外壳把预检签票叶子接上（读一次真实现场、判定 allow/warn/block、强推先跑 ls-remote 取租约基准、签 120 秒票）；方向单向，预检叶子不引用外壳，也不引执行叶子。"
+    },
+    {
+      "file": "src/host/versionControlSyncMount.ts",
+      "spec": "./versionControlSyncWrite.js",
+      "resolved": "src/host/versionControlSyncWrite.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1755（规格 #1586 T19 同步十个动作）",
+      "note": "外壳装配：外壳把凭票执行叶子接上（复核票、重算现场、requestId 去重、交给长任务通道）；执行叶子与预检叶子共用同一张票表，但不互引，票表由外壳从预检叶子取出后显式交给执行叶子。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
       "spec": "./versionControlBranchMount.js",
       "resolved": "src/host/versionControlBranchMount.ts",
       "layer": "host",

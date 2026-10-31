@@ -415,6 +415,33 @@ async function main(): Promise<void> {
   check(forceFree, 'J14 本组所有写命令都不带 --force / -f / -ff（边界：删除脏树与锁定树走先处理再重来的正常路径）')
   check(denyIs({ ok: true, requestId: 'x' }, 'ticket-missing') === false, 'J15 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
 
+  // K 组：#1755 同步十个动作（域 8 的 8.5–8.14）—— 预检签票与凭票执行走真仓库，写动作仍只经长任务通道。
+  console.log('K 同步十动作（真仓库）')
+  const rK = mkRepo('k')
+  const vcK = makeVc()
+  check(typeof vcK.handleGitSyncCheck === 'function' && typeof vcK.handleGitSyncWrite === 'function', 'K1 同步预检与执行两条电话挂在同一个宿主对象上')
+  check(typeof vcK.handleGitTaskStart === 'function', 'K2 执行走长任务通道的电话就绪（同步自己不另起进程）')
+  const kBefore = spawns.length
+  const kNoRemote = await vcK.handleGitSyncCheck({ cwd: rK, action: 'fetch' })
+  check(kNoRemote.ok === false && kNoRemote.error.kind === 'blocked' && kNoRemote.reason === 'no-remote', 'K3 仓库没有远端时获取被预检拦下，理由常驻（no-remote）')
+  check(spawns.slice(kBefore).indexOf(kNoRemote) < 0 && writeSpawns().length === 0 && spawns.slice(kBefore).every((a) => after(a)[0] !== 'fetch' && after(a)[0] !== 'push' && after(a)[0] !== 'pull'), 'K4 预检只跑读命令：一条写命令与 fetch 都没起')
+  const kBadBefore = spawns.length
+  const kBad = await vcK.handleGitSyncCheck({ cwd: rK, action: 'nope' })
+  check(kBad.ok === false && kBad.error.kind === 'bad-target' && spawns.length === kBadBefore, 'K5 不认识的动作当场拒绝，一个进程都不起（不落到默认推送）')
+  git(rK, ['remote', 'add', 'origin', 'https://example.com/acme/repo.git'])
+  const kPre = await vcK.handleGitSyncCheck({ cwd: rK, action: 'fetch' })
+  check(kPre.ok === true && !!kPre.ticket && kPre.ticket.op === 'fetch' && kPre.confirmRequired === true, 'K6 预检获取成功：签票、票上记动作、确认卡要求确认')
+  const kArgvBefore = spawns.length
+  const kForged = await vcK.handleGitSyncWrite({ cwd: rK, action: 'fetch', ticketId: 'NOSUCHTICKET', requestId: 'k-req-forged', confirmed: true })
+  check(kForged.ok === false && kForged.reason === 'ticket-missing' && spawns.length === kArgvBefore, 'K7 伪造票：ticket-missing 且零进程（执行前不读现场也不起 fetch）')
+  const kNoConfirm = await vcK.handleGitSyncWrite({ cwd: rK, action: 'fetch', ticketId: kPre.ticket.id, requestId: 'k-req-noconfirm' })
+  check(kNoConfirm.ok === false && kNoConfirm.reason === 'need-confirm' && spawns.slice(kArgvBefore).every((a) => after(a)[0] !== 'fetch' && after(a)[0] !== 'push'), 'K8 没带显式确认：need-confirm 且零写进程（确认卡四段先给用户看）')
+  const kWrongRepo = await vcK.handleGitSyncWrite({ cwd: rA, action: 'fetch', ticketId: kPre.ticket.id, requestId: 'k-req-repo', confirmed: true })
+  check(kWrongRepo.ok === false && kWrongRepo.reason === 'stale-repo' && spawns.slice(kArgvBefore).every((a) => after(a)[0] !== 'fetch'), 'K9 换仓库用票：stale-repo 且没有起 fetch（票绑定签发时那个仓库）')
+  const kLogs = logs.filter((l) => l.fields && l.fields.method === 'wf.gitSyncCheck')
+  check(kLogs.length > 0 && logs.every((l) => ['git.exec', 'git.exec.fail', 'host.call', 'host.call.fail'].indexOf(l.event) >= 0), 'K10 同步预检走既有日志事件：host.call 记下电话名，没有新事件名')
+  check(denyIs({ ok: true, ticketId: 'x' }, 'ticket-missing') === false, 'K11 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
+
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }
