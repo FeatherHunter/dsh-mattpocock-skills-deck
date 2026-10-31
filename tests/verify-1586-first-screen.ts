@@ -325,6 +325,11 @@ async function main() {
   const parseStash = PS.parseStashList(STASH_LINE)
   check(parseStash.ok === true && parseStash.entries.length === 1, 'C30 贮藏解析器与宿主读法同一份数据源（parse-stash 单测在解析器门禁，这里验真回包用的是它）')
 
+  // ---- C 组补充：宿主入口必须真注册这条电话（T04 只实现了电话、没在入口注册，#1746 收口时发现） ----
+  const hostIndexText = read('src/host/index.ts')
+  check(hostIndexText.indexOf("harness.handle('" + V.VC_FIRST_SCREEN_PHONE + "'") >= 0,
+    'C31 宿主入口真的注册了 ' + V.VC_FIRST_SCREEN_PHONE + '（只实现不注册时，界面在真宿主上会静默失败）')
+
   // ---- D 组：反证组（把被守的东西改坏，同一套判据必须当场判红） ----
   // 反证的写法（与 #818 反证组同一口径）：把源码改坏之后，跑「原判据」看它是不是当场判红。
   // 每条都先确认「这次替换真的改到了原文」，否则改不中就等于没证（#1253 栽过这个坑）。

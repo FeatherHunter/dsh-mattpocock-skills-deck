@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T15:58:17.107Z",
+  "generatedAt": "2026-10-31T16:19:59.233Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 489,
   "gateCount": 489,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 53,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 686,
+  "graphFileCount": 687,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4233,7 +4233,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 85,
+      "expectedAssertions": 86,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
@@ -4293,7 +4293,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 121,
+      "expectedAssertions": 122,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -6399,6 +6399,7 @@
       "file": "tests/verify-841-write-phones.ts",
       "guards": [
         "src/host/versionControl.ts",
+        "src/host/versionControlWorktrees.ts",
         "src/host/versionControlWrite.ts",
         "src/shared/version-control/src/commands.ts",
         "src/shared/version-control/src/push-plan.ts",
@@ -6413,7 +6414,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条"
     },
     {
       "step": "node tests/verify-842-version-control-write-view.ts",
@@ -10664,6 +10665,7 @@
         "src/host/tracker/snapshot.ts",
         "src/host/tracker/snapshotAssemble.ts",
         "src/host/versionControl.ts",
+        "src/host/versionControlChanges.ts",
         "src/host/versionControlCheck.ts",
         "src/host/versionControlFirstScreen.ts",
         "src/host/versionControlTask.ts",
@@ -10775,7 +10777,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 120 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 121 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -13507,9 +13509,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 707,
+    "fileCount": 708,
     "dirCount": 84,
-    "coveredFileCount": 707,
+    "coveredFileCount": 708,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13854,6 +13856,7 @@
       "src/host/versionControlTaskRun.ts",
       "src/host/versionControlTaskStore.ts",
       "src/host/versionControlWorktrees.ts",
+      "src/host/versionControlWorktreesMount.ts",
       "src/host/versionControlWrite.ts",
       "src/host/workspaceCwd.ts",
       "src/host/workspaceKey.ts",
