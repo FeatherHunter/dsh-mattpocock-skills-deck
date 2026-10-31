@@ -73,6 +73,8 @@ const VC_FILES = [
   'src/shared/version-control/src/stash-rules.ts',
   // #1752 工作树八条能力的纯规则层（八条动作 / argv / 判定 / 清单行模型），与构建同序排在客户端那片之前。
   'src/shared/version-control/src/worktree-ops.ts',
+  // #1757 子模块域（10.1–10.8）的纯规则层：八条能力、十一个动作、固定四项批量菜单、判定与 argv，与构建同序排在客户端那片之前。
+  'src/shared/version-control/src/submodule-ops.ts',
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js',
@@ -96,6 +98,10 @@ const VC_FILES = [
   'src/client/views/versionControl/vcWorktreesData.js',
   'src/client/views/versionControl/vcWorktreesOps.js',
   'src/client/views/versionControl/vcWorktreesPage.js',
+  // #1757 子模块页三叶（与构建同序）：数据层 → 处理层 → 页面体，页面壳的挂载段要看到页面体那一叶。
+  'src/client/views/versionControl/vcSubmodulesData.js',
+  'src/client/views/versionControl/vcSubmodulesOps.js',
+  'src/client/views/versionControl/vcSubmodulesPage.js',
   // #1738 页面壳四片（与构建同序）：页面注册表 → 基础画法 → 命令面板 → 页面壳本体。
   'src/client/views/versionControl/vcCapabilityPages.js',
   'src/client/views/versionControl/vcShellPrimitives.js',
@@ -203,6 +209,13 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcWorktreesListStateOf', 'vcWorktreesSnapshotOf', 'vcWorktreesModelOf', 'vcWorktreesVersionOf', 'vcWorktreeAvailabilityOf', 'vcWorktreeWhyKeyOf', 'vcWorktreesVersionHintOf',
   'vcWorktreesRowActionsOf', 'vcWorktreesActionDecisionOf', 'vcWorktreeCheckArgsOf', 'vcWorktreeRunArgsOf', 'vcWorktreePlanOf', 'vcWorktreeFailureOf',
   'vcWorktreeResultOf', 'vcWorktreeDecisionReasonsOf', 'vcWorktreeDecisionStateOf', 'vcWorktreesPageNode',
+  // #1757 子模块页：共享层八条能力与判定、任务动作映射、数据层模型、处理层参数整形、页面体与批量菜单。
+  'SUBMODULE_CAP_IDS', 'SUBMODULE_ACTIONS', 'SUBMODULE_WRITE_OPS', 'SUBMODULE_TASK_OPS', 'SUBMODULE_BATCH_MENU', 'SUBMODULE_REASONS',
+  'submoduleJudge', 'submoduleTaskOf', 'submoduleWriteArgsOf', 'submoduleRowsOf',
+  'VC_SUBMODULES_PHONES', 'VC_SUBMODULE_ENTRIES', 'VC_SUBMODULE_MODES',
+  'vcSubmoduleBoardShapeOk', 'vcSubmoduleRowsOf', 'vcSubmoduleBatchOf', 'vcSubmoduleWhyKeyOf',
+  'vcSubmoduleCheckArgsOf', 'vcSubmoduleRunArgsOf', 'vcSubmoduleTaskArgsOf', 'vcSubmoduleFailureOf', 'vcSubmodulesUiOf',
+  'vcSubmodulesPageNode', 'VC_SUBMODULES_PAGE_SOURCE',
   'VersionControlTab']
 // #1253：这 20 份现在都是 .ts 真源（2026-10-19 第三阶段起 rules 的产物也搬到了 .build/shared/，
 //   列表里直接写 rules.ts 真源路径，不再指向源码树里的产物 .js）。
@@ -308,6 +321,9 @@ async function main() {
   // #1752 工作树页那一族词条（清单四态、十二个动作名、判定理由与版本替代做法）也读真字典。
   const vcWtLocMod = await import(locUrl('src/client/kernel/locale-vcworktrees.js'))
   const L_VCWORKTREES = vcWtLocMod.L_VCWORKTREES
+  // #1757 子模块页那一族词条（八条能力入口、批量四项、十一个动作名、判定理由与确认卡）也读真字典。
+  const vcSubMod = await import(locUrl('src/client/kernel/locale-vcsubmodules.js'))
+  const L_VCSUBMODULES = vcSubMod.L_VCSUBMODULES
   // #842：写操作那一族的词条自成一个族（locale-panel 与 locale-flow 都在上限上），这里一并读真字典。
   const vcWriteMod = await import(locUrl('src/client/kernel/locale-vcwrite.js'))
   const L_PANEL = panelMod.L_PANEL
@@ -323,8 +339,8 @@ async function main() {
   const vcStashMod = await import(locUrl('src/client/kernel/locale-vcstash.js'))
   const L_VCSTASH = vcStashMod.L_VCSTASH
   LOC = {
-    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh),
-    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en),
+    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh, L_VCSUBMODULES.zh),
+    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en, L_VCSUBMODULES.en),
   }
   tZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
   tEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
@@ -1570,9 +1586,50 @@ async function main() {
   check(wtRunArgs.op === 'remove' && wtRunArgs.ticketId === 'tk1' && wtRunArgs.requestId === 't1' && wtRunArgs.confirm === true && wtRunArgs.path === 'D:/w/repo/.wt/a', 'W32 执行电话带票据、请求号与显式确认（危险动作不会因为界面漏参而在宿主那边静默执行）')
   const wtDecide = VIEW.vcWorktreesActionDecisionOf(wtModel, 'remove', { path: 'D:/w/repo' })
   check(VIEW.vcWorktreeDecisionStateOf(wtDecide) === 'block' && VIEW.vcWorktreeDecisionReasonsOf(wtDecide)[0] === 'worktree-is-current', 'W33 界面先判一次：当前这一棵不许删（发电话之前就拦下）')
+  // ---- W-sub 组（#1757）：子模块页八条能力与固定四项批量菜单 ----
+  // 读数与页面共用一份契约（version-control.submodule-board）；八条入口按能力账本次序摆；
+  // 危险动作（取消登记、吸收 .git）走确认卡；写与长任务两条通道各有自己的请求整形。
+  const subBoardOf = function () {
+    return { ok: true, contract: 'version-control.submodule-board', version: 1, readAtMs: NOW, rows: [
+      { name: 'libs/lib', path: 'libs/lib', oid: 'b'.repeat(40), state: 'clean', initialized: true, describe: '', url: 'https://example.com/lib.git', urlDisplay: 'https://example.com/lib.git', branch: 'main', headBranch: 'main', detached: false, localCommits: 0, absorbable: true, absorbFrom: 'D:/w/repo/libs/lib/.git', absorbTo: 'D:/w/repo/.git/modules/libs/lib' },
+      { name: 'vendor/tool', path: 'vendor/tool', oid: 'c'.repeat(40), state: 'uninitialized', initialized: false, describe: '', url: 'https://example.com/tool.git', urlDisplay: 'https://example.com/tool.git', branch: 'release', headBranch: '', detached: false, localCommits: 0, absorbable: false, absorbFrom: '', absorbTo: '' },
+    ] }
+  }
+  check(Array.isArray(VIEW.VC_SUBMODULE_ENTRIES) && VIEW.VC_SUBMODULE_ENTRIES.length === 8 && VIEW.VC_SUBMODULE_ENTRIES.map(function (d) { return d.capId }).join(',') === '10.1,10.2,10.3,10.4,10.5,10.6,10.7,10.8', 'W34 子模块页八条能力各有入口（10.1–10.8 次序逐条对齐账本）')
+  const subBatch = VIEW.vcSubmoduleBatchOf()
+  check(subBatch.length === 4 && subBatch.map(function (m) { return m.id }).join(',') === 'init,fetch,recorded,status' && subBatch.every(function (m) { return m.command === undefined && m.args === undefined }), 'W35 批量执行只有固定四项（初始化并检出 / 逐个抓取 / 检出记录的提交 / 看状态），菜单里没有能填命令的字段')
+  const subBoard = subBoardOf()
+  check(VIEW.vcSubmoduleBoardShapeOk(subBoard) === true && VIEW.vcSubmoduleBoardShapeOk({ ok: true, contract: 'version-control.submodule-board', version: 9, rows: [] }) === false, 'W36 读数回包按契约名与版本号认（版本对不上就不当新读数）')
+  const subRows = VIEW.vcSubmoduleRowsOf(subBoard)
+  check(subRows.length === 2 && subRows[0].path === 'libs/lib' && subRows[1].initialized === false && subRows[0].absorbFrom.indexOf('.git') >= 0, 'W37 行模型带齐清单要用的字段（路径 / 是否已初始化 / 吸收前后的 .git 目录）')
+  const subPageBoard = { state: 'ok', board: subBoard, rows: subRows }
+  const subHtml = renderToStaticMarkup(VIEW.vcSubmodulesPageNode(h, tZh, { board: subPageBoard, ui: VIEW.vcSubmodulesUiOf(null), ops: {} }))
+  check(subHtml.indexOf('data-vc-sub-page="1"') >= 0 && attrValuesOf(subHtml, 'data-vc-sub-entry').join(',') === '10.1,10.2,10.3,10.4,10.5,10.6,10.7,10.8', 'W38 子模块页真的渲染出八条入口（实得 ' + attrValuesOf(subHtml, 'data-vc-sub-entry').length + ' 条）')
+  check(attrValuesOf(subHtml, 'data-vc-sub-batch').join(',') === 'init,fetch,recorded,status' && attrValuesOf(subHtml, 'data-vc-sub-row').length === 2, 'W39 批量四项与逐行清单都画出来（两行子模块各占一行）')
+  check(subHtml.indexOf('data-cap-primary') < 0, 'W40 子模块页不用主入口标记 data-cap-primary（每条能力的唯一主入口仍由能力行负责，Z1d 不会被抢）')
+  const subConfirmUi = VIEW.vcSubmodulesUiOf({ mode: 'confirm', op: 'absorb', plan: { action: 'absorb', path: 'libs/lib', moves: [{ from: 'D:/w/repo/libs/lib/.git', to: 'D:/w/repo/.git/modules/libs/lib' }] }, ticket: { id: 'tk-sub' } })
+  const subConfirmHtml = renderToStaticMarkup(VIEW.vcSubmodulesPageNode(h, tZh, { board: subPageBoard, ui: subConfirmUi, ops: {} }))
+  check(subConfirmHtml.indexOf('data-vc-sub-confirm="1"') >= 0 && attrValuesOf(subConfirmHtml, 'data-vc-confirm-seg').length === 4 && attrValuesOf(subConfirmHtml, 'data-focus-default').indexOf('cancel') >= 0 && subConfirmHtml.indexOf('D:/w/repo/libs/lib/.git') >= 0, 'W41 危险动作（吸收 .git）先出确认卡：四段齐、默认焦点在取消、列出将被移动的目录')
+  const subTaskAdd = VIEW.submoduleTaskOf('add', { path: 'vendor/new', url: 'https://example.com/new.git' })
+  const subTaskBatch = VIEW.submoduleTaskOf('fetch', { batch: true })
+  check(subTaskAdd.ok === true && subTaskAdd.op === 'submodule-add' && subTaskBatch.ok === true && subTaskBatch.op === 'submodule-fetch' && VIEW.VC_SUBMODULES_PHONES.task === 'wf.gitSubmoduleTask', 'W42 新增与四项菜单都走长任务通道（动作映射到 submodule-add / submodule-fetch，界面只发任务电话）')
+  const subDeinit = VIEW.submoduleWriteArgsOf('deinit', { path: 'libs/lib' })
+  const subAbsorb = VIEW.submoduleWriteArgsOf('absorb', { path: 'libs/lib' })
+  check(subDeinit.ok === true && subDeinit.args.join('|') === 'submodule|deinit|--|libs/lib' && subAbsorb.ok === true && subAbsorb.args.join('|') === 'submodule|absorbgitdirs|--|libs/lib' && subDeinit.args.indexOf('--force') < 0, 'W43 取消登记与吸收的 argv 逐元素写死（不传 --force，也不经过 shell 拼串）')
+  const subAllow = VIEW.submoduleJudge('set-url', { rows: subRows, path: 'libs/lib', url: 'https://example.com/lib2.git' })
+  const subBlocked = VIEW.submoduleJudge('set-url', { rows: subRows, path: 'not/listed', url: 'https://example.com/lib2.git' })
+  check(subAllow.decision === 'allow' && subBlocked.decision === 'block' && VIEW.vcSubmoduleWhyKeyOf(subBlocked.reasons[0]) === 'vc.sub.why.module-missing', 'W44 改地址先在本地判一次：清单里有的放行，没登记的拦下并给出人话理由')
+  const subCheckArgs = VIEW.vcSubmoduleCheckArgsOf('D:/w/repo', 'set-url', { path: 'libs/lib', url: 'https://example.com/lib2.git' })
+  const subRunArgs = VIEW.vcSubmoduleRunArgsOf('D:/w/repo', 'deinit', 'tk-sub', 'r1', { path: 'libs/lib' })
+  const subTaskReq = VIEW.vcSubmoduleTaskArgsOf('D:/w/repo', 'add', 'tk-sub', 'r1')
+  check(subCheckArgs.op === 'set-url' && subCheckArgs.branch === undefined && subRunArgs.ticketId === 'tk-sub' && subRunArgs.confirmed === true && subTaskReq.confirmed === true && subTaskReq.ticketId === 'tk-sub', 'W45 两条通道的请求整形：预检只送需要的字段，写与任务都带票号与显式确认')
   // 下面两条反证（H 组）用的判据：与上面主线断言同一条，改坏源码就该当场假。
   const worktreesEntryJudgmentOf = function (v) { return Array.isArray(v.VC_WORKTREES_ENTRY_DEFS) && v.VC_WORKTREES_ENTRY_DEFS.length === 8 }
   const worktreesPhoneJudgmentOf = function (v) { return !!v.VC_WORKTREE_PHONES && v.VC_WORKTREE_PHONES.run === 'wf.gitWorktreeRun' }
+  // #1757 子模块页三条反证判据：与上面主线断言同一条，改坏源码就该当场假。
+  const submodulesEntryJudgmentOf = function (v) { const list = v.VC_SUBMODULE_ENTRIES; return Array.isArray(list) && list.length === 8 && list.map(function (d) { return d.capId }).join(',') === '10.1,10.2,10.3,10.4,10.5,10.6,10.7,10.8' }
+  const submodulesBatchJudgmentOf = function (v) { const menu = v.vcSubmoduleBatchOf(); return Array.isArray(menu) && menu.length === 4 && menu.map(function (m) { return m.id }).join(',') === 'init,fetch,recorded,status' }
+  const submodulesPrimaryJudgmentOf = function (v) { const rows = v.vcSubmoduleRowsOf({ ok: true, rows: [] }); const html = renderToStaticMarkup(v.vcSubmodulesPageNode(h, tZh, { board: { state: 'ok', board: { ok: true, rows: [] }, rows: rows }, ui: v.vcSubmodulesUiOf(null), ops: {} })); return html.indexOf('data-cap-primary') < 0 }
   // ---- Y 组：提交历史页（#1744 T09）——列表分页 / 详情 / 逐文件差异 / 13.14 图形化视图 ----
   // 判据分两层：数据模型（vcHistoryFirstPageOf / vcHistoryModelOf / vcHistoryGraphOf）与渲染
   //   （vcRenderTabAt 的 commits 页，reads / ui / width 从选项进）。首屏第一页必须来自 #1739 那份
@@ -2224,6 +2281,10 @@ async function main() {
     { name: '工作树页删掉 9.7 移动的入口', patch: (s) => s.replace("  { capId: '9.7', op: 'move', row: true },\n", ''), test: worktreesEntryJudgmentOf, what: 'W22' },
     // #1752：工作树执行电话改走长任务通道 —— 界面就不再走同步短写那一对电话，W32 那一组必须当场红。
     { name: '工作树执行电话改走长任务通道', patch: (s) => s.replace("run: 'wf.gitWorktreeRun'", "run: 'wf.gitTaskStart'"), test: worktreesPhoneJudgmentOf, what: 'W32' },
+    // #1757：子模块页的四处反证 —— 删一条能力入口、批量菜单多一项、页面偷加主入口标记，对应断言必须当场红。
+    { name: '子模块页删掉 10.8 吸收的入口', patch: (s) => s.replace("  { capId: '10.8', actionId: 'absorb', labelKey: 'vc.sub.entry.10.8' },\n", ''), test: submodulesEntryJudgmentOf, what: 'W34' },
+    { name: '子模块批量菜单多出第五项', patch: (s) => s.replace("  { id: 'status', capId: '10.4', taskOp: null, labelKey: 'vc.sub.batch.status' },\n]", "  { id: 'status', capId: '10.4', taskOp: null, labelKey: 'vc.sub.batch.status' },\n  { id: 'exec', capId: '10.4', taskOp: null, labelKey: 'vc.sub.batch.exec' },\n]"), test: submodulesBatchJudgmentOf, what: 'W35' },
+    { name: '子模块页偷加主入口标记', patch: (s) => s.replace("'data-vc-sub-page': '1',", "'data-cap-primary': '10.1',"), test: submodulesPrimaryJudgmentOf, what: 'W40' },
   ]
   // #845c：反证自证提到循环里 —— 每一处改法先确认它真的落到了源码上（改不中等于没证）。
   //   旧写法只在循环外用一条聚合自检兜底，于是某一条改法失效时，它自己仍会以 broke=true 假绿
