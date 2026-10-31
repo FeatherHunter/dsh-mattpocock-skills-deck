@@ -113,7 +113,7 @@ export const NotificationCenter = ({ st, view, folded }: any) => {
     setOpen(true)
   }
   React.useEffect(function () {
-    if (!ui.open) return undefined
+    if (!open) return undefined
     const onDown = function (e: any) {
       const t = e && e.target
       if (t && entryRef.current && typeof entryRef.current.contains === 'function' && entryRef.current.contains(t)) return
