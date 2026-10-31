@@ -67,8 +67,10 @@ export function judgeSync(scene: any, plan: any): any {
   if (s.bare === true) pushReason(reasons, 'bare-repo')
   if (!isFetch && s.detached === true) pushReason(reasons, 'detached-head')
   if (!isFetch && s.midOperation === true) pushReason(reasons, 'mid-operation')
+  // 远端清单有两种状态必须分开：remotesKnown===false 表示「这次没读到」；读到空数组表示「一个远端都没有」。
+  // 后者照样要 block——空清单上 push 注定失败，不能拿空数组兼表「没读」而放过。
   const remotes = Array.isArray(s.remotes) ? s.remotes : []
-  if (plan.remote && remotes.length > 0 && remotes.indexOf(plan.remote) < 0) pushReason(reasons, 'no-remote')
+  if (s.remotesKnown !== false && plan.remote && remotes.indexOf(plan.remote) < 0) pushReason(reasons, 'no-remote')
   if (action === 'pull-merge' || action === 'pull-rebase' || action === 'pull-ff-only') {
     if (s.conflicts === true) pushReason(reasons, 'conflicts-unresolved')
     if (s.upstreamGone === true) pushReason(reasons, 'upstream-gone')
@@ -86,7 +88,8 @@ export function judgeSync(scene: any, plan: any): any {
   if (action === 'delete-remote-ref' && s.currentBranch && plan.branch && plan.branch === s.currentBranch) pushReason(warning, 'delete-current')
   if ((action === 'pull-merge' || action === 'pull-rebase') && s.dirty === true) pushReason(warning, 'dirty-tree')
   const decision = blocking.length > 0 ? 'block' : warning.length > 0 ? 'warn' : plan.needsConfirm === true ? 'warn' : 'allow'
-  return { decision: decision, reasons: blocking.concat(warning), blockingReasons: blocking, warningReasons: warning, confirmRequired: decision !== 'block' }
+  // confirmRequired 只表示「界面要不要弹确认卡」：block 不弹（只显示理由），warn 弹，allow 不弹。
+  return { decision: decision, reasons: blocking.concat(warning), blockingReasons: blocking, warningReasons: warning, confirmRequired: decision === 'warn' }
 }
 
 function verbOf(action: any): string {

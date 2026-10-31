@@ -72,6 +72,8 @@ export function createSyncCheck(d: any): any {
       conflicts: Number((screen && screen.conflictCount) || 0) > 0,
       dirty: Number((screen && screen.stagedCount) || 0) + Number((screen && screen.unstagedCount) || 0) > 0,
       remotes: remotes,
+      // 这里一定是真实现场（remote -v 读成功才走到这）；显式标记让判定能区分「读到空清单」与「没读」。
+      remotesKnown: true,
       upstreamGone: identity.sync === 'upstream-gone'
     }
   }
