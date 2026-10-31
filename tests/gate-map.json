@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T13:49:52.829Z",
+  "generatedAt": "2026-10-31T14:05:55.131Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 486,
-  "gateCount": 486,
-  "attributedGates": 435,
+  "chainLength": 487,
+  "gateCount": 487,
+  "attributedGates": 436,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 50,
+  "completionRecordedGates": 51,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 669,
+  "graphFileCount": 674,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4220,6 +4220,21 @@
       "completionRecord": true,
       "expectedAssertions": 85,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1586-task-channel.ts",
+      "file": "tests/verify-1586-task-channel.ts",
+      "guards": [
+        "src/shared/version-control/src/task-protocol.ts"
+      ],
+      "dirs": [
+        "src/shared/version-control/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 136,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-1586-vc-visual-browser.ts",
@@ -12803,6 +12818,7 @@
       "node tests/verify-1231-ws-overview-rows.ts",
       "node tests/verify-1586-capability-ledger.ts",
       "node tests/verify-1586-first-screen.ts",
+      "node tests/verify-1586-task-channel.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-841-write-phones.ts",
       "node tests/verify-842-version-control-write-view.ts",
@@ -13443,9 +13459,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 690,
+    "fileCount": 695,
     "dirCount": 84,
-    "coveredFileCount": 690,
+    "coveredFileCount": 695,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13656,6 +13672,7 @@
       "src/client/views/versionControl/vcShellStyles.ts",
       "src/client/views/versionControl/vcStyles.ts",
       "src/client/views/versionControl/vcTabVisible.ts",
+      "src/client/views/versionControl/vcTaskPanel.ts",
       "src/client/views/versionControl/vcText.ts",
       "src/client/views/versionControl/vcViews.ts",
       "src/client/views/versionControl/vcWrite.ts",
@@ -13776,6 +13793,9 @@
       "src/host/versionControlCheck.ts",
       "src/host/versionControlFiles.ts",
       "src/host/versionControlFirstScreen.ts",
+      "src/host/versionControlTask.ts",
+      "src/host/versionControlTaskRun.ts",
+      "src/host/versionControlTaskStore.ts",
       "src/host/versionControlWrite.ts",
       "src/host/workspaceCwd.ts",
       "src/host/workspaceKey.ts",
@@ -13945,6 +13965,7 @@
       "src/shared/version-control/src/push-plan.ts",
       "src/shared/version-control/src/rules.ts",
       "src/shared/version-control/src/state.ts",
+      "src/shared/version-control/src/task-protocol.ts",
       "src/shared/version-control/src/write-reasons.ts",
       "src/shared/version-control/src/write-ticket.ts",
       "src/shared/version-control/tsconfig.json",
