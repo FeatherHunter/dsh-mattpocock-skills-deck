@@ -243,7 +243,8 @@ async function main() {
     // #1743 加了提交页一条只读电话 wf.gitCommitForm（读身份、签名配置、提交说明模板与上一条提交原文），82 → 83。
     // #1755 加了同步域两条电话 wf.gitSyncCheck / wf.gitSyncWrite（10 条动作共用的预检签票与凭票执行），83 → 85。
     // #1747 加了冲突向导三条电话 wf.gitConflicts / wf.gitConflictCheck / wf.gitConflictWrite（只读一取全、预检签票、凭票执行），85 → 88。
-    check(nPhones === 88, '宿主电话八十八条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1749 加了变基待办页三条电话 wf.gitRebaseRead / wf.gitRebaseCheck / wf.gitRebaseWrite（只读一取全、预检签票、凭票执行），88 → 91。
+    check(nPhones === 91, '宿主电话九十一条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——

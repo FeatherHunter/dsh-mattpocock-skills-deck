@@ -1028,6 +1028,42 @@
       "count": 1,
       "owner": "#1743（规格 #1586 T08 提交页）",
       "note": "外壳装配：外壳只做懒加载与电话日志包装，读实现（身份、签名配置、提交说明模板、上一条提交原文）在同层叶子 versionControlCommitForm.ts；方向单向，读取叶子只认注入的宿主依赖，不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
+      "spec": "./versionControlRebaseMount.js",
+      "resolved": "src/host/versionControlRebaseMount.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1749（规格 #1586 T14 交互式变基与换基座）",
+      "note": "装配扇入：变基待办页三条电话要挂到版本管理入口，但父文件贴着 350 有效行上限；照 #1742/#1747 先例把懒加载、失败兜底与日志包装拆成同层外壳，父文件只剩 createRebaseMount 那一行调用，外壳不反向引用父文件。"
+    },
+    {
+      "file": "src/host/versionControlRebaseMount.ts",
+      "spec": "./versionControlRebaseScene.js",
+      "resolved": "src/host/versionControlRebaseScene.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1749（规格 #1586 T14 交互式变基与换基座）",
+      "note": "装配壳内部分工：读现场（待办窗口、换基座范围、自动吸收清单、保留合并结构代价、updateRefs）住读数叶子，预检与执行两边共用同一份读数与临时文件服务；方向单向，读数叶子只认注入依赖，不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControlRebaseMount.ts",
+      "spec": "./versionControlRebaseCheck.js",
+      "resolved": "src/host/versionControlRebaseCheck.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1749（规格 #1586 T14 交互式变基与换基座）",
+      "note": "装配壳内部分工：六步校验后签 120 秒票的预检住预检叶子，票据表与 requestId 结果表由它持有、穿给执行叶子；方向单向，预检叶子不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControlRebaseMount.ts",
+      "spec": "./versionControlRebaseWrite.js",
+      "resolved": "src/host/versionControlRebaseWrite.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1749（规格 #1586 T14 交互式变基与换基座）",
+      "note": "装配壳内部分工：凭票重验现场并跑变基命令住执行叶子，临时待办与改说明正文用完即删；方向单向，执行叶子不引用外壳。"
     }
   ]
 }

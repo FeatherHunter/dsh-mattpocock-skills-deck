@@ -197,6 +197,22 @@ export function rebaseRowsProblem(rows: any, expectedOids: any): string | null {
   return null;
 }
 
+/**
+ * 改说明的行必须带新说明：reword 行缺正文（或超过 5000 字）就在预检拦下，
+ * 不让执行层写到一半才发现临时文件里是空的。其它动词不看 message。
+ */
+export function rebaseMessageProblemOf(rows: any): string | null {
+  if (!Array.isArray(rows)) return null;
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i] || {};
+    if (String(row.action || '') !== 'reword') continue;
+    const text = row.message;
+    if (typeof text !== 'string' || text.trim() === '') return 'missing-message';
+    if (text.length > 5000) return 'message-too-long';
+  }
+  return null;
+}
+
 /** 待办清单里动词的中文词条键（上移 / 下移靠界面传 move-up / move-down）。 */
 export function rebaseActionLabelKeyOf(action: any): string {
   const name = String(action === undefined || action === null ? '' : action);

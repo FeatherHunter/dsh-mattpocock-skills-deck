@@ -130,6 +130,11 @@ timeouts:
   vcConflictReadTimeoutMs: 15000
   # 冲突向导凭票执行里单条写命令的超时：15 秒。merge / checkout / add / rm 都是本地动作，不推远端。
   vcConflictWriteTimeoutMs: 15000
+  # —— 变基待办页的单条命令超时（#1749）——
+  # 预检与只读命令的单条超时：15 秒。读待办窗口、读换基座范围、捕获 --autosquash 待办、读合并结构代价都是本地读取。
+  vcRebaseReadTimeoutMs: 15000
+  # 变基执行时单条命令的超时：30 秒。交互式变基会逐个提交重放，仓库稍大就比普通本地动作慢；不推远端，不需要分钟级预算。
+  vcRebaseWriteTimeoutMs: 30000
   # git 凭据代执行的整趟预算：4 分钟。上下限 5 秒与 10 分钟：接线给的预算会被钳进这个范围
   # （下限从 1 秒提到 5 秒；1 秒的预算在慢机器上连子进程启动都盖不住，等于没给）。
   gitCredentialCallBudgetMs: 240000
