@@ -84,8 +84,8 @@ type MapBodySections = { destination: unknown; notes: unknown; decisions: unknow
 /** 选择结论：本文件只读 backendId 与 source 两格（显式空是权威结论，见 pickBackend 里的注释）。 */
 type Selection = { backendId?: string | null; source?: string }
 
-/** 仓库身份（describe 的产物）：四格都可缺——兜底形态下只剩 backend 与 refId。 */
-type RepositoryRef = { backend?: string; refId?: string; name?: string; url?: string }
+/** 仓库身份（describe 的产物）：几格都可缺——兜底形态下只剩 backend 与 refId。host 是自托管网页地址（可选）。 */
+type RepositoryRef = { backend?: string; refId?: string; name?: string; url?: string; host?: string }
 
 /**
  * 注册表里的后端模块（本文件只读 id 与 links 两格）。links 在这里写成「必有」：读它的那句守卫

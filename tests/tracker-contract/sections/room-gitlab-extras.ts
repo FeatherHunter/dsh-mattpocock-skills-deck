@@ -66,7 +66,13 @@
 import * as nodePath from 'node:path'
 import { createRegistry } from '../../../src/tracker/registry/core.ts'
 import { ERROR_KIND } from '../../../src/tracker/contract/vocabulary.ts'
-import { gitlabBackend } from '../../../src/tracker/rooms/gitlab/index.ts'
+import {
+  gitlabBackend,
+  describe as gitlabDescribe,
+  issueAddress as gitlabIssueAddress,
+  repoSearchAddress as gitlabRepoSearchAddress,
+} from '../../../src/tracker/rooms/gitlab/index.ts'
+import { parseGitlabOrigin } from '../../../src/tracker/rooms/gitlab/repo.ts'
 
 const KNOWN_KINDS = Object.values(ERROR_KIND)
 const GL_REPO = { backend: 'gitlab', refId: 'acme/demo', name: 'demo', url: '' }
@@ -812,6 +818,120 @@ export async function run() {
       'getRepoKey：这台机器上连 git 与 glab 都没装时也回 null（一个进程都不起、也不抛）',
       repoKeyCheck(k5, null).length === 0 && sc5.calls.length === 0,
       JSON.stringify({ k: k5, calls: sc5.calls }),
+    )
+  }
+
+  // ── 五之二、自托管链接：主机从远端学到之后，仓库地址与票地址都不再写死 gitlab.com（#435）──
+  //   三道题各钉一层：问 git 的 remote（IP 形式）、直读 .git/config（http + 自定义端口）、问 glab（web_url）。
+  //   每道题都同时核对「认出的坐标」与「describe 产出的 url / host / issueAddress」，最后拿一条
+  //   什么也没学到的路径验默认站点兜底，并用 ✗ 反例自证「写死官网」会被逮住。
+  {
+    // 第 1 层：IP 形式的自托管 remote（连 gitlab 字样都没有），主机必须被学住。
+    const scIp = scriptedCtx({
+      script: (cmd, args) => (cmd === 'git'
+        ? { code: 0, stdout: 'git@10.1.2.3:group/project.git\n', stderr: '' }
+        : { code: 1, stdout: '', stderr: 'probe 第 1 层就该回，不该问到 ' + cmd + ' ' + args.join(' ') }),
+    })
+    const ip = await withGitlabTracker(async (t) => {
+      const k = await t.getRepoKey('/ws/selfhost-ip', scIp.ctx)
+      const described = t.describe({ cwd: '/ws/selfhost-ip', refId: 'group/project' }, 'gitlab')
+      return { k, described, named: gitlabDescribe({ cwd: '/ws/selfhost-ip', refId: 'group/project' }, 'gitlab') }
+    })
+    await assert(
+      '自托管链接 第 1 层：IP 形式 remote 认出的主机带进仓库地址（url 与 host 都是那台实例，不再写死 gitlab.com）',
+      repoKeyCheck(ip.k, { owner: 'group', name: 'project' }).length === 0 &&
+        ip.described.url === 'https://10.1.2.3/group/project' &&
+        ip.described.host === 'https://10.1.2.3' &&
+        ip.named.url === 'https://10.1.2.3/group/project',
+      JSON.stringify({ k: ip.k, described: ip.described, named: ip.named }),
+    )
+    await assert(
+      '自托管链接：票地址跟着仓库主机走，拼在那台实例上',
+      gitlabIssueAddress(ip.described, '7') === 'https://10.1.2.3/group/project/-/issues/7' &&
+        gitlabIssueAddress({ backend: 'gitlab', refId: 'group/project', name: 'project', url: 'https://10.1.2.3/group/project' }, '7') === 'https://10.1.2.3/group/project/-/issues/7',
+      JSON.stringify({ byRef: gitlabIssueAddress(ip.described, '7') }),
+    )
+    await assert(
+      '✗ probe: 自托管票地址仍写死 gitlab.com 必须被逮住',
+      gitlabIssueAddress(ip.described, '7') !== 'https://gitlab.com/group/project/-/issues/7',
+      '自托管实例的票地址被拼到了官网',
+    )
+
+    // 第 2 层：.git/config 里的 http + 自定义端口，原样保留 scheme 与端口。
+    const portCfg = '[core]\n\trepositoryformatversion = 0\n[remote "origin"]\n\turl = http://10.1.2.3:8086/team/deep/proj.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n'
+    const scPort = scriptedCtx({
+      executables: ['glab'],
+      fs: {
+        resolve: async (p) => '/ws/selfhost-port/' + p,
+        readText: async () => portCfg,
+      },
+      script: (cmd, args) => ({ code: 1, stdout: '', stderr: 'probe 第 2 层就该回，不该问到 ' + cmd + ' ' + args.join(' ') }),
+    })
+    const port = await withGitlabTracker(async (t) => {
+      const k = await t.getRepoKey('/ws/selfhost-port', scPort.ctx)
+      return { k, described: t.describe({ cwd: '/ws/selfhost-port', refId: 'team/deep/proj' }, 'gitlab') }
+    })
+    await assert(
+      '自托管链接 第 2 层：.git/config 的 http 地址带上自定义端口，仓库与票地址都指向 http://10.1.2.3:8086',
+      repoKeyCheck(port.k, { owner: 'team/deep', name: 'proj' }).length === 0 &&
+        port.described.url === 'http://10.1.2.3:8086/team/deep/proj' &&
+        port.described.host === 'http://10.1.2.3:8086' &&
+        gitlabIssueAddress(port.described, '12') === 'http://10.1.2.3:8086/team/deep/proj/-/issues/12',
+      JSON.stringify({ k: port.k, described: port.described }),
+    )
+
+    // 第 3 层：glab 的 web_url 就是这台实例的网页地址。
+    const scGlab = scriptedCtx({
+      executables: ['glab'],
+      script: (cmd, args) => (cmd === 'glab' && args.join(' ') === 'repo view --output json'
+        ? { code: 0, stdout: JSON.stringify({ path_with_namespace: 'grp/proj', web_url: 'https://gitlab.corp.example/grp/proj' }), stderr: '' }
+        : { code: 1, stdout: '', stderr: 'probe 没脚本化: ' + cmd + ' ' + args.join(' ') }),
+    })
+    const viaGlab = await withGitlabTracker(async (t) => {
+      const k = await t.getRepoKey('/ws/selfhost-glab', scGlab.ctx)
+      return { k, described: t.describe({ cwd: '/ws/selfhost-glab', refId: 'grp/proj' }, 'gitlab') }
+    })
+    await assert(
+      '自托管链接 第 3 层：glab repo view 回的 web_url 决定仓库地址（部署域名不再是 gitlab.com）',
+      repoKeyCheck(viaGlab.k, { owner: 'grp', name: 'proj' }).length === 0 &&
+        viaGlab.described.url === 'https://gitlab.corp.example/grp/proj' &&
+        viaGlab.described.host === 'https://gitlab.corp.example',
+      JSON.stringify({ k: viaGlab.k, described: viaGlab.described }),
+    )
+
+    // 默认站点兜底：这台工作区什么主机也没学到时，仍然拼 gitlab.com，且不多写 host 那一格。
+    const plain = gitlabDescribe({ cwd: '/ws/unknown-host', refId: 'acme/demo' }, 'gitlab')
+    await assert(
+      '自托管链接：没学到主机的路径仍按 gitlab.com 兜底，且回包不多出 host 一格',
+      plain.url === 'https://gitlab.com/acme/demo' && !('host' in plain),
+      JSON.stringify(plain),
+    )
+    await assert(
+      '自托管链接：按名搜仓库在给了自托管仓库引用时搜那台实例',
+      gitlabRepoSearchAddress('demo', { backend: 'gitlab', refId: 'acme/demo', name: 'demo', url: '', host: 'https://gitlab.corp.example' }) ===
+        'https://gitlab.corp.example/search?search=demo',
+      gitlabRepoSearchAddress('demo', { backend: 'gitlab', refId: 'acme/demo', name: 'demo', url: '', host: 'https://gitlab.corp.example' }),
+    )
+
+    // 解析函数本身的口径：scp / ssh / http 端口 / 认不出。
+    await assert(
+      'parseGitlabOrigin：scp 写法按 https 取主机，ssh 丢弃 ssh 端口，http(s) 保留自定义端口',
+      parseGitlabOrigin('git@10.1.2.3:group/project.git') === 'https://10.1.2.3' &&
+        parseGitlabOrigin('ssh://git@gitlab.corp.example:22/grp/proj.git') === 'https://gitlab.corp.example' &&
+        parseGitlabOrigin('https://gitlab.corp.example:8443/grp/proj.git') === 'https://gitlab.corp.example:8443' &&
+        parseGitlabOrigin('http://10.1.2.3:8086/team/deep/proj.git') === 'http://10.1.2.3:8086' &&
+        parseGitlabOrigin('./local/dir') === '' &&
+        parseGitlabOrigin('not-a-url') === '',
+      JSON.stringify({
+        scp: parseGitlabOrigin('git@10.1.2.3:group/project.git'),
+        ssh: parseGitlabOrigin('ssh://git@gitlab.corp.example:22/grp/proj.git'),
+        port: parseGitlabOrigin('http://10.1.2.3:8086/team/deep/proj.git'),
+      }),
+    )
+    await assert(
+      '✗ probe: 把 ssh 端口当成网页端口（ssh://...:22 → https://host:22）必须被逮住',
+      parseGitlabOrigin('ssh://git@gitlab.corp.example:22/grp/proj.git') !== 'https://gitlab.corp.example:22',
+      'ssh 端口被照搬到了网页地址上',
     )
   }
 

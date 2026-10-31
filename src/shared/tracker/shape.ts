@@ -245,6 +245,8 @@ export type Issue = {
  * @property {string} refId 稳定标识（github/gitlab='owner/name'；markdown='<path>'）；后端自解析
  * @property {string} name 显示名
  * @property {string} url 远端 URL；本地=''
+ * @property {string} [host] 远端网页端的 origin（scheme://host[:port]，例如 https://gitlab.example.com、
+ *    http://10.1.2.3:8086）。可选：本地后端与默认域名后端省略；给出来时拼链接以它为准。
  * @property {string} [effortId] 可选寻址范围：省略 = 该仓库全部 effort（列表用）；
  *    给出 = 只针对这一个 effort 读/写（本地 Markdown 的 `.scratch/<effort>/` 目录名）。
  *    单 effort 后端忽略本字段。放在 RepositoryRef 而不是每个 op 的参数里，是因为 op 签名已经定版、
@@ -255,6 +257,8 @@ export type RepositoryRef = {
   refId: string
   name: string
   url: string
+  /** 远端网页端的 origin（scheme://host[:port]）；本地后端与默认域名后端省略。 */
+  host?: string
   effortId?: string
 }
 
