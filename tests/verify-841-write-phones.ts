@@ -1,4 +1,4 @@
-// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–O 十五组，每组带反证；J 组是 #1752 工作树页的写通道，K 组是 #1755 同步域与 #1747 冲突向导的写通道，L 组是 #1743 提交页，M 组是 #1748 历史改写五条动作的写通道，N 组是 #1757 子模块页的写与任务通道，O 组是 #1749 变基待办页的读 / 预检 / 凭票执行三电话。
+// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–Q 十七组，每组带反证；J 段有四组（远端、分支与标签、贮藏页、工作树页），K 段是 #1755 同步域与 #1747 冲突向导的写通道，L 段是 #1743 提交页，M 段是 #1748 历史改写五条动作的写通道，N 段是 #1757 子模块页的写与任务通道，O 段是 #1749 变基待办页的读 / 预检 / 凭票执行三电话，P 段是 #1759 迁移与备份的写通道，Q 段是 #1761 诊断页与 5.12 替换对象的写通道。
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-841-write-phones.ts
 // 夹具：真 git 临时仓库（每个用例自己造）+ 真 subprocess 形状的垫片（argv 直传、不经 shell），
 // 这样「真跑过的 argv」与「真仓库有没有被动过」都能断言；只在纯归类那组不碰 git。
@@ -969,6 +969,106 @@ async function main(): Promise<void> {
   const vcKLow = makeVc((argv: string[]) => (argv.indexOf('--version') >= 0 ? { stdout: 'git version 2.34.1', code: 0 } : null))
   const kLowCheck = await vcKLow.handleGitConfigCheck({ cwd: cfgRK, op: 'hook-run', name: 'pre-commit' })
   check(kLowCheck.ok === false && kLowCheck.error && kLowCheck.error.kind === 'blocked' && kLowCheck.reason === 'hook-version' && hookRuns().length === 0, 'Q17 2.36 以下预检 12.6 拒成 hook-version，零钩子进程（隐藏不等于沉默，替代做法随回包给）')
+
+  // ---- R 组：#1761 诊断页与 5.12 替换对象的写通道（真临时仓库，判票据语义与 argv 切片）----
+  // 这一组只判「真 git 上能不能按票据只跑一条命令」；失败归类与信封形状已在 verify-1586-diagnostics 的 E 组判过。
+  console.log('R 诊断写通道（真仓库）')
+  const qdiagWriteCmds = (): string[][] => spawns.filter((a) => {
+    const c = after(a)
+    return (c[0] === 'bisect' && c[1] !== 'log') || (c[0] === 'replace' && c[1] !== '-l')
+  })
+  const qoidOf = (dir: string, rev: string): string => git(dir, ['rev-parse', rev]).out
+  // 两个提交的仓库：二分与替换都要有「另一个对象」可指，单个基线提交跑不动这两个动作。
+  const qmkDiagRepo = (tag: string): string => { const base = mkRepo(tag); git(base, ['commit', '-q', '-m', '第二个提交']); return base }
+  const qlastReqCwd = (): any => (requests[requests.length - 1] || {}).cwd
+  const qlastSpawn = (): string[] => spawns[spawns.length - 1] || []
+  const qrN = qmkDiagRepo('m1')
+  // 仓库根取 git 自己报的写法：mkdtemp 给的 D:\Temp 与 git 报的 D:/Temp 只差斜杠，盘符之外逐字比。
+  const qmRoot = git(qrN, ['rev-parse', '--show-toplevel']).out
+  const qvcN = makeVc()
+  const qmBad = qoidOf(qrN, 'HEAD')
+  const qmGood = qoidOf(qrN, 'HEAD~1')
+  const qmRead = await qvcN.handleGitDiagnosticsRead({ cwd: qrN, kind: 'ls-files', params: { paths: ['a.txt', 'b.txt'] } })
+  const qmReadArgv = after(qlastSpawn())
+  check(qmRead && qmRead.ok === true && qmReadArgv.join('\u0000') === ['ls-files', '-z', '--', 'a.txt', 'b.txt'].join('\u0000') && qlastReqCwd() === qmRoot, 'R1 13.4 只读查询的 argv 逐元素拼好：路径在 -- 之后各自一个元素，-C 与 cwd 钉在同一棵仓库')
+  const qmApply = await qvcN.handleGitDiagnosticsRead({ cwd: qrN, kind: 'apply-check', params: { patch: '--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-a\n+b\n' } })
+  const qmApplyArgv = after(qlastSpawn())
+  check(qmApply && qmApply.ok === true && qmApply.mode === 'check' && qmApplyArgv[0] === 'apply' && qmApplyArgv[1] === '--check' && qmApplyArgv.length === 3 && /\.patch$/.test(qmApplyArgv[2]), 'R2 13.12 只做预演：真 git 只跑「apply --check <临时补丁>」，补丁走临时文件，绝不真应用')
+  const qmWrites0 = qdiagWriteCmds().length
+  const qmStart = await qvcN.handleGitDiagnosticsCheck({ cwd: qrN, op: 'bisect-start', bad: qmBad, good: qmGood })
+  const qmStartId = qmStart && qmStart.ticket ? String(qmStart.ticket.id) : 'x'
+  const qmTickets = await qvcN.diagnosticsTickets()
+  const qmTicket = qmTickets && qmStart.ok === true ? qmTickets.get(qmStartId) : null
+  check(qmStart && qmStart.ok === true && qmStart.decision === 'allow' && qmStart.confirmRequired === true && !!qmStart.ticket && typeof qmStart.ticket.id === 'string', 'R3 13.1 开始二分在真仓库上预检放行：签一张票并给出确认口径（改写仓库状态的动作要确认卡）')
+  check(qmTicket && qmTicket.op === 'bisect-start' && qmTicket.repoRoot === qmRoot && qmTicket.headOid === qmBad && qmTicket.target.op === 'bisect-start' && qmTicket.target.bad === qmBad && /^[0-9a-f]{16}$/.test(String(qmTicket.bindings.preconditions.planDigest)) && /^[0-9a-f]{16}$/.test(String(qmTicket.bindings.preconditions.worktreeDigest)), 'R4 票里记的是规范化计划与两份摘要：仓库根、HEAD、坏提交与好提交各自一格（界面拿不到也能逐格比）')
+  check(qdiagWriteCmds().length === qmWrites0, 'R5 预检阶段零写命令：只读 git bisect log / replace -l 与 rev-parse，等用户点确认才动仓库')
+  const qnNoConfirm = await qvcN.handleGitDiagnosticsWrite({ cwd: qrN, ticketId: qmStartId, requestId: 'm-r1', op: 'bisect-start' })
+  check(qnNoConfirm && qnNoConfirm.ok === false && qnNoConfirm.reason === 'need-confirm' && qdiagWriteCmds().length === qmWrites0, 'R6 没点确认就凭票执行：拒绝且零写命令（确认卡不是摆设）')
+  const qmSpawns0 = spawns.length
+  const qmStarted = await qvcN.handleGitDiagnosticsWrite({ cwd: qrN, ticketId: qmStartId, requestId: 'm-r2', op: 'bisect-start', confirmed: true })
+  const qmStartArgv = after(qlastSpawn())
+  check(qmStarted && qmStarted.ok === true && qdiagWriteCmds().length === qmWrites0 + 1 && qmStartArgv.join('\u0000') === ['bisect', 'start', qmBad, qmGood].join('\u0000'), 'R7 凭票执行只跑这一条 argv：bisect start 后面两个提交各自一个元素（数组直传，不经 shell 拼串）')
+  check(spawns.length > qmSpawns0 && qlastReqCwd() === qmRoot && qlastSpawn().indexOf('-C') > 0 && qlastSpawn().indexOf(qmRoot) > 0, 'R8 这一条写命令的 -C 与 cwd 都钉在这棵仓库，不跟着调用方当前目录跑')
+  const qmReplay = await qvcN.handleGitDiagnosticsWrite({ cwd: qrN, ticketId: qmStartId, requestId: 'm-r2', op: 'bisect-start', confirmed: true })
+  check(qmReplay && qmReplay.ok === true && qmReplay.reused === true && qdiagWriteCmds().length === qmWrites0 + 1, 'R9 同一个 requestId 重放：回同一份结果，写进程没有起第二个（重发不会把仓库改两遍）')
+  const qmMark = await qvcN.handleGitDiagnosticsCheck({ cwd: qrN, op: 'bisect-bad' })
+  const qmMarkId = qmMark && qmMark.ticket ? String(qmMark.ticket.id) : 'x'
+  const qmMarked = await qvcN.handleGitDiagnosticsWrite({ cwd: qrN, ticketId: qmMarkId, requestId: 'm-r3' })
+  const qmMarkArgv = after(qlastSpawn())
+  check(qmMark && qmMark.ok === true && qmMark.confirmRequired === false && qmMarked && qmMarked.ok === true && qmMarkArgv.join(' ') === 'bisect bad', 'R10 13.1 标坏提交是一步一下的受控写：预检不要确认卡，凭票只跑 bisect bad')
+  git(qrN, ['bisect', 'reset'])
+  const qmRep = await qvcN.handleGitDiagnosticsCheck({ cwd: qrN, op: 'replace-create', from: qmBad, to: qmGood })
+  const qmRepId = qmRep && qmRep.ticket ? String(qmRep.ticket.id) : 'x'
+  const qmRepDone = await qvcN.handleGitDiagnosticsWrite({ cwd: qrN, ticketId: qmRepId, requestId: 'm-r4', confirmed: true })
+  const qmRepArgv = after(qlastSpawn())
+  check(qmRepDone && qmRepDone.ok === true && qmRepArgv.join('\u0000') === ['replace', qmBad, qmGood].join('\u0000'), 'R11 5.12 建立替换的 argv 是两个对象各自一个元素：replace <被替换> <被指向>')
+  check(git(qrN, ['replace', '-l']).out.indexOf(qmBad) >= 0, 'R12 建立替换后仓库里真的多了一条替换记录（回执不是空话）')
+  const qmDel = await qvcN.handleGitDiagnosticsCheck({ cwd: qrN, op: 'replace-delete', object: qmBad })
+  const qmDelId = qmDel && qmDel.ticket ? String(qmDel.ticket.id) : 'x'
+  const qmDelDone = await qvcN.handleGitDiagnosticsWrite({ cwd: qrN, ticketId: qmDelId, requestId: 'm-r5', confirmed: true })
+  const qmDelArgv = after(qlastSpawn())
+  check(qmDelDone && qmDelDone.ok === true && qmDelArgv.join('\u0000') === ['replace', '-d', qmBad].join('\u0000') && git(qrN, ['replace', '-l']).out === '', 'R13 5.12 撤销替换只跑 replace -d <对象> 一条命令，撤销后替换记录清空（一键撤销不是先查再猜）')
+  const qrM2 = qmkDiagRepo('m2')
+  const qvcM2 = makeVc()
+  const qm2No = await qvcM2.handleGitDiagnosticsCheck({ cwd: qrM2, op: 'replace-delete', object: qoidOf(qrM2, 'HEAD') })
+  check(qm2No && qm2No.ok === false && qm2No.reason === 'no-replace', 'R14 对象没有被替换过就撤销：预检当场挡住（理由 no-replace，不落 unknown）')
+  const qrM3 = qmkDiagRepo('m3')
+  const qvcM3 = makeVc()
+  const qm3Bad = qoidOf(qrM3, 'HEAD')
+  const qm3Good = qoidOf(qrM3, 'HEAD~1')
+  const qm3Sign = await qvcM3.handleGitDiagnosticsCheck({ cwd: qrM3, op: 'replace-create', from: qm3Bad, to: qm3Good })
+  const qm3Id = qm3Sign && qm3Sign.ticket ? String(qm3Sign.ticket.id) : 'x'
+  git(qrM3, ['replace', qm3Bad, qm3Good])
+  const qm3Writes0 = qdiagWriteCmds().length
+  const qm3Drift = await qvcM3.handleGitDiagnosticsWrite({ cwd: qrM3, ticketId: qm3Id, requestId: 'm-r6', confirmed: true })
+  check(qm3Drift && qm3Drift.ok === false && qm3Drift.reason === 'target-changed' && qdiagWriteCmds().length === qm3Writes0, 'R15 预检之后有人在终端里建了替换：现场摘要不一致，零写命令拒绝（票只对预检那一刻的现场有效）')
+  const qrM4 = qmkDiagRepo('m4')
+  const qvcM4 = makeVc()
+  const qm4Ticket = await qvcM4.handleGitDiagnosticsCheck({ cwd: qrM4, op: 'replace-create', from: qoidOf(qrM4, 'HEAD'), to: qoidOf(qrM4, 'HEAD~1') })
+  const qm4Writes0 = qdiagWriteCmds().length
+  const qm4Wrong = await qvcM4.handleGitDiagnosticsWrite({ cwd: qrM4, ticketId: qm4Ticket.ticket.id, requestId: 'm-r7', op: 'replace-delete', confirmed: true })
+  check(qm4Wrong && qm4Wrong.ok === false && qm4Wrong.reason === 'ticket-op-mismatch' && qdiagWriteCmds().length === qm4Writes0, 'R16 拿「建立替换」的票去跑「撤销替换」：票据与动作不符，零写命令拒绝（一张票只配一个动作）')
+  const qrM5 = mkRepo('m5')
+  const qvcM5 = makeVc()
+  const qm5Writes0 = qdiagWriteCmds().length
+  const qm5Missing = await qvcM5.handleGitDiagnosticsWrite({ cwd: qrM5, ticketId: 'not-a-ticket', requestId: 'm-r8', confirmed: true })
+  check(qm5Missing && qm5Missing.ok === false && qm5Missing.reason === 'ticket-missing' && qm5Missing.error && qm5Missing.error.kind === 'blocked' && qdiagWriteCmds().length === qm5Writes0, 'R17 票号不在宿主内存里：零写命令拒绝（伪造票据走不到 git 前面），拒绝归属 blocked 这一类')
+  const qm5Again = await qvcM5.handleGitDiagnosticsWrite({ cwd: qrM5, ticketId: 'not-a-ticket', requestId: 'm-r9', confirmed: true })
+  const qm5Keys = qm5Again && qm5Again.error ? Object.keys(qm5Again.error).sort().join(',') : ''
+  check(qm5Keys === 'hint,kind,message,reason', 'R18 失败信封固定四件：kind / reason / message / hint（诊断写通道与提交页同一套约定）')
+  // 日志与源码纪律：三条电话都经同一出口落日志，执行叶子不自己起进程。
+  const qvcLog = makeVc()
+  await qvcLog.handleGitDiagnosticsRead({ cwd: qrM5, kind: 'ls-files', params: {} })
+  const qmReadLog = logs.filter((l) => l.event === 'host.call' && l.fields.method === 'wf.gitDiagnosticsRead')
+  check(qmReadLog.length === 1 && qmReadLog[0].fields.ok === true, 'R19 只读查询经统一出口落一条 host.call：界面侧只认 host.call / host.call.fail 两类电话日志')
+  await qvcLog.handleGitDiagnosticsWrite({ cwd: qrM5, ticketId: 'not-a-ticket', requestId: 'm-r10', confirmed: true })
+  const qmFailLog = logs.filter((l) => l.event === 'host.call.fail' && l.fields.method === 'wf.gitDiagnosticsWrite')
+  const qmOnlyFour = logs.every((l) => ['git.exec', 'git.exec.fail', 'host.call', 'host.call.fail'].indexOf(l.event) >= 0)
+  check(qmFailLog.length === 1 && qmOnlyFour, 'R20 写失败也经统一出口落 host.call.fail，全过程只出现 git.exec / git.exec.fail / host.call / host.call.fail 四种事件')
+  const qmLeafSources = ['src/host/versionControlDiagnosticsRead.ts', 'src/host/versionControlDiagnosticsCheck.ts', 'src/host/versionControlDiagnosticsWrite.ts', 'src/host/versionControlDiagnosticsMount.ts'].map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n')
+  check(!/child_process|spawnSync|execSync/.test(qmLeafSources), 'R21 诊断页的四片宿主叶子都不自己起进程：进程出口只有注入的 runPinned / runGit 那一条')
+  const qmIndexSrc = fs.readFileSync(path.join(ROOT, 'src/host/index.ts'), 'utf8')
+  check(qmIndexSrc.indexOf("harness.handle('wf.gitDiagnosticsRead'") >= 0 && qmIndexSrc.indexOf("harness.handle('wf.gitDiagnosticsCheck'") >= 0 && qmIndexSrc.indexOf("harness.handle('wf.gitDiagnosticsWrite'") >= 0, 'R22 三条诊断电话都登记在宿主入口：漏一条界面就永远拿不到回包')
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }

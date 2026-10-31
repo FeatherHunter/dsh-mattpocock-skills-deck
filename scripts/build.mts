@@ -810,6 +810,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcChangesPage', file: 'src/client/views/versionControl/vcChangesPage.ts' }, // #1742 改动页 13 条动作的操作面板（由页面壳在 changes 页挂进页面体）
   { id: 'vcStashOps', file: 'src/client/views/versionControl/vcStashOps.ts' }, // #1751 贮藏页的数据与动作层（首屏贮藏片怎么读、十条动作怎么拼、回包怎么落状态；不画界面）
   { id: 'vcStashPage', file: 'src/client/views/versionControl/vcStashPage.ts' }, // #1751 贮藏页的入口与真实动作画法（十条动作、确认卡、最近丢弃、版本门提示；由页面壳挂进贮藏页）
+  { id: 'vcDiagnostics', file: 'src/client/views/versionControl/vcDiagnostics.ts' }, // #1761 诊断页的数据与动作层（域 13 只读查询与二分、5.12 替换对象；不画界面）
+  { id: 'vcDiagnosticsPage', file: 'src/client/views/versionControl/vcDiagnosticsPage.ts' }, // #1761 诊断页正文（十四条能力各一个入口、13.13 只读展示、13.3/13.14 只放指针；壳要调它）
   // #1748 变基待办页的历史改写两叶（数据层 → 画法），排在页面壳之前；壳的 rebase 挂载段要调 vcUndoPageNode。
   { id: 'vcUndoOps', file: 'src/client/views/versionControl/vcUndoOps.ts' }, // #1748 五条历史改写动作的输入整理、本地预检与回包落态（不画界面）
   { id: 'vcUndoPage', file: 'src/client/views/versionControl/vcUndoPage.ts' }, // #1748 变基待办页的面板（动作选择、预检、确认卡、恢复点与执行结果；由页面壳挂进 rebase 页）

@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T20:29:29.978Z",
+  "generatedAt": "2026-10-31T20:35:01.134Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 502,
-  "gateCount": 502,
-  "attributedGates": 451,
+  "chainLength": 503,
+  "gateCount": 503,
+  "attributedGates": 452,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 66,
+  "completionRecordedGates": 67,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 771,
+  "graphFileCount": 778,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4306,6 +4306,34 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
+      "step": "node tests/verify-1586-diagnostics.ts",
+      "file": "tests/verify-1586-diagnostics.ts",
+      "guards": [
+        "config/timeouts.yaml",
+        "scripts/lib/transpile-unit.mts",
+        "src/host/index.ts",
+        "src/host/versionControl.ts",
+        "src/host/versionControlDiagnosticsCheck.ts",
+        "src/host/versionControlDiagnosticsMount.ts",
+        "src/host/versionControlDiagnosticsRead.ts",
+        "src/host/versionControlDiagnosticsWrite.ts",
+        "src/shared/version-control/src/diagnostics-commands.ts",
+        "tests/lib/gate-result.ts"
+      ],
+      "dirs": [
+        "config",
+        "scripts/lib",
+        "src/host",
+        "src/shared/version-control/src",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 104,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
+    },
+    {
       "step": "node tests/verify-1586-first-screen.ts",
       "file": "tests/verify-1586-first-screen.ts",
       "guards": [
@@ -6589,6 +6617,8 @@
         "src/client/views/versionControl/vcConflictsOps.ts",
         "src/client/views/versionControl/vcConflictsPage.ts",
         "src/client/views/versionControl/vcData.ts",
+        "src/client/views/versionControl/vcDiagnostics.ts",
+        "src/client/views/versionControl/vcDiagnosticsPage.ts",
         "src/client/views/versionControl/vcDiff.ts",
         "src/client/views/versionControl/vcDiffOps.ts",
         "src/client/views/versionControl/vcFirstScreen.ts",
@@ -6663,7 +6693,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 71 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 73 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -6716,7 +6746,12 @@
       "step": "node tests/verify-841-write-phones.ts",
       "file": "tests/verify-841-write-phones.ts",
       "guards": [
+        "src/host/index.ts",
         "src/host/versionControl.ts",
+        "src/host/versionControlDiagnosticsCheck.ts",
+        "src/host/versionControlDiagnosticsMount.ts",
+        "src/host/versionControlDiagnosticsRead.ts",
+        "src/host/versionControlDiagnosticsWrite.ts",
         "src/host/versionControlWorktrees.ts",
         "src/host/versionControlWrite.ts",
         "src/shared/version-control/src/commands.ts",
@@ -6732,7 +6767,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-842-version-control-write-view.ts",
@@ -10995,6 +11030,9 @@
         "src/host/versionControlConfigWrite.ts",
         "src/host/versionControlConflictScene.ts",
         "src/host/versionControlConflictWrite.ts",
+        "src/host/versionControlDiagnosticsCheck.ts",
+        "src/host/versionControlDiagnosticsRead.ts",
+        "src/host/versionControlDiagnosticsWrite.ts",
         "src/host/versionControlFirstScreen.ts",
         "src/host/versionControlMigrateCheck.ts",
         "src/host/versionControlMigrateWrite.ts",
@@ -11118,7 +11156,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 144 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 147 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -11766,6 +11804,7 @@
     "config": [
       "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1475-predicate-budget.ts",
+      "node tests/verify-1586-diagnostics.ts",
       "node tests/verify-fallback-fetch-budget.ts",
       "node tests/verify-notification-events.ts",
       "node tests/verify-prompt-config.ts",
@@ -12087,6 +12126,7 @@
       "node tests/verify-1438-banner-recheck-button.ts",
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1530-generated-outputs-not-inputs.ts",
+      "node tests/verify-1586-diagnostics.ts",
       "node tests/verify-1586-undo-restore.ts",
       "node tests/verify-1599-gitlab-hidden-markers.ts",
       "node tests/verify-1647-checklist-consistency.ts",
@@ -12697,6 +12737,7 @@
       "node tests/verify-1586-changes-page.ts",
       "node tests/verify-1586-clone-wizard.ts",
       "node tests/verify-1586-conflicts.ts",
+      "node tests/verify-1586-diagnostics.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-history-query.ts",
       "node tests/verify-1586-migrate.ts",
@@ -13234,6 +13275,7 @@
       "node tests/verify-1586-clone-wizard.ts",
       "node tests/verify-1586-commit-page.ts",
       "node tests/verify-1586-config-hooks.ts",
+      "node tests/verify-1586-diagnostics.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-history-query.ts",
       "node tests/verify-1586-migrate.ts",
@@ -13741,6 +13783,7 @@
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1526-suggest-replay-restore.ts",
       "node tests/verify-1582-open-folder.ts",
+      "node tests/verify-1586-diagnostics.ts",
       "node tests/verify-1586-migrate.ts",
       "node tests/verify-1586-remote.ts",
       "node tests/verify-1586-sync.ts",
@@ -13889,9 +13932,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 792,
+    "fileCount": 799,
     "dirCount": 84,
-    "coveredFileCount": 792,
+    "coveredFileCount": 799,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -14099,6 +14142,8 @@
       "src/client/views/versionControl/vcConflictsOps.ts",
       "src/client/views/versionControl/vcConflictsPage.ts",
       "src/client/views/versionControl/vcData.ts",
+      "src/client/views/versionControl/vcDiagnostics.ts",
+      "src/client/views/versionControl/vcDiagnosticsPage.ts",
       "src/client/views/versionControl/vcDiff.ts",
       "src/client/views/versionControl/vcDiffOps.ts",
       "src/client/views/versionControl/vcFirstScreen.ts",
@@ -14270,6 +14315,10 @@
       "src/host/versionControlConflictMount.ts",
       "src/host/versionControlConflictScene.ts",
       "src/host/versionControlConflictWrite.ts",
+      "src/host/versionControlDiagnosticsCheck.ts",
+      "src/host/versionControlDiagnosticsMount.ts",
+      "src/host/versionControlDiagnosticsRead.ts",
+      "src/host/versionControlDiagnosticsWrite.ts",
       "src/host/versionControlFiles.ts",
       "src/host/versionControlFirstScreen.ts",
       "src/host/versionControlHistory.ts",
@@ -14465,6 +14514,7 @@
       "src/shared/version-control/src/config-rules.ts",
       "src/shared/version-control/src/conflict-ops.ts",
       "src/shared/version-control/src/conflict-text.ts",
+      "src/shared/version-control/src/diagnostics-commands.ts",
       "src/shared/version-control/src/first-screen.ts",
       "src/shared/version-control/src/history-query-commands.ts",
       "src/shared/version-control/src/migrate-actions.ts",

@@ -133,6 +133,11 @@ timeouts:
   # 手动跑一个钩子（git hook run）的超时：2 分钟。钩子是仓库里的脚本，可能真的在跑构建、跑测试、
   # 调外部工具；给足时间但仍要上限，到点按超时失败、不假装跑完。
   vcHookRunTimeoutMs: 120000
+  # —— 诊断页与替换对象的单条命令超时（#1761）——
+  # 预检与只读查询里单条 git 命令的超时：15 秒。二分日志、替换清单、grep、ls-tree 都是本地读取，与上面同一档。
+  vcDiagnosticsReadTimeoutMs: 15000
+  # 诊断写命令的单条超时：15 秒。bisect start/good/bad/skip/reset 与 replace -d 只改 .git 里的记录，不碰网络。
+  vcDiagnosticsWriteTimeoutMs: 15000
   # —— 克隆向导的单条命令超时（#1756 T20，能力 8.16）——
   # 预检里单条只读命令的超时：15 秒。当前仓库地址、目标目录探测都是本地读，与分支域只读同一档。
   vcCloneReadTimeoutMs: 15000

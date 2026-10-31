@@ -125,6 +125,9 @@ const KEYS: Array<[string, string, string]> = [
   ['vcConfigReadTimeoutMs', 'VC_CONFIG_READ_TIMEOUT_MS', 'timeouts'],
   ['vcConfigWriteTimeoutMs', 'VC_CONFIG_WRITE_TIMEOUT_MS', 'timeouts'],
   ['vcHookRunTimeoutMs', 'VC_HOOK_RUN_TIMEOUT_MS', 'timeouts'],
+  // #1761 诊断页与替换对象：预检只读与凭票执行各一档，都是本地动作。
+  ['vcDiagnosticsReadTimeoutMs', 'VC_DIAGNOSTICS_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcDiagnosticsWriteTimeoutMs', 'VC_DIAGNOSTICS_WRITE_TIMEOUT_MS', 'timeouts'],
   // #1756 T20 克隆向导：预检只读与清理各一档；克隆本体走长任务通道，不在这里给超时。
   ['vcCloneReadTimeoutMs', 'VC_CLONE_READ_TIMEOUT_MS', 'timeouts'],
   ['vcCloneWriteTimeoutMs', 'VC_CLONE_WRITE_TIMEOUT_MS', 'timeouts'],

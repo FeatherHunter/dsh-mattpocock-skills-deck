@@ -98,6 +98,10 @@ const REFERENCES: RefRow[] = [
   // #1757 T21 子模块域：预检只读与凭票执行各一档（叶子直接导入生成常量，别名只改名不改值）。
   { file: 'src/host/versionControlSubmodulesCheck.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_SUBMODULE_READ_TIMEOUT_MS', key: 'vcSubmoduleReadTimeoutMs' },
   { file: 'src/host/versionControlSubmodulesWrite.ts', access: 'WRITE_TIMEOUT_MS', gen: 'VC_SUBMODULE_WRITE_TIMEOUT_MS', key: 'vcSubmoduleWriteTimeoutMs' },
+  // #1761 诊断页与替换对象：只读查询与预检读同一条时限，凭票执行读另一条；三条都 direct import 生成常量（别名）。
+  { file: 'src/host/versionControlDiagnosticsRead.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_DIAGNOSTICS_READ_TIMEOUT_MS', key: 'vcDiagnosticsReadTimeoutMs' },
+  { file: 'src/host/versionControlDiagnosticsCheck.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_DIAGNOSTICS_READ_TIMEOUT_MS', key: 'vcDiagnosticsReadTimeoutMs' },
+  { file: 'src/host/versionControlDiagnosticsWrite.ts', access: 'WRITE_TIMEOUT_MS', gen: 'VC_DIAGNOSTICS_WRITE_TIMEOUT_MS', key: 'vcDiagnosticsWriteTimeoutMs' },
   { file: 'src/host/versionControlConflictScene.ts', access: 'VC_CONFLICT_READ_TIMEOUT_MS', gen: 'VC_CONFLICT_READ_TIMEOUT_MS', key: 'vcConflictReadTimeoutMs' },
   { file: 'src/host/versionControlConflictWrite.ts', access: 'VC_CONFLICT_WRITE_TIMEOUT_MS', gen: 'VC_CONFLICT_WRITE_TIMEOUT_MS', key: 'vcConflictWriteTimeoutMs' },
   { file: 'src/host/versionControlRebaseScene.ts', access: 'VC_REBASE_READ_TIMEOUT_MS', gen: 'VC_REBASE_READ_TIMEOUT_MS', key: 'vcRebaseReadTimeoutMs' },
