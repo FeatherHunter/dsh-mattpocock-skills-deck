@@ -805,6 +805,10 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   //   排在页面壳之前，壳的挂载段才看得到 vcConflictsPageNode。
   { id: 'vcConflictsOps', file: 'src/client/views/versionControl/vcConflictsOps.ts' },
   { id: 'vcConflictsPage', file: 'src/client/views/versionControl/vcConflictsPage.ts' },
+  // #1749 变基待办两叶：动作模型（9 条动作的出入参形状、待办行变换）→ 页面正文（状态、待办清单、三块预览、四段确认卡）。
+  //   排在页面壳之前，壳的挂载段才看得到 vcRebasePageNode。
+  { id: 'vcRebaseOps', file: 'src/client/views/versionControl/vcRebaseOps.ts' },
+  { id: 'vcRebasePage', file: 'src/client/views/versionControl/vcRebasePage.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },
