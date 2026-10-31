@@ -2,10 +2,12 @@
  * src/tracker/contract/operations-encyclopedia.ts —— 操作百科：每条操作的读/写标记与读操作的四样声明
  *
  * ── 这个文件回答的问题 ──────────────────────────────────────────────────────────
- * 「一次读操作可以用哪些渠道、取回什么形状的结果、能表达哪些字段组、算哪一族额度。」
+ * 「一次读操作可以用哪些渠道、取回什么形状的结果、能表达哪些字段组、
+ *  这一次读按什么顺序花哪几族额度。」
  *
  * 在此之前，这份名单散在两处：额度闸里手写一份「哪些读操作只记 GraphQL 点数」的数组
- * （`src/refresh/kernel/budget-admission.ts` 的 `GRAPHQL_READ_OPS`），另一些关于读操作的说法
+ * （`src/refresh/kernel/budget-admission.ts` 的 `GRAPHQL_READ_OPS`；#1765 起已换成从本文件
+ * `spend` 派生的 `READ_SPEND_PLANS`，额度闸不再手抄第二份），另一些关于读操作的说法
  * 只活在注释里。规格 1681 要求操作百科成为读操作名录的单一真源：额度闸、门禁与将来的路由层
  * 都从这一份枚举，谁也不再手抄第二份。
  *
@@ -19,9 +21,11 @@
  *    门禁 `tests/verify-operation-catalog.ts` 逐条比对，缺一条或名字不在名录里都判红。
  * 2. `channels` 说的是「这条读操作允许走哪些渠道」，不是「这一次实际走了哪个渠道」。
  *    实际来源由阶段 1 的读结果记录（ADR 20261030 的房间分层），本文件不预判。
- * 3. `budget` 说的是「额度闸按哪一族记账」，不是渠道声明。两者故意分开：`list` 与 `get`
- *    两个渠道都能读，但今天额度闸把它们的读数记在 GraphQL 点数族上；把 `channels` 当成
- *    `budget` 来用，会让额度闸的放行行为跟着渠道声明一起变——本票明确不做这件事。
+ * 3. `spend` 说的是「这一次读真正会花哪几族额度、按什么顺序」，不是「允许走哪些渠道」。
+ *    两者故意分开，回答的问题不同：`channels` 给阶段 1 的读来源对账用（允许范围），
+ *    `spend` 给额度闸与房间用（这次放行的渠道计划）。`list` 与 `get` 两族都能读，
+ *    `spend` 就写成先 GraphQL 再 REST：GraphQL 见底时计划只剩 REST，而不是整条读被拦；
+ *    REST-only 的读写成只花 REST，GraphQL 见底时照常放行。
  *
  * ── 写操作为什么没有 `channels` ──────────────────────────────────────────────────
  * 写操作的通道选择是另一张票（额度闸渠道放行）的范围，本票不动。这里只记读/写标记、
@@ -83,17 +87,27 @@ export const FIELD_GROUPS = [
 export type FieldGroup = (typeof FIELD_GROUPS)[number]
 
 /**
- * 额度记账口径：这条读操作的花费按哪一族额度看。
+ * 读操作会花到的额度族，同时也就是它可能走的物理渠道。
  *
- * `graphql` 是今天那七条（列表、单票、翻页、依赖、子票、标签、计数）——GitHub 读全走
- * GraphQL 点数，只记这一族。`both` 是「没有单独口径，按两族都看」的保守口径，
- * 与额度闸 `familiesOfOp` 对名单外操作的既有行为逐字相同。
- *
- * 这两个词不是渠道：`list` 的 `channels` 是 `either`（两个渠道都能读），
- * 但它的 `budget` 是 `graphql`；谁把两者混用，额度闸的放行行为就会跟着变。
+ * 两族在 GitHub 上的花费口径不同：GraphQL 按点数（points），REST 按请求数（requests）。
+ * 额度闸给这两族各留一份保底，所以「这一次读会花哪一族」必须说清楚，不能到了放行时才发现
+ * 花的是另一族（#1681）。`local` 不花任何远端额度，是读插件自己账本的那一条。
  */
-export const READ_BUDGET_FAMILIES = ['graphql', 'both'] as const
-export type ReadBudgetFamily = (typeof READ_BUDGET_FAMILIES)[number]
+export const READ_SPEND_CHANNELS = ['graphql', 'rest', 'local'] as const
+export type ReadSpendChannel = (typeof READ_SPEND_CHANNELS)[number]
+
+/**
+ * 一条读操作的花费渠道计划：按顺序列出这一次读允许走的渠道，先走前面的，前面的失败才走后一个。
+ *
+ * 三种形态：
+ *   - 单渠道（长度 1）：`['rest']` 或 `['graphql']`，实现上只有这一条路，这一族见底就读不了；
+ *   - 双渠道（长度 2，先 graphql 后 rest）：GraphQL 主路失败或见底时降级 REST，两族任一有余量就能读；
+ *   - 本地（`['local']`）：不花远端额度，永远放行。
+ *
+ * 这张计划是额度闸的裁决依据，也是房间选路的依据：计划里没有的渠道，这一次一次都不试；
+ * 计划里有的渠道，房间可以按顺序换，不必回来重新问闸（换渠道不增加花费的族）。
+ */
+export type ReadSpendPlan = readonly ReadSpendChannel[]
 
 /** 非 GitHub 后端的读来源默认值：渠道只写本家通道，完整度只写「完整」或「未表达」。 */
 export const READ_SOURCE_COMPLETENESS = ['complete', 'unexpressed'] as const
@@ -109,8 +123,8 @@ export type ReadProfile = {
   readonly result: ReadResultKind
   /** 结果可能表达的字段组；空数组不算声明，门禁判红。 */
   readonly fieldGroups: readonly FieldGroup[]
-  /** 额度记账口径，见 `READ_BUDGET_FAMILIES` 的说明。 */
-  readonly budget: ReadBudgetFamily
+  /** 这条读操作的花费渠道计划，见 `ReadSpendPlan` 的说明。 */
+  readonly spend: ReadSpendPlan
 }
 
 /** 一条写操作的声明：结果固定是回执，`fieldGroups` 是回执能表达的字段。 */
@@ -147,15 +161,17 @@ export type OwnChannelReadSource = {
  * 键的顺序照 `OPERATIONS`。新增一条操作的顺序是：先加进 `operations-catalog.ts`，
  * 再在这里补一条，然后跑门禁——门禁会指出缺了哪一条。
  *
- * 读操作的 `budget` 只有七条是 `graphql`；这七条是 #1683 开工前额度闸里手写名单的原样，
- * 派生结果必须与它逐字相同（门禁 `tests/verify-operation-catalog.ts` 钉住），
- * 这样「读名单改为从百科派生」不会顺带改掉任何一条放行行为。
+ * 读操作的 `spend` 是 #1765 逐条核对实现后写下的花费渠道计划：REST-only 的四条、
+ * GraphQL 主路加 REST 兜底的三条、GraphQL-only 的四条、读本地账本的一条。
+ * 额度闸从这里派生「这一次允许走哪些渠道」，门禁 `tests/verify-operation-catalog.ts`
+ * 与 `tests/verify-1765-read-channel-plan.ts` 钉住这张表，不让无名渠道混进来。
  */
 export const OPERATION_ENCYCLOPEDIA = {
-  // 探测：问仓库在不在、能不能读；两个渠道都能问，回执只有权限一组。
-  preflight: { kind: 'read', channels: 'either', result: 'check', fieldGroups: ['permissions'], budget: 'both' },
+  // 探测：问仓库在不在、能不能读。今天实现只走 REST（gh auth status、gh repo view、gh api）；
+  // 回执只有权限一组。GraphQL 见底不妨碍探活。
+  preflight: { kind: 'read', channels: 'either', result: 'check', fieldGroups: ['permissions'], spend: ['rest'] },
   // 整仓列表：规格第 5 节写明两个渠道都能取；行级字段与标签由列表端点表达。
-  list: { kind: 'read', channels: 'either', result: 'rows', fieldGroups: ['row', 'labels'], budget: 'graphql' },
+  list: { kind: 'read', channels: 'either', result: 'rows', fieldGroups: ['row', 'labels'], spend: ['graphql', 'rest'] },
   // 单票详情：行级字段、正文、评论按需、父子边、依赖每侧前 50、子票计数、评审、合并时间。
   // 这次没取或端点没有的组如实记未表达——GitHub 的工单查询不取子票/评审/合并时间，
   // 拉取请求查询没有父子边与依赖边，REST 单票端点除回包自带的子票计数、评审数组外都不表达。
@@ -164,10 +180,10 @@ export const OPERATION_ENCYCLOPEDIA = {
     channels: 'either',
     result: 'detail',
     fieldGroups: ['row', 'body', 'comments', 'parents', 'dependencies', 'subIssues', 'review', 'mergeInfo'],
-    budget: 'graphql',
+    spend: ['graphql', 'rest'],
   },
   // 依赖边：每侧前 50，触上限即截断。
-  getDependencies: { kind: 'read', channels: 'either', result: 'dependencies', fieldGroups: ['dependencies'], budget: 'graphql' },
+  getDependencies: { kind: 'read', channels: 'either', result: 'dependencies', fieldGroups: ['dependencies'], spend: ['graphql', 'rest'] },
   // 建票：写；回执能表达新建出来的那一行。
   create: { kind: 'write', result: 'receipt', fieldGroups: ['row'] },
   close: { kind: 'write', result: 'receipt', fieldGroups: ['row'] },
@@ -179,28 +195,28 @@ export const OPERATION_ENCYCLOPEDIA = {
   setAssignees: { kind: 'write', result: 'receipt', fieldGroups: ['row'] },
   setParent: { kind: 'write', result: 'receipt', fieldGroups: ['parents'] },
   setBlockedBy: { kind: 'write', result: 'receipt', fieldGroups: ['dependencies'] },
-  // 当前用户：两个渠道都能问；结果是一份身份，不是一张票。
-  getCurrentUser: { kind: 'read', channels: 'either', result: 'actor', fieldGroups: ['identity'], budget: 'both' },
+  // 当前用户：今天实现只走 REST（gh api user）；结果是一份身份，不是一张票。
+  getCurrentUser: { kind: 'read', channels: 'either', result: 'actor', fieldGroups: ['identity'], spend: ['rest'] },
   // 初始化项目字段：写；回执只有成功与否，没有票级字段。
   initProject: { kind: 'write', result: 'receipt', fieldGroups: [] },
-  // 标签清单：两个渠道都能取；触 1000 上限即截断。
-  listLabels: { kind: 'read', channels: 'either', result: 'labels', fieldGroups: ['labels'], budget: 'graphql' },
+  // 标签清单：今天实现只走 REST（gh label list）；触 1000 上限即截断。
+  listLabels: { kind: 'read', channels: 'either', result: 'labels', fieldGroups: ['labels'], spend: ['rest'] },
   // 改标签颜色：写；回执表达标签组。
   setLabelColors: { kind: 'write', result: 'receipt', fieldGroups: ['labels'] },
-  // 计数：GraphQL 直接给；REST 没有单请求等价，完整枚举时可本地重算。
-  counts: { kind: 'read', channels: 'either', result: 'counts', fieldGroups: ['counts'], budget: 'graphql' },
-  // 翻页：一页行，行级字段与标签由列表端点表达。
-  listPage: { kind: 'read', channels: 'either', result: 'page', fieldGroups: ['row', 'labels'], budget: 'graphql' },
-  // 仓库写权限：两个渠道都能问（GraphQL 的 viewerPermission / REST 的 permissions）。
-  getRepoPermissions: { kind: 'read', channels: 'either', result: 'permissions', fieldGroups: ['permissions'], budget: 'both' },
-  // 子票清单：两个渠道都能取；触 1000 上限即截断。
-  listSubIssues: { kind: 'read', channels: 'either', result: 'subIssues', fieldGroups: ['subIssues', 'row'], budget: 'graphql' },
+  // 计数：今天只走 GraphQL（REST 没有单请求等价，完整枚举时可本地重算，那不在本操作里）。
+  counts: { kind: 'read', channels: 'either', result: 'counts', fieldGroups: ['counts'], spend: ['graphql'] },
+  // 翻页：一页行，行级字段与标签由列表端点表达；今天只走 GraphQL（REST 没有同一游标口径）。
+  listPage: { kind: 'read', channels: 'either', result: 'page', fieldGroups: ['row', 'labels'], spend: ['graphql'] },
+  // 仓库写权限：今天实现只走 REST（gh api repos/{owner}/{name} 的 permissions 字段）。
+  getRepoPermissions: { kind: 'read', channels: 'either', result: 'permissions', fieldGroups: ['permissions'], spend: ['rest'] },
+  // 子票清单：今天只走 GraphQL；触 1000 上限即截断。
+  listSubIssues: { kind: 'read', channels: 'either', result: 'subIssues', fieldGroups: ['subIssues', 'row'], spend: ['graphql'] },
   // 默认配色文件：写；回执只有成功与否（本地文件路径不是票级字段）。
   ensureLabelColorsFile: { kind: 'write', result: 'receipt', fieldGroups: [] },
   // 全量地图薄行：今天只有 GraphQL 一条路（REST 没有「地图」这个概念），所以渠道写 graphql。
-  listMaps: { kind: 'read', channels: 'graphql', result: 'maps', fieldGroups: ['row', 'labels'], budget: 'both' },
-  // 读预算：读插件自己的账本，不走任何远端渠道；它本来就不花额度，族选择保持两族都看。
-  readBudget: { kind: 'read', channels: 'local', result: 'budget', fieldGroups: ['counts'], budget: 'both' },
+  listMaps: { kind: 'read', channels: 'graphql', result: 'maps', fieldGroups: ['row', 'labels'], spend: ['graphql'] },
+  // 读预算：读插件自己的账本，不走任何远端渠道；它本来就不花额度，永远放行。
+  readBudget: { kind: 'read', channels: 'local', result: 'budget', fieldGroups: ['counts'], spend: ['local'] },
 } as const satisfies Record<OperationName, OperationProfile>
 
 /**

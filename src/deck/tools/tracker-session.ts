@@ -121,9 +121,10 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
   const d = (req.deps || {}) as UnknownRecord;
   const s = (req.session || {}) as UnknownRecord;
   const est = (req.estimate || {}) as UnknownRecord;
-  // #1418：读/写只决定会话预检先试哪一族；真正按哪一族拦住某一次操作，由那次操作过管线时
-  //   按操作名判（见 src/refresh/kernel/budget-admission.ts 的 familiesOfOp）。
-  const readCall = str(req.kind) === 'read';
+  // #1765：预检不再按读/写决定先试哪一族。读操作里既有只花 GraphQL 的（计数、翻页、子票、地图），
+  //   也有只花 REST 的（探活、当前用户、仓库权限、标签清单），还有两族任一条就够的（列表、单票、依赖）；
+  //   预检时还不知道这一次具体是哪条操作，所以两族都问一遍，任一族的单次探测通过就放行
+  //   （真正按操作拦住某一笔的判据在管线裁决里，见 src/refresh/kernel/budget-admission.ts 的 familiesOfOp）。
   const registry = (d.registry || {}) as UnknownRecord;
   const gate = (d.gate || {}) as UnknownRecord;
   const cwd = str(s.cwd);
@@ -175,9 +176,11 @@ export async function openDeckSession(req: DeckSessionRequest): Promise<DeckOpen
   //   不自己拿两族的 remaining 绝对值相比：两族的尺子不一样（保底各按服务端上限的 5%，#1527），
   //   余量判断一律交给闸按各桶自己的保底线算。单次硬顶与桶无关，被它拒就不再换桶；
   //   每小时那条线 #1527 起只是提醒（放行并带一段 warnings），不会让换桶循环多问一次。
+  // #1765：读调用也走这条「两族任一」的路。以前读调用只探 GraphQL，遇到「GraphQL 见底、REST 还有」
+  //   的下午，明明能动 REST 的探活、标签清单、列表都会被预检挡在门外，报「被闸推迟了」。
   const probeBuckets: string[] = str(model.kind) === 'requests-only'
     ? ['requests']
-    : (readCall ? ['graphql'] : ['rest', 'graphql']);
+    : ['rest', 'graphql'];
   const admitVolumes = { points: num(est.points), requests: num(est.requests), childTickets: num(est.tickets) };
   // 先给空对象再按分支覆盖：后面的成功回执要读它，而编译器分不清「循环里已赋值」与「没走到那一支」。
   // 真正走到成功回执时它一定是被赋过值的那一份（两族都见底的分支在下面直接 return）。
