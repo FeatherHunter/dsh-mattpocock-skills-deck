@@ -430,6 +430,12 @@ export function createVersionControl(deps: any): any {
   function firstScreenPhone(): any { if (!_firstP) _firstP = import('./versionControlFirstScreen.js').then(function (m: any) { return m.createFirstScreenPhone({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, collect: collect, readHasHead: readHasHead, readAutocrlf: readAutocrlf, basisReader: basisReader, readMarkers: function (gitDir: any, ctx: any): any { return markersPhone().then(function (p: any): any { return p.read(gitDir, ctx) }) }, logCount: FIRST_SCREEN_LOG_COUNT }) }); return _firstP }
   async function handleGitFirstScreen(args: any): Promise<any> { const p: any = await firstScreenPhone(); return p(args) }
 
+  // 分支与标签域（#1746 T11）：读电话 wf.gitBranches 与写电话 wf.gitBranchWrite 住 ./versionControlBranch.js，
+  // 与差异电话、首屏电话同一先例（自包含叶子、依赖显式传入、本文件只加两行装载与两行注册）。
+  let _branchP: any = null
+  function branchPhone(): any { if (!_branchP) _branchP = import('./versionControlBranch.js').then(function (m: any) { return m.createBranchPhones({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, readScreenOf: readScreenOf }) }); return _branchP }
+  async function handleGitBranches(args: any): Promise<any> { const p: any = await branchPhone(); return p.handleGitBranches(args) }
+  async function handleGitBranchWrite(args: any): Promise<any> { const p: any = await branchPhone(); return p.handleGitBranchWrite(args) }
   /** 电话 wf.gitLog 的处理体：历史按批取；多要一条用来判断后面还有没有。 */
   async function handleGitLog(args: any): Promise<any> {
     const count: number = clampInt(args && args.count, FIRST_SCREEN_LOG_COUNT, 1, LOG_BATCH_MAX)
@@ -630,7 +636,9 @@ export function createVersionControl(deps: any): any {
     handleGitLog: loggedPhone('wf.gitLog', 'git-log', handleGitLog),
     // 首屏七片一次聚合（#1739 T04）：一次调用拿全，各片成败在回包里各自说。
     handleGitFirstScreen: loggedPhone('wf.gitFirstScreen', 'git-first-screen', handleGitFirstScreen),
-    // 写电话（1 预检 + 6 执行）：第一次调用时才装配，装完缓存；键名与只读那三条同形。
+    // 分支与标签域（#1746 T11）：读一次取全（分支/标签/已并入/说明），写按 kind 分派。
+    handleGitBranches: loggedPhone('wf.gitBranches', 'git-branches', handleGitBranches),
+    handleGitBranchWrite: loggedPhone('wf.gitBranchWrite', 'git-branch-write', handleGitBranchWrite),    // 写电话（1 预检 + 6 执行）：第一次调用时才装配，装完缓存；键名与只读那三条同形。
     handleGitWriteCheck: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.check(a) },
     handleGitStage: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.stage(a) },
     handleGitUnstage: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.unstage(a) },

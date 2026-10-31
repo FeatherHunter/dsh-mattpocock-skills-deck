@@ -277,6 +277,9 @@ export default {
     harness.handle('wf.gitTaskStart', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskStart(args) })
     harness.handle('wf.gitTaskQuery', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskQuery(args) })
     harness.handle('wf.gitTaskCancel', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskCancel(args) })
+    // 分支与标签域（#1746 T11）两条电话：读一次取全 / 写按 kind 分派。装配都在 ./versionControl.js 里。
+    harness.handle('wf.gitBranches', async function (args: WfArgs) { const h = await _vc(); return h.handleGitBranches(args) })
+    harness.handle('wf.gitBranchWrite', async function (args: WfArgs) { const h = await _vc(); return h.handleGitBranchWrite(args) })
 
     harness.handle('wf.refresh', async function (args: WfArgs) { const h = await _sessRef(); return h.handleRefresh(args) })
 
