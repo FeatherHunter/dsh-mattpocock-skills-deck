@@ -107,6 +107,8 @@ const KEYS: Array<[string, string, string]> = [
   ['vcRemoteListCallBudgetMs', 'VC_REMOTE_LIST_CALL_BUDGET_MS', 'timeouts'],
   ['vcPrePushCheckCallBudgetMs', 'VC_PRE_PUSH_CHECK_CALL_BUDGET_MS', 'timeouts'],
   ['vcWriteCallMarginMs', 'VC_WRITE_CALL_MARGIN_MS', 'timeouts'],
+  // #1752 工作树八条：单条写命令的超时（本地操作，不跟远端协商）。
+  ['vcWorktreeOpTimeoutMs', 'VC_WORKTREE_OP_TIMEOUT_MS', 'timeouts'],
   // #1740 长任务通道：进度轮询节奏、软取消宽限、强杀后等待。
   ['vcTaskPollIntervalMs', 'VC_TASK_POLL_INTERVAL_MS', 'timeouts'],
   ['vcTaskCancelGraceMs', 'VC_TASK_CANCEL_GRACE_MS', 'timeouts'],

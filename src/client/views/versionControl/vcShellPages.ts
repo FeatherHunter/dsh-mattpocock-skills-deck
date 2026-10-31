@@ -31,6 +31,8 @@ declare function vcCapabilitySurfaceKindOf(cap: any): string
 declare const VC_SHELL_STATES: string[]
 // 长任务区叶子（#1740，vcTaskPanel.ts）：由构建按叶子登记次序拼进同一个闭包，这里只声明形状。
 declare function vcTaskPanelNode(h: any, t: any, o: any): any
+// 工作树页叶子（#1752，vcWorktreesPage.ts）：同样由构建拼进同一个闭包，壳的挂载段只调用它。
+declare function vcWorktreesPageNode(h: any, t: any, o: any): any
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']
@@ -240,6 +242,13 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   ]))
   const notes = vcPageNotesOf(h, t, page)
   for (let i = 0; i < notes.length; i += 1) children.push(notes[i])
+  // #1752 工作树页正文：读首屏聚合里那一份工作树片，八条能力的入口与执行面由 vcWorktreesPage 自己画；
+  //   壳只负责把宿主数据与处理函数透传进去（没有传入时页面自己画空态，不影响其它页）。
+  if (page === 'worktrees' && typeof vcWorktreesPageNode === 'function') {
+    children.push(Object.assign({}, vcWorktreesPageNode(h, t, {
+      reads: opts.reads, ui: opts.ui, ops: opts.ops, handlers: opts.handlers,
+    }), { key: 'worktrees' }))
+  }
   // 骨架自检：三种表单形态与四种状态各画一遍，T03 只交壳，业务入口由后续票逐条接。
   children.push(h('div', { key: 'skeleton', className: 'vcs-skeleton', 'data-vc-skeleton': '1' }, [
     h('div', { key: 'forms', className: 'vcs-forms' }, vcShellFormNodes(h, t, o)),
@@ -299,6 +308,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     openSurface: openSurface,
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,
+    reads: opts.reads, ui: opts.ui, ops: opts.ops, handlers: opts.handlers, // #1752 工作树页要真数据与处理函数
   }), 'body'))
   // 长任务区（#1740）：页面把任务清单传进来时才画；没传整块不出现，既有页面的渲染结果不受影响。
   if (opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {

@@ -624,6 +624,32 @@ export function createVersionControl(deps: any): any {
     return _taskP
   }
 
+  /** 工作树八条能力（#1752 T17）：一条预检 + 一条执行，首次调用时装配 ./versionControlWorktrees.js。
+   *  两条电话共用同一个执行出口 runPinned（固定前缀、-C 钉仓库、报闸、git.exec 日志），不另起进程；
+   *  八条都是本地短写，规格第 5 节的长任务清单不含它们，所以不走任务通道。 */
+  let _worktreeP: any = null
+  function worktreePhone(): Promise<any> {
+    if (!_worktreeP) {
+      _worktreeP = (async function (): Promise<any> {
+        const mod: any = await import('./versionControlWorktrees.js')
+        return mod.createWorktreePhones({
+          resolveGitExecutable: resolveGitExecutable,
+          resolveRepoRoot: resolveRepoRoot,
+          runPinned: runPinned,
+          failPhone: failPhone,
+          firstLine: firstLine,
+          failureFromExec: failureFromExec,
+          cwdOf: cwdOf,
+          pathExists: pathExists,
+          nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now,
+          randomId: function (): string { return Math.random().toString(36).slice(2) },
+        })
+      })()
+      _worktreeP.catch(function (): void { _worktreeP = null })
+    }
+    return _worktreeP
+  }
+
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
@@ -646,5 +672,8 @@ export function createVersionControl(deps: any): any {
     handleGitTaskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) },
     handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) },
     handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) },
+    // #1752 工作树页八条能力：预检与执行两条电话（装配在 ./versionControlWorktrees.js）。
+    handleGitWorktreeCheck: async function (a: any): Promise<any> { const wt: any = await worktreePhone(); return wt.handleGitWorktreeCheck(a) },
+    handleGitWorktreeRun: async function (a: any): Promise<any> { const wt: any = await worktreePhone(); return wt.handleGitWorktreeRun(a) },
   }
 }

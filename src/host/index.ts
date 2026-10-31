@@ -277,6 +277,9 @@ export default {
     harness.handle('wf.gitTaskStart', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskStart(args) })
     harness.handle('wf.gitTaskQuery', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskQuery(args) })
     harness.handle('wf.gitTaskCancel', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskCancel(args) })
+    // #1752 工作树页八条能力两条电话（预检、执行）：装配在 ./versionControl.js 那一族里，这里只注册。
+    harness.handle('wf.gitWorktreeCheck', async function (args: WfArgs) { const h = await _vc(); return h.handleGitWorktreeCheck(args) })
+    harness.handle('wf.gitWorktreeRun', async function (args: WfArgs) { const h = await _vc(); return h.handleGitWorktreeRun(args) })
 
     harness.handle('wf.refresh', async function (args: WfArgs) { const h = await _sessRef(); return h.handleRefresh(args) })
 
