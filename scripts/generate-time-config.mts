@@ -174,6 +174,8 @@ const KEYS: Array<[string, string, string]> = [
   // —— 降级取数的两个节流窗口（#1689）：降级常驻时探测放慢到 60 秒、自动校准至少 10 分钟 ——
   ['fallbackProbeIntervalMs', 'FALLBACK_PROBE_INTERVAL_MS', 'intervals'],
   ['fallbackCalibrationIntervalMs', 'FALLBACK_CALIBRATION_INTERVAL_MS', 'intervals'],
+  // —— 通知事件库的两个时间参数（#1693）：瞬时事件去重窗住 intervals，历史保留期住 ttl ——
+  ['notificationEventDedupeMs', 'NOTIFICATION_EVENT_DEDUPE_MS', 'intervals'],
   // —— 命名状态与日志的节拍 ——
   ['namingPersistDebounceMs', 'NAMING_PERSIST_DEBOUNCE_MS', 'intervals'],
   ['namingSweepSoonMs', 'NAMING_SWEEP_SOON_MS', 'intervals'],
@@ -273,6 +275,8 @@ const KEYS: Array<[string, string, string]> = [
   ['writePatchTtlMs', 'WRITE_PATCH_TTL_MS', 'ttl'],
   // —— 视野模型上报的去重窗（同一签名在这段时间内只处理一次）——
   ['attentionReportDedupeMs', 'ATTENTION_REPORT_DEDUPE_MS', 'ttl'],
+  // —— 通知事件库的历史保留期（#1693）：只做大小比较，不交给定时器 ——
+  ['notificationEventRetentionMs', 'NOTIFICATION_EVENT_RETENTION_MS', 'ttl'],
   // —— backoff：退避序列。项可以写引用（#1629），第二档就是一步等待本身 ——
   ['chainBackoffMs', 'CHAIN_BACKOFF_MS', 'backoff'],
   // —— 「下一步建议」选项行的客户端重试退避：两档 ——

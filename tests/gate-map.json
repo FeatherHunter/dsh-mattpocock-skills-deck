@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T01:46:26.266Z",
+  "generatedAt": "2026-10-31T02:13:52.226Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 466,
-  "gateCount": 466,
-  "attributedGates": 416,
+  "chainLength": 467,
+  "gateCount": 467,
+  "attributedGates": 417,
   "unattributedGates": 50,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 30,
+  "completionRecordedGates": 31,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 647,
+  "graphFileCount": 649,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -9184,6 +9184,37 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 6 条"
     },
     {
+      "step": "node tests/verify-notification-events.ts",
+      "file": "tests/verify-notification-events.ts",
+      "guards": [
+        "config/intervals.yaml",
+        "config/ttl.yaml",
+        "scripts/generate-time-config.mts",
+        "src/deck/registration/host-delegate.ts",
+        "src/host/index.ts",
+        "src/refresh/kernel/notification-events.ts",
+        "src/refresh/kernel/write-event-detection.ts",
+        "src/refresh/rooms/host/issue-list-fetch.ts",
+        "src/refresh/rooms/host/notification-store.ts",
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "tests/lib/gate-result.ts"
+      ],
+      "dirs": [
+        "config",
+        "scripts",
+        "src/deck/registration",
+        "src/host",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 102,
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 10 条"
+    },
+    {
       "step": "node tests/verify-operation-catalog.ts",
       "file": "tests/verify-operation-catalog.ts",
       "guards": [
@@ -10231,6 +10262,7 @@
         "src/refresh/rooms/host/host-attention.ts",
         "src/refresh/rooms/host/issue-index-scan.ts",
         "src/refresh/rooms/host/issue-list-fetch.ts",
+        "src/refresh/rooms/host/notification-store.ts",
         "src/refresh/rooms/host/outbound-admission.ts",
         "src/refresh/rooms/host/probe-handler.ts",
         "src/refresh/rooms/host/quota-ledger.ts",
@@ -10304,7 +10336,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 108 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 109 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -10933,6 +10965,7 @@
       "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-fallback-fetch-budget.ts",
+      "node tests/verify-notification-events.ts",
       "node tests/verify-prompt-config.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-time-config.ts",
@@ -11194,6 +11227,7 @@
       "node tests/verify-kernel.ts",
       "node tests/verify-log-artifacts.ts",
       "node tests/verify-log-client.ts",
+      "node tests/verify-notification-events.ts",
       "node tests/verify-parse-leaf.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-release-contract.ts",
@@ -11676,6 +11710,7 @@
       "node tests/verify-1195-cell-cancel.ts",
       "node tests/verify-1612-deck-tool-gate.ts",
       "node tests/verify-895-bulk-deadline.ts",
+      "node tests/verify-notification-events.ts",
       "node tests/verify-suggest-next-steps.ts",
       "node tests/verify-time-config.ts"
     ],
@@ -11868,6 +11903,7 @@
       "node tests/verify-log-switch-single-source.ts",
       "node tests/verify-markdown-label-colors.ts",
       "node tests/verify-naming-host-suppression.ts",
+      "node tests/verify-notification-events.ts",
       "node tests/verify-parse-leaf.ts",
       "node tests/verify-progress.ts",
       "node tests/verify-prompts.ts",
@@ -12001,6 +12037,7 @@
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-index-window.ts",
       "node tests/verify-log-fields.ts",
+      "node tests/verify-notification-events.ts",
       "node tests/verify-operation-catalog.ts",
       "node tests/verify-panel-snapshot-merge.ts",
       "node tests/verify-policy.ts",
@@ -12170,6 +12207,7 @@
       "node tests/verify-log-fields.ts",
       "node tests/verify-multi-effort.ts",
       "node tests/verify-naming-title-fact.ts",
+      "node tests/verify-notification-events.ts",
       "node tests/verify-panel-snapshot-merge.ts",
       "node tests/verify-parse-leaf.ts",
       "node tests/verify-prompts.ts",
@@ -12899,6 +12937,7 @@
       "node tests/verify-newsession-blank-seed-315.ts",
       "node tests/verify-newsession-preset-guard.ts",
       "node tests/verify-newsession-workspace-fallback.ts",
+      "node tests/verify-notification-events.ts",
       "node tests/verify-panel-workspace-isolation.ts",
       "node tests/verify-parse-leaf.ts",
       "node tests/verify-progress.ts",
@@ -12944,9 +12983,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 668,
+    "fileCount": 670,
     "dirCount": 84,
-    "coveredFileCount": 668,
+    "coveredFileCount": 670,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 66,
@@ -13293,6 +13332,7 @@
       "src/refresh/kernel/fallback-fetch-budget.ts",
       "src/refresh/kernel/host-budget.ts",
       "src/refresh/kernel/index-window-rules.ts",
+      "src/refresh/kernel/notification-events.ts",
       "src/refresh/kernel/page-allowance.ts",
       "src/refresh/kernel/refresh-chain.ts",
       "src/refresh/kernel/snapshot-diff.ts",
@@ -13330,6 +13370,7 @@
       "src/refresh/rooms/host/issue-detail-fetch.ts",
       "src/refresh/rooms/host/issue-index-scan.ts",
       "src/refresh/rooms/host/issue-list-fetch.ts",
+      "src/refresh/rooms/host/notification-store.ts",
       "src/refresh/rooms/host/outbound-admission.ts",
       "src/refresh/rooms/host/outbound-control.ts",
       "src/refresh/rooms/host/patch-wiring.ts",
@@ -13817,7 +13858,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 51
+        "fileCount": 52
       },
       {
         "path": "src/shared/command-cleanup",

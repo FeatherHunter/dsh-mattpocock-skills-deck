@@ -86,7 +86,7 @@ function sortRows(rows: any[]): any[] {
 }
 
 export function createIssueList(deps: any): any {
-  const { getRepoKey, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, readDiskCache, logCtx } = deps as any
+  const { getRepoKey, setCache, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, readDiskCache, logCtx, noteSnapshot } = deps as any
 
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
   function hash8(s: any): string { try { const t: string = String(s || ''); let h: number = 5381; for (let i: number = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e: any) { return '00000000' } }
@@ -254,6 +254,8 @@ export function createIssueList(deps: any): any {
   }
   const adoptSnapshot: any = function (snap: any, cwd: any): any {
     setCache({ ts: Date.now(), snapshot: snap, error: null, cwd: cwd })
+    // #1693：采纳快照是降级开始/恢复的唯一迁移点（缓存命中、304 与失败都不走这里）。没接事件库或记失败都不影响采纳结果。
+    try { if (typeof noteSnapshot === 'function') Promise.resolve(noteSnapshot(snap, cwd)).catch(function () {}) } catch (eN) {}
     if (snap && snap.repo) rememberIssueIndex(snap.repo, issueIndexFromSnapshot(snap))
     return snap
   }

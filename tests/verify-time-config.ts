@@ -126,6 +126,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/rooms/host/outbound-admission.ts', access: 'LANE_WAIT_LOG_INTERVAL_MS', gen: 'LANE_WAIT_LOG_INTERVAL_MS', key: 'laneWaitLogIntervalMs' },
   // —— 会话链缓存保留期（refresh 纯逻辑层直接引中央常量：本文件是纯工具，不读钟不碰盘）——
   { file: 'src/refresh/kernel/chain-pruning.ts', access: 'CHAIN_KEEP_MS', gen: 'CHAIN_KEEP_MS', key: 'chainKeepMs' },
+  // —— 通知事件库（#1693）：去重窗与历史保留期，一个瞬时事件合并、一个清理历史 ——
+  { file: 'src/refresh/rooms/host/notification-store.ts', access: 'NOTIFICATION_EVENT_DEDUPE_MS', gen: 'NOTIFICATION_EVENT_DEDUPE_MS', key: 'notificationEventDedupeMs' },
+  { file: 'src/refresh/rooms/host/notification-store.ts', access: 'NOTIFICATION_EVENT_RETENTION_MS', gen: 'NOTIFICATION_EVENT_RETENTION_MS', key: 'notificationEventRetentionMs' },
   // —— 动态 import（发布包里源码树不在时允许取不到，由调用方照旧求值）：名字走 central 命名空间，门禁认动态 import 行 ——
   { file: 'src/refresh/rooms/host/chain-backoff.ts', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
   { file: 'src/refresh/rooms/host/chain-backoff.ts', access: 'CHAIN_ALL_GREEN_TTL_MS', gen: 'CHAIN_ALL_GREEN_TTL_MS', key: 'chainAllGreenTtlMs' },
