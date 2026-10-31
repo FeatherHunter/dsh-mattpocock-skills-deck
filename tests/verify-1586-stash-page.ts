@@ -83,7 +83,10 @@ function buildStashLeaves() {
     'src/client/views/versionControl/vcStashPage.ts',
   ]
   const src = files.map((f) => spliceableJs(f)).join('\n')
-  const body = src + '\nreturn { STASH_OPS, VC_STASH_STAGED_OP, STASH_STAGED_MIN_VERSION, vcStashPageNode, vcStashStateNew, vcStashStagedStateOf, vcStashActionPayloadOf, vcStashApplyReply, vcStashFailKeyOf, vcStashOpVersionStateOf, vcStashConfirmOf, vcStashConfirmPayloadOf, vcStashWhenOf, vcStashShortOidOf }\n'
+  // 真实构建里全局提示叶子 Tip 拼在所有视图叶子之前；这里给一个同形状垫片：把子节点原样交出去，
+  // 叶子测试只关心「提示挂上没挂上、正文里的字对不对」，悬停面板本身由 818 与浏览器门禁去看。
+  const tipStub = 'const Tip = function (props) { return (props && props.children !== undefined) ? props.children : null }\n'
+  const body = tipStub + src + '\nreturn { STASH_OPS, VC_STASH_STAGED_OP, STASH_STAGED_MIN_VERSION, vcStashPageNode, vcStashStateNew, vcStashStagedStateOf, vcStashActionPayloadOf, vcStashApplyReply, vcStashFailKeyOf, vcStashOpVersionStateOf, vcStashConfirmOf, vcStashConfirmPayloadOf, vcStashWhenOf, vcStashShortOidOf }\n'
   return compileFn([], body)()
 }
 

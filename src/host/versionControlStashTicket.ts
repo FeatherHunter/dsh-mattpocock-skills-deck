@@ -247,7 +247,9 @@ export function createStashTickets(deps: any): any {
     const planDigest: string = hash16(canonicalJson(plan))
     const ticket: any = makeTicket({
       id: mkId(),
-      op: op,
+      // 贮藏九条动作名走同一套票据机制，但共享层 WriteOp 联合类型目前只列提交/拉取/推送/抓取与改动页动作；
+      // 这里按任意字符串入票（扩联合要连带改七个登记点门禁与跨票评审，留给后续票）。
+      op: op as any,
       nowMs: now(),
       headOid: facts.head,
       indexFingerprint: null,
@@ -288,7 +290,7 @@ export function createStashTickets(deps: any): any {
     const idProblem: string | null = idShapeProblem(ticketId)
     if (idProblem) return fail('confirm', 'ticket-missing', '这次写操作没有预检凭据，请重新打开确认卡再点一次。')
     const ticket: any = tickets.get(ticketId)
-    const pure: any = ticketPureVerdict(ticket, op, now())
+    const pure: any = ticketPureVerdict(ticket, op as any, now())
     if (!pure.ok) {
       const isExpired: boolean = pure.reason === 'ticket-expired'
       return fail(isExpired ? 'stale' : 'confirm', pure.reason, isExpired ? '这张确认卡已经过期（超过 ' + String(TICKET_TTL_MS) + ' 毫秒），请重新预检。' : '这张确认卡与当前动作不符，请重新预检。')

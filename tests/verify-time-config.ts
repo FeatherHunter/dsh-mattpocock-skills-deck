@@ -485,6 +485,9 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/tracker/snapshot.ts', name: 'depsTtl', reason: '同上' },
   { file: 'src/host/versionControl.ts', name: 'timeoutMs', reason: '透传参数，缺省接本文件已登记的 RUN_TIMEOUT_MS' },
   { file: 'src/host/versionControl.ts', name: 'graceMs', reason: '透传参数，缺省接 PROC_GRACE_MS（已登记为 procGraceMs）' },
+  { file: 'src/host/versionControlStash.ts', name: 'timeoutMs', reason: '透传参数，缺省 30000 只为直接调用兜底；装配层注入的 deps.timeoutMs 来自父文件已登记的 RUN_TIMEOUT_MS' },
+  { file: 'src/host/versionControlStash.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
+  { file: 'src/host/versionControlStashTicket.ts', name: 'timeoutMs', reason: '透传参数，缺省接装配层注入的 deps.timeoutMs（父文件已登记 RUN_TIMEOUT_MS），不是本文件新增的可调时长' },
   { file: 'src/refresh/kernel/index-window-rules.ts', name: 'sinceMs', reason: '算出来的起点时刻（水位减容差），不是可调参数' },
   // —— 派生变量：正常路径取 SYNC 契约里的同名项（已登记），兜底取拼进闭包的中央常量 ——
   { file: 'src/refresh/rooms/client/refresh-timer.ts', name: 'PROBE_MS', reason: '派生变量，取 SYNC.FALLBACK_PROBE_MS（已登记为 syncFallbackProbeMs），兜底取拼进闭包的 SYNC_FALLBACK_PROBE_MS；引用即跟随' },
