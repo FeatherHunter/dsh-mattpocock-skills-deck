@@ -8,6 +8,8 @@
 declare const CAPABILITIES: any[]
 declare const PAGE_SURFACES: any[]
 declare function vcPageDepthOf(pageId: any): number
+// 共享层 capabilities.ts 由构建整段拼进页面闭包（src/client/index.ts 的 shared:vcCapabilities 标记）。
+declare function capabilityAvailability(cap: any, version: any): any
 
 export const VC_PALETTE_MAX = 80
 // 一次最多画几行：这是渲染上限，不是能力上限；命中数另外由 vcPaletteMatchOf 算出来显示。
@@ -49,8 +51,28 @@ export const vcCapabilityNeedsObjectOf = function (cap: any) {
   return level === '写' || level === '毁' || level === '改写'
 }
 
-export const vcPaletteRowOf = function (cap: any) {
+// 命令面板的版本说明：只在真的读到过 git 版本（首屏状态读成功）时才画。
+// 版本未知时 capabilityAvailability 会按「低于 2.11 底线」给出 hidden，照着写「版本不支持」就是假话，
+// 所以这里版本为空就什么都不说；账本里没有版本限制（versionPolicy 为空）的行也不画。
+const vcPaletteVersionOf = function (reads: any) {
+  const data = reads && reads.screen && reads.screen.data
+  return data && data.gitVersion ? String(data.gitVersion) : ''
+}
+
+const vcPaletteVersionNoteOf = function (cap: any, version: any) {
+  if (!cap || !cap.versionPolicy || !version) return null
+  const avail = capabilityAvailability(cap, String(version))
+  if (!avail || avail.state === 'full') return null
+  return {
+    state: String(avail.state),
+    needed: String(avail.needed || ''),
+    alternative: avail.alternative ? String(avail.alternative) : '',
+  }
+}
+
+export const vcPaletteRowOf = function (cap: any, version: any) {
   const alias = vcCapabilityAliasOf(cap)
+  const note = vcPaletteVersionNoteOf(cap, version)
   return {
     id: String(cap.id),
     name: String(cap.name || ''),
@@ -63,12 +85,15 @@ export const vcPaletteRowOf = function (cap: any) {
     level: String(cap.level || ''),
     finalForm: String(cap.finalForm || ''),
     needsObject: vcCapabilityNeedsObjectOf(cap),
+    versionState: note ? note.state : '',
+    versionNeed: note ? note.needed : '',
+    versionAlternative: note ? note.alternative : '',
   }
 }
 
-export const vcPaletteMatchOf = function (query: any) {
+export const vcPaletteMatchOf = function (query: any, version: any) {
   const q = String(query === undefined || query === null ? '' : query).trim().toLowerCase()
-  const all = CAPABILITIES.map(vcPaletteRowOf)
+  const all = CAPABILITIES.map(function (cap: any) { return vcPaletteRowOf(cap, version) })
   if (!q) return all
   return all.filter(function (row: any) {
     const hay = [row.id, row.name, row.alias, row.command, row.summary, row.pageName].join(' ').toLowerCase()
@@ -76,8 +101,8 @@ export const vcPaletteMatchOf = function (query: any) {
   })
 }
 
-export const vcPaletteRowsOf = function (query: any, limit: any) {
-  const rows = vcPaletteMatchOf(query)
+export const vcPaletteRowsOf = function (query: any, limit: any, version: any) {
+  const rows = vcPaletteMatchOf(query, version)
   const n = Number(limit) > 0 ? Math.min(Number(limit), VC_PALETTE_MAX) : VC_PALETTE_RENDER_MAX
   return rows.slice(0, n)
 }
@@ -106,6 +131,20 @@ export const vcPaletteRowNode = function (h: any, t: any, row: any, hit: boolean
   if (row.alias) kids.push(h('code', { key: 'alias', className: 'vcs-pal-alias' }, row.alias))
   if (row.command) kids.push(h('code', { key: 'cmd', className: 'vcs-pal-cmd' }, row.command))
   if (row.needsObject) kids.push(h('span', { key: 'need', className: 'vcs-pal-need' }, t('vc.shell.palette.needsObject')))
+  // 版本说明跟着行一起画：data-vc-palette-version 让门禁能逐条量到「需要哪版」与替代做法。
+  if (row.versionState) {
+    const need = row.versionState === 'degraded'
+      ? t('vc.shell.palette.versionDegraded', { need: row.versionNeed })
+      : t('vc.shell.palette.versionHidden', { need: row.versionNeed })
+    const noteKids: any[] = [h('span', { key: 'need', className: 'vcs-pal-version-need' }, need)]
+    if (row.versionAlternative) noteKids.push(h('span', { key: 'alt', className: 'vcs-pal-version-alt' }, t('vc.shell.palette.versionAlt', { alt: row.versionAlternative })))
+    kids.push(h('span', {
+      key: 'version', className: 'vcs-pal-version',
+      'data-vc-palette-version': row.id,
+      'data-vc-palette-version-state': row.versionState,
+      'data-vc-palette-version-need': row.versionNeed,
+    }, noteKids))
+  }
   const attrs: any = {
     key: row.id,
     'data-cap-secondary': row.id,
@@ -119,8 +158,9 @@ export const vcPaletteRowNode = function (h: any, t: any, row: any, hit: boolean
 
 export const vcPaletteNode = function (h: any, t: any, o: any) {
   const opts = o || {}
-  const matches = vcPaletteMatchOf(opts.query)
-  const rows = vcPaletteRowsOf(opts.query, opts.limit)
+  const version = vcPaletteVersionOf(opts.reads)
+  const matches = vcPaletteMatchOf(opts.query, version)
+  const rows = vcPaletteRowsOf(opts.query, opts.limit, version)
   const hitId = opts.highlight ? String(opts.highlight) : ''
   const body: any[] = []
   body.push(h('div', { key: 'head', className: 'vcs-pal-head' }, [

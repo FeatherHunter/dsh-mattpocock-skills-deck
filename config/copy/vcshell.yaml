@@ -159,6 +159,9 @@ zh:
   vc.shell.palette.empty: '没有匹配的能力，换个关键词或清除筛选'
   vc.shell.palette.jump: '去这里'
   vc.shell.palette.needsObject: '需要对象上下文：只跳到入口，不自动执行'
+  vc.shell.palette.versionHidden: '当前 git 版本不支持这条能力：需要 {need} 及以上。'
+  vc.shell.palette.versionDegraded: '当前 git 版本只能降级使用：完整可用需要 {need} 及以上。'
+  vc.shell.palette.versionAlt: '可用的替代做法是：{alt}'
 
   # 远端与同步页（#1754 T18，域 8 的 8.1–8.4）
   vc.remote.localNote: '这是本地记录：打开页面不联网，下面是本地保存的远端与跟踪分支'
@@ -512,6 +515,9 @@ en:
   vc.shell.palette.empty: 'No matching capability; try another keyword or clear the filter'
   vc.shell.palette.jump: 'Go to'
   vc.shell.palette.needsObject: 'Needs an object context: jumps to the entry, never runs automatically'
+  vc.shell.palette.versionHidden: 'This git version does not support this capability: {need} or newer is required.'
+  vc.shell.palette.versionDegraded: 'Limited on this git version: the full capability needs {need} or newer.'
+  vc.shell.palette.versionAlt: 'The alternative is: {alt}'
   # Remote and sync page (#1754 T18, domain 8 capabilities 8.1–8.4)
   vc.remote.localNote: 'This is a local record: opening the page does not go online; the list below comes from the local repository'
   vc.remote.readAt: 'Read at {when}'

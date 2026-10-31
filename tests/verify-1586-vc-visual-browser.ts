@@ -48,6 +48,8 @@ const VC_FILES = [
   // 这里读构建留下的同一份片段——维护页整仓重写页要用 VC_TASK_POLL_INTERVAL_MS 轮询长任务。
   '.tmp/time-config.client.js',
   '.build/shared/version-control/capability-ledger.js',
+  // #1737 版本可用性判定（capabilityAvailability）：命令面板的版本说明与账本同源，闭包里少了它一渲染就 ReferenceError。
+  '.build/shared/version-control/capabilities.js',
   // #1744：首屏七片契约的产物（历史页的列表直接来自首屏快照的 history 片，不另造一条读取）。
   '.build/shared/version-control/first-screen.js',
   // #1750：维护页整仓重写页依赖两份零依赖共享模块（rewrite-ops 的表单与计划、recovery-point 的备份点与还原步骤），
