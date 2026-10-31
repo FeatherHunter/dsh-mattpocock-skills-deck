@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T15:05:14.923Z",
+  "generatedAt": "2026-10-31T15:52:14.975Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 487,
-  "gateCount": 487,
-  "attributedGates": 436,
+  "chainLength": 488,
+  "gateCount": 488,
+  "attributedGates": 437,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 51,
+  "completionRecordedGates": 52,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 674,
+  "graphFileCount": 678,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4222,6 +4222,21 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
+      "step": "node tests/verify-1586-stash-page.ts",
+      "file": "tests/verify-1586-stash-page.ts",
+      "guards": [
+        "src/shared/version-control/src/stash-rules.ts"
+      ],
+      "dirs": [
+        "src/shared/version-control/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 110,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-1586-task-channel.ts",
       "file": "tests/verify-1586-task-channel.ts",
       "guards": [
@@ -6272,6 +6287,8 @@
         "src/client/views/versionControl/vcRows.ts",
         "src/client/views/versionControl/vcShellPages.ts",
         "src/client/views/versionControl/vcShellPrimitives.ts",
+        "src/client/views/versionControl/vcStashOps.ts",
+        "src/client/views/versionControl/vcStashPage.ts",
         "src/client/views/versionControl/vcTabVisible.ts",
         "src/client/views/versionControl/vcText.ts",
         "src/client/views/versionControl/vcViews.ts",
@@ -6285,6 +6302,7 @@
         "src/shared/version-control/src/capability-ledger.ts",
         "src/shared/version-control/src/first-screen.ts",
         "src/shared/version-control/src/rules.ts",
+        "src/shared/version-control/src/stash-rules.ts",
         "src/shared/version-control/src/state.ts",
         "tests/fixtures/version-control/live-numstat-shapes.json",
         "tests/lib/eval-probe.ts",
@@ -6303,7 +6321,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 28 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 31 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -12820,6 +12838,7 @@
       "node tests/verify-1231-ws-overview-rows.ts",
       "node tests/verify-1586-capability-ledger.ts",
       "node tests/verify-1586-first-screen.ts",
+      "node tests/verify-1586-stash-page.ts",
       "node tests/verify-1586-task-channel.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-841-write-phones.ts",
@@ -13461,9 +13480,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 695,
+    "fileCount": 699,
     "dirCount": 84,
-    "coveredFileCount": 695,
+    "coveredFileCount": 699,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13672,6 +13691,8 @@
       "src/client/views/versionControl/vcShellPages.ts",
       "src/client/views/versionControl/vcShellPrimitives.ts",
       "src/client/views/versionControl/vcShellStyles.ts",
+      "src/client/views/versionControl/vcStashOps.ts",
+      "src/client/views/versionControl/vcStashPage.ts",
       "src/client/views/versionControl/vcStyles.ts",
       "src/client/views/versionControl/vcTabVisible.ts",
       "src/client/views/versionControl/vcTaskPanel.ts",
@@ -13795,6 +13816,7 @@
       "src/host/versionControlCheck.ts",
       "src/host/versionControlFiles.ts",
       "src/host/versionControlFirstScreen.ts",
+      "src/host/versionControlStash.ts",
       "src/host/versionControlTask.ts",
       "src/host/versionControlTaskRun.ts",
       "src/host/versionControlTaskStore.ts",
@@ -13966,6 +13988,7 @@
       "src/shared/version-control/src/ports.ts",
       "src/shared/version-control/src/push-plan.ts",
       "src/shared/version-control/src/rules.ts",
+      "src/shared/version-control/src/stash-rules.ts",
       "src/shared/version-control/src/state.ts",
       "src/shared/version-control/src/task-protocol.ts",
       "src/shared/version-control/src/write-reasons.ts",

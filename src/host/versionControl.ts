@@ -465,26 +465,10 @@ export function createVersionControl(deps: any): any {
   // 十条动作（新建两条、只贮藏已暂存、列出、查看、应用、弹出、进分支、删除、清空）与丢弃后的
   // store 恢复由叶子收进一条 wf.gitStash；进程出口、仓库根解析、失败信封都显式递进去
   // （动态加载，不在同层新增静态边）。叶子自己记「最近丢弃」，只活在进程内存里，不落盘。
+  // 写法跟上面的 writePhone 一样收成一行：这一层是装配，不在这增长逻辑；宿主依赖整份递过去，
+  // 装配失败也回同一封信封（env），界面照常能打开、只是十条动作会说原因。
   let _stashP: any = null
-  function stashPhone(): Promise<any> {
-    if (!_stashP) {
-      _stashP = import('./versionControlStash.js').then(function (m: any): any {
-        const s: any = m.createStashPhones({
-          runPinned: runPinned,
-          resolveGitExecutable: resolveGitExecutable,
-          resolveRepoRoot: resolveRepoRoot,
-          timeoutMs: timeoutMs,
-          stdoutLimit: STDOUT_LIMIT,
-          patchLimit: PATCH_LIMIT,
-          defaultCwd: DEFAULT_CWD,
-          nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now,
-        })
-        return { handle: loggedPhone('wf.gitStash', 'git-stash', s.handle) }
-      })
-      _stashP.catch(function (): void { _stashP = null })
-    }
-    return _stashP
-  }
+  function stashPhone(): any { if (!_stashP) { const nowFn: any = (deps && typeof deps.now === 'function') ? deps.now : Date.now; const sd: any = { runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, timeoutMs: timeoutMs, stdoutLimit: STDOUT_LIMIT, patchLimit: PATCH_LIMIT, defaultCwd: DEFAULT_CWD, nowMs: nowFn }; _stashP = import('./versionControlStash.js').then(function (m: any): any { return { handle: loggedPhone('wf.gitStash', 'git-stash', m.createStashPhones(sd).handle) } }).catch(function (e: any): any { const f: any = function (): any { return failPhone('env', '贮藏页十条能力的执行层加载失败：' + String((e && e.message) || e)) }; return { handle: f } }) } return _stashP }
 
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),

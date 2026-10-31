@@ -23,7 +23,7 @@ zh:
   vc.stash.entry.at: 时间 {when}
   vc.stash.entry.oid: 提交 {oid}
   vc.stash.gate.hidden: 这版 git 的「只贮藏已暂存」用不了（需要 {needed}）。
-  vc.stash.gate.alternative: 先做一次全量贮藏，再恢复未暂存的部分。
+  vc.stash.gate.alternative: 先做一次全量贮藏，再恢复未暂存的部分
   vc.stash.list.empty: 现在还没有贮藏记录。
   vc.stash.list.err: 贮藏列表没读出来；可以先按「刷新列表」再试一次。
   vc.stash.branch.placeholder: 新分支名（不能和现有分支重名）
