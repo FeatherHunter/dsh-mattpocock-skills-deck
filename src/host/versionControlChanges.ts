@@ -25,7 +25,8 @@ import { VC_CHANGES_READ_TIMEOUT_MS, VC_CHANGES_WRITE_TIMEOUT_MS } from '../shar
 /** 拼仓库内相对路径：git 在 Windows 上也认正斜杠，这里统一用正斜杠，避免两处写法算出两个路径。 */
 function joinRepo(root: any, rel: any): string { return String(root || '').replace(/[\\/]+$/, '') + '/' + String(rel || '') }
 
-/** 摘要：票据绑定表只用这 16 位十六进制，够区分「同一块/同一份清单」且不把原文带进票据。 */
+/** 摘要：票据绑定表只用这 16 位十六进制，够区分「同一块/同一份清单」且不把原文带进票据。
+ *  这八份的算法体由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须八处一起改。 */
 function digest16Of(text: any): string { try { return cryptoCreateHash('sha256').update(String(text === undefined || text === null ? '' : text), 'utf8').digest('hex').slice(0, 16) } catch (e) { return '0000000000000000' } }
 
 /**

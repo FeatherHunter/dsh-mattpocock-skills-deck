@@ -43,7 +43,8 @@ import { VC_CHECK_CALL_BUDGET_MS as CHECK_CALL_BUDGET_MS, VC_LSFILES_TIMEOUT_MS 
 const LSFILES_LIMIT: number = 8 * 1024 * 1024
 const REMOTE_LIMIT: number = 4096
 
-/** 绑定表用的短摘要（#1741）：与索引指纹同一把尺 —— sha256 前 16 位十六进制，两个宿主文件的算法必须一致。 */
+/** 绑定表用的短摘要（#1741）：与索引指纹同一把尺 —— sha256 前 16 位十六进制，两个宿主文件的算法必须一致。
+ *  这八份的算法体由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须八处一起改。 */
 function digest16(text: any): string {
   return createHash('sha256').update(String(text === undefined || text === null ? '' : text), 'utf8').digest('hex').slice(0, 16)
 }

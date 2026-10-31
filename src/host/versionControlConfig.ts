@@ -45,7 +45,8 @@ import { existsSync as fsExists, readFileSync as fsReadFile, readdirSync as fsRe
 // @ts-expect-error 同一原因：宿主运行时一定有 node:path。
 import { isAbsolute as pathIsAbsolute, resolve as pathResolve, join as pathJoin } from 'node:path'
 
-/** 摘要：票据绑定表只用 16 位十六进制，够判「两次读数一样不一样」且不把原文带进票据。 */
+/** 摘要：票据绑定表只用 16 位十六进制，够判「两次读数一样不一样」且不把原文带进票据。
+ *  这八份的算法体由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须八处一起改。 */
 function digest16Of(text: any): string {
   try { return cryptoCreateHash('sha256').update(String(text === undefined || text === null ? '' : text), 'utf8').digest('hex').slice(0, 16) } catch (e) { return '0000000000000000' }
 }

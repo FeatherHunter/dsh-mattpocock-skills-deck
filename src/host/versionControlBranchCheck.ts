@@ -25,7 +25,8 @@ import { CAPABILITIES } from '../shared/version-control/src/capability-ledger.js
 import { createHash as cryptoCreateHash } from 'node:crypto'
 import { VC_BRANCH_READ_TIMEOUT_MS as READ_TIMEOUT_MS } from '../shared/time-config/src/values.js'
 
-/** 摘要：票据绑定表只用 16 位十六进制，够区分同一份计划/现场且不把原文带进票据。 */
+/** 摘要：票据绑定表只用 16 位十六进制，够区分同一份计划/现场且不把原文带进票据。
+ *  这八份的算法体由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须八处一起改。 */
 function digest16Of(text: any): string { try { return cryptoCreateHash('sha256').update(String(text === undefined || text === null ? '' : text), 'utf8').digest('hex').slice(0, 16) } catch (e) { return '0000000000000000' } }
 
 /** 造预检电话：返回 { handleBranchCheck, tickets, results, measure }。

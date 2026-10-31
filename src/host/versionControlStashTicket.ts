@@ -57,7 +57,8 @@ interface StashFacts {
   hasChanges: boolean
 }
 
-/** 绑定值用的稳定短哈希：只用来判「两次读数一样不一样」，不参与任何安全判断，所以不引 node:crypto。 */
+/** 绑定值用的稳定短哈希：只用来判「两次读数一样不一样」，不参与任何安全判断，所以不引 node:crypto。
+ *  两份 FNV 由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须两份一起改。 */
 function hash16(text: any): string {
   const s: string = String(text === undefined || text === null ? '' : text)
   let h1: number = 0x811c9dc5

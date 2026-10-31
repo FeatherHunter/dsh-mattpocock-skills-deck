@@ -62,23 +62,18 @@ export function rewriteFormLabelKeyOf(id: any): string {
   return meta ? meta.labelKey : 'vc.rewrite.form.unknown'
 }
 
-/** 用键排序后的 JSON 串做摘要输入：对象键序不影响摘要，数组顺序照原样（顺序对命令有意义）。 */
+/** 用键排序后的 JSON 串做摘要输入：对象键序不影响摘要，数组顺序照原样（顺序对命令有意义）。
+  这份实现与另外四份稳定序列化由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须五份一起改。 */
 function canonicalJson(value: any): string {
   if (value === null || value === undefined) return 'null'
-  const kind: string = typeof value
-  if (kind === 'number') return isFinite(value) ? String(value) : 'null'
-  if (kind === 'boolean') return value ? 'true' : 'false'
-  if (kind === 'string') return JSON.stringify(value)
-  if (Array.isArray(value)) {
-    let out: string = '['
-    for (let i = 0; i < value.length; i += 1) out += (i === 0 ? '' : ',') + canonicalJson(value[i])
-    return out + ']'
-  }
-  if (kind === 'object') {
-    const keys: string[] = Object.keys(value).sort()
-    let out: string = '{'
-    for (let i = 0; i < keys.length; i += 1) out += (i === 0 ? '' : ',') + JSON.stringify(keys[i]) + ':' + canonicalJson(value[keys[i]])
-    return out + '}'
+  const t = typeof value
+  if (t === 'number') return isFinite(value) ? String(value) : 'null'
+  if (t === 'boolean') return value ? 'true' : 'false'
+  if (t === 'string') return JSON.stringify(value)
+  if (Array.isArray(value)) return '[' + value.map(canonicalJson).join(',') + ']'
+  if (t === 'object') {
+    const keys: string[] = Object.keys(value).filter(function (k: string) { return value[k] !== undefined }).sort()
+    return '{' + keys.map(function (k: string) { return JSON.stringify(k) + ':' + canonicalJson(value[k]) }).join(',') + '}'
   }
   return 'null'
 }

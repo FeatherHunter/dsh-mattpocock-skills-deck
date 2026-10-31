@@ -369,6 +369,75 @@ async function main() {
     check(gotR2 && gotR2.ok === false && gotR2.error.reason === 'target-changed' && writeSpawns().length === nR2, 'R6 推送目标守卫：票据里的远端执行前重算比对，不一致即拒（零写命令）')
   }
 
+  // ---- C 组：同一算法的各份拷贝逐字节同形 ----
+  // 这些票据模块为了能被单独求值、互不 import，把同一套序列化与短摘要复制了多份。拷贝是刻意的，
+  // 但漂移会让「预检算的摘要」与「执行算的摘要」对不上，所以这里直接读源码里的函数体，逐字节比。
+  console.log('C 同一算法的各份拷贝逐字节同形')
+  const srcOf = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+  // 从 `function 名字(` 之后的花括号起按配平取出函数体；取不到回 null，后面据此判「没证到」。
+  const bodyOf = (text, name) => {
+    const at = text.indexOf('function ' + name + '(')
+    if (at < 0) return null
+    const open = text.indexOf('{', at)
+    if (open < 0) return null
+    let depth = 0
+    for (let i = open; i < text.length; i += 1) {
+      if (text[i] === '{') depth += 1
+      else if (text[i] === '}') {
+        depth -= 1
+        if (depth === 0) return text.slice(open + 1, i)
+      }
+    }
+    return null
+  }
+  // 去注释、去全部空白、把函数名换成 FN：剩下的就是算法体的字节。
+  const squeeze = (s) => String(s).replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((line) => line.split('//')[0]).join('').replace(/\s+/g, '')
+  const bodyNamed = (text, name) => {
+    const body = bodyOf(text, name)
+    return body === null ? null : squeeze(body).split(name).join('FN')
+  }
+  const STABLE_COPIES = [
+    ['src/shared/version-control/src/write-ticket.ts', 'canonicalJson'],
+    ['src/shared/version-control/src/branch-ticket.ts', 'branchStableValue'],
+    ['src/shared/version-control/src/clone-ticket.ts', 'cloneStableValue'],
+    ['src/shared/version-control/src/rewrite-ops.ts', 'canonicalJson'],
+    ['src/shared/version-control/src/undo-ticket.ts', 'undoStableValue'],
+  ]
+  const stableBodies = STABLE_COPIES.map((pair) => bodyNamed(srcOf(pair[0]), pair[1]))
+  check(stableBodies.every((body) => body && body.length > 50), 'C1 五份稳定序列化都取到了函数体（取不到就等于没证）')
+  check(stableBodies.every((body) => body === stableBodies[0]), 'C2 五份稳定序列化的算法体逐字节同形（正本是写层票表）：' + STABLE_COPIES.map((pair) => pair[1]).join(' / '))
+
+  // 八份「sha256 前 8 字节 → 16 位十六进制」：只比摘要表达式本身，try/catch 外壳与函数名不算算法体。
+  const DIGEST_COPIES = [
+    ['src/host/versionControlCheck.ts', 'digest16'],
+    ['src/host/versionControlBranchCheck.ts', 'digest16Of'],
+    ['src/host/versionControlChanges.ts', 'digest16Of'],
+    ['src/host/versionControlConfig.ts', 'digest16Of'],
+    ['src/host/versionControlConflictScene.ts', 'digest16Of'],
+    ['src/host/versionControlDiagnosticsCheck.ts', 'digest16Of'],
+    ['src/host/versionControlRebaseScene.ts', 'digest16Of'],
+    ['src/host/versionControlSubmodulesCheck.ts', 'digest16Of'],
+  ]
+  const DIGEST_TAIL = 'slice(0,16)'
+  const digestBodies = DIGEST_COPIES.map((pair) => {
+    const body = bodyNamed(srcOf(pair[0]), pair[1])
+    if (!body) return null
+    const flat = body.split('cryptoCreateHash').join('createHash')
+    const from = flat.indexOf("createHash('sha256')")
+    const to = flat.indexOf(DIGEST_TAIL)
+    if (from < 0 || to < 0) return null
+    return flat.slice(from, to + DIGEST_TAIL.length)
+  })
+  check(digestBodies.every((body) => body && body.length > 40), 'C3 八份十六进制短摘要都取到了算法体（取不到就等于没证）')
+  check(digestBodies.every((body) => body === digestBodies[0]), 'C4 八份十六进制短摘要（sha256 前 8 字节）的算法体逐字节同形')
+
+  const FNV_COPIES = [
+    ['src/shared/version-control/src/undo-ticket.ts', 'undoHash16'],
+    ['src/host/versionControlStashTicket.ts', 'hash16'],
+  ]
+  const fnvBodies = FNV_COPIES.map((pair) => bodyNamed(srcOf(pair[0]), pair[1]))
+  check(fnvBodies.every((body) => body && body === fnvBodies[0]), 'C5 两份 FNV 短哈希的算法体逐字节同形')
+
   console.log(failed ? '\n存在失败 — ' + GATE + ' 未通过' : '\n全部通过 — ' + GATE + ' 生效（' + total + ' 项断言）')
   printGateResult(GATE, total, failed ? 1 : 0)
   process.exit(failed ? 1 : 0)
