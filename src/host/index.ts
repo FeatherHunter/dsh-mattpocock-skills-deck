@@ -264,7 +264,7 @@ export default {
     function _vc(): Promise<any> { if (!_vcP) _vcP = (async function(){ const tc = await _timeCfg(); const w = _refreshWiringP ? await _refreshWiringP.catch(function(){ return null }) : null; const mod = await import('./versionControl.js'); return mod.createVersionControl({ subprocess: subprocess, timer: timer, fs: fs, getPlatform: function(...args: any[]){ return getPlatform.apply(null, args) }, DEFAULT_CWD: DEFAULT_CWD, TIMEOUT_MS: tc.STEP_WAIT_MS, gate: (w && w.gate) || null, logCtx: logCtx, getCacheDir: function () { return getCacheDir() } }) })(); return _vcP }
     harness.handle('wf.gitStatus', async function (args: WfArgs) { const h = await _vc(); return h.handleGitStatus(args) })
     harness.handle('wf.gitDiff', async function (args: WfArgs) { const h = await _vc(); return h.handleGitDiff(args) })
-    harness.handle('wf.gitLog', async function (args: WfArgs) { const h = await _vc(); return h.handleGitLog(args) })
+    harness.handle('wf.gitLog', async function (args: WfArgs) { const h = await _vc(); return h.handleGitLog(args) }); harness.handle('wf.gitFirstScreen', async function (args: WfArgs) { const h = await _vc(); return h.handleGitFirstScreen(args) }) // #1739 首屏七片一次取全：T04 只实现没注册（#1746 收口时发现），与上一行同写一个物理行是因为宿主入口有四百行上限。
     // 写电话（1 预检 + 6 执行）：装配在 ./versionControl.js 内部（同一个 runGit 出口、同一个 loggedPhone、同一条 git.exec 日志），这里只做注册。
     harness.handle('wf.gitWriteCheck', async function (args: WfArgs) { const h = await _vc(); return h.handleGitWriteCheck(args) })
     harness.handle('wf.gitStage', async function (args: WfArgs) { const h = await _vc(); return h.handleGitStage(args) })
@@ -278,7 +278,7 @@ export default {
     // #1740 长任务通道三条电话（开始、查询、取消）：装配在 ./versionControl.js 那一族里，这里只注册。
     harness.handle('wf.gitTaskStart', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskStart(args) })
     harness.handle('wf.gitTaskQuery', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskQuery(args) })
-    harness.handle('wf.gitTaskCancel', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskCancel(args) })
+    harness.handle('wf.gitTaskCancel', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskCancel(args) });     harness.handle('wf.gitWorktreeCheck', async function (args: WfArgs) { const h = await _vc(); return h.handleGitWorktreeCheck(args) });     harness.handle('wf.gitWorktreeRun', async function (args: WfArgs) { const h = await _vc(); return h.handleGitWorktreeRun(args) });     harness.handle('wf.gitChangesCheck', async function (args: WfArgs) { const h = await _vc(); return h.handleGitChangesCheck(args) });     harness.handle('wf.gitChangesWrite', async function (args: WfArgs) { const h = await _vc(); return h.handleGitChangesWrite(args) });     harness.handle('wf.gitStashCheck', async function (args: WfArgs) { const h = await _vc(); return h.handleGitStashCheck(args) });     harness.handle('wf.gitStash', async function (args: WfArgs) { const h = await _vc(); return h.handleGitStash(args) }) // #1752 工作树页两条电话（预检、执行）与 #1742 改动页两条电话（预检、执行）、#1751 贮藏两条电话（预检、执行）写在同一物理行、用分号隔开：宿主入口有四百行上限，单独立行会超。
 
     harness.handle('wf.refresh', async function (args: WfArgs) { const h = await _sessRef(); return h.handleRefresh(args) })
 

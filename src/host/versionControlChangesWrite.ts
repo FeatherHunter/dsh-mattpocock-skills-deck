@@ -235,9 +235,11 @@ export function createChangesWrite(deps: any): any {
       if (prev) return { ok: prev.ok === true, reused: true, result: prev }
     }
     // ② 请求号与票号形状：形状不对一律拒绝，且不碰票据表以外的任何东西。
-    if (idShapeProblem(requestId)) return wfail('args', 'bad-target', String(idShapeProblem(requestId)))
+    // 票号与请求号都是外部输入：票号走 idShapeProblem（与 #1741 写层同一道形状判据），请求号走 requestIdProblem（可空）。
+    const idBad: any = idShapeProblem(ticketId)
+    if (idBad) return wfail('args', idBad, writeHintFor(idBad))
     const rid: any = requestIdProblem(requestId)
-    if (rid) return wfail('args', 'bad-target', String(rid))
+    if (rid) return wfail('args', rid, writeHintFor(rid))
 
     // ③ 票面复核：票在不在、动作对不对、过没过期、仓库/HEAD/索引有没有变。
     const ticket: any = tickets.get(ticketId) || null
@@ -251,7 +253,8 @@ export function createChangesWrite(deps: any): any {
     if (!cur || cur.ok !== true) return cur && cur.fail ? cur.fail : wfail('env', 'unknown-write-failure', '重算当前仓库状态失败')
     const verdict: any = ticketVerdict(ticket, now(), cur.current)
     if (verdict && verdict.ok !== true) return wfail('blocked', verdict.reason, writeHintFor(verdict.reason))
-    const bv: any = bindingsVerdict(ticket, cur.current)
+    // bindingsVerdict 第二个参数是「此刻重量的绑定值」本身（与 #1741 写层同一调用口径），不是外层包装。
+    const bv: any = bindingsVerdict(ticket, cur.current.bindings)
     if (bv) return wfail('blocked', bv, writeHintFor(bv))
     const cv: any = await contentVerdict(cwd, ticket.changes)
     if (!cv || cv.ok !== true) return wfail('blocked', cv && cv.reason ? cv.reason : 'target-changed', (cv && cv.detail) || writeHintFor('target-changed'))

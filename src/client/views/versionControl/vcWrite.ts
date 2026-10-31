@@ -89,6 +89,17 @@ export const VC_WRITE_ERR_FAMILY: Record<string, string> = {
   'stale-repo': 'stale',
   'target-changed': 'stale',
   'bad-paths': 'notReady',
+  // #1742 改动页新增的九种理由（共享真源 write-reasons.ts 已登记话术）：形状不对与状态不满足都属 notReady，
+  // 只有「确认之后那一块又变了」按 stale 处理——那一条要人重新看一眼，不是重试同一请求。
+  'bad-path': 'notReady',
+  'hunks-unavailable': 'notReady',
+  'hunk-out-of-range': 'stale',
+  'nothing-to-do': 'notReady',
+  'path-exists': 'notReady',
+  'path-modified': 'notReady',
+  'ignore-invalid': 'notReady',
+  'operation-in-progress': 'notReady',
+  'repo-bare': 'notReady',
   'bad-target': 'notReady',
   'need-remote-choice': 'notReady',
   'no-remote': 'notReady',
@@ -99,16 +110,7 @@ export const VC_WRITE_ERR_FAMILY: Record<string, string> = {
   'empty-message': 'notReady',
   'message-too-long': 'notReady',
   'hooks-failed': 'notReady',
-  // #1742 改动页写动作的理由（工作区、路径、忽略规则、进行中操作）：都归「这一步现在做不了」。
-  'bad-path': 'notReady',
-  'hunks-unavailable': 'notReady',
-  'hunk-out-of-range': 'notReady',
-  'nothing-to-do': 'notReady',
-  'path-exists': 'notReady',
-  'path-modified': 'notReady',
-  'ignore-invalid': 'notReady',
-  'operation-in-progress': 'notReady',
-  'repo-bare': 'notReady',
+
   // #1743 提交页八条能力的理由：缺目标 / 目标不存在 / 没有可修订的提交 / 签名失败。
   'need-commit-target': 'notReady',
   'bad-commit-target': 'notReady',

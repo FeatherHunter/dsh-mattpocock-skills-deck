@@ -86,6 +86,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/host/versionControlWrite.ts', access: 'PULL_TIMEOUT_MS', gen: 'VC_PULL_TIMEOUT_MS', key: 'vcPullTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'PUSH_TIMEOUT_MS', gen: 'VC_PUSH_TIMEOUT_MS', key: 'vcPushTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'FETCH_TIMEOUT_MS', gen: 'VC_FETCH_TIMEOUT_MS', key: 'vcFetchTimeoutMs' },
+  // #1742 改动页：预检与只读命令、凭票写命令各一个时限键，叶子直接导入生成常量，不再由装配方传数字。
+  { file: 'src/host/versionControlChanges.ts', access: 'VC_CHANGES_READ_TIMEOUT_MS', gen: 'VC_CHANGES_READ_TIMEOUT_MS', key: 'vcChangesReadTimeoutMs' },
+  { file: 'src/host/versionControlChanges.ts', access: 'VC_CHANGES_WRITE_TIMEOUT_MS', gen: 'VC_CHANGES_WRITE_TIMEOUT_MS', key: 'vcChangesWriteTimeoutMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'CALL_BUDGET_MS', gen: 'GIT_CREDENTIAL_CALL_BUDGET_MS', key: 'gitCredentialCallBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MIN_BUDGET_MS', gen: 'GIT_CREDENTIAL_MIN_BUDGET_MS', key: 'gitCredentialMinBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MAX_BUDGET_MS', gen: 'GIT_CREDENTIAL_MAX_BUDGET_MS', key: 'gitCredentialMaxBudgetMs' },
@@ -482,6 +485,12 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/tracker/snapshot.ts', name: 'depsTtl', reason: '同上' },
   { file: 'src/host/versionControl.ts', name: 'timeoutMs', reason: '透传参数，缺省接本文件已登记的 RUN_TIMEOUT_MS' },
   { file: 'src/host/versionControl.ts', name: 'graceMs', reason: '透传参数，缺省接 PROC_GRACE_MS（已登记为 procGraceMs）' },
+  { file: 'src/host/versionControlStash.ts', name: 'timeoutMs', reason: '透传参数，缺省 30000 只为直接调用兜底；装配层注入的 deps.timeoutMs 来自父文件已登记的 RUN_TIMEOUT_MS' },
+  { file: 'src/host/versionControlStash.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
+  { file: 'src/host/versionControlStashTicket.ts', name: 'timeoutMs', reason: '透传参数，缺省接装配层注入的 deps.timeoutMs（父文件已登记 RUN_TIMEOUT_MS），不是本文件新增的可调时长' },
+  // #1743 提交页八条能力：两条新电话里的时间名字都是透传或读钟，不是本票新增的可调时长，沿用上面几行的口径。
+  { file: 'src/host/versionControlCommitForm.ts', name: 'timeoutMs', reason: '透传参数，缺省 20000 只为直接调用兜底；装配层注入的 deps.timeoutMs 来自父文件已登记的 RUN_TIMEOUT_MS' },
+  { file: 'src/client/views/versionControl/vcCommitOps.ts', name: 'nowMs', reason: '读钟时刻（Date.now），用来给 requestId 拼时间片，不是可调参数' },
   { file: 'src/refresh/kernel/index-window-rules.ts', name: 'sinceMs', reason: '算出来的起点时刻（水位减容差），不是可调参数' },
   // —— 派生变量：正常路径取 SYNC 契约里的同名项（已登记），兜底取拼进闭包的中央常量 ——
   { file: 'src/refresh/rooms/client/refresh-timer.ts', name: 'PROBE_MS', reason: '派生变量，取 SYNC.FALLBACK_PROBE_MS（已登记为 syncFallbackProbeMs），兜底取拼进闭包的 SYNC_FALLBACK_PROBE_MS；引用即跟随' },

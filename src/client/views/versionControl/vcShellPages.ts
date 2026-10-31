@@ -34,6 +34,12 @@ declare function vcHistoryPageNode(h: any, t: any, o: any): any
 declare function vcCommitPageNode(h: any, t: any, o: any): any
 // 长任务区叶子（#1740，vcTaskPanel.ts）：由构建按叶子登记次序拼进同一个闭包，这里只声明形状。
 declare function vcTaskPanelNode(h: any, t: any, o: any): any
+// 工作树页叶子（#1752，vcWorktreesPage.ts）：同样由构建拼进同一个闭包，壳的挂载段只调用它。
+declare function vcWorktreesPageNode(h: any, t: any, o: any): any
+// 改动页操作面板叶子（#1742，vcChangesPage.ts）：同样由构建拼进闭包；只在 changes 页且页面传入改动读数时挂载。
+declare function vcChangesPageNode(h: any, t: any, o: any): any
+// 贮藏页叶子（#1751，vcStashPage.ts）：同样由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。
+declare function vcStashPageNode(h: any, t: any, o: any): any
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']
@@ -243,6 +249,13 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   ]))
   const notes = vcPageNotesOf(h, t, page)
   for (let i = 0; i < notes.length; i += 1) children.push(notes[i])
+  // #1752 工作树页正文：读首屏聚合里那一份工作树片，八条能力的入口与执行面由 vcWorktreesPage 自己画；
+  //   壳只负责把宿主数据与处理函数透传进去（没有传入时页面自己画空态，不影响其它页）。
+  if (page === 'worktrees' && typeof vcWorktreesPageNode === 'function') {
+    children.push(Object.assign({}, vcWorktreesPageNode(h, t, {
+      reads: opts.reads, ui: opts.ui, ops: opts.ops, handlers: opts.handlers,
+    }), { key: 'worktrees' }))
+  }
   // 提交历史页有自己的正文（#1744 T09：列表 / 详情 / 逐文件差异 / 13.14 图形化视图）。
   // 只有在拿到了首屏读数时才换成真正文；没有读数（壳自检、Z 组骨架断言）仍旧画骨架。
   if (page === 'commits' && opts.reads) {
@@ -266,6 +279,10 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     ]))
   }
   children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
+  // 改动页的 13 条动作面板（#1742）：页面把改动读数传进来时才画；没传整块不出现，其它页渲染结果不变。
+  if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
+    children.push(Object.assign({}, vcChangesPageNode(h, t, { changes: opts.changes }), { key: 'changes' }))
+  }
   return h('section', {
     id: 'vc-page-' + page,
     className: 'vcs-page-body',
@@ -317,11 +334,19 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     openSurface: openSurface,
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,
+    changes: opts.changes,
     // #1744 T09：提交历史页要真读数与交互态，页面壳原样往下传，不在壳里改形状。
     reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
     // #1743：#1743 提交页的动作层、目标提交候选与现成面板模型也从调用方传进来（壳不自己造）。
     commitOps: opts.commitOps || null, commitTargets: opts.commitTargets || [], commitPanel: opts.commitPanel || null,
+    ops: opts.ops, handlers: opts.handlers, // #1752 工作树页要真数据与处理函数
   }), 'body'))
+  // #1751 贮藏页（域 7）：只在贮藏页挂这一块；十条动作的入口、确认卡与最近丢弃都在叶子里，
+  // 这里只把首屏数据（seed）与回调递进去，页面壳不多说一句规则。
+  if (page === 'stash' && typeof vcStashPageNode === 'function') {
+    // 页面叶子的入参名是 state（本地编辑状态）与 seed（首屏读数）；这里按叶子认的名字递，不改叶子的形状。
+    children.push(keyed(vcStashPageNode(h, t, { seed: seed, state: opts.stash, onStash: opts.onStash, onStashEdit: opts.onStashEdit }), 'stashPage'))
+  }
   // 长任务区（#1740）：页面把任务清单传进来时才画；没传整块不出现，既有页面的渲染结果不受影响。
   if (opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {
     children.push(keyed(vcTaskPanelNode(h, t, { tasks: opts.tasks, running: opts.running, onCancel: opts.onCancel }), 'tasks'))

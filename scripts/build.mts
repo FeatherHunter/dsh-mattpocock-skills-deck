@@ -667,6 +667,10 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // #1739 首屏七片一次取全的契约（契约名、版本号、七片名单、刷新三时机、形状与逐片成败判据）只有一份真源
   //   src/shared/version-control/src/first-screen.ts；宿主聚合电话与客户端数据层都从它读，界面不许再写第二份片名或版本号。
   { marker: '// ==== shared:vcFirstScreen (spliced by build) ====', file: 'src/shared/version-control/src/first-screen.ts' },
+  // #1751 贮藏页十条（域 7）的唯一规则层：命令怎么拼、选择器与分支名怎么校验、哪两条要确认、
+  //   哪一条要 2.35 版本门、丢掉的提交号怎么 store 回去，只有这一份。宿主执行层与界面读同一份；
+  //   界面自己再说一遍，就会与宿主执行前那次校验各说各话。
+  { marker: '// ==== shared:vcStashRules (spliced by build) ====', file: 'src/shared/version-control/src/stash-rules.ts' },
   // #1342 域文档布局的取值（单上下文 / 多上下文）只有一份真源 src/shared/doc-layout/src/layouts.ts。
   //   界面侧状态栏与初始化卡要按同一份名单校验用户选的那一项（拒收第三档取值），所以拼进界面闭包；
   //   宿主侧选择记忆与工作区配置核按普通相对 import 取同一份源文件（不是拼接，是同一个文件）。
@@ -679,6 +683,9 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // 重名，见下面的 buildTimeConfigClientFragment），这里拼的是摘出来的 .tmp 片段（不入库，每次构建重算）。
   // 消费文件自己写模块级 declare const（见 src/client/views/pixelProps.d.ts 的约定）。
   { marker: '// ==== shared:timeConfig (spliced by build) ====', file: '.tmp/time-config.client.js' },
+  // #1752 工作树的八条动作（argv、行模型、判定与理由、剪枝清单、稀疏检出规则）：宿主执行前与界面判定必须读同一份，
+  //   界面不许自己再拼第二份 argv 或第二套理由。文件不带 import，可直接拼进界面闭包；宿主半走普通相对 import。
+  { marker: '// ==== shared:vcWorktreeOps (spliced by build) ====', file: 'src/shared/version-control/src/worktree-ops.ts' },
 ]
 
 // ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------
@@ -772,6 +779,14 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcCommitOps', file: 'src/client/views/versionControl/vcCommitOps.ts' }, // #1743 提交页的动作层（预检拿票、危险动作确认、写电话、模板套用；不画界面）
   { id: 'vcCommitPage', file: 'src/client/views/versionControl/vcCommitPage.ts' }, // #1743 提交页正文（八条能力的主入口、多行说明、确认卡与结果都在面板里）
   { id: 'vcTaskPanel', file: 'src/client/views/versionControl/vcTaskPanel.ts' }, // #1740 长任务区（进度、四类结论、取消按钮、重启标注中断；由页面壳挂进任务区）
+  { id: 'vcChangesPage', file: 'src/client/views/versionControl/vcChangesPage.ts' }, // #1742 改动页 13 条动作的操作面板（由页面壳在 changes 页挂进页面体）
+  { id: 'vcStashOps', file: 'src/client/views/versionControl/vcStashOps.ts' }, // #1751 贮藏页的数据与动作层（首屏贮藏片怎么读、十条动作怎么拼、回包怎么落状态；不画界面）
+  { id: 'vcStashPage', file: 'src/client/views/versionControl/vcStashPage.ts' }, // #1751 贮藏页的入口与真实动作画法（十条动作、确认卡、最近丢弃、版本门提示；由页面壳挂进贮藏页）
+  // #1752 工作树页三叶，依赖次序固定：读首屏那一片的数据层 → 动作层（判定与两条写电话）→ 页面画法（八条入口、行、确认与结果）。
+  //   排在 vcShellPages 之前，壳的挂载段才看得到 vcWorktreesPageNode；也排在 vcFirstScreen 之后，数据层只问那一份片。
+  { id: 'vcWorktreesData', file: 'src/client/views/versionControl/vcWorktreesData.ts' },
+  { id: 'vcWorktreesOps', file: 'src/client/views/versionControl/vcWorktreesOps.ts' },
+  { id: 'vcWorktreesPage', file: 'src/client/views/versionControl/vcWorktreesPage.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },
