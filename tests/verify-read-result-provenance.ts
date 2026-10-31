@@ -722,7 +722,34 @@ function gqlPageData(nodes: any[], totalCount: number): any {
   check(room.calls.map(function (c: any): string { return c.kind }).join(',') === 'list.gql,rest.issues,rest.pulls', '降级后按 REST 两条端点取数', room.calls.map(function (c: any): string { return c.kind }))
 }
 
-// D2b. REST 恰好翻满 10 页且每页满 100 行：没有空页探测，必须记 truncated
+// D2b. REST 恰好翻满 10 页且每页满 100 行：第 11 页做空页探测，探测为空才算完整（#1681 复审修复）
+{
+  const room = await makeRoom(function (info: any): any {
+    if (info.kind === 'list.gql') return failExec()
+    if (info.kind === 'rest.issues') {
+      if (info.page === 11) return okExec([])
+      const rows: any[] = []
+      for (let i = 0; i < 100; i++) rows.push(restListRow((info.page - 1) * 100 + i + 1))
+      return okExec(rows)
+    }
+    if (info.kind === 'rest.pulls') return okExec([])
+    return failExec()
+  })
+  const result: any = await listIssues(REPO, undefined, room.ctx)
+  const restCalls = room.calls.filter(function (c: any): boolean { return c.kind === 'rest.issues' }).length
+  check(restCalls === 11, 'REST 列表翻满 10 页后多打一页空页探测（共 11 个请求）', restCalls)
+  expectProvenance('REST 恰好翻满 10 页且空页探测为空', result, {
+    operation: 'list',
+    source: 'rest',
+    groups: { row: 'complete', labels: 'complete' },
+    completeness: 'complete',
+    missing: [],
+    degradedFrom: 'graphql',
+  })
+  check(result.data.length === 1000, '空页探测只用来证明到底，探测页的行不并入结果（仍是 1000 行）', result.data.length)
+}
+
+// D2c. 第 11 页探测回来还有行：仍按 10 页上限截断，探测页的行不并入结果
 {
   const room = await makeRoom(function (info: any): any {
     if (info.kind === 'list.gql') return failExec()
@@ -736,8 +763,8 @@ function gqlPageData(nodes: any[], totalCount: number): any {
   })
   const result: any = await listIssues(REPO, undefined, room.ctx)
   const restCalls = room.calls.filter(function (c: any): boolean { return c.kind === 'rest.issues' }).length
-  check(restCalls === 10, 'REST 列表翻到第 10 页就停（不再多打一页）', restCalls)
-  expectProvenance('REST 恰好翻满 10 页', result, {
+  check(restCalls === 11, 'REST 列表空页探测也发了第 11 个请求（非空探测不额外续翻）', restCalls)
+  expectProvenance('REST 第 11 页探测非空', result, {
     operation: 'list',
     source: 'rest',
     groups: { row: 'truncated', labels: 'complete' },
@@ -745,7 +772,38 @@ function gqlPageData(nodes: any[], totalCount: number): any {
     missing: ['row'],
     degradedFrom: 'graphql',
   })
-  check(result.data.length === 1000, '恰好整数页时的数据量与旧行为一致（行为不变）', result.data.length)
+  check(
+    result.data.length === 1000 && result.data[result.data.length - 1].key === '1000',
+    '探测页的行不并入结果（数据仍是前 10 页的 1000 行）',
+    result.data.length + '/' + (result.data[result.data.length - 1] || {}).key,
+  )
+}
+
+// D2d. 第 11 页探测请求失败：截断，但按已得十页上报（不是双路皆挂）
+{
+  const room = await makeRoom(function (info: any): any {
+    if (info.kind === 'list.gql') return failExec()
+    if (info.kind === 'rest.issues') {
+      if (info.page === 11) return failExec()
+      const rows: any[] = []
+      for (let i = 0; i < 100; i++) rows.push(restListRow((info.page - 1) * 100 + i + 1))
+      return okExec(rows)
+    }
+    if (info.kind === 'rest.pulls') return okExec([])
+    return failExec()
+  })
+  const result: any = await listIssues(REPO, undefined, room.ctx)
+  const restCalls = room.calls.filter(function (c: any): boolean { return c.kind === 'rest.issues' }).length
+  check(restCalls === 11, 'REST 列表空页探测失败也发过第 11 个请求', restCalls)
+  expectProvenance('REST 第 11 页探测失败', result, {
+    operation: 'list',
+    source: 'rest',
+    groups: { row: 'truncated', labels: 'complete' },
+    completeness: 'truncated',
+    missing: ['row'],
+    degradedFrom: 'graphql',
+  })
+  check(result.ok === true && result.data.length === 1000, '探测失败按已得十页上报（回成功、1000 行），不是双路皆挂', result.ok + '/' + result.data.length)
 }
 
 // D3. 单票主路走 GraphQL
@@ -970,6 +1028,18 @@ check(
 check(
   restListCompleteness({ pagesFetched: 10, pageSize: 100, lastPageRows: 100, sawEmptyPage: false, hitPageCap: true, pageFailure: false }) === 'truncated',
   'REST 列表：触 10 页上限是 truncated',
+)
+check(
+  restListCompleteness({ pagesFetched: 11, pageSize: 100, lastPageRows: 0, sawEmptyPage: true, hitPageCap: false, pageFailure: false, probeAttempted: true, probeFailed: false }) === 'complete',
+  'REST 列表：第 11 页空页探测为空即到底，记 complete',
+)
+check(
+  restListCompleteness({ pagesFetched: 11, pageSize: 100, lastPageRows: 100, sawEmptyPage: false, hitPageCap: true, pageFailure: false, probeAttempted: true, probeFailed: false }) === 'truncated',
+  'REST 列表：空页探测回来还有行，仍记 truncated',
+)
+check(
+  restListCompleteness({ pagesFetched: 10, pageSize: 100, lastPageRows: 100, sawEmptyPage: false, hitPageCap: false, pageFailure: false, probeAttempted: true, probeFailed: true }) === 'truncated',
+  'REST 列表：空页探测请求失败，记 truncated（不能当完整）',
 )
 check(restRowLabelsCompleteness([{ labels: [] }]) === 'complete', 'REST 行标签：结构完整是 complete')
 check(restRowLabelsCompleteness([{ name: 'x' }]) === 'unexpressed', 'REST 行标签：结构不对是 unexpressed')
