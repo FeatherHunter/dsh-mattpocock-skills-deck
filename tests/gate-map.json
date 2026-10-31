@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T12:50:42.033Z",
+  "generatedAt": "2026-10-31T15:24:25.576Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 482,
-  "gateCount": 482,
-  "attributedGates": 431,
+  "chainLength": 483,
+  "gateCount": 483,
+  "attributedGates": 432,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 45,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 659,
+  "graphFileCount": 660,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4904,6 +4904,30 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
+      "step": "node tests/verify-1765-read-channel-plan.ts",
+      "file": "tests/verify-1765-read-channel-plan.ts",
+      "guards": [
+        "src/refresh/kernel/budget-admission.ts",
+        "src/tracker/contract/operations-encyclopedia.ts",
+        "src/tracker/rooms/github/read/deps-read.ts",
+        "src/tracker/rooms/github/read/issues.ts",
+        "src/tracker/rooms/github/routing/read-channels.ts",
+        "src/tracker/session/pipeline.ts"
+      ],
+      "dirs": [
+        "src/refresh/kernel",
+        "src/tracker/contract",
+        "src/tracker/rooms/github/read",
+        "src/tracker/rooms/github/routing",
+        "src/tracker/session"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+    },
+    {
       "step": "node tests/verify-3-workspace-switch.ts",
       "file": "tests/verify-3-workspace-switch.ts",
       "guards": [
@@ -9007,7 +9031,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 41,
+      "expectedAssertions": 51,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
@@ -11167,7 +11191,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 39,
+      "expectedAssertions": 45,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
@@ -12366,6 +12390,7 @@
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-1692-disk-replay-eviction.ts",
+      "node tests/verify-1765-read-channel-plan.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
@@ -12761,6 +12786,7 @@
       "node tests/verify-1182-docs-paths.ts",
       "node tests/verify-1444-list-detail-thin.ts",
       "node tests/verify-1676-blocked-ref-unknown.ts",
+      "node tests/verify-1765-read-channel-plan.ts",
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-992-readonly-labels.ts",
@@ -12909,6 +12935,7 @@
       "node tests/verify-1603-map-thin-list.ts",
       "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
+      "node tests/verify-1765-read-channel-plan.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -12951,6 +12978,7 @@
       "node tests/verify-tracker-session.ts"
     ],
     "src/tracker/rooms/github/routing": [
+      "node tests/verify-1765-read-channel-plan.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-ghes-runtime-capability.ts",
       "node tests/verify-github-gh-via.ts",
@@ -13106,6 +13134,7 @@
       "node tests/verify-1581-session-locators.ts",
       "node tests/verify-1583-repo-ref-fallback.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
+      "node tests/verify-1765-read-channel-plan.ts",
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-tracker-session.ts"
     ],
@@ -13362,9 +13391,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 680,
+    "fileCount": 681,
     "dirCount": 84,
-    "coveredFileCount": 680,
+    "coveredFileCount": 681,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13946,6 +13975,7 @@
       "src/tracker/rooms/github/routing/idempotency.ts",
       "src/tracker/rooms/github/routing/index.ts",
       "src/tracker/rooms/github/routing/read-assembly.ts",
+      "src/tracker/rooms/github/routing/read-channels.ts",
       "src/tracker/rooms/github/routing/read-result.ts",
       "src/tracker/rooms/github/routing/runtime-capability.ts",
       "src/tracker/rooms/github/support/capability-register.ts",
