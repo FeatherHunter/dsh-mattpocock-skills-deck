@@ -1,4 +1,4 @@
-// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–J 十组，每组带反证；J 组是 #1752 工作树页的写通道。
+// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–M 十二组，每组带反证；J 组是 #1752 工作树页的写通道，M 组是 #1761 诊断页与 5.12 替换对象。
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-841-write-phones.ts
 // 夹具：真 git 临时仓库（每个用例自己造）+ 真 subprocess 形状的垫片（argv 直传、不经 shell），
 // 这样「真跑过的 argv」与「真仓库有没有被动过」都能断言；只在纯归类那组不碰 git。
@@ -494,6 +494,105 @@ async function main(): Promise<void> {
   const lFailCheck = await vcL7.handleGitWriteCheck({ cwd: rL7, op: 'commit', message: '签名提交', plan: lFailPlan })
   const lFail = await vcL7.handleGitCommit({ cwd: rL7, ticketId: lFailCheck.ok ? lFailCheck.ticket.id : 'x', requestId: 'i-r7', message: '签名提交', plan: lFailPlan })
   check(lFail.ok === false && lFail.error && lFail.error.reason === 'signing-failed' && Object.keys(lFail.error).sort().join(',') === 'hint,kind,message,reason', 'L15 2.6 签名失败归到 signing-failed（不是 unknown-write-failure），失败信封固定 {kind,reason,message,hint}')
+  // ---- M 组：#1761 诊断页与 5.12 替换对象的写通道（真临时仓库，判票据语义与 argv 切片）----
+  // 这一组只判「真 git 上能不能按票据只跑一条命令」；失败归类与信封形状已在 verify-1586-diagnostics 的 E 组判过。
+  console.log('M 诊断写通道（真仓库）')
+  const diagWriteCmds = (): string[][] => spawns.filter((a) => {
+    const c = after(a)
+    return (c[0] === 'bisect' && c[1] !== 'log') || (c[0] === 'replace' && c[1] !== '-l')
+  })
+  const oidOf = (dir: string, rev: string): string => git(dir, ['rev-parse', rev]).out
+  // 两个提交的仓库：二分与替换都要有「另一个对象」可指，单个基线提交跑不动这两个动作。
+  const mkDiagRepo = (tag: string): string => { const base = mkRepo(tag); git(base, ['commit', '-q', '-m', '第二个提交']); return base }
+  const lastReqCwd = (): any => (requests[requests.length - 1] || {}).cwd
+  const lastSpawn = (): string[] => spawns[spawns.length - 1] || []
+  const rM = mkDiagRepo('m1')
+  // 仓库根取 git 自己报的写法：mkdtemp 给的 D:\Temp 与 git 报的 D:/Temp 只差斜杠，盘符之外逐字比。
+  const mRoot = git(rM, ['rev-parse', '--show-toplevel']).out
+  const vcM = makeVc()
+  const mBad = oidOf(rM, 'HEAD')
+  const mGood = oidOf(rM, 'HEAD~1')
+  const mRead = await vcM.handleGitDiagnosticsRead({ cwd: rM, kind: 'ls-files', params: { paths: ['a.txt', 'b.txt'] } })
+  const mReadArgv = after(lastSpawn())
+  check(mRead && mRead.ok === true && mReadArgv.join('\u0000') === ['ls-files', '-z', '--', 'a.txt', 'b.txt'].join('\u0000') && lastReqCwd() === mRoot, 'M1 13.4 只读查询的 argv 逐元素拼好：路径在 -- 之后各自一个元素，-C 与 cwd 钉在同一棵仓库')
+  const mApply = await vcM.handleGitDiagnosticsRead({ cwd: rM, kind: 'apply-check', params: { patch: '--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-a\n+b\n' } })
+  const mApplyArgv = after(lastSpawn())
+  check(mApply && mApply.ok === true && mApply.mode === 'check' && mApplyArgv[0] === 'apply' && mApplyArgv[1] === '--check' && mApplyArgv.length === 3 && /\.patch$/.test(mApplyArgv[2]), 'M2 13.12 只做预演：真 git 只跑「apply --check <临时补丁>」，补丁走临时文件，绝不真应用')
+  const mWrites0 = diagWriteCmds().length
+  const mStart = await vcM.handleGitDiagnosticsCheck({ cwd: rM, op: 'bisect-start', bad: mBad, good: mGood })
+  const mStartId = mStart && mStart.ticket ? String(mStart.ticket.id) : 'x'
+  const mTickets = await vcM.diagnosticsTickets()
+  const mTicket = mTickets && mStart.ok === true ? mTickets.get(mStartId) : null
+  check(mStart && mStart.ok === true && mStart.decision === 'allow' && mStart.confirmRequired === true && !!mStart.ticket && typeof mStart.ticket.id === 'string', 'M3 13.1 开始二分在真仓库上预检放行：签一张票并给出确认口径（改写仓库状态的动作要确认卡）')
+  check(mTicket && mTicket.op === 'bisect-start' && mTicket.repoRoot === mRoot && mTicket.headOid === mBad && mTicket.target.op === 'bisect-start' && mTicket.target.bad === mBad && /^[0-9a-f]{16}$/.test(String(mTicket.bindings.preconditions.planDigest)) && /^[0-9a-f]{16}$/.test(String(mTicket.bindings.preconditions.worktreeDigest)), 'M4 票里记的是规范化计划与两份摘要：仓库根、HEAD、坏提交与好提交各自一格（界面拿不到也能逐格比）')
+  check(diagWriteCmds().length === mWrites0, 'M5 预检阶段零写命令：只读 git bisect log / replace -l 与 rev-parse，等用户点确认才动仓库')
+  const mNoConfirm = await vcM.handleGitDiagnosticsWrite({ cwd: rM, ticketId: mStartId, requestId: 'm-r1', op: 'bisect-start' })
+  check(mNoConfirm && mNoConfirm.ok === false && mNoConfirm.reason === 'need-confirm' && diagWriteCmds().length === mWrites0, 'M6 没点确认就凭票执行：拒绝且零写命令（确认卡不是摆设）')
+  const mSpawns0 = spawns.length
+  const mStarted = await vcM.handleGitDiagnosticsWrite({ cwd: rM, ticketId: mStartId, requestId: 'm-r2', op: 'bisect-start', confirmed: true })
+  const mStartArgv = after(lastSpawn())
+  check(mStarted && mStarted.ok === true && diagWriteCmds().length === mWrites0 + 1 && mStartArgv.join('\u0000') === ['bisect', 'start', mBad, mGood].join('\u0000'), 'M7 凭票执行只跑这一条 argv：bisect start 后面两个提交各自一个元素（数组直传，不经 shell 拼串）')
+  check(spawns.length > mSpawns0 && lastReqCwd() === mRoot && lastSpawn().indexOf('-C') > 0 && lastSpawn().indexOf(mRoot) > 0, 'M8 这一条写命令的 -C 与 cwd 都钉在这棵仓库，不跟着调用方当前目录跑')
+  const mReplay = await vcM.handleGitDiagnosticsWrite({ cwd: rM, ticketId: mStartId, requestId: 'm-r2', op: 'bisect-start', confirmed: true })
+  check(mReplay && mReplay.ok === true && mReplay.reused === true && diagWriteCmds().length === mWrites0 + 1, 'M9 同一个 requestId 重放：回同一份结果，写进程没有起第二个（重发不会把仓库改两遍）')
+  const mMark = await vcM.handleGitDiagnosticsCheck({ cwd: rM, op: 'bisect-bad' })
+  const mMarkId = mMark && mMark.ticket ? String(mMark.ticket.id) : 'x'
+  const mMarked = await vcM.handleGitDiagnosticsWrite({ cwd: rM, ticketId: mMarkId, requestId: 'm-r3' })
+  const mMarkArgv = after(lastSpawn())
+  check(mMark && mMark.ok === true && mMark.confirmRequired === false && mMarked && mMarked.ok === true && mMarkArgv.join(' ') === 'bisect bad', 'M10 13.1 标坏提交是一步一下的受控写：预检不要确认卡，凭票只跑 bisect bad')
+  git(rM, ['bisect', 'reset'])
+  const mRep = await vcM.handleGitDiagnosticsCheck({ cwd: rM, op: 'replace-create', from: mBad, to: mGood })
+  const mRepId = mRep && mRep.ticket ? String(mRep.ticket.id) : 'x'
+  const mRepDone = await vcM.handleGitDiagnosticsWrite({ cwd: rM, ticketId: mRepId, requestId: 'm-r4', confirmed: true })
+  const mRepArgv = after(lastSpawn())
+  check(mRepDone && mRepDone.ok === true && mRepArgv.join('\u0000') === ['replace', mBad, mGood].join('\u0000'), 'M11 5.12 建立替换的 argv 是两个对象各自一个元素：replace <被替换> <被指向>')
+  check(git(rM, ['replace', '-l']).out.indexOf(mBad) >= 0, 'M12 建立替换后仓库里真的多了一条替换记录（回执不是空话）')
+  const mDel = await vcM.handleGitDiagnosticsCheck({ cwd: rM, op: 'replace-delete', object: mBad })
+  const mDelId = mDel && mDel.ticket ? String(mDel.ticket.id) : 'x'
+  const mDelDone = await vcM.handleGitDiagnosticsWrite({ cwd: rM, ticketId: mDelId, requestId: 'm-r5', confirmed: true })
+  const mDelArgv = after(lastSpawn())
+  check(mDelDone && mDelDone.ok === true && mDelArgv.join('\u0000') === ['replace', '-d', mBad].join('\u0000') && git(rM, ['replace', '-l']).out === '', 'M13 5.12 撤销替换只跑 replace -d <对象> 一条命令，撤销后替换记录清空（一键撤销不是先查再猜）')
+  const rM2 = mkDiagRepo('m2')
+  const vcM2 = makeVc()
+  const m2No = await vcM2.handleGitDiagnosticsCheck({ cwd: rM2, op: 'replace-delete', object: oidOf(rM2, 'HEAD') })
+  check(m2No && m2No.ok === false && m2No.reason === 'no-replace', 'M14 对象没有被替换过就撤销：预检当场挡住（理由 no-replace，不落 unknown）')
+  const rM3 = mkDiagRepo('m3')
+  const vcM3 = makeVc()
+  const m3Bad = oidOf(rM3, 'HEAD')
+  const m3Good = oidOf(rM3, 'HEAD~1')
+  const m3Sign = await vcM3.handleGitDiagnosticsCheck({ cwd: rM3, op: 'replace-create', from: m3Bad, to: m3Good })
+  const m3Id = m3Sign && m3Sign.ticket ? String(m3Sign.ticket.id) : 'x'
+  git(rM3, ['replace', m3Bad, m3Good])
+  const m3Writes0 = diagWriteCmds().length
+  const m3Drift = await vcM3.handleGitDiagnosticsWrite({ cwd: rM3, ticketId: m3Id, requestId: 'm-r6', confirmed: true })
+  check(m3Drift && m3Drift.ok === false && m3Drift.reason === 'target-changed' && diagWriteCmds().length === m3Writes0, 'M15 预检之后有人在终端里建了替换：现场摘要不一致，零写命令拒绝（票只对预检那一刻的现场有效）')
+  const rM4 = mkDiagRepo('m4')
+  const vcM4 = makeVc()
+  const m4Ticket = await vcM4.handleGitDiagnosticsCheck({ cwd: rM4, op: 'replace-create', from: oidOf(rM4, 'HEAD'), to: oidOf(rM4, 'HEAD~1') })
+  const m4Writes0 = diagWriteCmds().length
+  const m4Wrong = await vcM4.handleGitDiagnosticsWrite({ cwd: rM4, ticketId: m4Ticket.ticket.id, requestId: 'm-r7', op: 'replace-delete', confirmed: true })
+  check(m4Wrong && m4Wrong.ok === false && m4Wrong.reason === 'ticket-op-mismatch' && diagWriteCmds().length === m4Writes0, 'M16 拿「建立替换」的票去跑「撤销替换」：票据与动作不符，零写命令拒绝（一张票只配一个动作）')
+  const rM5 = mkRepo('m5')
+  const vcM5 = makeVc()
+  const m5Writes0 = diagWriteCmds().length
+  const m5Missing = await vcM5.handleGitDiagnosticsWrite({ cwd: rM5, ticketId: 'not-a-ticket', requestId: 'm-r8', confirmed: true })
+  check(m5Missing && m5Missing.ok === false && m5Missing.reason === 'ticket-missing' && m5Missing.error && m5Missing.error.kind === 'blocked' && diagWriteCmds().length === m5Writes0, 'M17 票号不在宿主内存里：零写命令拒绝（伪造票据走不到 git 前面），拒绝归属 blocked 这一类')
+  const m5Again = await vcM5.handleGitDiagnosticsWrite({ cwd: rM5, ticketId: 'not-a-ticket', requestId: 'm-r9', confirmed: true })
+  const m5Keys = m5Again && m5Again.error ? Object.keys(m5Again.error).sort().join(',') : ''
+  check(m5Keys === 'hint,kind,message,reason', 'M18 失败信封固定四件：kind / reason / message / hint（诊断写通道与提交页同一套约定）')
+  // 日志与源码纪律：三条电话都经同一出口落日志，执行叶子不自己起进程。
+  const vcLog = makeVc()
+  await vcLog.handleGitDiagnosticsRead({ cwd: rM5, kind: 'ls-files', params: {} })
+  const mReadLog = logs.filter((l) => l.event === 'host.call' && l.fields.method === 'wf.gitDiagnosticsRead')
+  check(mReadLog.length === 1 && mReadLog[0].fields.ok === true, 'M19 只读查询经统一出口落一条 host.call：界面侧只认 host.call / host.call.fail 两类电话日志')
+  await vcLog.handleGitDiagnosticsWrite({ cwd: rM5, ticketId: 'not-a-ticket', requestId: 'm-r10', confirmed: true })
+  const mFailLog = logs.filter((l) => l.event === 'host.call.fail' && l.fields.method === 'wf.gitDiagnosticsWrite')
+  const mOnlyFour = logs.every((l) => ['git.exec', 'git.exec.fail', 'host.call', 'host.call.fail'].indexOf(l.event) >= 0)
+  check(mFailLog.length === 1 && mOnlyFour, 'M20 写失败也经统一出口落 host.call.fail，全过程只出现 git.exec / git.exec.fail / host.call / host.call.fail 四种事件')
+  const mLeafSources = ['src/host/versionControlDiagnosticsRead.ts', 'src/host/versionControlDiagnosticsCheck.ts', 'src/host/versionControlDiagnosticsWrite.ts', 'src/host/versionControlDiagnosticsMount.ts'].map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n')
+  check(!/child_process|spawnSync|execSync/.test(mLeafSources), 'M21 诊断页的四片宿主叶子都不自己起进程：进程出口只有注入的 runPinned / runGit 那一条')
+  const mIndexSrc = fs.readFileSync(path.join(ROOT, 'src/host/index.ts'), 'utf8')
+  check(mIndexSrc.indexOf("harness.handle('wf.gitDiagnosticsRead'") >= 0 && mIndexSrc.indexOf("harness.handle('wf.gitDiagnosticsCheck'") >= 0 && mIndexSrc.indexOf("harness.handle('wf.gitDiagnosticsWrite'") >= 0, 'M22 三条诊断电话都登记在宿主入口：漏一条界面就永远拿不到回包')
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }
