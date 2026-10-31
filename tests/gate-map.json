@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T05:29:32.367Z",
+  "generatedAt": "2026-10-31T05:35:47.962Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 478,
   "gateCount": 478,
@@ -10487,6 +10487,7 @@
         "src/shared/tracker/sync.ts",
         "src/shared/version-control/src/parse-log.ts",
         "src/shared/version-control/src/write-ticket.ts",
+        "src/tracker/deck-counts.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/detectionService.ts",
         "src/tracker/detection/workspaceStore.ts",
@@ -10494,6 +10495,7 @@
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/read/issues.ts",
         "src/tracker/rooms/github/routing/idempotency.ts",
+        "src/tracker/rooms/github/routing/runtime-capability.ts",
         "src/tracker/rooms/github/transport/client.ts",
         "src/tracker/rooms/gitlab/client.ts",
         "src/tracker/rooms/markdown/scratch-listing.ts",
@@ -10529,6 +10531,7 @@
         "src/shared/time-config/src",
         "src/shared/tracker",
         "src/shared/version-control/src",
+        "src/tracker",
         "src/tracker/detection",
         "src/tracker/kernel",
         "src/tracker/registry",
@@ -10543,7 +10546,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 115 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 117 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -12641,6 +12644,7 @@
       "node tests/verify-parse-leaf.ts",
       "node tests/verify-progress.ts",
       "node tests/verify-setup-describe.ts",
+      "node tests/verify-time-config.ts",
       "node tests/verify-ui-description-single-source.ts"
     ],
     "src/tracker/contract": [

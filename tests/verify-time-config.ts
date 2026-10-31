@@ -390,6 +390,9 @@ const EXEMPTS: ExemptRow[] = [
   // #1698：KPI 投影里的「上次校准时刻」，0 表示不知道时刻（界面显示占位），不是可调参数。
   { file: 'src/client/kernel/store-derived.ts', name: 'atMs', reason: '界面占位：0 表示不知道上次校准时刻，不是可调参数' },
   { file: 'src/client/views/ListTab.ts', name: 'atMs', reason: '透传 KPI 投影里的上次校准时刻（只用于格式化成 HH:mm），不是可调参数' },
+  // #1698：计数判定读钟、企业版能力探测时刻，都是读钟记下来的值，不是可调参数。
+  { file: 'src/tracker/deck-counts.ts', name: 'nowMs', reason: '读钟时刻（Date.now 的注入口），用来标计数「什么时候校准的」，不是可调参数' },
+  { file: 'src/tracker/rooms/github/routing/runtime-capability.ts', name: 'probedAtMs', reason: '探测发生的时刻（读钟记录，只用于在答案里标「何时探的」），不是可调参数' },
   // —— 名字巧合：叫 Window 但不是时间 ——
   { file: 'src/tracker/rooms/github/routing/idempotency.ts', name: 'inWindow', reason: '过滤后的候选数组（“窗口内的数据”），不是毫秒数' },
   // —— 第二层：函数级透传与计算值（门禁覆盖率扫描捞出来的，逐个定性） ——
