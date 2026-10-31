@@ -15,6 +15,9 @@
 // 跨叶子与共享层的名字由构建拼进同一个闭包，这里只声明形状（类型检查按单文件跑）。
 declare function cloneOptionsOf(input: any): any; declare function cloneDefaultDirOf(url: any): string; declare function cloneMaskedUrl(url: any): string; declare function cloneSourceKindOf(url: any): string
 declare function cloneHardlinkNote(url: any, options: any): string; declare function cloneTargetProblem(target: any): any; declare function cloneTargetSummaryOf(target: any): any
+// 进度轮询间隔借长任务通道的中央节拍（config/intervals.yaml 的 vcTaskPollIntervalMs）：克隆本体的进度
+// 就是那条任务通道给的，界面照它的节拍去问，不另写一个时间数字（tests/verify-time-config.ts 看守）。
+declare const VC_TASK_POLL_INTERVAL_MS: number
 declare function clonePlanOf(op: any, args: any): any; declare function cloneTaskArgsOf(plan: any): any
 
 /** 真源标识：门禁按这一行找本文件，改路径要一起改门禁。 */
@@ -337,7 +340,7 @@ export const vcClonePageNode = function (props: any): any {
         setTask(found)
         if (vcCloneTaskEndedOf(found)) { setStep(String(found.conclusion) === 'succeeded' ? 'done' : String(found.conclusion) === 'cancelled' ? 'cancelled' : 'failed') }
       }).catch(function () {})
-    }, 1000)
+    }, VC_TASK_POLL_INTERVAL_MS)
     return function () { clearInterval(timer) }
   }, [taskId])
   const failOf = function (reply: any): string {

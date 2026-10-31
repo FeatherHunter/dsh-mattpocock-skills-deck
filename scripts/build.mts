@@ -1933,6 +1933,8 @@ const CLIENT_TIME_NAMES: string[] = [
   'SYNC_DIRTY_ECHO_TTL_MS',
   'SYNC_POLL_GRID_MS',
   'SYNC_ACTION_PROBE_WINDOW_MS',
+  // #1756：克隆向导页按长任务通道的中央节拍轮询进度（vcClonePage.ts 只声明名字，值由这一片给）。
+  'VC_TASK_POLL_INTERVAL_MS',
   'SNAP_WAIT_MS',
   'VIEW_FLAG_WRITE_DEBOUNCE_MS',
   'REST_FALLBACK_STALE_MS',
