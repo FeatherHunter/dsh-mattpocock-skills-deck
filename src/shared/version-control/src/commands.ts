@@ -203,4 +203,55 @@ export function stashListArgs(): string[] {
   return ['stash', 'list', '--format=%gd%x00%H%x00%ct%x00%gs']
 }
 
+
+/*
+ * —— #1742 改动页（工作区与暂存）的 argv 构造 ——
+ * 这些函数只负责「把已经过形状校验的参数拼成 argv 数组」，不碰仓库、不判断业务语义。
+ * 每个参数各自占一个数组元素（不拼 shell 字符串），门禁据此逐项断言「子命令之后每个路径都是独立元素」。
+ */
+
+/** 暂存全部改动（能力 1.4）。 */
+export function stageAllArgs(): string[] { return ['add', '-A'] }
+
+/** 逐块暂存（能力 1.2）：块补丁由宿主写成普通临时文件，路径作为独立 argv 元素传进来。 */
+export function applyCachedArgs(patchPath: string): string[] { return ['apply', '--cached', '--whitespace=nowarn', String(patchPath)] }
+
+/** 丢弃单文件未暂存改动（能力 1.6）：git 2.23 起用 restore，低于它退回 checkout。 */
+export function discardFileArgs(mode: string, paths: string[]): string[] {
+  return (mode === 'restore' ? ['restore', '--'] : ['checkout', '--']).concat(paths)
+}
+
+/** 丢弃全部未暂存改动（能力 1.7）：只认仓库根这一层，不回退到递归。 */
+export function discardAllArgs(mode: string): string[] {
+  return mode === 'restore' ? ['restore', '--', '.'] : ['checkout', '--', '.']
+}
+
+/** 删除未跟踪文件（能力 1.8）：预检先跑 cleanPreviewArgs 列清单，执行时把清单原样带上。 */
+export function cleanArgs(paths: string[]): string[] {
+  return paths.length ? ['clean', '-fd', '--'].concat(paths) : ['clean', '-fd']
+}
+
+/** 删除已跟踪文件（能力 1.9）：同时把删除放进暂存区。 */
+export function rmArgs(paths: string[]): string[] { return ['rm', '--'].concat(paths) }
+
+/** 只停止跟踪（能力 1.10）：删索引条目，文件留在工作区。 */
+export function rmCachedArgs(paths: string[]): string[] { return ['rm', '--cached', '--'].concat(paths) }
+
+/** 重命名或移动（能力 1.11）：from / to 各自占一个 argv 元素。 */
+export function mvArgs(from: string, to: string): string[] { return ['mv', '--', String(from), String(to)] }
+
+/** 查为什么被忽略（能力 1.13）：-v 让 git 回「规则文件:行号:规则」。 */
+export function checkIgnoreArgs(path: string): string[] { return ['check-ignore', '-v', '--', String(path)] }
+
+/** 逐块暂存读取补丁（能力 1.2）：不开颜色、不走外部 diff、保留重命名检测、上下文三行（与 git add -p 同档）。 */
+export function diffHunksArgs(path: string): string[] { return ['diff', '--no-color', '--no-ext-diff', '--find-renames', '--unified=3', '--', String(path)] }
+
+/** 删除未跟踪文件的预演（能力 1.8）：-n 只列「将删除」清单，不动文件。 */
+export function cleanPreviewArgs(paths: string[]): string[] {
+  return paths.length ? ['clean', '-nd', '--'].concat(paths) : ['clean', '-nd']
+}
+
+/** 单条路径的索引记录（能力 1.9/1.10 预检用）：读这一条路径在索引里的 blob 与模式。 */
+export function lsFilesOneArgs(path: string): string[] { return ['ls-files', '--stage', '-z', '--', String(path)] }
+
 export const COMMANDS_SOURCE = 'src/shared/version-control/src/commands.ts'

@@ -10,7 +10,7 @@
  * 两次取指纹必须逐字节同一口径（同一固定前缀、同一 -z、同一上限、不截断）——任何一处不同都会让
  * 「不一致」变成永远不一致。哈希本身在宿主做（node:crypto），本文件只管「取哪一份字节」与「比不相等」。
  */
-import type { WriteOp, WritePlan, WriteTicket, WriteBindings, WritePreconditions, WriteCounters } from './ports.js'
+import type { WriteOp, WritePlan, WriteTicket, WriteBindings, WritePreconditions, WriteCounters, ChangesPlan } from './ports.js'
 import { TICKET_TTL_MS } from '../../time-config/values.js'
 
 /** 票据有效期：预检到点击通常几秒；过期不自动续期（#1215：真源见 config/ttl.yaml 的 ticketTtlMs）。
@@ -146,6 +146,8 @@ export function makeTicket(input: {
   indexEntries: number | null
   target: WritePlan | null
   repoRoot: string
+  /** 改动页写动作的计划（#1742）：只有改动页那 11 条写动作传，其余动作不传。 */
+  changes?: ChangesPlan | null
   /** 绑定表：预检那一刻量下来的「执行前必须还没变」的状态；不传就当空表（只有票里记了值才比对）。 */
   bindings?: any
 }): WriteTicket {
@@ -159,6 +161,7 @@ export function makeTicket(input: {
     indexFingerprint: input.indexFingerprint === null || input.indexFingerprint === undefined ? null : String(input.indexFingerprint),
     indexEntries: (typeof input.indexEntries === 'number' && isFinite(input.indexEntries)) ? input.indexEntries : null,
     target: input.target || null,
+    changes: input.changes || null,
     bindings: makeBindings(input.bindings),
   }
 }

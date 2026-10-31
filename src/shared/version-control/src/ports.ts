@@ -148,8 +148,59 @@ export interface ParseFailure {
   detail: string
 }
 
-/** 写操作四档（暂存不走票据，所以不在这里；更新远方记录是只读远端的网络读，不碰工作树）。 */
-export type WriteOp = 'commit' | 'pull' | 'push' | 'fetch'
+/** 写操作四档（暂存不走票据，所以不在这里；更新远方记录是只读远端的网络读，不碰工作树）。
+ *  #1742 起改动页那 11 条写动作也走同一套票据，所以一并合进本联合类型（见下面的 ChangesWriteOp）。 */
+export type WriteOp = 'commit' | 'pull' | 'push' | 'fetch' | ChangesWriteOp
+
+/**
+ * 改动页（#1742 域 1）的 11 条写动作标识符。
+ * 这些动作与上面四条一样都走票据：预检出一张票，执行前复核票、仓库根、HEAD、索引与这次动作的计划摘要。
+ * 为什么单独列一个联合类型：改动页的 11 条动作各管一件事（暂存一块、删一个未跟踪文件、改 .gitignore），
+ * 但它们共用同一套「票 + 绑定 + 执行」机制，所以合进 WriteOp 联合类型，不另造一套平行机制。
+ */
+export type ChangesWriteOp =
+  | 'stage-hunks'
+  | 'stage-file'
+  | 'stage-all'
+  | 'unstage'
+  | 'discard-file'
+  | 'discard-all'
+  | 'clean-untracked'
+  | 'rm-tracked'
+  | 'rm-cached'
+  | 'mv'
+  | 'ignore'
+
+/** 改动页的 2 条只读动作（看工作区状态、查为什么被忽略）：只读不发票。 */
+export type ChangesReadOp = 'status' | 'explain-ignored'
+
+/** 改动页 13 条能力的动作标识符全集。 */
+export type ChangesOp = ChangesWriteOp | ChangesReadOp
+
+/**
+ * 改动页写动作的计划（#1742）：预检把「这次到底对哪些路径、哪一块补丁、哪几行忽略规则动手」规范化后写进票里，
+ * 执行前再算一遍比对 —— 票据必须绑定到具体块（能力 1.2 的 hunkIndex 数据契约就落在这里）。
+ * 所有字段都是可枚举的普通值，不含函数、不含临时文件路径（临时补丁路径每次执行都不一样，不能进票据）。
+ */
+export interface ChangesPlan {
+  op: ChangesWriteOp
+  /** 这次动作涉及的仓库内相对路径（正斜杠；按动作语义使用）。 */
+  paths: string[]
+  /** 能力 1.2 用：选中第几块（从 0 起）；其余动作为 null。 */
+  hunkIndex: number | null
+  /** 能力 1.2 用：选中那一块补丁文本的摘要；其余动作为 null。 */
+  patchDigest: string | null
+  /** 能力 1.6 / 1.7 用：restore（git 2.23+）还是降级 checkout；其余动作为 null。 */
+  mode: 'restore' | 'checkout' | null
+  /** 能力 1.11 用：移动目标；其余动作为 null。 */
+  to: string | null
+  /** 能力 1.12 用：允许追加进仓库根 .gitignore 的行。 */
+  ignoreLines: string[]
+  /** 能力 1.12 用：动手前 .gitignore 全文的摘要（对不上说明文件被别人改过）。 */
+  ignoreOldDigest: string | null
+  /** 能力 1.8 用：预检列出的「将删除」清单（执行前重跑预演比对）。 */
+  removeList: string[]
+}
 
 /** 预检解析出来的推送目标；localBranch 是 refspec 左边那一段（本地分支）。 */
 export interface WritePlan {
@@ -211,6 +262,9 @@ export interface WriteTicket {
   indexFingerprint: string | null
   indexEntries: number | null
   target: WritePlan | null
+  /** 改动页写动作的计划（#1742）：只在改动页那 11 条写动作的票上出现，其余动作留空。
+   *  客户端拿不到票的原值，它只留在宿主进程内存里，用于执行前复核「还是不是同一块/同一批路径」。 */
+  changes?: ChangesPlan | null
   /** 绑定表（#1741）：旧票据可能没有这个字段，执行前按「票里记了值才比对」处理，存量票据照样能用。 */
   bindings?: WriteBindings
 }

@@ -624,6 +624,28 @@ export function createVersionControl(deps: any): any {
     return _taskP
   }
 
+  // ---- #1742 改动页两条电话（追加段，不改上面任何既有行为）----
+  // 预检（发票）与执行（凭票写）的装配住 ./versionControlChanges.js：那一片只做「同一个首屏读数、
+  // 同一条进程出口、同一套 loggedPhone 日志口径」的拼接，改动页自己的票据表与 requestId 结果表留在它自己的闭包里。
+  // 本文件只把上面已经造好的闭包交给它，不新增任何业务判定。
+  let _changesP: any = null
+  function changesPhone(): Promise<any> {
+    if (!_changesP) {
+      _changesP = import('./versionControlChanges.js').then(function (m: any): any {
+        return m.createChangesPhone({
+          fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable,
+          runGit: runGit, fixedPrefix: fixedPrefix, pathExists: pathExists, readScreenOf: readScreenOf,
+          loggedPhone: loggedPhone, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs, STDOUT_LIMIT: STDOUT_LIMIT,
+          now: (deps && typeof deps.now === 'function') ? deps.now : Date.now,
+        })
+      }).catch(function (e: any): any {
+        const f: any = function (): any { return failPhone('env', '改动页那一族加载失败：' + String(((e as any) && (e as any).message) || (e as any))) }
+        return { check: f, write: f, tickets: new Map() }
+      })
+    }
+    return _changesP
+  }
+
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
@@ -646,5 +668,11 @@ export function createVersionControl(deps: any): any {
     handleGitTaskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) },
     handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) },
     handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) },
+    // #1742 改动页两条电话（预检、执行）：装配在 ./versionControlChanges.js，进程出口照旧是上面那条固定前缀与报闸。
+    // 只读动作 1.13（查为什么被忽略）走预检电话的 op，不再单开第三条电话。
+    handleGitChangesCheck: async function (a: any): Promise<any> { const c: any = await changesPhone(); return c.check(a) },
+    handleGitChangesWrite: async function (a: any): Promise<any> { const c: any = await changesPhone(); return c.write(a) },
+    // 只给门禁与测试读取改动页票据表（#1742），与 #1741 的 writeTickets 同一条口径：不注册成电话、客户端拿不到。
+    changesTickets: async function (): Promise<any> { const c: any = await changesPhone(); return c.tickets || null },
   }
 }
