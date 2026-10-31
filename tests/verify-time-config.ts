@@ -168,6 +168,10 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/kernel/host-budget.ts', access: 'FALLBACK_CALIBRATION_INTERVAL_MS', gen: 'FALLBACK_CALIBRATION_INTERVAL_MS', key: 'fallbackCalibrationIntervalMs' },
   { file: 'src/refresh/contract/tuning-parameters.ts', access: 'TUNING.deckEnsureTimeoutMs', gen: 'DECK_ENSURE_TIMEOUT_MS', key: 'deckEnsureMs' },
   { file: 'src/shared/version-control/src/write-ticket.ts', access: 'TICKET_TTL_MS', gen: 'TICKET_TTL_MS', key: 'ticketTtlMs' },
+  // —— #1740 长任务通道（规格 #1586 T05）：查询节奏与软取消宽限、强杀等待都住 timeouts.yaml ——
+  { file: 'src/host/versionControlTask.ts', access: 'VC_TASK_POLL_INTERVAL_MS', gen: 'VC_TASK_POLL_INTERVAL_MS', key: 'vcTaskPollIntervalMs' },
+  { file: 'src/host/versionControlTaskRun.ts', access: 'VC_TASK_CANCEL_GRACE_MS', gen: 'VC_TASK_CANCEL_GRACE_MS', key: 'vcTaskCancelGraceMs' },
+  { file: 'src/host/versionControlTaskRun.ts', access: 'VC_TASK_HARD_KILL_MS', gen: 'VC_TASK_HARD_KILL_MS', key: 'vcTaskHardKillGraceMs' },
   { file: 'src/refresh/kernel/index-window-rules.ts', access: 'MAX_WINDOW_MS', gen: 'TRACKER_INDEX_MAX_WINDOW_MS', key: 'trackerIndexMaxWindowMs' },
   { file: 'src/refresh/kernel/index-window-rules.ts', access: 'SKEW_MS', gen: 'TRACKER_INDEX_SKEW_MS', key: 'trackerIndexSkewMs' },
   { file: 'src/shared/tracker/sync.ts', access: 'SYNC.EVAL_GAP_MS', gen: 'SYNC_EVAL_GAP_MS', key: 'syncEvalGapMs' },

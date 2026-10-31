@@ -304,5 +304,48 @@ export function taskDedupeKey(op: any, cwdHash: any, args: any): string {
   return String(op) + '\u0000' + String(cwdHash) + '\u0000' + canonicalArgs(args)
 }
 
+/** 输入文件引用的形状校验：路径、非负整数大小、64 位十六进制摘要，三样缺一不可。
+ *  这里只管形状；文件是否真是普通文件、大小与摘要是否对得上，由宿主打开文件时核对（那两个事实只有宿主知道）。 */
+export function stdinSpecProblem(spec: any): string | null {
+  if (!spec || typeof spec !== 'object') return '输入文件规格必须是对象'
+  if (typeof spec.path !== 'string' || spec.path.length === 0) return '输入文件缺少路径'
+  if (!Number.isInteger(spec.sizeBytes) || spec.sizeBytes < 0) return '输入文件大小必须是非负整数'
+  if (typeof spec.sha256 !== 'string' || !/^[0-9a-fA-F]{64}$/.test(spec.sha256)) return '输入文件摘要必须是 64 位十六进制'
+  return null
+}
+
+/** 对外可见的任务摘要：只挑界面需要的字段，参数原文与文件内容不往外传。
+ *  放在协议层而不是宿主运行器里：界面读的形状与「任务记录里哪些字段能外传」是协议的一部分，
+ *  宿主与界面两侧按同一份口径解释同一个回包。 */
+export function summaryOf(record: any): any {
+  if (!record || typeof record !== 'object') return null
+  const percent: number | null = typeof record.percent === 'number' ? record.percent : null
+  const meta: any = taskOpMetaOf(record.op)
+  return {
+    taskId: record.taskId,
+    requestId: record.requestId || null,
+    op: record.op,
+    // 动作的文案键也随摘要一起给界面：界面不自己拼动作名，避免多一处映射。
+    labelKey: meta ? meta.labelKey : null,
+    state: record.state || 'running',
+    conclusion: record.conclusion || null,
+    phase: record.phase || null,
+    percent,
+    uncertain: record.state === 'running' && percent === null,
+    receivedBytes: typeof record.receivedBytes === 'number' ? record.receivedBytes : null,
+    elapsedMs: typeof record.elapsedMs === 'number' ? record.elapsedMs : null,
+    startedAt: typeof record.startedAt === 'number' ? record.startedAt : null,
+    endedAt: typeof record.endedAt === 'number' ? record.endedAt : null,
+    exitCode: typeof record.exitCode === 'number' ? record.exitCode : null,
+    truncated: record.truncated === true,
+    failureKind: record.failureKind || null,
+    failureLine: record.failureLine || null,
+    residual: record.residual || null,
+    cancelRequested: record.cancelRequested === true,
+    stdinBytes: typeof record.stdinBytes === 'number' ? record.stdinBytes : null,
+    interrupted: record.interrupted === true || record.conclusion === 'interrupted',
+  }
+}
+
 /** 长任务协议里对外可执行的公开动作名清单，宿主注册与界面电话按这份清单点名。 */
 export const TASK_SOURCE = 'task-protocol'

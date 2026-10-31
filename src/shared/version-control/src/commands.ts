@@ -36,6 +36,15 @@ export const RUNNING_MARKER_PATHS: string[] = [
  *  所经的 sh 里是内建命令，必定立刻返回非零；它不读文件、不写文件，选它是因为「必定失败」这件事本身可断言。 */
 export const FAILING_EDITOR: string = 'false'
 
+/** 非交互执行 git 时固定注入的环境：编辑器指向必失败命令，终端提示与 askpass 一并关死。
+ *  规格第 7 节：分支说明、合并说明、交互变基待办这三处由面板写文件，命令绝不能停下来等人输入。
+ *  为什么放在共享层：宿主层已经有别的执行点（gh-execution.ts）写了一份终端提示开关，
+ *  宿主层再定义第二次会被 tests/verify-prompts.ts 的「同名声明重复」判红；这里让
+ *  「终端提示必须关死」只有一处定义，两个执行点都从这一个函数取。 */
+export function nonInteractiveGitEnv(): any {
+  return { GIT_EDITOR: FAILING_EDITOR, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: FAILING_EDITOR }
+}
+
 export function fixedPrefix(): string[] {
   return [
     // 不许调用分页器：宿主用管道收输出，一旦 git 认为该分页（用户配了 core.pager 或全局 -p），
