@@ -11,11 +11,11 @@
 // 起进程纪律：预检只跑只读命令，绝不起写命令；读不全当场显式失败，不给半份现场。
 //   所有 git 调用经装配处注入的 runPinned（-C 钉仓库、固定前缀、字节上限、超时、报闸）。
 // block 时照样回现场（scene），界面据此画「为什么不能点」，而不是只给一句理由。
-import { commandFor, tagListArgs, branchDescriptionsArgs, mergedBranchesArgs, verifyCommitArgs, verifyTagArgs } from '../shared/version-control/commands.js'
-import { parseRefs } from '../shared/version-control/parse-refs.js'
-import { parseTagList, parseBranchNameList, parseBranchDescriptions } from '../shared/version-control/parse-branch.js'
+import { commandFor, tagListArgs, branchDescriptionsArgs, mergedBranchesArgs, verifyCommitArgs, verifyTagArgs } from '../shared/version-control/src/commands.js'
+import { parseRefs } from '../shared/version-control/src/parse-refs.js'
+import { parseTagList, parseBranchNameList, parseBranchDescriptions } from '../shared/version-control/src/parse-branch.js'
 import { branchNameProblem, tagNameProblem, upstreamNameProblem, decideBranchSwitch, decideBranchDelete,
-  decideBranchCreate, decideTagCreate, decideDescriptionWrite, branchReasonText } from '../shared/version-control/branch-decisions.js'
+  decideBranchCreate, decideTagCreate, decideDescriptionWrite, branchReasonText } from '../shared/version-control/src/branch-decisions.js'
 import { makeTicket, makeBindings, pathAbsentFromScreen } from '../shared/version-control/src/write-ticket.js'
 import { BRANCH_CHECK_CONTRACT, BRANCH_CHECK_VERSION, BRANCH_TICKET_OPS, BRANCH_TICKET_READ_OP,
   branchPlanOf, branchPlanDigestInput, branchWorktreeInput, branchConfigInput, branchSceneSummary } from '../shared/version-control/src/branch-ticket.js'
@@ -67,7 +67,7 @@ export function createBranchCheck(deps: any): any {
     return { exe: exe, root: base.root }
   }
   async function refsOf(exe: any, root: any): Promise<any> {
-    const r: any = await readOut(exe, root, '读分支清单这一步', commandFor('refs').args)
+    const r: any = await readOut(exe, root, '读分支清单这一步', commandFor('refs', {}).args)
     if (r.ok !== true) return r
     const parsed: any = parseRefs(r.stdout)
     if (parsed.ok !== true) return { ok: false, envelope: fail('parse', 'parse', '分支清单解析失败：' + parsed.detail) }

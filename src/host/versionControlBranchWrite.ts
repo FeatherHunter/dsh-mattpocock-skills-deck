@@ -17,7 +17,7 @@
 //   写失败说清动没动（git 自己失败就什么都没动，原话照实回，不假装成功）。
 import { tagDeleteArgs, tagCreateArgs, branchCreateArgs, branchCreateCheckoutArgs, branchSwitchArgs,
   branchSwitchCheckoutArgs, branchDetachArgs, branchDetachCheckoutArgs, branchRenameArgs, branchDeleteArgs,
-  setUpstreamArgs, unsetUpstreamArgs, branchDescriptionSetArgs, branchDescriptionUnsetArgs } from '../shared/version-control/commands.js'
+  setUpstreamArgs, unsetUpstreamArgs, branchDescriptionSetArgs, branchDescriptionUnsetArgs } from '../shared/version-control/src/commands.js'
 import { ticketPureVerdict, bindingsVerdict, requestIdProblem } from '../shared/version-control/src/write-ticket.js'
 import { idShapeProblem } from '../shared/version-control/src/write-reasons.js'
 import { BRANCH_TICKET_OPS } from '../shared/version-control/src/branch-ticket.js'

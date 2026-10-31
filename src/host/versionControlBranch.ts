@@ -13,9 +13,9 @@
 //
 // 装配面：createBranchPhones(deps) 由父文件 versionControl.ts 显式传入全部依赖（与其它电话同一先例），
 //   本文件不引用任何宿主兄弟文件，只依赖 shared/version-control 的共享解析器。
-import { commandFor, tagListArgs, branchDescriptionsArgs, mergedBranchesArgs } from '../shared/version-control/commands.js'
-import { parseRefs } from '../shared/version-control/parse-refs.js'
-import { parseTagList, parseBranchNameList, parseBranchDescriptions } from '../shared/version-control/parse-branch.js'
+import { commandFor, tagListArgs, branchDescriptionsArgs, mergedBranchesArgs } from '../shared/version-control/src/commands.js'
+import { parseRefs } from '../shared/version-control/src/parse-refs.js'
+import { parseTagList, parseBranchNameList, parseBranchDescriptions } from '../shared/version-control/src/parse-branch.js'
 
 export const BRANCH_BOARD_CONTRACT = 'version-control.branch-board'
 export const BRANCH_BOARD_VERSION = 1
@@ -62,7 +62,7 @@ export function createBranchPhones(deps: any): any {
     return { ok: true, stdout: res.stdout, stderr: res.stderr, exitCode: res.exitCode }
   }
   async function refsOf(exe: any, root: any): Promise<any> {
-    const spec: any = commandFor('refs')
+    const spec: any = commandFor('refs', {})
     const r: any = await readOut(exe, root, '读分支清单这一步', spec.args)
     if (r.ok !== true) return r
     const parsed: any = parseRefs(r.stdout)
