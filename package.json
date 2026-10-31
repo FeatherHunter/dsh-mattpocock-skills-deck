@@ -22,7 +22,7 @@
     "verify:fast": "node scripts/verify-parallel.mts --tier fast",
     "verify:changed": "node scripts/verify-parallel.mts --changed",
     "verify": "node scripts/verify-chain.ts",
-    "sync:matt": "node scripts/sync-matt-skills.mts --pin v1.3.2 --verify",
+    "sync:matt": "node scripts/sync-matt-skills.mts --verify",
     "thanks:update": "node scripts/update-thanks.mts"
   },
   "dependencies": {

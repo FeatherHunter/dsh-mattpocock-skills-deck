@@ -31,7 +31,8 @@
  * 2026-10-31 随包技能升到 v1.3.2（#1721）后，上游在 setup-matt-pocock-skills/SKILL.md 里主动点名了
  * 两个旧名——「如果仓库里还有旧的 CONTEXT.md / CONTEXT-MAP.md，就提议用 git mv 改成 GLOSSARY 名」。
  * 这是要人改掉的旧文件，不是把旧名当正经名字写回去，所以「技能树里一处旧名都不许有」这条判据换成
- * 「旧名只许出现在带 legacy 记号的句子里」：既容下上游这次的新写法，也仍然拦得住把旧名当现行文档写。
+ * 「旧名只许出现在带 legacy 记号、且写明要改名/迁移的句子里」：既容下上游这次的新写法，
+ * 也仍然拦得住把旧名当现行文档写，或只加一句 legacy 就混过去的陈旧句。
  *
  * 能红也能绿：把任一词条里的 GLOSSARY.md 改回旧名，第 2 或第 3 条当场红；全部正确时绿。
  * 退出码 0 = 全通过；1 = 有断言不成立（会卡住 verify 链）。
@@ -67,7 +68,14 @@ function mdNamesIn(text) {
 /** 上游 v1.3.0 起改掉的领域文档旧名。它们仍可以出现，但只能以「要改掉的名字」的身份出现。 */
 const OLD_DOMAIN_NAMES = ['CONTEXT.md', 'CONTEXT-MAP.md']
 
-/** 扫技能树里仍然把旧名当正经名字写的地方：句子（行）里没有 legacy 记号才算没跟上。 */
+/**
+ * 扫技能树里仍然把旧名当正经名字写的地方。
+ * 一行提到旧名不算错，错的是没把它当「要改掉的名字」：必须同时带 legacy 记号
+ * 和改写意图（git mv / rename / rewrite / 改名 / 重命名 / 迁移 / 替换）。
+ * 只带 legacy、没有改写意图的句子（例如「Use the legacy CONTEXT.md」）仍算没跟上。
+ */
+const LEGACY_RENAME_INTENT = /(git\s+mv|\brename\b|\brewrite\b|改名|重命名|迁移|替换|改成)/i
+
 function staleOldNameMentions(dir) {
   const out = []
   const walk = (d) => {
@@ -78,7 +86,7 @@ function staleOldNameMentions(dir) {
       const rel = path.relative(ROOT, abs).replace(/\\/g, '/')
       readFileSync(abs, 'utf8').split(/\r?\n/).forEach((line, i) => {
         if (!OLD_DOMAIN_NAMES.some((n) => line.indexOf(n) >= 0)) return
-        if (/legacy/i.test(line)) return
+        if (/legacy/i.test(line) && LEGACY_RENAME_INTENT.test(line)) return
         out.push(rel + ':' + (i + 1) + ' ' + line.trim())
       })
     }

@@ -1,7 +1,8 @@
 /**
  * tests/verify-1490-four-objects.ts —— #1490 验收③④：四类对象端到端总验收 + 旧布局只读可用。
  *
- * 规格 #1480 把本地 Markdown 后端的文件格式与位置纠正回随包 Matt 技能原文（pin v1.3.1）：
+ * 规格 #1480 把本地 Markdown 后端的文件格式与位置纠正回随包 Matt 技能原文（当时 pin 是 v1.3.1，
+ * 2026-10-31 起随包 pin 已升到 v1.3.2；当前 pin 以 tests/bundled-skills-upstream-hashes.json 为准）：
  * 规格是 .scratch/<feature-slug>/spec.md，探索地图是 .scratch/<effort>/map.md，
  * 实施票、地图子票与普通票都是 .scratch/<effort>/issues/<NN>-<slug>.md，一票一文件。
  * 本门禁逐条钉 #1490 票面的验收③与验收④：

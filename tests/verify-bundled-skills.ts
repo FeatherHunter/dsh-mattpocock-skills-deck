@@ -10,7 +10,7 @@
  * 检查（空目录期跳过体积段）：
  *  1) package/bundled-skills 存在且含 27 个子目录，每个含有效 SKILL.md（frontmatter name: 与目录名一致，含 description）
  *  2) LICENSE 存在且含 Copyright (c) 2026 Matt Pocock
- *  3) VERSION 存在且等于哈希清单 tests/bundled-skills-upstream-hashes.json 的 pin（版本号不写死，升级只改清单一处；#1723）
+ *  3) VERSION 存在且等于哈希清单 tests/bundled-skills-upstream-hashes.json 的 pin（版本号不写死在这里；升级时以清单 pin 为准，同步脚本与原文映射里的 pin 跟着改；#1723）
  *  4) package/package.json:files 含 bundled-skills 与 bundled-skills-zh（漏发硬卡；#1521 起中文译文单放兄弟目录 bundled-skills-zh）
  *  5) 增量体积：bundled-skills 与 bundled-skills-zh 合计 ≤ 5MB（阈值硬卡，需显式改阈豁免）；空 bundled 期跳过
  *
@@ -116,7 +116,9 @@ if (existsSync(verPath)) {
   } catch (e) {
     check(false, '无法从 ' + MANIFEST + ' 读出 pin：' + e.message)
   }
-  if (expectedPin) check(ver === expectedPin, `bundled VERSION==哈希清单 pin ${expectedPin}（当前 ${ver}）`)
+  // pin 读空时也必须判红：读不到 pin 就等于没有可核对的基准，不能因为「没读到」而静默通过。
+  if (!expectedPin) check(false, '哈希清单里有非空的 pin（当前读到 ' + JSON.stringify(expectedPin) + '）')
+  else check(ver === expectedPin, `bundled VERSION==哈希清单 pin ${expectedPin}（当前 ${ver}）`)
 } else {
   check(false, 'bundled VERSION 缺失')
 }
