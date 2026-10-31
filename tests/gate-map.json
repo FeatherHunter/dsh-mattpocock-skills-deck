@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T15:43:49.208Z",
+  "generatedAt": "2026-10-31T15:54:08.922Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 488,
-  "gateCount": 488,
-  "attributedGates": 437,
+  "chainLength": 489,
+  "gateCount": 489,
+  "attributedGates": 438,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 52,
+  "completionRecordedGates": 53,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 679,
+  "graphFileCount": 685,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4222,6 +4222,21 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
+      "step": "node tests/verify-1586-changes-page.ts",
+      "file": "tests/verify-1586-changes-page.ts",
+      "guards": [
+        "src/host/versionControlChangesMount.ts"
+      ],
+      "dirs": [
+        "src/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 85,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-1586-first-screen.ts",
       "file": "tests/verify-1586-first-screen.ts",
       "guards": [
@@ -6288,6 +6303,7 @@
         "src/client/views/versionControl/vcBranches.ts",
         "src/client/views/versionControl/vcCache.ts",
         "src/client/views/versionControl/vcCapabilityPages.ts",
+        "src/client/views/versionControl/vcChangesPage.ts",
         "src/client/views/versionControl/vcCommit.ts",
         "src/client/views/versionControl/vcData.ts",
         "src/client/views/versionControl/vcDiff.ts",
@@ -6331,7 +6347,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 30 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 31 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -12324,6 +12340,7 @@
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
       "node tests/verify-1586-branches.ts",
+      "node tests/verify-1586-changes-page.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-write-contracts.ts",
       "node tests/verify-1586-write-registration.ts",
@@ -13494,9 +13511,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 700,
+    "fileCount": 706,
     "dirCount": 84,
-    "coveredFileCount": 700,
+    "coveredFileCount": 706,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13694,6 +13711,7 @@
       "src/client/views/versionControl/vcBranches.ts",
       "src/client/views/versionControl/vcCache.ts",
       "src/client/views/versionControl/vcCapabilityPages.ts",
+      "src/client/views/versionControl/vcChangesPage.ts",
       "src/client/views/versionControl/vcCommit.ts",
       "src/client/views/versionControl/vcData.ts",
       "src/client/views/versionControl/vcDiff.ts",
@@ -13828,6 +13846,10 @@
       "src/host/versionControl.ts",
       "src/host/versionControlBasis.ts",
       "src/host/versionControlBranch.ts",
+      "src/host/versionControlChanges.ts",
+      "src/host/versionControlChangesCheck.ts",
+      "src/host/versionControlChangesMount.ts",
+      "src/host/versionControlChangesWrite.ts",
       "src/host/versionControlCheck.ts",
       "src/host/versionControlFiles.ts",
       "src/host/versionControlFirstScreen.ts",
@@ -13991,6 +14013,7 @@
       "src/shared/version-control/src/branch-decisions.ts",
       "src/shared/version-control/src/capabilities.ts",
       "src/shared/version-control/src/capability-ledger.ts",
+      "src/shared/version-control/src/changes-protocol.ts",
       "src/shared/version-control/src/commands.ts",
       "src/shared/version-control/src/first-screen.ts",
       "src/shared/version-control/src/parse-branch.ts",

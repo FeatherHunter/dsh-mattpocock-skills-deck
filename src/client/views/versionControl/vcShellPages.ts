@@ -32,6 +32,8 @@ declare const VC_SHELL_STATES: string[]
 declare function vcHistoryPageNode(h: any, t: any, o: any): any
 // 长任务区叶子（#1740，vcTaskPanel.ts）：由构建按叶子登记次序拼进同一个闭包，这里只声明形状。
 declare function vcTaskPanelNode(h: any, t: any, o: any): any
+// 改动页操作面板叶子（#1742，vcChangesPage.ts）：同样由构建拼进闭包；只在 changes 页且页面传入改动读数时挂载。
+declare function vcChangesPageNode(h: any, t: any, o: any): any
 // 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）：同上由构建拼进闭包，这里只声明形状。
 declare function vcBranchBoardNode(h: any, t: any, o: any): any
 
@@ -268,6 +270,10 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     }), { key: 'branch-board' }))
   }
   children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
+  // 改动页的 13 条动作面板（#1742）：页面把改动读数传进来时才画；没传整块不出现，其它页渲染结果不变。
+  if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
+    children.push(Object.assign({}, vcChangesPageNode(h, t, { changes: opts.changes }), { key: 'changes' }))
+  }
   return h('section', {
     id: 'vc-page-' + page,
     className: 'vcs-page-body',
@@ -319,6 +325,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     openSurface: openSurface,
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,
+    changes: opts.changes,
     // #1744 T09：提交历史页要真读数与交互态，页面壳原样往下传，不在壳里改形状。
     reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
     // #1746 T11：分支与标签业务面板的读数与确认卡/结果（没给就不画，T03 既有渲染不变）。

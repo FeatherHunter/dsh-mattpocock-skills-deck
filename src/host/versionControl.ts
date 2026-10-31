@@ -51,6 +51,9 @@ import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/ti
 // #1741/#1740：fast-import 的只读文件流窄例外与长任务执行层（起进程、送标准输入、增量读）都住
 // 同层叶子 versionControlTask.ts；本文件只递宿主依赖与日志包装，两条入口共用同一份文件核对实现。
 import { prepareStdinFile, createTaskPhones } from './versionControlTask.js'
+// #1742：改动页两条电话（预检发票、凭票写）的懒加载与日志包装住同层叶子 versionControlChangesMount.ts，
+// 本文件只把上面已经造好的宿主闭包递进去——父文件贴着 350 有效行上限，装配壳不在这里再摊开一份。
+import { createChangesMount } from './versionControlChangesMount.js'
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -386,9 +389,7 @@ export function createVersionControl(deps: any): any {
   async function handleGitFirstScreen(args: any): Promise<any> { const p: any = await firstScreenPhone(); return p(args) }
 
   // 分支与标签域（#1746 T11）：读电话 wf.gitBranches 与写电话 wf.gitBranchWrite 住 ./versionControlBranch.js，
-  // 与差异电话、首屏电话同一先例（自包含叶子、依赖显式传入、本文件只加两行装载与两行注册）。
-  let _branchP: any = null
-  function branchPhone(): any { if (!_branchP) _branchP = import('./versionControlBranch.js').then(function (m: any) { return m.createBranchPhones({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, readScreenOf: readScreenOf }) }); return _branchP }
+  // 与差异电话、首屏电话同一先例（自包含叶子、依赖显式传入）；装配写在下面同一条注册行的两个值里，不另占装载行。
   /** 电话 wf.gitLog 的处理体：历史按批取；多要一条用来判断后面还有没有。 */
   async function handleGitLog(args: any): Promise<any> {
     const count: number = clampInt(args && args.count, FIRST_SCREEN_LOG_COUNT, 1, LOG_BATCH_MAX)
@@ -465,15 +466,20 @@ export function createVersionControl(deps: any): any {
     return _taskP
   }
 
+  // ---- #1742 改动页两条电话（追加段，不改上面任何既有行为）----
+  // 预检（发票）与执行（凭票写）的装配住 ./versionControlChanges.js：那一片只做「同一个首屏读数、
+  // 同一条进程出口、同一套 loggedPhone 日志口径」的拼接，改动页自己的票据表与 requestId 结果表留在它自己的闭包里。
+  // 本文件只把上面已经造好的闭包交给 ./versionControlChangesMount.ts，懒加载、失败兜底与日志包装都在那一片。
+  const changes: any = createChangesMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable, runGit: runGit, fixedPrefix: fixedPrefix, pathExists: pathExists, readScreenOf: readScreenOf, loggedPhone: loggedPhone, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs, STDOUT_LIMIT: STDOUT_LIMIT, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now })
+
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
     handleGitLog: loggedPhone('wf.gitLog', 'git-log', handleGitLog),
     // 首屏七片一次聚合（#1739 T04）：一次调用拿全，各片成败在回包里各自说。
     handleGitFirstScreen: loggedPhone('wf.gitFirstScreen', 'git-first-screen', handleGitFirstScreen),
-    // 分支与标签域（#1746 T11）：读一次取全（分支/标签/已并入/说明），写按 kind 分派。
-    handleGitBranches: loggedPhone('wf.gitBranches', 'git-branches', async function (a: any): Promise<any> { const p: any = await branchPhone(); return p.handleGitBranches(a) }),
-    handleGitBranchWrite: loggedPhone('wf.gitBranchWrite', 'git-branch-write', async function (a: any): Promise<any> { const p: any = await branchPhone(); return p.handleGitBranchWrite(a) }),
+    // 分支与标签域（#1746 T11）：读一次取全（分支/标签/已并入/说明），写按 kind 分派。两条电话共用这一条物理行（两个值各自内联装配、模块导入由 Node 缓存），父文件贴着 350 行上限，拆行会超。
+    handleGitBranches: loggedPhone('wf.gitBranches', 'git-branches', async function (a: any): Promise<any> { const m: any = await import('./versionControlBranch.js'); return m.createBranchPhones({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, readScreenOf: readScreenOf }).handleGitBranches(a) }), handleGitBranchWrite: loggedPhone('wf.gitBranchWrite', 'git-branch-write', async function (a: any): Promise<any> { const m: any = await import('./versionControlBranch.js'); return m.createBranchPhones({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, readScreenOf: readScreenOf }).handleGitBranchWrite(a) }),
     // 写电话（1 预检 + 6 执行）：第一次调用时才装配，装完缓存；键名与只读那三条同形。
     handleGitWriteCheck: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.check(a) },
     handleGitStage: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.stage(a) },
@@ -490,5 +496,8 @@ export function createVersionControl(deps: any): any {
     handleGitTaskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) },
     handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) },
     handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) },
+    // #1742 改动页两条电话（预检、执行）与票据表：装配在 ./versionControlChangesMount.ts，进程出口照旧是上面那条固定前缀与报闸。
+    // 只读动作 1.13（查为什么被忽略）走预检电话的 op，不再单开第三条电话；changesTickets 只给门禁与测试读票据表（与 #1741 的 writeTickets 同一条口径，不注册成电话、客户端拿不到）。
+    handleGitChangesCheck: changes.check, handleGitChangesWrite: changes.write, changesTickets: changes.tickets,
   }
 }
