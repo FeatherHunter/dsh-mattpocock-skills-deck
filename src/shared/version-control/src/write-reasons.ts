@@ -53,6 +53,19 @@ export const WRITE_REASONS: Record<string, string> = {
   'ignore-invalid': '这一行不能写进忽略清单（空行或含控制字符）。',
   'operation-in-progress': '仓库正在合并、变基、拣选或回退中，这组动作先不接。请先处理完当前操作再回来。',
   'repo-bare': '这是一个裸仓库，没有工作区可以改。',
+  // —— 冲突向导（#1747）新增的失败理由 ——
+  'conflict-markers': '这段内容里还留着冲突标记（<<<<<<<、=======、>>>>>>>），面板拦下了：先处理干净再保存或标记已解决。',
+  'path-not-conflicted': '这个路径现在不是冲突文件（可能已经处理过，也可能换了仓库）。请刷新冲突清单再点。',
+  'side-missing': '这个冲突文件没有你选的那一边（对方删了文件、或只有一边存在）。请选另一边，或选保留删除。',
+  'binary-file': '这是二进制文件，面板不能按文本整份编辑它。请整份选一边，或标记已解决。',
+  'target-missing': '找不到这个分支或提交。请刷新分支清单后重新选。',
+  'version-unsupported': '这台机器的 git 版本太旧，这一步需要更新的 git（合并预演要 2.38 及以上）。请升级 git 再试。',
+  'text-too-large': '这段内容太大了（超过 1 MiB），面板不能整份写回。请到侧栏终端处理这个文件。',
+  'wrong-operation': '这个「跳过」不适用于当前进行中的操作（合并没有跳过这一步）。请改用继续或中止。',
+  'no-operation': '现在没有正在进行的合并、变基、拣选或回退，所以没有可继续、跳过或中止的操作。',
+  'unmerged-files': '还有文件没解决。请先把冲突文件逐个处理完（选边、整份编辑或标记已解决）再继续。',
+  'bad-side': '这次没有给出可用的「选哪一边」，请重新选。',
+  'fast-forward-impossible': '这次合并不可能快进（两边历史已经分开）。请改用普通合并，或先在终端里变基。',
   'unknown-write-failure': 'git 报了一个我们没归类的失败；上面那行是它的原话。',
 }
 
@@ -87,6 +100,19 @@ export function pathsProblem(paths: unknown): string | null {
 export function classifyWriteFailure(op: WriteOp, exitCode: number, stderrText: string): string {
   if (exitCode === 0) return 'unknown-write-failure'
   const t = String(stderrText || '').toLowerCase()
+  // 冲突向导（#1747）的几个动作不是 WriteOp 的联合成员，这里按动作名先分一支。
+  // 合并类的「冲突」不是失败：执行层把它当成功结果（工作区留下冲突等用户处理），只有真正的拒绝才走到这里。
+  const opName = String(op || '')
+  if (opName === 'merge' || opName === 'merge-ff-only' || opName === 'merge-no-ff' || opName === 'merge-squash') {
+    if (/not possible to fast-forward/.test(t)) return 'fast-forward-impossible'
+    if (/not concluded your merge|you have not concluded your merge|merging is not possible/.test(t)) return 'operation-in-progress'
+    return 'unknown-write-failure'
+  }
+  if (opName === 'take-side' || opName === 'mark-resolved' || opName === 'save-file') {
+    if (/does not have (their|our) version/.test(t)) return 'side-missing'
+    if (/did not match any files|pathspec .* did not match/.test(t)) return 'bad-path'
+    return 'unknown-write-failure'
+  }
   if (op === 'commit') {
     // 顺序有意义（#1743）：签名失败、无可修订提交、目标提交不存在各有自己的话术，
     // 都要排在「没有暂存内容」「钩子拒绝」这些通用分类之前，否则会被兜底吞成笼统的一句。

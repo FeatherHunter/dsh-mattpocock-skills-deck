@@ -55,7 +55,7 @@ import { prepareStdinFile, createTaskPhones } from './versionControlTask.js'
 // versionControlCommitForm.ts，懒加载与日志包装在 versionControlCommitFormMount.ts；本文件只递宿主依赖。
 // #1742：改动页两条电话（预检发票、凭票写）的懒加载与日志包装住同层叶子 versionControlChangesMount.ts，
 // 本文件只把上面已经造好的宿主闭包递进去——父文件贴着 350 有效行上限，装配壳不在这里再摊开一份。
-import { createCommitFormMount } from './versionControlCommitFormMount.js'; import { createChangesMount } from './versionControlChangesMount.js'; import { createBranchMount } from './versionControlBranchMount.js'; import { createWorktreesMount } from './versionControlWorktreesMount.js'; import { createSubmoduleMount } from './versionControlSubmodulesMount.js' // #1757 T21：子模块域四条电话的装配壳（读数、预检、执行、任务） // #1746/#1752/#1743：分支、工作树、改动、提交表单四个装配壳的 import 并成一条物理行，父文件贴着 350 有效行上限。
+import { createCommitFormMount } from './versionControlCommitFormMount.js'; import { createChangesMount } from './versionControlChangesMount.js'; import { createBranchMount } from './versionControlBranchMount.js'; import { createWorktreesMount } from './versionControlWorktreesMount.js'; import { createSubmoduleMount } from './versionControlSubmodulesMount.js'; import { createSyncMount } from './versionControlSyncMount.js'; import { createConflictMount } from './versionControlConflictMount.js' // #1757/#1747/#1755：子模块、冲突向导、同步域的装配壳与既有分支、工作树、改动、提交表单装配壳并成一条物理行，父文件贴着 350 有效行上限。
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -123,7 +123,8 @@ export function createVersionControl(deps: any): any {
     // 每一次 git 调用都注入 GIT_EDITOR=必失败命令（规格第 7 节）：读命令同样注入，
     // 是为了「谁能弹编辑器」这件事只依赖这一条出口，不靠每条命令自己记得传。
     // opts.env 里 undefined 值是墓碑（从继承环境删掉这一项），这里先浅拷贝再覆盖 GIT_EDITOR，墓碑语义保留。
-    const childEnv: any = Object.assign({}, (opts && opts.env) ? opts.env : {}, { GIT_EDITOR: FAILING_EDITOR })
+    // 默认必失败编辑器；极少数「必须有一段提交说明」的继续动作由 opts.gitEditor 显式覆盖成必定成功的 true（只给 op-continue 用，且仍走这一条出口）。
+    const childEnv: any = Object.assign({}, (opts && opts.env) ? opts.env : {}, { GIT_EDITOR: (opts && opts.gitEditor) ? String(opts.gitEditor) : FAILING_EDITOR })
     // stdin 的唯一例外：stdinFile 只许配 fast-import，且 fast-import 必须配（不能空着管道跑）。
     // 这两条与文件校验都在起进程之前完成，失败时一个进程都不起。
     const wantStdin: boolean = !!(opts && opts.stdinFile)
@@ -212,7 +213,12 @@ export function createVersionControl(deps: any): any {
     // 字段白名单（规格第 8 节）：只记命令名、参数个数、退出码、耗时、输出长度与截断标记；
     // 参数内容、输出原文、目录原文都不进日志。
     fire('info', 'git.exec', { argv0: GIT_NAME, cwdHash: dirHash(dir), cmd: cmd, argc: Array.isArray(args) ? args.length : 0, latencyMs: Date.now() - t0, exitCode: exitCode, stdoutBytes: Buffer.byteLength(String(out.text || ''), 'utf8'), truncated: out.truncated === true, stdinBytes: stdinBytes, via: VIA })
-    if (exitCode !== 0) { return { kind: 'non-zero', exitCode: exitCode, stderr: err.text } }
+    // 非零退出也要把 stdout 带回去：git 有一批命令把「结果说明」写在标准输出上而不是错误流。
+    //   实测（git 2.49）：合并撞冲突时 CONFLICT 与 Automatic merge failed 全在 stdout、stderr 为空；
+    //   merge-tree --write-tree 有冲突时退出码 1、冲突路径与结果树 OID 也都在 stdout；
+    //   diff --check 查到残留标记时退出码 2、逐行标记同样在 stdout。只回 stderr 会让这些调用方
+    //   拿到一句空话、把「有冲突/有残留」误判成读不出东西，所以两个流都回，各自带上限与截断标记。
+    if (exitCode !== 0) { return { kind: 'non-zero', exitCode: exitCode, stdout: out.text, truncated: out.truncated, stderr: err.text } }
     return { kind: 'ok', stdout: out.text, truncated: out.truncated, stdinBytes: stdinBytes }
     }, function (): any { return { kind: 'cancelled', cancelled: true, message: '已取消排队，可重试' } })
   }
@@ -478,13 +484,10 @@ export function createVersionControl(deps: any): any {
   // 同一条进程出口、同一套 loggedPhone 日志口径」的拼接，改动页自己的票据表与 requestId 结果表留在它自己的闭包里。
   // 本文件只把上面已经造好的闭包交给 ./versionControlChangesMount.ts，懒加载、失败兜底与日志包装都在那一片。
   // 两条装配并成一条物理行：父文件贴着 350 有效行上限，拆成两行就会超。
-  const changes: any = createChangesMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable, runGit: runGit, fixedPrefix: fixedPrefix, pathExists: pathExists, readScreenOf: readScreenOf, loggedPhone: loggedPhone, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs, STDOUT_LIMIT: STDOUT_LIMIT, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now }); const branches: any = createBranchMount({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, readScreenOf: readScreenOf, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now })
-  // #1757 T21 子模块域四条电话（追加段，不改上面任何既有行为）：读数、预检签票、凭票写、凭票转长任务。
-  // 装配壳在 ./versionControlSubmodulesMount.ts：四片共用一张票表与一张 requestId 结果表，taskStart 就是上面那条长任务 start。
-  const submodules: any = createSubmoduleMount({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, readScreenOf: readScreenOf, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now, taskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) } })
+  const changes: any = createChangesMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable, runGit: runGit, fixedPrefix: fixedPrefix, pathExists: pathExists, readScreenOf: readScreenOf, loggedPhone: loggedPhone, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs, STDOUT_LIMIT: STDOUT_LIMIT, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now }); const branches: any = createBranchMount({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, readScreenOf: readScreenOf, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now }); const sync: any = createSyncMount({ failPhone: failPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now, failureFromExec: failureFromExec, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, readScreenOf: readScreenOf, runPinned: runPinned, loggedPhone: loggedPhone, startTask: function (request: any): Promise<any> { return taskPhone().then(function (t: any) { return t.handleGitTaskStart(request) }) } }); const conflicts: any = createConflictMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, readScreenOf: readScreenOf, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now, randomId: function (): string { return Math.random().toString(36).slice(2) } });   const submodules: any = createSubmoduleMount({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, readScreenOf: readScreenOf, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now, taskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) } }) // #1757 T21：子模块域四条电话（读数、预检、凭票执行、凭票转长任务）的装配，与上面改动/分支/同步/冲突装配同一条物理行。 // #1747 T12：冲突向导的读数、预检与凭票执行（装配壳在 ./versionControlConflictMount.ts，票表不注册成电话）
 
   return {
-    handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus), ...remoteHandles(loggedPhone, (function (): any { let p: any = null; return function (): any { if (!p) p = import('./versionControlRemote.js').then(function (m: any) { return m.createRemotePhones({ runPinned: runPinned, failureFromExec: failureFromExec, failPhone: failPhone, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now }) }); return p } })()), // #1754 T18：域 8 远端与同步六条电话（包装在共享层 remoteHandles，电话体按需加载、取件 Promise 缓存）
+    handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus), ...remoteHandles(loggedPhone, (function (): any { let p: any = null; return function (): any { if (!p) p = import('./versionControlRemote.js').then(function (m: any) { return m.createRemotePhones({ runPinned: runPinned, failureFromExec: failureFromExec, failPhone: failPhone, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now }) }); return p } })()), ...sync, // #1754 T18：域 8 远端与同步六条电话（包装在共享层 remoteHandles，电话体按需加载、取件 Promise 缓存）
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
     handleGitLog: loggedPhone('wf.gitLog', 'git-log', handleGitLog),
     // 首屏七片一次聚合（#1739 T04）：一次调用拿全，各片成败在回包里各自说。
@@ -511,5 +514,8 @@ export function createVersionControl(deps: any): any {
     // 只读动作 1.13（查为什么被忽略）走预检电话的 op，不再单开第三条电话；changesTickets 只给门禁与测试读票据表（与 #1741 的 writeTickets 同一条口径，不注册成电话、客户端拿不到）。
     handleGitChangesCheck: changes.check, handleGitChangesWrite: changes.write, changesTickets: changes.tickets, handleGitCommitForm: createCommitFormMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable, runGit: runGit, fixedPrefix: fixedPrefix, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs, STDOUT_LIMIT: STDOUT_LIMIT, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now }).handleGitCommitForm, ...submodules, // #1757 T21：子模块域读数/预检/执行/任务四条电话 + submoduleTickets（装配壳见 ./versionControlSubmodulesMount.ts）
     // #1743 提交表单读取电话：装配在 ./versionControlCommitFormMount.ts，进程出口照旧是上面那条固定前缀与报闸。
+    // #1747 冲突向导三条电话（域 6 十五条：清单/视图/预演/rerere/标记检查走只读电话，写动作走预检 + 凭票执行）：
+    // 装配在 ./versionControlConflictMount.ts，票表不注册成电话、只给门禁与测试读。
+    handleGitConflicts: conflicts.read, handleGitConflictCheck: conflicts.check, handleGitConflictWrite: conflicts.write, conflictTickets: conflicts.tickets,
   }
 }

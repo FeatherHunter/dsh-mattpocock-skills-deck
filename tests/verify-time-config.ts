@@ -94,6 +94,8 @@ const REFERENCES: RefRow[] = [
   // #1757 T21 子模块域：预检只读与凭票执行各一档（叶子直接导入生成常量，别名只改名不改值）。
   { file: 'src/host/versionControlSubmodulesCheck.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_SUBMODULE_READ_TIMEOUT_MS', key: 'vcSubmoduleReadTimeoutMs' },
   { file: 'src/host/versionControlSubmodulesWrite.ts', access: 'WRITE_TIMEOUT_MS', gen: 'VC_SUBMODULE_WRITE_TIMEOUT_MS', key: 'vcSubmoduleWriteTimeoutMs' },
+  { file: 'src/host/versionControlConflictScene.ts', access: 'VC_CONFLICT_READ_TIMEOUT_MS', gen: 'VC_CONFLICT_READ_TIMEOUT_MS', key: 'vcConflictReadTimeoutMs' },
+  { file: 'src/host/versionControlConflictWrite.ts', access: 'VC_CONFLICT_WRITE_TIMEOUT_MS', gen: 'VC_CONFLICT_WRITE_TIMEOUT_MS', key: 'vcConflictWriteTimeoutMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'CALL_BUDGET_MS', gen: 'GIT_CREDENTIAL_CALL_BUDGET_MS', key: 'gitCredentialCallBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MIN_BUDGET_MS', gen: 'GIT_CREDENTIAL_MIN_BUDGET_MS', key: 'gitCredentialMinBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MAX_BUDGET_MS', gen: 'GIT_CREDENTIAL_MAX_BUDGET_MS', key: 'gitCredentialMaxBudgetMs' },
@@ -487,6 +489,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'scanStartedMs', reason: '读钟时刻（这趟核对什么时候开始的），不是可调参数' },
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'sinceMs', reason: '算出来的起点时刻（上次水位减容差），不是可调参数' },
   { file: 'src/host/versionControlFirstScreen.ts', name: 'readAtMs', reason: '读钟时刻（这一趟首屏聚合读取是什么时候开始的），不是可调参数' },
+  { file: 'src/host/versionControlSyncCheck.ts', name: 'readAtMs', reason: '读钟时刻（这一趟同步预检是什么时候读的现场），不是可调参数' },
   { file: 'src/refresh/rooms/host/probe-handler.ts', name: 'nowMs', reason: '读钟时刻（Date.now），降级探测与校准的窗口判定用，不是可调参数' },
   { file: 'src/host/skillProbeCache.ts', name: 'ttlMs', reason: '透传参数，缺省接 SKILL_PROBE_CACHE_MS（已登记）' },
   { file: 'src/host/skillProbe.ts', name: 'SKILL_CACHE_TTL_MS', reason: '函数内局部变量：接线给了正数就听接线的，没给时取中央常量 SKILL_LIST_CACHE_TTL_MS（已登记为 skillListCacheTtlMs）' },
@@ -500,6 +503,8 @@ const EXEMPTS: ExemptRow[] = [
   // #1743 提交页八条能力：两条新电话里的时间名字都是透传或读钟，不是本票新增的可调时长，沿用上面几行的口径。
   { file: 'src/host/versionControlCommitForm.ts', name: 'timeoutMs', reason: '透传参数，缺省 20000 只为直接调用兜底；装配层注入的 deps.timeoutMs 来自父文件已登记的 RUN_TIMEOUT_MS' },
   { file: 'src/client/views/versionControl/vcCommitOps.ts', name: 'nowMs', reason: '读钟时刻（Date.now），用来给 requestId 拼时间片，不是可调参数' },
+  // #1757 子模块页：票据回包里读到的过期时刻只用来判断票是否已过期，不是本票新增的可调时长。
+  { file: 'src/client/views/versionControl/vcSubmodulesOps.ts', name: 'expiresAtMs', reason: '票据回包里读到的过期时刻，只用来判断这张票是否已过期，不是本文件新增的可调时长' },
   { file: 'src/refresh/kernel/index-window-rules.ts', name: 'sinceMs', reason: '算出来的起点时刻（水位减容差），不是可调参数' },
   // —— 派生变量：正常路径取 SYNC 契约里的同名项（已登记），兜底取拼进闭包的中央常量 ——
   { file: 'src/refresh/rooms/client/refresh-timer.ts', name: 'PROBE_MS', reason: '派生变量，取 SYNC.FALLBACK_PROBE_MS（已登记为 syncFallbackProbeMs），兜底取拼进闭包的 SYNC_FALLBACK_PROBE_MS；引用即跟随' },
