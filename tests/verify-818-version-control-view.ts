@@ -78,8 +78,14 @@ const VC_FILES = [
   'src/shared/version-control/src/migrate-actions.ts',
   // #1751：贮藏十条的规则真源（动作名单、版本门、危险档、命令拼装与恢复路径）。
   'src/shared/version-control/src/stash-rules.ts',
+  // #1756 克隆向导的共享层两片（与构建同序）：地址与选项口径 → 预检票据的契约与目标现场形状。
+  'src/shared/version-control/src/clone-options.ts',
+  'src/shared/version-control/src/clone-ticket.ts',
   // #1752 工作树八条能力的纯规则层（八条动作 / argv / 判定 / 清单行模型），与构建同序排在客户端那片之前。
   'src/shared/version-control/src/worktree-ops.ts',
+  // #1747 冲突文本的解析与拼装（冲突块切分、按选择拼回整份、残留标记判定）：宿主保存前扫标记与界面冲突视图同源，
+  //   与构建同序排在客户端那片之前。
+  'src/shared/version-control/src/conflict-text.ts',
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js',
@@ -129,6 +135,10 @@ const VC_FILES = [
   'src/client/views/versionControl/vcStashOps.js',
   'src/client/views/versionControl/vcStashPage.js',
   'src/client/views/versionControl/vcMigratePage.js', // #1759：迁移与备份页正文（九个动作、只读结果、确认卡与任务区；壳要调它）
+  'src/client/views/versionControl/vcClonePage.js', // #1756：迁移页 › 克隆向导（自持表单与进度状态；排在页面壳之前，壳里会挂它）
+  // #1747 冲突向导两叶（与构建同序）：先动作模型（15 条能力的出入参形状），再页面正文；壳的挂载段要看到页面体那一叶。
+  'src/client/views/versionControl/vcConflictsOps.js',
+  'src/client/views/versionControl/vcConflictsPage.js',
   'src/client/views/versionControl/vcShellPages.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -227,6 +237,19 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcWorktreesListStateOf', 'vcWorktreesSnapshotOf', 'vcWorktreesModelOf', 'vcWorktreesVersionOf', 'vcWorktreeAvailabilityOf', 'vcWorktreeWhyKeyOf', 'vcWorktreesVersionHintOf',
   'vcWorktreesRowActionsOf', 'vcWorktreesActionDecisionOf', 'vcWorktreeCheckArgsOf', 'vcWorktreeRunArgsOf', 'vcWorktreePlanOf', 'vcWorktreeFailureOf',
   'vcWorktreeResultOf', 'vcWorktreeDecisionReasonsOf', 'vcWorktreeDecisionStateOf', 'vcWorktreesPageNode',
+  // #1756 克隆向导：选项口径、票据契约、回包分类与页面体（二十三条导出逐个挂进闭包给断言用）。
+  'CLONE_OPTION_DEFAULTS', 'cloneSourceKindOf', 'cloneMaskedUrl', 'cloneDefaultDirOf', 'cloneHardlinkNote', 'cloneOptionsOf',
+  'CLONE_TICKET_OPS', 'CLONE_CHECK_CONTRACT', 'CLONE_CHECK_VERSION', 'CLONE_TARGET_STATES', 'clonePlanOf', 'cloneTaskArgsOf', 'cloneTargetProblem',
+  'VC_CLONE_PAGE_SOURCE', 'VC_CLONE_PHONES', 'VC_CLONE_FORM_DEFAULT', 'VC_CLONE_STEPS', 'VC_CLONE_REASON_KEYS', 'VC_CLONE_PAGE_HINT',
+  'vcCloneRequestIdOf', 'vcCloneFormOf', 'vcCloneCheckArgsOf', 'vcCloneWriteArgsOf', 'vcCloneCleanupCheckArgsOf', 'vcCloneCleanupWriteArgsOf',
+  'vcCloneCallOf', 'vcCloneTicketOf', 'vcCloneSceneOf', 'vcCloneDecisionOf', 'vcCloneReasonOf', 'vcCloneReplyKindOf', 'vcCloneTaskOf',
+  'vcCloneProgressOf', 'vcCloneResidualOf', 'vcCloneTaskEndedOf', 'vcClonePageNode',
+  // #1747 冲突向导：三条电话、15 条动作清单、四种进行中状态与八类冲突；请求号、载荷、可见性、页面体与渲染辅助。
+  'VC_CONFLICTS_PHONES', 'VC_CONFLICTS_OPS', 'VC_CONFLICTS_STATES', 'VC_CONFLICTS_KINDS', 'VC_CONFLICTS_OPS_SOURCE',
+  'vcConflictsOpMetaOf', 'vcConflictsOpLabelKeyOf', 'vcConflictsOpVerbKeyOf', 'vcConflictsStateLabelKeyOf',
+  'vcConflictsKindLabelKeyOf', 'vcConflictsSideLabelKeyOf', 'vcConflictsRequestIdOf', 'vcConflictsVisibleOf',
+  'vcConflictsPayloadOf', 'vcConflictsCheckArgsOf', 'vcConflictsWriteArgsOf', 'vcConflictsTargetOf',
+  'vcConflictsListOf', 'vcConflictsChoicesOf', 'vcConflictsRowNode', 'vcConflictsPageNode',
   'VersionControlTab']
 // #1253：这 20 份现在都是 .ts 真源（2026-10-19 第三阶段起 rules 的产物也搬到了 .build/shared/，
 //   列表里直接写 rules.ts 真源路径，不再指向源码树里的产物 .js）。
@@ -2154,6 +2177,93 @@ async function main() {
   const qCapsListOf = function (html) { return attrValuesOf(html, 'data-cap-primary').length }
   check(qCapsListOf(qCommitsHtml) === VIEW.vcPageCapabilitiesOf('commits').length && qCapsListOf(qDiagHtml) === VIEW.vcPageCapabilitiesOf('diagnostics').length, 'Q6c 面板插在能力清单之前、不吞掉本页的能力行（两页能力行数与原页面一致）')
   check(qCommitsHtml.indexOf('vc-query-commits') >= 0 && qDiagHtml.indexOf('vc-query-diagnostics') >= 0, 'Q6d 两页各有自己的面板 id（锚点与深链指得清是哪一页的面板）')
+
+  // ---- CL 组：克隆向导（#1756 T20，能力 8.16）----
+  // 判据全部取真源：电话名、表单收敛、票据与回包分类都调 vcClonePage 自己的导出；
+  //   宿主理由标识符逐个核对界面词条表，免得界面上印出英文标识符。
+  check(VIEW.VC_CLONE_PHONES.check === 'wf.gitCloneCheck' && VIEW.VC_CLONE_PHONES.write === 'wf.gitCloneWrite'
+    && VIEW.VC_CLONE_PHONES.query === 'wf.gitTaskQuery' && VIEW.VC_CLONE_PHONES.cancel === 'wf.gitTaskCancel'
+    && VIEW.VC_CLONE_PAGE_HINT === 'migrate' && VIEW.VC_CLONE_PAGE_SOURCE === 'src/client/views/versionControl/vcClonePage.ts',
+    'CL1 克隆向导四条电话与「挂在迁移页」的口径都从真源读（预检 / 凭票执行 / 查询 / 取消）')
+  const clDefaults = VIEW.VC_CLONE_FORM_DEFAULT
+  check(clDefaults.url === '' && clDefaults.dir === '' && clDefaults.depth === '' && clDefaults.branch === ''
+    && clDefaults.recurseSubmodules === false && clDefaults.shallowSubmodules === false && clDefaults.offline === false,
+    'CL2 表单初值：地址与目录都空着，三个开关默认关（不会没让选就替人选子模块）')
+  const clForm = VIEW.vcCloneFormOf({ url: '  https://x/a.git  ', dir: ' d ', depth: ' 3 ', branch: ' dev ', recurseSubmodules: true, shallowSubmodules: 1, offline: 'yes' })
+  check(clForm.url === 'https://x/a.git' && clForm.dir === 'd' && clForm.depth === '3' && clForm.branch === 'dev'
+    && clForm.recurseSubmodules === true && clForm.shallowSubmodules === false && clForm.offline === false,
+    'CL3 表单收敛：去空白，两个子模块开关与离线只认真正的 true（1 与字符串不算）')
+  const clCheck = VIEW.vcCloneCheckArgsOf('/w', { url: 'https://x/a.git', dir: 'd', depth: '3', branch: 'dev', recurseSubmodules: true, shallowSubmodules: true })
+  check(clCheck.cwd === '/w' && clCheck.op === 'start' && clCheck.depth === 3 && clCheck.branch === 'dev'
+    && clCheck.recurseSubmodules === true && clCheck.shallowSubmodules === true && clCheck.offline === undefined
+    && clCheck.ticketId === undefined && clCheck.requestId === undefined,
+    'CL4 预检参数：深度写成数字、只出现真选项，票号与请求号留到执行那一步')
+  check(VIEW.vcCloneCheckArgsOf('/w', { url: 'u', dir: 'd', depth: '' }).depth === undefined,
+    'CL5 深度留空时不塞一个 0 进去（宿主按缺省全深度）')
+  const clWrite = VIEW.vcCloneWriteArgsOf('/w', { url: 'u', dir: 'd' }, 't-1', 'rq-1', true)
+  check(clWrite.op === 'start' && clWrite.ticketId === 't-1' && clWrite.requestId === 'rq-1' && clWrite.confirmed === true,
+    'CL6 凭票执行参数：票号、请求号与确认都在（宿主凭票执行并去重）')
+  check(VIEW.vcCloneWriteArgsOf('/w', { url: 'u', dir: 'd' }, 't-1', 'rq-1', false).confirmed === undefined,
+    'CL7 没点确认就不带 confirmed 字段（宿主据它回 need-confirm，界面再画确认卡）')
+  const clCleanCheck = VIEW.vcCloneCleanupCheckArgsOf('/w', ' d ')
+  const clCleanWrite = VIEW.vcCloneCleanupWriteArgsOf('/w', 'd', 't-2', 'rq-2', true)
+  check(clCleanCheck.op === 'cleanup' && clCleanCheck.dir === 'd' && clCleanWrite.op === 'cleanup' && clCleanWrite.ticketId === 't-2' && clCleanWrite.confirmed === true,
+    'CL8 清理残留目录也走同一套：先预检拿票，再凭票删除')
+  const clTicket = VIEW.vcCloneTicketOf({ ticket: { id: 't', op: 'start', checkedAtMs: NOW, expiresAtMs: NOW + 120000 } })
+  check(!!clTicket && clTicket.id === 't' && clTicket.expiresAtMs === NOW + 120000 && VIEW.vcCloneTicketOf({}) === null && VIEW.vcCloneTicketOf({ ticket: {} }) === null,
+    'CL9 票据四段取出来；没有票时回 null（绝不用空串冒充票号）')
+  check(VIEW.vcCloneReplyKindOf({ ok: true, ticket: { id: 't' } }) === 'checked' && VIEW.vcCloneReplyKindOf({ ok: true, task: { taskId: 'x' } }) === 'done',
+    'CL10 回包分类：签了票是 checked、起了任务是 done')
+  check(VIEW.vcCloneReplyKindOf({ ok: false, error: { kind: 'blocked' }, reason: 'target-not-empty' }) === 'blocked'
+    && VIEW.vcCloneReplyKindOf({ ok: false, error: { kind: 'need-confirm' }, reason: 'need-confirm' }) === 'need-confirm',
+    'CL11 目标不空是 blocked、要确认是 need-confirm，两档分开画')
+  check(['ticket-missing', 'ticket-expired', 'ticket-op-mismatch', 'target-changed', 'stale-repo'].every(function (r) {
+    return VIEW.vcCloneReplyKindOf({ ok: false, error: { kind: 'blocked' }, reason: r }) === 'stale'
+  }), 'CL12 票没了 / 过期 / 换了动作 / 现场变了都归 stale（重新预检这一档，不冒充真失败）')
+  check(VIEW.vcCloneReplyKindOf({ ok: false, error: { kind: 'env', message: 'x' } }) === 'fail' && VIEW.vcCloneReplyKindOf(null) === 'unknown',
+    'CL13 真装配失败归 fail、空回包归 unknown')
+  check(VIEW.vcCloneReasonOf({ reason: 'a', decision: { reasons: ['b'] }, error: { reason: 'c' } }) === 'a'
+    && VIEW.vcCloneReasonOf({ decision: { reasons: ['b'] }, error: { reason: 'c' } }) === 'b'
+    && VIEW.vcCloneReasonOf({ error: { reason: 'c' } }) === 'c',
+    'CL14 原因标识符的优先级：顶层 > 判定 > 错误（界面据此选词条）')
+  const clProg = VIEW.vcCloneProgressOf({ state: 'running', percent: 55, phase: 'Receiving objects' })
+  check(clProg.percent === 55 && clProg.phase === 'Receiving objects' && clProg.uncertain === false
+    && VIEW.vcCloneProgressOf({ state: 'running' }).uncertain === true
+    && VIEW.vcCloneProgressOf({ state: 'running', percent: 140 }).percent === null,
+    'CL15 进度读真实百分比与阶段；报不出数时标 uncertain，越界数字不冒充')
+  const clResidual = '目标目录可能只写了一半，删除该目录后可以重试'
+  const clDone = { state: 'done', conclusion: 'cancelled', residual: clResidual }
+  check(VIEW.vcCloneResidualOf({ state: 'running', residual: 'x' }) === '' && VIEW.vcCloneResidualOf(clDone) === clResidual
+    && VIEW.vcCloneTaskEndedOf(clDone) === true && VIEW.vcCloneTaskEndedOf({ state: 'running' }) === false
+    && VIEW.vcCloneTaskOf({ tasks: [{ taskId: 'a' }, { taskId: 'b' }] }, 'b').taskId === 'b' && VIEW.vcCloneTaskOf({ tasks: [] }, 'x') === null,
+    'CL16 取消后的残留说明只在结束的任务上出现，并按 taskId 找回那一条任务')
+  const cloneHostReasons = (function () {
+    const text = sourceText('src/host/versionControlClone.ts')
+    const seg = text.slice(text.indexOf('const CLONE_REASONS'), text.indexOf('翻成一句人话'))
+    const out: string[] = []
+    const re = /'([a-z][a-z-]+)':/g
+    let m
+    while ((m = re.exec(seg)) !== null) out.push(m[1])
+    return out
+  })()
+  const cloneUncovered = cloneHostReasons.filter(function (id) { return !Object.prototype.hasOwnProperty.call(VIEW.VC_CLONE_REASON_KEYS, id) })
+  check(cloneHostReasons.length >= 20 && cloneUncovered.length === 0,
+    'CL17 宿主每个克隆理由标识符在界面词条表里都有词条（缺的：' + cloneUncovered.join('、') + '）')
+  const cloneMarkup = renderToStaticMarkup(React.createElement(VIEW.vcClonePageNode, { t: function (k) { return k }, cwd: '/w', call: function () { return Promise.resolve({}) } }))
+  check(cloneMarkup.indexOf('data-vc-clone="1"') >= 0 && cloneMarkup.indexOf('data-vc-clone-step="form"') >= 0
+    && ['url', 'dir', 'depth', 'branch'].every(function (n) { return cloneMarkup.indexOf('data-vc-clone-field="' + n + '"') >= 0 })
+    && ['recurseSubmodules', 'shallowSubmodules', 'offline'].every(function (n) { return cloneMarkup.indexOf('data-vc-clone-checkbox="' + n + '"') >= 0 }),
+    'CL18 进页面先把表单画出来：四个字段与三个开关齐全，不自动发电话')
+  check(cloneMarkup.indexOf('data-vc-clone-action="check"') >= 0 && cloneMarkup.indexOf('data-vc-clone-action="start"') < 0,
+    'CL19 初态只有「预检」按钮，没有票就不给「开始克隆」')
+  const clShellHtmlOf = function (page) {
+    try { return renderToStaticMarkup(VIEW.vcRenderTabAt(h, tZh, { page: page, cwd: '/w', call: function () { return Promise.resolve({}) } })) }
+    catch (e) { console.log('    （克隆页渲染抛错：' + ((e && e.message) || e) + '）'); return '' }
+  }
+  const clMigrateHtml = clShellHtmlOf('migrate')
+  const clDiagHtml = clShellHtmlOf('diagnostics')
+  check(clMigrateHtml.indexOf('data-vc-clone="1"') >= 0 && clDiagHtml.indexOf('data-vc-clone="1"') < 0,
+    'CL20 克隆向导只挂在「迁移与备份」页的正文里，别的页不带')
 
   // ---- H 组：反证（把被守的东西改坏，同一套断言必须当场变红）----
   // 反证锚点的两种落点：还住在手写 .js 里的代码写成单引号，已经变成构建产物的界面叶子被 esbuild

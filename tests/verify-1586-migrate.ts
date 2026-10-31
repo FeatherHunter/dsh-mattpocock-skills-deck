@@ -342,7 +342,7 @@ async function main(): Promise<void> {
   const copy = readText('config/copy/vcshell.yaml')
   check(copy.indexOf('vc.migrate.action.fastImport') >= 0 && copy.indexOf('vc.migrate.confirmLabel') >= 0, 'R6 界面文字走词表，键名成对存在')
   const settings = readText('tests/verify-settings-phones.ts')
-  check(settings.indexOf('宿主电话八十七条') >= 0, 'R7 宿主电话条数期望已随本票更新（八十七条）')
+  check(settings.indexOf('宿主电话九十二条') >= 0 && settings.indexOf('#1759') >= 0, 'R7 宿主电话条数期望已随本票更新（合并后九十二条，含本票两名）')
 
   printGateResult(GATE, total, failed ? 1 : 0)
   if (failed) process.exit(1)

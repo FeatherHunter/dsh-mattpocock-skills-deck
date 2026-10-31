@@ -39,11 +39,10 @@ declare function vcTaskPanelNode(h: any, t: any, o: any): any
 declare function vcWorktreesPageNode(h: any, t: any, o: any): any
 // 改动页操作面板叶子（#1742，vcChangesPage.ts）：同样由构建拼进闭包；只在 changes 页且页面传入改动读数时挂载。
 declare function vcChangesPageNode(h: any, t: any, o: any): any
-// 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）：同上由构建拼进闭包，这里只声明形状。
-declare function vcBranchBoardNode(h: any, t: any, o: any): any
-// 贮藏页叶子（#1751，vcStashPage.ts）：同样由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。
-// 迁移与备份页叶子（#1759 T23，vcMigratePage.ts）：build 按叶子登记次序拼进同一闭包，这里只声明形状。
-declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcMigratePageNode(h: any, t: any, o: any): any
+// 分支与标签业务面板叶子（#1746 T11）、贮藏页叶子（#1751）、迁移与备份页叶子（#1759 T23，vcMigratePage.ts）、克隆向导页叶子（#1756，
+// vcClonePage.ts）与冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）：都由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。
+// 六条声明并进同一条物理行：本文件贴着 350 有效行上限。
+declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcMigratePageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']; // 两套皮肤：深浅各一套语义色，页面壳只把皮肤名透传给 CSS 与根属性。
@@ -296,6 +295,8 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
       })),
     ]))
   }
+  // #1756 T20 克隆向导（能力 8.16）：迁移与备份页的正文；组件自己保存表单与进度，壳只把取词、工作区与发电话的函数递进去。
+  if (page === 'migrate') children.push(h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null }))
   // 分支与标签页的业务面板（#1746 T11）：调用方把一份读数传进来才画；没传整块不出现，其它页渲染不变。
   if (page === 'branch-tags' && opts.branchBoard !== undefined) {
     children.push(Object.assign({}, vcBranchBoardNode(h, t, {
@@ -315,6 +316,9 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
     children.push(Object.assign({}, vcChangesPageNode(h, t, { changes: opts.changes }), { key: 'changes' }))
   }
+  // 冲突向导的 15 条能力面板（#1747 T12）：页面把冲突状态与读数传进来时才画；没传整块不出现，其它页渲染结果不变。
+  // 判断与推入写成同一条物理行：本文件贴着 350 有效行上限。
+  if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' }))
   return h('section', {
     id: 'vc-page-' + page,
     className: 'vcs-page-body',
@@ -366,7 +370,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     openSurface: openSurface,
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,
-    changes: opts.changes,
+    changes: opts.changes, conflicts: opts.conflicts, // #1747 T12：冲突向导的进行中状态、冲突清单与 15 条动作的交互态，原样往下传，壳不改形状。
     // #1744 T09：提交历史页要真读数与交互态，页面壳原样往下传，不在壳里改形状。
     reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
     // #1746 T11：分支与标签业务面板的读数与确认卡/结果（没给就不画，T03 既有渲染不变）。
@@ -375,7 +379,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     queries: opts.queries, inputs: opts.inputs,
     // #1743：#1743 提交页的动作层、目标提交候选与现成面板模型也从调用方传进来（壳不自己造）。
     commitOps: opts.commitOps || null, commitTargets: opts.commitTargets || [], commitPanel: opts.commitPanel || null,
-    ops: opts.ops, handlers: opts.handlers, // #1752 工作树页要真数据与处理函数
+    ops: opts.ops, handlers: opts.handlers, cwd: opts.cwd, call: opts.call, // #1752 工作树页要真数据与处理函数；#1756 克隆向导要工作区与发电话的函数
   }), 'body'))
   // #1751 贮藏页（域 7）：只在贮藏页挂这一块；十条动作的入口、确认卡与最近丢弃都在叶子里，
   // 这里只把首屏数据（seed）与回调递进去，页面壳不多说一句规则。
