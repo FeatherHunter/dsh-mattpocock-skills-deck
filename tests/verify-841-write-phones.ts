@@ -1,4 +1,4 @@
-// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–G 七组，每组带反证。
+// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–J 十组，每组带反证；J 组是 #1752 工作树页的写通道。
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-841-write-phones.ts
 // 夹具：真 git 临时仓库（每个用例自己造）+ 真 subprocess 形状的垫片（argv 直传、不经 shell），
 // 这样「真跑过的 argv」与「真仓库有没有被动过」都能断言；只在纯归类那组不碰 git。
@@ -47,6 +47,25 @@ function makeVc(route?: ((argv: string[]) => any) | null) {
 // 固定前缀的最后一项是 i18n.logOutputEncoding=UTF-8：切在它之后才是真正的子命令（照 verify-version-control-host 的同一口径）。
 const after = (argv: string[]): string[] => { const i = argv.indexOf('i18n.logOutputEncoding=UTF-8'); return i < 0 ? argv : argv.slice(i + 1) }
 const writeSpawns = (): string[][] => spawns.filter((a) => ['add', 'reset', 'commit', 'pull', 'push'].indexOf(after(a)[0]) >= 0)
+// #1752：工作树写通道的「真正动东西」子命令白名单；预检与重验读出来的 list / status / rev-parse 不算写。
+const WT_WRITE_SUBS = ['add', 'remove', 'prune', 'lock', 'unlock', 'move']
+const worktreeWrites = (): string[][] => spawns.filter((a) => {
+  const c = after(a)
+  return (c[0] === 'worktree' && WT_WRITE_SUBS.indexOf(c[1]) >= 0) || (c[0] === 'sparse-checkout' && c[1] === 'set')
+})
+// #1752：失败判据只认失败信封的 error.kind；拿它去判一份放行回包必须为假（反证装置自检用）。
+const denyIs = (r: any, kind: string): boolean => !!(r && r.ok === false && r.error && r.error.kind === kind)
+// #1752：造一棵真工作树（真 git，不经垫片，所以不计入 spawns），供写通道断言用。
+// 返回值取 git 清单里报的路径，而不是 mkdtemp 给的路径：本机 git 会把 D:\Temp 规范成 D:/temp，
+// 而共享层判等只归一盘符大小写（其余按原样比，免得把两棵不同的树认成一棵），两边必须用同一份写法。
+function mkWorktree(base: string, tag: string, branch: string): string {
+  const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws841-wt-' + tag + '-'))
+  const w = git(base, ['worktree', 'add', '-q', '-b', branch, wt])
+  if (w.code !== 0) throw new Error('造工作树失败：' + w.err)
+  const paths = git(base, ['worktree', 'list', '--porcelain']).out.split('\n')
+    .filter((l) => l.indexOf('worktree ') === 0).map((l) => l.slice('worktree '.length).trim())
+  return paths[paths.length - 1] || wt
+}
 let vcMod: any = null
 async function main(): Promise<void> {
   console.log('写操作那一族门禁（#841：票据门 / argv / 起进程 / 回包 / 话术 / 同一出口 / 日志）')
@@ -249,38 +268,126 @@ async function main(): Promise<void> {
     if (c === 'config' && after(a).some((t) => String(t).indexOf('--get') === 0)) return false
     return ['switch', 'checkout', 'branch', 'tag', 'config'].indexOf(c) >= 0
   })
-  const rJ = mkRepo('j')
-  git(rJ, ['reset', '-q'])
-  const vcJ = makeVc()
-  check(typeof vcJ.handleGitBranches === 'function' && typeof vcJ.handleGitBranchCheck === 'function' && typeof vcJ.handleGitBranchWrite === 'function', 'J1 分支域读 / 预检 / 执行三条电话都挂在同一个宿主对象上')
-  const jCheck = await vcJ.handleGitBranchCheck({ cwd: rJ, op: 'create', name: 'feature2' })
-  check(jCheck.ok === true && !!jCheck.ticket && jCheck.ticket.expiresAtMs - jCheck.ticket.checkedAtMs === 120000 && branchWriteSpawns().length === 0, 'J2 预检签票：票有效期 120 秒，签票这一趟不起任何写进程')
+  const rJB = mkRepo('j')
+  git(rJB, ['reset', '-q'])
+  const vcJB = makeVc()
+  check(typeof vcJB.handleGitBranches === 'function' && typeof vcJB.handleGitBranchCheck === 'function' && typeof vcJB.handleGitBranchWrite === 'function', 'JB1 分支域读 / 预检 / 执行三条电话都挂在同一个宿主对象上')
+  const jCheck = await vcJB.handleGitBranchCheck({ cwd: rJB, op: 'create', name: 'feature2' })
+  check(jCheck.ok === true && !!jCheck.ticket && jCheck.ticket.expiresAtMs - jCheck.ticket.checkedAtMs === 120000 && branchWriteSpawns().length === 0, 'JB2 预检签票：票有效期 120 秒，签票这一趟不起任何写进程')
   const jBefore = branchWriteSpawns().length
-  const jRun = await vcJ.handleGitBranchWrite({ cwd: rJ, ticketId: jCheck.ticket.id, requestId: 'req-j1', op: 'create', name: 'feature2' })
+  const jRun = await vcJB.handleGitBranchWrite({ cwd: rJB, ticketId: jCheck.ticket.id, requestId: 'req-j1', op: 'create', name: 'feature2' })
   const jNew = branchWriteSpawns()
-  check(jRun.ok === true && jNew.length === jBefore + 1 && jNew[jNew.length - 1].indexOf('feature2') >= 0 && git(rJ, ['branch', '--list', 'feature2']).out !== '', 'J3 凭票执行：一次写进程，命令里带新分支名，仓库里真的建出了分支')
+  check(jRun.ok === true && jNew.length === jBefore + 1 && jNew[jNew.length - 1].indexOf('feature2') >= 0 && git(rJB, ['branch', '--list', 'feature2']).out !== '', 'JB3 凭票执行：一次写进程，命令里带新分支名，仓库里真的建出了分支')
   const nReplay = spawns.length
-  const jReplay = await vcJ.handleGitBranchWrite({ cwd: rJ, ticketId: jCheck.ticket.id, requestId: 'req-j1', op: 'create', name: 'feature2' })
-  check(jReplay.reused === true && jReplay.result && jReplay.result.ok === true && jReplay.result.command === jRun.command && spawns.length === nReplay, 'J4 同一 requestId 重放：回同一份结果，不再起进程')
+  const jbReplay = await vcJB.handleGitBranchWrite({ cwd: rJB, ticketId: jCheck.ticket.id, requestId: 'req-j1', op: 'create', name: 'feature2' })
+  check(jbReplay.reused === true && jbReplay.result && jbReplay.result.ok === true && jbReplay.result.command === jRun.command && spawns.length === nReplay, 'JB4 同一 requestId 重放：回同一份结果，不再起进程')
   const nForged = spawns.length
-  const jForged = await vcJ.handleGitBranchWrite({ cwd: rJ, ticketId: 'NOSUCHTICKET', requestId: 'req-j2', op: 'switch', name: 'feature2', confirmed: true })
-  check(jForged.ok === false && jForged.reason === 'ticket-missing' && spawns.length === nForged, 'J5 伪造票：ticket-missing 且一个进程都没起（纯判定先行）')
-  const tick = await vcJ.handleGitBranchCheck({ cwd: rJ, op: 'switch', name: 'feature2' })
+  const jbForged = await vcJB.handleGitBranchWrite({ cwd: rJB, ticketId: 'NOSUCHTICKET', requestId: 'req-j2', op: 'switch', name: 'feature2', confirmed: true })
+  check(jbForged.ok === false && jbForged.reason === 'ticket-missing' && spawns.length === nForged, 'JB5 伪造票：ticket-missing 且一个进程都没起（纯判定先行）')
+  const tick = await vcJB.handleGitBranchCheck({ cwd: rJB, op: 'switch', name: 'feature2' })
   clock.t = tick.ticket.expiresAtMs + 1
   const nExpired = spawns.length
-  const jExpired = await vcJ.handleGitBranchWrite({ cwd: rJ, ticketId: tick.ticket.id, requestId: 'req-j3', op: 'switch', name: 'feature2', confirmed: true })
+  const jbExpired = await vcJB.handleGitBranchWrite({ cwd: rJB, ticketId: tick.ticket.id, requestId: 'req-j3', op: 'switch', name: 'feature2', confirmed: true })
   clock.t = 1000
-  check(jExpired.ok === false && jExpired.reason === 'ticket-expired' && spawns.length === nExpired, 'J6 过期票：ticket-expired 且一个进程都没起')
-  const tick2 = await vcJ.handleGitBranchCheck({ cwd: rJ, op: 'create', name: 'feature3' })
+  check(jbExpired.ok === false && jbExpired.reason === 'ticket-expired' && spawns.length === nExpired, 'JB6 过期票：ticket-expired 且一个进程都没起')
+  const tick2 = await vcJB.handleGitBranchCheck({ cwd: rJB, op: 'create', name: 'feature3' })
   const nMismatch = spawns.length
-  const jMismatch = await vcJ.handleGitBranchWrite({ cwd: rJ, ticketId: tick2.ticket.id, requestId: 'req-j4', op: 'delete', name: 'feature2', force: true, confirmed: true })
-  check(jMismatch.ok === false && jMismatch.reason === 'ticket-op-mismatch' && spawns.length === nMismatch, 'J7 换动作的票（新建的票拿去删分支）：ticket-op-mismatch 且一个进程都没起')
+  const jMismatch = await vcJB.handleGitBranchWrite({ cwd: rJB, ticketId: tick2.ticket.id, requestId: 'req-j4', op: 'delete', name: 'feature2', force: true, confirmed: true })
+  check(jMismatch.ok === false && jMismatch.reason === 'ticket-op-mismatch' && spawns.length === nMismatch, 'JB7 换动作的票（新建的票拿去删分支）：ticket-op-mismatch 且一个进程都没起')
   const nDrift = branchWriteSpawns().length
-  const driftTick = await vcJ.handleGitBranchCheck({ cwd: rJ, op: 'switch', name: 'feature2' })
-  // 当前就在 feature2 上（J3 新建并切过去）；再提交一次就把这条分支的 tip 挪了，票里绑的 oid 随之失效。
-  fs.writeFileSync(path.join(rJ, 'c.txt'), 'c\n'); git(rJ, ['add', 'c.txt']); git(rJ, ['commit', '-q', '-m', '移动目标'])
-  const jDrift = await vcJ.handleGitBranchWrite({ cwd: rJ, ticketId: driftTick.ticket.id, requestId: 'req-j5', op: 'switch', name: 'feature2', confirmed: true })
-  check(jDrift.ok === false && jDrift.reason === 'target-changed' && branchWriteSpawns().length === nDrift && git(rJ, ['rev-parse', '--abbrev-ref', 'HEAD']).out === 'feature2', 'J8 票签完后目标分支被移动：target-changed 零写进程，当前分支没被切走')
+  const driftTick = await vcJB.handleGitBranchCheck({ cwd: rJB, op: 'switch', name: 'feature2' })
+  // 当前就在 feature2 上（JB3 新建并切过去）；再提交一次就把这条分支的 tip 挪了，票里绑的 oid 随之失效。
+  fs.writeFileSync(path.join(rJB, 'c.txt'), 'c\n'); git(rJB, ['add', 'c.txt']); git(rJB, ['commit', '-q', '-m', '移动目标'])
+  const jDrift = await vcJB.handleGitBranchWrite({ cwd: rJB, ticketId: driftTick.ticket.id, requestId: 'req-j5', op: 'switch', name: 'feature2', confirmed: true })
+  check(jDrift.ok === false && jDrift.reason === 'target-changed' && branchWriteSpawns().length === nDrift && git(rJB, ['rev-parse', '--abbrev-ref', 'HEAD']).out === 'feature2', 'JB8 票签完后目标分支被移动：target-changed 零写进程，当前分支没被切走')
+
+  // J 贮藏页两条电话（#1751）：写动作先预检签票、再凭票执行；读动作不签票直接放行。
+  // 判据只看「拒绝发生在起进程之前」与「重放不再起进程」，不复述实现里的票据表结构。
+  console.log('J 贮藏页电话（#1751）')
+  const vcJStash = makeVc()
+  check(typeof vcJStash.handleGitStashCheck === 'function' && typeof vcJStash.handleGitStash === 'function', 'J1 贮藏页预检与执行两条电话都挂在同一个宿主对象上')
+  const rJStash = mkRepo('j')
+  const stashSpawns = (): string[][] => spawns.filter((a) => after(a)[0] === 'stash')
+  const stashWrites = (): string[][] => stashSpawns().filter((a) => ['push', 'apply', 'pop', 'drop', 'clear', 'branch', 'store'].indexOf(after(a)[1]) >= 0)
+  const jPre = await vcJStash.handleGitStashCheck({ cwd: rJStash, op: 'push', message: '门禁用贮藏' })
+  check(jPre.ok === true && !!jPre.ticket && !!jPre.ticket.id && jPre.ticket.expiresAtMs - jPre.ticket.checkedAtMs === 120000, 'J2 预检签票，有效期 120 秒（与改动页同一份中央配置）')
+  check(stashWrites().length === 0, 'J3 预检只读：起过的 git 命令里一条写动作都没有')
+  const nJStash = spawns.length
+  const jNoTicket = await vcJStash.handleGitStash({ cwd: rJStash, op: 'push', message: '门禁用贮藏' })
+  const jFake = await vcJStash.handleGitStash({ cwd: rJStash, op: 'push', message: '门禁用贮藏', ticketId: 'NOSUCHTICKET' })
+  check(jNoTicket.ok === false && jNoTicket.error.reason === 'ticket-missing' && spawns.length === nJStash, 'J4 不带票：ticket-missing 且一个进程都没起')
+  check(jFake.ok === false && jFake.error.reason === 'ticket-missing' && spawns.length === nJStash, 'J5 伪造票：同样 ticket-missing 且零进程')
+  const jPre2 = await vcJStash.handleGitStashCheck({ cwd: rJStash, op: 'push', message: '换动作的票' })
+  const nJStash2 = spawns.length
+  const jWrongOp = await vcJStash.handleGitStash({ cwd: rJStash, op: 'apply', selector: 'stash@{0}', ticketId: jPre2.ticket.id })
+  check(jWrongOp.ok === false && jWrongOp.error.reason === 'ticket-op-mismatch' && spawns.length === nJStash2, 'J6 换动作（push 的票拿去 apply）：ticket-op-mismatch 且零进程')
+  clock.t = jPre2.ticket.expiresAtMs + 1
+  const nJStash3 = spawns.length
+  const jExpiredStash = await vcJStash.handleGitStash({ cwd: rJStash, op: 'push', message: '换动作的票', ticketId: jPre2.ticket.id })
+  clock.t = 1000
+  check(jExpiredStash.ok === false && jExpiredStash.error.reason === 'ticket-expired' && spawns.length === nJStash3, 'J7 过期票：ticket-expired 且零进程')
+  const jPre3 = await vcJStash.handleGitStashCheck({ cwd: rJStash, op: 'push', message: '重放一次' })
+  const jFirst = await vcJStash.handleGitStash({ cwd: rJStash, op: 'push', message: '重放一次', ticketId: jPre3.ticket.id, requestId: 'req-841-stash-1' })
+  const writesAfterFirst = stashWrites().length
+  const jReplayStash = await vcJStash.handleGitStash({ cwd: rJStash, op: 'push', message: '重放一次', ticketId: jPre3.ticket.id, requestId: 'req-841-stash-1' })
+  check(jFirst.ok === true && jReplayStash.ok === true && JSON.stringify(jReplayStash.entries) === JSON.stringify(jFirst.entries) && stashWrites().length === writesAfterFirst, 'J8 同一个 requestId 重放：回同一份结果且不再起第二条写命令（第一次写了 ' + writesAfterFirst + ' 条）')
+  const jPre4 = await vcJStash.handleGitStashCheck({ cwd: rJStash, op: 'drop', selector: jFirst.entries[0].selector })
+  git(rJStash, ['stash', 'drop', 'stash@{0}'])
+  const jChanged = await vcJStash.handleGitStash({ cwd: rJStash, op: 'drop', selector: jFirst.entries[0].selector, ticketId: jPre4.ticket.id })
+  check(jChanged.ok === false && jChanged.error.reason === 'target-changed' && stashWrites().length === writesAfterFirst, 'J9 确认之后目标被别处删掉：target-changed 且零写命令（不猜着删下一条）')
+  const jList = await vcJStash.handleGitStash({ cwd: rJStash, op: 'list' })
+  check(jList.ok === true && Array.isArray(jList.entries) && jList.entries.length === 0, 'J10 读动作（list）不签票直接放行，界面刷新不被票据流程误伤')
+  // J 工作树页两条电话（#1752）：预检开票 → 执行前逐条重验；伪造 / 过期 / 换动作 / 现场变了都必须零写命令。
+  console.log('J 工作树页两条电话（#1752）')
+  const rJ = mkRepo('j')
+  const wtA = mkWorktree(rJ, 'a', 'wt-a')
+  const vcJ = makeVc()
+  check(typeof vcJ.handleGitWorktreeCheck === 'function' && typeof vcJ.handleGitWorktreeRun === 'function', 'J1 工作树预检与执行两条电话都挂在同一个宿主对象上（本族不占长任务通道）')
+  const jLeaf = fs.readFileSync(path.join(ROOT, 'src', 'host', 'versionControlWorktrees.ts'), 'utf8')
+  check(jLeaf.indexOf('handleGitTask') < 0 && jLeaf.indexOf('spawnSync') < 0 && jLeaf.indexOf('child_process') < 0, 'J2 工作树叶子不碰长任务电话、不自己起进程（八条都是本地短写，走注入的同一出口）')
+  const preLockJ = await vcJ.handleGitWorktreeCheck({ cwd: rJ, op: 'lock', path: wtA, reason: '演示' })
+  check(preLockJ.ok === true && preLockJ.decision.decision === 'allow' && preLockJ.ticket && preLockJ.ticket.id && worktreeWrites().length === 0, 'J3 预检锁一棵树：放行、开票，且一条写命令都没起（只跑读命令）')
+  const nJ = spawns.length
+  const jForged = await vcJ.handleGitWorktreeRun({ cwd: rJ, op: 'lock', path: wtA, reason: '演示', ticketId: 'NOSUCHTICKET', requestId: 'j-req-forged', confirm: true })
+  check(denyIs(jForged, 'ticket-missing') && spawns.length === nJ, 'J4 伪造票：ticket-missing 且一个进程都没起（纯判定先行）')
+  clock.t = preLockJ.ticket.expiresAtMs + 1
+  const nJ2 = spawns.length
+  const jExpired = await vcJ.handleGitWorktreeRun({ cwd: rJ, op: 'lock', path: wtA, reason: '演示', ticketId: preLockJ.ticket.id, requestId: 'j-req-expired', confirm: true })
+  clock.t = 1000
+  check(jExpired.ok === false && (jExpired.error.kind === 'ticket-expired' || jExpired.error.kind === 'ticket-missing') && spawns.length === nJ2, 'J5 过期票：拒绝且零进程（入口先清过期票，实测回 ticket-missing 也算拒绝）')
+  const preRemoveJ = await vcJ.handleGitWorktreeCheck({ cwd: rJ, op: 'remove', path: wtA })
+  const nJ3 = spawns.length
+  const jSwap = await vcJ.handleGitWorktreeRun({ cwd: rJ, op: 'lock', path: wtA, reason: '演示', ticketId: preRemoveJ.ticket.id, requestId: 'j-req-swap', confirm: true })
+  check(denyIs(jSwap, 'ticket-op-mismatch') && spawns.length === nJ3, 'J6 换动作（remove 的票拿去 lock）：ticket-op-mismatch 且零进程')
+  const preLockJ2 = await vcJ.handleGitWorktreeCheck({ cwd: rJ, op: 'lock', path: wtA, reason: '演示' })
+  const nJ4 = spawns.length
+  const jNoConfirm = await vcJ.handleGitWorktreeRun({ cwd: rJ, op: 'lock', path: wtA, reason: '演示', ticketId: preLockJ2.ticket.id, requestId: 'j-req-noconfirm' })
+  check(denyIs(jNoConfirm, 'confirm-required') && spawns.length === nJ4, 'J7 没带显式确认：confirm-required 且零进程')
+  const jLock = await vcJ.handleGitWorktreeRun({ cwd: rJ, op: 'lock', path: wtA, reason: '演示', ticketId: preLockJ2.ticket.id, requestId: 'j-req-lock-ok', confirm: true })
+  const lockArgv = worktreeWrites()[0] || []
+  check(jLock.ok === true && jLock.result && jLock.result.state === 'done' && jLock.result.n === 1 && worktreeWrites().length === 1 && git(rJ, ['worktree', 'list', '--porcelain']).out.indexOf('locked') >= 0, 'J8 锁一棵树：成功一次只起一条写命令、清单里真出现 locked（结果卡记 1 个对象）')
+  check(after(lockArgv)[1] === 'lock' && after(lockArgv).indexOf('--reason') >= 0 && after(lockArgv).indexOf('演示') >= 0 && after(lockArgv).indexOf(wtA) >= 0, 'J9 锁的 argv 是 worktree lock --reason <原因> <路径>（原因是独立参数，不拼字符串）')
+  const jReplay = await vcJ.handleGitWorktreeRun({ cwd: rJ, op: 'remove', path: 'NO-SUCH', ticketId: 'NOSUCH', requestId: 'j-req-lock-ok', confirm: true })
+  check(JSON.stringify(jReplay) === JSON.stringify(jLock) && worktreeWrites().length === 1, 'J10 同一个请求号重放：回同一份结果、不再起第二条写命令（重复点按钮不会重复动工作树）')
+  const preUnlockJ = await vcJ.handleGitWorktreeCheck({ cwd: rJ, op: 'unlock', path: wtA })
+  const wtB = mkWorktree(rJ, 'b', 'wt-b')
+  const writesJ = worktreeWrites().length
+  const jDigest = await vcJ.handleGitWorktreeRun({ cwd: rJ, op: 'unlock', path: wtA, ticketId: preUnlockJ.ticket.id, requestId: 'j-req-digest', confirm: true })
+  check(denyIs(jDigest, 'worktrees-changed') && worktreeWrites().length === writesJ, 'J11 票据签完后清单多了一棵树：worktrees-changed 且零写命令（不把旧判断套到新现场）')
+  const addPath = path.join(os.tmpdir(), 'dsws841-add-' + process.pid + '-' + Date.now())
+  const preAddJ = await vcJ.handleGitWorktreeCheck({ cwd: rJ, op: 'add', path: addPath })
+  fs.mkdirSync(addPath)
+  const writesJ2 = worktreeWrites().length
+  const jTarget = await vcJ.handleGitWorktreeRun({ cwd: rJ, op: 'add', path: addPath, ticketId: preAddJ.ticket.id, requestId: 'j-req-target', confirm: true })
+  check(denyIs(jTarget, 'target-changed') && worktreeWrites().length === writesJ2, 'J12 票据签完后目标路径被占：target-changed 且零写命令')
+  const preUnlockJ2 = await vcJ.handleGitWorktreeCheck({ cwd: rJ, op: 'unlock', path: wtA })
+  const beforeUnlock = worktreeWrites().length
+  const jUnlock = await vcJ.handleGitWorktreeRun({ cwd: rJ, op: 'unlock', path: wtA, ticketId: preUnlockJ2.ticket.id, requestId: 'j-req-unlock-ok', confirm: true })
+  const unlockArgv = worktreeWrites()[beforeUnlock] || []
+  check(jUnlock.ok === true && jUnlock.result.state === 'done' && worktreeWrites().length === beforeUnlock + 1 && after(unlockArgv)[1] === 'unlock' && after(unlockArgv).indexOf(wtA) >= 0 && git(rJ, ['worktree', 'list', '--porcelain']).out.indexOf('locked') < 0, 'J13 解锁同一棵树：成功一次只起预期那一条命令、锁定标记真被摘掉')
+  const forceFree = worktreeWrites().every((a) => a.indexOf('--force') < 0 && a.indexOf('-f') < 0 && a.indexOf('-ff') < 0)
+  check(forceFree, 'J14 本组所有写命令都不带 --force / -f / -ff（边界：删除脏树与锁定树走先处理再重来的正常路径）')
+  check(denyIs({ ok: true, requestId: 'x' }, 'ticket-missing') === false, 'J15 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
 
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)

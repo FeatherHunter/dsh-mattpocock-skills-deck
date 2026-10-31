@@ -415,6 +415,10 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/check-chain-evaluation.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
   { file: 'src/refresh/rooms/host/check-chain-evaluation.ts', name: 'waitMs', reason: '透传 backoff 的 verdict 结论，不是输入参数' },
   { file: 'src/host/platformChannel.ts', name: 'timeoutMs', reason: '透传变量，接注入的 TIMEOUT_MS（调用方按已登记的 stepWaitMs 装进来）' },
+  // #1751 贮藏页执行层：时限与读钟都由父文件按已登记参数注入，叶子不写数字。
+  { file: 'src/host/versionControlStash.ts', name: 'timeoutMs', reason: '注入参数，接父文件 TIMEOUT_MS（即 stepWaitMs，已登记），叶子不自留时限' },
+  { file: 'src/host/versionControlStash.ts', name: 'nowMs', reason: '读钟口（测试注入假钟，生产走 Date.now），不是可调时长' },
+  { file: 'src/host/versionControlStashTicket.ts', name: 'timeoutMs', reason: '注入参数，接父文件 TIMEOUT_MS（即 stepWaitMs，已登记）；票据层只把时限递给读现场那一步，不自留数字' },
   { file: 'src/refresh/rooms/host/chain-coalescing.ts', name: 'nowMs', reason: '测试注钟口（生产用 Date.now），不是可调参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'lingerMs', reason: '注入字段的本地接住（上游是 ACTIVE_LINGER_MS），不是新参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'expiryMs', reason: '注入字段的本地接住（上游是 ATTENTION_EXPIRY_MS），不是新参数' },

@@ -841,6 +841,24 @@
       "note": "叶子装配：任务通道叶子要把任务记录库接上（记录只落缓存目录、不落仓库工作区，参数原文与输入文件内容不进记录文件）。方向单向：任务库只认注入的 fs 门面与缓存目录，不引用通道叶子。"
     },
     {
+      "file": "src/host/versionControlWorktreesMount.ts",
+      "spec": "./versionControlWorktrees.js",
+      "resolved": "src/host/versionControlWorktrees.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1752（规格 #1586 T17 工作树页）",
+      "note": "装配扇入：工作树页两条电话（预检与执行）的懒加载、加载失败兜底与日志包装要接进 src/host/versionControl.ts，而父文件已贴着文件粒度门禁的 350 有效行上限，照 #500/#821/#1739 同一条先例把装配整块搬成同层装配壳；壳只做接线，进程出口、失败信封、工作目录、路径探测、时间与随机数全部由父文件注入，壳不反向引用父文件。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
+      "spec": "./versionControlWorktreesMount.js",
+      "resolved": "src/host/versionControlWorktreesMount.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1752（规格 #1586 T17 工作树页）",
+      "note": "装配扇入：工作树页装配搬进同层装配壳后，父文件只保留一行 createWorktreesMount 调用；父文件已贴着 350 有效行上限，装配壳不反向引用父文件，方向单向，必改可循 #500/#821/#1739 先例。"
+    },
+    {
       "file": "src/host/versionControl.ts",
       "spec": "./versionControlChangesMount.js",
       "resolved": "src/host/versionControlChangesMount.ts",
@@ -875,6 +893,24 @@
       "count": 1,
       "owner": "#1742（规格 #1586 T07 改动页）",
       "note": "外壳装配：外壳只做懒加载与电话日志包装，真正的预检与执行两叶子在 versionControlChanges.ts 里合流成一张票据表；方向单向，合流叶子不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
+      "spec": "./versionControlStash.js",
+      "resolved": "src/host/versionControlStash.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1751（规格 #1586 T16 贮藏页）",
+      "note": "装配扇入：贮藏十条能力的执行层住同层叶子 versionControlStash.ts，父文件在返回对象里内联动态 import 加载它（同一个进程出口、同一套失败信封），因此新增一条同层边；父文件贴着 350 行上限，装配不摊开。"
+    },
+    {
+      "file": "src/host/versionControlStash.ts",
+      "spec": "./versionControlStashTicket.js",
+      "resolved": "src/host/versionControlStashTicket.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1751（规格 #1586 T16 贮藏页）",
+      "note": "预检与执行共用同一份票据表：贮藏执行层静态引同层票据叶子，票据表只在这一处造，读、预检、执行三条路径看到的是同一张表。"
     }
   ]
 }
