@@ -47,7 +47,7 @@ declare function vcChangesPageNode(h: any, t: any, o: any): any
 // vcClonePage.ts）、冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）、变基待办页的历史改写面板（#1748 T13，vcUndoPage.ts）
 // 与动作面板（#1749 T14，vcRebasePage.ts）、配置页与钩子页两叶（#1760）、维护页整仓重写一叶（#1750 T15，vcRewritePage.ts）、诊断页正文一叶（#1761）以及 #1762 T26 的平台页
 // （vcPlatformPage.ts）与迁移页 14.1 导出向导（vcMigrateExport.ts）都由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。十三条声明并进同一条物理行：本文件贴着 350 有效行上限。
-declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcMigratePageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any; declare function vcRebasePageNode(h: any, t: any, o: any): any; declare const vcRewritePageNode: any; declare function vcConfigPageNode(h: any, t: any, o: any): any; declare function vcHooksPageNode(h: any, t: any, o: any): any; declare function vcDiagnosticsMountNode(h: any, t: any, o: any): any; declare function vcPlatformPageNode(h: any, t: any, o: any): any; declare function vcMigrateExportNode(h: any, t: any, o: any): any // #1761 诊断页正文（只在诊断页且传了读数时挂载）
+declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcMigratePageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any; declare function vcRebasePageNode(h: any, t: any, o: any): any; declare const vcRewritePageNode: any; declare function vcConfigPageNode(h: any, t: any, o: any): any; declare function vcHooksPageNode(h: any, t: any, o: any): any; declare function vcDiagnosticsMountNode(h: any, t: any, o: any): any; declare function vcPlatformPageNode(h: any, t: any, o: any): any; declare function vcMigrateExportNode(h: any, t: any, o: any): any; declare const vcMaintenancePageNode: any; declare const vcMaintenanceDiagNode: any // #1758 T22 维护页与诊断页两叶；#1761 诊断页正文（只在诊断页且传了读数时挂载）
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']; // 两套皮肤：深浅各一套语义色，页面壳只把皮肤名透传给 CSS 与根属性。
@@ -293,7 +293,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     ]))
   }
   // #1756 T20 克隆向导（能力 8.16）：迁移与备份页的正文；组件自己保存表单与进度，壳只把取词、工作区与发电话的函数递进去。
-  if (page === 'migrate') children.push(h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcRewritePageNode, { key: 'rewrite', t: t, cwd: opts.cwd || '', call: opts.call || null })) // #1750 T15 维护页整仓重写（能力 5.11）正文；与克隆向导同一物理行：本文件贴着 350 有效行上限
+  if (page === 'migrate') children.push(h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcRewritePageNode, { key: 'rewrite', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcMaintenancePageNode, { key: 'maintenance-cards', t: t, cwd: opts.cwd || '', call: opts.call || null })) // #1750 T15 维护页整仓重写（能力 5.11）正文；#1758 T22 维护页 11.4–11.11 正文；三块同一物理行：本文件贴着 350 有效行上限
   // 分支与标签页的业务面板（#1746 T11）：调用方把一份读数传进来才画；没传整块不出现，其它页渲染不变。
   if (page === 'branch-tags' && opts.branchBoard !== undefined) {
     children.push(Object.assign({}, vcBranchBoardNode(h, t, {
@@ -306,7 +306,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   // 历史高级查询面板（#1745 T10）：提交历史页落 3.4 / 3.6 / 3.7 / 3.8 / 3.10 / 3.12 六组，
   //   「管理 › 诊断」页落 3.5 / 3.9 / 3.11 / 3.13 四组（四条的主入口就在那一页，面板自己标主入口）。
   //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。
-  const queryNode = vcQueryPageNode(h, t, opts); if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' })); const diagNode: any = typeof vcDiagnosticsMountNode === 'function' ? vcDiagnosticsMountNode(h, t, opts) : null; if (diagNode) children.push(Object.assign({}, diagNode, { key: 'diagnostics' })) // #1761 诊断页正文：二分与替换是仅有的两个受控写，其余只读；判断与推入也并成一行（本文件贴着 350 有效行上限）。
+  const queryNode = vcQueryPageNode(h, t, opts); if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' })); const diagNode: any = typeof vcDiagnosticsMountNode === 'function' ? vcDiagnosticsMountNode(h, t, opts) : null; if (diagNode) children.push(Object.assign({}, diagNode, { key: 'diagnostics' })); const maintDiagNode: any = typeof vcMaintenanceDiagNode === 'function' ? h(vcMaintenanceDiagNode, { key: 'maintenance-diag', t: t, cwd: opts.cwd || '', call: opts.call || null }) : null; if (maintDiagNode) children.push(Object.assign({}, maintDiagNode, { key: 'maintenance-diag' })) // #1758 T22 诊断页 11.2–11.4 正文；#1761 诊断页正文：二分与替换是仅有的两个受控写，其余只读；判断与推入也并成一行（本文件贴着 350 有效行上限）。
   children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
   // 改动页的 13 条动作面板（#1742）：页面把改动读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
