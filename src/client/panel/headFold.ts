@@ -10,6 +10,9 @@
 // 让位顺序（维护者定，就是下面 steps 的先后）：
 //   ① 最右侧那两个控件先瘦身：刷新按钮上的字逐字变少（刷新 → 刷 → 一个字都不剩，只剩齿轮图标），
 //      再轮到时间标签那句相对时间逐字变少（3 分钟前 → 3 分钟 → 3 分 → …）；
+//   #1697：通知中心的未读入口（一颗带数字的铃铛徽标）插在「刷新」与「时间标签」之间让位 ——
+//      它与那几颗单字形小图标一样没有字，一步收走；排在时间与仓库名之前，是因为窄面板（300–520 像素）
+//      要先保住仓库名与时间，多出来的徽标不该把它们挤短。没有徽标时（data.badge 为空）这条阶梯与旧版逐档一致。
 //   ② 然后仓库名尾部逐字变短，末尾补一个省略号记号说明「后面还有字」；完整名字在悬停提示里，一个字都不丢；
 //   ③ 然后那几颗单字形小图标从最右一颗开始，一颗一颗撤；
 //   ④ 刷新那颗齿轮图标不在阶梯里 —— 谁也收不走它。
@@ -21,12 +24,16 @@
 // （#1251：本文件由同名 .js 转成 .ts，只补类型标注（形参一律 any）与环境声明，运行时行为一字不动。约束：不许加运行时 import（跨文件名字一律 ambient declare，构建拼闭包时拒收残留 import）；不许 export default；只写可剥离类型。）
 // 本文件不引用闭包里别的名字，转 TS 时不需要环境声明（刻意留一行说明，免得后人以为漏了）。
 
-/** 排一条阶梯。data = { name, refresh, time, icons }：那三串字，加小图标的撤走顺序（靠前的先撤）。 */
+/** 排一条阶梯。data = { name, refresh, time, icons, badge? }：那三串字，加小图标的撤走顺序（靠前的先撤）。
+ *  badge 是可选的通知中心未读入口：非空字符串表示这一行上有这颗徽标，它占一格让位（一个单字形图标那么宽），
+ *  排位在「刷新」之后、「时间」之前（#1697）；不传或空串时不产这一步，旧调用方拿到的阶梯与从前一字不差。 */
 export const headFoldLadderOf = function (data: any) {
   const d = data || {}
   const ladder: any = { name: String(d.name || ''), refresh: String(d.refresh || ''), time: String(d.time || ''), steps: [] }
   const push = function (el: any, n: any) { for (let i = 1; i <= n; i++) ladder.steps.push({ el: el, n: i }) }
   push('refresh', ladder.refresh.length) // ① 刷新按钮上的字
+  // #1697：未读入口在时间与仓库名之前让位，窄面板优先保住仓库名与时间。它是一颗没有字的徽标，一步收走。
+  if (typeof d.badge === 'string' && d.badge.length > 0) ladder.steps.push({ el: 'badge' })
   push('time', ladder.time.length)       // ① 时间标签那句相对时间
   push('name', ladder.name.length)       // ② 仓库名（尾部逐字减）
   const icons = Array.isArray(d.icons) ? d.icons : []
@@ -40,9 +47,12 @@ export const headFoldStateAt = function (ladder: any, tier: any) {
   const n = Math.max(0, Math.min(Math.floor(Number(tier) || 0), steps.length))
   const dropped: any = { refresh: 0, time: 0, name: 0 }
   const icons: any = {}
+  // #1697：徽标默认在场；走到它那一步就收起（与图标一样是一整颗消失，不是逐字变短）。
+  let badge = true
   for (let i = 0; i < n; i++) {
     const s = steps[i]
     if (s.el === 'icon') icons[String(s.id)] = false
+    else if (s.el === 'badge') badge = false
     else if (s.el === 'refresh' || s.el === 'time' || s.el === 'name') dropped[s.el] = s.n
   }
   const cut = function (text: any, drop: any) { return text.slice(0, Math.max(0, text.length - drop)) }
@@ -53,5 +63,7 @@ export const headFoldStateAt = function (ladder: any, tier: any) {
     // 仓库名一收短就带省略号记号；记号自己也算一个字符，于是最后一步恰好是「X…」→「…」。
     name: cut(l.name, dropped.name) + (dropped.name > 0 && l.name ? '…' : ''),
     icons: icons,
+    // true = 这一档上徽标还在画；false = 已收走。没有 badge 步的阶梯恒为 true（旧调用方行为不变）。
+    badge: badge,
   }
 }
