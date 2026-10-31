@@ -242,7 +242,8 @@ async function main() {
     // #1745 加了历史高级查询一条电话 wf.gitHistoryQuery（十条查询共用一个只读电话），81 → 82。
     // #1743 加了提交页一条只读电话 wf.gitCommitForm（读身份、签名配置、提交说明模板与上一条提交原文），82 → 83。
     // #1755 加了同步域两条电话 wf.gitSyncCheck / wf.gitSyncWrite（10 条动作共用的预检签票与凭票执行），83 → 85。
-    check(nPhones === 85, '宿主电话八十五条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1759 加了迁移与备份域两条电话 wf.gitMigrateCheck / wf.gitMigrateWrite（预检签票与凭票执行），85 → 87。
+    check(nPhones === 87, '宿主电话八十七条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——
