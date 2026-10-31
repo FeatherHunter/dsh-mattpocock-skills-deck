@@ -56,6 +56,8 @@
 declare const styles: any;
 declare const STYLE_TEXT: any;
 declare const VC_STYLE_TEXT: any;
+// #1738 页面壳样式（另起样式叶子 vcShellStyles.ts，走同一个 styles.insert 接缝）。
+declare const VC_SHELL_STYLE_TEXT: any;
 declare const PIXEL_STYLE_TEXT: any;
 declare const FEEDBACK_STYLE_TEXT: any;
 declare const installUiFeedback: any;
@@ -110,6 +112,9 @@ export default {
     //   注入仍走同一个 styles.insert 接缝 —— 不是第二个 <style>，也没有新的注入机制。
     // ==== leaf:vcStyles (spliced by build) ====
     styles.insert(VC_STYLE_TEXT)
+    // #1738 页面壳的视觉语言（深浅两套语义色、四档宽排布）：仍是 styles.insert 这同一个接缝。
+    // ==== leaf:vcShellStyles (spliced by build) ====
+    styles.insert(VC_SHELL_STYLE_TEXT)
     // 887：技能详情像素风皮肤另起一个样式叶子（与 vcStyles 同一套做法）。
     // ==== leaf:pixelStyles (spliced by build) ====
     styles.insert(PIXEL_STYLE_TEXT)
@@ -228,6 +233,8 @@ export default {
     // src/shared/version-control/rules.js）。界面按同一份判定画按钮状态，不自己算 —— 自己算就会与
     // 宿主执行前那次判定各说各话。
     // ==== shared:vcRules (spliced by build) ====
+    // #1738 页面注册表与命令面板的唯一数据源（能力账本），拼接做法与上面几份相同。
+    // ==== shared:vcCapabilityLedger (spliced by build) ====
     // #1342 域文档布局的两种取值（single / multi）只有一份真源（src/shared/doc-layout/src/layouts.ts →
     // .build/shared/doc-layout/layouts.js）。宿主侧选择记忆与工作区配置核按普通相对 import 取同一份；
     // 界面那一半不能运行时 import src/shared，与上面几份一样拼进闭包，状态栏与初始化卡按同一份名单校验，
@@ -334,7 +341,7 @@ export default {
     // ==== leaf:chainRenderer (spliced by build) ====
     // ==== leaf:skillFloatList (spliced by build) ====
     // ==== leaf:vcText (spliced by build) ==== // ==== leaf:vcFold (spliced by build) ==== // ==== leaf:vcDiff (spliced by build) ==== // ==== leaf:vcCommit (spliced by build) ==== // ==== leaf:vcRows (spliced by build) ==== // ==== leaf:vcWrite (spliced by build) ==== // ==== leaf:vcWriteRun (spliced by build) ==== // ==== leaf:vcWriteUi (spliced by build) ==== // ==== leaf:vcWriteOps (spliced by build) ==== // ==== leaf:vcWriteView (spliced by build) ==== // ==== leaf:vcDiffOps (spliced by build) ==== // ==== leaf:vcBlocks (spliced by build) ==== // ==== leaf:vcViews (spliced by build) ==== // ==== leaf:vcAiHandoff (spliced by build) ====
-    // ==== leaf:vcTabVisible (spliced by build) ==== // ==== leaf:vcData (spliced by build) ==== // ==== leaf:vcCache (spliced by build) ==== // ==== leaf:vcInView (spliced by build) ==== // ==== leaf:versionControlTab (spliced by build) ====
+    // ==== leaf:vcTabVisible (spliced by build) ==== // ==== leaf:vcData (spliced by build) ==== // ==== leaf:vcCache (spliced by build) ==== // ==== leaf:vcInView (spliced by build) ==== // ==== leaf:vcCapabilityPages (spliced by build) ==== // ==== leaf:vcShellPrimitives (spliced by build) ==== // ==== leaf:vcPalette (spliced by build) ==== // ==== leaf:vcShellPages (spliced by build) ==== // ==== leaf:versionControlTab (spliced by build) ====
     // ==== leaf:tabs (spliced by build) ====
     // ==== leaf:truthLines (spliced by build) ====
     // #1699：降级提示不再占列表一行 —— 小标识画在列表头部 KPI 那一行里（判据仍是上面 truthLines 里的 restFallbackView）；历史由通知中心承载。
