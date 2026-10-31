@@ -76,9 +76,10 @@ const MATRIX: [string, string, string[]][] = [
   ['src/client/views/DetailActionBar.ts', '地图底部执行/档案', ['map.dest.exec', 'map.dest.archive']],
   ['src/client/views/IssueDetail.ts', '工单详情顶栏、父链接、子票与被阻塞行', ['issue.top.back', 'issue.top.exec', 'issue.top.newsession', 'issue.top.copy', 'issue.top.link', 'issue.parent.', 'issue.sub.', 'issue.blocked.']],
   ['src/client/views/IssueDetailComments.ts', '评论发送', ['issue.comment.send']],
-  // base 包接入：底部「作者其他插件」四行静态链接改由 base 包渲染（SettingsPage 里已无插件行），
-  //   本页只剩标题行三颗可点控件；联系入口与推荐卡的点击日志由 base 包自己带，不归这份清单。
-  ['src/client/views/SettingsPage.ts', '设置页 star/issue/版本号', ['settings.version', 'settings.star', 'settings.issue']],
+  // base 包接入：底部「作者其他插件」四行静态链接改由 base 包渲染（SettingsPage 里已无插件行）；
+  //   base 0.1.1 起标题行的 star/issue 两枚表情也并入包里的页头三件套（联系/Star/Issue），
+  //   本页自己只剩版本号这一颗可点控件；页头三件套、联系入口与推荐卡的点击日志由 base 包自己带，不归这份清单。
+  ['src/client/views/SettingsPage.ts', '设置页版本号', ['settings.version']],
   ['src/client/views/SettingsWorkspaces.ts', '工作区总览刷新与展开收起', ['settings.workspaces.toggle', 'settings.workspaces.refresh']],
   ['src/client/views/diagnosticLog/DiagnosticLogSection.ts', '调试开关与四颗日志按钮', ['settings.debug.toggle', 'settings.log.export', 'settings.log.open', 'settings.log.copy', 'settings.log.clear']],
   // 2026-10-21 补全：清单之外的可点控件也补齐了接线（用户要求「把所有遗漏的控件都补全了」），
@@ -567,7 +568,7 @@ function audit(read: (p: string) => string): AuditResult[] {
   check(LIGHT_CASES.length === 14 && lightCaseReds.length === 0,
     'F32 十四处浅色个例两头对齐：组件里挂着稳定标记（类名或 data-state），浅色层里有一条带 body:not([data-ds-dark-theme]) 前缀、专认这个标记的规则（' + LIGHT_CASES.length + ' 处；只改一头就红）' +
     (lightCaseReds.length ? '；对不上：' + lightCaseReds.join('；') : ''))
-  for (const [file, label] of [['src/client/panel/Dock.ts', '头部 chip/切后端/刷新'], ['src/client/views/shared/Tabs.ts', '新建需求/+bug'], ['src/client/views/labels/LabelColorEntry.ts', '调色板'], ['src/client/views/shared/workRouteTable.ts', '在办表'], ['src/client/views/SettingsPage.ts', '设置页 star/issue/插件行'], ['src/client/views/SettingsWorkspaces.ts', '工作区刷新与展开'], ['src/client/views/IssueDetail.ts', '父链接与被阻塞行']] as [string, string][]) {
+  for (const [file, label] of [['src/client/panel/Dock.ts', '头部 chip/切后端/刷新'], ['src/client/views/shared/Tabs.ts', '新建需求/+bug'], ['src/client/views/labels/LabelColorEntry.ts', '调色板'], ['src/client/views/shared/workRouteTable.ts', '在办表'], ['src/client/views/SettingsPage.ts', '设置页版本号'], ['src/client/views/SettingsWorkspaces.ts', '工作区刷新与展开'], ['src/client/views/IssueDetail.ts', '父链接与被阻塞行']] as [string, string][]) {
     check(read(file).indexOf('dsws-hov') >= 0, 'F ' + label + ' 用同一套甩停样式（dsws-hov），不各写一份')
   }
 

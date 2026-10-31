@@ -1,17 +1,17 @@
-// 派生文件（base 包接入）：由已安装的 dsh-featherhunter-plugin-base@0.0.2 的 dist/client/index.js 内联生成，内容与安装版本一致，人手不改。
+// 派生文件（base 包接入）：由已安装的 dsh-featherhunter-plugin-base@0.1.1 的 dist/client/index.js 内联生成，内容与安装版本一致，人手不改。
 // 构建时拼入客户端闭包（src/client/index.ts 的 kernel:baseClient 标记处）；首行保留包的版本横幅供 doctor 的 inline-bundle-version 核对。
 // 重新生成：node scripts/derive-base-from-package.mts（重跑零 diff）。
 // ---- 作用域隔离：包体顶层声明包进 IIFE 藏起来，只留两个外面要用的 ----
 const __basePkgScope = (() => {
-  /*! dsh-featherhunter-plugin-base v0.0.2 */
+  /*! dsh-featherhunter-plugin-base v0.1.1 */
 
   // src/core/baseline.ts
   var BASELINE = {
     "manifest": {
       "schema": 1,
-      "version": "0.0.2",
-      "revision": 1,
-      "updatedAt": "2026-10-23T00:00:00+08:00",
+      "version": "0.1.1",
+      "revision": 2,
+      "updatedAt": "2026-10-31T00:00:00+08:00",
       "fallbackUrl": "https://github.com/FeatherHunter/featherhunter-plugin-manage",
       "groups": [
         {
@@ -86,10 +86,10 @@ const __basePkgScope = (() => {
             "zh": "DSH \u63D2\u4EF6\u4EA4\u6D41\u7FA4\u5FAE\u4FE1\u7FA4\u4E8C\u7EF4\u7801",
             "en": "DSH plugin community group WeChat QR code"
           },
-          "card": "card-wechat-2026-10-23.png",
+          "card": "card-wechat-2026-10-31.png",
           "qr": {
             "kind": "remote",
-            "path": "qr-wechat-2026-10-23.png"
+            "path": "qr-wechat-2026-10-31.png"
           },
           "title": {
             "zh": "DSH \u63D2\u4EF6\u4EA4\u6D41\u7FA4",
@@ -99,7 +99,7 @@ const __basePkgScope = (() => {
             "zh": "\u7FA4\u804A\uFF1ADSH \u63D2\u4EF6\u4EA4\u6D41\u7FA4",
             "en": "Group chat: DSH Plugin Community"
           },
-          "validUntil": "2026-10-30"
+          "validUntil": "2026-11-07"
         }
       ],
       "plugins": [
@@ -356,6 +356,344 @@ const __basePkgScope = (() => {
       ids.add(group.id);
     }
     return { schema: 1, version, revision, updatedAt, fallbackUrl, groups, plugins };
+  }
+
+  // src/client/hover-tip.ts
+  var TIP_CLASS = "dsh-base-tip";
+  var GAP = 8;
+  var EDGE = 8;
+  var activeDispose = null;
+  var tipSerial = 0;
+  function createHoverTip(React) {
+    const h = React.createElement;
+    function HoverTip(props) {
+      const anchorRef = React.useRef(null);
+      const hideTimer = React.useRef(null);
+      const [hovered, setHovered] = React.useState(false);
+      const [dismissed, setDismissed] = React.useState(false);
+      const controlled = props.visible !== void 0;
+      const active = (controlled ? Boolean(props.visible) : hovered) && !dismissed;
+      const hideDelay = props.hideDelay ?? 160;
+      const clearHide = React.useCallback(() => {
+        if (hideTimer.current === null) return;
+        clearTimeout(hideTimer.current);
+        hideTimer.current = null;
+      }, []);
+      const show = React.useCallback(() => {
+        clearHide();
+        setDismissed(false);
+        setHovered(true);
+      }, [clearHide]);
+      const hideSoon = React.useCallback(() => {
+        clearHide();
+        hideTimer.current = setTimeout(() => {
+          hideTimer.current = null;
+          setHovered(false);
+        }, hideDelay);
+      }, [clearHide, hideDelay]);
+      React.useEffect(() => clearHide, [clearHide]);
+      React.useEffect(() => {
+        setDismissed(false);
+      }, [props.visible, props.content]);
+      React.useEffect(() => {
+        if (!active || !props.content) return void 0;
+        if (typeof document === "undefined") return void 0;
+        const anchor = anchorRef.current;
+        if (!anchor) return void 0;
+        if (!controlled) activeDispose?.();
+        const el = document.createElement("div");
+        el.className = TIP_CLASS;
+        el.id = "dsh-base-tip-" + (tipSerial += 1);
+        el.setAttribute("role", "tooltip");
+        el.textContent = props.content;
+        el.style.maxWidth = String(props.maxWidth ?? 320) + "px";
+        const place = () => {
+          if (!el.isConnected || !anchor.isConnected) return;
+          const rect = anchor.getBoundingClientRect();
+          const width = el.offsetWidth;
+          const height = el.offsetHeight;
+          const viewW = window.innerWidth;
+          const viewH = window.innerHeight;
+          let side = props.placement ?? "top";
+          if (side === "top" && rect.top - height - GAP < EDGE) side = "bottom";
+          if (side === "bottom" && rect.bottom + height + GAP > viewH - EDGE) {
+            side = rect.top - height - GAP >= EDGE ? "top" : "bottom";
+          }
+          const centered = rect.left + rect.width / 2 - width / 2;
+          const maxLeft = Math.max(EDGE, viewW - width - EDGE);
+          const left = Math.min(Math.max(centered, EDGE), maxLeft);
+          const wanted = side === "top" ? rect.top - height - GAP : rect.bottom + GAP;
+          el.style.left = Math.round(left) + "px";
+          el.style.top = Math.round(Math.max(EDGE, Math.min(wanted, viewH - height - EDGE))) + "px";
+          el.dataset.side = side;
+        };
+        document.body.appendChild(el);
+        place();
+        let frame = 0;
+        if (typeof window.requestAnimationFrame === "function") {
+          frame = window.requestAnimationFrame(() => {
+            el.dataset.show = "true";
+          });
+        } else {
+          el.dataset.show = "true";
+        }
+        const onViewportChange = () => place();
+        window.addEventListener("scroll", onViewportChange, true);
+        window.addEventListener("resize", onViewportChange);
+        const onKeyDown = (event) => {
+          if (event.key !== "Escape") return;
+          setHovered(false);
+          setDismissed(true);
+          el.remove();
+        };
+        document.addEventListener("keydown", onKeyDown, true);
+        const dispose = () => {
+          window.removeEventListener("scroll", onViewportChange, true);
+          window.removeEventListener("resize", onViewportChange);
+          document.removeEventListener("keydown", onKeyDown, true);
+          if (typeof window.cancelAnimationFrame === "function") window.cancelAnimationFrame(frame);
+          el.remove();
+          if (activeDispose === dispose) activeDispose = null;
+        };
+        if (!controlled) activeDispose = dispose;
+        return dispose;
+      }, [active, controlled, props.content, props.maxWidth, props.placement]);
+      return h(
+        "span",
+        {
+          ref: anchorRef,
+          className: "dsh-base-tip-anchor" + (props.className ? " " + props.className : ""),
+          onMouseEnter: show,
+          onMouseLeave: hideSoon,
+          onFocus: show,
+          onBlur: hideSoon
+        },
+        props.children ?? null
+      );
+    }
+    return HoverTip;
+  }
+
+  // src/client/icons.ts
+  function contactIcon(h, size) {
+    return h(
+      "svg",
+      {
+        width: size,
+        height: size,
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: 1.8,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        "aria-hidden": "true",
+        focusable: "false"
+      },
+      h("rect", { x: 3, y: 3, width: 18, height: 18, rx: 4, key: "frame" }),
+      h("rect", { x: 7, y: 7, width: 3.6, height: 3.6, rx: 1, key: "tl" }),
+      h("rect", { x: 13.4, y: 7, width: 3.6, height: 3.6, rx: 1, key: "tr" }),
+      h("rect", { x: 7, y: 13.4, width: 3.6, height: 3.6, rx: 1, key: "bl" }),
+      h("path", {
+        d: "M13.4 14h1.4M13.4 17.2h1.4M16.8 14h1.4M16.8 17.2h1.4",
+        key: "data"
+      })
+    );
+  }
+  function gridIcon(h, size) {
+    return h(
+      "svg",
+      {
+        width: size,
+        height: size,
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: 2,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        "aria-hidden": "true",
+        focusable: "false"
+      },
+      h("rect", { x: 3, y: 3, width: 7, height: 7, rx: 1, key: "tl" }),
+      h("rect", { x: 14, y: 3, width: 7, height: 7, rx: 1, key: "tr" }),
+      h("rect", { x: 3, y: 14, width: 7, height: 7, rx: 1, key: "bl" }),
+      h("rect", { x: 14, y: 14, width: 7, height: 7, rx: 1, key: "br" })
+    );
+  }
+  function starIcon(h, size) {
+    return h(
+      "svg",
+      {
+        width: size,
+        height: size,
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: 1.8,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        "aria-hidden": "true",
+        focusable: "false"
+      },
+      h("path", {
+        d: "M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4.1-4 5.7-.8Z",
+        key: "star"
+      })
+    );
+  }
+  function issueIcon(h, size) {
+    return h(
+      "svg",
+      {
+        width: size,
+        height: size,
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: 1.8,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        "aria-hidden": "true",
+        focusable: "false"
+      },
+      h("circle", { cx: 12, cy: 12, r: 9, key: "ring" }),
+      h("path", { d: "M12 7.8v4.8", key: "stem" }),
+      h("path", { d: "M12 16.2h.01", key: "dot" })
+    );
+  }
+  function externalLinkIcon(h) {
+    return h(
+      "svg",
+      {
+        width: 14,
+        height: 14,
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: 2,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        "aria-hidden": "true",
+        focusable: "false"
+      },
+      h("path", {
+        d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6",
+        key: "box"
+      }),
+      h("polyline", { points: "15 3 21 3 21 9", key: "arrow" }),
+      h("line", { x1: 10, y1: 14, x2: 21, y2: 3, key: "line" })
+    );
+  }
+
+  // src/client/actions.ts
+  function classes(first, extra) {
+    return extra ? first + " " + extra : first;
+  }
+  function trimSlashes(url) {
+    return url.replace(/\/+$/, "");
+  }
+  function createActions(React, deps) {
+    const h = React.createElement;
+    const HoverTip = createHoverTip(React);
+    function iconAction(spec) {
+      const body = h(
+        "span",
+        {
+          className: "dsh-base-icon-action__icon",
+          key: "icon",
+          "aria-hidden": "true"
+        },
+        spec.icon
+      );
+      const control = spec.href ? h(
+        "a",
+        {
+          className: classes("dsh-base-icon-action", spec.className),
+          href: spec.href,
+          target: "_blank",
+          rel: "noreferrer noopener",
+          "aria-label": spec.label,
+          key: "control"
+        },
+        body
+      ) : h(
+        "button",
+        {
+          type: "button",
+          className: classes("dsh-base-icon-action", spec.className),
+          "aria-label": spec.label,
+          key: "control",
+          onClick: (event) => {
+            spec.onClick?.(event.currentTarget);
+          }
+        },
+        body
+      );
+      return h(HoverTip, { content: spec.tip }, control);
+    }
+    function ContactButton(props) {
+      const size = props.size ?? 16;
+      return iconAction({
+        className: classes("dsh-base-contact-button", props.className),
+        label: props.title ?? deps.text("contact"),
+        tip: props.tip ?? deps.text("contactTip"),
+        icon: contactIcon(h, size),
+        onClick: (trigger) => deps.openContact(trigger)
+      });
+    }
+    function StarButton(props) {
+      const href = props.repoUrl ?? deps.repoUrl;
+      if (!href) return null;
+      return iconAction({
+        className: props.className,
+        label: props.label ?? deps.text("starLabel"),
+        tip: props.tip ?? deps.text("starTip"),
+        href,
+        icon: starIcon(h, props.size ?? 16)
+      });
+    }
+    function IssueButton(props) {
+      const explicit = props.issuesUrl ?? deps.issuesUrl;
+      const repo = props.repoUrl ?? deps.repoUrl;
+      const href = explicit ?? (repo ? trimSlashes(repo) + "/issues" : void 0);
+      if (!href) return null;
+      return iconAction({
+        className: props.className,
+        label: props.label ?? deps.text("issueLabel"),
+        tip: props.tip ?? deps.text("issueTip"),
+        href,
+        icon: issueIcon(h, props.size ?? 16)
+      });
+    }
+    function actionSet(props, grouped) {
+      return h(
+        "span",
+        {
+          className: classes(
+            grouped ? "dsh-base-actions dsh-base-actions--group" : "dsh-base-actions",
+            props.className
+          ),
+          role: "group",
+          "aria-label": deps.text("actionsLabel")
+        },
+        h(ContactButton, { size: props.size, key: "contact" }),
+        h(StarButton, { size: props.size, repoUrl: props.repoUrl, key: "star" }),
+        h(IssueButton, {
+          size: props.size,
+          repoUrl: props.repoUrl,
+          issuesUrl: props.issuesUrl,
+          key: "issue"
+        })
+      );
+    }
+    function ActionButtons(props) {
+      return actionSet(props, false);
+    }
+    function ActionGroup(props) {
+      return actionSet(props, true);
+    }
+    return { ContactButton, StarButton, IssueButton, ActionButtons, ActionGroup, HoverTip };
   }
 
   // src/client/content.ts
@@ -654,77 +992,6 @@ const __basePkgScope = (() => {
     return new ContentLoader(options);
   }
 
-  // src/client/icons.ts
-  function contactIcon(h, size) {
-    return h(
-      "svg",
-      {
-        width: size,
-        height: size,
-        viewBox: "0 0 24 24",
-        fill: "none",
-        stroke: "currentColor",
-        strokeWidth: 1.8,
-        strokeLinecap: "round",
-        strokeLinejoin: "round",
-        "aria-hidden": "true",
-        focusable: "false"
-      },
-      h("rect", { x: 3, y: 3, width: 18, height: 18, rx: 4, key: "frame" }),
-      h("rect", { x: 7, y: 7, width: 3.6, height: 3.6, rx: 1, key: "tl" }),
-      h("rect", { x: 13.4, y: 7, width: 3.6, height: 3.6, rx: 1, key: "tr" }),
-      h("rect", { x: 7, y: 13.4, width: 3.6, height: 3.6, rx: 1, key: "bl" }),
-      h("path", {
-        d: "M13.4 14h1.4M13.4 17.2h1.4M16.8 14h1.4M16.8 17.2h1.4",
-        key: "data"
-      })
-    );
-  }
-  function gridIcon(h, size) {
-    return h(
-      "svg",
-      {
-        width: size,
-        height: size,
-        viewBox: "0 0 24 24",
-        fill: "none",
-        stroke: "currentColor",
-        strokeWidth: 2,
-        strokeLinecap: "round",
-        strokeLinejoin: "round",
-        "aria-hidden": "true",
-        focusable: "false"
-      },
-      h("rect", { x: 3, y: 3, width: 7, height: 7, rx: 1, key: "tl" }),
-      h("rect", { x: 14, y: 3, width: 7, height: 7, rx: 1, key: "tr" }),
-      h("rect", { x: 3, y: 14, width: 7, height: 7, rx: 1, key: "bl" }),
-      h("rect", { x: 14, y: 14, width: 7, height: 7, rx: 1, key: "br" })
-    );
-  }
-  function externalLinkIcon(h) {
-    return h(
-      "svg",
-      {
-        width: 14,
-        height: 14,
-        viewBox: "0 0 24 24",
-        fill: "none",
-        stroke: "currentColor",
-        strokeWidth: 2,
-        strokeLinecap: "round",
-        strokeLinejoin: "round",
-        "aria-hidden": "true",
-        focusable: "false"
-      },
-      h("path", {
-        d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6",
-        key: "box"
-      }),
-      h("polyline", { points: "15 3 21 3 21 9", key: "arrow" }),
-      h("line", { x1: 10, y1: 14, x2: 21, y2: 3, key: "line" })
-    );
-  }
-
   // src/client/styles.ts
   var BASE_STYLE_ID = "dsh-base-ui-style";
   function rowSkin(className) {
@@ -751,6 +1018,24 @@ const __basePkgScope = (() => {
     ".dsh-base-contact-row__hint{font-size:12px;color:var(--dsw-alias-label-tertiary,#a9aeb8)}",
     ".dsh-base-contact-row__ext{display:inline-flex;flex:0 0 auto;align-items:center;color:var(--dsw-alias-label-tertiary,#a9aeb8)}",
     ".dsh-base-contact-row__ext svg{display:block}",
+    // --- header actions: contact / star / issue --------------------------------
+    // Icon-only actions share one skin and the deck line-icon grammar (16px).
+    ".dsh-base-icon-action{display:inline-flex;align-items:center;justify-content:center;padding:6px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;line-height:0;text-decoration:none;cursor:pointer;transition:background .15s ease,color .15s ease}",
+    ".dsh-base-icon-action:hover{background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.12))}",
+    ".dsh-base-icon-action:focus-visible{outline:2px solid var(--dsw-alias-link,#4d6bfe);outline-offset:2px}",
+    ".dsh-base-icon-action__icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}",
+    ".dsh-base-icon-action__icon svg{display:block}",
+    // Three separate buttons: 2px apart, no background of their own.
+    ".dsh-base-actions{display:inline-flex;flex:0 0 auto;align-items:center;gap:2px}",
+    // Combined capsule: 1px frame + hairline dividers between the three actions.
+    ".dsh-base-actions--group{gap:0;padding:1px;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.2));border-radius:10px;background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.04))}",
+    ".dsh-base-actions--group>.dsh-base-icon-action{border-radius:7px}",
+    ".dsh-base-actions--group>.dsh-base-icon-action+.dsh-base-icon-action{box-shadow:inset 1px 0 0 var(--dsw-alias-border-l1,rgba(127,127,127,.2))}",
+    // --- hover tooltip (deck-style): dark one-liner above the trigger ----------
+    ".dsh-base-tip-anchor{display:inline-flex;align-items:center}",
+    ".dsh-base-tip{position:fixed;z-index:2147483000;max-width:320px;padding:6px 10px;border-radius:8px;background:rgba(23,23,26,.94);color:#fff;font-size:12px;font-weight:400;line-height:1.55;letter-spacing:0;text-align:left;white-space:normal;overflow-wrap:anywhere;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.28);opacity:0;transform:translateY(2px);transition:opacity .12s ease,transform .12s ease}",
+    ".dsh-base-tip[data-side='bottom']{transform:translateY(-2px)}",
+    ".dsh-base-tip[data-show='true']{opacity:1;transform:none}",
     // --- dialog shell -----------------------------------------------------------
     ".dsh-base-modal{position:fixed;inset:0;margin:auto;width:min(800px,92vw);max-width:min(800px,92vw);max-height:88vh;padding:0;border:0;border-radius:18px;background:var(--dsw-alias-bg-layer-2,#fff);color:var(--dsw-alias-label-primary,#1f2329);box-shadow:0 24px 64px rgba(0,0,0,.24);overflow:hidden}",
     ".dsh-base-modal[open]{display:block}",
@@ -804,7 +1089,7 @@ const __basePkgScope = (() => {
     "@media (max-width:719px){.dsh-base-modal__grid{grid-template-columns:repeat(2,minmax(0,1fr))}}",
     "@media (max-width:479px){.dsh-base-modal__grid{grid-template-columns:minmax(0,1fr)}}",
     "@media (max-width:719px){.dsh-base-modal__mobile-hint{display:inline}}",
-    "@media (prefers-reduced-motion:reduce){.dsh-base-modal__close,.dsh-base-modal__card-subtitle,.dsh-base-contact-button,.dsh-base-contact-row,.dsh-base-plugins__row{transition:none}}"
+    "@media (prefers-reduced-motion:reduce){.dsh-base-modal__close,.dsh-base-modal__card-subtitle,.dsh-base-contact-button,.dsh-base-contact-row,.dsh-base-plugins__row,.dsh-base-icon-action,.dsh-base-tip{transition:none}}"
   ].join("\n");
   function ensureBaseStyles(doc) {
     if (doc.getElementById(BASE_STYLE_ID)) return;
@@ -829,7 +1114,13 @@ const __basePkgScope = (() => {
       copied: "\u5DF2\u590D\u5236",
       expired: "\u8BE5\u4E8C\u7EF4\u7801\u5DF2\u8FC7\u671F\uFF0C\u8BF7\u70B9\u51FB\u4E0B\u65B9\u94FE\u63A5\u83B7\u53D6\u6700\u65B0\u7FA4\u7801",
       fallback: "\u70B9\u6B64\u83B7\u53D6\u6700\u65B0\u7FA4\u4E8C\u7EF4\u7801",
-      plugins: "\u4F5C\u8005\u7684\u5176\u4ED6\u63D2\u4EF6"
+      plugins: "\u4F5C\u8005\u7684\u5176\u4ED6\u63D2\u4EF6",
+      contactTip: "\u626B\u7801\u52A0\u5165\u4EA4\u6D41\u7FA4\uFF0C\u53CD\u9988\u3001\u5EFA\u8BAE\u3001idea \u90FD\u6B22\u8FCE",
+      starTip: "\u60A8\u7684\u{1F31F}\u662F\u6211\u591C\u7A7A\u4E2D\u6700\u4EAE\u7684\u661F\u{1F339}",
+      issueTip: "\u4EFB\u4F55\u529F\u80FD\u9700\u6C42\u3001\u6545\u969C\u3001\u5EFA\u8BAE\u3001\u610F\u89C1\u90FD\u53EF\u4EE5\u63D0 ISSUE",
+      starLabel: "Star \u8FD9\u4E2A\u9879\u76EE",
+      issueLabel: "\u63D0\u4EA4 Issue",
+      actionsLabel: "\u8054\u7CFB\u3001Star \u4E0E Issue"
     },
     en: {
       contact: "Contact us",
@@ -844,7 +1135,13 @@ const __basePkgScope = (() => {
       copied: "Copied",
       expired: "This QR code has expired. Use the link below for the latest one.",
       fallback: "Get the latest QR code",
-      plugins: "More plugins by the author"
+      plugins: "More plugins by the author",
+      contactTip: "Scan to join the community \u2014 feedback, ideas and rants are all welcome",
+      starTip: "Your \u2B50 is the brightest star in my night sky \u{1F339}",
+      issueTip: "Report bugs or request features in Issues",
+      starLabel: "Star this project",
+      issueLabel: "Open an issue",
+      actionsLabel: "Contact, Star and Issue"
     }
   };
   function resolveText(key, lang, overrides) {
@@ -1164,7 +1461,7 @@ const __basePkgScope = (() => {
     if (!overrides && !extra) return void 0;
     return { ...overrides, ...extra };
   }
-  function classes(base, extra) {
+  function classes2(base, extra) {
     return extra ? base + " " + extra : base;
   }
   function createBaseUI(React, options = {}) {
@@ -1267,34 +1564,21 @@ const __basePkgScope = (() => {
         handle.close();
       };
     }
-    function ContactButton(props) {
-      const h = React.createElement;
-      const label = props.title ?? widgetText("contact");
-      return h(
-        "button",
-        {
-          type: "button",
-          className: classes("dsh-base-contact-button", props.className),
-          title: label,
-          "aria-label": label,
-          onClick: (event) => {
-            openContactModal({ trigger: event.currentTarget });
-          }
-        },
-        h(
-          "span",
-          { className: "dsh-base-contact-button__icon", key: "icon", "aria-hidden": "true" },
-          contactIcon(h, props.size ?? 16)
-        )
-      );
-    }
+    const actions = createActions(React, {
+      text: widgetText,
+      openContact: (trigger) => {
+        openContactModal({ trigger });
+      },
+      repoUrl: options.repoUrl,
+      issuesUrl: options.issuesUrl
+    });
     function ContactRow(props) {
       const h = React.createElement;
       return h(
         "button",
         {
           type: "button",
-          className: classes("dsh-base-contact-row", props.className),
+          className: classes2("dsh-base-contact-row", props.className),
           onClick: (event) => {
             openContactModal({ trigger: event.currentTarget });
           }
@@ -1363,7 +1647,12 @@ const __basePkgScope = (() => {
       applyContent(handle, content);
     }
     return {
-      ContactButton,
+      ContactButton: actions.ContactButton,
+      StarButton: actions.StarButton,
+      IssueButton: actions.IssueButton,
+      ActionButtons: actions.ActionButtons,
+      ActionGroup: actions.ActionGroup,
+      HoverTip: actions.HoverTip,
       ContactRow,
       AuthorPlugins,
       openContactModal,

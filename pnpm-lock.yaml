@@ -30,8 +30,8 @@ importers:
         specifier: ^18.6.0
         version: 18.6.0
       dsh-featherhunter-plugin-base:
-        specifier: 0.0.2
-        version: 0.0.2(react@19.3.1)
+        specifier: 0.1.1
+        version: 0.1.1(react@19.3.1)
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -598,8 +598,8 @@ packages:
     engines: {node: ^22||^24||>=26}
     hasBin: true
 
-  dsh-featherhunter-plugin-base@0.0.2:
-    resolution: {integrity: sha512-4iL/yaly5dlgvKOx8hXfJ8qtAD0/W8jFGjDoWtUcqMP9t3ooj2pBE6jcwwgdta2FcHIOFs+/5eJyHmWkkGOi6A==}
+  dsh-featherhunter-plugin-base@0.1.1:
+    resolution: {integrity: sha512-9WIdT/inBvedRn0Or9iu70wQO6jVE40kS/Wgfbvh21SVbHN4wGL6zfGi0WfZ7RUmQQ7TiWWTS2jkCBtdp9GcXA==}
     engines: {node: '>=18'}
     hasBin: true
     peerDependencies:
@@ -1291,7 +1291,7 @@ snapshots:
       typescript: 5.6.3
       watskeburt: 6.0.0
 
-  dsh-featherhunter-plugin-base@0.0.2(react@19.3.1):
+  dsh-featherhunter-plugin-base@0.1.1(react@19.3.1):
     dependencies:
       react: 19.3.1
 

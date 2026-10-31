@@ -1,7 +1,8 @@
 /**
  * views/SettingsPage.ts — 配置页（TPL 表 + 设置，5.9）真源 ESM，build 拼回 src/client/index.ts leaf。
  * （原来是 .js：调试分组搬进 views/diagnosticLog/ 之后按「动到哪里转到哪里」转成 TypeScript。
- * 本页现在只剩标题、总览、调试那一组一行挂载，以及最底部由 base 包统一渲染的联系入口与作者插件卡。）
+ * 本页现在只剩标题（右侧更新入口与 base 包渲染的页头三件套）、总览、调试那一组一行挂载，以及最底部由 base
+ * 包统一渲染的联系入口与作者插件卡。）
  *
  * 跨叶子的值引用按仓里规矩写模块级 declare（实现只在闭包里有一份，类型检查各看各的）：
  * 全局已声明的（React、DswsCtx、tr）直接用；下面这几行是本文件自己声明的，只写本页实际用的形状。
@@ -17,7 +18,6 @@ declare function renderWsOverview(
   setFoldVer: (v: number) => void,
 ): unknown;
 declare const UpdateEntryHost: unknown;
-declare const HoverTip: unknown;
 declare const Icon: (props: { scheme: string; size: number }) => unknown;
 declare const Ic: (props: { n: string; size: number; color?: string }) => unknown;
 declare const NOTICE_COLOR: Record<string, string>;
@@ -27,7 +27,7 @@ declare const DSW_VERSION: unknown;
 declare const DiagnosticLogSection: (props: { sessionId?: unknown }) => unknown;
 // base 包接入：客户端内联产物（scripts/generated/baseClient.derived.js，由 derive-base 脚本从已安装包生成）
 // 只 surfacing 这两个名字，实现每份在客户端闭包里各有一份；这里按本页用到的形状声明。
-declare const __baseCreateUI: (react: unknown, options: { lang?: string; selfId?: string }) => any;
+declare const __baseCreateUI: (react: unknown, options: { lang?: string; selfId?: string; repoUrl?: string; issuesUrl?: string }) => any;
 declare const __baseEnsureStyles: (doc: unknown) => void;
 
 // base 包接入：联系入口与作者插件卡的数据与文案都由包内清单提供，本页不再写死插件行与推荐文案。
@@ -44,7 +44,14 @@ function deckBaseUI(): any {
   if (!__deckBaseUICache || __deckBaseUIReact !== React || __deckBaseUILang !== lang) {
     __deckBaseUIReact = React
     __deckBaseUILang = lang
-    __deckBaseUICache = __baseCreateUI(React, { lang: lang, selfId: 'deck' })
+    // 0.1.1 页头三件套（联系 / Star / Issue）的仓库与工单地址由工厂带下去：Star 跳仓库首页，
+    // Issue 保留原来那枚 💬 的落点（直接开新建工单页），以后换仓只改这两行。
+    __deckBaseUICache = __baseCreateUI(React, {
+      lang: lang,
+      selfId: 'deck',
+      repoUrl: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck',
+      issuesUrl: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/new',
+    })
   }
   return __deckBaseUICache
 }
@@ -63,6 +70,14 @@ function DeckAuthorPlugins(props: any): unknown {
   if (!ui) return null
   deckEnsureBaseStylesOnce()
   return React.createElement(ui.AuthorPlugins, props || {})
+}
+// base 0.1.1 页头三件套：联系（点开包内统一联系面板）+ Star + Issue 合成一枚胶囊；
+// 图标、悬停文案、键盘聚焦与尺寸都由包提供，本页只决定排在标题行哪里、给多大。
+function DeckHeaderActions(props: any): unknown {
+  const ui: any = deckBaseUI()
+  if (!ui) return null
+  deckEnsureBaseStylesOnce()
+  return React.createElement(ui.ActionGroup, props || {})
 }
 export     const SettingsPage = (props: { sessionId?: unknown }): unknown => {
       const cx = React.useContext(DswsCtx)
@@ -89,7 +104,8 @@ export     const SettingsPage = (props: { sessionId?: unknown }): unknown => {
           Ic({ n: noticeIcon(cfgNotice.kind), size: 13, color: NOTICE_COLOR[cfgNotice.kind] || '#4ade80' }),
           h('span', null, cfgNotice.text),
         ]) : null,
-        // 增-1（#520）改-2（#521）：标题同一行右侧两个表情按钮（星星只留 🌟、反馈只留 💬，一家一颗常显；悬停介绍、跳转网址、键盘聚焦不动；窄窗口换行到标题下方；状态小字旁显示构建注入的版本号去 v 前缀数字，点跳仓库首页）
+        // 增-1（#520）改-2（#521）改-3（base 0.1.1）：标题同一行右侧是更新入口与页头三件套（联系 / Star / Issue 一枚胶囊；
+        //   悬停介绍、跳转网址、键盘聚焦都由包统一提供，窄窗口换行到标题下方；状态小字旁显示构建注入的版本号去 v 前缀数字，点跳仓库首页）
         h('div', { className: 'dsws-cfg-head', style: { flexWrap: 'wrap' } }, [
           Icon({ scheme: 'compass', size: 20 }),
           h('span', { className: 't' }, tr('panel.title')),
@@ -102,10 +118,9 @@ export     const SettingsPage = (props: { sessionId?: unknown }): unknown => {
           ]),
           h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
             h(UpdateEntryHost, { key: 'update' }),
-            h(HoverTip, { key: 'star', content: tr('cfg.starTip'), maxWidth: 220 },
-              h('a', { className: 'dsws-hov', 'data-press': 'icon', 'data-log': 'settings.star', href: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck', target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: 4, borderRadius: 6, color: 'inherit', textDecoration: 'none' } }, [h('span', { 'aria-hidden': 'true', style: { fontSize: 14, lineHeight: 1 } }, '🌟')])),
-            h(HoverTip, { key: 'feedback', content: tr('cfg.feedbackTip'), maxWidth: 220 },
-              h('a', { className: 'dsws-hov', 'data-press': 'icon', 'data-log': 'settings.issue', href: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/new', target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: 4, borderRadius: 6, color: 'inherit', textDecoration: 'none' } }, [h('span', { 'aria-hidden': 'true', style: { fontSize: 14, lineHeight: 1 } }, '💬')])),
+            // 原两枚表情按钮（🌟 star / 💬 feedback）升级成 base 0.1.1 的页头三件套：多出「联系我们」，
+            //   三项同档大小 18，排法与悬停提示交给包；本页不再各写一套图标、网址与提示文案。
+            h(DeckHeaderActions, { key: 'actions', size: 18 }),
           ]),
         ]),
         h('div', { className: 'dsws-cfg-sub' }, tr('cfg.sub')),
