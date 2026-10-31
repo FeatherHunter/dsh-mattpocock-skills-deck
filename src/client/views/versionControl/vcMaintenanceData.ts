@@ -11,6 +11,10 @@
 // 为什么不在这里写任何中文字符串：可见文字全部走 t(词条)，词条真源 config/copy/vcmaintenance.yaml；
 // 这一层可以被门禁直接求值，混进界面文案就分不清「逻辑」与「文案」的边界了。
 
+/** 共享动作表与五张重写表单由构建先拼进同一个闭包，类型检查按单文件跑，这里只声明形状。 */
+declare const MAINTENANCE_OPS: any[]
+declare const REWRITE_FORMS: any[]
+
 /** 真源标识：门禁按这一行找本文件，改路径要一起改门禁。 */
 export const VC_MAINTENANCE_PAGE_SOURCE = 'src/client/views/versionControl/vcMaintenanceData.ts'
 
@@ -47,8 +51,14 @@ export const VC_MAINTENANCE_ACTIONS: any[] = [
 /** 版本门：这三条能力在老的 git 上隐藏，界面同宿主读同一份版本阈值。 */
 export const VC_MAINTENANCE_VERSION_GATES: Record<string, string> = { '11.8': '2.30', '11.9': '2.18', '11.10': '2.21' }
 
-/** 危险区动作：只有清除不可达对象一条。 */
-export const VC_MAINTENANCE_DANGER_IDS: string[] = ['prune']
+/** 危险区动作：从共享动作表里取标了 dangerous 的那些，界面层不另写一份清单。 */
+export const VC_MAINTENANCE_DANGER_IDS: string[] = MAINTENANCE_OPS
+  .filter(function (op: any) { return op.dangerous === true })
+  .map(function (op: any) { return String(op.id) })
+
+/** 危险区的第二族：5.11 全库重写（filter-repo 的五张表单），同样从共享表单表派生。 */
+export const VC_MAINTENANCE_DANGER_FORMS: any[] = REWRITE_FORMS
+  .filter(function (form: any) { return form.dangerous === true })
 
 const vcMaintenanceCamelOf = function (id: any): string {
   return String(id || '').split('-').map(function (part: string, index: number) {

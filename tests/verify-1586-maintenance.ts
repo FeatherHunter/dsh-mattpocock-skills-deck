@@ -663,10 +663,18 @@ async function main() {
   const dH = function (tag: any, props: any, kids: any) { return { tag: tag, props: props, children: kids } }
   const dT = function (key: any, params: any) { return String(key) + (params ? ' ' + JSON.stringify(params) : '') }
   const dReact: any = { createElement: dH, useState: function (v: any) { return [v, function () {}] }, useEffect: function () {}, useRef: function (v: any) { return { current: v } }, useMemo: function (fn: any) { return fn() }, useCallback: function (fn: any) { return fn } }
-  const dataLeaf = compileFn(['h', 't', 'React', 'vcWriteErrFamilyOf'], spliceableJs('src/client/views/versionControl/vcMaintenanceData.ts') + '\nreturn { VC_MAINTENANCE_PAGE_SOURCE: VC_MAINTENANCE_PAGE_SOURCE, VC_MAINTENANCE_PHONES: VC_MAINTENANCE_PHONES, VC_MAINTENANCE_ACTIONS: VC_MAINTENANCE_ACTIONS, VC_MAINTENANCE_VERSION_GATES: VC_MAINTENANCE_VERSION_GATES, VC_MAINTENANCE_DANGER_IDS: VC_MAINTENANCE_DANGER_IDS, VC_MAINTENANCE_PAGE_HINT: VC_MAINTENANCE_PAGE_HINT, vcMaintenanceCamelOf: vcMaintenanceCamelOf, vcMaintenanceOpMetaOf: vcMaintenanceOpMetaOf, vcMaintenanceOpLabelKeyOf: vcMaintenanceOpLabelKeyOf, vcMaintenanceOpVerbKeyOf: vcMaintenanceOpVerbKeyOf, vcMaintenanceOpsOfPage: vcMaintenanceOpsOfPage, vcMaintenanceVisibleOf: vcMaintenanceVisibleOf, vcMaintenanceRequestIdOf: vcMaintenanceRequestIdOf, vcMaintenanceReadArgsOf: vcMaintenanceReadArgsOf, vcMaintenanceCheckArgsOf: vcMaintenanceCheckArgsOf, vcMaintenanceWriteArgsOf: vcMaintenanceWriteArgsOf, vcMaintenanceTaskArgsOf: vcMaintenanceTaskArgsOf, vcMaintenanceReplyKindOf: vcMaintenanceReplyKindOf, vcMaintenanceReasonOf: vcMaintenanceReasonOf, vcMaintenanceTicketOf: vcMaintenanceTicketOf, vcMaintenanceConfirmOf: vcMaintenanceConfirmOf, vcMaintenanceBackupOf: vcMaintenanceBackupOf, vcMaintenancePreviewOf: vcMaintenancePreviewOf, vcMaintenanceObjectsOf: vcMaintenanceObjectsOf, vcMaintenanceStatusOf: vcMaintenanceStatusOf, vcMaintenanceTaskOf: vcMaintenanceTaskOf, vcMaintenanceBackupPointOf: vcMaintenanceBackupPointOf, vcMaintenanceBackupSummaryOf: vcMaintenanceBackupSummaryOf, vcMaintenanceRestoreStepsOf: vcMaintenanceRestoreStepsOf, vcMaintenanceStateOf: vcMaintenanceStateOf, vcMaintenanceTaskConclusionOf: vcMaintenanceTaskConclusionOf, vcMaintenanceTaskEndedOf: vcMaintenanceTaskEndedOf, vcMaintenanceProgressOf: vcMaintenanceProgressOf, vcMaintenanceFailTextOf: vcMaintenanceFailTextOf };')(dH, dT, dReact, function () { return 'notReady' })
-  const pageLeaf = compileFn(['h', 't', 'React', 'vcTaskRowNode', 'Tip'], spliceableJs('src/client/views/versionControl/vcMaintenancePage.ts') + '\nreturn { VC_MAINTENANCE_PAGE_BODY_SOURCE: VC_MAINTENANCE_PAGE_BODY_SOURCE, VC_MAINTENANCE_PAGE_WRITES: VC_MAINTENANCE_PAGE_WRITES, VC_MAINTENANCE_PAGE_READS: VC_MAINTENANCE_PAGE_READS, VC_MAINTENANCE_PAGE_DANGER: VC_MAINTENANCE_PAGE_DANGER, vcMaintenancePageNode: vcMaintenancePageNode };')(dH, dT, dReact, null, dH)
-  const diagLeaf = compileFn(['h', 't', 'React', 'vcTaskRowNode', 'Tip', 'VC_TASK_POLL_INTERVAL_MS'], spliceableJs('src/client/views/versionControl/vcMaintenanceDiag.ts') + '\nreturn { VC_MAINTENANCE_DIAG_SOURCE: VC_MAINTENANCE_DIAG_SOURCE, VC_MAINTENANCE_DIAG_TASKS: VC_MAINTENANCE_DIAG_TASKS, VC_MAINTENANCE_DIAG_ITEM_LIMIT: VC_MAINTENANCE_DIAG_ITEM_LIMIT, VC_MAINTENANCE_DIAG_EXITS: VC_MAINTENANCE_DIAG_EXITS, vcMaintenanceDiagNode: vcMaintenanceDiagNode };')(dH, dT, dReact, null, dH, 5000)
   const maintMod = await loadModule('src/shared/version-control/src/maintenance-ops.js')
+  const rewriteMod = await loadModule('src/shared/version-control/src/rewrite-ops.js')
+  const dataSourceOf = function (): string { return spliceableJs('src/client/views/versionControl/vcMaintenanceData.ts') }
+  const dataLeaf = compileFn(['h', 't', 'React', 'vcWriteErrFamilyOf', 'MAINTENANCE_OPS', 'REWRITE_FORMS'], dataSourceOf() + '\nreturn { VC_MAINTENANCE_PAGE_SOURCE: VC_MAINTENANCE_PAGE_SOURCE, VC_MAINTENANCE_PHONES: VC_MAINTENANCE_PHONES, VC_MAINTENANCE_ACTIONS: VC_MAINTENANCE_ACTIONS, VC_MAINTENANCE_VERSION_GATES: VC_MAINTENANCE_VERSION_GATES, VC_MAINTENANCE_DANGER_IDS: VC_MAINTENANCE_DANGER_IDS, VC_MAINTENANCE_DANGER_FORMS: VC_MAINTENANCE_DANGER_FORMS, VC_MAINTENANCE_PAGE_HINT: VC_MAINTENANCE_PAGE_HINT, vcMaintenanceCamelOf: vcMaintenanceCamelOf, vcMaintenanceOpMetaOf: vcMaintenanceOpMetaOf, vcMaintenanceOpLabelKeyOf: vcMaintenanceOpLabelKeyOf, vcMaintenanceOpVerbKeyOf: vcMaintenanceOpVerbKeyOf, vcMaintenanceOpsOfPage: vcMaintenanceOpsOfPage, vcMaintenanceVisibleOf: vcMaintenanceVisibleOf, vcMaintenanceRequestIdOf: vcMaintenanceRequestIdOf, vcMaintenanceReadArgsOf: vcMaintenanceReadArgsOf, vcMaintenanceCheckArgsOf: vcMaintenanceCheckArgsOf, vcMaintenanceWriteArgsOf: vcMaintenanceWriteArgsOf, vcMaintenanceTaskArgsOf: vcMaintenanceTaskArgsOf, vcMaintenanceReplyKindOf: vcMaintenanceReplyKindOf, vcMaintenanceReasonOf: vcMaintenanceReasonOf, vcMaintenanceTicketOf: vcMaintenanceTicketOf, vcMaintenanceConfirmOf: vcMaintenanceConfirmOf, vcMaintenanceBackupOf: vcMaintenanceBackupOf, vcMaintenancePreviewOf: vcMaintenancePreviewOf, vcMaintenanceObjectsOf: vcMaintenanceObjectsOf, vcMaintenanceStatusOf: vcMaintenanceStatusOf, vcMaintenanceTaskOf: vcMaintenanceTaskOf, vcMaintenanceBackupPointOf: vcMaintenanceBackupPointOf, vcMaintenanceBackupSummaryOf: vcMaintenanceBackupSummaryOf, vcMaintenanceRestoreStepsOf: vcMaintenanceRestoreStepsOf, vcMaintenanceStateOf: vcMaintenanceStateOf, vcMaintenanceTaskConclusionOf: vcMaintenanceTaskConclusionOf, vcMaintenanceTaskEndedOf: vcMaintenanceTaskEndedOf, vcMaintenanceProgressOf: vcMaintenanceProgressOf, vcMaintenanceFailTextOf: vcMaintenanceFailTextOf };')(dH, dT, dReact, function () { return 'notReady' }, maintMod.MAINTENANCE_OPS, rewriteMod.REWRITE_FORMS)
+  // 维护页叶子与它依赖的数据叶子拼在一起求值：页面里的危险区常量真来自共享动作表，不是测试另喂一份。
+  const pageParams = ['h', 't', 'React', 'vcWriteErrFamilyOf', 'humanBytesOf', 'Tip', 'vcTaskRowNode', 'MAINTENANCE_OPS', 'REWRITE_FORMS']
+  const pageLeafOf = function (opsList: any[], formsList: any[]): any {
+    const body = dataSourceOf() + '\n' + spliceableJs('src/client/views/versionControl/vcMaintenancePage.ts') + '\nreturn { VC_MAINTENANCE_PAGE_BODY_SOURCE: VC_MAINTENANCE_PAGE_BODY_SOURCE, VC_MAINTENANCE_PAGE_WRITES: VC_MAINTENANCE_PAGE_WRITES, VC_MAINTENANCE_PAGE_READS: VC_MAINTENANCE_PAGE_READS, VC_MAINTENANCE_PAGE_DANGER: VC_MAINTENANCE_PAGE_DANGER, VC_MAINTENANCE_PAGE_DANGER_FORMS: VC_MAINTENANCE_PAGE_DANGER_FORMS, vcMaintenancePageNode: vcMaintenancePageNode };'
+    return compileFn(pageParams, body)(dH, dT, dReact, function () { return 'notReady' }, function (n: any) { return String(n || 0) + ' B' }, dH, null, opsList, formsList)
+  }
+  const pageLeaf = pageLeafOf(maintMod.MAINTENANCE_OPS, rewriteMod.REWRITE_FORMS)
+  const diagLeaf = compileFn(['h', 't', 'React', 'vcTaskRowNode', 'Tip', 'VC_TASK_POLL_INTERVAL_MS'], spliceableJs('src/client/views/versionControl/vcMaintenanceDiag.ts') + '\nreturn { VC_MAINTENANCE_DIAG_SOURCE: VC_MAINTENANCE_DIAG_SOURCE, VC_MAINTENANCE_DIAG_TASKS: VC_MAINTENANCE_DIAG_TASKS, VC_MAINTENANCE_DIAG_ITEM_LIMIT: VC_MAINTENANCE_DIAG_ITEM_LIMIT, VC_MAINTENANCE_DIAG_EXITS: VC_MAINTENANCE_DIAG_EXITS, vcMaintenanceDiagNode: vcMaintenanceDiagNode };')(dH, dT, dReact, null, dH, 5000)
   const reconcileMaint = function (viewOps: any[], protoOps: any[]): string[] {
     const issues: string[] = []
     if (viewOps.length !== protoOps.length) issues.push('件数 ' + viewOps.length + ' 不等于 ' + protoOps.length)
@@ -691,7 +699,12 @@ async function main() {
   const dIssues = reconcileMaint(dataLeaf.VC_MAINTENANCE_ACTIONS, maintMod.MAINTENANCE_OPS)
   eq(dIssues.length, 0, 'D6 界面动作模型与共享协议逐条对账零问题：' + JSON.stringify(dIssues.slice(0, 3)))
   eq(JSON.stringify(dataLeaf.VC_MAINTENANCE_ACTIONS.map(function (a: any) { return a.op })), JSON.stringify(maintMod.MAINTENANCE_OPS.map(function (a: any) { return a.id })), 'D7 16 条动作顺序与共享协议一字不差')
-  eq(dataLeaf.VC_MAINTENANCE_DANGER_IDS.join(','), 'prune', 'D8 危险区只有清除不可达对象一条')
+  const expectedDangerIds: string[] = maintMod.MAINTENANCE_OPS.filter(function (o: any) { return o.dangerous === true }).map(function (o: any) { return String(o.id) })
+  const expectedFormIds: string[] = rewriteMod.REWRITE_FORMS.filter(function (f: any) { return f.dangerous === true }).map(function (f: any) { return String(f.id) })
+  eq(JSON.stringify(dataLeaf.VC_MAINTENANCE_DANGER_IDS), JSON.stringify(expectedDangerIds), 'D8 危险区动作从共享动作表派生（实测 ' + JSON.stringify(expectedDangerIds) + '）')
+  eq(JSON.stringify(dataLeaf.VC_MAINTENANCE_DANGER_FORMS.map(function (f: any) { return String(f.id) })), JSON.stringify(expectedFormIds), 'D8b 危险区重写表单从共享表单表派生（实测 ' + JSON.stringify(expectedFormIds) + '）')
+  const dangerRows = maintMod.MAINTENANCE_OPS.filter(function (o: any) { return o.dangerous === true }).map(function (o: any) { return ledger.CAPABILITIES.filter(function (c: any) { return c.id === o.capId })[0] }).concat(rewriteMod.REWRITE_FORMS.filter(function (f: any) { return f.dangerous === true }).map(function (f: any) { return ledger.CAPABILITIES.filter(function (c: any) { return c.id === f.capId })[0] }))
+  check(dangerRows.length > 0 && dangerRows.every(function (row: any) { return row && row.level === '毁' }), 'D8c 危险区每一条在能力账本里都是毁级动作（实测 ' + dangerRows.length + ' 条）')
   eq(JSON.stringify(dataLeaf.VC_MAINTENANCE_VERSION_GATES), JSON.stringify(maintMod.MAINTENANCE_VERSION_HIDE), 'D9 版本门与共享协议同源（不抄两份数字）')
   eq(dataLeaf.vcMaintenanceVisibleOf(dataLeaf.vcMaintenanceOpMetaOf('commit-graph'), 'git version 2.17.0'), false, 'D10 版本不到 2.18 时提交图能力不可见')
   eq(dataLeaf.vcMaintenanceVisibleOf(dataLeaf.vcMaintenanceOpMetaOf('commit-graph'), 'git version 2.18.0'), true, 'D11 刚好 2.18 时提交图能力可见')
@@ -726,16 +739,50 @@ async function main() {
   eq(JSON.stringify(dataLeaf.vcMaintenanceProgressOf({ progress: { percent: 12, phase: 'p' } })), JSON.stringify({ percent: 12, phase: 'p', bytes: null, uncertain: false }), 'D39 进度读数整形状')
   eq(dataLeaf.vcMaintenanceProgressOf({ progress: { phase: 'p', bytes: 9 } }).uncertain, true, 'D40 解析不出百分比就如实标不确定')
   check(String(dataLeaf.vcMaintenanceFailTextOf(dT, { ok: false, error: { kind: 'blocked', reason: 'dirty-worktree', message: '脏', hint: 'h' } }, function (r: any) { return r === 'dirty-worktree' ? 'notNow' : 'other' })).indexOf('vc.maintenance.fail.notNow') >= 0, 'D41 失败话术按理由族走词条，不拼字符串')
-  eq(JSON.stringify(pageLeaf.VC_MAINTENANCE_PAGE_WRITES), JSON.stringify(['gc', 'maintenance-run', 'maintenance-enable', 'maintenance-disable', 'prune']), 'D42 维护页写动作五条')
+  eq(JSON.stringify(pageLeaf.VC_MAINTENANCE_PAGE_WRITES), JSON.stringify(['gc', 'maintenance-run', 'maintenance-enable', 'maintenance-disable']), 'D42 维护页写动作四条（prune 移到独立危险区）')
   eq(JSON.stringify(pageLeaf.VC_MAINTENANCE_PAGE_READS), JSON.stringify(['repack', 'commit-graph', 'multi-pack-index', 'pack-refs', 'maintenance-status']), 'D43 维护页只读动作五条')
-  eq(JSON.stringify(pageLeaf.VC_MAINTENANCE_PAGE_DANGER), JSON.stringify(['prune']), 'D44 维护页危险区只有清除不可达对象')
+  eq(JSON.stringify(pageLeaf.VC_MAINTENANCE_PAGE_DANGER), JSON.stringify(expectedDangerIds), 'D44 维护页危险区动作与共享动作表同源')
+  eq(JSON.stringify(pageLeaf.VC_MAINTENANCE_PAGE_DANGER_FORMS.map(function (f: any) { return String(f.id) })), JSON.stringify(expectedFormIds), 'D44b 维护页危险区收下 5.11 五张重写表单（与共享表单表同源）')
   eq(JSON.stringify(diagLeaf.VC_MAINTENANCE_DIAG_TASKS), JSON.stringify(['fsck-basic', 'fsck-unreachable']), 'D45 诊断页两条完整性检查走任务通道')
   eq(JSON.stringify(diagLeaf.VC_MAINTENANCE_DIAG_EXITS), JSON.stringify(['branch', 'offline']), 'D46 不可达对象给两个出口：从这里建分支、导出离线包')
   eq(diagLeaf.VC_MAINTENANCE_DIAG_ITEM_LIMIT, 100, 'D47 不可达清单一次最多列一百条（不把整库倒进界面）')
   const pageSrc = sourceText('src/client/views/versionControl/vcMaintenancePage.ts')
   check(pageSrc.indexOf("'data-vc-maint-page'") >= 0 && pageSrc.indexOf("'data-vc-maint-action'") >= 0 && pageSrc.indexOf("'data-vc-maint-confirm'") >= 0 && pageSrc.indexOf("'data-vc-maint-result'") >= 0, 'D48 维护页正文带页面/动作/确认卡/结果四类锚点')
   check(pageSrc.indexOf("data-vc-maint-confirm-seg") >= 0 && pageSrc.indexOf("'what'") >= 0 && pageSrc.indexOf("'wont'") >= 0 && pageSrc.indexOf("'reversible'") >= 0, 'D49 确认卡四段在正文里各有段落锚点')
-  check(pageSrc.indexOf("data-vc-maint-danger") >= 0 && pageSrc.indexOf('VC_MAINTENANCE_DANGER') >= 0, 'D50 危险区在正文里单独成块（不清空成普通动作）')
+  const nodesOfTree = function (node: any, out: any[]): any[] {
+    if (node === null || node === undefined) return out
+    if (Array.isArray(node)) { node.forEach(function (kid: any) { nodesOfTree(kid, out) }); return out }
+    if (typeof node !== 'object') return out
+    if (node.props) out.push(node)
+    nodesOfTree(node.children, out)
+    return out
+  }
+  const dangerFactsOf = function (entry: any): string[] {
+    return nodesOfTree(entry, []).map(function (n: any) { return n.props['data-vc-maint-danger-fact'] }).filter(function (x: any) { return !!x })
+  }
+  const dangerProblemsOf = function (tree: any, formIds: string[]): string[] {
+    const all = nodesOfTree(tree, [])
+    const problems: string[] = []
+    const has = function (name: string) { return all.some(function (n: any) { return n.props[name] === '1' }) }
+    if (!has('data-vc-maint-danger-section')) problems.push('no-section')
+    if (!has('data-vc-maint-danger-title')) problems.push('no-title')
+    if (!has('data-vc-maint-danger-boundary')) problems.push('no-boundary')
+    const needFacts = ['loss', 'reversible', 'recovery', 'backup']
+    const pruneEntry = all.filter(function (n: any) { return n.props['data-vc-maint-danger-entry'] === 'prune' })[0]
+    if (!pruneEntry) problems.push('no-prune')
+    else needFacts.forEach(function (k: string) { if (dangerFactsOf(pruneEntry).indexOf(k) < 0) problems.push('no-prune-fact:' + k) })
+    formIds.forEach(function (id: string) {
+      const entry = all.filter(function (n: any) { return n.props['data-vc-maint-danger-form'] === id })[0]
+      if (!entry) { problems.push('no-form:' + id); return }
+      needFacts.forEach(function (k: string) { if (dangerFactsOf(entry).indexOf(k) < 0) problems.push('no-form-fact:' + id + ':' + k) })
+    })
+    const jump = all.filter(function (n: any) { return n.props['data-vc-maint-danger-jump'] })[0]
+    if (!jump || jump.props.href !== '#vc-rewrite-page') problems.push('no-jump')
+    return problems
+  }
+  const renderedMaint = pageLeaf.vcMaintenancePageNode({ t: dT, cwd: 'D:/w', call: null })
+  const dangerProblems = dangerProblemsOf(renderedMaint, expectedFormIds)
+  eq(dangerProblems.length, 0, 'D50 危险区独立成块：标题 + 边界 + prune/五张重写各带四段后果 + 跳转锚点（实测问题 ' + JSON.stringify(dangerProblems.slice(0, 4)) + '）')
   const diagSrc = sourceText('src/client/views/versionControl/vcMaintenanceDiag.ts')
   check(diagSrc.indexOf("'data-vc-maint-diag-page'") >= 0 && diagSrc.indexOf("'data-vc-maint-exit'") >= 0 && diagSrc.indexOf("'data-vc-maint-unreachable'") >= 0, 'D51 诊断页正文带页面/出口/不可达清单锚点')
   check(diagSrc.indexOf('vcTaskRowNode') >= 0 && diagSrc.indexOf('VC_MAINTENANCE_PHONES.taskStart') >= 0, 'D52 诊断页两条检查复用任务区行与任务通道电话')
@@ -751,7 +798,7 @@ async function main() {
   const yamlUniq: string[] = []
   yamlKeys.forEach(function (k: any) { if (yamlUniq.indexOf(k) < 0) yamlUniq.push(k) })
   check(yamlKeys.length === yamlUniq.length * 2, 'D56 词表每条键中英各一份（实测 ' + yamlKeys.length + ' 行 / ' + yamlUniq.length + ' 键）')
-  check(yamlUniq.length >= 86 && yamlUniq.every(function (k: any) { return k.indexOf('vc.maintenance.') === 0 }), 'D57 词表至少八十六条且都在 vc.maintenance. 前缀下（实测 ' + yamlUniq.length + ' 条）')
+  check(yamlUniq.length >= 102 && yamlUniq.every(function (k: any) { return k.indexOf('vc.maintenance.') === 0 }), 'D57 词表至少一百零二条且都在 vc.maintenance. 前缀下（实测 ' + yamlUniq.length + ' 条）')
   const localeText = localeDataText()
   const missingLocale = yamlUniq.filter(function (k: any) { return localeText.indexOf("'" + k + "'") < 0 })
   eq(missingLocale.length, 0, 'D58 词表每条键都进了生成后的词条表：' + JSON.stringify(missingLocale.slice(0, 3)))
@@ -776,6 +823,23 @@ async function main() {
   const dCounter = dataLeaf.VC_MAINTENANCE_ACTIONS.filter(function (a: any) { return a.op !== 'prune' })
   const dCounterIssues = reconcileMaint(dCounter, maintMod.MAINTENANCE_OPS)
   check(dCounterIssues.length > 0 && dCounterIssues.join(',').indexOf('prune') >= 0, 'D61 反证自检：界面少登记一条动作时对账必须报错（实测 ' + JSON.stringify(dCounterIssues.slice(0, 2)) + '）')
+  const noFormLeaf = pageLeafOf(maintMod.MAINTENANCE_OPS, rewriteMod.REWRITE_FORMS.map(function (f: any) { return Object.assign({}, f, { dangerous: false }) }))
+  const noFormProblems = dangerProblemsOf(noFormLeaf.vcMaintenancePageNode({ t: dT, cwd: 'D:/w', call: null }), expectedFormIds)
+  check(noFormProblems.indexOf('no-form:' + expectedFormIds[0]) >= 0, 'D62 反证自检：把 filter-repo 表单从危险区去掉，正文检查必须报缺表单（实测 ' + JSON.stringify(noFormProblems.slice(0, 3)) + '）')
+  const noPruneLeaf = pageLeafOf(maintMod.MAINTENANCE_OPS.map(function (o: any) { return Object.assign({}, o, { dangerous: false }) }), rewriteMod.REWRITE_FORMS)
+  const noPruneProblems = dangerProblemsOf(noPruneLeaf.vcMaintenancePageNode({ t: dT, cwd: 'D:/w', call: null }), expectedFormIds)
+  check(noPruneProblems.indexOf('no-prune') >= 0, 'D62b 反证自检：把 prune 从危险区去掉，正文检查必须报缺 prune（实测 ' + JSON.stringify(noPruneProblems.slice(0, 3)) + '）')
+  const dangerKeyMissing: string[] = []
+  expectedDangerIds.forEach(function (id: any) {
+    ;['loss', 'reversible', 'recovery', 'backup'].forEach(function (part: string) { const k: string = 'vc.maintenance.danger.' + id + '.' + part; if (yamlUniq.indexOf(k) < 0) dangerKeyMissing.push(k) })
+  })
+  expectedFormIds.forEach(function (id: any) {
+    const camel: string = dataLeaf.vcMaintenanceCamelOf(id)
+    const keys: string[] = ['vc.maintenance.danger.rewrite.loss.' + camel, 'vc.maintenance.danger.rewrite.reversible', 'vc.maintenance.danger.rewrite.recovery', 'vc.maintenance.danger.rewrite.backup']
+    keys.forEach(function (k: string) { if (yamlUniq.indexOf(k) < 0) dangerKeyMissing.push(k) })
+  })
+  ;['vc.maintenance.danger.title', 'vc.maintenance.danger.boundary', 'vc.maintenance.danger.rewrite.title', 'vc.maintenance.danger.rewrite.goto'].forEach(function (k: string) { if (yamlUniq.indexOf(k) < 0) dangerKeyMissing.push(k) })
+  eq(dangerKeyMissing.length, 0, 'D63 危险区每一条的四段后果与跳转都有中英词条：' + JSON.stringify(dangerKeyMissing.slice(0, 4)))
   console.log('  D 组完成：' + total + ' 条')
   console.log('  C 组完成：' + total + ' 条')
 
