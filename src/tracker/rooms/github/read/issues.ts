@@ -28,6 +28,9 @@ import { appendCommentPages, commentsWantOf, firstPageSizeOf, trimCommentsToWant
 import { normalizeIssue } from '../model/normalize.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { repairParentLinksREST } from './parent-repair.js'
+// #1691：REST 列表行自带的关系字段（父票链接、依赖摘要、子票摘要）先在行内补齐，
+// 不再逐张容器票发 sub_issues 兜底（只有当整页都没有父票链接时才退回旧兜底）。
+import { completeRestListRelations } from './rest-list-relations.js'
 import { rosterAdoptList, rosterUpsert } from '../model/roster.js'
 import type { MemoContext } from '../model/roster.js'
 import { LIST_QUERY, GET_QUERY, LIST_PR_QUERY, GET_PR_QUERY, getIssueQuery } from '../channels/graphql/queries.js'
@@ -225,7 +228,14 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       if (!rest.ok) return { ok: false, error: rest.error }
       const pulls = await fetchAllPullsREST(parsed, ctx)
       const raws = enrichRestPRs(rest.data.rows, pulls.ok ? pulls.data : [])
-      const rawFixed = await repairParentLinksREST(raws, parsed, ctx)
+      // #1691：先把每行自带的关系字段补进行内（父票边、依赖边、子票计数）；
+      // 都在行里表达时，这一趟一张容器票的子票请求都不用发。
+      const rawArr = raws as unknown[]
+      const relations = await completeRestListRelations(rawArr, parsed, ctx)
+      if (!relations.presence.parent) emitReadDegraded(ctx, 'list', 'list:rest-relations', Date.now() - tList)
+      if (relations.dependencyFailed) emitReadDegraded(ctx, 'list', 'list:rest-deps', Date.now() - tList)
+      // 父票链接整页没表达时才走旧的 sub_issues 兜底；行里已经给出父边就不再翻容器子票。
+      const rawFixed = relations.parentFromRows ? rawArr : await repairParentLinksREST(rawArr, parsed, ctx)
       // 为什么断言：修树边返回的还是原来那份数组（原样回传）；断言只为过编译，迭代的还是原来那份值，运行时不变。
       const rawList = rawFixed as unknown[];
       const restNorm: Issue[] = []
