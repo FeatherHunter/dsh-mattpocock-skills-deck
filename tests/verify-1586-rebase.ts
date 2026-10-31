@@ -173,6 +173,471 @@ async function main() {
   check(!/^import\s/m.test(source), 'A86 共享协议零 import（要拼进界面闭包）');
 
   console.log('  A 组完成：' + total + ' 条');
+
+  // ===== B 宿主预检与执行（假依赖，零进程拒绝栈） =====
+  const envelopeMod = await loadModule('src/shared/version-control/exec-envelope.js')
+  const ticketMod = await loadModule('src/shared/version-control/src/write-ticket.js')
+  const reasonsMod = await loadModule('src/shared/version-control/src/write-reasons.js')
+  const checkMod = await loadModule('src/host/versionControlRebaseCheck.js')
+  const writeMod = await loadModule('src/host/versionControlRebaseWrite.js')
+  const clock = { t: 1000 }
+  function failPhone(kind: string, message: string, extra: any) { return Object.assign({ ok: false, error: { kind: kind, message: message } }, extra || {}) }
+  const baseBindings = ticketMod.makeBindings({ preconditions: { planDigest: 'a'.repeat(16), worktreeDigest: 'b'.repeat(16), configOldValue: 'false', remoteOid: null, pathAbsent: [] }, counters: { indexEntries: null } })
+  const GIT_VERSION = 'git version 2.49.0.windows.1'
+  const BASE_OID = 'a'.repeat(40)
+  const ROW_OID = 'c'.repeat(40)
+  function sceneSummary(over: any) { return Object.assign({ repoRoot: 'C:/repo', headOid: BASE_OID, state: null, branch: 'main', updateRefs: false, gitVersion: GIT_VERSION }, over || {}) }
+  function fakeScene(o: any) {
+    const spec: any = o || {}
+    const base: any = sceneSummary(spec.scene)
+    const signBindings: any = spec.signBindings || baseBindings
+    let measureCount = 0
+    return {
+      measure: async function () {
+        measureCount += 1
+        // 预检是第一次量现场，执行层复核是第二次；measureSecond 只从第二次起生效。
+        // 这样夹具能造出「签票时干净、执行时现场变了」的真实时序，而不是预检就直接拦下。
+        const w: any = (spec.measureSecond && measureCount >= 2) ? spec.measureSecond : spec
+        if (spec.measureFail === true) return { ok: false, envelope: failPhone('blocked', 'target-changed', '读不回现场') }
+        return {
+          ok: true,
+          repoRoot: w.measureRepoRoot || base.repoRoot,
+          headOid: w.measureHeadOid || base.headOid,
+          state: w.measureState !== undefined ? w.measureState : base.state,
+          updateRefs: w.measureUpdateRefs !== undefined ? w.measureUpdateRefs : base.updateRefs,
+          branch: base.branch,
+          gitVersion: base.gitVersion,
+          baseOid: w.baseOid === undefined ? 'b'.repeat(40) : w.baseOid,
+          oldBaseOid: w.oldBaseOid === undefined ? 'd'.repeat(40) : w.oldBaseOid,
+          newBaseOid: w.newBaseOid === undefined ? 'e'.repeat(40) : w.newBaseOid,
+          windowOids: w.windowOids || [ROW_OID],
+          bindings: w.measureBindings || baseBindings,
+          scene: base,
+        }
+      },
+      bindingsOf: function () { return signBindings },
+      sceneOf: async function () { return Object.assign({ ok: true, exe: 'git', screen: {}, readAtMs: clock.t }, base) },
+      windowOf: async function () { return { ok: true, base: 'main', baseOid: 'b'.repeat(40), headOid: ROW_OID, commits: [{ oid: ROW_OID, subject: 'third' }], commitCount: 1, readAtMs: clock.t } },
+      ontoRangeOf: async function () { return { ok: true, oldBase: 'old', oldBaseOid: 'd'.repeat(40), newBase: 'new', newBaseOid: 'e'.repeat(40), moved: [{ oid: ROW_OID, subject: 'moved' }], incoming: [], movedCount: 1, incomingCount: 0, readAtMs: clock.t } },
+      autosquashPairsOf: async function () { return { ok: true, base: 'main', baseOid: 'b'.repeat(40), pairs: [{ oid: ROW_OID, kind: 'fixup', targetOid: BASE_OID }], todoText: '', readAtMs: clock.t } },
+      mergesCostOf: async function () { return { ok: true, base: 'main', baseOid: 'b'.repeat(40), mergeCommits: [], count: 0, gitVersion: GIT_VERSION, readAtMs: clock.t } },
+    }
+  }
+  function makeTmp() {
+    let n = 0
+    const files: any = {}
+    return {
+      write: async function (text: string) { n += 1; const p: string = 'C:/tmp/rebase-' + n + '.txt'; files[p] = String(text); return { ok: true, path: p } },
+      read: async function (p: string) { return Object.prototype.hasOwnProperty.call(files, p) ? { ok: true, text: files[p] } : { ok: false, reason: 'missing' } },
+      remove: async function (p: string) { delete files[p] },
+      files: files,
+      count: function () { return Object.keys(files).length },
+    }
+  }
+  /** 真文件临时目录：待办覆盖靠 git 自带的 cp 去读文件，夹具必须把待办真写到磁盘上。 */
+  function makeRealTmp() {
+    const dir: string = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws-rebase-'))
+    let n = 0
+    const files: any = {}
+    return {
+      write: async function (text: string) {
+        n += 1
+        // git 的 sh 里双引号内反斜杠是转义字符，路径统一换成斜杠再交给 cp。
+        const p: string = path.join(dir, 'f' + n + '.txt').replace(/\\/g, '/')
+        fs.writeFileSync(p, String(text), 'utf8')
+        files[p] = String(text)
+        return { ok: true, path: p }
+      },
+      read: async function (p: string) {
+        try { return { ok: true, text: fs.readFileSync(p, 'utf8') } } catch (e) { return { ok: false, reason: 'missing' } }
+      },
+      remove: async function (p: string) { try { fs.unlinkSync(p) } catch (e) { /* 已经不在就算了 */ } delete files[p] },
+      files: files,
+      dir: dir,
+      count: function () { return Object.keys(files).length },
+    }
+  }
+  function makeRig(o: any) {
+    const spec: any = o || {}
+    const scene: any = fakeScene(spec)
+    const tmp: any = makeTmp()
+    let n = 0
+    const check: any = checkMod.createRebaseCheck({ scene: scene, failPhone: failPhone, now: function () { return clock.t }, randomId: function () { n += 1; return 'ticket-' + n } })
+    const runs: any[] = []
+    const write: any = writeMod.createRebaseWrite({
+      failPhone: failPhone,
+      runPinned: async function (exe: any, dir: any, argv: any[], opts: any) {
+        runs.push({ argv: argv.slice(), env: (opts && opts.env) || null, gitEditor: (opts && opts.gitEditor) || null })
+        return (spec.runResult !== undefined) ? spec.runResult : { kind: 'ok', exitCode: 0, stdout: '', stderr: '' }
+      },
+      resolveGitExecutable: async function () { return 'git' },
+      measure: scene.measure,
+      scene: scene,
+      now: function () { return clock.t },
+      tickets: check.tickets,
+      results: check.results,
+      tmp: (spec.tmpMissing === true ? null : tmp),
+    })
+    return { check: check, write: write, runs: runs, tmp: tmp, scene: scene }
+  }
+  function reasonOf(out: any) { return String((out && (out.reason || (out.error && out.error.reason))) || '') }
+  function rowPlan() { return { base: 'main', rows: [{ oid: ROW_OID, action: 'pick', message: '' }] } }
+  console.log('  B 宿主预检与执行（假依赖，零进程拒绝栈）')
+  {
+    const rig = makeRig({})
+    const bUnknown = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'nope' })
+    eq(reasonOf(bUnknown), 'bad-target', 'B1 不认识的动作当场拒绝：bad-target')
+    const bNoCwd = await rig.check.handleRebaseCheck({ op: 'rebase-todo', payload: rowPlan() })
+    eq(reasonOf(bNoCwd), 'bad-target', 'B2 缺少仓库目录：bad-target')
+    const bTodo = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan() })
+    check(bTodo.ok === true && bTodo.contract === 'vc-rebase-check' && bTodo.version === 1, 'B3 待办预检放行：契约名与版本随回包')
+    check(bTodo.ticket.expiresAtMs - bTodo.ticket.checkedAtMs === 120000, 'B4 票据时限 120 秒（短期确认，过期即失效）')
+    eq(bTodo.confirmRequired, true, 'B5 历史改写四条都要求显式确认')
+    check(!!bTodo.confirm && bTodo.confirm.what !== '' && bTodo.confirm.wont !== '' && bTodo.confirm.reversible !== '' && bTodo.confirm.verb !== '', 'B6 确认卡四段齐全（会动什么、不会做什么、能不能回退、按哪个词执行）')
+    eq(bTodo.plan.rows.length, 1, 'B7 票里保存待办清单（面板排好的动作进票据）')
+    eq(rig.runs.length, 0, 'B8 预检这一趟一条执行命令都没起（只读现场）')
+    const bOnto = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-onto', payload: { oldBase: 'old', newBase: 'new' } })
+    check(bOnto.ok === true && bOnto.extra.movedCount === 1, 'B9 换基座预检带上搬移范围计数')
+    const bAuto = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-autosquash', payload: { base: 'main' } })
+    check(bAuto.ok === true && bAuto.extra.pairCount === 1, 'B10 自动吸收预检先列出将吸收的提交对')
+    const bMerges = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-merges', payload: { base: 'main' } })
+    check(bMerges.ok === true && bMerges.extra.mergeCount === 0, 'B11 保留合并结构预检带上合并提交计数（代价先给用户看）')
+    const bState = await rig.check.handleRebaseRead({ cwd: 'C:/repo', op: 'rebase-state' })
+    check(bState.ok === true && bState.canRebase === true && bState.updateRefs === false, 'B12 读数电话 rebase-state：干净仓库可开始变基')
+    const bWin = await rig.check.handleRebaseRead({ cwd: 'C:/repo', op: 'rebase-window', base: 'main' })
+    check(bWin.ok === true && bWin.commitCount === 1 && bWin.commits[0].oid === ROW_OID, 'B13 读数电话 rebase-window：窗口清单按提交号回')
+    const bRange = await rig.check.handleRebaseRead({ cwd: 'C:/repo', op: 'rebase-onto-range', oldBase: 'old', newBase: 'new' })
+    check(bRange.ok === true && bRange.movedCount === 1 && bRange.incomingCount === 0, 'B14 读数电话 rebase-onto-range：两段范围分开数')
+    const bPairs = await rig.check.handleRebaseRead({ cwd: 'C:/repo', op: 'rebase-autosquash-pairs', base: 'main' })
+    check(bPairs.ok === true && bPairs.pairCount === 1, 'B15 读数电话 rebase-autosquash-pairs：配对清单可先看')
+    const bCost = await rig.check.handleRebaseRead({ cwd: 'C:/repo', op: 'rebase-merges-cost', base: 'main' })
+    check(bCost.ok === true && bCost.count === 0, 'B16 读数电话 rebase-merges-cost：代价可先看')
+    const bBadRead = await rig.check.handleRebaseRead({ cwd: 'C:/repo', op: 'rebase-todo' })
+    eq(reasonOf(bBadRead), 'bad-target', 'B17 写动作不能走只读电话（不认识这个只读动作）')
+  }
+  {
+    const rig = makeRig({})
+    const bGone = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-todo', ticketId: 'NOSUCH', requestId: 'b-req-gone', confirmed: true })
+    check(reasonOf(bGone) === 'ticket-missing' && rig.runs.length === 0, 'B18 伪造票：ticket-missing 且零进程')
+    const pre = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan() })
+    const bBadReq = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan(), ticketId: pre.ticket.id, requestId: 'bad id!', confirmed: true })
+    check(reasonOf(bBadReq) === 'bad-target' && rig.runs.length === 0, 'B19 请求号形状不合法：bad-target 且零进程（重放机制不能被脏号污染）')
+    const bSwap = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-merges', payload: rowPlan(), ticketId: pre.ticket.id, requestId: 'b-req-swap', confirmed: true })
+    check(reasonOf(bSwap) === 'ticket-op-mismatch' && rig.runs.length === 0, 'B20 换动作用票：ticket-op-mismatch 且零进程')
+    const bNoConfirm = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan(), ticketId: pre.ticket.id, requestId: 'b-req-noconfirm' })
+    check(reasonOf(bNoConfirm) === 'need-confirm' && rig.runs.length === 0, 'B21 没带显式确认：need-confirm 且零进程')
+    clock.t += 120001
+    const bExpired = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan(), ticketId: pre.ticket.id, requestId: 'b-req-expired', confirmed: true })
+    clock.t -= 120001
+    check(reasonOf(bExpired) === 'ticket-expired' && rig.runs.length === 0, 'B22 票据过期（超过 120 秒）：ticket-expired 且零进程')
+  }
+  {
+    const rig = makeRig({ measureUpdateRefs: true })
+    const bUpdateRefs = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan() })
+    check(reasonOf(bUpdateRefs) === 'update-refs-on' && rig.runs.length === 0, 'B23 仓库开着 rebase.updateRefs：预检就拒（面板不替人改配置、不做 --update-refs）')
+    check(String(bUpdateRefs.error.message).indexOf('git config --local rebase.updateRefs false') >= 0, 'B24 拒绝话术给出关掉这个开关的确切命令')
+    check(bUpdateRefs.decision && bUpdateRefs.decision.verdict === 'block', 'B25 拒绝回包带判定（verdict block）')
+  }
+  {
+    const rig = makeRig({ scene: { state: 'rebase' } })
+    const bBusy = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan() })
+    check(reasonOf(bBusy) === 'operation-in-progress' && rig.runs.length === 0, 'B26 已经有进行中的操作：预检拒绝且零进程（先把当前操作处理完）')
+    eq(bBusy.state, 'rebase', 'B27 拒绝回包点名当前是哪种操作')
+  }
+  {
+    const rig = makeRig({ oldBaseOid: 'd'.repeat(40), newBaseOid: 'd'.repeat(40) })
+    const bSame = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-onto', payload: { oldBase: 'old', newBase: 'new' } })
+    check(reasonOf(bSame) === 'nothing-to-do' && rig.runs.length === 0, 'B28 新旧基座指向同一提交：nothing-to-do 且零进程')
+  }
+  {
+    const rig = makeRig({})
+    const badRows = { base: 'main', rows: [{ oid: 'f'.repeat(40), action: 'pick', message: '' }] }
+    const bMismatch = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-todo', payload: badRows })
+    check(reasonOf(bMismatch) === 'todo-mismatch' && rig.runs.length === 0, 'B29 待办行与当时窗口对不上：todo-mismatch 且零进程（不把旧判断套到新现场）')
+    const rewordBad = { base: 'main', rows: [{ oid: ROW_OID, action: 'reword', message: '' }] }
+    const bNoMsg = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-todo', payload: rewordBad })
+    check(reasonOf(bNoMsg) === 'missing-message', 'B30 改说明却没填正文：missing-message 当场拒绝')
+  }
+  {
+    const rig = makeRig({ measureSecond: { measureUpdateRefs: true } })
+    const pre = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-merges', payload: { base: 'main' } })
+    const bChanged = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-merges', payload: { base: 'main' }, ticketId: pre.ticket.id, requestId: 'b-req-cfg', confirmed: true })
+    check(pre.ok === true && reasonOf(bChanged) === 'update-refs-on' && rig.runs.length === 0, 'B31 签票后这个开关被打开：执行层重验现场，update-refs-on 且零进程')
+  }
+  {
+    const rig = makeRig({ measureSecond: { measureState: 'merge' } })
+    const pre = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-merges', payload: { base: 'main' } })
+    const bChanged = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-merges', payload: { base: 'main' }, ticketId: pre.ticket.id, requestId: 'b-req-busy', confirmed: true })
+    check(reasonOf(bChanged) === 'operation-in-progress' && rig.runs.length === 0, 'B32 签票后仓库进入别的操作：operation-in-progress 且零进程')
+  }
+  {
+    const rig = makeRig({ measureSecond: { measureHeadOid: 'f'.repeat(40) } })
+    const pre = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-merges', payload: { base: 'main' } })
+    const bChanged = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-merges', payload: { base: 'main' }, ticketId: pre.ticket.id, requestId: 'b-req-head', confirmed: true })
+    check(reasonOf(bChanged) === 'target-changed' && rig.runs.length === 0, 'B33 签票后 HEAD 动了：target-changed 且零进程')
+  }
+  {
+    const rig = makeRig({ measureSecond: { measureRepoRoot: 'C:/other' } })
+    const pre = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-merges', payload: { base: 'main' } })
+    const bChanged = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-merges', payload: { base: 'main' }, ticketId: pre.ticket.id, requestId: 'b-req-repo', confirmed: true })
+    check(reasonOf(bChanged) === 'stale-repo' && rig.runs.length === 0, 'B34 换仓库用票：stale-repo 且零进程')
+  }
+  {
+    const otherBindings = ticketMod.makeBindings({ preconditions: { planDigest: 'f'.repeat(16), worktreeDigest: 'b'.repeat(16), configOldValue: 'false', remoteOid: null, pathAbsent: [] }, counters: { indexEntries: null } })
+    const rig = makeRig({ measureSecond: { measureBindings: otherBindings } })
+    const pre = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-merges', payload: { base: 'main' } })
+    const bChanged = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-merges', payload: { base: 'main' }, ticketId: pre.ticket.id, requestId: 'b-req-bind', confirmed: true })
+    check(reasonOf(bChanged) === 'target-changed' && rig.runs.length === 0, 'B35 签票后计划摘要或工作区摘要变了：target-changed 且零进程')
+  }
+  {
+    const rig = makeRig({})
+    const pre = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan() })
+    const done = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan(), ticketId: pre.ticket.id, requestId: 'b-req-ok', confirmed: true })
+    check(done.ok === true && done.conflicted === false, 'B36 正常执行：回包 ok 且不是冲突')
+    eq(rig.runs.length, 1, 'B37 一次成功只起一条 git 命令')
+    eq(rig.runs[0].argv.join(' '), 'rebase -i main', 'B38 待办变基的 argv 是 rebase -i <基座>（独立元素）')
+    check(String(rig.runs[0].env.GIT_SEQUENCE_EDITOR).indexOf('cp "') === 0, 'B39 待办文件靠 GIT_SEQUENCE_EDITOR 指向 cp 覆盖（规格第 7 节编辑器交接）')
+    eq(rig.runs[0].gitEditor, null, 'B40 没有压缩行时 GIT_EDITOR 不覆盖（仍是必失败命令）')
+    eq(rig.tmp.count(), 0, 'B41 执行完临时文件全部删掉')
+    const replay = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-todo', payload: { base: 'WRONG', rows: [] }, ticketId: 'NOPE', requestId: 'b-req-ok', confirmed: true })
+    check(replay.ok === true && replay.reused === true && rig.runs.length === 1, 'B42 同一个请求号重放：回同一份结果、不再起命令（重复点按钮不重复执行）')
+  }
+  {
+    const two = ['1'.repeat(40), '2'.repeat(40)]
+    const rig = makeRig({ windowOids: two })
+    const rows = { base: 'main', rows: [{ oid: two[0], action: 'reword', message: '新的说明' }, { oid: two[1], action: 'squash', message: '' }] }
+    const pre = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-todo', payload: rows })
+    const done = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-todo', payload: rows, ticketId: pre.ticket.id, requestId: 'b-req-squash', confirmed: true })
+    check(pre.ok === true && done.ok === true && rig.runs.length === 1, 'B43 待办里同时有改说明与压缩：预检放行、执行一次')
+    eq(rig.runs[0].gitEditor, 'true', 'B44 有压缩行时把 GIT_EDITOR 覆盖成 true（接受 git 的默认合并说明，不弹外部编辑器）')
+    eq(rig.tmp.count(), 0, 'B45 改说明的临时文件执行完也删干净')
+  }
+  {
+    const conflicted = { kind: 'non-zero', exitCode: 1, stdout: 'CONFLICT (content): Merge conflict in a.txt', stderr: '' }
+    const rig = makeRig({ runResult: conflicted })
+    const pre = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan() })
+    const done = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan(), ticketId: pre.ticket.id, requestId: 'b-req-conflict', confirmed: true })
+    check(done.ok === true && done.conflicted === true, 'B46 变基撞冲突不是执行失败：回包 ok 且 conflicted=true（交给冲突向导接着处理）')
+  }
+  {
+    const failure = { kind: 'non-zero', exitCode: 128, stdout: '', stderr: 'fatal: bad revision' }
+    const rig = makeRig({ runResult: failure })
+    const pre = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan() })
+    const out = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan(), ticketId: pre.ticket.id, requestId: 'b-req-fail', confirmed: true })
+    check(out.ok === false && reasonOf(out) === 'unknown-write-failure', 'B47 真失败按失败信封回（不落 unknown 之外的理由）')
+    const keys = Object.keys(out.error || {}).sort().join(',')
+    eq(keys, 'kind,message,reason', 'B48 失败信封固定三键（kind / reason / message）')
+    check(out.git === 'fatal: bad revision' && out.step !== '' && out.expected !== '' && out.actual === '退出码 128', 'B49 失败信封带现场：git 原话、环节、期望、实际退出码')
+  }
+  {
+    const rig = makeRig({ tmpMissing: true })
+    const pre = await rig.check.handleRebaseCheck({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan() })
+    const out = await rig.write.handleRebaseWrite({ cwd: 'C:/repo', op: 'rebase-todo', payload: rowPlan(), ticketId: pre.ticket.id, requestId: 'b-req-notmp', confirmed: true })
+    check(reasonOf(out) === 'env' && rig.runs.length === 0, 'B50 临时文件服务不可用：明确失败且零进程（不静默改成别的做法）')
+  }
+  console.log('  B 组完成：' + total + ' 条')
+
+  // ===== C 真临时 git 仓库 =====
+  const commandsMod = await loadModule('src/shared/version-control/src/commands.js')
+  const sceneMod = await loadModule('src/host/versionControlRebaseScene.js')
+  const nodeCp = require('node:child_process')
+  function gitSync(cwd: string, args: string[]) {
+    const r = nodeCp.spawnSync('git', ['-C', cwd].concat(args), { cwd: cwd, env: Object.assign({}, process.env, { GIT_TERMINAL_PROMPT: '0' }), encoding: 'utf8' })
+    if (r.error) throw new Error('git 起不来：' + r.error.message)
+    return { status: r.status, out: String(r.stdout || ''), err: String(r.stderr || '') }
+  }
+  function gitMust(cwd: string, args: string[]) {
+    const r = gitSync(cwd, args)
+    if (r.status !== 0) throw new Error('git ' + args.join(' ') + ' 失败：' + r.err + r.out)
+    return r
+  }
+  function mkRepo(tag: string) {
+    const dir: string = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws1586-r-' + tag + '-'))
+    gitMust(dir, ['init', '-q', '-b', 'main'])
+    gitMust(dir, ['config', 'user.name', '门禁'])
+    gitMust(dir, ['config', 'user.email', 'gate@example.com'])
+    gitMust(dir, ['config', 'commit.gpgsign', 'false'])
+    return dir
+  }
+  function commitFile(dir: string, name: string, text: string, msg: string) {
+    fs.writeFileSync(path.join(dir, name), text)
+    gitMust(dir, ['add', name])
+    gitMust(dir, ['commit', '-q', '-m', msg])
+    return gitMust(dir, ['rev-parse', 'HEAD']).out.trim()
+  }
+  function realScreenOf(cwd: string) {
+    const root: string = gitMust(cwd, ['rev-parse', '--show-toplevel']).out.trim()
+    const oid: string = gitMust(root, ['rev-parse', 'HEAD']).out.trim()
+    const ver: string = gitMust(root, ['--version']).out.trim()
+    let gitDir: string = gitMust(root, ['rev-parse', '--git-dir']).out.trim()
+    if (!path.isAbsolute(gitDir)) gitDir = path.resolve(root, gitDir)
+    const has = function (p: string) { return fs.existsSync(path.join(gitDir, p)) }
+    const names = function (args: string[]) { return gitSync(root, args).out.split(/\r?\n/).filter(function (s: string) { return s !== '' }) }
+    return {
+      ok: true,
+      gitVersion: ver,
+      screen: {
+        identity: { oid: oid, worktreePath: root },
+        repo: { worktreePath: root, bare: false, merging: has('MERGE_HEAD'), rebasing: has('rebase-merge') || has('rebase-apply'), cherryPicking: has('CHERRY_PICK_HEAD'), reverting: has('REVERT_HEAD') },
+        staged: names(['diff', '--cached', '--name-only']),
+        unstaged: names(['diff', '--name-only']),
+        conflictCount: names(['diff', '--name-only', '--diff-filter=U']).length,
+      },
+    }
+  }
+  function realResolveRepoRoot(exe: string, cwd: string) {
+    const r = nodeCp.spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' })
+    if (r.status !== 0) return { ok: false, error: { kind: 'env', message: '不是 git 仓库' } }
+    return { ok: true, root: String(r.stdout || '').trim() }
+  }
+  function makeRealRig() {
+    const spawns: any[] = []
+    const tmp: any = makeRealTmp()
+    const runPinned = async function (exe: string, dir: string, args: string[], opts: any) {
+      const argv: string[] = ['-C', dir].concat(commandsMod.fixedPrefix()).concat(args)
+      spawns.push({ dir: dir, args: args.slice(), argv: argv, env: (opts && opts.env) || null, gitEditor: (opts && opts.gitEditor) || null })
+      const env: any = Object.assign({}, process.env, (opts && opts.env) || {}, { GIT_EDITOR: (opts && opts.gitEditor) ? String(opts.gitEditor) : 'false', GIT_TERMINAL_PROMPT: '0' })
+      Object.keys(env).forEach(function (k: string) { if (env[k] === undefined) delete env[k] })
+      const r = nodeCp.spawnSync(exe, argv, { cwd: dir, env: env, encoding: 'utf8' })
+      if (r.error) return { kind: 'spawn-failed', message: String(r.error.message) }
+      return { kind: r.status === 0 ? 'ok' : 'non-zero', exitCode: r.status, stdout: String(r.stdout || ''), stderr: String(r.stderr || '') }
+    }
+    const scene = sceneMod.createRebaseScene({ failPhone: failPhone, firstLine: envelopeMod.firstLine, failureFromExec: envelopeMod.failureFromExec, runPinned: runPinned, resolveGitExecutable: async function () { return 'git' }, resolveRepoRoot: realResolveRepoRoot, readScreenOf: async function (cwd: string) { return realScreenOf(cwd) }, tmp: tmp, now: function () { return clock.t } })
+    let n = 0
+    const check = checkMod.createRebaseCheck({ scene: scene, failPhone: failPhone, now: function () { return clock.t }, randomId: function () { n += 1; return 'rticket-' + n } })
+    const write = writeMod.createRebaseWrite({ failPhone: failPhone, runPinned: runPinned, resolveGitExecutable: async function () { return 'git' }, measure: scene.measure, scene: scene, now: function () { return clock.t }, tickets: check.tickets, results: check.results, tmp: tmp })
+    const rebaseArgs = function () { return spawns.filter(function (s: any) { return s.args[0] === 'rebase' }) }
+    return { scene: scene, check: check, write: write, spawns: spawns, rebaseArgs: rebaseArgs }
+  }
+  function rowsFrom(commits: any, overrides: any) {
+    return commits.map(function (c: any, i: number) {
+      const action: string = (overrides && overrides[i]) ? overrides[i] : 'pick'
+      return { oid: c.oid, action: action, message: '' }
+    })
+  }
+  console.log('  C 真临时 git 仓库')
+  {
+    const repo = mkRepo('basic')
+    const c1: string = commitFile(repo, 'a.txt', '1\n', 'c1')
+    const c2: string = commitFile(repo, 'b.txt', '2\n', 'c2')
+    const c3: string = commitFile(repo, 'c.txt', '3\n', 'c3')
+    gitMust(repo, ['checkout', '-q', '-b', 'side', c1])
+    const n1: string = commitFile(repo, 'side.txt', 'side\n', 'n1')
+    gitMust(repo, ['checkout', '-q', 'main'])
+    const rig = makeRealRig()
+    const sc = await rig.scene.sceneOf(repo)
+    check(sc.ok === true && sc.state === null && sc.branch === 'main' && sc.updateRefs === false, 'C1 真仓库现场：干净、在 main、updateRefs 关')
+    has(sc.gitVersion, 'git version', 'C2 现场读数带完整 git 版本串（含 git version 前缀）')
+    const win = await rig.scene.windowOf(repo, c1)
+    check(win.ok === true && win.commitCount === 2 && win.commits[0].oid === c2 && win.commits[1].oid === c3, 'C3 待办窗口：基座之后两个提交，按从旧到新排')
+    const range = await rig.scene.ontoRangeOf(repo, c1, 'side')
+    check(range.ok === true && range.movedCount === 2 && range.incomingCount === 1, 'C4 换基座范围：要搬走 2 个、新基座带来 1 个')
+    const stRead = await rig.check.handleRebaseRead({ cwd: repo, op: 'rebase-state' })
+    check(stRead.ok === true && stRead.canRebase === true, 'C5 读数电话在真仓库上可开始变基')
+    const winRead = await rig.check.handleRebaseRead({ cwd: repo, op: 'rebase-window', base: c1 })
+    check(winRead.ok === true && winRead.commitCount === 2, 'C6 读数电话读出真窗口两条')
+    const rangeRead = await rig.check.handleRebaseRead({ cwd: repo, op: 'rebase-onto-range', oldBase: c1, newBase: 'side' })
+    check(rangeRead.ok === true && rangeRead.movedCount === 2 && rangeRead.incomingCount === 1, 'C7 读数电话读出真换基座范围')
+    const missing = await rig.scene.windowOf(repo, 'no-such-branch')
+    check(missing.ok === false && reasonOf(missing.envelope) === 'target-missing', 'C8 基座不存在：target-missing（明确失败，不猜）')
+    const ontoPre = await rig.check.handleRebaseCheck({ cwd: repo, op: 'rebase-onto', payload: { oldBase: c1, newBase: 'side' } })
+    check(ontoPre.ok === true && ontoPre.ticket.op === 'rebase-onto' && ontoPre.plan.oldBaseOid === c1 && ontoPre.plan.newBaseOid === n1, 'C9 换基座预检把新旧基座解析成确切提交号写进票')
+    const ontoRun = await rig.write.handleRebaseWrite({ cwd: repo, op: 'rebase-onto', payload: { oldBase: c1, newBase: 'side' }, ticketId: ontoPre.ticket.id, requestId: 'c-req-onto', confirmed: true })
+    const ontoCount = gitMust(repo, ['rev-list', '--count', n1 + '..HEAD']).out.trim()
+    const ancestor = gitSync(repo, ['merge-base', '--is-ancestor', n1, 'HEAD']).status
+    check(ontoRun.ok === true && ontoRun.conflicted === false && ontoCount === '2' && ancestor === 0, 'C10 换基座真执行：两个提交搬到新基座之上，新基座成了 HEAD 的祖先')
+    eq(rig.rebaseArgs()[0].args.join(' '), 'rebase --onto side ' + c1, 'C11 换基座的 argv 是 rebase --onto <新基座> <旧基座>（新前旧后，逐元素独立）')
+  }
+  {
+    const repo = mkRepo('todo')
+    const c1: string = commitFile(repo, 'a.txt', '1\n', 'c1')
+    const c2: string = commitFile(repo, 'b.txt', '2\n', 'c2')
+    const c3: string = commitFile(repo, 'c.txt', '3\n', 'c3')
+    const rig = makeRealRig()
+    const win = await rig.check.handleRebaseRead({ cwd: repo, op: 'rebase-window', base: c1 })
+    const rows = rowsFrom(win.commits, ['pick', 'drop'])
+    const pre = await rig.check.handleRebaseCheck({ cwd: repo, op: 'rebase-todo', payload: { base: c1, rows: rows } })
+    check(pre.ok === true && pre.extra.windowCount === 2, 'C12 待办预检：窗口两条都认，票里记窗口条数')
+    const run = await rig.write.handleRebaseWrite({ cwd: repo, op: 'rebase-todo', payload: { base: c1, rows: rows }, ticketId: pre.ticket.id, requestId: 'c-req-todo', confirmed: true })
+    const count = gitMust(repo, ['rev-list', '--count', c1 + '..HEAD']).out.trim()
+    check(run.ok === true && run.conflicted === false && count === '1', 'C13 待办里把第三条标成丢弃：真执行后基座之后只剩一条提交（drop 生效）')
+    const seq = rig.rebaseArgs()[0]
+    check(seq.args.join(' ') === 'rebase -i ' + c1 && String(seq.env.GIT_SEQUENCE_EDITOR).indexOf('cp "') === 0, 'C14 待办变基的 argv 与待办覆盖通道都按规格第 7 节')
+  }
+  {
+    const repo = mkRepo('conflict')
+    commitFile(repo, 'f.txt', 'base\n', 'c1')
+    gitMust(repo, ['checkout', '-q', '-b', 'side'])
+    const s: string = commitFile(repo, 'f.txt', 'side\n', 's')
+    gitMust(repo, ['checkout', '-q', 'main'])
+    const m: string = commitFile(repo, 'f.txt', 'main\n', 'm')
+    gitMust(repo, ['checkout', '-q', 'side'])
+    const rig = makeRealRig()
+    const win = await rig.check.handleRebaseRead({ cwd: repo, op: 'rebase-window', base: m })
+    check(win.ok === true && win.commitCount === 1 && win.commits[0].oid === s, 'C15 冲突仓库的待办窗口只有那一条会冲突的提交')
+    const rows = rowsFrom(win.commits, ['pick'])
+    const pre = await rig.check.handleRebaseCheck({ cwd: repo, op: 'rebase-todo', payload: { base: m, rows: rows } })
+    check(pre.ok === true, 'C16 会冲突的待办也能签票（冲突不是预检能预知的失败）')
+    const run = await rig.write.handleRebaseWrite({ cwd: repo, op: 'rebase-todo', payload: { base: m, rows: rows }, ticketId: pre.ticket.id, requestId: 'c-req-conflict', confirmed: true })
+    check(run.ok === true && run.conflicted === true && run.state === 'rebase', 'C17 撞冲突：回包如实说 conflicted 与现在停在 rebase 中，不报 git-failed')
+    const st = await rig.check.handleRebaseRead({ cwd: repo, op: 'rebase-state' })
+    check(st.ok === true && st.state === 'rebase' && st.canRebase === false, 'C18 冲突后读数电话如实报进行中，不再允许开始新变基')
+    const preAgain = await rig.check.handleRebaseCheck({ cwd: repo, op: 'rebase-todo', payload: { base: m, rows: rows } })
+    check(reasonOf(preAgain) === 'operation-in-progress', 'C19 冲突未处理时再点变基：operation-in-progress 拒绝')
+    gitMust(repo, ['rebase', '--abort'])
+    const headAfter = gitMust(repo, ['rev-parse', 'HEAD']).out.trim()
+    const st2 = await rig.check.handleRebaseRead({ cwd: repo, op: 'rebase-state' })
+    check(headAfter === s && st2.ok === true && st2.state === null, 'C20 中止后 HEAD 回到操作前、状态干净（不伪造成功，能回原状态）')
+  }
+  {
+    const repo = mkRepo('stale')
+    const c1: string = commitFile(repo, 'a.txt', '1\n', 'c1')
+    const c2: string = commitFile(repo, 'b.txt', '2\n', 'c2')
+    const rig = makeRealRig()
+    const pre = await rig.check.handleRebaseCheck({ cwd: repo, op: 'rebase-todo', payload: { base: c1, rows: [{ oid: c2, action: 'pick', message: '' }] } })
+    const c3: string = commitFile(repo, 'c.txt', '3\n', 'c3')
+    const before = rig.rebaseArgs().length
+    const run = await rig.write.handleRebaseWrite({ cwd: repo, op: 'rebase-todo', payload: { base: c1, rows: [{ oid: c2, action: 'pick', message: '' }] }, ticketId: pre.ticket.id, requestId: 'c-req-stale', confirmed: true })
+    check(pre.ok === true && reasonOf(run) === 'target-changed' && rig.rebaseArgs().length === before && gitMust(repo, ['rev-parse', 'HEAD']).out.trim() === c3, 'C21 签票后又提交了一条：target-changed、零 rebase 进程、HEAD 不动')
+  }
+  {
+    const repo = mkRepo('merges')
+    const c1: string = commitFile(repo, 'a.txt', '1\n', 'c1')
+    gitMust(repo, ['checkout', '-q', '-b', 'feat'])
+    commitFile(repo, 'f.txt', 'feat\n', 'feat')
+    gitMust(repo, ['checkout', '-q', 'main'])
+    commitFile(repo, 'm.txt', 'main\n', 'm2')
+    gitMust(repo, ['merge', '-q', '--no-ff', '-m', 'merge feat', 'feat'])
+    const rig = makeRealRig()
+    const cost = await rig.check.handleRebaseRead({ cwd: repo, op: 'rebase-merges-cost', base: c1 })
+    check(cost.ok === true && cost.count === 1, 'C22 保留合并结构的代价：真数出 1 个合并提交')
+    const pre = await rig.check.handleRebaseCheck({ cwd: repo, op: 'rebase-merges', payload: { base: c1 } })
+    check(pre.ok === true && pre.extra.mergeCount === 1, 'C23 保留合并结构预检把代价计数写进回包（先给用户看再确认）')
+  }
+  {
+    const repo = mkRepo('autosquash')
+    const c1: string = commitFile(repo, 'a.txt', '1\n', 'c1')
+    commitFile(repo, 'b.txt', '2\n', 'feat: 新功能')
+    commitFile(repo, 'b2.txt', '3\n', 'fixup! feat: 新功能')
+    const rig = makeRealRig()
+    const pairs = await rig.check.handleRebaseRead({ cwd: repo, op: 'rebase-autosquash-pairs', base: c1 })
+    check(pairs.ok === true && pairs.pairCount === 1 && pairs.pairs[0].kind === 'fixup', 'C24 自动吸收清单：真仓库里认出 fixup! 与它的目标提交')
+    const pre = await rig.check.handleRebaseCheck({ cwd: repo, op: 'rebase-autosquash', payload: { base: c1 } })
+    check(pre.ok === true && pre.extra.pairCount === 1, 'C25 自动吸收预检先把将吸收的提交对列出来（执行前看得见）')
+  }
+  {
+    const repo = mkRepo('updaterefs')
+    const c1: string = commitFile(repo, 'a.txt', '1\n', 'c1')
+    commitFile(repo, 'b.txt', '2\n', 'c2')
+    gitMust(repo, ['config', 'rebase.updateRefs', 'true'])
+    const rig = makeRealRig()
+    const sc = await rig.scene.sceneOf(repo)
+    check(sc.ok === true && sc.updateRefs === true, 'C26 真仓库开着 rebase.updateRefs 时现场读数为真')
+    const pre = await rig.check.handleRebaseCheck({ cwd: repo, op: 'rebase-todo', payload: { base: c1, rows: [{ oid: gitMust(repo, ['rev-parse', 'HEAD']).out.trim(), action: 'pick', message: '' }] } })
+    check(reasonOf(pre) === 'update-refs-on' && rig.rebaseArgs().length === 0, 'C27 开着 updateRefs：预检拒绝且零进程（面板不替人改配置、不做 --update-refs）')
+  }
+  console.log('  C 组完成：' + total + ' 条')
+
 }
 
 main().then(async function () {
@@ -182,5 +647,6 @@ main().then(async function () {
   console.log('  门禁自身抛错：' + (err && err.stack ? err.stack : String(err)));
   failed += 1;
   total += 1;
-  printGateResult(GATE, total, failed).then(function () { process.exit(1); });
+  printGateResult(GATE, total, failed);
+  process.exit(1);
 });

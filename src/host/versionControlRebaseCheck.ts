@@ -161,7 +161,8 @@ export function createRebaseCheck(deps: any): any {
     const cwd: string = String(a.cwd || '')
     if (cwd === '') return argsFail('bad-target', '缺少仓库目录')
     const payload: any = a.payload && typeof a.payload === 'object' ? a.payload : a
-    const body: any = { contract: REBASE_CHECK_CONTRACT, version: REBASE_CHECK_VERSION, op: op }
+    // 只读回包也要带 ok:true：界面与门禁靠它区分「读到了」与「拒绝/失败」，缺了会被当成失败。
+    const body: any = { ok: true, contract: REBASE_CHECK_CONTRACT, version: REBASE_CHECK_VERSION, op: op }
     if (op === 'rebase-state') {
       const s: any = await scene.sceneOf(cwd)
       if (!s || s.ok !== true) return s && s.envelope ? s.envelope : failAt('env', 'env', '读不到仓库状态')
