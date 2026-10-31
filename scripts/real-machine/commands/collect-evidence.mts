@@ -15,7 +15,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { evidenceCandidate, judgeEvidenceBinding, readBatch } from '../lib/batch.mts'
+import { judgeBatchCandidateFile, readBatch } from '../lib/batch.mts'
 import { createEvidence } from '../lib/evidence.mts'
 import { resolveBatchPath } from '../lib/paths.mts'
 import { parseArgs, printJson, runCli } from '../lib/util.mts'
@@ -34,16 +34,19 @@ runCli(async () => {
   const args = parseArgs(process.argv.slice(2))
   const batch = resolveBatchPath(args.require('batch', '批次目录'))
   const record = readBatch(batch)
-  const binding = evidenceCandidate(record)
+  // 从磁盘上的候选文件与候选包重新认一遍身份，再写进证据：只信 batch.json 自己的记录
+  // 等于让「候选有没有被换过」这个问题没有答案。
+  const candidateCheck = judgeBatchCandidateFile(record)
+  if (!candidateCheck.ok) {
+    throw new Error('批次记录与磁盘上的候选对不上，不能收证据：\n  ' + candidateCheck.problems.join('\n  '))
+  }
+  const binding = candidateCheck.binding
+  if (!binding) throw new Error('候选身份没有解析出来：先跑 prepare-batch 建批次。')
   const meta: Record<string, any> = parsePairs(args.getAll('meta'))
   if ('candidate' in meta || 'batchName' in meta) {
     throw new Error('候选身份由 batch.json 决定，不要在 --meta 里手写 candidate 或 batchName：先确认批次目录没给错。')
   }
   meta.candidate = binding
-  const verdict = judgeEvidenceBinding(record, meta)
-  if (!verdict.ok) {
-    throw new Error('证据没有绑定到这一批的候选，不能收进证据包：\n  ' + verdict.problems.join('\n  '))
-  }
   const collector = createEvidence(batch, meta, { candidate: binding })
   const files = args.getAll('file')
   const notes = args.getAll('note')

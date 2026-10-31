@@ -58,6 +58,8 @@
     "lib/build-lock.mts",
     "lib/build-products.mts",
     "lib/select-gates.mts",
+    // #1766：候选清单校验、发布字节对账与身份行解析共用的纯规则。
+    "lib/release-candidate-audit.mts",
     "lib/transpile-domains.mts",
     "lib/transpile-unit.mts",
     "lib/prompt-config.mts",
@@ -68,6 +70,9 @@
     "measure-967-outbound.ts",
     // #1648：发布自证脚本（发布包逐文件清单与 dist-tag 策略的纯计算部分，tests 直接 import）。
     "release-integrity.mts",
+    // #1766：候选清单校验与发布字节对账的命令行入口（发布脚本调它，测试也直接跑）。
+    "release-candidate-check.mts",
+    "release-preflight.mts",
     "seed-1460-dedup-drill.ts",
     "star-history.mts",
     "sync-matt-skills.mts",

@@ -24,6 +24,7 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import {
+  assertBatchName,
   batchIdentityLine,
   createBatchRecord,
   evidenceCandidate,
@@ -68,8 +69,7 @@ runCli(async () => {
       throw new Error('--batch 指向「' + batchName + '」，--name 却是「' + explicitName + '」：两个参数只能给一个，或给成同一个名字。')
     }
   } else {
-    batchName = explicitName || 'batch-' + stamp()
-    assert(/^[A-Za-z0-9._-]+$/.test(batchName), '批次名「' + batchName + '」不合法：只能用字母、数字、点、下划线与连字符。')
+    batchName = assertBatchName(explicitName || 'batch-' + stamp())
     targetDir = batchDir(batchName)
   }
   const batchStartedAt = startedAt
@@ -122,16 +122,30 @@ runCli(async () => {
   }
   const candidatePath = path.join(candidateOut, 'candidate.json')
   const candidate = readCandidateFile(candidatePath)
+  // 冻结是几十秒到几分钟的活：这期间 HEAD 可能被别人切换、工作树可能被人改脏。
+  // 只有冻结结束后再读一次代码状态，才能说这个候选确实是从「这一批开始时的源码」做出来的。
+  const headAfterFreeze = gitState(repository)
+  if (headAfterFreeze.commit !== headAtStart.commit) {
+    throw new Error(
+      '冻结期间代码前进了：批次开始时 HEAD 是 ' + headAtStart.commit + '，冻结完成时是 ' + headAfterFreeze.commit +
+        '。这一批的候选说不清是从哪份源码做出来的，换一个批次名重来。',
+    )
+  }
   const verdict = judgeCandidateForBatch({
     candidatePath,
     candidate,
     batchDir: targetDir,
     batchStartedAt,
-    // 用批次开始那一刻的 HEAD 做判据：冻结过程中 HEAD 被人切换，这里会拒绝。
-    currentHead: headAtStart.commit,
+    currentHead: headAfterFreeze.commit,
   })
   if (!verdict.ok) {
     throw new Error('冻结出来的候选不能作为本批次的起点：\n  ' + verdict.problems.join('\n  '))
+  }
+  if (verdict.validity === 'release' && headAfterFreeze.dirtyFiles.length > 0) {
+    throw new Error(
+      '这是 release 候选，但冻结完成时工作树有 ' + headAfterFreeze.dirtyFiles.length +
+        ' 个未提交改动：发布候选必须来自干净工作树，先把改动提交或收起来再重新开批次。',
+    )
   }
   if (verdict.validity === 'development') {
     info('注意：这是 development 候选（工作树不干净），只能用于开发验证，不能进发布收口。')

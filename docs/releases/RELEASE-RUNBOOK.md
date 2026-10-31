@@ -123,7 +123,7 @@
 
 > **发布脚本自己证明「发出去的字节 = 门禁验过的字节」（#1648）**：`scripts/release-integrity.mts` 把 npm 的 tarball 解包成「逐文件清单」——每个文件的路径、字节数、sha256，再加一个整份清单的指纹——三处各拍一次：门禁构建完之后拍一次（`GATE-SNAPSHOT`）；发布前在包目录里补跑该包的 `prepublishOnly`（发布时 npm 会跑它，可能重新生成文件）再拍一次，与门禁那份比对，不一致打 `PRE-PACK-DIFF` 并停在发布之前，一致打 `PRE-PACK-SAME`；发布完成后按 `包名@版本` 从 registry 拉回 tarball 再拍一次，与发布前那份比对，一致打 `BYTES-SAME`，不一致打 `BYTES-DIFF` 并以非零退出——此时已经发出去、npm 不支持撤回，脚本会把「必须人工核对」写进日志与退出码。比对按逐文件 sha256，不按整个 tarball 的哈希：打包元数据（时间戳、写入顺序）会让同一份内容两次打包的整体哈希不同，那个差异说明不了内容变了。
 
-> **发布前还会核一次候选身份（#1766）**：`scripts/publish-token.ps1` 支持可选 `-Candidate <candidate.json>`，在发布前把待发字节的逐文件清单指纹与候选包的 `package.fileDigest` 对账——两份指纹用同一算法（`scripts/release-integrity.mts` 的清单指纹），所以能直接比。一致就继续发布；不一致但清单票正文的「候选与发布差异审计」一节已经写清差异为什么可以接受（发布前检查会打 `PREFLIGHT-CANDIDATE-AUDIT`）时继续发布并记 `CANDIDATE-DIFF-AUDITED`；不一致又没有差异审计时打 `CANDIDATE-DIFF` 并中止发布。候选的 `validity` 是 `development`（脏树冻结的开发验证）时直接拒绝发布。不传 `-Candidate` 时记 `CANDIDATE-SKIP`，行为与今天一致，只做票面检查、不做字节对账。
+> **发布前还会核一次候选身份（#1766）**：`scripts/publish-token.ps1` 支持可选 `-Candidate <candidate.json>`，在发布前把待发字节的逐文件清单指纹与候选包的 `package.fileDigest` 对账——两份指纹用同一算法（`scripts/release-integrity.mts` 的清单指纹），所以能直接比。一致就继续发布；不一致但清单票正文的「候选与发布差异审计」一节已经写清差异为什么可以接受（发布前检查会打 `PREFLIGHT-CANDIDATE-AUDIT`）时继续发布并记 `CANDIDATE-DIFF-AUDITED`；不一致又没有差异审计时打 `CANDIDATE-DIFF` 并中止发布。候选的 `validity` 是 `development`（脏树冻结的开发验证）时直接拒绝发布；候选清单还必须带 `package.tgzSha256`（64 位小写十六进制），发布前检查会拿它与身份行里的候选包哈希互相核对。不传 `-Candidate` 时记 `CANDIDATE-SKIP`，行为与今天一致，只做票面检查、不做字节对账。
 
 > **dist-tag 指向按版本形态定，发布前后各核一次**：预发布版本（版本号里带 `-`，例如 `1.9.0-beta.32`）发布时发到 `beta`，发布成功后脚本再把 `latest` 指到同一个版本，这样面板与市场拿到的都是新版；稳定版本发布时发到 `latest`，`beta` 保持发布前的指向不动。发布前脚本读一次当前各 tag，算出「发布后应该是什么样」（`TAG-PLAN`）；发布后再读一次核对（`TAG-VERIFY-OK`，不符打 `TAG-VERIFY-FAIL` 并非零退出）。发完把每包的文件数、字节数、清单指纹与各 tag 的最终指向写进发布记录评论。
 

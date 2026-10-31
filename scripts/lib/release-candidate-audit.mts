@@ -20,10 +20,10 @@
 /** 验证身份行的固定前缀。写评论的人和解析的人共用这一处，改格式先改规则文档。 */
 export const IDENTITY_PREFIX = '- 验证身份：批次 '
 
-/** 提交哈希的机器格式：只认 40 位小写十六进制。 */
-const COMMIT_PATTERN = /^[0-9a-f]{40}$/
-/** 候选包 tgz 哈希的机器格式：只认 64 位小写十六进制。 */
-const PACKAGE_SHA256_PATTERN = /^[0-9a-f]{64}$/
+/** 提交哈希的机器格式：只认 40 位小写十六进制。批次记录与发布前检查都从这里取，别再各写一份。 */
+export const COMMIT_PATTERN = /^[0-9a-f]{40}$/
+/** 候选包 tgz 哈希的机器格式：只认 64 位小写十六进制。逐文件清单指纹也用同一个形状。 */
+export const PACKAGE_SHA256_PATTERN = /^[0-9a-f]{64}$/
 
 /** 身份行去掉前缀之后的精确形状；行尾空白在进入正则前已经去掉。 */
 const IDENTITY_TAIL_PATTERN = /^([^\s；]+)；候选提交 ([0-9a-f]{40})；候选包 sha256 ([0-9a-f]{64})$/u
@@ -58,6 +58,8 @@ export type CandidateAuditCandidate = {
   sourceStable: boolean
   /** 候选包的逐文件清单指纹，64 位小写十六进制，与 release-integrity.mts 的 digest 同一算法。 */
   fileDigest: string
+  /** 候选包 tgz 的 sha256，64 位小写十六进制；用来核对票面身份行里的「候选包 sha256」确实属于这份候选清单。 */
+  packageSha256: string
   /** 候选包在本机的路径，只用于报错时指路，不参与判断。 */
   packagePath?: string
 }
@@ -88,6 +90,8 @@ export type CandidateAuditFindingCode =
   | 'candidate-commit-invalid'
   | 'candidate-commit-not-ancestor'
   | 'candidate-digest-invalid'
+  | 'candidate-package-sha-invalid'
+  | 'candidate-package-sha-mismatch'
   | 'candidate-not-registered'
   | 'candidate-audit-missing'
 
@@ -243,6 +247,113 @@ function isAudited(audits: AuditLine[], candidateCommit: string, releaseCommit: 
 }
 
 /**
+ * 候选清单自身的发布资格：只查清单字段，不查票面、不查 git。
+ * 发布前检查与发布脚本的候选校验都走这里，两处不会各写一套规则、改一处漏一处。
+ */
+export function checkCandidateManifest(candidate: CandidateAuditCandidate): CandidateAuditFinding[] {
+  const findings: CandidateAuditFinding[] = []
+  const commit = String(candidate.commit || '')
+  const fileDigest = String(candidate.fileDigest || '')
+  const packageSha256 = String(candidate.packageSha256 || '')
+  if (String(candidate.validity || '') !== 'release') {
+    findings.push({
+      code: 'candidate-not-release',
+      message:
+        '候选清单的 validity 是「' + String(candidate.validity || '（空）') + '」：development 候选只用于开发验证，不能作为发布证据。',
+      fix: '用不带 --allow-dirty 的方式重新冻结候选（validity 写成 release），再用这个候选重跑真机验证。',
+    })
+  }
+  if (candidate.sourceStable !== true) {
+    findings.push({
+      code: 'candidate-source-unstable',
+      message: '候选清单的 sourceStable 不是 true：冻结前后 HEAD 或未提交文件集合变过，构建出来的包不能当作该提交的候选包。',
+      fix: '确认冻结期间源码没有被改动，重新冻结一次候选，并把 sourceStable 写成 true。',
+    })
+  }
+  if (!COMMIT_PATTERN.test(commit)) {
+    findings.push({
+      code: 'candidate-commit-invalid',
+      message: '候选清单的 git.commit 不是 40 位小写十六进制：「' + commit + '」。',
+      fix: '把 candidate.json 的 git.commit 写成完整的 40 位小写提交哈希。',
+    })
+  }
+  if (!PACKAGE_SHA256_PATTERN.test(fileDigest)) {
+    findings.push({
+      code: 'candidate-digest-invalid',
+      message: '候选清单的 package.fileDigest 不是 64 位小写十六进制：「' + fileDigest + '」。',
+      fix: '重新冻结候选，让 package.fileDigest 写成 64 位小写十六进制的逐文件清单指纹（与 release-integrity.mts 的 digest 同一算法）。',
+    })
+  }
+  if (!PACKAGE_SHA256_PATTERN.test(packageSha256)) {
+    findings.push({
+      code: 'candidate-package-sha-invalid',
+      message: '候选清单的 package.tgzSha256 不是 64 位小写十六进制：「' + packageSha256 + '」。',
+      fix: '重新冻结候选，让 package.tgzSha256 写成候选包文件字节的 64 位小写 sha256。',
+    })
+  }
+  return findings
+}
+
+/** 发布字节对账的三种结论。 */
+export type ReleaseBytesVerdict = 'same' | 'diff-audited' | 'diff'
+
+/** 发布字节对账的判断依据与结果；调用方按 verdict 决定继续发布还是停下。 */
+export type ReleaseBytesReport = {
+  verdict: ReleaseBytesVerdict
+  candidateFileDigest: string
+  publishedFileDigest: string
+  /** 候选提交与发布提交不同时，清单票有没有对应的差异审计。 */
+  auditCovered: boolean
+  message: string
+}
+
+/**
+ * 把「这次真正要发的字节」与「候选包清单」对上：
+ *   - 指纹相同：要发的就是候选包，记 CANDIDATE-SAME；
+ *   - 指纹不同但清单票有差异审计：差异已经被人看过，记 CANDIDATE-DIFF-AUDITED；
+ *   - 指纹不同又没有审计：发布前必须停下，记 CANDIDATE-DIFF。
+ * 这里只比较两个指纹，不读文件、不调 npm；发布脚本拿到发布前清单后调用它，测试直接测它。
+ */
+export function judgeReleaseBytes(options: {
+  candidateFileDigest: string
+  publishedFileDigest: string
+  auditCovered: boolean
+}): ReleaseBytesReport {
+  const candidateFileDigest = String(options.candidateFileDigest || '')
+  const publishedFileDigest = String(options.publishedFileDigest || '')
+  const auditCovered = options.auditCovered === true
+  if (candidateFileDigest === publishedFileDigest) {
+    return {
+      verdict: 'same',
+      candidateFileDigest,
+      publishedFileDigest,
+      auditCovered,
+      message: '要发的字节与候选包清单一致 fileDigest=' + publishedFileDigest,
+    }
+  }
+  if (auditCovered) {
+    return {
+      verdict: 'diff-audited',
+      candidateFileDigest,
+      publishedFileDigest,
+      auditCovered,
+      message:
+        '要发的字节与候选包清单不一致，但清单票有差异审计（候选 fileDigest=' + candidateFileDigest +
+        '，要发 fileDigest=' + publishedFileDigest + '）',
+    }
+  }
+  return {
+    verdict: 'diff',
+    candidateFileDigest,
+    publishedFileDigest,
+    auditCovered,
+    message:
+      '要发字节与候选包清单不一致且清单票没有差异审计，发布前停下（候选 fileDigest=' + candidateFileDigest +
+      '，要发 fileDigest=' + publishedFileDigest + '）',
+  }
+}
+
+/**
  * 发布前的候选审计：评论里的身份行、候选提交与发布提交的关系、候选清单本身是否可用于发布。
  *
  * 返回全部问题而不是遇到第一条就停：发布前检查一次列全，人改一轮就能改完，不用来回跑。
@@ -342,28 +453,10 @@ export function checkCandidateAudit(options: CandidateAuditOptions): CandidateAu
   if (candidate) {
     const candidateCommit = String(candidate.commit || '')
     const candidateCommitValid = COMMIT_PATTERN.test(candidateCommit)
-    if (String(candidate.validity || '') !== 'release') {
-      findings.push({
-        code: 'candidate-not-release',
-        message:
-          '候选清单的 validity 是「' + String(candidate.validity || '（空）') + '」：development 候选只用于开发验证，不能作为发布证据。',
-        fix: '用不带 --allow-dirty 的方式重新冻结候选（validity 写成 release），再用这个候选重跑真机验证。',
-      })
-    }
-    if (candidate.sourceStable !== true) {
-      findings.push({
-        code: 'candidate-source-unstable',
-        message: '候选清单的 sourceStable 不是 true：冻结前后 HEAD 或未提交文件集合变过，构建出来的包不能当作该提交的候选包。',
-        fix: '确认冻结期间源码没有被改动，重新冻结一次候选，并把 sourceStable 写成 true。',
-      })
-    }
-    if (!candidateCommitValid) {
-      findings.push({
-        code: 'candidate-commit-invalid',
-        message: '候选清单的 git.commit 不是 40 位小写十六进制：「' + candidateCommit + '」。',
-        fix: '把 candidate.json 的 git.commit 写成完整的 40 位小写提交哈希。',
-      })
-    } else {
+    const candidatePackageSha = String(candidate.packageSha256 || '')
+    const candidatePackageShaValid = PACKAGE_SHA256_PATTERN.test(candidatePackageSha)
+    findings.push(...checkCandidateManifest(candidate))
+    if (candidateCommitValid) {
       if (candidateCommit !== releaseCommit) {
         differingCommits.add(candidateCommit)
         if (ancestorCheck && !ancestorCheck(candidateCommit)) {
@@ -383,20 +476,23 @@ export function checkCandidateAudit(options: CandidateAuditOptions): CandidateAu
           })
         }
       }
-      if (!identities.some((identity) => identity.commit === candidateCommit)) {
+      const registeredForCommit = identities.filter((identity) => identity.commit === candidateCommit)
+      if (registeredForCommit.length === 0) {
         findings.push({
           code: 'candidate-not-registered',
           message: '候选清单的候选提交 ' + candidateCommit + ' 没有出现在任何一条「验证身份」行里：这批证据不是对这个候选做的。',
           fix: '用这个候选提交重新冻结、重跑批次，并在批次开始与每条场景结果评论里写同一行「验证身份」；或者换一个已在票面登记过的候选。',
         })
+      } else if (candidatePackageShaValid && !registeredForCommit.some((identity) => identity.packageSha256 === candidatePackageSha)) {
+        findings.push({
+          code: 'candidate-package-sha-mismatch',
+          message:
+            '候选清单的候选包 sha256 是 ' + candidatePackageSha + '，但票面里候选提交 ' + candidateCommit +
+            ' 的身份行写的是 ' + registeredForCommit.map((identity) => identity.packageSha256).join(' / ') +
+            '：这份候选包和当时登记、真机验证过的包不是同一个。',
+          fix: '核对 candidate.json 的 package.tgzSha256 与批次开始评论里的「候选包 sha256」；不一致时用同一个候选重新跑真机验证，或把票面身份行改成正确的候选包哈希。',
+        })
       }
-    }
-    if (!PACKAGE_SHA256_PATTERN.test(String(candidate.fileDigest || ''))) {
-      findings.push({
-        code: 'candidate-digest-invalid',
-        message: '候选清单的 package.fileDigest 不是 64 位小写十六进制：「' + String(candidate.fileDigest || '（空）') + '」。',
-        fix: '重新冻结候选，让 package.fileDigest 写成 64 位小写十六进制的逐文件清单指纹（与 release-integrity.mts 的 digest 同一算法）。',
-      })
     }
   }
 

@@ -50,10 +50,11 @@
 #     scripts/release-postflight.mts，发布记录评论里不再只有「发了」两个字（见 #1648 的验收判据）。
 #   - 本仓有 scripts/release-integrity.mts 才启用；五仓同步的 token 协议别处没有这套脚本时记 BYTES-SKIP，
 #     行为退回旧口径（-Tag 缺省 latest）并继续发布，不阻断。
-#   - 候选对账（#1766）：传 -Candidate <候选清单.json> 时，先校验候选清单（validity 必须是 release、
-#     sourceStable 必须是 true、提交与包指纹格式要对），再让 preflight 查清单票里的验证身份行、候选提交祖先
-#     与差异审计；发布前拍好逐文件清单后，把主包的清单指纹与候选包指纹对账：一致记 CANDIDATE-SAME；
-#     不一致但清单票有差异审计记 CANDIDATE-DIFF-AUDITED；不一致且没有审计就在发布前停下（CANDIDATE-DIFF）。
+#   - 候选对账（#1766）：传 -Candidate <候选清单.json> 时，先调 scripts/release-candidate-check.mts validate
+#     校验候选清单（字段规则在 scripts/lib/release-candidate-audit.mts，PowerShell 不再自己写一遍），
+#     再让 preflight 查清单票里的验证身份行、候选提交祖先与差异审计；发布前拍好逐文件清单后，
+#     调同一个脚本的 match 把主包清单指纹与候选包指纹对账：一致记 CANDIDATE-SAME；不一致但清单票
+#     有差异审计记 CANDIDATE-DIFF-AUDITED；不一致且没有审计就停下（CANDIDATE-DIFF）。
 #     没传 -Candidate 记 CANDIDATE-SKIP，按旧口径发布。
 #
 # 快协议（受理≠可见，两者解耦）：publish exit 0（+包名@版本回执）或 E409 previously-staged
@@ -107,25 +108,21 @@ $candidatePathResolved = ''
 if (-not [string]::IsNullOrWhiteSpace($Candidate)) {
   try { $candidatePathResolved = (Resolve-Path -LiteralPath $Candidate -ErrorAction Stop).Path }
   catch { Log ('CANDIDATE-FAIL 读不到候选清单：' + (ShowPath $Candidate) + '（路径写错、文件不存在或没有读权限）'); exit 1 }
-  $candidateJson = $null
-  try { $candidateJson = [System.IO.File]::ReadAllText($candidatePathResolved) | ConvertFrom-Json }
-  catch { Log ('CANDIDATE-FAIL 候选清单不是合法 JSON：' + (ShowPath $candidatePathResolved)); exit 1 }
-  if ([string]$candidateJson.validity -ne 'release') {
-    Log ('CANDIDATE-FAIL 候选清单的 validity 是 ' + [string]$candidateJson.validity + '，只有 release 候选能发布（development 候选不进入发布）')
+  $candidateCheck = Invoke-CandidateCheck @('validate', '--candidate', $candidatePathResolved)
+  Write-ToolOutput $candidateCheck.out
+  if ($candidateCheck.code -ne 0) {
+    Log ('CANDIDATE-FAIL 候选清单没通过校验（见上面的 CANDIDATE-FAIL / CANDIDATE-ENV 行）：' + (ShowPath $candidatePathResolved))
     exit 1
   }
-  if ($candidateJson.sourceStable -ne $true) {
-    Log 'CANDIDATE-FAIL 候选清单的 sourceStable 不是 true：候选冻结之后工作树又改过，先重新冻结候选再发布'
+  $candidateValidLine = @($candidateCheck.out -split '\r?\n' | Where-Object { $_ -match '^CANDIDATE-VALID ' } | Select-Object -Last 1)
+  if ($candidateValidLine.Count -eq 0) {
+    Log 'CANDIDATE-FAIL 候选校验没有返回 CANDIDATE-VALID 行，无法确认候选身份'
     exit 1
   }
-  $candidateCommit = [string]$candidateJson.git.commit
-  if ($candidateCommit -notmatch '^[0-9a-f]{40}$') {
-    Log ('CANDIDATE-FAIL 候选清单的 git.commit 不是 40 位小写提交号：' + (Mask $candidateCommit))
-    exit 1
-  }
-  $candidateDigest = [string]$candidateJson.package.fileDigest
-  if ($candidateDigest -notmatch '^[0-9a-f]{64}$') {
-    Log ('CANDIDATE-FAIL 候选清单的 package.fileDigest 不是 64 位小写指纹：' + (Mask $candidateDigest))
+  if ($candidateValidLine[0] -match 'commit=([0-9a-f]{40})') { $candidateCommit = $Matches[1] } else { $candidateCommit = '' }
+  if ($candidateValidLine[0] -match 'fileDigest=([0-9a-f]{64})') { $candidateDigest = $Matches[1] } else { $candidateDigest = '' }
+  if ($candidateCommit -eq '' -or $candidateDigest -eq '') {
+    Log ('CANDIDATE-FAIL 候选校验输出里缺 commit 或 fileDigest：' + $candidateValidLine[0])
     exit 1
   }
   Log ('CANDIDATE ' + (ShowPath $candidatePathResolved) + ' commit=' + $candidateCommit + ' fileDigest=' + $candidateDigest)
@@ -287,6 +284,16 @@ function Get-FileManifest([string]$tarball, [string]$outPath, [string]$name, [st
 }
 function Compare-FileManifests([string]$expected, [string]$actual) {
   return (Invoke-Integrity @('scripts/release-integrity.mts', 'compare', '--expected', $expected, '--actual', $actual))
+}
+# 候选清单校验与发布字节对账（#1766）：规则在 scripts/lib/release-candidate-audit.mts，
+# 这里只负责在仓根调 CLI、把输出转进日志。PowerShell 不再自己写一遍字段校验与指纹比较，
+# 两处规则就不会在改一边时漂掉。
+function Invoke-CandidateCheck([string[]]$arguments) {
+  Push-Location $RepoRoot
+  $out = (node --import ./scripts/ts-hook.mts scripts/release-candidate-check.mts @arguments 2>&1 | Out-String)
+  $code = $LASTEXITCODE
+  Pop-Location
+  return [pscustomobject]@{ code = $code; out = (Mask $out).Trim() }
 }
 
 try {
@@ -493,13 +500,12 @@ try {
       # 一致说明要发的就是候选包；不同时，只有清单票写了差异审计（preflight 打出 PREFLIGHT-CANDIDATE-AUDIT）
       # 才继续，否则停下——发布之后 registry 不支持撤回。
       if ($candidatePathResolved -ne '' -and $p.rel -eq 'package') {
-        $preDigest = [string]$preManifest.digest
-        if ($preDigest -eq $candidateDigest) {
-          Log ('CANDIDATE-SAME ' + $p.name + '@' + $p.version + ' 要发的字节与候选包清单一致 fileDigest=' + $candidateDigest)
-        } elseif ($candidateAuditOk) {
-          Log ('CANDIDATE-DIFF-AUDITED ' + $p.name + '@' + $p.version + ' 要发的字节与候选包清单不一致，但清单票有差异审计（preflight 的 PREFLIGHT-CANDIDATE-AUDIT）候选 fileDigest=' + $candidateDigest + ' 要发 fileDigest=' + $preDigest)
-        } else {
-          Log ('CANDIDATE-DIFF ' + $p.name + '@' + $p.version + ' 要发字节与候选包清单不一致且清单票没有差异审计，发布前停下（候选 fileDigest=' + $candidateDigest + ' 要发 fileDigest=' + $preDigest + '）')
+        $matchArgs = @('match', '--candidate', $candidatePathResolved, '--manifest', $preManifestPath)
+        if ($candidateAuditOk) { $matchArgs += '--audit-covered' }
+        $candidateMatch = Invoke-CandidateCheck $matchArgs
+        Write-ToolOutput $candidateMatch.out
+        if ($candidateMatch.code -ne 0) {
+          Log ('CANDIDATE-FAIL ' + $p.name + '@' + $p.version + ' 的候选包对账没通过（见上面的 CANDIDATE-DIFF 或 CANDIDATE-ENV 行），发布前停下')
           exit 1
         }
       }

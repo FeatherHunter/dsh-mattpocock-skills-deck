@@ -5,16 +5,25 @@
 // 所以把每条规则写成固定输入固定输出的用例；不需要 gh、git 或真实发布就能跑。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1766-release-audit.ts
-// 失败时退出码 1，逐条打印 FAIL；全部通过时打印一行总数。
+// 失败时退出码 1，逐条打印 FAIL；全部通过时打印 GATE-RESULT 完成记录。
+// 门禁归属: scripts/lib/release-candidate-audit.mts
+
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 import {
   IDENTITY_PREFIX,
   checkCandidateAudit,
+  checkCandidateManifest,
   collectBatchIdentities,
+  judgeReleaseBytes,
   parseIdentityLine,
   requiresIdentity,
 } from '../scripts/lib/release-candidate-audit.mts'
 import type { BatchIdentityComment, CandidateAuditReport } from '../scripts/lib/release-candidate-audit.mts'
+import { printGateResult } from './lib/gate-result.ts'
 
 let total = 0
 let failed = false
@@ -84,7 +93,7 @@ const passing = checkCandidateAudit({
   comments: [batchStart('B1', RELEASE), scenarioResult('B1', RELEASE)],
   releaseCommit: RELEASE,
   ancestorCheck: () => true,
-  candidate: { commit: RELEASE, validity: 'release', sourceStable: true, fileDigest: DIGEST },
+  candidate: { commit: RELEASE, validity: 'release', sourceStable: true, fileDigest: DIGEST, packageSha256: DIGEST },
 })
 check(passing.ok, '批次开始与场景结果都带身份行、候选就是发布提交时通过')
 check(passing.findings.length === 0, '通过时没有任何 findings')
@@ -184,7 +193,7 @@ const development = checkCandidateAudit({
   comments: [batchStart('B1', RELEASE), scenarioResult('B1', RELEASE)],
   releaseCommit: RELEASE,
   ancestorCheck: () => true,
-  candidate: { commit: RELEASE, validity: 'development', sourceStable: true, fileDigest: DIGEST },
+  candidate: { commit: RELEASE, validity: 'development', sourceStable: true, fileDigest: DIGEST, packageSha256: DIGEST },
 })
 check(!development.ok, 'validity 是 development 的候选被拒')
 check(codesOf(development).includes('candidate-not-release'), 'development 候选报 candidate-not-release')
@@ -194,7 +203,7 @@ const unregistered = checkCandidateAudit({
   comments: [batchStart('B1', RELEASE), scenarioResult('B1', RELEASE)],
   releaseCommit: RELEASE,
   ancestorCheck: () => true,
-  candidate: { commit: OLD_CANDIDATE, validity: 'release', sourceStable: true, fileDigest: DIGEST },
+  candidate: { commit: OLD_CANDIDATE, validity: 'release', sourceStable: true, fileDigest: DIGEST, packageSha256: DIGEST },
 })
 check(codesOf(unregistered).includes('candidate-not-registered'), '候选提交没出现在任何身份行里时报 candidate-not-registered')
 check(unregistered.findings.length === 1, '有差异审计时只报未登记这一处')
@@ -204,7 +213,7 @@ const candidateNoAudit = checkCandidateAudit({
   comments: [batchStart('B1', RELEASE), scenarioResult('B1', RELEASE)],
   releaseCommit: RELEASE,
   ancestorCheck: () => true,
-  candidate: { commit: OLD_CANDIDATE, validity: 'release', sourceStable: true, fileDigest: DIGEST },
+  candidate: { commit: OLD_CANDIDATE, validity: 'release', sourceStable: true, fileDigest: DIGEST, packageSha256: DIGEST },
 })
 check(codesOf(candidateNoAudit).includes('candidate-audit-missing'), '候选与发布不同且无审计时报 candidate-audit-missing')
 check(codesOf(candidateNoAudit).includes('candidate-not-registered'), '未登记时同时也会报 candidate-not-registered')
@@ -214,7 +223,7 @@ const unstable = checkCandidateAudit({
   comments: [batchStart('B1', RELEASE), scenarioResult('B1', RELEASE)],
   releaseCommit: RELEASE,
   ancestorCheck: () => true,
-  candidate: { commit: RELEASE, validity: 'release', sourceStable: false, fileDigest: DIGEST },
+  candidate: { commit: RELEASE, validity: 'release', sourceStable: false, fileDigest: DIGEST, packageSha256: DIGEST },
 })
 check(codesOf(unstable).includes('candidate-source-unstable'), 'sourceStable 不是 true 时报 candidate-source-unstable')
 
@@ -223,9 +232,74 @@ const badDigest = checkCandidateAudit({
   comments: [batchStart('B1', RELEASE), scenarioResult('B1', RELEASE)],
   releaseCommit: RELEASE,
   ancestorCheck: () => true,
-  candidate: { commit: RELEASE, validity: 'release', sourceStable: true, fileDigest: 'd'.repeat(63) },
+  candidate: { commit: RELEASE, validity: 'release', sourceStable: true, fileDigest: 'd'.repeat(63), packageSha256: DIGEST },
 })
 check(codesOf(badDigest).includes('candidate-digest-invalid'), 'fileDigest 不是 64 位时报 candidate-digest-invalid')
+
+// ── 九、候选包哈希也要核，不能只看逐文件指纹 ────────────────────────────
+console.log('[候选包哈希]')
+const manifestOk = checkCandidateManifest({ commit: RELEASE, validity: 'release', sourceStable: true, fileDigest: DIGEST, packageSha256: DIGEST })
+check(manifestOk.length === 0, '候选清单字段齐全且格式正确时 checkCandidateManifest 不报问题')
+const badPackageSha = checkCandidateAudit({
+  body: '',
+  comments: [batchStart('B1', RELEASE), scenarioResult('B1', RELEASE)],
+  releaseCommit: RELEASE,
+  ancestorCheck: () => true,
+  candidate: { commit: RELEASE, validity: 'release', sourceStable: true, fileDigest: DIGEST, packageSha256: 'e'.repeat(63) },
+})
+check(codesOf(badPackageSha).includes('candidate-package-sha-invalid'), 'package.tgzSha256 不是 64 位时报 candidate-package-sha-invalid')
+const mismatchedPackageSha = checkCandidateAudit({
+  body: '',
+  comments: [batchStart('B1', RELEASE), scenarioResult('B1', RELEASE)],
+  releaseCommit: RELEASE,
+  ancestorCheck: () => true,
+  candidate: { commit: RELEASE, validity: 'release', sourceStable: true, fileDigest: DIGEST, packageSha256: 'f'.repeat(64) },
+})
+check(codesOf(mismatchedPackageSha).includes('candidate-package-sha-mismatch'), '候选包 sha256 与身份行里写的都对不上时报 candidate-package-sha-mismatch')
+
+// ── 十、发布字节对账的三种结论 ──────────────────────────────────────────
+console.log('[发布字节对账]')
+const sameBytes = judgeReleaseBytes({ candidateFileDigest: DIGEST, publishedFileDigest: DIGEST, auditCovered: false })
+check(sameBytes.verdict === 'same', '候选指纹与发布指纹相同时判 same')
+const auditedBytes = judgeReleaseBytes({ candidateFileDigest: DIGEST, publishedFileDigest: 'f'.repeat(64), auditCovered: true })
+check(auditedBytes.verdict === 'diff-audited', '指纹不同但清单票有差异审计时判 diff-audited')
+const differentBytes = judgeReleaseBytes({ candidateFileDigest: DIGEST, publishedFileDigest: 'f'.repeat(64), auditCovered: false })
+check(differentBytes.verdict === 'diff', '指纹不同又没有差异审计时判 diff（发布前停下）')
+
+// ── 十一、命令行入口：发布脚本跑的就是这条路径，CANDIDATE-DIFF 必须真被拦下 ─────
+console.log('[命令行入口]')
+const cliDir = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-1766-cli-'))
+const cliCandidate = path.join(cliDir, 'candidate.json')
+const cliSameManifest = path.join(cliDir, 'manifest-same.json')
+const cliDiffManifest = path.join(cliDir, 'manifest-diff.json')
+fs.writeFileSync(
+  cliCandidate,
+  JSON.stringify({
+    validity: 'release',
+    sourceStable: true,
+    git: { commit: RELEASE },
+    package: { fileDigest: DIGEST, tgzSha256: DIGEST, tgzPath: 'candidate.tgz' },
+  }),
+)
+fs.writeFileSync(cliSameManifest, JSON.stringify({ digest: DIGEST }))
+fs.writeFileSync(cliDiffManifest, JSON.stringify({ digest: 'f'.repeat(64) }))
+const runCli = (argv: string[]): { code: number | null; output: string } => {
+  const result = spawnSync(process.execPath, ['--import', './scripts/ts-hook.mts', 'scripts/release-candidate-check.mts', ...argv], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+  })
+  return { code: result.status, output: String(result.stdout || '') + String(result.stderr || '') }
+}
+const validRun = runCli(['validate', '--candidate', cliCandidate])
+check(validRun.code === 0 && validRun.output.includes('CANDIDATE-VALID commit=' + RELEASE), 'validate 对合法候选打印 CANDIDATE-VALID 并退出 0')
+const sameRun = runCli(['match', '--candidate', cliCandidate, '--manifest', cliSameManifest])
+check(sameRun.code === 0 && sameRun.output.includes('CANDIDATE-SAME'), 'match 在候选与发布字节一致时打印 CANDIDATE-SAME')
+const diffRun = runCli(['match', '--candidate', cliCandidate, '--manifest', cliDiffManifest])
+check(diffRun.code === 1 && diffRun.output.includes('CANDIDATE-DIFF '), 'match 在字节不同且无审计时打印 CANDIDATE-DIFF 并退出 1（实际 code=' + String(diffRun.code) + '，输出=' + JSON.stringify(diffRun.output.slice(0, 160)) + '）')
+const auditedRun = runCli(['match', '--candidate', cliCandidate, '--manifest', cliDiffManifest, '--audit-covered'])
+check(auditedRun.code === 0 && auditedRun.output.includes('CANDIDATE-DIFF-AUDITED'), '带 --audit-covered 时打印 CANDIDATE-DIFF-AUDITED 并退出 0')
+const missingManifestRun = runCli(['match', '--candidate', cliCandidate, '--manifest', path.join(cliDir, 'nope.json')])
+check(missingManifestRun.code === 2 && missingManifestRun.output.includes('CANDIDATE-ENV'), '清单读不到时打印 CANDIDATE-ENV 并退出 2（实际 code=' + String(missingManifestRun.code) + '，输出=' + JSON.stringify(missingManifestRun.output.slice(0, 160)) + '）')
 
 // ── 收尾 ────────────────────────────────────────────────────────────────
 if (failed) {
@@ -233,3 +307,4 @@ if (failed) {
   process.exit(1)
 }
 console.log('\n全部通过（共 ' + total + ' 项）')
+printGateResult('verify-1766-release-audit', total, 0)

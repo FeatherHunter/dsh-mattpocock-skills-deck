@@ -15,7 +15,8 @@
 //       把证据绑到候选提交与候选包指纹上；候选提交必须是发布提交的祖先；
 //       候选提交与发布提交不同时，票面必须有一行差异审计说明为什么可以这么发。
 //       候选清单（--candidate）还要满足：validity 是 release、sourceStable 是 true、
-//       提交是 40 位小写十六进制且登记在评论里、候选包指纹是 64 位小写十六进制。
+//       提交是 40 位小写十六进制且登记在评论里、候选包指纹与候选包 tgz 哈希都是 64 位小写十六进制，
+//       并且票面身份行里的候选包 sha256 至少有一条与这份候选清单的 package.tgzSha256 相同。
 //
 // 两条发布路径都在真正发布之前调用本脚本：
 //   - scripts/publish-token.ps1（token 无人值守路径）
@@ -49,7 +50,7 @@ import {
 } from './lib/release-checklist.mts'
 import type { ChecklistComment, ChecklistIssue } from './lib/release-checklist.mts'
 import { checkChecklistConsistency, formatConsistencyFindings } from './lib/checklist-consistency.mts'
-import { checkCandidateAudit } from './lib/release-candidate-audit.mts'
+import { COMMIT_PATTERN, checkCandidateAudit } from './lib/release-candidate-audit.mts'
 import type { CandidateAuditCandidate, CandidateAuditReport } from './lib/release-candidate-audit.mts'
 
 type Options = {
@@ -187,19 +188,21 @@ function readCandidateManifest(filePath: string): CandidateAuditCandidate {
   const sourceStable = record === null ? undefined : record.sourceStable
   const commit = gitRecord === null ? undefined : gitRecord.commit
   const fileDigest = packageRecord === null ? undefined : packageRecord.fileDigest
+  const packageSha256 = packageRecord === null ? undefined : packageRecord.tgzSha256
   if (
     typeof validity !== 'string' ||
     typeof sourceStable !== 'boolean' ||
     typeof commit !== 'string' ||
-    typeof fileDigest !== 'string'
+    typeof fileDigest !== 'string' ||
+    typeof packageSha256 !== 'string'
   ) {
     fail(
       '候选清单缺字段：要 validity（字符串）、sourceStable（布尔）、git.commit（字符串）、' +
-        'package.fileDigest（字符串）。文件：' + resolved,
+        'package.fileDigest（字符串）、package.tgzSha256（字符串）。文件：' + resolved,
       2,
     )
   }
-  return { commit, validity, sourceStable, fileDigest }
+  return { commit, validity, sourceStable, fileDigest, packageSha256 }
 }
 
 function main(): void {
@@ -299,7 +302,7 @@ function main(): void {
   } catch (error) {
     fail(error instanceof ReleaseEnvError ? error.message : String(error), 2)
   }
-  if (!/^[0-9a-f]{40}$/.test(releaseCommit)) {
+  if (!COMMIT_PATTERN.test(releaseCommit)) {
     fail('git rev-parse HEAD 没给出 40 位小写提交号：' + releaseCommit + '。', 2)
   }
   const candidate = options.candidatePath ? readCandidateManifest(options.candidatePath) : null

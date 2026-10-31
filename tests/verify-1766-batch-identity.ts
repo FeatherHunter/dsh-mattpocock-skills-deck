@@ -9,16 +9,19 @@
 //   4. 批次结束后 HEAD 前进（标 stale，原件不删）；
 //   5. 候选文件被改过（清单重算内容指纹对不上）。
 // 门禁归属: scripts/real-machine/lib/batch.mts
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
 import { digestOfFiles } from '../scripts/release-integrity.mts'
+import { printGateResult } from './lib/gate-result.ts'
 import {
   batchIdentityLine,
   candidateIdentity,
   createBatchRecord,
   evidenceCandidate,
+  judgeBatchCandidateFile,
   judgeBatchFreshness,
   judgeCandidateForBatch,
   judgeEvidenceBinding,
@@ -29,7 +32,6 @@ import {
 
 const COMMIT_A = 'a'.repeat(40)
 const COMMIT_B = 'b'.repeat(40)
-const TGZ_SHA = 'c'.repeat(64)
 const MANIFEST_DIGEST = 'd'.repeat(64)
 
 let failed = false
@@ -45,7 +47,9 @@ const batchDir = path.join(base, 'batches', 'batch-a')
 const candidateDir = path.join(batchDir, 'pkg')
 fs.mkdirSync(candidateDir, { recursive: true })
 const tgzPath = path.join(candidateDir, 'candidate.tgz')
-fs.writeFileSync(tgzPath, 'fake tgz')
+const tgzBytes = 'fake tgz'
+fs.writeFileSync(tgzPath, tgzBytes)
+const TGZ_SHA = crypto.createHash('sha256').update(tgzBytes).digest('hex')
 const files = [{ path: 'lib/client.js', bytes: 7, sha256: 'e'.repeat(64) }]
 const fileDigest = digestOfFiles(files.map((entry) => ({ path: entry.path, size: entry.bytes, sha256: entry.sha256 })))
 const startedAt = new Date().toISOString()
@@ -160,10 +164,28 @@ const tamperedFile = makeCandidate({ package: { ...good.manifest.package, files:
 const tamperedVerdict = judge(tamperedFile.path)
 check(!tamperedVerdict.ok && tamperedVerdict.problems.some((item) => item.includes('内容指纹')), '文件清单与记录的内容指纹不一致时被拒绝')
 
+// 6. 候选包哈希必须对着真实文件核一遍：记录里写一个漂亮的 64 位假哈希不算数。
+const badTgzFile = makeCandidate({ package: { ...good.manifest.package, tgzSha256: '0'.repeat(64) } }, 'bad-tgz.json')
+const badTgzVerdict = judge(badTgzFile.path)
+check(!badTgzVerdict.ok && badTgzVerdict.problems.some((item) => item.includes('候选包文件的 sha256')), '候选记录里的包哈希与真实 tgz 对不上时被拒绝')
+
+// 7. 收证据前从磁盘重新认身份：候选文件与候选包都要还是原来那一份。
+const diskVerdict = judgeBatchCandidateFile(record)
+check(diskVerdict.ok && diskVerdict.binding?.commit === COMMIT_A, '磁盘上的候选文件与包和批次记录一致时通过复核')
+const changedManifest = JSON.parse(fs.readFileSync(good.path, 'utf8'))
+changedManifest.version = '9.9.9'
+fs.writeFileSync(good.path, JSON.stringify(changedManifest, null, 2))
+const changedFileVerdict = judgeBatchCandidateFile(record)
+check(!changedFileVerdict.ok && changedFileVerdict.problems.some((item) => item.includes('sha256 与批次记录不一致')), '候选文件在批次开始后被改过时被拒绝')
+fs.writeFileSync(good.path, JSON.stringify(good.manifest, null, 2))
+fs.writeFileSync(tgzPath, 'replaced tgz')
+const changedTgzVerdict = judgeBatchCandidateFile(record)
+check(!changedTgzVerdict.ok && changedTgzVerdict.problems.some((item) => item.includes('候选包文件') && item.includes('不一致')), '候选包在批次开始后被换过时被拒绝')
+
 // 补一条：batch.json 能原样读回，避免判据用到的字段在写盘时丢掉。
 const saved = writeBatch(batchDir, record, startedAt)
 const reloaded = readBatch(batchDir)
 check(reloaded.candidate?.fileDigest === saved.candidate?.fileDigest, 'batch.json 写盘再读回后候选指纹仍然在')
 
-console.log(failed ? 'GATE-RESULT FAIL ' + total : 'GATE-RESULT PASS ' + total)
+printGateResult('verify-1766-batch-identity', total, failed ? total : 0)
 if (failed) process.exitCode = 1

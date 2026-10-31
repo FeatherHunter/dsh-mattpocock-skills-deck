@@ -116,7 +116,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/freeze-candida
 node --import ./scripts/ts-hook.mts scripts/real-machine/commands/prepare-batch.mts --name <批次名> --ticket <票号>
 ```
 
-参数：`--batch <批次目录>` 直接指定批次目录；`--name <批次名>` 指定批次名，默认批次目录是 `<工作根>/batches/<批次名>`；`--ticket <票号>` 记下这批属于哪张票；`--allow-dirty` 允许在脏树上准备（这样冻结出来的候选 `validity` 是 `development`，只能算开发验证）；`--install-method extract|cli` 选安装方式；`--no-start` 只准备、不起实例；`--no-ui` 跳过界面版本串核对；`--timeout <毫秒>` 给构建与打包设上限。批次目录里已经存在 `batch.json` 的同名批次会被拒绝复用，免得把旧批次的产物当成新批次。
+参数：`--batch <批次目录>` 直接指定批次目录；`--name <批次名>` 指定批次名，默认批次目录是 `<工作根>/batches/<批次名>`；`--ticket <票号>` 记下这批属于哪张票；`--allow-dirty` 允许在脏树上准备（这样冻结出来的候选 `validity` 是 `development`，只能算开发验证）；`--profile <profile>` 选要核对的界面 profile（默认 `web`）；`--install-method extract|cli` 选安装方式；`--no-start` 只准备、不起实例；`--no-ui` 跳过界面版本串核对；`--timeout <毫秒>` 给构建与打包设上限。批次目录里已经存在 `batch.json` 的同名批次会被拒绝复用，免得把旧批次的产物当成新批次。冻结完成之后命令会再读一次 git 状态：HEAD 前进了、或者 release 候选对应的工作树不干净，都会拒绝开批。
 
 批次目录里的东西：
 
@@ -145,7 +145,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/check-batch.mt
 - 验证身份：批次 <批次名>；候选提交 <40位小写提交>；候选包 sha256 <64位小写tgz哈希>
 ```
 
-发布前检查靠这一行把评论与 `batch.json` 对上；格式不对或身份对不上的结果不算通过。
+发布前检查靠这一行把评论与 `batch.json` 对上；格式不对或身份对不上的结果不算通过。收证据前 `collect-evidence` 还会重新读一遍 `candidate.json` 与候选包，核对它们的 sha256 是否仍是批次记录里的那一份：候选文件被改过、候选包被换过，都会拒绝收证据。
 
 ### 双实例冒烟：`two-instance-smoke`
 

@@ -11,6 +11,7 @@
 // 判据写成纯函数，五类反向测试直接测这里，不需要真的构建或真机。
 
 import path from 'node:path'
+import { COMMIT_PATTERN, IDENTITY_PREFIX, PACKAGE_SHA256_PATTERN } from '../../lib/release-candidate-audit.mts'
 import { digestOfFiles } from '../../release-integrity.mts'
 import { exists, readJson, sha256File, writeJson } from './util.mts'
 
@@ -93,8 +94,6 @@ export interface BatchRecord {
   instance: Record<string, any> | null
 }
 
-const HEX40 = /^[0-9a-f]{40}$/
-const HEX64 = /^[0-9a-f]{64}$/
 const BATCH_NAME = /^[A-Za-z0-9._-]+$/
 
 /** 批次名会直接当目录名用，只允许字母数字与 . _ -，避免 ../ 之类跳出工作根。 */
@@ -162,15 +161,15 @@ function assertBatchRecord(raw: any, file: string): void {
   if (!raw || typeof raw !== 'object') bad('不是一个对象')
   if (raw.schemaVersion !== 1) bad('schemaVersion 必须是 1')
   if (!BATCH_NAME.test(String(raw.batchName || ''))) bad('batchName 不合法')
-  if (!HEX40.test(String(raw.startHead || ''))) bad('startHead 不是 40 位提交')
+  if (!COMMIT_PATTERN.test(String(raw.startHead || ''))) bad('startHead 不是 40 位提交')
   if (raw.status !== 'active' && raw.status !== 'stale') bad('status 只能是 active 或 stale')
   if (raw.candidate !== null && raw.candidate !== undefined) {
     const candidate = raw.candidate
-    if (!HEX40.test(String(candidate.commit || ''))) bad('candidate.commit 不是 40 位提交')
-    if (!HEX64.test(String(candidate.sha256 || ''))) bad('candidate.sha256 不是 64 位哈希')
-    if (!HEX64.test(String(candidate.tgzSha256 || ''))) bad('candidate.tgzSha256 不是 64 位哈希')
-    if (!HEX64.test(String(candidate.manifestDigest || ''))) bad('candidate.manifestDigest 不是 64 位哈希')
-    if (!HEX64.test(String(candidate.fileDigest || ''))) bad('candidate.fileDigest 不是 64 位哈希')
+    if (!COMMIT_PATTERN.test(String(candidate.commit || ''))) bad('candidate.commit 不是 40 位提交')
+    if (!PACKAGE_SHA256_PATTERN.test(String(candidate.sha256 || ''))) bad('candidate.sha256 不是 64 位哈希')
+    if (!PACKAGE_SHA256_PATTERN.test(String(candidate.tgzSha256 || ''))) bad('candidate.tgzSha256 不是 64 位哈希')
+    if (!PACKAGE_SHA256_PATTERN.test(String(candidate.manifestDigest || ''))) bad('candidate.manifestDigest 不是 64 位哈希')
+    if (!PACKAGE_SHA256_PATTERN.test(String(candidate.fileDigest || ''))) bad('candidate.fileDigest 不是 64 位哈希')
     if (candidate.validity !== 'release' && candidate.validity !== 'development') bad('candidate.validity 只能是 release 或 development')
   }
 }
@@ -189,7 +188,7 @@ export function readCandidateFile(candidatePath: string): CandidateFile {
     throw new Error('候选文件不是合法 JSON（' + String(error && error.message) + '）：「' + file + '」')
   }
   if (!manifest || typeof manifest !== 'object') throw new Error('候选文件不是对象：「' + file + '」')
-  if (!HEX40.test(String(manifest.git?.commit || ''))) throw new Error('候选文件缺少合法的 git.commit：「' + file + '」')
+  if (!COMMIT_PATTERN.test(String(manifest.git?.commit || ''))) throw new Error('候选文件缺少合法的 git.commit：「' + file + '」')
   if (!manifest.version) throw new Error('候选文件缺少 version：「' + file + '」')
   if (!manifest.package || typeof manifest.package !== 'object') throw new Error('候选文件缺少 package：「' + file + '」')
   return { path: file, sha256: sha256File(file), manifest }
@@ -259,12 +258,12 @@ export function judgeCandidateForBatch(options: {
   if (manifest.schemaVersion !== 2) {
     problems.push('候选文件 schemaVersion 是 ' + String(manifest.schemaVersion) + '，当前要求 2：旧格式候选没有 validity 与 buildCommit，重新跑 prepare-batch 冻结。')
   }
-  if (!HEX40.test(identity.commit)) {
+  if (!COMMIT_PATTERN.test(identity.commit)) {
     problems.push('候选的 git.commit 不是 40 位提交：「' + identity.commit + '」。')
   } else if (identity.commit !== options.currentHead) {
     problems.push('候选提交 ' + identity.commit + ' 不是当前 HEAD ' + options.currentHead + '：批次必须从当前 HEAD 重新冻结。')
   }
-  if (!HEX40.test(String(manifest.package?.buildCommit || ''))) {
+  if (!COMMIT_PATTERN.test(String(manifest.package?.buildCommit || ''))) {
     problems.push('候选缺少 40 位的 package.buildCommit：产物没有自证构建提交，无法确认它来自哪份源码。')
   } else if (String(manifest.package?.buildCommit) !== options.currentHead) {
     problems.push('候选产物的构建提交是 ' + String(manifest.package?.buildCommit) + '，不是当前 HEAD ' + options.currentHead + '：产物不是从当前源码构建的，去掉 --skip-build 重来。')
@@ -275,24 +274,26 @@ export function judgeCandidateForBatch(options: {
   if (manifest.validity !== 'release' && manifest.validity !== 'development') {
     problems.push('候选缺少合法的 validity（release 或 development）。')
   }
-  if (!HEX64.test(identity.fileDigest)) {
+  if (!PACKAGE_SHA256_PATTERN.test(identity.fileDigest)) {
     problems.push('候选缺少逐文件内容指纹 package.fileDigest：无法在发布前对账。')
   }
-  if (!HEX64.test(identity.manifestDigest)) {
+  if (!PACKAGE_SHA256_PATTERN.test(identity.manifestDigest)) {
     problems.push('候选缺少清单摘要 package.manifestDigest。')
   }
-  if (!HEX64.test(identity.tgzSha256)) {
+  if (!PACKAGE_SHA256_PATTERN.test(identity.tgzSha256)) {
     problems.push('候选缺少候选包哈希 package.tgzSha256。')
   }
   if (!identity.tgzPath || !exists(identity.tgzPath)) {
     problems.push('候选包文件不存在：「' + identity.tgzPath + '」。')
+  } else if (PACKAGE_SHA256_PATTERN.test(identity.tgzSha256) && sha256File(identity.tgzPath) !== identity.tgzSha256) {
+    problems.push('候选包文件的 sha256 与候选记录里的不一致：' + identity.tgzPath + ' 在冻结之后被换过或改过，这一份不能代表候选。')
   }
   // 用候选自己记录的文件清单再算一次内容指纹，防止有人在冻结之后改了文件清单或换掉 tgz。
   if (Array.isArray(manifest.package?.files) && manifest.package.files.length > 0) {
     const files = manifest.package.files.filter((entry) => entry && typeof entry.path === 'string' && typeof entry.sha256 === 'string' && typeof entry.bytes === 'number')
     if (files.length !== manifest.package.files.length) {
       problems.push('候选文件清单里有条目缺 path/bytes/sha256。')
-    } else if (HEX64.test(identity.fileDigest)) {
+    } else if (PACKAGE_SHA256_PATTERN.test(identity.fileDigest)) {
       const recomputed = digestOfFiles(files.map((entry) => ({ path: entry.path, size: entry.bytes, sha256: entry.sha256 })))
       if (recomputed !== identity.fileDigest) {
         problems.push('候选文件清单算出来的内容指纹 ' + recomputed.slice(0, 12) + ' 与记录里的 ' + identity.fileDigest.slice(0, 12) + ' 不一致：候选文件被改过。')
@@ -305,6 +306,66 @@ export function judgeCandidateForBatch(options: {
   return { ok: problems.length === 0, problems, identity, validity }
 }
 
+/**
+ * 从磁盘上的文件重新确认批次记录里的候选身份，而不是拿 batch.json 自己跟自己比。
+ * prepare-batch 只记录事实，这里负责复核：候选文件是否还是原来那份、候选包是否还是原来那个包。
+ * 换掉候选文件或换掉 tgz 都会被抓到，证据才能真的绑定到一个确定的候选上。
+ */
+export function judgeBatchCandidateFile(batch: BatchRecord): { ok: boolean; problems: string[]; binding: EvidenceCandidateBinding | null } {
+  const problems: string[] = []
+  const recorded = batch.candidate
+  if (!recorded) {
+    return { ok: false, problems: ['batch.json 里没有候选身份：先跑 prepare-batch 建批次，再收证据。'], binding: null }
+  }
+  if (!recorded.path || !exists(recorded.path)) {
+    problems.push('批次记录里的候选文件不存在：「' + recorded.path + '」。')
+  } else {
+    const actualFileHash = sha256File(recorded.path)
+    if (actualFileHash !== recorded.sha256) {
+      problems.push('候选文件 ' + path.basename(recorded.path) + ' 的 sha256 与批次记录不一致：文件在批次开始后被改过。')
+    }
+    let manifest: any = null
+    try {
+      manifest = readJson(recorded.path)
+    } catch (error) {
+      problems.push('候选文件读不出来或不是合法 JSON：' + (error as Error).message)
+    }
+    if (manifest) {
+      const git = manifest.git && typeof manifest.git === 'object' ? manifest.git : {}
+      const pkg = manifest.package && typeof manifest.package === 'object' ? manifest.package : {}
+      if (String(git.commit || '') !== recorded.commit) {
+        problems.push('候选文件里的 git.commit「' + String(git.commit) + '」与批次记录的「' + recorded.commit + '」不一致。')
+      }
+      if (String(manifest.version || '') !== recorded.version) {
+        problems.push('候选文件里的 version「' + String(manifest.version) + '」与批次记录的「' + recorded.version + '」不一致。')
+      }
+      if (String(pkg.tgzSha256 || '') !== recorded.tgzSha256) {
+        problems.push('候选文件里的候选包 sha256「' + String(pkg.tgzSha256) + '」与批次记录的「' + recorded.tgzSha256 + '」不一致。')
+      }
+      if (String(pkg.fileDigest || '') !== recorded.fileDigest) {
+        problems.push('候选文件里的内容指纹「' + String(pkg.fileDigest) + '」与批次记录的「' + recorded.fileDigest + '」不一致。')
+      }
+      if (String(pkg.manifestDigest || '') !== recorded.manifestDigest) {
+        problems.push('候选文件里的清单摘要「' + String(pkg.manifestDigest) + '」与批次记录的「' + recorded.manifestDigest + '」不一致。')
+      }
+      if (manifest.validity !== recorded.validity) {
+        problems.push('候选文件里的 validity「' + String(manifest.validity) + '」与批次记录的「' + recorded.validity + '」不一致。')
+      }
+    }
+  }
+  if (!recorded.tgzPath || !exists(recorded.tgzPath)) {
+    problems.push('批次记录里的候选包文件不存在：「' + recorded.tgzPath + '」。')
+  } else if (sha256File(recorded.tgzPath) !== recorded.tgzSha256) {
+    problems.push('候选包文件 ' + recorded.tgzPath + ' 的 sha256 与批次记录不一致：包在批次开始后被换过或改过。')
+  }
+  const ok = problems.length === 0
+  return {
+    ok,
+    problems,
+    binding: ok ? { batchName: batch.batchName, commit: recorded.commit, packageSha256: recorded.tgzSha256 } : null,
+  }
+}
+
 /** 批次收尾判断：当前 HEAD 与批次开始时不同，就说明这一批之后代码又前进了。 */
 export function judgeBatchFreshness(options: {
   batch: BatchRecord
@@ -312,7 +373,7 @@ export function judgeBatchFreshness(options: {
   now: string
 }): { status: 'active' | 'stale'; endHead: string; endCheckedAt: string; problems: string[]; message: string } {
   const problems: string[] = []
-  if (!HEX40.test(options.currentHead)) problems.push('当前 HEAD 不是 40 位提交：「' + options.currentHead + '」。')
+  if (!COMMIT_PATTERN.test(options.currentHead)) problems.push('当前 HEAD 不是 40 位提交：「' + options.currentHead + '」。')
   const stale = options.currentHead !== options.batch.startHead
   if (stale) {
     problems.push(
@@ -373,5 +434,5 @@ export function judgeEvidenceBinding(batch: BatchRecord, meta: Record<string, an
 
 /** 批次身份行：批次开始评论与每条场景结果评论都要带这一行，发布前检查靠它把评论和 batch.json 对上。 */
 export function batchIdentityLine(binding: EvidenceCandidateBinding): string {
-  return '- 验证身份：批次 ' + binding.batchName + '；候选提交 ' + binding.commit + '；候选包 sha256 ' + binding.packageSha256
+  return IDENTITY_PREFIX + binding.batchName + '；候选提交 ' + binding.commit + '；候选包 sha256 ' + binding.packageSha256
 }
