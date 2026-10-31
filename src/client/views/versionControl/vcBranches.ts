@@ -113,7 +113,11 @@ export const vcBranchWrite = function (reads: any, call: any, cwd: any, op: any,
     .then(function (reply: any) {
       if (reply && reply.ok === true) vcBrOkLog(VC_BRANCH_WRITE_PHONE, String(reply.kind || req.kind), t0)
       else vcBrFailLog(VC_BRANCH_WRITE_PHONE, req.kind, t0, { kind: String(((reply || {}).error || {}).kind || 'unknown'), message: '' })
-      const write = reply && reply.ok === true ? { state: 'ok', data: reply, error: null } : { state: 'err', data: null, error: { kind: 'write', message: '' } }
+      // 失败时把回包原样留着：写失败的 git 原话、环节、期望与实际都在包里，
+      //   结果贴点要照原话显示，不能只剩一句「写失败」（上一版就是在这里把细节丢掉的）。
+      const write = reply && typeof reply === 'object'
+        ? { state: reply.ok === true ? 'ok' : 'err', data: reply, error: reply.ok === true ? null : { kind: 'write', message: '' } }
+        : { state: 'err', data: null, error: { kind: 'write', message: '' } }
       return Object.assign({}, base, { branch: { state: prev.state, data: prev.data, error: prev.error, write: write } })
     })
     .catch(function (e: any) {
@@ -147,8 +151,14 @@ export const vcBranchResultOf = function (reply: any) {
     const r = reply || {}
     return { state: 'ok', cmd: String(r.command || ''), ms: 0, n: 1, next: '' }
   }
-  const e = (reply && reply.error) || {}
-  return { state: 'fail', git: String(e.git || ''), step: String(e.step || e.kind || ''), expected: String(e.expected || ''), actual: String(e.actual || ''), cause: String(e.cause || e.message || '') }
+  // 宿主失败信封的形状是「error 里只有 kind/message，原话与环节在顶层」（failPhone 把附加字段平铺）。
+  //   两种都认：先看顶层，再回落到 error 里，免得真机上结果贴点只剩「写失败」四个字。
+  const r = reply || {}
+  const e = r.error || {}
+  const pick = function (k: any) { return String(r[k] !== undefined && r[k] !== '' ? r[k] : (e[k] !== undefined && e[k] !== '' ? e[k] : '')) }
+  // error:true 是页面壳结果节点认「失败」的标记（vcShellResultNode 按它选报警分支）；
+  //   state 给本域与门禁读，两个字段说的是同一件事，不各算一套。
+  return { state: 'fail', error: true, git: pick('git'), step: pick('step') || String(e.kind || ''), expected: pick('expected'), actual: pick('actual'), cause: pick('cause') || String(e.message || '') }
 }
 
 // ———— 业务面板 ————

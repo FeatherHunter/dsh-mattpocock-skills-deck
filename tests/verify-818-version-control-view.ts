@@ -90,6 +90,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcCapabilityPages.js',
   'src/client/views/versionControl/vcShellPrimitives.js',
   'src/client/views/versionControl/vcPalette.js',
+  'src/client/views/versionControl/vcBranches.js', // #1746：分支与标签业务面板（十三条能力入口、预检与确认、结果贴点；排在页面壳之前，壳里会调它）
   'src/client/views/versionControl/vcShellPages.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -134,6 +135,10 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcFirstScreenSliceOf', 'vcFirstScreenSliceStateOf', 'vcFirstScreenFailedSlicesOf', 'vcFirstScreenSliceRetryableOf',
   'vcReadFirstScreen', 'vcReadFirstScreenOnEnter', 'vcReadFirstScreenAfterTask', 'vcReadFirstScreenOnManual',
   'vcRetryFirstScreen', 'vcRetryFirstScreenSlice', 'vcFirstScreenScreenOf',
+  // #1746 分支与标签：业务面板数据层、预检与确认卡、结果贴点、面板节点。
+  'VC_BRANCHES_PHONE', 'VC_BRANCH_WRITE_PHONE', 'VC_BRANCH_BOARD_CONTRACT', 'VC_BRANCH_BOARD_VERSION', 'VC_BRANCH_OP_IDS', 'VC_BRANCH_ACTIONS',
+  'vcNewBranchRead', 'vcBranchShapeOk', 'vcReadBranches', 'vcBranchReadOf', 'vcBranchBoardOf', 'vcBranchStateOf', 'vcBranchWriteResultOf',
+  'vcBranchRequestOf', 'vcBranchDryRun', 'vcBranchWrite', 'vcBranchReplyKindOf', 'vcBranchReasonsOf', 'vcBranchConfirmOf', 'vcBranchResultOf', 'vcBranchBoardNode',
   'VersionControlTab']
 // #1253：这 20 份现在都是 .ts 真源（2026-10-19 第三阶段起 rules 的产物也搬到了 .build/shared/，
 //   列表里直接写 rules.ts 真源路径，不再指向源码树里的产物 .js）。
@@ -1198,6 +1203,96 @@ async function main() {
   await VIEWW.vcReadFirstScreenOnEnter(VIEWW.vcNewFirstScreenRead(), fsCallOf(function () { return Promise.resolve({ ok: true, firstScreen: firstSeedOf() }) }).call, 'D:/w/repo')
   const fsHostLogs = fsLogs.filter(function (l) { return l.event === 'host.call' && l.fields && l.fields.kind === 'git-first-screen' })
   check(fsHostLogs.length === 1 && fsHostLogs[0].fields.ok === true, 'W21 首屏聚合落在既有 host.call 事件上（kind=git-first-screen，不新增事件名）')
+
+  // ---- BR 组：分支与标签域（#1746 T11）—— 一次读全、预检与确认、结果贴点、业务面板 ----
+  // 读一次取回四样（分支清单、标签、已并入/没并入两张名单、分支说明）；十条写动作一律走同一条写电话：
+  //   先 dryRun 拿判定与确认卡素材，确认后再发一次带 confirmed:true 的写电话。
+  // 这组守界面侧的数据层与面板约定；宿主那一侧的真判定、argv 与失败隔离由 tests/verify-1586-branches.ts 守。
+  const brBoardOf = function () {
+    return {
+      contract: VIEW.VC_BRANCH_BOARD_CONTRACT, version: VIEW.VC_BRANCH_BOARD_VERSION, readAtMs: NOW,
+      current: { name: 'main', oid: 'a'.repeat(40) },
+      branches: [
+        { name: 'main', oid: 'a'.repeat(40), current: true, upstream: 'origin/main', ahead: 2, behind: 1, commitDateMs: NOW },
+        { name: 'feature', oid: 'b'.repeat(40), current: false, upstream: null, ahead: 0, behind: 0, commitDateMs: NOW },
+      ],
+      tags: [
+        { name: 'v1.0.0', oid: 'c'.repeat(40), objectType: 'commit', annotated: false, atMs: NOW, subject: '发布' },
+        { name: 'v1.1.0', oid: 'd'.repeat(40), objectType: 'tag', annotated: true, atMs: NOW, subject: '正式发布' },
+      ],
+      descriptions: { main: '主干' }, merged: ['main'], notMerged: ['feature'],
+    }
+  }
+  const brCallOf = function (handler) {
+    const calls = []
+    const call = function (method, args) { calls.push({ method: method, args: args }); return handler(method, args) }
+    return { call: call, calls: calls }
+  }
+  check(typeof VIEW.vcReadBranches === 'function' && typeof VIEW.vcBranchBoardNode === 'function', 'BR1 分支面板的数据层与面板节点已接进这个闭包（排在页面壳之前，壳里会调到）')
+  check(VIEW.VC_BRANCHES_PHONE === 'wf.gitBranches' && VIEW.VC_BRANCH_WRITE_PHONE === 'wf.gitBranchWrite', 'BR2 读与写是两条电话：读一次取全，写按动作走')
+  check(VIEW.VC_BRANCH_BOARD_CONTRACT === 'version-control.branch-board' && VIEW.VC_BRANCH_BOARD_VERSION === 1 && VIEW.vcBranchShapeOk(Object.assign({ ok: true }, brBoardOf())) === true, 'BR3 分支面板回包带契约名与版本号（版本化，形状判据放行）')
+  check(VIEW.vcBranchShapeOk(Object.assign({}, brBoardOf(), { version: 2 })) === false && VIEW.vcBranchShapeOk(Object.assign({}, brBoardOf(), { branches: null })) === false, 'BR3b 版本不对或分支清单缺失当场判红（不拿旧形状硬认）')
+  check(VIEW.VC_BRANCH_OP_IDS.length === 13 && Array.from(new Set(VIEW.VC_BRANCH_OP_IDS)).length === 13 && VIEW.VC_BRANCH_OP_IDS[0] === '4.1' && VIEW.VC_BRANCH_OP_IDS[12] === '4.13', 'BR4 本域十三条能力号齐全且不重复（4.1–4.13）')
+  check(VIEW.VC_BRANCH_ACTIONS.length === 10 && VIEW.VC_BRANCH_ACTIONS.map(function (a) { return a.kind }).join(',') === 'create,switch,detach,rename,delete,upstream,tag-create,tag-delete,verify,describe', 'BR5 十个写动作各对应一个宿主 kind（只读的 4.1/4.8/4.9 不在写表里）')
+  const brRead = brCallOf(function () { return Promise.resolve(Object.assign({ ok: true }, brBoardOf())) })
+  const brReads = await VIEW.vcReadBranches(VIEW.vcNewBranchRead(), brRead.call, 'D:/w/repo')
+  check(brRead.calls.length === 1 && brRead.calls[0].method === VIEW.VC_BRANCHES_PHONE && brRead.calls[0].args.cwd === 'D:/w/repo', 'BR6 读面板只发一次读电话，cwd 原样带上')
+  const brBoard = VIEW.vcBranchBoardOf(brReads)
+  check(VIEW.vcBranchStateOf(brReads) === 'ok' && !!brBoard && brBoard.current.name === 'main', 'BR7 一次回包落成整份读数：当前分支与分支清单都在这份里')
+  check(brBoard.branches.length === 2 && brBoard.tags.length === 2 && brBoard.tags[1].annotated === true && brBoard.merged.join(',') === 'main' && brBoard.notMerged.join(',') === 'feature', 'BR8 4.8/4.9 的数据都在读回包里（不另发电话取名单与标签）')
+  const brBadVersion = Object.assign({ ok: true }, brBoardOf(), { version: 99 })
+  const brBadReads = await VIEW.vcReadBranches(brReads, brCallOf(function () { return Promise.resolve(brBadVersion) }).call, 'D:/w/repo')
+  check(VIEW.vcBranchStateOf(brBadReads) === 'err' && VIEW.vcBranchBoardOf(brBadReads) !== null, 'BR9 版本对不上的回包不冒充成功：整次读记 err，旧快照还留着（失败绝不清空）')
+  check(VIEW.vcBranchReadOf(brBadReads).error.kind === 'shape', 'BR9b 形状不对的失败原因记成 shape（界面能据此说清是回包坏了）')
+  const brEnvReads = await VIEW.vcReadBranches(brReads, brCallOf(function () { return Promise.resolve({ ok: false, error: { kind: 'env', message: '找不到 git 命令' } }) }).call, 'D:/w/repo')
+  check(VIEW.vcBranchReadOf(brEnvReads).error.kind === 'env' && VIEW.vcBranchStateOf(brEnvReads) === 'err', 'BR10 失败信封原样落成读数失败原因（错误种类不丢）')
+  check(VIEW.vcBranchRequestOf('4.2', { name: 'feature', from: 'main' }).kind === 'create' && VIEW.vcBranchRequestOf('4.6', { name: 'feature' }).kind === 'delete' && VIEW.vcBranchRequestOf('4.13', { branch: 'main', text: '说明' }).kind === 'describe' && VIEW.vcBranchRequestOf('4.1', {}).kind === '', 'BR11 能力号映射到写动作 kind；只读能力号不给写 kind')
+  check(VIEW.vcBranchRequestOf('4.7', { branch: 'main', upstream: 'origin/main' }).upstream === 'origin/main' && !('name' in VIEW.vcBranchRequestOf('4.6', { branch: 'main' })), 'BR12 表单字段按白名单原样带上、没填的不带（不发空字段）')
+  const brDryBox = brCallOf(function () { return Promise.resolve({ ok: true, dryRun: true, decision: { verdict: 'warn', reasons: ['unsaved-changes'] }, confirm: { kind: 'switch', target: 'feature', verb: '切换' } }) })
+  const brDry = await VIEW.vcBranchDryRun(brReads, brDryBox.call, 'D:/w/repo', '4.3', { name: 'feature' })
+  check(brDryBox.calls.length === 1 && brDryBox.calls[0].method === VIEW.VC_BRANCH_WRITE_PHONE && brDryBox.calls[0].args.dryRun === true && brDryBox.calls[0].args.kind === 'switch' && brDryBox.calls[0].args.name === 'feature', 'BR13 预检：只发一次写电话并带 dryRun，不执行')
+  check(VIEW.vcBranchReplyKindOf(brDry) === 'dry-run' && VIEW.vcBranchReasonsOf(brDry).join(',') === 'unsaved-changes' && VIEW.vcBranchConfirmOf(brDry).target === 'feature', 'BR14 预检回包：判定、理由标识符、确认卡素材三样都读得到（界面不自己造理由）')
+  const brBlockedDry = { ok: false, dryRun: true, error: { kind: 'blocked', message: '有未保存的改动' }, decision: { verdict: 'block', reasons: ['mid-operation'] } }
+  check(VIEW.vcBranchReplyKindOf(brBlockedDry) === 'blocked' && VIEW.vcBranchResultOf(brBlockedDry).state === 'fail' && VIEW.vcBranchReasonsOf(brBlockedDry).join(',') === 'mid-operation', 'BR15 预检被拦：判定读成 blocked、结果贴点按失败画，理由照原样带出')
+  check(VIEW.vcBranchReasonsOf({ ok: false, decision: { reasons: ['detached-head'] } }).join(',') === 'detached-head' && VIEW.vcBranchReasonsOf({ ok: false, reasons: ['no-upstream'] }).join(',') === 'no-upstream', 'BR16 理由标识符两种带法都认（顶层与 decision 里）')
+  check(VIEW.vcBranchReplyKindOf({ ok: true, kind: 'delete' }) === 'done' && VIEW.vcBranchReplyKindOf({ ok: false, error: { kind: 'need-confirm' } }) === 'need-confirm' && VIEW.vcBranchReplyKindOf({ ok: false, error: { kind: 'git-failed' } }) === 'fail', 'BR17 回包分类：已完成 / 待确认 / 失败（界面按类画）')
+  const brOkReply = { ok: true, kind: 'delete', command: 'branch -D feature', atMs: NOW }
+  const brWriteBox = brCallOf(function () { return Promise.resolve(brOkReply) })
+  const brWriteReads = await VIEW.vcBranchWrite(brReads, brWriteBox.call, 'D:/w/repo', '4.6', { name: 'feature' })
+  check(brWriteBox.calls.length === 1 && brWriteBox.calls[0].method === VIEW.VC_BRANCH_WRITE_PHONE && brWriteBox.calls[0].args.confirmed === true && brWriteBox.calls[0].args.kind === 'delete', 'BR18 确认后的写：一次写电话，带 confirmed:true 与动作 kind')
+  check(VIEW.vcBranchWriteResultOf(brWriteReads).state === 'ok' && VIEW.vcBranchStateOf(brWriteReads) === 'ok' && VIEW.vcBranchWriteResultOf(brWriteReads).data.command === 'branch -D feature', 'BR18b 写结果单独落一格，读到的面板数据不被写结果顶掉')
+  check(VIEW.vcBranchResultOf(brOkReply).state === 'ok' && VIEW.vcBranchResultOf(brOkReply).cmd === 'branch -D feature', 'BR18c 成功结果给子命令名（结果贴点按同一份回包画）')
+  const brFailReply = { ok: false, error: { kind: 'git-failed', message: '删除分支这一步失败' }, git: 'fatal: 分支 feature 未并入', step: '删除分支这一步', expected: '删掉分支', actual: 'git 拒绝了', cause: '还没并入' }
+  const brWriteFailBox = brCallOf(function () { return Promise.resolve(brFailReply) })
+  const brWriteFailReads = await VIEW.vcBranchWrite(brReads, brWriteFailBox.call, 'D:/w/repo', '4.6', { name: 'feature' })
+  const brFailRes = VIEW.vcBranchResultOf(VIEW.vcBranchWriteResultOf(brWriteFailReads).data)
+  check(VIEW.vcBranchWriteResultOf(brWriteFailReads).state === 'err' && brFailRes.state === 'fail' && brFailRes.git === 'fatal: 分支 feature 未并入' && brFailRes.step === '删除分支这一步' && brFailRes.cause === '还没并入', 'BR19 写失败把宿主回包原样留着：git 原话、环节、期望与实际、上游原因都读得回来')
+  check(brFailRes.error === true, 'BR19b 失败结果带 error 标记，页面壳结果节点据此画报警分支（不把失败画成成功）')
+  check(VIEW.vcBranchResultOf({ ok: false, error: { kind: 'git-failed', git: '嵌套原话', step: '嵌套环节' } }).git === '嵌套原话', 'BR19c 老形状（细节写在 error 里）也认，回落不丢原话')
+  const brPanel = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: brBoardOf() }))
+  check(attrValuesOf(brPanel, 'data-vc-branch-row').join(',') === 'main,feature' && attrValuesOf(brPanel, 'data-vc-tag-row').join(',') === 'v1.0.0,v1.1.0', 'BR20 面板逐分支、逐标签画行')
+  check(attrValuesOf(brPanel, 'data-vc-tag-annotated').join(',') === '0,1', 'BR20b 附注标签与轻量标签分得开（4.11 删除时说清删的是什么）')
+  check(Array.from(new Set(attrValuesOf(brPanel, 'data-vc-op'))).sort().join(',') === '4.10,4.11,4.12,4.13,4.2,4.3,4.4,4.5,4.6,4.7', 'BR20c 十条写动作各有 data-vc-op（能力号与账本一致）')
+  check(attrValuesOf(brPanel, 'data-vc-branch-ops')[0] === '13' && attrValuesOf(brPanel, 'data-vc-branch-writes')[0] === '10' && attrValuesOf(brPanel, 'data-vc-branch-forms')[0] === '10', 'BR20d 面板声明十三条能力入口、十个写动作与十个表单入口')
+  check(attrValuesOf(brPanel, 'data-vc-branch-current')[0] === 'main' && brPanel.indexOf('data-vc-branch-upstream="origin/main"') >= 0 && brPanel.indexOf('主干') >= 0, 'BR20e 当前分支、上游与分支说明都画出来（说明来自读回包，不另读）')
+  check(attrValuesOf(brPanel, 'data-vc-branch-merged')[0] === '1' && attrValuesOf(brPanel, 'data-vc-branch-notmerged')[0] === '1', 'BR20f 4.8 已并入与没并入两张名单一起画')
+  const brEmpty = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: null, onRetry: function () {} }))
+  check(attrValuesOf(brEmpty, 'data-vc-branch2-empty')[0] === '1' && attrValuesOf(brEmpty, 'data-vc-branch-row').length === 0 && attrValuesOf(brEmpty, 'data-vc-branch2-retry').length === 1, 'BR21 没读数时画空态与重试，不画假分支（十条写动作入口仍在：' + attrValuesOf(brEmpty, 'data-vc-branch-forms')[0] + '）')
+  const brConfirm = VIEW.vcBranchConfirmOf({ ok: true, dryRun: true, confirm: { kind: 'switch', target: 'feature', verb: '切换到分支 feature' } })
+  const brPanelFull = renderToStaticMarkup(VIEW.vcBranchBoardNode(h, tZh, { board: brBoardOf(), confirm: brConfirm, result: VIEW.vcBranchResultOf(brFailReply) }))
+  check(!!brConfirm && brPanelFull.indexOf('data-vc-confirm="1"') >= 0 && (brPanelFull.match(/data-vc-confirm-seg="/g) || []).length === 4, 'BR22 确认卡贴在面板里、四段齐全（动词与对象用预检回包给的）')
+  check(brPanelFull.indexOf('data-vc-result="fail"') >= 0 && brPanelFull.indexOf('fatal: 分支 feature 未并入') >= 0, 'BR22b 失败结果按宿主原话画在面板里（git 原话不省）')
+  const brPage = shellHtmlOf({ page: 'branch-tags', branchBoard: brBoardOf(), branchConfirm: brConfirm, branchResult: VIEW.vcBranchResultOf(brFailReply) })
+  check(brPage.indexOf('data-vc-branch2="1"') >= 0 && attrValuesOf(brPage, 'data-vc-branch-row').join(',') === 'main,feature', 'BR23 分支与标签页把业务面板挂进页面壳（面板只读自己那份读数，壳里不再抄一份）')
+  check(brPage.indexOf('data-vc-confirm="1"') >= 0 && brPage.indexOf('data-vc-result="fail"') >= 0 && brPage.indexOf('data-vc-branch2="1"') < brPage.indexOf('data-vc-confirm="1"'), 'BR23b 确认卡与结果都贴在面板之后（结果贴触发点所在的那块）')
+  const brOtherPage = shellHtmlOf({ page: 'commits', branchBoard: brBoardOf() })
+  check(brOtherPage.indexOf('data-vc-branch2') < 0, 'BR23c 别的页面不带分支面板（页面各画各的，不串味）')
+  const brLogs = []
+  const VIEWL = buildView(null, brLogs)
+  await VIEWL.vcReadBranches(VIEWL.vcNewBranchRead(), brCallOf(function () { return Promise.resolve(Object.assign({ ok: true }, brBoardOf())) }).call, 'D:/w/repo')
+  await VIEWL.vcBranchWrite(VIEWL.vcNewBranchRead(), brCallOf(function () { return Promise.resolve(brOkReply) }).call, 'D:/w/repo', '4.6', { name: 'feature' })
+  const brHostLogs = brLogs.filter(function (l) { return l.event === 'host.call' && l.fields && (l.fields.kind === 'git-branches' || l.fields.method === VIEW.VC_BRANCH_WRITE_PHONE) })
+  check(brHostLogs.length === 2, 'BR24 读与写都落在既有 host.call 事件上（kind=git-branches / 写电话名，不新增事件名）')
 
   // ---- H 组：反证（把被守的东西改坏，同一套断言必须当场变红）----
   // 反证锚点的两种落点：还住在手写 .js 里的代码写成单引号，已经变成构建产物的界面叶子被 esbuild

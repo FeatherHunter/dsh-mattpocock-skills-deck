@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T14:05:55.131Z",
+  "generatedAt": "2026-10-31T15:40:39.827Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 487,
-  "gateCount": 487,
-  "attributedGates": 436,
+  "chainLength": 488,
+  "gateCount": 488,
+  "attributedGates": 437,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 51,
+  "completionRecordedGates": 52,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 674,
+  "graphFileCount": 678,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4185,6 +4185,26 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
+      "step": "node tests/verify-1586-branches.ts",
+      "file": "tests/verify-1586-branches.ts",
+      "guards": [
+        "src/client/views/versionControl/vcBranches.ts",
+        "src/host/versionControlBranch.ts",
+        "src/shared/version-control/src/branch-decisions.ts",
+        "src/shared/version-control/src/parse-branch.ts"
+      ],
+      "dirs": [
+        "src/client/views/versionControl",
+        "src/host",
+        "src/shared/version-control/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 110,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
       "step": "node tests/verify-1586-capability-ledger.ts",
       "file": "tests/verify-1586-capability-ledger.ts",
       "guards": [
@@ -6259,6 +6279,7 @@
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/client/views/versionControl/vcAiHandoff.ts",
         "src/client/views/versionControl/vcBlocks.ts",
+        "src/client/views/versionControl/vcBranches.ts",
         "src/client/views/versionControl/vcCache.ts",
         "src/client/views/versionControl/vcCapabilityPages.ts",
         "src/client/views/versionControl/vcCommit.ts",
@@ -6303,7 +6324,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 28 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 29 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -12123,6 +12144,7 @@
     "src/client/views/versionControl": [
       "node tests/verify-leaves.ts",
       "node tests/verify-gate-map.ts",
+      "node tests/verify-1586-branches.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-vc-visual-browser.ts",
       "node tests/verify-818-version-control-view.ts",
@@ -12291,6 +12313,7 @@
       "node tests/verify-1512-md-chain.ts",
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
+      "node tests/verify-1586-branches.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-write-contracts.ts",
       "node tests/verify-1586-write-registration.ts",
@@ -12816,6 +12839,7 @@
     "src/shared/version-control/src": [
       "node tests/verify-build-artifacts.ts",
       "node tests/verify-1231-ws-overview-rows.ts",
+      "node tests/verify-1586-branches.ts",
       "node tests/verify-1586-capability-ledger.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-task-channel.ts",
@@ -13459,9 +13483,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 695,
+    "fileCount": 699,
     "dirCount": 84,
-    "coveredFileCount": 695,
+    "coveredFileCount": 699,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13656,6 +13680,7 @@
       "src/client/views/versionControl/VersionControlTab.ts",
       "src/client/views/versionControl/vcAiHandoff.ts",
       "src/client/views/versionControl/vcBlocks.ts",
+      "src/client/views/versionControl/vcBranches.ts",
       "src/client/views/versionControl/vcCache.ts",
       "src/client/views/versionControl/vcCapabilityPages.ts",
       "src/client/views/versionControl/vcCommit.ts",
@@ -13790,6 +13815,7 @@
       "src/host/updateFromPackage.ts",
       "src/host/versionControl.ts",
       "src/host/versionControlBasis.ts",
+      "src/host/versionControlBranch.ts",
       "src/host/versionControlCheck.ts",
       "src/host/versionControlFiles.ts",
       "src/host/versionControlFirstScreen.ts",
@@ -13950,10 +13976,12 @@
       "src/shared/ui/slots.ts",
       "src/shared/version-control/README.md",
       "src/shared/version-control/exec-envelope.ts",
+      "src/shared/version-control/src/branch-decisions.ts",
       "src/shared/version-control/src/capabilities.ts",
       "src/shared/version-control/src/capability-ledger.ts",
       "src/shared/version-control/src/commands.ts",
       "src/shared/version-control/src/first-screen.ts",
+      "src/shared/version-control/src/parse-branch.ts",
       "src/shared/version-control/src/parse-diff-files.ts",
       "src/shared/version-control/src/parse-log.ts",
       "src/shared/version-control/src/parse-patch.ts",
