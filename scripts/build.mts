@@ -664,6 +664,12 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   //   每页数量）只有这一份（T02 #1737 从规格第 11 节生成）。界面侧 page registry 与命令面板按同一份
   //   账本渲染；谁在界面里再抄一份名单，验证 818 的 Z 组会判红。
   { marker: '// ==== shared:vcCapabilityLedger (spliced by build) ====', file: 'src/shared/version-control/src/capability-ledger.ts' },
+  // #1737 能力在某版 git 上能不能用（capabilityAvailability）只有一份判定，住共享层 capabilities.ts。
+  //   命令面板要在被藏起来的能力行里写「需要哪版、可以改用哪种做法」，读的必须是同一份 minVersion
+  //   与 versionAlternative；客户端半边不能运行时 import，所以整段拼进界面闭包（文件只有类型导入，转译后是纯代码）。
+  //   这份里的 tierFor/atLeast 已改名 capabilityTierFor/capabilityAtLeast，避免与同处一个函数体的
+  //   refreshBudget（tierFor）和 vcConfigRules（atLeast）撞名 —— 见 capabilities.ts 头注释。
+  { marker: '// ==== shared:vcCapabilities (spliced by build) ====', file: 'src/shared/version-control/src/capabilities.ts' },
   // #1739 首屏七片一次取全的契约（契约名、版本号、七片名单、刷新三时机、形状与逐片成败判据）只有一份真源
   //   src/shared/version-control/src/first-screen.ts；宿主聚合电话与客户端数据层都从它读，界面不许再写第二份片名或版本号。
   { marker: '// ==== shared:vcFirstScreen (spliced by build) ====', file: 'src/shared/version-control/src/first-screen.ts' },

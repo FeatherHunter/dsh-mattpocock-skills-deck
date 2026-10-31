@@ -237,6 +237,10 @@ export default {
     // ==== shared:vcCommitPlan (spliced by build) ====
     // #1738 页面注册表与命令面板的唯一数据源（能力账本），拼接做法与上面几份相同。
     // ==== shared:vcCapabilityLedger (spliced by build) ====
+    // #1737 版本可用性判定（capabilityAvailability）也只有一份真源（共享层 capabilities.ts）：
+    // 命令面板按它给被藏起来 / 降级的能力行写「需要哪版 git、可以改用哪种做法」。
+    // 这份与上面的能力账本同源同序拼接；文件名里的 tierFor/atLeast 已改名，不与额度档位、配置规则撞名。
+    // ==== shared:vcCapabilities (spliced by build) ====
     // #1739 首屏七片一次取全的契约：片名、版本号、刷新三时机与形状判据只有一份真源（共享层 first-screen.ts），
     // 宿主聚合与客户端数据层都从这一份读；界面不许再写第二份片名或版本号。
     // ==== shared:vcFirstScreen (spliced by build) ====

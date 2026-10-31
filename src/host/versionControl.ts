@@ -33,7 +33,7 @@
  *    （basis、markers、diff、write）仍走原来的 `./x.js` 说明符。
  */
 import { fixedPrefix, stepZeroArgs, commandFor, autocrlfArgs, RUNNING_MARKER_PATHS, FAILING_EDITOR, subcommandOf } from '../shared/version-control/src/commands.js'
-import { parseVersion, tierFor } from '../shared/version-control/src/capabilities.js'
+import { parseVersion, capabilityTierFor } from '../shared/version-control/src/capabilities.js'
 import { parseStatus } from '../shared/version-control/src/parse-status.js'
 import { parseWorktrees } from '../shared/version-control/src/parse-worktrees.js'
 import { parseRefs } from '../shared/version-control/src/parse-refs.js'
@@ -318,7 +318,7 @@ export function createVersionControl(deps: any): any {
     const badVer: any = failureFromExec(verRes, '读 git 版本这一步')
     if (badVer) return badVer
     const gitVersion: string = firstLine(verRes.stdout)
-    const tier: any = tierFor(parseVersion(gitVersion))
+    const tier: any = capabilityTierFor(parseVersion(gitVersion))
     if (tier === 'unsupported') return failPhone('unsupported', '这台机器上的 git 版本太旧（' + gitVersion + '），第一版需要 2.11 以上', { tier: tier, gitVersion: gitVersion })
 
     if (base.kind === 'bare') {

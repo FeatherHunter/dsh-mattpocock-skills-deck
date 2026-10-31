@@ -47,6 +47,8 @@ const check = function (ok, msg) {
 // ---------- 闭包：页面壳 + 账本 + 命令面板 + 能力列表（与 scripts/build.mts 的拼接同序） ----------
 const CLOSURE_FILES = [
   'src/shared/version-control/src/capability-ledger.ts',
+  // #1737 版本可用性判定（capabilityAvailability）与账本同源：命令面板的版本说明读的就是它。
+  'src/shared/version-control/src/capabilities.ts',
   'src/client/views/versionControl/vcCapabilityPages.ts',
   'src/client/views/versionControl/vcShellPrimitives.ts',
   'src/client/views/versionControl/vcPalette.ts',
@@ -228,6 +230,45 @@ const completionProblemsOf = function (map) {
   return problems
 }
 
+// 版本说明：账本里登记了最低版本的 19 条能力，在「比最低版本低一档」的 git 上必须在命令面板行里
+// 读得到「需要 X」与账本登记的替代做法；版本够（2.49）或版本未知（还没读到首屏）时不许画说明。
+// 判据与反证跑同一份 versionProblemsOf，反证才证明得了这条判据不是摆设。
+const htmlTextOf = function (seg) {
+  return String(seg)
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'").replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+}
+const lowVersionOf = function (minVersion) {
+  const m = /^(\d+)\.(\d+)/.exec(String(minVersion || ''))
+  return m ? 'git version ' + m[1] + '.' + String(Math.max(0, Number(m[2]) - 1)) + '.0' : ''
+}
+const paletteVersionHtmlOf = function (view, capId, version) {
+  const reads = version === null ? null : { screen: { state: 'ok', data: { gitVersion: version } } }
+  return renderPage(view, { page: 'search', width: 460, skin: 'dark', seed: { query: capId }, reads: reads })
+}
+const versionSegmentOf = function (html, capId) {
+  const at = html.indexOf('data-vc-palette-version="' + capId + '"')
+  if (at < 0) return ''
+  const start = html.lastIndexOf('<span', at)
+  const end = html.indexOf('</li>', at)
+  return htmlTextOf(html.slice(start < 0 ? 0 : start, end < 0 ? html.length : end))
+}
+const versionProblemsOf = function (view, caps) {
+  const problems = []
+  caps.forEach(function (cap) {
+    if (!cap.versionPolicy) { problems.push(cap.id + ' 没有登记版本策略，不该按版本限制验收'); return }
+    if (!cap.versionAlternative) { problems.push(cap.id + ' 没有登记替代做法'); return }
+    const segment = versionSegmentOf(paletteVersionHtmlOf(view, cap.id, lowVersionOf(cap.minVersion)), cap.id)
+    if (!segment) { problems.push(cap.id + ' 在 ' + lowVersionOf(cap.minVersion) + ' 上看不到版本说明'); return }
+    const want = cap.versionPolicy === 'degrade' ? 'degraded' : 'hidden'
+    if (segment.indexOf('data-vc-palette-version-state="' + want + '"') < 0) problems.push(cap.id + ' 的说明状态不是 ' + want)
+    if (segment.indexOf('data-vc-palette-version-need="' + cap.minVersion + '"') < 0) problems.push(cap.id + ' 的说明没带最低版本 ' + cap.minVersion)
+    if (segment.indexOf('需要 ' + cap.minVersion) < 0) problems.push(cap.id + ' 的说明里读不到「需要 ' + cap.minVersion + '」')
+    if (segment.indexOf(String(cap.versionAlternative)) < 0) problems.push(cap.id + ' 的说明里读不到替代做法：' + cap.versionAlternative)
+  })
+  return problems
+}
+
 async function main() {
   let view = null
   try { view = buildView(null) } catch (e) { console.error('闭包装配失败：' + ((e && e.stack) || e)); process.exit(1) }
@@ -327,6 +368,32 @@ async function main() {
   const missingMap = JSON.parse(JSON.stringify(gateMap))
   missingMap.gates = (missingMap.gates || []).filter(function (g) { return gateNameOf(g.file) !== 'verify-841-write-phones' })
   check(completionProblemsOf(missingMap).length > 0, '七 反证：把 841 从测试图里删掉 → 完成记录判据当场判红')
+
+
+  // ---- 八 版本说明：19 条版本限制逐条构造低版本，面板行必须读出最低版本与替代做法 ----
+  console.log('\n八 版本说明（19 条版本限制逐条构造低版本）')
+  const limited = view.CAPABILITIES.filter(function (cap) { return !!cap.versionPolicy })
+  check(limited.length === 19, '八 账本里登记了最低版本的能力恰好 19 条（实得 ' + limited.length + '）')
+  limited.forEach(function (cap) {
+    check(versionProblemsOf(view, [cap]).length === 0, '八 ' + cap.id + ' 在 ' + lowVersionOf(cap.minVersion) + ' 上读得到「需要 ' + cap.minVersion + '」与替代做法（' + cap.versionPolicy + '）')
+  })
+  const tooNew = limited.filter(function (cap) {
+    return versionSegmentOf(paletteVersionHtmlOf(view, cap.id, 'git version 2.49.0'), cap.id) !== ''
+  }).map(function (cap) { return cap.id })
+  check(tooNew.length === 0, '八 版本够（2.49）时 19 条都不画版本说明' + (tooNew.length ? '：' + tooNew.join('、') : ''))
+  const unknownVersion = limited.filter(function (cap) {
+    return versionSegmentOf(paletteVersionHtmlOf(view, cap.id, null), cap.id) !== ''
+      || versionSegmentOf(paletteVersionHtmlOf(view, cap.id, ''), cap.id) !== ''
+  }).map(function (cap) { return cap.id })
+  check(unknownVersion.length === 0, '八 版本未知（没有读数或读数为空）时不写「版本不支持」' + (unknownVersion.length ? '：' + unknownVersion.join('、') : ''))
+  const plainCap = view.CAPABILITIES.filter(function (cap) { return !cap.versionPolicy })[0]
+  check(versionSegmentOf(paletteVersionHtmlOf(view, plainCap.id, 'git version 2.10.0'), plainCap.id) === '', '八 没有登记版本限制的能力（' + plainCap.id + '）在任何版本上都不画版本说明')
+  const versionVictim = limited[0]
+  const keptAlternative = versionVictim.versionAlternative
+  versionVictim.versionAlternative = ''
+  const brokenVersion = versionProblemsOf(view, [versionVictim])
+  versionVictim.versionAlternative = keptAlternative
+  check(brokenVersion.length > 0, '八 反证：把 ' + versionVictim.id + ' 的替代做法清空 → 版本说明判据当场判红')
 
   console.log('\n' + (failed ? '存在失败' : '全部通过') + ' — 版本管理页覆盖验收门禁（' + total + ' 项断言）')
   printGateResult(GATE, total, failedCount)

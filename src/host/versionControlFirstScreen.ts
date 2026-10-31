@@ -19,7 +19,7 @@
  * {ok:true, firstScreen:版本化快照}，传输成功与数据成败分开（客户端按片画成败）。
  */
 import { commandFor, stashListArgs } from '../shared/version-control/src/commands.js'
-import { parseVersion, tierFor, capabilityAvailability } from '../shared/version-control/src/capabilities.js'
+import { parseVersion, capabilityTierFor, capabilityAvailability } from '../shared/version-control/src/capabilities.js'
 import { parseStatus } from '../shared/version-control/src/parse-status.js'
 import { parseWorktrees } from '../shared/version-control/src/parse-worktrees.js'
 import { parseRefs } from '../shared/version-control/src/parse-refs.js'
@@ -81,7 +81,7 @@ export function createFirstScreenPhone(deps: any): any {
 
   /** 版本与能力开关这一片：git 版本、能力档、当前版本下被隐藏或降级的能力清单。 */
   function versionSliceOf(gitVersion: string): any {
-    const tier: any = tierFor(parseVersion(gitVersion))
+    const tier: any = capabilityTierFor(parseVersion(gitVersion))
     const switches: any[] = []
     let fullCount: number = 0
     for (let i = 0; i < CAPABILITIES.length; i += 1) {
@@ -123,7 +123,7 @@ export function createFirstScreenPhone(deps: any): any {
       else {
         gitVersion = firstLine(vres.stdout)
         put('version', versionSliceOf(gitVersion))
-        tier = tierFor(parseVersion(gitVersion))
+        tier = capabilityTierFor(parseVersion(gitVersion))
       }
     } catch (e) { put('version', errSlice('env', '读 git 版本这一步抛出异常：' + String(((e as any) && (e as any).message) || (e as any)))) }
 

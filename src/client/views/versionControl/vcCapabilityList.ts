@@ -23,6 +23,8 @@ export const vcCapabilityListOf = function (h: any, t: any, o: any) {
     const surfaceKind = vcCapabilitySurfaceKindOf(cap)
     const paletteNode = surfaceKind === 'palette' ? vcPaletteNode(h, t, {
       id: paletteId, query: opts.query, highlight: opts.highlight, limit: opts.paletteLimit,
+      // 版本说明跟着读数走：页面壳把首屏读数原样传进来（reads.screen.data.gitVersion）。
+      reads: opts.reads,
     }) : null
     return vcShellCapabilityRowNode(h, t, {
       cap: cap,

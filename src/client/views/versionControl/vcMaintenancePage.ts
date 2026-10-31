@@ -5,7 +5,9 @@
 //   ① 11.4 的对象读数常驻（松散对象、包、仓库体积）；
 //   ② 11.5 垃圾回收与 11.8 自动维护：读数 → 预检签 120 秒票 → 四段确认卡 → 凭票执行（走长任务通道）；
 //   ③ 11.8 的开 / 关：装系统调度任务或撤掉它，本地命令，仍然先签票再执行；
-//   ④ 11.6 清除不可达对象（危险区）：先看预览与备份计划，确认卡四段写清垃圾回收后找不回，且必须先做实备份。
+//   ④ 危险区单独一块，只收两类不可逆动作：11.6 清除不可达对象（预览 + 备份计划 + 四段确认卡）
+//      与 5.11 全库重写（filter-repo 五张表单的入口卡）；每一条都常驻「丢什么 / 可逆性 / 恢复路径 /
+//      备份前置」四段，不靠点开确认卡才看得见。
 // 另外四项只读（11.7 重新打包、11.9 提交图、11.10 多包索引、11.11 打包引用）只展示状态与能做的整理，
 // 不画触发按钮——规格要求这几件事由 git 自己维持，面板只如实说明。
 //
@@ -20,6 +22,8 @@ declare function vcWriteErrFamilyOf(reason: any, kind: any): string
 declare const VC_MAINTENANCE_PHONES: Record<string, string>
 declare const VC_MAINTENANCE_ACTIONS: any[]
 declare const VC_MAINTENANCE_DANGER_IDS: string[]
+declare const VC_MAINTENANCE_DANGER_FORMS: any[]
+declare function vcMaintenanceCamelOf(id: any): string
 declare function vcMaintenanceOpMetaOf(op: any): any
 declare function vcMaintenanceOpLabelKeyOf(op: any): string
 declare function vcMaintenanceOpVerbKeyOf(op: any): string
@@ -49,9 +53,10 @@ declare function humanBytesOf(n: any): string
 export const VC_MAINTENANCE_PAGE_BODY_SOURCE = 'src/client/views/versionControl/vcMaintenancePage.ts'
 
 /** 维护页要画的写动作与只读卡片；门禁据此核对 11.5–11.11 一条不少、也没有多出别的动作。 */
-export const VC_MAINTENANCE_PAGE_WRITES: string[] = ['gc', 'maintenance-run', 'maintenance-enable', 'maintenance-disable', 'prune']
+export const VC_MAINTENANCE_PAGE_WRITES: string[] = ['gc', 'maintenance-run', 'maintenance-enable', 'maintenance-disable']
 export const VC_MAINTENANCE_PAGE_READS: string[] = ['repack', 'commit-graph', 'multi-pack-index', 'pack-refs', 'maintenance-status']
-export const VC_MAINTENANCE_PAGE_DANGER: string[] = ['prune']
+export const VC_MAINTENANCE_PAGE_DANGER: string[] = VC_MAINTENANCE_DANGER_IDS
+export const VC_MAINTENANCE_PAGE_DANGER_FORMS: any[] = VC_MAINTENANCE_DANGER_FORMS
 
 /** 对象读数的展示行：值一律由纯文本与数字组成，单位换算交给 humanBytesOf，不在界面里拼字符串规则。 */
 const vcMaintObjectRowsOf = function (objects: any): any[] {
@@ -140,6 +145,34 @@ const vcMaintActionCardOf = function (h: any, t: any, op: any, state: any, handl
   const result = vcMaintResultOf(h, t, op, Object.assign({}, state, { onRetry: function () { handlers.begin(op) } }))
   if (result) kids.push(Object.assign({}, result, { key: 'result' }))
   return h('div', { key: op, className: 'vcs-card', 'data-vc-maint-action': op, 'data-vc-maint-kind': 'write', 'data-vc-maint-danger': meta && meta.dangerous === true ? '1' : '0' }, kids)
+}
+
+/** 危险区一条的固定四段：丢什么 / 可逆性 / 恢复路径 / 备份前置；文案前缀由调用方给，四条键名固定。 */
+const vcMaintDangerFactsOf = function (h: any, t: any, lossKey: string, prefix: string): any[] {
+  return [
+    h('p', { key: 'loss', 'data-vc-maint-danger-fact': 'loss' }, t(lossKey)),
+    h('p', { key: 'reversible', 'data-vc-maint-danger-fact': 'reversible' }, t(prefix + 'reversible')),
+    h('p', { key: 'recovery', 'data-vc-maint-danger-fact': 'recovery' }, t(prefix + 'recovery')),
+    h('p', { key: 'backup', 'data-vc-maint-danger-fact': 'backup' }, t(prefix + 'backup')),
+  ]
+}
+
+/** 危险区里的 prune 条目：动作卡（含预览、确认卡、备份计划与执行结果）原样复用，另把四段后果常驻在卡下。 */
+const vcMaintDangerCardOf = function (h: any, t: any, op: any, state: any, handlers: any) {
+  const kids: any[] = [vcMaintActionCardOf(h, t, op, state, handlers)]
+  return h('div', { key: op, 'data-vc-maint-danger-entry': op },
+    kids.concat(vcMaintDangerFactsOf(h, t, 'vc.maintenance.danger.prune.loss', 'vc.maintenance.danger.prune.')))
+}
+
+/** 危险区里的重写条目：标题、账本口径的命令原文、四段后果；输入在页尾重写表单块里填。 */
+const vcMaintRewriteDangerOf = function (h: any, t: any, form: any) {
+  const kids: any[] = [
+    h('h5', { key: 'title', 'data-vc-maint-danger-form-title': form.id }, t(form.labelKey)),
+    h('p', { key: 'command' }, h('code', null, String(form.command || ''))),
+  ]
+  const lossKey: string = 'vc.maintenance.danger.rewrite.loss.' + vcMaintenanceCamelOf(form.id)
+  return h('div', { key: form.id, className: 'vcs-card', 'data-vc-maint-danger-form': form.id },
+    kids.concat(vcMaintDangerFactsOf(h, t, lossKey, 'vc.maintenance.danger.rewrite.')))
 }
 
 /** 一张只读卡：只展示读数，没有触发按钮；老版本不支持时把版本要求如实写出来。 */
@@ -245,6 +278,17 @@ export const vcMaintenancePageNode = function (props: any) {
         if (vcMaintenanceOpMetaOf(op) === null) return null
         return vcMaintActionCardOf(h, t, op, rows[op] || {}, handlers)
       }).filter(function (n: any) { return n !== null })),
+    h('section', { key: 'danger', className: 'vcs-card', 'data-vc-maint-danger': '1', 'data-vc-maint-danger-section': '1' }, [
+      h('h4', { key: 'title', 'data-vc-maint-danger-title': '1' }, t('vc.maintenance.danger.title')),
+      h('p', { key: 'boundary', className: 'vcs-muted', 'data-vc-maint-danger-boundary': '1' }, t('vc.maintenance.danger.boundary')),
+      h('div', { key: 'prune', 'data-vc-maint-danger-group': 'objects' },
+        VC_MAINTENANCE_PAGE_DANGER.map(function (op: string) { return vcMaintDangerCardOf(h, t, op, rows[op] || {}, handlers) })),
+      h('div', { key: 'rewrite', 'data-vc-maint-danger-group': 'rewrite' }, [
+        h('h5', { key: 'rewriteTitle', 'data-vc-maint-danger-rewrite-title': '1' }, t('vc.maintenance.danger.rewrite.title')),
+        VC_MAINTENANCE_PAGE_DANGER_FORMS.map(function (form: any) { return vcMaintRewriteDangerOf(h, t, form) }),
+        h('p', { key: 'goto' }, h('a', { href: '#vc-rewrite-page', 'data-vc-maint-danger-jump': '5.11' }, t('vc.maintenance.danger.rewrite.goto'))),
+      ]),
+    ]),
     h('section', { key: 'reads', 'data-vc-maint-reads': '1' },
       VC_MAINTENANCE_PAGE_READS.map(function (op: string) {
         const reply: any = (data.reads || {})[op]

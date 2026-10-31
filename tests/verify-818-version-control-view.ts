@@ -67,6 +67,8 @@ const VC_FILES = [
   'src/shared/version-control/src/rules.ts',
   // #1738：页面注册表与命令面板的唯一数据源（能力账本 162 条），界面壳按它渲染，测试也按它断言。
   'src/shared/version-control/src/capability-ledger.ts',
+  // #1737 版本可用性判定（capabilityAvailability）在共享层同一份：命令面板按它写「需要哪版、替代做法」。
+  'src/shared/version-control/src/capabilities.ts',
   // #1739 首屏七片契约（契约名、版本号、七片名单、刷新三时机与形状判据的唯一真源）：排在客户端那片之前。
   'src/shared/version-control/src/first-screen.ts',
   // #1743 提交计划（八条提交能力共用的形态、目标、跳过钩子、签名、追加签名行与各自 argv）：宿主与界面读同一份。

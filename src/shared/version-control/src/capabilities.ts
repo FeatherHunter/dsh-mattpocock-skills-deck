@@ -22,17 +22,23 @@ export function parseVersion(text: string): GitVersion | null {
   return { major: Number(m[1]), minor: Number(m[2]), patch: m[3] === undefined ? 0 : Number(m[3]) }
 }
 
-function atLeast(v: GitVersion, floor: GitVersion): boolean {
+function capabilityAtLeast(v: GitVersion, floor: GitVersion): boolean {
   if (v.major !== floor.major) return v.major > floor.major
   if (v.minor !== floor.minor) return v.minor > floor.minor
   return v.patch >= floor.patch
 }
 
-/** 低于 2.11 直说请升级；2.11–2.30 降级（锁标记未知）；2.31 及以上完整。 */
-export function tierFor(v: GitVersion | null): CapabilityTier {
+/**
+ * 低于 2.11 直说请升级；2.11–2.30 降级（锁标记未知）；2.31 及以上完整。
+ *
+ * 名字带 capability 前缀是为了能被构建整段拼进客户端：客户端半边还拼着笔记本额度档位的
+ * tierFor（host-budget.ts，按全局名被 truthLines 消费），两个同名函数落在同一个函数体里
+ * 会互相覆盖，所以这里避开那个名字。
+ */
+export function capabilityTierFor(v: GitVersion | null): CapabilityTier {
   if (!v) return 'unsupported'
-  if (!atLeast(v, VERSION_FLOOR)) return 'unsupported'
-  if (!atLeast(v, LOCK_PRUNABLE_FLOOR)) return 'degraded'
+  if (!capabilityAtLeast(v, VERSION_FLOOR)) return 'unsupported'
+  if (!capabilityAtLeast(v, LOCK_PRUNABLE_FLOOR)) return 'degraded'
   return 'full'
 }
 
@@ -70,9 +76,9 @@ export function capabilityAvailability(
 ): CapabilityAvailability {
   const needed = cap.minVersion
   const parsed = version === null || version === '' ? null : typeof version === 'string' ? parseVersion(version) : version
-  if (!parsed || !atLeast(parsed, VERSION_FLOOR)) return { state: 'hidden', needed, alternative: cap.versionAlternative }
+  if (!parsed || !capabilityAtLeast(parsed, VERSION_FLOOR)) return { state: 'hidden', needed, alternative: cap.versionAlternative }
   const minimum = parseVersion(needed)
-  if (!minimum || !atLeast(parsed, minimum)) {
+  if (!minimum || !capabilityAtLeast(parsed, minimum)) {
     return { state: cap.versionPolicy === 'degrade' ? 'degraded' : 'hidden', needed, alternative: cap.versionAlternative }
   }
   return { state: 'full', needed, alternative: null }
