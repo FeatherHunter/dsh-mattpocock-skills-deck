@@ -109,6 +109,9 @@ const REFERENCES: RefRow[] = [
   // #1750 维护页整仓重写两片叶子各自直接导入的时间常量。
   { file: 'src/host/versionControlRewriteScene.ts', access: 'VC_REWRITE_READ_TIMEOUT_MS', gen: 'VC_REWRITE_READ_TIMEOUT_MS', key: 'vcRewriteReadTimeoutMs' },
   { file: 'src/host/versionControlRewriteWrite.ts', access: 'VC_REWRITE_WRITE_TIMEOUT_MS', gen: 'VC_REWRITE_WRITE_TIMEOUT_MS', key: 'vcRewriteWriteTimeoutMs' },
+  // #1758 维护页两片叶子各自直接导入的时间常量。
+  { file: 'src/host/versionControlMaintenanceRead.ts', access: 'VC_MAINTENANCE_READ_TIMEOUT_MS', gen: 'VC_MAINTENANCE_READ_TIMEOUT_MS', key: 'vcMaintenanceReadTimeoutMs' },
+  { file: 'src/host/versionControlMaintenanceWrite.ts', access: 'VC_MAINTENANCE_WRITE_TIMEOUT_MS', gen: 'VC_MAINTENANCE_WRITE_TIMEOUT_MS', key: 'vcMaintenanceWriteTimeoutMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'CALL_BUDGET_MS', gen: 'GIT_CREDENTIAL_CALL_BUDGET_MS', key: 'gitCredentialCallBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MIN_BUDGET_MS', gen: 'GIT_CREDENTIAL_MIN_BUDGET_MS', key: 'gitCredentialMinBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MAX_BUDGET_MS', gen: 'GIT_CREDENTIAL_MAX_BUDGET_MS', key: 'gitCredentialMaxBudgetMs' },
@@ -448,6 +451,10 @@ const EXEMPTS: ExemptRow[] = [
   // #1750 维护页整仓重写：备份要记录实际耗时（由调用方用起止时刻相减算出），不是可配时长旋钮。
   { file: 'src/shared/version-control/src/recovery-point.ts', name: 'elapsedMs', reason: '备份实际耗时字段，调用方用起止时刻算，不是可配时长' },
   { file: 'src/shared/version-control/src/rewrite-ops.ts', name: 'nowMs', reason: '备份路径时间戳用的当前时刻，由调用方传入，本文件不读钟' },
+  // #1758：维护页三处读数与备份跑器里的时间名，都不是新的可调参数。
+  { file: 'src/host/versionControlBackup.ts', name: 'writeTimeoutMs', reason: '函数内局部变量，接的是注入的 writeTimeoutMs 或 VC_MAINTENANCE_WRITE_TIMEOUT_MS（已登记）' },
+  { file: 'src/host/versionControlBackup.ts', name: 'elapsedMs', reason: '备份实际耗时字段，由起止时刻算出来，不是可配时长' },
+  { file: 'src/host/versionControlMaintenanceRead.ts', name: 'mtimeMs', reason: '松散对象文件的修改时刻（fs.stat 读回来的值），不是可调参数' },
   { file: 'src/host/versionControlRewriteWrite.ts', name: 'elapsedMs', reason: '备份实际耗时（起止时刻相减的派生值），不是可配时长；备份单条命令的超时另有 vcRewriteWriteTimeoutMs' },
   // #1762 平台段执行层：读钟口由装配壳注入（生产走 Date.now），叶子不写数字。
   { file: 'src/host/versionControlPlatform.ts', name: 'nowMs', reason: '读钟口（测试注入假钟，生产走 Date.now），不是可调时长' },

@@ -172,6 +172,13 @@ timeouts:
   # 前置整仓备份的单条命令超时：10 分钟。磁盘够时是本地镜像克隆（很快），不够时降级整仓打包，大仓库可能到分钟级；
   # 这一条只盖备份本身，filter-repo 重写走长任务通道，不受这里约束。
   vcRewriteWriteTimeoutMs: 600000
+  # —— 维护页（域 11）的单条命令超时（#1758）——
+  # 读数与预演的单条只读命令超时：30 秒。fsck --unreachable、prune -n -v、count-objects 都是本地读取，
+  # 但对象多的仓库会明显比普通状态读取慢，所以比别的页面宽松一档。
+  vcMaintenanceReadTimeoutMs: 30000
+  # 维护动作的单条命令超时：10 分钟。这一档要盖住「清除不可达对象」动手前的整仓备份（镜像克隆或整仓打包）；
+  # gc、prune、maintenance run 本体走长任务通道，不受这里约束；开启/关闭自动维护的本地命令通常瞬间完成。
+  vcMaintenanceWriteTimeoutMs: 600000
   # git 凭据代执行的整趟预算：4 分钟。上下限 5 秒与 10 分钟：接线给的预算会被钳进这个范围
   # （下限从 1 秒提到 5 秒；1 秒的预算在慢机器上连子进程启动都盖不住，等于没给）。
   gitCredentialCallBudgetMs: 240000

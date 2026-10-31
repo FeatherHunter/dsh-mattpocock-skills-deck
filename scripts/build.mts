@@ -714,6 +714,9 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   //   必须读同一份，所以拼进界面闭包；宿主半走普通相对 import。
   { marker: '// ==== shared:vcRewriteOps (spliced by build) ====', file: 'src/shared/version-control/src/rewrite-ops.ts' },
   { marker: '// ==== shared:vcRecoveryPoint (spliced by build) ====', file: 'src/shared/version-control/src/recovery-point.ts' },
+  // #1758 T22 维护页域 11 的十条能力（11.2–11.11）：动作表、主入口归属、版本门与任务请求拼装（maintenance-ops.ts）。
+  //   宿主预检/执行与界面判定必须读同一份，所以这份零依赖模块拼进界面闭包；宿主半走普通相对 import。
+  { marker: '// ==== shared:vcMaintenanceOps (spliced by build) ====', file: 'src/shared/version-control/src/maintenance-ops.ts' },
 ]
 
 // ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------
@@ -857,6 +860,11 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   //   预览计数、四段确认卡、备份与还原、长任务进度与四类结论）。排在页面壳之前，壳的挂载段才看得到 vcRewritePageNode。
   { id: 'vcRewriteOps', file: 'src/client/views/versionControl/vcRewriteOps.ts' },
   { id: 'vcRewritePage', file: 'src/client/views/versionControl/vcRewritePage.ts' },
+  // #1758 T22 维护页与诊断页三叶：动作模型（16 条动作、电话参数、回包分类）→ 维护页正文（对象读数、垃圾回收、自动维护、危险区清除）
+  //   → 诊断页正文（完整性检查走长任务通道、不可达对象清单与两个出口）。排在页面壳之前，壳的挂载段才看得到三个页面节点。
+  { id: 'vcMaintenanceData', file: 'src/client/views/versionControl/vcMaintenanceData.ts' },
+  { id: 'vcMaintenancePage', file: 'src/client/views/versionControl/vcMaintenancePage.ts' },
+  { id: 'vcMaintenanceDiag', file: 'src/client/views/versionControl/vcMaintenanceDiag.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },

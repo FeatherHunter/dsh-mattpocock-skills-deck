@@ -1,4 +1,4 @@
-// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–R 十八组，每组带反证；J 段有四组（远端、分支与标签、贮藏页、工作树页），K 段是 #1755 同步域与 #1747 冲突向导的写通道，L 段是 #1743 提交页，M 段是 #1748 历史改写五条动作的写通道，N 段是 #1757 子模块页的写与任务通道，O 段是 #1749 变基待办页的读 / 预检 / 凭票执行三电话，P 段是 #1759 迁移与备份的写通道，Q 段是 #1761 诊断页与 5.12 替换对象的写通道，R 段是 #1750 维护页整仓重写的预览 / 预检 / 备份后执行三电话。
+// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–T 二十组，每组带反证；J 段有四组（远端、分支与标签、贮藏页、工作树页），K 段是 #1755 同步域与 #1747 冲突向导的写通道，L 段是 #1743 提交页，M 段是 #1748 历史改写五条动作的写通道，N 段是 #1757 子模块页的写与任务通道，O 段是 #1749 变基待办页的读 / 预检 / 凭票执行三电话，P 段是 #1759 迁移与备份的写通道，Q 段是 #1761 诊断页与 5.12 替换对象的写通道，R 段是 #1750 维护页整仓重写的预览 / 预检 / 备份后执行三电话，T 段是 #1758 维护页读数 / 预检 / 凭票执行三电话。
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-841-write-phones.ts
 // 夹具：真 git 临时仓库（每个用例自己造）+ 真 subprocess 形状的垫片（argv 直传、不经 shell），
 // 这样「真跑过的 argv」与「真仓库有没有被动过」都能断言；只在纯归类那组不碰 git。
@@ -1122,6 +1122,69 @@ async function main(): Promise<void> {
   check(pCloneCount === 1, 'S19 整个 P 组只做过一次镜像备份（实得 ' + pCloneCount + ' 次）')
   check(denyIs(pRun, 'args') === false && denyIs(pForged, 'args') === true, 'S20 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
 
+  // T 组：#1758 维护页读数 / 预检 / 凭票执行三电话。这一组守「只读电话不签票、预检不写现场、伪造与未确认的票零进程、
+  //   危险动作 prune 必须先真做出整仓备份再起任务」。gc / prune 本体走长任务通道，本组只断言备份与任务交接；
+  //   任务跑没跑完、进度与取消由 verify-1586-task-channel 那一族负责。
+  console.log('T 维护页电话（#1758）')
+  const rT = mkRepo('t')
+  const tCache = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws841-maint-cache-'))
+  const vcT = makeVc(null, {
+    fs: {
+      resolve: async (p: any) => String(p),
+      readText: async (p: any) => await fs.promises.readFile(String(p), 'utf8'),
+      writeText: async (p: any, t: any) => { await fs.promises.mkdir(path.dirname(String(p)), { recursive: true }); await fs.promises.writeFile(String(p), String(t), 'utf8') },
+      mkdir: async (p: any) => { await fs.promises.mkdir(String(p), { recursive: true }) },
+      listDir: async (p: any) => await fs.promises.readdir(String(p)),
+    },
+    getCacheDir: () => tCache,
+  })
+  const tWriteLike = (a: string[]): boolean => { const c = after(a); return ['clone', 'bundle', 'gc', 'prune', 'maintenance'].indexOf(c[0]) >= 0 }
+  const tBackupCmds = (): number => spawns.filter((a) => after(a)[0] === 'clone' || after(a)[0] === 'bundle').length
+  check(typeof vcT.handleGitMaintenanceRead === 'function' && typeof vcT.handleGitMaintenanceCheck === 'function' && typeof vcT.handleGitMaintenanceWrite === 'function', 'T1 维护页读数 / 预检 / 执行三条电话都挂在同一个宿主对象上')
+  check(typeof vcT.maintenanceTickets === 'function', 'T2 维护票表读取口只给门禁与测试，不注册成电话')
+  const tBefore = spawns.length
+  const tBadCwd = await vcT.handleGitMaintenanceRead({ cwd: '', op: 'objects' })
+  check(tBadCwd.ok === false && tBadCwd.reason === 'bad-target' && spawns.length === tBefore, 'T3 只读电话不给仓库目录时回 bad-target，一条命令都不起')
+  const tObjects = await vcT.handleGitMaintenanceRead({ cwd: rT, op: 'objects' })
+  check(tObjects.ok === true && tObjects.contract === 'vc-maintenance-check' && typeof tObjects.looseCount === 'number' && typeof tObjects.repoSizeBytes === 'number', 'T4 对象读数在真仓库上读得出来：松散条数与仓库体积都是数字（不是估的）')
+  check(spawns.slice(tBefore).every((a) => tWriteLike(a) === false), 'T5 只读电话一条写命令都没起（读就是读）')
+  const tWriteAsRead = await vcT.handleGitMaintenanceRead({ cwd: rT, op: 'gc' })
+  check(tWriteAsRead.ok === false && tWriteAsRead.reason === 'bad-target', 'T6 写动作不能从只读电话读出去（读与写两条电话分开）')
+  const tBadCheck = await vcT.handleGitMaintenanceCheck({ cwd: '', op: 'gc' })
+  check(tBadCheck.ok === false && tBadCheck.reason === 'bad-target' && spawns.slice(tBefore).every((a) => tWriteLike(a) === false), 'T7 预检缺仓库目录时回 bad-target，零写命令')
+  const tCheck = await vcT.handleGitMaintenanceCheck({ cwd: rT, op: 'gc' })
+  check(tCheck.ok === true && !!tCheck.ticket && tCheck.ticket.expiresAtMs - tCheck.ticket.checkedAtMs === 120000, 'T8 预检签 120 秒票（票只管预检那一刻的现场是否还新鲜）')
+  check(tCheck.confirmRequired === true && tCheck.confirm && typeof tCheck.confirm.what === 'string' && tCheck.confirm.what.length > 0 && typeof tCheck.confirm.wont === 'string' && tCheck.confirm.reversible === true, 'T9 预检回四段确认卡：垃圾回收不丢已提交内容所以可逆，但仍要先确认')
+  check(spawns.slice(tBefore).every((a) => tWriteLike(a) === false), 'T10 预检阶段一条写命令都没起（签票不等于执行）')
+  const tForged = await vcT.handleGitMaintenanceWrite({ cwd: rT, op: 'gc', ticketId: 'NOSUCHTICKET', requestId: 'req-841-maint-1', confirmed: true })
+  check(tForged.ok === false && tForged.reason === 'ticket-missing' && spawns.slice(tBefore).every((a) => tWriteLike(a) === false), 'T11 伪造票号：零写命令拒绝（票只在宿主内存里）')
+  const tNoConfirm = await vcT.handleGitMaintenanceWrite({ cwd: rT, op: 'gc', ticketId: tCheck.ticket.id, requestId: 'req-841-maint-2' })
+  check(tNoConfirm.ok === false && tNoConfirm.reason === 'need-confirm' && tNoConfirm.error && tNoConfirm.error.kind === 'need-confirm' && spawns.slice(tBefore).every((a) => tWriteLike(a) === false), 'T12 没确认时拒绝，且零写命令（四段确认卡不是装饰）')
+  const tWrong = await vcT.handleGitMaintenanceWrite({ cwd: rT, op: 'maintenance-run', ticketId: tCheck.ticket.id, requestId: 'req-841-maint-3', confirmed: true })
+  check(tWrong.ok === false && tWrong.reason === 'ticket-op-mismatch' && spawns.slice(tBefore).every((a) => tWriteLike(a) === false), 'T13 拿 gc 的票去跑自动维护：票据与动作不符，零写命令')
+  const tRun = await vcT.handleGitMaintenanceWrite({ cwd: rT, op: 'gc', ticketId: tCheck.ticket.id, requestId: 'req-841-maint-4', confirmed: true })
+  check(tRun.ok === true && tRun.kind === 'task' && !!tRun.task && tRun.task.op === 'gc' && JSON.stringify(tRun.steps) === JSON.stringify(['task']), 'T14 凭票执行：垃圾回收交给长任务通道，回包说清只有任务一步')
+  const tReplay = await vcT.handleGitMaintenanceWrite({ cwd: rT, op: 'gc', ticketId: tCheck.ticket.id, requestId: 'req-841-maint-4', confirmed: true })
+  check(tReplay.reused === true && tReplay.result && tReplay.result.task && tReplay.result.task.op === 'gc', 'T15 同一个 requestId 重放：回上一次的结果，不重复起任务')
+  const tTaskCount = spawns.filter((a) => after(a)[0] === 'gc').length
+  check(tTaskCount === 1, 'T16 整个 T 组只起过一次垃圾回收（实得 ' + tTaskCount + ' 次）')
+  fs.writeFileSync(path.join(rT, 'dangling.txt'), 'dangling\n')
+  git(rT, ['hash-object', '-w', 'dangling.txt'])
+  const tPruneCheck = await vcT.handleGitMaintenanceCheck({ cwd: rT, op: 'prune' })
+  check(tPruneCheck.ok === true && tPruneCheck.confirm && tPruneCheck.confirm.reversible === false && tPruneCheck.backup && tPruneCheck.backup.required === true && String(tPruneCheck.backup.path).indexOf('-backup-') >= 0, 'T17 清除不可达对象：确认卡写明不可自动恢复，并先给出备份路径')
+  check(tPruneCheck.preview && typeof tPruneCheck.preview.count === 'number' && tPruneCheck.preview.count >= 1 && tPruneCheck.confirm.backup && tPruneCheck.confirm.backup.path === tPruneCheck.backup.path, 'T18 确认卡里点名要备份到哪、这次会清掉几个不可达对象')
+  check(fs.existsSync(tPruneCheck.backup.path) === false, 'T19 预检阶段还没创建备份（备份只在凭票执行时做）')
+  const tPruneRun = await vcT.handleGitMaintenanceWrite({ cwd: rT, op: 'prune', ticketId: tPruneCheck.ticket.id, requestId: 'req-841-maint-5', confirmed: true })
+  check(tPruneRun.ok === true && JSON.stringify(tPruneRun.steps) === JSON.stringify(['backup', 'task']), 'T20 凭票执行：先真做备份、再起清除任务，回包按这一步序说清楚')
+  check(!!tPruneRun.backup && fs.existsSync(tPruneRun.backup.path) === true && Number(tPruneRun.backup.bytes) > 0, 'T21 备份真的落在盘上且有大小（备份成功才允许继续）')
+  check(typeof tPruneRun.backupSummary === 'string' && tPruneRun.backupSummary.indexOf('备份在') >= 0 && Array.isArray(tPruneRun.backupRestoreSteps) && tPruneRun.backupRestoreSteps.length === 3, 'T22 回包带人话备份摘要与三步还原指引（面板不代做恢复，只说清怎么做）')
+  const tDriftCheck = await vcT.handleGitMaintenanceCheck({ cwd: rT, op: 'gc' })
+  fs.writeFileSync(path.join(rT, 'a.txt'), 'a\nb\nc\n')
+  git(rT, ['add', 'a.txt'])
+  const tBackup0 = tBackupCmds()
+  const tDrift = await vcT.handleGitMaintenanceWrite({ cwd: rT, op: 'gc', ticketId: tDriftCheck.ticket.id, requestId: 'req-841-maint-6', confirmed: true })
+  check(tDrift.ok === false && tDrift.reason === 'target-changed' && tBackupCmds() === tBackup0, 'T23 预检之后工作区变了：现场摘要不一致，零写命令拒绝（票只对预检那一刻的现场有效）')
+  check(denyIs(tDrift, 'blocked') === true && denyIs(tRun, 'blocked') === false, 'T24 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }
