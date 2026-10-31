@@ -15,7 +15,11 @@
 
 import {
   TASK_CONCLUSIONS, isTaskOp, taskOpMetaOf, taskArgsFor, taskDedupeKey, parseTaskProgress,
+  stdinSpecProblem, summaryOf,
 } from '../shared/version-control/src/task-protocol.js'
+// 软取消宽限与强杀等待住中央 YAML（config/timeouts.yaml 的 vcTaskCancelGraceMs / vcTaskHardKillGraceMs），
+// 这里只引用生成常量：调用方没给值时的兜底同样取中央那一份，不写第二份数字。
+import { VC_TASK_CANCEL_GRACE_MS, VC_TASK_HARD_KILL_MS } from '../shared/time-config/src/values.js'
 
 const VIA = 'version-control-task'
 
@@ -28,8 +32,6 @@ function taskFail(kind: any, message: any, extra?: any): any {
   const more: any = extra || {}
   return { ok: false, error: { kind, message, reason: more.reason || null, hint: more.hint || null } }
 }
-const DEFAULT_GRACE_MS = 5000
-const DEFAULT_HARD_KILL_MS = 2000
 const FAILURE_LINE_LIMIT = 160
 
 /** 取失败输出里第一行非空文字：给人看的失败原因只留这一行，整段输出太吵。 */
@@ -37,46 +39,6 @@ function firstLine(text: any): string {
   if (typeof text !== 'string') return ''
   const line: string = text.split(/\r?\n/).find((item: any) => String(item).trim().length > 0) || ''
   return line.trim().slice(0, FAILURE_LINE_LIMIT)
-}
-
-/** 输入文件引用的形状校验：路径、非负整数大小、64 位十六进制摘要，三样缺一不可。 */
-function stdinSpecProblem(spec: any): string | null {
-  if (!spec || typeof spec !== 'object') return '输入文件规格必须是对象'
-  if (typeof spec.path !== 'string' || spec.path.length === 0) return '输入文件缺少路径'
-  if (!Number.isInteger(spec.sizeBytes) || spec.sizeBytes < 0) return '输入文件大小必须是非负整数'
-  if (typeof spec.sha256 !== 'string' || !/^[0-9a-fA-F]{64}$/.test(spec.sha256)) return '输入文件摘要必须是 64 位十六进制'
-  return null
-}
-
-/** 对外可见的任务摘要：只挑界面需要的字段，参数原文与文件内容不往外传。 */
-export function summaryOf(record: any): any {
-  if (!record || typeof record !== 'object') return null
-  const percent: number | null = typeof record.percent === 'number' ? record.percent : null
-  const meta: any = taskOpMetaOf(record.op)
-  return {
-    taskId: record.taskId,
-    requestId: record.requestId || null,
-    op: record.op,
-    // 动作的文案键也随摘要一起给界面：界面不自己拼动作名，避免多一处映射。
-    labelKey: meta ? meta.labelKey : null,
-    state: record.state || 'running',
-    conclusion: record.conclusion || null,
-    phase: record.phase || null,
-    percent,
-    uncertain: record.state === 'running' && percent === null,
-    receivedBytes: typeof record.receivedBytes === 'number' ? record.receivedBytes : null,
-    elapsedMs: typeof record.elapsedMs === 'number' ? record.elapsedMs : null,
-    startedAt: typeof record.startedAt === 'number' ? record.startedAt : null,
-    endedAt: typeof record.endedAt === 'number' ? record.endedAt : null,
-    exitCode: typeof record.exitCode === 'number' ? record.exitCode : null,
-    truncated: record.truncated === true,
-    failureKind: record.failureKind || null,
-    failureLine: record.failureLine || null,
-    residual: record.residual || null,
-    cancelRequested: record.cancelRequested === true,
-    stdinBytes: typeof record.stdinBytes === 'number' ? record.stdinBytes : null,
-    interrupted: record.interrupted === true || record.conclusion === 'interrupted',
-  }
 }
 
 export function createTaskRunner(deps: any): any {
@@ -89,8 +51,8 @@ export function createTaskRunner(deps: any): any {
   const instanceId: string = String(deps.instanceId || 'instance')
   const repoRoot: string = deps.repoRoot || ''
   const fire: any = typeof deps.fire === 'function' ? deps.fire : () => {}
-  const graceMs: number = Number.isInteger(deps.graceMs) && deps.graceMs > 0 ? deps.graceMs : DEFAULT_GRACE_MS
-  const hardKillMs: number = Number.isInteger(deps.hardKillMs) && deps.hardKillMs > 0 ? deps.hardKillMs : DEFAULT_HARD_KILL_MS
+  const graceMs: number = Number.isInteger(deps.graceMs) && deps.graceMs > 0 ? deps.graceMs : Math.max(1000, Number(VC_TASK_CANCEL_GRACE_MS) || 5000)
+  const hardKillMs: number = Number.isInteger(deps.hardKillMs) && deps.hardKillMs > 0 ? deps.hardKillMs : Math.max(500, Number(VC_TASK_HARD_KILL_MS) || 2000)
   const inflight = new Map<any, any>()
 
   /** 每条 git.task 日志都从这里出：字段名固定，额外字段按白名单由调用方补。 */

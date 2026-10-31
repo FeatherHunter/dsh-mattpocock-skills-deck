@@ -173,6 +173,7 @@ export const vcTaskRowNode = function (h: any, t: any, task: any, handlers: any)
       type: 'button',
       'data-press': 'button',
       'data-vc-task-cancel': '1',
+      'data-log': 'vc.task.cancel',
       onClick: function (ev: any) {
         if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation()
         hs.onCancel(id)

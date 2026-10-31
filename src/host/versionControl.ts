@@ -48,15 +48,9 @@ import { failPhone, firstLine, failureFromExec } from '../shared/version-control
 // 路径走域构建产物写法（与 src/refresh/rooms/host/chain-coalescing.ts 引 values.js 同例），
 // 值由 tests/verify-time-config.ts 看守一致。
 import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/time-config/src/values.js'
-// #1741：fast-import 那个只读文件流窄例外要宿主自己打开并核对普通文件、大小与摘要；
-// 这条边只服务 stdinFile，读命令与其余写命令仍走注入的 subprocess 服务。
-// 本域 tsconfig 有意不加载 Node 类型包（types 为空），运行时一定是 Node，这些内建模块必然存在。
-// @ts-expect-error
-import { lstat as fsLstat, readFile as fsReadFile } from 'node:fs/promises'
-// @ts-expect-error
-import { isAbsolute as pathIsAbsolute } from 'node:path'
-// @ts-expect-error
-import { createHash as cryptoCreateHash } from 'node:crypto'
+// #1741/#1740：fast-import 的只读文件流窄例外与长任务执行层（起进程、送标准输入、增量读）都住
+// 同层叶子 versionControlTask.ts；本文件只递宿主依赖与日志包装，两条入口共用同一份文件核对实现。
+import { prepareStdinFile, createTaskPhones } from './versionControlTask.js'
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -72,45 +66,6 @@ const LOG_BATCH_MAX: number = 200              // 历史按批取时一批最多
 /** stdinFile 只读文件流的命令白名单：整份规格里只有 fast-import 需要标准输入（规格第 8 节唯一例外）。 */
 const STDIN_FILE_COMMAND: string = 'fast-import'
 
-/** 路径守卫：只收绝对路径、不许含 NUL、不许出现 .. 段。返回空串表示通过，否则返回给人看的理由。
- *  为什么连 .. 也挡：票据把路径绑成了字符串，`repo/../outside` 与 `outside` 是同一份文件，
- *  只做「开头是不是绝对路径」的检查会让路径比较失去意义。 */
-function stdinPathProblem(p: any): string {
-  if (typeof p !== 'string' || !p) return '路径为空或不是字符串'
-  if (p.indexOf('\u0000') >= 0) return '路径里含 NUL'
-  if (!pathIsAbsolute(p)) return '不是绝对路径'
-  const segments: string[] = p.split(/[\\/]+/)
-  if (segments.indexOf('..') >= 0) return '路径里含 .. 段'
-  return ''
-}
-
-/** 打开 fast-import 的只读输入文件并核对票据绑定的「普通文件、大小、摘要」三件事。
- *  任何一项不符都在起进程之前给明确失败（零进程）；读文件留到最后，读出来再按字节数复核一次，
- *  防「查 stat 之后文件被换掉」这种小窗口。 */
-async function prepareStdinFile(spec: any): Promise<any> {
-  if (!spec || typeof spec !== 'object') return { ok: false, reason: 'bad-spec', message: 'stdinFile 必须给出 path、sizeBytes 与 sha256' }
-  const problem: string = stdinPathProblem(spec.path)
-  if (problem) return { ok: false, reason: 'bad-path', message: problem }
-  const sizeBytes: any = spec.sizeBytes
-  const sha256: string = (typeof spec.sha256 === 'string') ? spec.sha256.toLowerCase() : ''
-  if (!Number.isInteger(sizeBytes) || sizeBytes < 0) return { ok: false, reason: 'bad-spec', message: 'sizeBytes 必须是非负整数' }
-  if (!/^[0-9a-f]{64}$/.test(sha256)) return { ok: false, reason: 'bad-spec', message: 'sha256 必须是 64 位十六进制摘要' }
-  let st: any
-  try { st = await fsLstat(spec.path) } catch (e) {
-    const code: string = (e && (e as any).code) ? String((e as any).code) : ''
-    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: false, reason: 'missing-file', message: 'stdinFile 指向的文件不存在' }
-    return { ok: false, reason: 'unreadable', message: '读不了 stdinFile 的文件信息：' + String(((e as any) && (e as any).message) || e) }
-  }
-  // lstat：符号链接本身不是普通文件，不收（否则「路径绑定」可以绕过成任意目标）。
-  if (!st || typeof st.isFile !== 'function' || !st.isFile()) return { ok: false, reason: 'not-regular-file', message: 'stdinFile 只收普通文件' }
-  if (st.size !== sizeBytes) return { ok: false, reason: 'size-mismatch', message: '文件大小与票据绑定的不一致（实际 ' + st.size + '，票据 ' + sizeBytes + '）' }
-  let bytes: any
-  try { bytes = await fsReadFile(spec.path) } catch (e) { return { ok: false, reason: 'unreadable', message: '读不了 stdinFile 的文件内容：' + String(((e as any) && (e as any).message) || e) } }
-  if (bytes.length !== sizeBytes) return { ok: false, reason: 'size-mismatch', message: '读出来的字节数与票据绑定的不一致（实际 ' + bytes.length + '，票据 ' + sizeBytes + '）' }
-  const actual: string = cryptoCreateHash('sha256').update(bytes).digest('hex')
-  if (actual !== sha256) return { ok: false, reason: 'digest-mismatch', message: '文件摘要与票据绑定的不一致（实际 ' + actual.slice(0, 16) + '…，票据 ' + sha256.slice(0, 16) + '…）' }
-  return { ok: true, bytes: bytes }
-}
 
 /** 宿主注入的依赖：进程、计时、文件、平台与日志都在这里，本文件不自取任何环境。 */
 export interface VersionControlDeps {
@@ -474,151 +429,33 @@ export function createVersionControl(deps: any): any {
   let _writeP: any = null
   function writePhone(): any { if (!_writeP) _writeP = Promise.all([import('../refresh/rooms/host/gh-execution.js'), import('./versionControlCheck.js'), import('./versionControlWrite.js')]).then(function (ms: any) { const sg: any = ms[0].createCredentialSafeGit({ runGit: runGit, getPlatform: getPlatform, DEFAULT_CWD: DEFAULT_CWD }); const nowFn: any = (deps && typeof deps.now === 'function') ? deps.now : Date.now; const c: any = ms[1].createWriteCheck({ vc: { readScreenOf: readScreenOf }, safeGit: sg, failPhone: failPhone, nowMs: nowFn, randomId: function (): string { return Math.random().toString(36).slice(2) } }); const w: any = ms[2].createWritePhones({ vc: { readScreenOf: readScreenOf }, safeGit: sg, tickets: c.tickets, results: c.results, nowMs: nowFn }); return { check: loggedPhone('wf.gitWriteCheck', 'git-write-check', c.handleGitWriteCheck), stage: loggedPhone('wf.gitStage', 'git-stage', w.handleGitStage), unstage: loggedPhone('wf.gitUnstage', 'git-unstage', w.handleGitUnstage), commit: loggedPhone('wf.gitCommit', 'git-commit', w.handleGitCommit), pull: loggedPhone('wf.gitPull', 'git-pull', w.handleGitPull), fetch: loggedPhone('wf.gitFetch', 'git-fetch', w.handleGitFetch), push: loggedPhone('wf.gitPush', 'git-push', w.handleGitPush), tickets: c.tickets } }).catch(function (e: any): any { const f: any = function (): any { return failPhone('env', '写操作那一族加载失败：' + String(((e as any) && (e as any).message) || (e as any))) }; return { check: f, stage: f, unstage: f, commit: f, pull: f, fetch: f, push: f } }); return _writeP }
 
-  // ---- #1740 长任务通道（追加段，不改上面任何既有行为）----
-  // 三条口径：
-  //   1. 命令拼装与白名单来自共享协议 task-protocol；本层只负责起进程、固定前缀、GIT_EDITOR、
-  //      -C 钉仓库、报闸、标准输入窄例外与输出增量读取，不判断业务语义；
-  //   2. 进度靠定时读收集器（DSH 的 subprocess 服务只给 readFrom 增量读，没有逐行回调），
-  //      读到多少行就交给运行器解析多少；解析不出百分比时运行器会如实标成不确定；
-  //   3. 结束结论四类（成功、失败、取消、中断）由运行器写；本层只把退出事实与输出原文交出去。
-  function makeLaunchTaskGit(pollMs: number): any {
-    return async function launchTaskGit(options: any): Promise<any> {
-      const resolved: any = await resolveGitExecutable()
-      if (!resolved) return { ok: false, kind: 'spawn-failed', message: '找不到 git 可执行文件（platform.resolveExecutable("git") 没有给出路径）' }
-      const dir: string = String((options && options.cwd) || DEFAULT_CWD || '')
-      const args: string[] = Array.isArray(options && options.args) ? options.args : []
-      const argv: string[] = [resolved, '-C', dir].concat(fixedPrefix(), args)
-      const wantStdin: boolean = !!(options && options.stdinBytes)
-      // 非交互：GIT_EDITOR 设成必失败命令（规格第 7 节），终端提示与 askpass 一并关死，长任务不许卡在等输入。
-      const childEnv: any = { GIT_EDITOR: FAILING_EDITOR, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: FAILING_EDITOR }
-      reportOutbound()
-      let handle: any
-      try {
-        handle = subprocess.spawn({
-          argv: argv,
-          cwd: dir,
-          stdio: { stdin: wantStdin ? 'pipe' : 'ignore', stdout: { maxBytes: STDOUT_LIMIT }, stderr: { maxBytes: STDERR_LIMIT } },
-          graceMs: PROC_GRACE_MS,
-          env: childEnv,
-        })
-      } catch (e) {
-        fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, cmd: subcommandOf(args), errorKind: 'spawn' })
-        return { ok: false, kind: 'spawn-failed', message: String(((e as any) && (e as any).message) || (e as any)) }
-      }
-      const state: any = { stopped: false, outOff: 0, errOff: 0, outText: '', errText: '', outLossy: false, errLossy: false, stdinError: null }
-      const onLine: any = (options && typeof options.onLine === 'function') ? options.onLine : null
-      function takeChunk(kind: any): void {
-        try {
-          const collector: any = handle && handle.collected ? handle.collected[kind] : null
-          if (!collector || typeof collector.readFrom !== 'function') return
-          const offKey: string = kind === 'stdout' ? 'outOff' : 'errOff'
-          const textKey: string = kind === 'stdout' ? 'outText' : 'errText'
-          const lossyKey: string = kind === 'stdout' ? 'outLossy' : 'errLossy'
-          const chunk: any = collector.readFrom(state[offKey]) || {}
-          if (typeof chunk.nextOffset === 'number') state[offKey] = chunk.nextOffset
-          if (typeof chunk.text === 'string' && chunk.text) {
-            state[textKey] += chunk.text
-            if (onLine) {
-              const lines: string[] = chunk.text.split(/\r?\n/)
-              for (let i: number = 0; i < lines.length; i++) { const line: string = lines[i]; if (line.trim()) onLine(line) }
-            }
-          }
-          if (chunk.lossy === true) state[lossyKey] = true
-        } catch (e) { /* 读收集器失败不影响任务本身 */ }
-      }
-      function pump(): void { takeChunk('stdout'); takeChunk('stderr') }
-      function loop(): void {
-        if (state.stopped) return
-        pump()
-        try { Promise.resolve(timer.timeout(pollMs)).then(loop).catch(function (): void {}) } catch (e) {}
-      }
-      if (wantStdin) {
-        const sink: any = handle && handle.stdin ? handle.stdin : null
-        if (!sink || typeof sink.write !== 'function') {
-          try { if (handle && typeof handle.terminate === 'function') handle.terminate() } catch (eT) {}
-          fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, cmd: subcommandOf(args), errorKind: 'stdin' })
-          return { ok: false, kind: 'stdin-failed', message: '这条传输层服务不支持给 git 送标准输入，fast-import 跑不了' }
-        }
-        try {
-          if (typeof sink.on === 'function') sink.on('error', function (e: any): void {
-            state.stdinError = { kind: (e && e.code === 'EPIPE') ? 'epipe' : 'stdin-write-failed' }
-            try { if (handle && typeof handle.terminate === 'function') handle.terminate() } catch (eT) {}
-          })
-        } catch (eOn) {}
-        try {
-          sink.write(options.stdinBytes)
-          if (typeof sink.end === 'function') sink.end()
-        } catch (eW) {
-          const code: string = (eW && (eW as any).code) ? String((eW as any).code) : ''
-          state.stdinError = { kind: code === 'EPIPE' ? 'epipe' : 'stdin-write-failed' }
-          try { if (handle && typeof handle.terminate === 'function') handle.terminate() } catch (eT) {}
-        }
-      }
-      loop()
-      const finalDone: Promise<any> = Promise.resolve(handle.done).then(function (outcome: any): any {
-        state.stopped = true
-        pump()
-        // 没有增量读能力的收集器（别家实现或测试假身）在结束时一次取全文；有增量读的已经在 pump 里读完。
-        try {
-          const so: any = handle && handle.collected ? handle.collected.stdout : null
-          const se: any = handle && handle.collected ? handle.collected.stderr : null
-          const noStream: boolean = !(so && typeof so.readFrom === 'function')
-          if (noStream) {
-            const o: any = readCollector(so)
-            const r: any = readCollector(se)
-            if (o.text) state.outText += o.text
-            if (r.text) state.errText += r.text
-            if (o.truncated || r.truncated) state.outLossy = true
-          }
-        } catch (eR) {}
-        return {
-          exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : null,
-          signalled: !!(outcome && outcome.signal),
-          stdout: state.outText,
-          stderr: state.errText,
-          truncated: state.outLossy || state.errLossy,
-          stdinError: state.stdinError ? state.stdinError : null,
-        }
-      }, function (): any {
-        state.stopped = true
-        return { exitCode: null, signalled: false, stdout: state.outText, stderr: state.errText, truncated: state.outLossy || state.errLossy, stdinError: state.stdinError }
-      })
-      return {
-        ok: true,
-        handle: {
-          done: finalDone,
-          terminate: function (): void { try { if (handle && typeof handle.terminate === 'function') handle.terminate() } catch (eT) {} },
-          stdin: handle.stdin,
-        },
-        stdinError: state.stdinError,
-      }
-    }
-  }
-  /** 长任务通道：首次调用时装配新叶子；三条电话与写电话同一个 loggedPhone 日志口径（host.call / host.call.fail）。 */
+  // ---- #1740 长任务通道（执行层已搬进同层叶子 versionControlTask.ts）----
+  // 父文件只剩装配：把进程、计时、文件、闸与日志这些宿主依赖递进去，三条电话与写电话同一个
+  // loggedPhone 日志口径（host.call / host.call.fail）。命令拼装、非交互环境、-C 钉仓库、
+  // 标准输入窄例外与输出增量读取都在叶子里，本文件不再写第二份。
+  /** 长任务通道：首次调用时装配执行层；三条电话与写电话同一个 loggedPhone 日志口径（host.call / host.call.fail）。 */
   let _taskP: any = null
   function taskPhone(): Promise<any> {
     if (!_taskP) {
-      _taskP = (async function (): Promise<any> {
-        const mod: any = await import('./versionControlTask.js')
-        const pollMs: number = Math.max(100, Number(mod.TASK_POLL_MS) || 400)
-        const channel: any = mod.createTaskChannel({
-          fs: fs,
-          getCacheDir: (deps && typeof deps.getCacheDir === 'function') ? deps.getCacheDir : null,
-          timer: timer,
-          now: (deps && typeof deps.now === 'function') ? deps.now : Date.now,
-          hash8: hash8,
-          instanceId: 'vc-' + hash8(String(Date.now()) + ':' + Math.random()),
-          repoRoot: DEFAULT_CWD,
-          fire: fire,
-          prepareStdinFile: prepareStdinFile,
-          launch: makeLaunchTaskGit(pollMs),
-        })
-        return {
-          handleGitTaskStart: loggedPhone('wf.gitTaskStart', 'git-task-start', channel.handleGitTaskStart),
-          handleGitTaskQuery: loggedPhone('wf.gitTaskQuery', 'git-task-query', channel.handleGitTaskQuery),
-          handleGitTaskCancel: loggedPhone('wf.gitTaskCancel', 'git-task-cancel', channel.handleGitTaskCancel),
-        }
-      })()
+      _taskP = Promise.resolve(createTaskPhones({
+        fs: fs,
+        getCacheDir: (deps && typeof deps.getCacheDir === 'function') ? deps.getCacheDir : null,
+        timer: timer,
+        now: (deps && typeof deps.now === 'function') ? deps.now : Date.now,
+        hash8: hash8,
+        repoRoot: DEFAULT_CWD,
+        fire: fire,
+        loggedPhone: loggedPhone,
+        subprocess: subprocess,
+        resolveGitExecutable: resolveGitExecutable,
+        reportOutbound: reportOutbound,
+        readCollector: readCollector,
+        dirHash: dirHash,
+        gitName: GIT_NAME,
+        via: VIA,
+        stdoutLimit: STDOUT_LIMIT,
+        stderrLimit: STDERR_LIMIT,
+      }))
       _taskP.catch(function (): void { _taskP = null })
     }
     return _taskP
