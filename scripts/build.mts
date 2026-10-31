@@ -768,7 +768,9 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcCapabilityPages', file: 'src/client/views/versionControl/vcCapabilityPages.ts' },
   { id: 'vcShellPrimitives', file: 'src/client/views/versionControl/vcShellPrimitives.ts' },
   { id: 'vcPalette', file: 'src/client/views/versionControl/vcPalette.ts' },
+  { id: 'vcHistory', file: 'src/client/views/versionControl/vcHistory.ts' }, // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）
   { id: 'vcTaskPanel', file: 'src/client/views/versionControl/vcTaskPanel.ts' }, // #1740 长任务区（进度、四类结论、取消按钮、重启标注中断；由页面壳挂进任务区）
+  { id: 'vcChangesPage', file: 'src/client/views/versionControl/vcChangesPage.ts' }, // #1742 改动页 13 条动作的操作面板（由页面壳在 changes 页挂进页面体）
   // #1752 工作树页三叶，依赖次序固定：读首屏那一片的数据层 → 动作层（判定与两条写电话）→ 页面画法（八条入口、行、确认与结果）。
   //   排在 vcShellPages 之前，壳的挂载段才看得到 vcWorktreesPageNode；也排在 vcFirstScreen 之后，数据层只问那一份片。
   { id: 'vcWorktreesData', file: 'src/client/views/versionControl/vcWorktreesData.ts' },
