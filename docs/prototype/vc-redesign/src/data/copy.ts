@@ -61,11 +61,11 @@ export const COPY = {
     detached: '游离头指针',
     syncUnknown: '同步状态读不到',
     confirmTitle: '工作区有未提交改动，仍要拉取？',
-    confirmLead: '拉取只做快进，不会合并出新的提交。',
-    /** 两条结果并排摆开，不拼进一句话里用分号连接：读者一眼能分清清什么时候成功、什么时候被拒绝。 */
+    confirmLead: '拉取只把本地更新到远端最新，不会多出一条合并提交。',
+    /** 两条结果并排摆开：标签直接写结论（不会冲突 / 会冲突），颜色只做辅助，读者不用猜绿和黄代表什么。 */
     confirmPoints: [
-      { tone: 'ok', label: '没改到同一处', text: '直接快进，本地改动留在工作区' },
-      { tone: 'warn', label: '改到同一处', text: '拉取被拒绝，并点名冲突的文件' },
+      { tone: 'ok', label: '不会冲突', text: '直接更新到最新，本地改动留在工作区' },
+      { tone: 'warn', label: '会冲突', text: '拉取会被拦下，并点名冲突的文件' },
     ] as ReadonlyArray<{ tone: 'ok' | 'warn'; label: string; text: string }>,
     confirmFiles: (n: number): string => `涉及 ${n} 个文件`,
     confirmContinue: '继续拉取',
@@ -344,7 +344,7 @@ export const COPY = {
     pushed: (n: number, upstream: string): string => `推送完成：${n} 笔提交已到达 ${upstream}。`,
     nothingToPush: '远端已是最新，没有需要推送的提交。',
     pullUpToDate: '已是最新状态。',
-    pullFastForward: '已快进至远端最新。',
+    pullFastForward: '已直接更新到远端最新。',
     fetched: '更新完成：远端依据已刷新。',
     reloaded: '已重新读取。',
     aiWorktrees: '原型里 AI 交接只做提示。真实页面会打开本机 DSH 会话，并带上异常工作树清单。',

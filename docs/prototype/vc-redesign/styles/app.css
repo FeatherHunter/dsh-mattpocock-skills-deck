@@ -1697,7 +1697,8 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   font: inherit;
   font-size: 10.5px;
   line-height: 1.5;
-  text-align: right;
+  /* 菜单框整体贴行尾右对齐，但条目文字左对齐：每行长短不同时左边缘成一条线，读者从同一个起点读。 */
+  text-align: left;
   padding: 4px 9px;
   border-radius: 6px;
   cursor: pointer;

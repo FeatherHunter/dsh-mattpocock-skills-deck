@@ -52,11 +52,11 @@
       detached: "\u6E38\u79BB\u5934\u6307\u9488",
       syncUnknown: "\u540C\u6B65\u72B6\u6001\u8BFB\u4E0D\u5230",
       confirmTitle: "\u5DE5\u4F5C\u533A\u6709\u672A\u63D0\u4EA4\u6539\u52A8\uFF0C\u4ECD\u8981\u62C9\u53D6\uFF1F",
-      confirmLead: "\u62C9\u53D6\u53EA\u505A\u5FEB\u8FDB\uFF0C\u4E0D\u4F1A\u5408\u5E76\u51FA\u65B0\u7684\u63D0\u4EA4\u3002",
-      /** 两条结果并排摆开，不拼进一句话里用分号连接：读者一眼能分清清什么时候成功、什么时候被拒绝。 */
+      confirmLead: "\u62C9\u53D6\u53EA\u628A\u672C\u5730\u66F4\u65B0\u5230\u8FDC\u7AEF\u6700\u65B0\uFF0C\u4E0D\u4F1A\u591A\u51FA\u4E00\u6761\u5408\u5E76\u63D0\u4EA4\u3002",
+      /** 两条结果并排摆开：标签直接写结论（不会冲突 / 会冲突），颜色只做辅助，读者不用猜绿和黄代表什么。 */
       confirmPoints: [
-        { tone: "ok", label: "\u6CA1\u6539\u5230\u540C\u4E00\u5904", text: "\u76F4\u63A5\u5FEB\u8FDB\uFF0C\u672C\u5730\u6539\u52A8\u7559\u5728\u5DE5\u4F5C\u533A" },
-        { tone: "warn", label: "\u6539\u5230\u540C\u4E00\u5904", text: "\u62C9\u53D6\u88AB\u62D2\u7EDD\uFF0C\u5E76\u70B9\u540D\u51B2\u7A81\u7684\u6587\u4EF6" }
+        { tone: "ok", label: "\u4E0D\u4F1A\u51B2\u7A81", text: "\u76F4\u63A5\u66F4\u65B0\u5230\u6700\u65B0\uFF0C\u672C\u5730\u6539\u52A8\u7559\u5728\u5DE5\u4F5C\u533A" },
+        { tone: "warn", label: "\u4F1A\u51B2\u7A81", text: "\u62C9\u53D6\u4F1A\u88AB\u62E6\u4E0B\uFF0C\u5E76\u70B9\u540D\u51B2\u7A81\u7684\u6587\u4EF6" }
       ],
       confirmFiles: (n) => `\u6D89\u53CA ${n} \u4E2A\u6587\u4EF6`,
       confirmContinue: "\u7EE7\u7EED\u62C9\u53D6",
@@ -335,7 +335,7 @@
       pushed: (n, upstream) => `\u63A8\u9001\u5B8C\u6210\uFF1A${n} \u7B14\u63D0\u4EA4\u5DF2\u5230\u8FBE ${upstream}\u3002`,
       nothingToPush: "\u8FDC\u7AEF\u5DF2\u662F\u6700\u65B0\uFF0C\u6CA1\u6709\u9700\u8981\u63A8\u9001\u7684\u63D0\u4EA4\u3002",
       pullUpToDate: "\u5DF2\u662F\u6700\u65B0\u72B6\u6001\u3002",
-      pullFastForward: "\u5DF2\u5FEB\u8FDB\u81F3\u8FDC\u7AEF\u6700\u65B0\u3002",
+      pullFastForward: "\u5DF2\u76F4\u63A5\u66F4\u65B0\u5230\u8FDC\u7AEF\u6700\u65B0\u3002",
       fetched: "\u66F4\u65B0\u5B8C\u6210\uFF1A\u8FDC\u7AEF\u4F9D\u636E\u5DF2\u5237\u65B0\u3002",
       reloaded: "\u5DF2\u91CD\u65B0\u8BFB\u53D6\u3002",
       aiWorktrees: "\u539F\u578B\u91CC AI \u4EA4\u63A5\u53EA\u505A\u63D0\u793A\u3002\u771F\u5B9E\u9875\u9762\u4F1A\u6253\u5F00\u672C\u673A DSH \u4F1A\u8BDD\uFF0C\u5E76\u5E26\u4E0A\u5F02\u5E38\u5DE5\u4F5C\u6811\u6E05\u5355\u3002",
@@ -3605,7 +3605,7 @@
         };
         return withResult(next, {
           tone: fastForward ? "ok" : "info",
-          text: fastForward ? "\u5DF2\u5FEB\u8FDB\u81F3\u8FDC\u7AEF\u6700\u65B0\u3002" : "\u5DF2\u662F\u6700\u65B0\u72B6\u6001\u3002",
+          text: fastForward ? "\u5DF2\u76F4\u63A5\u66F4\u65B0\u5230\u8FDC\u7AEF\u6700\u65B0\u3002" : "\u5DF2\u662F\u6700\u65B0\u72B6\u6001\u3002",
           detail: fastForward ? "\u672C\u5730\u63D0\u4EA4\u6CA1\u6709\u88AB\u6539\u5199\u3002\u8FDC\u7AEF\u65B0\u63D0\u4EA4\u5DF2\u7ECF\u63A5\u5230\u5F53\u524D\u5206\u652F\u540E\u9762\u3002" : "\u8FDC\u7AEF\u6CA1\u6709\u65B0\u7684\u63D0\u4EA4\u9700\u8981\u6574\u5408\u3002",
           source: "sync"
         });
@@ -5711,7 +5711,7 @@
     {
       "id": "6.2",
       "domain": "6",
-      "name": "\u53EA\u5141\u8BB8\u5FEB\u8FDB",
+      "name": "\u53EA\u63A5\u53D7\u76F4\u63A5\u66F4\u65B0",
       "command": "git merge `--ff-only`",
       "level": "\u5199",
       "placement": "\u76F4",
@@ -5724,7 +5724,7 @@
     {
       "id": "6.3",
       "domain": "6",
-      "name": "\u7981\u6B62\u5FEB\u8FDB",
+      "name": "\u603B\u662F\u751F\u6210\u5408\u5E76\u63D0\u4EA4",
       "command": "git merge `--no-ff`",
       "level": "\u5199",
       "placement": "\u6298",
@@ -6114,7 +6114,7 @@
     {
       "id": "8.8",
       "domain": "8",
-      "name": "\u53EA\u5141\u8BB8\u5FEB\u8FDB",
+      "name": "\u53EA\u63A5\u53D7\u76F4\u63A5\u66F4\u65B0",
       "command": "git pull `--ff-only`",
       "level": "\u5199",
       "placement": "\u76F4",
@@ -6848,7 +6848,7 @@
       "placement": "\u8BCA",
       "entry": "\u7BA1\u7406\u9875\u300C\u8BCA\u65AD\u300D\u4E0E\u63D0\u4EA4\u5386\u53F2\u641C\u7D22",
       "opens": "\u53EA\u8BFB\u8BCA\u65AD\u6E05\u5355",
-      "result": "\u9762\u677F\u5185\u90E8\u7528\uFF08\u5224\u65AD\u80FD\u4E0D\u80FD\u5FEB\u8FDB\uFF09",
+      "result": "\u9762\u677F\u5185\u90E8\u7528\uFF08\u5224\u65AD\u80FD\u4E0D\u80FD\u76F4\u63A5\u66F4\u65B0\uFF09",
       "target": "diagnostics",
       "readOnly": true
     },

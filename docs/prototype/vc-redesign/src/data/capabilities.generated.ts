@@ -829,7 +829,7 @@ export const CAPABILITIES: Capability[] = [
   {
     "id": "6.2",
     "domain": "6",
-    "name": "只允许快进",
+    "name": "只接受直接更新",
     "command": "git merge `--ff-only`",
     "level": "写",
     "placement": "直",
@@ -842,7 +842,7 @@ export const CAPABILITIES: Capability[] = [
   {
     "id": "6.3",
     "domain": "6",
-    "name": "禁止快进",
+    "name": "总是生成合并提交",
     "command": "git merge `--no-ff`",
     "level": "写",
     "placement": "折",
@@ -1232,7 +1232,7 @@ export const CAPABILITIES: Capability[] = [
   {
     "id": "8.8",
     "domain": "8",
-    "name": "只允许快进",
+    "name": "只接受直接更新",
     "command": "git pull `--ff-only`",
     "level": "写",
     "placement": "直",
@@ -1966,7 +1966,7 @@ export const CAPABILITIES: Capability[] = [
     "placement": "诊",
     "entry": "管理页「诊断」与提交历史搜索",
     "opens": "只读诊断清单",
-    "result": "面板内部用（判断能不能快进）",
+    "result": "面板内部用（判断能不能直接更新）",
     "target": "diagnostics",
     "readOnly": true
   },

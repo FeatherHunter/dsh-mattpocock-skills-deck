@@ -310,7 +310,7 @@ function finishBusy(state: SessionState, op: OpName, nowMs: number): SessionStat
       }
       return withResult(next, {
         tone: fastForward ? 'ok' : 'info',
-        text: fastForward ? '已快进至远端最新。' : '已是最新状态。',
+        text: fastForward ? '已直接更新到远端最新。' : '已是最新状态。',
         detail: fastForward ? '本地提交没有被改写。远端新提交已经接到当前分支后面。' : '远端没有新的提交需要整合。',
         source: 'sync',
       })
