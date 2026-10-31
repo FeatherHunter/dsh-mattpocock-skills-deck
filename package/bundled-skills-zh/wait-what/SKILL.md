@@ -1,6 +1,6 @@
 ---
 name: wait-what
-description: "停。刚才那条消息没讲清楚：重新讲一遍。"
+description: "停。刚才那条消息我没接住：重新讲一遍。"
 disable-model-invocation: true
 ---
 
