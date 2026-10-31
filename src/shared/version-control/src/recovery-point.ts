@@ -13,6 +13,8 @@
  *   2. 影响数字读不全就显式失败（recovery-unreadable），绝不给半份计数：把「丢了 3 行」写错成
  *      「丢了 0 行」比不显示更坏。二进制文件单独计数，不计入行数（git 对二进制不给行数）。
  *   3. atMs 由调用方给（宿主时钟），本文件不读钟：门禁要能造任意时刻的恢复点。
+ *   4. #1750 T15 把本装置扩成整仓备份点（backupPointOf / backupSummaryOf / backupRestoreStepsOf）：
+ *      判据与恢复点一致——读不全就不给半份说明、不承诺自动恢复；备份本身由宿主执行层跑，本文件只认结果。
  */
 
 export interface RecoveryImpact {
@@ -117,3 +119,82 @@ export function recoverySummaryOf(point: any): string {
 }
 
 export const RECOVERY_POINT_SOURCE = 'src/shared/version-control/src/recovery-point.ts'
+
+/** 整仓备份的方式：镜像克隆（磁盘够）或整仓打包（磁盘不够时的降级）。 */
+export type BackupKind = 'mirror' | 'bundle'
+
+/**
+ * 整仓备份点：确认卡与执行回包共用同一份形状。
+ * required 恒为 true：备份是 filter-repo 的强制前置，没备份成功不许动手。
+ */
+export interface BackupPoint {
+  kind: BackupKind
+  required: true
+  /** 备份在本机的位置：镜像克隆是目录，整仓打包是 .bundle 文件。 */
+  path: string
+  /** 备份读出来的字节数：读不出来（0 或不是整数）就显式失败，不给半份。 */
+  bytes: number
+  /** 备份花了多久：界面如实显示，不替人估。 */
+  elapsedMs: number
+  atMs: number
+}
+
+/**
+ * 造备份点。字节数、耗时、方式、路径任何一项读不全就回 backup-unreadable：
+ * 备份是整仓重写的唯一退路，一条「备份已在」的假话比不给备份更危险。
+ */
+export function backupPointOf(input: any): any {
+  const a: any = input || {}
+  const kind: string = String(a.kind || '')
+  if (kind !== 'mirror' && kind !== 'bundle') return { ok: false, reason: 'backup-unreadable', message: '备份方式读不出来（只认镜像克隆或整仓打包），不签票、不执行重写。' }
+  const pathText: string = typeof a.path === 'string' ? a.path : ''
+  if (pathText === '') return { ok: false, reason: 'backup-unreadable', message: '备份路径读不出来，不签票、不执行重写。' }
+  const bytes: number = Number(a.bytes)
+  if (typeof a.bytes !== 'number' || !isFinite(bytes) || bytes < 0 || Math.floor(bytes) !== bytes) return { ok: false, reason: 'backup-unreadable', message: '备份大小读不出来，不签票、不执行重写。' }
+  const elapsedMs: number = Number(a.elapsedMs)
+  if (typeof a.elapsedMs !== 'number' || !isFinite(elapsedMs) || elapsedMs < 0 || Math.floor(elapsedMs) !== elapsedMs) return { ok: false, reason: 'backup-unreadable', message: '备份耗时读不出来，不签票、不执行重写。' }
+  const atMs: number = typeof a.atMs === 'number' && isFinite(a.atMs) ? a.atMs : 0
+  const point: BackupPoint = { kind: kind as BackupKind, required: true, path: pathText, bytes: bytes, elapsedMs: elapsedMs, atMs: atMs }
+  return { ok: true, point: point }
+}
+
+/** 备份点的摘要输入：执行回包与确认卡两份要对得上（换了路径或大小就不许当成同一次备份）。 */
+export function backupPointDigestInput(point: any): string {
+  const p: any = point || {}
+  return JSON.stringify({
+    kind: String(p.kind || ''),
+    path: String(p.path || ''),
+    bytes: Number(p.bytes) || 0,
+  })
+}
+
+/** 人读的字节数：1.0 MB / 12 KB / 800 B；界面直接显示，不再各处换算。 */
+export function humanBytesOf(value: any): string {
+  const n: number = Number(value) || 0
+  if (n >= 1024 * 1024 * 1024) return (n / (1024 * 1024 * 1024)).toFixed(1) + ' GB'
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB'
+  if (n >= 1024) return Math.round(n / 1024) + ' KB'
+  return String(Math.round(n)) + ' B'
+}
+
+/** 备份点的一句话摘要：确认卡、执行回包、任务残留说明共用这一句。 */
+export function backupSummaryOf(point: any): string {
+  const p: any = point || {}
+  const way: string = p.kind === 'bundle' ? '整仓打包' : '镜像克隆'
+  return way + '备份在 ' + String(p.path || '') + '，大小 ' + humanBytesOf(p.bytes) + '，耗时 ' + String(Number(p.elapsedMs) || 0) + ' 毫秒'
+}
+
+/**
+ * 从备份重建仓库的步骤：界面原样展示，但绝不自动执行——规格写明不提供自动恢复。
+ * 镜像克隆与整仓打包都能被 git clone 直接吃下，所以两者是同一句。
+ */
+export function backupRestoreStepsOf(point: any): string[] {
+  const p: any = point || {}
+  const target: string = String(p.path || '')
+  if (target === '') return []
+  return [
+    'git clone ' + target + ' <新的仓库目录>',
+    '核对恢复出来的提交号与备份说明里的一致，再决定是否用它替换当前仓库',
+    '面板只给步骤、不执行恢复：规格要求整仓重写不提供自动恢复',
+  ]
+}
