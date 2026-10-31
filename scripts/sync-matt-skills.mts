@@ -8,6 +8,8 @@
  *  - 拷 skills/engineering + skills/productivity 的 27 个目录到 package/bundled-skills/<name>/（整目录复制，保留 SKILL.md）
  *  - 校验每技能 SKILL.md frontmatter 的 name: 与目录名一致（isSkillCardValid 同口径）
  *  - 拷 LICENSE 到 package/bundled-skills/LICENSE，并写入 package/bundled-skills/VERSION 为 pin 值
+ *  - 从克隆出的上游源树重算 tests/bundled-skills-upstream-hashes.json（算法在 scripts/lib/bundled-skills-manifest.mts），
+ *    只有新鲜克隆成功时才写；复用本地已有克隆时只与现有清单比对，不一致就退出并提示联网重跑
  *
  * 用法：
  *   node scripts/sync-matt-skills.mts --verify              # 按哈希清单里的 pin 同步并自校验
@@ -18,6 +20,9 @@
  *  - 纯手动：不挂 prepare/prebuild，构建不自动联网；幂等（同 pin 重跑零 diff）
  *  - 单源：src/shared/matt-skills.ts 的 MATT_SKILL_PROBE_NAMES 为 27 项真源，同步后与之双向差集为 0
  *  - 校验：--verify 时在同步后自检（27 数、集合一致、frontmatter、LICENSE、VERSION）
+ *  - 哈希清单由本脚本生成，不要手改：技能目录名按码元升序、目录内相对路径按码元升序，
+ *    键为「技能名/相对路径」，值为原文 CRLF→LF 归一后 UTF-8 文本的 SHA256；
+ *    对象按 {pin, algo, count, files} 顺序序列化为 JSON.stringify(obj, null, 2) 加换行
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, cpSync } from 'node:fs'
@@ -27,9 +32,11 @@ import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 // #1342：名单直接从真源模块导入，不再用正则从源码文本里抠名字——后者改一处缩进就可能抠空。
 import { MATT_SKILL_PROBE_NAMES } from '../src/shared/matt-skills.ts'
+import { MANIFEST_ALGO, sha256Text, listFilesRel } from './lib/bundled-skills-manifest.mts'
 
 const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const MANIFEST_PATH: string = join(ROOT, 'tests', 'bundled-skills-upstream-hashes.json')
+// 算法名与哈希实现只在 scripts/lib/bundled-skills-manifest.mts 定义一次，同步脚本与门禁都从那里导入。
 
 // pin 的唯一真源是哈希清单的 pin 字段。脚本默认值从清单读，升级时只改清单一处，
 // 不会留下「清单已经升了、脚本里还写着旧 pin」这种漏改；只有清单读不出来时才回退到字面量。
@@ -67,13 +74,33 @@ function helpText(): string {
 
 选项：
   --pin <tag>   上游 tag，默认取哈希清单 tests/bundled-skills-upstream-hashes.json 里的 pin（当前 ${PIN_DEFAULT}，带或不带 v 前缀均可）
-  --verify      同步后自校验（27 项一致、frontmatter、LICENSE、VERSION）
+  --verify      同步后自校验（27 项一致、frontmatter、LICENSE、VERSION；哈希清单随同步一起重算）
   --help        显示此帮助
 `
 }
 
 function readSharedNames(): string[] {
   return [...MATT_SKILL_PROBE_NAMES]
+}
+
+/**
+ * 按清单现行格式生成清单文本与文件条数。哈希一律从克隆出的上游源树算，不从写入后的目标目录算：
+ * 目标目录里混着 README.md 等非上游文件，复用候选目录也可能被别的进程动过。
+ *
+ * 顺序故意按「技能目录名升序、目录内相对路径升序」分组，不做全局路径排序：
+ * implement/agents/openai.yaml 因此排在 implement-spec/SKILL.md 前，这是现行清单的样子，
+ * 不是笔误，改算法时不要顺手「矫正」。
+ */
+function buildManifestContent(engDir: string, prodDir: string, names: string[], pin: string): { text: string; count: number } {
+  const files: Record<string, string> = {}
+  for (const name of [...names].sort()) {
+    const srcDir: string = existsSync(join(engDir, name)) ? join(engDir, name) : join(prodDir, name)
+    for (const rel of listFilesRel(srcDir, '').sort()) {
+      files[name + '/' + rel] = sha256Text(readFileSync(join(srcDir, rel), 'utf8'))
+    }
+  }
+  const count: number = Object.keys(files).length
+  return { text: JSON.stringify({ pin, algo: MANIFEST_ALGO, count, files }, null, 2) + '\n', count }
 }
 
 function extractFrontmatterName(skillMd: string): string | undefined {
@@ -131,6 +158,8 @@ async function main(): Promise<void> {
   const cloneDir: string = join(tmpBase, 'skills')
   console.log(`[sync:matt] 克隆 ${REPO_URL} --branch ${pin} --depth 1 → ${cloneDir}`)
   let cloneOk: boolean = false
+  // 标记这次是否用了本地复用候选：复用路径只读不写清单（清单必须对应一次从头 clone）。
+  let reusedLocalClone: boolean = false
   // 若已存在旧的 /tmp/matt-skills-test 可复用（本地已克隆过），先尝试复用以省时
   const reuseCandidate: string = join('/tmp', 'matt-skills-test')
   let sourceRoot: string | null = null
@@ -144,6 +173,7 @@ async function main(): Promise<void> {
         console.log(`[sync:matt] 复用本地已有克隆 ${reuseCandidate} (v${ver})`)
         sourceRoot = reuseCandidate
         cloneOk = true
+        reusedLocalClone = true
       } else {
         console.log(`[sync:matt] 本地复用候选版本 v${ver} ≠ ${pin}，重新克隆`)
       }
@@ -184,6 +214,24 @@ async function main(): Promise<void> {
     console.error(`[sync:matt] 上游集合与单源不一致：缺 ${missing.join(', ') || '无'}；多 ${extra.join(', ') || '无'}`)
     console.error(`[sync:matt] 请检查 pin（${pin}）是否为上游存在的 tag，或 shared 单源是否已漂移`)
     process.exit(1)
+  }
+
+  // 清单内容先算出来：哈希只从上游源树算，不从重建后的目标目录算。复用本地克隆时
+  // 这份内容只拿去和现有清单比对（一致才继续），绝不写清单——只有从头 clone 才能证明
+  // 清单对应当前 pin 的上游原文。
+  const builtManifest: { text: string; count: number } = buildManifestContent(engDir, prodDir, expected, pin)
+  const manifestText: string = builtManifest.text
+  const manifestCount: number = builtManifest.count
+  console.log(`[sync:matt] 已按上游源树重算清单：${manifestCount} 个文件`)
+  if (reusedLocalClone) {
+    const currentManifest: string | null = existsSync(MANIFEST_PATH) ? readFileSync(MANIFEST_PATH, 'utf8') : null
+    if (currentManifest === manifestText) {
+      console.log('[sync:matt] 复用本地克隆算出的清单与现有清单一致，跳过写清单')
+    } else {
+      console.error('[sync:matt] 复用本地克隆算出的清单与现有清单不一致：复用路径只读不写清单，无法确认清单对应当前 pin。')
+      console.error('[sync:matt] 请联网重跑，让它从头 clone 后重算清单')
+      process.exit(1)
+    }
   }
 
   // 2. 清理并重建目标目录。README.md 是手写的说明文件（讲清单源、版本溯源与中文译文放哪），
@@ -249,12 +297,18 @@ async function main(): Promise<void> {
   writeFileSync(dstVersion, pin + '\n', 'utf8')
   console.log(`[sync:matt] 已写入 VERSION=${pin}`)
 
-  // 6. 清理临时克隆（若是新克隆的 tmpBase）
+  // 6. 写哈希清单：只有新鲜克隆成功时才写（复用路径已在上面只读比对过）
+  if (!reusedLocalClone) {
+    writeFileSync(MANIFEST_PATH, manifestText, 'utf8')
+    console.log(`[sync:matt] 已写入哈希清单 ${MANIFEST_PATH}（${manifestCount} 个文件，pin ${pin}）`)
+  }
+
+  // 7. 清理临时克隆（若是新克隆的 tmpBase）
   if (sourceRoot === cloneDir) {
     try { rmSync(tmpBase, { recursive: true, force: true }) } catch {}
   }
 
-  // 7. 自校验（--verify）
+  // 8. 自校验（--verify）
   if (args.verify) {
     console.log('[sync:matt] --verify 自校验开始')
     let failures: number = 0

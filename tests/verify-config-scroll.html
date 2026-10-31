@@ -160,7 +160,7 @@
   <div id="cfgB" style="max-width:760px;padding:0 24px 24px"></div>
 </div>
 <script>
-  // ticket 05 后样板：标题（右侧更新入口 + base 0.1.2 页头静默簇三枚彩色图标） + 打开位置 + 总览占位 + 调试占位
+  // ticket 05 后样板：标题（右侧更新入口 + base 0.1.4 页头静默簇三枚彩色图标） + 打开位置 + 总览占位 + 调试占位
   //   + 底部作者插件区（联系入口已收进页头静默簇，底部不再有联系行）。
   const MORE_ROWS = [
     ['dsh-mattpocock-skills-deck', '本面板自己：装好就有 25 个工程技能在右侧直接用'],
@@ -178,7 +178,7 @@
     s.innerHTML = '配置 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck" target="_blank" style="font-size:11px;color:#8b8b95;text-decoration:none">1.7.14</a><!-- 快照：发版后同步更新 -->';
     const icons = document.createElement('span');
     icons.style.cssText = 'display:inline-flex;align-items:center;gap:4px';
-    // base 0.1.2 页头静默簇（ActionCluster）样板：无外框、28×28 三枚、彩色渐变 16px 图标，
+    // base 0.1.4 页头静默簇（ActionCluster）样板：无外框、28×28 三枚、彩色渐变 16px 图标，
     //   逐钮 aria-label 由包给（联系我们 / Star 这个项目 / 提交 Issue），组 role=group aria-label=快捷操作。
     const clusterSvg = (id, stops, d) =>
       '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><defs><linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1">' +

@@ -77,7 +77,7 @@ const MATRIX: [string, string, string[]][] = [
   ['src/client/views/IssueDetail.ts', '工单详情顶栏、父链接、子票与被阻塞行', ['issue.top.back', 'issue.top.exec', 'issue.top.newsession', 'issue.top.copy', 'issue.top.link', 'issue.parent.', 'issue.sub.', 'issue.blocked.']],
   ['src/client/views/IssueDetailComments.ts', '评论发送', ['issue.comment.send']],
   // base 包接入：底部「作者其他插件」四行静态链接改由 base 包渲染（SettingsPage 里已无插件行）；
-  //   base 0.1.2 起标题行的 star/issue 两枚表情升级成包里的页头静默簇（ActionCluster：联系/Star/Issue），
+  //   base 0.1.4 起标题行的 star/issue 两枚表情升级成包里的页头静默簇（ActionCluster：联系/Star/Issue），
   //   本页自己只剩版本号这一颗可点控件；页头静默簇与推荐卡的点击日志由 base 包自己带，不归这份清单。
   ['src/client/views/SettingsPage.ts', '设置页版本号', ['settings.version']],
   ['src/client/views/SettingsWorkspaces.ts', '工作区总览刷新与展开收起', ['settings.workspaces.toggle', 'settings.workspaces.refresh']],
@@ -229,13 +229,13 @@ function audit(read: (p: string) => string): AuditResult[] {
     check(miss.length === 0, 'D ' + what + '（' + file.split('/').pop() + '）都有 data-log' + (miss.length ? '；缺：' + miss.join(', ') : ''))
   }
 
-  // ============ I 组：设置页页头交给 base 0.1.2 的静默簇（ActionGroup 胶囊退役） ============
+  // ============ I 组：设置页页头交给 base 0.1.4 的静默簇（ActionGroup 胶囊退役） ============
   // 这里守源码这一侧：用错组件、退回旧落点、旧表情按钮与旧悬停文案又回来都要报红。
   // 页面真实渲染出的 DOM（.dsh-base-cluster、三枚彩色按钮、逐钮 aria-label）由
   // tests/smoke-render.test.ts 在产物上真挂一遍验（图标形状、悬停文案与点击日志都由 base 包自己带）。
   const settingsSrc = read('src/client/views/SettingsPage.ts')
-  check(settingsSrc.indexOf('ui.ActionCluster') >= 0, 'I1 页头用 base 0.1.2 的 ActionCluster（静默簇）渲染')
-  check(settingsSrc.indexOf('ui.ActionGroup') < 0, 'I2 旧的 ActionGroup 用法已退役（0.1.2 起不再走胶囊）')
+  check(settingsSrc.indexOf('ui.ActionCluster') >= 0, 'I1 页头用 base 0.1.4 的 ActionCluster（静默簇）渲染')
+  check(settingsSrc.indexOf('ui.ActionGroup') < 0, 'I2 旧的 ActionGroup 用法已退役（0.1.4 起不再走胶囊）')
   check(settingsSrc.indexOf('DeckContactRow') < 0 && settingsSrc.indexOf('ui.ContactRow') < 0, 'I3 设置面板底部不再单独画联系行（联系入口已收进页头静默簇）')
   check(settingsSrc.indexOf("dsh-mattpocock-skills-deck/issues'") >= 0 && settingsSrc.indexOf('/issues/new') < 0, 'I4 Issue 落点是工单列表页 .../issues（不再直开新建工单页）')
   check(settingsSrc.indexOf('去 GitHub 点 Star') < 0 && settingsSrc.indexOf('反馈问题') < 0, 'I5 自绘表情按钮的旧悬停文案已删（图标与提示由 base 包提供）')
@@ -896,7 +896,7 @@ const variants: Variant[] = [
     change: (s) => replaceAll(s, 'body:not([data-ds-dark-theme]) .dsws-chain-form label', '.dsws-chain-form label'),
   },
   {
-    label: '页头退回旧 ActionGroup 胶囊：0.1.2 的静默簇白升了',
+    label: '页头退回旧 ActionGroup 胶囊：0.1.4 的静默簇白升了',
     file: 'src/client/views/SettingsPage.ts',
     group: 'I2',
     change: (s) => s + "\n// 反例：页头又用回旧胶囊\nconst fakeOldGroup = 'ui.ActionGroup'\n",

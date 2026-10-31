@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T15:52:42.735Z",
+  "generatedAt": "2026-10-31T16:05:28.613Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 483,
-  "gateCount": 483,
-  "attributedGates": 430,
+  "chainLength": 485,
+  "gateCount": 485,
+  "attributedGates": 432,
   "unattributedGates": 53,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 47,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 659,
+  "graphFileCount": 661,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4846,6 +4846,31 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
+      "step": "node tests/verify-1676-blocked-ref-unknown.ts",
+      "file": "tests/verify-1676-blocked-ref-unknown.ts",
+      "guards": [
+        "src/client/kernel/detail-top-gate.ts",
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
+        "src/shared/tracker/shape.ts",
+        "src/tracker/contract/entities.ts",
+        "src/tracker/rooms/markdown/graph.ts",
+        "src/tracker/rooms/markdown/issues-read.ts",
+        "src/tracker/rooms/markdown/parse.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/refresh/rooms/host",
+        "src/shared/tracker",
+        "src/tracker/contract",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
+    },
+    {
       "step": "node tests/verify-1692-disk-replay-eviction.ts",
       "file": "tests/verify-1692-disk-replay-eviction.ts",
       "guards": [
@@ -4877,6 +4902,30 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1765-read-channel-plan.ts",
+      "file": "tests/verify-1765-read-channel-plan.ts",
+      "guards": [
+        "src/refresh/kernel/budget-admission.ts",
+        "src/tracker/contract/operations-encyclopedia.ts",
+        "src/tracker/rooms/github/read/deps-read.ts",
+        "src/tracker/rooms/github/read/issues.ts",
+        "src/tracker/rooms/github/routing/read-channels.ts",
+        "src/tracker/session/pipeline.ts"
+      ],
+      "dirs": [
+        "src/refresh/kernel",
+        "src/tracker/contract",
+        "src/tracker/rooms/github/read",
+        "src/tracker/rooms/github/routing",
+        "src/tracker/session"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
       "step": "node tests/verify-1766-batch-identity.ts",
@@ -7289,17 +7338,19 @@
       "file": "tests/verify-bundled-skills-upstream.ts",
       "guards": [
         "package/bundled-skills",
+        "scripts/lib/bundled-skills-manifest.mts",
         "tests/bundled-skills-upstream-hashes.json"
       ],
       "dirs": [
         "package/bundled-skills",
+        "scripts/lib",
         "tests"
       ],
       "unattributed": true,
       "buildOutputOnly": true,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
+      "reason": "读到的路径都落在 package、scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-bundled-skills-zh.ts",
@@ -9012,7 +9063,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 41,
+      "expectedAssertions": 51,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
@@ -9499,6 +9550,7 @@
         "src/refresh/rooms/host/issue-detail-fetch.ts",
         "src/refresh/rooms/host/issue-list-fetch.ts",
         "src/tracker/body-parse.ts",
+        "src/tracker/kernel/grouping.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
       ],
@@ -9510,13 +9562,14 @@
         "src/host",
         "src/refresh/rooms/host",
         "src/tracker",
+        "src/tracker/kernel",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-platform-contract.ts",
@@ -9689,7 +9742,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 341,
+      "expectedAssertions": 356,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 20 条）"
     },
     {
@@ -11172,7 +11225,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 39,
+      "expectedAssertions": 45,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
@@ -11627,6 +11680,7 @@
       "node tests/verify-997-vc-sight.ts",
       "node tests/verify-b2-map-newsession.ts",
       "node tests/verify-bug-entry.ts",
+      "node tests/verify-bundled-skills-upstream.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-file-granularity.ts",
       "node tests/verify-issue232-sync.ts",
@@ -11765,6 +11819,7 @@
       "node tests/verify-1664-md-eff-filter.ts",
       "node tests/verify-1668-detail-top-gate-wire.ts",
       "node tests/verify-1668-detail-top-gate.ts",
+      "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -12372,6 +12427,7 @@
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-1692-disk-replay-eviction.ts",
+      "node tests/verify-1765-read-channel-plan.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
@@ -12521,6 +12577,7 @@
       "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-1612-deck-tool-gate.ts",
       "node tests/verify-1621-gh-missing-copy.ts",
+      "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-1692-disk-replay-eviction.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
@@ -12702,6 +12759,7 @@
       "node tests/verify-1483-chain-session-cache.ts",
       "node tests/verify-1512-md-chain.ts",
       "node tests/verify-1661-banner-singleline.ts",
+      "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -12764,6 +12822,8 @@
       "node tests/verify-1060-edge-log.ts",
       "node tests/verify-1182-docs-paths.ts",
       "node tests/verify-1444-list-detail-thin.ts",
+      "node tests/verify-1676-blocked-ref-unknown.ts",
+      "node tests/verify-1765-read-channel-plan.ts",
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-992-readonly-labels.ts",
@@ -12825,6 +12885,7 @@
       "node tests/verify-map-drill.ts",
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.ts",
+      "node tests/verify-parse-leaf.ts",
       "node tests/verify-rest-fallback-banner.ts",
       "node tests/verify-time-config.ts"
     ],
@@ -12912,6 +12973,7 @@
       "node tests/verify-1603-map-thin-list.ts",
       "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
+      "node tests/verify-1765-read-channel-plan.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -12954,6 +13016,7 @@
       "node tests/verify-tracker-session.ts"
     ],
     "src/tracker/rooms/github/routing": [
+      "node tests/verify-1765-read-channel-plan.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-ghes-runtime-capability.ts",
       "node tests/verify-github-gh-via.ts",
@@ -13066,6 +13129,7 @@
       "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-1605-markdown-map-list.ts",
       "node tests/verify-1610-parallel-read.ts",
+      "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -13108,6 +13172,7 @@
       "node tests/verify-1581-session-locators.ts",
       "node tests/verify-1583-repo-ref-fallback.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
+      "node tests/verify-1765-read-channel-plan.ts",
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-tracker-session.ts"
     ],
@@ -13364,9 +13429,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 680,
+    "fileCount": 682,
     "dirCount": 84,
-    "coveredFileCount": 680,
+    "coveredFileCount": 682,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13900,6 +13965,7 @@
       "src/tracker/kernel/README.md",
       "src/tracker/kernel/error-rules.ts",
       "src/tracker/kernel/git-remote.ts",
+      "src/tracker/kernel/grouping.ts",
       "src/tracker/kernel/identity-keys.ts",
       "src/tracker/kernel/issue-tracker-declaration.ts",
       "src/tracker/kernel/log-emit.ts",
@@ -13948,6 +14014,7 @@
       "src/tracker/rooms/github/routing/idempotency.ts",
       "src/tracker/rooms/github/routing/index.ts",
       "src/tracker/rooms/github/routing/read-assembly.ts",
+      "src/tracker/rooms/github/routing/read-channels.ts",
       "src/tracker/rooms/github/routing/read-result.ts",
       "src/tracker/rooms/github/routing/runtime-capability.ts",
       "src/tracker/rooms/github/support/capability-register.ts",

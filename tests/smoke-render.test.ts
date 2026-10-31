@@ -217,8 +217,8 @@ if (PanelTitleComp) {
   check(false, '右侧边栏标题栏组件未捕获')
 }
 
-// ---- 设置页渲染（base 0.1.2 页头静默簇：ActionCluster 三枚彩色图标按钮）----
-// ticket 05 起设置页页头不再自画表情按钮：这里在产物上真挂一遍，钉住「0.1.2 的静默簇真的渲染出来了」，
+// ---- 设置页渲染（base 0.1.4 页头静默簇：ActionCluster 三枚彩色图标按钮）----
+// ticket 05 起设置页页头不再自画表情按钮：这里在产物上真挂一遍，钉住「0.1.4 的静默簇真的渲染出来了」，
 // 而不只是源码里写了 ActionCluster；同时钉住旧 ActionGroup 胶囊与旧悬停文案不在场。
 if (SettingsComp) {
   const settingsContainer = window.document.createElement('div')
@@ -232,7 +232,7 @@ if (SettingsComp) {
     })
     const settingsHtml = settingsContainer.innerHTML
     const cluster = settingsContainer.querySelector('.dsh-base-cluster')
-    check(!!cluster, '设置页页头渲染出 base 0.1.2 的静默簇（.dsh-base-cluster）')
+    check(!!cluster, '设置页页头渲染出 base 0.1.4 的静默簇（.dsh-base-cluster）')
     const clusterBtns = settingsContainer.querySelectorAll('.dsh-base-cluster__btn')
     check(clusterBtns.length === 3, `静默簇是三枚按钮（实际 ${clusterBtns.length}）`)
     const ariaLabels = Array.prototype.map.call(clusterBtns, (b: any) => b.getAttribute('aria-label')).join('|')
@@ -241,6 +241,14 @@ if (SettingsComp) {
     check(/lineargradient/i.test(settingsHtml) && /radialgradient/i.test(settingsHtml), '静默簇图标是彩色渐变 SVG（linearGradient / radialGradient 都在场）')
     check(!settingsHtml.includes('dsh-base-actions'), '旧 ActionGroup 胶囊不在场（dsh-base-actions）')
     check(!settingsHtml.includes('去 GitHub 点 Star') && !settingsHtml.includes('反馈问题'), '自绘表情按钮的旧悬停文案不在场')
+    /* 2026-10-31 owner 真机：底部「作者的其他插件」卡外面多包了一层 .dsws-cfg-group，而卡自带 .dsh-base-plugins
+     * 外框 ⇒ 双层边框。钉死：卡在场、自带外框、祖先里没有 .dsws-cfg-group；条目数 = 五条推荐里排除自己 = 4。 */
+    const plugins = settingsContainer.querySelector('.dsh-base-plugins')
+    check(!!plugins, '底部渲染出 base 公共「作者的其他插件」卡（.dsh-base-plugins）')
+    check(!!plugins && !plugins.closest('.dsws-cfg-group'), '卡片外面不再套 .dsws-cfg-group（真机双层边框的根因）')
+    const pluginRows = settingsContainer.querySelectorAll('.dsh-base-plugins__item')
+    check(pluginRows.length === 4, `作者插件卡四条推荐（排除自己，实际 ${pluginRows.length}）`)
+    check(!!plugins && String(plugins.textContent).indexOf('作者的其他插件') >= 0, '卡片标题来自 base 文案（不再由本仓写死）')
   } catch (e: any) {
     check(false, `设置页渲染异常: ${(e && e.message) || e}`)
   } finally {

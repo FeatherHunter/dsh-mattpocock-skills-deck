@@ -270,9 +270,8 @@ export async function listIssues(ctx: OpContext, repo: RepoWithPath, filter: Row
           const target = k ? byKey[idOfParts(it.effortId, k)] : null
           if(target){
             if(!ref.title) ref.title = target.title || ''
-            // 'OPEN' 是历史兜底：target 来自本批归一后的行（state 恒为 open/closed 非空），
-            // 故 || 链恒取前两项之一；断言只为过类型，值不变。
-            ref.state = (target.state || ref.state || 'OPEN') as Issue['state']
+            // #1676：只回填明确读到的状态，不补 open；目标不在本批或读不到时保持未知（按批回填的边界另开票）。
+            if (target.state) ref.state = target.state
           }
         })
       })
@@ -350,7 +349,8 @@ async function hydrateBlockedByRefs(ctx: OpContext, repo: RepoWithPath, iss: Iss
         try {
           const target = parseMd(await readTextFile(ctx, mr.path), { key: '00', parentKey: null, isMap: true, effortId })
           ref.title = target.title || ''
-          ref.state = target.state || ref.state
+          // #1676：明确读到状态才写；读不到保持缺省（未知）。
+          if (target.state) ref.state = target.state
         } catch {}
         continue
       }
@@ -359,7 +359,8 @@ async function hydrateBlockedByRefs(ctx: OpContext, repo: RepoWithPath, iss: Iss
       try {
         const target = parseMd(await readTextFile(ctx, tr.path), { key: rk, parentKey: '00', isMap: false, effortId })
         ref.title = target.title || ''
-        ref.state = target.state || ref.state
+        // #1676：明确读到状态才写；读不到保持缺省（未知）。
+        if (target.state) ref.state = target.state
       } catch {}
     } catch {}
   }

@@ -30,6 +30,10 @@ export interface ProbeHandlerDeps {
   getTrackerRegistry: any
   getPlatform: any
   ctx: any
+  // #1753：宿主侧「执行一条命令」的出口（检测与探针共用）。composer 分支建出来的上下文必须把它带进房间，
+  //   否则 glabClient 见到空 exec 会直接按 127 回，外面再把 127 归成 network，界面就一直重试。
+  //   这一格故意必填：宿主漏接线时由编译器在接线处拦住，不用等到真机上看见横幅才发现。
+  detectionExec: any
   fetchIssueIndexWindowed: any
   issueIndexChanged: any
   rememberIssueIndex: any
@@ -48,7 +52,7 @@ export interface ProbeHandlerDeps {
 
 /** 造出探针电话：目前只有一个 handleProbe（wf.probe 的处理体）。 */
 export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args: any) => Promise<any> } {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText, openSession } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, detectionExec, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText, openSession } = deps
   // #1689：降级常驻时的两个节流时刻（毫秒），按 cwd 记。与 lastProbeAtByRepo 分开记，是因为后者
   //   的键要等取数回来才知道（owner/name），而节流必须在发出请求之前判；createProbeHandler 的实例
   //   由宿主入口 _probe() 记忆化，这份状态跨刷新拍安全。
@@ -95,6 +99,9 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
         const reg: any = await getTrackerRegistry()
         const tracker: any = reg.get(_selProbe.backendId)
         if (tracker && typeof tracker.list === 'function') {
+          // #1753：装配缺件要如实说成 env。没有这根线时房间会因空 exec 回 127，外面再把 127 归成网络故障，
+          //   界面于是每 5 秒重试并常驻「刷新失败」——错的是接线，不是网络，报错必须指到接线这一层。
+          if (typeof detectionExec !== 'function') return { ok: false, error: '探针缺少执行器装配：宿主没有把「执行命令」的能力传给探针，这是插件内部接线问题，不是网络故障。', errorKind: 'env' }
           let repoRef: any = null
           try { repoRef = reg.describe({ cwd }, _selProbe.backendId) } catch {}
           // #1584 F4：空 refId 的壳不算身份；先问会话，拿不到再走原兜底（不改变无会话时的旧行为）。
@@ -103,7 +110,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
             if (identified) repoRef = identified
           }
           if (!repoRef) repoRef = { backend: _selProbe.backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || _selProbe.backendId, url: '' }
-          const opCtx: any = { cwd, platform: await getPlatform(), fs: ctx.get('fs') }
+          const opCtx: any = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: any, ar: any, o: any): any { return detectionExec(c, ar, o, 'probe') } }
           const r: any = await tracker.list(repoRef, {}, opCtx)
           if (!r || !r.ok) return { ok: false, error: errText((r && r.error) || 'probe list 失败'), errorKind: kindOf(r && r.error) }
           const all: any[] = Array.isArray(r.data) ? r.data : []

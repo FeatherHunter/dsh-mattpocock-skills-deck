@@ -20,8 +20,8 @@
 
 const fs = require('node:fs')
 const path = require('node:path')
-const { createHash } = require('node:crypto')
 const { readCopyConfig } = require('../scripts/lib/copy-config.mts')
+const { MANIFEST_ALGO, sha256Text } = require('../scripts/lib/bundled-skills-manifest.mts')
 const { markdownModule } = require('../src/tracker/rooms/markdown/index.ts')
 
 const ROOT: string = path.resolve(__dirname, '..')
@@ -48,11 +48,9 @@ function lineOf(text: string, fragment: string): number {
   return 0
 }
 
-/** 与 tests/verify-bundled-skills-upstream.ts 同口径：抹掉 Windows 检出的 CRLF，再算 SHA256。
- *  基线文件（tests/bundled-skills-upstream-hashes.json）是上游同步时生成的同一份，
- *  这里只复用，不另造第二套真源、也不把模板正文抄进门禁。 */
-function norm(s: string): string { return s.replace(/\r\n/g, '\n') }
-function sha(s: string): string { return createHash('sha256').update(norm(s), 'utf8').digest('hex') }
+// 哈希口径与同步脚本、verify-bundled-skills-upstream 共用 scripts/lib/bundled-skills-manifest.mts
+// 里的同一份实现；基线文件（tests/bundled-skills-upstream-hashes.json）是上游同步时生成的同一份，
+// 这里只复用，不另造第二套真源、也不把模板正文抄进门禁。
 
 // 旧口径的特征片段。只收「教旧做法」的原话，不收泛词：
 //   「三段」单独出现会误伤 config/copy/skilldesc.yaml 的「固定三段形状写 PR 正文」，
@@ -118,7 +116,7 @@ function main(): void {
     return
   }
   check(!!(manifest && typeof manifest === 'object'), '基线文件是合法 JSON 对象')
-  check(manifest.algo === 'sha256-of-LF-normalized-utf8',
+  check(manifest.algo === MANIFEST_ALGO,
     '基线算法是 CRLF→LF 归一化后的 SHA256（与 verify-bundled-skills-upstream.ts 同一套）：' + JSON.stringify(manifest.algo))
   const version: string = fs.existsSync(VERSION_FILE) ? fs.readFileSync(VERSION_FILE, 'utf8').trim() : ''
   check(version !== '' && manifest.pin === version,
@@ -129,7 +127,8 @@ function main(): void {
   check(fs.existsSync(TEMPLATE_ABS), '随包模板文件真实存在：package/bundled-skills/' + TEMPLATE_REL)
   if (fs.existsSync(TEMPLATE_ABS) && typeof expected === 'string') {
     const raw: string = fs.readFileSync(TEMPLATE_ABS, 'utf8')
-    check(sha(raw) === expected, '随包模板与上游 pin ' + JSON.stringify(manifest.pin) + ' 原文逐字一致（哈希 ' + sha(raw).slice(0, 12) + '…）')
+    const actual: string = sha256Text(raw)
+    check(actual === expected, '随包模板与上游 pin ' + JSON.stringify(manifest.pin) + ' 原文逐字一致（哈希 ' + actual.slice(0, 12) + '…）')
   }
   // 声明里写的是文件名；对一下基线里这份文件的文件名，防止哪天声明指向一份不存在的模板。
   const templateName: string = path.posix.basename(TEMPLATE_REL)

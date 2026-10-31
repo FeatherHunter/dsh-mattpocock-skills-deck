@@ -104,6 +104,14 @@ interface Candidate {
   bytes: number
 }
 
+/**
+ * 淘汰规则认的行键：key 在就用 String(key)，key 缺席才用 number；不 trim、不拆对象包装，空值回 ''。
+ *
+ * 这是四套行身份口径里刷新内核的一份：只要求「同一轮刷新里、同一种行的键写法前后一致」，
+ * 不做跨后端归一（GitHub 的数字键与 Markdown 补零字符串键在这里原样当键）。与宿主装配层
+ * 不同的是 key 为空串时不回落 number；与客户端地图卡片不同的是不去前导零。四处暂不合并的
+ * 原因见 docs/design/20261030-panel-snapshot-closeout.md 第 9 节第 7 条与 #1769。
+ */
 function rowKeyOf(row: any): string {
   if (row && row.key !== undefined && row.key !== null) return String(row.key)
   if (row && row.number !== undefined && row.number !== null) return String(row.number)

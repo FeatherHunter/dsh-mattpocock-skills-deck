@@ -44,8 +44,8 @@ function deckBaseUI(): any {
   if (!__deckBaseUICache || __deckBaseUIReact !== React || __deckBaseUILang !== lang) {
     __deckBaseUIReact = React
     __deckBaseUILang = lang
-    // base 0.1.2 页头静默簇（联系 / Star / Issue）用的仓库与工单地址由工厂带下去：Star 跳仓库首页，
-    // Issue 跳工单列表页（0.1.2 的 ActionCluster 缺省按 <repo>/issues 拼，这里显式给出同一落点），以后换仓只改这两行。
+    // base 0.1.4 页头静默簇（联系 / Star / Issue）用的仓库与工单地址由工厂带下去：Star 跳仓库首页，
+    // Issue 跳工单列表页（0.1.4 的 ActionCluster 缺省按 <repo>/issues 拼，这里显式给出同一落点），以后换仓只改这两行。
     __deckBaseUICache = __baseCreateUI(React, {
       lang: lang,
       selfId: 'deck',
@@ -65,7 +65,7 @@ function DeckAuthorPlugins(props: any): unknown {
   deckEnsureBaseStylesOnce()
   return React.createElement(ui.AuthorPlugins, props || {})
 }
-// base 0.1.2 页头静默簇（ActionCluster）：联系（点开包内统一联系面板）+ Star（仓库外链）+ Issue（工单列表）；
+// base 0.1.4 页头静默簇（ActionCluster）：联系（点开包内统一联系面板）+ Star（仓库外链）+ Issue（工单列表）；
 // 无外框、彩色图标、悬停柔光、键盘聚焦与尺寸都由包提供，本页只决定排在标题行哪里、给多大。
 function DeckHeaderActions(props: any): unknown {
   const ui: any = deckBaseUI()
@@ -98,7 +98,7 @@ export     const SettingsPage = (props: { sessionId?: unknown }): unknown => {
           Ic({ n: noticeIcon(cfgNotice.kind), size: 13, color: NOTICE_COLOR[cfgNotice.kind] || '#4ade80' }),
           h('span', null, cfgNotice.text),
         ]) : null,
-        // 增-1（#520）改-2（#521）改-3（base 0.1.2）：标题同一行右侧是更新入口与页头静默簇（联系 / Star / Issue 三枚静默图标；
+        // 增-1（#520）改-2（#521）改-3（base 0.1.4）：标题同一行右侧是更新入口与页头静默簇（联系 / Star / Issue 三枚静默图标；
         //   悬停介绍、跳转网址、键盘聚焦都由包统一提供，窄窗口换行到标题下方；状态小字旁显示构建注入的版本号去 v 前缀数字，点跳仓库首页）
         h('div', { className: 'dsws-cfg-head', style: { flexWrap: 'wrap' } }, [
           Icon({ scheme: 'compass', size: 20 }),
@@ -112,7 +112,7 @@ export     const SettingsPage = (props: { sessionId?: unknown }): unknown => {
           ]),
           h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
             h(UpdateEntryHost, { key: 'update' }),
-            // 原两枚表情按钮（🌟 star / 💬 feedback）升级成 base 0.1.2 的页头静默簇（ActionCluster）：
+            // 原两枚表情按钮（🌟 star / 💬 feedback）升级成 base 0.1.4 的页头静默簇（ActionCluster）：
             //   三枚彩色图标按 28×28 排（size 16 加包内 12 内边距），排法与悬停提示交给包；本页不再各写一套图标、网址与提示文案。
             h(DeckHeaderActions, { key: 'actions', size: 16 }),
           ]),
@@ -130,9 +130,8 @@ export     const SettingsPage = (props: { sessionId?: unknown }): unknown => {
         h(DiagnosticLogSection, { sessionId: props && props.sessionId }),
         // base 包接入：底部「作者插件卡」由 base 包统一渲染（联系入口已经收进标题行的页头静默簇，底部不再重复一份）。
         //   推荐插件与文案都来自包的数据真源，本页不再写死。
-        h('div', { className: 'dsws-cfg-group', key: 'base-footer' }, [
-          h(DeckAuthorPlugins, { key: 'more' }),
-        ]),
+        //   卡片自带外框（.dsh-base-plugins），外面不再包 .dsws-cfg-group：base 包真机验收抓到的正是这层双层边框。
+        h(DeckAuthorPlugins, { key: 'base-footer' }),
         // T2 HoverTip 迁移：移除 sharedSt.cfgTip 全局 portal，改由 HoverTip 统一（行为零变化，翻转/样式走契约）
         null,
       ])

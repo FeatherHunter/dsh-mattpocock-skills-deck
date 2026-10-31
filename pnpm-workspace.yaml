@@ -47,7 +47,7 @@ minimumReleaseAgeExclude:
   - dsh-plugin-update@0.18.37
   - dsh-plugin-update@0.18.38
   - dsh-plugin-update@0.18.39
-  - dsh-featherhunter-plugin-base@0.1.2
+  - dsh-featherhunter-plugin-base@0.1.4
 
 packages:
   - 'packages/*'

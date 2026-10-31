@@ -537,6 +537,66 @@ const partC = async function (): Promise<void> {
   check(!!failRowE && failRowE.fields.errorKind === 'exception',
     'D、宿主调用被拒时日志写 exception（这一档不用人去猜）', failRowE && failRowE.fields && failRowE.fields.errorKind)
 
+  // D4（#1753）：composer 选择（GitLab / markdown）走 list 探针时，房间上下文里必须带执行器。
+  //   缺陷现场是 composer 分支只给了 cwd / platform / fs，glabClient 见到空 exec 直接按 127 回，
+  //   外面又把 127 归成 network，界面于是每 5 秒重试并常驻「刷新失败，正在重试」。
+  //   这一组同时钉住两头：接了执行器要真走到宿主那一根线；漏传时要报「装配缺件」（env），不许发请求。
+  const composerExecCalls: any[] = []
+  const mkComposerProbe = function (withExec: boolean): any {
+    const listed: any[] = []
+    const tracker: any = {
+      list: function (ref: any, opts: any, opCtx: any): any {
+        listed.push({ ref: ref, opts: opts, opCtx: opCtx })
+        // 真 GitLab 房在 list 里会经 opCtx.exec 起 glab；桩照同一条线走，证明接上的就是这一根。
+        return Promise.resolve(opCtx.exec('glab', ['api', 'projects/1/issues'], {})).then(function (res: any): any {
+          if (res && res.code === 0) return { ok: true, data: [{ key: 1, state: 'opened' }] }
+          return { ok: false, error: { kind: 'network', message: 'glab 失败' } }
+        })
+      },
+    }
+    const deps: any = {
+      canonicalKey: async function (c: any): Promise<any> { return c },
+      selectEarly: async function (): Promise<any> { return { backendId: 'gitlab' } },
+      isComposerSelection: function (sel: any): boolean { return !!sel && sel.backendId === 'gitlab' },
+      getTrackerRegistry: async function (): Promise<any> {
+        return {
+          get: function (): any { return tracker },
+          describe: function (): any { return { backend: 'gitlab', refId: 'group/project', name: 'group/project', url: '' } },
+        }
+      },
+      getPlatform: async function (): Promise<any> { return { resolveExecutable: async function (): Promise<string> { return 'glab' } } },
+      ctx: { get: function (): any { return null } },
+      fetchIssueIndexWindowed: async function (): Promise<any> { return { ok: false, error: { kind: 'unsupported', error: 'composer 选择不该走到 GitHub 那条路' } } },
+      issueIndexChanged: function (): boolean { return false },
+      rememberIssueIndex: noop, commitIssueIndex: noop,
+      getCache: function (): any { return null }, setCache: noop,
+      lastIssueIndexByRepo: {}, lastProbeAtByRepo: {},
+      deltaRefresh: async function (): Promise<any> { return null },
+      takeWritePatch: async function (): Promise<any> { return null },
+      errText: function (e: any): string { return e && typeof e === 'object' ? String(e.message || e.error || '') : String(e) },
+      detectionExec: async function (cmd: any, args: any, opts: any, via: any): Promise<any> {
+        composerExecCalls.push({ cmd: cmd, args: args, opts: opts, via: via })
+        return { stdout: '[]', stderr: '', code: 0 }
+      },
+    }
+    if (!withExec) delete deps.detectionExec
+    return { handler: createProbeHandler(deps), listed: listed }
+  }
+  const composerOk: any = mkComposerProbe(true)
+  const okRes: any = await composerOk.handler.handleProbe({ cwd: 'D:/ws1753' })
+  check(!!okRes && okRes.ok === true, 'D、composer 探针经执行器取数后回 ok:true', okRes && String(okRes.error || JSON.stringify(okRes).slice(0, 120)))
+  const listedOk: any = composerOk.listed[0]
+  check(!!listedOk && typeof listedOk.opCtx.exec === 'function',
+    'D、composer 探针交给 list 的上下文里 exec 是函数（#1753 的缺口）', listedOk && typeof listedOk.opCtx.exec)
+  check(composerExecCalls.length === 1 && composerExecCalls[0].cmd === 'glab' && composerExecCalls[0].via === 'probe',
+    'D、list 里起的那条命令真走到宿主执行器，via 记 probe', composerExecCalls.map(function (c: any): string { return c.cmd + '/' + c.via }).join('|'))
+  const composerNoExec: any = mkComposerProbe(false)
+  const noExecRes: any = await composerNoExec.handler.handleProbe({ cwd: 'D:/ws1753' })
+  check(!!noExecRes && noExecRes.ok === false && noExecRes.errorKind === 'env',
+    'D、宿主漏传执行器时探针报 env 档（不把装配缺件说成网络故障）', noExecRes && (noExecRes.ok + '/' + noExecRes.errorKind))
+  check(composerNoExec.listed.length === 0,
+    'D、装配缺件时不发 list 请求（不在缺件时白打一趟）', composerNoExec.listed.length)
+
   // -------------------------------------------------------------------------------------------
   // E（#1418 P1）：探测范围收到「人正在看的那个工作区」；连续无变化降档；按族裁决与见底文案
   // -------------------------------------------------------------------------------------------
@@ -619,7 +679,8 @@ const partC = async function (): Promise<void> {
     'E、复位那一行写 backoff-reset 并回到原节奏（60000 毫秒）', resetRow && resetRow.fields && resetRow.fields.intervalMs)
 
   // E5. 按族裁决：按「这一次操作真正会出的通道」判，连前置读一起算——
-  //   读只看 GraphQL；改票 / 关票 / 父子边只看 GraphQL；建票两族都要（写 REST、建前锚回查 GraphQL）；
+  //   双渠道读两族任一有余即可、计划只剩哪族就走哪族（#1765）；单渠道读只看那一族；
+  //   改票 / 关票 / 父子边只看 GraphQL；建票两族都要（写 REST、建前锚回查 GraphQL）；
   //   评论与阻塞边两条路任一。文案点名是哪种额度、还剩多少、约几点恢复；名单外的操作两族都看。
   const limitsE: any = {
     pluginShareOfRemaining: 0.35,
@@ -638,15 +699,22 @@ const partC = async function (): Promise<void> {
   }
   // #1527：上限 5000 的保底是 250（服务端上限的 5%）；200 见底、1400 充足。
   const restDeadRead: any = decideByBudget({ op: 'list', budget: twoE, reading: readingE(200, 1400), canWrite: true }, limitsE)
-  check(restDeadRead.allowed === true, 'E、REST 见底时读操作照常放行（读只花 GraphQL 点数，不再整轮误停）', restDeadRead.reason)
+  check(restDeadRead.allowed === true && JSON.stringify(restDeadRead.channels) === '["graphql"]',
+    'E、REST 见底时双渠道读改走 GraphQL（#1765：计划只剩 GraphQL）', restDeadRead.reason + '/' + JSON.stringify(restDeadRead.channels))
   const restDeadWrite: any = decideByBudget({ op: 'create', budget: twoE, reading: readingE(200, 1400, 1790000000000), canWrite: true }, limitsE)
   check(restDeadWrite.allowed === false && String(restDeadWrite.message || '').indexOf('REST 请求') >= 0,
     'E、写操作被 REST 桶拦下，文案点名 REST 请求：' + String(restDeadWrite.message || ''))
   check(/约 \d\d:\d\d 恢复/.test(String(restDeadWrite.message || '')),
     'E、见底文案写出恢复时刻：' + String(restDeadWrite.message || ''))
   const graphqlDeadRead: any = decideByBudget({ op: 'get', budget: twoE, reading: readingE(1400, 200), canWrite: true }, limitsE)
-  check(graphqlDeadRead.allowed === false && String(graphqlDeadRead.message || '').indexOf('GraphQL 点数') >= 0,
-    'E、读操作被 GraphQL 桶拦下，文案点名 GraphQL 点数：' + String(graphqlDeadRead.message || ''))
+  check(graphqlDeadRead.allowed === true && JSON.stringify(graphqlDeadRead.channels) === '["rest"]',
+    'E、GraphQL 见底时双渠道读改走 REST（#1765 要修的主症状：不再整笔拦下）', graphqlDeadRead.reason + '/' + JSON.stringify(graphqlDeadRead.channels))
+  const bothDeadRead: any = decideByBudget({ op: 'get', budget: twoE, reading: readingE(200, 200), canWrite: true }, limitsE)
+  check(bothDeadRead.allowed === false && String(bothDeadRead.message || '').indexOf('两种额度都不够') >= 0,
+    'E、两族都见底时双渠道读拦下，文案点名两种额度：' + String(bothDeadRead.message || ''))
+  const graphqlOnlyDeadRead: any = decideByBudget({ op: 'listMaps', budget: twoE, reading: readingE(1400, 200), canWrite: true }, limitsE)
+  check(graphqlOnlyDeadRead.allowed === false && String(graphqlOnlyDeadRead.message || '').indexOf('GraphQL 点数') >= 0,
+    'E、只走 GraphQL 的读（地图清单）在 GraphQL 见底时拦下并点名 GraphQL 点数：' + String(graphqlOnlyDeadRead.message || ''))
   // 建票不只花 REST：写之前必跑幂等锚回查（gh search issues / gh issue list，都是 GraphQL），
   // 所以 GraphQL 见底时建票会卡在回查上，闸必须在放行前就拦住（复核第二轮补）。
   const graphqlDeadWrite: any = decideByBudget({ op: 'create', budget: twoE, reading: readingE(1400, 200), canWrite: true }, limitsE)

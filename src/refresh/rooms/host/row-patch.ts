@@ -166,7 +166,14 @@ export function createPatch(deps?: PatchDeps | null): any {
   async function readSnap(cwd: any): Promise<any> { return await Promise.resolve(d.readSnapshot(cwd)) }
   async function writeSnap(cwd: any, snap: any): Promise<any> { return await Promise.resolve(d.writeSnapshot(cwd, snap)) }
 
-  /** 这一轮真拿到的行键。淘汰规则据此给行打「刚取到」的时间戳，没拿到的行沿用旧戳。 */
+  /**
+   * 这一轮真拿到的行键。淘汰规则据此给行打「刚取到」的时间戳，没拿到的行沿用旧戳。
+   *
+   * 键口径与 kernel/detail-eviction.ts 的 rowKeyOf 保持一致（key 优先、其次 number，都字符串化，
+   * 空值不收）——这份键集合要交给同一套淘汰规则，两边写法不一致会把刚取到的行误判成旧的。
+   * 它不 trim、不拆对象包装，也不做跨后端归一，与宿主装配层、客户端卡片那两份不同；
+   * 四处暂不合并的原因见 docs/design/20261030-panel-snapshot-closeout.md 第 9 节第 7 条与 #1769。
+   */
   function freshKeysOf(rows: any): Record<string, boolean> {
     const out: Record<string, boolean> = {}
     const list: any[] = Array.isArray(rows) ? rows : []

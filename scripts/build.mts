@@ -2217,7 +2217,7 @@ try {
 try {
   deriveBaseClient()
 } catch (e) {
-  throw new Error('[build] base 包派生失败（内联源是已安装的 dsh-featherhunter-plugin-base：先确认 pnpm install 已装好 base@0.1.2，再重跑本构建）：' + ((e as Error) && (e as Error).message || e))
+  throw new Error('[build] base 包派生失败（内联源是已安装的 dsh-featherhunter-plugin-base：先确认 pnpm install 已装好 base@0.1.4，再重跑本构建）：' + ((e as Error) && (e as Error).message || e))
 }
 
 // 打包是最后一段长活（拼客户端与宿主两半产物），开始前再确认一次锁：这段里被接管的话，

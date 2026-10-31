@@ -30,6 +30,7 @@ const asm = await import('../src/host/tracker/snapshotAssemble.ts')
 const bodyParse = await import('../src/tracker/body-parse.ts')
 const { createSnapshotComposer } = await import('../src/host/tracker/snapshot.ts')
 const { carryOverMapTickets, normalizeMapTickets, mergeKnownTickets } = asm
+const { createTicketGrouping } = await import('../src/host/ticketGrouping.ts')
 
 /** 一行 Issue（宿主组装层只读这几格；形状与 GitHub 归一层的产出一致）。 */
 function issue(key: string, extra?: Record<string, any>): any {
@@ -228,6 +229,72 @@ function ticketByKey(map: any, key: string): any {
     'H5 降级结果没表达的阻塞边沿用上次已知（被挡关系不消失）', blocked2 && JSON.stringify(blocked2.blockedBy))
   check(!!r2 && typeof r2.version === 'string' && r2.version.length > 0 && r2.snapshot.version === r2.version,
     'H6 补回之后版本号照旧写进快照（304 语义与内容散列不受影响）', r2 && r2.version)
+}
+
+// ---- I 组：跨容器阻塞者按引用态判（#1768）----
+// 首帧只拿得到本容器子票，被别的地图里未关闭的票挡住的子票，阻塞者不在本批。
+// 口径与 deck 安全侧一致：引用态明确 CLOSED 才放行；OPEN、读不到状态、没有引用态都按挡着。
+{
+  const crossOpen = carryOverMapTickets(null, snapOf([container('900', 'map', [
+    issue('1501', { blockedBy: [{ key: '9001', title: '别图里还开着', state: 'OPEN' }] }),
+  ])]), { sourceComplete: true })
+  const mOpen = crossOpen.maps[0]
+  const rowOpen = ticketByKey(mOpen, '1501')
+  check((mOpen.stats || {}).blocked === 1 && (mOpen.stats || {}).frontier === 0,
+    'I1 阻塞者在别的地图且开着：这张票算被挡，可接计数不计入', JSON.stringify(mOpen.stats))
+  check(!!rowOpen && rowOpen.blockedBy[0] === 9001 && Array.isArray(rowOpen.blockedByRefs) &&
+    rowOpen.blockedByRefs[0].key === 9001 && rowOpen.blockedByRefs[0].state === 'OPEN' &&
+    rowOpen.blockedByRefs[0].title === '别图里还开着',
+    'I2 阻塞者引用态（编号/标题/状态）留在行上，卡片能说出被谁挡着', rowOpen && JSON.stringify(rowOpen.blockedByRefs))
+  const crossClosed = carryOverMapTickets(null, snapOf([container('901', 'map', [
+    issue('1502', { blockedBy: [{ key: '9002', title: '别图里已关', state: 'CLOSED' }] }),
+  ])]), { sourceComplete: true })
+  const mClosed = crossClosed.maps[0]
+  check((mClosed.stats || {}).blocked === 0 && (mClosed.stats || {}).frontier === 1,
+    'I3 阻塞者在别的地图但已关闭：不挡，算可接', JSON.stringify(mClosed.stats))
+  const crossUnknown = carryOverMapTickets(null, snapOf([container('902', 'map', [
+    issue('1503', { blockedBy: [{ key: '9003', title: '读不到状态' }] }),
+  ])]), { sourceComplete: true })
+  const mUnknown = crossUnknown.maps[0]
+  const rowUnknown = ticketByKey(mUnknown, '1503')
+  check((mUnknown.stats || {}).blocked === 1 && (mUnknown.stats || {}).frontier === 0,
+    'I4 读不到阻塞者状态时按安全侧算被挡，不算可接', JSON.stringify(mUnknown.stats))
+  check(!!rowUnknown && rowUnknown.blockedByRefs[0].state === undefined,
+    'I5 没拿到状态就不伪造状态（引用态只留编号与标题）', rowUnknown && JSON.stringify(rowUnknown.blockedByRefs))
+  const prevRefs = snapOf([container('903', 'map', [
+    issue('1504', { blockedBy: [{ key: '9004', title: '上次就知道开着', state: 'OPEN' }] }),
+  ])])
+  const nextThin = snapOf([container('903', 'map', [issue('1504', { blockedBy: [] })])])
+  const merged = carryOverMapTickets(prevRefs, nextThin, { sourceComplete: false })
+  const rowMerged = ticketByKey(merged.maps[0], '1504')
+  check((merged.maps[0].stats || {}).blocked === 1 &&
+    !!rowMerged && Array.isArray(rowMerged.blockedByRefs) && rowMerged.blockedByRefs[0].state === 'OPEN',
+    'I6 不完整来源的薄行没带引用态时，沿用上次已知的引用态（被挡关系不因降级丢失）',
+    rowMerged && JSON.stringify({ b: rowMerged.blockedByRefs, s: merged.maps[0].stats }))
+  // 两份 groupTickets 副本（宿主 ticketGrouping 与 tracker body-parse）必须同口径：同一夹具逐项全等。
+  const fixture = [
+    { number: 1, state: 'OPEN', blockedBy: [2], blockedByRefs: [] },
+    { number: 2, state: 'OPEN', blockedBy: [], blockedByRefs: [] },
+    { number: 3, state: 'OPEN', blockedBy: [9001], blockedByRefs: [{ key: 9001, state: 'OPEN' }] },
+    { number: 4, state: 'OPEN', blockedBy: [9002], blockedByRefs: [{ key: 9002, state: 'CLOSED' }] },
+    { number: 5, state: 'OPEN', blockedBy: [9003], blockedByRefs: [{ key: 9003 }] },
+    { number: 6, state: 'CLOSED', blockedBy: [], blockedByRefs: [] },
+    { number: 7, state: 'OPEN', blockedBy: [], blockedByRefs: [] },
+    // 认领票同时进 frontier 的错法以前没被抓住（宿主的 isBlocked 把认领也算成一种「挡」），这里补一张。
+    { number: 8, state: 'OPEN', claimedBy: 'alice', blockedBy: [], blockedByRefs: [] },
+  ]
+  const fromHost = createTicketGrouping().groupTickets(fixture)
+  const fromParse = bodyParse.groupTickets(fixture)
+  const counts = (g: any) => JSON.stringify([g.total, g.open, g.closed, g.frontier, g.claimed, g.blocked])
+  check(counts(fromHost) === counts(fromParse),
+    'I7 两份 groupTickets 副本对同一夹具给出同样计数（跨容器口径不许只改一处）', counts(fromHost) + ' vs ' + counts(fromParse))
+  check(JSON.stringify(fromHost.levelOf) === JSON.stringify(fromParse.levelOf) &&
+    JSON.stringify(fromHost.levels) === JSON.stringify(fromParse.levels),
+    'I8 两份副本的层级推导也一致（跨容器引用不参与层级深度）')
+  check(fromHost.total === 8 && fromHost.open === 7 && fromHost.frontier === 3 && fromHost.claimed === 1 && fromHost.blocked === 3,
+    'I9 宿主分组：图内 OPEN、跨图 OPEN、跨图未知各挡一张；跨图 CLOSED 放行；认领票只进 claimed', JSON.stringify(fromHost))
+  check(fromHost.levelOf['3'] === 0 && fromHost.levelOf['1'] === 1,
+    'I10 跨容器引用不参与层级深度（第 3 张仍算第 0 层）', JSON.stringify(fromHost.levelOf))
 }
 
 printGateResult(GATE, total, failed)

@@ -93,8 +93,11 @@ export interface IssueRef {
   /** 规范 id：GitHub 是编号字符串，本地 Markdown 是两位数编号，GitLab 是 iid。 */
   key: string
   title: string
-  /** 归一化后的两态。 */
-  state: State
+  /** 归一化后的两态；**缺省表示状态未知**（例如本地 Markdown 的阻塞目标票读不到）。
+   *
+   *  缺省不是 open：消费方不得把它当成「还开着」去拦住别人的动作，也不得因此丢掉这条边。
+   *  只有明确读到状态时才写这一格。 */
+  state?: State
   /** 边上带种类时给出（指向地图还是票）。 */
   type?: IssueType
 }
