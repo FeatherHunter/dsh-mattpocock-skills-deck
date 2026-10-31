@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T18:09:53.775Z",
+  "generatedAt": "2026-10-31T18:16:43.547Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 494,
-  "gateCount": 494,
-  "attributedGates": 443,
+  "chainLength": 495,
+  "gateCount": 495,
+  "attributedGates": 444,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 58,
+  "completionRecordedGates": 59,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 717,
+  "graphFileCount": 722,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4241,6 +4241,21 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
+      "step": "node tests/verify-1586-commit-page.ts",
+      "file": "tests/verify-1586-commit-page.ts",
+      "guards": [
+        "src/shared/version-control/src/commit-plan.ts"
+      ],
+      "dirs": [
+        "src/shared/version-control/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 97,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-1586-first-screen.ts",
       "file": "tests/verify-1586-first-screen.ts",
       "guards": [
@@ -6417,6 +6432,8 @@
         "src/client/views/versionControl/vcCapabilityPages.ts",
         "src/client/views/versionControl/vcChangesPage.ts",
         "src/client/views/versionControl/vcCommit.ts",
+        "src/client/views/versionControl/vcCommitOps.ts",
+        "src/client/views/versionControl/vcCommitPage.ts",
         "src/client/views/versionControl/vcData.ts",
         "src/client/views/versionControl/vcDiff.ts",
         "src/client/views/versionControl/vcDiffOps.ts",
@@ -6450,6 +6467,7 @@
         "src/host/versionControl.ts",
         "src/shared/time-config/src/values.ts",
         "src/shared/version-control/src/capability-ledger.ts",
+        "src/shared/version-control/src/commit-plan.ts",
         "src/shared/version-control/src/first-screen.ts",
         "src/shared/version-control/src/rules.ts",
         "src/shared/version-control/src/stash-rules.ts",
@@ -6474,7 +6492,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 46 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 49 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -10771,6 +10789,7 @@
         "src/client/views/skillDetail/PixelSkillDetailModal.ts",
         "src/client/views/skillDetail/PixelSkillOps.ts",
         "src/client/views/versionControl/vcBlocks.ts",
+        "src/client/views/versionControl/vcCommitOps.ts",
         "src/client/views/versionControl/vcText.ts",
         "src/deck/registration/register-options.ts",
         "src/deck/registration/suggest-steps-register.ts",
@@ -10796,10 +10815,12 @@
         "src/host/versionControl.ts",
         "src/host/versionControlChanges.ts",
         "src/host/versionControlCheck.ts",
+        "src/host/versionControlCommitForm.ts",
         "src/host/versionControlFirstScreen.ts",
         "src/host/versionControlRemote.ts",
         "src/host/versionControlStash.ts",
         "src/host/versionControlStashTicket.ts",
+        "src/host/versionControlSyncCheck.ts",
         "src/host/versionControlTask.ts",
         "src/host/versionControlTaskRun.ts",
         "src/host/versionControlWrite.ts",
@@ -10909,7 +10930,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 124 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 127 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -13010,6 +13031,7 @@
       "node tests/verify-1231-ws-overview-rows.ts",
       "node tests/verify-1586-branches.ts",
       "node tests/verify-1586-capability-ledger.ts",
+      "node tests/verify-1586-commit-page.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-history-query.ts",
       "node tests/verify-1586-remote.ts",
@@ -13658,9 +13680,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 738,
+    "fileCount": 743,
     "dirCount": 84,
-    "coveredFileCount": 738,
+    "coveredFileCount": 743,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13860,6 +13882,8 @@
       "src/client/views/versionControl/vcCapabilityPages.ts",
       "src/client/views/versionControl/vcChangesPage.ts",
       "src/client/views/versionControl/vcCommit.ts",
+      "src/client/views/versionControl/vcCommitOps.ts",
+      "src/client/views/versionControl/vcCommitPage.ts",
       "src/client/views/versionControl/vcData.ts",
       "src/client/views/versionControl/vcDiff.ts",
       "src/client/views/versionControl/vcDiffOps.ts",
@@ -14012,6 +14036,8 @@
       "src/host/versionControlChangesMount.ts",
       "src/host/versionControlChangesWrite.ts",
       "src/host/versionControlCheck.ts",
+      "src/host/versionControlCommitForm.ts",
+      "src/host/versionControlCommitFormMount.ts",
       "src/host/versionControlFiles.ts",
       "src/host/versionControlFirstScreen.ts",
       "src/host/versionControlHistory.ts",
@@ -14186,6 +14212,7 @@
       "src/shared/version-control/src/capability-ledger.ts",
       "src/shared/version-control/src/changes-protocol.ts",
       "src/shared/version-control/src/commands.ts",
+      "src/shared/version-control/src/commit-plan.ts",
       "src/shared/version-control/src/first-screen.ts",
       "src/shared/version-control/src/history-query-commands.ts",
       "src/shared/version-control/src/parse-branch.ts",

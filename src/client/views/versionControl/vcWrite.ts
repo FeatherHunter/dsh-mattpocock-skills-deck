@@ -75,7 +75,7 @@ export const vcBlockedTipOf = function (decision: any, t: any) {
   return keys.map(function (k: any) { return t(k) }).join('；')
 }
 
-/** 宿主写失败：reason（WRITE_REASONS 的 25 个）→ 话术族。 */
+/** 宿主写失败：reason（WRITE_REASONS 的 38 个）→ 话术族。 */
 export const VC_WRITE_ERR_FAMILY: Record<string, string> = {
   'auth-failed': 'noCredential',
   'rejected-by-server': 'remoteRule',
@@ -110,6 +110,12 @@ export const VC_WRITE_ERR_FAMILY: Record<string, string> = {
   'empty-message': 'notReady',
   'message-too-long': 'notReady',
   'hooks-failed': 'notReady',
+
+  // #1743 提交页八条能力的理由：缺目标 / 目标不存在 / 没有可修订的提交 / 签名失败。
+  'need-commit-target': 'notReady',
+  'bad-commit-target': 'notReady',
+  'nothing-to-amend': 'notReady',
+  'signing-failed': 'notReady',
   'head-unreadable': 'moved',
   'head-moved': 'moved',
   'unknown-write-failure': 'unknown',

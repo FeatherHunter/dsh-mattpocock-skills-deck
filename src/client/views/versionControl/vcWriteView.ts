@@ -88,10 +88,11 @@ export const vcCommitAreaNode = function (h: any, o: any) {
   const c = o && o.commitArea
   if (!c) return null
   return h('div', { key: 'commitArea', 'data-vc-commit-area': 1, style: { marginTop: 8, borderTop: '1px solid var(--vc-line,#2a2d35)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 4 } }, [
-    h('input', {
-      key: 'input', type: 'text', value: c.value, placeholder: c.placeholder, 'data-vc-commit-msg': 1,
+    // #1743 能力 2.7：提交说明用面板内多行输入框，长文与换行在面板里写，不推外部编辑器。
+    h('textarea', {
+      key: 'input', rows: 3, value: c.value, placeholder: c.placeholder, 'data-vc-commit-msg': 1,
       onChange: function (e: any) { o.writeMessageOf(e && e.target ? e.target.value : '') },
-      style: { boxSizing: 'border-box', width: '100%' },
+      style: { boxSizing: 'border-box', width: '100%', resize: 'vertical', font: 'inherit', lineHeight: 1.45 },
     }),
     h('div', { key: 'row', style: { display: 'flex', gap: 6, alignItems: 'center' } }, [
       h('span', { key: 'hint', style: { flex: 1, minWidth: 0, fontSize: 11.5, color: o.tone('caption') } }, c.hint),
@@ -131,10 +132,11 @@ export const vcViewBarNode = function (h: any, o: any) {
       h('span', { key: 'inputLbl', className: 'dsws-vc-viewbar-lbl' }, o.t('vc.viewbar.inputLabel')),
     ]),
     h('div', { key: 'row', className: 'dsws-vc-viewbar-row' }, [
-      h('input', {
-        key: 'input', type: 'text', value: c.value, placeholder: c.placeholder, 'data-vc-commit-msg': 1,
+      // #1743 能力 2.7：视图条上这一处同样是多行输入框（与底部提交区共享模型与行为）。
+      h('textarea', {
+        key: 'input', rows: 2, value: c.value, placeholder: c.placeholder, 'data-vc-commit-msg': 1,
         onChange: function (e: any) { o.writeMessageOf(e && e.target ? e.target.value : '') },
-        style: { flex: 1, minWidth: 120 },
+        style: { flex: 1, minWidth: 120, resize: 'vertical', font: 'inherit', lineHeight: 1.45 },
       }),
       o.tipNode(c.tip || c.text, h('button', {
         className: 'dsws-btn primary dsws-hov' + vcBusyClsOf(o.runningOp, 'commit'), type: 'button', 'data-vc-commit-btn': 1, 'data-press': 'button', 'data-log': 'vc.viewbar.commit', disabled: c.disabled === true,
