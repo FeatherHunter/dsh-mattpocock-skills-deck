@@ -34,37 +34,37 @@ interface RebaseStage {
 const REBASE_STAGES: RebaseStage[] = [
   {
     title: '冻结工作区',
-    detail: '先把未提交的改动收起来或提示先提交；变基过程中工作区必须是干净的，否则每一步的冲突都分不清来自谁。',
+    detail: '先把未提交的改动收起来或提示先提交。变基过程中工作区必须是干净的，否则每一步的冲突都分不清来自谁。',
     command: 'git stash push --keep-index',
     tone: 'ok',
   },
   {
     title: '选新基座',
-    detail: '新基座是一条已经存在的提交；选择时显示它与当前分支的共同祖先，让人看清要搬的是哪几条提交。',
+    detail: '新基座是一条已经存在的提交。选择时显示它与当前分支的共同祖先，让人看清要搬的是哪几条提交。',
     command: 'git rebase --onto <新基座> <旧基座>',
     tone: 'ok',
   },
   {
     title: '整理待办清单',
-    detail: '三条提交可以保持原样，也可以压缩、改写说明或调整顺序；清单只在本页内存里，不写仓库。',
+    detail: '三条提交可以保持原样，也可以压缩、改写说明或调整顺序。清单只在本页内存里，不写仓库。',
     command: 'git rebase -i <新基座>',
     tone: 'ok',
   },
   {
     title: '逐步应用',
-    detail: '每应用一条提交就停一下：成功就继续，冲突就跳到「冲突处置」页；这一步可以随时中止并回到开始前的提交。',
+    detail: '每应用一条提交就停一下：成功就继续，冲突就跳到「冲突处置」页。这一步可以随时中止并回到开始前的提交。',
     command: 'git rebase --continue / --abort',
     tone: 'warn',
   },
   {
     title: '校验结果',
-    detail: '重新跑一遍本地检查，确认树内容与预期一致、没有丢提交；校验通过才允许移动分支指针。',
+    detail: '重新跑一遍本地检查，确认树内容与预期一致、没有丢提交。校验通过才允许移动分支指针。',
     command: 'git range-diff <旧分支> <新分支>',
     tone: 'ok',
   },
   {
     title: '完成或回滚',
-    detail: '完成时只移动当前分支指针，其他分支不动；回滚用变基开始前记下的提交号，不依赖引用日志。',
+    detail: '完成时只移动当前分支指针，其他分支不动。回滚用变基开始前记下的提交号，不依赖引用日志。',
     command: 'git reset --hard <开始前提交号>',
     tone: 'ok',
   },
@@ -75,7 +75,7 @@ export function renderRebase(ctx: PageContext): HTMLElement {
   const todo = capturedCommits.slice(0, 3)
   const intro = objectRow([
     h('span', { class: 'obj-title', text: '把当前分支的三条提交搬到新基座上（演示）' }),
-    h('span', { class: 'obj-sub', text: '变基会重写这三条提交的提交号；演示只改页面状态，不动本地仓库。开始前先记下当前提交号，中止时用它回去。' }),
+    h('span', { class: 'obj-sub', text: '变基会重写这三条提交的提交号。演示只改页面状态，不动本地仓库。开始前先记下当前提交号，中止时用它回去。' }),
     h('span', { class: 'obj-meta mono', text: capturedBranch + ' @ ' + capturedHead.slice(0, 7) }),
   ], [actionButton(state.rebaseDemo ? '演示进行中' : '开始演示', 'rebase-demo', { kind: 'primary', focusKey: 'rebase-start', disabled: state.rebaseDemo })])
 
@@ -99,7 +99,7 @@ export function renderRebase(ctx: PageContext): HTMLElement {
 
   const demoBody: HTMLElement[] = []
   if (!state.rebaseDemo) {
-    demoBody.push(note('演示还没开始：点上面的「开始演示」进入六步待办；每一步都可以停在这里，不会影响仓库。', 'muted'))
+    demoBody.push(note('演示还没开始：点上面的「开始演示」进入六步待办。每一步都可以停在这里，不会影响仓库。', 'muted'))
   } else if (state.rebaseStep >= 6) {
     demoBody.push(h('div', { class: 'flow-done' },
       chip('演示完成', 'ok'),
@@ -113,7 +113,7 @@ export function renderRebase(ctx: PageContext): HTMLElement {
 
   const body = h('div', { class: 'page-stack' },
     section('本次变基', null, null, [intro, ...demoBody]),
-    section('六步待办', state.rebaseDemo ? '第 ' + Math.min(state.rebaseStep + 1, 6) + ' / 6 步' : null, '顺序固定，但每一步都可以停下来看；演示不会跳过「工作区是否干净」这一关。', steps),
+    section('六步待办', state.rebaseDemo ? '第 ' + Math.min(state.rebaseStep + 1, 6) + ' / 6 步' : null, '顺序固定，但每一步都可以停下来看。演示不会跳过「工作区是否干净」这一关。', steps),
     section('会动与不会动', null, null, [factGrid([
       { key: '会动', value: '当前分支的提交号与这页的演示状态' },
       { key: '不会动', value: '其他分支、远端、收起的改动' },
@@ -139,7 +139,7 @@ export function renderConflicts(ctx: PageContext): HTMLElement {
   const resolved = CONFLICT_FILES.filter((path) => state.conflictResolved.includes(path))
   const intro = objectRow([
     h('span', { class: 'obj-title', text: '合并 ' + capturedBranch + ' 与 feature/version-control-redesign（演示）' }),
-    h('span', { class: 'obj-sub', text: '三个文件同时被两边改过：逐文件选当前分支、对方，或打开外部编辑器手改；全部标记解决后才能继续。' }),
+    h('span', { class: 'obj-sub', text: '三个文件同时被两边改过：逐文件选当前分支、对方，或打开外部编辑器手改。全部标记解决后才能继续。' }),
     h('span', { class: 'obj-meta mono', text: 'git merge --no-ff feature/version-control-redesign' }),
   ], [actionButton(state.conflictDemo ? '演示进行中' : '开始演示', 'conflict-demo', { kind: 'primary', focusKey: 'conflict-start', disabled: state.conflictDemo })])
 
@@ -154,19 +154,19 @@ export function renderConflicts(ctx: PageContext): HTMLElement {
       side.push(
         actionButton('选当前分支', 'conflict-choice', { kind: chosen === 'ours' ? 'primary' : 'secondary', focusKey: 'conflict-ours:' + path, dataset: { choice: 'ours' } }),
         actionButton('选对方', 'conflict-choice', { kind: chosen === 'theirs' ? 'primary' : 'secondary', focusKey: 'conflict-theirs:' + path, dataset: { choice: 'theirs' } }),
-        actionButton('打开外部编辑器', 'page-demo', { focusKey: 'conflict-edit:' + path, dataset: { note: '已把 ' + path + ' 交给外部编辑器（原型模拟）；手改之后回来点「标记已解决」。' } }),
+        actionButton('打开外部编辑器', 'page-demo', { focusKey: 'conflict-edit:' + path, dataset: { note: '已把 ' + path + ' 交给外部编辑器（原型模拟）。手改之后回来点「标记已解决」。' } }),
         actionButton('标记已解决', 'conflict-resolve', { kind: 'primary', focusKey: 'conflict-resolve:' + path, dataset: { path }, disabled: chosen === null }),
       )
     }
     rows.push(objectRow([
       h('span', { class: 'obj-title' }, h('span', { class: 'mono', text: path }), chosen === null ? null : chip('已选：' + (chosen === 'ours' ? '当前分支' : '对方'), 'info', { small: true })),
-      h('span', { class: 'obj-sub', text: isResolved ? '这个文件已标记解决；继续之前仍可以撤销标记再选一次。' : '两边都改过同一段；选边只影响这个文件，不影响其他冲突文件。' }),
+      h('span', { class: 'obj-sub', text: isResolved ? '这个文件已标记解决。继续之前仍可以撤销标记再选一次。' : '两边都改过同一段。选边只影响这个文件，不影响其他冲突文件。' }),
     ], side))
   }
 
   const summary = objectRow([
     h('span', { class: 'obj-title', text: '已解决 ' + resolved.length + ' / ' + CONFLICT_FILES.length + ' 个文件' }),
-    h('span', { class: 'obj-sub', text: '全部解决后「继续合并」才可点；继续会生成一个合并提交，中止会回到合并开始前的状态。' }),
+    h('span', { class: 'obj-sub', text: '全部解决后「继续合并」才可点。继续会生成一个合并提交，中止会回到合并开始前的状态。' }),
   ], [
     actionButton('继续合并', 'page-demo', { kind: 'primary', focusKey: 'conflict-continue', dataset: { note: '合并已提交（原型模拟）：生成一个合并提交，工作区清空。' }, disabled: resolved.length !== CONFLICT_FILES.length }),
     actionButton('中止合并', 'conflict-abort', { kind: 'danger', focusKey: 'conflict-abort' }),
@@ -174,7 +174,7 @@ export function renderConflicts(ctx: PageContext): HTMLElement {
 
   const body = h('div', { class: 'page-stack' },
     section('本次合并', null, null, [intro]),
-    section('冲突文件', CONFLICT_FILES.length + ' 个文件', '每一行只做三件事：选边、手改、标记已解决；选边按钮的状态跟着本页内存走，不写仓库。', [...(state.conflictDemo ? rows : [note('演示还没开始：点「开始演示」才会出现三个冲突文件。', 'muted')]), ...(state.conflictDemo ? [summary] : [])]),
+    section('冲突文件', CONFLICT_FILES.length + ' 个文件', '每一行只做三件事：选边、手改、标记已解决。选边按钮的状态跟着本页内存走，不写仓库。', [...(state.conflictDemo ? rows : [note('演示还没开始：点「开始演示」才会出现三个冲突文件。', 'muted')]), ...(state.conflictDemo ? [summary] : [])]),
     section('会动与不会动', null, null, [factGrid([
       { key: '会动', value: state.conflictDemo ? '三个冲突文件的解决标记与本页结果' : '当前什么都不会动' },
       { key: '不会动', value: '工作区文件、「已加入这次提交」的清单、已有提交' },
@@ -196,17 +196,17 @@ interface TaskStage {
 }
 
 const TASK_STAGES: TaskStage[] = [
-  { title: '准备目标目录', detail: '检查目录是否为空、磁盘空间够不够；克隆会先写一个临时目录，成功后再改名。', at: 0 },
-  { title: '接收对象', detail: '按对象数量与体积显示进度；网络中断时可以从已收到的部分继续，不需要从头再来。', at: 20 },
-  { title: '检出文件', detail: '把当前分支的文件写到目标目录；这一步受磁盘速度影响最大。', at: 85 },
-  { title: '完成校验', detail: '核对 HEAD 与远端一致、文件数量与权限正确；校验通过才把临时目录改名为正式目录。', at: 100 },
+  { title: '准备目标目录', detail: '检查目录是否为空、磁盘空间够不够。克隆会先写一个临时目录，成功后再改名。', at: 0 },
+  { title: '接收对象', detail: '按对象数量与体积显示进度。网络中断时可以从已收到的部分继续，不需要从头再来。', at: 20 },
+  { title: '检出文件', detail: '把当前分支的文件写到目标目录。这一步受磁盘速度影响最大。', at: 85 },
+  { title: '完成校验', detail: '核对 HEAD 与远端一致、文件数量与权限正确。校验通过才把临时目录改名为正式目录。', at: 100 },
 ]
 
 export function renderTask(ctx: PageContext): HTMLElement {
   const { state } = ctx
   const modes = [
     { key: 'clone', title: '克隆仓库', detail: '从一个远端地址拉一份完整历史到本机目录。', command: 'git clone <地址> <目录>' },
-    { key: 'archive', title: '导出归档', detail: '只导出某条提交的文件快照，不含历史；产出是一个压缩包。', command: 'git archive -o <文件> <提交>' },
+    { key: 'archive', title: '导出归档', detail: '只导出某条提交的文件快照，不含历史。产出是一个压缩包。', command: 'git archive -o <文件> <提交>' },
     { key: 'bundle', title: '生成离线包', detail: '把完整历史打进一个文件，没有网络时也能克隆回来。', command: 'git bundle create <文件> --all' },
   ]
   const chooser = modes.map((mode) => objectRow([
@@ -241,7 +241,7 @@ export function renderTask(ctx: PageContext): HTMLElement {
     : null
 
   const body = h('div', { class: 'page-stack' },
-    section('选一种长任务', '3 种', '三种任务共用同一个进度页：都会先把目标写清楚，再开始；取消后必须能说清留下了什么。', chooser),
+    section('选一种长任务', '3 种', '三种任务共用同一个进度页：都会先把目标写清楚，再开始。取消后必须能说清留下了什么。', chooser),
     section('进度', state.taskDemo ? progress + '%' : null, '进度来自 git 的输出（真实实现里是 --progress 的读数），不是假动画。', [meter, ...stageRows, ...(state.taskDemo ? [controls] : [controls]), ...(done === null ? [] : [done])]),
     section('取消之后', null, null, [note('取消长任务不留半个仓库：写进临时目录的内容要么清理掉，要么原样列出让人自己删。目标目录里已有的文件一律不动。', 'muted')]),
     capabilitiesSection('task', state))
@@ -312,7 +312,7 @@ export function renderSearch(ctx: PageContext): HTMLElement {
     chip('能力 ' + hits.filter((hit) => hit.kind === 'cap').length, 'muted', { small: true }))
 
   const body = h('div', { class: 'page-stack' },
-    section('搜索', null, '搜索范围是本页顶部的采集数据：50 条提交、' + capturedLocalBranchNames.length + ' 条本地分支、' + capturedTags.length + ' 个标签，加上 162 条能力的名称、命令与入口。文件内容搜索是一条只读能力（13.3），这里只展示它读到的形状。', [input, filterRow, counts, ...(lower === '' ? [note('输入关键字开始搜索；例如输入 CSS 会命中样式相关提交，输入 remote 会命中远端能力。', 'muted')] : visible.length === 0 ? [note('没有命中：换一个更短的关键字，或切换上面的类别。', 'muted')] : hitRows)]),
+    section('搜索', null, '搜索范围是本页顶部的采集数据：50 条提交、' + capturedLocalBranchNames.length + ' 条本地分支、' + capturedTags.length + ' 个标签，加上 162 条能力的名称、命令与入口。文件内容搜索是一条只读能力（13.3），这里只展示它读到的形状。', [input, filterRow, counts, ...(lower === '' ? [note('输入关键字开始搜索。例如输入 CSS 会命中样式相关提交，输入 remote 会命中远端能力。', 'muted')] : visible.length === 0 ? [note('没有命中：换一个更短的关键字，或切换上面的类别。', 'muted')] : hitRows)]),
     capabilitiesSection('search', state))
   return pageShell('search', PAGE_META.search.title, PAGE_META.search.lede, null, body)
 }

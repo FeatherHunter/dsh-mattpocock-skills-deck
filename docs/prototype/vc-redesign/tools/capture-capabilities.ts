@@ -34,7 +34,7 @@ interface DomainSpec {
 
 /** 14 个域的默认入口：落点照 #1590 Answer 段的「14 个域的能力各落在哪」。 */
 const DOMAINS: Record<string, DomainSpec> = {
-  '1': { name: '工作区与暂存', entry: '改动页文件行', opens: '行内展开、行菜单或内联确认卡', target: 'changes' },
+  '1': { name: '工作区与加入这次提交', entry: '改动页文件行', opens: '行内展开、行菜单或内联确认卡', target: 'changes' },
   '2': { name: '提交', entry: '改动页提交区与提交历史行菜单', opens: '提交区按钮、行菜单或内联确认卡', target: 'changes' },
   '3': { name: '历史查看', entry: '提交历史列表、提交详情与全库搜索', opens: '列表、详情、二级页或只读诊断', target: 'commits' },
   '4': { name: '引用与标签', entry: '顶部身份行分支按钮与管理页「分支与标签」', opens: '分支浮层、标签折叠区或内联确认卡', target: 'branch-tags' },
@@ -120,7 +120,9 @@ const UI_WORDING: Array<[string, string]> = [
 function uiWording(text: string): string {
   let out = text
   for (const [from, to] of UI_WORDING) out = out.split(from).join(to)
-  return out
+  // 界面上的说明句不用分号：分号要求读者自己断句，面板里改成一个句号一句话。
+  // 只作用于给人看的 name / entry / result，命令列（command）保留 git 原文，不改标点。
+  return out.split('；').join('。')
 }
 
 /** 面板表达里「结果落在哪」那一句：优先取「结果：」，其次「替代：」，都没有就用整句。 */

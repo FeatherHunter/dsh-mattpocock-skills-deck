@@ -14,7 +14,7 @@ import type { RailModel } from '../domain/select'
 import { COPY } from '../data/copy'
 import type { ResultMessage } from '../domain/session'
 import { icon, h } from './dom'
-import { button, chip, resultBanner } from './primitives'
+import { button, chip, resultBanner, syncDelta } from './primitives'
 
 export interface RailViewOptions {
   /** 打开二级页时为真：同步事实、动作与页签都让位给页面，页面紧接在身份行下方。 */
@@ -99,20 +99,12 @@ export function renderRail(model: RailModel, result: ResultMessage | null, optio
   // ② 同步事实行：计数控件 + 两个时间事实 + 重新读取。
   const syncRow = h('div', { class: 'rail-row rail-sync' })
   if (model.sync.kind === 'counts') {
-    for (const item of model.syncChips) {
-      const tone = item.value === 0 ? ' is-zero' : item.kind === 'ahead' ? ' is-ahead' : ' is-behind'
-      syncRow.append(
-        h(
-          'span',
-          {
-            class: `sync-count${tone}`,
-            attrs: { title: COPY.rail.syncHint(item.label, item.value), 'aria-label': COPY.rail.syncHint(item.label, item.value) },
-          },
-          h('span', { class: 'sync-label', text: item.label }),
-          h('span', { class: 'sync-value', text: String(item.value) }),
-        ),
-      )
-    }
+    syncRow.append(syncDelta(model.syncChips.map((item) => ({
+      kind: item.kind,
+      label: item.label,
+      value: item.value,
+      hint: COPY.rail.syncHint(item.label, item.value),
+    }))))
   } else {
     syncRow.append(chip(model.sync.text, model.sync.tone === 'warn' ? 'warn' : 'muted', { small: true }))
   }
@@ -123,7 +115,7 @@ export function renderRail(model: RailModel, result: ResultMessage | null, optio
     // 「远端依据」改成入口，标签带上远端名：读者一眼能看出这个时间是跟哪个远端比的。
     h('button', {
       class: 'fact fact-btn',
-      attrs: { type: 'button', 'data-focus-key': 'basis-open', title: COPY.rail.basisHint + '；点开查看远端清单与同步读数' },
+      attrs: { type: 'button', 'data-focus-key': 'basis-open', title: COPY.rail.basisHint + '。点开查看远端清单与同步读数' },
       dataset: { action: 'page-open', page: 'remote' },
     },
     h('span', { class: 'fact-k', text: model.remoteName === null ? '远端依据' : `远端 ${model.remoteName}` }),

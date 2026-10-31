@@ -147,8 +147,8 @@ export function capabilitiesSection(page: PageId, state: PageState, skips: strin
   const skipped = caps.filter((cap) => skips.includes(cap.id))
   const rows = caps.filter((cap) => skips.includes(cap.id) === false).map((cap) => capabilityRow(cap, state))
   const note = skipped.length === 0
-    ? '这条页面上每一件能做的事都在这份清单里；带「演示」的会走一遍确认流程，只改界面状态，不碰仓库。'
-    : '这条页面上每一件能做的事都在这份清单里；带「演示」的会走一遍确认流程，只改界面状态，不碰仓库。上方已按动作列出的 ' + skipped.length + ' 条（' + skipped.map((cap) => cap.id).join('、') + '）不在这里重复。'
+    ? '这条页面上每一件能做的事都在这份清单里。带「演示」的会走一遍确认流程，只改界面状态，不碰仓库。'
+    : '这条页面上每一件能做的事都在这份清单里。带「演示」的会走一遍确认流程，只改界面状态，不碰仓库。上方已按动作列出的 ' + skipped.length + ' 条（' + skipped.map((cap) => cap.id).join('、') + '）不在这里重复。'
   return section('本页负责的能力', caps.length + ' 条', note, rows, { id: 'cap-list' })
 }
 
@@ -220,12 +220,12 @@ function capConfirmCard(cap: Capability, secondStage = false): HTMLElement {
   const reversibility = dangerous
     ? '这次会重写已有提交与引用，写出来的新历史不能撤回。'
     : cap.level === '改写'
-      ? '会改写历史；面板里保留旧提交的引用日志，误操作还能照 reflog 找回来。'
-      : '会先写工作区或「已加入这次提交」的清单；结果可以再撤销。'
+      ? '会改写历史。面板里保留旧提交的引用日志，误操作还能照 reflog 找回来。'
+      : '会先写工作区或「已加入这次提交」的清单。结果可以再撤销。'
   const card = h('div', { class: 'cap-confirm' + (dangerous ? ' is-danger' : '') + (secondStage ? ' is-stage2' : ''), attrs: { role: 'group', 'aria-label': '确认这条能力会动什么' } })
   const rows: Array<[string, string]> = [
-    ['会动什么', cap.opens + '；完成后' + cap.result],
-    ['不会动什么', dangerous ? '不会替你向远端推送，也不会删除本机之外的仓库；但这些都不改变「本地历史已被改写」这件事。' : CAP_SAFE_NOTE],
+    ['会动什么', cap.opens + '。完成后' + cap.result],
+    ['不会动什么', dangerous ? '不会替你向远端推送，也不会删除本机之外的仓库。但这些都不改变「本地历史已被改写」这件事。' : CAP_SAFE_NOTE],
     ['可逆性与恢复路径', reversibility],
   ]
   for (const pair of rows) {
@@ -236,7 +236,7 @@ function capConfirmCard(cap: Capability, secondStage = false): HTMLElement {
   if (secondStage) {
     card.append(h('div', { class: 'confirm-row' },
       h('span', { class: 'confirm-key', text: '逐条核对' }),
-      h('span', { class: 'confirm-value', text: '这条动作会重写全库；请先回维护页核对对象数量与备份位置，再在危险区的二级确认页里完成。' })))
+      h('span', { class: 'confirm-value', text: '这条动作会重写全库。请先回维护页核对对象数量与备份位置，再在危险区的二级确认页里完成。' })))
   }
   const actions = h('div', { class: 'confirm-actions' })
   actions.append(
@@ -268,7 +268,7 @@ export function coverageNote(): HTMLElement {
   const count = (placement: string): number => CAPABILITIES.filter((cap) => cap.placement === placement).length
   return h('p', { class: 'coverage-note' },
     chip('覆盖口径', 'info', { small: true }),
-    h('span', { text: '162 条能力全部有落点：命令面板可按名称与位置搜索，每个页面底部按 #1588 的编号逐条列出；六条没有面板入口的（发补丁邮件与平台五条）在「平台与边界」里逐条只读说明。' }),
+    h('span', { text: '162 条能力全部有落点：命令面板可按名称与位置搜索，每个页面底部按 #1588 的编号逐条列出。六条没有面板入口的（发补丁邮件与平台五条）在「平台与边界」里逐条只读说明。' }),
     h('span', { class: 'coverage-count mono', text: '直 ' + count('直') + ' · 折 ' + count('折') + ' · 诊 ' + count('诊') + ' · 外 ' + count('外') }))
 }
 /**

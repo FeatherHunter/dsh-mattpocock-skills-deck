@@ -20,12 +20,15 @@ import { handoffEntry } from './handoff'
 export function renderChanges(model: ChangesModel, result: ResultMessage | null): HTMLElement {
   const view = h('div', { class: 'view view-changes' })
 
-  const filterRow = h('div', { class: 'filters', attrs: { role: 'group', 'aria-label': '按状态筛选' } })
+  // 三张计数卡：数字在上、标签在下，整张卡就是筛选器（与真实插件的统计卡同一套读法）。
+  // 三张卡等宽，切换筛选时列表不会因为数字位数变化左右跳；0 也用同一套颜色写出来，
+  // 「冲突 0」本身就是要给人看的结论，不该灰掉。
+  const filterRow = h('div', { class: 'stats', attrs: { role: 'group', 'aria-label': '按状态筛选' } })
   for (const stat of model.stats) {
     const active = model.filter === stat.id
     filterRow.append(
       h('button', {
-        class: `filter-chip tone-${stat.tone}${active ? ' is-on' : ''}${stat.count === 0 ? ' is-zero' : ''}`,
+        class: `stat tone-${stat.tone}${active ? ' is-on' : ''}`,
         attrs: {
           type: 'button',
           'aria-pressed': active ? 'true' : 'false',
@@ -34,8 +37,8 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
         },
         dataset: { action: 'filter', filter: stat.id },
       },
-      h('span', { class: 'filter-label', text: stat.label }),
-      h('span', { class: 'filter-count', text: String(stat.count) })),
+      h('span', { class: 'stat-n', text: String(stat.count) }),
+      h('span', { class: 'stat-t', text: stat.label })),
     )
   }
 
@@ -92,12 +95,6 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
   })
   textarea.value = model.composer.message
 
-  // 交接入口与静态提示挤在同一行：提示说「只提交已加入这次提交的内容」，入口说「不想自己拆就交给 AI」，
-  // 两件事都发生在动手之前，合在一行不额外占高度，列表就能多露几行文件。
-  const hint = h('div', { class: 'composer-hint', id: 'commit-hint' },
-    h('span', { class: 'hint-text', text: model.composer.hint }),
-    handoffEntry(HANDOFF_ENTRY.changes, 'changes'))
-
   const commitButton = button({
     label: COPY.changes.commitLabel(model.composer.stagedCount),
     kind: 'primary',
@@ -110,15 +107,18 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
     focusKey: 'commit',
   })
 
-  // 提交按钮固定贴在右下角：它上面是禁用原因（有才画），再上面是说明输入与静态提示。
-  // 原因单独成行，按钮就不会因为文案长短被挤来挤去，位置在 300 到 520 各档都一样。
-  const submitRow = h('div', { class: 'composer-submit' }, commitButton)
-  composer.append(stagedLine, textarea, hint)
-  if (model.composer.disabledReason !== null) {
-    composer.append(h('div', { class: 'composer-reason', id: 'commit-reason' },
-      icon('alert', 12), h('span', { text: model.composer.disabledReason })))
-  }
-  composer.append(submitRow)
+  // 提交区最后一行：左边是禁用原因或一句提示，右边是提交按钮，同一行、同一基线。
+  // 原因与按钮说的是同一件事（为什么现在点不了），各占一行只会把提交区撑高、把列表压矮。
+  // 交接入口留在中间：它和提示都在动手之前出现，位置在按钮左侧不会被忽略。
+  const footLeft = model.composer.disabledReason === null
+    ? h('span', { class: 'hint-text', text: model.composer.hint })
+    : h('span', { class: 'composer-reason', id: 'commit-reason' },
+      icon('alert', 12), h('span', { text: model.composer.disabledReason }))
+  const foot = h('div', { class: 'composer-foot', id: 'commit-hint' },
+    footLeft,
+    handoffEntry(HANDOFF_ENTRY.changes, 'changes'),
+    commitButton)
+  composer.append(stagedLine, textarea, foot)
   view.append(filterRow, list, composer)
   return view
 }

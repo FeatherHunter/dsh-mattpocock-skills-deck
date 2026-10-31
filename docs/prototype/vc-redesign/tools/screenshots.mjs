@@ -24,6 +24,7 @@ const INDEX = pathToFileURL(resolve(ROOT, 'index.html')).href
  *   query   深链参数（与 app.ts 的 applyDeepLink 对应，例如 manage=1、page=maintenance）；
  *   width   面板宽度，取值 300 / 380 / 460 / 520，默认 460；
  *   scrollTo 截图前先滚到某个位置：'bottom' 表示页面内容区滚到底，选择器表示把它滚进可视区；
+ *   clicks  截图前依次点开的选择器：菜单、确认卡这类状态只能用点击造出来，光靠查询串复现不了；
  *   embed   嵌入模式（只留产品面板，用于文档内引用）；
  *   viewport 浏览器窗口尺寸，按内容高度微调，保证面板本体截图不变形。
  */
@@ -58,6 +59,11 @@ const SHOTS = [
   { name: '63-changes-300', query: 'view=changes', width: 300 },
   // 第四个页签换了叫法（贮藏 → 收起的改动）：补一张当前布局下的记录列表，评审不用翻到旧布局那批图。
   { name: '64-stash-460', query: 'view=stash&stashdemo=1' },
+  // 八条界面意见改完后的状态：统计卡、拉取确认、两处更多菜单与浅色改动页。
+  { name: '65-changes-light-460', query: 'view=changes', theme: 'light' },
+  { name: '66-pull-confirm-460', query: 'confirm=1' },
+  { name: '67-row-menu-460', query: '', clicks: ['.row-act.row-more'] },
+  { name: '68-commit-menu-460', query: '', clicks: ['#tab-commits', '[data-action="commit-menu"]'] },
 ]
 
 async function main() {
@@ -83,6 +89,10 @@ async function main() {
     await page.goto(INDEX + '?' + params.toString())
     await page.waitForSelector('.panel')
     await page.waitForTimeout(120)
+    for (const selector of shot.clicks ?? []) {
+      await page.click(selector)
+      await page.waitForTimeout(150)
+    }
     if (typeof shot.scrollTo === 'string') {
       await page.evaluate((target) => {
         if (target === 'bottom') {

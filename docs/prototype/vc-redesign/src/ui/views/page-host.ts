@@ -33,13 +33,13 @@ function dangerCopyOf(cap: Capability, prunePackable: number): DangerCopy {
   switch (cap.id) {
     case '11.6':
       return {
-        moves: '删除本地不可达的对象（当前 ' + prunePackable + ' 个可回收对象）与垃圾文件；这些对象从本地消失，引用日志里的旧记录也不再能找回它们。',
-        keeps: '可达的提交、标签、远端引用与工作区文件一个都不会动；其他工作树引用的对象仍然可达，不会被删。',
-        recovery: '执行前把整个仓库目录（含 .git）复制一份就是最稳的恢复路径；执行后只能从远端重新抓取，或从备份恢复。',
+        moves: '删除本地不可达的对象（当前 ' + prunePackable + ' 个可回收对象）与垃圾文件。这些对象从本地消失，引用日志里的旧记录也不再能找回它们。',
+        keeps: '可达的提交、标签、远端引用与工作区文件一个都不会动。其他工作树引用的对象仍然可达，不会被删。',
+        recovery: '执行前把整个仓库目录（含 .git）复制一份就是最稳的恢复路径。执行后只能从远端重新抓取，或从备份恢复。',
       }
     default:
       return {
-        moves: cap.opens + '；' + cap.result,
+        moves: cap.opens + '。' + cap.result,
         keeps: '面板不执行这一步，真实动作由维护者在终端完成。',
         recovery: '先在副本上演练，再对正式仓库执行。',
       }
@@ -122,7 +122,7 @@ function renderDangerConfirm(ctx: PageContext, cap: Capability): HTMLElement {
       h('p', { class: 'danger-recovery', text: copy.keeps }),
     ]),
     section('可逆性与恢复路径', null, null, [note(copy.recovery, 'warn')]),
-    section('拿什么核对', '4 项', '这四项必须逐条过一遍；核对页不替你判断，只把要看的读数摊开。', [facts, ...checklist]),
+    section('拿什么核对', '4 项', '这四项必须逐条过一遍。核对页不替你判断，只把要看的读数摊开。', [facts, ...checklist]),
     section('最后一步', null, '这一步在原型里也只写演示结果，不会真的清理仓库。真实执行由维护者在终端完成，复核人 FeatherHunter。', [confirmBox]),
   )
   return pageShell('maintenance', meta.title + ' › 危险动作核对', '这是 ' + cap.id + ' ' + cap.name + ' 的二级核对页：先看后果，再看备份，最后照抄确认词。', null, body, { danger: true, focusKey: 'danger-top' })

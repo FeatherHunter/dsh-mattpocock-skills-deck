@@ -546,15 +546,20 @@ export function mount(root: HTMLElement): void {
    * 遮罩会把列表和工作树一起盖住，读的人还得先找哪块被压暗了才敢点。
    * 浮层的位置在重画之后按按钮的实际矩形算，宽度变化与换皮肤都不用另写一套定位。
    */
-  function renderPopconfirm(confirm: { title: string; body: string; files: string[]; continueLabel: string; cancelLabel: string }): HTMLElement {
+  function renderPopconfirm(confirm: { title: string; lead: string; points: ReadonlyArray<{ tone: 'ok' | 'warn'; label: string; text: string }>; files: string[]; continueLabel: string; cancelLabel: string }): HTMLElement {
     return h('div', {
       class: 'popconfirm',
       attrs: { role: 'dialog', 'aria-labelledby': 'confirm-title', 'aria-describedby': 'confirm-body' },
     },
     h('div', { class: 'popconfirm-card' },
       h('h3', { class: 'popconfirm-title', id: 'confirm-title', text: confirm.title }),
-      h('p', { class: 'popconfirm-body', id: 'confirm-body', text: confirm.body }),
-      h('p', { class: 'popconfirm-meta', text: COPY.rail.confirmFiles(confirm.files.length) }),
+      h('p', { class: 'popconfirm-body', id: 'confirm-body', text: confirm.lead }),
+      // 两种结果并排摆开：读者不用在一句带分号的长句里自己断句，也不用猜哪一半说的是自己。
+      h('div', { class: 'popconfirm-points' },
+        ...confirm.points.map((point) => h('div', { class: `popconfirm-point is-${point.tone}` },
+          h('span', { class: 'point-k', text: point.label }),
+          h('span', { class: 'point-v', text: point.text })))),
+      h('p', { class: 'popconfirm-meta is-danger', text: COPY.rail.confirmFiles(confirm.files.length) }),
       h('div', { class: 'popconfirm-actions' },
         h('button', {
           class: 'btn btn-md',
@@ -1190,10 +1195,12 @@ export function mount(root: HTMLElement): void {
       if (label !== null) label.textContent = busy ? COPY.busy.commit : COPY.changes.commitLabel(current.stagedCount)
     }
 
-    const submitRow = composer.querySelector<HTMLElement>('.composer-submit')
+    // 提交区最后一行里，左边那个位置在「一句提示」和「禁用原因」之间切换：
+    // 两者不会同时出现，换掉一个节点就够，不需要重画整块提交区。
     const reason = composer.querySelector<HTMLElement>('.composer-reason')
+    const hint = composer.querySelector<HTMLElement>('.hint-text')
     if (current.disabledReason === null) {
-      if (reason !== null) reason.remove()
+      if (reason !== null) reason.replaceWith(h('span', { class: 'hint-text', text: current.hint }))
       return
     }
     if (reason !== null) {
@@ -1201,8 +1208,8 @@ export function mount(root: HTMLElement): void {
       if (text !== null) text.textContent = current.disabledReason
       return
     }
-    if (submitRow !== null) {
-      submitRow.before(h('div', { class: 'composer-reason' }, icon('alert', 12), h('span', { text: current.disabledReason })))
+    if (hint !== null) {
+      hint.replaceWith(h('span', { class: 'composer-reason', id: 'commit-reason' }, icon('alert', 12), h('span', { text: current.disabledReason })))
     }
   }
 

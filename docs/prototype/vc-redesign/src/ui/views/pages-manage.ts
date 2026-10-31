@@ -50,7 +50,7 @@ export function renderManageIndex(_ctx: PageContext): HTMLElement {
     }, icon('chevron', 12), h('span', { text: '全库搜索：一次搜提交、分支与标签' })))
 
   const body = h('div', { class: 'page-stack' },
-    h('p', { class: 'page-note' }, h('span', { text: '索引不直接写仓库；九个分区的顺序按「越往下越不常用、越不可逆」排，维护与迁移在最后。' })),
+    h('p', { class: 'page-note' }, h('span', { text: '索引不直接写仓库。九个分区的顺序按「越往下越不常用、越不可逆」排，维护与迁移在最后。' })),
     cards, shortcuts, coverageNote())
   return pageShell('manage', PAGE_META.manage.title, PAGE_META.manage.lede, null, body)
 }
@@ -136,7 +136,7 @@ export function renderBranchTags(ctx: PageContext): HTMLElement {
   const rest = capturedLocalBranchNames.filter((name) => !shown.has(name))
   const restList: HTMLElement[] = rest.map((name) => objectRow([
     h('span', { class: 'obj-title mono', text: name }),
-    h('span', { class: 'obj-sub', text: '采集到这条本地分支；原型没有为它单独造上游与领先落后样本。' }),
+    h('span', { class: 'obj-sub', text: '采集到这条本地分支。原型没有为它单独造上游与领先落后样本。' }),
   ], null))
 
   const tagRows: HTMLElement[] = capturedTags.map((tag) => objectRow([
@@ -145,7 +145,7 @@ export function renderBranchTags(ctx: PageContext): HTMLElement {
       h('span', { class: 'obj-oid mono', text: tag.shortOid })),
     h('span', { class: 'obj-sub', text: whenText(data.nowMs, tag.createdAtMs) }),
   ], [
-    actionButton('检出', 'page-demo', { focusKey: 'tag-checkout-' + tag.name, dataset: { note: '已基于标签 ' + tag.name + ' 切出新分支（原型模拟）；不会移动已有分支。' } }),
+    actionButton('检出', 'page-demo', { focusKey: 'tag-checkout-' + tag.name, dataset: { note: '已基于标签 ' + tag.name + ' 切出新分支（原型模拟）。不会移动已有分支。' } }),
   ]))
 
   const tracking = factGrid([
@@ -156,14 +156,14 @@ export function renderBranchTags(ctx: PageContext): HTMLElement {
   ])
 
   const body = h('div', { class: 'page-stack' },
-    section('分支', capturedLocalBranches + ' 条本地分支', '列表先给与当前工作相关的六条（含上游与领先落后）；全部 62 条在下面的折叠区里逐条列名，数量与采集一致。', [
+    section('分支', capturedLocalBranches + ' 条本地分支', '列表先给与当前工作相关的六条（含上游与领先落后）。全部 62 条在下面的折叠区里逐条列名，数量与采集一致。', [
       filters, search, h('div', { class: 'obj-list' }, ...branchRows),
-      fold('branch-rest', '全部本地分支', rest.length + ' 条', state.expanded.includes('branch-rest'), restList, '这里只列名字；要看上游与领先落后，需要真实读取每条分支的跟踪配置，原型不假装有这个数据。'),
+      fold('branch-rest', '全部本地分支', rest.length + ' 条', state.expanded.includes('branch-rest'), restList, '这里只列名字。要看上游与领先落后，需要真实读取每条分支的跟踪配置，原型不假装有这个数据。'),
     ]),
-    section('标签', capturedTags.length + ' 个标签', '标签来自本地 refs；没有远端标签与签名信息，界面不假造。', [
+    section('标签', capturedTags.length + ' 个标签', '标签来自本地 refs。没有远端标签与签名信息，界面不假造。', [
       h('div', { class: 'obj-list' }, ...tagRows),
     ]),
-    section('上游跟踪', null, '设置上游与取消跟踪是整理动作，放在能力清单里演示；这一屏只把当前状态说清。', [tracking]),
+    section('上游跟踪', null, '设置上游与取消跟踪是整理动作，放在能力清单里演示。这一屏只把当前状态说清。', [tracking]),
     capabilitiesSection('branch-tags', state))
   return pageShell('branch-tags', PAGE_META['branch-tags'].title, PAGE_META['branch-tags'].lede, null, body, {
     actions: [actionButton('在分支浮层里管理', 'branch-open-from-page', { kind: 'secondary', title: '切分支、合并、变基仍走顶部分支浮层' })],
@@ -189,7 +189,7 @@ export function renderRemote(ctx: PageContext): HTMLElement {
     h('span', { class: 'obj-meta mono', text: remote.fetchUrl }),
     ...(remote.pushUrl !== remote.fetchUrl ? [h('span', { class: 'obj-sub mono', text: '推送地址：' + remote.pushUrl })] : []),
   ], [
-    actionButton('改地址', 'page-demo', { focusKey: 'remote-edit-' + remote.name, dataset: { note: '已打开 ' + remote.name + ' 的地址编辑表单（原型模拟）；改地址不会立刻重写提交。' } }),
+    actionButton('改地址', 'page-demo', { focusKey: 'remote-edit-' + remote.name, dataset: { note: '已打开 ' + remote.name + ' 的地址编辑表单（原型模拟）。改地址不会立刻重写提交。' } }),
     actionButton('删除', 'page-demo', { kind: 'danger', focusKey: 'remote-remove-' + remote.name, dataset: { note: '删除远端只会删配置，不会删远端仓库里的任何东西（原型模拟）。' } }),
   ]))
 
@@ -197,8 +197,8 @@ export function renderRemote(ctx: PageContext): HTMLElement {
     actionButton(model.rail.pull.label, 'pull', { focusKey: 'remote-pull', title: model.rail.pull.reason ?? undefined }),
     actionButton(model.rail.fetch.label, 'fetch', { focusKey: 'remote-fetch', title: model.rail.fetch.reason ?? undefined }),
     actionButton(model.rail.push.label, 'push', { focusKey: 'remote-push', title: model.rail.push.reason ?? undefined }),
-    actionButton('抓取所有远端', 'page-demo', { focusKey: 'remote-fetch-all', dataset: { note: '已抓取全部远端（原型模拟）；只更新远端跟踪引用，不动工作区。' } }),
-    actionButton('修剪已删除的远端分支', 'page-demo', { focusKey: 'remote-prune', dataset: { note: '已修剪远端已删除的跟踪分支（原型模拟）；本地分支不受影响。' } }))
+    actionButton('抓取所有远端', 'page-demo', { focusKey: 'remote-fetch-all', dataset: { note: '已抓取全部远端（原型模拟）。只更新远端跟踪引用，不动工作区。' } }),
+    actionButton('修剪已删除的远端分支', 'page-demo', { focusKey: 'remote-prune', dataset: { note: '已修剪远端已删除的跟踪分支（原型模拟）。本地分支不受影响。' } }))
 
   const syncFacts = factGrid([
     { key: '当前分支', value: model.rail.branch ?? capturedBranch, mono: true },
@@ -217,8 +217,8 @@ export function renderRemote(ctx: PageContext): HTMLElement {
   const body = h('div', { class: 'page-stack' },
     section('远端清单', capturedRemotes.length + ' 个', '名字、抓取地址、推送地址分开写：三者的用途不一样，合成一句会让「推到哪里」看不出来。', [...remoteRows, addForm]),
     section('同步', null, '三颗同步按钮沿用顶部同步带的判定：禁用的原因写在按钮 title 里，拉取与推送的结果出现在顶部同步带，不会跑到页面底部。', [syncFacts, syncButtons]),
-    section('远端依据', null, '「远端依据」不再是只读的时间事实，它本身是打开这一页的入口之一；这一页解释了数字来自哪一次读取。', [
-      h('p', { class: 'page-note' }, h('span', { text: '顶部同步带写「远端依据 origin · 12 分钟前」，点它就是打开本页。数字与时间来自同一次读取；读取失败时写「读不到」，不写 0。' })),
+    section('远端依据', null, '「远端依据」不再是只读的时间事实，它本身是打开这一页的入口之一。这一页解释了数字来自哪一次读取。', [
+      h('p', { class: 'page-note' }, h('span', { text: '顶部同步带写「远端依据 origin · 12 分钟前」，点它就是打开本页。数字与时间来自同一次读取。读取失败时写「读不到」，不写 0。' })),
     ]),
     capabilitiesSection('remote', state))
   return pageShell('remote', PAGE_META.remote.title, PAGE_META.remote.lede, null, body)
@@ -233,7 +233,7 @@ export function renderSubmodules(ctx: PageContext): HTMLElement {
   const names = submoduleNames()
   const rows: HTMLElement[] = names.map((name) => objectRow([
     h('span', { class: 'obj-title mono', text: name }),
-    h('span', { class: 'obj-sub', text: '子模块路径与当前指向的提交需要真实读取 .gitmodules 与「已加入这次提交」的清单；原型没有造。' }),
+    h('span', { class: 'obj-sub', text: '子模块路径与当前指向的提交需要真实读取 .gitmodules 与「已加入这次提交」的清单。原型没有造。' }),
   ], [actionButton('更新', 'page-demo', { focusKey: 'sub-update-' + name, dataset: { note: '已更新子模块 ' + name + ' 到登记提交（原型模拟）。' } })]))
 
   const installForm = h('div', { class: 'inline-form' },
@@ -243,12 +243,12 @@ export function renderSubmodules(ctx: PageContext): HTMLElement {
     actionButton('添加子模块', 'page-form-submit', { kind: 'primary', focusKey: 'sub-add', dataset: { kind: 'sub-add' } }))
 
   const empty = h('div', { class: 'empty-block' },
-    emptyState('这个仓库没有子模块', '.gitmodules 不存在；空态也要能评审，所以这里照实画，不拿演示行填满。'),
+    emptyState('这个仓库没有子模块', '.gitmodules 不存在。空态也要能评审，所以这里照实画，不拿演示行填满。'),
     installForm)
 
   const body = h('div', { class: 'page-stack' },
-    section('子模块清单', names.length + ' 个', '每一行只回答三件事：路径、指向哪条提交、现在是不是登记的样子；批量动作收在能力清单里。', names.length === 0 ? [empty] : [...rows, installForm]),
-    section('批量动作', null, '批量更新与批量执行会一次改动多个仓库；超过三个对象时用二级确认页逐条核对，不在行内弹确认卡。', [
+    section('子模块清单', names.length + ' 个', '每一行只回答三件事：路径、指向哪条提交、现在是不是登记的样子。批量动作收在能力清单里。', names.length === 0 ? [empty] : [...rows, installForm]),
+    section('批量动作', null, '批量更新与批量执行会一次改动多个仓库。超过三个对象时用二级确认页逐条核对，不在行内弹确认卡。', [
       h('p', { class: 'page-note' }, h('span', { text: '真实实现里每个子模块是独立仓库：面板能发起批量命令并展示逐个子模块的结果，但不会替你解决子模块内部的分支冲突。' })),
     ]),
     capabilitiesSection('submodules', state))

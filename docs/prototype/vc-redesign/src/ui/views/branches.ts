@@ -15,7 +15,7 @@ import type { ResultMessage } from '../../domain/session'
 import { COPY } from '../../data/copy'
 import { HANDOFF_ENTRY } from '../../domain/handoff'
 import { h, icon } from '../dom'
-import { button, chip, emptyState, resultBanner } from '../primitives'
+import { button, chip, emptyState, resultBanner, syncDelta } from '../primitives'
 import { handoffEntry } from './handoff'
 
 export function renderBranches(model: BranchesModel, result: ResultMessage | null): HTMLElement {
@@ -111,9 +111,11 @@ function renderList(model: BranchesModel): HTMLElement {
 }
 
 function renderRow(model: BranchesModel, row: BranchRowModel): HTMLElement {
+  // 列表行只放一个紧凑的箭头读数（↑2 / ↓3）：300 宽的行里，分支名之后放不下「领先 2」四个字再加箭头。
+  // 完整说法进 title 与 aria-label，详情页再用与顶部同步带同一套控件展开。
   const sync = h('span', { class: 'branch-sync' })
-  if (row.ahead > 0) sync.append(h('span', { class: 'branch-count-chip is-ahead', attrs: { title: COPY.branches.ahead(row.ahead) } }, COPY.branches.ahead(row.ahead)))
-  if (row.behind > 0) sync.append(h('span', { class: 'branch-count-chip is-behind', attrs: { title: COPY.branches.behind(row.behind) } }, COPY.branches.behind(row.behind)))
+  if (row.ahead > 0) sync.append(h('span', { class: 'branch-delta is-ahead', attrs: { title: COPY.branches.ahead(row.ahead), 'aria-label': COPY.branches.ahead(row.ahead) } }, '↑' + row.ahead))
+  if (row.behind > 0) sync.append(h('span', { class: 'branch-delta is-behind', attrs: { title: COPY.branches.behind(row.behind), 'aria-label': COPY.branches.behind(row.behind) } }, '↓' + row.behind))
 
   return h('button', {
     class: `branch-row${row.current ? ' is-current' : ''}${model.selected?.row.name === row.name && model.sub === 'detail' ? ' is-open' : ''}`,
@@ -141,11 +143,12 @@ function renderDetail(detail: BranchDetailModel, model: BranchesModel): HTMLElem
   const wrap = h('div', { class: 'branch-detail' })
 
   // 领先与落后放在事实表最上面：它们回答「这条分支与上游差多少」，比逐项读事实表更早被需要。
+  // 用与顶部同步带同一套读数控件：两处说的是同一件事，样子不该有两种。
   if (row.ahead > 0 || row.behind > 0) {
-    const sync = h('div', { class: 'branch-detail-sync' })
-    if (row.ahead > 0) sync.append(chip(COPY.branches.ahead(row.ahead), 'info', { small: true }))
-    if (row.behind > 0) sync.append(chip(COPY.branches.behind(row.behind), 'error', { small: true }))
-    wrap.append(sync)
+    wrap.append(h('div', { class: 'branch-detail-sync' }, syncDelta([
+      { kind: 'ahead', label: '领先', value: row.ahead, hint: COPY.branches.ahead(row.ahead) },
+      { kind: 'behind', label: '落后', value: row.behind, hint: COPY.branches.behind(row.behind) },
+    ])))
   }
   wrap.append(renderFacts(row))
 

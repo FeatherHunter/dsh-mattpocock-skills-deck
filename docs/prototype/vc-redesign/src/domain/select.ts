@@ -295,7 +295,14 @@ export interface PanelModel {
   branches: BranchesModel
   stash: StashModel
   result: SessionState['result']
-  confirm: { title: string; body: string; files: string[]; continueLabel: string; cancelLabel: string } | null
+  confirm: {
+    title: string
+    lead: string
+    points: ReadonlyArray<{ tone: 'ok' | 'warn'; label: string; text: string }>
+    files: string[]
+    continueLabel: string
+    cancelLabel: string
+  } | null
   busy: OpName | null
   nowMs: number
 }
@@ -860,7 +867,7 @@ export function worktreesOf(base: SessionBase, state: SessionState): WorktreesMo
     othersCount: others.length,
     abnormalCount: abnormal,
     empty: others.length === 0,
-    notice: `${COPY.worktrees.scope}${COPY.worktrees.boundary}`,
+    notice: COPY.worktrees.scope,
     aiLabel: COPY.worktrees.ai,
     aiEnabled: abnormal > 0,
     pending: state.worktreePending,
@@ -953,7 +960,8 @@ export function panelModelOf(base: SessionBase, state: SessionState, nowMs: numb
   const tabs = tabsOf(base, state)
   const confirm = state.confirmPull === null ? null : {
     title: COPY.rail.confirmTitle,
-    body: COPY.rail.confirmBody,
+    lead: COPY.rail.confirmLead,
+    points: COPY.rail.confirmPoints,
     files: state.confirmPull.files,
     continueLabel: COPY.rail.confirmContinue,
     cancelLabel: COPY.rail.confirmCancel,

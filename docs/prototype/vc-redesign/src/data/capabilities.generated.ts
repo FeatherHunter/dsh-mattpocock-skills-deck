@@ -705,7 +705,7 @@ export const CAPABILITIES: Capability[] = [
     "placement": "直",
     "entry": "提交行菜单与「变基待办」页",
     "opens": "行菜单、整页待办清单或内联确认卡",
-    "result": "历史列表新行；冲突则切到冲突向导",
+    "result": "历史列表新行。冲突则切到冲突向导",
     "target": "rebase",
     "readOnly": false
   },
@@ -796,7 +796,7 @@ export const CAPABILITIES: Capability[] = [
     "placement": "外",
     "entry": "提交行菜单与「变基待办」页",
     "opens": "只读说明与边界",
-    "result": "替换只影响本地读取，推送不带走；面板只读显示现有替换",
+    "result": "替换只影响本地读取，推送不带走。面板只读显示现有替换",
     "target": "maintenance",
     "readOnly": true
   },

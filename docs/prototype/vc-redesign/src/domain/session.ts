@@ -311,7 +311,7 @@ function finishBusy(state: SessionState, op: OpName, nowMs: number): SessionStat
       return withResult(next, {
         tone: fastForward ? 'ok' : 'info',
         text: fastForward ? '已快进至远端最新。' : '已是最新状态。',
-        detail: fastForward ? '本地提交没有被改写；远端新提交已经接到当前分支后面。' : '远端没有新的提交需要整合。',
+        detail: fastForward ? '本地提交没有被改写。远端新提交已经接到当前分支后面。' : '远端没有新的提交需要整合。',
         source: 'sync',
       })
     }
@@ -337,7 +337,7 @@ function finishBusy(state: SessionState, op: OpName, nowMs: number): SessionStat
       return withResult({ ...state, busy: null, basisMs: nowMs, readAtMs: nowMs }, {
         tone: 'ok',
         text: '更新完成：远端依据已刷新。',
-        detail: unique(['远端跟踪引用已更新；工作树与「已加入这次提交」的清单没有变化。']).join(''),
+        detail: unique(['远端跟踪引用已更新。工作树与「已加入这次提交」的清单没有变化。']).join(''),
         source: 'sync',
       })
     }
@@ -429,7 +429,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         result: {
           tone: 'ok',
           text: `提交完成：${files.length} 个文件已进入历史。`,
-          detail: '这次提交只包含已加入这次提交的文件；这份清单已经清空，可以接着加入下一批。',
+          detail: '这次提交只包含已加入这次提交的文件。这份清单已经清空，可以接着加入下一批。',
           source: 'commit',
         },
       }
@@ -448,7 +448,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         reloading: false,
         readAtMs: action.readAtMs,
         basisMs: action.basisMs,
-        result: { tone: 'info', text: '已重新读取。', detail: '首屏读数与远端依据都已刷新；远端引用有没有变化看「更新」。', source: 'reload' },
+        result: { tone: 'info', text: '已重新读取。', detail: '首屏读数与远端依据都已刷新。远端引用有没有变化看「更新」。', source: 'reload' },
       }
     case 'pull-confirm-open':
       return { ...state, confirmPull: { dirtyCount: action.dirtyCount, files: action.files } }
@@ -470,7 +470,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
       return withResult({ ...state, copiedPath: action.path }, {
         tone: 'ok',
         text: `已复制：${action.path}`,
-        detail: '复制走的是浏览器的剪贴板；面板不会因此发起任何 git 操作。',
+        detail: '复制走的是浏览器的剪贴板。面板不会因此发起任何 git 操作。',
         source: 'copy',
       })
     case 'ai-worktrees':
@@ -507,7 +507,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         ...state,
         worktreePending: null,
         hiddenWorktrees: hidden,
-      }, { tone: 'ok', text: `已移除工作树：${pending.name}。`, detail: '分支与提交都还在仓库里；这一步只删掉了检出记录与工作目录。', source: 'worktree' })
+      }, { tone: 'ok', text: `已移除工作树：${pending.name}。`, detail: '分支与提交都还在仓库里。这一步只删掉了检出记录与工作目录。', source: 'worktree' })
     }
     case 'changes-pending':
       return { ...state, changesPending: action.pending, openMenuPath: null }
@@ -529,7 +529,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
           }, {
             tone: 'warn',
             text: `已丢弃 ${name} 的未加入改动。`,
-            detail: lines === '' ? '文件回到上一次提交时的内容；面板不能撤回这一步。' : `文件回到上一次提交时的内容，${lines} 一起丢掉了；面板不能撤回这一步。`,
+            detail: lines === '' ? '文件回到上一次提交时的内容。面板不能撤回这一步。' : `文件回到上一次提交时的内容，${lines} 一起丢掉了。面板不能撤回这一步。`,
             source: 'changes',
           })
         }
@@ -539,7 +539,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
           return withResult({ ...cleared, unstaged: [] }, {
             tone: 'warn',
             text: `已丢弃 ${count} 个文件的未加入改动。`,
-            detail: '这些文件都回到上一次提交时的内容；面板不能撤回这一步。',
+            detail: '这些文件都回到上一次提交时的内容。面板不能撤回这一步。',
             source: 'changes',
           })
         }
@@ -552,7 +552,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
           }, {
             tone: 'info',
             text: `已把 ${name} 加入 .gitignore。`,
-            detail: '文件仍然留在磁盘上，git 从下一次读取起不再跟踪它；已经提交进历史的内容不受影响。原型不会真的改 .gitignore。',
+            detail: '文件仍然留在磁盘上，git 从下一次读取起不再跟踪它。已经提交进历史的内容不受影响。原型不会真的改 .gitignore。',
             source: 'changes',
           })
         }
@@ -634,7 +634,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         branchSub: 'detail',
         branchSelected: name,
         branchDraft: '',
-      }, { tone: 'ok', text: `已创建分支 ${name}，还没有切换过去。`, detail: '新分支指向当前分支的最新提交；切换过去之后才会在它上面提交。', source: 'branch' })
+      }, { tone: 'ok', text: `已创建分支 ${name}，还没有切换过去。`, detail: '新分支指向当前分支的最新提交。切换过去之后才会在它上面提交。', source: 'branch' })
     }
     case 'branch-rename': {
       if (state.busy !== null || state.reloading) return state
@@ -653,7 +653,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         branchSub: 'detail',
         branchSelected: name,
         branchDraft: '',
-      }, { tone: 'ok', text: `分支 ${from} 已改名为 ${name}。`, detail: '只改本地名字；上游跟踪引用与远端分支名都不受影响。', source: 'branch' })
+      }, { tone: 'ok', text: `分支 ${from} 已改名为 ${name}。`, detail: '只改本地名字。上游跟踪引用与远端分支名都不受影响。', source: 'branch' })
     }
     case 'branch-switch': {
       if (state.busy !== null || state.reloading) return state
@@ -667,7 +667,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         branchSelected: action.name,
         ahead: target.ahead,
         behind: target.behind,
-      }, { tone: 'ok', text: `已切换到分支 ${action.name}。`, detail: '左侧工作区的未提交改动已经带过来了；读写与提交都发生在新分支上。', source: 'branch' })
+      }, { tone: 'ok', text: `已切换到分支 ${action.name}。`, detail: '左侧工作区的未提交改动已经带过来了。读写与提交都发生在新分支上。', source: 'branch' })
     }
     case 'branch-merge': {
       if (state.busy !== null || state.reloading) return state
@@ -686,7 +686,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
       }, {
         tone: 'ok',
         text: `已把 ${target.name} 合并进 ${current.name}，接入 ${commits} 个提交。`,
-        detail: '这次合并没有冲突；合并后的结果还在本地，推送之后远端才看得到。',
+        detail: '这次合并没有冲突。合并后的结果还在本地，推送之后远端才看得到。',
         source: 'branch',
       })
     }
@@ -703,7 +703,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         branchSub: 'list',
         branchSelected: null,
         branchPending: null,
-      }, { tone: 'ok', text: `已删除分支 ${action.name}。`, detail: '只删了本地记录；如果远端还有这条分支，它不受影响。', source: 'branch' })
+      }, { tone: 'ok', text: `已删除分支 ${action.name}。`, detail: '只删了本地记录。如果远端还有这条分支，它不受影响。', source: 'branch' })
     }
     case 'branch-rebase': {
       if (state.busy !== null || state.reloading) return state
@@ -720,14 +720,14 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
       }, {
         tone: 'warn',
         text: `已把 ${current.name} 变基到 ${target.name} 上。`,
-        detail: '本地历史被重写成「先放对方分支，再接上自己的提交」；提交号变了，如果这条分支已经推送过，远端需要强推才能对齐。原型只演示结果与状态变化，不改写真实历史。',
+        detail: '本地历史被重写成「先放对方分支，再接上自己的提交」。提交号变了，如果这条分支已经推送过，远端需要强推才能对齐。原型只演示结果与状态变化，不改写真实历史。',
         source: 'branch',
       })
     }
     case 'stash-create': {
       if (state.busy !== null || state.reloading) return state
       if (state.conflicts.length > 0) {
-        return withResult(state, { tone: 'error', text: '有冲突文件时不能收起改动。', detail: '收起改动会把工作树恢复成上次提交时的样子，冲突文件没有可以安全恢复的版本；先解决冲突，再收起剩下的改动。', source: 'changes' })
+        return withResult(state, { tone: 'error', text: '有冲突文件时不能收起改动。', detail: '收起改动会把工作树恢复成上次提交时的样子，冲突文件没有可以安全恢复的版本。先解决冲突，再收起剩下的改动。', source: 'changes' })
       }
       const paths = unique([...state.staged, ...state.unstaged])
       if (paths.length === 0) {
@@ -750,7 +750,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
       }, {
         tone: 'ok',
         text: `已收起 ${paths.length} 个文件的改动。`,
-        detail: `收起记录 ${entry.id} 里放着这些文件；工作区与「已加入这次提交」的清单都恢复成上次提交时的样子，放回工作区或放回并删掉记录都能把它拿回来。`,
+        detail: `收起记录 ${entry.id} 里放着这些文件。工作区与「已加入这次提交」的清单都恢复成上次提交时的样子，放回工作区或放回并删掉记录都能把它拿回来。`,
         source: 'changes',
       })
     }
@@ -789,7 +789,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
       }, {
         tone: 'warn',
         text: `已丢弃记录 ${entry.id}。`,
-        detail: `记录里那 ${entry.paths.length} 个文件当时的样子已经不存在；这一步不能撤回。`,
+        detail: `记录里那 ${entry.paths.length} 个文件当时的样子已经不存在。这一步不能撤回。`,
         source: 'stash',
       })
     }
@@ -802,7 +802,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         return withResult(state, {
           tone: 'error',
           text: '只能撤销最新一条提交。',
-          detail: '撤销会把提交里的改动放回「已加入这次提交」、并让分支退一步；选择更早的提交就得改写它后面的历史，原型不做这一步。',
+          detail: '撤销会把提交里的改动放回「已加入这次提交」、并让分支退一步。选择更早的提交就得改写它后面的历史，原型不做这一步。',
           source: 'history',
         })
       }
@@ -823,8 +823,8 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         tone: 'warn',
         text: `已撤销提交 ${subject === '' ? action.oid.slice(0, 7) : subject}。`,
         detail: pushed
-          ? `提交里的 ${files.length} 个文件回到「已加入这次提交」，提交说明留在输入框里；这条提交已经推送过，所以本地现在比远端各少一步，需要重新提交后再推送。`
-          : `提交里的 ${files.length} 个文件回到「已加入这次提交」，提交说明留在输入框里；可以改完再重新提交。`,
+          ? `提交里的 ${files.length} 个文件回到「已加入这次提交」，提交说明留在输入框里。这条提交已经推送过，所以本地现在比远端各少一步，需要重新提交后再推送。`
+          : `提交里的 ${files.length} 个文件回到「已加入这次提交」，提交说明留在输入框里。可以改完再重新提交。`,
         source: 'history',
       })
     }
@@ -836,7 +836,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
       return withResult({ ...state, ahead: state.ahead + 1 }, {
         tone: 'ok',
         text: `已生成一次反向提交，抵消「${entry.subject}」。`,
-        detail: '回退不是删除历史：原提交还在，后面多了一笔把它的改动撤回去的新提交。这笔新提交还没有推送；如果和别的分支冲突，需要先解决冲突。原型不真的写历史。',
+        detail: '回退不是删除历史：原提交还在，后面多了一笔把它的改动撤回去的新提交。这笔新提交还没有推送。如果和别的分支冲突，需要先解决冲突。原型不真的写历史。',
         source: 'history',
       })
     }
@@ -846,12 +846,12 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         ?? base.screen.commits.find((row) => row.oid === action.oid)
       if (entry === undefined) return state
       if (entry.parents.length > 1) {
-        return withResult(state, { tone: 'error', text: '合并提交不能直接拣选。', detail: '合并提交有两个父提交，拣选时 git 不知道要带哪一边；先拣选它引入的那些普通提交。', source: 'history' })
+        return withResult(state, { tone: 'error', text: '合并提交不能直接拣选。', detail: '合并提交有两个父提交，拣选时 git 不知道要带哪一边。先拣选它引入的那些普通提交。', source: 'history' })
       }
       return withResult({ ...state, ahead: state.ahead + 1 }, {
         tone: 'ok',
         text: `已把提交 ${entry.short} 拣选到当前分支。`,
-        detail: '原来的提交留在它自己的分支上；当前分支多了一笔内容相同、提交号不同的新提交，还没有推送。原型不真的写历史。',
+        detail: '原来的提交留在它自己的分支上。当前分支多了一笔内容相同、提交号不同的新提交，还没有推送。原型不真的写历史。',
         source: 'history',
       })
     }

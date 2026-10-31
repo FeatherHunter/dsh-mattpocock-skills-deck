@@ -108,7 +108,7 @@ export function renderMaintenance(ctx: PageContext): HTMLElement {
     return capabilityBlock(cap, [
       capabilitySummary(cap),
       h('span', { class: 'obj-meta mono', text: cap.command }),
-      h('span', { class: 'obj-sub', text: cap.opens + '；' + cap.result }),
+      h('span', { class: 'obj-sub', text: cap.opens + '。' + cap.result }),
     ], state)
   })
 
@@ -117,17 +117,17 @@ export function renderMaintenance(ctx: PageContext): HTMLElement {
     const cap = capOf(id)
     const body = h('div', { class: 'danger-card-body' },
       capabilitySummary(cap),
-      h('p', { class: 'danger-consequence', text: cap.opens + '；' + cap.result }),
+      h('p', { class: 'danger-consequence', text: cap.opens + '。' + cap.result }),
       h('p', { class: 'danger-recovery', text: id === '11.6'
         ? '清理之后不可达对象从本地消失，只有重新从远端抓取或从备份恢复才能找回。执行前先确认没有其他工作树还引用它们。'
-        : '这一步会重写全库历史或引用格式，写出来的结果不能撤回；面板只展示后果与备份位置，真实执行交给专门的工具，并先在副本上演练。' }),
+        : '这一步会重写全库历史或引用格式，写出来的结果不能撤回。面板只展示后果与备份位置，真实执行交给专门的工具，并先在副本上演练。' }),
       h('p', { class: 'danger-meta', text: id === '11.6' ? '对象数量：' + capturedCounts.prunePackable + ' 个可回收对象 · ' + capturedCounts.garbage + ' 个垃圾文件' : '仓库：' + capturedRepoRoot + ' · 分支：' + capturedBranch }))
     dangerRows.push(capabilityBlock(cap, [body], state, { danger: true }))
   }
 
   const body = h('div', { class: 'page-stack' },
-    section('仓库体量', null, '这里每一项都是 git 自己的读数（git count-objects -v）；数字随真实仓库变化，不是示例值。', [facts]),
-    section('整理动作', lines.length + ' 条', '可撤销的整理动作集中在这里：它们只改对象存储与引用打包方式，不改提交内容；带「只读」的几条只展示读到的形状。', actionRows),
+    section('仓库体量', null, '这里每一项都是 git 自己的读数（git count-objects -v）。数字随真实仓库变化，不是示例值。', [facts]),
+    section('整理动作', lines.length + ' 条', '可撤销的整理动作集中在这里：它们只改对象存储与引用打包方式，不改提交内容。带「只读」的几条只展示读到的形状。', actionRows),
     section('危险区', '4 条', '整仓不可逆的动作不放在行内确认卡里：要先进二级核对页，看过后果、备份位置与恢复路径，才能走到最后一步。', dangerRows, { danger: true, id: 'danger-zone' }),
     capabilitiesSection('maintenance', state, [...lines, '5.11', '11.6', '5.13', '11.14']))
   return pageShell('maintenance', PAGE_META.maintenance.title, PAGE_META.maintenance.lede, null, body, { danger: true })
@@ -146,28 +146,28 @@ export function renderMigrate(ctx: PageContext): HTMLElement {
     rows.push(capabilityBlock(cap, [
       capabilitySummary(cap),
       h('span', { class: 'obj-meta mono', text: cap.command }),
-      h('span', { class: 'obj-sub', text: cap.opens + '；' + cap.result }),
+      h('span', { class: 'obj-sub', text: cap.opens + '。' + cap.result }),
     ], state))
   }
 
   const cloneEntry = capWrap(capOf('8.16'), objectRow([
     h('span', { class: 'obj-title', text: '克隆一个仓库到本机' }),
-    h('span', { class: 'obj-sub', text: '克隆是长任务：先选目录，再看到对象接收与检出进度；中途取消要写清留下了哪些文件。' }),
+    h('span', { class: 'obj-sub', text: '克隆是长任务：先选目录，再看到对象接收与检出进度。中途取消要写清留下了哪些文件。' }),
   ], [actionButton('打开克隆向导', 'page-open', { kind: 'primary', focusKey: 'migrate-clone', dataset: { page: 'task' } })]), state)
 
   const archiveEntry = objectRow([
     h('span', { class: 'obj-title', text: '生成一份归档或离线包' }),
-    h('span', { class: 'obj-sub', text: '归档只含某条提交的文件快照；离线包带完整历史，可在没有网络时克隆回来。' }),
+    h('span', { class: 'obj-sub', text: '归档只含某条提交的文件快照。离线包带完整历史，可在没有网络时克隆回来。' }),
   ], [actionButton('打开导出向导', 'page-open', { focusKey: 'migrate-archive', dataset: { page: 'task' } })])
 
   const backup = h('div', { class: 'note-block' },
-    note('备份建议：把整个仓库目录（含 .git 与工作区）复制到另一块磁盘就够恢复全部历史；不要在仓库里用硬链接做备份。', 'warn'),
-    note('恢复路径：离线包用 git clone <包文件>；归档用解压；历史导出/导入属于整仓不可逆动作，先进维护页危险区核对。', 'muted'))
+    note('备份建议：把整个仓库目录（含 .git 与工作区）复制到另一块磁盘就够恢复全部历史。不要在仓库里用硬链接做备份。', 'warn'),
+    note('恢复路径：离线包用 git clone <包文件>。归档用解压。历史导出/导入属于整仓不可逆动作，先进维护页危险区核对。', 'muted'))
 
   const body = h('div', { class: 'page-stack' },
-    section('克隆与初始化', '2 条能力', '两个动作都会新建目录，不会改动当前仓库；首次打开时先问清目标路径与是否要完整历史。', [cloneEntry, rows[0]]),
+    section('克隆与初始化', '2 条能力', '两个动作都会新建目录，不会改动当前仓库。首次打开时先问清目标路径与是否要完整历史。', [cloneEntry, rows[0]]),
     section('归档与离线包', '2 条能力', '产出是一份文件：界面要写清放哪、多大、是否含工作区。生成时间长的走任务进度页。', [archiveEntry]),
-    section('历史与邮件', '2 条能力', '导出/导入历史与生成补丁邮件都产出一份文件；前者整仓不可逆，后者只导出提交。', [rows[1]]),
+    section('历史与邮件', '2 条能力', '导出/导入历史与生成补丁邮件都产出一份文件。前者整仓不可逆，后者只导出提交。', [rows[1]]),
     section('备份与恢复', null, '备份不是 git 命令，但它是所有不可逆动作的最后一道保险，所以写在这一页。', [backup]),
     capabilitiesSection('migrate', state, ['8.16', '11.1', '14.1']))
   return pageShell('migrate', PAGE_META.migrate.title, PAGE_META.migrate.lede, null, body, { danger: true })
@@ -178,9 +178,9 @@ export function renderMigrate(ctx: PageContext): HTMLElement {
 // ---------------------------------------------------------------------------
 
 const CONFIG_GROUP: Record<string, { title: string; note: string }> = {
-  identity: { title: '身份', note: '提交里显示的姓名与邮箱；只影响新提交，不改已有历史。' },
-  lineEndings: { title: '行尾与大小写', note: '换行符与文件名大小写的口径；仓库跨 Windows 与 macOS 时最容易出问题。' },
-  hooks: { title: '钩子路径', note: '钩子默认在仓库的 .git/hooks；配了 core.hooksPath 就改到别处。' },
+  identity: { title: '身份', note: '提交里显示的姓名与邮箱。只影响新提交，不改已有历史。' },
+  lineEndings: { title: '行尾与大小写', note: '换行符与文件名大小写的口径。仓库跨 Windows 与 macOS 时最容易出问题。' },
+  hooks: { title: '钩子路径', note: '钩子默认在仓库的 .git/hooks。配了 core.hooksPath 就改到别处。' },
   credentials: { title: '凭据', note: '只展示凭据来源类型，永远不展示凭据原文。' },
 }
 
@@ -209,21 +209,21 @@ export function renderConfig(ctx: PageContext): HTMLElement {
     cell('user.email', 'local'),
     cell('user.name', 'global'),
     cell('user.email', 'global'),
-  ], '改身份', '已打开身份编辑（原型模拟）；只影响之后的新提交。')
+  ], '改身份', '已打开身份编辑（原型模拟）。只影响之后的新提交。')
   groupOf('lineEndings', [
     cell('core.eol', 'local'),
     cell('core.autocrlf', 'local'),
     cell('core.ignorecase', 'local'),
-  ], '改行尾规则', '已打开行尾编辑（原型模拟）；改规则可能让工作区文件显示为已修改，先看影响再保存。')
+  ], '改行尾规则', '已打开行尾编辑（原型模拟）。改规则可能让工作区文件显示为已修改，先看影响再保存。')
   groupOf('hooks', [
     cell('core.hooksPath', 'local'),
     { key: '默认钩子目录', value: '.git/hooks（未配置 hooksPath 时）', mono: true },
-  ], '改钩子路径', '已打开钩子路径编辑（原型模拟）；改路径后原目录里的钩子不再生效。')
+  ], '改钩子路径', '已打开钩子路径编辑（原型模拟）。改路径后原目录里的钩子不再生效。')
   groupOf('credentials', [
     { key: 'credential.helper（全局）', value: lookup('credential.helper', 'global') ?? '未配置', mono: true },
     { key: 'credential.helper（本地）', value: lookup('credential.helper', 'local') ?? '未配置', mono: true },
     { key: '面板持有的凭据', value: '不持有：推送与拉取由宿主进程调用 git 凭据助手', tone: 'warn' },
-  ], '打开凭据说明', '凭据原文永远不会显示在面板里；这里只能看到来源类型与由谁提供。')
+  ], '打开凭据说明', '凭据原文永远不会显示在面板里。这里只能看到来源类型与由谁提供。')
 
   const readOnlyRows = ['12.1', '12.7', '12.8'].map((id) => {
     const cap = capOf(id)
@@ -231,8 +231,8 @@ export function renderConfig(ctx: PageContext): HTMLElement {
   })
 
   const body = h('div', { class: 'page-stack' },
-    section('相关配置', '8 条键', '只列与版本管理界面直接相关的键；值来自本仓库的真实配置，没配的写「未配置」。', groups),
-    section('只读读取', '3 条', '属性规则与邮件映射只展示读到的内容，不在面板里编辑；读取结果贴在行内。', readOnlyRows),
+    section('相关配置', '8 条键', '只列与版本管理界面直接相关的键。值来自本仓库的真实配置，没配的写「未配置」。', groups),
+    section('只读读取', '3 条', '属性规则与邮件映射只展示读到的内容，不在面板里编辑。读取结果贴在行内。', readOnlyRows),
     capabilitiesSection('config', state, ['12.1', '12.7', '12.8']))
   return pageShell('config', PAGE_META.config.title, PAGE_META.config.lede, null, body)
 }
@@ -247,28 +247,28 @@ export function renderHooks(ctx: PageContext): HTMLElement {
   const samples = capturedHooks.filter((hook) => hook.sample)
   const rows = capturedHooks.map((hook) => objectRow([
     h('span', { class: 'obj-title' }, h('span', { class: 'mono', text: hook.name }), hook.sample ? chip('示例', 'muted', { small: true }) : chip('已启用', 'ok', { small: true })),
-    h('span', { class: 'obj-sub', text: hook.sample ? 'git 初始化自带的示例，没有被启用；改名去掉 .sample 才会生效。' : '这个钩子会在对应 git 动作前后被执行。' }),
+    h('span', { class: 'obj-sub', text: hook.sample ? 'git 初始化自带的示例，没有被启用。改名去掉 .sample 才会生效。' : '这个钩子会在对应 git 动作前后被执行。' }),
   ], hook.sample
-    ? [actionButton('启用', 'page-demo', { focusKey: 'hook-enable-' + hook.name, dataset: { note: '已把 ' + hook.name + ' 的示例复制为可执行钩子（原型模拟）；真实执行前请先读一遍脚本内容。' } })]
-    : [actionButton('停用', 'page-demo', { focusKey: 'hook-disable-' + hook.name, dataset: { note: '已停用钩子 ' + hook.name + '（原型模拟）；不会删除脚本，只改文件名。' } })]))
+    ? [actionButton('启用', 'page-demo', { focusKey: 'hook-enable-' + hook.name, dataset: { note: '已把 ' + hook.name + ' 的示例复制为可执行钩子（原型模拟）。真实执行前请先读一遍脚本内容。' } })]
+    : [actionButton('停用', 'page-demo', { focusKey: 'hook-disable-' + hook.name, dataset: { note: '已停用钩子 ' + hook.name + '（原型模拟）。不会删除脚本，只改文件名。' } })]))
 
   const facts = factGrid([
     { key: '钩子目录', value: capturedRepoRoot + '/.git/hooks', mono: true },
     { key: 'core.hooksPath', value: '未配置（用默认目录）' },
     { key: '已启用', value: enabled.length + ' 个' },
     { key: '示例', value: samples.length + ' 个' },
-    { key: '编辑方式', value: '交给外部编辑器；面板不内嵌编辑器' },
+    { key: '编辑方式', value: '交给外部编辑器。面板不内嵌编辑器' },
   ])
 
   const runCap = capOf('12.6')
   const runRow = capabilityBlock(runCap, [
     capabilitySummary(runCap),
-    h('span', { class: 'obj-sub', text: '手动跑一个钩子只影响本次动作；执行前提示这个钩子会读写哪些路径。' }),
+    h('span', { class: 'obj-sub', text: '手动跑一个钩子只影响本次动作。执行前提示这个钩子会读写哪些路径。' }),
   ], state)
 
   const body = h('div', { class: 'page-stack' },
-    section('钩子目录', null, '清单来自 .git/hooks 的真实文件；示例不算已启用。', [facts]),
-    section('钩子清单', capturedHooks.length + ' 个文件', '按文件名排序；每个文件都能看到它是不是示例、会不会被执行。', rows),
+    section('钩子目录', null, '清单来自 .git/hooks 的真实文件。示例不算已启用。', [facts]),
+    section('钩子清单', capturedHooks.length + ' 个文件', '按文件名排序。每个文件都能看到它是不是示例、会不会被执行。', rows),
     section('手动运行', '1 条', null, [runRow]),
     capabilitiesSection('hooks', state, ['12.6']))
   return pageShell('hooks', PAGE_META.hooks.title, PAGE_META.hooks.lede, null, body)
@@ -292,7 +292,7 @@ export function renderDiagnostics(ctx: PageContext): HTMLElement {
   ])
 
   const readShapes: Array<{ id: string; value: string; hint: string }> = [
-    { id: '13.5', value: capturedHead.slice(0, 7) + ' 的对象类型：commit；大小与正文由 cat-file 读取', hint: '只读对象内容；二进制与超大对象改给「在外部查看」。' },
+    { id: '13.5', value: capturedHead.slice(0, 7) + ' 的对象类型：commit。大小与正文由 cat-file 读取', hint: '只读对象内容。二进制与超大对象改给「在外部查看」。' },
     { id: '13.6', value: '顶层：' + statusLines.length + ' 条状态行，树条目由 ls-tree 递归读取', hint: '看树只读路径与模式，不展开文件内容。' },
     { id: '13.7', value: capturedBranch + ' → ' + capturedHead.slice(0, 7), hint: '把分支名、引用、路径解析成提交号。' },
     { id: '13.8', value: capturedRefsTotal + ' 条引用（分支、标签、远端跟踪）', hint: '枚举引用并标出指向同一提交的引用组。' },
@@ -317,18 +317,18 @@ export function renderDiagnostics(ctx: PageContext): HTMLElement {
   const bisectCap = capOf('13.1')
   const bisectRow = capabilityBlock(bisectCap, [
     capabilitySummary(bisectCap),
-    h('span', { class: 'obj-sub', text: '二分定位要选一段提交范围与一个好/坏判定；它会检出中间提交，结束后要回到原分支。' }),
+    h('span', { class: 'obj-sub', text: '二分定位要选一段提交范围与一个好/坏判定。它会检出中间提交，结束后要回到原分支。' }),
   ], state)
 
   const logCap = capOf('3.11')
   const logRow = capWrap(logCap, objectRow([
     capabilitySummary(logCap),
-    h('span', { class: 'obj-sub', text: '引用日志按时间倒序列出 HEAD 与分支的移动记录；它是误操作后的第一道找回入口。' }),
-  ], [actionButton('看引用日志形状', 'page-demo', { focusKey: 'diag-reflog', dataset: { note: '引用日志示例：HEAD@{0} 值：' + capturedHead.slice(0, 7) + '（10 分钟前）；HEAD@{1} 值：上一提交（12 分钟前）。' } })]), state)
+    h('span', { class: 'obj-sub', text: '引用日志按时间倒序列出 HEAD 与分支的移动记录。它是误操作后的第一道找回入口。' }),
+  ], [actionButton('看引用日志形状', 'page-demo', { focusKey: 'diag-reflog', dataset: { note: '引用日志示例：HEAD@{0} 值：' + capturedHead.slice(0, 7) + '（10 分钟前）。HEAD@{1} 值：上一提交（12 分钟前）。' } })]), state)
 
   const body = h('div', { class: 'page-stack' },
-    section('版本与计数', null, '这些数字全部来自本仓库此刻的 git 读数；读不到时界面写「读不到」，不写 0。', [facts]),
-    section('只读对象查看', '6 条', '底层排查只展示读到的形状，不提供可操作按钮；需要执行时交给终端或诊断工具。', shapeRows),
+    section('版本与计数', null, '这些数字全部来自本仓库此刻的 git 读数。读不到时界面写「读不到」，不写 0。', [facts]),
+    section('只读对象查看', '6 条', '底层排查只展示读到的形状，不提供可操作按钮。需要执行时交给终端或诊断工具。', shapeRows),
     section('检查与定位', '4 条', '完整性检查、可回收对象、二分定位与引用日志：都能在面板里发起并看到结果，但都不写提交。', [fsckRow, bisectRow, logRow]),
     capabilitiesSection('diagnostics', state, [...readShapes.map((item) => item.id), '11.2', '13.1', '3.11']))
   return pageShell('diagnostics', PAGE_META.diagnostics.title, PAGE_META.diagnostics.lede, null, body)
@@ -345,10 +345,10 @@ export function renderPlatform(ctx: PageContext): HTMLElement {
   const platformCaps = CAPABILITIES.filter((cap) => cap.target === 'platform')
   const whereOf = (id: string): { where: string; url: string | null } => {
     switch (id) {
-      case '14.2': return { where: '在终端用 git format-patch 生成补丁文件，再交给邮件客户端；面板不代发邮件。', url: null }
+      case '14.2': return { where: '在终端用 git format-patch 生成补丁文件，再交给邮件客户端。面板不代发邮件。', url: null }
       case '14.4': return { where: '在托管平台的网页上处理 PR、Issue 与 Release。', url: webUrl }
-      case '14.5': return { where: 'Actions 与 CI 状态在平台网页看；本仓库已于 2026-10-26 下线远端验证工作流（#1542），本地 npm run verify:parallel 是唯一裁决入口。', url: webUrl + '/actions' }
-      case '14.6': return { where: '账号、令牌与权限在平台设置页管理；面板不持有平台令牌。', url: webUrl + '/settings' }
+      case '14.5': return { where: 'Actions 与 CI 状态在平台网页看。本仓库已于 2026-10-26 下线远端验证工作流（#1542），本地 npm run verify:parallel 是唯一裁决入口。', url: webUrl + '/actions' }
+      case '14.6': return { where: '账号、令牌与权限在平台设置页管理。面板不持有平台令牌。', url: webUrl + '/settings' }
       case '14.7': return { where: '分支保护与禁止强推是服务端规则，在平台设置页配置。', url: webUrl + '/settings/branches' }
       case '14.8': return { where: '仓库转移与归档在平台设置页完成，成功后本地远端地址要跟着改。', url: webUrl + '/settings' }
       default: return { where: '面板不代做这一步。', url: null }

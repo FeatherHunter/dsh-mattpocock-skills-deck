@@ -246,7 +246,7 @@ function renderDetail(row: WorktreeRowModel, pending: WorktreePending | null): H
       dataset: { kind: 'remove', path: row.path, name: row.name },
       focusKey: `wt-remove:${row.path}`,
     }))
-    detail.append(actions, h('p', { class: 'wt-action-note', text: COPY.worktrees.actionsHint }))
+    detail.append(actions)
   }
 
   if (pending !== null && pending.path === row.path) {

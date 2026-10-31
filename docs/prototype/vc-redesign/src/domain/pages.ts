@@ -164,9 +164,9 @@ export function needsSecondConfirm(cap: Capability): boolean {
 /** 演示走完时写在行下面的那句结果：读与只读不假装写过仓库。 */
 export function demoResultText(cap: Capability): string {
   if (cap.readOnly) return `只读能力：原型只展示 ${cap.name} 读到的形状，不写仓库。`
-  if (cap.level === '读') return `${cap.name} 读完了（原型模拟）；${cap.result}`
-  if (cap.level === '毁') return `${cap.name} 已完成（原型模拟，无法恢复）；${cap.result}`
-  return `${cap.name} 已完成（原型模拟）；${cap.result}`
+  if (cap.level === '读') return `${cap.name} 读完了（原型模拟）。${cap.result}`
+  if (cap.level === '毁') return `${cap.name} 已完成（原型模拟，无法恢复）。${cap.result}`
+  return `${cap.name} 已完成（原型模拟）。${cap.result}`
 }
 
 /** 一个页面负责的能力：命令面板按落点跳转、页面底部「本页负责的能力」都靠它。 */

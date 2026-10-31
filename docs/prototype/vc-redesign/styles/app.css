@@ -426,25 +426,18 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .icon-btn:active { transform: translateY(1px); background: var(--press); }
 .icon-btn:disabled { color: var(--faint); cursor: not-allowed; background: transparent; border-color: transparent; }
 
-.sync-count {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  height: 22px;
-  padding: 0 9px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: var(--raised);
-}
-.sync-label { font-family: var(--mono); font-size: 10px; color: var(--mut); }
-.sync-value { font: 700 12.5px var(--mono); font-variant-numeric: tabular-nums; }
-.sync-count.is-ahead { background: var(--info-soft); border-color: color-mix(in srgb, var(--info) 35%, transparent); }
-.sync-count.is-ahead .sync-value { color: var(--info); }
-.sync-count.is-behind { background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 38%, transparent); }
-.sync-count.is-behind .sync-value { color: var(--danger); }
-.sync-count.is-zero { background: transparent; border-color: var(--line); }
-.sync-count.is-zero .sync-value { color: var(--faint); }
-.sync-count.is-zero .sync-label { color: var(--faint); }
+/* 同步读数：超前与落后是两个并排的读数，不画边框、不填底色。
+   两条始终都在（0 也写出来），位置不随数字变化跳动；分隔线只负责把两个数分开。 */
+.sync-delta { display: inline-flex; align-items: baseline; gap: 9px; }
+.sync-delta-item { display: inline-flex; align-items: baseline; gap: 4px; }
+.sync-delta-label { font-family: var(--mono); font-size: 10px; color: var(--faint); }
+.sync-delta-num { font: 700 12.5px var(--mono); font-variant-numeric: tabular-nums; color: var(--mut); }
+.sync-delta-item.is-ahead:not(.is-zero) .sync-delta-num { color: var(--info); }
+.sync-delta-item.is-behind:not(.is-zero) .sync-delta-num { color: var(--danger); }
+.sync-delta-item.is-zero .sync-delta-num { color: var(--faint); }
+.sync-delta-sep { align-self: center; width: 1px; height: 10px; background: var(--line-2); }
+.sync-delta.is-compact { gap: 7px; }
+.sync-delta.is-compact .sync-delta-label { font-size: 9.5px; }
 
 .fact { display: inline-flex; align-items: baseline; gap: 4px; }
 .fact-k { font-family: var(--mono); font-size: 10px; color: var(--faint); }
@@ -478,34 +471,32 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 
 .rail-acts { gap: 6px; }
 
+/* 「下一步」是就着当前状态说的一句话，不是按钮：不画边框、不填底色，只留一行小字。
+   这样动作行里三颗按钮是唯一的可点对象，读者不会把提示也当成按钮去点。 */
 .next-step {
   display: inline-flex;
   align-items: baseline;
   gap: 5px;
-  min-height: 22px;
+  min-height: 0;
   margin-left: auto;
-  padding: 1px 9px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--raised);
-  color: var(--ink-2);
-  font-size: 11px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mut);
+  font-size: 10.5px;
+  line-height: 1.45;
   cursor: default;
 }
-.next-k { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em; color: var(--faint); }
-.next-v { color: var(--ink-2); }
-.next-error { border-color: color-mix(in srgb, var(--danger) 42%, transparent); background: var(--danger-soft); }
+.next-k { flex: none; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em; color: var(--faint); }
+.next-v { color: var(--mut); overflow-wrap: anywhere; }
 .next-error .next-v { color: var(--danger); }
-.next-warn { border-color: color-mix(in srgb, var(--warn) 42%, transparent); background: var(--warn-soft); }
 .next-warn .next-v { color: var(--warn); }
-.next-info { border-color: color-mix(in srgb, var(--info) 42%, transparent); background: var(--info-soft); }
 .next-info .next-v { color: var(--info); }
-.next-ok { border-color: color-mix(in srgb, var(--ok) 42%, transparent); background: var(--accent-soft); }
 .next-ok .next-v { color: var(--accent); }
-.next-muted { color: var(--mut); }
+.next-muted .next-v { color: var(--mut); }
 
-.rail-reasons { display: flex; flex-direction: column; gap: 1px; }
-.reason { display: flex; gap: 5px; font-size: 10.5px; line-height: 1.5; }
+.rail-reasons { display: flex; flex-wrap: wrap; gap: 0 10px; }
+.reason { display: inline-flex; gap: 5px; font-size: 10.5px; line-height: 1.5; }
 .reason-k { flex: none; font-family: var(--mono); font-size: 10px; color: var(--faint); }
 .reason-v { color: var(--mut); }
 .reason.is-block .reason-v { color: var(--danger); }
@@ -684,8 +675,8 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   flex-wrap: wrap;
   align-items: baseline;
   gap: 2px 8px;
-  margin-top: 7px;
-  padding: 7px 9px;
+  margin-top: 6px;
+  padding: 5px 8px;
   border: 1px solid var(--line-2);
   border-left: 3px solid var(--info);
   border-radius: var(--r-btn);
@@ -696,19 +687,19 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .result-error { border-left-color: var(--danger); background: color-mix(in srgb, var(--danger-soft) 70%, var(--inset)); }
 .result-info { border-left-color: var(--info); background: color-mix(in srgb, var(--info-soft) 70%, var(--inset)); }
 .result-tag { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.04em; color: var(--faint); }
-.result-text { font-size: 11.5px; font-weight: 650; color: var(--ink); }
-.result-detail { flex-basis: 100%; font-size: 10.5px; line-height: 1.6; color: var(--mut); }
+.result-text { font-size: 11px; font-weight: 650; color: var(--ink); }
+.result-detail { flex-basis: 100%; font-size: 10px; line-height: 1.55; color: var(--mut); }
 .result-close {
   display: inline-grid;
   place-items: center;
-  width: 22px; height: 22px;
+  width: 18px; height: 18px;
   margin-left: auto;
   padding: 0;
   border: 1px solid transparent;
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--faint);
-  font: 13px/1 var(--sans);
+  font: 12px/1 var(--sans);
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.06s ease;
 }
@@ -754,6 +745,39 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .filter-chip.is-on { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); }
 .filter-chip.is-on .filter-count { color: var(--accent); }
 .filter-chip.is-on:hover { background: color-mix(in srgb, var(--accent) 16%, var(--raised)); }
+
+/* 三张计数卡：与真实插件的统计卡同一套读法——数字在上、标签在下，整张卡可点即筛选。
+   三张卡等宽（flex: 1），切换筛选时列表不会因为数字位数变化左右跳。
+   0 也用同一套颜色写出来：「冲突 0」本身就是要给人看的结论，不该灰掉。 */
+.stats { display: flex; gap: 7px; padding: 9px 12px 10px; border-bottom: 1px solid var(--line); }
+
+.stat {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 6px 9px 7px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-btn);
+  background: var(--inset);
+  color: var(--mut);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.06s ease;
+}
+.stat:hover { background: var(--raised); border-color: var(--mut); }
+.stat:active { transform: translateY(1px); }
+.stat:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.stat-n { font: 700 19px/1.15 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.stat-t { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; line-height: 1.3; color: var(--mut); }
+.stat.tone-error .stat-n { color: var(--danger); }
+.stat.tone-ok .stat-n { color: var(--accent); }
+.stat.tone-mod .stat-n { color: var(--info); }
+.stat.is-on { border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, var(--inset)); }
+.stat.is-on .stat-t { color: var(--ink); }
+.stat.is-on:hover { background: color-mix(in srgb, var(--accent) 16%, var(--inset)); }
 
 .changes-scroll { flex: 1; min-width: 0; min-height: 0; overflow: auto; overflow-x: hidden; }
 
@@ -951,12 +975,13 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
-.composer-hint { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 10px; line-height: 1.5; color: var(--faint); }
-.hint-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.composer-reason { display: flex; align-items: flex-start; gap: 4px; font-size: 10.5px; line-height: 1.45; color: var(--warn); }
-.composer-reason svg { flex: none; margin-top: 1px; }
-/* 提交按钮固定右下角：上面有原因行时它也不会被挤到左边或换行到奇怪的位置。 */
-.composer-submit { display: flex; align-items: center; justify-content: flex-end; }
+/* 提交区最后一行：左边提示或禁用原因、中间交接入口、右边提交按钮，同一行同一基线。
+   原因不再单独占一行：它和按钮说的是同一件事（为什么现在点不了），各占一行只会撑高提交区。 */
+.composer-foot { display: flex; align-items: center; gap: 8px; font-size: 10px; line-height: 1.5; color: var(--faint); }
+.hint-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-foot .composer-reason { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; font-size: 10.5px; line-height: 1.45; color: var(--warn); }
+.composer-foot .composer-reason svg { flex: none; }
+.composer-foot .btn { flex: none; margin-left: auto; }
 
 /* ---------- 提交历史 ---------- */
 
@@ -1180,9 +1205,10 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .branch-when { flex: none; color: var(--faint); }
 .branch-row-side { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .branch-sync { display: inline-flex; align-items: center; gap: 3px; }
-.branch-count-chip { font: 700 9.5px var(--mono); padding: 1px 4px; border-radius: 999px; white-space: nowrap; }
-.branch-count-chip.is-ahead { color: var(--info); background: var(--info-soft); }
-.branch-count-chip.is-behind { color: var(--danger); background: var(--danger-soft); }
+/* 列表行只放箭头读数（↑2 / ↓3）：完整说法在 title 与 aria-label 里，详情页再展开。 */
+.branch-delta { font: 700 10px var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.branch-delta.is-ahead { color: var(--info); }
+.branch-delta.is-behind { color: var(--danger); }
 .branch-chevron { display: inline-grid; place-items: center; color: var(--faint); }
 
 .branch-detail-sync { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -1342,7 +1368,7 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .popconfirm {
   position: absolute;
   z-index: 30;
-  width: min(300px, calc(100% - 16px));
+  width: min(320px, calc(100% - 16px));
   visibility: hidden;
   opacity: 0;
   transform: translateY(-2px);
@@ -1375,7 +1401,16 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 }
 .popconfirm-title { font-size: 12px; font-weight: 700; line-height: 1.45; color: var(--ink); }
 .popconfirm-body { font-size: 10.5px; line-height: 1.6; color: var(--mut); }
+/* 两种结果并排摆开，各带一个小标签：读者不用在一句带分号的长句里自己断句。 */
+.popconfirm-points { display: flex; flex-direction: column; gap: 3px; padding: 6px 7px; border-radius: var(--r-btn); background: var(--inset); }
+.popconfirm-point { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 7px; align-items: baseline; font-size: 10px; line-height: 1.5; }
+.popconfirm-point .point-k { font-weight: 700; white-space: nowrap; }
+.popconfirm-point.is-ok .point-k { color: var(--accent); }
+.popconfirm-point.is-warn .point-k { color: var(--warn); }
+.popconfirm-point .point-v { color: var(--mut); }
 .popconfirm-meta { font-family: var(--mono); font-size: 10px; color: var(--faint); }
+/* 要让读者先看到的代价（涉及几个文件）用危险色，和「取消 / 继续」一样是决定的一部分。 */
+.popconfirm-meta.is-danger { color: var(--danger); font-weight: 700; }
 .popconfirm-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 1px; }
 
 /* ---------- 窄宽度：只收缩次要信息 ---------- */
@@ -1386,13 +1421,15 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   .rail-branch { font-size: 11.5px; }
   .rail-oid { display: none; }
   .rail-tools { gap: 0; }
-  .sync-count { height: 20px; padding: 0 7px; }
-  .next-step { margin-left: 0; }
+  .sync-delta-num { font-size: 11.5px; }
+  .next-step { margin-left: 0; flex-basis: 100%; }
   /* 页签多了一个四字名字（收起的改动）：380 以下要收紧内边距，否则第四个页签会被挤出面板。 */
   .tab { padding: 6px 5px 8px; gap: 3px; font-size: 11.5px; }
   .views { padding: 7px 5px 0; }
-  .filters { padding: 7px 8px; gap: 4px; }
-  .filter-chip { padding: 2px 7px; font-size: 10px; }
+  .stats { padding: 7px 8px 8px; gap: 5px; }
+  .stat { padding: 5px 6px 6px; }
+  .stat-n { font-size: 17px; }
+  .stat-t { font-size: 10px; }
   .file-row { padding: 0 7px 0 8px; gap: 6px; }
   .file-dir { font-size: 10px; }
   .file-name { font-size: 11px; }
@@ -1417,7 +1454,7 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   .tab { font-size: 11px; }
   .tab .unit { font-size: 10px; }
   .tab-count .count { font-size: 10.5px; }
-  .sync-label { font-size: 9.5px; }
+  .sync-delta-label { font-size: 9.5px; }
   .page-back-label { display: none; }
   .file-dir { display: none; }
 }
@@ -1605,10 +1642,10 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 
 /* 460 以下：提交区那行提示不再塞交接入口；同步带上的整行入口仍在，功能不丢。 */
 @container panel (max-width: 439px) {
-  .composer-hint .ai-entry { display: none; }
+  .composer-foot .ai-entry { display: none; }
 }
 
-.composer-hint .ai-entry { flex: none; white-space: nowrap; }
+.composer-foot .ai-entry { flex: none; white-space: nowrap; }
 
 @container panel (max-width: 339px) {
   /* 300 宽时身份行只剩三颗图标：收起复制按钮（路径在仓库名的悬停提示里还在），
@@ -1641,9 +1678,12 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .commit-menu {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 2px 12px 8px 30px;
-  padding: 4px;
+  gap: 1px;
+  /* 菜单贴着触发它的那颗按钮（行尾）右对齐，宽度跟着内容走：右边不再留一大片空白。 */
+  width: max-content;
+  max-width: calc(100% - 24px);
+  margin: 2px 8px 6px auto;
+  padding: 3px;
   border: 1px solid var(--line-2);
   border-radius: 8px;
   background: var(--panel);
@@ -1657,15 +1697,15 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   font: inherit;
   font-size: 10.5px;
   line-height: 1.5;
-  text-align: left;
-  padding: 5px 8px;
+  text-align: right;
+  padding: 4px 9px;
   border-radius: 6px;
   cursor: pointer;
 }
 
 .row-menu-item:hover { background: var(--hover); }
 .row-menu-item.is-danger { color: var(--danger); }
-.row-menu-item.is-close { color: var(--faint); }
+.row-menu-item.is-close { margin-top: 2px; padding-top: 6px; border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; color: var(--faint); }
 .row-menu-item:disabled { color: var(--faint); cursor: not-allowed; }
 
 .changes-confirm,
@@ -1717,6 +1757,8 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   line-height: 1.5;
   color: var(--faint);
 }
+/* 不可逆动作的「涉及 N 个文件」是代价本身，用危险色写，不混在灰色说明里。 */
+.changes-confirm.is-danger .changes-confirm-meta { color: var(--danger); font-weight: 700; }
 
 .changes-confirm-actions,
 .commit-confirm-actions,
@@ -1761,7 +1803,8 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .commit-more:hover,
 .commit-more.is-open { color: var(--ink); background: var(--hover); }
 
-.commit-menu { margin-left: 26px; margin-right: 6px; }
+/* 提交行的更多菜单和文件行一样贴行尾右对齐；确认卡留一点缩进，表示它挂在这一条提交下面。 */
+.commit-menu { margin-left: auto; margin-right: 8px; }
 .commit-confirm { margin-left: 26px; margin-right: 6px; }
 
 /* ---------- 收起的改动页签 ---------- */
@@ -1854,8 +1897,7 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 
 /* 窄面板：行内菜单与确认卡不再缩进，把宽度留给文字。 */
 @container panel (max-width: 359px) {
-  .row-menu,
-  .commit-menu,
+  /* 菜单保持贴右对齐（margin-left:auto），这里只把两侧留白收紧。 */
   .changes-confirm,
   .commit-confirm,
   .stash-confirm { margin-left: 8px; margin-right: 8px; }
