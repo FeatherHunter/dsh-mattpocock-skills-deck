@@ -236,7 +236,8 @@ async function main() {
     // #1742 加了改动页两条电话 wf.gitChangesCheck / wf.gitChangesWrite（预检与执行），65 → 67。
     // #1739 的首屏电话 wf.gitFirstScreen 当年只实现、没在入口注册，#1746 收口时补注册（漏接线的缺陷，同时补了门禁断言），67 → 68。
     // #1751 加了贮藏页两条电话 wf.gitStashCheck / wf.gitStash（写动作预检签票与凭票执行），68 → 70。
-    check(nPhones === 70, '宿主电话七十条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1752 加了工作树页两条电话 wf.gitWorktreeCheck / wf.gitWorktreeRun（预检与执行），70 → 72。
+    check(nPhones === 72, '宿主电话七十二条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——
