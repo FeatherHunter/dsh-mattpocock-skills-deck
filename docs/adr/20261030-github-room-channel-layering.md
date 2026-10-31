@@ -105,6 +105,7 @@
 - 2026-10-31 阶段 1 第三批（#1687，阶段 1 收口）：写实现全部迁入 write/——建票 issues、评论 comments、关闭原因 close-reason、标签写侧 labels、阻塞边 blocked-by-write、初始化 init-project、父子边与阻塞边编排 graph，成环检查 cycle-check 从 model/ 改放 write/（它是写动作的前置判断，且 model 不许引用 read），标签配色只留写侧的 setLabelColors 为 label-colors；房间入口与契约接线迁入 room/（backend、index、checks）。read/ 收 issues.ts（列表与单票）与 read-sources.ts，getDependencies 从 graph.ts 并入 read/deps-read.ts；预算读数 budget.ts 收进 transport/（它只是一次 gh 调的薄读数，且 transport 不许引用 routing，来源与完整度由 room/backend.ts 挂上）；降级原因分类 fallback-reason.ts 进 routing/；读写两侧共用的 owner/name 解析抽成 model/issue-key.ts（原来三处一字不差的副本合一）。写路径主通道一字未改：建票 REST、评论 REST 优先、阻塞边 GraphQL 优先、关闭与重开走 gh 命令、父子边 gh 命令为主 REST 兜底。
 - 2026-10-31 阶段 1 第三批（#1687）：write 的允许依赖扩三格并写进第 2.1 节——write 自身（关闭原因先发评论、父子边与阻塞边编排互调）、read/（写后读回：getIssue、依赖投影、标签清单、仓库权限）、channels/graphql/（阻塞边主路是 GraphQL mutation，写层要声明请求与回包形状）；room 允许引用本层。read 的两条读来源白名单清零：getCurrentUser 与 readBudget 接上来源与完整度，十二条读操作全部 wired，tests/verify-read-result-provenance.ts 升至 294 项断言。
 - 2026-10-31 阶段 1 第三批（#1687）：房间根 41 个旧平铺路径的纯转发文件全部删除，房间根不再有平铺源码文件；tests/verify-room-layering.ts 增加三类判据（房间根零平铺、房间内不许从旧路径导入、房间外也不许从旧路径导入）并补齐对应负例；src/、tests/、scripts/ 里的导入与注释全部改指九目录新路径，门禁地图与文件粒度基线按最终树重录；阶段 1 行为零变化。
+- 2026-10-31 复审修复（#1681 收口后）：整仓 REST 枚举在满十页且尾页满时多打一页空页探测（探测为空即完整、非空仍截断、探测失败与页失败分开记；该请求只受房间上限约束，不进宿主 16 请求预算）；通知事件库拆成 src/host/notifications.ts 接线叶子，房间加载钩子由宿主入口注入（房间只许入口深引），入口→接线叶子这条装配扇入登记进同层存量清单（存量 83→82 条，同票删两条失效条目）。逐条见收口文档第 9 节。
 
 ## 7. 收口记录（2026-10-31，票 #1700）
 

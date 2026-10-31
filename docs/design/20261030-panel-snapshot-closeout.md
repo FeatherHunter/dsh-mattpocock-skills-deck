@@ -13,6 +13,7 @@
 - 全链：`npm run verify:parallel` 共 **480 步**，集成分支口径**真红 0**，五条冒烟真红 0；票级分支上 `tests/verify-no-mixed-session.ts` 判红是结构性已知红（见第 5 节）。
 - 新增门禁：`tests/verify-closeout-acceptance.ts`（20 项断言，本矩阵自洽与文档真数）与 `tests/verify-closeout-log-trips.ts`（34 项断言，五类输入×五段日志），两扇都已登记完成证据并进链。
 - 四条维护者要求的联合门禁 `tests/verify-acceptance-four.ts`（27 项断言，走真实快照路径）已在链上并登记完成记录，作为本规格的总验收门禁随全链通过。
+- 复审修复：code-review 两轴复审（spec 轴四条、standards 轴三条硬问题与四条判断项）之后的修复合入 `6d1125fd`、`8854af93`、`05eb9e50`；合入后暴露出两条由修复引入的真红，在 `271c2949` 一并修掉。集成分支最终裁决在 `271c2949`：`npm run verify:parallel` **480/480 步、真红 0、冒烟 5/5 真红 0**（并发假红 `verify-cap-fold-browser` 复跑转绿）。逐条见第 9 节。
 
 ## 2. 30 条验收逐条结论
 
@@ -91,6 +92,7 @@
   - `tests/verify-no-title.ts` 卡住 KPI 提示用 title 属性 → 改用 `Tip` 包裹后转绿。
   - `tests/verify-1286-list` / `verify-1295-dual-panel` / `verify-1302-panel-list-skeleton` 夹具缺 `kpiCountsOf` → 视图内加函数存在性守卫后转绿。
   - 其余个别门禁的断言数与文件名随新行为更新（如 `verify-single-read-source` 23→25、`verify-retire-client-caches` 39），均已在 `scripts/gate-map.mts` 的 `COMPLETION_RECORDED_GATES` 里按实测值登记。
+  - 复审修复合入后暴露的两条真红（`271c2949` 已修）：`tests/verify-dependency-rules.ts` 报房间方向违规两条——`src/host/notifications.ts` 深引刷新房实现、`src/host/index.ts` 引宿主同层接线叶子；`tests/verify-ui-feedback.ts` H1 报降级小标识的关闭按钮只有点击日志、没有按压形状。修法：事件库加载改成入口注入的钩子（房间只许入口深引），入口→接线叶子这条装配扇入登记进同层存量清单（同票删两条失效条目，83→82 条），关闭按钮补 `data-press`，两扇通知门禁的断言改成「只查 import 形式」（注释里解释规则不算违规）。
 
 ## 6. 真实数据演练记录
 
@@ -128,4 +130,24 @@
 - **票数**：1659 张工单 + 64 个拉取请求，检索时刻 2026-10-31T14:23:12+08:00（gh 2.97.0 只读 `total_count`）。
 - **门禁真名**：阶段 4 的降级补齐门禁实际是 `verify-rest-fallback-completion`（46 项）与 `verify-rest-detail-completion`（61 项），旧称 `verify-fallback-merge` 已不存在；磁盘回放门禁实际是 `verify-1692-disk-replay-eviction`（85 项）。迁移计划与 ADR 已按真名改准。
 - **两份 ADR**：`docs/adr/20261030-panel-snapshot-single-source.md` 与 `docs/adr/20261030-github-room-channel-layering.md` 各补「收口记录」节；迁移计划补「收口记录」与 #1690–#1700 变更记录。
-- **全链**：`npm run verify:parallel` 480 步、集成分支真红 0、冒烟 5 条真红 0；票级分支的结构性已知红见第 5 节。
+- **复审后条数**：`verify-read-result-provenance` 341、`verify-panel-snapshot-merge` 89、`verify-notification-events` 119、`verify-notification-center` 104、`verify-rest-fallback-banner` 47；`tests/gate-map.json` 已在 `271c2949` 按最终树重录。
+- **全链**：`npm run verify:parallel` 在集成分支 `271c2949` 跑 480/480 步、真红 0、冒烟 5 条真红 0；票级分支的结构性已知红见第 5 节。两轴复审与修复的逐条处置见第 9 节。
+
+## 9. code-review 两轴复审与修复记录（2026-10-31）
+
+- **复审方式**：19 张实施票全部关闭、集成分支 `1e2144dd` 全链绿之后，按 /code-review 两轴各起一名只读子代理（spec 轴对照规格原文与验收矩阵，standards 轴对照 AGENTS.md、既有 ADR 与门禁口径），两轴结论互不参考；修复交给两名实现者在互不重叠的票级工作树里做，Lead 只做合并与最终裁决。
+- **spec 轴四条（全部修复，均已合入集成分支）**：
+  1. **整仓 REST 枚举少了「满 10 页且尾页满时再打一页空页探测」**：规格第 108、243 行要求多一次终止探测。修复 `src/tracker/rooms/github/read/issues-rest-list.ts`：满十页且尾页满、没有空页、也没有页失败时再打一页，行不并入；探测为空即完整，非空仍截断，探测失败与页失败分开记。`verify-read-result-provenance` 316→341 条，含三条负例。合入 `6d1125fd`，重录 `8854af93`。核实这次探测只受房间 `restMaxPages` 上限约束，不进宿主 16 请求预算账本；预算口径留作后续票，不在本规格里改。
+  2. **「本次会话可关闭提示」被当成随横幅一起退役**：规格第 115、310 行的三条诚实约束之一。修复 `src/client/views/shared/fallbackMark.ts`：恢复关闭按钮，只写 `sessionStorage` 的 `dsws.fallbackDismiss:<工作区>`（值里带关闭时刻），下一次降级的时刻更晚就重新出现；不写 `localStorage`、不落盘、不加定时器；`config/copy/pages.yaml` 补中英词条。合入 `05eb9e50`。
+  3. **合并版本门按全局版本判、没按字段组判，且取数开始版本是字符串、传进合并入口会变 `NaN` 让门静默失效**：规格第 235 行要求「开始版本早于该字段组上次写入版本才整份丢弃」。修复 `src/refresh/kernel/snapshot-merge.ts`：先算本趟表达过的字段组，任一组的上次写入版本晚于取数开始版本才整份丢弃（不表达的组不拦），被拦时四类结果为空、快照原引用、版本不前进；字段改名 `startMergeVersion`，非法值归一 0 并记 `invalidStartVersion`，日志带 `staleGroups`。`verify-panel-snapshot-merge` 80→89 条。合入 `6d1125fd`。
+  4. **通知中心在未读清零后整颗铃铛不画，历史覆盖与清除已读失去入口**：规格第 114–115、307、309 行要求入口常驻。修复 `src/client/views/shared/notificationCenter.ts` 与模型判据：读得到且历史非空就画入口（没有未读时不带数字），空历史与读不到才整颗不画。合入 `05eb9e50`。
+- **standards 轴三条硬问题与四条判断项**：
+  1. **日志契约（硬）**：事件库读盘顺手清理与纯清理落盘也各打一行 `notification.event`，违反 `research/489-appendix.md:375` 事件 #147「只在真正落盘那一趟写一行」。修复：`notification-store.ts` 的 `persist` 加 `quiet`，读盘顺手清理与纯清理不记事件，只有内容真的变了才写一行。`2ab016fc`。
+  2. **宿主写死中文文案（硬）**：事件库把中文 `summary`/`detail` 写进落盘事件、通知中心原样渲染，违反「组件不写死中文」与 `docs/adr/20261020-ui-copy-data-driven.md`。修复：新事件只写结构化机器码 `code` 与标量参数（最多 6 键、每值裁 80 字），界面按词条 `notice.detail.*` 渲染；旧文件的 `summary`/`detail` 只为读回兼容保留，不再当界面文案。`2ab016fc`、`81dcc7cc`。
+  3. **提交信息违规（硬）**：实施期 97 笔提交里 40 条标题缺「（#票号）」、25 条无票号、75 条正文为空。历史不改写；从本轮起每笔提交按 `docs/agents/commit-convention.md` 写中文完整句、标题带票号、正文写改动原因与验证结果，本记录之后的提交（`6d1125fd`、`8854af93`、`05eb9e50`、`271c2949` 等）均已合规。
+  4. **时间阶梯重复（判断）**：通知中心模型自己写 60000/3600000/86400000 与 `notice.time.*`，而 `truthLines.ts` 已有一套「多久以前」阶梯。修复：`truthLines.ts` 新增 `truthAgoViewOf` 作唯一阶梯，模型与列表共用，删掉模型里重复常量与旧词条。`81dcc7cc`。
+  5. **宿主入口用「两句合一行」顶四百行上限（判断）**：按 `src/host/settingsPhones.ts` 先例把通知接线拆成 `src/host/notifications.ts`（入口回到 398 行）。真做时再进一步：房间实现只许宿主入口深引，所以「怎么加载事件库」由入口当钩子传进叶子（`loadStore`），叶子自己不深引刷新房；入口→接线叶子这条装配扇入按既有先例登记进同层存量清单（存量 83→82 条，同票删掉两条已失效旧条目）。`829890a5`、`271c2949`。
+  6. **死字段 `summary`（判断）**：新事件不再写；类型里保留可选字段只为读回旧文件，模型不再读它。`2ab016fc`。
+  7. **行身份归一化三处重复（判断，记录理由不重构）**：`src/host/tracker/snapshotAssemble.ts:191-206`、`src/refresh/kernel/detail-eviction.ts:107`、`src/client/views/shared/ticketCardFacts.ts:106-126` 各写了一份「票号/父子键归一化」，三处分别落在宿主装配层、刷新内核层、客户端视图层；抽成一个公共叶子会让其中两层反向引用同一个底层模块，破坏这次刚立起来的分层方向。本规格只记录不重构，留作后续票（若以后把归一化上移到契约层，三处可一并收编）。
+- **修复后的最终裁决**：两笔修复先后合入集成分支（`6d1125fd`、`8854af93`、`05eb9e50`），合入后全链暴露出两条由修复引入的真红——`verify-dependency-rules` 的房间方向违规与 `verify-ui-feedback` 的按压形状缺失；Lead 在 `271c2949` 一并修掉（入口注入加载钩子 + 登记装配扇入 + 补 `data-press` + 两扇通知门禁断言改成「只查 import 形式」）。最终在 `271c2949` 跑 `npm run verify:parallel`：480/480 步、真红 0、冒烟 5/5 真红 0，并发假红 `verify-cap-fold-browser` 复跑转绿。
+
