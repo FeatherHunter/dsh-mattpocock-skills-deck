@@ -109,8 +109,7 @@ export default {
     // #1693 通知事件库：降级开始/恢复、刷新失败、写失败的宿主历史（与快照信封同目录、按仓库共享）；D7 禁静态 import，按需动态加载一次，加载失败只是没有历史，不影响取数、刷新与写票。
     let _notifP: Promise<any> | null = null; function _notif(): Promise<any> { if (!_notifP) _notifP = (async function(){ const mod = await import('../refresh/rooms/host/notification-store.js'); return mod.createNotificationStore({ fs: fs, getPlatform: function(...args: any[]){ return getPlatform.apply(null, args) }, getCacheDir: function(...args: any[]){ return getCacheDir.apply(null, args) }, getRepoKey: function(...args: any[]){ return getRepoKey.apply(null, args) }, logCtx: logCtx }) })(); return _notifP }
     function _notifCall(method: string, args: any[]): Promise<any> { return _notif().then(function (st: any) { return st[method].apply(st, args) }).catch(function () {}) }
-    let _mapBodyP: Promise<any> | null = null
-    function _mapBody(): Promise<any> { if (!_mapBodyP) _mapBodyP = import('./mapBody.js').then(function (m: any){ return m.createMapBody() }); return _mapBodyP }
+    let _mapBodyP: Promise<any> | null = null; function _mapBody(): Promise<any> { if (!_mapBodyP) _mapBodyP = import('./mapBody.js').then(function (m: any){ return m.createMapBody() }); return _mapBodyP } // 两句合一行：本文件已顶四百行上限
     let _issueListP: Promise<any> | null = null
     function _issueList(): Promise<any> { if (!_issueListP) _issueListP = (async function(){ const mod = await import('../refresh/rooms/host/issue-list-fetch.js'); return mod.createIssueList({ getRepoKey: function(...args: any[]){ return getRepoKey.apply(null, args) }, setCache: setCache, issueIndexFromSnapshot: issueIndexFromSnapshot, issueIndexChanged: issueIndexChanged, rememberIssueIndex: rememberIssueIndex, readDiskCache: function(...args: any[]){ return readDiskCache.apply(null, args) }, openSession: openSessionFor, logCtx: logCtx, noteSnapshot: function (snap: any, cwd: any) { return _notifCall('noteSnapshot', [snap, cwd]) } }) })(); return _issueListP }
     let _issueDetailP: Promise<any> | null = null
@@ -322,8 +321,9 @@ export default {
     function namingSweepSoon(delayMs: number) { _naming().then(function (h: any){ try { h.namingSweepSoon(delayMs) } catch (eSw) {} }).catch(function(){}) }
     harness.handle('wf.handoffLatest', async function () { const h = await _handoff(); return h.handleHandoffLatest.apply(h, arguments) }); harness.handle('wf.handoffResolve', async function () { const h = await _handoff(); return h.handleHandoffResolve.apply(h, arguments) }) // 两句合一行：本文件已顶四百行上限，腾出的一行留给本机设置两条电话
     // #498 退役：wf.claim 删注册（全仓零调用点、零日志行；认领取走 wf.handoffResolve）。handleClaim 实现留守（删注册不断链）。
-    harness.handle('wf.namingRegister', async function () { const h = await _naming(); return h.namingRegisterHandler.apply(h, arguments) })
-    harness.handle('wf.registerNewSessionWatcher', async function () { const h = await _naming(); return h.namingRegisterHandler.apply(h, arguments) })
+    harness.handle('wf.namingRegister', async function () { const h = await _naming(); return h.namingRegisterHandler.apply(h, arguments) }); harness.handle('wf.registerNewSessionWatcher', async function () { const h = await _naming(); return h.namingRegisterHandler.apply(h, arguments) }) // 两句合一行：本文件已顶四百行上限
+    // #1697 通知中心读历史：宿主事件库（refresh/rooms/host/notification-store.ts）按仓库落盘，这里只读不改；读盘失败或还没有仓库时 read 回空数组，界面按「读得到、暂时没有通知」画（不是读不到）。
+    harness.handle('wf.notifications', async function (args: any) { const st = await _notif(); const events = await st.read((args && args.cwd) || DEFAULT_CWD); return { ok: true, events: events } })
     harness.handle('wf.namingSignal', async function () { const h = await _naming(); return h.handleNamingSignal.apply(h, arguments) })
     harness.handle('wf.namingPlan', async function () { const h = await _naming(); return h.handleNamingPlan.apply(h, arguments) })
     harness.handle('wf.namingResult', async function () { const h = await _naming(); return h.handleNamingResult.apply(h, arguments) })

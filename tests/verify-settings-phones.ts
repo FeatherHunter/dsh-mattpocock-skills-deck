@@ -231,7 +231,8 @@ async function main() {
     const nPhones = (readText('src/host/index.ts').match(/harness\.handle\(/g) || []).length
     // #1436 加了一条只读电话 wf.workRoute（胶囊首帧读本机 work-path 存档），59 → 60。
     // #1191 加了一条契约操作电话 wf.contractOp（客户端 contract-op 按当前后端分发），60 → 61。
-    check(nPhones === 61, '宿主电话六十一条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1697 加了一条只读电话 wf.notifications（通知中心读宿主事件库历史），61 → 62。
+    check(nPhones === 62, '宿主电话六十二条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——

@@ -815,6 +815,10 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { id: 'headFold', file: 'src/client/panel/headFold.ts' }, // #667 新增：面板头部第一行的逐字折叠阶梯（纯函数，无组件）
+  // #1697 面板内通知中心：先判据与取数（纯函数加取数 hook），再徽标入口与历史浮层两个组件；
+  //   两者都排在 dock 之前拼进闭包，Dock 头部那一排用它们（不跑定时器，重取只跟快照换版与打开浮层走）。
+  { id: 'notificationCenterModel', file: 'src/client/views/shared/notificationCenterModel.ts' },
+  { id: 'notificationCenter', file: 'src/client/views/shared/notificationCenter.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { id: 'repoChipSkeleton', file: 'src/client/panel/RepoChipSkeleton.ts' }, // 2026-09-24 由 Dock.js 拆出：快照还没回来时那条灰色占位骨架（组件，Dock 贴着 350 行上限）

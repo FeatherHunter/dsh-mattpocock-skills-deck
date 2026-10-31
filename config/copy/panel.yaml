@@ -322,6 +322,35 @@ zh:
   suggest.close: 关闭（等于一条都不选）
   suggest.ariaPill: "{prompt}；推荐理由：{reason}"
   suggest.live: 有 {n} 条下一步建议
+  notice.entryLabel: 通知中心
+  notice.entryTip: 通知中心：降级与失败的历史
+  notice.title: 通知中心
+  notice.current: 当前状态
+  notice.currentNormal: 正常
+  notice.currentDegraded: 数据源降级（走 REST 通道）
+  notice.historyMismatch: 历史里有一段未闭合的降级，但当前快照显示已恢复；当前状态按快照，历史只读不改写。
+  notice.filter.all: 全部
+  notice.type.degradedStart: 数据源降级
+  notice.type.degradedRecovery: 数据源恢复
+  notice.type.refreshFailed: 刷新失败
+  notice.type.writeFailed: 写票失败
+  notice.type.unknown: 其他通知
+  notice.event.degradedStart: 数据源降级为 REST 通道
+  notice.event.degradedRecovery: 数据源已恢复
+  notice.event.refreshFailed: 刷新失败
+  notice.event.writeFailed: 写票失败
+  notice.event.unknown: 通知
+  notice.times: 发生 {n} 次
+  notice.time.justNow: 刚刚
+  notice.time.minutesAgo: "{n} 分钟前"
+  notice.time.hoursAgo: "{n} 小时前"
+  notice.time.daysAgo: "{n} 天前"
+  notice.markAllRead: 全部已读
+  notice.clearRead: 清除已读标记
+  notice.close: 关闭
+  notice.empty: 还没有通知
+  notice.unreadCount: 未读 {n} 条
+  notice.read: 已读
 en:
   nav.word: Consolidate
   nav.takeable: Ready
@@ -634,3 +663,32 @@ en:
   suggest.close: Close (choosing none)
   suggest.ariaPill: "{prompt}; why: {reason}"
   suggest.live: "{n} next-step suggestions available"
+  notice.entryLabel: Notifications
+  notice.entryTip: "Notification center: history of degradations and failures"
+  notice.title: Notification center
+  notice.current: Current state
+  notice.currentNormal: Normal
+  notice.currentDegraded: "Data source degraded (REST fallback)"
+  notice.historyMismatch: History has an open degradation but the current snapshot shows recovery; the current state follows the snapshot, and history is read-only.
+  notice.filter.all: All
+  notice.type.degradedStart: Degraded
+  notice.type.degradedRecovery: Recovered
+  notice.type.refreshFailed: Refresh failed
+  notice.type.writeFailed: Write failed
+  notice.type.unknown: Other
+  notice.event.degradedStart: "Data source degraded to the REST channel"
+  notice.event.degradedRecovery: "Data source recovered"
+  notice.event.refreshFailed: "Refresh failed"
+  notice.event.writeFailed: "Write failed"
+  notice.event.unknown: Notification
+  notice.times: "happened {n} times"
+  notice.time.justNow: just now
+  notice.time.minutesAgo: "{n} min ago"
+  notice.time.hoursAgo: "{n} h ago"
+  notice.time.daysAgo: "{n} d ago"
+  notice.markAllRead: Mark all read
+  notice.clearRead: Clear read marks
+  notice.close: Close
+  notice.empty: No notifications yet
+  notice.unreadCount: "{n} unread"
+  notice.read: read
