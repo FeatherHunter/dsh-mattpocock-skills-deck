@@ -368,4 +368,33 @@ export function cleanPreviewArgs(paths: string[]): string[] {
 /** 单条路径的索引记录（能力 1.9/1.10 预检用）：读这一条路径在索引里的 blob 与模式。 */
 export function lsFilesOneArgs(path: string): string[] { return ['ls-files', '--stage', '-z', '--', String(path)] }
 
+// —— 配置与钩子（#1760 域 12）：下面几条只拼 argv，怎么判、怎么写由宿主那一片决定 ——
+
+/** 读全部配置（能力 12.1）：--show-origin 让每条都带上来源文件，面板据此反推作用域，不解析配置文件文本。 */
+export function configListArgs(): string[] { return ['config', '--list', '--show-origin', '-z'] }
+
+/** 读一个键在某个作用域的值（预检比对旧值用）：缺键时 git 退出码 1，宿主按「没有旧值」处理。 */
+export function configGetArgs(key: string, scope: string): string[] { return ['config', '--' + String(scope), '--get', String(key)] }
+
+/** 改配置（能力 12.2）：作用域只允许 local / global，系统级不给写。值单独占一个 argv，不经 shell。 */
+export function configSetArgs(key: string, value: string, scope: string): string[] { return ['config', '--' + String(scope), String(key), String(value)] }
+
+/** 删配置（能力 12.3）：--unset 精确删一个键；缺键时 git 退出码 5。 */
+export function configUnsetArgs(key: string, scope: string): string[] { return ['config', '--' + String(scope), '--unset', String(key)] }
+
+/** 手动跑钩子（能力 12.6，git 2.36 起）：钩子名字单独占一个 argv，工作区是当前仓库。 */
+export function hookRunArgs(name: string): string[] { return ['hook', 'run', String(name)] }
+
+/** 查属性规则（能力 12.7）：-a 列出这个路径全部属性，-z 用 NUL 分隔，值里带换行也不乱。 */
+export function checkAttrArgs(path: string): string[] { return ['check-attr', '-a', '-z', '--', String(path)] }
+
+/** 查邮件映射（能力 12.8）：只读地按 .mailmap 翻译一个地址，不改任何配置。 */
+export function checkMailmapArgs(address: string): string[] { return ['check-mailmap', '--', String(address)] }
+
+/** 读 git 自己的目录（12.5 钩子目录、12.1 本地 config 路径）：跟随 core.hooksPath 等配置，别自己拼路径。 */
+export function gitPathArgs(what: string): string[] { return ['rev-parse', '--git-path', String(what)] }
+
+/** 读 git 版本（版本门用）：输出形如 git version 2.49.0.windows.1。 */
+export function versionArgs(): string[] { return ['--version'] }
+
 export const COMMANDS_SOURCE = 'src/shared/version-control/src/commands.ts'
