@@ -7,7 +7,7 @@
  *   ① 现在能不能点（用真实 rules.ts 的 judge 算，不在原型里复述规则）；
  *   ② 点了以后忙什么（busy）；
  *   ③ 做完说了什么、说在哪里（result.source 决定结果出现的位置，这是本次重构的重点之一）；
- *   ④ 暂存区改过之后，计数与可点性怎么跟着变；
+ *   ④ 「已加入这次提交」的清单改过之后，计数与可点性怎么跟着变；
  *   ⑤ 提交历史里打开的是哪一条、展开的是哪个文件。
  *
  * 不真实执行 git：commit/pull/push/fetch 由 ui 层起一个定时器，模拟宿主往返。
@@ -76,8 +76,8 @@ export interface WorktreePending {
 }
 
 /**
- * 一条贮藏记录：git stash 会把「工作区与暂存区此刻的样子」打包成一条记录。
- * paths 存的是被打包的文件路径，应用时原样放回工作区；原型不保存文件内容。
+ * 一条收起记录：git stash 会把「工作区与『已加入这次提交』清单此刻的样子」打包成一条记录。
+ * paths 存的是被打包的文件路径，放回工作区时原样恢复；原型不保存文件内容。
  */
 export interface StashEntry {
   id: string
@@ -86,7 +86,7 @@ export interface StashEntry {
   paths: string[]
 }
 
-/** 贮藏动作里唯一需要二次确认的是丢弃：弹出与应用都还能从历史里找回。 */
+/** 收起动作里唯一需要二次确认的是丢弃记录：两种放回方式都不删内容，丢弃记录之后找不回来。 */
 export interface StashPending {
   kind: 'drop'
   id: string
@@ -147,10 +147,10 @@ export interface SessionState {
   openMenuPath: string | null
   /** 原型里「已经加入 .gitignore」的文件：接回宿主后它们会在下一次读取时从列表消失。 */
   ignored: string[]
-  /** 贮藏清单：按 git stash 的顺序，最近一条在最前面。 */
+  /** 收起清单：按 git stash 的顺序，最近一条在最前面。 */
   stashes: StashEntry[]
   stashPending: StashPending | null
-  /** 被「撤销这次提交」撤掉的那条提交：从历史里暂时隐去，改动回到暂存区。 */
+  /** 被「撤销这次提交」撤掉的那条提交：从历史里暂时隐去，改动回到「已加入这次提交」。 */
   undoneOid: string | null
 }
 
@@ -337,7 +337,7 @@ function finishBusy(state: SessionState, op: OpName, nowMs: number): SessionStat
       return withResult({ ...state, busy: null, basisMs: nowMs, readAtMs: nowMs }, {
         tone: 'ok',
         text: '更新完成：远端依据已刷新。',
-        detail: unique(['远端跟踪引用已更新；工作树与暂存区没有变化。']).join(''),
+        detail: unique(['远端跟踪引用已更新；工作树与「已加入这次提交」的清单没有变化。']).join(''),
         source: 'sync',
       })
     }
@@ -403,7 +403,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         return {
           ...state,
           busy: null,
-          result: { tone: 'error', text: staged.length === 0 ? '暂存区为空，先暂存要提交的文件。' : '填写提交说明后即可提交。', detail: null, source: 'commit' },
+          result: { tone: 'error', text: staged.length === 0 ? '还没有文件加入这次提交，先加入要提交的文件。' : '填写提交说明后即可提交。', detail: null, source: 'commit' },
         }
       }
       const files = staged.map((path) => {
@@ -429,7 +429,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         result: {
           tone: 'ok',
           text: `提交完成：${files.length} 个文件已进入历史。`,
-          detail: '这次提交只包含已暂存的文件；暂存区已经清空，可以接着暂存下一批。',
+          detail: '这次提交只包含已加入这次提交的文件；这份清单已经清空，可以接着加入下一批。',
           source: 'commit',
         },
       }
@@ -528,7 +528,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
             unstaged: state.unstaged.filter((item) => item !== path),
           }, {
             tone: 'warn',
-            text: `已丢弃 ${name} 的未暂存改动。`,
+            text: `已丢弃 ${name} 的未加入改动。`,
             detail: lines === '' ? '文件回到上一次提交时的内容；面板不能撤回这一步。' : `文件回到上一次提交时的内容，${lines} 一起丢掉了；面板不能撤回这一步。`,
             source: 'changes',
           })
@@ -538,7 +538,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
           if (count === 0) return cleared
           return withResult({ ...cleared, unstaged: [] }, {
             tone: 'warn',
-            text: `已丢弃 ${count} 个文件的未暂存改动。`,
+            text: `已丢弃 ${count} 个文件的未加入改动。`,
             detail: '这些文件都回到上一次提交时的内容；面板不能撤回这一步。',
             source: 'changes',
           })
@@ -579,7 +579,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
             staged: unique([...state.staged, path]),
           }, {
             tone: 'ok',
-            text: `已按${side}的版本解决 ${name}，文件已暂存。`,
+            text: `已按${side}的版本解决 ${name}，文件已加入这次提交。`,
             detail: conflicts.length === 0
               ? '冲突已经全部解决，现在可以提交这次合并的结果。'
               : `还有 ${conflicts.length} 个冲突文件没有解决。`,
@@ -727,11 +727,11 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
     case 'stash-create': {
       if (state.busy !== null || state.reloading) return state
       if (state.conflicts.length > 0) {
-        return withResult(state, { tone: 'error', text: '有冲突文件时不能贮藏。', detail: '贮藏会把工作树恢复成上次提交时的样子，冲突文件没有可以安全恢复的版本；先解决冲突，再贮藏剩下的改动。', source: 'changes' })
+        return withResult(state, { tone: 'error', text: '有冲突文件时不能收起改动。', detail: '收起改动会把工作树恢复成上次提交时的样子，冲突文件没有可以安全恢复的版本；先解决冲突，再收起剩下的改动。', source: 'changes' })
       }
       const paths = unique([...state.staged, ...state.unstaged])
       if (paths.length === 0) {
-        return withResult(state, { tone: 'info', text: '工作区是干净的，没有可贮藏的改动。', detail: null, source: 'changes' })
+        return withResult(state, { tone: 'info', text: '工作区是干净的，没有可收起的改动。', detail: null, source: 'changes' })
       }
       const branchName = state.branches.find((row) => row.current)?.name ?? base.branch ?? 'detached'
       const message = state.message.trim() === '' ? `WIP on ${branchName}` : state.message.trim()
@@ -749,8 +749,8 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         message: '',
       }, {
         tone: 'ok',
-        text: `已贮藏 ${paths.length} 个文件的改动。`,
-        detail: `贮藏记录 ${entry.id} 里放着这些文件；工作区与暂存区都恢复成上次提交时的样子，应用或弹出都能把它拿回来。`,
+        text: `已收起 ${paths.length} 个文件的改动。`,
+        detail: `收起记录 ${entry.id} 里放着这些文件；工作区与「已加入这次提交」的清单都恢复成上次提交时的样子，放回工作区或放回并删掉记录都能把它拿回来。`,
         source: 'changes',
       })
     }
@@ -769,10 +769,10 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         stashPending: null,
       }, {
         tone: 'ok',
-        text: action.type === 'stash-pop' ? `已弹出 ${entry.id}，${restored.length} 个文件回到工作区。` : `已应用 ${entry.id}，${restored.length} 个文件回到工作区。`,
+        text: action.type === 'stash-pop' ? `已把 ${entry.id} 放回工作区并删掉记录，${restored.length} 个文件回到工作区。` : `已把 ${entry.id} 放回工作区，${restored.length} 个文件回到工作区。`,
         detail: action.type === 'stash-pop'
-          ? `弹出等于「应用 + 删除」：这条贮藏已经从清单里移除（原来 ${before} 条）。改动现在在未暂存区，需要重新暂存再提交。`
-          : `应用只把改动放回工作区，贮藏记录仍然保留在清单里（${before} 条），可以再应用一次或随后丢弃。`,
+          ? `「放回并删掉记录」等于「放回 + 删除记录」：这条记录已经从清单里移除（原来 ${before} 条）。改动现在在「未加入这次提交」里，需要重新加入再提交。`
+          : `「放回工作区」只把改动恢复出来，记录仍然保留在清单里（${before} 条），可以再放回一次，之后也可以丢弃记录。`,
         source: 'stash',
       })
     }
@@ -788,7 +788,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         stashPending: null,
       }, {
         tone: 'warn',
-        text: `已丢弃贮藏记录 ${entry.id}。`,
+        text: `已丢弃记录 ${entry.id}。`,
         detail: `记录里那 ${entry.paths.length} 个文件当时的样子已经不存在；这一步不能撤回。`,
         source: 'stash',
       })
@@ -802,7 +802,7 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         return withResult(state, {
           tone: 'error',
           text: '只能撤销最新一条提交。',
-          detail: '撤销会把提交里的改动放回暂存区、并让分支退一步；选择更早的提交就得改写它后面的历史，原型不做这一步。',
+          detail: '撤销会把提交里的改动放回「已加入这次提交」、并让分支退一步；选择更早的提交就得改写它后面的历史，原型不做这一步。',
           source: 'history',
         })
       }
@@ -823,8 +823,8 @@ export function reduce(state: SessionState, action: Action, base: SessionBase): 
         tone: 'warn',
         text: `已撤销提交 ${subject === '' ? action.oid.slice(0, 7) : subject}。`,
         detail: pushed
-          ? `提交里的 ${files.length} 个文件回到暂存区，提交说明留在输入框里；这条提交已经推送过，所以本地现在比远端各少一步，需要重新提交后再推送。`
-          : `提交里的 ${files.length} 个文件回到暂存区，提交说明留在输入框里；可以改完再重新提交。`,
+          ? `提交里的 ${files.length} 个文件回到「已加入这次提交」，提交说明留在输入框里；这条提交已经推送过，所以本地现在比远端各少一步，需要重新提交后再推送。`
+          : `提交里的 ${files.length} 个文件回到「已加入这次提交」，提交说明留在输入框里；可以改完再重新提交。`,
         source: 'history',
       })
     }

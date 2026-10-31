@@ -40,7 +40,7 @@ const DOMAINS: Record<string, DomainSpec> = {
   '4': { name: '引用与标签', entry: '顶部身份行分支按钮与管理页「分支与标签」', opens: '分支浮层、标签折叠区或内联确认卡', target: 'branch-tags' },
   '5': { name: '历史改写', entry: '提交行菜单与「变基待办」页', opens: '行菜单、整页待办清单或内联确认卡', target: 'rebase' },
   '6': { name: '合并、变基与冲突', entry: '分支浮层与「冲突向导」页', opens: '内联确认卡、整页向导或只读诊断', target: 'conflicts' },
-  '7': { name: '贮藏', entry: '贮藏页签', opens: '行内动作或贴行确认卡', target: 'stash' },
+  '7': { name: '收起的改动', entry: '「收起的改动」页签', opens: '行内动作或贴行确认卡', target: 'stash' },
   '8': { name: '远端与同步', entry: '顶部同步带与「远端与同步」页', opens: '同步带按钮、二级页或折叠区', target: 'remote' },
   '9': { name: '工作树与多开', entry: '工作树页签', opens: '行内展开或内联确认卡', target: 'worktrees' },
   '10': { name: '子模块', entry: '管理页「子模块」', opens: '二级页行内展开或只读诊断', target: 'submodules' },
@@ -73,6 +73,54 @@ const PLACEMENTS = new Set(['直', '折', '诊', '外'])
 
 function stripLink(text: string): string {
   return text.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * 界面上的叫法：git 的 stage 在界面上叫「加入这次提交」，stash 叫「收起的改动」。
+ *
+ * 能力表是从研究笔记抄下来的，笔记里写的是 git 自己的词（暂存、贮藏）。直接搬进界面会
+ * 和页面上的按钮对不上：读者在页面上看到「加入」，登记表里却写「暂存」，会以为漏了入口。
+ * 这里只改 name / entry / result 三处给人看的文字，command 列保留 git 原文——那一列是
+ * 查命令用的，改成界面叫法就查不到了。数组按「先长后短」排：先换整句，再换单词，
+ * 否则「暂存区」会先被「暂存」换掉半截，剩下的「区」没处安放。
+ */
+const UI_WORDING: Array<[string, string]> = [
+  ['撤销上一条提交、改动回暂存区', '撤销上一条提交、改动回到「已加入这次提交」'],
+  ['撤销提交并取消暂存', '撤销提交并把改动移出这次提交'],
+  ['提交已暂存内容', '提交已加入这次提交的内容'],
+  ['丢弃单个文件的未暂存改动', '丢弃单个文件的未加入改动'],
+  ['丢弃全部未暂存改动', '丢弃全部未加入改动'],
+  ['应用并保留记录', '放回工作区并保留记录'],
+  ['应用并删记录', '放回工作区并删掉记录'],
+  ['从贮藏建分支', '从收起的改动建分支'],
+  ['只贮藏暂存区', '只收起已加入这次提交的改动'],
+  ['连未跟踪一起贮藏', '连未跟踪文件一起收起来'],
+  ['贮藏当前改动', '把当前改动收起来'],
+  ['逐块暂存', '逐块加入这次提交'],
+  ['暂存单个文件', '把单个文件加入这次提交'],
+  ['暂存全部', '全部加入这次提交'],
+  ['撤回暂存', '把文件移出这次提交'],
+  ['行改名并进暂存区', '行改名并加入这次提交'],
+  ['改动页三组（已暂存 / 未暂存 / 冲突）', '改动页三组（已加入 / 未加入 / 冲突）'],
+  ['文件行移进「已暂存」', '文件行移进「已加入」'],
+  ['文件行回「未暂存」组', '文件行回「未加入」组'],
+  ['文件行进「已暂存（删除）」', '文件行进「已加入（删除）」'],
+  ['改动页出现已暂存改动', '改动页出现已加入这次提交的改动'],
+  ['贮藏页签', '「收起的改动」页签'],
+  ['贮藏区空', '收起清单为空'],
+  ['贮藏行', '收起记录行'],
+  ['贮藏页', '「收起的改动」页'],
+  ['暂存区', '「已加入这次提交」的清单'],
+  ['未暂存', '未加入'],
+  ['已暂存', '已加入'],
+  ['贮藏', '收起'],
+  ['暂存', '加入这次提交'],
+]
+
+function uiWording(text: string): string {
+  let out = text
+  for (const [from, to] of UI_WORDING) out = out.split(from).join(to)
+  return out
 }
 
 /** 面板表达里「结果落在哪」那一句：优先取「结果：」，其次「替代：」，都没有就用整句。 */
@@ -135,13 +183,13 @@ for (const line of lines) {
   rows.push({
     id,
     domain: domainId,
-    name: stripLink(namePart),
+    name: uiWording(stripLink(namePart)),
     command: stripLink(commandParts.join(' · ')),
     level,
     placement,
-    entry: domain.entry,
+    entry: uiWording(domain.entry),
     opens: opensOf(placement, domain),
-    result: landingOf(cells[5]),
+    result: uiWording(landingOf(cells[5])),
     target: TARGET_OVERRIDES[id] ?? domain.target,
     readOnly: placement === '诊' || placement === '外',
   })
@@ -159,6 +207,7 @@ const header = `// AUTO-GENERATED。来源脚本：docs/prototype/vc-redesign/to
 // 数据来源：research/1588-git-full-capability-surface.md 第 2 章的十四张能力表；
 // 入口与落点来源：#1590 Answer 段的「14 个域的能力各落在哪」与「覆盖口径」。
 // 共 ${rows.length} 条：直 ${count('直')}、折 ${count('折')}、诊 ${count('诊')}、外 ${count('外')}。
+// 界面叫法已换成图上的说法（stage 叫「加入这次提交」、stash 叫「收起的改动」），command 列保留 git 原文。
 // 不要手改；要刷新就在仓库根目录重新跑一次生成脚本。
 `
 

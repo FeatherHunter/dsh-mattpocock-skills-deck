@@ -117,9 +117,9 @@ export function buildHandoff(data: PrototypeData, kind: HandoffKind, nowMs: numb
   ]
 
   const changesLines = [
-    `已暂存：${screen.stagedCount} 个文件`,
+    `已加入这次提交：${screen.stagedCount} 个文件`,
     ...(stagedLines.length === 0 ? [] : [numbered(stagedLines)]),
-    `未暂存：${screen.unstagedCount} 个文件`,
+    `未加入：${screen.unstagedCount} 个文件`,
     ...(unstagedLines.length === 0 ? [] : [numbered(unstagedLines)]),
     `冲突：${screen.conflictCount} 个文件`,
     ...(conflictLines.length === 0 ? [] : [numbered(conflictLines)]),

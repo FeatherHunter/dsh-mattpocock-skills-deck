@@ -132,7 +132,7 @@ export const VIEW_LABEL: Record<string, string> = {
   changes: '改动',
   commits: '历史',
   worktrees: '工作树',
-  stash: '贮藏',
+  stash: '收起的改动',
 }
 
 /** 能力级别：读 / 写 / 改写 / 毁 用同一种徽章语言，非 git 单独一色。 */

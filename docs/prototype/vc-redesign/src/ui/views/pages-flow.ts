@@ -34,7 +34,7 @@ interface RebaseStage {
 const REBASE_STAGES: RebaseStage[] = [
   {
     title: '冻结工作区',
-    detail: '先把未提交的改动收进贮藏区或提示先提交；变基过程中工作区必须是干净的，否则每一步的冲突都分不清来自谁。',
+    detail: '先把未提交的改动收起来或提示先提交；变基过程中工作区必须是干净的，否则每一步的冲突都分不清来自谁。',
     command: 'git stash push --keep-index',
     tone: 'ok',
   },
@@ -116,7 +116,7 @@ export function renderRebase(ctx: PageContext): HTMLElement {
     section('六步待办', state.rebaseDemo ? '第 ' + Math.min(state.rebaseStep + 1, 6) + ' / 6 步' : null, '顺序固定，但每一步都可以停下来看；演示不会跳过「工作区是否干净」这一关。', steps),
     section('会动与不会动', null, null, [factGrid([
       { key: '会动', value: '当前分支的提交号与这页的演示状态' },
-      { key: '不会动', value: '其他分支、远端、贮藏区' },
+      { key: '不会动', value: '其他分支、远端、收起的改动' },
       { key: '可按撤销', value: '中止后分支回到开始前记下的提交号' },
       { key: '不可按撤销', value: '已经推送过的重写需要强推，属于服务端协作问题' },
     ])]),
@@ -177,7 +177,7 @@ export function renderConflicts(ctx: PageContext): HTMLElement {
     section('冲突文件', CONFLICT_FILES.length + ' 个文件', '每一行只做三件事：选边、手改、标记已解决；选边按钮的状态跟着本页内存走，不写仓库。', [...(state.conflictDemo ? rows : [note('演示还没开始：点「开始演示」才会出现三个冲突文件。', 'muted')]), ...(state.conflictDemo ? [summary] : [])]),
     section('会动与不会动', null, null, [factGrid([
       { key: '会动', value: state.conflictDemo ? '三个冲突文件的解决标记与本页结果' : '当前什么都不会动' },
-      { key: '不会动', value: '工作区文件、索引、已有提交' },
+      { key: '不会动', value: '工作区文件、「已加入这次提交」的清单、已有提交' },
       { key: '恢复路径', value: '中止合并回到开始前的提交与工作区' },
       { key: '外部编辑器', value: '面板不内嵌编辑器，只把文件交给它' },
     ])]),

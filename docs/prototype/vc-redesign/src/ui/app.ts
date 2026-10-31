@@ -668,10 +668,10 @@ export function mount(root: HTMLElement): void {
       return `工作树视图，筛选是${wtFilter === 'all' ? '全部' : '只看需要处理'}`
     }
     if (state.view === 'stash') {
-      return `贮藏视图，列表里有 ${model.stash.total} 条记录`
+      return `收起改动视图，列表里有 ${model.stash.total} 条记录`
     }
     const filter = state.changesFilter
-    const filterLabel = filter === 'conflict' ? '只看冲突' : filter === 'staged' ? '只看已暂存' : filter === 'unstaged' ? '只看未暂存' : '全部'
+    const filterLabel = filter === 'conflict' ? '只看冲突' : filter === 'staged' ? '只看已加入' : filter === 'unstaged' ? '只看未加入' : '全部'
     return `改动视图，筛选是${filterLabel}`
   }
 
@@ -1397,7 +1397,7 @@ export function mount(root: HTMLElement): void {
     const commitMenu = params.get('commitmenu')
     if (commitMenu !== null && commitMenu !== '') commitMenuOid = commitMenu
     if (params.get('commitconfirm') === '1' && commitMenuOid !== null) commitConfirmOid = commitMenuOid
-    // 贮藏记录用一条演示数据起底：真实仓库里没有贮藏，也要能截到「应用 / 弹出 / 丢弃」这一页。
+    // 收起记录用一条演示数据起底：真实仓库里没有收起记录，也要能截到「放回工作区 / 放回并删掉记录 / 丢弃记录」这一页。
     if (params.get('stashdemo') === '1') state = reduce(state, { type: 'stash-create' }, base)
     const stashPending = params.get('stashpending')
     if (stashPending === 'drop') {

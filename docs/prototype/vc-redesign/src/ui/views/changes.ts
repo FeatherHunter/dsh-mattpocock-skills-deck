@@ -2,9 +2,9 @@
  * ui/views/changes.ts —— 改动视图。设计目标按重要性排：
  *   ① 先看见「这批改动整体是什么样」（三个可点的计数控件就是筛选器）；
  *   ② 再逐行看：路径按目录与文件名分开画、变更类型用字母徽章、增删行数右对齐；
- *   ③ 每一行的动作都在这一行上：暂存/撤回在行尾，「更多」菜单与二次确认贴在这一行下面；
+ *   ③ 每一行的动作都在这一行上：加入/移出在行尾，「更多」菜单与二次确认贴在这一行下面；
  *   ④ 展开行看逐行差异，差异不跳出列表；
- *   ⑤ 底部常驻提交区：暂存数、说明、主按钮、禁用原因、提交结果都在同一处。
+ *   ⑤ 底部常驻提交区：已加入的文件数、说明、主按钮、禁用原因、提交结果都在同一处。
  *
  * 「就近」是这一版的硬规则：行级动作的结果不放到页面底部的结果条里，
  * 而是紧贴着改动列表的顶端出现；确认卡紧贴着触发它的那一行出现。
@@ -40,7 +40,7 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
   }
 
   const list = h('div', { class: 'changes-scroll' })
-  // 行级动作（丢弃、忽略、解决冲突、贮藏）的结果贴在列表最上面：它离刚点过的那一行最近。
+  // 行级动作（丢弃、忽略、解决冲突、收起）的结果贴在列表最上面：它离刚点过的那一行最近。
   // 提交结果留在底部提交区，因为它由底部的提交按钮产生。
   // 同步动作（拉取、更新、推送）与重新读取的结果已经在顶部同步带里报过，这里不再重复画一条：
   // 同一条结果画两处，读者会以为发生了两件事。
@@ -67,7 +67,7 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
   const stagedLine = h('div', { class: 'composer-head' },
     h('span', { class: 'composer-count' },
       h('span', { class: 'count', text: String(model.composer.stagedCount) }),
-      h('span', { class: 'unit', text: '个文件已暂存' })),
+      h('span', { class: 'unit', text: '个文件已加入这次提交' })),
     h('span', { class: 'composer-links' },
       model.canUnstageAll
         ? h('button', {
@@ -92,7 +92,7 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
   })
   textarea.value = model.composer.message
 
-  // 交接入口与静态提示挤在同一行：提示说「只提交已暂存的内容」，入口说「不想自己拆就交给 AI」，
+  // 交接入口与静态提示挤在同一行：提示说「只提交已加入这次提交的内容」，入口说「不想自己拆就交给 AI」，
   // 两件事都发生在动手之前，合在一行不额外占高度，列表就能多露几行文件。
   const hint = h('div', { class: 'composer-hint', id: 'commit-hint' },
     h('span', { class: 'hint-text', text: model.composer.hint }),
@@ -139,7 +139,7 @@ function renderGroup(group: GroupModel, model: ChangesModel): HTMLElement {
 
   // 分组动作装在同一个容器里再靠右：只给容器一个 margin-left:auto，
   // 两颗动作才会挨着排在同一侧。以前每颗按钮各自 margin-left:auto，
-  // 浏览器会把剩余空间平分成两份，第一颗就被推到行中间，看起来像「全部暂存」居中了。
+  // 浏览器会把剩余空间平分成两份，第一颗就被推到行中间，看起来像「全部加入」居中了。
   const actions = h('div', { class: 'group-actions' })
 
   if (group.id === 'staged' && model.canUnstageAll) {
@@ -164,7 +164,7 @@ function renderGroup(group: GroupModel, model: ChangesModel): HTMLElement {
     if (model.canDiscardAll) {
       actions.append(h('button', {
         class: 'group-action is-danger',
-        attrs: { type: 'button', 'aria-label': COPY.changes.discardAll, title: '把全部未暂存的改动丢弃（不能撤回）' },
+        attrs: { type: 'button', 'aria-label': COPY.changes.discardAll, title: '把全部未加入的改动丢弃（不能撤回）' },
         dataset: { action: 'changes-pending', kind: 'discard-all' },
       }, COPY.changes.discardAll))
     }
@@ -193,7 +193,7 @@ function renderFileRow(row: FileRowModel, model: ChangesModel): HTMLElement {
       role: 'button',
       tabindex: 0,
       'aria-expanded': row.expanded ? 'true' : 'false',
-      'aria-label': `${row.fullPath}：${row.staged ? '已暂存' : row.conflict ? '冲突' : '未暂存'}`,
+      'aria-label': `${row.fullPath}：${row.staged ? '已加入这次提交' : row.conflict ? '冲突' : '未加入'}`,
       'data-focus-key': `row:${row.fullPath}`,
       title: row.fullPath,
     },
@@ -223,13 +223,13 @@ function renderFileRow(row: FileRowModel, model: ChangesModel): HTMLElement {
   if (row.canStage) {
     actions.append(h('button', {
       class: 'row-act',
-      attrs: { type: 'button', title: `暂存 ${row.name}`, 'data-focus-key': `stage:${row.fullPath}` },
+      attrs: { type: 'button', title: `把 ${row.name} 加入这次提交`, 'data-focus-key': `stage:${row.fullPath}` },
       dataset: { action: 'stage', path: row.fullPath },
     }, COPY.actions.stage))
   } else if (row.canUnstage) {
     actions.append(h('button', {
       class: 'row-act',
-      attrs: { type: 'button', title: `撤回 ${row.name} 的暂存`, 'data-focus-key': `unstage:${row.fullPath}` },
+      attrs: { type: 'button', title: `把 ${row.name} 移出这次提交`, 'data-focus-key': `unstage:${row.fullPath}` },
       dataset: { action: 'unstage', path: row.fullPath },
     }, COPY.actions.unstage))
   }

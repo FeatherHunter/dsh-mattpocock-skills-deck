@@ -22,7 +22,7 @@
       changes: "\u6539\u52A8",
       commits: "\u63D0\u4EA4\u5386\u53F2",
       worktrees: "\u5DE5\u4F5C\u6811",
-      stash: "\u8D2E\u85CF"
+      stash: "\u6536\u8D77\u7684\u6539\u52A8"
     },
     units: {
       change: "\u6587\u4EF6",
@@ -62,10 +62,10 @@
       fetch: "\u66F4\u65B0",
       push: "\u63A8\u9001",
       commit: "\u63D0\u4EA4",
-      stage: "\u6682\u5B58",
-      unstage: "\u64A4\u56DE",
-      stageAll: "\u5168\u90E8\u6682\u5B58",
-      unstageAll: "\u5168\u90E8\u64A4\u56DE",
+      stage: "\u52A0\u5165",
+      unstage: "\u79FB\u51FA",
+      stageAll: "\u5168\u90E8\u52A0\u5165",
+      unstageAll: "\u5168\u90E8\u79FB\u51FA",
       back: "\u8FD4\u56DE\u63D0\u4EA4\u5386\u53F2",
       loadMore: "\u52A0\u8F7D\u66F4\u65E9\u7684\u63D0\u4EA4"
     },
@@ -78,8 +78,8 @@
     },
     /** 阻断原因：真实实现的标识符在 src/shared/version-control/src/rules.ts。 */
     block: {
-      "nothing-staged": "\u6682\u5B58\u533A\u4E3A\u7A7A\uFF0C\u5148\u6682\u5B58\u8981\u63D0\u4EA4\u7684\u6587\u4EF6",
-      "nothing-to-stage": "\u6CA1\u6709\u53EF\u6682\u5B58\u7684\u5185\u5BB9",
+      "nothing-staged": "\u8FD8\u6CA1\u6709\u6587\u4EF6\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\uFF0C\u5148\u52A0\u5165\u8981\u63D0\u4EA4\u7684\u6587\u4EF6",
+      "nothing-to-stage": "\u6CA1\u6709\u53EF\u4EE5\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u7684\u6539\u52A8",
       "conflicts-unresolved": "\u5B58\u5728\u672A\u89E3\u51B3\u7684\u51B2\u7A81\u6587\u4EF6",
       "dirty-tree": "\u5DE5\u4F5C\u533A\u6709\u672A\u63D0\u4EA4\u7684\u6539\u52A8",
       "basis-unknown": "\u8FDC\u7AEF\u4F9D\u636E\u65F6\u95F4\u8BFB\u4E0D\u5230",
@@ -104,26 +104,26 @@
     },
     changes: {
       filterConflict: "\u51B2\u7A81",
-      filterStaged: "\u5DF2\u6682\u5B58",
-      filterUnstaged: "\u672A\u6682\u5B58",
+      filterStaged: "\u5DF2\u52A0\u5165",
+      filterUnstaged: "\u672A\u52A0\u5165",
       groupConflict: "\u5B58\u5728\u51B2\u7A81",
-      groupStaged: "\u5DF2\u6682\u5B58",
-      groupUnstaged: "\u672A\u6682\u5B58",
+      groupStaged: "\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4",
+      groupUnstaged: "\u672A\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4",
       groupEmptyConflict: "\u6CA1\u6709\u51B2\u7A81\u6587\u4EF6",
-      groupEmptyStaged: "\u8FD8\u6CA1\u6709\u6682\u5B58\u4EFB\u4F55\u6587\u4EF6",
-      groupEmptyUnstaged: "\u6CA1\u6709\u672A\u6682\u5B58\u7684\u6539\u52A8",
-      patchTitle: "\u76F8\u5BF9\u4E0A\u4E00\u6B21\u63D0\u4EA4\u7684\u53D8\u66F4\uFF08\u542B\u5DF2\u6682\u5B58\u4E0E\u672A\u6682\u5B58\uFF09",
+      groupEmptyStaged: "\u8FD8\u6CA1\u6709\u6587\u4EF6\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4",
+      groupEmptyUnstaged: "\u6CA1\u6709\u672A\u52A0\u5165\u7684\u6539\u52A8",
+      patchTitle: "\u76F8\u5BF9\u4E0A\u4E00\u6B21\u63D0\u4EA4\u7684\u53D8\u66F4\uFF08\u542B\u5DF2\u52A0\u5165\u4E0E\u672A\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u7684\u6539\u52A8\uFF09",
       patchNote: "\u539F\u578B\u53EA\u6F14\u793A\u9010\u884C\u5DEE\u5F02\u7684\u6392\u7248\uFF0C\u8FD9\u4E00\u5C0F\u6BB5\u662F\u793A\u4F8B\u8865\u4E01\uFF0C\u4E0D\u6765\u81EA\u4ED3\u5E93\u3002",
       messagePlaceholder: "\u5199\u4E00\u53E5\u63D0\u4EA4\u8BF4\u660E",
-      messageHint: "\u4EC5\u63D0\u4EA4\u5DF2\u6682\u5B58\u7684\u5185\u5BB9\uFF0C\u672A\u6682\u5B58\u7684\u6587\u4EF6\u4E0D\u4F1A\u88AB\u63D0\u4EA4\u3002",
+      messageHint: "\u53EA\u63D0\u4EA4\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u7684\u5185\u5BB9\uFF1B\u6CA1\u52A0\u5165\u7684\u6587\u4EF6\u7559\u5728\u5DE5\u4F5C\u533A\u3002",
       commitLabel: (n) => `\u63D0\u4EA4 ${n} \u4E2A\u6587\u4EF6`,
-      commitNoStaged: "\u6682\u5B58\u533A\u6CA1\u6709\u6587\u4EF6",
+      commitNoStaged: "\u8FD8\u6CA1\u6709\u6587\u4EF6\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4",
       commitNoMessage: "\u586B\u5199\u63D0\u4EA4\u8BF4\u660E\u540E\u5373\u53EF\u63D0\u4EA4",
       emptyTitle: "\u6CA1\u6709\u672A\u63D0\u4EA4\u7684\u6539\u52A8",
-      emptyHint: "\u5DE5\u4F5C\u6811\u4E0E\u6682\u5B58\u533A\u90FD\u662F\u5E72\u51C0\u7684\u3002",
+      emptyHint: "\u5DE5\u4F5C\u6811\u662F\u5E72\u51C0\u7684\uFF0C\u4E5F\u6CA1\u6709\u8981\u63D0\u4EA4\u7684\u6539\u52A8\u3002",
       untracked: "\u672A\u8DDF\u8E2A",
       typeUnknown: "\u65E0\u6CD5\u5224\u5B9A\u53D8\u66F4\u7C7B\u578B",
-      stagedBadge: "\u5DF2\u6682\u5B58",
+      stagedBadge: "\u5DF2\u52A0\u5165",
       menuMore: "\u66F4\u591A\u64CD\u4F5C",
       menuDiscard: "\u4E22\u5F03\u4FEE\u6539",
       menuIgnore: "\u52A0\u5165 .gitignore",
@@ -137,22 +137,22 @@
       confirmDelete: "\u786E\u8BA4\u5220\u9664",
       confirmResolve: "\u786E\u8BA4\u89E3\u51B3",
       confirmDiscardTitle: (name) => `\u4E22\u5F03 ${name} \u7684\u6539\u52A8\uFF1F`,
-      confirmDiscardBody: "\u6587\u4EF6\u4F1A\u56DE\u5230\u4E0A\u4E00\u6B21\u63D0\u4EA4\u65F6\u7684\u5185\u5BB9\uFF0C\u8FD9\u6B21\u672A\u6682\u5B58\u7684\u6539\u52A8\u6CA1\u6CD5\u4ECE\u9762\u677F\u64A4\u56DE\u3002",
+      confirmDiscardBody: "\u6587\u4EF6\u4F1A\u56DE\u5230\u4E0A\u4E00\u6B21\u63D0\u4EA4\u65F6\u7684\u5185\u5BB9\uFF0C\u8FD9\u6B21\u672A\u52A0\u5165\u7684\u6539\u52A8\u6CA1\u6CD5\u4ECE\u9762\u677F\u64A4\u56DE\u3002",
       confirmDiscardAllTitle: (n) => `\u4E22\u5F03 ${n} \u4E2A\u6587\u4EF6\u7684\u6539\u52A8\uFF1F`,
-      confirmDiscardAllBody: "\u8FD9\u4E9B\u6587\u4EF6\u90FD\u4F1A\u56DE\u5230\u4E0A\u4E00\u6B21\u63D0\u4EA4\u65F6\u7684\u5185\u5BB9\uFF0C\u672A\u6682\u5B58\u7684\u6539\u52A8\u6CA1\u6CD5\u4ECE\u9762\u677F\u64A4\u56DE\u3002",
+      confirmDiscardAllBody: "\u8FD9\u4E9B\u6587\u4EF6\u90FD\u4F1A\u56DE\u5230\u4E0A\u4E00\u6B21\u63D0\u4EA4\u65F6\u7684\u5185\u5BB9\uFF0C\u672A\u52A0\u5165\u7684\u6539\u52A8\u6CA1\u6CD5\u4ECE\u9762\u677F\u64A4\u56DE\u3002",
       confirmDiscardAllMeta: (n) => `\u6D89\u53CA ${n} \u4E2A\u6587\u4EF6`,
       confirmIgnoreTitle: (name) => `\u628A ${name} \u52A0\u5165 .gitignore\uFF1F`,
       confirmIgnoreBody: "\u6587\u4EF6\u4ECD\u5728\u78C1\u76D8\u4E0A\uFF0Cgit \u4ECE\u4E0B\u4E00\u6B21\u8BFB\u53D6\u8D77\u4E0D\u518D\u8DDF\u8E2A\u5B83\uFF1B\u5DF2\u7ECF\u63D0\u4EA4\u8FDB\u5386\u53F2\u7684\u5185\u5BB9\u4E0D\u53D7\u5F71\u54CD\u3002",
       confirmDeleteTitle: (name) => `\u5220\u9664\u672A\u8DDF\u8E2A\u6587\u4EF6 ${name}\uFF1F`,
       confirmDeleteBody: "\u8FD9\u4E2A\u6587\u4EF6\u4ECE\u6765\u6CA1\u6709\u8FDB\u8FC7 git \u5386\u53F2\uFF0C\u5220\u9664\u4EE5\u540E\u6CA1\u6709\u4EFB\u4F55\u5730\u65B9\u80FD\u627E\u56DE\u3002",
       confirmResolveOursTitle: (name) => `\u7528\u5F53\u524D\u5206\u652F\u7684\u7248\u672C\u89E3\u51B3 ${name}\uFF1F`,
-      confirmResolveOursBody: "\u5BF9\u65B9\u7684\u6539\u52A8\u4F1A\u88AB\u4E22\u6389\uFF0C\u6587\u4EF6\u4F1A\u76F4\u63A5\u53D8\u4E3A\u5DF2\u6682\u5B58\u3002",
+      confirmResolveOursBody: "\u5BF9\u65B9\u5206\u652F\u91CC\u7684\u6539\u52A8\u4F1A\u88AB\u4E22\u6389\uFF0C\u6587\u4EF6\u4F1A\u76F4\u63A5\u53D8\u4E3A\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u3002",
       confirmResolveTheirsTitle: (name) => `\u7528\u5BF9\u65B9\u7684\u7248\u672C\u89E3\u51B3 ${name}\uFF1F`,
-      confirmResolveTheirsBody: "\u5F53\u524D\u5206\u652F\u91CC\u7684\u6539\u52A8\u4F1A\u88AB\u4E22\u6389\uFF0C\u6587\u4EF6\u4F1A\u76F4\u63A5\u53D8\u4E3A\u5DF2\u6682\u5B58\u3002",
+      confirmResolveTheirsBody: "\u5F53\u524D\u5206\u652F\u91CC\u7684\u6539\u52A8\u4F1A\u88AB\u4E22\u6389\uFF0C\u6587\u4EF6\u4F1A\u76F4\u63A5\u53D8\u4E3A\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u3002",
       ignoredNote: (n) => `\u5DF2\u5FFD\u7565 ${n} \u4E2A\u6587\u4EF6\uFF0Cgit \u4ECE\u4E0B\u4E00\u6B21\u8BFB\u53D6\u8D77\u4E0D\u518D\u8DDF\u8E2A\u5B83\u4EEC`,
-      stashAction: "\u8D2E\u85CF\u8FD9\u4E9B\u6539\u52A8",
-      stashHint: "\u8D2E\u85CF\u4F1A\u628A\u5DE5\u4F5C\u533A\u4E0E\u6682\u5B58\u533A\u4E00\u8D77\u6253\u5305\u5E26\u8D70\uFF0C\u5DE5\u4F5C\u533A\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\uFF1B\u4E4B\u540E\u53EF\u4EE5\u5E94\u7528\u6216\u5F39\u51FA\u62FF\u56DE\u6765\u3002",
-      stashBlocked: "\u6709\u51B2\u7A81\u6587\u4EF6\u65F6\u4E0D\u80FD\u8D2E\u85CF\uFF0C\u5148\u89E3\u51B3\u51B2\u7A81\u3002",
+      stashAction: "\u6536\u8D77\u6539\u52A8",
+      stashHint: "\u628A\u6539\u52A8\u6253\u5305\u6536\u8D77\u6765\uFF1A\u5DE5\u4F5C\u533A\u56DE\u5230\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\uFF0C\u8981\u63D0\u4EA4\u7684\u5185\u5BB9\u4E5F\u4E00\u8D77\u6536\u8D70\uFF1B\u4E4B\u540E\u80FD\u653E\u56DE\u5DE5\u4F5C\u533A\u3002",
+      stashBlocked: "\u6709\u51B2\u7A81\u6587\u4EF6\u65F6\u4E0D\u80FD\u6536\u8D77\u6539\u52A8\uFF0C\u5148\u89E3\u51B3\u51B2\u7A81\u3002",
       menuClose: "\u6536\u8D77\u83DC\u5355",
       menuOpen: "\u66F4\u591A\u64CD\u4F5C"
     },
@@ -177,15 +177,15 @@
       menuOpen: "\u66F4\u591A\u64CD\u4F5C",
       menuRevert: "\u56DE\u9000\u8FD9\u6B21\u63D0\u4EA4",
       menuCherryPick: "\u62E3\u9009\u5230\u5F53\u524D\u5206\u652F",
-      menuUndo: "\u64A4\u9500\u8FD9\u6B21\u63D0\u4EA4\uFF0C\u6539\u52A8\u7559\u5728\u6682\u5B58\u533A",
+      menuUndo: "\u64A4\u9500\u8FD9\u6B21\u63D0\u4EA4\uFF0C\u6539\u52A8\u56DE\u5230\u300C\u5DF2\u52A0\u5165\u300D",
       menuUndoHint: "\u53EA\u80FD\u64A4\u9500\u6700\u65B0\u4E00\u6761\u63D0\u4EA4",
       menuCopy: "\u590D\u5236\u63D0\u4EA4 ID",
       menuClose: "\u6536\u8D77\u83DC\u5355",
       undoTitle: (subject) => `\u64A4\u9500\u63D0\u4EA4\u300C${subject}\u300D\uFF1F`,
-      undoBody: "\u5206\u652F\u4F1A\u9000\u4E00\u6B65\uFF0C\u8FD9\u6B21\u63D0\u4EA4\u91CC\u7684\u6587\u4EF6\u56DE\u5230\u6682\u5B58\u533A\uFF0C\u63D0\u4EA4\u8BF4\u660E\u7559\u5728\u8F93\u5165\u6846\u91CC\uFF1B\u8FD9\u4E00\u6B65\u6539\u7684\u662F\u672C\u5730\u5386\u53F2\u3002",
+      undoBody: "\u5206\u652F\u4F1A\u9000\u4E00\u6B65\uFF0C\u8FD9\u6B21\u63D0\u4EA4\u91CC\u7684\u6587\u4EF6\u56DE\u5230\u300C\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\uFF0C\u63D0\u4EA4\u8BF4\u660E\u7559\u5728\u8F93\u5165\u6846\u91CC\uFF1B\u8FD9\u4E00\u6B65\u6539\u7684\u662F\u672C\u5730\u5386\u53F2\u3002",
       undoConfirm: "\u786E\u8BA4\u64A4\u9500",
       cancel: "\u53D6\u6D88",
-      undoNote: "\u5386\u53F2\u91CC\u7684\u8FD9\u6761\u63D0\u4EA4\u6682\u65F6\u9690\u53BB\uFF0C\u6539\u52A8\u5728\u300C\u6539\u52A8\u300D\u9875\u7B7E\u7684\u5DF2\u6682\u5B58\u5206\u7EC4\u91CC\u3002"
+      undoNote: "\u5386\u53F2\u91CC\u7684\u8FD9\u6761\u63D0\u4EA4\u6682\u65F6\u9690\u53BB\uFF0C\u6539\u52A8\u5728\u300C\u6539\u52A8\u300D\u9875\u7B7E\u7684\u5DF2\u52A0\u5165\u5206\u7EC4\u91CC\u3002"
     },
     branches: {
       title: "\u5206\u652F",
@@ -287,28 +287,29 @@
       ai: "\u8BA9 AI \u5904\u7406\u5F02\u5E38\u5DE5\u4F5C\u6811"
     },
     /**
-     * 贮藏页签：git stash 的完整生命周期。文案只说用户能看见的两件事——
+     * 收起改动页签：git stash 的完整生命周期。文案只说用户能看见的两件事——
      * 这条记录里放着什么、这一下是拿回来还是彻底丢掉。
      */
     stash: {
-      title: "\u8D2E\u85CF",
-      empty: "\u8FD8\u6CA1\u6709\u8D2E\u85CF\u8BB0\u5F55",
-      emptyHint: "\u5728\u300C\u6539\u52A8\u300D\u9875\u7B7E\u91CC\u70B9\u300C\u8D2E\u85CF\u8FD9\u4E9B\u6539\u52A8\u300D\uFF0C\u5C31\u80FD\u628A\u5F53\u524D\u6539\u52A8\u6253\u5305\u6536\u8D77\u6765\u3002",
+      title: "\u6536\u8D77\u7684\u6539\u52A8",
+      lede: "\u628A\u6682\u65F6\u4E0D\u60F3\u63D0\u4EA4\u7684\u6539\u52A8\u6253\u5305\u6536\u8D77\u6765\uFF0C\u4E4B\u540E\u80FD\u653E\u56DE\u5DE5\u4F5C\u533A\u63A5\u7740\u505A\u3002",
+      empty: "\u8FD8\u6CA1\u6709\u6536\u8D77\u8FC7\u6539\u52A8",
+      emptyHint: "\u5728\u300C\u6539\u52A8\u300D\u9875\u7B7E\u91CC\u70B9\u300C\u6536\u8D77\u6539\u52A8\u300D\uFF0C\u5C31\u80FD\u628A\u5F53\u65F6\u7684\u6539\u52A8\u6253\u5305\u6536\u597D\u3002",
       entryMeta: (when, n) => `${when} \xB7 ${n} \u4E2A\u6587\u4EF6`,
-      pathsNote: "\u8BB0\u5F55\u91CC\u4FDD\u5B58\u7684\u662F\u6539\u52A8\u53D1\u751F\u65F6\u7684\u6837\u5B50\uFF1B\u5E94\u7528\u4E4B\u540E\u9700\u8981\u91CD\u65B0\u6682\u5B58\u518D\u63D0\u4EA4\u3002",
-      apply: "\u5E94\u7528",
-      pop: "\u5F39\u51FA",
-      drop: "\u4E22\u5F03",
-      applyHint: "\u628A\u6539\u52A8\u653E\u56DE\u5DE5\u4F5C\u533A\uFF0C\u8FD9\u6761\u8BB0\u5F55\u4ECD\u7136\u4FDD\u7559",
-      popHint: "\u628A\u6539\u52A8\u653E\u56DE\u5DE5\u4F5C\u533A\uFF0C\u5E76\u5220\u9664\u8FD9\u6761\u8BB0\u5F55",
-      dropTitle: (id) => `\u4E22\u5F03\u8D2E\u85CF\u8BB0\u5F55 ${id}\uFF1F`,
+      pathsNote: "\u8BB0\u5F55\u91CC\u4FDD\u5B58\u7684\u662F\u6539\u52A8\u5F53\u65F6\u7684\u6837\u5B50\uFF1B\u653E\u56DE\u5DE5\u4F5C\u533A\u4EE5\u540E\uFF0C\u8981\u91CD\u65B0\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u518D\u63D0\u4EA4\u3002",
+      apply: "\u653E\u56DE\u5DE5\u4F5C\u533A",
+      pop: "\u653E\u56DE\u5E76\u5220\u6389\u8BB0\u5F55",
+      drop: "\u4E22\u5F03\u8BB0\u5F55",
+      applyHint: "\u628A\u6539\u52A8\u653E\u56DE\u5DE5\u4F5C\u533A\uFF0C\u8FD9\u6761\u8BB0\u5F55\u8FD8\u4FDD\u7559\u7740",
+      popHint: "\u628A\u6539\u52A8\u653E\u56DE\u5DE5\u4F5C\u533A\uFF0C\u540C\u65F6\u5220\u6389\u8FD9\u6761\u8BB0\u5F55",
+      dropTitle: (id) => `\u4E22\u5F03\u8BB0\u5F55 ${id}\uFF1F`,
       dropBody: "\u8BB0\u5F55\u91CC\u90A3\u4E9B\u6587\u4EF6\u5F53\u65F6\u7684\u6837\u5B50\u4F1A\u5F7B\u5E95\u6D88\u5931\uFF0C\u9762\u677F\u4E0D\u80FD\u6062\u590D\u3002",
       dropConfirm: "\u786E\u8BA4\u4E22\u5F03",
       cancel: "\u53D6\u6D88",
-      showPaths: "\u770B\u770B\u8FD9\u6761\u8BB0\u5F55\u91CC\u6709\u54EA\u4E9B\u6587\u4EF6",
+      showPaths: "\u770B\u770B\u8FD9\u4EFD\u8BB0\u5F55\u91CC\u6709\u54EA\u4E9B\u6587\u4EF6",
       hidePaths: "\u6536\u8D77\u6587\u4EF6\u6E05\u5355",
-      boundary: "\u8D2E\u85CF\u53EA\u5728\u672C\u5730\uFF0C\u4E0D\u4F1A\u63A8\u9001\uFF1B\u5E94\u7528\u6216\u5F39\u51FA\u65F6\u6309\u8BB0\u5F55\u91CC\u7684\u987A\u5E8F\u653E\u56DE\u5DE5\u4F5C\u533A\u3002",
-      restoreNote: (n) => `\u5E94\u7528\u540E\u4F1A\u653E\u56DE ${n} \u4E2A\u6587\u4EF6\uFF0C\u5DF2\u5B58\u5728\u7684\u540C\u540D\u6539\u52A8\u4F1A\u88AB\u5408\u5E76\u6216\u63D0\u793A\u51B2\u7A81\u3002`
+      boundary: "\u6536\u8D77\u8BB0\u5F55\u53EA\u5728\u672C\u5730\uFF0C\u4E0D\u4F1A\u63A8\u9001\uFF1B\u653E\u56DE\u5DE5\u4F5C\u533A\u65F6\u6309\u8BB0\u5F55\u91CC\u7684\u987A\u5E8F\u6062\u590D\u3002",
+      restoreNote: (n) => `\u653E\u56DE\u65F6\u4F1A\u6062\u590D ${n} \u4E2A\u6587\u4EF6\uFF0C\u5DF2\u5B58\u5728\u7684\u540C\u540D\u6539\u52A8\u4F1A\u88AB\u5408\u5E76\u6216\u63D0\u793A\u51B2\u7A81\u3002`
     },
     /**
      * AI 交接的全部文案。入口上的那几句故意写成问句：它们要让人意识到
@@ -3628,7 +3629,7 @@
         return withResult({ ...state, busy: null, basisMs: nowMs, readAtMs: nowMs }, {
           tone: "ok",
           text: "\u66F4\u65B0\u5B8C\u6210\uFF1A\u8FDC\u7AEF\u4F9D\u636E\u5DF2\u5237\u65B0\u3002",
-          detail: unique(["\u8FDC\u7AEF\u8DDF\u8E2A\u5F15\u7528\u5DF2\u66F4\u65B0\uFF1B\u5DE5\u4F5C\u6811\u4E0E\u6682\u5B58\u533A\u6CA1\u6709\u53D8\u5316\u3002"]).join(""),
+          detail: unique(["\u8FDC\u7AEF\u8DDF\u8E2A\u5F15\u7528\u5DF2\u66F4\u65B0\uFF1B\u5DE5\u4F5C\u6811\u4E0E\u300C\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\u7684\u6E05\u5355\u6CA1\u6709\u53D8\u5316\u3002"]).join(""),
           source: "sync"
         });
       }
@@ -3692,7 +3693,7 @@
           return {
             ...state,
             busy: null,
-            result: { tone: "error", text: staged.length === 0 ? "\u6682\u5B58\u533A\u4E3A\u7A7A\uFF0C\u5148\u6682\u5B58\u8981\u63D0\u4EA4\u7684\u6587\u4EF6\u3002" : "\u586B\u5199\u63D0\u4EA4\u8BF4\u660E\u540E\u5373\u53EF\u63D0\u4EA4\u3002", detail: null, source: "commit" }
+            result: { tone: "error", text: staged.length === 0 ? "\u8FD8\u6CA1\u6709\u6587\u4EF6\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\uFF0C\u5148\u52A0\u5165\u8981\u63D0\u4EA4\u7684\u6587\u4EF6\u3002" : "\u586B\u5199\u63D0\u4EA4\u8BF4\u660E\u540E\u5373\u53EF\u63D0\u4EA4\u3002", detail: null, source: "commit" }
           };
         }
         const files = staged.map((path) => {
@@ -3718,7 +3719,7 @@
           result: {
             tone: "ok",
             text: `\u63D0\u4EA4\u5B8C\u6210\uFF1A${files.length} \u4E2A\u6587\u4EF6\u5DF2\u8FDB\u5165\u5386\u53F2\u3002`,
-            detail: "\u8FD9\u6B21\u63D0\u4EA4\u53EA\u5305\u542B\u5DF2\u6682\u5B58\u7684\u6587\u4EF6\uFF1B\u6682\u5B58\u533A\u5DF2\u7ECF\u6E05\u7A7A\uFF0C\u53EF\u4EE5\u63A5\u7740\u6682\u5B58\u4E0B\u4E00\u6279\u3002",
+            detail: "\u8FD9\u6B21\u63D0\u4EA4\u53EA\u5305\u542B\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u7684\u6587\u4EF6\uFF1B\u8FD9\u4EFD\u6E05\u5355\u5DF2\u7ECF\u6E05\u7A7A\uFF0C\u53EF\u4EE5\u63A5\u7740\u52A0\u5165\u4E0B\u4E00\u6279\u3002",
             source: "commit"
           }
         };
@@ -3815,7 +3816,7 @@
               unstaged: state.unstaged.filter((item) => item !== path)
             }, {
               tone: "warn",
-              text: `\u5DF2\u4E22\u5F03 ${name} \u7684\u672A\u6682\u5B58\u6539\u52A8\u3002`,
+              text: `\u5DF2\u4E22\u5F03 ${name} \u7684\u672A\u52A0\u5165\u6539\u52A8\u3002`,
               detail: lines === "" ? "\u6587\u4EF6\u56DE\u5230\u4E0A\u4E00\u6B21\u63D0\u4EA4\u65F6\u7684\u5185\u5BB9\uFF1B\u9762\u677F\u4E0D\u80FD\u64A4\u56DE\u8FD9\u4E00\u6B65\u3002" : `\u6587\u4EF6\u56DE\u5230\u4E0A\u4E00\u6B21\u63D0\u4EA4\u65F6\u7684\u5185\u5BB9\uFF0C${lines} \u4E00\u8D77\u4E22\u6389\u4E86\uFF1B\u9762\u677F\u4E0D\u80FD\u64A4\u56DE\u8FD9\u4E00\u6B65\u3002`,
               source: "changes"
             });
@@ -3825,7 +3826,7 @@
             if (count === 0) return cleared;
             return withResult({ ...cleared, unstaged: [] }, {
               tone: "warn",
-              text: `\u5DF2\u4E22\u5F03 ${count} \u4E2A\u6587\u4EF6\u7684\u672A\u6682\u5B58\u6539\u52A8\u3002`,
+              text: `\u5DF2\u4E22\u5F03 ${count} \u4E2A\u6587\u4EF6\u7684\u672A\u52A0\u5165\u6539\u52A8\u3002`,
               detail: "\u8FD9\u4E9B\u6587\u4EF6\u90FD\u56DE\u5230\u4E0A\u4E00\u6B21\u63D0\u4EA4\u65F6\u7684\u5185\u5BB9\uFF1B\u9762\u677F\u4E0D\u80FD\u64A4\u56DE\u8FD9\u4E00\u6B65\u3002",
               source: "changes"
             });
@@ -3866,7 +3867,7 @@
               staged: unique([...state.staged, path])
             }, {
               tone: "ok",
-              text: `\u5DF2\u6309${side}\u7684\u7248\u672C\u89E3\u51B3 ${name}\uFF0C\u6587\u4EF6\u5DF2\u6682\u5B58\u3002`,
+              text: `\u5DF2\u6309${side}\u7684\u7248\u672C\u89E3\u51B3 ${name}\uFF0C\u6587\u4EF6\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u3002`,
               detail: conflicts.length === 0 ? "\u51B2\u7A81\u5DF2\u7ECF\u5168\u90E8\u89E3\u51B3\uFF0C\u73B0\u5728\u53EF\u4EE5\u63D0\u4EA4\u8FD9\u6B21\u5408\u5E76\u7684\u7ED3\u679C\u3002" : `\u8FD8\u6709 ${conflicts.length} \u4E2A\u51B2\u7A81\u6587\u4EF6\u6CA1\u6709\u89E3\u51B3\u3002`,
               source: "changes"
             });
@@ -4011,11 +4012,11 @@
       case "stash-create": {
         if (state.busy !== null || state.reloading) return state;
         if (state.conflicts.length > 0) {
-          return withResult(state, { tone: "error", text: "\u6709\u51B2\u7A81\u6587\u4EF6\u65F6\u4E0D\u80FD\u8D2E\u85CF\u3002", detail: "\u8D2E\u85CF\u4F1A\u628A\u5DE5\u4F5C\u6811\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\uFF0C\u51B2\u7A81\u6587\u4EF6\u6CA1\u6709\u53EF\u4EE5\u5B89\u5168\u6062\u590D\u7684\u7248\u672C\uFF1B\u5148\u89E3\u51B3\u51B2\u7A81\uFF0C\u518D\u8D2E\u85CF\u5269\u4E0B\u7684\u6539\u52A8\u3002", source: "changes" });
+          return withResult(state, { tone: "error", text: "\u6709\u51B2\u7A81\u6587\u4EF6\u65F6\u4E0D\u80FD\u6536\u8D77\u6539\u52A8\u3002", detail: "\u6536\u8D77\u6539\u52A8\u4F1A\u628A\u5DE5\u4F5C\u6811\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\uFF0C\u51B2\u7A81\u6587\u4EF6\u6CA1\u6709\u53EF\u4EE5\u5B89\u5168\u6062\u590D\u7684\u7248\u672C\uFF1B\u5148\u89E3\u51B3\u51B2\u7A81\uFF0C\u518D\u6536\u8D77\u5269\u4E0B\u7684\u6539\u52A8\u3002", source: "changes" });
         }
         const paths = unique([...state.staged, ...state.unstaged]);
         if (paths.length === 0) {
-          return withResult(state, { tone: "info", text: "\u5DE5\u4F5C\u533A\u662F\u5E72\u51C0\u7684\uFF0C\u6CA1\u6709\u53EF\u8D2E\u85CF\u7684\u6539\u52A8\u3002", detail: null, source: "changes" });
+          return withResult(state, { tone: "info", text: "\u5DE5\u4F5C\u533A\u662F\u5E72\u51C0\u7684\uFF0C\u6CA1\u6709\u53EF\u6536\u8D77\u7684\u6539\u52A8\u3002", detail: null, source: "changes" });
         }
         const branchName = state.branches.find((row) => row.current)?.name ?? base.branch ?? "detached";
         const message = state.message.trim() === "" ? `WIP on ${branchName}` : state.message.trim();
@@ -4033,8 +4034,8 @@
           message: ""
         }, {
           tone: "ok",
-          text: `\u5DF2\u8D2E\u85CF ${paths.length} \u4E2A\u6587\u4EF6\u7684\u6539\u52A8\u3002`,
-          detail: `\u8D2E\u85CF\u8BB0\u5F55 ${entry.id} \u91CC\u653E\u7740\u8FD9\u4E9B\u6587\u4EF6\uFF1B\u5DE5\u4F5C\u533A\u4E0E\u6682\u5B58\u533A\u90FD\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\uFF0C\u5E94\u7528\u6216\u5F39\u51FA\u90FD\u80FD\u628A\u5B83\u62FF\u56DE\u6765\u3002`,
+          text: `\u5DF2\u6536\u8D77 ${paths.length} \u4E2A\u6587\u4EF6\u7684\u6539\u52A8\u3002`,
+          detail: `\u6536\u8D77\u8BB0\u5F55 ${entry.id} \u91CC\u653E\u7740\u8FD9\u4E9B\u6587\u4EF6\uFF1B\u5DE5\u4F5C\u533A\u4E0E\u300C\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\u7684\u6E05\u5355\u90FD\u6062\u590D\u6210\u4E0A\u6B21\u63D0\u4EA4\u65F6\u7684\u6837\u5B50\uFF0C\u653E\u56DE\u5DE5\u4F5C\u533A\u6216\u653E\u56DE\u5E76\u5220\u6389\u8BB0\u5F55\u90FD\u80FD\u628A\u5B83\u62FF\u56DE\u6765\u3002`,
           source: "changes"
         });
       }
@@ -4053,8 +4054,8 @@
           stashPending: null
         }, {
           tone: "ok",
-          text: action.type === "stash-pop" ? `\u5DF2\u5F39\u51FA ${entry.id}\uFF0C${restored.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u5DE5\u4F5C\u533A\u3002` : `\u5DF2\u5E94\u7528 ${entry.id}\uFF0C${restored.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u5DE5\u4F5C\u533A\u3002`,
-          detail: action.type === "stash-pop" ? `\u5F39\u51FA\u7B49\u4E8E\u300C\u5E94\u7528 + \u5220\u9664\u300D\uFF1A\u8FD9\u6761\u8D2E\u85CF\u5DF2\u7ECF\u4ECE\u6E05\u5355\u91CC\u79FB\u9664\uFF08\u539F\u6765 ${before} \u6761\uFF09\u3002\u6539\u52A8\u73B0\u5728\u5728\u672A\u6682\u5B58\u533A\uFF0C\u9700\u8981\u91CD\u65B0\u6682\u5B58\u518D\u63D0\u4EA4\u3002` : `\u5E94\u7528\u53EA\u628A\u6539\u52A8\u653E\u56DE\u5DE5\u4F5C\u533A\uFF0C\u8D2E\u85CF\u8BB0\u5F55\u4ECD\u7136\u4FDD\u7559\u5728\u6E05\u5355\u91CC\uFF08${before} \u6761\uFF09\uFF0C\u53EF\u4EE5\u518D\u5E94\u7528\u4E00\u6B21\u6216\u968F\u540E\u4E22\u5F03\u3002`,
+          text: action.type === "stash-pop" ? `\u5DF2\u628A ${entry.id} \u653E\u56DE\u5DE5\u4F5C\u533A\u5E76\u5220\u6389\u8BB0\u5F55\uFF0C${restored.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u5DE5\u4F5C\u533A\u3002` : `\u5DF2\u628A ${entry.id} \u653E\u56DE\u5DE5\u4F5C\u533A\uFF0C${restored.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u5DE5\u4F5C\u533A\u3002`,
+          detail: action.type === "stash-pop" ? `\u300C\u653E\u56DE\u5E76\u5220\u6389\u8BB0\u5F55\u300D\u7B49\u4E8E\u300C\u653E\u56DE + \u5220\u9664\u8BB0\u5F55\u300D\uFF1A\u8FD9\u6761\u8BB0\u5F55\u5DF2\u7ECF\u4ECE\u6E05\u5355\u91CC\u79FB\u9664\uFF08\u539F\u6765 ${before} \u6761\uFF09\u3002\u6539\u52A8\u73B0\u5728\u5728\u300C\u672A\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\u91CC\uFF0C\u9700\u8981\u91CD\u65B0\u52A0\u5165\u518D\u63D0\u4EA4\u3002` : `\u300C\u653E\u56DE\u5DE5\u4F5C\u533A\u300D\u53EA\u628A\u6539\u52A8\u6062\u590D\u51FA\u6765\uFF0C\u8BB0\u5F55\u4ECD\u7136\u4FDD\u7559\u5728\u6E05\u5355\u91CC\uFF08${before} \u6761\uFF09\uFF0C\u53EF\u4EE5\u518D\u653E\u56DE\u4E00\u6B21\uFF0C\u4E4B\u540E\u4E5F\u53EF\u4EE5\u4E22\u5F03\u8BB0\u5F55\u3002`,
           source: "stash"
         });
       }
@@ -4070,7 +4071,7 @@
           stashPending: null
         }, {
           tone: "warn",
-          text: `\u5DF2\u4E22\u5F03\u8D2E\u85CF\u8BB0\u5F55 ${entry.id}\u3002`,
+          text: `\u5DF2\u4E22\u5F03\u8BB0\u5F55 ${entry.id}\u3002`,
           detail: `\u8BB0\u5F55\u91CC\u90A3 ${entry.paths.length} \u4E2A\u6587\u4EF6\u5F53\u65F6\u7684\u6837\u5B50\u5DF2\u7ECF\u4E0D\u5B58\u5728\uFF1B\u8FD9\u4E00\u6B65\u4E0D\u80FD\u64A4\u56DE\u3002`,
           source: "stash"
         });
@@ -4084,7 +4085,7 @@
           return withResult(state, {
             tone: "error",
             text: "\u53EA\u80FD\u64A4\u9500\u6700\u65B0\u4E00\u6761\u63D0\u4EA4\u3002",
-            detail: "\u64A4\u9500\u4F1A\u628A\u63D0\u4EA4\u91CC\u7684\u6539\u52A8\u653E\u56DE\u6682\u5B58\u533A\u3001\u5E76\u8BA9\u5206\u652F\u9000\u4E00\u6B65\uFF1B\u9009\u62E9\u66F4\u65E9\u7684\u63D0\u4EA4\u5C31\u5F97\u6539\u5199\u5B83\u540E\u9762\u7684\u5386\u53F2\uFF0C\u539F\u578B\u4E0D\u505A\u8FD9\u4E00\u6B65\u3002",
+            detail: "\u64A4\u9500\u4F1A\u628A\u63D0\u4EA4\u91CC\u7684\u6539\u52A8\u653E\u56DE\u300C\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\u3001\u5E76\u8BA9\u5206\u652F\u9000\u4E00\u6B65\uFF1B\u9009\u62E9\u66F4\u65E9\u7684\u63D0\u4EA4\u5C31\u5F97\u6539\u5199\u5B83\u540E\u9762\u7684\u5386\u53F2\uFF0C\u539F\u578B\u4E0D\u505A\u8FD9\u4E00\u6B65\u3002",
             source: "history"
           });
         }
@@ -4102,7 +4103,7 @@
         }, {
           tone: "warn",
           text: `\u5DF2\u64A4\u9500\u63D0\u4EA4 ${subject === "" ? action.oid.slice(0, 7) : subject}\u3002`,
-          detail: pushed ? `\u63D0\u4EA4\u91CC\u7684 ${files.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u6682\u5B58\u533A\uFF0C\u63D0\u4EA4\u8BF4\u660E\u7559\u5728\u8F93\u5165\u6846\u91CC\uFF1B\u8FD9\u6761\u63D0\u4EA4\u5DF2\u7ECF\u63A8\u9001\u8FC7\uFF0C\u6240\u4EE5\u672C\u5730\u73B0\u5728\u6BD4\u8FDC\u7AEF\u5404\u5C11\u4E00\u6B65\uFF0C\u9700\u8981\u91CD\u65B0\u63D0\u4EA4\u540E\u518D\u63A8\u9001\u3002` : `\u63D0\u4EA4\u91CC\u7684 ${files.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u6682\u5B58\u533A\uFF0C\u63D0\u4EA4\u8BF4\u660E\u7559\u5728\u8F93\u5165\u6846\u91CC\uFF1B\u53EF\u4EE5\u6539\u5B8C\u518D\u91CD\u65B0\u63D0\u4EA4\u3002`,
+          detail: pushed ? `\u63D0\u4EA4\u91CC\u7684 ${files.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u300C\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\uFF0C\u63D0\u4EA4\u8BF4\u660E\u7559\u5728\u8F93\u5165\u6846\u91CC\uFF1B\u8FD9\u6761\u63D0\u4EA4\u5DF2\u7ECF\u63A8\u9001\u8FC7\uFF0C\u6240\u4EE5\u672C\u5730\u73B0\u5728\u6BD4\u8FDC\u7AEF\u5404\u5C11\u4E00\u6B65\uFF0C\u9700\u8981\u91CD\u65B0\u63D0\u4EA4\u540E\u518D\u63A8\u9001\u3002` : `\u63D0\u4EA4\u91CC\u7684 ${files.length} \u4E2A\u6587\u4EF6\u56DE\u5230\u300C\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\uFF0C\u63D0\u4EA4\u8BF4\u660E\u7559\u5728\u8F93\u5165\u6846\u91CC\uFF1B\u53EF\u4EE5\u6539\u5B8C\u518D\u91CD\u65B0\u63D0\u4EA4\u3002`,
           source: "history"
         });
       }
@@ -4219,9 +4220,9 @@
       `\u540C\u6B65\uFF1A\u8D85\u524D ${identity.ahead} \u7B14\u63D0\u4EA4\uFF0C\u843D\u540E ${identity.behind} \u7B14\u63D0\u4EA4`
     ];
     const changesLines = [
-      `\u5DF2\u6682\u5B58\uFF1A${screen.stagedCount} \u4E2A\u6587\u4EF6`,
+      `\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\uFF1A${screen.stagedCount} \u4E2A\u6587\u4EF6`,
       ...stagedLines.length === 0 ? [] : [numbered(stagedLines)],
-      `\u672A\u6682\u5B58\uFF1A${screen.unstagedCount} \u4E2A\u6587\u4EF6`,
+      `\u672A\u52A0\u5165\uFF1A${screen.unstagedCount} \u4E2A\u6587\u4EF6`,
       ...unstagedLines.length === 0 ? [] : [numbered(unstagedLines)],
       `\u51B2\u7A81\uFF1A${screen.conflictCount} \u4E2A\u6587\u4EF6`,
       ...conflictLines.length === 0 ? [] : [numbered(conflictLines)],
@@ -4380,15 +4381,15 @@
       { id: "changes", label: COPY.views.changes, count: changes, unit: COPY.units.change },
       { id: "commits", label: COPY.views.commits, count: base.totalCommits, unit: COPY.units.commit },
       { id: "worktrees", label: COPY.views.worktrees, count: base.screen.otherWorktrees.filter((item) => !item.current).length + (state.demoWorktrees ? DEMO_WORKTREE_COUNT : 0), unit: COPY.units.worktree },
-      { id: "stash", label: COPY.views.stash, count: state.stashes.length, unit: COPY.units.stash, explain: "\u628A\u6682\u65F6\u4E0D\u60F3\u63D0\u4EA4\u7684\u6539\u52A8\u6253\u5305\u6536\u8D77\u6765\uFF0C\u4E4B\u540E\u80FD\u62FF\u56DE\u6765" }
+      { id: "stash", label: COPY.views.stash, count: state.stashes.length, unit: COPY.units.stash, explain: "\u628A\u6682\u65F6\u4E0D\u60F3\u63D0\u4EA4\u7684\u6539\u52A8\u6253\u5305\u6536\u8D77\u6765\uFF0C\u4E4B\u540E\u80FD\u653E\u56DE\u5DE5\u4F5C\u533A" }
     ];
   }
   function nextStepOf(state) {
     if (state.conflicts.length > 0) return { text: "\u5148\u89E3\u51B3\u51B2\u7A81\u6587\u4EF6\uFF0C\u518D\u63D0\u4EA4", tone: "error" };
     if (state.behind > 0) return { text: "\u5148\u62C9\u53D6\u8FDC\u7AEF\u7684\u65B0\u63D0\u4EA4", tone: "warn" };
     if (state.staged.length > 0 && state.message.trim() === "") return { text: "\u5199\u4E00\u53E5\u63D0\u4EA4\u8BF4\u660E\uFF0C\u518D\u63D0\u4EA4", tone: "info" };
-    if (state.staged.length > 0) return { text: "\u63D0\u4EA4\u5DF2\u6682\u5B58\u7684\u6587\u4EF6", tone: "ok" };
-    if (state.unstaged.length > 0) return { text: "\u5148\u6682\u5B58\u8981\u63D0\u4EA4\u7684\u6587\u4EF6", tone: "muted" };
+    if (state.staged.length > 0) return { text: "\u63D0\u4EA4\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u7684\u6587\u4EF6", tone: "ok" };
+    if (state.unstaged.length > 0) return { text: "\u5148\u52A0\u5165\u8981\u63D0\u4EA4\u7684\u6587\u4EF6", tone: "muted" };
     if (state.ahead > 0) return { text: "\u63A8\u9001\u672C\u5730\u63D0\u4EA4\u5230\u8FDC\u7AEF", tone: "ok" };
     return { text: "\u5DE5\u4F5C\u533A\u4E0E\u8FDC\u7AEF\u90FD\u5DF2\u540C\u6B65", tone: "muted" };
   }
@@ -4919,14 +4920,14 @@
       "placement": "\u76F4",
       "entry": "\u6539\u52A8\u9875\u6587\u4EF6\u884C",
       "opens": "\u884C\u5185\u5C55\u5F00\u3001\u884C\u83DC\u5355\u6216\u5185\u8054\u786E\u8BA4\u5361",
-      "result": "\u6539\u52A8\u9875\u4E09\u7EC4\uFF08\u5DF2\u6682\u5B58 / \u672A\u6682\u5B58 / \u51B2\u7A81\uFF09\u8BA1\u6570\u4E0E\u6587\u4EF6\u884C",
+      "result": "\u6539\u52A8\u9875\u4E09\u7EC4\uFF08\u5DF2\u52A0\u5165 / \u672A\u52A0\u5165 / \u51B2\u7A81\uFF09\u8BA1\u6570\u4E0E\u6587\u4EF6\u884C",
       "target": "changes",
       "readOnly": false
     },
     {
       "id": "1.2",
       "domain": "1",
-      "name": "\u9010\u5757\u6682\u5B58",
+      "name": "\u9010\u5757\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4",
       "command": "git add `-p`\uFF08\u9762\u677F\u7B49\u4EF7\u4E8E\u8BFB diff \u540E `apply --cached`\uFF09",
       "level": "\u5199",
       "placement": "\u6298",
@@ -4939,20 +4940,20 @@
     {
       "id": "1.3",
       "domain": "1",
-      "name": "\u6682\u5B58\u5355\u4E2A\u6587\u4EF6",
+      "name": "\u628A\u5355\u4E2A\u6587\u4EF6\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4",
       "command": "git add `-- <path>`",
       "level": "\u5199",
       "placement": "\u76F4",
       "entry": "\u6539\u52A8\u9875\u6587\u4EF6\u884C",
       "opens": "\u884C\u5185\u5C55\u5F00\u3001\u884C\u83DC\u5355\u6216\u5185\u8054\u786E\u8BA4\u5361",
-      "result": "\u6587\u4EF6\u884C\u79FB\u8FDB\u300C\u5DF2\u6682\u5B58\u300D\uFF0C\u63D0\u4EA4\u533A\u4EAE\u8D77",
+      "result": "\u6587\u4EF6\u884C\u79FB\u8FDB\u300C\u5DF2\u52A0\u5165\u300D\uFF0C\u63D0\u4EA4\u533A\u4EAE\u8D77",
       "target": "changes",
       "readOnly": false
     },
     {
       "id": "1.4",
       "domain": "1",
-      "name": "\u6682\u5B58\u5168\u90E8",
+      "name": "\u5168\u90E8\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4",
       "command": "git add `-A`",
       "level": "\u5199",
       "placement": "\u76F4",
@@ -4965,20 +4966,20 @@
     {
       "id": "1.5",
       "domain": "1",
-      "name": "\u64A4\u56DE\u6682\u5B58",
+      "name": "\u628A\u6587\u4EF6\u79FB\u51FA\u8FD9\u6B21\u63D0\u4EA4",
       "command": "git restore `--staged -- <path>`",
       "level": "\u5199",
       "placement": "\u76F4",
       "entry": "\u6539\u52A8\u9875\u6587\u4EF6\u884C",
       "opens": "\u884C\u5185\u5C55\u5F00\u3001\u884C\u83DC\u5355\u6216\u5185\u8054\u786E\u8BA4\u5361",
-      "result": "\u6587\u4EF6\u884C\u56DE\u300C\u672A\u6682\u5B58\u300D\u7EC4",
+      "result": "\u6587\u4EF6\u884C\u56DE\u300C\u672A\u52A0\u5165\u300D\u7EC4",
       "target": "changes",
       "readOnly": false
     },
     {
       "id": "1.6",
       "domain": "1",
-      "name": "\u4E22\u5F03\u5355\u4E2A\u6587\u4EF6\u7684\u672A\u6682\u5B58\u6539\u52A8",
+      "name": "\u4E22\u5F03\u5355\u4E2A\u6587\u4EF6\u7684\u672A\u52A0\u5165\u6539\u52A8",
       "command": "git restore `-- <path>`",
       "level": "\u6BC1",
       "placement": "\u76F4",
@@ -4991,7 +4992,7 @@
     {
       "id": "1.7",
       "domain": "1",
-      "name": "\u4E22\u5F03\u5168\u90E8\u672A\u6682\u5B58\u6539\u52A8",
+      "name": "\u4E22\u5F03\u5168\u90E8\u672A\u52A0\u5165\u6539\u52A8",
       "command": "git restore `-- .`",
       "level": "\u6BC1",
       "placement": "\u76F4",
@@ -5023,7 +5024,7 @@
       "placement": "\u76F4",
       "entry": "\u6539\u52A8\u9875\u6587\u4EF6\u884C",
       "opens": "\u884C\u5185\u5C55\u5F00\u3001\u884C\u83DC\u5355\u6216\u5185\u8054\u786E\u8BA4\u5361",
-      "result": "\u6587\u4EF6\u884C\u8FDB\u300C\u5DF2\u6682\u5B58\uFF08\u5220\u9664\uFF09\u300D",
+      "result": "\u6587\u4EF6\u884C\u8FDB\u300C\u5DF2\u52A0\u5165\uFF08\u5220\u9664\uFF09\u300D",
       "target": "changes",
       "readOnly": false
     },
@@ -5049,7 +5050,7 @@
       "placement": "\u6298",
       "entry": "\u6539\u52A8\u9875\u6587\u4EF6\u884C",
       "opens": "\u8D34\u89E6\u53D1\u70B9\u7684\u6D6E\u5C42\u6216\u6574\u9875\u66FF\u6362",
-      "result": "\u884C\u6539\u540D\u5E76\u8FDB\u6682\u5B58\u533A",
+      "result": "\u884C\u6539\u540D\u5E76\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4",
       "target": "changes",
       "readOnly": false
     },
@@ -5082,7 +5083,7 @@
     {
       "id": "2.1",
       "domain": "2",
-      "name": "\u63D0\u4EA4\u5DF2\u6682\u5B58\u5185\u5BB9",
+      "name": "\u63D0\u4EA4\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u7684\u5185\u5BB9",
       "command": "git commit `-m`",
       "level": "\u5199",
       "placement": "\u76F4",
@@ -5524,7 +5525,7 @@
     {
       "id": "5.1",
       "domain": "5",
-      "name": "\u64A4\u9500\u4E0A\u4E00\u6761\u63D0\u4EA4\u3001\u6539\u52A8\u56DE\u6682\u5B58\u533A",
+      "name": "\u64A4\u9500\u4E0A\u4E00\u6761\u63D0\u4EA4\u3001\u6539\u52A8\u56DE\u5230\u300C\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D",
       "command": "git reset `--soft HEAD~1`",
       "level": "\u6539\u5199",
       "placement": "\u76F4",
@@ -5537,7 +5538,7 @@
     {
       "id": "5.2",
       "domain": "5",
-      "name": "\u64A4\u9500\u63D0\u4EA4\u5E76\u53D6\u6D88\u6682\u5B58",
+      "name": "\u64A4\u9500\u63D0\u4EA4\u5E76\u628A\u6539\u52A8\u79FB\u51FA\u8FD9\u6B21\u63D0\u4EA4",
       "command": "git reset `HEAD~1`",
       "level": "\u6539\u5199",
       "placement": "\u6298",
@@ -5738,7 +5739,7 @@
       "placement": "\u6298",
       "entry": "\u5206\u652F\u6D6E\u5C42\u4E0E\u300C\u51B2\u7A81\u5411\u5BFC\u300D\u9875",
       "opens": "\u8D34\u89E6\u53D1\u70B9\u7684\u6D6E\u5C42\u6216\u6574\u9875\u66FF\u6362",
-      "result": "\u6539\u52A8\u9875\u51FA\u73B0\u5DF2\u6682\u5B58\u6539\u52A8",
+      "result": "\u6539\u52A8\u9875\u51FA\u73B0\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u7684\u6539\u52A8",
       "target": "conflicts",
       "readOnly": false
     },
@@ -5888,24 +5889,24 @@
     {
       "id": "7.1",
       "domain": "7",
-      "name": "\u8D2E\u85CF\u5F53\u524D\u6539\u52A8",
+      "name": "\u628A\u5F53\u524D\u6539\u52A8\u6536\u8D77\u6765",
       "command": "git stash `push -m`",
       "level": "\u5199",
       "placement": "\u76F4",
-      "entry": "\u8D2E\u85CF\u9875\u7B7E",
+      "entry": "\u300C\u6536\u8D77\u7684\u6539\u52A8\u300D\u9875\u7B7E",
       "opens": "\u884C\u5185\u52A8\u4F5C\u6216\u8D34\u884C\u786E\u8BA4\u5361",
-      "result": "\u8D2E\u85CF\u884C\u65B0\u589E + \u6539\u52A8\u9875\u6E05\u7A7A",
+      "result": "\u6536\u8D77\u8BB0\u5F55\u884C\u65B0\u589E + \u6539\u52A8\u9875\u6E05\u7A7A",
       "target": "stash",
       "readOnly": false
     },
     {
       "id": "7.2",
       "domain": "7",
-      "name": "\u8FDE\u672A\u8DDF\u8E2A\u4E00\u8D77\u8D2E\u85CF",
+      "name": "\u8FDE\u672A\u8DDF\u8E2A\u6587\u4EF6\u4E00\u8D77\u6536\u8D77\u6765",
       "command": "git stash `push -u`",
       "level": "\u5199",
       "placement": "\u6298",
-      "entry": "\u8D2E\u85CF\u9875\u7B7E",
+      "entry": "\u300C\u6536\u8D77\u7684\u6539\u52A8\u300D\u9875\u7B7E",
       "opens": "\u8D34\u89E6\u53D1\u70B9\u7684\u6D6E\u5C42\u6216\u6574\u9875\u66FF\u6362",
       "result": "\u540C 7.1",
       "target": "stash",
@@ -5914,13 +5915,13 @@
     {
       "id": "7.3",
       "domain": "7",
-      "name": "\u53EA\u8D2E\u85CF\u6682\u5B58\u533A",
+      "name": "\u53EA\u6536\u8D77\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u7684\u6539\u52A8",
       "command": "git stash `push --staged`",
       "level": "\u5199",
       "placement": "\u6298",
-      "entry": "\u8D2E\u85CF\u9875\u7B7E",
+      "entry": "\u300C\u6536\u8D77\u7684\u6539\u52A8\u300D\u9875\u7B7E",
       "opens": "\u8D34\u89E6\u53D1\u70B9\u7684\u6D6E\u5C42\u6216\u6574\u9875\u66FF\u6362",
-      "result": "\u8D2E\u85CF\u884C + \u6682\u5B58\u533A\u6E05\u7A7A",
+      "result": "\u6536\u8D77\u8BB0\u5F55\u884C + \u300C\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\u7684\u6E05\u5355\u6E05\u7A7A",
       "target": "stash",
       "readOnly": false
     },
@@ -5931,9 +5932,9 @@
       "command": "git stash `list`",
       "level": "\u8BFB",
       "placement": "\u76F4",
-      "entry": "\u8D2E\u85CF\u9875\u7B7E",
+      "entry": "\u300C\u6536\u8D77\u7684\u6539\u52A8\u300D\u9875\u7B7E",
       "opens": "\u884C\u5185\u52A8\u4F5C\u6216\u8D34\u884C\u786E\u8BA4\u5361",
-      "result": "\u8D2E\u85CF\u9875 / \u6298\u53E0\u533A\uFF0C\u6BCF\u6761\u5E26\u8BF4\u660E\u9996\u884C",
+      "result": "\u300C\u6536\u8D77\u7684\u6539\u52A8\u300D\u9875 / \u6298\u53E0\u533A\uFF0C\u6BCF\u6761\u5E26\u8BF4\u660E\u9996\u884C",
       "target": "stash",
       "readOnly": false
     },
@@ -5944,48 +5945,48 @@
       "command": "git stash `show -p`",
       "level": "\u8BFB",
       "placement": "\u6298",
-      "entry": "\u8D2E\u85CF\u9875\u7B7E",
+      "entry": "\u300C\u6536\u8D77\u7684\u6539\u52A8\u300D\u9875\u7B7E",
       "opens": "\u8D34\u89E6\u53D1\u70B9\u7684\u6D6E\u5C42\u6216\u6574\u9875\u66FF\u6362",
-      "result": "\u8D2E\u85CF\u884C\u5C55\u5F00\u7684 diff",
+      "result": "\u6536\u8D77\u8BB0\u5F55\u884C\u5C55\u5F00\u7684 diff",
       "target": "stash",
       "readOnly": false
     },
     {
       "id": "7.6",
       "domain": "7",
-      "name": "\u5E94\u7528\u5E76\u4FDD\u7559\u8BB0\u5F55",
+      "name": "\u653E\u56DE\u5DE5\u4F5C\u533A\u5E76\u4FDD\u7559\u8BB0\u5F55",
       "command": "git stash `apply`",
       "level": "\u5199",
       "placement": "\u76F4",
-      "entry": "\u8D2E\u85CF\u9875\u7B7E",
+      "entry": "\u300C\u6536\u8D77\u7684\u6539\u52A8\u300D\u9875\u7B7E",
       "opens": "\u884C\u5185\u52A8\u4F5C\u6216\u8D34\u884C\u786E\u8BA4\u5361",
-      "result": "\u6539\u52A8\u9875\u51FA\u73B0\u6539\u52A8 + \u8D2E\u85CF\u884C\u4ECD\u5728",
+      "result": "\u6539\u52A8\u9875\u51FA\u73B0\u6539\u52A8 + \u6536\u8D77\u8BB0\u5F55\u884C\u4ECD\u5728",
       "target": "stash",
       "readOnly": false
     },
     {
       "id": "7.7",
       "domain": "7",
-      "name": "\u5E94\u7528\u5E76\u5220\u8BB0\u5F55",
+      "name": "\u653E\u56DE\u5DE5\u4F5C\u533A\u5E76\u5220\u6389\u8BB0\u5F55",
       "command": "git stash `pop`",
       "level": "\u5199",
       "placement": "\u76F4",
-      "entry": "\u8D2E\u85CF\u9875\u7B7E",
+      "entry": "\u300C\u6536\u8D77\u7684\u6539\u52A8\u300D\u9875\u7B7E",
       "opens": "\u884C\u5185\u52A8\u4F5C\u6216\u8D34\u884C\u786E\u8BA4\u5361",
-      "result": "\u6539\u52A8\u9875 + \u8D2E\u85CF\u884C\u6D88\u5931",
+      "result": "\u6539\u52A8\u9875 + \u6536\u8D77\u8BB0\u5F55\u884C\u6D88\u5931",
       "target": "stash",
       "readOnly": false
     },
     {
       "id": "7.8",
       "domain": "7",
-      "name": "\u4ECE\u8D2E\u85CF\u5EFA\u5206\u652F",
+      "name": "\u4ECE\u6536\u8D77\u7684\u6539\u52A8\u5EFA\u5206\u652F",
       "command": "git stash `branch`",
       "level": "\u5199",
       "placement": "\u6298",
-      "entry": "\u8D2E\u85CF\u9875\u7B7E",
+      "entry": "\u300C\u6536\u8D77\u7684\u6539\u52A8\u300D\u9875\u7B7E",
       "opens": "\u8D34\u89E6\u53D1\u70B9\u7684\u6D6E\u5C42\u6216\u6574\u9875\u66FF\u6362",
-      "result": "\u5206\u652F\u6D6E\u5C42\u65B0\u884C + \u6539\u52A8\u9875 + \u8D2E\u85CF\u884C\u6D88\u5931",
+      "result": "\u5206\u652F\u6D6E\u5C42\u65B0\u884C + \u6539\u52A8\u9875 + \u6536\u8D77\u8BB0\u5F55\u884C\u6D88\u5931",
       "target": "stash",
       "readOnly": false
     },
@@ -5996,7 +5997,7 @@
       "command": "git stash `drop`",
       "level": "\u6BC1",
       "placement": "\u76F4",
-      "entry": "\u8D2E\u85CF\u9875\u7B7E",
+      "entry": "\u300C\u6536\u8D77\u7684\u6539\u52A8\u300D\u9875\u7B7E",
       "opens": "\u884C\u5185\u52A8\u4F5C\u6216\u8D34\u884C\u786E\u8BA4\u5361",
       "result": "\u884C\u6D88\u5931",
       "target": "stash",
@@ -6009,9 +6010,9 @@
       "command": "git stash `clear`",
       "level": "\u6BC1",
       "placement": "\u6298",
-      "entry": "\u8D2E\u85CF\u9875\u7B7E",
+      "entry": "\u300C\u6536\u8D77\u7684\u6539\u52A8\u300D\u9875\u7B7E",
       "opens": "\u8D34\u89E6\u53D1\u70B9\u7684\u6D6E\u5C42\u6216\u6574\u9875\u66FF\u6362",
-      "result": "\u8D2E\u85CF\u533A\u7A7A",
+      "result": "\u6536\u8D77\u6E05\u5355\u4E3A\u7A7A",
       "target": "stash",
       "readOnly": false
     },
@@ -7285,7 +7286,7 @@
     changes: "\u6539\u52A8",
     commits: "\u5386\u53F2",
     worktrees: "\u5DE5\u4F5C\u6811",
-    stash: "\u8D2E\u85CF"
+    stash: "\u6536\u8D77\u7684\u6539\u52A8"
   };
   var LEVEL_LABEL = {
     "\u8BFB": "\u8BFB",
@@ -7444,7 +7445,7 @@
       worktree: "\u5DE5\u4F5C\u6811\u52A8\u4F5C",
       changes: "\u6539\u52A8\u52A8\u4F5C",
       history: "\u63D0\u4EA4\u52A8\u4F5C",
-      stash: "\u8D2E\u85CF\u52A8\u4F5C"
+      stash: "\u6536\u8D77\u52A8\u4F5C"
     };
     return h(
       "div",
@@ -7778,7 +7779,7 @@
         "span",
         { class: "composer-count" },
         h("span", { class: "count", text: String(model.composer.stagedCount) }),
-        h("span", { class: "unit", text: "\u4E2A\u6587\u4EF6\u5DF2\u6682\u5B58" })
+        h("span", { class: "unit", text: "\u4E2A\u6587\u4EF6\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4" })
       ),
       h(
         "span",
@@ -7874,7 +7875,7 @@
       if (model.canDiscardAll) {
         actions.append(h("button", {
           class: "group-action is-danger",
-          attrs: { type: "button", "aria-label": COPY.changes.discardAll, title: "\u628A\u5168\u90E8\u672A\u6682\u5B58\u7684\u6539\u52A8\u4E22\u5F03\uFF08\u4E0D\u80FD\u64A4\u56DE\uFF09" },
+          attrs: { type: "button", "aria-label": COPY.changes.discardAll, title: "\u628A\u5168\u90E8\u672A\u52A0\u5165\u7684\u6539\u52A8\u4E22\u5F03\uFF08\u4E0D\u80FD\u64A4\u56DE\uFF09" },
           dataset: { action: "changes-pending", kind: "discard-all" }
         }, COPY.changes.discardAll));
       }
@@ -7897,7 +7898,7 @@
         role: "button",
         tabindex: 0,
         "aria-expanded": row.expanded ? "true" : "false",
-        "aria-label": `${row.fullPath}\uFF1A${row.staged ? "\u5DF2\u6682\u5B58" : row.conflict ? "\u51B2\u7A81" : "\u672A\u6682\u5B58"}`,
+        "aria-label": `${row.fullPath}\uFF1A${row.staged ? "\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4" : row.conflict ? "\u51B2\u7A81" : "\u672A\u52A0\u5165"}`,
         "data-focus-key": `row:${row.fullPath}`,
         title: row.fullPath
       },
@@ -7928,13 +7929,13 @@
     if (row.canStage) {
       actions.append(h("button", {
         class: "row-act",
-        attrs: { type: "button", title: `\u6682\u5B58 ${row.name}`, "data-focus-key": `stage:${row.fullPath}` },
+        attrs: { type: "button", title: `\u628A ${row.name} \u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4`, "data-focus-key": `stage:${row.fullPath}` },
         dataset: { action: "stage", path: row.fullPath }
       }, COPY.actions.stage));
     } else if (row.canUnstage) {
       actions.append(h("button", {
         class: "row-act",
-        attrs: { type: "button", title: `\u64A4\u56DE ${row.name} \u7684\u6682\u5B58`, "data-focus-key": `unstage:${row.fullPath}` },
+        attrs: { type: "button", title: `\u628A ${row.name} \u79FB\u51FA\u8FD9\u6B21\u63D0\u4EA4`, "data-focus-key": `unstage:${row.fullPath}` },
         dataset: { action: "unstage", path: row.fullPath }
       }, COPY.actions.unstage));
     }
@@ -8531,7 +8532,7 @@
         "div",
         { class: "stash-head-text" },
         h("h2", { class: "stash-title", text: COPY.stash.title }),
-        h("p", { class: "stash-count", text: COPY.changes.stashHint })
+        h("p", { class: "stash-count", text: COPY.stash.lede })
       )
     );
     view.append(head);
@@ -9037,7 +9038,7 @@
   }
   function capConfirmCard(cap, secondStage = false) {
     const dangerous = cap.level === "\u6BC1";
-    const reversibility = dangerous ? "\u8FD9\u6B21\u4F1A\u91CD\u5199\u5DF2\u6709\u63D0\u4EA4\u4E0E\u5F15\u7528\uFF0C\u5199\u51FA\u6765\u7684\u65B0\u5386\u53F2\u4E0D\u80FD\u64A4\u56DE\u3002" : cap.level === "\u6539\u5199" ? "\u4F1A\u6539\u5199\u5386\u53F2\uFF1B\u9762\u677F\u91CC\u4FDD\u7559\u65E7\u63D0\u4EA4\u7684\u5F15\u7528\u65E5\u5FD7\uFF0C\u8BEF\u64CD\u4F5C\u8FD8\u80FD\u7167 reflog \u627E\u56DE\u6765\u3002" : "\u4F1A\u5148\u5199\u5DE5\u4F5C\u533A\u6216\u7D22\u5F15\uFF1B\u7ED3\u679C\u53EF\u4EE5\u518D\u64A4\u9500\u3002";
+    const reversibility = dangerous ? "\u8FD9\u6B21\u4F1A\u91CD\u5199\u5DF2\u6709\u63D0\u4EA4\u4E0E\u5F15\u7528\uFF0C\u5199\u51FA\u6765\u7684\u65B0\u5386\u53F2\u4E0D\u80FD\u64A4\u56DE\u3002" : cap.level === "\u6539\u5199" ? "\u4F1A\u6539\u5199\u5386\u53F2\uFF1B\u9762\u677F\u91CC\u4FDD\u7559\u65E7\u63D0\u4EA4\u7684\u5F15\u7528\u65E5\u5FD7\uFF0C\u8BEF\u64CD\u4F5C\u8FD8\u80FD\u7167 reflog \u627E\u56DE\u6765\u3002" : "\u4F1A\u5148\u5199\u5DE5\u4F5C\u533A\u6216\u300C\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\u7684\u6E05\u5355\uFF1B\u7ED3\u679C\u53EF\u4EE5\u518D\u64A4\u9500\u3002";
     const card = h("div", { class: "cap-confirm" + (dangerous ? " is-danger" : "") + (secondStage ? " is-stage2" : ""), attrs: { role: "group", "aria-label": "\u786E\u8BA4\u8FD9\u6761\u80FD\u529B\u4F1A\u52A8\u4EC0\u4E48" } });
     const rows = [
       ["\u4F1A\u52A8\u4EC0\u4E48", cap.opens + "\uFF1B\u5B8C\u6210\u540E" + cap.result],
@@ -9308,7 +9309,7 @@
       { key: "\u540C\u6B65\u72B6\u6001", value: model.rail.sync.kind === "text" ? model.rail.sync.text : "\u9886\u5148 " + (model.rail.syncChips[0]?.value ?? 0) + " \xB7 \u843D\u540E " + (model.rail.syncChips[1]?.value ?? 0) },
       { key: "\u8BFB\u53D6\u4E8E", value: model.rail.readAtText },
       { key: "\u8FDC\u7AEF\u4F9D\u636E", value: model.rail.basisText },
-      { key: "\u5DE5\u4F5C\u533A\u6539\u52A8", value: model.changes.stagedCount + " \u4E2A\u5DF2\u6682\u5B58 \xB7 " + model.changes.unstagedCount + " \u4E2A\u672A\u6682\u5B58 \xB7 " + model.changes.conflictCount + " \u4E2A\u51B2\u7A81" }
+      { key: "\u5DE5\u4F5C\u533A\u6539\u52A8", value: model.changes.stagedCount + " \u4E2A\u5DF2\u52A0\u5165 \xB7 " + model.changes.unstagedCount + " \u4E2A\u672A\u52A0\u5165 \xB7 " + model.changes.conflictCount + " \u4E2A\u51B2\u7A81" }
     ]);
     const addForm = h(
       "div",
@@ -9338,7 +9339,7 @@
     const names = submoduleNames();
     const rows = names.map((name) => objectRow([
       h("span", { class: "obj-title mono", text: name }),
-      h("span", { class: "obj-sub", text: "\u5B50\u6A21\u5757\u8DEF\u5F84\u4E0E\u5F53\u524D\u6307\u5411\u7684\u63D0\u4EA4\u9700\u8981\u771F\u5B9E\u8BFB\u53D6 .gitmodules \u4E0E\u7D22\u5F15\uFF1B\u539F\u578B\u6CA1\u6709\u9020\u3002" })
+      h("span", { class: "obj-sub", text: "\u5B50\u6A21\u5757\u8DEF\u5F84\u4E0E\u5F53\u524D\u6307\u5411\u7684\u63D0\u4EA4\u9700\u8981\u771F\u5B9E\u8BFB\u53D6 .gitmodules \u4E0E\u300C\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\u7684\u6E05\u5355\uFF1B\u539F\u578B\u6CA1\u6709\u9020\u3002" })
     ], [actionButton("\u66F4\u65B0", "page-demo", { focusKey: "sub-update-" + name, dataset: { note: "\u5DF2\u66F4\u65B0\u5B50\u6A21\u5757 " + name + " \u5230\u767B\u8BB0\u63D0\u4EA4\uFF08\u539F\u578B\u6A21\u62DF\uFF09\u3002" } })]));
     const installForm = h(
       "div",
@@ -9700,7 +9701,7 @@
   var REBASE_STAGES = [
     {
       title: "\u51BB\u7ED3\u5DE5\u4F5C\u533A",
-      detail: "\u5148\u628A\u672A\u63D0\u4EA4\u7684\u6539\u52A8\u6536\u8FDB\u8D2E\u85CF\u533A\u6216\u63D0\u793A\u5148\u63D0\u4EA4\uFF1B\u53D8\u57FA\u8FC7\u7A0B\u4E2D\u5DE5\u4F5C\u533A\u5FC5\u987B\u662F\u5E72\u51C0\u7684\uFF0C\u5426\u5219\u6BCF\u4E00\u6B65\u7684\u51B2\u7A81\u90FD\u5206\u4E0D\u6E05\u6765\u81EA\u8C01\u3002",
+      detail: "\u5148\u628A\u672A\u63D0\u4EA4\u7684\u6539\u52A8\u6536\u8D77\u6765\u6216\u63D0\u793A\u5148\u63D0\u4EA4\uFF1B\u53D8\u57FA\u8FC7\u7A0B\u4E2D\u5DE5\u4F5C\u533A\u5FC5\u987B\u662F\u5E72\u51C0\u7684\uFF0C\u5426\u5219\u6BCF\u4E00\u6B65\u7684\u51B2\u7A81\u90FD\u5206\u4E0D\u6E05\u6765\u81EA\u8C01\u3002",
       command: "git stash push --keep-index",
       tone: "ok"
     },
@@ -9789,7 +9790,7 @@
       section("\u516D\u6B65\u5F85\u529E", state.rebaseDemo ? "\u7B2C " + Math.min(state.rebaseStep + 1, 6) + " / 6 \u6B65" : null, "\u987A\u5E8F\u56FA\u5B9A\uFF0C\u4F46\u6BCF\u4E00\u6B65\u90FD\u53EF\u4EE5\u505C\u4E0B\u6765\u770B\uFF1B\u6F14\u793A\u4E0D\u4F1A\u8DF3\u8FC7\u300C\u5DE5\u4F5C\u533A\u662F\u5426\u5E72\u51C0\u300D\u8FD9\u4E00\u5173\u3002", steps),
       section("\u4F1A\u52A8\u4E0E\u4E0D\u4F1A\u52A8", null, null, [factGrid([
         { key: "\u4F1A\u52A8", value: "\u5F53\u524D\u5206\u652F\u7684\u63D0\u4EA4\u53F7\u4E0E\u8FD9\u9875\u7684\u6F14\u793A\u72B6\u6001" },
-        { key: "\u4E0D\u4F1A\u52A8", value: "\u5176\u4ED6\u5206\u652F\u3001\u8FDC\u7AEF\u3001\u8D2E\u85CF\u533A" },
+        { key: "\u4E0D\u4F1A\u52A8", value: "\u5176\u4ED6\u5206\u652F\u3001\u8FDC\u7AEF\u3001\u6536\u8D77\u7684\u6539\u52A8" },
         { key: "\u53EF\u6309\u64A4\u9500", value: "\u4E2D\u6B62\u540E\u5206\u652F\u56DE\u5230\u5F00\u59CB\u524D\u8BB0\u4E0B\u7684\u63D0\u4EA4\u53F7" },
         { key: "\u4E0D\u53EF\u6309\u64A4\u9500", value: "\u5DF2\u7ECF\u63A8\u9001\u8FC7\u7684\u91CD\u5199\u9700\u8981\u5F3A\u63A8\uFF0C\u5C5E\u4E8E\u670D\u52A1\u7AEF\u534F\u4F5C\u95EE\u9898" }
       ])]),
@@ -9844,7 +9845,7 @@
       section("\u51B2\u7A81\u6587\u4EF6", CONFLICT_FILES.length + " \u4E2A\u6587\u4EF6", "\u6BCF\u4E00\u884C\u53EA\u505A\u4E09\u4EF6\u4E8B\uFF1A\u9009\u8FB9\u3001\u624B\u6539\u3001\u6807\u8BB0\u5DF2\u89E3\u51B3\uFF1B\u9009\u8FB9\u6309\u94AE\u7684\u72B6\u6001\u8DDF\u7740\u672C\u9875\u5185\u5B58\u8D70\uFF0C\u4E0D\u5199\u4ED3\u5E93\u3002", [...state.conflictDemo ? rows : [note("\u6F14\u793A\u8FD8\u6CA1\u5F00\u59CB\uFF1A\u70B9\u300C\u5F00\u59CB\u6F14\u793A\u300D\u624D\u4F1A\u51FA\u73B0\u4E09\u4E2A\u51B2\u7A81\u6587\u4EF6\u3002", "muted")], ...state.conflictDemo ? [summary] : []]),
       section("\u4F1A\u52A8\u4E0E\u4E0D\u4F1A\u52A8", null, null, [factGrid([
         { key: "\u4F1A\u52A8", value: state.conflictDemo ? "\u4E09\u4E2A\u51B2\u7A81\u6587\u4EF6\u7684\u89E3\u51B3\u6807\u8BB0\u4E0E\u672C\u9875\u7ED3\u679C" : "\u5F53\u524D\u4EC0\u4E48\u90FD\u4E0D\u4F1A\u52A8" },
-        { key: "\u4E0D\u4F1A\u52A8", value: "\u5DE5\u4F5C\u533A\u6587\u4EF6\u3001\u7D22\u5F15\u3001\u5DF2\u6709\u63D0\u4EA4" },
+        { key: "\u4E0D\u4F1A\u52A8", value: "\u5DE5\u4F5C\u533A\u6587\u4EF6\u3001\u300C\u5DF2\u52A0\u5165\u8FD9\u6B21\u63D0\u4EA4\u300D\u7684\u6E05\u5355\u3001\u5DF2\u6709\u63D0\u4EA4" },
         { key: "\u6062\u590D\u8DEF\u5F84", value: "\u4E2D\u6B62\u5408\u5E76\u56DE\u5230\u5F00\u59CB\u524D\u7684\u63D0\u4EA4\u4E0E\u5DE5\u4F5C\u533A" },
         { key: "\u5916\u90E8\u7F16\u8F91\u5668", value: "\u9762\u677F\u4E0D\u5185\u5D4C\u7F16\u8F91\u5668\uFF0C\u53EA\u628A\u6587\u4EF6\u4EA4\u7ED9\u5B83" }
       ])]),
@@ -10649,10 +10650,10 @@
         return `\u5DE5\u4F5C\u6811\u89C6\u56FE\uFF0C\u7B5B\u9009\u662F${wtFilter === "all" ? "\u5168\u90E8" : "\u53EA\u770B\u9700\u8981\u5904\u7406"}`;
       }
       if (state.view === "stash") {
-        return `\u8D2E\u85CF\u89C6\u56FE\uFF0C\u5217\u8868\u91CC\u6709 ${model.stash.total} \u6761\u8BB0\u5F55`;
+        return `\u6536\u8D77\u6539\u52A8\u89C6\u56FE\uFF0C\u5217\u8868\u91CC\u6709 ${model.stash.total} \u6761\u8BB0\u5F55`;
       }
       const filter = state.changesFilter;
-      const filterLabel = filter === "conflict" ? "\u53EA\u770B\u51B2\u7A81" : filter === "staged" ? "\u53EA\u770B\u5DF2\u6682\u5B58" : filter === "unstaged" ? "\u53EA\u770B\u672A\u6682\u5B58" : "\u5168\u90E8";
+      const filterLabel = filter === "conflict" ? "\u53EA\u770B\u51B2\u7A81" : filter === "staged" ? "\u53EA\u770B\u5DF2\u52A0\u5165" : filter === "unstaged" ? "\u53EA\u770B\u672A\u52A0\u5165" : "\u5168\u90E8";
       return `\u6539\u52A8\u89C6\u56FE\uFF0C\u7B5B\u9009\u662F${filterLabel}`;
     }
     async function copyHandoff(text) {

@@ -29,7 +29,7 @@ export interface TabModel {
   label: string
   count: number
   unit: string
-  /** 这个页签装的是什么，用平实的一句话写。只给需要解释的页签填，悬停时接在「贮藏：0 条」后面。 */
+  /** 这个页签装的是什么，用平实的一句话写。只给需要解释的页签填，悬停时接在「收起的改动：0 条」后面。 */
   explain?: string
 }
 
@@ -91,7 +91,7 @@ export interface FileRowModel {
   canUnstage: boolean
   /** 未跟踪文件：决定行上写不写「未跟踪」，也决定「加入 .gitignore」「删除这个文件」出不出来。 */
   untracked: boolean
-  /** 行尾「更多」按钮：未暂存与冲突行有，已暂存行只保留撤回。 */
+  /** 行尾「更多」按钮：未加入与冲突行有，已加入行只保留移出。 */
   showMenu: boolean
   canDiscard: boolean
   canIgnore: boolean
@@ -141,7 +141,7 @@ export interface ChangesModel {
   canStageAll: boolean
   canUnstageAll: boolean
   canDiscardAll: boolean
-  /** 贮藏入口：工作区有改动、且没有冲突文件时才可用。 */
+  /** 收起入口：工作区有改动、且没有冲突文件时才可用。 */
   canStash: boolean
   stashReason: string | null
   /** 哪一行的「更多」菜单开着：菜单紧贴这一行画。 */
@@ -254,7 +254,7 @@ export interface BranchDetailModel {
   pending: BranchPending | null
 }
 
-/** 一条贮藏记录的展示形态：时间已翻成人话，文件路径原样给出，便于确认「这是不是我那条」。 */
+/** 一条收起记录的展示形态：时间已翻成人话，文件路径原样给出，便于确认「这是不是我那条」。 */
 export interface StashRowModel {
   id: string
   message: string
@@ -263,7 +263,7 @@ export interface StashRowModel {
   filesCount: number
 }
 
-/** 贮藏视图：没有需要二次确认的动作，只有丢弃要问一句。 */
+/** 收起改动视图：没有需要二次确认的动作，只有丢弃记录要问一句。 */
 export interface StashModel {
   rows: StashRowModel[]
   total: number
@@ -300,7 +300,7 @@ export interface PanelModel {
   nowMs: number
 }
 
-/** 首屏读数按状态机里的暂存区改写：judge() 只认 FirstScreen 的计数与身份字段。 */
+/** 首屏读数按状态机里「已加入这次提交」的清单改写：judge() 只认 FirstScreen 的计数与身份字段。 */
 function judgeScreen(base: SessionBase, state: SessionState): FirstScreen {
   const screen = base.screen
   return {
@@ -349,14 +349,14 @@ function actionOf(
   }
 }
 
-/** 页签计数：改动按文件数、提交按条数、工作树按棵数、贮藏按条数，单位随数字一起画。 */
+/** 页签计数：改动按文件数、提交按条数、工作树按棵数、收起的改动按条数，单位随数字一起画。 */
 export function tabsOf(base: SessionBase, state: SessionState): TabModel[] {
   const changes = state.staged.length + state.unstaged.length + state.conflicts.length
   return [
     { id: 'changes', label: COPY.views.changes, count: changes, unit: COPY.units.change },
     { id: 'commits', label: COPY.views.commits, count: base.totalCommits, unit: COPY.units.commit },
     { id: 'worktrees', label: COPY.views.worktrees, count: base.screen.otherWorktrees.filter((item) => !item.current).length + (state.demoWorktrees ? DEMO_WORKTREE_COUNT : 0), unit: COPY.units.worktree },
-    { id: 'stash', label: COPY.views.stash, count: state.stashes.length, unit: COPY.units.stash, explain: '把暂时不想提交的改动打包收起来，之后能拿回来' },
+    { id: 'stash', label: COPY.views.stash, count: state.stashes.length, unit: COPY.units.stash, explain: '把暂时不想提交的改动打包收起来，之后能放回工作区' },
   ]
 }
 
@@ -364,8 +364,8 @@ function nextStepOf(state: SessionState): { text: string; tone: Tone } {
   if (state.conflicts.length > 0) return { text: '先解决冲突文件，再提交', tone: 'error' }
   if (state.behind > 0) return { text: '先拉取远端的新提交', tone: 'warn' }
   if (state.staged.length > 0 && state.message.trim() === '') return { text: '写一句提交说明，再提交', tone: 'info' }
-  if (state.staged.length > 0) return { text: '提交已暂存的文件', tone: 'ok' }
-  if (state.unstaged.length > 0) return { text: '先暂存要提交的文件', tone: 'muted' }
+  if (state.staged.length > 0) return { text: '提交已加入这次提交的文件', tone: 'ok' }
+  if (state.unstaged.length > 0) return { text: '先加入要提交的文件', tone: 'muted' }
   if (state.ahead > 0) return { text: '推送本地提交到远端', tone: 'ok' }
   return { text: '工作区与远端都已同步', tone: 'muted' }
 }
@@ -560,8 +560,8 @@ export function changesOf(base: SessionBase, state: SessionState): ChangesModel 
     })
   }
   const keepEmptyGroup = state.changesFilter !== 'all'
-  // 全部分组时，空分组不再各占一整行：冲突分组没有文件就不画，未暂存分组没有文件也不画；
-  // 「已暂存」分组保留一行，因为它是「暂存区现在还空着」这个结论本身（往下就是提交区）。
+  // 全部分组时，空分组不再各占一整行：冲突分组没有文件就不画，未加入分组没有文件也不画；
+  // 「已加入」分组保留一行，因为它是「这次提交还没有加入文件」这个结论本身（往下就是提交区）。
   const visibleGroups = groups.filter((group) => {
     if (keepEmptyGroup) return true
     if (group.id === 'staged') return true
@@ -924,8 +924,8 @@ export function branchesOf(base: SessionBase, state: SessionState, nowMs: number
 
 
 /**
- * 贮藏列表：每条记录只回答三个问题——这是哪一条、什么时候存的、里面有哪些文件。
- * 「应用会不会冲突」这类判断不在原型里模拟，所以只给一句枕边提醒，不假装能预判。
+ * 收起改动列表：每条记录只回答三个问题——这是哪一条、什么时候存的、里面有哪些文件。
+ * 「放回工作区会不会冲突」这类判断不在原型里模拟，所以只给一句枕边提醒，不假装能预判。
  */
 export function stashOf(state: SessionState, nowMs: number): StashModel {
   const rows: StashRowModel[] = state.stashes.map((entry) => ({

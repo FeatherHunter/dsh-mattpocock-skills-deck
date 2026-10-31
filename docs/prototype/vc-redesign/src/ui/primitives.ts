@@ -86,7 +86,7 @@ export function resultBanner(result: ResultMessage): HTMLElement {
     worktree: '工作树动作',
     changes: '改动动作',
     history: '提交动作',
-    stash: '贮藏动作',
+    stash: '收起动作',
   }
   return h(
     'div',

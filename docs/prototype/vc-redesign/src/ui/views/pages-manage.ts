@@ -205,7 +205,7 @@ export function renderRemote(ctx: PageContext): HTMLElement {
     { key: '同步状态', value: model.rail.sync.kind === 'text' ? model.rail.sync.text : '领先 ' + (model.rail.syncChips[0]?.value ?? 0) + ' · 落后 ' + (model.rail.syncChips[1]?.value ?? 0) },
     { key: '读取于', value: model.rail.readAtText },
     { key: '远端依据', value: model.rail.basisText },
-    { key: '工作区改动', value: model.changes.stagedCount + ' 个已暂存 · ' + model.changes.unstagedCount + ' 个未暂存 · ' + model.changes.conflictCount + ' 个冲突' },
+    { key: '工作区改动', value: model.changes.stagedCount + ' 个已加入 · ' + model.changes.unstagedCount + ' 个未加入 · ' + model.changes.conflictCount + ' 个冲突' },
   ])
 
   const addForm = h('div', { class: 'inline-form' },
@@ -233,7 +233,7 @@ export function renderSubmodules(ctx: PageContext): HTMLElement {
   const names = submoduleNames()
   const rows: HTMLElement[] = names.map((name) => objectRow([
     h('span', { class: 'obj-title mono', text: name }),
-    h('span', { class: 'obj-sub', text: '子模块路径与当前指向的提交需要真实读取 .gitmodules 与索引；原型没有造。' }),
+    h('span', { class: 'obj-sub', text: '子模块路径与当前指向的提交需要真实读取 .gitmodules 与「已加入这次提交」的清单；原型没有造。' }),
   ], [actionButton('更新', 'page-demo', { focusKey: 'sub-update-' + name, dataset: { note: '已更新子模块 ' + name + ' 到登记提交（原型模拟）。' } })]))
 
   const installForm = h('div', { class: 'inline-form' },

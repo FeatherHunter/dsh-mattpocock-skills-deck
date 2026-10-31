@@ -1388,8 +1388,9 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
   .rail-tools { gap: 0; }
   .sync-count { height: 20px; padding: 0 7px; }
   .next-step { margin-left: 0; }
-  .tab { padding: 6px 7px 8px; gap: 4px; font-size: 11.5px; }
-  .views { padding: 7px 8px 0; }
+  /* 页签多了一个四字名字（收起的改动）：380 以下要收紧内边距，否则第四个页签会被挤出面板。 */
+  .tab { padding: 6px 5px 8px; gap: 3px; font-size: 11.5px; }
+  .views { padding: 7px 5px 0; }
   .filters { padding: 7px 8px; gap: 4px; }
   .filter-chip { padding: 2px 7px; font-size: 10px; }
   .file-row { padding: 0 7px 0 8px; gap: 6px; }
@@ -1413,6 +1414,7 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 }
 
 @container panel (max-width: 339px) {
+  .tab { font-size: 11px; }
   .tab .unit { font-size: 10px; }
   .tab-count .count { font-size: 10.5px; }
   .sync-label { font-size: 9.5px; }
@@ -1422,7 +1424,7 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 
 @container panel (max-width: 319px) {
   .tab .unit { display: none; }
-  .tab { padding: 6px 6px 8px; gap: 3px; }
+  .tab { padding: 6px 4px 8px; gap: 3px; }
 }
 
 /* ---------- 窗口本身很窄时：先保面板，再保外框 ---------- */
@@ -1762,7 +1764,7 @@ h1, h2, h3, p, dl, dd, dt { margin: 0; }
 .commit-menu { margin-left: 26px; margin-right: 6px; }
 .commit-confirm { margin-left: 26px; margin-right: 6px; }
 
-/* ---------- 贮藏页签 ---------- */
+/* ---------- 收起的改动页签 ---------- */
 .stash-head {
   display: flex;
   align-items: baseline;
