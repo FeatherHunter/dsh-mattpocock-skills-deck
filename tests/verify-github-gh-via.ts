@@ -41,6 +41,8 @@ const READ_CALL_FILES = [
   // 两份都不在扫描表里的话，登记册新加的两支会被判成「没人用」。
   'src/tracker/rooms/github/read/rest-list-relations.ts',
   'src/tracker/rooms/github/read/parent-repair.ts',
+  // #1691：REST 单票降级按需补评论正文、依赖边、评审与合并时间，四支 via 落在新文件里。
+  'src/tracker/rooms/github/read/rest-detail-completion.ts',
   'src/tracker/rooms/github/read/counts.ts',
   'src/tracker/rooms/github/read/page.ts',
   'src/tracker/rooms/github/read/preflight.ts',
@@ -70,7 +72,8 @@ const TAG_SPEC: Record<string, { branches: string[]; opsWithNoNeed?: number; why
   // #1691：列表行没表达父票链接时退回容器子票兜底（list.rest-sub），
   // 依赖计数大于零的票逐张拉一次明细（list.rest-deps）。
   list: { branches: ['gql', 'rest', 'pr', 'rest-deps', 'rest-sub'] },
-  get: { branches: ['gql', 'rest', 'rest-pr', 'pr'] },
+  // #1691：单票 REST 降级按需补取的四类明细，每类一支标签（补取失败时 read.degraded 的 reason 与之一一对应）。
+  get: { branches: ['gql', 'rest', 'rest-pr', 'pr', 'rest-comments', 'rest-deps', 'rest-merge', 'rest-review'] },
   counts: { branches: ['gql'] },
   listPage: { branches: ['gql'] },
   subIssues: { branches: ['gql', 'retry'] },

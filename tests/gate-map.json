@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T01:07:45.195Z",
+  "generatedAt": "2026-10-31T01:49:18.190Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 465,
-  "gateCount": 465,
-  "attributedGates": 415,
+  "chainLength": 467,
+  "gateCount": 467,
+  "attributedGates": 417,
   "unattributedGates": 50,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 29,
+  "completionRecordedGates": 31,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 645,
+  "graphFileCount": 647,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -8008,9 +8008,12 @@
         "src/tracker/rooms/github/read/issues-rest-list.ts",
         "src/tracker/rooms/github/read/issues.ts",
         "src/tracker/rooms/github/read/page.ts",
+        "src/tracker/rooms/github/read/parent-repair.ts",
         "src/tracker/rooms/github/read/preflight.ts",
         "src/tracker/rooms/github/read/pulls.ts",
         "src/tracker/rooms/github/read/repo-permissions.ts",
+        "src/tracker/rooms/github/read/rest-detail-completion.ts",
+        "src/tracker/rooms/github/read/rest-list-relations.ts",
         "src/tracker/rooms/github/read/sub-issues.ts",
         "src/tracker/rooms/github/transport/client-support.ts",
         "src/tracker/rooms/github/transport/client.ts",
@@ -8028,7 +8031,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 14 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 17 条"
     },
     {
       "step": "node tests/verify-github-label-colors.ts",
@@ -9588,6 +9591,24 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
     },
     {
+      "step": "node tests/verify-rest-detail-completion.ts",
+      "file": "tests/verify-rest-detail-completion.ts",
+      "guards": [
+        "src/tracker/rooms/github/read/issues.ts",
+        "src/tracker/rooms/github/read/rest-detail-completion.ts",
+        "src/tracker/rooms/github/routing/read-assembly.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/github/read",
+        "src/tracker/rooms/github/routing"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 61,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
       "step": "node tests/verify-rest-fallback-banner.ts",
       "file": "tests/verify-rest-fallback-banner.ts",
       "guards": [
@@ -9608,6 +9629,23 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 2 条"
+    },
+    {
+      "step": "node tests/verify-rest-fallback-completion.ts",
+      "file": "tests/verify-rest-fallback-completion.ts",
+      "guards": [
+        "src/tracker/rooms/github/read/issues.ts",
+        "src/tracker/rooms/github/read/parent-repair.ts",
+        "src/tracker/rooms/github/read/rest-list-relations.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/github/read"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 46,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-rest-fallback-reason.ts",
@@ -12497,6 +12535,8 @@
       "node tests/verify-issue195.ts",
       "node tests/verify-operation-catalog.ts",
       "node tests/verify-read-result-provenance.ts",
+      "node tests/verify-rest-detail-completion.ts",
+      "node tests/verify-rest-fallback-completion.ts",
       "node tests/verify-time-config.ts"
     ],
     "src/tracker/rooms/github/room": [
@@ -12524,6 +12564,7 @@
     "src/tracker/rooms/github/routing": [
       "node tests/verify-error-single-source.ts",
       "node tests/verify-read-result-provenance.ts",
+      "node tests/verify-rest-detail-completion.ts",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-time-config.ts"
     ],
@@ -12923,9 +12964,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 666,
+    "fileCount": 668,
     "dirCount": 84,
-    "coveredFileCount": 666,
+    "coveredFileCount": 668,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 66,
@@ -13486,6 +13527,8 @@
       "src/tracker/rooms/github/read/pulls.ts",
       "src/tracker/rooms/github/read/read-sources.ts",
       "src/tracker/rooms/github/read/repo-permissions.ts",
+      "src/tracker/rooms/github/read/rest-detail-completion.ts",
+      "src/tracker/rooms/github/read/rest-list-relations.ts",
       "src/tracker/rooms/github/read/sub-issues.ts",
       "src/tracker/rooms/github/room/backend.ts",
       "src/tracker/rooms/github/room/checks.ts",

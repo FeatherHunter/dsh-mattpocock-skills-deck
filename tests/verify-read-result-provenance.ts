@@ -830,11 +830,13 @@ function gqlPageData(nodes: any[], totalCount: number): any {
     degradedFrom: 'graphql',
   })
   check(result.ok === true && result.data && result.data.key === '123', '单票 REST 降级仍返回这张票（行为不变）', result.data && result.data.key)
-  check(room.calls.map(function (c: any): string { return c.kind }).join(',') === 'get.gql,rest.issue', '单票降级后走 REST 单票端点', room.calls.map(function (c: any): string { return c.kind }))
+  // #1691：REST 单票不回依赖摘要，按需补一次依赖明细（本假房间没实现这条路线，失败后记未知）；
+  // 其余三类补取在「没点名评论、不是拉取请求」时不会发请求。
+  check(room.calls.map(function (c: any): string { return c.kind }).join(',') === 'get.gql,rest.issue,rest.other', '单票降级后走 REST 单票端点并补一次依赖明细', room.calls.map(function (c: any): string { return c.kind }))
   // #1688：REST 单票回包没有父子边与依赖边，三态必须是「未表达」，不许落成空数组或「没有父票」。
   const d4States: any = (result.data && result.data.fieldStates) || {}
   check(d4States.parents && d4States.parents.known === false && d4States.parents.reason === 'not-expressed', 'REST 降级单票的父子边三态记未表达，不冒充没有父票', d4States.parents)
-  check(d4States.dependencies && d4States.dependencies.known === false && d4States.dependencies.reason === 'not-expressed', 'REST 降级单票的依赖边三态记未表达，不冒充空数组', d4States.dependencies)
+  check(d4States.dependencies && d4States.dependencies.known === false && d4States.dependencies.reason === 'unreadable', 'REST 降级单票补依赖明细失败后三态记未知，不冒充空数组', d4States.dependencies)
   check(d4States.comments && d4States.comments.known === false, 'REST 降级单票的评论总数记未知，不拿正文条数冒充', d4States.comments)
   check(!('blockedBy' in result.data) && !('commentCount' in result.data), 'REST 降级单票不假写空依赖数组与零评论总数', { blockedBy: 'blockedBy' in result.data, commentCount: 'commentCount' in result.data })
 }
