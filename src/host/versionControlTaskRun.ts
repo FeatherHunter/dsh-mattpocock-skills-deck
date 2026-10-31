@@ -24,21 +24,23 @@ const VIA = 'version-control-task'
  * 与写命令共用同一套字段口径：调用方按 reason 做分支，按 hint 给人话提示，
  * 不允许只回一句「失败了」而没有分类。
  */
-function taskFail(kind, message, extra) {
-  const more = extra || {}
+function taskFail(kind: any, message: any, extra?: any): any {
+  const more: any = extra || {}
   return { ok: false, error: { kind, message, reason: more.reason || null, hint: more.hint || null } }
 }
 const DEFAULT_GRACE_MS = 5000
 const DEFAULT_HARD_KILL_MS = 2000
 const FAILURE_LINE_LIMIT = 160
 
-function firstLine(text) {
+/** 取失败输出里第一行非空文字：给人看的失败原因只留这一行，整段输出太吵。 */
+function firstLine(text: any): string {
   if (typeof text !== 'string') return ''
-  const line = text.split(/\r?\n/).find((item) => String(item).trim().length > 0) || ''
+  const line: string = text.split(/\r?\n/).find((item: any) => String(item).trim().length > 0) || ''
   return line.trim().slice(0, FAILURE_LINE_LIMIT)
 }
 
-function stdinSpecProblem(spec) {
+/** 输入文件引用的形状校验：路径、非负整数大小、64 位十六进制摘要，三样缺一不可。 */
+function stdinSpecProblem(spec: any): string | null {
   if (!spec || typeof spec !== 'object') return '输入文件规格必须是对象'
   if (typeof spec.path !== 'string' || spec.path.length === 0) return '输入文件缺少路径'
   if (!Number.isInteger(spec.sizeBytes) || spec.sizeBytes < 0) return '输入文件大小必须是非负整数'
@@ -47,13 +49,16 @@ function stdinSpecProblem(spec) {
 }
 
 /** 对外可见的任务摘要：只挑界面需要的字段，参数原文与文件内容不往外传。 */
-export function summaryOf(record) {
+export function summaryOf(record: any): any {
   if (!record || typeof record !== 'object') return null
-  const percent = typeof record.percent === 'number' ? record.percent : null
+  const percent: number | null = typeof record.percent === 'number' ? record.percent : null
+  const meta: any = taskOpMetaOf(record.op)
   return {
     taskId: record.taskId,
     requestId: record.requestId || null,
     op: record.op,
+    // 动作的文案键也随摘要一起给界面：界面不自己拼动作名，避免多一处映射。
+    labelKey: meta ? meta.labelKey : null,
     state: record.state || 'running',
     conclusion: record.conclusion || null,
     phase: record.phase || null,
@@ -74,22 +79,23 @@ export function summaryOf(record) {
   }
 }
 
-export function createTaskRunner(deps) {
+export function createTaskRunner(deps: any): any {
   const store = deps.store
   const launch = deps.launch
   const prepareStdinFile = deps.prepareStdinFile
   const timer = deps.timer
-  const now = typeof deps.now === 'function' ? deps.now : () => Date.now()
+  const now: any = typeof deps.now === 'function' ? deps.now : () => Date.now()
   const hash8 = deps.hash8
-  const instanceId = String(deps.instanceId || 'instance')
-  const repoRoot = deps.repoRoot || ''
-  const fire = typeof deps.fire === 'function' ? deps.fire : () => {}
-  const graceMs = Number.isInteger(deps.graceMs) && deps.graceMs > 0 ? deps.graceMs : DEFAULT_GRACE_MS
-  const hardKillMs = Number.isInteger(deps.hardKillMs) && deps.hardKillMs > 0 ? deps.hardKillMs : DEFAULT_HARD_KILL_MS
-  const inflight = new Map()
+  const instanceId: string = String(deps.instanceId || 'instance')
+  const repoRoot: string = deps.repoRoot || ''
+  const fire: any = typeof deps.fire === 'function' ? deps.fire : () => {}
+  const graceMs: number = Number.isInteger(deps.graceMs) && deps.graceMs > 0 ? deps.graceMs : DEFAULT_GRACE_MS
+  const hardKillMs: number = Number.isInteger(deps.hardKillMs) && deps.hardKillMs > 0 ? deps.hardKillMs : DEFAULT_HARD_KILL_MS
+  const inflight = new Map<any, any>()
 
-  function emit(level, record, extra) {
-    const fields = {
+  /** 每条 git.task 日志都从这里出：字段名固定，额外字段按白名单由调用方补。 */
+  function emit(level: any, record: any, extra?: any): void {
+    const fields: Record<string, any> = {
       taskId: record.taskId,
       op: record.op,
       cmd: record.op,
@@ -102,15 +108,15 @@ export function createTaskRunner(deps) {
     fire(level, 'git.task', fields)
   }
 
-  async function finalize(taskId, result, forcedResidual) {
-    const entry = inflight.get(taskId)
+  async function finalize(taskId: any, result: any, forcedResidual?: any): Promise<any> {
+    const entry: any = inflight.get(taskId)
     if (!entry || entry.settled) return entry ? entry.summary : null
     entry.settled = true
-    const rec = { ...entry.record }
+    const rec: any = { ...entry.record }
     // 结束前把最后的进度行也解析一遍：进程可能在最后一行才打出真实百分比。
-    const tail = String((result && result.stderr) || '') + '\n' + String((result && result.stdout) || '')
+    const tail: string = String((result && result.stderr) || '') + '\n' + String((result && result.stdout) || '')
     for (const line of tail.split(/\r?\n/)) {
-      const parsed = parseTaskProgress(line)
+      const parsed: any = parseTaskProgress(line)
       if (parsed.phase) entry.snapshot.phase = parsed.phase
       if (parsed.percent !== null) entry.snapshot.percent = parsed.percent
       if (parsed.bytes !== null) entry.snapshot.receivedBytes = parsed.bytes
@@ -124,7 +130,7 @@ export function createTaskRunner(deps) {
     rec.truncated = !!(result && result.truncated)
     rec.state = 'done'
     rec.instanceId = instanceId
-    const stdinError = result && result.stdinError
+    const stdinError: any = result && result.stdinError
     if (rec.cancelRequested) {
       rec.conclusion = 'cancelled'
       rec.failureKind = 'cancelled'
@@ -173,16 +179,16 @@ export function createTaskRunner(deps) {
     return entry.summary
   }
 
-  async function start(request) {
-    const req = request && typeof request === 'object' ? request : {}
-    const meta = taskOpMetaOf(req.op)
+  async function start(request: any): Promise<any> {
+    const req: any = request && typeof request === 'object' ? request : {}
+    const meta: any = taskOpMetaOf(req.op)
     if (!meta) {
       return taskFail('invalid-request', '长任务清单里没有这个动作', {
         reason: 'unknown-op',
         hint: '只接受票面点名的十七种动作',
       })
     }
-    const built = taskArgsFor(req.op, req.args)
+    const built: any = taskArgsFor(req.op, req.args)
     if (!built.ok) {
       return taskFail('invalid-request', built.message, { reason: built.reason, hint: built.hint })
     }
@@ -192,7 +198,7 @@ export function createTaskRunner(deps) {
         hint: '确认风险后带 confirm: true 重新开始',
       })
     }
-    let stdinBytes = null
+    let stdinBytes: any = null
     if (req.stdinFile !== undefined && req.stdinFile !== null) {
       if (!meta.stdinFile) {
         return taskFail('invalid-request', '只有 fast-import 允许从文件送输入', {
@@ -200,16 +206,16 @@ export function createTaskRunner(deps) {
           hint: '其它动作的输入一律走参数，标准输入保持忽略',
         })
       }
-      const specProblem = stdinSpecProblem(req.stdinFile)
+      const specProblem: string | null = stdinSpecProblem(req.stdinFile)
       if (specProblem) {
         return taskFail('invalid-request', specProblem, {
           reason: 'stdin-spec',
           hint: '输入文件要给出路径、非负整数大小与 64 位十六进制摘要',
         })
       }
-      const prepared = await prepareStdinFile(req.stdinFile)
+      const prepared: any = await prepareStdinFile(req.stdinFile)
       if (!prepared || prepared.ok !== true) {
-        const reason = (prepared && prepared.reason) || 'invalid'
+        const reason: any = (prepared && prepared.reason) || 'invalid'
         return taskFail('invalid-request', '输入文件没有通过校验：' + reason, {
           reason: 'stdin-' + reason,
           hint: '确认文件是普通文件、大小与摘要一致后重试',
@@ -217,21 +223,21 @@ export function createTaskRunner(deps) {
       }
       stdinBytes = prepared.bytes
     }
-    const cwd = typeof req.cwd === 'string' && req.cwd.length > 0 ? req.cwd : repoRoot
-    const cwdHash = hash8(cwd)
+    const cwd: string = typeof req.cwd === 'string' && req.cwd.length > 0 ? req.cwd : repoRoot
+    const cwdHash: string = hash8(cwd)
     if (typeof req.requestId === 'string' && req.requestId.length > 0) {
-      const prior = await store.findByRequestId(req.requestId)
+      const prior: any = await store.findByRequestId(req.requestId)
       if (prior) return { ok: true, task: summaryOf(prior), reused: true }
     }
-    const reqKey = taskDedupeKey(req.op, cwdHash, req.args)
+    const reqKey: string = taskDedupeKey(req.op, cwdHash, req.args)
     for (const entry of inflight.values()) {
       if (entry.reqKey === reqKey && entry.record.state === 'running') {
         return { ok: true, task: summaryOf(entry.record), reused: true }
       }
     }
-    const startedAt = now()
-    const taskId = 'task-' + String(startedAt) + '-' + hash8(req.op + '|' + reqKey + '|' + String(startedAt)).slice(0, 8)
-    const record = {
+    const startedAt: number = now()
+    const taskId: string = 'task-' + String(startedAt) + '-' + hash8(req.op + '|' + reqKey + '|' + String(startedAt)).slice(0, 8)
+    const record: any = {
       taskId,
       requestId: typeof req.requestId === 'string' ? req.requestId : '',
       op: req.op,
@@ -253,17 +259,17 @@ export function createTaskRunner(deps) {
       stdinBytes: stdinBytes ? stdinBytes.length : 0,
       instanceId,
     }
-    const snapshot = { phase: 'started', percent: null, receivedBytes: null }
-    const onLine = (line) => {
-      const parsed = parseTaskProgress(line)
+    const snapshot: any = { phase: 'started', percent: null, receivedBytes: null }
+    const onLine: any = (line: any): void => {
+      const parsed: any = parseTaskProgress(line)
       if (parsed.phase) snapshot.phase = parsed.phase
       if (parsed.percent !== null) snapshot.percent = parsed.percent
       if (parsed.bytes !== null) snapshot.receivedBytes = parsed.bytes
     }
-    const launched = launch({ op: req.op, args: built.args, cwd, stdinBytes, onLine, onStdoutLine: onLine })
+    const launched: any = launch({ op: req.op, args: built.args, cwd, stdinBytes, onLine, onStdoutLine: onLine })
     if (!launched || launched.ok !== true) {
-      const failureKind = (launched && launched.kind) || 'spawn-failed'
-      const failedRecord = {
+      const failureKind: string = (launched && launched.kind) || 'spawn-failed'
+      const failedRecord: any = {
         ...record,
         state: 'done',
         conclusion: 'failed',
@@ -276,11 +282,11 @@ export function createTaskRunner(deps) {
       emit('error', failedRecord, { elapsedMs: failedRecord.elapsedMs, exitCode: null, truncated: false })
       return { ok: true, task: summaryOf(failedRecord) }
     }
-    const entry = { handle: launched.handle, reqKey, snapshot, record, settled: false, summary: null, settleResolve: null, residual: null }
-    entry.donePromise = new Promise((resolve) => { entry.settleResolve = resolve })
+    const entry: any = { handle: launched.handle, reqKey, snapshot, record, settled: false, summary: null, settleResolve: null, residual: null }
+    entry.donePromise = new Promise((resolve: any) => { entry.settleResolve = resolve })
     inflight.set(taskId, entry)
     emit('info', record)
-    launched.handle.done.then((result) => finalize(taskId, result)).catch(() => {
+    launched.handle.done.then((result: any) => finalize(taskId, result)).catch(() => {
       finalize(taskId, { exitCode: null, stdout: '', stderr: '', truncated: false })
     })
     if (launched.stdinError) {
@@ -291,10 +297,10 @@ export function createTaskRunner(deps) {
     return { ok: true, task: summaryOf(record) }
   }
 
-  async function query() {
-    const records = await store.list()
-    const tasks = records.map((record) => {
-      const entry = inflight.get(record.taskId)
+  async function query(): Promise<any> {
+    const records: any[] = await store.list()
+    const tasks: any[] = records.map((record: any) => {
+      const entry: any = inflight.get(record.taskId)
       if (entry && entry.record && entry.record.state === 'running') {
         return summaryOf({
           ...record,
@@ -306,55 +312,55 @@ export function createTaskRunner(deps) {
       }
       return summaryOf(record)
     })
-    return { ok: true, tasks, running: tasks.filter((task) => task.state === 'running').length }
+    return { ok: true, tasks, running: tasks.filter((task: any) => task.state === 'running').length }
   }
 
-  async function cancel(request) {
-    const req = request && typeof request === 'object' ? request : {}
-    const taskId = req.taskId
+  async function cancel(request: any): Promise<any> {
+    const req: any = request && typeof request === 'object' ? request : {}
+    const taskId: any = req.taskId
     if (typeof taskId !== 'string' || taskId.length === 0) {
       return taskFail('invalid-request', '取消任务要给出任务 id', { reason: 'bad-task-id' })
     }
-    const entry = inflight.get(taskId)
+    const entry: any = inflight.get(taskId)
     if (!entry) {
-      const record = await store.get(taskId)
+      const record: any = await store.get(taskId)
       if (!record) return taskFail('not-found', '任务库里没有这个任务', { reason: 'no-such-task' })
       return taskFail('conflict', '这个任务已经结束，不能再取消', { reason: 'task-ended' })
     }
     if (entry.record && entry.record.cancelRequested) {
       return { ok: true, task: entry.summary || summaryOf(entry.record) }
     }
-    const meta = taskOpMetaOf(entry.record.op)
+    const meta: any = taskOpMetaOf(entry.record.op)
     entry.record = { ...entry.record, cancelRequested: true }
     entry.residual = meta ? meta.residual : '任务被取消，可能有未完成的产物留在工作区'
     try { entry.handle.terminate() } catch {}
-    const outcome = await Promise.race([
+    const outcome: string = await Promise.race([
       entry.donePromise.then(() => 'done'),
       timer.timeout(graceMs).then(() => 'grace'),
     ])
     if (outcome === 'done' && entry.summary) return { ok: true, task: entry.summary }
     // 宽限期内没退：补一次强杀，结论仍是被取消，但残留说明要写清楚。
     try { entry.handle.terminate() } catch {}
-    const forcedResidual = entry.residual + '；进程没有在宽限期内响应终止信号，已强制结束，工作区可能仍有残留'
+    const forcedResidual: string = entry.residual + '；进程没有在宽限期内响应终止信号，已强制结束，工作区可能仍有残留'
     // 强杀后再给一次很短的对账时间，仍不结束就按取消收尾，不让界面一直转圈。
-    const settled = await Promise.race([
+    const settled: any = await Promise.race([
       entry.donePromise,
       timer.timeout(hardKillMs).then(() => null),
     ])
     if (settled && entry.summary) return { ok: true, task: entry.summary }
-    const summary = await finalize(taskId, { exitCode: null, stdout: '', stderr: '', truncated: false, signalled: true }, forcedResidual)
+    const summary: any = await finalize(taskId, { exitCode: null, stdout: '', stderr: '', truncated: false, signalled: true }, forcedResidual)
     return { ok: true, task: summary }
   }
 
   /** 宿主每次启动调用一次：把上一实例留下的在途记录标成中断，并像其它结论一样记日志。 */
-  async function resumeInterrupted() {
-    const records = await store.list()
-    let interrupted = 0
+  async function resumeInterrupted(): Promise<any> {
+    const records: any[] = await store.list()
+    let interrupted: number = 0
     for (const record of records) {
       if (!record || record.state !== 'running') continue
       if (record.instanceId === instanceId) continue
-      const endedAt = now()
-      const patched = await store.patch(record.taskId, {
+      const endedAt: number = now()
+      const patched: any = await store.patch(record.taskId, {
         state: 'done',
         conclusion: 'interrupted',
         interrupted: true,

@@ -17,8 +17,9 @@ const FILE_PREFIX = 'vc-task-events__'
 const FILE_SUFFIX = '.json'
 const DEFAULT_LIMIT = 20
 
-function pickRecordFields(input) {
-  const out = {}
+/** 按白名单挑字段：白名单之外的键一律不进任务库，这是「参数原文与文件内容不落盘」的最后一道闸。 */
+function pickRecordFields(input: any): Record<string, any> {
+  const out: Record<string, any> = {}
   if (!input || typeof input !== 'object') return out
   for (const key of TASK_RECORD_FIELDS) {
     if (input[key] !== undefined) out[key] = input[key]
@@ -26,7 +27,8 @@ function pickRecordFields(input) {
   return out
 }
 
-function validRecord(rec) {
+/** 一条记录至少要有任务 id 才算数；坏记录在读取时被过滤掉，不让它拖垮整个任务库。 */
+function validRecord(rec: any): boolean {
   return !!rec && typeof rec === 'object' && typeof rec.taskId === 'string' && rec.taskId.length > 0 && rec.taskId.length <= 120
 }
 
@@ -34,26 +36,26 @@ function validRecord(rec) {
  * 建一个任务库。deps.fs 是宿主文件服务（resolve/readText/writeText/mkdir/exists），
  * dir 是缓存目录的绝对路径，fileKey 是仓库指纹（同一仓库的任务放在同一个文件里）。
  */
-export function createTaskStore(deps) {
+export function createTaskStore(deps: any): any {
   const fs = deps.fs
-  const dir = deps.dir
-  const fileKey = String(deps.fileKey || 'root').replace(/[^A-Za-z0-9._-]/g, '') || 'root'
-  const limit = Number.isInteger(deps.limit) && deps.limit > 0 ? deps.limit : DEFAULT_LIMIT
-  const now = typeof deps.now === 'function' ? deps.now : () => Date.now()
-  const filePath = path.join(dir, FILE_PREFIX + fileKey + FILE_SUFFIX)
-  let records = []
-  let loaded = false
-  let loading = null
+  const dir: string = deps.dir
+  const fileKey: string = String(deps.fileKey || 'root').replace(/[^A-Za-z0-9._-]/g, '') || 'root'
+  const limit: number = Number.isInteger(deps.limit) && deps.limit > 0 ? deps.limit : DEFAULT_LIMIT
+  const now: any = typeof deps.now === 'function' ? deps.now : () => Date.now()
+  const filePath: string = path.join(dir, FILE_PREFIX + fileKey + FILE_SUFFIX)
+  let records: any[] = []
+  let loaded: boolean = false
+  let loading: Promise<void> | null = null
 
-  async function ensureLoaded() {
+  async function ensureLoaded(): Promise<void> {
     if (loaded) return
     if (loading) return loading
-    loading = (async () => {
+    loading = (async (): Promise<void> => {
       try {
         if (await fs.exists(filePath)) {
-          const text = await fs.readText(filePath)
-          const parsed = JSON.parse(String(text || '{}'))
-          const tasks = parsed && Array.isArray(parsed.tasks) ? parsed.tasks : []
+          const text: any = await fs.readText(filePath)
+          const parsed: any = JSON.parse(String(text || '{}'))
+          const tasks: any[] = parsed && Array.isArray(parsed.tasks) ? parsed.tasks : []
           records = tasks.filter(validRecord).map(pickRecordFields).slice(0, limit)
         } else records = []
       } catch {
@@ -65,11 +67,11 @@ export function createTaskStore(deps) {
     return loading
   }
 
-  async function save() {
+  async function save(): Promise<boolean> {
     await ensureLoaded()
     try {
       await fs.mkdir(dir)
-      const text = JSON.stringify({ version: 1, savedAt: now(), tasks: records })
+      const text: string = JSON.stringify({ version: 1, savedAt: now(), tasks: records })
       await fs.writeText(filePath, text)
       return true
     } catch {
@@ -81,24 +83,24 @@ export function createTaskStore(deps) {
   return {
     filePath,
     limit,
-    async load() { await ensureLoaded(); return records.slice() },
-    async list() { await ensureLoaded(); return records.slice() },
-    async get(taskId) {
+    async load(): Promise<any[]> { await ensureLoaded(); return records.slice() },
+    async list(): Promise<any[]> { await ensureLoaded(); return records.slice() },
+    async get(taskId: any): Promise<any> {
       await ensureLoaded()
       for (const rec of records) if (rec.taskId === taskId) return rec
       return null
     },
-    async findByRequestId(requestId) {
+    async findByRequestId(requestId: any): Promise<any> {
       await ensureLoaded()
       if (typeof requestId !== 'string' || requestId.length === 0) return null
       for (const rec of records) if (rec.requestId === requestId) return rec
       return null
     },
-    async put(record) {
+    async put(record: any): Promise<any> {
       await ensureLoaded()
-      const rec = pickRecordFields(record)
+      const rec: any = pickRecordFields(record)
       if (!validRecord(rec)) return null
-      const index = records.findIndex((item) => item.taskId === rec.taskId)
+      const index: number = records.findIndex((item: any) => item.taskId === rec.taskId)
       if (index >= 0) records[index] = rec
       else records.unshift(rec)
       // 只留最近 limit 条：最旧的在数组末尾，从末尾丢，运行中的记录因为总是新写入而留在前面。
@@ -106,11 +108,11 @@ export function createTaskStore(deps) {
       await save()
       return rec
     },
-    async patch(taskId, fields) {
+    async patch(taskId: any, fields: any): Promise<any> {
       await ensureLoaded()
-      const index = records.findIndex((item) => item.taskId === taskId)
+      const index: number = records.findIndex((item: any) => item.taskId === taskId)
       if (index < 0) return null
-      const merged = pickRecordFields({ ...records[index], ...(fields || {}) })
+      const merged: any = pickRecordFields({ ...records[index], ...(fields || {}) })
       records[index] = merged
       await save()
       return merged
