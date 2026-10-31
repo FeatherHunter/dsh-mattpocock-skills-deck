@@ -44,10 +44,9 @@ declare function vcWorktreesPageNode(h: any, t: any, o: any): any
 declare function vcChangesPageNode(h: any, t: any, o: any): any
 // 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）：同上由构建拼进闭包，这里只声明形状。
 declare function vcBranchBoardNode(h: any, t: any, o: any): any
-// 贮藏页叶子（#1751，vcStashPage.ts）：同样由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。
-declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any
-// #1748 T13 变基待办页的历史改写面板（vcUndoPage.ts）：五种破坏性动作的预检、确认卡与执行结果都在叶子里，
-// 壳只负责在 rebase 页把它挂进页面根节点；没有传状态时叶子画空面板，不自己造读数。
+// 贮藏页叶子（#1751，vcStashPage.ts）、变基待办页的历史改写面板（#1748 T13，vcUndoPage.ts）与冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）：
+// 同样由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。三条声明并进同一条物理行：本文件贴着 350 有效行上限。
+declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']
@@ -305,13 +304,15 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   // 历史高级查询面板（#1745 T10）：提交历史页落 3.4 / 3.6 / 3.7 / 3.8 / 3.10 / 3.12 六组，
   //   「管理 › 诊断」页落 3.5 / 3.9 / 3.11 / 3.13 四组（四条的主入口就在那一页，面板自己标主入口）。
   //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。
-  const queryNode = vcQueryPageNode(h, t, opts)
-  if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' }))
+  const queryNode = vcQueryPageNode(h, t, opts); if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' })) // 判断与推入并成一行：本文件贴着 350 有效行上限。
   children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
   // 改动页的 13 条动作面板（#1742）：页面把改动读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
     children.push(Object.assign({}, vcChangesPageNode(h, t, { changes: opts.changes }), { key: 'changes' }))
   }
+  // 冲突向导的 15 条能力面板（#1747 T12）：页面把冲突状态与读数传进来时才画；没传整块不出现，其它页渲染结果不变。
+  // 判断与推入写成同一条物理行：本文件贴着 350 有效行上限。
+  if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' }))
   return h('section', {
     id: 'vc-page-' + page,
     className: 'vcs-page-body',
@@ -363,7 +364,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     openSurface: openSurface,
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,
-    changes: opts.changes,
+    changes: opts.changes, conflicts: opts.conflicts, // #1747 T12：冲突向导的进行中状态、冲突清单与 15 条动作的交互态，原样往下传，壳不改形状。
     // #1744 T09：提交历史页要真读数与交互态，页面壳原样往下传，不在壳里改形状。
     reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
     // #1746 T11：分支与标签业务面板的读数与确认卡/结果（没给就不画，T03 既有渲染不变）。

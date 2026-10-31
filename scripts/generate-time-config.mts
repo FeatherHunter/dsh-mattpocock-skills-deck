@@ -121,8 +121,12 @@ const KEYS: Array<[string, string, string]> = [
   // #1746 分支与标签域：预检只读与凭票执行各一档，都是本地动作。
   ['vcBranchReadTimeoutMs', 'VC_BRANCH_READ_TIMEOUT_MS', 'timeouts'],
   ['vcBranchWriteTimeoutMs', 'VC_BRANCH_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1748 撤销、重置与拣选：预检只读与凭票执行各一档，都是本地动作。
   ['vcUndoReadTimeoutMs', 'VC_UNDO_READ_TIMEOUT_MS', 'timeouts'],
   ['vcUndoWriteTimeoutMs', 'VC_UNDO_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1747 冲突向导：预检只读与凭票执行各一档，都是本地动作。
+  ['vcConflictReadTimeoutMs', 'VC_CONFLICT_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcConflictWriteTimeoutMs', 'VC_CONFLICT_WRITE_TIMEOUT_MS', 'timeouts'],
   ['gitCredentialCallBudgetMs', 'GIT_CREDENTIAL_CALL_BUDGET_MS', 'timeouts'],
   ['gitCredentialMinBudgetMs', 'GIT_CREDENTIAL_MIN_BUDGET_MS', 'timeouts'],
   ['gitCredentialMaxBudgetMs', 'GIT_CREDENTIAL_MAX_BUDGET_MS', 'timeouts'],

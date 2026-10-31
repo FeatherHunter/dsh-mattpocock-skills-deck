@@ -240,9 +240,11 @@ async function main() {
     // #1752 加了工作树页两条电话 wf.gitWorktreeCheck / wf.gitWorktreeRun（预检与执行），73 → 75。
     // #1754 加了远端与同步页六条电话 wf.gitRemoteList / wf.gitRemoteAdd / wf.gitRemoteRename / wf.gitRemoteRemove / wf.gitRemoteSetUrl / wf.gitRemoteOnline（读列表 + 四条写动作 + 显式联网查看），75 → 81。
     // #1745 加了历史高级查询一条电话 wf.gitHistoryQuery（十条查询共用一个只读电话），81 → 82。
-    // #1743 加了提交页一条只读电话 wf.gitCommitForm（读身份、签名配置、提交说明模板与上一条提交原文），72 → 73。
-    // #1748 加了变基待办页两条电话 wf.gitUndoCheck / wf.gitUndoWrite（历史改写五条动作的预检签票与凭票执行），83 → 85。
-    check(nPhones === 85, '宿主电话八十五条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1743 加了提交页一条只读电话 wf.gitCommitForm（读身份、签名配置、提交说明模板与上一条提交原文），82 → 83。
+    // #1755 加了同步域两条电话 wf.gitSyncCheck / wf.gitSyncWrite（10 条动作共用的预检签票与凭票执行），83 → 85。
+    // #1747 加了冲突向导三条电话 wf.gitConflicts / wf.gitConflictCheck / wf.gitConflictWrite（只读一取全、预检签票、凭票执行），85 → 88。
+    // #1748 加了变基待办页两条电话 wf.gitUndoCheck / wf.gitUndoWrite（历史改写五条动作的预检签票与凭票执行），88 → 90。
+    check(nPhones === 90, '宿主电话九十条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——
