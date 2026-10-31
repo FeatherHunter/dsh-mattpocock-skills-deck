@@ -212,6 +212,111 @@ export function stashListArgs(): string[] {
   return ['stash', 'list', '--format=%gd%x00%H%x00%ct%x00%gs']
 }
 
+// ==== 域 4 分支与标签的 argv（#1746 T11）=================================================
+// 规矩与上面几条写命令一致：这里只描述「子命令与它自己的参数」，-C、固定前缀与非交互环境由宿主同一个出口补。
+// 每个能力各自一个 argv 构建函数（4.1 分支列表复用 commandFor('refs')，不另造读法），
+// 校验放在共享层 branch-decisions.ts 的取名规则里，宿主在拼 argv 之前先过一遍。
+
+/** 4.9 标签列表：一行五段，NUL 分隔（名字、对象号、对象类型、打标签时间秒、主题）。 */
+export function tagListArgs(): string[] {
+  return ['for-each-ref', '--format=%(refname:short)%00%(objectname)%00%(objecttype)%00%(taggerdate:unix)%00%(contents:subject)', 'refs/tags/']
+}
+
+/** 4.13（读）全部分支说明：一条命令取回所有 branch.<名>.description；-z 让值与键用 NUL 隔开，多行说明也读得回。 */
+export function branchDescriptionsArgs(): string[] {
+  return ['config', '--local', '-z', '--get-regexp', '^branch\\..*\\.description$']
+}
+
+/** 4.13（写）把面板里的说明写进 git 的说明存储：research 1592 §1.4 的口径，直接写配置键。
+ *  不走 git branch --edit-description：那条命令要编辑器，宿主把 GIT_EDITOR 固定成必失败命令（规格第 7 节），
+ *  走它只会失败；配置键是同一份存储，git 自己负责转义与写盘。 */
+export function branchDescriptionSetArgs(branch: string, text: string): string[] {
+  return ['config', '--local', 'branch.' + branch + '.description', text]
+}
+
+/** 4.13（清空）没有说明时删掉这个键，不留一个空串在那儿冒充说明。 */
+export function branchDescriptionUnsetArgs(branch: string): string[] {
+  return ['config', '--local', '--unset-all', 'branch.' + branch + '.description']
+}
+
+/** 4.2 新建并切换：git 2.23 以上用 switch -c；更老的走 checkout -b 降级（能力账本 4.2 的 versionAlternative）。 */
+export function branchCreateArgs(name: string, startPoint?: string): string[] {
+  const args: string[] = ['switch', '-c', name]
+  if (startPoint) args.push(startPoint)
+  return args
+}
+export function branchCreateCheckoutArgs(name: string, startPoint?: string): string[] {
+  const args: string[] = ['checkout', '-b', name]
+  if (startPoint) args.push(startPoint)
+  return args
+}
+
+/** 4.3 切换分支：switch 与 checkout 两条（同样按 git 版本选）。 */
+export function branchSwitchArgs(name: string): string[] {
+  return ['switch', name]
+}
+export function branchSwitchCheckoutArgs(name: string): string[] {
+  return ['checkout', name]
+}
+
+/** 4.4 切到某个提交（分离头指针）。 */
+export function branchDetachArgs(rev: string): string[] {
+  return ['switch', '--detach', rev]
+}
+export function branchDetachCheckoutArgs(rev: string): string[] {
+  return ['checkout', rev]
+}
+
+/** 4.5 重命名分支：-m 是改名不是覆盖，目标已存在时 git 自己会失败，失败原话照实回显。 */
+export function branchRenameArgs(from: string, to: string): string[] {
+  return ['branch', '-m', from, to]
+}
+
+/** 4.6 删除分支：默认 -d（只删已并入的，未并入 git 会拒绝），force 才用 -D。
+ *  -d 的拒绝本身就是保护：宿主先按合并状态判定，用户确认后才升到 -D。 */
+export function branchDeleteArgs(name: string, force: boolean): string[] {
+  return ['branch', force ? '-D' : '-d', name]
+}
+
+/** 4.7 设置或取消上游：设置用 -u <上游> <分支>，取消用 --unset-upstream <分支>。 */
+export function setUpstreamArgs(upstream: string, branch: string): string[] {
+  return ['branch', '-u', upstream, branch]
+}
+export function unsetUpstreamArgs(branch: string): string[] {
+  return ['branch', '--unset-upstream', branch]
+}
+
+/** 4.8 哪些分支已并入 / 没并入（只读）：which 只有 merged 与 no-merged 两个值。 */
+export function mergedBranchesArgs(which: string, base: string): string[] {
+  return ['branch', which === 'no-merged' ? '--no-merged' : '--merged', base]
+}
+
+/** 4.10 建标签：轻量 / 附注 / 签名三种形态（能力账本 4.10）。附注与签名必须带 -m 说明。
+ *  签名标签用 -s，签名能不能成要看本机 GPG 密钥；失败原话照实回显，不假装成功。 */
+export function tagCreateArgs(name: string, mode: string, target?: string, message?: string): string[] {
+  if (mode === 'annotated' || mode === 'signed') {
+    const args: string[] = ['tag', mode === 'signed' ? '-s' : '-a', '-m', message === undefined ? '' : message, name]
+    if (target) args.push(target)
+    return args
+  }
+  const args: string[] = ['tag', name]
+  if (target) args.push(target)
+  return args
+}
+
+/** 4.11 删标签。 */
+export function tagDeleteArgs(name: string): string[] {
+  return ['tag', '-d', name]
+}
+
+/** 4.12 验签：verify-commit 看提交、verify-tag 看标签；--raw 让 git 把签名结构与 gpg 输出都给出来。
+ *  退出码非零表示没验过（没签名、签名坏了、密钥不认）；这是读数的结论，不是命令执行失败。 */
+export function verifyCommitArgs(rev: string): string[] {
+  return ['verify-commit', '--raw', rev]
+}
+export function verifyTagArgs(name: string): string[] {
+  return ['verify-tag', '--raw', name]
+}
 
 /*
  * —— #1742 改动页（工作区与暂存）的 argv 构造 ——

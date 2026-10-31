@@ -235,10 +235,11 @@ async function main() {
     // #1740 加了一族长任务电话 wf.gitTaskStart / wf.gitTaskQuery / wf.gitTaskCancel（开始、查询、取消），62 → 65。
     // #1742 加了改动页两条电话 wf.gitChangesCheck / wf.gitChangesWrite（预检与执行），65 → 67。
     // #1739 的首屏电话 wf.gitFirstScreen 当年只实现、没在入口注册，#1746 收口时补注册（漏接线的缺陷，同时补了门禁断言），67 → 68。
-    // #1751 加了贮藏页两条电话 wf.gitStashCheck / wf.gitStash（写动作预检签票与凭票执行），68 → 70。
-    // #1752 加了工作树页两条电话 wf.gitWorktreeCheck / wf.gitWorktreeRun（预检与执行），70 → 72。
-    // #1754 加了远端与同步页六条电话 wf.gitRemoteList / wf.gitRemoteAdd / wf.gitRemoteRename / wf.gitRemoteRemove / wf.gitRemoteSetUrl / wf.gitRemoteOnline（读列表 + 四条写动作 + 显式联网查看），72 → 78。
-    check(nPhones === 78, '宿主电话七十八条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1746（T11 返工）加了分支与标签域三条电话 wf.gitBranches / wf.gitBranchCheck / wf.gitBranchWrite（读一次取全、预检签 120 秒票、凭票执行），68 → 71。
+    // #1751 加了贮藏页两条电话 wf.gitStashCheck / wf.gitStash（写动作预检签票与凭票执行），71 → 73。
+    // #1752 加了工作树页两条电话 wf.gitWorktreeCheck / wf.gitWorktreeRun（预检与执行），73 → 75。
+    // #1754 加了远端与同步页六条电话 wf.gitRemoteList / wf.gitRemoteAdd / wf.gitRemoteRename / wf.gitRemoteRemove / wf.gitRemoteSetUrl / wf.gitRemoteOnline（读列表 + 四条写动作 + 显式联网查看），75 → 81。
+    check(nPhones === 81, '宿主电话八十一条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——

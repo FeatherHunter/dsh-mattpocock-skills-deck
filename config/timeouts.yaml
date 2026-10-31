@@ -120,6 +120,11 @@ timeouts:
   # 改动页写命令的单条超时：15 秒。apply --cached / add / reset / restore / clean / rm / mv 都是本地动作，
   # 与暂存那一条同一档；它们不推远端，不需要 pull/push 那种分钟级预算。
   vcChangesWriteTimeoutMs: 15000
+  # —— 分支与标签域的单条命令超时（#1746）——
+  # 预检里单条只读 git 命令的超时：15 秒。分支/标签/说明/已并入名单都是本地读取，与改动页只读同一档。
+  vcBranchReadTimeoutMs: 15000
+  # 分支域写命令的单条超时：15 秒。branch / tag / config --local 都是本地动作，不推远端。
+  vcBranchWriteTimeoutMs: 15000
   # git 凭据代执行的整趟预算：4 分钟。上下限 5 秒与 10 分钟：接线给的预算会被钳进这个范围
   # （下限从 1 秒提到 5 秒；1 秒的预算在慢机器上连子进程启动都盖不住，等于没给）。
   gitCredentialCallBudgetMs: 240000

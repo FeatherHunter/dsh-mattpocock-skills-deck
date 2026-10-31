@@ -284,6 +284,49 @@ async function main(): Promise<void> {
   const iTickets = await vcI.changesTickets()
   check(iTickets instanceof Map && iTickets.size === 0, 'I5 还没预检过时改动页票表是空表')
 
+  // J 分支与标签域两条电话（#1746 返工）：预检签 120 秒票 → 凭票执行；三种失效零进程；requestId 去重；目标变了拒做。
+  // 这一组守的是「写动作一律先预检、再凭票执行」这条通道在真仓库上的行为；判定与 argv 细节由 verify-1586-branches 守。
+  console.log('J 分支与标签电话（#1746）')
+  clock.t = 1000
+  const branchWriteSpawns = () => spawns.filter((a) => {
+    const c = after(a)[0]
+    if (c === 'branch' && (after(a)[1] === '--merged' || after(a)[1] === '--no-merged' || after(a)[1] === '-a')) return false
+    if (c === 'config' && after(a).some((t) => String(t).indexOf('--get') === 0)) return false
+    return ['switch', 'checkout', 'branch', 'tag', 'config'].indexOf(c) >= 0
+  })
+  const rJB = mkRepo('j')
+  git(rJB, ['reset', '-q'])
+  const vcJB = makeVc()
+  check(typeof vcJB.handleGitBranches === 'function' && typeof vcJB.handleGitBranchCheck === 'function' && typeof vcJB.handleGitBranchWrite === 'function', 'JB1 分支域读 / 预检 / 执行三条电话都挂在同一个宿主对象上')
+  const jCheck = await vcJB.handleGitBranchCheck({ cwd: rJB, op: 'create', name: 'feature2' })
+  check(jCheck.ok === true && !!jCheck.ticket && jCheck.ticket.expiresAtMs - jCheck.ticket.checkedAtMs === 120000 && branchWriteSpawns().length === 0, 'JB2 预检签票：票有效期 120 秒，签票这一趟不起任何写进程')
+  const jBefore = branchWriteSpawns().length
+  const jRun = await vcJB.handleGitBranchWrite({ cwd: rJB, ticketId: jCheck.ticket.id, requestId: 'req-j1', op: 'create', name: 'feature2' })
+  const jNew = branchWriteSpawns()
+  check(jRun.ok === true && jNew.length === jBefore + 1 && jNew[jNew.length - 1].indexOf('feature2') >= 0 && git(rJB, ['branch', '--list', 'feature2']).out !== '', 'JB3 凭票执行：一次写进程，命令里带新分支名，仓库里真的建出了分支')
+  const nReplay = spawns.length
+  const jbReplay = await vcJB.handleGitBranchWrite({ cwd: rJB, ticketId: jCheck.ticket.id, requestId: 'req-j1', op: 'create', name: 'feature2' })
+  check(jbReplay.reused === true && jbReplay.result && jbReplay.result.ok === true && jbReplay.result.command === jRun.command && spawns.length === nReplay, 'JB4 同一 requestId 重放：回同一份结果，不再起进程')
+  const nForged = spawns.length
+  const jbForged = await vcJB.handleGitBranchWrite({ cwd: rJB, ticketId: 'NOSUCHTICKET', requestId: 'req-j2', op: 'switch', name: 'feature2', confirmed: true })
+  check(jbForged.ok === false && jbForged.reason === 'ticket-missing' && spawns.length === nForged, 'JB5 伪造票：ticket-missing 且一个进程都没起（纯判定先行）')
+  const tick = await vcJB.handleGitBranchCheck({ cwd: rJB, op: 'switch', name: 'feature2' })
+  clock.t = tick.ticket.expiresAtMs + 1
+  const nExpired = spawns.length
+  const jbExpired = await vcJB.handleGitBranchWrite({ cwd: rJB, ticketId: tick.ticket.id, requestId: 'req-j3', op: 'switch', name: 'feature2', confirmed: true })
+  clock.t = 1000
+  check(jbExpired.ok === false && jbExpired.reason === 'ticket-expired' && spawns.length === nExpired, 'JB6 过期票：ticket-expired 且一个进程都没起')
+  const tick2 = await vcJB.handleGitBranchCheck({ cwd: rJB, op: 'create', name: 'feature3' })
+  const nMismatch = spawns.length
+  const jMismatch = await vcJB.handleGitBranchWrite({ cwd: rJB, ticketId: tick2.ticket.id, requestId: 'req-j4', op: 'delete', name: 'feature2', force: true, confirmed: true })
+  check(jMismatch.ok === false && jMismatch.reason === 'ticket-op-mismatch' && spawns.length === nMismatch, 'JB7 换动作的票（新建的票拿去删分支）：ticket-op-mismatch 且一个进程都没起')
+  const nDrift = branchWriteSpawns().length
+  const driftTick = await vcJB.handleGitBranchCheck({ cwd: rJB, op: 'switch', name: 'feature2' })
+  // 当前就在 feature2 上（JB3 新建并切过去）；再提交一次就把这条分支的 tip 挪了，票里绑的 oid 随之失效。
+  fs.writeFileSync(path.join(rJB, 'c.txt'), 'c\n'); git(rJB, ['add', 'c.txt']); git(rJB, ['commit', '-q', '-m', '移动目标'])
+  const jDrift = await vcJB.handleGitBranchWrite({ cwd: rJB, ticketId: driftTick.ticket.id, requestId: 'req-j5', op: 'switch', name: 'feature2', confirmed: true })
+  check(jDrift.ok === false && jDrift.reason === 'target-changed' && branchWriteSpawns().length === nDrift && git(rJB, ['rev-parse', '--abbrev-ref', 'HEAD']).out === 'feature2', 'JB8 票签完后目标分支被移动：target-changed 零写进程，当前分支没被切走')
+
   // J 贮藏页两条电话（#1751）：写动作先预检签票、再凭票执行；读动作不签票直接放行。
   // 判据只看「拒绝发生在起进程之前」与「重放不再起进程」，不复述实现里的票据表结构。
   console.log('J 贮藏页电话（#1751）')
