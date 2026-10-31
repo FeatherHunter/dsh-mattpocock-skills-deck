@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T18:36:26.751Z",
+  "generatedAt": "2026-10-31T18:48:56.319Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 496,
-  "gateCount": 496,
-  "attributedGates": 445,
+  "chainLength": 497,
+  "gateCount": 497,
+  "attributedGates": 446,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 60,
+  "completionRecordedGates": 61,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 730,
+  "graphFileCount": 734,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4241,6 +4241,26 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
+      "step": "node tests/verify-1586-clone-wizard.ts",
+      "file": "tests/verify-1586-clone-wizard.ts",
+      "guards": [
+        "src/client/views/versionControl/vcClonePage.ts",
+        "src/host/versionControlClone.ts",
+        "src/shared/version-control/src/clone-options.ts",
+        "src/shared/version-control/src/clone-ticket.ts"
+      ],
+      "dirs": [
+        "src/client/views/versionControl",
+        "src/host",
+        "src/shared/version-control/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 102,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
       "step": "node tests/verify-1586-commit-page.ts",
       "file": "tests/verify-1586-commit-page.ts",
       "guards": [
@@ -6446,6 +6466,7 @@
         "src/client/views/versionControl/vcCache.ts",
         "src/client/views/versionControl/vcCapabilityPages.ts",
         "src/client/views/versionControl/vcChangesPage.ts",
+        "src/client/views/versionControl/vcClonePage.ts",
         "src/client/views/versionControl/vcCommit.ts",
         "src/client/views/versionControl/vcCommitOps.ts",
         "src/client/views/versionControl/vcCommitPage.ts",
@@ -6482,8 +6503,11 @@
         "src/client/views/versionControl/vcWriteUi.ts",
         "src/client/views/versionControl/vcWriteView.ts",
         "src/host/versionControl.ts",
+        "src/host/versionControlClone.ts",
         "src/shared/time-config/src/values.ts",
         "src/shared/version-control/src/capability-ledger.ts",
+        "src/shared/version-control/src/clone-options.ts",
+        "src/shared/version-control/src/clone-ticket.ts",
         "src/shared/version-control/src/commit-plan.ts",
         "src/shared/version-control/src/conflict-text.ts",
         "src/shared/version-control/src/first-screen.ts",
@@ -6510,7 +6534,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 52 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 56 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -10807,6 +10831,7 @@
         "src/client/views/skillDetail/PixelSkillDetailModal.ts",
         "src/client/views/skillDetail/PixelSkillOps.ts",
         "src/client/views/versionControl/vcBlocks.ts",
+        "src/client/views/versionControl/vcClonePage.ts",
         "src/client/views/versionControl/vcCommitOps.ts",
         "src/client/views/versionControl/vcText.ts",
         "src/deck/registration/register-options.ts",
@@ -10833,6 +10858,7 @@
         "src/host/versionControl.ts",
         "src/host/versionControlChanges.ts",
         "src/host/versionControlCheck.ts",
+        "src/host/versionControlClone.ts",
         "src/host/versionControlCommitForm.ts",
         "src/host/versionControlConflictScene.ts",
         "src/host/versionControlConflictWrite.ts",
@@ -10950,7 +10976,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 129 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 131 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -12346,6 +12372,7 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-gate-map.ts",
       "node tests/verify-1586-branches.ts",
+      "node tests/verify-1586-clone-wizard.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-history-query.ts",
       "node tests/verify-1586-remote.ts",
@@ -12520,6 +12547,7 @@
       "node tests/verify-1584-repo-ref-for-cwd.ts",
       "node tests/verify-1586-branches.ts",
       "node tests/verify-1586-changes-page.ts",
+      "node tests/verify-1586-clone-wizard.ts",
       "node tests/verify-1586-conflicts.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-history-query.ts",
@@ -13052,6 +13080,7 @@
       "node tests/verify-1231-ws-overview-rows.ts",
       "node tests/verify-1586-branches.ts",
       "node tests/verify-1586-capability-ledger.ts",
+      "node tests/verify-1586-clone-wizard.ts",
       "node tests/verify-1586-commit-page.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-history-query.ts",
@@ -13701,9 +13730,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 751,
+    "fileCount": 755,
     "dirCount": 84,
-    "coveredFileCount": 751,
+    "coveredFileCount": 755,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13902,6 +13931,7 @@
       "src/client/views/versionControl/vcCache.ts",
       "src/client/views/versionControl/vcCapabilityPages.ts",
       "src/client/views/versionControl/vcChangesPage.ts",
+      "src/client/views/versionControl/vcClonePage.ts",
       "src/client/views/versionControl/vcCommit.ts",
       "src/client/views/versionControl/vcCommitOps.ts",
       "src/client/views/versionControl/vcCommitPage.ts",
@@ -14059,6 +14089,7 @@
       "src/host/versionControlChangesMount.ts",
       "src/host/versionControlChangesWrite.ts",
       "src/host/versionControlCheck.ts",
+      "src/host/versionControlClone.ts",
       "src/host/versionControlCommitForm.ts",
       "src/host/versionControlCommitFormMount.ts",
       "src/host/versionControlConflictCheck.ts",
@@ -14238,6 +14269,8 @@
       "src/shared/version-control/src/capabilities.ts",
       "src/shared/version-control/src/capability-ledger.ts",
       "src/shared/version-control/src/changes-protocol.ts",
+      "src/shared/version-control/src/clone-options.ts",
+      "src/shared/version-control/src/clone-ticket.ts",
       "src/shared/version-control/src/commands.ts",
       "src/shared/version-control/src/commit-plan.ts",
       "src/shared/version-control/src/conflict-ops.ts",

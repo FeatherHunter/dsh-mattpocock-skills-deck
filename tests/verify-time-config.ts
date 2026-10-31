@@ -293,6 +293,8 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/client/views/primitives/Tip.ts', name: 'TIP_SHOW_DELAY_MS', key: 'tipShowDelayMs' },
   { file: 'src/client/views/primitives/Tip.ts', name: 'TIP_HIDE_DELAY_MS', key: 'tipHideDelayMs' },
   { file: 'src/client/views/versionControl/vcText.ts', name: 'VC_RELATIVE_WINDOW_MS', key: 'vcRelativeWindowMs' },
+  // #1756：克隆向导页按长任务通道的中央节拍轮询进度（源码里只声明名字，值由这一片给）。
+  { file: 'src/client/views/versionControl/vcClonePage.ts', name: 'VC_TASK_POLL_INTERVAL_MS', key: 'vcTaskPollIntervalMs' },
   { file: 'src/client/kernel/api-io.ts', name: 'DRAFT_REFOCUS_RETRY_MS', key: 'draftRefocusRetryMs' },
   // 「下一步建议」读自己那份工作路线的两档重试等待（work-route-own.ts）：数组常量同样由拼接片段提供。
   { file: 'src/client/kernel/work-route-own.ts', name: 'OWN_ROUTE_RETRY_MS', key: 'ownRouteRetryMs' },
@@ -487,6 +489,9 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'sinceMs', reason: '算出来的起点时刻（上次水位减容差），不是可调参数' },
   { file: 'src/host/versionControlFirstScreen.ts', name: 'readAtMs', reason: '读钟时刻（这一趟首屏聚合读取是什么时候开始的），不是可调参数' },
   { file: 'src/host/versionControlSyncCheck.ts', name: 'readAtMs', reason: '读钟时刻（这一趟同步预检是什么时候读的现场），不是可调参数' },
+  // #1756：克隆预检与执行的回包都带自己那一刻的读钟时刻，用来和票据过期对上，不是可调参数。
+  { file: 'src/host/versionControlClone.ts', name: 'readAtMs', reason: '读钟时刻（这一趟克隆预检是什么时候读的现场），不是可调参数' },
+  { file: 'src/host/versionControlClone.ts', name: 'atMs', reason: '读钟时刻（这次克隆执行是什么时候起手的），不是可调参数' },
   { file: 'src/refresh/rooms/host/probe-handler.ts', name: 'nowMs', reason: '读钟时刻（Date.now），降级探测与校准的窗口判定用，不是可调参数' },
   { file: 'src/host/skillProbeCache.ts', name: 'ttlMs', reason: '透传参数，缺省接 SKILL_PROBE_CACHE_MS（已登记）' },
   { file: 'src/host/skillProbe.ts', name: 'SKILL_CACHE_TTL_MS', reason: '函数内局部变量：接线给了正数就听接线的，没给时取中央常量 SKILL_LIST_CACHE_TTL_MS（已登记为 skillListCacheTtlMs）' },

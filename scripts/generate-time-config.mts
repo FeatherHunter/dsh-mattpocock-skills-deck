@@ -121,6 +121,9 @@ const KEYS: Array<[string, string, string]> = [
   // #1746 分支与标签域：预检只读与凭票执行各一档，都是本地动作。
   ['vcBranchReadTimeoutMs', 'VC_BRANCH_READ_TIMEOUT_MS', 'timeouts'],
   ['vcBranchWriteTimeoutMs', 'VC_BRANCH_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1756 T20 克隆向导：预检只读与清理各一档；克隆本体走长任务通道，不在这里给超时。
+  ['vcCloneReadTimeoutMs', 'VC_CLONE_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcCloneWriteTimeoutMs', 'VC_CLONE_WRITE_TIMEOUT_MS', 'timeouts'],
   // #1747 冲突向导：预检只读与凭票执行各一档，都是本地动作。
   ['vcConflictReadTimeoutMs', 'VC_CONFLICT_READ_TIMEOUT_MS', 'timeouts'],
   ['vcConflictWriteTimeoutMs', 'VC_CONFLICT_WRITE_TIMEOUT_MS', 'timeouts'],
