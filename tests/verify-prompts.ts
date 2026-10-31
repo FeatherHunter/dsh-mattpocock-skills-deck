@@ -1540,9 +1540,11 @@ const contractChecksInner = function (reg, src) {
     // 2026-10-31：mapExecute v22→v23 —— 补地图推进的开工、推进、关 issue、收尾四节操作约束
     //   （逐张读回算 frontier、按解锁下游数排序、拍板选项落票评论、结论先落票、写回重读与四项核对、断点交接）；
     //   仍是插件增量：不复述技能规则、不定义认领生命周期；版本底线同步抬到 23。
+    // 2026-10-31（同日第二笔，#1725）：specExecute v7→v8 —— 降级路线的实现者子代理一条写明
+    //   「用全新上下文的子代理、不要 fork 当前对话」，与 /implement-spec 技能 v1.3.2 口径一致；版本底线同步抬到 8。
     mapExecute: 23, complete: 17, fixate: 11, 'tpl.diagnose': 21, 'tpl.fix': 18, 'tpl.discuss': 23,
     'tpl.research': 17, 'tpl.prototype': 18, 'tpl.takeover': 13, 'tpl.supplement': 10, 'tpl.execute': 23, mapInspect: 14, newWayfinder: 30,
-    newBugWayfinder: 17, newSpec: 6, healthCheck: 6, specComplete: 8, specExecute: 7, specSplit: 6,
+    newBugWayfinder: 17, newSpec: 6, healthCheck: 6, specComplete: 8, specExecute: 8, specSplit: 6,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
     // #664：setupRun v13 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（界面已保证过），版本号跟着抬到 13
@@ -1575,6 +1577,16 @@ const contractChecksInner = function (reg, src) {
     if (me.en.indexOf('- [ ]') < 0) fail('mapExecute en 缺清单标记 - [ ]')
     if (me.en.indexOf('## Tools') < 0 || me.en.indexOf('## Wrap-up') < 0) fail('mapExecute en 缺清单段标题（Tools/Wrap-up）')
   }
+  // #1725：规格执行的降级路线里，实现者子代理一条要写明「用全新上下文的子代理、不要 fork 当前对话」，
+  //   与随包 /implement-spec 技能 v1.3.2 新增的「Start every subagent with a fresh context window」同口径。
+  //   中英各判关键词，少一个就红 —— 这句是「子代理不被当前对话结论带偏」的唯一明示处（其余模板不派子代理）。
+  const se1725 = reg['specExecute'] || {}
+  ;['全新上下文', 'fork'].forEach(function (kw) {
+    if (String(se1725.zh || '').indexOf(kw) < 0) fail('#1725 specExecute zh 缺「' + kw + '」（要写明用全新上下文的子代理、不要 fork 当前对话）')
+  })
+  ;['fresh context window', 'do not fork the current conversation'].forEach(function (kw) {
+    if (String(se1725.en || '').indexOf(kw) < 0) fail('#1725 specExecute en 缺「' + kw + '」（与中文同义：用全新上下文窗口、不 fork 当前对话）')
+  })
   // tpl.execute / tpl.discuss / tpl.research / tpl.prototype（#1281：map 子票统一入口）
   //   四条同为首行 /wayfinder + 第二行 {url}，之后只保留插件增量（调查节 + 收尾）；
   //   原型多一节「定版与移交」（#1258），等下面这张公共骨架表判完后单独判。
@@ -2440,10 +2452,12 @@ const selfDigest = function () {
 // 2026-10-30（同日第五笔）：newWayfinder v29→v30 —— 把 subissue 改成官方写法 sub-issue（带连字符）；V_MIN 29 → 30，自摘要按新内容重算。
 // 2026-10-31：mapExecute v22→v23 —— 补地图推进四节操作约束（插件增量、不复述技能规则），
 //   V_MIN 22 → 23，自摘要按新内容重算。
+// 2026-10-31（同日第二笔，#1725）：specExecute v7→v8 —— 降级路线实现者子代理一条写明「用全新上下文的子代理、
+//   不要 fork 当前对话」，与 /implement-spec v1.3.2 口径一致；V_MIN 7 → 8，中英各两条关键词断言，自摘要按新内容重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': 'f9fae34e48e44b8775bc2d0d2a04f6b7daac6ca6fef06dc8f80886769426739d',
+  'tests/verify-prompts.ts': 'a3d3a674d7f8d061ee5271dbb73dc25e58e7e07879c7b642254b8d1d663ad8fd',
 }
 // ---- LOCK-END ----
 
