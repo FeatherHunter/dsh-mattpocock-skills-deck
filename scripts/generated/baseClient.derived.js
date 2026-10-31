@@ -1,15 +1,15 @@
-// 派生文件（base 包接入）：由已安装的 dsh-featherhunter-plugin-base@0.1.3 的 dist/client/index.js 内联生成，内容与安装版本一致，人手不改。
+// 派生文件（base 包接入）：由已安装的 dsh-featherhunter-plugin-base@0.1.4 的 dist/client/index.js 内联生成，内容与安装版本一致，人手不改。
 // 构建时拼入客户端闭包（src/client/index.ts 的 kernel:baseClient 标记处）；首行保留包的版本横幅供 doctor 的 inline-bundle-version 核对。
 // 重新生成：node scripts/derive-base-from-package.mts（重跑零 diff）。
 // ---- 作用域隔离：包体顶层声明包进 IIFE 藏起来，只留两个外面要用的 ----
 const __basePkgScope = (() => {
-  /*! dsh-featherhunter-plugin-base v0.1.3 */
+  /*! dsh-featherhunter-plugin-base v0.1.4 */
 
   // src/core/baseline.ts
   var BASELINE = {
     "manifest": {
       "schema": 1,
-      "version": "0.1.3",
+      "version": "0.1.4",
       "revision": 2,
       "updatedAt": "2026-10-31T00:00:00+08:00",
       "fallbackUrl": "https://github.com/FeatherHunter/featherhunter-plugin-manage",
@@ -1691,7 +1691,9 @@ const __basePkgScope = (() => {
     ".dsh-base-modal__card-subtitle[data-copied='true']{color:var(--dsw-alias-link,#4d6bfe)}",
     ".dsh-base-modal__card-subtitle:focus-visible{outline:2px solid var(--dsw-alias-link,#4d6bfe);outline-offset:2px}",
     // The QR surface stays white in every theme: scanners need the printed contrast.
-    ".dsh-base-modal__qr{width:100%;height:auto;min-height:150px;padding:6px;border-radius:8px;background:#fff;object-fit:contain;image-rendering:pixelated}",
+    // border-box keeps the 6px white quiet zone inside the card column: with content-box
+    // the image's padding escapes to the right and the QR sits visibly off-centre.
+    ".dsh-base-modal__qr{box-sizing:border-box;max-width:100%;width:100%;height:auto;min-height:150px;padding:6px;border-radius:8px;background:#fff;object-fit:contain;image-rendering:pixelated}",
     ".dsh-base-modal__card-note{margin-top:2px;font-size:10.5px;line-height:1.5;color:var(--dsw-alias-label-tertiary,#86909c)}",
     ".dsh-base-modal__card-expired{margin-top:2px;font-size:10.5px;line-height:1.5;color:var(--dsw-alias-state-warn-label,#b45309)}",
     ".dsh-base-modal__card-link{align-self:center;margin-top:4px;padding:6px 10px;border:1px solid var(--dsw-alias-border-l2,rgba(77,107,254,.35));border-radius:8px;color:var(--dsw-alias-link,#4d6bfe);font-size:11.5px;line-height:1.4;text-decoration:none;word-break:break-all}",
