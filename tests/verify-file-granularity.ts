@@ -55,8 +55,10 @@ const DERIVED_DIRS = []
 //     config/prompts/ 五份族 YAML 加 config/languages.yaml 一字不差，且 --check 新鲜度绿）
 //   src/client/kernel/locale-data.ts → tests/verify-locale-config.ts（#1294 起：生成物与
 //     config/copy/ 十份族 YAML 加 config/languages.yaml 一字不差，且生成器 --check 挂 typecheck 最前）
+//   src/shared/version-control/src/capability-ledger.ts → tests/verify-1586-capability-ledger.ts
+//     （生成器 --check 与渲染逐字一致，手改一个字就对不上）
 // 新增生成源码时把相对路径加进来，并把对应的新鲜度门禁写在下面一行注释里。
-const GENERATED_FILES = ['src/shared/time-config/src/values.ts', '.build/shared/time-config/values.js', 'src/client/kernel/prompt-data.ts', 'src/client/kernel/locale-data.ts']
+const GENERATED_FILES = ['src/shared/time-config/src/values.ts', '.build/shared/time-config/values.js', 'src/client/kernel/prompt-data.ts', 'src/client/kernel/locale-data.ts', 'src/shared/version-control/src/capability-ledger.ts']
 
 /** 同名产物判定表：右列存在时，左列那份文件不算源文件。 */
 const PRODUCT_TWINS = { '.js': '.ts', '.mjs': '.mts', '.cjs': '.cts' }

@@ -11,7 +11,6 @@
  * （full 完整可用 / degraded 可用但给替代做法 / hidden 藏起来），界面与命令面板据此
  * 决定「置灰并写替代路径」还是「干脆不显示」。账本只有一份，不加版本判断的副本。
  */
-import type { Capability } from './capability-ledger.js'
 import type { CapabilityTier, GitVersion } from './ports.js'
 
 export const VERSION_FLOOR: GitVersion = { major: 2, minor: 11, patch: 0 }
@@ -56,9 +55,17 @@ export interface CapabilityAvailability {
  * 处理：一律 hidden —— 宁可让用户看到「请升级」，也不要显示一个点了就报错的按钮。
  * 正好达到 minVersion 是 full；低于 minVersion 时按 policy：degrade → degraded（带替代做法），
  * hide（或没有登记策略）→ hidden。没有版本限制的行 minVersion 就是 2.11 硬底线，2.11 起 full。
+ *
+ * 参数用结构类型而不是 import 账本里的 Capability：共享层禁止层内互引（.dependency-cruiser.ts
+ * 的 same-layer-import-shared，存量基线只许减不许增），而这里只需要账本的三个版本字段。
+ * 调用方直接传账本条目即可，类型上仍然兼容。
  */
 export function capabilityAvailability(
-  cap: Pick<Capability, 'minVersion' | 'versionPolicy' | 'versionAlternative'>,
+  cap: {
+    minVersion: string
+    versionPolicy: 'degrade' | 'hide' | null
+    versionAlternative: string | null
+  },
   version: GitVersion | string | null,
 ): CapabilityAvailability {
   const needed = cap.minVersion
