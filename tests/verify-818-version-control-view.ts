@@ -67,6 +67,8 @@ const VC_FILES = [
   'src/shared/version-control/src/capability-ledger.ts',
   // #1739 首屏七片契约（契约名、版本号、七片名单、刷新三时机与形状判据的唯一真源）：排在客户端那片之前。
   'src/shared/version-control/src/first-screen.ts',
+  // #1751：贮藏十条的规则真源（动作名单、版本门、危险档、命令拼装与恢复路径）。
+  'src/shared/version-control/src/stash-rules.ts',
   // #1752 工作树八条能力的纯规则层（八条动作 / argv / 判定 / 清单行模型），与构建同序排在客户端那片之前。
   'src/shared/version-control/src/worktree-ops.ts',
   'src/client/views/versionControl/vcText.js',
@@ -100,6 +102,9 @@ const VC_FILES = [
   'src/client/views/versionControl/vcHistory.js',
   // #1742 改动页操作面板（13 条动作的渲染面板）：页面壳只在传了改动读数时才挂它；与构建同序，排在页面壳之前。
   'src/client/views/versionControl/vcChangesPage.js',
+  // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
+  'src/client/views/versionControl/vcStashOps.js',
+  'src/client/views/versionControl/vcStashPage.js',
   'src/client/views/versionControl/vcShellPages.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -151,6 +156,14 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcFirstScreenSliceOf', 'vcFirstScreenSliceStateOf', 'vcFirstScreenFailedSlicesOf', 'vcFirstScreenSliceRetryableOf',
   'vcReadFirstScreen', 'vcReadFirstScreenOnEnter', 'vcReadFirstScreenAfterTask', 'vcReadFirstScreenOnManual',
   'vcRetryFirstScreen', 'vcRetryFirstScreenSlice', 'vcFirstScreenScreenOf',
+  // #1751 贮藏页十条：规则名单、版本门、数据层与页面本体。
+  'STASH_OPS', 'STASH_WRITE_OPS', 'STASH_READ_OPS', 'stashNeedsTicketOf',
+  'STASH_STAGED_MIN_VERSION', 'STASH_STAGED_ALTERNATIVE', 'STASH_UNKNOWN_OP_KEY',
+  'stashOpOf', 'stashOpById', 'stashOpNameKeyOf', 'stashDangerOpsOf', 'vcStashSelectorOk', 'vcStashMessageError', 'vcStashBranchError', 'stashOperationArgs', 'stashRestoreArgs',
+  'VC_STASH_PHONE', 'VC_STASH_SLICE', 'VC_STASH_STAGED_OP', 'vcStashStateNew', 'vcStashEntriesOf', 'vcStashListStateOf', 'vcStashVersionTextOf',
+  'vcStashStagedStateOf', 'vcStashOpVisibleOf', 'vcStashNeedsConfirmOf', 'vcStashConfirmOf', 'vcStashConfirmPayloadOf', 'vcStashActionPayloadOf', 'vcStashCallOf',
+  'vcStashFailKeyOf', 'vcStashResultOf', 'vcStashApplyReply', 'vcStashRecentOf', 'vcStashShortOidOf', 'vcStashWhenOf',
+  'vcStashPageNode', 'VC_STASH_PAGE_SOURCE',
   // #1752 工作树页：共享动作层的八条动作与判定、数据层模型、处理层参数整形、页面体与八条入口。
   'WORKTREE_ACTIONS', 'WORKTREE_CAP_IDS', 'WORKTREE_REASONS', 'worktreeJudge', 'worktreeArgsOf', 'worktreeRowsOf', 'worktreePruneEntriesOf',
   'VC_WORKTREES_ENTRY_DEFS', 'VC_WORKTREE_PHONES', 'VC_WORKTREES_PAGE_SOURCE', 'VC_WORKTREES_DATA_SOURCE',
@@ -270,7 +283,13 @@ async function main() {
   // #1738 页面壳那一族（页签 / 齿轮九分区 / 命令面板 / 三形态 / 四态 / 确认卡四段 / 结果信息）。
   const vcShellMod = await import(locUrl('src/client/kernel/locale-vcshell.js'))
   const L_VCSHELL = vcShellMod.L_VCSHELL
-  LOC = { zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCWORKTREES.zh), en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCWORKTREES.en) }
+  // #1751 贮藏页那一族（十条动作名、版本门、确认卡、最近丢弃与失败话术）。
+  const vcStashMod = await import(locUrl('src/client/kernel/locale-vcstash.js'))
+  const L_VCSTASH = vcStashMod.L_VCSTASH
+  LOC = {
+    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCSTASH.zh, L_VCWORKTREES.zh),
+    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCSTASH.en, L_VCWORKTREES.en),
+  }
   tZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
   tEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
   VIEW = buildView(null, [])
@@ -1225,6 +1244,80 @@ async function main() {
   const fsHostLogs = fsLogs.filter(function (l) { return l.event === 'host.call' && l.fields && l.fields.kind === 'git-first-screen' })
   check(fsHostLogs.length === 1 && fsHostLogs[0].fields.ok === true, 'W21 首屏聚合落在既有 host.call 事件上（kind=git-first-screen，不新增事件名）')
 
+  // ---- Z16 组：贮藏页十条（#1751 T16）—— 列表字段 / 十条入口 / 危险确认 / 版本门 / 详情 / 最近丢弃 ----
+  // 十条能力的编号、动作名与危险档都从共享层 STASH_OPS 取；这里断言页面画出了什么、用户读到哪句话。
+  //   页面只读首屏贮藏分片（T04 同一份数据），不另发读命令、不另建列表电话。
+  const stashEntryOf = function (selector, oid, atMs, subject) { return { selector: selector, oid: oid, atMs: atMs, subject: subject } }
+  const stashSeedOf = function (entries, versionText) {
+    const plan = firstSeedOf()
+    plan.slices.stashes = fsSliceOk({ entries: entries })
+    plan.slices.version = fsSliceOk({ gitVersion: versionText, tier: 'full', switches: [] })
+    return plan
+  }
+  const stashEntries = [
+    stashEntryOf('stash@{0}', 'a'.repeat(40), NOW, 'On main: 第一条贮藏'),
+    stashEntryOf('stash@{1}', 'b'.repeat(40), NOW - 3600000, 'On main: 第二条贮藏'),
+  ]
+  const stashPageOf = function (entries, versionText, state) {
+    const opts: any = { page: 'stash', width: 460, skin: 'dark', seed: stashSeedOf(entries, versionText) }
+    if (state) opts.stash = state
+    return shellHtmlOf(opts)
+  }
+  // 反证共用的判据：页面体在不在、低版本 7.3 藏没藏住、危险确认卡出没出。
+  const stashMountedJudgmentOf = function (v) {
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'stash', width: 460, skin: 'dark', seed: stashSeedOf(stashEntries, 'git version 2.49.0') }))
+    const caps = attrValuesOf(html, 'data-vc-stash-cap')
+    return html.indexOf('data-vc-stash-page="1"') >= 0 && v.STASH_OPS.every(function (c) { return caps.indexOf(c.id) >= 0 })
+  }
+  const stashGateJudgmentOf = function (v) {
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'stash', width: 460, skin: 'dark', seed: stashSeedOf(stashEntries, 'git version 2.34.0') }))
+    return attrValuesOf(html, 'data-vc-stash-cap').indexOf('7.3') < 0 && html.indexOf('data-vc-stash-gate="hidden"') >= 0
+  }
+  const stashConfirmJudgmentOf = function (v) {
+    const state = Object.assign(v.vcStashStateNew(), { confirm: { op: 'drop', selector: 'stash@{0}', subject: 'On main: 第一条贮藏' } })
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'stash', width: 460, skin: 'dark', seed: stashSeedOf(stashEntries, 'git version 2.49.0'), stash: state }))
+    return html.indexOf('data-vc-stash-confirm="drop"') >= 0 && attrValuesOf(html, 'data-vc-confirm-seg').length === 4
+  }
+  const stashHtml = stashPageOf(stashEntries, 'git version 2.49.0')
+  const stashCaps = attrValuesOf(stashHtml, 'data-vc-stash-cap')
+  const stashCapCount = function (id) { return stashCaps.filter(function (x) { return x === id }).length }
+  check(stashHtml.indexOf('data-vc-stash-page="1"') >= 0 && attrValuesOf(stashHtml, 'data-vc-stash-count')[0] === '2', 'Z16a 贮藏页画出页面体，并如实报出首屏贮藏分片里的条数（2 条）')
+  check(stashHtml.indexOf('data-vc-stash-list="ok"') >= 0 && attrValuesOf(stashHtml, 'data-vc-stash-entry').length === 2, 'Z16b 列表按 T04 首屏的贮藏分片渲染两条记录（不重复建读命令）')
+  check(attrValuesOf(stashHtml, 'data-vc-stash-selector').join(',') === 'stash@{0},stash@{1}', 'Z16c 每条记录带选择器 stash@{n}（第 3 节的列表字段之一）')
+  check(stashHtml.indexOf('第一条贮藏') >= 0 && stashHtml.indexOf('第二条贮藏') >= 0, 'Z16d 每条记录带说明（reflog 主题原样读出来，不自己编）')
+  check(attrValuesOf(stashHtml, 'data-vc-stash-oid').length === 2 && stashHtml.indexOf(VIEW.vcStashShortOidOf('a'.repeat(40))) >= 0 && stashHtml.indexOf('title="' + 'a'.repeat(40) + '"') >= 0, 'Z16e 每条记录带提交号（正文印短号、完整号进悬停）')
+  check(attrValuesOf(stashHtml, 'data-vc-stash-at').length === 2 && /\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(stashHtml), 'Z16f 每条记录带时间（本地「年-月-日 时:分」）')
+  check(stashHtml.indexOf(LOC.zh['vc.stash.entry.filesUnknown']) >= 0 && attrValuesOf(stashHtml, 'data-vc-stash-files').length === 2, 'Z16g 列表读法不给涉及文件数时如实说「不知道」（不拿 0 冒充）')
+  check(VIEW.STASH_OPS.length === 10 && VIEW.STASH_OPS.every(function (c) { return stashCapCount(c.id) >= 1 }), 'Z16h 十条能力在贮藏页各有 data-vc-stash-cap 入口（7.1–7.10 一条不缺）')
+  check(stashCapCount('7.1') === 1 && stashCapCount('7.2') === 1 && stashCapCount('7.3') === 1 && stashCapCount('7.4') === 1 && stashCapCount('7.10') === 1, 'Z16i 工具行五条动作各恰一个入口（新建三条、列出、清空）')
+  check(['7.5', '7.6', '7.7', '7.8', '7.9'].every(function (id) { return stashCapCount(id) === 2 }), 'Z16j 记录行五条动作每条记录各一个入口（两条记录）')
+  check(attrValuesOf(stashHtml, 'data-vc-stash-danger').length === 3, 'Z16k 危险动作（删一条 × 2 条记录 + 全清 × 1）标出危险档，供界面出确认卡')
+  check(stashHtml.indexOf('data-vc-stash-gate') < 0 && stashCapCount('7.3') === 1, 'Z16l 2.49 上 7.3 完整可用：按钮在、不打印版本门提示')
+  const oldStashHtml = stashPageOf(stashEntries, 'git version 2.34.0')
+  check(attrValuesOf(oldStashHtml, 'data-vc-stash-cap').indexOf('7.3') < 0 && oldStashHtml.indexOf('data-vc-stash-gate="hidden"') >= 0, 'Z16m 2.34 上 7.3 低于 2.35：按钮一个不留，改打印版本门提示（藏起来不等于沉默）')
+  check(oldStashHtml.indexOf(LOC.zh['vc.stash.gate.alternative']) >= 0 && LOC.zh['vc.stash.gate.alternative'] === VIEW.STASH_STAGED_ALTERNATIVE, 'Z16n 版本门提示照账本的替代做法原文说（「先做一次全量贮藏，再恢复未暂存的部分」）')
+  check(oldStashHtml.indexOf('2.35.0') >= 0, 'Z16o 版本门提示写出需要的版本号（2.35.0，与账本 minVersion 同一条线）')
+  const dropConfirmHtml = stashPageOf(stashEntries, 'git version 2.49.0', Object.assign(VIEW.vcStashStateNew(), { confirm: { op: 'drop', selector: 'stash@{0}', subject: 'On main: 第一条贮藏' } }))
+  check(dropConfirmHtml.indexOf('data-vc-stash-confirm="drop"') >= 0 && attrValuesOf(dropConfirmHtml, 'data-vc-confirm-seg').length === 4, 'Z16p 删除一条：确认卡就地出，四段（做什么 / 不做什么 / 可不可逆 / 动词）齐全')
+  check(attrValuesOf(dropConfirmHtml, 'data-focus-default').indexOf('cancel') >= 0 && dropConfirmHtml.indexOf('data-vc-stash-confirm-go="1"') >= 0 && dropConfirmHtml.indexOf('data-vc-stash-confirm-cancel="1"') >= 0, 'Z16q 确认卡默认焦点在取消键（危险动作的第一下不该落在确认上）')
+  check(dropConfirmHtml.indexOf('stash@{0}') >= 0 && dropConfirmHtml.indexOf('第一条贮藏') >= 0, 'Z16r 确认卡说清删的是哪一条（对象级信息，不只说「删除」）')
+  const clearConfirmHtml = stashPageOf(stashEntries, 'git version 2.49.0', Object.assign(VIEW.vcStashStateNew(), { confirm: { op: 'clear', selector: '', subject: '' } }))
+  check(clearConfirmHtml.indexOf('data-vc-stash-confirm="clear"') >= 0, 'Z16s 全清同样走确认卡（clear 与 drop 两条毁档都要确认）')
+  const detailState = Object.assign(VIEW.vcStashStateNew(), { detail: { selector: 'stash@{0}', files: ['a.txt', 'b.txt'], fileCount: 2, patch: 'diff --git a/a.txt b/a.txt\n+stash-me\n', truncated: true } })
+  const detailHtml = stashPageOf(stashEntries, 'git version 2.49.0', detailState)
+  check(detailHtml.indexOf('data-vc-stash-detail="stash@{0}"') >= 0 && attrValuesOf(detailHtml, 'data-vc-stash-file').join(',') === 'a.txt,b.txt', 'Z16t 查看内容：就地铺开涉及的文件清单')
+  check(detailHtml.indexOf('data-vc-stash-patch="1"') >= 0 && detailHtml.indexOf('+stash-me') >= 0, 'Z16u 查看内容：差异原文一并铺开（不是只给文件名单）')
+  check(detailHtml.indexOf('data-vc-stash-truncated="1"') >= 0 && detailHtml.indexOf(LOC.zh['vc.stash.detail.truncated']) >= 0, 'Z16v 差异截断时如实说（不装作完整）')
+  const recentState = Object.assign(VIEW.vcStashStateNew(), { recent: [{ selector: 'stash@{2}', oid: 'c'.repeat(40), subject: 'On main: 第三条', atMs: NOW, droppedAtMs: NOW, byOp: 'drop' }] })
+  const recentHtml = stashPageOf(stashEntries, 'git version 2.49.0', recentState)
+  check(attrValuesOf(recentHtml, 'data-vc-stash-recent')[0] === '1' && attrValuesOf(recentHtml, 'data-vc-stash-restore')[0] === 'c'.repeat(40), 'Z16w 最近丢弃：删除之后的提交号留在列表里，并给恢复入口（GC 之前还能找回）')
+  check(recentHtml.indexOf('data-vc-stash-recent-empty') < 0, 'Z16x 有记录时不画最近丢弃的空态')
+  check(stashHtml.indexOf('data-vc-stash-recent="0"') >= 0 && stashHtml.indexOf('data-vc-stash-recent-empty="1"') >= 0, 'Z16y 没有丢弃记录时最近丢弃区如实画空态（不拿假记录充数）')
+  const failState = Object.assign(VIEW.vcStashStateNew(), { result: { ok: false, kind: 'branch-exists', message: '分支已存在' } })
+  const failHtml = stashPageOf(stashEntries, 'git version 2.49.0', failState)
+  check(failHtml.indexOf('data-vc-stash-result="fail"') >= 0 && attrValuesOf(failHtml, 'data-vc-stash-fail-kind')[0] === 'branch-exists' && failHtml.indexOf(LOC.zh['vc.stash.fail.branchExists']) >= 0, 'Z16z 失败回包按原因码查人话（分支已存在：说清楚，不印裸 kind）')
+  const okState = Object.assign(VIEW.vcStashStateNew(), { result: { ok: true, op: 'push', entries: stashEntries, recent: [] } })
+  check(stashPageOf(stashEntries, 'git version 2.49.0', okState).indexOf('data-vc-stash-result="ok"') >= 0, 'Z16aa 成功回包给结果条并提示下一步（列表已刷新）')
   // ---- W-ext 组（#1752）：工作树页八条能力接在同一份首屏快照上 ----
   // 页面与首屏聚合共用同一份片：清单来自 worktrees 片，版本门来自 version 片里的 switches，
   // 判定调共享层 worktreeJudge —— 界面不另发清单电话、不自己写一份版本比较。
@@ -1506,6 +1599,10 @@ async function main() {
     { name: '图形化视图丢掉父提交连线', patch: (s) => s.replace('      parents: parentList.slice()', '      parents: []'), test: (v) => { const g = v.vcHistoryGraphOf(hcRows4); return g.rows[1].parents.length === 2 && g.rows[3].parents.length === 0 }, what: 'Y6b' },
     // #1744：点开提交不再画详情（整页替换那一层没了）—— Y4a 必须当场红。
     { name: '点开提交不再画详情', patch: (s) => s.replace('  const detail = ui.openCommit ? vcHistoryDetailOf(', '  const detail = false ? vcHistoryDetailOf('), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'commits', width: 460, skin: 'dark', reads: y4Reads, ui: { openCommit: hcRev.oid } })); return html.indexOf('data-vc-history-detail') >= 0 }, what: 'Y4a' },
+    // #1751：贮藏页的三处反证 —— 挂载被摘掉、版本门恒放行、危险动作不出确认卡，对应断言必须当场红。
+    { name: '贮藏页不再挂进页面壳（十条入口全没了）', patch: (s) => s.replace("if (page === 'stash' && typeof vcStashPageNode === 'function') {", 'if (false) {'), test: stashMountedJudgmentOf, what: 'Z16a' },
+    { name: '7.3 的版本门恒放行（低版本也画按钮）', patch: (s) => s.replace('const state = vcStashOpVersionStateOf(VC_STASH_STAGED_OP, versionText)', "const state = 'full'"), test: stashGateJudgmentOf, what: 'Z16m' },
+    { name: '危险动作不再出确认卡', patch: (s) => s.replace('if (!state.confirm || !state.confirm.op) return null', 'if (state) return null'), test: stashConfirmJudgmentOf, what: 'Z16p' },
     // #1752：工作树页删掉 9.7 移动的入口 —— 八条能力少一条，W22 那一组必须当场红。
     { name: '工作树页删掉 9.7 移动的入口', patch: (s) => s.replace("  { capId: '9.7', op: 'move', row: true },\n", ''), test: worktreesEntryJudgmentOf, what: 'W22' },
     // #1752：工作树执行电话改走长任务通道 —— 界面就不再走同步短写那一对电话，W32 那一组必须当场红。
