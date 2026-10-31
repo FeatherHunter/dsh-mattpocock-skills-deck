@@ -14,6 +14,9 @@
  *    永远不删——它是恢复配对的唯一依据，删了当前状态没变，历史却断成两截。
  * 4. 文件版本只在本文件定义（NOTIFICATION_EVENT_SCHEMA）；读到不认识的结构就当空历史，下一笔写入
  *    整份重写，不把损坏内容当事实。语义与 disk-snapshot-format 的版本口径一致。
+ * 5. 事件正文只存结构化内容（type、code、params），不存界面文案：界面文案在客户端按 code 走本地化
+ *    词条渲染（ADR 20261020-ui-copy-data-driven）。summary/detail 是旧版本落过的文案，只为读回旧
+ *    文件保留，新写入不再产生，也不作为界面文案来源。
  *
  * 本文件不读盘、不看时钟、不读环境变量：now 一律由调用方传入；落盘 IO 在
  * src/refresh/rooms/host/notification-store.ts。
@@ -31,7 +34,11 @@ export const NOTIFICATION_EVENT_MAX_EVENTS = 500
 /** 摘要与详情的文本上限：日志纪律规定长原文不落盘，事件只留能定位的短句。 */
 export const NOTIFICATION_EVENT_MAX_TEXT = 200
 
-/** 一条通知事件。startedAt 与 endedAt 都是毫秒时间戳；未闭合的事件 endedAt 是 null。 */
+/**
+ * 一条通知事件。startedAt 与 endedAt 都是毫秒时间戳；未闭合的事件 endedAt 是 null。
+ * 正文只存结构化内容：code 是稳定的机器码（默认与事件类型同名），params 是界面拼词条用的短参数
+ * （只留标量）。界面文案不落盘：渲染时按 code 与 params 走本地化词条。
+ */
 export interface NotificationEvent {
   id: string
   type: NotificationEventType
@@ -39,9 +46,13 @@ export interface NotificationEvent {
   startedAt: number
   endedAt: number | null
   count: number
-  summary: string
-  detail: string
+  code: string
+  params: Record<string, string>
   updatedAt: number
+  /** 旧版本字段：只在读回旧文件时出现，不作为界面文案。 */
+  summary?: string
+  /** 旧版本字段：只在读回旧文件时出现，不作为界面文案。 */
+  detail?: string
 }
 
 /** 落盘文件：一个仓库一份，与快照信封同目录；writtenAtMs 只用于排查，不参与逻辑。 */
@@ -52,12 +63,12 @@ export interface NotificationEventFile {
   writtenAtMs: number
 }
 
-/** 追加一条事件要的输入（now 由调用方给，纯逻辑不读钟）。 */
+/** 追加一条事件要的输入（now 由调用方给，纯逻辑不读钟）。code/params 是结构化正文，不是界面文案。 */
 export interface EventInput {
   repo: string
   now: number
-  summary?: unknown
-  detail?: unknown
+  code?: unknown
+  params?: unknown
 }
 
 /** 瞬时事件的输入：多一个去重窗。 */
@@ -124,6 +135,27 @@ function eventsInRepo(events: readonly NotificationEvent[], repo: string): Notif
   return events.filter((ev) => ev.repo === repo)
 }
 
+/** 事件代码：机器码（默认与类型同名），只留 ASCII 安全字符、截到 60 字；界面按它选词条。 */
+export function notificationCodeOf(v: unknown, type: NotificationEventType): string {
+  const text = clipNotificationText(v, 60).replace(/[^A-Za-z0-9._:-]+/g, '-').replace(/^-+|-+$/g, '')
+  return text || String(type)
+}
+
+/** 事件参数只留标量：字符串裁到 80 字、数字与布尔转字符串，其余丢弃；最多 6 个键（不落长原文）。 */
+export function sanitizeNotificationParams(v: unknown): Record<string, string> {
+  const out: Record<string, string> = {}
+  if (!v || typeof v !== 'object') return out
+  const bag = v as Record<string, unknown>
+  for (const key of Object.keys(bag)) {
+    if (Object.keys(out).length >= 6) break
+    const raw = bag[key]
+    if (typeof raw !== 'string' && typeof raw !== 'number' && typeof raw !== 'boolean') continue
+    const text = clipNotificationText(raw, 80)
+    if (text) out[key] = text
+  }
+  return out
+}
+
 /** 造一条新事件。id 由身份三要素算出来，不另起随机数（重启后同一段降级仍是同一个身份）。 */
 function newEvent(input: EventInput, type: NotificationEventType): NotificationEvent {
   const now = Math.floor(input.now)
@@ -134,8 +166,8 @@ function newEvent(input: EventInput, type: NotificationEventType): NotificationE
     startedAt: now,
     endedAt: type === 'degraded-start' ? null : now,
     count: 1,
-    summary: clipNotificationText(input.summary),
-    detail: clipNotificationText(input.detail),
+    code: notificationCodeOf(input.code, type),
+    params: sanitizeNotificationParams(input.params),
     updatedAt: now,
   }
 }
@@ -201,7 +233,7 @@ export function pruneNotificationEvents(
 }
 
 /** 一条读回来的事件是不是本仓库的合法事件；不合法整条丢弃，不让坏数据污染历史。 */
-function isFileEvent(v: unknown, repo: string): v is NotificationEvent {
+function isFileEvent(v: unknown, repo: string): v is Record<string, unknown> {
   if (!v || typeof v !== 'object') return false
   const ev = v as Record<string, unknown>
   if (!isNotificationEventType(ev.type)) return false
@@ -221,19 +253,25 @@ export function parseNotificationEventFile(raw: unknown, repo: string): Notifica
   if (normalizeRepoKey(file.repo) !== repo) return []
   if (!Array.isArray(file.events)) return []
   const out: NotificationEvent[] = []
-  for (const item of file.events) {
-    if (!isFileEvent(item, repo)) continue
-    out.push({
-      id: typeof item.id === 'string' && item.id ? item.id : eventIdOf(repo, item.type, item.startedAt),
-      type: item.type,
+  for (const rawItem of file.events) {
+    if (!isFileEvent(rawItem, repo)) continue
+    const item = rawItem as Record<string, unknown>
+    const type = item.type as NotificationEventType
+    const kept: NotificationEvent = {
+      id: typeof item.id === 'string' && item.id ? item.id : eventIdOf(repo, type, Number(item.startedAt)),
+      type: type,
       repo: repo,
-      startedAt: Math.floor(item.startedAt),
-      endedAt: item.endedAt === null ? null : Math.floor(item.endedAt),
-      count: Math.max(1, Math.floor(item.count)),
-      summary: clipNotificationText(item.summary),
-      detail: clipNotificationText(item.detail),
-      updatedAt: Math.floor(item.updatedAt),
-    })
+      startedAt: Math.floor(Number(item.startedAt)),
+      endedAt: item.endedAt === null ? null : Math.floor(Number(item.endedAt)),
+      count: Math.max(1, Math.floor(Number(item.count))),
+      code: notificationCodeOf(item.code, type),
+      params: sanitizeNotificationParams(item.params),
+      updatedAt: Math.floor(Number(item.updatedAt)),
+    }
+    // 旧文件里的 summary/detail 是当年落下的界面文案：读回来兼容，但不作为新事件的正文形状。
+    if (typeof item.summary === 'string') kept.summary = clipNotificationText(item.summary)
+    if (typeof item.detail === 'string') kept.detail = clipNotificationText(item.detail)
+    out.push(kept)
   }
   return out
 }
