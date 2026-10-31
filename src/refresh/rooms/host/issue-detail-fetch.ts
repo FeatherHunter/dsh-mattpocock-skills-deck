@@ -82,10 +82,17 @@ function repoRefOf(repo: RepoKey | null, backendId: string): RepositoryRef | nul
   return { backend: backendId as any, refId: refId, name: refId, url: 'https://github.com/' + refId }
 }
 
-/** 契约的引用/阻塞边 → 详情界面认的 {nodes:[{number,title,state}]}。 */
+/** 契约的引用/阻塞边 → 详情界面认的 {nodes:[{number,title,state}]}。
+ *
+ *  #1676：契约引用上的 state 可能缺省 = 没读到目标票状态。缺省时节点不带 state，
+ *  由界面按「未知」处理；只有明确读到 open/closed 才写 OPEN/CLOSED。
+ *  注：本文件这条旧详情路当前没有活跃调用方，清理另开票，不在 #1676 范围。 */
 function refNodes(refs: any): any[] {
   return (Array.isArray(refs) ? refs : []).map(function (r: any): any {
-    return { number: Number(r && r.key), title: (r && r.title) || '', state: (r && r.state) === 'closed' ? 'CLOSED' : 'OPEN' }
+    const node: any = { number: Number(r && r.key), title: (r && r.title) || '' }
+    if (r && r.state === 'closed') node.state = 'CLOSED'
+    else if (r && r.state === 'open') node.state = 'OPEN'
+    return node
   })
 }
 

@@ -82,9 +82,12 @@ export const markdownFixture = {
   missingFields: ['milestone'],
   deckCases: [
     {
-      name: 'empty-open-unclaimed',
+      // #1676：同一份真实 parse 结果（引用不再预写 state）；目标 02 读不到时按 NOT-FOUND 口径仍算 blocked。
+      // 与下面 notfound-dep-safe-blocked 不同：那条是手拼 issue、引用自带 closed；这条走真实 parse→normalize 路径。
+      name: 'empty-blocked-ref-target-missing',
       issue: normalizeIssue(withData.text, withData.meta),
-      expected: { claimed: true, blocked: true, frontier: false }, // claimed + blockedBy #02 open → blocked true
+      lookup: () => undefined,
+      expected: { claimed: true, blocked: true, frontier: false },
     },
     {
       name: 'ready-for-agent-frontier',
@@ -133,6 +136,8 @@ export function markdownExtraAssertions() {
   assert('title extracted', w.title === 'Hello World', `got ${w.title}`)
   assert('state claimed→open', w.state === 'open', `got ${w.state}`)
   assert('blockedBy parsed', Array.isArray(w.blockedBy) && w.blockedBy.length === 1 && w.blockedBy[0].key === '02', JSON.stringify(w.blockedBy))
+  // #1676：解析层只存 key，不许给引用预写 state；目标状态由读路径（list/get/getDependencies）回填。
+  assert('blockedBy ref has no state before hydration', !('state' in w.blockedBy[0]), JSON.stringify(w.blockedBy[0]))
   assert('comments parsed', Array.isArray(w.comments) && w.comments.length >= 1, JSON.stringify(w.comments))
   assert('customFields Type', Array.isArray(w.customFields) && w.customFields[0]?.value === 'task', JSON.stringify(w.customFields))
   assert('empty state open', e.state === 'open', e.state)

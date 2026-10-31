@@ -66,13 +66,15 @@ export async function getDependenciesForKey(ctx: OpContext, repo: RepoWithPath |
       if(rk==='00'){
         const mr=await resolveMapFile(ctx,repo,{effortId, mode:'read'})
         if(mr.ok){
-          try{ const t=await readTextFile(ctx,mr.path); const iss=parseMd(t,{key:'00',parentKey:null,isMap:true,effortId}); ref.title=iss.title||''; ref.state=iss.state||'' }catch(e){}
+          // #1676：明确读到状态才写；读不到保持缺省（未知），不补空串冒充两态之一。
+          try{ const t=await readTextFile(ctx,mr.path); const iss=parseMd(t,{key:'00',parentKey:null,isMap:true,effortId}); ref.title=iss.title||''; if(iss.state) ref.state=iss.state }catch(e){}
         }
         continue
       }
       const tr=await resolveIssueFile(ctx,repo,rk,{effortId, mode:'read'})
       if(!tr.ok) continue
-      try{ const t=await readTextFile(ctx,tr.path); const iss=parseMd(t,{key:rk,parentKey:'00',isMap:false,effortId}); ref.title=iss.title||''; ref.state=iss.state||'' }catch(e){}
+      // #1676：同上，读不到就是未知。
+      try{ const t=await readTextFile(ctx,tr.path); const iss=parseMd(t,{key:rk,parentKey:'00',isMap:false,effortId}); ref.title=iss.title||''; if(iss.state) ref.state=iss.state }catch(e){}
     }
   }catch(e){}
   // 反向聚合：只扫本 effort

@@ -213,7 +213,19 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
         assignees: { nodes: (iss.assignees || []).map(function(a: any){ return typeof a === 'string' ? { login: a } : a }) },
         comments: { nodes: comments, pageInfo: { hasNextPage: comments.length >= COMMENTS_PAGE, endCursor: String(comments.length) } },
         subIssues: iss.subIssues || { totalCount: 0, nodes: [] },
-        blockedBy: { nodes: (iss.blockedBy || []).map(function(b: any){ if (typeof b === 'number') return { number: b }; if (b && b.key != null) { const nn = parseInt(b.key,10); return { number: isNaN(nn) ? b.key : nn, title: b.title||'', state: b.state==='closed'?'CLOSED':'OPEN' }; } return b; }) },
+        // #1676：引用上的 state 可能缺省 = 没读到目标状态。节点就只给编号与标题；
+        // 只有明确读到 open/closed 才写 OPEN/CLOSED —— 否则界面会把「不知道」当成「还开着」永久置灰。
+        blockedBy: { nodes: (iss.blockedBy || []).map(function(b: any){
+          if (typeof b === 'number') return { number: b }
+          if (b && b.key != null) {
+            const nn = parseInt(b.key, 10)
+            const node: any = { number: isNaN(nn) ? b.key : nn, title: b.title || '' }
+            if (b.state === 'closed') node.state = 'CLOSED'
+            else if (b.state === 'open') node.state = 'OPEN'
+            return node
+          }
+          return b
+        }) },
         blocking: { nodes: [] },
       } }
       // 快照合并的簿记只追加在回包上，不改 issue 的形状：客户端照旧读 issue，新读方读 snapshot。
