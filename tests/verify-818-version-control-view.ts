@@ -90,6 +90,8 @@ const VC_FILES = [
   'src/client/views/versionControl/vcCapabilityPages.js',
   'src/client/views/versionControl/vcShellPrimitives.js',
   'src/client/views/versionControl/vcPalette.js',
+  // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）。
+  'src/client/views/versionControl/vcHistory.js',
   'src/client/views/versionControl/vcShellPages.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -126,6 +128,11 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcShellStateNode', 'vcShellConfirmCardNode', 'vcShellResultNode', 'vcShellCapabilityRowNode', 'vcCapabilitySurfaceKindOf',
   'VC_BLOCK_KEY', 'vcBlockKeyOf', 'vcReasonKeysOf',
   'VC_PALETTE_MAX', 'vcCapabilityAliasOf', 'vcCapabilitySummaryOf', 'vcCapabilityNeedsObjectOf', 'vcPaletteRowsOf', 'vcPaletteTargetOf', 'vcPaletteNode',
+  // #1744 提交历史页：分页预算、图形化视图、详情与逐文件差异。
+  //   VC_LOG_BATCH 也露出来：历史页的批大小必须与 vcData 的日志批大小同源，不能各写一个数字。
+  'VC_LOG_BATCH',
+  'VC_HISTORY_BATCH', 'VC_HISTORY_LANES_MAX', 'VC_HISTORY_DIFF_LINES_WIDE', 'VC_HISTORY_DIFF_LINES_NARROW',
+  'vcHistoryFirstPageOf', 'vcHistoryModelOf', 'vcHistoryGraphOf', 'vcHistoryDiffContextOf', 'vcHistoryPageNode', 'vcHistoryListOf', 'vcHistoryRowNode', 'vcHistoryDetailOf', 'vcHistoryGraphNode',
   'vcRenderTabAt', 'vcRenderAllPages',
   // #1739 首屏一次取全：七片契约与客户端数据层。
   'FIRST_SCREEN_CONTRACT', 'FIRST_SCREEN_VERSION', 'FIRST_SCREEN_SLICES', 'FIRST_SCREEN_REFRESH_MOMENTS',
@@ -1005,7 +1012,7 @@ async function main() {
   const platformHtml = shellHtmlOf({ page: 'platform', width: 460, skin: 'dark' })
   check(platformHtml.indexOf('data-vc-note="platform-pointer"') >= 0 && platformHtml.indexOf('13.14') >= 0, 'Z3d 平台页画一条指回提交历史页的说明（正文点到 13.14）')
   check(rowSegmentOf(platformHtml, '13.14') === '', 'Z3e 平台页没有 13.14 的主入口行（入口只在提交历史页，不在两处各摆一个）')
-  check(shellHtmlOf({ page: 'commits' }).indexOf('data-vc-note="13.14"') >= 0, 'Z3f 提交历史页画出 13.14 的说明位（图形化视图由后续票实现）')
+  check(shellHtmlOf({ page: 'commits' }).indexOf('data-vc-note="13.14"') >= 0, 'Z3f 提交历史页画出 13.14 的说明位（图形化视图从 #1744 起就画在这一页）')
   const diagHtml = shellHtmlOf({ page: 'diagnostics', width: 460, skin: 'dark' })
   const diagCaps = VIEW.vcPageCapabilitiesOf('diagnostics')
   const diagRowsAllPending = diagCaps.every(function (c) { return rowSegmentOf(diagHtml, c.id).indexOf('data-cap-pending="1"') >= 0 })
@@ -1199,6 +1206,183 @@ async function main() {
   const fsHostLogs = fsLogs.filter(function (l) { return l.event === 'host.call' && l.fields && l.fields.kind === 'git-first-screen' })
   check(fsHostLogs.length === 1 && fsHostLogs[0].fields.ok === true, 'W21 首屏聚合落在既有 host.call 事件上（kind=git-first-screen，不新增事件名）')
 
+  // ---- Y 组：提交历史页（#1744 T09）——列表分页 / 详情 / 逐文件差异 / 13.14 图形化视图 ----
+  // 判据分两层：数据模型（vcHistoryFirstPageOf / vcHistoryModelOf / vcHistoryGraphOf）与渲染
+  //   （vcRenderTabAt 的 commits 页，reads / ui / width 从选项进）。首屏第一页必须来自 #1739 那份
+  //   快照的 history 片（不另造一条读首屏的路）；「加载更多」才走 reads.log 追加。宽度档按规格第 9 节：
+  //   300 只留标题、380 补短号与图形车道、460 起补作者与时间、520 逐文件差异上下文加宽。
+  const hcOid = function (i) { return ('0000000' + String(i + 1).toString(16)).slice(-8).repeat(5) }
+  const hcCommitsOf = function (n) {
+    const out = []
+    for (let i = 0; i < n; i += 1) {
+      out.push({
+        oid: hcOid(i), short: 'c' + (i + 1), author: '林可', email: 'linke@example.com',
+        authorDateMs: NOW - (i + 1) * 60000, commitDateMs: NOW - (i + 1) * 60000,
+        subject: '第 ' + (i + 1) + ' 次提交：把改动记下来',
+        parents: i + 1 < n ? [hcOid(i + 1)] : [],
+      })
+    }
+    return out
+  }
+  // 四条提交里第二条是合并提交（两个父）、最后一条是根提交（没有父）。
+  const hcRows4 = (function () {
+    const rows = hcCommitsOf(4)
+    rows[1].parents = [rows[2].oid, rows[3].oid]
+    return rows
+  })()
+  const hcSnapshotOf = function (commits, hasMore) {
+    const snap = firstSeedOf()
+    snap.slices.history = fsSliceOk({ commits: commits, hasMore: hasMore === true })
+    return snap
+  }
+  const hcReadsOf = function (opts) {
+    const o = opts || {}
+    const base = {
+      screen: { state: 'idle', data: null, error: null },
+      diffs: {},
+      log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null },
+      firstScreen: { state: 'ok', data: hcSnapshotOf(o.commits || [], o.hasMore === true), error: null },
+      commit: { rev: '', seq: 0, state: 'idle', files: [], truncated: false, reason: '', error: null },
+      commitDiffs: {},
+    }
+    return Object.assign(base, o.reads || {})
+  }
+  const hcHtmlOf = function (opts) { return shellHtmlOf(Object.assign({ page: 'commits', width: 460, skin: 'dark' }, opts || {})) }
+  const hcFiles = [
+    { path: 'src/a.ts', origPath: null, added: 2, deleted: 1 },
+    { path: '旧名.txt', origPath: '新名.txt', added: 0, deleted: 0 },
+  ]
+  const hcRev = hcRows4[1]
+  const hcCommitOk = { rev: hcRev.oid, seq: 1, state: 'ok', files: hcFiles, truncated: false, reason: 'ok', error: null }
+
+  // Y1 首屏第一页直接复用快照的 history 片（不另读）
+  const y1Reads = hcReadsOf({ commits: hcRows4, hasMore: true })
+  const y1Model = VIEW.vcHistoryModelOf(y1Reads, {})
+  const y1Html = hcHtmlOf({ reads: y1Reads })
+  check(y1Html.indexOf('data-vc-history="1"') >= 0 && attrValuesOf(y1Html, 'data-vc-history-row').join(',') === hcRows4.map(function (c) { return c.oid }).join(','), 'Y1a 提交历史页画出一行一条提交（' + hcRows4.length + ' 条，编号与快照逐条一致）')
+  check(y1Model.source === 'first-screen' && y1Model.firstPage.length === hcRows4.length && y1Model.loaded === hcRows4.length, 'Y1b 首屏第一页直接复用首屏快照的 history 片（不另造一条读首屏的路）')
+  check(attrValuesOf(y1Html, 'data-vc-history-count')[0] === String(hcRows4.length), 'Y1c data-vc-history-count 与已显示条数相等（分页策略有可见读数）')
+
+  // Y2 加载更多：按需再取、每批 50 条、与 vcData 的批大小同源
+  check(attrValuesOf(y1Html, 'data-vc-load-more').length === 1, 'Y2a hasMore 为真时才画「加载更多」（没有更多就不给假按钮）')
+  check(VIEW.VC_HISTORY_BATCH === VIEW.VC_LOG_BATCH && y1Html.indexOf(String(VIEW.VC_HISTORY_BATCH)) >= 0, 'Y2b 每批条数=vcData 的 VC_LOG_BATCH（' + VIEW.VC_LOG_BATCH + ' 条），历史页不另写一份数字')
+  const hcNext2 = (function () {
+    const rows = hcCommitsOf(2)
+    return rows.map(function (c, i) { return Object.assign({}, c, { oid: hcOid(10 + i), short: 'd' + (i + 1), parents: [] }) })
+  })()
+  const y2Reads = hcReadsOf({ commits: hcRows4, hasMore: true, reads: { log: { state: 'ok', commits: hcNext2, hasMore: false, fetched: VIEW.VC_HISTORY_BATCH, error: null } } })
+  const y2Model = VIEW.vcHistoryModelOf(y2Reads, {})
+  const y2Html = hcHtmlOf({ reads: y2Reads })
+  check(y2Model.loaded === hcRows4.length + hcNext2.length && attrValuesOf(y2Html, 'data-vc-history-row').length === y2Model.loaded, 'Y2c 「加载更多」把下一批追加在列表后面（第一页 ' + hcRows4.length + ' 条 + 第二批 ' + hcNext2.length + ' 条）')
+  check(attrValuesOf(y2Html, 'data-vc-load-more').length === 0 && y2Model.hasMore === false, 'Y2d 下一批读完后不再画「加载更多」')
+  const y2LoadingHtml = hcHtmlOf({ reads: hcReadsOf({ commits: hcRows4, hasMore: true, reads: { log: { state: 'loading', commits: [], hasMore: true, fetched: 0, error: null } } }) })
+  check(attrValuesOf(y2LoadingHtml, 'data-vc-history-more-state').join(',') === 'loading' && attrValuesOf(y2LoadingHtml, 'data-vc-history-row').length === hcRows4.length, 'Y2e 下一批正在读：列表原样留着并标加载态（不把旧读数当新读数）')
+
+  // Y3 四种状态：失败 / 加载 / 空 / 还没读
+  const y3ErrSnap = firstSeedOf()
+  y3ErrSnap.slices.history = fsSliceErr('non-zero', 'git log 没读到')
+  const y3ErrHtml = hcHtmlOf({ reads: hcReadsOf({ reads: { firstScreen: { state: 'ok', data: y3ErrSnap, error: null } } }) })
+  check(attrValuesOf(y3ErrHtml, 'data-vc-history-state')[0] === 'error' && attrValuesOf(y3ErrHtml, 'data-vc-history-retry').join(',') === 'history', 'Y3a history 片读失败：历史页画失败态并给重试入口')
+  const y3LoadHtml = hcHtmlOf({ reads: hcReadsOf({ commits: hcRows4, reads: { firstScreen: { state: 'loading', data: null, error: null } } }) })
+  check(attrValuesOf(y3LoadHtml, 'data-vc-history-state')[0] === 'loading' && attrValuesOf(y3LoadHtml, 'data-vc-history-row').length === 0, 'Y3b 刷新中：画加载态，不拿上一次的列表冒充新读数')
+  const y3EmptyHtml = hcHtmlOf({ reads: hcReadsOf({ commits: [], hasMore: false }) })
+  check(attrValuesOf(y3EmptyHtml, 'data-vc-history-state')[0] === 'empty' && y3EmptyHtml.indexOf('data-vc-history-next') >= 0, 'Y3c 零提交：空态给出判断与下一步')
+  const y3IdleHtml = hcHtmlOf({ reads: hcReadsOf({ reads: { firstScreen: { state: 'idle', data: null, error: null } } }) })
+  check(attrValuesOf(y3IdleHtml, 'data-vc-history-state')[0] === 'loading', 'Y3d 刚打开还没读（idle）：按加载态画，不冒充空仓库')
+
+  // Y4 单条提交详情（整页替换）：说明全文、作者时间、父提交数、文件清单与各失败态
+  const y4Reads = hcReadsOf({ commits: hcRows4, reads: { commit: hcCommitOk } })
+  const y4Html = hcHtmlOf({ reads: y4Reads, ui: { openCommit: hcRev.oid } })
+  const y4Detail = y4Html.slice(y4Html.indexOf('data-vc-history-detail'))
+  check(y4Html.indexOf('data-vc-history-detail="1"') >= 0 && y4Html.indexOf('data-vc-form="page"') >= 0, 'Y4a 点开一条提交：详情按整页替换形态画在历史页里')
+  check(y4Detail.indexOf(hcRev.subject) >= 0 && y4Detail.indexOf('林可') >= 0, 'Y4b 详情画出提交说明全文、作者与时间')
+  check(attrValuesOf(y4Html, 'data-vc-history-file').join(',') === 'src/a.ts,旧名.txt', 'Y4c 详情列出这次提交改到的每个文件（重命名带上旧路径）')
+  check(y4Html.indexOf('data-vc-history-merge="1"') >= 0, 'Y4d 合并提交在详情里明确说是合并提交（' + hcRev.parents.length + ' 个父）')
+  const y4RootHtml = hcHtmlOf({ reads: hcReadsOf({ commits: hcRows4, reads: { commit: { rev: hcRows4[3].oid, seq: 1, state: 'ok', files: [], truncated: false, reason: 'no-diff', error: null } } }), ui: { openCommit: hcRows4[3].oid } })
+  check(y4RootHtml.indexOf('data-vc-history-root="1"') >= 0, 'Y4e 根提交在详情里说明没有父提交（读全量差异，不按普通提交比）')
+  const y4LoadHtml = hcHtmlOf({ reads: hcReadsOf({ commits: hcRows4, reads: { commit: { rev: hcRev.oid, seq: 1, state: 'loading', files: [], truncated: false, reason: '', error: null } } }), ui: { openCommit: hcRev.oid } })
+  check(attrValuesOf(y4LoadHtml, 'data-vc-history-detail-state')[0] === 'loading', 'Y4f 文件清单正在读：详情标加载态')
+  const y4ErrHtml = hcHtmlOf({ reads: hcReadsOf({ commits: hcRows4, reads: { commit: { rev: hcRev.oid, seq: 1, state: 'err', files: [], truncated: false, reason: '', error: { kind: 'non-zero', message: '读文件清单失败' } } } }), ui: { openCommit: hcRev.oid } })
+  check(attrValuesOf(y4ErrHtml, 'data-vc-history-detail-state')[0] === 'error' && attrValuesOf(y4ErrHtml, 'data-vc-history-files-retry').length === 1, 'Y4g 文件清单读失败：给失败原因与重试入口')
+  const y4TruncHtml = hcHtmlOf({ reads: hcReadsOf({ commits: hcRows4, reads: { commit: { rev: hcRev.oid, seq: 1, state: 'ok', files: [], truncated: true, reason: 'truncated', error: null } } }), ui: { openCommit: hcRev.oid } })
+  check(y4TruncHtml.indexOf(LOC.zh['vc.shell.history.filesTruncated']) >= 0, 'Y4h 清单被截断：明确说读不全，不给半份假清单')
+
+  // Y5 逐文件差异（行内展开）：行类型、截断、二进制与合并提交各有说法
+  const y5Lines = [
+    { kind: 'filehead', text: 'diff --git a/src/a.ts' },
+    { kind: 'hunk', text: '@@ -1 +1 @@' },
+    { kind: 'add', text: '+新的一行' },
+    { kind: 'del', text: '-旧的一行' },
+    { kind: 'context', text: ' 没变的一行' },
+  ]
+  const y5Key = VIEW.vcCommitKeyOf(hcRev.oid, 'src/a.ts')
+  const y5Reads = hcReadsOf({ commits: hcRows4, reads: { commit: hcCommitOk, commitDiffs: { [y5Key]: { state: 'ok', lines: y5Lines, truncated: false, reason: 'ok', error: null } } } })
+  const y5Html = hcHtmlOf({ reads: y5Reads, ui: { openCommit: hcRev.oid, openFile: 'src/a.ts' } })
+  check(y5Html.indexOf('data-vc-file-diff="src/a.ts"') >= 0, 'Y5a 展开逐文件差异：就地画出这个文件的差异块')
+  check(attrValuesOf(y5Html, 'data-vc-diff-line').join(',') === 'filehead,hunk,add,del,context', 'Y5b 差异行按 git 的行类型逐行画（文件头 / 段头 / 加 / 删 / 上下文）')
+  const y5TruncReads = hcReadsOf({ commits: hcRows4, reads: { commit: hcCommitOk, commitDiffs: { [y5Key]: { state: 'ok', lines: y5Lines, truncated: true, reason: 'ok', error: null } } } })
+  check(hcHtmlOf({ reads: y5TruncReads, ui: { openCommit: hcRev.oid, openFile: 'src/a.ts' } }).indexOf(LOC.zh['vc.shell.history.diffTruncated']) >= 0, 'Y5c 差异被截断：明确画出「只画了前面这些行」')
+  const y5BinReads = hcReadsOf({ commits: hcRows4, reads: { commit: hcCommitOk, commitDiffs: { [y5Key]: { state: 'ok', lines: [], truncated: false, reason: 'binary-diff', error: null } } } })
+  check(hcHtmlOf({ reads: y5BinReads, ui: { openCommit: hcRev.oid, openFile: 'src/a.ts' } }).indexOf(LOC.zh['vc.shell.history.diffBinary']) >= 0, 'Y5d 二进制文件如实说不展开逐行差异（不冒充空差异）')
+  const y5MergeReads = hcReadsOf({ commits: hcRows4, reads: { commit: hcCommitOk, commitDiffs: { [y5Key]: { state: 'ok', lines: [], truncated: false, reason: 'merge-commit', error: null } } } })
+  check(hcHtmlOf({ reads: y5MergeReads, ui: { openCommit: hcRev.oid, openFile: 'src/a.ts' } }).indexOf(LOC.zh['vc.shell.history.diffMerge']) >= 0, 'Y5e 合并提交的逐文件差异如实说默认不展开')
+  const y5ErrReads = hcReadsOf({ commits: hcRows4, reads: { commit: hcCommitOk, commitDiffs: { [y5Key]: { state: 'err', lines: [], truncated: false, reason: '', error: { kind: 'non-zero', message: '读差异失败' } } } } })
+  check(attrValuesOf(hcHtmlOf({ reads: y5ErrReads, ui: { openCommit: hcRev.oid, openFile: 'src/a.ts' } }), 'data-vc-file-diff-retry').length === 1, 'Y5f 逐文件差异读失败：给重试入口')
+  check(VIEW.vcHistoryDiffContextOf(520) === VIEW.VC_HISTORY_DIFF_LINES_WIDE && VIEW.vcHistoryDiffContextOf(460) === VIEW.VC_HISTORY_DIFF_LINES_NARROW && VIEW.VC_HISTORY_DIFF_LINES_WIDE > VIEW.VC_HISTORY_DIFF_LINES_NARROW, 'Y5g 520 宽的差异上下文比窄档更宽（按宽度放大，不在窄屏堆长差异）')
+
+  // Y6 13.14 图形化视图：在提交历史页自绘（不调用 gitk）
+  const y6Model = VIEW.vcHistoryGraphOf(hcRows4)
+  check(y6Model.rows.length === hcRows4.length && y6Model.rows.every(function (row, i) { return row.oid === hcRows4[i].oid }), 'Y6a 图形化视图逐条提交一行（行数=提交数）')
+  check(y6Model.rows[1].parents.length === 2 && y6Model.rows[1].edges.length === 2 && y6Model.rows[3].parents.length === 0 && y6Model.rows[3].edges.length === 0, 'Y6b 合并提交画两条父连线、根提交不连边')
+  check(y6Model.rows.every(function (row) { return Number.isInteger(row.lane) && row.lane >= 0 }), 'Y6c 每条提交都落在一条车道上（图形有坐标，不是一堆散行）')
+  const y6Html = hcHtmlOf({ reads: hcReadsOf({ commits: hcRows4 }) })
+  check(y6Html.indexOf('data-vc-graph="1"') >= 0 && attrValuesOf(y6Html, 'data-vc-graph-row').length === hcRows4.length, 'Y6d 提交历史页画出 13.14 的图形化视图（每行一条）')
+  check(y6Html.indexOf('data-vc-note="13.14"') >= 0 && y6Html.indexOf('data-vc-graph') >= 0, 'Y6e 13.14 说明位与图形化视图同页（图形化视图主入口仍在提交历史页）')
+  check(y6Model.external === false && y6Html.indexOf('data-vc-graph-external') < 0, 'Y6f 图形化视图在面板内自绘：不调用 gitk、不开外部窗口')
+
+  // Y7 四档宽 × 两套皮肤；宽度档按规格第 9 节只改排布、不删入口
+  let y7AllOk = true
+  let y7Narrow = ''
+  let y7Mid = ''
+  for (const y7Skin of VIEW.VC_SHELL_SKINS) {
+    for (const y7Width of VIEW.VC_SHELL_WIDTHS) {
+      const html = hcHtmlOf({ reads: hcReadsOf({ commits: hcRows4, hasMore: true }), width: y7Width, skin: y7Skin })
+      if (!html) { y7AllOk = false; continue }
+      if (attrValuesOf(html, 'data-vc-width')[0] !== String(y7Width) || attrValuesOf(html, 'data-vc-skin')[0] !== y7Skin) y7AllOk = false
+      if (attrValuesOf(html, 'data-vc-history-row').length !== hcRows4.length) y7AllOk = false
+      if (y7Width === 300) y7Narrow = html
+      if (y7Width === 380) y7Mid = html
+    }
+  }
+  check(y7AllOk, 'Y7a 四档宽（300/380/460/520）× 两套皮肤（深/浅）的历史页都能渲染，宽度与皮肤读数对、列表不缩水')
+  check(attrValuesOf(y7Narrow, 'data-vc-history-row').length === hcRows4.length && attrValuesOf(y7Narrow, 'data-vc-history-short').length === 0 && attrValuesOf(y7Narrow, 'data-vc-history-author').length === 0 && attrValuesOf(y7Narrow, 'data-vc-graph-row').length === 0, 'Y7b 300 宽只留标题（短号、作者与图形车道收起来，入口一个不删）')
+  check(attrValuesOf(y7Mid, 'data-vc-history-short').length === hcRows4.length && attrValuesOf(y7Mid, 'data-vc-history-author').length === 0 && attrValuesOf(y7Mid, 'data-vc-graph-row').length === hcRows4.length, 'Y7c 380 宽补出短号与图形车道，作者与时间仍不占地方')
+  const y7Wide = hcHtmlOf({ reads: hcReadsOf({ commits: hcRows4 }), width: 520 })
+  check(attrValuesOf(y7Wide, 'data-vc-history-author').length === hcRows4.length && attrValuesOf(y7Wide, 'data-vc-history-when').length === hcRows4.length, 'Y7d 520 宽补作者与时间（提交行信息随宽度恢复）')
+
+  // Y8 键盘可达与读屏属性
+  const y8Closed = hcHtmlOf({ reads: hcReadsOf({ commits: hcRows4 }) })
+  const y8Open = hcHtmlOf({ reads: y4Reads, ui: { openCommit: hcRev.oid } })
+  // 只数提交行自己的 aria-expanded：壳上有身份行三颗按钮（分支 / 搜索 / 齿轮）也带这个属性，
+  //   它们一直按自己的开合报 true/false，不属于列表行；拿全页的 aria-expanded 数会多出三颗。
+  const y8ClosedExpand = (y8Closed.match(/data-vc-history-open="[^"]*"[^>]*aria-expanded="([^"]*)"/g) || []).map(function (seg) { return (seg.match(/aria-expanded="([^"]*)"/) || ['', ''])[1] })
+  check(y8ClosedExpand.length === hcRows4.length && y8ClosedExpand.every(function (v) { return v === 'false' }), 'Y8a 每条提交行都是带 aria-expanded=false 的按钮（读屏知道能展开）')
+  check(y8Open.indexOf('aria-expanded="true"') >= 0 && idSetOf(y8Open).has('vc-history-detail'), 'Y8b 打开详情时 aria-expanded=true，且详情节点 id 真实存在')
+  check(attrValuesOf(y8Open, 'aria-controls').indexOf('vc-history-detail') >= 0 && attrValuesOf(y8Closed, 'aria-controls').indexOf('vc-history-detail') >= 0, 'Y8c 行的 aria-controls 指向详情节点（展开前后都指得清）')
+  check(y8Open.indexOf('role="region"') >= 0 && y8Open.indexOf('aria-labelledby="vc-history-detail-title"') >= 0 && idSetOf(y8Open).has('vc-history-detail-title'), 'Y8d 详情是 region 且由真实标题节点命名（读屏念得清这是什么）')
+  check(attrValuesOf(y8Open, 'data-vc-history-back').length === 1, 'Y8e 详情有返回列表的控件（键盘走得回列表）')
+  const y8Load = hcHtmlOf({ reads: hcReadsOf({ commits: hcRows4, hasMore: true }) })
+  check(/data-vc-load-more="1"[^>]*aria-controls="vc-history-list"/.test(y8Load) && y8Load.indexOf('id="vc-history-list"') >= 0, 'Y8f 「加载更多」按钮 aria-controls 指向真实列表 id')
+  check(y8Load.indexOf('role="list"') >= 0 && y8Load.indexOf('aria-label="') >= 0, 'Y8g 提交列表是按读屏可念的列表画的（role=list 与名称都在）')
+
+  // Y9 车道封顶：宁可少画也不横向溢出
+  const y9Commits = (function () {
+    const rows = hcCommitsOf(20)
+    return rows.map(function (c, i) { return Object.assign({}, c, { parents: [hcOid(i + 1), hcOid(i + 2)] }) })
+  })()
+  const y9Model = VIEW.vcHistoryGraphOf(y9Commits)
+  check(y9Model.rows.every(function (row) { return row.lane < VIEW.VC_HISTORY_LANES_MAX }) && y9Model.hiddenLanes > 0, 'Y9 车道上限生效（超过 ' + VIEW.VC_HISTORY_LANES_MAX + ' 条的车道不画，并如实说有 ' + y9Model.hiddenLanes + ' 处没画）')
+
   // ---- H 组：反证（把被守的东西改坏，同一套断言必须当场变红）----
   // 反证锚点的两种落点：还住在手写 .js 里的代码写成单引号，已经变成构建产物的界面叶子被 esbuild
   //   统一成双引号（产物首行写着 AUTO-GENERATED）。字符串 replace 找不到目标就原样返回，于是
@@ -1262,6 +1446,12 @@ async function main() {
     { name: '页面注册表只留页签页（能力并集缺页）', patch: (s) => s.replace("  return PAGE_SURFACES.map(function (p: any) {", "  return PAGE_SURFACES.filter(function (p: any) { return p.kind === '页签' }).map(function (p: any) {"), test: registryJudgmentOf, what: 'Z2' },
     // #1738：主入口标记换个属性名 —— 全页渲染里一个主入口都不剩，Z1d 必须当场红。
     { name: '主入口标记改成另一个属性名', patch: (s) => s.replace("'data-cap-primary': String(cap.id || ''),", "'data-cap-entry': String(cap.id || ''),"), test: primaryMarkerJudgmentOf, what: 'Z1' },
+    // #1744：历史页的「加载更多」不再画（有更多也装成到顶）—— Y2a 必须当场红。
+    { name: '历史页不再画「加载更多」', patch: (s) => s.replace('  if (hasMore === true) {', '  if (false) {'), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'commits', width: 460, skin: 'dark', reads: y1Reads })); return html.indexOf('data-vc-load-more') >= 0 }, what: 'Y2a' },
+    // #1744：图形化视图丢掉父提交连线（合并提交画成一条线）—— Y6b 必须当场红。
+    { name: '图形化视图丢掉父提交连线', patch: (s) => s.replace('      parents: parentList.slice()', '      parents: []'), test: (v) => { const g = v.vcHistoryGraphOf(hcRows4); return g.rows[1].parents.length === 2 && g.rows[3].parents.length === 0 }, what: 'Y6b' },
+    // #1744：点开提交不再画详情（整页替换那一层没了）—— Y4a 必须当场红。
+    { name: '点开提交不再画详情', patch: (s) => s.replace('  const detail = ui.openCommit ? vcHistoryDetailOf(', '  const detail = false ? vcHistoryDetailOf('), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'commits', width: 460, skin: 'dark', reads: y4Reads, ui: { openCommit: hcRev.oid } })); return html.indexOf('data-vc-history-detail') >= 0 }, what: 'Y4a' },
   ]
   // #845c：反证自证提到循环里 —— 每一处改法先确认它真的落到了源码上（改不中等于没证）。
   //   旧写法只在循环外用一条聚合自检兜底，于是某一条改法失效时，它自己仍会以 broke=true 假绿
