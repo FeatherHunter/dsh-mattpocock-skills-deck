@@ -461,6 +461,31 @@ export function createVersionControl(deps: any): any {
     return _taskP
   }
 
+  // ---- #1751 贮藏页十条（域 7）：执行层在 ./versionControlStash.ts，本文件只剩下装配与日志包装 ----
+  // 十条动作（新建两条、只贮藏已暂存、列出、查看、应用、弹出、进分支、删除、清空）与丢弃后的
+  // store 恢复由叶子收进一条 wf.gitStash；进程出口、仓库根解析、失败信封都显式递进去
+  // （动态加载，不在同层新增静态边）。叶子自己记「最近丢弃」，只活在进程内存里，不落盘。
+  let _stashP: any = null
+  function stashPhone(): Promise<any> {
+    if (!_stashP) {
+      _stashP = import('./versionControlStash.js').then(function (m: any): any {
+        const s: any = m.createStashPhones({
+          runPinned: runPinned,
+          resolveGitExecutable: resolveGitExecutable,
+          resolveRepoRoot: resolveRepoRoot,
+          timeoutMs: timeoutMs,
+          stdoutLimit: STDOUT_LIMIT,
+          patchLimit: PATCH_LIMIT,
+          defaultCwd: DEFAULT_CWD,
+          nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now,
+        })
+        return { handle: loggedPhone('wf.gitStash', 'git-stash', s.handle) }
+      })
+      _stashP.catch(function (): void { _stashP = null })
+    }
+    return _stashP
+  }
+
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
@@ -483,5 +508,7 @@ export function createVersionControl(deps: any): any {
     handleGitTaskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) },
     handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) },
     handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) },
+    // #1751 贮藏页十条（域 7）：第一次调用时才装配执行层，键名与写电话、长任务那几条同形。
+    handleGitStash: async function (a: any): Promise<any> { const s: any = await stashPhone(); return s.handle(a) },
   }
 }

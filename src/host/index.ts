@@ -277,6 +277,9 @@ export default {
     harness.handle('wf.gitTaskStart', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskStart(args) })
     harness.handle('wf.gitTaskQuery', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskQuery(args) })
     harness.handle('wf.gitTaskCancel', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskCancel(args) })
+    // #1751 贮藏页十条能力（域 7）：列出、新建、查看、应用、弹出、删除、清空、建分支与恢复丢弃都走这一条电话，
+    // 装配在 ./versionControl.js 的贮藏族里（同一个进程出口、同一个日志口径），这里只做注册。
+    harness.handle('wf.gitStash', async function (args: WfArgs) { const h = await _vc(); return h.handleGitStash(args) })
 
     harness.handle('wf.refresh', async function (args: WfArgs) { const h = await _sessRef(); return h.handleRefresh(args) })
 

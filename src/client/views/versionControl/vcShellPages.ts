@@ -31,6 +31,8 @@ declare function vcCapabilitySurfaceKindOf(cap: any): string
 declare const VC_SHELL_STATES: string[]
 // 长任务区叶子（#1740，vcTaskPanel.ts）：由构建按叶子登记次序拼进同一个闭包，这里只声明形状。
 declare function vcTaskPanelNode(h: any, t: any, o: any): any
+// 贮藏页叶子（#1751，vcStashPage.ts）：同样由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。
+declare function vcStashPageNode(h: any, t: any, o: any): any
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']
@@ -300,6 +302,11 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,
   }), 'body'))
+  // #1751 贮藏页（域 7）：只在贮藏页挂这一块；十条动作的入口、确认卡与最近丢弃都在叶子里，
+  // 这里只把首屏数据（seed）与回调递进去，页面壳不多说一句规则。
+  if (page === 'stash' && typeof vcStashPageNode === 'function') {
+    children.push(keyed(vcStashPageNode(h, t, { seed: seed, stash: opts.stash, onStash: opts.onStash, onStashEdit: opts.onStashEdit }), 'stashPage'))
+  }
   // 长任务区（#1740）：页面把任务清单传进来时才画；没传整块不出现，既有页面的渲染结果不受影响。
   if (opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {
     children.push(keyed(vcTaskPanelNode(h, t, { tasks: opts.tasks, running: opts.running, onCancel: opts.onCancel }), 'tasks'))
