@@ -1,6 +1,6 @@
 # 议题跟踪器：GitLab
 
-这个仓库的议题和规格说明都以 GitLab 议题的形式存在。所有操作都通过 [`glab`](https://gitlab.com/gitlab-org/cli) 这个命令行工具完成。
+这个仓库的议题和规格说明都以 GitLab 议题的形式存在。所有操作都用 [`glab`](https://gitlab.com/gitlab-org/cli) CLI 完成。
 
 ## 约定
 
@@ -36,7 +36,7 @@
 
 ## 寻路操作
 
-供 `/wayfinder` 使用。**地图**是一个议题，而**子**议题就是工单。
+供 `/wayfinder` 使用。**地图**是一个单独的议题，它下面的**子议题**就是工单。
 
 - **地图**：一个打了 `wayfinder:map` 标签的议题，正文里放 Notes、Decisions so far 和迷雾这些内容。`glab issue create --label wayfinder:map`。（在带原生 epic 的 GitLab 套餐上，也可以让一个 epic 承载地图；打标签的议题在任何套餐上都能用。）
 - **子工单**：一条描述最上面带 `Part of #<map>` 的议题，要链接到地图（`glab issue create --linked-issues <map> --link-type relates_to`），并带上 `wayfinder:<type>` 标签（`research`/`prototype`/`grilling`/`task`）。一旦认领，工单就会指派给负责推进的开发者。
