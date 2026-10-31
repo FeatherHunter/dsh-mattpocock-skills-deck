@@ -64,6 +64,25 @@ export const truthFreshnessLine = function (st: any, nowMs: any) {
 // 「一分钟」这个刻度：只用来把「离现在多久」折成一句人话，不是刷新阈值（见文件头第 1 条的例外说明）。
 const TRUTH_MINUTE_MS = 60000
 /**
+ * 「多久以前」这一句话的键与参数（2026-10-31 #1681 复审修复收成一份）：
+ * 面板头部的时间控件（truthFreshnessBox）与通知中心的历史行（notificationCenterModel.noticeTimeTextOf）共用这同一套阶梯与
+ * 同一组词条 truth.updated*，不再各写一遍 60000/3600000/86400000、也不再各备一套「刚刚 / N 分钟前」词条。
+ * 只回 { key, params }，不拼文字：拼字仍由调用方走 tr，词表里一个说法只有一份。
+ * 时刻缺失（0 / 非数）时返回 null，调用方那时不画时间，而不是画一个猜的。
+ */
+export const truthAgoViewOf = function (nowMs: any, atMs: any) {
+  const at = Number(atMs) || 0
+  if (!at) return null
+  const now = (typeof nowMs === 'number' && isFinite(nowMs)) ? nowMs : Date.now()
+  const age = Math.max(0, now - at)
+  const hour = 60 * TRUTH_MINUTE_MS
+  const day = 24 * hour
+  if (age >= day) return { key: 'truth.updatedDayAgo', params: { n: Math.floor(age / day) } }
+  if (age >= hour) return { key: 'truth.updatedHourAgo', params: { n: Math.floor(age / hour) } }
+  if (age >= TRUTH_MINUTE_MS) return { key: 'truth.updatedMinAgo', params: { n: Math.floor(age / TRUTH_MINUTE_MS) } }
+  return { key: 'truth.updatedJustNow', params: {} }
+}
+/**
  * 头部那个小时间控件要说的话（2026-09-22 维护者定：这条信息从面板正文那一行搬到头部，做成一个独立控件）。
  * 它把上面那条判据（truthFreshnessLine）再读一遍，所以「取数时刻取哪一刻、新鲜度按什么阈值判」仍然只有一份：
  *   · `agoKey`/`agoParams` 是控件默认画的那一句相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前）；
@@ -77,16 +96,12 @@ export const truthFreshnessBox = function (st: any, nowMs: any) {
   const line = truthFreshnessLine(st, nowMs)
   if (!line) return null
   const now = (typeof nowMs === 'number' && isFinite(nowMs)) ? nowMs : Date.now()
-  const age = Math.max(0, now - line.at)
-  const hour = 60 * TRUTH_MINUTE_MS
-  const day = 24 * hour
-  const agoKey = age >= day ? 'truth.updatedDayAgo' : (age >= hour ? 'truth.updatedHourAgo' : (age >= TRUTH_MINUTE_MS ? 'truth.updatedMinAgo' : 'truth.updatedJustNow'))
-  const n = agoKey === 'truth.updatedDayAgo' ? Math.floor(age / day) : (agoKey === 'truth.updatedHourAgo' ? Math.floor(age / hour) : Math.floor(age / TRUTH_MINUTE_MS))
+  const ago = truthAgoViewOf(now, line.at) || { key: 'truth.updatedJustNow', params: {} }
   return {
     at: line.at,
     tone: line.tone,
-    agoKey: agoKey,
-    agoParams: agoKey === 'truth.updatedJustNow' ? {} : { n: n },
+    agoKey: ago.key,
+    agoParams: ago.params,
     time: line.params.time,
   }
 }
