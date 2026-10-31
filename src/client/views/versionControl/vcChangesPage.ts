@@ -136,7 +136,7 @@ const vcChangesResultNode = function (h: any, t: any, meta: any, result: any, ha
     const err: any = r.error || {}
     const family: string = String(vcWriteErrFamilyOf(err.reason, err.kind) || 'unknown')
     kids.push(h('p', { key: 'text', className: 'vcs-changes-result-text' }, t('vc.changes.result.fail', { hint: t('vc.writeErr.' + family), git: String(err.message || '') })))
-    kids.push(h('button', { key: 'retry', type: 'button', className: 'vcs-changes-retry', 'data-vc-changes-retry': '1', onClick: function () { if (handlers && typeof handlers.begin === 'function') handlers.begin(meta.op, vcChangesPayloadOf(meta.op, r.values)) } }, t('vc.changes.result.retry')))
+    kids.push(h('button', { key: 'retry', type: 'button', className: 'vcs-changes-retry', 'data-vc-changes-retry': '1', 'data-press': 'button', 'data-log': 'vc.changes.retry', onClick: function () { if (handlers && typeof handlers.begin === 'function') handlers.begin(meta.op, vcChangesPayloadOf(meta.op, r.values)) } }, t('vc.changes.result.retry')))
   } else {
     kids.push(h('p', { key: 'title', className: 'vcs-changes-result-title' }, t('vc.changes.result.okTitle')))
     kids.push(h('p', { key: 'text', className: 'vcs-changes-result-text' }, t('vc.changes.result.ok', { cmd: String(r.cmd || meta.op), ms: String(r.ms === undefined ? '' : r.ms), n: String(r.n === undefined ? 0 : r.n) })))
@@ -156,8 +156,8 @@ const vcChangesConfirmNode = function (h: any, t: any, meta: any, confirm: any, 
     h('p', { key: 'reversible', className: 'vcs-changes-confirm-seg', 'data-vc-changes-confirm-seg': 'reversible' }, t('vc.changes.confirm.reversible', { answer: answer })),
     h('p', { key: 'verb', className: 'vcs-changes-confirm-seg', 'data-vc-changes-confirm-seg': 'verb' }, t('vc.changes.confirm.verb', { verb: t(vcChangesOpVerbKeyOf(meta.op)) })),
     h('div', { key: 'acts', className: 'vcs-changes-confirm-acts' }, [
-      h('button', { key: 'cancel', type: 'button', className: 'vcs-changes-confirm-cancel', 'data-vc-changes-confirm-cancel': '1', 'data-focus-default': 'cancel', onClick: function () { if (handlers && typeof handlers.cancel === 'function') handlers.cancel(meta.op) } }, t('vc.changes.confirm.cancel')),
-      h('button', { key: 'go', type: 'button', className: 'vcs-changes-confirm-go', 'data-vc-changes-confirm-go': '1', onClick: function () { if (handlers && typeof handlers.run === 'function') handlers.run(meta.op, vcChangesPayloadOf(meta.op, values), { ticketId: String(c.ticketId || ''), requestId: String(c.requestId || '') }) } }, t('vc.changes.confirm.go')),
+      h('button', { key: 'cancel', type: 'button', className: 'vcs-changes-confirm-cancel', 'data-vc-changes-confirm-cancel': '1', 'data-focus-default': 'cancel', 'data-press': 'button', 'data-log': 'vc.changes.confirm.cancel', onClick: function () { if (handlers && typeof handlers.cancel === 'function') handlers.cancel(meta.op) } }, t('vc.changes.confirm.cancel')),
+      h('button', { key: 'go', type: 'button', className: 'vcs-changes-confirm-go', 'data-vc-changes-confirm-go': '1', 'data-press': 'button', 'data-log': 'vc.changes.confirm.go', onClick: function () { if (handlers && typeof handlers.run === 'function') handlers.run(meta.op, vcChangesPayloadOf(meta.op, values), { ticketId: String(c.ticketId || ''), requestId: String(c.requestId || '') }) } }, t('vc.changes.confirm.go')),
     ]),
   ])
 }
@@ -186,7 +186,7 @@ export const vcChangesRowNode = function (h: any, t: any, meta: any, opts: any) 
   ]
   const inputs: any[] = vcChangesInputsOf(h, t, meta, values, handlers)
   if (inputs.length > 0) kids.push(h('div', { key: 'inputs', className: 'vcs-changes-inputs' }, inputs))
-  const primaryAttrs: any = { key: 'primary', type: 'button', className: 'vcs-changes-go', 'data-vc-changes-primary': String(meta.capId), 'data-vc-changes-op': String(meta.op), disabled: state.busy === true }
+  const primaryAttrs: any = { key: 'primary', type: 'button', className: 'vcs-changes-go', 'data-vc-changes-primary': String(meta.capId), 'data-vc-changes-op': String(meta.op), disabled: state.busy === true, 'data-press': 'button', 'data-log': 'vc.changes.run' }
   primaryAttrs.onClick = function () {
     const payload: any = vcChangesPayloadOf(meta.op, values)
     if (meta.write !== true) { if (typeof handlers.read === 'function') handlers.read(meta.op, payload) }
