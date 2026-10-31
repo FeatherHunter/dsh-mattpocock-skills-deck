@@ -85,9 +85,10 @@ export const vcBranchOverlayNode = function (h: any, t: any, o: any) {
   const actions: any[] = []
   const list = ['list', 'create', 'delete', 'merge', 'rebase']
   for (let i = 0; i < list.length; i += 1) {
+    // 这五颗只列动作名：真正做动作的地方是「管理 › 分支与标签」页（#1746 T11）。
+    //   不画假按钮，也不在悬浮层里另造一套动作；标签后由一行指路说明讲清去哪儿做。
     actions.push(h('li', { key: list[i], className: 'vcs-branch-item' }, [
-      h('button', { key: 'btn', type: 'button', className: 'vcs-branch-btn', 'data-vc-branch-action': list[i] }, t('vc.shell.branch.' + list[i])),
-      h('span', { key: 'pending', className: 'vcs-branch-pending' }, t('vc.shell.branch.pending')),
+      h('span', { key: 'label', className: 'vcs-branch-label', 'data-vc-branch-action': list[i] }, t('vc.shell.branch.' + list[i])),
     ]))
   }
   return h('div', {
@@ -99,6 +100,7 @@ export const vcBranchOverlayNode = function (h: any, t: any, o: any) {
     'aria-label': t('vc.shell.branch.title'),
   }, [
     h('p', { key: 'cur', className: 'vcs-branch-cur' }, t('vc.shell.branch.current', { branch: String(opts.branch || '') })),
+    h('p', { key: 'ptr', className: 'vcs-branch-pointer' }, t('vc.shell.branch.pointer')),
     h('ul', { key: 'acts', className: 'vcs-branch-list' }, actions),
     h('button', { key: 'close', type: 'button', className: 'vcs-branch-close', 'data-vc-branch-close': '1' }, t('vc.shell.branch.close')),
   ])
@@ -284,7 +286,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
       onRescan: opts.onMigrateRescan, onCancel: opts.onMigrateCancel,
     }), { key: 'migrate-body' }))
   } else if (page !== 'submodules' || opts.submodules === undefined) {
-    // 骨架自检：三种表单形态与四种状态各画一遍，T03 只交壳，业务入口由后续票逐条接。
+    // 骨架自检：三种表单形态与四种状态各画一遍；各页正文由它自己的叶子画，主入口由下面的能力清单统一给。
     children.push(h('div', { key: 'skeleton', className: 'vcs-skeleton', 'data-vc-skeleton': '1' }, [
       h('div', { key: 'forms', className: 'vcs-forms' }, vcShellFormNodes(h, t, o)),
       h('div', { key: 'states', className: 'vcs-states' }, VC_SHELL_STATES.map(function (state: string) {

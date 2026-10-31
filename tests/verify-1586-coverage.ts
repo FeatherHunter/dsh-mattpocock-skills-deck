@@ -1,0 +1,339 @@
+// tests/verify-1586-coverage.ts —— 版本管理页覆盖验收门禁（规格 #1586 第 10 节第 8 段，票 #1763 T27）
+// 门禁归属: src/shared/version-control/src/capability-ledger.ts
+// 门禁归属: src/client/views/versionControl/vcCapabilityPages.ts
+// 门禁归属: src/client/views/versionControl/vcPalette.ts
+// 门禁归属: src/client/views/versionControl/vcShellPrimitives.ts
+// 门禁归属: src/client/views/versionControl/vcShellPages.ts
+// 门禁归属: config/copy/vcshell.yaml
+// 门禁归属: config/copy/vcplatform.yaml
+//
+// 这一扇门禁只做验收，不新造能力。它守规格第 10 节第 8 段的三条硬判据，外加本票要求的收尾事实：
+//   一 命令面板搜 162 条能力全部命中，并且每条都跳到账本声明的那一页（不执行写动作）；
+//   二 能力表计数 119 / 36 / 7 与页面分布求和都等于 162，页面上每条能力恰有一个主入口；
+//   三 能力行在没展开操作面时画的是入口提示，不是「入口由后续票实现」这类假话（占位清零）；
+//   四 五个既有门禁（818 / 841 / 能力账本 / 任务通道 / 真浏览器）在测试图里都有完成记录，
+//      也就是「门禁真绿」有可查的完成证据；
+//   五 反证（test-the-test）：把上面四组的输入改坏，同一套判据必须当场判红。
+//
+// 做法与 tests/verify-818-version-control-view.ts 同一套：把页面壳与账本这几个叶子拼成一段闭包、
+// 按构建的口径转译后求值，用 React 服务端渲染出真 DOM 再量属性。词条用 config/copy 下的真 YAML，
+// 断言落在用户读得到的文字上，不看键名。不拼整个入口组件：覆盖验收要的只是「壳 + 账本 + 面板」这一段。
+//
+// 跑法：node --import ./scripts/ts-hook.mts tests/verify-1586-coverage.ts
+'use strict'
+
+const fs = require('fs')
+const path = require('path')
+const { printGateResult } = require('./lib/gate-result.ts')
+const { sourceText } = require('./lib/source-text.ts')
+const { compileFn } = require('./lib/eval-probe.ts')
+const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mts')
+const YAML = require('yaml')
+const React = require('react')
+const { renderToStaticMarkup } = require('react-dom/server')
+
+const ROOT = path.resolve(__dirname, '..')
+const GATE = 'verify-1586-coverage'
+
+let total = 0
+let failedCount = 0
+let failed = false
+const check = function (ok, msg) {
+  total += 1
+  if (!ok) { failedCount += 1; failed = true }
+  console.log((ok ? '  PASS ' : '  FAIL ') + msg)
+}
+
+// ---------- 闭包：页面壳 + 账本 + 命令面板 + 能力列表（与 scripts/build.mts 的拼接同序） ----------
+const CLOSURE_FILES = [
+  'src/shared/version-control/src/capability-ledger.ts',
+  'src/client/views/versionControl/vcCapabilityPages.ts',
+  'src/client/views/versionControl/vcShellPrimitives.ts',
+  'src/client/views/versionControl/vcPalette.ts',
+  'src/client/views/versionControl/vcCapabilityList.ts',
+  'src/client/views/versionControl/vcShellPages.ts',
+]
+// 页面壳里直接调用的几个叶子（克隆向导、维护页重写、历史查询）在覆盖验收里不参与判定；
+// 它们只影响那几页正文的内容，不影响能力行与主入口，所以给最小替身，不把二十来个叶子都拼进来。
+const CLOSURE_FILLERS = [
+  "const vcBlockKeyOf = function (reason) { return 'vc.shell.state.error' }",
+  'const vcClonePageNode = function () { return null }',
+  // #1758 T22：维护页壳在 maintenance 页无条件挂维护页正文；覆盖验收只量能力行与主入口，正文给最小替身。
+  'const vcMaintenancePageNode = function () { return null }',
+  'const vcRewritePageNode = function () { return null }',
+  'const vcQueryPageNode = function () { return null }',
+  'const vcDiagnosticsMountNode = function () { return null }',
+].join('\n')
+const EXPORTS = [
+  'CAPABILITIES', 'CAPABILITY_TOTAL', 'PAGE_SURFACES', 'PAGE_COUNTS', 'LEVEL_COUNTS', 'PLACEMENT_COUNTS', 'FINAL_FORM_COUNTS',
+  'VC_TAB_PAGES', 'VC_MANAGE_PAGES', 'VC_SIDE_PAGES', 'VC_SEARCH_PAGE', 'VC_SHELL_WIDTHS', 'VC_SHELL_SKINS',
+  'vcPageDepthOf', 'vcPageCapabilitiesOf', 'vcCapabilityOf', 'vcPageRegistryOf', 'vcPageSurfaceOf', 'vcDeepLinkOf',
+  'vcCapabilityAliasOf', 'vcPaletteMatchOf', 'vcPaletteRowsOf', 'vcPaletteTargetOf', 'vcCapabilityNeedsObjectOf', 'vcCapabilitySummaryOf',
+  'vcRenderTabAt', 'vcRenderAllPages', 'vcBranchOverlayNode', 'vcShellCapabilityRowNode', 'vcCapabilitySurfaceKindOf',
+]
+const stripExports = function (text) { return text.replace(/^(\s*)export\s+/gm, '$1') }
+const buildView = function (patch) {
+  let src = CLOSURE_FILES.map(function (rel) { return stripExports(sourceText(rel)) }).join('\n')
+  src = src + '\n' + CLOSURE_FILLERS + '\n'
+  if (patch) src = patch(src)
+  const js = require('esbuild').transformSync(src, TRANSPILE_OPTIONS).code
+  return compileFn([], js + '\nreturn { ' + EXPORTS.join(', ') + ' }\n')()
+}
+
+// ---------- 真词条：config/copy 下的 YAML 是界面文字的唯一真源，这里按语言合并成查表函数 ----------
+const COPY_DIR = path.join(ROOT, 'config', 'copy')
+const COPY_FILES = fs.readdirSync(COPY_DIR).filter(function (f) { return /\.yaml$/.test(f) }).sort()
+const COPY_TEXT = {}
+const COPY_RAW = {}
+const LANGS = ['zh', 'en']
+COPY_FILES.forEach(function (file) {
+  const raw = fs.readFileSync(path.join(COPY_DIR, file), 'utf8')
+  COPY_RAW[file] = raw
+  const doc = YAML.parse(raw) || {}
+  LANGS.forEach(function (lang) {
+    if (!COPY_TEXT[lang]) COPY_TEXT[lang] = {}
+    Object.assign(COPY_TEXT[lang], doc[lang] || {})
+  })
+})
+const fill = function (s, p) {
+  return p ? String(s).replace(/\{(\w+)\}/g, function (m, k) { return k in p ? String(p[k]) : m }) : String(s)
+}
+const tOf = function (lang) {
+  return function (key, params) {
+    const dict = COPY_TEXT[lang] || {}
+    const value = dict[key] === undefined ? String(key) : String(dict[key])
+    return fill(value, params)
+  }
+}
+const tZh = tOf('zh')
+const tEn = tOf('en')
+const h = React.createElement
+
+const renderPage = function (view, opts, lang) {
+  return renderToStaticMarkup(view.vcRenderTabAt(h, lang ? tEn : tZh, opts || {}))
+}
+const attrValuesOf = function (html, attr) {
+  const out = []
+  const re = new RegExp(attr + '="([^"]*)"', 'g')
+  let m = re.exec(html)
+  while (m) { out.push(m[1]); m = re.exec(html) }
+  return out
+}
+const countOf = function (html, attr) { return attrValuesOf(html, attr).length }
+const rowSegmentOf = function (html, capId) {
+  const at = html.indexOf('data-cap-primary="' + capId + '"')
+  if (at < 0) return ''
+  const start = html.lastIndexOf('<li', at)
+  const end = html.indexOf('</li>', at)
+  return html.slice(start < 0 ? 0 : start, end < 0 ? html.length : end)
+}
+// 命中判据单独收成函数：正用与反证跑同一份，反证才证明得了判据不是摆设。
+const paletteProblemsOf = function (view, caps) {
+  const problems = []
+  caps.forEach(function (cap) {
+    const queries = [String(cap.id), String(cap.name), String(cap.command)]
+    const alias = String(view.vcCapabilityAliasOf(cap) || '')
+    if (alias) queries.push(alias)
+    queries.forEach(function (query) {
+      const rows = view.vcPaletteMatchOf(query) || []
+      const hit = rows.some(function (row) { return row && row.id === cap.id })
+      if (!hit) problems.push(cap.id + ' 按「' + query + '」搜不到自己')
+    })
+  })
+  return problems
+}
+const targetProblemsOf = function (view, caps) {
+  const problems = []
+  caps.forEach(function (cap) {
+    const target = view.vcPaletteTargetOf(cap.id)
+    if (!target) { problems.push(cap.id + ' 没有跳转目标'); return }
+    if (target.page !== cap.page) problems.push(cap.id + ' 跳到 ' + target.page + '，账本说它属于 ' + cap.page)
+    if (target.executes !== false) problems.push(cap.id + ' 在命令面板里直接执行了')
+    if (Number(target.depth) > 2) problems.push(cap.id + ' 的落点深度超过两层')
+  })
+  return problems
+}
+const countProblemsOf = function (view) {
+  const problems = []
+  const caps = view.CAPABILITIES || []
+  const totalCount = view.CAPABILITY_TOTAL
+  const sumOf = function (obj) { return Object.keys(obj || {}).reduce(function (n, k) { return n + Number(obj[k]) }, 0) }
+  if (caps.length !== totalCount) problems.push('能力条数 ' + caps.length + ' 与 CAPABILITY_TOTAL ' + totalCount + ' 不一致')
+  if (sumOf(view.LEVEL_COUNTS) !== totalCount) problems.push('级别分布求和不是 ' + totalCount)
+  if (sumOf(view.PLACEMENT_COUNTS) !== totalCount) problems.push('落点分布求和不是 ' + totalCount)
+  if (sumOf(view.FINAL_FORM_COUNTS) !== totalCount) problems.push('终局形态分布求和不是 ' + totalCount)
+  if (sumOf(view.PAGE_COUNTS) !== totalCount) problems.push('页面分布求和不是 ' + totalCount)
+  const forms = view.FINAL_FORM_COUNTS || {}
+  if (Number(forms['操作']) !== 119 || Number(forms['只读']) !== 36 || Number(forms['说明']) !== 7) problems.push('终局形态不是规格写的 119 / 36 / 7（实得 ' + JSON.stringify(forms) + '）')
+  const seen = {}
+  caps.forEach(function (cap) {
+    if (seen[cap.id]) problems.push('能力号重复：' + cap.id)
+    seen[cap.id] = true
+    if (!cap.primaryEntry) problems.push(cap.id + ' 没有登记主入口')
+  })
+  const registry = view.vcPageRegistryOf() || []
+  if (registry.length !== (view.PAGE_SURFACES || []).length) problems.push('页面注册表页数与 PAGE_SURFACES 不一致')
+  registry.forEach(function (page) {
+    const got = (view.vcPageCapabilitiesOf(page.id) || []).length
+    if (got !== Number(view.PAGE_COUNTS[page.id])) problems.push(page.id + ' 页的能力条数 ' + got + ' 与 PAGE_COUNTS 不一致')
+  })
+  return problems
+}
+const primaryProblemsOf = function (view) {
+  const problems = []
+  const pages = (view.PAGE_SURFACES || []).map(function (p) { return p.id })
+  pages.forEach(function (page) {
+    const html = renderPage(view, { page: page, width: 460, skin: 'dark' })
+    const got = attrValuesOf(html, 'data-cap-primary')
+    const want = (view.vcPageCapabilitiesOf(page) || []).map(function (c) { return c.id })
+    if (got.join(',') !== want.join(',')) problems.push(page + ' 页主入口是 [' + got.join(',') + ']，账本是 [' + want.join(',') + ']')
+  })
+  const all = renderPage(view, { page: 'changes', width: 300, skin: 'light' })
+  if (!all) problems.push('单页渲染没有产出')
+  const allPages = renderToStaticMarkup(view.vcRenderAllPages(h, tZh, {}))
+  const ids = attrValuesOf(allPages, 'data-cap-primary')
+  const unique = {}
+  ids.forEach(function (id) { unique[id] = true })
+  if (ids.length !== view.CAPABILITY_TOTAL) problems.push('一次渲染全部页面时主入口数 ' + ids.length + '，应为 ' + view.CAPABILITY_TOTAL)
+  if (Object.keys(unique).length !== ids.length) problems.push('一次渲染全部页面时有重复主入口')
+  return problems
+}
+const placeholderProblemsOf = function (entries) {
+  const problems = []
+  const bad = /后续票|later ticket/i
+  entries.forEach(function (entry) {
+    if (bad.test(String(entry.text))) problems.push(entry.name + ' 还留着「入口由后续票实现」这类假话')
+  })
+  return problems
+}
+const GATE_NAME_RE = /\.(test|spec)\.(js|mjs|cjs|ts|mts|cts)$|\.(js|mjs|cjs|ts|mts|cts)$/
+const gateNameOf = function (file) { return path.basename(String(file || '')).replace(GATE_NAME_RE, '') }
+const REQUIRED_COMPLETION_GATES = [
+  'verify-818-version-control-view',
+  'verify-841-write-phones',
+  'verify-1586-capability-ledger',
+  'verify-1586-task-channel',
+  'verify-1586-vc-visual-browser',
+]
+const completionProblemsOf = function (map) {
+  const problems = []
+  const gates = Array.isArray(map && map.gates) ? map.gates : []
+  REQUIRED_COMPLETION_GATES.forEach(function (name) {
+    const rows = gates.filter(function (row) { return gateNameOf(row.file) === name })
+    if (rows.length !== 1) { problems.push(name + ' 在测试图里出现 ' + rows.length + ' 次（应恰好一次）'); return }
+    const row = rows[0]
+    if (row.completionRecord !== true) problems.push(name + ' 没有完成记录（门禁真绿拿不出证据）')
+    if (!(Number(row.expectedAssertions) > 0)) problems.push(name + ' 的期望断言数不是正数')
+  })
+  return problems
+}
+
+async function main() {
+  let view = null
+  try { view = buildView(null) } catch (e) { console.error('闭包装配失败：' + ((e && e.stack) || e)); process.exit(1) }
+
+  // ---- 一 命令面板：162 条能力各自用 id / 名称 / 命令原文（有别名时加别名）都搜得到自己 ----
+  console.log('\n一 命令面板逐条命中（' + view.CAPABILITY_TOTAL + ' 条）')
+  view.CAPABILITIES.forEach(function (cap) {
+    check(paletteProblemsOf(view, [cap]).length === 0, '一 ' + cap.id + ' 按 id / 名称 / 命令原文' + (view.vcCapabilityAliasOf(cap) ? ' / 别名' : '') + ' 都搜得到它自己')
+  })
+  const emptyRows = view.vcPaletteMatchOf('')
+  check(emptyRows.length === view.CAPABILITY_TOTAL, '一 查询为空时列出全部 ' + view.CAPABILITY_TOTAL + ' 条（空查询不是零结果）')
+  check(view.vcPaletteMatchOf('zzz-not-a-capability-zzz').length === 0, '一 乱串零命中（不混进无关条目）')
+
+  // ---- 二 命令面板的跳转落点：每条都跳到账本声明的页面，只打开位置不执行 ----
+  console.log('\n二 命令面板跳转落点（' + view.CAPABILITY_TOTAL + ' 条）')
+  view.CAPABILITIES.forEach(function (cap) {
+    check(targetProblemsOf(view, [cap]).length === 0, '二 ' + cap.id + ' 跳到 ' + cap.page + ' 页、不直接执行、深度不超过两层')
+  })
+
+  // ---- 三 计数与分布 ----
+  console.log('\n三 计数与分布')
+  const countProblems = countProblemsOf(view)
+  check(countProblems.length === 0, '三 162 条、三组分布求和、119 / 36 / 7 与页面分布逐项对齐' + (countProblems.length ? '：' + countProblems.join('；') : ''))
+
+  // ---- 四 每条能力在主入口上可见：逐页主入口标记与账本一致，全量渲染 162 且不重复 ----
+  console.log('\n四 主入口逐页可见')
+  const pages = view.PAGE_SURFACES.map(function (p) { return p.id })
+  pages.forEach(function (page) {
+    const html = renderPage(view, { page: page, width: 460, skin: 'dark' })
+    const got = attrValuesOf(html, 'data-cap-primary')
+    const want = view.vcPageCapabilitiesOf(page).map(function (c) { return c.id })
+    check(got.join(',') === want.join(','), '四 ' + page + ' 页的 ' + want.length + ' 条能力各有一个主入口，顺序与账本一致')
+  })
+  const primaryProblems = primaryProblemsOf(view)
+  check(primaryProblems.length === 0, '四 一次渲染全部页面：162 个主入口、无重复、页数与注册表一致' + (primaryProblems.length ? '：' + primaryProblems.join('；') : ''))
+  const otherPages = pages.filter(function (page) { return page !== 'commits' })
+  const onlyCommits = otherPages.every(function (page) { return rowSegmentOf(renderPage(view, { page: page, width: 460, skin: 'dark' }), '13.14') === '' })
+  check(onlyCommits && rowSegmentOf(renderPage(view, { page: 'commits', width: 460, skin: 'dark' }), '13.14') !== '', '四 13.14 的主入口只在提交历史页出现（其余 ' + otherPages.length + ' 页都没有它的主入口）')
+  const searchHtml = renderPage(view, { page: 'search', width: 460, skin: 'dark' })
+  check(searchHtml.indexOf('data-surface="') >= 0 && searchHtml.indexOf('data-vc-palette-input') >= 0, '四 全库搜索页把命令面板画在主入口行里（输入框与打开的操作面都在）')
+
+  // ---- 五 占位清零：能力行画入口提示不画假话，分支悬浮层改成标签 + 指路说明 ----
+  console.log('\n五 占位清零')
+  const allPagesHtml = renderToStaticMarkup(view.vcRenderAllPages(h, tZh, {}))
+  const hintCount = countOf(allPagesHtml, 'data-cap-hint')
+  check(hintCount >= view.CAPABILITY_TOTAL - 1 && countOf(allPagesHtml, 'data-cap-pending') === 0, '五 ' + hintCount + ' 行能力画的是入口提示（data-cap-hint），没有一行再标「未实现」的旧标记')
+  check(allPagesHtml.indexOf(tZh('vc.shell.cap.hint')) >= 0, '五 入口提示的文案是「这一行只列能力与命令原文」这类真话（不是入口由后续票实现）')
+  const branchHtml = renderPage(view, { page: 'changes', width: 460, skin: 'dark', open: { branch: true } })
+  const branchActions = attrValuesOf(branchHtml, 'data-vc-branch-action')
+  check(branchHtml.indexOf('data-vc-branch-overlay="1"') >= 0 && branchActions.join(',') === 'list,create,delete,merge,rebase', '五 分支悬浮层仍列出五个动作名（顺序不变）')
+  check(/<span[^>]*data-vc-branch-action="list"/.test(branchHtml) && !/<button[^>]*data-vc-branch-action=/.test(branchHtml), '五 分支悬浮层的五个动作是标签不是按钮（没有假按钮）')
+  check(branchHtml.indexOf(tZh('vc.shell.branch.pointer')) >= 0, '五 分支悬浮层给出指路说明（这五个动作在「管理 › 分支与标签」页做）')
+  const copyEntries = COPY_FILES.map(function (file) { return { name: 'config/copy/' + file, text: COPY_RAW[file] } })
+  const copyProblems = placeholderProblemsOf(copyEntries)
+  check(copyProblems.length === 0, '五 config/copy 全部词表不再出现「后续票 / later ticket」' + (copyProblems.length ? '：' + copyProblems.join('；') : ''))
+  const zhPlaceholders = placeholderProblemsOf([{ name: '中文页面', text: allPagesHtml }])
+  const enPlaceholders = placeholderProblemsOf([{ name: '英文页面', text: renderToStaticMarkup(view.vcRenderAllPages(h, tEn, {})) }])
+  check(zhPlaceholders.length === 0 && enPlaceholders.length === 0, '五 中英两种语言渲染出的全部页面都不出现「后续票 / later ticket」')
+  const platformCopy = YAML.parse(COPY_RAW['vcplatform.yaml'])
+  const migrateCopy = platformCopy && platformCopy.zh ? platformCopy.zh : {}
+  const migrateTruth = String(migrateCopy['vc.migrate.lede'] || '') + String(migrateCopy['vc.migrate.note.8.16'] || '') + String(migrateCopy['vc.migrate.note.11.12'] || '') + String(migrateCopy['vc.migrate.note.11.13'] || '')
+  check(migrateTruth.length > 0 && /克隆|归档|离线包/.test(migrateTruth) && migrateTruth.indexOf('后续') < 0, '五 迁移与备份页四条说明改成现状真话（克隆向导、归档导出、离线包都在本页正文里）')
+  const commentFiles = [
+    'src/client/views/versionControl/vcShellPrimitives.ts',
+    'src/client/views/versionControl/vcShellPages.ts',
+  ]
+  const commentProblems = placeholderProblemsOf(commentFiles.map(function (rel) { return { name: rel, text: sourceText(rel) } }))
+  check(commentProblems.length === 0, '五 壳的两处注释不再写「业务入口由后续票逐条接」' + (commentProblems.length ? '：' + commentProblems.join('；') : ''))
+
+  // ---- 六 五个既有门禁的完成记录：数字从测试图里读，不在这里硬编码 ----
+  console.log('\n六 五个既有门禁的完成记录')
+  const gateMap = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests', 'gate-map.json'), 'utf8'))
+  const completionProblems = completionProblemsOf(gateMap)
+  check(completionProblems.length === 0, '六 五个门禁在测试图里各有完成记录与正数期望断言' + (completionProblems.length ? '：' + completionProblems.join('；') : ''))
+  REQUIRED_COMPLETION_GATES.forEach(function (name) {
+    const row = (gateMap.gates || []).filter(function (g) { return gateNameOf(g.file) === name })[0]
+    check(!!row && row.completionRecord === true && Number(row.expectedAssertions) > 0, '六 ' + name + ' 的完成记录可查（期望 ' + (row ? row.expectedAssertions : '?') + ' 条断言）')
+  })
+
+  // ---- 七 反证：把上面几组的输入改坏，同一套判据必须当场判红 ----
+  console.log('\n七 反证')
+  const brokenPaletteCaps = view.CAPABILITIES.map(function (cap) {
+    return cap.id === '2.1' ? Object.assign({}, cap, { command: 'git commit --nonsense-zzz', name: '一条改名后的能力' }) : cap
+  })
+  check(paletteProblemsOf(view, brokenPaletteCaps).length > 0, '七 反证：把 2.1 的命令原文与名称改掉 → 命令面板命中判据当场判红')
+  const brokenTargetCaps = view.CAPABILITIES.map(function (cap) {
+    return cap.id === '2.1' ? Object.assign({}, cap, { page: 'search' }) : cap
+  })
+  check(targetProblemsOf(view, brokenTargetCaps).length > 0, '七 反证：把 2.1 的页面改成 search → 跳转落点判据当场判红')
+  const brokenCounts = Object.assign({}, view, { CAPABILITY_TOTAL: view.CAPABILITY_TOTAL - 1 })
+  check(countProblemsOf(brokenCounts).length > 0, '七 反证：把 CAPABILITY_TOTAL 改少一条 → 计数判据当场判红')
+  check(placeholderProblemsOf([{ name: '假词表', text: '入口由后续票实现' }]).length === 1, '七 反证：往词表塞回「入口由后续票实现」→ 占位清零判据当场判红')
+  const brokenMap = JSON.parse(JSON.stringify(gateMap))
+  const victim = (brokenMap.gates || []).filter(function (g) { return gateNameOf(g.file) === 'verify-818-version-control-view' })[0]
+  if (victim) victim.completionRecord = false
+  check(completionProblemsOf(brokenMap).length > 0, '七 反证：把 818 的完成记录抹掉 → 完成记录判据当场判红')
+  const missingMap = JSON.parse(JSON.stringify(gateMap))
+  missingMap.gates = (missingMap.gates || []).filter(function (g) { return gateNameOf(g.file) !== 'verify-841-write-phones' })
+  check(completionProblemsOf(missingMap).length > 0, '七 反证：把 841 从测试图里删掉 → 完成记录判据当场判红')
+
+  console.log('\n' + (failed ? '存在失败' : '全部通过') + ' — 版本管理页覆盖验收门禁（' + total + ' 项断言）')
+  printGateResult(GATE, total, failedCount)
+  process.exit(failed ? 1 : 0)
+}
+
+main().catch(function (e) {
+  console.error('门禁执行异常：' + ((e && e.stack) || e))
+  process.exit(1)
+})

@@ -8,6 +8,8 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
+// #1763：门禁收尾打一行完成记录（GATE-RESULT），测试图按它核对期望断言数。
+const { printGateResult } = require('./lib/gate-result.ts')
 const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -1186,6 +1188,8 @@ async function main(): Promise<void> {
   check(tDrift.ok === false && tDrift.reason === 'target-changed' && tBackupCmds() === tBackup0, 'T23 预检之后工作区变了：现场摘要不一致，零写命令拒绝（票只对预检那一刻的现场有效）')
   check(denyIs(tDrift, 'blocked') === true && denyIs(tRun, 'blocked') === false, 'T24 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
+  // 完成记录：#1763 起测试图按这一行对账期望断言数（门禁名与 tests/gate-map.json 的登记一致）。
+  printGateResult('verify-841-write-phones', total, failed ? 1 : 0)
   process.exit(failed ? 1 : 0)
 }
 main().catch((e) => { console.error('门禁执行异常：' + ((e && e.stack) || e)); process.exit(1) })

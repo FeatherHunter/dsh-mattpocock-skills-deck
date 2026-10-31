@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T22:10:33.320Z",
+  "generatedAt": "2026-10-31T22:18:30.542Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 506,
-  "gateCount": 506,
-  "attributedGates": 455,
+  "chainLength": 507,
+  "gateCount": 507,
+  "attributedGates": 456,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 70,
+  "completionRecordedGates": 73,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 803,
@@ -4306,6 +4306,29 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
+      "step": "node tests/verify-1586-coverage.ts",
+      "file": "tests/verify-1586-coverage.ts",
+      "guards": [
+        "config/copy/vcplatform.yaml",
+        "config/copy/vcshell.yaml",
+        "src/client/views/versionControl/vcCapabilityPages.ts",
+        "src/client/views/versionControl/vcPalette.ts",
+        "src/client/views/versionControl/vcShellPages.ts",
+        "src/client/views/versionControl/vcShellPrimitives.ts",
+        "src/shared/version-control/src/capability-ledger.ts"
+      ],
+      "dirs": [
+        "config/copy",
+        "src/client/views/versionControl",
+        "src/shared/version-control/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 367,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
+    },
+    {
       "step": "node tests/verify-1586-diagnostics.ts",
       "file": "tests/verify-1586-diagnostics.ts",
       "guards": [
@@ -6750,6 +6773,7 @@
         "src/shared/version-control/src/worktree-ops.ts",
         "tests/fixtures/version-control/live-numstat-shapes.json",
         "tests/lib/eval-probe.ts",
+        "tests/lib/gate-result.ts",
         "tests/lib/source-text.ts"
       ],
       "dirs": [
@@ -6763,9 +6787,9 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 86 条"
+      "completionRecord": true,
+      "expectedAssertions": 736,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 86 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -6829,17 +6853,19 @@
         "src/shared/version-control/src/commands.ts",
         "src/shared/version-control/src/push-plan.ts",
         "src/shared/version-control/src/write-reasons.ts",
-        "src/shared/version-control/src/write-ticket.ts"
+        "src/shared/version-control/src/write-ticket.ts",
+        "tests/lib/gate-result.ts"
       ],
       "dirs": [
         "src/host",
-        "src/shared/version-control/src"
+        "src/shared/version-control/src",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；源码里的路径字面量 4 条"
+      "completionRecord": true,
+      "expectedAssertions": 271,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-842-version-control-write-view.ts",
@@ -11895,6 +11921,7 @@
     "config/copy": [
       "node tests/verify-1297-entry.ts",
       "node tests/verify-1490-declaration-file.ts",
+      "node tests/verify-1586-coverage.ts",
       "node tests/verify-1586-migrate.ts",
       "node tests/verify-1612-deck-door.ts",
       "node tests/verify-1654-ws-pending-hint.ts",
@@ -12639,6 +12666,7 @@
       "node tests/verify-gate-map.ts",
       "node tests/verify-1586-branches.ts",
       "node tests/verify-1586-clone-wizard.ts",
+      "node tests/verify-1586-coverage.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-history-query.ts",
       "node tests/verify-1586-migrate.ts",
@@ -13357,6 +13385,7 @@
       "node tests/verify-1586-clone-wizard.ts",
       "node tests/verify-1586-commit-page.ts",
       "node tests/verify-1586-config-hooks.ts",
+      "node tests/verify-1586-coverage.ts",
       "node tests/verify-1586-diagnostics.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-history-query.ts",
@@ -13919,6 +13948,7 @@
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-829-parent-reread.ts",
+      "node tests/verify-841-write-phones.ts",
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-891-setup-refresh.ts",
       "node tests/verify-895-bulk-deadline.ts",

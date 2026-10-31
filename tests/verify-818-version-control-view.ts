@@ -40,6 +40,8 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 // 本文件选 compileFn 手法：这段把六个叶子拼成的界面闭包当函数体造函数，依赖本来就一项项按参数名传。
 const { compileFn } = require('./lib/eval-probe.js')
+// #1763：门禁收尾打一行完成记录（GATE-RESULT），测试图按它核对期望断言数。
+const { printGateResult } = require('./lib/gate-result.ts')
 // 中央时间真值：相对时间窗口只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
 // 2026-10-17：locale-flow.js 的界面文案改成按中央时间参数现算（提交 2d0a3f85）之后，闭包里会用到
 // SETTINGS_DEBUG_PUSH_WAIT_MS 等好几个常量；只预埋一个已经不够，改成把 values.js 里的数值导出整批挂到
@@ -1261,7 +1263,7 @@ async function main() {
   check(shellHtmlOf({ page: 'commits' }).indexOf('data-vc-note="13.14"') >= 0, 'Z3f 提交历史页画出 13.14 的说明位（图形化视图从 #1744 起就画在这一页）')
   const diagHtml = shellHtmlOf({ page: 'diagnostics', width: 460, skin: 'dark' })
   const diagCaps = VIEW.vcPageCapabilitiesOf('diagnostics')
-  const diagRowsAllPending = diagCaps.every(function (c) { return rowSegmentOf(diagHtml, c.id).indexOf('data-cap-pending="1"') >= 0 })
+  const diagRowsAllPending = diagCaps.every(function (c) { return rowSegmentOf(diagHtml, c.id).indexOf('data-cap-hint="1"') >= 0 })
   check(diagHtml.indexOf('data-vc-note="diagnostics-readonly"') >= 0 && diagRowsAllPending && diagHtml.indexOf('data-surface="') < 0 && diagHtml.indexOf('data-cap-main=') < 0, 'Z3g 诊断页只读：画一条只读说明，' + diagCaps.length + ' 条能力都不画可执行控件（不伪造按钮、不打开操作面）')
   let opCap: any = null
   for (const surface of VIEW.PAGE_SURFACES) {
@@ -2441,7 +2443,7 @@ async function main() {
   const r7CapIds = r7Caps.map(function (c) { return c.id })
   const r7Primary = attrValuesOf(r1Html, 'data-cap-primary')
   const r7EachOnce = r7CapIds.length > 0 && r7Primary.join(',') === r7CapIds.join(',') && r7CapIds.every(function (id) { return r7Primary.filter(function (x) { return x === id }).length === 1 })
-  check(r7CapIds.slice(0, 4).join(',') === '8.1,8.2,8.3,8.4' && r7EachOnce, 'R7a 远端页每条能力恰好一个主入口，8.1–8.4 排在最前（页面注册表与能力账本同源；这一页还挂着域 8 其余能力，等后续票接）')
+  check(r7CapIds.slice(0, 4).join(',') === '8.1,8.2,8.3,8.4' && r7EachOnce, 'R7a 远端页每条能力恰好一个主入口，8.1–8.4 排在最前（页面注册表与能力账本同源；这一页还挂着域 8 其余能力，入口都在本页正文里）')
   const r7Cap81 = VIEW.vcCapabilityOf('8.1')
   check(!!r7Cap81 && r7Cap81.page === 'remote' && r7Cap81.primaryEntry.indexOf('远端') >= 0, 'R7b 8.1 的主入口登记在「远端与同步」页')
   check(/data-vc-remote-online-btn="origin"[^>]*aria-expanded="true"/.test(r2OkHtml) && /data-vc-remote-online-btn="mirror"[^>]*aria-expanded="false"/.test(r2OkHtml), 'R7c 联网展开状态由 aria-expanded 报给读屏（展开的是哪个远端指得清）')
@@ -3163,6 +3165,8 @@ async function main() {
   check(untouched.length === 0, 'H 反证自证：' + antiCases.length + ' 处改法都真的改到了源码（改不中就等于没证）' + (untouched.length ? ' —— 没改中的：' + untouched.map((c) => c.name).join('、') : ''))
 
   console.log(failed ? '\n存在失败 — verify-818-version-control-view 未通过' : '\n全部通过 — 版本管理页签界面侧门禁生效（' + total + ' 项断言）')
+  // 完成记录：#1763 起测试图按这一行对账期望断言数（门禁名与 tests/gate-map.json 的登记一致）。
+  printGateResult('verify-818-version-control-view', total, failed ? 1 : 0)
   process.exit(failed ? 1 : 0)
 }
 main().catch(function (e) { console.error('门禁执行异常：' + ((e && e.stack) || e)); process.exit(1) })
