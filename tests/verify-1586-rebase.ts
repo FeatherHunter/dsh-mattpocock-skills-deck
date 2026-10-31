@@ -636,7 +636,286 @@ async function main() {
     const pre = await rig.check.handleRebaseCheck({ cwd: repo, op: 'rebase-todo', payload: { base: c1, rows: [{ oid: gitMust(repo, ['rev-parse', 'HEAD']).out.trim(), action: 'pick', message: '' }] } })
     check(reasonOf(pre) === 'update-refs-on' && rig.rebaseArgs().length === 0, 'C27 开着 updateRefs：预检拒绝且零进程（面板不替人改配置、不做 --update-refs）')
   }
+
   console.log('  C 组完成：' + total + ' 条')
+
+  // ===== D 客户端面板：动作模型、可见性、待办重排、确认卡与结果条、词条 =====
+  console.log('  D 客户端面板（变基待办页）')
+  function fakeH(tag: any, props: any, children: any) {
+    return { tag: tag, props: props || {}, children: Array.isArray(children) ? children : (children === undefined || children === null ? [] : [children]) }
+  }
+  function fakeT(key: any, params: any) {
+    return String(key) + (params === undefined || params === null ? '' : ' ' + JSON.stringify(params))
+  }
+  function findAll(node: any, pred: any) {
+    const out: any[] = []
+    if (!node || typeof node !== 'object') return out
+    if (pred(node)) out.push(node)
+    const kids: any[] = Array.isArray(node.children) ? node.children : []
+    for (let i = 0; i < kids.length; i += 1) {
+      const more: any[] = findAll(kids[i], pred)
+      for (let j = 0; j < more.length; j += 1) out.push(more[j])
+    }
+    return out
+  }
+  function attrAll(node: any, name: string) {
+    return findAll(node, function (n: any) { return n.props && n.props[name] !== undefined && n.props[name] !== null })
+  }
+  function textAll(node: any) {
+    const out: string[] = []
+    if (node === null || node === undefined) return out
+    if (typeof node === 'string') { out.push(node); return out }
+    if (typeof node !== 'object') return out
+    const kids: any[] = Array.isArray(node.children) ? node.children : []
+    for (let i = 0; i < kids.length; i += 1) {
+      const more: string[] = textAll(kids[i])
+      for (let j = 0; j < more.length; j += 1) out.push(more[j])
+    }
+    return out
+  }
+  const clientOpsSrc: string = sourceText('src/client/views/versionControl/vcRebaseOps.ts')
+  const clientPageSrc: string = sourceText('src/client/views/versionControl/vcRebasePage.ts')
+  const leafBody = spliceableJs('src/client/views/versionControl/vcRebaseOps.ts') + '\n' + spliceableJs('src/client/views/versionControl/vcRebasePage.ts') + '\nreturn { VC_REBASE_PHONES: VC_REBASE_PHONES, VC_REBASE_OPS: VC_REBASE_OPS, VC_REBASE_TODO_ACTIONS: VC_REBASE_TODO_ACTIONS, VC_REBASE_TODO_MOVES: VC_REBASE_TODO_MOVES, vcRebaseOpMetaOf: vcRebaseOpMetaOf, vcRebaseOpLabelKeyOf: vcRebaseOpLabelKeyOf, vcRebaseOpVerbKeyOf: vcRebaseOpVerbKeyOf, vcRebaseActionLabelKeyOf: vcRebaseActionLabelKeyOf, vcRebaseStateLabelKeyOf: vcRebaseStateLabelKeyOf, vcRebaseRequestIdOf: vcRebaseRequestIdOf, vcRebaseVisibleOf: vcRebaseVisibleOf, vcRebaseRowsOf: vcRebaseRowsOf, vcRebaseMoveOf: vcRebaseMoveOf, vcRebaseRowPatchOf: vcRebaseRowPatchOf, vcRebasePayloadOf: vcRebasePayloadOf, vcRebaseCheckArgsOf: vcRebaseCheckArgsOf, vcRebaseReadArgsOf: vcRebaseReadArgsOf, vcRebaseWriteArgsOf: vcRebaseWriteArgsOf, vcRebaseTargetOf: vcRebaseTargetOf, vcRebaseRowTextOf: vcRebaseRowTextOf, vcRebasePageNode: vcRebasePageNode };'
+  const leaf: any = compileFn(['h', 't', 'vcWriteErrFamilyOf'], leafBody)(fakeH, fakeT, function () { return 'notReady' })
+  function rebaseReconcile(sharedRows: any[], clientRows: any[]) {
+    const problems: string[] = []
+    if (sharedRows.length !== clientRows.length) problems.push('件数 ' + sharedRows.length + ' 与 ' + clientRows.length + ' 不一致')
+    const n: number = Math.min(sharedRows.length, clientRows.length)
+    for (let i = 0; i < n; i += 1) {
+      const s: any = sharedRows[i]
+      const c: any = clientRows[i]
+      const got: any = { op: c.op, capId: c.capId, write: c.write, dangerous: c.dangerous, confirm: c.confirm, needs: c.needs }
+      const want: any = { op: s.id, capId: s.capId, write: s.kind === 'write', dangerous: s.dangerous, confirm: s.confirm, needs: s.needs }
+      const keys: string[] = ['op', 'capId', 'write', 'dangerous', 'confirm', 'needs']
+      for (let k = 0; k < keys.length; k += 1) if (got[keys[k]] !== want[keys[k]]) problems.push(String(want.op) + ' 的 ' + keys[k] + ' 不一致')
+    }
+    return problems
+  }
+  const sharedRows = ops.REBASE_OPS.map(function (m: any) { return { id: m.id, capId: m.capId, kind: m.kind, dangerous: m.dangerous, confirm: m.confirm, needs: m.needs } })
+
+  eq(leaf.VC_REBASE_PHONES.read, 'wf.gitRebaseRead', 'D1 客户端电话表：读')
+  eq(leaf.VC_REBASE_PHONES.check, 'wf.gitRebaseCheck', 'D2 客户端电话表：预检')
+  eq(leaf.VC_REBASE_PHONES.write, 'wf.gitRebaseWrite', 'D3 客户端电话表：执行')
+  eq(leaf.VC_REBASE_OPS.length, 9, 'D4 客户端动作名单九条（四写五读）')
+  eq(rebaseReconcile(sharedRows, leaf.VC_REBASE_OPS).join('；'), '', 'D5 客户端动作名单与共享协议逐条对账（动作名、能力号、读写、危险、确认、输入形状）')
+  eq(leaf.VC_REBASE_OPS.filter(function (m: any) { return m.write === true }).map(function (m: any) { return m.capId }).join(','), '5.6,5.7,5.8,5.10', 'D6 四条写动作的能力号顺序')
+  eq(leaf.VC_REBASE_TODO_ACTIONS.join(','), 'pick,reword,squash,fixup,drop', 'D7 待办五个改写动词')
+  check(leaf.VC_REBASE_TODO_ACTIONS.indexOf('edit') < 0 && leaf.VC_REBASE_TODO_ACTIONS.indexOf('break') < 0, 'D8 待办动词里没有 edit 与 break')
+  eq(leaf.VC_REBASE_TODO_MOVES.join(','), 'move-up,move-down', 'D9 两个纯重排动作')
+  eq(leaf.vcRebaseVisibleOf(null, false).join(','), 'rebase-todo,rebase-onto,rebase-autosquash,rebase-merges', 'D10 干净状态四条写动作都可见')
+  eq(leaf.vcRebaseVisibleOf('rebase', false).length, 0, 'D11 变基进行中四条写动作都不出现（不是灰着）')
+  eq(leaf.vcRebaseVisibleOf(null, true).length, 0, 'D12 仓库开着 updateRefs 时四条写动作都不出现（面板不替人改配置）')
+  const rid: string = leaf.vcRebaseRequestIdOf(1000, 'rebase-todo')
+  check(/^r[0-9a-z]+(-[A-Za-z0-9]{1,12})?$/.test(rid), 'D13 请求号形状合法（实测 ' + rid + '）')
+  eq(leaf.vcRebaseRequestIdOf(1000, 'a b!').indexOf(' ') < 0, true, 'D14 请求号里的盐去掉非字母数字字符')
+  const todoVals: any = { base: 'main', rows: [{ oid: ROW_OID, action: 'reword', message: '新说明' }, { oid: BASE_OID, action: 'pick', message: '不该带的说明' }] }
+  const todoPayload: any = leaf.vcRebasePayloadOf('rebase-todo', todoVals)
+  eq(todoPayload.base, 'main', 'D15 待办载荷带基座')
+  eq(todoPayload.rows[0].message, '新说明', 'D16 reword 行把面板说明带进载荷')
+  check(todoPayload.rows[1].message === undefined, 'D17 非 reword 行不带说明字段（不让旧说明混进待办）')
+  eq(JSON.stringify(leaf.vcRebasePayloadOf('rebase-onto', { oldBase: 'old', newBase: 'new' })), JSON.stringify({ oldBase: 'old', newBase: 'new' }), 'D18 换基座载荷字段与宿主读取一致')
+  eq(JSON.stringify(leaf.vcRebasePayloadOf('rebase-merges', { base: 'main' })), JSON.stringify({ base: 'main' }), 'D19 保留合并结构载荷只有一个基座')
+  const cargs: any = leaf.vcRebaseCheckArgsOf('C:/repo', 'rebase-todo', todoVals)
+  check(cargs.cwd === 'C:/repo' && cargs.op === 'rebase-todo' && Array.isArray(cargs.rows), 'D20 预检参数带 cwd、动作与展开的载荷')
+  const wargs: any = leaf.vcRebaseWriteArgsOf('C:/repo', 'rebase-onto', { oldBase: 'old', newBase: 'new' }, 'ticket-1', 'req-1')
+  check(wargs.ticketId === 'ticket-1' && wargs.requestId === 'req-1' && wargs.confirmed === true && wargs.oldBase === 'old', 'D21 执行参数带票号、请求号、显式确认与载荷')
+  eq(JSON.stringify(leaf.vcRebaseReadArgsOf('C:/repo', 'rebase-window', { base: 'main' })), JSON.stringify(leaf.vcRebaseCheckArgsOf('C:/repo', 'rebase-window', { base: 'main' })), 'D22 读参数与预检同形（同一条电话口径）')
+  const rows0: any[] = leaf.vcRebaseRowsOf([{ oid: ROW_OID, subject: 'third' }, { oid: BASE_OID, subject: 'second' }])
+  check(rows0.length === 2 && rows0[0].action === 'pick' && rows0[0].message === '' && rows0[1].oid === BASE_OID, 'D23 窗口提交整理成待办行：默认保留、说明为空')
+  const moved: any[] = leaf.vcRebaseMoveOf(rows0, 1, 'move-up')
+  eq(moved[0].oid, BASE_OID, 'D24 上移把这一行换到前一行')
+  eq(leaf.vcRebaseMoveOf(rows0, 0, 'move-up')[0].oid, rows0[0].oid, 'D25 已经在最上面时上移原样返回')
+  eq(leaf.vcRebaseMoveOf(rows0, 1, 'move-down')[1].oid, rows0[1].oid, 'D26 已经在最下面时下移原样返回')
+  const patched: any[] = leaf.vcRebaseRowPatchOf(todoVals.rows, 0, { action: 'squash' })
+  check(patched[0].action === 'squash' && patched[0].message === '新说明', 'D27 改动作不动说明（字段原样保留）')
+  eq(leaf.vcRebaseTargetOf('rebase-onto', { oldBase: 'old', newBase: 'new' }, fakeT), 'old → new', 'D28 换基座确认卡写清新旧基座')
+  const todoTarget: string = leaf.vcRebaseTargetOf('rebase-todo', todoVals, fakeT)
+  check(todoTarget.indexOf('main') >= 0 && todoTarget.indexOf('2') >= 0, 'D29 待办确认卡写清基座与行数（实测 ' + todoTarget + '）')
+  eq(leaf.vcRebaseRowTextOf({ oid: ROW_OID, subject: 'third' }), ROW_OID.slice(0, 10) + ' third', 'D30 待办行文本是短提交号加说明')
+  const cleanPage: any = leaf.vcRebasePageNode(fakeH, fakeT, { rebase: { state: { state: null, branch: 'main', headOid: BASE_OID, updateRefs: false }, values: todoVals, rows: {}, handlers: {} } })
+  eq(attrAll(cleanPage, 'data-vc-rebase-page').length, 1, 'D31 页面节点带页面标记')
+  eq(attrAll(cleanPage, 'data-vc-rebase-op-count')[0].props['data-vc-rebase-op-count'], '9', 'D32 页面节点声明九条动作')
+  eq(attrAll(cleanPage, 'data-vc-rebase-primary').length, 4, 'D33 干净状态有四颗可执行按钮（四条写动作）')
+  eq(attrAll(cleanPage, 'data-vc-rebase-hidden').length, 5, 'D34 五条只读动作不画执行按钮，只画「不在这里做」的说明')
+  const busyPage: any = leaf.vcRebasePageNode(fakeH, fakeT, { rebase: { state: { state: 'rebase', branch: 'main', headOid: BASE_OID, updateRefs: false }, values: {}, rows: {}, handlers: {} } })
+  eq(attrAll(busyPage, 'data-vc-rebase-primary').length, 0, 'D35 变基进行中一颗写动作按钮都不画（先处理冲突）')
+  const refsPage: any = leaf.vcRebasePageNode(fakeH, fakeT, { rebase: { state: { state: null, updateRefs: true }, values: {}, rows: {}, handlers: {} } })
+  eq(attrAll(refsPage, 'data-vc-rebase-updaterefs').length, 1, 'D36 开着 updateRefs 时页面顶上说清这件事')
+  eq(attrAll(refsPage, 'data-vc-rebase-primary').length, 0, 'D37 开着 updateRefs 时四条写动作都不画')
+  const rowPage: any = leaf.vcRebasePageNode(fakeH, fakeT, { rebase: { state: { state: null }, values: {}, rows: {}, handlers: {}, todoRows: 0 } })
+  check(rowPage !== null, 'D38 没有待办行时页面仍能画（空清单不崩）')
+  const listPage: any = leaf.vcRebasePageNode(fakeH, fakeT, {
+    rebase: {
+      state: { state: null, updateRefs: false },
+      values: { base: 'main' },
+      rows: [{ oid: ROW_OID, subject: 'third', action: 'pick', message: '' }, { oid: BASE_OID, subject: 'second', action: 'reword', message: '' }],
+      handlers: {},
+    },
+  })
+  eq(attrAll(listPage, 'data-vc-rebase-row').length, 2, 'D39 待办窗口两行都画出来')
+  eq(attrAll(listPage, 'data-vc-rebase-row-action').length, 2, 'D40 每行都有动作下拉')
+  const firstSelect: any = attrAll(listPage, 'data-vc-rebase-row-action')[0]
+  eq((firstSelect.children || []).length, 5, 'D41 动作下拉五个改写动词')
+  eq(attrAll(listPage, 'data-vc-rebase-message').length, 1, 'D42 只有改说明那一行出现说明输入框')
+  const upBtns: any[] = attrAll(listPage, 'data-vc-rebase-move').filter(function (n: any) { return n.props['data-vc-rebase-move'] === 'up' })
+  check(upBtns.length === 2 && upBtns[0].props.disabled === true && upBtns[1].props.disabled === false, 'D43 上移按钮在第一行禁用、第二行可用')
+  const downBtns: any[] = attrAll(listPage, 'data-vc-rebase-move').filter(function (n: any) { return n.props['data-vc-rebase-move'] === 'down' })
+  check(downBtns.length === 2 && downBtns[0].props.disabled === false && downBtns[1].props.disabled === true, 'D44 下移按钮在最后一行禁用')
+  const readsPage: any = leaf.vcRebasePageNode(fakeH, fakeT, {
+    rebase: {
+      state: { state: null, updateRefs: false },
+      values: { base: 'main', oldBase: 'old', newBase: 'new' },
+      rows: {},
+      handlers: {},
+      reads: {
+        window: { base: 'main', commits: [{ oid: ROW_OID, subject: 'third' }], commitCount: 1 },
+        onto: { oldBase: 'old', newBase: 'new', moved: [{ oid: ROW_OID, subject: 'third' }], movedCount: 1, incomingCount: 2 },
+        pairs: { pairs: [{ oid: ROW_OID, kind: 'fixup', targetOid: BASE_OID }] },
+        merges: { mergeCommits: [], count: 3 },
+      },
+    },
+  })
+  eq(attrAll(readsPage, 'data-vc-rebase-read').length, 4, 'D45 三块只读预览都画出来（窗口/范围/吸收对/合并代价四块卡片）')
+  eq(attrAll(readsPage, 'data-vc-rebase-window-count')[0].props['data-vc-rebase-window-count'], '1', 'D46 窗口预览带提交条数')
+  eq(attrAll(readsPage, 'data-vc-rebase-incoming-count')[0].props['data-vc-rebase-incoming-count'], '2', 'D47 换基座范围分开数搬走与带进来的提交')
+  eq(attrAll(readsPage, 'data-vc-rebase-pair-count')[0].props['data-vc-rebase-pair-count'], '1', 'D48 自动吸收先列出将吸收的提交对')
+  eq(attrAll(readsPage, 'data-vc-rebase-merge-count')[0].props['data-vc-rebase-merge-count'], '3', 'D49 保留合并结构的代价先给用户看')
+  const confirmPage: any = leaf.vcRebasePageNode(fakeH, fakeT, {
+    rebase: {
+      state: { state: null, updateRefs: false },
+      values: todoVals,
+      rows: {},
+      handlers: {},
+      confirmOp: 'rebase-todo',
+      ticketId: 'ticket-1',
+      confirm: { wont: '不改远端', reversible: '可用 reflog 找回', verb: '变基' },
+    },
+  })
+  eq(attrAll(confirmPage, 'data-vc-rebase-confirm').length, 1, 'D50 四条写动作都要显式确认后才画确认卡')
+  eq(attrAll(confirmPage, 'data-vc-rebase-confirm-seg').length, 4, 'D51 确认卡四段齐全（会动什么、不会做什么、能不能回退、按哪个词执行）')
+  check(attrAll(confirmPage, 'data-vc-rebase-confirm-cancel').length === 1 && attrAll(confirmPage, 'data-vc-rebase-confirm-go').length === 1, 'D52 确认卡有取消与确认两颗按钮')
+  const okPage: any = leaf.vcRebasePageNode(fakeH, fakeT, { rebase: { state: {}, rows: { 'rebase-onto': { result: { op: 'rebase-onto', ok: true, conflicted: false, state: 'clean' } } }, handlers: {} } })
+  eq(attrAll(okPage, 'data-vc-rebase-result-ok')[0].props['data-vc-rebase-result-ok'], '1', 'D53 成功结果条带成功标记')
+  const conflictPage: any = leaf.vcRebasePageNode(fakeH, fakeT, { rebase: { state: { state: 'rebase' }, rows: { 'rebase-todo': { result: { op: 'rebase-todo', ok: true, conflicted: true, state: 'rebase' } } }, handlers: {} } })
+  const conflictTexts: string[] = textAll(conflictPage).join('|')
+  check(conflictTexts.indexOf('result.conflicted') >= 0 && conflictTexts.indexOf('state.rebase') >= 0, 'D54 撞冲突时结果条如实说停在变基里，不报成功（实测 ' + conflictTexts + '）')
+  const failPage: any = leaf.vcRebasePageNode(fakeH, fakeT, { rebase: { state: {}, rows: { 'rebase-merges': { result: { op: 'rebase-merges', ok: false, error: { reason: 'todo-mismatch', kind: 'env', message: 'fatal: 原话' } } } }, handlers: {} } })
+  const failTexts: string[] = textAll(failPage).join('|')
+  check(attrAll(failPage, 'data-vc-rebase-result-ok')[0].props['data-vc-rebase-result-ok'] === '0' && failTexts.indexOf('fatal: 原话') >= 0, 'D55 失败结果条带失败标记与 git 原话')
+  const clickable: any[] = findAll(cleanPage, function (n: any) { return n.props && n.props['data-log'] !== undefined })
+  check(clickable.length > 0 && clickable.every(function (n: any) { return String(n.props['data-log']).indexOf('.') > 0 && n.props['data-press'] === 'button' }), 'D56 每个可点控件都有 data-log（小写点分名字）与 data-press（实测 ' + clickable.length + ' 个）')
+  function stripComments(text: string) { return String(text).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '') }
+  check(/[\u4e00-\u9fff]/.test(stripComments(clientPageSrc)) === false, 'D57 页面叶子除注释外没有中文字面量（可见文字全走词条）')
+  check(/[\u4e00-\u9fff]/.test(stripComments(clientOpsSrc)) === false, 'D58 动作叶子除注释外没有中文字面量')
+
+  const yamlText: string = fs.readFileSync(path.join(ROOT, 'config/copy/vcrebase.yaml'), 'utf8')
+  const yamlKeys: string[] = []
+  const yamlRe = /^\s{2}(vc\.rebase\.[A-Za-z0-9.]+):/gm
+  let yamlHit: any = yamlRe.exec(yamlText)
+  while (yamlHit) { if (yamlKeys.indexOf(yamlHit[1]) < 0) yamlKeys.push(yamlHit[1]); yamlHit = yamlRe.exec(yamlText) }
+  check(yamlKeys.length >= 60, 'D59 变基页词条真源至少六十条（实测 ' + yamlKeys.length + ' 条）')
+  check(yamlKeys.every(function (k: string) { return (yamlText.split(k + ':').length - 1) === 2 }), 'D60 每个词条键在 zh 与 en 两段里各出现一次')
+  const localeText: string = localeDataText()
+  const lostKeys: string[] = yamlKeys.filter(function (k: string) { return localeText.indexOf("'" + k + "'") < 0 })
+  eq(lostKeys.length, 0, 'D61 全部词条都进了界面词表生成物（缺：' + lostKeys.join(',') + '）')
+  const requiredKeys: string[] = []
+  ;['vc.rebase.state.clean', 'vc.rebase.state.merge', 'vc.rebase.state.rebase', 'vc.rebase.state.cherryPick', 'vc.rebase.state.revert'].forEach(function (k: string) { requiredKeys.push(k) })
+  ;['pick', 'reword', 'squash', 'fixup', 'drop', 'moveUp', 'moveDown'].forEach(function (a: string) { requiredKeys.push('vc.rebase.action.' + a) })
+  ;['rebaseTodo', 'rebaseOnto', 'rebaseAutosquash', 'rebaseMerges'].forEach(function (o: string) { requiredKeys.push('vc.rebase.op.' + o); requiredKeys.push('vc.rebase.op.verb.' + o) })
+  ;['ok', 'fail', 'conflicted', 'retry'].forEach(function (k: string) { requiredKeys.push('vc.rebase.result.' + k) })
+  ;['base', 'oldBase', 'newBase'].forEach(function (k: string) { requiredKeys.push('vc.rebase.field.' + k) })
+  requiredKeys.push('vc.rebase.pageTitle', 'vc.rebase.hint', 'vc.rebase.hidden', 'vc.rebase.updateRefsOn', 'vc.rebase.target.todo', 'vc.rebase.confirm.title', 'vc.rebase.confirm.cancel', 'vc.rebase.confirm.go', 'vc.rebase.confirm.what')
+  ;['window', 'ontoRange', 'pairs', 'merges'].forEach(function (k: string) { requiredKeys.push('vc.rebase.read.' + k) })
+  const missingKeys: string[] = requiredKeys.filter(function (k: string) { return yamlKeys.indexOf(k) < 0 })
+  eq(missingKeys.length, 0, 'D62 状态/动作/确认卡/结果/字段/预览该有的词条键都登记了（缺：' + missingKeys.join(',') + '）')
+  const pageStaticKeys: string[] = []
+  const tRe = /t\('([^']+)'/g
+  let tHit: any = tRe.exec(clientPageSrc)
+  while (tHit) { if (pageStaticKeys.indexOf(tHit[1]) < 0) pageStaticKeys.push(tHit[1]); tHit = tRe.exec(clientPageSrc) }
+  const unknownPageKeys: string[] = pageStaticKeys.filter(function (k: string) { return k.indexOf('vc.writeErr.') !== 0 && k.charAt(k.length - 1) !== '.' && yamlKeys.indexOf(k) < 0 && requiredKeys.indexOf(k) < 0 })
+  eq(unknownPageKeys.length, 0, 'D63 页面里用到的静态词条键都在真源里（缺：' + unknownPageKeys.join(',') + '）')
+  const shellSource: string = sourceText('src/client/views/versionControl/vcShellPages.ts')
+  check(shellSource.indexOf('declare function vcRebasePageNode') >= 0, 'D64 页面壳声明了变基页叶子')
+  has(shellSource, "page === 'rebase'", 'D65 页面壳按页 id 挂载变基页')
+  has(shellSource, 'rebase: opts.rebase', 'D66 页面壳把变基页数据透传下去')
+  const buildSource: string = sourceText('scripts/build.mts')
+  check(buildSource.indexOf("id: 'vcRebaseOps'") >= 0 && buildSource.indexOf("id: 'vcRebasePage'") >= 0, 'D67 构建清单登记了变基页两片叶子')
+  const clientIndexSource: string = sourceText('src/client/index.ts')
+  eq((clientIndexSource.match(/leaf:vcRebaseOps/g) || []).length, 1, 'D68 客户端入口有 vcRebaseOps 的叶子标记且只有一处')
+  eq((clientIndexSource.match(/leaf:vcRebasePage/g) || []).length, 1, 'D69 客户端入口有 vcRebasePage 的叶子标记且只有一处')
+
+  // 反证自检：故意把客户端动作名单改坏一处，对账必须报出来。
+  const tampered: any[] = leaf.VC_REBASE_OPS.map(function (m: any) {
+    if (m.op === 'rebase-merges') return Object.assign({}, m, { capId: '5.9' })
+    return m
+  })
+  const tamperProblems: string[] = rebaseReconcile(sharedRows, tampered)
+  eq(tamperProblems.length >= 1, true, 'D70 反证：客户端名单把 5.10 写成 5.9 时对账必须报错（实测 ' + tamperProblems.length + ' 条）')
+
+  console.log('  D 组完成：' + total + ' 条')
+
+  // ===== E 七个登记点与源码断言（写层不许自己起进程） =====
+  console.log('  E 登记点与源码断言')
+  const mountSource: string = sourceText('src/host/versionControlRebaseMount.ts')
+  has(mountSource, 'export function createRebaseMount', 'E1 装配外壳导出 createRebaseMount')
+  check(mountSource.indexOf('createRebaseScene') >= 0 && mountSource.indexOf('createRebaseCheck') >= 0 && mountSource.indexOf('createRebaseWrite') >= 0, 'E2 装配外壳懒加载并装起三片宿主叶子')
+  eq((mountSource.match(/loggedPhone\(/g) || []).length, 3, 'E3 装配外壳三条电话都走 loggedPhone（host.call 日志口径）')
+  const parentSource: string = sourceText('src/host/versionControl.ts')
+  has(parentSource, 'createRebaseMount', 'E4 父装配文件引入变基待办装配')
+  check(parentSource.indexOf('handleGitRebaseRead:') >= 0 && parentSource.indexOf('handleGitRebaseCheck:') >= 0 && parentSource.indexOf('handleGitRebaseWrite:') >= 0 && parentSource.indexOf('rebaseTickets:') >= 0, 'E5 父装配文件把三条电话与票据表挂到返回值上')
+  const hostIndexSource: string = sourceText('src/host/index.ts')
+  eq((hostIndexSource.match(/harness\.handle\('wf\.gitRebaseRead'/g) || []).length, 1, 'E6 宿主注册读电话且只有一处')
+  eq((hostIndexSource.match(/harness\.handle\('wf\.gitRebaseCheck'/g) || []).length, 1, 'E7 宿主注册预检电话且只有一处')
+  eq((hostIndexSource.match(/harness\.handle\('wf\.gitRebaseWrite'/g) || []).length, 1, 'E8 宿主注册执行电话且只有一处')
+  check(hostIndexSource.split('\n').length <= 400, 'E9 宿主入口仍守四百行上限（实测 ' + hostIndexSource.split('\n').length + ' 行）')
+  const timeoutsSource: string = sourceText('config/timeouts.yaml')
+  check(timeoutsSource.indexOf('vcRebaseReadTimeoutMs: 15000') >= 0 && timeoutsSource.indexOf('vcRebaseWriteTimeoutMs: 30000') >= 0, 'E10 超时配置登记了变基页两条（读 15 秒、写 30 秒）')
+  const genSource: string = sourceText('scripts/generate-time-config.mts')
+  check(genSource.indexOf("'vcRebaseReadTimeoutMs'") >= 0 && genSource.indexOf("'vcRebaseWriteTimeoutMs'") >= 0, 'E11 时间常量生成器登记了两条新键')
+  const timeGateSource: string = sourceText('tests/verify-time-config.ts')
+  check(timeGateSource.indexOf("key: 'vcRebaseReadTimeoutMs'") >= 0 && timeGateSource.indexOf("key: 'vcRebaseWriteTimeoutMs'") >= 0, 'E12 时间配置门禁登记了这两条引用')
+  has(sourceText('src/host/versionControlRebaseScene.ts'), 'VC_REBASE_READ_TIMEOUT_MS', 'E13 读数叶子用登记过的读超时常量')
+  has(sourceText('src/host/versionControlRebaseWrite.ts'), 'VC_REBASE_WRITE_TIMEOUT_MS', 'E14 执行叶子用登记过的写超时常量')
+  const reasonIds: string[] = ['update-refs-on', 'bad-todo', 'todo-too-long', 'todo-mismatch', 'missing-message', 'bad-action']
+  const missingReasons: string[] = reasonIds.filter(function (r: string) { return String(reasonsMod.writeHintFor(r)) === String(reasonsMod.writeHintFor('unknown-write-failure')) })
+  eq(missingReasons.length, 0, 'E15 六条新理由都在理由表里且各有话术（缺：' + missingReasons.join(',') + '）')
+  const checkLeafSource: string = sourceText('src/host/versionControlRebaseCheck.ts')
+  check(WRITE_IDS.every(function (id: string) { return checkLeafSource.indexOf(id) >= 0 }), 'E16 预检叶子认得四条写动作')
+  check(READ_IDS.every(function (id: string) { return checkLeafSource.indexOf(id) >= 0 }), 'E17 预检叶子认得五条只读动作')
+  const writeLeafSource: string = sourceText('src/host/versionControlRebaseWrite.ts')
+  check(writeLeafSource.indexOf('GIT_SEQUENCE_EDITOR') >= 0 && writeLeafSource.indexOf('gitEditor') >= 0, 'E18 执行叶子把待办文件用 GIT_SEQUENCE_EDITOR 覆盖（规格第 7 节编辑器交接）')
+  check(writeLeafSource.indexOf("'update-refs-on'") >= 0, 'E19 执行叶子在签票后重验 updateRefs（现场变化零进程拒绝）')
+  const sceneSource: string = sourceText('src/host/versionControlRebaseScene.ts')
+  check(sceneSource.indexOf('--autosquash') >= 0 && sceneSource.indexOf('--rebase-merges') >= 0, 'E20 读数叶子用干跑列出自动吸收对与合并代价')
+  check(sceneSource.indexOf('rebase.updateRefs') >= 0, 'E21 读数叶子读仓库的 rebase.updateRefs 配置')
+  const ledger: any = await loadModule('src/shared/version-control/src/capability-ledger.js')
+  const rebaseCaps: any[] = ledger.CAPABILITIES.filter(function (c: any) { return c.page === 'rebase' && ['5.6', '5.7', '5.8', '5.10'].indexOf(c.id) >= 0 })
+  eq(rebaseCaps.length, 4, 'E22 能力账本里这四条都归变基待办页')
+  check(rebaseCaps.every(function (c: any) { return c.primaryEntry === '变基待办' }), 'E23 四条的主入口都是变基待办')
+  const noLedgerIds: string[] = ['5.6', '5.7', '5.8', '5.10'].filter(function (id: string) { return !rebaseCaps.some(function (c: any) { return c.id === id }) })
+  eq(noLedgerIds.length, 0, 'E24 账本覆盖四条能力号（缺：' + noLedgerIds.join(',') + '）')
+  const hostLeaves: string[] = ['src/host/versionControlRebaseScene.ts', 'src/host/versionControlRebaseCheck.ts', 'src/host/versionControlRebaseWrite.ts', 'src/host/versionControlRebaseMount.ts']
+  const selfSpawn: string[] = hostLeaves.filter(function (rel: string) { const s: string = sourceText(rel); return s.indexOf('child_process') >= 0 || /\.spawn\s*\(/.test(s) })
+  eq(selfSpawn.length, 0, 'E25 写层四片叶子都不自己起进程（全部走父文件注入的 runPinned；越界：' + selfSpawn.join(',') + '）')
+  const settingsGateSource: string = sourceText('tests/verify-settings-phones.ts')
+  check(settingsGateSource.indexOf('check(nPhones === 91') >= 0, 'E26 宿主电话计数门禁登记到九十一条')
+  const sameLayer: string = sourceText('tests/same-layer-baseline.json')
+  const rebaseEntryFiles: string[] = ['versionControlRebaseMount.ts', 'versionControlRebaseScene.ts', 'versionControlRebaseCheck.ts', 'versionControlRebaseWrite.ts'].filter(function (name: string) { return sameLayer.indexOf(name) >= 0 })
+  eq(rebaseEntryFiles.length, 4, 'E27 同层引用基线登记了变基页四片的装配扇入（缺：' + rebaseEntryFiles.join(',') + '）')
+  const vcWriteSource: string = sourceText('src/client/views/versionControl/vcWrite.ts')
+  check(reasonIds.every(function (r: string) { return vcWriteSource.indexOf("'" + r + "':") >= 0 }), 'E28 界面失败话术表登记了六条新理由（与写页同源）')
+  const gateSelf: string = sourceText('tests/verify-1586-rebase.ts')
+  has(gateSelf, '// 门禁归属: src/shared/version-control/src/rebase-ops.ts', 'E29 本门禁文件头写明归属源码')
+  has(gateSelf, 'printGateResult(GATE, total, failed)', 'E30 本门禁按约定输出 GATE-RESULT')
+
+  // 反证自检：账本缺一条能力号时对账必须报出来。
+  function ledgerGap(ids: string[], caps: any[]) {
+    return ids.filter(function (id: string) { return !caps.some(function (c: any) { return c.id === id }) })
+  }
+  eq(ledgerGap(['5.6', '5.7', '5.8', '5.10'], rebaseCaps).length, 0, 'E31 账本对账在四齐时没有缺口')
+  eq(ledgerGap(['5.6', '5.7', '5.8', '5.10'], rebaseCaps.filter(function (c: any) { return c.id !== '5.10' })).join(','), '5.10', 'E32 反证：把 5.10 从账本拿掉，对账必须点名它')
+
+  console.log('  E 组完成：' + total + ' 条')
 
 }
 
