@@ -155,13 +155,14 @@ export type Review = {
  * @property {string} key 规范 id（github=String(number)；markdown='<NN>'；gitlab=String(iid)）；
  *    解析范围是**引用方所在 effort**（本地 Markdown 的 `Blocked by:` 只在同一 effort 里找同号票）
  * @property {string} title
- * @property {State} state 归一化两态（open/closed）
+ * @property {State} [state] 归一化两态（open/closed）；缺省 = 状态未知（例如本地 Markdown 的阻塞目标票读不到），
+ *    消费方不得当成 open，也不得因此丢掉这条边
  * @property {IssueType} [type] 边上带 type（指向 map 还是票）
  */
 export type IssueRef = {
   key: string
   title: string
-  state: State
+  state?: State
   type?: IssueType
 }
 
@@ -201,7 +202,7 @@ export type IssueRef = {
  * @property {Milestone} [milestone]
  * @property {CustomField[]} [customFields] 结构化、说明性，绝不驱动 deck 逻辑
  * @property {ClosedReason} [reason] closed 时给原因（或 EMPTY=关了但没说明）；open 依后端支持给 ''/省略
- * @property {IssueRef[]} [blockedBy] 谁阻塞我（入边；唯一真源）
+ * @property {IssueRef[]} [blockedBy] 谁阻塞我（入边；唯一真源）；引用上的 state 可缺省 = 不知道目标状态（#1676）
  * @property {Comment[]} [comments] 决策记录
  * @property {boolean} [isPullRequest] 是不是拉取请求。有拉取请求能力的后端在不是拉取请求时写 false，
  *    只有没有该能力的后端才省略这个字段。诊断日志里前者按值记录，后者记为缺少该能力（MISSING）。
@@ -245,6 +246,8 @@ export type Issue = {
  * @property {string} refId 稳定标识（github/gitlab='owner/name'；markdown='<path>'）；后端自解析
  * @property {string} name 显示名
  * @property {string} url 远端 URL；本地=''
+ * @property {string} [host] 远端网页端的 origin（scheme://host[:port]，例如 https://gitlab.example.com、
+ *    http://10.1.2.3:8086）。可选：本地后端与默认域名后端省略；给出来时拼链接以它为准。
  * @property {string} [effortId] 可选寻址范围：省略 = 该仓库全部 effort（列表用）；
  *    给出 = 只针对这一个 effort 读/写（本地 Markdown 的 `.scratch/<effort>/` 目录名）。
  *    单 effort 后端忽略本字段。放在 RepositoryRef 而不是每个 op 的参数里，是因为 op 签名已经定版、
@@ -255,6 +258,8 @@ export type RepositoryRef = {
   refId: string
   name: string
   url: string
+  /** 远端网页端的 origin（scheme://host[:port]）；本地后端与默认域名后端省略。 */
+  host?: string
   effortId?: string
 }
 

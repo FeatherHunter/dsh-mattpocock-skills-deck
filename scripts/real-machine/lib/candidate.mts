@@ -19,6 +19,7 @@ import path from 'node:path'
 import zlib from 'node:zlib'
 import { findDshPaths } from './paths.mts'
 import { assert, dirStats, ensureDir, exists, sha256File, sha256Text } from './util.mts'
+import { digestOfFiles } from '../../release-integrity.mts'
 
 export interface GitState {
   commit: string
@@ -81,10 +82,17 @@ export function gitState(repo: string): GitState {
   }
 }
 
-/** 跑一次只产出发行制品的构建（node scripts/build.mts --pkg-only）。失败时把 stderr 末尾带出来。 */
-export function buildPackage(options: { repo: string; timeoutMs?: number }): { argv: string[]; exitCode: number | null; elapsedMs: number; stdoutTail: string; stderrTail: string } {
+/**
+ * 跑一次只产出发行制品的构建（node scripts/build.mts --pkg-only）。失败时把 stderr 末尾带出来。
+ *
+ * env 用来把「这次构建要写进产物的提交」明确交给构建（DSW_BUILD_COMMIT）；不传时构建自己读当前 HEAD。
+ * force 对应构建的 --force：构建缓存只按输入文件内容判断有没有变，不认环境变量，所以冻结候选时必须
+ * 强制重建——否则一次缓存命中会让产物里留着上一轮的构建提交，候选身份就对不上了（#1766）。
+ */
+export function buildPackage(options: { repo: string; timeoutMs?: number; env?: Record<string, string | undefined>; force?: boolean }): { argv: string[]; exitCode: number | null; elapsedMs: number; stdoutTail: string; stderrTail: string } {
   const argv = [path.join(options.repo, 'scripts', 'build.mts'), '--pkg-only']
-  const result = run(process.execPath, argv, { cwd: options.repo, timeoutMs: options.timeoutMs || 20 * 60 * 1000 })
+  if (options.force) argv.push('--force')
+  const result = run(process.execPath, argv, { cwd: options.repo, env: { ...process.env, ...(options.env || {}) }, timeoutMs: options.timeoutMs || 20 * 60 * 1000 })
   const stdoutTail = result.stdout.trim().split('\n').slice(-25).join('\n')
   const stderrTail = result.stderr.trim().split('\n').slice(-25).join('\n')
   assert(result.status === 0, '构建失败（退出码 ' + String(result.status) + '）。stderr 末尾：\n' + stderrTail)
@@ -175,6 +183,17 @@ export function manifestDigest(value: unknown): string {
   return sha256Text(stableStringify(value))
 }
 
+/**
+ * 包内容指纹：不含提交与版本的逐文件清单指纹，算法与 release-integrity 的 digestOfFiles 完全一致。
+ *
+ * 为什么要单独有它：manifestDigest 里包含了版本号与提交，适合回答「这是不是同一次冻结」；
+ * 发布前对账要回答的是「要发的字节与候选包的内容是不是同一份」，版本号与提交不同不该算内容变化。
+ * 两边必须用同一个算法，否则发布前对账永远对不上。
+ */
+export function packageFileDigest(files: CandidateFile[]): string {
+  return digestOfFiles(files.map((file) => ({ path: file.path, size: file.bytes, sha256: file.sha256 })))
+}
+
 /** 读 package.json 里的版本号；调用方用它判断「这次冻结的是哪一版」。 */
 export function readPackageVersion(packageDir: string): string {
   const file = path.join(packageDir, 'package.json')
@@ -186,6 +205,15 @@ export function readPackageVersion(packageDir: string): string {
 /** 从 client.js 源码里读界面版本常量（形如 DSW_VERSION = "v1.2.3"）。 */
 export function readVersionConstant(text: string): string | null {
   const match = /DSW_VERSION\s*=\s*"([^"]+)"/.exec(text)
+  return match ? match[1] : null
+}
+
+/**
+ * 从 client.js 源码里读构建提交（形如 DSW_BUILD_COMMIT = "<40 位提交>"）。
+ * 读不到返回 null：老产物没有这个常量，调用方要把它当成「无法证明身份」而不是通过。
+ */
+export function readBuildCommit(text: string): string | null {
+  const match = /DSW_BUILD_COMMIT\s*=\s*"([0-9a-f]{40})"/.exec(text)
   return match ? match[1] : null
 }
 

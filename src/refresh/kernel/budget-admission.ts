@@ -10,6 +10,7 @@
 // 而数字只有 host-budget.ts 一处真源（同一件事不写两遍）。
 
 import { OPERATION_ENCYCLOPEDIA } from '../../tracker/contract/operations-encyclopedia.js'
+import type { ReadSpendChannel } from '../../tracker/contract/operations-encyclopedia.js'
 import type { BackendBudgetModel, BudgetReading, BucketLevel } from '../../tracker/contract/budget-model.js'
 
 /**
@@ -85,6 +86,14 @@ export interface BudgetDecision {
   kind?: 'hard-cap' | 'rate-limit'
   /** 给人看的一句话；拒绝与推迟都要有，调用方可以原样转给 AI。 */
   message?: string
+  /**
+   * 放行时交出的读渠道计划：这一次允许走哪些渠道、按什么顺序（#1765）。
+   *
+   * 只有百科里的读操作会有这一格；写操作与名单外的操作一律没有（undefined），
+   * 它们的通道路由不走这张计划。房间只执行、不再比较剩余额度：计划里没有的渠道一次都不试，
+   * 计划里有的按顺序换。这样「闸按哪一族放行」与「实际花哪一族」就是同一张计划，不会再错位。
+   */
+  channels?: readonly ReadSpendChannel[]
 }
 
 /**
@@ -101,26 +110,35 @@ export function isWriteOp(op: string): boolean {
 }
 
 /**
- * 两桶后端里「读」那几条：从操作百科的记账口径派生，不再写第二份名单（#1683）。
+ * 读操作的花费渠道计划：从操作百科派生，不在本文件手写第二份名单（#1683、#1765）。
  *
- * 判据只有一个：百科里标成读、且 budget 写着 'graphql' 的条目。那几条读的额度花在 GraphQL
- * 点数族上（探测、列表、单票、翻页、子票、标签清单、计数），名单外的一律按旧行为两族都看。
+ * 百科里每条读操作写着 `spend`：这一次读真正会花哪几族额度、按什么顺序（见 ReadSpendPlan）。
+ * 裁决只认这张表，不再按操作名分「读全走 GraphQL」——那会把 REST-only 的探活、当前用户、
+ * 仓库权限、标签清单在 GraphQL 见底时误拦，也会让 GraphQL 主路 + REST 兜底的列表、单票、
+ * 依赖在 GraphQL 见底时整条被拦（#1765 的两个主症状）。
  *
- * 为什么从百科派生而不是继续手写：名录里每条读操作的渠道与结果类型已经收进百科一处，
- * 额度闸再手写一份「哪些读只花 GraphQL」就又多了一处会漂移的说法。派生之后，新增读操作
- * 只要在百科里写好记账口径，这里自动跟上。
- *
- * 注意不要把「渠道」当成记账口径用：百科的 channels 说的是这条读**允许**走哪些通道，
- * budget 说的是这条读**算哪一族额度**，两者故意分开。今天有几条读（get、list 等）渠道是
- * 两端任一，但额度只记 GraphQL 族 —— 按 channels 派生会让这些读在 REST 见底时被误拦，
- * 那是另一张票才改的行为。
+ * 为什么必须从百科派生：同一条读操作「走哪条渠道、花哪一族额度」只该有一处说法。
+ * 额度闸再手写一份「哪些读只花 GraphQL」，就又多一处会漂移的说法；派生之后，新增读操作
+ * 只要在百科里写好花费计划，这里自动跟上。门禁 `tests/verify-operation-catalog.ts`
+ * 与 `tests/verify-1765-read-channel-plan.ts` 钉住这张表。
  */
-const GRAPHQL_READ_OPS: readonly string[] = (
-  Object.keys(OPERATION_ENCYCLOPEDIA) as (keyof typeof OPERATION_ENCYCLOPEDIA)[]
-).filter((op) => {
-  const profile = OPERATION_ENCYCLOPEDIA[op]
-  return profile.kind === 'read' && profile.budget === 'graphql'
-})
+const READ_SPEND_PLANS: Record<string, readonly ReadSpendChannel[]> = (function (): Record<string, readonly ReadSpendChannel[]> {
+  const table: Record<string, readonly ReadSpendChannel[]> = {}
+  const names = Object.keys(OPERATION_ENCYCLOPEDIA) as (keyof typeof OPERATION_ENCYCLOPEDIA)[]
+  for (const op of names) {
+    const profile = OPERATION_ENCYCLOPEDIA[op]
+    if (profile.kind === 'read') table[op] = profile.spend
+  }
+  return table
+})()
+
+/**
+ * 这条操作的花费渠道计划；不是百科里的读操作（写操作、名单外的操作）返回 null。
+ * 返回 null 的调用方按老行为两族都看，见 familiesOfOp 的兜底分支。
+ */
+export function readSpendPlanOf(op: string): readonly ReadSpendChannel[] | null {
+  return READ_SPEND_PLANS[op] || null
+}
 
 /**
  * 写操作按真实出站通道分四份名单（#1418 P1 复核；2026-10-25 用 GH_DEBUG=api 实测 gh CLI 的请求落点，
@@ -158,17 +176,26 @@ export interface OpFamilyChoice {
 }
 
 /**
- * 这次调用会花哪几族额度（#1418）。
+ * 这次调用会花哪几族额度（#1418、#1765）。
  *
- * 判定只认「这一次真正会出站的通道」，不认「写/读」这个大方向：读操作全走 GraphQL 点数；
- * 写操作里建票两族都要（写 REST、建前回查 GraphQL），改票 / 标签 / 认领 / 关票 / 重开 / 父子边
- * 只有 GraphQL 一条路，评论与阻塞边两条路都走。
+ * 判定只认「这一次真正会出站的通道」，不认「写/读」这个大方向：
+ *   - 写操作照 #1418 的三份名单：建票两族都要（写 REST、建前回查 GraphQL），改票 / 标签 /
+ *     认领 / 关票 / 重开 / 父子边只有 GraphQL 一条路，评论与阻塞边两条路都走；
+ *   - 读操作照百科的 `spend` 花费渠道计划：单渠道读（`['rest']` 或 `['graphql']`）缺这一族就不行，
+ *     双渠道读（`['graphql', 'rest']`）两族任走一条即可，本地读（`['local']`）不花远端额度；
+ *   - 名单外的操作仍按两族都看的保守口径。
  */
 export function familiesOfOp(op: string): OpFamilyChoice {
   if (BOTH_WRITE_OPS.indexOf(op) >= 0) return { all: ['rest', 'graphql'], anyOf: [] }
   if (GRAPHQL_WRITE_OPS.indexOf(op) >= 0) return { all: ['graphql'], anyOf: [] }
   if (DUAL_WRITE_OPS.indexOf(op) >= 0) return { all: [], anyOf: ['rest', 'graphql'] }
-  if (GRAPHQL_READ_OPS.indexOf(op) >= 0) return { all: ['graphql'], anyOf: [] }
+  const spend = readSpendPlanOf(op)
+  if (spend) {
+    const network = spend.filter(function (family: ReadSpendChannel): boolean { return family !== 'local' })
+    if (network.length === 0) return { all: [], anyOf: [] }
+    if (network.length === 1) return { all: [network[0]], anyOf: [] }
+    return { all: [], anyOf: network.slice() }
+  }
   return { all: ['rest', 'graphql'], anyOf: [] }
 }
 
@@ -280,7 +307,10 @@ export function decideByBudget(input: BudgetAdmitInput, limits: BudgetLimits): B
   }
 
   // c. 读数未知：不拦事，也不把未知当成 0。管线会在日志里记下这一条理由。
+  //    读操作仍交回百科的全计划：未知不等于见底，房间照计划先主路后兜底，不会因为未知就少一条路。
   if (reading.known === false) {
+    const unknownPlan = readSpendPlanOf(op)
+    if (unknownPlan) return { allowed: true, reason: 'reading-unknown', channels: unknownPlan.slice() }
     return { allowed: true, reason: 'reading-unknown' }
   }
 
@@ -302,6 +332,18 @@ export function decideByBudget(input: BudgetAdmitInput, limits: BudgetLimits): B
     const restLevel = levelOf(reading.buckets.rest)
     const graphqlLevel = levelOf(reading.buckets.graphql)
     const levelOfFamily = function (family: string): BucketLevel { return family === 'graphql' ? graphqlLevel : restLevel }
+    // 读操作的花费渠道计划：放行时要把「这一次允许走哪些渠道、按什么顺序」交出去（#1765）。
+    const plan = readSpendPlanOf(op)
+    // 本地读（readBudget）不花任何远端额度：两族都见底也放行，计划原样交回。
+    if (plan && plan.length > 0 && plan.every(function (family: ReadSpendChannel): boolean { return family === 'local' })) {
+      return { allowed: true, reason: 'sufficient', channels: plan.slice() }
+    }
+    // 计划里某一族花完这一笔后仍高于保底，才算这一族可用；可用渠道按计划顺序排。
+    const planChannelAvailable = function (family: string): boolean {
+      const level = levelOfFamily(family)
+      const floor = limits.aiToolFloor(level.limit)
+      return level.remaining - costOfFamily(family) > floor
+    }
     const families = familiesOfOp(op)
     for (let i = 0; i < families.all.length; i++) {
       const level = levelOfFamily(families.all[i])
@@ -317,6 +359,13 @@ export function decideByBudget(input: BudgetAdmitInput, limits: BudgetLimits): B
       const floors = levels.map(function (level: BucketLevel): number { return limits.aiToolFloor(level.limit) })
       const blocked = levels.every(function (level: BucketLevel, i: number): boolean { return level.remaining - costs[i] <= floors[i] })
       if (blocked) return { allowed: false, kind: 'rate-limit', reason: 'exhausted', message: exhaustedAnyMessage(families.anyOf, levels, costs, floors) }
+    }
+    if (plan) {
+      // 两族见底才拒、见底一族就只在计划里留另一族：房间拿到这张计划后不必再比较剩余额度。
+      const usable = plan.filter(function (family: ReadSpendChannel): boolean {
+        return family === 'local' || planChannelAvailable(family)
+      })
+      return { allowed: true, reason: 'sufficient', channels: usable }
     }
     return { allowed: true, reason: 'sufficient' }
   }

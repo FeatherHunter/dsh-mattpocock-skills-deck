@@ -93,8 +93,11 @@ export interface IssueRef {
   /** 规范 id：GitHub 是编号字符串，本地 Markdown 是两位数编号，GitLab 是 iid。 */
   key: string
   title: string
-  /** 归一化后的两态。 */
-  state: State
+  /** 归一化后的两态；**缺省表示状态未知**（例如本地 Markdown 的阻塞目标票读不到）。
+   *
+   *  缺省不是 open：消费方不得把它当成「还开着」去拦住别人的动作，也不得因此丢掉这条边。
+   *  只有明确读到状态时才写这一格。 */
+  state?: State
   /** 边上带种类时给出（指向地图还是票）。 */
   type?: IssueType
 }
@@ -224,6 +227,12 @@ export interface RepositoryRef {
   name: string
   /** 远端地址；本地是 `''`。 */
   url: string
+  /**
+   * 远端网页端的 origin（`scheme://host[:port]`，例如 `https://gitlab.example.com`、
+   * `http://10.1.2.3:8086`）。可选：本地后端、以及主机就是服务商默认域名的后端省略；
+   * 给出来时拼仓库/票链接以它为准，不要再换成服务商域名。
+   */
+  host?: string
   /**
    * 可选的寻址范围：省略 = 这个仓库的全部工作单元（列表用）；给出 = 只针对这一个工作单元读写。
    * 为什么放在仓库引用上、而不是给每个操作加一个参数：操作签名已经定版，

@@ -96,6 +96,96 @@ export function parseGitlabRepo(url: unknown): RepoKey | null {
 }
 
 /**
+ * 从一段远端地址里认出 GitLab 的网页端 origin（`scheme://host[:port]`）。
+ *
+ * 为什么需要这一条：仓库坐标只要 owner/name，但仓库链接与票链接要的是「这台实例的网址」。
+ * 自托管实例（尤其是 `http://10.1.2.3:8086/...` 这种 IP + 端口）与 gitlab.com 的域名不同，
+ * 链接不能写死服务商域名。远端地址里带着这个主机，认出来就学住（见 learnGitlabOrigin）。
+ *
+ * 规则：
+ *   - scp 写法 `git@host:path` → `https://host`（git 的 scp 写法走 ssh，网页端按 https）；
+ *   - `ssh://user@host[:port]/path` → `https://host`（ssh 的端口不是网页端口，丢掉）；
+ *   - `http(s)://host[:port]/path` → 原样保留 scheme 与端口（自托管常用自定义端口）；
+ *   - 认不出回 `''`，不猜。
+ *
+ * @param url 远端地址原文（多行只取第一行里像地址的那一段）
+ */
+export function parseGitlabOrigin(url: unknown): string {
+  if (typeof url !== 'string') return ''
+  const text = url.trim().split(/\r?\n/)[0].trim()
+  if (!text) return ''
+
+  // 形状一：带协议（https:// / http:// / ssh:// / git://）
+  const withScheme = text.match(/^([a-z][a-z0-9+.-]*):\/\/([^/\s]+)\/(.+)$/i)
+  if (withScheme) {
+    const scheme = withScheme[1].toLowerCase()
+    // 主机那一格可能带 user@ 与端口；user@ 与网页网址无关，去掉，端口留给 http(s) 保留。
+    const hostPort = withScheme[2].replace(/^[^@]*@/, '')
+    const host = hostPort.split(':')[0]
+    if (!host || (host.indexOf('.') < 0 && host !== 'localhost')) return ''
+    // ssh / git 是拉代码用的协议，不是网页；网页端按 https + 主机（ssh 端口不是网页端口）。
+    if (scheme === 'ssh' || scheme === 'git') return 'https://' + host
+    // http(s) 原样保留：自托管常带自定义端口。
+    return scheme + '://' + hostPort
+  }
+
+  // 形状二：scp 那种写法（git@host:path）——主机名后是冒号，不是协议。
+  const scpLike = text.match(/^[^\s/@]+@([^/\s:]+):(.+)$/)
+  if (scpLike) {
+    const host = scpLike[1]
+    if (!host || (host.indexOf('.') < 0 && host !== 'localhost')) return ''
+    return 'https://' + host
+  }
+
+  return ''
+}
+
+// 学到的网页端 origin：getRepoKey 认仓库时顺手记下，describe 是同步纯函数、起不了进程，
+// 靠它把「这个工作区属于哪台 GitLab 实例」带过去。键是规范化后的工作区目录。
+const LEARNED_ORIGIN_CAPACITY = 200
+const learnedOrigins = new Map<string, string>()
+
+/** 把 cwd 规范成缓存键：斜杠统一、去掉结尾斜杠、小写（Windows 路径大小写不敏感）。 */
+function originCacheKey(cwd: unknown): string {
+  if (typeof cwd !== 'string') return ''
+  return cwd.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+}
+
+/**
+ * 记下「这个工作区的远端网页端在哪」。
+ *
+ * 由 getRepoKey 在认仓库成功时调用（那一趟已经读过 remote / .git/config / glab，主机就在手里）；
+ * describe 只读同步、不能起进程，靠这份进程内缓存把主机带回链接。
+ *
+ * @param cwd 工作区目录
+ * @param url 带主机的远端地址（认不出 origin 时什么也不记）
+ */
+export function learnGitlabOrigin(cwd: unknown, url: unknown): void {
+  const key = originCacheKey(cwd)
+  const origin = parseGitlabOrigin(url)
+  if (!key || !origin) return
+  // 重新插入把这一条挪到队尾，超上限时从队首（最久没更新的）淘汰。
+  if (learnedOrigins.has(key)) learnedOrigins.delete(key)
+  learnedOrigins.set(key, origin)
+  while (learnedOrigins.size > LEARNED_ORIGIN_CAPACITY) {
+    const oldest = learnedOrigins.keys().next()
+    if (oldest.done) break
+    learnedOrigins.delete(oldest.value)
+  }
+}
+
+/**
+ * 取这个工作区学到的网页端 origin；没学过回 `''`（调用方按服务商默认域名兜底）。
+ *
+ * @param cwd 工作区目录
+ */
+export function gitlabOriginOf(cwd: unknown): string {
+  const key = originCacheKey(cwd)
+  if (!key) return ''
+  return learnedOrigins.get(key) || ''
+}
+
+/**
  * 从工作区目录认出 GitLab 仓库坐标（契约里的定位口 `getRepoKey`）。
  *
  * @param cwd 工作区目录（空串也接受：第 1、2 层会问不出来，落到第 3 层由 glab 按当前目录认）
@@ -122,6 +212,7 @@ export async function getRepoKey(cwd: string, ctx: OpContext): Promise<RepoKey |
           const out = String((r && (r.stdout || r.text)) || '')
           const k = parseGitlabRepo(out)
           if (k) {
+            learnGitlabOrigin(execCwd, out)
             emitRepoTier(ctx, 1, true, t0)
             return k
           }
@@ -146,6 +237,7 @@ export async function getRepoKey(cwd: string, ctx: OpContext): Promise<RepoKey |
       const candidate = originBlock ? originBlock[1] : anyUrl ? anyUrl[1] : ''
       const k = parseGitlabRepo(candidate)
       if (k) {
+        learnGitlabOrigin(execCwd, candidate)
         emitRepoTier(ctx, 2, true, t0)
         return k
       }
@@ -161,6 +253,10 @@ export async function getRepoKey(cwd: string, ctx: OpContext): Promise<RepoKey |
     if (res && res.code === 0) {
       const parsed = parseJsonObject(res.stdout)
       const full = parsed && typeof parsed['path_with_namespace'] === 'string' ? parsed['path_with_namespace'] : ''
+      // glab 的回包里带这台实例的网页地址（web_url，例如 https://gitlab.corp.example/grp/proj）；
+      // 有就学住，链接才知道该指向哪台实例，而不是一律拼 gitlab.com。
+      const webUrl = parsed && typeof parsed['web_url'] === 'string' ? parsed['web_url'] : ''
+      if (webUrl) learnGitlabOrigin(execCwd, webUrl)
       // 拼回一个带主机的地址再走同一个解析：这样「多段分组怎么切」只有 parseGitlabRepo 一处口径。
       const k = parseGitlabRepo('https://gitlab.com/' + full)
       if (k) {

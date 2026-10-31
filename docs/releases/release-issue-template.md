@@ -64,5 +64,5 @@
 - 本模板与网页卡 `.github/ISSUE_TEMPLATE/release.yml` 同源，正文逐字一致。
 - 未提供版本号时请勿猜测，需追问确认。
 - awesome 侧更新保持按需原则，单条目且不手改生成产物。
-- 发布前会跑真机验证清单检查（`node scripts/release-preflight.mts`）：本版 `[真机验证] vX.Y.Z` 清单票必须恰好一张、已关闭，且票面正文与评论记录对得上（场景编号、每条场景的结论、各处计数）；不满足就发布被阻断，对不上的地方会逐条列出改法；发布成功后 `scripts/release-postflight.mts` 会给清单票补发布记录并建下一版占位票。规则见 `docs/agents/real-machine-verification.md`。
+- 发布前会跑真机验证清单检查（`node scripts/release-preflight.mts`）：本版 `[真机验证] vX.Y.Z` 清单票必须恰好一张、已关闭，票面正文与评论记录对得上（场景编号、每条场景的结论、各处计数），批次评论都带候选身份行，所有候选提交都是发布提交的祖先（候选与发布不同时票面要有差异审计）；不满足就发布被阻断，对不上的地方会逐条列出改法；发布成功后 `scripts/release-postflight.mts` 会给清单票补发布记录并建下一版占位票。规则见 `docs/agents/real-machine-verification.md`。
 - 致谢与安装命令：致谢表由每日任务自动追加，发布时只需确认当天任务已跑、新贡献已收录（见 Runbook 第 2 节）；中文、英文 README 与包内说明的锁定版本与本次发布同源。

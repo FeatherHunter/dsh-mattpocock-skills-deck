@@ -65,7 +65,7 @@ type ClosedReason = 'completed' | 'not_planned' | 'reopened' | 'duplicate' | str
 type ActorKind    = 'user' | 'bot' | 'organization' | string
 type FieldType    = 'text' | 'number' | 'date' | 'single' | 'multi' | string
 
-interface IssueRef { key: string; title: string; state: State; type?: IssueType }   // 边上带 type（指向 map 还是票）
+interface IssueRef { key: string; title: string; state?: State; type?: IssueType }   // 边上带 type（指向 map 还是票）；state 缺省 = 状态未知（#1676），消费方不得当成 open
 
 interface Issue {
   // ── 核心字段（永远存在，缺→''/null）──
@@ -87,7 +87,7 @@ interface Issue {
   milestone?: Milestone
   customFields?: CustomField[]   // 结构化、说明性，绝不驱动 deck 逻辑
   reason?: ClosedReason     // closed 时给原因（或 EMPTY=关了但没说明）；open 依后端支持给 ''(EMPTY) 或省略(MISSING)
-  blockedBy?: IssueRef[]    // 谁阻塞我（入边；**唯一真源**）
+  blockedBy?: IssueRef[]    // 谁阻塞我（入边；**唯一真源**）；引用上的 state 可缺省 = 不知道目标状态（#1676）
   blocking?: IssueRef[]     // 我阻塞谁（出边）
   comments?: Comment[]      // 决策记录
 }
