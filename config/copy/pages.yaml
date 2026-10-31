@@ -50,6 +50,7 @@ zh:
   truth.budgetStaleSyncFailedSoft: 额度数字可能不是最新的：最近一次后台同步没连上服务，之后会继续重试
   list.restFallbackNonQuota: 这次取数走了 REST 通道（数据可能略旧）
   list.restFallbackStaleNonQuota: 上次取数走的 REST 通道（{n} 分钟前）—— 数据可能略旧
+  list.fallbackMark: 降级
   chainView.title: 每个会话在处理哪些票
   chainView.readAtFull: "{time} 更新"
   chainView.sessionShort: 会话 {n}
@@ -134,6 +135,7 @@ en:
   truth.budgetStaleSyncFailedSoft: "Quota numbers may be out of date: the last background sync could not reach the service; it will keep retrying"
   list.restFallbackNonQuota: This fetch went through the REST channel (data may be slightly stale)
   list.restFallbackStaleNonQuota: Last fetch went through the REST channel ({n} min ago) — data may be slightly stale
+  list.fallbackMark: degraded
   chainView.title: Which tickets each session is working on
   chainView.readAtFull: updated {time}
   chainView.sessionShort: session {n}

@@ -217,7 +217,6 @@ zh:
   run.openCfg: 打开配置
   run.cfgGuide: 配置页：设置 → 插件 → MattSkills
   list.restFallbackStale: 上次取数走的 REST 通道（{n} 分钟前）—— 数据可能略旧，配额恢复后自动回切
-  list.restFallbackDismiss: 本次会话不再提示
 en:
   prompt.requirementPrefix: "Requirement: "
   skill.centerRing: Center is recommended, ring is related (filled=installed, hollow=not), click to inject /skill
@@ -425,4 +424,4 @@ en:
   run.openCfg: Open config
   run.cfgGuide: "Config: Settings → Plugins → MattSkills"
   list.restFallbackStale: Last fetch went through the REST channel ({n} min ago) — data may be slightly stale; auto-reverts when quota resets
-  list.restFallbackDismiss: Hide for this session
+

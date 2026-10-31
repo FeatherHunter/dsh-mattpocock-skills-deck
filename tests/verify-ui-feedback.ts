@@ -120,7 +120,6 @@ const MATRIX: [string, string, string[]][] = [
   ['src/client/views/shared/ChainRenderer.ts', '工作流步骤', ['chain.action.', 'chain.form.']],
   ['src/client/views/shared/chips.ts', '兜底药丸', ['chip.fallback.']],
   ['src/client/views/shared/md.ts', '正文里的链接与图片', ['md.link.', 'md.overlay.', 'md.img.']],
-  ['src/client/views/shared/RestFallbackBanner.ts', '兜底横幅', ['banner.restfallback.dismiss']],
   ['src/client/views/shared/SwitchConfirmModal.ts', '切换后端确认框', ['switch.']],
 ]
 // E 组要数的文件：D 组清单（这些文件里每颗控件都该写 data-log）再加上列表主文件

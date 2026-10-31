@@ -120,10 +120,10 @@ const LEAVES = [
   // #1289 追加：动作时刻的缩写（workRouteTableStamp）与逐行组件 WorkRouteRow（整行挂悬停提示）。
   { file: 'src/client/views/shared/workRouteTable.js', exports: ['WORK_ROUTE_TABLE_FIELD', 'WORK_ROUTE_ACTION_KEYS', 'WORK_ROUTE_TABLE_CELLS', 'workRouteActionKeyOf', 'workRouteTableClock', 'workRouteTableStamp', 'workRouteTableOf', 'workRouteNavOf', 'WorkRouteRow', 'WorkRouteTable', 'WorkRouteTrigger'], components: ['WorkRouteRow', 'WorkRouteTable', 'WorkRouteTrigger'] }, // #1545 追加：在办表行点击去哪（容器进容器页、其余进票详情）
   // 2026-09-24 从贴着 350 行上限的两个文件里搬出来的两块：
-  //   · 降级横幅（views/ListTab.js → views/shared/RestFallbackBanner.js，判据仍是 truthLines 的 restFallbackView）
   //   · 头部那条灰色占位骨架（panel/Dock.js → panel/RepoChipSkeleton.js）
   // 登在这里是为了让「单文件 ≤350 行」与「产物已拼接」两条检查也覆盖到它们。
-  { file: 'src/client/views/shared/RestFallbackBanner.js', exports: ['RestFallbackBanner'], components: ['RestFallbackBanner'] },
+  // #1699：占一行的降级横幅退役，换成列表头部那枚不占行的小标识（判据仍是 truthLines 的 restFallbackView）。
+  { file: 'src/client/views/shared/fallbackMark.js', exports: ['FallbackMark'], components: ['FallbackMark'] },
   { file: 'src/client/panel/RepoChipSkeleton.js', exports: ['RepoChipSkeleton'], components: ['RepoChipSkeleton'] },
   // #725 状态栏胶囊那条横条：「谁先让位、一次让多少」的判据（纯函数）与读写的机器（碰 DOM）各一份。
   { file: 'src/client/statusbar/capFold.js', exports: ['CAP_FOLD_POLICY', 'capFoldLadderOf', 'capFoldStateAt', 'capFoldStepCount'], components: [] },
