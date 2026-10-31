@@ -38,6 +38,16 @@ export const WRITE_REASONS: Record<string, string> = {
   'conflict': '本地和远端都有新提交，直接拉会打架。面板不替你合并——去侧栏终端跑 git pull，处理完冲突再回来。',
   'hooks-failed': '仓库的提交钩子没有通过，提交没有发生。请到侧栏终端跑一次 git commit 看钩子的输出。',
   'head-moved': '仓库的 HEAD 已经变了（可能这次提交成功了，也可能是别的程序提交的）。请看一眼提交历史再决定。',
+  // —— 改动页（#1742）新增的失败理由 ——
+  'bad-path': '这个路径面板不替你操作：只接受仓库里的相对路径（正斜杠），不能以短横线或冒号开头，也不能包含 ../ 反斜杠或绝对路径。',
+  'hunks-unavailable': '这个文件 git 拆不开块（二进制、纯重命名或没有可拆的改动），请按整份文件暂存或丢弃。',
+  'hunk-out-of-range': '你要操作的那一块已经不存在了（文件在确认之后又改过）。请重新看一眼再点。',
+  'nothing-to-do': '现在没有可做的东西（可能已经做过了，或工作区已经干净）。',
+  'path-exists': '目标位置已经有文件了，移动会覆盖它。请换一个名字再试。',
+  'path-modified': '这个文件还有没处理完的改动，删除前请先把它们暂存或丢弃。',
+  'ignore-invalid': '这一行不能写进忽略清单（空行或含控制字符）。',
+  'operation-in-progress': '仓库正在合并、变基、拣选或回退中，这组动作先不接。请先处理完当前操作再回来。',
+  'repo-bare': '这是一个裸仓库，没有工作区可以改。',
   'unknown-write-failure': 'git 报了一个我们没归类的失败；上面那行是它的原话。',
 }
 
@@ -93,6 +103,30 @@ export function classifyWriteFailure(op: WriteOp, exitCode: number, stderrText: 
     if (/non-fast-forward|fetch first|rejected.*non-fast-forward/.test(t)) return 'non-fast-forward'
     // 兜底不再猜方向：`[rejected] / failed to push some refs` 是所有推送失败的公共横幅，
     // 单独出现时说不出是哪一种，就如实回兜底（话术带 git 原话）。
+    return 'unknown-write-failure'
+  }
+  // 改动页（#1742）：这几条命令的失败原文很固定，能认出的就认出来，认不出如实回兜底带 git 原话。
+  if (op === 'stage-hunks' || op === 'stage-file' || op === 'stage-all' || op === 'unstage') {
+    if (/did not match any files|pathspec .* did not match|not under current directory/.test(t)) return 'bad-path'
+    return 'unknown-write-failure'
+  }
+  if (op === 'discard-file' || op === 'discard-all') {
+    if (/did not match any file\(s\) known to git|pathspec .* did not match/.test(t)) return 'nothing-to-do'
+    return 'unknown-write-failure'
+  }
+  if (op === 'clean-untracked') {
+    if (/no pathspec|did not match any files/.test(t)) return 'nothing-to-do'
+    return 'unknown-write-failure'
+  }
+  if (op === 'rm-tracked' || op === 'rm-cached') {
+    if (/has staged content different|has local modifications/.test(t)) return 'path-modified'
+    if (/did not match any files|pathspec .* did not match/.test(t)) return 'nothing-to-do'
+    return 'unknown-write-failure'
+  }
+  if (op === 'mv') {
+    if (/destination exists|already exists/.test(t)) return 'path-exists'
+    if (/bad source|not under version control|did not match any files/.test(t)) return 'bad-path'
+    if (/has local modifications|staged content different/.test(t)) return 'path-modified'
     return 'unknown-write-failure'
   }
   return 'unknown-write-failure'

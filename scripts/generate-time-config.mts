@@ -107,10 +107,15 @@ const KEYS: Array<[string, string, string]> = [
   ['vcRemoteListCallBudgetMs', 'VC_REMOTE_LIST_CALL_BUDGET_MS', 'timeouts'],
   ['vcPrePushCheckCallBudgetMs', 'VC_PRE_PUSH_CHECK_CALL_BUDGET_MS', 'timeouts'],
   ['vcWriteCallMarginMs', 'VC_WRITE_CALL_MARGIN_MS', 'timeouts'],
+  // #1752 工作树八条：单条写命令的超时（本地操作，不跟远端协商）。
+  ['vcWorktreeOpTimeoutMs', 'VC_WORKTREE_OP_TIMEOUT_MS', 'timeouts'],
   // #1740 长任务通道：进度轮询节奏、软取消宽限、强杀后等待。
   ['vcTaskPollIntervalMs', 'VC_TASK_POLL_INTERVAL_MS', 'timeouts'],
   ['vcTaskCancelGraceMs', 'VC_TASK_CANCEL_GRACE_MS', 'timeouts'],
   ['vcTaskHardKillGraceMs', 'VC_TASK_HARD_KILL_MS', 'timeouts'],
+  // #1742 改动页：预检只读命令与写命令各自的单条超时。
+  ['vcChangesReadTimeoutMs', 'VC_CHANGES_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcChangesWriteTimeoutMs', 'VC_CHANGES_WRITE_TIMEOUT_MS', 'timeouts'],
   ['gitCredentialCallBudgetMs', 'GIT_CREDENTIAL_CALL_BUDGET_MS', 'timeouts'],
   ['gitCredentialMinBudgetMs', 'GIT_CREDENTIAL_MIN_BUDGET_MS', 'timeouts'],
   ['gitCredentialMaxBudgetMs', 'GIT_CREDENTIAL_MAX_BUDGET_MS', 'timeouts'],

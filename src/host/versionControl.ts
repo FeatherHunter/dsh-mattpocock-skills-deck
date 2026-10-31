@@ -51,6 +51,9 @@ import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/ti
 // #1741/#1740：fast-import 的只读文件流窄例外与长任务执行层（起进程、送标准输入、增量读）都住
 // 同层叶子 versionControlTask.ts；本文件只递宿主依赖与日志包装，两条入口共用同一份文件核对实现。
 import { prepareStdinFile, createTaskPhones } from './versionControlTask.js'
+// #1742：改动页两条电话（预检发票、凭票写）的懒加载与日志包装住同层叶子 versionControlChangesMount.ts，
+// 本文件只把上面已经造好的宿主闭包递进去——父文件贴着 350 有效行上限，装配壳不在这里再摊开一份。
+import { createChangesMount } from './versionControlChangesMount.js'; import { createWorktreesMount } from './versionControlWorktreesMount.js' // #1752：工作树装配壳与改动页装配壳的 import 合在一行，给父文件腾回 350 有效行的额度
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -386,8 +389,7 @@ export function createVersionControl(deps: any): any {
   async function handleGitFirstScreen(args: any): Promise<any> { const p: any = await firstScreenPhone(); return p(args) }
 
   // 历史高级查询十条能力（#1745）住 ./versionControlHistory.js：同一先例（自包含叶子、依赖全显式传入、单向引用）。
-  let _histP: any = null
-  function historyPhone(): any { if (!_histP) _histP = import('./versionControlHistory.js').then(function (m: any) { return m.createHistoryQueryPhone({ failPhone: failPhone, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf }) }); return _histP }
+  let _histP: any = null; function historyPhone(): any { if (!_histP) _histP = import('./versionControlHistory.js').then(function (m: any) { return m.createHistoryQueryPhone({ failPhone: failPhone, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf }) }); return _histP }
 
   /** 电话 wf.gitLog 的处理体：历史按批取；多要一条用来判断后面还有没有。 */
   async function handleGitLog(args: any): Promise<any> {
@@ -465,6 +467,17 @@ export function createVersionControl(deps: any): any {
     return _taskP
   }
 
+  // ---- #1742 改动页两条电话（追加段，不改上面任何既有行为）----
+  // 预检（发票）与执行（凭票写）的装配住 ./versionControlChanges.js：那一片只做「同一个首屏读数、
+  // 同一条进程出口、同一套 loggedPhone 日志口径」的拼接，改动页自己的票据表与 requestId 结果表留在它自己的闭包里。
+  // 本文件只把上面已经造好的闭包交给 ./versionControlChangesMount.ts，懒加载、失败兜底与日志包装都在那一片。
+  const changes: any = createChangesMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable, runGit: runGit, fixedPrefix: fixedPrefix, pathExists: pathExists, readScreenOf: readScreenOf, loggedPhone: loggedPhone, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs, STDOUT_LIMIT: STDOUT_LIMIT, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now })
+  // ---- #1751 贮藏页十条（域 7）：执行层与「最近丢弃」的缓存都在 ./versionControlStash.ts ----
+  // 十条动作（新建两条、只贮藏已暂存、列出、查看、应用、弹出、进分支、删除、清空）与丢弃后的
+  // store 恢复由叶子收进一条 wf.gitStash；进程出口、仓库根解析、失败信封与日志包装都显式递进去
+  // （动态加载，不在同层新增静态边）。父文件只留返回对象里那一行注册，装配一行都不在这里摊开：
+  // 这一层贴着 350 有效行上限（#1751 合并 #1742 后需要），装配与缓存收在叶子，行为不变。
+
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
@@ -486,8 +499,12 @@ export function createVersionControl(deps: any): any {
     writeTickets: async function (): Promise<any> { const w: any = await writePhone(); return w.tickets || null },
     runGitCommand: runGit, // #839：那一族「可能弹凭据提示」的命令复用同一条进程出口（同一个报闸、同一条 git.exec 日志、同一套字节上限）
     // #1740 长任务通道三条电话（开始、查询、取消）：装配在 ./versionControlTask.js，进程出口是上面那条固定前缀与报闸。
-    handleGitTaskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) },
-    handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) },
-    handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) },
+    handleGitTaskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) }, handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) }, handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) }, // 三条独立成行是 353 有效行，超过 350 上限 3 行；写在同一物理行、用逗号接续，代码与独立成行时逐字一致。
+    // #1751 贮藏页十条（域 7）：第一次调用时才装配执行层，键名与写电话、长任务那几条同形。
+    // #1752 工作树页八条能力：预检与执行两条电话（装配壳在 ./versionControlWorktreesMount.ts，懒加载、失败兜底与日志包装都在那里）。
+    ...createWorktreesMount({ resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, runPinned: runPinned, failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, cwdOf: cwdOf, pathExists: pathExists, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now, randomId: function (): string { return Math.random().toString(36).slice(2) } }), handleGitStashCheck: async function (a: any): Promise<any> { try { const m: any = await import('./versionControlStash.js'); const s: any = await m.stashPhonesOf({ runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, timeoutMs: timeoutMs, stdoutLimit: STDOUT_LIMIT, patchLimit: PATCH_LIMIT, defaultCwd: DEFAULT_CWD, nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now, loggedPhone: loggedPhone }); return s.check(a) } catch (e) { return failPhone('env', '贮藏页十条能力的执行层加载失败：' + firstLine(String((e && (e as any).message) || e))) } }, handleGitStash: async function (a: any): Promise<any> { try { const m: any = await import('./versionControlStash.js'); const s: any = await m.stashPhonesOf({ runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, timeoutMs: timeoutMs, stdoutLimit: STDOUT_LIMIT, patchLimit: PATCH_LIMIT, defaultCwd: DEFAULT_CWD, nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now, loggedPhone: loggedPhone }); return s.write(a) } catch (e) { return failPhone('env', '贮藏页十条能力的执行层加载失败：' + firstLine(String((e && (e as any).message) || e))) } }, // #1751 贮藏两条电话与 #1752 工作树的装配写在同一物理行、用逗号接续：本文件有效行以 350 为上限，合并时独立成行是 351，单独立行会超线；两个条目的代码与独立成行时逐字一致。
+    // #1742 改动页两条电话（预检、执行）与票据表：装配在 ./versionControlChangesMount.ts，进程出口照旧是上面那条固定前缀与报闸。
+    // 只读动作 1.13（查为什么被忽略）走预检电话的 op，不再单开第三条电话；changesTickets 只给门禁与测试读票据表（与 #1741 的 writeTickets 同一条口径，不注册成电话、客户端拿不到）。
+    handleGitChangesCheck: changes.check, handleGitChangesWrite: changes.write, changesTickets: changes.tickets,
   }
 }
