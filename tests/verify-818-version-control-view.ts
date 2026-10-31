@@ -73,6 +73,9 @@ const VC_FILES = [
   //   与构建同序排在客户端两叶之前。
   'src/shared/version-control/src/sync-actions.ts',
   'src/shared/version-control/src/sync-rules.ts',
+  // #1759：迁移与备份域（11.1 / 11.12 / 11.13 与 5.13，加 svn 补充块）的动作表、参数守卫与计划摘要，
+  //   与构建同序排在客户端两叶之前；界面不手抄动作名单与命令原文。
+  'src/shared/version-control/src/migrate-actions.ts',
   // #1751：贮藏十条的规则真源（动作名单、版本门、危险档、命令拼装与恢复路径）。
   'src/shared/version-control/src/stash-rules.ts',
   // #1756 克隆向导的共享层两片（与构建同序）：地址与选项口径 → 预检票据的契约与目标现场形状。
@@ -124,6 +127,8 @@ const VC_FILES = [
   'src/client/views/versionControl/vcRemoteData.js',
   'src/client/views/versionControl/vcRemotePage.js',
   'src/client/views/versionControl/vcSyncPage.js', // #1755：同步段正文（十个动作、理由、租约、确认卡、任务区；挂在远端页正文末尾）
+  // #1759 迁移与备份页：数据层在前、正文在后（与构建同序，页面壳的挂载段要看到正文那一叶）。
+  'src/client/views/versionControl/vcMigrateData.js',
   // #1745 历史高级查询：数据层（十条能力的目录与读取）与面板画法都排在页面壳之前。
   'src/client/views/versionControl/vcQuery.js',
   'src/client/views/versionControl/vcQueryView.js',
@@ -138,6 +143,7 @@ const VC_FILES = [
   // #1748 变基待办页的历史改写面板（与构建同序）：先数据层，再页面本体，都排在页面壳之前。
   'src/client/views/versionControl/vcUndoOps.js',
   'src/client/views/versionControl/vcUndoPage.js',
+  'src/client/views/versionControl/vcMigratePage.js', // #1759：迁移与备份页正文（九个动作、只读结果、确认卡与任务区；壳要调它）
   'src/client/views/versionControl/vcClonePage.js', // #1756：迁移页 › 克隆向导（自持表单与进度状态；排在页面壳之前，壳里会挂它）
   // #1747 冲突向导两叶（与构建同序）：先动作模型（15 条能力的出入参形状），再页面正文；壳的挂载段要看到页面体那一叶。
   'src/client/views/versionControl/vcConflictsOps.js',
@@ -197,6 +203,13 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'judgeSync', 'syncConfirmOf', 'syncReasonTextOf',
   'VC_SYNC_PHONES', 'VC_SYNC_ACTION_ROWS', 'vcNewSyncReads', 'vcSyncStateOf', 'vcSyncDataOf', 'vcSyncErrorOf', 'vcSyncTaskOf',
   'vcApplySyncReply', 'vcApplySyncWriteReply', 'vcReadSyncCheck', 'vcRunSyncWrite', 'vcSyncModelOf', 'vcSyncPageNode',
+  // #1759 迁移与备份：共享动作表与计划、客户端数据层与正文叶。
+  'MIGRATE_ACTIONS', 'MIGRATE_CHECK_CONTRACT', 'MIGRATE_CHECK_VERSION', 'migrateActionOf', 'migrateActionIds',
+  'migratePathProblem', 'migrateRefProblem', 'migrateBranchProblem', 'migrateUrlProblem', 'migrateVersionAtLeast',
+  'migratePlanOf', 'migratePlanDigestInput',
+  'VC_MIGRATE_PHONES', 'VC_MIGRATE_ACTION_ROWS', 'vcNewMigrateReads', 'vcMigrateStateOf', 'vcMigrateDataOf',
+  'vcMigrateErrorOf', 'vcMigrateTaskOf', 'vcApplyMigrateReply', 'vcApplyMigrateWriteReply', 'vcReadMigrateCheck',
+  'vcRunMigrateWrite', 'vcMigrateModelOf', 'vcMigratePageNode',
   // #1745 历史高级查询（3.4–3.13）：目录、输入校验、一次读取、空结果与截断读数、面板节点与组件。
   'VC_QUERY_PHONE', 'VC_QUERY_COUNT_MAX', 'VC_QUERY_BLAME_SPAN_MAX', 'VC_QUERY_COMPARE_MAX', 'VC_QUERY_RANGE_MAX',
   'vcQueryCatalogOf', 'vcQueryEntriesOf', 'vcQueryEntryOf', 'vcQueryDefaultsOf', 'vcQueryInputsOf', 'vcQueryInputValueOf',
@@ -2524,6 +2537,97 @@ async function main() {
   const syIdleHtml = syShellOf({ sync: { state: 'idle', data: null, error: null }, task: { state: 'idle', data: null, error: null } }, {}, 460, 'dark')
   const syIdleClosed = syIdleHtml.match(/data-vc-sync-act="[^"]+"[^>]*aria-expanded="false"/g) || []
   check(syIdleClosed.length === 10, 'S20b 没有预检回包时十个按钮都写 aria-expanded="false"（不靠视觉猜展开没展开）')
+  // ---------- M 组：#1759 迁移与备份页（域 11 的 11.1 / 11.12 / 11.13 与 5.13 加 svn 补充块） ----------
+  // 只喂预检回包，不发请求：九个动作入口、命令原文、禁用理由、只读结果、确认卡、结果与任务区按票面画法。
+  // 计划字段照共享层 migratePlanOf 的真实形状造，避免界面自己补字段掩盖宿主缺参。
+  const mgRows = VIEW.VC_MIGRATE_ACTION_ROWS
+  const mgIds = mgRows.map(function (row) { return row.action })
+  const mgPlanOf = function (action, patch) {
+    const row = mgRows.filter(function (r) { return r.action === action })[0] || {}
+    const cap = row.id ? (VIEW.vcCapabilityOf(row.id) || {}) : {}
+    return Object.assign({
+      action: action, id: String(row.id || ''), op: row.id === '11.1' ? 'init' : row.id === '11.12' ? 'archive' : row.id === '5.13' ? 'fast-export' : 'bundle',
+      level: String(cap.level || '写'), needsConfirm: row.needsConfirm === true, commandText: String(cap.command || ''),
+      mode: '', path: '', outputPath: '', inputPath: '', targetPath: '', ref: '', branch: '', bare: false, initMode: '',
+      versionNeed: '', versionNote: '', pathAbsent: [], input: null, targetText: '', taskArgs: {}
+    }, patch || {})
+  }
+  const mgReplyOf = function (action, extra, patch) {
+    const row = mgRows.filter(function (r) { return r.action === action })[0] || {}
+    const cap = row.id ? (VIEW.vcCapabilityOf(row.id) || {}) : {}
+    const plan = mgPlanOf(action, patch)
+    return Object.assign({
+      ok: true, contract: 'version-control.migrate-check', version: 1, action: action, capabilityId: String(row.id || ''),
+      op: plan.op, level: plan.level, command: String(cap.command || ''), decision: 'allow', reasons: [], confirmRequired: false,
+      confirm: null, plan: plan, ticket: null, readOnly: row.readOnly === true, scene: {}, readAtMs: NOW,
+      versionPolicy: { need: '2.28', ok: true, degraded: false, note: '' }
+    }, extra || {})
+  }
+  const mgReadsOf = function (data, extra) {
+    return Object.assign({
+      migrate: { state: 'ok', data: data, error: null },
+      task: { state: 'idle', data: null, error: null }
+    }, extra || {})
+  }
+  const mgShellOf = function (reads, ui, width, skin) {
+    return shellHtmlOf({ page: 'migrate', width: width || 460, skin: skin || 'dark', reads: reads, ui: ui || {} })
+  }
+  const mgArchive = mgReplyOf('archive', {}, { outputPath: '/tmp/out.tar', ref: 'HEAD', targetText: '归档文件 /tmp/out.tar（来源 HEAD）' })
+  const mgClosed = mgShellOf(mgReadsOf(mgArchive), {})
+  const mgActs = attrValuesOf(mgClosed, 'data-vc-migrate-act')
+  check(mgActs.length === 9 && JSON.stringify(mgActs) === JSON.stringify(mgIds), 'M1 迁移页一次画出九个动作入口，顺序与 VC_MIGRATE_ACTION_ROWS 一致（' + mgActs.join(',') + '）')
+  const mgOpen = mgShellOf(mgReadsOf(mgArchive), { open: 'archive' })
+  check(attrValuesOf(mgOpen, 'data-vc-migrate-panel').join(',') === 'archive', 'M2 同时只展开一个动作面板（面板写 data-vc-migrate-panel，值是动作名）')
+  check(mgOpen.indexOf('aria-controls="vc-migrate-panel-archive"') >= 0 && mgOpen.indexOf('id="vc-migrate-panel-archive"') >= 0, 'M3 展开按钮的 aria-controls 指向真实存在的面板 id（键盘与读屏跟得到）')
+  check(attrValuesOf(mgOpen, 'data-vc-migrate-command')[0] === 'archive' && mgOpen.indexOf(String(VIEW.vcCapabilityOf('11.12').command)) >= 0, 'M4 面板里画命令原文，且直接取自能力账本（界面不另写一份命令）')
+  const mgWarn = mgShellOf(mgReadsOf(mgReplyOf('archive', {
+    decision: 'warn', reasons: [{ id: 'export-readonly-source', text: '导出只读源仓库，不会改它的历史', blocking: false }]
+  }, { outputPath: '/tmp/out.tar', ref: 'HEAD' })), { open: 'archive' })
+  check(attrValuesOf(mgWarn, 'data-vc-migrate-decision')[0] === 'warn' && mgWarn.indexOf('data-vc-migrate-why="1"') >= 0 && mgWarn.indexOf('data-vc-migrate-reason="export-readonly-source"') >= 0, 'M5 判定为 warn 时理由逐条常驻在触发点（不是灰按钮不说为什么）')
+  const mgReadOnly = mgShellOf(mgReadsOf(mgReplyOf('bundle-verify', {
+    readOnly: true, result: { ok: true, command: 'git bundle verify', ms: 30, n: 2, lines: ['refs/heads/main', 'HEAD'] }
+  }, { filePath: '/tmp/repo.bundle' })), { open: 'bundle-verify' })
+  check(mgReadOnly.indexOf('data-vc-migrate-readonly="bundle-verify"') >= 0 && mgReadOnly.indexOf('data-vc-migrate-form="bundle-verify"') < 0 && mgReadOnly.indexOf('data-vc-migrate-go=') < 0, 'M6 只读动作（离线包校验）只画只读说明与一个运行按钮，没有表单、没有执行确认（它不改任何东西）')
+  check(attrValuesOf(mgReadOnly, 'data-vc-migrate-result')[0] === 'ok' && mgReadOnly.indexOf('git bundle verify') >= 0 && mgReadOnly.indexOf('data-vc-migrate-panel="bundle-verify"') >= 0, 'M7 只读动作的结果在预检这一步就回到触发点：命令、耗时与条数都画在同一个面板里')
+  const mgImportPlan = { targetPath: '/tmp/imported', branch: 'main', inputPath: '/tmp/hist.fi', pathAbsent: ['/tmp/imported'], targetText: '新目录 /tmp/imported（来源文件 /tmp/hist.fi）' }
+  const mgImport = mgShellOf(mgReadsOf(mgReplyOf('fast-import', {
+    decision: 'warn', reasons: [{ id: 'import-new-dir', text: '只导进新的空目录；现有仓库不会被覆盖', blocking: false }], confirmRequired: true,
+    confirm: { verb: '导入历史', target: '新目录 /tmp/imported（来源文件 /tmp/hist.fi）', what: '会在新目录里建仓库并导入提交', wont: '不会覆盖或复用任何现有仓库', reversible: '导入失败时删掉这个新目录重来' },
+    ticket: { id: 'migrate-1700000000000-1', op: 'fast-import', target: mgPlanOf('fast-import', mgImportPlan) }
+  }, mgImportPlan)), { open: 'fast-import' })
+  check((mgImport.match(/data-vc-confirm-seg="/g) || []).length === 4 && mgImport.indexOf('data-focus-default="cancel"') >= 0 && mgImport.indexOf('data-vc-migrate-confirm="1"') >= 0, 'M8 历史导入要确认：确认卡贴触发点、四段齐全、默认焦点在取消')
+  check(mgImport.indexOf('data-vc-migrate-ticket="migrate-1700000000000-1"') >= 0 && mgImport.indexOf('/tmp/imported') >= 0, 'M9 确认卡旁写清凭哪张票执行，外层 aria-label 念出确认对象（读屏不靠颜色）')
+  const mgDegraded = mgShellOf(mgReadsOf(mgReplyOf('init', {
+    decision: 'warn', reasons: [{ id: 'dir-not-empty', text: '目录里已经有 2 项内容；初始化只会新增 .git', blocking: false }],
+    versionPolicy: { need: '2.28', ok: false, degraded: true, note: '改用建后改名' }
+  }, { path: '/tmp/newrepo', branch: 'main', initMode: 'rename', targetText: '仓库 /tmp/newrepo（初始分支 main）' })), { open: 'init' })
+  check(mgDegraded.indexOf('data-vc-migrate-version-note="1"') >= 0 && mgDegraded.indexOf('2.28') >= 0, 'M10 旧版本 git 走降级路线时如实写出版本要求与替代做法（不把降级藏起来）')
+  const mgOkResult = mgShellOf(mgReadsOf(mgArchive), { open: 'archive', result: { ok: true, command: 'git archive --format=tar --output=/tmp/out.tar HEAD', ms: 120, n: 0, path: '/tmp/out.tar' } }, 460)
+  check(attrValuesOf(mgOkResult, 'data-vc-migrate-result')[0] === 'ok' && mgOkResult.indexOf('120') >= 0 && attrValuesOf(mgOkResult, 'data-vc-migrate-path')[0] === '/tmp/out.tar', 'M11 成功结果回到触发点：命令、耗时与产物路径都画在同一个动作面板里（460 宽起给路径）')
+  const mgFailResult = mgShellOf(mgReadsOf(mgArchive), { open: 'archive', result: { ok: false, git: 'fatal: 路径不可写', step: '导出归档这一步', expected: '写文件成功', actual: '权限被拒绝', cause: '目录只读' } }, 460)
+  check(attrValuesOf(mgFailResult, 'data-vc-migrate-result')[0] === 'fail' && mgFailResult.indexOf('fatal: 路径不可写') >= 0 && mgFailResult.indexOf('data-vc-result-action="retry"') >= 0, 'M12 失败结果贴触发点：git 原话、环节、期望与实际、上游原因与重试入口一样不少')
+  const mgTask = mgShellOf(mgReadsOf(mgArchive, { task: { state: 'ok', data: { taskId: 'task-9', state: 'running', phase: 'receiving', conclusion: 'cancelled', residual: '已经写出的文件不会自己删掉' }, error: null } }), { open: 'archive' })
+  check(mgTask.indexOf('data-vc-migrate-task="1"') >= 0 && mgTask.indexOf('data-vc-migrate-task-id="task-9"') >= 0 && mgTask.indexOf('data-vc-migrate-cancel="1"') >= 0, 'M13 写动作交给长任务通道：任务号、状态与取消按钮都画出来')
+  check(mgTask.indexOf('data-vc-migrate-task-residual="1"') >= 0 && mgTask.indexOf('data-vc-migrate-task-conclusion="cancelled"') >= 0, 'M14 取消后的结论与残留说明常驻在任务区（已写出的文件与已下载的对象不会自己回去）')
+  for (const mw of VIEW.VC_SHELL_WIDTHS) {
+    const mwHtml = mgShellOf(mgReadsOf(mgArchive), { open: 'archive' }, mw, mw % 2 === 0 ? 'dark' : 'light')
+    check(mwHtml.indexOf('data-vc-migrate-page="1"') >= 0 && attrValuesOf(mwHtml, 'data-vc-migrate-act').length === 9, 'M15 宽 ' + mw + '：迁移页九个入口一个不少（窄档不删入口）')
+  }
+  const mgNarrow = mgShellOf(mgReadsOf(mgArchive), { open: 'archive' }, 300, 'dark')
+  const mgWide = mgShellOf(mgReadsOf(mgArchive), { open: 'archive' }, 460, 'dark')
+  check(attrValuesOf(mgNarrow, 'data-vc-migrate-command').length === 0 && attrValuesOf(mgWide, 'data-vc-migrate-command').length === 1, 'M16 命令原文按宽度收放：300 收起、460 起恢复（收起不是删除，面板仍可开）')
+  check(attrValuesOf(mgNarrow, 'data-vc-migrate-path').length === 0 && attrValuesOf(mgWide, 'data-vc-migrate-path').length === 1, 'M17 产物路径按宽度收放：300 与 380 不挤，460 起在面板里点名文件路径')
+  const mgLight = mgShellOf(mgReadsOf(mgArchive), { open: 'archive' }, 460, 'light')
+  check(attrValuesOf(mgLight, 'data-vc-skin')[0] === 'light' && attrValuesOf(mgLight, 'data-vc-migrate-act').length === 9, 'M18 另一套皮肤同样能渲染迁移页（两套皮肤都只换颜色，不删入口）')
+  check(attrValuesOf(mgClosed, 'data-cap-primary').join(',') === VIEW.vcPageCapabilitiesOf('migrate').map(function (cap) { return cap.id }).join(','), 'M19 迁移页的主入口仍只有账本登记的那几条（迁移页正文不许自己再挂 data-cap-primary）')
+  const mgMaint = shellHtmlOf({ page: 'maintenance', width: 460, skin: 'dark' })
+  check(mgMaint.indexOf('data-vc-note="maintenance-readonly"') >= 0 && mgMaint.indexOf('data-vc-migrate-act') < 0, 'M20 维护页只放 11.14 与 11.15 的只读指路说明，不给迁移页的触发按钮（只读项不出现触发按钮）')
+  const mgErr = mgShellOf({ migrate: { state: 'err', data: null, error: { kind: 'env', message: '找不到 git 命令' } }, task: { state: 'idle', data: null, error: null } }, {})
+  check(attrValuesOf(mgErr, 'data-vc-migrate-state')[0] === 'error' && mgErr.indexOf('data-vc-migrate-error="env"') >= 0 && mgErr.indexOf('找不到 git 命令') >= 0, 'M21 读数失败时迁移页画失败态并带宿主原话（不把读不到画成没有动作）')
+  const mgSvn = mgShellOf(mgReadsOf(mgReplyOf('svn-probe', { readOnly: true, result: { ok: true, readOnly: true, linked: false, command: 'git config --get svn-remote.svn.url', note: '这个仓库没有登记 svn 远端' } }, { targetText: 'svn 桥探测（补充块，账本无独立条目）' })), { open: 'svn-probe' })
+  check(mgSvn.indexOf('data-vc-migrate-extra="1"') >= 0 && mgSvn.indexOf('data-vc-migrate-readonly="svn-probe"') >= 0, 'M22 svn 探测画成补充块（不冒充账本条目），只读且不出现表单')
+  check(mgImport.indexOf('data-vc-migrate-form="fast-import"') >= 0 && mgImport.indexOf('data-vc-migrate-field="targetPath"') >= 0 && mgImport.indexOf('data-vc-migrate-field="filePath"') >= 0, 'M23 历史导入的表单三个字段（目标目录、来源文件、分支）都画出来，字段与说明逐项对应')
+
   const antiCases: AntiCase[] = [
     // #1253：真源已经转成 .ts，形参后面多了类型标注（st: any），锚点用正则把标注写成可选的，
     //   写法上仍只认「这一处原样」，不放大到别的地方。
@@ -2599,6 +2703,12 @@ async function main() {
     { name: '同步段十个入口换成别的属性名', patch: (s) => s.replace("'data-vc-sync-act': id,", "'data-vc-sync-entry': id,"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'remote', width: 460, skin: 'dark', reads: syReadsOf(syReplyOf('force-push', '8.12')), ui: { open: '8.12' } })); return (html.match(/data-vc-sync-act="/g) || []).length === 10 }, what: 'S1' },
     // #1755：确认语义退回「不是 block 就弹卡」—— allow 也会弹卡，S 组的判定语义必须当场红。
     { name: '确认语义退回不是 block 就弹卡', patch: (s) => s.replace("confirmRequired: decision === 'warn' }", "confirmRequired: decision !== 'block' }"), test: (v) => { const plan = Object.assign({}, syReplyOf('fetch', '8.5').plan, { needsConfirm: false }); return v.judgeSync({ remotes: ['origin'], remotesKnown: true }, plan).confirmRequired === false }, what: 'S5' },
+    // #1759：迁移页九个入口的属性名换掉 —— M1 的数入口断言必须当场红。
+    { name: '迁移页九个入口换成别的属性名', patch: (s) => s.replace("'data-vc-migrate-act': action,", "'data-vc-migrate-entry': action,"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'migrate', width: 460, skin: 'dark', reads: mgReadsOf(mgArchive), ui: { open: 'archive' } })); return (html.match(/data-vc-migrate-act="/g) || []).length === 9 }, what: 'M1' },
+    // #1759：只读动作也长出表单与执行按钮 —— M6 的只读判据必须当场红。
+    { name: '只读动作也长出表单', patch: (s) => s.replace('    if (row.readOnly === true) {', '    if (false) {'), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'migrate', width: 460, skin: 'dark', reads: mgReadsOf(mgReplyOf('bundle-verify', { readOnly: true, result: { ok: true, command: 'git bundle verify', ms: 30, n: 2 } }, { filePath: '/tmp/repo.bundle' })), ui: { open: 'bundle-verify' } })); return html.indexOf('data-vc-migrate-form="bundle-verify"') < 0 && html.indexOf('data-vc-migrate-readonly="bundle-verify"') >= 0 }, what: 'M6' },
+    // #1759：需要确认的动作不再出确认卡 —— M8 的四段判据必须当场红。
+    { name: '需要确认的动作不再出确认卡', patch: (s) => s.replace("    if (model.confirmRequired && model.confirm) {\n      panelKids.push(h('div', { key: 'confirm', className: 'vcs-migrate-confirm'", "    if (false) {\n      panelKids.push(h('div', { key: 'confirm', className: 'vcs-migrate-confirm'"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'migrate', width: 460, skin: 'dark', reads: mgReadsOf(mgReplyOf('fast-import', { decision: 'warn', confirmRequired: true, confirm: { verb: '导入历史', target: '新目录 /tmp/imported', what: 'a', wont: 'b', reversible: 'c' }, ticket: { id: 'migrate-1700000000000-1', op: 'fast-import', target: mgPlanOf('fast-import', mgImportPlan) } }, mgImportPlan)), ui: { open: 'fast-import' } })); return (html.match(/data-vc-confirm-seg="/g) || []).length === 4 && html.indexOf('data-vc-migrate-confirm="1"') >= 0 }, what: 'M8' },
   ]
   // #845c：反证自证提到循环里 —— 每一处改法先确认它真的落到了源码上（改不中等于没证）。
   //   旧写法只在循环外用一条聚合自检兜底，于是某一条改法失效时，它自己仍会以 broke=true 假绿

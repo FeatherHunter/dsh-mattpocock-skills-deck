@@ -501,6 +501,9 @@ const EXEMPTS: ExemptRow[] = [
   // #1756：克隆预检与执行的回包都带自己那一刻的读钟时刻，用来和票据过期对上，不是可调参数。
   { file: 'src/host/versionControlClone.ts', name: 'readAtMs', reason: '读钟时刻（这一趟克隆预检是什么时候读的现场），不是可调参数' },
   { file: 'src/host/versionControlClone.ts', name: 'atMs', reason: '读钟时刻（这次克隆执行是什么时候起手的），不是可调参数' },
+  // #1759：迁移与备份的预检与执行也各自带注入的时钟，用来判票据过期与记回包时刻。
+  { file: 'src/host/versionControlMigrateCheck.ts', name: 'nowMs', reason: '读钟函数（宿主注入的时钟，预检签票与回包读钟时刻都从它取），不是可调参数' },
+  { file: 'src/host/versionControlMigrateWrite.ts', name: 'nowMs', reason: '读钟函数（宿主注入的时钟，凭票执行时判票据过期并记回包时刻），不是可调参数' },
   { file: 'src/refresh/rooms/host/probe-handler.ts', name: 'nowMs', reason: '读钟时刻（Date.now），降级探测与校准的窗口判定用，不是可调参数' },
   { file: 'src/host/skillProbeCache.ts', name: 'ttlMs', reason: '透传参数，缺省接 SKILL_PROBE_CACHE_MS（已登记）' },
   { file: 'src/host/skillProbe.ts', name: 'SKILL_CACHE_TTL_MS', reason: '函数内局部变量：接线给了正数就听接线的，没给时取中央常量 SKILL_LIST_CACHE_TTL_MS（已登记为 skillListCacheTtlMs）' },

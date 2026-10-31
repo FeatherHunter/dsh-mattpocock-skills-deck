@@ -898,8 +898,8 @@ async function main() {
   const selfSpawn: string[] = hostLeaves.filter(function (rel: string) { const s: string = sourceText(rel); return s.indexOf('child_process') >= 0 || /\.spawn\s*\(/.test(s) })
   eq(selfSpawn.length, 0, 'E25 写层四片叶子都不自己起进程（全部走父文件注入的 runPinned；越界：' + selfSpawn.join(',') + '）')
   const settingsGateSource: string = sourceText('tests/verify-settings-phones.ts')
-  // 电话总数随并行票一起涨：本票合并时是 99 条（#1757 子模块页四条到 96、本票三条到 99），所以这格只认「旧数字已退场、新数字已在场」，不写死单一历史值。
-  check(settingsGateSource.indexOf('check(nPhones === 91') < 0 && settingsGateSource.indexOf('check(nPhones === 95') < 0 && settingsGateSource.indexOf('check(nPhones === 99') >= 0, 'E26 宿主电话计数门禁登记到九十九条（本票合并后总数从 96 涨到 99）')
+  // 电话总数随并行票一起涨：本票合并时是 99 条，之后 #1759 迁移与备份页两��把总数推到 101，所以这格只认「更早的历史数字已退场、当前数字已在场」，不写死单一历史值。
+  check(settingsGateSource.indexOf('check(nPhones === 91') < 0 && settingsGateSource.indexOf('check(nPhones === 95') < 0 && settingsGateSource.indexOf('check(nPhones === 99') < 0 && settingsGateSource.indexOf('check(nPhones === 101') >= 0, 'E26 宿主电话计数门禁登记到一百零一条（本票合并后总数从 99 涨到 101）')
   const sameLayer: string = sourceText('tests/same-layer-baseline.json')
   const rebaseEntryFiles: string[] = ['versionControlRebaseMount.ts', 'versionControlRebaseScene.ts', 'versionControlRebaseCheck.ts', 'versionControlRebaseWrite.ts'].filter(function (name: string) { return sameLayer.indexOf(name) >= 0 })
   eq(rebaseEntryFiles.length, 4, 'E27 同层引用基线登记了变基页四片的装配扇入（缺：' + rebaseEntryFiles.join(',') + '）')

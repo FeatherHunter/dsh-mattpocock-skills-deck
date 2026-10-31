@@ -814,6 +814,33 @@
     },
     {
       "file": "src/host/versionControl.ts",
+      "spec": "./versionControlMigrateMount.js",
+      "resolved": "src/host/versionControlMigrateMount.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1759（规格 #1586 T23 迁移与备份域）",
+      "note": "装配扇入：迁移与备份域拆出预检签票与凭票执行两叶后，父文件贴着 350 有效行上限，只留 createMigrateMount 一行装配调用；外壳负责懒加载两条电话、日志包装与路径探测（stat/list/digest/makeDir），自己不解析仓库、不起写进程。"
+    },
+    {
+      "file": "src/host/versionControlMigrateMount.ts",
+      "spec": "./versionControlMigrateCheck.js",
+      "resolved": "src/host/versionControlMigrateCheck.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1759（规格 #1586 T23 迁移与备份域）",
+      "note": "外壳装配：外壳把迁移预检叶子接上（初始化仓库时看目标路径是否为空、仓库内动作读现场并核输入文件摘要、只读动作当场给结果、其余签 120 秒票）；方向单向，预检叶子不引用外壳与执行叶子。"
+    },
+    {
+      "file": "src/host/versionControlMigrateMount.ts",
+      "spec": "./versionControlMigrateWrite.js",
+      "resolved": "src/host/versionControlMigrateWrite.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1759（规格 #1586 T23 迁移与备份域）",
+      "note": "外壳装配：外壳把迁移执行叶子接上（复核票、重算现场与预检时逐格比对、requestId 去重、导入先新建空目录再 init、任务交长任务通道）；执行叶子与预检叶子共用同一张票表，票表由外壳从预检叶子取出后显式交给执行叶子，两叶互不引用。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
       "spec": "./versionControlBranchMount.js",
       "resolved": "src/host/versionControlBranchMount.ts",
       "layer": "host",
