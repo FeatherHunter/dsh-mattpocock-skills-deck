@@ -251,16 +251,6 @@ const STATUS_EXCEPTIONS = [
     reason: '执行链状态点的 warn 档取色。',
   },
   {
-    file: 'src/client/views/shared/RestFallbackBanner.ts',
-    segment: "view.stale ? 'stale' : 'now'",
-    reason: '接口降级到 REST 时的横幅提示（stale / now 两档）：提醒人数据来源变了。',
-  },
-  {
-    file: 'src/client/views/shared/RestFallbackBanner.ts',
-    segment: "background: 'transparent', border: 'none', color: '#f59e0b'",
-    reason: '降级横幅的关闭按钮文字色：沿用横幅的警告色。',
-  },
-  {
     file: 'src/client/views/shared/SwitchConfirmModal.ts',
     segment: "id === 'migrate' ? '#f59e0b'",
     reason: '切换确认里「迁移」选项的琥珀色：keep 绿 / migrate 琥珀 / 拒绝红三档。',

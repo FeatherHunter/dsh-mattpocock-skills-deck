@@ -334,8 +334,8 @@ export default {
     // ==== leaf:vcTabVisible (spliced by build) ==== // ==== leaf:vcData (spliced by build) ==== // ==== leaf:vcCache (spliced by build) ==== // ==== leaf:vcInView (spliced by build) ==== // ==== leaf:versionControlTab (spliced by build) ====
     // ==== leaf:tabs (spliced by build) ====
     // ==== leaf:truthLines (spliced by build) ====
-    // 2026-09-24：降级横幅的「画」那一段从 ListTab.js 搬来这里（判据仍是上面 truthLines 里的 restFallbackView）。
-    // ==== leaf:restFallbackBanner (spliced by build) ====
+    // #1699：降级提示不再占列表一行 —— 小标识画在列表头部 KPI 那一行里（判据仍是上面 truthLines 里的 restFallbackView）；历史由通知中心承载。
+    // ==== leaf:fallbackMark (spliced by build) ====
     // #1082：面板「跨会话在办表」（判据与画法；挂在 Dock 的列表页正文最上面）。
     // ==== leaf:workRouteTable (spliced by build) ====
 

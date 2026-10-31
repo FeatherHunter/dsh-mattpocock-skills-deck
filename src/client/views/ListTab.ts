@@ -53,7 +53,7 @@ declare function saveListPrefs(...args: any[]): any;
 declare function ticketRowsOf(...args: any[]): any;
 declare function truthNoticeLines(...args: any[]): any;
 declare function useClosedPageScroll(...args: any[]): any;
-declare const RestFallbackBanner: any;
+declare const FallbackMark: any;
 declare const Tip: any;
 declare const _tagsFpOf: any;
 declare const labelClicks: any;
@@ -365,10 +365,13 @@ export     const ListTab = ({ st, narrow }: any) => {
         // KPI 行 + 环境提示（v18-30：可接/占用 = 列表 open issue 口径）
         // #1698：待校准/未知的说明走 Tip 薄预设（views 目录的 title 处数有上限，别再新增 title）。
         (function () {
-          const kpiRow = h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap', position: 'relative' } }, [
+          const kpiRow = h('div', { 'data-list-head': 'kpi', style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap', position: 'relative' } }, [
           kpi(kpiFrontier, tr('list.kpi.takeable'), 'target', '#4ade80'),
           kpi(kpiOcc, tr('list.kpi.occupied'), 'lock', '#f0883e'),
           kpi(kpiClosed, tr('list.kpi.closed'), 'check', '#52525b'),
+          // #1699：当前取数是否走了 REST 通道，不再画成占一行的横幅（历史在通知中心），改成这一行里的一枚小标识；
+          //   说哪一句仍由 truthLines 的 restFallbackView 给（超一小时改口「上次…」、只有配额才提配额），这里只负责画。
+          h(FallbackMark, { key: 'fallbackMark', st: st }),
           // #689 的 partial 状态不再单独占一格（橙色胶囊太抢眼，又长得像按钮但点不动）——
           //   改为数字右上角一颗 5px 圆点 + 悬浮说明追加一句（圆点是状态不是控件；竖条试过，太生硬）。
           h('span', { style: { flex: 1 } }),
@@ -428,8 +431,6 @@ export     const ListTab = ({ st, narrow }: any) => {
           const tone = function (t: any) { return t === 'red' ? '#f87171' : (t === 'yellow' ? '#f59e0b' : 'var(--dsws-label-caption,#8b8b95)') }
           return h('div', { className: 'dsws-truth', style: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', fontSize: 11, padding: '2px 2px 4px' } }, ls.map(function (ln: any) { return h('span', { key: ln.kind || ln.key, style: { color: tone(ln.tone) } }, tr(ln.key, ln.params)) }))
         })(),
-        // v1.5 B5 降级横幅：走 REST 通道取回来的那份数据要明说 —— 判据（restFallbackView）与画法都在 views/shared/RestFallbackBanner.js。
-        h(RestFallbackBanner, { key: 'restFallback', st: st }),
         // #374：状态过滤渲染 —— open 主体 / closed 列表 / 「全部」态保留已关闭折叠行
         showOpen ? (filteredOpen.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredOpen.map(function (x: any) { return listIssueRow(h, st, x, true, narrow, blockOf, colorOf, multiEffort) })) : null,
         showClosedList ? (filteredClosed.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredClosed.map(function (x: any) { return listIssueRow(h, st, x, false, narrow, blockOf, colorOf, multiEffort) })) : null,
