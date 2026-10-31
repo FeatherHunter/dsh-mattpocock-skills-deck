@@ -14,8 +14,9 @@
 //      完整度取值是魔法值、mixed 用在单渠道操作上 —— 十二种都必须判红。
 //   D. 接缝：stub 掉 gh 执行器喂假回包，真调 listIssues / getIssue / listIssuesPage，
 //      断言结果里的来源六要素与实际调用序列；同时断言旧的 fallback / truncated 字段没被改掉。
-//      这里也把「触上限」的两条情况钉住：REST 整仓列表恰好翻满 10 页且每页满 100 行时
-//      必须记 truncated（没有空页探测就不算完整），GraphQL 单票依赖到 50 条时记 truncated。
+//      这里也把「触上限」的两条情况钉住：REST 整仓列表翻满 10 页且每页满 100 行时必须再打
+//      一次空页探测——探测为空才记 complete，探测非空或探测失败才记 truncated（#1681 复审修复；
+//      请求上界与「探测只打一次」由 #1769 的 F 段单独钉住），GraphQL 单票依赖到 50 条时记 truncated。
 //
 // 门禁归属: src/tracker/contract/read-provenance.ts
 // 门禁归属: src/tracker/contract/results.ts
@@ -82,6 +83,7 @@ import {
 import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.js'
 import { getIssue, listIssues } from '../src/tracker/rooms/github/read/issues.js'
 import { listIssuesPage } from '../src/tracker/rooms/github/read/page.js'
+import { fetchAllIssuesREST } from '../src/tracker/rooms/github/read/issues-rest-list.js'
 import { createGithubBackend } from '../src/tracker/rooms/github/room/backend.js'
 import {
   GET_QUERY,
@@ -1058,6 +1060,97 @@ check(
   restSubIssuesCompleteness({ fetched: 120, pageSize: 100, lastPageRows: 20, sawEmptyPage: false, hitCap: false, pageFailure: false }) === 'complete',
   'REST 子票：最后一页不满一页是 complete',
 )
+
+// =============================================================================================
+// F. REST 整仓列表枚举的请求上界（#1769）：最多 restMaxPages + 1 条请求，终止探测只打一次
+// =============================================================================================
+// 为什么单列一段：ADR §2.3 与收口 §9.1 过去把「整仓完整枚举」写成互相矛盾的对象——一会儿是 REST
+// 一轮的组成（列表 10 页 + 其他 + 探测 1 + 余量 2 = 16），一会儿又说探测不进宿主那本 16 条账本。
+// 口径其实是两本账：REST 整仓列表枚举是房间自己的翻页，结构上界 = restMaxPages + 1 = 11 条请求；
+// 宿主降级轮那本 16 条账本只给「索引翻页」记账（issue-list-fetch.ts 的 fetchIssueIndex 逐页 reserve），
+// 探测是房间翻页内部的一次请求，不进那本账。这里直接驱动渠道函数 fetchAllIssuesREST，按执行器
+// 看到的页码序列断请求条数与「探测只打一次」，不经过 listIssues 的降级包装。
+console.log('#1769 F. REST 整仓列表枚举的请求上界')
+
+const REST_PARSED: any = { owner: 'FeatherHunter', name: 'dsh-mattpocock-skills-deck' }
+const REST_PAGE = PAGINATION.github.restPageSize
+const REST_MAX = PAGINATION.github.restMaxPages
+
+function restPageRowsOf(page: number): any[] {
+  const rows: any[] = []
+  for (let i = 0; i < REST_PAGE; i++) rows.push(restListRow((page - 1) * REST_PAGE + i + 1))
+  return rows
+}
+function restPageNumbersOf(room: any): number[] {
+  return room.calls
+    .filter(function (c: any): boolean { return c.kind === 'rest.issues' })
+    .map(function (c: any): number { return c.page })
+}
+function countOfPage(pages: number[], page: number): number {
+  return pages.filter(function (p: number): boolean { return p === page }).length
+}
+function restRowsLenOf(result: any): number {
+  return result.ok === true && result.data && result.data.rows ? result.data.rows.length : -1
+}
+
+// F1. 十页全满、第 11 页空：请求正好 restMaxPages+1 条，页码严格 1..11，探测只出现一次
+{
+  const room = await makeRoom(function (info: any): any {
+    if (info.kind !== 'rest.issues') return failExec()
+    return okExec(info.page === REST_MAX + 1 ? [] : restPageRowsOf(info.page))
+  })
+  const result: any = await fetchAllIssuesREST(REST_PARSED, room.ctx)
+  const pages = restPageNumbersOf(room)
+  const paging = result.ok === true ? result.data.paging : {}
+  check(result.ok === true, 'F1 REST 整仓枚举：满十页后空页探测成功', result.error)
+  check(pages.join(',') === '1,2,3,4,5,6,7,8,9,10,11', 'F1 页码严格是 1..11，不重发也不跳过', pages.join(','))
+  check(countOfPage(pages, REST_MAX + 1) === 1, 'F1 终止探测只打一次', pages.join(','))
+  check(pages.length === REST_MAX + 1, 'F1 请求总数 = restMaxPages + 1 = 11，这就是结构上界', pages.length)
+  check(paging.probeAttempted === true && paging.probeFailed === false && paging.sawEmptyPage === true && paging.hitPageCap === false, 'F1 探测为空：记已探测、没失败、到空页、没触上限', JSON.stringify(paging))
+  check(restRowsLenOf(result) === REST_PAGE * REST_MAX, 'F1 探测页不并入：结果正好十页 1000 行', restRowsLenOf(result))
+}
+
+// F2. 第 3 页只回 40 行：结尾不满一页就停，不打探测，请求数远低于上界
+{
+  const room = await makeRoom(function (info: any): any {
+    if (info.kind !== 'rest.issues') return failExec()
+    return okExec(info.page === 3 ? restPageRowsOf(3).slice(0, 40) : restPageRowsOf(info.page))
+  })
+  const result: any = await fetchAllIssuesREST(REST_PARSED, room.ctx)
+  const pages = restPageNumbersOf(room)
+  const paging = result.ok === true ? result.data.paging : {}
+  check(pages.join(',') === '1,2,3', 'F2 结尾不满一页就停：只翻三页、没打探测', pages.join(','))
+  check(restRowsLenOf(result) === REST_PAGE * 2 + 40, 'F2 结果 240 行（两整页加 40 行）', restRowsLenOf(result))
+  check(paging.probeAttempted === false && paging.sawEmptyPage === false, 'F2 没走到页数上限，不探测', JSON.stringify(paging))
+}
+
+// F3. 十页全满、第 11 页回来还有 100 行：探测行不并入，仍按十页上限截断，探测只打一次
+{
+  const room = await makeRoom(function (info: any): any {
+    if (info.kind !== 'rest.issues') return failExec()
+    return okExec(restPageRowsOf(info.page))
+  })
+  const result: any = await fetchAllIssuesREST(REST_PARSED, room.ctx)
+  const pages = restPageNumbersOf(room)
+  const paging = result.ok === true ? result.data.paging : {}
+  check(pages.length === REST_MAX + 1 && countOfPage(pages, REST_MAX + 1) === 1, 'F3 请求仍是 11 条、探测只打一次', pages.join(','))
+  check(paging.probeAttempted === true && paging.probeFailed === false && paging.sawEmptyPage === false && paging.hitPageCap === true, 'F3 探测非空：记已探测、没有空页、按上限截断', JSON.stringify(paging))
+  check(restRowsLenOf(result) === REST_PAGE * REST_MAX, 'F3 探测页的行不并入结果（仍是 1000 行）', restRowsLenOf(result))
+}
+
+// F4. 十页全满、第 11 页请求失败：探测失败与页失败分开记，已得十页照常返回
+{
+  const room = await makeRoom(function (info: any): any {
+    if (info.kind !== 'rest.issues') return failExec()
+    return info.page === REST_MAX + 1 ? failExec() : okExec(restPageRowsOf(info.page))
+  })
+  const result: any = await fetchAllIssuesREST(REST_PARSED, room.ctx)
+  const pages = restPageNumbersOf(room)
+  const paging = result.ok === true ? result.data.paging : {}
+  check(pages.length === REST_MAX + 1 && countOfPage(pages, REST_MAX + 1) === 1, 'F4 探测失败也只打一次，总请求仍是 11 条', pages.join(','))
+  check(paging.probeAttempted === true && paging.probeFailed === true && paging.pageFailure === false && paging.hitPageCap === false, 'F4 探测失败单独记：pageFailure 仍是 false、不算触上限', JSON.stringify(paging))
+  check(restRowsLenOf(result) === REST_PAGE * REST_MAX, 'F4 已得十页照常返回（1000 行、不是整趟失败）', restRowsLenOf(result))
+}
 
 // =============================================================================================
 // 汇总

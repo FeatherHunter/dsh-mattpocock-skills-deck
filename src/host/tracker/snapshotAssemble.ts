@@ -178,7 +178,17 @@ export interface MapCarryOptions {
   nowMs?: number
 }
 
-/** 把引用或票号折成字符串键：数字、字符串、{key}、{number} 四种写法都认。 */
+/**
+ * 把引用或票号折成字符串键：数字、字符串、{key}、{number} 四种写法都认。
+ *
+ * 这是宿主装配层自己的一份行身份归一化。全仓另有三处各自处理同一件事：刷新内核按行淘汰、
+ * 客户端地图卡片、宿主写回前的淘汰键集合，四处的口径并不相同（这一处会 trim、认对象包装，
+ * 另外几处有的不 trim，有的会去掉前导零）。没有抽成一个公共叶子的原因不是分层禁止——
+ * host / refresh / client 引用 src/tracker/kernel 本来就允许——而是跨后端票号口径还没定：
+ * GitHub 用数字键，Markdown 与本地后端用补零的字符串键，现在合并会把「折不折零」的分歧
+ * 藏进共享代码。先各自保留并写清口径，等票号口径统一后再收编；
+ * 背景见 docs/design/20261030-panel-snapshot-closeout.md 第 9 节第 7 条与 #1769。
+ */
 function keyOf(value: any): string {
   if (value === null || value === undefined) return ''
   if (typeof value === 'number') return Number.isFinite(value) ? String(value) : ''
@@ -194,7 +204,7 @@ function refNumberOf(value: any): number | string | null {
   return /^\d+$/.test(key) ? Number(key) : key
 }
 
-/** 行的身份键：优先 key，其次 number。 */
+/** 行的身份键：优先 key，其次 number（key 是空串时在这里回落 number；刷新内核那份不回落，属于已知差异）。 */
 function rowKeyOf(row: any): string {
   const key = keyOf(row && row.key)
   if (key) return key

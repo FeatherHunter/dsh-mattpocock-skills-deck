@@ -186,7 +186,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 补两通道完整度判据边角、字段三态与来源信息的同批印证，316 条是单跑实测得出的。
   // 2026-10-31 #1681 复审修复：整仓 REST 枚举补第 11 页空页探测（恰好满十页不再永远判截断），
   // D2b 改准并补探测非空/探测失败两条负例、完整度纯函数加三条，341 条是单跑实测得出的。
-  'verify-read-result-provenance': 341,
+  // 2026-10-31 #1769：新增 F 段四例直接驱动 fetchAllIssuesREST，钉住「最多 restMaxPages+1 条请求」
+  // 与「终止探测只打一次」（15 条），356 条是单跑实测得出的。
+  'verify-read-result-provenance': 356,
   // 2026-10-31 #1688：字段三态进读结果契约与归一化去未知回落（缺边记未表达、缺计数保持未知、
   // 非 GitHub 后端整块省略走旧口径），65 条是单跑实测得出的。
   'verify-field-tri-state': 65,

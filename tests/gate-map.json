@@ -9684,7 +9684,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 341,
+      "expectedAssertions": 356,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 20 条）"
     },
     {

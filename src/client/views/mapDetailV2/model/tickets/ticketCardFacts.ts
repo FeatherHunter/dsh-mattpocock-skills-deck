@@ -69,7 +69,13 @@ function text(value: unknown): string {
   return value === null || value === undefined ? '' : String(value)
 }
 
-/** 票号：数字优先，其次拿 key 解析；两头都解析不出时给 null（卡片 id 与排序都靠它）。 */
+/**
+ * 票号：数字优先，其次拿 key 解析；两头都解析不出时给 null（卡片 id 与排序都靠它）。
+ *
+ * 这里要的是「数字」本身，不做规范键：不 trim、不去前导零（'01' 会解析成 1，但索引键由下面
+ * numberKeyOf 生成）。它与宿主装配层、刷新内核、row-patch 那三份行身份口径不同，属于本视图
+ * 自己的一份；四处暂不合并的原因见 docs/design/20261030-panel-snapshot-closeout.md 第 9 节第 7 条与 #1769。
+ */
 export function ticketNumberOf(row: MapTicketRow): number | null {
   if (!row) return null
   const direct = row.number
@@ -102,6 +108,10 @@ export function ticketLabelNamesOf(row: MapTicketRow): string[] {
  * 但 blockedBy 里常常原样保留 '01'。不归一时，索引里只有 '1'，查 '01' 永远查不到，
  * 整张地图的阻塞关系会被静默判成「可接」——卡片没有暗层、没有封条，看板也不把它排到挡路者后面。
  * 归一之后两端都用同一个键；认不出的写法（比如 'x'）原样保留，脏数据照样能当键用。
+ *
+ * 这是四处行身份归一化里客户端的一份，只服务地图卡片的索引；宿主装配层与写回前淘汰那两份
+ * 不折零，刷新内核那份连 trim 都不做。四处暂不合并（跨后端票号口径还没定）的理由见
+ * docs/design/20261030-panel-snapshot-closeout.md 第 9 节第 7 条与 #1769。
  */
 function numberKeyOf(raw: unknown): string {
   const trimmed = text(raw).trim()
