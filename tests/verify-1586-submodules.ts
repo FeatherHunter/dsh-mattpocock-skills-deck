@@ -116,6 +116,22 @@ const BOARD = { ok: true, contract: 'version-control.submodule-board', version: 
 const TICKET = { id: 't-1', op: 'set-url', checkedAtMs: 1790000000000, expiresAtMs: 1790000120000 }
 const CHECK_OK = { ok: true, contract: 'version-control.submodule-check', version: 1, readAtMs: 1790000000000, op: 'set-url', decision: 'allow', reasons: [], confirmRequired: true, ticket: TICKET, task: null }
 
+// 源码形状判据：固定菜单唯一允许的 foreach 必须是一整串字面量，分支体里不读任何调用方字段。
+// 它同时被 B11（真源码必须过）与 F 组（把这一串改成拼路径必须报红）使用，两边判的是同一件事。
+function fetchArgvIsLiteral(text) {
+  const marker = "if (op === 'submodule-fetch') {"
+  const at = text.indexOf(marker)
+  if (at < 0) return false
+  const tail = text.slice(at + marker.length)
+  const endAt = tail.indexOf('\n  }')
+  const branch = endAt >= 0 ? tail.slice(0, endAt) : tail
+  const code = branch.replace(/\/\/[^\n]*/g, '')
+  const bare = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+  const count = (bare.match(/foreach/g) || []).length
+  const decl = /export const SUBMODULE_FETCH_ARGV: string\[\] = \['submodule', 'foreach', '--recursive', 'git fetch'\]/
+  return count === 1 && decl.test(bare) && code.indexOf('a.') < 0 && code.indexOf('+') < 0 && code.indexOf('return { ok: true, args: SUBMODULE_FETCH_ARGV.slice() }') >= 0
+}
+
 async function main() {
   // ===== A 共享判定与参数守卫 =====
   console.log('')
@@ -159,6 +175,13 @@ async function main() {
   check(P.taskArgsFor('submodule-fetch', {}).args.join('|') === 'submodule|foreach|--recursive|git fetch', 'B6 逐个抓取只有写死的 git fetch 一个字符串参数（不接任意命令）')
   check(P.taskArgsFor('submodule-init', { path: '../x' }).ok === false && P.taskArgsFor('submodule-add', { url: '-x', path: 'a' }).ok === false, 'B7 子模块动作的参数照样过路径与地址守卫')
   check(P.taskArgsFor('submodule-fetch', { command: 'rm -rf /' }).ok === true && P.taskArgsFor('submodule-fetch', { command: 'rm -rf /' }).args.join('|') === P.taskArgsFor('submodule-fetch', {}).args.join('|'), 'B8 多余字段拼不进命令：给 command 字符串也还是同一串 argv')
+  const MENU_BATCH_ARGV = { init: 'submodule|update|--init|--recursive', fetch: 'submodule|foreach|--recursive|git fetch', recorded: 'submodule|update|--recursive' }
+  const menuTasks = S.SUBMODULE_BATCH_MENU.filter(function (m) { return m.taskOp !== null })
+  check(menuTasks.length === 3 && S.SUBMODULE_BATCH_MENU.filter(function (m) { return m.taskOp === null }).map(function (m) { return m.id }).join(',') === 'status' && menuTasks.every(function (m) { const r = P.taskArgsFor(m.taskOp, {}); return r.ok === true && r.args.join('|') === MENU_BATCH_ARGV[m.id] }), 'B9 四个固定菜单的批量 argv 全是字面量：三项各有一串写死的命令，看状态不挂任务')
+  check(menuTasks.every(function (m) { return ['command', 'cmd', 'argv', 'shell', 'exec', 'custom', 'subcommand'].every(function (k) { const extra = {}; extra[k] = 'rm -rf /'; const r = P.taskArgsFor(m.taskOp, extra); return r.ok === true && r.args.join('|') === MENU_BATCH_ARGV[m.id] }) }), 'B10 固定菜单不接受任何命令字段：逐个塞 command/cmd/argv/shell/exec/custom/subcommand 都拼不进 argv')
+  check(menuTasks.every(function (m) { return P.TASK_OPS.some(function (t) { return t.id === m.taskOp }) }), 'B11 批量的三项只挑任务通道里已有的动作号，没有给用户自定义命令的入口')
+  const protoSrc = read('src/shared/version-control/src/task-protocol.ts')
+  check(fetchArgvIsLiteral(protoSrc), 'B12 源码形状：foreach 只出现一次（常量声明），抓取分支只返回这串常量的副本，不读任何字段、不做拼接')
 
   // ===== C 宿主五叶与登记点 =====
   console.log('')
@@ -255,6 +278,12 @@ async function main() {
     check(text.indexOf('vcSubmodulesPageNode') >= 0, 'F 挂载段反证：原文件里确实有挂载记号')
     return { changed: broken !== text, text: broken }
   }, function (res) { return res.changed && res.text.indexOf('vcSubmodulesPageNode') < 0 })
+  expectBroke('抓取分支接上调用方路径', function () {
+    const text = read('src/shared/version-control/src/task-protocol.ts')
+    const broken = text.replace('args: SUBMODULE_FETCH_ARGV.slice()', 'args: SUBMODULE_FETCH_ARGV.concat(a.path ? [a.path] : [])')
+    check(text !== broken, 'F 抓取分支反证：原文件里确实有整串取用的写法')
+    return { changed: broken !== text, text: broken }
+  }, function (res) { return res.changed && fetchArgvIsLiteral(res.text) === false })
   expectBroke('宿主注册删掉一条电话', function () {
     const text = read('src/host/index.ts')
     const broken = text.replace("harness.handle('wf.gitSubmoduleTask'", "harness.handle('wf.gitSubmoduleTaskX'")

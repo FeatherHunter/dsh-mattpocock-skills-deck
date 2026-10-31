@@ -75,6 +75,16 @@ export const TASK_OPS: TaskOpMeta[] = [
   meta('maintenance-run', 'vc.task.op.maintenanceRun', false, { requiresConfirm: true, residual: '维护任务可能被中断，仓库仍然可用，重新执行一遍即可' }),
 ]
 
+/**
+ * 10.4 批量菜单里「逐个抓取」用的完整 argv：固定菜单内部命令，不接受任何输入。
+ *
+ * 为什么允许它用 foreach：规格第 10.4 条禁止的是「给用户一个 foreach 任意命令入口」，
+ * 不是禁止这条固定菜单本身。这里把子命令 git fetch 连同 foreach 一起写成字面量，
+ * 参数拼装处直接整串取用，调用方没有任何字段能改命令形状或追加子命令。
+ * 改这一行就等于改菜单语义，需要同时改票面、词条与门禁，不要在这里接参数。
+ */
+export const SUBMODULE_FETCH_ARGV: string[] = ['submodule', 'foreach', '--recursive', 'git fetch']
+
 /** 按动作名取元信息；不在清单里回 null，调用方据此给明确拒绝而不是落到 unknown 分支。 */
 export function taskOpMetaOf(id: any): TaskOpMeta | null {
   if (typeof id !== 'string') return null
@@ -258,9 +268,10 @@ export function taskArgsFor(op: any, args: any): TaskArgResult {
     return { ok: true, args: ['submodule', 'add', '--', a.url, a.path] }
   }
   if (op === 'submodule-fetch') {
-    // 10.4 的「逐个抓取」是固定菜单：命令字符串写死成 git fetch，调用方连字段都没有地方塞。
-    // foreach 本身不接受路径收窄参数，所以这里刻意忽略 a.path，避免有人用路径字段改命令形状。
-    return { ok: true, args: ['submodule', 'foreach', '--recursive', 'git fetch'] }
+    // 10.4 的「逐个抓取」是固定菜单：整串 argv 来自 SUBMODULE_FETCH_ARGV，命令字符串写死成
+    // git fetch，调用方连字段都没有地方塞。这里刻意不读调用方给的路径：foreach 不接受路径
+    // 收窄参数，读了反而会让人以为路径能改命令形状。slice() 是给调用方一份副本，防止就地改常量。
+    return { ok: true, args: SUBMODULE_FETCH_ARGV.slice() }
   }
   if (op === 'archive') {
     const revProblem = taskRevProblem(a.ref)
