@@ -191,6 +191,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-31 #1691：REST 单票降级按需补评论正文、依赖边、评审与合并时间（每类最多一次请求、
   // 补不到记未知不写空、满一页评论总数保持未知）；61 条是单跑实测得出的。
   'verify-rest-detail-completion': 61,
+  // 2026-10-31 #1693：通知事件库（四类事件、事件身份与恢复配对、去重与清理只动历史、当前状态仍按快照、
+  // 三个漏斗的真实接线）；102 条是单跑实测得出的。
+  'verify-notification-events': 102,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

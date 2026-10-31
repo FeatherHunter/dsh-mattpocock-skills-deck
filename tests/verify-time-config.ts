@@ -126,6 +126,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/rooms/host/outbound-admission.ts', access: 'LANE_WAIT_LOG_INTERVAL_MS', gen: 'LANE_WAIT_LOG_INTERVAL_MS', key: 'laneWaitLogIntervalMs' },
   // —— 会话链缓存保留期（refresh 纯逻辑层直接引中央常量：本文件是纯工具，不读钟不碰盘）——
   { file: 'src/refresh/kernel/chain-pruning.ts', access: 'CHAIN_KEEP_MS', gen: 'CHAIN_KEEP_MS', key: 'chainKeepMs' },
+  // —— 通知事件库（#1693）：去重窗与历史保留期，一个瞬时事件合并、一个清理历史 ——
+  { file: 'src/refresh/rooms/host/notification-store.ts', access: 'NOTIFICATION_EVENT_DEDUPE_MS', gen: 'NOTIFICATION_EVENT_DEDUPE_MS', key: 'notificationEventDedupeMs' },
+  { file: 'src/refresh/rooms/host/notification-store.ts', access: 'NOTIFICATION_EVENT_RETENTION_MS', gen: 'NOTIFICATION_EVENT_RETENTION_MS', key: 'notificationEventRetentionMs' },
   // —— 动态 import（发布包里源码树不在时允许取不到，由调用方照旧求值）：名字走 central 命名空间，门禁认动态 import 行 ——
   { file: 'src/refresh/rooms/host/chain-backoff.ts', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
   { file: 'src/refresh/rooms/host/chain-backoff.ts', access: 'CHAIN_ALL_GREEN_TTL_MS', gen: 'CHAIN_ALL_GREEN_TTL_MS', key: 'chainAllGreenTtlMs' },
@@ -413,6 +416,9 @@ const EXEMPTS: ExemptRow[] = [
   // #1692：磁盘回放的「上次已知」时刻与按需细节淘汰用的时间戳，都是读钟记下来的时刻。
   { file: 'src/refresh/kernel/detail-eviction.ts', name: 'nowMs', reason: '读钟时刻（调用方传入的 Date.now），给淘汰记号与行时间戳用，不是可调参数' },
   { file: 'src/client/views/IssueDetail.ts', name: 'evictedAtMs', reason: '算出来的时刻（淘汰记号里的上次已知时刻，界面格式化成人看的 HH:mm），不是可调参数' },
+  // #1693：通知事件库的去重窗口由调用方注入（上游是已登记的 notificationEventDedupeMs），读钟函数是测试注钟口。
+  { file: 'src/refresh/kernel/notification-events.ts', name: 'windowMs', reason: '透传变量，接的是 store 注入的去重窗口（上游是已登记的 notificationEventDedupeMs），不是新参数' },
+  { file: 'src/refresh/rooms/host/notification-store.ts', name: 'nowMs', reason: '读钟函数（Date.now 的包法，测试可注入），不是可调参数' },
   // —— 存量 JavaScript（覆盖率扫描从 .ts 扩到 .js 后新捞出来的）——
   // 分三类：测量值与时刻（调 YAML 改不了它）、状态字段与初值（0 表示“还没有”）、
   // 透传变量（值由调用方按已登记参数装进来）。
