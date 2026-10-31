@@ -13,11 +13,9 @@ interface HostCtx { get(key: string): any; inject(keys: string[], fn: () => void
 // ===== 规范方言（dynamic dialect）：harness 为自由变量；pkg entry 提供 shim =====
 export default {
   name: 'dsh-mattpocock-skills-deck',
-  // 声明 connection + llm + sessionQuery：webServer 仍不加（#596）；llm 给首轮摘要调模型用，
-  // sessionQuery 给读首轮两段用（读而不激活），缺任何一个对应功能静默降级（#746）。
+  // 声明 connection + llm + sessionQuery：webServer 仍不加（#596）；llm 给首轮摘要调模型用，sessionQuery 给读首轮两段用（读而不激活），缺任何一个对应功能静默降级（#746）。
   inject: ['connection', 'llm', 'sessionQuery'],
-  // 宿主插件主入口：为什么留在单文件装配——集中注册 61 条宿主电话与启动门，所有具体实现按需动态引入；
-  // 什么约定不能改——subprocess/timer 未就绪时必须挂起等待而非直接放弃，且本文件总行数受门禁上限 400 行与电话精确计数 61 条约束；
+  // 宿主插件主入口：为什么留在单文件装配——集中注册 65 条宿主电话与启动门，所有具体实现按需动态引入；什么约定不能改——subprocess/timer 未就绪时必须挂起等待而非直接放弃，且本文件总行数受门禁上限 400 行与电话精确计数 65 条约束；
   // 反例——若在 subprocess 未就绪时直接 return 退出而不挂 ctx.inject，慢启动机器上 deck 工具将永远无法注册且无日志可查。
   apply(ctx: HostCtx) {
     // 启动门（2026-09-26）：subprocess/timer 晚到时不再静默跳过——旧代码直接 return， wiring 与工具注册 hook 从没跑起来，deck 工具永不注册还查无对证。 先试一次；不齐就挂到框架依赖门上等人齐（官方 ctx.inject 写法，见 dsh-tool-pwsh）； 30 秒还没齐落一条 warn。 为何只能留在入口，见账本 §1。
@@ -39,9 +37,7 @@ export default {
     // v1.5.0（公共发布）：兜底 gh 路径经 platform.env.get('DSH_GH_PATH')（#171 migrated，零直读 process.env）。
     // #1003（2026-10-12 维护者拍板）：这里原来是 DSH 进程的当前目录——那会把「还不知道工作区是哪条目录」冒充成一条真实存在的、别人的目录（桌面端上就是安装目录），所以改成空串：调用方拿到空目录一律如实失败，不许拿它去解析路径或起外部命令。
     const DEFAULT_CWD = ''
-    // 超时数字不留字面量：值来自中央 YAML（stepWaitMs / snapshotCacheMs），本文件是插件入口、
-    // 不许加静态 import，所以经下面的 _timeCfg 动态 import（与 _boot 那几行动态加载同理，D7 只禁静态）。
-    // 用到的四处（_plat / _repo / _sessSnap / _vc 与底部的延迟警告）都是异步位置，先 await 到值再往下传。
+    // 超时数字不留字面量：值来自中央 YAML（stepWaitMs / snapshotCacheMs），本文件是插件入口、不许加静态 import，所以经下面的 _timeCfg 动态 import（与 _boot 那几行动态加载同理，D7 只禁静态）；用到的四处（_plat / _repo / _sessSnap / _vc 与底部的延迟警告）都是异步位置，先 await 到值再往下传。
     let _timeCfgP: Promise<any> | null = null
     function _timeCfg(): Promise<any> { if (!_timeCfgP) _timeCfgP = import('../shared/time-config/src/values.js'); return _timeCfgP }
     // v1.3.3 提速：快照缓存 5s → 60s（面板打开基本命中缓存，不再每次全量重建 11 次 gh 调用）
@@ -265,7 +261,7 @@ export default {
     function _deckExec(): Promise<any> { if (!_deckExecP) _deckExecP = (async function(){ const mod = await import('../deck/registration/host-delegate.js'); return mod.createDeckExec({ getTable: function(){ return _refreshWiringP!.then(function (w: any){ return (w && typeof w.deckToolsForHost === 'function') ? w.deckToolsForHost() : null }) }, logCtx: logCtx, noteWriteFailure: function (info: any) { return (_notif().then(function (h: any) { return h.noteWriteFailure(info) }).catch(function () {})) } }) })(); return _deckExecP }
     harness.handle('wf.deckExec', async function (args: WfArgs) { const h = await _deckExec(); return h.handleDeckExec(args) })
     let _vcP: Promise<any> | null = null // #817 版本管理页签：三条只读电话，git 命令都在 ./versionControl.js 里起，闸与日志口在这里接上。
-    function _vc(): Promise<any> { if (!_vcP) _vcP = (async function(){ const tc = await _timeCfg(); const w = _refreshWiringP ? await _refreshWiringP.catch(function(){ return null }) : null; const mod = await import('./versionControl.js'); return mod.createVersionControl({ subprocess: subprocess, timer: timer, fs: fs, getPlatform: function(...args: any[]){ return getPlatform.apply(null, args) }, DEFAULT_CWD: DEFAULT_CWD, TIMEOUT_MS: tc.STEP_WAIT_MS, gate: (w && w.gate) || null, logCtx: logCtx }) })(); return _vcP }
+    function _vc(): Promise<any> { if (!_vcP) _vcP = (async function(){ const tc = await _timeCfg(); const w = _refreshWiringP ? await _refreshWiringP.catch(function(){ return null }) : null; const mod = await import('./versionControl.js'); return mod.createVersionControl({ subprocess: subprocess, timer: timer, fs: fs, getPlatform: function(...args: any[]){ return getPlatform.apply(null, args) }, DEFAULT_CWD: DEFAULT_CWD, TIMEOUT_MS: tc.STEP_WAIT_MS, gate: (w && w.gate) || null, logCtx: logCtx, getCacheDir: function () { return getCacheDir() } }) })(); return _vcP }
     harness.handle('wf.gitStatus', async function (args: WfArgs) { const h = await _vc(); return h.handleGitStatus(args) })
     harness.handle('wf.gitDiff', async function (args: WfArgs) { const h = await _vc(); return h.handleGitDiff(args) })
     harness.handle('wf.gitLog', async function (args: WfArgs) { const h = await _vc(); return h.handleGitLog(args) })
@@ -277,6 +273,10 @@ export default {
     harness.handle('wf.gitPull', async function (args: WfArgs) { const h = await _vc(); return h.handleGitPull(args) })
     harness.handle('wf.gitFetch', async function (args: WfArgs) { const h = await _vc(); return h.handleGitFetch(args) })
     harness.handle('wf.gitPush', async function (args: WfArgs) { const h = await _vc(); return h.handleGitPush(args) })
+    // #1740 长任务通道三条电话（开始、查询、取消）：装配在 ./versionControl.js 那一族里，这里只注册。
+    harness.handle('wf.gitTaskStart', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskStart(args) })
+    harness.handle('wf.gitTaskQuery', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskQuery(args) })
+    harness.handle('wf.gitTaskCancel', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskCancel(args) })
 
     harness.handle('wf.refresh', async function (args: WfArgs) { const h = await _sessRef(); return h.handleRefresh(args) })
 

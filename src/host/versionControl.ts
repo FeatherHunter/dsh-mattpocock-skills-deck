@@ -468,6 +468,156 @@ export function createVersionControl(deps: any): any {
   let _writeP: any = null
   function writePhone(): any { if (!_writeP) _writeP = Promise.all([import('../refresh/rooms/host/gh-execution.js'), import('./versionControlCheck.js'), import('./versionControlWrite.js')]).then(function (ms: any) { const sg: any = ms[0].createCredentialSafeGit({ runGit: runGit, getPlatform: getPlatform, DEFAULT_CWD: DEFAULT_CWD }); const nowFn: any = (deps && typeof deps.now === 'function') ? deps.now : Date.now; const c: any = ms[1].createWriteCheck({ vc: { readScreenOf: readScreenOf }, safeGit: sg, failPhone: failPhone, nowMs: nowFn, randomId: function (): string { return Math.random().toString(36).slice(2) } }); const w: any = ms[2].createWritePhones({ vc: { readScreenOf: readScreenOf }, safeGit: sg, tickets: c.tickets, results: c.results, nowMs: nowFn }); return { check: loggedPhone('wf.gitWriteCheck', 'git-write-check', c.handleGitWriteCheck), stage: loggedPhone('wf.gitStage', 'git-stage', w.handleGitStage), unstage: loggedPhone('wf.gitUnstage', 'git-unstage', w.handleGitUnstage), commit: loggedPhone('wf.gitCommit', 'git-commit', w.handleGitCommit), pull: loggedPhone('wf.gitPull', 'git-pull', w.handleGitPull), fetch: loggedPhone('wf.gitFetch', 'git-fetch', w.handleGitFetch), push: loggedPhone('wf.gitPush', 'git-push', w.handleGitPush), tickets: c.tickets } }).catch(function (e: any): any { const f: any = function (): any { return failPhone('env', '写操作那一族加载失败：' + String(((e as any) && (e as any).message) || (e as any))) }; return { check: f, stage: f, unstage: f, commit: f, pull: f, fetch: f, push: f } }); return _writeP }
 
+  // ---- #1740 长任务通道（追加段，不改上面任何既有行为）----
+  // 三条口径：
+  //   1. 命令拼装与白名单来自共享协议 task-protocol；本层只负责起进程、固定前缀、GIT_EDITOR、
+  //      -C 钉仓库、报闸、标准输入窄例外与输出增量读取，不判断业务语义；
+  //   2. 进度靠定时读收集器（DSH 的 subprocess 服务只给 readFrom 增量读，没有逐行回调），
+  //      读到多少行就交给运行器解析多少；解析不出百分比时运行器会如实标成不确定；
+  //   3. 结束结论四类（成功、失败、取消、中断）由运行器写；本层只把退出事实与输出原文交出去。
+  function makeLaunchTaskGit(pollMs: number): any {
+    return async function launchTaskGit(options: any): Promise<any> {
+      const resolved: any = await resolveGitExecutable()
+      if (!resolved) return { ok: false, kind: 'spawn-failed', message: '找不到 git 可执行文件（platform.resolveExecutable("git") 没有给出路径）' }
+      const dir: string = String((options && options.cwd) || DEFAULT_CWD || '')
+      const args: string[] = Array.isArray(options && options.args) ? options.args : []
+      const argv: string[] = [resolved, '-C', dir].concat(fixedPrefix(), args)
+      const wantStdin: boolean = !!(options && options.stdinBytes)
+      // 非交互：GIT_EDITOR 设成必失败命令（规格第 7 节），终端提示与 askpass 一并关死，长任务不许卡在等输入。
+      const childEnv: any = { GIT_EDITOR: FAILING_EDITOR, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: FAILING_EDITOR }
+      reportOutbound()
+      let handle: any
+      try {
+        handle = subprocess.spawn({
+          argv: argv,
+          cwd: dir,
+          stdio: { stdin: wantStdin ? 'pipe' : 'ignore', stdout: { maxBytes: STDOUT_LIMIT }, stderr: { maxBytes: STDERR_LIMIT } },
+          graceMs: PROC_GRACE_MS,
+          env: childEnv,
+        })
+      } catch (e) {
+        fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, cmd: subcommandOf(args), errorKind: 'spawn' })
+        return { ok: false, kind: 'spawn-failed', message: String(((e as any) && (e as any).message) || (e as any)) }
+      }
+      const state: any = { stopped: false, outOff: 0, errOff: 0, outText: '', errText: '', outLossy: false, errLossy: false, stdinError: null }
+      const onLine: any = (options && typeof options.onLine === 'function') ? options.onLine : null
+      function takeChunk(kind: any): void {
+        try {
+          const collector: any = handle && handle.collected ? handle.collected[kind] : null
+          if (!collector || typeof collector.readFrom !== 'function') return
+          const offKey: string = kind === 'stdout' ? 'outOff' : 'errOff'
+          const textKey: string = kind === 'stdout' ? 'outText' : 'errText'
+          const lossyKey: string = kind === 'stdout' ? 'outLossy' : 'errLossy'
+          const chunk: any = collector.readFrom(state[offKey]) || {}
+          if (typeof chunk.nextOffset === 'number') state[offKey] = chunk.nextOffset
+          if (typeof chunk.text === 'string' && chunk.text) {
+            state[textKey] += chunk.text
+            if (onLine) {
+              const lines: string[] = chunk.text.split(/\r?\n/)
+              for (let i: number = 0; i < lines.length; i++) { const line: string = lines[i]; if (line.trim()) onLine(line) }
+            }
+          }
+          if (chunk.lossy === true) state[lossyKey] = true
+        } catch (e) { /* 读收集器失败不影响任务本身 */ }
+      }
+      function pump(): void { takeChunk('stdout'); takeChunk('stderr') }
+      function loop(): void {
+        if (state.stopped) return
+        pump()
+        try { Promise.resolve(timer.timeout(pollMs)).then(loop).catch(function (): void {}) } catch (e) {}
+      }
+      if (wantStdin) {
+        const sink: any = handle && handle.stdin ? handle.stdin : null
+        if (!sink || typeof sink.write !== 'function') {
+          try { if (handle && typeof handle.terminate === 'function') handle.terminate() } catch (eT) {}
+          fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, cmd: subcommandOf(args), errorKind: 'stdin' })
+          return { ok: false, kind: 'stdin-failed', message: '这条传输层服务不支持给 git 送标准输入，fast-import 跑不了' }
+        }
+        try {
+          if (typeof sink.on === 'function') sink.on('error', function (e: any): void {
+            state.stdinError = { kind: (e && e.code === 'EPIPE') ? 'epipe' : 'stdin-write-failed' }
+            try { if (handle && typeof handle.terminate === 'function') handle.terminate() } catch (eT) {}
+          })
+        } catch (eOn) {}
+        try {
+          sink.write(options.stdinBytes)
+          if (typeof sink.end === 'function') sink.end()
+        } catch (eW) {
+          const code: string = (eW && (eW as any).code) ? String((eW as any).code) : ''
+          state.stdinError = { kind: code === 'EPIPE' ? 'epipe' : 'stdin-write-failed' }
+          try { if (handle && typeof handle.terminate === 'function') handle.terminate() } catch (eT) {}
+        }
+      }
+      loop()
+      const finalDone: Promise<any> = Promise.resolve(handle.done).then(function (outcome: any): any {
+        state.stopped = true
+        pump()
+        // 没有增量读能力的收集器（别家实现或测试假身）在结束时一次取全文；有增量读的已经在 pump 里读完。
+        try {
+          const so: any = handle && handle.collected ? handle.collected.stdout : null
+          const se: any = handle && handle.collected ? handle.collected.stderr : null
+          const noStream: boolean = !(so && typeof so.readFrom === 'function')
+          if (noStream) {
+            const o: any = readCollector(so)
+            const r: any = readCollector(se)
+            if (o.text) state.outText += o.text
+            if (r.text) state.errText += r.text
+            if (o.truncated || r.truncated) state.outLossy = true
+          }
+        } catch (eR) {}
+        return {
+          exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : null,
+          signalled: !!(outcome && outcome.signal),
+          stdout: state.outText,
+          stderr: state.errText,
+          truncated: state.outLossy || state.errLossy,
+          stdinError: state.stdinError ? state.stdinError : null,
+        }
+      }, function (): any {
+        state.stopped = true
+        return { exitCode: null, signalled: false, stdout: state.outText, stderr: state.errText, truncated: state.outLossy || state.errLossy, stdinError: state.stdinError }
+      })
+      return {
+        ok: true,
+        handle: {
+          done: finalDone,
+          terminate: function (): void { try { if (handle && typeof handle.terminate === 'function') handle.terminate() } catch (eT) {} },
+          stdin: handle.stdin,
+        },
+        stdinError: state.stdinError,
+      }
+    }
+  }
+  /** 长任务通道：首次调用时装配新叶子；三条电话与写电话同一个 loggedPhone 日志口径（host.call / host.call.fail）。 */
+  let _taskP: any = null
+  function taskPhone(): Promise<any> {
+    if (!_taskP) {
+      _taskP = (async function (): Promise<any> {
+        const mod: any = await import('./versionControlTask.js')
+        const pollMs: number = Math.max(100, Number(mod.TASK_POLL_MS) || 400)
+        const channel: any = mod.createTaskChannel({
+          fs: fs,
+          getCacheDir: (deps && typeof deps.getCacheDir === 'function') ? deps.getCacheDir : null,
+          timer: timer,
+          now: (deps && typeof deps.now === 'function') ? deps.now : Date.now,
+          hash8: hash8,
+          instanceId: 'vc-' + hash8(String(Date.now()) + ':' + Math.random()),
+          repoRoot: DEFAULT_CWD,
+          fire: fire,
+          prepareStdinFile: prepareStdinFile,
+          launch: makeLaunchTaskGit(pollMs),
+        })
+        return {
+          handleGitTaskStart: loggedPhone('wf.gitTaskStart', 'git-task-start', channel.handleGitTaskStart),
+          handleGitTaskQuery: loggedPhone('wf.gitTaskQuery', 'git-task-query', channel.handleGitTaskQuery),
+          handleGitTaskCancel: loggedPhone('wf.gitTaskCancel', 'git-task-cancel', channel.handleGitTaskCancel),
+        }
+      })()
+      _taskP.catch(function (): void { _taskP = null })
+    }
+    return _taskP
+  }
+
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
@@ -484,5 +634,9 @@ export function createVersionControl(deps: any): any {
     // 票据原值仍只留在宿主进程内存里，不落盘、不进日志。
     writeTickets: async function (): Promise<any> { const w: any = await writePhone(); return w.tickets || null },
     runGitCommand: runGit, // #839：那一族「可能弹凭据提示」的命令复用同一条进程出口（同一个报闸、同一条 git.exec 日志、同一套字节上限）
+    // #1740 长任务通道三条电话（开始、查询、取消）：装配在 ./versionControlTask.js，进程出口是上面那条固定前缀与报闸。
+    handleGitTaskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) },
+    handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) },
+    handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) },
   }
 }
