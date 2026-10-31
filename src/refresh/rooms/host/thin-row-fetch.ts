@@ -14,6 +14,8 @@
 //      取不到就只有失败的结局，调用方照旧记待办、水印不动。
 //   2. 一票一次 get，字段由房间归一，不再拼 REST 的 --jq 参数；行的形状仍与全量取数那份同形，
 //      免得并进列表之后同一行有两种形状（界面在两种形状之间摇摆是最难查的一类错）。
+//      #1690 起回包里的 provenance 与行内三态也随行带回（只有带 provenance 的回包才带），
+//      合并服务靠它判断每个字段组能不能覆盖/清空旧值。
 //   3. 一条没取到就整批不并（定稿第十一章点名的那个静默漏报）：只并进去一半、却把水印推走，
 //      剩下那几条变化就再也发现不了了。
 //
@@ -50,8 +52,14 @@ interface SessionError { kind?: string; message?: string }
 /** 一票的取数结局：拿到行，或一条失败原因（整批据此不并）。 */
 interface OneResult { k: any; row?: any; bad?: { outcome: string; reason: string } }
 
-/** 把会话交回来的契约票转成列表里那一行的形状（与 issue-list-fetch.ts 的 fetchIssues 同口径）。 */
-function rowOf(issue: Issue): any {
+/**
+ * 把会话交回来的契约票转成列表里那一行的形状（与 issue-list-fetch.ts 的 fetchIssues 同口径）。
+ *
+ * #1690 起多接一个 provenance：有来源声明的回包把「这次到底取到了哪些字段组」一并带回行上，
+ * 合并服务据此按组判断能不能覆盖/清空旧值；同时把行内三态（IssueFieldStates）说 known:true
+ * 的组值挂到行上。没有 provenance 的老回包（列表取数、测试里的假会话）行形状一个字节不变。
+ */
+function rowOf(issue: Issue, provenance?: any): any {
   const labels = (issue.labels || []).map(function (l: any): any { return { name: l.name, color: l.color || '' } })
   const assignees = (issue.assignees || []).map(function (a: any): any { return a.login })
   const row: any = {
@@ -66,6 +74,24 @@ function rowOf(issue: Issue): any {
   }
   // 拉取请求行必须带这个标记：客户端 isTicketRow 只把 isPullRequest 为真的行挡在工单列表之外。
   if (issue.isPullRequest === true) { row.isPullRequest = true; row.mergedAt = issue.mergedAt || null }
+  if (provenance) {
+    row.provenance = provenance
+    if (issue.body !== undefined) row.body = issue.body
+    const states: any = issue.fieldStates
+    if (states) {
+      // 只把三态说「认识」的组附到行上：不认识的组附上去就等于假称取到了，合并时会误删旧值。
+      if (states.parents && states.parents.known === true) row.parentKey = states.parents.value
+      if (states.dependencies && states.dependencies.known === true) row.blockedBy = states.dependencies.value
+      if (states.subIssues && states.subIssues.known === true) row.subIssueCounts = states.subIssues.value
+      if (states.comments && states.comments.known === true) {
+        row.comments = Array.isArray(issue.comments) ? issue.comments : []
+        row.commentCount = states.comments.value
+      }
+      if (states.review && states.review.known === true) row.reviews = states.review.value
+      if (states.mergeInfo && states.mergeInfo.known === true) row.mergedAt = states.mergeInfo.value
+      row.fieldStates = states
+    }
+  }
   return row
 }
 
@@ -113,7 +139,7 @@ export async function fetchThinRows(env: ThinFetchEnv, cwd: any, repo: any, keys
           else env.budget.backfill(ticket, 1)
         }
         if (!r || r.ok !== true || !r.data) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-failed' } }
-        const row = rowOf(r.data)
+        const row = rowOf(r.data, r.provenance)
         if (!Number.isFinite(row.number)) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-parse' } }
         return { k: k, row: row }
       }))

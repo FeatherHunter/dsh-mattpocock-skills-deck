@@ -5,6 +5,8 @@
 //   ① 只取变的那几条：把窗口探测回来的索引与列表手上那份比一遍，变了的那几条各发一条薄查询
 //      （取数三件套 thinArgs/rowOf/fetchRows 在 ./thin-row-fetch.js，本文件只负责调它）；
 //   ② 并进现有列表：把那几条换进行里、产出新的版本号，派生值按 delta.derivedAfter 处置；
+//      （#1690 起「并进」这一步只经 src/refresh/kernel/snapshot-merge.ts 的字段组合并：整行替换退役，
+//      只有完整来源能覆盖或清空字段组，版本门挡住过期结果；本文件只负责取数、门禁与落盘。）
 //   ③ 持久化待办：被推迟 / 被丢弃 / 失败的取数进待办（水印不前进），切进工作区先清待办、有待办就整池。
 //
 // 依据：定稿第十一章（docs/architecture/refresh-budget-architecture.html 增补第十一章）。四条纪律照写：
@@ -39,6 +41,7 @@
 // ---------------------------------------------------------------------------
 
 import * as delta from '../../kernel/snapshot-diff.js'
+import * as merger from '../../kernel/snapshot-merge.js'
 import { fetchThinRows } from './thin-row-fetch.js'
 
 /** 快照里那份增量状态：水印、世代号、待办三件（待办只记票键，不记路径与命令）。 */
@@ -270,6 +273,9 @@ export function createPatch(deps?: PatchDeps | null): any {
       return { mode: 'deferred', reason: 'fallback-budget', pending: pending, keys: plan.changed }
     }
     const startedGeneration = st.generation
+    // #1690：合并服务是唯一写入入口。起读时先记下当前合并版本，取数回来再过版本门；
+    // 版本门与世代号是两扇门：世代号防「迟到的整池覆盖更新的增量」，合并版本号防「更旧的结果整份回退」。
+    const startedMergeVersion: number = merger.mergeVersionOf(snap)
     const got: any = await fetchThinRows({ openSession: d.openSession, stats: stats, budget: roundBudget }, cwd, repo, plan.changed)
     if (!got.ok) {
       const pending = await rememberPending(cwd, snap, got.keys || plan.changed, got.reason)
@@ -277,46 +283,49 @@ export function createPatch(deps?: PatchDeps | null): any {
       fire(got.outcome === 'deferred' ? 'deferred' : 'failed', got.reason, { keyHash: keyHash, changed: plan.changed.length, watermark: 'held', pending: pending })
       return { mode: got.outcome === 'deferred' ? 'deferred' : 'failed', reason: got.reason, pending: pending, keys: got.keys }
     }
-    // ⑨ 世代号：这一份还算不算数。不算就整份丢掉，一个字段都不写。
-    const g: any = delta.admitResult(stateOf(await readSnap(cwd)).generation, startedGeneration)
+    // ⑨ 两扇门：世代号（迟到的整池结果不许覆盖更新的增量结果）与合并版本号（更旧的结果整份丢弃）。
+    //    先读一遍最新快照再判，避免拿着过期的基线去合并。
+    const latest: any = await readSnap(cwd)
+    const latestState: DeltaState = stateOf(latest)
+    const g: any = delta.admitResult(latestState.generation, startedGeneration)
     if (!g.accept) { stats.staleDropped += 1; fire('patch', g.reason, { keyHash: keyHash, changed: plan.changed.length, watermark: 'held' }); return { mode: 'stale-dropped', reason: g.reason } }
-    // ⑩ 并进列表（纯逻辑在 delta.mergeRows）：位置不动、不新增行、版本号必变。
-    const mergedIssues: any = delta.mergeRows(snap.issues, got.rows, String(snap.version || ''))
-    if (mergedIssues.missing.length) {
-      const pending = await rememberPending(cwd, snap, mergedIssues.missing, 'merge-missing')
-      stats.failed += 1
-      fire('failed', 'merge-missing', { keyHash: keyHash, changed: mergedIssues.missing.length, watermark: 'held', pending: pending })
-      return { mode: 'failed', reason: 'merge-missing', pending: pending, keys: mergedIssues.missing }
-    }
-    const byKey: Record<string, any> = {}
-    got.rows.forEach(function (r: any): void { const k: any = delta.rowKey(r); if (k) byKey[k] = r })
-    let version: any = mergedIssues.version
-    const maps: any[] = (Array.isArray(snap.maps) ? snap.maps : []).map(function (m: any): any {
-      if (!m || !Array.isArray(m.tickets)) return m
-      const mr: any = delta.mergeRows(m.tickets, got.rows, version)
-      if (mr.replaced.length) version = delta.nextVersion(version, mr.replaced.map(function (k: any): string { return k + '=' + String((byKey[k] && byKey[k].state) || '') }))
-      return Object.assign({}, m, { tickets: mr.rows })
+    // ⑩ 并进列表（唯一写入入口在 kernel/snapshot-merge.ts）：字段组级合并——位置不动、读路径不新增行、
+    //    只有完整来源能覆盖或清空字段组；降级/截断来源只能补空缺，已知的父边、依赖、计数、正文、评论、评审一条不丢。
+    const merged: any = merger.mergeSnapshot(latest, {
+      kind: 'read', startVersion: startedMergeVersion, startedMs: scanStartedMs,
+      rows: got.rows, allowNewRows: false,
     })
+    if (merged.verdict !== 'merged') {
+      stats.staleDropped += 1
+      fire('patch', 'merge-stale', { keyHash: keyHash, changed: plan.changed.length, watermark: 'held' })
+      return { mode: 'stale-dropped', reason: 'merge-stale' }
+    }
+    if (merged.missing.length) {
+      const pending = await rememberPending(cwd, latest, merged.missing, 'merge-missing')
+      stats.failed += 1
+      fire('failed', 'merge-missing', { keyHash: keyHash, changed: merged.missing.length, watermark: 'held', pending: pending })
+      return { mode: 'failed', reason: 'merge-missing', pending: pending, keys: merged.missing }
+    }
     // ⑪ 派生值：进度环本地重算（客户端按行算）；**deck.counts 保持旧值并把 deck.partial 置真**
     //    —— 这条是红线：counts 是整仓口径，只有整池拿得到，本地硬算一个出来就是假数字。
     const derived: any = delta.derivedAfter('patch')
-    const deck: any = Object.assign({}, (snap.deck && typeof snap.deck === 'object') ? snap.deck : {})
+    const deck: any = Object.assign({}, (latest.deck && typeof latest.deck === 'object') ? latest.deck : {})
     if (derived.markPartial) deck.partial = true
-    const wv: any = delta.watermarkAfter({ previousMs: st.watermarkMs || watermarkMs, scanStartedMs: scanStartedMs, outcome: 'merged' })
+    const wv: any = delta.watermarkAfter({ previousMs: latestState.watermarkMs || watermarkMs, scanStartedMs: scanStartedMs, outcome: 'merged' })
     const nextState: DeltaState = {
-      watermarkMs: wv.watermarkMs, generation: g.generation, pendingAt: st.pendingAt, pendingReason: st.pendingReason,
-      pending: st.pending.filter(function (k: string): boolean { return mergedIssues.replaced.indexOf(k) < 0 }),
+      watermarkMs: wv.watermarkMs, generation: g.generation, pendingAt: latestState.pendingAt, pendingReason: latestState.pendingReason,
+      pending: latestState.pending.filter(function (k: string): boolean { return merged.changes.updated.indexOf(k) < 0 }),
     }
-    const next = withState(Object.assign({}, snap, {
-      issues: mergedIssues.rows, maps: maps, version: version,
-      generatedMs: now(), updatedAt: new Date(now()).toISOString(), deck: deck,
+    // 合并服务只把内容版本号放在回执里（快照里的 version 是信封契约版本，不归它改），由这里写回快照。
+    const next = withState(Object.assign({}, merged.snapshot, {
+      version: merged.version, generatedMs: now(), updatedAt: new Date(now()).toISOString(), deck: deck,
     }), nextState)
     await writeSnap(cwd, next)
     stats.patched += 1
-    fire('patch', 'rows-changed', { keyHash: keyHash, changed: mergedIssues.replaced.length, queries: got.queries, watermark: wv.advanced ? 'advanced' : 'held', pending: nextState.pending.length })
+    fire('patch', 'rows-changed', { keyHash: keyHash, changed: merged.changes.updated.length, queries: got.queries, watermark: wv.advanced ? 'advanced' : 'held', pending: nextState.pending.length })
     return {
-      mode: 'patch', reason: 'rows-changed', rows: mergedIssues.replaced, queries: got.queries,
-      version: version, partial: deck.partial === true, counts: derived.countsAction,
+      mode: 'patch', reason: 'rows-changed', rows: merged.changes.updated, queries: got.queries,
+      version: merged.version, mergeVersion: merged.merge.version, partial: deck.partial === true, counts: derived.countsAction,
       watermarkMs: wv.watermarkMs, generation: g.generation, pending: nextState.pending.length,
     }
   }
@@ -343,12 +352,13 @@ export function createPatch(deps?: PatchDeps | null): any {
    * 与 run() 的区别：不探测窗口、不算差分、不动水印 —— 写事件已经知道改的是哪一张票，
    * 再问一遍「最近变过什么」既慢，又会把一次写落回成整份重建。补的是哪一张由调用方点名。
    *
-   * 新建的票必须真的出现在列表里：delta.mergeRows 的约定是「位置不动、绝不新增行」，
-   * 列表里还没有的键会单独放进 missing 交回来；这里把 missing 对应的那几行按取回来的顺序追加到最后，
-   * 再补一次版本号。为什么并进列表而不是等整池：验收第 3 条就是「新建票不重启 DSH 也能看见」。
+   * 新建的票必须真的出现在列表里：合并服务的约定是「位置不动、读路径绝不新增行」，
+   * 写回执这一路（allowNewRows）把列表里还没有的那几行按取回来的顺序追加到最后，
+   * 并记进 changes.added。为什么并进列表而不是等整池：验收第 3 条就是「新建票不重启 DSH 也能看见」。
    *
    * 地图下面那一份（maps[].tickets）只并已有行：新行没有父信息，这里编一个父只会编错，
-   * 等下一次整池统一挂上去。派生值只处置 deck.partial（counts 是整仓口径，红线不变）。
+   * 等下一次整池统一挂上去。降级来源只补空缺，关系组一条不缩。派生值只处置 deck.partial
+   * （counts 是整仓口径，红线不变）。
    *
    * 回哪一档都能被调用方当成一句话安排下一步：
    *   { mode:'patch', rows, snapshot, version, queries, partial }  已经并进快照并落盘（rows 是变了的键）
@@ -367,6 +377,7 @@ export function createPatch(deps?: PatchDeps | null): any {
     const st: DeltaState = pre.st
     const repo: any = pre.repo
     const startedGeneration = st.generation
+    const startedMergeVersion: number = merger.mergeVersionOf(snap)
     // 只取这几条薄的（取数三件套在 ./thin-row-fetch.ts，依赖仍由这里注入）。
     const got: any = await fetchThinRows({ openSession: d.openSession, stats: stats }, cwd, repo, list)
     if (!got.ok) {
@@ -375,46 +386,44 @@ export function createPatch(deps?: PatchDeps | null): any {
       fire(got.outcome === 'deferred' ? 'deferred' : 'failed', got.reason, { keyHash: keyHash, changed: list.length, watermark: 'held', pending: pending })
       return { mode: got.outcome === 'deferred' ? 'deferred' : 'failed', reason: got.reason, pending: pending, keys: got.keys }
     }
-    // 世代号：这一份还算不算数。不算就整份丢掉，一个字段都不写。
-    const g: any = delta.admitResult(stateOf(await readSnap(cwd)).generation, startedGeneration)
+    // 世代号与合并版本门：这一份还算不算数。不算就整份丢掉，一个字段都不写。
+    const latest: any = await readSnap(cwd)
+    const latestState: DeltaState = stateOf(latest)
+    const g: any = delta.admitResult(latestState.generation, startedGeneration)
     if (!g.accept) { stats.staleDropped += 1; fire('patch', g.reason, { keyHash: keyHash, changed: list.length, watermark: 'held' }); return { mode: 'stale-dropped', reason: g.reason } }
-    const merged: any = delta.mergeRows(snap.issues, got.rows, String(snap.version || ''))
-    // 新建票：mergeRows 交回来的 missing 就是「列表里还没有的键」，对应那几行追加到最后（顺序按取回来的顺序）。
-    const missing: Record<string, boolean> = {}
-    ;(merged.missing || []).forEach(function (k: any): void { missing[String(k)] = true })
-    const added: any[] = []
-    got.rows.forEach(function (r: any): void { const k: any = delta.rowKey(r); if (k && missing[String(k)]) added.push(r) })
-    let issues: any[] = merged.rows
-    let version: any = merged.version
-    if (added.length) {
-      issues = (merged.rows || []).concat(added)
-      version = delta.nextVersion(version, added.map(function (r: any): string { return String(delta.rowKey(r)) + '=' + String(r.state || '') }))
-    }
-    const byKey: Record<string, any> = {}
-    got.rows.forEach(function (r: any): void { const k: any = delta.rowKey(r); if (k) byKey[k] = r })
-    const maps: any[] = (Array.isArray(snap.maps) ? snap.maps : []).map(function (m: any): any {
-      if (!m || !Array.isArray(m.tickets)) return m
-      const mr: any = delta.mergeRows(m.tickets, got.rows, version)
-      if (mr.replaced.length) version = delta.nextVersion(version, mr.replaced.map(function (k: any): string { return k + '=' + String((byKey[k] && byKey[k].state) || '') }))
-      return Object.assign({}, m, { tickets: mr.rows })
+    // 写回执走同一条合并入口：允许新增行（新建票要立刻出现在列表里），已有行按字段组掩码合并，
+    // 降级来源只补空缺。地图下面那一份只并已有行，新行等整池统一挂父。
+    const merged: any = merger.mergeSnapshot(latest, {
+      kind: 'write', startVersion: startedMergeVersion, startedMs: now(), rows: got.rows, allowNewRows: true,
     })
+    if (merged.verdict !== 'merged') {
+      stats.staleDropped += 1
+      fire('patch', 'merge-stale', { keyHash: keyHash, changed: list.length, watermark: 'held' })
+      return { mode: 'stale-dropped', reason: 'merge-stale' }
+    }
+    if (merged.missing.length) {
+      const pending = await rememberPending(cwd, latest, merged.missing, 'merge-missing')
+      stats.failed += 1
+      fire('failed', 'merge-missing', { keyHash: keyHash, changed: merged.missing.length, watermark: 'held', pending: pending })
+      return { mode: 'failed', reason: 'merge-missing', pending: pending, keys: merged.missing }
+    }
     const derived: any = delta.derivedAfter('patch')
-    const deck: any = Object.assign({}, (snap.deck && typeof snap.deck === 'object') ? snap.deck : {})
+    const deck: any = Object.assign({}, (latest.deck && typeof latest.deck === 'object') ? latest.deck : {})
     if (derived.markPartial) deck.partial = true
-    const changedKeys: any[] = (merged.replaced || []).concat(added.map(function (r: any): any { return delta.rowKey(r) }))
+    const changedKeys: any[] = merged.changes.updated.concat(merged.changes.added)
     const nextState: DeltaState = {
       // 水印一个字节都不动：写事件这一条不是窗口探测，动水印会让下一次探测错过窗口。
-      watermarkMs: st.watermarkMs, generation: g.generation, pendingAt: st.pendingAt, pendingReason: st.pendingReason,
-      pending: st.pending.filter(function (k: string): boolean { return changedKeys.indexOf(k) < 0 }),
+      watermarkMs: latestState.watermarkMs, generation: g.generation, pendingAt: latestState.pendingAt, pendingReason: latestState.pendingReason,
+      pending: latestState.pending.filter(function (k: string): boolean { return changedKeys.indexOf(k) < 0 }),
     }
-    const next = withState(Object.assign({}, snap, {
-      issues: issues, maps: maps, version: version,
-      generatedMs: now(), updatedAt: new Date(now()).toISOString(), deck: deck,
+    // 合并服务只把内容版本号放在回执里（快照里的 version 是信封契约版本，不归它改），由这里写回快照。
+    const next = withState(Object.assign({}, merged.snapshot, {
+      version: merged.version, generatedMs: now(), updatedAt: new Date(now()).toISOString(), deck: deck,
     }), nextState)
     await writeSnap(cwd, next)
     stats.patched += 1
     fire('patch', 'write-patch', { keyHash: keyHash, changed: changedKeys.length, queries: got.queries, watermark: 'held', pending: nextState.pending.length })
-    return { mode: 'patch', reason: 'write-patch', rows: changedKeys, version: version, snapshot: next, queries: got.queries, partial: deck.partial === true, generation: g.generation, watermarkMs: nextState.watermarkMs }
+    return { mode: 'patch', reason: 'write-patch', rows: changedKeys, version: merged.version, snapshot: next, queries: got.queries, partial: deck.partial === true, generation: g.generation, watermarkMs: nextState.watermarkMs }
   }
 
   /**

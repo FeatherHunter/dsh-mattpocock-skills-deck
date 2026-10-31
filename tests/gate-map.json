@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T00:11:27.437Z",
+  "generatedAt": "2026-10-31T00:53:39.645Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 464,
-  "gateCount": 464,
-  "attributedGates": 414,
+  "chainLength": 465,
+  "gateCount": 465,
+  "attributedGates": 415,
   "unattributedGates": 50,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 28,
+  "completionRecordedGates": 29,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 644,
+  "graphFileCount": 645,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -9189,6 +9189,24 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
+      "step": "node tests/verify-panel-snapshot-merge.ts",
+      "file": "tests/verify-panel-snapshot-merge.ts",
+      "guards": [
+        "src/refresh/kernel/snapshot-merge.ts",
+        "src/refresh/rooms/host/row-patch.ts",
+        "src/refresh/rooms/host/thin-row-fetch.ts"
+      ],
+      "dirs": [
+        "src/refresh/kernel",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 80,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
       "step": "node tests/verify-panel-workspace-isolation.ts",
       "file": "tests/verify-panel-workspace-isolation.ts",
       "guards": [
@@ -11963,6 +11981,7 @@
       "node tests/verify-index-window.ts",
       "node tests/verify-log-fields.ts",
       "node tests/verify-operation-catalog.ts",
+      "node tests/verify-panel-snapshot-merge.ts",
       "node tests/verify-policy.ts",
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-time-config.ts",
@@ -12129,6 +12148,7 @@
       "node tests/verify-log-fields.ts",
       "node tests/verify-multi-effort.ts",
       "node tests/verify-naming-title-fact.ts",
+      "node tests/verify-panel-snapshot-merge.ts",
       "node tests/verify-parse-leaf.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-refresh-adr.ts",
@@ -12902,9 +12922,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 665,
+    "fileCount": 666,
     "dirCount": 84,
-    "coveredFileCount": 665,
+    "coveredFileCount": 666,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 66,
@@ -13252,6 +13272,7 @@
       "src/refresh/kernel/page-allowance.ts",
       "src/refresh/kernel/refresh-chain.ts",
       "src/refresh/kernel/snapshot-diff.ts",
+      "src/refresh/kernel/snapshot-merge.ts",
       "src/refresh/kernel/step-pricing.ts",
       "src/refresh/kernel/tool-call-budget.ts",
       "src/refresh/kernel/transport-ledger.ts",
