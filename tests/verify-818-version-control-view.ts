@@ -80,6 +80,9 @@ const VC_FILES = [
   'src/shared/version-control/src/clone-ticket.ts',
   // #1752 工作树八条能力的纯规则层（八条动作 / argv / 判定 / 清单行模型），与构建同序排在客户端那片之前。
   'src/shared/version-control/src/worktree-ops.ts',
+  // #1747 冲突文本的解析与拼装（冲突块切分、按选择拼回整份、残留标记判定）：宿主保存前扫标记与界面冲突视图同源，
+  //   与构建同序排在客户端那片之前。
+  'src/shared/version-control/src/conflict-text.ts',
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js',
@@ -127,6 +130,9 @@ const VC_FILES = [
   'src/client/views/versionControl/vcStashOps.js',
   'src/client/views/versionControl/vcStashPage.js',
   'src/client/views/versionControl/vcClonePage.js', // #1756：迁移页 › 克隆向导（自持表单与进度状态；排在页面壳之前，壳里会挂它）
+  // #1747 冲突向导两叶（与构建同序）：先动作模型（15 条能力的出入参形状），再页面正文；壳的挂载段要看到页面体那一叶。
+  'src/client/views/versionControl/vcConflictsOps.js',
+  'src/client/views/versionControl/vcConflictsPage.js',
   'src/client/views/versionControl/vcShellPages.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -225,6 +231,12 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcCloneRequestIdOf', 'vcCloneFormOf', 'vcCloneCheckArgsOf', 'vcCloneWriteArgsOf', 'vcCloneCleanupCheckArgsOf', 'vcCloneCleanupWriteArgsOf',
   'vcCloneCallOf', 'vcCloneTicketOf', 'vcCloneSceneOf', 'vcCloneDecisionOf', 'vcCloneReasonOf', 'vcCloneReplyKindOf', 'vcCloneTaskOf',
   'vcCloneProgressOf', 'vcCloneResidualOf', 'vcCloneTaskEndedOf', 'vcClonePageNode',
+  // #1747 冲突向导：三条电话、15 条动作清单、四种进行中状态与八类冲突；请求号、载荷、可见性、页面体与渲染辅助。
+  'VC_CONFLICTS_PHONES', 'VC_CONFLICTS_OPS', 'VC_CONFLICTS_STATES', 'VC_CONFLICTS_KINDS', 'VC_CONFLICTS_OPS_SOURCE',
+  'vcConflictsOpMetaOf', 'vcConflictsOpLabelKeyOf', 'vcConflictsOpVerbKeyOf', 'vcConflictsStateLabelKeyOf',
+  'vcConflictsKindLabelKeyOf', 'vcConflictsSideLabelKeyOf', 'vcConflictsRequestIdOf', 'vcConflictsVisibleOf',
+  'vcConflictsPayloadOf', 'vcConflictsCheckArgsOf', 'vcConflictsWriteArgsOf', 'vcConflictsTargetOf',
+  'vcConflictsListOf', 'vcConflictsChoicesOf', 'vcConflictsRowNode', 'vcConflictsPageNode',
   'VersionControlTab']
 // #1253：这 20 份现在都是 .ts 真源（2026-10-19 第三阶段起 rules 的产物也搬到了 .build/shared/，
 //   列表里直接写 rules.ts 真源路径，不再指向源码树里的产物 .js）。
