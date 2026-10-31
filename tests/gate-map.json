@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T11:45:04.630Z",
+  "generatedAt": "2026-10-31T11:48:29.664Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 484,
   "gateCount": 484,
@@ -8061,19 +8061,21 @@
         "src",
         "src/client/kernel/locale-data.ts",
         "src/client/kernel/prompt-data.ts",
-        "src/shared/time-config/src/values.ts"
+        "src/shared/time-config/src/values.ts",
+        "src/shared/version-control/src/capability-ledger.ts"
       ],
       "dirs": [
         "scripts/lib",
         "src",
         "src/client/kernel",
-        "src/shared/time-config/src"
+        "src/shared/time-config/src",
+        "src/shared/version-control/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-gate-accounting.ts",
@@ -12749,6 +12751,7 @@
       "node tests/verify-841-write-phones.ts",
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-976-pull-dirty-warn.ts",
+      "node tests/verify-file-granularity.ts",
       "node tests/verify-time-config.ts",
       "node tests/verify-version-control-rules.ts"
     ],

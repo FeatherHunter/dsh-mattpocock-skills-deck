@@ -1827,6 +1827,15 @@ guardBuildLock(buildLock, '构建开始')
     throw new Error('Markdown 格式映射生成失败（format/original-skills.yaml → generated.ts）：' + String((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(0, 3).join(' ／ '))
   }
 }
+{
+  // #1737 T02：版本管理页的能力账本（规格 #1586 第 11 节的 162 条矩阵）由生成器写成共享层源码。
+  // 排在这里的理由与上面四段相同：域构建的第一步是该域的类型检查，账本必须先就位；
+  // 产物带「自动生成」头注释，构建缓存把它排除在输入之外（#1530 的生成物纪律）。
+  const r: any = spawnSync(process.execPath, [resolve(ROOT, 'scripts', 'generate-1586-capability-ledger.mts')], { encoding: 'utf8' })
+  if (r.status !== 0) {
+    throw new Error('版本管理能力账本生成失败（scripts/generate-1586-capability-ledger.mts → capability-ledger.ts）：' + String((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(0, 3).join(' ／ '))
+  }
+}
 for (const domain of findDomains()) {
   buildDomain(domain, { handWritten: HAND_WRITTEN_IN_DOMAINS[domain] || [] })
 }
