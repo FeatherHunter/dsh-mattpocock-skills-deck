@@ -39,7 +39,8 @@ export function createBranchPhones(deps: any): any {
     return e
   }
   function gitSays(res: any): string {
-    const say: string = firstLine(String((res && res.stderr) || '')) || firstLine(String((res && res.stdout) || ''))
+    // firstLine 对空文本会回一句兜底话（不是空串），所以不能写成「a || b」：先判断哪一路真的有内容，再取第一行。
+    const say: string = String((res && res.stderr) || '').trim() !== '' ? firstLine(res.stderr) : firstLine(res && res.stdout)
     return say.slice(0, 400)
   }
   /** 失败时把用户最需要的四样都带上：git 原话、环节、期望、实际、上游原因。 */
@@ -83,7 +84,11 @@ export function createBranchPhones(deps: any): any {
     const r: any = await readOut(exe, root, '读分支说明这一步', branchDescriptionsArgs(), true)
     if (r.ok !== true) return r
     // git config --get-regexp 没有命中时退出码是 1：这不是失败，是「一条说明都没配过」。
-    if (r.exitCode !== 0 && r.exitCode !== undefined && r.exitCode !== null) return { ok: true, descriptions: {} }
+    // 其它非零退出码（例如配置文件读不了）是真失败：照实报，不能当成「没配过说明」把故障吞掉。
+    if (typeof r.exitCode === 'number' && r.exitCode !== 0) {
+      if (r.exitCode === 1) return { ok: true, descriptions: {} }
+      return { ok: false, envelope: gitFail({ kind: 'non-zero', exitCode: r.exitCode, stderr: r.stderr }, '读分支说明这一步', '读回分支说明，或明确告诉我一条都没配过', '退出码 ' + r.exitCode) }
+    }
     const parsed: any = parseBranchDescriptions(r.stdout)
     if (parsed.ok !== true) return { ok: false, envelope: fail('parse', '分支说明解析失败：' + parsed.detail) }
     return { ok: true, descriptions: parsed.descriptions }
@@ -193,7 +198,7 @@ export function createBranchPhones(deps: any): any {
       const problem: any = branchNameProblem(a.name)
       if (problem) return nameFail(problem)
       const decision: any = decideBranchCreate({ nameExists: branchExists(a.name) })
-      if (a.from) { const rp: any = await readOut(exe, repo, '确认起点提交这一步', ['rev-parse', '-q', '--verify', String(a.from)], true); if (rp.ok !== true) return rp.envelope; if (rp.exitCode !== 0) return fail('args', '起点提交或引用不存在：' + String(a.from)) }
+      if (a.from) { const rp: any = await readOut(exe, repo, '确认起点提交这一步', ['rev-parse', '-q', '--verify', String(a.from)], true); if (rp.ok !== true) return rp.envelope; if (typeof rp.exitCode === 'number' && rp.exitCode !== 0) return fail('args', '起点提交或引用不存在：' + String(a.from)) }
       const g: any = gate(decision, a, confirmOf(kind, String(a.name), '新建分支 ' + String(a.name)))
       if (g) return g
       const argv: string[] = tier === 'degraded' ? branchCreateCheckoutArgs(a.name, a.from) : branchCreateArgs(a.name, a.from)
@@ -274,7 +279,7 @@ export function createBranchPhones(deps: any): any {
       const modeText: string = a.mode === 'signed' ? '签名标签' : (a.mode === 'annotated' ? '附注标签' : '轻量标签')
       const g: any = gate(decision, a, confirmOf(kind, String(a.name), '在 ' + String(a.target || 'HEAD') + ' 上建' + modeText + ' ' + String(a.name)))
       if (g) return g
-      if (a.target) { const rp: any = await readOut(exe, repo, '确认标签目标这一步', ['rev-parse', '-q', '--verify', String(a.target)], true); if (rp.ok !== true) return rp.envelope; if (rp.exitCode !== 0) return fail('args', '标签目标不存在：' + String(a.target)) }
+      if (a.target) { const rp: any = await readOut(exe, repo, '确认标签目标这一步', ['rev-parse', '-q', '--verify', String(a.target)], true); if (rp.ok !== true) return rp.envelope; if (typeof rp.exitCode === 'number' && rp.exitCode !== 0) return fail('args', '标签目标不存在：' + String(a.target)) }
       const argv: string[] = tagCreateArgs(a.name, String(a.mode || 'light'), a.target, a.message)
       const done: any = await execWrite(exe, repo, argv, '建标签这一步', '标签 ' + String(a.name) + ' 建好')
       return done.ok === true ? { ok: true, kind: kind, tag: a.name, command: argv.slice(0, 3).join(' '), atMs: done.atMs, decision: decision } : done
@@ -314,7 +319,7 @@ export function createBranchPhones(deps: any): any {
         ok: true, kind: kind, objectKind: objectKind, object: object, command: argv.slice(0, 2).join(' '),
         verified: exitCode === 0,
         exitCode: exitCode,
-        gitSays: (firstLine(String(res.stdout || '')) || firstLine(String(res.stderr || ''))).slice(0, 400),
+        gitSays: (String((res && res.stdout) || '').trim() !== '' ? firstLine(res.stdout) : firstLine(res && res.stderr)).slice(0, 400),
         atMs: nowFn(),
       }
     }
