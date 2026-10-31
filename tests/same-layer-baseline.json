@@ -1153,6 +1153,51 @@
       "count": 1,
       "owner": "#1749（规格 #1586 T14 交互式变基与换基座）",
       "note": "装配壳内部分工：凭票重验现场并跑变基命令住执行叶子，临时待办与改说明正文用完即删；方向单向，执行叶子不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
+      "spec": "./versionControlRewriteMount.js",
+      "resolved": "src/host/versionControlRewriteMount.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1750（规格 #1586 T15 全库重写与强制备份）",
+      "note": "装配扇入：维护页整仓重写三条电话要挂到版本管理入口，但父文件贴着 350 有效行上限；照 #1742/#1747/#1749 先例把懒加载、失败兜底与日志包装拆成同层外壳，父文件只剩 createRewriteMount 那一行调用，外壳不反向引用父文件。"
+    },
+    {
+      "file": "src/host/versionControlRewriteMount.ts",
+      "spec": "./versionControlRewriteScene.js",
+      "resolved": "src/host/versionControlRewriteScene.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1750（规格 #1586 T15 全库重写与强制备份）",
+      "note": "装配壳内部分工：现场读数、影响预览与备份决策住读数叶子，预检与执行两边共用同一份读数；方向单向，读数叶子只认注入依赖，不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControlRewriteMount.ts",
+      "spec": "./versionControlRewriteCheck.js",
+      "resolved": "src/host/versionControlRewriteCheck.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1750（规格 #1586 T15 全库重写与强制备份）",
+      "note": "装配壳内部分工：五张表单校验后签 120 秒票的预检住预检叶子，票据表与 requestId 结果表由它持有、穿给执行叶子；方向单向，预检叶子不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControlRewriteMount.ts",
+      "spec": "./versionControlRewriteWrite.js",
+      "resolved": "src/host/versionControlRewriteWrite.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1750（规格 #1586 T15 全库重写与强制备份）",
+      "note": "装配壳内部分工：凭票重验现场、先做整仓备份再起 filter-repo 长任务的执行住执行叶子；方向单向，执行叶子不引用外壳。"
+    },
+    {
+      "file": "src/shared/version-control/src/task-protocol.ts",
+      "spec": "./filter-repo-args.js",
+      "resolved": "src/shared/version-control/src/filter-repo-args.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1750（规格 #1586 T15 全库重写与强制备份）",
+      "note": "协议层拆文件：filter-repo 的参数语法只服务一个动作，协议层已贴单文件有效行上限，所以拆成零依赖的语法模块由协议层引用；方向单向，语法模块不引用协议层，也不碰进程与文件。"
     }
   ]
 }
