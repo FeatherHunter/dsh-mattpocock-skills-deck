@@ -857,6 +857,24 @@
       "count": 1,
       "owner": "#1742（规格 #1586 T07 改动页）",
       "note": "外壳装配：外壳只做懒加载与电话日志包装，真正的预检与执行两叶子在 versionControlChanges.ts 里合流成一张票据表；方向单向，合流叶子不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
+      "spec": "./versionControlStash.js",
+      "resolved": "src/host/versionControlStash.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1751（规格 #1586 T16 贮藏页）",
+      "note": "装配扇入：父文件已贴着 350 有效行上限，贮藏页两条电话的装配收进同层执行叶子，父文件只留动态装配一行；照 #500/#821 先例，方向单向，执行叶子不引用父文件。"
+    },
+    {
+      "file": "src/host/versionControlStash.ts",
+      "spec": "./versionControlStashTicket.js",
+      "resolved": "src/host/versionControlStashTicket.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1751（规格 #1586 T16 贮藏页）",
+      "note": "叶子装配：贮藏执行层接票据叶子（预检签发、120 秒租约与凭票重验都在票据叶子）；方向单向，票据叶子只认注入的读屏、命令出口与票据表，不引用执行层。"
     }
   ]
 }

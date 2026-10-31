@@ -91,11 +91,11 @@ const vcQueryResultNode = function (h: any, t: any, o: any) {
   const kind = String(o.entry.kind)
   const reply = o.reply || {}
   const width = o.width
-  const nowMs = o.nowMs
+  const readAt = o.nowMs
   const commitItem = function (c: any) {
     const kids = [h('span', { key: 's', className: 'vcs-query-subject' }, vcOneLine(c.subject, width >= 460 ? 120 : 80))]
     if (width >= 380) kids.unshift(h('span', { key: 'o', className: 'vcs-query-oid' }, vcShortOid(c.oid)))
-    if (width >= 460) kids.push(h('span', { key: 'a', className: 'vcs-query-author', 'data-vc-query-author': '1' }, String(c.author || '') + ' · ' + vcWhenText(t, nowMs, c.commitDateMs)))
+    if (width >= 460) kids.push(h('span', { key: 'a', className: 'vcs-query-author', 'data-vc-query-author': '1' }, String(c.author || '') + ' · ' + vcWhenText(t, readAt, c.commitDateMs)))
     return kids
   }
   if (kind === 'file-history' || kind === 'grep' || kind === 'pickaxe') {
@@ -262,7 +262,7 @@ export const vcQueryPageNode = function (h: any, t: any, opts: any) {
   const entries = vcQueryEntriesOf(page)
   if (entries.length === 0) return null
   const width = vcQueryWidthOf(o.width)
-  const nowMs = Number(o.nowMs) || Date.now()
+  const readAt = Number(o.nowMs) || Date.now()
   const inputs = o.inputs || vcQueryInputsOf()
   const queries = o.queries || vcNewQueries()
   const kids: any[] = [
@@ -271,7 +271,7 @@ export const vcQueryPageNode = function (h: any, t: any, opts: any) {
   ]
   if (page === 'diagnostics') kids.push(h('p', { key: 'diag', className: 'vcs-query-diagnostics', 'data-vc-query-diagnostics': '1' }, t('vc.query.diagnosticsNote')))
   entries.forEach(function (entry: any) {
-    kids.push(vcQueryEntryNode(h, t, { entry: entry, inputs: inputs, state: vcQueryStateOf(queries, entry.kind), width: width, nowMs: nowMs, onInput: o.onInput, onRun: o.onRun }))
+    kids.push(vcQueryEntryNode(h, t, { entry: entry, inputs: inputs, state: vcQueryStateOf(queries, entry.kind), width: width, nowMs: readAt, onInput: o.onInput, onRun: o.onRun }))
   })
   return h('section', { className: 'vcs-query', id: 'vc-query-' + page, 'data-vc-query-panel': page, 'data-vc-query-panel-count': String(entries.length) }, kids)
 }

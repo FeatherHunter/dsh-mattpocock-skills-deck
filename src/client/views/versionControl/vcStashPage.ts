@@ -12,6 +12,8 @@
  */
 
 // 跨叶子与共享层的名字由构建拼进同一个闭包，这里只声明形状（类型检查按单文件跑）。
+// 来自全局提示叶子 primitives/Tip.ts（构建拼接排在所有视图叶子之前）：
+declare const Tip: any
 // 来自共享层 stash-rules.ts：
 declare function stashOpOf(op: any): any
 declare function stashOpNameKeyOf(op: any): string
@@ -65,7 +67,7 @@ const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
   const head = h('p', { className: 'vcs-stash-line', 'data-vc-stash-line': 'summary' }, [
     h('strong', { key: 'subject', 'data-vc-stash-subject': '1' }, vcStashEntrySubjectOf(t, entry)),
     h('span', { key: 'selector', className: 'vcs-stash-selector', 'data-vc-stash-selector': selector }, selector),
-    h('span', { key: 'oid', className: 'vcs-stash-oid', title: oid, 'data-vc-stash-oid': '1' }, vcStashText(t, 'vc.stash.entry.oid', { oid: vcStashShortOidOf(oid) })),
+    h(Tip, { key: 'oid', content: oid }, h('span', { key: 'oid', className: 'vcs-stash-oid', 'data-vc-stash-oid': '1' }, vcStashText(t, 'vc.stash.entry.oid', { oid: vcStashShortOidOf(oid) }))),
     h('span', { key: 'at', className: 'vcs-stash-when', 'data-vc-stash-at': '1' }, vcStashText(t, 'vc.stash.entry.at', { when: when })),
     h('span', { key: 'files', className: 'vcs-stash-files', 'data-vc-stash-files': '1' }, fileNote),
   ])
