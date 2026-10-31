@@ -422,6 +422,8 @@ const EXEMPTS: ExemptRow[] = [
   // #1694：详情投影标「上次数据」用的是快照合并组里最大的那个时刻，是算出来的时刻，调 YAML 改不了它。
   { file: 'src/client/views/shared/detailProjection.ts', name: 'lastKnownAtMs', reason: '算出来的时刻（投影里取快照合并组最大的 atMs，界面格式化成 HH:mm），不是可调参数' },
   { file: 'src/refresh/rooms/host/detail-snapshot-merge.ts', name: 'atMs', reason: '读钟时刻（nowOf() 取到的合并时刻，用于 generatedMs 与令牌起点），不是可调参数' },
+  // #1696：地图子票首帧归一与补回住在 snapshotAssemble.ts，补回时刻写进 map.carry.at 供界面说「上次数据」。
+  { file: 'src/host/tracker/snapshotAssemble.ts', name: 'nowMs', reason: '读钟时刻（补回上次已知子票时写进 map.carry.at，界面显示上次数据时间用），不是可调参数' },
   // —— 存量 JavaScript（覆盖率扫描从 .ts 扩到 .js 后新捞出来的）——
   // 分三类：测量值与时刻（调 YAML 改不了它）、状态字段与初值（0 表示“还没有”）、
   // 透传变量（值由调用方按已登记参数装进来）。
