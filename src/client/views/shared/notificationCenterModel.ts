@@ -296,9 +296,10 @@ export const noticeHistoryMismatchOf = function (st: any, events: any) {
   return open !== noticeCurrentDegradedOf(st)
 }
 
-/** 头部要不要让出一格给徽标：读得到历史且有未读才出现（没有未读就整颗不画，不占窄面板的地方）。 */
+/** 头部要不要让出一格给徽标：读得到历史且历史非空就让出（没有未读也要能点开看历史，不再整颗藏起来）；
+ * 读不到历史或历史为空才不让格 —— 空历史没有可看的东西，不占窄面板的地方。 */
 export const noticeHeadBadgeOf = function (view: any) {
-  return (view && view.readable && Number(view.unread) > 0) ? 'badge' : ''
+  return (view && view.readable && Array.isArray(view.events) && view.events.length > 0) ? 'badge' : ''
 }
 
 /** 徽标上的数字：0 或读不到给空串（不画数字），超过 99 说 99+。 */
