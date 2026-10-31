@@ -28,6 +28,11 @@
  * 已知的边界：假如上游哪天又把某个名字放回技能正文里，第 3、4 条就不再拦它了；但第 2 条（选项
  * 词条只许用技能《去哪读》模板里的名字）仍然会红，所以改名这件事不会被整体放过去。
  *
+ * 2026-10-31 随包技能升到 v1.3.2（#1721）后，上游在 setup-matt-pocock-skills/SKILL.md 里主动点名了
+ * 两个旧名——「如果仓库里还有旧的 CONTEXT.md / CONTEXT-MAP.md，就提议用 git mv 改成 GLOSSARY 名」。
+ * 这是要人改掉的旧文件，不是把旧名当正经名字写回去，所以「技能树里一处旧名都不许有」这条判据换成
+ * 「旧名只许出现在带 legacy 记号的句子里」：既容下上游这次的新写法，也仍然拦得住把旧名当现行文档写。
+ *
  * 能红也能绿：把任一词条里的 GLOSSARY.md 改回旧名，第 2 或第 3 条当场红；全部正确时绿。
  * 退出码 0 = 全通过；1 = 有断言不成立（会卡住 verify 链）。
  */
@@ -59,6 +64,29 @@ function mdNamesIn(text) {
   return Array.from(found).sort()
 }
 
+/** 上游 v1.3.0 起改掉的领域文档旧名。它们仍可以出现，但只能以「要改掉的名字」的身份出现。 */
+const OLD_DOMAIN_NAMES = ['CONTEXT.md', 'CONTEXT-MAP.md']
+
+/** 扫技能树里仍然把旧名当正经名字写的地方：句子（行）里没有 legacy 记号才算没跟上。 */
+function staleOldNameMentions(dir) {
+  const out = []
+  const walk = (d) => {
+    for (const ent of readdirSync(d, { withFileTypes: true })) {
+      const abs = path.join(d, ent.name)
+      if (ent.isDirectory()) { walk(abs); continue }
+      if (!ent.isFile() || !ent.name.endsWith('.md')) continue
+      const rel = path.relative(ROOT, abs).replace(/\\/g, '/')
+      readFileSync(abs, 'utf8').split(/\r?\n/).forEach((line, i) => {
+        if (!OLD_DOMAIN_NAMES.some((n) => line.indexOf(n) >= 0)) return
+        if (/legacy/i.test(line)) return
+        out.push(rel + ':' + (i + 1) + ' ' + line.trim())
+      })
+    }
+  }
+  walk(dir)
+  return out
+}
+
 /** 某份技能树里提到的所有文件名（走 .md 就够了：技能想让代理读写的都是 markdown）。 */
 function namesAcrossSkills(dir) {
   const out = new Set()
@@ -77,7 +105,9 @@ function namesAcrossSkills(dir) {
 async function main() {
   // ---- 1. 真源 ----
   const domainNames = mdNamesIn(readFileSync(SKILL_DOMAIN_DOC, 'utf8'))
-  const skillNamesArr = namesAcrossSkills(SKILLS_DIR)
+  // 旧名就算在技能正文里出现过，也只是「要改掉的名字」，不算技能世界里的合法名字：
+  // 这样第 3、4 条仍然会把它们当旧名拦，而不是因为上游提了一嘴就放行。
+  const skillNamesArr = namesAcrossSkills(SKILLS_DIR).filter((n) => OLD_DOMAIN_NAMES.indexOf(n) < 0)
   const skillNames = new Set(skillNamesArr)
   console.log('随包技能《去哪读领域文档》模板 = ' + path.relative(ROOT, SKILL_DOMAIN_DOC).replace(/\\/g, '/'))
   console.log('领域文档名（技能真正的读写对象）= ' + JSON.stringify(domainNames))
@@ -85,8 +115,10 @@ async function main() {
   ok(domainNames.length >= 1, '从随包技能里取到了领域文档名（不是空集合）')
   ok(domainNames.indexOf('GLOSSARY.md') >= 0 && domainNames.indexOf('GLOSSARY-MAP.md') >= 0,
     '领域文档名里有 GLOSSARY.md 与 GLOSSARY-MAP.md（上游 v1.3.0 起的新名）')
-  ok(!skillNames.has('CONTEXT.md') && !skillNames.has('CONTEXT-MAP.md'),
-    '随包技能里已经没有任何一处提旧名（技能侧确实跟上了）')
+  const staleOldNames = staleOldNameMentions(SKILLS_DIR)
+  ok(staleOldNames.length === 0,
+    '随包技能里旧名只以「要改掉的名字」出现（句子带 legacy 记号），没有一处当正经名字写'
+    + (staleOldNames.length ? '，还有：' + JSON.stringify(staleOldNames) : ''))
   const domainSet = new Set(domainNames)
 
   // ---- 2 + 3. 插件给人看的四条词条（中英各一份） ----
