@@ -105,3 +105,12 @@
 
 - 2026-10-30 定版：Q1–Q9 由维护者逐题拍板；四条维护者要求写进验收判据。
 - 2026-10-31 回填规格票 #1681：补三态类型承载、版本门、磁盘回放来源、通知事件库与通知中心口径；counts 诚实呈现；四条验收对应的门禁名对齐规格。
+
+## 7. 收口记录（2026-10-31，票 #1700）
+
+- **核对人**：规格 #1681 收口票 #1700 的实施会话（工作树 `.worktrees/1700`，分支 `feat/1700-closeout`，起点 `fc2ff4cf`）。
+- **核对范围**：本 ADR 的 §2.1–§2.6 全部决策逐条对照实现与门禁，并用本仓真实数据演练一遍（1659 张工单 + 64 个拉取请求，检索时刻 2026-10-31T14:23:12+08:00）。
+- **结论**：§2.1 单一快照已落地——宿主快照是唯一业务数据快照，客户端 issueCache 与地图子票桶已退役为投影（#1694、#1695，门禁 `verify-single-read-source` 25 项、`verify-retire-client-caches` 39 项）；§2.2 增量合并与版本门由 `src/refresh/kernel/snapshot-merge.ts` 的唯一写入口承担（#1690，`verify-panel-snapshot-merge` 80 项），字段三态与来源完整度由 `verify-field-tri-state`（65 项）与 `verify-read-result-provenance`（316 项）守；§2.3 TTL 只触发后台重取、失败不清空、磁盘回放带来源与时间（#1692，`verify-1692-disk-replay-eviction` 85 项）；§2.4 写回执先合并进快照、写失败不做乐观修改（#1694，`verify-detail-incremental` 31 项、`verify-acceptance-four` 27 项）；§2.5 会话呈现态不进共享快照、按需细节上限与淘汰只清内容（#1695 白名单与 `verify-1692-disk-replay-eviction`）；§2.6 通知事件先落库再呈现、复用快照信封落盘（#1693，`verify-notification-events` 102 项、`verify-notification-center` 83 项）。
+- **四条维护者要求**：降级不缩数据（读与写两条路径，`verify-rest-fallback-completion` 46 项、`verify-rest-detail-completion` 61 项、`verify-acceptance-four`）；地图详情首帧先画已知阻塞（`verify-map-first-frame` 41 项、`verify-map-first-frame-freshness` 39 项）；详情关闭后列表与地图同帧一致（`verify-acceptance-four`）；详情永久快照增量合并（`verify-detail-incremental`、`verify-1692-disk-replay-eviction`）。
+- **全链**：`npm run verify:parallel` 480 步、集成分支真红 0、冒烟 5 条真红 0；票级分支 `tests/verify-no-mixed-session.ts` 判红是结构性已知红（`docs/agents/parallel-sessions.md:46`），裁决以集成分支为准。
+- **剩余缺口与已知边界**（都不是本规格的实施缺口）：跨容器阻塞者首帧不显示、已关闭容器首帧子票为空（规格 §13 已知边界）；企业版无真机，GHES 子票与依赖只有夹具证据；真实演练全程只读、写回执用合并纯函数模拟；依赖与子票端点在真实演练中按即时失败注入。逐条见 `docs/design/20261030-panel-snapshot-closeout.md` 第 7 节。

@@ -105,3 +105,12 @@
 - 2026-10-31 阶段 1 第三批（#1687，阶段 1 收口）：写实现全部迁入 write/——建票 issues、评论 comments、关闭原因 close-reason、标签写侧 labels、阻塞边 blocked-by-write、初始化 init-project、父子边与阻塞边编排 graph，成环检查 cycle-check 从 model/ 改放 write/（它是写动作的前置判断，且 model 不许引用 read），标签配色只留写侧的 setLabelColors 为 label-colors；房间入口与契约接线迁入 room/（backend、index、checks）。read/ 收 issues.ts（列表与单票）与 read-sources.ts，getDependencies 从 graph.ts 并入 read/deps-read.ts；预算读数 budget.ts 收进 transport/（它只是一次 gh 调的薄读数，且 transport 不许引用 routing，来源与完整度由 room/backend.ts 挂上）；降级原因分类 fallback-reason.ts 进 routing/；读写两侧共用的 owner/name 解析抽成 model/issue-key.ts（原来三处一字不差的副本合一）。写路径主通道一字未改：建票 REST、评论 REST 优先、阻塞边 GraphQL 优先、关闭与重开走 gh 命令、父子边 gh 命令为主 REST 兜底。
 - 2026-10-31 阶段 1 第三批（#1687）：write 的允许依赖扩三格并写进第 2.1 节——write 自身（关闭原因先发评论、父子边与阻塞边编排互调）、read/（写后读回：getIssue、依赖投影、标签清单、仓库权限）、channels/graphql/（阻塞边主路是 GraphQL mutation，写层要声明请求与回包形状）；room 允许引用本层。read 的两条读来源白名单清零：getCurrentUser 与 readBudget 接上来源与完整度，十二条读操作全部 wired，tests/verify-read-result-provenance.ts 升至 294 项断言。
 - 2026-10-31 阶段 1 第三批（#1687）：房间根 41 个旧平铺路径的纯转发文件全部删除，房间根不再有平铺源码文件；tests/verify-room-layering.ts 增加三类判据（房间根零平铺、房间内不许从旧路径导入、房间外也不许从旧路径导入）并补齐对应负例；src/、tests/、scripts/ 里的导入与注释全部改指九目录新路径，门禁地图与文件粒度基线按最终树重录；阶段 1 行为零变化。
+
+## 7. 收口记录（2026-10-31，票 #1700）
+
+- **核对人**：规格 #1681 收口票 #1700 的实施会话（工作树 `.worktrees/1700`，分支 `feat/1700-closeout`，起点 `fc2ff4cf`）。
+- **核对范围**：本 ADR 的渠道分层、读结果来源与完整度、REST 降级补齐、请求预算、计数诚实、企业版运行时能力回答逐条对照实现与门禁，并用本仓真实数据演练一遍（1659 张工单 + 64 个拉取请求，检索时刻 2026-10-31T14:23:12+08:00）。
+- **结论**：九目录分层落地并由 `verify-room-layering` 硬卡（#1684–#1687），十二条读操作全部带来源与字段组完整度（`verify-read-result-provenance` 316 项）；REST 降级补齐完成——列表父边读行内链接零请求、依赖只对四格任一大于零的票逐票拉一次、详情评论/依赖/评审/合并时间四类各最多一次请求、补不到记未知不写空（#1691，`verify-rest-fallback-completion` 46 项、`verify-rest-detail-completion` 61 项）；请求预算与 8 路并发、探测/校准窗口按插件读额度落地并被门禁同源读取（#1689，`verify-fallback-fetch-budget` 101 项）；计数诚实改为「完整枚举本地重算并标来源、拿不到保留上次已知并标待校准、界面不显示假零」（#1698，`verify-counts-honesty` 52 项）；企业版走运行时探测回答支持/部分支持/不支持并带原因与能力票号（#1698，`verify-ghes-runtime-capability` 39 项）。
+- **真实演练**：本仓真实列表与单票降级、合并、投影、写回执（模拟）与通知落盘六步全通，84 行日志按五段口径可定位每一步；依赖与子票端点为不打扰真实仓库按即时失败注入，未真打。
+- **全链**：`npm run verify:parallel` 480 步、集成分支真红 0、冒烟 5 条真红 0；票级分支 `tests/verify-no-mixed-session.ts` 判红是结构性已知红（`docs/agents/parallel-sessions.md:46`）。
+- **剩余缺口与已知边界**：counts 与 GHES 无 REST 等价（本 ADR 明确不做，只要求诚实）；企业版无真机，按夹具；跨容器阻塞者首帧不显示与已关闭容器首帧子票为空是规格 §13 的现行口径；逐条见 `docs/design/20261030-panel-snapshot-closeout.md` 第 7 节。
