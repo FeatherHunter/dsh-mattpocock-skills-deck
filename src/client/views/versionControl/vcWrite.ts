@@ -143,6 +143,23 @@ export const VC_WRITE_ERR_FAMILY: Record<string, string> = {
   'todo-mismatch': 'stale',
   'missing-message': 'notReady',
   'bad-action': 'notReady',
+
+  // #1760 配置与钩子页新增的十二种理由（共享真源 write-reasons.ts 已登记话术）：
+  // 这些都属 notReady——要么输入不合规（键只读、作用域不对、值为空或过长、邮箱格式、钩子名字），
+  // 要么现场不满足（钩子文件不存在、版本低、配置读失败）；hook-failed 是钩子自己退出码非零，属结果不是这次电话失败，也归 notReady。
+  'key-readonly': 'notReady',
+  'scope-invalid': 'notReady',
+  'value-empty': 'notReady',
+  'value-too-long': 'notReady',
+  'value-invalid': 'notReady',
+  'email-invalid': 'notReady',
+  'hook-name': 'notReady',
+  'hook-not-found': 'notReady',
+  'hook-version': 'notReady',
+  'config-missing': 'notReady',
+  'config-failed': 'notReady',
+  'hook-failed': 'notReady',
+
   'unknown-write-failure': 'unknown',
 }
 

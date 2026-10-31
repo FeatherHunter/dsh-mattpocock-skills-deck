@@ -11,9 +11,6 @@
 // 零 import 自包含——shared 同层互相 import 会被依赖门禁拦下（branch-ticket.ts 同一口径）。
 // 哈希、起进程、读文件都在宿主做；这里只决定「取哪一份字节、判哪一个名字合法」。
 
-/** 硬底线：2.11 以下整个版本管理面板都不可用（与能力账本一致）。 */
-export const CONFIG_VERSION_FLOOR = '2.11.0'
-
 /** 12.6 git hook run 的最低版本（能力账本 minVersion 原文）。 */
 export const CONFIG_HOOK_RUN_MIN_VERSION = '2.36.0'
 

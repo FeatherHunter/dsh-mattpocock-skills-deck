@@ -274,7 +274,8 @@ async function main(): Promise<void> {
   const mutScope = mutReadonly.configCheckPlanOf('config-set', { key: 'user.name', scope: 'system', value: 'x' })
   check(mutScope.ok === false && mutScope.reason === 'scope-invalid', 'F6 反证只改坏那一处守卫：同一份改坏副本里的作用域校验照旧拒绝，不是整份规则都废了')
 
-  printGateResult(GATE, total, failed)
+  // 第三参必须是整数失败条数：完成记录判据（tests/lib/gate-result.ts）要求 failed 是整数，传布尔会被读成「读不懂」并判红。
+  printGateResult(GATE, total, failed ? 1 : 0)
   process.exit(failed ? 1 : 0)
 }
 main().catch(function (e: any): void { console.log('  FAIL 门禁自己抛错：' + String((e && e.stack) || e)); printGateResult(GATE, total, 1); process.exit(1) })
