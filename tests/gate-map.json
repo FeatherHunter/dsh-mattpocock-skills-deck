@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T01:36:48.486Z",
+  "generatedAt": "2026-10-31T01:42:32.578Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 466,
   "gateCount": 466,
@@ -10209,6 +10209,7 @@
         "src/refresh/kernel/admission-policy.ts",
         "src/refresh/kernel/attention-model.ts",
         "src/refresh/kernel/chain-pruning.ts",
+        "src/refresh/kernel/detail-eviction.ts",
         "src/refresh/kernel/failure-backoff.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/index-window-rules.ts",
@@ -10303,7 +10304,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 107 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 108 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
