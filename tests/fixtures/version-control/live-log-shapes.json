@@ -1,0 +1,23 @@
+{
+  "gitVersion": "git version 2.49.0.windows.1",
+  "log": {
+    "code": 0,
+    "out": "f23eb33ac42f39f0f96cdfd84c8ed2461db1d5d5\u0000f23eb33\u0000林可\u0000linke@example.com\u00002026-10-01T10:00:00+08:00\u00002026-10-01T10:00:00+08:00\u0000合并分支：把 feature 合回主干\u0000ea109aee6f2faf10af0bdfb6d697bf8e3448dd73 329f631022b46df28368a50b94cc0d429b7533b4\u0000\u0000ea109aee6f2faf10af0bdfb6d697bf8e3448dd73\u0000ea109ae\u0000林可\u0000linke@example.com\u00002026-10-01T10:00:00+08:00\u00002026-10-01T10:00:00+08:00\u0000主干预提交：再改一行\u000028833b113bebcfe4ce0df2f51df8806f5bbbb368\u0000\u0000329f631022b46df28368a50b94cc0d429b7533b4\u0000329f631\u0000林可\u0000linke@example.com\u00002026-10-01T10:00:00+08:00\u00002026-10-01T10:00:00+08:00\u0000分支提交：加 b 文件\u000028833b113bebcfe4ce0df2f51df8806f5bbbb368\u0000\u000028833b113bebcfe4ce0df2f51df8806f5bbbb368\u000028833b1\u0000林可\u0000linke@example.com\u00002026-10-01T10:00:00+08:00\u00002026-10-01T10:00:00+08:00\u0000第二次提交：改一行\u000032adfd0819f3da57638bda71a77a64f1b39bc6d9\u0000\u000032adfd0819f3da57638bda71a77a64f1b39bc6d9\u000032adfd0\u0000林可\u0000linke@example.com\u00002026-10-01T10:00:00+08:00\u00002026-10-01T10:00:00+08:00\u0000首次提交：加一行\u0000\u0000\u0000"
+  },
+  "edge": {
+    "rootNumstat": {
+      "oid": "32adfd0819f3da57638bda71a77a64f1b39bc6d9",
+      "out": "1\t0\ta.txt\u0000"
+    },
+    "mergeNumstat": {
+      "oid": "f23eb33ac42f39f0f96cdfd84c8ed2461db1d5d5",
+      "out": "1\t0\tb.txt\u0000"
+    },
+    "rootPatch": {
+      "oid": "32adfd0819f3da57638bda71a77a64f1b39bc6d9",
+      "path": "a.txt",
+      "out": "diff --git a.txt a.txt\nnew file mode 100644\nindex 0000000..468d803\n--- /dev/null\n+++ a.txt\n@@ -0,0 +1 @@\n+第一行\n"
+    },
+    "oneRecordNoParentField": "f23eb33ac42f39f0f96cdfd84c8ed2461db1d5d5\u0000f23eb33\u0000林可\u0000linke@example.com\u00002026-10-01T10:00:00+08:00\u00002026-10-01T10:00:00+08:00\u0000合并分支：把 feature 合回主干\u0000\u0000"
+  }
+}
