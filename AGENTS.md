@@ -12,7 +12,7 @@ Issues live as GitHub issues; read and write them through the deck tools (`deck_
 
 ### Triage labels
 
-Five canonical triage roles (`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`) plus five wayfinder labels (`wayfinder:map` / `research` / `prototype` / `grilling` / `task`). The **mandatory label set** is `bug` / `needs-triage` / `wayfinder:grilling`. See `docs/agents/triage-labels.md`.
+五种 triage 角色（`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`）加五种 wayfinder 标签（`wayfinder:map` / `research` / `prototype` / `grilling` / `task`）。建票时标签**按位置补**，不要求每张新票都带 triage 标签：探索地图补 `wayfinder:map`，地图工单补调用时给的那一枚 `wayfinder:<类型>`，规格与实施票补 `ready-for-agent`，缺陷票补 `bug` 与 `needs-triage`，普通票不补；wayfinder 的地图与子票只带 wayfinder 标签，不叠 `ready-for-agent` 这类 triage 标签（它们是决策，不是实施工作）。`bug` / `needs-triage` / `wayfinder:grilling` 三枚仍保留，它们是面板上「修复」「诊断」「讨论」三个动作的入口，不是每张新票的必备项。详见 `docs/agents/triage-labels.md`。
 
 ### Domain docs
 
