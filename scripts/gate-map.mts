@@ -208,6 +208,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 短回包按编号增量合并不清空已知行、快照顶层字段白名单与会话呈现态不进快照、TTL 只决定何时重取、
   // 排序只在投影层、legacy 开关旧路仍能跑）；39 条单跑实测。
   'verify-retire-client-caches': 39,
+  // 2026-10-31 #1697：面板内通知中心（四类事件只做历史、当前降级仍按快照派生并标对不上、
+  // 未读徽标并入头部折叠阶梯且窄面板先保仓库名与时间、真投影渲染带负例、文案进词表）；83 条单跑实测。
+  'verify-notification-center': 83,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。
