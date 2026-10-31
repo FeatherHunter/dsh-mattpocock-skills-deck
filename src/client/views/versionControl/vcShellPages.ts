@@ -34,6 +34,8 @@ declare function vcHistoryPageNode(h: any, t: any, o: any): any
 declare function vcRemotePageNode(h: any, t: any, o: any): any
 // 长任务区叶子（#1740，vcTaskPanel.ts）：由构建按叶子登记次序拼进同一个闭包，这里只声明形状。
 declare function vcTaskPanelNode(h: any, t: any, o: any): any
+// 工作树页叶子（#1752，vcWorktreesPage.ts）：同样由构建拼进同一个闭包，壳的挂载段只调用它。
+declare function vcWorktreesPageNode(h: any, t: any, o: any): any
 // 改动页操作面板叶子（#1742，vcChangesPage.ts）：同样由构建拼进闭包；只在 changes 页且页面传入改动读数时挂载。
 declare function vcChangesPageNode(h: any, t: any, o: any): any
 
@@ -245,6 +247,13 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   ]))
   const notes = vcPageNotesOf(h, t, page)
   for (let i = 0; i < notes.length; i += 1) children.push(notes[i])
+  // #1752 工作树页正文：读首屏聚合里那一份工作树片，八条能力的入口与执行面由 vcWorktreesPage 自己画；
+  //   壳只负责把宿主数据与处理函数透传进去（没有传入时页面自己画空态，不影响其它页）。
+  if (page === 'worktrees' && typeof vcWorktreesPageNode === 'function') {
+    children.push(Object.assign({}, vcWorktreesPageNode(h, t, {
+      reads: opts.reads, ui: opts.ui, ops: opts.ops, handlers: opts.handlers,
+    }), { key: 'worktrees' }))
+  }
   // 提交历史页有自己的正文（#1744 T09：列表 / 详情 / 逐文件差异 / 13.14 图形化视图）。
   // 只有在拿到了首屏读数时才换成真正文；没有读数（壳自检、Z 组骨架断言）仍旧画骨架。
   if (page === 'commits' && opts.reads) {
@@ -326,6 +335,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     changes: opts.changes,
     // #1744 T09：提交历史页要真读数与交互态，页面壳原样往下传，不在壳里改形状。
     reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
+    ops: opts.ops, handlers: opts.handlers, // #1752 工作树页要真数据与处理函数
   }), 'body'))
   // 长任务区（#1740）：页面把任务清单传进来时才画；没传整块不出现，既有页面的渲染结果不受影响。
   if (opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {

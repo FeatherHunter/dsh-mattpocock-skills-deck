@@ -67,6 +67,8 @@ const VC_FILES = [
   'src/shared/version-control/src/capability-ledger.ts',
   // #1739 首屏七片契约（契约名、版本号、七片名单、刷新三时机与形状判据的唯一真源）：排在客户端那片之前。
   'src/shared/version-control/src/first-screen.ts',
+  // #1752 工作树八条能力的纯规则层（八条动作 / argv / 判定 / 清单行模型），与构建同序排在客户端那片之前。
+  'src/shared/version-control/src/worktree-ops.ts',
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js',
@@ -86,6 +88,10 @@ const VC_FILES = [
   'src/client/views/versionControl/vcCache.js', // #864：进出缓存（与构建同序）
   'src/client/views/versionControl/vcInView.js', // #997：「还能显示更多」那几处什么时候接着显示（与构建同序）
   'src/client/views/versionControl/vcFirstScreen.js', // #1739：首屏七片的客户端数据层（只读一份版本化快照；与构建同序）
+  // #1752 工作树页三叶（与构建同序）：数据层 → 处理层 → 页面体，页面壳的挂载段要看到页面体那一叶。
+  'src/client/views/versionControl/vcWorktreesData.js',
+  'src/client/views/versionControl/vcWorktreesOps.js',
+  'src/client/views/versionControl/vcWorktreesPage.js',
   // #1738 页面壳四片（与构建同序）：页面注册表 → 基础画法 → 命令面板 → 页面壳本体。
   'src/client/views/versionControl/vcCapabilityPages.js',
   'src/client/views/versionControl/vcShellPrimitives.js',
@@ -154,6 +160,12 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcFirstScreenSliceOf', 'vcFirstScreenSliceStateOf', 'vcFirstScreenFailedSlicesOf', 'vcFirstScreenSliceRetryableOf',
   'vcReadFirstScreen', 'vcReadFirstScreenOnEnter', 'vcReadFirstScreenAfterTask', 'vcReadFirstScreenOnManual',
   'vcRetryFirstScreen', 'vcRetryFirstScreenSlice', 'vcFirstScreenScreenOf',
+  // #1752 工作树页：共享动作层的八条动作与判定、数据层模型、处理层参数整形、页面体与八条入口。
+  'WORKTREE_ACTIONS', 'WORKTREE_CAP_IDS', 'WORKTREE_REASONS', 'worktreeJudge', 'worktreeArgsOf', 'worktreeRowsOf', 'worktreePruneEntriesOf',
+  'VC_WORKTREES_ENTRY_DEFS', 'VC_WORKTREE_PHONES', 'VC_WORKTREES_PAGE_SOURCE', 'VC_WORKTREES_DATA_SOURCE',
+  'vcWorktreesListStateOf', 'vcWorktreesSnapshotOf', 'vcWorktreesModelOf', 'vcWorktreesVersionOf', 'vcWorktreeAvailabilityOf', 'vcWorktreeWhyKeyOf', 'vcWorktreesVersionHintOf',
+  'vcWorktreesRowActionsOf', 'vcWorktreesActionDecisionOf', 'vcWorktreeCheckArgsOf', 'vcWorktreeRunArgsOf', 'vcWorktreePlanOf', 'vcWorktreeFailureOf',
+  'vcWorktreeResultOf', 'vcWorktreeDecisionReasonsOf', 'vcWorktreeDecisionStateOf', 'vcWorktreesPageNode',
   'VersionControlTab']
 // #1253：这 20 份现在都是 .ts 真源（2026-10-19 第三阶段起 rules 的产物也搬到了 .build/shared/，
 //   列表里直接写 rules.ts 真源路径，不再指向源码树里的产物 .js）。
@@ -256,6 +268,9 @@ async function main() {
   const locUrl = (f: string) => pathToFileURL(path.join(ROOT, sourcePath(f))).href
   const panelMod = await import(locUrl('src/client/kernel/locale-panel.js'))
   const flowMod = await import(locUrl('src/client/kernel/locale-flow.js'))
+  // #1752 工作树页那一族词条（清单四态、十二个动作名、判定理由与版本替代做法）也读真字典。
+  const vcWtLocMod = await import(locUrl('src/client/kernel/locale-vcworktrees.js'))
+  const L_VCWORKTREES = vcWtLocMod.L_VCWORKTREES
   // #842：写操作那一族的词条自成一个族（locale-panel 与 locale-flow 都在上限上），这里一并读真字典。
   const vcWriteMod = await import(locUrl('src/client/kernel/locale-vcwrite.js'))
   const L_PANEL = panelMod.L_PANEL
@@ -264,7 +279,7 @@ async function main() {
   // #1738 页面壳那一族（页签 / 齿轮九分区 / 命令面板 / 三形态 / 四态 / 确认卡四段 / 结果信息）。
   const vcShellMod = await import(locUrl('src/client/kernel/locale-vcshell.js'))
   const L_VCSHELL = vcShellMod.L_VCSHELL
-  LOC = { zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh), en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en) }
+  LOC = { zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCWORKTREES.zh), en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCWORKTREES.en) }
   tZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
   tEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
   VIEW = buildView(null, [])
@@ -1219,6 +1234,41 @@ async function main() {
   const fsHostLogs = fsLogs.filter(function (l) { return l.event === 'host.call' && l.fields && l.fields.kind === 'git-first-screen' })
   check(fsHostLogs.length === 1 && fsHostLogs[0].fields.ok === true, 'W21 首屏聚合落在既有 host.call 事件上（kind=git-first-screen，不新增事件名）')
 
+  // ---- W-ext 组（#1752）：工作树页八条能力接在同一份首屏快照上 ----
+  // 页面与首屏聚合共用同一份片：清单来自 worktrees 片，版本门来自 version 片里的 switches，
+  // 判定调共享层 worktreeJudge —— 界面不另发清单电话、不自己写一份版本比较。
+  const wtSeedOf = function () {
+    const s = firstSeedOf()
+    s.slices.worktrees = fsSliceOk({ others: [{ path: 'D:/w/repo/.wt/a', display: 'a', head: 'a'.repeat(40), branch: 't/a', detached: false, bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false, prunableReason: null }], bare: false })
+    s.slices.version = fsSliceOk({ gitVersion: 'git version 2.17.1', tier: 'degraded', switches: [{ id: '9.7', name: '移动工作树', command: 'git worktree move', state: 'hidden', needed: '2.17', alternative: '2.17 以下在终端移动目录，再跑 git worktree repair' }] })
+    return s
+  }
+  const wtReads = { firstScreen: { state: 'ok', data: wtSeedOf(), error: null } }
+  check(Array.isArray(VIEW.VC_WORKTREES_ENTRY_DEFS) && VIEW.VC_WORKTREES_ENTRY_DEFS.length === 8 && VIEW.VC_WORKTREES_ENTRY_DEFS.map(function (d) { return d.capId }).join(',') === '9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8', 'W22 工作树页八条能力各有入口（9.1–9.8 次序逐条对齐账本）')
+  const wtIdle = VIEW.vcWorktreesModelOf({ firstScreen: { state: 'idle', data: null, error: null } })
+  check(wtIdle.state === 'idle' && wtIdle.caps.length === 8 && wtIdle.rows.length === 0, 'W23 还没读数时画空态：八条能力行齐、清单为空、不冒充读过')
+  const wtModel = VIEW.vcWorktreesModelOf(wtReads)
+  check(wtModel.state === 'ok' && wtModel.rows.length === 2 && wtModel.rows[0].current === true && wtModel.count === 2, 'W24 读数到手：当前这一棵排最前，清单与首屏 worktrees 片是同一份（' + wtModel.count + ' 棵）')
+  const wtSnapPaths = VIEW.vcWorktreesSnapshotOf(wtReads).rows.map(function (r) { return r.path }).join('|')
+  check(wtSnapPaths === wtModel.rows.map(function (r) { return r.path }).join('|') && VIEW.vcFirstScreenSliceOf(wtReads, 'worktrees').data.others.length === 1, 'W25 清单直接取自首屏 worktrees 片，不再发第二条清单电话（两条路径读同一份片）')
+  const wtAv = VIEW.vcWorktreeAvailabilityOf(wtModel.version, '9.7')
+  check(!!wtAv && wtAv.state === 'hidden' && VIEW.vcWorktreeAvailabilityOf(wtModel.version, '9.1').state === 'full', 'W26 版本门读 version 片里的 switches：9.7 隐藏、9.1 可用（与账本那一份同源）')
+  const wtHint = VIEW.vcWorktreesVersionHintOf(tZh, '9.7')
+  check(String(wtHint).indexOf('2.17') >= 0 && String(wtHint).indexOf('终端') >= 0, 'W27 版本不够时常驻画「需要哪个版本 + 替代做法」（' + wtHint + '）')
+  const wtHtmlOk = renderToStaticMarkup(VIEW.vcWorktreesPageNode(h, tZh, { reads: wtReads, ui: {}, ops: {} }))
+  check(wtHtmlOk.indexOf('data-vc-wt-page="1"') >= 0 && attrValuesOf(wtHtmlOk, 'data-wt-entry').length === 8, 'W28 工作树页真的渲染出八条入口（实得 ' + attrValuesOf(wtHtmlOk, 'data-wt-entry').length + ' 条）')
+  check(wtHtmlOk.indexOf('data-wt-version="hidden"') >= 0 && wtHtmlOk.indexOf('data-wt-version="full"') < 0, 'W29 9.7 那一行带版本门说明，可用的能力不画多余说明')
+  check(wtHtmlOk.indexOf('data-cap-primary') < 0, 'W30 工作树页不用主入口标记 data-cap-primary（每条能力的唯一主入口仍由能力行负责，Z1d 不会被抢）')
+  const dangerIds = VIEW.WORKTREE_ACTIONS.filter(function (a) { return a.danger === true }).map(function (a) { return a.id }).sort().join(',')
+  const needConfirm = VIEW.WORKTREE_ACTIONS.filter(function (a) { return a.confirm === true }).map(function (a) { return a.id }).sort().join(',')
+  check(dangerIds === 'move,prune,remove,sparse-set' && needConfirm === 'add,add-branch,lock,move,prune,remove,sparse-set,unlock', 'W31 危险动作与确认清单逐条对齐（危险：移动/清理/删除/写稀疏；确认：八个写动作；列表与稀疏只读不确认）')
+  const wtRunArgs = VIEW.vcWorktreeRunArgsOf('D:/w/repo', 'remove', 'tk1', 't1', { path: 'D:/w/repo/.wt/a' })
+  check(wtRunArgs.op === 'remove' && wtRunArgs.ticketId === 'tk1' && wtRunArgs.requestId === 't1' && wtRunArgs.confirm === true && wtRunArgs.path === 'D:/w/repo/.wt/a', 'W32 执行电话带票据、请求号与显式确认（危险动作不会因为界面漏参而在宿主那边静默执行）')
+  const wtDecide = VIEW.vcWorktreesActionDecisionOf(wtModel, 'remove', { path: 'D:/w/repo' })
+  check(VIEW.vcWorktreeDecisionStateOf(wtDecide) === 'block' && VIEW.vcWorktreeDecisionReasonsOf(wtDecide)[0] === 'worktree-is-current', 'W33 界面先判一次：当前这一棵不许删（发电话之前就拦下）')
+  // 下面两条反证（H 组）用的判据：与上面主线断言同一条，改坏源码就该当场假。
+  const worktreesEntryJudgmentOf = function (v) { return Array.isArray(v.VC_WORKTREES_ENTRY_DEFS) && v.VC_WORKTREES_ENTRY_DEFS.length === 8 }
+  const worktreesPhoneJudgmentOf = function (v) { return !!v.VC_WORKTREE_PHONES && v.VC_WORKTREE_PHONES.run === 'wf.gitWorktreeRun' }
   // ---- Y 组：提交历史页（#1744 T09）——列表分页 / 详情 / 逐文件差异 / 13.14 图形化视图 ----
   // 判据分两层：数据模型（vcHistoryFirstPageOf / vcHistoryModelOf / vcHistoryGraphOf）与渲染
   //   （vcRenderTabAt 的 commits 页，reads / ui / width 从选项进）。首屏第一页必须来自 #1739 那份
@@ -1639,6 +1689,10 @@ async function main() {
     { name: '远端页的联网入口改成别的属性名', patch: (s) => s.replace("'data-vc-remote-online-btn': String(remote.name),", "'data-vc-remote-online-entry': String(remote.name),"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'remote', width: 460, skin: 'dark', reads: rcReadsOf({}) })); return attrValuesOf(html, 'data-vc-remote-online-btn').length === 2 }, what: 'R2a' },
     // #1754：联网结果不再标来源 network（把这一次的联网读数画成缓存/旧值）—— R2d 必须当场红。
     { name: '联网结果不再标来源 network', patch: (s) => s.replace("'data-vc-remote-online-source': 'network',", "'data-vc-remote-online-source': 'cache',"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'remote', width: 460, skin: 'dark', reads: rcReadsOf({ online: r2OnlineOk }) })); return attrValuesOf(html, 'data-vc-remote-online-source').join(',') === 'network' }, what: 'R2d' },
+    // #1752：工作树页删掉 9.7 移动的入口 —— 八条能力少一条，W22 那一组必须当场红。
+    { name: '工作树页删掉 9.7 移动的入口', patch: (s) => s.replace("  { capId: '9.7', op: 'move', row: true },\n", ''), test: worktreesEntryJudgmentOf, what: 'W22' },
+    // #1752：工作树执行电话改走长任务通道 —— 界面就不再走同步短写那一对电话，W32 那一组必须当场红。
+    { name: '工作树执行电话改走长任务通道', patch: (s) => s.replace("run: 'wf.gitWorktreeRun'", "run: 'wf.gitTaskStart'"), test: worktreesPhoneJudgmentOf, what: 'W32' },
   ]
   // #845c：反证自证提到循环里 —— 每一处改法先确认它真的落到了源码上（改不中等于没证）。
   //   旧写法只在循环外用一条聚合自检兜底，于是某一条改法失效时，它自己仍会以 broke=true 假绿

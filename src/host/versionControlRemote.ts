@@ -32,6 +32,8 @@ import {
   classifyLsRemoteFailure,
 } from '../shared/version-control/src/remote.js'
 import { nonInteractiveGitEnv } from '../shared/version-control/src/commands.js'
+// 值由 tests/verify-time-config.ts 看守一致：联网查看的超时住 config/timeouts.yaml，源码只导入生成常量。
+import { VC_REMOTE_ONLINE_TIMEOUT_MS as ONLINE_TIMEOUT_MS } from '../shared/time-config/src/values.js'
 
 /** 父文件注入的依赖：全部显式传入，本文件不引用父文件（单向引用）。 */
 export interface RemotePhoneDeps {
@@ -44,8 +46,7 @@ export interface RemotePhoneDeps {
   nowMs: any
 }
 
-/** 一次联网读取最多等多久：ADR 要求限频，也让卡住的连接不把面板拖死。 */
-const ONLINE_TIMEOUT_MS: number = 15000
+/** 一次联网读取最多等多久：ADR 要求限频，也让卡住的连接不把面板拖死（值住 config/timeouts.yaml）。 */
 /** 远端列表与每个远端的分支读数的输出上限：几十个远端也远用不到这么多。 */
 const LIST_STDOUT_LIMIT: number = 2 * 1024 * 1024
 const BRANCH_STDOUT_LIMIT: number = 512 * 1024
@@ -258,19 +259,6 @@ export function createRemotePhones(deps: any): any {
     readState: readState,
   }
 }
-/** 父文件装配用：把六条电话体按同一个 loggedPhone 日志口径包成 handleGitRemote* 字段（父文件返回对象里展开）。
- *  phone 是返回 Promise 的取件函数（真正的电话体在 createRemotePhones 里，父文件仍按需加载它）；
- * 本函数只做包装，不碰进程、不联网，所以父文件可以静态引用它、把六条字段压成一行展开。 */
-export function remoteHandleMap(loggedPhone: any, phone: any): any {
-  const wrap = function (method: string, kind: string, name: string): any {
-    return loggedPhone(method, kind, async function (a: any): Promise<any> { const p: any = await phone(); return p[name](a) })
-  }
-  return {
-    handleGitRemoteList: wrap('wf.gitRemoteList', 'git-remote-list', 'handleGitRemoteList'),
-    handleGitRemoteAdd: wrap('wf.gitRemoteAdd', 'git-remote-add', 'handleGitRemoteAdd'),
-    handleGitRemoteRename: wrap('wf.gitRemoteRename', 'git-remote-rename', 'handleGitRemoteRename'),
-    handleGitRemoteRemove: wrap('wf.gitRemoteRemove', 'git-remote-remove', 'handleGitRemoteRemove'),
-    handleGitRemoteSetUrl: wrap('wf.gitRemoteSetUrl', 'git-remote-set-url', 'handleGitRemoteSetUrl'),
-    handleGitRemoteOnline: wrap('wf.gitRemoteOnline', 'git-remote-online', 'handleGitRemoteOnline'),
-  }
-}
+// 六条电话的日志包装搬到共享层 src/shared/version-control/src/remote-handles.ts（#1754 T18）：
+// 宿主父文件不能静态 import 同层叶子（same-layer-import-host），包装逻辑放在共享层后，
+// 父文件只递一个按需取件的函数，这里留纯电话体与它们共用的 in-flight 表。

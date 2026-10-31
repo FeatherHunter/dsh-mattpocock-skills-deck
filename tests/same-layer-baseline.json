@@ -779,6 +779,15 @@
     },
     {
       "file": "src/host/versionControl.ts",
+      "spec": "./versionControlRemote.js",
+      "resolved": "src/host/versionControlRemote.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1754（规格 #1586 T18 远端与同步页）",
+      "note": "装配扇入：远端列表、登记/改名/删除、改地址与只读联网六条电话要接进 versionControl.ts，而父文件已贴着 350 有效行上限，照 #500/#821/#1739 同一条先例把电话体搬成自包含叶子（进程出口、失败信封、仓库根解析、当前时间全由父文件显式传入，叶子不反向引用父文件）；电话日志包装与六条 handle 装配搬到共享层 remote-handles.ts，父文件只留一行 import 与一个缓存加载器。加载器必须缓存同一条 Promise：叶子里的在途单飞表按加载器身份去重，每次新建 Promise 会让并发的同一远端请求各自起进程。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
       "spec": "./versionControlTask.js",
       "resolved": "src/host/versionControlTask.ts",
       "layer": "host",
@@ -803,6 +812,24 @@
       "count": 1,
       "owner": "#1740（规格 #1586 T05 长任务通道）",
       "note": "叶子装配：任务通道叶子要把任务记录库接上（记录只落缓存目录、不落仓库工作区，参数原文与输入文件内容不进记录文件）。方向单向：任务库只认注入的 fs 门面与缓存目录，不引用通道叶子。"
+    },
+    {
+      "file": "src/host/versionControlWorktreesMount.ts",
+      "spec": "./versionControlWorktrees.js",
+      "resolved": "src/host/versionControlWorktrees.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1752（规格 #1586 T17 工作树页）",
+      "note": "装配扇入：工作树页两条电话（预检与执行）的懒加载、加载失败兜底与日志包装要接进 src/host/versionControl.ts，而父文件已贴着文件粒度门禁的 350 有效行上限，照 #500/#821/#1739 同一条先例把装配整块搬成同层装配壳；壳只做接线，进程出口、失败信封、工作目录、路径探测、时间与随机数全部由父文件注入，壳不反向引用父文件。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
+      "spec": "./versionControlWorktreesMount.js",
+      "resolved": "src/host/versionControlWorktreesMount.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1752（规格 #1586 T17 工作树页）",
+      "note": "装配扇入：工作树页装配搬进同层装配壳后，父文件只保留一行 createWorktreesMount 调用；父文件已贴着 350 有效行上限，装配壳不反向引用父文件，方向单向，必改可循 #500/#821/#1739 先例。"
     },
     {
       "file": "src/host/versionControl.ts",

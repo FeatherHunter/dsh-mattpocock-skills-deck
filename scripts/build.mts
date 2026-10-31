@@ -676,6 +676,9 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // 重名，见下面的 buildTimeConfigClientFragment），这里拼的是摘出来的 .tmp 片段（不入库，每次构建重算）。
   // 消费文件自己写模块级 declare const（见 src/client/views/pixelProps.d.ts 的约定）。
   { marker: '// ==== shared:timeConfig (spliced by build) ====', file: '.tmp/time-config.client.js' },
+  // #1752 工作树的八条动作（argv、行模型、判定与理由、剪枝清单、稀疏检出规则）：宿主执行前与界面判定必须读同一份，
+  //   界面不许自己再拼第二份 argv 或第二套理由。文件不带 import，可直接拼进界面闭包；宿主半走普通相对 import。
+  { marker: '// ==== shared:vcWorktreeOps (spliced by build) ====', file: 'src/shared/version-control/src/worktree-ops.ts' },
 ]
 
 // ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------
@@ -770,6 +773,11 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcRemotePage', file: 'src/client/views/versionControl/vcRemotePage.ts' }, // #1754 T18 远端与同步页的正文（本地记录 / 联网查看 / 四种表单形态；排在页面壳之前，壳要调它）
   { id: 'vcTaskPanel', file: 'src/client/views/versionControl/vcTaskPanel.ts' }, // #1740 长任务区（进度、四类结论、取消按钮、重启标注中断；由页面壳挂进任务区）
   { id: 'vcChangesPage', file: 'src/client/views/versionControl/vcChangesPage.ts' }, // #1742 改动页 13 条动作的操作面板（由页面壳在 changes 页挂进页面体）
+  // #1752 工作树页三叶，依赖次序固定：读首屏那一片的数据层 → 动作层（判定与两条写电话）→ 页面画法（八条入口、行、确认与结果）。
+  //   排在 vcShellPages 之前，壳的挂载段才看得到 vcWorktreesPageNode；也排在 vcFirstScreen 之后，数据层只问那一份片。
+  { id: 'vcWorktreesData', file: 'src/client/views/versionControl/vcWorktreesData.ts' },
+  { id: 'vcWorktreesOps', file: 'src/client/views/versionControl/vcWorktreesOps.ts' },
+  { id: 'vcWorktreesPage', file: 'src/client/views/versionControl/vcWorktreesPage.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },

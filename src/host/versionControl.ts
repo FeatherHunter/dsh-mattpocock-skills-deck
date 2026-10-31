@@ -42,7 +42,7 @@ import { parseDiffFiles } from '../shared/version-control/src/parse-diff-files.j
 import { assemble, classifyStepZero } from '../shared/version-control/src/state.js'
 import { makeStallWatch } from './stallWatch.js' // #847：字节增长看门狗（自包含叶子，照 #500/#821 先例）
 import { withGhLane } from '../refresh/rooms/host/outbound-admission.js'
-import { failPhone, firstLine, failureFromExec } from '../shared/version-control/exec-envelope.js'; import { remoteHandleMap } from './versionControlRemote.js' // #1754 T18：域 8 六条电话的装配包装（电话体仍按需加载）
+import { failPhone, firstLine, failureFromExec } from '../shared/version-control/exec-envelope.js'; import { remoteHandles } from '../shared/version-control/src/remote-handles.js' // #1754 T18：域 8 六条电话的包装（共享层小件；宿主同层只许动态 import，电话体仍按需加载）
 // 单条 git 命令的默认超时住中央 YAML（config/timeouts.yaml 的 vcRunTimeoutMs 键）：这里直接引用中央常量，调时间改 YAML。
 // 它管的是「调用方没给 TIMEOUT_MS 时，一条 git 命令最多跑多久」——接线给了 TIMEOUT_MS 就以接线那个为准。
 // 路径走域构建产物写法（与 src/refresh/rooms/host/chain-coalescing.ts 引 values.js 同例），
@@ -53,7 +53,7 @@ import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/ti
 import { prepareStdinFile, createTaskPhones } from './versionControlTask.js'
 // #1742：改动页两条电话（预检发票、凭票写）的懒加载与日志包装住同层叶子 versionControlChangesMount.ts，
 // 本文件只把上面已经造好的宿主闭包递进去——父文件贴着 350 有效行上限，装配壳不在这里再摊开一份。
-import { createChangesMount } from './versionControlChangesMount.js'
+import { createChangesMount } from './versionControlChangesMount.js'; import { createWorktreesMount } from './versionControlWorktreesMount.js' // #1752：工作树装配壳与改动页装配壳的 import 合在一行，给父文件腾回 350 有效行的额度
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -390,7 +390,7 @@ export function createVersionControl(deps: any): any {
 
   // 域 8「远端与同步」六条电话（#1754 T18）住 ./versionControlRemote.js：与差异、首屏同一先例（自包含叶子、
   // 依赖全显式传入、单向引用）。联网那一路只在用户显式点「联网查看」后走，本文件不额外触发。
-  function remotePhone(): any { const self: any = remotePhone as any; if (!self.p) self.p = import('./versionControlRemote.js').then(function (m: any) { return m.createRemotePhones({ runPinned: runPinned, failureFromExec: failureFromExec, failPhone: failPhone, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now }) }); return self.p }
+  // 取件函数与它缓存的同一条 Promise 就写在下面返回对象那一行里（父文件贴 350 行上限，也为守同层动态 import 的规矩）。
 
   /** 电话 wf.gitLog 的处理体：历史按批取；多要一条用来判断后面还有没有。 */
   async function handleGitLog(args: any): Promise<any> {
@@ -475,7 +475,7 @@ export function createVersionControl(deps: any): any {
   const changes: any = createChangesMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable, runGit: runGit, fixedPrefix: fixedPrefix, pathExists: pathExists, readScreenOf: readScreenOf, loggedPhone: loggedPhone, DEFAULT_CWD: DEFAULT_CWD, STDOUT_LIMIT: STDOUT_LIMIT, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now })
 
   return {
-    handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus), ...remoteHandleMap(loggedPhone, remotePhone), // #1754 T18：域 8 远端与同步六条电话（装配见 versionControlRemote.remoteHandleMap，日志仍走 loggedPhone）
+    handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus), ...remoteHandles(loggedPhone, (function (): any { let p: any = null; return function (): any { if (!p) p = import('./versionControlRemote.js').then(function (m: any) { return m.createRemotePhones({ runPinned: runPinned, failureFromExec: failureFromExec, failPhone: failPhone, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now }) }); return p } })()), // #1754 T18：域 8 远端与同步六条电话（包装在共享层 remoteHandles，电话体按需加载、取件 Promise 缓存）
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
     handleGitLog: loggedPhone('wf.gitLog', 'git-log', handleGitLog),
     // 首屏七片一次聚合（#1739 T04）：一次调用拿全，各片成败在回包里各自说。
@@ -496,6 +496,8 @@ export function createVersionControl(deps: any): any {
     handleGitTaskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) },
     handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) },
     handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) },
+    // #1752 工作树页八条能力：预检与执行两条电话（装配壳在 ./versionControlWorktreesMount.ts，懒加载、失败兜底与日志包装都在那里）。
+    ...createWorktreesMount({ resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, runPinned: runPinned, failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, cwdOf: cwdOf, pathExists: pathExists, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now, randomId: function (): string { return Math.random().toString(36).slice(2) } }),
     // #1742 改动页两条电话（预检、执行）与票据表：装配在 ./versionControlChangesMount.ts，进程出口照旧是上面那条固定前缀与报闸。
     // 只读动作 1.13（查为什么被忽略）走预检电话的 op，不再单开第三条电话；changesTickets 只给门禁与测试读票据表（与 #1741 的 writeTickets 同一条口径，不注册成电话、客户端拿不到）。
     handleGitChangesCheck: changes.check, handleGitChangesWrite: changes.write, changesTickets: changes.tickets,
