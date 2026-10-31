@@ -20,9 +20,7 @@ declare function vcPageCapabilitiesOf(pageId: any): any[]
 declare function vcCapabilityOf(capId: any): any
 // 「本页负责的能力」列表（#1762 T26 从本文件拆到 vcCapabilityList.ts 以守住单文件行数上限）。
 declare function vcCapabilityListOf(h: any, t: any, o: any): any
-declare const VC_TAB_PAGES: string[]
-declare const VC_MANAGE_PAGES: string[]
-declare const VC_SIDE_PAGES: string[]
+declare const VC_TAB_PAGES: string[]; declare const VC_MANAGE_PAGES: string[]; declare const VC_SIDE_PAGES: string[]
 declare const VC_SEARCH_PAGE: string
 declare const VC_MANAGE_SECTION_KEYS: Record<string, string>
 declare function vcPaletteNode(h: any, t: any, o: any): any
@@ -33,25 +31,27 @@ declare function vcCapabilitySurfaceKindOf(cap: any): string
 declare const VC_SHELL_STATES: string[]
 declare function vcHistoryPageNode(h: any, t: any, o: any): any
 // 远端与同步页叶子（#1754 T18，vcRemotePage.ts）：build 按叶子登记次序拼进同一闭包，这里只声明形状。
-declare function vcRemotePageNode(h: any, t: any, o: any): any
-// 历史高级查询面板（#1745，vcQueryView.ts）：提交历史页与「管理 › 诊断」页各挂一段，按能力账本筛。
-declare function vcQueryPageNode(h: any, t: any, o: any): any
+declare function vcRemotePageNode(h: any, t: any, o: any): any; declare function vcQueryPageNode(h: any, t: any, o: any): any
+// 历史高级查询面板（#1745，vcQueryView.ts）：同上由构建拼进闭包；提交历史页与「管理 › 诊断」页各挂一段，按能力账本筛。
 // 提交页正文叶子（#1743，vcCommitPage.ts）：改动页拿到读数时画在能力清单之前。
 declare function vcCommitPageNode(h: any, t: any, o: any): any
 // 长任务区叶子（#1740，vcTaskPanel.ts）：由构建按叶子登记次序拼进同一个闭包，这里只声明形状。
 declare function vcTaskPanelNode(h: any, t: any, o: any): any
 // 工作树页叶子（#1752，vcWorktreesPage.ts）：同样由构建拼进同一个闭包，壳的挂载段只调用它。
 declare function vcWorktreesPageNode(h: any, t: any, o: any): any
+// 子模块页叶子（#1757 T21，vcSubmodulesPage.ts）：同样由构建拼进同一个闭包，挂载段只往下递读数和处理函数。
+declare function vcSubmodulesPageNode(h: any, t: any, o: any): any
 // 改动页操作面板叶子（#1742，vcChangesPage.ts）：同样由构建拼进闭包；只在 changes 页且页面传入改动读数时挂载。
 declare function vcChangesPageNode(h: any, t: any, o: any): any
 // 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）、贮藏页叶子（#1751，vcStashPage.ts）、克隆向导页叶子（#1756，
-// vcClonePage.ts）、冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）与 #1762 T26 的平台页（vcPlatformPage.ts）、
-// 迁移页 14.1 导出向导（vcMigrateExport.ts）：都由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。
-// 六条声明并进同一条物理行：本文件贴着 350 有效行上限。
-declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcPlatformPageNode(h: any, t: any, o: any): any; declare function vcMigrateExportNode(h: any, t: any, o: any): any
+// 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）、贮藏页叶子（#1751，vcStashPage.ts）、克隆向导页叶子（#1756，
+// vcClonePage.ts）、冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）、变基待办页的历史改写面板（#1748 T13，vcUndoPage.ts）、
+// 变基待办页的动作面板（#1749 T14，vcRebasePage.ts）、#1762 T26 的平台页（vcPlatformPage.ts）与迁移页 14.1 导出向导
+// （vcMigrateExport.ts）都由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。各条声明并进同一条物理行：本文件贴着 350 有效行上限。
+declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcMigratePageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any; declare function vcRebasePageNode(h: any, t: any, o: any): any; declare function vcPlatformPageNode(h: any, t: any, o: any): any; declare function vcMigrateExportNode(h: any, t: any, o: any): any
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
-export const VC_SHELL_SKINS: string[] = ['dark', 'light']
+export const VC_SHELL_SKINS: string[] = ['dark', 'light']; // 两套皮肤：深浅各一套语义色，页面壳只把皮肤名透传给 CSS 与根属性。
 // 四条页签的中文键（与能力账本的页面 id 一一对应；顺序就是页签顺序）。
 export const VC_TAB_LABEL_KEYS: Record<string, string> = {
   changes: 'vc.shell.tab.changes',
@@ -216,6 +216,9 @@ const vcPageNotesOf = function (h: any, t: any, page: string) {
   if (page === 'diagnostics') {
     notes.push(h('div', { key: 'diag', className: 'vcs-note', 'data-vc-note': 'diagnostics-readonly' }, t('vc.shell.diagnostics.note')))
   }
+  // 维护页的两条只读项（11.14 refs migrate / 11.15 scalar，规格 3.9）：只给版本要求、影响范围与官方命令说明，
+  // 不给触发按钮；这一句是页面级说明，真正的只读行由能力账本 finalForm='只读' 统一画（见 818 的 M 组断言）。
+  if (page === 'maintenance') notes.push(h('div', { key: 'ro', className: 'vcs-note', 'data-vc-note': 'maintenance-readonly' }, t('vc.shell.maintenance.readonlyNote')))
   return notes
 }
 
@@ -238,6 +241,9 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
       reads: opts.reads, ui: opts.ui, ops: opts.ops, handlers: opts.handlers,
     }), { key: 'worktrees' }))
   }
+  // #1757 T21 子模块页正文：域 10 八条能力的入口、固定四项批量、逐行清单与确认/结果都在 vcSubmodulesPage 里；
+  //   壳只在调用方递进这一族读数（opts.submodules）时挂一段，没有递进来就照旧画骨架，其它页渲染不变。
+  if (page === 'submodules' && opts.submodules !== undefined && typeof vcSubmodulesPageNode === 'function') children.push(Object.assign({}, vcSubmodulesPageNode(h, t, { board: opts.submodules, ui: opts.submoduleUi, ops: opts.submoduleOps }), { key: 'submodules' }))
   // 提交历史页有自己的正文（#1744 T09：列表 / 详情 / 逐文件差异 / 13.14 图形化视图）。
   // 只有在拿到了首屏读数时才换成真正文；没有读数（壳自检、Z 组骨架断言）仍旧画骨架。
   if (page === 'commits' && opts.reads) {
@@ -251,8 +257,12 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     children.push(Object.assign({}, vcRemotePageNode(h, t, {
       reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs,
     }), { key: 'remote' }))
+  } else if (page === 'migrate' && opts.reads) {
+    // 迁移与备份页正文（#1759 T23，域 11 的 11.1 / 11.12 / 11.13 与域 5 的 5.13，加 svn 补充块）。与远端页同一口径：
+    // 只在拿到读数时换成真正文，没读数的骨架渲染保持不变；主入口 data-cap-primary 仍由下面的能力行统一给。
+    children.push(Object.assign({}, vcMigratePageNode(h, t, { reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs }), { key: 'migrate' }))
   } else if (page === 'changes' && opts.reads) {
-    // #1743 域 2：改动页拿到读数时，提交面板画在能力清单之前（能力清单本身不动，唯一主入口计数仍是 162）。
+    // #1743 域 2：改动页读到读数时，提交面板画在能力清单之前（能力清单本身不动，唯一主入口计数仍是 162）。
     children.push(Object.assign({}, vcCommitPageNode(h, t, {
       reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs,
       ops: opts.commitOps || null, targets: opts.commitTargets || [],
@@ -272,7 +282,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
       onEdit: opts.onMigrateEdit, onCheck: opts.onMigrateCheck, onRun: opts.onMigrateRun,
       onRescan: opts.onMigrateRescan, onCancel: opts.onMigrateCancel,
     }), { key: 'migrate-body' }))
-  } else {
+  } else if (page !== 'submodules' || opts.submodules === undefined) {
     // 骨架自检：三种表单形态与四种状态各画一遍，T03 只交壳，业务入口由后续票逐条接。
     children.push(h('div', { key: 'skeleton', className: 'vcs-skeleton', 'data-vc-skeleton': '1' }, [
       h('div', { key: 'forms', className: 'vcs-forms' }, vcShellFormNodes(h, t, o)),
@@ -295,8 +305,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   // 历史高级查询面板（#1745 T10）：提交历史页落 3.4 / 3.6 / 3.7 / 3.8 / 3.10 / 3.12 六组，
   //   「管理 › 诊断」页落 3.5 / 3.9 / 3.11 / 3.13 四组（四条的主入口就在那一页，面板自己标主入口）。
   //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。
-  const queryNode = vcQueryPageNode(h, t, opts)
-  if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' }))
+  const queryNode = vcQueryPageNode(h, t, opts); if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' })) // 判断与推入并成一行：本文件贴着 350 有效行上限。
   children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
   // 改动页的 13 条动作面板（#1742）：页面把改动读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
@@ -304,7 +313,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   }
   // 冲突向导的 15 条能力面板（#1747 T12）：页面把冲突状态与读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   // 判断与推入写成同一条物理行：本文件贴着 350 有效行上限。
-  if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' }))
+  if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' })); if (page === 'rebase' && opts.rebase !== undefined && typeof vcRebasePageNode === 'function') children.push(Object.assign({}, vcRebasePageNode(h, t, { rebase: opts.rebase }), { key: 'rebase' }))
   return h('section', {
     id: 'vc-page-' + page,
     className: 'vcs-page-body',
@@ -345,18 +354,14 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   if (branchOpen) children.push(keyed(vcBranchOverlayNode(h, t, { id: branchOverlayId, branch: seed.branch }), 'branch'))
   if (gearOpen) children.push(keyed(vcGearIndexNode(h, t, { id: gearId, pagePrefix: opts.pagePrefix || '', active: isManage ? page : '' }), 'gear'))
   // 命令面板：全库搜索页把它画在能力行里（唯一一个输入框）；其它页按种子画成贴触发点的浮层。
-  if (paletteOpen && !isSearch) {
-    children.push(keyed(vcPaletteNode(h, t, {
-      id: paletteId, query: seed.query, highlight: seed.highlight, limit: seed.paletteLimit,
-    }), 'palette'))
-  }
+  if (paletteOpen && !isSearch) children.push(keyed(vcPaletteNode(h, t, { id: paletteId, query: seed.query, highlight: seed.highlight, limit: seed.paletteLimit }), 'palette'))
   children.push(keyed(vcPageTabsNode(h, t, { pagePrefix: opts.pagePrefix || '', active: VC_TAB_PAGES.indexOf(page) >= 0 ? page : '' }), 'tabs'))
   children.push(keyed(vcPageBodyNode(h, t, {
     page: page, pagePrefix: opts.pagePrefix || '',
     openSurface: openSurface,
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,
-    changes: opts.changes, conflicts: opts.conflicts, // #1747 T12：冲突向导的进行中状态、冲突清单与 15 条动作的交互态，原样往下传，壳不改形状。
+    changes: opts.changes, conflicts: opts.conflicts, rebase: opts.rebase, // #1747 T12 / #1749 T14：冲突向导与变基待办的交互态原样往下传，壳不改形状。
     // #1744 T09：提交历史页要真读数与交互态，页面壳原样往下传，不在壳里改形状。
     reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
     // #1746 T11：分支与标签业务面板的读数与确认卡/结果（没给就不画，T03 既有渲染不变）。
@@ -365,10 +370,9 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     queries: opts.queries, inputs: opts.inputs,
     // #1743：#1743 提交页的动作层、目标提交候选与现成面板模型也从调用方传进来（壳不自己造）。
     commitOps: opts.commitOps || null, commitTargets: opts.commitTargets || [], commitPanel: opts.commitPanel || null,
-    ops: opts.ops, handlers: opts.handlers, cwd: opts.cwd, call: opts.call, // #1752 工作树页要真数据与处理函数；#1756 克隆向导要工作区与发电话的函数
-    // #1762 T26 平台页与迁移页的读数、交互态与回调都从这里透传，页面壳不自己造数据。
-    platform: opts.platform, platformUi: opts.platformUi, onPlatformRpInput: opts.onPlatformRpInput, onPlatformRequestPull: opts.onPlatformRequestPull,
-    migrate: opts.migrate, migrateReads: opts.migrateReads, onMigrateEdit: opts.onMigrateEdit, onMigrateCheck: opts.onMigrateCheck, onMigrateRun: opts.onMigrateRun, onMigrateRescan: opts.onMigrateRescan, onMigrateCancel: opts.onMigrateCancel,
+    ops: opts.ops, handlers: opts.handlers, submodules: opts.submodules, submoduleUi: opts.submoduleUi, submoduleOps: opts.submoduleOps, cwd: opts.cwd, call: opts.call, // #1752 工作树页要真数据与处理函数；#1756 克隆向导要工作区与发电话的函数；#1757 T21 子模块页要读数、交互态与处理函数
+    platform: opts.platform, platformUi: opts.platformUi, onPlatformRpInput: opts.onPlatformRpInput, onPlatformRequestPull: opts.onPlatformRequestPull, // #1762 T26 平台页的读数、交互态与回调都从这里透传，页面壳不自己造数据。
+    migrate: opts.migrate, migrateReads: opts.migrateReads, onMigrateEdit: opts.onMigrateEdit, onMigrateCheck: opts.onMigrateCheck, onMigrateRun: opts.onMigrateRun, onMigrateRescan: opts.onMigrateRescan, onMigrateCancel: opts.onMigrateCancel, // #1762 T26 迁移页 14.1 导出向导的读数与回调同样只透传。
   }), 'body'))
   // #1751 贮藏页（域 7）：只在贮藏页挂这一块；十条动作的入口、确认卡与最近丢弃都在叶子里，
   // 这里只把首屏数据（seed）与回调递进去，页面壳不多说一句规则。
@@ -376,6 +380,9 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     // 页面叶子的入参名是 state（本地编辑状态）与 seed（首屏读数）；这里按叶子认的名字递，不改叶子的形状。
     children.push(keyed(vcStashPageNode(h, t, { seed: seed, state: opts.stash, onStash: opts.onStash, onStashEdit: opts.onStashEdit }), 'stashPage'))
   }
+  // #1748 变基待办页（域 5 历史改写）：五种动作都是「预检出票 → 确认 → 凭票执行」三段式，
+  // 页面壳只把调用方持有的状态与回调递进叶子；续作与拒绝理由都在叶子里讲，壳不重复。
+  if (page === 'rebase' && typeof vcUndoPageNode === 'function') children.push(keyed(vcUndoPageNode(h, t, { seed: seed, state: opts.undo, onUndoCheck: opts.onUndoCheck, onUndoWrite: opts.onUndoWrite, onUndoInput: opts.onUndoInput }), 'undoPage'))
   // 长任务区（#1740）：页面把任务清单传进来时才画；没传整块不出现，既有页面的渲染结果不受影响。
   if (opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {
     children.push(keyed(vcTaskPanelNode(h, t, { tasks: opts.tasks, running: opts.running, onCancel: opts.onCancel }), 'tasks'))

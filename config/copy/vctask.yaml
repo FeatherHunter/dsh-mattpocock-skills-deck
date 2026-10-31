@@ -1,6 +1,6 @@
 # config/copy/vctask.yaml —— 界面词表 —— 长任务区那一族（#1740）
 #
-# 这是长任务区文案的真源：界面标题、进度说法、四类结论、取消按钮，以及十七种动作的名字。
+# 这是长任务区文案的真源：界面标题、进度说法、四类结论、取消按钮，以及二十种动作的名字。
 # 运行时读生成物 src/client/kernel/locale-data.ts（由 scripts/generate-locale-config.mts
 # 按本文件生成、不入库）。
 #
@@ -39,6 +39,9 @@ zh:
   vc.task.op.push: 推送
   vc.task.op.submoduleInit: 初始化子模块
   vc.task.op.submoduleUpdate: 更新子模块
+  vc.task.op.submoduleAdd: 新增子模块
+  vc.task.op.submoduleFetch: 逐个抓取子模块
+  vc.task.op.submoduleRemoteUpdate: 子模块更新到远端最新
   vc.task.op.archive: 导出归档包
   vc.task.op.bundle: 生成离线包
   vc.task.op.formatPatch: 导出补丁
@@ -80,6 +83,9 @@ en:
   vc.task.op.push: Push
   vc.task.op.submoduleInit: Initialize submodules
   vc.task.op.submoduleUpdate: Update submodules
+  vc.task.op.submoduleAdd: Add a submodule
+  vc.task.op.submoduleFetch: Fetch each submodule
+  vc.task.op.submoduleRemoteUpdate: Update submodules to the remote latest
   vc.task.op.archive: Export archive
   vc.task.op.bundle: Create bundle
   vc.task.op.formatPatch: Export patches
