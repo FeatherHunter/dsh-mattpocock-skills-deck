@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T23:49:11.683Z",
+  "generatedAt": "2026-10-31T00:04:32.438Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 463,
   "gateCount": 463,
@@ -7837,6 +7837,9 @@
         "config/intervals.yaml",
         "src/refresh/kernel/fallback-fetch-budget.ts",
         "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/issue-detail-fetch.ts",
+        "src/refresh/rooms/host/issue-index-scan.ts",
+        "src/refresh/rooms/host/issue-list-fetch.ts",
         "src/refresh/rooms/host/probe-handler.ts",
         "src/refresh/rooms/host/thin-row-fetch.ts"
       ],
@@ -7849,7 +7852,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 5 条"
+      "reason": "归属来自：源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-file-granularity.ts",

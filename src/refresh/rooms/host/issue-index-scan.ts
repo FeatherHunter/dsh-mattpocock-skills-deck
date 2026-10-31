@@ -18,8 +18,9 @@ interface IssueIndexWindowDeps {
   getRepoKey?: (cwd: string) => Promise<{ owner: string; name: string } | null | undefined>
   // 磁盘上那份快照（给重启后的第一次扫描立起点）
   readDiskCache?: (repo: unknown) => Promise<any>
-  // 只问窗口内的变化（回包带 repo/index/count）
-  fetchIssueIndex?: (cwd: string, sinceIso: string) => Promise<any>
+  // 只问窗口内的变化（回包带 repo/index/count）。#1689 起尾参可带一本本轮预算账本：
+  // 带 since 的窗口扫描可以用探针同一轮的增量账本继续预扣，整仓枚举由取数入口自己开枚举账本。
+  fetchIssueIndex?: (cwd: string, sinceIso: string, budget?: any) => Promise<any>
   // 取时间（门禁注入假时钟）
   now?: () => number
 }
@@ -33,11 +34,11 @@ interface RepoHit {
 // 建一份「窗口索引状态」。deps 由 src/refresh/rooms/host/issue-list-fetch.js 注入：
 //   getRepoKey(cwd)              → { owner, name }
 //   readDiskCache(repo)          → 磁盘上那份快照（给重启后的第一次扫描立起点）
-//   fetchIssueIndex(cwd, since)  → 只问窗口内的变化，回 { ok, repo, index, count }
+//   fetchIssueIndex(cwd, since)  → 只问窗口内的变化，回 { ok, repo, index, count }（#1689 起尾参可带本轮预算账本）
 //   now                          → 取时间（门禁注入假时钟）
 // 回包：{ scan(cwd, opts), commit(cwd, nextWatermarkMs, nextIndex), state(cwd) }
 export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | undefined): {
-  scan: (cwd: string, opts?: { commit?: boolean }) => Promise<any>
+  scan: (cwd: string, opts?: { commit?: boolean; budget?: any }) => Promise<any>
   commit: (cwd: string, nextWatermarkMs: number, nextIndex?: Record<string, any>) => Promise<any>
   state: (cwd: string) => { repos: number; watermarkMs: number }
 } {
@@ -74,8 +75,10 @@ export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | 
   }
 
   // 扫一次窗口。opts.commit === true 时才把「基线 + 下一次的水印」记下来（默认不记）。
+  // #1689：opts.budget 是调用方（降级探针）注入的本轮请求预算账本，原样转给 fetchIssueIndex 记在翻页那一层；
+  // 不注入时取数入口按「带窗口=增量轮 / 不带窗口=枚举轮」自己开一本。
   // 回包里如实带着 nextWatermarkMs 与 watermarkCommitted，让调用方按「变化并进列表了没有」决定推不推。
-  async function scan(cwd: string, opts?: { commit?: boolean }): Promise<any> {
+  async function scan(cwd: string, opts?: { commit?: boolean; budget?: any }): Promise<any> {
     const o = opts || {}
     const hit = await repoKeyOf(cwd)
     if (!hit) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo' } }
@@ -89,7 +92,7 @@ export function createIssueIndexWindowState(deps: IssueIndexWindowDeps | null | 
     }
     const startedMs = now()
     const w = (indexWindow as any).scanWindow(lastIndexWatermarkByRepo[rk], startedMs)
-    const remote = await d.fetchIssueIndex!(cwd, w.sinceIso)
+    const remote = await d.fetchIssueIndex!(cwd, w.sinceIso, o.budget)
     if (!remote || remote.ok !== true) return remote || { ok: false, error: { kind: 'env', error: '索引扫描没有回包' } }
     const before = lastIndexBaselineByRepo[rk] || null
     const merged = (indexWindow as any).mergeDelta(before, remote.index)
@@ -141,7 +144,7 @@ export function createIssueIndexScan(deps: any): any {
   const d: any = deps || {}
   let stP: any = null
   function _st(): any {
-    if (!stP) stP = createIssueIndexWindowState({ getRepoKey: d.getRepoKey, readDiskCache: d.readDiskCache, fetchIssueIndex: function (cwd: any, sinceIso: any): Promise<any> { return d.fetchIssueIndex(cwd, sinceIso) }, now: Date.now })
+    if (!stP) stP = createIssueIndexWindowState({ getRepoKey: d.getRepoKey, readDiskCache: d.readDiskCache, fetchIssueIndex: function (cwd: any, sinceIso: any, budget: any): Promise<any> { return d.fetchIssueIndex(cwd, sinceIso, budget) }, now: Date.now })
     return stP
   }
     // 增量索引：把「只问变化」的时间窗与水印合并进完整基线，再判有没有真的变。为什么必须合并：

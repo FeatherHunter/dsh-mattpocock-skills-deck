@@ -5,13 +5,15 @@
 //   常规增量一轮最多 3 条请求、完整枚举最多 16 条、单次详情补取最多 5 类请求、同时最多 8 条在飞、
 //   降级常驻时整仓探测 5 秒放宽到 60 秒、自动校准至少隔 10 分钟。
 //
-// 这扇门禁守五件事（票面「门禁」一段逐条对应）：
+// 这扇门禁守六件事（票面「门禁」一段逐条对应）：
 //   ① 常量口径与账本同源：上限住在 src/refresh/kernel/host-budget.ts 的额度模块里，不是另抄一份；
 //   ② 预算计数断言：预扣、校正、失败回填都真的记进账本（不是只断言常量值），超预算当场拒发；
 //   ③ 并发计数断言：同时最多 8 条在飞，超出的排队、一条不丢（负例：20 条并发时峰值不超过 8）；
-//   ④ 节流窗口断言：5999/6000 毫秒、599999/600000 毫秒两条边界；并且这些判断挂现有探测拍，
-//      本票改的三个文件里一个新定时器都没有（静态断言，防有人用 setInterval 偷偷补节拍）；
-//   ⑤ 降级判据只认快照上显式的 fallback:'rest'，不从错误文案或空列表去猜。
+//   ④ 节流窗口断言：59999/60000 毫秒、599999/600000 毫秒两条边界；并且这些判断挂现有探测拍，
+//      本票改的四个文件里一个新定时器都没有（静态断言，防有人用 setInterval 偷偷补节拍）；
+//   ⑤ 降级判据只认快照上显式的 fallback:'rest'，不从错误文案或空列表去猜；
+//   ⑥ 真实请求路径接线：stub 执行器驱动 createIssueList 的翻页与 createIssueDetail 的两类补取，
+//      断言第 17 页 / 第 6 类当场拒发（传输层真的少发）、成功校正、失败回填、同类去重只发一次。
 //
 // 假传输层口径与 tests/verify-delta-wiring.ts 一致：真发出去的每一条都报计数，断言读计数与账本。
 const path = require('path')
@@ -258,6 +260,182 @@ async function run(): Promise<void> {
   const third = await probe.handleProbe({ cwd: cwd })
   check(outbound.probe === 1 && third.ok === true && third.changed === false,
     '主路正常时照旧发窗口探测（降级节流不影响平时那 5 秒一拍的行为）')
+
+  // ---- ⑧ 真实请求路径：索引翻页接枚举账本、详情两类接详情账本 ----
+  // 为什么要有这一节：①-⑦ 只证明账本 API 与常量对，证明不了「真实取数路径真的在用它」。
+  // 这一节用 stub 执行器驱动两个真实工厂（createIssueList / createIssueDetail），断言发出前记账、
+  // 收到后校正、失败也回填、超预算当场拒发（第 17 页 / 第 6 类），并断言被拒的请求一条都没出去。
+  console.log('\n⑧ 真实请求路径的预算接线（stub 执行器驱动，超预算拒发、账实一致）')
+  const listMod = await imp('src/refresh/rooms/host/issue-list-fetch.js')
+  const detailMod = await imp('src/refresh/rooms/host/issue-detail-fetch.js')
+
+  /** 造一趟只读会话：后端与 opener 形状跟库里一致（{ok:true, backendId, call(fn)}），session 由调用方给。 */
+  function openWith(session: any) {
+    return async function () {
+      return { ok: true, backendId: 'github', call: async function (fn: any) { return fn(session, { caller: 'refresh', cwd: 'C:/ws/demo' }) } }
+    }
+  }
+  function listDeps(openSession: any) {
+    return {
+      getRepoKey: async () => ({ owner: 'o', name: 'r' }), setCache: () => {},
+      issueIndexFromSnapshot: () => null, issueIndexChanged: () => false, rememberIssueIndex: () => {},
+      readDiskCache: async () => null, openSession: openSession,
+    }
+  }
+  function detailDeps(openSession: any, budget?: any) {
+    const d: any = { getRepoKey: async () => ({ owner: 'o', name: 'r' }), openSession: openSession }
+    if (budget) d.fallbackBudget = budget
+    return d
+  }
+  /** 造一条契约票，够 detailOf 组出详情页字段。 */
+  function issueOf(n: any): any {
+    return { key: String(n), title: '票 ' + n, state: 'open', labels: [], assignees: [], comments: [], updatedAt: '2026-10-30T00:00:00Z', createdAt: '2026-09-01T00:00:00Z' }
+  }
+
+  // 枚举超预算：stub 的 listPage 永远还有下一页，第 17 页不许发出去。
+  let listCalls = 0
+  const endlessPages = async function () {
+    listCalls += 1
+    const n = listCalls
+    return { ok: true, data: { items: [{ key: 'k' + n, state: 'open', updatedAt: '2026-10-30T00:00:00Z' }], nextCursor: 'c' + n, total: 0 } }
+  }
+  const enumList = listMod.createIssueList(listDeps(openWith({ listPage: endlessPages })))
+  const enumBig = await enumList.fetchIssueIndex('C:/ws/demo', '')
+  check(enumBig && enumBig.ok === false && enumBig.error.kind === 'truncated',
+    '完整枚举第 17 页被预算拦住：回 {ok:false, kind:truncated}，不假装取全（实得 kind=' + String(enumBig && enumBig.error && enumBig.error.kind) + '）')
+  check(listCalls === 16, '第 17 条请求根本没发出去：传输层只收到 16 条（实得 ' + listCalls + '）')
+  check(enumBig && enumBig.budget && enumBig.budget.kind === 'enumerate' && enumBig.budget.limit === 16 && enumBig.budget.used === 16 && enumBig.budget.refused === 1,
+    '枚举轮账本实记：kind=enumerate、上限 16、已用 16、被拒 1（账实一致）')
+  check(enumBig && enumBig.pages === 16 && /第 17 页未发出/.test(String(enumBig.error.error)) && /16/.test(String(enumBig.error.error)),
+    '被截断的位置可诊断：已取 16 页、第 17 页未发出、带上限 16（原文：' + String(enumBig && enumBig.error && enumBig.error.error).slice(0, 40) + '…）')
+  check(!enumBig || enumBig.error.kind !== 'unchanged', '截断不会被当成「没变」推进水印（失败原样上抛由调用方处理）')
+
+  // 枚举正常收尾：两页取全，每页预扣一张、收到各校正 1 条，账上不留未定账的小票。
+  listCalls = 0
+  const twoPages = async function () {
+    listCalls += 1
+    const n = listCalls
+    return { ok: true, data: { items: [{ key: 'k' + n, state: 'open', updatedAt: '2026-10-30T00:00:00Z' }], nextCursor: n < 2 ? 'c' + n : null, total: 0 } }
+  }
+  const okList = listMod.createIssueList(listDeps(openWith({ listPage: twoPages })))
+  const enumOk = await okList.fetchIssueIndex('C:/ws/demo', '')
+  check(enumOk && enumOk.ok === true && enumOk.count === 2 && enumOk.pages === 2 && listCalls === 2,
+    '两页枚举取全：count=2、pages=2、传输层正好 2 条')
+  check(enumOk && enumOk.budget && enumOk.budget.buckets.read.corrected === 2 && enumOk.budget.buckets.read.settled === 2 && enumOk.budget.open === 0,
+    '成功后账实一致：两页都按实际条数校正（corrected=2、settled=2、没有挂着的预扣）')
+
+  // 增量窗口轮：注入一本增量账本，第 4 页拒发（常规增量一轮最多 3 条）。
+  listCalls = 0
+  const incWindow = fb.createFallbackRoundBudget({ kind: 'increment', limits: LIMITS })
+  const incList = listMod.createIssueList(listDeps(openWith({ listPage: endlessPages })))
+  const incWin = await incList.fetchIssueIndex('C:/ws/demo', new Date(Date.now() - 3600000).toISOString(), incWindow)
+  check(incWin && incWin.ok === false && incWin.error.kind === 'truncated' && listCalls === 3,
+    '窗口探测的第 4 页被增量账本拦住：传输层只发 3 条（实得 ' + listCalls + '）')
+  check(incWindow.view().used === 3 && incWindow.view().refused === 1 && incWindow.view().kind === 'increment',
+    '增量轮账本实记：上限 3、已用 3、被拒 1')
+  check(incWin && incWin.budget && incWin.budget.kind === 'increment', '回包带的是注入的那本增量账本读数（同一轮同一本账）')
+
+  // 详情正常路径：get 与 getDependencies 两类各发一次，回来后各自校正。
+  let getCalls = 0
+  let depCalls = 0
+  const detailSession = {
+    get: async function () { getCalls += 1; return { ok: true, data: issueOf(7) } },
+    getDependencies: async function () { depCalls += 1; return { ok: true, data: { blockedBy: [{ key: '1', title: '阻塞', state: 'open' }], blocking: [] } } },
+  }
+  const detailOk = await detailMod.createIssueDetail(detailDeps(openWith(detailSession))).fetchIssueDetail(7, 'C:/ws/demo')
+  check(detailOk && detailOk.ok === true && detailOk.issue && detailOk.issue.number === 7 && getCalls === 1 && depCalls === 1,
+    '详情补取两类请求各发一次（get=1、getDependencies=1）')
+  check(detailOk && detailOk.budget && detailOk.budget.kind === 'detail' && detailOk.budget.limit === 5,
+    '详情轮账本：kind=detail、上限 5 类')
+  check(detailOk && detailOk.budget && detailOk.budget.classes.join(',') === 'detail-core,dependencies' && detailOk.budget.buckets.read.corrected === 2,
+    '两类都记进账：detail-core、dependencies 各 1 类，收到后各校正 1 条（corrected=2）')
+  check(detailOk && detailOk.budget && detailOk.budget.buckets.read.settled === 2 && detailOk.budget.open === 0,
+    '详情回包拿出去之前账上不留未定账的小票（settled=2、open=0）')
+
+  // 详情失败路径：get 回 !ok，请求真的发出去了，账要回填；阻塞边那条照常校正。
+  getCalls = 0; depCalls = 0
+  const detailBadSession = {
+    get: async function () { getCalls += 1; return { ok: false, error: { kind: 'network', message: 'boom' } } },
+    getDependencies: async function () { depCalls += 1; return { ok: true, data: { blockedBy: [], blocking: [] } } },
+  }
+  const detailBad = await detailMod.createIssueDetail(detailDeps(openWith(detailBadSession))).fetchIssueDetail(7, 'C:/ws/demo')
+  check(detailBad && detailBad.ok === false && detailBad.error.kind === 'network', '读票 !ok 照旧回失败（kind 原样 network）')
+  check(detailBad && detailBad.budget && detailBad.budget.buckets.read.backfilled === 1 && detailBad.budget.buckets.read.corrected === 1 && detailBad.budget.open === 0,
+    '失败也回填：读票记 backfilled=1、阻塞边记 corrected=1，账上没有挂着的预扣')
+
+  // 详情异常路径：get 抛错收成 env；getDependencies 抛错只退化阻塞边，详情照常成功。
+  getCalls = 0; depCalls = 0
+  const detailThrowSession = {
+    get: async function () { getCalls += 1; throw new Error('get-booms') },
+    getDependencies: async function () { depCalls += 1; return { ok: true, data: { blockedBy: [], blocking: [] } } },
+  }
+  const detailThrow = await detailMod.createIssueDetail(detailDeps(openWith(detailThrowSession))).fetchIssueDetail(7, 'C:/ws/demo')
+  check(detailThrow && detailThrow.ok === false && detailThrow.error.kind === 'env' && /取单票时抛错/.test(String(detailThrow.error.message)),
+    '读票抛错收成 {ok:false, kind:env}（与改造前一致）')
+  check(detailThrow && detailThrow.budget && detailThrow.budget.buckets.read.backfilled === 1 && detailThrow.budget.open === 0,
+    '抛错的请求也回填（backfilled=1、open=0）')
+  getCalls = 0; depCalls = 0
+  const depsThrowSession = {
+    get: async function () { getCalls += 1; return { ok: true, data: issueOf(7) } },
+    getDependencies: async function () { depCalls += 1; throw new Error('deps-booms') },
+  }
+  const depsThrow = await detailMod.createIssueDetail(detailDeps(openWith(depsThrowSession))).fetchIssueDetail(7, 'C:/ws/demo')
+  check(depsThrow && depsThrow.ok === true && getCalls === 1 && depCalls === 1, '阻塞边抛错不让详情崩（详情照常成功）')
+  check(depsThrow && depsThrow.budget && depsThrow.budget.buckets.read.backfilled === 1 && depsThrow.budget.buckets.read.corrected === 1 && depsThrow.budget.open === 0,
+    '抛错的阻塞边也回填、成功那条校正，账实一致')
+
+  // 第 6 类拒发：预填 5 类后，核心那一类也不许发出去（一个字都不出去）。
+  getCalls = 0; depCalls = 0
+  const fullBudget = fb.createFallbackRoundBudget({ kind: 'detail', limits: LIMITS })
+  for (const c of ['c1', 'c2', 'c3', 'c4', 'c5']) fullBudget.reserve({ classLabel: c, bucket: 'read', cost: 1 })
+  const detailFull = await detailMod.createIssueDetail(detailDeps(openWith({
+    get: async function () { getCalls += 1; return { ok: true, data: issueOf(7) } },
+    getDependencies: async function () { depCalls += 1; return { ok: true, data: { blockedBy: [], blocking: [] } } },
+  }), fullBudget)).fetchIssueDetail(7, 'C:/ws/demo')
+  check(detailFull && detailFull.ok === false && detailFull.error.kind === 'throttled' && /5/.test(String(detailFull.error.message)),
+    '已到 5 类上限：详情补取回 {ok:false, kind:throttled}，消息写明 5 类上限')
+  check(getCalls === 0 && depCalls === 0, '预算拒发时一条请求都不出去（get=0、getDependencies=0）')
+  check(fullBudget.view().refused === 1 && fullBudget.view().classes.length === 5, '被拒笔数记在账上（refused=1），已占的 5 类不重复占格')
+
+  // 同类去重：本轮已经取过 detail-core，就不许再发第二次。
+  getCalls = 0; depCalls = 0
+  const dupBudget = fb.createFallbackRoundBudget({ kind: 'detail', limits: LIMITS })
+  dupBudget.reserve({ classLabel: 'detail-core', bucket: 'read', cost: 1 })
+  const detailDup = await detailMod.createIssueDetail(detailDeps(openWith({
+    get: async function () { getCalls += 1; return { ok: true, data: issueOf(7) } },
+    getDependencies: async function () { depCalls += 1; return { ok: true, data: { blockedBy: [], blocking: [] } } },
+  }), dupBudget)).fetchIssueDetail(7, 'C:/ws/demo')
+  check(detailDup && detailDup.ok === false && detailDup.error.kind === 'throttled' && /同一类不重复取/.test(String(detailDup.error.message)),
+    '同类去重：detail-core 本轮已发过，第二次不再发（回 throttled 并说明原因）')
+  check(getCalls === 0 && dupBudget.view().refused === 0, '去重不是拒发：传输层 0 条、账上 refused 不涨')
+  // 只预填 dependencies 一类：读票照常发一条，阻塞边那一类不重复发，详情仍成功并留痕。
+  getCalls = 0; depCalls = 0
+  const depsDupBudget = fb.createFallbackRoundBudget({ kind: 'detail', limits: LIMITS })
+  depsDupBudget.reserve({ classLabel: 'dependencies', bucket: 'read', cost: 1 })
+  const detailDepsDup = await detailMod.createIssueDetail(detailDeps(openWith({
+    get: async function () { getCalls += 1; return { ok: true, data: issueOf(7) } },
+    getDependencies: async function () { depCalls += 1; return { ok: true, data: { blockedBy: [], blocking: [] } } },
+  }), depsDupBudget)).fetchIssueDetail(7, 'C:/ws/demo')
+  check(detailDepsDup && detailDepsDup.ok === true && getCalls === 1 && depCalls === 0,
+    '阻塞边同类去重：只发读票 1 条，getDependencies 不再发')
+  check(detailDepsDup && Array.isArray(detailDepsDup.refusedClasses) && detailDepsDup.refusedClasses[0] === 'dependencies',
+    '被拒的类写进回包 refusedClasses 留痕（dependencies）')
+
+  // 静态接线断言：三处真实取数路径都确实接了账本（防「只改门禁不改接线」）。
+  const listText = srcText('src/refresh/rooms/host/issue-list-fetch.ts')
+  check(/const round: FallbackRoundBudget = useSince && injectedBudget \? injectedBudget : createFallbackRoundBudget\(\{ kind: useSince \? 'increment' : 'enumerate'/.test(listText),
+    '索引取数按「带窗口=增量 / 不带窗口=枚举」开本轮账本（静态接线）')
+  check(/const ticket = round\.reserve\(\{ bucket: 'read', cost: 1, classLabel: 'index-page' \}\)/.test(listText) && /round\.correct\(ticket, 1\)/.test(listText) && /round\.backfill\(ticket, 1\)/.test(listText),
+    '翻页每页发出前预扣、收到后校正、失败回填（静态接线）')
+  const scanText = srcText('src/refresh/rooms/host/issue-index-scan.ts')
+  check(/await d\.fetchIssueIndex!\(cwd, w\.sinceIso, o\.budget\)/.test(scanText), '窗口扫描把本轮账本透传给翻页（静态接线）')
+  const probeWiringText = srcText('src/refresh/rooms/host/probe-handler.ts')
+  check(/fetchIssueIndexWindowed\(cwd, roundBudget \? \{ budget: roundBudget \} : undefined\)/.test(probeWiringText),
+    '探测拍把增量账本传给窗口扫描（同一轮同一本账）')
+  check(!/probeTicket/.test(probeWiringText), '探测拍不再自己预扣一条（逐页记账，避免一页一笔造成账实不符）')
+  const detailText = srcText('src/refresh/rooms/host/issue-detail-fetch.ts')
+  check(/createFallbackRoundBudget\(\{ kind: 'detail'/.test(detailText) && /reserveDetailClass/.test(detailText),
+    '详情补取开本轮账本并按类预扣（静态接线）')
 
   console.log('\n' + (failed ? 'FAIL' : 'PASS') + ' 降级取数预算门禁：' + total + ' 条断言，' + (failed ? '有失败' : '全绿'))
   process.exit(failed ? 1 : 0)

@@ -153,28 +153,18 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
           return { ok: true, changed: false, mode: 'throttled', reason: 'fallback-probe-window', count: 0, since: new Date(fallbackProbeAtByCwd[cwd]).toISOString() }
         }
       }
-      // #1689 增量轮预算：降级时这一轮先预扣 1 条给窗口探测，回来按实际条数校正、失败也回填。
-      //   预扣不到（这一轮已经用掉 3 条）就当场拒发 —— 出站请求一条都不许出去。
+      // #1689 增量轮预算：降级时这一轮开一本增量账本（上限 3 条）。窗口探测的真实请求在取数层
+      //   （issue-list-fetch 的 fetchIssueIndex）逐页预扣、收到校正、失败回填，这里只把同一本账传下去；
+      //   探针这一层不再自己预扣一条（否则一页只记一笔，多页就账实不符）。
+      //   整仓枚举（重启后第一拍没有窗口）不拿这本增量账去卡：取数层见「无 since」会自己开「完整枚举 16 条」那本。
       const roundBudget: any = degraded ? createFallbackRoundBudget({ kind: 'increment', limits: FALLBACK_FETCH_LIMITS }) : null
-      const probeTicket: any = roundBudget ? roundBudget.reserve({ bucket: 'read', cost: 1 }) : null
-      if (roundBudget && !probeTicket) {
+      const remote: any = await fetchIssueIndexWindowed(cwd, roundBudget ? { budget: roundBudget } : undefined)
+      // 窗口探测被本轮预算拦住时，取数层回 truncated 并带账本读数；这里翻译成「这一拍先不探」，
+      //   而不是当网络失败往上抛。出站请求一条都没多出去（预扣不到时取数层根本没发）。
+      if (roundBudget && remote && remote.ok === false && remote.budget && remote.budget.refused > 0) {
         return { ok: true, changed: false, mode: 'throttled', reason: 'fallback-budget-exhausted', count: 0, since: '' }
       }
-      let remote: any = null
-      try {
-        remote = await fetchIssueIndexWindowed(cwd)
-      } catch (eF: any) {
-        // 取数层自己抛了：这条探测请求真的发出去了，失败也回填，账上不许漏。
-        if (roundBudget && probeTicket) roundBudget.backfill(probeTicket, 1)
-        throw eF
-      }
-      if (roundBudget && probeTicket) {
-        // 收到后校正：探测这一层只知道「发出了一次窗口探测」，按 1 条定账；薄行补取那几条由
-        //   deltaRefresh 那一侧（row-patch / thin-row-fetch）逐条预扣与校正，不在这里重复记。
-        if (remote && remote.ok === true) roundBudget.correct(probeTicket, 1)
-        else roundBudget.backfill(probeTicket, 1)
-      }
-      if (!remote.ok) return { ok: false, error: errText(remote.error || 'probe 失败'), errorKind: kindOf(remote.error) }
+      if (!remote || remote.ok !== true) return { ok: false, error: errText((remote && remote.error) || 'probe 失败'), errorKind: kindOf(remote && remote.error) }
       const repo: any = remote.repo
       const rk1: string = repo.owner + '/' + repo.name
       const changed: boolean = remote.changed === true
@@ -189,7 +179,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       }
       let delta: any = null
       // #1689：降级常驻时把这一轮的预算本子一起交下去 —— 薄行补取（row-patch → thin-row-fetch）
-      //   每发一条都从这里预扣、校正、失败回填，与上面那条探测请求记在同一本账上（一轮 ≤3 条）。
+      //   每发一条都从这里预扣、校正、失败回填，与窗口探测的翻页记在同一本账上（一轮 ≤3 条）。
       const deltaOpts: any = degraded ? { fallbackBudget: roundBudget } : {}
       try { delta = (typeof deltaRefresh === 'function') ? await deltaRefresh(cwd, deltaOpts) : null } catch (eD: any) { delta = null }
       if (delta && delta.mode === 'patch' && delta.rows && delta.rows.length) {

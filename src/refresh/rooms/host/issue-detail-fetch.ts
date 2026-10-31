@@ -13,11 +13,34 @@
 //
 // 失败时保留旧行为：开会话失败、get 失败都回 { ok:false, error }，不抛；getDependencies
 //   失败只让阻塞边退成 get 里带回来的那一份（旧 REST 路也是子请求失败就置空、详情照常显示）。
+//
+// #1689 起这一趟的两类请求（get 读票、getDependencies 读阻塞边）按「详情补取一轮最多 5 类请求」
+//   记账：发出前预扣、收到后校正、失败（异常或 !ok）也回填；第 6 类、或同一类本轮已发过，一律拒发
+//   并留痕。账本读数随回包 budget 字段交出去，被拒的类写在 refusedClasses 里；补不到的数据怎么
+//   标记由后续票负责，这里只管预算记账与账实一致。
 import type { OpContext } from '../../../tracker/contract/contexts.js'
 import type { Issue, RepositoryRef } from '../../../tracker/contract/entities.js'
 import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
+// #1689：详情补取按「类」记账（最多 5 类请求），账本与额度常量都从额度那一层取，不另建配置。
+import { createFallbackRoundBudget } from '../../kernel/fallback-fetch-budget.js'
+import type { FallbackReserveToken, FallbackRoundBudget } from '../../kernel/fallback-fetch-budget.js'
+import { FALLBACK_FETCH_LIMITS } from '../../kernel/host-budget.js'
 
 interface RepoKey { owner: string; name: string }
+
+/** 详情补取的两类请求（账本按类计格，最多 5 类）。名字写死成常量，日志与门禁在各处引用同一份。 */
+const DETAIL_CLASS_CORE = 'detail-core'
+const DETAIL_CLASS_DEPS = 'dependencies'
+
+/**
+ * 发出前给一类请求预扣一张小票。返回 token=null 时调用方不得发这条请求：
+ *   duplicate=true 表示本轮这一类已经发过（同类不重复取），否则是这一类数已到上限。
+ */
+function reserveDetailClass(round: FallbackRoundBudget, classLabel: string): { token: FallbackReserveToken | null; duplicate: boolean } {
+  const view = round.view()
+  if (view.classes.indexOf(classLabel) >= 0) return { token: null, duplicate: true }
+  return { token: round.reserve({ bucket: 'read', cost: 1, classLabel: classLabel }), duplicate: false }
+}
 
 /** 接线处注入的依赖。用不到的几项照 H2 #446 搬出时的形状保留，免得接线被改窄。 */
 interface Deps {
@@ -34,6 +57,11 @@ interface Deps {
   timer?: unknown
   getGhPath?: unknown
   getGhLastError?: unknown
+  /**
+   * #1689 详情轮预算账本的注入口（只给门禁用）：注入一本已开或预填过的账本，用来断言
+   * 「预扣—校正—拒发—同类去重」在真实请求路径上生效。生产不传，每次 fetchIssueDetail 现开一本。
+   */
+  fallbackBudget?: FallbackRoundBudget
 }
 
 /** 详情失败：kind 是判档（env/parse/notFound/network…），message 是给人看的原话。 */
@@ -135,22 +163,59 @@ export function createIssueDetail(deps: Deps) {
 
   async function fetchIssueDetail(n: number, cwd: string, opts?: { isPullRequest?: boolean } | null): Promise<any> {
     if (!n) return fail('parse', '缺少 number')
+    // #1689：一次详情补取 = 一轮「详情」账本（最多 5 类请求）。生产每次现开一本；门禁可经 deps.fallbackBudget
+    //   注入一本（预填或空账本）来断言预扣、校正、拒发与同类去重确实发生在真实请求路径上。
+    const round: FallbackRoundBudget = deps.fallbackBudget || createFallbackRoundBudget({ kind: 'detail', limits: FALLBACK_FETCH_LIMITS })
     return withReadSession(cwd, async function (session: TrackerSession, ref: RepositoryRef, ctx: OpContext): Promise<any> {
+      // 发出前先记账（按类）。读票这一类的额度拿不到就回可诊断的失败，一条请求都不出去：
+      //   要么本轮同类已发过（同类去重），要么这一类数已到上限（第 6 类）。
+      const coreReserve = reserveDetailClass(round, DETAIL_CLASS_CORE)
+      const coreTicket: FallbackReserveToken | null = coreReserve.token
+      if (!coreTicket) {
+        const view = round.view()
+        const why = coreReserve.duplicate
+          ? '本轮详情补取已经发过 detail-core 这一类，同一类不重复取'
+          : ('本轮详情补取已到 ' + view.limit + ' 类请求的上限，detail-core 未发出')
+        return Object.assign(fail('throttled', why), { budget: view })
+      }
+      // 阻塞边单独一问（#1304 的投影）；这一类额度拿不到就不发，详情照常显示（退成 get 自带的那一份入边）。
+      const depsReserve = reserveDetailClass(round, DETAIL_CLASS_DEPS)
+      const refusedClasses: string[] = []
+      let depsP: Promise<any> = Promise.resolve(null)
+      if (depsReserve.token) {
+        const depsTicket: FallbackReserveToken = depsReserve.token
+        // 先挂好失败兜底：读票先失败也不留下没人接手的拒绝；两条查询一起发（#1610），只等较长的那一条。
+        depsP = Promise.resolve().then(function () { return session.getDependencies(ref, String(n), undefined, ctx) })
+          .then(function (dr: any) {
+            // 收到后校正 / 失败回填：有回包且成功算校正，回包 !ok 或抛错都回填。
+            if (dr && dr.ok === true) round.correct(depsTicket, 1)
+            else round.backfill(depsTicket, 1)
+            return (dr && dr.ok === true) ? dr.data : null
+          }, function () { round.backfill(depsTicket, 1); return null })
+      } else {
+        refusedClasses.push(DETAIL_CLASS_DEPS)
+      }
       // 两条查询一起发出去（#1610）：读票与读阻塞边各是一次远端调用，串行等于把两次等待相加，
       // 并发之后只等较长的那一条；发出去的请求数一条不少。
       const gotP: Promise<any> = Promise.resolve().then(function () { return session.get(ref, String(n), { comments: { first: 50 } }, ctx) })
-      // 阻塞边单独一问（#1304 的投影）；失败不让详情崩：退成 get 自带的那一份入边，出边为空。
-      // 先挂好失败兜底：读票先失败会提前返回，这一条的拒绝没人接手就成未处理拒绝。
-      const depsP: Promise<any> = Promise.resolve().then(function () { return session.getDependencies(ref, String(n), undefined, ctx) })
-        .then(function (dr: any) { return (dr && dr.ok === true) ? dr.data : null }, function () { return null })
+        .then(function (r: any) {
+          if (r && r.ok === true) round.correct(coreTicket, 1)
+          else round.backfill(coreTicket, 1)
+          return r
+        }, function (e: any) { round.backfill(coreTicket, 1); throw e })
       let got: any = null
-      try { got = await gotP } catch (e: any) { return sessionFail('取单票时抛错', (e && e.message) || e) }
+      let gotErr: any = null
+      try { got = await gotP } catch (e: any) { gotErr = e }
+      // 两条都结算完再回报：账实一致要求回包拿出去之前账上不留未定账的小票。
+      const depsData: any = await depsP
+      if (gotErr) return Object.assign(sessionFail('取单票时抛错', (gotErr && gotErr.message) || gotErr), { budget: round.view() })
       if (!got || got.ok !== true || !got.data) {
         const err = (got && got.error) || {}
-        return fail(String(err.kind || 'network'), String(err.message || '单票读取失败'))
+        return Object.assign(fail(String(err.kind || 'network'), String(err.message || '单票读取失败')), { budget: round.view() })
       }
-      const depsData: any = await depsP
-      return { ok: true, issue: detailOf(got.data, depsData, ref) }
+      const out: any = { ok: true, issue: detailOf(got.data, depsData, ref), budget: round.view() }
+      if (refusedClasses.length) out.refusedClasses = refusedClasses
+      return out
     })
   }
 

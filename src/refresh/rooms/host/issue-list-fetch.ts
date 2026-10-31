@@ -17,12 +17,20 @@
  *    本文件一行都不许自己推水印。
  *
  * 失败时保留旧行为：开会话失败或能力失败，回 { ok:false, error:{kind,error} }，不抛、不假装成功。
+ *
+ * #1689 起索引翻页按轮记账（账本住在 src/refresh/kernel/fallback-fetch-budget.ts，上限常量与宿主额度同源）：
+ *   带 since 的探测轮记「常规增量一轮最多 3 个请求」，不带 since 的整仓枚举记「完整枚举最多 16 个请求」；
+ *   每翻一页发出前预扣、回来校正、失败回填，预扣不到就停在这一页并如实回被截断的位置，绝不超发。
  */
 import type { OpContext } from '../../../tracker/contract/contexts.js'
 import type { Issue, RepositoryRef } from '../../../tracker/contract/entities.js'
 import type { PageResult } from '../../../tracker/contract/results.js'
 import type { TrackerSession } from '../../../tracker/session/open-tracker.js'
 import { PAGINATION } from '../../../tracker/contract/pagination.js'
+// #1689：索引翻页是本票唯一「完整枚举」的真实请求路径，预算核与额度常量都从额度模块取，不另建配置。
+import { createFallbackRoundBudget } from '../../kernel/fallback-fetch-budget.js'
+import type { FallbackRoundBudget } from '../../kernel/fallback-fetch-budget.js'
+import { FALLBACK_FETCH_LIMITS } from '../../kernel/host-budget.js'
 
 interface RepoKey { owner: string; name: string }
 
@@ -150,28 +158,43 @@ export function createIssueList(deps: any): any {
   // 有窗口起点时把 since 交给服务端（GraphQL filterBy.since）只取窗口内的票，没有窗口才翻到底。
   // 两者都按 PageResult.nextCursor 翻到没有下一页为止，拿齐后再按 updatedAt 与窗口起点比对 ——
   // 窗口状态机与水印提交时机一行不动（在 issue-index-scan.ts）。
-  async function fetchIssueIndex(cwd: any, sinceIso: any): Promise<any> {
+  async function fetchIssueIndex(cwd: any, sinceIso: any, injectedBudget?: FallbackRoundBudget): Promise<any> {
+    // #1689：这一趟翻页自己记一本预算账。带 since 的探测轮能复用探针上一步注入的增量账本
+    // （同一轮里探测与后续取数共用 3 个请求的额度）；不带 since 的整仓枚举无论谁调都现开一本
+    // 「完整枚举」账本——注入方按增量轮造的小账本不该拿来卡整仓枚举（3 与 16 是两条不同的口径）。
+    const sinceMs = sinceIso ? Date.parse(String(sinceIso)) : NaN
+    const useSince = Number.isFinite(sinceMs)
+    const round: FallbackRoundBudget = useSince && injectedBudget ? injectedBudget : createFallbackRoundBudget({ kind: useSince ? 'increment' : 'enumerate', limits: FALLBACK_FETCH_LIMITS })
     return withReadSession(cwd, async function (session: TrackerSession, ref: RepositoryRef, ctx: OpContext): Promise<any> {
       if (typeof session.listPage !== 'function') return fail('unsupported', '该后端的会话不支持 listPage，索引无法翻页取全量')
-      const sinceMs = sinceIso ? Date.parse(String(sinceIso)) : NaN
-      const useSince = Number.isFinite(sinceMs)
       const index: Record<string, string> = {}
       let cursor: string | undefined = undefined
       let pages = 0
       while (true) {
         pages += 1
         if (pages > INDEX_MAX_PAGES) return fail('truncated', '索引翻页超过 ' + INDEX_MAX_PAGES + ' 页，拒绝用不完整的索引推进水印')
+        // 发出前先记账：这一页的小票拿不到（本轮请求已达上限）就停手，绝不再发第 N+1 条请求。
+        const ticket = round.reserve({ bucket: 'read', cost: 1, classLabel: 'index-page' })
+        if (!ticket) {
+          const view = round.view()
+          const gotPages = pages - 1
+          const where = gotPages === 0 ? '第一页尚未发出' : ('已取 ' + gotPages + ' 页，第 ' + pages + ' 页未发出')
+          return Object.assign(fail('truncated', '索引翻页被本轮请求预算拦住：' + where + '，本轮上限 ' + view.limit + ' 个请求，拒绝用被截断的索引推进水印'), { pages: gotPages, budget: view })
+        }
         const opts: any = { limit: INDEX_PAGE_LIMIT }
         if (cursor) opts.cursor = cursor
         // 窗口交给服务端（GraphQL filterBy.since）：只取更新过的票，稳态一次探测只翻一两页而不是整仓。
         // 非法的窗口串不往房间塞，让房间回「不设窗口」——多翻几页是浪费，整页报错是故障。
         const filter: any = useSince ? { since: String(sinceIso) } : {}
         let page: any = null
-        try { page = await session.listPage(ref, filter, opts, ctx) } catch (e: any) { return fail('network', (e && e.message) || e) }
+        try { page = await session.listPage(ref, filter, opts, ctx) } catch (e: any) { round.backfill(ticket, 1); return Object.assign(fail('network', (e && e.message) || e), { pages: pages - 1, budget: round.view() }) }
         if (!page || page.ok !== true) {
           const err = (page && page.error) || {}
-          return fail(String(err.kind || 'network'), err.message || '索引读取失败')
+          round.backfill(ticket, 1)
+          return Object.assign(fail(String(err.kind || 'network'), err.message || '索引读取失败'), { pages: pages - 1, budget: round.view() })
         }
+        // 收到了就按实际条数校正：预扣的 1 条换成真发出去的 1 条。
+        round.correct(ticket, 1)
         const data: PageResult = page.data || { items: [], nextCursor: null, total: 0 }
         const items: Issue[] = Array.isArray(data.items) ? data.items : []
         for (let i = 0; i < items.length; i++) {
@@ -187,10 +210,10 @@ export function createIssueList(deps: any): any {
         }
         const next = data.nextCursor || null
         if (!next) break
-        if (next === cursor) return fail('parse', '索引翻页游标没有前进，拒绝死循环')
+        if (next === cursor) return Object.assign(fail('parse', '索引翻页游标没有前进，拒绝死循环'), { pages: pages, budget: round.view() })
         cursor = next
       }
-      return { ok: true, repo: { owner: ref.refId.split('/')[0], name: ref.refId.slice(ref.refId.indexOf('/') + 1) }, index: index, count: Object.keys(index).length }
+      return { ok: true, repo: { owner: ref.refId.split('/')[0], name: ref.refId.slice(ref.refId.indexOf('/') + 1) }, index: index, count: Object.keys(index).length, pages: pages, budget: round.view() }
     })
   }
 
@@ -200,7 +223,7 @@ export function createIssueList(deps: any): any {
   let _idxScanP: any = null
   function _idxScan(): Promise<any> {
     if (!_idxScanP) _idxScanP = import('./issue-index-scan.js').then(function (m: any) {
-      return m.createIssueIndexScan({ getRepoKey: getRepoKey, readDiskCache: readDiskCache, fetchIssueIndex: function (cwd: any, sinceIso: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso) }, now: Date.now })
+      return m.createIssueIndexScan({ getRepoKey: getRepoKey, readDiskCache: readDiskCache, fetchIssueIndex: function (cwd: any, sinceIso: any, budget: any): Promise<any> { return fetchIssueIndex(cwd, sinceIso, budget) }, now: Date.now })
     })
     return _idxScanP
   }
