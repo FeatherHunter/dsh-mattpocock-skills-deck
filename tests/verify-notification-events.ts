@@ -80,8 +80,9 @@ check(srcText('config/ttl.yaml').includes('notificationEventRetentionMs:'), '保
 check(srcText('scripts/generate-time-config.mts').includes("'NOTIFICATION_EVENT_DEDUPE_MS'") && srcText('scripts/generate-time-config.mts').includes("'NOTIFICATION_EVENT_RETENTION_MS'"), '两个键都登记进时间配置生成器的 KEYS 表')
 const indexSrc = srcText('src/host/index.ts')
 const hostNotifSrc = srcText('src/host/notifications.ts')
-check(indexSrc.includes("import('./notifications.js')") && !indexSrc.includes('notification-store.js'), '#1681：宿主入口只懒加载 ./notifications.ts，不直接摸事件库（D7：不静态 import）')
-check(hostNotifSrc.includes('notification-store.js') && hostNotifSrc.includes('createNotificationStore'), '#1681：事件库加载落在 src/host/notifications.ts')
+const notifStoreLoader = "import('../refresh/rooms/host/notification-store.js')"
+check(indexSrc.includes("import('./notifications.js')") && indexSrc.includes(notifStoreLoader), '#1681：宿主入口是唯一装配点：懒加载接线叶子，也把事件库的加载钩子交给它（refresh-outside-only-contract 只许入口深引刷新房）')
+check(hostNotifSrc.includes('loadStore') && hostNotifSrc.includes('createNotificationStore') && !/import\s*\([^)]*refresh\/rooms/.test(hostNotifSrc) && !/from\s+['"][^'"]*refresh\/rooms/.test(hostNotifSrc), '#1681：事件库加载落在 src/host/notifications.ts，且叶子自己不深引刷新房（加载钩子由入口注入；只查 import 形式，注释里可以解释这条规则）')
 check(indexSrc.includes('noteSnapshot'), '宿主入口把降级开始/恢复的记事件口注入列表取数')
 check(indexSrc.includes('noteRefreshFailure'), '宿主入口把刷新失败记事件口注入刷新路')
 check(indexSrc.includes('noteWriteFailure'), '宿主入口把写失败记事件口注入代执行')

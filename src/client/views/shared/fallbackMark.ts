@@ -73,6 +73,6 @@ export const FallbackMark = ({ st }: any) => {
   return h(Tip, { content: full }, h('span', { 'data-fallback-mark': view.stale ? 'stale' : 'now', 'aria-label': full, style: { display: 'inline-flex', alignItems: 'center', gap: 3, flex: 'none', fontSize: 10, lineHeight: '14px', color: tone } }, [
     Ic({ n: 'alert', size: 10, key: 'icon' }),
     h('span', { key: 'label' }, tr('list.fallbackMark')),
-    h('button', { key: 'dismiss', type: 'button', 'data-log': 'list.fallbackmarkdismiss', 'aria-label': closeLabel, title: closeLabel, onClick: dismiss, style: { cursor: 'pointer', background: 'transparent', border: 0, color: 'inherit', padding: '0 2px', margin: 0, fontSize: 11, lineHeight: '14px', font: 'inherit' } }, '×'),
+    h('button', { key: 'dismiss', type: 'button', 'data-press': 'icon', 'data-log': 'list.fallbackmarkdismiss', 'aria-label': closeLabel, title: closeLabel, onClick: dismiss, style: { cursor: 'pointer', background: 'transparent', border: 0, color: 'inherit', padding: '0 2px', margin: 0, fontSize: 11, lineHeight: '14px', font: 'inherit' } }, '×'),
   ]))
 }
