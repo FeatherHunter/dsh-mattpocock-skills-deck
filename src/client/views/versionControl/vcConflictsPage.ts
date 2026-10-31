@@ -167,7 +167,7 @@ const vcConflictsFilesNode = function (h: any, t: any, conflicts: any[], handler
       if (sides[side] !== true) return
       buttons.push(h('button', {
         key: key, type: 'button', className: 'vcs-conflicts-file-side', 'data-vc-conflicts-file-side': side, 'data-vc-conflicts-file-path': item.path,
-        'data-press': 'button', 'data-log': 'vc.conflicts.takeSide',
+        'data-press': 'button', 'data-log': 'vc.conflicts.take-side.' + side,
         onClick: function () { if (typeof on.onTakeSide === 'function') on.onTakeSide(item.path, side) },
       }, t(vcConflictsSideLabelKeyOf(side))))
     }
@@ -175,7 +175,7 @@ const vcConflictsFilesNode = function (h: any, t: any, conflicts: any[], handler
     sideOf('theirs', 'theirs')
     if (sides.delete === true) buttons.push(h('button', {
       key: 'delete', type: 'button', className: 'vcs-conflicts-file-side', 'data-vc-conflicts-file-side': 'delete', 'data-vc-conflicts-file-path': item.path,
-      'data-press': 'button', 'data-log': 'vc.conflicts.takeSide',
+      'data-press': 'button', 'data-log': 'vc.conflicts.take-side.delete',
       onClick: function () { if (typeof on.onTakeSide === 'function') on.onTakeSide(item.path, 'delete') },
     }, t('vc.conflicts.side.delete')))
     return h('li', { key: item.path, className: 'vcs-conflicts-file', 'data-vc-conflicts-file': item.path, 'data-vc-conflicts-file-kind': item.kind }, [
