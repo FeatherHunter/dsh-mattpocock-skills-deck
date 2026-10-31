@@ -26,6 +26,8 @@ declare function vcRemoteOnlineStateOf(reads: any): string
 declare function vcRemoteOnlineNameOf(reads: any): string
 declare function vcRemoteOnlineOf(reads: any): any
 declare function vcRemoteOnlineErrorOf(reads: any): any
+// 悬停统一走 Tip 薄预设（标题属性一律经它挂，不在控件上直接写 title）。
+declare const Tip: any
 
 /** 联网失败分类 → 词条键；不认识的分类落到 other（不把没见过的失败装进已知分类）。 */
 const VC_REMOTE_FAIL_KEYS: Record<string, string> = {
@@ -104,8 +106,8 @@ const vcRemoteFormNode = function (h: any, t: any, o: any) {
     kids.push(h('p', { key: 'problem', className: 'vcs-remote-field-error', 'data-vc-remote-field-error': String(opts.problem) }, t(vcRemoteFieldErrorKeyOf(opts.problem))))
   }
   kids.push(h('div', { key: 'acts', className: 'vcs-remote-form-acts' }, [
-    h('button', { key: 'submit', className: 'vcs-remote-submit', type: 'button', 'data-vc-remote-submit': form }, t('vc.remote.submit')),
-    h('button', { key: 'cancel', className: 'vcs-remote-cancel', type: 'button', 'data-vc-remote-cancel': '1' }, t('vc.remote.cancel')),
+    h('button', { key: 'submit', className: 'vcs-remote-submit', type: 'button', 'data-vc-remote-submit': form, 'data-press': 'button', 'data-log': 'vc.remote.submit' }, t('vc.remote.submit')),
+    h('button', { key: 'cancel', className: 'vcs-remote-cancel', type: 'button', 'data-vc-remote-cancel': '1', 'data-press': 'button', 'data-log': 'vc.remote.cancel' }, t('vc.remote.cancel')),
   ]))
   return h('div', { className: 'vcs-remote-form vcs-remote-form-' + form, 'data-vc-form': opts.shape || 'inline', 'data-vc-remote-form': form, role: 'group', 'aria-label': t('vc.remote.form.' + (opts.title || form)) }, kids)
 }
@@ -132,13 +134,15 @@ const vcRemoteRowNode = function (h: any, t: any, model: any, remote: any) {
     className: 'vcs-remote-online-btn',
     type: 'button',
     'data-vc-remote-online-btn': String(remote.name),
+    'data-press': 'button',
+    'data-log': 'vc.remote.online',
     'aria-expanded': onlineOpen ? 'true' : 'false',
     'aria-controls': 'vc-remote-online',
     key: 'online',
   }, t('vc.remote.online')))
   kids.push(h('div', { key: 'head', className: 'vcs-remote-head' }, head))
   if (model.wide) {
-    kids.push(h('span', { key: 'url', className: 'vcs-remote-url', title: String(remote.fetchUrl || ''), 'data-vc-remote-url': String(remote.fetchUrl || '') }, String(remote.fetchUrl || '')))
+    kids.push(h(Tip, { key: 'url', content: String(remote.fetchUrl || '') }, h('span', { key: 'url', className: 'vcs-remote-url', 'data-vc-remote-url': String(remote.fetchUrl || '') }, String(remote.fetchUrl || ''))))
     if (remote.pushUrl && remote.pushUrl !== remote.fetchUrl) {
       kids.push(h('span', { key: 'pushUrl', className: 'vcs-remote-push-url', 'data-vc-remote-push-url': String(remote.pushUrl) }, String(remote.pushUrl)))
     }
@@ -152,14 +156,14 @@ const vcRemoteRowNode = function (h: any, t: any, model: any, remote: any) {
   }
   kids.push(h('div', { key: 'branches', className: 'vcs-remote-branches' }, branchKids))
   const acts = [
-    h('button', { key: 'rename', className: 'vcs-remote-act', type: 'button', 'data-vc-remote-act': 'rename', 'data-vc-remote-trigger': 'rename' }, t('vc.remote.act.rename')),
-    h('button', { key: 'setUrl', className: 'vcs-remote-act', type: 'button', 'data-vc-remote-act': 'setUrl', 'data-vc-remote-trigger': 'setUrl' }, t('vc.remote.act.setUrl')),
-    h('button', { key: 'remove', className: 'vcs-remote-act', type: 'button', 'data-vc-remote-act': 'remove', 'data-vc-remote-trigger': 'remove' }, t('vc.remote.act.remove')),
+    h('button', { key: 'rename', className: 'vcs-remote-act', type: 'button', 'data-vc-remote-act': 'rename', 'data-vc-remote-trigger': 'rename', 'data-press': 'button', 'data-log': 'vc.remote.act.rename' }, t('vc.remote.act.rename')),
+    h('button', { key: 'setUrl', className: 'vcs-remote-act', type: 'button', 'data-vc-remote-act': 'setUrl', 'data-vc-remote-trigger': 'setUrl', 'data-press': 'button', 'data-log': 'vc.remote.act.set-url' }, t('vc.remote.act.setUrl')),
+    h('button', { key: 'remove', className: 'vcs-remote-act', type: 'button', 'data-vc-remote-act': 'remove', 'data-vc-remote-trigger': 'remove', 'data-press': 'button', 'data-log': 'vc.remote.act.remove' }, t('vc.remote.act.remove')),
   ]
   if (model.narrow) {
     // 300 宽：三个动作收进「更多」，但一个都不删（任何档位都能到同一个动作）。
     kids.push(h('details', { key: 'more', className: 'vcs-remote-more', 'data-vc-remote-more': '1' }, [
-      h('summary', { key: 's', className: 'vcs-remote-more-summary' }, t('vc.remote.more')),
+      h('summary', { key: 's', className: 'vcs-remote-more-summary', 'data-press': 'button', 'data-log': 'vc.remote.more' }, t('vc.remote.more')),
       h('div', { key: 'acts', className: 'vcs-remote-acts' }, acts),
     ]))
   } else {
@@ -211,7 +215,7 @@ const vcRemoteOnlineNode = function (h: any, t: any, model: any) {
       'data-vc-remote-online-count': String(typeof data.count === 'number' ? data.count : (data.refs || []).length),
     }, [
       h('div', { key: 'head', className: 'vcs-remote-online-head' }, [
-        h('button', { key: 'back', className: 'vcs-remote-back', type: 'button', 'data-vc-remote-back': '1' }, t('vc.remote.pageBack')),
+        h('button', { key: 'back', className: 'vcs-remote-back', type: 'button', 'data-vc-remote-back': '1', 'data-press': 'button', 'data-log': 'vc.remote.back' }, t('vc.remote.pageBack')),
         h('span', { key: 'readAt', className: 'vcs-remote-online-read-at' }, t('vc.remote.onlineReadAt', { when: vcWhenText(t, model.nowMs, data.readAtMs) })),
         h('span', { key: 'source', className: 'vcs-remote-online-source' }, t('vc.remote.onlineSource')),
         h('span', { key: 'count', className: 'vcs-remote-online-count' }, t('vc.remote.onlineCount', { n: String(typeof data.count === 'number' ? data.count : (data.refs || []).length) })),
@@ -224,7 +228,7 @@ const vcRemoteOnlineNode = function (h: any, t: any, model: any) {
     kids.push(h('p', { key: 'title', className: 'vcs-remote-online-title' }, t(VC_REMOTE_FAIL_KEYS[kind])))
     if (err.message) kids.push(h('p', { key: 'msg', className: 'vcs-remote-online-msg' }, String(err.message)))
     kids.push(h('p', { key: 'hint', className: 'vcs-remote-online-hint', 'data-vc-remote-online-error': kind }, t(VC_REMOTE_HINT_KEYS[kind])))
-    kids.push(h('button', { key: 'retry', className: 'vcs-remote-online-retry', type: 'button', 'data-vc-remote-online-retry': '1' }, t('vc.remote.onlineRetry')))
+    kids.push(h('button', { key: 'retry', className: 'vcs-remote-online-retry', type: 'button', 'data-vc-remote-online-retry': '1', 'data-press': 'button', 'data-log': 'vc.remote.online-retry' }, t('vc.remote.onlineRetry')))
   } else if (state === 'loading') {
     kids.push(h('p', { key: 'loading', className: 'vcs-remote-online-loading' }, t('vc.remote.onlineLoading')))
   }
@@ -249,7 +253,7 @@ const vcRemoteStateNode = function (h: any, t: any, model: any) {
     const err = model.localError || {}
     const kids: any[] = [h('span', { key: 'title' }, t('vc.remote.localFail'))]
     if (err.message) kids.push(h('span', { key: 'msg' }, String(err.message)))
-    kids.push(h('button', { key: 'retry', className: 'vcs-state-retry', type: 'button', 'data-vc-remote-retry': '1' }, t('vc.remote.retry')))
+    kids.push(h('button', { key: 'retry', className: 'vcs-state-retry', type: 'button', 'data-vc-remote-retry': '1', 'data-press': 'button', 'data-log': 'vc.remote.retry' }, t('vc.remote.retry')))
     return h('div', { key: 'state', className: 'vcs-state vcs-state-error', role: 'alert', 'data-vc-state': 'error' }, kids)
   }
   return null
@@ -277,6 +281,8 @@ export const vcRemotePageNode = function (h: any, t: any, o: any) {
       type: 'button',
       'data-vc-remote-trigger': 'add',
       'data-vc-remote-add': '1',
+      'data-press': 'button',
+      'data-log': 'vc.remote.add',
       'aria-expanded': model.form === 'add' ? 'true' : 'false',
     }, t('vc.remote.form.add')),
   ]))
