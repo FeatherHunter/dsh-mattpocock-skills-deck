@@ -118,8 +118,9 @@ function makeEnv(opts) {
         if (method === 'wf.cwd') return new Promise((r) => setTimeout(() => r({ ok: false, error: '会话无 cwd 信息' }), CWD_FAIL_MS))
         if (method === 'wf.selection') return new Promise((r) => setTimeout(() => r(o.selectionReply || { ok: true, selection: { backendId: 'markdown', source: 'explicit', ref: null, rev: 3 } }), SEL_MS))
         if (method === 'wf.registry') return new Promise((r) => setTimeout(() => r({ ok: false }), SEL_MS))
-        // wf.snapshot / wf.refresh：那份完整快照很晚才到（比客户端那条死线晚）
-        return new Promise((r) => setTimeout(() => r(o.snapshotReply || snapshotReply()), SNAP_LATE_MS))
+        // wf.snapshot / wf.refresh：默认那份完整快照很晚才到（比客户端那条死线晚）；
+        //   #1767 的现场要的是「按时回来」，所以留一个按场景覆盖的延迟口（缺省不变）。
+        return new Promise((r) => setTimeout(() => r(o.snapshotReply || snapshotReply()), o.snapshotDelayMs != null ? o.snapshotDelayMs : SNAP_LATE_MS))
       },
     },
     log: (level, event, fields) => seen.logs.push({ level: level, event: event, fields: fields }),
@@ -423,6 +424,56 @@ async function main() {
   const decisionOld = bannerApi.step({ cwd: SUB_DIR, selection: null, snapLoading: true }, true)
   ok(decisionOld && decisionOld.banner && decisionOld.banner.text === 'banner.gate',
     '🔴 反证成立：没有那条判据时这一帧取的就是 banner.gate 那一档（实得 ' + JSON.stringify(decisionOld && decisionOld.banner && decisionOld.banner.text) + '）')
+
+  // ── #1767：同一工作区第二次取数不许把「正在读取」永久挂住 ────────────────────
+  // 现场：空目录工作区已经问过一次后端（结论是「说不准，先按空处理」），用户点了状态栏刷新（第二次取数）。
+  //   第二次取数时那条专用电话不会再打（每个工作区只问一次）；如果取数入口还借 selPending 登记「在飞」，
+  //   就没有任何人来把它清掉，横幅会永久停在「正在读取」（真机 302.8 秒仍在转圈）。
+  //   这一式量两帧：在飞时由 snapLoading 表达（横幅照旧说「正在读取」），回包后两个开关都落下（回到可操作的那一句）。
+  console.log('\n#1767) 第二次取数：在飞期间由 snapLoading 表达，回包后横幅必须回到可操作的「还没有设置」')
+  {
+    const fallbackSel = { ok: true, selection: { backendId: null, source: 'fallback', ref: null, rev: 1 } }
+    const fallbackSnap = {
+      ok: true, maps: [], issues: [], deck: { counts: { open: 0, closed: 0, total: 0 } },
+      selection: { backendId: null, source: 'fallback', ref: null, rev: 1 },
+      // 真机现场就是这个形状：空目录工作区自己就是工作区根（所以「每工作区只问一次」那把钥匙不会变）。
+      workspaceRoot: SUB_DIR, generatedMs: Date.now(), version: 'v2',
+    }
+    // 反证用：把修前那行「取数在飞就借 selPending」加回入口，其余一个字不改。
+    const withEntryFlagSrc = probeSnapshotSrc.replace('const doLoad = async function',
+      'try { if (!(st.selection && st.selection.backendId)) st.selPending = true; } catch (ePend) {}\n  const doLoad = async function')
+    const run = async (patch) => {
+      const env = makeEnv({ seedLocal: rootKeyedSeed(), selectionReply: fallbackSel, snapshotReply: fallbackSnap, snapshotDelayMs: 200, patch: patch })
+      const st = freshStore(env)
+      await env.mod.loadSnapshot(st, false, true) // 第一次取数：后端电话照问，结论是「说不准」
+      await wait(SEL_MS * 3)
+      const asked = () => env.seen.calls.filter((c) => c.method === 'wf.selection').length
+      const askedAfterFirst = asked()
+      const p2 = env.mod.loadSnapshot(st, true, false) // 第二次取数：用户点刷新
+      await wait(100)
+      const mid = { snapLoading: st.snapLoading, selPending: st.selPending, banner: bannerVariant(st) }
+      await p2
+      await wait(10)
+      return { st: st, asked: asked, askedAfterFirst: askedAfterFirst, mid: mid, after: bannerVariant(st) }
+    }
+    const fixed = await run(null)
+    ok(fixed.st.selection && fixed.st.selection.backendId === null, '（前提）第一次取数后后端结论是「说不准，按空处理」')
+    ok(fixed.askedAfterFirst === 1, '（前提）第一次取数问过一次 wf.selection（实得 ' + fixed.askedAfterFirst + ' 次）')
+    ok(fixed.mid.snapLoading === true, '#1767 第二次取数在飞（实得 snapLoading=' + fixed.mid.snapLoading + '）')
+    ok(fixed.mid.selPending === false, '#1767 取数在飞不借用 selPending（实得 selPending=' + fixed.mid.selPending + '）')
+    ok(fixed.mid.banner.reading === true && fixed.mid.banner.textKey === 'banner.gateReading',
+      '#1767 取数在飞期间横幅照旧说「正在读取」（表达面没拆坏；实得 ' + JSON.stringify(fixed.mid.banner.textKey) + '）')
+    ok(fixed.st.snapLoading === false && fixed.st.selPending === false,
+      '#1767 回包之后两个开关都落下了（实得 snapLoading=' + fixed.st.snapLoading + '，selPending=' + fixed.st.selPending + '）')
+    ok(fixed.after.reading === false && fixed.after.textKey === 'banner.gate',
+      '#1767 横幅回到可操作的「还没有设置」（实得 reading=' + fixed.after.reading + '，键 ' + JSON.stringify(fixed.after.textKey) + '）')
+    ok(fixed.asked() === 1, '#1767 第二次取数不重复问后端（实得 ' + fixed.asked() + ' 次）')
+    // 反证：修前那行加回去 → 第二次取数之后旗子没人清，横幅必须当场停在「正在读取」。
+    ok(withEntryFlagSrc !== probeSnapshotSrc, '（前提）能把修前那行借旗加回取数入口（反证用）')
+    const bug = await run(withSnapPatch(withEntryFlagSrc))
+    ok(bug.st.selPending === true && bug.after.reading === true && bug.after.textKey === 'banner.gateReading',
+      '🔴 反证成立：把借旗那行加回去，第二次取数后横幅就永久停在「正在读取」（实得 selPending=' + bug.st.selPending + '，键 ' + JSON.stringify(bug.after.textKey) + '）')
+  }
 
   // ── 纪律：失败不许弹提示、不许无限重试 ─────────────────────────────────────
   console.log('\n纪律）专用电话失败时：只记一行日志，不弹提示、不重试')
