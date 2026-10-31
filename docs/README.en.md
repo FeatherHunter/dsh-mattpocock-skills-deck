@@ -37,8 +37,8 @@ npm install -g @deepseek-ai/dsh
 #    entry you actually use (a wrong profile = the plugin never loads, restarts won't help)
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # DSH Desktop app (most users)
 # dsh plugin --profile web add dsh-mattpocock-skills-deck     # self-started web server (dsh web)
-# Pin to latest for extra stability (currently 1.9.0-beta.32):
-# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.32 --registry https://registry.npmjs.org
+# Pin to latest for extra stability (currently 1.9.0-beta.33):
+# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.33 --registry https://registry.npmjs.org
 
 # ③ That's it — the panel opens in DSH's own right sidebar (no third-party plugin needed)
 ```
@@ -72,7 +72,7 @@ The examples below use the web profile — DSH Desktop app users: replace every 
 
 ```bash
 # Install a pinned version
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.32 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.33 --registry https://registry.npmjs.org
 
 # No global install (pin a version like above for extra safety)
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
@@ -185,17 +185,23 @@ npm run verify              # contract checks
 
 The current build / verify workflow lives in [docs/agents/verification.md](agents/verification.md); the historical walkthrough is kept in [DEV-WORKFLOW.md](workflow/DEV-WORKFLOW.md).
 
+<!-- MORE-START -->
 <h2 align="center"><sub>MORE</sub><br>More from the author</h2>
 
-<div align="center">
+<div align="left">
 
 If you like this plugin, these might help too:
 
-**[dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette)** — 34 classic opencode themes for DSH, one click, persisted across restarts
+**[dsh-prompt](https://github.com/FeatherHunter/dsh-prompt)** — The boilerplate prompts you keep retyping, saved as custom templates and injected on selection — no more wasted effort.
 
-**[dsh-prompt](https://github.com/FeatherHunter/dsh-prompt)** — A prompt toolbox: 24 deep templates a click away, stop copy-pasting
+**[dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette)** — 38 classic opencode themes + 20+ custom themes — reskin DSH in one click.
 
-**[dsh-chinese-skill-patch](https://github.com/FeatherHunter/dsh-chinese-skill-patch)** — Use Chinese skill names in DSH directly: type /私 to reach 私家大厨, no English renaming needed
+**[dsh-im-companion](https://github.com/FeatherHunter/dsh-im-companion)** — Adds the ideas of an “assistant” and a “home” to dsh-im.
+
+**[ilife](https://github.com/FeatherHunter/ilife)** — ⚠️Work in progress⚠️ iLife, the home-life suite: bookkeeping, exercise, diet, weight, recipes, item management, schedule planning, memos and more.
+
+</div>
+<!-- MORE-END -->
 
 ---
 
@@ -268,24 +274,28 @@ And thanks to everyone who left thoughts in comments and discussions. If you hit
 
 </div>
 
+<!-- CONTACT-START -->
 <h2 align="center"><sub>CONNECT</sub><br>Feedback and Contact</h2>
 
 <div align="center">
 
 👏Welcome PRs and issues. A single spark can start a prairie fire 🔥. Any suggestion, opinion, idea or rant — come join the group and talk.
 
-<table align="center"><tr><td align="center"><b>Feishu Group (Main)</b></td><td align="center"><b>QQ Group (New)</b></td><td align="center"><b>WeChat Group (New)</b></td></tr><tr><td><img src="../assets/contact-feishu-permanent.png" width="260" alt="DSH plugin community group Feishu QR code" /></td><td><img src="../assets/contact-qq-permanent.jpg" width="260" alt="DSH plugin community group QQ QR code" /></td><td><img src="../assets/contact-wechat-weekly.png" width="260" alt="DSH plugin community group WeChat QR code" /></td></tr></table>
+<table align="center"><tr><td align="center"><b>Feishu Group (Main)</b></td><td align="center"><b>QQ Group (New)</b></td><td align="center"><b>WeChat Group (New)</b></td></tr><tr><td><img src="https://cdn.jsdelivr.net/npm/dsh-featherhunter-plugin-base@0.0.2/data/img/card-feishu.png" width="260" alt="DSH plugin community group Feishu QR code" /></td><td><img src="https://cdn.jsdelivr.net/npm/dsh-featherhunter-plugin-base@0.0.2/data/img/card-qq.png" width="260" alt="DSH plugin community group QQ QR code" /></td><td><img src="https://cdn.jsdelivr.net/npm/dsh-featherhunter-plugin-base@0.0.2/data/img/card-wechat-2026-10-23.png?v=20261023" width="260" alt="DSH plugin community group WeChat QR code" /></td></tr></table>
 
 </div>
+<!-- CONTACT-END -->
 
+<!-- STAR-HISTORY-START -->
 <div align="center">
 
 <a href="https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.html">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-dark.svg?v=20261030" />
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=20261030" />
-    <img alt="Star History Chart" src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=20261030" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-dark.svg?v=202610300000" />
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=202610300000" />
+  <img alt="Star History Chart" src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=202610300000" />
   </picture>
 </a>
 
 </div>
+<!-- STAR-HISTORY-END -->

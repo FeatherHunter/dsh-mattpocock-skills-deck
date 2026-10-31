@@ -41,7 +41,9 @@ const EXEC_HEADER_WORKSPACE = { agent: { session: { header: { workspaceRoot: '/w
 // 2026-10-29 按维护者定稿把六个字段收紧到 231 字：只写模型必须自己判断的调用时机与写法；
 // 显示位置、点选后是否发送、排序与截断都由实现保证，不再写进说明。
 // #1666 在不动一句话介绍的前提下，只放宽 prompt 与 items 两格说明：补上「等用户补充的半句话」分支。
-const SPEC_DESCRIPTION = '推荐 2~4 条下一步建议。这一轮已经告一段落，且你能说清下一步要做什么、对什么做时才调用；还有活没干完、在等用户回答时不调用。'
+// 2026-10-31 随提醒行改成「每轮收尾先判断、想得到就调用」同步改一句话介绍：调用时机从「告一段落」改成
+// 「每轮收尾先判断用户接下来几乎一定会做什么」，并把「等拍板时列答案」「还有活没干完不调用」写进去。
+const SPEC_DESCRIPTION = '推荐 2~4 条下一步建议。每轮回复收尾时先判断：用户接下来几乎一定会做什么？想得到就调用，想不到就不调用；这一轮在等用户拍板时，其中一条把他会选的答案列好；还有活没干完时不调用。'
 
 function makeLog() {
   const fired = []
@@ -79,7 +81,7 @@ async function main() {
   check(def && def.name === 'suggest_next_steps', '工具名精确为 suggest_next_steps（不带 deck_ 前缀）')
   check(def.description === SPEC_DESCRIPTION, '一句话介绍与规格原句一致')
   check(def.description.indexOf('2~4') >= 0 && def.description.indexOf('下一步建议') >= 0, '一句话介绍写清做什么：推荐 2~4 条下一步建议')
-  check(def.description.indexOf('告一段落') >= 0 && def.description.indexOf('不调用') >= 0, '一句话介绍写清调用时机：这一轮告一段落且说得出下一步才调用，其余场景不调用')
+  check(def.description.indexOf('每轮回复收尾') >= 0 && def.description.indexOf('不调用') >= 0, '一句话介绍写清调用时机：每轮收尾先判断、想得到才调用，想不到就不调用')
   check(def.description.indexOf('气泡') < 0 && def.description.indexOf('不会替你发送') < 0, '一句话介绍不写界面行为：显示位置、点选后是否发送由实现保证')
   check(def.parameters && def.parameters.type === 'object', '参数顶层是对象模式')
   check(Array.isArray(def.parameters.required) && def.parameters.required.indexOf('items') >= 0, 'items 是必填参数')
@@ -96,8 +98,8 @@ async function main() {
   const introSpec = itemsSpec.items.properties && itemsSpec.items.properties.intro
   const promptSpec = itemsSpec.items.properties && itemsSpec.items.properties.prompt
   const reasonSpec = itemsSpec.items.properties && itemsSpec.items.properties.reason
-  check(introSpec && introSpec.type === 'string' && String(introSpec.description || '').indexOf('10') >= 0,
-    'intro 是十字以内的简介（说明里带上限 10）')
+  check(introSpec && introSpec.type === 'string' && String(introSpec.description || '').indexOf('15') >= 0 && String(introSpec.description || '').indexOf('30') >= 0,
+    'intro 是十五个字以内的简介（说明里带上限 15 字、英文折算 30 个字符）')
   check(String(introSpec.description || '').indexOf('只显示') < 0 && String(introSpec.description || '').indexOf('选项框') < 0,
     'intro 说明不写界面行为（只显示、选项框由实现保证）')
   check(promptSpec && promptSpec.type === 'string' && String(promptSpec.description || '').indexOf('原样发出') >= 0,
@@ -130,7 +132,7 @@ async function main() {
   check(JSON.stringify(def.parameters).indexOf('minItems') < 0 && JSON.stringify(def.parameters).indexOf('maxItems') < 0,
     '参数模式不带 minItems / maxItems（注册表子集不支持，约束由代码钳制）')
   check(tool.MIN_ITEMS === 2 && tool.MAX_ITEMS === 4, '上下限常量是 2 与 4')
-  check(tool.INTRO_MAX_CHARS === 10 && tool.PROMPT_MAX_CHARS === 500 && tool.REASON_MAX_CHARS === 200, '单项文本上限是 10、500 与 200 个码点')
+  check(tool.INTRO_MAX_WIDTH === 30 && tool.PROMPT_MAX_CHARS === 500 && tool.REASON_MAX_CHARS === 200, '单项文本上限是简介 30 格宽、提示词 500 与理由 200 个码点')
   check(tool.PRIORITY_MIN === 0 && tool.PRIORITY_MAX === 10, '推荐优先级的合法区间是 0 到 10')
 
   // ── 2. 参数校验与钳制：纯函数结论（不经过回执壳，先把规矩钉死） ──
@@ -200,10 +202,16 @@ async function main() {
   const longIntro = '简'.repeat(30)
   const rLong = resolve({ items: [{ intro: longIntro, prompt: longPrompt, reason: longReason }, two[1]] })
   check(rLong.accepted === true, '单项超长不报错、仍然接受')
-  check(Array.from(rLong.items[0].intro).length === 11 && rLong.items[0].intro.slice(-1) === '…' && rLong.items[0].intro.slice(0, 10) === '简'.repeat(10), '超长简介保留前 10 个码点并另加省略号（#1540）')
+  check(Array.from(rLong.items[0].intro).length === 16 && rLong.items[0].intro.slice(-1) === '…' && rLong.items[0].intro.slice(0, 15) === '简'.repeat(15), '超长简介保留前 15 个汉字（30 格宽）并另加省略号（#1540）')
   check(Array.from(rLong.items[0].prompt).length === 501 && rLong.items[0].prompt.slice(-1) === '…' && rLong.items[0].prompt.slice(0, 500) === '长'.repeat(500), '超长提示词保留前 500 个码点并另加省略号（#1540）')
   check(Array.from(rLong.items[0].reason).length === 201 && rLong.items[0].reason.slice(-1) === '…' && rLong.items[0].reason.slice(0, 200) === '理由'.repeat(100), '超长理由保留前 200 个码点并另加省略号（#1540）')
   check(rLong.counts.clipped === 1 && rLong.notes.indexOf('clipped:1') >= 0, '被截断的条数如实记下')
+  const introHanExact = resolve({ items: [{ intro: '简'.repeat(15), prompt: '/a', reason: 'r' }, two[1]] })
+  check(introHanExact.counts.clipped === 0 && introHanExact.items[0].intro === '简'.repeat(15), '15 个汉字的简介正好放得下、不截断')
+  const introEnExact = resolve({ items: [{ intro: 'a'.repeat(30), prompt: '/b', reason: 'r' }, two[1]] })
+  check(introEnExact.counts.clipped === 0 && introEnExact.items[0].intro === 'a'.repeat(30), '30 个英文字母的简介正好放得下、不截断（等效 15 个汉字宽）')
+  const introEnLong = resolve({ items: [{ intro: 'a'.repeat(31), prompt: '/c', reason: 'r' }, two[1]] })
+  check(introEnLong.counts.clipped === 1 && introEnLong.items[0].intro === 'a'.repeat(30) + '…', '31 个英文字母的简介保留前 30 个并另加省略号')
   const emoji = '😀'.repeat(600)
   const rEmoji = resolve({ items: [{ intro: '表情', prompt: emoji, reason: '表情' }, two[1]] })
   check(rEmoji.accepted === true && Array.from(rEmoji.items[0].prompt).length === 501 && rEmoji.items[0].prompt.slice(-1) === '…' && Array.from(rEmoji.items[0].prompt.slice(0, -1)).every(function (c) { return c === '😀' }),

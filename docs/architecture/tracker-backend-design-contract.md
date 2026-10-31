@@ -44,7 +44,7 @@ OS 底座（darwin / win32 / linux）
 
 ## 5. 本地 Markdown 格式（照抄随包 Matt 技能原文，勿自造）
 
-- **唯一真源**：随包技能 `package/bundled-skills/setup-matt-pocock-skills/issue-tracker-local.md`（pin v1.3.1，逐字内容与哈希清单由 `tests/verify-bundled-skills-upstream.ts` 守住）。deck 只是执行层——写出来的文件必须与技能照原文写出来的文件长得一样；格式有疑问时以原文为准（ADR 20261025-markdown-format-original）。
+- **唯一真源**：随包技能 `package/bundled-skills/setup-matt-pocock-skills/issue-tracker-local.md`（pin v1.3.2，逐字内容与哈希清单由 `tests/verify-bundled-skills-upstream.ts` 守住）。deck 只是执行层——写出来的文件必须与技能照原文写出来的文件长得一样；格式有疑问时以原文为准（ADR 20261025-markdown-format-original）。
 - **四类对象的位置**：规格 `.scratch/<feature-slug>/spec.md`（正文七节：问题陈述、解决方案、用户故事、实现决策、测试决策、不在范围内、补充说明）；探索地图 `.scratch/<effort>/map.md`（正文五节：Destination、Notes、Decisions so far、Not yet specified、Out of scope）；实施票、地图子票与普通票都是 `.scratch/<effort>/issues/<NN>-<slug>.md`，一票一文件，NN 从 01 起两位补零、充当 ticket ID（如 `/implement 03`）；地图子票完成时在票里追加 `## Answer`，并往同一张地图的 `## Decisions so far` 追加一条指针。
 - **不是** YAML frontmatter、**不是** `docs/maps/`、**不是**纯 `<number>.md`。工作区根 `.scratch/map.md` / `.scratch/issues/<键>.md` 与更早的根 `issues/` 是旧布局，只读兼容：列表、读取、快照照常，写路径（改状态、关闭、改正文、评论、认领、标签）命中工作区根 `issues/` 或 `.scratch/issues/` 时如实失败并说明「旧布局的票只读，迁移另行处理」，新写入不再落那里；`.scratch/<feature>/issues/` 下的原文布局新票不算旧布局。
 - 状态/类型/依赖用**行内字段**：`Status:`（claimed/resolved/ready-for-agent）、`Type:`（research/prototype/grilling/task）、`Blocked by:`；会话追加 `## Comments`，解答写 `## Answer`。

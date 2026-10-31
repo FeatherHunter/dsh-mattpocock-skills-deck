@@ -70,6 +70,37 @@ export function countUnit(count: number, unit: string): HTMLElement {
   )
 }
 
+export interface SyncDeltaItem {
+  kind: 'ahead' | 'behind'
+  label: string
+  value: number
+  hint: string
+}
+
+/**
+ * 同步读数：领先与落后是两个并排的读数，不是两颗彩色胶囊。
+ *
+ * 两条读数始终都在（没有差异也写 0），位置不随数字变化跳动；分隔线只是把两个数分开，
+ * 不画边框、不填底色——同步带里已经有足够多的框，再加一层会看不出主次。
+ * 全文（「领先 2 个提交」）放进 title 与 aria-label，屏幕上只留标签与数字。
+ */
+export function syncDelta(items: SyncDeltaItem[], options: { compact?: boolean } = {}): HTMLElement {
+  const root = h('span', {
+    class: `sync-delta${options.compact === true ? ' is-compact' : ''}`,
+    attrs: { role: 'group', 'aria-label': items.map((item) => item.hint).join('，') },
+  })
+  items.forEach((item, index) => {
+    if (index > 0) root.append(h('span', { class: 'sync-delta-sep', attrs: { 'aria-hidden': 'true' } }))
+    root.append(h('span', {
+      class: `sync-delta-item is-${item.kind}${item.value === 0 ? ' is-zero' : ''}`,
+      attrs: { title: item.hint, 'aria-label': item.hint },
+    },
+    h('span', { class: 'sync-delta-label', text: item.label }),
+    h('span', { class: 'sync-delta-num', text: String(item.value) })))
+  })
+  return root
+}
+
 export function badgeLetter(letter: string, tone: BadgeTone, title: string): HTMLElement {
   return h('span', { class: `badge badge-${tone}`, text: letter, title })
 }
@@ -83,10 +114,10 @@ export function resultBanner(result: ResultMessage): HTMLElement {
     copy: '复制',
     ai: 'AI 交接',
     branch: '分支动作',
-    worktree: '工作树动作',
+    worktree: '工作区动作',
     changes: '改动动作',
     history: '提交动作',
-    stash: '贮藏动作',
+    stash: '储藏动作',
   }
   return h(
     'div',

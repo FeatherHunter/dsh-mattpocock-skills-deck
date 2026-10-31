@@ -2,7 +2,7 @@
 
 ## 好测试
 
-**集成风格**：通过真实接口来测试，而不是对内部零件做模拟。
+**集成测试风格**：通过真实接口来测试，而不是对内部部件做模拟。
 
 ```typescript
 // GOOD: Tests observable behavior
@@ -16,9 +16,9 @@ test("user can checkout with valid cart", async () => {
 
 特征：
 
-- 测试用户／调用方在乎的行为
+- 测的是用户／调用方在乎的行为
 - 只用公开 API
-- 能扛住内部重构
+- 内部重构之后依然通过
 - 描述「做什么」，而不是「怎么做」
 - 每个测试只有一个逻辑断言
 
@@ -40,7 +40,7 @@ test("checkout calls paymentService.process", async () => {
 - 模拟内部的协作者
 - 测试私有方法
 - 对调用次数／顺序做断言
-- 重构没有改变行为，测试却挂了
+- 重构之后行为没有变化，测试却失败了
 - 测试名称描述的是「怎么做」，而不是「做什么」
 - 绕过接口，改用外部手段来验证
 
@@ -60,7 +60,7 @@ test("createUser makes user retrievable", async () => {
 });
 ```
 
-**同义反复的测试**：期望值把实现复述了一遍，于是测试靠构造本身就成立。
+**同义反复的测试**：期望值把实现复述了一遍，于是这个测试从构造上就必然通过。
 
 ```typescript
 // BAD: Expected value is recomputed the way the code computes it

@@ -1,7 +1,7 @@
 /**
- * ui/views/stash.ts —— 贮藏页签：把「暂时不提交的改动」收起来，之后再拿回来。
+ * ui/views/stash.ts —— 「储藏」页签：把暂时不想提交的改动打包储藏起来，之后能应用回工作区。
  *
- * 为什么单独一个页签而不是塞进改动页：贮藏记录会一直留着，跨天、跨分支都在；
+ * 为什么单独一个页签而不是塞进改动页：储藏记录会一直留着，跨天、跨分支都在；
  * 它和「此刻的工作区」是两件事，混在一个列表里，读者会分不清哪些改动还会被提交。
  * 三个动作里只有「丢弃」不可逆，所以只有它要二次确认；确认卡贴在那一条记录下面，
  * 不跳到面板顶部，也不铺满整屏。
@@ -18,12 +18,13 @@ export function renderStash(model: StashModel, result: ResultMessage | null): HT
   const head = h('div', { class: 'stash-head' },
     h('div', { class: 'stash-head-text' },
       h('h2', { class: 'stash-title', text: COPY.stash.title }),
-      h('p', { class: 'stash-count', text: COPY.changes.stashHint })))
+      h('p', { class: 'stash-count', text: COPY.stash.lede })))
   view.append(head)
   view.append(note(COPY.stash.boundary, 'muted'))
 
   const scroll = h('div', { class: 'stash-scroll' })
-  if (result !== null) scroll.append(resultBanner(result))
+  // 只显示储藏动作自己的结果；别的页签的动作结果不追到这里来，避免同一条消息在两个页签重复出现。
+  if (result !== null && result.source === 'stash') scroll.append(resultBanner(result))
   if (model.empty) {
     scroll.append(emptyState(COPY.stash.empty, COPY.stash.emptyHint))
   } else {
@@ -78,7 +79,7 @@ function renderStashRow(row: StashRowModel, model: StashModel): HTMLElement {
   line.append(actions)
   wrap.append(line)
 
-  // 文件清单直接列在行下面：贮藏记录通常只有几个文件，藏进展开层反而多一次点击。
+  // 文件清单直接列在行下面：储藏记录通常只有几个文件，藏进展开层反而多一次点击。
   const paths = h('div', { class: 'stash-paths' })
   paths.append(h('p', { class: 'stash-paths-note', text: COPY.stash.pathsNote }))
   const list = h('ul', { class: 'stash-path-list' })

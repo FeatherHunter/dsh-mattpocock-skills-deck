@@ -43,11 +43,19 @@ Issues and specs for this repo live as GitHub issues.
 
 **替代命令**（应急用，不进日常）：列票 `gh issue list --state open --label bug --limit 200 --json number,title,labels,updatedAt`；读回 `gh api repos/{owner}/{repo}/issues/{n}`；关单 `gh api -X PATCH repos/{owner}/{repo}/issues/{n} -f state=closed`；摘标签 `gh api -X DELETE repos/{owner}/{repo}/issues/{n}/labels/{name}`。同一套动作也封装成了 `scripts/issue-emergency.ps1`（`-Action read|close|unlabel|body`，加 `-DryRun` 只打印将要执行的命令）：四个动作都先读回、再写、写后核对，写失败还会读回确认是否其实已经落盘。
 
+应急路径上还有两条硬规矩。**建票前先确认目标仓库**：先用 `gh repo view --json nameWithOwner` 看清这次要写的是哪个仓库，确认它就是维护者自己的仓库；不是维护者自己的仓库（例如随包技能的上游仓库 `mattpocock/skills`，除非维护者本人拥有它）就停手，绝不往里建票。**关票先评论、再关闭**：评论单独发一条，再单独发命令关闭，不要把评论挂到关闭命令上（原因见下面「关票一律先评论，再关闭」一节）。
+
 **版本三查**：本机装的是哪个版本 —— `(Get-Content "$env:USERPROFILE\.dsh\profiles\desktop\package.json" -Raw | ConvertFrom-Json).dependencies.'dsh-mattpocock-skills-deck'`；工作区 `package.json` 的版号；`npm view dsh-mattpocock-skills-deck version` 的远端最新。三个数一起看：工作区版号是正在开发的版本，不是本机跑着的版本。
 
 **失败回执怎么读**：`status`、`reason` 都在回执的「明细（JSON）」那一段里。`status` 三态（`ok` / `partial` / `unsupported`）；`reason` 按下一步分四档——可重试（`backend-threw` 等）/ 等额度（`ai-tool-refused`）/ 后端做不到（`backend-unsupported`）/ 超时（`backend-timeout`）；另外几种少见原因码（`gate-defer` / `bad-args` / `no-backend`）遇到时直接看回执里的说明文字。`items` 里逐条看哪一步失败、原因是什么；`notes` 里若写「这份清单可能不全」，就收窄条件再查一次。整份回执被判非法（报 `invalid output`）时，先按上面的自检确认是哪把工具坏了，再按替代命令绕开。
 
 **铁律**：写操作超时、报错（网络中断、EOF、回执判失败）后一律先读回现状，不许直接重发——超时或报错往往意味着写入其实已经落盘，重发会产生重复评论或重复关闭；只有读回确认没落盘，才允许重试。
+
+### 关票一律先评论，再关闭
+
+关一张票永远分两步：先把结论写成一条评论发出去，再改状态把它关掉。工具的正常路径也是这个顺序——同一次 `deck_issue_patch` 调用里同时带 `comment` 与 `close` 时，工具先发评论、再关票。
+
+**不能省成一步。** 关闭时顺带附评论有个已知的坑：对一张已经关闭的票再「带评论关闭」，评论会丢，调用却仍然返回成功——看起来像办成了，实际结论一个字都没留下。所以评论单独发、关闭单独做，两条都落下去，结论才留得住。`/wayfinder` 的 Resolve 也照这个顺序做（先评论写结论，再关闭，最后回地图补指针）。
 
 ### 读票时省上下文（正文与评论按需取）
 
@@ -143,13 +151,21 @@ Issues and specs for this repo live as GitHub issues.
 
 ## Mandatory label set
 
-This repo uses a mandatory label set — the three labels below must exist in the tracker, and every new issue carries at least one of them (missing = invalid, per the deck's convention):
+这个仓库建票时的真实做法是**按位置补标签**：看这张票在六种位置里是哪一种，补它该带的那一枚或两枚；不要求每张新票都带 triage 标签。这张表与代码里的位置表（`src/deck/rules/object-kind.ts` 的 `OBJECT_KIND_RULES`）逐条对应：
 
-- `bug` — something is broken; drives the deck's fix action and BUG filter
-- `needs-triage` — unexamined issue awaiting diagnosis; drives the deck's diagnose action and TRIAGE filter
-- `wayfinder:grilling` — an open decision/discussion ticket; drives the deck's discuss action
+| 位置 | 建票时补的标签 |
+| --- | --- |
+| 探索地图（`kind: map`） | `wayfinder:map` |
+| 地图工单（`kind: map-ticket`） | 调用时 `label` 给的那一枚 `wayfinder:<类型>`（`research` / `prototype` / `grilling` / `task` 四选一） |
+| 规格（`kind: spec`）与实施票（`kind: spec-ticket`） | `ready-for-agent` |
+| 缺陷票（`kind: bug`） | `bug` 与 `needs-triage` |
+| 普通票（`kind: issue`） | 一枚都不补：调用方给什么标签就带什么 |
 
-建票时必备标签由 `deck_issue_create` 一并补上；改标签用 `deck_issue_patch`。
+`deck_issue_create` 按这张表把缺的补上，补了哪几枚写进回执；改标签用 `deck_issue_patch`。
+
+**wayfinder 的地图与地图子票只带 wayfinder 标签，不叠 `ready-for-agent` 这类 triage 标签。** 理由：它们是决策，不是实施工作；叠上 triage 标签会让它们混进「可以交给代理直接干」的筛选里，把还在讨论的东西当成已经定好的活。
+
+`bug` / `needs-triage` / `wayfinder:grilling` 这三枚标签仍然要存在于跟踪器里：它们是面板上「修复」「诊断」「讨论」三个动作的入口（分别对应 BUG / TRIAGE / discuss 筛选）。但它们不再是「每张新票至少带一枚」的硬性要求，建票时按上面那张位置表补标签即可。
 
 ## Pull requests as a triage surface
 
@@ -176,7 +192,8 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
   `deck_map_plan_create` 建（它会把目的地、Notes 与计划写成一张地图）。
 - **Child ticket**: 挂在这张地图下的子票。用 `deck_map_link` 传 `parentKey` 建这条父子边；工具会按当前后端
   的能力落下去，并如实回报这条边落在哪一列（原生边，还是任务清单 + 票正文的归属标记；GitLab 房落在文件头的隐藏标记 `<!-- DSH-PARENT: <地图> -->`）。
-  标签取 `wayfinder:<类型>`（`research` / `prototype` / `grilling` / `task`）。票被认领之后，认领人就是驱动
+  标签取 `wayfinder:<类型>`（`research` / `prototype` / `grilling` / `task`）；只带这一枚，不叠 `ready-for-agent` 这类 triage
+  标签（它们是决策，不是实施工作，见 `## Mandatory label set` 一节）。票被认领之后，认领人就是驱动
   这件事的开发者（认领用 `deck_issue_patch`）。
 - **Blocking**: 阻塞关系优先落成后端自己的原生依赖边（GitHub 上是原生的 issue dependencies，界面上看得见）。
   用 `deck_map_link` 传 `blockedBy`，工具自己判断能不能落原生边、落不了就退回正文的阻塞写法（GitLab 房是成对降级：可见行 `Blocked by: #n` + 隐藏机器表 `<!-- DSH-BLOCKED-BY: … -->`），
@@ -186,4 +203,4 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
   票，或正文 `Blocked by` 那行里还有没关的票）与已经被认领的；剩下的按地图里的先后顺序取第一条。
 - **Claim**: 用 `deck_issue_patch` 把这张票指给当前用户 —— 这是本会话的第一笔写操作。
 - **Resolve**: 用 `deck_issue_patch` 先发一条评论写清结论，再关闭这张票；然后到地图的 Decisions-so-far 里
-  补一行指针（一句话结论 + 链接）。
+  补一行指针（一句话结论 + 链接）。顺序不能省也不能反：先评论、再关闭（原因见上面「关票一律先评论，再关闭」一节）。

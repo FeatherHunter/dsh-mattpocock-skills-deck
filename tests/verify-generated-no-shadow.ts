@@ -1,7 +1,8 @@
 // verify-generated-no-shadow.ts —— #597 门禁：拼进同一个客户端闭包的各个分块，顶层声明不得重名。
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-generated-no-shadow.ts。
 //   （不能裸跑：它 require 的 ./lib/eval-probe.js 今天只有同名 .ts，靠装载钩子改指。）
-// 为什么要有这条：客户端闭包是把「日志包派生的 logKernel.derived.js」与「更新包派生的 updateClient.derived.js」、
+// 为什么要有这条：客户端闭包是把「日志包派生的 logKernel.derived.js」「更新包派生的 updateClient.derived.js」
+//   与「base 包派生的 baseClient.derived.js」（base 包的客户端产物整份内联，见 derive-base-from-package.mts）、
 //   内置 TypeScript 核定下的共享拼接文件（#629 起加了 src/shared/label-color/colors.js 与 prompt.js），
 //   还有手写叶子，按顺序拼成一份源码。函数声明被提升到闭包顶部，后拼的分块会顶掉先拼的同名函数。
 //   两个包各自都叫 buildPhoneNames / buildPhoneName / buildClientPhoneNames，更新包在后，
@@ -28,6 +29,9 @@ console.log('客户端闭包重名门禁（#597：同闭包内顶层声明不得
 
 const LOG_KERNEL = path.join(ROOT, 'scripts', 'generated', 'logKernel.derived.js')
 const UPDATE_CLIENT = path.join(ROOT, 'scripts', 'generated', 'updateClient.derived.js')
+// base 包客户端产物整份内联（联系入口与作者插件卡用）：最外层是一个 IIFE 包住的模块体，
+// 顶层只露出 __basePkgScope / __baseCreateUI / __baseEnsureStyles 三个名字，专门为不撞名设计。
+const BASE_CLIENT = path.join(ROOT, 'scripts', 'generated', 'baseClient.derived.js')
 // #629：配色核心的两个产物按 scripts/build.mts 的 SHARED_SPLICE 清单拼进同一个闭包，
 // 排在两份派生文件之后（位置对齐 src/client/index.js 里的拼接标记）。
 // 2026-10-19 第三阶段起共享层产物搬出源码树，配色核心这两份改读 .build/shared/ 下的产物位。
@@ -36,6 +40,7 @@ const LABEL_PROMPT = path.join(ROOT, '.build', 'shared', 'label-color', 'prompt.
 const SPLICED_FILES = [
   { label: '日志包派生文件', file: LOG_KERNEL },
   { label: '更新包派生文件', file: UPDATE_CLIENT },
+  { label: 'base 包派生文件', file: BASE_CLIENT },
   { label: '配色核心产物 colors.js', file: LABEL_COLORS },
   { label: '配色核心产物 prompt.js', file: LABEL_PROMPT },
 ]
@@ -76,12 +81,14 @@ function stripExports(text) {
 }
 const logText = fs.readFileSync(LOG_KERNEL, 'utf8')
 const updText = fs.readFileSync(UPDATE_CLIENT, 'utf8')
+const baseText = fs.readFileSync(BASE_CLIENT, 'utf8')
 const closureSource =
   stripExports(logText) +
   '\n' + stripExports(updText) +
+  '\n' + stripExports(baseText) +
   '\n' + stripExports(fs.readFileSync(LABEL_COLORS, 'utf8')) +
   '\n' + stripExports(fs.readFileSync(LABEL_PROMPT, 'utf8')) +
-  '\nreturn { __pkgLog, UPD_STATUS, UPD_CHECK, UPD_INSTALL, UPD_POLL, normalizeColor, colorsDiffer, buildPalettePrompt }\n'
+  '\nreturn { __pkgLog, UPD_STATUS, UPD_CHECK, UPD_INSTALL, UPD_POLL, normalizeColor, colorsDiffer, buildPalettePrompt, __baseCreateUI, __baseEnsureStyles }\n'
 
 function buildOnce() {
   const calls = []
@@ -115,6 +122,9 @@ if (built) {
   check(built.mod.normalizeColor('#8B5CF6') === '8b5cf6', `配色核心的 normalizeColor 在闭包里可用（实得 ${String(built.mod.normalizeColor('#8B5CF6'))}）`)
   check(built.mod.colorsDiffer('', '') === false, `配色核心的 colorsDiffer 在闭包里可用（colorsDiffer('', '') 实得 ${String(built.mod.colorsDiffer('', ''))}）`)
   check(typeof built.mod.buildPalettePrompt === 'function', '配色核心的 buildPalettePrompt 在闭包里可见')
+  // base 包那份整份内联的产物拼进来之后：两个救命接口必须真的能从闭包里拿到（工厂与样式注入）。
+  check(typeof built.mod.__baseCreateUI === 'function', 'base 包的 createBaseUI 在闭包里可见（联系弹窗与作者插件卡靠它建组件）')
+  check(typeof built.mod.__baseEnsureStyles === 'function', 'base 包的 ensureBaseStyles 在闭包里可见（基础样式只注入一次）')
 }
 
 // —— 三、写到产物里：打包产物必须已经带上修好的这份 ——

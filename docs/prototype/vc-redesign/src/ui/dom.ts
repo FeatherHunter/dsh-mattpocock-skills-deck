@@ -63,7 +63,7 @@ export function clear(node: Element): void {
   while (node.firstChild !== null) node.removeChild(node.firstChild)
 }
 
-export type IconKind = 'chevron' | 'refresh' | 'copy' | 'check' | 'alert' | 'back' | 'folder' | 'file' | 'commit' | 'branch' | 'spark' | 'close'
+export type IconKind = 'chevron' | 'refresh' | 'copy' | 'check' | 'alert' | 'back' | 'folder' | 'file' | 'commit' | 'branch' | 'spark' | 'close' | 'search' | 'settings'
 
 const ICON_PATHS: Record<IconKind, string> = {
   chevron: 'M6 9l6 6 6-6',
@@ -79,6 +79,10 @@ const ICON_PATHS: Record<IconKind, string> = {
   // 四角星：AI 交接的入口记号；刻意不用机器人头像，避免读者以为这是另一个终端。
   spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM18.5 16l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z',
   close: 'M6 6l12 12M18 6L6 18',
+  // 放大镜：命令面板入口。
+  search: 'M11 4a7 7 0 1 0 0 14a7 7 0 0 0 0-14M16.5 16.5L21 21',
+  // 齿轮：管理索引入口。画成三段同心线，缩到 14 像素也还认得出是设置。
+  settings: 'M12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 0 0 0-5M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.5-2-3.4-2.3.9a7.6 7.6 0 0 0-2.6-1.5L14.1 2h-4.2l-.4 3a7.6 7.6 0 0 0-2.6 1.5l-2.3-.9-2 3.4 2 1.5a7.6 7.6 0 0 0 0 3l-2 1.5 2 3.4 2.3-.9a7.6 7.6 0 0 0 2.6 1.5l.4 3h4.2l.4-3a7.6 7.6 0 0 0 2.6-1.5l2.3.9 2-3.4z',
 }
 
 /** 图标一律内联 SVG：跟文字同色跟随 currentColor，不依赖图标字体或外部文件。 */

@@ -192,11 +192,6 @@ zh:
   cfg.restartDoneWith: 已装 {to}（当前跑的仍是 {from}），重启一次就生效
   cfg.updateRestartToast: 更新 {v} 装好了，重启一次才生效
   cfg.updateInstallFail: 安装失败，请重试或用手工命令
-  more.title: 作者其他插件
-  more.desc.deck: 本面板自己：装好就有 27 个工程技能在右侧直接用
-  more.desc.palette: 34 款长时间编程护眼配色，一键换上
-  more.desc.prompt: 24 条常用提示模板随手点，不用来回复制粘贴
-  more.desc.companion: 聊天机器人的伴侣插件：扫码或填凭据就把飞书、微信等 9 路聊天接进来
   tpl.missing: 缺少强制占位符 {list}
   tpl.unknown: 未知占位符 {list}
   tpl.name.diagnose: 诊断
@@ -399,11 +394,6 @@ en:
   cfg.restartDoneWith: Installed {to} (still running {from}); one restart makes it live
   cfg.updateRestartToast: Update {v} is installed — one restart makes it live
   cfg.updateInstallFail: Install failed — retry or use the manual command
-  more.title: More plugins by the author
-  more.desc.deck: "This panel itself: 27 engineering skills ready on the side once installed"
-  more.desc.palette: 34 eye-friendly palettes for long coding sessions, applied in one click
-  more.desc.prompt: 24 everyday prompt templates at hand — no more copy-paste round trips
-  more.desc.companion: "Companion plugin for chat bots: bring in 9 chat channels such as Feishu and WeChat by scanning a code or filling in credentials"
   tpl.missing: "Missing required placeholder(s): {list}"
   tpl.unknown: "Unknown placeholder(s): {list}"
   tpl.name.diagnose: Diagnose

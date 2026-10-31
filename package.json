@@ -1,6 +1,6 @@
 {
   "name": "dsh-mattpocock-skills-deck",
-  "version": "1.9.0-beta.32",
+  "version": "1.9.0-beta.33",
   "repository": {
     "type": "git",
     "url": "https://github.com/FeatherHunter/dsh-mattpocock-skills-deck.git"
@@ -11,6 +11,9 @@
   },
   "scripts": {
     "build": "node scripts/build.mts",
+    "readme:init": "node --preserve-symlinks-main node_modules/dsh-featherhunter-plugin-base/dist/node/cli.js readme:init --repo .",
+    "readme:sync": "node --preserve-symlinks-main node_modules/dsh-featherhunter-plugin-base/dist/node/cli.js readme:sync --repo .",
+    "readme:check": "node --preserve-symlinks-main node_modules/dsh-featherhunter-plugin-base/dist/node/cli.js readme:sync --check --repo .",
     "typecheck": "node scripts/generate-locale-config.mts --check && node scripts/generate-prompt-config.mts --check && node scripts/generate-time-config.mts --check && node scripts/generate-md-format-config.mts --check && node scripts/typecheck.mts",
     "update:latest": "pnpm update dsh-plugin-update@^0.18.39 && node scripts/derive-update-from-package.mts && node scripts/build.mts",
     "prepare": "node scripts/build.mts",
@@ -22,7 +25,7 @@
     "verify:fast": "node scripts/verify-parallel.mts --tier fast",
     "verify:changed": "node scripts/verify-parallel.mts --changed",
     "verify": "node scripts/verify-chain.ts",
-    "sync:matt": "node scripts/sync-matt-skills.mts --pin v1.3.1 --verify",
+    "sync:matt": "node scripts/sync-matt-skills.mts --verify",
     "thanks:update": "node scripts/update-thanks.mts"
   },
   "dependencies": {
@@ -35,6 +38,7 @@
   "devDependencies": {
     "@deepseek-ai/dsh-tools": "0.1.7-rc.2",
     "dependency-cruiser": "^18.6.0",
+    "dsh-featherhunter-plugin-base": "0.0.2",
     "esbuild": "^0.28.2",
     "jsdom": "^30.1.3",
     "playwright": "^1.64.1",

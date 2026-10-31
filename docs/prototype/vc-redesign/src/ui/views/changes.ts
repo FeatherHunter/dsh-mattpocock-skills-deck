@@ -2,9 +2,9 @@
  * ui/views/changes.ts —— 改动视图。设计目标按重要性排：
  *   ① 先看见「这批改动整体是什么样」（三个可点的计数控件就是筛选器）；
  *   ② 再逐行看：路径按目录与文件名分开画、变更类型用字母徽章、增删行数右对齐；
- *   ③ 每一行的动作都在这一行上：暂存/撤回在行尾，「更多」菜单与二次确认贴在这一行下面；
+ *   ③ 每一行的动作都在这一行上：暂存/取消暂存在行尾，「更多」菜单与二次确认贴在这一行下面；
  *   ④ 展开行看逐行差异，差异不跳出列表；
- *   ⑤ 底部常驻提交区：暂存数、说明、主按钮、禁用原因、提交结果都在同一处。
+ *   ⑤ 底部常驻提交区：已暂存的文件数、说明、主按钮、禁用原因、提交结果都在同一处。
  *
  * 「就近」是这一版的硬规则：行级动作的结果不放到页面底部的结果条里，
  * 而是紧贴着改动列表的顶端出现；确认卡紧贴着触发它的那一行出现。
@@ -20,12 +20,15 @@ import { handoffEntry } from './handoff'
 export function renderChanges(model: ChangesModel, result: ResultMessage | null): HTMLElement {
   const view = h('div', { class: 'view view-changes' })
 
-  const filterRow = h('div', { class: 'filters', attrs: { role: 'group', 'aria-label': '按状态筛选' } })
+  // 三张计数卡：数字在上、标签在下，整张卡就是筛选器（与真实插件的统计卡同一套读法）。
+  // 三张卡等宽，切换筛选时列表不会因为数字位数变化左右跳；0 也用同一套颜色写出来，
+  // 「冲突 0」本身就是要给人看的结论，不该灰掉。
+  const filterRow = h('div', { class: 'stats', attrs: { role: 'group', 'aria-label': '按状态筛选' } })
   for (const stat of model.stats) {
     const active = model.filter === stat.id
     filterRow.append(
       h('button', {
-        class: `filter-chip tone-${stat.tone}${active ? ' is-on' : ''}${stat.count === 0 ? ' is-zero' : ''}`,
+        class: `stat tone-${stat.tone}${active ? ' is-on' : ''}`,
         attrs: {
           type: 'button',
           'aria-pressed': active ? 'true' : 'false',
@@ -34,15 +37,17 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
         },
         dataset: { action: 'filter', filter: stat.id },
       },
-      h('span', { class: 'filter-label', text: stat.label }),
-      h('span', { class: 'filter-count', text: String(stat.count) })),
+      h('span', { class: 'stat-n', text: String(stat.count) }),
+      h('span', { class: 'stat-t', text: stat.label })),
     )
   }
 
   const list = h('div', { class: 'changes-scroll' })
-  // 行级动作（丢弃、忽略、解决冲突、贮藏）的结果贴在列表最上面：它离刚点过的那一行最近。
+  // 行级动作（丢弃、忽略、解决冲突、储藏）的结果贴在列表最上面：它离刚点过的那一行最近。
   // 提交结果留在底部提交区，因为它由底部的提交按钮产生。
-  if (result !== null && result.source !== 'commit') list.append(resultBanner(result))
+  // 同步动作（拉取、获取、推送）与重新读取的结果已经在顶部同步带里报过，这里不再重复画一条：
+  // 同一条结果画两处，读者会以为发生了两件事。
+  if (result !== null && result.source === 'changes') list.append(resultBanner(result))
   if (model.ignoredNote !== null) list.append(h('div', { class: 'changes-note' }, note(model.ignoredNote, 'muted')))
   if (model.empty) {
     list.append(emptyState(COPY.changes.emptyTitle, COPY.changes.emptyHint))
@@ -90,12 +95,6 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
   })
   textarea.value = model.composer.message
 
-  // 交接入口与静态提示挤在同一行：提示说「只提交已暂存的内容」，入口说「不想自己拆就交给 AI」，
-  // 两件事都发生在动手之前，合在一行不额外占高度，列表就能多露几行文件。
-  const hint = h('div', { class: 'composer-hint', id: 'commit-hint' },
-    h('span', { class: 'hint-text', text: model.composer.hint }),
-    handoffEntry(HANDOFF_ENTRY.changes, 'changes', 'inline'))
-
   const commitButton = button({
     label: COPY.changes.commitLabel(model.composer.stagedCount),
     kind: 'primary',
@@ -108,15 +107,18 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
     focusKey: 'commit',
   })
 
-  // 提交按钮固定贴在右下角：它上面是禁用原因（有才画），再上面是说明输入与静态提示。
-  // 原因单独成行，按钮就不会因为文案长短被挤来挤去，位置在 300 到 520 各档都一样。
-  const submitRow = h('div', { class: 'composer-submit' }, commitButton)
-  composer.append(stagedLine, textarea, hint)
-  if (model.composer.disabledReason !== null) {
-    composer.append(h('div', { class: 'composer-reason', id: 'commit-reason' },
-      icon('alert', 12), h('span', { text: model.composer.disabledReason })))
-  }
-  composer.append(submitRow)
+  // 提交区最后一行：左边是禁用原因或一句提示，右边是提交按钮，同一行、同一基线。
+  // 原因与按钮说的是同一件事（为什么现在点不了），各占一行只会把提交区撑高、把列表压矮。
+  // 交接入口留在中间：它和提示都在动手之前出现，位置在按钮左侧不会被忽略。
+  const footLeft = model.composer.disabledReason === null
+    ? h('span', { class: 'hint-text', text: model.composer.hint })
+    : h('span', { class: 'composer-reason', id: 'commit-reason' },
+      icon('alert', 12), h('span', { text: model.composer.disabledReason }))
+  const foot = h('div', { class: 'composer-foot', id: 'commit-hint' },
+    footLeft,
+    handoffEntry(HANDOFF_ENTRY.changes, 'changes'),
+    commitButton)
+  composer.append(stagedLine, textarea, foot)
   view.append(filterRow, list, composer)
   return view
 }
@@ -135,8 +137,13 @@ function renderGroup(group: GroupModel, model: ChangesModel): HTMLElement {
     h('span', { class: 'group-title', text: group.label }),
     h('span', { class: 'group-count', text: String(group.rows.length) }))
 
+  // 分组动作装在同一个容器里再靠右：只给容器一个 margin-left:auto，
+  // 两颗动作才会挨着排在同一侧。以前每颗按钮各自 margin-left:auto，
+  // 浏览器会把剩余空间平分成两份，第一颗就被推到行中间，看起来像「全部暂存」居中了。
+  const actions = h('div', { class: 'group-actions' })
+
   if (group.id === 'staged' && model.canUnstageAll) {
-    head.append(h('button', {
+    actions.append(h('button', {
       class: 'group-action',
       attrs: { type: 'button', 'aria-label': COPY.actions.unstageAll },
       dataset: { action: 'unstage-all' },
@@ -144,7 +151,7 @@ function renderGroup(group: GroupModel, model: ChangesModel): HTMLElement {
   }
   if (group.id === 'unstaged') {
     const blocked = model.conflictCount > 0
-    head.append(h('button', {
+    actions.append(h('button', {
       class: `group-action${blocked ? ' is-disabled' : ''}`,
       attrs: {
         type: 'button',
@@ -155,13 +162,14 @@ function renderGroup(group: GroupModel, model: ChangesModel): HTMLElement {
       dataset: { action: 'stage-all' },
     }, COPY.actions.stageAll))
     if (model.canDiscardAll) {
-      head.append(h('button', {
+      actions.append(h('button', {
         class: 'group-action is-danger',
         attrs: { type: 'button', 'aria-label': COPY.changes.discardAll, title: '把全部未暂存的改动丢弃（不能撤回）' },
         dataset: { action: 'changes-pending', kind: 'discard-all' },
       }, COPY.changes.discardAll))
     }
   }
+  if (actions.childElementCount > 0) head.append(actions)
 
   section.append(head)
   // 「丢弃全部」的确认卡紧贴分组标题出现，不再另开一层。
@@ -215,13 +223,13 @@ function renderFileRow(row: FileRowModel, model: ChangesModel): HTMLElement {
   if (row.canStage) {
     actions.append(h('button', {
       class: 'row-act',
-      attrs: { type: 'button', title: `暂存 ${row.name}`, 'data-focus-key': `stage:${row.fullPath}` },
+      attrs: { type: 'button', title: `把 ${row.name} 暂存`, 'data-focus-key': `stage:${row.fullPath}` },
       dataset: { action: 'stage', path: row.fullPath },
     }, COPY.actions.stage))
   } else if (row.canUnstage) {
     actions.append(h('button', {
       class: 'row-act',
-      attrs: { type: 'button', title: `撤回 ${row.name} 的暂存`, 'data-focus-key': `unstage:${row.fullPath}` },
+      attrs: { type: 'button', title: `取消暂存 ${row.name}`, 'data-focus-key': `unstage:${row.fullPath}` },
       dataset: { action: 'unstage', path: row.fullPath },
     }, COPY.actions.unstage))
   }

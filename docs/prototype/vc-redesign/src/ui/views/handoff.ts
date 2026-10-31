@@ -6,7 +6,7 @@
  * 触发点就在旁边，读完一段就能确认有没有带上不想外发的路径，不必再回到整屏里找关闭按钮。
  * 高度由 app 按触发点位置算，文字区自己滚动，不做截断缩略。
  *
- * 为什么入口文案不放进这里：入口出现在同步带、改动页、工作树页、分支页四处，
+ * 为什么入口文案不放进这里：入口出现在同步带、改动页、工作区页、分支页四处，
  * 各自要跟当前页的问题对上，所以文案由 domain/handoff.ts 的 HANDOFF_ENTRY 统一给出。
  */
 import { COPY } from '../../data/copy'
@@ -83,10 +83,10 @@ export function renderHandoffSheet(model: HandoffSheetModel): HTMLElement {
   return layer
 }
 
-/** 入口按钮：同步带用整行长按钮，列表页脚用一行轻链接，复用同一套结构与文案。 */
-export function handoffEntry(label: string, kind: string, variant: 'rail' | 'inline'): HTMLElement {
+/** 入口按钮：列表下的那行轻链接。 */
+export function handoffEntry(label: string, kind: string): HTMLElement {
   const node = h('button', {
-    class: `ai-entry ai-entry-${variant}`,
+    class: 'ai-entry ai-entry-inline',
     attrs: {
       type: 'button',
       title: COPY.ai.entryAria(label),
@@ -95,6 +95,5 @@ export function handoffEntry(label: string, kind: string, variant: 'rail' | 'inl
     },
     dataset: { action: 'handoff-open', kind },
   }, icon('spark', 14), h('span', { class: 'ai-entry-label', text: label }))
-  if (variant === 'rail') node.append(h('span', { class: 'ai-entry-sub', text: COPY.ai.railSub }))
   return node
 }

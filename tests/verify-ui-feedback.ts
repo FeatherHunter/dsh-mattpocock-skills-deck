@@ -76,7 +76,9 @@ const MATRIX: [string, string, string[]][] = [
   ['src/client/views/DetailActionBar.ts', '地图底部执行/档案', ['map.dest.exec', 'map.dest.archive']],
   ['src/client/views/IssueDetail.ts', '工单详情顶栏、父链接、子票与被阻塞行', ['issue.top.back', 'issue.top.exec', 'issue.top.newsession', 'issue.top.copy', 'issue.top.link', 'issue.parent.', 'issue.sub.', 'issue.blocked.']],
   ['src/client/views/IssueDetailComments.ts', '评论发送', ['issue.comment.send']],
-  ['src/client/views/SettingsPage.ts', '设置页 star/issue/版本号/插件行', ['settings.version', 'settings.star', 'settings.issue', 'settings.plugin.']],
+  // base 包接入：底部「作者其他插件」四行静态链接改由 base 包渲染（SettingsPage 里已无插件行），
+  //   本页只剩标题行三颗可点控件；联系入口与推荐卡的点击日志由 base 包自己带，不归这份清单。
+  ['src/client/views/SettingsPage.ts', '设置页 star/issue/版本号', ['settings.version', 'settings.star', 'settings.issue']],
   ['src/client/views/SettingsWorkspaces.ts', '工作区总览刷新与展开收起', ['settings.workspaces.toggle', 'settings.workspaces.refresh']],
   ['src/client/views/diagnosticLog/DiagnosticLogSection.ts', '调试开关与四颗日志按钮', ['settings.debug.toggle', 'settings.log.export', 'settings.log.open', 'settings.log.copy', 'settings.log.clear']],
   // 2026-10-21 补全：清单之外的可点控件也补齐了接线（用户要求「把所有遗漏的控件都补全了」），

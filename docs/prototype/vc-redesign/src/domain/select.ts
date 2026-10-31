@@ -8,7 +8,7 @@
  *
  * 可点性全部请求 src/shared/version-control/src/rules.ts 的 judge()，
  * 原型不复制规则；只有两条界面补充规则由这里承担：
- *   ① 推送：超前为 0 时按钮禁用（真实 rules.ts 允许推送，因为「点下去什么都不会发生」）；
+ *   ① 推送：领先为 0 时按钮禁用（真实 rules.ts 允许推送，因为「点下去什么都不会发生」）；
  *   ② 提交：说明为空时禁用（真实写路径的校验在宿主，界面提前告知）。
  */
 import { judge } from '../data/core'
@@ -29,6 +29,8 @@ export interface TabModel {
   label: string
   count: number
   unit: string
+  /** 这个页签装的是什么，用平实的一句话写。只给需要解释的页签填，悬停时接在「储藏：0 条」后面。 */
+  explain?: string
 }
 
 export interface SyncChipModel {
@@ -57,6 +59,8 @@ export interface RailModel {
   sync: SyncModel
   syncChips: SyncChipModel[]
   readAtText: string
+  /** 跟踪的远端名（例如 origin）；没有上游时为 null，标签退回「远端依据」。 */
+  remoteName: string | null
   basisText: string
   next: string
   nextTone: Tone
@@ -87,7 +91,7 @@ export interface FileRowModel {
   canUnstage: boolean
   /** 未跟踪文件：决定行上写不写「未跟踪」，也决定「加入 .gitignore」「删除这个文件」出不出来。 */
   untracked: boolean
-  /** 行尾「更多」按钮：未暂存与冲突行有，已暂存行只保留撤回。 */
+  /** 行尾「更多」按钮：未暂存与冲突行有，已暂存行只保留取消暂存。 */
   showMenu: boolean
   canDiscard: boolean
   canIgnore: boolean
@@ -137,7 +141,7 @@ export interface ChangesModel {
   canStageAll: boolean
   canUnstageAll: boolean
   canDiscardAll: boolean
-  /** 贮藏入口：工作区有改动、且没有冲突文件时才可用。 */
+  /** 储藏入口：工作区有改动、且没有冲突文件时才可用。 */
   canStash: boolean
   stashReason: string | null
   /** 哪一行的「更多」菜单开着：菜单紧贴这一行画。 */
@@ -212,7 +216,7 @@ export interface WorktreesModel {
   current: WorktreeRowModel | null
   others: WorktreeRowModel[]
   othersCount: number
-  /** 需要人工确认的工作树数量：筛选标签与摘要行都用它，不在视图层重新数一遍。 */
+  /** 需要人工确认的工作区数量：筛选标签与摘要行都用它，不在视图层重新数一遍。 */
   abnormalCount: number
   empty: boolean
   /** 面板边界说明：一句话说清「这里有什么、面板能做什么」，由视图放进可关闭的提示条里。 */
@@ -250,7 +254,7 @@ export interface BranchDetailModel {
   pending: BranchPending | null
 }
 
-/** 一条贮藏记录的展示形态：时间已翻成人话，文件路径原样给出，便于确认「这是不是我那条」。 */
+/** 一条储藏记录的展示形态：时间已翻成人话，文件路径原样给出，便于确认「这是不是我那条」。 */
 export interface StashRowModel {
   id: string
   message: string
@@ -259,7 +263,7 @@ export interface StashRowModel {
   filesCount: number
 }
 
-/** 贮藏视图：没有需要二次确认的动作，只有丢弃要问一句。 */
+/** 储藏视图：没有需要二次确认的动作，只有丢弃记录要问一句。 */
 export interface StashModel {
   rows: StashRowModel[]
   total: number
@@ -291,12 +295,19 @@ export interface PanelModel {
   branches: BranchesModel
   stash: StashModel
   result: SessionState['result']
-  confirm: { title: string; body: string; files: string[]; continueLabel: string; cancelLabel: string } | null
+  confirm: {
+    title: string
+    lead: string
+    points: ReadonlyArray<{ tone: 'ok' | 'warn'; label: string; text: string }>
+    files: string[]
+    continueLabel: string
+    cancelLabel: string
+  } | null
   busy: OpName | null
   nowMs: number
 }
 
-/** 首屏读数按状态机里的暂存区改写：judge() 只认 FirstScreen 的计数与身份字段。 */
+/** 首屏读数按状态机里「已暂存」的清单改写：judge() 只认 FirstScreen 的计数与身份字段。 */
 function judgeScreen(base: SessionBase, state: SessionState): FirstScreen {
   const screen = base.screen
   return {
@@ -345,14 +356,14 @@ function actionOf(
   }
 }
 
-/** 页签计数：改动按文件数、提交按条数、工作树按棵数、贮藏按条数，单位随数字一起画。 */
+/** 页签计数：改动按文件数、提交按条数、工作区按棵数、储藏按条数，单位随数字一起画。 */
 export function tabsOf(base: SessionBase, state: SessionState): TabModel[] {
   const changes = state.staged.length + state.unstaged.length + state.conflicts.length
   return [
     { id: 'changes', label: COPY.views.changes, count: changes, unit: COPY.units.change },
     { id: 'commits', label: COPY.views.commits, count: base.totalCommits, unit: COPY.units.commit },
     { id: 'worktrees', label: COPY.views.worktrees, count: base.screen.otherWorktrees.filter((item) => !item.current).length + (state.demoWorktrees ? DEMO_WORKTREE_COUNT : 0), unit: COPY.units.worktree },
-    { id: 'stash', label: COPY.views.stash, count: state.stashes.length, unit: COPY.units.stash },
+    { id: 'stash', label: COPY.views.stash, count: state.stashes.length, unit: COPY.units.stash, explain: '把暂时不想提交的改动打包储藏起来，之后能应用回工作区' },
   ]
 }
 
@@ -403,6 +414,8 @@ export function railOf(base: SessionBase, state: SessionState, nowMs: number): R
     sync,
     syncChips,
     readAtText: timeText(nowMs, state.readAtMs),
+    // 上游写的是 <远端>/<分支>；只取第一段做标签，读者看到的是「远端 origin 12 分钟前」。
+    remoteName: currentBranch === undefined || currentBranch.upstream === null ? null : currentBranch.upstream.split('/')[0],
     basisText: state.basisMs === null ? COPY.rail.basisUnknown : timeText(nowMs, state.basisMs),
     next: next.text,
     nextTone: next.tone,
@@ -555,7 +568,7 @@ export function changesOf(base: SessionBase, state: SessionState): ChangesModel 
   }
   const keepEmptyGroup = state.changesFilter !== 'all'
   // 全部分组时，空分组不再各占一整行：冲突分组没有文件就不画，未暂存分组没有文件也不画；
-  // 「已暂存」分组保留一行，因为它是「暂存区现在还空着」这个结论本身（往下就是提交区）。
+  // 「已暂存」分组保留一行，因为它是「这次提交还没有暂存文件」这个结论本身（往下就是提交区）。
   const visibleGroups = groups.filter((group) => {
     if (keepEmptyGroup) return true
     if (group.id === 'staged') return true
@@ -740,7 +753,7 @@ export function historyOf(base: SessionBase, state: SessionState, nowMs: number)
 const DEMO_WORKTREE_COUNT = 2
 
 /**
- * 演示用的两棵异常工作树：真实采集的 14 棵都正常，只有 ?demo=1 时才注入，
+ * 演示用的两棵异常工作区：真实采集的 14 棵都正常，只有 ?demo=1 时才注入，
  * 好让评审看到「被占用」「目录丢失」两种状态徽章与 AI 按钮的真实样子。
  */
 function demoWorktreesOf(repoRoot: string): WorktreeInfo[] {
@@ -781,7 +794,7 @@ function stateChipsOf(worktree: WorktreeInfo): { states: WorktreeRowModel['state
   if (worktree.prunable) states.push({ label: COPY.worktrees.prunable, tone: 'error', detail: null })
   else if (worktree.prunableUnknown) states.push({ label: COPY.worktrees.prunableUnknown, tone: 'warn', detail: '这个 git 版本答不出目录还在不在。' })
   if (worktree.lockUnknown) states.push({ label: COPY.worktrees.lockUnknown, tone: 'warn', detail: '这个 git 版本答不出锁定状态。' })
-  if (worktree.bare) states.push({ label: COPY.worktrees.bare, tone: 'info', detail: '裸仓库没有工作区。' })
+  if (worktree.bare) states.push({ label: COPY.worktrees.bare, tone: 'info', detail: '纯仓库没有工作区。' })
   if (worktree.branch === null && !worktree.bare) states.push({ label: COPY.worktrees.noBranch, tone: 'muted', detail: null })
   const abnormal = states.some((state) => state.tone === 'warn' || state.tone === 'error')
   return { states, abnormal }
@@ -807,7 +820,7 @@ function worktreeRowOf(state: SessionState, worktree: WorktreeInfo): WorktreeRow
 
 /**
  * 把面板里已经做过的动作叠加到原始清单上：
- * 解锁过的行不再显示占用，清理与移除过的行直接从清单消失。
+ * 解锁过的行不再显示占用，清除与移除过的行直接从清单消失。
  * 真实实现里这些变化来自重新读取 git；原型把它们记在状态里，视图不用各自判断。
  */
 function applyWorktreeActions(state: SessionState, item: WorktreeInfo): WorktreeInfo {
@@ -843,7 +856,7 @@ export function worktreesOf(base: SessionBase, state: SessionState): WorktreesMo
   const othersRaw = [...base.screen.otherWorktrees.filter((item) => !item.current), ...demo]
     .filter((item) => !state.hiddenWorktrees.includes(item.path))
     .map((item) => applyWorktreeActions(state, item))
-  // 需要人工处理的工作树排在最前，其余保持 git 记录顺序（sort 在 ES2019 起稳定）。
+  // 需要人工处理的工作区排在最前，其余保持 git 记录顺序（sort 在 ES2019 起稳定）。
   const others = othersRaw
     .map((item) => worktreeRowOf(state, item))
     .sort((a, b) => Number(b.abnormal) - Number(a.abnormal))
@@ -854,7 +867,7 @@ export function worktreesOf(base: SessionBase, state: SessionState): WorktreesMo
     othersCount: others.length,
     abnormalCount: abnormal,
     empty: others.length === 0,
-    notice: `${COPY.worktrees.scope}${COPY.worktrees.boundary}`,
+    notice: COPY.worktrees.scope,
     aiLabel: COPY.worktrees.ai,
     aiEnabled: abnormal > 0,
     pending: state.worktreePending,
@@ -918,8 +931,8 @@ export function branchesOf(base: SessionBase, state: SessionState, nowMs: number
 
 
 /**
- * 贮藏列表：每条记录只回答三个问题——这是哪一条、什么时候存的、里面有哪些文件。
- * 「应用会不会冲突」这类判断不在原型里模拟，所以只给一句枕边提醒，不假装能预判。
+ * 储藏列表：每条记录只回答三个问题——这是哪一条、什么时候存的、里面有哪些文件。
+ * 「应用回工作区会不会冲突」这类判断不在原型里模拟，所以只给一句枕边提醒，不假装能预判。
  */
 export function stashOf(state: SessionState, nowMs: number): StashModel {
   const rows: StashRowModel[] = state.stashes.map((entry) => ({
@@ -947,7 +960,8 @@ export function panelModelOf(base: SessionBase, state: SessionState, nowMs: numb
   const tabs = tabsOf(base, state)
   const confirm = state.confirmPull === null ? null : {
     title: COPY.rail.confirmTitle,
-    body: COPY.rail.confirmBody,
+    lead: COPY.rail.confirmLead,
+    points: COPY.rail.confirmPoints,
     files: state.confirmPull.files,
     continueLabel: COPY.rail.confirmContinue,
     cancelLabel: COPY.rail.confirmCancel,
