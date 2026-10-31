@@ -419,6 +419,9 @@ const EXEMPTS: ExemptRow[] = [
   // #1693：通知事件库的去重窗口由调用方注入（上游是已登记的 notificationEventDedupeMs），读钟函数是测试注钟口。
   { file: 'src/refresh/kernel/notification-events.ts', name: 'windowMs', reason: '透传变量，接的是 store 注入的去重窗口（上游是已登记的 notificationEventDedupeMs），不是新参数' },
   { file: 'src/refresh/rooms/host/notification-store.ts', name: 'nowMs', reason: '读钟函数（Date.now 的包法，测试可注入），不是可调参数' },
+  // #1694：详情投影标「上次数据」用的是快照合并组里最大的那个时刻，是算出来的时刻，调 YAML 改不了它。
+  { file: 'src/client/views/shared/detailProjection.ts', name: 'lastKnownAtMs', reason: '算出来的时刻（投影里取快照合并组最大的 atMs，界面格式化成 HH:mm），不是可调参数' },
+  { file: 'src/refresh/rooms/host/detail-snapshot-merge.ts', name: 'atMs', reason: '读钟时刻（nowOf() 取到的合并时刻，用于 generatedMs 与令牌起点），不是可调参数' },
   // —— 存量 JavaScript（覆盖率扫描从 .ts 扩到 .js 后新捞出来的）——
   // 分三类：测量值与时刻（调 YAML 改不了它）、状态字段与初值（0 表示“还没有”）、
   // 透传变量（值由调用方按已登记参数装进来）。

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T03:13:19.844Z",
+  "generatedAt": "2026-10-31T03:16:14.365Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 472,
   "gateCount": 472,
@@ -10301,6 +10301,7 @@
         "src/client/views/ListTabRow.ts",
         "src/client/views/labels/LabelColorDialog.ts",
         "src/client/views/primitives/Tip.ts",
+        "src/client/views/shared/detailProjection.ts",
         "src/client/views/shared/truthLines.ts",
         "src/client/views/shared/workRouteTable.ts",
         "src/client/views/skillDetail/PixelSkillDetailModal.ts",
@@ -10354,6 +10355,7 @@
         "src/refresh/rooms/host/chain-backoff.ts",
         "src/refresh/rooms/host/chain-coalescing.ts",
         "src/refresh/rooms/host/check-chain-evaluation.ts",
+        "src/refresh/rooms/host/detail-snapshot-merge.ts",
         "src/refresh/rooms/host/gh-execution.ts",
         "src/refresh/rooms/host/host-attention.ts",
         "src/refresh/rooms/host/issue-index-scan.ts",
@@ -10432,7 +10434,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 110 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 112 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
