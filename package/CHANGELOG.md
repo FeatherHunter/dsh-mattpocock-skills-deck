@@ -23,6 +23,7 @@
 - 应急手写命令建票前先确认目标仓库，绝不往上游仓库建（#1724）。
 - 中文译文里与新版英文原文对不上的译法：bug 核查的 confirmed/failed 改成「核实成立／核实不成立」，ADR 格式的 Considered Options／Consequences／monorepo 等按术语表统一，并补回旧译漏掉的命令、标签规则与流程段落（#1726–#1730）。
 - 技能详情页门禁随原文变化调整：v1.3.2 的 `implement` 正文把 `/tdd`、`/code-review` 改成引号写法，`tests/verify-skill-detail-stack.ts` 里「真实语料必须出现普通文字斜杠技能名」的判据前提消失，删掉那条 check，保留「出现一处核一处」与历史写法回归（#1731）。
+- 领域文档旧名门禁随原文变化调整：v1.3.2 的 `setup-matt-pocock-skills/SKILL.md` 主动点名旧名 `CONTEXT.md` / `CONTEXT-MAP.md`（提议用 `git mv` 改成 GLOSSARY 名），`tests/verify-1206-glossary-naming.ts` 里「技能树里一处旧名都不许有」的判据换成「旧名只许出现在带 legacy 记号的句子里」，旧名也不再算技能世界里的合法名字（#1731）。
 
 ## [1.9.0-beta.32] - 2026-10-30
 
