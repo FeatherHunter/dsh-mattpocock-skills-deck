@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T14:13:54.184Z",
+  "generatedAt": "2026-10-31T05:22:16.224Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 458,
-  "gateCount": 458,
-  "attributedGates": 409,
+  "chainLength": 459,
+  "gateCount": 459,
+  "attributedGates": 410,
   "unattributedGates": 49,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 26,
@@ -4832,6 +4832,21 @@
       ],
       "dirs": [
         "src/client/kernel"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1732-chain-menu-resize.ts",
+      "file": "tests/verify-1732-chain-menu-resize.ts",
+      "guards": [
+        "src/client/statusbar/StatusMenus.ts"
+      ],
+      "dirs": [
+        "src/client/statusbar"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -11291,6 +11306,7 @@
       "node tests/verify-1582-open-folder.ts",
       "node tests/verify-1612-deck-door.ts",
       "node tests/verify-1661-banner-singleline.ts",
+      "node tests/verify-1732-chain-menu-resize.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
