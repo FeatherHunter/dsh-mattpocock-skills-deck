@@ -25,7 +25,7 @@ disable-model-invocation: true
 - 仓库根目录的 `GLOSSARY.md` 和 `GLOSSARY-MAP.md`，以及旧的 `CONTEXT.md` / `CONTEXT-MAP.md`。如果存在旧文件，就提议用 `git mv` 把它改成对应的 `GLOSSARY` 文件名，并重写 `docs/agents/domain.md` 里引用旧名字的地方。
 - `docs/adr/` 以及任何 `src/*/docs/adr/` 目录
 - `docs/agents/`：这个技能上一次的产物是不是已经在这里了？
-- `.scratch/`：这是本地 Markdown 议题跟踪器约定已经在用的迹象
+- `.scratch/`：如果看到这个目录，说明这个仓库已经在用本地 Markdown 议题跟踪器这套约定
 - `triage` 技能装了吗？（这个技能旁边有一个 `triage` 技能文件夹，或者你的可用技能列表里有 `triage`。）这决定要不要跑 B 部分。
 - 多包仓库（monorepo）的信号：有 `pnpm-workspace.yaml`，`package.json` 里有 `workspaces` 字段，或者 `packages/*` 下有内容并且自带 `src/`。这些只在真正的大型多包仓库里才会出现；没有它们就意味着单上下文布局，而几乎所有仓库都是这样。
 
@@ -39,7 +39,7 @@ disable-model-invocation: true
 
 > 说明：「议题跟踪器」指的是这个仓库的议题放在哪里。`to-tickets`、`triage`、`to-spec` 这类技能会读写它。它们需要知道该调用 `gh issue create`、在 `.scratch/` 下写一个 Markdown 文件，还是走你描述的其他某种流程。请选你实际用来跟踪这个仓库工作的地方。
 
-默认立场：这些技能是为 GitHub 设计的。如果某个 `git remote` 指向 GitHub，就提议用它。如果某个 `git remote` 指向 GitLab（`gitlab.com` 或自建的主机），就提议 GitLab。否则（或者用户更愿意的话），就提供下面这些选项：
+默认立场：这些技能是为 GitHub 设计的。如果某个 `git remote` 指向 GitHub，就提议 GitHub。如果某个 `git remote` 指向 GitLab（`gitlab.com` 或自建的主机），就提议 GitLab。否则（或者用户更愿意的话），就提供下面这些选项：
 
 - **GitHub**：议题放在仓库的 GitHub Issues 里（用 `gh` CLI）
 - **GitLab**：议题放在仓库的 GitLab Issues 里（用 [`glab`](https://gitlab.com/gitlab-org/cli) CLI）
@@ -66,7 +66,7 @@ GitHub 或 GitLab 跟踪器都需要一个能访问到的仓库。用户选了�
 
 给用户看一份草稿：
 
-- 要加进 `CLAUDE.md` / `AGENTS.md` 里、正在被编辑的那个文件中的 `## Agent skills` 区块（选择规则见第 4 步）
+- 要加进正在编辑的那个文件（`CLAUDE.md` 或 `AGENTS.md`）里的 `## Agent skills` 区块（选择规则见第 4 步）
 - `docs/agents/issue-tracker.md`、`docs/agents/domain.md` 和 `docs/agents/triage-labels.md` 的内容（最后一个只在装了 `triage` 时才有）
 
 让他们先改，再落笔。
