@@ -114,6 +114,9 @@ const KEYS: Array<[string, string, string]> = [
   // #1742 改动页：预检只读命令与写命令各自的单条超时。
   ['vcChangesReadTimeoutMs', 'VC_CHANGES_READ_TIMEOUT_MS', 'timeouts'],
   ['vcChangesWriteTimeoutMs', 'VC_CHANGES_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1746 分支与标签域：预检只读与凭票执行各一档，都是本地动作。
+  ['vcBranchReadTimeoutMs', 'VC_BRANCH_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcBranchWriteTimeoutMs', 'VC_BRANCH_WRITE_TIMEOUT_MS', 'timeouts'],
   ['gitCredentialCallBudgetMs', 'GIT_CREDENTIAL_CALL_BUDGET_MS', 'timeouts'],
   ['gitCredentialMinBudgetMs', 'GIT_CREDENTIAL_MIN_BUDGET_MS', 'timeouts'],
   ['gitCredentialMaxBudgetMs', 'GIT_CREDENTIAL_MAX_BUDGET_MS', 'timeouts'],

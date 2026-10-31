@@ -53,7 +53,7 @@ import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/ti
 import { prepareStdinFile, createTaskPhones } from './versionControlTask.js'
 // #1742：改动页两条电话（预检发票、凭票写）的懒加载与日志包装住同层叶子 versionControlChangesMount.ts，
 // 本文件只把上面已经造好的宿主闭包递进去——父文件贴着 350 有效行上限，装配壳不在这里再摊开一份。
-import { createChangesMount } from './versionControlChangesMount.js'
+import { createChangesMount } from './versionControlChangesMount.js'; import { createBranchMount } from './versionControlBranchMount.js' // #1746 同上：分支域三条电话的装配壳也住同层叶子（并与上一行并成一条物理行，父文件贴着 350 行上限）
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -470,7 +470,8 @@ export function createVersionControl(deps: any): any {
   // 预检（发票）与执行（凭票写）的装配住 ./versionControlChanges.js：那一片只做「同一个首屏读数、
   // 同一条进程出口、同一套 loggedPhone 日志口径」的拼接，改动页自己的票据表与 requestId 结果表留在它自己的闭包里。
   // 本文件只把上面已经造好的闭包交给 ./versionControlChangesMount.ts，懒加载、失败兜底与日志包装都在那一片。
-  const changes: any = createChangesMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable, runGit: runGit, fixedPrefix: fixedPrefix, pathExists: pathExists, readScreenOf: readScreenOf, loggedPhone: loggedPhone, DEFAULT_CWD: DEFAULT_CWD, STDOUT_LIMIT: STDOUT_LIMIT, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now })
+  // 两条装配并成一条物理行：父文件贴着 350 有效行上限，拆成两行就会超。
+  const changes: any = createChangesMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable, runGit: runGit, fixedPrefix: fixedPrefix, pathExists: pathExists, readScreenOf: readScreenOf, loggedPhone: loggedPhone, DEFAULT_CWD: DEFAULT_CWD, STDOUT_LIMIT: STDOUT_LIMIT, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now }); const branches: any = createBranchMount({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, readScreenOf: readScreenOf, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now })
 
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
@@ -478,8 +479,8 @@ export function createVersionControl(deps: any): any {
     handleGitLog: loggedPhone('wf.gitLog', 'git-log', handleGitLog),
     // 首屏七片一次聚合（#1739 T04）：一次调用拿全，各片成败在回包里各自说。
     handleGitFirstScreen: loggedPhone('wf.gitFirstScreen', 'git-first-screen', handleGitFirstScreen),
-    // 分支与标签域（#1746 T11）：读一次取全（分支/标签/已并入/说明），写按 kind 分派。两条电话共用这一条物理行（两个值各自内联装配、模块导入由 Node 缓存），父文件贴着 350 行上限，拆行会超。
-    handleGitBranches: loggedPhone('wf.gitBranches', 'git-branches', async function (a: any): Promise<any> { const m: any = await import('./versionControlBranch.js'); return m.createBranchPhones({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, readScreenOf: readScreenOf }).handleGitBranches(a) }), handleGitBranchWrite: loggedPhone('wf.gitBranchWrite', 'git-branch-write', async function (a: any): Promise<any> { const m: any = await import('./versionControlBranch.js'); return m.createBranchPhones({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, readScreenOf: readScreenOf }).handleGitBranchWrite(a) }),
+    // 分支与标签域（#1746 T11）：读一次取全、预检签票、凭票执行三条电话共用一个装配壳（懒加载与日志包装在那片叶子）。
+    handleGitBranches: branches.read, handleGitBranchCheck: branches.check, handleGitBranchWrite: branches.write, branchTickets: branches.tickets,
     // 写电话（1 预检 + 6 执行）：第一次调用时才装配，装完缓存；键名与只读那三条同形。
     handleGitWriteCheck: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.check(a) },
     handleGitStage: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.stage(a) },

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T16:08:53.754Z",
+  "generatedAt": "2026-10-31T16:43:28.706Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 489,
   "gateCount": 489,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 53,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 685,
+  "graphFileCount": 689,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4190,7 +4190,11 @@
       "guards": [
         "src/client/views/versionControl/vcBranches.ts",
         "src/host/versionControlBranch.ts",
+        "src/host/versionControlBranchCheck.ts",
+        "src/host/versionControlBranchMount.ts",
+        "src/host/versionControlBranchWrite.ts",
         "src/shared/version-control/src/branch-decisions.ts",
+        "src/shared/version-control/src/branch-ticket.ts",
         "src/shared/version-control/src/parse-branch.ts"
       ],
       "dirs": [
@@ -4201,8 +4205,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 110,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+      "expectedAssertions": 138,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
     },
     {
       "step": "node tests/verify-1586-capability-ledger.ts",
@@ -13512,9 +13516,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 706,
+    "fileCount": 710,
     "dirCount": 84,
-    "coveredFileCount": 706,
+    "coveredFileCount": 710,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13847,6 +13851,9 @@
       "src/host/versionControl.ts",
       "src/host/versionControlBasis.ts",
       "src/host/versionControlBranch.ts",
+      "src/host/versionControlBranchCheck.ts",
+      "src/host/versionControlBranchMount.ts",
+      "src/host/versionControlBranchWrite.ts",
       "src/host/versionControlChanges.ts",
       "src/host/versionControlChangesCheck.ts",
       "src/host/versionControlChangesMount.ts",
@@ -14012,6 +14019,7 @@
       "src/shared/version-control/README.md",
       "src/shared/version-control/exec-envelope.ts",
       "src/shared/version-control/src/branch-decisions.ts",
+      "src/shared/version-control/src/branch-ticket.ts",
       "src/shared/version-control/src/capabilities.ts",
       "src/shared/version-control/src/capability-ledger.ts",
       "src/shared/version-control/src/changes-protocol.ts",

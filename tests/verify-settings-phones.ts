@@ -235,7 +235,8 @@ async function main() {
     // #1740 加了一族长任务电话 wf.gitTaskStart / wf.gitTaskQuery / wf.gitTaskCancel（开始、查询、取消），62 → 65。
     // #1742 加了改动页两条电话 wf.gitChangesCheck / wf.gitChangesWrite（预检与执行），65 → 67。
     // #1739 的首屏电话 wf.gitFirstScreen 当年只实现、没在入口注册，#1746 收口时补注册（漏接线的缺陷，同时补了门禁断言），67 → 68。
-    check(nPhones === 68, '宿主电话六十八条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1746（T11 返工）加了分支与标签域三条电话 wf.gitBranches / wf.gitBranchCheck / wf.gitBranchWrite（读一次取全、预检签 120 秒票、凭票执行），68 → 71。
+    check(nPhones === 71, '宿主电话七十一条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——

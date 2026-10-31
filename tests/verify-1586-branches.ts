@@ -1,13 +1,20 @@
-// tests/verify-1586-branches.ts —— 分支与标签域门禁（规格 #1586 域 4 / 票 #1746 的 T11）
+// tests/verify-1586-branches.ts —— 分支与标签域门禁（规格 #1586 域 4 / 票 #1746 的 T11，返工后）
 // 门禁归属: src/shared/version-control/src/branch-decisions.ts
+// 门禁归属: src/shared/version-control/src/branch-ticket.ts
 // 门禁归属: src/shared/version-control/src/parse-branch.ts
 // 门禁归属: src/host/versionControlBranch.ts
+// 门禁归属: src/host/versionControlBranchCheck.ts
+// 门禁归属: src/host/versionControlBranchWrite.ts
+// 门禁归属: src/host/versionControlBranchMount.ts
 // 门禁归属: src/client/views/versionControl/vcBranches.ts
 //
-// 守什么：域 4 十三条能力（4.1–4.13）在面板上各有一条唯一主入口，命令原文与共享层一致；写动作三段式
-// （dryRun 判定 → block 直接拒 / warn 要确认 → confirmed 才执行）；4.6 删除与 4.3 切换的未保存改动保护；
-// 4.13 分支说明只改本地配置（不推送）；4.12 验签退出码非零照实报「没验过」。
-// 四组断言：A 共享判定与取名规则、B 命令 argv、C 客户端数据层与业务面板、D 真宿主假路由 + 反证。
+// 守什么：域 4 十三条能力（4.1–4.13）在面板上各有一条唯一主入口，命令原文与共享层一致；写动作走
+// 三段式（预检 wf.gitBranchCheck 签 120 秒票 → block 直接拒 / warn 要确认 → 凭票执行 wf.gitBranchWrite）；
+// 4.6 删除与 4.3 切换的未保存改动保护；4.13 分支说明只改本地配置（不推送）；4.12 验签退出码非零照实报。
+// 返工后新增：票过期 / 换动作 / 目标变了三种零进程拒绝、同一 requestId 重放只执行一次，
+// 以及七处登记点（预检判定分支、执行 argv 分支、宿主注册、电话表、超时配置）逐项断言。
+// 五组断言：A 共享判定与取名规则、B 命令 argv、C 解析器、D 客户端数据层与业务面板、
+// E 真宿主假路由（预检→执行）、F 反证组、G 七登记点。
 //
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-1586-branches.ts
 const fs = require('fs')
@@ -22,6 +29,8 @@ const ROOT = path.resolve(__dirname, '..')
 const GATE = 'verify-1586-branches'
 const OID = 'a'.repeat(40)
 const OID2 = 'b'.repeat(40)
+const OID3 = 'c'.repeat(40)
+const T0 = 1790000000000
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const readJson = (rel) => JSON.parse(read(rel))
 const sharedUrl = (f) => pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'src', f)).href
@@ -30,7 +39,13 @@ let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 const CLIENT_FILES = ['src/shared/version-control/src/branch-decisions.ts', 'src/client/views/versionControl/vcBranches.ts']
-const CLIENT_EXPORTS = ['BRANCH_REASONS', 'BRANCH_REASON_IDS', 'BRANCH_OP_IDS', 'BRANCH_WRITE_KINDS', 'branchNameProblem', 'tagNameProblem', 'upstreamNameProblem', 'descriptionTextProblem', 'decideBranchSwitch', 'decideBranchDelete', 'decideBranchCreate', 'decideTagCreate', 'decideDescriptionWrite', 'branchReasonText', 'VC_BRANCHES_PHONE', 'VC_BRANCH_WRITE_PHONE', 'VC_BRANCH_OP_IDS', 'VC_BRANCH_ACTIONS', 'vcNewBranchRead', 'vcBranchShapeOk', 'vcReadBranches', 'vcBranchBoardOf', 'vcBranchStateOf', 'vcBranchWriteResultOf', 'vcBranchRequestOf', 'vcBranchDryRun', 'vcBranchWrite', 'vcBranchReplyKindOf', 'vcBranchReasonsOf', 'vcBranchConfirmOf', 'vcBranchResultOf', 'vcBranchBoardNode']
+const CLIENT_EXPORTS = ['BRANCH_REASONS', 'BRANCH_REASON_IDS', 'BRANCH_OP_IDS', 'BRANCH_WRITE_KINDS', 'branchNameProblem', 'tagNameProblem',
+  'upstreamNameProblem', 'descriptionTextProblem', 'decideBranchSwitch', 'decideBranchDelete', 'decideBranchCreate', 'decideTagCreate',
+  'decideDescriptionWrite', 'branchReasonText', 'VC_BRANCHES_PHONE', 'VC_BRANCH_CHECK_PHONE', 'VC_BRANCH_WRITE_PHONE', 'VC_BRANCH_BOARD_CONTRACT',
+  'VC_BRANCH_BOARD_VERSION', 'VC_BRANCH_CHECK_CONTRACT', 'VC_BRANCH_CHECK_VERSION', 'VC_BRANCH_OP_IDS', 'VC_BRANCH_WRITE_OPS', 'VC_BRANCH_ACTIONS',
+  'vcNewBranchRead', 'vcBranchShapeOk', 'vcBranchCheckShapeOk', 'vcReadBranches', 'vcBranchBoardOf', 'vcBranchStateOf', 'vcBranchCheckOf',
+  'vcBranchWriteResultOf', 'vcBranchTicketOf', 'vcBranchCheckDecisionOf', 'vcBranchRequestOf', 'vcBranchCheck', 'vcBranchWrite',
+  'vcBranchCheckKindOf', 'vcBranchReplyKindOf', 'vcBranchReasonsOf', 'vcBranchConfirmOf', 'vcBranchResultOf', 'vcBranchBoardNode', 'VC_BRANCHES_SOURCE']
 const stripExports = (s) => s.replace(/^(\s*)export\s+/gm, '$1')
 const toEvalJs = (code) => require('esbuild').transformSync(code, TRANSPILE_OPTIONS).code
 function buildClient(patch) {
@@ -69,19 +84,33 @@ const tZh = function (key) { return String(key) }
 
 // ---------- 快照与假电话 ----------
 const BOARD = {
-  contract: 'version-control.branch-board', version: 1, readAtMs: 1790000000000,
+  contract: 'version-control.branch-board', version: 1, readAtMs: T0,
   current: { name: 'main', oid: OID },
   branches: [
-    { name: 'main', oid: OID, current: true, upstream: 'origin/main', ahead: 2, behind: 1, commitDateMs: 1790000000000 },
+    { name: 'main', oid: OID, current: true, upstream: 'origin/main', ahead: 2, behind: 1, commitDateMs: T0 },
     { name: 'feature', oid: OID2, current: false, upstream: '', ahead: 0, behind: 0, commitDateMs: 1780000000000 },
   ],
   tags: [
-    { name: 'v1.0.0', oid: OID, objectType: 'commit', annotated: false, atMs: 1790000000000, subject: '首个版本' },
+    { name: 'v1.0.0', oid: OID, objectType: 'commit', annotated: false, atMs: T0, subject: '首个版本' },
     { name: 'v1.1.0', oid: OID2, objectType: 'tag', annotated: true, atMs: 1795000000000, subject: '第二版' },
   ],
   descriptions: { main: '主干；发布从这里切', feature: '' },
   merged: ['main'],
   notMerged: ['feature'],
+}
+const CHECK_OK = {
+  ok: true, contract: 'version-control.branch-check', version: 1, readAtMs: T0, op: 'delete',
+  decision: { verdict: 'warn', reasons: ['force-delete'] }, reasons: ['force-delete'], confirmRequired: true,
+  confirm: { kind: 'delete', target: 'feature', verb: '删除分支 feature（未并入，会丢提交）' },
+  ticket: { id: 't-1', op: 'delete', checkedAtMs: T0, expiresAtMs: T0 + 120000 },
+  scene: { current: 'main', dirty: true, conflicts: false, midOperation: false, targetOid: OID2, descriptionOld: null, upstreamOld: null, merged: false },
+}
+const CHECK_BLOCKED = {
+  ok: false, error: { kind: 'blocked', message: '不能删除当前分支（理由：cannot-delete-current）' },
+  contract: 'version-control.branch-check', version: 1, readAtMs: T0, op: 'delete', reason: 'cannot-delete-current',
+  decision: { verdict: 'block', reasons: ['cannot-delete-current'] }, reasons: ['cannot-delete-current'],
+  confirm: { kind: 'delete', target: 'main', verb: '删除分支 main' },
+  scene: { current: 'main', dirty: true, conflicts: false, midOperation: false, targetOid: OID, descriptionOld: null, upstreamOld: null, merged: true },
 }
 function fakeCall(reply) {
   const calls = []
@@ -92,19 +121,26 @@ function fakeCall(reply) {
 // ---------- 假 subprocess 适配器 ----------
 const LIVE = readJson('tests/fixtures/version-control/live-numstat-shapes.json')
 const LIVE_ROOT = /^worktree ([^\u0000\n]+)/.exec(LIVE.worktrees.out)[1]
-const REFS_OUT = [
-  ['refs/heads/main', 'main', OID, 'origin/main', '[ahead 2, behind 1]', '*', '2026-10-04T00:14:04+08:00'].join('\u0000'),
-  ['refs/heads/feature', 'feature', OID2, '', '', ' ', '2025-10-04T00:14:04+08:00'].join('\u0000'),
-].join('\n') + '\n'
 const TAGS_OUT = ['v1.0.0', OID, 'commit', '1790000000', '首个版本'].join('\u0000') + '\n' + ['v1.1.0', OID2, 'tag', '1795000000', '第二版'].join('\u0000') + '\n'
 const MERGED_OUT = '  main\n'
 const NOTMERGED_OUT = '  feature\n'
-const DESCRIPTIONS_OUT = 'branch.main.description\n主干；发布从这里切\u0000'
 function makeCollector(text, truncated) { return { finalize() { return { text: String(text), truncated: truncated === true } } } }
 function afterPrefix(argv) { const at = argv.indexOf('i18n.logOutputEncoding=UTF-8'); return at < 0 ? null : argv.slice(at + 1) }
+// 每次造路由给一份可变现场：目标分支 oid、分支说明、已验证与否都能在签票之后改，
+//   用来验证「执行前重算现场、变了就零进程拒绝」这一条。
 function makeRoute(opts) {
   const o = opts || {}
+  const state = { featureOid: OID2, featureDesc: '', mainDesc: '主干；发布从这里切' }
   const seen = []
+  function refsOut() {
+    return [
+      ['refs/heads/main', 'main', OID, 'origin/main', '[ahead 2, behind 1]', '*', '2026-10-04T00:14:04+08:00'].join('\u0000'),
+      ['refs/heads/feature', 'feature', state.featureOid, '', '', ' ', '2025-10-04T00:14:04+08:00'].join('\u0000'),
+    ].join('\n') + '\n'
+  }
+  function descriptionsOut() {
+    return 'branch.main.description\n' + state.mainDesc + '\u0000' + (state.featureDesc ? 'branch.feature.description\n' + state.featureDesc + '\u0000' : '')
+  }
   function route(argv) {
     seen.push(argv.slice())
     const a = afterPrefix(argv)
@@ -112,22 +148,28 @@ function makeRoute(opts) {
     if (argv.indexOf('--version') >= 0) return { code: 0, stdout: (o.version || LIVE.source.gitVersion) + '\n' }
     if (a[0] === 'rev-parse' && a.indexOf('--is-inside-work-tree') >= 0) return o.noRepo ? { code: 1, stdout: '', stderr: 'fatal: not a git repository\n' } : { code: LIVE.step0.code, stdout: LIVE.step0.out, stderr: LIVE.step0.err }
     if (a[0] === 'rev-parse' && a.indexOf('--show-toplevel') >= 0) return { code: 0, stdout: LIVE_ROOT + '\n' }
-    if (a[0] === 'rev-parse' && a.indexOf('--verify') >= 0) return o.fail && o.fail.rev ? { code: 1, stdout: '', stderr: 'fatal: bad revision\n' } : { code: 0, stdout: OID + '\n' }
-    if (a[0] === 'status') return o.fail && o.fail.status ? { code: 1, stdout: '', stderr: 'fatal: status 失败\n' } : { code: LIVE.status.code, stdout: o.status || LIVE.status.out, stderr: LIVE.status.err }
+    if (a[0] === 'rev-parse' && a.indexOf('--verify') >= 0) return o.fail && o.fail.rev ? { code: 1, stdout: '', stderr: 'fatal: bad revision\n' } : { code: 0, stdout: (o.revOid || OID) + '\n' }
+    if (a[0] === 'status') return o.fail && o.fail.status ? { code: 1, stdout: '', stderr: 'fatal: status 失败\n' } : { code: LIVE.status.code, stdout: LIVE.status.out, stderr: LIVE.status.err }
     if (a[0] === 'worktree') return { code: LIVE.worktrees.code, stdout: LIVE.worktrees.out, stderr: LIVE.worktrees.err }
     if (a[0] === 'for-each-ref') {
       if (a.indexOf('refs/tags/') >= 0) return o.fail && o.fail.tags ? { code: 1, stdout: '', stderr: 'fatal: tags 失败\n' } : { code: 0, stdout: TAGS_OUT }
-      return o.fail && o.fail.refs ? { code: 1, stdout: '', stderr: 'fatal: refs 失败\n' } : { code: 0, stdout: REFS_OUT }
+      return o.fail && o.fail.refs ? { code: 1, stdout: '', stderr: 'fatal: refs 失败\n' } : { code: 0, stdout: refsOut() }
     }
     if (a[0] === 'branch' && a[1] === '--merged') return { code: 0, stdout: MERGED_OUT }
     if (a[0] === 'branch' && a[1] === '--no-merged') return { code: 0, stdout: NOTMERGED_OUT }
     if (a[0] === 'config' && a.indexOf('--get-regexp') >= 0) {
       if (o.fail && o.fail.descriptions) return { code: 2, stdout: '', stderr: 'fatal: bad config\n' }
-      return { code: o.noDescriptions ? 1 : 0, stdout: o.noDescriptions ? '' : DESCRIPTIONS_OUT, stderr: '' }
+      return { code: o.noDescriptions ? 1 : 0, stdout: o.noDescriptions ? '' : descriptionsOut(), stderr: '' }
     }
-    if (a[0] === 'switch' || a[0] === 'checkout' || a[0] === 'branch' || a[0] === 'tag' || a[0] === 'config' || a[0] === 'verify-commit' || a[0] === 'verify-tag') {
+    if (a[0] === 'config' && a.indexOf('--get') >= 0) {
+      const key = String(a[a.length - 1] || '')
+      const values = o.configValues || {}
+      if (Object.prototype.hasOwnProperty.call(values, key)) return { code: 0, stdout: values[key] + '\n' }
+      return { code: 1, stdout: '', stderr: '' }
+    }
+    if (a[0] === 'verify-commit' || a[0] === 'verify-tag') return o.verified ? { code: 0, stdout: 'Good signature\n', stderr: '' } : { code: 1, stdout: '', stderr: 'error: no signature found\n' }
+    if (a[0] === 'switch' || a[0] === 'checkout' || a[0] === 'branch' || a[0] === 'tag' || a[0] === 'config') {
       if (o.fail && o.fail.write) return { code: 1, stdout: '', stderr: 'fatal: 写失败（假）\n' }
-      if (a[0] === 'verify-commit' || a[0] === 'verify-tag') return o.verified ? { code: 0, stdout: 'Good signature\n', stderr: '' } : { code: 1, stdout: '', stderr: 'error: no signature found\n' }
       return { code: 0, stdout: '', stderr: '' }
     }
     if (a[0] === 'log') return { code: LIVE.log.code, stdout: LIVE.log.out, stderr: LIVE.log.err }
@@ -136,9 +178,9 @@ function makeRoute(opts) {
     if (a[0] === 'reflog') return { code: 128, stdout: '', stderr: 'fatal: bad revision\n' }
     return { code: 0, stdout: '' }
   }
-  return { route: route, seen: seen }
+  return { route: route, seen: seen, state: state }
 }
-function makeHostDeps(route) {
+function makeHostDeps(route, clock) {
   const logs = []
   const deps = {
     subprocess: { spawn(req) { const hit = route(req.argv) || { code: 0, stdout: '' }; return { done: Promise.resolve({ exitCode: hit.code === undefined ? 0 : hit.code, signal: hit.signal }), collected: { stdout: makeCollector(hit.stdout || '', hit.truncated), stderr: makeCollector(hit.stderr || '', false) }, terminate() {} } } },
@@ -147,13 +189,30 @@ function makeHostDeps(route) {
     getPlatform: async function () { return { resolveExecutable: async function (name) { return name === 'git' ? 'git' : null } } },
     DEFAULT_CWD: 'D:/假工作区/repo', TIMEOUT_MS: 30000, gate: { noteOutbound() {} },
     logCtx: { fire(level, event, fields) { logs.push({ level: level, event: event, fields: fields }) } },
+    now: function () { return clock ? clock.t : T0 },
   }
   return { deps: deps, logs: logs }
 }
+// 写命令计数：只数真正改仓库的那几条（读分支名单用的是 branch --merged / --no-merged，不算写）。
+function writeCmds(seen) {
+  const out = []
+  for (let i = 0; i < seen.length; i += 1) {
+    const a = afterPrefix(seen[i])
+    if (!a) continue
+    if (a[0] === 'branch' && (a[1] === '--merged' || a[1] === '--no-merged' || a[1] === '-a')) continue
+    // config 的读法（--get / --get-regexp）也以 config 开头，但一个字节都不改仓库，不算写命令。
+    if (a[0] === 'config' && a.some(function (t) { return String(t).indexOf('--get') === 0 })) continue
+    if (a[0] === 'switch' || a[0] === 'checkout' || a[0] === 'branch' || a[0] === 'tag' || a[0] === 'config') out.push(a.join(' '))
+  }
+  return out
+}
+// 签一张票：先预检拿票，返回票与预检回包。
+function ticketOf(reply) { return reply && reply.ok === true && reply.ticket ? reply.ticket : null }
 
 async function main() {
-  console.log('分支与标签域门禁（#1746 T11：共享判定 + 命令 argv + 客户端面板 + 真宿主 + 反证）')
+  console.log('分支与标签域门禁（#1746 T11 返工：预检签票 + 凭票执行 + 共享判定 + 命令 argv + 客户端面板 + 真宿主 + 七登记点 + 反证）')
   const BD = await import(sharedUrl('branch-decisions.js'))
+  const BT = await import(sharedUrl('branch-ticket.js'))
   const PB = await import(sharedUrl('parse-branch.js'))
   const CM = await import(sharedUrl('commands.js'))
   const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.js')).href)
@@ -183,6 +242,11 @@ async function main() {
   check(BD.BRANCH_DECISIONS_SOURCE === 'src/shared/version-control/src/branch-decisions.ts', 'A21 判定文件报出自己的真源路径')
   const domain4 = ledger.CAPABILITIES.filter(function (cap) { return String(cap.id).indexOf('4.') === 0 })
   check(domain4.length === 13 && domain4.every(function (cap) { return BD.BRANCH_OP_IDS.indexOf(cap.id) >= 0 }), 'A22 能力账本域 4 恰好 13 条（实得 ' + domain4.length + ' 条）')
+  // A23–A25：票据口径（返工新增）
+  check(BT.BRANCH_TICKET_OPS.join(',') === 'create,switch,detach,rename,delete,upstream,tag-create,tag-delete,describe' && BT.BRANCH_TICKET_READ_OP === 'verify', 'A23 票据动作表九个写动作，验签是只读动作不在其中')
+  const planRes = BT.branchPlanOf('delete', { name: 'feature', force: true })
+  check(planRes.ok === true && planRes.plan.force === true && BT.branchPlanOf('delete', {}).plan.force === false, 'A24 计划规范化：force 一律布尔（同一件事只有一种写法）')
+  check(BT.branchPlanOf('nope', {}).ok === false && BT.branchPlanDigestInput({ b: 1, a: 2 }) === BT.branchPlanDigestInput({ a: 2, b: 1 }), 'A25 计划摘要输入与键顺序无关、未知动作拒签')
 
   // B 组：命令 argv（与共享层同一份真源）
   check(CM.branchCreateArgs('x', 'HEAD').join(' ') === 'switch -c x HEAD' && CM.branchCreateCheckoutArgs('x').join(' ') === 'checkout -b x', 'B1 4.2 新建并切换：switch -c（2.23 以下降级 checkout -b）')
@@ -210,141 +274,229 @@ async function main() {
   const names = PB.parseBranchNameList('  main\n* feature\n')
   check(names.ok === true && names.names.join(',') === 'main,feature', 'C4 已并入名单解析：去掉前导标记')
   check(PB.parseBranchNameList('a b\n').ok === false, 'C5 已并入名单带空白判失败')
-  const desc = PB.parseBranchDescriptions(DESCRIPTIONS_OUT)
+  const desc = PB.parseBranchDescriptions('branch.main.description\n主干；发布从这里切\u0000')
   check(desc.ok === true && desc.descriptions.main === '主干；发布从这里切', 'C6 分支说明解析：键值成对')
-  check(PB.parseBranchDescriptions('branch.main.description\0a\0not-a-desc\0').ok === false, 'C7 分支说明解析：非 description 键判失败')
+  check(PB.parseBranchDescriptions('branch.main.description\u0000a\u0000not-a-desc\u0000').ok === false, 'C7 分支说明解析：非 description 键判失败')
   check(PB.parseDescriptionText('一行\n').ok === true && PB.parseDescriptionText('一行\n').text === '一行', 'C8 说明文本只去一个行尾换行')
   check(PB.PARSE_BRANCH_SOURCE === 'src/shared/version-control/src/parse-branch.ts', 'C9 解析器文件报出自己的真源路径')
 
-  // D 组：客户端数据层与业务面板
+  // D 组：客户端数据层与业务面板（返工后的三段式协议）
   const built = buildClient(null)
   const V = built.v
-  check(V.VC_BRANCHES_PHONE === 'wf.gitBranches' && V.VC_BRANCH_WRITE_PHONE === 'wf.gitBranchWrite', 'D1 两条电话名与宿主注册一致')
-  check(V.vcNewBranchRead().state === 'idle' && V.vcNewBranchRead().data === null, 'D2 新读数是 idle')
-  check(V.vcBranchShapeOk(BOARD) === true, 'D3 形状判据：契约/版本/两个清单齐放行')
-  check(V.vcBranchShapeOk(Object.assign({}, BOARD, { version: 2 })) === false && V.vcBranchShapeOk(Object.assign({}, BOARD, { branches: null })) === false, 'D4 版本不对或分支清单缺失判红')
+  check(V.VC_BRANCHES_PHONE === 'wf.gitBranches' && V.VC_BRANCH_CHECK_PHONE === 'wf.gitBranchCheck' && V.VC_BRANCH_WRITE_PHONE === 'wf.gitBranchWrite', 'D1 三条电话名与宿主注册一致')
+  const idle = V.vcNewBranchRead()
+  check(idle.state === 'idle' && idle.data === null && idle.check === null && idle.write === null, 'D2 新读数：读/预检/执行三块都留空位')
+  check(V.VC_BRANCH_WRITE_OPS.length === 9 && V.VC_BRANCH_WRITE_OPS.indexOf('verify') < 0, 'D3 客户端写动作表九个、验签不在凭票执行里')
+  check(V.VC_BRANCH_ACTIONS.length === 10 && V.VC_BRANCH_ACTIONS[8].checkOnly === true, 'D4 面板十个动作、验签标成只读（走预检电话）')
+  check(V.vcBranchShapeOk(BOARD) === true, 'D5 形状判据：契约/版本/两个清单齐放行')
+  check(V.vcBranchShapeOk(Object.assign({}, BOARD, { version: 2 })) === false && V.vcBranchShapeOk(Object.assign({}, BOARD, { branches: null })) === false, 'D6 版本不对或分支清单缺失判红')
   const readReply = Object.assign({ ok: true }, BOARD)
   const readCall = fakeCall(readReply)
   const rRead = await V.vcReadBranches({}, readCall.call, 'D:/假工作区/repo')
-  check(readCall.calls.length === 1 && readCall.calls[0].phone === V.VC_BRANCHES_PHONE, 'D5 读面板：只发一次读电话')
-  check(V.vcBranchStateOf(rRead) === 'ok' && V.vcBranchBoardOf(rRead).branches.length === 2, 'D6 读成功：整份读数落成 ok')
+  check(readCall.calls.length === 1 && readCall.calls[0].phone === V.VC_BRANCHES_PHONE, 'D7 读面板：只发一次读电话')
+  check(V.vcBranchStateOf(rRead) === 'ok' && V.vcBranchBoardOf(rRead).branches.length === 2, 'D8 读成功：整份读数落成 ok')
   const failRead = await V.vcReadBranches(rRead, fakeCall({ ok: false, error: { kind: 'env', message: '找不到 git' } }).call, 'D:/假工作区/repo')
-  check(V.vcBranchStateOf(failRead) === 'err' && V.vcBranchBoardOf(failRead) !== null, 'D7 读失败保留旧数据（失败绝不清空）')
-  check(V.vcBranchRequestOf('4.6', { name: 'feature' }).kind === 'delete' && V.vcBranchRequestOf('4.13', { branch: 'main', text: 'x' }).kind === 'describe', 'D8 能力号到写动作 kind 的映射')
-  check(V.vcBranchRequestOf('4.1', {}) .kind === '', 'D9 只读能力号不发写请求（kind 为空）')
-  check(V.vcBranchRequestOf('4.6', { name: 'x', confirmed: false }).confirmed === false, 'D10 写请求原样带 confirmed 字段')
-  const dryCall = fakeCall({ ok: true, dryRun: true, decision: { verdict: 'allow', reasons: ['ok'] }, confirm: { kind: 'delete', target: 'feature', verb: '删除分支 feature' } })
-  await V.vcBranchDryRun({}, dryCall.call, 'D:/假工作区/repo', '4.6', { name: 'feature' })
-  check(dryCall.calls.length === 1 && dryCall.calls[0].phone === V.VC_BRANCH_WRITE_PHONE && dryCall.calls[0].args.dryRun === true, 'D11 预检：发写电话但带 dryRun，不执行')
-  check(V.vcBranchReplyKindOf({ ok: true, dryRun: true }) === 'dry-run' && V.vcBranchReplyKindOf({ ok: false, error: { kind: 'need-confirm' } }) === 'need-confirm' && V.vcBranchReplyKindOf({ ok: true, kind: 'delete' }) === 'done', 'D12 回包分类：预检 / 待确认 / 已完成')
-  check(V.vcBranchReplyKindOf({ ok: false, error: { kind: 'blocked' } }) === 'fail' && V.vcBranchReplyKindOf({ ok: false, error: { kind: 'git-failed' } }) === 'fail', 'D13 block 与 git 失败都按失败显示')
-  check(V.vcBranchReasonsOf({ ok: false, reasons: ['mid-operation'] }).join(',') === 'mid-operation' && V.vcBranchReasonsOf({ ok: false, decision: { reasons: ['unsaved-changes'] } }).join(',') === 'unsaved-changes', 'D14 理由标识符从回包原样带出（界面不造理由）')
-  check(V.vcBranchConfirmOf({ confirm: { verb: 'v', target: 't', kind: 'k' } }).verb === 'v' && V.vcBranchConfirmOf({}) === null, 'D15 确认卡素材：有就带、没有就不画')
-  check(V.vcBranchResultOf({ ok: true, command: 'branch -d feature' }).state === 'ok' && V.vcBranchResultOf({ ok: false, error: { kind: 'git-failed', git: 'fatal', step: '删除分支这一步', expected: 'e', actual: 'a', cause: 'c' } }).state === 'fail', 'D16 结果贴点：成功与失败两种读数')
+  check(V.vcBranchStateOf(failRead) === 'err' && V.vcBranchBoardOf(failRead) !== null, 'D9 读失败保留旧数据（失败绝不清空）')
+  check(V.vcBranchRequestOf('4.6', { name: 'feature' }).op === 'delete' && V.vcBranchRequestOf('4.13', { branch: 'main', text: 'x' }).op === 'describe', 'D10 能力号到写动作 kind 的映射')
+  check(V.vcBranchRequestOf('4.1', {}).op === '', 'D11 只读能力号不发写请求（kind 为空）')
+  const reqOf = V.vcBranchRequestOf('4.6', { name: 'feature', confirmed: true, ticketId: 't', requestId: 'r', dryRun: true })
+  check(reqOf.confirmed === undefined && reqOf.ticketId === undefined && reqOf.requestId === undefined && reqOf.dryRun === undefined, 'D12 预检请求只带动作参数：票号/requestId/confirmed/dryRun 都不混进来')
+  const checkCall = fakeCall(Object.assign({ ok: true }, CHECK_OK))
+  const rCheck = await V.vcBranchCheck({}, checkCall.call, 'D:/假工作区/repo', '4.6', { name: 'feature', force: true })
+  check(checkCall.calls.length === 1 && checkCall.calls[0].phone === V.VC_BRANCH_CHECK_PHONE && checkCall.calls[0].args.op === 'delete' && checkCall.calls[0].args.force === true, 'D13 预检：发一次预检电话并带上动作参数')
+  check(V.vcBranchCheckKindOf(Object.assign({ ok: true }, CHECK_OK)) === 'checked' && V.vcBranchCheckKindOf(CHECK_BLOCKED) === 'blocked' && V.vcBranchCheckKindOf({ ok: false, error: { kind: 'env' } }) === 'fail', 'D14 预检回包分类：拿到票 / 不能做 / 读不回现场')
+  const t = V.vcBranchTicketOf(rCheck)
+  check(!!t && t.id === 't-1' && t.op === 'delete' && t.expiresAtMs - t.checkedAtMs === 120000, 'D15 预检成功：手里有一张 120 秒的票（id/动作/到期时刻齐全）')
+  const decision = V.vcBranchCheckDecisionOf(rCheck)
+  check(!!decision && decision.verdict === 'warn' && decision.reasons.join(',') === 'force-delete', 'D16 预检判定与理由：warn + 固定理由标识符')
+  const rBlocked = await V.vcBranchCheck({}, fakeCall(CHECK_BLOCKED).call, 'D:/假工作区/repo', '4.6', { name: 'main' })
+  check(V.vcBranchCheckOf(rBlocked).state === 'err' && !!V.vcBranchCheckOf(rBlocked).data && V.vcBranchCheckDecisionOf(rBlocked).reasons[0] === 'cannot-delete-current', 'D17 block 回包也保留现场：界面能画「为什么不能点」')
+  check(V.vcBranchTicketOf({}) === null && V.vcBranchTicketOf(rBlocked) === null, 'D18 没签票时取票返回 null（不冒充有票）')
+  const writeCall = fakeCall({ ok: true, op: 'delete', kind: 'delete', command: 'branch -D feature', branch: 'feature' })
+  const rWrite = await V.vcBranchWrite({}, writeCall.call, 'D:/假工作区/repo', '4.6', { ticketId: 't-1', requestId: 'req-1', confirmed: true, name: 'feature' })
+  check(writeCall.calls.length === 1 && writeCall.calls[0].phone === V.VC_BRANCH_WRITE_PHONE && writeCall.calls[0].args.ticketId === 't-1' && writeCall.calls[0].args.requestId === 'req-1' && writeCall.calls[0].args.confirmed === true, 'D19 执行：凭票 + requestId + confirmed 发一次写电话')
+  check(V.vcBranchReplyKindOf(writeCall.calls[0] && { ok: true }) === 'done' && V.vcBranchReplyKindOf({ ok: false, error: { kind: 'need-confirm' }, reason: 'need-confirm' }) === 'need-confirm', 'D20 执行回包：完成与待确认两种')
+  check(V.vcBranchReplyKindOf({ ok: false, error: { kind: 'blocked' }, reason: 'ticket-expired' }) === 'stale' && V.vcBranchReplyKindOf({ ok: false, error: { kind: 'blocked' }, reason: 'target-changed' }) === 'stale' && V.vcBranchReplyKindOf({ ok: false, error: { kind: 'blocked' }, reason: 'ticket-op-mismatch' }) === 'stale', 'D21 票过期 / 目标变了 / 换动作都归「要重新预检」')
+  check(V.vcBranchReplyKindOf({ ok: false, error: { kind: 'git-failed' } }) === 'fail' && V.vcBranchReplyKindOf({ reused: true, ok: true, result: { ok: true } }) === 'done', 'D22 git 失败按失败显示、requestId 重放按原结论显示')
+  check(V.vcBranchReasonsOf({ ok: false, reasons: ['mid-operation'] }).join(',') === 'mid-operation' && V.vcBranchReasonsOf({ ok: false, decision: { reasons: ['unsaved-changes'] } }).join(',') === 'unsaved-changes', 'D23 理由标识符从回包原样带出（界面不造理由）')
+  check(V.vcBranchConfirmOf(CHECK_OK).verb.indexOf('删除分支') === 0 && V.vcBranchConfirmOf({}) === null, 'D24 确认卡素材：有就带、没有就不画')
+  const resultOk = V.vcBranchResultOf({ ok: true, command: 'branch -D feature' })
+  const resultFail = V.vcBranchResultOf({ ok: false, error: { kind: 'git-failed' }, git: 'fatal: 写失败', step: '删除分支这一步', expected: 'e', actual: 'a', cause: 'c' })
+  check(resultOk.state === 'ok' && resultOk.cmd === 'branch -D feature' && resultFail.state === 'fail' && resultFail.error === true && resultFail.git === 'fatal: 写失败' && resultFail.step === '删除分支这一步', 'D25 结果贴点：成功贴命令、失败贴 git 原话与环节（附加字段在顶层也认）')
   const tree = V.vcBranchBoardNode(fakeH, tZh, { board: BOARD })
   const ops = attrsOf(tree, 'data-vc-op')
   const uniq = Array.from(new Set(ops)).sort()
-  check(uniq.join(',') === '4.10,4.11,4.12,4.13,4.2,4.3,4.4,4.5,4.6,4.7', 'D17 面板十条写动作各有 data-vc-op（实得 ' + uniq.join(',') + '）')
-  check(attrsOf(tree, 'data-vc-branch-row').join(',') === 'main,feature', 'D18 面板逐分支画行')
-  check(attrsOf(tree, 'data-vc-tag-row').join(',') === 'v1.0.0,v1.1.0', 'D19 面板逐标签画行')
-  check(attrsOf(tree, 'data-vc-branch-merged') [0] === '1' && attrsOf(tree, 'data-vc-branch-notmerged')[0] === '1', 'D20 4.8 两张名单一起画')
-  check(tree.props['data-vc-branch-writes'] === '10' && tree.props['data-vc-branch-ops'] === '13', 'D21 面板声明十条写动作与十三条能力入口')
+  check(uniq.join(',') === '4.10,4.11,4.12,4.13,4.2,4.3,4.4,4.5,4.6,4.7', 'D26 面板十条写动作各有 data-vc-op（实得 ' + uniq.join(',') + '）')
+  check(attrsOf(tree, 'data-vc-branch-row').join(',') === 'main,feature' && attrsOf(tree, 'data-vc-tag-row').join(',') === 'v1.0.0,v1.1.0', 'D27 面板逐分支、逐标签画行')
+  check(attrsOf(tree, 'data-vc-branch-merged')[0] === '1' && attrsOf(tree, 'data-vc-branch-notmerged')[0] === '1', 'D28 4.8 两张名单一起画')
+  check(tree.props['data-vc-branch-ops'] === '13' && tree.props['data-vc-branch-writes'] === '9' && tree.props['data-vc-branch-checks'] === '1', 'D29 面板声明十三能力 / 九个凭票写动作 / 一条预检电话')
   const empty = V.vcBranchBoardNode(fakeH, tZh, { board: null })
-  check(attrsOf(empty, 'data-vc-branch2-empty').length === 1 && attrsOf(empty, 'data-vc-branch-row').length === 0, 'D22 没读数时画空态与重试，不画假分支')
+  check(attrsOf(empty, 'data-vc-branch2-empty').length === 1 && attrsOf(empty, 'data-vc-branch-row').length === 0, 'D30 没读数时画空态与重试，不画假分支')
   const logsBox = buildClient(null)
-  await logsBox.v.vcReadBranches({}, fakeCall(readReply).call, 'D:/假工作区/repo')
-  await logsBox.v.vcReadBranches({}, fakeCall({ ok: false, error: { kind: 'env', message: '坏了' } }).call, 'D:/假工作区/repo')
+  await logsBox.v.vcBranchCheck({}, fakeCall(Object.assign({ ok: true }, CHECK_OK)).call, 'D:/假工作区/repo', '4.6', { name: 'feature' })
+  await logsBox.v.vcBranchCheck({}, fakeCall(CHECK_BLOCKED).call, 'D:/假工作区/repo', '4.6', { name: 'main' })
   const evs = logsBox.logs.map(function (l) { return l.event })
-  check(evs.indexOf('host.call') >= 0 && evs.indexOf('host.call.fail') >= 0, 'D23 成功与失败落在既有日志事件上（host.call / host.call.fail）')
+  check(evs.indexOf('host.call') >= 0 && evs.indexOf('host.call.fail') >= 0, 'D31 预检成功与 block 都落在既有日志事件上（host.call / host.call.fail）')
   const okLog = logsBox.logs.filter(function (l) { return l.event === 'host.call' })[0]
-  check(!!okLog && !!okLog.fields && okLog.fields.kind === 'git-branches', 'D24 成功日志带 kind=git-branches')
+  check(!!okLog && !!okLog.fields && okLog.fields.kind === 'delete', 'D32 预检成功日志带 kind=动作名（git-branch-check 由宿主那层加）')
 
-  // E 组：真宿主假路由
+  // E 组：真宿主假路由（预检签票 → 凭票执行）
+  const clock = { t: T0 }
   const happy = makeRoute({})
-  const vc = hostMod.createVersionControl(makeHostDeps(happy.route).deps)
-  check(typeof vc.handleGitBranches === 'function' && typeof vc.handleGitBranchWrite === 'function', 'E1 宿主把读/写两条电话露出来了')
+  const hostDeps = makeHostDeps(happy.route, clock)
+  const vc = hostMod.createVersionControl(hostDeps.deps)
+  check(typeof vc.handleGitBranches === 'function' && typeof vc.handleGitBranchCheck === 'function' && typeof vc.handleGitBranchWrite === 'function', 'E1 宿主把读 / 预检 / 执行三条电话露出来了')
   const board = await vc.handleGitBranches({ cwd: 'D:/假工作区/repo' })
   check(board.ok === true && board.contract === 'version-control.branch-board' && board.version === 1, 'E2 读回包带契约名与版本号')
   check(Array.isArray(board.branches) && board.branches.length === 2 && board.branches[0].name === 'main' && board.branches[0].current === true, 'E3 分支列表读到 main 并标当前分支')
-  check(Array.isArray(board.branches) && board.branches.length === 2 && board.branches[1].name === 'feature' && board.branches[1].current === false, 'E4 非当前分支照常列出')
-  check(Array.isArray(board.tags) && board.tags.length === 2 && board.tags[1].annotated === true, 'E5 标签列表读到两个标签并认出附注标签')
-  check(Array.isArray(board.merged) && board.merged.join(',') === 'main' && Array.isArray(board.notMerged) && board.notMerged.join(',') === 'feature', 'E6 4.8 已并入 / 没并入两张名单')
-  check(!!board.descriptions && board.descriptions.main === '主干；发布从这里切' && board.descriptions.feature === undefined, 'E7 4.13 分支说明一次读回')
-  check(board.current && board.current.name === 'main', 'E8 当前分支单独给出')
-  const createDry = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'create', name: 'feature2', from: 'HEAD', dryRun: true })
-  check(createDry.ok === true && createDry.dryRun === true && createDry.decision.verdict === 'allow', 'E9 4.2 预检放行：只回判定，不执行')
-  check(createDry.confirm && createDry.confirm.target === 'feature2', 'E10 预检给确认卡素材')
-  check(happy.seen.filter(function (argv) { return argv.indexOf('switch') >= 0 || argv.indexOf('checkout') >= 0 }).length === 0, 'E11 预检那一趟没有真执行写命令')
-  const createBlocked = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'create', name: 'main', dryRun: true })
-  check(createBlocked.ok === false && createBlocked.error.kind === 'blocked' && !!createBlocked.decision && createBlocked.decision.reasons[0] === 'branch-exists', 'E12 4.2 同名分支：block 并带固定理由')
-  const createCheckout = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'switch', name: 'feature' })
-  check(createCheckout.ok === false && createCheckout.error.kind === 'need-confirm', 'E13 4.3 有未提交改动：warn 回 need-confirm，等确认卡')
-  const afterConfirm = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'switch', name: 'feature', confirmed: true })
-  check(afterConfirm.ok === true && afterConfirm.kind === 'switch', 'E14 4.3 确认后才执行切换')
-  const switchArgv = happy.seen.filter(function (argv) { return argv.indexOf('switch') >= 0 })[0]
-  check(!!switchArgv && switchArgv.indexOf('feature') > 0, 'E15 4.3 真执行时用 switch feature（固定前缀包着）')
-  const delCurrent = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'delete', name: 'main', dryRun: true })
-  check(delCurrent.ok === false && !!delCurrent.decision && delCurrent.decision.reasons[0] === 'cannot-delete-current', 'E16 4.6 当前分支不能删')
-  const delNotMerged = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'delete', name: 'feature', dryRun: true })
-  check(delNotMerged.ok === false && !!delNotMerged.decision && delNotMerged.decision.reasons[0] === 'branch-not-merged', 'E17 4.6 没并入的分支默认不能删')
-  const delForce = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'delete', name: 'feature', force: true, dryRun: true })
-  check(delForce.ok === true && delForce.decision.verdict === 'warn' && delForce.decision.reasons[0] === 'force-delete', 'E18 4.6 强制删除先提醒再确认')
-  const delRun = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'delete', name: 'feature', force: true, confirmed: true })
-  check(delRun.ok === true && String(delRun.command || '').indexOf('branch -D') === 0, 'E19 4.6 确认后真用 -D 删')
-  const tagBlocked = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'tag-create', name: 'v1.0.0', mode: 'light', dryRun: true })
-  check(tagBlocked.ok === false && !!tagBlocked.decision && tagBlocked.decision.reasons[0] === 'tag-exists', 'E20 4.10 同名标签不能建')
-  const tagAnnotated = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'tag-create', name: 'v2.0.0', mode: 'annotated', message: '', dryRun: true })
-  check(tagAnnotated.ok === false && !!tagAnnotated.decision && tagAnnotated.decision.reasons[0] === 'missing-tag-message', 'E21 4.10 附注标签缺说明不能建')
-  const tagSignedDry = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'tag-create', name: 'v2.0.0', mode: 'signed', message: '说明', dryRun: true })
-  check(tagSignedDry.ok === true && tagSignedDry.decision.reasons[0] === 'signing-needs-key', 'E22 4.10 签名标签提醒密钥依赖')
-  const describe = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'describe', branch: 'feature', text: '新说明', confirmed: true })
-  check(describe.ok === true && describe.description === '新说明', 'E23 4.13 写分支说明成功（只改本地配置）')
-  const describeArgv = happy.seen.filter(function (argv) { return argv.indexOf('branch.feature.description') >= 0 })[0]
-  check(!!describeArgv && describeArgv.indexOf('--edit') < 0, 'E24 4.13 写说明不调用 --edit（GIT_EDITOR 已设必失败命令）')
-  const verifyBad = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'verify', objectKind: 'tag', object: 'v1.0.0' })
-  check(verifyBad.ok === true && verifyBad.verified === false && verifyBad.exitCode === 1, 'E25 4.12 没签名照实说没验过（不冒充成功）')
-  check(typeof verifyBad.gitSays === 'string' && verifyBad.gitSays.indexOf('no signature') >= 0, 'E26 4.12 验签回带 git 原话')
-  const verifiedRoute = makeRoute({ verified: true })
-  const verified = await hostMod.createVersionControl(makeHostDeps(verifiedRoute.route).deps).handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'verify', objectKind: 'commit', object: OID })
-  check(verified.ok === true && verified.verified === true, 'E27 4.12 真验过才说 verified:true')
-  const upstreamDry = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'upstream', branch: 'feature', upstream: 'origin/feature', dryRun: true })
-  check(upstreamDry.ok === true && upstreamDry.dryRun === true, 'E28 4.7 设置上游预检放行')
-  const badUpstream = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'upstream', branch: 'feature', upstream: 'feature', dryRun: true })
-  check(badUpstream.ok === false && ((!!badUpstream.decision && badUpstream.decision.reasons[0] === 'bad-upstream') || badUpstream.error.message.indexOf('上游') >= 0), 'E29 4.7 上游写法不合法当场拒')
-  const failWriteRoute = makeRoute({ fail: { write: true } })
-  const failedWrite = await hostMod.createVersionControl(makeHostDeps(failWriteRoute.route).deps).handleGitBranchWrite({ cwd: 'D:/假工作区/repo', kind: 'tag-delete', name: 'v1.0.0', confirmed: true })
-  check(failedWrite.ok === false && failedWrite.error.kind === 'git-failed' && String(failedWrite.git || '').indexOf('写失败') >= 0, 'E30 写失败回带 git 原话（不冒充完成）')
+  check(Array.isArray(board.tags) && board.tags.length === 2 && board.tags[1].annotated === true, 'E4 标签列表读到两个标签并认出附注标签')
+  check(board.merged.join(',') === 'main' && board.notMerged.join(',') === 'feature', 'E5 4.8 已并入 / 没并入两张名单')
+  check(!!board.descriptions && board.descriptions.main === '主干；发布从这里切', 'E6 4.13 分支说明一次读回')
+  // 4.2 新建：预检签票（不执行）→ 凭票执行
+  const writesBefore = writeCmds(happy.seen).length
+  const createCheck = await vc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'create', name: 'feature2', from: 'HEAD' })
+  check(createCheck.ok === true && createCheck.contract === 'version-control.branch-check' && createCheck.version === 1 && createCheck.op === 'create', 'E7 4.2 预检回包带预检契约名/版本/动作')
+  check(!!ticketOf(createCheck) && createCheck.ticket.op === 'create' && createCheck.ticket.expiresAtMs - createCheck.ticket.checkedAtMs === 120000, 'E8 预检签的票有效 120 秒（票号/动作/到期时刻齐全）')
+  check(createCheck.decision.verdict === 'allow' && createCheck.confirmRequired === false, 'E9 4.2 预检放行且不必再确认')
+  check(writeCmds(happy.seen).length === writesBefore, 'E10 预检这一趟没有执行任何写命令（票签完还没动手）')
+  const createId = createCheck.ticket.id
+  const createNoConfirm = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: createId, requestId: 'req-create-1', op: 'create', name: 'feature2' })
+  check(createNoConfirm.ok === true && createNoConfirm.command.indexOf('switch -c') === 0 && writeCmds(happy.seen).length === writesBefore + 1, 'E11 凭票执行：一次写命令，命令原文 switch -c feature2')
+  const createReplay = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: createId, requestId: 'req-create-1', op: 'create', name: 'feature2' })
+  check(createReplay.reused === true && createReplay.ok === true && createReplay.result.command === createNoConfirm.command && writeCmds(happy.seen).length === writesBefore + 1, 'E12 同一 requestId 重放：回同一份结果，不再起进程')
+  // 4.3 切换：工作区有未提交改动 → warn 要确认；未确认拒绝（零进程）
+  const switchCheck = await vc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'switch', name: 'feature' })
+  check(switchCheck.ok === true && switchCheck.decision.verdict === 'warn' && switchCheck.decision.reasons[0] === 'unsaved-changes' && switchCheck.confirmRequired === true, 'E13 4.3 工作区有改动：预检给 warn 并要确认')
+  check(!!switchCheck.confirm && switchCheck.confirm.target === 'feature' && switchCheck.confirm.verb.indexOf('切换') >= 0, 'E14 4.3 警告给确认卡四段素材（动词/目标）')
+  const switchId = switchCheck.ticket.id
+  const afterConfirm = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: switchId, requestId: 'req-switch-1', op: 'switch', name: 'feature', confirmed: true })
+  check(afterConfirm.ok === true && afterConfirm.command === 'switch feature' && writeCmds(happy.seen).length === writesBefore + 2, 'E15 4.3 确认后凭票执行切换（switch feature）')
+  // 伪造票 / 过期票 / 换动作：三种零进程拒绝
+  const forgedSpawns = happy.seen.length
+  const forged = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: 'forged-ticket-1', requestId: 'req-forged', op: 'switch', name: 'feature', confirmed: true })
+  check(forged.ok === false && forged.error.kind === 'blocked' && forged.reason === 'ticket-missing' && happy.seen.length === forgedSpawns, 'E16 伪造票：ticket-missing 零进程拒绝（spawns 不动）')
+  const mismatched = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: createId, requestId: 'req-mismatch', op: 'switch', name: 'feature', confirmed: true })
+  check(mismatched.ok === false && mismatched.reason === 'ticket-op-mismatch' && happy.seen.length === forgedSpawns, 'E17 换动作的票：ticket-op-mismatch 零进程拒绝（spawns 不动）')
+  const staleClock = { t: T0 }
+  const timed = makeRoute({})
+  const timedDeps = makeHostDeps(timed.route, staleClock)
+  const timedVc = hostMod.createVersionControl(timedDeps.deps)
+  const timedCheck = await timedVc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'create', name: 'feature3' })
+  staleClock.t = T0 + 120001
+  const timedSpawns = timed.seen.length
+  const expired = await timedVc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: timedCheck.ticket.id, requestId: 'req-expired', op: 'create', name: 'feature3' })
+  check(expired.ok === false && expired.reason === 'ticket-expired' && timed.seen.length === timedSpawns, 'E18 过期票：ticket-expired 零进程拒绝（spawns 不动）')
+  // 目标变了：票签完后分支 oid 变了 → target-changed，且不执行写命令
+  const drift = makeRoute({})
+  const driftDeps = makeHostDeps(drift.route, { t: T0 })
+  const driftVc = hostMod.createVersionControl(driftDeps.deps)
+  const driftCheck = await driftVc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'switch', name: 'feature' })
+  drift.state.featureOid = OID3
+  const driftWrites = writeCmds(drift.seen).length
+  const drifted = await driftVc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: driftCheck.ticket.id, requestId: 'req-drift', op: 'switch', name: 'feature', confirmed: true })
+  check(drifted.ok === false && drifted.reason === 'target-changed' && writeCmds(drift.seen).length === driftWrites, 'E19 票签完后目标分支 oid 变了：target-changed 零写进程拒绝')
+  // 说明旧值变了：describe 票签完后旧说明被改 → target-changed
+  const descDrift = makeRoute({})
+  const descDriftVc = hostMod.createVersionControl(makeHostDeps(descDrift.route, { t: T0 }).deps)
+  const descCheck = await descDriftVc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'describe', branch: 'feature', text: '新说明' })
+  descDrift.state.featureDesc = '别人刚改的说明'
+  const descWrites = writeCmds(descDrift.seen).length
+  const descDrifted = await descDriftVc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: descCheck.ticket.id, requestId: 'req-desc-drift', op: 'describe', branch: 'feature', text: '新说明' })
+  check(descDrifted.ok === false && descDrifted.reason === 'target-changed' && writeCmds(descDrift.seen).length === descWrites, 'E20 票签完后分支说明旧值变了：target-changed 零写进程拒绝')
+  // 4.6 删除：没并入 + force → warn；确认后 branch -D
+  const delCheck = await vc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'delete', name: 'feature', force: true })
+  check(delCheck.ok === true && delCheck.decision.verdict === 'warn' && delCheck.decision.reasons[0] === 'force-delete' && delCheck.confirmRequired === true, 'E21 4.6 强制删未并入分支：warn force-delete 要确认')
+  const delCurrent = await vc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'delete', name: 'main', force: true })
+  check(delCurrent.ok === false && delCurrent.error.kind === 'blocked' && delCurrent.decision.reasons[0] === 'cannot-delete-current' && !!delCurrent.scene && V.vcBranchCheckShapeOk(delCurrent) === true, 'E22 4.6 当前分支不能删：block 带理由与现场，回包形状与成功回包同一套（界面读得到）')
+  const delRun = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: delCheck.ticket.id, requestId: 'req-del-1', op: 'delete', name: 'feature', force: true, confirmed: true })
+  check(delRun.ok === true && String(delRun.command).indexOf('branch -D') === 0, 'E23 4.6 确认后凭票真用 -D 删')
+  // 4.10 建标签 / 4.7 上游 / 4.13 说明 / 4.12 验签（验签走预检电话的只读分支，不签票）
+  const tagCheck = await vc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'tag-create', name: 'v2.0.0', mode: 'annotated', message: '说明' })
+  check(tagCheck.ok === true && tagCheck.decision.verdict === 'allow', 'E24 4.10 附注标签预检放行')
+  const tagRun = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: tagCheck.ticket.id, requestId: 'req-tag-1', op: 'tag-create', name: 'v2.0.0', mode: 'annotated', message: '说明' })
+  check(tagRun.ok === true && String(tagRun.command).indexOf('tag -a -m') === 0, 'E25 4.10 凭票建附注标签（tag -a -m）')
+  const upCheck = await vc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'upstream', branch: 'feature', upstream: 'origin/feature' })
+  check(upCheck.ok === true && upCheck.decision.verdict === 'allow', 'E26 4.7 设置上游预检放行')
+  const upRun = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: upCheck.ticket.id, requestId: 'req-up-1', op: 'upstream', branch: 'feature', upstream: 'origin/feature' })
+  check(upRun.ok === true && String(upRun.command).indexOf('branch -u origin/feature') === 0, 'E27 4.7 凭票设置上游（branch -u）')
+  const badUpstream = await vc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'upstream', branch: 'feature', upstream: 'feature' })
+  check(badUpstream.ok === false && badUpstream.reason === 'bad-upstream', 'E28 4.7 上游写法不合法当场拒（不签票）')
+  const descCheck2 = await vc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'describe', branch: 'feature', text: '新说明' })
+  const descRun = await vc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: descCheck2.ticket.id, requestId: 'req-desc-1', op: 'describe', branch: 'feature', text: '新说明' })
+  check(descRun.ok === true && String(descRun.command).indexOf('branch.feature.description') >= 0 && String(descRun.command).indexOf('--edit') < 0, 'E29 4.13 凭票写分支说明（config 直写，不 --edit）')
+  const verifyBad = await vc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'verify', objectKind: 'tag', object: 'v1.0.0' })
+  check(verifyBad.ok === true && verifyBad.verified === false && verifyBad.exitCode === 1 && String(verifyBad.gitSays).indexOf('no signature') >= 0, 'E30 4.12 没签名照实说没验过（不冒充成功）且带 git 原话')
+  check(!!verifyBad.ticket === false, 'E31 4.12 验签是只读动作：不签票、不进凭票执行')
+  const verified = await hostMod.createVersionControl(makeHostDeps(makeRoute({ verified: true }).route, { t: T0 }).deps).handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'verify', objectKind: 'commit', object: OID })
+  check(verified.ok === true && verified.verified === true, 'E32 4.12 真验过才说 verified:true')
+  // 写失败照实回原话；读失败整份失败
+  const failRoute = makeRoute({ fail: { write: true } })
+  const failVc = hostMod.createVersionControl(makeHostDeps(failRoute.route, { t: T0 }).deps)
+  const failCheck = await failVc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'tag-delete', name: 'v1.0.0' })
+  const failedWrite = await failVc.handleGitBranchWrite({ cwd: 'D:/假工作区/repo', ticketId: failCheck.ticket.id, requestId: 'req-fail-1', op: 'tag-delete', name: 'v1.0.0', confirmed: true })
+  check(failedWrite.ok === false && failedWrite.error.kind === 'git-failed' && String(failedWrite.git).indexOf('写失败') >= 0 && String(failedWrite.step).indexOf('删标签') >= 0, 'E33 写失败回带 git 原话与环节（不冒充完成）')
   const notRepo = makeRoute({ noRepo: true })
-  const notRepoBoard = await hostMod.createVersionControl(makeHostDeps(notRepo.route).deps).handleGitBranches({ cwd: 'D:/不在仓库里' })
-  check(notRepoBoard.ok === false && notRepoBoard.error.kind !== '', 'E31 不在仓库里：读面板如实失败')
+  const notRepoCheck = await hostMod.createVersionControl(makeHostDeps(notRepo.route, { t: T0 }).deps).handleGitBranchCheck({ cwd: 'D:/不在仓库里', op: 'create', name: 'x' })
+  check(notRepoCheck.ok === false && String(notRepoCheck.error.kind) !== '', 'E34 不在仓库里：预检如实失败（不给假票）')
   const tagFail = makeRoute({ fail: { tags: true } })
-  const tagFailBoard = await hostMod.createVersionControl(makeHostDeps(tagFail.route).deps).handleGitBranches({ cwd: 'D:/假工作区/repo' })
-  check(tagFailBoard.ok === false && !!tagFailBoard.error && String(tagFailBoard.error.kind) !== '', 'E32 标签这一路失败：整份读失败（不给半份面板）')
+  const tagFailBoard = await hostMod.createVersionControl(makeHostDeps(tagFail.route, { t: T0 }).deps).handleGitBranches({ cwd: 'D:/假工作区/repo' })
+  check(tagFailBoard.ok === false && !!tagFailBoard.error, 'E35 标签这一路失败：整份读失败（不给半份面板）')
   const descFail = makeRoute({ fail: { descriptions: true } })
-  const descFailBoard = await hostMod.createVersionControl(makeHostDeps(descFail.route).deps).handleGitBranches({ cwd: 'D:/假工作区/repo' })
-  check(descFailBoard.ok === false && !!descFailBoard.error && String(descFailBoard.error.message).indexOf('分支说明') >= 0, 'E33 分支说明这一路失败：整份读失败且说清是哪一步')
+  const descFailCheck = await hostMod.createVersionControl(makeHostDeps(descFail.route, { t: T0 }).deps).handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'switch', name: 'feature' })
+  check(descFailCheck.ok === false && String(descFailCheck.error.message).indexOf('分支说明') >= 0, 'E36 分支说明这一路失败：预检整份失败且说清是哪一步')
   const noDesc = makeRoute({ noDescriptions: true })
-  const noDescBoard = await hostMod.createVersionControl(makeHostDeps(noDesc.route).deps).handleGitBranches({ cwd: 'D:/假工作区/repo' })
-  check(noDescBoard.ok === true && Object.keys(noDescBoard.descriptions).length === 0, 'E34 一条说明都没配过（config 退出码 1）：不算失败')
-  const callLog = makeHostDeps(happy.route)
-  await hostMod.createVersionControl(callLog.deps).handleGitBranches({ cwd: 'D:/假工作区/repo' })
-  check(callLog.logs.filter(function (l) { return l.event === 'host.call' && l.fields && l.fields.kind === 'git-branches' }).length >= 1, 'E35 读这趟落在 host.call 日志上（kind=git-branches）')
+  const noDescBoard = await hostMod.createVersionControl(makeHostDeps(noDesc.route, { t: T0 }).deps).handleGitBranches({ cwd: 'D:/假工作区/repo' })
+  check(noDescBoard.ok === true && Object.keys(noDescBoard.descriptions).length === 0, 'E37 一条说明都没配过（config 退出码 1）：不算失败')
+  const logDeps = makeHostDeps(makeRoute({}).route, { t: T0 })
+  const logVc = hostMod.createVersionControl(logDeps.deps)
+  await logVc.handleGitBranches({ cwd: 'D:/假工作区/repo' })
+  await logVc.handleGitBranchCheck({ cwd: 'D:/假工作区/repo', op: 'switch', name: 'feature' })
+  const kinds = logDeps.logs.filter(function (l) { return l.event === 'host.call' && l.fields }).map(function (l) { return String(l.fields.kind) })
+  check(kinds.indexOf('git-branches') >= 0 && kinds.indexOf('git-branch-check') >= 0, 'E38 读与预检都落在 host.call 日志上（kind 区分两条电话）')
 
   // F 组：反证组（把被守的东西改坏，原判据必须当场判红）
-  const antiConfirm = buildClient(function (s) { return s.replace('req.confirmed = true', 'req.confirmed = false') })
-  check(antiConfirm.changed === true, 'F1 反证：改坏「确认后带 confirmed」那行——替换真的改到了原文')
+  const antiConfirm = buildClient(function (s) { return s.replace('if (f.confirmed === true) body.confirmed = true', 'if (false) body.confirmed = true') })
   const antiConfirmCall = fakeCall({ ok: true, kind: 'switch' })
-  await antiConfirm.v.vcBranchWrite({}, antiConfirmCall.call, 'D:/假工作区/repo', '4.3', { name: 'feature' })
-  check(antiConfirmCall.calls.length === 1 && antiConfirmCall.calls[0].args.confirmed === false, 'F2 反证：确认后不带 confirmed 时，E14 那条「确认后才执行」判据当场判红')
-  // 反证：把 4.6 的能力号从动作表里改掉，D17 那条「十条写动作各有 data-vc-op」必须当场看出少一条。
-  const antiOps = buildClient(function (s) { return s.replace("{ op: '4.6', kind: 'delete'", "{ op: '4.99', kind: 'delete'") })
-  check(antiOps.changed === true && Array.from(new Set(attrsOf(antiOps.v.vcBranchBoardNode(fakeH, tZh, { board: BOARD }), 'data-vc-op'))).sort().join(',') !== uniq.join(','), 'F5 反证：动作表里 4.6 被改成 4.99 后，D17 的十条写动作判据当场判红')
+  await antiConfirm.v.vcBranchWrite({}, antiConfirmCall.call, 'D:/假工作区/repo', '4.3', { ticketId: 't', requestId: 'r', confirmed: true, name: 'feature' })
+  check(antiConfirm.changed === true && antiConfirmCall.calls[0].args.confirmed === undefined, 'F1 反证：确认字段那一行被改坏后，执行请求不再带 confirmed——D19 那条判据当场判红')
   const antiShape = buildClient(function (s) { return s.replace('if (Number(board.version) !== VC_BRANCH_BOARD_VERSION) return false', 'if (false) return false') })
-  check(antiShape.changed === true && antiShape.v.vcBranchShapeOk(Object.assign({}, BOARD, { version: 9 })) === true, 'F3 反证：版本判据被改坏后，版本不对的回包被放行——D4 那条断言当场判红')
-  const antiBadge = buildClient(function (s) { return s.replace("if (b.current === true) badges.push", "if (false) badges.push") })
-  const antiTree = antiBadge.v.vcBranchBoardNode(fakeH, tZh, { board: BOARD })
-  const badgeNodes = walk(antiTree, []).filter(function (n) { return n && n.props && n.props.className === 'vcs-branch2-badge' })
-  check(antiBadge.changed === true && badgeNodes.length === 1, 'F4 反证：当前分支徽标那一行被改坏后，本应两枚的徽标只剩上游那枚（D18 起的分支行判据能看出来）')
+  check(antiShape.changed === true && antiShape.v.vcBranchShapeOk(Object.assign({}, BOARD, { version: 9 })) === true, 'F2 反证：版本判据被改坏后，版本不对的读回包被放行——D6 那条判据当场判红')
+  const antiStale = buildClient(function (s) { return s.replace("reason === 'target-changed'", "reason === 'target-changed-x'") })
+  check(antiStale.changed === true && antiStale.v.vcBranchReplyKindOf({ ok: false, error: { kind: 'blocked' }, reason: 'target-changed' }) !== 'stale', 'F3 反证：目标变了那条理由被改名后不再归「要重新预检」——D21 那条判据当场判红')
+  const falseWithTicket = Object.assign({}, rBlocked, { branch: Object.assign({}, rBlocked.branch, { check: { state: 'ok', data: Object.assign({}, CHECK_OK, { ok: false }), error: null } }) })
+  const antiTicket = buildClient(function (s) { return s.replace('if (!d || d.ok !== true', 'if (!d') })
+  check(antiTicket.changed === true && V.vcBranchTicketOf(falseWithTicket) === null && antiTicket.v.vcBranchTicketOf(falseWithTicket) !== null, 'F4 反证：票判据被改坏后，ok:false 的回包也被当成有票——D18 那条判据当场判红')
+
+  // G 组：七登记点（预检判定分支 / 执行 argv 分支 / 宿主注册 / 电话表 / 装配壳 / 超时配置 / 票据契约）
+  const checkSrc = sourceText('src/host/versionControlBranchCheck.ts')
+  const writeSrc = sourceText('src/host/versionControlBranchWrite.ts')
+  const mountSrc = sourceText('src/host/versionControlBranchMount.ts')
+  const readSrc = sourceText('src/host/versionControlBranch.ts')
+  const parentSrc = sourceText('src/host/versionControl.ts')
+  const indexSrc = sourceText('src/host/index.ts')
+  const clientSrc = sourceText('src/client/views/versionControl/vcBranches.ts')
+  check(BT.BRANCH_TICKET_OPS.every(function (op) { return checkSrc.indexOf("'" + op + "'") >= 0 }), 'G1 预检叶子认识全部九个写动作（票据动作表每个 op 都在源码里出现）')
+  const decideHits = ['decideBranchCreate', 'decideBranchSwitch', 'decideBranchDelete', 'decideTagCreate', 'decideDescriptionWrite', 'branchPlanOf', 'confirmOf'].every(function (n) { return checkSrc.indexOf(n) >= 0 })
+  check(decideHits, 'G2 预检判定走共享层五个判定函数 + 计划规范化 + 确认卡素材（没有第二套判定）')
+  const confirmBlock = checkSrc.slice(checkSrc.indexOf('function confirmOf'), checkSrc.indexOf('function sceneSummaryOf'))
+  check(['create', 'switch', 'detach', 'rename', 'delete', 'upstream', 'tag-create', 'tag-delete'].every(function (op) { return confirmBlock.indexOf("op === '" + op + "'") >= 0 }), 'G3 确认卡素材覆盖全部八个凭票写动作（describe 走默认分支）')
+  const argvBlock = writeSrc.slice(writeSrc.indexOf('function argvOf'), writeSrc.indexOf('function resultFields'))
+  check(['create', 'switch', 'detach', 'rename', 'delete', 'upstream', 'tag-create', 'tag-delete'].every(function (op) { return argvBlock.indexOf("op === '" + op + "'") >= 0 }) && argvBlock.indexOf('branchDescriptionSetArgs') >= 0 && argvBlock.indexOf('branchDescriptionUnsetArgs') >= 0, 'G4 执行叶子按九个动作各自的 argv 拼装（八个分支 + 说明走默认分支）')
+  check(['branchCreateArgs', 'branchSwitchArgs', 'branchDetachArgs', 'branchRenameArgs', 'branchDeleteArgs', 'setUpstreamArgs', 'tagCreateArgs', 'tagDeleteArgs', 'branchDescriptionSetArgs'].every(function (n) { return writeSrc.indexOf(n) >= 0 }), 'G5 执行叶子只从共享层 commands.ts 取 argv（九种动作一个不少）')
+  check(parentSrc.indexOf('createBranchMount') >= 0 && parentSrc.indexOf('handleGitBranchCheck') >= 0 && parentSrc.indexOf('handleGitBranchWrite') >= 0 && parentSrc.indexOf('handleGitBranches') >= 0, 'G6 宿主父文件登记了读/预检/执行三条电话（装配走 Mount 一层）')
+  check(indexSrc.indexOf("'wf.gitBranches'") >= 0 && indexSrc.indexOf("'wf.gitBranchCheck'") >= 0 && indexSrc.indexOf("'wf.gitBranchWrite'") >= 0, 'G7 宿主入口把三条电话注册成 wf.* 方法')
+  check(mountSrc.indexOf('createBranchCheck(host)') >= 0 && mountSrc.indexOf('tickets: check.tickets') >= 0 && mountSrc.indexOf('results: check.results') >= 0, 'G8 装配壳让预检与执行共用同一张票表与同一张 requestId 结果表')
+  check(['git-branches', 'git-branch-check', 'git-branch-write'].every(function (k) { return mountSrc.indexOf("'" + k + "'") >= 0 }), 'G9 三条电话都用宿主注入的 loggedPhone 包一层（日志口径与别的域一致）')
+  check(clientSrc.indexOf("'wf.gitBranches'") >= 0 && clientSrc.indexOf("'wf.gitBranchCheck'") >= 0 && clientSrc.indexOf("'wf.gitBranchWrite'") >= 0, 'G10 客户端电话表与宿主注册的三个方法名逐字一致')
+  const timeoutsYaml = read('config/timeouts.yaml')
+  const valuesTs = read('src/shared/time-config/src/values.ts')
+  check(timeoutsYaml.indexOf('vcBranchReadTimeoutMs') >= 0 && timeoutsYaml.indexOf('vcBranchWriteTimeoutMs') >= 0 && valuesTs.indexOf('VC_BRANCH_READ_TIMEOUT_MS') >= 0 && valuesTs.indexOf('VC_BRANCH_WRITE_TIMEOUT_MS') >= 0, 'G11 分支域读/写超时进了中央时间配置（YAML 真源与生成物都有）')
+  const ttlYaml = read('config/ttl.yaml')
+  const ticketSrc = sourceText('src/shared/version-control/src/write-ticket.ts')
+  check(ttlYaml.indexOf('ticketTtlMs: 120000') >= 0 && ticketSrc.indexOf('TICKET_TTL_MS') >= 0 && checkSrc.indexOf('makeTicket') >= 0, 'G12 票据 120 秒来自中央配置（预检签票用共享层 makeTicket，不自己写数字）')
+  check(BT.BRANCH_CHECK_CONTRACT === 'version-control.branch-check' && BT.BRANCH_CHECK_VERSION === 1 && readSrc.indexOf('BRANCH_BOARD_CONTRACT') >= 0, 'G13 预检契约名/版本只有共享层一份，读面板契约仍由只读叶子导出')
+  check(writeSrc.indexOf('ticketPureVerdict') >= 0 && writeSrc.indexOf('bindingsVerdict') >= 0 && writeSrc.indexOf('requestIdProblem') >= 0 && writeSrc.indexOf('results.has(requestId)') >= 0, 'G14 执行叶子凭票执行：票据过期判据、绑定表比对、requestId 去重都走共享层')
+  check(checkSrc.indexOf('runPinned') >= 0 && writeSrc.indexOf('runPinned') >= 0, 'G15 预检与执行都不自己起进程（一律走注入的 runPinned 出口）')
 
   console.log(failed ? '有失败 — 分支与标签域门禁未通过' : '全部通过 — 分支与标签域门禁生效（' + total + ' 项断言）')
   printGateResult(GATE, total, failed ? 1 : 0)

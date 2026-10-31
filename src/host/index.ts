@@ -277,9 +277,7 @@ export default {
     harness.handle('wf.gitTaskStart', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskStart(args) })
     harness.handle('wf.gitTaskQuery', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskQuery(args) })
     harness.handle('wf.gitTaskCancel', async function (args: WfArgs) { const h = await _vc(); return h.handleGitTaskCancel(args) }); harness.handle('wf.gitChangesCheck', async function (args: WfArgs) { const h = await _vc(); return h.handleGitChangesCheck(args) }); harness.handle('wf.gitChangesWrite', async function (args: WfArgs) { const h = await _vc(); return h.handleGitChangesWrite(args) }) // #1742 改动页两条电话（预检、执行）：装配在 ./versionControlChangesMount.js 那一叶里，这里只注册；与上一族写在同一物理行、用分号隔开，是因为宿主入口有四百行上限，单独立行会超。
-    // 分支与标签域（#1746 T11）两条电话：读一次取全 / 写按 kind 分派。装配都在 ./versionControl.js 里。
-    harness.handle('wf.gitBranches', async function (args: WfArgs) { const h = await _vc(); return h.handleGitBranches(args) }); harness.handle('wf.gitBranchWrite', async function (args: WfArgs) { const h = await _vc(); return h.handleGitBranchWrite(args) })
-
+    harness.handle('wf.gitBranches', async function (args: WfArgs) { const h = await _vc(); return h.handleGitBranches(args) }); harness.handle('wf.gitBranchCheck', async function (args: WfArgs) { const h = await _vc(); return h.handleGitBranchCheck(args) }); harness.handle('wf.gitBranchWrite', async function (args: WfArgs) { const h = await _vc(); return h.handleGitBranchWrite(args) }) // #1746 分支与标签域（T11 返工）三条电话：读一次取全 / 预检签票 / 凭票执行；写动作一律先预检拿票再执行，票 120 秒过期。与上一族写在同一物理行、用分号隔开，是因为宿主入口有四百行上限。
     harness.handle('wf.refresh', async function (args: WfArgs) { const h = await _sessRef(); return h.handleRefresh(args) })
 
     // #707（T3）视野模型：判定在 src/refresh/kernel/attention-model.ts 那份纯函数里；#723（T19）起用接线那一份同一个实例—— wf.focus 上报的「我在看谁」必须与写事件白名单、闸的活跃集合同源（票面 3c）。
