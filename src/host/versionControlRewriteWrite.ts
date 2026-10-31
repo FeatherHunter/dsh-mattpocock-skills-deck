@@ -18,7 +18,7 @@ import { backupPointOf, backupSummaryOf, backupRestoreStepsOf } from '../shared/
 import { VC_REWRITE_WRITE_TIMEOUT_MS } from '../shared/time-config/src/values.js'
 // 本域 tsconfig 有意不加载 Node 类型包（types 为空），运行时一定是 Node，这些内建模块必然存在。
 // @ts-expect-error
-import { writeFile, stat, unlink } from 'node:fs/promises'
+import { writeFile, stat, unlink, readdir } from 'node:fs/promises'
 // @ts-expect-error
 import { tmpdir } from 'node:os'
 
@@ -60,6 +60,20 @@ export function createRewriteWrite(deps: any): any {
   async function dropTemp(path: any): Promise<void> {
     if (!path) return
     try { await unlink(String(path)) } catch (e) { /* 临时文件删不掉就算了 */ }
+  }
+
+  /** 递归数一个目录的字节数：镜像备份的对象大小按 KiB 取整会得到 0，所以用实际文件大小兜底。 */
+  async function dirBytesOf(dir: string): Promise<number> {
+    let total: number = 0
+    let names: any[] = []
+    try { names = await readdir(dir, { recursive: true, withFileTypes: true }) } catch (e) { return 0 }
+    for (let i = 0; i < names.length; i += 1) {
+      const item: any = names[i]
+      const isFile: boolean = (typeof item.isFile === 'function') ? item.isFile() : item.isFile === true
+      if (!item || isFile !== true) continue
+      try { const st: any = await stat(String(item.parentPath || item.path || dir) + '/' + String(item.name)); total += Number(st.size) || 0 } catch (e) { /* 数不到的文件跳过，结论里还有 count-objects 兜底 */ }
+    }
+    return total
   }
 
   /** 备份镜像目录的实际字节数：与仓库大小口径一致（松散对象 + 打包对象，KiB 相加）。 */
@@ -108,7 +122,9 @@ export function createRewriteWrite(deps: any): any {
       try { const st: any = await stat(path); bytes = Number(st.size) || 0 } catch (e) { bytes = 0 }
     } else {
       const mb: any = await mirrorBytesOf(exe, path)
-      bytes = mb.ok ? Number(mb.bytes) || 0 : 0
+      // count-objects 的 size 是 KiB 取整，小仓库会给出 0；这时用实际文件大小兜底，别把备份说成 0 字节。
+      const walked: number = await dirBytesOf(path)
+      bytes = Math.max(mb.ok ? Number(mb.bytes) || 0 : 0, walked)
     }
     const point: any = backupPointOf({ kind: kind, path: path, bytes: bytes, elapsedMs: elapsedMs, atMs: now() })
     if (point.ok !== true) return { ok: false, out: wfail('blocked', 'backup-unreadable', '备份做完了但读不出它的大小，按约定不能拿半份信息继续：' + String(point.message || '')) }

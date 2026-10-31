@@ -147,7 +147,8 @@ export function createRewriteCheck(deps: any): any {
     const preview: any = await deps.scene.previewOf(full, plan)
     if (preview.ok !== true) return preview
     const backup: any = deps.scene.backupPlanOf(full.scene)
-    const confirm: any = confirmOf(plan, preview.preview, backup)
+    // previewOf 已经回的是预览本体（counts/command 都在这一层），不要再往里点一层。
+    const confirm: any = confirmOf(plan, preview, backup)
     const ticket: any = sign(plan, full, confirm, backup)
     return {
       ok: true,

@@ -115,8 +115,8 @@ async function main() {
   eq(ops.rewriteFormProblem('remove-large', ops.rewritePlanOf({ form: 'remove-large', threshold: '10M' })), null, 'A71 大文件表单合法')
   eq(ops.rewriteFormProblem('replace-text', ops.rewritePlanOf({ form: 'replace-text', replacements: [{ from: 'a', to: 'b' }] })), null, 'A72 替换表单合法')
 
-  const removePlan = ops.rewritePlanOf({ form: 'remove-paths', paths: ['a', 'b/c'] })
-  eq(ops.rewriteTaskTokensOf('remove-paths', removePlan).tokens.join(' '), '--invert-paths --path a --path b/c', 'A73 删路径的任务参数逐个独立')
+  const removePlanB = ops.rewritePlanOf({ form: 'remove-paths', paths: ['a', 'b/c'] })
+  eq(ops.rewriteTaskTokensOf('remove-paths', removePlanB).tokens.join(' '), '--invert-paths --path a --path b/c', 'A73 删路径的任务参数逐个独立')
   const renamePlan = ops.rewritePlanOf({ form: 'rename-paths', renames: [{ from: 'a', to: 'b' }, { from: 'c', to: 'd' }] })
   eq(ops.rewriteTaskTokensOf('rename-paths', renamePlan).tokens.join(' '), '--path-rename a:b --path-rename c:d', 'A74 重命名的任务参数带冒号')
   const authorPlan = ops.rewritePlanOf({ form: 'rewrite-authors', authors: [{ oldName: '旧', oldEmail: 'o@x.cn', name: '新', email: 'n@x.cn' }] })
@@ -127,7 +127,7 @@ async function main() {
   eq(ops.rewriteTaskTokensOf('remove-large', largePlan).tokens.join(' '), '--strip-blobs-bigger-than 10M', 'A78 大文件阈值的任务参数')
   const replacePlan = ops.rewritePlanOf({ form: 'replace-text', replacements: [{ from: 'a', to: 'b' }] })
   eq(ops.rewriteTaskTokensOf('replace-text', replacePlan, { replacePath: 'C:/tmp/r.txt' }).tokens.join(' '), '--replace-text C:/tmp/r.txt', 'A79 替换用临时说明文件')
-  has(ops.rewriteDisplayCommandOf('remove-paths', removePlan), 'git filter-repo --force', 'A80 界面上显示完整的 filter-repo 命令')
+  has(ops.rewriteDisplayCommandOf('remove-paths', removePlanB), 'git filter-repo --force', 'A80 界面上显示完整的 filter-repo 命令')
   has(ops.rewriteDisplayCommandOf('rewrite-authors', authorPlan), '面板生成', 'A81 临时文件位置用可读占位说明而不是编一个路径')
 
   const scene = { repoRoot: 'C:/repo', repoName: 'repo', freeBytes: 100000000000, repoSizeBytes: 1000000, nowMs: 1700000000000 }
@@ -137,12 +137,12 @@ async function main() {
   eq(ops.rewriteBackupPlanOf(scene).required, true, 'A85 备份是强制前置')
   eq(ops.rewriteBackupPlanOf(scene).estimateBytes, 1000000, 'A86 镜像备份的估算大小就是仓库大小')
 
-  eq(ops.rewriteGuardProblem({ filterRepoAvailable: false, shallow: false, dirty: false, operation: null, commitCount: 3 }, removePlan), 'tool-missing', 'A87 没装 filter-repo 时明确拒绝')
-  eq(ops.rewriteGuardProblem({ filterRepoAvailable: true, shallow: true, dirty: false, operation: null, commitCount: 3 }, removePlan), 'shallow-repo', 'A88 浅克隆仓库拒绝')
-  eq(ops.rewriteGuardProblem({ filterRepoAvailable: true, shallow: false, dirty: false, operation: 'merge', commitCount: 3 }, removePlan), 'operation-in-progress', 'A89 有进行中操作时拒绝')
-  eq(ops.rewriteGuardProblem({ filterRepoAvailable: true, shallow: false, dirty: true, operation: null, commitCount: 3 }, removePlan), 'dirty-worktree', 'A90 工作区不干净时拒绝')
-  eq(ops.rewriteGuardProblem({ filterRepoAvailable: true, shallow: false, dirty: false, operation: null, commitCount: 0 }, removePlan), 'nothing-to-do', 'A91 空仓库没有可重写的历史')
-  eq(ops.rewriteGuardProblem({ filterRepoAvailable: true, shallow: false, dirty: false, operation: null, commitCount: 3 }, removePlan), null, 'A92 现场干净时放行')
+  eq(ops.rewriteGuardProblem({ filterRepoAvailable: false, shallow: false, dirty: false, operation: null, commitCount: 3 }, removePlanB), 'tool-missing', 'A87 没装 filter-repo 时明确拒绝')
+  eq(ops.rewriteGuardProblem({ filterRepoAvailable: true, shallow: true, dirty: false, operation: null, commitCount: 3 }, removePlanB), 'shallow-repo', 'A88 浅克隆仓库拒绝')
+  eq(ops.rewriteGuardProblem({ filterRepoAvailable: true, shallow: false, dirty: false, operation: 'merge', commitCount: 3 }, removePlanB), 'operation-in-progress', 'A89 有进行中操作时拒绝')
+  eq(ops.rewriteGuardProblem({ filterRepoAvailable: true, shallow: false, dirty: true, operation: null, commitCount: 3 }, removePlanB), 'dirty-worktree', 'A90 工作区不干净时拒绝')
+  eq(ops.rewriteGuardProblem({ filterRepoAvailable: true, shallow: false, dirty: false, operation: null, commitCount: 0 }, removePlanB), 'nothing-to-do', 'A91 空仓库没有可重写的历史')
+  eq(ops.rewriteGuardProblem({ filterRepoAvailable: true, shallow: false, dirty: false, operation: null, commitCount: 3 }, removePlanB), null, 'A92 现场干净时放行')
   eq(ops.REWRITE_CHECK_CONTRACT, 'vc-rewrite-check', 'A93 契约名固定')
   eq(ops.REWRITE_CHECK_VERSION, 1, 'A94 契约版本从一算起')
   eq(ops.REWRITE_PHONES.preview + ',' + ops.REWRITE_PHONES.check + ',' + ops.REWRITE_PHONES.run, 'wf.gitRewritePreview,wf.gitRewriteCheck,wf.gitRewriteRun', 'A95 三条电话名固定')
@@ -165,6 +165,348 @@ async function main() {
   check(recSrc.indexOf('import ') < 0, 'A107 恢复点模块保持零 import')
 
   console.log('  A 组完成：' + total + ' 条')
+  // ---------- B 组：宿主三片的拒绝栈（全假依赖，断言零进程 / 零长任务） ----------
+  const env = await loadModule('src/shared/version-control/exec-envelope.js')
+  const sceneMod = await loadModule('src/host/versionControlRewriteScene.js')
+  const checkMod = await loadModule('src/host/versionControlRewriteCheck.js')
+  const writeMod = await loadModule('src/host/versionControlRewriteWrite.js')
+
+  function mkScreen(over) {
+    const base = { identity: { oid: 'a'.repeat(40) }, repo: { merging: false, rebasing: false, cherryPicking: false, reverting: false }, staged: [], unstaged: [], conflictCount: 0 }
+    return Object.assign(base, over || {})
+  }
+
+  function fakeRig(spec) {
+    const s = spec || {}
+    const state = { calls: [], taskStarts: [], nowMs: 1000, ordered: 0, toolMissing: s.toolMissing === true, backupFails: s.backupFails === true, screen: s.screen || mkScreen() }
+    const deps = {
+      runPinned: async function (exe, dir, args) {
+        state.calls.push(args.slice())
+        const a = args
+        if (a[0] === 'filter-repo') return state.toolMissing ? { kind: 'non-zero', exitCode: 1, stdout: '', stderr: "git: 'filter-repo' is not a git command" } : { kind: 'ok', exitCode: 0, stdout: 'git-filter-repo 2.38.0\n', stderr: '' }
+        if (a[0] === 'clone' && state.backupFails) return { kind: 'non-zero', exitCode: 128, stdout: '', stderr: 'fatal: could not create work tree dir' }
+        if (a[0] === 'bundle' && state.backupFails) return { kind: 'non-zero', exitCode: 128, stdout: '', stderr: 'fatal: could not create output file' }
+        if (a[0] === 'count-objects') return { kind: 'ok', stdout: 'count: 1\nsize: 100\nin-pack: 0\nsize-pack: 50\n', stderr: '' }
+        if (a[0] === 'rev-list' && a.indexOf('--all') >= 0 && a[a.length - 1] === '--all') return { kind: 'ok', stdout: String(s.commitCount === undefined ? 3 : s.commitCount) + '\n', stderr: '' }
+        if (a[0] === 'rev-list' && a.indexOf('--count') >= 0) return { kind: 'ok', stdout: String(s.pathCommits === undefined ? 2 : s.pathCommits) + '\n', stderr: '' }
+        if (a[0] === 'rev-parse' && a[1] === '--abbrev-ref') return { kind: 'ok', stdout: 'main\n', stderr: '' }
+        if (a[0] === 'rev-parse' && a[1] === '--is-shallow-repository') return { kind: 'ok', stdout: (s.shallow === true ? 'true' : 'false') + '\n', stderr: '' }
+        if (a[0] === 'ls-files') return { kind: 'ok', stdout: 'a.txt\u0000b.txt\u0000dir/c.txt\u0000', stderr: '' }
+        if (a[0] === 'log' && a.indexOf('--format=%H') >= 0) return { kind: 'ok', stdout: 'h1\nh2\n', stderr: '' }
+        if (a[0] === 'log') return { kind: 'ok', stdout: 'old@example.com\na@b.cn\nold@example.com\n', stderr: '' }
+        return { kind: 'ok', stdout: '', stderr: '' }
+      },
+      resolveGitExecutable: async function () { return 'git' },
+      resolveRepoRoot: async function () { return s.notRepo ? { ok: false, error: { message: 'not a repo' } } : { ok: true, root: 'C:/repo' } },
+      readScreenOf: async function () { return { ok: true, screen: state.screen } },
+      fs: { statfs: async function () { return s.noSpace ? { bsize: 4096, bavail: 0 } : { bsize: 4096, bavail: 1000000 } } },
+      now: function () { return state.nowMs },
+    }
+    const clock = { t: 1000 }
+    const scene = sceneMod.createRewriteScene(Object.assign({}, deps, { now: function () { return clock.t } }))
+    const check = checkMod.createRewriteCheck({ scene: scene, failPhone: env.failPhone, now: function () { return clock.t }, randomId: function () { state.ordered += 1; return 'rw-' + state.ordered } })
+    const write = writeMod.createRewriteWrite({
+      scene: scene,
+      failPhone: env.failPhone,
+      runPinned: deps.runPinned,
+      taskStart: async function (a) { state.taskStarts.push(a); return { ok: true, task: { id: 'task-' + state.taskStarts.length } } },
+      now: function () { return clock.t },
+      tickets: check.tickets,
+      results: check.results,
+      fs: deps.fs,
+    })
+    return { state: state, clock: clock, scene: scene, check: check, write: write, screen: state.screen }
+  }
+
+  const removePlanB2 = { form: 'remove-paths', paths: ['a.txt'] }
+  const removeArgsB2 = { cwd: 'C:/repo', plan: removePlanB2 }
+
+  const pv0 = await fakeRig().check.handleRewritePreview({ plan: removePlanB2 })
+  eq(pv0.reason, 'bad-target', 'B1 预览缺仓库目录时拒绝')
+  const pv1 = await fakeRig().check.handleRewritePreview({ cwd: 'C:/repo', plan: { form: 'nope' } })
+  eq(pv1.reason, 'bad-form', 'B2 预览不认识表单时拒绝')
+  const pv2 = await fakeRig().check.handleRewritePreview({ cwd: 'C:/repo', plan: { form: 'remove-paths', paths: ['../x'] } })
+  eq(pv2.ok, false, 'B3 预览里坏路径被拒')
+  eq(pv2.reason, 'bad-path', 'B4 坏路径的理由是 bad-path')
+  const rigPv = fakeRig()
+  const pv3 = await rigPv.check.handleRewritePreview(removeArgsB2)
+  eq(pv3.ok, true, 'B5 预览成功回 ok')
+  eq(pv3.preview.counts.commits, 3, 'B6 预览给全库提交数')
+  eq(pv3.preview.counts.matchedPaths, 1, 'B7 预览数出被删路径命中的文件数')
+  eq(pv3.preview.counts.matchedCommits, 2, 'B8 预览数出被触及的提交数')
+  has(pv3.preview.command, '--invert-paths', 'B9 预览给命令原文')
+  check(rigPv.state.taskStarts.length === 0, 'B10 预览不签票也不起任务')
+  const pvAuthors = await fakeRig().check.handleRewritePreview({ cwd: 'C:/repo', plan: { form: 'rewrite-authors', authors: [{ name: '张三', email: 'zhang@example.com', oldName: '旧名', oldEmail: 'old@example.com' }] } })
+  eq(pvAuthors.preview.counts.matchedCommits, 2, 'B11 改写作者按旧邮箱数提交')
+  const pvLarge = await fakeRig().check.handleRewritePreview({ cwd: 'C:/repo', plan: { form: 'remove-large', threshold: '10M' } })
+  eq(pvLarge.preview.counts.thresholdBytes, 10485760, 'B12 删大文件预览换算出阈值字节')
+  eq(pvLarge.preview.counts.matchedCommits, null, 'B13 删大文件预览不假装知道提交数')
+  const pvReplace = await fakeRig().check.handleRewritePreview({ cwd: 'C:/repo', plan: { form: 'replace-text', replacements: [{ from: 'SECRET', to: '' }] } })
+  eq(pvReplace.preview.counts.replacementHits[0].commits, 2, 'B14 字面量替换预览逐条数命中提交')
+
+  const ckTool = await fakeRig({ toolMissing: true }).check.handleRewriteCheck(removeArgsB2)
+  eq(ckTool.ok, false, 'B15 没装 filter-repo 时预检拒绝')
+  eq(ckTool.reason, 'tool-missing', 'B16 没装工具的理由是 tool-missing')
+  check(ckTool.ticket === undefined, 'B17 被拒时不签票')
+  const ckDirty = await fakeRig({ screen: mkScreen({ staged: ['x'], unstaged: [] }) }).check.handleRewriteCheck(removeArgsB2)
+  eq(ckDirty.reason, 'dirty-worktree', 'B18 工作区不干净时预检拒绝')
+  const ckOp = await fakeRig({ screen: mkScreen({ repo: { merging: true, rebasing: false, cherryPicking: false, reverting: false } }) }).check.handleRewriteCheck(removeArgsB2)
+  eq(ckOp.reason, 'operation-in-progress', 'B19 有进行中操作时预检拒绝')
+  const ckShallow = await fakeRig({ shallow: true }).check.handleRewriteCheck(removeArgsB2)
+  eq(ckShallow.reason, 'shallow-repo', 'B20 浅克隆仓库预检拒绝')
+  const ckEmpty = await fakeRig({ screen: mkScreen({ identity: { oid: '' } }) }).check.handleRewriteCheck(removeArgsB2)
+  eq(ckEmpty.ok, false, 'B21 空仓库预检拒绝')
+
+  const rigOk = fakeRig()
+  const ckOk = await rigOk.check.handleRewriteCheck(removeArgsB2)
+  eq(ckOk.ok, true, 'B22 现场干净且装了工具时预检签票')
+  eq(ckOk.confirmRequired, true, 'B23 预检要求显式确认')
+  eq(ckOk.confirm.what.length >= 4, true, 'B24 确认卡四段齐全')
+  has(ckOk.confirm.what.join('\n'), '提交号都会变', 'B25 确认卡写清全部提交号会变')
+  has(ckOk.confirm.what.join('\n'), '强推', 'B26 确认卡写清远端要强推')
+  has(ckOk.confirm.what.join('\n'), '重新克隆', 'B27 确认卡写清协作者要重新克隆')
+  eq(ckOk.backup.kind, 'mirror', 'B28 磁盘够时用镜像克隆备份')
+  eq(ckOk.ticket.expiresAtMs - ckOk.ticket.checkedAtMs, 120000, 'B29 票据时限一百二十秒')
+  eq(ckOk.ticket.op, 'rewrite', 'B30 票上记着重写动作')
+  check(rigOk.state.taskStarts.length === 0, 'B31 预检只签票不起任务')
+  const rigNoSpace = fakeRig({ noSpace: true })
+  const ckSpace = await rigNoSpace.check.handleRewriteCheck(removeArgsB2)
+  eq(ckSpace.backup.kind, 'bundle', 'B32 磁盘不够时降级整仓打包')
+  has(ckSpace.backup.path, '.bundle', 'B33 降级备份路径带 .bundle 后缀')
+
+  const wMissing = await fakeRig().write.handleRewriteRun({ cwd: 'C:/repo', ticketId: 'nope', requestId: 'r1', confirmed: true })
+  eq(wMissing.reason, 'ticket-missing', 'B34 伪造票被拒')
+  const wBadReq = await fakeRig().write.handleRewriteRun({ cwd: 'C:/repo', ticketId: 'x', requestId: 'bad id!', confirmed: true })
+  eq(wBadReq.reason, 'bad-target', 'B35 请求号形状不对时拒绝')
+  const rigJudge = fakeRig()
+  const ckJudge = await rigJudge.check.handleRewriteCheck(removeArgsB2)
+  const tkJudge = rigJudge.check.tickets.get(ckJudge.ticket.id)
+  tkJudge.op = 'merge'
+  const wMismatch = await rigJudge.write.handleRewriteRun({ cwd: 'C:/repo', ticketId: ckJudge.ticket.id, requestId: 'r2', confirmed: true })
+  eq(wMismatch.reason, 'ticket-op-mismatch', 'B36 票被换成别的动作时拒绝')
+
+  const rigConfirm = fakeRig()
+  const ckConfirm = await rigConfirm.check.handleRewriteCheck(removeArgsB2)
+  const wNeed = await rigConfirm.write.handleRewriteRun({ cwd: 'C:/repo', ticketId: ckConfirm.ticket.id, requestId: 'r3' })
+  eq(wNeed.reason, 'need-confirm', 'B37 没确认时拒绝执行')
+  check(rigConfirm.state.taskStarts.length === 0, 'B38 没确认时零长任务')
+
+  const rigExpire = fakeRig()
+  const ckExpire = await rigExpire.check.handleRewriteCheck(removeArgsB2)
+  rigExpire.clock.t = 1000 + 120001
+  const wExpired = await rigExpire.write.handleRewriteRun({ cwd: 'C:/repo', ticketId: ckExpire.ticket.id, requestId: 'r4', confirmed: true })
+  eq(wExpired.reason, 'ticket-expired', 'B39 过期票被拒')
+  check(rigExpire.state.taskStarts.length === 0, 'B40 过期票零长任务')
+
+  const rigDrift = fakeRig()
+  const ckDrift = await rigDrift.check.handleRewriteCheck(removeArgsB2)
+  rigDrift.state.screen.identity.oid = 'b'.repeat(40)
+  const wDrift = await rigDrift.write.handleRewriteRun({ cwd: 'C:/repo', ticketId: ckDrift.ticket.id, requestId: 'r5', confirmed: true })
+  eq(wDrift.reason, 'target-changed', 'B41 预检后 HEAD 变了零进程拒绝')
+  const rigTree = fakeRig()
+  const ckTree = await rigTree.check.handleRewriteCheck(removeArgsB2)
+  rigTree.state.screen.staged = ['late.txt']
+  const wTree = await rigTree.write.handleRewriteRun({ cwd: 'C:/repo', ticketId: ckTree.ticket.id, requestId: 'r6', confirmed: true })
+  eq(wTree.reason, 'target-changed', 'B42 预检后工作区变了零进程拒绝')
+  const rigTool2 = fakeRig()
+  const ckTool2 = await rigTool2.check.handleRewriteCheck(removeArgsB2)
+  rigTool2.state.toolMissing = true
+  const wTool2 = await rigTool2.write.handleRewriteRun({ cwd: 'C:/repo', ticketId: ckTool2.ticket.id, requestId: 'r7', confirmed: true })
+  eq(wTool2.reason, 'tool-missing', 'B43 执行前工具没了也拒绝')
+  check(rigTool2.state.taskStarts.length === 0, 'B44 工具缺失时零长任务')
+
+  const rigRun = fakeRig()
+  const ckRun = await rigRun.check.handleRewriteCheck(removeArgsB2)
+  const wRun = await rigRun.write.handleRewriteRun({ cwd: 'C:/repo', ticketId: ckRun.ticket.id, requestId: 'run-1', confirmed: true })
+  eq(wRun.ok, true, 'B45 凭票执行成功')
+  eq(wRun.steps.join(','), 'backup,task', 'B46 执行顺序是先备份再起任务')
+  eq(rigRun.state.taskStarts.length, 1, 'B47 起了且只起一次长任务')
+  has(JSON.stringify(rigRun.state.taskStarts[0].args), '"--invert-paths"', 'B48 长任务参数含删路径开关')
+  eq(rigRun.state.taskStarts[0].args[1], '--path', 'B49 长任务参数逐项独立')
+  eq(rigRun.state.taskStarts[0].args[2], 'a.txt', 'B50 路径作为独立参数传入')
+  has(wRun.backupSummary, '镜像克隆', 'B51 回包给出备份摘要')
+  check(wRun.backupRestoreSteps.length >= 1, 'B52 回包给出还原步骤但不自动恢复')
+  check(rigRun.state.calls.some(function (a) { return a[0] === 'clone' && a.indexOf('--mirror') >= 0 }), 'B53 备份真的执行了镜像克隆')
+  const wReplay = await rigRun.write.handleRewriteRun({ cwd: 'C:/repo', ticketId: ckRun.ticket.id, requestId: 'run-1', confirmed: true })
+  eq(wReplay.reused, true, 'B54 同一请求号重放回上次结果')
+  eq(rigRun.state.taskStarts.length, 1, 'B55 重放不重复起任务')
+
+  const rigBackupFail = fakeRig({ backupFails: true })
+  const ckFail = await rigBackupFail.check.handleRewriteCheck(removeArgsB2)
+  const wFail = await rigBackupFail.write.handleRewriteRun({ cwd: 'C:/repo', ticketId: ckFail.ticket.id, requestId: 'run-2', confirmed: true })
+  eq(wFail.ok, false, 'B56 备份失败时执行失败')
+  eq(wFail.reason, 'backup-failed', 'B57 备份失败的明确理由是 backup-failed')
+  eq(rigBackupFail.state.taskStarts.length, 0, 'B58 备份失败绝不开始重写')
+
+  console.log('  B 组完成：' + total + ' 条')
+
+  // ---------- C 组：真临时 git 仓库（真读现场、真做备份，长任务用假入口） ----------
+  const cmds = await loadModule('src/shared/version-control/src/commands.js')
+  const gitEnv = Object.assign({}, process.env, { GIT_EDITOR: 'false', GIT_TERMINAL_PROMPT: '0', GIT_CONFIG_NOSYSTEM: '1' })
+  function gitRun(dir, args) {
+    return cp.spawnSync('git', ['-C', dir].concat(args), { env: gitEnv, encoding: 'utf8', timeout: 60000, maxBuffer: 64 * 1024 * 1024 })
+  }
+  function gitMust(dir, args) {
+    const r = gitRun(dir, args)
+    if (r.status !== 0) throw new Error('夹具 git ' + args.join(' ') + ' 失败：' + String(r.stderr || '').slice(0, 300))
+    return r
+  }
+  function writeIn(dir, rel, text) {
+    const p = path.join(dir, rel)
+    fs.mkdirSync(path.dirname(p), { recursive: true })
+    fs.writeFileSync(p, text, 'utf8')
+  }
+  function mkRepo(tag) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws-rewrite-' + tag + '-'))
+    gitMust(dir, ['init', '-q', '-b', 'main'])
+    gitMust(dir, ['config', 'user.name', '测试'])
+    gitMust(dir, ['config', 'user.email', 'old@example.com'])
+    writeIn(dir, 'a.txt', 'one\n')
+    gitMust(dir, ['add', '-A'])
+    gitMust(dir, ['commit', '-q', '-m', 'first'])
+    writeIn(dir, 'secret/token.txt', 'SECRET-ONE\n')
+    gitMust(dir, ['add', '-A'])
+    gitMust(dir, ['commit', '-q', '-m', 'second SECRET'])
+    writeIn(dir, 'b.txt', 'three\n')
+    gitMust(dir, ['add', '-A'])
+    gitMust(dir, ['commit', '-q', '-m', 'third'])
+    return dir
+  }
+  function realScreenOf(cwd) {
+    const top = gitRun(cwd, ['rev-parse', '--show-toplevel'])
+    if (top.status !== 0) return { ok: false, error: { message: String(top.stderr || '') } }
+    const root = String(top.stdout || '').trim()
+    const head = String(gitMust(root, ['rev-parse', 'HEAD']).stdout || '').trim()
+    const stagedLines = String(gitRun(root, ['diff', '--cached', '--name-only']).stdout || '').split('\n').filter(function (l) { return l !== '' })
+    const unstagedLines = String(gitRun(root, ['diff', '--name-only']).stdout || '').split('\n').filter(function (l) { return l !== '' })
+    const conflictLines = String(gitRun(root, ['diff', '--name-only', '--diff-filter=U']).stdout || '').split('\n').filter(function (l) { return l !== '' })
+    const gitDir = path.join(root, '.git')
+    const repo = {
+      merging: fs.existsSync(path.join(gitDir, 'MERGE_HEAD')),
+      rebasing: fs.existsSync(path.join(gitDir, 'rebase-merge')) || fs.existsSync(path.join(gitDir, 'rebase-apply')),
+      cherryPicking: fs.existsSync(path.join(gitDir, 'CHERRY_PICK_HEAD')),
+      reverting: fs.existsSync(path.join(gitDir, 'REVERT_HEAD')),
+    }
+    return { ok: true, screen: { identity: { oid: head }, repo: repo, staged: stagedLines, unstaged: unstagedLines, conflictCount: conflictLines.length } }
+  }
+  function makeRealRig(cwd, spec) {
+    const s = spec || {}
+    const state = { calls: [], taskStarts: [], backups: [] }
+    const runPinned = async function (exe, dir, args) {
+      state.calls.push({ dir: dir, args: args.slice() })
+      if (args[0] === 'filter-repo') return s.toolMissing ? { kind: 'non-zero', exitCode: 1, stdout: '', stderr: "git: 'filter-repo' is not a git command" } : { kind: 'ok', exitCode: 0, stdout: 'git-filter-repo 2.38.0\n', stderr: '' }
+      const r = cp.spawnSync('git', ['-C', dir].concat(cmds.fixedPrefix()).concat(args), { env: gitEnv, encoding: 'utf8', timeout: 120000, maxBuffer: 64 * 1024 * 1024 })
+      return r.status === 0 ? { kind: 'ok', exitCode: 0, stdout: String(r.stdout || ''), stderr: String(r.stderr || '') } : { kind: 'non-zero', exitCode: r.status === null ? 1 : r.status, stdout: String(r.stdout || ''), stderr: String(r.stderr || '') }
+    }
+    const scene = sceneMod.createRewriteScene({
+      runPinned: runPinned,
+      resolveGitExecutable: async function () { return 'git' },
+      resolveRepoRoot: async function (exe, c) {
+        const r = cp.spawnSync('git', ['-C', c, 'rev-parse', '--show-toplevel'], { env: gitEnv, encoding: 'utf8' })
+        if (r.status !== 0) return { ok: false, error: { message: String(r.stderr || '') } }
+        return { ok: true, root: String(r.stdout || '').trim() }
+      },
+      readScreenOf: async function (c) { return realScreenOf(c) },
+      now: function () { return Date.now() },
+      failPhone: env.failPhone,
+    })
+    const check = checkMod.createRewriteCheck({ scene: scene, failPhone: env.failPhone, now: function () { return Date.now() }, randomId: function () { return 'rr-' + Math.random().toString(36).slice(2) } })
+    const write = writeMod.createRewriteWrite({
+      scene: scene,
+      failPhone: env.failPhone,
+      runPinned: runPinned,
+      taskStart: async function (a) { state.taskStarts.push(a); return { ok: true, task: { id: 'task-real-' + state.taskStarts.length } } },
+      now: function () { return Date.now() },
+      tickets: check.tickets,
+      results: check.results,
+      fs: { statfs: async function (p) { const st = fs.statfsSync(p); return { bsize: st.bsize, bavail: st.bavail } } },
+    })
+    return { state: state, scene: scene, check: check, write: write }
+  }
+
+  const repo = mkRepo('c')
+  const rigReal = makeRealRig(repo)
+  const realScene = await rigReal.scene.sceneOf(repo)
+  eq(realScene.ok, true, 'C1 真仓库能读出完整现场')
+  eq(realScene.scene.commitCount, 3, 'C2 现场读出提交数')
+  eq(realScene.scene.shallow, false, 'C3 普通克隆不是浅克隆')
+  eq(realScene.scene.dirty, false, 'C4 刚提交完的仓库是干净的')
+  const pvReal = await rigReal.scene.previewOf(realScene, { form: 'remove-paths', paths: ['secret'] })
+  eq(pvReal.ok, true, 'C5 真仓库预览成功')
+  eq(pvReal.counts.matchedPaths, 1, 'C6 真仓库数出被删路径命中的文件')
+  eq(pvReal.counts.matchedCommits, 1, 'C7 真仓库数出触及的提交数')
+  has(pvReal.command, '--invert-paths', 'C8 真仓库预览给命令原文')
+  const pvAuthorsReal = await rigReal.scene.previewOf(realScene, { form: 'rewrite-authors', authors: [{ name: '张三', email: 'new@example.com', oldName: '旧名', oldEmail: 'old@example.com' }] })
+  eq(pvAuthorsReal.counts.matchedCommits, 3, 'C9 真仓库按作者邮箱数出全部提交')
+  const pvReplaceReal = await rigReal.scene.previewOf(realScene, { form: 'replace-text', replacements: [{ from: 'SECRET', to: '' }] })
+  eq(pvReplaceReal.counts.replacementHits[0].commits, 1, 'C10 真仓库数出字面量命中的提交')
+  const pvLargeReal = await rigReal.scene.previewOf(realScene, { form: 'remove-large', threshold: '1k' })
+  eq(pvLargeReal.counts.thresholdBytes, 1024, 'C11 真仓库预览换算出阈值字节')
+
+  const ckToolReal = await makeRealRig(repo, { toolMissing: true }).check.handleRewriteCheck({ cwd: repo, plan: { form: 'remove-paths', paths: ['secret'] } })
+  eq(ckToolReal.reason, 'tool-missing', 'C12 真机上没装 filter-repo 时预检明确拒绝')
+  check(ckToolReal.ticket === undefined, 'C13 没装工具时不签票')
+
+  const dirtyRepo = mkRepo('dirty')
+  writeIn(dirtyRepo, 'a.txt', 'changed\n')
+  const ckDirtyReal = await makeRealRig(dirtyRepo).check.handleRewriteCheck({ cwd: dirtyRepo, plan: { form: 'remove-paths', paths: ['secret'] } })
+  eq(ckDirtyReal.reason, 'dirty-worktree', 'C14 真仓库有未提交改动时拒绝')
+
+  const shallowParent = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws-rewrite-shallow-'))
+  const shallowDir = path.join(shallowParent, 'clone')
+  const cloneRes = cp.spawnSync('git', ['clone', '-q', '--depth', '1', 'file:///' + repo.replace(/\\/g, '/'), shallowDir], { env: gitEnv, encoding: 'utf8', timeout: 120000 })
+  if (cloneRes.status !== 0) throw new Error('夹具浅克隆失败：' + String(cloneRes.stderr || '').slice(0, 300))
+  const shallowScene = await makeRealRig(shallowDir).scene.sceneOf(shallowDir)
+  eq(shallowScene.ok, true, 'C15 浅克隆仓库也能读出场景')
+  eq(shallowScene.scene.shallow, true, 'C16 浅克隆被识别出来')
+  const ckShallowReal = await makeRealRig(shallowDir).check.handleRewriteCheck({ cwd: shallowDir, plan: { form: 'remove-paths', paths: ['a.txt'] } })
+  eq(ckShallowReal.reason, 'shallow-repo', 'C17 浅克隆仓库预检拒绝')
+
+  const rigHappy = makeRealRig(repo)
+  const ckHappy = await rigHappy.check.handleRewriteCheck({ cwd: repo, plan: { form: 'remove-paths', paths: ['secret'] } })
+  eq(ckHappy.ok, true, 'C18 真仓库预检签票成功')
+  eq(ckHappy.confirm.what.length >= 4, true, 'C19 真仓库确认卡四段齐全')
+  eq(ckHappy.backup.kind, 'mirror', 'C20 真仓库磁盘够用镜像克隆')
+  const backupPath = ckHappy.backup.path
+  check(backupPath.indexOf('-backup-') >= 0, 'C21 备份路径带时间戳与 backup 标记')
+  check(fs.existsSync(backupPath) === false, 'C22 预检只算备份计划，不提前创建备份目录')
+  const wHappy = await rigHappy.write.handleRewriteRun({ cwd: repo, ticketId: ckHappy.ticket.id, requestId: 'real-1', confirmed: true })
+  eq(wHappy.ok, true, 'C23 真仓库凭票执行成功')
+  check(fs.existsSync(backupPath), 'C24 备份目录真的被创建出来')
+  check(wHappy.backup.bytes > 0, 'C25 备份字节数大于零')
+  eq(rigHappy.state.taskStarts.length, 1, 'C26 备份成功后才起长任务')
+  eq(rigHappy.state.taskStarts[0].args[0], '--invert-paths', 'C27 长任务参数以删路径开关开头')
+  eq(rigHappy.state.taskStarts[0].args[1], '--path', 'C28 长任务参数逐项独立')
+  eq(rigHappy.state.taskStarts[0].args[2], 'secret', 'C29 路径作为独立参数传入')
+  const headAfter = String(gitMust(repo, ['rev-parse', 'HEAD']).stdout || '').trim()
+  eq(headAfter, realScene.scene.headOid, 'C30 假长任务没有改动仓库历史')
+  const wReplayReal = await rigHappy.write.handleRewriteRun({ cwd: repo, ticketId: ckHappy.ticket.id, requestId: 'real-1', confirmed: true })
+  eq(wReplayReal.reused, true, 'C31 真仓库同一请求号重放回上次结果')
+  eq(rigHappy.state.taskStarts.length, 1, 'C32 重放不重复起长任务')
+
+  const rigDriftReal = makeRealRig(repo)
+  const ckDriftReal = await rigDriftReal.check.handleRewriteCheck({ cwd: repo, plan: { form: 'remove-paths', paths: ['secret'] } })
+  writeIn(repo, 'c.txt', 'late\n')
+  gitMust(repo, ['add', 'c.txt'])
+  gitMust(repo, ['commit', '-q', '-m', 'late commit'])
+  const backupsBefore = fs.readdirSync(path.dirname(repo)).filter(function (n) { return n.indexOf('-backup-') >= 0 })
+  const wDriftReal = await rigDriftReal.write.handleRewriteRun({ cwd: repo, ticketId: ckDriftReal.ticket.id, requestId: 'real-2', confirmed: true })
+  eq(wDriftReal.reason, 'target-changed', 'C33 真仓库预检后新提交导致零进程拒绝')
+  const backupsAfter = fs.readdirSync(path.dirname(repo)).filter(function (n) { return n.indexOf('-backup-') >= 0 })
+  eq(backupsAfter.length, backupsBefore.length, 'C34 被拒时没有偷偷做备份')
+  eq(rigDriftReal.state.taskStarts.length, 0, 'C35 被拒时零长任务')
+
+  const rigBackupFailReal = makeRealRig(repo)
+  const ckBackupFailReal = await rigBackupFailReal.check.handleRewriteCheck({ cwd: repo, plan: { form: 'remove-paths', paths: ['secret'] } })
+  const failTicket = rigBackupFailReal.check.tickets.get(ckBackupFailReal.ticket.id)
+  failTicket.backup = Object.assign({}, failTicket.backup, { path: path.join(os.tmpdir(), 'no-such-dir-1750', 'backup-target') })
+  const wBackupFailReal = await rigBackupFailReal.write.handleRewriteRun({ cwd: repo, ticketId: ckBackupFailReal.ticket.id, requestId: 'real-3', confirmed: true })
+  eq(wBackupFailReal.ok, false, 'C36 备份目标写不进去时执行失败')
+  eq(wBackupFailReal.reason, 'backup-failed', 'C37 真机备份失败的明确理由是 backup-failed')
+  eq(rigBackupFailReal.state.taskStarts.length, 0, 'C38 备份失败绝不开始重写')
+
+  for (const d of [repo, dirtyRepo, shallowParent]) { try { fs.rmSync(d, { recursive: true, force: true }) } catch (e) { /* 临时目录删不掉不影响结论 */ } }
+
 
   await printGateResult(GATE, total, failed)
   process.exit(failed ? 1 : 0)

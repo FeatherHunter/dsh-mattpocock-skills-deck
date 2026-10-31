@@ -234,11 +234,12 @@ export function createRewriteScene(deps: any): any {
     const limit: number = Math.min(replacements.length, PREVIEW_REPLACE_MAX)
     for (let i = 0; i < limit; i += 1) {
       const item: any = replacements[i] || {}
-      const res: any = await readOut(exe, root, ['rev-list', '--count', '--all', '-S' + String(item.from || '')])
+      const res: any = await readOut(exe, root, ['log', '--all', '--format=%H', '-S' + String(item.from || '')])
       if (res.ok !== true) return res
-      const count: any = res.truncated === true ? null : Number(String(res.stdout || '').trim())
+      // rev-list 不认 -S（那是 diff 选项），数命中提交要用 log 逐行列提交号再数行数。
+      const count: any = res.truncated === true ? null : String(res.stdout || '').replace(/\r/g, '').split('\n').filter(function (l: string): boolean { return l.trim() !== '' }).length
       if (res.truncated === true) truncated = true
-      hits.push({ from: String(item.from || ''), commits: isFinite(Number(count)) ? count : null })
+      hits.push({ from: String(item.from || ''), commits: count })
     }
     if (replacements.length > limit) truncated = true
     return { ok: true, hits: hits, truncated: truncated }
