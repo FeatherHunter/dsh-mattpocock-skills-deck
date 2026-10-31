@@ -111,6 +111,8 @@ async function main() {
   check(r1.partial === true && store.deck.partial === true, 'deck.partial 置真（这份行数据不全，界面显示待确认）')
   check(store.deck.counts === countsBefore && store.deck.counts.closed === 0 && store.deck.counts.open === 3,
     '⑤红线：deck.counts 保持旧值（整仓口径，本地数出来会是 open2/closed1），实得 ' + JSON.stringify(store.deck.counts))
+  // #1698 计数诚实：增量路径拿不到整仓计数，只标「待校准」（界面说上次校准时间），counts 对象引用不动。
+  check(store.deck.countsPending === true, '⑤红线：增量路径把计数标成待校准（countsPending 真），不本地重算整仓数字')
   const st1 = await patch.state(CWD)
   check(st1.watermarkMs > 900000 && r1.watermarkMs === st1.watermarkMs, '水印在变化并进列表之后才推进（900000 → ' + st1.watermarkMs + '）')
   check(st1.generation === 4 && r1.generation === 4, '世代号推进一格（3 → ' + st1.generation + '）')

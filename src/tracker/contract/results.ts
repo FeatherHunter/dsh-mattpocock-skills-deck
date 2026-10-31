@@ -17,6 +17,8 @@ import type { Actor, BackendId, ErrorKind } from './identity.js'
 import type { Issue, IssueRef, LabelColor, RepositoryRef } from './entities.js'
 import type { ReadProvenance } from './read-provenance.js'
 import type { BudgetReading } from './budget-model.js'
+// #1698：企业版主机上的运行时能力回答（探测出来的支持程度 + 原因 + 票号），挂在读结果信封上。
+import type { RuntimeCapabilityAnswer } from './runtime-capability.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 四、返回值：失败是值不是异常
@@ -74,7 +76,23 @@ export type TrackerErrorStage = (typeof TRACKER_ERROR_STAGE)[keyof typeof TRACKE
  * 拿 `r.error` 时编译器知道它一定在（那种「两个字段都可能没有」的写法，
  * 正是仓库里若干 `res.error && res.error.message` 兜底的来路）。
  */
-export type OpResult<T> = { ok: true; data: T; usage?: OpUsage } | { ok: false; error: TrackerError }
+export type OpResult<T> =
+  | {
+    ok: true
+    data: T
+    usage?: OpUsage
+    /**
+     * 这次读操作在企业版主机上的运行时能力回答（#1698）。可选：只有「认出企业版主机并探测成功」时才挂。
+     * 调用成功且只能部分支持时如实挂 partial；调用成功时不挂 unsupported（调用即知优先，见 attachRuntimeAnswer）。
+     */
+    runtimeCapability?: RuntimeCapabilityAnswer
+  }
+  | {
+    ok: false
+    error: TrackerError
+    /** 失败信封上的同一条回答：这台服务端不支持这个接口时，调用方据此说清原因，而不是把失败当网络抖动。 */
+    runtimeCapability?: RuntimeCapabilityAnswer
+  }
 
 /**
  * 一次操作实际花掉的量（请求数、点数），由房间在成功信封上自报（#1446 A3 加）。

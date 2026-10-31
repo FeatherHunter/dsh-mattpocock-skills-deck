@@ -336,6 +336,9 @@ export function createPatch(deps?: PatchDeps | null): any {
     const derived: any = delta.derivedAfter('patch')
     const deck: any = Object.assign({}, (latest.deck && typeof latest.deck === 'object') ? latest.deck : {})
     if (derived.markPartial) deck.partial = true
+    // #1698 计数诚实：增量路径拿不到整仓计数，deck.counts 保持旧值（对象引用都不动），
+    //   只标 countsPending —— 界面据此说「上次校准：时间（数字待校准）」，不显示假数字。
+    deck.countsPending = true
     const wv: any = delta.watermarkAfter({ previousMs: latestState.watermarkMs || watermarkMs, scanStartedMs: scanStartedMs, outcome: 'merged' })
     // #1692：写回前按上限淘汰按需细节。本轮真拿到的行打新时间戳，其余沿用旧戳；
     // 淘汰只删内容字段、留「曾取过」记号，行与三类边、计数一个不动（规则住 kernel/detail-eviction.ts）。
@@ -438,6 +441,9 @@ export function createPatch(deps?: PatchDeps | null): any {
     const derived: any = delta.derivedAfter('patch')
     const deck: any = Object.assign({}, (latest.deck && typeof latest.deck === 'object') ? latest.deck : {})
     if (derived.markPartial) deck.partial = true
+    // #1698 计数诚实：增量路径拿不到整仓计数，deck.counts 保持旧值（对象引用都不动），
+    //   只标 countsPending —— 界面据此说「上次校准：时间（数字待校准）」，不显示假数字。
+    deck.countsPending = true
     const changedKeys: any[] = merged.changes.updated.concat(merged.changes.added)
     // #1692：同 run()，写事件这条写回前也按上限淘汰按需细节；本轮写回执拿到的行算「刚取到」。
     const ev: any = evictForWrite(merged.snapshot, got.rows)

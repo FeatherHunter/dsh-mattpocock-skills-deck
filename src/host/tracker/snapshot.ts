@@ -12,6 +12,8 @@
 
 import { ERROR_KIND } from '../../tracker/contract/vocabulary.js'
 import { deriveDeck } from '../../tracker/deck-derive.js'
+// #1698 计数诚实：数字从哪来、能不能信、要不要标待校准，口径统一收在 tracker/deck-counts.ts。
+import { planDeckCounts, rowCountsOf } from '../../tracker/deck-counts.js'
 // 快照与依赖边两份缓存的缺省存活时间住中央 YAML（config/ttl.yaml 的 snapshotTtlMs 键，注释写着
 // 「快照组合器的缓存有效期：5 秒」）：这里直接读中央常量，不再造新本地名，调时间改 YAML。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
@@ -26,16 +28,6 @@ import type { Issue, RepositoryRef, Snapshot } from '../../shared/tracker/shape.
 // 会直接抛错并走进下面的 catch 回退分支。按存在声明只为过编译器，不产生运行时代码，行为与原来一致。
 declare const require: (id: string) => any
 
-
-// 池子里「工单」有多少行（拉取请求不算工单）—— #689 判定「这份行数据全不全」用的第一个数。
-// 池子 = 各地图的子票并集 + 未挂图的票（map 节点本身是容器，不算一行票）。
-function poolTicketCountOf(snapshot: any): number {
-  let n = 0
-  const put = (rows: any): void => { for (const t of (Array.isArray(rows) ? rows : [])) if (t && t.isPullRequest !== true) n++ }
-  for (const m of (snapshot && Array.isArray(snapshot.maps) ? snapshot.maps : [])) put(m && m.tickets)
-  put(snapshot && snapshot.issues)
-  return n
-}
 
 // 向后端要计数（契约的 counts op）。拿不到一律返回 null（没实现的后端由注册表补桩、回 unsupported；
 // 配额/网络/形状不对同样算拿不到）—— 调用方据此退回派生值并把 deck.partial 置真，绝不猜一个数出来。
@@ -290,19 +282,26 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
         nowMs: Date.now(),
       })
       const deck: any = deriveDeck(snapshot)
-      // #689：数字改问后端要（契约的 counts），并把「这份行数据全不全」写成 deck.partial。
-      //   没有 counts 之前，deck 里的数字是数「手上这份票池」数出来的，而票池会被后端悄悄截断
-      //   （GitHub 最多 500 条、GitLab 只取一页），数字于是跟着偏少（缺陷票 #677）。现在两件事分开：
-      //     · 数字：counts 给的真值（拿不到就留着派生值，绝不显示一个漂亮的大数字骗人）；
-      //     · 行数据全不全：拿池子里的工单行数与 counts.total 比，对不上就说明这份清单不全 → partial。
-      //   两种「对不上」都不采信那个数字：手上的行比总数还多（这不可能，说明计数本身错了、或只数了一页），
-      //   一样退回派生值。拿不到 counts 时 partial 一律置真（规格第 6.5 节）：这时候连「全不全」都无从判断。
+      // #689 起步、#1698 收口：数字与「这份行数据全不全」分开写，且每个数字都带来源与时刻。
+      //   · 后端 counts 可信（行数不超过后端总数）→ 用后端数字，来源「后端」，这是老口径；
+      //   · 后端拿不到但列表完整 → 本地按行重算，来源「本地枚举」（不再静默派生冒充完整）；
+      //   · 列表不完整（降级或截断）→ 保留上次已知的数字与时刻，标 countsPending（界面显示待校准）；
+      //   · 后端数字与行数据冲突（后端总数比行还少）→ 以行数据为准，冲突的后端数字留痕；
+      //   · 一点证据都没有 → 不写 deck.counts（绝不写 0/0/0 冒充「真的没有票」）。
       //   与行数据同一趟重建里取（快照缓存 TTL 5 秒 + 版号），所以数字与列表看到的是同一时刻的仓库。
       const counts = await countsFromBackend(tracker, ref, ctx)
-      const poolTickets = poolTicketCountOf(snapshot)
-      const countsTrusted = !!counts && poolTickets <= (counts as { total: number }).total
-      if (countsTrusted) deck.counts = counts
-      deck.partial = !countsTrusted || poolTickets < ((counts as { total: number } | null)?.total as number)
+      const previousDeck: any = (cachedEntry && cachedEntry.snapshot && cachedEntry.snapshot.deck) ? cachedEntry.snapshot.deck : null
+      const plan: any = planDeckCounts({
+        backendCounts: counts,
+        rows: rowCountsOf(snapshot),
+        rowsComplete: !listFallback && !listTruncated,
+        previousCounts: previousDeck ? previousDeck.counts : null,
+        previousAtMs: cachedEntry && typeof cachedEntry.at === 'number' ? cachedEntry.at : 0,
+        nowMs: Date.now(),
+      })
+      if (plan.counts) deck.counts = plan.counts
+      deck.countsPending = plan.pending
+      deck.partial = plan.partial
       snapshot.deck = deck
       // #715（诚实显示）：降级标记与「推迟 / 暂停 / 这个窗口没在刷新」这四项读数，只在这里写。
       //   降级标记（'rest'）是上面那一趟 list 真实掉到 REST 通道才带回来的事实 —— 界面层永远不许写它

@@ -43,6 +43,8 @@ import { SUB_ISSUES_QUERY } from '../channels/graphql/queries.js'
 import { parseRepo, repoId } from '../model/issue-key.js'
 import { emitReadDegraded } from '../support/read-log.js'
 import { beginRead } from '../routing/read-result.js'
+// #1698：企业版主机上的运行时能力回答（探测服务端版本后回答支持/部分支持/不支持）。
+import { attachRuntimeAnswer, runtimeCapabilityFor } from '../routing/runtime-capability.js'
 import { subIssuesProvenanceFromGraphql } from '../routing/read-assembly.js'
 import { PAGINATION } from '../../../contract/pagination.js'
 
@@ -59,7 +61,7 @@ const MAX_SUB_ISSUES = PAGINATION.github.subIssuesMax
  *  - missing：没被上限卡住、却与 totalCount 对不上的差额（0 = 对上了）；
  *  - dropped：归一失败的条数（归一失败会丢行，丢了几条如实记下来，不混进 fetched）。
  */
-export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: unknown, ctx: OpContext): Promise<SubIssueListResult> {
+async function listSubIssuesInner(repo: RepositoryRef, mapKey: unknown, opts: unknown, ctx: OpContext): Promise<SubIssueListResult> {
   // 这一笔的起点：本函数每一行降级日志都带「从入口到这里花了多久」。
   const t0 = Date.now()
   // 读来源记录也从这里起算（#1686）：成功时挂来源与「子票」「行」两个字段组的完整度。
@@ -154,6 +156,19 @@ export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: 
     emitReadDegraded(ctx, 'subIssues', 'subIssues:transport', Date.now() - t0)
     return fail(verdict.kind, ghFailureMessage(verdict, String((eb && eb.message) || e).slice(0, 800)), e)
   }
+}
+
+/**
+ * 子票读操作对外的入口（#1698）：先按原样取数，再在企业版主机上补一句运行时能力回答。
+ * 为什么包在入口而不是改内部每个失败分支：回答只关心「这次调用在这台服务端上行不行」，
+ * 与具体失败在哪一页无关；包在入口能保证每条出口都带上同一句回答，也不会漏掉成功路径。
+ */
+export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: unknown, ctx: OpContext): Promise<SubIssueListResult> {
+  const out: any = await listSubIssuesInner(repo, mapKey, opts, ctx)
+  try {
+    const failureText = out && out.ok === false && out.error ? String(out.error.raw || out.error.message || '') : ''
+    return attachRuntimeAnswer(out, await runtimeCapabilityFor('listSubIssues', ctx, failureText))
+  } catch (e) { return out }
 }
 
 export default { listSubIssues }

@@ -50,6 +50,10 @@ zh:
   list.closedN: 已关闭 {n}（已加载 {x}）
   list.partial: 这份清单不全
   list.partialTitle: ISSUE 未完全加载，体检可能遗漏。
+  # #1698 计数诚实：拿不到整仓计数、这份清单又不全时不显示数字（不显示假 0）；待校准时给出上次校准时刻。
+  list.countsUnknown: 未知
+  list.countsUnknownTitle: 计数还没拿到：后端这次没回答，手上这份清单也不完整，所以这里不显示数字。
+  list.countsPendingTitle: 上次校准：{time}（数字待校准）
   list.collapse: 收起
   list.blocked: 被阻塞
   list.blockedTitle: 被 {by} 阻塞（点击查看地图详情）
@@ -307,6 +311,10 @@ en:
   list.closedN: Closed {n} ({x} loaded)
   list.partial: This list is incomplete
   list.partialTitle: ISSUEs not fully loaded — the health check may miss some.
+  # #1698 honest counts: show no number (never a fake 0) when the backend count is unavailable and this list is incomplete; when pending, show the last calibration time.
+  list.countsUnknown: Unknown
+  list.countsUnknownTitle: Counts not available yet — the backend did not answer and this list is incomplete, so no number is shown.
+  list.countsPendingTitle: Last calibrated {time} (counts pending)
   list.collapse: Collapse
   list.blocked: Blocked
   list.blockedTitle: Blocked by {by} (click for map details)

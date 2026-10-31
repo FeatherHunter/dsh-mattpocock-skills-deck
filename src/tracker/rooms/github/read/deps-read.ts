@@ -37,6 +37,8 @@ import { beginRead } from '../routing/read-result.js'
 import type { ReadClock } from '../routing/read-result.js'
 import { dependenciesProvenanceFromGraphql, dependenciesProvenanceFromRest } from '../routing/read-assembly.js'
 import type { MemoContext } from '../model/roster.js'
+// #1698：企业版主机上的运行时能力回答（探测服务端版本后回答支持/部分支持/不支持）。
+import { attachRuntimeAnswer, runtimeCapabilityFor } from '../routing/runtime-capability.js'
 
 /**
  * 原生路：一次 GraphQL 同时取回正向与反向连接。
@@ -180,7 +182,7 @@ function caughtMessage(e: unknown, len: number): string {
  *   退回兜底、或者连接/列表到了上限时，返回值会自己说清「用了兜底」「可能不全」（见本文件上面两条读路）。
  * - #1687 从房间根 graph.ts 迁到这里：它只读不写，归读侧；房间入口仍按旧接口名要它，导出面不变。
  */
-export async function getDependencies(repo: RepositoryRef, key: string, opts: DepsOpts | undefined, ctx: MemoContext): Promise<OpResult<Dependencies>> {
+async function getDependenciesInner(repo: RepositoryRef, key: string, opts: DepsOpts | undefined, ctx: MemoContext): Promise<OpResult<Dependencies>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `getDependencies: repo.refId missing: ${repoId(repo)}`, repo)
@@ -190,7 +192,7 @@ export async function getDependencies(repo: RepositoryRef, key: string, opts: De
       // 为什么显式标：循环里才往里装，编译器判成隐式 any；装的本来就是编号与那份依赖投影，运行时还是原来那几个值。
       const results: { key: string; data: Dependencies }[] = []
       for (const kk of opts.keys) {
-        const single = await getDependencies(repo, kk, {}, ctx)
+        const single = await getDependenciesInner(repo, kk, {}, ctx)
         if (!single.ok) return single
         results.push({ key: String(kk), data: single.data })
       }
@@ -209,4 +211,16 @@ export async function getDependencies(repo: RepositoryRef, key: string, opts: De
     const verdict = ghVerdictOf(e, ctx)
     return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
   }
+}
+
+/**
+ * 依赖读操作对外的入口（#1698）：先按原样取数，再在企业版主机上补一句运行时能力回答。
+ * 与子票那条同一个做法：回答只关心「这次调用在这台服务端上行不行」，包在入口能保证每条出口一致。
+ */
+export async function getDependencies(repo: RepositoryRef, key: string, opts: DepsOpts | undefined, ctx: MemoContext): Promise<OpResult<Dependencies>> {
+  const out: any = await getDependenciesInner(repo, key, opts, ctx)
+  try {
+    const failureText = out && out.ok === false && out.error ? String(out.error.raw || out.error.message || '') : ''
+    return attachRuntimeAnswer(out, await runtimeCapabilityFor('getDependencies', ctx, failureText))
+  } catch (e) { return out }
 }

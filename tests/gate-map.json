@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T04:38:57.451Z",
+  "generatedAt": "2026-10-31T05:25:56.985Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 476,
-  "gateCount": 476,
-  "attributedGates": 426,
+  "chainLength": 478,
+  "gateCount": 478,
+  "attributedGates": 428,
   "unattributedGates": 50,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 40,
+  "completionRecordedGates": 42,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 655,
+  "graphFileCount": 658,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -7526,6 +7526,27 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
+      "step": "node tests/verify-counts-honesty.ts",
+      "file": "tests/verify-counts-honesty.ts",
+      "guards": [
+        "src/client/kernel/store-derived.ts",
+        "src/client/views/ListTab.ts",
+        "src/host/tracker/snapshot.ts",
+        "src/tracker/deck-counts.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views",
+        "src/host/tracker",
+        "src/tracker"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 52,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
       "step": "node tests/verify-ctx.ts",
       "file": "tests/verify-ctx.ts",
       "guards": [
@@ -8053,6 +8074,24 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 12 条"
     },
     {
+      "step": "node tests/verify-ghes-runtime-capability.ts",
+      "file": "tests/verify-ghes-runtime-capability.ts",
+      "guards": [
+        "src/tracker/rooms/github/read/deps-read.ts",
+        "src/tracker/rooms/github/read/sub-issues.ts",
+        "src/tracker/rooms/github/routing/runtime-capability.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/github/read",
+        "src/tracker/rooms/github/routing"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 39,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
       "step": "node tests/verify-github-gh-via.ts",
       "file": "tests/verify-github-gh-via.ts",
       "guards": [
@@ -8071,6 +8110,7 @@
         "src/tracker/rooms/github/read/rest-detail-completion.ts",
         "src/tracker/rooms/github/read/rest-list-relations.ts",
         "src/tracker/rooms/github/read/sub-issues.ts",
+        "src/tracker/rooms/github/routing/runtime-capability.ts",
         "src/tracker/rooms/github/transport/client-support.ts",
         "src/tracker/rooms/github/transport/client.ts",
         "tests/verify-github-gh-via.ts"
@@ -8080,6 +8120,7 @@
         "src/tracker/rooms/github/channels/graphql",
         "src/tracker/rooms/github/model",
         "src/tracker/rooms/github/read",
+        "src/tracker/rooms/github/routing",
         "src/tracker/rooms/github/transport",
         "tests"
       ],
@@ -8087,7 +8128,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 17 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 18 条"
     },
     {
       "step": "node tests/verify-github-label-colors.ts",
@@ -10351,6 +10392,7 @@
         "src/client/kernel/settings-view-write.ts",
         "src/client/kernel/slotRenderer-modal-view.ts",
         "src/client/kernel/slotRenderer-queue.ts",
+        "src/client/kernel/store-derived.ts",
         "src/client/kernel/store-prefs.ts",
         "src/client/kernel/store-switch.ts",
         "src/client/kernel/work-route-own.ts",
@@ -10363,6 +10405,7 @@
         "src/client/statusbar/suggestTimeline.ts",
         "src/client/views/IssueDetail.ts",
         "src/client/views/IssueDetailComments.ts",
+        "src/client/views/ListTab.ts",
         "src/client/views/ListTabRow.ts",
         "src/client/views/labels/LabelColorDialog.ts",
         "src/client/views/primitives/Tip.ts",
@@ -10500,7 +10543,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 113 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 115 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -11643,6 +11686,7 @@
       "node tests/verify-bug-entry.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-container-colors.ts",
+      "node tests/verify-counts-honesty.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-file-granularity.ts",
@@ -11770,6 +11814,7 @@
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-763-detail-fold.ts",
       "node tests/verify-b2-map-newsession.ts",
+      "node tests/verify-counts-honesty.ts",
       "node tests/verify-issue529-checks-i18n.ts",
       "node tests/verify-labels-sync.ts",
       "node tests/verify-map-drill.ts",
@@ -12156,6 +12201,7 @@
       "node tests/verify-691-map-subissues.ts",
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-934-935-invariants.ts",
+      "node tests/verify-counts-honesty.ts",
       "node tests/verify-dirwritable.ts",
       "node tests/verify-generic-catalog.ts",
       "node tests/verify-map-first-frame.ts",
@@ -12586,6 +12632,7 @@
       "node tests/verify-1286-snapshot.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-908-progress-replace.ts",
+      "node tests/verify-counts-honesty.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-issue-body-script.ts",
       "node tests/verify-labels-sync.ts",
@@ -12759,6 +12806,7 @@
       "node tests/verify-916-ghauth-crosscheck.ts",
       "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-error-raw-samples.ts",
+      "node tests/verify-ghes-runtime-capability.ts",
       "node tests/verify-github-gh-via.ts",
       "node tests/verify-github-label-colors.ts",
       "node tests/verify-github-rest-fallback.ts",
@@ -12793,6 +12841,8 @@
     ],
     "src/tracker/rooms/github/routing": [
       "node tests/verify-error-single-source.ts",
+      "node tests/verify-ghes-runtime-capability.ts",
+      "node tests/verify-github-gh-via.ts",
       "node tests/verify-read-result-provenance.ts",
       "node tests/verify-rest-detail-completion.ts",
       "node tests/verify-rest-fallback-reason.ts",
@@ -13196,9 +13246,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 676,
+    "fileCount": 679,
     "dirCount": 84,
-    "coveredFileCount": 676,
+    "coveredFileCount": 679,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13714,7 +13764,9 @@
       "src/tracker/contract/pagination.ts",
       "src/tracker/contract/read-provenance.ts",
       "src/tracker/contract/results.ts",
+      "src/tracker/contract/runtime-capability.ts",
       "src/tracker/contract/vocabulary.ts",
+      "src/tracker/deck-counts.ts",
       "src/tracker/deck-derive.ts",
       "src/tracker/detection/backendDecision.ts",
       "src/tracker/detection/detectionService.ts",
@@ -13778,6 +13830,7 @@
       "src/tracker/rooms/github/routing/index.ts",
       "src/tracker/rooms/github/routing/read-assembly.ts",
       "src/tracker/rooms/github/routing/read-result.ts",
+      "src/tracker/rooms/github/routing/runtime-capability.ts",
       "src/tracker/rooms/github/support/capability-register.ts",
       "src/tracker/rooms/github/support/errors.ts",
       "src/tracker/rooms/github/support/index.ts",
