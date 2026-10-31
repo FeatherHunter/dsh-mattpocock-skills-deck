@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T15:32:06.130Z",
+  "generatedAt": "2026-10-31T16:17:56.875Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 483,
-  "gateCount": 483,
-  "attributedGates": 432,
+  "chainLength": 484,
+  "gateCount": 484,
+  "attributedGates": 433,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 45,
@@ -4926,6 +4926,25 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+    },
+    {
+      "step": "node tests/verify-1770-gitlab-list-truncated.ts",
+      "file": "tests/verify-1770-gitlab-list-truncated.ts",
+      "guards": [
+        "src/deck/tools/issue-list.ts",
+        "src/refresh/rooms/host/probe-handler.ts",
+        "src/tracker/rooms/gitlab"
+      ],
+      "dirs": [
+        "src/deck/tools",
+        "src/refresh/rooms/host",
+        "src/tracker/rooms/gitlab"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -12174,6 +12193,7 @@
       "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-1612-deck-tool-gate.ts",
+      "node tests/verify-1770-gitlab-list-truncated.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -12547,6 +12567,7 @@
       "node tests/verify-1621-gh-missing-copy.ts",
       "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-1692-disk-replay-eviction.ts",
+      "node tests/verify-1770-gitlab-list-truncated.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -13041,6 +13062,7 @@
       "node tests/verify-1599-gitlab-hidden-markers.ts",
       "node tests/verify-1605-gitlab-map-list.ts",
       "node tests/verify-1605-map-routing-guard.ts",
+      "node tests/verify-1770-gitlab-list-truncated.ts",
       "node tests/verify-686-accept.ts",
       "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",

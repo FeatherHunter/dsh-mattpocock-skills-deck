@@ -9,11 +9,14 @@ import type { ErrorKind } from '../../contract/identity.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { Issue, RepositoryRef } from '../../contract/entities.js'
 import type { CloseOpts, CreateInput, GetOpts, ListFilter, UpdatePatch } from '../../contract/inputs.js'
-import type { OpResult } from '../../contract/results.js'
+import type { OpResult, IssueListResult } from '../../contract/results.js'
+import { LIST_TRUNCATED_REASON } from '../../contract/results.js'
+import { PAGINATION } from '../../contract/pagination.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
 import { normalizeIssue, rewriteDescriptionWithHiddenParent } from './normalize.js'
 import { failGlab } from './errors.js'
+import { emitReadDegraded } from './read-log.js'
 import { issuesPath, issuePath, notesPath, linksPath, milestonesPath } from './queries.js'
 // #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
 // 本间房专属的「建后按锚回查」在 ./idempotency.js（服务端搜索 + 按创建时间倒序列出逐张看票面）。
@@ -113,6 +116,11 @@ async function fetchAugment(opCtx: CtxLike | null | undefined, refId: string, ra
 /**
  * 列票：按 state 筛后归一，keys 在内存里滤（远端无批量接口，如实全量再滤）。
  *
+ * #1770：GitLab REST 的 `per_page` 上限是 100（见契约里的共享分页表），本函数只取第一页。
+ * 取满一页时置 `truncated: true` 并落一行 `read.degraded`（`list:truncated`），把「可能还有
+ * 第 101 张、且它可能在第一页之外」如实交上去；不在这里翻页 —— 9 千票的仓库要翻 96 页，
+ * 5 秒一拍的刷新探针付不起这笔成本，读全与增量是另一张票（#1772）的取数设计。
+ *
  * @param ctx 调用上下文（opCtx 缺时顶上）
  * @param repo 目标仓库（只取 refId/name）
  * @param filter 过滤器（state/keys 两项，其余由宿主二次过滤）
@@ -123,13 +131,15 @@ export async function listIssues(
   repo: RepoLike,
   filter: ListFilter | null | undefined,
   opCtx: CtxLike | null | undefined,
-): Promise<OpResult<Issue[]>> {
+): Promise<IssueListResult> {
+  const startedAt = Date.now()
   const effective = (opCtx || ctx) as CtxLike | undefined
   const id = repoId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'list: repo.refId missing', '')
-  // filter → query（state/labels/milestone/分页）
+  // filter → query（state；分页固定单页 100 条，见函数头）
+  const perPage = PAGINATION.gitlab.maxPerPage
   const params = new URLSearchParams()
-  params.set('per_page', '100')
+  params.set('per_page', String(perPage))
   params.set('with_labels_details', 'true')
   if (filter && filter.state) {
     // GitLab state: opened/closed
@@ -149,6 +159,9 @@ export async function listIssues(
     let arr: unknown = parseJsonSafe(res.stdout)
     // 原文 = 远端回的那一段（人据此看出返回的到底是什么形状，而不是只被告知「不是数组」）。
     if (!Array.isArray(arr)) return fail(ERROR_KIND.PARSE as ErrorKind, 'list returned non-array', res.stdout)
+    // 先记「这一页是不是取满的」：下面的 keys 过滤会把行数变小，但「远端给没给满一页」要在那之前判。
+    // 取满 = 第 101 张可能存在，且它可能落在第一页之外（默认按创建时间倒序，老票永远不在第一页）。
+    const pageFull = arr.length >= perPage
     // 若filter有keys，内存过滤
     if (filter && Array.isArray(filter.keys) && filter.keys.length) {
       const set = new Set(filter.keys.map(String))
@@ -159,7 +172,13 @@ export async function listIssues(
     }
     // 归一（不逐条聚合links以免爆量；get会聚合）
     const issues = (arr as unknown[]).map((raw) => normalizeIssue(raw))
-    return { ok: true, data: issues }
+    // 拿不全却按成功返回：返回前落一行，查「这张地图怎么空了/这张票怎么没出现」时日志里能看见这一趟。
+    const out: IssueListResult = { ok: true, data: issues }
+    if (pageFull) {
+      emitReadDegraded(effective as OpContext | null | undefined, 'list', LIST_TRUNCATED_REASON, Date.now() - startedAt)
+      out.truncated = true
+    }
+    return out
   } catch (err: unknown) {
     // 原文 = 抛上来的那个 Error 对象（apiGet/apiPut 已经把 stderr/stdout/退出码挂在它身上）。
     return failGlab(err, errMsg(err), err, effective)

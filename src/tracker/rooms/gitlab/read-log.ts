@@ -32,6 +32,7 @@
  */
 
 import type { OpContext } from '../../contract/contexts.js'
+import { LIST_TRUNCATED_REASON } from '../../contract/results.js'
 import { guardEmit, ms } from '../../kernel/log-emit.js'
 
 /**
@@ -94,6 +95,8 @@ export const READ_DEGRADED_REASONS = Object.freeze([
   'list:transport',
   'list:json',
   'list:shape',
+  // #1770：列表只取了第一页（per_page 上限 100）就按成功返回 —— 拿不全但没失败，交给上层决定怎么说。
+  LIST_TRUNCATED_REASON,
   'get:repo-ref',
   'get:transport',
   'get:json',
