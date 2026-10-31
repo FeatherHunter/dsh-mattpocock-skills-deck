@@ -42,6 +42,7 @@ import { parseDiffFiles } from '../shared/version-control/src/parse-diff-files.j
 import { assemble, classifyStepZero } from '../shared/version-control/src/state.js'
 import { makeStallWatch } from './stallWatch.js' // #847：字节增长看门狗（自包含叶子，照 #500/#821 先例）
 import { withGhLane } from '../refresh/rooms/host/outbound-admission.js'
+import { remoteHandleMap } from './versionControlRemote.js' // #1754 T18：域 8 六条电话的装配包装（电话体仍按需加载）
 import { failPhone, firstLine, failureFromExec } from '../shared/version-control/exec-envelope.js'
 // 单条 git 命令的默认超时住中央 YAML（config/timeouts.yaml 的 vcRunTimeoutMs 键）：这里直接引用中央常量，调时间改 YAML。
 // 它管的是「调用方没给 TIMEOUT_MS 时，一条 git 命令最多跑多久」——接线给了 TIMEOUT_MS 就以接线那个为准。
@@ -385,6 +386,11 @@ export function createVersionControl(deps: any): any {
   function firstScreenPhone(): any { if (!_firstP) _firstP = import('./versionControlFirstScreen.js').then(function (m: any) { return m.createFirstScreenPhone({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, collect: collect, readHasHead: readHasHead, readAutocrlf: readAutocrlf, basisReader: basisReader, readMarkers: function (gitDir: any, ctx: any): any { return markersPhone().then(function (p: any): any { return p.read(gitDir, ctx) }) }, logCount: FIRST_SCREEN_LOG_COUNT }) }); return _firstP }
   async function handleGitFirstScreen(args: any): Promise<any> { const p: any = await firstScreenPhone(); return p(args) }
 
+  // 域 8「远端与同步」六条电话（#1754 T18）住 ./versionControlRemote.js：与差异、首屏同一先例（自包含叶子、
+  // 依赖全显式传入、单向引用）。联网那一路只在用户显式点「联网查看」后走，本文件不额外触发。
+  let _remoteP: any = null
+  function remotePhone(): any { if (!_remoteP) _remoteP = import('./versionControlRemote.js').then(function (m: any) { return m.createRemotePhones({ runPinned: runPinned, failureFromExec: failureFromExec, failPhone: failPhone, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now }) }); return _remoteP }
+
   /** 电话 wf.gitLog 的处理体：历史按批取；多要一条用来判断后面还有没有。 */
   async function handleGitLog(args: any): Promise<any> {
     const count: number = clampInt(args && args.count, FIRST_SCREEN_LOG_COUNT, 1, LOG_BATCH_MAX)
@@ -467,6 +473,8 @@ export function createVersionControl(deps: any): any {
     handleGitLog: loggedPhone('wf.gitLog', 'git-log', handleGitLog),
     // 首屏七片一次聚合（#1739 T04）：一次调用拿全，各片成败在回包里各自说。
     handleGitFirstScreen: loggedPhone('wf.gitFirstScreen', 'git-first-screen', handleGitFirstScreen),
+    // 域 8 远端与同步（#1754 T18）：六条电话，日志仍走同一个 loggedPhone 口径；装配见 versionControlRemote.remoteHandleMap。
+    ...remoteHandleMap(loggedPhone, remotePhone),
     // 写电话（1 预检 + 6 执行）：第一次调用时才装配，装完缓存；键名与只读那三条同形。
     handleGitWriteCheck: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.check(a) },
     handleGitStage: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.stage(a) },

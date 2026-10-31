@@ -265,6 +265,13 @@ export default {
     harness.handle('wf.gitStatus', async function (args: WfArgs) { const h = await _vc(); return h.handleGitStatus(args) })
     harness.handle('wf.gitDiff', async function (args: WfArgs) { const h = await _vc(); return h.handleGitDiff(args) })
     harness.handle('wf.gitLog', async function (args: WfArgs) { const h = await _vc(); return h.handleGitLog(args) })
+    // 域 8 远端与同步（#1754 T18）：读列表 + 四条写动作 + 显式联网查看；装配在 ./versionControlRemote.js，这里只注册。
+    harness.handle('wf.gitRemoteList', async function (args: WfArgs) { const h = await _vc(); return h.handleGitRemoteList(args) })
+    harness.handle('wf.gitRemoteAdd', async function (args: WfArgs) { const h = await _vc(); return h.handleGitRemoteAdd(args) })
+    harness.handle('wf.gitRemoteRename', async function (args: WfArgs) { const h = await _vc(); return h.handleGitRemoteRename(args) })
+    harness.handle('wf.gitRemoteRemove', async function (args: WfArgs) { const h = await _vc(); return h.handleGitRemoteRemove(args) })
+    harness.handle('wf.gitRemoteSetUrl', async function (args: WfArgs) { const h = await _vc(); return h.handleGitRemoteSetUrl(args) })
+    harness.handle('wf.gitRemoteOnline', async function (args: WfArgs) { const h = await _vc(); return h.handleGitRemoteOnline(args) })
     // 写电话（1 预检 + 6 执行）：装配在 ./versionControl.js 内部（同一个 runGit 出口、同一个 loggedPhone、同一条 git.exec 日志），这里只做注册。
     harness.handle('wf.gitWriteCheck', async function (args: WfArgs) { const h = await _vc(); return h.handleGitWriteCheck(args) })
     harness.handle('wf.gitStage', async function (args: WfArgs) { const h = await _vc(); return h.handleGitStage(args) })
