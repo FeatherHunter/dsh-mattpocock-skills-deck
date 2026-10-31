@@ -244,7 +244,8 @@ async function main() {
     // #1755 加了同步域两条电话 wf.gitSyncCheck / wf.gitSyncWrite（10 条动作共用的预检签票与凭票执行），83 → 85。
     // #1756 加了克隆向导两条电话 wf.gitCloneCheck / wf.gitCloneWrite（预检签票与凭票执行），85 → 87。
     // #1747 加了冲突向导三条电话 wf.gitConflicts / wf.gitConflictCheck / wf.gitConflictWrite（只读一取全、预检签票、凭票执行），87 → 90。
-    check(nPhones === 90, '宿主电话九十条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1748 加了变基待办页两条电话 wf.gitUndoCheck / wf.gitUndoWrite（历史改写五条动作的预检签票与凭票执行），90 → 92。
+    check(nPhones === 92, '宿主电话九十二条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——

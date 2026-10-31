@@ -129,6 +129,9 @@ const VC_FILES = [
   // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
   'src/client/views/versionControl/vcStashOps.js',
   'src/client/views/versionControl/vcStashPage.js',
+  // #1748 变基待办页的历史改写面板（与构建同序）：先数据层，再页面本体，都排在页面壳之前。
+  'src/client/views/versionControl/vcUndoOps.js',
+  'src/client/views/versionControl/vcUndoPage.js',
   'src/client/views/versionControl/vcClonePage.js', // #1756：迁移页 › 克隆向导（自持表单与进度状态；排在页面壳之前，壳里会挂它）
   // #1747 冲突向导两叶（与构建同序）：先动作模型（15 条能力的出入参形状），再页面正文；壳的挂载段要看到页面体那一叶。
   'src/client/views/versionControl/vcConflictsOps.js',
@@ -224,6 +227,13 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcWorktreesListStateOf', 'vcWorktreesSnapshotOf', 'vcWorktreesModelOf', 'vcWorktreesVersionOf', 'vcWorktreeAvailabilityOf', 'vcWorktreeWhyKeyOf', 'vcWorktreesVersionHintOf',
   'vcWorktreesRowActionsOf', 'vcWorktreesActionDecisionOf', 'vcWorktreeCheckArgsOf', 'vcWorktreeRunArgsOf', 'vcWorktreePlanOf', 'vcWorktreeFailureOf',
   'vcWorktreeResultOf', 'vcWorktreeDecisionReasonsOf', 'vcWorktreeDecisionStateOf', 'vcWorktreesPageNode',
+  // #1748 变基待办页历史改写：两条电话、五条动作目录、参数整理与三个阶段的回包归一（页面本体里也要看）。
+  'VC_UNDO_PHONE_CHECK', 'VC_UNDO_PHONE_WRITE', 'VC_UNDO_COMMIT_MAX', 'VC_UNDO_MESSAGE_MAX', 'VC_UNDO_REV_MAX',
+  'VC_UNDO_CATALOG', 'vcUndoCatalogOf', 'vcUndoEntryOf', 'vcUndoInputsOf', 'vcUndoSetInputOf', 'vcUndoPickOpOf',
+  'vcUndoRevProblem', 'vcUndoCommitsOf', 'vcUndoParamsOf', 'vcUndoCheckArgsOf', 'vcUndoWriteArgsOf',
+  'vcUndoCheckShapeOk', 'vcUndoWriteShapeOk', 'vcUndoStateNew', 'vcUndoMark', 'vcUndoErrorOf', 'vcUndoApplyCheck', 'vcUndoApplyWrite',
+  'vcUndoBusyOf', 'vcUndoRecoveryStepsOf', 'vcUndoShortOidOf', 'vcUndoWhenOf', 'vcUndoRequestIdOf', 'VC_UNDO_FAIL_KEYS',
+  'vcUndoFailKnownOf', 'VC_UNDO_OPS_SOURCE', 'vcUndoPageNode', 'VC_UNDO_PANEL', 'VC_UNDO_PAGE_SOURCE', 'VC_UNDO_PAGE_NAMES',
   // #1756 克隆向导：选项口径、票据契约、回包分类与页面体（二十三条导出逐个挂进闭包给断言用）。
   'CLONE_OPTION_DEFAULTS', 'cloneSourceKindOf', 'cloneMaskedUrl', 'cloneDefaultDirOf', 'cloneHardlinkNote', 'cloneOptionsOf',
   'CLONE_TICKET_OPS', 'CLONE_CHECK_CONTRACT', 'CLONE_CHECK_VERSION', 'CLONE_TARGET_STATES', 'clonePlanOf', 'cloneTaskArgsOf', 'cloneTargetProblem',
@@ -356,9 +366,12 @@ async function main() {
   // #1751 贮藏页那一族（十条动作名、版本门、确认卡、最近丢弃与失败话术）。
   const vcStashMod = await import(locUrl('src/client/kernel/locale-vcstash.js'))
   const L_VCSTASH = vcStashMod.L_VCSTASH
+  // #1748 变基待办页历史改写那一族（五条动作名、字段说明、确认卡与恢复点、失败话术）。
+  const vcUndoMod = await import(locUrl('src/client/kernel/locale-vcundo.js'))
+  const L_VCUNDO = vcUndoMod.L_VCUNDO
   LOC = {
-    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh),
-    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en),
+    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh, L_VCUNDO.zh),
+    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en, L_VCUNDO.en),
   }
   tZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
   tEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
@@ -1572,6 +1585,91 @@ async function main() {
   check(failHtml.indexOf('data-vc-stash-result="fail"') >= 0 && attrValuesOf(failHtml, 'data-vc-stash-fail-kind')[0] === 'branch-exists' && failHtml.indexOf(LOC.zh['vc.stash.fail.branchExists']) >= 0, 'Z16z 失败回包按原因码查人话（分支已存在：说清楚，不印裸 kind）')
   const okState = Object.assign(VIEW.vcStashStateNew(), { result: { ok: true, op: 'push', entries: stashEntries, recent: [] } })
   check(stashPageOf(stashEntries, 'git version 2.49.0', okState).indexOf('data-vc-stash-result="ok"') >= 0, 'Z16aa 成功回包给结果条并提示下一步（列表已刷新）')
+  // ---- Z17 组：变基待办页的历史改写五条面板（#1748 T13，域 5 的 5.1–5.5）----
+  // 页面只画三个时刻：待预检（输入区）、预检成功（确认卡四段 + 恢复点）、执行完成（前后 HEAD + 恢复路径）。
+  //   五条动作的编号、名称与命令原文一律运行期从能力账本 5.1–5.5 读，这里不抄第二份名单。
+  const undoSheetOf = function (state) {
+    const opts: any = { page: 'rebase', width: 460, skin: 'dark', seed: firstSeedOf() }
+    if (state) opts.undo = state
+    return shellHtmlOf(opts)
+  }
+  const undoStateOf = function (over) {
+    const st: any = VIEW.vcUndoStateNew()
+    if (over) {
+      Object.assign(st, over)
+      st.inputs = Object.assign(VIEW.vcUndoInputsOf(), over.inputs || {})
+    }
+    return st
+  }
+  const undoRows = function (html) { return attrValuesOf(html, 'data-vc-undo-cap').slice(1) }
+  const undoDangerOf = function (html) { return attrValuesOf(html, 'data-vc-undo-danger').slice(1) }
+  const undoHead = 'f'.repeat(40)
+  const undoRecovery = {
+    discard: { files: 3, added: 12, deleted: 4, binary: 1, truncated: false },
+    commits: 2,
+    restore: { headOid: 'e'.repeat(40), reflogBefore: 'HEAD@{1}' },
+  }
+  const undoCheckReply = {
+    ok: true, contract: 'version-control.undo-check', version: 1, op: 'reset-hard', capId: '5.3', atMs: NOW,
+    ticket: { id: 'un-abc123', op: 'reset-hard', checkedAtMs: NOW, expiresAtMs: NOW + 120000 },
+    scene: { head: undoHead, headShort: undoHead.slice(0, 10), branch: 'main', dirty: true, midOperation: false },
+    plan: { op: 'reset-hard', target: 'HEAD~1', targetOid: 'd'.repeat(40), message: '', commits: [], resetMode: 'hard', recovery: undoRecovery },
+    danger: true, recovery: undoRecovery, defaultMessage: '', steps: [['reset', '--hard', 'HEAD~1']], stepCount: 1,
+  }
+  const undoIdleHtml = undoSheetOf(undoStateOf())
+  check(undoIdleHtml.indexOf('data-vc-undo-page="1"') >= 0 && attrValuesOf(undoIdleHtml, 'data-vc-undo-count')[0] === '5', 'Z17a 变基待办页画出历史改写面板，五条动作一条不少（5.1–5.5）')
+  check(undoRows(undoIdleHtml).join(',') === '5.1,5.2,5.3,5.4,5.5' && attrValuesOf(undoIdleHtml, 'data-vc-undo-op-row').join(',') === 'reset-soft,reset-mixed,reset-hard,revert,cherry-pick', 'Z17b 五条动作按账本编号排、动作名与编号对得上（' + undoRows(undoIdleHtml).join('、') + '）')
+  check(VIEW.VC_UNDO_CATALOG.length === 5 && VIEW.vcUndoCatalogOf().every(function (one) { return one.page === 'rebase' && one.onThisPage === true && one.primaryEntry === '变基待办' }), 'Z17c 五条动作的页面归属与主入口运行期从账本读：全落变基待办页，不在这里抄第二份页面名')
+  check(attrValuesOf(undoIdleHtml, 'data-vc-undo-command').join('|') === ['5.1', '5.2', '5.3', '5.4', '5.5'].map(function (id) { return VIEW.vcCapabilityOf(id).command }).join('|'), 'Z17d 每条动作显示账本里的命令原文（' + attrValuesOf(undoIdleHtml, 'data-vc-undo-command').join('、') + '）')
+  check(attrValuesOf(undoIdleHtml, 'data-vc-undo-danger-badge').length === 1 && undoDangerOf(undoIdleHtml).join(',') === '0,0,1,0,0' && attrValuesOf(undoIdleHtml, 'data-vc-undo-recovery-cap').join(',') === '0,0,1,0,0', 'Z17e 只有硬重置（5.3）标危险档与恢复点：其余四条不吓人，也不假装能找回')
+  check(attrValuesOf(undoIdleHtml, 'data-vc-undo-primary-entry').length === 5 && attrValuesOf(undoIdleHtml, 'data-vc-undo-primary-entry').every(function (x) { return x === '变基待办' }), 'Z17f 五条都标出主入口「变基待办」（与账本 primaryEntry 同源，页面正文里就能看到落点）')
+  check(attrValuesOf(undoIdleHtml, 'data-vc-undo-op')[0] === 'reset-soft' && attrValuesOf(undoIdleHtml, 'data-vc-undo-input').join(',') === 'target' && attrValuesOf(undoIdleHtml, 'data-vc-undo-field-for').join(',') === 'reset-soft' && undoIdleHtml.indexOf('data-vc-undo-confirm="1"') < 0 && undoIdleHtml.indexOf('data-vc-undo-idle="1"') >= 0, 'Z17g 默认停在 5.1：只有目标一个输入，还没预检所以先不出确认卡（先看后做）')
+  const undoRevertHtml = undoSheetOf(undoStateOf({ inputs: { op: 'revert', target: 'HEAD~1' } }))
+  check(attrValuesOf(undoRevertHtml, 'data-vc-undo-input').join(',') === 'target,message' && attrValuesOf(undoRevertHtml, 'data-vc-undo-field-for').join(',') === 'revert,revert', 'Z17h 还原提交要多一句说明：目标与说明两个输入（说明留空就用 git 的默认标题）')
+  const undoPickHtml = undoSheetOf(undoStateOf({ inputs: { op: 'cherry-pick', target: '', commits: 'a'.repeat(40) + '\n' + 'b'.repeat(40) } }))
+  check(attrValuesOf(undoPickHtml, 'data-vc-undo-input').join(',') === 'commits' && undoPickHtml.indexOf('data-vc-undo-field-for="cherry-pick"') >= 0 && undoPickHtml.indexOf('data-vc-undo-cap="5.5"') >= 0, 'Z17i 拣选只要一张提交清单（一行一条、按先后顺序），不需要目标引用')
+  const undoConfirmHtml = undoSheetOf(undoStateOf({ inputs: { op: 'reset-hard', target: 'HEAD~1' }, check: undoCheckReply }))
+  check(undoConfirmHtml.indexOf('data-vc-undo-confirm="1"') >= 0 && attrValuesOf(undoConfirmHtml, 'data-vc-undo-ticket')[0] === 'un-abc123' && attrValuesOf(undoConfirmHtml, 'data-vc-undo-seg').join(',') === 'what,wont,reversible,verb', 'Z17j 预检成功才出确认卡：票号与四段（做什么 / 不做什么 / 可不可逆 / 动词）齐全')
+  check(undoConfirmHtml.indexOf('data-vc-undo-danger-warning="1"') >= 0 && attrValuesOf(undoConfirmHtml, 'data-vc-undo-recovery-files')[0] === '3' && attrValuesOf(undoConfirmHtml, 'data-vc-undo-recovery-added')[0] === '12' && attrValuesOf(undoConfirmHtml, 'data-vc-undo-recovery-deleted')[0] === '4' && undoConfirmHtml.indexOf('data-vc-undo-recovery-binary="1"') >= 0 && attrValuesOf(undoConfirmHtml, 'data-vc-undo-recovery-commits')[0] === '2', 'Z17k 硬重置的确认卡写清会丢什么：3 个文件、12 行新增、4 行删除、1 个二进制、2 条提交移出历史')
+  check(attrValuesOf(undoConfirmHtml, 'data-vc-undo-recovery-step').join(',') === '0,1' && undoConfirmHtml.indexOf('git reset --hard ' + 'e'.repeat(40)) >= 0 && undoConfirmHtml.indexOf('git reflog show -n 1 HEAD@{1}') >= 0 && undoConfirmHtml.indexOf(LOC.zh['vc.undo.recovery.keep']) >= 0, 'Z17l 恢复点按顺序给出两条找回命令（写回旧提交 + reflog 选择器），并说明旧提交不会立刻消失')
+  check(attrValuesOf(undoConfirmHtml, 'data-focus-default').indexOf('cancel') >= 0 && undoConfirmHtml.indexOf('data-vc-undo-go="1"') >= 0 && undoConfirmHtml.indexOf('data-vc-undo-cancel="1"') >= 0 && !/data-vc-undo-go="1"[^>]*disabled/.test(undoConfirmHtml), 'Z17m 确认卡默认焦点在取消键，确认键在预检态可点（危险动作的第一下不该自己落到确认上）')
+  const undoSoftReply = {
+    ok: true, contract: 'version-control.undo-check', version: 1, op: 'reset-soft', capId: '5.1', atMs: NOW,
+    ticket: { id: 'un-soft1', op: 'reset-soft', checkedAtMs: NOW, expiresAtMs: NOW + 120000 },
+    scene: { head: undoHead, headShort: undoHead.slice(0, 10), branch: 'main', dirty: true, midOperation: false },
+    plan: { op: 'reset-soft', target: 'HEAD~1', targetOid: 'd'.repeat(40), message: '', commits: [], resetMode: 'soft' },
+    danger: false, recovery: null, defaultMessage: '', steps: [['reset', '--soft', 'HEAD~1']], stepCount: 1,
+  }
+  const undoSoftConfirmHtml = undoSheetOf(undoStateOf({ inputs: { op: 'reset-soft', target: 'HEAD~1' }, check: undoSoftReply }))
+  check(undoSoftConfirmHtml.indexOf('data-vc-undo-confirm="1"') >= 0 && undoSoftConfirmHtml.indexOf('data-vc-undo-danger-warning') < 0 && attrValuesOf(undoSoftConfirmHtml, 'data-vc-undo-recovery').length === 0 && undoSoftConfirmHtml.indexOf(LOC.zh['vc.undo.confirm.reversible']) >= 0, 'Z17n 软重置的确认卡不出危险提示与恢复点，改说「可以撤回」（不把不危险的动作说得吓人）')
+  const undoWriteReply = {
+    ok: true, op: 'reset-hard', capId: '5.3', atMs: NOW,
+    before: { headOid: 'f'.repeat(40), headShort: 'ffffffffff' },
+    after: { headOid: 'd'.repeat(40), headShort: 'dddddddddd' },
+    stepsDone: 1, danger: true, recovery: undoRecovery,
+  }
+  const undoDoneHtml = undoSheetOf(undoStateOf({ phase: 'done', inputs: { op: 'reset-hard', target: 'HEAD~1' }, result: undoWriteReply }))
+  check(undoDoneHtml.indexOf('data-vc-undo-result="ok"') >= 0 && attrValuesOf(undoDoneHtml, 'data-vc-undo-head-before')[0] === 'ffffffffff' && attrValuesOf(undoDoneHtml, 'data-vc-undo-head-after')[0] === 'dddddddddd' && attrValuesOf(undoDoneHtml, 'data-vc-undo-steps-done')[0] === '1', 'Z17o 执行完成给结果条：原来的 HEAD 与现在的 HEAD、跑了几步，一目了然')
+  check(undoDoneHtml.indexOf('data-vc-undo-result-recovery-note="1"') >= 0 && attrValuesOf(undoDoneHtml, 'data-vc-undo-recovery').indexOf('result') >= 0 && undoDoneHtml.indexOf(LOC.zh['vc.undo.recovery.title']) >= 0, 'Z17p 硬重置做完仍把恢复路径留在页面上（先记下来再关页面，别等到想找回时才找）')
+  const undoFailHtml = undoSheetOf(undoStateOf({ phase: 'failed', inputs: { op: 'reset-hard', target: 'HEAD~1' }, error: { key: 'stale-index', reason: 'stale-index', detail: '暂存或未暂存的改动变了', field: '' } }))
+  check(attrValuesOf(undoFailHtml, 'data-vc-undo-error')[0] === 'stale-index' && undoFailHtml.indexOf(LOC.zh['vc.undo.fail.stale-index']) >= 0 && undoFailHtml.indexOf('data-vc-undo-retry="1"') >= 0 && undoFailHtml.indexOf('暂存或未暂存的改动变了') >= 0, 'Z17q 失败按宿主 reason 查人话（暂存区变了：说清原因、附 git 原文、给重新预检的入口）')
+  const undoBusyHtml = undoSheetOf(undoStateOf({ inputs: { op: 'reset-hard', target: 'HEAD~1' }, check: undoCheckReply, phase: 'writing' }))
+  check(attrValuesOf(undoBusyHtml, 'data-vc-undo-pending')[0] === '1' && (undoBusyHtml.match(/disabled/g) || []).length >= 3 && undoBusyHtml.indexOf('data-vc-undo-confirm="1"') >= 0, 'Z17r 执行在途时确认卡与两颗按钮一律禁用（连点两次不该真执行两次），票还留着')
+  check(shellHtmlOf({ page: 'commits', width: 460, skin: 'dark' }).indexOf('data-vc-undo-page') < 0, 'Z17s 别的页面不挂历史改写面板（只在变基待办页出现，不四处撒入口）')
+  // 反证共用的判据：面板挂没挂、只有 5.3 标危险、确认卡画没画恢复点。
+  const undoMountedJudgmentOf = function (v) {
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'rebase', width: 460, skin: 'dark', seed: firstSeedOf() }))
+    return html.indexOf('data-vc-undo-page="1"') >= 0 && attrValuesOf(html, 'data-vc-undo-cap').slice(1).join(',') === '5.1,5.2,5.3,5.4,5.5'
+  }
+  const undoDangerJudgmentOf = function (v) {
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'rebase', width: 460, skin: 'dark', seed: firstSeedOf() }))
+    return attrValuesOf(html, 'data-vc-undo-danger-badge').length === 1 && attrValuesOf(html, 'data-vc-undo-danger').slice(1).join(',') === '0,0,1,0,0'
+  }
+  const undoRecoveryJudgmentOf = function (v) {
+    const state = Object.assign(v.vcUndoStateNew(), { inputs: Object.assign(v.vcUndoInputsOf(), { op: 'reset-hard', target: 'HEAD~1' }), check: undoCheckReply })
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'rebase', width: 460, skin: 'dark', seed: firstSeedOf(), undo: state }))
+    return html.indexOf('data-vc-undo-recovery="1"') >= 0 && attrValuesOf(html, 'data-vc-undo-recovery-step').length === 2
+  }
   // ---- W-ext 组（#1752）：工作树页八条能力接在同一份首屏快照上 ----
   // 页面与首屏聚合共用同一份片：清单来自 worktrees 片，版本门来自 version 片里的 switches，
   // 判定调共享层 worktreeJudge —— 界面不另发清单电话、不自己写一份版本比较。
@@ -2413,6 +2511,12 @@ async function main() {
     { name: '贮藏页不再挂进页面壳（十条入口全没了）', patch: (s) => s.replace("if (page === 'stash' && typeof vcStashPageNode === 'function') {", 'if (false) {'), test: stashMountedJudgmentOf, what: 'Z16a' },
     { name: '7.3 的版本门恒放行（低版本也画按钮）', patch: (s) => s.replace('const state = vcStashOpVersionStateOf(VC_STASH_STAGED_OP, versionText)', "const state = 'full'"), test: stashGateJudgmentOf, what: 'Z16m' },
     { name: '危险动作不再出确认卡', patch: (s) => s.replace('if (!state.confirm || !state.confirm.op) return null', 'if (state) return null'), test: stashConfirmJudgmentOf, what: 'Z16p' },
+    // #1748：变基待办页不再挂历史改写面板 —— Z17a 必须当场红。
+    { name: '变基待办页不再挂历史改写面板', patch: (s) => s.replace("if (page === 'rebase' && typeof vcUndoPageNode === 'function') children.push(keyed(vcUndoPageNode(", "if (false) children.push(keyed(vcUndoPageNode("), test: undoMountedJudgmentOf, what: 'Z17a' },
+    // #1748：硬重置不再标危险档（用户看到的是一个「不危险」的毁级动作）—— Z17e 必须当场红。
+    { name: '硬重置不再标危险档', patch: (s) => s.replace("targetDefault: '', danger: true, recovery: true,", "targetDefault: '', danger: false, recovery: true,"), test: undoDangerJudgmentOf, what: 'Z17e' },
+    // #1748：确认卡不再画恢复点（点确认之前看不到会丢什么、怎么找回）—— Z17k 必须当场红。
+    { name: '确认卡不再画恢复点', patch: (s) => s.replace("  if (check.recovery) kids.push(undoRecoveryNode(h, t, check.recovery, '1'))", '  if (false) kids.push(undoRecoveryNode(h, t, check.recovery, 1))'), test: undoRecoveryJudgmentOf, what: 'Z17k' },
     // #1754：远端页的联网入口换了标记名（按钮还在，但读屏与门禁都找不到「这是联网入口」）—— R2a 必须当场红。
     { name: '远端页的联网入口改成别的属性名', patch: (s) => s.replace("'data-vc-remote-online-btn': String(remote.name),", "'data-vc-remote-online-entry': String(remote.name),"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'remote', width: 460, skin: 'dark', reads: rcReadsOf({}) })); return attrValuesOf(html, 'data-vc-remote-online-btn').length === 2 }, what: 'R2a' },
     // #1754：联网结果不再标来源 network（把这一次的联网读数画成缓存/旧值）—— R2d 必须当场红。
