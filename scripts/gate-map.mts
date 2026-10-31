@@ -90,6 +90,10 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 阶段与进度（解析不出百分比就显示不确定）、软取消与残留、重启后如实说中断、在途去重、
   // fast-import 输入文件引用走宿主真校验、七个登记点与 4 条反证，单跑实测 136 条。
   'verify-1586-task-channel': 136,
+  // 2026-10-31 #1742（规格 #1586 T07）：改动页 13 条能力——协议与视图名单逐条对账、路径守卫、
+  // 宿主预检与执行（票据绑定、requestId 重放、索引/工作树变了零写命令）、七个登记点与词条齐全，
+  // 含 3 条反证自检，单跑实测 85 条。
+  'verify-1586-changes-page': 85,
   // 2026-10-29 #1600：词表里 gate.wipNotice 已退役（GitLab 可用后不再有「筹备中」注解），
   // 这扇改成先钉「键已不在词表里」、再钉「初始化小卡上不再出现该文案」，单跑实测 31 条。
   'verify-669-collapsed-recoverable': 31,

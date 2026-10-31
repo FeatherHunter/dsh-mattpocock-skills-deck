@@ -90,6 +90,8 @@ const VC_FILES = [
   'src/client/views/versionControl/vcCapabilityPages.js',
   'src/client/views/versionControl/vcShellPrimitives.js',
   'src/client/views/versionControl/vcPalette.js',
+  // #1742 改动页操作面板（13 条动作的渲染面板）：页面壳只在传了改动读数时才挂它；与构建同序，排在页面壳之前。
+  'src/client/views/versionControl/vcChangesPage.js',
   'src/client/views/versionControl/vcShellPages.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -127,6 +129,8 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'VC_BLOCK_KEY', 'vcBlockKeyOf', 'vcReasonKeysOf',
   'VC_PALETTE_MAX', 'vcCapabilityAliasOf', 'vcCapabilitySummaryOf', 'vcCapabilityNeedsObjectOf', 'vcPaletteRowsOf', 'vcPaletteTargetOf', 'vcPaletteNode',
   'vcRenderTabAt', 'vcRenderAllPages',
+  // #1742 改动页：两条电话表、13 条动作清单、参数构造与渲染入口。
+  'VC_CHANGES_PHONES', 'VC_CHANGES_OPS', 'vcChangesPageNode', 'vcChangesCheckArgsOf', 'vcChangesWriteArgsOf',
   // #1739 首屏一次取全：七片契约与客户端数据层。
   'FIRST_SCREEN_CONTRACT', 'FIRST_SCREEN_VERSION', 'FIRST_SCREEN_SLICES', 'FIRST_SCREEN_REFRESH_MOMENTS',
   'firstScreenVersionOk', 'firstScreenShapeOk', 'firstScreenFailedSlices',

@@ -226,6 +226,19 @@ async function main(): Promise<void> {
   await vcCap.runGitCommand('git', rH, ['-C', rH, '--no-pager', 'status'])
   check((requests[0] || { stdio: {} }).stdio.stdout.maxBytes === 8 * 1024 * 1024, 'H10 不传 stdoutLimit 时默认上限是 8MB')
 
+  // I 改动页两条电话（#1742）：13 条动作走同一条「预检发票 → 执行复核」通道，票表只给门禁与测试读。
+  console.log('I 改动页电话（#1742）')
+  const vcI = makeVc()
+  check(typeof vcI.handleGitChangesCheck === 'function' && typeof vcI.handleGitChangesWrite === 'function', 'I1 改动页预检与执行两条电话都挂在同一个宿主对象上')
+  check(typeof vcI.changesTickets === 'function', 'I2 票表读取口只给门禁与测试，不注册成电话')
+  const zeroBefore = spawns.length
+  const iBad = await vcI.handleGitChangesCheck({ cwd: '', op: 'stage-file' })
+  check(iBad.ok === false && iBad.error && iBad.error.reason === 'bad-target' && spawns.length === zeroBefore, 'I3 预检入口先判参数形状：缺 cwd 直接拒绝且零进程')
+  const iWriteBad = await vcI.handleGitChangesWrite({ cwd: '', op: 'stage-file', ticketId: 'nope' })
+  check(iWriteBad.ok === false && iWriteBad.error && iWriteBad.error.reason === 'ticket-missing' && spawns.length === zeroBefore, 'I4 执行入口先查票：没有票就零进程拒绝')
+  const iTickets = await vcI.changesTickets()
+  check(iTickets instanceof Map && iTickets.size === 0, 'I5 还没预检过时改动页票表是空表')
+
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }
