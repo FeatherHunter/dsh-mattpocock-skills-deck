@@ -85,6 +85,7 @@
     "verify-parallel.mts",
     "wire-subissues.mts",
     // #1645：真机验证工具台进仓库（scripts/real-machine/），库与命令逐条登记。
+    "real-machine/lib/batch.mts",
     "real-machine/lib/browser.mts",
     "real-machine/lib/candidate.mts",
     "real-machine/lib/evidence.mts",
@@ -97,6 +98,7 @@
     "real-machine/lib/workspaces.mts",
     "real-machine/commands/backup-settings.mts",
     "real-machine/commands/browser-check.mts",
+    "real-machine/commands/check-batch.mts",
     "real-machine/commands/cleanup.mts",
     "real-machine/commands/collect-evidence.mts",
     "real-machine/commands/copy-home.mts",
@@ -105,6 +107,7 @@
     "real-machine/commands/isolation-probe.mts",
     "real-machine/commands/log-query.mts",
     "real-machine/commands/make-workspace.mts",
+    "real-machine/commands/prepare-batch.mts",
     "real-machine/commands/restore-settings.mts",
     "real-machine/commands/seed-workspace.mts",
     "real-machine/commands/settings-fallback.mts",

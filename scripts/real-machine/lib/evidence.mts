@@ -23,6 +23,16 @@ export interface EvidenceCheck {
   detail: string
 }
 
+/**
+ * 证据所属候选的机器可读身份。证据包里必须有这一块，否则统计时说不清它在验哪个候选。
+ * 字段名与 batch.json、发布前检查读评论身份行时用的名字一致。
+ */
+export interface EvidenceCandidate {
+  batchName: string
+  commit: string
+  packageSha256: string
+}
+
 export interface EvidenceCollector {
   dir: string
   addText: (name: string, text: string, note?: string) => EvidenceItem
@@ -41,8 +51,11 @@ function relativeTo(dir: string, file: string): string {
   return path.relative(dir, file).split(path.sep).join('/')
 }
 
-/** 开一个证据收集器：所有文件落在 <batch>/evidence/files/ 里。 */
-export function createEvidence(batchDir: string, meta: Record<string, any> = {}): EvidenceCollector {
+/**
+ * 开一个证据收集器：所有文件落在 <batch>/evidence/files/ 里。
+ * candidate 是这条证据绑定的候选身份，会原样写进 evidence.json 顶层；缺了它，下游统计不得把这条证据算进来。
+ */
+export function createEvidence(batchDir: string, meta: Record<string, any> = {}, context: { candidate?: EvidenceCandidate | null } = {}): EvidenceCollector {
   const dir = path.resolve(batchDir)
   assertWithin(dir)
   const filesDir = path.join(dir, 'evidence', 'files')
@@ -134,6 +147,8 @@ export function createEvidence(batchDir: string, meta: Record<string, any> = {})
         checks,
         items: collected,
         ...(options.extra || {}),
+        // 放在 extra 之后写：候选身份只能由命令层从 batch.json 注入，不能被 --extra 覆盖。
+        candidate: context.candidate || null,
       }
       writeJson(manifestPath, manifest)
       return { manifestPath, manifest }

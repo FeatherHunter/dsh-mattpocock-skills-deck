@@ -9,12 +9,16 @@
 //         [--meta 键=值 ...] [--extra 键=值 ...]
 //
 // --note / --kind 按顺序对应 --file；不给时用文件名与 file。
+// 证据必须收进一个已经由 prepare-batch 建好的批次：命令会读 <批次>/batch.json，把候选身份写进 evidence.json。
+// 缺 batch.json 或身份对不上时直接失败——没有候选身份的证据不进报告统计。
 // 输出 evidence.json 的路径与清单。
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { ensureDir, parseArgs, printJson, runCli } from '../lib/util.mts'
+import { evidenceCandidate, judgeEvidenceBinding, readBatch } from '../lib/batch.mts'
 import { createEvidence } from '../lib/evidence.mts'
+import { resolveBatchPath } from '../lib/paths.mts'
+import { parseArgs, printJson, runCli } from '../lib/util.mts'
 
 function parsePairs(values: string[]): Record<string, string> {
   const out: Record<string, string> = {}
@@ -28,9 +32,19 @@ function parsePairs(values: string[]): Record<string, string> {
 
 runCli(async () => {
   const args = parseArgs(process.argv.slice(2))
-  const batch = args.require('batch', '批次目录')
-  ensureDir(batch)
-  const collector = createEvidence(batch, parsePairs(args.getAll('meta')))
+  const batch = resolveBatchPath(args.require('batch', '批次目录'))
+  const record = readBatch(batch)
+  const binding = evidenceCandidate(record)
+  const meta: Record<string, any> = parsePairs(args.getAll('meta'))
+  if ('candidate' in meta || 'batchName' in meta) {
+    throw new Error('候选身份由 batch.json 决定，不要在 --meta 里手写 candidate 或 batchName：先确认批次目录没给错。')
+  }
+  meta.candidate = binding
+  const verdict = judgeEvidenceBinding(record, meta)
+  if (!verdict.ok) {
+    throw new Error('证据没有绑定到这一批的候选，不能收进证据包：\n  ' + verdict.problems.join('\n  '))
+  }
+  const collector = createEvidence(batch, meta, { candidate: binding })
   const files = args.getAll('file')
   const notes = args.getAll('note')
   const kinds = args.getAll('kind')
@@ -60,5 +74,13 @@ runCli(async () => {
     }
   }
   const finished = collector.finish(summary, { extra: parsePairs(args.getAll('extra')) })
-  printJson({ manifestPath: finished.manifestPath, itemCount: finished.manifest.items.length, checkCount: finished.manifest.checks.length, ok: finished.manifest.checks.every((entry: any) => entry.ok), manifest: finished.manifest })
+  printJson({
+    manifestPath: finished.manifestPath,
+    batchName: record.batchName,
+    candidate: binding,
+    itemCount: finished.manifest.items.length,
+    checkCount: finished.manifest.checks.length,
+    ok: finished.manifest.checks.every((entry: any) => entry.ok),
+    manifest: finished.manifest,
+  })
 })
