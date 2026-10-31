@@ -691,9 +691,9 @@ console.log('F) #1404 表头单行：左右两簇、四段词条、两枚分隔�
   // 三、#1732（三条）：单子打开就停在末行（在办单子沉底，最新一条贴底、离鼠标最近）、
   //   在办单子表头吸顶不跟着滚走、高度跟着 DSH 窗口长（底边钉在胶囊上沿，上方可用高度都用上，窗口矮时收小）。
   check(menuStyle.boxSizing === 'border-box', '高度上限含内边距与边框（box-sizing: border-box）')
-  check(menuStyle.padding === '0 4px 4px' && menuStyle.scrollPaddingTop === 24, '单子顶部不放内边距（滚动口顶上不露行），并给键盘聚焦行留出表头高度（实得 ' + JSON.stringify([menuStyle.padding, menuStyle.scrollPaddingTop]) + '）')
-  check(hs.position === 'sticky' && hs.top === 0, '表头吸顶（sticky，贴在滚动容器顶上）')
-  check(!!hs.background && hs.zIndex >= 1, '吸顶表头有底色且盖在行上面（行从它底下滚过去不透出来）')
+  check(menuStyle.padding === '0 4px 4px' && menuStyle.scrollPaddingTop === 24, '单子顶部不放内边距（滚动口顶上不露行），并给键盘聚焦行留出在办单子表头的高度（实得 ' + JSON.stringify([menuStyle.padding, menuStyle.scrollPaddingTop]) + '）')
+  check(hs.position === 'sticky' && hs.top === 0, '在办单子表头吸顶（sticky，贴在滚动容器顶上）')
+  check(!!hs.background && hs.zIndex >= 1, '吸顶的在办单子表头有底色且盖在行上面（行从它底下滚过去不透出来）')
   const refFn = (menuNode && menuNode.props) ? menuNode.props.ref : null
   check(typeof refFn === 'function', '滚动容器上挂了 ref 回调（打开时用它滚到末行）')
   const menuKey = (menuNode && menuNode.props) ? String(menuNode.props.key || '') : ''
