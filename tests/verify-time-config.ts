@@ -81,6 +81,8 @@ const REFERENCES: RefRow[] = [
   { file: 'src/host/versionControlCheck.ts', access: 'CHECK_CALL_BUDGET_MS', gen: 'VC_CHECK_CALL_BUDGET_MS', key: 'vcCheckCallBudgetMs' },
   { file: 'src/host/versionControlCheck.ts', access: 'LSFILES_TIMEOUT_MS', gen: 'VC_LSFILES_TIMEOUT_MS', key: 'vcLsFilesTimeoutMs' },
   { file: 'src/host/versionControlCheck.ts', access: 'REMOTE_TIMEOUT_MS', gen: 'VC_REMOTE_TIMEOUT_MS', key: 'vcRemoteTimeoutMs' },
+  // #1754 T18 远端与同步页：用户显式点「联网查看」时 git ls-remote 的超时（真走网络，与本地 remote -v 那一档分开）。
+  { file: 'src/host/versionControlRemote.ts', access: 'ONLINE_TIMEOUT_MS', gen: 'VC_REMOTE_ONLINE_TIMEOUT_MS', key: 'vcRemoteOnlineTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'ADD_TIMEOUT_MS', gen: 'VC_ADD_TIMEOUT_MS', key: 'vcAddTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'COMMIT_TIMEOUT_MS', gen: 'VC_COMMIT_TIMEOUT_MS', key: 'vcCommitTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'PULL_TIMEOUT_MS', gen: 'VC_PULL_TIMEOUT_MS', key: 'vcPullTimeoutMs' },

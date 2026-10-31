@@ -42,7 +42,7 @@ import { parseDiffFiles } from '../shared/version-control/src/parse-diff-files.j
 import { assemble, classifyStepZero } from '../shared/version-control/src/state.js'
 import { makeStallWatch } from './stallWatch.js' // #847：字节增长看门狗（自包含叶子，照 #500/#821 先例）
 import { withGhLane } from '../refresh/rooms/host/outbound-admission.js'
-import { failPhone, firstLine, failureFromExec } from '../shared/version-control/exec-envelope.js'
+import { failPhone, firstLine, failureFromExec } from '../shared/version-control/exec-envelope.js'; import { remoteHandles } from '../shared/version-control/src/remote-handles.js' // #1754 T18：域 8 六条电话的包装（共享层小件；宿主同层只许动态 import，电话体仍按需加载）
 // 单条 git 命令的默认超时住中央 YAML（config/timeouts.yaml 的 vcRunTimeoutMs 键）：这里直接引用中央常量，调时间改 YAML。
 // 它管的是「调用方没给 TIMEOUT_MS 时，一条 git 命令最多跑多久」——接线给了 TIMEOUT_MS 就以接线那个为准。
 // 路径走域构建产物写法（与 src/refresh/rooms/host/chain-coalescing.ts 引 values.js 同例），
@@ -388,6 +388,10 @@ export function createVersionControl(deps: any): any {
   function firstScreenPhone(): any { if (!_firstP) _firstP = import('./versionControlFirstScreen.js').then(function (m: any) { return m.createFirstScreenPhone({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, collect: collect, readHasHead: readHasHead, readAutocrlf: readAutocrlf, basisReader: basisReader, readMarkers: function (gitDir: any, ctx: any): any { return markersPhone().then(function (p: any): any { return p.read(gitDir, ctx) }) }, logCount: FIRST_SCREEN_LOG_COUNT }) }); return _firstP }
   async function handleGitFirstScreen(args: any): Promise<any> { const p: any = await firstScreenPhone(); return p(args) }
 
+  // 域 8「远端与同步」六条电话（#1754 T18）住 ./versionControlRemote.js：与差异、首屏同一先例（自包含叶子、
+  // 依赖全显式传入、单向引用）。联网那一路只在用户显式点「联网查看」后走，本文件不额外触发。
+  // 取件函数与它缓存的同一条 Promise 就写在下面返回对象那一行里（父文件贴 350 行上限，也为守同层动态 import 的规矩）。
+
   /** 电话 wf.gitLog 的处理体：历史按批取；多要一条用来判断后面还有没有。 */
   async function handleGitLog(args: any): Promise<any> {
     const count: number = clampInt(args && args.count, FIRST_SCREEN_LOG_COUNT, 1, LOG_BATCH_MAX)
@@ -476,7 +480,7 @@ export function createVersionControl(deps: any): any {
   // 这一层贴着 350 有效行上限（#1751 合并 #1742 后需要），装配与缓存收在叶子，行为不变。
 
   return {
-    handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
+    handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus), ...remoteHandles(loggedPhone, (function (): any { let p: any = null; return function (): any { if (!p) p = import('./versionControlRemote.js').then(function (m: any) { return m.createRemotePhones({ runPinned: runPinned, failureFromExec: failureFromExec, failPhone: failPhone, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now }) }); return p } })()), // #1754 T18：域 8 远端与同步六条电话（包装在共享层 remoteHandles，电话体按需加载、取件 Promise 缓存）
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
     handleGitLog: loggedPhone('wf.gitLog', 'git-log', handleGitLog),
     // 首屏七片一次聚合（#1739 T04）：一次调用拿全，各片成败在回包里各自说。
