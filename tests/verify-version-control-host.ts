@@ -31,8 +31,9 @@ const LIVE_REV = readJson('tests/fixtures/version-control/live-rev-shapes.json')
 // #819 复审样本：方括号路径（带/不带 --literal-pathspecs 两种真机输出）、sql 行首歧义、刚克隆的仓库。
 const LIVE_819 = readJson('tests/fixtures/version-control/live-819-review-shapes.json')
 const LIVE_ROOT = /^worktree ([^\u0000\n]+)/.exec(LIVE.worktrees.out)[1]
-const FIXED_PREFIX = ['--no-optional-locks', '--literal-pathspecs', '-c', 'core.quotepath=false', '-c', 'color.ui=false', '-c', 'i18n.logOutputEncoding=UTF-8']
-const LOG_WHITELIST = ['argv0', 'cwdHash', 'latencyMs', 'exitCode', 'via', 'timeoutMs', 'errorHash']
+const FIXED_PREFIX = ['--no-pager', '--no-optional-locks', '--literal-pathspecs', '-c', 'core.quotepath=false', '-c', 'color.ui=false', '-c', 'i18n.logOutputEncoding=UTF-8']
+// #1741：执行层日志补齐命令名、参数个数、输出长度、截断标记与错误类（规格第 8 节字段白名单）。
+const LOG_WHITELIST = ['argv0', 'cwdHash', 'cmd', 'argc', 'latencyMs', 'exitCode', 'stdoutBytes', 'truncated', 'stdinBytes', 'via', 'timeoutMs', 'errorHash', 'errorKind']
 
 // ---------- 假适配器：形状照 DSH subprocess 服务（done / collected.stdout / terminate） ----------
 function makeCollector(text, truncated) {
@@ -158,7 +159,7 @@ async function screenChecks(makeVc) {
   add(gate.notes.length === calls.length, '起进程之前先向闸报一笔：报账数与进程数一致（实得 ' + gate.notes.length + '/' + calls.length + '）')
   add(gate.notes.every(function (n) { return !!n && n.requests === 1 }), '每笔报账记 1 条请求')
 
-  // 日志：每条命令一行 git.exec；电话一行 host.call；字段只取白名单那七个
+  // 日志：每条命令一行 git.exec；电话一行 host.call；字段只取白名单里那些（#1741 起含命令名与输出长度）
   const execLines = logs.filter(function (l) { return l.event === 'git.exec' })
   add(execLines.length === calls.length, '每条命令一行 git.exec（实得 ' + execLines.length + '/' + calls.length + '）')
   add(execLines.every(function (l) { return l.level === 'info' && l.fields.via === 'version-control' && l.fields.argv0 === 'git' }), 'git.exec 是信息级、via 固定、argv0 只记程序名')

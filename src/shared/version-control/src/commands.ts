@@ -5,7 +5,8 @@
  * 核心既拼命令又解析，宿主只起进程。核心不知道只读和写的区别。
  * 写命令的参数口径不在这一批，但读写同表，将来加行即可。
  *
- * 固定前缀挡掉用户改过的全局配置（调研第六节）：--no-optional-locks（后台不抢锁）、
+ * 固定前缀挡掉用户改过的全局配置（调研第六节）：--no-pager（#1741：不调分页器，管道收输出不会挂住）、
+ * --no-optional-locks（后台不抢锁）、
  * core.quotepath=false（双保险，主力是 -z）、color.ui=false（管道下本已无色）、
  * i18n.logOutputEncoding=UTF-8（提交标题中文不乱码）。status.relativePaths 不在此——
  * 全量命令带 -z，-z 输出恒为仓库根相对（调研 7.1）。
@@ -29,8 +30,17 @@ export const RUNNING_MARKER_PATHS: string[] = [
   'rebase-apply',
 ]
 
+/** 必失败编辑器：GIT_EDITOR 一律指向它。
+ *  规格第 7 节：交互变基待办、分支说明、合并说明这三处要由面板写文件；万一面板没覆盖成功，
+ *  绝不能弹出编辑器把命令挂在那里等人，而要让 git 当场以非零退出失败。`false` 在 git 起编辑器
+ *  所经的 sh 里是内建命令，必定立刻返回非零；它不读文件、不写文件，选它是因为「必定失败」这件事本身可断言。 */
+export const FAILING_EDITOR: string = 'false'
+
 export function fixedPrefix(): string[] {
   return [
+    // 不许调用分页器：宿主用管道收输出，一旦 git 认为该分页（用户配了 core.pager 或全局 -p），
+    // 管道这一头就不会有进程去翻页，命令会挂在等输入上直到超时。--no-pager 是全局选项，放最前面。
+    '--no-pager',
     '--no-optional-locks',
     // 路径参数一律按字面量解释，不许当通配（#819 复审 P0-1 真机复现）：默认口径下 `方括号[1].txt`
     // 会把 `[1]` 当字符组、连 `方括号1.txt` 一起匹配，补丁里就混进没被点名那个文件的内容。
@@ -46,6 +56,23 @@ export function fixedPrefix(): string[] {
     '-c', 'color.ui=false',
     '-c', 'i18n.logOutputEncoding=UTF-8',
   ]
+}
+
+/** 从完整 argv 里找出子命令：跳过 `-C <目录>`、`-c <键值>` 这类「选项后面还带一个值」的全局选项。
+ *  为什么需要它：日志要记命令名（规格第 8 节字段白名单），而 argv 前面是钉死目录与固定前缀，
+ *  测试里的扁平切片也常被全局选项错位；把「哪一项才是子命令」的判断收成一处纯函数，读日志与门禁共用。
+ *  没有子命令时回空串（例如只给了 -C，命令本身不成立），调用方据此给空值，不猜。 */
+const GLOBAL_OPTIONS_WITH_VALUE: string[] = ['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path', '--config-env']
+
+export function subcommandOf(args: string[]): string {
+  const list: string[] = Array.isArray(args) ? args : []
+  for (let i: number = 0; i < list.length; i++) {
+    const item: string = list[i]
+    if (item === '--') return ''
+    if (typeof item === 'string' && item.charAt(0) === '-') { if (GLOBAL_OPTIONS_WITH_VALUE.indexOf(item) >= 0) i++ ; continue }
+    return item
+  }
+  return ''
 }
 
 /** 第 0 步：确认是不是仓库（不进采集清单；失败直接返回，不白起后续进程）。 */

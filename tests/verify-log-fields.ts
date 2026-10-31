@@ -441,11 +441,13 @@ const ALLOWED = {
   //   读不到就是 unknown）。不记入参原文、不记回话内容、不记路径；业务性的正常失败回参不触发它。
   'host.dispatch.empty': ['method', 'shape', 'version'],
   // 2026-10-04 新增两条常驻事件（#817，附录 1.4 节 #94 / #95）：版本管理宿主侧 git 适配器每跑一次 git 外部命令落一行。
-  //   git.exec 记成功与非零退出（只记命令名、工作目录散列、耗时、退出码与来源标记，命令输出正文一个字都不记）；
-  //   git.exec.fail 记等超时与起进程失败两档（等超时那条带 timeoutMs，起进程失败那条带 errorHash，两条都带 cwdHash 与 via）。
-  //   都只记短的枚举、散列与数字：不记命令行原文、不记路径原文、不记任何命令输出。落点一处：src/host/versionControl.js 的 runGitCommand。
-  'git.exec': ['argv0', 'cwdHash', 'latencyMs', 'exitCode', 'via'],
-  'git.exec.fail': ['argv0', 'cwdHash', 'via', 'timeoutMs', 'errorHash'],
+  //   git.exec 记成功与非零退出（只记命令名、工作目录散列、耗时、退出码、输出长度与截断标记，命令输出正文一个字都不记）；
+  //   git.exec.fail 记等超时、看门狗判定停滞与起进程失败三档（等超时那条带 timeoutMs，起进程失败那条带 errorHash，三条都带 cwdHash、via、cmd 与 errorKind）。
+  //   都只记短的枚举、散列与数字：不记命令行原文、不记路径原文、不记任何命令输出。落点一处：src/host/versionControl.ts 的 runGitCommand。
+  // #1741 补齐执行层字段：git.exec 增 cmd（子命令名）、argc（参数个数）、stdoutBytes（输出字节数）、truncated（有没有被上限截断）；
+  // git.exec.fail 增 cmd 与 errorKind（错误类：timeout / stalled / spawn）——规格第 8 节的字段白名单就是这些。
+  'git.exec': ['argv0', 'cwdHash', 'cmd', 'argc', 'latencyMs', 'exitCode', 'stdoutBytes', 'truncated', 'stdinBytes', 'via'],
+  'git.exec.fail': ['argv0', 'cwdHash', 'via', 'cmd', 'errorKind', 'timeoutMs', 'errorHash'],
   // #864 进出缓存：命中、未命中、淘汰三归宿同一事件（只记短散列、枚举与数字；工作区原文、读数内容一律不记）。
   'vc.cache.screen': ['cwdHash', 'outcome', 'ageMs'],
   // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。

@@ -23,7 +23,7 @@
 // @ts-expect-error
 import { createHash } from 'node:crypto'
 import { fixedPrefix, stageArgs, unstageArgs, commitArgs, pullArgs, pushArgs, fetchArgs, lsFilesStageArgs, remoteListArgs, checkRefArgs, REMOTE_PATTERN } from '../shared/version-control/src/commands.js'
-import { ticketVerdict, ticketPureVerdict, requestIdProblem, indexRecordCount, fingerprintInputOf } from '../shared/version-control/src/write-ticket.js'
+import { ticketVerdict, ticketPureVerdict, requestIdProblem, indexRecordCount, fingerprintInputOf, bindingsVerdict, makeBindings, planBindingInput, worktreeBindingInput, pathAbsentFromScreen, configOldValueOf } from '../shared/version-control/src/write-ticket.js'
 import { pushPlanOf } from '../shared/version-control/src/push-plan.js'
 import { classifyWriteFailure, writeHintFor, pathsProblem, messageProblem, idShapeProblem } from '../shared/version-control/src/write-reasons.js'
 // 这个文件里的时间分两组，都是可调的，全部住中央 YAML（config/timeouts.yaml），调时间改 YAML：
@@ -80,6 +80,13 @@ export function createWritePhones(deps: any): any {
     const call: any = safeGit.startCall({ totalBudgetMs: callBudgetMs })
     return await call.run({ args: fixedPrefix().concat(args), cwd: cwd, timeoutMs: timeoutMs, stdoutLimit: stdoutLimit })
   }
+  /** 绑定表用的短摘要（#1741）：与预检那一侧同一把尺（sha256 前 16 位十六进制），两边算法必须一致才能比相等。 */
+  const digest16 = function (text: any): string | null { return fingerprintOf(text) }
+  /** 读一条 git 配置原值（#1741 的 configOldValue 用）：读了但没配（非零退出）一律当空串。 */
+  async function readConfigValue(cwd: any, key: any): Promise<string> {
+    const r: any = await runOne(cwd, ['config', '--get', key], VC_READ_CMD_TIMEOUT_MS, 4096, VC_READ_CALL_BUDGET_MS)
+    return (r && r.ok === true) ? String(r.stdout || '').trim() : ''
+  }
   async function readHead(cwd: any): Promise<string | null> {
     // 读 HEAD 这一条：单条超时 10 秒（VC_READ_CMD_TIMEOUT_MS，这一条命令最多跑多久），
     // 整趟预算 20 秒（VC_HEAD_CALL_BUDGET_MS，挂在读 HEAD 这一步上的所有命令合起来的上限）——两个数各管一件事。
@@ -89,7 +96,7 @@ export function createWritePhones(deps: any): any {
   /** 票据核对用的「此刻状态」：HEAD 一定量；提交多量一次索引指纹；推送重量一次目标（含「还没有上游」再核）。 */
   async function currentOf(cwd: any, op: any, ticket: any): Promise<any> {
     const headOid: string | null = await readHead(cwd)
-    const cur: any = { op: op, headOid: headOid || '', indexFingerprint: null, indexAvailable: false, target: null, repoRoot: '' }
+    const cur: any = { op: op, headOid: headOid || '', indexFingerprint: null, indexAvailable: false, target: null, repoRoot: '', bindings: makeBindings() }
     if (!ticket) return cur
     // 仓库根（票绑仓库）：两个不同目录的仓库可以有完全相同的 HEAD 与指纹，所以执行前必须重量一次。
     // 仓库根这一条：单条超时走只读命令那一档（VC_READ_CMD_TIMEOUT_MS），整趟预算走一次只读调用的那一档（VC_READ_CALL_BUDGET_MS）。
@@ -104,6 +111,24 @@ export function createWritePhones(deps: any): any {
       const up: any = await runOne(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', branch + '@{u}'], VC_READ_CMD_TIMEOUT_MS, 4096, VC_READ_CALL_BUDGET_MS)
       const upstream: any = (up && up.ok === true) ? String(up.stdout || '').trim() : null
       cur.target = { mode: 'existing', remote: '', branch: '', localBranch: branch, upstream: upstream }
+      // 拉取的五格绑定（#1741）：工作树形状、目标计划、旧配置原值、远端跟踪引用、运行中标记文件名单。
+      // 工作树形状要整屏重读一次（与预检同一个读数口 readScreenOf），所以这一步比别的动作重，但仍然只读。
+      const sr: any = await vc.readScreenOf(cwd)
+      const screen: any = (sr && sr.ok === true) ? sr.screen : null
+      const cfgRemote: string = await readConfigValue(cwd, 'branch.' + branch + '.remote')
+      const cfgMerge: string = await readConfigValue(cwd, 'branch.' + branch + '.merge')
+      let remoteOid: any = null
+      if (upstream && String(upstream) !== '') {
+        const tr: any = await runOne(cwd, ['rev-parse', '--verify', 'refs/remotes/' + String(upstream)], VC_READ_CMD_TIMEOUT_MS, 4096, VC_READ_CALL_BUDGET_MS)
+        if (tr && tr.ok === true) remoteOid = String(tr.stdout || '').trim()
+      }
+      cur.bindings = makeBindings({ preconditions: {
+        worktreeDigest: digest16(worktreeBindingInput(screen)),
+        planDigest: digest16(planBindingInput(cur.target)),
+        configOldValue: configOldValueOf(cfgRemote, cfgMerge),
+        remoteOid: remoteOid,
+        pathAbsent: pathAbsentFromScreen(screen),
+      } })
     }
     if (op === 'commit') {
       // 读暂存区清单这一步：单条超时 VC_LSFILES_TIMEOUT_MS（清单可能很大，单独给 15 秒），
@@ -113,6 +138,8 @@ export function createWritePhones(deps: any): any {
         cur.indexFingerprint = fingerprintOf(lf.stdout)
         cur.indexAvailable = true
       }
+      // 提交的绑定格：索引条数（#1741）。读不到或截断时留 null —— 票里记了值就会按 stale-index 拒，不会假装通过。
+      cur.bindings = makeBindings({ counters: { indexEntries: (lf && lf.ok === true && lf.truncated !== true) ? indexRecordCount(lf.stdout) : null } })
     }
     if (op === 'push' && ticket.target) {
       // 列远端这一步：单条超时走只读命令那一档（VC_READ_CMD_TIMEOUT_MS，纯本地读很快），
@@ -135,13 +162,27 @@ export function createWritePhones(deps: any): any {
       // 之前这里写成 `upstreamGone: upstream === null`，于是配置还在、远端分支被删的那一档在重算时变成 existing，
       // 与票里的 recreate 对不上 → 永远回 target-changed，第三档根本执行不了（真机证据当场抓到）。
       let gone: boolean = false
+      let remoteOid: any = null
       if (upstream !== null) {
         // 核远端跟踪引用在不在这一条：单条超时 VC_READ_CMD_TIMEOUT_MS，整趟预算 VC_READ_CALL_BUDGET_MS。
-        const tr: any = await runOne(cwd, ['rev-parse', '--verify', '--quiet', 'refs/remotes/' + upstream], VC_READ_CMD_TIMEOUT_MS, 4096, VC_READ_CALL_BUDGET_MS)
-        gone = !(tr && tr.ok === true)
+        // 去掉 --quiet 是为了同一趟读到它指向哪一提交（绑定表要用），在不在仍然按「读没读到」判。
+        const tr: any = await runOne(cwd, ['rev-parse', '--verify', 'refs/remotes/' + upstream], VC_READ_CMD_TIMEOUT_MS, 4096, VC_READ_CALL_BUDGET_MS)
+        if (tr && tr.ok === true) remoteOid = String(tr.stdout || '').trim()
+        gone = remoteOid === null
       }
       const pp: any = pushPlanOf({ branch: branch, upstream: upstream, upstreamGone: gone, remotes: remotes, requestedRemote: ticket.target.remote })
       cur.target = pp.ok === true ? pp.plan : null
+      // 推送绑三格（#1741）：目标计划、决定往哪推的旧配置原值、远端跟踪引用指向的提交。
+      cur.bindings = makeBindings({ preconditions: {
+        planDigest: pp.ok === true ? digest16(planBindingInput(cur.target)) : null,
+        configOldValue: configOldValueOf(remoteName, mergeRef),
+        remoteOid: remoteOid,
+      } })
+    }
+    if (op === 'fetch') {
+      // 更新远方记录的票只绑目标计划摘要：执行时用的就是票里那份目标，工作树与上游配置都不参与。
+      cur.target = ticket.target || null
+      cur.bindings = makeBindings({ preconditions: { planDigest: digest16(planBindingInput(ticket.target)) } })
     }
     return cur
   }
@@ -166,6 +207,14 @@ export function createWritePhones(deps: any): any {
     const v: any = ticketVerdict(ticket, now(), cur)
     if (v.ok !== true) {
       const out: any = wfail('other', v.reason, writeHintFor(v.reason))
+      remember(requestId, out)
+      return { denied: out }
+    }
+    // 绑定表逐格比对（#1741）：HEAD/指纹/目标之外，票据还记了工作树形状、旧配置、远端跟踪提交与运行中标记文件。
+    // 票里没记值的格子不比对（旧票照样能用）；失配一律在这里拒，零写命令。
+    const bv: any = bindingsVerdict(ticket, cur.bindings)
+    if (bv !== null) {
+      const out: any = wfail('other', bv, writeHintFor(bv))
       remember(requestId, out)
       return { denied: out }
     }
