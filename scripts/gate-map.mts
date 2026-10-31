@@ -86,7 +86,8 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-31 #1707：真机实例环境注入门禁，正例单跑实测 79 条断言；负例用 --negative 单独跑（5 条断言、3 条故意红），不计入开闸期望。
   'verify-1707-env-injection': 79,
   // 2026-10-31 #1711：报告索引脚本门禁，正例单跑实测 94 条断言；负例用 --negative 单独跑，不计入开闸期望。
-  'verify-1711-report-index': 94,
+  // 2026-10-31 #1714：执行 B1 时发现 P2 产品缺陷按规格不开票、defect 必须允许 null，补 4 条断言，单跑实测 98 条。
+  'verify-1711-report-index': 98,
   // 2026-10-31 #1705：真机工具台的进程级夹具门禁，正例单跑实测 43 条断言；负例用 --negative 单独跑，不计入开闸期望。
   'verify-1705-real-machine-fixture': 43,
   // 2026-10-29 #1600：词表里 gate.wipNotice 已退役（GitLab 可用后不再有「筹备中」注解），

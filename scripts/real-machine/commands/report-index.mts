@@ -66,6 +66,7 @@ runCli(async () => {
     unmappedScenarios: summary.unmappedScenarios,
     candidates: summary.candidates,
     defects: summary.defects,
+    unticketedProductDefects: summary.unticketedProductDefects,
     conditions: summary.conditions,
     markdown: markdown,
   })

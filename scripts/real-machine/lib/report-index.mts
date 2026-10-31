@@ -122,6 +122,8 @@ export interface ReportSummary {
   unmappedScenarios: UnmappedScenario[]
   candidates: CandidateSummary[]
   defects: Record<DefectLevel, DefectEntry[]>
+  // P2 产品缺陷按规格不开缺陷票，单独列出来：它们不进上面的缺陷票表，但报告已知限制要能逐行核对。
+  unticketedProductDefects: DefectRowRef[]
   conditions: ConditionSummary
 }
 
@@ -360,9 +362,8 @@ function parseIndexRow(record: Record<string, unknown>, line: number, errors: st
 
   const verdict = record.verdict as Verdict
   const defect = (record.defect as string | null) === null ? null : String(record.defect)
-  if (verdict === '产品缺陷' && defect === null) {
-    errors.push('第 ' + line + ' 行：verdict 是产品缺陷，但 defect 字段是 null（缺陷票号缺失）')
-  }
+  // 产品缺陷行允许 defect 为 null：规格规定 P2 只进已知限制、不开缺陷票，P0/P1 才必须带票号。
+  // 反过来非产品缺陷行不许带票，避免把缺陷票挂到通过行上。
   if (verdict !== '产品缺陷' && defect !== null) {
     errors.push('第 ' + line + ' 行：verdict「' + verdict + '」不是产品缺陷，却带了缺陷票 ' + defect)
   }
@@ -649,6 +650,25 @@ export function aggregateReport(options: AggregateOptions): ReportSummary {
     defects[level].sort((left, right) => (ticketNumbers.get(left.ticket) as number) - (ticketNumbers.get(right.ticket) as number))
   }
 
+  // 判定为产品缺陷但没有票号的行，按规格是 P2、只进已知限制；单列出来让报告能逐行引用，
+  // 不混进缺陷票表（那里每行都必须对应一张真实票）。
+  const unticketedProductDefects: DefectRowRef[] = indexRows
+    .filter((row) => row.verdict === '产品缺陷' && row.defect === null)
+    .sort((left, right) => {
+      if (left.batch !== right.batch) return left.batch < right.batch ? -1 : 1
+      const order = scenarioOrder(left.scenario, right.scenario)
+      if (order !== 0) return order
+      return left.attempt - right.attempt
+    })
+    .map((row) => ({
+      batch: row.batch,
+      scenario: row.scenario,
+      attempt: row.attempt,
+      candidate: row.candidate,
+      verdict: row.verdict,
+      retest: row.retest,
+    }))
+
   const expiryCounts = new Map<string, number>()
   for (const condition of conditionRows) expiryCounts.set(condition.expiry, (expiryCounts.get(condition.expiry) || 0) + 1)
   const byExpiry: Record<string, number> = {}
@@ -667,6 +687,7 @@ export function aggregateReport(options: AggregateOptions): ReportSummary {
     unmappedScenarios: unmappedScenarios,
     candidates: candidates,
     defects: defects,
+    unticketedProductDefects: unticketedProductDefects,
     conditions: {
       count: conditionRows.length,
       byExpiry: byExpiry,
@@ -758,6 +779,19 @@ export function renderMarkdown(summary: ReportSummary): string {
         lines.push('| ' + entry.ticket + ' | ' + entry.levelSource + ' | ' + entry.scenarios.join('、') + ' | ' +
           entry.attempts + ' | ' + (entry.retest.length === 0 ? '—' : entry.retest.join('、')) + ' |')
       }
+    }
+  }
+  if (summary.unticketedProductDefects.length > 0) {
+    lines.push('')
+    lines.push('### P2（无缺陷票，按规格只进已知限制）')
+    lines.push('')
+    lines.push('这些行判定为产品缺陷，但按规格 P2 不开缺陷票，所以不进上面的缺陷票表；报告正文把它们写进已知限制。')
+    lines.push('')
+    lines.push('| 批次 | 场景 | 尝试 | 候选 | 重验状态 |')
+    lines.push('|---|---|---|---|---|')
+    for (const row of summary.unticketedProductDefects) {
+      lines.push('| ' + row.batch + ' | ' + row.scenario + ' | ' + row.attempt + ' | ' + row.candidate + ' | ' +
+        (row.retest === null ? '—' : row.retest) + ' |')
     }
   }
   lines.push('')

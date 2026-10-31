@@ -278,6 +278,16 @@ async function positiveFlow(harness: RealMachineHarness): Promise<void> {
     ['defects.json', 'P0/P1/P2', 'P9'],
   )
 
+  // F 段：P2 产品缺陷按规格不开缺陷票，defect=null 必须能通过，并单独进「无票」清单。
+  harness.writeText('unticketed/index.jsonl', jsonl([indexRow({ verdict: '产品缺陷', claim: 'P2 已知限制', retest: '下一版重验' })]))
+  const unticketedRun = runReport(harness, ['--index', absolute(harness, 'unticketed/index.jsonl')])
+  check(unticketedRun.exitCode === 0, 'P2 产品缺陷无票号时命令成功', harness.formatFailure(unticketedRun))
+  const unticketedJson = asJson(unticketedRun)
+  const unticketed = (unticketedJson.unticketedProductDefects || []) as Array<Record<string, unknown>>
+  check(unticketed.length === 1 && unticketed[0].scenario === 'J1-01' && unticketed[0].retest === '下一版重验', '无票产品缺陷进 unticketedProductDefects 并带上重验状态', show(unticketedJson.unticketedProductDefects))
+  check(JSON.stringify(unticketedJson.defects) === JSON.stringify({ P0: [], P1: [], P2: [] }), '无票产品缺陷不算成带票缺陷', show(unticketedJson.defects))
+  check(String(unticketedJson.markdown || '').includes('无缺陷票'), 'Markdown 单列无票 P2 已知限制', String(unticketedJson.markdown || '').slice(-800))
+
   // 索引文件不存在：报错里要给出默认位置和补救办法。
   harness.removePath('missing/index.jsonl')
   checkErrorRun(

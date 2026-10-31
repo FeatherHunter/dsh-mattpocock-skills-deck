@@ -303,8 +303,9 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/report-index.m
 - `--conditions`：条件账本，默认与 index 同目录的 `conditions.jsonl`；默认位置不存在时按 0 条处理，显式传了却不存在则报错。
 - `--defects`：缺陷等级清单，JSON 数组，形如 `[{"ticket":"#2001","level":"P1"}]`。`index.jsonl` 里只有缺陷票号没有等级，所以不给清单时按该行场景在 #1675 里的最高 P 级上限推定；需要精确等级就传清单。
 - `--markdown-out`：把 Markdown 摘要写到指定路径；不传就只打印。
+- `defect` 字段：P0/P1 产品缺陷必须写 `#<数字>` 票号；P2 按规格不开缺陷票，留 `null`，判定仍写「产品缺陷」，汇总进 `unticketedProductDefects` 并在 Markdown 单列，供报告已知限制逐行引用。
 
-输出字段：`totals`（行数、尝试数、未测数、结论分布）、`assertions`（8 条支持度断言的分组计数与支持率）、`unmappedScenarios`（映射表里没有的场景号，只提示不报错）、`candidates`（每个候选的通过率与未测数）、`defects`（P0/P1/P2 缺陷票与重验状态）、`conditions`（条件条数）、`markdown`。两点口径：一个场景可以支撑多条断言，所以断言次数相加会大于行数；有效通过率的分母会扣掉「环境限制」和「测试或工具问题」这些不算产品问题的行。
+输出字段：`totals`（行数、尝试数、未测数、结论分布）、`assertions`（8 条支持度断言的分组计数与支持率）、`unmappedScenarios`（映射表里没有的场景号，只提示不报错）、`candidates`（每个候选的通过率与未测数）、`defects`（P0/P1/P2 缺陷票与重验状态）、`unticketedProductDefects`（P2 无缺陷票的行，按规格只进已知限制）、`conditions`（条件条数）、`markdown`。两点口径：一个场景可以支撑多条断言，所以断言次数相加会大于行数；有效通过率的分母会扣掉「环境限制」和「测试或工具问题」这些不算产品问题的行。
 
 输入不合法时不出汇总，退出码 1，stderr 用一句中文指出问题与行号：非法 verdict、缺字段、重复行（同一批次 + 场景 + 尝试号）、candidate 不是完整 40 位提交哈希、场景号形状不对、非产品缺陷行带了缺陷票、条件缺字段等。
 
