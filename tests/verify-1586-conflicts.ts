@@ -109,6 +109,9 @@ async function main() {
   const planA = shared.conflictPlanOf({ op: 'save-file', path: 'a.txt', textDigest: 'abc', oldDigest: 'def' })
   eq(Object.keys(planA).sort(), ['oldDigest', 'op', 'path', 'side', 'state', 'target', 'textDigest'], 'A59 计划字段固定为七格（执行层与门禁按同一份形状读）')
   eq(shared.conflictPlanOf({ op: 'merge', target: 'other' }).state, null, 'A60 计划未给的格子落 null 而不是 undefined')
+  // 6.15 的两半：只查 --check 会漏掉「冲突已 git add 过、工作区与索引一致但索引内容里还留着标记」的文件，
+  // 所以两条命令缺一不可（本条就是对抗审查发现的那处漏洞的回归断言）。
+  eq(shared.conflictStepsOf({ op: 'marker-check' }), [['diff', '--check'], ['diff', '--cached', '--check']], 'A61 6.15 残留标记查两半：工作区与已暂存各一条命令')
 
   // ———— B 组：冲突文本解析与整份编辑 ————
   eq(textMod.conflictMarkerLineOf('ok\n<<<<<<< HEAD\n'),

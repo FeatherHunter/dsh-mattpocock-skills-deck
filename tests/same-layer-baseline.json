@@ -947,6 +947,42 @@
       "count": 1,
       "owner": "#1745（规格 #1586 T10 历史高级查询）",
       "note": "共享层内部分工：历史查询解析器的入参形状沿用 ports.ts 里那份共享端口类型（只引类型），解析器不拥有端口定义；方向单向，ports.ts 不反向引用解析器。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
+      "spec": "./versionControlConflictMount.js",
+      "resolved": "src/host/versionControlConflictMount.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1747（规格 #1586 T12 合并与冲突向导）",
+      "note": "装配扇入：冲突向导三条电话的装配壳单独成叶子（父文件贴着 350 有效行上限，只能把 import 与 const 并进既有物理行），照 #1742/#1746 同一条先例；叶子不引用父文件，进程出口、失败信封与日志包装全由父文件显式传入，方向单向。"
+    },
+    {
+      "file": "src/host/versionControlConflictMount.ts",
+      "spec": "./versionControlConflictCheck.js",
+      "resolved": "src/host/versionControlConflictCheck.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1747（规格 #1586 T12 合并与冲突向导）",
+      "note": "装配壳内部分工：装配壳只做懒加载与依赖注入，预检与签票住预检叶子；方向单向，预检叶子不引用装配壳。"
+    },
+    {
+      "file": "src/host/versionControlConflictMount.ts",
+      "spec": "./versionControlConflictScene.js",
+      "resolved": "src/host/versionControlConflictScene.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1747（规格 #1586 T12 合并与冲突向导）",
+      "note": "装配壳内部分工：现场读数（冲突清单、文件内容、merge-tree 预演、rerere、残留标记）住读数叶子；方向单向，读数叶子不引用装配壳。"
+    },
+    {
+      "file": "src/host/versionControlConflictMount.ts",
+      "spec": "./versionControlConflictWrite.js",
+      "resolved": "src/host/versionControlConflictWrite.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1747（规格 #1586 T12 合并与冲突向导）",
+      "note": "装配壳内部分工：凭票执行住执行叶子；方向单向，执行叶子不引用装配壳。"
     }
   ]
 }

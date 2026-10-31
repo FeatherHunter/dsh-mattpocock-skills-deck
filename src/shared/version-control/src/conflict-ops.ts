@@ -12,7 +12,6 @@
  *   3. 危险动作只有跳过与中止两条（规格 §3.3/§3.5：它们会丢掉正在进行的操作里的中间状态），
  *      其余动作哪怕会改写工作区文件也不弹四段确认卡，因为都能由 git 重做。
  */
-import type { ChangesWriteOp } from './ports.js'
 
 /** 十条写动作：规格 6.1–6.4 四种合并、6.6 选边、6.7 面板内整份编辑、6.8 标记已解决、6.11–6.13 继续/跳过/中止。 */
 export const CONFLICT_WRITE_OPS: any[] = [
@@ -100,7 +99,10 @@ export function conflictStepsOf(plan: any): string[][] {
   if (op === 'conflict-view') return [['diff', '--diff-filter=U', '--name-only', '-z']]
   if (op === 'merge-preview') return [['merge-tree', '--write-tree', '--name-only', target]]
   if (op === 'rerere-view') return [['rerere', 'status']]
-  if (op === 'marker-check') return [['diff', '--check']]
+  // 6.15 要查两半：git diff --check 只看「工作区 vs 索引」，已解决并 git add 过的文件在工作区与索引之间
+  // 没有差异，单查前半会漏掉「已暂存但内容里还留着冲突标记」的情形；而后半 --cached 正好查「索引 vs HEAD」。
+  // 两条都要在提交前跑，缺哪一条都会放出带残留标记的提交。
+  if (op === 'marker-check') return [['diff', '--check'], ['diff', '--cached', '--check']]
   return []
 }
 
@@ -234,8 +236,15 @@ export const CONFLICT_PHONES: any = { check: 'wf.gitConflictCheck', write: 'wf.g
 
 export const CONFLICT_OPS_SOURCE = 'src/shared/version-control/src/conflict-ops.ts'
 
-/** 冲突写动作联合类型：并入 WriteOp 的那一份以这里为唯一真源。 */
+/**
+ * 冲突写动作联合类型：写成自包含字面量，不 extends ports.ts 的 WriteOp。
+ * 理由有两条：一是本文件要零 import（构建把它拼进界面闭包），同层 type import 会被引用方向门禁判红；
+ * 二是这些动作**不并入** WriteOp —— 并入要连带改七登记点门禁与共享判定表（#1741 的 verify-1586-write-registration
+ * 按精确记号断言 WriteOp），而冲突向导按 #1751/#1746 的先例用自己的动作表、自己的票据 op。
+ * 界面与宿主的 action 字段仍是这十个字符串，argv 由 conflictStepsOf 拼，票据 op 原样保存这十个值之一。
+ */
 export type ConflictWriteOp = 'merge' | 'merge-ff-only' | 'merge-no-ff' | 'merge-squash' | 'take-side' | 'save-file' | 'mark-resolved' | 'op-continue' | 'op-skip' | 'op-abort'
 
-/** 和改动页同一做法：把新动作并进写动作联合类型时，顺手留一个类型级自检。 */
-export type ConflictWriteOpIsWriteOp = ConflictWriteOp extends ChangesWriteOp ? true : ConflictWriteOp
+/** 预检回包的协议名与版本：界面按它判「这份回包是不是我认识的形状」，不认识的整份不信。 */
+export const CONFLICT_CHECK_CONTRACT = 'vc-conflicts-check'
+export const CONFLICT_CHECK_VERSION = 1

@@ -53,7 +53,7 @@ import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/ti
 import { prepareStdinFile, createTaskPhones } from './versionControlTask.js'
 // #1742：改动页两条电话（预检发票、凭票写）的懒加载与日志包装住同层叶子 versionControlChangesMount.ts，
 // 本文件只把上面已经造好的宿主闭包递进去——父文件贴着 350 有效行上限，装配壳不在这里再摊开一份。
-import { createChangesMount } from './versionControlChangesMount.js'; import { createBranchMount } from './versionControlBranchMount.js'; import { createWorktreesMount } from './versionControlWorktreesMount.js' // #1746/#1752：三个装配壳的 import 并成一条物理行，父文件贴着 350 有效行上限。
+import { createChangesMount } from './versionControlChangesMount.js'; import { createBranchMount } from './versionControlBranchMount.js'; import { createWorktreesMount } from './versionControlWorktreesMount.js'; import { createConflictMount } from './versionControlConflictMount.js' // #1746/#1752/#1747：四个装配壳的 import 并成一条物理行，父文件贴着 350 有效行上限。
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -121,7 +121,8 @@ export function createVersionControl(deps: any): any {
     // 每一次 git 调用都注入 GIT_EDITOR=必失败命令（规格第 7 节）：读命令同样注入，
     // 是为了「谁能弹编辑器」这件事只依赖这一条出口，不靠每条命令自己记得传。
     // opts.env 里 undefined 值是墓碑（从继承环境删掉这一项），这里先浅拷贝再覆盖 GIT_EDITOR，墓碑语义保留。
-    const childEnv: any = Object.assign({}, (opts && opts.env) ? opts.env : {}, { GIT_EDITOR: FAILING_EDITOR })
+    // 默认必失败编辑器；极少数「必须有一段提交说明」的继续动作由 opts.gitEditor 显式覆盖成必定成功的 true（只给 op-continue 用，且仍走这一条出口）。
+    const childEnv: any = Object.assign({}, (opts && opts.env) ? opts.env : {}, { GIT_EDITOR: (opts && opts.gitEditor) ? String(opts.gitEditor) : FAILING_EDITOR })
     // stdin 的唯一例外：stdinFile 只许配 fast-import，且 fast-import 必须配（不能空着管道跑）。
     // 这两条与文件校验都在起进程之前完成，失败时一个进程都不起。
     const wantStdin: boolean = !!(opts && opts.stdinFile)
@@ -476,7 +477,7 @@ export function createVersionControl(deps: any): any {
   // 同一条进程出口、同一套 loggedPhone 日志口径」的拼接，改动页自己的票据表与 requestId 结果表留在它自己的闭包里。
   // 本文件只把上面已经造好的闭包交给 ./versionControlChangesMount.ts，懒加载、失败兜底与日志包装都在那一片。
   // 两条装配并成一条物理行：父文件贴着 350 有效行上限，拆成两行就会超。
-  const changes: any = createChangesMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable, runGit: runGit, fixedPrefix: fixedPrefix, pathExists: pathExists, readScreenOf: readScreenOf, loggedPhone: loggedPhone, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs, STDOUT_LIMIT: STDOUT_LIMIT, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now }); const branches: any = createBranchMount({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, readScreenOf: readScreenOf, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now })
+  const changes: any = createChangesMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable, runGit: runGit, fixedPrefix: fixedPrefix, pathExists: pathExists, readScreenOf: readScreenOf, loggedPhone: loggedPhone, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs, STDOUT_LIMIT: STDOUT_LIMIT, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now }); const branches: any = createBranchMount({ failPhone: failPhone, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, readScreenOf: readScreenOf, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now }); const conflicts: any = createConflictMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, firstLine: firstLine, failureFromExec: failureFromExec, runPinned: runPinned, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, readScreenOf: readScreenOf, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now, randomId: function (): string { return Math.random().toString(36).slice(2) } })
 
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus), ...remoteHandles(loggedPhone, (function (): any { let p: any = null; return function (): any { if (!p) p = import('./versionControlRemote.js').then(function (m: any) { return m.createRemotePhones({ runPinned: runPinned, failureFromExec: failureFromExec, failPhone: failPhone, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, cwdOf: cwdOf, nowMs: (deps && typeof deps.now === 'function') ? deps.now : Date.now }) }); return p } })()), // #1754 T18：域 8 远端与同步六条电话（包装在共享层 remoteHandles，电话体按需加载、取件 Promise 缓存）
@@ -505,5 +506,8 @@ export function createVersionControl(deps: any): any {
     // #1742 改动页两条电话（预检、执行）与票据表：装配在 ./versionControlChangesMount.ts，进程出口照旧是上面那条固定前缀与报闸。
     // 只读动作 1.13（查为什么被忽略）走预检电话的 op，不再单开第三条电话；changesTickets 只给门禁与测试读票据表（与 #1741 的 writeTickets 同一条口径，不注册成电话、客户端拿不到）。
     handleGitChangesCheck: changes.check, handleGitChangesWrite: changes.write, changesTickets: changes.tickets,
+    // #1747 冲突向导三条电话（域 6 十五条：清单/视图/预演/rerere/标记检查走只读电话，写动作走预检 + 凭票执行）：
+    // 装配在 ./versionControlConflictMount.ts，票表不注册成电话、只给门禁与测试读。
+    handleGitConflicts: conflicts.read, handleGitConflictCheck: conflicts.check, handleGitConflictWrite: conflicts.write, conflictTickets: conflicts.tickets,
   }
 }
