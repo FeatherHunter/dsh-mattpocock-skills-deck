@@ -190,7 +190,7 @@ async function loadDetailModule (): Promise<any> {
   const motionSrc = extractFn(bundle, 'const MOTION = {')
   // #1694：详情读投影的纯函数在产物里是函数声明（export function 拼进闭包后去掉了 export）。
   //   逐个从句柄切出真身，顺序按依赖先后拼；不塞桩，否则「上次数据先画/失败不清空」测的就不是真实现。
-  const projSrc = ['function readProjectionMode(', 'function projectionUsesSnapshot(', 'function hhmmOf(', 'function snapshotRowFor(', 'function lastKnownDetailAtMs(', 'function detailFromRow(', 'function knownBlockedNodes(', 'function detailViewFor(']
+  const projSrc = ['function readProjectionMode(', 'function projectionUsesSnapshot(', 'function hhmmOf(', 'function snapshotRowFor(', 'function lastKnownDetailAtMs(', 'function detailFromRow(', 'function knownBlockedNodes(', 'function rowHasDetail(', 'function detailViewFor(']
     .map(function (header) { return extractFn(bundle, header) }).join('\n')
   const dir = mkdtempSync(join(tmpdir(), 'dsws693-'))
   const code = shim + motionSrc + '\n' + projSrc + '\n' + foldHookSrc + '\n' + errViewSrc + '\n' + ridcSrc + '\nconst renderIssueDetailComments = __ridc\n' + detailFnSrc + '\nexport { IssueDetail }\n'

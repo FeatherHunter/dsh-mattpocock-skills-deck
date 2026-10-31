@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T03:16:14.365Z",
+  "generatedAt": "2026-10-31T03:38:46.741Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 472,
-  "gateCount": 472,
-  "attributedGates": 422,
+  "chainLength": 473,
+  "gateCount": 473,
+  "attributedGates": 423,
   "unattributedGates": 50,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 36,
+  "completionRecordedGates": 37,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 653,
@@ -9759,6 +9759,27 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 2 条"
     },
     {
+      "step": "node tests/verify-retire-client-caches.ts",
+      "file": "tests/verify-retire-client-caches.ts",
+      "guards": [
+        "src/client/kernel/api-io.ts",
+        "src/client/views/mapDetailV2/model/tickets/ticketFeed.ts",
+        "src/client/views/shared/detailProjection.ts",
+        "src/host/snapshotEnvelope.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views/mapDetailV2/model/tickets",
+        "src/client/views/shared",
+        "src/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 39,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
       "step": "node tests/verify-reuse.ts",
       "file": "tests/verify-reuse.ts",
       "guards": [
@@ -10022,7 +10043,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 23,
+      "expectedAssertions": 25,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
@@ -11572,6 +11593,7 @@
       "node tests/verify-newsession-preset-guard.ts",
       "node tests/verify-newsession-workspace-fallback.ts",
       "node tests/verify-prompts.ts",
+      "node tests/verify-retire-client-caches.ts",
       "node tests/verify-reuse.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
@@ -11719,6 +11741,10 @@
     "src/client/views/mapDetailV2": [
       "node tests/verify-map-detail-v2.ts"
     ],
+    "src/client/views/mapDetailV2/model": [],
+    "src/client/views/mapDetailV2/model/tickets": [
+      "node tests/verify-retire-client-caches.ts"
+    ],
     "src/client/views/pixel": [
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-skill-detail-stack.ts",
@@ -11768,6 +11794,7 @@
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-rest-fallback-banner.ts",
       "node tests/verify-rest-fallback-reason.ts",
+      "node tests/verify-retire-client-caches.ts",
       "node tests/verify-reuse.ts",
       "node tests/verify-single-read-source.ts",
       "node tests/verify-time-config.ts",
@@ -12009,6 +12036,7 @@
       "node tests/verify-progress.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-reply-envelope-parity.ts",
+      "node tests/verify-retire-client-caches.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-phones.ts",
       "node tests/verify-settings-templates.ts",
@@ -13096,7 +13124,7 @@
     "coveredFileCount": 674,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 66,
+    "dedicatedDirCount": 67,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -13872,6 +13900,7 @@
       "src/client/views/feedback",
       "src/client/views/labels",
       "src/client/views/mapDetailV2",
+      "src/client/views/mapDetailV2/model/tickets",
       "src/client/views/pixel",
       "src/client/views/primitives",
       "src/client/views/shared",
@@ -13943,10 +13972,6 @@
       {
         "path": "src/client/views/mapDetailV2/model/contracts",
         "fileCount": 1
-      },
-      {
-        "path": "src/client/views/mapDetailV2/model/tickets",
-        "fileCount": 3
       },
       {
         "path": "src/client/views/mapDetailV2/view",

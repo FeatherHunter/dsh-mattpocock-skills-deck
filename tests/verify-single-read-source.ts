@@ -7,7 +7,7 @@
  *   B 读投影开关两条路都能跑且默认新路径：snapshot 读快照投影，legacy 只认这一趟取回的详情；
  *     切换要能持久化（一次切换，出问题可回滚，旧缓存退役是 #1695 的事）。
  *   C 失败不清空：详情取数失败时 st.issueDetail 保留上一份，模式记 err，投影标出「上次数据」的时刻。
- *   D 成功取回会替换，并且写入的仍是既有详情缓存（这一票不退役旧缓存）。
+ *   D 成功取回会替换；#1695 起不再写既有详情缓存，只记取回时刻并静默刷新快照（旧缓存退役为回滚路径）。
  *   E 单一真源：构建产物里 detailViewFor 只有一份；详情合并模块只经 mergeSnapshot 写快照。
  *
  * 为什么用真模块跑：这一条守的是「视图到底读谁」与「失败后还画不画」，换一种等价投影而结论不变时不该误报。
@@ -90,6 +90,9 @@ check(setReadProjectionMode('snapshot') === 'snapshot' && readProjectionMode() =
 // C/D 失败不清空、成功替换：直接调客户端真取数函数
 // ---------------------------------------------------------------------------
 ;(globalThis as any).host = undefined
+;(globalThis as any).projectionUsesSnapshot = function () { return true }
+let snapReloads = 0
+;(globalThis as any).loadSnapshot = function () { snapReloads += 1 }
 const api = await import('../src/client/kernel/api-io.ts')
 const oldDetail = { number: 7, effortId: '', title: '旧详情', body: '上次的正文', comments: { nodes: [{ body: '旧评论' }] } }
 const stC: any = { cwd: CWD, snapshot: snap([]), issueDetail: oldDetail, issueMode: 'real', issueError: null, issueCache: { ['\u0000' + 7]: { ts: CLOCK0, data: oldDetail } } }
@@ -106,7 +109,9 @@ let hostCallArgs: any = null
 const okRes = await api.fetchIssueDetail(stC, 7, { force: true })
 check(okRes && okRes.ok === true && stC.issueDetail.title === '新详情', 'D1 成功取回后详情换成新的一份')
 check(hostCallArgs && hostCallArgs.method === 'wf.issueDetail' && hostCallArgs.args.number === 7, 'D2 详情取数仍走宿主 wf.issueDetail 一条通路')
-check(stC.issueCache && stC.issueCache['\u0000' + 7] && stC.issueCache['\u0000' + 7].data.title === '新详情', 'D3 成功取回写进既有详情缓存（旧缓存这次不退役）')
+check(stC.issueCache && stC.issueCache['\u0000' + 7] && stC.issueCache['\u0000' + 7].data.title === '旧详情', 'D3 成功取回不再写旧详情缓存（旧缓存退役为回滚路径）', stC.issueCache && stC.issueCache['\u0000' + 7])
+check(stC.detailSeenAt && stC.detailSeenAt['\u0000' + 7] > 0, 'D4 成功取回把取回时刻记进 detailSeenAt（TTL 只决定何时重取）', stC.detailSeenAt)
+check(snapReloads === 1, 'D5 成功后触发一次静默快照刷新（宿主合并结果回到投影）', snapReloads)
 
 // ---------------------------------------------------------------------------
 // E 单一真源：产物里只有一份投影实现；详情合并只经 mergeSnapshot 写快照

@@ -47,6 +47,33 @@ function emptyOf(state: string, rows: MapTicketRow[], stats: MapRowLike['stats']
   return !(total > 0)
 }
 
+/** 行的身份：优先编号，其次 key；都没有就是空串（不参与合并）。 */
+function ticketKeyOf(row: MapTicketRow): string {
+  if (!row) return ''
+  const n = row.number != null ? row.number : row.key
+  return n == null ? '' : String(n)
+}
+
+/**
+ * 把按需取回的那份合并到快照那份上（#1695：不再整桶替换）。
+ *
+ * 为什么不是直接换掉：取回的回包可能被截断或只带一部分行（短回包），整桶替换会让
+ * 快照里已知的子票凭空消失；快照是唯一业务数据来源，读结果只能按「明确新增/变化」合并。
+ * 规则：快照行打底，取回的同编号行就地覆盖，新编号追加到尾部；两边都不动输入数组。
+ */
+function mergeTicketRows(snapshotRows: MapTicketRow[], fetchedRows: MapTicketRow[]): MapTicketRow[] {
+  const out = snapshotRows.slice()
+  const at = new Map<string, number>()
+  for (let i = 0; i < out.length; i += 1) at.set(ticketKeyOf(out[i]), i)
+  for (let j = 0; j < fetchedRows.length; j += 1) {
+    const key = ticketKeyOf(fetchedRows[j])
+    const hit = at.get(key)
+    if (hit !== undefined) out[hit] = fetchedRows[j]
+    else { at.set(key, out.length); out.push(fetchedRows[j]) }
+  }
+  return out
+}
+
 /**
  * 合成取数结果。mt 是按需取数的桶（可能还没有），m 是快照里的地图行。
  *
@@ -65,7 +92,8 @@ export function ticketFeedOf(mt: MapTicketsBucket | null | undefined, m: MapRowL
   const snapshotStats = map.stats || null
 
   if (mode === 'real' && Array.isArray(bucket.items)) {
-    const rows = bucket.items
+    // #1695：取回那份按编号增量合并到快照上，短回包不会把已知子票弄丢。
+    const rows = mergeTicketRows(snapshotRows, bucket.items)
     return {
       rows,
       stats: bucket.stats || snapshotStats,
