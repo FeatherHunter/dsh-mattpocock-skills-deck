@@ -54,6 +54,9 @@ const VC_FILES = [
   // 真机闭包里由构建按 shared:vcRewriteOps / shared:vcRecoveryPoint 拼进来；这里按同两份源码拼，闭包才闭得上。
   '.build/shared/version-control/rewrite-ops.js',
   '.build/shared/version-control/recovery-point.js',
+  // #1758 T22：维护页与诊断页的十条动作表在共享层 maintenance-ops.ts（真机闭包按 shared:vcMaintenanceOps 拼进来），
+  // 闭包里少了它，维护页/诊断页一渲染就 ReferenceError；按构建次序排在三张页面叶子之前。
+  '.build/shared/version-control/maintenance-ops.js',
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcData.js',
   'src/client/views/versionControl/vcFirstScreen.js',
@@ -70,6 +73,10 @@ const VC_FILES = [
   // #1750：维护页会挂整仓重写面板（vcRewritePage），页面壳渲染 maintenance 页时要调它；按构建次序排在页面壳之前。
   'src/client/views/versionControl/vcRewriteOps.js',
   'src/client/views/versionControl/vcRewritePage.js',
+  // #1758 T22：维护页与诊断页三叶（动作模型 → 维护页正文 → 诊断页正文）；壳渲染这两页时要调三个页面节点，按构建次序排在壳之前。
+  'src/client/views/versionControl/vcMaintenanceData.js',
+  'src/client/views/versionControl/vcMaintenancePage.js',
+  'src/client/views/versionControl/vcMaintenanceDiag.js',
   'src/client/views/versionControl/vcShellPages.js',
 ]
 
@@ -188,6 +195,8 @@ async function pageFor(browser: any, closureSrc: string, dict: any, css: string,
   const port = server.address().port
   const context = await browser.newContext({ viewport: { width: 520, height: 1200 } })
   const page = await context.newPage()
+  // 页面里的渲染异常默认不会回到 Node，只会让壳节点等不到；把两类错误打到 stderr，红的时候能一眼看到根因。
+  page.on('pageerror', (e: any) => { console.error('[pageerror] ' + String(e && e.message || e)) })
   await page.goto('http://127.0.0.1:' + port + '/', { waitUntil: 'load' })
   await page.waitForFunction('window.__ready === true', null, { timeout: 20000 })
   return {
@@ -374,7 +383,13 @@ async function run(browser: any, env: any) {
   const stylesMod = await import('file://' + path.join(ROOT, 'src/client/views/versionControl/vcShellStyles.ts').replace(/\\/g, '/'))
   const css = 'html,body{margin:0;padding:0}#pane{width:100%}' + String(stylesMod.VC_SHELL_STYLE_TEXT || '')
 
-  const closure = VC_FILES.map((f: string) => (f.indexOf('src/client/') === 0 ? spliceableJs(f) : strip(read(f)))).join('\n')
+  // 悬停薄预设 Tip 在真机构建里是 leaf:tip（排在全部视图叶子之前），本闭包不拼 kernel 叶子，这里按契约给同形函数组件桩：
+  // 只把触发节点原样渲染出来（真 Tip 额外挂悬停气泡，不影响布局量尺）。维护页与诊断页的禁用原因经它挂，缺了就会渲染抛错。
+  const tipStub = [
+    '// 悬停薄预设 Tip 桩（真机构建里由 leaf:tip 提供，排在全部视图叶子之前）',
+    'const Tip = function (props) { const p = props || {}; return p.children === undefined ? null : p.children }',
+  ].join('\n')
+  const closure = [tipStub].concat(VC_FILES.map((f: string) => (f.indexOf('src/client/') === 0 ? spliceableJs(f) : strip(read(f))))).join('\n')
     // vcText 的时窗常量真源在共享层，闭包闭不上 import：删掉那行 import，值由页面里的 window.VC_RELATIVE_WINDOW_MS 提供。
     .split('\n').filter((line: string) => !/^\s*import\s.*time-config\/values\.js/.test(line)).join('\n')
   const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
