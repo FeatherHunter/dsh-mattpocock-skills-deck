@@ -198,11 +198,16 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 降级不缩父边/依赖边/子票计数/评论/评审；版本门整份丢过期；失败不清空；无基线不凭空造）；31 条单跑实测。
   'verify-detail-incremental': 31,
   // 2026-10-31 #1694：详情只读一个来源（快照投影），读投影开关两条路都能跑、失败不清空且标上次数据，
-  // 产物里投影实现只有一份、详情合并只经 mergeSnapshot 写快照；23 条单跑实测。
-  'verify-single-read-source': 23,
+  // 产物里投影实现只有一份、详情合并只经 mergeSnapshot 写快照；#1695 起成功取回不再写旧详情缓存、
+  // 改记 detailSeenAt 并静默刷新快照；25 条单跑实测。
+  'verify-single-read-source': 25,
   // 2026-10-31 #1694：规格四条验收联合门禁（降级不缩数据、图里点开先显示已知阻塞、
   // 关票后列表与地图同一份快照一致、详情永久增量合并），每条一正例一负例；27 条单跑实测。
   'verify-acceptance-four': 27,
+  // 2026-10-31 #1695：旧详情缓存与地图子票桶退役为投影（快照投影优先、snapshot 模式不读写 issueCache、
+  // 短回包按编号增量合并不清空已知行、快照顶层字段白名单与会话呈现态不进快照、TTL 只决定何时重取、
+  // 排序只在投影层、legacy 开关旧路仍能跑）；39 条单跑实测。
+  'verify-retire-client-caches': 39,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

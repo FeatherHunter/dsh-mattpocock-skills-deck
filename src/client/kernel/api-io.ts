@@ -35,6 +35,9 @@
     declare const ISSUE_CACHE_TTL: number
     declare const isEnabled: any
     declare const markRowWrite: any; declare const deckPromptFiltered: any; declare const isDeckClosed: any
+    // #1695：详情读投影开关与静默快照刷新（同一闭包里的叶子与内核片提供）。
+    declare const projectionUsesSnapshot: any
+    declare const loadSnapshot: any
     export const openInNewSession = function (st: any, x: any) {
       let title = null
       try { title = newSessionTitle(x) } catch(e) {
@@ -240,14 +243,14 @@
       const effortId = (opts && opts.effortId !== undefined && opts.effortId !== null) ? String(opts.effortId) : ''
       const cacheKey = idOfParts(effortId, num)
       const now = Date.now()
-      const entry = st.issueCache && st.issueCache[cacheKey]
-      if (!force && entry && (now - entry.ts) < ISSUE_CACHE_TTL) {
-        st.issueDetail = entry.data
-        st.issueMode = 'real'
-        st.issueError = null
-        emit(st)
-        try { dswsDetailHitN.n += 1; if (isEnabled('debug') && dswsDetailHitN.n % 100 === 0) log('debug', 'detail.cache.hit', { numHash: dswsLogHash(String(num)), ageMs: now - entry.ts }) } catch (eL) {}
-        return Promise.resolve({ ok: true, issue: entry.data, fromCache: true })
+      // #1695：snapshot 模式不再读旧详情缓存，TTL 改记在 st.detailSeenAt（只决定何时后台重取）；
+      // legacy 回滚路径照旧读 st.issueCache，两条路都跑得起来。
+      const snapMode = (typeof projectionUsesSnapshot !== 'function') || projectionUsesSnapshot()
+      const entry = snapMode ? null : (st.issueCache && st.issueCache[cacheKey]); const seen = snapMode ? (st.detailSeenAt && st.detailSeenAt[cacheKey]) : (entry && entry.ts)
+      if (!force && seen && (now - seen) < ISSUE_CACHE_TTL) {
+        if (!snapMode) st.issueDetail = entry.data; st.issueMode = 'real'; st.issueError = null; emit(st)
+        try { dswsDetailHitN.n += 1; if (isEnabled('debug') && dswsDetailHitN.n % 100 === 0) log('debug', 'detail.cache.hit', { numHash: dswsLogHash(String(num)), ageMs: now - seen }) } catch (eL) {}
+        return Promise.resolve({ ok: true, issue: st.issueDetail, fromCache: true, fromSnapshot: snapMode })
       }
       if (typeof host === 'undefined' || typeof host.call !== 'function') {
         return Promise.resolve(failDetail({ kind: 'env', message: tr('err.hostUnavailable'), raw: '' }))
@@ -261,13 +264,12 @@
         if (res.ok) {
           const issue = res.issue || res.value && res.value.issue || res.value
           if (!issue || typeof issue.number !== 'number') return failDetail({ kind: 'parse', message: 'issue missing', raw: '' })
-          // 缓存
-          if (!st.issueCache) st.issueCache = {}
-          st.issueCache[cacheKey] = { ts: Date.now(), data: issue }
-          st.issueDetail = issue
-          st.issueMode = 'real'
-          st.issueError = null
-          emit(st)
+          // #1695：snapshot 模式只记「这次取回的时刻」，不再写旧详情缓存；legacy 路径照旧写 issueCache。
+          if (snapMode) { if (!st.detailSeenAt) st.detailSeenAt = {}; st.detailSeenAt[cacheKey] = Date.now() }
+          else { if (!st.issueCache) st.issueCache = {}; st.issueCache[cacheKey] = { ts: Date.now(), data: issue } }
+          st.issueDetail = issue; st.issueMode = 'real'; st.issueError = null; emit(st)
+          // 宿主已把这次详情经合并服务写进快照；静默重取一次快照，让投影读到合并后的那一份。
+          if (snapMode && typeof loadSnapshot === 'function') { try { loadSnapshot(st, false, true) } catch (eS) {} }
           return { ok: true, issue: issue }
         }
         // #1111：档位只认宿主报上来那一个（认不出才按 HTTP 码兜底，再兜是 network），不再照原文里的
@@ -336,9 +338,11 @@
           st.issueDetail.comments.pageInfo = pageInfo
           st.issueCommentsHasMore = !!pageInfo.hasNextPage
           st.issueCommentsFailCount = 0
-          // 同步缓存（更新 ts 不重置 TTL，仅追加评论）
+          // 同步缓存（更新 ts 不重置 TTL，仅追加评论）；#1695 起 snapshot 模式不再写旧详情缓存，只记取回时刻。
           const cmCacheKey = idOfParts(cmEffort, num)
-          if (st.issueCache && st.issueCache[cmCacheKey]) { st.issueCache[cmCacheKey].data = st.issueDetail; st.issueCache[cmCacheKey].ts = Date.now() }
+          if (typeof projectionUsesSnapshot !== 'function' || !projectionUsesSnapshot()) {
+            if (st.issueCache && st.issueCache[cmCacheKey]) { st.issueCache[cmCacheKey].data = st.issueDetail; st.issueCache[cmCacheKey].ts = Date.now() }
+          } else { if (!st.detailSeenAt) st.detailSeenAt = {}; st.detailSeenAt[cmCacheKey] = Date.now() }
           emit(st)
           // 探测后续变化（v1.5 R9）
           if (typeof scheduleActionProbe === 'function') try { scheduleActionProbe() } catch (e) {}

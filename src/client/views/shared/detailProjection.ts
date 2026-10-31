@@ -131,32 +131,46 @@ export function knownBlockedNodes(src: any): any[] {
   return edges && Array.isArray(edges.nodes) ? edges.nodes : []
 }
 
+/** 行里有没有取到过详情内容：正文或评论至少一样。没有就不能做投影（没取过 ≠ 无描述）。 */
+function rowHasDetail(row: any): boolean {
+  if (!row) return false
+  if (typeof row.body === 'string' && row.body.length > 0) return true
+  return Array.isArray(row.comments) && row.comments.length > 0
+}
+
 /**
- * 详情页这一次该画什么：先看这一趟取回的详情（live），没有就看快照投影（snapshot）。
+ * 详情页这一次该画什么：快照投影优先（#1695 起这是唯一业务数据来源），
+ * 快照行里没有内容时才回退到这一趟取回的详情（live，进入页面到宿主合并回来之间的短暂过渡）。
  * 返回 { issue, source, lastKnownAtMs, noticeKey }：
- *   source 是 'live' 时 issue 就是 st.issueDetail；是 'snapshot' 时是从快照行装出来的只读详情；
+ *   source 是 'snapshot' 时 issue 是从快照行装出来的只读详情；是 'live' 时 issue 就是 st.issueDetail；
  *   noticeKey 非空时界面要画一句「上次数据（时间）」（时间取 lastKnownAtMs）。
+ *
+ * 为什么快照优先：旧详情缓存（st.issueCache）已经退役为投影（#1695），这一趟取回的详情会由宿主
+ * 经合并服务写进快照；如果这里还先认 live，取数失败或另一个会话改了数据时就会看到第二份业务数据。
  */
 export function detailViewFor(st: any, n: any, effortId?: any): any {
-  const live: any = st && st.issueDetail
   const eff: string = effortId === undefined || effortId === null ? '' : String(effortId)
+  if (projectionUsesSnapshot()) {
+    const row: any = snapshotRowFor(st, n, effortId)
+    if (rowHasDetail(row)) {
+      // 上次数据时刻：先取合并组戳记；本会话刚取回、宿主还没合并回来时用 detailSeenAt 补新。
+      let at: number = lastKnownDetailAtMs(st)
+      const seen: any = st && st.detailSeenAt && st.detailSeenAt[idOfParts(eff, Number(n))]
+      if (typeof seen === 'number' && seen > at) at = seen
+      return { issue: detailFromRow(row), source: 'snapshot', lastKnownAtMs: at, noticeKey: 'detail.lastKnownData', notice: at > 0 ? tr('detail.lastKnownData', { time: hhmmOf(at) }) : '' }
+    }
+  }
+  const live: any = st && st.issueDetail
   const liveEff: string = live && live.effortId !== undefined && live.effortId !== null ? String(live.effortId) : ''
   const liveMatches: boolean = !!live && Number(live.number) === Number(n) && liveEff === eff
   if (liveMatches) {
     // 失败后详情没有被清空（#1694）：这时也要标「上次数据是什么时候的」，别让人以为是最新的。
-    // 时刻取详情缓存那条记录的 ts（那就是这份内容真正取回来的时刻），取不到就不标。
+    // 时刻取 detailSeenAt（#1695 起的新记录），旧状态退回详情缓存那条记录的 ts，取不到就不标。
     const keptAfterFail: boolean = st.issueMode === 'err'
+    const seen: any = st && st.detailSeenAt && st.detailSeenAt[idOfParts(eff, Number(n))]
     const entry: any = st.issueCache && st.issueCache[idOfParts(eff, Number(n))]
-    const at: number = keptAfterFail && entry && typeof entry.ts === 'number' ? entry.ts : 0
+    const at: number = keptAfterFail ? (typeof seen === 'number' && seen > 0 ? seen : (entry && typeof entry.ts === 'number' ? entry.ts : 0)) : 0
     return { issue: live, source: 'live', lastKnownAtMs: at, noticeKey: '', notice: keptAfterFail && at > 0 ? tr('detail.lastKnownData', { time: hhmmOf(at) }) : '' }
   }
-  if (!projectionUsesSnapshot()) return { issue: null, source: 'none', lastKnownAtMs: 0, noticeKey: '', notice: '' }
-  const row: any = snapshotRowFor(st, n, effortId)
-  if (!row) return { issue: null, source: 'none', lastKnownAtMs: 0, noticeKey: '', notice: '' }
-  const hasBody: boolean = typeof row.body === 'string' && row.body.length > 0
-  const hasComments: boolean = Array.isArray(row.comments) && row.comments.length > 0
-  // 只有行里真带内容才做投影：没取过正文/评论的行交回原来的占位与淘汰提示（不把「没取过」画成「无描述」）。
-  if (!hasBody && !hasComments) return { issue: null, source: 'none', lastKnownAtMs: 0, noticeKey: '', notice: '' }
-  const at: number = lastKnownDetailAtMs(st)
-  return { issue: detailFromRow(row), source: 'snapshot', lastKnownAtMs: at, noticeKey: 'detail.lastKnownData', notice: at > 0 ? tr('detail.lastKnownData', { time: hhmmOf(at) }) : '' }
+  return { issue: null, source: 'none', lastKnownAtMs: 0, noticeKey: '', notice: '' }
 }
