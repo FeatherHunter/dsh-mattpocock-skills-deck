@@ -41,9 +41,9 @@ jobs:
           node scripts/generate-star-history-svg.mts
       # README 的四块（联系 / 星图 / 致谢 / 作者作品）统一由 base 包同源渲染：
       # 星图的 ?v= 取 docs/star-history.json 末条日期的分钟级版本，图重新生成后缓存戳自动跟着换。
-      # 钉死 0.1.2：与 package.json 里内联的 base 客户端产物是同一版，渲染结果才能和本地 readme:check 对上。
+      # 钉死 0.1.3：与 package.json 里内联的 base 客户端产物是同一版，渲染结果才能和本地 readme:check 对上。
       - name: Sync managed README blocks
-        run: npx -y dsh-featherhunter-plugin-base@0.1.2 readme:sync --repo .
+        run: npx -y dsh-featherhunter-plugin-base@0.1.3 readme:sync --repo .
       - name: Commit if changed
         run: |
           if git diff --quiet docs/star-history.json docs/star-history-dark.svg docs/star-history-light.svg README.md docs/README.en.md package/README.md; then echo "No change"; exit 0; fi
