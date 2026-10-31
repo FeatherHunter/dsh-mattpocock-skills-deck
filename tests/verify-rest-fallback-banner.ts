@@ -10,8 +10,9 @@
 //       只有配额原因才提配额），这里断言渲染出来的悬停提示与读屏标签就是那一句。
 //   二、通知中心（真渲染 NotificationHistoryPanel）：当前状态只从快照画；历史与当前对不上时按快照说、
 //       并补一句「对不上」的说明 —— 负例包括「历史说有未闭合降级、快照说正常」与「快照说降级、历史全闭合」。
-//   三、文案与登记：新标签 list.fallbackMark 中英各一份、四句降级句子仍在、旧关闭钮词条已删；
-//       旧横幅叶子已删除，构建登记与拼接标记都改成新叶子；新叶子不写会话态、不加定时器。
+//   三、文案与登记：新标签 list.fallbackMark 与关闭标签 list.fallbackMarkDismiss 中英各一份、
+//       四句降级句子仍在、旧横幅的关闭钮词条已删；旧横幅叶子已删除，构建登记与拼接标记都改成新叶子；
+//       新叶子的关闭只写会话存储（不写 localStorage、不落盘）、不加定时器。
 //
 // 为什么改成真渲染：这条需求要保的是「画成什么样、什么时候不画」（先例 tests/verify-1295-dual-panel.ts），
 // 扫源码字符串只能钉写法，等价重构就假红；票面也明确要求「不再断源码文本」。
@@ -46,6 +47,7 @@ const HOUR = 3600000
 // 界面文案一律从词表取真值（config/copy 是数据，不是源码文本）：渲染用中文那份，断言英文那份也在。
 const ZH = {
   'list.fallbackMark': yamlValue('config/copy/pages.yaml', 'list.fallbackMark'),
+  'list.fallbackMarkDismiss': yamlValue('config/copy/pages.yaml', 'list.fallbackMarkDismiss'),
   'list.restFallbackNonQuota': yamlValue('config/copy/pages.yaml', 'list.restFallbackNonQuota'),
   'list.restFallbackStaleNonQuota': yamlValue('config/copy/pages.yaml', 'list.restFallbackStaleNonQuota'),
   'list.restFallback': yamlValue('config/copy/flow.yaml', 'list.restFallback'),
@@ -53,6 +55,17 @@ const ZH = {
 }
 const trDict: any = {
   'list.fallbackMark': ZH['list.fallbackMark'],
+  'list.fallbackMarkDismiss': ZH['list.fallbackMarkDismiss'],
+  'truth.updatedJustNow': '刚刚',
+  'truth.updatedMinAgo': '{n} 分钟前',
+  'truth.updatedHourAgo': '{n} 小时前',
+  'truth.updatedDayAgo': '{n} 天前',
+  'notice.detail.degradedQuota': '这次取数因配额耗尽改走 REST 通道',
+  'notice.detail.degradedOther': '这次取数的主路不可用，改走 REST 通道',
+  'notice.detail.refreshFailed': '这次刷新没有成功，界面仍是上一次的结果',
+  'notice.detail.writeFailed': '写操作没有成功（工具：{tool}）',
+  'notice.detail.legacyDegradedStart': '旧版记录：降级开始（没有记录原因）',
+  'notice.detail.legacyFailure': '旧版记录：没有记录失败细节',
   'list.restFallback': ZH['list.restFallback'],
   'list.restFallbackStale': ZH['list.restFallbackStale'],
   'list.restFallbackNonQuota': ZH['list.restFallbackNonQuota'],
@@ -74,10 +87,6 @@ const trDict: any = {
   'notice.event.writeFailed': '写票失败',
   'notice.event.unknown': '通知',
   'notice.times': '发生 {n} 次',
-  'notice.time.justNow': '刚刚',
-  'notice.time.minutesAgo': '{n} 分钟前',
-  'notice.time.hoursAgo': '{n} 小时前',
-  'notice.time.daysAgo': '{n} 天前',
   'notice.markAllRead': '全部已读',
   'notice.clearRead': '清除已读标记',
   'notice.close': '关闭',
@@ -91,9 +100,15 @@ const tr = function (key: any, params?: any) {
   return text
 }
 
-// 会话态探针：旧横幅会在 sessionStorage 里写「本会话不再提示」；新标识不许再写一份会话态。
+// 会话态探针：关闭小标识只许写 sessionStorage（一开会话一把键），不许写 localStorage、不落盘。
+// getItem 真的能从 store 读回，才能验「关掉之后不画」与「坏数据当没关过」；setItem 计数，验打开路径不写。
+const store: any = {}
 let storageWrites = 0
-const fakeStorage = { getItem: function () { return null }, setItem: function () { storageWrites += 1 }, removeItem: function () {} }
+const fakeStorage = {
+  getItem: function (k: any) { return Object.prototype.hasOwnProperty.call(store, String(k)) ? store[String(k)] : null },
+  setItem: function (k: any, v: any) { storageWrites += 1; store[String(k)] = String(v) },
+  removeItem: function (k: any) { delete store[String(k)] },
+}
 
 // ---- 假世界：真实现能接的都接真实现（先例 tests/verify-1286-list.ts 的注入清单）----
 const G: any = globalThis
@@ -240,7 +255,9 @@ const q = function (html: string) { return new JSDOM('<!doctype html><html><body
     const tip: any = doc.querySelector('[data-tip]')
     check(!!tip && tip.getAttribute('data-tip') === expected, 'A5 悬停提示与读屏标签同一句（说哪一句由 restFallbackView 决定，标识不另造一句）')
     check(doc.querySelectorAll('[data-rest-fallback], [data-rest-fallback-dismiss]').length === 0, 'A6 整页不再有旧横幅的痕迹（data-rest-fallback / 关闭钮都不画）')
-    check(storageWrites === 0, 'A7 小标识不写会话态（旧横幅的「本会话不再提示」已随横幅退役）')
+    check(storageWrites === 0, 'A7 打开列表只是画出来，不写会话态（关闭是用户点了才写）')
+    const closeBtn: any = markEl ? markEl.querySelector('button[data-log="list.fallbackmarkdismiss"]') : null
+    check(!!closeBtn && closeBtn.getAttribute('aria-label') === tr('list.fallbackMarkDismiss'), 'A7b 小标识带一颗关闭钮，读屏标签说清「关掉的是这一档提示」')
   }
   {
     const html = renderList(stOf({ fallback: 'graphql' }))
@@ -261,6 +278,22 @@ const q = function (html: string) { return new JSDOM('<!doctype html><html><body
     const expected = tr('list.restFallbackStaleNonQuota', { n: 120 })
     check(!!markEl && markEl.getAttribute('aria-label') === expected, 'A12 非配额原因改说中性那句（不拿配额当借口）')
     check(expected.indexOf('配额') < 0, 'A13 中性那句里不提配额（负例：拿配额解释非配额降级就是编事实）')
+  }
+  {
+    // 关闭：只记本次会话（按工作区一把键），下一次降级更晚要重新出现，绝不永久隐藏。
+    const stD = stOf(degradedSnap(5 * MIN, 'other'))
+    check(mark.fallbackDismissedAtOf(stD) === 0, 'A14 没点过关闭 → 没有关闭时刻')
+    check(mark.fallbackDismissOf(stD, NOW) === true && storageWrites === 1, 'A15 点关闭只写一把会话键（没有落盘、没有第二处写）')
+    check(mark.fallbackDismissedAtOf(stD) === NOW, 'A16 关闭时刻按工作区存回会话态')
+    check(q(renderList(stD)).querySelectorAll('[data-fallback-mark]').length === 0, 'A17 本会话关掉后，小标识不再画（会话态真的生效）')
+    const newerSnap = { fallback: 'rest', fallbackAt: NOW + 1000, fallbackReason: 'other' }
+    check(q(renderList(stOf(newerSnap))).querySelectorAll('[data-fallback-mark]').length === 1, 'A18 下一次降级时刻更晚 → 标识重新出现（关闭不是永久隐藏）')
+    const otherWs = stOf(degradedSnap(5 * MIN, 'other'))
+    otherWs.cwd = 'D:\\ws2'
+    check(q(renderList(otherWs)).querySelectorAll('[data-fallback-mark]').length === 1, 'A19 另一个工作区各记各的：那边没关过就照画')
+    store[mark.fallbackDismissKeyOf(stD)] = 'not json'
+    check(mark.fallbackDismissedAtOf(stD) === 0, 'A20 负例：会话态坏数据当没关过（宁可多提示一次，不可少提示）')
+    delete store[mark.fallbackDismissKeyOf(stD)]
   }
 
   // ================= 二、通知中心：当前状态只从快照画 =================
@@ -305,6 +338,7 @@ const q = function (html: string) { return new JSDOM('<!doctype html><html><body
     const pages = read('config/copy/pages.yaml')
     check(countOf(pages, '  list.fallbackMark:') === 2, 'C1 新标签 list.fallbackMark 中英各一份')
     check(tr('list.fallbackMark') !== '' && tr('list.fallbackMark') !== 'list.fallbackMark', 'C2 新标签取得到真词条（实际：' + tr('list.fallbackMark') + '）')
+    check(countOf(pages, '  list.fallbackMarkDismiss:') === 2 && tr('list.fallbackMarkDismiss') !== '' && tr('list.fallbackMarkDismiss') !== 'list.fallbackMarkDismiss', 'C2b 关闭钮的读屏标签中英各一份、取得到真词条')
     check(countOf(read('config/copy/flow.yaml'), '  list.restFallback:') === 2, 'C3 降级句子「已切 REST 通道」中英各一份仍在')
     check(countOf(read('config/copy/word.yaml'), '  list.restFallbackStale:') === 2, 'C4 降级句子「上次…（N 分钟前）」中英各一份仍在')
     check(countOf(pages, '  list.restFallbackNonQuota:') === 2 && countOf(pages, '  list.restFallbackStaleNonQuota:') === 2, 'C5 两句非配额降级句子中英各一份仍在')
@@ -321,7 +355,8 @@ const q = function (html: string) { return new JSDOM('<!doctype html><html><body
     // 只扫代码行：文件头注释里写着「不写 sessionStorage / 不是新控件」这些约定，不能把它们当成证据。
     const leafCode = leafTxt.split('\n').filter(function (ln: string) { return !/^\s*(\*|\/\/|\/\*)/.test(ln) }).join('\n')
     check(!/setInterval|setTimeout/.test(leafCode), 'C11 小标识不新增后台定时器')
-    check(leafCode.indexOf('sessionStorage') < 0 && leafCode.indexOf('data-log') < 0, 'C12 小标识不写会话态、不是新控件（不带点击日志）')
+    check(leafCode.indexOf('sessionStorage') >= 0 && leafCode.indexOf('localStorage') < 0, 'C12 关闭只写会话存储（不写 localStorage、不落盘）')
+    check(leafCode.indexOf('data-log') >= 0 && leafCode.indexOf('fallbackDismissOf') >= 0, 'C12b 关闭按钮是真控件：带点击日志，并走同一份关闭判据')
     check(leafCode.indexOf('#f59e0b') < 0 && leafCode.indexOf('rgba(245') < 0, 'C13 小标识不自己写琥珀色值（警告档取 freshnessToneColor）')
   }
 
