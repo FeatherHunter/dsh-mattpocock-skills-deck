@@ -121,6 +121,10 @@ const KEYS: Array<[string, string, string]> = [
   // #1746 分支与标签域：预检只读与凭票执行各一档，都是本地动作。
   ['vcBranchReadTimeoutMs', 'VC_BRANCH_READ_TIMEOUT_MS', 'timeouts'],
   ['vcBranchWriteTimeoutMs', 'VC_BRANCH_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1760 配置与钩子域：预检只读、配置写、手动跑钩子（钩子可能跑分钟级）各一档。
+  ['vcConfigReadTimeoutMs', 'VC_CONFIG_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcConfigWriteTimeoutMs', 'VC_CONFIG_WRITE_TIMEOUT_MS', 'timeouts'],
+  ['vcHookRunTimeoutMs', 'VC_HOOK_RUN_TIMEOUT_MS', 'timeouts'],
   // #1761 诊断页与替换对象：预检只读与凭票执行各一档，都是本地动作。
   ['vcDiagnosticsReadTimeoutMs', 'VC_DIAGNOSTICS_READ_TIMEOUT_MS', 'timeouts'],
   ['vcDiagnosticsWriteTimeoutMs', 'VC_DIAGNOSTICS_WRITE_TIMEOUT_MS', 'timeouts'],

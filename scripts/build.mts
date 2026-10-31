@@ -681,6 +681,10 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // #1756 T20 克隆向导：地址与选项口径（深度/分支/两个子模块开关/离线）、预检票据两片，宿主与界面读同一份。
   { marker: '// ==== shared:vcCloneOptions (spliced by build) ====', file: 'src/shared/version-control/src/clone-options.ts' },
   { marker: '// ==== shared:vcCloneTicket (spliced by build) ====', file: 'src/shared/version-control/src/clone-ticket.ts' },
+  // #1760 配置与钩子（域 12）的规则层：哪些键能写（只有身份两键）、作用域怎么反推、钩子名形状、
+  //   git hook run 的 2.36 版本门与替代做法，只有这一份。宿主预检/执行与配置页、钩子页读同一份，
+  //   界面不自己再说一遍——自己说一遍就会与宿主执行前那次判定各说各话。
+  { marker: '// ==== shared:vcConfigRules (spliced by build) ====', file: 'src/shared/version-control/src/config-rules.ts' },
   // #1342 域文档布局的取值（单上下文 / 多上下文）只有一份真源 src/shared/doc-layout/src/layouts.ts。
   //   界面侧状态栏与初始化卡要按同一份名单校验用户选的那一项（拒收第三档取值），所以拼进界面闭包；
   //   宿主侧选择记忆与工作区配置核按普通相对 import 取同一份源文件（不是拼接，是同一个文件）。
@@ -828,6 +832,10 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   //   排在页面壳之前，壳的挂载段才看得到 vcConflictsPageNode。
   { id: 'vcConflictsOps', file: 'src/client/views/versionControl/vcConflictsOps.ts' },
   { id: 'vcConflictsPage', file: 'src/client/views/versionControl/vcConflictsPage.ts' },
+  // #1760 配置页与钩子页三叶，依赖次序固定：数据与动作层 → 配置页画法 → 钩子页画法（都排在页面壳之前，壳要调它们）。
+  { id: 'vcConfigOps', file: 'src/client/views/versionControl/vcConfigOps.ts' },
+  { id: 'vcConfigPage', file: 'src/client/views/versionControl/vcConfigPage.ts' },
+  { id: 'vcHooksPage', file: 'src/client/views/versionControl/vcHooksPage.ts' },
   // #1749 变基待办两叶：动作模型（9 条动作的出入参形状、待办行变换）→ 页面正文（状态、待办清单、三块预览、四段确认卡）。
   //   排在页面壳之前，壳的挂载段才看得到 vcRebasePageNode。
   { id: 'vcRebaseOps', file: 'src/client/views/versionControl/vcRebaseOps.ts' },

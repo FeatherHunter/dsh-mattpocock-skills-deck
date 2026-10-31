@@ -1,0 +1,45 @@
+# 钩子页（#1760 T24，规格 #1586 域 12 的 12.5、12.6）的可见文字。
+# 一个键要在 zh 与 en 两段里同时存在、占位符一致，生成器 scripts/generate-locale-config.mts 会当场报错。
+# 口径：安装与停用不在面板做，页面只给只读说明；2.36 以下不画运行按钮，只说清替代做法。
+zh:
+  vc.hooks.title: 钩子
+  vc.hooks.lede: 这一页列出本仓库的钩子，并可以手动跑一个；钩子里的脚本会动工作区与文件，跑之前请看清是哪一个。
+  vc.hooks.configured: 钩子路径由 core.hooksPath 指到 {path}
+  vc.hooks.notConfigured: 用的是默认钩子目录 .git/hooks
+  vc.hooks.install.note: 安装与停用不在面板里做：它们要往钩子目录写可执行文件、改可执行位，不是 git 命令。把脚本放进上面的目录并给它执行权限即可；编辑正文请用外部编辑器。
+  vc.hooks.list.empty: 钩子目录里还没有脚本。
+  vc.hooks.list.err: 钩子清单没读出来（{kind}）；可以先按配置页的「重新读取」再试。
+  vc.hooks.sample: 示例文件
+  vc.hooks.executable: 钩子
+  vc.hooks.notExecutable: 没有执行权限，跑不起来
+  vc.hooks.run: 手动跑
+  vc.hooks.gate.hidden: 这版 git 不能手动跑钩子（需要 {needed}）。
+  vc.hooks.gate.alternative: 2.36 以下在终端直接执行钩子文件
+  vc.hooks.confirm.verb: 手动跑这个钩子
+  vc.hooks.confirm.go: 确认{verb}
+  vc.hooks.confirm.cancel: 取消
+  vc.hooks.result.ok: 钩子跑完了，退出码 {code}。
+  vc.hooks.output.title: 钩子输出
+  vc.hooks.output.hookFailed: 钩子自己报告失败（退出码 {code}）；失败原因看下面的输出。
+  vc.hooks.output.truncated: 输出太大，这里显示的是截断后的内容。
+en:
+  vc.hooks.title: Hooks
+  vc.hooks.lede: This page lists the hooks in this repository and lets you run one manually; hooks are scripts that touch the working tree and files, so check which one you are about to run.
+  vc.hooks.configured: Hook path comes from core.hooksPath at {path}
+  vc.hooks.notConfigured: Using the default .git/hooks directory
+  vc.hooks.install.note: Installing and disabling hooks is not done in this panel — that means writing executable files into the hook directory and changing the executable bit, which is not a git command. Put the script in the directory above and make it executable; edit its body in your own editor.
+  vc.hooks.list.empty: No scripts in the hook directory yet.
+  vc.hooks.list.err: 'The hook list could not be read ({kind}); try "Read again" on the configuration page.'
+  vc.hooks.sample: sample file
+  vc.hooks.executable: hook
+  vc.hooks.notExecutable: not executable; it cannot run
+  vc.hooks.run: Run manually
+  vc.hooks.gate.hidden: This git cannot run hooks manually (needs {needed}).
+  vc.hooks.gate.alternative: Below 2.36, run the hook file directly in a terminal
+  vc.hooks.confirm.verb: Run this hook manually
+  vc.hooks.confirm.go: Confirm {verb}
+  vc.hooks.confirm.cancel: Cancel
+  vc.hooks.result.ok: "The hook finished with exit code {code}."
+  vc.hooks.output.title: Hook output
+  vc.hooks.output.hookFailed: The hook reported failure itself (exit code {code}); see the output below.
+  vc.hooks.output.truncated: The output was too large; this is a truncated view.

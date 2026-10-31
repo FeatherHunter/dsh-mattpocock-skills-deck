@@ -1,0 +1,111 @@
+# 配置页（#1760 T24，规格 #1586 域 12 的 12.1–12.4、12.7、12.8）的可见文字。
+# 一个键要在 zh 与 en 两段里同时存在、占位符一致，生成器 scripts/generate-locale-config.mts 会当场报错。
+# 口径：只读键明说「只读」；身份两条明说作用域与旧值；失败按原因说清这次到底动没动。
+zh:
+  vc.config.title: 配置
+  vc.config.lede: 这里只改提交身份的两项（姓名与邮箱）；行尾与大小写、钩子路径、凭据来源三组只读，别处要用请按显示的来源文件去改。
+  vc.config.refresh: 重新读取
+  vc.config.read.ok: 配置已读出。
+  vc.config.read.idle: 还没读配置，按「重新读取」拿当前值。
+  vc.config.read.err: 配置没读出来（{kind}），可以先按「重新读取」再试一次。
+  vc.config.readonly: 只读
+  vc.config.group.identity: 提交身份
+  vc.config.group.eol: 行尾与大小写
+  vc.config.group.hooksPath: 钩子路径
+  vc.config.group.credential: 凭据来源
+  vc.config.group.empty: 这几项都没有配置，用的是默认值。
+  vc.config.identity.name: 提交者姓名
+  vc.config.identity.email: 提交者邮箱
+  vc.config.identity.never: 未配置
+  vc.config.identity.old: 旧值：本仓库 {local}；这台机器 {global}
+  vc.config.identity.placeholder: 新的值（留空保存会报错）
+  vc.config.identity.set: 保存
+  vc.config.identity.unset: 删除这个键
+  vc.config.identity.scope.local: 只改本仓库
+  vc.config.identity.scope.global: 改这台机器
+  vc.config.scope.local: 本仓库
+  vc.config.scope.global: 这台机器
+  vc.config.scope.system: 系统级（只读）
+  vc.config.scope.other: 其它来源（只读）
+  vc.config.attr.label: 属性规则查询
+  vc.config.attr.placeholder: 填一个仓库内的路径，看它命中的 .gitattributes 规则
+  vc.config.attr.go: 查属性
+  vc.config.attr.none: 这个路径没有命中任何属性规则。
+  vc.config.attr.err: 属性规则没查出来；可以换个仓库内的路径再试。
+  vc.config.mailmap.label: 邮件映射查询
+  vc.config.mailmap.placeholder: 填一个邮箱地址，看 .mailmap 把它映射成谁
+  vc.config.mailmap.go: 查映射
+  vc.config.mailmap.none: 这个地址没有被映射，会按原样显示。
+  vc.config.mailmap.err: 邮件映射没查出来；可以换个地址再试。
+  vc.config.confirm.verbUnset: 删除这个配置键
+  vc.config.confirm.verbHook: 手动跑这个钩子
+  vc.config.confirm.go: 确认{verb}
+  vc.config.confirm.cancel: 取消
+  vc.config.result.ok: 完成：改动的值已经写进配置。
+  vc.config.fail.args: 这次请求少了必要参数，没有执行。
+  vc.config.fail.env: 配置与钩子的执行层没加载起来；稍后再试一次。
+  vc.config.fail.notRepo: 当前目录不是 git 仓库。
+  vc.config.fail.read: 配置没读出来；可以先按「重新读取」再试一次。
+  vc.config.fail.parse: 配置的读法看不懂：{message}
+  vc.config.fail.blocked: 这一步被挡住了：{message}
+  vc.config.fail.gitFailed: git 执行失败，这次没有改动生效：{message}
+  vc.config.fail.truncated: git 输出太大，读到一半截断了；这次没有执行。
+  vc.config.fail.timeout: git 超时没有回音，这次可能没有完成。
+  vc.config.fail.spawn: 起不了 git 进程。
+  vc.config.fail.cancelled: 这次操作被取消了。
+  vc.config.fail.needConfirm: 这一步要先确认，没有执行。
+  vc.config.fail.other: 这次操作没有成功。
+en:
+  vc.config.title: Configuration
+  vc.config.lede: Only the two commit identity values (name and email) can be edited here; line endings, hook path and credential source are read-only — edit their origin files instead.
+  vc.config.refresh: Read again
+  vc.config.read.ok: Configuration loaded.
+  vc.config.read.idle: Configuration has not been read yet; press "Read again" for current values.
+  vc.config.read.err: 'Configuration could not be read ({kind}); try "Read again".'
+  vc.config.readonly: read-only
+  vc.config.group.identity: Commit identity
+  vc.config.group.eol: Line endings and case
+  vc.config.group.hooksPath: Hook path
+  vc.config.group.credential: Credential source
+  vc.config.group.empty: Nothing is configured for these keys; defaults apply.
+  vc.config.identity.name: Committer name
+  vc.config.identity.email: Committer email
+  vc.config.identity.never: not configured
+  vc.config.identity.old: "Old value: this repository {local}; this machine {global}"
+  vc.config.identity.placeholder: New value (saving an empty value is rejected)
+  vc.config.identity.set: Save
+  vc.config.identity.unset: Delete this key
+  vc.config.identity.scope.local: Only this repository
+  vc.config.identity.scope.global: This machine
+  vc.config.scope.local: this repository
+  vc.config.scope.global: this machine
+  vc.config.scope.system: system level (read-only)
+  vc.config.scope.other: other source (read-only)
+  vc.config.attr.label: Attribute rules
+  vc.config.attr.placeholder: A path inside the repository; shows the .gitattributes rules it matches
+  vc.config.attr.go: Check attributes
+  vc.config.attr.none: No attribute rule matches this path.
+  vc.config.attr.err: Attribute rules could not be read; try another path inside the repository.
+  vc.config.mailmap.label: Mailmap lookup
+  vc.config.mailmap.placeholder: An email address; shows who .mailmap maps it to
+  vc.config.mailmap.go: Look up
+  vc.config.mailmap.none: This address is not mapped and is shown as-is.
+  vc.config.mailmap.err: The mailmap lookup failed; try another address.
+  vc.config.confirm.verbUnset: Delete this config key
+  vc.config.confirm.verbHook: Run this hook manually
+  vc.config.confirm.go: Confirm {verb}
+  vc.config.confirm.cancel: Cancel
+  vc.config.result.ok: "Done: the new value is written to the configuration."
+  vc.config.fail.args: The request was missing required parameters; nothing ran.
+  vc.config.fail.env: The configuration and hook executor did not load; try again later.
+  vc.config.fail.notRepo: The current directory is not a git repository.
+  vc.config.fail.read: 'Configuration could not be read; try "Read again".'
+  vc.config.fail.parse: "Unreadable configuration output: {message}"
+  vc.config.fail.blocked: "This step was blocked: {message}"
+  vc.config.fail.gitFailed: "git failed; nothing changed: {message}"
+  vc.config.fail.truncated: The git output was too large and got truncated; nothing ran.
+  vc.config.fail.timeout: git did not answer in time; this step may not have completed.
+  vc.config.fail.spawn: git could not be started.
+  vc.config.fail.cancelled: The operation was cancelled.
+  vc.config.fail.needConfirm: This step needs confirmation; nothing ran.
+  vc.config.fail.other: The operation did not succeed.

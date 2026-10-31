@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T20:26:57.734Z",
+  "generatedAt": "2026-10-31T20:35:01.134Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 502,
-  "gateCount": 502,
-  "attributedGates": 451,
+  "chainLength": 503,
+  "gateCount": 503,
+  "attributedGates": 452,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 66,
+  "completionRecordedGates": 67,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 771,
+  "graphFileCount": 778,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4276,6 +4276,21 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
+      "step": "node tests/verify-1586-config-hooks.ts",
+      "file": "tests/verify-1586-config-hooks.ts",
+      "guards": [
+        "src/shared/version-control/src/config-rules.ts"
+      ],
+      "dirs": [
+        "src/shared/version-control/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 92,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-1586-conflicts.ts",
       "file": "tests/verify-1586-conflicts.ts",
       "guards": [
@@ -6597,6 +6612,8 @@
         "src/client/views/versionControl/vcCommit.ts",
         "src/client/views/versionControl/vcCommitOps.ts",
         "src/client/views/versionControl/vcCommitPage.ts",
+        "src/client/views/versionControl/vcConfigOps.ts",
+        "src/client/views/versionControl/vcConfigPage.ts",
         "src/client/views/versionControl/vcConflictsOps.ts",
         "src/client/views/versionControl/vcConflictsPage.ts",
         "src/client/views/versionControl/vcData.ts",
@@ -6607,6 +6624,7 @@
         "src/client/views/versionControl/vcFirstScreen.ts",
         "src/client/views/versionControl/vcFold.ts",
         "src/client/views/versionControl/vcHistory.ts",
+        "src/client/views/versionControl/vcHooksPage.ts",
         "src/client/views/versionControl/vcInView.ts",
         "src/client/views/versionControl/vcMigrateData.ts",
         "src/client/views/versionControl/vcMigratePage.ts",
@@ -6647,6 +6665,7 @@
         "src/shared/version-control/src/clone-options.ts",
         "src/shared/version-control/src/clone-ticket.ts",
         "src/shared/version-control/src/commit-plan.ts",
+        "src/shared/version-control/src/config-rules.ts",
         "src/shared/version-control/src/conflict-text.ts",
         "src/shared/version-control/src/first-screen.ts",
         "src/shared/version-control/src/migrate-actions.ts",
@@ -6674,7 +6693,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 69 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 73 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -10978,6 +10997,7 @@
         "src/client/views/versionControl/vcBlocks.ts",
         "src/client/views/versionControl/vcClonePage.ts",
         "src/client/views/versionControl/vcCommitOps.ts",
+        "src/client/views/versionControl/vcConfigOps.ts",
         "src/client/views/versionControl/vcSubmodulesOps.ts",
         "src/client/views/versionControl/vcText.ts",
         "src/deck/registration/register-options.ts",
@@ -11006,6 +11026,8 @@
         "src/host/versionControlCheck.ts",
         "src/host/versionControlClone.ts",
         "src/host/versionControlCommitForm.ts",
+        "src/host/versionControlConfig.ts",
+        "src/host/versionControlConfigWrite.ts",
         "src/host/versionControlConflictScene.ts",
         "src/host/versionControlConflictWrite.ts",
         "src/host/versionControlDiagnosticsCheck.ts",
@@ -11134,7 +11156,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 144 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 147 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -13252,6 +13274,7 @@
       "node tests/verify-1586-capability-ledger.ts",
       "node tests/verify-1586-clone-wizard.ts",
       "node tests/verify-1586-commit-page.ts",
+      "node tests/verify-1586-config-hooks.ts",
       "node tests/verify-1586-diagnostics.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-history-query.ts",
@@ -13909,9 +13932,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 792,
+    "fileCount": 799,
     "dirCount": 84,
-    "coveredFileCount": 792,
+    "coveredFileCount": 799,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -14114,6 +14137,8 @@
       "src/client/views/versionControl/vcCommit.ts",
       "src/client/views/versionControl/vcCommitOps.ts",
       "src/client/views/versionControl/vcCommitPage.ts",
+      "src/client/views/versionControl/vcConfigOps.ts",
+      "src/client/views/versionControl/vcConfigPage.ts",
       "src/client/views/versionControl/vcConflictsOps.ts",
       "src/client/views/versionControl/vcConflictsPage.ts",
       "src/client/views/versionControl/vcData.ts",
@@ -14124,6 +14149,7 @@
       "src/client/views/versionControl/vcFirstScreen.ts",
       "src/client/views/versionControl/vcFold.ts",
       "src/client/views/versionControl/vcHistory.ts",
+      "src/client/views/versionControl/vcHooksPage.ts",
       "src/client/views/versionControl/vcInView.ts",
       "src/client/views/versionControl/vcMigrateData.ts",
       "src/client/views/versionControl/vcMigratePage.ts",
@@ -14282,6 +14308,9 @@
       "src/host/versionControlClone.ts",
       "src/host/versionControlCommitForm.ts",
       "src/host/versionControlCommitFormMount.ts",
+      "src/host/versionControlConfig.ts",
+      "src/host/versionControlConfigMount.ts",
+      "src/host/versionControlConfigWrite.ts",
       "src/host/versionControlConflictCheck.ts",
       "src/host/versionControlConflictMount.ts",
       "src/host/versionControlConflictScene.ts",
@@ -14482,6 +14511,7 @@
       "src/shared/version-control/src/clone-ticket.ts",
       "src/shared/version-control/src/commands.ts",
       "src/shared/version-control/src/commit-plan.ts",
+      "src/shared/version-control/src/config-rules.ts",
       "src/shared/version-control/src/conflict-ops.ts",
       "src/shared/version-control/src/conflict-text.ts",
       "src/shared/version-control/src/diagnostics-commands.ts",
