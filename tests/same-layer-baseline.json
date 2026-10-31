@@ -875,6 +875,24 @@
       "count": 1,
       "owner": "#1751（规格 #1586 T16 贮藏页）",
       "note": "叶子装配：贮藏执行层接票据叶子（预检签发、120 秒租约与凭票重验都在票据叶子）；方向单向，票据叶子只认注入的读屏、命令出口与票据表，不引用执行层。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
+      "spec": "./versionControlCommitFormMount.js",
+      "resolved": "src/host/versionControlCommitFormMount.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1743（规格 #1586 T08 提交页）",
+      "note": "装配扇入：提交表单读取电话要挂到版本管理入口，但父文件贴着 350 有效行上限；照 #500/#821/#1742 先例把装配拆成同层外壳，父文件只剩 createCommitFormMount 那一行调用，外壳不反向引用父文件。"
+    },
+    {
+      "file": "src/host/versionControlCommitFormMount.ts",
+      "spec": "./versionControlCommitForm.js",
+      "resolved": "src/host/versionControlCommitForm.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1743（规格 #1586 T08 提交页）",
+      "note": "外壳装配：外壳只做懒加载与电话日志包装，读实现（身份、签名配置、提交说明模板、上一条提交原文）在同层叶子 versionControlCommitForm.ts；方向单向，读取叶子只认注入的宿主依赖，不引用外壳。"
     }
   ]
 }
