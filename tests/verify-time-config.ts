@@ -91,6 +91,10 @@ const REFERENCES: RefRow[] = [
   // #1742 改动页：预检与只读命令、凭票写命令各一个时限键，叶子直接导入生成常量，不再由装配方传数字。
   { file: 'src/host/versionControlChanges.ts', access: 'VC_CHANGES_READ_TIMEOUT_MS', gen: 'VC_CHANGES_READ_TIMEOUT_MS', key: 'vcChangesReadTimeoutMs' },
   { file: 'src/host/versionControlChanges.ts', access: 'VC_CHANGES_WRITE_TIMEOUT_MS', gen: 'VC_CHANGES_WRITE_TIMEOUT_MS', key: 'vcChangesWriteTimeoutMs' },
+  // #1761 诊断页与替换对象：只读查询与预检读同一条时限，凭票执行读另一条；三条都 direct import 生成常量（别名）。
+  { file: 'src/host/versionControlDiagnosticsRead.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_DIAGNOSTICS_READ_TIMEOUT_MS', key: 'vcDiagnosticsReadTimeoutMs' },
+  { file: 'src/host/versionControlDiagnosticsCheck.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_DIAGNOSTICS_READ_TIMEOUT_MS', key: 'vcDiagnosticsReadTimeoutMs' },
+  { file: 'src/host/versionControlDiagnosticsWrite.ts', access: 'WRITE_TIMEOUT_MS', gen: 'VC_DIAGNOSTICS_WRITE_TIMEOUT_MS', key: 'vcDiagnosticsWriteTimeoutMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'CALL_BUDGET_MS', gen: 'GIT_CREDENTIAL_CALL_BUDGET_MS', key: 'gitCredentialCallBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MIN_BUDGET_MS', gen: 'GIT_CREDENTIAL_MIN_BUDGET_MS', key: 'gitCredentialMinBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MAX_BUDGET_MS', gen: 'GIT_CREDENTIAL_MAX_BUDGET_MS', key: 'gitCredentialMaxBudgetMs' },
