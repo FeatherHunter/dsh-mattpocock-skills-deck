@@ -65,6 +65,8 @@ const VC_FILES = [
   'src/shared/version-control/src/rules.ts',
   // #1738：页面注册表与命令面板的唯一数据源（能力账本 162 条），界面壳按它渲染，测试也按它断言。
   'src/shared/version-control/src/capability-ledger.ts',
+  // #1739 首屏七片契约（契约名、版本号、七片名单、刷新三时机与形状判据的唯一真源）：排在客户端那片之前。
+  'src/shared/version-control/src/first-screen.ts',
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js',
@@ -83,6 +85,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcData.js',
   'src/client/views/versionControl/vcCache.js', // #864：进出缓存（与构建同序）
   'src/client/views/versionControl/vcInView.js', // #997：「还能显示更多」那几处什么时候接着显示（与构建同序）
+  'src/client/views/versionControl/vcFirstScreen.js', // #1739：首屏七片的客户端数据层（只读一份版本化快照；与构建同序）
   // #1738 页面壳四片（与构建同序）：页面注册表 → 基础画法 → 命令面板 → 页面壳本体。
   'src/client/views/versionControl/vcCapabilityPages.js',
   'src/client/views/versionControl/vcShellPrimitives.js',
@@ -124,6 +127,13 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'VC_BLOCK_KEY', 'vcBlockKeyOf', 'vcReasonKeysOf',
   'VC_PALETTE_MAX', 'vcCapabilityAliasOf', 'vcCapabilitySummaryOf', 'vcCapabilityNeedsObjectOf', 'vcPaletteRowsOf', 'vcPaletteTargetOf', 'vcPaletteNode',
   'vcRenderTabAt', 'vcRenderAllPages',
+  // #1739 首屏一次取全：七片契约与客户端数据层。
+  'FIRST_SCREEN_CONTRACT', 'FIRST_SCREEN_VERSION', 'FIRST_SCREEN_SLICES', 'FIRST_SCREEN_REFRESH_MOMENTS',
+  'firstScreenVersionOk', 'firstScreenShapeOk', 'firstScreenFailedSlices',
+  'VC_FIRST_SCREEN_PHONE', 'vcNewFirstScreenRead', 'vcFirstScreenShapeOk', 'vcFirstScreenOf', 'vcFirstScreenStateOf', 'vcFirstScreenReadAtOf',
+  'vcFirstScreenSliceOf', 'vcFirstScreenSliceStateOf', 'vcFirstScreenFailedSlicesOf', 'vcFirstScreenSliceRetryableOf',
+  'vcReadFirstScreen', 'vcReadFirstScreenOnEnter', 'vcReadFirstScreenAfterTask', 'vcReadFirstScreenOnManual',
+  'vcRetryFirstScreen', 'vcRetryFirstScreenSlice', 'vcFirstScreenScreenOf',
   'VersionControlTab']
 // #1253：这 20 份现在都是 .ts 真源（2026-10-19 第三阶段起 rules 的产物也搬到了 .build/shared/，
 //   列表里直接写 rules.ts 真源路径，不再指向源码树里的产物 .js）。
@@ -1104,6 +1114,90 @@ async function main() {
   check(formValues.join(',') === 'inline,float,page', 'Z15b 三种表单形态各有画法（行内展开 / 贴触发点的浮层 / 整页替换）')
   check(okSeg.length > 0 && failSeg.indexOf('data-vc-old-read') < 0, 'Z15c 结果里不把旧读数当新读数（新旧分开画）')
   check(allShell.indexOf('data-vc-skeleton="1"') >= 0, 'Z15d 每页骨架自检位存在（形态与状态的画法在这壳里可见）')
+
+  // ---- W 组：首屏一次取全（#1739 T04）—— 七片一份快照、一次聚合调用、单片失败不阻塞 ----
+  // 契约真源在共享层 first-screen.ts（已拼进这个闭包）；这里断言的是界面侧拿到的那一份快照与调用次数，
+  // 不落在内部字段名以外的东西上。快照构造与仓里的版本化快照同一形状：contract + version + readAtMs + 七片。
+  const fsModel = screenOf({ unstaged: [{ path: '改.txt', origPath: null, staged: false, unstaged: true, conflict: false, change: 'modified', addedLines: 1, deletedLines: 0 }], unstagedCount: 1 })
+  const fsSliceOk = function (data) { return { state: 'ok', data: data, error: null } }
+  const fsSliceErr = function (kind, msg) { return { state: 'err', data: null, error: { kind: kind, message: msg } } }
+  const firstSeedOf = function () {
+    return {
+      contract: VIEW.FIRST_SCREEN_CONTRACT, version: VIEW.FIRST_SCREEN_VERSION, readAtMs: NOW,
+      slices: {
+        workspace: fsSliceOk({ identity: screenOf().identity, repo: screenOf().repo, branches: [] }),
+        changes: fsSliceOk({ staged: fsModel.staged, unstaged: fsModel.unstaged, stagedCount: fsModel.stagedCount, unstagedCount: fsModel.unstagedCount, conflictCount: fsModel.conflictCount }),
+        history: fsSliceOk({ commits: [], hasMore: false }),
+        worktrees: fsSliceOk({ others: [], bare: false }),
+        stashes: fsSliceOk({ entries: [] }),
+        sync: fsSliceOk({ sync: 'no-upstream', ahead: 0, behind: 0, basisMs: null, upstream: null, remote: null, branch: 'main' }),
+        version: fsSliceOk({ gitVersion: 'git version 2.49.0', tier: 'full', switches: [] }),
+      },
+    }
+  }
+  // 分片失败种子（票面验收⑤）：历史那一片读失败，其余六片照常 —— 给 T05 接线时可直接塞进 seedReads。
+  const firstPartialSeed = function () {
+    const s = firstSeedOf()
+    s.slices.history = fsSliceErr('non-zero', '读提交历史这一步失败')
+    return s
+  }
+  const fsCallOf = function (handler) {
+    const calls = []
+    const call = function (method, args) { calls.push({ method: method, args: args }); return handler(method, args) }
+    return { call: call, calls: calls }
+  }
+  check(typeof VIEW.vcReadFirstScreen === 'function' && typeof VIEW.vcFirstScreenSliceOf === 'function', 'W1 首屏七片的客户端数据层已接进这个闭包（与构建同序拼接）')
+  check(VIEW.FIRST_SCREEN_CONTRACT === 'version-control.first-screen' && VIEW.FIRST_SCREEN_VERSION === 2, 'W2 首屏契约版本化：契约名与版本号都在共享层那一份真源里')
+  const fsEnter = fsCallOf(function () { return Promise.resolve({ ok: true, firstScreen: firstSeedOf() }) })
+  let fsReads = await VIEW.vcReadFirstScreenOnEnter(VIEW.vcNewFirstScreenRead(), fsEnter.call, 'D:/w/repo')
+  check(fsEnter.calls.length === 1 && fsEnter.calls[0].method === VIEW.VC_FIRST_SCREEN_PHONE, 'W3 进入页面：只发起一次聚合一电话（实发 ' + fsEnter.calls.length + ' 次，电话 ' + fsEnter.calls[0].method + '）')
+  check(fsEnter.calls[0].args.cwd === 'D:/w/repo', 'W4 聚合电话带 cwd（七片都在这一份回包里，不按片再开枪）')
+  check(VIEW.vcFirstScreenStateOf(fsReads) === 'ok' && !!VIEW.vcFirstScreenOf(fsReads), 'W5 一次回包就是一份版本化快照，界面只读这一份')
+  check(VIEW.vcFirstScreenOf(fsReads).contract === VIEW.FIRST_SCREEN_CONTRACT && VIEW.vcFirstScreenOf(fsReads).version === VIEW.FIRST_SCREEN_VERSION, 'W6 快照带契约名与版本号（界面据此认版本）')
+  check(VIEW.vcFirstScreenReadAtOf(fsReads) === NOW, 'W7 快照带读取时间（刷新提示用）')
+  const sevenOk = VIEW.FIRST_SCREEN_SLICES.filter(function (id) { return VIEW.vcFirstScreenSliceStateOf(fsReads, id) === 'ok' })
+  check(sevenOk.length === 7 && VIEW.vcFirstScreenFailedSlicesOf(fsReads).length === 0, 'W8 一次拿全七片（ok 片 ' + sevenOk.length + '/7）')
+  const fsPartial = fsCallOf(function () { return Promise.resolve({ ok: true, firstScreen: firstPartialSeed() }) })
+  const fsPartReads = await VIEW.vcReadFirstScreenOnEnter(VIEW.vcNewFirstScreenRead(), fsPartial.call, 'D:/w/repo')
+  check(VIEW.vcFirstScreenStateOf(fsPartReads) === 'ok' && VIEW.vcFirstScreenFailedSlicesOf(fsPartReads).join(',') === 'history', 'W9 单片失败不阻塞整页：整次读仍是 ok，失败片只有历史这一片')
+  check(VIEW.vcFirstScreenSliceStateOf(fsPartReads, 'history') === 'err' && VIEW.vcFirstScreenSliceStateOf(fsPartReads, 'changes') === 'ok', 'W10 逐片独立态：失败的片记 err、其余片照常画（不连坐）')
+  check(VIEW.vcFirstScreenSliceRetryableOf(fsPartReads, 'history') === true && VIEW.vcFirstScreenSliceRetryableOf(fsPartReads, 'changes') === false, 'W11 失败的那一片给重试入口，好的片不给')
+  check(VIEW.vcFirstScreenScreenOf(fsPartReads) === null, 'W12 四片缺一片（历史 err）时不拿残缺数据拼假 FirstScreen，界面走读不到 + 重试')
+  const fsRetry = fsCallOf(function () { return Promise.resolve({ ok: true, firstScreen: firstSeedOf() }) })
+  const fsRetried = await VIEW.vcRetryFirstScreenSlice(fsPartReads, fsRetry.call, 'D:/w/repo', 'history')
+  check(fsRetry.calls.length === 1 && fsRetry.calls[0].method === VIEW.VC_FIRST_SCREEN_PHONE && VIEW.vcFirstScreenSliceStateOf(fsRetried, 'history') === 'ok', 'W13 片级重试也是再发一次聚合一电话（七片同源，不另开一条只读一片的路）')
+  const fsRetryBad = fsCallOf(function () { return Promise.resolve({ ok: true, firstScreen: firstSeedOf() }) })
+  await VIEW.vcRetryFirstScreenSlice(fsPartReads, fsRetryBad.call, 'D:/w/repo', '没有这一片')
+  check(fsRetryBad.calls.length === 0, 'W14 片名不在七片名单里：不发电话（界面传错片名不许多打一枪）')
+  const fsMoments = []
+  for (const entry of [VIEW.vcReadFirstScreenOnEnter, VIEW.vcReadFirstScreenAfterTask, VIEW.vcReadFirstScreenOnManual]) {
+    const box = fsCallOf(function () { return Promise.resolve({ ok: true, firstScreen: firstSeedOf() }) })
+    await entry(VIEW.vcNewFirstScreenRead(), box.call, 'D:/w/repo')
+    fsMoments.push(box.calls.length)
+  }
+  check(fsMoments.join(',') === '1,1,1', 'W15 刷新三时机（进入页面 / 任务完成后 / 手动刷新）各只发一次聚合一电话（实得 ' + fsMoments.join(',') + '）')
+  const fsBadVer = firstSeedOf(); fsBadVer.version = 99
+  const fsBadCall = fsCallOf(function () { return Promise.resolve({ ok: true, firstScreen: fsBadVer }) })
+  const fsBadReads = await VIEW.vcReadFirstScreen(fsReads, fsBadCall.call, 'D:/w/repo')
+  check(VIEW.vcFirstScreenStateOf(fsBadReads) === 'err' && VIEW.vcFirstScreenOf(fsBadReads) === null, 'W16 版本对不上的回包不冒充成功（界面按读不到处理，不拿旧版本硬画）')
+  check(fsBadReads.firstScreen.data === VIEW.vcFirstScreenOf(fsReads), 'W17 坏回包不覆盖旧快照（上一份数据还留着，失败只加提示）')
+  const fsEnvCall = fsCallOf(function () { return Promise.resolve({ ok: false, error: { kind: 'env', message: '找不到 git 命令' } }) })
+  const fsEnvReads = await VIEW.vcReadFirstScreen(VIEW.vcNewFirstScreenRead(), fsEnvCall.call, 'D:/w/repo')
+  check(VIEW.vcFirstScreenStateOf(fsEnvReads) === 'err' && fsEnvReads.firstScreen.error.kind === 'env', 'W18 失败信封原样落成整次读的失败原因（错误种类不丢）')
+  const fsSix = firstSeedOf(); delete fsSix.slices.stashes
+  check(VIEW.vcFirstScreenShapeOk(fsSix) === false && VIEW.vcFirstScreenShapeOk(firstSeedOf()) === true, 'W19 形状判据：七片整齐才放行，少一片当场判 false（不拿六片冒充七片）')
+  // 分片失败种子给界面层的样子（票面验收⑤的「假宿主种子」）：读数里存的就是这份快照，七片各自成败原样带出。
+  const fsSeedReads = { firstScreen: { state: 'ok', data: firstPartialSeed(), error: null } }
+  const w20Slices = VIEW.vcFirstScreenFailedSlicesOf(fsSeedReads)
+  const w20Slice = VIEW.vcFirstScreenSliceOf(fsSeedReads, 'changes')
+  const w20Changes = w20Slice && w20Slice.data
+  check(w20Slices.join(',') === 'history', 'W20 分片失败种子（历史 err、其余六片照常）能直接喂给界面数据层，逐片失败态与其余片数据都读得到（失败片实得 ' + JSON.stringify(w20Slices) + '）')
+  check(!!w20Changes && w20Changes.stagedCount === 0 && w20Changes.unstagedCount === 1 && w20Changes.unstaged[0].path === '改.txt', 'W20b 同一份分片失败种子里的其余片数据原样带出（changes 片仍有 1 个未暂存文件）')
+  const fsLogs = []
+  const VIEWW = buildView(null, fsLogs)
+  await VIEWW.vcReadFirstScreenOnEnter(VIEWW.vcNewFirstScreenRead(), fsCallOf(function () { return Promise.resolve({ ok: true, firstScreen: firstSeedOf() }) }).call, 'D:/w/repo')
+  const fsHostLogs = fsLogs.filter(function (l) { return l.event === 'host.call' && l.fields && l.fields.kind === 'git-first-screen' })
+  check(fsHostLogs.length === 1 && fsHostLogs[0].fields.ok === true, 'W21 首屏聚合落在既有 host.call 事件上（kind=git-first-screen，不新增事件名）')
 
   // ---- H 组：反证（把被守的东西改坏，同一套断言必须当场变红）----
   // 反证锚点的两种落点：还住在手写 .js 里的代码写成单引号，已经变成构建产物的界面叶子被 esbuild

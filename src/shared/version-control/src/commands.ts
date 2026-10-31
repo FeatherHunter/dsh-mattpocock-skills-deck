@@ -192,4 +192,15 @@ export function autocrlfArgs(): string[] {
   return ['config', '--get', 'core.autocrlf']
 }
 
+/**
+ * 贮藏列表（只读，不进首屏的六个采集项，属于首屏七片里的「贮藏」这一片；#1739 T04 新建）。
+ * 每条一行、四个字段用 NUL 分隔：%gd 选择器 → %H 完整 oid → %ct 提交时间（秒）→ %gs reflog 主题。
+ * 为什么用 %gs 而不是 %s：贮藏的本质是 reflog 条目（git 的官方解释），%s 会按普通提交主题
+ * 重新渲染（可能拿到 WIP on … 以外的东西），%gs 才是「这条贮藏当初为什么被存下来」的原文。
+ * 解析在共享层 parse-stash.ts（解析器与命令原文同一份来源，两处都从这里读，不各写一份格式串）。
+ */
+export function stashListArgs(): string[] {
+  return ['stash', 'list', '--format=%gd%x00%H%x00%ct%x00%gs']
+}
+
 export const COMMANDS_SOURCE = 'src/shared/version-control/src/commands.ts'

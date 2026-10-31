@@ -661,6 +661,9 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   //   每页数量）只有这一份（T02 #1737 从规格第 11 节生成）。界面侧 page registry 与命令面板按同一份
   //   账本渲染；谁在界面里再抄一份名单，验证 818 的 Z 组会判红。
   { marker: '// ==== shared:vcCapabilityLedger (spliced by build) ====', file: 'src/shared/version-control/src/capability-ledger.ts' },
+  // #1739 首屏七片一次取全的契约（契约名、版本号、七片名单、刷新三时机、形状与逐片成败判据）只有一份真源
+  //   src/shared/version-control/src/first-screen.ts；宿主聚合电话与客户端数据层都从它读，界面不许再写第二份片名或版本号。
+  { marker: '// ==== shared:vcFirstScreen (spliced by build) ====', file: 'src/shared/version-control/src/first-screen.ts' },
   // #1342 域文档布局的取值（单上下文 / 多上下文）只有一份真源 src/shared/doc-layout/src/layouts.ts。
   //   界面侧状态栏与初始化卡要按同一份名单校验用户选的那一项（拒收第三档取值），所以拼进界面闭包；
   //   宿主侧选择记忆与工作区配置核按普通相对 import 取同一份源文件（不是拼接，是同一个文件）。
@@ -756,6 +759,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcData', file: 'src/client/views/versionControl/vcData.ts' },
   { id: 'vcCache', file: 'src/client/views/versionControl/vcCache.ts' }, // #864：进出缓存（首屏与历史首批按工作区暂存）
   { id: 'vcInView', file: 'src/client/views/versionControl/vcInView.ts' }, // #997：「还能显示更多」那几处什么时候接着显示（进入视野就接着显示、显示完再判一次；三处共用一套）
+  { id: 'vcFirstScreen', file: 'src/client/views/versionControl/vcFirstScreen.ts' }, // #1739 首屏七片的数据层（一次聚合一电话、逐片成败与重试、刷新三时机；不画界面）
   // #1738 页面壳四片，依赖次序固定：页面注册表 → 基础画法 → 命令面板 → 页面壳本体。
   //   VersionControlTab.ts 是冻结文件（基线 366 行，只许减不许增），壳不往它里面写一行。
   { id: 'vcCapabilityPages', file: 'src/client/views/versionControl/vcCapabilityPages.ts' },
