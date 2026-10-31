@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T22:22:50.953Z",
+  "generatedAt": "2026-10-31T23:20:14.137Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 507,
   "gateCount": 507,
@@ -4205,7 +4205,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 138,
+      "expectedAssertions": 151,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
     },
     {
@@ -4325,7 +4325,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 367,
+      "expectedAssertions": 391,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
@@ -4411,7 +4411,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 366,
+      "expectedAssertions": 372,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -4482,7 +4482,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 65,
+      "expectedAssertions": 66,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
@@ -4537,7 +4537,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 78,
+      "expectedAssertions": 85,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 9 条）"
     },
     {
@@ -4661,7 +4661,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 122,
+      "expectedAssertions": 128,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -4676,7 +4676,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 40,
+      "expectedAssertions": 45,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -4691,7 +4691,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 44,
+      "expectedAssertions": 240,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -6752,6 +6752,7 @@
         "src/host/versionControl.ts",
         "src/host/versionControlClone.ts",
         "src/shared/time-config/src/values.ts",
+        "src/shared/version-control/src/capabilities.ts",
         "src/shared/version-control/src/capability-ledger.ts",
         "src/shared/version-control/src/clone-options.ts",
         "src/shared/version-control/src/clone-ticket.ts",
@@ -6789,7 +6790,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 736,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 86 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 87 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",

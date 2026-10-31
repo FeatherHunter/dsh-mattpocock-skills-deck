@@ -17,7 +17,7 @@ import { commandFor, tagListArgs, branchDescriptionsArgs, mergedBranchesArgs } f
 import { parseRefs } from '../shared/version-control/src/parse-refs.js'
 import { parseTagList, parseBranchNameList, parseBranchDescriptions } from '../shared/version-control/src/parse-branch.js'
 import { BRANCH_TICKET_OPS, BRANCH_OP_CAP_IDS } from '../shared/version-control/src/branch-ticket.js'
-import { parseVersion, tierFor, capabilityAvailability } from '../shared/version-control/src/capabilities.js'
+import { parseVersion, capabilityTierFor, capabilityAvailability } from '../shared/version-control/src/capabilities.js'
 import { CAPABILITIES } from '../shared/version-control/src/capability-ledger.js'
 
 export const BRANCH_BOARD_CONTRACT = 'version-control.branch-board'
@@ -154,7 +154,7 @@ export function createBranchPhones(deps: any): any {
       merged: merged,
       notMerged: notMerged,
       // 版本片叫 capabilities 不叫 version：回包顶层的 version 是契约版本号（数字），两个不能同名。
-      capabilities: { gitVersion: gitVersion, tier: tierFor(parseVersion(gitVersion)), actions: actions },
+      capabilities: { gitVersion: gitVersion, tier: capabilityTierFor(parseVersion(gitVersion)), actions: actions },
     }
   }
 
