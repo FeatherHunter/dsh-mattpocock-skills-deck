@@ -217,7 +217,8 @@ export function createClonePhones(deps: any): any {
       id: cloneIdOf(readAtMs),
       op: plan.op as any,
       nowMs: readAtMs,
-      headOid: null,
+      // 克隆票不绑定「执行前 HEAD 不变」那一格：目标目录还不存在，没有 HEAD 可记，按空串记。
+      headOid: '',
       indexFingerprint: null,
       indexEntries: null,
       target: null,
