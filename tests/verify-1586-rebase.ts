@@ -898,7 +898,7 @@ async function main() {
   const selfSpawn: string[] = hostLeaves.filter(function (rel: string) { const s: string = sourceText(rel); return s.indexOf('child_process') >= 0 || /\.spawn\s*\(/.test(s) })
   eq(selfSpawn.length, 0, 'E25 写层四片叶子都不自己起进程（全部走父文件注入的 runPinned；越界：' + selfSpawn.join(',') + '）')
   const settingsGateSource: string = sourceText('tests/verify-settings-phones.ts')
-  check(settingsGateSource.indexOf('check(nPhones === 91') >= 0, 'E26 宿主电话计数门禁登记到九十一条')
+  check(settingsGateSource.indexOf('check(nPhones === 91') < 0 && settingsGateSource.indexOf('check(nPhones === 95') >= 0, 'E26 宿主电话计数门禁登记到九十五条（合并 #1748/#1756 后总数从 91 涨到 95）')
   const sameLayer: string = sourceText('tests/same-layer-baseline.json')
   const rebaseEntryFiles: string[] = ['versionControlRebaseMount.ts', 'versionControlRebaseScene.ts', 'versionControlRebaseCheck.ts', 'versionControlRebaseWrite.ts'].filter(function (name: string) { return sameLayer.indexOf(name) >= 0 })
   eq(rebaseEntryFiles.length, 4, 'E27 同层引用基线登记了变基页四片的装配扇入（缺：' + rebaseEntryFiles.join(',') + '）')

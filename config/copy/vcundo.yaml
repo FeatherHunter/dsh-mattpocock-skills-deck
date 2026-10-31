@@ -1,0 +1,155 @@
+# config/copy/vcundo.yaml —— 版本管理「变基待办」页历史改写面板的界面词表（#1748 T13，规格 #1586 域 5）
+#
+# 一句话：这一族只放五条历史改写动作（撤销上一条提交、撤销并取消暂存、硬重置、还原提交、拣选提交）
+# 在预检、确认卡、执行结果三个阶段的界面文字。键前缀 vc.undo.*；两种语言的键集合必须完全一致。
+# 时间参数写成 {{TICKET_TTL_MS/1000}} 引用中央时间配置，不写字面时长。
+zh:
+  vc.undo.title: 历史改写（撤销、重置、还原与拣选）
+  vc.undo.note: 这五条动作会改写当前分支的历史。每一条都先预检，给你看一张 {{TICKET_TTL_MS/1000}} 秒有效的票，你点确认之后才真的执行。
+  vc.undo.opsNote: 动作名称右边是它对应的 git 命令；标着「毁」的动作会丢改动，确认卡里会写清丢了怎么找回。
+  vc.undo.op.resetSoft: 撤销上一条提交、改动回到「已暂存」
+  vc.undo.op.resetMixed: 撤销提交并取消暂存
+  vc.undo.op.resetHard: 硬重置到某提交
+  vc.undo.op.revert: 还原某条提交
+  vc.undo.op.cherryPick: 拣选提交
+  vc.undo.dangerBadge: 毁
+  vc.undo.primaryBadge: "主入口：{entry}"
+  vc.undo.field.op: 动作
+  vc.undo.field.target: 目标提交
+  vc.undo.field.message: 还原说明
+  vc.undo.field.commits: 要拣选的提交（一行一条，按先后顺序）
+  vc.undo.targetHint: 写提交号、分支名或 HEAD~1 这样的引用；不允许前导减号、双点、冒号。
+  vc.undo.messageHint: 留空就用 git 的默认说明（反向提交原来的标题）。
+  vc.undo.commitsHint: 一行一条，按你要的先后顺序；已经在当前分支历史里的提交会被拒绝。
+  vc.undo.check: 预检
+  vc.undo.checking: 正在预检…
+  vc.undo.cancel: 取消
+  vc.undo.idle: 选一条动作、填好目标，然后点预检。预检不执行任何改动。
+  vc.undo.writing: 正在执行…
+  vc.undo.retry: 重新预检
+  vc.undo.failedDetail: 这一步没有做成，git 的原文在下面。
+  vc.undo.fail.unknown-op: 没有这条历史改写动作。
+  vc.undo.fail.required-target: 请先填目标提交。
+  vc.undo.fail.bad-target: 目标提交的写法不对：不允许空白、前导减号、双点、冒号与反斜杠。
+  vc.undo.fail.message-too-long: 还原说明太长了，改短一些。
+  vc.undo.fail.bad-message: 还原说明里有不允许的字符（例如换行或空字节）。
+  vc.undo.fail.commits-empty: 至少填一条要拣选的提交。
+  vc.undo.fail.commits-too-many: 一次最多拣选 50 条提交，分几次做。
+  vc.undo.fail.commits-invalid: 有一条提交的写法不对（可以是提交号、分支名或 HEAD~1 这样的引用）。
+  vc.undo.fail.commits-duplicate: 同一条提交填了两次，去掉重复那条。
+  vc.undo.fail.target-missing: 找不到这个提交，检查引用写得对不对、这条提交是不是已经不在仓库里。
+  vc.undo.fail.no-head: 这个仓库还没有第一次提交，没有可改写的历史。
+  vc.undo.fail.mid-operation: 仓库正停在中途操作里（合并、变基、拣选或还原），先把它做完或放弃再来。
+  vc.undo.fail.nothing-to-do: 现在就在这个提交上，这条动作不会改变任何东西，没有可撤销的内容。
+  vc.undo.fail.commit-already-present: 这条提交已经在当前分支历史里了，再拣一次只会得到空提交。
+  vc.undo.fail.recovery-unreadable: 读不全硬重置会丢什么（文件列表或 reflog 读不出来），为了不拿半份数字哄你，这次不签票。
+  vc.undo.fail.ticket-missing: 找不到这张预检票，回预检重新拿一张。
+  vc.undo.fail.ticket-expired: 这张预检票过期了，回预检重新拿一张再确认。
+  vc.undo.fail.ticket-op-mismatch: 票对应的动作和这次要执行的动作不一样，回预检重新拿一张。
+  vc.undo.fail.stale-repo: 执行时的仓库和预检时的不是同一个，不执行。
+  vc.undo.fail.stale-head: HEAD 在预检之后换到别的提交了，重新预检一次再确认。
+  vc.undo.fail.stale-index: 工作区在预检之后有变动（暂存或未暂存的改动变了），重新预检一次再确认。
+  vc.undo.fail.target-changed: 目标提交在预检之后换了指向，或者要执行的内容和确认时不一致，重新预检一次。
+  vc.undo.fail.cherry-pick-conflict: 拣选撞到冲突了，面板不会自动解决；冲突文件列在下面，处理完再提交。
+  vc.undo.fail.revert-conflict: 还原撞到冲突了，面板不会自动解决；冲突文件列在下面。
+  vc.undo.fail.revert-partial: 反向改动已经进了索引，但提交这一步没成功，仓库停在「还原进行中」：处理完再提交，或者放弃这次还原。
+  vc.undo.fail.git: 这条 git 命令没有成功结束，原文在下面。
+  vc.undo.fail.shape: 宿主回的数据不完整，这一趟不算数，重新预检一次。
+  vc.undo.fail.no-cwd: 没有取到当前工作目录，读不了仓库现场。
+  vc.undo.fail.check: 预检没有做成，原因在下面。
+  vc.undo.fail.write: 执行没有做成，原因在下面。
+  vc.undo.confirm.title: "确认执行「{name}」"
+  vc.undo.confirm.what: 会执行「{name}」，目标是 {target}，分 {steps} 步完成。
+  vc.undo.confirm.wont: 不会动其它分支，也不会动 {head} 之前的历史。
+  vc.undo.confirm.reversible: 这条动作可以撤回：改动要么回到工作区，要么留在历史里，不会凭空消失。
+  vc.undo.confirm.reversibleDanger: 这条动作会丢改动：工作区里没提交的东西会被覆盖，只有当位置（{reflog}）里还能找回旧提交。
+  vc.undo.confirm.verb: "确认执行「{name}」"
+  vc.undo.confirm.go: 确认执行
+  vc.undo.confirm.cancel: 取消
+  vc.undo.confirm.danger: 注意：这条动作会把工作区里没提交的改动一起丢掉。
+  vc.undo.recovery.title: 硬重置的恢复点
+  vc.undo.recovery.discard: 会丢掉 {files} 个文件的改动：{added} 行新增、{deleted} 行删除。
+  vc.undo.recovery.binary: 另有 {n} 个二进制文件，行数无法统计。
+  vc.undo.recovery.commits: 有 {n} 条提交会被移出当前分支历史。
+  vc.undo.recovery.restoreTitle: 要找回旧提交，按顺序执行：
+  vc.undo.recovery.keep: 旧提交不会立刻消失，reflog 里还留着；超过保留期限才会被回收。
+  vc.undo.result.title: 执行完成
+  vc.undo.result.before: "原来的 HEAD：{short}"
+  vc.undo.result.after: "现在的 HEAD：{short}"
+  vc.undo.result.steps: 一共执行了 {n} 步 git 命令。
+  vc.undo.result.recoveryNote: 这条动作会丢改动，下面是恢复路径，先记下来再关页面：
+en:
+  vc.undo.title: History rewrite (undo, reset, revert, cherry-pick)
+  vc.undo.note: These five actions rewrite the current branch's history. Each one runs a precheck first, gives you a ticket valid for {{TICKET_TTL_MS/1000}} seconds, and only executes after you confirm.
+  vc.undo.opsNote: The git command sits next to each action name. Actions marked "destroy" can lose changes; the confirm card spells out how to recover.
+  vc.undo.op.resetSoft: Undo the last commit, keep changes staged
+  vc.undo.op.resetMixed: Undo the last commit and unstage its changes
+  vc.undo.op.resetHard: Hard reset to a commit
+  vc.undo.op.revert: Revert a commit
+  vc.undo.op.cherryPick: Cherry-pick commits
+  vc.undo.dangerBadge: destroy
+  vc.undo.primaryBadge: "Primary entry: {entry}"
+  vc.undo.field.op: Action
+  vc.undo.field.target: Target commit
+  vc.undo.field.message: Revert message
+  vc.undo.field.commits: Commits to cherry-pick (one per line, in order)
+  vc.undo.targetHint: Use a commit id, branch name or a reference such as HEAD~1; no leading dash, double dot or colon.
+  vc.undo.messageHint: Leave empty to use git's default message (the reverted commit's subject).
+  vc.undo.commitsHint: One per line, in the order you want them; commits already in this branch's history are refused.
+  vc.undo.check: Precheck
+  vc.undo.checking: Running the precheck…
+  vc.undo.cancel: Cancel
+  vc.undo.idle: Pick an action, fill in the target, then run the precheck. The precheck changes nothing.
+  vc.undo.writing: Executing…
+  vc.undo.retry: Run the precheck again
+  vc.undo.failedDetail: This step did not go through; git's own words are below.
+  vc.undo.fail.unknown-op: There is no such history rewrite action.
+  vc.undo.fail.required-target: Fill in the target commit first.
+  vc.undo.fail.bad-target: "The target commit is malformed: no whitespace, leading dash, double dot or colon."
+  vc.undo.fail.message-too-long: The revert message is too long; shorten it.
+  vc.undo.fail.bad-message: The revert message contains characters that are not allowed (such as a newline or a NUL byte).
+  vc.undo.fail.commits-empty: Fill in at least one commit to cherry-pick.
+  vc.undo.fail.commits-too-many: At most 50 commits per run; do it in several rounds.
+  vc.undo.fail.commits-invalid: One commit entry is malformed (use a commit id, branch name or a reference such as HEAD~1).
+  vc.undo.fail.commits-duplicate: The same commit was listed twice; drop the duplicate.
+  vc.undo.fail.target-missing: That commit cannot be found; check the reference and whether it still exists in this repository.
+  vc.undo.fail.no-head: This repository has no commits yet, so there is no history to rewrite.
+  vc.undo.fail.mid-operation: The repository is in the middle of another operation (merge, rebase, cherry-pick or revert); finish or abort it first.
+  vc.undo.fail.nothing-to-do: You are already on that commit, so this action would change nothing.
+  vc.undo.fail.commit-already-present: That commit is already in this branch's history; cherry-picking it again would only make an empty commit.
+  vc.undo.fail.recovery-unreadable: The impact of the hard reset cannot be read in full (the file list or reflog is unreadable), and we will not quote half a count; no ticket is issued.
+  vc.undo.fail.ticket-missing: The precheck ticket cannot be found; run the precheck again.
+  vc.undo.fail.ticket-expired: The precheck ticket expired; run the precheck again and confirm afresh.
+  vc.undo.fail.ticket-op-mismatch: The ticket was issued for a different action; run the precheck again.
+  vc.undo.fail.stale-repo: The repository at execution time is not the one from the precheck; nothing was executed.
+  vc.undo.fail.stale-head: HEAD moved to another commit after the precheck; run the precheck again and confirm.
+  vc.undo.fail.stale-index: The working tree changed after the precheck (staged or unstaged changes differ); run the precheck again and confirm.
+  vc.undo.fail.target-changed: The target commit now points elsewhere, or the content to execute differs from what you confirmed; run the precheck again.
+  vc.undo.fail.cherry-pick-conflict: The cherry-pick hit a conflict and the panel will not resolve it; the conflicted files are listed below.
+  vc.undo.fail.revert-conflict: The revert hit a conflict and the panel will not resolve it; the conflicted files are listed below.
+  vc.undo.fail.revert-partial: 'The reverse change is already in the index but the commit step failed, so the repository is stuck in "revert in progress": finish it or abort the revert.'
+  vc.undo.fail.git: This git command did not finish successfully; the original text is below.
+  vc.undo.fail.shape: The host reply is incomplete, so this run does not count; run the precheck again.
+  vc.undo.fail.no-cwd: No working directory was available, so the repository cannot be read.
+  vc.undo.fail.check: The precheck did not go through; the reason is below.
+  vc.undo.fail.write: The execution did not go through; the reason is below.
+  vc.undo.confirm.title: "Confirm: {name}"
+  vc.undo.confirm.what: It runs "{name}" against {target} in {steps} steps.
+  vc.undo.confirm.wont: It does not touch other branches and does not touch history before {head}.
+  vc.undo.confirm.reversible: "This action can be undone: the changes either return to the working tree or stay in history; nothing vanishes."
+  vc.undo.confirm.reversibleDanger: "This action can lose changes: uncommitted work in the working tree is overwritten, and the old commit is only recoverable while it remains at {reflog}."
+  vc.undo.confirm.verb: "Confirm: {name}"
+  vc.undo.confirm.go: Confirm and run
+  vc.undo.confirm.cancel: Cancel
+  vc.undo.confirm.danger: "Note: this action also discards uncommitted changes in the working tree."
+  vc.undo.recovery.title: Recovery point for the hard reset
+  vc.undo.recovery.discard: "It discards changes to {files} files: {added} lines added, {deleted} lines deleted."
+  vc.undo.recovery.binary: There are also {n} binary files whose line counts cannot be measured.
+  vc.undo.recovery.commits: "{n} commits will be moved out of the current branch's history."
+  vc.undo.recovery.restoreTitle: "To recover the old commit, run these in order:"
+  vc.undo.recovery.keep: The old commit does not disappear at once; the reflog keeps it until the retention period ends.
+  vc.undo.result.title: Done
+  vc.undo.result.before: "Previous HEAD: {short}"
+  vc.undo.result.after: "Current HEAD: {short}"
+  vc.undo.result.steps: "{n} git commands were executed."
+  vc.undo.result.recoveryNote: This action can lose changes; note down the recovery path below before closing the page.

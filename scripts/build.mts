@@ -675,6 +675,9 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   //   哪一条要 2.35 版本门、丢掉的提交号怎么 store 回去，只有这一份。宿主执行层与界面读同一份；
   //   界面自己再说一遍，就会与宿主执行前那次校验各说各话。
   { marker: '// ==== shared:vcStashRules (spliced by build) ====', file: 'src/shared/version-control/src/stash-rules.ts' },
+  // #1756 T20 克隆向导：地址与选项口径（深度/分支/两个子模块开关/离线）、预检票据两片，宿主与界面读同一份。
+  { marker: '// ==== shared:vcCloneOptions (spliced by build) ====', file: 'src/shared/version-control/src/clone-options.ts' },
+  { marker: '// ==== shared:vcCloneTicket (spliced by build) ====', file: 'src/shared/version-control/src/clone-ticket.ts' },
   // #1342 域文档布局的取值（单上下文 / 多上下文）只有一份真源 src/shared/doc-layout/src/layouts.ts。
   //   界面侧状态栏与初始化卡要按同一份名单校验用户选的那一项（拒收第三档取值），所以拼进界面闭包；
   //   宿主侧选择记忆与工作区配置核按普通相对 import 取同一份源文件（不是拼接，是同一个文件）。
@@ -796,11 +799,16 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcChangesPage', file: 'src/client/views/versionControl/vcChangesPage.ts' }, // #1742 改动页 13 条动作的操作面板（由页面壳在 changes 页挂进页面体）
   { id: 'vcStashOps', file: 'src/client/views/versionControl/vcStashOps.ts' }, // #1751 贮藏页的数据与动作层（首屏贮藏片怎么读、十条动作怎么拼、回包怎么落状态；不画界面）
   { id: 'vcStashPage', file: 'src/client/views/versionControl/vcStashPage.ts' }, // #1751 贮藏页的入口与真实动作画法（十条动作、确认卡、最近丢弃、版本门提示；由页面壳挂进贮藏页）
+  // #1748 变基待办页的历史改写两叶（数据层 → 画法），排在页面壳之前；壳的 rebase 挂载段要调 vcUndoPageNode。
+  { id: 'vcUndoOps', file: 'src/client/views/versionControl/vcUndoOps.ts' }, // #1748 五条历史改写动作的输入整理、本地预检与回包落态（不画界面）
+  { id: 'vcUndoPage', file: 'src/client/views/versionControl/vcUndoPage.ts' }, // #1748 变基待办页的面板（动作选择、预检、确认卡、恢复点与执行结果；由页面壳挂进 rebase 页）
   // #1752 工作树页三叶，依赖次序固定：读首屏那一片的数据层 → 动作层（判定与两条写电话）→ 页面画法（八条入口、行、确认与结果）。
   //   排在 vcShellPages 之前，壳的挂载段才看得到 vcWorktreesPageNode；也排在 vcFirstScreen 之后，数据层只问那一份片。
   { id: 'vcWorktreesData', file: 'src/client/views/versionControl/vcWorktreesData.ts' },
   { id: 'vcWorktreesOps', file: 'src/client/views/versionControl/vcWorktreesOps.ts' },
   { id: 'vcWorktreesPage', file: 'src/client/views/versionControl/vcWorktreesPage.ts' },
+  // #1756 T20 克隆向导：填地址与选项 → 预检签票 → 凭票执行（长任务通道）→ 取消后的残留清理入口；由页面壳挂进迁移与备份页。
+  { id: 'vcClonePage', file: 'src/client/views/versionControl/vcClonePage.ts' },
   // #1747 冲突向导两叶：动作模型（15 条能力的出入参形状）→ 页面正文（状态、冲突清单、逐块选择、四段确认卡）。
   //   排在页面壳之前，壳的挂载段才看得到 vcConflictsPageNode。
   { id: 'vcConflictsOps', file: 'src/client/views/versionControl/vcConflictsOps.ts' },
@@ -1939,6 +1947,8 @@ const CLIENT_TIME_NAMES: string[] = [
   'SYNC_DIRTY_ECHO_TTL_MS',
   'SYNC_POLL_GRID_MS',
   'SYNC_ACTION_PROBE_WINDOW_MS',
+  // #1756：克隆向导页按长任务通道的中央节拍轮询进度（vcClonePage.ts 只声明名字，值由这一片给）。
+  'VC_TASK_POLL_INTERVAL_MS',
   'SNAP_WAIT_MS',
   'VIEW_FLAG_WRITE_DEBOUNCE_MS',
   'REST_FALLBACK_STALE_MS',

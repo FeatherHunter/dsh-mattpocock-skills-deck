@@ -1,4 +1,4 @@
-// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–N 十四组，每组带反证；M 组是 #1747 冲突向导的写通道，N 组是 #1749 变基待办的写通道。
+// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–M 各组，每组带反证；J 组是 #1752 工作树页的写通道，K 组是 #1747 冲突向导的写通道，L 组是 #1743 提交页，M 组是 #1748 历史改写五条动作的写通道。
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-841-write-phones.ts
 // 夹具：真 git 临时仓库（每个用例自己造）+ 真 subprocess 形状的垫片（argv 直传、不经 shell），
 // 这样「真跑过的 argv」与「真仓库有没有被动过」都能断言；只在纯归类那组不碰 git。
@@ -28,7 +28,7 @@ let lastStdin: any = null
 const logs: Array<{ level: string; event: string; fields: Record<string, any> }> = []
 const timerCalls: number[] = []
 let clock = { t: 1000 }
-function makeVc(route?: ((argv: string[]) => any) | null) {
+function makeVc(route?: ((argv: string[]) => any) | null, extra?: any) {
   spawns.length = 0
   requests.length = 0
   lastStdin = null
@@ -48,6 +48,12 @@ function makeVc(route?: ((argv: string[]) => any) | null) {
     DEFAULT_CWD: ROOT, TIMEOUT_MS: 30000, gate: { noteOutbound() {} }, logCtx: { fire(level, event, fields) { logs.push({ level, event, fields }) } },
     now: () => clock.t,
   }
+  // #1756：克隆向导那组要真文件服务与真缓存目录（任务库要写盘），并且要能截住长任务通道起的 clone；
+  //   其余组一律不传第二参数，行为与原来逐字一致。
+  const more: any = extra || {}
+  if (more.fs) Object.assign(deps.fs, more.fs)
+  if (more.getCacheDir) deps.getCacheDir = more.getCacheDir
+  if (more.spawn) deps.subprocess = { spawn: more.spawn }
   return vcMod.createVersionControl(deps)
 }
 // 固定前缀的最后一项是 i18n.logOutputEncoding=UTF-8：切在它之后才是真正的子命令（照 verify-version-control-host 的同一口径）。
@@ -421,6 +427,102 @@ async function main(): Promise<void> {
   check(forceFree, 'J14 本组所有写命令都不带 --force / -f / -ff（边界：删除脏树与锁定树走先处理再重来的正常路径）')
   check(denyIs({ ok: true, requestId: 'x' }, 'ticket-missing') === false, 'J15 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
 
+  // JC 克隆向导两条电话（#1756 T20，能力 8.16）：预检签一张 120 秒票 → 凭票把克隆交给长任务通道；
+  //   伪造 / 过期 / 换动作 / 目标变了都必须零克隆进程，同一 requestId 重放不再起第二个克隆。
+  //   本组只守「票据门 → 执行 → 去重」这条通道；地址与选项口径、界面词条由 verify-1586-clone-wizard 守。
+  console.log('JC 克隆向导电话（#1756）')
+  clock.t = 1000
+  const jcCache = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws841-clone-cache-'))
+  const rJC = mkRepo('jc')
+  const cloneSpawnsJC = (): string[][] => spawns.filter((a) => after(a)[0] === 'clone')
+  const jcRoute = (argv: string[]) => {
+    const a = after(argv)
+    if (a[0] === 'rev-parse' && a.indexOf('--absolute-git-dir') >= 0) return { code: 0, stdout: rJC + '/.git\ntrue\nfalse\n' }
+    if (a[0] === 'rev-parse' && a.indexOf('--show-toplevel') >= 0) return { code: 0, stdout: rJC + '\n' }
+    if (a[0] === 'rev-parse' && a.indexOf('--verify') >= 0) return { code: 1, stdout: '', stderr: 'fatal: Needed a single revision\n' }
+    return { code: 0, stdout: '' }
+  }
+  // 长任务通道会增量读收集器（readFrom），所以这一组自己给一份带 readFrom 的假进程，
+  // 而不是复用上面那套只带 finalize 的垫片；clone 本体不真跑，只断言起的是哪条命令。
+  const jcSpawn = (req: any) => {
+    spawns.push(req.argv.slice()); requests.push({ argv: req.argv.slice(), cwd: req.cwd, stdio: req.stdio, env: req.env })
+    const hit: any = jcRoute(req.argv) || { code: 0, stdout: '' }
+    const reader = (text: any) => {
+      const all = String(text || '')
+      return {
+        readFrom(off: number) { return off >= all.length ? { text: '', nextOffset: off, lossy: false } : { text: all.slice(off), nextOffset: all.length, lossy: false } },
+        finalize() { return { text: all, truncated: false } },
+      }
+    }
+    const handle: any = { done: Promise.resolve({ exitCode: hit.code === undefined ? 0 : hit.code, signal: null }), collected: { stdout: reader(hit.stdout), stderr: reader(hit.stderr) }, stdin: { write() {}, end() {}, on() {} }, terminate() {} }
+    return { done: handle.done, collected: handle.collected, terminate() {} }
+  }
+  const jcExtra = {
+    fs: {
+      resolve: async (p: any) => String(p),
+      listDir: async (p: any) => await fs.promises.readdir(String(p)),
+      readText: async (p: any) => await fs.promises.readFile(String(p), 'utf8'),
+      writeText: async (p: any, text: any) => await fs.promises.writeFile(String(p), String(text), 'utf8'),
+      mkdir: async (p: any) => { await fs.promises.mkdir(String(p), { recursive: true }) },
+    },
+    getCacheDir: () => jcCache,
+    spawn: jcSpawn,
+  }
+  const vcJC = makeVc(null, jcExtra)
+  check(typeof vcJC.handleGitCloneCheck === 'function' && typeof vcJC.handleGitCloneWrite === 'function', 'JC1 克隆向导预检与执行两条电话都挂在同一个宿主对象上')
+  // 目标目录造在真临时目录里：不存在 / 空目录 / 非空目录三种现场都真探测。
+  const jcParent = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws841-clone-'))
+  const jcGone = path.join(jcParent, 'gone').split(path.sep).join('/')
+  const jcEmpty = path.join(jcParent, 'empty').split(path.sep).join('/')
+  const jcFull = path.join(jcParent, 'full').split(path.sep).join('/')
+  fs.mkdirSync(jcEmpty)
+  fs.mkdirSync(jcFull); fs.writeFileSync(path.join(jcFull, 'keep.txt'), 'keep\n')
+  const jcUrl = 'https://example.com/team/repo.git'
+  const jcCheck = await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'start', url: jcUrl, dir: jcGone, depth: 1 })
+  check(jcCheck.ok === true && !!jcCheck.ticket && jcCheck.ticket.expiresAtMs - jcCheck.ticket.checkedAtMs === 120000
+    && jcCheck.decision && jcCheck.decision.verdict === 'allow' && cloneSpawnsJC().length === 0,
+    'JC2 预检签 120 秒票、判定放行，并且一个克隆进程都没起（预检只读现场）')
+  const jcBlocked = await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'start', url: jcUrl, dir: jcFull })
+  check(jcBlocked.ok === false && jcBlocked.reason === 'target-not-empty' && jcBlocked.scene && jcBlocked.scene.target && jcBlocked.scene.target.entryCount === 1 && cloneSpawnsJC().length === 0,
+    'JC3 目标目录非空：block + target-not-empty，现场带了条目数，零克隆进程（绝不替你清空目录）')
+  const jcRun = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcCheck.ticket.id, requestId: 'req-841-clone-1', op: 'start' })
+  const jcCloneArgv = cloneSpawnsJC()
+  check(jcRun.ok === true && !!jcRun.taskId && jcCloneArgv.length === 1
+    && jcCloneArgv[0].indexOf('clone') >= 0 && jcCloneArgv[0].indexOf('--progress') >= 0
+    && jcCloneArgv[0].indexOf(jcUrl) >= 0 && jcCloneArgv[0].indexOf(jcGone) >= 0,
+    'JC4 凭票执行：只起一条 clone 进程，argv 含 clone / --progress / 地址与目标目录，回包带回 taskId')
+  const jcReplay = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcCheck.ticket.id, requestId: 'req-841-clone-1', op: 'start' })
+  check(jcReplay.reused === true && jcReplay.result && jcReplay.result.taskId === jcRun.taskId && cloneSpawnsJC().length === 1,
+    'JC5 同一个 requestId 重放：回同一份结果（同一个 taskId），不再起第二个克隆')
+  const jcForged = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: 'NOSUCHTICKET', requestId: 'req-841-clone-2', op: 'start' })
+  check(jcForged.ok === false && jcForged.reason === 'ticket-missing' && cloneSpawnsJC().length === 1,
+    'JC6 伪造票：ticket-missing 且零新克隆进程（判定先于任何外部调用）')
+  const jcSwap = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcCheck.ticket.id, requestId: 'req-841-clone-3', op: 'cleanup' })
+  check(jcSwap.ok === false && jcSwap.reason === 'ticket-op-mismatch' && cloneSpawnsJC().length === 1,
+    'JC7 换动作的票（start 的票拿来做 cleanup）：ticket-op-mismatch 且零克隆进程')
+  const jcExpiredCheck = await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'start', url: jcUrl, dir: jcGone })
+  clock.t = jcExpiredCheck.ticket.expiresAtMs + 1
+  const jcExpired = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcExpiredCheck.ticket.id, requestId: 'req-841-clone-4', op: 'start' })
+  clock.t = 1000
+  check(jcExpired.ok === false && jcExpired.reason === 'ticket-expired' && cloneSpawnsJC().length === 1,
+    'JC8 过期票：ticket-expired 且零新克隆进程（人得重新预检）')
+  const jcDriftCheck = await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'start', url: jcUrl, dir: jcGone })
+  fs.mkdirSync(jcGone); fs.writeFileSync(path.join(jcGone, 'late.txt'), 'late\n')
+  const jcDrift = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcDriftCheck.ticket.id, requestId: 'req-841-clone-5', op: 'start' })
+  check(jcDrift.ok === false && jcDrift.reason === 'target-changed' && cloneSpawnsJC().length === 1,
+    'JC9 票签完后目标目录被别人建起来：target-changed 且零克隆进程（不往变了的目录里写）')
+  // 先对这个空目录做过一次 start 预检，它才算「本次会话登记过的克隆目标」，清理才有得谈。
+  await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'start', url: jcUrl, dir: jcEmpty })
+  const jcCleanCheck = await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'cleanup', dir: jcEmpty })
+  const jcCleanNoConfirm = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcCleanCheck.ticket.id, requestId: 'req-841-clone-6', op: 'cleanup' })
+  check(jcCleanCheck.ok === true && jcCleanCheck.confirmRequired === true && jcCleanNoConfirm.ok === false && jcCleanNoConfirm.reason === 'need-confirm' && cloneSpawnsJC().length === 1,
+    'JC10 清理残留要先预检签票、再显式确认；没确认时 need-confirm 且零进程')
+  const jcCleanRun = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcCleanCheck.ticket.id, requestId: 'req-841-clone-7', op: 'cleanup', confirmed: true })
+  check(jcCleanRun.ok === true && jcCleanRun.removed === true && fs.existsSync(jcEmpty) === false && cloneSpawnsJC().length === 1,
+    'JC11 确认后清理真删掉了登记过的残留目录，全程没有起过克隆进程')
+  const jcUnregistered = await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'cleanup', dir: jcFull })
+  check(jcUnregistered.ok === false && jcUnregistered.reason === 'cleanup-unregistered' && cloneSpawnsJC().length === 1,
+    'JC12 没登记过的目录不清理：cleanup-unregistered 拒绝，一个进程都不起')
 
   // M 冲突向导三条电话（#1747 T12）：读 / 预检签票 / 凭票执行。这一组守「合并冲突不误判成失败」、
   //   「选边与继续都要票」以及「没有票、换动作、没确认时零进程」；判定细节与六类冲突分类由 verify-1586-conflicts 守。
@@ -479,34 +581,6 @@ async function main(): Promise<void> {
   const mClean = await vcM.handleGitConflicts({ cwd: rM, op: 'marker-check' })
   check(mClean.ok === true && mClean.clean === true, 'M13 合并完成后残留标记检查变干净（两半都没残留）')
   check(denyIs({ ok: true, conflictCount: 0 }, 'ticket-missing') === false, 'M14 反证装置自检：把放行的读回包喂给「拒绝」判据必须判假')
-
-  // N 组：#1749 变基待办三电话（读 / 预检签票 / 凭票执行）—— 真仓库里跑一次「丢提交」的最小变基。
-  console.log('N 变基待办电话（#1749）')
-  const vcN = makeVc()
-  check(typeof vcN.handleGitRebaseRead === 'function' && typeof vcN.handleGitRebaseCheck === 'function' && typeof vcN.handleGitRebaseWrite === 'function', 'N1 变基待办读 / 预检 / 执行三条电话都挂在同一个宿主对象上')
-  check(typeof vcN.rebaseTickets === 'function', 'N2 变基票表读取口只给门禁与测试，不注册成电话')
-  const rN = mkRepo('n')
-  git(rN, ['commit', '-q', '-m', 'c1'])
-  fs.writeFileSync(path.join(rN, 'b.txt'), 'b\n'); git(rN, ['add', '-A']); git(rN, ['commit', '-q', '-m', 'c2'])
-  fs.writeFileSync(path.join(rN, 'c.txt'), 'c\n'); git(rN, ['add', '-A']); git(rN, ['commit', '-q', '-m', 'c3'])
-  const nBase = git(rN, ['rev-parse', 'HEAD~2']).out
-  const nOid2 = git(rN, ['rev-parse', 'HEAD~1']).out
-  const nOid3 = git(rN, ['rev-parse', 'HEAD']).out
-  const nRows = [{ oid: nOid2, action: 'pick' }, { oid: nOid3, action: 'drop' }]
-  const nBefore = spawns.length
-  const nBadCwd = await vcN.handleGitRebaseCheck({ cwd: '', op: 'rebase-todo', base: nBase, rows: nRows })
-  check(nBadCwd.ok === false && nBadCwd.reason === 'bad-target' && spawns.length === nBefore, 'N3 不给仓库目录时预检直接回 bad-target，一个进程都不起')
-  const nPre = await vcN.handleGitRebaseCheck({ cwd: rN, op: 'rebase-todo', base: nBase, rows: nRows })
-  check(nPre.ok === true && !!nPre.ticket && nPre.ticket.expiresAtMs - nPre.ticket.checkedAtMs === 120000, 'N4 预检交互式变基：按面板给的待办签 120 秒票（丢最后一个提交）')
-  const nBeforeFake = spawns.length
-  const nFake = await vcN.handleGitRebaseWrite({ cwd: rN, op: 'rebase-todo', base: nBase, rows: nRows, ticketId: 'NOSUCHTICKET', requestId: 'req-841-n1', confirmed: true })
-  check(nFake.ok === false && nFake.error.reason === 'ticket-missing' && spawns.length === nBeforeFake, 'N5 伪造票：ticket-missing 且一个进程都没起')
-  const nWrite = await vcN.handleGitRebaseWrite({ cwd: rN, op: 'rebase-todo', base: nBase, rows: nRows, ticketId: nPre.ticket.id, requestId: 'req-841-n2', confirmed: true })
-  const nCount = Number(git(rN, ['rev-list', '--count', 'HEAD']).out)
-  const nSeq = requests.filter((q) => after(q.argv)[0] === 'rebase')[0]
-  check(nWrite.ok === true && nWrite.conflicted === false && nCount === 3, 'N6 凭票执行最小交互式变基：按面板待办丢掉一个提交（历史从 4 条变 3 条），回包说成功且没停在冲突里')
-  check(!!nSeq && after(nSeq.argv).slice(0, 2).join(',') === 'rebase,-i' && typeof nSeq.env.GIT_SEQUENCE_EDITOR === 'string' && nSeq.env.GIT_SEQUENCE_EDITOR.indexOf('cp ') === 0, 'N7 变基那一条命令的 argv 里 -i 独立成项，待办靠 GIT_SEQUENCE_EDITOR 的 cp 覆盖进去（不弹编辑器）')
-  check(typeof vcN.handleGitRebaseRead === 'function' && (await vcN.handleGitRebaseRead({ cwd: rN, op: 'rebase-state' })).ok === true, 'N8 变基读电话可用：变基完成后读状态照常回包（走同一条读路径）')
 
 
   // K 组：#1755 同步十个动作（域 8 的 8.5–8.14）—— 预检签票与凭票执行走真仓库，写动作仍只经长任务通道。
@@ -615,6 +689,114 @@ async function main(): Promise<void> {
   const lFailCheck = await vcL7.handleGitWriteCheck({ cwd: rL7, op: 'commit', message: '签名提交', plan: lFailPlan })
   const lFail = await vcL7.handleGitCommit({ cwd: rL7, ticketId: lFailCheck.ok ? lFailCheck.ticket.id : 'x', requestId: 'i-r7', message: '签名提交', plan: lFailPlan })
   check(lFail.ok === false && lFail.error && lFail.error.reason === 'signing-failed' && Object.keys(lFail.error).sort().join(',') === 'hint,kind,message,reason', 'L15 2.6 签名失败归到 signing-failed（不是 unknown-write-failure），失败信封固定 {kind,reason,message,hint}')
+
+  // M 历史改写五条动作（#1748）：票据门四档拒绝必须零写命令；三种重置 argv 分明；还原两步、拣选一条命令保序。
+  console.log('M 历史改写五条动作（票据门 / 危险档恢复点 / 还原两步 / 拣选保序）')
+  // 只数「真正会被 git 执行的历史改写命令」，预检与重验读出来的 status/log/rev-parse 不算写。
+  const undoWrites = (): string[][] => spawns.filter((a) => ['reset', 'revert', 'cherry-pick'].indexOf(after(a)[0]) >= 0)
+  // 造一条三条提交的历史（mkRepo 只给一条，重置/还原要能往回走）。
+  function mkHistory(tag: string): string {
+    const base = mkRepo(tag)
+    git(base, ['commit', '-q', '-m', '第二笔'])
+    fs.writeFileSync(path.join(base, 'b.txt'), 'b\n'); git(base, ['add', 'b.txt']); git(base, ['commit', '-q', '-m', '第三笔'])
+    return base
+  }
+  const rUndo = mkHistory('m')
+  const vcUndo = makeVc()
+  const mHead = git(rUndo, ['rev-parse', 'HEAD']).out
+  const mSoft = await vcUndo.handleGitUndoCheck({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1' })
+  check(mSoft.ok === true && mSoft.ticket && mSoft.ticket.op === 'reset-soft' && mSoft.steps.length === 1 && mSoft.steps[0].join(' ') === 'reset --soft ' + git(rUndo, ['rev-parse', 'HEAD~1']).out, 'M1 软重置预检：回一张 reset-soft 票，命令计划只有「reset --soft <目标提交>」一条')
+  const mNoProcess = spawns.length
+  const mFake = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1', ticketId: 'NOSUCHTICKET', requestId: 'm-fake' })
+  check(mFake.ok === false && mFake.error.reason === 'ticket-missing' && undoWrites().length === 0 && spawns.length === mNoProcess, 'M2 伪造票：ticket-missing 且一个进程都没起（票据门在任何 git 命令之前）')
+  clock.t = mSoft.ticket.expiresAtMs + 1
+  const mNoProcess2 = spawns.length
+  const mExpired = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1', ticketId: mSoft.ticket.id, requestId: 'm-expired' })
+  clock.t = 1000
+  check(mExpired.ok === false && mExpired.error.kind === 'stale' && mExpired.error.reason === 'ticket-expired' && undoWrites().length === 0 && spawns.length === mNoProcess2, 'M3 过期票：stale / ticket-expired 且零写命令（120 秒有效期照票据堂的同一把尺）')
+  const mNoProcess3 = spawns.length
+  const mSwapU = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-hard', target: 'HEAD~1', ticketId: mSoft.ticket.id, requestId: 'm-swap' })
+  check(mSwapU.ok === false && mSwapU.error.kind === 'stale' && mSwapU.error.reason === 'ticket-op-mismatch' && undoWrites().length === 0 && spawns.length === mNoProcess3, 'M4 换动作（软重置的票拿去硬重置）：ticket-op-mismatch 且零写命令')
+  const mNoProcess4 = spawns.length
+  const mBadReq = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1', ticketId: mSoft.ticket.id, requestId: 'bad id!' })
+  check(mBadReq.ok === false && mBadReq.error.kind === 'usage' && undoWrites().length === 0 && spawns.length === mNoProcess4, 'M5 请求号形状不对：usage 拒绝且零写命令（重放表的键先过形状关）')
+  const mSoftRun = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1', ticketId: mSoft.ticket.id, requestId: 'm-soft-1' })
+  const mSoftArgv = after(undoWrites()[0] || [])
+  check(mSoftRun.ok === true && mSoftRun.before.headOid === mHead && mSoftRun.after.headOid === git(rUndo, ['rev-parse', 'HEAD']).out && mSoftArgv.join(' ') === 'reset --soft ' + mSoftRun.after.headOid, 'M6 软重置成功：HEAD 退回上一笔、改动留在已暂存，argv 是「reset --soft <目标提交>」（一个写命令、不动工作区）')
+  const mReplayWrites = undoWrites().length
+  const mReplay = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-hard', target: 'HEAD', ticketId: 'NOSUCHTICKET', requestId: 'm-soft-1' })
+  check(mReplay.ok === true && mReplay.replayed === true && mReplay.after.headOid === mSoftRun.after.headOid && undoWrites().length === mReplayWrites, 'M7 同一个请求号重放：回第一次那份结果、不再起第二条写命令（连点两下确认不会重置两次）')
+  const mStaleCheck = await vcUndo.handleGitUndoCheck({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1' })
+  git(rUndo, ['commit', '-q', '-m', '预检后又提交了一笔'])
+  const mStaleWrites = undoWrites().length
+  const mStaleHead = await vcUndo.handleGitUndoWrite({ cwd: rUndo, op: 'reset-soft', target: 'HEAD~1', ticketId: mStaleCheck.ticket.id, requestId: 'm-stale-head' })
+  check(mStaleHead.ok === false && mStaleHead.error.kind === 'stale' && mStaleHead.error.reason === 'stale-head' && undoWrites().length === mStaleWrites, 'M8 票据签完后 HEAD 换了一条：stale-head、零写命令（不把旧判断套到新现场）')
+  const rM9 = mkHistory('m9')
+  const vcM9 = makeVc()
+  const mIndexCheck = await vcM9.handleGitUndoCheck({ cwd: rM9, op: 'reset-soft', target: 'HEAD~1' })
+  fs.appendFileSync(path.join(rM9, 'a.txt'), '预检后新改的一行\n')
+  const mIndexWrites = undoWrites().length
+  const mIndex = await vcM9.handleGitUndoWrite({ cwd: rM9, op: 'reset-soft', target: 'HEAD~1', ticketId: mIndexCheck.ticket.id, requestId: 'm-stale-index' })
+  check(mIndex.ok === false && mIndex.error.kind === 'stale' && mIndex.error.reason === 'stale-index' && undoWrites().length === mIndexWrites, 'M9 票据签完后工作区又改了：stale-index、零写命令（确认卡上的形状变了就重新来）')
+  const rM10 = mkHistory('m10')
+  const vcM10 = makeVc()
+  const mHardCheck = await vcM10.handleGitUndoCheck({ cwd: rM10, op: 'reset-hard', target: 'HEAD~1' })
+  check(mHardCheck.ok === true && mHardCheck.danger === true && mHardCheck.recovery && mHardCheck.recovery.restore.reflogBefore === 'HEAD@{0}' && Number(mHardCheck.recovery.discard.files) >= 1 && mHardCheck.recovery.commits === 1, 'M10 硬重置预检：标危险档并给出恢复点（将丢的文件数、会被移出历史的提交数、reflog 位置）')
+  const mHardRun = await vcM10.handleGitUndoWrite({ cwd: rM10, op: 'reset-hard', target: 'HEAD~1', ticketId: mHardCheck.ticket.id, requestId: 'm-hard-1' })
+  const mHardArgv = after(undoWrites()[undoWrites().length - 1] || [])
+  check(mHardRun.ok === true && mHardRun.danger === true && mHardRun.recovery && mHardRun.recovery.restore.reflogBefore === 'HEAD@{0}' && mHardArgv.join(' ') === 'reset --hard ' + mHardRun.after.headOid && git(rM10, ['status', '--porcelain']).out === '', 'M11 硬重置成功：argv 是「reset --hard <目标提交>」，回包把恢复点原样交回（对可逆边界说真话）')
+  const rM12 = mkHistory('m12')
+  const vcM12 = makeVc()
+  const mRevCheck = await vcM12.handleGitUndoCheck({ cwd: rM12, op: 'revert', target: 'HEAD' })
+  check(mRevCheck.ok === true && mRevCheck.defaultMessage === 'Revert "第三笔"' && mRevCheck.steps.length === 2 && mRevCheck.steps[0].join(' ').indexOf('revert --no-commit ') === 0 && mRevCheck.steps[1].slice(0, 2).join(' ') === 'commit -m', 'M12 还原提交预检：默认说明按 git 惯例写「Revert "原标题"」，计划是「revert --no-commit」再「commit -m」两步')
+  const mRevRun = await vcM12.handleGitUndoWrite({ cwd: rM12, op: 'revert', target: 'HEAD', ticketId: mRevCheck.ticket.id, requestId: 'm-revert-1' })
+  const mRevParents = git(rM12, ['log', '-1', '--format=%P']).out.split(' ')
+  check(mRevRun.ok === true && mRevRun.stepsDone === 2 && git(rM12, ['log', '-1', '--format=%s']).out === 'Revert "第三笔"' && mRevParents.length === 1 && mRevParents[0] === mRevRun.before.headOid, 'M13 还原提交成功：反向改动真的成了一条新提交（说明可编辑、父提交指向被还原的那条）')
+  const rM14 = mkRepo('m14')
+  git(rM14, ['commit', '-q', '-m', '基线二'])
+  git(rM14, ['checkout', '-q', '-b', 'feat'])
+  fs.writeFileSync(path.join(rM14, 'f1.txt'), '1\n'); git(rM14, ['add', 'f1.txt']); git(rM14, ['commit', '-q', '-m', '拣选甲'])
+  fs.writeFileSync(path.join(rM14, 'f2.txt'), '2\n'); git(rM14, ['add', 'f2.txt']); git(rM14, ['commit', '-q', '-m', '拣选乙'])
+  const picks = git(rM14, ['log', '--reverse', '--format=%H', 'main..feat']).out.split('\n').filter((x) => x !== '')
+  git(rM14, ['checkout', '-q', 'main'])
+  const vcM14 = makeVc()
+  const mPickCheck = await vcM14.handleGitUndoCheck({ cwd: rM14, op: 'cherry-pick', commits: picks })
+  check(mPickCheck.ok === true && mPickCheck.plan.commits.length === 2 && mPickCheck.steps.length === 1 && mPickCheck.steps[0].join(' ') === 'cherry-pick ' + picks.join(' '), 'M14 拣选多选预检：一条命令按原序带上全部提交（乱序就换个结果，故次序写进票据）')
+  const mPickBase = undoWrites().length
+  const mPickRun = await vcM14.handleGitUndoWrite({ cwd: rM14, op: 'cherry-pick', commits: picks, ticketId: mPickCheck.ticket.id, requestId: 'm-pick-1' })
+  const mPickNew = undoWrites().slice(mPickBase)
+  const mPickOrder = git(rM14, ['log', '--reverse', '-2', '--format=%s']).out.split('\n')
+  check(mPickRun.ok === true && mPickNew.length === 1 && after(mPickNew[0] || []).join(' ') === 'cherry-pick ' + picks.join(' ') && mPickOrder.join('|') === '拣选甲|拣选乙', 'M15 拣选成功：只起一条 cherry-pick 命令，日志里两条提交的先后与预检时给的次序一致（原序落进历史）')
+  check(denyIs({ ok: true, requestId: 'x' }, 'usage') === false, 'M16 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
+
+  // N 组：#1749 变基待办三电话（读 / 预检签票 / 凭票执行）—— 真仓库里跑一次「丢提交」的最小变基。
+  console.log('N 变基待办电话（#1749）')
+  const vcN = makeVc()
+  check(typeof vcN.handleGitRebaseRead === 'function' && typeof vcN.handleGitRebaseCheck === 'function' && typeof vcN.handleGitRebaseWrite === 'function', 'N1 变基待办读 / 预检 / 执行三条电话都挂在同一个宿主对象上')
+  check(typeof vcN.rebaseTickets === 'function', 'N2 变基票表读取口只给门禁与测试，不注册成电话')
+  const rN = mkRepo('n')
+  git(rN, ['commit', '-q', '-m', 'c1'])
+  fs.writeFileSync(path.join(rN, 'b.txt'), 'b\n'); git(rN, ['add', '-A']); git(rN, ['commit', '-q', '-m', 'c2'])
+  fs.writeFileSync(path.join(rN, 'c.txt'), 'c\n'); git(rN, ['add', '-A']); git(rN, ['commit', '-q', '-m', 'c3'])
+  const nBase = git(rN, ['rev-parse', 'HEAD~2']).out
+  const nOid2 = git(rN, ['rev-parse', 'HEAD~1']).out
+  const nOid3 = git(rN, ['rev-parse', 'HEAD']).out
+  const nRows = [{ oid: nOid2, action: 'pick' }, { oid: nOid3, action: 'drop' }]
+  const nBefore = spawns.length
+  const nBadCwd = await vcN.handleGitRebaseCheck({ cwd: '', op: 'rebase-todo', base: nBase, rows: nRows })
+  check(nBadCwd.ok === false && nBadCwd.reason === 'bad-target' && spawns.length === nBefore, 'N3 不给仓库目录时预检直接回 bad-target，一个进程都不起')
+  const nPre = await vcN.handleGitRebaseCheck({ cwd: rN, op: 'rebase-todo', base: nBase, rows: nRows })
+  check(nPre.ok === true && !!nPre.ticket && nPre.ticket.expiresAtMs - nPre.ticket.checkedAtMs === 120000, 'N4 预检交互式变基：按面板给的待办签 120 秒票（丢最后一个提交）')
+  const nBeforeFake = spawns.length
+  const nFake = await vcN.handleGitRebaseWrite({ cwd: rN, op: 'rebase-todo', base: nBase, rows: nRows, ticketId: 'NOSUCHTICKET', requestId: 'req-841-n1', confirmed: true })
+  check(nFake.ok === false && nFake.error.reason === 'ticket-missing' && spawns.length === nBeforeFake, 'N5 伪造票：ticket-missing 且一个进程都没起')
+  const nWrite = await vcN.handleGitRebaseWrite({ cwd: rN, op: 'rebase-todo', base: nBase, rows: nRows, ticketId: nPre.ticket.id, requestId: 'req-841-n2', confirmed: true })
+  const nCount = Number(git(rN, ['rev-list', '--count', 'HEAD']).out)
+  const nSeq = requests.filter((q) => after(q.argv)[0] === 'rebase')[0]
+  check(nWrite.ok === true && nWrite.conflicted === false && nCount === 3, 'N6 凭票执行最小交互式变基：按面板待办丢掉一个提交（历史从 4 条变 3 条），回包说成功且没停在冲突里')
+  check(!!nSeq && after(nSeq.argv).slice(0, 2).join(',') === 'rebase,-i' && typeof nSeq.env.GIT_SEQUENCE_EDITOR === 'string' && nSeq.env.GIT_SEQUENCE_EDITOR.indexOf('cp ') === 0, 'N7 变基那一条命令的 argv 里 -i 独立成项，待办靠 GIT_SEQUENCE_EDITOR 的 cp 覆盖进去（不弹编辑器）')
+  check(typeof vcN.handleGitRebaseRead === 'function' && (await vcN.handleGitRebaseRead({ cwd: rN, op: 'rebase-state' })).ok === true, 'N8 变基读电话可用：变基完成后读状态照常回包（走同一条读路径）')
+
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }

@@ -154,6 +154,19 @@ export function taskArgsFor(op: any, args: any): TaskArgResult {
       if (!Number.isInteger(depth) || depth < 1 || depth > 100000) return badArg('bad-args', 'depth 必须是正整数')
       out.push('--depth', String(depth))
     }
+    // #1756 T20 克隆向导：分支、递归子模块、浅克隆子模块三个可选开关，只在不给/给假时完全不出现在 argv 里
+    //   （老调用方的 argv 一个字节都不变）。--shallow-submodules 依赖 --depth，缺了 git 会自己报错，
+    //   这里提前给人话，免得用户等到任务跑起来才看到一句英文。
+    if (a.branch !== undefined && a.branch !== null && String(a.branch).trim() !== '') {
+      const branchProblem = taskRefProblem(String(a.branch).trim())
+      if (branchProblem) return badArg('bad-branch', branchProblem)
+      out.push('--branch', String(a.branch).trim())
+    }
+    if (a.shallowSubmodules === true) {
+      if (a.depth === undefined) return badArg('bad-args', '浅克隆子模块必须同时给深度（--shallow-submodules 要有 --depth 才有意义）')
+      out.push('--shallow-submodules')
+    }
+    if (a.recurseSubmodules === true) out.push('--recurse-submodules')
     return { ok: true, args: out.concat([a.url, a.dir]) }
   }
   if (op === 'fetch') {

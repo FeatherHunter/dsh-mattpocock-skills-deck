@@ -75,6 +75,9 @@ const VC_FILES = [
   'src/shared/version-control/src/sync-rules.ts',
   // #1751：贮藏十条的规则真源（动作名单、版本门、危险档、命令拼装与恢复路径）。
   'src/shared/version-control/src/stash-rules.ts',
+  // #1756 克隆向导的共享层两片（与构建同序）：地址与选项口径 → 预检票据的契约与目标现场形状。
+  'src/shared/version-control/src/clone-options.ts',
+  'src/shared/version-control/src/clone-ticket.ts',
   // #1752 工作树八条能力的纯规则层（八条动作 / argv / 判定 / 清单行模型），与构建同序排在客户端那片之前。
   'src/shared/version-control/src/worktree-ops.ts',
   // #1747 冲突文本的解析与拼装（冲突块切分、按选择拼回整份、残留标记判定）：宿主保存前扫标记与界面冲突视图同源，
@@ -126,6 +129,10 @@ const VC_FILES = [
   // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
   'src/client/views/versionControl/vcStashOps.js',
   'src/client/views/versionControl/vcStashPage.js',
+  // #1748 变基待办页的历史改写面板（与构建同序）：先数据层，再页面本体，都排在页面壳之前。
+  'src/client/views/versionControl/vcUndoOps.js',
+  'src/client/views/versionControl/vcUndoPage.js',
+  'src/client/views/versionControl/vcClonePage.js', // #1756：迁移页 › 克隆向导（自持表单与进度状态；排在页面壳之前，壳里会挂它）
   // #1747 冲突向导两叶（与构建同序）：先动作模型（15 条能力的出入参形状），再页面正文；壳的挂载段要看到页面体那一叶。
   'src/client/views/versionControl/vcConflictsOps.js',
   'src/client/views/versionControl/vcConflictsPage.js',
@@ -223,6 +230,20 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcWorktreesListStateOf', 'vcWorktreesSnapshotOf', 'vcWorktreesModelOf', 'vcWorktreesVersionOf', 'vcWorktreeAvailabilityOf', 'vcWorktreeWhyKeyOf', 'vcWorktreesVersionHintOf',
   'vcWorktreesRowActionsOf', 'vcWorktreesActionDecisionOf', 'vcWorktreeCheckArgsOf', 'vcWorktreeRunArgsOf', 'vcWorktreePlanOf', 'vcWorktreeFailureOf',
   'vcWorktreeResultOf', 'vcWorktreeDecisionReasonsOf', 'vcWorktreeDecisionStateOf', 'vcWorktreesPageNode',
+  // #1748 变基待办页历史改写：两条电话、五条动作目录、参数整理与三个阶段的回包归一（页面本体里也要看）。
+  'VC_UNDO_PHONE_CHECK', 'VC_UNDO_PHONE_WRITE', 'VC_UNDO_COMMIT_MAX', 'VC_UNDO_MESSAGE_MAX', 'VC_UNDO_REV_MAX',
+  'VC_UNDO_CATALOG', 'vcUndoCatalogOf', 'vcUndoEntryOf', 'vcUndoInputsOf', 'vcUndoSetInputOf', 'vcUndoPickOpOf',
+  'vcUndoRevProblem', 'vcUndoCommitsOf', 'vcUndoParamsOf', 'vcUndoCheckArgsOf', 'vcUndoWriteArgsOf',
+  'vcUndoCheckShapeOk', 'vcUndoWriteShapeOk', 'vcUndoStateNew', 'vcUndoMark', 'vcUndoErrorOf', 'vcUndoApplyCheck', 'vcUndoApplyWrite',
+  'vcUndoBusyOf', 'vcUndoRecoveryStepsOf', 'vcUndoShortOidOf', 'vcUndoWhenOf', 'vcUndoRequestIdOf', 'VC_UNDO_FAIL_KEYS',
+  'vcUndoFailKnownOf', 'VC_UNDO_OPS_SOURCE', 'vcUndoPageNode', 'VC_UNDO_PANEL', 'VC_UNDO_PAGE_SOURCE', 'VC_UNDO_PAGE_NAMES',
+  // #1756 克隆向导：选项口径、票据契约、回包分类与页面体（二十三条导出逐个挂进闭包给断言用）。
+  'CLONE_OPTION_DEFAULTS', 'cloneSourceKindOf', 'cloneMaskedUrl', 'cloneDefaultDirOf', 'cloneHardlinkNote', 'cloneOptionsOf',
+  'CLONE_TICKET_OPS', 'CLONE_CHECK_CONTRACT', 'CLONE_CHECK_VERSION', 'CLONE_TARGET_STATES', 'clonePlanOf', 'cloneTaskArgsOf', 'cloneTargetProblem',
+  'VC_CLONE_PAGE_SOURCE', 'VC_CLONE_PHONES', 'VC_CLONE_FORM_DEFAULT', 'VC_CLONE_STEPS', 'VC_CLONE_REASON_KEYS', 'VC_CLONE_PAGE_HINT',
+  'vcCloneRequestIdOf', 'vcCloneFormOf', 'vcCloneCheckArgsOf', 'vcCloneWriteArgsOf', 'vcCloneCleanupCheckArgsOf', 'vcCloneCleanupWriteArgsOf',
+  'vcCloneCallOf', 'vcCloneTicketOf', 'vcCloneSceneOf', 'vcCloneDecisionOf', 'vcCloneReasonOf', 'vcCloneReplyKindOf', 'vcCloneTaskOf',
+  'vcCloneProgressOf', 'vcCloneResidualOf', 'vcCloneTaskEndedOf', 'vcClonePageNode',
   // #1747 冲突向导：三条电话、15 条动作清单、四种进行中状态与八类冲突；请求号、载荷、可见性、页面体与渲染辅助。
   'VC_CONFLICTS_PHONES', 'VC_CONFLICTS_OPS', 'VC_CONFLICTS_STATES', 'VC_CONFLICTS_KINDS', 'VC_CONFLICTS_OPS_SOURCE',
   'vcConflictsOpMetaOf', 'vcConflictsOpLabelKeyOf', 'vcConflictsOpVerbKeyOf', 'vcConflictsStateLabelKeyOf',
@@ -354,9 +375,12 @@ async function main() {
   // #1751 贮藏页那一族（十条动作名、版本门、确认卡、最近丢弃与失败话术）。
   const vcStashMod = await import(locUrl('src/client/kernel/locale-vcstash.js'))
   const L_VCSTASH = vcStashMod.L_VCSTASH
+  // #1748 变基待办页历史改写那一族（五条动作名、字段说明、确认卡与恢复点、失败话术）。
+  const vcUndoMod = await import(locUrl('src/client/kernel/locale-vcundo.js'))
+  const L_VCUNDO = vcUndoMod.L_VCUNDO
   LOC = {
-    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh),
-    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en),
+    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh, L_VCUNDO.zh),
+    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en, L_VCUNDO.en),
   }
   tZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
   tEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
@@ -1570,6 +1594,91 @@ async function main() {
   check(failHtml.indexOf('data-vc-stash-result="fail"') >= 0 && attrValuesOf(failHtml, 'data-vc-stash-fail-kind')[0] === 'branch-exists' && failHtml.indexOf(LOC.zh['vc.stash.fail.branchExists']) >= 0, 'Z16z 失败回包按原因码查人话（分支已存在：说清楚，不印裸 kind）')
   const okState = Object.assign(VIEW.vcStashStateNew(), { result: { ok: true, op: 'push', entries: stashEntries, recent: [] } })
   check(stashPageOf(stashEntries, 'git version 2.49.0', okState).indexOf('data-vc-stash-result="ok"') >= 0, 'Z16aa 成功回包给结果条并提示下一步（列表已刷新）')
+  // ---- Z17 组：变基待办页的历史改写五条面板（#1748 T13，域 5 的 5.1–5.5）----
+  // 页面只画三个时刻：待预检（输入区）、预检成功（确认卡四段 + 恢复点）、执行完成（前后 HEAD + 恢复路径）。
+  //   五条动作的编号、名称与命令原文一律运行期从能力账本 5.1–5.5 读，这里不抄第二份名单。
+  const undoSheetOf = function (state) {
+    const opts: any = { page: 'rebase', width: 460, skin: 'dark', seed: firstSeedOf() }
+    if (state) opts.undo = state
+    return shellHtmlOf(opts)
+  }
+  const undoStateOf = function (over) {
+    const st: any = VIEW.vcUndoStateNew()
+    if (over) {
+      Object.assign(st, over)
+      st.inputs = Object.assign(VIEW.vcUndoInputsOf(), over.inputs || {})
+    }
+    return st
+  }
+  const undoRows = function (html) { return attrValuesOf(html, 'data-vc-undo-cap').slice(1) }
+  const undoDangerOf = function (html) { return attrValuesOf(html, 'data-vc-undo-danger').slice(1) }
+  const undoHead = 'f'.repeat(40)
+  const undoRecovery = {
+    discard: { files: 3, added: 12, deleted: 4, binary: 1, truncated: false },
+    commits: 2,
+    restore: { headOid: 'e'.repeat(40), reflogBefore: 'HEAD@{1}' },
+  }
+  const undoCheckReply = {
+    ok: true, contract: 'version-control.undo-check', version: 1, op: 'reset-hard', capId: '5.3', atMs: NOW,
+    ticket: { id: 'un-abc123', op: 'reset-hard', checkedAtMs: NOW, expiresAtMs: NOW + 120000 },
+    scene: { head: undoHead, headShort: undoHead.slice(0, 10), branch: 'main', dirty: true, midOperation: false },
+    plan: { op: 'reset-hard', target: 'HEAD~1', targetOid: 'd'.repeat(40), message: '', commits: [], resetMode: 'hard', recovery: undoRecovery },
+    danger: true, recovery: undoRecovery, defaultMessage: '', steps: [['reset', '--hard', 'HEAD~1']], stepCount: 1,
+  }
+  const undoIdleHtml = undoSheetOf(undoStateOf())
+  check(undoIdleHtml.indexOf('data-vc-undo-page="1"') >= 0 && attrValuesOf(undoIdleHtml, 'data-vc-undo-count')[0] === '5', 'Z17a 变基待办页画出历史改写面板，五条动作一条不少（5.1–5.5）')
+  check(undoRows(undoIdleHtml).join(',') === '5.1,5.2,5.3,5.4,5.5' && attrValuesOf(undoIdleHtml, 'data-vc-undo-op-row').join(',') === 'reset-soft,reset-mixed,reset-hard,revert,cherry-pick', 'Z17b 五条动作按账本编号排、动作名与编号对得上（' + undoRows(undoIdleHtml).join('、') + '）')
+  check(VIEW.VC_UNDO_CATALOG.length === 5 && VIEW.vcUndoCatalogOf().every(function (one) { return one.page === 'rebase' && one.onThisPage === true && one.primaryEntry === '变基待办' }), 'Z17c 五条动作的页面归属与主入口运行期从账本读：全落变基待办页，不在这里抄第二份页面名')
+  check(attrValuesOf(undoIdleHtml, 'data-vc-undo-command').join('|') === ['5.1', '5.2', '5.3', '5.4', '5.5'].map(function (id) { return VIEW.vcCapabilityOf(id).command }).join('|'), 'Z17d 每条动作显示账本里的命令原文（' + attrValuesOf(undoIdleHtml, 'data-vc-undo-command').join('、') + '）')
+  check(attrValuesOf(undoIdleHtml, 'data-vc-undo-danger-badge').length === 1 && undoDangerOf(undoIdleHtml).join(',') === '0,0,1,0,0' && attrValuesOf(undoIdleHtml, 'data-vc-undo-recovery-cap').join(',') === '0,0,1,0,0', 'Z17e 只有硬重置（5.3）标危险档与恢复点：其余四条不吓人，也不假装能找回')
+  check(attrValuesOf(undoIdleHtml, 'data-vc-undo-primary-entry').length === 5 && attrValuesOf(undoIdleHtml, 'data-vc-undo-primary-entry').every(function (x) { return x === '变基待办' }), 'Z17f 五条都标出主入口「变基待办」（与账本 primaryEntry 同源，页面正文里就能看到落点）')
+  check(attrValuesOf(undoIdleHtml, 'data-vc-undo-op')[0] === 'reset-soft' && attrValuesOf(undoIdleHtml, 'data-vc-undo-input').join(',') === 'target' && attrValuesOf(undoIdleHtml, 'data-vc-undo-field-for').join(',') === 'reset-soft' && undoIdleHtml.indexOf('data-vc-undo-confirm="1"') < 0 && undoIdleHtml.indexOf('data-vc-undo-idle="1"') >= 0, 'Z17g 默认停在 5.1：只有目标一个输入，还没预检所以先不出确认卡（先看后做）')
+  const undoRevertHtml = undoSheetOf(undoStateOf({ inputs: { op: 'revert', target: 'HEAD~1' } }))
+  check(attrValuesOf(undoRevertHtml, 'data-vc-undo-input').join(',') === 'target,message' && attrValuesOf(undoRevertHtml, 'data-vc-undo-field-for').join(',') === 'revert,revert', 'Z17h 还原提交要多一句说明：目标与说明两个输入（说明留空就用 git 的默认标题）')
+  const undoPickHtml = undoSheetOf(undoStateOf({ inputs: { op: 'cherry-pick', target: '', commits: 'a'.repeat(40) + '\n' + 'b'.repeat(40) } }))
+  check(attrValuesOf(undoPickHtml, 'data-vc-undo-input').join(',') === 'commits' && undoPickHtml.indexOf('data-vc-undo-field-for="cherry-pick"') >= 0 && undoPickHtml.indexOf('data-vc-undo-cap="5.5"') >= 0, 'Z17i 拣选只要一张提交清单（一行一条、按先后顺序），不需要目标引用')
+  const undoConfirmHtml = undoSheetOf(undoStateOf({ inputs: { op: 'reset-hard', target: 'HEAD~1' }, check: undoCheckReply }))
+  check(undoConfirmHtml.indexOf('data-vc-undo-confirm="1"') >= 0 && attrValuesOf(undoConfirmHtml, 'data-vc-undo-ticket')[0] === 'un-abc123' && attrValuesOf(undoConfirmHtml, 'data-vc-undo-seg').join(',') === 'what,wont,reversible,verb', 'Z17j 预检成功才出确认卡：票号与四段（做什么 / 不做什么 / 可不可逆 / 动词）齐全')
+  check(undoConfirmHtml.indexOf('data-vc-undo-danger-warning="1"') >= 0 && attrValuesOf(undoConfirmHtml, 'data-vc-undo-recovery-files')[0] === '3' && attrValuesOf(undoConfirmHtml, 'data-vc-undo-recovery-added')[0] === '12' && attrValuesOf(undoConfirmHtml, 'data-vc-undo-recovery-deleted')[0] === '4' && undoConfirmHtml.indexOf('data-vc-undo-recovery-binary="1"') >= 0 && attrValuesOf(undoConfirmHtml, 'data-vc-undo-recovery-commits')[0] === '2', 'Z17k 硬重置的确认卡写清会丢什么：3 个文件、12 行新增、4 行删除、1 个二进制、2 条提交移出历史')
+  check(attrValuesOf(undoConfirmHtml, 'data-vc-undo-recovery-step').join(',') === '0,1' && undoConfirmHtml.indexOf('git reset --hard ' + 'e'.repeat(40)) >= 0 && undoConfirmHtml.indexOf('git reflog show -n 1 HEAD@{1}') >= 0 && undoConfirmHtml.indexOf(LOC.zh['vc.undo.recovery.keep']) >= 0, 'Z17l 恢复点按顺序给出两条找回命令（写回旧提交 + reflog 选择器），并说明旧提交不会立刻消失')
+  check(attrValuesOf(undoConfirmHtml, 'data-focus-default').indexOf('cancel') >= 0 && undoConfirmHtml.indexOf('data-vc-undo-go="1"') >= 0 && undoConfirmHtml.indexOf('data-vc-undo-cancel="1"') >= 0 && !/data-vc-undo-go="1"[^>]*disabled/.test(undoConfirmHtml), 'Z17m 确认卡默认焦点在取消键，确认键在预检态可点（危险动作的第一下不该自己落到确认上）')
+  const undoSoftReply = {
+    ok: true, contract: 'version-control.undo-check', version: 1, op: 'reset-soft', capId: '5.1', atMs: NOW,
+    ticket: { id: 'un-soft1', op: 'reset-soft', checkedAtMs: NOW, expiresAtMs: NOW + 120000 },
+    scene: { head: undoHead, headShort: undoHead.slice(0, 10), branch: 'main', dirty: true, midOperation: false },
+    plan: { op: 'reset-soft', target: 'HEAD~1', targetOid: 'd'.repeat(40), message: '', commits: [], resetMode: 'soft' },
+    danger: false, recovery: null, defaultMessage: '', steps: [['reset', '--soft', 'HEAD~1']], stepCount: 1,
+  }
+  const undoSoftConfirmHtml = undoSheetOf(undoStateOf({ inputs: { op: 'reset-soft', target: 'HEAD~1' }, check: undoSoftReply }))
+  check(undoSoftConfirmHtml.indexOf('data-vc-undo-confirm="1"') >= 0 && undoSoftConfirmHtml.indexOf('data-vc-undo-danger-warning') < 0 && attrValuesOf(undoSoftConfirmHtml, 'data-vc-undo-recovery').length === 0 && undoSoftConfirmHtml.indexOf(LOC.zh['vc.undo.confirm.reversible']) >= 0, 'Z17n 软重置的确认卡不出危险提示与恢复点，改说「可以撤回」（不把不危险的动作说得吓人）')
+  const undoWriteReply = {
+    ok: true, op: 'reset-hard', capId: '5.3', atMs: NOW,
+    before: { headOid: 'f'.repeat(40), headShort: 'ffffffffff' },
+    after: { headOid: 'd'.repeat(40), headShort: 'dddddddddd' },
+    stepsDone: 1, danger: true, recovery: undoRecovery,
+  }
+  const undoDoneHtml = undoSheetOf(undoStateOf({ phase: 'done', inputs: { op: 'reset-hard', target: 'HEAD~1' }, result: undoWriteReply }))
+  check(undoDoneHtml.indexOf('data-vc-undo-result="ok"') >= 0 && attrValuesOf(undoDoneHtml, 'data-vc-undo-head-before')[0] === 'ffffffffff' && attrValuesOf(undoDoneHtml, 'data-vc-undo-head-after')[0] === 'dddddddddd' && attrValuesOf(undoDoneHtml, 'data-vc-undo-steps-done')[0] === '1', 'Z17o 执行完成给结果条：原来的 HEAD 与现在的 HEAD、跑了几步，一目了然')
+  check(undoDoneHtml.indexOf('data-vc-undo-result-recovery-note="1"') >= 0 && attrValuesOf(undoDoneHtml, 'data-vc-undo-recovery').indexOf('result') >= 0 && undoDoneHtml.indexOf(LOC.zh['vc.undo.recovery.title']) >= 0, 'Z17p 硬重置做完仍把恢复路径留在页面上（先记下来再关页面，别等到想找回时才找）')
+  const undoFailHtml = undoSheetOf(undoStateOf({ phase: 'failed', inputs: { op: 'reset-hard', target: 'HEAD~1' }, error: { key: 'stale-index', reason: 'stale-index', detail: '暂存或未暂存的改动变了', field: '' } }))
+  check(attrValuesOf(undoFailHtml, 'data-vc-undo-error')[0] === 'stale-index' && undoFailHtml.indexOf(LOC.zh['vc.undo.fail.stale-index']) >= 0 && undoFailHtml.indexOf('data-vc-undo-retry="1"') >= 0 && undoFailHtml.indexOf('暂存或未暂存的改动变了') >= 0, 'Z17q 失败按宿主 reason 查人话（暂存区变了：说清原因、附 git 原文、给重新预检的入口）')
+  const undoBusyHtml = undoSheetOf(undoStateOf({ inputs: { op: 'reset-hard', target: 'HEAD~1' }, check: undoCheckReply, phase: 'writing' }))
+  check(attrValuesOf(undoBusyHtml, 'data-vc-undo-pending')[0] === '1' && (undoBusyHtml.match(/disabled/g) || []).length >= 3 && undoBusyHtml.indexOf('data-vc-undo-confirm="1"') >= 0, 'Z17r 执行在途时确认卡与两颗按钮一律禁用（连点两次不该真执行两次），票还留着')
+  check(shellHtmlOf({ page: 'commits', width: 460, skin: 'dark' }).indexOf('data-vc-undo-page') < 0, 'Z17s 别的页面不挂历史改写面板（只在变基待办页出现，不四处撒入口）')
+  // 反证共用的判据：面板挂没挂、只有 5.3 标危险、确认卡画没画恢复点。
+  const undoMountedJudgmentOf = function (v) {
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'rebase', width: 460, skin: 'dark', seed: firstSeedOf() }))
+    return html.indexOf('data-vc-undo-page="1"') >= 0 && attrValuesOf(html, 'data-vc-undo-cap').slice(1).join(',') === '5.1,5.2,5.3,5.4,5.5'
+  }
+  const undoDangerJudgmentOf = function (v) {
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'rebase', width: 460, skin: 'dark', seed: firstSeedOf() }))
+    return attrValuesOf(html, 'data-vc-undo-danger-badge').length === 1 && attrValuesOf(html, 'data-vc-undo-danger').slice(1).join(',') === '0,0,1,0,0'
+  }
+  const undoRecoveryJudgmentOf = function (v) {
+    const state = Object.assign(v.vcUndoStateNew(), { inputs: Object.assign(v.vcUndoInputsOf(), { op: 'reset-hard', target: 'HEAD~1' }), check: undoCheckReply })
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'rebase', width: 460, skin: 'dark', seed: firstSeedOf(), undo: state }))
+    return html.indexOf('data-vc-undo-recovery="1"') >= 0 && attrValuesOf(html, 'data-vc-undo-recovery-step').length === 2
+  }
   // ---- W-ext 组（#1752）：工作树页八条能力接在同一份首屏快照上 ----
   // 页面与首屏聚合共用同一份片：清单来自 worktrees 片，版本门来自 version 片里的 switches，
   // 判定调共享层 worktreeJudge —— 界面不另发清单电话、不自己写一份版本比较。
@@ -2163,6 +2272,93 @@ async function main() {
   check(qCapsListOf(qCommitsHtml) === VIEW.vcPageCapabilitiesOf('commits').length && qCapsListOf(qDiagHtml) === VIEW.vcPageCapabilitiesOf('diagnostics').length, 'Q6c 面板插在能力清单之前、不吞掉本页的能力行（两页能力行数与原页面一致）')
   check(qCommitsHtml.indexOf('vc-query-commits') >= 0 && qDiagHtml.indexOf('vc-query-diagnostics') >= 0, 'Q6d 两页各有自己的面板 id（锚点与深链指得清是哪一页的面板）')
 
+  // ---- CL 组：克隆向导（#1756 T20，能力 8.16）----
+  // 判据全部取真源：电话名、表单收敛、票据与回包分类都调 vcClonePage 自己的导出；
+  //   宿主理由标识符逐个核对界面词条表，免得界面上印出英文标识符。
+  check(VIEW.VC_CLONE_PHONES.check === 'wf.gitCloneCheck' && VIEW.VC_CLONE_PHONES.write === 'wf.gitCloneWrite'
+    && VIEW.VC_CLONE_PHONES.query === 'wf.gitTaskQuery' && VIEW.VC_CLONE_PHONES.cancel === 'wf.gitTaskCancel'
+    && VIEW.VC_CLONE_PAGE_HINT === 'migrate' && VIEW.VC_CLONE_PAGE_SOURCE === 'src/client/views/versionControl/vcClonePage.ts',
+    'CL1 克隆向导四条电话与「挂在迁移页」的口径都从真源读（预检 / 凭票执行 / 查询 / 取消）')
+  const clDefaults = VIEW.VC_CLONE_FORM_DEFAULT
+  check(clDefaults.url === '' && clDefaults.dir === '' && clDefaults.depth === '' && clDefaults.branch === ''
+    && clDefaults.recurseSubmodules === false && clDefaults.shallowSubmodules === false && clDefaults.offline === false,
+    'CL2 表单初值：地址与目录都空着，三个开关默认关（不会没让选就替人选子模块）')
+  const clForm = VIEW.vcCloneFormOf({ url: '  https://x/a.git  ', dir: ' d ', depth: ' 3 ', branch: ' dev ', recurseSubmodules: true, shallowSubmodules: 1, offline: 'yes' })
+  check(clForm.url === 'https://x/a.git' && clForm.dir === 'd' && clForm.depth === '3' && clForm.branch === 'dev'
+    && clForm.recurseSubmodules === true && clForm.shallowSubmodules === false && clForm.offline === false,
+    'CL3 表单收敛：去空白，两个子模块开关与离线只认真正的 true（1 与字符串不算）')
+  const clCheck = VIEW.vcCloneCheckArgsOf('/w', { url: 'https://x/a.git', dir: 'd', depth: '3', branch: 'dev', recurseSubmodules: true, shallowSubmodules: true })
+  check(clCheck.cwd === '/w' && clCheck.op === 'start' && clCheck.depth === 3 && clCheck.branch === 'dev'
+    && clCheck.recurseSubmodules === true && clCheck.shallowSubmodules === true && clCheck.offline === undefined
+    && clCheck.ticketId === undefined && clCheck.requestId === undefined,
+    'CL4 预检参数：深度写成数字、只出现真选项，票号与请求号留到执行那一步')
+  check(VIEW.vcCloneCheckArgsOf('/w', { url: 'u', dir: 'd', depth: '' }).depth === undefined,
+    'CL5 深度留空时不塞一个 0 进去（宿主按缺省全深度）')
+  const clWrite = VIEW.vcCloneWriteArgsOf('/w', { url: 'u', dir: 'd' }, 't-1', 'rq-1', true)
+  check(clWrite.op === 'start' && clWrite.ticketId === 't-1' && clWrite.requestId === 'rq-1' && clWrite.confirmed === true,
+    'CL6 凭票执行参数：票号、请求号与确认都在（宿主凭票执行并去重）')
+  check(VIEW.vcCloneWriteArgsOf('/w', { url: 'u', dir: 'd' }, 't-1', 'rq-1', false).confirmed === undefined,
+    'CL7 没点确认就不带 confirmed 字段（宿主据它回 need-confirm，界面再画确认卡）')
+  const clCleanCheck = VIEW.vcCloneCleanupCheckArgsOf('/w', ' d ')
+  const clCleanWrite = VIEW.vcCloneCleanupWriteArgsOf('/w', 'd', 't-2', 'rq-2', true)
+  check(clCleanCheck.op === 'cleanup' && clCleanCheck.dir === 'd' && clCleanWrite.op === 'cleanup' && clCleanWrite.ticketId === 't-2' && clCleanWrite.confirmed === true,
+    'CL8 清理残留目录也走同一套：先预检拿票，再凭票删除')
+  const clTicket = VIEW.vcCloneTicketOf({ ticket: { id: 't', op: 'start', checkedAtMs: NOW, expiresAtMs: NOW + 120000 } })
+  check(!!clTicket && clTicket.id === 't' && clTicket.expiresAtMs === NOW + 120000 && VIEW.vcCloneTicketOf({}) === null && VIEW.vcCloneTicketOf({ ticket: {} }) === null,
+    'CL9 票据四段取出来；没有票时回 null（绝不用空串冒充票号）')
+  check(VIEW.vcCloneReplyKindOf({ ok: true, ticket: { id: 't' } }) === 'checked' && VIEW.vcCloneReplyKindOf({ ok: true, task: { taskId: 'x' } }) === 'done',
+    'CL10 回包分类：签了票是 checked、起了任务是 done')
+  check(VIEW.vcCloneReplyKindOf({ ok: false, error: { kind: 'blocked' }, reason: 'target-not-empty' }) === 'blocked'
+    && VIEW.vcCloneReplyKindOf({ ok: false, error: { kind: 'need-confirm' }, reason: 'need-confirm' }) === 'need-confirm',
+    'CL11 目标不空是 blocked、要确认是 need-confirm，两档分开画')
+  check(['ticket-missing', 'ticket-expired', 'ticket-op-mismatch', 'target-changed', 'stale-repo'].every(function (r) {
+    return VIEW.vcCloneReplyKindOf({ ok: false, error: { kind: 'blocked' }, reason: r }) === 'stale'
+  }), 'CL12 票没了 / 过期 / 换了动作 / 现场变了都归 stale（重新预检这一档，不冒充真失败）')
+  check(VIEW.vcCloneReplyKindOf({ ok: false, error: { kind: 'env', message: 'x' } }) === 'fail' && VIEW.vcCloneReplyKindOf(null) === 'unknown',
+    'CL13 真装配失败归 fail、空回包归 unknown')
+  check(VIEW.vcCloneReasonOf({ reason: 'a', decision: { reasons: ['b'] }, error: { reason: 'c' } }) === 'a'
+    && VIEW.vcCloneReasonOf({ decision: { reasons: ['b'] }, error: { reason: 'c' } }) === 'b'
+    && VIEW.vcCloneReasonOf({ error: { reason: 'c' } }) === 'c',
+    'CL14 原因标识符的优先级：顶层 > 判定 > 错误（界面据此选词条）')
+  const clProg = VIEW.vcCloneProgressOf({ state: 'running', percent: 55, phase: 'Receiving objects' })
+  check(clProg.percent === 55 && clProg.phase === 'Receiving objects' && clProg.uncertain === false
+    && VIEW.vcCloneProgressOf({ state: 'running' }).uncertain === true
+    && VIEW.vcCloneProgressOf({ state: 'running', percent: 140 }).percent === null,
+    'CL15 进度读真实百分比与阶段；报不出数时标 uncertain，越界数字不冒充')
+  const clResidual = '目标目录可能只写了一半，删除该目录后可以重试'
+  const clDone = { state: 'done', conclusion: 'cancelled', residual: clResidual }
+  check(VIEW.vcCloneResidualOf({ state: 'running', residual: 'x' }) === '' && VIEW.vcCloneResidualOf(clDone) === clResidual
+    && VIEW.vcCloneTaskEndedOf(clDone) === true && VIEW.vcCloneTaskEndedOf({ state: 'running' }) === false
+    && VIEW.vcCloneTaskOf({ tasks: [{ taskId: 'a' }, { taskId: 'b' }] }, 'b').taskId === 'b' && VIEW.vcCloneTaskOf({ tasks: [] }, 'x') === null,
+    'CL16 取消后的残留说明只在结束的任务上出现，并按 taskId 找回那一条任务')
+  const cloneHostReasons = (function () {
+    const text = sourceText('src/host/versionControlClone.ts')
+    const seg = text.slice(text.indexOf('const CLONE_REASONS'), text.indexOf('翻成一句人话'))
+    const out: string[] = []
+    const re = /'([a-z][a-z-]+)':/g
+    let m
+    while ((m = re.exec(seg)) !== null) out.push(m[1])
+    return out
+  })()
+  const cloneUncovered = cloneHostReasons.filter(function (id) { return !Object.prototype.hasOwnProperty.call(VIEW.VC_CLONE_REASON_KEYS, id) })
+  check(cloneHostReasons.length >= 20 && cloneUncovered.length === 0,
+    'CL17 宿主每个克隆理由标识符在界面词条表里都有词条（缺的：' + cloneUncovered.join('、') + '）')
+  const cloneMarkup = renderToStaticMarkup(React.createElement(VIEW.vcClonePageNode, { t: function (k) { return k }, cwd: '/w', call: function () { return Promise.resolve({}) } }))
+  check(cloneMarkup.indexOf('data-vc-clone="1"') >= 0 && cloneMarkup.indexOf('data-vc-clone-step="form"') >= 0
+    && ['url', 'dir', 'depth', 'branch'].every(function (n) { return cloneMarkup.indexOf('data-vc-clone-field="' + n + '"') >= 0 })
+    && ['recurseSubmodules', 'shallowSubmodules', 'offline'].every(function (n) { return cloneMarkup.indexOf('data-vc-clone-checkbox="' + n + '"') >= 0 }),
+    'CL18 进页面先把表单画出来：四个字段与三个开关齐全，不自动发电话')
+  check(cloneMarkup.indexOf('data-vc-clone-action="check"') >= 0 && cloneMarkup.indexOf('data-vc-clone-action="start"') < 0,
+    'CL19 初态只有「预检」按钮，没有票就不给「开始克隆」')
+  const clShellHtmlOf = function (page) {
+    try { return renderToStaticMarkup(VIEW.vcRenderTabAt(h, tZh, { page: page, cwd: '/w', call: function () { return Promise.resolve({}) } })) }
+    catch (e) { console.log('    （克隆页渲染抛错：' + ((e && e.message) || e) + '）'); return '' }
+  }
+  const clMigrateHtml = clShellHtmlOf('migrate')
+  const clDiagHtml = clShellHtmlOf('diagnostics')
+  check(clMigrateHtml.indexOf('data-vc-clone="1"') >= 0 && clDiagHtml.indexOf('data-vc-clone="1"') < 0,
+    'CL20 克隆向导只挂在「迁移与备份」页的正文里，别的页不带')
+
   // ---- H 组：反证（把被守的东西改坏，同一套断言必须当场变红）----
   // 反证锚点的两种落点：还住在手写 .js 里的代码写成单引号，已经变成构建产物的界面叶子被 esbuild
   //   统一成双引号（产物首行写着 AUTO-GENERATED）。字符串 replace 找不到目标就原样返回，于是
@@ -2324,6 +2520,12 @@ async function main() {
     { name: '贮藏页不再挂进页面壳（十条入口全没了）', patch: (s) => s.replace("if (page === 'stash' && typeof vcStashPageNode === 'function') {", 'if (false) {'), test: stashMountedJudgmentOf, what: 'Z16a' },
     { name: '7.3 的版本门恒放行（低版本也画按钮）', patch: (s) => s.replace('const state = vcStashOpVersionStateOf(VC_STASH_STAGED_OP, versionText)', "const state = 'full'"), test: stashGateJudgmentOf, what: 'Z16m' },
     { name: '危险动作不再出确认卡', patch: (s) => s.replace('if (!state.confirm || !state.confirm.op) return null', 'if (state) return null'), test: stashConfirmJudgmentOf, what: 'Z16p' },
+    // #1748：变基待办页不再挂历史改写面板 —— Z17a 必须当场红。
+    { name: '变基待办页不再挂历史改写面板', patch: (s) => s.replace("if (page === 'rebase' && typeof vcUndoPageNode === 'function') children.push(keyed(vcUndoPageNode(", "if (false) children.push(keyed(vcUndoPageNode("), test: undoMountedJudgmentOf, what: 'Z17a' },
+    // #1748：硬重置不再标危险档（用户看到的是一个「不危险」的毁级动作）—— Z17e 必须当场红。
+    { name: '硬重置不再标危险档', patch: (s) => s.replace("targetDefault: '', danger: true, recovery: true,", "targetDefault: '', danger: false, recovery: true,"), test: undoDangerJudgmentOf, what: 'Z17e' },
+    // #1748：确认卡不再画恢复点（点确认之前看不到会丢什么、怎么找回）—— Z17k 必须当场红。
+    { name: '确认卡不再画恢复点', patch: (s) => s.replace("  if (check.recovery) kids.push(undoRecoveryNode(h, t, check.recovery, '1'))", '  if (false) kids.push(undoRecoveryNode(h, t, check.recovery, 1))'), test: undoRecoveryJudgmentOf, what: 'Z17k' },
     // #1754：远端页的联网入口换了标记名（按钮还在，但读屏与门禁都找不到「这是联网入口」）—— R2a 必须当场红。
     { name: '远端页的联网入口改成别的属性名', patch: (s) => s.replace("'data-vc-remote-online-btn': String(remote.name),", "'data-vc-remote-online-entry': String(remote.name),"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'remote', width: 460, skin: 'dark', reads: rcReadsOf({}) })); return attrValuesOf(html, 'data-vc-remote-online-btn').length === 2 }, what: 'R2a' },
     // #1754：联网结果不再标来源 network（把这一次的联网读数画成缓存/旧值）—— R2d 必须当场红。

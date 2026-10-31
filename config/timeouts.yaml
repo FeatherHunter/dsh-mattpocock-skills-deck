@@ -125,6 +125,17 @@ timeouts:
   vcBranchReadTimeoutMs: 15000
   # 分支域写命令的单条超时：15 秒。branch / tag / config --local 都是本地动作，不推远端。
   vcBranchWriteTimeoutMs: 15000
+  # —— 克隆向导的单条命令超时（#1756 T20，能力 8.16）——
+  # 预检里单条只读命令的超时：15 秒。当前仓库地址、目标目录探测都是本地读，与分支域只读同一档。
+  vcCloneReadTimeoutMs: 15000
+  # 清理残留目录这一步的单条命令超时：15 秒。只读一次 HEAD 复核，不删不改别的东西。
+  vcCloneWriteTimeoutMs: 15000
+  # 历史改写域（#1748 T13）预检里单条只读 git 命令的超时：15 秒。看现场、解析目标提交、数硬重置会丢多少东西
+  # 都是本地读取，与分支域只读同一档；数不全就整趟失败（不拿半份计数签票）。
+  vcUndoReadTimeoutMs: 15000
+  # 历史改写域写命令的单条超时：15 秒。reset / revert / commit / cherry-pick 全是本地动作，不推远端；
+  # 写命令的整趟预算 = 单条超时 + vcWriteCallMarginMs，与其它写电话同一套算法。
+  vcUndoWriteTimeoutMs: 15000
   # —— 冲突向导的单条命令超时（#1747）——
   # 冲突向导预检里单条只读 git 命令的超时：15 秒。冲突清单、文件内容、merge-tree 预演、rerere 都是本地读取。
   vcConflictReadTimeoutMs: 15000

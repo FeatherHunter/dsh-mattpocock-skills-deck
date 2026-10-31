@@ -42,11 +42,10 @@ declare function vcTaskPanelNode(h: any, t: any, o: any): any
 declare function vcWorktreesPageNode(h: any, t: any, o: any): any
 // 改动页操作面板叶子（#1742，vcChangesPage.ts）：同样由构建拼进闭包；只在 changes 页且页面传入改动读数时挂载。
 declare function vcChangesPageNode(h: any, t: any, o: any): any
-// 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）：同上由构建拼进闭包，这里只声明形状。
-declare function vcBranchBoardNode(h: any, t: any, o: any): any
-// 贮藏页叶子（#1751，vcStashPage.ts）与冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）：同样由构建拼进同一个闭包，
-// 这里只声明形状；挂载条件在下面。两条声明并进同一条物理行：本文件贴着 350 有效行上限。
-declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcRebasePageNode(h: any, t: any, o: any): any
+// 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）、贮藏页叶子（#1751，vcStashPage.ts）、克隆向导页叶子（#1756，
+// vcClonePage.ts）、冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）与变基待办页的历史改写面板（#1748 T13，vcUndoPage.ts）：
+// 与变基待办页的动作面板（#1749 T14，vcRebasePage.ts）都由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。六条声明并进同一条物理行：本文件贴着 350 有效行上限。
+declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any; declare function vcRebasePageNode(h: any, t: any, o: any): any
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']
@@ -292,6 +291,8 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
       })),
     ]))
   }
+  // #1756 T20 克隆向导（能力 8.16）：迁移与备份页的正文；组件自己保存表单与进度，壳只把取词、工作区与发电话的函数递进去。
+  if (page === 'migrate') children.push(h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null }))
   // 分支与标签页的业务面板（#1746 T11）：调用方把一份读数传进来才画；没传整块不出现，其它页渲染不变。
   if (page === 'branch-tags' && opts.branchBoard !== undefined) {
     children.push(Object.assign({}, vcBranchBoardNode(h, t, {
@@ -304,8 +305,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   // 历史高级查询面板（#1745 T10）：提交历史页落 3.4 / 3.6 / 3.7 / 3.8 / 3.10 / 3.12 六组，
   //   「管理 › 诊断」页落 3.5 / 3.9 / 3.11 / 3.13 四组（四条的主入口就在那一页，面板自己标主入口）。
   //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。
-  const queryNode = vcQueryPageNode(h, t, opts)
-  if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' }))
+  const queryNode = vcQueryPageNode(h, t, opts); if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' })) // 判断与推入并成一行：本文件贴着 350 有效行上限。
   children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
   // 改动页的 13 条动作面板（#1742）：页面把改动读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
@@ -313,10 +313,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   }
   // 冲突向导的 15 条能力面板（#1747 T12）：页面把冲突状态与读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   // 判断与推入写成同一条物理行：本文件贴着 350 有效行上限。
-  // 变基待办页的 9 条动作面板（#1749 T14）：页面把状态与待办读数传进来时才画；没传整块不出现，其它页渲染结果不变。
-  //   为了守住 350 有效行上限，两条页面的挂载写在同一物理行（分号隔开），互不影响。
   if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' })); if (page === 'rebase' && opts.rebase !== undefined && typeof vcRebasePageNode === 'function') children.push(Object.assign({}, vcRebasePageNode(h, t, { rebase: opts.rebase }), { key: 'rebase' }))
-
   return h('section', {
     id: 'vc-page-' + page,
     className: 'vcs-page-body',
@@ -377,7 +374,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     queries: opts.queries, inputs: opts.inputs,
     // #1743：#1743 提交页的动作层、目标提交候选与现成面板模型也从调用方传进来（壳不自己造）。
     commitOps: opts.commitOps || null, commitTargets: opts.commitTargets || [], commitPanel: opts.commitPanel || null,
-    ops: opts.ops, handlers: opts.handlers, // #1752 工作树页要真数据与处理函数
+    ops: opts.ops, handlers: opts.handlers, cwd: opts.cwd, call: opts.call, // #1752 工作树页要真数据与处理函数；#1756 克隆向导要工作区与发电话的函数
   }), 'body'))
   // #1751 贮藏页（域 7）：只在贮藏页挂这一块；十条动作的入口、确认卡与最近丢弃都在叶子里，
   // 这里只把首屏数据（seed）与回调递进去，页面壳不多说一句规则。
@@ -385,6 +382,9 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     // 页面叶子的入参名是 state（本地编辑状态）与 seed（首屏读数）；这里按叶子认的名字递，不改叶子的形状。
     children.push(keyed(vcStashPageNode(h, t, { seed: seed, state: opts.stash, onStash: opts.onStash, onStashEdit: opts.onStashEdit }), 'stashPage'))
   }
+  // #1748 变基待办页（域 5 历史改写）：五种动作都是「预检出票 → 确认 → 凭票执行」三段式，
+  // 页面壳只把调用方持有的状态与回调递进叶子；续作与拒绝理由都在叶子里讲，壳不重复。
+  if (page === 'rebase' && typeof vcUndoPageNode === 'function') children.push(keyed(vcUndoPageNode(h, t, { seed: seed, state: opts.undo, onUndoCheck: opts.onUndoCheck, onUndoWrite: opts.onUndoWrite, onUndoInput: opts.onUndoInput }), 'undoPage'))
   // 长任务区（#1740）：页面把任务清单传进来时才画；没传整块不出现，既有页面的渲染结果不受影响。
   if (opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {
     children.push(keyed(vcTaskPanelNode(h, t, { tasks: opts.tasks, running: opts.running, onCancel: opts.onCancel }), 'tasks'))
