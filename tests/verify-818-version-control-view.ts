@@ -92,6 +92,9 @@ const VC_FILES = [
   'src/client/views/versionControl/vcPalette.js',
   // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）。
   'src/client/views/versionControl/vcHistory.js',
+  // #1754 远端与同步页（域 8 的 8.1–8.4）：数据层在前、画法在后，最后才是调它们的页面壳。
+  'src/client/views/versionControl/vcRemoteData.js',
+  'src/client/views/versionControl/vcRemotePage.js',
   'src/client/views/versionControl/vcShellPages.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -133,6 +136,12 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'VC_LOG_BATCH',
   'VC_HISTORY_BATCH', 'VC_HISTORY_LANES_MAX', 'VC_HISTORY_DIFF_LINES_WIDE', 'VC_HISTORY_DIFF_LINES_NARROW',
   'vcHistoryFirstPageOf', 'vcHistoryModelOf', 'vcHistoryGraphOf', 'vcHistoryDiffContextOf', 'vcHistoryPageNode', 'vcHistoryListOf', 'vcHistoryRowNode', 'vcHistoryDetailOf', 'vcHistoryGraphNode',
+  // #1754 远端与同步页：电话名、读数判据、页面模型与画法（数据层与渲染层各验一遍）。
+  'VC_REMOTE_PHONES', 'VC_REMOTE_FORMS', 'VC_REMOTE_ONLINE_FAIL_KINDS',
+  'vcNewRemoteReads', 'vcRemoteStateOf', 'vcRemoteReadAtOf', 'vcRemoteRemotesOf', 'vcRemoteErrorOf',
+  'vcRemoteOnlineStateOf', 'vcRemoteOnlineOf', 'vcRemoteOnlineErrorOf', 'vcRemoteOnlineNameOf',
+  'vcApplyRemoteReply', 'vcReadRemoteList', 'vcReadRemoteOnline', 'vcRunRemoteWrite',
+  'vcRemoteModelOf', 'vcRemotePageNode',
   'vcRenderTabAt', 'vcRenderAllPages',
   // #1739 首屏一次取全：七片契约与客户端数据层。
   'FIRST_SCREEN_CONTRACT', 'FIRST_SCREEN_VERSION', 'FIRST_SCREEN_SLICES', 'FIRST_SCREEN_REFRESH_MOMENTS',
@@ -1383,6 +1392,176 @@ async function main() {
   const y9Model = VIEW.vcHistoryGraphOf(y9Commits)
   check(y9Model.rows.every(function (row) { return row.lane < VIEW.VC_HISTORY_LANES_MAX }) && y9Model.hiddenLanes > 0, 'Y9 车道上限生效（超过 ' + VIEW.VC_HISTORY_LANES_MAX + ' 条的车道不画，并如实说有 ' + y9Model.hiddenLanes + ' 处没画）')
 
+  // ---- R 组：远端与同步页（#1754 T18，域 8 的 8.1–8.4）----
+  // 三种读数分开验：本地读数（git remote -v + 本地跟踪分支，不联网）、用户点「联网查看」后才走的
+  //   git ls-remote（结果标来源与读取时刻）、四条写动作（登记 / 改名 / 删除 / 改地址）的三段式。
+  // 数据层与渲染层各验一遍：电话名与读数判据从数据层取，页面属性从 vcRenderTabAt 的 remote 页取；
+  //   两边都不另抄一份名单（能力编号一律问能力账本）。
+  const rcOid = function (ch) { return String(ch).repeat(40) }
+  const rcRemotesOf = function () {
+    return [
+      {
+        name: 'origin',
+        fetchUrl: 'https://user:***@example.com/acme/repo.git',
+        pushUrl: 'https://user:***@example.com/acme/repo.git',
+        hasCredential: true,
+        branchCount: 2,
+        branches: [
+          { short: 'main', name: 'origin/main', oid: rcOid('a'), ref: 'refs/remotes/origin/main' },
+          { short: 'dev', name: 'origin/dev', oid: rcOid('b'), ref: 'refs/remotes/origin/dev' },
+        ],
+      },
+      {
+        name: 'mirror',
+        fetchUrl: 'git@example.com:acme/repo.git',
+        pushUrl: 'git@example.com:acme/repo.git',
+        hasCredential: false,
+        branchCount: 0,
+        branches: [],
+      },
+    ]
+  }
+  const rcLocalDataOf = function (remotes, readAtMs) {
+    return { source: 'local', readAtMs: readAtMs === undefined ? NOW - 2 * 60000 : readAtMs, remotes: remotes || rcRemotesOf() }
+  }
+  const rcReadsOf = function (opts) {
+    const o = opts || {}
+    const remote = o.remote !== undefined ? o.remote : { state: 'ok', data: rcLocalDataOf(o.remotes, o.readAtMs), error: null }
+    const online = o.online !== undefined ? o.online : { state: 'idle', name: '', data: null, error: null }
+    return { remote: remote, online: online }
+  }
+  const rcHtmlOf = function (opts) {
+    const o = opts || {}
+    const shellOpts = Object.assign({ page: 'remote', width: 460, skin: 'dark', reads: rcReadsOf(o) }, o.shell || {})
+    if (o.ui) shellOpts.ui = o.ui
+    return shellHtmlOf(shellOpts)
+  }
+  // 从某个属性标记起到下一个终止标记之间的那一段：确认卡 / 表单 / 结果必须落在触发点那一段里。
+  const rcSegmentOf = function (html, anchor, endAnchors) {
+    const text = String(html)
+    const at = text.indexOf(anchor)
+    if (at < 0) return ''
+    const rest = text.slice(at + anchor.length)
+    let cut = rest.length
+    for (const end of endAnchors || []) {
+      const i = rest.indexOf(end)
+      if (i >= 0 && i < cut) cut = i
+    }
+    return rest.slice(0, cut)
+  }
+
+  // R0 数据层：电话名与读数判据（页面只读这份，不在画法里另写一份）
+  const rcPhones = VIEW.VC_REMOTE_PHONES
+  check(rcPhones.list === 'wf.gitRemoteList' && rcPhones.add === 'wf.gitRemoteAdd' && rcPhones.rename === 'wf.gitRemoteRename' && rcPhones.remove === 'wf.gitRemoteRemove' && rcPhones.setUrl === 'wf.gitRemoteSetUrl' && rcPhones.online === 'wf.gitRemoteOnline', 'R0a 客户端六条电话名与宿主登记的六条逐条相等（加/改名/删除/改地址/列表/联网）')
+  const rcIdleReads = VIEW.vcNewRemoteReads()
+  check(VIEW.vcRemoteStateOf(rcIdleReads) === 'idle' && VIEW.vcRemoteOnlineStateOf(rcIdleReads) === 'idle' && VIEW.vcRemoteOnlineOf(rcIdleReads) === null, 'R0b 全新读数里两个槽都是 idle：打开页面没有任何一处会自动发联网请求')
+  const rcApplied = VIEW.vcApplyRemoteReply(rcIdleReads, 'remote', { ok: true, source: 'local', readAtMs: NOW - 120000, remotes: rcRemotesOf() })
+  check(VIEW.vcRemoteStateOf(rcApplied) === 'ok' && VIEW.vcRemoteRemotesOf(rcApplied).length === 2 && VIEW.vcRemoteReadAtOf(rcApplied) === NOW - 120000, 'R0c 本地列表回包落成读数：两条远端、读取时刻与回包一致')
+  const rcAppliedFail = VIEW.vcApplyRemoteReply(rcApplied, 'remote', { ok: false, error: { kind: 'non-zero', message: 'git remote -v 没读到' } })
+  check(VIEW.vcRemoteStateOf(rcAppliedFail) === 'err' && VIEW.vcRemoteRemotesOf(rcAppliedFail).length === 2, 'R0d 刷新失败保留上一次的列表继续画（不拿半份或空表冒充新读数）')
+
+  // R1 本地读数：列表、读取时刻、地址展示与凭据标记
+  const r1Html = rcHtmlOf({})
+  check(r1Html.indexOf('data-vc-remote-page="1"') >= 0 && attrValuesOf(r1Html, 'data-vc-remote-state')[0] === 'ok', 'R1a 远端与同步页作为管理页二级页画出来（根节点 data-vc-remote-page，状态 ok）')
+  check(attrValuesOf(r1Html, 'data-vc-remote').join(',') === 'origin,mirror', 'R1b 远端列表一个远端一行、顺序与本地读数一致（实得 ' + attrValuesOf(r1Html, 'data-vc-remote').join(',') + '）')
+  check(attrValuesOf(r1Html, 'data-vc-remote-local-read')[0] === String(NOW - 2 * 60000) && /本地记录/.test(r1Html), 'R1c 本地读数标出读取时刻并写明「这是本地记录」（不是刚从远端读回来的）')
+  check(attrValuesOf(r1Html, 'data-vc-remote-url').join(',') === 'https://user:***@example.com/acme/repo.git,git@example.com:acme/repo.git', 'R1d 地址按列表回包里的展示值画（口令已在宿主那一层抹掉，页面不重新拼地址）')
+  check(attrValuesOf(r1Html, 'data-vc-remote-credential').join(',') === 'origin', 'R1e 只有带登录信息的远端挂凭据标记（不靠颜色、用文字说明）')
+  check(attrValuesOf(r1Html, 'data-vc-remote-branch-count').join(',') === '2,0' && attrValuesOf(r1Html, 'data-vc-remote-branch').join(',') === 'main,dev', 'R1f 每个远端带本地跟踪分支数与分支名（也是本地记录）')
+
+  // R2 联网入口：只在用户点它之后才联网，结果标来源
+  const r2OnlineOk = {
+    state: 'ok', name: 'origin',
+    data: {
+      source: 'network', remoteName: 'origin',
+      refs: [
+        { oid: rcOid('a'), ref: 'refs/heads/main', kind: 'branch' },
+        { oid: rcOid('c'), ref: 'refs/tags/v1.0.0', kind: 'tag' },
+      ],
+      count: 2, readAtMs: NOW - 60000, truncated: false,
+    },
+    error: null,
+  }
+  check(attrValuesOf(r1Html, 'data-vc-remote-online-btn').join(',') === 'origin,mirror', 'R2a 每个远端一条「联网查看」按钮（入口不合并、不藏到二级页）')
+  check(r1Html.indexOf('需要联网') >= 0 && r1Html.indexOf('data-vc-remote-online-hint="1"') >= 0, 'R2b 联网入口明写「需要联网」，并说明它不是打开页面就会自动走的')
+  check(r1Html.indexOf('data-vc-remote-online-source') < 0 && attrValuesOf(r1Html, 'data-vc-remote-ref').length === 0, 'R2c 打开页面只有本地记录：没有任何联网结果，也没有引用清单')
+  const r2OkHtml = rcHtmlOf({ online: r2OnlineOk })
+  check(attrValuesOf(r2OkHtml, 'data-vc-remote-online-source').join(',') === 'network', 'R2d 联网结果标来源是 network（不把联网结果和本地记录混在一起）')
+  check(attrValuesOf(r2OkHtml, 'data-vc-remote-online-read-at')[0] === String(NOW - 60000), 'R2e 联网结果带这一次的读取时刻（不是本地列表的读取时刻）')
+  check(attrValuesOf(r2OkHtml, 'data-vc-remote-ref').join(',') === 'refs/heads/main,refs/tags/v1.0.0' && attrValuesOf(r2OkHtml, 'data-vc-remote-online-count')[0] === '2', 'R2f 联网结果列出引用清单与条数（分支、标签各一条）')
+  check(attrValuesOf(r2OkHtml, 'data-vc-form').indexOf('page') >= 0 && r2OkHtml.indexOf('data-vc-remote-back') >= 0, 'R2g 引用清单按整页替换形态画（独立滚动、有返回）')
+  check(/aria-live="polite"/.test(r2OkHtml) && idSetOf(r2OkHtml).has('vc-remote-online'), 'R2h 联网结果有 aria-live 与真实 id（读屏会念，按钮 aria-controls 指得清）')
+  const r2ErrHtml = rcHtmlOf({ online: { state: 'err', name: 'origin', data: null, error: { kind: 'needs-credential', reason: 'needs-credential', message: '远端要凭据才能读取，面板这边不弹登录框。', hint: '' } } })
+  check(attrValuesOf(r2ErrHtml, 'data-vc-remote-online-error').join(',') === 'needs-credential' && /终端/.test(r2ErrHtml), 'R2i 需要凭据：明说失败分类并指引到终端登录一次（面板不弹密码框）')
+  check(attrValuesOf(r2ErrHtml, 'data-vc-remote-ref').length === 0 && r2ErrHtml.indexOf('data-vc-remote-online-retry') >= 0, 'R2j 联网失败不给半份引用清单，并给重试入口')
+  const r2TruncHtml = rcHtmlOf({ online: { state: 'err', name: 'origin', data: null, error: { kind: 'truncated', reason: 'truncated', message: '这次联网输出被截断了，读不全。', hint: '' } } })
+  check(attrValuesOf(r2TruncHtml, 'data-vc-remote-online-error').join(',') === 'truncated' && attrValuesOf(r2TruncHtml, 'data-vc-remote-ref').length === 0, 'R2k 输出被截断按失败处理（截断不显示半份）')
+  const r2LoadHtml = rcHtmlOf({ online: { state: 'loading', name: 'origin', data: null, error: null } })
+  check(attrValuesOf(r2LoadHtml, 'data-vc-remote-online').join(',') === 'loading' && attrValuesOf(r2LoadHtml, 'data-vc-remote-ref').length === 0, 'R2l 联网进行中画加载态（不拿上一次结果冒充这一次）')
+
+  // R3 四种状态：空 / 加载 / 失败 / 还没读
+  const r3EmptyHtml = rcHtmlOf({ remotes: [] })
+  check(attrValuesOf(r3EmptyHtml, 'data-vc-remote-state')[0] === 'empty' && r3EmptyHtml.indexOf('data-vc-remote-empty') >= 0 && r3EmptyHtml.indexOf('data-vc-remote-empty-next') >= 0, 'R3a 没有远端：空态给出判断与下一步（登记远端）')
+  const r3ErrHtml = rcHtmlOf({ remote: { state: 'err', data: null, error: { kind: 'non-zero', message: 'git remote -v 没读到' } } })
+  check(attrValuesOf(r3ErrHtml, 'data-vc-remote-state')[0] === 'error' && r3ErrHtml.indexOf('data-vc-remote-retry') >= 0, 'R3b 本地读数失败：失败态给重试入口')
+  const r3LoadHtml = rcHtmlOf({ remote: { state: 'loading', data: rcLocalDataOf(), error: null } })
+  check(attrValuesOf(r3LoadHtml, 'data-vc-remote-state')[0] === 'loading' && r3LoadHtml.indexOf('data-vc-old-read') >= 0, 'R3c 刷新中：画加载态并把上一次读数标成旧读数')
+  const r3IdleHtml = rcHtmlOf({ remote: { state: 'idle', data: null, error: null } })
+  check(attrValuesOf(r3IdleHtml, 'data-vc-remote-state')[0] === 'loading', 'R3d 刚打开还没读（idle）：按加载态画，不冒充没有远端')
+
+  // R4 写动作的三种形态与确认卡
+  const r4AddHtml = rcHtmlOf({ ui: { form: 'add' } })
+  const r4AddSeg = rcSegmentOf(r4AddHtml, 'data-vc-remote-trigger="add"', ['data-vc-cap-list'])
+  check(r4AddSeg.indexOf('data-vc-form="inline"') >= 0 && r4AddSeg.indexOf('data-vc-remote-form="add"') >= 0 && (r4AddSeg.match(/aria-label=/g) || []).length >= 2 && r4AddSeg.indexOf('data-vc-remote-submit="add"') >= 0, 'R4a 登记远端用行内展开形态（名字与地址两个字段都有读屏名称）')
+  const r4RenameHtml = rcHtmlOf({ ui: { form: 'rename', target: 'mirror' } })
+  const r4RenameSeg = rcSegmentOf(r4RenameHtml, 'data-vc-remote="mirror"', ['data-vc-cap-list'])
+  check(r4RenameSeg.indexOf('data-vc-form="float"') >= 0 && r4RenameSeg.indexOf('data-vc-remote-form="rename"') >= 0 && r4RenameSeg.indexOf('data-vc-remote-trigger="rename"') >= 0, 'R4b 改名贴触发点用浮层形态（浮层就在那一行里，不开居中模态）')
+  const r4RemoveHtml = rcHtmlOf({ ui: { form: 'remove', target: 'mirror' } })
+  const r4RemoveSeg = rcSegmentOf(r4RemoveHtml, 'data-vc-remote="mirror"', ['data-vc-cap-list'])
+  check(r4RemoveSeg.indexOf('data-vc-confirm="1"') >= 0 && (r4RemoveSeg.match(/data-vc-confirm-seg=/g) || []).length === 4 && r4RemoveSeg.indexOf('data-focus-default="cancel"') >= 0, 'R4c 删除远端贴触发点画确认卡（固定四段，默认焦点在取消）')
+  const r4UrlHtml = rcHtmlOf({ ui: { form: 'setUrl', target: 'origin', problem: 'remote-url' } })
+  const r4UrlSeg = rcSegmentOf(r4UrlHtml, 'data-vc-remote="origin"', ['data-vc-remote="mirror"'])
+  check(r4UrlSeg.indexOf('data-vc-form="float"') >= 0 && r4UrlSeg.indexOf('data-vc-remote-field-error="remote-url"') >= 0, 'R4d 改地址的浮层当场报地址校验原因（判据标识与共享层同一套）')
+
+  // R5 结果贴触发点：成功给命令名 / 耗时 / 作用对象数 / 下一步，失败给 git 原话 / 环节 / 期望与实际 / 上游原因
+  const r5OkHtml = rcHtmlOf({ ui: { form: 'add', result: { ok: true, cmd: 'git remote add', ms: 18, n: 1, next: '列表已经刷新' } } })
+  const r5OkSeg = rcSegmentOf(r5OkHtml, 'data-vc-remote-trigger="add"', ['data-vc-cap-list'])
+  check(r5OkSeg.indexOf('data-vc-result="ok"') >= 0 && r5OkSeg.indexOf('git remote add') >= 0 && r5OkSeg.indexOf('18') >= 0 && r5OkSeg.indexOf('列表已经刷新') >= 0, 'R5a 写动作成功的结果贴在触发点那一段（命令名 / 耗时 / 作用对象数 / 可行动细节都在）')
+  const r5FailHtml = rcHtmlOf({ ui: { form: 'add', result: { ok: false, git: 'fatal: remote origin already exists.', step: '执行 git remote add', expected: '远端列表多一条', actual: '列表仍是两条', cause: '同名远端已存在' } } })
+  const r5FailSeg = rcSegmentOf(r5FailHtml, 'data-vc-remote-trigger="add"', ['data-vc-cap-list'])
+  check(r5FailSeg.indexOf('data-vc-result="fail"') >= 0 && r5FailSeg.indexOf('fatal: remote origin already exists.') >= 0 && r5FailSeg.indexOf('期望') >= 0 && r5FailSeg.indexOf('上游原因') >= 0, 'R5b 失败结果仍贴触发点：git 原话、环节名、期望与实际、上游原因都在')
+
+  // R6 四档宽 × 两套皮肤：只改排布、不删入口，层级 2
+  let r6AllOk = true
+  let r6Narrow = ''
+  for (const r6Skin of VIEW.VC_SHELL_SKINS) {
+    for (const r6Width of VIEW.VC_SHELL_WIDTHS) {
+      const html = rcHtmlOf({ shell: { width: r6Width, skin: r6Skin } })
+      if (!html) { r6AllOk = false; continue }
+      if (attrValuesOf(html, 'data-vc-width')[0] !== String(r6Width) || attrValuesOf(html, 'data-vc-skin')[0] !== r6Skin) r6AllOk = false
+      if (attrValuesOf(html, 'data-vc-remote').length !== 2) r6AllOk = false
+      if (attrValuesOf(html, 'data-vc-remote-online-btn').length !== 2) r6AllOk = false
+      if (attrValuesOf(html, 'data-vc-remote-act').length !== 6) r6AllOk = false
+      if (attrValuesOf(html, 'data-vc-depth')[0] !== '2') r6AllOk = false
+      if (r6Width === 300) r6Narrow = html
+    }
+  }
+  check(r6AllOk, 'R6a 四档宽（300/380/460/520）× 两套皮肤都能渲染：宽度与皮肤读数对、远端与联网入口一个不删、层级都是 2')
+  check(attrValuesOf(r6Narrow, 'data-vc-remote').length === 2 && attrValuesOf(r6Narrow, 'data-vc-remote-more').length === 2 && attrValuesOf(r6Narrow, 'data-vc-remote-url').length === 0, 'R6b 300 宽只留名字与状态，其余动作收进「更多」菜单（不删入口），地址收起')
+
+  // R7 主入口唯一、键盘可达与读屏属性
+  const r7Caps = VIEW.vcPageCapabilitiesOf('remote')
+  const r7CapIds = r7Caps.map(function (c) { return c.id })
+  const r7Primary = attrValuesOf(r1Html, 'data-cap-primary')
+  const r7EachOnce = r7CapIds.length > 0 && r7Primary.join(',') === r7CapIds.join(',') && r7CapIds.every(function (id) { return r7Primary.filter(function (x) { return x === id }).length === 1 })
+  check(r7CapIds.slice(0, 4).join(',') === '8.1,8.2,8.3,8.4' && r7EachOnce, 'R7a 远端页每条能力恰好一个主入口，8.1–8.4 排在最前（页面注册表与能力账本同源；这一页还挂着域 8 其余能力，等后续票接）')
+  const r7Cap81 = VIEW.vcCapabilityOf('8.1')
+  check(!!r7Cap81 && r7Cap81.page === 'remote' && r7Cap81.primaryEntry.indexOf('远端') >= 0, 'R7b 8.1 的主入口登记在「远端与同步」页')
+  check(/data-vc-remote-online-btn="origin"[^>]*aria-expanded="true"/.test(r2OkHtml) && /data-vc-remote-online-btn="mirror"[^>]*aria-expanded="false"/.test(r2OkHtml), 'R7c 联网展开状态由 aria-expanded 报给读屏（展开的是哪个远端指得清）')
+  check(attrValuesOf(r2OkHtml, 'aria-controls').indexOf('vc-remote-online') >= 0 && idSetOf(r2OkHtml).has('vc-remote-online'), 'R7d 联网按钮 aria-controls 指向真实结果面板 id')
+  check(r2OkHtml.indexOf('role="list"') >= 0 && /aria-label="[^"]*远端/.test(r2OkHtml), 'R7e 远端列表按读屏可念的列表画（role=list 与名称都在）')
+  check(r4RemoveSeg.indexOf('role="dialog"') >= 0 && r4RemoveSeg.indexOf('aria-modal="false"') >= 0 && /aria-label="[^"]*mirror/.test(r4RemoveSeg), 'R7f 删除确认卡是带名称的非模态对话框（读屏念得清在做什么、不抢焦点）')
+
   // ---- H 组：反证（把被守的东西改坏，同一套断言必须当场变红）----
   // 反证锚点的两种落点：还住在手写 .js 里的代码写成单引号，已经变成构建产物的界面叶子被 esbuild
   //   统一成双引号（产物首行写着 AUTO-GENERATED）。字符串 replace 找不到目标就原样返回，于是
@@ -1452,6 +1631,10 @@ async function main() {
     { name: '图形化视图丢掉父提交连线', patch: (s) => s.replace('      parents: parentList.slice()', '      parents: []'), test: (v) => { const g = v.vcHistoryGraphOf(hcRows4); return g.rows[1].parents.length === 2 && g.rows[3].parents.length === 0 }, what: 'Y6b' },
     // #1744：点开提交不再画详情（整页替换那一层没了）—— Y4a 必须当场红。
     { name: '点开提交不再画详情', patch: (s) => s.replace('  const detail = ui.openCommit ? vcHistoryDetailOf(', '  const detail = false ? vcHistoryDetailOf('), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'commits', width: 460, skin: 'dark', reads: y4Reads, ui: { openCommit: hcRev.oid } })); return html.indexOf('data-vc-history-detail') >= 0 }, what: 'Y4a' },
+    // #1754：远端页的联网入口换了标记名（按钮还在，但读屏与门禁都找不到「这是联网入口」）—— R2a 必须当场红。
+    { name: '远端页的联网入口改成别的属性名', patch: (s) => s.replace("'data-vc-remote-online-btn': String(remote.name),", "'data-vc-remote-online-entry': String(remote.name),"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'remote', width: 460, skin: 'dark', reads: rcReadsOf({}) })); return attrValuesOf(html, 'data-vc-remote-online-btn').length === 2 }, what: 'R2a' },
+    // #1754：联网结果不再标来源 network（把这一次的联网读数画成缓存/旧值）—— R2d 必须当场红。
+    { name: '联网结果不再标来源 network', patch: (s) => s.replace("'data-vc-remote-online-source': 'network',", "'data-vc-remote-online-source': 'cache',"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'remote', width: 460, skin: 'dark', reads: rcReadsOf({ online: r2OnlineOk }) })); return attrValuesOf(html, 'data-vc-remote-online-source').join(',') === 'network' }, what: 'R2d' },
   ]
   // #845c：反证自证提到循环里 —— 每一处改法先确认它真的落到了源码上（改不中等于没证）。
   //   旧写法只在循环外用一条聚合自检兜底，于是某一条改法失效时，它自己仍会以 broke=true 假绿

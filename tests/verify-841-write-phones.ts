@@ -226,6 +226,33 @@ async function main(): Promise<void> {
   await vcCap.runGitCommand('git', rH, ['-C', rH, '--no-pager', 'status'])
   check((requests[0] || { stdio: {} }).stdio.stdout.maxBytes === 8 * 1024 * 1024, 'H10 不传 stdoutLimit 时默认上限是 8MB')
 
+  // J 远端写动作（#1754 T18，域 8 的 8.2 / 8.3）：同一族出口、固定 argv、真仓库读得回、日志不新开事件名
+  console.log('J 远端写动作（真仓库）')
+  const rJ = mkRepo('j')
+  const vcJ = makeVc()
+  const j1 = await vcJ.handleGitRemoteAdd({ cwd: rJ, name: 'origin', url: 'https://example.com/acme/repo.git' })
+  const jRemoteLines = git(rJ, ['remote', '-v']).out
+  check(j1 && j1.ok === true && jRemoteLines.indexOf('origin') >= 0, 'J1 登记远端走宿主电话：真仓库里读得回这个远端（不是只把回包说成成功）')
+  const jAddSpawn = spawns.filter((q) => after(q).slice(0, 2).join(',') === 'remote,add')[0] || []
+  check(after(jAddSpawn).slice(0, 5).join(',') === 'remote,add,--,origin,https://example.com/acme/repo.git', 'J2 登记远端的 argv 固定为 remote add -- <名字> <地址>，名字与地址各自独立一项')
+  const jAddExec = logs.filter((l) => l.event === 'git.exec' && l.fields.cmd === 'remote')[0]
+  check(!!jAddExec && typeof jAddExec.fields.argc === 'number' && logs.every((l) => ['git.exec', 'git.exec.fail', 'host.call'].indexOf(l.event) >= 0), 'J3 远端写动作只落既有的 git.exec（cmd=remote），不新开事件名')
+  const j2 = await vcJ.handleGitRemoteRename({ cwd: rJ, from: 'origin', to: 'upstream' })
+  const jRenSpawn = spawns.filter((q) => after(q).slice(0, 2).join(',') === 'remote,rename')[0] || []
+  check(j2 && j2.ok === true && git(rJ, ['remote']).out === 'upstream' && after(jRenSpawn).slice(2).join(',') === '--,origin,upstream', 'J4 改名远端：argv 为 remote rename <旧名> <新名>，真仓库里的名字跟着变')
+  const j3 = await vcJ.handleGitRemoteSetUrl({ cwd: rJ, name: 'upstream', url: 'git@example.com:acme/other.git' })
+  const jUrlSpawn = spawns.filter((q) => after(q).slice(0, 2).join(',') === 'remote,set-url')[0] || []
+  check(j3 && j3.ok === true && git(rJ, ['remote', 'get-url', 'upstream']).out === 'git@example.com:acme/other.git' && after(jUrlSpawn).slice(2).join(',') === '--,upstream,git@example.com:acme/other.git', 'J5 改地址：argv 为 remote set-url <名字> <地址>，真仓库里的地址跟着变')
+  const j4 = await vcJ.handleGitRemoteRemove({ cwd: rJ, name: 'upstream' })
+  const jDelSpawn = spawns.filter((q) => after(q).slice(0, 2).join(',') === 'remote,remove')[0] || []
+  check(j4 && j4.ok === true && git(rJ, ['remote']).out === '' && after(jDelSpawn).slice(2).join(',') === '--,upstream', 'J6 删除远端：argv 为 remote remove <名字>，真仓库里这条远端没了')
+  const jBad = await vcJ.handleGitRemoteAdd({ cwd: rJ, name: '--upload-pack=evil', url: 'https://example.com/x.git' })
+  check(jBad && jBad.ok === false && jBad.error && jBad.error.kind === 'args' && spawns.filter((q) => after(q).slice(0, 2).join(',') === 'remote,add').length === 1, 'J7 名字非法（前导减号）：零进程直接拒绝，注入串进不了 argv')
+  const jBadUrl = await vcJ.handleGitRemoteSetUrl({ cwd: rJ, name: 'origin', url: ' https://example.com/x.git ' })
+  check(jBadUrl && jBadUrl.ok === false && jBadUrl.error && jBadUrl.error.kind === 'args', 'J8 地址带空白：零进程直接拒绝（不做 trim 之后照跑）')
+  const jJudged = (r) => !!(r && r.ok === true && r.action && typeof r.ms === 'number' && typeof r.n === 'number')
+  check(jJudged(j1) === true && jJudged(jBad) === false && jJudged({ ok: false, action: 'add', ms: 1, n: 1 }) === false, 'J9 反证装置自检：把失败回包喂给「写动作成功」判据必须判红')
+
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }
