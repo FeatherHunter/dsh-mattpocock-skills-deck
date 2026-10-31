@@ -125,6 +125,14 @@ timeouts:
   vcBranchReadTimeoutMs: 15000
   # 分支域写命令的单条超时：15 秒。branch / tag / config --local 都是本地动作，不推远端。
   vcBranchWriteTimeoutMs: 15000
+  # —— 配置与钩子域的单条命令超时（#1760）——
+  # 预检里的只读命令与两条配置写动作（config set/unset）的超时：15 秒，都是本地读写、不推远端，
+  # 与改动页、分支域同一档。
+  vcConfigReadTimeoutMs: 15000
+  vcConfigWriteTimeoutMs: 15000
+  # 手动跑一个钩子（git hook run）的超时：2 分钟。钩子是仓库里的脚本，可能真的在跑构建、跑测试、
+  # 调外部工具；给足时间但仍要上限，到点按超时失败、不假装跑完。
+  vcHookRunTimeoutMs: 120000
   # git 凭据代执行的整趟预算：4 分钟。上下限 5 秒与 10 分钟：接线给的预算会被钳进这个范围
   # （下限从 1 秒提到 5 秒；1 秒的预算在慢机器上连子进程启动都盖不住，等于没给）。
   gitCredentialCallBudgetMs: 240000

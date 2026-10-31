@@ -241,7 +241,8 @@ async function main() {
     // #1754 加了远端与同步页六条电话 wf.gitRemoteList / wf.gitRemoteAdd / wf.gitRemoteRename / wf.gitRemoteRemove / wf.gitRemoteSetUrl / wf.gitRemoteOnline（读列表 + 四条写动作 + 显式联网查看），75 → 81。
     // #1745 加了历史高级查询一条电话 wf.gitHistoryQuery（十条查询共用一个只读电话），81 → 82。
     // #1743 加了提交页一条只读电话 wf.gitCommitForm（读身份、签名配置、提交说明模板与上一条提交原文），72 → 73。
-    check(nPhones === 83, '宿主电话八十三条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1760 加了配置与钩子页三条电话 wf.gitConfigRead / wf.gitConfigCheck / wf.gitConfigWrite（读配置、预检签 120 秒票、凭票执行），83 → 86。
+    check(nPhones === 86, '宿主电话八十六条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——

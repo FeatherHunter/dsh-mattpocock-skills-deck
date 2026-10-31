@@ -180,13 +180,13 @@ export function parseConfigList(stdout: any): any {
 }
 
 /** 按作用域取某个键的旧值；同作用域出现多次时取最后一条（后面的配置文件会覆盖前面的）。没有回 null。 */
-export function configOldValueOf(entries: any[], key: any, scope: any): string | null {
+export function configOldValueOf(entries: any[], key: any, scope: any, localConfigPath?: any): string | null {
   const k: string = String(key || '')
   const s: string = String(scope || '')
   const list: any[] = Array.isArray(entries) ? entries : []
   let out: string | null = null
   for (let i: number = 0; i < list.length; i += 1) {
-    if (list[i] && String(list[i].key) === k && configScopeOf(list[i].origin, '') === s) out = String(list[i].value)
+    if (list[i] && String(list[i].key) === k && configScopeOf(list[i].origin, localConfigPath) === s) out = String(list[i].value)
   }
   return out
 }
