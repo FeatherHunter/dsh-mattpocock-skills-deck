@@ -486,16 +486,6 @@ export function createVersionControl(deps: any): any {
     return _changesP
   }
 
-  // ---- #1743 提交表单读取电话（追加段，不改上面任何既有行为）----
-  // 一条只读电话：身份、签名配置、commit.template 全文、上一条提交原文（修订预填用）。
-  // 装配壳与业务解析都在同层叶子里，本文件只把已经造好的宿主闭包递进去。
-  const commitForm: any = createCommitFormMount({
-    fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable,
-    runGit: runGit, fixedPrefix: fixedPrefix, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs,
-    STDOUT_LIMIT: STDOUT_LIMIT, loggedPhone: loggedPhone,
-    now: (deps && typeof deps.now === 'function') ? deps.now : Date.now,
-  })
-
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
@@ -525,6 +515,6 @@ export function createVersionControl(deps: any): any {
     // 只给门禁与测试读取改动页票据表（#1742），与 #1741 的 writeTickets 同一条口径：不注册成电话、客户端拿不到。
     changesTickets: async function (): Promise<any> { const c: any = await changesPhone(); return c.tickets || null },
     // #1743 提交表单读取电话：装配在 ./versionControlCommitFormMount.ts，进程出口照旧是上面那条固定前缀与报闸。
-    handleGitCommitForm: commitForm.handleGitCommitForm,
+    handleGitCommitForm: createCommitFormMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable, runGit: runGit, fixedPrefix: fixedPrefix, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs, STDOUT_LIMIT: STDOUT_LIMIT, loggedPhone: loggedPhone, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now }).handleGitCommitForm,
   }
 }
