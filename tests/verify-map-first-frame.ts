@@ -280,6 +280,8 @@ function ticketByKey(map: any, key: string): any {
     { number: 5, state: 'OPEN', blockedBy: [9003], blockedByRefs: [{ key: 9003 }] },
     { number: 6, state: 'CLOSED', blockedBy: [], blockedByRefs: [] },
     { number: 7, state: 'OPEN', blockedBy: [], blockedByRefs: [] },
+    // 认领票同时进 frontier 的错法以前没被抓住（宿主的 isBlocked 把认领也算成一种「挡」），这里补一张。
+    { number: 8, state: 'OPEN', claimedBy: 'alice', blockedBy: [], blockedByRefs: [] },
   ]
   const fromHost = createTicketGrouping().groupTickets(fixture)
   const fromParse = bodyParse.groupTickets(fixture)
@@ -289,8 +291,8 @@ function ticketByKey(map: any, key: string): any {
   check(JSON.stringify(fromHost.levelOf) === JSON.stringify(fromParse.levelOf) &&
     JSON.stringify(fromHost.levels) === JSON.stringify(fromParse.levels),
     'I8 两份副本的层级推导也一致（跨容器引用不参与层级深度）')
-  check(fromHost.total === 7 && fromHost.frontier === 3 && fromHost.blocked === 3,
-    'I9 宿主分组：图内 OPEN、跨图 OPEN、跨图未知各挡一张；跨图 CLOSED 放行', JSON.stringify(fromHost))
+  check(fromHost.total === 8 && fromHost.open === 7 && fromHost.frontier === 3 && fromHost.claimed === 1 && fromHost.blocked === 3,
+    'I9 宿主分组：图内 OPEN、跨图 OPEN、跨图未知各挡一张；跨图 CLOSED 放行；认领票只进 claimed', JSON.stringify(fromHost))
   check(fromHost.levelOf['3'] === 0 && fromHost.levelOf['1'] === 1,
     'I10 跨容器引用不参与层级深度（第 3 张仍算第 0 层）', JSON.stringify(fromHost.levelOf))
 }

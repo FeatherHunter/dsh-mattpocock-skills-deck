@@ -99,13 +99,14 @@ export function createTicketGrouping(): { computeLevels: (tickets: any) => Ticke
         if (t.state === 'CLOSED') layer.closed++
         else layer.open++
       })
-      // 层内状态细分（frontier/claimed/blocked 归层）：判定走 blockerBlocks，与 body-parse 同一口径。
+      // 层内状态细分（frontier/claimed/blocked 归层）：判定走 blockerBlocks，与 src/tracker/kernel/grouping.ts
+      // 同一口径（tracker 那份由 src/tracker/body-parse.ts 转出名字）。
       levels.forEach(function (layer: any) {
         const openT: any[] = tickets.filter(function (t: any) { return byNumber[t.number] === layer.level && t.state === 'OPEN' })
-        const isBlocked = function (t: any): boolean { return !t.claimedBy && t.blockedBy.some(function (b: any) { return blockerBlocks(t, b, byNum) }) }
-        layer.frontier = openT.filter(function (t: any) { return !isBlocked(t) }).length
+        const isBlocked = function (t: any): boolean { return t.blockedBy.some(function (b: any) { return blockerBlocks(t, b, byNum) }) }
+        layer.frontier = openT.filter(function (t: any) { return !t.claimedBy && !isBlocked(t) }).length
         layer.claimed = openT.filter(function (t: any) { return t.claimedBy }).length
-        layer.blocked = openT.filter(isBlocked).length
+        layer.blocked = openT.filter(function (t: any) { return !t.claimedBy && isBlocked(t) }).length
       })
       // 剔除空洞（levels 数组可能因跳级出现 undefined）
       const compact: any[] = levels.filter(Boolean)
@@ -116,12 +117,13 @@ export function createTicketGrouping(): { computeLevels: (tickets: any) => Ticke
       const byNum: any = {}
       tickets.forEach(function (t: any) { byNum[refKeyOf(t.number)] = t })
       // #1768：跨容器引用按引用态收口（明确 CLOSED 才算关掉），不再默认「不在本批就不挡」。
-      const isBlocked = function (t: any): boolean { return !t.claimedBy && t.blockedBy.some(function (b: any) { return blockerBlocks(t, b, byNum) }) }
+      // 认领与阻塞互斥：认领掉的票进 claimed，不再进 frontier / blocked（body-parse 同一写法）。
+      const isBlocked = function (t: any): boolean { return t.blockedBy.some(function (b: any) { return blockerBlocks(t, b, byNum) }) }
       const open: any[] = tickets.filter(function (t: any) { return t.state === 'OPEN' })
       const closed: any[] = tickets.filter(function (t: any) { return t.state === 'CLOSED' })
-      const frontier: any[] = open.filter(function (t: any) { return !isBlocked(t) })
+      const frontier: any[] = open.filter(function (t: any) { return !t.claimedBy && !isBlocked(t) })
       const claimed: any[] = open.filter(function (t: any) { return t.claimedBy })
-      const blocked: any[] = open.filter(isBlocked)
+      const blocked: any[] = open.filter(function (t: any) { return !t.claimedBy && isBlocked(t) })
       // v1.4（T1 #442）：附 DAG 分层（client 渲染漏斗分层用）
       const lv: TicketLevels = computeLevels(tickets)
       return {
