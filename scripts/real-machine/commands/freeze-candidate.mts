@@ -36,6 +36,8 @@ import {
   installCandidateByExtract,
   manifestDigest,
   packCandidate,
+  packageFileDigest,
+  readBuildCommit,
   readPackageVersion,
   readRecordedStoreDir,
   sameVolume,
@@ -46,14 +48,24 @@ import { startInstance, stopInstance } from '../lib/launch.mts'
 import { launchBrowser, newPage, openApp, screenshot } from '../lib/browser.mts'
 
 interface FrozenManifest {
-  schemaVersion: 1
+  schemaVersion: 2
   generatedAt: string
   tool: string
   ticket: string | null
   candidateName: string
   version: string
+  /**
+   * 这份候选能不能拿去发布收口。
+   * release：冻结时工作树干净，产物代表的源码状态可以从提交完整重建；
+   * development：冻结时工作树有未提交改动（用了 --allow-dirty），只能用于开发验证，不能进发布收口。
+   */
+  validity: 'release' | 'development'
+  /** 构建前后源码状态是否一致（HEAD 与未提交文件集合都没变）。false 的候选不可能是稳定产物。 */
+  sourceStable: boolean
+  /** 构建前后各拍一次源码状态的原样记录，供人复核 sourceStable 是怎么判出来的。 */
+  sourceCheck: { headBefore: string; headAfter: string; dirtyBefore: number; dirtyAfter: number; same: boolean }
   git: { commit: string; branch: string; clean: boolean; dirtyFiles: string[] }
-  build: { skipped: boolean; command: string; exitCode: number | null; elapsedMs: number }
+  build: { skipped: boolean; force: boolean; command: string; exitCode: number | null; elapsedMs: number }
   package: {
     tgzPath: string
     tgzBytes: number
@@ -65,7 +77,12 @@ interface FrozenManifest {
     npmPackCommand: string
     fileCount: number
     files: CandidateFile[]
+    /** 含版本与提交的清单摘要：回答「这是不是同一次冻结」。 */
     manifestDigest: string
+    /** 不含版本与提交的逐文件内容指纹：回答「字节内容是不是同一份」，发布前对账用它。 */
+    fileDigest: string
+    /** 构建产物里记录的构建提交，必须等于 git.commit。 */
+    buildCommit: string
   }
   install: Record<string, any> | null
   ui: Record<string, any> | null
@@ -149,6 +166,9 @@ runCli(async () => {
   //    因为「同提交同清单」的前提是源码没有在冻结之后被静默改动。
   const git = gitState(repository)
   const clean = git.dirtyFiles.length === 0
+  // 干净树冻结出来的是 release 候选，可以拿去发布收口；脏树冻结出来的是 development 候选，
+  // 只能用于开发验证。这个判断只认冻结瞬间的事实，后面构建完还要复核一次（见第 2.5 步）。
+  const validity: 'release' | 'development' = clean ? 'release' : 'development'
   if (!clean && !args.has('allow-dirty')) {
     throw new Error(
       '工作树里有未提交的改动，冻结出的清单无法代表这个提交：\n  ' +
@@ -156,27 +176,68 @@ runCli(async () => {
         '\n先提交再冻结，或加 --allow-dirty 把改动如实记进清单。',
     )
   }
+  if (!clean) info('工作树不干净，这份候选按 development 记录（不能用于发布收口）。')
 
   // 2. 构建（除非明确要求复用现有产物）与打包。
+  //    构建必须带上这次冻结的提交（DSW_BUILD_COMMIT）并强制重建：构建缓存只按输入文件内容判断
+  //    有没有变化，不认环境变量；一次缓存命中就会让产物里留着上一轮的提交，候选身份随之失效。
   let build: FrozenManifest['build']
   const buildStarted = Date.now()
   if (args.has('skip-build')) {
-    build = { skipped: true, command: 'node scripts/build.mts --pkg-only', exitCode: null, elapsedMs: 0 }
+    build = { skipped: true, force: false, command: 'node scripts/build.mts --pkg-only（复用现有产物）', exitCode: null, elapsedMs: 0 }
   } else {
-    const result = buildPackage({ repo: repository, timeoutMs })
+    const result = buildPackage({ repo: repository, timeoutMs, env: { DSW_BUILD_COMMIT: git.commit }, force: true })
     build = {
       skipped: false,
-      command: [result.argv[0], path.relative(repository, result.argv[1]), result.argv[2]].join(' '),
+      force: true,
+      command: [result.argv[0], path.relative(repository, result.argv[1])].concat(result.argv.slice(2)).join(' '),
       exitCode: result.exitCode,
       elapsedMs: result.elapsedMs,
     }
     info('构建完成，用时 ' + formatMs(result.elapsedMs))
   }
 
+  // 2.5 构建后复核源码状态：构建期间 HEAD 被切换、或者构建自己写出了新的未提交改动，都说明
+  //     这份产物不是「构建前那个源码状态」的产物。这种情况必须当场停下，不能把两个状态混进一张清单。
+  const gitAfter = gitState(repository)
+  const sameDirty = JSON.stringify(git.dirtyFiles) === JSON.stringify(gitAfter.dirtyFiles)
+  const sourceStable = git.commit === gitAfter.commit && sameDirty
+  const sourceCheck = {
+    headBefore: git.commit,
+    headAfter: gitAfter.commit,
+    dirtyBefore: git.dirtyFiles.length,
+    dirtyAfter: gitAfter.dirtyFiles.length,
+    same: sourceStable,
+  }
+  assert(
+    sourceStable,
+    '构建前后源码状态变了，这份产物不能代表一个确定的源码状态：\n' +
+      '  构建前 HEAD ' + git.commit + '，未提交文件 ' + git.dirtyFiles.length + ' 个；\n' +
+      '  构建后 HEAD ' + gitAfter.commit + '，未提交文件 ' + gitAfter.dirtyFiles.length + ' 个。\n' +
+      '换一个没有并发改动的时刻重新冻结；如果是别的会话在同一个工作树里构建，改用独立工作树。',
+  )
+
   const packageDir = path.join(repository, 'package')
+  // 产物必须自证「由这次冻结的提交构建」：界面运行时读到的版本串只有版本号，同版本不同提交分不清；
+  // 构建提交写在 lib/client.js 里，冻结时读出来与 git.commit 对照，对不上就不许继续。
+  const builtClientText = fs.readFileSync(path.join(packageDir, 'lib', 'client.js'), 'utf8')
+  const builtCommit = readBuildCommit(builtClientText)
+  assert(
+    builtCommit,
+    '构建产物 lib/client.js 里读不到 DSW_BUILD_COMMIT：这份产物不是带构建提交的新构建。' +
+      '去掉 --skip-build 重新构建，或确认构建脚本已支持提交注入。',
+  )
+  assert(
+    builtCommit === git.commit,
+    '构建产物标记的提交是 ' + builtCommit + '，不是这次冻结的 ' + git.commit + '：' +
+      '产物不是从当前源码构建的（可能用了 --skip-build 复用了旧产物，或构建缓存给出了旧产物）。',
+  )
+  info('构建产物标记提交 ' + builtCommit.slice(0, 12) + '，与冻结提交一致。')
+
   const version = readPackageVersion(packageDir)
   const pack = packCandidate({ packageDir, destinationDir: out, timeoutMs })
   const digest = manifestDigest({ version, commit: git.commit, files: pack.files })
+  const fileDigest = packageFileDigest(pack.files)
 
   // 3. 与上一次同提交的清单对比：不一致就说明「同一提交重复运行得到相同清单」不成立，直接报错。
   const manifestPath = path.join(out, 'candidate.json')
@@ -333,12 +394,15 @@ runCli(async () => {
 
   // 6. 写清单，stdout 只回摘要（逐文件清单在文件里，不刷屏）。
   const manifest: FrozenManifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     tool: 'scripts/real-machine/commands/freeze-candidate.mts',
     ticket: args.get('ticket') || null,
     candidateName: pluginName,
     version,
+    validity,
+    sourceStable,
+    sourceCheck,
     git: { commit: git.commit, branch: git.branch, clean, dirtyFiles: git.dirtyFiles },
     build,
     package: {
@@ -353,6 +417,8 @@ runCli(async () => {
       fileCount: pack.files.length,
       files: pack.files,
       manifestDigest: digest,
+      fileDigest,
+      buildCommit: builtCommit,
     },
     install,
     ui,
@@ -368,12 +434,16 @@ runCli(async () => {
     commit: git.commit,
     branch: git.branch,
     clean,
+    validity,
+    sourceStable,
     dirtyFileCount: git.dirtyFiles.length,
+    buildCommit: builtCommit,
     tgzPath: pack.tgzPath,
     tgzBytes: pack.tgzBytes,
     tgzSha256: pack.tgzSha256,
     fileCount: pack.files.length,
     manifestDigest: digest,
+    fileDigest,
     buildElapsedMs: build.skipped ? 0 : build.elapsedMs,
     totalElapsedMs: Date.now() - buildStarted,
     install,
