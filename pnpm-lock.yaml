@@ -29,6 +29,9 @@ importers:
       dependency-cruiser:
         specifier: ^18.6.0
         version: 18.6.0
+      dsh-featherhunter-plugin-base:
+        specifier: 0.0.2
+        version: 0.0.2(react@19.3.1)
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -594,6 +597,13 @@ packages:
     resolution: {integrity: sha512-It7NW5AmCDBCLMq7I91Nfu8VRKzrIE6S+M/FMQzALDceJ0B1PWRHo77q9YJg/HwyBBEWHVtOuTptIQki+xecOw==}
     engines: {node: ^22||^24||>=26}
     hasBin: true
+
+  dsh-featherhunter-plugin-base@0.0.2:
+    resolution: {integrity: sha512-4iL/yaly5dlgvKOx8hXfJ8qtAD0/W8jFGjDoWtUcqMP9t3ooj2pBE6jcwwgdta2FcHIOFs+/5eJyHmWkkGOi6A==}
+    engines: {node: '>=18'}
+    hasBin: true
+    peerDependencies:
+      react: ^18 || ^19
 
   dsh-log@0.3.4:
     resolution: {integrity: sha512-uCG6sLTze5YjmZmLln2KAeCCepsKvzGhnpZmkym/3OKNOsMKH5sA2lunwrLoOfmLxxju3/ZkKQmLp76Fklpw2w==}
@@ -1280,6 +1290,10 @@ snapshots:
       tsconfig-paths-webpack-plugin: 4.2.0
       typescript: 5.6.3
       watskeburt: 6.0.0
+
+  dsh-featherhunter-plugin-base@0.0.2(react@19.3.1):
+    dependencies:
+      react: 19.3.1
 
   dsh-log@0.3.4: {}
 

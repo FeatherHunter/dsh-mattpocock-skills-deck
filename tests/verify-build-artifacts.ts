@@ -254,8 +254,8 @@ console.log('\n四棵新树镜像校验（后缀换算 + 转译结果比对）')
 //        其中工具与追踪器两棵是 #1018 按源码位置镜像新增的（package/deck 对 src/deck、
 //        package/tracker 对 src/tracker，TypeScript 转成 JavaScript 再进包）。
 //     ② 仓库根两份开发态产物：client.js、host.js
-//     ③ 构建缓存目录：scripts/generated/**（按需存在；已入库两件点名为例外：logKernel.derived.js、
-//        updateClient.derived.js，它们必须入库，因为客户端那份闭包要能离线拼出来）
+//     ③ 构建缓存目录：scripts/generated/**（按需存在；已入库三件点名为例外：logKernel.derived.js、
+//        updateClient.derived.js、baseClient.derived.js，它们必须入库，因为客户端那份闭包要能离线拼出来）
 //     ④ 子包各自产物目录：packages/*/dist/**
 //   追踪器契约目录旁那份旧 JavaScript 影子文件（src/tracker/contract/vocabulary.js）的去向：
 //   它是词汇表五份真源拼段转译的拼接输入。#1026 收拾契约目录时没有直接删掉它，而是把拼段产物
@@ -284,7 +284,7 @@ console.log('\n四棵新树镜像校验（后缀换算 + 转译结果比对）')
   const CATEGORY_PREFIXES = ['package/lib/', 'package/shared/', 'package/deck/', 'package/tracker/', 'package/refresh/', 'scripts/generated/', '.build/']
   const CATEGORY_FILES = ['client.js', 'host.js']
   const SUBPKG_DIST_RE = /^packages\/[^/]+\/dist\//
-  const IN_GIT_PRODUCT_EXCEPTIONS = ['scripts/generated/logKernel.derived.js', 'scripts/generated/updateClient.derived.js']
+  const IN_GIT_PRODUCT_EXCEPTIONS = ['scripts/generated/logKernel.derived.js', 'scripts/generated/updateClient.derived.js', 'scripts/generated/baseClient.derived.js']
   // 2026-10-13 实测 69 件（src/client 34 + src/shared 35）。这是「还没搬家」的存量，不是允许长期存在的额度：
   // 只许降不许升，降到 0 之后这条上限就改成 0。
   // 另有几件已知产物单列在 KNOWN_PRODUCTS_OUT_OF_SCOPE 里、不计进这 69（见那里的出处说明）。

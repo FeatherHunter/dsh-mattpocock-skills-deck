@@ -1,7 +1,7 @@
 /**
  * views/SettingsPage.ts — 配置页（TPL 表 + 设置，5.9）真源 ESM，build 拼回 src/client/index.ts leaf。
  * （原来是 .js：调试分组搬进 views/diagnosticLog/ 之后按「动到哪里转到哪里」转成 TypeScript。
- * 本页现在只剩标题、总览、更多插件三样，调试那一组只剩一行挂载，行为零变化。）
+ * 本页现在只剩标题、总览、调试那一组一行挂载，以及最底部由 base 包统一渲染的联系入口与作者插件卡。）
  *
  * 跨叶子的值引用按仓里规矩写模块级 declare（实现只在闭包里有一份，类型检查各看各的）：
  * 全局已声明的（React、DswsCtx、tr）直接用；下面这几行是本文件自己声明的，只写本页实际用的形状。
@@ -25,14 +25,45 @@ declare function noticeIcon(kind: unknown): string;
 declare const DSW_REPO_URL: string;
 declare const DSW_VERSION: unknown;
 declare const DiagnosticLogSection: (props: { sessionId?: unknown }) => unknown;
+// base 包接入：客户端内联产物（scripts/generated/baseClient.derived.js，由 derive-base 脚本从已安装包生成）
+// 只 surfacing 这两个名字，实现每份在客户端闭包里各有一份；这里按本页用到的形状声明。
+declare const __baseCreateUI: (react: unknown, options: { lang?: string; selfId?: string }) => any;
+declare const __baseEnsureStyles: (doc: unknown) => void;
 
-// 增-2（#520）：底部作者其他插件清单（4 个，2026-09-06 已验真；写死网址，不拉取不新增网络请求）
-const MORE_PLUGINS: Array<{ slug: string; url: string; descKey: string }> = [
-  { slug: 'dsh-mattpocock-skills-deck', url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck', descKey: 'more.desc.deck' },
-  { slug: 'dsh-opencode-palette', url: 'https://github.com/FeatherHunter/dsh-opencode-palette', descKey: 'more.desc.palette' },
-  { slug: 'dsh-prompt', url: 'https://github.com/FeatherHunter/dsh-prompt', descKey: 'more.desc.prompt' },
-  { slug: 'dsh-im-companion', url: 'https://github.com/FeatherHunter/dsh-im-companion', descKey: 'more.desc.companion' },
-]
+// base 包接入：联系入口与作者插件卡的数据与文案都由包内清单提供，本页不再写死插件行与推荐文案。
+// 工厂按 (React, 语言) 缓存一份：每次渲染都新建会丢弹窗状态；切语言才重建（uiLang 只有 zh/en 两档）。
+// 旧实现（MORE_PLUGINS 四条写死行 + more.title/more.desc.* 文案）已删，避免出现第二套联系信息真源。
+let __deckBaseUIReact: any = null
+let __deckBaseUILang: string = ''
+let __deckBaseUICache: any = null
+function deckBaseUI(): any {
+  // 未拼接 base 产物时（例如门禁直接 import 这个叶子、或用源码树做冒烟渲染）返回 null，
+  // 组件退化成不渲染而不是抛 ReferenceError；正式产物里 build 一定会把 kernel:baseClient 拼进来。
+  if (typeof __baseCreateUI !== 'function') return null
+  const lang: string = uiLang() === 'en' ? 'en' : 'zh'
+  if (!__deckBaseUICache || __deckBaseUIReact !== React || __deckBaseUILang !== lang) {
+    __deckBaseUIReact = React
+    __deckBaseUILang = lang
+    __deckBaseUICache = __baseCreateUI(React, { lang: lang, selfId: 'deck' })
+  }
+  return __deckBaseUICache
+}
+// 基础样式只注入一次（base 内部按 #dsh-base-ui-style 去重，重复调用幂等）；无 document 的测试环境跳过。
+function deckEnsureBaseStylesOnce(): void {
+  if (typeof document !== 'undefined' && typeof __baseEnsureStyles === 'function') __baseEnsureStyles(document)
+}
+function DeckContactRow(props: any): unknown {
+  const ui: any = deckBaseUI()
+  if (!ui) return null
+  deckEnsureBaseStylesOnce()
+  return React.createElement(ui.ContactRow, props || {})
+}
+function DeckAuthorPlugins(props: any): unknown {
+  const ui: any = deckBaseUI()
+  if (!ui) return null
+  deckEnsureBaseStylesOnce()
+  return React.createElement(ui.AuthorPlugins, props || {})
+}
 export     const SettingsPage = (props: { sessionId?: unknown }): unknown => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
@@ -88,19 +119,12 @@ export     const SettingsPage = (props: { sessionId?: unknown }): unknown => {
         // #492 沉底调试分组（布局文案沿 #334 原型：主开关默认关，写经 settingsDebugToggle（真源是本机设置文件的
         //   debug 节，宿主开机直接读它，见 #1012 第 8 条与 #1432），保存即广播；四键调宿主三电话加复用目录电话）
         h(DiagnosticLogSection, { sessionId: props && props.sessionId }),
-        // 增-2（#520）：底部作者其他插件独立区域（默认展开，每行点开跳对应仓库首页；不新增本地存档键）
-        h('div', { className: 'dsws-cfg-group' }, [
-          h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'skills', size: 13 }), h('span', null, tr('more.title'))]),
-        ].concat(MORE_PLUGINS.map(function (p, i) {
-          // 点击日志要能唯一定位到同屏的哪一行插件：仓库名本身就是稳定标识，洗成只留小写字母、数字与横线的枚举；
-          //   万一以后某个名字洗成空串，退回下标，保证每一行仍然唯一。
-          const slugKey = String(p.slug || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-          return h('a', { key: p.slug, className: 'dsws-hov', 'data-press': 'row', 'data-log': 'settings.plugin.' + (slugKey || ('i' + i)), href: p.url, target: '_blank', rel: 'noreferrer', style: { display: 'flex', alignItems: 'center', gap: 8, padding: '7px 4px', textDecoration: 'none', color: 'inherit' } }, [
-            h('span', { style: { fontFamily: 'Consolas,Menlo,monospace', fontSize: 12, fontWeight: 650, flex: 'none' } }, p.slug),
-            h('span', { style: { flex: 1, minWidth: 0, fontSize: 11.5, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, tr(p.descKey)),
-            Ic({ n: 'external-link', size: 12 }),
-          ])
-        }))),
+        // base 包接入：底部「联系入口 + 作者插件卡」由 base 包统一渲染（每仓只加这一处入口与一处推荐卡）。
+        //   联系群码、推荐插件与文案都来自包的数据真源，本页不再写死；点联系行弹包内统一的联系面板。
+        h('div', { className: 'dsws-cfg-group', key: 'base-footer' }, [
+          h(DeckContactRow, { key: 'contact' }),
+          h(DeckAuthorPlugins, { key: 'more' }),
+        ]),
         // T2 HoverTip 迁移：移除 sharedSt.cfgTip 全局 portal，改由 HoverTip 统一（行为零变化，翻转/样式走契约）
         null,
       ])

@@ -46,6 +46,8 @@ import { spawnSync, spawn } from 'node:child_process'
 import { cpus } from 'node:os'
 import { deriveClient } from './derive-log-from-package.mts'
 import { deriveClient as deriveUpdateClient } from './derive-update-from-package.mts'
+// base 包接入：联系入口与作者插件卡的客户端产物内联（kernel:baseClient 标记处），派生源是已安装的 base 包。
+import { deriveBaseClient } from './derive-base-from-package.mts'
 import { bundleEntryPanel } from './bundle-update-entry.mts'
 
 // #1023 内置 TypeScript 域的逐文件转译：原先四个计算核各自带一份 build.mjs，
@@ -464,6 +466,9 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #876 入口件浏览器绑定包（已安装更新包 dist/entry.js 含内部 dialog 面板，摆法与关闭轮询约定走包默认）
   { name: 'updateEntryBundle', file: 'scripts/generated/updateEntryPanel.bundle.js' },
   { name: 'log', file: 'scripts/generated/logKernel.derived.js' },
+  // base 包接入：联系入口与作者插件卡的客户端产物（已安装 base 包 dist/client/index.js 内联），
+  //   拼在日志内核之后；工厂只在 SettingsPage 叶子渲染时调用，不依赖其它分块的求值顺序。
+  { name: 'baseClient', file: 'scripts/generated/baseClient.derived.js' },
   // 本次界面反馈需求：全客户端唯一的按压委托与点击日志口（ui.action），必须排在 log 之后、页面组件之前。
   { name: 'uiFeedback', file: 'src/client/kernel/ui-feedback.ts' },
   // 构建内核清单含日志模块（运行时拼上面的派生文件，#564 留派生不搬；
@@ -2171,6 +2176,12 @@ try {
   await bundleEntryPanel()
 } catch (e) {
   throw new Error('[build] 更新派生失败（面板取值来源是已安装的更新包：先确认 pnpm install 已装好 dsh-plugin-update@^0.13.0，再重跑本构建）：' + ((e as Error) && (e as Error).message || e))
+}
+// base 包接入：把已安装 base 包的客户端产物内联成派生文件（联系入口与作者插件卡要用的组件工厂）。
+try {
+  deriveBaseClient()
+} catch (e) {
+  throw new Error('[build] base 包派生失败（内联源是已安装的 dsh-featherhunter-plugin-base：先确认 pnpm install 已装好 base@0.0.2，再重跑本构建）：' + ((e as Error) && (e as Error).message || e))
 }
 
 // 打包是最后一段长活（拼客户端与宿主两半产物），开始前再确认一次锁：这段里被接管的话，

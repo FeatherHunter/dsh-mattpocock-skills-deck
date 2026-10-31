@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T05:22:16.224Z",
+  "generatedAt": "2026-10-31T05:31:13.946Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 459,
   "gateCount": 459,
@@ -76,6 +76,7 @@
         "package/shared",
         "package/tracker",
         "package/tracker/index.js",
+        "scripts/generated/baseClient.derived.js",
         "scripts/generated/logKernel.derived.js",
         "scripts/generated/updateClient.derived.js",
         "scripts/generated/updateEntryPanel.bundle.js",
@@ -113,7 +114,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 15 条；源码里的路径字面量 15 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 15 条；源码里的路径字面量 16 条"
     },
     {
       "step": "node tests/verify-build-cwd-products.ts",
@@ -7880,6 +7881,7 @@
       "file": "tests/verify-generated-no-shadow.ts",
       "guards": [
         "package/lib/client.js",
+        "scripts/generated/baseClient.derived.js",
         "scripts/generated/logKernel.derived.js",
         "scripts/generated/updateClient.derived.js",
         "tests/lib/eval-probe.ts"

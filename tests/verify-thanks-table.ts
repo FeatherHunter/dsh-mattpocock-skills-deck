@@ -1,11 +1,11 @@
 // tests/verify-thanks-table.ts —— 致谢表离线一致性门禁：JSON 是源、表格是渲染结果。
 //
 // 为什么要有它：
-//   致谢表由脚本自动追加（中英两表、包内说明三处同画），人眼看不出「花数错一朵、
-//   顺序差一位、链接指错一个」。这扇门禁不联网，只做三件事：
+//   致谢表由 readme:sync 从这份 JSON 同源渲染（中英两表与包内说明三处同画），人眼看不出
+//   「花数错一朵、顺序差一位、链接指错一个」。这扇门禁不联网，只做三件事：
 //   1. 数据自洽（游标不比数据小、数组有序无重复、最后活跃时间真是最大值）；
 //   2. 进位规则钉死（1/9/10/11/50/55/99/100/123/250 的花串写死，改规则先改这里）；
-//   3. 表格就是渲染结果（三处标记之间的正文与 renderTable 逐字节一致，
+//   3. 表格就是渲染结果（readme:sync 写的三处标记之间正文与 renderTable 逐字节一致，
 //      中英两表行序、花串、链接一一对上）。
 // 不守「有没有漏掉新贡献」——那是联网脚本与每日任务的事，离线门禁够不着。
 import assert from 'node:assert/strict';
@@ -92,8 +92,8 @@ const cases: Array<[number, string]> = [
 for (const [total, want] of cases) assert.equal(rosesFor(total), want, `${total} 张票的花串应该是 ${want}`);
 
 // —— 4. 表格就是渲染结果 ——
-assert.equal(zhTable, renderTable(DATA.authors, true), '中文 README 的致谢表不是当前数据的渲染结果（跑 node scripts/update-thanks.mts --render-only 重画）');
-assert.equal(pkgTable, renderTable(DATA.authors, true), '包内说明的致谢表与中文 README 对不上（脚本会一起写，跑一次渲染即可）');
+assert.equal(zhTable, renderTable(DATA.authors, true), '中文 README 的致谢表不是当前数据的渲染结果（跑 pnpm run readme:sync 重画）');
+assert.equal(pkgTable, renderTable(DATA.authors, true), '包内说明的致谢表与中文 README 对不上（受管 README 由 readme:sync 同源渲染，跑一次即可）');
 assert.equal(enTable, renderTable(DATA.authors, false), '英文 README 的致谢表不是当前数据的渲染结果');
 
 // —— 5. 行序、花串、中英对等 ——
