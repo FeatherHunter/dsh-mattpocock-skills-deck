@@ -87,6 +87,11 @@ const TipStub = (props: any) => React.createElement('span', { 'data-tip': String
 globalThis.Tip = TipStub
 // #1573：失败横幅的显示口径住在 issueDetailErrorView.ts；叶子单独加载时闭包里没有这个名字，接真实现。
 globalThis.issueErrorViewOf = (await import('../src/client/views/issueDetailErrorView.js')).issueErrorViewOf
+// #1694：详情页读快照投影（detailViewFor 与它依赖的纯函数）走真实现；叶子单独加载时
+//   闭包里没有这些名字，这里同构接线，不抄一份假判据。
+const projMod = await import('../src/client/views/shared/detailProjection.js')
+globalThis.detailViewFor = projMod.detailViewFor
+globalThis.knownBlockedNodes = projMod.knownBlockedNodes
 const { DswsCtx, createCx } = await import('../src/client/kernel/ctx.js')
 const { renderIssueDetailComments } = await import('../src/client/views/IssueDetailComments.js')
 globalThis.renderIssueDetailComments = renderIssueDetailComments

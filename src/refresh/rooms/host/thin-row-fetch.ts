@@ -59,7 +59,7 @@ interface OneResult { k: any; row?: any; bad?: { outcome: string; reason: string
  * 合并服务据此按组判断能不能覆盖/清空旧值；同时把行内三态（IssueFieldStates）说 known:true
  * 的组值挂到行上。没有 provenance 的老回包（列表取数、测试里的假会话）行形状一个字节不变。
  */
-function rowOf(issue: Issue, provenance?: any): any {
+export function rowOf(issue: Issue, provenance?: any): any {
   const labels = (issue.labels || []).map(function (l: any): any { return { name: l.name, color: l.color || '' } })
   const assignees = (issue.assignees || []).map(function (a: any): any { return a.login })
   const row: any = {

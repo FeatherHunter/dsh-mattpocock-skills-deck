@@ -233,9 +233,8 @@
       // 本地容器的编号是 0（key 00），是合法坐标：缺席与空串先归一成 NaN，再拦非数字与负数，不拦 0。
       const num = Number((n === undefined || n === null || String(n).trim() === '') ? NaN : n)
       if (isNaN(num) || num < 0) return Promise.resolve({ ok: false, error: { kind: 'parse', message: 'invalid number', raw: '' } })
-      // 详情这条通路上的四个失败出口做的是同样四件事：记成 err 态、清掉详情、通知重画、把失败交回调用方。
-      // 收成一处，四个出口各自只写「是什么错」。上面「编号不是数」那一支故意不走这里：那时还没碰过状态。
-      const failDetail = function (err: any) { st.issueMode = 'err'; st.issueError = err; st.issueDetail = null; emit(st); return { ok: false, error: err } }
+      // #1694：失败不再清空 st.issueDetail —— 上次取到的内容继续画，只标失败（时间由投影从详情缓存取）。
+      const failDetail = function (err: any) { st.issueMode = 'err'; st.issueError = err; emit(st); return { ok: false, error: err } }
       const force = !!(opts && opts.force)
       // effort 维度：详情缓存按票身份 (effort, 编号) 键入，否则两个 effort 的同号票会互相顶掉
       const effortId = (opts && opts.effortId !== undefined && opts.effortId !== null) ? String(opts.effortId) : ''

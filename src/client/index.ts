@@ -380,6 +380,8 @@ export default {
     // ==== leaf:mapV2CardFlow (spliced by build) ====
     // ==== leaf:mapV2Page (spliced by build) ====
 
+    // #1694：详情页读快照投影（上次数据先画、失败不清空、读投影开关），排在 IssueDetail 之前拼进闭包。
+    // ==== leaf:detailProjection (spliced by build) ====
     // ==== leaf:issueDetailErrorView (spliced by build) ==== // ==== leaf:subIssueRouting (spliced by build) ==== // ==== leaf:IssueDetailComments (spliced by build) ==== // ==== leaf:issueDetailFold (spliced by build) ==== // ==== leaf:useIssueDetailFold (spliced by build) ==== // ==== leaf:IssueDetail (spliced by build) ====
 
     // ==== leaf:tagsFit (spliced by build) ====

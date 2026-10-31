@@ -71,6 +71,7 @@ zh:
   detail.noBody: 无描述
   detail.bodyNotYet: 正文还没拿到
   detail.evictedAt: 未取（曾在 {time}）
+  detail.lastKnownData: 上次数据（{time}）
   detail.notYet: 还没拿到
   detail.noComments: 无评论
   detail.commentsLoading: 加载中
@@ -327,6 +328,7 @@ en:
   detail.noBody: No description
   detail.bodyNotYet: Description not loaded yet
   detail.evictedAt: Not loaded (last fetched at {time})
+  detail.lastKnownData: Last data ({time})
   detail.notYet: Not loaded yet
   detail.noComments: No comments
   detail.commentsLoading: Loading
