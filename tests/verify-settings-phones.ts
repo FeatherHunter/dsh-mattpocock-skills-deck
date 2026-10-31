@@ -249,9 +249,10 @@ async function main() {
     // #1748 加了变基待办页两条电话 wf.gitUndoCheck / wf.gitUndoWrite（历史改写五条动作的预检签票与凭票执行），90 → 92。
     // #1757（T21）加了子模块页四条电话 wf.gitSubmodules / wf.gitSubmoduleCheck / wf.gitSubmoduleWrite / wf.gitSubmoduleTask（读数、预检签票、凭票执行五个写动作、把五个长任务动作转交 T05 通道），92 → 96。
     // #1749（T14）又加了变基待办页三条电话 wf.gitRebaseRead / wf.gitRebaseCheck / wf.gitRebaseWrite（只读一取全、预检签票、凭票执行），96 → 99。
-    check(nPhones === 101, '宿主电话一百零一条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
     // #1759（T23）又加了迁移与备份域两条电话 wf.gitMigrateCheck / wf.gitMigrateWrite（预检签票与凭票执行），99 → 101。
-      }
+    // #1761 加了诊断页三条电话 wf.gitDiagnosticsRead / wf.gitDiagnosticsCheck / wf.gitDiagnosticsWrite（只读查询、预检签 120 秒票、凭票执行），101 → 104。
+    check(nPhones === 104, '宿主电话一百零四条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+  }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——
   console.log('')

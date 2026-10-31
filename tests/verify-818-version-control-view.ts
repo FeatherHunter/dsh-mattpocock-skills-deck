@@ -140,6 +140,9 @@ const VC_FILES = [
   // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
   'src/client/views/versionControl/vcStashOps.js',
   'src/client/views/versionControl/vcStashPage.js',
+  // #1761 诊断页两片（与构建同序）：先数据与动作层，再页面正文；页面壳只在诊断页且拿到读数时挂它。
+  'src/client/views/versionControl/vcDiagnostics.js',
+  'src/client/views/versionControl/vcDiagnosticsPage.js',
   // #1748 变基待办页的历史改写面板（与构建同序）：先数据层，再页面本体，都排在页面壳之前。
   'src/client/views/versionControl/vcUndoOps.js',
   'src/client/views/versionControl/vcUndoPage.js',
@@ -243,6 +246,14 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcStashStagedStateOf', 'vcStashOpVisibleOf', 'vcStashNeedsConfirmOf', 'vcStashConfirmOf', 'vcStashConfirmPayloadOf', 'vcStashActionPayloadOf', 'vcStashCallOf',
   'vcStashFailKeyOf', 'vcStashResultOf', 'vcStashApplyReply', 'vcStashRecentOf', 'vcStashShortOidOf', 'vcStashWhenOf',
   'vcStashPageNode', 'VC_STASH_PAGE_SOURCE',
+  // #1761 诊断页与 5.12 替换：电话名、查询目录、动作层、页面正文（13.3 / 13.14 只画指针，13.13 只读）。
+  'VC_DIAG_PHONES', 'VC_DIAG_QUERY_ROWS', 'VC_DIAG_BISECT_ACTIONS', 'VC_DIAG_POINTERS',
+  'VC_DIAG_BISECT_CAP', 'VC_DIAG_PATCH_CAP', 'VC_DIAG_TRAILER_CAP', 'VC_DIAG_REPLACE_CAP',
+  'vcDiagnosticsStateNew', 'vcDiagnosticsInputOf', 'vcDiagnosticsReadPayloadOf', 'vcDiagnosticsPatchPayloadOf',
+  'vcDiagnosticsTrailerPayloadOf', 'vcDiagnosticsReplaceListPayloadOf', 'vcDiagnosticsWritePayloadOf', 'vcDiagnosticsDangerousOf',
+  'vcDiagnosticsCallOf', 'vcDiagnosticsFailKeyOf', 'vcDiagnosticsShortOidOf', 'vcDiagnosticsResultOf', 'vcDiagnosticsRowsOf',
+  'vcDiagnosticsApplyReadReply', 'vcDiagnosticsApplyWriteReply', 'vcDiagnosticsActionsOf',
+  'vcDiagnosticsMountNode', 'vcDiagnosticsPageNode', 'VC_DIAGNOSTICS_SOURCE', 'VC_DIAG_PAGE_SOURCE',
   // #1752 工作树页：共享动作层的八条动作与判定、数据层模型、处理层参数整形、页面体与八条入口。
   'WORKTREE_ACTIONS', 'WORKTREE_CAP_IDS', 'WORKTREE_REASONS', 'worktreeJudge', 'worktreeArgsOf', 'worktreeRowsOf', 'worktreePruneEntriesOf',
   'VC_WORKTREES_ENTRY_DEFS', 'VC_WORKTREE_PHONES', 'VC_WORKTREES_PAGE_SOURCE', 'VC_WORKTREES_DATA_SOURCE',
@@ -404,12 +415,15 @@ async function main() {
   // #1751 贮藏页那一族（十条动作名、版本门、确认卡、最近丢弃与失败话术）。
   const vcStashMod = await import(locUrl('src/client/kernel/locale-vcstash.js'))
   const L_VCSTASH = vcStashMod.L_VCSTASH
+  // #1761 诊断页那一族（十三条只读查询与替换对象的说明、字段、失败分类与九个理由）。
+  const vcDiagLocMod = await import(locUrl('src/client/kernel/locale-vcdiagnostics.js'))
+  const L_VCDIAGNOSTICS = vcDiagLocMod.L_VCDIAGNOSTICS
   // #1748 变基待办页历史改写那一族（五条动作名、字段说明、确认卡与恢复点、失败话术）。
   const vcUndoMod = await import(locUrl('src/client/kernel/locale-vcundo.js'))
   const L_VCUNDO = vcUndoMod.L_VCUNDO
   LOC = {
-    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh, L_VCUNDO.zh, L_VCSUBMODULES.zh),
-    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en, L_VCUNDO.en, L_VCSUBMODULES.en),
+    zh: Object.assign({}, L_VCDIAGNOSTICS.zh, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh, L_VCUNDO.zh, L_VCSUBMODULES.zh),
+    en: Object.assign({}, L_VCDIAGNOSTICS.en, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en, L_VCUNDO.en, L_VCSUBMODULES.en)
   }
   tZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
   tEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
@@ -1356,6 +1370,113 @@ async function main() {
   const pPlainDecision = VIEW.judge(pScreen, 'commit')
   const pAmendDecision = VIEW.commitDecisionOf(pPlainDecision, VIEW.commitPlanOf({ mode: 'amend' }), pScreen)
   check(pPlainDecision.verdict === 'block' && pPlainDecision.reasons.indexOf('nothing-staged') >= 0 && pAmendDecision.verdict === 'allow', 'P13 提交形态判定与宿主同源（普通提交拦住 nothing-staged，修订只改说明时放行）')
+
+  // ---- DG 组：#1761 诊断页（域 13 十四条 + 5.12 替换对象）----
+  // 口径按票面写死：13.1 与 5.12 是本页仅有的两个受控写（都走预检签票 → 确认 → 凭票执行）；
+  //   13.2 是二分范围读数（刷新按钮，不另算一条主入口）；13.3 / 13.14 的主入口在别的页，只画指针；
+  //   13.13 只读展示（写入在提交页的「追加签名行」）；13.12 只做 apply --check 预演。
+  const dgReads = readsOf(pScreen)
+  const dgStateOf = function (v: any, patch: any) { return Object.assign({}, v.vcDiagnosticsStateNew(), patch || {}) }
+  const dgRenderOf = function (v: any, patch: any) {
+    const opts: any = {
+      page: 'diagnostics', width: 460, skin: 'dark', reads: dgReads, diagnostics: dgStateOf(v, patch),
+      onDiagnosticsRead: function () {}, onDiagnosticsWrite: function () {}, onDiagnosticsEdit: function () {},
+      onDiagnosticsConfirm: function () {}, onDiagnosticsCancel: function () {},
+    }
+    try { return renderToStaticMarkup(v.vcRenderTabAt(h, tZh, opts)) } catch (e) { console.log('    （诊断页渲染抛错：' + ((e && e.message) || e) + '）'); return '' }
+  }
+  const dgCapCountOf = function (html: string, cap: string) { return attrValuesOf(html, 'data-cap-control').filter(function (x) { return x === cap }).length }
+  const dgReplaceRows = ['aaaa1111bbbb', 'cccc2222dddd']
+  const dgPlain = dgRenderOf(VIEW, null)
+  check(typeof VIEW.vcDiagnosticsPageNode === 'function' && typeof VIEW.vcDiagnosticsMountNode === 'function' && VIEW.VC_DIAG_PHONES.read === 'wf.gitDiagnosticsRead' && VIEW.VC_DIAG_PHONES.check === 'wf.gitDiagnosticsCheck' && VIEW.VC_DIAG_PHONES.write === 'wf.gitDiagnosticsWrite' && VIEW.VC_DIAG_PAGE_SOURCE === 'src/client/views/versionControl/vcDiagnosticsPage.ts', 'DG1 诊断页两片与三条电话已按构建次序拼进闭包（读 / 预检 / 凭票执行各一条，电话名只有一处定义）')
+  const dgChangesHtml = shellHtmlOf({ page: 'changes', width: 460, skin: 'dark', reads: dgReads })
+  check(dgPlain.indexOf('data-vc-diag-panel="1"') >= 0 && dgPlain.indexOf('data-vc-page="diagnostics"') >= 0 && dgChangesHtml.indexOf('data-vc-diag-panel') < 0, 'DG2 只有诊断页画出正文面板（拿到读数才挂，别的页签不被塞进来）')
+  const dgOps = attrValuesOf(dgPlain, 'data-vc-diag-op')
+  check(dgCapCountOf(dgPlain, '13.1') === 5 && ['bisect-start', 'bisect-bad', 'bisect-good', 'bisect-skip', 'bisect-reset'].every(function (op) { return dgOps.indexOf(op) >= 0 }), 'DG3 13.1 二分是受控写：开始 / 标坏 / 标好 / 跳过 / 重置五颗按钮（各自带动作名，不提供任意命令）')
+  const dgReadCaps = ['13.4', '13.5', '13.6', '13.7', '13.8', '13.9', '13.10', '13.11']
+  check(dgReadCaps.every(function (cap) { return dgCapCountOf(dgPlain, cap) === 1 && attrValuesOf(dgPlain, 'data-vc-diag-row').indexOf(cap) >= 0 }), 'DG4 13.4–13.11 八条只读查询各有一个查询按钮和一个输入行（能力与查询种类都在数据层一处定义）')
+  check(dgCapCountOf(dgPlain, '13.2') === 0 && attrValuesOf(dgPlain, 'data-vc-diag-read-btn').indexOf('13.2') >= 0, 'DG5 13.2 二分范围是刷新式读数：有刷新按钮、不另占一个 data-cap-control（主入口仍由能力行负责）')
+  const dgPatch = dgRenderOf(VIEW, { inputs: { '13.12': { patch: 'diff --git a/a.txt b/a.txt' } } })
+  check(dgPatch.split('<textarea').length - 1 === 1 && dgPatch.indexOf('data-vc-diag-input="13.12.patch"') >= 0 && dgPatch.indexOf('rows="6"') >= 0 && dgCapCountOf(dgPatch, '13.12') === 1 && dgPatch.indexOf(tZh('vc.diag.patch.preview')) >= 0, 'DG6 13.12 只做预演：补丁写在多行输入框里，按钮文字就是「预演补丁」（不提供真实应用）')
+  check(dgCapCountOf(dgPlain, '13.13') === 0 && dgPlain.indexOf('data-vc-diag-readonly="13.13"') >= 0 && dgPlain.indexOf(tZh('vc.diag.trailer.note')) >= 0, 'DG7 13.13 尾部签名行本页只读：没有按钮、明说写入在提交页的「追加签名行」')
+  check(attrValuesOf(dgPlain, 'data-vc-diag-pointer').join(',') === '13.3,13.14' && attrValuesOf(dgPlain, 'data-vc-diag-pointer-page').join(',') === 'search,commits' && dgCapCountOf(dgPlain, '13.3') === 0 && dgCapCountOf(dgPlain, '13.14') === 0, 'DG8 13.3 / 13.14 的主入口在别的页：本页只画一条指回全库搜索、提交历史页的指针，不给按钮')
+  const dgReadOnlyJudgmentOf = function (v: any) {
+    const html = dgRenderOf(v, null)
+    return dgCapCountOf(html, '13.13') === 0 && html.indexOf('data-vc-diag-readonly="13.13"') >= 0
+  }
+  const dgReplaceJudgmentOf = function (v: any) {
+    const html = dgRenderOf(v, { reads: { '5.12': { kind: 'replace-list', atMs: NOW, rows: dgReplaceRows } } })
+    const at = html.indexOf('data-vc-diag-undo="' + dgReplaceRows[0] + '"')
+    const seg = at < 0 ? '' : html.slice(at, at + 500)
+    return dgCapCountOf(html, '5.12') === 3 && seg.indexOf('replace-delete') >= 0 && seg.indexOf('data-cap-control="5.12"') >= 0
+  }
+  const dgPointerJudgmentOf = function (v: any) {
+    const html = dgRenderOf(v, null)
+    return attrValuesOf(html, 'data-vc-diag-pointer').join(',') === '13.3,13.14'
+  }
+  check(dgReplaceJudgmentOf(VIEW), 'DG9 5.12 替换对象：一颗建替换按钮、每条替换各一颗撤销按钮（撤销就在那一行上，--delete 才能一键撤）')
+  const dgPrimary = attrValuesOf(dgPlain, 'data-cap-primary')
+  check(dgPrimary.length === VIEW.PAGE_COUNTS.diagnostics && new Set(dgPrimary).size === dgPrimary.length && dgPrimary.indexOf('13.1') >= 0 && dgPrimary.indexOf('13.13') >= 0, 'DG10 面板不抢主入口标记：诊断页仍是 ' + VIEW.PAGE_COUNTS.diagnostics + ' 条 data-cap-primary，本页面板的按钮只带 data-cap-control')
+  const dgConfirm = dgRenderOf(VIEW, { confirm: { cap: '5.12', op: 'replace-create', ticketId: 't1', verb: '建立替换', target: 'aaaa → bbbb' } })
+  check(dgConfirm.indexOf('data-vc-diag-confirm="replace-create"') >= 0 && attrValuesOf(dgConfirm, 'data-vc-confirm-seg').join(',') === 'what,wont,reversible,verb' && dgConfirm.indexOf('data-focus-default="cancel"') >= 0 && dgConfirm.indexOf('data-vc-diag-confirm-go') >= 0, 'DG11 5.12 建替换是危险动作：确认卡贴在这一块里、四段齐全、默认焦点在取消键')
+  const dgFail = dgRenderOf(VIEW, { results: { '5.12': { ok: false, failKey: 'vc.diag.reason.noReplace', git: 'fatal: replace ref ... does not exist', message: '撤销失败' } } })
+  const dgReplaceBlockAt = dgFail.indexOf('data-vc-diag-block="replace"')
+  const dgCreateAt = dgFail.indexOf('data-vc-diag-op="replace-create"')
+  const dgReplaceFailAt = dgFail.indexOf('data-vc-diag-result="fail"')
+  check(dgReplaceBlockAt >= 0 && dgReplaceFailAt > dgCreateAt && dgFail.indexOf('role="alert"') >= 0 && dgFail.indexOf(LOC.zh['vc.diag.reason.noReplace']) >= 0 && dgFail.indexOf('fatal: replace ref') >= 0, 'DG12 失败结果画在触发它的替换块里（在按钮之后）、带分类词条与 git 原话（结果贴触发点，不是全局横幅）')
+  const dgReadOk = dgRenderOf(VIEW, { results: { '13.4': { ok: true, command: 'ls-files -z', kind: 'ls-files' } }, reads: { '13.4': { kind: 'ls-files', atMs: NOW, rows: ['a.txt'] } } })
+  const dgRowAt = dgReadOk.indexOf('data-vc-diag-row="13.4"')
+  check(dgRowAt >= 0 && dgReadOk.indexOf('data-vc-diag-result="ok"', dgRowAt) > dgRowAt && dgReadOk.indexOf('ls-files -z', dgRowAt) > dgRowAt && dgReadOk.indexOf('a.txt', dgRowAt) > dgRowAt, 'DG13 只读结果画在那一行查询里（命令原文与结果行都在同一行内）')
+  const dgBisectOk = dgRenderOf(VIEW, { results: { '13.1': { ok: true, command: 'bisect start', op: 'bisect-start' } } })
+  const dgBisectBlockAt = dgBisectOk.indexOf('data-vc-diag-block="bisect"')
+  const dgReadBlockAt = dgBisectOk.indexOf('data-vc-diag-block="read"')
+  const dgBisectResultAt = dgBisectOk.indexOf('data-vc-diag-result="ok"')
+  check(dgBisectResultAt > dgBisectBlockAt && dgBisectResultAt < dgReadBlockAt, 'DG14 13.1 的结果落在二分块里，不跑到别的块')
+  const dgInactive = dgRenderOf(VIEW, { reads: { '13.2': { kind: 'bisect-status', atMs: NOW, rows: ['0'] } } })
+  check(dgInactive.indexOf('data-vc-diag-bisect-inactive="1"') >= 0 && dgInactive.indexOf(tZh('vc.diag.bisect.inactive')) >= 0, 'DG15 不在二分时不画假范围：明说「没有正在进行的二分」（读数与按钮状态分开）')
+  check(VIEW.vcDiagnosticsFailKeyOf('blocked', 'not-a-commit') === 'vc.diag.reason.notACommit' && VIEW.vcDiagnosticsFailKeyOf('git-failed', 'no-replace') === 'vc.diag.reason.noReplace' && VIEW.vcDiagnosticsFailKeyOf('args', 'x') === 'vc.diag.fail.args' && VIEW.vcDiagnosticsFailKeyOf('weird', 'y') === 'vc.diag.fail.unknown', 'DG16 失败分类只翻词条键：理由优先、其次按 kind 归族、认不出的一律落 unknown（不现编人话）')
+  const dgPaths = VIEW.vcDiagnosticsReadPayloadOf('13.4', { '13.4': { paths: 'a.txt b.txt' } })
+  check(dgPaths.phone === 'read' && dgPaths.args.kind === 'ls-files' && JSON.stringify(dgPaths.args.params.paths) === JSON.stringify(['a.txt', 'b.txt']) && VIEW.vcDiagnosticsReadPayloadOf('13.2', {}).args.kind === 'bisect-status' && VIEW.vcDiagnosticsReadPayloadOf('5.12', {}).args.kind === 'replace-list', 'DG17 只读参数只从界面表翻出来：路径拆成数组、13.2 是二分状态、5.12 是替换清单（界面不拼 git 参数）')
+  const dgApply = VIEW.vcDiagnosticsPatchPayloadOf({ '13.12': { patch: 'p' } })
+  const dgTrailer = VIEW.vcDiagnosticsTrailerPayloadOf({})
+  const dgWrite = VIEW.vcDiagnosticsWritePayloadOf('replace-create', { from: 'aaaa', to: 'bbbb' })
+  check(dgApply.args.kind === 'apply-check' && dgApply.args.params.patch === 'p' && dgTrailer.args.kind === 'trailers' && dgTrailer.args.params.object === 'HEAD' && dgWrite.phone === 'check' && dgWrite.args.op === 'replace-create' && dgWrite.args.from === 'aaaa' && dgWrite.args.to === 'bbbb', 'DG18 13.12 只送 apply-check、13.13 尾部签名行读的是 trailers、5.12 写动作先走预检（check 电话，不直接写）')
+  let dgCallArgs: any = null
+  const dgCall = function (name: string, args: any) { dgCallArgs = { name: name, args: args }; return { ok: true } }
+  VIEW.vcDiagnosticsCallOf(dgCall, 'D:/w/repo', { phone: 'read', args: { kind: 'ls-files' } })
+  check(dgCallArgs.name === 'wf.gitDiagnosticsRead' && dgCallArgs.args.cwd === 'D:/w/repo' && dgCallArgs.args.kind === 'ls-files' && dgCallArgs.args.phone === undefined, 'DG19 三条电话只有一个出口：电话名按 read / check / write 三档翻，仓库路径由调用方给，界面不往参数里塞别的键')
+  check(VIEW.vcDiagnosticsDangerousOf('bisect-start') === true && VIEW.vcDiagnosticsDangerousOf('bisect-reset') === true && VIEW.vcDiagnosticsDangerousOf('replace-create') === true && VIEW.vcDiagnosticsDangerousOf('replace-delete') === true && VIEW.vcDiagnosticsDangerousOf('bisect-bad') === false && VIEW.vcDiagnosticsDangerousOf('bisect-skip') === false, 'DG20 危险档只认会改仓库状态的四个动作（开始 / 重置二分、建替换、删替换），标坏标好跳过是一步一下')
+  let dgUi: any = { diagnostics: VIEW.vcDiagnosticsStateNew() }
+  const dgCalls: any[] = []
+  const dgReplies = [
+    { ok: true, confirmRequired: true, confirm: { verb: '建立替换', target: 'aaaa → bbbb' }, ticket: { id: 'T-1' } },
+    { ok: true, op: 'replace-create', command: 'replace aaaa bbbb' },
+  ]
+  const dgActions = VIEW.vcDiagnosticsActionsOf({
+    ui: dgUi,
+    setUi: function (fn: any) { dgUi = fn(dgUi) },
+    callHost: function (name: string, args: any) { dgCalls.push({ name: name, args: args }); return Promise.resolve(dgReplies[dgCalls.length - 1]) },
+    cwd: 'D:/w/repo', nowMs: function () { return NOW },
+  })
+  await dgActions.submit('5.12', 'replace-create', { from: 'aaaa', to: 'bbbb' })
+  const dgConfirmState = dgUi.diagnostics.confirm
+  check(!!dgConfirmState && dgConfirmState.op === 'replace-create' && dgConfirmState.ticketId === 'T-1' && dgCalls.length === 1 && dgCalls[0].name === 'wf.gitDiagnosticsCheck' && dgCalls[0].args.op === 'replace-create', 'DG21 危险动作先预检签票：拿到票与确认文案才立确认卡，确认前一个写进程都不发')
+  await dgActions.confirmNow()
+  check(dgCalls.length === 2 && dgCalls[1].name === 'wf.gitDiagnosticsWrite' && dgCalls[1].args.ticketId === 'T-1' && dgCalls[1].args.op === 'replace-create' && dgCalls[1].args.confirmed === true && !!dgCalls[1].args.requestId && dgUi.diagnostics.confirm === null && dgUi.diagnostics.results['5.12'].ok === true, 'DG22 点确认才凭票执行：一条写电话带票据号、请求号与确认标记，结果落回 5.12 那一格并收起确认卡')
+  let dgUi2: any = { diagnostics: VIEW.vcDiagnosticsStateNew() }
+  const dgCalls2: any[] = []
+  const dgActions2 = VIEW.vcDiagnosticsActionsOf({
+    ui: dgUi2,
+    setUi: function (fn: any) { dgUi2 = fn(dgUi2) },
+    callHost: function (name: string, args: any) { dgCalls2.push({ name: name, args: args }); return Promise.resolve({ ok: true, op: 'bisect-bad', command: 'bisect bad' }) },
+    cwd: 'D:/w/repo', nowMs: function () { return NOW },
+  })
+  await dgActions2.submit('13.1', 'bisect-bad', {})
+  check(dgCalls2.length === 2 && dgCalls2[0].name === 'wf.gitDiagnosticsCheck' && dgCalls2[0].args.op === 'bisect-bad' && dgCalls2[1].name === 'wf.gitDiagnosticsWrite' && dgUi2.diagnostics.confirm === null, 'DG23 一步一下的动作也要先预检再执行（只是不立确认卡）：两次调用都走同一对电话，路径不另开一条')
+  const dgRunning = dgRenderOf(VIEW, { running: '13.1' })
+  const dgStartAt = dgRunning.indexOf('data-vc-diag-op="bisect-start"')
+  const dgStartTag = dgStartAt < 0 ? '' : dgRunning.slice(dgRunning.lastIndexOf('<button', dgStartAt), dgRunning.indexOf('>', dgStartAt))
+  check(dgRunning.indexOf('data-vc-diag-running="1"') >= 0 && dgStartTag.indexOf('disabled') >= 0, 'DG24 有动作在跑时页面显示进行中、按钮禁用（同一时刻只允许一次调用，避免重复签票）')
 
   // ---- W 组：首屏一次取全（#1739 T04）—— 七片一份快照、一次聚合调用、单片失败不阻塞 ----
   // 契约真源在共享层 first-screen.ts（已拼进这个闭包）；这里断言的是界面侧拿到的那一份快照与调用次数，
@@ -2677,6 +2798,12 @@ async function main() {
     { name: '追加签名行挂到别条能力上', patch: (s) => s.replace("{ key: 'signoff', cap: '2.6',", "{ key: 'signoff', cap: '2.5',"), test: pCapControlJudgmentOf, what: 'P3' },
     // #1743：确认卡删掉「可逆性与恢复路径」那一段 —— P7 的四段判据必须当场红。
     { name: '确认卡删掉可逆性与恢复路径', patch: (s) => s.replace("          { seg: 'reversible', text: t('vc.commit.confirm.reversible', params) },\n", ''), test: pConfirmJudgmentOf, what: 'P7' },
+    // #1761：13.13 尾部签名行从只读变成又一颗按钮 —— DG7 的只读判据必须当场红。
+    { name: '13.13 尾部签名行加回按钮', patch: (s) => s.replace("  kids.push(h('p', { key: 'note', className: 'vcs-diag-note', 'data-vc-diag-trailer-note': '1' }, t('vc.diag.trailer.note')))", "  kids.push(h('p', { key: 'note', className: 'vcs-diag-note', 'data-vc-diag-trailer-note': '1' }, t('vc.diag.trailer.note')))\n  kids.push(h('button', { key: 'extra', 'data-cap-control': '13.13' }, 'x'))"), test: dgReadOnlyJudgmentOf, what: 'DG7' },
+    // #1761：5.12 的撤销按钮挂到 13.1 上 —— DG9 的「撤销就在那一行」判据必须当场红。
+    { name: '5.12 撤销按钮挂到 13.1', patch: (s) => s.replace("cap: VC_DIAG_REPLACE_CAP, logId: 'vc.diag.replace.undo', label: t('vc.diag.replace.undo')", "cap: '13.1', logId: 'vc.diag.replace.undo', label: t('vc.diag.replace.undo')"), test: dgReplaceJudgmentOf, what: 'DG9' },
+    // #1761：13.3 / 13.14 的指针整块不画（只剩骨架）—— DG8 的指针判据必须当场红。
+    { name: '诊断页不再指回 13.3 与 13.14 的主入口', patch: (s) => s.replace('    vcDiagPointerBlock(h, t),', '    null,'), test: dgPointerJudgmentOf, what: 'DG8' },
     // #1751：贮藏页的三处反证 —— 挂载被摘掉、版本门恒放行、危险动作不出确认卡，对应断言必须当场红。
     { name: '贮藏页不再挂进页面壳（十条入口全没了）', patch: (s) => s.replace("if (page === 'stash' && typeof vcStashPageNode === 'function') {", 'if (false) {'), test: stashMountedJudgmentOf, what: 'Z16a' },
     { name: '7.3 的版本门恒放行（低版本也画按钮）', patch: (s) => s.replace('const state = vcStashOpVersionStateOf(VC_STASH_STAGED_OP, versionText)', "const state = 'full'"), test: stashGateJudgmentOf, what: 'Z16m' },
