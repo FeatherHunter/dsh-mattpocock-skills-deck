@@ -116,35 +116,45 @@ async function main() {
     'prompt 说明要求没发生的事留给用户填（#1666）')
   check(String(promptSpec.description || '').indexOf('不编') >= 0, 'prompt 说明要求不编具体值（#1666）')
   check(String(promptSpec.description || '').indexOf('我已回答') < 0, 'prompt 说明不引用错误的已完成句式，避免把禁句带进上下文（#1666）')
-  check(reasonSpec && reasonSpec.type === 'string' && String(reasonSpec.description || '').indexOf('为什么') >= 0, 'reason 是一句话理由')
-  check(String(reasonSpec.description || '').indexOf('凭什么') >= 0 && String(reasonSpec.description || '').indexOf('具体依据') >= 0,
-    'reason 说明写清理由怎么说（凭什么推荐这一步、写具体依据）')
+  check(reasonSpec && reasonSpec.type === 'string' && String(reasonSpec.description || '').indexOf('为什么现在提') >= 0, 'reason 是「为什么现在提」的前因')
+  check(String(reasonSpec.description || '').indexOf('前因') >= 0 && String(reasonSpec.description || '').indexOf('30 字以内') >= 0,
+    'reason 说明写清理由怎么写（前因、这一轮看得见的事实、30 字以内）')
+  const gainSpec = itemsSpec.items.properties && itemsSpec.items.properties.gain
+  const costSpec = itemsSpec.items.properties && itemsSpec.items.properties.cost
+  check(gainSpec && gainSpec.type === 'string' && String(gainSpec.description || '').indexOf('优点') >= 0 && String(gainSpec.description || '').indexOf('30 字以内') >= 0,
+    'gain 是「优点」格：做了能得到什么，30 字以内')
+  check(costSpec && costSpec.type === 'string' && String(costSpec.description || '').indexOf('缺点') >= 0 && String(costSpec.description || '').indexOf('30 字以内') >= 0,
+    'cost 是「缺点」格：代价、风险或它不解决的问题，30 字以内')
   const prioritySpec = itemsSpec.items.properties && itemsSpec.items.properties.priority
-  check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.join(',') === 'intro,prompt,reason', '每条必须同时给 intro、prompt 与 reason')
-  check(!!prioritySpec && prioritySpec.type === 'number', 'priority 是可选的数字（推荐优先级）')
+  check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.join(',') === 'intro,prompt,reason,gain,cost,priority', '每条必须同时给简介、提示词、理由、优点、缺点与推荐分六格')
+  check(!!prioritySpec && prioritySpec.type === 'number', 'priority 是数字（推荐分）')
   check(!!prioritySpec && String(prioritySpec.description || '').indexOf('0 到 10') >= 0, 'priority 说明写清合法区间是 0 到 10')
   check(String(prioritySpec.description || '').indexOf('分越高') >= 0 && String(prioritySpec.description || '').indexOf('先做') >= 0,
     'priority 说明写清方向：分越高越建议先做')
-  check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.indexOf('priority') < 0, 'priority 不强制（拿不准可以不打分）')
+  check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.indexOf('priority') >= 0, 'priority 必填（每条都要打分，几条之间才有先后）')
   check(itemsSpec.items.additionalProperties === false, '每条不收未知字段')
   // 注册表只接受受支持的 JSON Schema 子集（没有 minItems / maxItems），2~4 的约束由代码钳制，
   // 所以这里反过来钉住：参数模式里不许出现这两个关键字，否则真机注册会被拒。
   check(JSON.stringify(def.parameters).indexOf('minItems') < 0 && JSON.stringify(def.parameters).indexOf('maxItems') < 0,
     '参数模式不带 minItems / maxItems（注册表子集不支持，约束由代码钳制）')
   check(tool.MIN_ITEMS === 2 && tool.MAX_ITEMS === 4, '上下限常量是 2 与 4')
-  check(tool.INTRO_MAX_WIDTH === 30 && tool.PROMPT_MAX_CHARS === 500 && tool.REASON_MAX_CHARS === 200, '单项文本上限是简介 30 格宽、提示词 500 与理由 200 个码点')
+  check(tool.INTRO_MAX_WIDTH === 30 && tool.PROMPT_MAX_CHARS === 500 && tool.REASON_MAX_CHARS === 30 && tool.GAIN_MAX_CHARS === 30 && tool.COST_MAX_CHARS === 30,
+    '单项文本上限是简介 30 格宽、提示词 500 码点，理由/优点/缺点各 30 码点')
   check(tool.PRIORITY_MIN === 0 && tool.PRIORITY_MAX === 10, '推荐优先级的合法区间是 0 到 10')
 
   // ── 2. 参数校验与钳制：纯函数结论（不经过回执壳，先把规矩钉死） ──
   const resolve = tool.resolveSuggestItems
-  const two = [{ intro: '拆票', prompt: '/to-tickets', reason: '把规格拆成实施票' }, { intro: '接着做', prompt: '继续实现', reason: '接着做下一票' }]
+  const two = [
+    { intro: '拆票', prompt: '/to-tickets', reason: '把规格拆成实施票', gain: '拆完就能逐张开工', cost: '拆票本身要多花一轮', priority: 8 },
+    { intro: '接着做', prompt: '继续实现', reason: '接着做下一票', gain: '顺着上下文就能改', cost: '上游结论还没核过', priority: 6 },
+  ]
   const r2 = resolve({ items: two })
   check(r2.accepted === true && r2.reason === '', '两条合法建议被接受')
   check(r2.items.length === 2 && r2.items[0].intro === '拆票' && r2.items[0].prompt === '/to-tickets' && r2.items[1].reason === '接着做下一票', '条目内容原样保留')
   check(r2.counts.received === 2 && r2.counts.returned === 2 && r2.counts.clipped === 0, '两条的计数如实')
-  const r3 = resolve({ items: two.concat([{ intro: '三步', prompt: '第三条', reason: '理由三' }]) })
+  const r3 = resolve({ items: two.concat([{ intro: '三步', prompt: '第三条', reason: '理由三', gain: '优点三', cost: '缺点三', priority: 4 }]) })
   check(r3.accepted === true && r3.counts.returned === 3, '三条合法建议被接受')
-  const r4 = resolve({ items: two.concat([{ intro: '三步', prompt: '第三条', reason: '理由三' }, { intro: '四步', prompt: '第四条', reason: '理由四' }]) })
+  const r4 = resolve({ items: two.concat([{ intro: '三步', prompt: '第三条', reason: '理由三', gain: '优点三', cost: '缺点三', priority: 4 }, { intro: '四步', prompt: '第四条', reason: '理由四', gain: '优点四', cost: '缺点四', priority: 3 }]) })
   check(r4.accepted === true && r4.counts.returned === 4, '四条合法建议被接受')
   const r0 = resolve({ items: [] })
   check(r0.accepted === false && r0.reason === 'bad-args' && r0.counts.received === 0, '零条建议整次拒绝')
@@ -155,71 +165,80 @@ async function main() {
   check(rNoArray.accepted === false && rNoArray.notes.indexOf('bad-items:not-array') >= 0, 'items 不是数组时拒绝')
   const rNoArg = resolve(null)
   check(rNoArg.accepted === false && rNoArg.reason === 'bad-args', '参数整个为空时拒绝')
-  const rMissingPrompt = resolve({ items: [{ intro: '简介', prompt: '', reason: '理由' }, two[1]] })
+  const rMissingPrompt = resolve({ items: [{ intro: '简介', prompt: '', reason: '理由', gain: '优点', cost: '缺点', priority: 5 }, two[1]] })
   check(rMissingPrompt.accepted === false && rMissingPrompt.notes.indexOf('bad-item:1') >= 0, '第一条缺提示词时整次拒绝')
-  const rMissingReason = resolve({ items: [two[0], { intro: '下一步', prompt: '下一步', reason: '   ' }] })
+  const rMissingReason = resolve({ items: [two[0], { intro: '下一步', prompt: '下一步', reason: '   ', gain: '优点', cost: '缺点', priority: 5 }] })
   check(rMissingReason.accepted === false && rMissingReason.notes.indexOf('bad-item:2') >= 0, '第二条理由为空时整次拒绝')
-  const rMissingIntro = resolve({ items: [two[0], { prompt: '下一步', reason: '理由' }] })
+  const rMissingIntro = resolve({ items: [two[0], { prompt: '下一步', reason: '理由', gain: '优点', cost: '缺点', priority: 5 }] })
   check(rMissingIntro.accepted === false && rMissingIntro.notes.indexOf('bad-item:2') >= 0, '第二条缺简介时整次拒绝')
+  const rMissingGain = resolve({ items: [two[0], { intro: '下一步', prompt: '下一步', reason: '理由', cost: '缺点', priority: 5 }] })
+  check(rMissingGain.accepted === false && rMissingGain.notes.indexOf('bad-item:2') >= 0, '第二条缺优点时整次拒绝')
+  const rMissingCost = resolve({ items: [two[0], { intro: '下一步', prompt: '下一步', reason: '理由', gain: '优点', priority: 5 }] })
+  check(rMissingCost.accepted === false && rMissingCost.notes.indexOf('bad-item:2') >= 0, '第二条缺缺点时整次拒绝')
+  const rMissingPriority = resolve({ items: [two[0], { intro: '下一步', prompt: '下一步', reason: '理由', gain: '优点', cost: '缺点' }] })
+  check(rMissingPriority.accepted === false && rMissingPriority.notes.indexOf('bad-item:2') >= 0, '第二条缺推荐分时整次拒绝')
   const rFlatEntry = resolve({ items: [two[0], 'not-an-object'] })
   check(rFlatEntry.accepted === false && rFlatEntry.notes.indexOf('bad-item:2') >= 0, '条目不是对象时整次拒绝')
-  const five = two.concat([{ intro: '三步', prompt: '第三条', reason: '理由三' }, { intro: '四步', prompt: '第四条', reason: '理由四' }, { intro: '五步', prompt: '第五条', reason: '理由五' }])
+  const five = two.concat([{ intro: '三步', prompt: '第三条', reason: '理由三', gain: '优点三', cost: '缺点三', priority: 4 }, { intro: '四步', prompt: '第四条', reason: '理由四', gain: '优点四', cost: '缺点四', priority: 3 }, { intro: '五步', prompt: '第五条', reason: '理由五', gain: '优点五', cost: '缺点五', priority: 2 }])
   const r5 = resolve({ items: five })
   check(r5.accepted === true && r5.items.length === 4, '多于四条截到四条')
   check(r5.items[0].prompt === '/to-tickets' && r5.items[3].prompt === '第四条', '截断保留前四条且保序')
   check(r5.counts.received === 5 && r5.counts.returned === 4 && r5.notes.indexOf('trimmed:5→4') >= 0, '截断的条数如实记下')
-  const r9 = resolve({ items: Array.from({ length: 9 }, (_, i) => ({ intro: '第' + i + '步', prompt: '提示' + i, reason: '理由' + i })) })
+  const r9 = resolve({ items: Array.from({ length: 9 }, (_, i) => ({ intro: '第' + i + '步', prompt: '提示' + i, reason: '理由' + i, gain: '优点' + i, cost: '缺点' + i, priority: 9 - i })) })
   check(r9.accepted === true && r9.items.length === 4 && r9.items[0].prompt === '提示0', '九条也只留前四条')
-  // #1451 后续：可选的推荐优先级决定先后。没给优先级的条目保持模型给的顺序，统一排在打了分的后面。
+  // #1451 后续：必填的推荐分决定先后（分高靠左）；并列时保持模型给的顺序。
   const rScore = resolve({ items: [
-    { intro: '低', prompt: '/low', reason: 'r1', priority: 3 },
-    { intro: '高', prompt: '/high', reason: 'r2', priority: 9.5 },
-    { intro: '无', prompt: '/none', reason: 'r3' },
+    { intro: '低', prompt: '/low', reason: 'r1', gain: 'g', cost: 'c', priority: 3 },
+    { intro: '高', prompt: '/high', reason: 'r2', gain: 'g', cost: 'c', priority: 9.5 },
+    { intro: '中', prompt: '/mid', reason: 'r3', gain: 'g', cost: 'c', priority: 6 },
   ] })
-  check(rScore.accepted === true && rScore.items.map(function (it: any) { return it.prompt }).join(',') === '/high,/low,/none',
-    '按优先级从高到低排，没打分的排最后')
-  check(rScore.items[2].priority === null && rScore.items[0].priority === 9.5, '优先级原样带回执（9.5 不被抹成整数），没打分记 null')
+  check(rScore.accepted === true && rScore.items.map(function (it: any) { return it.prompt }).join(',') === '/high,/mid,/low',
+    '按推荐分从高到低排')
+  check(rScore.items[0].priority === 9.5 && rScore.items[2].priority === 3, '推荐分原样带回执（9.5 不被抹成整数）')
   const rScoreClamp = resolve({ items: [
-    { intro: '超', prompt: '/over', reason: 'r1', priority: 42 },
-    { intro: '负', prompt: '/under', reason: 'r2', priority: -3 },
-    { intro: '串', prompt: '/text', reason: 'r3', priority: '高' },
+    { intro: '超', prompt: '/over', reason: 'r1', gain: 'g', cost: 'c', priority: 42 },
+    { intro: '负', prompt: '/under', reason: 'r2', gain: 'g', cost: 'c', priority: -3 },
   ] })
-  check(rScoreClamp.accepted === true, '优先级超范围或不是数字都不拒绝整次建议')
-  check(rScoreClamp.items.map(function (it: any) { return it.prompt }).join(',') === '/over,/under,/text',
-    '42 钳到 10、-3 钳到 0，不是数字按没打分排最后')
+  check(rScoreClamp.accepted === true, '推荐分超范围不拒绝整次建议')
+  check(rScoreClamp.items.map(function (it: any) { return it.prompt }).join(',') === '/over,/under', '42 钳到 10、-3 钳到 0，顺序不变')
+  const rScoreBad = resolve({ items: [two[0], { intro: '串', prompt: '/text', reason: 'r3', gain: 'g', cost: 'c', priority: '高' }] })
+  check(rScoreBad.accepted === false && rScoreBad.notes.indexOf('bad-item:2') >= 0, '推荐分不是数字时整次拒绝（不补编分数）')
   const rScoreTrim = resolve({ items: [
-    { intro: '一', prompt: '/a', reason: 'r', priority: 1 },
-    { intro: '二', prompt: '/b', reason: 'r', priority: 9 },
-    { intro: '三', prompt: '/c', reason: 'r', priority: 5 },
-    { intro: '四', prompt: '/d', reason: 'r' },
-    { intro: '五', prompt: '/e', reason: 'r', priority: 8 },
+    { intro: '一', prompt: '/a', reason: 'r', gain: 'g', cost: 'c', priority: 1 },
+    { intro: '二', prompt: '/b', reason: 'r', gain: 'g', cost: 'c', priority: 9 },
+    { intro: '三', prompt: '/c', reason: 'r', gain: 'g', cost: 'c', priority: 5 },
+    { intro: '四', prompt: '/d', reason: 'r', gain: 'g', cost: 'c', priority: 4 },
+    { intro: '五', prompt: '/e', reason: 'r', gain: 'g', cost: 'c', priority: 8 },
   ] })
-  check(rScoreTrim.accepted === true && rScoreTrim.items.map(function (it: any) { return it.prompt }).join(',') === '/b,/e,/c,/a',
-    '多于四条时按分从高到低留前四条，截掉的是没打分的那条')
+  check(rScoreTrim.accepted === true && rScoreTrim.items.map(function (it: any) { return it.prompt }).join(',') === '/b,/e,/c,/d',
+    '多于四条时按分从高到低留前四条，截掉分最低的那条')
   check(rScoreTrim.notes.indexOf('trimmed:5→4') >= 0, '按分截断也如实记下条数')
   const longPrompt = '长'.repeat(600)
-  const longReason = '理由'.repeat(200)
+  const longReason = '理由'.repeat(30)
+  const longGain = '优点'.repeat(30)
+  const longCost = '缺点'.repeat(30)
   const longIntro = '简'.repeat(30)
-  const rLong = resolve({ items: [{ intro: longIntro, prompt: longPrompt, reason: longReason }, two[1]] })
+  const rLong = resolve({ items: [{ intro: longIntro, prompt: longPrompt, reason: longReason, gain: longGain, cost: longCost, priority: 9 }, two[1]] })
   check(rLong.accepted === true, '单项超长不报错、仍然接受')
   check(Array.from(rLong.items[0].intro).length === 16 && rLong.items[0].intro.slice(-1) === '…' && rLong.items[0].intro.slice(0, 15) === '简'.repeat(15), '超长简介保留前 15 个汉字（30 格宽）并另加省略号（#1540）')
   check(Array.from(rLong.items[0].prompt).length === 501 && rLong.items[0].prompt.slice(-1) === '…' && rLong.items[0].prompt.slice(0, 500) === '长'.repeat(500), '超长提示词保留前 500 个码点并另加省略号（#1540）')
-  check(Array.from(rLong.items[0].reason).length === 201 && rLong.items[0].reason.slice(-1) === '…' && rLong.items[0].reason.slice(0, 200) === '理由'.repeat(100), '超长理由保留前 200 个码点并另加省略号（#1540）')
+  check(rLong.items[0].reason === longReason.slice(0, 30) + '…' && rLong.items[0].gain === longGain.slice(0, 30) + '…' && rLong.items[0].cost === longCost.slice(0, 30) + '…',
+    '理由、优点、缺点各保留前 30 个码点并另加省略号（2026-10-31 统一上限 30）')
   check(rLong.counts.clipped === 1 && rLong.notes.indexOf('clipped:1') >= 0, '被截断的条数如实记下')
-  const introHanExact = resolve({ items: [{ intro: '简'.repeat(15), prompt: '/a', reason: 'r' }, two[1]] })
+  const introHanExact = resolve({ items: [{ intro: '简'.repeat(15), prompt: '/a', reason: 'r', gain: 'g', cost: 'c', priority: 9 }, two[1]] })
   check(introHanExact.counts.clipped === 0 && introHanExact.items[0].intro === '简'.repeat(15), '15 个汉字的简介正好放得下、不截断')
-  const introEnExact = resolve({ items: [{ intro: 'a'.repeat(30), prompt: '/b', reason: 'r' }, two[1]] })
+  const introEnExact = resolve({ items: [{ intro: 'a'.repeat(30), prompt: '/b', reason: 'r', gain: 'g', cost: 'c', priority: 9 }, two[1]] })
   check(introEnExact.counts.clipped === 0 && introEnExact.items[0].intro === 'a'.repeat(30), '30 个英文字母的简介正好放得下、不截断（等效 15 个汉字宽）')
-  const introEnLong = resolve({ items: [{ intro: 'a'.repeat(31), prompt: '/c', reason: 'r' }, two[1]] })
+  const introEnLong = resolve({ items: [{ intro: 'a'.repeat(31), prompt: '/c', reason: 'r', gain: 'g', cost: 'c', priority: 9 }, two[1]] })
   check(introEnLong.counts.clipped === 1 && introEnLong.items[0].intro === 'a'.repeat(30) + '…', '31 个英文字母的简介保留前 30 个并另加省略号')
   const emoji = '😀'.repeat(600)
-  const rEmoji = resolve({ items: [{ intro: '表情', prompt: emoji, reason: '表情' }, two[1]] })
+  const rEmoji = resolve({ items: [{ intro: '表情', prompt: emoji, reason: '表情', gain: 'g', cost: 'c', priority: 9 }, two[1]] })
   check(rEmoji.accepted === true && Array.from(rEmoji.items[0].prompt).length === 501 && rEmoji.items[0].prompt.slice(-1) === '…' && Array.from(rEmoji.items[0].prompt.slice(0, -1)).every(function (c) { return c === '😀' }),
     '按码点截断，不切坏 emoji（代理对完整，#1540 保留前 500 个码点并另加省略号）')
-  const boundary = resolve({ items: [{ intro: '简介', prompt: 'a'.repeat(500), reason: 'b'.repeat(200) }, two[1]] })
+  const boundary = resolve({ items: [{ intro: '简介', prompt: 'a'.repeat(500), reason: 'b'.repeat(30), gain: 'g'.repeat(30), cost: 'c'.repeat(30), priority: 5 }, two[1]] })
   check(boundary.accepted === true && boundary.counts.clipped === 0, '正好卡在上限的文本不截断')
-  const trimmed = resolve({ items: [{ intro: '  简介  ', prompt: '  /to-tickets  ', reason: '  理由  ' }, two[1]] })
-  check(trimmed.items[0].intro === '简介' && trimmed.items[0].prompt === '/to-tickets' && trimmed.items[0].reason === '理由', '首尾空白被去掉')
+  const trimmed = resolve({ items: [{ intro: '  简介  ', prompt: '  /to-tickets  ', reason: '  理由  ', gain: '  优点  ', cost: '  缺点  ', priority: 9 }, two[1]] })
+  check(trimmed.items[0].intro === '简介' && trimmed.items[0].prompt === '/to-tickets' && trimmed.items[0].reason === '理由' && trimmed.items[0].gain === '优点' && trimmed.items[0].cost === '缺点', '首尾空白被去掉')
 
   // ── 3. run 的成功回执：统一回执壳、会话、耗时、结论 ──
   const okLog = makeLog()
@@ -262,7 +281,7 @@ async function main() {
 
   const clipLog = makeLog()
   const clipRunner = tool.createSuggestNextSteps({ log: clipLog.log, now: fakeClock(0) })
-  const clipEnv = await clipRunner.run(EXEC, { items: [{ intro: longIntro, prompt: longPrompt, reason: longReason }, two[1]] })
+  const clipEnv = await clipRunner.run(EXEC, { items: [{ intro: longIntro, prompt: longPrompt, reason: longReason, gain: longGain, cost: longCost, priority: 9 }, two[1]] })
   check(clipEnv.ok === true && clipEnv.notes.indexOf('clipped:1') >= 0, '截断信息也带回执的 notes')
   check(clipLog.fired[0] && clipLog.fired[0].fields.reason === 'items=2;returned=2;clipped=1', '截断的条数进日志 reason')
 
@@ -275,7 +294,7 @@ async function main() {
   check(badEnv.data === undefined, '拒绝回执不带建议清单')
   check(badEnv.workspace && badEnv.workspace.sessionId === 'sess-7', '拒绝回执仍带会话（界面与日志能对上）')
   check(badLog.fired.length === 1 && badLog.fired[0].fields.ok === false && badLog.fired[0].fields.reason === 'bad-args:1', '拒绝也落既有事件，ok 为假、条数在 reason')
-  const badMissing = await badRunner.run(EXEC, { items: [two[0], { intro: '下一步', prompt: '下一步', reason: '' }] })
+  const badMissing = await badRunner.run(EXEC, { items: [two[0], { intro: '下一步', prompt: '下一步', reason: '', gain: '优点', cost: '缺点', priority: 5 }] })
   check(badMissing.ok === false && String(badMissing.text).indexOf('第 2 条') >= 0, '条目缺理由时拒绝并指出第几条')
   const noSessionLog = makeLog()
   const noSessionRunner = tool.createSuggestNextSteps({ log: noSessionLog.log, now: fakeClock(0) })

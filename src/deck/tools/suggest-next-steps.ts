@@ -3,11 +3,13 @@
 // 这颗工具的参数里就直接带着给界面用的建议清单：界面从这次工具调用的参数本身读走建议、
 // 渲染成气泡，工具这边只做校验、钳制、截断与回执，不写票、不落任何状态。
 //
-// 每条建议由三格必填加一格选填组成：选项框上只显示的一句简介（十五个字以内，英文按显示宽度
-// 折算约三十个字符，一眼说清这一步做什么）、一句可以直接执行的提示词（点选后才填进输入框，
-// 平时不显示）、一句理由（收进框正上方的悬停浮层），外加一个可选的推荐优先级（0 到 10 的
-// 数字，分高靠左，没打分的排最后）。
+// 每条建议由六格必填组成：选项框上只显示的一句简介（十五个字以内，英文按显示宽度折算约三十个
+// 字符，一眼说清这一步做什么）、一句可以直接执行的提示词（点选后才填进输入框，平时不显示）、
+// 悬停浮层里各占一行的理由（前因）、优点与缺点三格，以及一个 0 到 10 的推荐分（几条建议之间
+// 「谁更该先做」的相对判断）。
 // 为什么单要一个简介：界面上的胶囊一行排不下整句提示词，三条竖着堆成一列也读不过来（#1451）。
+// 为什么把理由拆成理由/优点/缺点三格：一段话里同时塞前因、好处和代价，读起来是一团文字；
+// 拆成三格后悬停浮层逐行显示，扫一眼就能判断这条该不该点（维护者 2026-10-31 拍板）。
 //
 // 为什么单独一份、不进九个 deck_* 工具的装配顺序表：那九颗是追踪器工具，参数表、回执表、
 // 点数表与装配顺序都是冻结契约（#1106 门禁逐字冻结）；建议工具不属于追踪器，走「只增不改的
@@ -32,18 +34,21 @@ type UnknownRecord = Record<string, unknown>
 
 /** 工具名：对外精确名字，不带 deck_ 前缀；界面按它认出「这次调用是建议工具」。 */
 export const SUGGEST_TOOL_NAME = 'suggest_next_steps'
-/** 建议条数的合法区间：少于下限整次拒绝，多于上限按优先级留前几条（没打分的先被截掉）。界面侧按同一组数再校验一次。 */
+/** 建议条数的合法区间：少于下限整次拒绝，多于上限按推荐分留前几条。界面侧按同一组数再校验一次。 */
 export const MIN_ITEMS = 2
 export const MAX_ITEMS = 4
-/** 推荐优先级的合法区间：0 到 10，分越高越靠左；拿不准就别给，没给的排最后。 */
+/** 推荐分的合法区间：0 到 10，分越高越靠左；每条建议都必须给分（几条之间谁更该先做的相对判断）。 */
 export const PRIORITY_MIN = 0
 export const PRIORITY_MAX = 10
 /** 简介上限按显示宽度算：汉字、全角标点与 emoji 算 2 格，其余字符算 1 格，30 格等于 15 个汉字；
  *  英文每个字母算 1 格，所以最多 30 个字符。 */
 export const INTRO_MAX_WIDTH = 30
-/** 提示词与理由按 Unicode 码点数算，避免把 emoji 之类的代理对切坏。 */
+/** 提示词与三格理由文本都按 Unicode 码点数算，避免把 emoji 之类的代理对切坏；理由、优点、缺点
+ *  各限 30 个字，悬停浮层里每格最多两行，再多就挤成一团（维护者 2026-10-31 定为统一上限 30）。 */
 export const PROMPT_MAX_CHARS = 500
-export const REASON_MAX_CHARS = 200
+export const REASON_MAX_CHARS = 30
+export const GAIN_MAX_CHARS = 30
+export const COST_MAX_CHARS = 30
 
 /** 工具定义：名字、一句话介绍、参数模式。参数形状是本票冻结的契约，界面票照它读。
  *  行为规则为什么写在说明里（#1412 反向后）：模型侧规则必须住在模型真能看到的地方。原先这节规则被
@@ -62,16 +67,18 @@ export const definition = {
     properties: {
       items: {
         type: 'array',
-        description: '每条 prompt 都是用户下一轮要说的话：开头写这一步对应的技能指令（/xxxx），后面跟内容；没有对应技能就只写内容。等用户补充的半句话，技能指令也仍然放在最开头。',
+        description: '每条 prompt 都是用户下一轮要说的话：开头写这一步对应的技能指令（/xxxx），后面跟内容；没有对应技能就只写内容。等用户补充的半句话，技能指令也仍然放在最开头。每条建议都要写全简介、提示词、理由、优点、缺点与推荐分六格。',
         items: {
           type: 'object',
           properties: {
             intro: { type: 'string', description: '一句话说清这一步做什么，15 个字以内；英文按显示宽度折算，最多 30 个字符。' },
             prompt: { type: 'string', description: '用用户的口气写用户下一轮会原样发出的话，只写现在就能确定的事，写清具体对象（文件、结论等），不写「继续推进」这类空话。还需要用户补充才能说全的话，只写前半句并留出待填位置（例如以冒号结尾，或用【在此填写…】标出要填的地方），还没发生的事留给用户填；实在写不清就换一条，不编具体值。' },
-            reason: { type: 'string', description: '一句话说清为什么推荐这一步：写你凭什么这么推荐，用户看完就该知道该不该点。理由因事而异，写具体依据；不复述提示词，不用「值得做」「很合适」这类评价代替依据。' },
-            priority: { type: 'number', description: '0 到 10，分越高越建议先做。' },
+            reason: { type: 'string', description: '为什么现在提这件事（前因）：写这一轮里用户看得见的事实——做到哪一步、还差什么，一句 30 字以内。不复述提示词，不用「值得做」「很合适」这类评价代替依据。' },
+            gain: { type: 'string', description: '做了这件事本身能得到什么（优点）：写清具体的好处，一句 30 字以内。' },
+            cost: { type: 'string', description: '它的代价、风险，或它不解决的问题（缺点）：一句 30 字以内；写不出坏处说明还没想清这条值不值得点。' },
+            priority: { type: 'number', description: '0 到 10 的推荐分，分越高越建议先做；每条都要打分，这是几条建议之间「谁更该先做」的相对判断。' },
           },
-          required: ['intro', 'prompt', 'reason'],
+          required: ['intro', 'prompt', 'reason', 'gain', 'cost', 'priority'],
           additionalProperties: false,
         },
       },
@@ -81,13 +88,15 @@ export const definition = {
   },
 }
 
-/** 一条建议：十五个字以内（英文约三十个字符）的简介、提示词、一句话理由（三者都已截断到上限
- *  之内），外加可选的推荐优先级（有效数字钳到 0~10 并留一位小数；没打分的是 null，界面统一排在最后）。 */
+/** 一条建议：简介、提示词、理由、优点、缺点五格文本（都已截断到上限之内），外加推荐分
+ *  （有效数字钳到 0~10 并留一位小数）。 */
 export interface SuggestItem {
   intro: string
   prompt: string
   reason: string
-  priority: number | null
+  gain: string
+  cost: string
+  priority: number
 }
 /** 这一次调用收了几条、实际留下几条、有几条被截断（日志与回执共用同一组数）。 */
 export interface SuggestCounts {
@@ -168,9 +177,8 @@ function asString(value: unknown): string {
 }
 
 /**
- * 优先级归一化：有效数字钳到 0~10 并留一位小数（9.5 这类）；不是数字、NaN、无穷大
- * 一律当没打分（null）。为什么 null 而不是 0：0 是「最后再做」，没打分是「不知道」，
- * 用户拍板没打分的统一排在最后，而不是和 0 分混在一起。
+ * 推荐分归一化：有效数字钳到 0~10 并留一位小数（9.5 这类）。推荐分是必填项，调用方先判
+ * 「是不是有限数字」，不是就整次拒绝；这里只负责钳制与取一位小数，不把缺失偷偷当成 0。
  */
 function normalizePriority(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null
@@ -179,14 +187,14 @@ function normalizePriority(value: unknown): number | null {
 }
 
 /**
- * 校验并整理参数：只认 { items: [{ intro, prompt, reason }, ...] }。
+ * 校验并整理参数：只认 { items: [{ intro, prompt, reason, gain, cost, priority }, ...] }。
  *
  * 规矩（本票冻结，界面票照它写）：
- * - items 不是数组、少于两条、任意一条缺 intro 或 prompt 或 reason（trim 后为空）——整次拒绝，不补编建议；
- * - priority 可选：有效数字收下（钳到 0~10、留一位小数），没给或不是数字就当没打分，不拒绝；
- * - 排序：打了分的按分从高到低往左排并列保持模型给的相对顺序；没打分的统一放末尾、彼此保持原顺序；
- * - 多于四条——排好序之后留前四条，所以截掉的永远是分最低或没打分的；
- * - 单项超长——截断并补省略号，不报错。
+ * - items 不是数组、少于两条、任意一条缺 intro / prompt / reason / gain / cost（trim 后为空）
+ *   或缺推荐分（不是有限数字）——整次拒绝，不补编建议；
+ * - 排序：按推荐分从高到低往左排，并列保持模型给的相对顺序；
+ * - 多于四条——排好序之后留前四条，所以截掉的永远是分最低的；
+ * - 单项文本超长——截断并补省略号，不报错。
  * 返回值里 accepted 是唯一稳定的「成功/拒绝」标记，调用方不要靠 items.length 判断。
  */
 export function resolveSuggestItems(args: unknown): SuggestResolution {
@@ -216,29 +224,36 @@ export function resolveSuggestItems(args: unknown): SuggestResolution {
     const intro = asString(rec ? rec.intro : '').trim()
     const prompt = asString(rec ? rec.prompt : '').trim()
     const reason = asString(rec ? rec.reason : '').trim()
-    if (!intro || !prompt || !reason) {
+    const gain = asString(rec ? rec.gain : '').trim()
+    const cost = asString(rec ? rec.cost : '').trim()
+    const priority = normalizePriority(rec ? rec.priority : undefined)
+    if (!intro || !prompt || !reason || !gain || !cost) {
       return refuse(REFUSAL_REASONS.BAD_ARGS,
-        '这次的建议里第 ' + (i + 1) + ' 条缺简介、提示词或理由，我没记下任何建议：请每条都给 intro、prompt 与 reason 再调一次。',
+        '这次的建议里第 ' + (i + 1) + ' 条缺简介、提示词、理由、优点或缺点，我没记下任何建议：请每条都给 intro、prompt、reason、gain 与 cost 再调一次。',
+        notes.concat(['bad-item:' + (i + 1)]), received)
+    }
+    if (priority === null) {
+      return refuse(REFUSAL_REASONS.BAD_ARGS,
+        '这次的建议里第 ' + (i + 1) + ' 条没给推荐分（priority），我没记下任何建议：请给每条都打一个 0 到 10 的分再调一次。',
         notes.concat(['bad-item:' + (i + 1)]), received)
     }
     const introPart = clipWidth(intro, INTRO_MAX_WIDTH)
     const promptPart = clipText(prompt, PROMPT_MAX_CHARS)
     const reasonPart = clipText(reason, REASON_MAX_CHARS)
-    if (introPart.clipped || promptPart.clipped || reasonPart.clipped) clipped += 1
-    valid.push({ intro: introPart.text, prompt: promptPart.text, reason: reasonPart.text, priority: normalizePriority(rec ? rec.priority : undefined) })
+    const gainPart = clipText(gain, GAIN_MAX_CHARS)
+    const costPart = clipText(cost, COST_MAX_CHARS)
+    if (introPart.clipped || promptPart.clipped || reasonPart.clipped || gainPart.clipped || costPart.clipped) clipped += 1
+    valid.push({ intro: introPart.text, prompt: promptPart.text, reason: reasonPart.text, gain: gainPart.text, cost: costPart.text, priority: priority })
   }
-  // 排序（Array.prototype.sort 稳定，并列保持模型给的相对顺序）：打了分的按分从高到低往左排；
-  // 没打分的统一放末尾、彼此保持原顺序。排好再截到上限，截掉的永远是分最低或没打分的。
+  // 排序（Array.prototype.sort 稳定，并列保持模型给的相对顺序）：按推荐分从高到低往左排。
+  // 推荐分是必填项，这里不用再处理「没打分」的分支。排好再截到上限，截掉的永远是分最低的。
   valid.sort(function (a, b) {
-    if (a.priority === null && b.priority === null) return 0
-    if (a.priority === null) return 1
-    if (b.priority === null) return -1
-    return (b.priority as number) - (a.priority as number)
+    return b.priority - a.priority
   })
   const items = valid.length > MAX_ITEMS ? valid.slice(0, MAX_ITEMS) : valid
   if (clipped > 0) notes.push('clipped:' + clipped)
   const text = received > MAX_ITEMS
-    ? '已记下前 ' + MAX_ITEMS + ' 条下一步建议（收到 ' + received + ' 条，按优先级从高到低留前 ' + MAX_ITEMS + ' 条，没打分的排在最后）。'
+    ? '已记下前 ' + MAX_ITEMS + ' 条下一步建议（收到 ' + received + ' 条，按推荐分从高到低留前 ' + MAX_ITEMS + ' 条）。'
     : '已记下 ' + items.length + ' 条下一步建议。'
   return { accepted: true, reason: '', text: text, items: items, counts: { received: received, returned: items.length, clipped: clipped }, notes: notes }
 }

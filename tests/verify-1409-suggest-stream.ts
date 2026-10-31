@@ -168,7 +168,9 @@ async function main() {
   check(facts.SUGGEST_MAX_ITEMS === tool.MAX_ITEMS && facts.SUGGEST_MAX_ITEMS === 4, '最多条数两侧一致且为 4')
   check(facts.SUGGEST_INTRO_MAX_WIDTH === tool.INTRO_MAX_WIDTH && facts.SUGGEST_INTRO_MAX_WIDTH === 30, '简介上限两侧一致且为 30 格（15 个汉字宽）')
   check(facts.SUGGEST_PROMPT_MAX_CHARS === tool.PROMPT_MAX_CHARS && facts.SUGGEST_PROMPT_MAX_CHARS === 500, '提示词上限两侧一致且为 500')
-  check(facts.SUGGEST_REASON_MAX_CHARS === tool.REASON_MAX_CHARS && facts.SUGGEST_REASON_MAX_CHARS === 200, '理由上限两侧一致且为 200')
+  check(facts.SUGGEST_REASON_MAX_CHARS === tool.REASON_MAX_CHARS && facts.SUGGEST_REASON_MAX_CHARS === 30, '理由上限两侧一致且为 30')
+  check(facts.SUGGEST_GAIN_MAX_CHARS === tool.GAIN_MAX_CHARS && facts.SUGGEST_GAIN_MAX_CHARS === 30, '优点上限两侧一致且为 30')
+  check(facts.SUGGEST_COST_MAX_CHARS === tool.COST_MAX_CHARS && facts.SUGGEST_COST_MAX_CHARS === 30, '缺点上限两侧一致且为 30')
   check(facts.SUGGEST_PRIORITY_MIN === tool.PRIORITY_MIN && facts.SUGGEST_PRIORITY_MIN === 0, '优先级下限两侧一致且为 0')
   check(facts.SUGGEST_PRIORITY_MAX === tool.PRIORITY_MAX && facts.SUGGEST_PRIORITY_MAX === 10, '优先级上限两侧一致且为 10')
   // 气泡叶子在本地再钳一次条数（构建时是同一闭包里的常量，不能跨文件 import），所以读源码把第四个 4
@@ -215,7 +217,7 @@ async function main() {
     { prompt: '/b', reason: 'r2' },
   ] }))
   check(parsedExtra.ok === true && parsedExtra.items[0].prompt === '/a' && parsedExtra.items[0].reason === 'r1', '两侧空白 trim 掉、多余键不往下传')
-  check(Object.keys(parsedExtra.items[0]).join(',') === 'intro,prompt,reason,priority', '每个条目只留简介、提示词、理由与优先级四格')
+  check(Object.keys(parsedExtra.items[0]).join(',') === 'intro,prompt,reason,gain,cost,priority', '每个条目只留简介、提示词、理由、优点、缺点与推荐分六格')
   check(facts.suggestItemsOf(null).ok === false && facts.suggestItemsOf(null).reason === 'bad-json', '参数既不是字符串也不是对象时判 bad-json')
   check(facts.suggestItemsOf(42).reason === 'bad-json', '参数是数字等其它类型时判 bad-json')
   check(facts.suggestItemsOf({}).reason === 'bad-shape', '参数是对象但没有 items 时判 bad-shape（PTC 坏形状走这条路）')
@@ -242,12 +244,13 @@ async function main() {
   ] }))
   check(parsedFive.ok === true && parsedFive.items.length === 4 && parsedFive.items[0].prompt === '/1' && parsedFive.items[3].prompt === '/4', '多于四条时从头留前四条、顺序不变')
   const parsedClipped = facts.suggestItemsOf(JSON.stringify({ items: [
-    { prompt: 'x'.repeat(600), reason: 'r'.repeat(300) },
+    { prompt: 'x'.repeat(600), reason: 'r'.repeat(60), gain: 'g'.repeat(60), cost: 'c'.repeat(60) },
     { prompt: '/ok', reason: 'fine' },
   ] }))
-  check(parsedClipped.ok === true && parsedClipped.clipped === 1, '一条里提示词与理由都超长只算「被截断一条」')
+  check(parsedClipped.ok === true && parsedClipped.clipped === 1, '一条里提示词与三格理由文本都超长只算「被截断一条」')
   check(parsedClipped.items[0].prompt.length === 501 && parsedClipped.items[0].prompt.slice(-1) === '…', '提示词保留前 500 个码点并另加省略号（#1540）')
-  check(parsedClipped.items[0].reason.length === 201 && parsedClipped.items[0].reason.slice(-1) === '…', '理由保留前 200 个码点并另加省略号（#1540）')
+  check(parsedClipped.items[0].reason.length === 31 && parsedClipped.items[0].reason.slice(-1) === '…', '理由保留前 30 个码点并另加省略号（2026-10-31 统一上限 30）')
+  check(parsedClipped.items[0].gain.length === 31 && parsedClipped.items[0].cost.length === 31, '优点与缺点同样截到 30 个码点并加省略号')
   const parsedNoReason = facts.suggestItemsOf(JSON.stringify({ items: [{ prompt: '/a' }, { prompt: '/b' }] }))
   check(parsedNoReason.ok === true && parsedNoReason.items[0].reason === '', '缺理由的条目按空理由收（不因少一句解释丢掉整条提示词）')
   // #1451 起每条多带一句十五个字以内的简介；旧事件里没有这一格，按空串收，界面只显示提示词。
@@ -652,9 +655,9 @@ async function main() {
   check(factsSrc.indexOf("'suggest_next_steps'") >= 0, '界面侧工具名是字面量（不靠运行时拼）')
   check(factsSrc.indexOf("'tool/ptc-dispatch-start'") >= 0 && factsSrc.indexOf("'turn-start'") >= 0, '事件识别里显式包含 PTC 派发与 turn/start（两种预设都要认）')
   check(streamSrc.indexOf("'turn-start'") >= 0, '订阅层处理 turn/start（PTC 调用靠它补轮次）')
-  check(/SUGGEST_MIN_ITEMS = 2/.test(factsSrc) && /SUGGEST_MAX_ITEMS = 4/.test(factsSrc) && /SUGGEST_INTRO_MAX_WIDTH = 30/.test(factsSrc) && /SUGGEST_PROMPT_MAX_CHARS = 500/.test(factsSrc) && /SUGGEST_REASON_MAX_CHARS = 200/.test(factsSrc), '界面侧五个上下限常量是字面量')
+  check(/SUGGEST_MIN_ITEMS = 2/.test(factsSrc) && /SUGGEST_MAX_ITEMS = 4/.test(factsSrc) && /SUGGEST_INTRO_MAX_WIDTH = 30/.test(factsSrc) && /SUGGEST_PROMPT_MAX_CHARS = 500/.test(factsSrc) && /SUGGEST_REASON_MAX_CHARS = 30/.test(factsSrc) && /SUGGEST_GAIN_MAX_CHARS = 30/.test(factsSrc) && /SUGGEST_COST_MAX_CHARS = 30/.test(factsSrc), '界面侧七个上下限常量是字面量')
   const toolSrc = fs.readFileSync(path.join(ROOT, 'src/deck/tools/suggest-next-steps.ts'), 'utf8')
-  check(/MIN_ITEMS = 2/.test(toolSrc) && /MAX_ITEMS = 4/.test(toolSrc) && /INTRO_MAX_WIDTH = 30/.test(toolSrc) && /PROMPT_MAX_CHARS = 500/.test(toolSrc) && /REASON_MAX_CHARS = 200/.test(toolSrc), '工具侧五个上下限常量是字面量（两边数字由上面的导入比对钉住）')
+  check(/MIN_ITEMS = 2/.test(toolSrc) && /MAX_ITEMS = 4/.test(toolSrc) && /INTRO_MAX_WIDTH = 30/.test(toolSrc) && /PROMPT_MAX_CHARS = 500/.test(toolSrc) && /REASON_MAX_CHARS = 30/.test(toolSrc) && /GAIN_MAX_CHARS = 30/.test(toolSrc) && /COST_MAX_CHARS = 30/.test(toolSrc), '工具侧七个上下限常量是字面量（两边数字由上面的导入比对钉住）')
 
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   printGateResult('verify-1409-suggest-stream', total, failed ? 1 : 0)

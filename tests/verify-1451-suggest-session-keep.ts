@@ -106,7 +106,10 @@ async function main() {
   const dict = {
     'suggest.group': '下一步建议',
     'suggest.close': '关闭（等于一条都不选）',
-    'suggest.ariaPill': '{prompt}；推荐理由：{reason}',
+    'suggest.label.score': '推荐分',
+    'suggest.label.reason': '理由',
+    'suggest.label.gain': '优点',
+    'suggest.label.cost': '缺点',
     'suggest.live': '有 {n} 条下一步建议',
   }
   function trFn(key, params) {

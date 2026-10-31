@@ -62,7 +62,10 @@ async function main() {
   const dict = {
     'suggest.group': '下一步建议',
     'suggest.close': '关闭（等于一条都不选）',
-    'suggest.ariaPill': '{prompt}；推荐理由：{reason}',
+    'suggest.label.score': '推荐分',
+    'suggest.label.reason': '理由',
+    'suggest.label.gain': '优点',
+    'suggest.label.cost': '缺点',
     'suggest.live': '有 {n} 条下一步建议',
   }
   function trFn(key, params) {
@@ -210,8 +213,8 @@ async function main() {
     check(layer.style.maxWidth.indexOf('100vw') >= 0 && layer.style.maxWidth.indexOf('720') >= 0, '基本：层最大宽度受视口与旋钮共同约束')
     check(layer.style.left === '300px', '基本：锚点横向 = 胶囊中心（100+400/2）')
     check(layer.style.bottom === '77px', '基本：锚点纵向 = 视口高 - 胶囊顶 + 9（768-700+9）')
-    check(m.pills()[0].getAttribute('aria-label') === '接着做 /next；推荐理由：因为还有一张票没关', '基本：选项 aria-label 念「简介 提示词」并含推荐理由（读屏可读）')
-    check(m.pills()[0].parentNode.querySelector('.dsws-sugg-pop') !== null && m.pills()[0].parentNode.querySelector('.dsws-sugg-pop').textContent === '因为还有一张票没关', '基本：理由收进框正上方的浮层，内容就是理由')
+    check(m.pills()[0].getAttribute('aria-label') === '接着做 /next', '基本：选项 aria-label 只念「简介 提示词」，理由交给浮层（读屏走 aria-describedby）')
+    check(m.pills()[0].parentNode.querySelector('.dsws-sugg-pop') !== null && m.pills()[0].parentNode.querySelector('.dsws-sugg-pop').textContent === '理由因为还有一张票没关', '基本：理由收进框正上方的浮层，带「理由」标签')
     check(m.pills()[0].getAttribute('aria-describedby') === m.pills()[0].parentNode.querySelector('.dsws-sugg-pop').getAttribute('id'), '基本：按钮用 aria-describedby 指到自己的浮层')
     check(m.pills()[1].getAttribute('aria-label') === '收尾 继续收尾', '基本：没理由的选项 aria-label 念「简介 提示词」，不念理由')
     check(m.pills()[1].parentNode.querySelector('.dsws-sugg-pop') === null, '基本：没理由的选项不挂浮层')
@@ -385,33 +388,41 @@ async function main() {
     }
   }
 
-  // ---------- 1.7 浮层里的分数泡：模型打了分就印出来，没打分就不印 ----------
+  // ---------- 1.7 浮层四行：推荐分 / 理由 / 优点 / 缺点，缺格跳过 ----------
   {
+    const rowsOf = function (pop) { return Array.prototype.slice.call(pop.querySelectorAll('.dsws-sugg-pop-row')) }
+    const labelsOf = function (pop) {
+      return rowsOf(pop).map(function (row) { return row.querySelector('.dsws-sugg-pop-label').textContent })
+    }
+    const valuesOf = function (pop) {
+      return rowsOf(pop).map(function (row) { return row.querySelector('.dsws-sugg-pop-value').textContent })
+    }
     const mScore = await mount({
       initial: [
-        { intro: '先做', prompt: '/a', reason: '卡在后面', priority: 9.5 },
-        { intro: '后做', prompt: '/b', reason: '顺手做', priority: 3 },
-        { intro: '不打分', prompt: '/c', reason: '看情况' },
+        { intro: '先做', prompt: '/a', reason: '卡在后面', gain: '能马上解阻塞', cost: '要多花十分钟', priority: 9.5 },
+        { intro: '后做', prompt: '/b', reason: '顺手做', gain: '改动小', cost: '收益也小', priority: 3 },
       ],
     })
     const pops = function () { return Array.prototype.slice.call(mScore.holder.querySelectorAll('.dsws-sugg-pop')) }
-    check(pops().length === 3, '分数泡：三颗选项各有自己的浮层')
-    const scoreSpans = function () { return Array.prototype.slice.call(mScore.holder.querySelectorAll('.dsws-sugg-score')) }
-    check(scoreSpans().length === 2, '分数泡：只有打了分的两条印分数泡（没打分的那条不印）')
-    check(scoreSpans()[0].textContent === '9.5' && scoreSpans()[1].textContent === '3', '分数泡：印出模型给的原始分数（9.5 与 3）')
-    check(pops()[0].querySelector('.dsws-sugg-reason') !== null && pops()[0].querySelector('.dsws-sugg-reason').textContent === '卡在后面', '分数泡：理由仍在同一浮层里，评分排在理由前面（贴在第一行开头）')
-    const firstPopKids = Array.prototype.slice.call(pops()[0].children)
-    check(firstPopKids.length === 2 && String(firstPopKids[0].className).indexOf('dsws-sugg-score') >= 0 && String(firstPopKids[1].className).indexOf('dsws-sugg-reason') >= 0, '分数泡：浮层里先分数泡、后理由正文（这个顺序让评分贴在第一行开头）')
-    check(pops()[2].querySelector('.dsws-sugg-score') === null && pops()[2].textContent === '看情况', '分数泡：没打分的浮层只有理由')
+    check(pops().length === 2, '四行：两颗选项各有自己的浮层')
+    check(rowsOf(pops()[0]).length === 4, '四行：完整条目给出推荐分、理由、优点、缺点四行')
+    check(labelsOf(pops()[0]).join('|') === '推荐分|理由|优点|缺点', '四行：行序固定为推荐分、理由、优点、缺点')
+    check(valuesOf(pops()[0]).join('|') === '9.5|卡在后面|能马上解阻塞|要多花十分钟', '四行：每行印对应正文（分数取模型原值）')
+    check(rowsOf(pops()[1]).length === 4 && valuesOf(pops()[1]).join('|') === '3|顺手做|改动小|收益也小', '四行：第二条同形，分数 3 原样印出')
     const mZero = await mount({
       initial: [
-        { intro: '最后', prompt: '/a', reason: 'r', priority: 0 },
-        { intro: '其次', prompt: '/b', reason: 'r', priority: 6 },
+        { intro: '最后', prompt: '/a', reason: 'r', gain: 'g', cost: 'c', priority: 0 },
+        { intro: '其次', prompt: '/b', reason: 'r', gain: 'g', cost: 'c', priority: 6 },
       ],
     })
-    const zeroScore = mZero.holder.querySelector('.dsws-sugg-score')
-    check(zeroScore !== null && zeroScore.textContent === '0', '分数泡：0 分也印出来（0 是「最后再做」，不是没打分）')
+    const zeroRows = rowsOf(mZero.holder.querySelector('.dsws-sugg-pop'))
+    check(zeroRows.length === 4 && zeroRows[0].querySelector('.dsws-sugg-pop-value').textContent === '0', '四行：0 分也印出来（0 是「最后再做」，不是没打分）')
     await mZero.unmount()
+    // 旧事件（改四行之前存下的条目）没有 gain/cost/priority：能印几行印几行，不补空行。
+    const mLegacy = await mount({ initial: [{ intro: '旧', prompt: '/old', reason: '旧理由' }] })
+    const legacyPops = mLegacy.holder.querySelectorAll('.dsws-sugg-pop')
+    check(legacyPops.length === 1 && rowsOf(legacyPops[0]).length === 1 && labelsOf(legacyPops[0]).join('|') === '理由', '四行：旧事件缺优点、缺点与推荐分时只印有的一行，不补空行')
+    await mLegacy.unmount()
     await mScore.unmount()
   }
 
@@ -502,7 +513,7 @@ async function main() {
     check(mMix.pills().length === 2, '防御：坏条目被过滤，只留 prompt 非空的')
     check(mMix.pills()[0].getAttribute('aria-label') === '好的', '防御：reason 不是字符串就不当理由')
     check(mMix.pills()[0].parentNode.querySelector('.dsws-sugg-pop') === null, '防御：reason 不是字符串就不挂浮层')
-    check(mMix.pills()[1].textContent === '第二条' && mMix.pills()[1].parentNode.querySelector('.dsws-sugg-pop').textContent === '有理由', '防御：只有字符串理由才挂浮层，框里仍只显示简介')
+    check(mMix.pills()[1].textContent === '第二条' && mMix.pills()[1].parentNode.querySelector('.dsws-sugg-pop').textContent === '理由有理由', '防御：只有字符串理由才挂浮层，浮层里带「理由」标签与正文、框里仍只显示简介')
     await mMix.unmount()
   }
 
@@ -545,8 +556,10 @@ async function main() {
     check(css.indexOf('max-width:' + appearanceMod.SUGGEST_APPEARANCE.popMaxWidthPx + 'px') >= 0, '样式：浮层最大宽度来自外观旋钮')
     const popRule = (css.match(/\.dsws-sugg-pop\{[^}]*\}/) || [''])[0]
     check(popRule.indexOf('display:block') >= 0 && popRule.indexOf('display:flex') < 0, '样式：浮层按普通文字流排版（不用竖排 flex），评分才能和理由排在同一行')
-    check(css.indexOf('margin-right:' + appearanceMod.SUGGEST_APPEARANCE.scoreGapPx + 'px') >= 0, '样式：分数泡与理由之间留空，间距来自外观旋钮')
-    check(css.indexOf('.dsws-sugg-reason{display:inline}') >= 0, '样式：理由正文跟分数泡排同一行，不再独占一段')
+    check(css.indexOf('.dsws-sugg-pop-row{display:grid') >= 0 && css.indexOf('column-gap:' + appearanceMod.SUGGEST_APPEARANCE.popLabelGapPx + 'px') >= 0, '样式：四行按两列网格排，标签与正文间距来自外观旋钮')
+    check(css.indexOf('.dsws-sugg-pop-row + .dsws-sugg-pop-row{margin-top:' + appearanceMod.SUGGEST_APPEARANCE.popRowGapPx + 'px}') >= 0, '样式：行与行之间留空，行距来自外观旋钮')
+    check(css.indexOf('.dsws-sugg-pop-label') >= 0 && css.indexOf('.dsws-sugg-pop-value') >= 0, '样式：四行的灰色标签与正文样式都在')
+    check(css.indexOf('.dsws-sugg-score') < 0 && css.indexOf('.dsws-sugg-reason') < 0, '样式：旧分数泡与理由同行样式已删（四行取代它们）')
     check(popRule.indexOf('background:' + appearanceMod.SUGGEST_APPEARANCE.popBg) >= 0, '样式：浮层底色取自浮层专用旋钮（比选项框淡一档）')
     check(css.indexOf('body:not([data-ds-dark-theme]) .dsws-sugg-pop{background:' + appearanceMod.SUGGEST_APPEARANCE.lightPopBg) >= 0, '样式：浅色主题下浮层也另给一档更淡的底色')
     check(css.indexOf('prefers-reduced-motion') >= 0, '样式：尊重系统减少动效偏好')

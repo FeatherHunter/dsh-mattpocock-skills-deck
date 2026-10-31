@@ -320,7 +320,10 @@ zh:
   vc.other.prunableUnknownTip: 当前 git 版本无法判断该工作树目录是否存在；无法判断不等于不存在。
   suggest.group: 下一步建议
   suggest.close: 关闭（等于一条都不选）
-  suggest.ariaPill: "{prompt}；推荐理由：{reason}"
+  suggest.label.score: 推荐分
+  suggest.label.reason: 理由
+  suggest.label.gain: 优点
+  suggest.label.cost: 缺点
   suggest.live: 有 {n} 条下一步建议
   notice.entryLabel: 通知中心
   notice.entryTip: 通知中心：降级与失败的历史
@@ -663,7 +666,10 @@ en:
   vc.other.prunableUnknownTip: This git version cannot tell whether this worktree directory still exists; cannot tell does not mean it is still there.
   suggest.group: Next-step suggestions
   suggest.close: Close (choosing none)
-  suggest.ariaPill: "{prompt}; why: {reason}"
+  suggest.label.score: Score
+  suggest.label.reason: Reason
+  suggest.label.gain: Gain
+  suggest.label.cost: Cost
   suggest.live: "{n} next-step suggestions available"
   notice.entryLabel: Notifications
   notice.entryTip: "Notification center: history of degradations and failures"

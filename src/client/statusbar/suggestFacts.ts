@@ -21,9 +21,12 @@ export const SUGGEST_MAX_ITEMS = 4
 /** 简介上限按显示宽度算：汉字、全角标点与 emoji 算 2 格，其余字符算 1 格，30 格等于 15 个汉字；
  *  英文每个字母算 1 格，所以最多 30 个字符。必须与工具侧一致。 */
 export const SUGGEST_INTRO_MAX_WIDTH = 30
-/** 提示词与理由按 Unicode 码点数算，避免把 emoji 之类的代理对切坏。必须与工具侧一致。 */
+/** 提示词与三格理由文本都按 Unicode 码点数算，避免把 emoji 之类的代理对切坏；理由、优点、缺点
+ *  各限 30 个字。必须与工具侧一致。 */
 export const SUGGEST_PROMPT_MAX_CHARS = 500
-export const SUGGEST_REASON_MAX_CHARS = 200
+export const SUGGEST_REASON_MAX_CHARS = 30
+export const SUGGEST_GAIN_MAX_CHARS = 30
+export const SUGGEST_COST_MAX_CHARS = 30
 export const SUGGEST_PRIORITY_MIN = 0
 export const SUGGEST_PRIORITY_MAX = 10
 
@@ -91,7 +94,7 @@ export const suggestClipWidth = function (text: any, maxWidth: any) {
 }
 
 /**
- * 把工具参数解析成建议清单。只认 { items: [{ intro, prompt, reason, priority? }, ...] }。
+ * 把工具参数解析成建议清单。只认 { items: [{ intro, prompt, reason, gain, cost, priority? }, ...] }。
  *
  * 参数有两种形态，都要收：原生预设的 tool/call 给的是模型原始 JSON 文本（字符串，要 JSON.parse）；
  * PTC 预设的 tool/ptc-dispatch-start 给的已经是解析好的对象（平台转交前解析过一遍）。两路后端
@@ -99,6 +102,7 @@ export const suggestClipWidth = function (text: any, maxWidth: any) {
  *
  * 这里比工具侧宽松（工具是「任一条不合格整次拒绝」，界面是「坏条目丢掉、剩下的够数就用」）：
  * 界面不承担校验职责，只在参数还算可信时把展示数据取出来；过滤后不足最少条数就整次不出结果。
+ * 旧会话与回放里的事件没有 gain / cost / priority 这几格，按空串与 null 收，界面只显示有的行。
  * 返回值的 ok 是唯一稳定的成功标记；clipped 是「被截断过文本的条数」（与工具侧 counts.clipped 同口径）。
  */
 export const suggestItemsOf = function (argumentsValue: any) {
@@ -124,17 +128,21 @@ export const suggestItemsOf = function (argumentsValue: any) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) { dropped += 1; continue }
     const promptText = typeof entry.prompt === 'string' ? entry.prompt.trim() : ''
     if (!promptText) { dropped += 1; continue }
-    // 简介、理由与优先级都允许缺失：简介缺失时界面只显示提示词（旧事件里没有这一格），
-    // 类型不是字符串也按空串收，不因此丢掉整条提示词；优先级没打分就记 null，排序时统一放末尾。
+    // 简介、理由、优点、缺点与推荐分都允许缺失：简介缺失时界面只显示提示词（旧事件里没有这一格），
+    // 类型不是字符串也按空串收，不因此丢掉整条提示词；推荐分没给就记 null，浮层少「推荐分」这一行。
     const introText = typeof entry.intro === 'string' ? entry.intro.trim() : ''
     const reasonText = typeof entry.reason === 'string' ? entry.reason.trim() : ''
+    const gainText = typeof entry.gain === 'string' ? entry.gain.trim() : ''
+    const costText = typeof entry.cost === 'string' ? entry.cost.trim() : ''
     const introPart = suggestClipWidth(introText, SUGGEST_INTRO_MAX_WIDTH)
     const promptPart = suggestClipText(promptText, SUGGEST_PROMPT_MAX_CHARS)
     const reasonPart = suggestClipText(reasonText, SUGGEST_REASON_MAX_CHARS)
-    if (introPart.clipped || promptPart.clipped || reasonPart.clipped) clipped += 1
-    items.push({ intro: introPart.text, prompt: promptPart.text, reason: reasonPart.text, priority: suggestPriorityOf(entry.priority) })
+    const gainPart = suggestClipText(gainText, SUGGEST_GAIN_MAX_CHARS)
+    const costPart = suggestClipText(costText, SUGGEST_COST_MAX_CHARS)
+    if (introPart.clipped || promptPart.clipped || reasonPart.clipped || gainPart.clipped || costPart.clipped) clipped += 1
+    items.push({ intro: introPart.text, prompt: promptPart.text, reason: reasonPart.text, gain: gainPart.text, cost: costPart.text, priority: suggestPriorityOf(entry.priority) })
   }
-  // 排序（与工具侧同口径）：打了分的按分从高到低，没打分的放末尾、彼此保持原有相对顺序；
+  // 排序（与工具侧同口径）：按推荐分从高到低；没给分的放末尾、彼此保持原有相对顺序（旧事件才会有）。
   // 排好再截到上限，所以多于上限时留下的是分最高的几条，而不是先到的几条。
   items.sort(function (a: any, b: any) {
     if (a.priority === null && b.priority === null) return 0
