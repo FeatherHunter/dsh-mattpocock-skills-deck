@@ -13,7 +13,8 @@
 
 - **改法**：18 篇有英文改动的译文整篇重译，补齐上游新增的命令、标签规则、流程与「全新上下文窗口」要求；32 篇英文未变的译文逐段核对，改掉几处与新版原文对不上的译法（例如 bug 核查里的 confirmed/failed 改成「核实成立／核实不成立」，ADR 格式里的 Considered Options／Consequences／monorepo 等按术语表统一）；术语表补上 subagent、context window、fresh context window、blocking edge、blocker、dependency edge、child issue、child ticket、native 依赖这几组词的定译，并明确「智能体」是废弃旧译；50 篇译文再由没参与翻译的独立子代理按漏译、误译、结构偏移、杜撰术语四条逐篇审查，问题改完后重跑中文门禁。
 - **门禁**：`tests/verify-bundled-skills-zh.ts` 全量 50 篇通过（完整性、标题层级、代码块逐字、行内代码、链接与同页锚点、代码外数字、中英比例等 13 条判据）。
-- **对应提交**：`11b52b6e`、`72daade1`、`e0cc1a95`、`1b0d234a`、`f322c62c`、`afb498e7`、`68513eb1` 及其余各组重译提交。
+- **门禁随原文变化调整**：v1.3.2 的 `implement` 正文把原先用普通文字写的 `/tdd`、`/code-review` 改成 `Call the Skill tool with "tdd"` 这类引号写法，`tests/verify-skill-detail-stack.ts` 里「真实语料必须出现普通文字写出来的技能名」这条判据的前提随之消失，因此删掉那条 check，保留「出现一处就核一处」的检查与四条历史写法的回归；其余断言不动（#1731）。
+- **对应提交**：`11b52b6e`、`72daade1`、`e0cc1a95`、`1b0d234a`、`f322c62c`、`afb498e7`、`68513eb1` 及其余各组重译提交；门禁调整见 `1f957077`。
 
 ### 议题标签口径与实现者提示词（#1724、#1725）
 
