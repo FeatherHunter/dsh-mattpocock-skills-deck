@@ -27,8 +27,8 @@ importers:
         specifier: 0.1.7-rc.2
         version: 0.1.7-rc.2(ead59e2384682bf741eae1c9eaa56bcd)
       dependency-cruiser:
-        specifier: ^18.6.0
-        version: 18.6.0
+        specifier: ^18.7.0
+        version: 18.7.0
       dsh-featherhunter-plugin-base:
         specifier: 0.1.5
         version: 0.1.5(react@19.3.1)
@@ -560,15 +560,15 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  ansi-styles@4.1.0:
-    resolution: {integrity: sha512-Qts4KCLKG+waHc9C4m07weIY8qyeixoS0h6RnbsNVD6Fw+pEZGW3vTyObL3WXpE09Mq4Oi7/lBEyLmOiLtlYWQ==}
+  ansi-styles@4.3.0:
+    resolution: {integrity: sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg==}
     engines: {node: '>=8'}
 
   bidi-js@1.1.0:
     resolution: {integrity: sha512-fX1Onk0tdVPC7obPWB5EbJ1z7NVhLq4m2xZLq2YXBkxzMXIGRpNMU88n0EPgWseKl12J7zXs7qrDxPK4sRs2fg==}
 
-  chalk@4.1.0:
-    resolution: {integrity: sha512-qwx12AxXe2Q5xQ43Ac//I6v5aXTipYrSESdOgzrN+9XjgEpyjpKuvSGaN4qE93f7TQTlerQQ8S+EQ0EyDoVL1A==}
+  chalk@4.1.2:
+    resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
     engines: {node: '>=10'}
 
   color-convert@2.0.1:
@@ -593,8 +593,8 @@ packages:
   decimal.js@10.6.0:
     resolution: {integrity: sha512-YpgQiITW3JXGntzdUmyUR1V812Hn8T1YVXhCu+wO3OpS4eU9l4YdD3qjyiKdV6mvV29zapkMeD390UVEf2lkUg==}
 
-  dependency-cruiser@18.6.0:
-    resolution: {integrity: sha512-It7NW5AmCDBCLMq7I91Nfu8VRKzrIE6S+M/FMQzALDceJ0B1PWRHo77q9YJg/HwyBBEWHVtOuTptIQki+xecOw==}
+  dependency-cruiser@18.7.0:
+    resolution: {integrity: sha512-WexT4OswA6Gy86ms2J7SJ4FJscN43dyS+i5skpbtXlPTFQW4yWbontjFip1TOBAVnc+U+9zdH0a56YTRZX/IGw==}
     engines: {node: ^22||^24||>=26}
     hasBin: true
 
@@ -793,8 +793,8 @@ packages:
     resolution: {integrity: sha512-vavAMRXOgBVNF6nyEEmL3DBK19iRpDcoIwW+swQ+CbGiu7lju6t+JklA1MHweoWtadgt4ISVUsXLyDq34ddcwA==}
     engines: {node: '>=4'}
 
-  supports-color@7.1.0:
-    resolution: {integrity: sha512-oRSIpR8pxT1Wr2FquTNnGet79b3BWljqOuoW/h4oBhxJ/HUbX5nX6JSruTkvXDCFMwDPvsaTTbvMLKZWSy0R5g==}
+  supports-color@7.2.0:
+    resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
     engines: {node: '>=8'}
 
   supports-preserve-symlinks-flag@1.0.0:
@@ -830,6 +830,11 @@ packages:
 
   typescript@5.6.3:
     resolution: {integrity: sha512-hjcS1mhfuyi4WW8IWtjP7brDrG2cuDZukyrYrSauoXGNgx0S7zceP07adYkJycEr56BOUTNPzbInooiN3fn1qw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -1234,7 +1239,7 @@ snapshots:
 
   acorn@8.19.0: {}
 
-  ansi-styles@4.1.0:
+  ansi-styles@4.3.0:
     dependencies:
       color-convert: 2.0.1
 
@@ -1242,10 +1247,10 @@ snapshots:
     dependencies:
       require-from-string: 2.0.2
 
-  chalk@4.1.0:
+  chalk@4.1.2:
     dependencies:
-      ansi-styles: 4.1.0
-      supports-color: 7.1.0
+      ansi-styles: 4.3.0
+      supports-color: 7.2.0
 
   color-convert@2.0.1:
     dependencies:
@@ -1269,7 +1274,7 @@ snapshots:
 
   decimal.js@10.6.0: {}
 
-  dependency-cruiser@18.6.0:
+  dependency-cruiser@18.7.0:
     dependencies:
       acorn: 8.19.0
       acorn-jsx: 5.3.2(acorn@8.19.0)
@@ -1288,7 +1293,7 @@ snapshots:
       safe-regex: 2.1.1
       semver: 7.8.5
       tsconfig-paths-webpack-plugin: 4.2.0
-      typescript: 5.6.3
+      typescript: 5.9.3
       watskeburt: 6.0.0
 
   dsh-featherhunter-plugin-base@0.1.5(react@19.3.1):
@@ -1476,7 +1481,7 @@ snapshots:
 
   strip-bom@3.0.0: {}
 
-  supports-color@7.1.0:
+  supports-color@7.2.0:
     dependencies:
       has-flag: 4.0.0
 
@@ -1500,7 +1505,7 @@ snapshots:
 
   tsconfig-paths-webpack-plugin@4.2.0:
     dependencies:
-      chalk: 4.1.0
+      chalk: 4.1.2
       enhanced-resolve: 5.26.0
       tapable: 2.3.3
       tsconfig-paths: 4.2.0
@@ -1512,6 +1517,8 @@ snapshots:
       strip-bom: 3.0.0
 
   typescript@5.6.3: {}
+
+  typescript@5.9.3: {}
 
   typescript@7.0.2:
     optionalDependencies:
