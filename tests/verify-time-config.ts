@@ -416,6 +416,9 @@ const EXEMPTS: ExemptRow[] = [
   // #1692：磁盘回放的「上次已知」时刻与按需细节淘汰用的时间戳，都是读钟记下来的时刻。
   { file: 'src/refresh/kernel/detail-eviction.ts', name: 'nowMs', reason: '读钟时刻（调用方传入的 Date.now），给淘汰记号与行时间戳用，不是可调参数' },
   { file: 'src/client/views/IssueDetail.ts', name: 'evictedAtMs', reason: '算出来的时刻（淘汰记号里的上次已知时刻，界面格式化成人看的 HH:mm），不是可调参数' },
+  // #1693：通知事件库的去重窗口由调用方注入（上游是已登记的 notificationEventDedupeMs），读钟函数是测试注钟口。
+  { file: 'src/refresh/kernel/notification-events.ts', name: 'windowMs', reason: '透传变量，接的是 store 注入的去重窗口（上游是已登记的 notificationEventDedupeMs），不是新参数' },
+  { file: 'src/refresh/rooms/host/notification-store.ts', name: 'nowMs', reason: '读钟函数（Date.now 的包法，测试可注入），不是可调参数' },
   // —— 存量 JavaScript（覆盖率扫描从 .ts 扩到 .js 后新捞出来的）——
   // 分三类：测量值与时刻（调 YAML 改不了它）、状态字段与初值（0 表示“还没有”）、
   // 透传变量（值由调用方按已登记参数装进来）。
