@@ -40,6 +40,8 @@ declare function vcCommitPageNode(h: any, t: any, o: any): any
 declare function vcTaskPanelNode(h: any, t: any, o: any): any
 // 工作树页叶子（#1752，vcWorktreesPage.ts）：同样由构建拼进同一个闭包，壳的挂载段只调用它。
 declare function vcWorktreesPageNode(h: any, t: any, o: any): any
+// 子模块页叶子（#1757 T21，vcSubmodulesPage.ts）：同样由构建拼进同一个闭包，挂载段只往下递读数和处理函数。
+declare function vcSubmodulesPageNode(h: any, t: any, o: any): any
 // 改动页操作面板叶子（#1742，vcChangesPage.ts）：同样由构建拼进闭包；只在 changes 页且页面传入改动读数时挂载。
 declare function vcChangesPageNode(h: any, t: any, o: any): any
 // 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）：同上由构建拼进闭包，这里只声明形状。
@@ -262,6 +264,9 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
       reads: opts.reads, ui: opts.ui, ops: opts.ops, handlers: opts.handlers,
     }), { key: 'worktrees' }))
   }
+  // #1757 T21 子模块页正文：域 10 八条能力的入口、固定四项批量、逐行清单与确认/结果都在 vcSubmodulesPage 里；
+  //   壳只在调用方递进这一族读数（opts.submodules）时挂一段，没有递进来就照旧画骨架，其它页渲染不变。
+  if (page === 'submodules' && opts.submodules !== undefined && typeof vcSubmodulesPageNode === 'function') children.push(Object.assign({}, vcSubmodulesPageNode(h, t, { board: opts.submodules, ui: opts.submoduleUi, ops: opts.submoduleOps }), { key: 'submodules' }))
   // 提交历史页有自己的正文（#1744 T09：列表 / 详情 / 逐文件差异 / 13.14 图形化视图）。
   // 只有在拿到了首屏读数时才换成真正文；没有读数（壳自检、Z 组骨架断言）仍旧画骨架。
   if (page === 'commits' && opts.reads) {
@@ -282,7 +287,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
       ops: opts.commitOps || null, targets: opts.commitTargets || [],
       panel: opts.commitPanel || null,
     }), { key: 'commit' }))
-  } else {
+  } else if (page !== 'submodules' || opts.submodules === undefined) {
     // 骨架自检：三种表单形态与四种状态各画一遍，T03 只交壳，业务入口由后续票逐条接。
     children.push(h('div', { key: 'skeleton', className: 'vcs-skeleton', 'data-vc-skeleton': '1' }, [
       h('div', { key: 'forms', className: 'vcs-forms' }, vcShellFormNodes(h, t, o)),
@@ -350,11 +355,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   if (branchOpen) children.push(keyed(vcBranchOverlayNode(h, t, { id: branchOverlayId, branch: seed.branch }), 'branch'))
   if (gearOpen) children.push(keyed(vcGearIndexNode(h, t, { id: gearId, pagePrefix: opts.pagePrefix || '', active: isManage ? page : '' }), 'gear'))
   // 命令面板：全库搜索页把它画在能力行里（唯一一个输入框）；其它页按种子画成贴触发点的浮层。
-  if (paletteOpen && !isSearch) {
-    children.push(keyed(vcPaletteNode(h, t, {
-      id: paletteId, query: seed.query, highlight: seed.highlight, limit: seed.paletteLimit,
-    }), 'palette'))
-  }
+  if (paletteOpen && !isSearch) children.push(keyed(vcPaletteNode(h, t, { id: paletteId, query: seed.query, highlight: seed.highlight, limit: seed.paletteLimit }), 'palette'))
   children.push(keyed(vcPageTabsNode(h, t, { pagePrefix: opts.pagePrefix || '', active: VC_TAB_PAGES.indexOf(page) >= 0 ? page : '' }), 'tabs'))
   children.push(keyed(vcPageBodyNode(h, t, {
     page: page, pagePrefix: opts.pagePrefix || '',
@@ -371,6 +372,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     // #1743：#1743 提交页的动作层、目标提交候选与现成面板模型也从调用方传进来（壳不自己造）。
     commitOps: opts.commitOps || null, commitTargets: opts.commitTargets || [], commitPanel: opts.commitPanel || null,
     ops: opts.ops, handlers: opts.handlers, // #1752 工作树页要真数据与处理函数
+    submodules: opts.submodules, submoduleUi: opts.submoduleUi, submoduleOps: opts.submoduleOps, // #1757 T21 子模块页的读数、交互态与处理函数
   }), 'body'))
   // #1751 贮藏页（域 7）：只在贮藏页挂这一块；十条动作的入口、确认卡与最近丢弃都在叶子里，
   // 这里只把首屏数据（seed）与回调递进去，页面壳不多说一句规则。

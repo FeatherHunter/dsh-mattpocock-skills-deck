@@ -686,6 +686,9 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // #1752 工作树的八条动作（argv、行模型、判定与理由、剪枝清单、稀疏检出规则）：宿主执行前与界面判定必须读同一份，
   //   界面不许自己再拼第二份 argv 或第二套理由。文件不带 import，可直接拼进界面闭包；宿主半走普通相对 import。
   { marker: '// ==== shared:vcWorktreeOps (spliced by build) ====', file: 'src/shared/version-control/src/worktree-ops.ts' },
+  // #1757 T21 子模块域的十一个动作（argv、判定与理由、批量菜单、地址打码、任务动作对照）：宿主预检/执行与界面判定必须读同一份，
+  //   界面不许自己再拼第二份 argv 或第二套理由。文件不带 import，可直接拼进界面闭包；宿主半走普通相对 import。
+  { marker: '// ==== shared:vcSubmoduleOps (spliced by build) ====', file: 'src/shared/version-control/src/submodule-ops.ts' },
 ]
 
 // ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------
@@ -792,6 +795,11 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcWorktreesData', file: 'src/client/views/versionControl/vcWorktreesData.ts' },
   { id: 'vcWorktreesOps', file: 'src/client/views/versionControl/vcWorktreesOps.ts' },
   { id: 'vcWorktreesPage', file: 'src/client/views/versionControl/vcWorktreesPage.ts' },
+  // #1757 T21 子模块页三叶，依赖次序固定：数据层（八条入口、批量菜单、读数状态）→ 动作层（预检、确认、写/任务电话、回包落位）→ 页面画法。
+  //   排在 vcShellPages 之前，壳的挂载段才看得到 vcSubmodulesPageNode。
+  { id: 'vcSubmodulesData', file: 'src/client/views/versionControl/vcSubmodulesData.ts' },
+  { id: 'vcSubmodulesOps', file: 'src/client/views/versionControl/vcSubmodulesOps.ts' },
+  { id: 'vcSubmodulesPage', file: 'src/client/views/versionControl/vcSubmodulesPage.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },
