@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T14:05:55.131Z",
+  "generatedAt": "2026-10-31T15:53:40.137Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 487,
-  "gateCount": 487,
-  "attributedGates": 436,
+  "chainLength": 488,
+  "gateCount": 488,
+  "attributedGates": 437,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 51,
+  "completionRecordedGates": 52,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 674,
+  "graphFileCount": 679,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4261,6 +4261,21 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 5 条"
     },
     {
+      "step": "node tests/verify-1586-worktrees.ts",
+      "file": "tests/verify-1586-worktrees.ts",
+      "guards": [
+        "src/client/views/versionControl/vcWorktreesPage.ts"
+      ],
+      "dirs": [
+        "src/client/views/versionControl"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 121,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-1586-write-contracts.ts",
       "file": "tests/verify-1586-write-contracts.ts",
       "guards": [
@@ -6275,6 +6290,9 @@
         "src/client/views/versionControl/vcTabVisible.ts",
         "src/client/views/versionControl/vcText.ts",
         "src/client/views/versionControl/vcViews.ts",
+        "src/client/views/versionControl/vcWorktreesData.ts",
+        "src/client/views/versionControl/vcWorktreesOps.ts",
+        "src/client/views/versionControl/vcWorktreesPage.ts",
         "src/client/views/versionControl/vcWrite.ts",
         "src/client/views/versionControl/vcWriteOps.ts",
         "src/client/views/versionControl/vcWriteRun.ts",
@@ -6286,6 +6304,7 @@
         "src/shared/version-control/src/first-screen.ts",
         "src/shared/version-control/src/rules.ts",
         "src/shared/version-control/src/state.ts",
+        "src/shared/version-control/src/worktree-ops.ts",
         "tests/fixtures/version-control/live-numstat-shapes.json",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
@@ -6303,7 +6322,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 28 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 32 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -12125,6 +12144,7 @@
       "node tests/verify-gate-map.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-vc-visual-browser.ts",
+      "node tests/verify-1586-worktrees.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-881-commit-open.ts",
@@ -13459,9 +13479,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 695,
+    "fileCount": 700,
     "dirCount": 84,
-    "coveredFileCount": 695,
+    "coveredFileCount": 700,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13675,6 +13695,9 @@
       "src/client/views/versionControl/vcTaskPanel.ts",
       "src/client/views/versionControl/vcText.ts",
       "src/client/views/versionControl/vcViews.ts",
+      "src/client/views/versionControl/vcWorktreesData.ts",
+      "src/client/views/versionControl/vcWorktreesOps.ts",
+      "src/client/views/versionControl/vcWorktreesPage.ts",
       "src/client/views/versionControl/vcWrite.ts",
       "src/client/views/versionControl/vcWriteOps.ts",
       "src/client/views/versionControl/vcWriteRun.ts",
@@ -13796,6 +13819,7 @@
       "src/host/versionControlTask.ts",
       "src/host/versionControlTaskRun.ts",
       "src/host/versionControlTaskStore.ts",
+      "src/host/versionControlWorktrees.ts",
       "src/host/versionControlWrite.ts",
       "src/host/workspaceCwd.ts",
       "src/host/workspaceKey.ts",
@@ -13966,6 +13990,7 @@
       "src/shared/version-control/src/rules.ts",
       "src/shared/version-control/src/state.ts",
       "src/shared/version-control/src/task-protocol.ts",
+      "src/shared/version-control/src/worktree-ops.ts",
       "src/shared/version-control/src/write-reasons.ts",
       "src/shared/version-control/src/write-ticket.ts",
       "src/shared/version-control/tsconfig.json",
