@@ -211,7 +211,12 @@ export function createVersionControl(deps: any): any {
     // 字段白名单（规格第 8 节）：只记命令名、参数个数、退出码、耗时、输出长度与截断标记；
     // 参数内容、输出原文、目录原文都不进日志。
     fire('info', 'git.exec', { argv0: GIT_NAME, cwdHash: dirHash(dir), cmd: cmd, argc: Array.isArray(args) ? args.length : 0, latencyMs: Date.now() - t0, exitCode: exitCode, stdoutBytes: Buffer.byteLength(String(out.text || ''), 'utf8'), truncated: out.truncated === true, stdinBytes: stdinBytes, via: VIA })
-    if (exitCode !== 0) { return { kind: 'non-zero', exitCode: exitCode, stderr: err.text } }
+    // 非零退出也要把 stdout 带回去：git 有一批命令把「结果说明」写在标准输出上而不是错误流。
+    //   实测（git 2.49）：合并撞冲突时 CONFLICT 与 Automatic merge failed 全在 stdout、stderr 为空；
+    //   merge-tree --write-tree 有冲突时退出码 1、冲突路径与结果树 OID 也都在 stdout；
+    //   diff --check 查到残留标记时退出码 2、逐行标记同样在 stdout。只回 stderr 会让这些调用方
+    //   拿到一句空话、把「有冲突/有残留」误判成读不出东西，所以两个流都回，各自带上限与截断标记。
+    if (exitCode !== 0) { return { kind: 'non-zero', exitCode: exitCode, stdout: out.text, truncated: out.truncated, stderr: err.text } }
     return { kind: 'ok', stdout: out.text, truncated: out.truncated, stdinBytes: stdinBytes }
     }, function (): any { return { kind: 'cancelled', cancelled: true, message: '已取消排队，可重试' } })
   }

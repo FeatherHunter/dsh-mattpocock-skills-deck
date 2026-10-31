@@ -10,7 +10,7 @@ const path = require('node:path')
 const cp = require('node:child_process')
 const { pathToFileURL } = require('node:url')
 const { printGateResult } = require('./lib/gate-result.ts')
-const { sourceText } = require('./lib/source-text.ts')
+const { sourceText, spliceableJs } = require('./lib/source-text.ts')
 const { compileFn } = require('./lib/eval-probe.ts')
 const { localeDataText } = require('./lib/locale-data.ts')
 
@@ -581,6 +581,143 @@ async function main() {
   const writeTag = ['ticket-missing', 'ticket-op-mismatch', 'ticket-expired', 'need-confirm', 'stale-repo', 'target-changed', 'conflict-markers', 'bad-text', 'unknown-write-failure']
   const missingTag = writeTag.filter(function (id) { return writeSrc.indexOf("'" + id + "'") < 0 })
   eq(missingTag, [], 'E31 执行叶子按固定理由标识符拒绝（界面照同一套话术画）')
+
+
+  // ———— F 组：客户端侧（动作模型、页面渲染、词条、登记点） ————
+  // 客户端叶子不能 import 共享层（界面闭包），所以这份动作名单与页面都是「读源码求值」，
+  //   对账对象是 A 组已经加载过的共享协议；任何一条登记不上或渲染不出来都判红。
+  console.log('F 客户端冲突向导（#1747）')
+  function fakeH(tag, props, kids) {
+    const children = []
+    const push = function (k) {
+      if (k === undefined || k === null || k === false || k === true) return
+      if (Array.isArray(k)) { k.forEach(push); return }
+      children.push(k)
+    }
+    push(kids)
+    return { tag: tag, props: props || {}, children: children }
+  }
+  function fakeT(key, params) { return params ? 'T:' + key + ':' + JSON.stringify(params) : 'T:' + key }
+  function findAll(node, pred, acc) {
+    const out = acc || []
+    if (!node || typeof node !== 'object') return out
+    if (Array.isArray(node)) { node.forEach(function (n) { findAll(n, pred, out) }); return out }
+    if (pred(node)) out.push(node)
+    ;(node.children || []).forEach(function (n) { findAll(n, pred, out) })
+    return out
+  }
+  function textOf(node) {
+    if (node === undefined || node === null || node === false || node === true) return ''
+    if (typeof node === 'string' || typeof node === 'number') return String(node)
+    if (Array.isArray(node)) return node.map(textOf).join('')
+    if (node.props && node.props['data-vc-conflicts-files-empty'] === '1') return textOf(node.children)
+    return textOf(node.children)
+  }
+  const opsLeaf = await import(pathToFileURL(path.join(ROOT, 'src/client/views/versionControl/vcConflictsOps.js')).href)
+  const pickNames = ['VC_CONFLICTS_PHONES', 'VC_CONFLICTS_OPS', 'VC_CONFLICTS_STATES', 'VC_CONFLICTS_KINDS', 'VC_CONFLICTS_OPS_SOURCE',
+    'vcConflictsOpMetaOf', 'vcConflictsOpLabelKeyOf', 'vcConflictsOpVerbKeyOf', 'vcConflictsStateLabelKeyOf', 'vcConflictsKindLabelKeyOf',
+    'vcConflictsSideLabelKeyOf', 'vcConflictsRequestIdOf', 'vcConflictsVisibleOf', 'vcConflictsPayloadOf', 'vcConflictsCheckArgsOf',
+    'vcConflictsWriteArgsOf', 'vcConflictsTargetOf', 'vcConflictsListOf', 'vcConflictsChoicesOf', 'vcConflictsRowNode', 'vcConflictsPageNode']
+  const leafBody = spliceableJs('src/client/views/versionControl/vcConflictsOps.ts') + '\n' +
+    spliceableJs('src/client/views/versionControl/vcConflictsPage.ts') + '\nreturn { ' + pickNames.join(', ') + ' }'
+  const leaf = compileFn(['h', 't', 'vcWriteErrFamilyOf', 'splitConflictHunks', 'applyConflictChoices'], leafBody)(
+    fakeH, fakeT, function (reason) { return String(reason) }, textMod.splitConflictHunks, textMod.applyConflictChoices)
+  const sharedByCap = {}
+  shared.CONFLICT_OPS.forEach(function (o) { sharedByCap[o.capId] = o })
+  const opsMismatch = leaf.VC_CONFLICTS_OPS.filter(function (o) {
+    const s = sharedByCap[o.capId]
+    if (!s) return true
+    return s.id !== o.op || (s.kind === 'write') !== (o.write === true) || (s.dangerous === true) !== (o.dangerous === true) || (s.confirm === true) !== (o.confirm === true)
+  })
+  eq(opsMismatch, [], 'F1 客户端 15 条动作与共享协议逐条对账零缺口（动作名、读写、危险、确认）')
+  eq(leaf.VC_CONFLICTS_PHONES, { read: 'wf.gitConflicts', check: 'wf.gitConflictCheck', write: 'wf.gitConflictWrite' }, 'F2 电话表三条与宿主注册的名字一致（界面只拨这三个名字）')
+  eq(leaf.VC_CONFLICTS_STATES, shared.CONFLICT_STATES, 'F3 四种进行中状态与共享层同一份口径')
+  check(leaf.VC_CONFLICTS_KINDS.length === 8 && leaf.VC_CONFLICTS_KINDS.indexOf('binary') >= 0 && leaf.VC_CONFLICTS_KINDS.indexOf('submodule') >= 0 && leaf.VC_CONFLICTS_KINDS.indexOf('mode') >= 0, 'F4 冲突文件八类分类齐全（含二进制、子模组、模式）')
+  eq(leaf.vcConflictsVisibleOf('').filter(function (op) { return ['op-continue', 'op-skip', 'op-abort'].indexOf(op) >= 0 }), [], 'F5 没有进行中操作时不出现继续/跳过/中止（不是灰着）')
+  eq(leaf.vcConflictsVisibleOf('merge').indexOf('op-skip'), -1, 'F6 合并中不给「跳过这一步」（git 的合并没有 skip 这一步）')
+  eq(leaf.vcConflictsVisibleOf('rebase').length, 15, 'F7 变基中十五条全在（继续、跳过、中止都可点）')
+  eq(leaf.vcConflictsPayloadOf('merge', { target: 'side' }), { target: 'side' }, 'F8 合并的载荷只给目标分支')
+  eq(leaf.vcConflictsPayloadOf('take-side', { path: 'a.txt' }), { path: 'a.txt', side: 'ours' }, 'F9 选边默认当前边，路径与边各自一格')
+  eq(leaf.vcConflictsPayloadOf('save-file', { path: 'a.txt', text: 'x' }), { path: 'a.txt', text: 'x' }, 'F10 整份保存的载荷带路径与全文')
+  const checkArgs = leaf.vcConflictsCheckArgsOf('C:/repo', 'merge', { target: 'side' })
+  eq([checkArgs.cwd, checkArgs.op, checkArgs.target], ['C:/repo', 'merge', 'side'], 'F11 预检参数是 cwd+动作+载荷，字段名与宿主读的一致')
+  const writeArgs = leaf.vcConflictsWriteArgsOf('C:/repo', 'op-continue', {}, 't1', 'r1')
+  check(writeArgs.ticketId === 't1' && writeArgs.requestId === 'r1' && writeArgs.confirmed === true, 'F12 执行参数带票号、请求号与显式确认')
+  const rid = leaf.vcConflictsRequestIdOf(1700000000000, 'a b!c')
+  check(/^[A-Za-z0-9_-]+$/.test(rid) && rid.length <= 64 && leaf.vcConflictsRequestIdOf(1700000000001, 'a b!c') !== rid, 'F13 请求号形状合规且每次不同（重放靠它换回上一次结果）')
+  // 词条：真源 yaml 里 93 个键，中英两份同键；页面上出现的每个静态键都必须在这份词表里。
+  const yamlText = fs.readFileSync(path.join(ROOT, 'config', 'copy', 'vcconflicts.yaml'), 'utf8')
+  const enAt = yamlText.indexOf('\nen:')
+  const zhPart = yamlText.slice(0, enAt)
+  const enPart = yamlText.slice(enAt)
+  const keysOf = function (part) { return part.split('\n').filter(function (l) { return /^  vc\.conflicts\.[A-Za-z0-9.]+:/.test(l) }).map(function (l) { return l.trim().split(':')[0] }) }
+  const zhKeys = keysOf(zhPart)
+  const enKeys = keysOf(enPart)
+  eq([zhKeys.length, enKeys.length], [93, 93], 'F14 词表 93 个键中英各一份（实得 ' + zhKeys.length + '/' + enKeys.length + '）')
+  eq(zhKeys.slice().sort().join(','), enKeys.slice().sort().join(','), 'F15 中英两份的键完全同名（缺一门就生成器报错，这里再守一道）')
+  const wantedKeys = leaf.VC_CONFLICTS_OPS.map(function (o) { return leaf.vcConflictsOpLabelKeyOf(o.op) }).concat(leaf.VC_CONFLICTS_OPS.map(function (o) { return leaf.vcConflictsOpVerbKeyOf(o.op) }))
+  const missingKeys = wantedKeys.filter(function (k) { return zhKeys.indexOf(k) < 0 })
+  eq(missingKeys, [], 'F16 15 条动作的名字与动作说法都在词表里')
+  const pageSrc = sourceText('src/client/views/versionControl/vcConflictsPage.ts')
+  const opsSrcText = sourceText('src/client/views/versionControl/vcConflictsOps.ts')
+  const literalKeys = []
+  const keyRe = /t\('([^']+)'/g
+  let keyHit = keyRe.exec(pageSrc)
+  while (keyHit) { if (keyHit[1].indexOf('vc.writeErr.') !== 0) literalKeys.push(keyHit[1]); keyHit = keyRe.exec(pageSrc) }
+  const strayKeys = literalKeys.filter(function (k) { return zhKeys.indexOf(k) < 0 })
+  eq(strayKeys, [], 'F17 页面里出现的每个静态词条键都在词表里（实得 ' + literalKeys.length + ' 个）')
+  const stripComments = function (s) { return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '') }
+  const cjk = /[\u4e00-\u9fa5]/.test(stripComments(pageSrc)) || /[\u4e00-\u9fa5]/.test(stripComments(opsSrcText))
+  check(cjk === false, 'F18 两片叶子的代码里没有中文字面量（可见文字全走词条，注释不算）')
+  // 渲染：进行中状态与冲突清单都从 opts.conflicts 进来；暂停/跳过/中止按状态出现。
+  const makeConflicts = function (over) {
+    const base = { state: 'merge', reads: {}, rows: {}, values: { target: 'side', path: 'a.txt', side: 'ours' }, handlers: {} }
+    return Object.assign(base, over || {})
+  }
+  const listRead = { ok: true, conflictCount: 2, conflicts: [
+    { path: 'a.txt', kind: 'both-changed', textKind: 'text', sides: { ours: true, theirs: true, delete: false } },
+    { path: 'c.txt', kind: 'deleted-by-theirs', textKind: 'text', sides: { ours: true, theirs: false, delete: true } },
+  ] }
+  const page = leaf.vcConflictsPageNode(fakeH, fakeT, { conflicts: makeConflicts({ reads: { 'conflict-list': listRead } }) })
+  check(page.tag === 'section' && page.props['data-vc-conflicts-page'] === '1' && page.props['data-vc-conflicts-count'] === '15', 'F19 页面体是一块区域，带 15 条能力的总数标记')
+  const rows = findAll(page, function (n) { return !!n.props['data-vc-conflicts-row'] })
+  eq(rows.length, 14, 'F20 合并中画 14 行（15 条里跳过这一步不出现）')
+  eq(rows.map(function (r) { return r.props['data-vc-conflicts-row'] }).sort(), ['6.1', '6.10', '6.11', '6.13', '6.14', '6.15', '6.2', '6.3', '6.4', '6.5', '6.6', '6.7', '6.8', '6.9'], 'F21 画出来的正是那 14 条能力号')
+  const noState = leaf.vcConflictsPageNode(fakeH, fakeT, { conflicts: makeConflicts({ state: null }) })
+  const noStateRows = findAll(noState, function (n) { return !!n.props['data-vc-conflicts-row'] })
+  eq(noStateRows.map(function (r) { return r.props['data-vc-conflicts-row'] }).filter(function (id) { return ['6.11', '6.12', '6.13'].indexOf(id) >= 0 }), [], 'F22 没有进行中操作时继续/跳过/中止三条整行不出现（不是灰着）')
+  const fileNodes = findAll(page, function (n) { return !!n.props['data-vc-conflicts-file'] })
+  eq(fileNodes.map(function (n) { return n.props['data-vc-conflicts-file-kind'] }), ['both-changed', 'deleted-by-theirs'], 'F23 冲突文件按分类逐条列出（八类标签从词条取）')
+  const sideButtons = findAll(page, function (n) { return !!n.props['data-vc-conflicts-file-side'] })
+  eq(sideButtons.filter(function (b) { return b.props['data-vc-conflicts-file-path'] === 'c.txt' }).map(function (b) { return b.props['data-vc-conflicts-file-side'] }), ['ours', 'delete'], 'F24 对方删除的文件只给存在的那两条边（对方边不画，不是灰着）')
+  const confirmPage = leaf.vcConflictsPageNode(fakeH, fakeT, { conflicts: makeConflicts({ rows: { 'op-abort': { rows: {}, confirm: { ticketId: 't1', requestId: 'r1' } } } }) })
+  const confirmNode = findAll(confirmPage, function (n) { return !!n.props['data-vc-conflicts-confirm'] })[0]
+  const segs = confirmNode ? findAll(confirmNode, function (n) { return !!n.props['data-vc-conflicts-confirm-seg'] }).map(function (n) { return n.props['data-vc-conflicts-confirm-seg'] }) : []
+  eq(segs, ['what', 'wont', 'reversible', 'verb'], 'F25 危险动作的确认卡是固定四段（会动什么/不会动什么/能不能回来/点了执行什么）')
+  const markerPage = leaf.vcConflictsPageNode(fakeH, fakeT, { conflicts: makeConflicts({ rows: { 'marker-check': { read: { ok: true, clean: false, worktree: [{}, {}], staged: [] } } } }) })
+  const markerNode = findAll(markerPage, function (n) { return n.props['data-vc-conflicts-marker-clean'] !== undefined })[0]
+  check(!!markerNode && markerNode.props['data-vc-conflicts-marker-clean'] === '0' && textOf(markerNode).indexOf('T:vc.conflicts.read.markerDirty') >= 0, 'F26 残留标记没清干净时读数画成「脏」并给出两半行数（不报成干净）')
+  const failPage = leaf.vcConflictsPageNode(fakeH, fakeT, { conflicts: makeConflicts({ rows: { merge: { result: { ok: false, error: { kind: 'git-failed', reason: 'conflict-markers', message: 'boom' }, values: {} } } } }) })
+  const failNode = findAll(failPage, function (n) { return n.props['data-vc-conflicts-result-ok'] === '0' })[0]
+  const retryNode = findAll(failPage, function (n) { return !!n.props['data-vc-conflicts-retry'] })[0]
+  check(!!failNode && !!retryNode && failNode.props['data-vc-conflicts-result'] === '6.1' && textOf(failNode).indexOf('vc.writeErr.conflict-markers') >= 0, 'F27 失败结果带失败标记、走同源话术，并给「再试一次」按钮')
+  // 反证：把 6.14 从动作表里拿掉，对账必须立刻点名这一条。
+  const coGap = function (list) { return shared.CONFLICT_OPS.map(function (o) { return o.capId }).filter(function (id) { return list.map(function (o) { return o.capId }).indexOf(id) < 0 }) }
+  eq(coGap(leaf.VC_CONFLICTS_OPS.filter(function (o) { return o.capId !== '6.14' })), ['6.14'], 'F28 反证：动作表少一条时对账必须点名（实得 ' + JSON.stringify(coGap(leaf.VC_CONFLICTS_OPS.filter(function (o) { return o.capId !== '6.14' }))) + '）')
+  // 登记点：页面壳挂载、构建叶子登记与客户端标记各一处。
+  const shellSrc = sourceText('src/client/views/versionControl/vcShellPages.ts')
+  has(shellSrc, 'declare function vcConflictsPageNode', 'F29 页面壳声明了冲突页叶子的形状')
+  has(shellSrc, "page === 'conflicts'", 'F30 页面壳只在冲突页挂这一块')
+  has(shellSrc, 'conflicts: opts.conflicts', 'F31 页面壳把冲突读数与交互态原样传给页面体（不改形状）')
+  const buildSrc = sourceText('scripts/build.mts')
+  has(buildSrc, "id: 'vcConflictsOps'", 'F32 构建登记了动作模型叶子')
+  has(buildSrc, "id: 'vcConflictsPage'", 'F33 构建登记了页面正文叶子')
+  has(buildSrc, 'shared:vcConflictText', 'F34 构建把冲突文本共享模块拼进界面闭包')
+  const clientIndexSrc = sourceText('src/client/index.ts')
+  check((clientIndexSrc.split('leaf:vcConflictsOps').length - 1) === 1 && (clientIndexSrc.split('leaf:vcConflictsPage').length - 1) === 1 && (clientIndexSrc.split('shared:vcConflictText').length - 1) === 1, 'F35 客户端入口三处标记各出现一次（重复或缺失构建都会拒）')
+  const localeText = localeDataText()
+  const localeMissing = zhKeys.filter(function (k) { return localeText.indexOf("'" + k + "'") < 0 })
+  eq(localeMissing, [], 'F36 词表已生成进运行时词条表（缺生成物时这一条会点名）')
 
   for (let i = 0; i < tmpDirs.length; i += 1) {
     try { fs.rmSync(tmpDirs[i], { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }) } catch (e) { console.log('  INFO 临时仓库没删干净（不影响结论）：' + tmpDirs[i]) }
