@@ -263,6 +263,18 @@ export async function checkScratchWritable(deps: WorkspaceCheckDeps): Promise<Wo
           'no ' + scratchRoot + ' yet; the workspace root ' + cwd + ' is writable, so it can be created later'),
     }
   } catch (e) {
+    const hostError = errorTextOf(e)
+    // Win32 ERROR_INVALID_FUNCTION from this ACL query means the host file service
+    // cannot perform the check on WSL; it says nothing about directory permissions.
+    if (/^\\\\wsl(?:\.localhost|\$)\\/i.test(cwd) && /GetFileSecurityW/i.test(hostError) && /\b(?:Win32(?:\s+error)?[\s:=]*(?:\(?1\)?))(?!\d)/i.test(hostError)) {
+      return {
+        status: 'pending',
+        evidence: 'wsl-host-unsupported',
+        detail: pick(deps,
+          '宿主文件服务不支持对 WSL 路径执行安全信息检查（GetFileSecurityW，Win32 错误 1）；无法验证目录是否可写：' + hostError,
+          'the host file service does not support the security information check on WSL paths (GetFileSecurityW, Win32 error 1); directory writability could not be verified: ' + hostError),
+      }
+    }
     if (isSandboxDeny(e)) {
       return {
         status: 'pending',
