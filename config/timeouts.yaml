@@ -107,6 +107,12 @@ timeouts:
   vcTaskCancelGraceMs: 5000
   # 强杀后再等多久才下结论：2 秒。等不到退出事实也不能无限挂起，按残留说明收尾。
   vcTaskHardKillGraceMs: 2000
+  # —— 改动页的单条命令超时（#1742）——
+  # 预检里单条只读 git 命令的超时：15 秒。读一块 diff 可能比普通配置读取大，与列表 files 那一档对齐。
+  vcChangesReadTimeoutMs: 15000
+  # 改动页写命令的单条超时：15 秒。apply --cached / add / reset / restore / clean / rm / mv 都是本地动作，
+  # 与暂存那一条同一档；它们不推远端，不需要 pull/push 那种分钟级预算。
+  vcChangesWriteTimeoutMs: 15000
   # git 凭据代执行的整趟预算：4 分钟。上下限 5 秒与 10 分钟：接线给的预算会被钳进这个范围
   # （下限从 1 秒提到 5 秒；1 秒的预算在慢机器上连子进程启动都盖不住，等于没给）。
   gitCredentialCallBudgetMs: 240000

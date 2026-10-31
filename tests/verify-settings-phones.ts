@@ -233,7 +233,9 @@ async function main() {
     // #1191 加了一条契约操作电话 wf.contractOp（客户端 contract-op 按当前后端分发），60 → 61。
     // #1697 加了一条只读电话 wf.notifications（通知中心读宿主事件库历史），61 → 62。
     // #1740 加了一族长任务电话 wf.gitTaskStart / wf.gitTaskQuery / wf.gitTaskCancel（开始、查询、取消），62 → 65。
-    check(nPhones === 65, '宿主电话六十五条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1742 加了改动页两条电话 wf.gitChangesCheck / wf.gitChangesWrite（预检与执行），65 → 67。
+    // #1739 的首屏电话 wf.gitFirstScreen 当年只实现、没在入口注册，#1746 收口时补注册（漏接线的缺陷，同时补了门禁断言），67 → 68。
+    check(nPhones === 68, '宿主电话六十八条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——
