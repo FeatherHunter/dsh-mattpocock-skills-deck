@@ -44,10 +44,15 @@ const write = (base, name, text) => fs.writeFileSync(path.join(base, name), text
 const readFile = (base, name) => fs.readFileSync(path.join(base, name), 'utf8')
 const cleanTree = (base) => { git(base, ['checkout', '--', '.']); fs.rmSync(path.join(base, 'b.txt'), { force: true }) }
 
+// 票据组的两个观测点：时钟可拨（判过期）与进程日志（判拒绝发生在起 git 之前）。
+let clockNow = 1000
+const spawnLog = []
+
 function makeVc() {
   const deps = {
     subprocess: {
       spawn(req) {
+        spawnLog.push(req.argv.join(' '))
         const r = spawnSync(req.argv[0], req.argv.slice(1), { cwd: req.cwd, encoding: 'buffer', windowsHide: true, maxBuffer: 1 << 26 })
         const mk = (b) => ({ finalize: () => ({ text: (b || Buffer.alloc(0)).toString('utf8'), truncated: false }) })
         return { done: Promise.resolve({ exitCode: r.status }), collected: { stdout: mk(r.stdout), stderr: mk(r.stderr) }, terminate() {} }
@@ -64,7 +69,7 @@ function makeVc() {
     TIMEOUT_MS: 30000,
     gate: { noteOutbound() {} },
     logCtx: { fire() {} },
-    now: () => 1000,
+    now: () => clockNow,
   }
   return vcMod.createVersionControl(deps)
 }
@@ -123,6 +128,15 @@ async function main() {
   const cmds = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'commands.js')).href)
   const parsed = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'parse-stash.js')).href)
 
+  // 写动作的调用姿势与界面一致：先预检签票（wf.gitStashCheck），再凭票执行（wf.gitStash）。
+  // 读动作（list / show）不签票，票据层直接放行，所以这里也直接调执行电话。
+  async function stashDo(vc: any, input: any): Promise<any> {
+    if (!rules.stashNeedsTicketOf(input.op)) return await vc.handleGitStash(input)
+    const pre = await vc.handleGitStashCheck(input)
+    if (!pre.ok) return pre
+    return await vc.handleGitStash(Object.assign({}, input, { ticketId: pre.ticket.id }))
+  }
+
   // ---------- A 规则层：十条唯一名单、命令拼装、校验、版本门与恢复路径 ----------
   console.log('A 规则层（十条名单 / argv / 校验 / 版本门 / 恢复）')
   check(Array.isArray(rules.STASH_OPS) && rules.STASH_OPS.length === 10, '十条贮藏动作全部登记，不多不少')
@@ -173,57 +187,57 @@ async function main() {
   git(r1, ['add', 'a.txt'])
   write(r1, 'b.txt', 'untracked\n')
   const vc1 = makeVc()
-  const list0 = await vc1.handleGitStash({ cwd: r1, op: 'list' })
+  const list0 = await stashDo(vc1, { cwd: r1, op: 'list' })
   check(list0.ok === true && Array.isArray(list0.entries) && list0.entries.length === 0, 'B0 空仓库列表回空数组（不是错误）')
-  const push1 = await vc1.handleGitStash({ cwd: r1, op: 'push', message: '第一条贮藏' })
+  const push1 = await stashDo(vc1, { cwd: r1, op: 'push', message: '第一条贮藏' })
   check(push1.ok === true && push1.entries.length === 1, 'B1 7.1 新建贮藏后列表多一条')
   check(push1.entries[0].selector === 'stash@{0}' && push1.entries[0].oid.length >= 40, 'B1b 回包带选择器与完整提交号')
   check(String(push1.entries[0].subject).indexOf('第一条贮藏') >= 0, 'B1c 列表主题里带用户写的说明')
   check(readFile(r1, 'a.txt') === 'a\n', 'B1d 贮藏后工作区回到干净基线')
   check(readFile(r1, 'b.txt') === 'untracked\n', 'B1e 普通贮藏不动未跟踪文件（7.2 才带它们）')
-  const show1 = await vc1.handleGitStash({ cwd: r1, op: 'show', selector: push1.entries[0].selector })
+  const show1 = await stashDo(vc1, { cwd: r1, op: 'show', selector: push1.entries[0].selector })
   check(show1.ok === true && show1.files.indexOf('a.txt') >= 0 && String(show1.patch).indexOf('+b') >= 0, 'B2 7.5 查看内容给出文件清单与完整差异')
   check(show1.fileCount === show1.files.length && show1.truncated === false, 'B2b 文件数与实际清单一致，没过短时不标截断')
-  const showMissing = await vc1.handleGitStash({ cwd: r1, op: 'show', selector: 'stash@{9}' })
+  const showMissing = await stashDo(vc1, { cwd: r1, op: 'show', selector: 'stash@{9}' })
   check(showMissing.ok === false && showMissing.error.kind === 'stash-missing', 'B2c 查看不存在的贮藏：stash-missing（不猜别的记录）')
-  const apply1 = await vc1.handleGitStash({ cwd: r1, op: 'apply', selector: push1.entries[0].selector })
+  const apply1 = await stashDo(vc1, { cwd: r1, op: 'apply', selector: push1.entries[0].selector })
   check(apply1.ok === true && apply1.entries.length === 1, 'B3 7.6 应用保留记录（应用后列表仍一条）')
   check(readFile(r1, 'a.txt') === 'a\nb\n', 'B3b 应用后工作区真的拿回改动')
   cleanTree(r1)
   write(r1, 'a.txt', 'a\nb\n')
-  const push2 = await vc1.handleGitStash({ cwd: r1, op: 'push', message: '第二条' })
+  const push2 = await stashDo(vc1, { cwd: r1, op: 'push', message: '第二条' })
   check(push2.ok === true && push2.entries.length === 2, 'B3c 第二条贮藏后列表两条')
-  const pop1 = await vc1.handleGitStash({ cwd: r1, op: 'pop', selector: 'stash@{0}' })
+  const pop1 = await stashDo(vc1, { cwd: r1, op: 'pop', selector: 'stash@{0}' })
   check(pop1.ok === true && pop1.entries.length === 1, 'B4 7.7 弹出应用并删记录（列表少一条）')
   check(readFile(r1, 'a.txt') === 'a\nb\n', 'B4b 弹出后改动回到工作区')
   cleanTree(r1)
   write(r1, 'a.txt', 'a\nc\n')
   write(r1, 'b.txt', 'untracked\n')
-  const pushU = await vc1.handleGitStash({ cwd: r1, op: 'push-untracked', message: '带未跟踪' })
+  const pushU = await stashDo(vc1, { cwd: r1, op: 'push-untracked', message: '带未跟踪' })
   check(pushU.ok === true && pushU.entries.length === 2, 'B5 7.2 连未跟踪文件一起贮藏成功')
   check(fs.existsSync(path.join(r1, 'b.txt')) === false, 'B5b 未跟踪文件真的被收进贮藏')
-  const showU = await vc1.handleGitStash({ cwd: r1, op: 'show', selector: pushU.entries[0].selector })
+  const showU = await stashDo(vc1, { cwd: r1, op: 'show', selector: pushU.entries[0].selector })
   check(showU.ok === true && showU.files.indexOf('b.txt') >= 0, 'B5c 查看内容能看到未跟踪文件')
-  const badOp = await vc1.handleGitStash({ cwd: r1, op: 'nope' })
+  const badOp = await stashDo(vc1, { cwd: r1, op: 'nope' })
   check(badOp.ok === false && badOp.error.kind === 'usage', 'B6 不认识的动作用 usage 拒（不落到某条命令上）')
   const nonRepoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws1751-norepo-'))
-  const noRepo = await vc1.handleGitStash({ cwd: nonRepoDir, op: 'list' })
+  const noRepo = await stashDo(vc1, { cwd: nonRepoDir, op: 'list' })
   check(noRepo.ok === false && noRepo.error.kind === 'not-repo', 'B6b 非仓库目录（目录存在但不是仓库）：not-repo')
-  const emptyMsg = await vc1.handleGitStash({ cwd: r1, op: 'push', message: '' })
+  const emptyMsg = await stashDo(vc1, { cwd: r1, op: 'push', message: '' })
   check(emptyMsg.ok === false && emptyMsg.error.kind === 'message', 'B6c 空说明在宿主侧也拒（界面之外的第二道闸）')
   const dropNo = await vc1.handleGitStash({ cwd: r1, op: 'drop', selector: pushU.entries[0].selector })
-  check(dropNo.ok === false && dropNo.error.kind === 'confirm', 'B7 删除不带确认：confirm 拒（反证：确认闸不是恒放行）')
+  check(dropNo.ok === false && dropNo.error.kind === 'confirm' && dropNo.error.reason === 'ticket-missing', 'B7 删除不带预检票：confirm / ticket-missing 拒（反证：危险动作不是不带票就能跑）')
   const dropOid = pushU.entries[0].oid
-  const drop1 = await vc1.handleGitStash({ cwd: r1, op: 'drop', selector: pushU.entries[0].selector, confirm: true })
-  check(drop1.ok === true && drop1.entries.length === 1, 'B7b 确认后删除成功，列表少一条')
+  const drop1 = await stashDo(vc1, { cwd: r1, op: 'drop', selector: pushU.entries[0].selector })
+  check(drop1.ok === true && drop1.entries.length === 1, 'B7b 预检拿到票再执行：删除成功，列表少一条')
   check(Array.isArray(drop1.recent) && drop1.recent.length === 1 && drop1.recent[0].oid === dropOid, 'B7c 删除进「最近丢弃」并记下提交号')
-  const restore1 = await vc1.handleGitStash({ cwd: r1, op: 'restore', oid: dropOid, subject: drop1.recent[0].subject })
+  const restore1 = await stashDo(vc1, { cwd: r1, op: 'restore', oid: dropOid, subject: drop1.recent[0].subject })
   check(restore1.ok === true && restore1.entries.length === 2, 'B7d 从「最近丢弃」恢复：列表回到两条')
   check(restore1.recent.length === 0, 'B7e 恢复后该条从最近丢弃里移除（不重复留）')
   const clearNo = await vc1.handleGitStash({ cwd: r1, op: 'clear' })
-  check(clearNo.ok === false && clearNo.error.kind === 'confirm', 'B8 清空不带确认：confirm 拒')
-  const clear1 = await vc1.handleGitStash({ cwd: r1, op: 'clear', confirm: true })
-  check(clear1.ok === true && clear1.entries.length === 0, 'B8b 确认后清空全部')
+  check(clearNo.ok === false && clearNo.error.kind === 'confirm' && clearNo.error.reason === 'ticket-missing', 'B8 清空不带预检票：confirm / ticket-missing 拒')
+  const clear1 = await stashDo(vc1, { cwd: r1, op: 'clear' })
+  check(clear1.ok === true && clear1.entries.length === 0, 'B8b 凭票清空全部')
   check(clear1.recent.length === 2, 'B8c 清空把每一条都记进最近丢弃')
 
   // 只贮藏已暂存（7.3）：真 git 支持就真跑，不支持则断言版本门把它藏住（两条路都判）。
@@ -232,12 +246,12 @@ async function main() {
   git(r2, ['add', 'a.txt'])
   write(r2, 'b.txt', 'keep-unstaged\n')
   const vc2 = makeVc()
-  const stagedRun = await vc2.handleGitStash({ cwd: r2, op: 'push-staged', message: '只藏暂存' })
+  const stagedRun = await stashDo(vc2, { cwd: r2, op: 'push-staged', message: '只藏暂存' })
   if (rules.stashVersionAtLeast(git(r2, ['--version']).out, '2.35.0')) {
     check(stagedRun.ok === true && stagedRun.entries.length === 1, 'B9 7.3 在这版 git 上真跑：只贮藏已暂存的文件')
     check(readFile(r2, 'a.txt') === 'a\n', 'B9b 暂存区里的改动被收走')
     check(readFile(r2, 'b.txt') === 'keep-unstaged\n', 'B9c 未暂存的改动留在工作区')
-    const showS = await vc2.handleGitStash({ cwd: r2, op: 'show', selector: stagedRun.entries[0].selector })
+    const showS = await stashDo(vc2, { cwd: r2, op: 'show', selector: stagedRun.entries[0].selector })
     check(showS.ok === true && showS.files.join(',') === 'a.txt', 'B9d 贮藏里只有暂存过的那个文件')
   } else {
     check(stagedRun.ok === false && stagedRun.error.kind === 'version-hidden' && stagedRun.needed === '2.35.0', 'B9 这版 git 低于 2.35：宿主回 version-hidden 并说清需要什么版本')
@@ -247,14 +261,14 @@ async function main() {
   const r3 = mkRepo('branch')
   write(r3, 'a.txt', 'a\nbranch\n')
   const vc3 = makeVc()
-  const pushB = await vc3.handleGitStash({ cwd: r3, op: 'push', message: '建分支用' })
+  const pushB = await stashDo(vc3, { cwd: r3, op: 'push', message: '建分支用' })
   const selB = pushB.entries[0].selector
-  const badBranch = await vc3.handleGitStash({ cwd: r3, op: 'branch', selector: selB, branch: 'bad name' })
+  const badBranch = await stashDo(vc3, { cwd: r3, op: 'branch', selector: selB, branch: 'bad name' })
   check(badBranch.ok === false && badBranch.error.kind === 'branch', 'B10 分支名不合法：branch 拒（不建出怪名字）')
   git(r3, ['branch', 'taken'])
-  const existsBranch = await vc3.handleGitStash({ cwd: r3, op: 'branch', selector: selB, branch: 'taken' })
+  const existsBranch = await stashDo(vc3, { cwd: r3, op: 'branch', selector: selB, branch: 'taken' })
   check(existsBranch.ok === false && existsBranch.error.kind === 'branch-exists', 'B10b 分支名已存在：branch-exists（不覆盖现有分支）')
-  const okBranch = await vc3.handleGitStash({ cwd: r3, op: 'branch', selector: selB, branch: 'from-stash' })
+  const okBranch = await stashDo(vc3, { cwd: r3, op: 'branch', selector: selB, branch: 'from-stash' })
   check(okBranch.ok === true, 'B10c 合法且不存在：建分支成功')
   check(git(r3, ['rev-parse', '--verify', 'refs/heads/from-stash']).code === 0, 'B10d 新分支真的落在仓库里')
   check(okBranch.entries.length === 0, 'B10e git 建分支成功后会应用并删掉这条贮藏（stash branch 自身行为，界面按回包刷新列表）')
@@ -347,17 +361,66 @@ async function main() {
   check(mergeCommit.code === 0, 'D2 解决冲突后提交合并')
   write(r4, 'a.txt', 'resolved\nstash-me\n')
   write(r4, 'b.txt', 'untracked-e2e\n')
-  const e2eStash = await vc4.handleGitStash({ cwd: r4, op: 'push-untracked', message: '端到端冒烟' })
+  const e2eStash = await stashDo(vc4, { cwd: r4, op: 'push-untracked', message: '端到端冒烟' })
   check(e2eStash.ok === true && e2eStash.entries.length === 1, 'D3 贮藏当前改动与未跟踪文件')
   check(readFile(r4, 'a.txt') === 'resolved\n' && fs.existsSync(path.join(r4, 'b.txt')) === false, 'D4 贮藏后工作区回到合并提交的状态')
-  const e2eApply = await vc4.handleGitStash({ cwd: r4, op: 'apply', selector: e2eStash.entries[0].selector })
+  const e2eApply = await stashDo(vc4, { cwd: r4, op: 'apply', selector: e2eStash.entries[0].selector })
   check(e2eApply.ok === true && e2eApply.entries.length === 1, 'D5 应用后改动回来、记录还在')
   check(readFile(r4, 'a.txt') === 'resolved\nstash-me\n' && readFile(r4, 'b.txt') === 'untracked-e2e\n', 'D6 文件内容与未跟踪文件都真的回来了')
   cleanTree(r4)
-  const e2ePop = await vc4.handleGitStash({ cwd: r4, op: 'pop', selector: e2eApply.entries[0].selector })
+  const e2ePop = await stashDo(vc4, { cwd: r4, op: 'pop', selector: e2eApply.entries[0].selector })
   check(e2ePop.ok === true && e2ePop.entries.length === 0, 'D7 应用后先清干净工作区再弹出（同一份改动不能应用两次），弹出后列表清空、整条链路收口')
   check(readFile(r4, 'a.txt') === 'resolved\nstash-me\n' && readFile(r4, 'b.txt') === 'untracked-e2e\n', 'D7b 弹出也把改动与未跟踪文件一起还回来（与 7.6 两条路都要真的动文件）')
 
+  // ---------- E 票据层：预检签票、凭票执行、重放去重与现场变化（#1751 补：写动作 120 秒预检票据） ----------
+  console.log('E 票据层（预检签票 / 零命令拒绝 / 过期 / 换动作 / 现场变化 / requestId 重放）')
+  const r5 = mkRepo('ticket')
+  write(r5, 'a.txt', 'a\nticketed\n')
+  const vc5 = makeVc()
+  spawnLog.length = 0
+  const pre1 = await vc5.handleGitStashCheck({ cwd: r5, op: 'push', message: '票据第一条' })
+  check(pre1.ok === true && typeof pre1.ticket.id === 'string' && pre1.ticket.id.length > 0, 'E1 预检成功签票，回包带票号')
+  check(pre1.ticket.expiresAtMs - pre1.ticket.checkedAtMs === 120000, 'E2 票的有效期是中央配置的 120 秒（与改动页同一口径）')
+  check(pre1.op === 'push' && pre1.entries.length === 0 && pre1.facts.hasChanges === true && pre1.facts.head.length >= 40, 'E3 预检读真实现场：清单、HEAD 与工作区形状都带回来')
+  const preSpawns = spawnLog.slice()
+  check(preSpawns.length > 0 && preSpawns.every((l) => !/\bstash (push|apply|pop|drop|clear|branch)\b/.test(l)), 'E4 预检只读不写（起过的命令里没有写动作，实得 ' + preSpawns.length + ' 条只读命令）')
+  const baseSpawns = spawnLog.length
+  const noTicket = await vc5.handleGitStash({ cwd: r5, op: 'push', message: '票据第一条' })
+  const fakeTicket = await vc5.handleGitStash({ cwd: r5, op: 'push', message: '票据第一条', ticketId: 'not-a-real-ticket' })
+  check(noTicket.ok === false && noTicket.error.kind === 'confirm' && noTicket.error.reason === 'ticket-missing', 'E5 不带票直接执行：confirm / ticket-missing 拒')
+  check(fakeTicket.ok === false && fakeTicket.error.kind === 'confirm' && fakeTicket.error.reason === 'ticket-missing', 'E6 伪造票号也拒（票只活在宿主内存里，猜不出来）')
+  check(spawnLog.length === baseSpawns, 'E7 无票与伪造票都是零进程（拒绝发生在起 git 之前，实增 ' + (spawnLog.length - baseSpawns) + ' 条）')
+  const pushT = await vc5.handleGitStash({ cwd: r5, op: 'push', message: '票据第一条', ticketId: pre1.ticket.id })
+  check(pushT.ok === true && pushT.entries.length === 1, 'E8 凭票执行成功，贮藏真的建起来')
+  write(r5, 'a.txt', 'a\nsecond line\n')
+  const pre2 = await vc5.handleGitStashCheck({ cwd: r5, op: 'push', message: '第二张票' })
+  const wrongOp = await vc5.handleGitStash({ cwd: r5, op: 'apply', selector: pushT.entries[0].selector, ticketId: pre2.ticket.id })
+  check(wrongOp.ok === false && wrongOp.error.kind === 'confirm' && wrongOp.error.reason === 'ticket-op-mismatch', 'E9 拿 push 的票去 apply：动作不符拒（票不能串用）')
+  clockNow += 120001
+  const expired = await vc5.handleGitStash({ cwd: r5, op: 'push', message: '第二张票', ticketId: pre2.ticket.id })
+  clockNow = 1000
+  check(expired.ok === false && expired.error.kind === 'stale' && expired.error.reason === 'ticket-expired', 'E10 过期票（超过 120 秒）零命令拒，界面上就是重开确认卡')
+  const preDrop = await vc5.handleGitStashCheck({ cwd: r5, op: 'drop', selector: pushT.entries[0].selector })
+  check(preDrop.ok === true && preDrop.plan.oid === pushT.entries[0].oid, 'E11 删除预检把要动的那条提交号写进票（绑定到具体那一条）')
+  git(r5, ['stash', 'drop', 'stash@{0}'])
+  const changed = await vc5.handleGitStash({ cwd: r5, op: 'drop', selector: pushT.entries[0].selector, ticketId: preDrop.ticket.id })
+  check(changed.ok === false && changed.error.kind === 'stale' && changed.error.reason === 'target-changed', 'E12 确认之后目标被别处删掉：target-changed 拒（绝不猜着删下一条）')
+  write(r5, 'a.txt', 'a\nreplay\n')
+  const pre3 = await vc5.handleGitStashCheck({ cwd: r5, op: 'push', message: '重放' })
+  const beforeReplay = spawnLog.length
+  const first = await vc5.handleGitStash({ cwd: r5, op: 'push', message: '重放', ticketId: pre3.ticket.id, requestId: 'req-1751-a' })
+  const spawnsAfterFirst = spawnLog.length
+  const second = await vc5.handleGitStash({ cwd: r5, op: 'push', message: '重放', ticketId: pre3.ticket.id, requestId: 'req-1751-a' })
+  check(first.ok === true && second.ok === true && JSON.stringify(second.entries) === JSON.stringify(first.entries), 'E13 同一个 requestId 再来一次：回同一份结果（不会重复建第二条贮藏）')
+  check(spawnLog.length === spawnsAfterFirst && spawnsAfterFirst > beforeReplay, 'E14 重放不再起进程（第一次真跑，第二次走结果表）')
+  const writeCmds = spawnLog.slice(beforeReplay, spawnsAfterFirst).filter((l) => /\bstash (push|apply|pop|drop|clear|branch)\b/.test(l))
+  check(writeCmds.length === 1 && writeCmds[0].indexOf('stash push') >= 0, 'E15 成功路径只起一条写命令（实得 ' + writeCmds.length + ' 条：' + writeCmds.join(' / ') + '）')
+  const r6 = mkRepo('crossrepo')
+  write(r6, 'a.txt', 'a\nother\n')
+  const crossRepo = await vc5.handleGitStash({ cwd: r6, op: 'push', message: '跨仓库', ticketId: pre3.ticket.id })
+  check(crossRepo.ok === false && crossRepo.error.kind === 'stale' && crossRepo.error.reason === 'stale-repo', 'E16 确认之后换到另一个仓库：stale-repo 拒（票绑着仓库）')
+  const readNoTicket = await vc5.handleGitStash({ cwd: r5, op: 'list' })
+  check(readNoTicket.ok === true && readNoTicket.entries.length === 1, 'E17 读动作（list）不签票直接放行，界面刷新不被票据流程误伤')
   await printGateResult(GATE, total, failed)
   process.exit(failed ? 1 : 0)
 }

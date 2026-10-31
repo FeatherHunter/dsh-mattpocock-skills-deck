@@ -26,6 +26,7 @@ import {
   stashRestoreArgs,
   vcStashSelectorOk,
 } from '../shared/version-control/src/stash-rules.js'
+import { createStashTickets } from './versionControlStashTicket.js'
 
 /** 一条贮藏记录：选择器、提交号、时间、说明（与 parse-stash.ts 的解析结果同一形状）。 */
 interface StashEntry {
@@ -261,17 +262,22 @@ export function createStashPhones(deps: any): { handle: (args: any) => Promise<a
   return { handle: handle }
 }
 
-// #1751：父文件只留一行注册（它贴着 350 有效行上限，装配不能再摊开）。装配与缓存都收在这里：
-// 首次调用时才 createStashPhones，装好的那一个对象活在模块里，所以「最近丢弃」跨多次调用不丢；
-// 装配抛错时回同一封 env 信封，界面照常打得开、只是十条动作会说原因，下一次调用再重试装配。
+// #1751：父文件只留两行注册（它贴着 350 有效行上限，装配不能再摊开）。装配与缓存都收在这里：
+// 首次调用时才把执行层（createStashPhones）与票据层（createStashTickets）拼起来，装好的对象活在模块里，
+// 所以「最近丢弃」与票据表跨多次调用不丢；装配抛错时两条电话都回同一封 env 信封，界面照常打得开，
+// 只是动作会说原因，下一次调用再重试装配。
+// 票据层拿到的 exec 就是执行层的同一条 handle：预检、凭票、执行共享同一套进程出口与日志口径。
 let _stashPhonesP: any = null
-export function stashHandleOf(deps: any): any {
+export function stashPhonesOf(deps: any): any {
   if (!_stashPhonesP) {
     _stashPhonesP = Promise.resolve().then(function (): any {
-      return { handle: deps.loggedPhone('wf.gitStash', 'git-stash', createStashPhones(deps).handle) }
+      const raw: any = createStashPhones(deps)
+      const tickets: any = createStashTickets(Object.assign({}, deps, { exec: function (a: any): any { return raw.handle(a) } }))
+      return { check: deps.loggedPhone('wf.gitStashCheck', 'git-stash-check', tickets.check), write: deps.loggedPhone('wf.gitStash', 'git-stash', tickets.write) }
     }).catch(function (e: any): any {
       _stashPhonesP = null
-      return { handle: function (): any { return failPhone('env', '贮藏页十条能力的执行层装配失败：' + firstLine(String((e && e.message) || e))) } }
+      const failed: any = function (): any { return failPhone('env', '贮藏页十条能力的执行层装配失败：' + firstLine(String((e && e.message) || e))) }
+      return { check: failed, write: failed }
     })
   }
   return _stashPhonesP

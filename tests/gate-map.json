@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T16:07:56.856Z",
+  "generatedAt": "2026-10-31T16:24:27.622Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 489,
   "gateCount": 489,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 53,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 685,
+  "graphFileCount": 686,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4248,7 +4248,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 110,
+      "expectedAssertions": 127,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -13507,9 +13507,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 706,
+    "fileCount": 707,
     "dirCount": 84,
-    "coveredFileCount": 706,
+    "coveredFileCount": 707,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -13850,6 +13850,7 @@
       "src/host/versionControlFiles.ts",
       "src/host/versionControlFirstScreen.ts",
       "src/host/versionControlStash.ts",
+      "src/host/versionControlStashTicket.ts",
       "src/host/versionControlTask.ts",
       "src/host/versionControlTaskRun.ts",
       "src/host/versionControlTaskStore.ts",

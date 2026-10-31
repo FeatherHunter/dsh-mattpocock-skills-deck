@@ -98,7 +98,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-31 #1751（规格 #1586 T16）：贮藏页域 7 十条——规则层（编号/动作/危险档/版本门与 argv）、
   // 宿主真跑十条动作（含未跟踪文件、--staged 版本门、建分支名校验与最近丢弃恢复）、界面叶子
   // （十条入口、危险确认、详情、最近丢弃）与端到端冒烟（冲突→解决→贮藏→应用→pop），单跑实测 110 条。
-  'verify-1586-stash-page': 110,
+  'verify-1586-stash-page': 127,
   // 2026-10-29 #1600：词表里 gate.wipNotice 已退役（GitLab 可用后不再有「筹备中」注解），
   // 这扇改成先钉「键已不在词表里」、再钉「初始化小卡上不再出现该文案」，单跑实测 31 条。
   'verify-669-collapsed-recoverable': 31,

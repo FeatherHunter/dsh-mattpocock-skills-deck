@@ -52,6 +52,22 @@ export const STASH_OPS: StashOpDef[] = [
   { id: '7.10', op: 'clear', nameKey: 'vc.stash.op.clear', level: '毁', danger: true, needsSelector: false, needsMessage: false, needsBranch: false, minVersion: '2.11', versionPolicy: null, versionAlternativeKey: null },
 ]
 
+/**
+ * 十条动作里哪些是写（要预检凭票）、哪些是读（直接跑）：#841/#1742 的先例是「任何写命令之前
+ * 必须先过票据门」，贮藏这十条同样适用；restore（最近丢弃的恢复）不在十条里，但它也往
+ * refs/stash 里写，所以同样凭票走，不享受读动作的直通。
+ */
+export const STASH_WRITE_OPS: string[] = ['push', 'push-untracked', 'push-staged', 'apply', 'pop', 'branch', 'drop', 'clear', 'restore']
+/** 读动作（列表与查看内容）：不签票、不改仓库，直接跑。 */
+export const STASH_READ_OPS: string[] = ['list', 'show']
+
+/** 这条动作要不要凭票：写动作全部要，读动作全部不要；认不出按写处理（宁严不松）。 */
+export const stashNeedsTicketOf = function (op: any): boolean {
+  const name = String(op || '')
+  for (let i = 0; i < STASH_READ_OPS.length; i += 1) if (STASH_READ_OPS[i] === name) return false
+  return true
+}
+
 /** 账本里 7.3 的替代做法原文（规格 #1586 第 6 节），低版本界面上照着说，不自己编。 */
 export const STASH_STAGED_ALTERNATIVE = '先做一次全量贮藏，再恢复未暂存的部分'
 /** git 硬底线：低于它所有贮藏能力都藏起来（与 capabilities.ts 的 VERSION_FLOOR 同一条线）。 */

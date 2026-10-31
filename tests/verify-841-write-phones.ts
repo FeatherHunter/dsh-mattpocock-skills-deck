@@ -239,6 +239,42 @@ async function main(): Promise<void> {
   const iTickets = await vcI.changesTickets()
   check(iTickets instanceof Map && iTickets.size === 0, 'I5 还没预检过时改动页票表是空表')
 
+  // J 贮藏页两条电话（#1751）：写动作先预检签票、再凭票执行；读动作不签票直接放行。
+  // 判据只看「拒绝发生在起进程之前」与「重放不再起进程」，不复述实现里的票据表结构。
+  console.log('J 贮藏页电话（#1751）')
+  const vcJ = makeVc()
+  check(typeof vcJ.handleGitStashCheck === 'function' && typeof vcJ.handleGitStash === 'function', 'J1 贮藏页预检与执行两条电话都挂在同一个宿主对象上')
+  const rJ = mkRepo('j')
+  const stashSpawns = (): string[][] => spawns.filter((a) => after(a)[0] === 'stash')
+  const stashWrites = (): string[][] => stashSpawns().filter((a) => ['push', 'apply', 'pop', 'drop', 'clear', 'branch', 'store'].indexOf(after(a)[1]) >= 0)
+  const jPre = await vcJ.handleGitStashCheck({ cwd: rJ, op: 'push', message: '门禁用贮藏' })
+  check(jPre.ok === true && !!jPre.ticket && !!jPre.ticket.id && jPre.ticket.expiresAtMs - jPre.ticket.checkedAtMs === 120000, 'J2 预检签票，有效期 120 秒（与改动页同一份中央配置）')
+  check(stashWrites().length === 0, 'J3 预检只读：起过的 git 命令里一条写动作都没有')
+  const nJ = spawns.length
+  const jNoTicket = await vcJ.handleGitStash({ cwd: rJ, op: 'push', message: '门禁用贮藏' })
+  const jFake = await vcJ.handleGitStash({ cwd: rJ, op: 'push', message: '门禁用贮藏', ticketId: 'NOSUCHTICKET' })
+  check(jNoTicket.ok === false && jNoTicket.error.reason === 'ticket-missing' && spawns.length === nJ, 'J4 不带票：ticket-missing 且一个进程都没起')
+  check(jFake.ok === false && jFake.error.reason === 'ticket-missing' && spawns.length === nJ, 'J5 伪造票：同样 ticket-missing 且零进程')
+  const jPre2 = await vcJ.handleGitStashCheck({ cwd: rJ, op: 'push', message: '换动作的票' })
+  const nJ2 = spawns.length
+  const jWrongOp = await vcJ.handleGitStash({ cwd: rJ, op: 'apply', selector: 'stash@{0}', ticketId: jPre2.ticket.id })
+  check(jWrongOp.ok === false && jWrongOp.error.reason === 'ticket-op-mismatch' && spawns.length === nJ2, 'J6 换动作（push 的票拿去 apply）：ticket-op-mismatch 且零进程')
+  clock.t = jPre2.ticket.expiresAtMs + 1
+  const nJ3 = spawns.length
+  const jExpired = await vcJ.handleGitStash({ cwd: rJ, op: 'push', message: '换动作的票', ticketId: jPre2.ticket.id })
+  clock.t = 1000
+  check(jExpired.ok === false && jExpired.error.reason === 'ticket-expired' && spawns.length === nJ3, 'J7 过期票：ticket-expired 且零进程')
+  const jPre3 = await vcJ.handleGitStashCheck({ cwd: rJ, op: 'push', message: '重放一次' })
+  const jFirst = await vcJ.handleGitStash({ cwd: rJ, op: 'push', message: '重放一次', ticketId: jPre3.ticket.id, requestId: 'req-841-stash-1' })
+  const writesAfterFirst = stashWrites().length
+  const jReplay = await vcJ.handleGitStash({ cwd: rJ, op: 'push', message: '重放一次', ticketId: jPre3.ticket.id, requestId: 'req-841-stash-1' })
+  check(jFirst.ok === true && jReplay.ok === true && JSON.stringify(jReplay.entries) === JSON.stringify(jFirst.entries) && stashWrites().length === writesAfterFirst, 'J8 同一个 requestId 重放：回同一份结果且不再起第二条写命令（第一次写了 ' + writesAfterFirst + ' 条）')
+  const jPre4 = await vcJ.handleGitStashCheck({ cwd: rJ, op: 'drop', selector: jFirst.entries[0].selector })
+  git(rJ, ['stash', 'drop', 'stash@{0}'])
+  const jChanged = await vcJ.handleGitStash({ cwd: rJ, op: 'drop', selector: jFirst.entries[0].selector, ticketId: jPre4.ticket.id })
+  check(jChanged.ok === false && jChanged.error.reason === 'target-changed' && stashWrites().length === writesAfterFirst, 'J9 确认之后目标被别处删掉：target-changed 且零写命令（不猜着删下一条）')
+  const jList = await vcJ.handleGitStash({ cwd: rJ, op: 'list' })
+  check(jList.ok === true && Array.isArray(jList.entries) && jList.entries.length === 0, 'J10 读动作（list）不签票直接放行，界面刷新不被票据流程误伤')
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }
