@@ -657,6 +657,9 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // #842 写操作：判定（能不能暂存/提交/拉取/推送）只有一份真源 src/shared/version-control/src/rules.ts，
   //   界面不许自己算（自己算就会与宿主执行前那次判定各说各话），所以把这一份也拼进界面闭包。
   { marker: '// ==== shared:vcRules (spliced by build) ====', file: 'src/shared/version-control/src/rules.ts' },
+  // #1743 提交计划（八条提交能力的形态、目标、跳过钩子、签名、追加签名行）只有一份真源 commit-plan.ts：
+  //   宿主预检/执行与界面面板读同一份，参数口径与判定理由不各写一份；界面侧按老规矩拼进闭包。
+  { marker: '// ==== shared:vcCommitPlan (spliced by build) ====', file: 'src/shared/version-control/src/commit-plan.ts' },
   // #1738 页面注册表与命令面板的唯一数据源：能力账本（162 条能力的 id、名称、命令原文、页面归属、
   //   每页数量）只有这一份（T02 #1737 从规格第 11 节生成）。界面侧 page registry 与命令面板按同一份
   //   账本渲染；谁在界面里再抄一份名单，验证 818 的 Z 组会判红。
@@ -766,6 +769,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcShellPrimitives', file: 'src/client/views/versionControl/vcShellPrimitives.ts' },
   { id: 'vcPalette', file: 'src/client/views/versionControl/vcPalette.ts' },
   { id: 'vcHistory', file: 'src/client/views/versionControl/vcHistory.ts' }, // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）
+  { id: 'vcCommitOps', file: 'src/client/views/versionControl/vcCommitOps.ts' }, // #1743 提交页的动作层（预检拿票、危险动作确认、写电话、模板套用；不画界面）
+  { id: 'vcCommitPage', file: 'src/client/views/versionControl/vcCommitPage.ts' }, // #1743 提交页正文（八条能力的主入口、多行说明、确认卡与结果都在面板里）
   { id: 'vcTaskPanel', file: 'src/client/views/versionControl/vcTaskPanel.ts' }, // #1740 长任务区（进度、四类结论、取消按钮、重启标注中断；由页面壳挂进任务区）
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },

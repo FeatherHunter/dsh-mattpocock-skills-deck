@@ -226,6 +226,84 @@ async function main(): Promise<void> {
   await vcCap.runGitCommand('git', rH, ['-C', rH, '--no-pager', 'status'])
   check((requests[0] || { stdio: {} }).stdio.stdout.maxBytes === 8 * 1024 * 1024, 'H10 不传 stdoutLimit 时默认上限是 8MB')
 
+  // I 提交页域 2（#1743）：八条提交能力共用一份计划真源，危险动作靠 planDigest 绑票，失败分类不落 unknown。
+  console.log('I 提交页八条能力（计划绑定 / 危险动作 / 失败分类）')
+  const rI = mkRepo('i')
+  const vcI = makeVc()
+  const iPlan = { mode: 'staged', target: '', skipHooks: false, sign: false, signoff: false }
+  const iCheck = await vcI.handleGitWriteCheck({ cwd: rI, op: 'commit', message: '页 2.1 标题', plan: iPlan })
+  check(iCheck.ok === true && iCheck.plan && iCheck.plan.mode === 'staged' && iCheck.ticket && iCheck.ticket.op === 'commit', 'I1 预检收下提交计划并回一张 commit 票（计划与票据一起回包）')
+  const iTicketFull = (await vcI.writeTickets()).get(iCheck.ok ? iCheck.ticket.id : 'x') || {}
+  check(iCheck.ok === true && !!iTicketFull.bindings && !!iTicketFull.bindings.preconditions && /^[0-9a-f]{16}$/.test(String(iTicketFull.bindings.preconditions.planDigest || '')) && !!iTicketFull.target && iTicketFull.target.mode === 'staged', 'I2 提交票绑定计划摘要（planDigest）与计划本体（2.1 的形态写进 target）')
+  const iTicket = iCheck.ok ? iCheck.ticket : {}
+  // 2.1 正常提交：argv 在固定前缀之后逐元素独立，cwd 钉在票据那个仓库。
+  const iWriteSpawns0 = writeSpawns().length
+  const iCommit = await vcI.handleGitCommit({ cwd: rI, ticketId: iTicket.id, requestId: 'i-r1', message: '页 2.1 标题', plan: iPlan })
+  const iNew = writeSpawns()[iWriteSpawns0] || []
+  check(iCommit.ok === true && iCommit.committed === true && iCommit.mode === 'staged', 'I3 2.1 提交成功，回包带形态（staged）与新旧提交号')
+  check(after(iNew).join(' ') === 'commit -m 页 2.1 标题' && after(iNew).every((x) => typeof x === 'string'), 'I4 2.1 的 argv 是「commit -m <说明>」三段独立元素（不经 shell 拼接）')
+  const iCwdOk = requests.filter((q) => after(q.argv)[0] === 'commit').every((q) => q.cwd === rI)
+  check(iCwdOk, 'I5 每一次提交调用的 cwd 都钉在票据那个仓库上')
+  // 同一 requestId 重放：不再起第二次 commit 进程，回包还是那一份。
+  const iSpawnsBeforeReplay = writeSpawns().length
+  const iReplay = await vcI.handleGitCommit({ cwd: rI, ticketId: iTicket.id, requestId: 'i-r1', message: '页 2.1 标题', plan: iPlan })
+  check(iReplay.ok === true && iReplay.committed === true && writeSpawns().length === iSpawnsBeforeReplay, 'I6 同一 requestId 重放不重复执行（没有再起 commit 进程，回包与第一次一致）')
+  // 预检是 2.1、执行改成 2.3：计划摘要对不上，零写进程、HEAD 不动（绕过确认卡走不通）。
+  const rI2 = mkRepo('i2')
+  const vcI2 = makeVc()
+  const iHead2 = git(rI2, ['rev-parse', 'HEAD']).out
+  const iCheck2 = await vcI2.handleGitWriteCheck({ cwd: rI2, op: 'commit', message: '预检 2.1', plan: iPlan })
+  const iSwapSpawns0 = writeSpawns().length
+  const iSwap = await vcI2.handleGitCommit({ cwd: rI2, ticketId: iCheck2.ok ? iCheck2.ticket.id : 'x', requestId: 'i-r2', message: '执行 2.3', plan: { mode: 'amend', target: '', skipHooks: false, sign: false, signoff: false } })
+  check(iSwap.ok === false && iSwap.error && iSwap.error.reason === 'target-changed' && writeSpawns().length === iSwapSpawns0 && git(rI2, ['rev-parse', 'HEAD']).out === iHead2, 'I7 预检 2.1 却按 2.3 执行：planDigest 对不上，拒成 target-changed、零写进程、HEAD 不动（危险动作必须走确认卡）')
+  // 危险动作 2.3：仓库没有暂存内容也能提交（只改说明），执行 argv 是 --amend + -m。
+  const rI3 = mkRepo('i3')
+  git(rI3, ['reset', '-q'])
+  const vcI3 = makeVc()
+  const iCheck3 = await vcI3.handleGitWriteCheck({ cwd: rI3, op: 'commit', message: '只改说明', plan: { mode: 'amend', target: '', skipHooks: false, sign: false, signoff: false } })
+  check(iCheck3.ok === true && iCheck3.decision && iCheck3.decision.verdict === 'allow', 'I8 2.3 修订只需改说明：没有暂存内容也放行预检（普通提交这一态会被 nothing-staged 拦住）')
+  const iAmendSpawns0 = writeSpawns().length
+  const iAmend = await vcI3.handleGitCommit({ cwd: rI3, ticketId: iCheck3.ok ? iCheck3.ticket.id : 'x', requestId: 'i-r3', message: '只改说明', plan: { mode: 'amend', target: '', skipHooks: false, sign: false, signoff: false } })
+  const iAmendArgv = after(writeSpawns()[iAmendSpawns0] || [])
+  check(iAmend.ok === true && iAmendArgv.join(' ') === 'commit --amend -m 只改说明', 'I9 2.3 的 argv 是「commit --amend -m <说明>」（修订上一条提交）')
+  // 危险动作 2.4：目标不存在时预检直接拒、零写进程；目标存在时 argv 是 --fixup=<oid>。
+  const rI4 = mkRepo('i4')
+  const vcI4 = makeVc()
+  const iFixBad = await vcI4.handleGitWriteCheck({ cwd: rI4, op: 'commit', message: '吸收', plan: { mode: 'fixup', target: 'deadbeef', skipHooks: false, sign: false, signoff: false } })
+  check(iFixBad.ok === false && iFixBad.error && iFixBad.error.reason === 'bad-commit-target' && writeSpawns().length === 0, 'I10 2.4 找不到可吸收目标时预检就拒（bad-commit-target），零写进程')
+  const iFixMissing = await vcI4.handleGitWriteCheck({ cwd: rI4, op: 'commit', message: '吸收', plan: { mode: 'fixup', target: '', skipHooks: false, sign: false, signoff: false } })
+  check(iFixMissing.ok === false && iFixMissing.error && iFixMissing.error.reason === 'need-commit-target', 'I11 2.4 没给目标时拒成 need-commit-target（按钮该禁用的那一档）')
+  const iTargetOid = git(rI4, ['rev-parse', 'HEAD']).out
+  const iFixPlan = { mode: 'fixup', target: iTargetOid, skipHooks: false, sign: false, signoff: false }
+  const iFixCheck = await vcI4.handleGitWriteCheck({ cwd: rI4, op: 'commit', message: '吸收', plan: iFixPlan })
+  const iFixSpawns0 = writeSpawns().length
+  const iFix = await vcI4.handleGitCommit({ cwd: rI4, ticketId: iFixCheck.ok ? iFixCheck.ticket.id : 'x', requestId: 'i-r4', message: '', plan: iFixPlan })
+  const iFixArgv = after(writeSpawns()[iFixSpawns0] || [])
+  check(iFix.ok === true && iFixArgv.join(' ') === 'commit --fixup=' + iTargetOid, 'I12 2.4 的 fixup argv 是「commit --fixup=<目标提交>」（说明由 git 抄目标提交）')
+  // 2.5 跳过钩子的 argv 是 --no-verify；2.6 追加签名行是 -s（与 -S 签名提交分开）。
+  const rI5 = mkRepo('i5')
+  const vcI5 = makeVc()
+  const iSkipPlan = { mode: 'staged', target: '', skipHooks: true, sign: false, signoff: false }
+  const iSkipCheck = await vcI5.handleGitWriteCheck({ cwd: rI5, op: 'commit', message: '跳过钩子', plan: iSkipPlan })
+  const iSkipSpawns0 = writeSpawns().length
+  const iSkip = await vcI5.handleGitCommit({ cwd: rI5, ticketId: iSkipCheck.ok ? iSkipCheck.ticket.id : 'x', requestId: 'i-r5', message: '跳过钩子', plan: iSkipPlan })
+  const iSkipArgv = after(writeSpawns()[iSkipSpawns0] || [])
+  check(iSkip.ok === true && iSkip.skipHooks === true && iSkipArgv.join(' ') === 'commit --no-verify -m 跳过钩子', 'I13 2.5 跳过钩子单独勾选：argv 只多 --no-verify，不给别的提交加默认值')
+  const rI6 = mkRepo('i6')
+  const vcI6 = makeVc()
+  const iSignPlan = { mode: 'staged', target: '', skipHooks: false, sign: false, signoff: true }
+  const iSignCheck = await vcI6.handleGitWriteCheck({ cwd: rI6, op: 'commit', message: '追加签名行', plan: iSignPlan })
+  const iSignSpawns0 = writeSpawns().length
+  const iSign = await vcI6.handleGitCommit({ cwd: rI6, ticketId: iSignCheck.ok ? iSignCheck.ticket.id : 'x', requestId: 'i-r6', message: '追加签名行', plan: iSignPlan })
+  const iSignArgv = after(writeSpawns()[iSignSpawns0] || [])
+  check(iSign.ok === true && iSign.sign === false && iSign.signoff === true && iSignArgv.join(' ') === 'commit -s -m 追加签名行', 'I14 2.6 追加签名行只写尾部行（argv 是 -s），与签名提交（-S）是两个独立开关')
+  // 失败分类与信封：签名失败归到 signing-failed（不落 unknown-write-failure），信封固定四键。
+  const rI7 = mkRepo('i7')
+  const vcI7 = makeVc()
+  const iFailPlan = { mode: 'staged', target: '', skipHooks: false, sign: true, signoff: false }
+  const iFailCheck = await vcI7.handleGitWriteCheck({ cwd: rI7, op: 'commit', message: '签名提交', plan: iFailPlan })
+  const iFail = await vcI7.handleGitCommit({ cwd: rI7, ticketId: iFailCheck.ok ? iFailCheck.ticket.id : 'x', requestId: 'i-r7', message: '签名提交', plan: iFailPlan })
+  check(iFail.ok === false && iFail.error && iFail.error.reason === 'signing-failed' && Object.keys(iFail.error).sort().join(',') === 'hint,kind,message,reason', 'I15 2.6 签名失败归到 signing-failed（不是 unknown-write-failure），失败信封固定 {kind,reason,message,hint}')
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
 }

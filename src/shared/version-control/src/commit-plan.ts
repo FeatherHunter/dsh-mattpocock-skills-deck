@@ -20,7 +20,8 @@
  * 约定（改这里之前先读）：
  *   1. 提交说明（含多行、含模板套用后的原文）只作为 -m 的**一个**参数元素，换行原样保留。
  *   2. 修订上一条提交而没写新说明时用 --no-edit：允许只改内容 / 作者信息，不逼人重写说明。
- *   3. fixup / squash 的说明由 git 自己写，不拼 -m。
+ *   3. fixup 的说明由 git 从目标提交抄，不拼 -m；squash 必须由人写一句，用 -m 传（执行层把
+ *      GIT_EDITOR 钉成必定失败的 false，git 不会开编辑器等人输入）。
  *   4. 参数次序固定：形态开关 → -S → -s → --no-verify → 说明。次序本身有断言（门禁逐元素比对
  *      argv），改次序要同步改 tests/verify-1586-commit-page.ts。
  */
@@ -88,6 +89,33 @@ export function commitPlanProblem(raw: any): string | null {
     if (p.target === '') return 'need-commit-target'
   }
   return null
+}
+
+/** 计划对预检判定的修正：规则层的 judgeCommit 只认「有没有暂存内容」，
+ *  但 -a 与只改说明的修订并不要求先暂存——这里按形态把判定调整成人能理解的样子。
+ *  判定唯一真源仍是 rules.judge：这里只增删理由，不另写一套放行/拦截的规则。
+ *  返回 { verdict, reasons }，界面据此显示禁用原因，宿主预检据此回 blocked / allow，
+ *  两边读同一份结果，禁用理由与判定不会各说各话。 */
+export function commitDecisionOf(decision: any, plan: any, screen: any): any {
+  const verdict: string = (decision && decision.verdict) ? String(decision.verdict) : 'block'
+  const reasons: any[] = Array.isArray(decision && decision.reasons) ? decision.reasons.slice() : []
+  const hasHead: boolean = !(screen && screen.repo && screen.repo.hasCommits === false)
+  const without = function (item: any): any[] { return reasons.filter(function (x: any): boolean { return x !== item }) }
+  if (plan.mode === 'amend') {
+    // 只改说明的修订不需要暂存内容；分支还没有提交时换成更具体的 nothing-to-amend。
+    const left: any[] = without('nothing-staged')
+    if (!hasHead) return { verdict: 'block', reasons: left.concat(['nothing-to-amend']) }
+    if (left.length === 0) return { verdict: 'allow', reasons: ['ok'] }
+    return { verdict: (verdict === 'warn') ? 'warn' : (verdict === 'allow' ? 'allow' : 'block'), reasons: left }
+  }
+  if (plan.mode === 'all') {
+    // 提交全部已跟踪改动（-a）不要求暂存区有东西；工作区里一处改动都没有时仍然挡住。
+    const changes: number = Number(screen && screen.stagedCount ? screen.stagedCount : 0) + Number(screen && screen.unstagedCount ? screen.unstagedCount : 0)
+    const left: any[] = (changes > 0) ? without('nothing-staged') : reasons
+    if (left.length === 0) return { verdict: 'allow', reasons: ['ok'] }
+    return { verdict: (verdict === 'warn') ? 'warn' : (verdict === 'allow' ? 'allow' : 'block'), reasons: left }
+  }
+  return decision
 }
 
 /** 这条计划是不是会改写历史的危险动作：修订上一条提交，或把本次改动吸收进别的提交。

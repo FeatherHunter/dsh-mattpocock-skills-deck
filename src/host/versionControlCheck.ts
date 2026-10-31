@@ -25,7 +25,7 @@
 import { createHash } from 'node:crypto'
 import { fixedPrefix, lsFilesStageArgs, remoteListArgs, REMOTE_PATTERN } from '../shared/version-control/src/commands.js'
 import { judge } from '../shared/version-control/src/rules.js'
-import { commitPlanOf, commitPlanProblem } from '../shared/version-control/src/commit-plan.js'
+import { commitPlanOf, commitPlanProblem, commitDecisionOf } from '../shared/version-control/src/commit-plan.js'
 import { makeTicket, indexRecordCount, fingerprintInputOf, hasIntentToAdd, makeBindings, planBindingInput, worktreeBindingInput, pathAbsentFromScreen, configOldValueOf } from '../shared/version-control/src/write-ticket.js'
 import { pushPlanOf } from '../shared/version-control/src/push-plan.js'
 import { messageProblem, writeHintFor } from '../shared/version-control/src/write-reasons.js'
@@ -46,36 +46,6 @@ const REMOTE_LIMIT: number = 4096
 /** 绑定表用的短摘要（#1741）：与索引指纹同一把尺 —— sha256 前 16 位十六进制，两个宿主文件的算法必须一致。 */
 function digest16(text: any): string {
   return createHash('sha256').update(String(text === undefined || text === null ? '' : text), 'utf8').digest('hex').slice(0, 16)
-}
-
-/**
- * 按提交计划修正 judge 的判定（#1743，域 2）：
- *   · 2.2 提交全部已跟踪改动（-a）不要求暂存区有东西，只要工作区里有已跟踪文件的改动就能提交；
- *   · 2.3 修订上一条提交可以只改说明（--no-edit），所以同样摘掉「没有暂存内容」；但分支还没有任何提交时
- *     要给一个更具体的理由 nothing-to-amend，界面据此把按钮禁用并说清楚为什么；
- *   · 其余模式（2.1 暂存内容、2.4 fixup / squash）仍然要求暂存区有内容。
- * 判定的唯一真源仍是 rules.judge，这里只按模式摘理由 / 补理由，不另写一套判定。
- */
-function adjustCommitDecision(decision: any, plan: any, screen: any): any {
-  const verdict: string = (decision && decision.verdict) ? String(decision.verdict) : 'block'
-  const reasons: any[] = Array.isArray(decision && decision.reasons) ? decision.reasons.slice() : []
-  const hasHead: boolean = !(screen && screen.repo && screen.repo.hasCommits === false)
-  const without = function (item: any): any[] { return reasons.filter(function (x: any): boolean { return x !== item }) }
-  if (plan.mode === 'amend') {
-    // 只改说明的修订不需要暂存内容；分支还没有提交时换成更具体的 nothing-to-amend。
-    const left: any[] = without('nothing-staged')
-    if (!hasHead) return { verdict: 'block', reasons: left.concat(['nothing-to-amend']) }
-    if (left.length === 0) return { verdict: 'allow', reasons: ['ok'] }
-    return { verdict: (verdict === 'warn') ? 'warn' : (verdict === 'allow' ? 'allow' : 'block'), reasons: left }
-  }
-  if (plan.mode === 'all') {
-    // 提交全部已跟踪改动（-a）不要求暂存区有东西；工作区里一处改动都没有时仍然挡住。
-    const changes: number = Number(screen && screen.stagedCount ? screen.stagedCount : 0) + Number(screen && screen.unstagedCount ? screen.unstagedCount : 0)
-    const left: any[] = (changes > 0) ? without('nothing-staged') : reasons
-    if (left.length === 0) return { verdict: 'allow', reasons: ['ok'] }
-    return { verdict: (verdict === 'warn') ? 'warn' : (verdict === 'allow' ? 'allow' : 'block'), reasons: left }
-  }
-  return decision
 }
 
 /** 父文件注入的依赖：首屏读数、安全执行层与时钟票据口都在这里，本文件不自取任何环境。 */
@@ -125,7 +95,8 @@ export function createWriteCheck(deps: any): any {
     if (op === 'commit') {
       const planBad: any = commitPlanProblem(a.plan)
       if (planBad) return fail('args', planBad, writeHintFor(planBad))
-      decision = adjustCommitDecision(decision, commitPlan, screen)
+      // 判定与界面禁用原因同源：共享的 commitDecisionOf 按形态摘 / 补理由。
+      decision = commitDecisionOf(decision, commitPlan, screen)
     }
     // D3 + 裁决 1：推送时「没有上游 / 上游被删」不是「不能推」，而是「走 set-upstream 档、显式 -u」——
     // 把这两条理由从 block 里摘掉，剩下的理由还成立才真挡（rules.ts 是只读版写的，这两档归写操作自己判）。
