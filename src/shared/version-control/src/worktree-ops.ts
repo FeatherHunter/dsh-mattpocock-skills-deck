@@ -14,7 +14,7 @@
 // 判定结果只回理由标识符，不回文案：中文与英文的说法在 config/copy/vcworktrees.yaml，界面按
 // vc.wt.why.<理由标识符> 取词。这样同一份判定在界面与宿主各说各话时，门禁能直接看到分叉。
 
-/** 动作编号：八条能力展开成十二个可执行动作（列表一读、锁/解锁两写、稀疏检出读规则/写规则两步）。 */
+/** 动作编号：八条能力展开成十个可执行动作（列表一读、锁/解锁两写、稀疏检出读规则/写规则两步）。 */
 export interface WorktreeAction {
   id: string
   capId: string
@@ -29,7 +29,7 @@ export interface WorktreeAction {
 }
 
 /**
- * 十二个动作的全集。capId 与能力账本逐字一致；账本里 9.6 一条覆盖 lock 与 unlock 两写，
+ * 十个动作的全集。capId 与能力账本逐字一致；账本里 9.6 一条覆盖 lock 与 unlock 两写，
  * 所以这里 9.6 展开成 lock / unlock 两个动作，界面仍按能力号归组画一行主入口。
  */
 export const WORKTREE_ACTIONS: WorktreeAction[] = [
@@ -220,9 +220,11 @@ export const worktreeJudge = function (op: any, ctx: any): any {
   const availability = c.availability
   const version = worktreeVersionOf(availability)
   const reasons: string[] = []
+  // 提醒与放行分开记：只推一条提醒时，理由表长度仍是 1，光看长度会把「有提醒」误判成「干净放行」。
+  let warned = false
   const block = function (r: string): any { reasons.push(r); return { decision: 'block', reasons: reasons, version: version } }
-  const warn = function (r: string): void { reasons.push(r) }
-  const allow = function (): any { if (reasons.length === 0) reasons.push('ok'); return { decision: reasons.length > 1 ? 'warn' : 'allow', reasons: reasons, version: version } }
+  const warn = function (r: string): void { reasons.push(r); warned = true }
+  const allow = function (): any { if (reasons.length === 0) reasons.push('ok'); return { decision: warned ? 'warn' : 'allow', reasons: reasons, version: version } }
 
   if (version.state === 'hidden') return block('version-too-old')
   if (version.state === 'unknown') return block('version-unknown')
