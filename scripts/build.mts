@@ -671,6 +671,9 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   //   哪一条要 2.35 版本门、丢掉的提交号怎么 store 回去，只有这一份。宿主执行层与界面读同一份；
   //   界面自己再说一遍，就会与宿主执行前那次校验各说各话。
   { marker: '// ==== shared:vcStashRules (spliced by build) ====', file: 'src/shared/version-control/src/stash-rules.ts' },
+  // #1756 T20 克隆向导：地址与选项口径（深度/分支/两个子模块开关/离线）、预检票据两片，宿主与界面读同一份。
+  { marker: '// ==== shared:vcCloneOptions (spliced by build) ====', file: 'src/shared/version-control/src/clone-options.ts' },
+  { marker: '// ==== shared:vcCloneTicket (spliced by build) ====', file: 'src/shared/version-control/src/clone-ticket.ts' },
   // #1342 域文档布局的取值（单上下文 / 多上下文）只有一份真源 src/shared/doc-layout/src/layouts.ts。
   //   界面侧状态栏与初始化卡要按同一份名单校验用户选的那一项（拒收第三档取值），所以拼进界面闭包；
   //   宿主侧选择记忆与工作区配置核按普通相对 import 取同一份源文件（不是拼接，是同一个文件）。
@@ -792,6 +795,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcWorktreesData', file: 'src/client/views/versionControl/vcWorktreesData.ts' },
   { id: 'vcWorktreesOps', file: 'src/client/views/versionControl/vcWorktreesOps.ts' },
   { id: 'vcWorktreesPage', file: 'src/client/views/versionControl/vcWorktreesPage.ts' },
+  // #1756 T20 克隆向导：填地址与选项 → 预检签票 → 凭票执行（长任务通道）→ 取消后的残留清理入口；由页面壳挂进迁移与备份页。
+  { id: 'vcClonePage', file: 'src/client/views/versionControl/vcClonePage.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },
