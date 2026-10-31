@@ -49,8 +49,10 @@ export const suggestViewItemsOf = function (items: any) {
       if (typeof prompt !== 'string' || !prompt) continue
       const intro = (typeof item.intro === 'string') ? item.intro : ''
       const reason = (typeof item.reason === 'string') ? item.reason : ''
+      const gain = (typeof item.gain === 'string') ? item.gain : ''
+      const cost = (typeof item.cost === 'string') ? item.cost : ''
       const priority = (typeof item.priority === 'number' && Number.isFinite(item.priority)) ? item.priority : null
-      out.push({ intro: intro, prompt: prompt, reason: reason, priority: priority })
+      out.push({ intro: intro, prompt: prompt, reason: reason, gain: gain, cost: cost, priority: priority })
     }
   } catch (eItems) {}
   return out
@@ -151,16 +153,23 @@ export const suggestAnchorOf = function (probeEl: any) {
   return fallback
 }
 
-/** 浮层内容：打了分的在理由第一行开头先放一颗分数泡（例如 9.5），理由正文紧跟其后排在同一行，
- *  折行后的文字从分数泡下方接着排；没打分的只有理由。
- *  印数字不画进度条：模型给的是「谁更该先做」的相对判断，画条会让人以为它是可校准的刻度。 */
+/** 浮层内容：四行固定顺序「推荐分 / 理由 / 优点 / 缺点」，每行左边一个灰色标签、右边正文；
+ *  旧事件缺哪一格就跳过哪一行，不补空行。推荐分印数字不画进度条：模型给的是「谁更该先做」的
+ *  相对判断，画条会让人以为它是可校准的刻度。 */
 export const popBodyOf = function (item: any, index: number) {
-  const reason = (item && typeof item.reason === 'string') ? item.reason : ''
   const priority = (item && typeof item.priority === 'number' && Number.isFinite(item.priority)) ? item.priority : null
-  const nodes: any[] = []
-  if (priority !== null) nodes.push(React.createElement('span', { key: 'suggest-score-' + index, className: 'dsws-sugg-score' }, String(priority)))
-  nodes.push(React.createElement('span', { key: 'suggest-reason-' + index, className: 'dsws-sugg-reason' }, reason))
-  return nodes
+  const rows: any[] = []
+  function pushRow(key: string, labelKey: string, text: any) {
+    if (typeof text !== 'string' || !text) return
+    rows.push(React.createElement('div', { key: 'suggest-row-' + index + '-' + key, className: 'dsws-sugg-pop-row' },
+      React.createElement('span', { className: 'dsws-sugg-pop-label' }, tr(labelKey)),
+      React.createElement('span', { className: 'dsws-sugg-pop-value' }, text)))
+  }
+  pushRow('score', 'suggest.label.score', priority === null ? '' : String(priority))
+  pushRow('reason', 'suggest.label.reason', item ? item.reason : '')
+  pushRow('gain', 'suggest.label.gain', item ? item.gain : '')
+  pushRow('cost', 'suggest.label.cost', item ? item.cost : '')
+  return rows
 }
 
 /**
@@ -303,16 +312,19 @@ export const SuggestBubble = function (props: any) {
   function pillNodeOf(item: any, index: number) {
     const intro = (typeof item.intro === 'string') ? item.intro : ''
     const prompt = item.prompt
-    const reason = item.reason
-    // 读屏念「简介 提示词」；没有简介的旧事件只念提示词。
+    const reason = (typeof item.reason === 'string') ? item.reason : ''
+    const gain = (typeof item.gain === 'string') ? item.gain : ''
+    const cost = (typeof item.cost === 'string') ? item.cost : ''
+    // 读屏念「简介 提示词」；理由、优点、缺点由 aria-describedby 指向浮层正文读出，不在按钮名里重复念。
     const spoken = intro ? intro + ' ' + prompt : prompt
     // 选项框上只印简介（#1451 后续拍板）：提示词不进按钮，点选时才原样填进输入框；
-    // 没有简介的旧事件退回只印提示词。理由收进框正上方的浮层，打了分的在理由第一行开头
-    // 加一颗分数泡（例如 9.5），让人一眼看出这条有多优先；进出由外层负责显隐。
+    // 没有简介的旧事件退回只印提示词。理由、优点、缺点收进框正上方的浮层（2026-10-31 改成四行），
+    // 进出由外层负责显隐。
     const label = intro
       ? React.createElement('span', { key: 'suggest-intro-' + index, className: 'dsws-sugg-intro' }, intro)
       : prompt
     const popId = 'suggest-pop-' + groupKey + '-' + index
+    const hasPop = Boolean(reason || gain || cost)
     const button = React.createElement('button', {
       key: 'suggest-pill-' + index,
       type: 'button',
@@ -320,8 +332,8 @@ export const SuggestBubble = function (props: any) {
       'data-press': 'button',
       'data-log': 'suggest.pill',
       style: { maxWidth: pillCapPx + 'px' },
-      'aria-label': reason ? tr('suggest.ariaPill', { prompt: spoken, reason: reason }) : spoken,
-      'aria-describedby': reason ? popId : undefined,
+      'aria-label': spoken,
+      'aria-describedby': hasPop ? popId : undefined,
       onClick: function (ev: any) { onPillClick(ev, prompt) },
       onKeyDown: function (ev: any) { onPillKey(ev, prompt) },
     }, label)
@@ -339,7 +351,7 @@ export const SuggestBubble = function (props: any) {
       onMouseLeave: hidePop,
       onFocus: showPop,
       onBlur: hidePop,
-    }, reason ? [button, React.createElement('div', {
+    }, hasPop ? [button, React.createElement('div', {
       key: 'suggest-pop-' + index,
       id: popId,
       className: 'dsws-sugg-pop',

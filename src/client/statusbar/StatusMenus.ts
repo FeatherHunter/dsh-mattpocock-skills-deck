@@ -106,6 +106,25 @@ export const showStatusBackendMenu = function(s: any, backendAnchorRef: any, bac
   if (placeStatusBackendMenu(s, backendAnchorRef)) changed = true
   if (changed) emit(s)
 }
+/** #1732：在办单子往回滚到末行——窗口大小变了、单子高度跟着变了，末行（最新一条）要重新贴底。
+ * 单子挂在 body 上（PortalOverlay），不在本文件的 refs 里，所以按类名找它；找不到就当这帧没有单子。 */
+const chainMenuScrollEnd = function () {
+  const el = (typeof document !== 'undefined') ? document.querySelector('.dsws-chainmenu') : null
+  if (el) { try { el.scrollTop = el.scrollHeight } catch (eScroll) {} }
+}
+/** #1732：滚动要等重渲染把新高度写进 DOM 之后才量得准，所以压到下一帧；同一时刻只留一次。 */
+const chainMenuScrollSoonRef = { raf: null as any }
+const chainMenuScrollCancel = function () {
+  const raf = chainMenuScrollSoonRef.raf
+  if (raf === null) return
+  chainMenuScrollSoonRef.raf = null
+  if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf)
+}
+const chainMenuScrollSoon = function () {
+  chainMenuScrollCancel()
+  if (typeof requestAnimationFrame !== 'function') { chainMenuScrollEnd(); return }
+  chainMenuScrollSoonRef.raf = requestAnimationFrame(function () { chainMenuScrollSoonRef.raf = null; chainMenuScrollEnd() })
+}
 export const useStatusMenus = function(s: any, refs: any){
   const bugAnchorRef = refs.bugAnchorRef
   const backendAnchorRef = refs.backendAnchorRef
@@ -114,11 +133,15 @@ export const useStatusMenus = function(s: any, refs: any){
   const takeAnchorRef = refs.takeAnchorRef
   const takeCloseRef = refs.takeCloseRef
   React.useEffect(function () {
-    if (!s.bugMenuOpen && !s.backendMenuOpen && !s.takeMenuOpen) return undefined
+    // #1732：在办单子也算进来——它自己不按锚点重定位（底边钉在胶囊上沿、窗口变高变矮都不动），
+    //   但窗口大小变时高度要重算，所以同样要靠这里的 resize 唤醒一次重渲染。
+    if (!s.bugMenuOpen && !s.backendMenuOpen && !s.takeMenuOpen && !s.chainMenuOpen) return undefined
     let raf: any = null
     let disposed = false
-    const reposition = function () {
+    // #1732：只有窗口/锚点形状变了才动在办单子；单子自己滚起来时（scroll 事件）不许把它拽回末行。
+    const reposition = function (ev?: any) {
       if (disposed || raf !== null) return
+      const fromScroll = !!(ev && ev.type === 'scroll')
       const run = function () {
         raf = null
         if (disposed) return
@@ -126,7 +149,9 @@ export const useStatusMenus = function(s: any, refs: any){
         if (s.bugMenuOpen && placeStatusBugMenu(s, bugAnchorRef)) changed = true
         if (s.backendMenuOpen && placeStatusBackendMenu(s, backendAnchorRef)) changed = true
         if (s.takeMenuOpen && takeAnchorRef && placeStatusTakeMenu(s, takeAnchorRef)) changed = true
+        if (s.chainMenuOpen && !fromScroll) changed = true
         if (changed) emit(s)
+        if (s.chainMenuOpen && !fromScroll) chainMenuScrollSoon()
       }
       if (typeof requestAnimationFrame === 'function') raf = requestAnimationFrame(run)
       else raf = setTimeout(run, 0)
@@ -147,8 +172,9 @@ export const useStatusMenus = function(s: any, refs: any){
       }
       document.removeEventListener('scroll', reposition, true)
       window.removeEventListener('resize', reposition)
+      chainMenuScrollCancel()
       clearStatusClose(bugCloseRef); clearStatusClose(backendCloseRef)
       if (takeCloseRef) clearStatusClose(takeCloseRef)
     }
-  }, [s.bugMenuOpen, s.backendMenuOpen, s.takeMenuOpen])
+  }, [s.bugMenuOpen, s.backendMenuOpen, s.takeMenuOpen, s.chainMenuOpen])
 }

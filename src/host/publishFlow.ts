@@ -165,7 +165,7 @@ export function createPublishFlow(deps: Deps) {
     }
   }
 
-  // #1621：no-gh 那条排查/安装提示由宿主给（面板文案归宿主）。同一段话在房间的 src/tracker/rooms/github/init-project.ts
+  // #1621：no-gh 那条排查/安装提示由宿主给（面板文案归宿主）。同一段话在房间的 src/tracker/rooms/github/write/init-project.ts
   //   里还存着一份（房间回包要自带 prompt），两处必须逐字一致；门禁 tests/verify-1621-gh-missing-copy.ts 盯着这件事，
   //   改一处就同步改另一处。
   const NO_GH_PROMPT = 'DSH 进程启动时从父进程继承的 PATH 中未解析到 GitHub CLI（gh）可执行文件。该结果不等同于 gh 未安装。按以下顺序处理：\n\n1. 在 DSH 之外的终端执行 `gh --version`。\n2. 有版本号输出：gh 已安装。无需重复安装。将 gh 所在目录加入用户级或系统级 PATH，或将本插件读取的 DSH_GH_PATH 设为 gh 可执行文件的绝对路径，再重启 DSH Desktop；若该目录已在 PATH 中，直接重启 DSH Desktop。重启时从开始菜单、桌面或资源管理器启动，避免从旧终端或旧 IDE 会话启动（其进程环境可能未包含新 PATH）。\n3. 无版本号输出：该终端也无法执行 gh。检查 gh 的安装目录（Windows 默认：C:\\Program Files\\GitHub CLI\\gh.exe）；确认未安装后，按官方说明安装：https://cli.github.com/。安装后重启 DSH。\n4. “重新检查”只重跑检查逻辑，不重新读取进程环境变量；不能替代重启 DSH。\n5. 完成后确认：`gh --version` 有输出，环境检查的 gh 项通过。'

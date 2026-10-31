@@ -1,0 +1,390 @@
+{
+  "version": 1,
+  "ticket": 1700,
+  "spec": 1681,
+  "generatedAt": "2026-10-31T14:20:00+08:00",
+  "branch": "feat/1700-closeout",
+  "baseHead": "fc2ff4cf",
+  "issueCountMeasured": 1659,
+  "pullRequestCountMeasured": 64,
+  "measuredAt": "2026-10-31T14:23:12+08:00",
+  "measuredWith": "gh 2.97.0，只读（search/issues type:issue 与 type:pr 的 total_count）",
+  "phases": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "knownReds": [],
+  "knownRedTable": [
+    {
+      "kind": "结构性已知红",
+      "item": "tests/verify-no-mixed-session.ts 在票级分支判红（相对基准跨 github/gitlab/markdown 三房间）",
+      "handling": "不改门禁与基准；裁决以集成分支全链为准（docs/agents/parallel-sessions.md:46）"
+    },
+    {
+      "kind": "并发假红",
+      "item": "verify-cap-fold / verify-capsule-layout / verify-1661-banner-singleline 等在 8 路并发下偶发判红",
+      "handling": "单跑复跑转绿即判假红，记入收口记录"
+    },
+    {
+      "kind": "已修真红",
+      "item": "实施期出现并已修复的真红（如 verify-read-result-provenance 两处断言、verify-time-config 未登记、verify-gate-map 归属表过期）",
+      "handling": "修复并重跑全链转绿，逐条记入收口记录"
+    }
+  ],
+  "rows": [
+    {
+      "id": 1,
+      "phase": 0,
+      "title": "一次只读真机探针：列表行父票链接、依赖摘要、子票摘要三字段",
+      "gate": [
+        "verify-github-rest-fallback"
+      ],
+      "negative": "三字段任一缺失时退路未生效（字段无的夹具必须解析成未表达，不能当成没有父票/计数为零）",
+      "drill": "2026-10-31T03:04:23–03:07:52+08:00 真机只读探针：gh 2.97.0，两页 200 行（187 工单 + 13 PR），parent_issue_url 73/187，依赖与子票摘要 187/187，PR 行 0/13，尾页失败 exit 1/117ms/stdout 0 字节；收口演练再次真实列表（见收口记录第 6 节）",
+      "result": "pass"
+    },
+    {
+      "id": 2,
+      "phase": 0,
+      "title": "操作百科补读/写标记与可用渠道，成为读操作名录唯一真源",
+      "gate": [
+        "verify-operation-catalog"
+      ],
+      "negative": "新增读操作未登记（读操作名录与百科不一致必须判红）",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 3,
+      "phase": 0,
+      "title": "术语表新增通知中心与通知事件，按需细节补淘汰例外",
+      "gate": [
+        "verify-glossary-terms"
+      ],
+      "negative": "词条缺失或重名",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 4,
+      "phase": 1,
+      "title": "八类职责、九个物理目录落地，依赖方向与传输唯一出口由依赖门禁硬卡",
+      "gate": [
+        "verify-room-layering"
+      ],
+      "negative": "渠道层引用上游（分层方向被破坏）",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 5,
+      "phase": 1,
+      "title": "分批迁移每批不超过 6 文件，同一提交更新导入与门禁地图基线",
+      "gate": [
+        "verify-gate-map"
+      ],
+      "negative": "某批未更新导入或门禁地图基线（门禁地图与阶段清单不一致）",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 6,
+      "phase": 1,
+      "title": "现有读写归一化行为不变：不新增业务字段、不改错误分类与额度记账",
+      "gate": [
+        "FULL_CHAIN"
+      ],
+      "negative": "现有门禁真红（全链任一步真红）",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 7,
+      "phase": 2,
+      "title": "字段三态有类型承载：来源按字段组表达，归一化不把未知回落成空或长度",
+      "gate": [
+        "verify-field-tri-state",
+        "verify-read-result-provenance"
+      ],
+      "negative": "缺边回落空数组、缺计数回落长度",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 8,
+      "phase": 2,
+      "title": "合并协议按字段组执行，整行替换退役，写事件行补丁也走字段组掩码",
+      "gate": [
+        "verify-panel-snapshot-merge"
+      ],
+      "negative": "整行替换抹掉已知边",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 9,
+      "phase": 2,
+      "title": "版本门覆盖所有字段组写入含值回退，过期结果整份丢弃，快照版本号单调递增并随盘持久化",
+      "gate": [
+        "verify-panel-snapshot-merge",
+        "verify-1640-unopened-merge"
+      ],
+      "negative": "早发结果把关闭改回打开",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 10,
+      "phase": 2,
+      "title": "磁盘回放带 schema 版本与来源，旧格式缺来源按未知，回放完整度降为上次已知",
+      "gate": [
+        "verify-1692-disk-replay-eviction",
+        "verify-1286-snapshot"
+      ],
+      "negative": "旧盘缺来源仍标完整",
+      "drill": "重启演练：把真实快照 JSON 落盘再按磁盘回放路径读回，见收口记录第 6 节",
+      "result": "pass"
+    },
+    {
+      "id": 11,
+      "phase": 2,
+      "title": "按需细节上限与最近使用淘汰，行、父子边、依赖边、子票计数永不淘汰",
+      "gate": [
+        "verify-1692-disk-replay-eviction"
+      ],
+      "negative": "淘汰后行/边/计数变少",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 12,
+      "phase": 2,
+      "title": "通知事件库宿主落盘、按工作区共享，事件身份与恢复配对只认未闭合最晚",
+      "gate": [
+        "verify-notification-events"
+      ],
+      "negative": "重启后降级恢复配错对",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 13,
+      "phase": 3,
+      "title": "列表、地图、详情读同一份快照投影，旧详情缓存与地图整桶缓存退役为投影",
+      "gate": [
+        "verify-single-read-source",
+        "verify-retire-client-caches"
+      ],
+      "negative": "视图另写业务缓存（第二份业务数据）",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 14,
+      "phase": 3,
+      "title": "降级不缩数据：完整结果后接降级或部分失败，行与关系与已取细节一条不减少（读写两条路径）",
+      "gate": [
+        "verify-rest-fallback-completion",
+        "verify-rest-detail-completion",
+        "verify-panel-snapshot-merge",
+        "verify-acceptance-four"
+      ],
+      "negative": "完整结果后接降级结果丢边",
+      "drill": "降级演练：真实仓库完整读之后注入降级读结果，对比关系与已取细节条数，见收口记录第 6 节",
+      "result": "pass"
+    },
+    {
+      "id": 15,
+      "phase": 3,
+      "title": "未知不等于空：未表达时显示上次已知与时间，只有完整来源能删清，界面不逐字段标脏",
+      "gate": [
+        "verify-field-tri-state",
+        "verify-panel-snapshot-merge"
+      ],
+      "negative": "未表达字段被清空",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 16,
+      "phase": 3,
+      "title": "地图详情首帧显示快照已知阻塞关系、层级与计数，新查询增量合并，加载与失败不出现已知变空",
+      "gate": [
+        "verify-map-first-frame",
+        "verify-map-first-frame-freshness"
+      ],
+      "negative": "首帧把已知阻塞画成空",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 17,
+      "phase": 3,
+      "title": "详情先显示上次内容，新响应增量合并，失败不清空，界面能分辨上次数据与时间",
+      "gate": [
+        "verify-detail-incremental",
+        "verify-acceptance-four"
+      ],
+      "negative": "失败置空或整块替换",
+      "drill": "重启后进入详情：磁盘回放的详情行经投影仍显示上次内容，见收口记录第 6 节",
+      "result": "pass"
+    },
+    {
+      "id": 18,
+      "phase": 3,
+      "title": "详情与列表、地图互通：写回执合并后下一次探测内三处同帧一致，同工作区多会话同一业务状态",
+      "gate": [
+        "verify-acceptance-four",
+        "verify-detail-incremental"
+      ],
+      "negative": "关闭后列表状态不变",
+      "drill": "写后回列表：真实票走写回执合并路径后同帧一致，见收口记录第 6 节",
+      "result": "pass"
+    },
+    {
+      "id": 19,
+      "phase": 3,
+      "title": "读投影有回滚开关：默认新路径、一次切换、不并行双写、两条路都能跑且都有门禁",
+      "gate": [
+        "verify-single-read-source",
+        "verify-retire-client-caches"
+      ],
+      "negative": "切换后旧路不可用",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 20,
+      "phase": 4,
+      "title": "按探针结论补齐：父边可用则列表行零请求，不可用只对已打开容器按需取；规格容器按正文标记优先、标签兜底识别",
+      "gate": [
+        "verify-github-rest-fallback",
+        "verify-room-layering"
+      ],
+      "negative": "规格容器无父边",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 21,
+      "phase": 4,
+      "title": "依赖明细只对依赖计数大于零的票逐票拉，子票计数优先保留上次已知，PR 合并时间按需补、补不到算未知",
+      "gate": [
+        "verify-rest-fallback-completion",
+        "verify-rest-detail-completion"
+      ],
+      "negative": "计数为零也逐票拉",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 22,
+      "phase": 4,
+      "title": "预算落地并被门禁同源读取：增量 3、完整枚举 16、单次详情 5、并发 8、降级探针与校准窗口",
+      "gate": [
+        "verify-fallback-fetch-budget",
+        "verify-rest-detail-completion"
+      ],
+      "negative": "超预算仍发",
+      "drill": "降级演练：真实降级请求逐条记账，请求数与预算上限对照，见收口记录第 6 节",
+      "result": "pass"
+    },
+    {
+      "id": 23,
+      "phase": 4,
+      "title": "计数诚实：完整枚举时本地重算并标来源，拿不到时保留上次已知并标待校准，界面不出现假零",
+      "gate": [
+        "verify-counts-honesty",
+        "verify-689-counts-ui"
+      ],
+      "negative": "缺失时静默派生且不标部分",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 24,
+      "phase": 4,
+      "title": "企业版走运行时能力回答：探测服务端版本后子票与依赖返回不支持或部分支持，带原因与能力票号",
+      "gate": [
+        "verify-ghes-runtime-capability"
+      ],
+      "negative": "不支持却标完整",
+      "drill": "无法真机（按夹具；企业版环境不在本机）",
+      "result": "pass"
+    },
+    {
+      "id": 25,
+      "phase": 5,
+      "title": "占列表行降级横幅退役，降级开始与恢复、刷新失败、写失败进通知中心，面板头部未读徽标与历史覆盖层",
+      "gate": [
+        "verify-notification-center",
+        "verify-rest-fallback-banner"
+      ],
+      "negative": "横幅仍占列表行",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 26,
+      "phase": 5,
+      "title": "三条诚实约束：只有配额原因才提配额、超过一小时改口上次、toast 只回声最新一条",
+      "gate": [
+        "verify-notification-events",
+        "verify-rest-fallback-banner"
+      ],
+      "negative": "网络原因说配额",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 27,
+      "phase": 5,
+      "title": "未读徽标进头部折叠阶梯，窄面板不挤掉仓库名与时间，新文案进本地化词表并过完整性门禁",
+      "gate": [
+        "verify-1242-panel-numbers",
+        "verify-locale-completeness"
+      ],
+      "negative": "窄面板挤掉仓库名",
+      "drill": "窄面板人工核对（300–520 像素；见收口记录第 6 节）",
+      "result": "pass"
+    },
+    {
+      "id": 28,
+      "phase": 6,
+      "title": "全链真红为零，不允许任何已知红；新增门禁能红能绿并自带负例",
+      "gate": [
+        "FULL_CHAIN"
+      ],
+      "negative": "任何已知红或真红",
+      "drill": null,
+      "result": "pass"
+    },
+    {
+      "id": 29,
+      "phase": 6,
+      "title": "真实数据演练：用本仓真实票走刷新、降级、合并、投影、通知，只看当天导出的本地诊断日志逐步定位",
+      "gate": [
+        "verify-closeout-log-trips"
+      ],
+      "negative": "日志无法定位环节（五段缺段即红）",
+      "drill": "本仓真实票演练（1659 张工单 + 64 个 PR，检索时刻 2026-10-31T14:23+08:00），见收口记录第 6 节",
+      "result": "pass"
+    },
+    {
+      "id": 30,
+      "phase": 6,
+      "title": "文档与票号回填：30 条验收、七个阶段、两份 ADR 与迁移计划补收口记录，票数写实测值",
+      "gate": [
+        "verify-closeout-acceptance"
+      ],
+      "negative": "ADR 票号未回填或文档写旧数（433 张票）",
+      "drill": null,
+      "result": "pass"
+    }
+  ]
+}

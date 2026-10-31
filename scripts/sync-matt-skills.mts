@@ -10,8 +10,8 @@
  *  - 拷 LICENSE 到 package/bundled-skills/LICENSE，并写入 package/bundled-skills/VERSION 为 pin 值
  *
  * 用法：
- *   node scripts/sync-matt-skills.mts --pin v1.3.1 --verify
- *   node scripts/sync-matt-skills.mts --pin v1.3.1          # 仅同步，不校验
+ *   node scripts/sync-matt-skills.mts --verify              # 按哈希清单里的 pin 同步并自校验
+ *   node scripts/sync-matt-skills.mts --pin <tag>           # 换 pin 时显式指定，仅同步不校验
  *   node scripts/sync-matt-skills.mts --help
  *
  * 设计要点（对齐 G2 定版）：
@@ -29,7 +29,19 @@ import { tmpdir } from 'node:os'
 import { MATT_SKILL_PROBE_NAMES } from '../src/shared/matt-skills.ts'
 
 const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const PIN_DEFAULT: string = 'v1.3.1'
+const MANIFEST_PATH: string = join(ROOT, 'tests', 'bundled-skills-upstream-hashes.json')
+
+// pin 的唯一真源是哈希清单的 pin 字段。脚本默认值从清单读，升级时只改清单一处，
+// 不会留下「清单已经升了、脚本里还写着旧 pin」这种漏改；只有清单读不出来时才回退到字面量。
+function readManifestPin(): string {
+  try {
+    const pin: unknown = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8')).pin
+    return typeof pin === 'string' ? pin : ''
+  } catch {
+    return ''
+  }
+}
+const PIN_DEFAULT: string = readManifestPin() || 'v1.3.2'
 const REPO_URL: string = 'https://github.com/mattpocock/skills'
 const DEST_DIR: string = join(ROOT, 'package', 'bundled-skills')
 
@@ -51,10 +63,10 @@ function helpText(): string {
   return `sync-matt-skills.mts — 同步 mattpocock/skills 到 package/bundled-skills/
 
 用法：
-  node scripts/sync-matt-skills.mts [--pin v1.3.1] [--verify]
+  node scripts/sync-matt-skills.mts [--pin ${PIN_DEFAULT}] [--verify]
 
 选项：
-  --pin <tag>   上游 tag，默认 v1.3.1（带或不带 v 前缀均可）
+  --pin <tag>   上游 tag，默认取哈希清单 tests/bundled-skills-upstream-hashes.json 里的 pin（当前 ${PIN_DEFAULT}，带或不带 v 前缀均可）
   --verify      同步后自校验（27 项一致、frontmatter、LICENSE、VERSION）
   --help        显示此帮助
 `
@@ -170,16 +182,23 @@ async function main(): Promise<void> {
   const extra: string[] = upstreamNames.filter((n: string) => !expected.includes(n))
   if (missing.length || extra.length) {
     console.error(`[sync:matt] 上游集合与单源不一致：缺 ${missing.join(', ') || '无'}；多 ${extra.join(', ') || '无'}`)
-    console.error('[sync:matt] 请检查 pin 是否为 v1.3.1，或 shared 单源是否已漂移')
+    console.error(`[sync:matt] 请检查 pin（${pin}）是否为上游存在的 tag，或 shared 单源是否已漂移`)
     process.exit(1)
   }
 
-  // 2. 清理并重建目标目录
+  // 2. 清理并重建目标目录。README.md 是手写的说明文件（讲清单源、版本溯源与中文译文放哪），
+  //    不是上游产物；同步会整目录重建，所以先读进内存、重建后原样写回，避免把说明抹掉。
+  const readmePath: string = join(DEST_DIR, 'README.md')
+  const savedReadme: string | null = existsSync(readmePath) ? readFileSync(readmePath, 'utf8') : null
   if (existsSync(DEST_DIR)) {
     console.log(`[sync:matt] 清理旧 ${DEST_DIR}`)
     rmSync(DEST_DIR, { recursive: true, force: true })
   }
   mkdirSync(DEST_DIR, { recursive: true })
+  if (savedReadme !== null) {
+    writeFileSync(readmePath, savedReadme, 'utf8')
+    console.log('[sync:matt] 已保留 README.md')
+  }
 
   // 3. 逐技能复制
   let copied: number = 0
@@ -230,18 +249,12 @@ async function main(): Promise<void> {
   writeFileSync(dstVersion, pin + '\n', 'utf8')
   console.log(`[sync:matt] 已写入 VERSION=${pin}`)
 
-  // 6. 写 README.md（可选，说明来源）
-  const dstReadme: string = join(DEST_DIR, 'README.md')
-  const readme: string = '# Bundled Skills (mattpocock/skills ' + pin + ')\n\n本目录由 `scripts/sync-matt-skills.mts --pin ' + pin + '` 从 https://github.com/mattpocock/skills 同步而来，含 27 个技能（engineering 20 + productivity 7）。\n\n- 单源：`src/shared/matt-skills.js` 的 27 项（MATT_SKILL_PROBE_NAMES）为真源，与本目录双向差集为 0。\n- 产物：`package/bundled-skills/<name>/SKILL.md`（frontmatter name: 与目录名一致，符合 dsh-skill-filesystem 的 discoverRoot 校验）。\n- 版本：`VERSION` 溯源 pin，`LICENSE` 保留上游 MIT 声明（Copyright (c) 2026 Matt Pocock）。\n- 同步：纯手动 `pnpm run sync:matt`（`node scripts/sync-matt-skills.mts --pin ' + pin + ' --verify`），不挂 prepare/prebuild。\n';
-  writeFileSync(dstReadme, readme, 'utf8')
-  console.log('[sync:matt] 已写入 README.md')
-
-  // 7. 清理临时克隆（若是新克隆的 tmpBase）
+  // 6. 清理临时克隆（若是新克隆的 tmpBase）
   if (sourceRoot === cloneDir) {
     try { rmSync(tmpBase, { recursive: true, force: true }) } catch {}
   }
 
-  // 8. 自校验（--verify）
+  // 7. 自校验（--verify）
   if (args.verify) {
     console.log('[sync:matt] --verify 自校验开始')
     let failures: number = 0

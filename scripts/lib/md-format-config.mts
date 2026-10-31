@@ -78,7 +78,7 @@ export function validateMdFormatConfig(doc: unknown): string[] {
       if (!isNonEmptyString(cfg.upstream[key])) fail(problems, 'upstream.' + key + ' 必须是非空字符串')
     }
     if (!isNonEmptyString(cfg.upstream.pin) || !/^v\d+\.\d+\.\d+$/.test(cfg.upstream.pin)) {
-      fail(problems, 'upstream.pin 必须是形如 v1.3.1 的版本号，读到的是 ' + JSON.stringify(cfg.upstream.pin))
+      fail(problems, 'upstream.pin 必须是形如 v1.3.2 的版本号，读到的是 ' + JSON.stringify(cfg.upstream.pin))
     }
   }
 

@@ -282,7 +282,7 @@ async function buildTwoRoomShape(): Promise<Record<string, unknown>> {
   // 离线形状对照：同一张最小票在两房 normalize 之后的字段清单。
   // 不比值，只比「有哪些字段」与「已知差异」——联网的 GitHub 真值由 playback 固件守。
   const mdNorm = ((await loadModule('../src/tracker/rooms/markdown/normalize.ts')) as { normalizeIssue: (body: string, meta: unknown) => Record<string, unknown> }).normalizeIssue
-  const ghNorm = ((await loadModule('../src/tracker/rooms/github/normalize.ts')) as { normalizeIssue: (raw: unknown) => Record<string, unknown> }).normalizeIssue
+  const ghNorm = ((await loadModule('../src/tracker/rooms/github/model/normalize.ts')) as { normalizeIssue: (raw: unknown) => Record<string, unknown> }).normalizeIssue
   const md = mdNorm('# 对照票\n\nStatus: ready-for-agent\nType: task\nBlocked by:\n\n## Comments\n', { key: '01', parentKey: '00', isMap: false, createdAt: '', updatedAt: '' })
   const gh = ghNorm({
     number: 1, title: '对照票', state: 'open', body: '', url: '',

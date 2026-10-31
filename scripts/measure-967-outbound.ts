@@ -20,7 +20,7 @@ type ForceRank = Array<{ file: string; count: number }>;
 type ReuseSummary = { asked: number; reused: number; savedRatio: number };
 
 // 耗时分桶的边界（毫秒）。桶名写给人看的大白话，与测试里的字面量一致。
-// 30 秒是宿主起外部小命令的默认超时（src/tracker/rooms/github/client.ts 的 TIMEOUT_MS），
+// 30 秒是宿主起外部小命令的默认超时（src/tracker/rooms/github/transport/client.ts 的 TIMEOUT_MS），
 // 超过它即撞墙，单独一桶；12 秒是读操作建议上限的参考线，单独分界。
 function bucketOf(latencyMs: unknown): string {
   const v: number = Number(latencyMs);

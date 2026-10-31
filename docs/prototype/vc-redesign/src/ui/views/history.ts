@@ -6,7 +6,7 @@
  * 列表行的信息顺序按用户问题排：先认出是哪次提交（短号 + 主题），再看谁提交的、什么时候。
  *
  * 这一版补上「提交也能补做动作」：每行尾部一个「更多」，菜单紧贴这一行展开；
- * 回退、拣选、撤销都先给一句后果说明，结果条回到列表最上面（也就是刚点的那一行附近）。
+ * 还原、拣选、撤销都先给一句后果说明，结果条回到列表最上面（也就是刚点的那一行附近）。
  */
 import type { CommitDetailModel, CommitRowModel, HistoryModel } from '../../domain/select'
 import { COPY } from '../../data/copy'

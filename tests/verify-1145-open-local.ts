@@ -68,6 +68,11 @@ globalThis.openModeDeclared = linkMod.openModeDeclared
 //   叶子单独加载时闭包里没有这个名字，这里接真实现（同构接线，不抄一份假判据）。
 const { issueErrorViewOf } = await import('../src/client/views/issueDetailErrorView.js')
 globalThis.issueErrorViewOf = issueErrorViewOf
+// #1694：详情页读快照投影（detailViewFor 与它依赖的纯函数）走真实现；叶子单独加载时
+//   闭包里没有这些名字，这里同构接线，不抄一份假判据。
+const projMod = await import('../src/client/views/shared/detailProjection.js')
+globalThis.detailViewFor = projMod.detailViewFor
+globalThis.knownBlockedNodes = projMod.knownBlockedNodes
 const { DswsCtx, createCx } = await import('../src/client/kernel/ctx.js')
 const { renderIssueDetailComments } = await import('../src/client/views/IssueDetailComments.js')
 // #1236：IssueDetail 的内联旋转动画读 kernel/motion.ts 的 MOTION；单独加载时它是自由变量，先挂上再 import。

@@ -10,7 +10,7 @@
  * `docs/adr/20261014-error-classification-single-source.md`）。本文件只做两件事：
  *   1）`classifyError`：把「已经是规范档位的失败」原样透传，其余交给规则表判；
  *   2）`fail`：统一构造失败结果 `{ok:false, error:{kind, message, raw}}`，原文必填。
- * 各后端的专有错误码名与句式写成自己的**前置扩展表**挂上去（例：`rooms/github/errors.ts`），
+ * 各后端的专有错误码名与句式写成自己的**前置扩展表**挂上去（例：`rooms/github/support/errors.ts`），
  * 不许在这里或自己家里再抄一份通用词表 —— 抄了就会漂移，实测漂移过一次。
  *
  * ⚠️ detect 已删（#124/#125 定版）：身份识别 = `matches`(boolean) + `select`(仲裁) +

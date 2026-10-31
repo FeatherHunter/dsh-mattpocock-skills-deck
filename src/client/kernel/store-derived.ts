@@ -182,15 +182,37 @@ export const frontierAll = (st: any): any => compute(st).reduce(function (n: any
 //   #294/#505 裁定拉取请求与工单同池、不新增集合，而面板另有专门的拉取请求页签，所以凡要说「工单」的地方都从这里过；池子本身与拉取请求页签照旧。
 export const isTicketRow = (x: any): any => !(x && x.isPullRequest === true)
 export const ticketRowsOf = (arr: any): any => (Array.isArray(arr) ? arr : []).filter(isTicketRow)
-// #689 宿主给的后端计数（deck.counts，产出见 tracker/snapshot.js）：面板顶部那几个数字改读它。拿不到（这个后端没实现计数 / 配额耗尽 / 还没升级的旧快照）返回 null，调用方退回按池子派生；scoped=true 表示界面当前带着筛选（按工作单元或标签筛过）—— 全仓数字与眼前这一屏不是一个口径，一并返回 null。
+// #689 宿主给的后端计数（deck.counts，产出见 tracker/snapshot.js 与 tracker/deck-counts.ts）：面板顶部那几个数字改读它。
+//   拿不到（这个后端没实现计数 / 配额耗尽 / 还没升级的旧快照）返回 null，调用方退回按池子派生；
+//   scoped=true 表示界面当前带着筛选（按工作单元或标签筛过）—— 全仓数字与眼前这一屏不是一个口径，一并返回 null。
+// #1698 起除三数还带来源（backend/local-enumeration/previous-known）、时刻与待校准标记；
+//   老快照没有这些字段时回空值（来源空串、时刻 0、待校准假），老行为不变。
+export const deckCountsPendingOf = function (st: any): any {
+  try { return !!(st && st.snapshot && st.snapshot.deck && st.snapshot.deck.countsPending === true) } catch (e) { return false }
+}
 export const deckCountsOf = function (st: any, scoped: any): any {
   try {
     if (scoped) return null
     const c: any = (st && st.snapshot && st.snapshot.deck && st.snapshot.deck.counts) || null
     if (!c) return null
     const isN = function (v: any): any { return typeof v === 'number' && isFinite(v) && v >= 0 && Math.floor(v) === v }
-    return (isN(c.open) && isN(c.closed) && isN(c.total)) ? { open: c.open, closed: c.closed, total: c.total } : null
+    if (!(isN(c.open) && isN(c.closed) && isN(c.total))) return null
+    const at: number = (typeof c.atMs === 'number' && isFinite(c.atMs) && c.atMs > 0) ? c.atMs : 0
+    return { open: c.open, closed: c.closed, total: c.total, source: (typeof c.source === 'string' ? c.source : ''), atMs: at, pending: deckCountsPendingOf(st) }
   } catch (e) { return null }
+}
+// #1698 KPI 三枚数字的投影口径：有计数时「可接」= 后端未关闭数减本地占用数、「已关闭」直接用后端数；
+//   缺计数且宿主标了待校准（整仓数字拿不到、清单也不全）时回 null —— 界面显示「未知」而不是 0；
+//   按工作单元筛选、或老快照（没有待校准标记）时退回本地数出来的数字，老口径不变。
+export const kpiCountsOf = function (st: any, scoped: any, local: any): any {
+  const loc: any = local || {}
+  const openN: number = typeof loc.open === 'number' ? loc.open : 0
+  const occN: number = typeof loc.occupied === 'number' ? loc.occupied : 0
+  const closedN: number = typeof loc.closed === 'number' ? loc.closed : 0
+  const c: any = deckCountsOf(st, scoped)
+  if (c) return { takeable: Math.max(0, c.open - occN), closed: c.closed, unknown: false, pending: c.pending, atMs: c.atMs, source: c.source }
+  if (scoped || !deckCountsPendingOf(st)) return { takeable: openN - occN, closed: closedN, unknown: false, pending: false, atMs: 0, source: 'local-enumeration' }
+  return { takeable: null, closed: null, unknown: true, pending: true, atMs: 0, source: null }
 }
 // v18-30：状态栏可接/占用改用「列表 open issue」口径（与面板列表一致）：
 //   可接 = open issue 中未认领且未被 open 阻塞；占用 = 已认领 + 被阻塞；两者之和 = 全部 open issue

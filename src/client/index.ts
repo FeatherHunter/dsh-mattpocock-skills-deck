@@ -199,6 +199,9 @@ export default {
     // ==== kernel:modalFields (spliced by build) ====
     // ==== kernel:config (spliced by build) ====
     // ==== kernel:log (spliced by build) ====
+    // base 包接入：联系入口与作者插件卡的客户端产物由 scripts/derive-base-from-package.mts 从已安装的
+    //   dsh-featherhunter-plugin-base 内联；工厂不依赖其它分块的求值顺序，只要在 SettingsPage 叶子之前就位。
+    // ==== kernel:baseClient (spliced by build) ====
     // #1296：两套容器身份色的按需日志（container.accent）不在启动段发射——日志契约要求
     //   对账前不产生调试日志，发射点在 panelAssembly 的启动对账之后（见 leaf:panelAssembly）。
     // 本次界面反馈需求：全客户端唯一的按压委托与点击日志口。必须排在 kernel:log 之后（日志开关要能读），
@@ -334,8 +337,8 @@ export default {
     // ==== leaf:vcTabVisible (spliced by build) ==== // ==== leaf:vcData (spliced by build) ==== // ==== leaf:vcCache (spliced by build) ==== // ==== leaf:vcInView (spliced by build) ==== // ==== leaf:versionControlTab (spliced by build) ====
     // ==== leaf:tabs (spliced by build) ====
     // ==== leaf:truthLines (spliced by build) ====
-    // 2026-09-24：降级横幅的「画」那一段从 ListTab.js 搬来这里（判据仍是上面 truthLines 里的 restFallbackView）。
-    // ==== leaf:restFallbackBanner (spliced by build) ====
+    // #1699：降级提示不再占列表一行 —— 小标识画在列表头部 KPI 那一行里（判据仍是上面 truthLines 里的 restFallbackView）；历史由通知中心承载。
+    // ==== leaf:fallbackMark (spliced by build) ====
     // #1082：面板「跨会话在办表」（判据与画法；挂在 Dock 的列表页正文最上面）。
     // ==== leaf:workRouteTable (spliced by build) ====
 
@@ -380,6 +383,8 @@ export default {
     // ==== leaf:mapV2CardFlow (spliced by build) ====
     // ==== leaf:mapV2Page (spliced by build) ====
 
+    // #1694：详情页读快照投影（上次数据先画、失败不清空、读投影开关），排在 IssueDetail 之前拼进闭包。
+    // ==== leaf:detailProjection (spliced by build) ====
     // ==== leaf:issueDetailErrorView (spliced by build) ==== // ==== leaf:subIssueRouting (spliced by build) ==== // ==== leaf:IssueDetailComments (spliced by build) ==== // ==== leaf:issueDetailFold (spliced by build) ==== // ==== leaf:useIssueDetailFold (spliced by build) ==== // ==== leaf:IssueDetail (spliced by build) ====
 
     // ==== leaf:tagsFit (spliced by build) ====
@@ -429,7 +434,7 @@ export default {
 
     // 2026-09-24：快照还没回来时那条灰色占位骨架（排在 dock 之前 —— 面板头部那一行要画它）。
     // ==== leaf:repoChipSkeleton (spliced by build) ====
-    // ==== leaf:DockSync (spliced by build) ==== // ==== leaf:headFold (spliced by build) ==== // ==== leaf:dock (spliced by build) ====
+    // ==== leaf:DockSync (spliced by build) ==== // ==== leaf:headFold (spliced by build) ==== // ==== leaf:notificationCenterModel (spliced by build) ==== // ==== leaf:notificationCenter (spliced by build) ==== // ==== leaf:dock (spliced by build) ====
 
     // ==== leaf:OverlayGate (spliced by build) ====
 

@@ -118,6 +118,30 @@
       "comments": [],
       "lastActive": "2026-10-25T04:48:16Z"
     },
+    "Ba7nice": {
+      "issues": [
+        {
+          "n": 1733,
+          "at": "2026-10-31T06:08:00Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-31T06:08:00Z"
+    },
+    "CypressStar": {
+      "issues": [
+        {
+          "n": 1671,
+          "at": "2026-10-30T09:40:55Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-30T09:40:55Z"
+    },
     "Drayee": {
       "comments": [],
       "discussions": [],
@@ -571,6 +595,18 @@
       "lastActive": "2026-09-30T05:24:31Z",
       "prs": []
     },
+    "shadapang": {
+      "issues": [
+        {
+          "n": 1672,
+          "at": "2026-10-30T11:03:25Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-30T11:03:25Z"
+    },
     "snmtg1008": {
       "comments": [
         {
@@ -703,6 +739,6 @@
   },
   "cursors": {
     "discussions": 1578,
-    "issues": 1670
+    "issues": 1763
   }
 }

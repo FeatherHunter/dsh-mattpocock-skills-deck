@@ -21,8 +21,8 @@
 // 判据不是「源码里出现过某段字符串」就够：A–E 把真源码加载起来喂输入、看真账本，F 只作防回退的扫描。
 //
 // 门禁归属: src/tracker/kernel/outbound-tiers.ts
-// 门禁归属: src/tracker/rooms/github/client.ts
-// 门禁归属: src/tracker/rooms/github/queries.ts
+// 门禁归属: src/tracker/rooms/github/transport/
+// 门禁归属: src/tracker/rooms/github/channels/graphql/queries.ts
 // 门禁归属: src/refresh/kernel/step-pricing.ts
 // 门禁归属: src/refresh/kernel/transport-ledger.ts
 // 门禁归属: src/refresh/rooms/host/refresh-gate.ts
@@ -35,14 +35,14 @@ import path from 'node:path'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { isGraphqlGhArgs, graphqlCostOf, ghArgsOf, ghOutboundEntryOf, graphqlCorrectionOf, ghPointNoteOf } from '../src/tracker/kernel/outbound-tiers.js'
-import { ghClient } from '../src/tracker/rooms/github/client.js'
-import { attachOpUsage } from '../src/tracker/rooms/github/op-usage.js'
+import { ghClient } from '../src/tracker/rooms/github/transport/client.js'
+import { attachOpUsage } from '../src/tracker/rooms/github/support/op-usage.js'
 import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.js'
 import { createLedger } from '../src/refresh/rooms/host/quota-ledger.js'
 import { createGate } from '../src/refresh/rooms/host/refresh-gate.js'
 import { createAccountPort } from '../src/refresh/kernel/backend-accounting.js'
 import { measureStep, noteStepOutbound } from '../src/refresh/kernel/step-pricing.js'
-import * as Q from '../src/tracker/rooms/github/queries.js'
+import * as Q from '../src/tracker/rooms/github/channels/graphql/queries.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
@@ -309,10 +309,11 @@ function partF(): void {
   check(outboundTiers.indexOf('const GRAPHQL_ESTIMATE_POINTS = 1') >= 0,
     'F、GraphQL 估算点数只有一处定义')
 
-  const client = srcOf('src/tracker/rooms/github/client.ts')
+  // #1684 阶段 1 房间分层：客户端与外围零件搬进 transport/，旧路径只留转发；扫描看真身。
+  const client = srcOf('src/tracker/rooms/github/transport/client.ts')
   // gh.exec / gh.timeout 两条日志的字段拼装与 NOT_ACCOUNTED 已按文件粒度上限拆到 client-support.ts，
   // 判据仍按「这两份合起来必须有」来判：拆文件不该让防回退扫描漏掉日志点。
-  const clientSupport = srcOf('src/tracker/rooms/github/client-support.ts')
+  const clientSupport = srcOf('src/tracker/rooms/github/transport/client-support.ts')
   const clientParts = client + '\n' + clientSupport
   check(client.indexOf('ghOutboundEntryOf(args)') >= 0 && client.indexOf('graphqlCorrectionOf(args, stdout)') >= 0,
     'F、gh 客户端报闸与补差都用共享口径，不再自己算一条请求/一点')

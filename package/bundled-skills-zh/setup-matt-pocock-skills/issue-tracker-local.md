@@ -20,11 +20,11 @@
 
 ## 寻路操作
 
-供 `/wayfinder` 使用。**地图**是一个文件，每张工单对应一个**子**文件。
+供 `/wayfinder` 使用。**地图**是一个文件，每张工单对应一个**子工单**文件。
 
 - **地图**：`.scratch/<effort>/map.md`（正文里放 Notes、Decisions so far 和战争迷雾这些内容）。
 - **子工单**：`.scratch/<effort>/issues/NN-<slug>.md`，从 `01` 开始编号，正文里写问题。一行 `Type:` 记录工单类型（`research`/`prototype`/`grilling`/`task`）；一行 `Status:` 记录 `claimed`/`resolved`。
-- **阻塞**：靠近顶部的一行 `Blocked by: NN, NN`。列出的每个文件都 `resolved` 时，工单才算解除阻塞。
+- **阻塞**：靠近顶部的一行 `Blocked by: NN, NN`。列出的每个文件都 `resolved` 时，这张工单才算已经解除阻塞。
 - **前沿**：扫描 `.scratch/<effort>/issues/`，找出处于打开、未被阻塞、未被认领状态的文件；编号最先的胜出。
-- **认领**：把 `Status: claimed` 设好并保存，然后再动任何工作。
+- **认领**：把 `Status: claimed` 设好并保存，然后再开始做任何工作。
 - **解决**：在 `## Answer` 标题下追加答案，把 `Status: resolved` 设好，再把一条上下文指针（要点 + 链接）追加到 `map.md` 里地图的 Decisions so far 段。

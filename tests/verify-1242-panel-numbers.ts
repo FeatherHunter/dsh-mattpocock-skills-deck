@@ -26,7 +26,7 @@ import { createOutboundControl } from '../src/refresh/rooms/host/outbound-contro
 import { createSessionOpener } from '../src/refresh/rooms/host/session-opener.ts'
 import { createSnapshotBuilder } from '../src/refresh/rooms/host/snapshot-build.ts'
 import { createRegistry } from '../src/tracker/registry/core.ts'
-import { githubModule } from '../src/tracker/rooms/github/index.ts'
+import { githubModule } from '../src/tracker/rooms/github/room/index.ts'
 import { createMapBody } from '../src/host/mapBody.ts'
 import { createTicketGrouping } from '../src/host/ticketGrouping.ts'
 import { createMapTickets } from '../src/host/mapTickets.ts'
@@ -488,7 +488,7 @@ async function main(): Promise<void> {
     check(selfSource.indexOf(word) < 0, '八、门禁源码不含 ' + word, selfSource.indexOf(word))
   })
   check(selfSource.indexOf("from '../src/refresh/rooms/host/snapshot-build.ts'") >= 0, '八、门禁加载的是真快照装配（不是另抄一份口径）')
-  check(selfSource.indexOf("from '../src/tracker/rooms/github/index.ts'") >= 0, '八、门禁加载的是真 GitHub 房间（不是假会话）')
+  check(selfSource.indexOf("from '../src/tracker/rooms/github/room/index.ts'") >= 0, '八、门禁加载的是真 GitHub 房间（不是假会话）')
   check(selfSource.indexOf("from '../src/host/mapTickets.ts'") >= 0, '八、门禁加载的是面板真正走的取数电话（不是另抄一份口径）')
   check(selfSource.indexOf("from '../src/refresh/rooms/host/session-opener.ts'") >= 0, '八、门禁加载的是真会话装配（出站都经会话管线）')
 

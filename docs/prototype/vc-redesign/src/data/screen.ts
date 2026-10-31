@@ -1,12 +1,12 @@
 /**
  * data/screen.ts —— 原型的数据来源。
  *
- * 历史、工作树、HEAD 三项来自 tools/capture-git.ts 对本仓库的真实采集；
+ * 历史、工作区、HEAD 三项来自 tools/capture-git.ts 对本仓库的真实采集；
  * 未提交改动一项用评审时的 11 个文件做固定样本（真实工作区此刻只有一处改动，
  * 样本才有足够多的行状态可看：已跟踪修改、未跟踪文档、未跟踪脚本、中文路径）。
  *
  * 组装走真实的 assemble()，不在这里手写 FirstScreen：
- * 已加入这次提交/未加入/冲突的分组、计数口径、当前工作树的判定、同步状态，
+ * 已暂存/未暂存/冲突的分组、计数口径、当前工作区的判定、同步状态，
  * 都应该由真实代码决定，否则原型会把界面问题误当成数据问题。
  */
 import { assemble } from './core'
@@ -78,7 +78,7 @@ function branchSamples(nowMs: number, headShort: string): PrototypeBranch[] {
       behind: 0,
       oidShort: headShort,
       lastCommitMs: nowMs - 6 * minute,
-      subject: '版本管理页重构原型收尾，工作树动作全部收进面板',
+      subject: '版本管理页重构原型收尾，工作区动作全部收进面板',
       mergedIntoCurrent: true,
     },
     {

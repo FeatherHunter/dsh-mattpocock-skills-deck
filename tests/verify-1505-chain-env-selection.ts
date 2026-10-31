@@ -27,7 +27,7 @@ import path from 'node:path'
 
 import { createDetectChain } from '../src/refresh/rooms/host/check-chain-evaluation.ts'
 import { probeChainEnv, ghAuthVerdict } from '../src/refresh/rooms/host/chain-env-map.ts'
-import * as githubMod from '../src/tracker/rooms/github/index.ts'
+import * as githubMod from '../src/tracker/rooms/github/room/index.ts'
 
 let total = 0
 let failed = false

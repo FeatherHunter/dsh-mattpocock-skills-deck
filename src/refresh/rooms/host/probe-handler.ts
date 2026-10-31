@@ -17,6 +17,10 @@ import { idOfParts } from '../../../tracker/kernel/identity-keys.js'
 // #1584 F4：探针的 composer 分支原来也用注册表 describe 自己造身份，空 refId 会被当成「答出来了」；
 // 给不出 refId 时改问会话（身份真源），拿不到再走原兜底。
 import { resolveRepoRefForCwd } from '../../../tracker/session/repo-ref.js'
+// #1689 降级取数的预算与节流：降级常驻时整仓探测从 5 秒放宽到 60 秒、自动校准至少隔 10 分钟。
+// 两件事都挂在这条现有探测拍上判（下面用两个按 cwd 记的毫秒时刻），本文件不新建任何定时器。
+import { calibrationDue, createFallbackRoundBudget, fallbackStandingOf, probeDue } from '../../kernel/fallback-fetch-budget.js'
+import { FALLBACK_FETCH_LIMITS } from '../../kernel/host-budget.js'
 
 /** 探针处理器收到的依赖：目录归一、后端选择、注册表、平台、索引与缓存等，全由调用点显式传入。 */
 export interface ProbeHandlerDeps {
@@ -45,6 +49,11 @@ export interface ProbeHandlerDeps {
 /** 造出探针电话：目前只有一个 handleProbe（wf.probe 的处理体）。 */
 export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args: any) => Promise<any> } {
   const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText, openSession } = deps
+  // #1689：降级常驻时的两个节流时刻（毫秒），按 cwd 记。与 lastProbeAtByRepo 分开记，是因为后者
+  //   的键要等取数回来才知道（owner/name），而节流必须在发出请求之前判；createProbeHandler 的实例
+  //   由宿主入口 _probe() 记忆化，这份状态跨刷新拍安全。
+  const fallbackProbeAtByCwd: Record<string, number> = {}
+  const fallbackCalibrationAtByCwd: Record<string, number> = {}
   // #1418：失败回包里带上判档（network / unsupported / env / exception…），客户端日志据此一眼看出「这一拍
   //   为什么没探成」。只回短枚举、不回原文 —— 原文仍在 error 字段里给界面看，日志那边一个字都不记。
   const kindOf = function (e: any): string {
@@ -123,11 +132,44 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       //   客户端只能整池重建，于是「只补变的那几条」那条窄路白写了。
       //   水印只在这一步真的并进列表之后才推进（commitIssueIndex），被推迟 / 被丢弃 / 失败时
       //   一个字节都不动 —— 否则那条变化会被挤出下一次的扫描窗口，此后再也发现不了。
-      const remote: any = await fetchIssueIndexWindowed(cwd)
-      if (!remote.ok) return { ok: false, error: errText(remote.error || 'probe 失败'), errorKind: kindOf(remote.error) }
+      // #1689 降级常驻的节流与预算：快照明确写着走 REST 兜底通道（fallback:'rest'）时，
+      //   整仓探测从 5 秒放宽到 60 秒、自动校准至少隔 10 分钟，两件事都在这条现有探测拍上判。
+      //   主路正常时 degraded 恒假，这一段一条请求都不多发，行为与改造前一致。
+      const _cacheNow: any = (typeof getCache === 'function') ? getCache(cwd) : null
+      const degraded: boolean = fallbackStandingOf(_cacheNow && _cacheNow.snapshot)
+      const nowMs: number = Date.now()
+      if (degraded) {
+        if (calibrationDue(nowMs, fallbackCalibrationAtByCwd[cwd], FALLBACK_FETCH_LIMITS)) {
+          // 到点校准：把缓存清脏后如实告诉客户端「这一拍得整仓重取」。客户端收到 changed+mode 就走了
+          //   既有的 loadSnapshot(primary,true,true) 那一支，也就是一次完整枚举（上限 16 条请求，常量在
+          //   host-budget.ts）；下一次校准至少 10 分钟后才可能再来。
+          fallbackCalibrationAtByCwd[cwd] = nowMs
+          fallbackProbeAtByCwd[cwd] = nowMs
+          setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
+          return { ok: true, changed: true, mode: 'calibrate', reason: 'fallback-calibration-due', count: 0, since: new Date(nowMs).toISOString() }
+        }
+        if (!probeDue(nowMs, fallbackProbeAtByCwd[cwd], degraded, FALLBACK_FETCH_LIMITS)) {
+          // 60 秒窗口内：这一拍不发任何请求，如实回「没变」（客户端对 changed:false 直接原地不动）。
+          return { ok: true, changed: false, mode: 'throttled', reason: 'fallback-probe-window', count: 0, since: new Date(fallbackProbeAtByCwd[cwd]).toISOString() }
+        }
+      }
+      // #1689 增量轮预算：降级时这一轮开一本增量账本（上限 3 条）。窗口探测的真实请求在取数层
+      //   （issue-list-fetch 的 fetchIssueIndex）逐页预扣、收到校正、失败回填，这里只把同一本账传下去；
+      //   探针这一层不再自己预扣一条（否则一页只记一笔，多页就账实不符）。
+      //   整仓枚举（重启后第一拍没有窗口）不拿这本增量账去卡：取数层见「无 since」会自己开「完整枚举 16 条」那本。
+      const roundBudget: any = degraded ? createFallbackRoundBudget({ kind: 'increment', limits: FALLBACK_FETCH_LIMITS }) : null
+      const remote: any = await fetchIssueIndexWindowed(cwd, roundBudget ? { budget: roundBudget } : undefined)
+      // 窗口探测被本轮预算拦住时，取数层回 truncated 并带账本读数；这里翻译成「这一拍先不探」，
+      //   而不是当网络失败往上抛。出站请求一条都没多出去（预扣不到时取数层根本没发）。
+      if (roundBudget && remote && remote.ok === false && remote.budget && remote.budget.refused > 0) {
+        return { ok: true, changed: false, mode: 'throttled', reason: 'fallback-budget-exhausted', count: 0, since: '' }
+      }
+      if (!remote || remote.ok !== true) return { ok: false, error: errText((remote && remote.error) || 'probe 失败'), errorKind: kindOf(remote && remote.error) }
       const repo: any = remote.repo
       const rk1: string = repo.owner + '/' + repo.name
       const changed: boolean = remote.changed === true
+      // 这一拍真的探过了：降级窗口从这里重新起算（失败的探不推窗口，下一拍仍会重试）。
+      if (degraded) fallbackProbeAtByCwd[cwd] = nowMs
       lastProbeAtByRepo[rk1] = new Date().toISOString()
       const commit: any = function (): any { try { return commitIssueIndex(cwd, remote.nextWatermarkMs, remote.index) } catch (eC: any) { return null } }
       if (!changed) {
@@ -136,7 +178,10 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
         return { ok: true, changed: false, repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
       }
       let delta: any = null
-      try { delta = (typeof deltaRefresh === 'function') ? await deltaRefresh(cwd, {}) : null } catch (eD: any) { delta = null }
+      // #1689：降级常驻时把这一轮的预算本子一起交下去 —— 薄行补取（row-patch → thin-row-fetch）
+      //   每发一条都从这里预扣、校正、失败回填，与窗口探测的翻页记在同一本账上（一轮 ≤3 条）。
+      const deltaOpts: any = degraded ? { fallbackBudget: roundBudget } : {}
+      try { delta = (typeof deltaRefresh === 'function') ? await deltaRefresh(cwd, deltaOpts) : null } catch (eD: any) { delta = null }
       if (delta && delta.mode === 'patch' && delta.rows && delta.rows.length) {
         // 并进列表了：水印与基线跟着走，客户端直接用这一份（不再发整池大查询）。
         commit()

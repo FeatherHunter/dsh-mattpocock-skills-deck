@@ -2,7 +2,7 @@
 // 用法：在插件根目录执行 node --import ./scripts/ts-hook.mts tests/verify-log-fields.ts。
 // 2026-10-28（#1609）起 refresh.decide 与 refresh.skipped 两条事件的字段改为运行时采集（见 collectCalls 之后的注释），
 //   要在 ts-hook 下才能载入 .ts 源码、把闸真的跑一遍；其余事件仍是纯静态扫描。不走钩子时运行时采集那一项会判红并写明用法。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（2026-10-21 map 1010 wayfinder 逐票复核新增常驻 #120 gh.auth.env、#122 guide.banner 与按需 #121 gh.lane.saturated、#123 probe.loop、#124 prompt.link，共 140 事件（2026-10-29 #1642 新增常驻 #145 settings.toggle：设置页两格文字开关（胶囊状态栏 / deck 工具箱）点一下从界面到文件的每一步结论，字段只有 flag / value / listed / ok / reason / cwdHash，reason 十三档枚举；2026-10-29 #1642 新增常驻 #146 settings.merge.fail（告警级）：合并记下的临时记录这一趟没能写进文件时补一行，字段只有 via / keyHash / rootHash / fields / reason，reason 三档；2026-10-29 #1640 新增常驻 #144 settings.merge：临时记录在认出工作区根以后合并到根那一条的结论，字段只有 via / keyHash / rootHash / fields，且等这一趟写成功才发）（2026-10-26 #1007 新增常驻 #132 gh.transport：通路失败后的冷却三件事（设上 / 挡回 / 清零），字段只有 decision / bucket / reason / remainingMs / failStreak / cmd，命令只记短标签、不记原文；2026-10-26 #1475 新增常驻 #133 chain.predicate.timeout：检测链一次求值里外层等待预算先到点、被放弃的内层谓词后来回话各记一行，字段只有 id / phase / budgetMs / status / latencyMs；2026-10-25 #1514 新增按需 #131 preflight.check：房间预检的 Markdown 三项环境判据各落一行，字段只有 gate / status / evidence / cwdHash / latencyMs / opId，evidence 是短机器证据、cwdHash 只记 8 位散列，路径原文与错误原文一个字都不记；2026-10-23 #1409 新增按需 #127 suggest.bind、#128 suggest.call、#129 suggest.ready：界面借会话事件流取数的三条调试线，只记散列与计数，绝不记建议原文）；2026-10-20 #1295 新增按需 #114 container.split（列表页容器分拣这一趟：探索地图 / 规格 / 普通未关闭票 / 已关闭各几条，以及容器种类判定有没有退回文件内兜底）并给常驻 #10 snapshot.built 增补一格 specs（这一份快照里判成规格容器的几个；maps 是容器总数，条数不变）；2026-10-20 #1294 新增按需 #112 locale.registration（注册这一趟的结论：几门语言、新增几门、跳过几门、缺省语言、耗时）与常驻 #113 locale.registration.fail（注册失败那一步：读快照 / 新增语言 / 注册词表，哪门语言、回退目标、错误原文散列）；#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；2026-10-20 #1296 新增按需 #115 container.accent（启动时按调试档记一行界面实际取到的两色：explore 是中央色表 map 值、spec 是中央色表 spec 值）；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（2026-10-21 map 1010 wayfinder 逐票复核新增常驻 #120 gh.auth.env、#122 guide.banner 与按需 #121 gh.lane.saturated、#123 probe.loop、#124 prompt.link，共 141 事件（2026-10-31 #1693 新增常驻 #147 notification.event：通知事件库真正落盘成功那一趟记仓库散列、历史条数与这一笔的类型；2026-10-29 #1642 新增常驻 #145 settings.toggle：设置页两格文字开关（胶囊状态栏 / deck 工具箱）点一下从界面到文件的每一步结论，字段只有 flag / value / listed / ok / reason / cwdHash，reason 十三档枚举；2026-10-29 #1642 新增常驻 #146 settings.merge.fail（告警级）：合并记下的临时记录这一趟没能写进文件时补一行，字段只有 via / keyHash / rootHash / fields / reason，reason 三档；2026-10-29 #1640 新增常驻 #144 settings.merge：临时记录在认出工作区根以后合并到根那一条的结论，字段只有 via / keyHash / rootHash / fields，且等这一趟写成功才发）（2026-10-26 #1007 新增常驻 #132 gh.transport：通路失败后的冷却三件事（设上 / 挡回 / 清零），字段只有 decision / bucket / reason / remainingMs / failStreak / cmd，命令只记短标签、不记原文；2026-10-26 #1475 新增常驻 #133 chain.predicate.timeout：检测链一次求值里外层等待预算先到点、被放弃的内层谓词后来回话各记一行，字段只有 id / phase / budgetMs / status / latencyMs；2026-10-25 #1514 新增按需 #131 preflight.check：房间预检的 Markdown 三项环境判据各落一行，字段只有 gate / status / evidence / cwdHash / latencyMs / opId，evidence 是短机器证据、cwdHash 只记 8 位散列，路径原文与错误原文一个字都不记；2026-10-23 #1409 新增按需 #127 suggest.bind、#128 suggest.call、#129 suggest.ready：界面借会话事件流取数的三条调试线，只记散列与计数，绝不记建议原文）；2026-10-20 #1295 新增按需 #114 container.split（列表页容器分拣这一趟：探索地图 / 规格 / 普通未关闭票 / 已关闭各几条，以及容器种类判定有没有退回文件内兜底）并给常驻 #10 snapshot.built 增补一格 specs（这一份快照里判成规格容器的几个；maps 是容器总数，条数不变）；2026-10-20 #1294 新增按需 #112 locale.registration（注册这一趟的结论：几门语言、新增几门、跳过几门、缺省语言、耗时）与常驻 #113 locale.registration.fail（注册失败那一步：读快照 / 新增语言 / 注册词表，哪门语言、回退目标、错误原文散列）；#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令），#1083 退役常驻 #80 sessionTickets.chain（旧链落盘那一路随工作路线存档重写而退役）并增补常驻 #110 workRoute.write（工作路线写这一侧：记一笔、落盘、写后读回、按保留期裁旧）与 #111 workRoute.read（读这一侧失败时一行，文件不存在不记）；#1083 同日给这两条补上 why 与 detail：why 是失败原因代号（成功空串），detail 是给人指的字段路径或错误类名，不带被拦下的值）；2026-10-20 #1296 新增按需 #115 container.accent（启动时按调试档记一行界面实际取到的两色：explore 是中央色表 map 值、spec 是中央色表 spec 值）；
 // 2026-10-21 第二轮逐票复核（map 1010 的 1000–1300 段）没有新增事件，只给四条既有事件补判定字段：
 //   常驻 #5 gh.exec 增补 cmd（哪条 gh 子命令，例如 issue:create；从前只有 argv0='gh'，分不出查登录态还是改票）、
 //   常驻 #6 gh.timeout 增补 layer（room-tier 房内自己掐表 / host-clamp 宿主外包钳制）、
@@ -27,14 +27,14 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053/#1083/#1294/#1295/#1296/#1627/#1640/#1642：140 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053/#1083/#1294/#1295/#1296/#1627/#1640/#1642/#1693：141 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
 // 其中 error.normalize 的 httpCode 只在归一出状态码时才带，其余两键常带。
 const ALLOWED = {
   'snapshot.request': ['cwdHash', 'backend', 'force'],
-  'snapshot.cache.hit': ['kind', 'ageMs'],
+  'snapshot.cache.hit': ['kind', 'ageMs', 'schema', 'source', 'completeness', 'legacy'],
   'snapshot.cache.miss': ['reason'],
   'repo.resolve.tier': ['tier', 'ok', 'latencyMs'],
   // 2026-10-14（#1052）常驻 #5 `gh.exec` 增补一格 `via`：这一次 gh 调用是谁发的、走到哪一支
@@ -50,7 +50,7 @@ const ALLOWED = {
   // 2026-10-21（#1007 复核）再增补一格 cmd：这一条 gh 命令是哪种子命令，形状是短标签
   //   （api:graphql / api:repos / issue:create / auth:status），第二段不是纯动词时只留第一段。
   //   为什么要有：从前只有 argv0='gh'，一次失败分不清是「查登录态失败」还是「改票失败」；命令参数与编号一律不进日志。
-  //   落点：src/tracker/rooms/github/client.ts 与 src/refresh/rooms/host/git-execution.ts 的 gh.exec 调用点。
+  //   落点：src/tracker/rooms/github/transport/client.ts 与 src/refresh/rooms/host/git-execution.ts 的 gh.exec 调用点。
   // 2026-10-25（#1482）再增补两格：points 这一笔记进账本的点数（GraphQL 按回包 rateLimit.cost 记真实点数，
   //   拿不到时按 1 点估；REST 记 0），pointSource 说这个点数是哪来的（server 回包给了真实 cost / estimate 按 1 点估 /
   //   空串 不是 GraphQL）。为什么要有：账本曾经把 GraphQL 记成 REST、点数固定按 1，记歪了光看日志查不出；
@@ -69,13 +69,13 @@ const ALLOWED = {
   //   limitBefore / limitAfter 因「一次要多了」换页大小时的前后单页条数（与页大小无关的分支一律记 0）。
   //   为什么补这三格：探测每一拍都失败时，日志里只有 reason 说不清远端到底回了哪一档；换页大小那件事更要一对数字
   //   才看得出「从 100 退到了 50」。票号、命令原文、上游报错原文依然一个字都不记。发射口在
-  //   src/tracker/rooms/github/read-log.ts 的 emitReadDegraded。
+  //   src/tracker/rooms/github/support/read-log.ts 的 emitReadDegraded。
   'read.degraded': ['op', 'reason', 'latencyMs', 'opId', 'kind', 'limitBefore', 'limitAfter'],
   // 2026-10-14（#1052 补做）常驻 #109 `preflight.gate`：探测那三项门禁每过一项各落一行，第三项过了也落一行。
   //   为什么过了也记：三项门禁落三行长得一样的 gh.exec，没有这一行就读不出「探测走到底了」还是「第一关就没过」。
   //   四个键：gate 第几项（1 起 gh / 2 登录态 / 3 认得出仓库且连得上接口）、reason 为什么（过了一律写 ok）、
   //   latencyMs 这一项花了多久、opId 这一行属于宿主哪一趟操作（#1052 续补）。发射口在
-  //   src/tracker/rooms/github/read-log.ts 的 emitPreflightGatePass。
+  //   src/tracker/rooms/github/support/read-log.ts 的 emitPreflightGatePass。
   'preflight.gate': ['gate', 'reason', 'latencyMs', 'opId'],
   // 2026-10-25（#1514）按需 #131 `preflight.check`：Markdown 房间预检的三项环境判据（md:workspace /
   //   md:scratchWritable / md:containersReadable）各落一行，pass / fail / pending 都记 —— 只记 fail 的话，
@@ -166,7 +166,7 @@ const ALLOWED = {
   //   ④ 按需 #103 `edge.repair`（调试级）：REST 降级回包里那次树边修复。字段四个：
   //      maps 这一趟问了几张地图、linked 认下几条子票边、failed 哪几张地图没补成、latencyMs。
   //   三条调试线都在调用处先判一次 `isEnabled('debug')`，关闭时连字段对象都不组装。
-  //   落点：src/tracker/rooms/github/graph.ts（edge.write、edge.cycle）、cycle-check.ts（edge.roster）、
+  //   落点：src/tracker/rooms/github/write/graph.ts（edge.write、edge.cycle）、cycle-check.ts（edge.roster）、
   //   parent-repair.ts（edge.repair）。
   'edge.write': ['kind', 'route', 'ok', 'added', 'removed', 'kept', 'reason', 'latencyMs'],
   'edge.cycle': ['verdict', 'nodes', 'blockers', 'latencyMs'],
@@ -188,7 +188,7 @@ const ALLOWED = {
   //   failed 建完票之后补挂标签、认领、父边没挂上的步数、reason 为什么是这个结论
   //   （fresh 真新建 / reuse 幂等锚命中复用 / edited 改了已有票 / noop 一处没改 /
   //   partial 写成了但有补挂没挂上 / fail:<档位>）、latencyMs 这一趟花了多久。
-  //   落点三处：src/tracker/rooms/github/write-log.ts 的 emitIssueWrite（一趟一行），由同目录的
+  //   落点三处：src/tracker/rooms/github/support/write-log.ts 的 emitIssueWrite（一趟一行），由同目录的
   //   issues-write.ts（建票、关闭、重开、改票、改认领五件事）、comments.ts（评论）、labels.ts（贴标签）
   //   各调一次。同一天同一票增补的 #106 labelDefs.write 与 #107 repo.init 与它共用同一份机制，
   //   把同一片写路径剩下的两族（标签配色、开仓发布）也接上了结论线。
@@ -202,7 +202,7 @@ const ALLOWED = {
   //   planned 打算动几个、written 真发出去几条、failed 几条没改上、ok 成没成、
   //   reason 为什么（edited 都改上了 / partial 有的改上有的没改上 / allfailed 一条都没改上 /
   //   noop 一条都不用改 / fail:<档位>）、latencyMs 这一趟花了多久。
-  //   落点一处：src/tracker/rooms/github/label-colors-ops.ts 的 emitLabelDefsWrite（setLabelColors 这个
+  //   落点一处：src/tracker/rooms/github/write/label-colors.ts 的 emitLabelDefsWrite（setLabelColors 这个
   //   对外入口调一次，一趟一行）。
   'labelDefs.write': ['planned', 'written', 'failed', 'ok', 'reason', 'latencyMs'],
   // 2026-10-14（#1053 增补）新增常驻 #107 `repo.init`：把工作区初始化并发布成 GitHub 仓库这一趟的结论 ——
@@ -213,7 +213,7 @@ const ALLOWED = {
   //   允许字段五个，全是枚举、布尔与计数，**仓库名、远端地址、命令原文、上游报错原文一个字都不记**：
   //   route 走的是新建远程仓库（created）还是推到已有远程（existing）、steps 这一趟一共起了几条外部命令
   //   （走到第几条）、ok 成没成、reason 为什么（done 走完了 / fail:<档位> 停在哪一档）、latencyMs 花了多久。
-  //   落点一处：src/tracker/rooms/github/init-project.ts 的 emitRepoInitWrite（initProject 这个对外入口
+  //   落点一处：src/tracker/rooms/github/write/init-project.ts 的 emitRepoInitWrite（initProject 这个对外入口
   //   调一次，一趟一行；execProcLocal 与 ghStep 各计一步 steps，两条分支各写 route）。
   'repo.init': ['route', 'steps', 'ok', 'reason', 'latencyMs'],
   'workspaceStore.hit': ['keyHash', 'fresh', 'ttlMs'],
@@ -381,7 +381,7 @@ const ALLOWED = {
   //   这一次走的是哪一档（补那几条薄查询 / 该整池 / 没变 / 被推迟 / 过期丢弃）、为什么、变了几行、
   //   真发出去几条薄查询、水印推没推、待办里现在几条。只记短散列、枚举与数字，不记路径与命令原文。
   // 2026-10-24 #1472：写事件触发的补取数也借这一行报账，失败那一行多带一个 err（上游原话截断 120 字符）。
-  'refresh.patch': ['keyHash', 'mode', 'reason', 'changed', 'queries', 'watermark', 'pending', 'err'],
+  'refresh.patch': ['keyHash', 'mode', 'reason', 'changed', 'queries', 'watermark', 'pending', 'err', 'evicted', 'evictedBytes'],
   // 2026-09-23 #707（T3 第二批）新增两条按需事件（附录 1.5 节 #78～#79）：视野模型自己产生的两条轨迹 ——
   //   一次上报（哪一种信号、窗口散列、工作区根散列、面板可不可见、这一笔算不算数）、
   //   一次收摊结论（活跃几个、保留几个定时器、停掉几个、有没有一个收尾节拍、整桌收没收、正在看的几个）。
@@ -581,6 +581,10 @@ const ALLOWED = {
   // 工具回执：锅在 AI 工具这一层时的一行（失败、耗时至少 3 秒、至少 3 点提升到信息级），
   //   回答「这一趟工具调用花了多少、中间重试了几次、给调用方的估值差多少」。
   'tool.receipt': ['tool', 'opId', 'status', 'estRequests', 'estPoints', 'requests', 'points', 'latencyMs', 'remaining', 'tier', 'backendId', 'note'],
+  // 2026-10-31（#1693）常驻 #147 notification.event：通知事件库这一趟真正落盘成功时补一行（读盘、清理与写盘失败都不写）。
+  //   字段三个：repoHash 仓库键的短散列（不记 owner/name 原文）、events 落盘后这份历史里共几条事件、
+  //   type 这一笔最后一条事件的类型（degraded-start / degraded-recovery / refresh-failed / write-failed，空历史记空串）。
+  'notification.event': ['repoHash', 'events', 'type'],
 }
 // #1143 包拥有事件白名单：dsh-log 升到 0.4.1 后，旧实现三件套（src/host/logStore.ts、src/host/logPhones.ts、src/client/kernel/log.ts）已删除，
 // 这四个事件的发射点搬进了已安装的 dsh-log 包内，全仓扫不到是正常的；白名单之外的事件仍按老口径全仓扫。
@@ -913,12 +917,13 @@ async function captureGhTransport(rows) {
 
 // refresh.patch：成功行走 createPatch 里唯一那份字段口径；失败行借 write-event-fetch 的真实失败分支
 // 把上游原话带进同一个 fire（err 是 #1472 定下的唯一原文类键，路径替换与 120 字截断都在 fire 里做）。
+// 2026-10-31（#1692）：真淘汰过一行时成功行再带 evicted / evictedBytes 两格，这里按真淘汰行补一笔。
 async function captureRefreshPatch(rows) {
   const patchMod = await loadProductModule('src/refresh/rooms/host/row-patch.js')
   const writeEventMod = await loadProductModule('src/refresh/rooms/host/write-event-fetch.js')
   const sink = { isEnabled: (level) => level === 'debug', fire: (level, event, fields) => pushRuntimeRow(rows, level, event, fields) }
   const patch = patchMod.createPatch({ logCtx: sink, workspaceKeyOf: () => 'verify-log-fields-runtime' })
-  patch.log('patch', 'rows-changed', { keyHash: 'h-1617', changed: 2, queries: 1, watermark: 'advanced', pending: 0 })
+  patch.log('patch', 'rows-changed', { keyHash: 'h-1617', changed: 2, queries: 1, watermark: 'advanced', pending: 0, evicted: 1, evictedBytes: 2048 })
   const fetcher = writeEventMod.createWriteEventFetch({
     patchOf: () => ({ log: patch.log, patchTickets: async () => { throw new Error('取数爆了') } }),
     hash8: (s) => 'h:' + String(s),
@@ -1037,7 +1042,7 @@ async function main() {
     // 运行时采集会把 quota.* 等新事件补进名字表，这里重算一次：后面的未知事件检查与原文类键检查才覆盖得到它们。
     names = Object.keys(found).sort()
 
-  // 一、允许表里每个事件都有埋点落点（允许表 140 个事件；自监控那几条由 verify-log-selfmon 覆盖，退役的 5 个 —— issuePath.push、issuePath.record、settings.save、choiceStore.hint.reject、sessionTickets.chain —— 不在源码里）。
+  // 一、允许表里每个事件都有埋点落点（允许表 141 个事件；自监控那几条由 verify-log-selfmon 覆盖，退役的 5 个 —— issuePath.push、issuePath.record、settings.save、choiceStore.hint.reject、sessionTickets.chain —— 不在源码里）。
   // #875 薄接线：update.install.exec 的发射器已收进已安装的更新包（事件保留、字段不变，落点改到包内编译产物）。
   // 本仓 src 里不再有它的落点，这里到包内发射处核对事件名与五个字段，找不到仍红。
   if (!found['update.install.exec']) {

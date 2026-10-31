@@ -31,7 +31,7 @@ import nodePath from 'node:path'
 declare const process: { platform?: string } | undefined
 
 import type { PartiallyProvidedCapability, ProvidedCapability, StubbedByBackend } from '../../contract/capability-answer.js'
-// `import type` 取登记数据：转译后不留运行时引用（理由与 GitHub 房那处相同，见 rooms/github/backend.ts）。
+// `import type` 取登记数据：转译后不留运行时引用（理由与 GitHub 房那处相同，见 rooms/github/room/backend.ts）。
 import type { MARKDOWN_CAPABILITY_REGISTER } from './capability-register.js'
 
 // —— Markdown 交出来的成员：24 条能力 + id（读预算自 #1446 起「明确提供功能」，地图薄行自 #1605 起进成员集合） ——

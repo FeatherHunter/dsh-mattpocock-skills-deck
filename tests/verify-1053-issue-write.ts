@@ -219,11 +219,11 @@ function fresh(o: StubOpts) {
 
 async function main() {
   console.log('#1053 写路径门禁：issue.write 真发得出来、字段与「走了哪条路」如实（不联网，桩照真机形状）')
-  const issuesWrite = await imp('src/tracker/rooms/github/issues-write.ts')
-  const comments = await imp('src/tracker/rooms/github/comments.ts')
-  const labels = await imp('src/tracker/rooms/github/labels.ts')
-  const labelColorsOps = await imp('src/tracker/rooms/github/label-colors-ops.ts')
-  const initProjectMod = await imp('src/tracker/rooms/github/init-project.ts')
+  const issuesWrite = await imp('src/tracker/rooms/github/write/issues.ts')
+  const comments = await imp('src/tracker/rooms/github/write/comments.ts')
+  const labels = await imp('src/tracker/rooms/github/write/labels.ts')
+  const labelColorsOps = await imp('src/tracker/rooms/github/write/label-colors.ts')
+  const initProjectMod = await imp('src/tracker/rooms/github/write/init-project.ts')
 
   // ── S1 不带锚建票：真新建 ──
   {

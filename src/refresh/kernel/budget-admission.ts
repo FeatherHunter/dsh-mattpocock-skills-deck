@@ -9,6 +9,7 @@
 // 写保底与档位换算全部由调用方注入。这样同一个算式在刷新闸、宿主账本与门禁里是同一份逻辑，
 // 而数字只有 host-budget.ts 一处真源（同一件事不写两遍）。
 
+import { OPERATION_ENCYCLOPEDIA } from '../../tracker/contract/operations-encyclopedia.js'
 import type { BackendBudgetModel, BudgetReading, BucketLevel } from '../../tracker/contract/budget-model.js'
 
 /**
@@ -100,12 +101,26 @@ export function isWriteOp(op: string): boolean {
 }
 
 /**
- * 两桶后端里「读」那几条（GitHub：读全走 GraphQL 点数：探测、列表、单票、翻页、子票、标签清单、计数）。
+ * 两桶后端里「读」那几条：从操作百科的记账口径派生，不再写第二份名单（#1683）。
  *
- * 名单留在本文件与三份写名单作伴：漏一条就会把这一条当「族不明」，退化成两族都看（旧行为），
- * 只是保守一点，不会放行不该放行的调用。
+ * 判据只有一个：百科里标成读、且 budget 写着 'graphql' 的条目。那几条读的额度花在 GraphQL
+ * 点数族上（探测、列表、单票、翻页、子票、标签清单、计数），名单外的一律按旧行为两族都看。
+ *
+ * 为什么从百科派生而不是继续手写：名录里每条读操作的渠道与结果类型已经收进百科一处，
+ * 额度闸再手写一份「哪些读只花 GraphQL」就又多了一处会漂移的说法。派生之后，新增读操作
+ * 只要在百科里写好记账口径，这里自动跟上。
+ *
+ * 注意不要把「渠道」当成记账口径用：百科的 channels 说的是这条读**允许**走哪些通道，
+ * budget 说的是这条读**算哪一族额度**，两者故意分开。今天有几条读（get、list 等）渠道是
+ * 两端任一，但额度只记 GraphQL 族 —— 按 channels 派生会让这些读在 REST 见底时被误拦，
+ * 那是另一张票才改的行为。
  */
-const GRAPHQL_READ_OPS: readonly string[] = ['list', 'get', 'listPage', 'getDependencies', 'listSubIssues', 'listLabels', 'counts']
+const GRAPHQL_READ_OPS: readonly string[] = (
+  Object.keys(OPERATION_ENCYCLOPEDIA) as (keyof typeof OPERATION_ENCYCLOPEDIA)[]
+).filter((op) => {
+  const profile = OPERATION_ENCYCLOPEDIA[op]
+  return profile.kind === 'read' && profile.budget === 'graphql'
+})
 
 /**
  * 写操作按真实出站通道分四份名单（#1418 P1 复核；2026-10-25 用 GH_DEBUG=api 实测 gh CLI 的请求落点，

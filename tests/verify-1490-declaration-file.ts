@@ -1,11 +1,12 @@
 // tests/verify-1490-declaration-file.ts —— #1490 验收①：初始化声明文件必须回到随包 Matt 技能原文（规格 #1480）。
 //
-// 背景：T1–T6 已经把 Markdown 后端写出的文件格式与位置纠正回随包技能原文（pin v1.3.1），
+// 背景：T1–T6 已经把 Markdown 后端写出的文件格式与位置纠正回随包技能原文（当时 pin 是 v1.3.1；
+// 2026-10-31 起随包 pin 已升到 v1.3.2，当前 pin 以 tests/bundled-skills-upstream-hashes.json 为准），
 // 但初始化时注入给 AI 的那段后端说明（setup.markdown.backendNote）还停在旧口径：
 // 让 AI「先以 issue-tracker-local.md 为起点，再把模板里三段旧做法改成 deck 工具口径」——
 // 这等于授权它继续改写原文，和 #1480「随包原文是格式与位置的唯一真源」正面冲突。
 // 本门禁守三件事：
-//   ① 随包模板 issue-tracker-local.md 与上游 pin v1.3.1 原文逐字一致（哈希比对，复用既有基线，
+//   ① 随包模板 issue-tracker-local.md 与上游原文逐字一致（哈希比对，复用既有基线，pin 取哈希清单，
 //      不把模板正文抄进门禁——否则就成了第二份真源）；
 //   ② 中英两份 backendNote 都要求「把模板逐字复制过去、以它为唯一依据」，
 //      并且旧的三段改写指令（规格不是 spec.md、不要手写 issues/、不要手改 Status）一个字都不许再出现；

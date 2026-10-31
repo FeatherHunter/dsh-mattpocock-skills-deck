@@ -143,9 +143,11 @@ async function main() {
 
   // ---- 后端声明提取 ----
   const BACKENDS = ['github', 'markdown', 'gitlab']
+  // #1687 阶段 1 收口：github 的房间入口整份搬进 room/，其余两房入口仍在各自房间根。
+  const ENTRY_FILE: any = { github: 'src/tracker/rooms/github/room/index.ts' }
   const stubs = []
   for (const b of BACKENDS) {
-    const src = fs.readFileSync(path.join(root, 'src/tracker/rooms/' + b + '/index.ts'), 'utf8')
+    const src = fs.readFileSync(path.join(root, ENTRY_FILE[b] || ('src/tracker/rooms/' + b + '/index.ts')), 'utf8')
     const i = src.indexOf('setupPrompt:')
     check(i >= 0, 'backend ' + b + ' 声明 setupPrompt')
     if (i < 0) continue

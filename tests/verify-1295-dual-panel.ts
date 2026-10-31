@@ -213,7 +213,7 @@ G.closedPagesNode = () => null
 G.truthNoticeLines = () => []
 G.getCachedSnapshot = () => null
 G.loadIssuePage = () => {}
-G.RestFallbackBanner = () => null
+G.FallbackMark = () => null
 G.useClosedPageScroll = () => {}
 G.labelClicks = {}
 G.listPrefs = {}

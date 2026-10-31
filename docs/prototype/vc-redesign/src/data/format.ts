@@ -52,7 +52,7 @@ export function changeBadge(change: FileChange): { letter: string; tone: ChangeT
 
 export type ChangeTone = 'add' | 'mod' | 'del' | 'rename' | 'type' | 'untracked'
 
-/** 同步状态：有超前落后时给两个独立计数，其余状态给一句话。 */
+/** 同步状态：有领先落后时给两个独立计数，其余状态给一句话。 */
 export type SyncModel =
   | { kind: 'counts'; ahead: number; behind: number }
   | { kind: 'text'; text: string; tone: 'muted' | 'warn' }
@@ -67,7 +67,7 @@ export function syncModel(sync: BranchSync, ahead: number, behind: number): Sync
     case 'upstream-gone':
       return { kind: 'text', text: '推送目标已不存在', tone: 'warn' }
     case 'detached':
-      return { kind: 'text', text: '游离头指针', tone: 'muted' }
+      return { kind: 'text', text: '分离头指针', tone: 'muted' }
     default:
       return { kind: 'text', text: '同步状态读不到', tone: 'warn' }
   }

@@ -126,6 +126,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/rooms/host/outbound-admission.ts', access: 'LANE_WAIT_LOG_INTERVAL_MS', gen: 'LANE_WAIT_LOG_INTERVAL_MS', key: 'laneWaitLogIntervalMs' },
   // —— 会话链缓存保留期（refresh 纯逻辑层直接引中央常量：本文件是纯工具，不读钟不碰盘）——
   { file: 'src/refresh/kernel/chain-pruning.ts', access: 'CHAIN_KEEP_MS', gen: 'CHAIN_KEEP_MS', key: 'chainKeepMs' },
+  // —— 通知事件库（#1693）：去重窗与历史保留期，一个瞬时事件合并、一个清理历史 ——
+  { file: 'src/refresh/rooms/host/notification-store.ts', access: 'NOTIFICATION_EVENT_DEDUPE_MS', gen: 'NOTIFICATION_EVENT_DEDUPE_MS', key: 'notificationEventDedupeMs' },
+  { file: 'src/refresh/rooms/host/notification-store.ts', access: 'NOTIFICATION_EVENT_RETENTION_MS', gen: 'NOTIFICATION_EVENT_RETENTION_MS', key: 'notificationEventRetentionMs' },
   // —— 动态 import（发布包里源码树不在时允许取不到，由调用方照旧求值）：名字走 central 命名空间，门禁认动态 import 行 ——
   { file: 'src/refresh/rooms/host/chain-backoff.ts', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
   { file: 'src/refresh/rooms/host/chain-backoff.ts', access: 'CHAIN_ALL_GREEN_TTL_MS', gen: 'CHAIN_ALL_GREEN_TTL_MS', key: 'chainAllGreenTtlMs' },
@@ -141,7 +144,7 @@ const REFERENCES: RefRow[] = [
   // #1560 起算式搬进房间与宿主共用的 kernel（outbound-tiers.ts）；#1570 起到点与迟到名额归还也由准入闸自己执行。
   { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'GH_QUEUE_WAIT_TIMEOUT_MS', gen: 'GH_QUEUE_WAIT_TIMEOUT_MS', key: 'ghQueueWaitTimeoutMs' },
   { file: 'src/tracker/registry/core.ts', access: 'MATCHES_TIMEOUT_MS', gen: 'MATCHES_TIMEOUT_MS', key: 'matchesTimeoutMs' },
-  { file: 'src/tracker/rooms/github/client.ts', access: 'TIMEOUT_MS', gen: 'GITHUB_CLIENT_TIMEOUT_MS', key: 'githubClientTimeoutMs' },
+  { file: 'src/tracker/rooms/github/transport/client.ts', access: 'TIMEOUT_MS', gen: 'GITHUB_CLIENT_TIMEOUT_MS', key: 'githubClientTimeoutMs' },
   // —— 共享层：整份转出（budget）与直接引用 ——
   { file: 'src/refresh/kernel/host-budget.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
   { file: 'src/refresh/kernel/host-budget.ts', access: 'PROBE_INTERVAL_YELLOW_MS', gen: 'PROBE_INTERVAL_YELLOW_MS', key: 'probeIntervalYellowMs' },
@@ -160,6 +163,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/kernel/host-budget.ts', access: 'FRESHNESS_YELLOW_MS', gen: 'FRESHNESS_YELLOW_MS', key: 'freshnessYellowMs' },
   { file: 'src/refresh/kernel/host-budget.ts', access: 'FRESHNESS_RED_MS', gen: 'FRESHNESS_RED_MS', key: 'freshnessRedMs' },
   { file: 'src/refresh/kernel/host-budget.ts', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
+  // #1689 降级取数：降级常驻时探测放慢到 60 秒、自动整仓校准至少隔 10 分钟。
+  { file: 'src/refresh/kernel/host-budget.ts', access: 'FALLBACK_PROBE_INTERVAL_MS', gen: 'FALLBACK_PROBE_INTERVAL_MS', key: 'fallbackProbeIntervalMs' },
+  { file: 'src/refresh/kernel/host-budget.ts', access: 'FALLBACK_CALIBRATION_INTERVAL_MS', gen: 'FALLBACK_CALIBRATION_INTERVAL_MS', key: 'fallbackCalibrationIntervalMs' },
   { file: 'src/refresh/contract/tuning-parameters.ts', access: 'TUNING.deckEnsureTimeoutMs', gen: 'DECK_ENSURE_TIMEOUT_MS', key: 'deckEnsureMs' },
   { file: 'src/shared/version-control/src/write-ticket.ts', access: 'TICKET_TTL_MS', gen: 'TICKET_TTL_MS', key: 'ticketTtlMs' },
   { file: 'src/refresh/kernel/index-window-rules.ts', access: 'MAX_WINDOW_MS', gen: 'TRACKER_INDEX_MAX_WINDOW_MS', key: 'trackerIndexMaxWindowMs' },
@@ -297,7 +303,7 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/shared/tracker/sync.ts', name: 'SYNC_SNAP_FRESH_MS', key: 'syncSnapFreshMs' },
   { file: 'src/shared/tracker/sync.ts', name: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
   { file: 'src/shared/tracker/sync.ts', name: 'SYNC_ISSUE_CACHE_TTL_MS', key: 'syncIssueCacheTtlMs' },
-  // budget.ts（refreshBudget 拼片）：函数体里裸用这 17 个名字，单源头改造前是字面量。
+  // budget.ts（refreshBudget 拼片）：函数体里裸用这些名字（#1689 起 19 个），单源头改造前是字面量。
   { file: 'src/refresh/kernel/host-budget.ts', name: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'PROBE_INTERVAL_YELLOW_MS', key: 'probeIntervalYellowMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'PROBE_INTERVAL_LINGER_MS', key: 'probeIntervalLingerMs' },
@@ -312,6 +318,9 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/refresh/kernel/host-budget.ts', name: 'ACTIVE_LINGER_MS', key: 'activeLingerMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs' },
+  // #1689 降级取数：降级常驻时探测与自动校准的两个窗口。
+  { file: 'src/refresh/kernel/host-budget.ts', name: 'FALLBACK_PROBE_INTERVAL_MS', key: 'fallbackProbeIntervalMs' },
+  { file: 'src/refresh/kernel/host-budget.ts', name: 'FALLBACK_CALIBRATION_INTERVAL_MS', key: 'fallbackCalibrationIntervalMs' },
   // heartbeat.js（attentionHeartbeat 拼片）：本机人不在场的判定窗也由这一片提供（#1240）。
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: 'ATTENTION_HUMAN_INPUT_WINDOW_MS', key: 'attentionHumanInputWindowMs' },
   { file: 'src/refresh/kernel/host-budget.ts', name: 'QUOTA_SYNC_INTERVAL_MS', key: 'quotaSyncIntervalMs' },
@@ -375,11 +384,17 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/shared/version-control/src/parse-log.ts', name: 'cMs', reason: '测量用局部变量（两次读钟的差），不是可调参数' },
   { file: 'src/tracker/detection/backendDecision.ts', name: 'autoMs', reason: '测量用局部变量，不是可调参数' },
   { file: 'src/tracker/detection/detectionService.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
-  { file: 'src/tracker/rooms/github/client.ts', name: 'elapsedMs', reason: '测量用局部变量（耗时），不是可调参数' },
-  { file: 'src/tracker/rooms/github/idempotency.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
-  { file: 'src/tracker/rooms/github/issues.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
+  { file: 'src/tracker/rooms/github/transport/client.ts', name: 'elapsedMs', reason: '测量用局部变量（耗时），不是可调参数' },
+  { file: 'src/tracker/rooms/github/routing/idempotency.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
+  { file: 'src/tracker/rooms/github/read/issues.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
+  // #1698：KPI 投影里的「上次校准时刻」，0 表示不知道时刻（界面显示占位），不是可调参数。
+  { file: 'src/client/kernel/store-derived.ts', name: 'atMs', reason: '界面占位：0 表示不知道上次校准时刻，不是可调参数' },
+  { file: 'src/client/views/ListTab.ts', name: 'atMs', reason: '透传 KPI 投影里的上次校准时刻（只用于格式化成 HH:mm），不是可调参数' },
+  // #1698：计数判定读钟、企业版能力探测时刻，都是读钟记下来的值，不是可调参数。
+  { file: 'src/tracker/deck-counts.ts', name: 'nowMs', reason: '读钟时刻（Date.now 的注入口），用来标计数「什么时候校准的」，不是可调参数' },
+  { file: 'src/tracker/rooms/github/routing/runtime-capability.ts', name: 'probedAtMs', reason: '探测发生的时刻（读钟记录，只用于在答案里标「何时探的」），不是可调参数' },
   // —— 名字巧合：叫 Window 但不是时间 ——
-  { file: 'src/tracker/rooms/github/idempotency.ts', name: 'inWindow', reason: '过滤后的候选数组（“窗口内的数据”），不是毫秒数' },
+  { file: 'src/tracker/rooms/github/routing/idempotency.ts', name: 'inWindow', reason: '过滤后的候选数组（“窗口内的数据”），不是毫秒数' },
   // —— 第二层：函数级透传与计算值（门禁覆盖率扫描捞出来的，逐个定性） ——
   { file: 'src/refresh/registry/quota-sync-bridge.ts', name: 'resetMs', reason: '服务端回传的重置时刻算出来的剩余量，不是可调参数' },
   { file: 'src/deck/rules/anchor.ts', name: 'windowMs', reason: '透传变量，缺省接 ANCHOR_WINDOW_MS（已登记）' },
@@ -402,6 +417,19 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/kernel/failure-backoff.ts', name: 'MIN_BACKOFF_STEPS', reason: '步数下限（次数），不是毫秒' },
   { file: 'src/refresh/kernel/failure-backoff.ts', name: 'evaluatedAtMs', reason: '状态里的时间戳（上次求值时刻），不是可调参数' },
   { file: 'src/refresh/kernel/failure-backoff.ts', name: 'waitMs', reason: '算出来的等待结果（verdict 的输出），不是输入参数' },
+  // #1690：合并版本门记「上一轮合并开始时刻」，是读钟记下来的状态字段，调 YAML 改不了它。
+  { file: 'src/refresh/kernel/snapshot-merge.ts', name: 'lastStartMs', reason: '状态字段：上一轮合并开始时刻（读钟记下来的时刻），不是可调时长' },
+  // #1692：磁盘回放的「上次已知」时刻与按需细节淘汰用的时间戳，都是读钟记下来的时刻。
+  { file: 'src/refresh/kernel/detail-eviction.ts', name: 'nowMs', reason: '读钟时刻（调用方传入的 Date.now），给淘汰记号与行时间戳用，不是可调参数' },
+  { file: 'src/client/views/IssueDetail.ts', name: 'evictedAtMs', reason: '算出来的时刻（淘汰记号里的上次已知时刻，界面格式化成人看的 HH:mm），不是可调参数' },
+  // #1693：通知事件库的去重窗口由调用方注入（上游是已登记的 notificationEventDedupeMs），读钟函数是测试注钟口。
+  { file: 'src/refresh/kernel/notification-events.ts', name: 'windowMs', reason: '透传变量，接的是 store 注入的去重窗口（上游是已登记的 notificationEventDedupeMs），不是新参数' },
+  { file: 'src/refresh/rooms/host/notification-store.ts', name: 'nowMs', reason: '读钟函数（Date.now 的包法，测试可注入），不是可调参数' },
+  // #1694：详情投影标「上次数据」用的是快照合并组里最大的那个时刻，是算出来的时刻，调 YAML 改不了它。
+  { file: 'src/client/views/shared/detailProjection.ts', name: 'lastKnownAtMs', reason: '算出来的时刻（投影里取快照合并组最大的 atMs，界面格式化成 HH:mm），不是可调参数' },
+  { file: 'src/refresh/rooms/host/detail-snapshot-merge.ts', name: 'atMs', reason: '读钟时刻（nowOf() 取到的合并时刻，用于 generatedMs 与令牌起点），不是可调参数' },
+  // #1696：地图子票首帧归一与补回住在 snapshotAssemble.ts，补回时刻写进 map.carry.at 供界面说「上次数据」。
+  { file: 'src/host/tracker/snapshotAssemble.ts', name: 'nowMs', reason: '读钟时刻（补回上次已知子票时写进 map.carry.at，界面显示上次数据时间用），不是可调参数' },
   // —— 存量 JavaScript（覆盖率扫描从 .ts 扩到 .js 后新捞出来的）——
   // 分三类：测量值与时刻（调 YAML 改不了它）、状态字段与初值（0 表示“还没有”）、
   // 透传变量（值由调用方按已登记参数装进来）。
@@ -433,7 +461,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/namingGuardian.ts', name: 'delay', reason: '派生变量：缺省接已登记的 NAMING_SWEEP_SOON_MS，正常路径用调用方给的 delayMs' },
   { file: 'src/shared/naming-tracking.ts', name: 'grace', reason: '派生变量：缺省接已登记的 NAMING_HINT_GRACE_MS，正常路径用调用方给的 hintGraceMs' },
   { file: 'src/refresh/kernel/failure-backoff.ts', name: 'delay', reason: '派生变量：backoffDelayMs(state) 算出来的本次等待时长，序列本身已登记为 chainBackoffMs' },
-  { file: 'src/tracker/rooms/github/client.ts', name: 'timeout', reason: '透传参数：值来自上层调用参数，本文件不决定时长（出站层的档位由 outbound-tiers.ts 定，已登记）' },
+  { file: 'src/tracker/rooms/github/transport/client.ts', name: 'timeout', reason: '透传参数：值来自上层调用参数，本文件不决定时长（出站层的档位由 outbound-tiers.ts 定，已登记）' },
   { file: 'src/tracker/rooms/gitlab/client.ts', name: 'timeout', reason: '同上，透传参数' },
   { file: 'src/refresh/rooms/host/issue-index-scan.ts', name: 'startedMs', reason: '读钟时刻（这趟扫描什么时候开始的），不是可调参数' },
   { file: 'src/refresh/rooms/host/issue-index-scan.ts', name: 'nextWatermarkMs', reason: '算出来的下一个水位时刻，不是可调参数' },
@@ -442,6 +470,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/chain-backoff.ts', name: 'waitMs', reason: '算出来的等待结果（退避结论的输出），不是输入参数' },
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'scanStartedMs', reason: '读钟时刻（这趟核对什么时候开始的），不是可调参数' },
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'sinceMs', reason: '算出来的起点时刻（上次水位减容差），不是可调参数' },
+  { file: 'src/refresh/rooms/host/probe-handler.ts', name: 'nowMs', reason: '读钟时刻（Date.now），降级探测与校准的窗口判定用，不是可调参数' },
   { file: 'src/host/skillProbeCache.ts', name: 'ttlMs', reason: '透传参数，缺省接 SKILL_PROBE_CACHE_MS（已登记）' },
   { file: 'src/host/skillProbe.ts', name: 'SKILL_CACHE_TTL_MS', reason: '函数内局部变量：接线给了正数就听接线的，没给时取中央常量 SKILL_LIST_CACHE_TTL_MS（已登记为 skillListCacheTtlMs）' },
   { file: 'src/host/tracker/snapshot.ts', name: 'snapshotTtl', reason: '透传参数，缺省接 SNAPSHOT_TTL_MS（已登记为 snapshotTtlMs）' },
@@ -467,7 +496,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/gh-execution.ts', name: 'rkWaitedMs', reason: '测量用局部变量：排队段从开始等到现在过了多久，不是可调参数' },
   { file: 'src/refresh/rooms/host/issue-list-fetch.ts', name: 'sinceMs', reason: '由调用方给的起点时刻算出来的时间戳，不是可调参数' },
   { file: 'src/refresh/rooms/host/write-event-subscription.ts', name: 'waitedMs', reason: '算出来的等待时长（现在减上次动作时刻），不是输入参数' },
-  { file: 'src/tracker/rooms/github/client.ts', name: 'waitedMs', reason: '测量用耗时：这一笔在名额队列里等了多久，不是可调参数' },
+  { file: 'src/tracker/rooms/github/transport/client.ts', name: 'waitedMs', reason: '测量用耗时：这一笔在名额队列里等了多久，不是可调参数' },
   { file: 'src/refresh/rooms/host/outbound-admission.ts', name: 'waitedMs', reason: '算出来的等待时长（放行时刻减排队开始时刻），日志字段，不是输入参数' },
   { file: 'src/refresh/rooms/host/outbound-admission.ts', name: 'waitMs', reason: '透传变量：调用方（各出站路经 queueTimeoutForTier）传入的排队预算，闸只归一与执行，不新增时长来源' },
   // #1570：排队超时错误上的两个字段是「量出来的等多久」与「调用方当初给的预算」，都由调用方参数算出，不新增时长来源。

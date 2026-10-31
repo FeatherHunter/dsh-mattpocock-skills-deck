@@ -48,6 +48,53 @@ type SnapInput = {
 /** deck 那一块里本文件真读到的两个字段。 */
 type DeckLike = { counts?: { open?: number; closed?: number } | null; partial?: boolean }
 
+/**
+ * #1695 快照顶层字段白名单：信封只许装这些字段。
+ *
+ * 为什么要有这一条：快照是同一工作区所有会话共用的业务数据（规格 #1681 的「一个快照」），
+ * 而客户端 store 里还有一批**会话呈现态**——当前打开哪张票、导航栈、筛选、草稿、排序偏好、
+ * 布局选择。这些是每个会话自己的观看位置，写进共享快照会让别的会话被拖着跳转、串草稿。
+ * 白名单在这里只列信封自己的字段；以后新增快照字段必须同时改这一处，否则门禁判红，
+ * 提醒作者想清楚「这是业务数据，还是某个会话的观看位置」。
+ *
+ * fromCache / diskReplay / workRouteTable 是回包上的传输与读数注记（宿主自己挂的），
+ * 不是业务字段，但同属信封顶层，允许出现。
+ */
+export const SNAPSHOT_TOP_FIELDS: string[] = [
+  'ok', 'repo', 'repoRoot', 'workspaceRoot', 'updatedAt', 'generatedMs', 'env',
+  'maps', 'issues', 'thinTickets', 'labels', 'repository', 'backendModules',
+  'selection', 'setupLayout', 'capabilities', 'viewer', 'viewerLogin', 'deck',
+  'fallback', 'fallbackAt', 'fallbackReason', 'refresh',
+  'fromCache', 'diskReplay', 'workRouteTable',
+]
+
+/**
+ * 会话呈现态的字段名：它们只属于某个会话的观看位置，任何一份共享快照里出现都算违规。
+ * 名单用于把「白名单外」的错误说成人能读懂的一句「这是会话呈现态，不该进快照」。
+ */
+export const SNAPSHOT_SESSION_KEYS: string[] = [
+  'issueDetail', 'issueCache', 'issueMode', 'issueError', 'detailSeenAt', 'mapTickets',
+  'navStack', 'activeIssue', 'activeMap', 'open', 'tab',
+  'cmtDraft', 'cmtSending', 'cmtError', 'cmtConfirm',
+  'lblFilters', 'effFilters', 'expLabels', 'expEfforts', 'stateFilter', 'sortKey', 'sortDir',
+  'notice', 'tick', 'ui', 'pos', 'size', 'backendMenuOpen', 'backendMenuPos', 'skillsOpen', 'skillHover',
+]
+
+/**
+ * 一份快照里有哪些顶层字段越界：白名单外的一律算违规；会话呈现态字段单独优先点名。
+ * 返回空数组表示这份信封干净。门禁与将来的运行时自检共用这一个判据。
+ */
+export function snapshotFieldViolations(snap: any): string[] {
+  const out: string[] = []
+  if (!snap || typeof snap !== 'object') return out
+  const keys: string[] = Object.keys(snap)
+  for (let i = 0; i < keys.length; i += 1) {
+    const k: string = keys[i]
+    if (SNAPSHOT_SESSION_KEYS.indexOf(k) >= 0 || SNAPSHOT_TOP_FIELDS.indexOf(k) < 0) out.push(k)
+  }
+  return out
+}
+
 /** 信封形状：显式声明本文件真读到的字段，其余（调用方透传的那些）原样放过。 */
 type SnapLike = {
   [key: string]: unknown

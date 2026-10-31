@@ -16,13 +16,14 @@
 // （2026-10-14 该值由 120 秒放宽到 5 分钟，见票 #1040；这里只报它的名字，不再抄数字，免得跟着漂）。
 
 import { DECK_TOOL_ORDER } from '../tools/tool-order.js'
+import { isDeckWriteTool } from '../../refresh/kernel/write-event-detection.js'
 
 /** 未知形状的对象（回包、表、会话线索都先按这形接住，守卫逐格验，不猜）。 */
 type UnknownRecord = Record<string, unknown>;
 /** 宿主日志口：成功与部分成功记 host.call 带耗时，失败记 host.call.fail 带原因散列。 */
 interface DeckExecLogCtx { fire(level: string, event: string, fields: UnknownRecord): void }
 /** 代执行电话的依赖：取表函数与日志口，全由宿主入口显式传入。 */
-export interface DeckExecDeps { getTable?: unknown; logCtx?: DeckExecLogCtx | null }
+export interface DeckExecDeps { getTable?: unknown; logCtx?: DeckExecLogCtx | null; noteWriteFailure?: ((info: UnknownRecord) => unknown) | null }
 /** 做不到的三态：成功、部分成功、做不到都在值里表达，永不抛异常。 */
 export interface DeckExecResult { status: string; text: string; reason?: string }
 /** 宿主装好的工具表（子集）：这次只要同名 run，拿不到即表没装好。 */
@@ -57,6 +58,12 @@ export function createDeckExec(deps: unknown): { handleDeckExec: (args: unknown)
   const d = (deps || {}) as DeckExecDeps;
   const getTable = d.getTable as (() => Promise<unknown>) | undefined;
   const logCtx = d.logCtx || null
+  // #1693：写工具失败记进宿主通知事件库（没注入就静默跳过）。这里不 await、不抛，写失败的历史坏了不能影响代执行的失败回执。
+  const noteWriteFailure = typeof d.noteWriteFailure === 'function' ? d.noteWriteFailure : null
+  function recordWriteFailure(tool: unknown, failCwd: unknown, status: string, reason: unknown): void {
+    if (!noteWriteFailure || !isDeckWriteTool(tool)) return
+    try { Promise.resolve(noteWriteFailure({ tool: tool, cwd: failCwd, status: status, reason: String(reason || '') })).catch(function () {}) } catch (e) {}
+  }
 
   function fireOk(ms: number): void {
     try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'host.call', { method: 'wf.deckExec', latencyMs: ms, ok: true, kind: 'deck-tool' }) } catch (e) {}
@@ -99,16 +106,18 @@ export function createDeckExec(deps: unknown): { handleDeckExec: (args: unknown)
     let back: unknown = null
     try { back = await entry.run(execLike, toolArgs) } catch (e) {
       fireFail('backend-threw')
+      recordWriteFailure(tool, cwd, 'backend-threw', ((e as { message?: unknown } | null)?.message) || e)
       return unsupported(tool, 'backend-threw', '这次没做成（内部执行抛错，已拦下）：' + String(((e as { message?: unknown } | null)?.message) || e).slice(0, 200))
     }
     const value = pickValue(back)
     if (!value) {
       fireFail('backend-threw')
+      recordWriteFailure(tool, cwd, 'bad-reply', '没按约定回包')
       return unsupported(tool, 'backend-threw', '这次没做成（工具内部没按约定回包，已拦下），请重试或走面板操作。')
     }
     const ms = Date.now() - t0
     if (value.status === 'ok' || value.status === 'partial') fireOk(ms)
-    else fireFail(String(value.reason || 'unsupported'))
+    else { fireFail(String(value.reason || 'unsupported')); recordWriteFailure(tool, cwd, String(value.status || 'unsupported'), value.reason) }
     return value
   }
 

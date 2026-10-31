@@ -143,7 +143,7 @@ function findWorkspaceRoot(startDir: string): { root: string; found: boolean } {
 }
 
 /**
- * 判定「平台明确不支持原生边」用的错误文本特征，口径与宿主 src/tracker/rooms/github/graph.ts:98-99、:259 一致。
+ * 判定「平台明确不支持原生边」用的错误文本特征，口径与宿主 src/tracker/rooms/github/write/graph.ts:98-99、:259 一致。
  * 刻意不含 ghes：错误文本里出现 GHES 字样（例如「GHES 实例限流」）不代表这条接口不存在，
  * 把它当「不支持」会误降级、往子票正文里写文字行。
  */

@@ -11,7 +11,7 @@
  * 为什么把三家放进同一段断言：读侧统一这件事的验收点就是「同一份正文、三个后端同一结论」。
  * 分散到各房自己的门禁里，两个房间各改一半、各绿各的，谁都发现不了结论已经不一致。
  */
-import { normalizeIssue as normalizeGithub } from '../../../src/tracker/rooms/github/normalize.ts'
+import { normalizeIssue as normalizeGithub } from '../../../src/tracker/rooms/github/model/normalize.ts'
 import { normalizeIssue as normalizeGitlab } from '../../../src/tracker/rooms/gitlab/normalize.ts'
 import { parseMd } from '../../../src/tracker/rooms/markdown/parse.ts'
 

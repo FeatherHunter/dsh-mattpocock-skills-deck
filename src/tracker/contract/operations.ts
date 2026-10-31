@@ -35,18 +35,23 @@ import type { Actor, BackendId } from './identity.js'
 import type { Comment, Issue, LabelColor, LabelColorChange, RepositoryRef } from './entities.js'
 import type { OpContext, RepoHandle } from './contexts.js'
 import type {
-  Counts,
-  Dependencies,
-  LabelColorBatchResult,
+  ActorResult,
+  BudgetResult,
+  CountsResult,
+  DependenciesResult,
+  IssueDetailResult,
   IssueListResult,
+  LabelColorBatchResult,
   LabelColorsFilePlacement,
-  MapListResult,
+  LabelListResult,
+  MapListOpResult,
   OpResult,
   OpUsage,
   PageResult,
+  ReadPageResult,
   PreflightResult,
   RepoPermissions,
-  SubIssueList,
+  SubIssueListResult,
 } from './results.js'
 import type {
   AssigneeInput,
@@ -113,42 +118,47 @@ export interface Tracker {
 
   /**
    * 列票（完整行：带正文与评论；除正文、评论外不带别的展开。只要列表里的一行、不要正文评论时走
-   * `listPage`；详细口径见 `ListFilter` 各字段注释）。
-   * 返回 `IssueListResult` 而不是裸的 `OpResult<Issue[]>`：房间要能交代「这次名单全不全」
-   * （`truncated`）与「走没走 REST 降级」（`fallback` / `fallbackReason`），这三格是 #1304 收进契约的。
+   * （`truncated`）与「走没走 REST 降级」（`fallback` / `fallbackReason`），这三格是 #1304 收进契约的；
+   * #1685 起再带 provenance（来源渠道、按字段组完整度、缺失字段组、耗时、取数开始版本）。
    */
   list(repo: RepositoryRef, filter: ListFilter | undefined, ctx: OpContext): Promise<IssueListResult>
 
   /**
    * 数票：这个后端里符合条件的有多少张。
    * 只回数字不回行；只数工单不含拉取请求；拿不全就整体失败，**不许猜一个数**。
+   * #1686 起返回 CountsResult：成功分支带来源渠道与计数字段组完整度（计数只有一条取数路，成功即完整）。
    */
-  counts(repo: RepositoryRef, filter: ListFilter | undefined, ctx: OpContext): Promise<OpResult<Counts>>
+  counts(repo: RepositoryRef, filter: ListFilter | undefined, ctx: OpContext): Promise<CountsResult>
 
   /**
    * 按页取票：一次要一页行数据，外加「一共多少张」。
    * 排序键固定「创建时间倒序」；游标不透明，调用方只负责原样回传。
+   * #1685 起返回 ReadPageResult：带来源渠道与按字段组完整度（触到分页上限记截断，不冒充还有下一页）。
    */
   listPage(
     repo: RepositoryRef,
     filter: ListFilter | undefined,
     opts: PageOpts | undefined,
     ctx: OpContext,
-  ): Promise<OpResult<PageResult>>
+  ): Promise<ReadPageResult>
 
-  /** 读一张票；`opts.comments` 控制评论带几条。 */
-  get(repo: RepositoryRef, key: string, opts: GetOpts | undefined, ctx: OpContext): Promise<OpResult<Issue>>
+  /**
+   * 读一张票；`opts.comments` 控制评论带几条。
+   * #1685 起返回 IssueDetailResult：带来源渠道与按字段组完整度，让调用方分清「截断」与「这条渠道不提供」。
+   */
+  get(repo: RepositoryRef, key: string, opts: GetOpts | undefined, ctx: OpContext): Promise<IssueDetailResult>
 
   /**
    * 取依赖关系：谁阻塞我（唯一真源）与反向聚合出的「我阻塞了谁」（便利视图）。
    * 便利视图不是第二真源：任何判定都只许信 `blockedBy`。
+   * #1686 起返回 DependenciesResult：带来源渠道与依赖字段组完整度（某侧到上限记截断、读不到记未表达）。
    */
   getDependencies(
     repo: RepositoryRef,
     key: string,
     opts: DepsOpts | undefined,
     ctx: OpContext,
-  ): Promise<OpResult<Dependencies>>
+  ): Promise<DependenciesResult>
 
   /** 建一张票（可带幂等锚，见 `CreateInput.idempotencyKey`）。 */
   create(repo: RepositoryRef, input: CreateInput, ctx: OpContext): Promise<OpResult<Issue>>
@@ -216,7 +226,7 @@ export interface Tracker {
    * 不是故障，调用方据此把「本人」相关的高亮关掉即可。
    * 本地 Markdown 没有远端登录人的概念，所以它只能诚实说做不到。
    */
-  getCurrentUser(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<Actor>>
+  getCurrentUser(repo: RepositoryRef, ctx: OpContext): Promise<ActorResult>
 
   /**
    * 初始化并发布工作区：建仓、提交、推上去。
@@ -232,8 +242,9 @@ export interface Tracker {
    * 列出「这个后端能改色的全部标签」与各自颜色。
    * **取不全就必须整体失败**，不许静默返回残缺列表：列表项只有 name/color/description
    * 三个键，没有任何位置能表示「这份清单被截断了」，用户只会看到「标签凭空少了几个」。
+   * #1686 起返回 LabelListResult：成功分支带来源渠道与标签字段组完整度。
    */
-  listLabels(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<LabelColor[]>>
+  listLabels(repo: RepositoryRef, ctx: OpContext): Promise<LabelListResult>
 
   /**
    * 批量改标签颜色，逐条记账。
@@ -265,13 +276,14 @@ export interface Tracker {
    *
    * 本地 Markdown 后端今天回 `unsupported`，宿主电话据此退化：界面提示用户「在它自己那边看全部」。
    * GitLab 后端真实现，读的是子票正文顶部的归属声明行，不是远端认的层级，也不是人力加的关联链接。
+   * #1686 起返回 SubIssueListResult：带来源渠道与「子票」「行」两个字段组的完整度。
    */
   listSubIssues(
     repo: RepositoryRef,
     mapKey: string,
     opts: Record<string, never> | undefined,
     ctx: OpContext,
-  ): Promise<OpResult<SubIssueList>>
+  ): Promise<SubIssueListResult>
 
   /**
    * 确保工作区里有那份用户可手改的标签配色文件。
@@ -301,11 +313,12 @@ export interface Tracker {
    * 内部按创建时间倒序翻页，交出来之前按更新时间重排；撞到封顶页数如实截断
    * （`truncated: true`），单页失败整趟失败（不回半份）；超时与传输失败直接失败，
    * 只在「这个后端不支持」时回 `unsupported`（调用方据此回落到老路）。
+   * #1686 起返回 MapListOpResult：带来源渠道与「行」「标签」两个字段组的完整度。
    */
   listMaps(
     repo: RepositoryRef,
     ctx: OpContext,
-  ): Promise<OpResult<MapListResult>>
+  ): Promise<MapListOpResult>
 
   /**
    * 读预算：读缓存里的剩余额度，只读不花（规格 1439 落地，规格 1602 起是第 24 条操作）。
@@ -314,7 +327,7 @@ export interface Tracker {
    * 「量体温之前先问体温计热不热」，记账则等于「看额度这件事自己花额度」。
    * 没实现的后端由注册表补「我不支持」的桩（读数三态里「没量出来」那一支就是给它准备的）。
    */
-  readBudget(ctx: OpContext): Promise<OpResult<BudgetReading>>
+  readBudget(ctx: OpContext): Promise<BudgetResult>
 
   // ── 定位口三条 ────────────────────────────────────────────────────────────────
   // 与上面 24 条操作的区别只有一条，但很要紧：它们**没有「我不支持」这种答案**。

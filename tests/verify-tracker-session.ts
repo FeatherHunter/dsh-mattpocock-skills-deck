@@ -143,7 +143,7 @@ async function main(): Promise<void> {
   check(CAPABILITIES.length === 27, '能力 27 条 → 实得 ' + CAPABILITIES.length + ' 条')
 
   console.log('== 二、预算必填：三间房声明 + 缺预算当场拒绝 ==')
-  const github = await import('../src/tracker/rooms/github/index.ts')
+  const github = await import('../src/tracker/rooms/github/room/index.ts')
   const markdown = await import('../src/tracker/rooms/markdown/index.ts')
   const gitlab = await import('../src/tracker/rooms/gitlab/index.ts')
   const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)

@@ -40,7 +40,7 @@ const check = (ok: boolean, msg: string) => {
 
 const { remoteUrlsOfGitConfig } = await imp('src/tracker/kernel/git-remote.js')
 const { gitlabBackend } = await imp('src/tracker/rooms/gitlab/index.js')
-const { githubMatches } = await imp('src/tracker/rooms/github/backend.js')
+const { githubMatches } = await imp('src/tracker/rooms/github/room/backend.js')
 
 // ── 夹具：每个用例一个真目录，按需要往里写 .git/config 之类的文件 ──
 function newWorkspace(): string {

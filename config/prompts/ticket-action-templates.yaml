@@ -1,8 +1,8 @@
 tpl.diagnose:
-  version: 21
+  version: 22
   placeholders:
     - url
-  use: 动作按钮「诊断」（needs-triage 票）· 恢复调查节、补已实现核对与终态收尾（#1212、#1281）；v21（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: 动作按钮「诊断」（needs-triage 票）· 恢复调查节、补已实现核对与终态收尾（#1212、#1281）；v21（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v22（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     /triage
     {url}
@@ -40,28 +40,28 @@ tpl.diagnose:
 
     {{shared:sharedTools}}
 tpl.discuss:
-  version: 23
+  version: 24
   placeholders:
     - url
-  use: 动作按钮「讨论」（wayfinder:grilling 票）· map 子票统一入口：首行 /wayfinder，交给技能内部按票的类型分流（#1281）；v22（2026-10-29）：正文收成公共小节 mapTicketAdvance（与执行 / 研究共用同一份），文本不变、只换存放方式；v23（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: 动作按钮「讨论」（wayfinder:grilling 票）· map 子票统一入口：首行 /wayfinder，交给技能内部按票的类型分流（#1281）；v22（2026-10-29）：正文收成公共小节 mapTicketAdvance（与执行 / 研究共用同一份），文本不变、只换存放方式；v23（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v24（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     {{shared:mapTicketAdvance}}
   en: |-
     {{shared:mapTicketAdvance}}
 tpl.execute:
-  version: 23
+  version: 24
   placeholders:
     - url
-  use: 动作按钮「执行」（wayfinder:task 票）· map 子票统一入口：首行 /wayfinder（#1281）；v22（2026-10-29）：正文收成公共小节 mapTicketAdvance（与讨论 / 研究共用同一份），文本不变、只换存放方式；v23（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: 动作按钮「执行」（wayfinder:task 票）· map 子票统一入口：首行 /wayfinder（#1281）；v22（2026-10-29）：正文收成公共小节 mapTicketAdvance（与讨论 / 研究共用同一份），文本不变、只换存放方式；v23（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v24（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     {{shared:mapTicketAdvance}}
   en: |-
     {{shared:mapTicketAdvance}}
 tpl.fix:
-  version: 18
+  version: 19
   placeholders:
     - url
-  use: 动作按钮「修复」（bug 票）· 首行 /implement；补 /diagnosing-bugs 落点（#1281）；v18（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: 动作按钮「修复」（bug 票）· 首行 /implement；补 /diagnosing-bugs 落点（#1281）；v18（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v19（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     /implement
     {url}
@@ -143,10 +143,10 @@ tpl.handoff2:
     ## Continue
     - [ ] Continue with the unfinished work
 tpl.implement:
-  version: 5
+  version: 6
   placeholders:
     - url
-  use: 动作按钮「实施」（ready-for-agent 实施票）· 首行 /implement（#1281）；v5（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: 动作按钮「实施」（ready-for-agent 实施票）· 首行 /implement（#1281）；v5（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v6（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     /implement
     {url}
@@ -184,10 +184,10 @@ tpl.implement:
 
     {{shared:sharedTools}}
 tpl.prototype:
-  version: 18
+  version: 19
   placeholders:
     - url
-  use: 动作按钮「原型」（wayfinder:prototype 票）· map 子票统一入口：首行 /wayfinder（#1281）；v17（2026-10-29）：正文改为引用公共小节 mapTicketAdvanceOpening 与 mapTicketAdvanceWrapUp，中间保留自己的「定版与移交」节，文本不变、只换存放方式；v18（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: 动作按钮「原型」（wayfinder:prototype 票）· map 子票统一入口：首行 /wayfinder（#1281）；v17（2026-10-29）：正文改为引用公共小节 mapTicketAdvanceOpening 与 mapTicketAdvanceWrapUp，中间保留自己的「定版与移交」节，文本不变、只换存放方式；v18（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v19（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     {{shared:mapTicketAdvanceOpening}}
 
@@ -207,19 +207,19 @@ tpl.prototype:
 
     {{shared:mapTicketAdvanceWrapUp}}
 tpl.research:
-  version: 17
+  version: 18
   placeholders:
     - url
-  use: 动作按钮「研究」（wayfinder:research 票）· map 子票统一入口：首行 /wayfinder（#1281）；v16（2026-10-29）：正文收成公共小节 mapTicketAdvance（与讨论 / 执行共用同一份），文本不变、只换存放方式；v17（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: 动作按钮「研究」（wayfinder:research 票）· map 子票统一入口：首行 /wayfinder（#1281）；v16（2026-10-29）：正文收成公共小节 mapTicketAdvance（与讨论 / 执行共用同一份），文本不变、只换存放方式；v17（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v18（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     {{shared:mapTicketAdvance}}
   en: |-
     {{shared:mapTicketAdvance}}
 tpl.supplement:
-  version: 10
+  version: 11
   placeholders:
     - url
-  use: "动作按钮「补充」（needs-info 票）· 清单式 · v9 改挂 /triage，补答复回流与声明（2026-10-27 #1577）；#1407 加 suggest_next_steps 提醒、删 /retro 提醒"
+  use: "动作按钮「补充」（needs-info 票）· 清单式 · v9 改挂 /triage，补答复回流与声明（2026-10-27 #1577）；#1407 加 suggest_next_steps 提醒、删 /retro 提醒；v11（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」"
   zh: |-
     /triage
     {url}
@@ -277,10 +277,10 @@ tpl.supplement:
 
     {{shared:sharedTools}}
 tpl.takeover:
-  version: 13
+  version: 14
   placeholders:
     - url
-  use: 动作按钮「接手」（ready-for-human 票）· v11 改挂 /triage，补读现状与已做完分支（2026-10-27 #1577）；恢复调查节；补 /wizard 落点（#1212、#1281）；v13（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程
+  use: 动作按钮「接手」（ready-for-human 票）· v11 改挂 /triage，补读现状与已做完分支（2026-10-27 #1577）；恢复调查节；补 /wizard 落点（#1212、#1281）；v13（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v14（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
   zh: |-
     /triage
     {url}

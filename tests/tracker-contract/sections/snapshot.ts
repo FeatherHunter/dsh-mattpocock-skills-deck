@@ -665,10 +665,12 @@ export async function run() {
         countsCalls = 0
         const composer = createSnapshotComposer(mkReg(impl), { snapshotTtl: 60000, depsTtl: 60000 })
         const r = await composer.composeSnapshot('counted', ref, {}) as ComposeSuccess
-        const noCounts = !r.snapshot.deck.counts
-        await assert('拿不到计数（' + label + '）→ 不写 deck.counts、partial 置真（界面据此说「这份清单不全」）',
-          noCounts && r.snapshot.deck.partial === true && typeof r.snapshot.deck.stats.total === 'number',
-          JSON.stringify({ counts: r.snapshot.deck.counts, partial: r.snapshot.deck.partial }))
+        // #1698：拿不到后端计数、但这次列表是完整的（这个桩的 list 不分页、不降级）→ 本地按行重算并标来源，
+        //   不再留一个派生值冒充后端数字，也不把「拿不到」说成「这份清单不全」（partial 假）。
+        const c = r.snapshot.deck.counts
+        await assert('拿不到计数（' + label + '）→ 本地按行重算并标来源，partial 不置真（清单是完整的）',
+          !!c && c.open === 1 && c.closed === 1 && c.total === 2 && c.source === 'local-enumeration' && r.snapshot.deck.countsPending === false && r.snapshot.deck.partial === false && typeof r.snapshot.deck.stats.total === 'number',
+          JSON.stringify({ counts: c, pending: r.snapshot.deck.countsPending, partial: r.snapshot.deck.partial }))
         await composer.composeSnapshot('counted', ref, {}, { force: true })
         await assert('✗ probe: 计数失败不被缓存（' + label + '：每次重建都再问一次）', countsCalls === 2, 'countsCalls=' + countsCalls)
       }
@@ -678,8 +680,11 @@ export async function run() {
     {
       const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: { open: 1, closed: 0, total: 1 } })), { snapshotTtl: 60000, depsTtl: 60000 })
       const r = await composer.composeSnapshot('counted', ref, {}) as ComposeSuccess
-      await assert('✗ probe: 池子行数（2）比后端说的总数（1）还多 → partial 置真（数字不可信的另一种情形）',
-        r.snapshot.deck.partial === true, 'partial=' + JSON.stringify(r.snapshot.deck.partial))
+      // #1698：数字与行数据冲突时以行数据为准，并把后端当时给的那组数字留痕（conflictWith）。
+      await assert('✗ probe: 池子行数（2）比后端说的总数（1）还多 → 以行数据为准、留痕冲突、partial 置真',
+        r.snapshot.deck.partial === true && r.snapshot.deck.counts.total === 2 && r.snapshot.deck.counts.source === 'local-enumeration'
+          && !!r.snapshot.deck.counts.conflictWith && r.snapshot.deck.counts.conflictWith.total === 1,
+        JSON.stringify({ counts: r.snapshot.deck.counts, partial: r.snapshot.deck.partial }))
     }
 
     // ⑥ 池子里的拉取请求不算工单：partial 的判据只数工单（与界面口径同一句话）

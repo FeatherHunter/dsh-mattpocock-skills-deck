@@ -30,11 +30,11 @@
 - channels/graphql/：GraphQL 文档与请求/响应形状；channels/rest/：REST 端点与请求/响应形状；两者互不 import，也不 import read/、write/、room/；
 - routing/：按操作与完整度选渠道、组织降级与合并，读操作只经这里；
 - read/：读操作编排（列表、单票、已关闭分页、计数、依赖、子票、标签）；write/：写操作编排；
-- model/：归一化后的领域形状、字段三态与合并口径；
+- model/：归一化后的领域形状、字段三态与合并口径；仓库身份与人员信息经 transport 的客户端取回，本层不直接起进程；
 - room/：房间入口与契约接线（backend.ts、能力声明）；
-- support/：日志、分页、并发等内部工具。
+- support/：错误分类、读写日志、用量计数、分页、并发等内部工具。
 
-依赖方向：room → read/write → routing → channels → transport；model 可被 read/write/routing 引用；channels 不得引用上游。由现有依赖门禁（verify-dependency-rules.ts 与 .dependency-cruiser.ts）扩展硬卡。
+依赖方向：room → read/write → routing → channels → transport；model 可被 read/write/routing 引用，model 自己可以引用 transport（仓库身份与远端探测经客户端出手，不直接起进程），但 transport 与 channels 不得反过来引用 model；read 可以引用 channels/graphql 与 channels/rest 的请求文档与回包形状（纯数据），渠道选择与降级顺序仍只由 routing 决定；channels 不得引用上游（同层拆文件算本层内引用，允许：例如评论翻页 channels/graphql/comment-paging.ts 引同层 queries.ts）。support 在最底层，不引用房间内任何一层，但任何层都可以引用它（因此 transport 可以引用 support：错误分类与用量计数都住这一层）。#1687 起 write 可以引用 read/ 与 channels/graphql/：写后要读回（getIssue、依赖投影、标签清单、仓库权限），关票原因要先发评论，阻塞边主路是 GraphQL mutation、写层必须自己声明请求与回包形状；room/ 可以引用本层（入口、装配、检查表三个文件互相引用）。由现有依赖门禁（verify-dependency-rules.ts 与 .dependency-cruiser.ts）扩展硬卡。
 
 ### 2.2 读结果带来源与完整度
 
@@ -97,3 +97,21 @@
 
 - 2026-10-30 定版：Q1–Q9 拍板；八目录分层与「降级只补不删」作为结论落盘。
 - 2026-10-31 回填规格票 #1681：改为「8 类职责、9 个物理目录」；预算改按插件读额度；父边与依赖摘要标为阶段 0 真机探针；counts 诚实与 GHES 运行时能力；写路径按操作现状登记。
+- 2026-10-31 阶段 1 第二批（#1686）：support/ 先落位错误分类（errors.ts）、读写日志、用量计数、能力登记、初始化错误分类；transport 允许引用 support（错误分类与用量计数都在这一层，方向仍是「上层引底层」）。原本打算放进 support/ 的幂等键与评论分页要调用 gh 客户端，按「support 不依赖任何层」的边界改放 routing/ 与 channels/graphql/。
+- 2026-10-31 阶段 1 第二批（#1686）：model/ 迁入归一化（normalize.ts）、名册（roster.ts）、依赖环检查（cycle-check.ts）与仓库身份（repo.ts）；错误分类按票面「读写共用支撑」的定位留在 support/，不放进 model/。因为仓库身份要经客户端问远端，model 允许引用 transport（transport 不许反过来引用 model），这条依赖方向已同步写进第 2 章。read/ 迁入 page、counts、sub-issues、deps-read、maps、parent-repair 六个读实现；它们直接引用 channels 的两份只读形状与请求文档（纯数据），因此 read 允许引用 channels/graphql 与 channels/rest，渠道选择仍只由 routing 决定，这条也同步写进第 2 章。
+- 2026-10-31 阶段 1 第二批（#1686）：routing/ 迁入幂等锚回查（idempotency.ts）：它要先选读或写、再经客户端发请求，属于路由层的取数决策；channels/graphql/ 迁入评论翻页（comment-paging.ts）：只拼 GraphQL 查询文本与校验回包，属于协议形状层。原来把这两个文件放进 support/ 的打算作废——support 不依赖任何层，而它们都要调 transport 的客户端；channels/graphql 因此允许引用本层（同层拆文件），这条已同步写进第 2 章。旧路径都保留纯转发。
+
+- 2026-10-31 阶段 1 第二批（#1686）：read/ 最后四个读实现（preflight.ts、pulls.ts、repo-permissions.ts、issues-rest-list.ts）迁入；标签读侧（listLabels 及其帮手）从 label-colors-ops.ts 拆出为 read/labels.ts，那个文件只留写侧的 setLabelColors 并继续转发读侧名字，两条操作的命令形状、失败档位与话术一字未改。到此 read/ 该有的文件全部落位，旧平铺路径都只是纯转发，等 #1687 收口；这些读实现仍经 transport 起 gh、经 channels 取请求文档与回包形状，没有新增依赖方向。
+- 2026-10-31 阶段 1 第三批（#1687，阶段 1 收口）：写实现全部迁入 write/——建票 issues、评论 comments、关闭原因 close-reason、标签写侧 labels、阻塞边 blocked-by-write、初始化 init-project、父子边与阻塞边编排 graph，成环检查 cycle-check 从 model/ 改放 write/（它是写动作的前置判断，且 model 不许引用 read），标签配色只留写侧的 setLabelColors 为 label-colors；房间入口与契约接线迁入 room/（backend、index、checks）。read/ 收 issues.ts（列表与单票）与 read-sources.ts，getDependencies 从 graph.ts 并入 read/deps-read.ts；预算读数 budget.ts 收进 transport/（它只是一次 gh 调的薄读数，且 transport 不许引用 routing，来源与完整度由 room/backend.ts 挂上）；降级原因分类 fallback-reason.ts 进 routing/；读写两侧共用的 owner/name 解析抽成 model/issue-key.ts（原来三处一字不差的副本合一）。写路径主通道一字未改：建票 REST、评论 REST 优先、阻塞边 GraphQL 优先、关闭与重开走 gh 命令、父子边 gh 命令为主 REST 兜底。
+- 2026-10-31 阶段 1 第三批（#1687）：write 的允许依赖扩三格并写进第 2.1 节——write 自身（关闭原因先发评论、父子边与阻塞边编排互调）、read/（写后读回：getIssue、依赖投影、标签清单、仓库权限）、channels/graphql/（阻塞边主路是 GraphQL mutation，写层要声明请求与回包形状）；room 允许引用本层。read 的两条读来源白名单清零：getCurrentUser 与 readBudget 接上来源与完整度，十二条读操作全部 wired，tests/verify-read-result-provenance.ts 升至 294 项断言。
+- 2026-10-31 阶段 1 第三批（#1687）：房间根 41 个旧平铺路径的纯转发文件全部删除，房间根不再有平铺源码文件；tests/verify-room-layering.ts 增加三类判据（房间根零平铺、房间内不许从旧路径导入、房间外也不许从旧路径导入）并补齐对应负例；src/、tests/、scripts/ 里的导入与注释全部改指九目录新路径，门禁地图与文件粒度基线按最终树重录；阶段 1 行为零变化。
+- 2026-10-31 复审修复（#1681 收口后）：整仓 REST 枚举在满十页且尾页满时多打一页空页探测（探测为空即完整、非空仍截断、探测失败与页失败分开记；该请求只受房间上限约束，不进宿主 16 请求预算）；通知事件库拆成 src/host/notifications.ts 接线叶子，房间加载钩子由宿主入口注入（房间只许入口深引），入口→接线叶子这条装配扇入登记进同层存量清单（存量 83→82 条，同票删两条失效条目）。逐条见收口文档第 9 节。
+
+## 7. 收口记录（2026-10-31，票 #1700）
+
+- **核对人**：规格 #1681 收口票 #1700 的实施会话（工作树 `.worktrees/1700`，分支 `feat/1700-closeout`，起点 `fc2ff4cf`）。
+- **核对范围**：本 ADR 的渠道分层、读结果来源与完整度、REST 降级补齐、请求预算、计数诚实、企业版运行时能力回答逐条对照实现与门禁，并用本仓真实数据演练一遍（1659 张工单 + 64 个拉取请求，检索时刻 2026-10-31T14:23:12+08:00）。
+- **结论**：九目录分层落地并由 `verify-room-layering` 硬卡（#1684–#1687），十二条读操作全部带来源与字段组完整度（`verify-read-result-provenance` 316 项）；REST 降级补齐完成——列表父边读行内链接零请求、依赖只对四格任一大于零的票逐票拉一次、详情评论/依赖/评审/合并时间四类各最多一次请求、补不到记未知不写空（#1691，`verify-rest-fallback-completion` 46 项、`verify-rest-detail-completion` 61 项）；请求预算与 8 路并发、探测/校准窗口按插件读额度落地并被门禁同源读取（#1689，`verify-fallback-fetch-budget` 101 项）；计数诚实改为「完整枚举本地重算并标来源、拿不到保留上次已知并标待校准、界面不显示假零」（#1698，`verify-counts-honesty` 52 项）；企业版走运行时探测回答支持/部分支持/不支持并带原因与能力票号（#1698，`verify-ghes-runtime-capability` 39 项）。
+- **真实演练**：本仓真实列表与单票降级、合并、投影、写回执（模拟）与通知落盘六步全通，84 行日志按五段口径可定位每一步；依赖与子票端点为不打扰真实仓库按即时失败注入，未真打。
+- **全链**：`npm run verify:parallel` 480 步、集成分支真红 0、冒烟 5 条真红 0；票级分支 `tests/verify-no-mixed-session.ts` 判红是结构性已知红（`docs/agents/parallel-sessions.md:46`）。
+- **剩余缺口与已知边界**：counts 与 GHES 无 REST 等价（本 ADR 明确不做，只要求诚实）；企业版无真机，按夹具；跨容器阻塞者首帧不显示与已关闭容器首帧子票为空是规格 §13 的现行口径；逐条见 `docs/design/20261030-panel-snapshot-closeout.md` 第 7 节。

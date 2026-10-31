@@ -1,15 +1,15 @@
 /**
- * ui/views/worktrees.ts —— 工作树视图：当前工作树是一张身份卡，其他工作树按行列出。
+ * ui/views/worktrees.ts —— 工作区视图：当前工作区是一张身份卡，其他工作区按行列出。
  *
  * 这个视图要回答四个问题，顺序也就是页面的阅读顺序：
- *   ① 我在哪（当前工作树卡）；
+ *   ① 我在哪（当前工作区卡）；
  *   ② 一共有几棵、其中几棵需要人处理（筛选标签就是计数）；
  *   ③ 每棵是什么状态、指向哪个提交（行内信息）；
  *   ④ 想动手时该点哪个按钮（展开行里的动作）。
  *
- * 面板现在直接执行工作树动作：解锁、清理记录、移除都在这里点；
+ * 面板现在直接执行工作区动作：解锁、清除记录、移除都在这里点；
  * 不再把命令写出来让用户复制到终端，那样等于把操作留在面板外面。
- * 三个动作里移除与清理会改清单，所以都要一次内联二次确认。
+ * 三个动作里移除与清除会改清单，所以都要一次内联二次确认。
  */
 import type { WorktreeRowModel, WorktreesModel } from '../../domain/select'
 import { COPY } from '../../data/copy'
@@ -22,11 +22,11 @@ import { handoffEntry } from './handoff'
 export type WorktreeFilter = 'all' | 'abnormal'
 
 export interface WorktreesViewOptions {
-  /** 视图级筛选：只看需要处理的工作树；计数来自模型，不在视图里重新算。 */
+  /** 视图级筛选：只看需要处理的工作区；计数来自模型，不在视图里重新算。 */
   filter: WorktreeFilter
   /** 说明条是否展开；关掉后页面只留一个「显示说明」的小按钮。 */
   noticeOpen: boolean
-  /** 同一时刻只展开一棵工作树的详情：面板窄，展开多行会把列表挤没。 */
+  /** 同一时刻只展开一棵工作区的详情：面板窄，展开多行会把列表挤没。 */
   expandedPath: string | null
 }
 
@@ -84,7 +84,7 @@ function renderCurrent(row: WorktreeRowModel | null): HTMLElement {
       attrs: {
         type: 'button',
         title: COPY.worktrees.copyPath,
-        'aria-label': `复制当前工作树路径：${row.path}`,
+        'aria-label': `复制当前工作区路径：${row.path}`,
         'data-focus-key': `wt-copy:${row.path}`,
       },
       dataset: { action: 'worktree-copy', path: row.path },
@@ -96,14 +96,14 @@ function renderCurrent(row: WorktreeRowModel | null): HTMLElement {
 
 function renderHead(model: WorktreesModel, options: WorktreesViewOptions, noticeOpen: boolean): HTMLElement {
   const head = h('div', { class: 'wt-head' },
-    h('span', { class: 'wt-head-title', text: '其他工作树' }),
+    h('span', { class: 'wt-head-title', text: '其他工作区' }),
     h('span', { class: 'wt-head-count', text: String(model.othersCount) }),
     h('span', { class: 'wt-head-unit', text: COPY.units.worktree }),
     model.abnormalCount > 0
       ? h('span', { class: 'wt-head-alert', text: `其中 ${model.abnormalCount} 棵需要处理` })
       : null)
 
-  const filters = h('div', { class: 'wt-filters', attrs: { role: 'group', 'aria-label': '按状态筛选工作树' } })
+  const filters = h('div', { class: 'wt-filters', attrs: { role: 'group', 'aria-label': '按状态筛选工作区' } })
   filters.append(filterChip(COPY.worktrees.filterAll, String(model.othersCount), options.filter === 'all', 'all'))
   if (model.abnormalCount > 0) {
     filters.append(filterChip(COPY.worktrees.filterAbnormal, String(model.abnormalCount), options.filter === 'abnormal', 'abnormal'))
@@ -148,7 +148,7 @@ function renderRow(row: WorktreeRowModel, expanded: boolean, pending: WorktreePe
     row.branch === null
       ? chip(COPY.worktrees.noBranch, 'muted', { small: true })
       : h('span', { class: 'wt-branch', attrs: { title: `分支 ${row.branch}` } }, h('span', { class: 'mono', text: row.branch })),
-    h('span', { class: 'wt-oid mono', text: row.oidShort, title: '这个工作树当前指向的提交短号' }))
+    h('span', { class: 'wt-oid mono', text: row.oidShort, title: '这个工作区当前指向的提交短号' }))
 
   const pathRow = h('div', { class: 'wt-path' },
     h('span', { class: 'wt-path-dir mono', text: row.dir }),
@@ -187,7 +187,7 @@ function renderRow(row: WorktreeRowModel, expanded: boolean, pending: WorktreePe
 }
 
 /**
- * 展开区：上面是事实，下面是动作。三个动作按「先解锁、再清理、最后移除」的危险程度排列，
+ * 展开区：上面是事实，下面是动作。三个动作按「先解锁、再清除、最后移除」的危险程度排列，
  * 移除永远是最后一颗并且用危险色；确认做成内联卡片，不再弹浮层盖住列表。
  */
 function renderDetail(row: WorktreeRowModel, pending: WorktreePending | null): HTMLElement {

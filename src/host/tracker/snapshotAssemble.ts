@@ -9,10 +9,14 @@
 //   3. 行为与拆分前逐行一致：本文件内容即原来 snapshot.ts 的对应段落原样搬运，只加 export，不改逻辑。
 // 跨文件边只有两条（snapshot.ts → 本文件，被依赖方）：assembleSnapshot（编排器每趟重建调它）与
 //   failKindOfListError（list 失败分类）；poolIdOf/thinRowOf 只在本文件内用，不导出。
+// 地图子票的首帧归一与「来源不完整时补回上次已知」也在这里（carryOverMapTickets / normalizeMapTickets / mergeKnownTickets）：
+//   它同样是纯组装，只是输入多了一份上次快照。为什么不另起一份文件：.dependency-cruiser.ts 的
+//   same-layer-import-host 写着「接线由装配文件负责，干活的文件之间不许互相引用」，编排器 snapshot.ts
+//   已经引本文件，另起一份会让它多出一条同层边；而本文件是纯函数、有效行远不到 350，合在这里不增依赖。
 
 import { ERROR_KIND } from '../../tracker/contract/vocabulary.js'
 import { effortOf, idOfParts } from '../../tracker/kernel/identity-keys.js'
-import { parseMapBody, parseSpecBody } from '../../tracker/body-parse.js'
+import { groupTickets, parseMapBody, parseSpecBody } from '../../tracker/body-parse.js'
 // #1277 B 兜底（视图兜底）：行上的类型没标对时，票面文件头那行隐藏标记仍是唯一真源（ADR 2.5）。
 import { isSpecHeaderMarked } from '../../shared/issue-file/src/marker.js'
 import type { RepositoryRef } from '../../shared/tracker/shape.js'
@@ -163,4 +167,203 @@ export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
     .filter((i) => i && i.type !== 'map' && i.type !== 'spec' && !attached.has(poolIdOf(i)) && !hiddenClosedChildren.has(poolIdOf(i)))
     .map((t) => Object.assign({}, t))
   return { repository: repo, maps, issues, thinTickets, deck: null }
+}
+
+// ── 地图子票首帧归一与保底合并（#1696）───────────────────────────────────────────────
+/** 合并时要不要把上次已知补回来：来源完整（没截断、没降级）才允许删/缩。 */
+export interface MapCarryOptions {
+  /** true = 这次列表是完整的（可以删、可以缩）；false = 截断或降级（只补不删）。 */
+  sourceComplete: boolean
+  /** 补回发生时刻（写进 map.carry.at，界面能说「这是上次数据」）。 */
+  nowMs?: number
+}
+
+/** 把引用或票号折成字符串键：数字、字符串、{key}、{number} 四种写法都认。 */
+function keyOf(value: any): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : ''
+  if (typeof value === 'string') return value.trim()
+  const inner = value.key !== undefined && value.key !== null ? value.key : value.number
+  return inner === undefined || inner === null ? '' : keyOf(inner)
+}
+
+/** 阻塞者写成客户端认的数字（数字字符串折成数字，非数字原样保留字符串）。 */
+function refNumberOf(value: any): number | string | null {
+  const key = keyOf(value)
+  if (!key) return null
+  return /^\d+$/.test(key) ? Number(key) : key
+}
+
+/** 行的身份键：优先 key，其次 number。 */
+function rowKeyOf(row: any): string {
+  const key = keyOf(row && row.key)
+  if (key) return key
+  const number = row && row.number
+  return number === undefined || number === null ? '' : String(number)
+}
+
+/** 认领人：行上已有就用，没有再从 assignees 第一人取（与客户端 claimedPersonOf 同口径）。 */
+function claimedByOf(row: any): string {
+  const claimed = row && row.claimedBy
+  if (claimed) return typeof claimed === 'object' ? String(claimed.login || claimed.name || '') : String(claimed)
+  const list = Array.isArray(row && row.assignees) ? row.assignees : []
+  for (const person of list) {
+    if (typeof person === 'string' && person) return person
+    if (person && (person.login || person.name)) return String(person.login || person.name)
+  }
+  return ''
+}
+
+/** 单张子票归一化：保留原行全部字段，只补客户端首帧要读的那几格。 */
+function normalizeTicket(row: any): any {
+  const out = Object.assign({}, row)
+  const number = Number(rowKeyOf(row))
+  if (Number.isFinite(number)) out.number = number
+  const blockers = Array.isArray(row && row.blockedBy) ? row.blockedBy : []
+  out.blockedBy = blockers.map(refNumberOf).filter((v: any) => v !== null)
+  if (!Array.isArray(out.blocks)) out.blocks = []
+  const claimed = claimedByOf(row)
+  if (claimed) out.claimedBy = claimed
+  else if (out.claimedBy === undefined) out.claimedBy = ''
+  return out
+}
+
+/**
+ * 把一批后端行整理成首帧可画的地图子票：数字票号、数字阻塞者、反向「挡住谁」、认领人、逐票层级。
+ * 返回 { tickets, stats }；stats 是 groupTickets 同口径的五组计数 + 分层。
+ */
+export function normalizeMapTickets(rows: any[]): { tickets: any[]; stats: any } {
+  const list = Array.isArray(rows) ? rows : []
+  const tickets = list.map(normalizeTicket)
+  const byNumber: Record<string, any> = {}
+  tickets.forEach((t: any) => { if (t && t.number !== undefined && t.number !== null) byNumber[String(t.number)] = t })
+  tickets.forEach((t: any) => {
+    if (!t || !Array.isArray(t.blockedBy)) return
+    t.blockedBy.forEach((blockerNo: any) => {
+      const blocker = byNumber[String(blockerNo)]
+      if (!blocker || String(blocker.number) === String(t.number)) return
+      if (!Array.isArray(blocker.blocks)) blocker.blocks = []
+      if (blocker.blocks.indexOf(t.number) < 0) blocker.blocks.push(t.number)
+    })
+  })
+  const stats: any = groupTickets(tickets as any)
+  tickets.forEach((t: any) => {
+    if (!t || t.number === undefined || t.number === null) return
+    const level = stats.levelOf[String(t.number)]
+    if (typeof level === 'number') t.level = level
+  })
+  return { tickets, stats }
+}
+
+/** 上次的行 + 本次的行按编号合并：本次优先，本次没表达的字段沿用上次（未知≠空）。 */
+export function mergeKnownTickets(prevRows: any[], nextRows: any[]): { tickets: any[]; kept: number } {
+  const prevList = Array.isArray(prevRows) ? prevRows : []
+  const nextList = Array.isArray(nextRows) ? nextRows : []
+  const prevByKey: Record<string, any> = {}
+  prevList.forEach((row: any) => { const k = rowKeyOf(row); if (k) prevByKey[k] = row })
+  const seen: Record<string, boolean> = {}
+  let kept = 0
+  const merged: any[] = nextList.map((row: any) => {
+    const k = rowKeyOf(row)
+    if (!k) return row
+    seen[k] = true
+    const prev = prevByKey[k]
+    if (!prev) return row
+    const out = Object.assign({}, prev, row)
+    // 本次没表达的字段沿用上次：undefined / null / 空数组 / 空字符串都算「这次没说」。
+    const fillIfEmpty = (field: string) => {
+      const now = row[field]
+      const empty = now === undefined || now === null || now === '' || (Array.isArray(now) && now.length === 0)
+      if (empty && prev[field] !== undefined && prev[field] !== null) out[field] = prev[field]
+    }
+    fillIfEmpty('blockedBy')
+    fillIfEmpty('blocks')
+    fillIfEmpty('labels')
+    fillIfEmpty('assignees')
+    fillIfEmpty('claimedBy')
+    fillIfEmpty('body')
+    fillIfEmpty('title')
+    fillIfEmpty('url')
+    fillIfEmpty('progress')
+    return out
+  })
+  prevList.forEach((row: any) => {
+    const k = rowKeyOf(row)
+    if (!k || seen[k]) return
+    merged.push(row)
+    kept += 1
+  })
+  return { tickets: merged, kept }
+}
+
+/** 计数：清单已知时按合并后的票算；上次计数更大（清单未取全）时保留上次的已知数字，不缩水。 */
+function statsOf(tickets: any[], prevStats: any): any {
+  const stats: any = groupTickets(tickets as any)
+  if (prevStats && Number.isFinite(prevStats.total) && prevStats.total > stats.total) {
+    return Object.assign({}, prevStats)
+  }
+  return stats
+}
+
+/** 容器的身份键（effort + 编号）：跨 effort 的同号容器不是同一张。 */
+function containerKeyOf(container: any): string {
+  return idOfParts(effortOf(container), rowKeyOf(container))
+}
+
+/** 已关闭容器：首帧子票为空是现行口径（#691/#1291），本模块原样放过。 */
+function isClosed(container: any): boolean {
+  return String((container && container.state) || '').toUpperCase() === 'CLOSED'
+}
+
+/**
+ * 池内身份键：同一张票已经挂在容器里，就不要再出现在「未挂图票」那份清单里。
+ * 判别位与 snapshotAssemble.ts 的 poolIdOf 逐字同口径（#505）：工单 false → issue、拉取请求 true → pr、
+ * 没有这个字段 → 光键（MISSING）、非布尔值 → bad。只按编号去重会把同号异类或 MISSING 孤儿吞掉
+ * （快照门禁 507 与契约快照段盯着这一条）。
+ */
+function poolKeyOf(row: any): string {
+  const key = idOfParts(effortOf(row), rowKeyOf(row))
+  if (!row || !Object.prototype.hasOwnProperty.call(row, 'isPullRequest')) return key
+  if (row.isPullRequest === true) return key + '\u0000pr'
+  if (row.isPullRequest === false) return key + '\u0000issue'
+  return key + '\u0000bad'
+}
+
+/**
+ * 宿主重建快照时调用：把组装层产出的 maps[].tickets 整理成首帧可画的形状，并在来源不完整时
+ * 用上次快照按编号补回已知子票与计数。返回新快照对象（不修改入参）。
+ */
+export function carryOverMapTickets(prevSnapshot: any, nextSnapshot: any, options: MapCarryOptions): any {
+  if (!nextSnapshot || typeof nextSnapshot !== 'object') return nextSnapshot
+  const nextMaps: any[] = Array.isArray(nextSnapshot.maps) ? nextSnapshot.maps : []
+  const prevMaps: any[] = Array.isArray(prevSnapshot && prevSnapshot.maps) ? prevSnapshot.maps : []
+  const prevByKey: Record<string, any> = {}
+  prevMaps.forEach((m: any) => { prevByKey[containerKeyOf(m)] = m })
+  const nowMs = options.nowMs === undefined ? Date.now() : options.nowMs
+  const attached: Record<string, boolean> = {}
+
+  const maps = nextMaps.map((map: any) => {
+    if (!map || typeof map !== 'object') return map
+    const ownTickets = Array.isArray(map.tickets) ? map.tickets : []
+    if (isClosed(map)) {
+      // 已关闭容器口径不动；只把子票清单收空（组装层已经这么做，这里再兜一次）。
+      return Object.assign({}, map, { tickets: [] })
+    }
+    const prev = prevByKey[containerKeyOf(map)]
+    const prevTickets = prev && Array.isArray(prev.tickets) ? prev.tickets : []
+    const merged = options.sourceComplete
+      ? { tickets: ownTickets, kept: 0 }
+      : mergeKnownTickets(prevTickets, ownTickets)
+    const normalized = normalizeMapTickets(merged.tickets)
+    const prevStats = prev && prev.stats && typeof prev.stats === 'object' ? prev.stats : null
+    const stats = statsOf(normalized.tickets, options.sourceComplete ? null : prevStats)
+    const out: any = Object.assign({}, map, { tickets: normalized.tickets, stats })
+    if (!options.sourceComplete && merged.kept > 0) out.carry = { at: nowMs, kept: merged.kept }
+    normalized.tickets.forEach((t: any) => { const k = poolKeyOf(t); if (k) attached[k] = true })
+    return out
+  })
+
+  const issues = Array.isArray(nextSnapshot.issues) ? nextSnapshot.issues : []
+  const dedupedIssues = issues.filter((row: any) => !attached[poolKeyOf(row)])
+  return Object.assign({}, nextSnapshot, { maps, issues: dedupedIssues })
 }

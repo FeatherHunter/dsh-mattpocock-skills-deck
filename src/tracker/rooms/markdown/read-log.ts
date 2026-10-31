@@ -13,7 +13,7 @@
  *     字段 `{op, reason, latencyMs, opId}`；`op` 取 READ_DEGRADED_OPS 里的值，
  *     `reason` 取 READ_DEGRADED_REASONS 里的值（「操作名:这一步」）。
  *     写成告警级的理由：warning 始终落盘，查「这张地图怎么空了 / 票怎么少了」的人不必先开调试开关。
- *     同一形状的另两房实现：`rooms/github/read-log.ts`（#1052 立起）、`rooms/gitlab/read-log.ts`。
+ *     同一形状的另两房实现：`rooms/github/support/read-log.ts`（#1052 立起）、`rooms/gitlab/read-log.ts`。
  *     三份文件里的 `READ_DEGRADED_OPS` / `READ_DEGRADED_REASONS` 同名同形，取值各房各样。
  *
  * 什么不记（#1058 复核定下）：

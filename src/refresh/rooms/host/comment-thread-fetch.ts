@@ -13,6 +13,10 @@
  * 3. 探针水印的约定搬到 probe-handler.ts（原来第 3 条，字句未动）：本文件不再经手水印。
  */
 
+// #1694：详情读结果并进面板快照的唯一入口（按字段组掩码合并、版本门丢过期）。
+// 这一层只做接线，合并规则全在 kernel/snapshot-merge.ts；详情返回形状保持原样，只是多一个 snapshot 字段。
+import { createDetailSnapshotMerge } from './detail-snapshot-merge.js'
+
 // 评论分页的两个数字（#1444）：首屏与每次「加载更多」各取 50 条，一次最多加载到 200 条。
 // 这是契约 GetOpts.comments 的默认值与上限（三个后端房间同数），房间侧也会按 200 截断；
 // 放在文件顶端一处，详情与评论两个处理器共用，不在函数里各写一份。
@@ -47,6 +51,9 @@ interface CommentThreadsDeps {
   fetchIssueIndex: any
   issueIndexFromSnapshot: any
   setCache: any
+  /** #1694：读当前内存快照的入口与写盘口；缺省时详情结果不并快照（老门禁与老接线行为不变）。 */
+  getCache?: any
+  writeDiskCache?: any
   logCtx: any
 }
 
@@ -61,7 +68,11 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
   // 在这里已经没有调用点；字段仍留在接口上，是因为宿主接线 src/host/index.ts 照样按这些名字注入。
   // #1456 第 3 条：runGh 连注入带字段一起删了——它连读者都没有，留着只会让人以为读路径还直调 gh。
   // #1465：读路径不再调注册表 describe，getTrackerRegistry 也不再解构（接口保留，宿主照旧注入）。
-  const { normCwd, errText, execProc, setCache } = deps as any
+  const { normCwd, errText, execProc, setCache, getCache, writeDiskCache } = deps as any
+  // #1694：详情结果并进快照的合并器。宿主没注入 getCache 时整段跳过（老门禁/老接线行为一个字节不变）。
+  const detailMerge: any = (typeof getCache === 'function' && typeof setCache === 'function')
+    ? createDetailSnapshotMerge({ getCache: getCache, setCache: setCache, writeDiskCache: writeDiskCache, getRepoKey: deps.getRepoKey, now: Date.now })
+    : null
   // #1444：读路径只认只读会话（deps.openSession）。会话由宿主按目录选好后端，本文件不再自己分发、
   // 也不再直调 gh；开不成时如实失败，让上层照旧降级用缓存。
   async function openReadSession(cwd: any): Promise<any> {
@@ -138,6 +149,8 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
     // 本地容器的编号是 0（key 00），是合法坐标：只拦缺席、空串与非数字，不拦 0。
     if (n === undefined || n === null || String(n).trim() === '' || isNaN(Number(n))) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
     try {
+      // #1694：先记下取数开始时的合并版本；回包若比快照旧，合并服务会整份丢弃（写进日志，不改快照）。
+      const mergeToken: any = detailMerge ? detailMerge.begin(cwd) : null
       // 读路径只认会话（#1444）：会话开成之后，后端选择、读额度与记账都由它兜住，本文件不再自己分发。
       const opened: any = await openReadSession(cwd)
       if (!opened || opened.ok !== true) return readSessionFailure(opened)
@@ -177,9 +190,15 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
           updatedAt: c.updatedAt,
         }
       })
+      // #1694：详情结果先并进面板快照（唯一写入口 mergeSnapshot），再按老形状交回客户端。
+      // 合并失败或版本门判过期都不影响这次详情的返回——只是这一份更晚的读数没被快照采纳。
+      let merged: any = null
+      if (detailMerge && mergeToken) {
+        try { merged = await detailMerge.merge(cwd, mergeToken, { issue: iss, provenance: r.provenance }) } catch (eM) { merged = null }
+      }
       // 详情需要包含 comments / blockedBy 等：markdown 的 get 在读时回填引用标题（#1537），
       // 界面拿到的就是带标题的形状，这里只做连接包装、不再补标题。
-      return { ok: true, issue: {
+      const out: any = { ok: true, issue: {
         number: iss.number != null ? iss.number : (iss.key ? parseInt(iss.key,10) : n),
         effortId: iss.effortId !== undefined && iss.effortId !== null ? String(iss.effortId) : '',
         title: iss.title || '',
@@ -197,6 +216,9 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
         blockedBy: { nodes: (iss.blockedBy || []).map(function(b: any){ if (typeof b === 'number') return { number: b }; if (b && b.key != null) { const nn = parseInt(b.key,10); return { number: isNaN(nn) ? b.key : nn, title: b.title||'', state: b.state==='closed'?'CLOSED':'OPEN' }; } return b; }) },
         blocking: { nodes: [] },
       } }
+      // 快照合并的簿记只追加在回包上，不改 issue 的形状：客户端照旧读 issue，新读方读 snapshot。
+      if (merged) out.snapshot = { accepted: merged.accepted === true, stale: merged.stale === true, version: merged.version, mergeVersion: merged.mergeVersion, atMs: merged.atMs }
+      return out
     } catch (e: any) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
   }
   async function handleIssueComments(args: any): Promise<any> {

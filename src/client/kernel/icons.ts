@@ -102,6 +102,9 @@ declare const h: any;
           const pStroke = (typeof bodyStroke === 'string' && bodyStroke !== '') ? bodyStroke : 'currentColor'
           return h('svg', common, [h('path', { d: 'M12 21a9 9 0 010-18c4.97 0 9 3.58 9 8 0 1.06-.47 2.08-1.32 2.83-.84.75-1.99 1.17-3.18 1.17h-2.5a2 2 0 00-1 3.75A1.3 1.3 0 0112 21z', fill: pFill, stroke: pStroke }), h('circle', { cx: 6.5, cy: 11.5, r: 1.1, fill: pDot(0), stroke: 'none' }), h('circle', { cx: 9.5, cy: 7.5, r: 1.1, fill: pDot(1), stroke: 'none' }), h('circle', { cx: 14.5, cy: 7.5, r: 1.1, fill: pDot(2), stroke: 'none' }), h('circle', { cx: 17.5, cy: 11.5, r: 1.1, fill: pDot(3), stroke: 'none' })])
         }
+        // #1697 面板内通知中心的入口：铃铛（倒扣的钟形 + 下面一颗小圆锤），与通用集同一套写法
+        //   （24 的 viewBox、currentColor、描边 1.8）；调用点给 12 像素的视觉尺寸。
+        case 'bell': return h('svg', common, [h('path', { d: 'M18 9a6 6 0 10-12 0c0 5-2 6-2 6h16s-2-1-2-6' }), h('path', { d: 'M10 20a2 2 0 004 0' })])
         default: return null
       }
     }

@@ -10,8 +10,12 @@
  * 许可证（LICENSED，行级内容匹配，是过渡债务的显式登记处，清尾批删码后自动收紧）：
  *   MATT_REPO | mattpocock/skills | skills@latest | installSkills（与后端无关的技能仓库常量与安装指引）
  *   dsh-mattpocock-skills-deck（#repo-link：本插件自身仓库主页 URL，构建期注入产物，与后端无关）
- *   FeatherHunter/dsh-（#520：作者其他插件 4 行静态链接，写死网址，不拉取不新增网络请求）
+ *   FeatherHunter/dsh-（#520：作者其他插件静态链接；base 包接入后这些链接改由包内清单渲染）
  *   PREVIEW_VALUES（设置页演示数据）；清尾批后 LEGACY_LINK_TEMPLATES/typeof 守卫/LEGACY_ISSUE_URL 已全部删除，不再登记
+ *   base 包数据基线（base-data）：contacts/plugins 清单随 dsh-featherhunter-plugin-base 的客户端产物整份内联
+ *   （scripts/generated/baseClient.derived.js，拼进 client.js）。清单里有作者自己的 meta 仓与 ilife 两条网址、
+ *   以及拿 repo 字段拼 GitHub 地址的兜底表达式——这些是包的数据、不是本仓代码，按行登记放行；
+ *   本仓源码里写死 GitHub 地址仍然一律报红。
  * 扫描前剥离块注释与整行注释，注记里的旧词不再误报。
  */
 const fs = require('fs')
@@ -26,7 +30,7 @@ const bad = function (name) { failed = true; console.log('  FAIL', name) }
 const RE_F1 = /(===|==)\s*['"](github|gitlab|markdown)['"]|['"](github|gitlab|markdown)['"]\s*(===|==)/
 const RE_F2 = /https:\/\/github\.com|https:\/\/gitlab\.com/
 const RE_F3 = /\{\s*id:\s*'(github|markdown|gitlab)'\s*,\s*label:/
-const RE_LICENSED = /MATT_REPO|mattpocock\/skills|skills@latest|installSkills|PREVIEW_VALUES|dsh-mattpocock-skills-deck|FeatherHunter\/dsh-/ // #231 清尾后仅剩可留项：技能仓库常量/安装指引文案/演示预览值；#repo-link 登记本插件自身仓库主页 URL（构建注入产物）；#520 登记作者其他插件静态链接前缀
+const RE_LICENSED = /MATT_REPO|mattpocock\/skills|skills@latest|installSkills|PREVIEW_VALUES|dsh-mattpocock-skills-deck|FeatherHunter\/dsh-|FeatherHunter\/featherhunter-plugin-manage|FeatherHunter\/ilife|["']https:\/\/github\.com\/["'] \+ plugin\.repo/ // #231 清尾后仅剩可留项：技能仓库常量/安装指引文案/演示预览值；#repo-link 登记本插件自身仓库主页 URL（构建注入产物）；#520 登记作者其他插件静态链接前缀；base-data 登记 base 包内联数据里的作者网址与 GitHub 地址兜底拼接
 function stripComments(buf) { return buf.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '') }
 
 function scanLabel(rel, buf) {

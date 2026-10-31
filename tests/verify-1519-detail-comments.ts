@@ -197,6 +197,11 @@ const linkMod = await imp('src/client/kernel/link.ts')
 const mdMod = await imp('src/client/views/shared/md.ts')
 ;(globalThis as any).mdToHtml = mdMod.mdToHtml
 ;(globalThis as any).mdImgOverlay = mdMod.mdImgOverlay
+// #1694：详情页读快照投影（detailViewFor 与它依赖的纯函数）走真实现；叶子单独加载时
+//   闭包里没有这些名字，这里同构接线，不抄一份假判据。
+const projMod = await imp('src/client/views/shared/detailProjection.ts')
+;(globalThis as any).detailViewFor = projMod.detailViewFor
+;(globalThis as any).knownBlockedNodes = projMod.knownBlockedNodes
 const { renderIssueDetailComments } = await imp('src/client/views/IssueDetailComments.ts')
 ;(globalThis as any).renderIssueDetailComments = renderIssueDetailComments
 const { IssueDetail } = await imp('src/client/views/IssueDetail.ts')

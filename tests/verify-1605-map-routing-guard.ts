@@ -9,11 +9,11 @@
  */
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { listMaps as githubListMaps } from '../src/tracker/rooms/github/maps.ts'
+import { listMaps as githubListMaps } from '../src/tracker/rooms/github/read/maps.ts'
 import { listMaps as gitlabListMaps } from '../src/tracker/rooms/gitlab/maps.ts'
 import { listMaps as markdownListMaps } from '../src/tracker/rooms/markdown/maps.ts'
 import { shouldUseThinMapList } from '../src/deck/tools/issue-list.ts'
-import { GITHUB_CAPABILITY_REGISTER } from '../src/tracker/rooms/github/capability-register.ts'
+import { GITHUB_CAPABILITY_REGISTER } from '../src/tracker/rooms/github/support/capability-register.ts'
 import { GITLAB_CAPABILITY_REGISTER } from '../src/tracker/rooms/gitlab/capability-register.ts'
 import { MARKDOWN_CAPABILITY_REGISTER } from '../src/tracker/rooms/markdown/capability-register.ts'
 

@@ -39,7 +39,7 @@ Runner 的不变量：**工厂 ctx 注入 + platform 实例**。
 
 ```js
 import { createRunnerContext, runWithAdapter, runPlayback } from './tests/tracker-contract/runner/index.ts'
-import { githubModule } from './src/tracker/rooms/github/index.ts'
+import { githubModule } from './src/tracker/rooms/github/room/index.ts'
 
 // 1) 造 BackendContext（含已解析的 platform 实例，符合 #129 三底座可测性）
 const backendCtx = await createRunnerContext({ cwd: '/repo', os: 'linux' })

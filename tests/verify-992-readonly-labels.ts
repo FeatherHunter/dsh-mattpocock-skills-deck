@@ -85,7 +85,7 @@ async function main(): Promise<void> {
 
   // ── A) 分类 ──
   {
-    const { classifyGhError } = await imp('src/tracker/rooms/github/errors.ts')
+    const { classifyGhError } = await imp('src/tracker/rooms/github/support/errors.ts')
     const { classifyError } = await imp('src/tracker/kernel/preflight.ts')
     check(classifyGhError({ message: PERM_SENTENCE }) === ERROR_KIND.AUTH, 'A1 errors.js：GraphQL 复数权限句归 auth（实得 ' + classifyGhError({ message: PERM_SENTENCE }) + '）')
     check(classifyError({ message: PERM_SENTENCE }) === ERROR_KIND.AUTH, 'A2 preflight.js：同一句同样归 auth（两处同改，实得 ' + classifyError({ message: PERM_SENTENCE }) + '）')
@@ -95,7 +95,7 @@ async function main(): Promise<void> {
     const CHANGED_NAME = 'GraphQL: AddLabelsToLabelable is not permitted for this viewer'
     check(classifyGhError({ message: CHANGED_NAME }) === ERROR_KIND.AUTH, 'A5 errors.js：只回变更名的权限句也归 auth（实得 ' + classifyGhError({ message: CHANGED_NAME }) + '）')
     // 这里只断言 GitHub 家的分类器：preflight 的 classifyError 只挂通用表，后端专有句式按设计写在
-    //   rooms/github/errors.ts 的前置扩展表里（见 src/tracker/kernel/preflight.ts 文件头），所以「只回变更名」
+    //   rooms/github/support/errors.ts 的前置扩展表里（见 src/tracker/kernel/preflight.ts 文件头），所以「只回变更名」
     //   这句在通用表里判不出 auth 是设计如此，不在这里断言。
     check(keep404 === ERROR_KIND.NOTFOUND, 'A3 404 仍归 not-found（这一档本来就是对的，不动；实得 ' + keep404 + '）')
     const net = classifyGhError({ message: 'dial tcp: lookup api.github.com: no such host' })
@@ -104,7 +104,7 @@ async function main(): Promise<void> {
 
   // ── B) 单源 helper ──
   {
-    const { readRepoPermissions, readonlyMessage } = await imp('src/tracker/rooms/github/repo-permissions.ts')
+    const { readRepoPermissions, readonlyMessage } = await imp('src/tracker/rooms/github/read/repo-permissions.ts')
     const f = makeCtx()
     const cache = new Map()
     const p1 = await readRepoPermissions({ execGh: async (a, o) => { const r = await f.ctx.exec('gh', a, o); return r.code === 0 ? { ok: true, data: { stdout: r.stdout } } : { ok: false, error: { kind: 'network', message: r.stderr } } } }, 'acme/demo', f.ctx, cache)
@@ -121,7 +121,7 @@ async function main(): Promise<void> {
 
   // ── C) setLabels 归因 ──
   {
-    const { setLabels } = await imp('src/tracker/rooms/github/labels.ts')
+    const { setLabels } = await imp('src/tracker/rooms/github/write/labels.ts')
     const repo = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
     const f = makeCtx()
     const r = await setLabels(repo, '7', [{ name: 'bug' }, { name: 'needs-triage' }], {}, f.ctx)
@@ -143,7 +143,7 @@ async function main(): Promise<void> {
 
   // ── D) 建票 labelError + 正文区 ──
   {
-    const { createIssue } = await imp('src/tracker/rooms/github/issues-write.ts')
+    const { createIssue } = await imp('src/tracker/rooms/github/write/issues.ts')
     const repo = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
     const f = makeCtx()
     const r = await createIssue(repo, { title: '只读库建票', body: 'hello', type: 'issue', labels: ['bug'] }, f.ctx)
@@ -217,7 +217,7 @@ async function main(): Promise<void> {
 
   // ── F) 改色批内只问一次 ──
   {
-    const { githubModule } = await imp('src/tracker/rooms/github/index.ts')
+    const { githubModule } = await imp('src/tracker/rooms/github/room/index.ts')
     const tracker = githubModule.create({})
     const calls = []
     const ctx = {
@@ -255,7 +255,7 @@ async function main(): Promise<void> {
     check(zh.includes('push') && zh.includes('triage') && /只读|读权限/.test(zh), 'G1 README 有 push/triage 前置条件（只读时标签链不可用）')
     const en = fs.readFileSync(path.join(ROOT, 'docs', 'README.en.md'), 'utf8')
     check(en.includes('push access') && en.includes('triage'), 'G2 英文 README 同步了权限前置')
-    const gh = await imp('src/tracker/rooms/github/index.ts')
+    const gh = await imp('src/tracker/rooms/github/room/index.ts')
     const zhP = gh.prompts.ensureLabels.zh
     const enP = gh.prompts.ensureLabels.en
     check(String(zhP).includes('fork') && String(zhP).includes('origin'), 'G3 补标签弹窗指路 fork（只建议，不代劳改配置）')

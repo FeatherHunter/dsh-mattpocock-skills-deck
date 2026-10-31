@@ -31,8 +31,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fixes, prompts } from '../src/tracker/rooms/github/index.ts'
-import { classifyGhError } from '../src/tracker/rooms/github/errors.ts'
+import { fixes, prompts } from '../src/tracker/rooms/github/room/index.ts'
+import { classifyGhError } from '../src/tracker/rooms/github/support/errors.ts'
 import { ghAuthVerdict } from '../src/refresh/rooms/host/chain-env-map.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -134,7 +134,7 @@ function main(): void {
 
   console.log('== 4. 宿主建仓失败的长文与 init-project 回包：同一段话，逐字一致 ==')
   const publishSrc = read('src/host/publishFlow.ts')
-  const initSrc = read('src/tracker/rooms/github/init-project.ts')
+  const initSrc = read('src/tracker/rooms/github/write/init-project.ts')
   const noGhPrompt = literalAfter(publishSrc, /const NO_GH_PROMPT = '((?:[^'\\]|\\.)*)'/)
   const initMatch = /kind: 'no-gh', message: '((?:[^'\\]|\\.)*)', raw: '', prompt: '((?:[^'\\]|\\.)*)'/.exec(initSrc)
   const initMessage = initMatch ? unescapeJs(initMatch[1]) : null
@@ -149,8 +149,10 @@ function main(): void {
   check(hasNone(promptText, ['winget', 'brew', 'sudo apt', '请为 DSH 安装']), '宿主长文不再是「请为 DSH 安装」那套安装说明（会让人重装）')
 
   console.log('== 5. 分类 token 保留：新消息仍被认成「缺 gh 可执行」 ==')
-  const preflightSrc = read('src/tracker/rooms/github/preflight.ts')
-  const clientSrc = read('src/tracker/rooms/github/client.ts')
+  // #1686 阶段 1：preflight 随 read 层搬进 read/，文案看真身而不是旧路径的转发壳。
+  const preflightSrc = read('src/tracker/rooms/github/read/preflight.ts')
+  // #1684 阶段 1：gh 客户端真身搬进 transport/，旧路径只留转发；文案看真身。
+  const clientSrc = read('src/tracker/rooms/github/transport/client.ts')
   const preflightMsg = literalAfter(preflightSrc, /message: '(gh not found: platform\.resolveExecutable returned null[^']*)'/)
   const clientMsg = literalAfter(clientSrc, /return fail\(ERROR_KIND\.ENV, '(gh not found: platform\.resolveExecutable returned null and gh --version probe failed[^']*)'/)
   check(!!preflightMsg && hasAll(preflightMsg, ['gh not found', 'platform.resolveExecutable', 'PATH inherited at process startup', 'DSH_GH_PATH']),

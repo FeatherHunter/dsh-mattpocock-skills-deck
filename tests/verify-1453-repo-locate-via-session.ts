@@ -17,7 +17,7 @@
  */
 import { createSessionOpener } from '../src/refresh/rooms/host/session-opener.ts'
 import { openTracker } from '../src/tracker/session/open-tracker.ts'
-import { getRepoKey as roomGetRepoKey } from '../src/tracker/rooms/github/repo.ts'
+import { getRepoKey as roomGetRepoKey } from '../src/tracker/rooms/github/model/repo.ts'
 
 let failed = false
 let passed = 0

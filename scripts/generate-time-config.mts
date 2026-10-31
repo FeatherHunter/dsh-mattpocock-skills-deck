@@ -149,7 +149,7 @@ const KEYS: Array<[string, string, string]> = [
   // —— 检测链里的谓词超时（对抗式自查补登记：原来写在 option 对象里，名字是裸 timeout，两边都看不见）——
   ['predicateTimeoutMs', 'PREDICATE_TIMEOUT_MS', 'timeouts'],
   // —— 检测链外层比内层串行最坏多留的余量（#1475：外层 = 内层最坏 + 余量，
-  //    内层最坏由 src/tracker/rooms/github/preflight.ts 的 ghPreflightWorstCaseMs() 按出站档位现算）——
+  //    内层最坏由 src/tracker/rooms/github/read/preflight.ts 的 ghPreflightWorstCaseMs() 按出站档位现算）——
   ['predicateMarginMs', 'PREDICATE_MARGIN_MS', 'timeouts'],
   ['predicateFallbackTimeoutMs', 'PREDICATE_FALLBACK_TIMEOUT_MS', 'timeouts'],
   // —— 检测链里预取 gh 登录名的一次性竞速超时（detectChain.ts 的 timer.timeout(2500)，单源头改造时收拢）——
@@ -171,6 +171,11 @@ const KEYS: Array<[string, string, string]> = [
   ['syncPollGridMs', 'SYNC_POLL_GRID_MS', 'intervals'],
   ['syncFallbackProbeMs', 'SYNC_FALLBACK_PROBE_MS', 'intervals'],
   ['syncFocusProbeMinMs', 'SYNC_FOCUS_PROBE_MIN_MS', 'intervals'],
+  // —— 降级取数的两个节流窗口（#1689）：降级常驻时探测放慢到 60 秒、自动校准至少 10 分钟 ——
+  ['fallbackProbeIntervalMs', 'FALLBACK_PROBE_INTERVAL_MS', 'intervals'],
+  ['fallbackCalibrationIntervalMs', 'FALLBACK_CALIBRATION_INTERVAL_MS', 'intervals'],
+  // —— 通知事件库的两个时间参数（#1693）：瞬时事件去重窗住 intervals，历史保留期住 ttl ——
+  ['notificationEventDedupeMs', 'NOTIFICATION_EVENT_DEDUPE_MS', 'intervals'],
   // —— 命名状态与日志的节拍 ——
   ['namingPersistDebounceMs', 'NAMING_PERSIST_DEBOUNCE_MS', 'intervals'],
   ['namingSweepSoonMs', 'NAMING_SWEEP_SOON_MS', 'intervals'],
@@ -270,6 +275,8 @@ const KEYS: Array<[string, string, string]> = [
   ['writePatchTtlMs', 'WRITE_PATCH_TTL_MS', 'ttl'],
   // —— 视野模型上报的去重窗（同一签名在这段时间内只处理一次）——
   ['attentionReportDedupeMs', 'ATTENTION_REPORT_DEDUPE_MS', 'ttl'],
+  // —— 通知事件库的历史保留期（#1693）：只做大小比较，不交给定时器 ——
+  ['notificationEventRetentionMs', 'NOTIFICATION_EVENT_RETENTION_MS', 'ttl'],
   // —— backoff：退避序列。项可以写引用（#1629），第二档就是一步等待本身 ——
   ['chainBackoffMs', 'CHAIN_BACKOFF_MS', 'backoff'],
   // —— 「下一步建议」选项行的客户端重试退避：两档 ——

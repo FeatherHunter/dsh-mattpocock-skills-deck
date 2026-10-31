@@ -129,7 +129,7 @@ G.truthNoticeLines = () => []
 let cachedSnapshot: any = null
 G.getCachedSnapshot = () => cachedSnapshot
 G.loadIssuePage = () => {}
-G.RestFallbackBanner = () => null
+G.FallbackMark = () => null
 G.useClosedPageScroll = () => {}
 G.labelClicks = {}
 G.listPrefs = {}

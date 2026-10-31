@@ -78,11 +78,11 @@ export interface SyncDeltaItem {
 }
 
 /**
- * 同步读数：超前与落后是两个并排的读数，不是两颗彩色胶囊。
+ * 同步读数：领先与落后是两个并排的读数，不是两颗彩色胶囊。
  *
  * 两条读数始终都在（没有差异也写 0），位置不随数字变化跳动；分隔线只是把两个数分开，
  * 不画边框、不填底色——同步带里已经有足够多的框，再加一层会看不出主次。
- * 全文（「超前 2 个提交」）放进 title 与 aria-label，屏幕上只留标签与数字。
+ * 全文（「领先 2 个提交」）放进 title 与 aria-label，屏幕上只留标签与数字。
  */
 export function syncDelta(items: SyncDeltaItem[], options: { compact?: boolean } = {}): HTMLElement {
   const root = h('span', {
@@ -114,10 +114,10 @@ export function resultBanner(result: ResultMessage): HTMLElement {
     copy: '复制',
     ai: 'AI 交接',
     branch: '分支动作',
-    worktree: '工作树动作',
+    worktree: '工作区动作',
     changes: '改动动作',
     history: '提交动作',
-    stash: '收起动作',
+    stash: '储藏动作',
   }
   return h(
     'div',

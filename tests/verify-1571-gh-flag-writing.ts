@@ -67,13 +67,24 @@ function stripCommentLines(src: string): string {
   }).join('\n')
 }
 
+// #1686 阶段 1：房间按职责分目录后，要做 -f/-F 检查的文件散在顶层与 read/、support/ 等子目录里，
+// 所以递归收集。同一个文件名可能同时有顶层的旧路径（纯转发、没有调用点）和职责目录里的真身，
+// 取调用点多的那一份，免得真身被转发壳盖掉。
+const countF = (src: string): number => (src.match(/(['"])-f\1\s*,\s*(['"`])(?:owner|name)=/g) || []).length
 const sources = new Map<string, string>()
-try {
-  for (const name of fs.readdirSync(GH_DIR)) {
-    if (!name.endsWith('.ts')) continue
-    sources.set(name, stripCommentLines(fs.readFileSync(nodePath.join(GH_DIR, name), 'utf8')))
+const collectSources = (dir: string): void => {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = nodePath.join(dir, entry.name)
+    if (entry.isDirectory()) { collectSources(full); continue }
+    if (!entry.name.endsWith('.ts')) continue
+    const src = stripCommentLines(fs.readFileSync(full, 'utf8'))
+    const prev = sources.get(entry.name)
+    if (prev === undefined || countF(src) > countF(prev)) sources.set(entry.name, src)
   }
-  check(sources.size > 0, '一、能读到 src/tracker/rooms/github 下的源码', sources.size + ' 个文件')
+}
+try {
+  collectSources(GH_DIR)
+  check(sources.size > 0, '一、能读到 src/tracker/rooms/github 下的源码（含职责子目录）', sources.size + ' 个文件')
 } catch (e) {
   check(false, '一、能读到 src/tracker/rooms/github 下的源码', String((e && (e as Error).message) || e).slice(0, 200))
 }
@@ -87,7 +98,6 @@ for (const [name, src] of sources) {
 check(offenders.length === 0, '一、源码里没有再用 -F 传字符串字段 owner/name', offenders.join('、') || '0 处')
 
 // 二、每个文件该有几处 -f owner/name 就写几处：数量对不上说明有人改了回去、删了调用点或换了写法。
-const countF = (src: string): number => (src.match(/(['"])-f\1\s*,\s*(['"`])(?:owner|name)=/g) || []).length
 let totalF = 0
 for (const [name, want] of Object.entries(EXPECTED_F_COUNTS)) {
   const src = sources.get(name)

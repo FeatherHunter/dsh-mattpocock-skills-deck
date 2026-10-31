@@ -4,7 +4,7 @@
  * ── 这一条能力为什么归本房 ──────────────────────────────────────────────────────
  * 契约把 `getRepoKey` 与 `describe`、`issueAddress` 一起归为「定位口」，并写明定位口不由注册表
  * 补桩（`src/tracker/registry/shape.ts` 第 8 行那段）：问「这个仓库叫什么」，答案要么是名字要么是空，
- * 空本身也是答案 —— 没有「我不支持」这种回答可给。GitHub 房早就交了这条（`rooms/github/repo.ts`），
+ * 空本身也是答案 —— 没有「我不支持」这种回答可给。GitHub 房早就交了这条（`rooms/github/model/repo.ts`），
  * GitLab 房一直缺着：`docs/tracker/capability-gitlab.md` 里它记的是「当前不支持、未来会开发」。
  * 本文件把它补上，于是这一房从 15 条能力变成 16 条。
  *

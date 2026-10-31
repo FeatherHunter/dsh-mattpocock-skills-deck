@@ -19,30 +19,47 @@ import { createOutboundControl } from '../src/refresh/rooms/host/outbound-contro
 // 它不判写路径与关系边那两片（#1053、#1054）：那里 via 是可选的，谁动到谁补，口径与附录一致。
 
 import { readFileSync } from 'node:fs'
-import { ghClient } from '../src/tracker/rooms/github/client.ts'
+import { ghClient } from '../src/tracker/rooms/github/transport/client.ts'
 
 const HERE = 'tests/verify-github-gh-via.ts'
-const CLIENT = 'src/tracker/rooms/github/client.ts'
+// #1684 阶段 1 房间分层：客户端与外围零件搬进了 transport/，旧路径只剩转发；
+// 文本判据看的是真正拼字段的那两份，所以路径跟着搬。
+const CLIENT = 'src/tracker/rooms/github/transport/client.ts'
 // gh.exec / gh.timeout 两条日志的字段拼装按文件粒度上限拆到了 client-support.ts：
 // 管子判据要连这份一起看，否则「via 有没有真的写进日志」会因为拆文件而漏判。
-const CLIENT_SUPPORT = 'src/tracker/rooms/github/client-support.ts'
+const CLIENT_SUPPORT = 'src/tracker/rooms/github/transport/client-support.ts'
 
 /** 读路径这一片的调用点：每一条都由 #1052 逐个贴过标签。 */
 const READ_CALL_FILES = [
-  'src/tracker/rooms/github/issues.ts',
-  'src/tracker/rooms/github/counts.ts',
-  'src/tracker/rooms/github/page.ts',
-  'src/tracker/rooms/github/preflight.ts',
-  'src/tracker/rooms/github/sub-issues.ts',
-  'src/tracker/rooms/github/repo-permissions.ts',
-  'src/tracker/rooms/github/repo.ts',
+  // #1687 阶段 1 收口：读实现整份搬进 read/，扫描点跟着改到新位置（旧根只剩转发壳，不在扫描之列）。
+  'src/tracker/rooms/github/read/issues.ts',
+  // #1685：整仓列表的 REST 翻页从 issues.ts 拆到了这里，list.rest 这个标签跟着落在新文件；
+  // 不把新文件加进扫描表，登记册里的 list.rest 就会被判成「没人用」，标签也会漏检。
+  // #1686 阶段 1：这份读实现随 read 层搬进 read/，扫描点跟着改到新位置。
+  'src/tracker/rooms/github/read/issues-rest-list.ts',
+  // #1691：列表行关系补齐（依赖明细自己起 gh，via 写 list.rest-deps）与容器子票兜底（list.rest-sub）。
+  // 两份都不在扫描表里的话，登记册新加的两支会被判成「没人用」。
+  'src/tracker/rooms/github/read/rest-list-relations.ts',
+  'src/tracker/rooms/github/read/parent-repair.ts',
+  // #1691：REST 单票降级按需补评论正文、依赖边、评审与合并时间，四支 via 落在新文件里。
+  'src/tracker/rooms/github/read/rest-detail-completion.ts',
+  'src/tracker/rooms/github/read/counts.ts',
+  'src/tracker/rooms/github/read/page.ts',
+  'src/tracker/rooms/github/read/preflight.ts',
+  'src/tracker/rooms/github/read/sub-issues.ts',
+  'src/tracker/rooms/github/read/repo-permissions.ts',
+  // #1686：仓库身份（含 getRepoKey 的 gh 探测）随 model 层搬进职责目录。
+  'src/tracker/rooms/github/model/repo.ts',
   // pulls.ts 是 #1052 合成回包实跑时抓出来的漏网：拉列表走 REST 降级那一支会顺带起两笔
   // /pulls 富化（列表翻页 + 单票补合并时间/评审），当时它们不带标签，日志里落的是空 via。
-  'src/tracker/rooms/github/pulls.ts',
+  'src/tracker/rooms/github/read/pulls.ts',
   // 反向阻塞边的原生投影（#1304）：一次 GraphQL 同时取回正向与反向两条连接。
-  'src/tracker/rooms/github/deps-read.ts',
+  'src/tracker/rooms/github/read/deps-read.ts',
   // 单票评论的多页取齐（#1444 从 issues.ts 拆出）：翻页那一支自己起 gh，via 写 get.gql。
-  'src/tracker/rooms/github/comment-paging.ts',
+  // #1686 阶段 1：随 GraphQL 协议形状搬进 channels/graphql/，扫描点跟着改到新位置。
+  'src/tracker/rooms/github/channels/graphql/comment-paging.ts',
+  // #1698：企业版运行时能力探测（gh api meta）落在 routing/ 的新文件里，via 写 repo.meta。
+  'src/tracker/rooms/github/routing/runtime-capability.ts',
 ]
 
 /**
@@ -54,13 +71,17 @@ const TAG_SPEC: Record<string, { branches: string[]; opsWithNoNeed?: number; why
     branches: ['auth', 'auth-crosscheck', 'repo-view', 'api'],
     whyNoNeed: '第一项门禁失败时连进程都不起（没有仓库标识可探），所以失败那一路日志里没有它自己的行；第三项门禁（能连上接口）这一笔 via 写 preflight.api，于是「走到第三项、这一项过没过」在日志里直接读得出来。',
   },
-  list: { branches: ['gql', 'rest', 'pr'] },
-  get: { branches: ['gql', 'rest', 'rest-pr', 'pr'] },
+  // #1691：列表行没表达父票链接时退回容器子票兜底（list.rest-sub），
+  // 依赖计数大于零的票逐张拉一次明细（list.rest-deps）。
+  list: { branches: ['gql', 'rest', 'pr', 'rest-deps', 'rest-sub'] },
+  // #1691：单票 REST 降级按需补取的四类明细，每类一支标签（补取失败时 read.degraded 的 reason 与之一一对应）。
+  get: { branches: ['gql', 'rest', 'rest-pr', 'pr', 'rest-comments', 'rest-deps', 'rest-merge', 'rest-review'] },
   counts: { branches: ['gql'] },
   listPage: { branches: ['gql'] },
   subIssues: { branches: ['gql', 'retry'] },
   permissions: { branches: ['api'] },
-  repo: { branches: ['tier3'] },
+  // #1698：repo.meta 是企业版运行时能力探测（gh api meta）；与仓库身份探测（tier3）同属 repo 这一桶。
+  repo: { branches: ['tier3', 'meta'] },
   // 拉取请求富化那三笔（#1052 合成回包实跑时补上）：列表 REST 翻页、单票补合并时间、单票拉评审明细。
   pulls: { branches: ['rest', 'detail', 'reviews'] },
   // 反向阻塞边的原生投影（#1304）：只有 GraphQL 这一支，没取到它退回整仓反推（那条路不带自己的标签）。

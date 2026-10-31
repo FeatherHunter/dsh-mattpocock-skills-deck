@@ -17,7 +17,7 @@
  * 实现：`src/refresh/rooms/host/outbound-control.ts`（薄转发给 admission 与 chain-coalescing，行为一字不差）。
  * 注入：宿主把实现挂进 `BackendContext.outbound`（进程级能力，随进程注入一次），房间从
  * `ctx.outbound` 读 —— 与房间里已有的 `ctx.gate`（闸由接线处注入、本房不 import 它）同一条路。
- * 读的人：`src/tracker/rooms/github/client.ts`（起 gh 命令前拿名额、认取消、写完记账）。
+ * 读的人：`src/tracker/rooms/github/transport/client.ts`（起 gh 命令前拿名额、认取消、写完记账）。
  *
  * ── 超时之后怎么办：读可重试，写先核对现状、不直接重放（#1224） ───────────
  * 排队超时、通路冷却、排队取消这些「没有拿到结局」的出口，后续动作按读写分：读可以直接重试；

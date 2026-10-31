@@ -24,6 +24,7 @@ declare function flash(...args: any[]): any;
 declare function freshnessToneColor(...args: any[]): any;
 declare function headFoldLadderOf(...args: any[]): any;
 declare function headFoldStateAt(...args: any[]): any;
+declare function noticeHeadBadgeOf(...args: any[]): any;
 declare function Ic(props?: any): any;
 declare function isBackendUnavailable(...args: any[]): any;
 declare function isEnabled(...args: any[]): any;
@@ -51,6 +52,8 @@ declare function useDockSync(...args: any[]): any;
 declare function userPickSelection(...args: any[]): any;
 declare function useStore(...args: any[]): any;
 declare function useTabsRow(...args: any[]): any;
+// #1697：通知中心的取数 hook（实现住在 views/shared/notificationCenterModel.ts，由构建拼进同一个闭包）。
+declare function useNotifications(...args: any[]): any;
 // 值引用的组件与常量（传给 h 当组件用，或按名索引，不调用）。
 declare const ChecksTab: any;
 declare const IssueDetail: any;
@@ -58,6 +61,8 @@ declare const LabelColorEntry: any;
 declare const ListTab: any;
 declare const MapDetailV2Page: any; // #1402：地图详情页入口已切到 V2；老页 MapDetail 的源码与门禁都留着，出问题可以一行切回
 declare const NamingFailBanner: any;
+// #1697：通知中心的徽标入口与历史浮层（实现住在 views/shared/notificationCenter.ts）。
+declare const NotificationCenter: any;
 declare const NOTICE_COLOR: any;
 declare const PrTab: any;
 declare const RepoChipSkeleton: any;
@@ -97,6 +102,8 @@ export     const DetailsDock = (props: any) => {
       const dockRef = React.useRef(null)
       const [dw, setDw] = React.useState(460)
       // 头部第一行右侧那两个控件（以及它们让完之后才动的仓库名）收到第几档：阶梯表见下面那台头部折叠机，档号由它算。
+      // #1697 通知中心：历史与未读只在这一处取，头部入口与折叠阶梯都读这一份回包。
+      const noticeView = useNotifications(s)
       const [headFold, setHeadFold] = React.useState(0)
       // 列宽感知：details 列 300-520px；窄于 380 时动作按钮折叠为纯图标（与悬浮面板同阈值）
       React.useEffect(function () {
@@ -185,7 +192,7 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
       const headAgo = headBox ? tr(headBox.agoKey, headBox.agoParams) : ''
       const headTip = headBox ? tr('truth.updatedTip', { ago: headAgo, time: headBox.time }) : ''
       // 仓库名按版面上显示的那一串（就是芯片里那串字）逐字变短；完整的那一串留在悬停提示里，一个字都不丢。
-      const headLadder = (typeof headFoldLadderOf === 'function') ? headFoldLadderOf({ name: headRepo ? String(headRepo.name || '') : '', refresh: tr('list.refresh'), time: headAgo, icons: ['palette', 'switch', 'mark'] }) : null
+      const headLadder = (typeof headFoldLadderOf === 'function') ? headFoldLadderOf({ name: headRepo ? String(headRepo.name || '') : '', refresh: tr('list.refresh'), time: headAgo, icons: ['palette', 'switch', 'mark'], badge: (typeof noticeHeadBadgeOf === 'function') ? noticeHeadBadgeOf(noticeView) : '' }) : null
       const headNow = headLadder ? headFoldStateAt(headLadder, headFold) : null
       const headIconCls = function (id: any) { return (headNow && headNow.icons[id] === false) ? 'dsws-folded' : undefined }
       // 头部自适应（#28 那条收缩链的第三代，维护者 2026-09-22 定）：空间不够时照 panel/headFold.js 那条阶梯
@@ -211,6 +218,9 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             if (rfEl) rfEl.textContent = st.refresh
             if (tmEl) tmEl.textContent = st.time
             for (const el of iconEls) el.classList.toggle('dsws-folded', st.icons[el.getAttribute('data-head-icon')] === false)
+            // #1697：通知中心的徽标是「没有字、一步收走」的那一格；收走时整格（外面这层 span）挂 dsws-folded。
+            const badgeEl = hd.querySelector('[data-head-fold="badge"]')
+            if (badgeEl) badgeEl.classList.toggle('dsws-folded', st.badge === false)
             void hd.offsetWidth
           }
           const settle = function (n: any) { setHeadFold(function (p: any) { return p === n ? p : n }) }
@@ -328,6 +338,9 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none' },
           }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]),
             h('span', { 'data-head-refresh-text': 1, style: { whiteSpace: 'nowrap' } }, headNow ? headNow.refresh : tr('list.refresh'))])),
+          // #1697：通知中心的未读入口（带数字的铃铛）插在刷新与时间标签之间，窄面板里先收它 —— 仓库名与时间要保住。
+          //   浮层挂 document.body，不占列表页的高度。
+          h(NotificationCenter, { key: 'notices', st: s, view: noticeView, folded: !headNow || headNow.badge === false }),
           // 时间标签：版面上那句相对时间按阶梯逐字变短（3 分钟前 → 3 分钟 → 3 分 → …，一个字都不许整块消失），
           //   上色沿用原来那条状态行的口径（灰 / 黄 / 红）。
           headBox ? h(Tip, { content: headTip }, h('span', { 'data-head-updated': 1, style: { flex: 'none', fontSize: 11, whiteSpace: 'nowrap', color: freshnessToneColor(headBox.tone) } },

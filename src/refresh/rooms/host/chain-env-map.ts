@@ -317,7 +317,7 @@ export function probeChainEnv(deps: ChainEnvProbeDeps, probeCwd: string, opts?: 
    * 房间要的这一次操作上下文：平台、起进程口、日志口与出站闸全在会话交来的那一份里。
    *
    * 为什么必须把会话交来的 ctx 原样带上：房间的 preflight 第一关就是读 opCtx.platform.resolveExecutable
-   * （src/tracker/rooms/github/preflight.ts 的第 1 关），getCurrentUser 也要经 opCtx 起 gh。只给 { cwd }
+   * （src/tracker/rooms/github/read/preflight.ts 的第 1 关，#1686 搬进 read/），getCurrentUser 也要经 opCtx 起 gh。只给 { cwd }
    * 时房间会立刻按环境失败收场（'gh not found: platform.resolveExecutable unavailable'），而记日志用的
    * opCtx.logEvent 同样不在，连一行失败日志都落不下来 —— 现象就是链上两项永远 pending、日志里查不到原因。
    * cwd 用本次求值的目录覆盖，是因为房间会拿它当 gh 的工作目录。

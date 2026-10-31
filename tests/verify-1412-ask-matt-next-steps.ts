@@ -38,7 +38,7 @@ const TOOL_NAME = 'suggest_next_steps'
 // 防止撤机制时顺手把模板里的提醒也删了。模板里的「## 工具」节住在公共小节
 // config/prompts/shared-sections.yaml（{{shared:sharedTools}} 在读取时展开），所以这里经共享读取核
 // 拿到展开后的正文再数，不能直接扫 YAML 原文（原文里只剩标记）。
-const REMINDER_ZH = '- [ ] 回复前最后一步，结合当下实际场景 按 /ask-matt 的规则，判断是否可以推荐当前最适合的技能，并且调用 suggest_next_steps 工具 进行推荐。'
+const REMINDER_ZH = '- [ ] 每轮回复收尾时先判断一次：用户接下来几乎一定会做什么？想得到就调用 suggest_next_steps 给出 2~4 条最可能被他选中的做法；这一轮在等用户拍板时，其中一条把每题的推荐答案列好；想不到就不调用。'
 const REMINDER_TOTAL = 20
 
 let total = 0

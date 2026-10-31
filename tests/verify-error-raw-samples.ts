@@ -26,7 +26,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
-import { countIssues } from '../src/tracker/rooms/github/counts.ts'
+import { countIssues } from '../src/tracker/rooms/github/read/counts.ts'
 import { createOutboundControl } from '../src/refresh/rooms/host/outbound-control.ts'
 import { createGitlabBackend } from '../src/tracker/rooms/gitlab/index.ts'
 import { getIssue as markdownGetIssue } from '../src/tracker/rooms/markdown/issues.ts'

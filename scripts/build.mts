@@ -46,6 +46,8 @@ import { spawnSync, spawn } from 'node:child_process'
 import { cpus } from 'node:os'
 import { deriveClient } from './derive-log-from-package.mts'
 import { deriveClient as deriveUpdateClient } from './derive-update-from-package.mts'
+// base 包接入：联系入口与作者插件卡的客户端产物内联（kernel:baseClient 标记处），派生源是已安装的 base 包。
+import { deriveBaseClient } from './derive-base-from-package.mts'
 import { bundleEntryPanel } from './bundle-update-entry.mts'
 
 // #1023 内置 TypeScript 域的逐文件转译：原先四个计算核各自带一份 build.mjs，
@@ -464,6 +466,9 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #876 入口件浏览器绑定包（已安装更新包 dist/entry.js 含内部 dialog 面板，摆法与关闭轮询约定走包默认）
   { name: 'updateEntryBundle', file: 'scripts/generated/updateEntryPanel.bundle.js' },
   { name: 'log', file: 'scripts/generated/logKernel.derived.js' },
+  // base 包接入：联系入口与作者插件卡的客户端产物（已安装 base 包 dist/client/index.js 内联），
+  //   拼在日志内核之后；工厂只在 SettingsPage 叶子渲染时调用，不依赖其它分块的求值顺序。
+  { name: 'baseClient', file: 'scripts/generated/baseClient.derived.js' },
   // 本次界面反馈需求：全客户端唯一的按压委托与点击日志口（ui.action），必须排在 log 之后、页面组件之前。
   { name: 'uiFeedback', file: 'src/client/kernel/ui-feedback.ts' },
   // 构建内核清单含日志模块（运行时拼上面的派生文件，#564 留派生不搬；
@@ -749,7 +754,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },
   { id: 'truthLines', file: 'src/client/views/shared/truthLines.ts' }, // #715 新增：面板头部那几句「上次更新 / 刷新失败 / 现在是不是降级」的判据（纯函数，画在 ListTab 最上面那一行；行上的「更新中」标记也问它）
-  { id: 'restFallbackBanner', file: 'src/client/views/shared/RestFallbackBanner.ts' }, // 2026-09-24 由 ListTab.js 拆出：那条降级横幅的「画」这一段（判据仍是上面 truthLines 的 restFallbackView；ListTab 贴着 350 行上限）
+  { id: 'fallbackMark', file: 'src/client/views/shared/fallbackMark.ts' }, // #1699：列表头部那枚「这次取数走了 REST 通道」的小标识（判据仍是上面 truthLines 的 restFallbackView；占一行的旧横幅 RestFallbackBanner 随本票退役，历史改由通知中心承载）
   { id: 'workRouteTable', file: 'src/client/views/shared/workRouteTable.ts' }, // #1082 新增：面板「跨会话在办表」（判据与画法；只读快照里的 workRouteTable 字段，与工具回执 data.workRoute 同源）
   { id: 'ticketRow', file: 'src/client/views/TicketRow.ts' },
   { id: 'mapDetailHead', file: 'src/client/views/MapDetailHead.ts' }, // #691 由 MapDetail.js 拆出：编号/标题/「本图 N 张子票」那一行（MapDetail 贴着 350 行上限）
@@ -772,6 +777,8 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'mapV2ProfileHeader', file: 'src/client/views/mapDetailV2/view/profile/MapProfileHeader.ts' },
   { id: 'mapV2CardFlow', file: 'src/client/views/mapDetailV2/view/flow/TicketCardFlow.ts' },
   { id: 'mapV2Page', file: 'src/client/views/mapDetailV2/view/MapDetailV2Page.ts' },
+  // #1694：详情页读快照投影（上次数据先画、失败不清空、读投影开关）；排在 IssueDetail 之前拼进闭包。
+  { id: 'detailProjection', file: 'src/client/views/shared/detailProjection.ts' },
   { id: 'IssueDetailComments', file: 'src/client/views/IssueDetailComments.ts' },
   { id: 'issueDetailFold', file: 'src/client/views/issueDetailFold.ts' }, // #763 新增：详情页顶栏逐字折叠阶梯（纯函数，返回优先收到图标）
   { id: 'useIssueDetailFold', file: 'src/client/views/useIssueDetailFold.ts' }, // #763 新增：同一处的折叠机（读写顶栏 DOM；判据在上一项）
@@ -813,6 +820,10 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { id: 'headFold', file: 'src/client/panel/headFold.ts' }, // #667 新增：面板头部第一行的逐字折叠阶梯（纯函数，无组件）
+  // #1697 面板内通知中心：先判据与取数（纯函数加取数 hook），再徽标入口与历史浮层两个组件；
+  //   两者都排在 dock 之前拼进闭包，Dock 头部那一排用它们（不跑定时器，重取只跟快照换版与打开浮层走）。
+  { id: 'notificationCenterModel', file: 'src/client/views/shared/notificationCenterModel.ts' },
+  { id: 'notificationCenter', file: 'src/client/views/shared/notificationCenter.ts' },
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { id: 'repoChipSkeleton', file: 'src/client/panel/RepoChipSkeleton.ts' }, // 2026-09-24 由 Dock.js 拆出：快照还没回来时那条灰色占位骨架（组件，Dock 贴着 350 行上限）
@@ -1089,7 +1100,7 @@ ${PKG_CLIENT_SHIMS}
 //   exports 里 "./tools" 指到新位置）。
 //
 // 三、宿主引用改写：新树里有 6 处引用指回宿主树（src/tracker/index.ts 两处、
-//   src/tracker/rooms/github/client.ts 三处、src/tracker/detection/detectionService.ts 一处），
+//   src/tracker/rooms/github/transport/client.ts 三处、src/tracker/detection/detectionService.ts 一处），
 //   在源码里它们写作 ../host/...，在包里宿主住在 package/lib，必须改写成 ../lib/...。
 //   改写只动转译产物的引用串，不动源码；改写逐条记日志，审计步骤逐条核对去向文件在不在盘上。
 //
@@ -1715,7 +1726,11 @@ function gateBuildArtifacts(): void {
 function ensureBundledSkills(): void {
   const bundledDir: string = resolve(ROOT, 'package/bundled-skills')
   if (!existsSync(bundledDir)) {
-    console.warn('[build] 警告：package/bundled-skills 不存在，跳过捆绑校验（早期分支容忍）。请运行 node scripts/sync-matt-skills.mts --pin v1.3.1 --verify 同步')
+    // pin 的唯一真源是哈希清单；提示文案里的版本号也从清单读，升级时不用改这里。
+    let pinHint: string = ''
+    try { pinHint = JSON.parse(readFileSync(resolve(ROOT, 'tests/bundled-skills-upstream-hashes.json'), 'utf8')).pin } catch {}
+    const pinArg: string = pinHint ? `--pin ${pinHint} ` : ''
+    console.warn(`[build] 警告：package/bundled-skills 不存在，跳过捆绑校验（早期分支容忍）。请运行 node scripts/sync-matt-skills.mts ${pinArg}--verify 同步`)
     return
   }
   const entries: string[] = readdirSync(bundledDir, { withFileTypes: true }).filter((d: any) => d.isDirectory()).map((d: any) => d.name)
@@ -1891,6 +1906,9 @@ const CLIENT_TIME_NAMES: string[] = [
   'QUOTA_SYNC_INTERVAL_MS',
   'FRESHNESS_YELLOW_MS',
   'FRESHNESS_RED_MS',
+  // 降级取数的两个节流窗口（#1689）：host-budget.ts 拼进闭包时 import 行剥掉，名字由这一片提供。
+  'FALLBACK_PROBE_INTERVAL_MS',
+  'FALLBACK_CALIBRATION_INTERVAL_MS',
   // 界面叶子里的三处停留与两处延时（SkillFloatList / LabelColorDialog / PixelSkillDetailModal /
   // panelAssembly / PixelSkillOps）：import 行剥掉之后名字由这一片提供。
   'SKILL_FLOAT_CLOSE_DELAY_MS',
@@ -2171,6 +2189,12 @@ try {
   await bundleEntryPanel()
 } catch (e) {
   throw new Error('[build] 更新派生失败（面板取值来源是已安装的更新包：先确认 pnpm install 已装好 dsh-plugin-update@^0.13.0，再重跑本构建）：' + ((e as Error) && (e as Error).message || e))
+}
+// base 包接入：把已安装 base 包的客户端产物内联成派生文件（联系入口与作者插件卡要用的组件工厂）。
+try {
+  deriveBaseClient()
+} catch (e) {
+  throw new Error('[build] base 包派生失败（内联源是已安装的 dsh-featherhunter-plugin-base：先确认 pnpm install 已装好 base@0.1.1，再重跑本构建）：' + ((e as Error) && (e as Error).message || e))
 }
 
 // 打包是最后一段长活（拼客户端与宿主两半产物），开始前再确认一次锁：这段里被接管的话，

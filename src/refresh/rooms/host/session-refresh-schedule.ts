@@ -66,13 +66,19 @@ type RefreshDeps = {
   budgetReadout?: ((backendId: string) => any) | null
   // #1439 A2：接线处注入的会话口。接了之后快照经 Tracker 会话取数（操作过闸、记账）；没接由 composer 回落注册表。
   openSession?: ((cwd: string, o?: { write?: boolean }) => Promise<any>) | null
+  // #1693：刷新失败的记事件口（宿主通知事件库）。没接就照旧只回失败；接了也只记历史，不改刷新语义。
+  noteRefreshFailure?: ((cwd: unknown, error: unknown) => unknown) | null
 }
 export function createSessionRefresh(deps: RefreshDeps) {
-  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession, noteRefreshFailure } = deps
   // 共用的那份信封（接线处 index.js 传进来，与 wf.snapshot 同一个实例）。
   // 没传就没法组装出与 wf.snapshot 同形的回包 —— 那种情况下宁可如实回一次失败，
   // 也不退回本文件自己拼一份（那正是这次故障的来路：两份信封各自漂）。
   const env: Envelope | null = (envelope && typeof envelope.buildSnap === 'function' && typeof envelope.withWorkRouteTable === 'function') ? envelope : null
+  // #1693：刷新失败落一条通知历史事件；记事件失败不能盖住原本的失败回包，所以不 await、不抛。
+  function noteRefreshFail(failCwd: string, failError: unknown): void {
+    try { if (typeof noteRefreshFailure === 'function') Promise.resolve(noteRefreshFailure(failCwd, failError)).catch(function () {}) } catch (e) {}
+  }
   // 信封没接上就整条路如实失败（见上面三行），所以真去组装的那两只函数只会在 env 非空时被调用；
   // 但它们是各自独立的函数，收窄不会翻过函数边界，下面四处 env!.buildSnap 就是把这件事写出来。
   // #491 房外埋点 helpers：hash8 只记散列；脏回执与组装返回均为低频常驻，直接落盘（库体内兜底）。
@@ -105,7 +111,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
       try { if (logCtx) logCtx.fire('info', 'panelSync.dirty', { cwdHash: hash8(cwd), ageMs: (function () { try { const c = getCache(cwd); return (c && c.ts) ? Math.max(0, refT0 - c.ts) : 0 } catch (e) { return 0 } })() }) } catch (eL) {}
       let _sel = null
       try { _sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined }) }
-      catch (eSel) { setCache({ ts: Date.now(), snapshot: null, error: errText(eSel), cwd: cwd }); return { ok: false, error: errText(eSel) } }
+      catch (eSel) { setCache({ ts: Date.now(), snapshot: null, error: errText(eSel), cwd: cwd }); noteRefreshFail(cwd, eSel); return { ok: false, error: errText(eSel) } }
       // #729：在途键与快照路同一把；强制只搭强制的车（在途是非强制就另起一趟，#366），搭上记现成的 dedup.hit。
       const _sharedInflight = await _loadSharedInflight()
       const refreshDedupKey = _sharedInflight.snapshotDedupKeyOf({ cwd: cwd, backendId: (_sel && _sel.backendId), lang: (args && args.lang), version: (args && (args.ifNoneMatch || args.version)) })
@@ -385,6 +391,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
         return adoptSnapLog(snap2, cwd)
       } catch (e) {
         setCache({ ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd })
+        noteRefreshFail(cwd, e)
         return { ok: false, error: errText(e) }
       }
   }

@@ -27,6 +27,8 @@ declare function mdEffortRowNode(...args: any[]): any;
 declare function compute(...args: any[]): any;
 declare function darken(...args: any[]): any;
 declare function deckCountsOf(...args: any[]): any;
+// #1698：KPI 三枚数字的统一投影（store-derived.ts 的 kpiCountsOf）：拿不到计数时回 null，界面显示「未知」。
+declare function kpiCountsOf(...args: any[]): any;
 declare function effortNamesOf(...args: any[]): any;
 // #1664：第一排 md目录签的选项（只留还有打开的票的工作单元），与徽标用的 effortNamesOf 分开。
 declare function effortOptionNamesOf(...args: any[]): any;
@@ -51,7 +53,7 @@ declare function saveListPrefs(...args: any[]): any;
 declare function ticketRowsOf(...args: any[]): any;
 declare function truthNoticeLines(...args: any[]): any;
 declare function useClosedPageScroll(...args: any[]): any;
-declare const RestFallbackBanner: any;
+declare const FallbackMark: any;
 declare const Tip: any;
 declare const _tagsFpOf: any;
 declare const labelClicks: any;
@@ -320,16 +322,27 @@ export     const ListTab = ({ st, narrow }: any) => {
       //   张数减去本地数出来的阻塞（阻塞要逐票看指派人、看有没有开放阻塞者，后端计数给不了）。
       //   拿不到计数、或界面带着筛选时退回按池子派生：deckCountsOf 那时会返回 null（全仓数字与筛过的一屏
       //   不是一个口径），宁可退回派生值，也不拿全仓数字冒充筛过的数字。
+      // #1698 计数诚实：数字由 kpiCountsOf 统一投影（宿主说这份清单不全、整仓数字又拿不到时回 null）——
+      //   此时显示「未知」而不是 0；待校准时给数字挂一句「上次校准：时间」，老快照/带筛选时口径不变。
+      const clockTextOf = function (ms: any): any {
+        const d = new Date(ms)
+        const p = function (n: any): any { return (n < 10 ? '0' : '') + n }
+        return p(d.getHours()) + ':' + p(d.getMinutes())
+      }
       const kpiFiltered = !!((st.effFilters || []).length)
-      const kpiCounts = deckCountsOf(st, kpiFiltered)
       const kpiOpenScoped = openIssuesOf(st).filter(effPass)
       const kpiOcc = kpiOpenScoped.filter(function (x: any) { return isOccupied(st, x) }).length
-      const kpiFrontier = kpiCounts ? Math.max(0, kpiCounts.open - kpiOcc) : (kpiOpenScoped.length - kpiOcc)
-      const kpiClosed = kpiCounts ? kpiCounts.closed : closedIssues.filter(effPass).length
+      const kpiLocal = { open: kpiOpenScoped.length, occupied: kpiOcc, closed: closedIssues.filter(effPass).length }
+      // 渲染夹具（门禁里只挂部分小件的假世界）可能没铺 kpiCountsOf：那时退回按池子派生，行为与 #1698 之前一致。
+      const kpiState = (typeof kpiCountsOf === 'function' ? kpiCountsOf(st, kpiFiltered, kpiLocal) : null) ||
+        { takeable: kpiLocal.open - kpiLocal.occupied, closed: kpiLocal.closed, unknown: false, pending: false, atMs: 0 }
+      const kpiFrontier = kpiState.takeable
+      const kpiClosed = kpiState.closed
+      const kpiHint = kpiState.pending ? tr('list.countsPendingTitle', { time: kpiState.atMs > 0 ? clockTextOf(kpiState.atMs) : '—' }) : (kpiState.unknown ? tr('list.countsUnknownTitle') : '')
       // 折叠行那两个数：N（一共多少张）来自后端计数、x（列表里已经加载了多少张）就是手上这些行。
       //   带任何筛选时 N 退回手上的行数 —— 后端给的是全仓总数，与筛过的列表对不上会让人以为少了票。
       const foldCounts = deckCountsOf(st, !!(((st.effFilters || []).length) || ((st.lblFilters || []).length)))
-      const kpi = (num: any, lab: any, icon: any, color: any) => h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, [Ic({ n: icon, size: 11, color: color }), h('span', null, String(num) + ' ' + lab)])
+      const kpi = (num: any, lab: any, icon: any, color: any) => h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, [Ic({ n: icon, size: 11, color: color }), h('span', null, (num == null ? tr('list.countsUnknown') : String(num)) + ' ' + lab)])
       return h('div', null, [
         // v1.5：已选标签过滤条（仅标签 · 颜色 = 该标签配置色 · 点 ✕ 关闭）
         (st.lblFilters && st.lblFilters.length) ? h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 6 } }, [
@@ -350,10 +363,15 @@ export     const ListTab = ({ st, narrow }: any) => {
         // B Timeline 定版（2026-08-28）：全屏红卡（NoRepoCard）不再挂载于列表页顶部——
         //   远端未关联/环境未就绪由检查页行内红卡表达，列表页保持 KPI + 列表（无顶部错误信息）
         // KPI 行 + 环境提示（v18-30：可接/占用 = 列表 open issue 口径）
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap', position: 'relative' } }, [
+        // #1698：待校准/未知的说明走 Tip 薄预设（views 目录的 title 处数有上限，别再新增 title）。
+        (function () {
+          const kpiRow = h('div', { 'data-list-head': 'kpi', style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap', position: 'relative' } }, [
           kpi(kpiFrontier, tr('list.kpi.takeable'), 'target', '#4ade80'),
           kpi(kpiOcc, tr('list.kpi.occupied'), 'lock', '#f0883e'),
           kpi(kpiClosed, tr('list.kpi.closed'), 'check', '#52525b'),
+          // #1699：当前取数是否走了 REST 通道，不再画成占一行的横幅（历史在通知中心），改成这一行里的一枚小标识；
+          //   说哪一句仍由 truthLines 的 restFallbackView 给（超一小时改口「上次…」、只有配额才提配额），这里只负责画。
+          h(FallbackMark, { key: 'fallbackMark', st: st }),
           // #689 的 partial 状态不再单独占一格（橙色胶囊太抢眼，又长得像按钮但点不动）——
           //   改为数字右上角一颗 5px 圆点 + 悬浮说明追加一句（圆点是状态不是控件；竖条试过，太生硬）。
           h('span', { style: { flex: 1 } }),
@@ -383,7 +401,9 @@ export     const ListTab = ({ st, narrow }: any) => {
             }, [Ic({ n: 'clipboard', size: 11 }), (btnTier === ' narrow-count' || btnTier === '') ? h('span', null, tr('list.healthCheck') + (nHc == null ? '' : ' ' + nHc)) : null, (isPartial ? h('span', { 'aria-label': tr('list.partial'), style: { position: 'absolute', top: 1, right: 3, width: 5, height: 5, borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 0 1px rgba(0,0,0,.6)', pointerEvents: 'none' } }) : null)]))
           })(),
           // T2 #2：刷新按钮已上移至面板 tabs 行（页内浮窗退役后，面板只有右侧边栏这一处）
-        ]),
+          ])
+          return kpiHint ? h(Tip, { content: kpiHint }, kpiRow) : kpiRow
+        })(),
         // B Timeline 定版（2026-08-28）：「N 项环境未就绪」红条已移除（顶部无错误信息；状态由检查页行级表达）
         // md目录签（仅多 effort 仓库出现）：一次只看一个工作单元，再点同一颗回到全部；与状态/label 过滤叠加。
         // #1639：这排的排布（普通内联流、行尾照字面切断、slice 封口）与目录名的文字上限（19 个数字的宽度 +
@@ -411,8 +431,6 @@ export     const ListTab = ({ st, narrow }: any) => {
           const tone = function (t: any) { return t === 'red' ? '#f87171' : (t === 'yellow' ? '#f59e0b' : 'var(--dsws-label-caption,#8b8b95)') }
           return h('div', { className: 'dsws-truth', style: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', fontSize: 11, padding: '2px 2px 4px' } }, ls.map(function (ln: any) { return h('span', { key: ln.kind || ln.key, style: { color: tone(ln.tone) } }, tr(ln.key, ln.params)) }))
         })(),
-        // v1.5 B5 降级横幅：走 REST 通道取回来的那份数据要明说 —— 判据（restFallbackView）与画法都在 views/shared/RestFallbackBanner.js。
-        h(RestFallbackBanner, { key: 'restFallback', st: st }),
         // #374：状态过滤渲染 —— open 主体 / closed 列表 / 「全部」态保留已关闭折叠行
         showOpen ? (filteredOpen.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredOpen.map(function (x: any) { return listIssueRow(h, st, x, true, narrow, blockOf, colorOf, multiEffort) })) : null,
         showClosedList ? (filteredClosed.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredClosed.map(function (x: any) { return listIssueRow(h, st, x, false, narrow, blockOf, colorOf, multiEffort) })) : null,

@@ -13,8 +13,12 @@
  * 回值是链路末端，它不该反过来依赖前面交进来的东西。
  */
 
-import type { BackendId, ErrorKind } from './identity.js'
-import type { Issue, IssueRef, RepositoryRef } from './entities.js'
+import type { Actor, BackendId, ErrorKind } from './identity.js'
+import type { Issue, IssueRef, LabelColor, RepositoryRef } from './entities.js'
+import type { ReadProvenance } from './read-provenance.js'
+import type { BudgetReading } from './budget-model.js'
+// #1698：企业版主机上的运行时能力回答（探测出来的支持程度 + 原因 + 票号），挂在读结果信封上。
+import type { RuntimeCapabilityAnswer } from './runtime-capability.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 四、返回值：失败是值不是异常
@@ -72,7 +76,23 @@ export type TrackerErrorStage = (typeof TRACKER_ERROR_STAGE)[keyof typeof TRACKE
  * 拿 `r.error` 时编译器知道它一定在（那种「两个字段都可能没有」的写法，
  * 正是仓库里若干 `res.error && res.error.message` 兜底的来路）。
  */
-export type OpResult<T> = { ok: true; data: T; usage?: OpUsage } | { ok: false; error: TrackerError }
+export type OpResult<T> =
+  | {
+    ok: true
+    data: T
+    usage?: OpUsage
+    /**
+     * 这次读操作在企业版主机上的运行时能力回答（#1698）。可选：只有「认出企业版主机并探测成功」时才挂。
+     * 调用成功且只能部分支持时如实挂 partial；调用成功时不挂 unsupported（调用即知优先，见 attachRuntimeAnswer）。
+     */
+    runtimeCapability?: RuntimeCapabilityAnswer
+  }
+  | {
+    ok: false
+    error: TrackerError
+    /** 失败信封上的同一条回答：这台服务端不支持这个接口时，调用方据此说清原因，而不是把失败当网络抖动。 */
+    runtimeCapability?: RuntimeCapabilityAnswer
+  }
 
 /**
  * 一次操作实际花掉的量（请求数、点数），由房间在成功信封上自报（#1446 A3 加）。
@@ -102,6 +122,11 @@ export interface PreflightResult {
   ok: boolean
   /** `ok:false` 时给出原因；`ok:true` 时不写。 */
   error?: TrackerError
+  /**
+   * 这一趟预检的来源与按字段组完整度（#1686）：三条门禁全过才是「权限这组完整」，
+   * 中途失败不挂 provenance（失败结果只回答通不通，不冒充已读到的形状）。
+   */
+  readonly provenance?: ReadProvenance
 }
 
 /**
@@ -148,6 +173,11 @@ export interface RepoPermissions {
   push: boolean
   /** 能不能整理别人的票（改指派、关别人的票）。 */
   triage: boolean
+  /**
+   * 这两个布尔是怎么读来的（#1686）：走到 `api repos/<owner>/<name>` 的 .permissions 这一条，
+   * 来源记 rest、权限组完整。挂在数据对象上是因为调用方（房间入口）原样透传这个对象，不另包信封。
+   */
+  readonly provenance?: ReadProvenance
 }
 
 /**
@@ -184,6 +214,12 @@ export interface Dependencies {
   blockingNote?: string
 }
 
+/** getDependencies 的完整返回：依赖投影 + 这一趟的来源与依赖字段组完整度（#1686）。 */
+export type DependenciesResult = OpResult<Dependencies> & {
+  /** 来源是实际走通的那条渠道；反向边到每侧上限时依赖组记截断，不是「没有阻塞关系」。 */
+  readonly provenance?: ReadProvenance
+}
+
 /**
  * `list` 操作的返回（#1304 搬进契约）。
  *
@@ -202,6 +238,25 @@ export type IssueListResult = OpResult<Issue[]> & {
   fallbackReason?: string
   /** 这份名单可能不全（到了后端安全上限，或降级通道只拿到一部分）：调用方不许当成整仓。 */
   truncated?: boolean
+  /**
+   * 这一趟读结果的来源与按字段组完整度（#1685）：用了哪条渠道、每个字段组是完整/截断/未表达、
+   * 耗时与取数开始版本。老调用方不读它，行为与从前一字不差；新调用方靠它说清
+   * 「这份名单是从哪条渠道读来的、具体缺哪一组」，而不是只拿一个 truncated 猜。
+   */
+  readonly provenance?: ReadProvenance
+}
+
+/**
+ * get 操作的返回：一张票 + 来源与按字段组完整度（#1685）。
+ *
+ * 为什么不再写成裸的 OpResult<Issue>：单票在两条渠道上的能力不一样——GraphQL 主路能带评论正文、
+ * 能看依赖的一侧，REST 降级只回行与正文，评论与依赖这几组一律表达不了。调用方必须能分清
+ * 「截断（本来有、没取全）」与「未表达（这条渠道本来就不提供）」；一个总体布尔会把两者糊成一句
+ * 「可能不全」，既冤枉了完整的部分，也会让人去补根本补不到的数据。
+ */
+export type IssueDetailResult = OpResult<Issue> & {
+  /** 这一趟读了什么：来源渠道、按字段组完整度、缺失字段组、耗时与取数开始版本。 */
+  readonly provenance?: ReadProvenance
 }
 
 /**
@@ -214,6 +269,12 @@ export interface Counts {
   open: number
   closed: number
   total: number
+}
+
+/** counts 的完整返回：数字本身 + 这一趟的来源与计数字段组完整度（#1686）。 */
+export type CountsResult = OpResult<Counts> & {
+  /** 计数只走 GraphQL 一条路，成功时 counts 组完整；失败结果不挂 provenance。 */
+  readonly provenance?: ReadProvenance
 }
 
 /**
@@ -231,6 +292,19 @@ export interface PageResult {
 }
 
 /**
+ * listPage 操作的返回：一页票与总数 + 来源与按字段组完整度（#1685）。
+ *
+ * 为什么单列一份而不是把来源塞进 PageResult：PageResult 说的是「这一页装了什么」，
+ * 而来源信息说的是「这一页是怎么读来、有没有被渠道上限截住、这一趟从哪个版本开始取」——
+ * 前者是分页数据的定义，后者是读的轨迹；两者寿命不同，混在一起以后想单独给分页换后端就拖泥带水。
+ * 游标与总数的口径仍由 PageResult 定义，这一份只往上加一层来源交代。
+ */
+export type ReadPageResult = OpResult<PageResult> & {
+  /** 这一趟读了什么：来源渠道、按字段组完整度、缺失字段组、耗时与取数开始版本。 */
+  readonly provenance?: ReadProvenance
+}
+
+/**
  * 批量改色的逐条记账结果（`setLabelColors` 的返回）。
  * 入参里每一条改动必须**恰好**出现在 `applied` 或 `failed` 之一：不许漏记账，也不许两边都算。
  * 批量中途失败没有回滚，只给整体成败会让界面在部分成功时只能说谎。
@@ -243,6 +317,12 @@ export interface PageResult {
 export interface LabelColorBatchResult {
   applied: { name: string; color: string }[]
   failed: { name: string; reason: TrackerError }[]
+}
+
+/** listLabels 的完整返回：标签清单 + 这一趟的来源与标签字段组完整度（#1686，成功即完整）。 */
+export type LabelListResult = OpResult<LabelColor[]> & {
+  /** 标签清单取不全时整条操作失败，所以成功分支的标签组必为 complete。 */
+  readonly provenance?: ReadProvenance
 }
 
 /**
@@ -269,6 +349,12 @@ export interface SubIssueList {
   missing: number
   /** 拿回来却被丢掉的行数（形状不认识、编号解析不出来）。 */
   dropped: number
+}
+
+/** listSubIssues 的完整返回：子票清单 + 这一趟的来源与子票/行两个字段组的完整度（#1686）。 */
+export type SubIssueListResult = OpResult<SubIssueList> & {
+  /** 撞 1000 张上限或还有下一页时子票组记截断；归一化丢行时行组记截断。 */
+  readonly provenance?: ReadProvenance
 }
 
 /**
@@ -319,4 +405,34 @@ export interface MapListResult {
   total: number
   /** 是否撞到封顶页数（撞到时界面要说清「还有更多，这次没取全」）。 */
   truncated: boolean
+}
+
+/** listMaps 的完整返回：地图薄行 + 这一趟的来源与行/标签两个字段组的完整度（#1686）。 */
+export type MapListOpResult = OpResult<MapListResult> & {
+  /** 撞封顶页数时行组记截断；单行标签到 50 条上限时标签组记截断。 */
+  readonly provenance?: ReadProvenance
+}
+
+/**
+ * getCurrentUser 的返回（#1687 房间入口收口时接上来源）。
+ *
+ * 为什么单列一份而不是裸的 OpResult<Actor>：成功拿到账号时还要说清「这个账号是怎么问到的、
+ * 身份这一组取全了没有」。来源只有 rest 一个渠道（gh api user），身份组成功即完整；
+ * 失败（未登录、权限不够、回包解析不出）不挂 provenance —— 失败结果只回答通不通，
+ * 不冒充已经读到了身份。
+ */
+export type ActorResult = OpResult<Actor> & {
+  /** 来源渠道、身份字段组完整度、耗时与取数开始版本；失败结果不带。 */
+  readonly provenance?: ReadProvenance
+}
+
+/**
+ * readBudget 的返回（#1687 房间入口收口时接上来源）。
+ *
+ * 这条读不经过任何远端渠道，来源固定记 local；只有真的量到两桶水位（data.known === true）时才挂
+ * provenance，量不出来的「未知」仍走 ok:true 信封但不带来源 —— 它没有可交代的字段组。
+ */
+export type BudgetResult = OpResult<BudgetReading> & {
+  /** 来源固定 local、计数字段组完整；读数未知（known:false）时不带。 */
+  readonly provenance?: ReadProvenance
 }

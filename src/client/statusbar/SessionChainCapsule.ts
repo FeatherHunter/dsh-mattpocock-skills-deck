@@ -381,9 +381,7 @@ const chainHeaderOf = function (h: any, tr: any, ownCount: any, otherCount: any,
   const numStyle = { fontVariantNumeric: 'tabular-nums', color: 'var(--dsw-alias-label-secondary,#a1a1aa)' }
   const left = h('span', { key: 'ownSide', style: { display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', whiteSpace: 'nowrap' } }, [
     h('span', { key: 'title', style: { flex: 'none', fontWeight: 600, color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, tr('chainView.capsuleHeaderTitle')),
-    h('span', { key: 'own', style: { flex: 'none', whiteSpace: 'nowrap' } }, chainSegmentedOf(h, tr('chainView.capsuleHeaderOwn'), { n: ownCount }, numStyle)),
-    chainSeparatorOf(h, 'sepInner', 7, 15, 0.62),
-    h('span', { key: 'time', style: { flex: 'none', color: captionColor } }, tr('chainView.readAtFull', { time: headTime }))])
+    h('span', { key: 'own', style: { flex: 'none', whiteSpace: 'nowrap' } }, chainSegmentedOf(h, tr('chainView.capsuleHeaderOwn'), { n: ownCount }, numStyle)), chainSeparatorOf(h, 'sepInner', 7, 15, 0.62), h('span', { key: 'time', style: { flex: 'none', color: captionColor } }, tr('chainView.readAtFull', { time: headTime }))])
   // 右簇靠自动外边距推到行尾：marginLeft:'auto' 吸收两簇之间的空白，容器上的 justifyContent:'space-between'
   //   只是原先的写法、留着无害；空间不足时 flex-shrink 收窄，里面的文字仍以省略号收尾。
   const others = otherCount > 0
@@ -395,16 +393,24 @@ const chainHeaderOf = function (h: any, tr: any, ownCount: any, otherCount: any,
   return h('div', {
     key: 'head',
     style: {
+      // #1732：在办单子表头吸顶——在办单子列表滚起来时，表头一直贴在单子最上面，不跟着滚走。
+      //   底色与单子同一层，行从它底下滚过去时不会透出来；单子顶部不留内边距，滚动口顶上不会露一条。
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, whiteSpace: 'nowrap',
-      fontSize: 11, lineHeight: '18px', padding: '2px 8px', color: captionColor,
+      fontSize: 11, lineHeight: '18px', padding: '2px 8px', color: captionColor, position: 'sticky', top: 0, zIndex: 1, background: 'var(--dsw-alias-bg-layer-2,#16181d)',
     },
   }, [left, others])
 };
 
+/** #1732：单子打开就停在末行（在办单子沉底）——最新那一条贴底、离鼠标最近，不用先往下翻；
+ * 高度上限 = 视口高度 - 单子底边位置 - 8，窗口高时跟着长、窗口矮时收小，但不越过可用空间
+ * （可用空间连 1px 都不剩时只给 24，至少留一条缝）；读不到视口（门禁里没有 window）时退回旧值 380，不抛。 */
+const chainMenuHeightOf = function (bottom: any) { const vh = (typeof window !== 'undefined' && window && window.innerHeight) || 0; const room = Math.round(vh - (Number(bottom) || 0) - 8); return vh > 0 ? (room > 0 ? room : 24) : 380 };
+const chainMenuScrollToEnd = function (el: any) { if (el) try { el.scrollTop = el.scrollHeight } catch (eScroll) {} };
+
 /**
  * 胶囊里那一段。idle / empty 返回 null（不占位）；unreadable 返回一枚小图标；
  * ok 版面上只写图钉图标加当前那张的号（标题再长也不上版面）；鼠标悬停撑起一张单子，
- * 单子里列出当前会话的全部记录（从旧到新往下排，最新沉底离鼠标最近，行内不用 · 分隔，
+ * 单子里列出当前会话的全部记录（从旧到新往下排，最新一条贴底离鼠标最近，行内不用 · 分隔，
  * 号与动作做成徽章），点某一行进那张票的详情。
  *
  * #780 / #1518 / #1553：那一条是**容器**（探索地图或规格）时，号徽章是「地图图标 + 完整编号」
@@ -435,11 +441,11 @@ export const SessionChainCapsule = function (props: any) {
     ])
   }
   const e = view.entry
-  // 单子从旧到新往下排：最新那一条沉底，离鼠标最近；在办表已经按时间倒序，这里翻一面。
+  // 单子从旧到新往下排：最新那一条在最下面、离鼠标最近；在办表已经按时间倒序，这里翻一面。
   // 版面上那个号（下面那个 text span）挂在让位表第 12 号：宽度不够时它也逐字让（最后几位才让），
   //   让位机直接往纯文本元素里写字，这里两处（版面号、环境计数都是纯文本）都是安全的。
   // #1440：展开列表与主胶囊、面板同一条选路 —— 本机只读读数优先，快照兜底。只读快照的话，
-  //   304 回包里挂的那张坏表会把「别的会话还有几张在办」也算成 0，标题栏跟着少报。
+  //   304 回包里挂的那张坏表会把「别的会话还有几张在办」也算成 0，在办单子表头跟着少报。
   const listedView = (function (lk: any) { return (lk && lk.view) || ((typeof workRouteTableOf === 'function') ? workRouteTableOf(st) : null) })((typeof capsuleOwnRoutePick === 'function') ? capsuleOwnRoutePick(st) : null)
   const otherRows = ((listedView && Array.isArray(listedView.rows)) ? listedView.rows : []).filter(function (r: any) { return r && r.currentSession !== true })
   const otherSet: any = {}
@@ -462,12 +468,18 @@ export const SessionChainCapsule = function (props: any) {
   }
   const menu = (st.chainMenuOpen && st.chainMenuPos) ? PortalOverlay({
     className: 'dsws-chainmenu',
+    // #1732：单子一打开就停在末行（在办单子沉底）。ref 挂在滚动容器自己身上，模块级同一个函数引用：
+    //   悬停重渲染（行数没变）不会把列表拽回底部；行数变了（快照回包让列表变长）下面那个 key 会换，
+    //   滚动容器重新挂载，ref 再跑一次，末行重新贴底。
+    key: 'chainmenu-' + displayed.length, ref: chainMenuScrollToEnd,
     onMouseEnter: function () { try { clearStatusClose(closeRef) } catch (eKeep) {} },
     onMouseLeave: function () { chainLater(st, closeRef) },
     onClick: function (ev: any) { if (ev && ev.stopPropagation) ev.stopPropagation() },
     style: {
       position: 'fixed', left: st.chainMenuPos.left, bottom: st.chainMenuPos.bottom,
-      width: 420, maxWidth: 420, maxHeight: 380, overflowY: 'auto', padding: 4, zIndex: 2147483000,
+      // 顶部不放内边距：吸顶表头直接贴住滚动口，滚动口最上面不会露出正滚过去的行；
+      //   scrollPaddingTop 给键盘 Tab 聚焦的行留出表头高度（18 + 上下 2 + 边框 ≈ 24），免得被吸顶表头盖住。
+      width: 420, maxWidth: 420, boxSizing: 'border-box', maxHeight: chainMenuHeightOf(st.chainMenuPos.bottom), overflowY: 'auto', padding: '0 4px 4px', scrollPaddingTop: 24, zIndex: 2147483000,
       background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)',
       borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)',
     },

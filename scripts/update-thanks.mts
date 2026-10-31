@@ -1,22 +1,23 @@
-// scripts/update-thanks.mts —— 致谢表自动追加：拉新编号、进位算花、重排、重画中英两表。
+// scripts/update-thanks.mts —— 致谢数据维护：拉新编号、进位算花、排序，落盘 docs/thanks-data.json。
 //
 // 为什么要有它：
 //   致谢表以前是人肉维护的——新开了 Issue、合了 PR、讨论区多了一条，都要人翻记录、
 //   数花、排顺序，还要在中英两份 README 里逐行对齐。三处对不齐、漏数一朵，
 //   读到的人一眼就能看出来。机器做这件事不会漏、不会数错，跑完直接能合。
 //
-// 数据流只有一条：docs/thanks-data.json 是唯一数据源，README.md 与
-// docs/README.en.md 里标记之间的表格是它的渲染结果。脚本先联网拉新
-// （只看比游标新的编号，老的不再碰），合并进 JSON，再把两表重画。
+// 数据流只有一条：docs/thanks-data.json 是唯一数据源；README.md、docs/README.en.md 与
+// package/README.md 里标记之间的表格统一由 dsh-featherhunter-plugin-base 的 readme:sync
+// 同源渲染（本脚本不再重画 README，表格永远等于 JSON 的渲染结果，不用两边对数）。
+// 脚本先联网拉新（只看比游标新的编号，老的不再碰），合并进 JSON；
 // 中间任何一步拿不到数据（gh 报错、第一页就是空的），直接退出，一个字节都不写——
-// 宁可这次不更新，也不能把表画残。
+// 宁可这次不更新，也不能把数据写残。
 //
 // 用法（都在仓库根目录下跑）：
-//   node scripts/update-thanks.mts              拉新并重画（每日任务与手动都走这条）
-//   node scripts/update-thanks.mts --render-only 不联网，只按 JSON 重画（手工改完 JSON 后用）
+//   node scripts/update-thanks.mts              拉新并写 JSON（每日任务与手动都走这条）
+//   node scripts/update-thanks.mts --render-only 不联网，只按现有 JSON 重新排序序列化（手工改完 JSON 后用）
 //
 // 手工补漏：直接改 docs/thanks-data.json（字段含义见文件头的 _说明），
-// 改完跑 --render-only，表格与 JSON 一起落盘，照常走门禁与提交。
+// 改完跑 pnpm run readme:sync，表格与 JSON 一起落盘，照常走门禁与提交。
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,11 +27,9 @@ const ROOT: string = path.dirname(path.dirname(url.fileURLToPath(import.meta.url
 const REPO_OWNER: string = 'FeatherHunter';
 const REPO_NAME: string = 'dsh-mattpocock-skills-deck';
 const DATA_PATH: string = path.join(ROOT, 'docs', 'thanks-data.json');
-const README_ZH: string = path.join(ROOT, 'README.md');
-const README_EN: string = path.join(ROOT, 'docs', 'README.en.md');
-const README_PKG: string = path.join(ROOT, 'package', 'README.md');
 
-// 表格在正文里的起止标记：脚本只替换标记之间的内容，标记之外的介绍语、结尾语一个字都不碰。
+// 表格在正文里的起止标记：readme:sync 只替换标记之间的内容，标记之外的介绍语、结尾语一个字都不碰。
+// 本脚本不再用它们落盘，但门禁会 import 这四个常量去 README 里读表格做比对，名字与引号形态别动。
 export const ZH_START: string = '<!-- THANKS-TABLE-ZH-START -->';
 export const ZH_END: string = '<!-- THANKS-TABLE-ZH-END -->';
 export const EN_START: string = '<!-- THANKS-TABLE-EN-START -->';
@@ -151,17 +150,6 @@ export function renderTable(authors: Record<string, AuthorRec>, chinese: boolean
   const lines: string[] = [header, '| --- | --- | --- |'];
   for (const login of orderedLogins(authors)) lines.push(renderRow(login, authors[login]));
   return lines.join('\n');
-}
-
-// 把正文里起止标记之间的内容换成新表；找不到标记就抛错，不静默跳过。
-export function applyTable(text: string, start: string, end: string, table: string): { text: string; changed: boolean } {
-  const si: number = text.indexOf(start);
-  const ei: number = text.indexOf(end);
-  if (si < 0 || ei < 0 || ei < si) throw new Error(`找不到完整的表格标记：${start} / ${end}`);
-  const before: string = text.slice(0, si + start.length);
-  const after: string = text.slice(ei);
-  const next: string = `${before}\n${table}\n${after}`;
-  return { text: next, changed: next !== text };
 }
 
 // ---------------------------------------------------------------------------
@@ -329,39 +317,17 @@ function main(): void {
   data.authors = sortedAuthors;
   const jsonText: string = JSON.stringify(data, null, 2) + '\n';
   const oldJson: string = fs.existsSync(DATA_PATH) ? fs.readFileSync(DATA_PATH, 'utf8') : '';
-  const zhTable: string = renderTable(data.authors, true);
-  const enTable: string = renderTable(data.authors, false);
-
-  const targets: Array<{ file: string; start: string; end: string; table: string }> = [
-    { file: README_ZH, start: ZH_START, end: ZH_END, table: zhTable },
-    { file: README_EN, start: EN_START, end: EN_END, table: enTable },
-    // 包内说明是构建时从中文 README 原样同步的：三处用同一份表格文字写盘，
-    // 下次构建重抄一遍结果一字不差，同步门禁不会红。
-    { file: README_PKG, start: ZH_START, end: ZH_END, table: zhTable },
-  ];
-  let changedFiles: string[] = [];
-  const pending: Array<{ file: string; text: string }> = [];
-  for (const t of targets) {
-    if (!fs.existsSync(t.file)) {
-      console.error(`找不到 ${t.file}，什么都不改。`);
-      process.exit(1);
-    }
-    const { text, changed } = applyTable(fs.readFileSync(t.file, 'utf8'), t.start, t.end, t.table);
-    if (changed) {
-      pending.push({ file: t.file, text });
-      changedFiles.push(t.file);
-    }
-  }
-  const jsonChanged: boolean = jsonText !== oldJson;
-  if (!jsonChanged && pending.length === 0) {
-    console.log(`致谢表已是最新（议题看到 ${data.cursors.issues} 号、讨论看到 ${data.cursors.discussions} 号），无需更新。`);
+  // 只维护数据：README 三处的表格由 readme:sync 从这份 JSON 同源渲染，本脚本不碰 README。
+  //   数据没变就不落盘（每日任务因此不会每天摸出一个空提交），变了才写并提示去跑同步。
+  if (jsonText === oldJson) {
+    console.log(`致谢数据已是最新（议题看到 ${data.cursors.issues} 号、讨论看到 ${data.cursors.discussions} 号），无需更新。`);
     return;
   }
-  if (jsonChanged) fs.writeFileSync(DATA_PATH, jsonText);
-  for (const p of pending) fs.writeFileSync(p.file, p.text);
+  fs.writeFileSync(DATA_PATH, jsonText);
   console.log(
-    `致谢表已更新：新增事项 ${addedItems} 条${addedAuthors.length ? '、新人 ' + addedAuthors.join('、') : ''}；` +
-      `游标推到议题 ${data.cursors.issues} 号、讨论 ${data.cursors.discussions} 号；改动文件：${[...(jsonChanged ? [DATA_PATH] : []), ...changedFiles].join('、')}`,
+    `致谢数据已更新：新增事项 ${addedItems} 条${addedAuthors.length ? '、新人 ' + addedAuthors.join('、') : ''}；` +
+      `游标推到议题 ${data.cursors.issues} 号、讨论 ${data.cursors.discussions} 号；改动文件：${path.relative(ROOT, DATA_PATH)}；` +
+      'README 里的致谢表记得跟着跑一次 readme:sync。',
   );
 }
 

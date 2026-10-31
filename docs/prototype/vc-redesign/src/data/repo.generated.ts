@@ -1,5 +1,5 @@
 // AUTO-GENERATED。来源脚本：docs/prototype/vc-redesign/tools/capture-git.ts。
-// 采集时间 2026-10-30T18:53:26.750Z；仓库根 D:\dsh-plugin\dsh-mattpocock-skills-deck；分支 main；提交 50 条；工作树 60 棵；
+// 采集时间 2026-10-30T18:53:26.750Z；仓库根 D:\dsh-plugin\dsh-mattpocock-skills-deck；分支 main；提交 50 条；工作区 60 个；
 // 远端 3 个；标签 40 个；本地分支 112 条；引用 325 条；钩子目录 14 项。
 // 不要手改；要刷新就重新跑一次生成脚本。
 export interface CapturedFile {

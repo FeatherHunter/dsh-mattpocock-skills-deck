@@ -46,8 +46,8 @@ const badShapeExec = async function () { return { stdout: '{}', stderr: '', code
 async function main() {
   console.log('GitHub 房间额度读数门禁（#1443：三态回未知带原因，成功回两桶）')
   let budget = null
-  try { budget = await imp('src/tracker/rooms/github/budget.ts') } catch (e) {
-    check(false, '读数模块可加载（src/tracker/rooms/github/budget.ts）：' + String((e && e.message) || e))
+  try { budget = await imp('src/tracker/rooms/github/transport/budget.ts') } catch (e) {
+    check(false, '读数模块可加载（src/tracker/rooms/github/transport/budget.ts）：' + String((e && e.message) || e))
     console.log('\n' + total + ' 条断言，失败'); process.exit(1)
   }
   check(budget && typeof budget.readGithubBudget === 'function', '交出 readGithubBudget（房间读数实现）')
@@ -69,12 +69,12 @@ async function main() {
   const badShape = await budget.readGithubBudget(makeCtx(badShapeExec, ghPresentResolve))
   check(badShape && badShape.ok === true && badShape.data && badShape.data.known === false && badShape.data.reason === 'unavailable', '解析不出两桶回读数未知（unavailable）')
   let factory = null
-  try { factory = await imp('src/tracker/rooms/github/backend.ts') } catch (e) { check(false, '后端工厂可加载：' + String((e && e.message) || e)) }
+  try { factory = await imp('src/tracker/rooms/github/room/backend.ts') } catch (e) { check(false, '后端工厂可加载：' + String((e && e.message) || e)) }
   let backend = null
   try { backend = factory.createGithubBackend(makeCtx(successExec, ghPresentResolve)) } catch (e) { check(false, '工厂可装配：' + String((e && e.message) || e)) }
   check(backend && typeof backend.readBudget === 'function', '工厂交出 readBudget 成员（登记推成员，缺了编译先红）')
   let register = null
-  try { register = await imp('src/tracker/rooms/github/capability-register.ts') } catch (e) { check(false, '登记可加载：' + String((e && e.message) || e)) }
+  try { register = await imp('src/tracker/rooms/github/support/capability-register.ts') } catch (e) { check(false, '登记可加载：' + String((e && e.message) || e)) }
   const tier = register && register.GITHUB_CAPABILITY_REGISTER && register.GITHUB_CAPABILITY_REGISTER.readBudget && register.GITHUB_CAPABILITY_REGISTER.readBudget.tier
   check(tier === 'provided', '登记里 readBudget 已是明确提供功能（不再是 planned，欠账清掉）')
   const fs = await import('node:fs')

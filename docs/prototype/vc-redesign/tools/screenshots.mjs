@@ -57,7 +57,7 @@ const SHOTS = [
   // 分组标题右侧的两颗动作（全部加入 / 丢弃全部）作为一组靠右：补一张改动页，评审看对齐时不用自己点数。
   { name: '62-changes-460', query: 'view=changes' },
   { name: '63-changes-300', query: 'view=changes', width: 300 },
-  // 第四个页签换了叫法（贮藏 → 收起的改动）：补一张当前布局下的记录列表，评审不用翻到旧布局那批图。
+  // 第四个页签按官方术语叫「储藏」：补一张当前布局下的记录列表，评审不用翻到旧布局那批图。
   { name: '64-stash-460', query: 'view=stash&stashdemo=1' },
   // 八条界面意见改完后的状态：统计卡、拉取确认、两处更多菜单与浅色改动页。
   { name: '65-changes-light-460', query: 'view=changes', theme: 'light' },

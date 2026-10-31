@@ -103,7 +103,7 @@ function ghCtxFor(factory) {
 
 async function main() {
   console.log('#790 父子边静默失败专属门禁（不联网，严格仿真真 GitHub）')
-  const graph = await imp('src/tracker/rooms/github/graph.ts')
+  const graph = await imp('src/tracker/rooms/github/write/graph.ts')
   const repo = { backend: 'github', refId: 'o/r', name: 'r', url: '' }
 
   // A) 主路走原生旗

@@ -40,6 +40,7 @@
     "build.mts",
     "bundle-update-entry.mts",
     "create-release-issue.mts",
+    "derive-base-from-package.mts",
     "derive-log-from-package.mts",
     "derive-update-from-package.mts",
     "fix-issue-body.mts",

@@ -1,5 +1,5 @@
 /**
- * 把本仓库真实的历史、工作树、远端、标签、配置、钩子与仓库体量采集成一份固定数据，
+ * 把本仓库真实的历史、工作区、远端、标签、配置、钩子与仓库体量采集成一份固定数据，
  * 供原型渲染使用。
  *
  * 为什么要生成而不是手写：原型要回答的是「这套界面在真实数据上长什么样」，
@@ -52,7 +52,7 @@ interface CapturedWorktree {
   prunable: boolean
 }
 
-/** 一个远端：名字、抓取地址、推送地址。三者分开存，因为推送地址可以单独改。 */
+/** 一个远端：名字、获取地址、推送地址。三者分开存，因为推送地址可以单独改。 */
 interface CapturedRemote {
   name: string
   fetchUrl: string
@@ -277,7 +277,7 @@ const data = {
 }
 
 const header = `// AUTO-GENERATED。来源脚本：docs/prototype/vc-redesign/tools/capture-git.ts。
-// 采集时间 ${data.generatedAt}；仓库根 ${repoRoot}；分支 ${branch}；提交 ${commits.length} 条；工作树 ${worktrees.length} 棵；
+// 采集时间 ${data.generatedAt}；仓库根 ${repoRoot}；分支 ${branch}；提交 ${commits.length} 条；工作区 ${worktrees.length} 个；
 // 远端 ${remotes.length} 个；标签 ${tags.length} 个；本地分支 ${localBranches} 条；引用 ${refsTotal} 条；钩子目录 ${hooks.length} 项。
 // 不要手改；要刷新就重新跑一次生成脚本。
 `

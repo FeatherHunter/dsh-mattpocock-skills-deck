@@ -47,12 +47,17 @@ function roomFiles(): string[] {
   return out.sort()
 }
 
-/** 从「谁 import 了 kernel/log-emit.js」那一行里取出名字清单（只认这一份公共件的对口 import）。 */
-function kernelImports(text: string): string[] {
-  const re = /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+'\.\.\/\.\.\/kernel\/log-emit\.js'/g
+/** 从「谁 import 了 kernel/log-emit.js」那一行里取出名字清单（只认这一份公共件的对口 import）。
+ *
+ * 说明符按文件自己所在目录解析，不按固定层数比对：#1684 把 client-support.ts 搬进 transport/ 后，
+ * 同一份内核文件在它里面写成 ../../../kernel/log-emit.js。写死 ../../ 会把合法导入当成漏导入，
+ * 而放宽成「任意深度」又会让指向别处的同名文件混进来——解析到内核那一份才算数。 */
+function kernelImports(text: string, file: string): string[] {
+  const re = /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+'([^']*\/kernel\/log-emit\.js)'/g
   const names: string[] = []
   let m: RegExpExecArray | null
   while ((m = re.exec(text)) !== null) {
+    if (path.resolve(path.dirname(file), m[2].replace(/\.js$/, '.ts')) !== KERNEL_EMIT) continue
     for (const raw of m[1].split(',')) {
       const n = raw.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0].trim()
       if (n) names.push(n)
@@ -81,10 +86,10 @@ const noImport: string[] = []
 const importedNames = new Set<string>()
 for (const f of files) {
   const text = fs.readFileSync(f, 'utf8')
-  for (const n of kernelImports(text)) importedNames.add(n)
+  for (const n of kernelImports(text, f)) importedNames.add(n)
   if (!/\.logEvent\s*\(/.test(text)) continue
   callers.push(rel(f))
-  if (kernelImports(text).indexOf('guardEmit') < 0) noImport.push(rel(f))
+  if (kernelImports(text, f).indexOf('guardEmit') < 0) noImport.push(rel(f))
 }
 check(callers.length >= 10, '房里调 logEvent 的文件都数得出来（至少 10 份）→ 实得 ' + callers.length + ' 份')
 check(noImport.length === 0, '调 logEvent 的房内文件都 import 过 guardEmit → 漏的 ' + JSON.stringify(noImport))
@@ -95,7 +100,7 @@ for (const name of ['guardEmit', 'ms', 'outcomeOf', 'debugOn']) {
   const exported = new RegExp('export\\s+(?:async\\s+)?function\\s+' + name + '\\b').test(kernelText)
   check(exported, '内核 log-emit.ts 导出了 ' + name)
   check(importedNames.has(name), '至少有房内文件 import 了内核的 ' + name + ' → 实得用户数 ' +
-    files.filter((f) => kernelImports(fs.readFileSync(f, 'utf8')).indexOf(name) >= 0).length)
+    files.filter((f) => kernelImports(fs.readFileSync(f, 'utf8'), f).indexOf(name) >= 0).length)
 }
 
 console.log('== 四、房里不许再各自声明这几个公共件 ==')

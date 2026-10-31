@@ -243,7 +243,7 @@ async function callSetBlockedBy(graph: any, state: Stub, target: string[], key =
 
 async function main() {
   console.log('#1054 关系与边门禁：写前对账只看真值 + 四个边事件（不联网，桩照真机形状）')
-  const graph = await imp('src/tracker/rooms/github/graph.ts')
+  const graph = await imp('src/tracker/rooms/github/write/graph.ts')
 
   // ── S1 核心修复：契约读回是空的（模拟 GraphQL 降级），原生真值看得见「2 已经在位」 ──
   {
@@ -360,7 +360,7 @@ async function main() {
 
   // ── S11 REST 树边修复：认下几条子票边、失败的数得出来 ──
   {
-    const repair = await imp('src/tracker/rooms/github/parent-repair.ts')
+    const repair = await imp('src/tracker/rooms/github/read/parent-repair.ts')
     const state = makeState({ subIssues: { '10': [100, 101] } })
     const log: any[] = []
     const ctx = makeCtx(makeStub(state), null, log, true)

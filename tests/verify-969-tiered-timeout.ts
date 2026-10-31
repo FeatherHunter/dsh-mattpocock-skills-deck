@@ -109,14 +109,14 @@ if (tiers) {
   // 只测纯函数还不够：两个出站包装器真的把它接上了，才算修好。
   // #1429 C8：host 的 runGh 已并入 gh-execution.ts，读新家。
   const hostSource = readFileSync(nodePath.join(ROOT, 'src/refresh/rooms/host/gh-execution.ts'), 'utf8')
-  const roomSource = readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts'), 'utf8')
+  const roomSource = readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/github/transport/client.ts'), 'utf8')
   check(hostSource.indexOf('normalizeGhStringFields(args)') >= 0, '一、host 的 runGh 出站前调用了归一化')
   check(roomSource.indexOf('normalizeGhStringFields(args)') >= 0, '一、房内 execGh 出站前调用了归一化')
 }
 
 // —— 二、慢网超时归网络档，不报没登录 ——
 {
-  const { classifyGhError } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/errors.ts')).href)
+  const { classifyGhError } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/support/errors.ts')).href)
   const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
   // 超时原文（含 timeout / timed out / 超时杀掉）一律归网络档
   check(classifyGhError({ message: 'timeout of 12000ms exceeded' }) === ERROR_KIND.NETWORK, '二、读超时原文归网络档（未知、稍后）')
@@ -129,7 +129,7 @@ if (tiers) {
 
 // —— 三、执行层按档取超时：读、写、探活各按中央常量那一档（#1160、#1224）——
 {
-  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
+  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/transport/client.ts')).href)
   // 假执行器：只记调用方要它等多久，不真起进程
   const seen = []
   const fakeExec = async (cmd, args, opts) => {
@@ -162,7 +162,7 @@ if (tiers) {
 
 // —— 四、写超时只试一次就停，不自动再发一次 ——
 {
-  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
+  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/transport/client.ts')).href)
   const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
   let calls = 0
   const timeoutExec = async () => {
@@ -199,7 +199,7 @@ if (tiers) {
 
 // —— 六、房内自己掐表（#1007）：排队段也算进这只表，且与「调用方取消」分得开 ——
 {
-  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
+  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/transport/client.ts')).href)
   const { getGhLane, resetGhLaneForTest } = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/outbound-admission.ts')).href)
   const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
 
@@ -258,7 +258,7 @@ if (tiers) {
 
 // —— 七、房内排队只等上限（#1560）：名额满时不等整档，上限到点报「还在排队、一次没跑」——
 {
-  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
+  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/transport/client.ts')).href)
   const { getGhLane, resetGhLaneForTest } = await import(pathToFileURL(nodePath.join(ROOT, 'src/refresh/rooms/host/outbound-admission.ts')).href)
   const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
   const tiers7 = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/kernel/outbound-tiers.ts')).href)
@@ -267,7 +267,7 @@ if (tiers) {
   // 上限算式住在共用 kernel：读档取中央 10 秒，本档预算比上限还短时取本档。
   check(tiers7.queueTimeoutForTier(READ_BUDGET_MS) === GH_QUEUE_WAIT_TIMEOUT_MS && GH_QUEUE_WAIT_TIMEOUT_MS === 10000, '七、读档的排队上限是中央 10 秒（不是整档 ' + READ_BUDGET_MS / 1000 + ' 秒）', String(tiers7.queueTimeoutForTier(READ_BUDGET_MS)))
   check(tiers7.queueTimeoutForTier(500) === 500, '七、本档预算比上限还短时排队只等本档', String(tiers7.queueTimeoutForTier(500)))
-  const roomSource = readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts'), 'utf8')
+  const roomSource = readFileSync(nodePath.join(ROOT, 'src/tracker/rooms/github/transport/client.ts'), 'utf8')
   check(roomSource.indexOf('queueTimeoutForTier') >= 0 && roomSource.indexOf('waitMs: queueLimit') >= 0 && roomSource.indexOf('queueWon') < 0 && roomSource.indexOf('clearQueueTimer') < 0, '七、房内 execGh 只把排队预算递给闸，不再自己起表赛跑（#1570）', '')
 
   // 名额占满：读档默认预算下约 10 秒即报「还在排队」，不等 30 秒整档.

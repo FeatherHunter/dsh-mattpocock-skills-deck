@@ -8,7 +8,7 @@
 > 下文 §0 与 §4 里写 `spec.md` 的段落保留作历史记录，以 `docs/design/1277-md-spec-container.md` 为准。
 >
 > **2026-10-25 再次更新（#1480）**：上面这条 #1277 更新被纠正回来。本地 Markdown 后端写出的文件格式与位置，以随包技能原文
-> `package/bundled-skills/setup-matt-pocock-skills/issue-tracker-local.md`（pin v1.3.1）为唯一真源：规格重新是
+> `package/bundled-skills/setup-matt-pocock-skills/issue-tracker-local.md`（pin v1.3.2）为唯一真源：规格重新是
 > `.scratch/<feature-slug>/spec.md`，实施票、地图子票与普通票在 `.scratch/<effort>/issues/<NN>-<slug>.md`。#1277 那段只留作历史，
 > 完整裁决见 `docs/adr/20261025-markdown-format-original.md`。
 

@@ -41,16 +41,18 @@ export const SUGGEST_APPEARANCE = {
   /** 磨砂：选项药丸的背景模糊半径（backdrop-filter:blur），越大越看不清底字；配下面加实的底色一起用。 */
   pillBlurPx: 12,
   /** 悬停浮层：底边离选项框顶边的距离、最大宽度、圆角与内边距（#1451 后续：选项框上只留
-   *  简介，理由收进框正上方的浮层，不跟鼠标走）。 */
+   *  简介，理由收进框正上方的浮层，不跟鼠标走；2026-10-31 浮层改成四行——推荐分/理由/优点/缺点，
+   *  宽度从 280 放到 340，让每行 30 个字的正文最多换两行）。 */
   popGapPx: 6,
-  popMaxWidthPx: 280,
+  popMaxWidthPx: 340,
   popRadiusPx: 8,
   popPadY: 6,
   popPadX: 10,
   /** 悬停浮层的背景模糊半径（与药丸同一套磨砂）。 */
   popBlurPx: 10,
-  /** 浮层里评分泡与后面理由正文的间距：评分贴在第一行开头，跟字之间留一点空，别贴死。 */
-  scoreGapPx: 6,
+  /** 浮层四行的行距，以及左边标签列与右边正文之间的间距。 */
+  popRowGapPx: 2,
+  popLabelGapPx: 6,
   /** 选项行与关闭按钮行之间的间距。 */
   groupGapPx: 7,
   closeRowMarginTopPx: 10,

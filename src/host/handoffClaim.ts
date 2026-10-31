@@ -183,7 +183,7 @@ export function createHandoffClaim(deps: HandoffClaimDeps): any {
           if (ur && ur.ok && ur.data && ur.data.login) { assignedTo = String(ur.data.login); claimAs = assignedTo }
         } catch (e1: any) { /* 取名字失败不改认领 */ }
         // ② 先读现有指派人再并集：房间的 setAssignees 是「最终集合 = 传入数组」的整批覆盖语义
-        //   （src/tracker/rooms/github/issues-write.ts:395 会把不在名单里的人逐条 --remove-assignee），
+        //   （src/tracker/rooms/github/write/issues.ts:395 会把不在名单里的人逐条 --remove-assignee），
         //   照旧实现只传 [自己] 会把别人从票上撤掉；读失败就只传自己，等价于旧的「只加不减」。
         const next: string[] = [claimAs]
         try {
