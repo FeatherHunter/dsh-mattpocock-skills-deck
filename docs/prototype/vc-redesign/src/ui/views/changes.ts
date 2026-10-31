@@ -42,7 +42,9 @@ export function renderChanges(model: ChangesModel, result: ResultMessage | null)
   const list = h('div', { class: 'changes-scroll' })
   // 行级动作（丢弃、忽略、解决冲突、贮藏）的结果贴在列表最上面：它离刚点过的那一行最近。
   // 提交结果留在底部提交区，因为它由底部的提交按钮产生。
-  if (result !== null && result.source !== 'commit') list.append(resultBanner(result))
+  // 同步动作（拉取、更新、推送）与重新读取的结果已经在顶部同步带里报过，这里不再重复画一条：
+  // 同一条结果画两处，读者会以为发生了两件事。
+  if (result !== null && result.source === 'changes') list.append(resultBanner(result))
   if (model.ignoredNote !== null) list.append(h('div', { class: 'changes-note' }, note(model.ignoredNote, 'muted')))
   if (model.empty) {
     list.append(emptyState(COPY.changes.emptyTitle, COPY.changes.emptyHint))

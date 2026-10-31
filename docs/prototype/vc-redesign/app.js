@@ -7752,7 +7752,7 @@
       );
     }
     const list = h("div", { class: "changes-scroll" });
-    if (result !== null && result.source !== "commit") list.append(resultBanner(result));
+    if (result !== null && result.source === "changes") list.append(resultBanner(result));
     if (model.ignoredNote !== null) list.append(h("div", { class: "changes-note" }, note(model.ignoredNote, "muted")));
     if (model.empty) {
       list.append(emptyState(COPY.changes.emptyTitle, COPY.changes.emptyHint));
@@ -8537,7 +8537,7 @@
     view.append(head);
     view.append(note(COPY.stash.boundary, "muted"));
     const scroll = h("div", { class: "stash-scroll" });
-    if (result !== null) scroll.append(resultBanner(result));
+    if (result !== null && result.source === "stash") scroll.append(resultBanner(result));
     if (model.empty) {
       scroll.append(emptyState(COPY.stash.empty, COPY.stash.emptyHint));
     } else {

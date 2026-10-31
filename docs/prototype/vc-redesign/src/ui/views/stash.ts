@@ -23,7 +23,8 @@ export function renderStash(model: StashModel, result: ResultMessage | null): HT
   view.append(note(COPY.stash.boundary, 'muted'))
 
   const scroll = h('div', { class: 'stash-scroll' })
-  if (result !== null) scroll.append(resultBanner(result))
+  // 只显示贮藏动作自己的结果；别的页签的动作结果不追到这里来，避免同一条消息在两个页签重复出现。
+  if (result !== null && result.source === 'stash') scroll.append(resultBanner(result))
   if (model.empty) {
     scroll.append(emptyState(COPY.stash.empty, COPY.stash.emptyHint))
   } else {
