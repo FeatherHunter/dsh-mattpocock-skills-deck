@@ -1,15 +1,15 @@
-// 派生文件（base 包接入）：由已安装的 dsh-featherhunter-plugin-base@0.1.4 的 dist/client/index.js 内联生成，内容与安装版本一致，人手不改。
+// 派生文件（base 包接入）：由已安装的 dsh-featherhunter-plugin-base@0.1.5 的 dist/client/index.js 内联生成，内容与安装版本一致，人手不改。
 // 构建时拼入客户端闭包（src/client/index.ts 的 kernel:baseClient 标记处）；首行保留包的版本横幅供 doctor 的 inline-bundle-version 核对。
 // 重新生成：node scripts/derive-base-from-package.mts（重跑零 diff）。
 // ---- 作用域隔离：包体顶层声明包进 IIFE 藏起来，只留两个外面要用的 ----
 const __basePkgScope = (() => {
-  /*! dsh-featherhunter-plugin-base v0.1.4 */
+  /*! dsh-featherhunter-plugin-base v0.1.5 */
 
   // src/core/baseline.ts
   var BASELINE = {
     "manifest": {
       "schema": 1,
-      "version": "0.1.4",
+      "version": "0.1.5",
       "revision": 2,
       "updatedAt": "2026-10-31T00:00:00+08:00",
       "fallbackUrl": "https://github.com/FeatherHunter/featherhunter-plugin-manage",
@@ -371,6 +371,79 @@ const __basePkgScope = (() => {
   var EDGE = 8;
   var activeDispose = null;
   var tipSerial = 0;
+  var TIP_HIDE_DELAY = 160;
+  function createTipController(options = {}) {
+    const hideDelay = options.hideDelay ?? TIP_HIDE_DELAY;
+    let handle = null;
+    let described = null;
+    let hideTimer = null;
+    let onKeyDown = null;
+    function boundedDocument() {
+      return typeof document === "undefined" ? null : document;
+    }
+    function unbindEscape() {
+      const doc = boundedDocument();
+      if (!doc || !onKeyDown) return;
+      doc.removeEventListener("keydown", onKeyDown, true);
+      onKeyDown = null;
+    }
+    function clearDescribed() {
+      if (!described) return;
+      described.removeAttribute("aria-describedby");
+      described = null;
+    }
+    function hideNow() {
+      if (hideTimer !== null) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+      unbindEscape();
+      if (handle) {
+        handle.dispose();
+        handle = null;
+      }
+      clearDescribed();
+    }
+    return {
+      show(anchor, content) {
+        if (typeof document === "undefined") return;
+        if (hideTimer !== null) {
+          clearTimeout(hideTimer);
+          hideTimer = null;
+        }
+        if (handle) {
+          handle.dispose();
+          handle = null;
+        }
+        clearDescribed();
+        const tip = mountTip(anchor, content, {
+          exclusive: true,
+          maxWidth: options.maxWidth
+        });
+        handle = tip;
+        if (tip.id) {
+          anchor.setAttribute("aria-describedby", tip.id);
+          described = anchor;
+        }
+        const doc = boundedDocument();
+        if (doc && !onKeyDown) {
+          onKeyDown = (event) => {
+            if (event.key === "Escape") hideNow();
+          };
+          doc.addEventListener("keydown", onKeyDown, true);
+        }
+      },
+      hideSoon() {
+        if (hideTimer !== null) clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => {
+          hideTimer = null;
+          hideNow();
+        }, hideDelay);
+      },
+      hideNow,
+      dispose: hideNow
+    };
+  }
   function mountTip(anchor, content, options = {}) {
     if (typeof document === "undefined") {
       return { id: "", dispose: () => {
@@ -955,7 +1028,6 @@ const __basePkgScope = (() => {
   // src/client/cluster.ts
   var DEFAULT_SIZE = 16;
   var DEFAULT_GAP = 4;
-  var TIP_HIDE_DELAY = 160;
   var BUTTON_PADDING = 12;
   function trimSlashes2(url) {
     return url.replace(/\/+$/, "");
@@ -965,73 +1037,6 @@ const __basePkgScope = (() => {
   }
   function actionClass(id) {
     return "dsh-base-cluster__btn--" + id.replace(/[^a-zA-Z0-9_-]/g, "-");
-  }
-  function createClusterTip() {
-    let handle = null;
-    let described = null;
-    let hideTimer = null;
-    let onKeyDown = null;
-    function boundedDocument() {
-      return typeof document === "undefined" ? null : document;
-    }
-    function unbindEscape() {
-      const doc = boundedDocument();
-      if (!doc || !onKeyDown) return;
-      doc.removeEventListener("keydown", onKeyDown, true);
-      onKeyDown = null;
-    }
-    function clearDescribed() {
-      if (!described) return;
-      described.removeAttribute("aria-describedby");
-      described = null;
-    }
-    function hideNow() {
-      if (hideTimer !== null) {
-        clearTimeout(hideTimer);
-        hideTimer = null;
-      }
-      unbindEscape();
-      if (handle) {
-        handle.dispose();
-        handle = null;
-      }
-      clearDescribed();
-    }
-    return {
-      show(anchor, content) {
-        if (hideTimer !== null) {
-          clearTimeout(hideTimer);
-          hideTimer = null;
-        }
-        if (handle) {
-          handle.dispose();
-          handle = null;
-        }
-        clearDescribed();
-        const tip = mountTip(anchor, content, { exclusive: true });
-        handle = tip;
-        if (tip.id) {
-          anchor.setAttribute("aria-describedby", tip.id);
-          described = anchor;
-        }
-        const doc = boundedDocument();
-        if (doc && !onKeyDown) {
-          onKeyDown = (event) => {
-            if (event.key === "Escape") hideNow();
-          };
-          doc.addEventListener("keydown", onKeyDown, true);
-        }
-      },
-      hideSoon() {
-        if (hideTimer !== null) clearTimeout(hideTimer);
-        hideTimer = setTimeout(() => {
-          hideTimer = null;
-          hideNow();
-        }, TIP_HIDE_DELAY);
-      },
-      hideNow,
-      dispose: hideNow
-    };
   }
   function createActionCluster(React, deps) {
     const h = React.createElement;
@@ -1071,7 +1076,7 @@ const __basePkgScope = (() => {
       const size = props.size ?? DEFAULT_SIZE;
       const gap = props.gap ?? DEFAULT_GAP;
       const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, "");
-      const tip = React.useMemo(() => createClusterTip(), []);
+      const tip = React.useMemo(() => createTipController(), []);
       const [menuOpen, setMenuOpen] = React.useState(false);
       const moreRef = React.useRef(null);
       const menuRef = React.useRef(null);
@@ -1748,9 +1753,9 @@ const __basePkgScope = (() => {
       expired: "\u8BE5\u4E8C\u7EF4\u7801\u5DF2\u8FC7\u671F\uFF0C\u8BF7\u70B9\u51FB\u4E0B\u65B9\u94FE\u63A5\u83B7\u53D6\u6700\u65B0\u7FA4\u7801",
       fallback: "\u70B9\u6B64\u83B7\u53D6\u6700\u65B0\u7FA4\u4E8C\u7EF4\u7801",
       plugins: "\u4F5C\u8005\u7684\u5176\u4ED6\u63D2\u4EF6",
-      contactTip: "\u626B\u7801\u52A0\u5165\u4EA4\u6D41\u7FA4\uFF0C\u53CD\u9988\u3001\u5EFA\u8BAE\u3001idea \u90FD\u6B22\u8FCE",
+      contactTip: "\u626B\u7801\u52A0\u5165\u4EA4\u6D41\u7FA4\uFF0C\u53CD\u9988\u3001\u5EFA\u8BAE\u3001idea \u90FD\u6B22\u8FCE\u{1F389}",
       starTip: "\u60A8\u7684\u{1F31F}\u662F\u6211\u591C\u7A7A\u4E2D\u6700\u4EAE\u7684\u661F\u{1F339}",
-      issueTip: "\u4EFB\u4F55\u529F\u80FD\u9700\u6C42\u3001\u6545\u969C\u3001\u5EFA\u8BAE\u3001\u610F\u89C1\u90FD\u53EF\u4EE5\u63D0 ISSUE",
+      issueTip: "\u4EFB\u4F55\u529F\u80FD\u9700\u6C42\u3001\u6545\u969C\u3001\u5EFA\u8BAE\u3001\u610F\u89C1\u90FD\u53EF\u4EE5\u63D0ISSUE\u95EE\u9898\u5355\u{1F64F}",
       starLabel: "Star \u8FD9\u4E2A\u9879\u76EE",
       issueLabel: "\u63D0\u4EA4 Issue",
       actionsLabel: "\u5FEB\u6377\u64CD\u4F5C",
@@ -1770,9 +1775,9 @@ const __basePkgScope = (() => {
       expired: "This QR code has expired. Use the link below for the latest one.",
       fallback: "Get the latest QR code",
       plugins: "More plugins by the author",
-      contactTip: "Scan to join the community \u2014 feedback, ideas and rants are all welcome",
+      contactTip: "Scan to join the community \u2014 feedback, ideas and rants are all welcome \u{1F389}",
       starTip: "Your \u2B50 is the brightest star in my night sky \u{1F339}",
-      issueTip: "Report bugs or request features in Issues",
+      issueTip: "Feature requests, bugs or ideas \u2014 just open an ISSUE ticket \u{1F64F}",
       starLabel: "Star this project",
       issueLabel: "Open an issue",
       actionsLabel: "Quick actions",
@@ -2032,8 +2037,20 @@ const __basePkgScope = (() => {
       h(
         "ul",
         { className: "dsh-base-plugins__list", key: "list" },
-        rows.map(
-          (plugin) => h(
+        rows.map((plugin) => {
+          const desc = pickText(plugin.desc, options.lang);
+          const tip = options.tip;
+          const rowTip = tip && desc ? {
+            onMouseEnter: (event) => {
+              tip.show(event.currentTarget, desc);
+            },
+            onMouseLeave: () => tip.hideSoon(),
+            onFocus: (event) => {
+              tip.show(event.currentTarget, desc);
+            },
+            onBlur: () => tip.hideSoon()
+          } : {};
+          return h(
             "li",
             { className: "dsh-base-plugins__item", key: plugin.id },
             h(
@@ -2042,7 +2059,8 @@ const __basePkgScope = (() => {
                 className: "dsh-base-plugins__row",
                 href: pluginHref(plugin),
                 target: "_blank",
-                rel: "noopener noreferrer"
+                rel: "noopener noreferrer",
+                ...rowTip
               },
               h(
                 "span",
@@ -2050,19 +2068,15 @@ const __basePkgScope = (() => {
                 gridIcon(h, 12)
               ),
               h("span", { className: "dsh-base-plugins__name", key: "name" }, plugin.name),
-              h(
-                "span",
-                { className: "dsh-base-plugins__desc", key: "desc" },
-                pickText(plugin.desc, options.lang)
-              ),
+              h("span", { className: "dsh-base-plugins__desc", key: "desc" }, desc),
               h(
                 "span",
                 { className: "dsh-base-plugins__ext", key: "ext", "aria-hidden": "true" },
                 externalLinkIcon(h)
               )
             )
-          )
-        )
+          );
+        })
       )
     );
   }
@@ -2256,6 +2270,8 @@ const __basePkgScope = (() => {
     function AuthorPlugins(props) {
       const explicitPlugins = props.plugins;
       const [remotePlugins, setRemotePlugins] = React.useState(null);
+      const tip = React.useMemo(() => createTipController(), []);
+      React.useEffect(() => () => tip.dispose(), [tip]);
       React.useEffect(() => {
         if (explicitPlugins !== void 0) return void 0;
         const currentLoader = getLoader();
@@ -2284,7 +2300,8 @@ const __basePkgScope = (() => {
         showSelf: props.showSelf ?? options.showSelf,
         maxRows: props.maxRows ?? options.maxRows,
         title: props.title ?? resolveText("plugins", lang, options.texts),
-        className: props.className
+        className: props.className,
+        tip
       });
     }
     async function preloadContent() {

@@ -21,6 +21,9 @@ import { resolveRepoRefForCwd } from '../../../tracker/session/repo-ref.js'
 // 两件事都挂在这条现有探测拍上判（下面用两个按 cwd 记的毫秒时刻），本文件不新建任何定时器。
 import { calibrationDue, createFallbackRoundBudget, fallbackStandingOf, probeDue } from '../../kernel/fallback-fetch-budget.js'
 import { FALLBACK_FETCH_LIMITS } from '../../kernel/host-budget.js'
+// #1770：房间报「列表只取了第一页」用的事件名与原因值住在契约层（房间与宿主同一份），
+// 探针这边不抄房间的内部字面量，也不依赖房间文件。
+import { LIST_TRUNCATED_REASON, READ_DEGRADED_EVENT } from '../../../tracker/contract/results.js'
 
 /** 探针处理器收到的依赖：目录归一、后端选择、注册表、平台、索引与缓存等，全由调用点显式传入。 */
 export interface ProbeHandlerDeps {
@@ -48,16 +51,22 @@ export interface ProbeHandlerDeps {
   errText: any
   /** #1584 F4：宿主注入的只读会话口；身份真源，注册表 describe 给不出 refId 时问它。 */
   openSession?: any
+  // #1770：探针侧的日志口（与宿主其它接线同一份 `{ fire, isEnabled }`）。只用来把房间报的
+  //   「列表只取了第一页」转成一行边沿日志；缺席时探针照旧工作，只是不记这一行。
+  logCtx?: any
 }
 
 /** 造出探针电话：目前只有一个 handleProbe（wf.probe 的处理体）。 */
 export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args: any) => Promise<any> } {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, detectionExec, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText, openSession } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, detectionExec, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText, openSession, logCtx } = deps
   // #1689：降级常驻时的两个节流时刻（毫秒），按 cwd 记。与 lastProbeAtByRepo 分开记，是因为后者
   //   的键要等取数回来才知道（owner/name），而节流必须在发出请求之前判；createProbeHandler 的实例
   //   由宿主入口 _probe() 记忆化，这份状态跨刷新拍安全。
   const fallbackProbeAtByCwd: Record<string, number> = {}
   const fallbackCalibrationAtByCwd: Record<string, number> = {}
+  // #1770：按仓库记「截断日志已经记过一行」。房间每拍都会报「只取了第一页」，探针这一路
+  //   只在状态从「没记过」变成「记过」时落一行；恢复（下一次不截断）时清掉，下次再截断还能看见。
+  const truncationLoggedByRepo: Record<string, boolean> = {}
   // #1418：失败回包里带上判档（network / unsupported / env / exception…），客户端日志据此一眼看出「这一拍
   //   为什么没探成」。只回短枚举、不回原文 —— 原文仍在 error 字段里给界面看，日志那边一个字都不记。
   const kindOf = function (e: any): string {
@@ -110,15 +119,28 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
             if (identified) repoRef = identified
           }
           if (!repoRef) repoRef = { backend: _selProbe.backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || _selProbe.backendId, url: '' }
-          const opCtx: any = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: any, ar: any, o: any): any { return detectionExec(c, ar, o, 'probe') } }
+          // #1770：探针这一路只接「名单被页上限截断」这一条降级线。房间的 list 取满一页会调
+          //   opCtx.logEvent('warn','read.degraded',{op:'list',reason:'list:truncated',...})；探针把它
+          //   转给宿主日志口，并按仓库边沿式去重 —— 5 秒一拍每拍都记会把警告日志刷成心跳。
+          //   其它降级原因不在探针这一路记（取数失败本身已由 ok:false 报给界面），桥里直接丢弃。
+          const rk1: string = _selProbe.backendId + ':' + cwd
+          const logTruncation = function (level: any, event: any, fields: any): void {
+            if (!logCtx || typeof logCtx.fire !== 'function') return
+            if (event !== READ_DEGRADED_EVENT || !fields || String(fields.reason || '') !== LIST_TRUNCATED_REASON) return
+            if (truncationLoggedByRepo[rk1]) return
+            truncationLoggedByRepo[rk1] = true
+            try { logCtx.fire(level, event, fields) } catch (eL) {}
+          }
+          const opCtx: any = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: any, ar: any, o: any): any { return detectionExec(c, ar, o, 'probe') }, logEvent: logTruncation }
           const r: any = await tracker.list(repoRef, {}, opCtx)
           if (!r || !r.ok) return { ok: false, error: errText((r && r.error) || 'probe list 失败'), errorKind: kindOf(r && r.error) }
+          // 这一拍不截断了：清掉「已记过」标记，下次再截断还能落一行。
+          if (r.truncated !== true) delete truncationLoggedByRepo[rk1]
           const all: any[] = Array.isArray(r.data) ? r.data : []
           // 轻量索引：key -> state
           const idx: Record<string, string> = {}
           // effort 维度：探针索引按 (effort, 编号) 键入，否则两个 effort 的同号票会互相覆盖、第二个 effort 的变更探测不到
           all.forEach(function(it: any){ const k: any = it && (it.key != null ? idOfParts(it.effortId, String(it.key).padStart(2,'0')) : (it.number != null ? idOfParts(it.effortId, String(it.number).padStart(2,'0')) : '')); if(k) idx[k] = String(it.state||'OPEN').toUpperCase() })
-          const rk1: string = _selProbe.backendId + ':' + cwd
           const known: any = lastIssueIndexByRepo[rk1] || {}
           const changed: any = issueIndexChanged(known, idx)
           rememberIssueIndex({ owner: _selProbe.backendId, name: cwd }, idx)

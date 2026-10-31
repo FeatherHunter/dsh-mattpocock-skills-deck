@@ -217,8 +217,8 @@ if (PanelTitleComp) {
   check(false, '右侧边栏标题栏组件未捕获')
 }
 
-// ---- 设置页渲染（base 0.1.4 页头静默簇：ActionCluster 三枚彩色图标按钮）----
-// ticket 05 起设置页页头不再自画表情按钮：这里在产物上真挂一遍，钉住「0.1.4 的静默簇真的渲染出来了」，
+// ---- 设置页渲染（base 0.1.5 页头静默簇：ActionCluster 三枚彩色图标按钮）----
+// ticket 05 起设置页页头不再自画表情按钮：这里在产物上真挂一遍，钉住「0.1.5 的静默簇真的渲染出来了」，
 // 而不只是源码里写了 ActionCluster；同时钉住旧 ActionGroup 胶囊与旧悬停文案不在场。
 if (SettingsComp) {
   const settingsContainer = window.document.createElement('div')
@@ -232,7 +232,7 @@ if (SettingsComp) {
     })
     const settingsHtml = settingsContainer.innerHTML
     const cluster = settingsContainer.querySelector('.dsh-base-cluster')
-    check(!!cluster, '设置页页头渲染出 base 0.1.4 的静默簇（.dsh-base-cluster）')
+    check(!!cluster, '设置页页头渲染出 base 0.1.5 的静默簇（.dsh-base-cluster）')
     const clusterBtns = settingsContainer.querySelectorAll('.dsh-base-cluster__btn')
     check(clusterBtns.length === 3, `静默簇是三枚按钮（实际 ${clusterBtns.length}）`)
     const ariaLabels = Array.prototype.map.call(clusterBtns, (b: any) => b.getAttribute('aria-label')).join('|')
