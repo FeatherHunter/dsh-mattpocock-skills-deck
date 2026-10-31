@@ -1,4 +1,4 @@
-// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–J 十组，每组带反证；J 组是 #1752 工作树页的写通道。
+// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–K 十一组，每组带反证；J 组是 #1752 工作树页的写通道，K 组是 #1747 冲突向导的写通道。
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-841-write-phones.ts
 // 夹具：真 git 临时仓库（每个用例自己造）+ 真 subprocess 形状的垫片（argv 直传、不经 shell），
 // 这样「真跑过的 argv」与「真仓库有没有被动过」都能断言；只在纯归类那组不碰 git。
@@ -28,20 +28,32 @@ let lastStdin: any = null
 const logs: Array<{ level: string; event: string; fields: Record<string, any> }> = []
 const timerCalls: number[] = []
 let clock = { t: 1000 }
-function makeVc(route?: ((argv: string[]) => any) | null) {
+function makeVc(route?: ((argv: string[]) => any) | null, extra?: any) {
   spawns.length = 0
   requests.length = 0
   lastStdin = null
   logs.length = 0
   timerCalls.length = 0
   const deps = {
-    subprocess: { spawn(req) { spawns.push(req.argv.slice()); requests.push({ argv: req.argv.slice(), cwd: req.cwd, stdio: req.stdio, env: req.env }); const hit = route ? route(req.argv, req) : null; if (hit && hit.throwOnSpawn) throw new Error('spawn ENOENT'); if (hit) { const mk = (t, trunc) => ({ finalize: () => ({ text: String(t || ''), truncated: trunc === true }) }); const handle: any = { done: hit.pending ? new Promise(() => {}) : Promise.resolve({ exitCode: hit.code || 0 }), collected: { stdout: mk(hit.stdout, hit.truncated), stderr: mk(hit.stderr) }, terminate() { handle.terminated = true } }; if (req.stdio && req.stdio.stdin === 'pipe') { const chunks: Buffer[] = []; const stdin = { chunks: chunks, write(chunk) { if (hit.stdinMode === 'epipe') { const e: any = new Error('write EPIPE'); e.code = 'EPIPE'; throw e } chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))); return true }, end() {}, on() {} }; handle.stdin = stdin; lastStdin = stdin } return handle } const r = spawnSync(req.argv[0], req.argv.slice(1), { cwd: req.cwd, encoding: 'buffer', windowsHide: true, maxBuffer: 1 << 26 }); const mk2 = (b) => ({ finalize: () => ({ text: (b || Buffer.alloc(0)).toString('utf8'), truncated: false }) }); return { done: Promise.resolve({ exitCode: r.status }), collected: { stdout: mk2(r.stdout), stderr: mk2(r.stderr) }, terminate() {} } } },
+    subprocess: { spawn(req) { spawns.push(req.argv.slice()); requests.push({ argv: req.argv.slice(), cwd: req.cwd, stdio: req.stdio, env: req.env }); const hit = route ? route(req.argv, req) : null; if (hit && hit.throwOnSpawn) throw new Error('spawn ENOENT'); if (hit) { const mk = (t, trunc) => ({ finalize: () => ({ text: String(t || ''), truncated: trunc === true }) }); const handle: any = { done: hit.pending ? new Promise(() => {}) : Promise.resolve({ exitCode: hit.code || 0 }), collected: { stdout: mk(hit.stdout, hit.truncated), stderr: mk(hit.stderr) }, terminate() { handle.terminated = true } }; if (req.stdio && req.stdio.stdin === 'pipe') { const chunks: Buffer[] = []; const stdin = { chunks: chunks, write(chunk) { if (hit.stdinMode === 'epipe') { const e: any = new Error('write EPIPE'); e.code = 'EPIPE'; throw e } chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))); return true }, end() {}, on() {} }; handle.stdin = stdin; lastStdin = stdin } return handle } // #1747：真跑那条路也必须把请求带的环境变量交给子进程 —— 生产里每次 git 调用都注入 GIT_EDITOR（默认必失败命令，
+    //   继续合并那一类显式覆盖成 true）；夹具如果只记请求、不真传 env，子进程会拿进程自己的环境去开编辑器，
+    //   在无终端的门禁里就挂住。undefined 是墓碑（从继承环境删掉），spawnSync 不收 undefined，先清掉。
+    const childEnv: any = {}
+    const merged: any = Object.assign({}, process.env, req.env || {})
+    Object.keys(merged).forEach((k) => { if (merged[k] !== undefined) childEnv[k] = String(merged[k]) })
+    const r = spawnSync(req.argv[0], req.argv.slice(1), { cwd: req.cwd, env: childEnv, encoding: 'buffer', windowsHide: true, maxBuffer: 1 << 26 }); const mk2 = (b) => ({ finalize: () => ({ text: (b || Buffer.alloc(0)).toString('utf8'), truncated: false }) }); return { done: Promise.resolve({ exitCode: r.status }), collected: { stdout: mk2(r.stdout), stderr: mk2(r.stderr) }, terminate() {} } } },
     timer: { timeout: (ms) => { timerCalls.push(ms); return new Promise((r) => setTimeout(r, ms)) } },
     fs: { stat: async (p) => await fs.promises.stat(p), lstat: async (p) => await fs.promises.lstat(p), exists: async (p) => { try { await fs.promises.access(p); return true } catch (e) { return false } } },
     getPlatform: async () => ({ resolveExecutable: async (n) => (n === 'git' ? 'git' : null) }),
     DEFAULT_CWD: ROOT, TIMEOUT_MS: 30000, gate: { noteOutbound() {} }, logCtx: { fire(level, event, fields) { logs.push({ level, event, fields }) } },
     now: () => clock.t,
   }
+  // #1756：克隆向导那组要真文件服务与真缓存目录（任务库要写盘），并且要能截住长任务通道起的 clone；
+  //   其余组一律不传第二参数，行为与原来逐字一致。
+  const more: any = extra || {}
+  if (more.fs) Object.assign(deps.fs, more.fs)
+  if (more.getCacheDir) deps.getCacheDir = more.getCacheDir
+  if (more.spawn) deps.subprocess = { spawn: more.spawn }
   return vcMod.createVersionControl(deps)
 }
 // 固定前缀的最后一项是 i18n.logOutputEncoding=UTF-8：切在它之后才是真正的子命令（照 verify-version-control-host 的同一口径）。
@@ -414,6 +426,189 @@ async function main(): Promise<void> {
   const forceFree = worktreeWrites().every((a) => a.indexOf('--force') < 0 && a.indexOf('-f') < 0 && a.indexOf('-ff') < 0)
   check(forceFree, 'J14 本组所有写命令都不带 --force / -f / -ff（边界：删除脏树与锁定树走先处理再重来的正常路径）')
   check(denyIs({ ok: true, requestId: 'x' }, 'ticket-missing') === false, 'J15 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
+
+  // JC 克隆向导两条电话（#1756 T20，能力 8.16）：预检签一张 120 秒票 → 凭票把克隆交给长任务通道；
+  //   伪造 / 过期 / 换动作 / 目标变了都必须零克隆进程，同一 requestId 重放不再起第二个克隆。
+  //   本组只守「票据门 → 执行 → 去重」这条通道；地址与选项口径、界面词条由 verify-1586-clone-wizard 守。
+  console.log('JC 克隆向导电话（#1756）')
+  clock.t = 1000
+  const jcCache = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws841-clone-cache-'))
+  const rJC = mkRepo('jc')
+  const cloneSpawnsJC = (): string[][] => spawns.filter((a) => after(a)[0] === 'clone')
+  const jcRoute = (argv: string[]) => {
+    const a = after(argv)
+    if (a[0] === 'rev-parse' && a.indexOf('--absolute-git-dir') >= 0) return { code: 0, stdout: rJC + '/.git\ntrue\nfalse\n' }
+    if (a[0] === 'rev-parse' && a.indexOf('--show-toplevel') >= 0) return { code: 0, stdout: rJC + '\n' }
+    if (a[0] === 'rev-parse' && a.indexOf('--verify') >= 0) return { code: 1, stdout: '', stderr: 'fatal: Needed a single revision\n' }
+    return { code: 0, stdout: '' }
+  }
+  // 长任务通道会增量读收集器（readFrom），所以这一组自己给一份带 readFrom 的假进程，
+  // 而不是复用上面那套只带 finalize 的垫片；clone 本体不真跑，只断言起的是哪条命令。
+  const jcSpawn = (req: any) => {
+    spawns.push(req.argv.slice()); requests.push({ argv: req.argv.slice(), cwd: req.cwd, stdio: req.stdio, env: req.env })
+    const hit: any = jcRoute(req.argv) || { code: 0, stdout: '' }
+    const reader = (text: any) => {
+      const all = String(text || '')
+      return {
+        readFrom(off: number) { return off >= all.length ? { text: '', nextOffset: off, lossy: false } : { text: all.slice(off), nextOffset: all.length, lossy: false } },
+        finalize() { return { text: all, truncated: false } },
+      }
+    }
+    const handle: any = { done: Promise.resolve({ exitCode: hit.code === undefined ? 0 : hit.code, signal: null }), collected: { stdout: reader(hit.stdout), stderr: reader(hit.stderr) }, stdin: { write() {}, end() {}, on() {} }, terminate() {} }
+    return { done: handle.done, collected: handle.collected, terminate() {} }
+  }
+  const jcExtra = {
+    fs: {
+      resolve: async (p: any) => String(p),
+      listDir: async (p: any) => await fs.promises.readdir(String(p)),
+      readText: async (p: any) => await fs.promises.readFile(String(p), 'utf8'),
+      writeText: async (p: any, text: any) => await fs.promises.writeFile(String(p), String(text), 'utf8'),
+      mkdir: async (p: any) => { await fs.promises.mkdir(String(p), { recursive: true }) },
+    },
+    getCacheDir: () => jcCache,
+    spawn: jcSpawn,
+  }
+  const vcJC = makeVc(null, jcExtra)
+  check(typeof vcJC.handleGitCloneCheck === 'function' && typeof vcJC.handleGitCloneWrite === 'function', 'JC1 克隆向导预检与执行两条电话都挂在同一个宿主对象上')
+  // 目标目录造在真临时目录里：不存在 / 空目录 / 非空目录三种现场都真探测。
+  const jcParent = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws841-clone-'))
+  const jcGone = path.join(jcParent, 'gone').split(path.sep).join('/')
+  const jcEmpty = path.join(jcParent, 'empty').split(path.sep).join('/')
+  const jcFull = path.join(jcParent, 'full').split(path.sep).join('/')
+  fs.mkdirSync(jcEmpty)
+  fs.mkdirSync(jcFull); fs.writeFileSync(path.join(jcFull, 'keep.txt'), 'keep\n')
+  const jcUrl = 'https://example.com/team/repo.git'
+  const jcCheck = await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'start', url: jcUrl, dir: jcGone, depth: 1 })
+  check(jcCheck.ok === true && !!jcCheck.ticket && jcCheck.ticket.expiresAtMs - jcCheck.ticket.checkedAtMs === 120000
+    && jcCheck.decision && jcCheck.decision.verdict === 'allow' && cloneSpawnsJC().length === 0,
+    'JC2 预检签 120 秒票、判定放行，并且一个克隆进程都没起（预检只读现场）')
+  const jcBlocked = await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'start', url: jcUrl, dir: jcFull })
+  check(jcBlocked.ok === false && jcBlocked.reason === 'target-not-empty' && jcBlocked.scene && jcBlocked.scene.target && jcBlocked.scene.target.entryCount === 1 && cloneSpawnsJC().length === 0,
+    'JC3 目标目录非空：block + target-not-empty，现场带了条目数，零克隆进程（绝不替你清空目录）')
+  const jcRun = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcCheck.ticket.id, requestId: 'req-841-clone-1', op: 'start' })
+  const jcCloneArgv = cloneSpawnsJC()
+  check(jcRun.ok === true && !!jcRun.taskId && jcCloneArgv.length === 1
+    && jcCloneArgv[0].indexOf('clone') >= 0 && jcCloneArgv[0].indexOf('--progress') >= 0
+    && jcCloneArgv[0].indexOf(jcUrl) >= 0 && jcCloneArgv[0].indexOf(jcGone) >= 0,
+    'JC4 凭票执行：只起一条 clone 进程，argv 含 clone / --progress / 地址与目标目录，回包带回 taskId')
+  const jcReplay = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcCheck.ticket.id, requestId: 'req-841-clone-1', op: 'start' })
+  check(jcReplay.reused === true && jcReplay.result && jcReplay.result.taskId === jcRun.taskId && cloneSpawnsJC().length === 1,
+    'JC5 同一个 requestId 重放：回同一份结果（同一个 taskId），不再起第二个克隆')
+  const jcForged = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: 'NOSUCHTICKET', requestId: 'req-841-clone-2', op: 'start' })
+  check(jcForged.ok === false && jcForged.reason === 'ticket-missing' && cloneSpawnsJC().length === 1,
+    'JC6 伪造票：ticket-missing 且零新克隆进程（判定先于任何外部调用）')
+  const jcSwap = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcCheck.ticket.id, requestId: 'req-841-clone-3', op: 'cleanup' })
+  check(jcSwap.ok === false && jcSwap.reason === 'ticket-op-mismatch' && cloneSpawnsJC().length === 1,
+    'JC7 换动作的票（start 的票拿来做 cleanup）：ticket-op-mismatch 且零克隆进程')
+  const jcExpiredCheck = await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'start', url: jcUrl, dir: jcGone })
+  clock.t = jcExpiredCheck.ticket.expiresAtMs + 1
+  const jcExpired = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcExpiredCheck.ticket.id, requestId: 'req-841-clone-4', op: 'start' })
+  clock.t = 1000
+  check(jcExpired.ok === false && jcExpired.reason === 'ticket-expired' && cloneSpawnsJC().length === 1,
+    'JC8 过期票：ticket-expired 且零新克隆进程（人得重新预检）')
+  const jcDriftCheck = await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'start', url: jcUrl, dir: jcGone })
+  fs.mkdirSync(jcGone); fs.writeFileSync(path.join(jcGone, 'late.txt'), 'late\n')
+  const jcDrift = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcDriftCheck.ticket.id, requestId: 'req-841-clone-5', op: 'start' })
+  check(jcDrift.ok === false && jcDrift.reason === 'target-changed' && cloneSpawnsJC().length === 1,
+    'JC9 票签完后目标目录被别人建起来：target-changed 且零克隆进程（不往变了的目录里写）')
+  // 先对这个空目录做过一次 start 预检，它才算「本次会话登记过的克隆目标」，清理才有得谈。
+  await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'start', url: jcUrl, dir: jcEmpty })
+  const jcCleanCheck = await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'cleanup', dir: jcEmpty })
+  const jcCleanNoConfirm = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcCleanCheck.ticket.id, requestId: 'req-841-clone-6', op: 'cleanup' })
+  check(jcCleanCheck.ok === true && jcCleanCheck.confirmRequired === true && jcCleanNoConfirm.ok === false && jcCleanNoConfirm.reason === 'need-confirm' && cloneSpawnsJC().length === 1,
+    'JC10 清理残留要先预检签票、再显式确认；没确认时 need-confirm 且零进程')
+  const jcCleanRun = await vcJC.handleGitCloneWrite({ cwd: rJC, ticketId: jcCleanCheck.ticket.id, requestId: 'req-841-clone-7', op: 'cleanup', confirmed: true })
+  check(jcCleanRun.ok === true && jcCleanRun.removed === true && fs.existsSync(jcEmpty) === false && cloneSpawnsJC().length === 1,
+    'JC11 确认后清理真删掉了登记过的残留目录，全程没有起过克隆进程')
+  const jcUnregistered = await vcJC.handleGitCloneCheck({ cwd: rJC, op: 'cleanup', dir: jcFull })
+  check(jcUnregistered.ok === false && jcUnregistered.reason === 'cleanup-unregistered' && cloneSpawnsJC().length === 1,
+    'JC12 没登记过的目录不清理：cleanup-unregistered 拒绝，一个进程都不起')
+
+  // M 冲突向导三条电话（#1747 T12）：读 / 预检签票 / 凭票执行。这一组守「合并冲突不误判成失败」、
+  //   「选边与继续都要票」以及「没有票、换动作、没确认时零进程」；判定细节与六类冲突分类由 verify-1586-conflicts 守。
+  console.log('M 冲突向导电话（#1747）')
+  const vcM = makeVc()
+  check(typeof vcM.handleGitConflicts === 'function' && typeof vcM.handleGitConflictCheck === 'function' && typeof vcM.handleGitConflictWrite === 'function', 'M1 冲突向导读 / 预检 / 执行三条电话都挂在同一个宿主对象上')
+  check(typeof vcM.conflictTickets === 'function', 'M2 冲突票表读取口只给门禁与测试，不注册成电话')
+  const rM = mkRepo('k')
+  git(rM, ['commit', '-q', '-m', '基线二'])
+  git(rM, ['checkout', '-q', '-b', 'side'])
+  fs.writeFileSync(path.join(rM, 'a.txt'), 'side\n'); git(rM, ['add', 'a.txt']); git(rM, ['commit', '-q', '-m', 'side 改'])
+  git(rM, ['checkout', '-q', 'main'])
+  fs.writeFileSync(path.join(rM, 'a.txt'), 'main\n'); git(rM, ['add', 'a.txt']); git(rM, ['commit', '-q', '-m', 'main 改'])
+  const mPreview = await vcM.handleGitConflicts({ cwd: rM, op: 'merge-preview', target: 'side' })
+  check(mPreview.ok === true && mPreview.clean === false && mPreview.paths.indexOf('a.txt') >= 0, 'M3 预演合并（6.10）：2.38 以上用 merge-tree 真算，干净地报出会冲突且点名 a.txt（有冲突不是命令失败）')
+  const conflictWritesM = () => spawns.filter((a) => {
+    const c = after(a)
+    if (c[0] === 'merge') return true
+    if (c[0] === 'checkout' && (c[1] === '--ours' || c[1] === '--theirs')) return true
+    if (c[0] === 'add' || c[0] === 'rm') return true
+    if (c[0] === 'rebase' || c[0] === 'cherry-pick' || c[0] === 'revert') return false
+    return false
+  })
+  const mPre = await vcM.handleGitConflictCheck({ cwd: rM, op: 'merge', target: 'side' })
+  check(mPre.ok === true && !!mPre.ticket && mPre.ticket.expiresAtMs - mPre.ticket.checkedAtMs === 120000 && conflictWritesM().length === 0, 'M4 预检合并：签 120 秒票，签票这一趟一条写命令都没起')
+  const mMerge = await vcM.handleGitConflictWrite({ cwd: rM, op: 'merge', target: 'side', ticketId: mPre.ticket.id, requestId: 'req-841-m1', confirmed: true })
+  check(mMerge.ok === true && mMerge.conflicted === true && mMerge.state === 'merge' && mMerge.conflictCount === 1, 'M5 合并撞上冲突：回包如实说「有冲突、现在在合并中、1 个冲突文件」，不把它报成 git-failed（Windows 上冲突说明在 stdout）')
+  const mList = await vcM.handleGitConflicts({ cwd: rM, op: 'conflict-list' })
+  check(mList.ok === true && mList.conflictCount === 1 && mList.conflicts[0].path === 'a.txt' && mList.conflicts[0].kind === 'both-changed', 'M6 冲突清单（6.5）：真仓库里读出 a.txt，分类是双方都改')
+  const mMarkers = await vcM.handleGitConflicts({ cwd: rM, op: 'marker-check' })
+  check(mMarkers.ok === true && mMarkers.clean === false && mMarkers.worktree.length > 0, 'M7 提交前查残留标记（6.15）：工作区那一半读出残留，没解决的冲突不会被当成干净')
+  const nM1 = spawns.length
+  const mNoTicket = await vcM.handleGitConflictWrite({ cwd: rM, op: 'take-side', path: 'a.txt', side: 'ours', ticketId: 'NOSUCHTICKET', requestId: 'req-841-m2', confirmed: true })
+  check(mNoTicket.ok === false && mNoTicket.error.reason === 'ticket-missing' && spawns.length === nM1, 'M8 伪造票：ticket-missing 且一个进程都没起')
+  const mPreSide = await vcM.handleGitConflictCheck({ cwd: rM, op: 'take-side', path: 'a.txt', side: 'ours' })
+  const nM2 = spawns.length
+  const mSwap = await vcM.handleGitConflictWrite({ cwd: rM, op: 'mark-resolved', path: 'a.txt', ticketId: mPreSide.ticket.id, requestId: 'req-841-m3', confirmed: true })
+  check(mSwap.ok === false && mSwap.error.reason === 'ticket-op-mismatch' && spawns.length === nM2, 'M9 换动作（选边的票拿去标记已解决）：ticket-op-mismatch 且零进程')
+  const mPreAbort = await vcM.handleGitConflictCheck({ cwd: rM, op: 'op-abort' })
+  const nM3 = spawns.length
+  const mNoConfirm = await vcM.handleGitConflictWrite({ cwd: rM, op: 'op-abort', ticketId: mPreAbort.ticket.id, requestId: 'req-841-m4' })
+  check(mPreAbort.confirmRequired === true && mNoConfirm.ok === false && mNoConfirm.error.reason === 'need-confirm' && spawns.length === nM3, 'M10 中止这类危险动作：预检标出必须确认，没带显式确认就零进程拒绝')
+  const mSide = await vcM.handleGitConflictWrite({ cwd: rM, op: 'take-side', path: 'a.txt', side: 'ours', ticketId: mPreSide.ticket.id, requestId: 'req-841-m5', confirmed: true })
+  const mList2 = await vcM.handleGitConflicts({ cwd: rM, op: 'conflict-list' })
+  check(mSide.ok === true && mList2.ok === true && mList2.conflictCount === 0 && git(rM, ['status', '--porcelain']).out.indexOf('UU') < 0, 'M11 选当前边：真仓库里这个文件不再处于未合并状态（冲突清单跟着变 0）')
+  // 继续合并那一条命令必须带 per-call 的编辑器覆盖（GIT_EDITOR=true），否则本机 GIT_EDITOR 必失败会让继续失败。
+  const mEditorOf = (): boolean => {
+    const q = requests.filter((r) => after(r.argv).slice(0, 2).join(',') === 'merge,--continue')[0]
+    return !!(q && q.env && q.env.GIT_EDITOR === 'true')
+  }
+  const mPreCont = await vcM.handleGitConflictCheck({ cwd: rM, op: 'op-continue' })
+  const parentsBefore = git(rM, ['rev-list', '--parents', '-n', '1', 'HEAD']).out.split(' ').length
+  const mCont = await vcM.handleGitConflictWrite({ cwd: rM, op: 'op-continue', ticketId: mPreCont.ticket.id, requestId: 'req-841-m6', confirmed: true })
+  const parentsAfter = git(rM, ['rev-list', '--parents', '-n', '1', 'HEAD']).out.split(' ').length
+  check(mCont.ok === true && mCont.state === null && parentsAfter > parentsBefore && mEditorOf() === true, 'M12 继续合并：冲突解决后凭票继续，真生成一条合并提交（GIT_EDITOR 走 per-call 覆盖，不弹编辑器）')
+  const mClean = await vcM.handleGitConflicts({ cwd: rM, op: 'marker-check' })
+  check(mClean.ok === true && mClean.clean === true, 'M13 合并完成后残留标记检查变干净（两半都没残留）')
+  check(denyIs({ ok: true, conflictCount: 0 }, 'ticket-missing') === false, 'M14 反证装置自检：把放行的读回包喂给「拒绝」判据必须判假')
+
+
+  // K 组：#1755 同步十个动作（域 8 的 8.5–8.14）—— 预检签票与凭票执行走真仓库，写动作仍只经长任务通道。
+  console.log('K 同步十动作（真仓库）')
+  const rK = mkRepo('k')
+  const vcK = makeVc()
+  check(typeof vcK.handleGitSyncCheck === 'function' && typeof vcK.handleGitSyncWrite === 'function', 'K1 同步预检与执行两条电话挂在同一个宿主对象上')
+  check(typeof vcK.handleGitTaskStart === 'function', 'K2 执行走长任务通道的电话就绪（同步自己不另起进程）')
+  const kBefore = spawns.length
+  const kNoRemote = await vcK.handleGitSyncCheck({ cwd: rK, action: 'fetch' })
+  check(kNoRemote.ok === false && kNoRemote.error.kind === 'blocked' && kNoRemote.reason === 'no-remote', 'K3 仓库没有远端时获取被预检拦下，理由常驻（no-remote）')
+  check(spawns.slice(kBefore).indexOf(kNoRemote) < 0 && writeSpawns().length === 0 && spawns.slice(kBefore).every((a) => after(a)[0] !== 'fetch' && after(a)[0] !== 'push' && after(a)[0] !== 'pull'), 'K4 预检只跑读命令：一条写命令与 fetch 都没起')
+  const kBadBefore = spawns.length
+  const kBad = await vcK.handleGitSyncCheck({ cwd: rK, action: 'nope' })
+  check(kBad.ok === false && kBad.error.kind === 'bad-target' && spawns.length === kBadBefore, 'K5 不认识的动作当场拒绝，一个进程都不起（不落到默认推送）')
+  git(rK, ['remote', 'add', 'origin', 'https://example.com/acme/repo.git'])
+  const kPre = await vcK.handleGitSyncCheck({ cwd: rK, action: 'fetch' })
+  check(kPre.ok === true && !!kPre.ticket && kPre.ticket.op === 'fetch' && kPre.confirmRequired === true, 'K6 预检获取成功：签票、票上记动作、确认卡要求确认')
+  const kArgvBefore = spawns.length
+  const kForged = await vcK.handleGitSyncWrite({ cwd: rK, action: 'fetch', ticketId: 'NOSUCHTICKET', requestId: 'k-req-forged', confirmed: true })
+  check(kForged.ok === false && kForged.reason === 'ticket-missing' && spawns.length === kArgvBefore, 'K7 伪造票：ticket-missing 且零进程（执行前不读现场也不起 fetch）')
+  const kNoConfirm = await vcK.handleGitSyncWrite({ cwd: rK, action: 'fetch', ticketId: kPre.ticket.id, requestId: 'k-req-noconfirm' })
+  check(kNoConfirm.ok === false && kNoConfirm.reason === 'need-confirm' && spawns.slice(kArgvBefore).every((a) => after(a)[0] !== 'fetch' && after(a)[0] !== 'push'), 'K8 没带显式确认：need-confirm 且零写进程（确认卡四段先给用户看）')
+  const kWrongRepo = await vcK.handleGitSyncWrite({ cwd: rA, action: 'fetch', ticketId: kPre.ticket.id, requestId: 'k-req-repo', confirmed: true })
+  check(kWrongRepo.ok === false && kWrongRepo.reason === 'stale-repo' && spawns.slice(kArgvBefore).every((a) => after(a)[0] !== 'fetch'), 'K9 换仓库用票：stale-repo 且没有起 fetch（票绑定签发时那个仓库）')
+  const kLogs = logs.filter((l) => l.fields && l.fields.method === 'wf.gitSyncCheck')
+  check(kLogs.length > 0 && logs.every((l) => ['git.exec', 'git.exec.fail', 'host.call', 'host.call.fail'].indexOf(l.event) >= 0), 'K10 同步预检走既有日志事件：host.call 记下电话名，没有新事件名')
+  check(denyIs({ ok: true, ticketId: 'x' }, 'ticket-missing') === false, 'K11 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
 
 
   // L 提交页域 2（#1743）：八条提交能力共用一份计划真源，危险动作靠 planDigest 绑票，失败分类不落 unknown。
