@@ -643,6 +643,33 @@
       "note": "同层互引的存量边：write-ticket 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
     },
     {
+      "file": "src/shared/version-control/src/changes-protocol.ts",
+      "spec": "./commands.js",
+      "resolved": "src/shared/version-control/src/commands.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1742（规格 #1586 T07 改动页）",
+      "note": "协议层直接引用命令真源：改动页 13 条动作的 argv 拼装、路径守卫与引用格式必须与写电话同源，复制一份就会在两条真源之间漂移；commands.ts 不反向引用 changes-protocol，方向单向。"
+    },
+    {
+      "file": "src/shared/version-control/src/changes-protocol.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1742（规格 #1586 T07 改动页）",
+      "note": "协议层复用共享端口的写票据与动作类型：票据结构、绑定字段与动作枚举只有 ports.ts 一处定义，协议层只引用不重定义，避免两套契约对不上；ports.ts 不引用协议。"
+    },
+    {
+      "file": "src/shared/version-control/src/changes-protocol.ts",
+      "spec": "./write-ticket.js",
+      "resolved": "src/shared/version-control/src/write-ticket.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1742（规格 #1586 T07 改动页）",
+      "note": "协议层复用票据真源里的规范化序列化（canonicalJson）：票据绑定摘要要按同一套键序算哈希，复制一份键序算法会让预检与执行两边摘要不一致；write-ticket.ts 不引用协议。"
+    },
+    {
       "file": "src/tracker/index.ts",
       "spec": "./registry/core.js",
       "resolved": "src/tracker/registry/core.ts",
@@ -776,6 +803,42 @@
       "count": 1,
       "owner": "#1740（规格 #1586 T05 长任务通道）",
       "note": "叶子装配：任务通道叶子要把任务记录库接上（记录只落缓存目录、不落仓库工作区，参数原文与输入文件内容不进记录文件）。方向单向：任务库只认注入的 fs 门面与缓存目录，不引用通道叶子。"
+    },
+    {
+      "file": "src/host/versionControl.ts",
+      "spec": "./versionControlChangesMount.js",
+      "resolved": "src/host/versionControlChangesMount.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1742（规格 #1586 T07 改动页）",
+      "note": "装配扇入：版本管理入口要把改动页两条电话挂上，但父文件已到文件粒度上限；照 #500/#821 先例把改动页装配拆成同层外壳，父文件只留 createChangesMount 一行动态装配，外壳不反向引用父文件。"
+    },
+    {
+      "file": "src/host/versionControlChanges.ts",
+      "spec": "./versionControlChangesCheck.js",
+      "resolved": "src/host/versionControlChangesCheck.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1742（规格 #1586 T07 改动页）",
+      "note": "叶子装配：改动页外壳把预检叶子接上（13 条动作的票据签发与拒绝理由都在预检叶子）；方向单向，预检叶子只认注入的读屏、命令出口与票据表，不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControlChanges.ts",
+      "spec": "./versionControlChangesWrite.js",
+      "resolved": "src/host/versionControlChangesWrite.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1742（规格 #1586 T07 改动页）",
+      "note": "叶子装配：改动页外壳把凭票写叶子接上（票据复核、内容复核、命令执行与请求号重放都在执行叶子）；方向单向，执行叶子只认注入的读屏、命令出口与票据表，不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControlChangesMount.ts",
+      "spec": "./versionControlChanges.js",
+      "resolved": "src/host/versionControlChanges.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1742（规格 #1586 T07 改动页）",
+      "note": "外壳装配：外壳只做懒加载与电话日志包装，真正的预检与执行两叶子在 versionControlChanges.ts 里合流成一张票据表；方向单向，合流叶子不引用外壳。"
     }
   ]
 }

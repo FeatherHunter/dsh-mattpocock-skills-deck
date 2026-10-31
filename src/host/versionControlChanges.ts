@@ -20,6 +20,7 @@ import { writeFile as fsWriteFile, unlink as fsUnlink } from 'node:fs/promises'
 import { tmpdir as osTmpdir } from 'node:os'
 // @ts-expect-error 同上：票据绑定表用 sha256 的前 16 位十六进制做摘要，不把原文带进票据。
 import { createHash as cryptoCreateHash } from 'node:crypto'
+import { VC_CHANGES_READ_TIMEOUT_MS, VC_CHANGES_WRITE_TIMEOUT_MS } from '../shared/time-config/src/values.js'
 
 /** 拼仓库内相对路径：git 在 Windows 上也认正斜杠，这里统一用正斜杠，避免两处写法算出两个路径。 */
 function joinRepo(root: any, rel: any): string { return String(root || '').replace(/[\\/]+$/, '') + '/' + String(rel || '') }
@@ -44,7 +45,6 @@ export function createChangesPhone(deps: any): Promise<any> {
   const readScreenOf: any = d.readScreenOf
   const loggedPhone: any = d.loggedPhone
   const DEFAULT_CWD: any = d.DEFAULT_CWD
-  const timeoutMs: any = (typeof d.timeoutMs === 'number' && d.timeoutMs > 0) ? d.timeoutMs : 20000
   const STDOUT_LIMIT: number = (typeof d.STDOUT_LIMIT === 'number' && d.STDOUT_LIMIT > 0) ? d.STDOUT_LIMIT : 8 * 1024 * 1024
   const nowFn: any = (typeof d.now === 'function') ? d.now : Date.now
 
@@ -85,20 +85,28 @@ export function createChangesPhone(deps: any): Promise<any> {
   async function deleteFile(abs: any): Promise<any> { try { await fsUnlink(String(abs || '')) } catch (e) { /* 不抛：临时文件清理失败不改变业务结论 */ } }
 
   /** 改动页叶子用的命令出口：与读电话同一条固定前缀、同一个 -C 钉仓库、同一条报闸与日志。 */
-  async function readChangesGit(cwd: any, argv: any, opts?: any): Promise<any> {
+  async function changesGit(cwd: any, argv: any, opts: any, fallbackMs: number): Promise<any> {
     const exe: any = await resolveGitExecutable()
     if (!exe) return { kind: 'spawn-failed', message: '找不到 git 命令（platform.resolveExecutable("git") 没有给出路径）' }
     const dir: string = String(cwd || DEFAULT_CWD || '')
     const args: string[] = Array.isArray(argv) ? argv : []
-    return runGit(exe, dir, ['-C', dir].concat(fixedPrefix(), args), { stdoutLimit: (opts && opts.stdoutLimit) || STDOUT_LIMIT, timeoutMs: (opts && opts.timeoutMs) || timeoutMs })
+    // 允许的时限：调用方给了正的毫秒数就用它，否则用本命令类别的中央常量（由下面两个包装各自传入）。
+    const limit: number = (opts && typeof opts.timeoutMs === 'number' && opts.timeoutMs > 0) ? opts.timeoutMs : fallbackMs
+    return runGit(exe, dir, ['-C', dir].concat(fixedPrefix(), args), { stdoutLimit: (opts && opts.stdoutLimit) || STDOUT_LIMIT, timeoutMs: limit })
   }
+
+  /** 预检与只读命令：调用方没给时限时用中央配置的 vcChangesReadTimeoutMs，不在本文件写第二份数字。 */
+  function readChangesGit(cwd: any, argv: any, opts?: any): Promise<any> { return changesGit(cwd, argv, opts, VC_CHANGES_READ_TIMEOUT_MS) }
+
+  /** 凭票写命令：调用方没给时限时用中央配置的 vcChangesWriteTimeoutMs；写命令比读命令宽松，两者不是同一个键。 */
+  function writeChangesGit(cwd: any, argv: any, opts?: any): Promise<any> { return changesGit(cwd, argv, opts, VC_CHANGES_WRITE_TIMEOUT_MS) }
 
   /** 查仓库内一个相对路径在不在：转成绝对路径交给 #858 那条三路探测。 */
   async function relPathExists(cwd: any, rel: any): Promise<any> { return pathExists(joinRepo(cwd, rel)) }
 
   return Promise.all([import('./versionControlChangesCheck.js'), import('./versionControlChangesWrite.js')]).then(function (ms: any): any {
     const c: any = ms[0].createChangesCheck({ readScreenOf: readScreenOf, runRead: readChangesGit, readTextFile: readTextFile, pathExists: relPathExists, failPhone: failPhone, nowMs: nowFn, randomId: function (): string { return Math.random().toString(36).slice(2) }, digest16: digest16Of, tickets: tickets, results: results })
-    const w: any = ms[1].createChangesWrite({ readScreenOf: readScreenOf, runCommand: readChangesGit, readTextFile: readTextFile, writeTextFile: writeTextFile, writeTempPatch: writeTempPatch, deleteFile: deleteFile, nowMs: nowFn, digest16: digest16Of, tickets: tickets, results: results })
+    const w: any = ms[1].createChangesWrite({ readScreenOf: readScreenOf, runCommand: writeChangesGit, readTextFile: readTextFile, writeTextFile: writeTextFile, writeTempPatch: writeTempPatch, deleteFile: deleteFile, nowMs: nowFn, digest16: digest16Of, tickets: tickets, results: results })
     return {
       check: loggedPhone('wf.gitChangesCheck', 'git-changes-check', c.handleChangesCheck),
       write: loggedPhone('wf.gitChangesWrite', 'git-changes-write', w.handleChangesWrite),
