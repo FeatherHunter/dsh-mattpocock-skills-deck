@@ -221,7 +221,9 @@ export const vcConfigApplyCheck = function (state: any, reply: any): any {
   const r = reply || {}
   next.pending = null
   if (r.ok === true && r.ticket) {
-    next.check = { ticket: r.ticket, op: String(r.op || ''), confirm: vcConfigConfirmOf(r), confirmRequired: r.confirmRequired === true, scene: r.scene || null }
+    // ok 标志必须留在这份 check 上：页面用 vcConfigConfirmOf(state.check) 判要不要画确认卡，
+    // 而那个函数要求 ok === true；漏掉它确认卡就永远不会出现（删键会静默跳过确认）。
+    next.check = { ok: true, ticket: r.ticket, op: String(r.op || ''), confirm: vcConfigConfirmOf(r), confirmRequired: r.confirmRequired === true, scene: r.scene || null }
     if (r.scene && typeof r.scene === 'object') {
       const id = next.identity || {}
       const name = id.name || {}

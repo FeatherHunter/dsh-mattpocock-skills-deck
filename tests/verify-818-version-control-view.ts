@@ -71,6 +71,8 @@ const VC_FILES = [
   'src/shared/version-control/src/commit-plan.ts',
   // #1751：贮藏十条的规则真源（动作名单、版本门、危险档、命令拼装与恢复路径）。
   'src/shared/version-control/src/stash-rules.ts',
+  // #1760 配置与钩子八条的规则真源（四组配置 / 只读边界 / 2.36 版本门 / 钩子名形状 / 清单解析），与构建同序。
+  'src/shared/version-control/src/config-rules.ts',
   // #1752 工作树八条能力的纯规则层（八条动作 / argv / 判定 / 清单行模型），与构建同序排在客户端那片之前。
   'src/shared/version-control/src/worktree-ops.ts',
   'src/client/views/versionControl/vcText.js',
@@ -117,6 +119,10 @@ const VC_FILES = [
   // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
   'src/client/views/versionControl/vcStashOps.js',
   'src/client/views/versionControl/vcStashPage.js',
+  // #1760 配置与钩子三片（与构建同序）：数据与动作层 → 配置页 → 钩子页，页面壳的挂载段要看到这两页。
+  'src/client/views/versionControl/vcConfigOps.js',
+  'src/client/views/versionControl/vcConfigPage.js',
+  'src/client/views/versionControl/vcHooksPage.js',
   'src/client/views/versionControl/vcShellPages.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -197,6 +203,18 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcStashStagedStateOf', 'vcStashOpVisibleOf', 'vcStashNeedsConfirmOf', 'vcStashConfirmOf', 'vcStashConfirmPayloadOf', 'vcStashActionPayloadOf', 'vcStashCallOf',
   'vcStashFailKeyOf', 'vcStashResultOf', 'vcStashApplyReply', 'vcStashRecentOf', 'vcStashShortOidOf', 'vcStashWhenOf',
   'vcStashPageNode', 'VC_STASH_PAGE_SOURCE',
+  // #1760 配置与钩子（域 12）：共享规则层的分组 / 版本门 / 解析，读与写的电话名与判定，两页的数据层与页面体。
+  'CONFIG_GROUPS', 'CONFIG_IDENTITY_KEYS', 'CONFIG_SCOPES', 'CONFIG_WRITE_OPS', 'CONFIG_ENTRY_DEFS', 'HOOK_NAMES',
+  'CONFIG_CHECK_CONTRACT', 'CONFIG_CHECK_VERSION', 'CONFIG_HOOK_RUN_MIN_VERSION', 'CONFIG_HOOK_RUN_ALTERNATIVE',
+  'configGroupOf', 'configKeyEditable', 'configHookRunStateOf', 'identityValueError', 'hookNameProblem', 'configScopeOf',
+  'parseConfigList', 'configOldValueOf', 'configRowsOf', 'parseCheckAttr', 'parseCheckMailmap',
+  'configCheckPlanOf', 'configNeedsConfirmOf', 'configConfirmOf', 'configSceneSummary',
+  'VC_CONFIG_READ_PHONE', 'VC_CONFIG_CHECK_PHONE', 'VC_CONFIG_WRITE_PHONE', 'VC_CONFIG_READ_CONTRACT', 'VC_CONFIG_WRITE_KEYS', 'VC_CONFIG_PHONES',
+  'vcConfigStateNew', 'vcConfigApplyRead', 'vcConfigReadStateOf', 'vcConfigIdentityRowsOf', 'vcConfigGroupsOf', 'vcConfigGroupRowsOf',
+  'vcConfigEditOf', 'vcConfigSetInputOf', 'vcConfigUnsetInputOf', 'vcHookRunInputOf', 'vcConfigCheckCallOf', 'vcConfigWriteCallOf',
+  'vcConfigConfirmOf', 'vcConfigConfirmTargetOf', 'vcConfigFailKeyOf', 'vcConfigResultOf', 'vcConfigApplyReply', 'vcConfigApplyCheck',
+  'vcHooksReadStateOf', 'vcHookRowsOf', 'vcHooksDirOf', 'vcHookRunStateOf', 'vcHookRunVisibleOf', 'vcHookConfirmOf', 'vcHookResultOf', 'vcHooksApplyReply', 'vcHookOutputOf',
+  'vcConfigPageNode', 'vcHooksPageNode', 'VC_CONFIG_PAGE_SOURCE', 'VC_HOOKS_PAGE_SOURCE',
   // #1752 工作树页：共享动作层的八条动作与判定、数据层模型、处理层参数整形、页面体与八条入口。
   'WORKTREE_ACTIONS', 'WORKTREE_CAP_IDS', 'WORKTREE_REASONS', 'worktreeJudge', 'worktreeArgsOf', 'worktreeRowsOf', 'worktreePruneEntriesOf',
   'VC_WORKTREES_ENTRY_DEFS', 'VC_WORKTREE_PHONES', 'VC_WORKTREES_PAGE_SOURCE', 'VC_WORKTREES_DATA_SOURCE',
@@ -322,9 +340,14 @@ async function main() {
   // #1751 贮藏页那一族（十条动作名、版本门、确认卡、最近丢弃与失败话术）。
   const vcStashMod = await import(locUrl('src/client/kernel/locale-vcstash.js'))
   const L_VCSTASH = vcStashMod.L_VCSTASH
+  // #1760 配置页与钩子页两族（四组标题、身份两键、版本门、确认卡、钩子清单与输出）。
+  const vcConfigMod = await import(locUrl('src/client/kernel/locale-vcconfig.js'))
+  const L_VCCONFIG = vcConfigMod.L_VCCONFIG
+  const vcHooksMod = await import(locUrl('src/client/kernel/locale-vchooks.js'))
+  const L_VCHOOKS = vcHooksMod.L_VCHOOKS
   LOC = {
-    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh),
-    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en),
+    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh, L_VCCONFIG.zh, L_VCHOOKS.zh),
+    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en, L_VCCONFIG.en, L_VCHOOKS.en),
   }
   tZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
   tEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
@@ -1538,6 +1561,133 @@ async function main() {
   check(failHtml.indexOf('data-vc-stash-result="fail"') >= 0 && attrValuesOf(failHtml, 'data-vc-stash-fail-kind')[0] === 'branch-exists' && failHtml.indexOf(LOC.zh['vc.stash.fail.branchExists']) >= 0, 'Z16z 失败回包按原因码查人话（分支已存在：说清楚，不印裸 kind）')
   const okState = Object.assign(VIEW.vcStashStateNew(), { result: { ok: true, op: 'push', entries: stashEntries, recent: [] } })
   check(stashPageOf(stashEntries, 'git version 2.49.0', okState).indexOf('data-vc-stash-result="ok"') >= 0, 'Z16aa 成功回包给结果条并提示下一步（列表已刷新）')
+  // ---- Z17 组：配置页与钩子页（#1760 T24，域 12 八条） ----
+  // 两页共用一份读配置电话的回包：四组配置、身份两条旧值、钩子清单与 2.36 版本门都从这份读数来。
+  // 写动作（改 / 删身份两键、手动跑钩子）这里只验「预检签票 + 确认卡 + 结果条」画得对；
+  //   真正起进程、零命令拒绝与重放去重在 tests/verify-1586-config-hooks.ts 与 verify-841-write-phones.ts。
+  const cfgRowOf = function (group, key, editable, local, global, scope) {
+    return { group: group, key: key, editable: editable, values: { local: local, global: global, system: null, other: null }, scope: scope, value: scope === 'local' ? local : global }
+  }
+  // 第三个参数给反证用：改坏共享层之后，回包里的第二次判定也必须跟着那份改坏的视图走，
+  // 否则判据读到的永远是改坏前的结论，反证会假绿。
+  const cfgReplyOf = function (versionText, hooksEntries, view) {
+    const V2 = view || VIEW
+    const ver = versionText || 'git version 2.49.0'
+    return {
+      ok: true, contract: V2.CONFIG_CHECK_CONTRACT, version: V2.CONFIG_CHECK_VERSION, readAtMs: NOW,
+      repoRoot: 'D:/w/repo', gitVersion: ver, hookRunVersion: V2.configHookRunStateOf(ver),
+      configPath: 'D:/w/repo/.git/config',
+      groups: [
+        cfgRowOf('identity', 'user.name', true, '基线名字', null, 'local'),
+        cfgRowOf('identity', 'user.email', true, 'base@example.com', 'machine@example.com', 'local'),
+        cfgRowOf('eol', 'core.autocrlf', false, 'true', null, 'local'),
+        cfgRowOf('hooksPath', 'core.hooksPath', false, null, '.githooks', 'global'),
+      ],
+      identity: { name: { local: '基线名字', global: null }, email: { local: 'base@example.com', global: 'machine@example.com' } },
+      hooks: {
+        dir: 'D:/w/repo/.git/hooks', configured: null, readable: true, known: VIEW.HOOK_NAMES,
+        entries: hooksEntries || [
+          { name: 'pre-commit', sample: false, executable: true, size: 520 },
+          { name: 'pre-commit.sample', sample: true, executable: true, size: 1200 },
+          { name: 'post-merge', sample: false, executable: false, size: 10 },
+        ],
+      },
+      attr: { state: 'idle' }, mailmap: { state: 'idle' }, entries: V2.CONFIG_ENTRY_DEFS,
+    }
+  }
+  const cfgStateOf = function (versionText, over) {
+    return Object.assign(VIEW.vcConfigApplyRead(VIEW.vcConfigStateNew(), cfgReplyOf(versionText)), over || {})
+  }
+  const cfgShellOf = function (page, state) {
+    const opts = { page: page, width: 460, skin: 'dark' }
+    opts[page === 'config' ? 'config' : 'hooks'] = state
+    return shellHtmlOf(opts)
+  }
+  const cfgHtml = cfgShellOf('config', cfgStateOf())
+  check(cfgHtml.indexOf('data-vc-config-page="1"') >= 0 && attrValuesOf(cfgHtml, 'data-vc-config-read').filter(function (x) { return x === 'ok' }).length === 2, 'Z17a 配置页在页面壳里画出正文，读状态如实标 ok（页根与读条各标一次）')
+  check(attrValuesOf(cfgHtml, 'data-cap-primary').join(',') === '12.1,12.2,12.3,12.4,12.7,12.8', 'Z17b 配置页六条能力仍由能力行给唯一主入口（12.1–12.4 / 12.7 / 12.8，页面体不另画一份）')
+  check(VIEW.vcPageCapabilitiesOf('hooks').map(function (c) { return c.id }).join(',') === '12.5,12.6', 'Z17c 钩子页两条能力由能力行给主入口（12.5 清单 / 12.6 手动跑）')
+  check(attrValuesOf(cfgHtml, 'data-vc-config-identity').join(',') === 'user.name,user.email' && cfgHtml.indexOf('基线名字') >= 0 && cfgHtml.indexOf('base@example.com') >= 0, 'Z17d 身份两键各一行，旧值照读回包原样印（本仓库 / 这台机器各一格）')
+  check(attrValuesOf(cfgHtml, 'data-vc-config-old').length === 2 && cfgHtml.indexOf(fill(LOC.zh['vc.config.identity.old'], { local: '基线名字', global: LOC.zh['vc.config.identity.never'] })) >= 0, 'Z17e 旧值说明按词条拼：有值印值、没有就明说「未配置」，不印空白')
+  const cfgSetCount = attrValuesOf(cfgHtml, 'data-vc-config-op').filter(function (x) { return x === 'config-set' }).length
+  const cfgUnsetCount = attrValuesOf(cfgHtml, 'data-vc-config-op').filter(function (x) { return x === 'config-unset' }).length
+  check(cfgSetCount === 2 && cfgUnsetCount === 2, 'Z17f 身份两键各一个保存与一个删除入口（12.2 / 12.3 各两条，不并成一条）')
+  const cfgCaps = attrValuesOf(cfgHtml, 'data-vc-config-cap')
+  check(cfgCaps.filter(function (x) { return x === '12.2' }).length === 2 && cfgCaps.filter(function (x) { return x === '12.3' }).length === 2 && cfgCaps.indexOf('12.4') >= 0 && cfgCaps.indexOf('12.7') >= 0 && cfgCaps.indexOf('12.8') >= 0, 'Z17g 配置页的能力编号逐条落在控件上（12.2 / 12.3 各两处，12.4 身份组，12.7 / 12.8 两个查询）')
+  check(attrValuesOf(cfgHtml, 'data-vc-config-editable').join(',') === 'true,false,false,false' && attrValuesOf(cfgHtml, 'data-vc-config-readonly').length === 3, 'Z17h 四组里只有身份组可编辑，其余三组都标「只读」（作用域边界画在界面上）')
+  check(attrValuesOf(cfgHtml, 'data-vc-config-row').join(',') === 'core.autocrlf,core.hooksPath' && attrValuesOf(cfgHtml, 'data-vc-config-row-scope').join(',') === 'local,global', 'Z17i 只读组逐键画行，并标出这个值来自哪个作用域（反推自 --show-origin，不解析配置文件）')
+  check(cfgHtml.indexOf(LOC.zh['vc.config.scope.local']) >= 0 && cfgHtml.indexOf(LOC.zh['vc.config.scope.global']) >= 0, 'Z17j 作用域用人话印（本仓库 / 这台机器，不印 local / global 裸词）')
+  check(attrValuesOf(cfgHtml, 'data-vc-config-group-empty').length === 1 && cfgHtml.indexOf(LOC.zh['vc.config.group.empty']) >= 0, 'Z17k 没有配置的组画「用默认值」空态，不画空表')
+  check(cfgHtml.indexOf('data-vc-config-path="1"') >= 0 && cfgHtml.indexOf('D:/w/repo/.git/config') >= 0 && cfgHtml.indexOf('data-vc-config-git-version="1"') >= 0, 'Z17l 页头印出配置文件路径与 git 版本（用户能看出读的是哪一份）')
+  const cfgAttr = cfgShellOf('config', cfgStateOf('', { attr: { state: 'ok', entries: [{ path: 'a.txt', attr: 'text', value: 'auto' }, { path: 'a.txt', attr: 'eol', value: 'lf' }] } }))
+  check(cfgAttr.indexOf('text=auto') >= 0 && cfgAttr.indexOf('eol=lf') >= 0 && attrValuesOf(cfgAttr, 'data-vc-config-attr-result').join(',') === 'ok', 'Z17m 12.7 属性规则查询：命中几条就照原样列（键=值，不自己改写成别的说法）')
+  const cfgMail = cfgShellOf('config', cfgStateOf('', { mailmap: { state: 'ok', mapped: '新名字 <new@example.com>' } }))
+  check(cfgMail.indexOf('新名字 &lt;new@example.com&gt;') >= 0 && attrValuesOf(cfgMail, 'data-vc-config-mailmap-result').join(',') === 'ok', 'Z17n 12.8 邮件映射查询：映射后的结果原样印')
+  const cfgNone = cfgShellOf('config', cfgStateOf('', { attr: { state: 'ok', entries: [] } }))
+  check(cfgNone.indexOf(LOC.zh['vc.config.attr.none']) >= 0, 'Z17o 属性一条没命中时说清「没有命中规则」，不画空结果')
+  const cfgReadErr = cfgShellOf('config', VIEW.vcConfigApplyRead(VIEW.vcConfigStateNew(), { ok: false, error: { kind: 'not-repo', message: '不是仓库' } }))
+  check(attrValuesOf(cfgReadErr, 'data-vc-config-read').filter(function (x) { return x === 'err' }).length === 2 && cfgReadErr.indexOf(fill(LOC.zh['vc.config.read.err'], { kind: 'not-repo' })) >= 0, 'Z17p 读数失败照实标 err 并把原因带出来（不把没读到画成空配置）')
+  check(shellHtmlOf({ page: 'config', width: 460, skin: 'dark' }).indexOf('data-vc-config-page') < 0, 'Z17q 没传读数时仍画骨架（页面体只在调用方给了状态时挂进来，壳自检不被顶掉）')
+  const cfgCheckReply = {
+    ok: true, contract: VIEW.CONFIG_CHECK_CONTRACT, version: VIEW.CONFIG_CHECK_VERSION, readAtMs: NOW, op: 'config-unset',
+    decision: { verdict: 'warn', reasons: ['confirm-required'] }, confirmRequired: true,
+    confirm: { kind: 'config-unset', target: 'user.name', scope: 'local' },
+    ticket: { id: 'cfg-t1', op: 'config-unset', checkedAtMs: NOW, expiresAtMs: NOW + 120000 },
+    scene: { nameLocal: '基线名字', nameGlobal: null, emailLocal: 'base@example.com', emailGlobal: 'machine@example.com', hooksPath: null, hookExists: null, headOid: null },
+  }
+  const cfgConfirmHtml = cfgShellOf('config', VIEW.vcConfigApplyCheck(cfgStateOf(), cfgCheckReply))
+  check(cfgConfirmHtml.indexOf('data-vc-config-confirm="user.name"') >= 0 && attrValuesOf(cfgConfirmHtml, 'data-vc-confirm-seg').length === 4, 'Z17r 删配置键：确认卡就地出、四段齐全（会动什么 / 不会动什么 / 可逆性 / 动词）')
+  check(attrValuesOf(cfgConfirmHtml, 'data-focus-default').indexOf('cancel') >= 0 && cfgConfirmHtml.indexOf('data-vc-config-confirm-go="1"') >= 0 && cfgConfirmHtml.indexOf('data-vc-config-confirm-cancel="1"') >= 0, 'Z17s 确认卡默认焦点在取消（删键的第一下不该落在确认上）')
+  check(cfgConfirmHtml.indexOf('user.name') >= 0 && cfgConfirmHtml.indexOf(LOC.zh['vc.config.confirm.verbUnset']) >= 0, 'Z17t 确认卡说清删的是哪个键、动词写后果（不是笼统的「确定」）')
+  const cfgResultFail = cfgShellOf('config', cfgStateOf('', { result: { ok: false, kind: 'git-failed', reason: 'git-failed', message: '没有写权限' } }))
+  check(attrValuesOf(cfgResultFail, 'data-vc-config-result').join(',') === 'fail' && attrValuesOf(cfgResultFail, 'data-vc-config-fail-kind').join(',') === 'git-failed' && cfgResultFail.indexOf('没有写权限') >= 0, 'Z17u 写失败按原因码查人话并保留 git 原话（不印裸 kind，也不假装成功）')
+  check(cfgShellOf('config', cfgStateOf('', { result: { ok: true } })).indexOf('data-vc-config-result="ok"') >= 0, 'Z17v 写成功给结果条（贴在同一块，用户知道这一步做完了）')
+  const hkHtml = cfgShellOf('hooks', cfgStateOf())
+  check(hkHtml.indexOf('data-vc-hooks-page="1"') >= 0 && attrValuesOf(hkHtml, 'data-vc-hooks-count').join(',') === '3,3' && hkHtml.indexOf('data-vc-hooks-list="ok"') >= 0, 'Z17w 钩子页画出正文：清单条数如实报（页根与清单各标一次，3 个文件）')
+  check(attrValuesOf(hkHtml, 'data-vc-hook').join(',') === 'pre-commit,pre-commit.sample,post-merge' && attrValuesOf(hkHtml, 'data-vc-hook-sample').join(',') === '0,1,0', 'Z17x 清单逐条画名字，并把示例文件与真钩子分开标（不把 .sample 当已启用）')
+  check(attrValuesOf(hkHtml, 'data-vc-hook-executable').join(',') === '0' && hkHtml.indexOf(LOC.zh['vc.hooks.notExecutable']) >= 0, 'Z17y 没有执行权限的钩子如实标出来（跑不起来就不给可点的按钮）')
+  check(attrValuesOf(hkHtml, 'data-vc-hook-run').join(',') === 'pre-commit,post-merge' && attrValuesOf(hkHtml, 'data-vc-hooks-cap').join(',') === '12.6,12.6', 'Z17z 12.6 手动跑：只有真钩子且可执行时各一个入口，示例文件没有')
+  check(hkHtml.indexOf('data-vc-hooks-install-note="1"') >= 0 && hkHtml.indexOf(LOC.zh['vc.hooks.install.note']) >= 0, 'Z17aa 安装与停用只给只读说明（页面上不提供安装 / 停用按钮）')
+  check(hkHtml.indexOf(LOC.zh['vc.hooks.notConfigured']) >= 0 && hkHtml.indexOf('data-vc-hooks-dir="1"') >= 0 && hkHtml.indexOf('D:/w/repo/.git/hooks') >= 0, 'Z17ab 钩子目录与「用的是默认目录」都说明白（core.hooksPath 没配置时）')
+  const hkLowHtml = cfgShellOf('hooks', cfgStateOf('git version 2.34.1'))
+  check(attrValuesOf(hkLowHtml, 'data-vc-hook-run').length === 0 && hkLowHtml.indexOf('data-vc-hooks-gate="hidden"') >= 0, 'Z17ac 2.34 上 12.6 低于 2.36：运行按钮一个不留，改打印版本门提示（隐藏不等于沉默）')
+  check(hkLowHtml.indexOf('2.36.0') >= 0 && hkLowHtml.indexOf(LOC.zh['vc.hooks.gate.alternative']) >= 0 && LOC.zh['vc.hooks.gate.alternative'] === VIEW.CONFIG_HOOK_RUN_ALTERNATIVE, 'Z17ad 版本门提示写出需要 2.36.0，并照账本的替代做法原话说（与共享层同一句）')
+  check(hkLowHtml.indexOf('data-vc-hooks-gate-alternative="1"') >= 0, 'Z17ae 替代做法单独带标记（读屏与门禁都找得到这一句）')
+  const hkCheckReply = {
+    ok: true, contract: VIEW.CONFIG_CHECK_CONTRACT, version: VIEW.CONFIG_CHECK_VERSION, readAtMs: NOW, op: 'hook-run',
+    decision: { verdict: 'warn', reasons: ['confirm-required'] }, confirmRequired: true,
+    confirm: { kind: 'hook-run', target: 'pre-commit' },
+    ticket: { id: 'cfg-t2', op: 'hook-run', checkedAtMs: NOW, expiresAtMs: NOW + 120000 },
+    scene: { nameLocal: '基线名字', nameGlobal: null, emailLocal: 'base@example.com', emailGlobal: 'machine@example.com', hooksPath: null, hookExists: true, headOid: 'a'.repeat(40) },
+  }
+  const hkConfirmHtml = cfgShellOf('hooks', VIEW.vcConfigApplyCheck(cfgStateOf(), hkCheckReply))
+  check(hkConfirmHtml.indexOf('data-vc-hooks-confirm="pre-commit"') >= 0 && attrValuesOf(hkConfirmHtml, 'data-vc-confirm-seg').length === 4 && attrValuesOf(hkConfirmHtml, 'data-focus-default').indexOf('cancel') >= 0, 'Z17af 手动跑钩子前出确认卡、四段齐全、默认焦点在取消（钩子是仓库里的脚本，跑之前要说清是哪一个）')
+  check(hkConfirmHtml.indexOf('data-vc-hooks-confirm-go="1"') >= 0 && hkConfirmHtml.indexOf('data-vc-hooks-confirm-cancel="1"') >= 0, 'Z17ag 确认与取消两个按钮都在（用户能退回去）')
+  const hkResultHtml = cfgShellOf('hooks', VIEW.vcHooksApplyReply(VIEW.vcConfigApplyRead(VIEW.vcConfigStateNew(), cfgReplyOf()), { ok: true, hookFailed: true, exitCode: 7, output: 'hook-failed\n', truncated: true }))
+  check(attrValuesOf(hkResultHtml, 'data-vc-hooks-result').join(',') === 'ok' && attrValuesOf(hkResultHtml, 'data-vc-hooks-hook-failed').join(',') === '1', 'Z17ah 钩子自己退出非 0：结果条仍算跑完，但明说「钩子自己报告失败」（不当电话故障）')
+  check(hkResultHtml.indexOf('hook-failed') >= 0 && attrValuesOf(hkResultHtml, 'data-vc-hooks-output').length === 1 && attrValuesOf(hkResultHtml, 'data-vc-hooks-output-truncated').join(',') === '1', 'Z17ai 钩子输出原样铺开；截断时如实标出来（不装作完整）')
+  const hkFailHtml = cfgShellOf('hooks', VIEW.vcHooksApplyReply(cfgStateOf(), { ok: false, error: { kind: 'timeout', message: '超时' } }))
+  check(attrValuesOf(hkFailHtml, 'data-vc-hooks-result').join(',') === 'fail' && attrValuesOf(hkFailHtml, 'data-vc-hooks-fail-kind').join(',') === 'timeout' && hkFailHtml.indexOf(LOC.zh['vc.config.fail.timeout']) >= 0, 'Z17aj 跑钩子电话失败按原因码查人话（超时说超时，不印裸 kind）')
+  const hkErrHtml = cfgShellOf('hooks', VIEW.vcConfigApplyRead(VIEW.vcConfigStateNew(), { ok: false, error: { kind: 'not-repo', message: '不是仓库' } }))
+  check(hkErrHtml.indexOf('data-vc-hooks-list="err"') >= 0 && hkErrHtml.indexOf(fill(LOC.zh['vc.hooks.list.err'], { kind: 'not-repo' })) >= 0, 'Z17ak 钩子清单读不到时画错误态（不画空清单冒充「没有钩子」）')
+  const hkEmptyHtml = cfgShellOf('hooks', VIEW.vcConfigApplyRead(VIEW.vcConfigStateNew(), cfgReplyOf('', [])))
+  check(hkEmptyHtml.indexOf('data-vc-hooks-list="empty"') >= 0 && hkEmptyHtml.indexOf(LOC.zh['vc.hooks.list.empty']) >= 0, 'Z17al 钩子目录里确实没有脚本时画空态，并与读失败区分开')
+  check(cfgHtml.indexOf('data-vc-hooks-page') < 0 && hkHtml.indexOf('data-vc-config-page') < 0, 'Z17am 两页各画各的正文（配置页不带钩子页、钩子页不带配置页）')
+  // 下面三条反证（H 组）用的判据：与上面主线断言同一条，改坏源码就该当场假。
+  const configMountedJudgmentOf = function (v) {
+    const state = v.vcConfigApplyRead(v.vcConfigStateNew(), cfgReplyOf())
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'config', width: 460, skin: 'dark', config: state }))
+    return html.indexOf('data-vc-config-page="1"') >= 0 && attrValuesOf(html, 'data-vc-config-identity').join(',') === 'user.name,user.email' && attrValuesOf(html, 'data-vc-config-cap').indexOf('12.2') >= 0
+  }
+  const configReadonlyJudgmentOf = function (v) {
+    return v.configCheckPlanOf('config-set', { key: 'core.autocrlf', scope: 'local', value: 'true' }).ok === false && v.configCheckPlanOf('config-set', { key: 'user.name', scope: 'local', value: '新名字' }).ok === true
+  }
+  const hooksGateJudgmentOf = function (v) {
+    const state = v.vcConfigApplyRead(v.vcConfigStateNew(), cfgReplyOf('git version 2.34.1', null, v))
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'hooks', width: 460, skin: 'dark', hooks: state }))
+    return attrValuesOf(html, 'data-vc-hook-run').length === 0 && html.indexOf('data-vc-hooks-gate="hidden"') >= 0
+  }
+
   // ---- W-ext 组（#1752）：工作树页八条能力接在同一份首屏快照上 ----
   // 页面与首屏聚合共用同一份片：清单来自 worktrees 片，版本门来自 version 片里的 switches，
   // 判定调共享层 worktreeJudge —— 界面不另发清单电话、不自己写一份版本比较。
@@ -2216,6 +2366,10 @@ async function main() {
     { name: '贮藏页不再挂进页面壳（十条入口全没了）', patch: (s) => s.replace("if (page === 'stash' && typeof vcStashPageNode === 'function') {", 'if (false) {'), test: stashMountedJudgmentOf, what: 'Z16a' },
     { name: '7.3 的版本门恒放行（低版本也画按钮）', patch: (s) => s.replace('const state = vcStashOpVersionStateOf(VC_STASH_STAGED_OP, versionText)', "const state = 'full'"), test: stashGateJudgmentOf, what: 'Z16m' },
     { name: '危险动作不再出确认卡', patch: (s) => s.replace('if (!state.confirm || !state.confirm.op) return null', 'if (state) return null'), test: stashConfirmJudgmentOf, what: 'Z16p' },
+    // #1760：配置与钩子页的三处反证 —— 配置页挂载被摘掉、只读边界放行、2.36 版本门恒放行，对应断言必须当场红。
+    { name: '配置页不再挂进页面壳（四组与身份两键都画不出来）', patch: (s) => s.replace("if (page === 'config' && opts.config !== undefined && typeof vcConfigPageNode === 'function') children.push", 'if (false) children.push'), test: configMountedJudgmentOf, what: 'Z17a' },
+    { name: '只读边界放行（任意配置键都能写）', patch: (s) => s.replace('if (!configKeyEditable(key))', 'if (false)'), test: configReadonlyJudgmentOf, what: 'Z17h' },
+    { name: '2.36 的版本门恒放行（低版本也画运行按钮）', patch: (s) => s.replace("  if (!atLeast(v, 2, 36, 0)) return { state: 'hidden', needed: CONFIG_HOOK_RUN_MIN_VERSION, alternative: CONFIG_HOOK_RUN_ALTERNATIVE }", "  if (false) return { state: 'hidden', needed: CONFIG_HOOK_RUN_MIN_VERSION, alternative: CONFIG_HOOK_RUN_ALTERNATIVE }"), test: hooksGateJudgmentOf, what: 'Z17ac' },
     // #1754：远端页的联网入口换了标记名（按钮还在，但读屏与门禁都找不到「这是联网入口」）—— R2a 必须当场红。
     { name: '远端页的联网入口改成别的属性名', patch: (s) => s.replace("'data-vc-remote-online-btn': String(remote.name),", "'data-vc-remote-online-entry': String(remote.name),"), test: (v) => { const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'remote', width: 460, skin: 'dark', reads: rcReadsOf({}) })); return attrValuesOf(html, 'data-vc-remote-online-btn').length === 2 }, what: 'R2a' },
     // #1754：联网结果不再标来源 network（把这一次的联网读数画成缓存/旧值）—— R2d 必须当场红。
