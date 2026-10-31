@@ -22,15 +22,20 @@ function mkRepo(tag: string): string {
   return base
 }
 const spawns: string[][] = []
+// #1741：既有断言只看 argv；补一份完整请求（cwd/stdio/env），才能断言 GIT_EDITOR 与 stdin 形状。
+const requests: Array<{ argv: string[]; cwd: string; stdio: any; env: any }> = []
+let lastStdin: any = null
 const logs: Array<{ level: string; event: string; fields: Record<string, any> }> = []
 const timerCalls: number[] = []
 let clock = { t: 1000 }
 function makeVc(route?: ((argv: string[]) => any) | null) {
   spawns.length = 0
+  requests.length = 0
+  lastStdin = null
   logs.length = 0
   timerCalls.length = 0
   const deps = {
-    subprocess: { spawn(req) { spawns.push(req.argv.slice()); const hit = route ? route(req.argv) : null; if (hit) { const mk = (t) => ({ finalize: () => ({ text: String(t || ''), truncated: false }) }); return { done: Promise.resolve({ exitCode: hit.code || 0 }), collected: { stdout: mk(hit.stdout), stderr: mk(hit.stderr) }, terminate() {} } } const r = spawnSync(req.argv[0], req.argv.slice(1), { cwd: req.cwd, encoding: 'buffer', windowsHide: true, maxBuffer: 1 << 26 }); const mk2 = (b) => ({ finalize: () => ({ text: (b || Buffer.alloc(0)).toString('utf8'), truncated: false }) }); return { done: Promise.resolve({ exitCode: r.status }), collected: { stdout: mk2(r.stdout), stderr: mk2(r.stderr) }, terminate() {} } } },
+    subprocess: { spawn(req) { spawns.push(req.argv.slice()); requests.push({ argv: req.argv.slice(), cwd: req.cwd, stdio: req.stdio, env: req.env }); const hit = route ? route(req.argv, req) : null; if (hit && hit.throwOnSpawn) throw new Error('spawn ENOENT'); if (hit) { const mk = (t, trunc) => ({ finalize: () => ({ text: String(t || ''), truncated: trunc === true }) }); const handle: any = { done: hit.pending ? new Promise(() => {}) : Promise.resolve({ exitCode: hit.code || 0 }), collected: { stdout: mk(hit.stdout, hit.truncated), stderr: mk(hit.stderr) }, terminate() { handle.terminated = true } }; if (req.stdio && req.stdio.stdin === 'pipe') { const chunks: Buffer[] = []; const stdin = { chunks: chunks, write(chunk) { if (hit.stdinMode === 'epipe') { const e: any = new Error('write EPIPE'); e.code = 'EPIPE'; throw e } chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))); return true }, end() {}, on() {} }; handle.stdin = stdin; lastStdin = stdin } return handle } const r = spawnSync(req.argv[0], req.argv.slice(1), { cwd: req.cwd, encoding: 'buffer', windowsHide: true, maxBuffer: 1 << 26 }); const mk2 = (b) => ({ finalize: () => ({ text: (b || Buffer.alloc(0)).toString('utf8'), truncated: false }) }); return { done: Promise.resolve({ exitCode: r.status }), collected: { stdout: mk2(r.stdout), stderr: mk2(r.stderr) }, terminate() {} } } },
     timer: { timeout: (ms) => { timerCalls.push(ms); return new Promise((r) => setTimeout(r, ms)) } },
     fs: { stat: async (p) => await fs.promises.stat(p), lstat: async (p) => await fs.promises.lstat(p), exists: async (p) => { try { await fs.promises.access(p); return true } catch (e) { return false } } },
     getPlatform: async () => ({ resolveExecutable: async (n) => (n === 'git' ? 'git' : null) }),
@@ -184,6 +189,42 @@ async function main(): Promise<void> {
   const fl = logs.filter((l) => l.event === 'host.call.fail')[0]
   check(bad.ok === false && fl && fl.fields.method === 'wf.gitCommit' && fl.fields.errorKind === 'args', 'G2 失败落 host.call.fail 且带 errorKind（实得 ' + (fl && fl.fields.errorKind) + '）')
   check(logs.every((l) => ['git.exec', 'git.exec.fail', 'host.call', 'host.call.fail'].indexOf(l.event) >= 0), 'G3 只出现既有四个事件')
+
+  // H 执行层补齐（#1741）：固定前缀、必失败编辑器、子命令扫描、stdin 默认值、日志字段、截断、超时、起进程失败。
+  // 断言值都独立取自「要守的那件事」本身（前置开关名、环境变量约定、上限字节数），不复述实现里的常量名。
+  console.log('H 执行层补齐（固定前缀 / 编辑器 / stdin / 日志 / 截断 / 超时）')
+  const fp = cmds.fixedPrefix()
+  check(fp[0] === '--no-pager' && fp.indexOf('--no-pager') >= 0, 'H1 固定前缀第一项是 --no-pager：输出不经过分页器，读命令不会挂住等翻页')
+  check(cmds.subcommandOf(['-C', '/x', '--no-pager', '-c', 'a=b', 'commit', '-m', 't']) === 'commit' && cmds.subcommandOf(['-C']) === '', 'H2 子命令扫描跳过带值的全局选项（-C/-c），只认真正的子命令；没有子命令回空串')
+  check(cmds.FAILING_EDITOR === 'false', 'H3 GIT_EDITOR 指向必定失败的命令 false（面板没覆盖成功时 git 直接失败，不弹编辑器、不挂住）')
+  const rH = mkRepo('h')
+  const vcH = makeVc()
+  await vcH.handleGitStage({ cwd: rH, paths: ['a.txt'] })
+  check(requests.length > 0 && requests.every((q) => q.env && q.env.GIT_EDITOR === 'false'), 'H4 每一次 git 调用都注入 GIT_EDITOR=false（读与写同一条出口）')
+  check(requests.every((q) => q.stdio && q.stdio.stdin === 'ignore'), 'H5 stdin 默认 ignore：除 fast-import 那一个窄例外，一律不开管道')
+  const addReq = requests.filter((q) => after(q.argv)[0] === 'add')[0] || { argv: [] }
+  const addExec = logs.filter((l) => l.event === 'git.exec' && l.fields.cmd === 'add')[0]
+  check(!!addExec && addExec.fields.argc === addReq.argv.length - 1 && typeof addExec.fields.stdoutBytes === 'number' && typeof addExec.fields.truncated === 'boolean', 'H6 git.exec 补齐命令名 / 参数个数 / 输出长度 / 截断标记')
+  // 截断由传输层 maxBytes 执行、宿主如实透传；这里同时断言上限真的传下去了、截断标记真的上来了。
+  const vcTr = makeVc((argv) => argv.indexOf('status') >= 0 ? { code: 0, stdout: 'x'.repeat(20), truncated: true } : null)
+  const tr = await vcTr.runGitCommand('git', rH, ['-C', rH, '--no-pager', 'status', '--porcelain=v2'], { stdoutLimit: 8 })
+  const trReq = requests[0] || { stdio: {} }
+  const trLog = logs.filter((l) => l.event === 'git.exec' && l.fields.cmd === 'status')[0]
+  check(tr && tr.kind === 'ok' && tr.truncated === true && trReq.stdio.stdout.maxBytes === 8 && !!trLog && trLog.fields.truncated === true && trLog.fields.stdoutBytes === 20, 'H7 stdout 上限真的传给传输层（maxBytes=8），超限时回包与日志都带 truncated=true')
+  // 超时：进程一直不回话 → timer 到点、杀进程、给明确失败（不是挂住）；失败行带 errorKind/timeoutMs/cmd。
+  const vcTo = makeVc((argv) => argv.indexOf('status') >= 0 ? { pending: true } : null)
+  const to = await vcTo.runGitCommand('git', rH, ['-C', rH, '--no-pager', 'status'], { timeoutMs: 40 })
+  const toFail = logs.filter((l) => l.event === 'git.exec.fail')[0]
+  check(to && to.kind === 'timeout' && to.timeoutMs === 40 && !!toFail && toFail.fields.errorKind === 'timeout' && toFail.fields.cmd === 'status' && toFail.fields.timeoutMs === 40 && logs.filter((l) => l.event === 'git.exec').length === 0, 'H8 超时回明确失败（kind=timeout），git.exec.fail 带 errorKind/cmd/timeoutMs，且不假装跑成功')
+  // 起进程失败：同样落到 git.exec.fail，分类 errorKind=spawn，错误只记散列。
+  const vcSp = makeVc(() => ({ throwOnSpawn: true }))
+  const sp = await vcSp.runGitCommand('git', rH, ['-C', rH, '--no-pager', 'status'])
+  const spFail = logs.filter((l) => l.event === 'git.exec.fail')[0]
+  check(sp && sp.kind === 'spawn-failed' && !!spFail && spFail.fields.errorKind === 'spawn' && typeof spFail.fields.errorHash === 'string' && spFail.fields.errorHash.length === 8, 'H9 起进程失败回 spawn-failed，git.exec.fail 带 errorKind=spawn 与 errorHash（只记散列）')
+  // 默认 stdout 上限：8MB（本次补齐的既有上限，独立取自「上限应为 8MB」这一口径）。
+  const vcCap = makeVc()
+  await vcCap.runGitCommand('git', rH, ['-C', rH, '--no-pager', 'status'])
+  check((requests[0] || { stdio: {} }).stdio.stdout.maxBytes === 8 * 1024 * 1024, 'H10 不传 stdoutLimit 时默认上限是 8MB')
 
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)

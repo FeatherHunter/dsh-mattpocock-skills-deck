@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T11:19:20.564Z",
+  "generatedAt": "2026-10-31T11:45:04.630Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 482,
-  "gateCount": 482,
-  "attributedGates": 431,
+  "chainLength": 484,
+  "gateCount": 484,
+  "attributedGates": 433,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 46,
+  "completionRecordedGates": 48,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 660,
@@ -4200,6 +4200,36 @@
       "completionRecord": true,
       "expectedAssertions": 42,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1586-write-contracts.ts",
+      "file": "tests/verify-1586-write-contracts.ts",
+      "guards": [
+        "src/host/versionControl.ts"
+      ],
+      "dirs": [
+        "src/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 40,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1586-write-registration.ts",
+      "file": "tests/verify-1586-write-registration.ts",
+      "guards": [
+        "src/host/versionControlWrite.ts"
+      ],
+      "dirs": [
+        "src/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 44,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-1595-resolvespec.ts",
@@ -12190,6 +12220,8 @@
       "node tests/verify-1512-md-chain.ts",
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1584-repo-ref-for-cwd.ts",
+      "node tests/verify-1586-write-contracts.ts",
+      "node tests/verify-1586-write-registration.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
       "node tests/verify-1612-deck-tool-gate.ts",
       "node tests/verify-1612-settings-switches.ts",

@@ -265,6 +265,13 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 分支原因、外部调用结果加耗时、状态变化、终点结论」五段逐段核对，缺段即红；
   // 截断趟的状态段由回执承载（成功回包不记错误行），文档写明；34 条单跑实测。
   'verify-closeout-log-trips': 34,
+  // 2026-10-31 #1741：写路径执行层补齐新增两扇。write-contracts 覆盖 stdinFile 窄例外（命令白名单、路径守卫、
+  // 大小与摘要、送入字节数、EPIPE 分类、传输层不支持时显式失败）、票据绑定字段扩张（篡改每个格子都要拒且零写命令、
+  // requestId 重放、120 秒票只做预检新鲜度）与 refspec/路径守卫，单跑实测 40 条。
+  'verify-1586-write-contracts': 40,
+  // 2026-10-31 #1741：write-registration 守「一条写命令七个登记点一处不漏」（操作枚举、判定分支、检查白名单、
+  // 写处理函数、宿主注册、电话表、超时配置），并用故意删两条记号的副本反证判据会报缺，单跑实测 44 条。
+  'verify-1586-write-registration': 44,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

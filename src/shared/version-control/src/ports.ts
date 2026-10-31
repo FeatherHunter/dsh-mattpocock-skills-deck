@@ -20,12 +20,16 @@ export interface GitVersion {
   patch: number
 }
 
-/** 端口返回的四种情形（#813 定案 5：成功含截断标志；拿不到截断标志就按可能截断处理）。 */
+/** 端口返回的几种情形（#813 定案 5：成功含截断标志；拿不到截断标志就按可能截断处理）。
+ *  #1741 补 stdin-failed：只有 fast-import 那一个只读文件流窄例外会把输入送进 git，
+ *  送不进去（命令不许配、路径/大小/摘要不符、传输层没有管道、EPIPE）一律显式失败，不能静默忽略；
+ *  ok 上的 stdinBytes 是这次真正送进管道的字节数（没送 stdin 的命令为 0 或不带）。 */
 export type ExecResult =
-  | { kind: 'ok'; stdout: string; truncated: boolean }
+  | { kind: 'ok'; stdout: string; truncated: boolean; stdinBytes?: number }
   | { kind: 'timeout'; timeoutMs: number }
   | { kind: 'spawn-failed'; message: string }
   | { kind: 'non-zero'; exitCode: number; stderr: string }
+  | { kind: 'stdin-failed'; reason: string; message: string; stdinBytes?: number }
 
 /** 首屏一次读全的五个采集项（patch 是按需的第六个，不在首屏内，见 commands.ts）。 */
 export type CollectionKey = 'status' | 'worktrees' | 'refs' | 'log' | 'diffFiles' | 'patch'
@@ -160,6 +164,38 @@ export interface WritePlan {
 }
 
 /**
+ * 写操作的绑定表（#1741）：预检那一刻把「执行前必须还没变的状态」量一遍记进票里，动手前重新量一遍逐格比对。
+ * 两个语义要点：
+ *   1. 只有票里记了值（非 null）的格子才比对——还没接线的动作留 null，别假装绑上了；
+ *   2. 绑定失配沿用既有理由标识符（索引条数 → stale-index，其余 → target-changed），不新增词表项，
+ *      所以客户端那张理由对照表不用改。
+ */
+export interface WritePreconditions {
+  /** 预检定下来的目标（推送计划 / 拉取目标 / 更新远方记录的远端选择）规范化后的摘要。 */
+  planDigest: string | null
+  /** 工作树此刻的形状（暂存与未暂存的路径清单）规范化后的摘要；拉取要它，因为拉取会不会冲突取决于它。 */
+  worktreeDigest: string | null
+  /** 会决定这次写操作往哪去的旧配置原值（branch.<名>.remote 与 branch.<名>.merge），对不上就说明上游被改过。 */
+  configOldValue: string | null
+  /** 远端跟踪引用此刻指向哪一提交；没有（或被删）时留 null。 */
+  remoteOid: string | null
+  /** 本轮四条写命令都不绑定这个格子，字段留给后续 prune/fsck 一类动作；注释写明是为了让「留空」看起来是有意的。 */
+  unreachableDigest: string | null
+  /** 预检时确认不存在的运行中操作标记文件（MERGE_HEAD 等）；执行前这些文件要是冒出来了就拒绝。 */
+  pathAbsent: string[]
+}
+
+export interface WriteCounters {
+  /** 索引条数（ls-files --stage 的 NUL 记录数）：索引里多一条少一条都算状态变过。 */
+  indexEntries: number | null
+}
+
+export interface WriteBindings {
+  preconditions: WritePreconditions
+  counters: WriteCounters
+}
+
+/**
  * 一次性票据（形制照 src/host/updatePkg/service.js 的 receipt：checkId + 过期时刻；重放保护靠 requestId 去重，
  * 不自创第三种语义）。客户端只拿得到 id / checkedAtMs / expiresAtMs / op，其余留在宿主内存里。
  */
@@ -175,6 +211,8 @@ export interface WriteTicket {
   indexFingerprint: string | null
   indexEntries: number | null
   target: WritePlan | null
+  /** 绑定表（#1741）：旧票据可能没有这个字段，执行前按「票里记了值才比对」处理，存量票据照样能用。 */
+  bindings?: WriteBindings
 }
 
 export const PORTS_SOURCE = 'src/shared/version-control/src/ports.ts'

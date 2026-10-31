@@ -32,7 +32,7 @@
  * 5. 没有新增任何 import 边：只给已有引用加类型，不引入新模块依赖；动态加载的那几条叶子
  *    （basis、markers、diff、write）仍走原来的 `./x.js` 说明符。
  */
-import { fixedPrefix, stepZeroArgs, commandFor, autocrlfArgs, RUNNING_MARKER_PATHS } from '../shared/version-control/src/commands.js'
+import { fixedPrefix, stepZeroArgs, commandFor, autocrlfArgs, RUNNING_MARKER_PATHS, FAILING_EDITOR, subcommandOf } from '../shared/version-control/src/commands.js'
 import { parseVersion, tierFor } from '../shared/version-control/src/capabilities.js'
 import { parseStatus } from '../shared/version-control/src/parse-status.js'
 import { parseWorktrees } from '../shared/version-control/src/parse-worktrees.js'
@@ -48,6 +48,11 @@ import { failPhone, firstLine, failureFromExec } from '../shared/version-control
 // 路径走域构建产物写法（与 src/refresh/rooms/host/chain-coalescing.ts 引 values.js 同例），
 // 值由 tests/verify-time-config.ts 看守一致。
 import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/time-config/src/values.js'
+// #1741：fast-import 那个只读文件流窄例外要宿主自己打开并核对普通文件、大小与摘要；
+// 这条边只服务 stdinFile，读命令与其余写命令仍走注入的 subprocess 服务。
+import { lstat as fsLstat, readFile as fsReadFile } from 'node:fs/promises'
+import { isAbsolute as pathIsAbsolute } from 'node:path'
+import { createHash as cryptoCreateHash } from 'node:crypto'
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -56,6 +61,49 @@ const PATCH_LIMIT: number = 4 * 1024 * 1024    // 单个文件差异的字节上
 const STDERR_LIMIT: number = 256 * 1024        // 错误信息的上限（只用来拼失败说明）
 const FIRST_SCREEN_LOG_COUNT: number = 50      // 首屏一次读多少条提交（核心的默认口径）
 const LOG_BATCH_MAX: number = 200              // 历史按批取时一批最多多少条
+
+/** stdinFile 只读文件流的命令白名单：整份规格里只有 fast-import 需要标准输入（规格第 8 节唯一例外）。 */
+const STDIN_FILE_COMMAND: string = 'fast-import'
+
+/** 路径守卫：只收绝对路径、不许含 NUL、不许出现 .. 段。返回空串表示通过，否则返回给人看的理由。
+ *  为什么连 .. 也挡：票据把路径绑成了字符串，`repo/../outside` 与 `outside` 是同一份文件，
+ *  只做「开头是不是绝对路径」的检查会让路径比较失去意义。 */
+function stdinPathProblem(p: any): string {
+  if (typeof p !== 'string' || !p) return '路径为空或不是字符串'
+  if (p.indexOf('\u0000') >= 0) return '路径里含 NUL'
+  if (!pathIsAbsolute(p)) return '不是绝对路径'
+  const segments: string[] = p.split(/[\\/]+/)
+  if (segments.indexOf('..') >= 0) return '路径里含 .. 段'
+  return ''
+}
+
+/** 打开 fast-import 的只读输入文件并核对票据绑定的「普通文件、大小、摘要」三件事。
+ *  任何一项不符都在起进程之前给明确失败（零进程）；读文件留到最后，读出来再按字节数复核一次，
+ *  防「查 stat 之后文件被换掉」这种小窗口。 */
+async function prepareStdinFile(spec: any): Promise<any> {
+  if (!spec || typeof spec !== 'object') return { ok: false, reason: 'bad-spec', message: 'stdinFile 必须给出 path、sizeBytes 与 sha256' }
+  const problem: string = stdinPathProblem(spec.path)
+  if (problem) return { ok: false, reason: 'bad-path', message: problem }
+  const sizeBytes: any = spec.sizeBytes
+  const sha256: string = (typeof spec.sha256 === 'string') ? spec.sha256.toLowerCase() : ''
+  if (!Number.isInteger(sizeBytes) || sizeBytes < 0) return { ok: false, reason: 'bad-spec', message: 'sizeBytes 必须是非负整数' }
+  if (!/^[0-9a-f]{64}$/.test(sha256)) return { ok: false, reason: 'bad-spec', message: 'sha256 必须是 64 位十六进制摘要' }
+  let st: any
+  try { st = await fsLstat(spec.path) } catch (e) {
+    const code: string = (e && (e as any).code) ? String((e as any).code) : ''
+    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: false, reason: 'missing-file', message: 'stdinFile 指向的文件不存在' }
+    return { ok: false, reason: 'unreadable', message: '读不了 stdinFile 的文件信息：' + String(((e as any) && (e as any).message) || e) }
+  }
+  // lstat：符号链接本身不是普通文件，不收（否则「路径绑定」可以绕过成任意目标）。
+  if (!st || typeof st.isFile !== 'function' || !st.isFile()) return { ok: false, reason: 'not-regular-file', message: 'stdinFile 只收普通文件' }
+  if (st.size !== sizeBytes) return { ok: false, reason: 'size-mismatch', message: '文件大小与票据绑定的不一致（实际 ' + st.size + '，票据 ' + sizeBytes + '）' }
+  let bytes: any
+  try { bytes = await fsReadFile(spec.path) } catch (e) { return { ok: false, reason: 'unreadable', message: '读不了 stdinFile 的文件内容：' + String(((e as any) && (e as any).message) || e) } }
+  if (bytes.length !== sizeBytes) return { ok: false, reason: 'size-mismatch', message: '读出来的字节数与票据绑定的不一致（实际 ' + bytes.length + '，票据 ' + sizeBytes + '）' }
+  const actual: string = cryptoCreateHash('sha256').update(bytes).digest('hex')
+  if (actual !== sha256) return { ok: false, reason: 'digest-mismatch', message: '文件摘要与票据绑定的不一致（实际 ' + actual.slice(0, 16) + '…，票据 ' + sha256.slice(0, 16) + '…）' }
+  return { ok: true, bytes: bytes }
+}
 
 /** 宿主注入的依赖：进程、计时、文件、平台与日志都在这里，本文件不自取任何环境。 */
 export interface VersionControlDeps {
@@ -103,6 +151,22 @@ export function createVersionControl(deps: any): any {
     const t0: number = Date.now()
     const limit: any = (opts && opts.stdoutLimit) ? opts.stdoutLimit : STDOUT_LIMIT
     const budget: any = (opts && opts.timeoutMs) ? opts.timeoutMs : timeoutMs
+    // 命令名只从 argv 里按固定前缀规则找；找不到就给空串，不猜。argv 的个数单独记，原始参数不进日志。
+    const cmd: string = subcommandOf(args)
+    // 每一次 git 调用都注入 GIT_EDITOR=必失败命令（规格第 7 节）：读命令同样注入，
+    // 是为了「谁能弹编辑器」这件事只依赖这一条出口，不靠每条命令自己记得传。
+    // opts.env 里 undefined 值是墓碑（从继承环境删掉这一项），这里先浅拷贝再覆盖 GIT_EDITOR，墓碑语义保留。
+    const childEnv: any = Object.assign({}, (opts && opts.env) ? opts.env : {}, { GIT_EDITOR: FAILING_EDITOR })
+    // stdin 的唯一例外：stdinFile 只许配 fast-import，且 fast-import 必须配（不能空着管道跑）。
+    // 这两条与文件校验都在起进程之前完成，失败时一个进程都不起。
+    const wantStdin: boolean = !!(opts && opts.stdinFile)
+    if (!wantStdin && cmd === STDIN_FILE_COMMAND) return { kind: 'stdin-failed', reason: 'stdin-required', message: 'fast-import 必须由宿主送一个只读文件流，没有配 stdinFile 就不能跑' }
+    let stdinPrep: any = null
+    if (wantStdin) {
+      if (cmd !== STDIN_FILE_COMMAND) return { kind: 'stdin-failed', reason: 'not-allowed', message: 'stdinFile 只允许配 fast-import，其余命令的标准输入一律忽略' }
+      stdinPrep = await prepareStdinFile(opts.stdinFile)
+      if (!stdinPrep.ok) return { kind: 'stdin-failed', reason: stdinPrep.reason, message: stdinPrep.message }
+    }
     // #965：git 只读与 gh 共用同一道（读桶），满了排队等；排队被取消按取消返回，不算失败。名额由包装器拿与放。
     // #1007 复核：git 的回话与冷却跟 GitHub 的通路分开记 —— 拿名额时报 service='git'，
     // 这样 GitHub 那条通路冷却时，本地的 git 命令照常能跑。
@@ -113,40 +177,76 @@ export function createVersionControl(deps: any): any {
       handle = subprocess.spawn({
         argv: [exe].concat(args),
         cwd: dir,
-        stdio: { stdin: 'ignore', stdout: { maxBytes: limit }, stderr: { maxBytes: STDERR_LIMIT } },
+        // stdin 默认 ignore（规格第 8 节）：除 fast-import 那个只读文件流的窄例外，一律不给管道。
+        stdio: { stdin: stdinPrep ? 'pipe' : 'ignore', stdout: { maxBytes: limit }, stderr: { maxBytes: STDERR_LIMIT } },
         graceMs: PROC_GRACE_MS,
-        env: (opts && opts.env) ? opts.env : undefined,
+        env: childEnv,
       })
     } catch (e) {
-      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, errorHash: hash8(String(((e as any) && (e as any).message) || (e as any))) })
+      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, cmd: cmd, errorKind: 'spawn', errorHash: hash8(String(((e as any) && (e as any).message) || (e as any))) })
       return { kind: 'spawn-failed', message: String(((e as any) && (e as any).message) || (e as any)) }
+    }
+    // fast-import：把文件字节送进管道。送不进去要当场说清楚（缺流 / EPIPE / 其他写失败），
+    // 不能让它静默变成一次「没有输入、却退出码非零」的普通失败。
+    let stdinBytes: number = 0
+    let notifyStdinError: any = null
+    const stdinError: any = stdinPrep ? new Promise(function (resolve) { notifyStdinError = resolve }) : null
+    function onStdinError(e: any): void { try { if (notifyStdinError) notifyStdinError({ kind: 'epipe', error: e }) } catch (e2) {} }
+    if (stdinPrep) {
+      const sink: any = (handle && handle.stdin) ? handle.stdin : null
+      if (!sink || typeof sink.write !== 'function') {
+        try { if (handle && typeof handle.terminate === 'function') handle.terminate() } catch (eT) {}
+        fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, cmd: cmd, errorKind: 'stdin' })
+        return { kind: 'stdin-failed', reason: 'stdin-unsupported', message: '这条传输层服务不支持给 git 送标准输入，fast-import 跑不了' }
+      }
+      try { if (typeof sink.on === 'function') sink.on('error', onStdinError) } catch (eOn) {}
+      try {
+        sink.write(stdinPrep.bytes)
+        stdinBytes = stdinPrep.bytes.length
+        if (typeof sink.end === 'function') sink.end()
+      } catch (eW) {
+        const code: string = (eW && (eW as any).code) ? String((eW as any).code) : ''
+        const reason: string = (code === 'EPIPE') ? 'epipe' : 'stdin-write-failed'
+        try { if (handle && typeof handle.terminate === 'function') handle.terminate() } catch (eT) {}
+        fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, cmd: cmd, errorKind: reason })
+        return { kind: 'stdin-failed', reason: reason, message: '给 git 送 fast-import 输入时失败：' + String(((eW as any) && (eW as any).message) || eW), stdinBytes: stdinBytes }
+      }
     }
     const watch: any = (opts && opts.stallMs) ? makeStallWatch(handle, Math.max(1000, Math.min(600000, Math.floor(opts.stallMs))), budget, timer) : null
     let outcome: any
     try {
-      outcome = await Promise.race([
+      const raced: any[] = [
         handle.done,
         timer.timeout(budget).then(function () { try { handle.terminate() } catch (eT) {} return { exitCode: -1, signal: 'timeout' } }),
         watch ? watch : new Promise(function () {}),
-      ])
+      ]
+      if (stdinError) raced.push(stdinError)
+      outcome = await Promise.race(raced)
     } catch (e) {
-      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, errorHash: hash8(String(((e as any) && (e as any).message) || (e as any))) })
+      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, cmd: cmd, errorKind: 'spawn', errorHash: hash8(String(((e as any) && (e as any).message) || (e as any))) })
       return { kind: 'spawn-failed', message: String(((e as any) && (e as any).message) || (e as any)) }
     }
+    if (outcome && outcome.kind === 'epipe') {
+      try { if (handle && typeof handle.terminate === 'function') handle.terminate() } catch (eT) {}
+      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, cmd: cmd, errorKind: 'epipe' })
+      return { kind: 'stdin-failed', reason: 'epipe', message: 'git fast-import 提前退出，输入没有送完（EPIPE）', stdinBytes: stdinBytes }
+    }
     if (outcome && outcome.signal === 'stalled') {
-      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, timeoutMs: outcome.stallMs })
+      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, cmd: cmd, errorKind: 'stalled', timeoutMs: outcome.stallMs })
       return { kind: 'stalled', stallMs: outcome.stallMs }
     }
     if (outcome && outcome.signal === 'timeout') {
-      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, timeoutMs: budget })
+      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, cmd: cmd, errorKind: 'timeout', timeoutMs: budget })
       return { kind: 'timeout', timeoutMs: budget }
     }
     const out: any = readCollector(handle.collected && handle.collected.stdout)
     const err: any = readCollector(handle.collected && handle.collected.stderr)
     const exitCode: number = (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1
-    fire('info', 'git.exec', { argv0: GIT_NAME, cwdHash: dirHash(dir), latencyMs: Date.now() - t0, exitCode: exitCode, via: VIA })
+    // 字段白名单（规格第 8 节）：只记命令名、参数个数、退出码、耗时、输出长度与截断标记；
+    // 参数内容、输出原文、目录原文都不进日志。
+    fire('info', 'git.exec', { argv0: GIT_NAME, cwdHash: dirHash(dir), cmd: cmd, argc: Array.isArray(args) ? args.length : 0, latencyMs: Date.now() - t0, exitCode: exitCode, stdoutBytes: Buffer.byteLength(String(out.text || ''), 'utf8'), truncated: out.truncated === true, stdinBytes: stdinBytes, via: VIA })
     if (exitCode !== 0) { return { kind: 'non-zero', exitCode: exitCode, stderr: err.text } }
-    return { kind: 'ok', stdout: out.text, truncated: out.truncated }
+    return { kind: 'ok', stdout: out.text, truncated: out.truncated, stdinBytes: stdinBytes }
     }, function (): any { return { kind: 'cancelled', cancelled: true, message: '已取消排队，可重试' } })
   }
   /** 找 git 命令；找不到或平台服务缺席都转成明确失败值，不抛。 */
@@ -359,7 +459,7 @@ export function createVersionControl(deps: any): any {
 
   // 写操作那一族（#841 起 1 预检 + 5 执行，#865 再加更新远方记录 1 条）住另两文件；本文件只做装配与日志包装（动态加载、同层单向，同一出口、同一信封、同一读数、同一 loggedPhone）。
   let _writeP: any = null
-  function writePhone(): any { if (!_writeP) _writeP = Promise.all([import('../refresh/rooms/host/gh-execution.js'), import('./versionControlCheck.js'), import('./versionControlWrite.js')]).then(function (ms: any) { const sg: any = ms[0].createCredentialSafeGit({ runGit: runGit, getPlatform: getPlatform, DEFAULT_CWD: DEFAULT_CWD }); const nowFn: any = (deps && typeof deps.now === 'function') ? deps.now : Date.now; const c: any = ms[1].createWriteCheck({ vc: { readScreenOf: readScreenOf }, safeGit: sg, failPhone: failPhone, nowMs: nowFn, randomId: function (): string { return Math.random().toString(36).slice(2) } }); const w: any = ms[2].createWritePhones({ vc: { readScreenOf: readScreenOf }, safeGit: sg, tickets: c.tickets, results: c.results, nowMs: nowFn }); return { check: loggedPhone('wf.gitWriteCheck', 'git-write-check', c.handleGitWriteCheck), stage: loggedPhone('wf.gitStage', 'git-stage', w.handleGitStage), unstage: loggedPhone('wf.gitUnstage', 'git-unstage', w.handleGitUnstage), commit: loggedPhone('wf.gitCommit', 'git-commit', w.handleGitCommit), pull: loggedPhone('wf.gitPull', 'git-pull', w.handleGitPull), fetch: loggedPhone('wf.gitFetch', 'git-fetch', w.handleGitFetch), push: loggedPhone('wf.gitPush', 'git-push', w.handleGitPush) } }).catch(function (e: any): any { const f: any = function (): any { return failPhone('env', '写操作那一族加载失败：' + String(((e as any) && (e as any).message) || (e as any))) }; return { check: f, stage: f, unstage: f, commit: f, pull: f, fetch: f, push: f } }); return _writeP }
+  function writePhone(): any { if (!_writeP) _writeP = Promise.all([import('../refresh/rooms/host/gh-execution.js'), import('./versionControlCheck.js'), import('./versionControlWrite.js')]).then(function (ms: any) { const sg: any = ms[0].createCredentialSafeGit({ runGit: runGit, getPlatform: getPlatform, DEFAULT_CWD: DEFAULT_CWD }); const nowFn: any = (deps && typeof deps.now === 'function') ? deps.now : Date.now; const c: any = ms[1].createWriteCheck({ vc: { readScreenOf: readScreenOf }, safeGit: sg, failPhone: failPhone, nowMs: nowFn, randomId: function (): string { return Math.random().toString(36).slice(2) } }); const w: any = ms[2].createWritePhones({ vc: { readScreenOf: readScreenOf }, safeGit: sg, tickets: c.tickets, results: c.results, nowMs: nowFn }); return { check: loggedPhone('wf.gitWriteCheck', 'git-write-check', c.handleGitWriteCheck), stage: loggedPhone('wf.gitStage', 'git-stage', w.handleGitStage), unstage: loggedPhone('wf.gitUnstage', 'git-unstage', w.handleGitUnstage), commit: loggedPhone('wf.gitCommit', 'git-commit', w.handleGitCommit), pull: loggedPhone('wf.gitPull', 'git-pull', w.handleGitPull), fetch: loggedPhone('wf.gitFetch', 'git-fetch', w.handleGitFetch), push: loggedPhone('wf.gitPush', 'git-push', w.handleGitPush), tickets: c.tickets } }).catch(function (e: any): any { const f: any = function (): any { return failPhone('env', '写操作那一族加载失败：' + String(((e as any) && (e as any).message) || (e as any))) }; return { check: f, stage: f, unstage: f, commit: f, pull: f, fetch: f, push: f } }); return _writeP }
 
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
@@ -373,6 +473,9 @@ export function createVersionControl(deps: any): any {
     handleGitPull: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.pull(a) },
     handleGitFetch: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.fetch(a) },
     handleGitPush: async function (a: any): Promise<any> { const w: any = await writePhone(); return w.push(a) },
+    // 只给门禁与测试读取票据表（#1741）：绑定表要能被篡改着测，但这条路不注册成电话，客户端拿不到。
+    // 票据原值仍只留在宿主进程内存里，不落盘、不进日志。
+    writeTickets: async function (): Promise<any> { const w: any = await writePhone(); return w.tickets || null },
     runGitCommand: runGit, // #839：那一族「可能弹凭据提示」的命令复用同一条进程出口（同一个报闸、同一条 git.exec 日志、同一套字节上限）
   }
 }
