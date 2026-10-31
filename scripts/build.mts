@@ -671,6 +671,9 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   //   宿主预检/执行与界面都读同一份；界面自己再拼一遍命令或理由，就会与宿主执行前那次校验各说各话。
   { marker: '// ==== shared:vcSyncActions (spliced by build) ====', file: 'src/shared/version-control/src/sync-actions.ts' },
   { marker: '// ==== shared:vcSyncRules (spliced by build) ====', file: 'src/shared/version-control/src/sync-rules.ts' },
+  // #1759 迁移与备份域（11.1 / 11.12 / 11.13 与 5.13）的共享口径：九个动作的 id、命令原文、参数守卫、
+  //   计划摘要与版本门只有一份；宿主预检/执行与界面都读同一份，界面不再手抄一遍动作名单或命令。
+  { marker: '// ==== shared:vcMigrateActions (spliced by build) ====', file: 'src/shared/version-control/src/migrate-actions.ts' },
   // #1751 贮藏页十条（域 7）的唯一规则层：命令怎么拼、选择器与分支名怎么校验、哪两条要确认、
   //   哪一条要 2.35 版本门、丢掉的提交号怎么 store 回去，只有这一份。宿主执行层与界面读同一份；
   //   界面自己再说一遍，就会与宿主执行前那次校验各说各话。
@@ -693,6 +696,9 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // #1752 工作树的八条动作（argv、行模型、判定与理由、剪枝清单、稀疏检出规则）：宿主执行前与界面判定必须读同一份，
   //   界面不许自己再拼第二份 argv 或第二套理由。文件不带 import，可直接拼进界面闭包；宿主半走普通相对 import。
   { marker: '// ==== shared:vcWorktreeOps (spliced by build) ====', file: 'src/shared/version-control/src/worktree-ops.ts' },
+  // #1757 T21 子模块域的十一个动作（argv、判定与理由、批量菜单、地址打码、任务动作对照）：宿主预检/执行与界面判定必须读同一份，
+  //   界面不许自己再拼第二份 argv 或第二套理由。文件不带 import，可直接拼进界面闭包；宿主半走普通相对 import。
+  { marker: '// ==== shared:vcSubmoduleOps (spliced by build) ====', file: 'src/shared/version-control/src/submodule-ops.ts' },
   // #1747 冲突文本的解析与拼装（逐块读出当前边/对方边、按选择拼回整份、残留标记判定）：宿主预检执行与界面冲突视图、
   //   6.7 整份编辑必须读同一份行号与同一套行尾口径，所以把这份零依赖模块拼进界面闭包；宿主半走普通相对 import。
   { marker: '// ==== shared:vcConflictText (spliced by build) ====', file: 'src/shared/version-control/src/conflict-text.ts' },
@@ -790,6 +796,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcRemoteData', file: 'src/client/views/versionControl/vcRemoteData.ts' }, // #1754 T18 远端与同步页的数据层（六条电话、读数状态、联网与写动作回包落位）
   { id: 'vcRemotePage', file: 'src/client/views/versionControl/vcRemotePage.ts' }, // #1754 T18 远端与同步页的正文（本地记录 / 联网查看 / 四种表单形态；排在页面壳之前，壳要调它）
   { id: 'vcSyncPage', file: 'src/client/views/versionControl/vcSyncPage.ts' }, // #1755 T19 同步段正文（十个动作、理由、租约、确认卡、任务区；由 vcRemotePage 调用）
+  { id: 'vcMigrateData', file: 'src/client/views/versionControl/vcMigrateData.ts' }, // #1759 T23 迁移与备份页的数据层（两条电话、预检与执行回包落位；排在页面壳之前）
   { id: 'vcQuery', file: 'src/client/views/versionControl/vcQuery.ts' }, // #1745 历史高级查询的数据层：十条能力的目录、输入校验与一次读取（纯逻辑，不画界面）
   { id: 'vcQueryView', file: 'src/client/views/versionControl/vcQueryView.ts' }, // #1745 历史高级查询面板的画法（提交历史页六组、管理·诊断页四组；排在页面壳之前，壳要调它）
   { id: 'vcCommitOps', file: 'src/client/views/versionControl/vcCommitOps.ts' }, // #1743 提交页的动作层（预检拿票、危险动作确认、写电话、模板套用；不画界面）
@@ -801,17 +808,30 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcStashPage', file: 'src/client/views/versionControl/vcStashPage.ts' }, // #1751 贮藏页的入口与真实动作画法（十条动作、确认卡、最近丢弃、版本门提示；由页面壳挂进贮藏页）
   { id: 'vcDiagnostics', file: 'src/client/views/versionControl/vcDiagnostics.ts' }, // #1761 诊断页的数据与动作层（域 13 只读查询与二分、5.12 替换对象；不画界面）
   { id: 'vcDiagnosticsPage', file: 'src/client/views/versionControl/vcDiagnosticsPage.ts' }, // #1761 诊断页正文（十四条能力各一个入口、13.13 只读展示、13.3/13.14 只放指针；壳要调它）
+  // #1748 变基待办页的历史改写两叶（数据层 → 画法），排在页面壳之前；壳的 rebase 挂载段要调 vcUndoPageNode。
+  { id: 'vcUndoOps', file: 'src/client/views/versionControl/vcUndoOps.ts' }, // #1748 五条历史改写动作的输入整理、本地预检与回包落态（不画界面）
+  { id: 'vcUndoPage', file: 'src/client/views/versionControl/vcUndoPage.ts' }, // #1748 变基待办页的面板（动作选择、预检、确认卡、恢复点与执行结果；由页面壳挂进 rebase 页）
   // #1752 工作树页三叶，依赖次序固定：读首屏那一片的数据层 → 动作层（判定与两条写电话）→ 页面画法（八条入口、行、确认与结果）。
   //   排在 vcShellPages 之前，壳的挂载段才看得到 vcWorktreesPageNode；也排在 vcFirstScreen 之后，数据层只问那一份片。
   { id: 'vcWorktreesData', file: 'src/client/views/versionControl/vcWorktreesData.ts' },
   { id: 'vcWorktreesOps', file: 'src/client/views/versionControl/vcWorktreesOps.ts' },
   { id: 'vcWorktreesPage', file: 'src/client/views/versionControl/vcWorktreesPage.ts' },
+  { id: 'vcMigratePage', file: 'src/client/views/versionControl/vcMigratePage.ts' }, // #1759 T23 迁移与备份页正文（九个动作、只读结果、确认卡与任务区；排在页面壳之前，壳要调它）
   // #1756 T20 克隆向导：填地址与选项 → 预检签票 → 凭票执行（长任务通道）→ 取消后的残留清理入口；由页面壳挂进迁移与备份页。
   { id: 'vcClonePage', file: 'src/client/views/versionControl/vcClonePage.ts' },
+  // #1757 T21 子模块页三叶，依赖次序固定：数据层（八条入口、批量菜单、读数状态）→ 动作层（预检、确认、写/任务电话、回包落位）→ 页面画法。
+  //   排在 vcShellPages 之前，壳的挂载段才看得到 vcSubmodulesPageNode。
+  { id: 'vcSubmodulesData', file: 'src/client/views/versionControl/vcSubmodulesData.ts' },
+  { id: 'vcSubmodulesOps', file: 'src/client/views/versionControl/vcSubmodulesOps.ts' },
+  { id: 'vcSubmodulesPage', file: 'src/client/views/versionControl/vcSubmodulesPage.ts' },
   // #1747 冲突向导两叶：动作模型（15 条能力的出入参形状）→ 页面正文（状态、冲突清单、逐块选择、四段确认卡）。
   //   排在页面壳之前，壳的挂载段才看得到 vcConflictsPageNode。
   { id: 'vcConflictsOps', file: 'src/client/views/versionControl/vcConflictsOps.ts' },
   { id: 'vcConflictsPage', file: 'src/client/views/versionControl/vcConflictsPage.ts' },
+  // #1749 变基待办两叶：动作模型（9 条动作的出入参形状、待办行变换）→ 页面正文（状态、待办清单、三块预览、四段确认卡）。
+  //   排在页面壳之前，壳的挂载段才看得到 vcRebasePageNode。
+  { id: 'vcRebaseOps', file: 'src/client/views/versionControl/vcRebaseOps.ts' },
+  { id: 'vcRebasePage', file: 'src/client/views/versionControl/vcRebasePage.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },

@@ -52,6 +52,7 @@ const vcDiagButtonNode = function (h: any, t: any, o: any): any {
   const attrs: any = {
     key: String(o.key), type: 'button', className: 'vcs-btn' + (o.danger === true ? ' vcs-btn-danger' : ''),
     'data-vc-diag-op': String(o.op || o.read || ''), 'data-press': 'button',
+    'data-log': String(o.logId || ('vc.diag.' + String(o.op || o.read || 'act'))),
     disabled: o.disabled === true,
   }
   if (o.cap) attrs['data-cap-control'] = String(o.cap)
@@ -99,8 +100,8 @@ const vcDiagConfirmNode = function (h: any, t: any, confirm: any, onConfirm: any
   const card = vcShellConfirmCardNode(h, t, { verb: String(confirm.verb || ''), target: String(confirm.target || '') })
   const kids: any[] = [Object.assign({}, card, { key: 'card' })]
   kids.push(h('div', { key: 'acts', className: 'vcs-diag-confirm-acts' }, [
-    h('button', { key: 'cancel', type: 'button', className: 'vcs-btn', 'data-vc-diag-confirm-cancel': '1', onClick: function () { vcDiagCall(onCancel, []) } }, t('vc.diag.confirm.cancel')),
-    h('button', { key: 'go', type: 'button', className: 'vcs-btn vcs-btn-danger', 'data-vc-diag-confirm-go': '1', onClick: function () { vcDiagCall(onConfirm, []) } }, t('vc.diag.confirm.go')),
+    h('button', { key: 'cancel', type: 'button', className: 'vcs-btn', 'data-vc-diag-confirm-cancel': '1', 'data-press': 'button', 'data-log': 'vc.diag.confirm.cancel', onClick: function () { vcDiagCall(onCancel, []) } }, t('vc.diag.confirm.cancel')),
+    h('button', { key: 'go', type: 'button', className: 'vcs-btn vcs-btn-danger', 'data-vc-diag-confirm-go': '1', 'data-press': 'button', 'data-log': 'vc.diag.confirm.go', onClick: function () { vcDiagCall(onConfirm, []) } }, t('vc.diag.confirm.go')),
   ]))
   return h('div', { key: 'confirm', className: 'vcs-diag-confirm', 'data-vc-diag-confirm': String(confirm.op || '') }, kids)
 }
@@ -124,13 +125,13 @@ const vcDiagBisectBlock = function (h: any, t: any, o: any): any {
   for (let i = 0; i < VC_DIAG_BISECT_ACTIONS.length; i += 1) {
     const a: any = VC_DIAG_BISECT_ACTIONS[i]
     acts.push(vcDiagButtonNode(h, t, {
-      key: a.op, op: a.op, cap: '13.1', danger: vcDiagnosticsDangerousOf(a.op),
+      key: a.op, op: a.op, cap: '13.1', logId: 'vc.diag.bisect.' + a.op, danger: vcDiagnosticsDangerousOf(a.op),
       label: t('vc.diag.bisect.' + a.key), disabled: state.running !== '',
       args: [a.op, { bad: vcDiagnosticsInputOf(inputs, '13.1', 'bad'), good: vcDiagnosticsInputOf(inputs, '13.1', 'good') }],
       handler: o.onWrite,
     }))
   }
-  acts.push(vcDiagButtonNode(h, t, { key: 'refresh', read: VC_DIAG_BISECT_CAP, label: t('vc.diag.bisect.refresh'), disabled: state.running !== '', args: [], handler: function () { vcDiagCall(o.onRead, [VC_DIAG_BISECT_CAP]) } }))
+  acts.push(vcDiagButtonNode(h, t, { key: 'refresh', read: VC_DIAG_BISECT_CAP, logId: 'vc.diag.bisect.refresh', label: t('vc.diag.bisect.refresh'), disabled: state.running !== '', args: [], handler: function () { vcDiagCall(o.onRead, [VC_DIAG_BISECT_CAP]) } }))
   kids.push(h('div', { key: 'acts', className: 'vcs-diag-acts' }, acts))
   const confirm = state.confirm
   if (confirm && confirm.cap === '13.1') kids.push(vcDiagConfirmNode(h, t, confirm, o.onConfirm, o.onCancel))
@@ -171,7 +172,7 @@ const vcDiagReadBlock = function (h: any, t: any, o: any): any {
     const line: any[] = [h('span', { key: 'name', className: 'vcs-diag-cap-name' }, cap + ' ' + vcDiagCapNameOf(cap))]
     line.push(h('div', { key: 'fields', className: 'vcs-diag-fields' }, fields))
     line.push(vcDiagButtonNode(h, t, {
-      key: 'go', read: cap, cap: cap, label: t('vc.diag.read.query'), disabled: state.running !== '',
+      key: 'go', read: cap, cap: cap, logId: 'vc.diag.read.' + cap, label: t('vc.diag.read.query'), disabled: state.running !== '',
       args: [], handler: function () { vcDiagCall(o.onRead, [cap]) },
     }))
     const result = results[cap]
@@ -195,7 +196,7 @@ const vcDiagPatchBlock = function (h: any, t: any, o: any): any {
   }))
   kids.push(h('div', { key: 'acts', className: 'vcs-diag-acts' }, [
     vcDiagButtonNode(h, t, {
-      key: 'preview', read: VC_DIAG_PATCH_CAP, cap: VC_DIAG_PATCH_CAP, label: t('vc.diag.patch.preview'), disabled: state.running !== '',
+      key: 'preview', read: VC_DIAG_PATCH_CAP, cap: VC_DIAG_PATCH_CAP, logId: 'vc.diag.patch.preview', label: t('vc.diag.patch.preview'), disabled: state.running !== '',
       args: [], handler: function () { vcDiagCall(o.onRead, [VC_DIAG_PATCH_CAP]) },
     }),
   ]))
@@ -227,11 +228,11 @@ const vcDiagReplaceBlock = function (h: any, t: any, o: any): any {
   ]))
   kids.push(h('div', { key: 'acts', className: 'vcs-diag-acts' }, [
     vcDiagButtonNode(h, t, {
-      key: 'create', op: 'replace-create', cap: VC_DIAG_REPLACE_CAP, label: t('vc.diag.replace.create'), danger: true,
+      key: 'create', op: 'replace-create', cap: VC_DIAG_REPLACE_CAP, logId: 'vc.diag.replace.create', label: t('vc.diag.replace.create'), danger: true,
       disabled: state.running !== '', args: ['replace-create', { from: vcDiagnosticsInputOf(inputs, VC_DIAG_REPLACE_CAP, 'from'), to: vcDiagnosticsInputOf(inputs, VC_DIAG_REPLACE_CAP, 'to') }],
       handler: o.onWrite,
     }),
-    vcDiagButtonNode(h, t, { key: 'refresh', read: VC_DIAG_REPLACE_CAP, label: t('vc.diag.replace.refresh'), disabled: state.running !== '', args: [], handler: function () { vcDiagCall(o.onRead, [VC_DIAG_REPLACE_CAP]) } }),
+    vcDiagButtonNode(h, t, { key: 'refresh', read: VC_DIAG_REPLACE_CAP, logId: 'vc.diag.replace.refresh', label: t('vc.diag.replace.refresh'), disabled: state.running !== '', args: [], handler: function () { vcDiagCall(o.onRead, [VC_DIAG_REPLACE_CAP]) } }),
   ]))
   kids.push(vcDiagRowsNode(h, t, VC_DIAG_REPLACE_CAP, read))
   const rows: any[] = read && Array.isArray(read.rows) ? read.rows : []
@@ -241,7 +242,7 @@ const vcDiagReplaceBlock = function (h: any, t: any, o: any): any {
     undos.push(h('div', { key: 'undo-' + i, className: 'vcs-diag-undo', 'data-vc-diag-undo': object }, [
       h('code', { key: 'oid', className: 'vcs-diag-oid' }, vcDiagnosticsShortOidOf(object)),
       vcDiagButtonNode(h, t, {
-        key: 'del', op: 'replace-delete', cap: VC_DIAG_REPLACE_CAP, label: t('vc.diag.replace.undo'), danger: true,
+        key: 'del', op: 'replace-delete', cap: VC_DIAG_REPLACE_CAP, logId: 'vc.diag.replace.undo', label: t('vc.diag.replace.undo'), danger: true,
         disabled: state.running !== '', args: ['replace-delete', { object: object }], handler: o.onWrite,
       }),
     ]))
