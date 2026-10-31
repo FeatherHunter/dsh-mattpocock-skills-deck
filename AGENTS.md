@@ -51,7 +51,7 @@ Single-context layout — root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/
 
 ### 并行会话：同一工作区有多路会话时
 
-默认每个会话去自己的工作树里干活，各自装一份依赖，产物和构建缓存各归各；只有要在正在运行的界面里亲眼看到效果时才回主工作区，而且同一时刻只让一个会话在主工作区里跑构建。暂存前先看这次改动清单，只交自己确认过的路径，同一个分支的提交窗口一次只归一个会话。完整步骤见 `docs/agents/parallel-sessions.md`。
+默认每个会话去自己的工作树里干活，各自装一份依赖、各自构建，不同树之间不用排队；同一棵树里的第二个构建写者由文件锁排队。仓库本身是共享的：分支、`refs/stash`、面板看哪棵树只有一份；界面入口同一时刻也只指向一棵树——要看界面效果，按 `docs/agents/parallel-sessions.md` 把 profile 安装目录临时指到那棵树，看完还原。提交前先看 `git status`，只暂存自己确认过的路径，同一个分支一次只归一个会话。完整步骤见 `docs/agents/parallel-sessions.md`。
 
 ### TypeScript 优先，旧 JS 随改随迁，最终只留 TS
 
