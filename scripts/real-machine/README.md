@@ -161,6 +161,38 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 每次批次结束、发布前、换版本重跑之前各清一次。2026-10 有过一次 4.3GB / 4.9 万文件的堆积，
 就是因为没有这条命令、也没人记着清。
 
+## GitLab 沙箱项目
+
+GitLab 后端的验证需要一个真的 gitlab.com 项目，手工建删既慢又容易留下垃圾，所以用 `gitlab-sandbox` 管项目生命周期：
+
+- 建项目：`node --import ./scripts/ts-hook.mts scripts/real-machine/commands/gitlab-sandbox.mts create --batch <批次目录> --path <group>/<project> [--description <补充描述>]`。它用 `glab repo create --private --skipGitInit --readme` 建一个空项目，然后按项目路径读回 `id`、`path_with_namespace`、`web_url`，写进 `<批次目录>/gitlab-projects.json`；项目描述里带批次标记 `[dsh-sandbox batch=<批次名>]`。同一个路径重复执行会复用清单里的项目（按 id 读回），不会重复建。
+- 删项目：`node --import ./scripts/ts-hook.mts scripts/real-machine/commands/gitlab-sandbox.mts delete --batch <批次目录> --id <项目 id>`。它只删批次清单里记过、且项目描述仍带本批次标记的项目；清单里没有这条记录或没有批次标记时直接拒绝。GitLab 对删除只回 202 并延迟标记，所以命令会按 id 读回 `marked_for_deletion_at`，读到才算删成功；读回失败时把项目 id 保留在清单里、状态标成 `delete-failed` 并明确报错，再跑一次 delete 可以补完。
+- 建完项目用 `make-workspace --kind gitlab --project <group>/<project>` 生成工作区：本地 `git init`，`origin` 指向 `https://gitlab.com/<group>/<project>.git`，工作区文件写 `backendId: gitlab`，不 clone、不联网。
+- 命令依赖本机已登录 gitlab.com 的 `glab`。门禁不联网，用假 glab 与本地空仓库覆盖，所以门禁绿只说明逻辑对，真机还要跑一遍。每批只建 1-2 个沙箱项目，场景验完立刻删，避免 pending-deletion 配额被占满。
+
+## 带 GitLab 环境起实例：`--instance-env-file` 与 `--launch-plan`
+
+隔离实例默认读不到本机的 glab 配置，也没有 GitLab token。要让它按批次环境访问 GitLab，把要传的变量写进一个环境文件，再用 `--instance-env-file` 把文件路径交给 `start-instance`：
+
+```
+GLAB_CONFIG_DIR=D:\...\batch-a\glab-config
+PATH=C:\Program Files\Git\cmd;C:\Program Files\nodejs
+GITLAB_TOKEN=<本批使用的 token>
+```
+
+- 只认 `GLAB_CONFIG_DIR`、`PATH`、`GITLAB_TOKEN` 三个变量名；前两个必需，`GITLAB_TOKEN` 可选：这一批不需要访问 GitLab 时可以整行不写，或写成空值表示这次不注入 token。
+- 值只合并进实例进程的环境，不会出现在命令行参数、`instance.json`、实例的 stdout/stderr 与插件日志里。命令只在 stderr 报一句「环境文件：<路径>；注入变量：GLAB_CONFIG_DIR、PATH、GITLAB_TOKEN（值不输出）」。
+- 参数名是 `--instance-env-file` 而不是 `--env-file`：Node 自己有 `--env-file` 选项，会把后面的值当成 Node 自己的环境文件读，命令根本收不到这个参数。
+- 文件不存在、缺少 `GLAB_CONFIG_DIR` 或 `PATH`、写了不认识的变量名、某行不是 `KEY=VALUE` 时，命令以退出码 1 失败，并在 stderr 用中文说清第几行、哪个变量名；错误信息不回显整行原文（那行可能正好写着 token）。
+
+只想看会怎么启动、还不想真起进程时加 `--launch-plan`：
+
+```
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/start-instance.mts --home <批次home> --dir <启动目录> --instance-env-file <批次>/env.txt --launch-plan
+```
+
+计划模式只打印一段 JSON：启动命令、启动目录、环境变量名与各类日志落点；不检查 DSH 程序能不能起、不创建目录、不起进程。计划里没有任何变量值，可以直接贴进批次记录或证据文件。
+
 ## 全部命令
 
 启动类：
@@ -169,7 +201,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 | --- | --- |
 | `copy-home` | 把真实 web profile（或候选 home 模板）安静复制成批次专属 `DSH_HOME`，不打印文件名与文件内容 |
 | `seed-workspace` | 把工作区登记写进 home 的 `storages/workspace.json`，绕过无头环境点不了原生目录选择器的问题 |
-| `start-instance` | 在独立启动目录起一个实例，把 pid、端口、访问地址、日志位置写成 `instance.json` |
+| `start-instance` | 在独立启动目录起一个实例，把 pid、端口、访问地址、日志位置写成 `instance.json`；支持 `--instance-env-file <环境文件>` 把 GLAB_CONFIG_DIR、PATH、GITLAB_TOKEN 传进实例进程，`--launch-plan` 只打印启动命令与变量名、不起进程 |
 | `stop-instance` | 按 pid 结束实例整棵进程树，等它真的消失 |
 
 造工作区：
@@ -180,6 +212,14 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 | `make-workspace --kind markdown` | 长名字 `.scratch/<effort>/` 夹具，含地图与子票，写 Markdown 后端绑定 |
 | `make-workspace --kind cold` | 空目录（可选初始化成一个只有初始提交的本地仓库），验证离线首次启动 |
 | `make-workspace --kind ab` | 形状相同、内容不同的 A/B 两个工作区 |
+| `make-workspace --kind gitlab` | 本地空仓库加 `origin` 指向 GitLab 沙箱项目，写 GitLab 后端绑定（不 clone、不联网） |
+
+GitLab 沙箱项目（建删细节见上面的「GitLab 沙箱项目」一节）：
+
+| 命令 | 做什么 |
+| --- | --- |
+| `gitlab-sandbox create` | 在 gitlab.com 建带批次标记的私有空项目，读回 id、path、web_url 写进批次清单 |
+| `gitlab-sandbox delete` | 只删批次清单里记过、仍带本批次标记的项目，读回 marked_for_deletion_at 才算删掉 |
 
 核对与证据：
 
@@ -191,6 +231,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 | `isolation-probe` | 证明 `USERPROFILE` 重定向生效、真实用户设置文件未被写入 |
 | `backup-settings` / `restore-settings` | 备份与恢复真实用户设置（需要临时改真实设置做对照时才用） |
 | `global-lock` | 多人同时做真机验证时的互斥锁：拿锁、放锁 |
+| `report-index` | 汇总全局 index.jsonl 与 conditions.jsonl，输出断言分组计数、缺陷等级、候选通过率、条件账本，并可渲染 Markdown 摘要 |
 
 冻结与清理：
 
@@ -201,6 +242,27 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 | `cleanup` | 先报占用与文件数，确认后删批次产物 |
 
 每个命令文件的开头注释都写了完整参数与输出字段；`--help` 不是这条工具的支持方式，看注释即可。
+
+## 报告索引：`report-index`
+
+批次归档后，`evidence-archive/index.jsonl`（一行一次尝试）与 `conditions.jsonl`（一行一个条件）需要按统一口径汇总，`report-index` 就是这件事：读这两个文件，在 stdout 打印一段 JSON，可选把 Markdown 摘要写到文件。
+
+```
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/report-index.mts \
+  [--index <index.jsonl>] [--conditions <conditions.jsonl>] \
+  [--defects <清单.json>] [--markdown-out <摘要.md>]
+```
+
+- `--index`：全局索引，默认 `<工作根>/evidence-archive/index.jsonl`。
+- `--conditions`：条件账本，默认与 index 同目录的 `conditions.jsonl`；默认位置不存在时按 0 条处理，显式传了却不存在则报错。
+- `--defects`：缺陷等级清单，JSON 数组，形如 `[{"ticket":"#2001","level":"P1"}]`。`index.jsonl` 里只有缺陷票号没有等级，所以不给清单时按该行场景在 #1675 里的最高 P 级上限推定；需要精确等级就传清单。
+- `--markdown-out`：把 Markdown 摘要写到指定路径；不传就只打印。
+
+输出字段：`totals`（行数、尝试数、未测数、结论分布）、`assertions`（8 条支持度断言的分组计数与支持率）、`unmappedScenarios`（映射表里没有的场景号，只提示不报错）、`candidates`（每个候选的通过率与未测数）、`defects`（P0/P1/P2 缺陷票与重验状态）、`conditions`（条件条数）、`markdown`。两点口径：一个场景可以支撑多条断言，所以断言次数相加会大于行数；有效通过率的分母会扣掉「环境限制」和「测试或工具问题」这些不算产品问题的行。
+
+输入不合法时不出汇总，退出码 1，stderr 用一句中文指出问题与行号：非法 verdict、缺字段、重复行（同一批次 + 场景 + 尝试号）、candidate 不是完整 40 位提交哈希、场景号形状不对、非产品缺陷行带了缺陷票、条件缺字段等。
+
+样例输入与期望快照在 `tests/fixtures/report-index/`，黑盒门禁是 `tests/verify-1711-report-index.ts`（加 `--negative` 可单独触发负例）。
 
 ## 隔离是怎么做到的
 

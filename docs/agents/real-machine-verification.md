@@ -73,10 +73,12 @@
 - **隔离原理**：四层隔离（home、启动目录、USERPROFILE、浏览器上下文）的细节见工具台 README 的「隔离是怎么做到的」。隔离是否真的生效由 `isolation-probe` 回答：它对比真实用户设置文件在探针前后的 SHA256，没变才算通过；验证批次里要保留这条结论。
 - **日志位置**：插件日志写在 `<启动目录>/.dsh-mattskillsdeck-cache/logs/<日期>.log`。用 `log-query` 按事件名、级别、字段过滤；写证据时把关键几行贴进评论，只给路径不算证据。
 - **工作区注入**：无头环境点不了原生目录选择器，所以由 `seed-workspace` 直接写 home 的 `storages/workspace.json` 完成登记。验证用的工作区夹具放在批次目录里，不要放在本仓库里，否则插件会把本仓库的 git 根当成仓库身份，结论会被污染。
+- **GitLab 沙箱项目**：需要 GitLab 后端时，先用 `gitlab-sandbox create --batch <批次目录> --path <group>/<project>` 在 gitlab.com 建一个带批次标记的私有空项目（记录写在 `<批次目录>/gitlab-projects.json`），再用 `make-workspace --kind gitlab --project <group>/<project>` 生成工作区：本地空仓库，`origin` 指向沙箱项目地址，工作区文件写 GitLab 后端。GitLab 的删除接口返回 202 之后延迟生效，所以 `gitlab-sandbox delete --batch <批次目录> --id <项目 id>` 会按 id 读回 `marked_for_deletion_at`，读到才算删掉；读回失败时项目 id 保留在清单里、状态标成 `delete-failed`，重跑 delete 可以补完。每批只建 1-2 个，场景验完立刻删。
 - **证据目录**：每个批次一个目录 `<工作根>/batches/<批次名>/`，证据先落在 `evidence/` 下，再由 `collect-evidence` 生成带每个文件 SHA256 的 `evidence.json`。规则要求证据能独立看懂：评论里贴截图关键区域、日志关键行或接口返回字段，不把临时目录路径当唯一证据。
 - **候选身份判据**：用 `freeze-candidate` 冻结候选，清单写在 `<工作根>/pkg/candidate.json`，记着提交、版本、包内每个文件的 SHA256 与 tgz 的 SHA256。界面里的插件脚本是宿主把多个插件合并成一次请求加载的，所以界面核对比的是「这段内容里本版的版本常量是不是期望值」，不要拿合并后的包哈希当身份（带启动期构建标识的产物每次启动哈希都会变）。
 - **清理要求与上限**：用 `cleanup` 先报账、确认后再删。工作根总量建议不超过 15GB、批次目录不超过 20 个、单个批次不超过 2GB；每次批次结束、发布前、换版本重跑之前各清一次。批次里的 GitHub 工作区是源仓库的 `git worktree`，批次目录删掉之后在源仓库跑一次 `git worktree prune` 清掉失效登记。
 - **从零可用**：`two-instance-smoke` 用一条命令在一个从没跑过真机验证的检出里跑通双实例冒烟（复制两份 home、造两种后端工作区、起两个实例、浏览器核对、收证据、停实例），用来证明工具台本身是好的。
+- **GitLab 实例环境**：批次实例要访问 GitLab 时，用 `start-instance --instance-env-file <批次>/env.txt` 把 `GLAB_CONFIG_DIR`、`PATH`、`GITLAB_TOKEN` 传进实例进程；token 只写在环境文件里，不进命令行、批次评论、证据文件与日志。先加 `--launch-plan` 可以只看启动命令与变量名、不起进程。写法与失败行为见 `scripts/real-machine/README.md` 的「带 GitLab 环境起实例」一节。
 
 ### 证据归档、不可变与批次环境记录
 
@@ -91,6 +93,16 @@ powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [Sy
 ```
 
 这只是「批次开始那一刻主机是什么样」的快照，不能证明整个批次期间都稳定；真正的视口以真全屏实例的 `page-diagnostics.json` 里 `fullscreen` 与 `viewport` 字段为准。宿主在多个显示器或分辨率之间自动切换时，先请人把显示器固定住再开批；不要用看门狗去抢每次只出现两三分钟的横屏窗口——切屏会打断测量，留下的证据不可信，还要整批重跑。beta.32 批次因此两次作废 1660 的证据，最终 wide/short 没能按登记尺寸复跑。
+
+### 报告索引：把批次证据汇总成报告能用的数字
+
+批次归档之后，用一条命令汇总 `evidence-archive/index.jsonl` 与 `conditions.jsonl`：
+
+```
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/report-index.mts --markdown-out evidence-archive/report-summary.md
+```
+
+它按 8 条支持度断言分组计数，给出 P0/P1/P2 缺陷票与重验状态、每个候选的通过率与未测数、条件账本条数，并把同一份汇总渲染成 Markdown，贴进验证报告即可。三点要记住：`index.jsonl` 一行只记一次尝试（verdict 六类、candidate 写完整 40 位提交哈希），同一场景多次尝试会被合并统计，所以断言次数相加会大于行数；缺陷票在 `index.jsonl` 里只有票号没有等级，报告默认按该行场景在 #1675 里的最高 P 级上限推定，需要精确等级时用 `--defects` 传 `[{"ticket":"#2001","level":"P1"}]` 这样的清单；条件清单来自 `conditions.jsonl`，一行一个条件，字段是 condition、scope、scenario、evidence、alternative、expiry、owner，报告里的条件条数由它汇总。更正记录按现行约定另写在 `corrections.jsonl`，本版汇总脚本还没有读它。
 
 ## 三、验证批次
 

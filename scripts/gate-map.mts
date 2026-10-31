@@ -75,6 +75,12 @@ export const MAP_PATH: string = path.join(ROOT, 'tests', 'gate-map.json')
 //   期望比实际小 = 有人加了断言却忘了改这里，也判红，顺手把数字改准。
 // 还没开闸的门禁一律不许写在这里 —— 编一个数字出来，真红就会变假绿。
 export const COMPLETION_RECORDED_GATES: Record<string, number> = {
+  // 2026-10-31 #1706：GitLab 沙箱项目与工作区的黑盒门禁，正例单跑实测 58 条断言；负例用 --negative 单独跑，不计入开闸期望。
+  'verify-1706-gitlab-project': 58,
+  // 2026-10-31 #1707：真机实例环境注入门禁，正例单跑实测 79 条断言；负例用 --negative 单独跑（5 条断言、3 条故意红），不计入开闸期望。
+  'verify-1707-env-injection': 79,
+  // 2026-10-31 #1711：报告索引脚本门禁，正例单跑实测 94 条断言；负例用 --negative 单独跑，不计入开闸期望。
+  'verify-1711-report-index': 94,
   // 2026-10-31 #1705：真机工具台的进程级夹具门禁，正例单跑实测 43 条断言；负例用 --negative 单独跑，不计入开闸期望。
   'verify-1705-real-machine-fixture': 43,
   // 2026-10-29 #1600：词表里 gate.wipNotice 已退役（GitLab 可用后不再有「筹备中」注解），
