@@ -9,6 +9,9 @@ const os = require('node:os')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
 const { printGateResult } = require('./lib/gate-result.ts')
+const { sourceText, spliceableJs } = require('./lib/source-text.ts')
+const { compileFn } = require('./lib/eval-probe.ts')
+const { localeDataText } = require('./lib/locale-data.ts')
 
 const ROOT = path.resolve(__dirname, '..')
 const GATE = 'verify-1586-task-channel'
@@ -305,6 +308,225 @@ async function main() {
   const epipeQ = await badBytes.query()
   const epipeTask = epipeQ.tasks.find((t) => t.taskId === epipeStart.task.taskId)
   check(epipeTask.conclusion === 'failed' && epipeTask.failureKind === 'stdin-failed', '输入通道被提前关闭（EPIPE）判失败并单独分类，不静默忽略')
+
+  // 六、七登记点：一条长任务通道要同时出现在七处，漏一处就「界面看起来能点、实际必被拦」。
+  // 这里按源码文本对账，七处各给一个稳定代号；末尾拿四份篡改副本反证扫描器真会判红。
+  const readRel = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+  const reg = {
+    protocol: readRel('src/shared/version-control/src/task-protocol.ts'),
+    runner: readRel('src/host/versionControlTaskRun.ts'),
+    host: readRel('src/host/versionControl.ts'),
+    taskHost: readRel('src/host/versionControlTask.ts'),
+    index: readRel('src/host/index.ts'),
+    leaf: readRel('src/client/views/versionControl/vcTaskPanel.ts'),
+    shell: readRel('src/client/views/versionControl/vcShellPages.ts'),
+    timeouts: readRel('config/timeouts.yaml'),
+    timeGen: readRel('scripts/generate-time-config.mts'),
+  }
+  const TASK_PHONE_NAMES = ['wf.gitTaskStart', 'wf.gitTaskQuery', 'wf.gitTaskCancel']
+  const TASK_TIMEOUT_KEYS = ['vcTaskPollIntervalMs', 'vcTaskCancelGraceMs', 'vcTaskHardKillGraceMs']
+  const TASK_TIMEOUT_CONSTS = ['VC_TASK_POLL_INTERVAL_MS', 'VC_TASK_CANCEL_GRACE_MS', 'VC_TASK_HARD_KILL_MS']
+  const registrationProblems = (tx) => {
+    const problems = []
+    // 1 操作枚举：十七种动作都在协议的 TASK_OPS 里，不许另外再写一份清单。
+    if (!wantOps.every((id) => tx.protocol.indexOf('meta(\'' + id + '\'') >= 0)) problems.push('op-enum')
+    // 2 判定分支：运行器按动作元数据决定行为，认不出的动作必须落到 unknown-op。
+    if (tx.runner.indexOf('taskOpMetaOf(req.op)') < 0 || tx.runner.indexOf('unknown-op') < 0) problems.push('decision-branch')
+    // 3 检查白名单：只有 fast-import 能带输入文件，其余一律 stdin-not-allowed。
+    if (tx.runner.indexOf('meta.stdinFile') < 0 || tx.runner.indexOf('stdin-not-allowed') < 0) problems.push('check-whitelist')
+    // 4 写处理函数：执行层有起进程闭包与通道装配，三个处理函数齐全。
+    if (tx.host.indexOf('makeLaunchTaskGit') < 0 || tx.host.indexOf('taskPhone()') < 0) problems.push('write-handler')
+    else if (!/handleGitTask(Start|Query|Cancel)/.test(tx.host)) problems.push('write-handler')
+    // 5 宿主注册：三条电话在入口一个字面一条地注册（循环注册躲不过检查）。
+    if (!TASK_PHONE_NAMES.every((name) => tx.index.indexOf('harness.handle(\'' + name + '\'') >= 0)) problems.push('host-registration')
+    // 6 电话表：客户端叶子里三条电话名齐全，页面壳真的把任务区挂上去。
+    if (!TASK_PHONE_NAMES.every((name) => tx.leaf.indexOf("'" + name + "'") >= 0) || tx.shell.indexOf('vcTaskPanelNode(h, t') < 0) problems.push('phone-table')
+    // 7 超时配置：YAML 里有键、生成器登记了常量、通道真读了常量——三处缺一不可。
+    if (!TASK_TIMEOUT_KEYS.every((k) => tx.timeouts.indexOf(k + ':') >= 0)) problems.push('timeout-config')
+    else if (!TASK_TIMEOUT_CONSTS.every((k) => tx.timeGen.indexOf(k) >= 0)) problems.push('timeout-config')
+    else if (!TASK_TIMEOUT_CONSTS.every((k) => tx.taskHost.indexOf(k) >= 0)) problems.push('timeout-config')
+    return problems
+  }
+  const regProblems = registrationProblems(reg)
+  check(regProblems.length === 0, '七登记点一处不漏（缺：' + regProblems.join('、') + '）')
+  const tamperReg = (patch) => registrationProblems(Object.assign({}, reg, patch))
+  check(tamperReg({ index: reg.index.replace("harness.handle('wf.gitTaskCancel'", "harness.handle('wf.gitTaskCancelTypo'") }).indexOf('host-registration') >= 0, '反证一：宿主少注册一条电话时判红')
+  check(tamperReg({ leaf: reg.leaf.replace("'wf.gitTaskCancel'", "'wf.gitTaskCancelX'") }).indexOf('phone-table') >= 0, '反证二：电话表少一条取消电话时判红')
+  check(tamperReg({ timeouts: reg.timeouts.replace('vcTaskHardKillGraceMs', 'vcTaskHardKillGraceMsOld') }).indexOf('timeout-config') >= 0, '反证三：超时配置少一条键时判红')
+  check(tamperReg({ runner: reg.runner.replace('taskOpMetaOf(req.op)', 'taskOpMetaOf(req.op, true)') }).indexOf('decision-branch') >= 0, '反证四：判定分支被换形状时判红')
+
+  // 七、宿主装配真跑：真的 createVersionControl + 假进程与假计时服务，验证固定前缀、GIT_EDITOR、
+  //     标准输入窄例外与三条电话的整条链路——不是看源码文本，是真把进程请求接下来看形状。
+  const vcMod = await import(pathToFileURL(path.join(ROOT, 'src/host/versionControl.js')).href)
+  const cmdMod = await import(pathToFileURL(path.join(ROOT, 'src/shared/version-control/src/commands.js')).href)
+  const { createHash } = require('node:crypto')
+  const hostSpawns = []
+  const hostLogs = []
+  let hostOutbound = 0
+  let nextHostStdout = ''
+  function hostProc(preloadOut) {
+    let resolveDone
+    const done = new Promise((r) => { resolveDone = r })
+    const readerOf = (text) => ({
+      readFrom(off) {
+        const all = String(text || '')
+        if (off >= all.length) return { text: '', nextOffset: off, lossy: false }
+        return { text: all.slice(off), nextOffset: all.length, lossy: false }
+      },
+    })
+    const stdinWrites = []
+    return {
+      done,
+      stdinWrites,
+      collected: { stdout: readerOf(preloadOut), stderr: readerOf('') },
+      stdin: { write(b) { stdinWrites.push(b) }, end() {}, on() {} },
+      terminate() { resolveDone({ exitCode: null, signal: 'SIGTERM' }) },
+      finish(result) { resolveDone(result || { exitCode: 0, stdout: '', stderr: '', truncated: false }) },
+    }
+  }
+  const hostCache = mkTmp('hostcache')
+  const hostRepo = mkTmp('hostrepo')
+  const vc = vcMod.createVersionControl({
+    subprocess: { spawn(req) { const h = hostProc(nextHostStdout); nextHostStdout = ''; hostSpawns.push({ req, handle: h }); return h } },
+    timer: { timeout: (ms) => new Promise((r) => setTimeout(r, Math.max(5000, Number(ms) || 0))) },
+    fs: fsAdapter(),
+    getPlatform: async () => ({ resolveExecutable: async () => 'git' }),
+    DEFAULT_CWD: hostRepo,
+    TIMEOUT_MS: 1000,
+    gate: { noteOutbound() { hostOutbound += 1 } },
+    logCtx: { fire(level, event, fields) { hostLogs.push({ level, event, fields }) } },
+    now: () => Date.now(),
+    getCacheDir: async () => hostCache,
+  })
+  check(typeof vc.handleGitTaskStart === 'function' && typeof vc.handleGitTaskQuery === 'function' && typeof vc.handleGitTaskCancel === 'function', '宿主装配出开始/查询/取消三条长任务电话')
+  nextHostStdout = 'Receiving objects:  55% (11/20), 2.0 MiB | 300.00 KiB/s\n'
+  const hStart = await vc.handleGitTaskStart({ op: 'fetch', args: { remote: 'origin', refspecs: ['main'] }, cwd: hostRepo, requestId: 'host-rq-1' })
+  check(hStart.ok === true && hStart.task && hStart.task.state === 'running', '开始一件 fetch 任务，回在途任务')
+  check(hostSpawns.length === 1, '开始一件任务只起一个进程')
+  const sreq = hostSpawns[0].req
+  check(Array.isArray(sreq.argv) && sreq.argv[0] === 'git' && sreq.argv[1] === '-C' && sreq.argv[2] === hostRepo, 'argv 前两段钉死程序与仓库目录（-C）')
+  check(sreq.argv[3] === '--no-pager', '固定前缀第一项就是 --no-pager')
+  check(sreq.argv.indexOf('--no-pager') < sreq.argv.indexOf('fetch'), '--no-pager 排在子命令之前')
+  check(sreq.argv.indexOf('fetch') > 0 && sreq.argv[sreq.argv.length - 1] === 'main' && sreq.argv[sreq.argv.length - 2] === 'origin', '子命令与参数逐项独立（不拼 shell 字符串）')
+  check(sreq.cwd === hostRepo, '进程工作目录与 -C 指向的仓库一致')
+  check(sreq.env && sreq.env.GIT_EDITOR === cmdMod.FAILING_EDITOR, '子进程 GIT_EDITOR 被设成必失败命令（面板没覆盖成功时 git 直接失败，不弹编辑器）')
+  check(sreq.stdio && sreq.stdio.stdin === 'ignore', '默认标准输入忽略')
+  check(!!sreq.stdio && !!sreq.stdio.stdout && typeof sreq.stdio.stdout.maxBytes === 'number' && sreq.stdio.stdout.maxBytes > 0, '标准输出有字节上限（超过由宿主截断并标记）')
+  check(hostOutbound >= 1, '起进程前先向闸记一笔外发')
+  const hQuery = await vc.handleGitTaskQuery({})
+  const hTask = hQuery.ok === true ? hQuery.tasks.find((t) => t.taskId === hStart.task.taskId) : null
+  check(hQuery.ok === true && hQuery.running === 1 && !!hTask && hTask.state === 'running', '查询能看到这条在途任务')
+  check(!!hTask && hTask.percent === 55 && hTask.phase === 'Receiving objects', '进度读的是 git 自己报的真实百分比（实得 ' + JSON.stringify(hTask && { percent: hTask.percent, phase: hTask.phase }) + '）')
+  check(hostSpawns[0].handle.stdinWrites.length === 0, '普通任务没有往标准输入写任何字节')
+  const hCancel = await vc.handleGitTaskCancel({ taskId: hStart.task.taskId })
+  check(hCancel.ok === true && hCancel.task && hCancel.task.conclusion === 'cancelled' && typeof hCancel.task.residual === 'string' && hCancel.task.residual.length > 0, '取消走软取消并给出残留说明')
+  const stdinDir = mkTmp('stdinfile')
+  const stdinPath = path.join(stdinDir, 'in.fi')
+  const stdinBuf = Buffer.from('blob\nmark :1\ndata 3\nhi\n', 'utf8')
+  fs.writeFileSync(stdinPath, stdinBuf)
+  const stdinDigest = createHash('sha256').update(stdinBuf).digest('hex')
+  const fiStart = await vc.handleGitTaskStart({ op: 'fast-import', args: {}, cwd: hostRepo, stdinFile: { path: stdinPath, sizeBytes: stdinBuf.length, sha256: stdinDigest } })
+  check(fiStart.ok === true && hostSpawns.length === 2, 'fast-import 通过文件校验后起进程')
+  const freq = hostSpawns.length === 2 ? hostSpawns[1].req : null
+  check(!!freq && freq.stdio && freq.stdio.stdin === 'pipe', 'fast-import 的标准输入是管道（唯一窄例外）')
+  check(!!freq && freq.argv.indexOf('fast-import') > 0, 'fast-import 子命令排在固定前缀之后')
+  const fiWrites = hostSpawns.length === 2 ? hostSpawns[1].handle.stdinWrites : []
+  check(fiWrites.length === 1 && Buffer.isBuffer(fiWrites[0]) && fiWrites[0].length === stdinBuf.length, '宿主把输入文件字节送进标准输入，且只送一次')
+  check(fiWrites.length === 1 && fiWrites[0].equals(stdinBuf), '送进去的字节与文件内容完全一致')
+  if (hostSpawns.length === 2) hostSpawns[1].handle.finish({ exitCode: 0, stdout: '', stderr: '', truncated: false })
+  await settle()
+  const fiQuery = await vc.handleGitTaskQuery({})
+  const fiTask = fiQuery.tasks.find((t) => t.taskId === fiStart.task.taskId)
+  check(!!fiTask && fiTask.conclusion === 'succeeded' && fiTask.stdinBytes === stdinBuf.length, '任务记录只留输入字节数并如实收尾')
+  const storedNames = fs.readdirSync(hostCache).filter((n) => n.indexOf('vc-task-events__') === 0)
+  const storedText = storedNames.map((n) => fs.readFileSync(path.join(hostCache, n), 'utf8')).join('\n')
+  check(storedText.length > 0 && storedText.indexOf('blob') < 0 && storedText.indexOf(stdinPath) < 0, '任务状态落盘不含输入文件内容与原始路径')
+  const beforeReject = hostSpawns.length
+  const fiNoFile = await vc.handleGitTaskStart({ op: 'fast-import', args: {}, cwd: hostRepo })
+  check(fiNoFile.ok === false && fiNoFile.error && fiNoFile.error.reason === 'stdin-required', 'fast-import 没给输入文件时明确拒绝，不空着管道跑')
+  const fetchWithFile = await vc.handleGitTaskStart({ op: 'fetch', args: { remote: 'origin' }, cwd: hostRepo, stdinFile: { path: stdinPath, sizeBytes: stdinBuf.length, sha256: stdinDigest } })
+  check(fetchWithFile.ok === false && fetchWithFile.error && fetchWithFile.error.reason === 'stdin-not-allowed', '非 fast-import 命令带输入文件被拒')
+  check(hostSpawns.length === beforeReject, '两条拒绝路径都是零进程')
+  check(hostLogs.some((l) => l.event === 'host.call' && l.fields && l.fields.method === 'wf.gitTaskStart'), '电话层记 host.call（含方法名）')
+  const taskLogs = hostLogs.filter((l) => l.event === 'git.task')
+  check(taskLogs.length >= 2 && taskLogs.every((l) => l.fields && l.fields.via === 'version-control-task'), 'git.task 日志至少开始与结束两条，字段带来源')
+
+  // 八、客户端任务区：真求值那份叶子，进度、四类结论、取消按钮与三条电话的整形都按界面契约验证。
+  const fakeH = function (tag, props, children) {
+    const kids = children === undefined ? [] : (Array.isArray(children) ? children : [children])
+    return { tag, props: props || {}, children: kids }
+  }
+  const fakeT = function (key, params) { return params ? key + JSON.stringify(params) : key }
+  const leaf = compileFn(['h', 't'], spliceableJs('src/client/views/versionControl/vcTaskPanel.ts') + '\nreturn { VC_TASK_PHONES: VC_TASK_PHONES, vcTaskStart: vcTaskStart, vcTaskQuery: vcTaskQuery, vcTaskCancel: vcTaskCancel, vcTaskProgressOf: vcTaskProgressOf, vcTaskConclusionOf: vcTaskConclusionOf, vcTaskRowNode: vcTaskRowNode, vcTaskPanelNode: vcTaskPanelNode, vcTaskOpLabelKeyOf: vcTaskOpLabelKeyOf };')(fakeH, fakeT)
+  function findAll(node, pred, out) {
+    const acc = out || []
+    if (Array.isArray(node)) { for (const item of node) findAll(item, pred, acc); return acc }
+    if (!node || typeof node !== 'object') return acc
+    if (pred(node)) acc.push(node)
+    if (Array.isArray(node.children)) for (const kid of node.children) findAll(kid, pred, acc)
+    return acc
+  }
+  function textOf(node) {
+    if (node === null || node === undefined) return ''
+    if (typeof node === 'string') return node
+    if (Array.isArray(node)) return node.map(textOf).join('')
+    return textOf(node.children)
+  }
+  check(leaf.VC_TASK_PHONES.start === 'wf.gitTaskStart' && leaf.VC_TASK_PHONES.query === 'wf.gitTaskQuery' && leaf.VC_TASK_PHONES.cancel === 'wf.gitTaskCancel', '任务区电话表三条电话名与宿主注册一致')
+  const prog = leaf.vcTaskProgressOf({ state: 'running', percent: 42.4, phase: 'Receiving objects', receivedBytes: 2048, elapsedMs: 900 })
+  check(prog.percent === 42 && prog.uncertain === false && prog.phase === 'Receiving objects' && prog.receivedBytes === 2048, '真实百分比照实画，进度模型带上阶段与字节数')
+  const progBad = leaf.vcTaskProgressOf({ state: 'running', percent: 142 })
+  check(progBad.percent === null && progBad.uncertain === true, '超出范围的百分比不认，在途任务标成不确定')
+  check(leaf.vcTaskProgressOf({ state: 'running' }).uncertain === true, '没有百分比的在途任务如实标不确定')
+  check(leaf.vcTaskProgressOf({ state: 'done', conclusion: 'succeeded' }).uncertain === false, '已结束任务不再标不确定')
+  check(leaf.vcTaskConclusionOf({ conclusion: 'succeeded' }).key === 'vc.task.doneSucceeded', '成功结论取成功词条')
+  const cFailed = leaf.vcTaskConclusionOf({ conclusion: 'failed', failureLine: 'fatal: remote error' })
+  check(cFailed.state === 'failed' && cFailed.noteKey === 'vc.task.doneFailedLine' && cFailed.noteParams.line === 'fatal: remote error', '失败结论带 git 原话一行')
+  const cCancelled = leaf.vcTaskConclusionOf({ conclusion: 'cancelled', residual: '目标目录可能只写了一半' })
+  check(cCancelled.state === 'cancelled' && cCancelled.noteKey === 'vc.task.residual', '取消结论带残留说明')
+  const cInterrupted = leaf.vcTaskConclusionOf({ interrupted: true })
+  check(cInterrupted.state === 'interrupted' && cInterrupted.noteKey === 'vc.task.interruptedNote', '重启后的在途任务如实说已中断')
+  check(leaf.vcTaskConclusionOf({ conclusion: 'weird' }).state === 'failed', '不认识的结论按失败兜底，绝不显示成已完成')
+  check(leaf.vcTaskConclusionOf({ state: 'running' }) === null, '在途任务没有结论')
+  const emptyPanel = leaf.vcTaskPanelNode(fakeH, fakeT, { tasks: [] })
+  check(findAll(emptyPanel, (n) => n.props && n.props['data-vc-task-empty'] === '1').length === 1, '任务区空态给一句说明')
+  const cancelledIds = []
+  const runningPanel = leaf.vcTaskPanelNode(fakeH, fakeT, { tasks: [{ taskId: 't1', op: 'clone', state: 'running', phase: 'Receiving objects' }], onCancel: (id) => cancelledIds.push(id) })
+  const rowNode = findAll(runningPanel, (n) => n.props && n.props['data-vc-task-row'] === '1')[0]
+  check(!!rowNode && rowNode.props['data-vc-task-state'] === 'running', '在途任务画成行并带状态')
+  const cancelBtns = findAll(runningPanel, (n) => n.props && n.props['data-vc-task-cancel'] === '1')
+  check(cancelBtns.length === 1, '在途任务有取消按钮')
+  cancelBtns[0].props.onClick({ stopPropagation() {} })
+  check(cancelledIds.length === 1 && cancelledIds[0] === 't1', '点取消把任务 id 交给页面回调')
+  check(findAll(runningPanel, (n) => n.props && n.props['data-vc-task-uncertain'] === '1').length === 1, '没有百分比时显示「无法确定」而不是编进度')
+  const donePanel = leaf.vcTaskPanelNode(fakeH, fakeT, { tasks: [{ taskId: 't2', op: 'gc', state: 'done', conclusion: 'succeeded' }], onCancel: () => { throw new Error('不该画取消按钮') } })
+  check(findAll(donePanel, (n) => n.props && n.props['data-vc-task-cancel'] === '1').length === 0, '已结束任务没有取消按钮')
+  check(findAll(donePanel, (n) => n.props && n.props['data-vc-task-conclusion'] === 'succeeded').length === 1, '已结束任务画结论')
+  const interruptedRow = leaf.vcTaskRowNode(fakeH, fakeT, { taskId: 't3', op: 'pull', state: 'done', interrupted: true }, {})
+  check(findAll(interruptedRow, (n) => n.props && n.props['data-vc-task-conclusion'] === 'interrupted').length === 1, '中断任务画中断结论')
+  check(findAll(interruptedRow, (n) => n.props && n.props['data-vc-task-note'] === 'vc.task.interruptedNote').length === 1, '中断任务带上「上一次任务已中断」说明')
+  const failedRow = leaf.vcTaskRowNode(fakeH, fakeT, { taskId: 't4', op: 'push', state: 'done', conclusion: 'failed', failureLine: 'fatal: no upstream' }, {})
+  check(textOf(failedRow).indexOf('fatal: no upstream') >= 0, '失败行把 git 原话显示出来')
+  const calls = []
+  const fakeCall = (method, args) => { calls.push({ method, args }); return { ok: true } }
+  leaf.vcTaskStart(fakeCall, 'C:/repo', 'fetch', { args: { remote: 'origin' }, requestId: 'rq-2', confirm: true })
+  check(calls[0].method === 'wf.gitTaskStart' && calls[0].args.cwd === 'C:/repo' && calls[0].args.op === 'fetch' && calls[0].args.confirm === true && calls[0].args.requestId === 'rq-2', '开始任务把目录、动作、确认与请求号交给宿主')
+  check(!('content' in (calls[0].args.stdinFile || {})) && Object.keys(calls[0].args).indexOf('stdinFile') < 0, '没有输入文件时不夹带 stdinFile')
+  leaf.vcTaskStart(fakeCall, 'C:/repo', 'fast-import', { stdinFile: { path: 'C:/x.fi', sizeBytes: 9, sha256: 'a'.repeat(64), content: 'blob' } })
+  const fiArgs = calls[1].args.stdinFile
+  check(calls[1].method === 'wf.gitTaskStart' && !!fiArgs && Object.keys(fiArgs).sort().join(',') === 'path,sha256,sizeBytes', '输入文件只交路径、大小与摘要，界面不读文件内容')
+  leaf.vcTaskQuery(fakeCall)
+  check(calls[2].method === 'wf.gitTaskQuery' && Object.keys(calls[2].args).length === 0, '查询任务不带参数（工作区由宿主自己认）')
+  leaf.vcTaskCancel(fakeCall, 'task-1')
+  check(calls[3].method === 'wf.gitTaskCancel' && calls[3].args.taskId === 'task-1', '取消任务只带任务 id')
+  const shellText = sourceText('src/client/views/versionControl/vcShellPages.ts')
+  check(shellText.indexOf('vcTaskPanelNode(h, t') >= 0 && shellText.indexOf('opts.tasks !== undefined') >= 0, '页面壳把任务区接到页面节点上')
+  const localeText = localeDataText()
+  const commonKeys = ['vc.task.title', 'vc.task.count', 'vc.task.empty', 'vc.task.running', 'vc.task.phase', 'vc.task.phaseUnknown', 'vc.task.percent', 'vc.task.percentUnknown', 'vc.task.bytes', 'vc.task.elapsed', 'vc.task.cancel', 'vc.task.doneSucceeded', 'vc.task.doneFailed', 'vc.task.doneFailedLine', 'vc.task.doneCancelled', 'vc.task.doneInterrupted', 'vc.task.interruptedNote', 'vc.task.residual', 'vc.task.truncated', 'vc.task.start', 'vc.task.query', 'vc.task.confirmRequired']
+  const opKeys = wantOps.map((op) => 'vc.task.op.' + op.replace(/-([a-z])/g, (m, c) => c.toUpperCase()))
+  const allKeys = commonKeys.concat(opKeys)
+  const missingKeys = allKeys.filter((k) => localeText.indexOf("'" + k + "'") < 0)
+  check(missingKeys.length === 0, '任务区词条全部在词表里（缺：' + missingKeys.join('、') + '）')
 
   await printGateResult(GATE, total, failed)
   process.exit(failed ? 1 : 0)

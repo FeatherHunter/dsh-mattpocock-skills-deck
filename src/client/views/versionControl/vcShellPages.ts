@@ -29,6 +29,8 @@ declare function vcShellFormNodes(h: any, t: any, o: any): any
 declare function vcShellCapabilityRowNode(h: any, t: any, o: any): any
 declare function vcCapabilitySurfaceKindOf(cap: any): string
 declare const VC_SHELL_STATES: string[]
+// 长任务区叶子（#1740，vcTaskPanel.ts）：由构建按叶子登记次序拼进同一个闭包，这里只声明形状。
+declare function vcTaskPanelNode(h: any, t: any, o: any): any
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']
@@ -298,6 +300,10 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,
   }), 'body'))
+  // 长任务区（#1740）：页面把任务清单传进来时才画；没传整块不出现，既有页面的渲染结果不受影响。
+  if (opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {
+    children.push(keyed(vcTaskPanelNode(h, t, { tasks: opts.tasks, running: opts.running, onCancel: opts.onCancel }), 'tasks'))
+  }
   return h('div', {
     id: prefix + '-root',
     className: 'vcs-root',
