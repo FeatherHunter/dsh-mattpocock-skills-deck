@@ -449,6 +449,9 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/shared/version-control/src/recovery-point.ts', name: 'elapsedMs', reason: '备份实际耗时字段，调用方用起止时刻算，不是可配时长' },
   { file: 'src/shared/version-control/src/rewrite-ops.ts', name: 'nowMs', reason: '备份路径时间戳用的当前时刻，由调用方传入，本文件不读钟' },
   { file: 'src/host/versionControlRewriteWrite.ts', name: 'elapsedMs', reason: '备份实际耗时（起止时刻相减的派生值），不是可配时长；备份单条命令的超时另有 vcRewriteWriteTimeoutMs' },
+  // #1762 平台段执行层：读钟口由装配壳注入（生产走 Date.now），叶子不写数字。
+  { file: 'src/host/versionControlPlatform.ts', name: 'nowMs', reason: '读钟口（测试注入假钟，生产走 Date.now），不是可调时长' },
+  { file: 'src/host/versionControlPlatformRead.ts', name: 'nowMs', reason: '读钟口（测试注入假钟，生产走 Date.now），不是可调时长' },
   { file: 'src/refresh/rooms/host/chain-coalescing.ts', name: 'nowMs', reason: '测试注钟口（生产用 Date.now），不是可调参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'lingerMs', reason: '注入字段的本地接住（上游是 ACTIVE_LINGER_MS），不是新参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'expiryMs', reason: '注入字段的本地接住（上游是 ATTENTION_EXPIRY_MS），不是新参数' },

@@ -253,7 +253,8 @@ async function main() {
     // #1760（T24）加了配置与钩子页三条电话 wf.gitConfigRead / wf.gitConfigCheck / wf.gitConfigWrite（读配置、预检签 120 秒票、凭票执行），101 → 104。
     // #1761（T25）加了诊断页三条电话 wf.gitDiagnosticsRead / wf.gitDiagnosticsCheck / wf.gitDiagnosticsWrite（只读查询、预检签 120 秒票、凭票执行），104 → 107。
     // #1750（T15）又加了维护页整仓重写三条电话 wf.gitRewritePreview / wf.gitRewriteCheck / wf.gitRewriteRun（只读预览、预检签票、备份后凭票执行），107 → 110。
-    check(nPhones === 110, '宿主电话一百一十条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1762 加了平台段五条电话 wf.gitPlatformCheck / wf.gitPlatformRun / wf.gitPlatformRead / wf.gitRequestPull / wf.gitPatchFiles
+    check(nPhones === 115, '宿主电话一百一十五条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——

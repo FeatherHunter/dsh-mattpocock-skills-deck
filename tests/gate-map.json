@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T21:03:45.241Z",
+  "generatedAt": "2026-10-31T21:13:46.042Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 504,
-  "gateCount": 504,
-  "attributedGates": 453,
+  "chainLength": 505,
+  "gateCount": 505,
+  "attributedGates": 454,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 68,
+  "completionRecordedGates": 69,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 786,
+  "graphFileCount": 794,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4577,6 +4577,7 @@
       "step": "node tests/verify-1586-vc-visual-browser.ts",
       "file": "tests/verify-1586-vc-visual-browser.ts",
       "guards": [
+        "src/client/views/versionControl/vcCapabilityList.ts",
         "src/client/views/versionControl/vcCapabilityPages.ts",
         "src/client/views/versionControl/vcData.ts",
         "src/client/views/versionControl/vcFirstScreen.ts",
@@ -4605,7 +4606,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 202,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 14 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 15 条"
     },
     {
       "step": "node tests/verify-1586-worktrees.ts",
@@ -5345,6 +5346,29 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1762-platform.ts",
+      "file": "tests/verify-1762-platform.ts",
+      "guards": [
+        "src/client/views/versionControl/vcMigrateExport.ts",
+        "src/client/views/versionControl/vcPlatformData.ts",
+        "src/client/views/versionControl/vcPlatformPage.ts",
+        "src/host/versionControlPlatform.ts",
+        "src/host/versionControlPlatformMount.ts",
+        "src/host/versionControlPlatformRead.ts",
+        "src/shared/version-control/src/platform-inspect.ts"
+      ],
+      "dirs": [
+        "src/client/views/versionControl",
+        "src/host",
+        "src/shared/version-control/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 57,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -6623,6 +6647,7 @@
         "src/client/views/versionControl/vcBlocks.ts",
         "src/client/views/versionControl/vcBranches.ts",
         "src/client/views/versionControl/vcCache.ts",
+        "src/client/views/versionControl/vcCapabilityList.ts",
         "src/client/views/versionControl/vcCapabilityPages.ts",
         "src/client/views/versionControl/vcChangesPage.ts",
         "src/client/views/versionControl/vcClonePage.ts",
@@ -6644,8 +6669,11 @@
         "src/client/views/versionControl/vcHooksPage.ts",
         "src/client/views/versionControl/vcInView.ts",
         "src/client/views/versionControl/vcMigrateData.ts",
+        "src/client/views/versionControl/vcMigrateExport.ts",
         "src/client/views/versionControl/vcMigratePage.ts",
         "src/client/views/versionControl/vcPalette.ts",
+        "src/client/views/versionControl/vcPlatformData.ts",
+        "src/client/views/versionControl/vcPlatformPage.ts",
         "src/client/views/versionControl/vcQuery.ts",
         "src/client/views/versionControl/vcQueryView.ts",
         "src/client/views/versionControl/vcRebaseOps.ts",
@@ -6688,6 +6716,7 @@
         "src/shared/version-control/src/conflict-text.ts",
         "src/shared/version-control/src/first-screen.ts",
         "src/shared/version-control/src/migrate-actions.ts",
+        "src/shared/version-control/src/platform-inspect.ts",
         "src/shared/version-control/src/recovery-point.ts",
         "src/shared/version-control/src/rewrite-ops.ts",
         "src/shared/version-control/src/rules.ts",
@@ -6714,7 +6743,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 77 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 82 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -11057,6 +11086,8 @@
         "src/host/versionControlFirstScreen.ts",
         "src/host/versionControlMigrateCheck.ts",
         "src/host/versionControlMigrateWrite.ts",
+        "src/host/versionControlPlatform.ts",
+        "src/host/versionControlPlatformRead.ts",
         "src/host/versionControlRebaseScene.ts",
         "src/host/versionControlRebaseWrite.ts",
         "src/host/versionControlRemote.ts",
@@ -11180,7 +11211,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 150 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 152 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -12591,6 +12622,7 @@
       "node tests/verify-1586-sync.ts",
       "node tests/verify-1586-vc-visual-browser.ts",
       "node tests/verify-1586-worktrees.ts",
+      "node tests/verify-1762-platform.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-881-commit-open.ts",
@@ -12780,6 +12812,7 @@
       "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-1642-toggle-logs.ts",
       "node tests/verify-1654-ws-pending-hint.ts",
+      "node tests/verify-1762-platform.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
@@ -13311,6 +13344,7 @@
       "node tests/verify-1586-sync.ts",
       "node tests/verify-1586-task-channel.ts",
       "node tests/verify-1586-undo-restore.ts",
+      "node tests/verify-1762-platform.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-841-write-phones.ts",
       "node tests/verify-842-version-control-write-view.ts",
@@ -13957,9 +13991,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 807,
+    "fileCount": 815,
     "dirCount": 84,
-    "coveredFileCount": 807,
+    "coveredFileCount": 815,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -14156,6 +14190,7 @@
       "src/client/views/versionControl/vcBlocks.ts",
       "src/client/views/versionControl/vcBranches.ts",
       "src/client/views/versionControl/vcCache.ts",
+      "src/client/views/versionControl/vcCapabilityList.ts",
       "src/client/views/versionControl/vcCapabilityPages.ts",
       "src/client/views/versionControl/vcChangesPage.ts",
       "src/client/views/versionControl/vcClonePage.ts",
@@ -14177,8 +14212,11 @@
       "src/client/views/versionControl/vcHooksPage.ts",
       "src/client/views/versionControl/vcInView.ts",
       "src/client/views/versionControl/vcMigrateData.ts",
+      "src/client/views/versionControl/vcMigrateExport.ts",
       "src/client/views/versionControl/vcMigratePage.ts",
       "src/client/views/versionControl/vcPalette.ts",
+      "src/client/views/versionControl/vcPlatformData.ts",
+      "src/client/views/versionControl/vcPlatformPage.ts",
       "src/client/views/versionControl/vcQuery.ts",
       "src/client/views/versionControl/vcQueryView.ts",
       "src/client/views/versionControl/vcRebaseOps.ts",
@@ -14352,6 +14390,9 @@
       "src/host/versionControlMigrateCheck.ts",
       "src/host/versionControlMigrateMount.ts",
       "src/host/versionControlMigrateWrite.ts",
+      "src/host/versionControlPlatform.ts",
+      "src/host/versionControlPlatformMount.ts",
+      "src/host/versionControlPlatformRead.ts",
       "src/host/versionControlRebaseCheck.ts",
       "src/host/versionControlRebaseMount.ts",
       "src/host/versionControlRebaseScene.ts",
@@ -14559,6 +14600,7 @@
       "src/shared/version-control/src/parse-stash.ts",
       "src/shared/version-control/src/parse-status.ts",
       "src/shared/version-control/src/parse-worktrees.ts",
+      "src/shared/version-control/src/platform-inspect.ts",
       "src/shared/version-control/src/ports.ts",
       "src/shared/version-control/src/push-plan.ts",
       "src/shared/version-control/src/rebase-ops.ts",

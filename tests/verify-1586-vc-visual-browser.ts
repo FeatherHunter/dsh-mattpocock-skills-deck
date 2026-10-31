@@ -65,6 +65,8 @@ const VC_FILES = [
   // #1745：提交历史页六组 / 诊断页四组的历史高级查询面板（页面壳要调它，闭包里少一片就 ReferenceError）。
   'src/client/views/versionControl/vcQuery.js',
   'src/client/views/versionControl/vcQueryView.js',
+  // #1762 T26：「本页负责的能力」列表从壳拆到独立叶子，构建次序在壳之前，闭包拼装要跟着放。
+  'src/client/views/versionControl/vcCapabilityList.js',
   // #1750：维护页会挂整仓重写面板（vcRewritePage），页面壳渲染 maintenance 页时要调它；按构建次序排在页面壳之前。
   'src/client/views/versionControl/vcRewriteOps.js',
   'src/client/views/versionControl/vcRewritePage.js',

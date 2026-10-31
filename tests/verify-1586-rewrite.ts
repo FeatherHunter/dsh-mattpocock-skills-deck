@@ -791,7 +791,9 @@ async function main() {
   eq(['wf.gitRewritePreview', 'wf.gitRewriteCheck', 'wf.gitRewriteRun'].filter(function (x) { return countOf(entrySrc, "'" + x + "'") === 1 }).length, 3, 'E6 宿主入口三条注册各一次')
   eq(countOf(parentSrc, 'createRewriteMount('), 1, 'E7 装配壳在父层只创建一次')
   check(entrySrc.split('\n').length - 1 <= 400, 'E8 宿主入口物理行不超过四百（实测 ' + String(entrySrc.split('\n').length - 1) + '）')
-  has(settingsSrc, 'check(nPhones === 110', 'E9 宿主电话总数登记到一百一十条（合并集成分支后随并行票一起涨）')
+  const rwPhoneCount: number = (entrySrc.match(/harness\.handle\(/g) || []).length
+  const rwDeclaredPhones: string = (settingsSrc.match(/check\(nPhones === (\d+),/) || [])[1]
+  check(rwDeclaredPhones !== undefined && Number(rwDeclaredPhones) === rwPhoneCount, 'E9 宿主电话计数门禁与宿主真实电话条数对账（当前 ' + String(rwPhoneCount) + ' 条；写死旧数字会被并行票误伤）')
   has(settingsSrc, '#1750', 'E10 电话计数的历史注释记下本票这次加三条')
   has(timeoutsSrc, 'vcRewriteReadTimeoutMs: 15000', 'E11 时间配置有读命令超时键')
   has(timeoutsSrc, 'vcRewriteWriteTimeoutMs: 600000', 'E12 时间配置有备份命令超时键（单条十分钟）')

@@ -700,6 +700,9 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // #1752 工作树的八条动作（argv、行模型、判定与理由、剪枝清单、稀疏检出规则）：宿主执行前与界面判定必须读同一份，
   //   界面不许自己再拼第二份 argv 或第二套理由。文件不带 import，可直接拼进界面闭包；宿主半走普通相对 import。
   { marker: '// ==== shared:vcWorktreeOps (spliced by build) ====', file: 'src/shared/version-control/src/worktree-ops.ts' },
+  // #1762 平台段：凭据助手链、rebase.updateRefs 与 request-pull 参数的判定只有一份真源（共享层 platform-inspect.ts）。
+  //   宿主读取与界面画法读同一份；文件不带 import，可直接拼进界面闭包。
+  { marker: '// ==== shared:vcPlatformInspect (spliced by build) ====', file: 'src/shared/version-control/src/platform-inspect.ts' },
   // #1757 T21 子模块域的十一个动作（argv、判定与理由、批量菜单、地址打码、任务动作对照）：宿主预检/执行与界面判定必须读同一份，
   //   界面不许自己再拼第二份 argv 或第二套理由。文件不带 import，可直接拼进界面闭包；宿主半走普通相对 import。
   { marker: '// ==== shared:vcSubmoduleOps (spliced by build) ====', file: 'src/shared/version-control/src/submodule-ops.ts' },
@@ -800,6 +803,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcCapabilityPages', file: 'src/client/views/versionControl/vcCapabilityPages.ts' },
   { id: 'vcShellPrimitives', file: 'src/client/views/versionControl/vcShellPrimitives.ts' },
   { id: 'vcPalette', file: 'src/client/views/versionControl/vcPalette.ts' },
+  { id: 'vcCapabilityList', file: 'src/client/views/versionControl/vcCapabilityList.ts' }, // #1762 T26：「本页负责的能力」列表从壳拆出，排在壳之前
   { id: 'vcHistory', file: 'src/client/views/versionControl/vcHistory.ts' }, // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）
   { id: 'vcSyncData', file: 'src/client/views/versionControl/vcSyncData.ts' }, // #1755 T19 同步段的数据层（两条电话、预检与执行回包落位；排在页面壳之前）
   { id: 'vcRemoteData', file: 'src/client/views/versionControl/vcRemoteData.ts' }, // #1754 T18 远端与同步页的数据层（六条电话、读数状态、联网与写动作回包落位）
@@ -841,6 +845,10 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcConfigOps', file: 'src/client/views/versionControl/vcConfigOps.ts' },
   { id: 'vcConfigPage', file: 'src/client/views/versionControl/vcConfigPage.ts' },
   { id: 'vcHooksPage', file: 'src/client/views/versionControl/vcHooksPage.ts' },
+  // #1762 平台段两页：数据层 → 平台页画法 → 迁移页 14.1 导出向导；排在 vcShellPages 之前，壳的挂载段才调得到。
+  { id: 'vcPlatformData', file: 'src/client/views/versionControl/vcPlatformData.ts' },
+  { id: 'vcPlatformPage', file: 'src/client/views/versionControl/vcPlatformPage.ts' },
+  { id: 'vcMigrateExport', file: 'src/client/views/versionControl/vcMigrateExport.ts' },
   // #1749 变基待办两叶：动作模型（9 条动作的出入参形状、待办行变换）→ 页面正文（状态、待办清单、三块预览、四段确认卡）。
   //   排在页面壳之前，壳的挂载段才看得到 vcRebasePageNode。
   { id: 'vcRebaseOps', file: 'src/client/views/versionControl/vcRebaseOps.ts' },

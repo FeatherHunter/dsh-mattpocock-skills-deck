@@ -66,6 +66,33 @@
       "note": "#1255 拆分：取文本/选首轮/取路由/洗标题是纯的，编排是有状态的，测试策略不同。方向 namingSummary → namingSummaryText（被依赖方），反向不依赖；门禁单测原来从 namingSummary 取纯函数，取法不变（原样再导出）。"
     },
     {
+      "file": "src/host/versionControl.ts",
+      "spec": "./versionControlPlatformMount.js",
+      "resolved": "src/host/versionControlPlatformMount.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1762（规格 #1586 T26 平台段）",
+      "note": "装配扇入：平台段五条电话（14.1 预检/执行、平台页读取、request-pull、输出目录补丁列表）要挂到版本管理入口，但父文件贴着 350 有效行上限；照 #1742/#1743 先例把装配拆成同层外壳，父文件只留 createPlatformMount 那一行调用，外壳不反向引用父文件。"
+    },
+    {
+      "file": "src/host/versionControlPlatformMount.ts",
+      "spec": "./versionControlPlatform.js",
+      "resolved": "src/host/versionControlPlatform.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1762（规格 #1586 T26 平台段）",
+      "note": "外壳装配：外壳只做懒加载与电话日志包装，14.1 的预检票据与执行（转长任务通道 startTask）在同层叶子 versionControlPlatform.ts；方向单向，票据叶子只认注入的宿主依赖，不引用外壳。"
+    },
+    {
+      "file": "src/host/versionControlPlatformMount.ts",
+      "spec": "./versionControlPlatformRead.js",
+      "resolved": "src/host/versionControlPlatformRead.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1762（规格 #1586 T26 平台段）",
+      "note": "外壳装配：平台页读取（凭据助手链、rebase.updateRefs）、request-pull 生成与输出目录补丁列表都在同层叶子 versionControlPlatformRead.ts；方向单向，读取叶子不引用外壳。"
+    },
+    {
       "file": "src/seam/index.ts",
       "spec": "./runtime.js",
       "resolved": "src/seam/runtime.ts",
