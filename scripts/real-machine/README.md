@@ -31,6 +31,18 @@
    `USERPROFILE`/`HOME`；插件日志写在各自的启动目录下，插件设置写在各自的 `USERPROFILE` 里。
    `isolation-probe` 这条命令专门用来证明这件事：它对比真实用户设置文件在探针前后的 SHA256，没变才算通过。
 
+4. **门禁走进程接口，不 import 命令内部函数**。`tests/lib/real-machine-process.ts` 是给门禁用的夹具：
+   它在系统临时目录（或 `DSH_VERIFY_WORK_ROOT` 指定的位置）里开一个隔离工作根，用上面第 1 条的同一种写法
+   起命令，直接拿回 stdout 那段 JSON、退出码、stderr 和工作根里的文件；`home`、临时目录、`DSH_REAL_HOME`
+   都指进沙箱，假 `glab` 放在 PATH 最前面、同时用 `GLAB_BIN` 指过去，每次调用的 argv 与工作目录记进
+   JSONL 供测试断言。整个过程不改宿主环境的变量，也不碰真实 DSH 配置。现成的例子是
+   `tests/verify-1705-real-machine-fixture.ts`：
+   ```
+   node --import ./scripts/ts-hook.mts tests/verify-1705-real-machine-fixture.ts            # 正例，应退出 0
+   node --import ./scripts/ts-hook.mts tests/verify-1705-real-machine-fixture.ts --negative # 负例，应退出 1
+   ```
+   负例故意写错两条期望，用来证明这扇门禁真的会红；新门禁也按这个约定带一个能单独触发的负例。
+
 ## 有头验证：窗口必须是真全屏
 
 无头断言用固定视口（默认 1600x1000）没问题；但要判断「浮层会不会被别的界面元素盖住」「提示贴到屏幕边缘会不会越界」这类空间问题，必须让真实浏览器窗口真的全屏。2026-10-29 验 1655-01 时就错过一次：Playwright 的 `--start-fullscreen` 被忽略，真实窗口只有 1083 像素宽；用 `setViewportSize` 把页面视口强设成 2195 后截图看起来铺满屏幕，据此判「关闭整个 deck 的跟随浮层被右侧面板盖住、确认键鼠标点不到」。后来用 CDP 切真全屏复核，遮挡并不存在——错的是验证方法，不是产品。
@@ -226,9 +238,13 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 - 跨盘安装限制见上文「冻结候选包」一节；`--install-method cli` 只在 home 与 pnpm store 同盘时能用。
 - 复制 home 会连 profile 里旧的 `dsh plugin add` 依赖记录一起复制过来，那是真机 home 的原样；
   工具只保证不打印文件内容、不写真实 home。
+- `global-lock --release` 只释放 `owner.json` 里记的那个进程拿的锁；换一个进程去释放会回
+  `{"released": false}`，reason 里写清锁的 owner 是哪个 pid，锁目录也不删。这是现有行为，不是门禁
+  夹具引入的：要清掉锁就删锁目录，或让拿锁的那个进程自己释放。
 
 ## 相关文件
 
 - 规则与批次记录格式：[docs/agents/real-machine-verification.md](../../docs/agents/real-machine-verification.md)
 - 清单票模板：[docs/agents/checklist-issue-template.md](../../docs/agents/checklist-issue-template.md)
 - 发布前 / 发布后机器检查：`scripts/release-preflight.mts`、`scripts/release-postflight.mts`
+- 门禁用的进程级夹具：`tests/lib/real-machine-process.ts`；假 `glab`、隔离探针等夹具脚本在 `tests/fixtures/real-machine/`。
