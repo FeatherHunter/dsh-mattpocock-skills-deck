@@ -1,4 +1,4 @@
-// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–O 十五组，每组带反证；J 组是 #1752 工作树页的写通道，K 组是 #1755 同步域与 #1747 冲突向导的写通道，L 组是 #1743 提交页，M 组是 #1748 历史改写五条动作的写通道，N 组是 #1757 子模块页的写与任务通道，O 组是 #1749 变基待办页的读 / 预检 / 凭票执行三电话。
+// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–P 十六组，每组带反证；J 组是 #1752 工作树页的写通道，K 组是 #1755 同步域与 #1747 冲突向导的写通道，L 组是 #1743 提交页，M 组是 #1748 历史改写五条动作的写通道，N 组是 #1757 子模块页的写与任务通道，O 组是 #1749 变基待办页的读 / 预检 / 凭票执行三电话，P 组是 #1750 维护页整仓重写的预览 / 预检 / 备份后执行三电话。
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-841-write-phones.ts
 // 夹具：真 git 临时仓库（每个用例自己造）+ 真 subprocess 形状的垫片（argv 直传、不经 shell），
 // 这样「真跑过的 argv」与「真仓库有没有被动过」都能断言；只在纯归类那组不碰 git。
@@ -850,6 +850,59 @@ async function main(): Promise<void> {
   check(oWrite.ok === true && oWrite.conflicted === false && oCount === 3, 'O6 凭票执行最小交互式变基：按面板待办丢掉一个提交（历史从 4 条变 3 条），回包说成功且没停在冲突里')
   check(!!oSeq && after(oSeq.argv).slice(0, 2).join(',') === 'rebase,-i' && typeof oSeq.env.GIT_SEQUENCE_EDITOR === 'string' && oSeq.env.GIT_SEQUENCE_EDITOR.indexOf('cp ') === 0, 'O7 变基那一条命令的 argv 里 -i 独立成项，待办靠 GIT_SEQUENCE_EDITOR 的 cp 覆盖进去（不弹编辑器）')
   check(typeof vcO.handleGitRebaseRead === 'function' && (await vcO.handleGitRebaseRead({ cwd: rO, op: 'rebase-state' })).ok === true, 'O8 变基读电话可用：变基完成后读状态照常回包（走同一条读路径）')
+
+
+  // P 组：#1750 维护页整仓重写三电话（预览 / 预检签票 / 凭票执行）。这一组守「预览不签票、签票只读现场、
+  //   伪造与过期票零进程、执行前必须先真做出整仓备份」。重写本体走长任务通道，本组只断言备份与任务交接，
+  //   不依赖本机装没装 filter-repo（探测那一条由路由回假，真起任务时它只会立刻报「没有这个子命令」）。
+  console.log('P 整仓重写电话（#1750）')
+  const rP = mkRepo('p')
+  git(rP, ['commit', '-q', '-m', '基线二'])
+  fs.mkdirSync(path.join(rP, 'secret'), { recursive: true })
+  fs.writeFileSync(path.join(rP, 'secret', 'token.txt'), 'SECRET-ONE\n')
+  git(rP, ['add', '-A']); git(rP, ['commit', '-q', '-m', '带一个敏感文件'])
+  const pCache = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws841-rewrite-cache-'))
+  const vcP = makeVc((argv) => (argv.indexOf('filter-repo') >= 0 && argv.indexOf('--version') >= 0 ? { code: 0, stdout: 'git-filter-repo 2.38.0\n' } : null), {
+    fs: { resolve: async (p: any) => String(p), listDir: async (p: any) => await fs.promises.readdir(String(p)), readText: async (p: any) => await fs.promises.readFile(String(p), 'utf8'), writeText: async (p: any, t: any) => await fs.promises.writeFile(String(p), String(t), 'utf8'), mkdir: async (p: any) => { await fs.promises.mkdir(String(p), { recursive: true }) } },
+    getCacheDir: () => pCache,
+  })
+  check(typeof vcP.handleGitRewritePreview === 'function' && typeof vcP.handleGitRewriteCheck === 'function' && typeof vcP.handleGitRewriteRun === 'function', 'P1 整仓重写预览 / 预检 / 执行三条电话都挂在同一个宿主对象上')
+  check(typeof vcP.rewriteTickets === 'function', 'P2 重写票表读取口只给门禁与测试，不注册成电话')
+  check(typeof vcP.handleGitFilterBranch === 'undefined' && typeof vcP.handleGitRewriteFilterBranch === 'undefined', 'P3 宿主对象上没有 filter-branch 执行电话（5.11 本体永久只读）')
+  // 探测 filter-repo 版本那一条也是 spawns 记录（路由回假、不是真起进程），判「没备份没任务」时排掉它。
+  const pWriteLike = (a: string[]): boolean => { const c = after(a); if (c[0] === 'clone' || c[0] === 'bundle') return true; return c[0] === 'filter-repo' && c.indexOf('--version') < 0 }
+  const pBefore = spawns.length
+  const pPreview = await vcP.handleGitRewritePreview({ cwd: rP, op: 'rewrite', form: 'remove-paths', paths: ['secret'] })
+  check(pPreview.ok === true && pPreview.preview.counts.matchedPaths === 1 && String(pPreview.preview.command).indexOf('filter-repo') >= 0 && !pPreview.ticket, 'P4 预览只读：算出受影响路径数并给出命令原文，但不签票')
+  check(spawns.slice(pBefore).every((a) => pWriteLike(a) === false), 'P5 预览阶段既没备份也没起重写进程')
+  const pBadCwd = await vcP.handleGitRewriteCheck({ cwd: '', op: 'rewrite', form: 'remove-paths', paths: ['secret'] })
+  check(pBadCwd.ok === false && pBadCwd.reason === 'bad-target' && spawns.slice(pBefore).every((a) => pWriteLike(a) === false), 'P6 不给仓库目录时预检直接回 bad-target，零备份零任务')
+  const pCheck = await vcP.handleGitRewriteCheck({ cwd: rP, op: 'rewrite', form: 'remove-paths', paths: ['secret'] })
+  check(pCheck.ok === true && !!pCheck.ticket && pCheck.ticket.expiresAtMs - pCheck.ticket.checkedAtMs === 120000, 'P7 预检签 120 秒票（票只管预检新鲜度）')
+  check(pCheck.confirmRequired === true && pCheck.confirm && Array.isArray(pCheck.confirm.what) && pCheck.confirm.what.length > 0 && Array.isArray(pCheck.confirm.wont) && pCheck.confirm.wont.length > 0 && pCheck.confirm.reversible === true && typeof pCheck.confirm.verb === 'string' && pCheck.confirm.verb.length > 0, 'P8 确认卡四段齐全（做什么、不做什么、可不可逆、点下去会发生什么）')
+  check(!!pCheck.backup && pCheck.backup.required === true && String(pCheck.backup.path).indexOf('-backup-') >= 0 && fs.existsSync(pCheck.backup.path) === false, 'P9 预检给出备份路径但还没创建备份（备份只在凭票执行、确认之后做）')
+  check(spawns.slice(pBefore).every((a) => after(a)[0] !== 'clone' && after(a)[0] !== 'bundle'), 'P10 预检阶段一条备份命令都没起')
+  const pForged = await vcP.handleGitRewriteRun({ cwd: rP, op: 'rewrite', form: 'remove-paths', paths: ['secret'], ticketId: 'NOSUCHTICKET', requestId: 'req-841-rewrite-1', confirmed: true })
+  check(pForged.ok === false && (pForged.reason === 'ticket-missing' || (pForged.error && pForged.error.reason === 'ticket-missing')) && spawns.slice(pBefore).every((a) => after(a)[0] !== 'clone' && after(a)[0] !== 'bundle'), 'P11 伪造票：ticket-missing 且零备份零任务（判定先于任何外部调用）')
+  const pNoConfirm = await vcP.handleGitRewriteRun({ cwd: rP, op: 'rewrite', form: 'remove-paths', paths: ['secret'], ticketId: pCheck.ticket.id, requestId: 'req-841-rewrite-2' })
+  check(pNoConfirm.ok === false && (pNoConfirm.reason === 'need-confirm' || (pNoConfirm.error && pNoConfirm.error.reason === 'need-confirm')) && spawns.slice(pBefore).every((a) => after(a)[0] !== 'clone' && after(a)[0] !== 'bundle'), 'P12 没确认就执行：need-confirm 且零备份零任务')
+  const pExpiredCheck = await vcP.handleGitRewriteCheck({ cwd: rP, op: 'rewrite', form: 'remove-paths', paths: ['secret'] })
+  clock.t = pExpiredCheck.ticket.expiresAtMs + 1
+  const pExpired = await vcP.handleGitRewriteRun({ cwd: rP, op: 'rewrite', form: 'remove-paths', paths: ['secret'], ticketId: pExpiredCheck.ticket.id, requestId: 'req-841-rewrite-3', confirmed: true })
+  clock.t = 1000
+  check(pExpired.ok === false && (pExpired.reason === 'ticket-expired' || (pExpired.error && pExpired.error.reason === 'ticket-expired')) && spawns.slice(pBefore).every((a) => after(a)[0] !== 'clone' && after(a)[0] !== 'bundle'), 'P13 过期票：ticket-expired 且零备份零任务（人得重新预检）')
+  const pHeadBefore = git(rP, ['rev-parse', 'HEAD']).out
+  const pRun = await vcP.handleGitRewriteRun({ cwd: rP, op: 'rewrite', form: 'remove-paths', paths: ['secret'], ticketId: pCheck.ticket.id, requestId: 'req-841-rewrite-4', confirmed: true })
+  check(pRun.ok === true && pRun.steps && pRun.steps.join(',') === 'backup,task' && !!pRun.task, 'P14 凭票执行：先备份、再起重写任务，回包按这一步序说清楚')
+  check(!!pRun.backup && fs.existsSync(pRun.backup.path) === true, 'P15 执行后备份真的落在盘上（备份成功才允许继续）')
+  const pBackupHead = git(pRun.backup.path, ['rev-parse', 'HEAD']).out
+  check(pBackupHead === pHeadBefore, 'P16 备份是一份真克隆（里面的 HEAD 与被重写仓库执行前一模一样）')
+  check(git(rP, ['rev-parse', 'HEAD']).out === pHeadBefore, 'P17 这一组里重写任务还没改过历史（filter-repo 不在本机，任务只会立刻报错；本组只守备份与交接，不伪造成功）')
+  const pReplay = await vcP.handleGitRewriteRun({ cwd: rP, op: 'rewrite', form: 'remove-paths', paths: ['secret'], ticketId: pCheck.ticket.id, requestId: 'req-841-rewrite-4', confirmed: true })
+  check(pReplay.reused === true && pReplay.result && pReplay.result.backup && pReplay.result.backup.path === pRun.backup.path, 'P18 同一个 requestId 重放：回同一份结果（同一条备份路径），不再做第二份备份')
+  const pCloneCount = spawns.filter((a) => after(a)[0] === 'clone' && a.indexOf('--mirror') >= 0).length
+  check(pCloneCount === 1, 'P19 整个 P 组只做过一次镜像备份（实得 ' + pCloneCount + ' 次）')
+  check(denyIs(pRun, 'args') === false && denyIs(pForged, 'args') === true, 'P20 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
 
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
