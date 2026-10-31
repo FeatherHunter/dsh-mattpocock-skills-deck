@@ -448,6 +448,215 @@ async function main() {
     check(disableRig.state.runCalls.some(function (a) { return a.join(' ') === 'maintenance stop' }) && disableRig.state.runCalls.some(function (a) { return a.join(' ') === 'maintenance unregister' }), 'B114 两条本地命令都跑过')
   }
   console.log('  B 组完成：' + total + ' 条')
+
+  // ---------- C 组：真临时 git 仓库（真读数、真备份、真拒绝；长任务用假通道接收） ----------
+  const commands = await loadModule('src/shared/version-control/src/commands.js')
+  const backupMod = await loadModule('src/host/versionControlBackup.js')
+  const gitHome = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws-maint-home-'))
+  const gitEnv = Object.assign({}, process.env, { HOME: gitHome, USERPROFILE: gitHome, GIT_EDITOR: 'false', GIT_CONFIG_NOSYSTEM: '1', GIT_TERMINAL_PROMPT: '0' })
+  function gitRaw(cwd, args) {
+    const full = ['-C', cwd].concat(commands.fixedPrefix(), args)
+    return cp.spawnSync('git', full, { cwd: cwd, env: gitEnv, encoding: 'utf8' })
+  }
+  function gitText(cwd, args) { const r = gitRaw(cwd, args); return String(r.stdout || '') }
+  function gitMust(cwd, args) {
+    const r = gitRaw(cwd, args)
+    if (r.status !== 0) throw new Error('git ' + args.join(' ') + ' 失败：' + String(r.stderr || r.stdout))
+    return String(r.stdout || '')
+  }
+  const realCleanup = []
+  function mkRepo(tag) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws-maint-c-' + tag + '-')).replace(/\\/g, '/')
+    realCleanup.push(dir)
+    gitMust(dir, ['init', '-q', '-b', 'main'])
+    gitMust(dir, ['config', 'user.name', '测试用户'])
+    gitMust(dir, ['config', 'user.email', 'test@example.com'])
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'one\n')
+    // 先放一份几十 KB 的确定内容：count-objects 的 size 单位是 KiB，小仓库会被取整成 0，
+    // 夹具里留一个真实体积才能断言「仓库体积大于零」这条读数真的算出来了。
+    fs.writeFileSync(path.join(dir, 'bulk.txt'), crypto.randomBytes(64 * 1024).toString('hex') + '\n')
+    gitMust(dir, ['add', '--', 'a.txt', 'bulk.txt'])
+    gitMust(dir, ['commit', '-q', '-m', 'first'])
+    return dir
+  }
+  function realScreenOf(cwd) {
+    const head = gitText(cwd, ['rev-parse', 'HEAD']).trim()
+    const flag = function (rel) { return fs.existsSync(path.join(cwd, rel)) }
+    const staged = []
+    const unstaged = []
+    let conflictCount = 0
+    String(gitText(cwd, ['status', '--porcelain=v1'])).replace(/\r/g, '').split('\n').forEach(function (line) {
+      if (line.length < 3) return
+      const x = line.charAt(0)
+      const y = line.charAt(1)
+      const rel = line.slice(3)
+      if ('AU UD UA DU AA UU DD'.split(' ').indexOf(x + y) >= 0) { conflictCount += 1; return }
+      if (x !== ' ' && x !== '?') staged.push({ path: rel })
+      if (y !== ' ' && y !== '?') unstaged.push({ path: rel })
+      if (x === '?' && y === '?') unstaged.push({ path: rel })
+    })
+    return { ok: true, screen: { identity: { oid: head }, repo: { merging: flag('.git/MERGE_HEAD'), rebasing: flag('.git/rebase-merge') || flag('.git/rebase-apply'), cherryPicking: flag('.git/CHERRY_PICK_HEAD'), reverting: flag('.git/REVERT_HEAD') }, staged: staged, unstaged: unstaged, conflictCount: conflictCount } }
+  }
+  function makeRealRig(cwd, over) {
+    const o = over || {}
+    const state = { taskStarts: [], backups: [] }
+    async function runPinned(exe, dir, args, opts) {
+      const r = gitRaw(dir, args)
+      const stdout = String(r.stdout || '')
+      const stderr = String(r.stderr || '')
+      if (r.status === 0) return { kind: 'ok', stdout: stdout, stderr: stderr }
+      return { kind: 'non-zero', exitCode: r.status === null ? 1 : r.status, stdout: stdout, stderr: stderr }
+    }
+    const deps = {
+      runPinned: runPinned,
+      resolveGitExecutable: async function () { return 'git' },
+      resolveRepoRoot: async function () { return o.bare ? { ok: true, root: cwd, kind: 'bare' } : { ok: true, root: cwd, kind: 'worktree' } },
+      readScreenOf: async function () { return realScreenOf(cwd) },
+      fs: { statfs: async function () { return { bsize: 4096, bavail: 262144 } } },
+      now: function () { return Date.now() },
+      readTimeoutMs: 30000,
+    }
+    const read = readMod.createMaintenanceRead(deps)
+    const check = checkMod.createMaintenanceCheck({ read: read, failPhone: envelope.failPhone, now: function () { return Date.now() }, randomId: function () { return 'rc-' + Math.random().toString(36).slice(2, 10) } })
+    const backup = backupMod.createBackupRunner({ runPinned: runPinned, now: function () { return Date.now() }, writeTimeoutMs: 120000, failurePrefix: '整仓备份失败，已中止清理（测试）：' })
+    const write = writeMod.createMaintenanceWrite({
+      read: read,
+      failPhone: envelope.failPhone,
+      runPinned: runPinned,
+      taskStart: async function (req) { state.taskStarts.push(req); return { ok: true, task: { id: 'task-real-1', op: req.op } } },
+      backup: backup,
+      now: function () { return Date.now() },
+      tickets: check.tickets,
+      results: check.results,
+    })
+    return { read: read, check: check, write: write, state: state }
+  }
+
+  {
+    const dir = mkRepo('read')
+    const rig = makeRealRig(dir)
+    const objs = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'objects' })
+    eq(objs.ok, true, 'C1 真仓库对象读数能读出来')
+    check(objs.looseCount >= 1, 'C2 真仓库有松散对象')
+    check(objs.repoSizeBytes > 0, 'C3 仓库体积大于零')
+    const none = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'unreachable' })
+    eq(none.count, 0, 'C4 没有不可达对象时计数为零')
+    fs.writeFileSync(path.join(dir, 'dangling.txt'), 'dangling\n')
+    const oid = gitMust(dir, ['hash-object', '-w', 'dangling.txt']).trim()
+    const un = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'unreachable' })
+    check(un.count >= 1, 'C5 fsck --unreachable 能列出悬空对象')
+    check(un.items.some(function (it) { return it.oid === oid }), 'C6 悬空对象的提交号在清单里')
+    eq(un.looseFound >= 1, true, 'C7 悬挂 blob 是松散对象，读得到时间')
+    check(typeof un.earliestAtMs === 'number', 'C8 悬空对象带最早时间')
+    const pv = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'prune-preview' })
+    check(pv.count >= 1, 'C9 prune -n -v 能列出会被删的对象')
+    check(pv.items.some(function (it) { return it.oid === oid }), 'C10 预演清单里有那个悬空对象')
+    const cgBefore = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'commit-graph' })
+    eq(cgBefore.supported, true, 'C11 提交图在当前 git 版本受支持')
+    eq(cgBefore.exists, false, 'C12 没写过提交图时文件不存在')
+    gitMust(dir, ['commit-graph', 'write', '--reachable'])
+    const cgAfter = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'commit-graph' })
+    eq(cgAfter.exists, true, 'C13 写过之后文件真的存在')
+    eq(cgAfter.verifyOk, true, 'C14 提交图校验通过')
+    check(cgAfter.bytes > 0, 'C15 提交图有实际字节数')
+    const miBefore = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'multi-pack-index' })
+    eq(miBefore.supported, true, 'C16 多包索引在当前 git 版本受支持')
+    eq(miBefore.exists, false, 'C17 没写过多包索引时文件不存在')
+    gitMust(dir, ['repack', '-a', '-d'])
+    gitMust(dir, ['multi-pack-index', 'write'])
+    const miAfter = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'multi-pack-index' })
+    eq(miAfter.exists, true, 'C18 写过之后多包索引文件存在')
+    eq(miAfter.verifyOk, true, 'C19 多包索引校验通过')
+    const prBefore = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'pack-refs' })
+    check(prBefore.looseRefCount >= 1, 'C20 打包前有松散引用文件')
+    gitMust(dir, ['pack-refs', '--all'])
+    const prAfter = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'pack-refs' })
+    eq(prAfter.packedRefsExists, true, 'C21 打包后 packed-refs 文件出现')
+    check(prAfter.packedRefCount >= 1, 'C22 packed-refs 里数出引用条数')
+    eq(prAfter.looseRefCount, 0, 'C23 打包后松散引用清零')
+    const msBefore = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'maintenance-status' })
+    eq(msBefore.registered, false, 'C24 未登记后台维护时状态为否')
+    gitMust(dir, ['maintenance', 'register'])
+    const msReg = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'maintenance-status' })
+    eq(msReg.registeredLocal, true, 'C25 登记后本地仓库出现在维护清单里')
+    gitMust(dir, ['maintenance', 'unregister'])
+    const msOff = await rig.check.handleMaintenanceRead({ cwd: dir, op: 'maintenance-status' })
+    eq(msOff.registered, false, 'C26 注销后回到未登记')
+    const scene = await rig.read.sceneOf(dir)
+    eq(scene.ok, true, 'C27 真仓库量现场成功')
+    eq(scene.scene.branch, 'main', 'C28 现场分支是 main')
+    eq(scene.scene.dirty, true, 'C29 有未跟踪的测试文件判脏（悬空对象文件还留在工作区）')
+    eq(scene.scene.operation, null, 'C30 干净仓库没有进行中操作')
+    eq(scene.scene.headOid, gitText(dir, ['rev-parse', 'HEAD']).trim(), 'C31 现场 HEAD 与真仓库一致')
+    eq(scene.scene.gitVersion.indexOf('git version '), 0, 'C32 现场带完整 git 版本串')
+    const bareRig = makeRealRig(dir, { bare: true })
+    const bareOut = await bareRig.check.handleMaintenanceCheck({ cwd: dir, op: 'gc' })
+    eq(bareOut.ok, false, 'C33 裸仓库拒绝维护动作')
+    eq(bareOut.reason, 'repo-bare', 'C34 裸仓库的拒绝理由是 repo-bare')
+    fs.mkdirSync(path.join(dir, '.git', 'rebase-merge'), { recursive: true })
+    const busyScene = await rig.read.sceneOf(dir)
+    eq(busyScene.scene.operation, 'rebase', 'C35 有变基目录时认得进行中的操作')
+    const busyOut = await rig.check.handleMaintenanceCheck({ cwd: dir, op: 'gc' })
+    eq(busyOut.reason, 'operation-in-progress', 'C36 变基进行中拒绝维护动作')
+    fs.rmSync(path.join(dir, '.git', 'rebase-merge'), { recursive: true, force: true })
+  }
+
+  {
+    const dir = mkRepo('exec')
+    fs.writeFileSync(path.join(dir, 'dangling.txt'), 'dangling-2\n')
+    const oid = gitMust(dir, ['hash-object', '-w', 'dangling.txt']).trim()
+    const rig = makeRealRig(dir)
+    const gcPre = await rig.check.handleMaintenanceCheck({ cwd: dir, op: 'gc' })
+    eq(gcPre.ok, true, 'C37 真仓库垃圾回收预检能签票')
+    eq(gcPre.ticket.expiresAtMs - gcPre.ticket.checkedAtMs, 120000, 'C38 真仓库签的票同样一百二十秒')
+    const gcDone = await rig.write.handleMaintenanceWrite({ cwd: dir, op: 'gc', ticketId: gcPre.ticket.id, requestId: 'cr1', confirmed: true })
+    eq(gcDone.ok, true, 'C39 凭票执行垃圾回收成功')
+    eq(rig.state.taskStarts.length, 1, 'C40 垃圾回收起了一条任务')
+    eq(rig.state.taskStarts[0].op, 'gc', 'C41 任务是 gc')
+    const prunePre = await rig.check.handleMaintenanceCheck({ cwd: dir, op: 'prune' })
+    eq(prunePre.ok, true, 'C42 真仓库清除预检能签票')
+    eq(prunePre.preview.count >= 1, true, 'C43 预检带上不可达对象个数')
+    check(String(prunePre.backup.path).indexOf('-backup-') >= 0, 'C44 备份路径带 -backup-')
+    check('mirror' === prunePre.backup.kind || 'bundle' === prunePre.backup.kind, 'C45 备份方式只有镜像克隆与整仓打包两种')
+    const pruneDone = await rig.write.handleMaintenanceWrite({ cwd: dir, op: 'prune', ticketId: prunePre.ticket.id, requestId: 'cr2', confirmed: true })
+    eq(pruneDone.ok, true, 'C46 备份成功后清除动作成功')
+    check(fs.existsSync(pruneDone.backup.path), 'C47 备份真的落在磁盘上')
+    check(pruneDone.backup.bytes > 0, 'C48 备份大小大于零')
+    eq(JSON.stringify(pruneDone.steps), JSON.stringify(['backup', 'task']), 'C49 清除动作先备份再起任务')
+    eq(rig.state.taskStarts.length, 2, 'C50 清除也起了一条任务')
+    eq(rig.state.taskStarts[1].op, 'prune', 'C51 任务是 prune')
+    has(pruneDone.backupSummary, '备份在', 'C52 回包带人话备份摘要')
+    eq(pruneDone.backupRestoreSteps.length, 3, 'C53 回包带三步还原指引')
+    fs.rmSync(pruneDone.backup.path, { recursive: true, force: true })
+    fs.rmSync(pruneDone.backup.path + '.bundle', { recursive: true, force: true })
+    const before = rig.state.taskStarts.length
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'one\ntwo\n')
+    gitMust(dir, ['add', '--', 'a.txt'])
+    const moved = await rig.write.handleMaintenanceWrite({ cwd: dir, op: 'prune', ticketId: prunePre.ticket.id, requestId: 'cr3', confirmed: true })
+    eq(moved.reason, 'target-changed', 'C54 预检后工作区变了拒绝执行')
+    eq(rig.state.taskStarts.length, before, 'C55 现场变了的拒绝不重复起任务')
+    const fake = await rig.write.handleMaintenanceWrite({ cwd: dir, op: 'gc', ticketId: 'nope', requestId: 'cr4', confirmed: true })
+    eq(fake.reason, 'ticket-missing', 'C56 真仓库里假票号被拒绝')
+    check(String(oid).length === 40 || String(oid).length === 64, 'C57 真仓库对象号是完整长度')
+  }
+
+  {
+    const dir = mkRepo('gate')
+    const rig = makeRealRig(dir)
+    const off = await rig.check.handleMaintenanceCheck({ cwd: dir, op: 'maintenance-disable' })
+    eq(off.reason, 'nothing-to-do', 'C58 没登记的仓库不能关闭自动维护')
+    const en = await rig.check.handleMaintenanceCheck({ cwd: dir, op: 'maintenance-enable' })
+    eq(en.ok, true, 'C59 未登记仓库能签开启票')
+    eq(en.backup === undefined || en.backup === null, true, 'C60 开启自动维护不需要备份计划')
+    check(en.confirm && typeof en.confirm.what === 'string' && en.confirm.what.length > 0, 'C61 开启票带四段确认卡')
+    const noCwd = await rig.check.handleMaintenanceCheck({ cwd: '', op: 'gc' })
+    eq(noCwd.ok, false, 'C62 真仓库夹具里缺目录仍被拒绝')
+    eq(noCwd.reason, 'bad-target', 'C63 缺目录的拒绝理由是 bad-target')
+  }
+
+  realCleanup.forEach(function (dir) { try { fs.rmSync(dir, { recursive: true, force: true }) } catch (e) { /* 已删就跳过 */ } })
+  try { fs.rmSync(gitHome, { recursive: true, force: true }) } catch (e) { /* 已删就跳过 */ }
+  console.log('  C 组完成：' + total + ' 条')
 }
 
 main().then(function () { return printGateResult(GATE, total, failed) }).then(function () { process.exit(failed ? 1 : 0) }).catch(function (err) {
