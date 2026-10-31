@@ -51,6 +51,9 @@ import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/ti
 // #1741/#1740：fast-import 的只读文件流窄例外与长任务执行层（起进程、送标准输入、增量读）都住
 // 同层叶子 versionControlTask.ts；本文件只递宿主依赖与日志包装，两条入口共用同一份文件核对实现。
 import { prepareStdinFile, createTaskPhones } from './versionControlTask.js'
+// #1742：改动页两条电话（预检发票、凭票写）的懒加载与日志包装住同层叶子 versionControlChangesMount.ts，
+// 本文件只把上面已经造好的宿主闭包递进去——父文件贴着 350 有效行上限，装配壳不在这里再摊开一份。
+import { createChangesMount } from './versionControlChangesMount.js'
 
 const VIA: string = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME: string = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -464,24 +467,8 @@ export function createVersionControl(deps: any): any {
   // ---- #1742 改动页两条电话（追加段，不改上面任何既有行为）----
   // 预检（发票）与执行（凭票写）的装配住 ./versionControlChanges.js：那一片只做「同一个首屏读数、
   // 同一条进程出口、同一套 loggedPhone 日志口径」的拼接，改动页自己的票据表与 requestId 结果表留在它自己的闭包里。
-  // 本文件只把上面已经造好的闭包交给它，不新增任何业务判定。
-  let _changesP: any = null
-  function changesPhone(): Promise<any> {
-    if (!_changesP) {
-      _changesP = import('./versionControlChanges.js').then(function (m: any): any {
-        return m.createChangesPhone({
-          fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable,
-          runGit: runGit, fixedPrefix: fixedPrefix, pathExists: pathExists, readScreenOf: readScreenOf,
-          loggedPhone: loggedPhone, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs, STDOUT_LIMIT: STDOUT_LIMIT,
-          now: (deps && typeof deps.now === 'function') ? deps.now : Date.now,
-        })
-      }).catch(function (e: any): any {
-        const f: any = function (): any { return failPhone('env', '改动页那一族加载失败：' + String(((e as any) && (e as any).message) || (e as any))) }
-        return { check: f, write: f, tickets: new Map() }
-      })
-    }
-    return _changesP
-  }
+  // 本文件只把上面已经造好的闭包交给 ./versionControlChangesMount.ts，懒加载、失败兜底与日志包装都在那一片。
+  const changes: any = createChangesMount({ fs: fs, failPhone: failPhone, fsAbsence: fsAbsence, resolveGitExecutable: resolveGitExecutable, runGit: runGit, fixedPrefix: fixedPrefix, pathExists: pathExists, readScreenOf: readScreenOf, loggedPhone: loggedPhone, DEFAULT_CWD: DEFAULT_CWD, timeoutMs: timeoutMs, STDOUT_LIMIT: STDOUT_LIMIT, now: (deps && typeof deps.now === 'function') ? deps.now : Date.now })
 
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
@@ -505,11 +492,8 @@ export function createVersionControl(deps: any): any {
     handleGitTaskStart: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskStart(a) },
     handleGitTaskQuery: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskQuery(a) },
     handleGitTaskCancel: async function (a: any): Promise<any> { const t: any = await taskPhone(); return t.handleGitTaskCancel(a) },
-    // #1742 改动页两条电话（预检、执行）：装配在 ./versionControlChanges.js，进程出口照旧是上面那条固定前缀与报闸。
-    // 只读动作 1.13（查为什么被忽略）走预检电话的 op，不再单开第三条电话。
-    handleGitChangesCheck: async function (a: any): Promise<any> { const c: any = await changesPhone(); return c.check(a) },
-    handleGitChangesWrite: async function (a: any): Promise<any> { const c: any = await changesPhone(); return c.write(a) },
-    // 只给门禁与测试读取改动页票据表（#1742），与 #1741 的 writeTickets 同一条口径：不注册成电话、客户端拿不到。
-    changesTickets: async function (): Promise<any> { const c: any = await changesPhone(); return c.tickets || null },
+    // #1742 改动页两条电话（预检、执行）与票据表：装配在 ./versionControlChangesMount.ts，进程出口照旧是上面那条固定前缀与报闸。
+    // 只读动作 1.13（查为什么被忽略）走预检电话的 op，不再单开第三条电话；changesTickets 只给门禁与测试读票据表（与 #1741 的 writeTickets 同一条口径，不注册成电话、客户端拿不到）。
+    handleGitChangesCheck: changes.check, handleGitChangesWrite: changes.write, changesTickets: changes.tickets,
   }
 }
