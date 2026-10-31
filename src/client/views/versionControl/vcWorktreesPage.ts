@@ -80,6 +80,8 @@ const vcWtButtonNode = function (h: any, t: any, o: any): any {
     className: 'vc-wt-btn vc-wt-btn-' + String(opts.op),
     'data-wt-action': String(opts.op),
     'data-wt-cap': String(opts.capId),
+    'data-press': 'button',
+    'data-log': 'vc.wt.' + String(opts.op),
     onClick: function (ev: any) {
       const opName: string = String(opts.op)
       if (opName === 'list') return vcWorktreeCall(opts.ops, 'refresh')
@@ -305,7 +307,7 @@ const vcWtBlockedNode = function (h: any, t: any, model: any, ui: any, ops: any)
     h('ul', { key: 'reasons', className: 'vc-wt-why-list' }, items),
     h('p', { key: 'next', className: 'vc-wt-blocked-next' }, t('vc.wt.blockedNext')),
     h('button', {
-      key: 'back', type: 'button', className: 'vc-wt-btn vc-wt-btn-back', 'data-wt-action': 'back',
+      key: 'back', type: 'button', className: 'vc-wt-btn vc-wt-btn-back', 'data-wt-action': 'back', 'data-press': 'button', 'data-log': 'vc.wt.back',
       onClick: function () { vcWorktreeCall(ops, 'retry') },
     }, t('vc.wt.blockedNext')),
   ]
@@ -326,7 +328,7 @@ const vcWtResultNode = function (h: any, t: any, ui: any, ops: any): any {
         message: String(t('vc.wt.action.' + String(ui.op))),
       }),
       h('button', {
-        key: 'retry', type: 'button', className: 'vc-wt-btn vc-wt-btn-retry', 'data-wt-action': 'retry',
+        key: 'retry', type: 'button', className: 'vc-wt-btn vc-wt-btn-retry', 'data-wt-action': 'retry', 'data-press': 'button', 'data-log': 'vc.wt.retry',
         onClick: function () { vcWorktreeCall(ops, 'retry') },
       }, t('vc.wt.blockedNext')),
     ])
@@ -339,7 +341,7 @@ const vcWtResultNode = function (h: any, t: any, ui: any, ops: any): any {
         next: String(t('vc.wt.resultNext')),
       }),
       h('button', {
-        key: 'close', type: 'button', className: 'vc-wt-btn vc-wt-btn-close', 'data-wt-action': 'close',
+        key: 'close', type: 'button', className: 'vc-wt-btn vc-wt-btn-close', 'data-wt-action': 'close', 'data-press': 'button', 'data-log': 'vc.wt.close',
         onClick: function () { vcWorktreeCall(ops, 'cancelConfirm') },
       }, t('vc.wt.listRefresh')),
     ])
