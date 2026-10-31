@@ -73,6 +73,8 @@ const VC_FILES = [
   'src/shared/version-control/src/stash-rules.ts',
   // #1752 工作树八条能力的纯规则层（八条动作 / argv / 判定 / 清单行模型），与构建同序排在客户端那片之前。
   'src/shared/version-control/src/worktree-ops.ts',
+  // #1762 平台段：凭据助手链、rebase.updateRefs、request-pull 参数与补丁清单的判定真源（两页与宿主读同一份）。
+  'src/shared/version-control/src/platform-inspect.ts',
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js',
@@ -117,6 +119,12 @@ const VC_FILES = [
   // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
   'src/client/views/versionControl/vcStashOps.js',
   'src/client/views/versionControl/vcStashPage.js',
+  // #1762 平台段两页（与构建同序）：数据层 → 平台页画法 → 迁移页 14.1 导出向导，最后才是调它们的页面壳。
+  'src/client/views/versionControl/vcPlatformData.js',
+  'src/client/views/versionControl/vcPlatformPage.js',
+  'src/client/views/versionControl/vcMigrateExport.js',
+  // #1762 T26：「本页负责的能力」列表从壳拆到独立叶子，构建次序在壳之前，闭包拼装要跟着放。
+  'src/client/views/versionControl/vcCapabilityList.js',
   'src/client/views/versionControl/vcShellPages.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -150,7 +158,7 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'CAPABILITIES', 'PAGE_SURFACES', 'PAGE_COUNTS', 'CAPABILITY_TOTAL', 'REASONS', 'judge',
   'VC_TAB_PAGES', 'VC_MANAGE_PAGES', 'VC_SEARCH_PAGE', 'VC_DEEP_LINKS', 'VC_SHELL_WIDTHS', 'VC_SHELL_STATES', 'VC_SHELL_SKINS',
   'vcPageDepthOf', 'vcPageRegistryOf', 'vcPageCapabilitiesOf', 'vcCapabilityOf', 'vcDeepLinkOf', 'vcPageSurfaceOf',
-  'vcShellStateNode', 'vcShellConfirmCardNode', 'vcShellResultNode', 'vcShellCapabilityRowNode', 'vcCapabilitySurfaceKindOf',
+  'vcShellStateNode', 'vcShellConfirmCardNode', 'vcShellResultNode', 'vcShellCapabilityRowNode', 'vcCapabilitySurfaceKindOf', 'vcCapabilityListOf',
   'VC_BLOCK_KEY', 'vcBlockKeyOf', 'vcReasonKeysOf',
   'VC_PALETTE_MAX', 'vcCapabilityAliasOf', 'vcCapabilitySummaryOf', 'vcCapabilityNeedsObjectOf', 'vcPaletteRowsOf', 'vcPaletteTargetOf', 'vcPaletteNode',
   // #1744 提交历史页：分页预算、图形化视图、详情与逐文件差异。
@@ -203,6 +211,15 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcWorktreesListStateOf', 'vcWorktreesSnapshotOf', 'vcWorktreesModelOf', 'vcWorktreesVersionOf', 'vcWorktreeAvailabilityOf', 'vcWorktreeWhyKeyOf', 'vcWorktreesVersionHintOf',
   'vcWorktreesRowActionsOf', 'vcWorktreesActionDecisionOf', 'vcWorktreeCheckArgsOf', 'vcWorktreeRunArgsOf', 'vcWorktreePlanOf', 'vcWorktreeFailureOf',
   'vcWorktreeResultOf', 'vcWorktreeDecisionReasonsOf', 'vcWorktreeDecisionStateOf', 'vcWorktreesPageNode',
+  // #1762 平台段：判定真源、平台页九条落点、迁移页 14.1 导出向导与补丁清单。
+  'VC_PLATFORM_INSPECT_SOURCE', 'PLATFORM_CREDENTIAL_MAX', 'PLATFORM_PATCH_MAX', 'PLATFORM_ARG_MAX', 'PLATFORM_STORE_HELPER',
+  'vcConfigTruthyOf', 'vcNulValuesOf', 'vcCredentialHelpersOf', 'vcCredentialStoreOf', 'vcCredentialRiskOf', 'vcUpdateRefsOf', 'vcRequestPullArgsOf', 'vcPatchSummaryOf',
+  'VC_PLATFORM_PHONES', 'VC_PLATFORM_DATA_SOURCE', 'vcNewPlatformReads', 'vcPlatformStateOf', 'vcPlatformDataOf', 'vcPlatformErrorOf', 'vcPlatformCredentialOf', 'vcPlatformUpdateRefsOf',
+  'vcPlatformRequestPullStateOf', 'vcPlatformRequestPullOf', 'vcPlatformRequestPullErrorOf', 'vcPlatformPatchesStateOf', 'vcPlatformPatchesOf', 'vcPlatformPatchesErrorOf',
+  'vcApplyPlatformReply', 'vcApplyRequestPullReply', 'vcApplyPatchesReply', 'vcReadPlatform', 'vcRunRequestPull', 'vcReadPatchFiles',
+  'VC_PLATFORM_PAGE_SOURCE', 'VC_PLATFORM_NOTE_IDS', 'vcPlatformModelOf', 'vcPlatformPageNode',
+  'VC_MIGRATE_EXPORT_SOURCE', 'VC_MIGRATE_EXPORT_PHONES', 'VC_MIGRATE_NOTE_IDS', 'vcNewMigrateExport', 'vcApplyMigrateCheck', 'vcApplyMigrateRun', 'vcApplyMigrateTask',
+  'vcRunMigrateCheck', 'vcRunMigrateExport', 'vcRunMigrateTaskQuery', 'vcMigrateExportNode',
   'VersionControlTab']
 // #1253：这 20 份现在都是 .ts 真源（2026-10-19 第三阶段起 rules 的产物也搬到了 .build/shared/，
 //   列表里直接写 rules.ts 真源路径，不再指向源码树里的产物 .js）。
@@ -322,9 +339,12 @@ async function main() {
   // #1751 贮藏页那一族（十条动作名、版本门、确认卡、最近丢弃与失败话术）。
   const vcStashMod = await import(locUrl('src/client/kernel/locale-vcstash.js'))
   const L_VCSTASH = vcStashMod.L_VCSTASH
+  // #1762 平台段两页那一族（九条说明、凭据链与 updateRefs、request-pull、迁移导出向导）。
+  const vcPlatformMod = await import(locUrl('src/client/kernel/locale-vcplatform.js'))
+  const L_VCPLATFORM = vcPlatformMod.L_VCPLATFORM
   LOC = {
-    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh),
-    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en),
+    zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh, L_VCSHELL.zh, L_VCQUERY.zh, L_VCSTASH.zh, L_VCWORKTREES.zh, L_VCPLATFORM.zh),
+    en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en, L_VCSHELL.en, L_VCQUERY.en, L_VCSTASH.en, L_VCWORKTREES.en, L_VCPLATFORM.en),
   }
   tZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
   tEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
@@ -2131,6 +2151,85 @@ async function main() {
   check(qCapsListOf(qCommitsHtml) === VIEW.vcPageCapabilitiesOf('commits').length && qCapsListOf(qDiagHtml) === VIEW.vcPageCapabilitiesOf('diagnostics').length, 'Q6c 面板插在能力清单之前、不吞掉本页的能力行（两页能力行数与原页面一致）')
   check(qCommitsHtml.indexOf('vc-query-commits') >= 0 && qDiagHtml.indexOf('vc-query-diagnostics') >= 0, 'Q6d 两页各有自己的面板 id（锚点与深链指得清是哪一页的面板）')
 
+  // ---- Z17 组：平台与边界页 + 迁移页 14.1 导出向导（#1762 T26，域 14 与 5.9 / 8.15）----
+  // 两条页面正文都是静态渲染：不开输入、不发请求；断言只看画出了什么、用户读到哪句话。
+  //   平台页九条能力的主入口仍由页面壳的能力清单给，正文不另画 data-cap-primary / data-surface。
+  const platformReadsOf = function (over: any) {
+    const data = Object.assign({
+      readAtMs: NOW, repoRoot: 'D:/w/repo',
+      credential: { state: 'ok', helpers: ['manager'], store: '', risk: 'ok', advice: 'ok', error: null },
+      updateRefs: { state: 'ok', value: '', enabled: false, error: null },
+    }, over || {})
+    const reads: any = Object.assign(VIEW.vcNewPlatformReads(), { platform: { state: 'ok', data: data, error: null } })
+    return reads
+  }
+  const platformPageOf = function (reads: any, width: any) {
+    return shellHtmlOf({ page: 'platform', width: width || 460, skin: 'dark', platform: reads })
+  }
+  const migratePageOf = function (state: any, reads: any, width: any) {
+    return shellHtmlOf({ page: 'migrate', width: width || 460, skin: 'dark', migrate: state, migrateReads: reads })
+  }
+  const platformWideHtml = platformPageOf(platformReadsOf(null))
+  check(platformWideHtml.indexOf('data-vc-platform="1"') >= 0 && platformWideHtml.indexOf('data-vc-platform-lede="1"') >= 0, 'Z17a 平台页画出正文（导语 + 凭据链 + updateRefs + request-pull + 说明区），不是一块骨架')
+  check(attrValuesOf(platformWideHtml, 'data-vc-platform-cred-helper').join(',') === 'manager' && attrValuesOf(platformWideHtml, 'data-vc-platform-cred-helpers')[0] === '1', 'Z17b 凭据助手链按宿主读数原样列出（helper 名字与条数都不改写）')
+  check(platformWideHtml.indexOf('data-vc-platform-cred-ok="1"') >= 0 && platformWideHtml.indexOf('data-vc-platform-cred-risk') < 0, 'Z17c 没配 store 时不标红，画「不用改」的读数')
+  const storeHtml = platformPageOf(platformReadsOf({ credential: { state: 'ok', helpers: ['manager', 'store'], store: 'store', risk: 'store', advice: 'replace-store', error: null } }))
+  check(attrValuesOf(storeHtml, 'data-vc-platform-cred-risk')[0] === 'replace-store' && attrValuesOf(storeHtml, 'data-vc-platform-cred-store')[0] === 'store', 'Z17d credential.helper 命中 store 时只读标红（属性值 replace-store 与命中的 helper 原文都在）')
+  check(storeHtml.indexOf(LOC.zh['vc.platform.cred.store'].replace('{helper}', 'store')) >= 0 && storeHtml.indexOf('type="password"') < 0 && platformWideHtml.indexOf('data-vc-platform-cred-input') < 0, 'Z17e 标红文案用真词条说清「换成凭据管理器」，页面上没有输入凭据的框（面板不持有、不落盘令牌）')
+  check(platformWideHtml.indexOf(LOC.zh['vc.platform.cred.note']) >= 0, 'Z17f 「面板持有的凭据 = 不持有」这句话常驻（8.15 只读口径的第一句）')
+  const updateRefsOnHtml = platformPageOf(platformReadsOf({ updateRefs: { state: 'ok', value: 'true', enabled: true, error: null } }))
+  check(attrValuesOf(updateRefsOnHtml, 'data-vc-platform-update-refs')[0] === 'on' && updateRefsOnHtml.indexOf('data-vc-platform-update-refs-refuse="1"') >= 0, 'Z17g rebase.updateRefs 开着时如实标 on，并写明交互变基的预检会拒绝（5.9 面板不做 --update-refs）')
+  check(attrValuesOf(platformWideHtml, 'data-vc-platform-update-refs')[0] === 'off' && platformWideHtml.indexOf('data-vc-platform-update-refs-refuse') < 0 && platformWideHtml.indexOf('2.38') >= 0, 'Z17h 关着时不谎报拒绝；最低版本 2.38 与账本同一条线仍写在说明里')
+  const rpOkReads: any = Object.assign(platformReadsOf(null), { requestPull: { state: 'ok', data: { text: 'The following changes since commit abc', truncated: false, cmd: 'request-pull', ms: 12, range: 'HEAD~1..HEAD' }, error: null } })
+  const rpOkHtml = platformPageOf(rpOkReads)
+  check(rpOkHtml.indexOf('data-vc-platform-rp-result="1"') >= 0 && rpOkHtml.indexOf('The following changes since commit abc') >= 0, 'Z17i request-pull 结果原样贴在这一块里（不推送、不联网，只生成一段可粘贴的说明）')
+  const rpTruncHtml = platformPageOf(Object.assign(platformReadsOf(null), { requestPull: { state: 'ok', data: { text: 'The following changes since commit abc', truncated: true, cmd: 'request-pull', ms: 12, range: 'HEAD~1..HEAD' }, error: null } }))
+  check(rpTruncHtml.indexOf('data-vc-platform-rp-truncated="1"') >= 0 && rpTruncHtml.indexOf(LOC.zh['vc.platform.rp.truncated']) >= 0, 'Z17j request-pull 输出被截断时如实说（不装作完整）')
+  const rpErrHtml = platformPageOf(Object.assign(platformReadsOf(null), { requestPull: { state: 'err', data: null, error: { kind: 'args', reason: 'bad-range', message: '引用不认识', hint: '' } } }))
+  check(rpErrHtml.indexOf('data-vc-platform-rp-error="1"') >= 0 && rpErrHtml.indexOf('引用不认识') >= 0, 'Z17k request-pull 失败贴回原话与环节（不吞错误、不只说失败）')
+  check(attrValuesOf(platformWideHtml, 'data-vc-platform-note').join(',') === VIEW.VC_PLATFORM_NOTE_IDS.join(','), 'Z17l 平台页九条说明按账本编号逐条画出（8.15 / 5.9 / 14.2 / 14.3–14.8，不抄第二份名单）')
+  check(VIEW.VC_PLATFORM_NOTE_IDS.every(function (id: string) { return !!LOC.zh['vc.platform.note.' + id] && platformWideHtml.indexOf(LOC.zh['vc.platform.note.' + id]) >= 0 }), 'Z17m 每条说明都落到真词条上（九段都不是键名回显）')
+  check(attrValuesOf(platformWideHtml, 'data-cap-primary').length === VIEW.PAGE_COUNTS.platform && platformWideHtml.indexOf('data-surface=') < 0, 'Z17n 平台页主入口仍只由页面壳的能力清单给 ' + VIEW.PAGE_COUNTS.platform + ' 个；新正文不另画操作面（一个能力两个主入口会当场判红）')
+  const migHtml = migratePageOf(VIEW.vcNewMigrateExport(), VIEW.vcNewPlatformReads())
+  check(migHtml.indexOf('data-vc-migrate-export="1"') >= 0 && attrValuesOf(migHtml, 'data-vc-migrate-field').join(',') === 'range,dir' && migHtml.indexOf('data-vc-migrate-check="1"') >= 0, 'Z17o 迁移页画出 14.1 导出向导（区间与输出目录两个输入 + 预检按钮）')
+  const migChecked: any = Object.assign(VIEW.vcNewMigrateExport(), { range: 'HEAD~2..HEAD', dir: 'patches', stage: 'checked', ticket: { id: 'fp-abc', checkedAtMs: NOW, expiresAtMs: NOW + 120000, op: 'format-patch' }, checkedDir: 'D:/w/repo/patches', checkedRange: 'HEAD~2..HEAD' })
+  const migCheckedHtml = migratePageOf(migChecked, VIEW.vcNewPlatformReads())
+  check(migCheckedHtml.indexOf('data-vc-migrate-checked="1"') >= 0 && attrValuesOf(migCheckedHtml, 'data-vc-migrate-ticket')[0] === 'fp-abc', 'Z17p 预检通过后贴出规范化后的输出目录与 120 秒票据号')
+  check(migCheckedHtml.indexOf('data-vc-migrate-confirm="1"') >= 0 && attrValuesOf(migCheckedHtml, 'data-vc-migrate-confirm-seg').join(',') === 'what,wont,reversible,verb', 'Z17q 执行前确认卡贴向导出四段（会动什么 / 不会动什么 / 可逆性与恢复路径 / 动词写后果）')
+  check(attrValuesOf(migCheckedHtml, 'data-focus-default').indexOf('cancel') >= 0 && migCheckedHtml.indexOf('data-vc-migrate-confirm-cancel="1"') >= 0 && migCheckedHtml.indexOf('data-vc-migrate-run="1"') >= 0, 'Z17r 确认卡默认焦点在取消，确认按钮写清动词')
+  const migStale = Object.assign(VIEW.vcNewMigrateExport(), { stage: 'error', ticket: { id: 'fp-abc' }, checkedDir: 'D:/w/repo/patches', error: { kind: 'stale', reason: 'ticket-expired', message: '票据过期', hint: '' } })
+  check(migratePageOf(migStale, VIEW.vcNewPlatformReads()).indexOf('data-vc-migrate-stale="1"') >= 0, 'Z17s 票据过期或现场变了：说清要重新预检，不自动重放')
+  const patchesReads: any = Object.assign(VIEW.vcNewPlatformReads(), { patches: { state: 'ok', dir: 'patches', data: { ok: true, dir: 'patches', exists: true, patches: ['0001-a.patch', '0002-b.patch'], others: 1, total: 2, truncated: false, readAtMs: NOW }, error: null } })
+  const migDone: any = Object.assign(VIEW.vcNewMigrateExport(), { stage: 'done', ticket: { id: 'fp-abc' }, checkedDir: 'D:/w/repo/patches', task: { state: 'done', conclusion: 'succeeded', residual: '', failureLine: '' } })
+  const migDoneHtml = migratePageOf(migDone, patchesReads)
+  check(attrValuesOf(migDoneHtml, 'data-vc-migrate-result')[0] === 'succeeded' && attrValuesOf(migDoneHtml, 'data-vc-migrate-file').join(',') === '0001-a.patch,0002-b.patch' && attrValuesOf(migDoneHtml, 'data-vc-migrate-patches-others')[0] === '1', 'Z17t 任务成功后给出输出目录里的补丁文件路径（两个文件 + 另有 1 个非补丁文件如实计数）')
+  const patchMissingReads: any = Object.assign(VIEW.vcNewPlatformReads(), { patches: { state: 'ok', dir: 'patches', data: { ok: true, dir: 'patches', exists: false, patches: [], others: 0, total: 0, truncated: false, readAtMs: NOW }, error: null } })
+  const patchEmptyReads: any = Object.assign(VIEW.vcNewPlatformReads(), { patches: { state: 'ok', dir: 'patches', data: { ok: true, dir: 'patches', exists: true, patches: [], others: 0, total: 0, truncated: false, readAtMs: NOW }, error: null } })
+  const patchErrReads: any = Object.assign(VIEW.vcNewPlatformReads(), { patches: { state: 'err', dir: 'patches', data: null, error: { kind: 'env', reason: 'env', message: '列不出目录', hint: '' } } })
+  check(migratePageOf(migDone, patchMissingReads).indexOf('data-vc-migrate-patches-missing="1"') >= 0, 'Z17u 输出目录不存在时如实画「目录还没有」，不猜「没有补丁」')
+  check(migratePageOf(migDone, patchEmptyReads).indexOf('data-vc-migrate-patches-empty="1"') >= 0, 'Z17v 目录存在但空时画空态（与「目录不存在」分开）')
+  check(migratePageOf(migDone, patchErrReads).indexOf('data-vc-migrate-patches-error="1"') >= 0, 'Z17w 列目录失败贴失败原话，不拿旧清单冒充新读数')
+  check(attrValuesOf(migDoneHtml, 'data-vc-migrate-note').join(',') === VIEW.VC_MIGRATE_NOTE_IDS.join(','), 'Z17x 迁移页六条说明逐条画出（5.13 / 8.16 / 11.1 / 11.12 / 11.13 / 14.1）')
+  check(VIEW.VC_SHELL_WIDTHS.every(function (w: number) {
+    const p = platformPageOf(platformReadsOf(null), w)
+    const m = migratePageOf(migChecked, patchesReads, w)
+    return p.indexOf('data-vc-width="' + w + '"') >= 0 &&
+      attrValuesOf(p, 'data-vc-platform-note').length === VIEW.VC_PLATFORM_NOTE_IDS.length &&
+      attrValuesOf(p, 'data-vc-platform-rp-field').length === 3 &&
+      m.indexOf('data-vc-migrate-export="1"') >= 0 &&
+      attrValuesOf(m, 'data-vc-migrate-note').length === VIEW.VC_MIGRATE_NOTE_IDS.length
+  }), 'Z17y 四档宽下两页入口一个不少（平台页九条说明 + request-pull 三输入；迁移页向导 + 六条说明）')
+  const platformNotesJudgmentOf = function (v: any) {
+    const reads: any = Object.assign(v.vcNewPlatformReads(), { platform: { state: 'ok', data: { readAtMs: NOW, repoRoot: 'D:/w/repo', credential: { state: 'ok', helpers: ['manager'], store: '', risk: 'ok', advice: 'ok', error: null }, updateRefs: { state: 'ok', value: '', enabled: false, error: null } }, error: null } })
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'platform', width: 460, skin: 'dark', platform: reads }))
+    return attrValuesOf(html, 'data-vc-platform-note').length === v.VC_PLATFORM_NOTE_IDS.length
+  }
+  const platformStoreJudgmentOf = function (v: any) {
+    const reads: any = Object.assign(v.vcNewPlatformReads(), { platform: { state: 'ok', data: { readAtMs: NOW, repoRoot: 'D:/w/repo', credential: { state: 'ok', helpers: ['manager', 'store'], store: 'store', risk: 'store', advice: 'replace-store', error: null }, updateRefs: { state: 'ok', value: '', enabled: false, error: null } }, error: null } })
+    const html = renderToStaticMarkup(v.vcRenderTabAt(h, tZh, { page: 'platform', width: 460, skin: 'dark', platform: reads }))
+    return attrValuesOf(html, 'data-vc-platform-cred-risk')[0] === 'replace-store'
+  }
+
   // ---- H 组：反证（把被守的东西改坏，同一套断言必须当场变红）----
   // 反证锚点的两种落点：还住在手写 .js 里的代码写成单引号，已经变成构建产物的界面叶子被 esbuild
   //   统一成双引号（产物首行写着 AUTO-GENERATED）。字符串 replace 找不到目标就原样返回，于是
@@ -2164,6 +2263,9 @@ async function main() {
     return { src: cur, allHit: hits.every(Boolean) }
   }
   const antiCases: AntiCase[] = [
+    // #1762 T26：平台页正文与页面壳的挂载段是两处单独可坏的地方，各给一条反证。
+    { name: '平台页不再画九条说明', patch: (s) => s.replace('    vcPlatformNotesNode(h, t, model),', ''), test: platformNotesJudgmentOf, what: 'Z17l' },
+    { name: 'store 命中不再标红', patch: (s) => s.replace("'data-vc-platform-cred-risk': 'replace-store',", "'data-vc-platform-cred-risk': 'ok',"), test: platformStoreJudgmentOf, what: 'Z17d' },
     // #1253：真源已经转成 .ts，形参后面多了类型标注（st: any），锚点用正则把标注写成可选的，
     //   写法上仍只认「这一处原样」，不放大到别的地方。
     { name: '显隐谓词改成永远隐藏', patch: (s) => s.replace(/(const vcTabVisible = function \(st(?:: any)?\) \{\n  void st\n  return )true/, '$1false'), test: tabVisibleJudgmentOf, what: 'A1' },

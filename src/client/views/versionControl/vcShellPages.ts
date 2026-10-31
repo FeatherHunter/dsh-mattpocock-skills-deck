@@ -18,6 +18,8 @@ declare function vcPageDepthOf(pageId: any): number
 declare function vcPageRegistryOf(): any[]
 declare function vcPageCapabilitiesOf(pageId: any): any[]
 declare function vcCapabilityOf(capId: any): any
+// 「本页负责的能力」列表（#1762 T26 从本文件拆到 vcCapabilityList.ts 以守住单文件行数上限）。
+declare function vcCapabilityListOf(h: any, t: any, o: any): any
 declare const VC_TAB_PAGES: string[]
 declare const VC_MANAGE_PAGES: string[]
 declare const VC_SIDE_PAGES: string[]
@@ -46,6 +48,10 @@ declare function vcChangesPageNode(h: any, t: any, o: any): any
 declare function vcBranchBoardNode(h: any, t: any, o: any): any
 // 贮藏页叶子（#1751，vcStashPage.ts）：同样由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。
 declare function vcStashPageNode(h: any, t: any, o: any): any
+// 平台与边界页正文（#1762 T26，vcPlatformPage.ts）：九条只读/说明能力逐条说明、凭据助手链、updateRefs 与 request-pull。
+declare function vcPlatformPageNode(h: any, t: any, o: any): any
+// 迁移与备份页的 14.1 导出向导（#1762 T26，vcMigrateExport.ts）：预检 → 确认卡 → 长任务 → 补丁文件列表。
+declare function vcMigrateExportNode(h: any, t: any, o: any): any
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']
@@ -199,33 +205,6 @@ export const vcPageTabsNode = function (h: any, t: any, o: any) {
   }, tabs)
 }
 
-// 页签页 / 二级页共用的「本页负责的能力」列表；能力行里按种子决定是否打开操作面、确认卡、结果。
-export const vcCapabilityListOf = function (h: any, t: any, o: any) {
-  const opts = o || {}
-  const caps = vcPageCapabilitiesOf(opts.page)
-  // 全库搜索页的命令面板画在这一行里，但身份行那个放大镜的 aria-controls 照样要指得到它：
-  //   两边用同一个 id（前缀 + -palette），不各起各的名字。
-  const paletteId = vcPagePrefixOf(opts.pagePrefix || '') + '-palette'
-  const rows = caps.map(function (cap: any) {
-    const open = opts.openSurface === cap.id
-    const surfaceKind = vcCapabilitySurfaceKindOf(cap)
-    const paletteNode = surfaceKind === 'palette' ? vcPaletteNode(h, t, {
-      id: paletteId, query: opts.query, highlight: opts.highlight, limit: opts.paletteLimit,
-    }) : null
-    return vcShellCapabilityRowNode(h, t, {
-      cap: cap,
-      surface: open,
-      paletteNode: paletteNode,
-      confirm: opts.confirm && opts.confirm.capId === cap.id ? opts.confirm : null,
-      result: opts.result && opts.result.capId === cap.id ? opts.result : null,
-    })
-  })
-  return h('section', { className: 'vcs-caps', 'data-vc-cap-list': String(opts.page) }, [
-    h('h3', { key: 'title', className: 'vcs-caps-title' }, t('vc.shell.page.lede', { n: rows.length })),
-    rows.length ? h('ul', { key: 'rows', className: 'vcs-cap-rows' }, rows) : h('p', { key: 'none', className: 'vcs-caps-none' }, t('vc.shell.page.empty')),
-  ])
-}
-
 const vcPageNotesOf = function (h: any, t: any, page: string) {
   const notes: any[] = []
   if (page === 'commits') {
@@ -282,6 +261,20 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
       ops: opts.commitOps || null, targets: opts.commitTargets || [],
       panel: opts.commitPanel || null,
     }), { key: 'commit' }))
+  } else if (page === 'platform' && typeof vcPlatformPageNode === 'function') {
+    // #1762 T26 平台与边界页：九条只读/说明能力没有可执行写动作，正文无条件画（不依赖首屏读数），
+    //   凭据链与 updateRefs 各自有加载/失败态；这一块不画 data-cap-primary，主入口仍由下面的能力清单给。
+    children.push(Object.assign({}, vcPlatformPageNode(h, t, {
+      reads: opts.platform, ui: opts.platformUi, width: opts.width, nowMs: opts.nowMs,
+      onRpInput: opts.onPlatformRpInput, onRequestPull: opts.onPlatformRequestPull,
+    }), { key: 'platform-body' }))
+  } else if (page === 'migrate' && typeof vcMigrateExportNode === 'function') {
+    // #1762 T26 迁移与备份页：14.1 导出向导是本页唯一可执行能力；其余五条只给说明。同样不画主入口。
+    children.push(Object.assign({}, vcMigrateExportNode(h, t, {
+      state: opts.migrate, reads: opts.migrateReads, width: opts.width, nowMs: opts.nowMs,
+      onEdit: opts.onMigrateEdit, onCheck: opts.onMigrateCheck, onRun: opts.onMigrateRun,
+      onRescan: opts.onMigrateRescan, onCancel: opts.onMigrateCancel,
+    }), { key: 'migrate-body' }))
   } else {
     // 骨架自检：三种表单形态与四种状态各画一遍，T03 只交壳，业务入口由后续票逐条接。
     children.push(h('div', { key: 'skeleton', className: 'vcs-skeleton', 'data-vc-skeleton': '1' }, [
@@ -371,6 +364,9 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     // #1743：#1743 提交页的动作层、目标提交候选与现成面板模型也从调用方传进来（壳不自己造）。
     commitOps: opts.commitOps || null, commitTargets: opts.commitTargets || [], commitPanel: opts.commitPanel || null,
     ops: opts.ops, handlers: opts.handlers, // #1752 工作树页要真数据与处理函数
+    // #1762 T26 平台页与迁移页的读数、交互态与回调都从这里透传，页面壳不自己造数据。
+    platform: opts.platform, platformUi: opts.platformUi, onPlatformRpInput: opts.onPlatformRpInput, onPlatformRequestPull: opts.onPlatformRequestPull,
+    migrate: opts.migrate, migrateReads: opts.migrateReads, onMigrateEdit: opts.onMigrateEdit, onMigrateCheck: opts.onMigrateCheck, onMigrateRun: opts.onMigrateRun, onMigrateRescan: opts.onMigrateRescan, onMigrateCancel: opts.onMigrateCancel,
   }), 'body'))
   // #1751 贮藏页（域 7）：只在贮藏页挂这一块；十条动作的入口、确认卡与最近丢弃都在叶子里，
   // 这里只把首屏数据（seed）与回调递进去，页面壳不多说一句规则。
