@@ -1,0 +1,358 @@
+{
+  "totals": {
+    "rows": 18,
+    "scenarios": 11,
+    "batches": 2,
+    "candidates": 2,
+    "unmappedScenarios": 0,
+    "conditions": 3
+  },
+  "assertions": [
+    {
+      "id": "A1",
+      "title": "能把 GitLab 后端绑定到工作区，并且环境自检可修复",
+      "judgmentPoints": [
+        "V1",
+        "V2"
+      ],
+      "attempts": 5,
+      "scenarioCount": 4,
+      "scenarios": [
+        "J1-01",
+        "J1-02",
+        "J2-01",
+        "J2-02"
+      ],
+      "verdictCounts": {
+        "通过": 4,
+        "产品缺陷": 0,
+        "使用限制": 0,
+        "环境限制": 0,
+        "未测": 1,
+        "测试或工具问题": 0
+      }
+    },
+    {
+      "id": "A2",
+      "title": "读到的内容可信：与网页一致，读不全时如实说",
+      "judgmentPoints": [
+        "V3"
+      ],
+      "attempts": 4,
+      "scenarioCount": 2,
+      "scenarios": [
+        "J5-01",
+        "J5-02"
+      ],
+      "verdictCounts": {
+        "通过": 2,
+        "产品缺陷": 1,
+        "使用限制": 1,
+        "环境限制": 0,
+        "未测": 0,
+        "测试或工具问题": 0
+      }
+    },
+    {
+      "id": "A3",
+      "title": "写操作真的落地：网页可见、不假成功、不伤邻字段",
+      "judgmentPoints": [
+        "V4"
+      ],
+      "attempts": 2,
+      "scenarioCount": 1,
+      "scenarios": [
+        "J6-03"
+      ],
+      "verdictCounts": {
+        "通过": 1,
+        "产品缺陷": 1,
+        "使用限制": 0,
+        "环境限制": 0,
+        "未测": 0,
+        "测试或工具问题": 0
+      }
+    },
+    {
+      "id": "A4",
+      "title": "关系真的成立：父子、阻塞、认领、降级写法在网页与正文一致",
+      "judgmentPoints": [
+        "V5",
+        "V6"
+      ],
+      "attempts": 2,
+      "scenarioCount": 1,
+      "scenarios": [
+        "J7-02"
+      ],
+      "verdictCounts": {
+        "通过": 1,
+        "产品缺陷": 1,
+        "使用限制": 0,
+        "环境限制": 0,
+        "未测": 0,
+        "测试或工具问题": 0
+      }
+    },
+    {
+      "id": "A5",
+      "title": "桌面外壳可达：面板、页签、状态栏、技能、设置、日志在三形态下能进能退",
+      "judgmentPoints": [
+        "V7",
+        "V8",
+        "V9"
+      ],
+      "attempts": 4,
+      "scenarioCount": 3,
+      "scenarios": [
+        "J1-02",
+        "J8-01",
+        "J11-03"
+      ],
+      "verdictCounts": {
+        "通过": 1,
+        "产品缺陷": 1,
+        "使用限制": 0,
+        "环境限制": 1,
+        "未测": 0,
+        "测试或工具问题": 1
+      }
+    },
+    {
+      "id": "A6",
+      "title": "错误说得清、救得回：403/404/未登录/未装/超限的话术与原因一致，有出路",
+      "judgmentPoints": [
+        "V6",
+        "V11"
+      ],
+      "attempts": 9,
+      "scenarioCount": 4,
+      "scenarios": [
+        "J2-02",
+        "J5-02",
+        "J7-02",
+        "J11-03"
+      ],
+      "verdictCounts": {
+        "通过": 3,
+        "产品缺陷": 2,
+        "使用限制": 1,
+        "环境限制": 1,
+        "未测": 1,
+        "测试或工具问题": 1
+      }
+    },
+    {
+      "id": "A7",
+      "title": "边界安全：迁移清空置灰、建仓不污染、并发不静默覆盖",
+      "judgmentPoints": [
+        "V10"
+      ],
+      "attempts": 5,
+      "scenarioCount": 3,
+      "scenarios": [
+        "J1-02",
+        "J7-02",
+        "J10-02"
+      ],
+      "verdictCounts": {
+        "通过": 2,
+        "产品缺陷": 1,
+        "使用限制": 0,
+        "环境限制": 0,
+        "未测": 2,
+        "测试或工具问题": 0
+      }
+    },
+    {
+      "id": "A8",
+      "title": "未测项如实记录，结论带作用域",
+      "judgmentPoints": [
+        "V12"
+      ],
+      "attempts": 3,
+      "scenarioCount": 2,
+      "scenarios": [
+        "J2-02",
+        "J10-02"
+      ],
+      "verdictCounts": {
+        "通过": 0,
+        "产品缺陷": 0,
+        "使用限制": 0,
+        "环境限制": 0,
+        "未测": 3,
+        "测试或工具问题": 0
+      }
+    }
+  ],
+  "unmappedScenarios": [],
+  "candidates": [
+    {
+      "candidate": "1111111111111111111111111111111111111111",
+      "attempts": 12,
+      "validAttempts": 11,
+      "passed": 4,
+      "untested": 2,
+      "passRate": 0.3636,
+      "passRateAll": 0.3333,
+      "verdictCounts": {
+        "通过": 4,
+        "产品缺陷": 4,
+        "使用限制": 1,
+        "环境限制": 1,
+        "未测": 2,
+        "测试或工具问题": 0
+      }
+    },
+    {
+      "candidate": "2222222222222222222222222222222222222222",
+      "attempts": 6,
+      "validAttempts": 5,
+      "passed": 4,
+      "untested": 1,
+      "passRate": 0.8,
+      "passRateAll": 0.6667,
+      "verdictCounts": {
+        "通过": 4,
+        "产品缺陷": 0,
+        "使用限制": 0,
+        "环境限制": 0,
+        "未测": 1,
+        "测试或工具问题": 1
+      }
+    }
+  ],
+  "defects": {
+    "P0": [
+      {
+        "ticket": "#2002",
+        "level": "P0",
+        "levelSource": "场景最高 P 级上限",
+        "scenarios": [
+          "J7-02"
+        ],
+        "attempts": 1,
+        "retest": [
+          "待新候选"
+        ],
+        "rows": [
+          {
+            "batch": "B1",
+            "scenario": "J7-02",
+            "attempt": 1,
+            "candidate": "1111111111111111111111111111111111111111",
+            "verdict": "产品缺陷",
+            "retest": "待新候选"
+          }
+        ]
+      }
+    ],
+    "P1": [
+      {
+        "ticket": "#2001",
+        "level": "P1",
+        "levelSource": "缺陷清单",
+        "scenarios": [
+          "J6-03"
+        ],
+        "attempts": 1,
+        "retest": [
+          "待新候选"
+        ],
+        "rows": [
+          {
+            "batch": "B1",
+            "scenario": "J6-03",
+            "attempt": 1,
+            "candidate": "1111111111111111111111111111111111111111",
+            "verdict": "产品缺陷",
+            "retest": "待新候选"
+          }
+        ]
+      },
+      {
+        "ticket": "#2003",
+        "level": "P1",
+        "levelSource": "场景最高 P 级上限",
+        "scenarios": [
+          "J5-02"
+        ],
+        "attempts": 1,
+        "retest": [
+          "待新候选"
+        ],
+        "rows": [
+          {
+            "batch": "B1",
+            "scenario": "J5-02",
+            "attempt": 2,
+            "candidate": "1111111111111111111111111111111111111111",
+            "verdict": "产品缺陷",
+            "retest": "待新候选"
+          }
+        ]
+      }
+    ],
+    "P2": [
+      {
+        "ticket": "#2004",
+        "level": "P2",
+        "levelSource": "场景最高 P 级上限",
+        "scenarios": [
+          "J8-01"
+        ],
+        "attempts": 1,
+        "retest": [
+          "待新候选"
+        ],
+        "rows": [
+          {
+            "batch": "B1",
+            "scenario": "J8-01",
+            "attempt": 1,
+            "candidate": "1111111111111111111111111111111111111111",
+            "verdict": "产品缺陷",
+            "retest": "待新候选"
+          }
+        ]
+      }
+    ]
+  },
+  "conditions": {
+    "count": 3,
+    "byExpiry": {
+      "2026.11": 1,
+      "下一版重验": 2
+    },
+    "items": [
+      {
+        "condition": "免费档不支持原生阻塞写",
+        "scope": "GitLab Free / 所有项目",
+        "scenario": "J7-02",
+        "evidence": "evidence-archive/B1-20261031/J7-02/attempt-1/",
+        "alternative": "正文 DSH-BLOCKED-BY 标记 + 界面 Blocked by 行",
+        "expiry": "下一版重验",
+        "owner": "#1679"
+      },
+      {
+        "condition": "未装 glab 时无法启动实例",
+        "scope": "Windows 10 22H2 / web profile",
+        "scenario": "J2-02",
+        "evidence": "evidence-archive/B1-20261031/J2-02/attempt-1/",
+        "alternative": "按指引安装 glab 后重试",
+        "expiry": "下一版重验",
+        "owner": "#1680"
+      },
+      {
+        "condition": "注入 403 后实例日志有延迟",
+        "scope": "web profile / 双实例",
+        "scenario": "J11-03",
+        "evidence": "evidence-archive/S1-20261101/J11-03/attempt-1/",
+        "alternative": "无",
+        "expiry": "2026.11",
+        "owner": "#1681"
+      }
+    ]
+  }
+}
