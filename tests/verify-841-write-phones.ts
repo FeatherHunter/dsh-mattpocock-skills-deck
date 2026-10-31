@@ -1,4 +1,4 @@
-// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–N 十四组，每组带反证；J 组是 #1752 工作树页的写通道，K 组是 #1755 同步域与 #1747 冲突向导的写通道，L 组是 #1743 提交页，M 组是 #1748 历史改写五条动作的写通道，N 组是 #1757 子模块页的写与任务通道。
+// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–O 十五组，每组带反证；J 组是 #1752 工作树页的写通道，K 组是 #1755 同步域与 #1747 冲突向导的写通道，L 组是 #1743 提交页，M 组是 #1748 历史改写五条动作的写通道，N 组是 #1757 子模块页的写与任务通道，O 组是 #1749 变基待办页的读 / 预检 / 凭票执行三电话。
 // 用法：node --import ./scripts/ts-hook.mts tests/verify-841-write-phones.ts
 // 夹具：真 git 临时仓库（每个用例自己造）+ 真 subprocess 形状的垫片（argv 直传、不经 shell），
 // 这样「真跑过的 argv」与「真仓库有没有被动过」都能断言；只在纯归类那组不碰 git。
@@ -822,6 +822,34 @@ async function main(): Promise<void> {
   const mPickOrder = git(rM14, ['log', '--reverse', '-2', '--format=%s']).out.split('\n')
   check(mPickRun.ok === true && mPickNew.length === 1 && after(mPickNew[0] || []).join(' ') === 'cherry-pick ' + picks.join(' ') && mPickOrder.join('|') === '拣选甲|拣选乙', 'M15 拣选成功：只起一条 cherry-pick 命令，日志里两条提交的先后与预检时给的次序一致（原序落进历史）')
   check(denyIs({ ok: true, requestId: 'x' }, 'usage') === false, 'M16 反证装置自检：把放行的回包喂给「拒绝」判据必须判假')
+
+  // O 组：#1749 变基待办三电话（读 / 预检签票 / 凭票执行）—— 真仓库里跑一次「丢提交」的最小变基。
+  console.log('O 变基待办电话（#1749）')
+  const vcO = makeVc()
+  check(typeof vcO.handleGitRebaseRead === 'function' && typeof vcO.handleGitRebaseCheck === 'function' && typeof vcO.handleGitRebaseWrite === 'function', 'O1 变基待办读 / 预检 / 执行三条电话都挂在同一个宿主对象上')
+  check(typeof vcO.rebaseTickets === 'function', 'O2 变基票表读取口只给门禁与测试，不注册成电话')
+  const rO = mkRepo('n')
+  git(rO, ['commit', '-q', '-m', 'c1'])
+  fs.writeFileSync(path.join(rO, 'b.txt'), 'b\n'); git(rO, ['add', '-A']); git(rO, ['commit', '-q', '-m', 'c2'])
+  fs.writeFileSync(path.join(rO, 'c.txt'), 'c\n'); git(rO, ['add', '-A']); git(rO, ['commit', '-q', '-m', 'c3'])
+  const oBase = git(rO, ['rev-parse', 'HEAD~2']).out
+  const oOid2 = git(rO, ['rev-parse', 'HEAD~1']).out
+  const oOid3 = git(rO, ['rev-parse', 'HEAD']).out
+  const oRows = [{ oid: oOid2, action: 'pick' }, { oid: oOid3, action: 'drop' }]
+  const oBefore = spawns.length
+  const oBadCwd = await vcO.handleGitRebaseCheck({ cwd: '', op: 'rebase-todo', base: oBase, rows: oRows })
+  check(oBadCwd.ok === false && oBadCwd.reason === 'bad-target' && spawns.length === oBefore, 'O3 不给仓库目录时预检直接回 bad-target，一个进程都不起')
+  const oPre = await vcO.handleGitRebaseCheck({ cwd: rO, op: 'rebase-todo', base: oBase, rows: oRows })
+  check(oPre.ok === true && !!oPre.ticket && oPre.ticket.expiresAtMs - oPre.ticket.checkedAtMs === 120000, 'O4 预检交互式变基：按面板给的待办签 120 秒票（丢最后一个提交）')
+  const oBeforeFake = spawns.length
+  const oFake = await vcO.handleGitRebaseWrite({ cwd: rO, op: 'rebase-todo', base: oBase, rows: oRows, ticketId: 'NOSUCHTICKET', requestId: 'req-841-n1', confirmed: true })
+  check(oFake.ok === false && oFake.error.reason === 'ticket-missing' && spawns.length === oBeforeFake, 'O5 伪造票：ticket-missing 且一个进程都没起')
+  const oWrite = await vcO.handleGitRebaseWrite({ cwd: rO, op: 'rebase-todo', base: oBase, rows: oRows, ticketId: oPre.ticket.id, requestId: 'req-841-n2', confirmed: true })
+  const oCount = Number(git(rO, ['rev-list', '--count', 'HEAD']).out)
+  const oSeq = requests.filter((q) => after(q.argv)[0] === 'rebase')[0]
+  check(oWrite.ok === true && oWrite.conflicted === false && oCount === 3, 'O6 凭票执行最小交互式变基：按面板待办丢掉一个提交（历史从 4 条变 3 条），回包说成功且没停在冲突里')
+  check(!!oSeq && after(oSeq.argv).slice(0, 2).join(',') === 'rebase,-i' && typeof oSeq.env.GIT_SEQUENCE_EDITOR === 'string' && oSeq.env.GIT_SEQUENCE_EDITOR.indexOf('cp ') === 0, 'O7 变基那一条命令的 argv 里 -i 独立成项，待办靠 GIT_SEQUENCE_EDITOR 的 cp 覆盖进去（不弹编辑器）')
+  check(typeof vcO.handleGitRebaseRead === 'function' && (await vcO.handleGitRebaseRead({ cwd: rO, op: 'rebase-state' })).ok === true, 'O8 变基读电话可用：变基完成后读状态照常回包（走同一条读路径）')
 
   console.log(failed ? '\n存在失败 — verify-841-write-phones 未通过' : '\n全部通过 — 写操作那一族门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)

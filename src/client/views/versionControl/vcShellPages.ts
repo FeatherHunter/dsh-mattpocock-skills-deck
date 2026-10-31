@@ -46,8 +46,8 @@ declare function vcSubmodulesPageNode(h: any, t: any, o: any): any
 declare function vcChangesPageNode(h: any, t: any, o: any): any
 // 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）、贮藏页叶子（#1751，vcStashPage.ts）、克隆向导页叶子（#1756，
 // vcClonePage.ts）、冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）与变基待办页的历史改写面板（#1748 T13，vcUndoPage.ts）：
-// 都由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。五条声明并进同一条物理行：本文件贴着 350 有效行上限。
-declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any
+// 与变基待办页的动作面板（#1749 T14，vcRebasePage.ts）都由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。六条声明并进同一条物理行：本文件贴着 350 有效行上限。
+declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any; declare function vcRebasePageNode(h: any, t: any, o: any): any
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']
@@ -318,7 +318,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   }
   // 冲突向导的 15 条能力面板（#1747 T12）：页面把冲突状态与读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   // 判断与推入写成同一条物理行：本文件贴着 350 有效行上限。
-  if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' }))
+  if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' })); if (page === 'rebase' && opts.rebase !== undefined && typeof vcRebasePageNode === 'function') children.push(Object.assign({}, vcRebasePageNode(h, t, { rebase: opts.rebase }), { key: 'rebase' }))
   return h('section', {
     id: 'vc-page-' + page,
     className: 'vcs-page-body',
@@ -366,7 +366,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     openSurface: openSurface,
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,
-    changes: opts.changes, conflicts: opts.conflicts, // #1747 T12：冲突向导的进行中状态、冲突清单与 15 条动作的交互态，原样往下传，壳不改形状。
+    changes: opts.changes, conflicts: opts.conflicts, rebase: opts.rebase, // #1747 T12 / #1749 T14：冲突向导与变基待办的交互态原样往下传，壳不改形状。
     // #1744 T09：提交历史页要真读数与交互态，页面壳原样往下传，不在壳里改形状。
     reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
     // #1746 T11：分支与标签业务面板的读数与确认卡/结果（没给就不画，T03 既有渲染不变）。

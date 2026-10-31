@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T19:39:06.621Z",
+  "generatedAt": "2026-10-31T19:51:38.651Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 499,
-  "gateCount": 499,
-  "attributedGates": 448,
+  "chainLength": 500,
+  "gateCount": 500,
+  "attributedGates": 449,
   "unattributedGates": 51,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 63,
+  "completionRecordedGates": 64,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 751,
+  "graphFileCount": 758,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4334,6 +4334,21 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
+      "step": "node tests/verify-1586-rebase.ts",
+      "file": "tests/verify-1586-rebase.ts",
+      "guards": [
+        "src/shared/version-control/src/rebase-ops.ts"
+      ],
+      "dirs": [
+        "src/shared/version-control/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 265,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-1586-remote.ts",
       "file": "tests/verify-1586-remote.ts",
       "guards": [
@@ -6532,6 +6547,8 @@
         "src/client/views/versionControl/vcPalette.ts",
         "src/client/views/versionControl/vcQuery.ts",
         "src/client/views/versionControl/vcQueryView.ts",
+        "src/client/views/versionControl/vcRebaseOps.ts",
+        "src/client/views/versionControl/vcRebasePage.ts",
         "src/client/views/versionControl/vcRemoteData.ts",
         "src/client/views/versionControl/vcRemotePage.ts",
         "src/client/views/versionControl/vcRows.ts",
@@ -6590,7 +6607,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 62 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 64 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -10920,6 +10937,8 @@
         "src/host/versionControlConflictScene.ts",
         "src/host/versionControlConflictWrite.ts",
         "src/host/versionControlFirstScreen.ts",
+        "src/host/versionControlRebaseScene.ts",
+        "src/host/versionControlRebaseWrite.ts",
         "src/host/versionControlRemote.ts",
         "src/host/versionControlStash.ts",
         "src/host/versionControlStashTicket.ts",
@@ -11038,7 +11057,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 137 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 139 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -13150,6 +13169,7 @@
       "node tests/verify-1586-commit-page.ts",
       "node tests/verify-1586-first-screen.ts",
       "node tests/verify-1586-history-query.ts",
+      "node tests/verify-1586-rebase.ts",
       "node tests/verify-1586-remote.ts",
       "node tests/verify-1586-stash-page.ts",
       "node tests/verify-1586-submodules.ts",
@@ -13799,9 +13819,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 772,
+    "fileCount": 779,
     "dirCount": 84,
-    "coveredFileCount": 772,
+    "coveredFileCount": 779,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -14016,6 +14036,8 @@
       "src/client/views/versionControl/vcPalette.ts",
       "src/client/views/versionControl/vcQuery.ts",
       "src/client/views/versionControl/vcQueryView.ts",
+      "src/client/views/versionControl/vcRebaseOps.ts",
+      "src/client/views/versionControl/vcRebasePage.ts",
       "src/client/views/versionControl/vcRemoteData.ts",
       "src/client/views/versionControl/vcRemotePage.ts",
       "src/client/views/versionControl/vcRows.ts",
@@ -14173,6 +14195,10 @@
       "src/host/versionControlFiles.ts",
       "src/host/versionControlFirstScreen.ts",
       "src/host/versionControlHistory.ts",
+      "src/host/versionControlRebaseCheck.ts",
+      "src/host/versionControlRebaseMount.ts",
+      "src/host/versionControlRebaseScene.ts",
+      "src/host/versionControlRebaseWrite.ts",
       "src/host/versionControlRemote.ts",
       "src/host/versionControlStash.ts",
       "src/host/versionControlStashTicket.ts",
@@ -14370,6 +14396,7 @@
       "src/shared/version-control/src/parse-worktrees.ts",
       "src/shared/version-control/src/ports.ts",
       "src/shared/version-control/src/push-plan.ts",
+      "src/shared/version-control/src/rebase-ops.ts",
       "src/shared/version-control/src/recovery-point.ts",
       "src/shared/version-control/src/remote-handles.ts",
       "src/shared/version-control/src/remote.ts",

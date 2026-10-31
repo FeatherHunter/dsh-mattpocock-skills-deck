@@ -142,6 +142,9 @@ const VC_FILES = [
   // #1747 冲突向导两叶（与构建同序）：先动作模型（15 条能力的出入参形状），再页面正文；壳的挂载段要看到页面体那一叶。
   'src/client/views/versionControl/vcConflictsOps.js',
   'src/client/views/versionControl/vcConflictsPage.js',
+  // #1749 变基待办页两叶（与构建同序）：先动作模型（九条能力的出入参形状），再页面正文；壳的挂载段要看到页面体那一叶。
+  'src/client/views/versionControl/vcRebaseOps.js',
+  'src/client/views/versionControl/vcRebasePage.js',
   'src/client/views/versionControl/vcShellPages.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
@@ -260,6 +263,12 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcConflictsKindLabelKeyOf', 'vcConflictsSideLabelKeyOf', 'vcConflictsRequestIdOf', 'vcConflictsVisibleOf',
   'vcConflictsPayloadOf', 'vcConflictsCheckArgsOf', 'vcConflictsWriteArgsOf', 'vcConflictsTargetOf',
   'vcConflictsListOf', 'vcConflictsChoicesOf', 'vcConflictsRowNode', 'vcConflictsPageNode',
+  // #1749 变基待办：三条电话、九条能力（四写五读）、待办动作与重排；请求号、载荷、可见性、页面体与渲染辅助。
+  'VC_REBASE_PHONES', 'VC_REBASE_OPS', 'VC_REBASE_TODO_ACTIONS', 'VC_REBASE_TODO_MOVES',
+  'vcRebaseOpMetaOf', 'vcRebaseOpLabelKeyOf', 'vcRebaseOpVerbKeyOf', 'vcRebaseActionLabelKeyOf', 'vcRebaseStateLabelKeyOf',
+  'vcRebaseRequestIdOf', 'vcRebaseVisibleOf', 'vcRebasePayloadOf', 'vcRebaseCheckArgsOf', 'vcRebaseWriteArgsOf',
+  'vcRebaseTargetOf', 'vcRebaseRowsOf', 'vcRebaseRowPatchOf', 'vcRebaseRowTextOf', 'vcRebaseMoveOf',
+  'vcRebasePageNode', 'vcRebaseRowNode',
   'VersionControlTab']
 // #1253：这 20 份现在都是 .ts 真源（2026-10-19 第三阶段起 rules 的产物也搬到了 .build/shared/，
 //   列表里直接写 rules.ts 真源路径，不再指向源码树里的产物 .js）。
