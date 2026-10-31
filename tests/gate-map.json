@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T15:43:16.651Z",
+  "generatedAt": "2026-10-31T15:52:42.735Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 483,
   "gateCount": 483,
   "attributedGates": 430,
   "unattributedGates": 53,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 45,
+  "completionRecordedGates": 47,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 659,
@@ -4889,8 +4889,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
+      "completionRecord": true,
+      "expectedAssertions": 24,
       "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -4904,8 +4904,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
+      "completionRecord": true,
+      "expectedAssertions": 56,
       "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {

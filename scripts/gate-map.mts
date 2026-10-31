@@ -262,6 +262,12 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 分支原因、外部调用结果加耗时、状态变化、终点结论」五段逐段核对，缺段即红；
   // 截断趟的状态段由回执承载（成功回包不记错误行），文档写明；34 条单跑实测。
   'verify-closeout-log-trips': 34,
+  // 2026-10-31 #1766：批次候选身份与证据绑定（旧候选、脏候选、证据缺身份、HEAD 前进、候选文件与 tgz 被换）；
+  // 24 条单跑实测。
+  'verify-1766-batch-identity': 24,
+  // 2026-10-31 #1766：发布候选审计与发布字节对账（身份行、候选提交祖先、差异审计、候选包哈希、
+  // validate/match 命令行入口）；56 条单跑实测。
+  'verify-1766-release-audit': 56,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。
