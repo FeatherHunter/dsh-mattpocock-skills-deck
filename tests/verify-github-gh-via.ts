@@ -58,6 +58,8 @@ const READ_CALL_FILES = [
   // 单票评论的多页取齐（#1444 从 issues.ts 拆出）：翻页那一支自己起 gh，via 写 get.gql。
   // #1686 阶段 1：随 GraphQL 协议形状搬进 channels/graphql/，扫描点跟着改到新位置。
   'src/tracker/rooms/github/channels/graphql/comment-paging.ts',
+  // #1698：企业版运行时能力探测（gh api meta）落在 routing/ 的新文件里，via 写 repo.meta。
+  'src/tracker/rooms/github/routing/runtime-capability.ts',
 ]
 
 /**
@@ -78,7 +80,8 @@ const TAG_SPEC: Record<string, { branches: string[]; opsWithNoNeed?: number; why
   listPage: { branches: ['gql'] },
   subIssues: { branches: ['gql', 'retry'] },
   permissions: { branches: ['api'] },
-  repo: { branches: ['tier3'] },
+  // #1698：repo.meta 是企业版运行时能力探测（gh api meta）；与仓库身份探测（tier3）同属 repo 这一桶。
+  repo: { branches: ['tier3', 'meta'] },
   // 拉取请求富化那三笔（#1052 合成回包实跑时补上）：列表 REST 翻页、单票补合并时间、单票拉评审明细。
   pulls: { branches: ['rest', 'detail', 'reviews'] },
   // 反向阻塞边的原生投影（#1304）：只有 GraphQL 这一支，没取到它退回整仓反推（那条路不带自己的标签）。
