@@ -246,6 +246,20 @@ const paletteVersionHtmlOf = function (view, capId, version) {
   const reads = version === null ? null : { screen: { state: 'ok', data: { gitVersion: version } } }
   return renderPage(view, { page: 'search', width: 460, skin: 'dark', seed: { query: capId }, reads: reads })
 }
+// #1776 M1：真实页签的首屏读数在 reads.firstScreen 的七片里，version 片才是新的版本来源。
+// 这里按同一口径另造一份「只有首屏快照」的读数：命令面板的版本说明要能在这一份上同样成立。
+const firstScreenReadsOf = function (version: any, state: any) {
+  const slice = state === 'err'
+    ? { state: 'err', data: null, error: { kind: 'env', message: '首屏读失败' } }
+    : { state: 'ok', data: version === null ? null : { gitVersion: version }, error: null }
+  return { firstScreen: { state: 'ok', data: { contract: 'version-control.first-screen', version: 2, readAtMs: 1, slices: { version: slice } } } }
+}
+const paletteVersionHtmlFirstOf = function (view: any, capId: any, version: any) {
+  return renderPage(view, { page: 'search', width: 460, skin: 'dark', seed: { query: capId }, reads: firstScreenReadsOf(version, 'ok') })
+}
+const paletteVersionHtmlFirstErrOf = function (view: any, capId: any) {
+  return renderPage(view, { page: 'search', width: 460, skin: 'dark', seed: { query: capId }, reads: firstScreenReadsOf(null, 'err') })
+}
 const versionSegmentOf = function (html, capId) {
   const at = html.indexOf('data-vc-palette-version="' + capId + '"')
   if (at < 0) return ''
@@ -253,12 +267,12 @@ const versionSegmentOf = function (html, capId) {
   const end = html.indexOf('</li>', at)
   return htmlTextOf(html.slice(start < 0 ? 0 : start, end < 0 ? html.length : end))
 }
-const versionProblemsOf = function (view, caps) {
+const versionProblemsWithOf = function (view, caps, htmlOf) {
   const problems = []
   caps.forEach(function (cap) {
     if (!cap.versionPolicy) { problems.push(cap.id + ' 没有登记版本策略，不该按版本限制验收'); return }
     if (!cap.versionAlternative) { problems.push(cap.id + ' 没有登记替代做法'); return }
-    const segment = versionSegmentOf(paletteVersionHtmlOf(view, cap.id, lowVersionOf(cap.minVersion)), cap.id)
+    const segment = versionSegmentOf(htmlOf(view, cap.id, lowVersionOf(cap.minVersion)), cap.id)
     if (!segment) { problems.push(cap.id + ' 在 ' + lowVersionOf(cap.minVersion) + ' 上看不到版本说明'); return }
     const want = cap.versionPolicy === 'degrade' ? 'degraded' : 'hidden'
     if (segment.indexOf('data-vc-palette-version-state="' + want + '"') < 0) problems.push(cap.id + ' 的说明状态不是 ' + want)
@@ -268,6 +282,7 @@ const versionProblemsOf = function (view, caps) {
   })
   return problems
 }
+const versionProblemsOf = function (view, caps) { return versionProblemsWithOf(view, caps, paletteVersionHtmlOf) }
 
 async function main() {
   let view = null
@@ -394,6 +409,44 @@ async function main() {
   const brokenVersion = versionProblemsOf(view, [versionVictim])
   versionVictim.versionAlternative = keptAlternative
   check(brokenVersion.length > 0, '八 反证：把 ' + versionVictim.id + ' 的替代做法清空 → 版本说明判据当场判红')
+
+  // ---- 九 真实页签入口（#1776 M1）：入口只做委托、四个固定页签与 16 页仍由同一页面壳画出、
+  //      版本说明在首屏七片的 version 片上同样成立 ----
+  console.log('\n九 真实页签入口与首屏七片（#1776 M1）')
+  const entrySrc = sourceText('src/client/views/versionControl/VersionControlTab.ts')
+  check(entrySrc.indexOf('React.createElement(VcRealTab, props)') >= 0, '九 入口组件只把入参原样交给真实页签容器 VcRealTab（入口不再自己渲染）')
+  check(entrySrc.indexOf('vcBlocksOf') < 0 && entrySrc.indexOf('data-vc-root') < 0, '九 入口组件里没有旧块渲染路径（没有 vcBlocksOf、没有 data-vc-root）')
+  check(entrySrc.indexOf('--vc-warn,#f59e0b') >= 0, '九 入口组件仍保留本页配色表（容器身份色门禁按这一行找警告色令牌）')
+  const fixedTabsHtml = renderPage(view, { page: 'changes', width: 460, skin: 'dark' })
+  check(attrValuesOf(fixedTabsHtml, 'data-vc-tab').join(',') === view.VC_TAB_PAGES.join(','), '九 四个固定页签按账本顺序画在同一行（改动、提交历史、工作树、贮藏）')
+  const allPagesHtml2 = renderToStaticMarkup(view.vcRenderAllPages(h, tZh, {}))
+  const allPageIds = attrValuesOf(allPagesHtml2, 'data-vc-page')
+  check(allPageIds.join(',') === view.PAGE_SURFACES.map(function (p) { return p.id }).join(','), '九 一次渲染把 16 页都画出来：四个主页签、九个管理分区、两个侧页、搜索页')
+  const firstScreenLimited = view.CAPABILITIES.filter(function (cap) { return !!cap.versionPolicy })
+  firstScreenLimited.forEach(function (cap) {
+    check(versionProblemsWithOf(view, [cap], paletteVersionHtmlFirstOf).length === 0, '九 ' + cap.id + ' 的版本说明在首屏七片的 version 片上同样读得到（需要 ' + cap.minVersion + ' 与替代做法）')
+  })
+  const firstNotNew = firstScreenLimited.filter(function (cap) {
+    return versionSegmentOf(paletteVersionHtmlFirstOf(view, cap.id, 'git version 2.49.0'), cap.id) !== ''
+  }).map(function (cap) { return cap.id })
+  check(firstNotNew.length === 0, '九 首屏七片读到 2.49 时 19 条都不画版本说明' + (firstNotNew.length ? '：' + firstNotNew.join('、') : ''))
+  const firstFailedCaps = firstScreenLimited.filter(function (cap) {
+    return versionSegmentOf(paletteVersionHtmlFirstOf(view, cap.id, null), cap.id) !== '' ||
+      versionSegmentOf(paletteVersionHtmlFirstErrOf(view, cap.id), cap.id) !== ''
+  }).map(function (cap) { return cap.id })
+  check(firstFailedCaps.length === 0, '九 首屏七片读不到版本（片失败或读数为空）时不写「版本不支持」' + (firstFailedCaps.length ? '：' + firstFailedCaps.join('、') : ''))
+  const liveKeys = [
+    'vc.shell.live.refresh', 'vc.shell.live.loading', 'vc.shell.live.readAt', 'vc.shell.live.back',
+    'vc.shell.live.link.palette', 'vc.shell.live.link.rebase', 'vc.shell.live.link.conflicts',
+    'vc.shell.live.fail.whole', 'vc.shell.live.fail.slice', 'vc.shell.live.retry', 'vc.shell.live.retryAll',
+    'vc.shell.live.emptyCwd',
+    'vc.shell.slice.workspace', 'vc.shell.slice.changes', 'vc.shell.slice.history', 'vc.shell.slice.worktrees',
+    'vc.shell.slice.stashes', 'vc.shell.slice.sync', 'vc.shell.slice.version',
+  ]
+  const missingLiveKeys = liveKeys.filter(function (key) {
+    return !COPY_TEXT.zh[key] || !COPY_TEXT.en[key] || !String(COPY_TEXT.zh[key]).trim() || !String(COPY_TEXT.en[key]).trim()
+  })
+  check(missingLiveKeys.length === 0, '九 真实页签新增的 ' + liveKeys.length + ' 个词条中英成对齐全' + (missingLiveKeys.length ? '：缺 ' + missingLiveKeys.join('、') : ''))
 
   console.log('\n' + (failed ? '存在失败' : '全部通过') + ' — 版本管理页覆盖验收门禁（' + total + ' 项断言）')
   printGateResult(GATE, total, failedCount)
