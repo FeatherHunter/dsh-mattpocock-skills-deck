@@ -51,7 +51,7 @@ const vcConfigIdentityRowOf = function (h: any, t: any, row: any, ctx: any): any
     key: 'scope',
     'data-vc-config-scope': key,
     value: scope,
-    onchange: function (ev: any) { ctx.edit({ key: key, scope: String((ev && ev.target && ev.target.value) || 'local') }) },
+    onChange: function (ev: any) { ctx.edit({ key: key, scope: String((ev && ev.target && ev.target.value) || 'local') }) },
   }, [
     h('option', { key: 'local', value: 'local' }, vcConfigText(t, 'vc.config.identity.scope.local', null)),
     h('option', { key: 'global', value: 'global' }, vcConfigText(t, 'vc.config.identity.scope.global', null)),
@@ -65,7 +65,7 @@ const vcConfigIdentityRowOf = function (h: any, t: any, row: any, ctx: any): any
       'data-vc-config-value': key,
       value: value,
       placeholder: vcConfigText(t, 'vc.config.identity.placeholder', null),
-      oninput: function (ev: any) { ctx.edit({ key: key, value: String((ev && ev.target && ev.target.value) || '') }) },
+      onInput: function (ev: any) { ctx.edit({ key: key, value: String((ev && ev.target && ev.target.value) || '') }) },
     }),
     scopeNode,
     h('button', {
@@ -75,7 +75,7 @@ const vcConfigIdentityRowOf = function (h: any, t: any, row: any, ctx: any): any
       'data-vc-config-cap': '12.2',
       'data-vc-config-key': key,
       disabled: ctx.pending === true,
-      onclick: function () { ctx.actSet(key) },
+      onClick: function () { ctx.actSet(key) },
     }, vcConfigText(t, 'vc.config.identity.set', null)),
     h('button', {
       key: 'unset',
@@ -86,7 +86,7 @@ const vcConfigIdentityRowOf = function (h: any, t: any, row: any, ctx: any): any
       'data-vc-config-key': key,
       'data-vc-config-danger': '1',
       disabled: ctx.pending === true,
-      onclick: function () { ctx.actUnset(key) },
+      onClick: function () { ctx.actUnset(key) },
     }, vcConfigText(t, 'vc.config.identity.unset', null)),
   ])
 }
@@ -140,7 +140,7 @@ const vcConfigQueryRowOf = function (h: any, t: any, kind: string, ctx: any): an
       [inputKey]: '1',
       value: value,
       placeholder: vcConfigText(t, isAttr ? 'vc.config.attr.placeholder' : 'vc.config.mailmap.placeholder', null),
-      oninput: function (ev: any) { ctx.edit(isAttr ? { path: String((ev && ev.target && ev.target.value) || '') } : { address: String((ev && ev.target && ev.target.value) || '') }) },
+      onInput: function (ev: any) { ctx.edit(isAttr ? { path: String((ev && ev.target && ev.target.value) || '') } : { address: String((ev && ev.target && ev.target.value) || '') }) },
     }),
     h('button', {
       key: 'go',
@@ -148,7 +148,7 @@ const vcConfigQueryRowOf = function (h: any, t: any, kind: string, ctx: any): an
       [goKey]: '1',
       'data-vc-config-cap': isAttr ? '12.7' : '12.8',
       disabled: ctx.pending === true,
-      onclick: function () { ctx.actQuery(kind) },
+      onClick: function () { ctx.actQuery(kind) },
     }, vcConfigText(t, isAttr ? 'vc.config.attr.go' : 'vc.config.mailmap.go', null)),
     h('span', { key: 'result', className: 'vcs-config-query-result', [resultKey]: st }, text),
   ]
@@ -166,8 +166,8 @@ const vcConfigConfirmBlockOf = function (h: any, t: any, state: any, ctx: any): 
   return h('div', { key: 'confirm', className: 'vcs-config-confirm-wrap', 'data-vc-config-confirm': target }, [
     vcShellConfirmCardNode(h, t, { verb: verb, target: target }),
     h('div', { key: 'acts', className: 'vcs-config-confirm-acts' }, [
-      h('button', { key: 'go', type: 'button', className: 'vcs-confirm-go', 'data-vc-config-confirm-go': '1', disabled: ctx.pending === true, onclick: function () { ctx.actConfirmed() } }, vcConfigText(t, 'vc.config.confirm.go', { verb: verb })),
-      h('button', { key: 'cancel', type: 'button', 'data-vc-config-confirm-cancel': '1', onclick: function () { ctx.edit({ cancelCheck: true }) } }, vcConfigText(t, 'vc.config.confirm.cancel', null)),
+      h('button', { key: 'go', type: 'button', className: 'vcs-confirm-go', 'data-vc-config-confirm-go': '1', disabled: ctx.pending === true, onClick: function () { ctx.actConfirmed() } }, vcConfigText(t, 'vc.config.confirm.go', { verb: verb })),
+      h('button', { key: 'cancel', type: 'button', 'data-vc-config-confirm-cancel': '1', onClick: function () { ctx.edit({ cancelCheck: true }) } }, vcConfigText(t, 'vc.config.confirm.cancel', null)),
     ]),
   ])
 }
@@ -242,7 +242,7 @@ export const vcConfigPageNode = function (h: any, t: any, opts: any): any {
   ]))
   children.push(h('p', { key: 'lede' }, vcConfigText(t, 'vc.config.lede', null)))
   children.push(h('div', { key: 'readbar', className: 'vcs-config-readbar' }, [
-    h('button', { key: 'refresh', type: 'button', 'data-vc-config-refresh': '1', disabled: pending, onclick: function () { act({ op: 'read' }) } }, vcConfigText(t, 'vc.config.refresh', null)),
+    h('button', { key: 'refresh', type: 'button', 'data-vc-config-refresh': '1', disabled: pending, onClick: function () { act({ op: 'read' }) } }, vcConfigText(t, 'vc.config.refresh', null)),
     readState === 'err'
       ? h('span', { key: 'err', className: 'vcs-config-read-err', 'data-vc-config-read': 'err' }, vcConfigText(t, 'vc.config.read.err', { kind: String(state.readError || '') }))
       : h('span', { key: 'state', 'data-vc-config-read': readState }, vcConfigText(t, readState === 'ok' ? 'vc.config.read.ok' : 'vc.config.read.idle', null)),

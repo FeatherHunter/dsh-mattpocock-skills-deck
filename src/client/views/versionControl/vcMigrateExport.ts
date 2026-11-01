@@ -123,7 +123,7 @@ const vcMigrateField = function (h: any, t: any, key: string, labelKey: string, 
       'data-vc-migrate-field': key,
       value: value,
       disabled: busy,
-      oninput: function (ev: any) { edit(key, String((ev && ev.target && ev.target.value) || '')) },
+      onInput: function (ev: any) { edit(key, String((ev && ev.target && ev.target.value) || '')) },
     }),
   ])
 }
@@ -160,7 +160,7 @@ const vcMigratePatchesNode = function (h: any, t: any, reads: any, ctx: any) {
     type: 'button',
     className: 'vcs-platform-btn',
     'data-vc-migrate-rescan': '1',
-    onclick: function () { ctx.rescan() },
+    onClick: function () { ctx.rescan() },
   }, vcMigText(t, 'vc.migrate.patches.rescan', null)))
   return h('section', { key: 'patches', className: 'vcs-migrate-patches', 'data-vc-migrate-patches': '1' }, kids)
 }
@@ -209,7 +209,7 @@ export const vcMigrateExportNode = function (h: any, t: any, o: any) {
       className: 'vcs-platform-btn',
       'data-vc-migrate-check': '1',
       disabled: busy,
-      onclick: function () { if (typeof opts.onCheck === 'function') opts.onCheck(String(state.range || ''), String(state.dir || '')) },
+      onClick: function () { if (typeof opts.onCheck === 'function') opts.onCheck(String(state.range || ''), String(state.dir || '')) },
     }, vcMigText(t, 'vc.migrate.export.check', null)),
   ]
   if (state.ticket && (stage === 'checked' || stage === 'confirm' || stage === 'running')) {
@@ -226,12 +226,12 @@ export const vcMigrateExportNode = function (h: any, t: any, o: any) {
       h('p', { key: 'rev', className: 'vcs-migrate-seg', 'data-vc-migrate-confirm-seg': 'reversible' }, vcMigText(t, 'vc.migrate.export.reversible', null)),
       h('p', { key: 'verb', className: 'vcs-migrate-seg', 'data-vc-migrate-confirm-seg': 'verb' }, vcMigText(t, 'vc.migrate.export.verb', null)),
       h('div', { key: 'acts', className: 'vcs-migrate-confirm-acts' }, [
-        h('button', { key: 'cancel', type: 'button', 'data-vc-migrate-confirm-cancel': '1', 'data-focus-default': 'cancel', onclick: function () { ctx.cancel() } }, vcMigText(t, 'vc.shell.confirm.cancel', null)),
-        h('button', { key: 'go', type: 'button', 'data-vc-migrate-run': '1', onclick: function () { ctx.run() } }, vcMigText(t, 'vc.migrate.export.run', null)),
+        h('button', { key: 'cancel', type: 'button', 'data-vc-migrate-confirm-cancel': '1', 'data-focus-default': 'cancel', onClick: function () { ctx.cancel() } }, vcMigText(t, 'vc.shell.confirm.cancel', null)),
+        h('button', { key: 'go', type: 'button', 'data-vc-migrate-run': '1', onClick: function () { ctx.run() } }, vcMigText(t, 'vc.migrate.export.run', null)),
       ]),
     ]))
   } else if (state.ticket && stage !== 'running' && stage !== 'done') {
-    kids.push(h('button', { key: 'run-again', type: 'button', className: 'vcs-platform-btn', 'data-vc-migrate-run': '1', disabled: busy, onclick: function () { ctx.run() } }, vcMigText(t, 'vc.migrate.export.run', null)))
+    kids.push(h('button', { key: 'run-again', type: 'button', className: 'vcs-platform-btn', 'data-vc-migrate-run': '1', disabled: busy, onClick: function () { ctx.run() } }, vcMigText(t, 'vc.migrate.export.run', null)))
   }
   if (stage === 'running') kids.push(h('p', { key: 'running', role: 'status', className: 'vcs-platform-loading', 'data-vc-migrate-running': '1' }, vcMigText(t, 'vc.migrate.export.running', null)))
   if (state.error && stage === 'error') {
