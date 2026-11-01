@@ -3,7 +3,7 @@
 ## 0 报告头
 
 规格：#1703「GitLab 后端在 web profile 下的真机系统化测试执行」· 报告与收口：#1720
-报告生成：2026-11-02 00:20（北京时间）· 归档根：`.worktrees/1703-integration/.scratch/verify-run/evidence-archive/`
+报告生成：2026-11-02 00:20（北京时间）· 归档根：`.scratch/verify-run/1703-close/evidence-archive/`
 最后候选：`2068b76b`（1.9.0-beta.34）· 候选包 tgz sha256 `1bdcd878c1f7534303c7cb3a3fd8caeced65c12ee8a9b83c8aa422319197b8d7`
 总判定：**无法判定**
 
@@ -132,7 +132,7 @@
 
 ## 3. 逐项能力结论
 
-证据路径约定：下文的 `E` 指 `.worktrees/1703-integration/.scratch/verify-run/evidence-archive`；每条的完整证据清单、独立读回命令与截图列表都在对应批次的 `INDEX.md` 里。
+证据路径约定：下文的 `E` 指 `.scratch/verify-run/1703-close/evidence-archive`；每条的完整证据清单、独立读回命令与截图列表都在对应批次的 `INDEX.md` 里。
 
 ### 3.1 A1 能把 GitLab 后端绑定到工作区，并且环境自检可修复
 
@@ -364,8 +364,8 @@
 
 | 层 | 位置 | 内容 |
 |---|---|---|
-| 批内原件 | `.worktrees/1703-integration/.scratch/verify-run/batches/<批次>/` | 每场景的 result.json、截图、DOM、运行日志、独立读回命令输出、批次 manifest |
-| 归档副本 | `.worktrees/1703-integration/.scratch/verify-run/evidence-archive/<批次>/` | 与批内一一对应的归档副本、`REPORT.md`、`INDEX.md`、`SHA256SUMS.txt` |
+| 批内原件 | 归档时在 `.worktrees/1703-integration/.scratch/verify-run/batches/<批次>/`，按规格第 19 条归档后已清理 | 每场景的 result.json、截图、DOM、运行日志、独立读回命令输出、批次 manifest；内容以归档副本为准 |
+| 归档副本 | `.scratch/verify-run/1703-close/evidence-archive/<批次>/` | 与批内一一对应的归档副本、`REPORT.md`、`INDEX.md`、`SHA256SUMS.txt` |
 | 候选验证日志 | `E/candidate-verify-beta34/` | 四轮全量并行门禁日志（含收口轮 `run4-final-parallel.log`）、两扇不稳定门禁的单跑与加压复跑日志、`README.md`、`SHA256SUMS.txt` |
 | 全局索引 | `E/index.jsonl`（38 行）、`E/conditions.jsonl`（41 行）、`E/INDEX.md`（report-index 摘要）、`E/tmp-report-index.out.json`（生成输入） | 一行一次尝试（场景/候选/批次/断言/结果/证据路径/独立读回/声称）；条件账本；汇总统计 |
 
@@ -394,14 +394,14 @@
 
 ```powershell
 # 1) 从归档重算并核对索引（不需要装插件）
-cd .worktrees/1703-integration/.scratch/verify-run/evidence-archive
+cd .scratch/verify-run/1703-close/evidence-archive
 node hash-tree.mjs            # 重建整棵证据树的哈希
 Get-Content INDEX.md          # 汇总统计（38 行、28 场景、41 条件）
 Get-Content index.jsonl | Measure-Object -Line
 Get-Content conditions.jsonl | Measure-Object -Line
 
 # 2) 用归档里的 tgz 与清单核对候选包
-cd ../../batches/S1-20261101-1705/pkg
+cd S1-20261101-1705
 Get-FileHash dsh-mattpocock-skills-deck-1.9.0-beta.34.tgz -Algorithm SHA256
 # 期望 1bdcd878c1f7534303c7cb3a3fd8caeced65c12ee8a9b83c8aa422319197b8d7
 
@@ -409,7 +409,7 @@ Get-FileHash dsh-mattpocock-skills-deck-1.9.0-beta.34.tgz -Algorithm SHA256
 glab api projects/88359932/issues/7 | Select-String assignees
 ```
 
-说明：证据根在集成分支的工作树里，不在主仓库跟踪范围内；归档持续保留，删项目不影响它。
+说明：证据根已从集成分支工作树移到主仓库的 `.scratch/verify-run/1703-close/evidence-archive/`，在 `.scratch/` 忽略范围内、不在 git 跟踪中；归档持续保留，删项目不影响它。批内原件按规格第 19 条在归档后清理，归档副本是复核依据。
 
 
 ## 8. 方法与局限
