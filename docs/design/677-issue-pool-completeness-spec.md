@@ -127,7 +127,7 @@
 
 ### 5.4 第三方 / 没实现的后端
 
-注册表自动补的桩会回 `unsupported`。界面据此显示「这个后端只能在它自己的网页上看全部」，其余照旧（数字退回按池子派生 + 标 `partial`）。
+注册表自动补的桩会回 `unsupported`。界面据此显示「这个后端只能在它自己的网页上看全部」，其余照旧：数字照 `deck.counts` 的来源说（后端计数拿不到就沿用上次已知并标 `countsPending`，一点证据都没有就不写数字、标 `partial`），不拿池子派生值充数（见 6.5）。
 
 ---
 
@@ -136,25 +136,25 @@
 ### 6.1 改后的 `composeSnapshot` 流程
 
 1. 取开放工作集：`list({state:'open'})`（后端必须下推状态；开放工单与开放拉取请求都在这一份里，界面自己按类型过滤）。
-2. 拉全开放地图的子票：对每张**开放**的地图容器逐张 `listSubIssues` 拉到底（底层走 GraphQL 的 `subIssues` 连接循环，含已关闭子票，硬上限 1000，见 6.4）；宿主补 `parentKey`/`effortId` 并入组装池。
+2. 拉全开放容器的子票：对每个**开放**的容器（探索地图与规格容器都算 —— 两类容器的子票都是实施票，做完了就关）逐张 `listSubIssues` 拉到底（底层走 GraphQL 的 `subIssues` 连接循环，含已关闭子票，硬上限 1000，见 6.4）；宿主补 `parentKey`/`effortId` 并入组装池。已关闭容器的子票不抓（6.3 的边界）。
 3. 补已关闭地图的容器行：热启动沿用现有的已关闭回补；冷启动用 `listPage({state:'closed', labels:['wayfinder:map']}, {limit:100})` 补一页**薄行**，宿主补 `number`/`state`/`type`（薄行没有正文，地图页的「目的地」可以缺）。已关闭地图的**子票**不抓。
 4. 取数字：`counts({})`。
-5. 组装与版号：`assembleSnapshot`（不动）→ `deriveDeck` → **用 `counts` 覆盖 `deck` 里的数字**（拿不到就保留派生值）→ 置 `deck.partial` 与 `deck.missingOpen` → `snapshotVersionOf` **必须把 `counts`、`partial`、`missingOpen` 算进去**（否则数字变了可能被 304 糊过去）。缓存与 304 照旧（LRU 20 / TTL 5 秒 / `ifNoneMatch`）。
+5. 组装与版号：`assembleSnapshot`（不动）→ `deriveDeck` → **用 `counts` 覆盖 `deck` 里的数字**（拿不到时沿用上次已知并标 `countsPending`，一点证据都没有就不写数字，见 6.5；不退回派生值）→ 置 `deck.partial` 与 `deck.missingOpen` → `snapshotVersionOf` **必须把 `counts`、`partial`、`missingOpen` 算进去**（否则数字变了可能被 304 糊过去）。缓存与 304 照旧（LRU 20 / TTL 5 秒 / `ifNoneMatch`）。
 
 ### 6.2 `deck` 增三个字段
 
-- `deck.counts = {open, closed, total}`：来自 `counts` 的真实数字；拿不到时省略。
-- `deck.partial = true|false`：**只报「异常缺失」**——下列任一为真才置真：开放工单行数少于后端 `counts.open`；`list` 触到后端上限（500 条的安全上限保留，见 5.1）；后端退回 REST 首屏（GraphQL 不可用时的降级，拿到的行不全）；`counts` 冲突（派生数与后端数对不上）或 `counts` 缺失。**「已关闭只装首页」不再算**：首屏本来就不装已关闭票的历史，已关闭按需翻页，装不全属正常。
+- `deck.counts = {open, closed, total}`：来自 `counts` 的真实数字；拿不到时沿用上次已知（`source: 'previous-known'`、旧时刻、标 `countsPending`），一点证据都没有时省略（见 6.5）。
+- `deck.partial = true|false`：**只报「异常缺失」**——下列任一为真才置真：开放工单行数少于后端 `counts.open`；`list` 触到后端上限（500 条的安全上限保留，见 5.1）；后端退回 REST 首屏（GraphQL 不可用时的降级，拿到的行不全）；`counts` 冲突（派生数与后端数对不上）或 `counts` 缺失；开放容器的子票没拉全或拉不到（撞上限、与 `totalCount` 对不上、网络或形状错；后端本身不提供子票的不算）。**「已关闭只装首页」不再算**：首屏本来就不装已关闭票的历史，已关闭按需翻页，装不全属正常。
 - `deck.missingOpen?: number`：缺多少张未关闭票 = `counts.open` 减首屏数到的开放行数，小于 0 按 0 记；缺后端计数或缺行数时省略（宿主日志里记成 `-1`）。
 - 界面只读这三个：琥珀小点在 `deck.partial === true` 时出现；悬停文案在 `missingOpen > 0` 时说「缺 N 张未关闭票，体检可能遗漏。」，否则用兜底「ISSUE 未完全加载，体检可能遗漏。」（词条 `list.partialMissing` / 兜底 `list.partialTitle`）；橙点的 aria-label 一直是「这份清单不全」（`list.partial`）。`deck` 的其余字段（`total/open/closed/frontier/claimed/blocked/levels/levelOf`）保持现在的含义与消费者（`sections/deck.js`、`labelColorPatch.js`）不变。
 
 ### 6.3 首屏装哪些行
 
 - 开放工作集全量：全部开放票（工单口径与拉取请求都在池子里，界面自己过滤）；
-- 开放地图子票全量：开放地图的全部子票（含已关闭子票 —— 地图行上的进度环、「完成」判定需要）；
+- 开放容器的子票全量：开放探索地图与开放规格容器的全部子票（含已关闭子票 —— 地图行的进度环、「完成」判定要用；规格容器也要能看出做完了几张，否则做完了的规格会被当成一张子票都没有）；
 - 已关闭地图的**容器行**（薄行，不带子票；怎么来见 6.1 第 3 步）；它下面还开着的子票按工作集放回首屏（#1291），已关闭的子票不抓；
 - 已关闭票的历史行**不再预装**：这一版首屏不取「已关闭最近 100 条」，已关闭历史改由按需折叠行取（#690）。这是对本文旧字面（原 6.3 第 3 条）的有意偏离，理由是首屏点数与体积（第 10 节第 5 条），不是为了省事。
-- 一句口径：开放工作集与开放地图子票装不全才是异常（见 6.2 的 `partial`）；已关闭行按需翻页、装不全属正常，所以不计入 `partial`。
+- 一句口径：开放工作集与开放容器的子票装不全才是异常（见 6.2 的 `partial`）；已关闭行按需翻页、装不全属正常，所以不计入 `partial`。
 - 已知残留（不在本版首屏流程里）：冷启动时已关闭**规格**容器的行会丢——薄行没有正文，规格容器又没有 `wayfinder:map` 这类能认出来的标签；顶层未挂图票「只补不删」另见 #1798。
 - 本轮实现范围：只改 GitHub 的取数路径；GitLab / 本地 Markdown 的 `counts`、`listPage` 实现与薄片段瘦身不在这一轮（阶段划分见第 11 节）。
 
@@ -166,7 +166,7 @@
 
 ### 6.5 失败与降级
 
-- `counts` 拿不到（不支持 / 配额 / 网络）→ 数字退回 `deriveDeck` 的派生值，并且 `deck.partial = true`；界面明说「数字可能不全」。
+- `counts` 拿不到（不支持 / 配额 / 网络）→ **不退回派生值**：不写 `deck.counts`，置 `deck.countsPending = true` 与 `deck.partial = true`，界面把数字显示成「未知」。为什么不再用 `deriveDeck` 的派生值：首屏只装开放工作集之后，本地数不出 `closed` 与 `total`，派生值一定偏小，拿它充数就是「猜数」（#1698 起定的口径）。
 - `listPage` 拿不到 → 界面只给「在网页上看全部」的出口，不显示假的行。
 - 任何情况下**不许显示一个漂亮的大数字骗人**。
 
@@ -291,7 +291,7 @@
 
 ## 12. 风险登记与「还没证明的」
 
-- **`counts` 与行数据的时刻差**：两次调用之间有人关票 → 数字与行差 1。缓解：同一次重建里取（6.1 的顺序），并在验收里接受 ±1 的瞬时差。
+- **`counts` 与行数据的时刻差**：两次调用之间有人关票 → 数字与行差 1。缓解：同一次重建里取（6.1 的顺序），并在验收里接受 ±1 的瞬时差。代码按严格相等报缺（`openRows !== counts.open` 就 `partial = true`）：宁可多亮一次橙点，也不瞒一次真缺；验收时 ±1 的瞬时差允许复测消失。
 - **版号漏算**：`snapshotVersionOf` 没把 `counts`/`partial`/`missingOpen` 算进去 → 数字变了被 304 糊过去。这是本次最容易漏的一处，必须写夹具断它。
 - **薄片段字段不够**：`listPage` 只取列表行需要的字段；`IssueDetail` 的兜底（`IssueDetail.js:36-37`）会拿到没有正文的行 → 详情页要能容忍「兜底行没有正文」，显示加载态而不是空白。落地前要按「谁在读快照/页数据的哪个字段」列一次清单。
 - **GitLab 计数口未实测**：`X-Total` 与 `issues_statistics` 二选一，落地时实测后再定（这一轮没有环境）。

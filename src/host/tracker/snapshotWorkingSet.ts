@@ -4,8 +4,9 @@
 // 的列表当首屏，编号靠后的未关闭票会被大量已关闭票挤出窗口（#1796 的现场：30 张未关闭票里有 8 张
 // 排在第 776～1282 名，根本进不来）。修法是把首屏改成三份来源的并集：
 //   1) 开放工作集：list({state:'open'}) 由后端先筛状态，未关闭票不再和已关闭历史挤同一个窗口；
-//   2) 开放地图的子票：开放工作集只装得下开放票，已关闭的子票要靠 listSubIssues 逐张开放地图拉全，
-//      地图详情才数得清「共 N 张」；
+//   2) 开放容器的子票：开放工作集只装得下开放票，已关闭的子票要靠 listSubIssues 逐张开放容器拉全，
+//      地图详情才数得清「共 N 张」（#1796 code review 补：规格容器同理 —— 它的实施票做完了就关，
+//      不补回来会让做完了的规格看着一张子票都没有）；
 //   3) 已关闭地图的容器行：开放工作集里没有它们，热启动沿用上一份快照里的容器行，冷启动补一页薄行，
 //      列表页签上的容器行才不会凭空消失。
 // 这三件事都只读后端、只回事实；组装、计数与 partial 判定仍留在 composeSnapshot（本文件不写 deck，
@@ -48,16 +49,21 @@ export interface WorkingSetInput {
 
 /** 组装结果：并集行 + 这一趟向远端多要了几次、失败了几个、已关闭容器行从哪来。 */
 export interface WorkingSetResult {
-  /** 组装层要吃的行：开放池 + 开放地图子票 + 已关闭地图容器薄行（已按身份去重）。 */
+  /** 组装层要吃的行：开放池 + 开放容器子票 + 已关闭地图容器薄行（已按身份去重）。 */
   rows: any[]
-  /** 这一趟拉过子票的开放地图张数。 */
-  openMaps: number
+  /** 这一趟拉过子票的开放容器张数（探索地图与规格都算：两类容器的子票都是实施票）。 */
+  openContainers: number
   /** 子票行一共拉回多少张（失败的地图不计）。 */
-  subIssuesFetched: number
+  subIssues: number
   /** 子票拉取硬失败的地图张数（unsupported 不计；>0 表示这一份来源不全）。 */
   subIssuesFailed: number
   /** 子票撞到上限或与后端总数对不上的地图张数（>0 表示子票不全，但开放工作集本身没缺）。 */
   subIssuesIncomplete: number
+  /**
+   * 子票拉取硬失败的容器清单，形如 `641:transport;1588:unknown`（票号 + 错误档，缺档记 unknown）；
+   * 空串表示没有失败。只记编号与错误档：日志纪律要求这类行状态只记编号与计数，不记正文与远端原文。
+   */
+  failed: string
   /** 补回来的已关闭地图容器行张数。 */
   closedMapRows: number
   /** 已关闭地图容器行从哪来：上一份快照 / 冷启动补的一页 / 没有。 */
@@ -167,7 +173,8 @@ function appendClosedRows(rows: any[], seen: Record<string, number>, list: any[]
  * 组装首屏工作集（纯装配 + 只读远端）。
  *
  * 进：开放池（list({state:'open'}) 的原样行）、用开放池先组装出来的容器行、上一份快照的容器行。
- * 出：组装层要吃的并集行，以及「这一趟子票拉了几张、坏了几张、已关闭容器行从哪来」的事实。
+ * 出：组装层要吃的并集行，以及「这一趟子票拉了几张、坏在哪几张、已关闭容器行从哪来」的事实；
+ *   这些事实由 composeSnapshot 记进常驻日志 snapshot.workingSet（附录 #149），所以本文件的返回字段都有读者。
  * 异常策略：远端失败只跳过不抛（快照这条路可用性优先）；调不通的失败数交给调用方决定 partial 与日志。
  */
 export async function assembleWorkingSet(input: WorkingSetInput): Promise<WorkingSetResult> {
@@ -187,36 +194,43 @@ export async function assembleWorkingSet(input: WorkingSetInput): Promise<Workin
     if (id && !seen[id]) seen[id] = i + 1
   }
 
-  let openMaps = 0
-  let subIssuesFetched = 0
+  let openContainers = 0
+  let subIssues = 0
   let subIssuesFailed = 0
   let subIssuesIncomplete = 0
+  // 失败清单要能说出「哪张容器、什么错误档」：只记编号与错误档，不记远端原文（日志纪律）。
+  const failedContainers: string[] = []
 
-  // 只拉探索地图（type='map'）的开放容器：规格容器（type='spec'）不在这条修复的范围里（票面「范围外」）。
-  const openMapContainers: any[] = containers.filter(function (m: any) { return m && m.type === 'map' && !isClosedRow(m) })
+  // 拉探索地图与规格两类容器的子票：两类容器的子票都是「做完了就关」的实施票，已关闭的那部分不再进首屏
+  //   （#1796 首屏只装开放票），只能靠这一趟补回来 —— 不补的话，做完了的规格会显示成一张子票都没有。
+  //   只补开放容器：已关闭容器的子票按 #691 的边界不抓。
+  const openContainerRows: any[] = containers.filter(function (m: any) { return m && (m.type === 'map' || m.type === 'spec') && !isClosedRow(m) })
   const canFetch = !!(tracker && typeof tracker.listSubIssues === 'function')
   if (canFetch) {
-    for (const map of openMapContainers) {
-      const mapKey: string = keyOfRow(map)
-      if (!mapKey) continue
-      openMaps++
+    for (const container of openContainerRows) {
+      const containerKey: string = keyOfRow(container)
+      if (!containerKey) continue
+      openContainers++
       let res: any = null
       try {
-        res = await tracker.listSubIssues(ref, mapKey, {}, ctx)
+        res = await tracker.listSubIssues(ref, containerKey, {}, ctx)
       } catch (e) {
         res = null
       }
       if (!res || res.ok !== true) {
         const kind: any = res && res.error ? res.error.kind : null
         // unsupported 是「这个后端不提供子票」，不是故障：不算失败、不报警，只是这一类行补不出来。
-        if (kind !== ERROR_KIND.UNSUPPORTED) subIssuesFailed++
+        if (kind !== ERROR_KIND.UNSUPPORTED) {
+          subIssuesFailed++
+          failedContainers.push(containerKey + ':' + (typeof kind === 'string' && kind ? kind : 'unknown'))
+        }
         continue
       }
       const data: any = res.data || {}
       const items: any[] = Array.isArray(data.items) ? data.items : []
-      subIssuesFetched += items.length
+      subIssues += items.length
       if (data.capped === true || (typeof data.missing === 'number' && data.missing > 0)) subIssuesIncomplete++
-      for (const item of items) mergeTicketRow(rows, seen, item, map)
+      for (const item of items) mergeTicketRow(rows, seen, item, container)
     }
   }
 
@@ -239,10 +253,11 @@ export async function assembleWorkingSet(input: WorkingSetInput): Promise<Workin
 
   return {
     rows,
-    openMaps,
-    subIssuesFetched,
+    openContainers,
+    subIssues,
     subIssuesFailed,
     subIssuesIncomplete,
+    failed: failedContainers.join(';'),
     closedMapRows,
     closedMapSource,
   }

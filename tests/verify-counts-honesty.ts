@@ -48,7 +48,8 @@ function check (cond: any, msg: string, detail?: any): void {
 // ────────────────────────────── A 纯函数：planDeckCounts / openRowsOf ──────────────────────────────
 {
   // #1796 起「数字」与「全不全」分开算：数字优先后端 counts，partial 只报异常缺失四种情形
-  // （开放行数对不上后端 open、列表触上限、REST 降级、计数冲突或缺失）。
+  // （开放行数对不上后端 open、列表触上限、REST 降级、计数冲突或缺失）；
+  // 另加一种：开放容器的子票没拉全或拉不到（code review 指出，规格 677 §6.2 已写明）。
 
   // A1 后端数字可信、开放行数与后端 open 一致 → 原样采用，不置 partial。
   const p1 = deckCounts.planDeckCounts({ backendCounts: BACK, openRows: 10, nowMs: NOW })
@@ -98,6 +99,15 @@ function check (cond: any, msg: string, detail?: any): void {
   const p11 = deckCounts.planDeckCounts({ backendCounts: null, openRows: null, previousCounts: null, nowMs: NOW })
   check(p11.counts === null, 'A16 一点证据都没有时 counts 回 null（不写假 0）', p11)
   check(p11.pending === true && p11.partial === true, 'A17 无证据时标待校准并置 partial', p11)
+
+  // A21–A24 开放容器的子票没拉全（撞上限）或拉不到，也算异常缺失：从前只影响回补、橙点不亮。
+  const p12 = deckCounts.planDeckCounts({ backendCounts: BACK, openRows: 10, subIssuesIncomplete: 1, nowMs: NOW })
+  check(p12.partial === true, 'A21 开放容器子票撞上限 → partial 置真', p12)
+  check(p12.counts && p12.counts.open === 10, 'A22 子票装不全不改后端数字本身（只报缺）', p12.counts)
+  const p13 = deckCounts.planDeckCounts({ backendCounts: BACK, openRows: 10, subIssuesFailed: 1, nowMs: NOW })
+  check(p13.partial === true, 'A23 开放容器子票拉不到 → partial 置真', p13)
+  const p14 = deckCounts.planDeckCounts({ backendCounts: BACK, openRows: 10, subIssuesIncomplete: 0, subIssuesFailed: 0, nowMs: NOW })
+  check(p14.partial === false, 'A24 子票都补齐（计数为 0）→ partial 仍为假（对照）', p14)
 
   // A18 openRowsOf：只数未关闭、按 (effortId, key) 去重、PR 不算工单、没编号的行数不到。
   const rows = [

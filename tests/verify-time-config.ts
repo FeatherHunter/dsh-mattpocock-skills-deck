@@ -534,6 +534,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/skillProbe.ts', name: 'SKILL_CACHE_TTL_MS', reason: '函数内局部变量：接线给了正数就听接线的，没给时取中央常量 SKILL_LIST_CACHE_TTL_MS（已登记为 skillListCacheTtlMs）' },
   { file: 'src/host/tracker/snapshot.ts', name: 'snapshotTtl', reason: '透传参数，缺省接 SNAPSHOT_TTL_MS（已登记为 snapshotTtlMs）' },
   { file: 'src/host/tracker/snapshot.ts', name: 'depsTtl', reason: '同上' },
+  { file: 'src/host/tracker/snapshot.ts', name: 'workingSetStartedMs', reason: '测量用局部变量（首屏工作集装配的耗时 = 两次读钟的差，进 snapshot.workingSet 日志），不是可调参数' },
   { file: 'src/host/versionControl.ts', name: 'timeoutMs', reason: '透传参数，缺省接本文件已登记的 RUN_TIMEOUT_MS' },
   { file: 'src/host/versionControl.ts', name: 'graceMs', reason: '透传参数，缺省接 PROC_GRACE_MS（已登记为 procGraceMs）' },
   { file: 'src/host/versionControlStash.ts', name: 'timeoutMs', reason: '透传参数，缺省 30000 只为直接调用兜底；装配层注入的 deps.timeoutMs 来自父文件已登记的 RUN_TIMEOUT_MS' },

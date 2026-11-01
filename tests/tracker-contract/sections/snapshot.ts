@@ -697,24 +697,32 @@ export async function run() {
         r6.snapshot.deck.partial === false && r6.snapshot.issues.length === 3, JSON.stringify({ partial: r6.snapshot.deck.partial, rows: r6.snapshot.issues.length }))
     }
 
-    // ── #1796 首屏工作集：开放池 + 开放地图子票 + 已关闭地图容器行 ──
-    //   守的是「首屏装哪些行」：开放工作集由后端先筛状态；开放地图的子票要逐张拉全（含已关闭），
-    //   否则地图详情数不清「共 N 张」；已关闭地图的容器行热启动沿用上一份快照、冷启动补一页薄行。
+    // ── #1796 首屏工作集：开放池 + 开放容器子票 + 已关闭地图容器行 ──
+    //   守的是「首屏装哪些行」：开放工作集由后端先筛状态；开放容器（探索地图与规格）的子票要逐张拉全
+    //   （含已关闭），否则地图详情数不清「共 N 张」、做完了的规格也会看着一张子票都没有；
+    //   已关闭地图的容器行热启动沿用上一份快照、冷启动补一页薄行。
     {
       const OPEN_MAP = base({ key: '300', type: 'map', title: '开放地图' })
       const OPEN_TICKET = base({ key: '301', title: '开放票', parentKey: '300' })
+      const OPEN_SPEC = base({ key: '302', type: 'spec', title: '开放规格' })
       const CLOSED_SUB = base({ key: '202', title: '已关闭子票', state: 'closed', parentKey: '300' })
-      const calls: any = { listFilters: [] as any[], subIssueKeys: [] as any[], pageFilters: [] as any[], pageFails: false }
+      const CLOSED_SPEC_TICKET = base({ key: '203', title: '规格下已关闭的实施票', state: 'closed', parentKey: '302' })
+      const calls: any = { listFilters: [] as any[], subIssueKeys: [] as any[], pageFilters: [] as any[], pageFails: false, capped: false, failKey: '' }
       const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
       registry.register({
         id: 'work', label: 'work',
         budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
         create: () => ({
-          list: async (_ref: any, filter: any) => { calls.listFilters.push(filter); return { ok: true, data: [OPEN_MAP, OPEN_TICKET] } },
+          // 后端计数与首屏开放行数对齐（3 张开放容器/票）：partial 的基线才有意义。
+          counts: async () => ({ ok: true, data: { open: 3, closed: 2, total: 5 } }),
+          list: async (_ref: any, filter: any) => { calls.listFilters.push(filter); return { ok: true, data: [OPEN_MAP, OPEN_TICKET, OPEN_SPEC] } },
           listSubIssues: async (_ref: any, key: any) => {
             calls.subIssueKeys.push(key)
-            const items = key === '300' ? [CLOSED_SUB] : []
-            return { ok: true, data: { items, total: items.length, fetched: items.length, capped: false, missing: 0, dropped: 0 } }
+            if (calls.failKey && calls.failKey === key) return { ok: false, error: { kind: 'transport', message: 'boom' } }
+            const all = key === '300' ? [CLOSED_SUB] : (key === '302' ? [CLOSED_SPEC_TICKET] : [])
+            // 撞上限要能传到 partial（#1796 code review：子票装不全是异常缺失，不再只影响回补）。
+            const capped = calls.capped && key === '300'
+            return { ok: true, data: { items: all, total: all.length + (capped ? 1 : 0), fetched: all.length, capped, missing: capped ? 1 : 0, dropped: 0 } }
           },
           listPage: async (_ref: any, filter: any) => {
             calls.pageFilters.push(filter)
@@ -733,9 +741,17 @@ export async function run() {
         JSON.stringify(calls.listFilters))
       const maps = r.snapshot.maps as SnapshotMapNode[]
       const openMap = maps.filter((m) => String(m.key) === '300')[0]
-      await assert('#1796 开放地图的子票拉全（已关闭子票 202 挂回地图 300，且只问过这张开放地图）',
-        !!openMap && openMap.tickets.some((t) => String(t.key) === '202') && calls.subIssueKeys.length === 1 && calls.subIssueKeys[0] === '300',
+      await assert('#1796 开放容器的子票拉全（已关闭子票 202 挂回地图 300，且只问过两张开放容器）',
+        !!openMap && openMap.tickets.some((t) => String(t.key) === '202') && calls.subIssueKeys.length === 2
+          && calls.subIssueKeys.indexOf('300') >= 0 && calls.subIssueKeys.indexOf('302') >= 0,
         JSON.stringify({ tickets: openMap ? openMap.tickets.map((t) => String(t.key)) : null, asked: calls.subIssueKeys }))
+      const openSpec: any = maps.filter((m) => String(m.key) === '302')[0]
+      await assert('#1796 开放规格容器也拉子票（已关闭实施票 203 挂回规格 302，做完的规格不再显示一张子票都没有）',
+        !!openSpec && openSpec.type === 'spec' && openSpec.tickets.some((t) => String(t.key) === '203'),
+        JSON.stringify(openSpec && { tickets: openSpec.tickets.map((t) => String(t.key)) }))
+      await assert('#1796 后端计数与开放行数对得上时 partial 为假、missingOpen 为 0（子票补齐不虚增开放行数）',
+        r.snapshot.deck.partial === false && r.snapshot.deck.missingOpen === 0 && !!r.snapshot.deck.counts && r.snapshot.deck.counts.open === 3,
+        JSON.stringify({ partial: r.snapshot.deck.partial, missingOpen: r.snapshot.deck.missingOpen, counts: r.snapshot.deck.counts }))
       const closedContainer: any = maps.filter((m) => String(m.key) === '200')[0]
       await assert('#1796 冷启动补一页已关闭地图容器行（type=map、state=CLOSED、编号 200 在场）',
         !!closedContainer && closedContainer.type === 'map' && String(closedContainer.state).toUpperCase() === 'CLOSED' && closedContainer.number === 200,
@@ -752,6 +768,11 @@ export async function run() {
       await assert('#1796 补页失败时热启动沿用上一份快照的已关闭容器行',
         !!kept && kept.type === 'map' && String(kept.state).toUpperCase() === 'CLOSED',
         JSON.stringify(maps2.map((m) => String(m.key))))
+      // #1796 code review：子票撞上限（capped）也算异常缺失 —— 从前只影响回补，橙点不亮。
+      calls.capped = true
+      const r3 = await wc.composeSnapshot('work', ref, {}, { force: true }) as ComposeSuccess
+      await assert('#1796 子票撞到上限时 partial 置真（开放工作集没缺，但子票不全）',
+        r3.snapshot.deck.partial === true, JSON.stringify({ partial: r3.snapshot.deck.partial }))
     }
   }
 

@@ -45,6 +45,8 @@ import { LIST_PAGE_QUERY, LIST_PAGE_QUERY_WITH_LABELS } from '../channels/graphq
 import { beginRead } from '../routing/read-result.js'
 import { pageProvenanceFromGraphql } from '../routing/read-assembly.js'
 import { emitReadDegraded } from '../support/read-log.js'
+// #1796 code review：状态档归一只留 list-state.ts 这一份，这里不再复制同义的 statesOf。
+import { issueStatesOf } from './list-state.js'
 // 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
 import { debugOn, guardEmit } from '../../../kernel/log-emit.js'
 import { PAGINATION } from '../../../contract/pagination.js'
@@ -88,15 +90,6 @@ function cursorOf(opts: PageOpts | null | undefined): string {
   const v = bag ? bag.cursor : undefined
   if (typeof v !== 'string') return ''
   return v.trim()
-}
-
-/** filter.state 归一：'open' / 'closed' 两种收窄；其余（含缺失）= 两种都要。 */
-function statesOf(filter: ListFilter | null | undefined): string[] {
-  const bag = (filter && typeof filter === 'object' ? (filter as Record<string, unknown>) : null) as Record<string, unknown> | null;
-  const s = bag ? String(bag.state || '').toLowerCase() : ''
-  if (s === 'open') return ['OPEN']
-  if (s === 'closed') return ['CLOSED']
-  return ['OPEN', 'CLOSED']
 }
 
 /** filter.labels 归一：去掉空白项与重复项，保持原顺序（名字大小写不动，交给后端筛）。 */
@@ -173,7 +166,7 @@ export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | u
     const baseLim = Math.min(limitOf(opts), REMOTE_PAGE_LIMIT)
     let lim = learnedPageLimit > 0 ? Math.min(baseLim, learnedPageLimit) : baseLim
     const cursor = cursorOf(opts)
-    const states = statesOf(filter)
+    const states = issueStatesOf(filter)
     const labels = labelsOf(filter)
     const since = sinceOf(filter)
     const c = ghClient(ctx)

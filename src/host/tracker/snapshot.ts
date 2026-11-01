@@ -181,7 +181,8 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
 
   const fresh = (e: any, ttl: number): any => e && (Date.now() - e.at) < ttl
 
-  // 房内日志（#505）：只用现有的两个事件名（不新增事件，不改附录对照表）。
+  // 房内日志（#505）：只用三个事件名 —— 前两个是原来就有的 snapshot.cache.miss / snapshot.cache.hit；
+  //   #1796 新增常驻 #149 snapshot.workingSet（首屏工作集这一趟拉到哪些东西、坏在哪几张，附录第 1 章有登记）。
   // 未命中记常驻（每次重建都记，原因只记枚举）；命中记按需（调试开关开着才记，还百分之一采样）。
   // 请求与组装完成事件由外层电话层（wf.snapshot / wf.refresh，经 sessionSnapshot / sessionRefresh）负责，
   // 本层不重复记，避免一次调用记两行；前端水合与扇出是客户端的事，本层不碰。
@@ -279,11 +280,13 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       }
 
       // #1796 首屏工作集：开放池只装得下开放票，还要并上两样东西才是一份完整首屏：
-      //   ① 开放地图的子票（含已关闭的子票 —— 地图详情要数得清「共 N 张」）；
+      //   ① 开放容器的子票（探索地图与规格都算；含已关闭的子票 —— 地图详情要数得清「共 N 张」，
+      //      规格也要看得出做完了几张）；
       //   ② 已关闭地图的容器行（开放池里没有它们，列表上的容器行不能凭空消失）。
       //   子票拉取失败只跳过不抛；失败或不完整的次数决定这一份来源全不全（sourceComplete），
       //   来源不全时下面的 carryOverMapTickets 只能补不能删。
       const prelim: any = assembleSnapshot(ref, pool)
+      const workingSetStartedMs: number = Date.now()
       const workingSet: any = await assembleWorkingSet({
         tracker,
         ref,
@@ -292,6 +295,23 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
         openContainers: prelim.maps,
         previousMaps: cachedEntry && cachedEntry.snapshot ? cachedEntry.snapshot.maps : [],
       })
+      // #1796：工作集这一趟的事实进常驻日志（附录 #149）。为什么单记一条：子票拉取是按容器逐张发的，
+      //   失败只跳过不抛，若不记，事后分不清「这张地图下面怎么少了几张」是没拉、拉到一半还是后端不提供。
+      //   失败清单只写「票号:错误档」，不写远端原文。
+      try {
+        if (fire) {
+          fire('info', 'snapshot.workingSet', {
+            openContainers: workingSet.openContainers,
+            subIssues: workingSet.subIssues,
+            subIssuesFailed: workingSet.subIssuesFailed,
+            subIssuesIncomplete: workingSet.subIssuesIncomplete,
+            closedMapRows: workingSet.closedMapRows,
+            closedMapSource: workingSet.closedMapSource,
+            failed: workingSet.failed,
+            latencyMs: Date.now() - workingSetStartedMs,
+          })
+        }
+      } catch (eL) {}
       const sourceComplete: boolean = !listFallback && !listTruncated && workingSet.subIssuesFailed === 0 && workingSet.subIssuesIncomplete === 0
 
       // #1696：组装出来的 map.tickets 是后端原始行，客户端首帧画不出关系与计数；这里统一归一化，
@@ -305,7 +325,8 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       // #689 起步、#1698 收口、#1796 改口径：数字与「这份清单全不全」分开写，且每个数字都带来源与时刻。
       //   · 数字：后端 counts 是整仓口径，拿到就用（来源「后端」）；拿不到保留上次已知并标 countsPending；
       //     一点证据都没有时不写 deck.counts（绝不写 0/0/0 冒充「真的没有票」）。
-      //   · 全不全（partial）：只报异常缺失 —— 开放行数比后端 open 少、列表触上限、REST 降级、计数冲突或缺失。
+      //   · 全不全（partial）：只报异常缺失 —— 开放行数比后端 open 少、列表触上限、REST 降级、计数冲突或缺失、
+      //     开放容器的子票没拉全或拉不到。
       //     「已关闭历史只装了一部分」是设计，不算缺（#1796 票面第五条）。
       //   与行数据同一趟重建里取（快照缓存 TTL 5 秒 + 版号），所以数字与列表看到的是同一时刻的仓库。
       const counts = await countsFromBackend(tracker, ref, ctx)
@@ -316,6 +337,8 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
         openRows,
         listTruncated,
         listFallback: listFallback === 'rest',
+        subIssuesFailed: workingSet.subIssuesFailed,
+        subIssuesIncomplete: workingSet.subIssuesIncomplete,
         previousCounts: previousDeck ? previousDeck.counts : null,
         previousAtMs: cachedEntry && typeof cachedEntry.at === 'number' ? cachedEntry.at : 0,
         nowMs: Date.now(),

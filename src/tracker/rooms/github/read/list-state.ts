@@ -13,9 +13,15 @@
 
 import type { ListFilter } from '../../../contract/inputs.js'
 
-/** filter.state 归一到小写；没给或给了别的值都回空串，表示「不按状态收窄」。 */
-function narrowStateOf(filter: ListFilter | undefined): string {
-  return filter && filter.state ? String(filter.state).toLowerCase() : ''
+/**
+ * filter.state 归一到小写；没给或给了别的值都回空串，表示「不按状态收窄」。
+ *
+ * 对外导出是因为计数那条读路径（counts.ts）也要同一份归一（#1796 code review）：此前那里自己抄了一份，
+ * 两份写法稍有差异就会让「列表按状态收窄、计数没收到」变成两套口径。
+ */
+export function narrowStateOf(filter: ListFilter | null | undefined): string {
+  const bag = (filter && typeof filter === 'object' ? (filter as Record<string, unknown>) : null) as Record<string, unknown> | null
+  return bag && bag.state ? String(bag.state).toLowerCase() : ''
 }
 
 /**

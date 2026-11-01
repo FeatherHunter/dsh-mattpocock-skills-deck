@@ -11,11 +11,13 @@
  *   「真的没有票」）。#1796 之前还有一档「本地按行重算」——首屏改成只装开放工作集之后，已关闭历史本来
  *   就不进首屏，本地数不出 closed 与 total，这一档随之取消。
  * 二、全不全（deck.partial）：只报「异常缺失」。首屏按设计只装开放工作集与地图容器行，已关闭历史不装，
- *   所以「已关闭只装了一部分」不算缺。真正算缺的只有四种：
+ *   所以「已关闭只装了一部分」不算缺。真正算缺的只有五种：
  *   1) 开放工作集的行数比后端计数的 open 少（旧开放票又被窗口挤掉了 —— 这就是 #1796 的现场）；
  *   2) 这一趟列表触到了后端上限（工单 500 / 拉取请求 1000）；
  *   3) 这一趟走了 REST 降级（行是兜回来的，可能与 GraphQL 的口径不同）；
- *   4) 后端计数与开放行数冲突（行比后端还多，留痕 conflictWith）或者压根拿不到计数。
+ *   4) 后端计数与开放行数冲突（行比后端还多，留痕 conflictWith）或者压根拿不到计数；
+ *   5) 开放容器的子票没拉全或拉不到（子票也是首屏的一部分：地图详情要数清「共 N 张」，规格要看出做完了几张）。
+ *      后端本身不提供子票（listSubIssues 回 unsupported）不算缺 —— 那是能力边界，不是这一趟的故障。
  *   开放行数比后端多时同样 partial 置真，并把后端数字留在 conflictWith 里供排查。
  *
  * 反例（写代码时最常犯的两个错）：
@@ -63,6 +65,10 @@ export interface DeckCountsInput {
   listTruncated?: boolean
   /** 这一趟列表走了 REST 降级。 */
   listFallback?: boolean
+  /** 这一趟有几张开放容器的子票拉取失败（网络、形状错这一类硬失败；后端不提供子票的不计）。 */
+  subIssuesFailed?: number
+  /** 这一趟有几张开放容器的子票没拉全（撞到上限，或与后端 totalCount 对不上）。 */
+  subIssuesIncomplete?: number
   previousCounts?: any
   previousAtMs?: number
   nowMs?: number
@@ -83,6 +89,11 @@ function positiveMs (v: unknown): number {
   return (typeof v === 'number' && Number.isFinite(v) && v > 0) ? v : 0
 }
 
+/** 计数类输入收窄：非负整数且大于 0 才算「有」，缺省与坏形状一律当没有。 */
+function isPositiveCount (v: unknown): boolean {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0
+}
+
 /**
  * 决定这一次重建该往 deck 里写什么数字、要不要标「待校准」、要不要把 partial 置真。
  *
@@ -100,7 +111,7 @@ export function planDeckCounts (input: DeckCountsInput): DeckCountsPlan {
     // 行比后端还多：两边对不上，以哪边为准都无法解释。数字仍用后端的（整仓口径），冲突留痕给排查。
     const conflict: boolean = openRows !== null && openRows > backend.open
     if (conflict) counts.conflictWith = { open: backend.open, closed: backend.closed, total: backend.total }
-    const partial: boolean = src.listTruncated === true || src.listFallback === true || openRows === null || openRows !== backend.open
+    const partial: boolean = src.listTruncated === true || src.listFallback === true || openRows === null || openRows !== backend.open || isPositiveCount(src.subIssuesFailed) || isPositiveCount(src.subIssuesIncomplete)
     return { counts: counts, pending: false, partial: partial }
   }
   if (prev) {

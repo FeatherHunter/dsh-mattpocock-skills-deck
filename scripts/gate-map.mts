@@ -363,8 +363,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-31 #1698：计数诚实（拿不到保留上次已知并标待校准、行数据与后端数字冲突时留痕、
   // 界面不显示假 0、增量路径只标待校准不重算）。
   // 2026-11-01 #1796 改口径：partial 只报异常缺失（列表截断 / REST 降级 / 拿不到计数 / 首屏开放行数
-  // 与后端 open 对不上），另加 deck.missingOpen（缺几张未关闭票）；55 条单跑实测。
-  'verify-counts-honesty': 55,
+  // 与后端 open 对不上 / 开放容器子票没拉全或拉不到），另加 deck.missingOpen（缺几张未关闭票）；
+  // 59 条单跑实测。
+  'verify-counts-honesty': 59,
   // 2026-10-31 #1698：企业版运行时能力回答（GHES 上子票不支持、依赖 3.19 起部分支持、
   // 探测失败不回答、成功调用不挂不支持、运行时模块不读构建期能力登记）；39 条单跑实测。
   'verify-ghes-runtime-capability': 39,

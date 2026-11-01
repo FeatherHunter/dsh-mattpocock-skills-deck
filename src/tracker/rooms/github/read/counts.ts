@@ -40,13 +40,8 @@ import { COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS } from '../channels/graphql/quer
 import { emitReadDegraded } from '../support/read-log.js'
 import { beginRead } from '../routing/read-result.js'
 import { countsProvenance } from '../routing/read-assembly.js'
-
-/** filter.state 归一：只有 'open' / 'closed' 两种收窄，其余（含缺失）都是「两种都要」。 */
-function narrowStateOf(filter: ListFilter | null | undefined): string {
-  const bag = (filter && typeof filter === 'object' ? (filter as Record<string, unknown>) : null) as Record<string, unknown> | null;
-  const s = bag ? String(bag.state || '').toLowerCase() : ''
-  return (s === 'open' || s === 'closed') ? s : ''
-}
+// #1796 code review：状态归一只留 list-state.ts 这一份（列表主路与计数同用一套读法）。
+import { narrowStateOf } from './list-state.js'
 
 /** filter.labels 归一：去掉空白项与重复项，保持原顺序（原样交给后端筛，名字大小写不动）。 */
 function labelsOf(filter: ListFilter | null | undefined): string[] {
