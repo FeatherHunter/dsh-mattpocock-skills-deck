@@ -275,6 +275,11 @@ async function setBlockedByInner(ctx: OpContext,repo: RepoWithPath | null,key: s
   if(Array.isArray(blockers)&&blockers.map(k=>String(k).padStart(2,'0')).includes(norm)){return failAs(ERROR_KIND.CONFLICT,'self-block '+norm,norm)}
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
+  // 00 号容器（map.md / spec.md 文件本身）没有 Blocked by 这个字段，阻塞边只能挂在票上。
+  // 为什么在这里如实拒绝：容器的原文布局只有正文段与隐藏的 DSH-STATUS / DSH-TITLE，没有可见字段块；
+  // 硬把可见行插进去只能塞进正文段，下一次按「标题到第一个字段行之间都算正文」整段重建时，
+  // 这一行会被当成正文吞掉（读回来的边与盘上的形状对不上）。要支持也须另立隐藏注释，而原文没有这种约定。
+  if(r.container)return failAs(ERROR_KIND.UNSUPPORTED,'容器（map.md 或 spec.md 文件本身）在原文布局里没有 Blocked by 字段：阻塞边只能挂在票上，这次没写。容器编号是 00；请改对某一张票（例如 01）再试。',norm)
   const arr=Array.isArray(blockers)?blockers:[]
   // 全图环检（#1174；契约 operations.ts 的 setBlockedBy 一段写着「环检是写路径的一部分，不许省」）。
   // 放在写者队列里面：判环要读整张图，读完到落盘之间不许有本进程的别的写插进来。
@@ -299,7 +304,7 @@ async function setBlockedByInner(ctx: OpContext,repo: RepoWithPath | null,key: s
     // 差集为空：盘上本来挂的就是这几条边，这一趟一处都不用改（结论线记 noop、route 停在 none）。
     if(!added.length&&!removed.length)return undefined
     pending={ added: added.length, removed: removed.length }
-    return writeBlockedByLine(txt,arr,norm==='00',r.route)
+    return writeBlockedByLine(txt,arr,r.route)
   },opts,undefined,function(){
     if(!trail||!pending)return
     trail.route='file'

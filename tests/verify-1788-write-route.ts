@@ -15,6 +15,7 @@
 //   I Blocked by 按票面已有样式写（只有裸字段的票写裸行，加粗实施票写加粗行）；
 //   J 挂父票写文件头隐藏 <!-- DSH-PARENT: NN -->，不再写旧的 <!-- parentKey: NN -->。
 //   K 目录里没有编号的手写票（文件名与标题都没有编号）：认领同样只写隐藏注释、可见 Status 不动。
+//   L 对 00 号容器（spec.md / map.md 本身）写阻塞边：如实拒绝，文件一个字节不动。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1788-write-route.ts
 
@@ -248,6 +249,15 @@ async function main(): Promise<void> {
   check(/^Status: needs-triage$/m.test(kAfter), 'K 可见 Status 仍是 needs-triage；实际：' + JSON.stringify(kAfter.split('\n').filter((l) => /^Status/.test(l))))
   check(ticketFormOf(kBefore) === ticketFormOf(kAfter), 'K 票面形状认领前后相同；认领前：' + ticketFormOf(kBefore) + '，认领后：' + ticketFormOf(kAfter))
 
+  // —— 场景 L：00 号容器（spec.md 本身）没有 Blocked by 字段，写阻塞边要如实拒绝 ——
+  const specPath = path.join(tmp, '.scratch', '验收甲', 'spec.md')
+  const lSpecBefore = readText(specPath)
+  const lSpecBlocked = await setBlockedByIssue(ctx as never, featureRepo as never, '00', ['01'] as never, {} as never)
+  check(!(lSpecBlocked && lSpecBlocked.ok), 'L 对规格容器 00 写阻塞边要失败（容器原文没有 Blocked by）；实际返回：' + JSON.stringify(lSpecBlocked))
+  check(!!(lSpecBlocked && !lSpecBlocked.ok && lSpecBlocked.error.kind === 'unsupported'), 'L 失败档位是 unsupported；实际：' + JSON.stringify(lSpecBlocked && !lSpecBlocked.ok ? lSpecBlocked.error : lSpecBlocked))
+  check(readText(specPath) === lSpecBefore, 'L 被拒绝后 spec.md 一个字节都没变；实际：' + head(readText(specPath)))
+  check(readText(specPath).indexOf('Blocked by') < 0, 'L spec.md 里没有被插入 Blocked by 行')
+
   // ══ 第二组临时目录：加粗实施票（impl-ticket 路线语义不变） ══
   const tmpImpl = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1788-route-impl-'))
   const ctxImpl = mkctx(tmpImpl)
@@ -322,6 +332,13 @@ async function main(): Promise<void> {
   check(pointerLines.length > 0 && /^-\s/.test(pointerLines[0]), 'G 指针行是列表项（以 - 开头）；实际：' + JSON.stringify(pointerLines[0]))
   check(mapAfter.indexOf('## Decisions so far') >= 0, 'G 地图里仍有 ## Decisions so far 段')
   check(mapAfter !== '' && mapBefore !== '', '前置：地图文件读得到')
+
+  // —— 场景 L（地图容器）：map.md 本身同样没有 Blocked by 字段，也要如实拒绝 ——
+  const lMapBefore = readText(mapPath)
+  const lMapBlocked = await setBlockedByIssue(ctxMap as never, mapRepo as never, '00', ['01'] as never, {} as never)
+  check(!(lMapBlocked && lMapBlocked.ok), 'L 对地图容器 00 写阻塞边同样要失败；实际返回：' + JSON.stringify(lMapBlocked))
+  check(readText(mapPath) === lMapBefore, 'L 被拒绝后 map.md 一个字节都没变；实际：' + head(readText(mapPath)))
+  check(readText(mapPath).indexOf('Blocked by') < 0, 'L map.md 里没有被插入 Blocked by 行')
 
   // ══ 第四组临时目录：旧扁平路径（写路线仍拒绝） ══
   const tmpLegacy = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1788-route-legacy-'))
