@@ -893,6 +893,12 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcMaintenancePage', file: 'src/client/views/versionControl/vcMaintenancePage.ts' },
   { id: 'vcMaintenanceDiag', file: 'src/client/views/versionControl/vcMaintenanceDiag.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
+  // #1776 M1 真实页签四叶：纯状态换算 → 事件委托 → 数据装载与动作分派 → 容器组件。次序即闭包里谁先有值：
+  //   容器要用前三叶，VersionControlTab 只做入口委托，所以四叶都排在它前面。
+  { id: 'vcRealModel', file: 'src/client/views/versionControl/vcRealModel.ts' },
+  { id: 'vcRealDelegate', file: 'src/client/views/versionControl/vcRealDelegate.ts' },
+  { id: 'vcRealActions', file: 'src/client/views/versionControl/vcRealActions.ts' },
+  { id: 'vcRealTab', file: 'src/client/views/versionControl/vcRealTab.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },
   { id: 'truthLines', file: 'src/client/views/shared/truthLines.ts' }, // #715 新增：面板头部那几句「上次更新 / 刷新失败 / 现在是不是降级」的判据（纯函数，画在 ListTab 最上面那一行；行上的「更新中」标记也问它）

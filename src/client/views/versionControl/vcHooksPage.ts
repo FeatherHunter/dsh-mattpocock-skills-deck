@@ -46,7 +46,7 @@ const vcHookRowOf = function (h: any, t: any, row: any, ctx: any): any {
       'data-vc-hook-run': name,
       'data-vc-hooks-cap': '12.6',
       disabled: ctx.pending === true,
-      onClick: function () { ctx.actRun(name) },
+      'data-press': 'button', 'data-log': 'vc.hooks.run', onClick: function () { ctx.actRun(name) },
     }, vcHooksText(t, 'vc.hooks.run', null)))
   }
   return h('li', { key: name, className: 'vcs-hook-item', 'data-vc-hook': name }, children)
@@ -73,8 +73,8 @@ const vcHooksConfirmBlockOf = function (h: any, t: any, state: any, ctx: any): a
   return h('div', { key: 'confirm', className: 'vcs-hooks-confirm-wrap', 'data-vc-hooks-confirm': name }, [
     vcShellConfirmCardNode(h, t, { verb: verb, target: name }),
     h('div', { key: 'acts', className: 'vcs-hooks-confirm-acts' }, [
-      h('button', { key: 'go', type: 'button', className: 'vcs-confirm-go', 'data-vc-hooks-confirm-go': '1', disabled: ctx.pending === true, onClick: function () { ctx.actConfirmed(name) } }, vcHooksText(t, 'vc.hooks.confirm.go', { verb: verb })),
-      h('button', { key: 'cancel', type: 'button', 'data-vc-hooks-confirm-cancel': '1', onClick: function () { ctx.actCancel() } }, vcHooksText(t, 'vc.hooks.confirm.cancel', null)),
+      h('button', { key: 'go', type: 'button', className: 'vcs-confirm-go', 'data-vc-hooks-confirm-go': '1', disabled: ctx.pending === true, 'data-press': 'button', 'data-log': 'vc.hooks.confirm-go', onClick: function () { ctx.actConfirmed(name) } }, vcHooksText(t, 'vc.hooks.confirm.go', { verb: verb })),
+      h('button', { key: 'cancel', type: 'button', 'data-vc-hooks-confirm-cancel': '1', 'data-press': 'button', 'data-log': 'vc.hooks.confirm-cancel', onClick: function () { ctx.actCancel() } }, vcHooksText(t, 'vc.hooks.confirm.cancel', null)),
     ]),
   ])
 }

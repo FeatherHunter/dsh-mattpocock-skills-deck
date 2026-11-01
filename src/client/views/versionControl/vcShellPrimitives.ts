@@ -156,11 +156,14 @@ export const vcShellCapabilityRowNode = function (h: any, t: any, o: any) {
   }
   if (opts.confirm) kids.push(Object.assign({}, vcShellConfirmCardNode(h, t, opts.confirm), { key: 'confirm' }))
   if (opts.result) kids.push(Object.assign({}, vcShellResultNode(h, t, opts.result), { key: 'result' }))
-  return h('li', {
+  const rowAttrs: any = {
     key: String(cap.id || ''),
     className: 'vcs-cap',
     'data-cap-primary': String(cap.id || ''),
     'data-cap-row': String(cap.id || ''),
     'data-cap-form': String(cap.finalForm || ''),
-  }, kids)
+  }
+  // #1776：命令面板选中后跳到的那一行带 data-cap-hit，界面据此高亮落点（执行入口仍是行内按钮）。
+  if (opts.hit === true) rowAttrs['data-cap-hit'] = '1'
+  return h('li', rowAttrs, kids)
 }
