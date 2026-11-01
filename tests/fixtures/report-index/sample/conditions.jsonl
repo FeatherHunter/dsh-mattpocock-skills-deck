@@ -1,0 +1,3 @@
+{"condition":"免费档不支持原生阻塞写","scope":"GitLab Free / 所有项目","scenario":"J7-02","evidence":"evidence-archive/B1-20261031/J7-02/attempt-1/","alternative":"正文 DSH-BLOCKED-BY 标记 + 界面 Blocked by 行","expiry":"下一版重验","owner":"#1679"}
+{"condition":"未装 glab 时无法启动实例","scope":"Windows 10 22H2 / web profile","scenario":"J2-02","evidence":"evidence-archive/B1-20261031/J2-02/attempt-1/","alternative":"按指引安装 glab 后重试","expiry":"下一版重验","owner":"#1680"}
+{"condition":"注入 403 后实例日志有延迟","scope":"web profile / 双实例","scenario":"J11-03","evidence":"evidence-archive/S1-20261101/J11-03/attempt-1/","alternative":"无","expiry":"2026.11","owner":"#1681"}

@@ -164,6 +164,21 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 五条写动作的票据拒绝栈与 requestId 重放、危险动作 prune 先备份再起长任务，客户端维护页与诊断页、七处登记点，
   // 五组 A–E（协议 93 条、拒绝栈 114 条、真仓库 63 条、界面与词条 61 条、登记点 35 条），评审后危险区单列一块并收下全库重写五张表单，单跑实测 372 条。
   'verify-1586-maintenance': 372,
+  // 2026-10-31 #1708：GitLab 种子票池门禁，正例单跑实测 57 条断言；负例用 --negative 单独跑（6 条断言、3 条故意红），不计入开闸期望。
+  'verify-1708-seed-data': 57,
+  // 2026-10-31 #1709：deck 写工具直调入口门禁，正例单跑实测 64 条断言；负例用 --negative 单独跑（2 条断言、2 条故意红），不计入开闸期望。
+  'verify-1709-deck-entry': 64,
+  // 2026-10-31 #1710：批次前置巡检门禁，正例单跑实测 76 条断言；负例用 --negative 单独跑（5 条断言、3 条故意红），不计入开闸期望。
+  'verify-1710-preflight': 76,
+  // 2026-10-31 #1706：GitLab 沙箱项目与工作区的黑盒门禁，正例单跑实测 58 条断言；负例用 --negative 单独跑，不计入开闸期望。
+  'verify-1706-gitlab-project': 58,
+  // 2026-10-31 #1707：真机实例环境注入门禁，正例单跑实测 79 条断言；负例用 --negative 单独跑（5 条断言、3 条故意红），不计入开闸期望。
+  'verify-1707-env-injection': 79,
+  // 2026-10-31 #1711：报告索引脚本门禁，正例单跑实测 94 条断言；负例用 --negative 单独跑，不计入开闸期望。
+  // 2026-10-31 #1714：执行 B1 时发现 P2 产品缺陷按规格不开票、defect 必须允许 null，补 4 条断言，单跑实测 98 条。
+  'verify-1711-report-index': 98,
+  // 2026-10-31 #1705：真机工具台的进程级夹具门禁，正例单跑实测 43 条断言；负例用 --negative 单独跑，不计入开闸期望。
+  'verify-1705-real-machine-fixture': 43,
   // 2026-10-29 #1600：词表里 gate.wipNotice 已退役（GitLab 可用后不再有「筹备中」注解），
   // 这扇改成先钉「键已不在词表里」、再钉「初始化小卡上不再出现该文案」，单跑实测 31 条。
   'verify-669-collapsed-recoverable': 31,
@@ -386,8 +401,14 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 单跑实测 353 条。
   'verify-1586-rewrite': 353,
   // 2026-10-31 #1766：批次候选身份与证据绑定（旧候选、脏候选、证据缺身份、HEAD 前进、候选文件与 tgz 被换、
-  // 批次名不能是 . 与 ..、collect-evidence 命令层拒收被改过的候选）；29 条单跑实测。
-  'verify-1766-batch-identity': 29,
+  // 批次名不能是 . 与 ..、collect-evidence 命令层拒收被改过的候选；#1777 起再加一条「本地基线前进而 HEAD 没动
+  // 时批次也标 stale」）；30 条单跑实测。
+  'verify-1766-batch-identity': 30,
+  // 2026-11-01 #1777：开批新鲜度与版本口径守卫（基线 tip 与 package.json 版本读取、候选须包含基线 tip、
+  // 落后与分叉都拒绝、--allow-outdated-base 只放行落后且标 outdatedBase、版本不符与 development 候选都不能绕过、
+  // 收尾时基线前进/读不到基线/旧批次无 base 都判 stale、batch.json base 往返与坏记录拒绝、
+  // check-batch 与 prepare-batch 命令层接线）；34 条单跑实测。
+  'verify-1777-batch-freshness-guards': 34,
   // 2026-10-31 #1766：发布候选审计与发布字节对账（身份行、候选提交祖先、差异审计、候选包哈希、
   // validate/match 命令行入口、publish-token.ps1 传 -Candidate 时的真实冒烟）；59 条单跑实测。
   'verify-1766-release-audit': 59,

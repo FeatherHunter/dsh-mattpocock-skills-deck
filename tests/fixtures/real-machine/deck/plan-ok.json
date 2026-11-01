@@ -1,0 +1,44 @@
+{
+  "default": {
+    "exitCode": 0,
+    "stdout": "[]\n"
+  },
+  "rules": [
+    {
+      "argvPrefix": [
+        "api",
+        "projects/FixtureGroup%2Fdsh-deck-demo/issues/7/notes",
+        "--method",
+        "POST"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"id\":99,\"body\":\"夹具里的评论回包\",\"author\":{\"username\":\"fixture-bot\"},\"created_at\":\"2026-10-30T02:05:00Z\"}\n"
+    },
+    {
+      "argvPrefix": [
+        "api",
+        "projects/FixtureGroup%2Fdsh-deck-demo/issues",
+        "--method",
+        "POST"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"iid\":7,\"id\":1007,\"title\":\"无人机送检票\",\"description\":\"<!-- DSH-PARENT: 3 -->\\n第一行：先把夹具做出来\\n第二行：中文与换行都要原样回来\\n\",\"state\":\"opened\",\"labels\":[{\"name\":\"bug\",\"color\":\"#d73a4a\",\"text_color\":\"#ffffff\"}],\"web_url\":\"https://gitlab.com/FixtureGroup/dsh-deck-demo/-/issues/7\",\"created_at\":\"2026-10-30T02:00:00Z\",\"updated_at\":\"2026-10-30T02:00:00Z\",\"author\":{\"username\":\"fixture-bot\",\"name\":\"夹具机器人\"}}\n"
+    },
+    {
+      "argvPrefix": [
+        "api",
+        "projects/FixtureGroup%2Fdsh-deck-demo/issues/7?with_labels_details=true"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"iid\":7,\"id\":1007,\"title\":\"无人机送检票\",\"description\":\"<!-- DSH-PARENT: 3 -->\\n第一行：先把夹具做出来\\n第二行：中文与换行都要原样回来\\n\",\"state\":\"opened\",\"labels\":[{\"name\":\"bug\",\"color\":\"#d73a4a\",\"text_color\":\"#ffffff\"}],\"web_url\":\"https://gitlab.com/FixtureGroup/dsh-deck-demo/-/issues/7\",\"created_at\":\"2026-10-30T02:00:00Z\",\"updated_at\":\"2026-10-30T02:00:00Z\",\"author\":{\"username\":\"fixture-bot\",\"name\":\"夹具机器人\"}}\n"
+    },
+    {
+      "argvPrefix": [
+        "api",
+        "projects/FixtureGroup%2Fdsh-deck-demo/issues/7"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"iid\":7,\"id\":1007,\"title\":\"无人机送检票\",\"description\":\"<!-- DSH-PARENT: 3 -->\\n第一行：先把夹具做出来\\n第二行：中文与换行都要原样回来\\n\",\"state\":\"opened\",\"labels\":[{\"name\":\"bug\",\"color\":\"#d73a4a\",\"text_color\":\"#ffffff\"}],\"web_url\":\"https://gitlab.com/FixtureGroup/dsh-deck-demo/-/issues/7\",\"created_at\":\"2026-10-30T02:00:00Z\",\"updated_at\":\"2026-10-30T02:00:00Z\",\"author\":{\"username\":\"fixture-bot\",\"name\":\"夹具机器人\"}}\n"
+    }
+  ]
+}

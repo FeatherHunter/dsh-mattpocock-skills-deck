@@ -31,6 +31,18 @@
    `USERPROFILE`/`HOME`；插件日志写在各自的启动目录下，插件设置写在各自的 `USERPROFILE` 里。
    `isolation-probe` 这条命令专门用来证明这件事：它对比真实用户设置文件在探针前后的 SHA256，没变才算通过。
 
+4. **门禁走进程接口，不 import 命令内部函数**。`tests/lib/real-machine-process.ts` 是给门禁用的夹具：
+   它在系统临时目录（或 `DSH_VERIFY_WORK_ROOT` 指定的位置）里开一个隔离工作根，用上面第 1 条的同一种写法
+   起命令，直接拿回 stdout 那段 JSON、退出码、stderr 和工作根里的文件；`home`、临时目录、`DSH_REAL_HOME`
+   都指进沙箱，假 `glab` 放在 PATH 最前面、同时用 `GLAB_BIN` 指过去，每次调用的 argv 与工作目录记进
+   JSONL 供测试断言。整个过程不改宿主环境的变量，也不碰真实 DSH 配置。现成的例子是
+   `tests/verify-1705-real-machine-fixture.ts`：
+   ```
+   node --import ./scripts/ts-hook.mts tests/verify-1705-real-machine-fixture.ts            # 正例，应退出 0
+   node --import ./scripts/ts-hook.mts tests/verify-1705-real-machine-fixture.ts --negative # 负例，应退出 1
+   ```
+   负例故意写错两条期望，用来证明这扇门禁真的会红；新门禁也按这个约定带一个能单独触发的负例。
+
 ## 有头验证：窗口必须是真全屏
 
 无头断言用固定视口（默认 1600x1000）没问题；但要判断「浮层会不会被别的界面元素盖住」「提示贴到屏幕边缘会不会越界」这类空间问题，必须让真实浏览器窗口真的全屏。2026-10-29 验 1655-01 时就错过一次：Playwright 的 `--start-fullscreen` 被忽略，真实窗口只有 1083 像素宽；用 `setViewportSize` 把页面视口强设成 2195 后截图看起来铺满屏幕，据此判「关闭整个 deck 的跟随浮层被右侧面板盖住、确认键鼠标点不到」。后来用 CDP 切真全屏复核，遮挡并不存在——错的是验证方法，不是产品。
@@ -116,7 +128,9 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/freeze-candida
 node --import ./scripts/ts-hook.mts scripts/real-machine/commands/prepare-batch.mts --name <批次名> --ticket <票号>
 ```
 
-参数：`--batch <批次目录>` 直接指定批次目录；`--name <批次名>` 指定批次名，默认批次目录是 `<工作根>/batches/<批次名>`；`--ticket <票号>` 记下这批属于哪张票；`--allow-dirty` 允许在脏树上准备（这样冻结出来的候选 `validity` 是 `development`，只能算开发验证）；`--profile <profile>` 选要核对的界面 profile（默认 `web`）；`--install-method extract|cli` 选安装方式；`--no-start` 只准备、不起实例；`--no-ui` 跳过界面版本串核对；`--timeout <毫秒>` 给构建与打包设上限。批次目录里已经存在 `batch.json` 的同名批次会被拒绝复用，免得把旧批次的产物当成新批次。冻结完成之后命令会再读一次 git 状态：HEAD 前进了、或者 release 候选对应的工作树不干净，都会拒绝开批；实例启动或前置巡检没通过时不写 `batch.json`，这一批不能开始收证据。
+参数：`--batch <批次目录>` 直接指定批次目录；`--name <批次名>` 指定批次名，默认批次目录是 `<工作根>/batches/<批次名>`；`--ticket <票号>` 记下这批属于哪张票；`--allow-dirty` 允许在脏树上准备（这样冻结出来的候选 `validity` 是 `development`，只能算开发验证）；`--profile <profile>` 选要核对的界面 profile（默认 `web`）；`--install-method extract|cli` 选安装方式；`--no-start` 只准备、不起实例；`--no-ui` 跳过界面版本串核对；`--timeout <毫秒>` 给构建与打包设上限；`--base-ref <基线分支>` 指定本地基线分支（默认 `main`）；`--allow-outdated-base` 允许候选落后于基线（只在开发验证里用，这样开的批次收尾时会标 `stale`）；`--instance-env-file <环境文件路径>` 把 `GLAB_CONFIG_DIR`、`PATH`、`GITLAB_TOKEN` 直接交给本批实例。批次目录里已经存在 `batch.json` 的同名批次会被拒绝复用，免得把旧批次的产物当成新批次。冻结完成之后命令会再读一次 git 状态：HEAD 前进了、或者 release 候选对应的工作树不干净，都会拒绝开批；实例启动或前置巡检没通过时不写 `batch.json`，这一批不能开始收证据。开批前还会先读本地基线的 tip 与 `package.json` 版本：候选提交不包含基线 tip 默认拒绝（`--allow-outdated-base` 只放行这一条），候选版本不等于基线版本一律拒绝（两个开关都不能绕过）。
+
+版本口径：验的永远是下一个要发布的版本。已发布 `1.9.0-beta.32` 时 `main` 的 `package.json` 已经是 `1.9.0-beta.33`，所以这一轮验 `1.9.0-beta.33`；稳定版同理，已发布 `1.9.0` 就验 `1.9.1`。
 
 批次目录里的东西：
 
@@ -127,7 +141,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/prepare-batch.
 - `batch.json`：这一批的机器可读记录，字段见下。
 - `evidence/`：场景证据。
 
-`batch.json` 记 `schemaVersion`、`batchName`、`batchDir`、`createdAt`、`updatedAt`、`status`（`active` / `stale`）、`startHead`、`startBranch`、`endHead`、`endCheckedAt`，以及 `candidate`（`path`、`sha256`、`commit`、`version`、`validity`、`tgzPath`、`tgzSha256`、`manifestDigest`、`fileDigest`）、`preflight`、`instance`。
+`batch.json` 记 `schemaVersion`、`batchName`、`batchDir`、`createdAt`、`updatedAt`、`status`（`active` / `stale`）、`startHead`、`startBranch`、`endHead`、`endCheckedAt`、`base`（开批基线：`ref`、`tip`、`expectedVersion`、`allowOutdated`），以及 `candidate`（`path`、`sha256`、`commit`、`version`、`validity`、`tgzPath`、`tgzSha256`、`manifestDigest`、`fileDigest`）、`preflight`、`instance`。
 
 `candidate.json` 在原来「提交、版本、tgz 与逐文件 SHA256」之外新增四个字段：`validity`（`release` = 干净树冻结、可用于发布；`development` = 带 `--allow-dirty` 的开发验证）、`sourceStable`（冻结前后 HEAD 与未提交文件集合是否一致，构建期间源码被改动会在这里露馅）、`package.buildCommit`（构建产物里的提交）、`package.fileDigest`（不含提交与版本的逐文件清单指纹，与 `scripts/release-integrity.mts` 的 digest 同一算法，用来和发布字节对账）。
 
@@ -137,13 +151,15 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/prepare-batch.
 node --import ./scripts/ts-hook.mts scripts/real-machine/commands/check-batch.mts --batch <批次目录>
 ```
 
-它读 `batch.json`，把当前 git HEAD 与候选提交比一次：不同就把 `status` 改成 `stale`、写 `endHead` 与 `endCheckedAt`，并提示这条批次不能用于发布收口（原件不删）；相同就只记 `endCheckedAt`，`status` 保持 `active`。
+它读 `batch.json`，把当前 git HEAD 与候选提交比一次，并重读本地基线分支的 tip：HEAD 前进、基线前进、收尾时读不到基线、或旧批次没有 `base` 记录，都会把 `status` 改成 `stale`、写 `endHead` 与 `endCheckedAt`，并提示这条批次不能用于发布收口（原件不删）；都没前进就只记 `endCheckedAt`，`status` 保持 `active`。只比 HEAD 抓不到「在集成分支开批、集成分支 HEAD 不动但 `main` 前进了」这种情况，所以要连基线一起比。
 
 批次开始评论与每条场景结果评论都要带同一行验证身份，精确格式是：
 
 ```
 - 验证身份：批次 <批次名>；候选提交 <40位小写提交>；候选包 sha256 <64位小写tgz哈希>
 ```
+
+批次开始评论还要再写一行验证基线（`prepare-batch` 输出的 `baseLine`），格式是 `- 验证基线：本地 main <40位提交>；目标版本 <版本号>`。这一行不参与发布前检查的机器核对，但它是「这批验的是不是最新代码」的唯一书面记录，写评论时别漏。
 
 发布前检查靠这一行把评论与候选清单对上；它只读票面评论与 `--candidate` 传来的 `candidate.json`，不读本机 `batch.json`（发布可能不在做真机验证的那台机器上）。格式不对或身份对不上的结果不算通过。收证据前 `collect-evidence` 还会拒绝状态不是 `active` 或前置巡检没通过的批次，并重新读一遍 `candidate.json` 与候选包，核对它们的 sha256 是否仍是批次记录里的那一份：候选文件被改过、候选包被换过，都会拒绝收证据。
 
@@ -189,6 +205,81 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 每次批次结束、发布前、换版本重跑之前各清一次。2026-10 有过一次 4.3GB / 4.9 万文件的堆积，
 就是因为没有这条命令、也没人记着清。
 
+## GitLab 沙箱项目
+
+GitLab 后端的验证需要一个真的 gitlab.com 项目，手工建删既慢又容易留下垃圾，所以用 `gitlab-sandbox` 管项目生命周期：
+
+- 建项目：`node --import ./scripts/ts-hook.mts scripts/real-machine/commands/gitlab-sandbox.mts create --batch <批次目录> --path <group>/<project> [--description <补充描述>]`。它用 `glab repo create --private --skipGitInit --readme` 建一个空项目，然后按项目路径读回 `id`、`path_with_namespace`、`web_url`，写进 `<批次目录>/gitlab-projects.json`；项目描述里带批次标记 `[dsh-sandbox batch=<批次名>]`。同一个路径重复执行会复用清单里的项目（按 id 读回），不会重复建。
+- 删项目：`node --import ./scripts/ts-hook.mts scripts/real-machine/commands/gitlab-sandbox.mts delete --batch <批次目录> --id <项目 id>`。它只删批次清单里记过、且项目描述仍带本批次标记的项目；清单里没有这条记录或没有批次标记时直接拒绝。GitLab 对删除只回 202 并延迟标记，所以命令会按 id 读回 `marked_for_deletion_at`，读到才算删成功；读回失败时把项目 id 保留在清单里、状态标成 `delete-failed` 并明确报错，再跑一次 delete 可以补完。
+- 建完项目用 `make-workspace --kind gitlab --project <group>/<project>` 生成工作区：本地 `git init`，`origin` 指向 `https://gitlab.com/<group>/<project>.git`，工作区文件写 `backendId: gitlab`，不 clone、不联网。
+- 命令依赖本机已登录 gitlab.com 的 `glab`。门禁不联网，用假 glab 与本地空仓库覆盖，所以门禁绿只说明逻辑对，真机还要跑一遍。每批只建 1-2 个沙箱项目，场景验完立刻删，避免 pending-deletion 配额被占满。
+
+### 种子票池：`seed-gitlab`
+
+真机验证要一个形状固定、能反复重建的票池（默认 101 张票、两张地图与子票、标签、指派、父子与阻塞关系），手工点太慢也容易漏，所以用 `seed-gitlab` 幂等地种：
+
+```
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/seed-gitlab.mts --batch <批次目录> --project <group>/<project>
+```
+
+- 目标项目必须已经存在（先 `gitlab-sandbox create`，或用批次里已有的项目）；这条命令只种票与关系，不建项目。
+- 每张票正文文件头都写稳定键 `<!-- DSH-SEED-KEY: seed-issue-007 -->`，子票另带 `<!-- DSH-PARENT: <地图 iid> -->`。重跑先按 `state=all` 读回整池票，按稳定键认回已有的，只补缺的；种好后 `<批次目录>/gitlab-seed.json` 的 `mode` 是 `read-only`，之后要补种（远端少了票或被改坏）必须显式加 `--unlock-readonly`，补完自动恢复只读。
+- 阻塞关系优先写原生 `is_blocked_by` 边；免费档拿不到原生能力时自动回落成正文成对两行：人读 `Blocked by: #N`、程序读 `<!-- DSH-BLOCKED-BY: N -->`。
+- 部分失败时退出码 1，stdout 仍打一份 JSON 回执，`errors` 里指到第几张票、哪个稳定键、试了几次；manifest 已落盘，重跑只补那几项。
+- 规模可以用 `--ticket-count` / `--closed` / `--maps` / `--children` / `--blocking` 调，默认 101/5/2/5/8；同一个批次目录只按第一次的规模补种。
+
+### 直调 deck 写工具：`deck-write` 与 `deck-readback`
+
+规格 #1703 阶段 0 要证明「隔离实例里能直调 deck 写工具、回执是无损 JSON、再用 glab 独立读回」。首选路线是在已开实例的页面上下文里走宿主代执行通道（`wf.deckExec`），但那需要真实例与 Playwright，进程外直接 POST `/api/dsws` 实测回 401；所以工具台先提供备选路线的两条命令：
+
+```
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/deck-write.mts --tool <工具名> --args <入参 JSON 文件> --ref <group>/<project> --workspace <工作区目录> [--out <回执文件>]
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/deck-readback.mts --ref <group>/<project> --key <票号> [--out <读回文件>]
+```
+
+- `deck-write` 固定 GitLab 后端，按 `--args` 文件里的 JSON 调一次 `deck_issue_create` / `deck_issue_patch` / `deck_map_link`，把工具回执原样写成 JSON（stdout 一份，`--out` 一份，缺省是当前目录的 `tool-response.json`）。回执必须无损：JSON 表达不了的值（NaN、Infinity、函数、Symbol）直接报错，不悄悄变成 null；对象里值为 `undefined` 的键显式剥掉，剥掉后必须能往返等值。
+- 退出码分四档：0 成功；1 工具自己回了失败（回执里 status 不是 ok）；2 参数或入口错（工具名不在可直调清单、入参文件读不了、缺 `--tool`）；3 环境不齐（缺 `GLAB_BIN`、`GLAB_BIN` 指向的文件不存在、工作区不存在、仓库标识不是 `<group>/<project>`）；4 内部装配错。缺 `GLAB_BIN` 时不会去 PATH 上找 glab，所以「没装」不会被误判成「装好了」。
+- `deck-readback` 不经过 deck 装配，直接用 `glab api` 读 `projects/<编码后的 group%2Fproject>/issues/<票号>?with_labels_details=true`，输出票号、标题、正文、状态、标签名、父票号（读正文里的 `<!-- DSH-PARENT: n -->`）、web 地址与原始响应。写命令与读命令是两条独立路径，读回一致才有证据力。
+- 门禁 `tests/verify-1709-deck-entry.ts` 只起子进程：入口与夹具存在、三条写场景（建票 / 评论 / 挂父票）各直调一次并核对回执与假 glab 的调用记录、`deck-readback` 独立读回、七条拒绝路径逐条单独触发且一次 glab 都不调、回执无损单测、`--negative` 自证会红。门禁不联网、不需要真 glab、不碰真实凭据；真机上写成功与否由 B0 批次取证。
+
+### 批次前置巡检：`preflight`
+
+每批开始前先跑一次前置巡检，一条命令把「这批环境到底能不能开始」核对完：
+
+```
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/preflight.mts --batch <批次目录>
+```
+
+- 九项硬检查：候选包身份（candidate.json 的提交与 tgz SHA256）、隔离 home 与 profile（已装插件版本是否等于候选版本）、工作区文件与 git remote（backendId: gitlab、origin 是否指向本批项目）、glab 版本与认证（GLAB_BIN 指到哪个 glab、登录的是哪个 gitlab.com 账号）、沙箱项目 id 与状态（按 id 用 glab api 读回，确认没被标记删除）、票池数量（默认至少 101 张，能用 issues_statistics 独立读回时一并记下）、日志目录可写（真写一个探针文件再删掉）、屏幕分辨率与主屏（预检自己跑屏幕命令，不靠人抄）、Node 版本（默认要求 24.15.0 及以上）。
+- stdout 只有一段 JSON，同一段也写进 `<批次目录>/preflight.json`（`--out` 可改位置）；批次开始评论直接抄这段 JSON 的相关字段，包括屏幕分辨率与主屏。
+- 每项都有稳定 id、中文名、是否硬项、ok、失败原因（写明期望与实际差在哪）与可复核的 details。全部通过时退出码 0；任一硬项失败退出码非 0，stderr 还会用一行汇总点到失败项的 id 与中文名。
+- 屏幕信息默认用本机 powershell 取；要换命令用 `--screen-cmd` 或环境变量 `DSH_PREFLIGHT_SCREEN_CMD`（门禁就是用假命令替换的，不依赖本机显示器）。
+- 只读：不访问网络（glab 由 GLAB_BIN 注入）、不写真实 DSH 配置，日志目录探针写完立刻删。
+
+## 带 GitLab 环境起实例：`--instance-env-file` 与 `--launch-plan`
+
+隔离实例默认读不到本机的 glab 配置，也没有 GitLab token。要让它按批次环境访问 GitLab，把要传的变量写进一个环境文件，再用 `--instance-env-file` 把文件路径交给 `start-instance`：
+
+```
+GLAB_CONFIG_DIR=D:\...\batch-a\glab-config
+PATH=C:\Program Files\Git\cmd;C:\Program Files\nodejs
+GITLAB_TOKEN=<本批使用的 token>
+```
+
+- 只认 `GLAB_CONFIG_DIR`、`PATH`、`GITLAB_TOKEN` 三个变量名；前两个必需，`GITLAB_TOKEN` 可选：这一批不需要访问 GitLab 时可以整行不写，或写成空值表示这次不注入 token。
+- 值只合并进实例进程的环境，不会出现在命令行参数、`instance.json`、实例的 stdout/stderr 与插件日志里。命令只在 stderr 报一句「环境文件：<路径>；注入变量：GLAB_CONFIG_DIR、PATH、GITLAB_TOKEN（值不输出）」。
+- 参数名是 `--instance-env-file` 而不是 `--env-file`：Node 自己有 `--env-file` 选项，会把后面的值当成 Node 自己的环境文件读，命令根本收不到这个参数。
+- `prepare-batch` 也认这个参数：开批时把环境文件直接交给本批实例，并在 `batch-preflight.json` 里记路径与变量名，不记值。
+- 文件不存在、缺少 `GLAB_CONFIG_DIR` 或 `PATH`、写了不认识的变量名、某行不是 `KEY=VALUE` 时，命令以退出码 1 失败，并在 stderr 用中文说清第几行、哪个变量名；错误信息不回显整行原文（那行可能正好写着 token）。
+
+只想看会怎么启动、还不想真起进程时加 `--launch-plan`：
+
+```
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/start-instance.mts --home <批次home> --dir <启动目录> --instance-env-file <批次>/env.txt --launch-plan
+```
+
+计划模式只打印一段 JSON：启动命令、启动目录、环境变量名与各类日志落点；不检查 DSH 程序能不能起、不创建目录、不起进程。计划里没有任何变量值，可以直接贴进批次记录或证据文件。
+
 ## 全部命令
 
 启动类：
@@ -197,7 +288,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 | --- | --- |
 | `copy-home` | 把真实 web profile（或候选 home 模板）安静复制成批次专属 `DSH_HOME`，不打印文件名与文件内容 |
 | `seed-workspace` | 把工作区登记写进 home 的 `storages/workspace.json`，绕过无头环境点不了原生目录选择器的问题 |
-| `start-instance` | 在独立启动目录起一个实例，把 pid、端口、访问地址、日志位置写成 `instance.json` |
+| `start-instance` | 在独立启动目录起一个实例，把 pid、端口、访问地址、日志位置写成 `instance.json`；支持 `--instance-env-file <环境文件>` 把 GLAB_CONFIG_DIR、PATH、GITLAB_TOKEN 传进实例进程，`--launch-plan` 只打印启动命令与变量名、不起进程 |
 | `stop-instance` | 按 pid 结束实例整棵进程树，等它真的消失 |
 
 造工作区：
@@ -208,6 +299,17 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 | `make-workspace --kind markdown` | 长名字 `.scratch/<effort>/` 夹具，含地图与子票，写 Markdown 后端绑定 |
 | `make-workspace --kind cold` | 空目录（可选初始化成一个只有初始提交的本地仓库），验证离线首次启动 |
 | `make-workspace --kind ab` | 形状相同、内容不同的 A/B 两个工作区 |
+| `make-workspace --kind gitlab` | 本地空仓库加 `origin` 指向 GitLab 沙箱项目，写 GitLab 后端绑定（不 clone、不联网） |
+
+GitLab 沙箱项目（建删细节见上面的「GitLab 沙箱项目」一节）：
+
+| 命令 | 做什么 |
+| --- | --- |
+| `gitlab-sandbox create` | 在 gitlab.com 建带批次标记的私有空项目，读回 id、path、web_url 写进批次清单 |
+| `gitlab-sandbox delete` | 只删批次清单里记过、仍带本批次标记的项目，读回 marked_for_deletion_at 才算删掉 |
+| `seed-gitlab` | 把 101 张票、两张地图与子票、标签、指派、父子与阻塞关系幂等种进 GitLab 沙箱项目，写批次 manifest，重跑只补缺项 |
+| `deck-write` | 按固定入参直调一次 deck 写工具（建票/改票/挂边），回执写成无损 JSON，退出码区分成功与各类失败 |
+| `deck-readback` | 不经过 deck 装配，直接用 `glab api` 读回一张 GitLab 票，用来独立核对 `deck-write` 的回执 |
 
 核对与证据：
 
@@ -219,18 +321,42 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 | `isolation-probe` | 证明 `USERPROFILE` 重定向生效、真实用户设置文件未被写入 |
 | `backup-settings` / `restore-settings` | 备份与恢复真实用户设置（需要临时改真实设置做对照时才用） |
 | `global-lock` | 多人同时做真机验证时的互斥锁：拿锁、放锁 |
+| `report-index` | 汇总全局 index.jsonl 与 conditions.jsonl，输出断言分组计数、缺陷等级、候选通过率、条件账本，并可渲染 Markdown 摘要 |
+| `preflight` | 批次开始前一条命令输出九项环境预检 JSON（候选身份、隔离 home、工作区、glab 认证、沙箱项目、票池、日志目录、屏幕、Node），任一硬项失败退出码非 0 |
 
 冻结、批次与清理：
 
 | 命令 | 做什么 |
 | --- | --- |
 | `freeze-candidate` | 构建 + 打包 + 逐文件清单 + 装隔离 home + 核对界面版本串 |
-| `prepare-batch` | 用当前 HEAD 重新冻结候选，构建、打包、装隔离 home、起实例、前置巡检，一条命令完成 |
-| `check-batch` | 批次结束时比较当前 HEAD 与候选提交，HEAD 前进就把批次标成 `stale` |
+| `prepare-batch` | 用当前 HEAD 重新冻结候选，构建、打包、装隔离 home、起实例、前置巡检，一条命令完成；开批前核对候选包含本地基线 tip、版本等于基线 `package.json` 版本 |
+| `check-batch` | 批次结束时比较当前 HEAD 与本地基线 tip，任一前进就把批次标成 `stale` |
 | `two-instance-smoke` | 从零跑一次双实例冒烟 |
 | `cleanup` | 先报占用与文件数，确认后删批次产物 |
 
 每个命令文件的开头注释都写了完整参数与输出字段；`--help` 不是这条工具的支持方式，看注释即可。
+
+## 报告索引：`report-index`
+
+批次归档后，`evidence-archive/index.jsonl`（一行一次尝试）与 `conditions.jsonl`（一行一个条件）需要按统一口径汇总，`report-index` 就是这件事：读这两个文件，在 stdout 打印一段 JSON，可选把 Markdown 摘要写到文件。
+
+```
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/report-index.mts \
+  [--index <index.jsonl>] [--conditions <conditions.jsonl>] \
+  [--defects <清单.json>] [--markdown-out <摘要.md>]
+```
+
+- `--index`：全局索引，默认 `<工作根>/evidence-archive/index.jsonl`。
+- `--conditions`：条件账本，默认与 index 同目录的 `conditions.jsonl`；默认位置不存在时按 0 条处理，显式传了却不存在则报错。
+- `--defects`：缺陷等级清单，JSON 数组，形如 `[{"ticket":"#2001","level":"P1"}]`。`index.jsonl` 里只有缺陷票号没有等级，所以不给清单时按该行场景在 #1675 里的最高 P 级上限推定；需要精确等级就传清单。
+- `--markdown-out`：把 Markdown 摘要写到指定路径；不传就只打印。
+- `defect` 字段：P0/P1 产品缺陷必须写 `#<数字>` 票号；P2 按规格不开缺陷票，留 `null`，判定仍写「产品缺陷」，汇总进 `unticketedProductDefects` 并在 Markdown 单列，供报告已知限制逐行引用。
+
+输出字段：`totals`（行数、尝试数、未测数、结论分布）、`assertions`（8 条支持度断言的分组计数与支持率）、`unmappedScenarios`（映射表里没有的场景号，只提示不报错）、`candidates`（每个候选的通过率与未测数）、`defects`（P0/P1/P2 缺陷票与重验状态）、`unticketedProductDefects`（P2 无缺陷票的行，按规格只进已知限制）、`conditions`（条件条数）、`markdown`。两点口径：一个场景可以支撑多条断言，所以断言次数相加会大于行数；有效通过率的分母会扣掉「环境限制」和「测试或工具问题」这些不算产品问题的行。
+
+输入不合法时不出汇总，退出码 1，stderr 用一句中文指出问题与行号：非法 verdict、缺字段、重复行（同一批次 + 场景 + 尝试号）、candidate 不是完整 40 位提交哈希、场景号形状不对、非产品缺陷行带了缺陷票、条件缺字段等。
+
+样例输入与期望快照在 `tests/fixtures/report-index/`，黑盒门禁是 `tests/verify-1711-report-index.ts`（加 `--negative` 可单独触发负例）。
 
 ## 隔离是怎么做到的
 
@@ -270,9 +396,13 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 - 跨盘安装限制见上文「冻结候选包」一节；`--install-method cli` 只在 home 与 pnpm store 同盘时能用。
 - 复制 home 会连 profile 里旧的 `dsh plugin add` 依赖记录一起复制过来，那是真机 home 的原样；
   工具只保证不打印文件内容、不写真实 home。
+- `global-lock --release` 只释放 `owner.json` 里记的那个进程拿的锁；换一个进程去释放会回
+  `{"released": false}`，reason 里写清锁的 owner 是哪个 pid，锁目录也不删。这是现有行为，不是门禁
+  夹具引入的：要清掉锁就删锁目录，或让拿锁的那个进程自己释放。
 
 ## 相关文件
 
 - 规则与批次记录格式：[docs/agents/real-machine-verification.md](../../docs/agents/real-machine-verification.md)
 - 清单票模板：[docs/agents/checklist-issue-template.md](../../docs/agents/checklist-issue-template.md)
 - 发布前 / 发布后机器检查：`scripts/release-preflight.mts`、`scripts/release-postflight.mts`
+- 门禁用的进程级夹具：`tests/lib/real-machine-process.ts`；假 `glab`、隔离探针等夹具脚本在 `tests/fixtures/real-machine/`。

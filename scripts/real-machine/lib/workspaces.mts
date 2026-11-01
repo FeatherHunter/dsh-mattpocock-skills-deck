@@ -1,4 +1,4 @@
-// workspaces.mts —— 工作区生成器：GitHub 后端、离线冷启动、Markdown 后端、1612 用的 A/B 两套。
+// workspaces.mts —— 工作区生成器：GitHub 后端、离线冷启动、Markdown 后端、GitLab 沙箱、1612 用的 A/B 两套。
 //
 // Markdown 后端的文件形状不手抄：直接调用仓库自己的渲染器（渲染器与插件读文件走同一份模板），
 // 生成的 map.md 与 issues/NN-<slug>.md 因而与插件真实读取的形状一致。
@@ -12,11 +12,12 @@
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { assertProjectPath } from './gitlab-projects.mts'
 import { assertWritableTarget } from './paths.mts'
 import { dirStats, ensureDir, exists, nowIso, repoRoot, rmrf, writeJson, writeText } from './util.mts'
 
 export interface GeneratedWorkspace {
-  kind: 'github' | 'cold' | 'markdown' | 'ab'
+  kind: 'github' | 'cold' | 'markdown' | 'gitlab' | 'ab'
   dir: string
   title: string
   backendId: string
@@ -182,6 +183,33 @@ export function createColdWorkspace(options: { dir: string; git?: boolean; force
   const readme = path.join(target, 'README.md')
   writeText(readme, '# 离线冷启动工作区\n\n这是验证夹具：目录是空的，没有 docs/agents/workspace.yaml，也没有 .scratch/。\n插件第一次看到它时应当能离线启动，并显示尚未初始化。\n')
   return { kind: 'cold', dir: target, title: path.basename(target), backendId: 'none', extra }
+}
+
+/**
+ * GitLab 后端工作区：本地空仓库 + origin 指向沙箱项目地址 + docs/agents/workspace.yaml（backendId=gitlab）。
+ *
+ * 为什么不 clone：真机上 gitlab.com 的 clone 会被拒（Access denied），而插件识别 GitLab 仓库只需要
+ * .git/、origin 与绑定文件三样，所以这里只做 git init 与 git remote add，不联网、不需要认证。
+ * 沙箱项目本身由 commands/gitlab-sandbox.mts create 建；本函数只收项目完整路径（group/project）。
+ *
+ * 注意：生成的是空仓库（没有初始提交）。验证时在工作区里改文件、提交都行，不会碰到 GitLab 上的项目。
+ */
+export async function createGitlabWorkspace(options: { dir: string; project: string; force?: boolean }): Promise<GeneratedWorkspace> {
+  const target = path.resolve(options.dir)
+  const project = assertProjectPath(options.project, '--project')
+  const remoteUrl = 'https://gitlab.com/' + project + '.git'
+  prepareTarget(target, { force: options.force })
+  gitOk(target, ['init'], '检查本机 git 是否可用。')
+  gitOk(target, ['remote', 'add', 'origin', remoteUrl], '检查 git remote 是否加得上去（目标目录里可能已经有一个 origin）。')
+  const binding = await bindWorkspace(target, { backendId: 'gitlab', layout: 'single' })
+  return {
+    kind: 'gitlab',
+    dir: target,
+    title: project,
+    backendId: 'gitlab',
+    bindingFile: binding.file,
+    extra: { project, remoteUrl },
+  }
 }
 
 export interface MarkdownChildSpec {

@@ -32,9 +32,30 @@ import {
   writeBatch,
 } from '../scripts/real-machine/lib/batch.mts'
 
-const COMMIT_A = 'a'.repeat(40)
-const COMMIT_B = 'b'.repeat(40)
 const MANIFEST_DIGEST = 'd'.repeat(64)
+
+// #1777 起候选身份判据还要看「候选是否包含开批基线」，这必须用真实的 git 祖先关系，
+// 不能再拿「a 重复 40 次」这类假提交。这里临时造一个小仓库：COMMIT_A 是基线 tip，COMMIT_B 是它的下一个提交。
+const repoBase = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-1766-repo-'))
+const repoDir = path.join(repoBase, 'repo')
+fs.mkdirSync(repoDir, { recursive: true })
+const git = (args: string[]): string => {
+  const result = spawnSync('git', args, { cwd: repoDir, encoding: 'utf8' })
+  if (result.status !== 0) throw new Error('临时仓库 git ' + args.join(' ') + ' 失败：' + String(result.stderr || ''))
+  return String(result.stdout || '').trim()
+}
+git(['init', '-q'])
+git(['config', 'user.email', 'verify-1766@example.invalid'])
+git(['config', 'user.name', 'verify-1766'])
+fs.writeFileSync(path.join(repoDir, 'package.json'), JSON.stringify({ name: 'fake-package', version: '1.9.0-beta.33' }, null, 2))
+fs.writeFileSync(path.join(repoDir, 'a.txt'), 'a\n')
+git(['add', '-A'])
+git(['commit', '-q', '-m', 'base'])
+const COMMIT_A = git(['rev-parse', 'HEAD'])
+fs.writeFileSync(path.join(repoDir, 'b.txt'), 'b\n')
+git(['add', '-A'])
+git(['commit', '-q', '-m', 'next'])
+const COMMIT_B = git(['rev-parse', 'HEAD'])
 
 // 批次名会被当成目录名：`.` 与 `..` 能通过字符集却会解析到 batches 目录或工作根本身，必须拒绝。
 function rejectsBatchName(name: string): boolean {
@@ -104,9 +125,19 @@ function makeCandidate(overrides: Record<string, any> = {}, fileName = 'candidat
   return { path: target, manifest }
 }
 
-function judge(candidatePath: string, currentHead = COMMIT_A, batchStartedAt = startedAt) {
+function judge(
+  candidatePath: string,
+  currentHead = COMMIT_A,
+  batchStartedAt = startedAt,
+  baseline: { ref: string; tip: string; expectedVersion: string; allowOutdated: boolean } = {
+    ref: 'main',
+    tip: COMMIT_A,
+    expectedVersion: '1.9.0-beta.33',
+    allowOutdated: false,
+  },
+) {
   const candidate = readCandidateFile(candidatePath)
-  return judgeCandidateForBatch({ candidatePath, candidate, batchDir, batchStartedAt, currentHead })
+  return judgeCandidateForBatch({ candidatePath, candidate, batchDir, batchStartedAt, currentHead, repository: repoDir, baseline })
 }
 
 console.log('批次候选身份判据门禁（#1766）')
@@ -153,7 +184,13 @@ const wrongBuildVerdict = judge(wrongBuildCommitFile.path)
 check(!wrongBuildVerdict.ok && wrongBuildVerdict.problems.some((item) => item.includes('构建提交不是当前 HEAD') || item.includes('构建提交是')), '产物构建提交不等于当前 HEAD 时被拒绝')
 
 // 3. 证据绑定：缺身份、批次名/提交/包哈希不一致都要拒绝。
-const record = createBatchRecord({ batchName: 'batch-a', batchDir, now: startedAt, git: { commit: COMMIT_A, branch: 'main' } })
+const record = createBatchRecord({
+  batchName: 'batch-a',
+  batchDir,
+  now: startedAt,
+  git: { commit: COMMIT_A, branch: 'main' },
+  base: { ref: 'main', tip: COMMIT_A, expectedVersion: '1.9.0-beta.33', allowOutdated: false },
+})
 record.candidate = candidateIdentity(readCandidateFile(good.path))
 const binding = evidenceCandidate(record)
 check(binding !== null && binding.commit === COMMIT_A, '批次记录能给出候选身份')
@@ -168,11 +205,14 @@ const wrongSha = judgeEvidenceBinding(record, { candidate: { ...binding!, packag
 check(!wrongSha.ok && wrongSha.problems.some((item) => item.includes('候选包 sha256')), '候选包哈希不一致的证据被拒绝')
 
 // 4. 批次收尾：HEAD 没变保持 active；HEAD 前进标 stale 并记下结束 HEAD。
-const active = judgeBatchFreshness({ batch: record, currentHead: COMMIT_A, now: startedAt })
-check(active.status === 'active' && active.endHead === COMMIT_A, 'HEAD 没前进时批次保持 active')
-const stale = judgeBatchFreshness({ batch: record, currentHead: COMMIT_B, now: startedAt })
+const active = judgeBatchFreshness({ batch: record, currentHead: COMMIT_A, now: startedAt, currentBaseTip: COMMIT_A })
+check(active.status === 'active' && active.endHead === COMMIT_A, 'HEAD 与本地基线都没前进时批次保持 active')
+const stale = judgeBatchFreshness({ batch: record, currentHead: COMMIT_B, now: startedAt, currentBaseTip: COMMIT_A })
 check(stale.status === 'stale' && stale.endHead === COMMIT_B, 'HEAD 前进后批次标 stale 并记下结束 HEAD')
 check(stale.problems.some((item) => item.includes('不能用于发布收口')), 'stale 结论里写清不能用于发布收口')
+// #1777：HEAD 没动、本地基线前进也要判 stale——集成分支开批时 HEAD 可以一直不动，main 却已经前进了。
+const baseAdvanced = judgeBatchFreshness({ batch: record, currentHead: COMMIT_A, now: startedAt, currentBaseTip: COMMIT_B })
+check(baseAdvanced.status === 'stale' && baseAdvanced.problems.some((item) => item.includes('本地基线') && item.includes('前进')), '本地基线前进而 HEAD 没动时批次也标 stale')
 
 // 5. 候选文件被改过：清单重算出来的内容指纹对不上，必须拒绝。
 const tamperedFiles = [{ path: 'lib/client.js', bytes: 7, sha256: '9'.repeat(64) }]
