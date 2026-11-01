@@ -115,6 +115,8 @@ export interface DeckTrackerLike {
   get(repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
   list(repo: unknown, filter?: unknown, ctx?: unknown): Promise<ListOpOutcome>;
   listMaps(repo: unknown, ctx?: unknown): Promise<OpOutcome>;
+  /** #1772：一张地图的全部子票（翻页到底、1000 张硬上限；capped/missing/dropped 是「有没有拿全」的诚实交代）。 */
+  listSubIssues(repo: unknown, mapKey: unknown, opts?: unknown, ctx?: unknown): Promise<OpOutcome>;
   getDependencies(repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
   create(repo: unknown, input?: unknown, ctx?: unknown): Promise<OpOutcome>;
   setParent(repo: unknown, key: unknown, parent: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
@@ -410,6 +412,14 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
         const listMapsFn = real.listMaps as ((repo: unknown, ctx: unknown) => Promise<unknown>) | undefined
         if (typeof listMapsFn !== 'function') return { ok: false, error: { kind: 'unsupported', message: '这个后端没有地图薄行，按老路取' } }
         return mapOpOutcome(await execOp('listMaps', function (c2) { return listMapsFn(repo, c2) }))
+      },
+      // #1772：一张地图的全部子票（契约 listSubIssues）。与 listMaps 同款：不进名册（名册只装行，子票清单
+      // 由地图快照自用），没有这个方法的后端诚实回 unsupported，调用方回退到 list + 按父票过滤的老路。
+      listSubIssues: async function (repo: unknown, mapKey: unknown, opts?: unknown, ctx?: unknown): Promise<OpOutcome> {
+        void ctx
+        const listSubIssuesFn = real.listSubIssues as ((repo: unknown, mapKey: unknown, opts: unknown, ctx: unknown) => Promise<unknown>) | undefined
+        if (typeof listSubIssuesFn !== 'function') return { ok: false, error: { kind: 'unsupported', message: '这个后端不支持按票取子票，按老路取' } }
+        return mapOpOutcome(await execOp('listSubIssues', function (c2) { return listSubIssuesFn(repo, mapKey, opts || {}, c2) }))
       },
       getRepoPermissions: async function (repo: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx

@@ -15,9 +15,9 @@
 
 | 后端 | 今天的截断 | 出处 |
 | --- | --- | --- |
-| GitHub | 最多 500 条（按更新时间倒序取到 500 就停） | `src/host/tracker/backends/github/issues.js:186-187` |
-| GitLab | 一页 100 条，而且**不翻页** | `src/host/tracker/backends/gitlab/issues.js:72`（只设 `per_page=100`，没有 `page`） |
-| 本地 Markdown | 读全部票文件，不截断 | `src/host/tracker/backends/markdown/issues-read.js` |
+| GitHub | 最多 500 条（按更新时间倒序取到 500 就停） | `src/tracker/rooms/github/read/issues.ts` |
+| GitLab | 写这份规格时只设 `per_page=100`、不翻页；#1772 起全量读按 `updated_at` 倒序有界翻页（最多 5 页 × 100 = 500 张），给 `since` 时走 `updated_after` 单页增量 | `src/tracker/rooms/gitlab/issues.ts` |
+| 本地 Markdown | 读全部票文件，不截断 | `src/tracker/rooms/markdown/issues-read.ts` |
 
 修法三句话（这三句是整份规格的骨架）：
 
@@ -122,8 +122,9 @@
 | 操作 | 实现 |
 | --- | --- |
 | `counts` | 两条候选：`X-Total` 响应头（`per_page=1` 取一次）或 `issues_statistics`。**落地时二选一并把实测结果写进实现注释**（这一轮没有 GitLab 环境，未实测） |
-| `listPage` | 现成的 `per_page` + `page`（今天只设了 `per_page=100` 且不翻页，顺手把「只取 100 条」这处同族截断一起收掉） |
-| 地图子票 | 走 `links`/父票关系，按页取 |
+| `list` | 全量读按 `updated_at` 倒序有界翻页（最多 5 页 × 100 = 500 张，撞满第 5 页仍满才置 `truncated`）；给 `since` 时走 `updated_after` 升序单页增量（#1772；取数在 `src/tracker/rooms/gitlab/list-read.ts`） |
+| `listPage` | 现成的 `per_page` + `page`，历史按需取；`nextCursor` 的边界代价见 `src/tracker/rooms/gitlab/README.md` |
+| 地图子票 | 由契约的 `listSubIssues` 读取：翻页扫仓（每页 100、最多 1000 张），按票文件头的 `<!-- DSH-PARENT: <地图> -->` 标记认定子票（不是远端原生层级），`capped`/`missing`/`dropped` 如实交代有没有取全（#1772 起 `deck_map_snapshot` 直接消费这份结果） |
 
 ### 5.4 第三方 / 没实现的后端
 

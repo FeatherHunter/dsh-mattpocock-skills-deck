@@ -99,6 +99,16 @@ function makeScriptedGh(sink: string[]) {
       const q = a.filter((x, i) => a[i - 1] === '-f' && String(x).indexOf('query=') === 0).join(' ')
       const num = Number((a.filter((x, i) => a[i - 1] === '-F' && String(x).indexOf('number=') === 0)[0] || '').replace('number=', ''))
       if (q.indexOf('pullRequest') >= 0) return { code: 0, stdout: JSON.stringify({ data: { repository: { pullRequests: { nodes: [], pageInfo: { hasNextPage: false } } } } }), stderr: '' }
+      // #1772：地图快照的子票清单改走契约的 listSubIssues（GitHub 房发的是 subIssues 连接查询）。
+      // 夹具此前只认「单票」与「整仓 issues 列表」两种回包，这条查询会被当成单票回，工具拿不到
+      // subIssues.nodes，只能判「子票没取全」——地图快照于是永远回 partial。这里按真实回包形状补上：
+      // 父票就是 $number 指定的那张地图，节点是它名下的子票，总数与 pageInfo 一起给。
+      if (q.indexOf('subIssues(') >= 0) {
+        const t = find(num)
+        const kids = t ? tickets.filter((c) => c.parentKey && String(c.parentKey) === String(t.number)) : []
+        const conn = { nodes: kids.map(gqlRow), totalCount: kids.length, pageInfo: { hasNextPage: false, endCursor: null } }
+        return { code: 0, stdout: JSON.stringify({ data: { repository: { issue: t ? { subIssues: conn } : null } } }), stderr: '' }
+      }
       if (q.indexOf('issue(') >= 0 || num) {
         const t = find(num)
         if (!t) return { code: 0, stdout: JSON.stringify({ data: { repository: { issue: null } } }), stderr: '' }

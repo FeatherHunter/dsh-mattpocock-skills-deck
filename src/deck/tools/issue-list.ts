@@ -287,10 +287,14 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
             ? { requests: thinUsageObj.requests, points: thinUsageObj.points }
             : { requests: 1, points: 2 }
           const thinOpId = String(((opCtx as Record<string, unknown> | null | undefined) || {}).opId || '')
+          // 薄查这条路的 truncated 是「地图清单撞到封顶页数、后端没读全」；与全量路同一口径，
+          // 单独回 backendTruncated，总口径 truncated 把本地 limit 截断也算进去。
+          const thinBackendTruncated = !!(thinBody.data && thinBody.data.truncated === true)
           const thinData: Record<string, unknown> = {
             total: thinTotal,
             returned: thinSliced.length,
-            truncated: thinTruncated,
+            truncated: thinTruncated || thinBackendTruncated,
+            backendTruncated: thinBackendTruncated,
             issues: thinSliced,
             opId: thinOpId,
           }
@@ -320,10 +324,11 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
         }
       }
       const rows = Array.isArray(listed.data) ? listed.data : []
-      // 后端自己的列表都有安全上限：GitHub 是「工单 500 条、拉取请求 1000 条」的总量上限，
-      // GitLab 是「每页最多 100 条、只取第一页」的页上限（#1770）；它到顶就停，却仍回成功。
-      // 走了 REST 降级通道时也一样：REST 自己有翻页上限，尾页失败时只回已经拿到的。
-      // 这几种「可能不全」都要如实转告，别让调用方当成「库里就这么多」（#1304）。
+      // 后端自己的列表都有安全上限：GitHub 是「工单 500 条、拉取请求 1000 条」的总量上限；
+      // GitLab 是全量读「最多 5 页 × 100 = 500 张」的有界翻页（#1772），或增量读单页取满表示
+      // 还有积压。它到顶就停，却仍回成功。走了 REST 降级通道时也一样：REST 自己有翻页上限，
+      // 尾页失败时只回已经拿到的。这几种「可能不全」都要如实转告，别让调用方当成
+      // 「库里就这么多」（#1304）。
       const backendTruncated = listed.truncated === true
       const backendFallback = listed.fallback === 'rest'
       // 降级原因与操作编号一起摆出来：配额耗尽与其它失败走的是同一条 REST，日志里按 opId 才能对上同一趟。
@@ -380,15 +385,18 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
         if (fallbackReason === 'quota') notes.push('后端主路这次因配额耗尽走了 REST 降级通道（opId ' + (opId || '未知') + '）：REST 自己有翻页上限，尾页失败时只回已经拿到的，这份清单可能不全：收窄过滤再查一次。')
         else notes.push('后端主路这次用不了，走的是 REST 降级通道（原因 ' + (fallbackReason || 'other') + '，opId ' + (opId || '未知') + '，日志里按 opId 查 read.degraded 就是同一趟）：REST 自己有翻页上限，尾页失败时只回已经拿到的，这份清单可能不全：收窄过滤再查一次。')
       }
-      else if (backendTruncated) notes.push('后端这次取到自己的上限就停了（GitLab 是每页最多 100 条、只取第一页；GitHub 是工单 500 条、拉取请求 1000 条），这份清单可能不全：收窄过滤再查一次。')
+      else if (backendTruncated) notes.push('后端这次取到自己的上限就停了（GitLab 最多读 500 张，即 5 页 × 100 张；GitHub 是工单 500 条、拉取请求 1000 条），超出部分没参与筛选，这份清单可能不全：收窄过滤再查一次。')
       if (truncated) notes.push('只回前 ' + sliced.length + ' 行（共 ' + total + ' 行符合）：收窄过滤或调大 limit 再取一次。')
       // #1559：宿主收工具返回值时要求无损 JSON，data 上不许出现 undefined。缺省的键就不出现
       // （不用 null 顶替：金标准 03-deck_issue_list.golden.json 里本来就没有这两个键，序列化后的形状与它一致）；
       // opId 正常总有值，恒为字符串。
+      // backendTruncated 单独回一格：调用方要能分清「本地 limit 截掉了」与「后端根本没读全」，
+      // 两者的补救办法不同；truncated 仍是「这份清单不全」的总口径（任一为真即真）。
       const data: Record<string, unknown> = {
         total: total,
         returned: sliced.length,
-        truncated: truncated,
+        truncated: truncated || backendTruncated,
+        backendTruncated: backendTruncated,
         issues: sliced,
         opId: opId,
       }

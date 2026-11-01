@@ -67,6 +67,9 @@ export const PAGINATION = {
     limitMax: 200,
     // GitLab REST 的 per_page 上限：官方文档写的是默认 20、上限 100。不能照 200 去问，理由见文件头。
     maxPerPage: 100,
+    // 全量读一次最多翻 5 页（5 页 × 每页 100 = 500 张）：再往上翻的代价刷新探针付不起。
+    // 只有「第 5 页仍然是满的」才算没读完、置 truncated；任一页不满就说明到底了。
+    issueListMaxPages: 5,
     // 子票读：翻页扫仓时一页取 100 张，最多装 1000 张（与 GitHub 房同一个契约硬上限）。
     subIssuesPageSize: 100,
     subIssuesMax: 1000,

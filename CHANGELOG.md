@@ -1,4 +1,4 @@
-## 2026-11-01 · v1.9.0-beta.34 测试版：修 GitLab 房间在真机批次里暴露的三处缺陷——详情页评论被快照挡住、评论只取第一页、认领人写错（#1783、#1784、#1785）
+## 2026-11-01 · v1.9.0-beta.34 测试版：修 GitLab 房间在真机批次里暴露的三处缺陷——详情页评论被快照挡住、评论只取第一页、认领人写错；票列表改成有界翻页加增量读（#1783、#1784、#1785、#1772）
 
 - **这是什么**：版本号从 `1.9.0-beta.33` 推进到 `1.9.0-beta.34`。这一版只改 GitLab 后端的行为，不动别的后端：真机批次在 GitLab 项目上跑出三处会让人看错票面的地方，这一版把它们改对，并补三道门禁守住。
 - **为什么必须重发一版**：beta.33 里 GitLab 详情页在列表已经拿到正文时会一直画快照投影，评论显示成「评论 (0)」、页面标成只读、没有输入框；即使走 live 详情，评论也只取第一页 20 条，56 条评论的票永远只能看到前 20 条；设置认领人时用户名打错一个字，实现会跳过这个人直接把票的认领清空，却回成功。三处都会让人根据错误的票面信息做决定，所以单独发一版。
@@ -21,10 +21,16 @@
 - **门禁**：新增 `tests/verify-1785-assign-unknown.ts`，先红后绿；GitLab 房间相关门禁（`--only gitlab` / `--only claim`）全绿。
 - **对应提交**：`5b29926a`。
 
+### GitLab 票列表改成有界翻页加增量读（#1772）
+
+- **改法**：GitLab 房间的 `list` 原来只取第一页 100 行，取满就报 `truncated`。现在分两条读路：没给 `since` 时按 `updated_at` 倒序有界翻页（每页 100、最多 5 页 = 500 张，只有第 5 页仍然满才算没读完；恰好 100 张、499 张或下一页为空都按读完处理）；给了 `since` 时只发一个请求，带 `updated_after`、按 `updated_at` 升序、每页 100，取满说明还有积压。刷新探针据此每拍最多发 1 个列表请求：第一拍没有游标时做一次有界全量读建索引与游标，之后按上一趟见过的最大 `updated_at` 增量读；索引值从「只有状态」改成「状态|updated_at」，标题、标签、指派变化也能让快照缓存作废。`deck_map_snapshot` 的子票清单改走契约的 `listSubIssues`，用 `capped`/`missing`/`dropped` 说清有没有取全，后端明确不支持时才回退老路，回退时回执里写明「不是契约的子票清单、可能有出入」；`deck_issue_list` 回包新增 `backendTruncated`，并写清「后端最多读 500 张（5 页 × 100），超出部分没参与筛选」。取数与截断口径拆到 `src/tracker/rooms/gitlab/list-read.ts`，`issues.ts` 不超文件粒度上限。两条读路都仍有上限，没有假装全量。
+- **门禁**：新增 `tests/verify-1772-gitlab-list-bounds.ts`（61 条：翻页与截断边界、`updated_after` 单页增量、探针游标与索引、地图快照子票、`issue_list` 回包字段）；`tests/verify-1770-gitlab-list-truncated.ts` 按新边界改断言；`tests/verify-pagination-limits.ts` 的共享分页表加 `gitlab.issueListMaxPages`；`tests/deck-tools-matrix-transports.ts` 补 GitHub 子票查询的脚本化回包；`03-deck_issue_list.golden.json` 加 `backendTruncated`、`05-deck_map_snapshot.golden.json` 因回退注记同步更新。
+- **对应提交**：本提交。
+
 ### 版本号与安装命令
 
 - **改法**：安装命令与两份版本号推进到 `1.9.0-beta.34`；`tests/verify-config-store-package.ts` 的候选版断言跟着改。
-- **验证**：`npm run typecheck` 全绿；`npm run verify:parallel` 全链 524/524 步、真红 0，五条冒烟 5/5。
+- **验证**：`npm run typecheck` 全绿；`npm run verify:parallel` 全链 526/526 步、真红 0，五条冒烟 5/5。
 - **对应提交**：本提交。
 
 ## 2026-10-31 · v1.9.0-beta.33 测试版：随包 Matt 技能从 v1.3.1 升到 v1.3.2，27 个技能整树重同步、50 篇中文译文重译或逐篇审查；并落地面板快照唯一化与 GitHub 房间读渠道分层（#1681）

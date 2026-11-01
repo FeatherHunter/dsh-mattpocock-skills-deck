@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-01T11:12:25.862Z",
+  "generatedAt": "2026-11-01T14:31:14.864Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 525,
-  "gateCount": 525,
-  "attributedGates": 463,
+  "chainLength": 526,
+  "gateCount": 526,
+  "attributedGates": 464,
   "unattributedGates": 62,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 84,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 806,
+  "graphFileCount": 807,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -5672,6 +5672,28 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1772-gitlab-list-bounds.ts",
+      "file": "tests/verify-1772-gitlab-list-bounds.ts",
+      "guards": [
+        "src/deck/tools/issue-list.ts",
+        "src/deck/tools/map-snapshot.ts",
+        "src/refresh/rooms/host/probe-handler.ts",
+        "src/tracker/contract/pagination.ts",
+        "src/tracker/rooms/gitlab"
+      ],
+      "dirs": [
+        "src/deck/tools",
+        "src/refresh/rooms/host",
+        "src/tracker/contract",
+        "src/tracker/rooms/gitlab"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
       "step": "node tests/verify-1783-comments-projection.ts",
@@ -13192,6 +13214,7 @@
       "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-1612-deck-tool-gate.ts",
       "node tests/verify-1770-gitlab-list-truncated.ts",
+      "node tests/verify-1772-gitlab-list-bounds.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -13581,6 +13604,7 @@
       "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-1692-disk-replay-eviction.ts",
       "node tests/verify-1770-gitlab-list-truncated.ts",
+      "node tests/verify-1772-gitlab-list-bounds.ts",
       "node tests/verify-1784-comment-pagination.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
@@ -13849,6 +13873,7 @@
       "node tests/verify-1444-list-detail-thin.ts",
       "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-1765-read-channel-plan.ts",
+      "node tests/verify-1772-gitlab-list-bounds.ts",
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-992-readonly-labels.ts",
@@ -14099,6 +14124,7 @@
       "node tests/verify-1605-gitlab-map-list.ts",
       "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-1770-gitlab-list-truncated.ts",
+      "node tests/verify-1772-gitlab-list-bounds.ts",
       "node tests/verify-1784-comment-pagination.ts",
       "node tests/verify-1785-assign-unknown.ts",
       "node tests/verify-686-accept.ts",
@@ -14501,9 +14527,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 827,
+    "fileCount": 828,
     "dirCount": 84,
-    "coveredFileCount": 827,
+    "coveredFileCount": 828,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -15274,6 +15300,7 @@
       "src/tracker/rooms/gitlab/issues.ts",
       "src/tracker/rooms/gitlab/labels-ops.ts",
       "src/tracker/rooms/gitlab/labels.ts",
+      "src/tracker/rooms/gitlab/list-read.ts",
       "src/tracker/rooms/gitlab/maps.ts",
       "src/tracker/rooms/gitlab/normalize.ts",
       "src/tracker/rooms/gitlab/pages.ts",

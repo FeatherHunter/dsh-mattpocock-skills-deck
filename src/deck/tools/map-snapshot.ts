@@ -122,9 +122,14 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!
       const opCtx = sc.opCtx
-      // 地图与子票清单互相独立，同时取（两份读缓存的键不同，不会互相覆盖）
+      // 地图与子票清单互相独立，同时取（两份读缓存的键不同，不会互相覆盖）。
+      // #1772：子票清单优先走契约的 listSubIssues —— 它翻页拉到底，并用 capped/missing/dropped
+      //   交代「有没有拿全」，是判断子票全不全的唯一依据。老路 list({parentKey}) 只当后端明确
+      //   不支持时的回退（本地 Markdown 房就回 unsupported），回退结果不能当完整清单。
       const mapPromise = t.get(repo, key, {}, opCtx)
-      const kidsPromise = t.list(repo, { parentKey: key }, opCtx)
+      const kidsPromise: Promise<any> = (typeof t.listSubIssues === 'function')
+        ? t.listSubIssues(repo, key, {}, opCtx)
+        : Promise.resolve({ ok: false, error: { kind: 'unsupported', message: '这个后端没有 listSubIssues' } })
       const gotMap = await mapPromise
       if (!gotMap || gotMap.ok !== true) {
         const msg = String((gotMap && gotMap.error && gotMap.error.message) || '后端没给出原因').slice(0, 300)
@@ -140,25 +145,62 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
       }
       const map = gotMap.data || {}
       const kids = await kidsPromise
-      const listed = (kids && kids.ok === true && Array.isArray(kids.data)) ? kids.data : []
-      const picked = childrenOf(listed, key)
-      const children = picked.children
-      // 子票清单走没走降级也要摆出来：日志里按 opId 查 read.degraded 就是同一趟，不用再猜。
-      const kidsFallback = String((kids as { fallback?: unknown } | null | undefined)?.fallback || '')
-      const kidsFallbackReason = String((kids as { fallbackReason?: unknown } | null | undefined)?.fallbackReason || '')
+      const kidsOk = !!(kids && kids.ok === true)
+      const kidsKind = String((kids && kids.error && kids.error.kind) || '')
+      const kidsData = (kidsOk && kids && kids.data && typeof kids.data === 'object')
+        ? (kids.data as Record<string, unknown>)
+        : null
+      // 只有 items 是数组才算「拿到了子票清单」；data 是别的形状（对象/数组但没 items）按
+      // 形状不认识处理，别把它静默当成 0 张子票 —— 那会让一张有子票的地图显示成空地图。
+      const sub = (kidsData && Array.isArray(kidsData.items)) ? kidsData : null
       const opId = String(((opCtx as Record<string, unknown> | null | undefined) || {}).opId || '')
       const notes = []
       if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
-      if (!kids || kids.ok !== true) notes.push('子票没取全（后端原话：' + String((kids && kids.error && kids.error.message) || '').slice(0, 200) + '，opId ' + (opId || '未知') + '）：下面的进度是手上这几张票算出来的，偏乐观。')
-      else if (kidsFallback === 'rest') {
-        if (kidsFallbackReason === 'quota') notes.push('子票清单这次因配额耗尽走了 REST 降级通道（opId ' + (opId || '未知') + '）：只回已经拿到的，数偏乐观，收窄再查一次。')
-        else notes.push('子票清单这次走了 REST 降级通道（原因 ' + (kidsFallbackReason || 'other') + '，opId ' + (opId || '未知') + '，日志里按 opId 查 read.degraded 就是同一趟）：只回已经拿到的，数偏乐观。')
+      let children: any[] = []
+      let partial = false
+      if (sub) {
+        // listSubIssues 的 items 已经是「这张地图的子票」，不用再按 parentKey 二次过滤。
+        children = sub.items as any[]
+        const capped = sub.capped === true
+        const missing = typeof sub.missing === 'number' ? sub.missing : 0
+        const dropped = typeof sub.dropped === 'number' ? sub.dropped : 0
+        // 没读全的三种口径都算 partial：撞到硬上限还有更多（capped）、总数对不上（missing）、
+        // 拿回来却丢掉了行（dropped）。一个都不许悄悄少画。
+        partial = capped || missing > 0 || dropped > 0
+        if (capped) notes.push('子票清单这次只拿回前 ' + children.length + ' 张（撞到后端硬上限，还有更多没取回；opId ' + (opId || '未知') + '）：下面的进度是手上这些算出来的，偏乐观。')
+        if (missing > 0 || dropped > 0) notes.push('子票清单对不上数（后端说总数 ' + String(sub.total || 0) + '，拿回 ' + children.length + ' 张，差额 ' + missing + '、丢弃 ' + dropped + '；opId ' + (opId || '未知') + '）：下面的进度是手上这些算出来的，偏乐观。')
+      } else if (kidsOk) {
+        // 形状不认识（没有 items）：按读取失败处理，别静默当 0 张子票。
+        partial = true
+        notes.push('子票没取全（后端回的子票形状不认识，opId ' + (opId || '未知') + '）：下面的进度是手上这几张票算出来的，偏乐观。')
+      } else if (kidsKind === 'unsupported') {
+        // 回退：后端不支持 listSubIssues（本地 Markdown 房）。走原来的 list + childrenOf，
+        // 并保留原来的提示；回退出来的清单不能当完整清单，读取失败照样 partial。
+        const fallbackKids: any = await t.list(repo, { parentKey: key }, opCtx)
+        const listed = (fallbackKids && fallbackKids.ok === true && Array.isArray(fallbackKids.data)) ? fallbackKids.data : []
+        const picked = childrenOf(listed, key)
+        children = picked.children
+        // 回退清单不能当完整清单（见上）：它把后端回的整仓票按 parentKey 筛了一遍，不是逐张
+        // 取回的子票清单，可能有出入；不论回退成败都先在注记里如实说一句。
+        notes.push('子票清单是回退读法（这个后端不支持按票取子票）：从整仓列表里按 parentKey 筛出来的，不是契约的子票清单，可能有出入。')
+        // 子票清单走没走降级也要摆出来：日志里按 opId 查 read.degraded 就是同一趟，不用再猜。
+        const kidsFallback = String((fallbackKids as { fallback?: unknown } | null | undefined)?.fallback || '')
+        const kidsFallbackReason = String((fallbackKids as { fallbackReason?: unknown } | null | undefined)?.fallbackReason || '')
+        if (!fallbackKids || fallbackKids.ok !== true) {
+          partial = true
+          notes.push('子票没取全（后端原话：' + String((fallbackKids && fallbackKids.error && fallbackKids.error.message) || '').slice(0, 200) + '，opId ' + (opId || '未知') + '）：下面的进度是手上这几张票算出来的，偏乐观。')
+        } else if (kidsFallback === 'rest') {
+          if (kidsFallbackReason === 'quota') notes.push('子票清单这次因配额耗尽走了 REST 降级通道（opId ' + (opId || '未知') + '）：只回已经拿到的，数偏乐观，收窄再查一次。')
+          else notes.push('子票清单这次走了 REST 降级通道（原因 ' + (kidsFallbackReason || 'other') + '，opId ' + (opId || '未知') + '，日志里按 opId 查 read.degraded 就是同一趟）：只回已经拿到的，数偏乐观。')
+        }
+        if (picked.note) notes.push(picked.note)
+      } else {
+        partial = true
+        notes.push('子票没取全（后端原话：' + String((kids && kids.error && kids.error.message) || '').slice(0, 200) + '，opId ' + (opId || '未知') + '）：下面的进度是手上这几张票算出来的，偏乐观。')
       }
-      if (picked.note) notes.push(picked.note)
       // 进度统计走共享层同一份投影：把它当成只有这一张地图的 deck 来算。
       const projection = deriveDeck({ maps: [Object.assign({}, map, { tickets: children })], issues: [] })
       const blocks = parseMapBody(String(map.body || ''))
-      const partial = !kids || kids.ok !== true
       // frontierOnly：在手上这批子票里按派生口径筛可接（未关闭、认领已知且空、阻塞已满足；
       // 图外阻塞按未知计为被阻塞，与派生视图的 NOT-FOUND 安全侧一致，不误判可接）。
       let shown = children

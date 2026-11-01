@@ -17,7 +17,9 @@ import { glabClient } from './client.js'
 import { normalizeIssue, rewriteDescriptionWithHiddenParent } from './normalize.js'
 import { failGlab } from './errors.js'
 import { emitReadDegraded } from './read-log.js'
-import { issuesPath, issuePath, notesPath, linksPath, milestonesPath } from './queries.js'
+import { issuePath, notesPath, linksPath, milestonesPath } from './queries.js'
+// #1772：全量读（有界翻页）与增量读（updated_after 单页）的取数住在这里，逐页参数与截断口径一处写清。
+import { readIssueRows } from './list-read.js'
 // #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
 // 本间房专属的「建后按锚回查」在 ./idempotency.js（服务端搜索 + 按创建时间倒序列出逐张看票面）。
 import { checkIdempotencyKey } from '../../../refresh/contract/idempotency-keys.js'
@@ -27,7 +29,7 @@ import { withAnchor, lookupByAnchor } from './idempotency.js'
 import { writeNewIssue, createWriteFailureKind, createWriteFailureMessage } from './create-write.js'
 import type { CreateIssueBody } from './create-write.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { GITLAB_READ_TIMEOUT_MS, GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
+import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
 // 仓库身份只取 refId/name，是因为票读写只认这两样，拿全量会把 effortId 搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -168,16 +170,27 @@ async function fetchAugment(opCtx: CtxLike | null | undefined, refId: string, ra
 }
 
 /**
- * 列票：按 state 筛后归一，keys 在内存里滤（远端无批量接口，如实全量再滤）。
+ * 列票：按 state 筛后归一，keys 在内存里滤（远端无批量接口，如实取回再滤）。
  *
- * #1770：GitLab REST 的 `per_page` 上限是 100（见契约里的共享分页表），本函数只取第一页。
- * 取满一页时置 `truncated: true` 并落一行 `read.degraded`（`list:truncated`），把「可能还有
- * 第 101 张、且它可能在第一页之外」如实交上去；不在这里翻页 —— 9 千票的仓库要翻 96 页，
- * 5 秒一拍的刷新探针付不起这笔成本，读全与增量是另一张票（#1772）的取数设计。
+ * 两条读路的开销与「读全了没有」分开说（#1772）：
+ *
+ * 一、全量读（调用方没给 since，例如快照重建与 deck_issue_list）：
+ *   按 updated_at 倒序、per_page=100 有界翻页；某一页不满就说明到底了，立即停。
+ *   最多翻 PAGINATION.gitlab.issueListMaxPages 页（5 页 × 100 = 500 张）；只有「撞满 5 页
+ *   且第 5 页仍然是满的」才置 truncated:true 并落一行 read.degraded（list:truncated）。
+ *   恰好整页但下一页为空按读完处理，不误报。
+ *
+ * 二、增量读（调用方给了合法 since，刷新探针每一拍走这条）：
+ *   只发一个请求：updated_after=<since>、按 updated_at 正序、per_page=100。探针的节拍
+ *   （5s/15s/60s）只允许一拍一个列表请求，所以单页取满即置 truncated:true —— 那表示还有
+ *   积压，下一拍从新游标继续，不在一拍里翻多页。updated_after 含边界，重复票按票号去重
+ *   由调用方做，这里不承诺精确一次。
+ *
+ * 两条路都按 filter.state 每页带同一个 state（open→opened、closed→closed；省略就不带，即全状态）。
  *
  * @param ctx 调用上下文（opCtx 缺时顶上）
  * @param repo 目标仓库（只取 refId/name）
- * @param filter 过滤器（state/keys 两项，其余由宿主二次过滤）
+ * @param filter 过滤器（state/since/keys 三项，其余由宿主二次过滤）
  * @param opCtx 本次调用的上下文（优先用它）
  */
 export async function listIssues(
@@ -190,51 +203,28 @@ export async function listIssues(
   const effective = (opCtx || ctx) as CtxLike | undefined
   const id = repoId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'list: repo.refId missing', '')
-  // filter → query（state；分页固定单页 100 条，见函数头）
-  const perPage = PAGINATION.gitlab.maxPerPage
-  const params = new URLSearchParams()
-  params.set('per_page', String(perPage))
-  params.set('with_labels_details', 'true')
-  if (filter && filter.state) {
-    // GitLab state: opened/closed
-    params.set('state', filter.state === 'closed' ? 'closed' : 'opened')
-  }
-  if (filter && Array.isArray(filter.keys) && filter.keys.length) {
-    // GitLab无批量keys过滤，返回全量后前端过滤（诚实）
-  }
   try {
-    const path = issuesPath(id, params.toString())
-    const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
-    const res = await c.run(['api', path], { timeout: GITLAB_SLOW_READ_TIMEOUT_MS })
-    if (res.code !== 0) {
-      // 原文 = 列票那一次 glab 调用的进程结果。
-      return failGlab(res, res.stderr || res.stdout || 'list failed', res, effective)
-    }
-    let arr: unknown = parseJsonSafe(res.stdout)
-    // 原文 = 远端回的那一段（人据此看出返回的到底是什么形状，而不是只被告知「不是数组」）。
-    if (!Array.isArray(arr)) return fail(ERROR_KIND.PARSE as ErrorKind, 'list returned non-array', res.stdout)
-    // 先记「这一页是不是取满的」：下面的 keys 过滤会把行数变小，但「远端给没给满一页」要在那之前判。
-    // 取满 = 第 101 张可能存在，且它可能落在第一页之外（默认按创建时间倒序，老票永远不在第一页）。
-    const pageFull = arr.length >= perPage
-    // 若filter有keys，内存过滤
+    // 两条读路（全量有界翻页 / updated_after 单页增量）都在 list-read.ts，这里只管归一与截断日志。
+    const got = await readIssueRows(effective, id, filter)
+    if (!got.ok) return got.result
+    const rows = got.data.rows
+    // keys 过滤放在取数之后：远端没有批量 keys 接口，只能先如实取回再在内存里滤。
+    let picked = rows
     if (filter && Array.isArray(filter.keys) && filter.keys.length) {
       const set = new Set(filter.keys.map(String))
-      arr = (arr as RawBag[]).filter((x) => set.has(String(x['iid'])))
+      picked = rows.filter((x) => set.has(String(x['iid'])))
     }
-    if (filter && filter.parentKey !== undefined) {
-      // parentKey过滤需links聚合（heavy），此处先返回全量由宿主侧二次过滤（诚实但不阻塞）
-    }
-    // 归一（不逐条聚合links以免爆量；get会聚合）
-    const issues = (arr as unknown[]).map((raw) => normalizeIssue(raw))
+    // parentKey 过滤需 links 聚合（heavy），此处先返回全量由宿主侧二次过滤（诚实但不阻塞）。
+    // 归一（不逐条聚合 links 以免爆量；get 会聚合）
+    const issues = picked.map((raw) => normalizeIssue(raw))
     // 拿不全却按成功返回：返回前落一行，查「这张地图怎么空了/这张票怎么没出现」时日志里能看见这一趟。
     const out: IssueListResult = { ok: true, data: issues }
-    if (pageFull) {
+    if (got.data.truncated) {
       emitReadDegraded(effective as OpContext | null | undefined, 'list', LIST_TRUNCATED_REASON, Date.now() - startedAt)
       out.truncated = true
     }
     return out
   } catch (err: unknown) {
-    // 原文 = 抛上来的那个 Error 对象（apiGet/apiPut 已经把 stderr/stdout/退出码挂在它身上）。
     return failGlab(err, errMsg(err), err, effective)
   }
 }

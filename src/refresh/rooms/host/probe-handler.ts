@@ -67,11 +67,45 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
   // #1770：按仓库记「截断日志已经记过一行」。房间每拍都会报「只取了第一页」，探针这一路
   //   只在状态从「没记过」变成「记过」时落一行；恢复（下一次不截断）时清掉，下次再截断还能看见。
   const truncationLoggedByRepo: Record<string, boolean> = {}
+  // #1772：按仓库记增量游标（上一趟见过的最大 updated_at）。进程内状态，不落盘：进程重启后
+  //   游标为空，下一拍会先用一次有界全量读重建索引与游标，之后才走 updated_after 增量。
+  //   键与 lastIssueIndexByRepo 同一个（backendId + ':' + cwd），两处状态不会串。
+  const incrementalCursorByRepo: Record<string, string> = {}
   // #1418：失败回包里带上判档（network / unsupported / env / exception…），客户端日志据此一眼看出「这一拍
   //   为什么没探成」。只回短枚举、不回原文 —— 原文仍在 error 字段里给界面看，日志那边一个字都不记。
   const kindOf = function (e: any): string {
     if (!e || typeof e !== 'object') return ''
     try { return String((e as any).kind || '') } catch (eK) { return '' }
+  }
+  // #1772：探针索引的票号键。effort 维度不能丢：两个 effort 的同号票会互相覆盖，第二个 effort
+  //   的变更就永远探测不到。
+  const issueKeyOf = function (it: any): string {
+    if (!it) return ''
+    if (it.key != null) return idOfParts(it.effortId, String(it.key).padStart(2, '0'))
+    if (it.number != null) return idOfParts(it.effortId, String(it.number).padStart(2, '0'))
+    return ''
+  }
+  // #1772：索引值从「只有 state」改成「state|updatedAt」。只记状态时，标题/标签/指派这类
+  //   「状态没变但票面变了」的修改永远看不出变化；updated_at 一动就说明这张票值得重建。
+  const issueIndexValueOf = function (it: any): string {
+    const state = String((it && it.state) || 'OPEN').toUpperCase()
+    const updated = it && it.updatedAt != null ? String(it.updatedAt) : ''
+    return state + '|' + updated
+  }
+  // #1772：增量游标取这一趟见过的最大 updated_at；全是空或非法时间时回空串，
+  //   下一拍继续走全量读 —— 宁可比原来多翻几页，也不许把变化挤出窗口。
+  const maxUpdatedAtOf = function (rows: any[]): string {
+    let best = ''
+    let bestTs = -Infinity
+    rows.forEach(function (it: any) {
+      const raw = it && it.updatedAt != null ? String(it.updatedAt) : ''
+      if (!raw) return
+      const ts = Date.parse(raw)
+      if (Number.isNaN(ts) || ts <= bestTs) return
+      bestTs = ts
+      best = raw
+    })
+    return best
   }
   // v1.5 R2（#2 MVP）：probe 改用 `since` 时间戳探测全 issue 增量（地图 + 子票 + 其他），
   //   1 次 REST 调用覆盖全仓库变化。原实现 `labels=wayfinder:map` 仅匹配地图本身，
@@ -119,7 +153,7 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
             if (identified) repoRef = identified
           }
           if (!repoRef) repoRef = { backend: _selProbe.backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || _selProbe.backendId, url: '' }
-          // #1770：探针这一路只接「名单被页上限截断」这一条降级线。房间的 list 取满一页会调
+          // #1770 起，探针这一路只接「名单没读全」这一条降级线。房间的 list 没读全时会调
           //   opCtx.logEvent('warn','read.degraded',{op:'list',reason:'list:truncated',...})；探针把它
           //   转给宿主日志口，并按仓库边沿式去重 —— 5 秒一拍每拍都记会把警告日志刷成心跳。
           //   其它降级原因不在探针这一路记（取数失败本身已由 ok:false 报给界面），桥里直接丢弃。
@@ -132,23 +166,53 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
             try { logCtx.fire(level, event, fields) } catch (eL) {}
           }
           const opCtx: any = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: any, ar: any, o: any): any { return detectionExec(c, ar, o, 'probe') }, logEvent: logTruncation }
-          const r: any = await tracker.list(repoRef, {}, opCtx)
+          // #1772：每一拍最多发一个列表请求。第一次没有游标时先做一次有界全量读（房间自己最多翻
+          //   5 页）建索引与游标；之后每拍用 updated_after=<上一趟见过的最大 updated_at> 读增量。
+          //   增量那页取满说明还有积压，下一拍从新游标继续 —— 不在一拍里翻多页，节拍仍是 5/15/60 秒。
+          const cursor: string = typeof incrementalCursorByRepo[rk1] === 'string' ? incrementalCursorByRepo[rk1] : ''
+          const r: any = await tracker.list(repoRef, cursor ? { since: cursor } : {}, opCtx)
           if (!r || !r.ok) return { ok: false, error: errText((r && r.error) || 'probe list 失败'), errorKind: kindOf(r && r.error) }
           // 这一拍不截断了：清掉「已记过」标记，下次再截断还能落一行。
           if (r.truncated !== true) delete truncationLoggedByRepo[rk1]
           const all: any[] = Array.isArray(r.data) ? r.data : []
-          // 轻量索引：key -> state
-          const idx: Record<string, string> = {}
-          // effort 维度：探针索引按 (effort, 编号) 键入，否则两个 effort 的同号票会互相覆盖、第二个 effort 的变更探测不到
-          all.forEach(function(it: any){ const k: any = it && (it.key != null ? idOfParts(it.effortId, String(it.key).padStart(2,'0')) : (it.number != null ? idOfParts(it.effortId, String(it.number).padStart(2,'0')) : '')); if(k) idx[k] = String(it.state||'OPEN').toUpperCase() })
           const known: any = lastIssueIndexByRepo[rk1] || {}
+          // 索引：票号 -> state|updated_at。全量读重建一份；增量读在上一份上合并，绝不清空 ——
+          //   增量只回窗口里变过的票，清空会把没变的票从索引里抹掉，下一拍就会误报「全变了」。
+          const idx: Record<string, string> = {}
+          // count 是这一拍按票号去重后见到的票数：全量读=全部票，增量读=去重后的新票
+          //   （旧代码是读回的行数，只在同一页里出现重复票时两者不同，这里按「重复票按票号去重」算）。
+          let count: number = 0
+          let nextCursor: string = cursor
+          // 首拍全量若撞到 500 张上限，游标仍按见过的最大 updated_at 前进；500 之外没进索引的票
+          //   这一轮探测不到，这是全量读上限的已知代价（快照重建那条路同样是 500 张）。
+          if (!cursor) {
+            all.forEach(function (it: any) { const k = issueKeyOf(it); if (k) idx[k] = issueIndexValueOf(it) })
+            nextCursor = maxUpdatedAtOf(all)
+            count = all.length
+          } else {
+            // 只并旧键、不删键：增量窗口里看不见删票，删掉的票会留在索引里；下一次有界全量
+            //   重建（例如进程重启）才会清掉。这是增量读换来的局限，别在别处假设索引是全集。
+            Object.keys(known).forEach(function (k: string) { idx[k] = known[k] })
+            const seen: Record<string, boolean> = {}
+            all.forEach(function (it: any) {
+              const k = issueKeyOf(it)
+              // updated_after 含边界：上一趟最后一刻的票会被重新取回，按票号去重只并一次。
+              if (!k || seen[k]) return
+              seen[k] = true
+              count += 1
+              idx[k] = issueIndexValueOf(it)
+            })
+            nextCursor = maxUpdatedAtOf(all) || cursor
+          }
+          // 变化判定：索引值里带 updatedAt，所以状态没变、只是标题/标签/指派改过的票也能发现。
           const changed: any = issueIndexChanged(known, idx)
           rememberIssueIndex({ owner: _selProbe.backendId, name: cwd }, idx)
           // 兼容 remember 的 repoKey 形态：用 backendId+cwd 作 key，避免与 github 的 owner/name 串
           lastIssueIndexByRepo[rk1] = idx
+          incrementalCursorByRepo[rk1] = nextCursor
           lastProbeAtByRepo[rk1] = new Date().toISOString()
           if (changed) setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
-          return { ok: true, changed: changed, repo: { owner: _selProbe.backendId, name: String(cwd).split(/[\\/]/).pop()||'' }, count: all.length, since: lastProbeAtByRepo[rk1] }
+          return { ok: true, changed: changed, repo: { owner: _selProbe.backendId, name: String(cwd).split(/[\\/]/).pop()||'' }, count: count, since: lastProbeAtByRepo[rk1] }
         }
       } catch (e: any) { return { ok: false, error: errText(e), errorKind: 'exception' } }
     }

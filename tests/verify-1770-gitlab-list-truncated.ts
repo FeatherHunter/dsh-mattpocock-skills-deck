@@ -37,17 +37,20 @@ const check = function (ok: boolean, msg: string, got?: unknown): void {
   if (!ok) failed = true
 }
 
-/** 造一批 GitLab 原始回包形状的票（normalize 只认少数几格，其余按空处理）。 */
+/** 造一批 GitLab 原始回包形状的票（normalize 只认少数几格，其余按空处理）；带 updated_at 才能建增量游标。 */
 function rawRows(n: number): any[] {
   const out: any[] = []
   for (let i = 0; i < n; i += 1) {
-    out.push({ iid: 1000 + i, title: '第 ' + (i + 1) + ' 张', state: 'opened', description: '' })
+    out.push({ iid: 1000 + i, title: '第 ' + (i + 1) + ' 张', state: 'opened', description: '', updated_at: new Date(1700000000000 + i * 1000).toISOString() })
   }
   return out
 }
 
-/** 一个只回固定票单的 glab 桩；顺带记下每一次出站的 argv 与日志行。 */
-function makeRoomCtx(rows: any[]): any {
+/**
+ * 分页感知的 glab 桩：按请求里的 page 参数回对应那一页（没给 page 就回第一页），
+ * 并记下每一次出站的 argv 与日志行。page 之外没有内容（空页 = 到底了）。
+ */
+function makeRoomCtx(pages: any[][]): any {
   const calls: any[] = []
   const logged: any[] = []
   const ctx: any = {
@@ -56,7 +59,10 @@ function makeRoomCtx(rows: any[]): any {
     fs: null,
     exec: async function (cmd: any, args: any): Promise<any> {
       calls.push({ cmd: cmd, args: Array.prototype.slice.call(args) })
-      return { stdout: JSON.stringify(rows), stderr: '', code: 0 }
+      const query: string = String((args && args[1]) || '')
+      const hit: any = /[?&]page=(\d+)/.exec(query)
+      const page: number = hit ? Number(hit[1]) : 1
+      return { stdout: JSON.stringify(pages[page - 1] || []), stderr: '', code: 0 }
     },
     logEvent: function (level: string, event: string, fields: any): void { logged.push({ level: level, event: event, fields: fields }) },
     isEnabled: function (): boolean { return false },
@@ -67,45 +73,99 @@ function makeRoomCtx(rows: any[]): any {
 }
 
 async function partRoom(): Promise<void> {
-  console.log('— 一、房层：取满 100 条要置 truncated 并记一行，99 条不置不记')
+  console.log('— 一、房层：#1772 起的边界是「有界翻页 5 页」，取满一页不再直接判截断')
   const mod: any = await imp('src/tracker/rooms/gitlab/issues.ts')
   const pag: any = await imp('src/tracker/contract/pagination.ts')
   const REPO: any = { backend: 'gitlab', refId: 'group/project', name: 'project', url: '' }
+  const maxPerPage: number = pag.PAGINATION.gitlab.maxPerPage
+  const maxPages: number = pag.PAGINATION.gitlab.issueListMaxPages
+  const truncatedLogs = function (h: any): any[] {
+    return h.logged.filter(function (l: any): boolean { return l.event === 'read.degraded' && l.fields && l.fields.reason === 'list:truncated' })
+  }
 
-  const full = makeRoomCtx(rawRows(100))
-  const rFull: any = await mod.listIssues(null, REPO, {}, full.ctx)
-  check(!!rFull && rFull.ok === true, '一、100 条：列表正常返回', rFull && rFull.error && rFull.error.message)
-  check(!!rFull && rFull.ok === true && Array.isArray(rFull.data) && rFull.data.length === 100, '一、100 条：100 行都在', rFull && rFull.data && rFull.data.length)
-  check(!!rFull && rFull.truncated === true, '一、100 条：truncated === true（取满一页就可能有第 101 张）', rFull && String(rFull.truncated))
-  const fullArgs: any[] = (full.calls[0] && full.calls[0].args) || []
-  check(String(fullArgs[1] || '').indexOf('per_page=' + pag.PAGINATION.gitlab.maxPerPage) >= 0,
-    '一、100 条：请求里的 per_page 仍是共享表的上限 ' + pag.PAGINATION.gitlab.maxPerPage, String(fullArgs[1] || ''))
-  const fullLogs: any[] = full.logged.filter(function (l: any): boolean { return l.event === 'read.degraded' && l.fields && l.fields.reason === 'list:truncated' })
-  check(fullLogs.length === 1, '一、100 条：恰好落一行 read.degraded / list:truncated，能定位到「只取了第一页」', JSON.stringify(fullLogs.map(function (l: any): any { return l.fields })))
-  check(fullLogs.length === 1 && fullLogs[0].fields && fullLogs[0].fields.op === 'list', '一、100 条：日志的 op 是 list', fullLogs[0] && JSON.stringify(fullLogs[0].fields))
+  // ① 恰好一页：100 条，第二页为空 —— 按读完处理，不报截断（#1772 之前这里会误报）。
+  const exact = makeRoomCtx([rawRows(100), []])
+  const rExact: any = await mod.listIssues(null, REPO, { state: 'open' }, exact.ctx)
+  check(!!rExact && rExact.ok === true && rExact.data.length === 100, '一、恰好 100 条：列表正常返回 100 行', rExact && rExact.data && rExact.data.length)
+  check(!!rExact && rExact.truncated !== true, '一、恰好 100 条：第 2 页为空 ⇒ 不置 truncated', rExact && String(rExact.truncated))
+  check(truncatedLogs(exact).length === 0, '一、恰好 100 条：不落截断日志', truncatedLogs(exact).length)
+  check(exact.calls.length === 2, '一、恰好 100 条：发 2 个请求（第 1 页满才继续第 2 页）', exact.calls.length)
+  const exactQ: string = String((exact.calls[1] && exact.calls[1].args && exact.calls[1].args[1]) || '')
+  check(exactQ.indexOf('page=2') >= 0, '一、恰好 100 条：第 2 个请求是 page=2', exactQ)
+  check(exactQ.indexOf('per_page=' + maxPerPage) >= 0, '一、恰好 100 条：每页 per_page 是共享表上限 ' + maxPerPage, exactQ)
+  check(exactQ.indexOf('state=opened') >= 0, '一、恰好 100 条：每页都带 state=opened（open 的映射一致）', exactQ)
+  check(exactQ.indexOf('order_by=updated_at') >= 0 && exactQ.indexOf('sort=desc') >= 0, '一、恰好 100 条：按 updated_at 倒序翻页', exactQ)
+  check(exactQ.indexOf('with_labels_details=true') >= 0, '一、恰好 100 条：仍要求标签明细', exactQ)
 
-  const short = makeRoomCtx(rawRows(99))
+  // ② 超过一页：150 条（第 2 页 50 条不满）—— 能取回 >100，且不报截断。
+  const twoPages = makeRoomCtx([rawRows(100), rawRows(100).slice(0, 50)])
+  const rTwo: any = await mod.listIssues(null, REPO, { state: 'open' }, twoPages.ctx)
+  check(!!rTwo && rTwo.ok === true && rTwo.data.length === 150, '一、150 条：取回 150 行（>100，有界翻页生效）', rTwo && rTwo.data && rTwo.data.length)
+  check(!!rTwo && rTwo.truncated !== true, '一、150 条：第 2 页不满 ⇒ 不置 truncated', rTwo && String(rTwo.truncated))
+
+  // ③ 撞满 5 页且第 5 页仍满 —— 只有这种情形才置 truncated 并落日志。
+  const full5 = makeRoomCtx([rawRows(100), rawRows(100), rawRows(100), rawRows(100), rawRows(100)])
+  const rFull: any = await mod.listIssues(null, REPO, { state: 'open' }, full5.ctx)
+  check(!!rFull && rFull.ok === true && rFull.data.length === 500, '一、500 条：5 页各 100 行都取回', rFull && rFull.data && rFull.data.length)
+  check(!!rFull && rFull.truncated === true, '一、500 条：第 5 页仍满 ⇒ truncated === true', rFull && String(rFull.truncated))
+  check(full5.calls.length === maxPages, '一、500 条：恰好发出 ' + maxPages + ' 个分页请求（不翻第 6 页）', full5.calls.length)
+  const fullLogs: any[] = truncatedLogs(full5)
+  check(fullLogs.length === 1, '一、500 条：恰好落一行 read.degraded / list:truncated', JSON.stringify(fullLogs.map(function (l: any): any { return l.fields })))
+  check(fullLogs.length === 1 && fullLogs[0].fields && fullLogs[0].fields.op === 'list', '一、500 条：日志的 op 是 list', fullLogs[0] && JSON.stringify(fullLogs[0].fields))
+  const pageNums: string[] = full5.calls.map(function (c: any): string { const q = String((c.args && c.args[1]) || ''); const m = /[?&]page=(\d+)/.exec(q); return m ? m[1] : '' })
+  check(pageNums.join(',') === '1,2,3,4,5', '一、500 条：逐页请求 page=1..5', pageNums.join(','))
+
+  // ④ 第 5 页不满（499 条）—— 读完，不报截断。
+  const fiveShort = makeRoomCtx([rawRows(100), rawRows(100), rawRows(100), rawRows(100), rawRows(100).slice(0, 99)])
+  const rShort500: any = await mod.listIssues(null, REPO, { state: 'open' }, fiveShort.ctx)
+  check(!!rShort500 && rShort500.ok === true && rShort500.data.length === 499, '一、499 条：取回 499 行', rShort500 && rShort500.data && rShort500.data.length)
+  check(!!rShort500 && rShort500.truncated !== true, '一、499 条：第 5 页不满 ⇒ 不置 truncated', rShort500 && String(rShort500.truncated))
+  check(truncatedLogs(fiveShort).length === 0, '一、499 条：不落截断日志', truncatedLogs(fiveShort).length)
+
+  // ⑤ 99 条：一页取完就停。
+  const short = makeRoomCtx([rawRows(99)])
   const rShort: any = await mod.listIssues(null, REPO, {}, short.ctx)
-  check(!!rShort && rShort.ok === true && rShort.data && rShort.data.length === 99, '一、99 条：列表正常返回 99 行', rShort && rShort.data && rShort.data.length)
+  check(!!rShort && rShort.ok === true && rShort.data.length === 99, '一、99 条：列表正常返回 99 行', rShort && rShort.data && rShort.data.length)
   check(!!rShort && rShort.truncated !== true, '一、99 条：不置 truncated', rShort && String(rShort.truncated))
-  const shortLogs: any[] = short.logged.filter(function (l: any): boolean { return l.event === 'read.degraded' && l.fields && l.fields.reason === 'list:truncated' })
-  check(shortLogs.length === 0, '一、99 条：不落截断日志', shortLogs.length)
+  check(short.calls.length === 1, '一、99 条：只发 1 个请求就停', short.calls.length)
+
+  // ⑥ 没给 state：每页都不带 state（省略才是全状态；不要拿 all 去表达全部）。
+  const noState = makeRoomCtx([rawRows(100), []])
+  const rNoState: any = await mod.listIssues(null, REPO, {}, noState.ctx)
+  const noStateQ: string = String((noState.calls[0] && noState.calls[0].args && noState.calls[0].args[1]) || '')
+  check(!!rNoState && rNoState.ok === true && noStateQ.indexOf('state=') < 0, '一、不给 state：请求里不带 state 参数', noStateQ)
 }
 
 async function partProbe(): Promise<void> {
-  console.log('— 二、探针层：截断日志按仓库边沿式去重，恢复后再次截断还能看见')
+  console.log('— 二、探针层：截断日志按仓库边沿式去重，恢复后再次截断还能看见；#1772 起走 updated_after 增量读')
   const mod: any = await imp('src/refresh/rooms/host/probe-handler.ts')
   const probeLogs: any[] = []
+  const listCalls: any[] = []
   let truncated = true
+  let tick = 0
+  // 每一拍返回的票带「比上一拍更新」的 updated_at：真实的 updated_after 升序读就是这样。
+  const rowsFor = function (n: number): any[] {
+    return rawRows(n).map(function (row: any, i: number): any {
+      // 探针收到的是归一化之后的票（房间已经把 updated_at 映射成 updatedAt）；这里两格都给，
+      // 免得夹具只按 snake_case 供数、探针却按契约字段读，两边看法对不上。
+      const at: string = new Date(1700000000000 + (tick * 1000 + i) * 1000).toISOString()
+      // number 也要给：探针拿到的是契约里归一化之后的票（房间把 iid 映射成 number），
+      // 只用 raw 的 iid 时票号键取不出来，增量拍会把「见到的票」记成 0 张。
+      return Object.assign({}, row, { number: row.iid, updatedAt: at, updated_at: at })
+    })
+  }
   const tracker: any = {
     list: async function (ref: any, opts: any, opCtx: any): Promise<any> {
+      listCalls.push({ opts: opts })
+      const rows: any[] = rowsFor(truncated ? 100 : 99)
+      tick += 1
       if (truncated) {
         // 这里模拟 GitLab 房：取满一页就报一行 read.degraded（#1770 新增的那条线）。
         opCtx.logEvent('warn', 'read.degraded', { op: 'list', reason: 'list:truncated', latencyMs: 3, opId: 'op-fake' })
       }
       // 干扰项：其它降级原因不归探针这一路记，桥只接截断那一条。
       opCtx.logEvent('warn', 'read.degraded', { op: 'list', reason: 'list:transport', latencyMs: 3, opId: 'op-fake' })
-      return { ok: true, data: rawRows(truncated ? 100 : 99), truncated: truncated === true }
+      return { ok: true, data: rows, truncated: truncated === true }
     },
   }
   const deps: any = {
@@ -141,9 +201,15 @@ async function partProbe(): Promise<void> {
 
   const r1: any = await handler.handleProbe({ cwd: 'D:/ws1770' })
   check(!!r1 && r1.ok === true, '二、探针第一拍正常返回' + (r1 && r1.ok === true ? '' : '（实得 ' + JSON.stringify(r1).slice(0, 300) + '）'))
+  check(listCalls.length === 1, '二、第一拍：没有游标 ⇒ 只发 1 个列表请求（有界全量读）', listCalls.length)
+  check(!!listCalls[0] && !listCalls[0].opts.since, '二、第一拍：列表请求不带 since（先建游标）', JSON.stringify(listCalls[0] && listCalls[0].opts))
   check(truncatedLogs().length === 1, '二、第一拍截断：探针路径落了一行 read.degraded / list:truncated', truncatedLogs().length)
+  const firstCursor: string = new Date(1700000000000 + 99 * 1000).toISOString()
   const r2: any = await handler.handleProbe({ cwd: 'D:/ws1770' })
   check(!!r2 && r2.ok === true, '二、探针第二拍正常返回', r2 && r2.error)
+  check(listCalls.length === 2, '二、第二拍：仍然每拍只发 1 个列表请求（不在一拍里翻多页）', listCalls.length)
+  check(!!listCalls[1] && listCalls[1].opts && listCalls[1].opts.since === firstCursor,
+    '二、第二拍：改走增量读，since 是第一拍见到的最大 updated_at', JSON.stringify(listCalls[1] && listCalls[1].opts))
   check(truncatedLogs().length === 1, '二、第二拍仍是截断：不重复记（5 秒一拍不许刷成心跳）', truncatedLogs().length)
   const otherReasons: any[] = probeLogs.filter(function (l: any): boolean { return l.event === 'read.degraded' && l.fields && l.fields.reason !== 'list:truncated' })
   check(otherReasons.length === 0, '二、其它降级原因不经探针这一路记（桥只接截断这一条）', otherReasons.length)
@@ -237,12 +303,17 @@ async function partToolNote(): Promise<void> {
   const truncatedReceipt: any = await runOne('三、>100 张（后端标截断）', true)
   const notes: string[] = ((truncatedReceipt && truncatedReceipt.notes) || []).map(function (n: any): string { return String(n) })
   const joined = notes.join('\n')
-  check(joined.indexOf('可能不全') >= 0, '三、>100 张：回执里有「可能不全」的说明', joined || '（没有 notes）')
-  check(joined.indexOf('每页最多 100 条') >= 0, '三、>100 张：文案点到每页 100 条这类后端上限（不只说 GitHub 的 500/1000 条）', joined || '（没有 notes）')
+  check(joined.indexOf('可能不全') >= 0, '三、后端标截断：回执里有「可能不全」的说明', joined || '（没有 notes）')
+  check(joined.indexOf('500 张') >= 0 && joined.indexOf('5 页') >= 0, '三、后端标截断：文案点到 GitLab 的 500 张 / 5 页上限', joined || '（没有 notes）')
+  const truncatedData: any = truncatedReceipt && truncatedReceipt.data
+  check(!!truncatedData && truncatedData.backendTruncated === true, '三、后端标截断：data.backendTruncated === true', truncatedData && String(truncatedData.backendTruncated))
+  check(!!truncatedData && truncatedData.truncated === true, '三、后端标截断：data.truncated 也置 true', truncatedData && String(truncatedData.truncated))
 
   const normalReceipt: any = await runOne('三、≤100 张（后端没标截断）', false)
   const normalNotes: string[] = ((normalReceipt && normalReceipt.notes) || []).map(function (n: any): string { return String(n) })
   check(normalNotes.join('\n').indexOf('可能不全') < 0, '三、≤100 张：回执里没有「可能不全」的说明', normalNotes.join('\n') || '（没有 notes，符合预期）')
+  const normalData: any = normalReceipt && normalReceipt.data
+  check(!!normalData && normalData.backendTruncated === false, '三、≤100 张：data.backendTruncated === false', normalData && String(normalData.backendTruncated))
 }
 
 async function main(): Promise<void> {

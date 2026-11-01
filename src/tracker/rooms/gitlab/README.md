@@ -16,7 +16,7 @@
 
 跟这条限制同源的一处代价落在 `listPage` 上：`pages.ts` 里 `nextCursor` 的算法是「这一页取满了（行数等于每页条数）就再给一个页码，取不满才是最后一页」。因为拿不到响应头里的总数，**当总数正好是每页条数的整数倍时，最后一页仍然会给出一个游标**，调用方会多取一次、拿回一个空数组。这是这套接口设计的代价，不是错误：契约的返回里能表达「有没有下一页」的只有 `nextCursor` 这一格，没有别的位置能补一句「这已经是最后一页」。读的人不要以为这里已经省下了那一趟。
 
-同一条「一页 100 行」的限制还落在 `list` 上（票列表主路径，不翻页）：请求固定 `per_page=100`，**取满一页就认为后面还可能有一页没取到**，回包里置 `truncated: true`，并在返回前落一行 `read.degraded`（`reason` 为 `list:truncated`，取不满时不记）。正好 100 张票也会被标成截断，代价只是面板与工具回执多一句「这份清单不全」的说明，不会把数字算错。`truncated` 往上走就是面板数字角的小圆点与工具回执里的那句话；真正读全（翻页或按 `updated_after` 取增量）是另一件事，见 #1772。
+`list`（票列表主路径）从 #1772 起有两条读路。**调用方没给 `since`（全量读，例如快照重建与 `deck_issue_list`）**：固定 `per_page=100`，按 `updated_at` 倒序一页一页翻 `page=1..5`，最多 500 张；只有「第 5 页仍然是满的」才置 `truncated: true` 并落一行 `read.degraded`（`reason` 为 `list:truncated`），恰好 100 张、499 张或下一页为空都按读完处理。**调用方给了 `since`（增量读，刷新探针用）**：只发一个请求，带 `updated_after=<since>`、按 `updated_at` 升序、`per_page=100`，这一页取满就说明还有积压、置 `truncated: true`，下一拍从新游标继续；`updated_after` 含边界，重复的票由调用方按票号去重，不承诺精确一次。`truncated` 往上走就是面板数字角的小圆点与工具回执里的那句话。两条读路都仍有上限（全量最多 500 张），超出部分没参与筛选，别把回包当全量。
 
 `platform` 或 `exec` 不在上下文里时，客户端回的是 `code: 127` 加一句 `stderr: 'platform unavailable'`，不抛异常。调用方按 `OpResult` 归一。
 
@@ -71,6 +71,7 @@ GitHub 那种「背景色 + 前景色」的双色在 GitLab 不存在：一条�
 | `preflight.ts` | 探本机环境（glab 装没装、登没登） |
 | `repo.ts` | `getRepoKey`：解析仓库身份 |
 | `issues.ts` | 列票、取单张、建票、关票、重开、改票 |
+| `list-read.ts` | 票列表两条读路的取数：全量有界翻页、`updated_after` 单页增量 |
 | `create-write.ts` | 建票收敛成单条写路径 |
 | `idempotency.ts` | 建票的幂等锚 |
 | `comments.ts` | 写评论 |

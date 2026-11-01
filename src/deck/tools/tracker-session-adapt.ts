@@ -6,8 +6,10 @@
 //
 // 为什么需要这层适配：房间抛出的错会被管线收成 env（见 src/tracker/contract/ 的错误档位），
 // 而旧调用壳（src/deck/shell/call-shell.ts）只认 backend-threw 这一档。适配层把每个操作的 env
-// 改写成 backend-threw，让管线与旧壳的口径对齐；方法名与旧壳 withCallScope 要的那十五条一一对应，
+// 改写成 backend-threw，让管线与旧壳的口径对齐；方法名与旧壳 withCallScope 要的那十六条一一对应，
 // 名单多一条少一条都会让某个工具在调用时拿不到实现，所以要改就跟着壳一起改。
+// #1772：补上 listSubIssues —— 地图快照改用它一次取全一张地图的子票（翻页到底、capped/missing 诚实交代）；
+// 此前它不在名单里，工具里的 t.listSubIssues 永远不是函数，只能退回 list + 按 parentKey 二次过滤。
 import type { TrackerSession } from '../../tracker/session/open-tracker.js'
 
 /** 未知形状的记录（会话壳没标类型，用到哪格验哪格，不猜）。 */
@@ -16,18 +18,19 @@ type UnknownRecord = Record<string, unknown>
 function str(v: unknown): string { return (typeof v === 'string') ? v : '' }
 
 /** 管线执行层失败（房间抛错被管线收成 env）与旧口径的对照：旧壳认 backend-threw 才抛，这里改写一格再交出去。 */
-const ADAPT_OPS = ['get', 'list', 'listMaps', 'getDependencies', 'create', 'setParent', 'setBlockedBy', 'preflight', 'getRepoPermissions', 'close', 'reopen', 'comment', 'update', 'setLabels', 'setAssignees'];
-/** 把会话包成预算壳认得的后端门面：方法名与 withCallScope 要的那十五条对齐，env 改写成 backend-threw。 */
+const ADAPT_OPS = ['get', 'list', 'listMaps', 'listSubIssues', 'getDependencies', 'create', 'setParent', 'setBlockedBy', 'preflight', 'getRepoPermissions', 'close', 'reopen', 'comment', 'update', 'setLabels', 'setAssignees'];
+/** 把会话包成预算壳认得的后端门面：方法名与 withCallScope 要的那十六条对齐，env 改写成 backend-threw。 */
 export function adaptSession(session: TrackerSession): UnknownRecord {
   const room = (session || {}) as unknown as UnknownRecord;
   const out: UnknownRecord = {};
   for (const name of ADAPT_OPS) {
     out[name] = async function (...args: unknown[]): Promise<unknown> {
       const fn = room[name] as ((...a: unknown[]) => Promise<unknown>) | undefined;
-      // listMaps 是第一条允许退化的操作：房间没有它（手造桩或极老的会话形状）不算执行层失败，
+      // listMaps / listSubIssues 是允许退化的两条：房间没有它（手造桩或极老的会话形状）不算执行层失败，
       // 调用方拿 unsupported 照老路走；其余操作的缺席仍是抛错（调用方按 backend-threw 处理）。
       if (typeof fn !== 'function') {
         if (name === 'listMaps') return { ok: false, error: { kind: 'unsupported', message: '这个后端没有地图薄行，按老路取' } };
+        if (name === 'listSubIssues') return { ok: false, error: { kind: 'unsupported', message: '这个后端不支持按票取子票，按老路取' } };
         throw new Error('这次没拿到后端实现，我没往下做。');
       }
       const got = (await fn(...args)) as UnknownRecord | null;

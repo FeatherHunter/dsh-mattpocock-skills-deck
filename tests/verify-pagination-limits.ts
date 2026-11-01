@@ -56,6 +56,7 @@ const EXPECTED = {
     limitDefault: 50,
     limitMax: 200,
     maxPerPage: 100,
+    issueListMaxPages: 5,
     subIssuesPageSize: 100,
     subIssuesMax: 1000,
     labelListPerPage: 100,
