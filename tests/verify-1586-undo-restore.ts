@@ -69,15 +69,12 @@ const WRITE_SUBS = ['reset', 'revert', 'cherry-pick', 'commit']
 const writes = (): string[][] => spawns.filter((a) => WRITE_SUBS.indexOf(after(a)[0]) >= 0)
 const deny = (r: any, reason: string): boolean => !!(r && r.ok === false && r.error && r.error.reason === reason)
 const printGateResult = require('./lib/gate-result.ts').printGateResult
-// 反证基座：把共享层四叶按构建同一个拼装次序拼成闭包（叶子之间只有「短哈希」那一处 import，
-// 拼装时剥掉 import 行、改为同段直拼），改一处判据再求值，看同一套断言会不会判红。
-// 转译参数与构建同一份（TRANSPILE_OPTIONS）。
+// 反证基座：把共享层三叶按构建同一个拼装次序拼成闭包（它们之间没有 import，可以直拼），
+// 改一处判据再求值，看同一套断言会不会判红。转译参数与构建同一份（TRANSPILE_OPTIONS）。
 const UNDO_SHARED_FILES = [
   'src/shared/version-control/src/undo-ops.ts',
   'src/shared/version-control/src/undo-ticket.ts',
   'src/shared/version-control/src/recovery-point.ts',
-  // #1776 M4e：历史改写的短哈希改成从写层票表导入，反证闭包也要把正本拼进来。
-  'src/shared/version-control/src/write-ticket.ts',
 ]
 const UNDO_SHARED_EXPORTS = [
   'UNDO_OPS', 'UNDO_OP_NAMES', 'undoOpOf', 'undoDangerOf', 'undoNeedsRecoveryOf', 'undoRevProblem',
@@ -87,9 +84,6 @@ const UNDO_SHARED_EXPORTS = [
 ]
 function undoSharedSourceOf(patch?: any): string {
   let src = UNDO_SHARED_FILES.map(function (rel: string) { return fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/^(\s*)export\s+/gm, '$1') }).join('\n')
-  // 叶子之间的 import 在拼装闭包里剥掉：这几处的 import 都是单行（类型导入与超时常量），
-  // 声明按原序直拼，函数声明会提升，所以调用点在前面也能解析到。
-  src = src.replace(/^import[^\n]*(?:\n|$)/gm, '')
   if (patch) src = patch(src)
   return src
 }
