@@ -64,6 +64,10 @@ export const vcRealWithFirstScreenOf = function (currentReads: any, nextReads: a
   return out
 }
 
+// 在途表放模块层：动作层对象与闸函数每次渲染都会重建，表若挂在对象里，重新渲染后同一动作的第二下就查不到
+//   第一趟还在飞的那份，闸等于没装。键是「阶段＋动作＋作用对象」，不同对象各占一行，互不相干。
+const VC_REAL_INFLIGHT: any = new Map()
+
 // 容器需要的动作集合：每次渲染重建一份（闭包里抓的是这一帧的读数与界面状态），异步回包用 setState
 //   的函数式写法落地。deps 字段：getReads / setReads / getUi / setUi / getNav / callHost / cwd / nowMs。
 export const vcRealActionsOf = function (deps: any): any {
@@ -84,6 +88,17 @@ export const vcRealActionsOf = function (deps: any): any {
     })
   }
   const refresh = function (moment: any): any { return settleFirstScreen(vcRealRefreshOf(readsNow(), call, cwd, moment)) }
+  // 在途闸（#1776 M4d，规格第 395 行）：同对象同动作的第一下还在路上时，第二下直接复用那一趟的结果，
+  //   不再发第二份电话。判据是这张进程内存里的表，不是 ui.state —— 下一帧才生效的界面态拦不住同一帧里的连点。
+  const gate = function (key: any, start: any): any {
+    const k: string = String(key || '')
+    const running: any = VC_REAL_INFLIGHT.get(k)
+    if (running) return running
+    const p: any = Promise.resolve().then(start)
+    const tracked: any = p.then(function (out: any) { VC_REAL_INFLIGHT.delete(k); return out }, function (err: any) { VC_REAL_INFLIGHT.delete(k); throw err })
+    VC_REAL_INFLIGHT.set(k, tracked)
+    return tracked
+  }
   const ops: any = {
     refresh: refresh,
     retrySlice: function (id: any): any {
@@ -203,6 +218,7 @@ export const vcRealActionsOf = function (deps: any): any {
         setReads: function (next: any) { setReads(next) },
       })
     },
+    gate: gate,
   }
   return ops
 }
@@ -215,7 +231,7 @@ export const vcRealCurrentUiOf = function (deps: any): any {
 
 // 改动页 13 条动作的处理器：状态由容器持有（values 与 rows），这里只做电话与落状态。
 //   begin 先走预检电话拿 120 秒票；危险动作停确认卡，其余直接凭票执行；run 只认确认卡给的票。
-export const vcRealChangesHandlersOf = function (state: any, setState: any, call: any, cwd: any, translate: any): any {
+export const vcRealChangesHandlersOf = function (state: any, setState: any, call: any, cwd: any, translate: any, gate: any): any {
   const t = typeof translate === 'function' ? translate : function (key: string) { return key }
   const s: any = state || {}
   // 每次改动都交给容器的函数式更新：异步回包落地时按「当前态」算下一态，不会被旧的闭包快照覆盖。
@@ -231,6 +247,16 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
     })
   }
   const values: any = s.values || {}
+  // 闸键＝动作 + 作用对象（路径 / 来源 / 去向 / 块号）：同对象同动作撞一把，不同对象各走各的。
+  const objectKeyOf = function (op: any, payload: any): string {
+    const p: any = payload || {}
+    const pick = function (k: string): string { return p[k] !== undefined && p[k] !== null ? String(p[k]) : String(values[k] === undefined || values[k] === null ? '' : values[k]) }
+    return String(op) + '|' + pick('path') + '|' + pick('from') + '|' + pick('to') + '|' + pick('hunkIndex')
+  }
+  const gated = function (phase: string, op: any, payload: any, start: any): any {
+    if (typeof gate !== 'function') return start()
+    return gate(phase + '|' + objectKeyOf(op, payload), start)
+  }
   const handlers: any = {
     onValue: function (field: any, value: any): void {
       if (typeof setState !== 'function') return
@@ -241,6 +267,9 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
       })
     },
     begin: function (op: any, payload: any): any {
+      return gated('changes-action', op, payload, function () { return handlers.beginNow(op, payload) })
+    },
+    beginNow: function (op: any, payload: any): any {
       const meta: any = vcChangesOpMetaOf(op)
       if (!meta || meta.write !== true) return handlers.read(op, payload)
       putRow(op, { busy: true, result: null, confirm: null, read: null })
@@ -260,6 +289,9 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
       })
     },
     run: function (op: any, payload: any, ticket: any): any {
+      return gated('changes-write', op, payload, function () { return handlers.runNow(op, payload, ticket) })
+    },
+    runNow: function (op: any, payload: any, ticket: any): any {
       const t: any = ticket || {}
       putRow(op, { busy: true, confirm: null })
       return Promise.resolve(call(VC_CHANGES_PHONES.write, vcChangesWriteArgsOf(cwd, op, values, t.ticketId, t.requestId))).then(function (reply: any) {
@@ -274,6 +306,9 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
     },
     cancel: function (op: any): void { putRow(op, { busy: false, confirm: null }) },
     read: function (op: any, payload: any): any {
+      return gated('changes-read', op, payload, function () { return handlers.readNow(op, payload) })
+    },
+    readNow: function (op: any, payload: any): any {
       putRow(op, { busy: true, read: null })
       return Promise.resolve(call(VC_CHANGES_PHONES.check, vcChangesCheckArgsOf(cwd, op, values))).then(function (reply: any) {
         const ok: boolean = !!(reply && reply.ok === true)

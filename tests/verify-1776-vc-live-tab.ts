@@ -654,6 +654,149 @@ async function scenarioAiHandoff() {
   await m.unmount()
 }
 
+// ---------------- 场景九：M4d 四处规格缺口（页签真实计数 / 在途闸 / Esc 返回与滚动还原 / 浮层焦点） ----------------
+// 这四条都是代码评审按规格点名的缺口：页签计数要来自首屏真实读数并带单位；同对象同动作的第二下
+//   要在在途时被拦住（不能等下一帧的 ui.state）；Esc 先关浮层，没有浮层时回来源页并还原滚动位置、
+//   保住筛选词；浮层与确认卡打开时焦点进第一个可操作控件，关掉回触发它的按钮。
+async function scenarioM4d() {
+  console.log('\n== 场景九：M4d 页签真实计数、在途闸、Esc 返回与滚动还原、浮层焦点 ==')
+  const mountTab = async function (host) {
+    const view = buildView(host, null)
+    const m = mountOf(view, { st: { cwd: CWD }, narrow: false })
+    await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD }, narrow: false })) })
+    await settle()
+    return { view: view, m: m }
+  }
+  const activeIs = function (m, sel) {
+    const want = typeof sel === 'string' ? m.q(sel) : sel
+    return !!want && document.activeElement === want
+  }
+  const tabCountText = function (m, id) {
+    const el = m.q('[data-vc-tab="' + id + '"] .vcs-tab-count')
+    return el ? String(el.textContent || '') : ''
+  }
+  const tabCountState = function (m, id) {
+    const el = m.q('[data-vc-tab="' + id + '"] .vcs-tab-count')
+    return el ? String(el.getAttribute('data-vc-tab-count-state') || '') : ''
+  }
+
+  // —— 1) 页签计数：来自首屏四片真实读数（改动=工作区文件数、提交=已读条数、工作树=棵数、贮藏=条数），带单位 ——
+  const first = await mountTab(makeHost({}))
+  check(tabCountText(first.m, 'changes') === tZh('vc.shell.tab.unit.changes', { n: 1 }) && tabCountState(first.m, 'changes') === 'ok',
+    'T32 改动页签计数来自首屏改动片（1 个工作区文件），不再是能力账本条数：' + tabCountText(first.m, 'changes'))
+  check(tabCountText(first.m, 'commits') === tZh('vc.shell.tab.unit.commits', { n: 1 }) && tabCountText(first.m, 'worktrees') === tZh('vc.shell.tab.unit.worktrees', { n: 1 }) && tabCountText(first.m, 'stash') === tZh('vc.shell.tab.unit.stash', { n: 0 }),
+    'T32b 提交历史/工作树/贮藏三个计数各来自自己的首屏片（1 条提交、1 棵工作树、0 条贮藏）：' + [tabCountText(first.m, 'commits'), tabCountText(first.m, 'worktrees'), tabCountText(first.m, 'stash')].join(' / '))
+  check(tabCountState(first.m, 'stash') === 'ok' && tabCountText(first.m, 'stash').indexOf('0') >= 0, 'T32c 已知为零照实显示 0，不拿未知的破折号糊弄')
+  await first.m.unmount()
+  const failed = await mountTab(makeHost({ failSlice: 'changes' }))
+  check(tabCountText(failed.m, 'changes') === '—' && tabCountState(failed.m, 'changes') === 'unknown', 'T32d 改动片读失败时该页签不拿 0 冒充，标成未知（—）：' + tabCountText(failed.m, 'changes'))
+  check(tabCountText(failed.m, 'commits') === tZh('vc.shell.tab.unit.commits', { n: 1 }) && tabCountText(failed.m, 'worktrees') === tZh('vc.shell.tab.unit.worktrees', { n: 1 }), 'T32e 一片读失败不拖累其它页签的计数')
+  await failed.m.unmount()
+
+  // —— 2) 在途闸：同一帧连点两下同对象同动作只发一份电话，第二下复用同一份结果；不同对象照常并行 ——
+  const gateHost = makeHost({})
+  const g = await mountTab(gateHost)
+  await g.m.type('[data-vc-changes-row="1.3"] [data-vc-changes-field="path"]', 'a.txt')
+  const btn13 = g.m.q('[data-vc-changes-primary="1.3"]')
+  await React.act(async function () {
+    btn13.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }))
+    btn13.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }))
+  })
+  await settle()
+  check(countKin(gateHost, 'wf.gitChangesCheck') === 1 && countKin(gateHost, 'wf.gitChangesWrite') === 1,
+    'T33 同一动作同一帧点两下只发一份预检与一份执行（预检 ' + countKin(gateHost, 'wf.gitChangesCheck') + ' 次、执行 ' + countKin(gateHost, 'wf.gitChangesWrite') + ' 次），第二下复用同一份结果')
+  await g.m.unmount()
+  const parHost = makeHost({})
+  const par = await mountTab(parHost)
+  await par.m.type('[data-vc-changes-row="1.3"] [data-vc-changes-field="path"]', 'a.txt')
+  const par13 = par.m.q('[data-vc-changes-primary="1.3"]')
+  const par15 = par.m.q('[data-vc-changes-primary="1.5"]')
+  await React.act(async function () {
+    par13.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }))
+    par15.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }))
+  })
+  await settle()
+  check(countKin(parHost, 'wf.gitChangesCheck') === 2 && countKin(parHost, 'wf.gitChangesWrite') === 2,
+    'T33b 不同对象（1.3 与 1.5）同一帧各点一下，两份都真发出去（不是一把全局布尔闸）')
+  await par.m.unmount()
+  const gateNeedle = 'actions.gate'
+  check(readSource('src/client/views/versionControl/vcRealTab.js').indexOf(gateNeedle) >= 0, 'T33c 自证：容器把在途闸交给改动页处理器（源码里有 actions.gate，改法能命中）')
+  const noGateHost = makeHost({})
+  const noGate = buildView(noGateHost, { 'src/client/views/versionControl/vcRealTab.js': function (code) { return code.replace(', actions.gate)', ')') } })
+  const ng = mountOf(noGate, { st: { cwd: CWD } })
+  await React.act(async function () { ng.root.render(React.createElement(noGate.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  await ng.type('[data-vc-changes-row="1.3"] [data-vc-changes-field="path"]', 'a.txt')
+  const ngBtn = ng.q('[data-vc-changes-primary="1.3"]')
+  await React.act(async function () {
+    ngBtn.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }))
+    ngBtn.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }))
+  })
+  await settle()
+  check(countKin(noGateHost, 'wf.gitChangesCheck') === 2 && countKin(noGateHost, 'wf.gitChangesWrite') === 2,
+    'T33d 反证：把在途闸拿掉后同样两下真的发出两份（说明 T33 的 1/1 抓得住退化）')
+  await ng.unmount()
+
+  // —— 3) Esc：浮层开着先关浮层；没有浮层时回来源页，并还原滚动位置、保住筛选词 ——
+  const esc = await mountTab(makeHost({}))
+  const rootEl = esc.m.q('[data-vc-live]')
+  let scrollY = 0
+  Object.defineProperty(rootEl, 'scrollTop', { configurable: true, get: function () { return scrollY }, set: function (v) { scrollY = Number(v) || 0 } })
+  scrollY = 240
+  await React.act(async function () { rootEl.dispatchEvent(new dom.window.Event('scroll')) })
+  await settle()
+  await esc.m.click('[data-vc-search-entry]')
+  await esc.m.type('[data-vc-palette-input]', '暂存')
+  await esc.m.key('[data-vc-palette-input]', 'Escape')
+  check(!esc.m.q('[data-vc-palette]') && esc.m.page() === 'changes', 'T34 Esc 只关当前浮层，不把页面一起带走')
+  await esc.m.click('[data-vc-gear-btn]')
+  await esc.m.click('[data-vc-gear-item="' + esc.view.VC_MANAGE_PAGES[0] + '"]')
+  const subPage = esc.view.VC_MANAGE_PAGES[0]
+  await esc.m.key('[data-vc-live]', 'Escape')
+  check(esc.m.page() === 'changes' && esc.m.depth() === '1', 'T34b 二级管理页按 Esc 回来源页（' + subPage + ' → changes）')
+  check(scrollY === 240, 'T34c 回来源页后滚动位置还原到离开时的 240（实得 ' + scrollY + '）')
+  await esc.m.click('[data-vc-search-entry]')
+  const kept = esc.m.q('[data-vc-palette-input]')
+  check(!!kept && kept.value === '暂存', 'T34d 回来源页后筛选词保留（命令面板输入框仍是「暂存」）')
+  await esc.m.key('[data-vc-palette-input]', 'Escape')
+  await esc.m.unmount()
+  const escapeNeedle = 'setNav(vcRealNavBack(cur))'
+  check(readSource('src/client/views/versionControl/vcRealShell.js').indexOf(escapeNeedle) >= 0, 'T34e 自证：Esc 回来源页那一句写在容器里（改法能命中）')
+  const backHost = makeHost({})
+  const backView = buildView(backHost, { 'src/client/views/versionControl/vcRealShell.js': function (code) { return code.replace(escapeNeedle, 'void 0') } })
+  const bm = mountOf(backView, { st: { cwd: CWD } })
+  await React.act(async function () { bm.root.render(React.createElement(backView.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  await bm.click('[data-vc-gear-btn]')
+  await bm.click('[data-vc-gear-item="' + backView.VC_MANAGE_PAGES[0] + '"]')
+  await bm.key('[data-vc-live]', 'Escape')
+  check(bm.page() === backView.VC_MANAGE_PAGES[0], 'T34f 反证：把 Esc 回来源页那句拿掉后停在二级页（说明 T34b 抓得住）')
+  await bm.unmount()
+
+  // —— 4) 焦点：浮层与确认卡打开时进第一个可操作控件，关掉回触发按钮 ——
+  const foc = await mountTab(makeHost({}))
+  await foc.m.click('[data-vc-gear-btn]')
+  check(activeIs(foc.m, '[data-vc-gear-index] [data-vc-gear-item]'), 'T35 齿轮打开后焦点进索引的第一项')
+  await foc.m.key('[data-vc-gear-index] [data-vc-gear-item]', 'Escape')
+  check(activeIs(foc.m, '[data-vc-gear-btn]'), 'T35b Esc 关齿轮后焦点回齿轮按钮')
+  await foc.m.click('[data-vc-search-entry]')
+  check(activeIs(foc.m, '[data-vc-palette-input]'), 'T35c 命令面板打开后焦点进搜索框')
+  await foc.m.key('[data-vc-palette-input]', 'Escape')
+  check(activeIs(foc.m, '[data-vc-search-entry]'), 'T35d Esc 关面板后焦点回放大镜')
+  await foc.m.click('[data-vc-branch-btn]')
+  check(activeIs(foc.m, '[data-vc-branch-overlay] [data-vc-branch-close]'), 'T35e 分支浮层打开后焦点进浮层第一个可操作控件（关闭键）')
+  await foc.m.key('[data-vc-branch-overlay] [data-vc-branch-close]', 'Escape')
+  check(activeIs(foc.m, '[data-vc-branch-btn]'), 'T35f Esc 关分支浮层后焦点回分支按钮')
+  await foc.m.type('[data-vc-changes-row="1.6"] [data-vc-changes-field="path"]', 'a.txt')
+  const dangerBtn = foc.m.q('[data-vc-changes-primary="1.6"]')
+  dangerBtn.focus()
+  await foc.m.click(dangerBtn)
+  check(!!foc.m.q('[data-vc-changes-confirm="1.6"]') && activeIs(foc.m, '[data-vc-changes-confirm="1.6"] [data-focus-default="cancel"]'), 'T35g 确认卡打开后焦点进卡里的取消键（危险动作默认停在安全那一颗）')
+  await foc.m.click('[data-vc-changes-confirm="1.6"] [data-vc-changes-confirm-cancel="1"]')
+  check(activeIs(foc.m, '[data-vc-changes-primary="1.6"]'), 'T35h 取消确认卡后焦点回触发它的那颗动作按钮')
+  await foc.m.unmount()
+}
+
 // ---------------- main ----------------
 async function main() {
   const locUrl = (f) => pathToFileURL(path.join(ROOT, sourcePath(f))).href
@@ -674,6 +817,7 @@ async function main() {
   await scenarioReverseProof()
   await scenarioManage()
   await scenarioAiHandoff()
+  await scenarioM4d()
 
   console.log('\n断言 ' + total + ' 条，失败 ' + failed + ' 条')
   printGateResult('verify-1776-vc-live-tab', total, failed ? 1 : 0)

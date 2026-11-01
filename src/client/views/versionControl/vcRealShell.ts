@@ -103,7 +103,14 @@ export const vcRealCallbacksOf = function (deps: any): any {
         if (btn && typeof btn.focus === 'function') btn.focus()
       }
     },
-    escape: function () { setNav(vcRealNavCloseAll(getNav())) },
+    // Esc（规格第 343 行）：浮层开着先只关浮层；没有浮层而当前页有来源页时按 Esc 回来源页。
+    //   回来源页后的滚动位置与筛选词由导航快照负责（vcRealNavBack 会把 pages 里存的那份带回来）。
+    escape: function () {
+      const cur: any = getNav()
+      const open: any = (cur && cur.open) || {}
+      if (open.branch === true || open.palette === true || open.gear === true) { setNav(vcRealNavCloseAll(cur)); return }
+      if (cur && cur.back) setNav(vcRealNavBack(cur))
+    },
     historyOpen: function (intent: any) { actionsRef.current.openCommit(intent && intent.oid) },
     historyBack: function () { actionsRef.current.closeCommit() },
     loadMore: function () { actionsRef.current.loadMore() },
@@ -211,6 +218,72 @@ export const vcRealAiNodesOf = function (h: any, tr: any, reads: any, nav: any, 
   })
   // 外层 div 带固定 key：它会被拼进容器组件的 kids 数组，不带 key 时 React 每次渲染都要打一条警告。
   return h('div', { key: 'ai', className: 'vcs-live-ai', 'data-vc-live-ai': '1' }, nodes)
+}
+
+
+// 可聚焦控件的选择器（规格第 391 行的焦点接管用）：禁用的与 tabindex=-1 的不算，第一个命中的就是落点。
+const VC_REAL_FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+// 浮层打开时的落点：命令面板是搜索框，齿轮是索引第一项，分支浮层是第一个可聚焦控件（关闭键）。
+const VC_REAL_FOCUS_OPEN: any = { palette: '[data-vc-palette-input]', gear: '[data-vc-gear-index]', branch: '[data-vc-branch-overlay]' }
+// 浮层关掉后焦点回哪颗固定触发钮：键盘打开时浏览器没把焦点给按钮，靠这一条兜底。
+const VC_REAL_FOCUS_TRIGGER: any = { palette: '[data-vc-search-entry]', gear: '[data-vc-gear-btn]', branch: '[data-vc-branch-btn]' }
+// 确认卡外层标记：各页自己的卡都算（壳原语卡带 data-vc-confirm，其余页各带自己的标记）。
+const VC_REAL_CONFIRM_CARD = '[data-vc-confirm], [data-vc-changes-confirm], [data-vc-conflicts-confirm], [data-vc-stash-confirm], [data-vc-sync-confirm], [data-vc-commit-confirm], [data-vc-sub-confirm], [data-vc-undo-confirm], [data-vc-rebase-confirm], [data-vc-rewrite-confirm], [data-vc-maint-confirm], [data-vc-migrate-confirm], [data-vc-diag-confirm], [data-vc-config-confirm], [data-vc-hooks-confirm], [data-vc-clone-confirm], [data-vc-remote-confirm]'
+
+const vcRealFocusIn = function (node: any): void {
+  if (node && typeof node.focus === 'function') node.focus({ preventScroll: true })
+}
+const vcRealFirstFocusableOf = function (root: any, sel: string): any {
+  const box: any = root && typeof root.querySelector === 'function' ? root.querySelector(sel) : null
+  if (!box) return null
+  if (typeof box.matches === 'function' && box.matches(VC_REAL_FOCUSABLE)) return box
+  const list: any = typeof box.querySelectorAll === 'function' ? box.querySelectorAll(VC_REAL_FOCUSABLE) : []
+  return list && list.length > 0 ? list[0] : null
+}
+const vcRealOverlayKindOf = function (nav: any): string {
+  const open: any = (nav && nav.open) || {}
+  if (open.palette === true) return 'palette'
+  if (open.gear === true) return 'gear'
+  if (open.branch === true) return 'branch'
+  return ''
+}
+
+// 焦点接管（规格第 391 行）：浮层或确认卡打开时把焦点送进第一个可操作控件，关掉后送回触发它的那颗按钮。
+//   state 由容器用 useRef 持有（{ overlay, confirm, returnEl, confirmReturn }）：本函数只读 DOM 与导航，
+//   返回下一份 state、不产生别的副作用，所以放在「每次渲染后跑一遍」的 effect 里也安全。
+export const vcRealFocusStepOf = function (root: any, nav: any, state: any): any {
+  const s: any = state || {}
+  const next: any = { overlay: String(s.overlay || ''), confirm: s.confirm === true, returnEl: s.returnEl || null, confirmReturn: s.confirmReturn || null }
+  if (!root || typeof root.querySelector !== 'function' || typeof document === 'undefined') return next
+  const active: any = document.activeElement
+  const inside: any = active && active !== root && typeof root.contains === 'function' && root.contains(active) ? active : null
+  const kind: string = vcRealOverlayKindOf(nav)
+  if (kind !== next.overlay) {
+    if (kind !== '') {
+      next.returnEl = inside
+      vcRealFocusIn(vcRealFirstFocusableOf(root, VC_REAL_FOCUS_OPEN[kind]))
+    } else if (next.overlay !== '') {
+      // 关掉后按规格回那颗固定的触发钮：打开时记下的活动元素可能是上一颗浮层的按钮，不能拿它顶替。
+      const trigger: any = root.querySelector(VC_REAL_FOCUS_TRIGGER[next.overlay])
+      const back: any = trigger || (next.returnEl && next.returnEl.isConnected === true ? next.returnEl : null)
+      vcRealFocusIn(back)
+      next.returnEl = null
+    }
+    next.overlay = kind
+  }
+  const card: any = root.querySelector(VC_REAL_CONFIRM_CARD)
+  if (card && next.confirm !== true) {
+    next.confirmReturn = inside
+    const list: any = typeof card.querySelectorAll === 'function' ? card.querySelectorAll(VC_REAL_FOCUSABLE) : []
+    const cancel: any = typeof card.querySelector === 'function' ? card.querySelector('[data-focus-default="cancel"]') : null
+    vcRealFocusIn(cancel || (list && list.length > 0 ? list[0] : null))
+  }
+  if (!card && next.confirm === true) {
+    vcRealFocusIn(next.confirmReturn && next.confirmReturn.isConnected === true ? next.confirmReturn : null)
+    next.confirmReturn = null
+  }
+  next.confirm = !!card
+  return next
 }
 
 export const VC_REAL_SHELL_SOURCE = 'src/client/views/versionControl/vcRealShell.ts'

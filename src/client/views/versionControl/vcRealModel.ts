@@ -253,6 +253,44 @@ export const vcRealChangesSeedOf = function (reads: any): any {
   }
 }
 
+// 四个页签后面的计数（#1776 M4d，规格第 22 与 335 行）：一律用首屏真实读数，不再用能力账本条数。
+//   读数还没到（idle / loading / 某一片 err）时给 unknown，页签上画「—」，不拿 0 冒充已知的零。
+export const vcRealTabCountsOf = function (reads: any): any {
+  const knownOf = function (id: string): boolean {
+    return String(vcFirstScreenSliceStateOf(reads, id) || '') === 'ok'
+  }
+  const dataOf = function (id: string): any {
+    const slice: any = vcFirstScreenSliceOf(reads, id) || {}
+    return slice.data || {}
+  }
+  // 改动片：按路径去重数工作区文件；宿主只给计数没给清单时退回两个计数相加。
+  const filesOf = function (data: any): number {
+    const seen: any = {}
+    const add = function (list: any): void {
+      if (!Array.isArray(list)) return
+      for (let i = 0; i < list.length; i += 1) {
+        const row: any = list[i] || {}
+        seen[String(row.path || row.file || i)] = 1
+      }
+    }
+    add(data.staged)
+    add(data.unstaged)
+    const n: number = Object.keys(seen).length
+    if (n > 0 || Array.isArray(data.staged) || Array.isArray(data.unstaged)) return n
+    return Number(data.stagedCount || 0) + Number(data.unstagedCount || 0)
+  }
+  const one = function (id: string, count: any): any {
+    const known: boolean = knownOf(id)
+    return { n: known ? Number(count(dataOf(id)) || 0) : 0, state: known ? 'ok' : 'unknown' }
+  }
+  return {
+    changes: one('changes', filesOf),
+    commits: one('history', function (data: any): number { return Array.isArray(data.commits) ? data.commits.length : 0 }),
+    worktrees: one('worktrees', function (data: any): number { return Array.isArray(data.others) ? data.others.length : 0 }),
+    stash: one('stashes', function (data: any): number { return Array.isArray(data.entries) ? data.entries.length : 0 }),
+  }
+}
+
 // 顶栏额外入口（#1586 的 VC_DEEP_LINKS 里页签与齿轮覆盖不到的那几个）：全库搜索页、任务页、
 //   变基页、冲突页；其余深链落在管理与页签上，已由页签与齿轮覆盖，不重复画按钮。
 export const VC_REAL_EXTRA_LINKS: string[] = ['palette', 'task', 'rebase', 'conflicts']

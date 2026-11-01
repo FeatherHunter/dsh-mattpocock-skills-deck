@@ -13,7 +13,6 @@
 
 declare const CAPABILITIES: any[]
 declare const PAGE_SURFACES: any[]
-declare const PAGE_COUNTS: Record<string, number>
 declare function vcPageDepthOf(pageId: any): number
 declare function vcPageRegistryOf(): any[]
 declare function vcPageCapabilitiesOf(pageId: any): any[]
@@ -59,6 +58,8 @@ export const VC_TAB_LABEL_KEYS: Record<string, string> = {
   worktrees: 'vc.shell.tab.worktrees',
   stash: 'vc.shell.tab.stash',
 }
+// 页签计数的量词（#1776 M4d）：计数来自首屏真实读数，不拿能力账本条数；四种读数各有自己的单位。
+export const VC_TAB_UNIT_KEYS: Record<string, string> = { changes: 'vc.shell.tab.unit.changes', commits: 'vc.shell.tab.unit.commits', worktrees: 'vc.shell.tab.unit.worktrees', stash: 'vc.shell.tab.unit.stash' }
 
 const vcWidthOf = function (w: any) {
   const n = Number(w)
@@ -181,6 +182,7 @@ export const vcPageTabsNode = function (h: any, t: any, o: any) {
   for (let i = 0; i < VC_TAB_PAGES.length; i += 1) {
     const id = VC_TAB_PAGES[i]
     const selected = id === opts.active
+    const one: any = (opts.counts || {})[id] || {}; const known: boolean = one.state === 'ok' && typeof one.n === 'number'
     tabs.push(h('button', {
       key: id,
       id: vcPagePrefixOf(opts.pagePrefix || '') + '-tab-' + id,
@@ -193,7 +195,7 @@ export const vcPageTabsNode = function (h: any, t: any, o: any) {
       tabIndex: selected ? 0 : -1,
     }, [
       h('span', { key: 'label', className: 'vcs-tab-label' }, t(VC_TAB_LABEL_KEYS[id])),
-      h('span', { key: 'n', className: 'vcs-tab-count' }, String(Number(PAGE_COUNTS && PAGE_COUNTS[id]) || 0)),
+      h('span', Object.assign({ key: 'n', className: 'vcs-tab-count', 'data-vc-tab-count-state': known ? 'ok' : 'unknown' }, known ? { 'data-vc-tab-count': String(one.n) } : {}), known ? t(VC_TAB_UNIT_KEYS[id], { n: one.n }) : '—'),
     ]))
   }
   return h('div', {
@@ -370,7 +372,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   if (gearOpen) children.push(keyed(vcGearIndexNode(h, t, { id: gearId, pagePrefix: opts.pagePrefix || '', active: isManage ? page : '' }), 'gear'))
   // 命令面板：全库搜索页把它画在能力行里（唯一一个输入框）；其它页按种子画成贴触发点的浮层。
   if (paletteOpen && !isSearch) children.push(keyed(vcPaletteNode(h, t, { id: paletteId, query: seed.query, highlight: seed.highlight, limit: seed.paletteLimit, reads: opts.reads }), 'palette'))
-  children.push(keyed(vcPageTabsNode(h, t, { pagePrefix: opts.pagePrefix || '', active: VC_TAB_PAGES.indexOf(page) >= 0 ? page : '' }), 'tabs'))
+  children.push(keyed(vcPageTabsNode(h, t, { pagePrefix: opts.pagePrefix || '', active: VC_TAB_PAGES.indexOf(page) >= 0 ? page : '', counts: opts.counts }), 'tabs'))
   children.push(keyed(vcPageBodyNode(h, t, {
     page: page, pagePrefix: opts.pagePrefix || '',
     openSurface: openSurface,

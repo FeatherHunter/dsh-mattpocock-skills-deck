@@ -53,6 +53,8 @@ declare function vcRealFailNodesOf(h: any, tr: any, reads: any): any[]
 declare function vcRealAiNodesOf(h: any, tr: any, reads: any, nav: any, st: any): any
 declare function vcRealDeepLinkOf(props: any): string
 declare function vcRealDeepLinkNavOf(key: any): any
+declare function vcRealTabCountsOf(reads: any): any
+declare function vcRealFocusStepOf(root: any, nav: any, state: any): any
 
 export const VcRealTab = function (props: any) {
   const cx: any = React.useContext(DswsCtx)
@@ -233,6 +235,27 @@ export const VcRealTab = function (props: any) {
     ro.observe(el)
     return function () { ro.disconnect() }
   }, [])
+  // 滚动位置按页各存一份（规格第 343 行）：回来源页时还原那一页的纵向位置；筛选词与高亮由导航快照 pages 负责。
+  const scrollRef: any = React.useRef({})
+  React.useEffect(function () {
+    const el: any = rootRef.current
+    if (!el || typeof el.addEventListener !== 'function') return
+    const remember = function () { scrollRef.current[String(navRef.current.page || '')] = el.scrollTop }
+    el.addEventListener('scroll', remember)
+    return function () { if (typeof el.removeEventListener === 'function') el.removeEventListener('scroll', remember) }
+  }, [cwd])
+  React.useEffect(function () {
+    const el: any = rootRef.current
+    if (!el) return
+    const saved: number = Number(scrollRef.current[String(nav.page || '')])
+    if (isFinite(saved)) el.scrollTop = saved
+  }, [nav.page, cwd])
+  // 焦点接管（规格第 391 行）：浮层与确认卡打开时把焦点送进第一个可操作控件，关掉后送回触发它的按钮。
+  //   状态放 ref，effect 每次渲染后跑一遍，只移动 DOM 焦点、不触发重渲染。
+  const focusRef: any = React.useRef({ overlay: '', confirm: false, returnEl: null, confirmReturn: null })
+  React.useEffect(function () {
+    focusRef.current = vcRealFocusStepOf(rootRef.current, nav, focusRef.current)
+  })
   if (vcRealCwdEmptyOf(cwd)) {
     return h('div', { id: 'vc-real-root', className: 'vcs-live', 'data-vc-live': '1', 'data-vc-live-empty': '1' },
       h('p', { className: 'vcs-live-empty', role: 'status' }, tr('vc.shell.live.emptyCwd')))
@@ -241,7 +264,7 @@ export const VcRealTab = function (props: any) {
   const seed: any = vcRealSeedOf(reads, nav, nowTick)
   const stash: any = Object.assign({}, vcStashStateNew(), ui.stash || {})
   const changesSeed: any = vcRealChangesSeedOf(reads)
-  const changeHandlers: any = vcRealChangesHandlersOf({ values: changes.values, rows: changes.rows }, setChangesState, callHost, cwd, tr)
+  const changeHandlers: any = vcRealChangesHandlersOf({ values: changes.values, rows: changes.rows }, setChangesState, callHost, cwd, tr, actions.gate)
   changeHandlers.onDone = function () { actionsRef.current.refresh('task-done') }
   const changesModel: any = {
     counts: changesSeed.counts,
@@ -267,6 +290,8 @@ export const VcRealTab = function (props: any) {
     width: width,
     skin: skin,
     seed: seed,
+    // 四个页签的计数用首屏真实读数（规格第 22/335 行）：读数没到时画「—」，不拿 0 冒充。
+    counts: vcRealTabCountsOf(reads),
     open: { branch: nav.open.branch === true, palette: nav.open.palette === true, gear: nav.open.gear === true, surface: nav.open.surface || '' },
     reads: Object.assign({}, manageProps.reads, {
       task: nav.page === 'migrate' && manage.migrate ? manage.migrate.task : manageProps.reads.task,
