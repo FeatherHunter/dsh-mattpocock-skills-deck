@@ -34,10 +34,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 准备 pnpm（版本取 package.json packageManager）
+      # 不要在 action-setup 里再写 version：package.json 的 packageManager 已带 sha512，
+      # 两处同时给会被 action 判成版本冲突（Multiple versions of pnpm specified）。
+      - name: 准备 pnpm（版本由 package.json 的 packageManager 决定）
         uses: pnpm/action-setup@v4
-        with:
-          version: 11.22.0
 
       - name: 准备 Node 24（对齐 engines 的 ^24.15.0；registry 指向 npmjs 供发布）
         uses: actions/setup-node@v4
