@@ -1,0 +1,159 @@
+name: publish
+
+# 发版入口（手动触发）：把「维护者本机 npm publish」换成 GitHub Actions 发布。
+# 为什么：维护者本机到 registry.npmjs.org 的 TLS 被拦，npm 直连发布一律 ECONNRESET；
+# 本地开发与门禁仍以 node/npm 为准（pnpm 只用于装依赖）。
+# 与 docs/releases/RELEASE-RUNBOOK.md 同口径：门禁（构建 / 类型检查 / 五条冒烟 / 发布契约）
+# → npm 发布（幂等）→ 打 tag 与 GitHub Release（说明用 CHANGELOG 本节原文）→ 附着版本化与固定名两份产物。
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "npm dist-tag（默认 beta；发稳定版填 latest）"
+        required: false
+        default: beta
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+env:
+  PKG_NAME: dsh-mattpocock-skills-deck
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: 检出（打 tag 与从 CHANGELOG 取本节需要完整历史）
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 准备 pnpm（版本取 package.json packageManager）
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
+      - name: 准备 Node 24（对齐 engines 的 ^24.15.0；registry 指向 npmjs 供发布）
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建（根 client/host 与 package/lib）
+        run: node scripts/build.mts
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      - name: 五条冒烟
+        run: npm run test:smoke
+
+      - name: 发布契约校验（版本同源 / README 锁版 / CHANGELOG 节头）
+        run: node --import ./scripts/ts-hook.mts tests/verify-release-contract.ts
+
+      - name: 读取版本并核对根与 package 同源
+        id: version
+        run: |
+          set -euo pipefail
+          V=$(node -p "require('./package.json').version")
+          PV=$(node -p "require('./package/package.json').version")
+          test "$V" = "$PV"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "发布版本 $V"
+
+      - name: npm 发布（已存在同版本则跳过；预发布版把 latest 一并指过去）
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DIST_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          V="${{ steps.version.outputs.version }}"
+          if npm view "$PKG_NAME@$V" version >/dev/null 2>&1; then
+            echo "SKIP：$PKG_NAME@$V 已在 registry 上（幂等重跑）"
+          else
+            ( cd package && npm publish --access public --tag "$DIST_TAG" )
+          fi
+          case "$V" in
+            *-*) npm dist-tag add "$PKG_NAME@$V" latest ;;
+            *) echo "稳定版：latest 保持发布前指向" ;;
+          esac
+
+      - name: 打发布产物（package 目录内打包，产物用于 Release 资产）
+        run: |
+          set -euo pipefail
+          V="${{ steps.version.outputs.version }}"
+          rm -rf dist-pkg
+          mkdir -p dist-pkg
+          ( cd package && npm pack --pack-destination "$GITHUB_WORKSPACE/dist-pkg" )
+          ls -l dist-pkg
+
+      - name: 打 tag 并创建 GitHub Release（说明 = CHANGELOG 对应节原文）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          V="${{ steps.version.outputs.version }}"
+          TAG="v$V"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "tag $TAG 已存在"
+          else
+            git tag -a "$TAG" -m "$TAG"
+            git push origin "refs/tags/$TAG"
+          fi
+          VERSION="$V" node - <<'NODE'
+          const fs = require('fs');
+          const version = process.env.VERSION;
+          const lines = fs.readFileSync('CHANGELOG.md', 'utf8').split(/\r?\n/);
+          const start = lines.findIndex((line) => line.startsWith('## ') && line.includes('v' + version));
+          if (start < 0) {
+            console.error('CHANGELOG 里找不到 v' + version + ' 的节');
+            process.exit(1);
+          }
+          let end = lines.length;
+          for (let i = start + 1; i < lines.length; i += 1) {
+            if (lines[i].startsWith('## ')) { end = i; break; }
+          }
+          const body = lines.slice(start, end).join('\n').trimEnd() + '\n';
+          const title = lines[start].replace(/^##\s+/, '').replace(/^\d{4}-\d{2}-\d{2}\s*·\s*/, '').trim();
+          fs.writeFileSync('release-notes.md', body);
+          fs.writeFileSync('release-title.txt', title + '\n');
+          NODE
+          TITLE=$(cat release-title.txt)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG 已存在，跳过创建"
+          else
+            gh release create "$TAG" --title "$TITLE" --notes-file release-notes.md --latest "dist-pkg/$PKG_NAME-$V.tgz"
+          fi
+
+      - name: 附着固定名产物（市场「预构建包安装」链接指的就是它）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          V="${{ steps.version.outputs.version }}"
+          TAG="v$V"
+          WORK=$(mktemp -d)
+          cd "$WORK"
+          ok=0
+          for attempt in 1 2 3 4 5 6; do
+            if npm pack "$PKG_NAME@$V" >/dev/null 2>&1 && [ -f "$PKG_NAME-$V.tgz" ]; then ok=1; break; fi
+            echo "npm 上还读不到 $PKG_NAME@$V（第 $attempt 次），30 秒后重试"
+            sleep 30
+          done
+          test "$ok" = "1"
+          mv "$PKG_NAME-$V.tgz" "$PKG_NAME.tgz"
+          sha256sum "$PKG_NAME.tgz"
+          gh release upload "$TAG" "$PKG_NAME.tgz" --clobber
+          # 为什么这里自己附固定名资产：本 workflow 用自带 GITHUB_TOKEN 创建 Release，
+          # 而 GITHUB_TOKEN 创建 Release 不会触发 release-tarball.yml（GitHub 事件规则），
+          # 那份 workflow 只覆盖「由维护者 token 手动建 Release」的路径；两边都用 --clobber，幂等。
