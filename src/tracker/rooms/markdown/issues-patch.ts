@@ -27,7 +27,7 @@ import { replaceOrInsertField, rewriteTicketText } from './issues-status.js'
 // #1788：路线决定父票注释与阻塞边写到哪一行，见 write-route.js。
 import { parentCommentOf, writeBlockedByLine } from './write-route.js'
 // #1500 S5：原文 map-ticket 分支的状态词只从 YAML 真源读；旧布局分支的字面量保持冻结。
-import { WAYFINDER_STATUS_CLAIMED, regexAlt } from './format/field-values.js'
+import { WAYFINDER_STATUS_CLAIMED, MAP_TICKET_TYPES, regexAlt } from './format/field-values.js'
 // #1489：原文布局的字段原语（隐藏注释、裸字段行、票种类判定），见 original-fields.ts。
 import { hiddenCommentOf, removeBareField, ticketFormOf, upsertHiddenComment, writeFieldByStyle } from './original-fields.js'
 import type { TicketForm } from './original-fields.js'
@@ -195,10 +195,18 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
       // #1174：契约里的自定义字段是开放形状（一个名字加一个值），本地票只有 `Type:` 这一行能放。
       // 以前是把不认识的字段悄悄丢掉、照样回成功。现在只认 Type，其余如实回不支持。
       const unknown=patch.customFields.filter(cf=>!(cf&&cf.name==='Type'&&typeof cf.value==='string'&&cf.value.trim()))
-      if(unknown.length) throw {kind:ERROR_KIND.UNSUPPORTED,message:'markdown update unsupported (customFields '+unknown.map(cf=>String(cf&&cf.name)).join(', ')+')：本地票只有 Type 这一行能放，其余字段没有地方存'}
+      if(unknown.length) throw {kind:ERROR_KIND.UNSUPPORTED,message:'markdown update unsupported (customFields '+unknown.map(cf=>String(cf&&cf.name)).join(', ')+')：本地票只有地图子票的 Type 这一行能放，其余字段没有地方存'}
+      // #1788 复核：原文里 Type 只属于探索地图子票（wayfinder-child 的裸行 Type: research|prototype|grilling|task）；
+      // 实施票、普通票与规格/地图容器都没有这个字段。对它们写 Type 会在标题下面插出一行原文布局不认的
+      // 字段，所以按票所在目录判出的写路线如实拒绝，一个字节都不写。
+      if(r.container||r.route!=='map') throw {kind:ERROR_KIND.UNSUPPORTED,message:'markdown update unsupported (customFields Type)：原文里 Type 只属于探索地图子票；实施票、普通票与规格/地图容器都没有这一行，这次没写'}
       for(const cf of patch.customFields){
         if(cf&&cf.name==='Type'&&typeof cf.value==='string'&&cf.value.trim()){
-          txt=replaceOrInsertField(txt,'Type','Type: '+String(cf.value).trim().toLowerCase());changed=true
+          const value=String(cf.value).trim().toLowerCase()
+          // 地图子票的 Type 只有原文那四个词；写进别的值，读路径就不再认这张票是地图子票了。
+          if(MAP_TICKET_TYPES.indexOf(value)<0) throw {kind:ERROR_KIND.UNSUPPORTED,message:'markdown update unsupported (customFields Type)：地图子票的 Type 只能是 '+MAP_TICKET_TYPES.join(' / ')+'，这次没写：'+value}
+          // 按票面已有样式改：原文地图子票是裸行；手写票若用了加粗行，就维持这份文件自己的写法，不再多插一行裸行。
+          txt=writeFieldByStyle(txt,'Type',value,'bare');changed=true
         }
       }
     }

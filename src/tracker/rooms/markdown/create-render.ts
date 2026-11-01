@@ -67,10 +67,12 @@ export function originalKindOf(input: CreateInput): OriginalKind {
   const explicit = String(v.kind || v.type || v.Type || '').trim().toLowerCase()
   const typeLine = String(v.typeLine || '').toLowerCase()
   const marker = markerKindOf(input)
-  // 地图子票在原文里靠一行 `Type: research|prototype|grilling|task` 记类型，但它和普通票的契约自定
-  // 字段 type（G4 契约里普通票也能传 type: 'task'）在字符串上分不开，只能认专用通道 typeLine
-  // （deck 工具为地图子票单独传这个字段，其余位置传空串）。专用通道里写了未知的值，说明调用方
-  // 既不是子票也不是已知类型，一律按普通票走新布局（#1500 S4：旧分支已删，不再回旧路）。
+  // 地图子票在原文里靠一行 `Type: research|prototype|grilling|task` 记类型，而建票入参的 type 是另一回事：
+  // 契约正式的 type 只有 issue / map / spec（identity.ts 的 IssueType），但 G4 时代的夹具与老调用方
+  // 仍把 `type: 'task'` 当普通票传（例如 tests/verify-markdown-backend.ts:78），它和地图子票的 Type 值
+  // 同名，只看 type 字符串分不出该不该写 Type 行，所以认专用通道 typeLine（deck 工具为地图子票单独
+  // 传这个字段，其余位置传空串）。专用通道里写了未知的值，说明调用方既不是子票也不是已知类型，
+  // 一律按普通票走新布局（#1500 S4：旧分支已删，不再回旧路）。
   if (typeLine) return MAP_TICKET_TYPES.indexOf(typeLine) >= 0 ? 'map-ticket' : 'issue'
   if (explicit === 'spec' || marker === 'spec') return 'spec'
   if (explicit === 'spec-ticket' || explicit === 'ticket' || marker === 'ticket') return 'spec-ticket'
