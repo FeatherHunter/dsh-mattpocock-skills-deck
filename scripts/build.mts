@@ -829,7 +829,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcInView', file: 'src/client/views/versionControl/vcInView.ts' }, // #997：「还能显示更多」那几处什么时候接着显示（进入视野就接着显示、显示完再判一次；三处共用一套）
   { id: 'vcFirstScreen', file: 'src/client/views/versionControl/vcFirstScreen.ts' }, // #1739 首屏七片的数据层（一次聚合一电话、逐片成败与重试、刷新三时机；不画界面）
   // #1738 页面壳四片，依赖次序固定：页面注册表 → 基础画法 → 命令面板 → 页面壳本体。
-  //   VersionControlTab.ts 是冻结文件（基线 366 行，只许减不许增），壳不往它里面写一行。
+  //   VersionControlTab.ts 在 #1776 M1 收成入口委托（13 有效行）后不再占冻结基线，壳也不往它里面写一行。
   { id: 'vcCapabilityPages', file: 'src/client/views/versionControl/vcCapabilityPages.ts' },
   { id: 'vcShellPrimitives', file: 'src/client/views/versionControl/vcShellPrimitives.ts' },
   { id: 'vcPalette', file: 'src/client/views/versionControl/vcPalette.ts' },
