@@ -63,7 +63,7 @@ export const vcRealManageNew = function (): any {
 //   诊断动作状态（vcDiagnosticsActionsOf 自己把状态放在 ui.diagnostics 里）。
 export const vcRealManageUiNew = function (): any {
   return {
-    form: '', target: '', problem: '', result: null,
+    form: '', target: '', problem: '', result: null, confirm: null,
     open: '', openAction: '', fields: {},
     rpStart: '', rpUrl: '', rpEnd: '',
     diagnostics: vcDiagnosticsStateNew(),

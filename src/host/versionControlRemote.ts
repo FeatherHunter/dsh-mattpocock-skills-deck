@@ -3,6 +3,9 @@
  *
  * 只做三件事：读远端列表（本地，不联网）、做四条写动作（add / rename / remove / set-url）、
  * 在用户显式要求时跑一次 git ls-remote（唯一允许的只读联网操作，ADR 20261031 第 6 节）。
+ * 四条写动作照贮藏那一套走三段式（#1776 M4b）：预检电话 wf.gitRemoteCheck 签一张 120 秒的票 →
+ * 页面确认卡 → 执行电话凭票动手。本文件只负责读列表与起写进程；票的判定在同层叶子
+ * versionControlRemoteCheck.ts（纯内存，不起任何进程）。
  *
  * 纪律：
  *   1. 起进程只走父文件注入的 runPinned（同一个-D 钉目录、固定前缀、报闸、字节上限、git.exec 日志）；
@@ -29,11 +32,14 @@ import {
   remoteNameProblem,
   remoteUrlProblem,
   remoteRefSelectorProblem,
+  remoteWriteActionOf,
   classifyLsRemoteFailure,
 } from '../shared/version-control/src/remote.js'
 import { nonInteractiveGitEnv } from '../shared/version-control/src/commands.js'
-// 值由 tests/verify-time-config.ts 看守一致：联网查看的超时住 config/timeouts.yaml，源码只导入生成常量。
-import { VC_REMOTE_ONLINE_TIMEOUT_MS as ONLINE_TIMEOUT_MS } from '../shared/time-config/src/values.js'
+// 远端写动作的票据层（#1776 M4b）：签票、复核绑定、requestId 去重都在同层叶子，本文件只管读列表与起写进程。
+import { createRemoteTickets } from './versionControlRemoteCheck.js'
+// 值由 tests/verify-time-config.ts 看守一致：联网查看与四条写动作的超时住 config/timeouts.yaml，源码只导入生成常量。
+import { VC_REMOTE_ONLINE_TIMEOUT_MS as ONLINE_TIMEOUT_MS, VC_REMOTE_WRITE_TIMEOUT_MS as WRITE_TIMEOUT_MS } from '../shared/time-config/src/values.js'
 
 /** 父文件注入的依赖：全部显式传入，本文件不引用父文件（单向引用）。 */
 export interface RemotePhoneDeps {
@@ -57,6 +63,8 @@ export function createRemotePhones(deps: any): any {
   const { runPinned, failureFromExec, failPhone, resolveGitExecutable, resolveRepoRoot, cwdOf, nowMs }: RemotePhoneDeps = deps
   /** 在途的联网请求（同一 cwd + 远端名 + 引用选择器只飞一个）。不设过期、不自动重发。 */
   const inflight: Map<string, Promise<any>> = new Map()
+  /** 四条写动作的票据层：票表与 requestId 结果表只活在宿主内存里（不落盘、不进日志）。 */
+  const tickets: any = createRemoteTickets({ nowMs: nowMs })
 
   /** 域 8 自己的失败信封：kind 是稳定分类，reason 是更细的标识符，message/hint 是给人看的话。 */
   function fail(kind: string, reason: string, message: string, hint: string): any {
@@ -109,24 +117,46 @@ export function createRemotePhones(deps: any): any {
     if (!p.ok) return p.fail
     return await readState(p.exe, p.root)
   }
-  /** 写动作的统一外壳：校验 → 读一遍 → 做 → 重新读一遍（用真实状态回话）。 */
+  /**
+   * 预检电话（#1776 M4b）：只读一遍远端列表判目标，签一张 120 秒的票；写进程一个都不起。
+   * 回包里的 remotes 是远端列表摘要（名 / fetch / push），确认卡用它说清「现在这张列表长什么样」。
+   */
+  async function handleGitRemoteCheck(args: any): Promise<any> {
+    const action: string = String((args && args.action) || '')
+    if (!remoteWriteActionOf(action)) return fail('args', 'remote-action', '不认识的远端动作，预检没有发起。', '只能从登记 / 改名 / 删除 / 改地址四种里选。')
+    const p: any = await prepare(cwdOf(args))
+    if (!p.ok) return p.fail
+    const before: any = await readState(p.exe, p.root)
+    if (before.ok !== true) return before
+    return tickets.issue(action, args, { root: p.root, remotes: before.remotes, readAtMs: before.readAtMs })
+  }
+  /**
+   * 写动作的统一外壳（#1776 M4b）：先过票据关（不碰进程）→ 读一遍远端列表 → 复核票据绑定 →
+   * 凭票做 → 重新读一遍列表（用真实状态回话）→ 按请求号记下结果供重放去重。
+   * 票据过期、动作不符、没经过确认卡时，写进程一个都不起；绑定状态不一致时读进程照跑、写进程不起。
+   */
   async function writeAction(action: string, command: string, input: any, run: any): Promise<any> {
+    const pre: any = tickets.precheck(action, input)
+    if (pre.ok !== true) return pre
+    if (pre.replay) return pre.replay
     const p: any = await prepare(cwdOf(input))
     if (!p.ok) return p.fail
     const before: any = await readState(p.exe, p.root)
     if (before.ok !== true) return before
+    const confirm: any = tickets.confirmState(action, input, { root: p.root, remotes: before.remotes })
+    if (confirm.ok !== true) return confirm
     const target: any = run.target(before.remotes)
     const refuse: any = run.refuse(target)
     if (refuse) return refuse
     const t0: number = nowMs()
-    const res: any = await runPinned(p.exe, p.root, run.argv())
+    const res: any = await runPinned(p.exe, p.root, run.argv(), { timeoutMs: WRITE_TIMEOUT_MS })
     const bad: any = failureFromExec(res, '执行 ' + command + ' 这一步')
     if (bad) return adapt(bad, 'remote-write-failed', '写动作没有成功，远端列表仍是动手前的样子。请按上面的 git 原话处理后再试。')
     const after: any = await readState(p.exe, p.root)
     if (after.ok !== true) {
       return fail('read-after', 'remote-read-after-failed', '动作已经发出去，但重新读远端列表没有成功，没法确认结果。请点一下刷新，看一眼列表再决定。', '')
     }
-    return {
+    const reply: any = {
       ok: true,
       action: action,
       command: command,
@@ -137,6 +167,8 @@ export function createRemotePhones(deps: any): any {
       after: { remotes: after.remotes.map((r: any) => r.name), readAtMs: after.readAtMs },
       readAtMs: after.readAtMs,
     }
+    tickets.remember(input && input.requestId, reply)
+    return reply
   }
   /** 登记远端（8.2）。 */
   async function handleGitRemoteAdd(args: any): Promise<any> {
@@ -174,7 +206,7 @@ export function createRemotePhones(deps: any): any {
       },
     })
   }
-  /** 删除远端（8.2）：确认卡由客户端贴触发点做，这里是执行端。 */
+  /** 删除远端（8.2）：确认卡在客户端贴触发点，这里是凭票执行端。 */
   async function handleGitRemoteRemove(args: any): Promise<any> {
     const name: any = args && args.name
     const nameProblem: any = remoteNameProblem(name)
@@ -197,7 +229,7 @@ export function createRemotePhones(deps: any): any {
     if (nameProblem) return fail('args', 'remote-name', '远端名不能为空、不能以减号开头、不能含空白或控制字符。', '从远端列表里选一个再试。')
     const urlProblem: any = remoteUrlProblem(url)
     if (urlProblem) return fail('args', 'remote-url', '这个地址面板不认（支持 https / http / ssh / git / file、本机路径与 git@host:path 这种写法）。', '检查地址是否完整、是否含空白。')
-    return await writeAction('set-url', 'git remote set-url', args, {
+    return await writeAction('setUrl', 'git remote set-url', args, {
       name: name,
       argv: function (): string[] { return remoteSetUrlArgs(name, url) },
       target: function (remotes: any[]): any { return remotes.filter((r: any) => r.name === name)[0] || null },
@@ -251,6 +283,7 @@ export function createRemotePhones(deps: any): any {
 
   return {
     handleGitRemoteList: handleGitRemoteList,
+    handleGitRemoteCheck: handleGitRemoteCheck,
     handleGitRemoteAdd: handleGitRemoteAdd,
     handleGitRemoteRename: handleGitRemoteRename,
     handleGitRemoteRemove: handleGitRemoteRemove,
@@ -259,6 +292,7 @@ export function createRemotePhones(deps: any): any {
     readState: readState,
   }
 }
-// 六条电话的日志包装搬到共享层 src/shared/version-control/src/remote-handles.ts（#1754 T18）：
-// 宿主父文件不能静态 import 同层叶子（same-layer-import-host），包装逻辑放在共享层后，
-// 父文件只递一个按需取件的函数，这里留纯电话体与它们共用的 in-flight 表。
+// 七条电话的日志包装搬到共享层 src/shared/version-control/src/remote-handles.ts（#1754 T18 起六条，
+// #1776 M4b 加远端预检 wf.gitRemoteCheck 后七条）：宿主父文件不能静态 import 同层叶子
+// （same-layer-import-host），包装逻辑放在共享层后，父文件只递一个按需取件的函数，
+// 这里留纯电话体与它们共用的 in-flight 表。

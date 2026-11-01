@@ -6,8 +6,10 @@
 //      「这是本地记录」；打开页面只读这一份，不会联网。
 //   ② 联网读数：每条远端一个「联网查看」按钮（按钮写明需要联网），用户点过之后才画结果面板；
 //      结果标来源 network 与这一次读取时刻，失败按分类给下一步，截断按失败处理，绝不画半份。
-// 写动作（登记 / 改名 / 删除 / 改地址）按三步画：入口在触发点上、形态按需要选（行内 / 浮层 / 整页），
-//   删除画贴触发点的确认卡（四段、默认焦点在取消），结果与确认卡都留在触发点那一段里（结果贴触发点）。
+// 写动作（登记 / 改名 / 删除 / 改地址）按三步画（#1776 M4b，与贮藏写动作同一套）：
+//   ① 提交表单先发预检电话签一张 120 秒的票；② 拿到票才在触发点画确认卡（动作、目标、票据有效期，
+//   四段、默认焦点在取消）；③ 确认之后才凭票发执行电话。预检失败只贴失败结果，不画确认卡、不发写电话；
+//   结果与确认卡都留在触发点那一段里（登记动作在登记入口那一段，行内动作贴对应那一行）。
 // 四档宽按宽度收放：300 只留名字与状态、其余动作进「更多」菜单、地址收起；460 起补地址与分支名；
 //   任何档位都不删入口（300 宽下三个动作仍在 details 里可点）。两套皮肤都只换颜色，不靠颜色单独传达。
 //
@@ -89,6 +91,8 @@ export const vcRemoteModelOf = function (reads: any, ui: any, width: any, nowMs:
     target: u.target ? String(u.target) : '',
     problem: u.problem ? String(u.problem) : '',
     result: u.result || null,
+    // 确认卡素材：预检成功时由动作层折成这一份（动作、目标、票号、票据有效期）；没有票时是 null。
+    confirm: u.confirm || null,
     nowMs: typeof nowMs === 'number' ? nowMs : Date.now(),
   }
 }
@@ -121,6 +125,33 @@ const vcRemoteResultNode = function (h: any, t: any, result: any) {
     ? { error: true, git: result.git, step: result.step, expected: result.expected, actual: result.actual, cause: result.cause }
     : { cmd: result.cmd, ms: result.ms, n: result.n, next: result.next }
   return Object.assign({}, vcShellResultNode(h, t, o), { key: 'result' })
+}
+
+/**
+ * 确认卡：画在触发点上，写清这一次要做的动作、目标与票据有效期；确认与取消都是真按钮。
+ * 只有预检签到票之后才会被调用——没有票时失败结果贴在原处，不出现这张卡。
+ * 外层 data-vc-remote-confirm 是点击委派的认人标记（go/cancel 由页面壳原语画）；
+ * anchor 是这个确认卡贴在哪一段（行内用远端名，登记动作用空串）。
+ */
+const vcRemoteConfirmNode = function (h: any, t: any, model: any, confirm: any, anchor: any) {
+  const action = String(confirm.action || '')
+  const verb = t('vc.remote.act.' + action)
+  const targetText = t('vc.remote.confirmTarget.' + action, {
+    name: String(confirm.name || confirm.from || ''),
+    to: String(confirm.to || ''),
+    url: String(confirm.url || ''),
+  })
+  return h('div', {
+    key: 'confirm',
+    className: 'vcs-remote-confirm',
+    'data-vc-remote-confirm': String(anchor || ''),
+    'data-vc-remote-confirm-action': action,
+    'data-vc-remote-confirm-expires': String(confirm.expiresAtMs || ''),
+    'aria-label': t('vc.remote.confirmLabel', { verb: verb, target: targetText }),
+  }, [
+    Object.assign({}, vcShellConfirmCardNode(h, t, { verb: verb, target: targetText }), { key: 'card' }),
+    h('p', { key: 'expires', className: 'vcs-remote-confirm-expires', 'data-vc-remote-confirm-note': '1' }, t('vc.remote.confirmExpires', { when: vcWhenText(t, model.nowMs, confirm.expiresAtMs) })),
+  ])
 }
 
 /** 一个远端一行：名字、凭据标记、联网入口、地址与分支（按档宽收放）、三个写动作与按需出现的表单/确认卡。 */
@@ -177,14 +208,10 @@ const vcRemoteRowNode = function (h: any, t: any, model: any, remote: any) {
   if (model.form === 'setUrl' && model.target === name) {
     kids.push(Object.assign({}, vcRemoteFormNode(h, t, { form: 'setUrl', title: 'setUrl', shape: 'float', problem: model.problem, fields: [{ name: 'url', labelKey: 'vc.remote.field.url', value: String(remote.fetchUrl || '') }] }), { key: 'form' }))
   }
-  if (model.form === 'remove' && model.target === name) {
-    // 删除的确认卡永远贴在这一行里：固定四段、默认焦点取消、带对象名的读屏名称（不做居中模态）。
-    kids.push(h('div', {
-      key: 'confirm',
-      className: 'vcs-remote-confirm',
-      'data-vc-remote-confirm': name,
-      'aria-label': t('vc.remote.confirmLabel', { target: name }),
-    }, [Object.assign({}, vcShellConfirmCardNode(h, t, { verb: t('vc.remote.removeVerb'), target: name }), { key: 'card' })]))
+  // 改名 / 删除 / 改地址的确认卡贴在这一行里：预检成功、拿到票之后才出现（没有票不画卡）。
+  const confirm = model.confirm && String(model.confirm.action || '') !== 'add' && model.target === name ? model.confirm : null
+  if (confirm) {
+    kids.push(Object.assign({}, vcRemoteConfirmNode(h, t, model, confirm, name), { key: 'confirm' }))
   }
   if (model.form !== 'add' && model.target === name) {
     const resultNode = vcRemoteResultNode(h, t, model.result)
@@ -285,14 +312,21 @@ export const vcRemotePageNode = function (h: any, t: any, o: any) {
       'data-vc-remote-add': '1',
       'data-press': 'button',
       'data-log': 'vc.remote.add',
-      'aria-expanded': model.form === 'add' ? 'true' : 'false',
+      'aria-expanded': model.form === 'add' || (model.confirm && String(model.confirm.action || '') === 'add') ? 'true' : 'false',
     }, t('vc.remote.form.add')),
   ]))
-  if (model.form === 'add') {
-    const addKids: any[] = [vcRemoteFormNode(h, t, { form: 'add', title: 'add', fields: [{ name: 'name', labelKey: 'vc.remote.field.name', value: '' }, { name: 'url', labelKey: 'vc.remote.field.url', value: '' }] })]
+  // 登记动作的确认卡与失败结果都贴在这个入口下面；执行成功之后表单已经收起，结果仍留在原处。
+  const addConfirm = model.confirm && String(model.confirm.action || '') === 'add' ? model.confirm : null
+  if (model.form === 'add' || addConfirm) {
+    const addKids: any[] = []
+    if (addConfirm) addKids.push(vcRemoteConfirmNode(h, t, model, addConfirm, ''))
+    else addKids.push(vcRemoteFormNode(h, t, { form: 'add', title: 'add', fields: [{ name: 'name', labelKey: 'vc.remote.field.name', value: '' }, { name: 'url', labelKey: 'vc.remote.field.url', value: '' }] }))
     const resultNode = vcRemoteResultNode(h, t, model.result)
     if (resultNode) addKids.push(resultNode)
     kids.push(h('div', { key: 'addForm', className: 'vcs-remote-add' }, addKids))
+  } else if (model.result && model.target === '') {
+    const resultNode = vcRemoteResultNode(h, t, model.result)
+    if (resultNode) kids.push(h('div', { key: 'addForm', className: 'vcs-remote-add' }, [resultNode]))
   }
   if (model.remotes.length > 0) {
     kids.push(h('ul', { key: 'list', className: 'vcs-remote-list', role: 'list', 'aria-label': t('vc.remote.listLabel') }, model.remotes.map(function (remote: any) { return vcRemoteRowNode(h, t, model, remote) })))
