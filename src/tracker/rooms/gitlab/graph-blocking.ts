@@ -88,11 +88,9 @@ async function tryNativeBlockedBy(
   const c = glabClient(opCtx as Partial<OpContext> & Partial<BackendContext>)
   // 先试 links filtered
   const res = await c.run(['api', linksPath(refId, key)], { timeout: GITLAB_READ_TIMEOUT_MS })
-  if (res.code !== 0) {
-    const s = String(res.stderr || res.stdout || '').toLowerCase()
-    if (/403|404|premium|not found/.test(s)) return { native: null, probeFailed: true }
-    return { native: null, probeFailed: true }
-  }
+  // 探针读不出（403/404/超时/回包形状不对）都只表示「这次探测不到原生」，交给回退路径；
+  // 真写阶段的 500/超时另按故障如实失败，不滑进回退（见 isNativeCapabilityError 的注释）。
+  if (res.code !== 0) return { native: null, probeFailed: true }
   try {
     const links: unknown = JSON.parse(res.stdout) as unknown
     if (Array.isArray(links)) {
@@ -435,6 +433,12 @@ export async function setBlockedBy(
     // 探针：原生是否可用。探针挂了（免费档 403 / 端点不存在 / 网络问题）→ 正文行回退；
     // 探针活着 → 走上限：原生边真写。正文行在上限路径下只当回退写，不再当正典读。
     const probe = await tryNativeBlockedBy(effective, id, k)
+    const oldBody = String(raw['description'] || raw['body'] || '')
+    // 免费档形状（links 端点通、is_blocked_by 零条）下，读路径（getDependencies 的 nativeEmpty 分支）以正文成对行为真相；
+    // 写路径不能把「原生零条」当成已经取消：writeNativeBlockedBy 在 wanted=[]、current=[] 时是空操作，
+    // 什么都不写就报成功，正文两行原样留着（#1801）。用「拆空后正文会变」判断正文里真有可拆的写法，
+    // 有就跳过原生写，走下面的正文回退删行。
+    const cancelMustClearBodyPair = probe.nativeEmpty && wanted.length === 0 && rewriteDescriptionWithBlockedPair(oldBody, []) !== oldBody
     // 环检（两条写路径共用同一道门）：先拉快照、再沿边把原生并进来，统一交 hasCycle 判定。
     // 读不到的节点当叶子——那一段藏着环就拦不住，这个缺口写在 buildBlockMap 头上。
     const blockMap = await buildBlockMap(effective, id, k, wanted)
@@ -442,7 +446,7 @@ export async function setBlockedBy(
       // 原文 = 这次看到的阻塞关系快照（人据此自己复算那条环），不是给人看的那句结论。
       return fail(ERROR_KIND.CONFLICT as ErrorKind, 'conflict: cycle detected', JSON.stringify({ key: k, wanted, observed: Array.from(blockMap.entries()) }))
     }
-    if (!probe.probeFailed) {
+    if (!probe.probeFailed && !cancelMustClearBodyPair) {
       const keyOfProbe = (l: RawBag): string => String(l['iid'] ?? l['target_issue_iid'] ?? l['key'] ?? '')
       const res = await writeNativeBlockedBy(effective, id, k, wanted, probe.native || [], effective)
       if (!res.ok && !res.fallback) {
@@ -456,9 +460,12 @@ export async function setBlockedBy(
         // 删光之后读回就该是这个形状）；native 非空（逐条对）。把「零条」当成「读不出」是错的 —— 上面
         // tryNativeBlockedBy 特意用 nativeEmpty 区分这两者，这里必须认它，否则删光阻塞永远报读回对不上。
         const backKeys = back.probeFailed ? null : (back.native || []).map(keyOfProbe).filter(Boolean)
-        const missing = backKeys ? wanted.filter((w) => !backKeys.includes(w)) : [...wanted]
-        const extra = backKeys ? backKeys.filter((b) => !wanted.includes(b)) : []
-        if (!backKeys || missing.length > 0 || extra.length > 0) {
+        // 读回都读不出来时，不能再说「missing 无, extra 无」：那两句的前提是读到了东西，两个「无」凑在一起
+        // 会变成「对不上却什么都没差」的自相矛盾话术（#1801 票面第二次回执）。读不出就如实说读不出。
+        if (!backKeys) return fail(ERROR_KIND.CONFLICT as ErrorKind, 'conflict: native write readback failed (could not read back links)', JSON.stringify({ key: k, wanted }))
+        const missing = wanted.filter((w) => !backKeys.includes(w))
+        const extra = backKeys.filter((b) => !wanted.includes(b))
+        if (missing.length > 0 || extra.length > 0) {
           return fail(ERROR_KIND.CONFLICT as ErrorKind, `conflict: native write readback mismatch (missing ${missing.join(', ') || '无'}, extra ${extra.join(', ') || '无'})`, JSON.stringify({ key: k, wanted, backKeys }))
         }
         // 读回对上了：返回票面，对端状态逐张落实（上限路径的返回与读路径同一条纪律，不硬写 open）。
@@ -471,7 +478,6 @@ export async function setBlockedBy(
     }
 
     // 回退路径：重写 description 的阻塞对（可见 Blocked by: 行 + 隐藏机器表，环检已在上面两条路径共用那道门里做过，这里不再做第二次）。
-    const oldBody = String(raw['description'] || raw['body'] || '')
     const newBody = rewriteDescriptionWithBlockedPair(oldBody, wanted)
 
     const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
@@ -479,7 +485,6 @@ export async function setBlockedBy(
     // 多行正文走这条路会被破坏（读回整段变成一行，正文丢格式），2026-10-15 查实并修。
     const putRes = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `description=${newBody}`], { timeout: GITLAB_READ_TIMEOUT_MS })
     // glab api 对换行处理：改用 --input stdin 更稳妥，重试
-    const res = putRes
     if (putRes.code !== 0) {
       // 重试：用 glabClient.api PUT with body object
       const raw2 = await fetchRawIssue(effective, id, k) // fresh
@@ -491,7 +496,7 @@ export async function setBlockedBy(
     }
     let updatedRaw: unknown = null
     try {
-      updatedRaw = JSON.parse(res.stdout) as unknown
+      updatedRaw = JSON.parse(putRes.stdout) as unknown
     } catch {
       updatedRaw = { iid: k, description: newBody }
     }
@@ -519,8 +524,9 @@ export async function setBlockedBy(
     // 少了说明远端没落盘或回显丢了正文，如实失败，不把「写丢了」包装成成功。
     const written = (issue.blockedBy || []).map((b) => b.key)
     const lost = wanted.filter((w) => !written.includes(w))
-    if (lost.length > 0) {
-      return fail(ERROR_KIND.CONFLICT as ErrorKind, `conflict: fallback write readback mismatch (missing ${lost.join(', ') || '无'})`, JSON.stringify({ key: k, wanted, written }))
+    const extra = written.filter((w) => !wanted.includes(w))
+    if (lost.length > 0 || extra.length > 0) {
+      return fail(ERROR_KIND.CONFLICT as ErrorKind, `conflict: fallback write readback mismatch (missing ${lost.join(', ') || '无'}, extra ${extra.join(', ') || '无'})`, JSON.stringify({ key: k, wanted, written }))
     }
     return { ok: true, data: issue }
   } catch (err: unknown) {

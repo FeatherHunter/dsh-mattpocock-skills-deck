@@ -952,6 +952,7 @@ export async function run() {
         })
       }
       let nextLinkId = 9000
+      let linksGets = 0
       const row = (t) => ({
         iid: t.iid, title: t.title, state: t.state, description: t.description,
         labels: [], updated_at: '2026-10-15T00:00:00Z', web_url: 'https://gitlab.example/acme/demo/-/issues/' + t.iid,
@@ -989,6 +990,8 @@ export async function run() {
             t.links.push(link)
             return { code: 0, stdout: JSON.stringify({ issue_link_id: link.issue_link_id }), stderr: '' }
           }
+          linksGets++
+          if (o.linksFailOnGet === linksGets) return { code: 1, stdout: '', stderr: '500 server error' }
           if (o.lyingReadback) return { code: 0, stdout: '[]', stderr: '' }
           return { code: 0, stdout: JSON.stringify(t.links), stderr: '' }
         }
@@ -1187,6 +1190,76 @@ export async function run() {
           r.ok === true && r.data.blockedBy.length === 1 && r.data.blockedBy[0].key === '2' &&
           r.data.blockedBy[0].title === '阻塞者甲',
         JSON.stringify({ putBody, refs: r.ok ? r.data.blockedBy : null }).slice(0, 400),
+      )
+    }
+
+    // I. 取消阻塞 + 免费档 + 正文成对行（#1801）：读路径在 nativeEmpty 时以正文成对行为真相，
+    //    写路径不能把「原生零条」当成已经取消；必须真的 PUT 正文把两行删掉，回执与读回一致。
+    {
+      const store = makeStore([
+        { iid: 1, title: '被阻塞的票', description: 'Blocked by: #2\n<!-- DSH-BLOCKED-BY: 2 -->\n第一行\n\n第三行' },
+        { iid: 2, title: '阻塞者甲', description: '' },
+      ], { postBlocked403: true })
+      const sc = scriptedCtx({ script: store.script })
+      const r = await withGitlabTracker((t) => t.setBlockedBy(GL_REPO, '1', [], null, sc.ctx))
+      const putBody = store.get(1).description
+      await assert(
+        'setBlockedBy：免费档取消阻塞真的写正文（一次 PUT、零个 POST），成对两行都删掉',
+        r.ok === true && writesOf(sc).length === 1 && writesOf(sc)[0].indexOf('--method PUT') >= 0 &&
+          putBody === '第一行\n\n第三行',
+        JSON.stringify({ ok: r.ok, err: r.ok ? null : r.error, writes: writesOf(sc), putBody }).slice(0, 500),
+      )
+      const deps = await withGitlabTracker((t) => t.getDependencies(GL_REPO, '1', null, sc.ctx))
+      await assert(
+        'setBlockedBy：免费档取消后回执与读回一致（两处都为空，不再说还被阻塞）',
+        r.ok === true && r.data.blockedBy.length === 0 && deps.ok === true && deps.data.blockedBy.length === 0,
+        JSON.stringify({ receipt: r.ok ? r.data.blockedBy : r.error, deps: deps.ok ? deps.data.blockedBy : deps.error }).slice(0, 500),
+      )
+    }
+
+    // J. 先加后取消：加边撞 403 后写进成对两行，取消再把两行清掉，全程读回为空。
+    {
+      const store = makeStore([
+        { iid: 1, title: '被阻塞的票', description: '第一行\n\n第三行' },
+        { iid: 2, title: '阻塞者甲', description: '' },
+      ], { postBlocked403: true })
+      const sc = scriptedCtx({ script: store.script })
+      const added = await withGitlabTracker((t) => t.setBlockedBy(GL_REPO, '1', ['2'], null, sc.ctx))
+      const afterAdd = store.get(1).description
+      const writesAfterAdd = writesOf(sc).length
+      const cancelled = await withGitlabTracker((t) => t.setBlockedBy(GL_REPO, '1', [], null, sc.ctx))
+      const afterCancel = store.get(1).description
+      const writesAfterCancel = writesOf(sc).length
+      await assert(
+        'setBlockedBy：免费档先加后取消，加边写成对两行、取消只多一次 PUT 并把两行清掉',
+        added.ok === true && afterAdd === 'Blocked by: #2\n<!-- DSH-BLOCKED-BY: 2 -->\n第一行\n\n第三行' &&
+          cancelled.ok === true && writesAfterCancel === writesAfterAdd + 1 &&
+          writesOf(sc)[writesAfterCancel - 1].indexOf('--method PUT') >= 0 && afterCancel === '第一行\n\n第三行',
+        JSON.stringify({ added: added.ok, afterAdd, cancelled: cancelled.ok, writesAfterAdd, writesAfterCancel, afterCancel }).slice(0, 600),
+      )
+      const deps = await withGitlabTracker((t) => t.getDependencies(GL_REPO, '1', null, sc.ctx))
+      await assert(
+        'setBlockedBy：免费档先加后取消，读回为空',
+        cancelled.ok === true && cancelled.data.blockedBy.length === 0 && deps.ok === true && deps.data.blockedBy.length === 0,
+        JSON.stringify({ receipt: cancelled.ok ? cancelled.data.blockedBy : cancelled.error, deps: deps.ok ? deps.data.blockedBy : deps.error }).slice(0, 500),
+      )
+    }
+
+    // K. 取消时写后读回探针失败：如实说「读回失败」，不许出现「missing 无, extra 无」这种
+    //     「对不上却什么都没差」的话术（#1801 票面第二次回执的原文）。
+    {
+      const store = makeStore([
+        { iid: 1, title: '被阻塞的票', description: '正文' },
+        { iid: 2, title: '阻塞者甲', description: '' },
+      ], { linksFailOnGet: 2 })
+      store.get(1).links.push({ issue_link_id: 9001, iid: 2, link_type: 'is_blocked_by' })
+      const sc = scriptedCtx({ script: store.script })
+      const r = await withGitlabTracker((t) => t.setBlockedBy(GL_REPO, '1', [], null, sc.ctx))
+      await assert(
+        'setBlockedBy：取消时写后读回探针失败要如实说读回失败，不许出现「missing 无, extra 无」',
+        r.ok === false && r.error.kind === 'conflict' && /readback|读回/i.test(r.error.message) &&
+          r.error.message.indexOf('mismatch') < 0 && !/missing|extra/.test(r.error.message),
+        JSON.stringify(r).slice(0, 500),
       )
     }
   }
