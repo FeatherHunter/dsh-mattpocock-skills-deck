@@ -896,6 +896,17 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   // #1776 M1 真实页签四叶：纯状态换算 → 事件委托 → 数据装载与动作分派 → 容器组件。次序即闭包里谁先有值：
   //   容器要用前三叶，VersionControlTab 只做入口委托，所以四叶都排在它前面。
   { id: 'vcRealModel', file: 'src/client/views/versionControl/vcRealModel.ts' },
+  // #1776 M2 管理页七叶：管理页状态与模型（vcRealManage）→ 每页进入时的读数分发（vcRealManageReads）
+  //   → 分支/远端/同步动作（vcRealManageActions）、配置/钩子/诊断/子模块/平台动作（vcRealManageActions2）、
+  //   迁移与任务轮询（vcRealManageActions3）、冲突与变基动作（vcRealManageSide）→ 导航动作与顶部条（vcRealShell）。
+  //   这些叶只被容器调用，全部排在 vcRealTab 之前。
+  { id: 'vcRealManage', file: 'src/client/views/versionControl/vcRealManage.ts' },
+  { id: 'vcRealManageReads', file: 'src/client/views/versionControl/vcRealManageReads.ts' },
+  { id: 'vcRealManageActions', file: 'src/client/views/versionControl/vcRealManageActions.ts' },
+  { id: 'vcRealManageActions2', file: 'src/client/views/versionControl/vcRealManageActions2.ts' },
+  { id: 'vcRealManageActions3', file: 'src/client/views/versionControl/vcRealManageActions3.ts' },
+  { id: 'vcRealManageSide', file: 'src/client/views/versionControl/vcRealManageSide.ts' },
+  { id: 'vcRealShell', file: 'src/client/views/versionControl/vcRealShell.ts' },
   { id: 'vcRealDelegate', file: 'src/client/views/versionControl/vcRealDelegate.ts' },
   { id: 'vcRealActions', file: 'src/client/views/versionControl/vcRealActions.ts' },
   { id: 'vcRealTab', file: 'src/client/views/versionControl/vcRealTab.ts' },
