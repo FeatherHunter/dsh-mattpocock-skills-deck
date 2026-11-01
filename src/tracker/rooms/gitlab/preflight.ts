@@ -2,16 +2,16 @@
  * backends/gitlab/preflight.ts — 探测/登录/API 可达（三判据，capability-by-fill）。
  *
  * 契约：preflight只判环境（工具在/登录/可达），不预判能力；能力由操作/字段零推断（G5）。
- * 按 #144 §四：resolveExecutable→ENV / glab auth status→AUTH / 探活→NETWORK；JH/self-hosted复用 GL_HOST。
+ * 按 #144 §四：resolveExecutable→ENV / glab api user→AUTH / 探活→NETWORK；JH/self-hosted复用 GL_HOST。
  *
  * 失败形状（#1111 收口）：预检也是「失败」，一样要带原文三段式 `{kind, message, raw}` ——
  * `raw` 或许为空串（本地就知道原因的，例如平台没给 `resolveExecutable`），但字段必须在，
- * 界面/日志才有统一的兜底可展开。有外部原文的那几条（auth status、探活）原文一律带上。
+ * 界面/日志才有统一的兜底可展开。有外部原文的那几条（api user、探活）原文一律带上。
  *
  * 判档口径（与「一处真源」不冲突，写在这里免得后人以为漏改）：预检这三步的档位是**步骤语义**
  * 定的，不是从文本猜的 —— 第一步问的是「工具在不在」（ENV），第二步问的是「登录了没有」（AUTH），
  * 第三步问的是「连不连得上」（可达性）。所以本文件直接用常量档位 + 原文，而不走「按原文判档」：
- * 那会把「auth status 因为网络抖了一下没跑成」判成网络、把「探活撞上权限不足」判成认证，
+ * 那会把「api user 因为网络抖了一下没跑成」判成网络、把「探活撞上权限不足」判成认证，
  * 反而比按步骤判更不准。
  */
 
@@ -72,18 +72,24 @@ export async function glabPreflight(
     return fail(ERROR_KIND.ENV as ErrorKind, 'glab not found', '')
   }
 
-  // 2) glab auth status → AUTH
+  // 2) glab api user → AUTH
+  //
+  // 为什么不用 `glab auth status`：它回答的是「所有已配置主机都健康吗」，不是「当前仓库这台主机
+  // 登录了吗」。多主机配置下任何一台无关主机失败都会让它非零退出（#1779：glab 1.68 与 1.123 实测），
+  // 于是当前仓库被误判成没登录。`glab api user` 走 glab 对当前目录的主机解析（git remote →
+  // GITLAB_HOST → 配置 host → gitlab.com），拿当前主机上「我是谁」回答登录问题，作用域与房间后续
+  // 的 api 调用一致。#916 在 GitHub 房也是用 `gh api user` 做交叉核对（那边仍以 `gh auth status`
+  // 为主判据，只在它判失败后核对一次）；GitLab 这边把核对直接提成主判据，省掉会骗人的那一步。
   if (!exec || typeof exec !== 'function') {
     // 原文给空串：本机没有可用的执行器，这条失败没有任何命令跑过。
     return fail(ERROR_KIND.ENV as ErrorKind, 'exec unavailable', '')
   }
   try {
-    const authRes = await exec('glab', ['auth', 'status'], { cwd, signal, timeout: GITLAB_PROBE_TIMEOUT_MS })
-    const out = String(authRes.stdout || '') + '\n' + String(authRes.stderr || '')
-    const s = out.toLowerCase()
-    if (authRes.code !== 0 || /not logged in|no token|unauthenticated|401|403/i.test(s)) {
-      // 原文 = auth status 这一趟的完整输出（stdout+stderr），人据此看出远端到底说了什么。
-      return fail(ERROR_KIND.AUTH as ErrorKind, out.trim().slice(0, 500) || 'glab auth failed', out)
+    const authRes = await exec('glab', ['api', 'user'], { cwd, signal, timeout: GITLAB_PROBE_TIMEOUT_MS })
+    if (authRes.code !== 0) {
+      // 原文 = api user 这一趟的完整输出（stdout+stderr），人据此看出远端到底说了什么。
+      const out = String(authRes.stdout || '') + '\n' + String(authRes.stderr || '')
+      return fail(ERROR_KIND.AUTH as ErrorKind, out.trim().slice(0, 500) || 'glab api user failed', out)
     }
   } catch (e: unknown) {
     const msg = e !== null && typeof e === 'object' && 'message' in (e as Record<string, unknown>)

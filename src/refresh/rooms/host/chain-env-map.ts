@@ -217,7 +217,7 @@ export function ghAuthVerdict(pr: ChainEnvProbeReply, zh: boolean): ChainPredica
 /**
  * 判断一段错误原文像不像网络或环境故障（而不是「凭据确实失效」）。
  *
- * 为什么 GitLab 这一路要自己看原文：房间预检的第二关（glab auth status）按「这一步问的是登录了没有」
+ * 为什么 GitLab 这一路要自己看原文：房间预检的第二关（glab api user）按「这一步问的是登录了没有」
  * 把一切失败都归 auth 档（src/tracker/rooms/gitlab/preflight.ts 文件头写了这条约定），起进程失败
  * 与本地超时也在其中。直接拿 auth 档判 fail，就会把一次网络不通说成人没登录。这里只排除两种
  * 确定不是「凭据失效」的原文：网络类与「命令找不到」类；其余仍按 auth 判 fail。
@@ -262,9 +262,9 @@ export function glabAuthVerdict(pr: ChainEnvProbeReply, zh: boolean): ChainPredi
   if (pr.stage === 'repo') return { status: 'pass', detail: zh ? '已登录（仓库可达性由下一项判断）' : 'logged in (repo reachability is checked by the next item)' }
   if (pr.stage === 'auth') {
     const kind = pr.kind || 'exit'
-    if (kind === 'network' || looksLikeTransportFailure(pr.message)) return { status: 'pending', detail: zh ? '网络异常，暂时无法确认 glab 登录状态' : 'glab auth status transport failure; login state unknown' }
+    if (kind === 'network' || looksLikeTransportFailure(pr.message)) return { status: 'pending', detail: zh ? '网络异常，暂时无法确认 glab 登录状态' : 'glab login probe transport failure; login state unknown' }
     if (kind === 'auth') return { status: 'fail', detail: zh ? 'glab 登录状态已失效（重新执行 glab auth login）' : 'glab credential invalid or not logged in: re-authenticate (glab auth login)' }
-    return { status: 'pending', detail: zh ? '暂时无法确认登录状态（' + kind + '）' : 'glab auth status failed (' + kind + '); login state unknown' }
+    return { status: 'pending', detail: zh ? '暂时无法确认登录状态（' + kind + '）' : 'glab login probe failed (' + kind + '); login state unknown' }
   }
   return { status: 'pending', detail: zh ? '读会话还没接上，暂时无法确认登录状态' : 'read session not available; login state unknown' }
 }

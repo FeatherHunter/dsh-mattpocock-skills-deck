@@ -350,8 +350,8 @@ export const prompts = {
     en: 'Install the GitLab CLI (glab) for DSH. The only official install guide is https://docs.gitlab.com/cli/ — follow that page, do not write install commands from memory.\n1. Check first: glab --version; if a version is reported, report it and do not reinstall;\n2. If missing, open the page above and follow the section for your OS; if the page cannot be opened, say so plainly and do not invent commands;\n3. After install, ask the user to re-check; if it still reports missing, prove the install with an absolute-path glab --version, then ask the user to restart the host (the host reads PATH only at startup).',
   },
   glabLoginFix: {
-    zh: '请完成 glab 登录（glab auth login）：按向导选择 GitLab.com → HTTPS → 浏览器授权（OAuth）；完成后 glab auth status 验证；然后请用户点「重查」。',
-    en: 'Complete glab login: glab auth login → GitLab.com → HTTPS → browser OAuth; verify with glab auth status; then ask the user to re-check.',
+    zh: '请完成 glab 登录（glab auth login）：按向导选择 GitLab.com → HTTPS → 浏览器授权（OAuth）；完成后用 glab auth status --hostname <主机名> 验证这一台主机（不带 --hostname 会把其它已配置主机一起查，别的主机坏了会误报失败）；然后请用户点「重查」。',
+    en: 'Complete glab login: glab auth login → GitLab.com → HTTPS → browser OAuth; verify this host with glab auth status --hostname <hostname> (without --hostname glab checks every configured host, so a broken unrelated host reports a false failure); then ask the user to re-check.',
   },
   // #1190 通用键：首开引导清单不写后端名，统一按 cliInstall / cliLogin 向当前后端要文本。
   //   内容与 glab* 同一份（单源文本、两个键名），老键保留给检查页 fixes 与旧门禁断言。
@@ -360,8 +360,8 @@ export const prompts = {
     en: 'Install the GitLab CLI (glab) for DSH. The only official install guide is https://docs.gitlab.com/cli/ — follow that page, do not write install commands from memory.\n1. Check first: glab --version; if a version is reported, report it and do not reinstall;\n2. If missing, open the page above and follow the section for your OS; if the page cannot be opened, say so plainly and do not invent commands;\n3. After install, ask the user to re-check; if it still reports missing, prove the install with an absolute-path glab --version, then ask the user to restart the host (the host reads PATH only at startup).',
   },
   cliLogin: {
-    zh: '请完成 glab 登录（glab auth login）：按向导选择 GitLab.com → HTTPS → 浏览器授权（OAuth）；完成后 glab auth status 验证；然后请用户点「重查」。',
-    en: 'Complete glab login: glab auth login → GitLab.com → HTTPS → browser OAuth; verify with glab auth status; then ask the user to re-check.',
+    zh: '请完成 glab 登录（glab auth login）：按向导选择 GitLab.com → HTTPS → 浏览器授权（OAuth）；完成后用 glab auth status --hostname <主机名> 验证这一台主机（不带 --hostname 会把其它已配置主机一起查，别的主机坏了会误报失败）；然后请用户点「重查」。',
+    en: 'Complete glab login: glab auth login → GitLab.com → HTTPS → browser OAuth; verify this host with glab auth status --hostname <hostname> (without --hostname glab checks every configured host, so a broken unrelated host reports a false failure); then ask the user to re-check.',
   },
   glabRepoFix: {
     zh: '当前工作区未解析出 GitLab 仓库（glab 无法定位 owner/project）。请先向用户确认意图：\nA. 本地项目（不需要 GitLab）→ 切换到「本地 Markdown」后端；\nB. 确实要用 GitLab → 核对 remote 指向（git remote get-url origin / glab config），或 glab repo create 创建并关联；\n完成后请用户点「重查」。',
