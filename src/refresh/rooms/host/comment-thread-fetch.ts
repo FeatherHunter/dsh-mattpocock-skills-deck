@@ -162,7 +162,9 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       const key: string = String(n).padStart(2, '0')
       const r: any = await opened.call(function (session: any, opCtx: any) {
         if (!session || typeof session.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + opened.backendId + "' 未实现 get" } }
-        return session.get(repoRef, key, {}, opCtx)
+        // 详情也要首屏这一页评论正文（#1783：#1784 之前这里不带 comments 选项，房间只能按默认一页 20 条取，
+        // 页面于是把「详情里没带够」误当成「这张票只有 20 条评论」；带上 first 后房间会按需翻页并把总数带回来）。
+        return session.get(repoRef, key, { comments: { first: COMMENTS_PAGE } }, opCtx)
       })
       if (!r || r.ok !== true) return getFailure(r)
       // 统一为 fetchIssueDetail 的返回形状（{ok, issue}），便于客户端复用
@@ -181,6 +183,11 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       // hasNextPage 只能按「取满一页」推：这一趟沿用房间默认首屏（GitHub 房默认 COMMENTS_PAGE = 50 条），
       // 条数够一页就认为可能还有下一页；endCursor 用已取条数（旧 REST 路就是这么给的；
       // 「加载更多」另走 fetchIssueComments，不靠这个游标翻详情）。
+      // 评论总数：契约 Issue.commentCount 是票面上的总数（GitLab 用 user_notes_count），
+      // 它比「这次取到几条」可信；拿不到总数时才退回已取条数，并让 pageInfo 不再声称还有下一页。
+      const knownTotal: any = typeof iss.commentCount === 'number' && isFinite(iss.commentCount) && iss.commentCount >= 0
+        ? Math.floor(iss.commentCount)
+        : null
       const comments: any = (iss.comments || []).map(function (c: any): any {
         return {
           author: { login: (c.author && c.author.login) || '' },
@@ -211,7 +218,18 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
         author: iss.author,
         labels: { nodes: (iss.labels || []).map(function(l: any){ return { name: l.name, color: l.color || '' } }) },
         assignees: { nodes: (iss.assignees || []).map(function(a: any){ return typeof a === 'string' ? { login: a } : a }) },
-        comments: { nodes: comments, pageInfo: { hasNextPage: comments.length >= COMMENTS_PAGE, endCursor: String(comments.length) } },
+        // hasNextPage 按总数判：已取到的还不到总数、且没到上限，才说还有下一页。
+        // 只按「取满一页」推会在「整页正好取完」时说谎（#1783 的「评论 (0) 却可加载更多」是同一类问题）。
+        comments: {
+          nodes: comments,
+          pageInfo: {
+            hasNextPage: (knownTotal != null ? comments.length < knownTotal : false) && comments.length < COMMENTS_MAX,
+            endCursor: String(comments.length),
+          },
+          // 总数放在连接层（GraphQL 连接的 totalCount 位）：界面说「评论 (20) · 共 56 条」、
+          // 「加载更多」按钮的判断都读这里，pageInfo 只保留翻页游标。
+          totalCount: knownTotal != null ? knownTotal : comments.length,
+        },
         subIssues: iss.subIssues || { totalCount: 0, nodes: [] },
         // #1676：引用上的 state 可能缺省 = 没读到目标状态。节点就只给编号与标题；
         // 只有明确读到 open/closed 才写 OPEN/CLOSED —— 否则界面会把「不知道」当成「还开着」永久置灰。
@@ -268,10 +286,18 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       // 客户端拿到 nodes 后是逐条追加（src/client/kernel/api-io.ts 里的 existing.push），
       // 交全量会把已经加载过的评论再插一遍；这里只交 loaded 之后的新增段。
       const delta: any = all.slice(loaded)
-      // hasNextPage：还没到 200，且这一趟按「50 条一档」拿满了；拿不满说明后端已经没有更多。
+      // 评论总数：契约 Issue.commentCount（票面总数）优先；拿不到才退回「已取条数」（也就不会再声称有下一页）。
+      const knownTotal: any = typeof iss.commentCount === 'number' && isFinite(iss.commentCount) && iss.commentCount >= 0
+        ? Math.floor(iss.commentCount)
+        : null
+      // hasNextPage：总数已知时，按「已取条数还没到总数、且没到 200 上限」判；
+      // 总数未知时沿用旧口径（这一趟按 50 条一档拿满了，才认为后端可能还有更多）。
       const step: number = Math.min(COMMENTS_PAGE, COMMENTS_MAX - loaded)
-      const hasNext: boolean = loaded + delta.length < COMMENTS_MAX && delta.length >= step
-      return { ok: true, nodes: delta, pageInfo: { hasNextPage: hasNext, endCursor: String(loaded + delta.length) } }
+      const hasNext: boolean = knownTotal != null
+        ? loaded + delta.length < Math.min(knownTotal, COMMENTS_MAX)
+        : loaded + delta.length < COMMENTS_MAX && delta.length >= step
+      const totalCount: number = knownTotal != null ? knownTotal : loaded + delta.length
+      return { ok: true, nodes: delta, pageInfo: { hasNextPage: hasNext, endCursor: String(loaded + delta.length), totalCount } }
     } catch (e: any) { return { ok: false, error: { kind: 'network', message: errText(e) } } }
   }
   async function handleCommentIssue(args: any): Promise<any> {

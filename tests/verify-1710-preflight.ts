@@ -11,6 +11,9 @@
 //      stderr 点到项名，其余八项仍然全绿（证明每个硬项都能单独触发）。
 //   C. --negative 通道：先造出完整正例环境跑一次会成功的预检，再故意把三处期望写错，证明断言真的能红
 //      （不是删掉断言换来的红）。正例收尾还会起一份 --negative 子门禁自检，让负例本身也进每次全链。
+//   D. #1793 回归：假 glab 配成「多主机」——gitlab.com 已登录，另一台无关主机认证失败（裸 auth status 会因此
+//      整体非零退出）。断言登录检查只问 gitlab.com（auth status --hostname gitlab.com），B4 未登录时失败原因
+//      还要写清「先在本机登录 gitlab.com」。
 //
 // 跑法：
 //   node --import ./scripts/ts-hook.mts tests/verify-1710-preflight.ts
@@ -289,7 +292,17 @@ function setPositivePlan(harness: ReturnType<typeof createRealMachineHarness>): 
   harness.writeGlabPlan({
     rules: [
       { argvPrefix: ['--version'], stdout: 'glab version 1.50.0 (fixture)\n' },
-      { argvPrefix: ['auth', 'status'], stdout: 'gitlab.com\n  ✓ Logged in to gitlab.com as FeatherHunter (keyring)\n' },
+      // #1793：本机配了两台主机——gitlab.com 已登录，另一台认证失败。规则按顺序先命中，所以带 --hostname 的
+      // 规则必须排在裸 auth status 前面；裸命令走到下一条规则会整体退出 1，模拟真机上「无关主机坏了」的样子。
+      {
+        argvPrefix: ['auth', 'status', '--hostname', 'gitlab.com'],
+        stdout: 'gitlab.com\n  ✓ Logged in to gitlab.com as FeatherHunter (keyring)\n',
+      },
+      {
+        argvPrefix: ['auth', 'status'],
+        exitCode: 1,
+        stderr: 'gitlab.example.com\n  x API call failed: Get "https://gitlab.example.com/api/v4/user": EOF\n',
+      },
       {
         argvPrefix: ['api', 'projects/' + String(PROJECT_ID) + '/issues_statistics'],
         stdout: JSON.stringify({ statistics: { counts: { all: 101 } } }) + '\n',
@@ -300,13 +313,13 @@ function setPositivePlan(harness: ReturnType<typeof createRealMachineHarness>): 
   })
 }
 
-/** glab 未认证的负例计划：版本正常，auth status 退出码 1。 */
+/** glab 未认证的负例计划：版本正常，gitlab.com 这一台主机的登录检查退出码 1。 */
 function setUnauthenticatedPlan(harness: ReturnType<typeof createRealMachineHarness>): void {
   harness.writeGlabPlan({
     rules: [
       { argvPrefix: ['--version'], stdout: 'glab version 1.50.0 (fixture)\n' },
       {
-        argvPrefix: ['auth', 'status'],
+        argvPrefix: ['auth', 'status', '--hostname', 'gitlab.com'],
         exitCode: 1,
         stderr: 'gitlab.com\n  x 没有登录到 gitlab.com。\n',
       },
@@ -334,7 +347,10 @@ function setMarkedForDeletionPlan(harness: ReturnType<typeof createRealMachineHa
   harness.writeGlabPlan({
     rules: [
       { argvPrefix: ['--version'], stdout: 'glab version 1.50.0 (fixture)\n' },
-      { argvPrefix: ['auth', 'status'], stdout: 'gitlab.com\n  ✓ Logged in to gitlab.com as FeatherHunter (keyring)\n' },
+      {
+        argvPrefix: ['auth', 'status', '--hostname', 'gitlab.com'],
+        stdout: 'gitlab.com\n  ✓ Logged in to gitlab.com as FeatherHunter (keyring)\n',
+      },
       {
         argvPrefix: ['api', 'projects/' + String(PROJECT_ID) + '/issues_statistics'],
         stdout: JSON.stringify({ statistics: { counts: { all: 101 } } }) + '\n',
@@ -388,6 +404,8 @@ interface NegativeCase {
   env?: Record<string, string>
   prepare?: () => void
   cleanup?: () => void
+  /** 除了「失败且 reason 非空」，还要求失败原因里出现这段话（人据此知道下一步动作）。 */
+  expectReasonIncludes?: string
 }
 
 /** --negative 通道：先把正例环境跑通一次，再故意把三处期望写错，证明断言真能红。 */
@@ -609,10 +627,15 @@ async function main(): Promise<void> {
     const newCalls = harness.readGlabCalls().slice(beforeCalls).map((call) => call.argv.join(' '))
     check(
       newCalls.includes('--version') &&
-        newCalls.includes('auth status') &&
         newCalls.includes('api projects/' + String(PROJECT_ID)) &&
         newCalls.includes('api projects/' + String(PROJECT_ID) + '/issues_statistics'),
       'A25 预检只通过注入的假 glab 读信息（版本/认证/项目/票数）',
+      JSON.stringify(newCalls, null, 2),
+    )
+    // #1793：多主机配置下只问 gitlab.com 这一台；裸命令会让另一台无关主机的失败把结论带偏，这里一并禁止。
+    check(
+      newCalls.includes('auth status --hostname gitlab.com') && !newCalls.includes('auth status'),
+      'A25b 登录检查只问 gitlab.com 这一台主机（不跑裸 auth status）',
       JSON.stringify(newCalls, null, 2),
     )
 
@@ -649,6 +672,7 @@ async function main(): Promise<void> {
         args: [],
         prepare: () => setUnauthenticatedPlan(harness),
         cleanup: () => setPositivePlan(harness),
+        expectReasonIncludes: '先在本机登录 gitlab.com',
       },
       {
         targetId: 'sandbox-project',
@@ -689,6 +713,15 @@ async function main(): Promise<void> {
         env: Object.assign({ [SCREEN_CMD_ENV]: fixtures.screenCmd }, negativeCase.env || {}),
       })
       checkNegative(negativeRun, negativeCase.targetId, negativeCase.label)
+      if (negativeCase.expectReasonIncludes) {
+        const negativeReport = asRecord(negativeRun.json)
+        const negativeTarget = itemById(negativeReport, negativeCase.targetId)
+        check(
+          negativeTarget !== null && String(negativeTarget.reason || '').includes(negativeCase.expectReasonIncludes),
+          negativeCase.label + '：失败原因写清下一步「' + negativeCase.expectReasonIncludes + '」',
+          JSON.stringify(negativeTarget, null, 2),
+        )
+      }
       // 把回执里的失败汇总行原样打出来：这是「退出码非 0 且点到了项名」的人读证据，报告与排查都直接引它。
       const receiptLine = String(negativeRun.stderr || '').trim().split(/\r?\n/)[0] || '（没有 stderr 汇总行）'
       console.log('  证据：' + negativeCase.label + ' → ' + receiptLine)

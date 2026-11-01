@@ -6,7 +6,9 @@
 //   1. 数据自洽（游标不比数据小、数组有序无重复、最后活跃时间真是最大值）；
 //   2. 进位规则钉死（1/9/10/11/50/55/99/100/123/250 的花串写死，改规则先改这里）；
 //   3. 表格就是渲染结果（readme:sync 写的三处标记之间正文与 renderTable 逐字节一致，
-//      中英两表行序、花串、链接一一对上）。
+//      中英两表行序、花串、链接一一对上）；
+//   4. 每日任务写数据的入口「追加即有序」（#1794 回归：拉取按新→旧翻页，只追加会把新编号
+//      按倒序写进 JSON，第二天这扇门禁把 main 判红）。
 // 不守「有没有漏掉新贡献」——那是联网脚本与每日任务的事，离线门禁够不着。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -23,6 +25,7 @@ import {
   totalOf,
   orderedLogins,
   renderTable,
+  pushUniqueDated,
 } from '../scripts/update-thanks.mts';
 
 const ROOT: string = path.dirname(path.dirname(url.fileURLToPath(import.meta.url)));
@@ -144,5 +147,28 @@ for (const r of zhRows) {
     assert.deepEqual(list, sorted, `${r.login} 的 ${seg} 链接没有按编号升序排`);
   }
 }
+
+// —— 6. 追加即有序（#1794 回归） ——
+// 每日任务写编号数组只走 pushUniqueDated 这一个入口。拉取是按「新→旧」倒序翻页的，若它只往
+// 末尾追加，同一次更新里的新编号就会以倒序落盘（#1794 实测：main 上的自动提交因此被判红）。
+// 这里钉住三件事：追加后升序、已有编号不重复追加、重复追加不覆盖原来的日期。
+const dated: Array<{ n: number; at: string }> = [];
+const pushed: Array<[number, string]> = [
+  [1791, '2026-10-31T00:00:00Z'],
+  [1790, '2026-10-30T00:00:00Z'],
+  [1789, '2026-10-29T00:00:00Z'],
+  [1788, '2026-10-28T00:00:00Z'],
+  [1786, '2026-10-26T00:00:00Z'],
+];
+for (const [n, at] of pushed) pushUniqueDated(dated, n, at);
+assert.deepEqual(
+  dated.map((d) => d.n),
+  [1786, 1788, 1789, 1790, 1791],
+  'pushUniqueDated 追加后必须按编号升序（倒序翻页也不能写进倒序数据）',
+);
+assert.equal(dated.find((d) => d.n === 1791)?.at, '2026-10-31T00:00:00Z', 'pushUniqueDated 不能改掉事项的日期');
+pushUniqueDated(dated, 1790, '2027-01-01T00:00:00Z');
+assert.equal(dated.length, 5, 'pushUniqueDated 对已有编号不能重复追加');
+assert.equal(dated.find((d) => d.n === 1790)?.at, '2026-10-30T00:00:00Z', '重复追加不能覆盖已有日期');
 
 console.log('verify-thanks-table: all passed');

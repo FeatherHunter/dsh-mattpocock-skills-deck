@@ -23,7 +23,8 @@ GitLab 自己的规矩（有哪些安装方式、令牌范围各是什么意思�
    范围**只勾 `api`**（个人令牌勾这一个就够用；为什么够，让用户看官网范围表下面那条脚注）。
    判据：用户手里有一串 `glpat-` 开头的令牌。
 3. **登录**。`glab auth login --hostname <主机名> --stdin --git-protocol https --api-protocol https`，令牌从文件喂进去（见第二节第 2 条）。
-   判据：`glab auth status` 打出登录名，并说明凭证已存进操作系统的凭据管理器。
+   判据：`glab auth status --hostname <主机名>` 打出登录名，并说明凭证已存进操作系统的凭据管理器。
+   不带 `--hostname` 时它会连其它已配置主机一起查，别的主机坏了会误报失败（#1779），所以验证只看这一台。
 4. **建一个沙箱项目**。`glab repo create <项目名> --private --skipGitInit`。
    判据：用 `glab api projects/<把完整路径编码后的字符串>` 能查到这个项目。
 5. **收尾**。删掉喂令牌用的临时文件；把「用哪个主机、哪个项目」记下来，后面的活都要用这两个值。

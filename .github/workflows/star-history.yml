@@ -42,8 +42,14 @@ jobs:
       # README 的四块（联系 / 星图 / 致谢 / 作者作品）统一由 base 包同源渲染：
       # 星图的 ?v= 取 docs/star-history.json 末条日期的分钟级版本，图重新生成后缓存戳自动跟着换。
       # 钉死 0.1.5：与 package.json 里内联的 base 客户端产物是同一版，渲染结果才能和本地 readme:check 对上。
+      # 不能经 npx 的 .bin 入口调用：符号链接启动时 base 包的入口判断会把它当成 import、静默退出 0（#1795）。
       - name: Sync managed README blocks
-        run: npx -y dsh-featherhunter-plugin-base@0.1.5 readme:sync --repo .
+        run: |
+          npm install --prefix "$RUNNER_TEMP/base" --no-audit --no-fund --no-save dsh-featherhunter-plugin-base@0.1.5
+          node "$RUNNER_TEMP/base/node_modules/dsh-featherhunter-plugin-base/dist/node/cli.js" readme:sync --repo .
+      # 画完再核一遍：星图 ?v= 真跟着数据换了才算这一步成功（#1795）。
+      - name: Verify managed README blocks
+        run: node "$RUNNER_TEMP/base/node_modules/dsh-featherhunter-plugin-base/dist/node/cli.js" readme:sync --check --repo .
       - name: Commit if changed
         run: |
           if git diff --quiet docs/star-history.json docs/star-history-dark.svg docs/star-history-light.svg README.md docs/README.en.md package/README.md; then echo "No change"; exit 0; fi

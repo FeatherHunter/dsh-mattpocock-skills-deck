@@ -427,6 +427,10 @@ function checkWorkspace(options: ResolvedOptions): CheckOutcome {
 
 // ── glab 版本与认证 ──────────────────────────────────────────────────────────
 
+// 本项只认这一台主机：glab 的多主机配置里别的主机坏掉，不该影响「这台机器对 gitlab.com 是否已登录」。
+// 命令、判定与失败文案都引用同一个常量，免得以后改主机名时漏掉其中一处（#1793）。
+const GITLAB_HOST = 'gitlab.com'
+
 function checkGlab(): CheckOutcome {
   const details: Record<string, unknown> = {}
   const versionRun = runGlab(['--version'])
@@ -447,7 +451,9 @@ function checkGlab(): CheckOutcome {
       'glab --version 的输出里读不出版本号：期望形如「glab version 1.50.0」，实际是「' + (versionRun.stdout.trim() || '（空）') + '」',
     )
   }
-  const authRun = runGlab(['auth', 'status'])
+  // 只查 gitlab.com 这一台主机：裸「glab auth status」会把本机配置的所有主机一起查，只要有一台
+  // 无关主机认证失败，整条命令就非零退出，于是「这台机器对 gitlab.com 已登录」会被误报成没登录（#1793）。
+  const authRun = runGlab(['auth', 'status', '--hostname', GITLAB_HOST])
   const authText = (authRun.stdout + '\n' + authRun.stderr).trim()
   details.authCommand = authRun.display
   details.authExitCode = authRun.exitCode
@@ -456,11 +462,11 @@ function checkGlab(): CheckOutcome {
   if (authRun.exitCode !== 0 || !authMatch) {
     return fail(
       details,
-      'glab 未认证：期望 glab auth status 退出码 0 且输出「Logged in to gitlab.com as <账号>」，实际退出码 ' +
+      'glab 未认证：期望 glab auth status --hostname ' + GITLAB_HOST + ' 退出码 0 且输出「Logged in to ' + GITLAB_HOST + ' as <账号>」，实际退出码 ' +
         String(authRun.exitCode) +
         '、输出「' +
         (authText || '（空）') +
-        '」（先在本机登录 gitlab.com）',
+        '」（这里只查 ' + GITLAB_HOST + ' 这一台主机，别的主机没登录不影响本项；先在本机登录 ' + GITLAB_HOST + '）',
     )
   }
   const host = authMatch[1]
@@ -468,8 +474,8 @@ function checkGlab(): CheckOutcome {
   details.authenticated = true
   details.host = host
   details.account = account
-  if (!host.includes('gitlab.com')) {
-    return fail(details, 'glab 登录的站点不对：期望 gitlab.com，实际是「' + host + '」')
+  if (!host.includes(GITLAB_HOST)) {
+    return fail(details, 'glab 登录的站点不对：期望 ' + GITLAB_HOST + '，实际是「' + host + '」')
   }
   return pass(details)
 }

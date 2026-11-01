@@ -2,7 +2,8 @@
  * tests/verify-retire-client-caches.ts —— 旧详情缓存与地图桶退役为投影（#1695）
  *
  * 守什么：规格 #1681 阶段 3 的单一读源。
- *   A 详情读投影：快照行里有上次内容时，详情页画快照投影，不再先认这一趟取回的详情；
+ *   A 详情读投影：取数还没回来（loading）或失败（err）时，快照行里有上次内容就先画快照投影；
+ *     这一趟成功取回（real）时用这一趟的详情（#1783：快照行的评论可能还没取过，薄行不能说「评论 (0)」）；
  *     行里没有内容才回退到这一趟的详情（没取过 ≠ 无描述）。
  *   B 详情取数退役旧缓存：snapshot 模式下 fetchIssueDetail 不读也不写 st.issueCache，
  *     TTL 改记在 st.detailSeenAt（只决定何时后台重取，不决定能否显示），
@@ -79,7 +80,8 @@ function snap(issues: any[], extra?: any): any {
 // A 详情读投影：快照有内容时投影优先；快照没有内容才回退到这一趟详情
 // ---------------------------------------------------------------------------
 const liveNew = { number: 201, effortId: '', title: '票 201', body: '这一趟取回的正文', comments: { nodes: [] } }
-const stA: any = { snapshot: snap([row(201, { body: '快照里的正文', comments: [{ body: '快照里的评论' }] })]), issueDetail: liveNew, issueMode: 'real', detailSeenAt: {}, issueCache: {} }
+// 取数还没回来（loading）：这就是快照投影要顶上的时刻。
+const stA: any = { snapshot: snap([row(201, { body: '快照里的正文', comments: [{ body: '快照里的评论' }] })]), issueDetail: liveNew, issueMode: 'loading', detailSeenAt: {}, issueCache: {} }
 const viewA = detailViewFor(stA, 201, '')
 check(viewA && viewA.source === 'snapshot', 'A1 快照行有上次内容时详情读快照投影', viewA && viewA.source)
 check(viewA && viewA.issue && viewA.issue.body === '快照里的正文', 'A2 画的是快照里的正文（不是这一趟取回的）', viewA && viewA.issue && viewA.issue.body)
@@ -91,6 +93,10 @@ check(detailViewFor(stA2, 999, '').source === 'none', 'A5 快照里没有这张�
 check(setReadProjectionMode('legacy') === 'legacy' && readProjectionMode() === 'legacy', 'A6 读投影开关能切到 legacy 并持久化')
 check(detailViewFor(stA, 201, '').source === 'live', 'A7 legacy 路径不读快照投影（旧路仍可跑）')
 setReadProjectionMode('snapshot')
+// 这一趟成功取回时，live 详情优先于快照投影（#1783）：快照行是列表薄行，评论字段可能还没取过。
+const stAReal: any = Object.assign({}, stA, { issueMode: 'real' })
+const viewAReal = detailViewFor(stAReal, 201, '')
+check(viewAReal && viewAReal.source === 'live' && viewAReal.issue.body === '这一趟取回的正文', 'A8 这一趟成功取回时用 live 详情（不再被薄快照行挡住）', viewAReal && viewAReal.source)
 
 // ---------------------------------------------------------------------------
 // B 详情取数退役 issueCache：snapshot 模式不读写它，TTL 记在 detailSeenAt

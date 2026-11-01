@@ -106,7 +106,16 @@ globalThis.useIssueDetailFold = () => null
 globalThis.TypeChip = () => null
 globalThis.mdToHtml = () => ''
 globalThis.mdImgOverlay = () => null
-globalThis.Tip = (props: any) => React.createElement('span', { 'data-tip': String(props.content) }, props.children)
+// Tip 在生产里只克隆触发元素、不加 DOM 层级；这里也克隆，避免给卡片按钮多包一层 span。
+globalThis.Tip = (props: any) => {
+  const p = props || {}
+  const child: any = p.children
+  if (p.content !== undefined && child && child.props &&
+      child.props['aria-label'] === undefined && child.props['aria-labelledby'] === undefined) {
+    return React.cloneElement(child, { 'aria-label': String(p.content) })
+  }
+  return child
+}
 globalThis.host = { call: () => Promise.resolve({ ok: true }) }
 // 首帧按需取数还没敲门：effect 在静态渲染里不跑；这里再放一个「被调用就抛」的桩，
 // 万一将来有人把取数挪进渲染体，这条门禁会直接报出来，而不是悄悄发请求。
@@ -119,6 +128,10 @@ globalThis.mergeTicketRows = feedMod.mergeTicketRows
 const factsMod = await import('../src/client/views/mapDetailV2/model/tickets/ticketCardFacts.js')
 globalThis.ticketFactsContextOf = factsMod.ticketFactsContextOf
 globalThis.ticketCardFactsOf = factsMod.ticketCardFactsOf
+// #1792：卡片动作门复用 kernel:detail-top-gate；这里也按生产顺序把同一个函数挂到全局。
+// detailTopGate 依赖 stateKind 的 prStateKind，一并挂上，否则已结案/已合并的行会被当成开着。
+globalThis.prStateKind = (await import('../src/client/views/shared/stateKind.js')).prStateKind
+globalThis.detailTopGate = (await import('../src/client/kernel/detail-top-gate.js')).detailTopGate
 const boardMod = await import('../src/client/views/mapDetailV2/model/tickets/ticketBoard.js')
 globalThis.orderTicketBoard = boardMod.orderTicketBoard
 globalThis.boardCountsOf = boardMod.boardCountsOf

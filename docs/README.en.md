@@ -37,8 +37,8 @@ npm install -g @deepseek-ai/dsh
 #    entry you actually use (a wrong profile = the plugin never loads, restarts won't help)
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # DSH Desktop app (most users)
 # dsh plugin --profile web add dsh-mattpocock-skills-deck     # self-started web server (dsh web)
-# Pin to latest for extra stability (currently 1.9.0-beta.33):
-# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.33 --registry https://registry.npmjs.org
+# Pin to latest for extra stability (currently 1.9.0-beta.34):
+# dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.9.0-beta.34 --registry https://registry.npmjs.org
 
 # ③ That's it — the panel opens in DSH's own right sidebar (no third-party plugin needed)
 ```
@@ -72,7 +72,7 @@ The examples below use the web profile — DSH Desktop app users: replace every 
 
 ```bash
 # Install a pinned version
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.33 --registry https://registry.npmjs.org
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.9.0-beta.34 --registry https://registry.npmjs.org
 
 # No global install (pin a version like above for extra safety)
 npx --yes @deepseek-ai/dsh plugin --profile web add dsh-mattpocock-skills-deck
@@ -222,10 +222,12 @@ Thanks to everyone who opened an issue, sent a PR, or joined a discussion — yo
 | Contributor | Tribute | Contributions |
 | --- | --- | --- |
 | [@pioneerAlone](https://github.com/pioneerAlone) | 🌹🌹🌹🌹🌹🌹 | [#234](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/234) [#274](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/274) [#298](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/298) [#645](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/645) [#273](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/273) [#316](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/316) |
+| [@15326325141](https://github.com/15326325141) | 🌹🌹🌹🌹🌹 | [#1786](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1786) [#1788](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1788) [#1789](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1789) [#1790](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1790) [#1791](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1791) |
 | [@zhengcookie](https://github.com/zhengcookie) | 🌹🌹🌹🌹🌹 | [#960](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/960) [#1003](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1003) [#1160](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1160) [#1291](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1291) [#1005](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1005) |
 | [@Shimmernight](https://github.com/Shimmernight) | 🌹🌹🌹🌹 | [#277](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/277) [#106](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/106) [#275](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/275) [#287](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/287) |
 | [@anupamme](https://github.com/anupamme) | 🌹🌹🌹 | [#727](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/727) [#728](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/728) [#1156](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1156) |
 | [@9agj](https://github.com/9agj) | 🌹🌹🌹 | [#992](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/992) [#993](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/993) [#994](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/994) |
+| [@ACGNnsj](https://github.com/ACGNnsj) | 🌹🌹 | [#1498](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1498) [#1771](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1771) |
 | [@SAXEM1997](https://github.com/SAXEM1997) | 🌹🌹 | [#1566](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1566) [#1612](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1612) |
 | [@Drayee](https://github.com/Drayee) | 🌹🌹 | [#1101](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1101) [#1606](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1606) |
 | [@q4452542007](https://github.com/q4452542007) | 🌹🌹 | [#1555](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1555) [#1578](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1578) |
@@ -240,6 +242,9 @@ Thanks to everyone who opened an issue, sent a PR, or joined a discussion — yo
 | [@tafcear](https://github.com/tafcear) | 🌹🌹 | [#422](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/422) [#432](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/432) |
 | [@xiSage](https://github.com/xiSage) | 🌹🌹 | [#435](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/435) [#436](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/436) |
 | [@angenet](https://github.com/angenet) | 🌹🌹 | [#262](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/262) [#295](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/295) |
+| [@Creativeguys037](https://github.com/Creativeguys037) | 🌹 | [#1781](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/1781) |
+| [@jimorsm](https://github.com/jimorsm) | 🌹 | [#1779](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1779) |
+| [@clipsheep6](https://github.com/clipsheep6) | 🌹 | [#1767](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1767) |
 | [@Ba7nice](https://github.com/Ba7nice) | 🌹 | [#1733](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1733) |
 | [@shadapang](https://github.com/shadapang) | 🌹 | [#1672](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1672) |
 | [@CypressStar](https://github.com/CypressStar) | 🌹 | [#1671](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1671) |
@@ -249,7 +254,6 @@ Thanks to everyone who opened an issue, sent a PR, or joined a discussion — yo
 | [@Iwassoobsessedwith](https://github.com/Iwassoobsessedwith) | 🌹 | [#1568](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1568) |
 | [@TangSuann](https://github.com/TangSuann) | 🌹 | [#1505](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1505) |
 | [@nolifeking0916](https://github.com/nolifeking0916) | 🌹 | [#1504](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1504) |
-| [@ACGNnsj](https://github.com/ACGNnsj) | 🌹 | [#1498](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1498) |
 | [@GuanpengLu](https://github.com/GuanpengLu) | 🌹 | [#1478](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1478) |
 | [@zyf0625-990](https://github.com/zyf0625-990) | 🌹 | [#1476](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1476) |
 | [@Lichxier](https://github.com/Lichxier) | 🌹 | [#1435](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1435) |
@@ -294,9 +298,9 @@ And thanks to everyone who left thoughts in comments and discussions. If you hit
 
 <a href="https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.html">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-dark.svg?v=202610310000" />
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=202610310000" />
-  <img alt="Star History Chart" src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=202610310000" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-dark.svg?v=202611010000" />
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=202611010000" />
+  <img alt="Star History Chart" src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=202611010000" />
   </picture>
 </a>
 

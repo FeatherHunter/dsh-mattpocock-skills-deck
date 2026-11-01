@@ -1,8 +1,8 @@
 tpl.diagnose:
-  version: 22
+  version: 23
   placeholders:
     - url
-  use: 动作按钮「诊断」（needs-triage 票）· 恢复调查节、补已实现核对与终态收尾（#1212、#1281）；v21（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v22（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」
+  use: 动作按钮「诊断」（needs-triage 票）· 恢复调查节、补已实现核对与终态收尾（#1212、#1281）；v21（2026-10-29）：首段加元提示句「从第一性原理出发。」（公共小节 firstPrinciples），不改技能流程；v22（2026-10-31）：工具节公共提醒行改为「每轮回复收尾先判断、想得到就调用」；v23（2026-11-01）：新增「说明诊断结论」节，诊断结束后在会话回复里说明问题本身，中途出现反转结论的事实时先给简短结论
   zh: |-
     /triage
     {url}
@@ -15,6 +15,12 @@ tpl.diagnose:
     - [ ] 先看正文、评论与已有记录里有没有实施痕迹：验收标准全部满足的，按 /triage 处理“已实现”票的规则收口，不要重复实施；只做了一半的，写明还缺什么再继续诊断；没有实施记录的，按正常诊断走。
 
     {{shared:investigation}}
+
+    ## 说明诊断结论
+    - [ ] 在会话回复中给出一段可独立阅读的说明：不了解本票背景的读者，读完应能理解问题本身并复核结论。
+    - [ ] 按以下顺序组织，各部分一到三句：① 结论：问题是什么、是否成立（一句话）；② 背景与诉求：提出者、要解决的问题、原始表述摘录；③ 依据与成因：为何得出上述结论、问题类别、成因何在，依据以足以复核为限；④ 影响与现状：影响范围与程度、已产生的后果、已有进展、关联事项；⑤ 代价与取舍：处理所需的投入或代价（粗略量级即可）、需要权衡之处。
+    - [ ] 无法确认或属于推测的内容，在对应位置标注，不得省略。
+    - [ ] 分诊过程中出现足以改变结论的事实（证据与票面描述不符、与其他事项重复、原结论被推翻），先给出简短结论再继续，不必逐步播报。
 
     ## 收尾
     - [ ] 结束前把这张票的真实状态写进正文；结尾用提问格式收尾：有待维护者拍板的事，有几个就问几个，写成❓ Q1、Q2、Q3，逐个给推荐答案（➡️），等回复再动。
@@ -33,6 +39,12 @@ tpl.diagnose:
     - [ ] First check the body, comments, and existing records for any implementation work: if every acceptance criterion is met, close it out per the /triage rules for an already-implemented ticket and do not re-implement; if it is only half done, state what is still missing and keep diagnosing; if no implementation is recorded, diagnose it as usual.
 
     {{shared:investigation}}
+
+    ## Explain the diagnosis conclusion
+    - [ ] In the session reply, give a self-contained explanation: a reader who does not know this ticket's background should, after reading it, understand the problem itself and be able to check the conclusion.
+    - [ ] Follow this order, one to three sentences per part: ① Conclusion: what the problem is and whether it holds (one sentence); ② Background and intent: who raised it, the problem to be solved, a quote of the original wording; ③ Basis and cause: why the conclusion follows, the problem category, and the cause, with evidence limited to what is enough to check it; ④ Impact and current state: the scope and severity of the impact, consequences already produced, progress so far, and related matters; ⑤ Cost and trade-offs: the effort or cost required (a rough order of magnitude is enough) and what has to be weighed.
+    - [ ] Mark anything unconfirmed or inferred as such in place; do not omit it.
+    - [ ] If triage turns up a fact that would change the conclusion (evidence contradicts the ticket body, the item duplicates another matter, the earlier conclusion is overturned), state a brief conclusion first, then continue; do not narrate the process step by step.
 
     ## Wrap-up
     - [ ] Before finishing, write the true state of this ticket into its body; end with the question format: list every decision the maintainer must make as ❓ Q1, Q2, Q3, each with a recommended answer (➡️), and wait for the reply before acting.

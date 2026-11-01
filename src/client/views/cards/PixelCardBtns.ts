@@ -2,6 +2,7 @@
 import type { CardBtnsProps, CardIconProps } from './cardBits';
 declare const cardInkOn: (hex: string) => string;
 declare const cardBoostOn: (hex: string) => boolean;
+declare const Tip: (props?: any) => any;
 const ICB: Record<string, string> = {
   chat: "<path d=\"M21 15a2 2 0 01-2 2H8l-5 4V5a2 2 0 012-2h14a2 2 0 012 2z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>",
   play: "<path d=\"M8 5.5l11 6.5-11 6.5z\" fill=\"currentColor\" stroke=\"none\"/>",
@@ -33,12 +34,43 @@ export const PixelCardBtns = function (props?: CardBtnsProps): any {
   const boostMark = boost ? '1' : undefined;
   const stop = function (e: any): void { if (e && e.stopPropagation) e.stopPropagation(); };
   const st = { background: bg, color: ink };
+  // #1792：动作门只作用在主按钮与新会话两颗上。置灰时给 aria-disabled、Tab 落不上、
+  // 不挂 data-log（点了不该被记一条 ui.action）、不挂 data-press（按下不再有 dsws-pressing 的位移）；
+  // 悬停说明为什么不能点，走 Tip 薄预设。verify-no-title 对 title 属性 ≥3 处即抽：这里只保留
+  // 复制/打开两颗旧按钮的 2 处 title，主按钮与新会话不再新增。
+  const disabled = !!p.disabled;
+  const dis = disabled ? 'true' : undefined;
+  const disTip = disabled && p.disabledTip ? p.disabledTip : undefined;
+  const mainLabel = p.mainLabel;
+  const newLabel = tr('card.newSession');
+  const press = disabled ? undefined : 'button';
+  // 置灰按钮自己带可见动作名作 aria-label：Tip 只补悬停说明，不能把按钮的可访问名换成整句原因。
+  const mainProps: any = {
+    className: 'cd-abtn label', style: st, 'aria-disabled': dis, tabIndex: disabled ? -1 : undefined,
+    'aria-label': disabled ? mainLabel : undefined,
+    'data-cd-boost': boostMark, 'data-press': press,
+    'data-log': disabled ? undefined : 'card.btn.' + logKey + '.main',
+    onClick: function (e: any): void { stop(e); if (disabled) return; if (p.onMain) p.onMain(); },
+  };
+  const newProps: any = {
+    className: 'cd-abtn label', style: st, 'aria-disabled': dis, tabIndex: disabled ? -1 : undefined,
+    'aria-label': disabled ? newLabel : undefined,
+    'data-cd-boost': boostMark, 'data-press': press,
+    'data-log': disabled ? undefined : 'card.btn.' + logKey + '.new',
+    onClick: function (e: any): void { stop(e); if (disabled) return; if (p.onNew) p.onNew(); },
+  };
+  const mainKids = [h(PixelCardIcon, { key: 'i', n: p.icon }), h('span', { key: 't', className: 'cd-lbl' }, mainLabel)];
+  const newKids = [h(PixelCardIcon, { key: 'i', n: 'ext' }), h('span', { key: 't', className: 'cd-lbl' }, newLabel)];
+  // Tip 只克隆触发元素、不新增 DOM 层级，所以置灰包裹不会改变按钮行的排版；
+  // 可点时保持原来的裸按钮，行为与外观一个字都不变。
+  const mainNode = disTip ? h(Tip, { key: 'm', content: disTip }, h('button', mainProps, mainKids)) : h('button', Object.assign({ key: 'm' }, mainProps), mainKids);
+  const newNode = disTip ? h(Tip, { key: 'n', content: disTip }, h('button', newProps, newKids)) : h('button', Object.assign({ key: 'n' }, newProps), newKids);
   return h('div', { className: 'cd-actions' }, [
     // 四颗按钮是像素风控件：只接 data-press 与 data-log，不加 dsws-hov（像素按钮自己有那套外观，
     // 悬停提亮与下沉位移由像素样式负责，叠两套会让按下时的位移对不上图标格）。
     // 复制与打开是纯图标按钮，按压形状记 icon；有文字的主按钮与新会话按钮记 button。
-    h('button', { key: 'm', className: 'cd-abtn label', style: st, 'data-cd-boost': boostMark, 'data-press': 'button', 'data-log': 'card.btn.' + logKey + '.main', onClick: function (e: any): void { stop(e); if (p.onMain) p.onMain(); } }, [h(PixelCardIcon, { key: 'i', n: p.icon }), h('span', { key: 't', className: 'cd-lbl' }, p.mainLabel)]),
-    h('button', { key: 'n', className: 'cd-abtn label', style: st, 'data-cd-boost': boostMark, 'data-press': 'button', 'data-log': 'card.btn.' + logKey + '.new', onClick: function (e: any): void { stop(e); if (p.onNew) p.onNew(); } }, [h(PixelCardIcon, { key: 'i', n: 'ext' }), h('span', { key: 't', className: 'cd-lbl' }, tr('card.newSession'))]),
+    mainNode,
+    newNode,
     h('button', { key: 'c', className: 'cd-abtn paper icon', title: tr('card.copyLink'), 'data-press': 'icon', 'data-log': 'card.btn.' + logKey + '.copy', onClick: function (e: any): void { stop(e); if (p.onCopy) p.onCopy(); } }, h(PixelCardIcon, { n: 'clip' })),
     h('button', { key: 'o', className: 'cd-abtn paper icon', title: tr('card.openLink'), 'data-press': 'icon', 'data-log': 'card.btn.' + logKey + '.open', onClick: function (e: any): void { stop(e); if (p.onOpen) p.onOpen(); } }, h(PixelCardIcon, { n: 'link' })),
   ]);

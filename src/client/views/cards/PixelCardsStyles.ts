@@ -78,6 +78,12 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-abtn.icon{flex:none;width:40px;padding:5px 0}',
   '.cd-abtn.paper{background:var(--cd-card);color:var(--cd-ink)}',
   '.cd-abtn:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--cd-shadow);outline:2px solid var(--cd-act,var(--cd-gold));outline-offset:1px}',
+  // #1792：动作按钮置灰（已结案 / 被明确未完成票阻塞）。只用透明度与禁用光标，
+  // 不引入新的裸色——浅色皮肤门禁要求规则体里的装饰色都走 --cd-* 令牌。
+  '.cd-abtn[aria-disabled="true"]{opacity:.45;cursor:not-allowed}',
+  // 压掉悬停位移与高亮外框：灰态不能看起来还能按；阴影保持静止态的两像素，不跟着抬高。
+  // tabIndex=-1 已经让 Tab 落不上，所以这里不另写焦点规则（皮肤里的焦点规则必须带深浅主题守卫，见 #1379 的 F30）。
+  '.cd-abtn[aria-disabled="true"]:hover{transform:none;box-shadow:2px 2px 0 var(--cd-shadow);outline:none}',
   // 深色纸面按钮的焦点环用金虚线（#1387 第二条）：原来随卡动作色，深色下画出来是紫色。
   'body[data-ds-dark-theme] .cd-abtn.paper:focus-visible{outline:2px dashed var(--cd-gold);outline-offset:2px}',
   // 深色实心按钮的焦点环用自己的墨色虚线（#1387 第三条）：底色有十种，环若随动作色会与底同色；

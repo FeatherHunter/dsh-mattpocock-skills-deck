@@ -208,7 +208,8 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-31 #1709：deck 写工具直调入口门禁，正例单跑实测 64 条断言；负例用 --negative 单独跑（2 条断言、2 条故意红），不计入开闸期望。
   'verify-1709-deck-entry': 64,
   // 2026-10-31 #1710：批次前置巡检门禁，正例单跑实测 76 条断言；负例用 --negative 单独跑（5 条断言、3 条故意红），不计入开闸期望。
-  'verify-1710-preflight': 76,
+  // 2026-11-01 #1793：登录检查改为只问 gitlab.com 这一台主机，补 2 条断言（只跑带 --hostname 的命令、未登录原因写清下一步），单跑实测 78 条。
+  'verify-1710-preflight': 78,
   // 2026-10-31 #1706：GitLab 沙箱项目与工作区的黑盒门禁，正例单跑实测 58 条断言；负例用 --negative 单独跑，不计入开闸期望。
   'verify-1706-gitlab-project': 58,
   // 2026-10-31 #1707：真机实例环境注入门禁，正例单跑实测 79 条断言；负例用 --negative 单独跑（5 条断言、3 条故意红），不计入开闸期望。
@@ -372,8 +373,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-acceptance-four': 27,
   // 2026-10-31 #1695：旧详情缓存与地图子票桶退役为投影（快照投影优先、snapshot 模式不读写 issueCache、
   // 短回包按编号增量合并不清空已知行、快照顶层字段白名单与会话呈现态不进快照、TTL 只决定何时重取、
-  // 排序只在投影层、legacy 开关旧路仍能跑）；39 条单跑实测。
-  'verify-retire-client-caches': 39,
+  // 排序只在投影层、legacy 开关旧路仍能跑）；#1783 起补一条「这一趟成功取回时用 live 详情」，
+  // 40 条单跑实测。
+  'verify-retire-client-caches': 40,
   // 2026-10-31 #1696：地图详情首帧用快照已知的阻塞关系与计数（子票行归一化：数字票号、
   // 阻塞者转数字、反推「我挡住谁」、层级与五组计数）；列表被截断或 REST 降级时按编号补回上次已知
   // 子票与计数（只补不删，已关闭容器口径不动）。#1768 起阻塞者不在本容器时按引用态判：明确 CLOSED

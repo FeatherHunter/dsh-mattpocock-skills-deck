@@ -1546,7 +1546,10 @@ const contractChecksInner = function (reg, src) {
     //   仍是插件增量：不复述技能规则、不定义认领生命周期；版本底线同步抬到 23。
     // 2026-10-31（同日第二笔，#1725）：specExecute v7→v8 —— 降级路线的实现者子代理一条写明
     //   「用全新上下文的子代理、不要 fork 当前对话」，与 /implement-spec 技能 v1.3.2 口径一致；版本底线同步抬到 8。
-    mapExecute: 23, complete: 17, fixate: 11, 'tpl.diagnose': 21, 'tpl.fix': 18, 'tpl.discuss': 23,
+    // 2026-11-01：tpl.diagnose v22→v23 —— 新增「说明诊断结论」节：诊断结束后在会话回复里向不了解本票的读者
+    //   说明问题本身（结论 / 背景与诉求 / 依据与成因 / 影响与现状 / 代价与取舍），中途出现反转结论的事实时先给简短结论；
+    //   落点固定在调查节与收尾之间（收尾是最后动作，说明写晚了会被跳过），版本底线同步抬到 23。
+    mapExecute: 23, complete: 17, fixate: 11, 'tpl.diagnose': 23, 'tpl.fix': 18, 'tpl.discuss': 23,
     'tpl.research': 17, 'tpl.prototype': 18, 'tpl.takeover': 13, 'tpl.supplement': 10, 'tpl.execute': 23, mapInspect: 14, newWayfinder: 30,
     newBugWayfinder: 17, newSpec: 6, healthCheck: 6, specComplete: 8, specExecute: 8, specSplit: 6,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
@@ -1643,6 +1646,22 @@ const contractChecksInner = function (reg, src) {
     if (di.zh.indexOf('按 /triage 处理“已实现”票的规则收口') < 0) fail('tpl.diagnose zh 缺已实现收口规则（落哪个终态交给 /triage）')
     if (di.zh.indexOf('## 调查（建议先查后问）') < 0) fail('tpl.diagnose zh 缺 #1212 调查节（先查后问）')
     if (di.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail('tpl.diagnose zh 缺 #1212 调查首行（先读本票与仓内）')
+    // 2026-11-01：新增「说明诊断结论」节 —— 分诊结束后要讲清问题本身，而不是只把状态写进票面；
+    //   落点固定在调查节与收尾之间（同 tpl.prototype 的「定版与移交」，#1258）。
+    if (di.zh.indexOf('## 说明诊断结论') < 0) fail('tpl.diagnose zh 缺「说明诊断结论」节（会话回复里说明问题本身）')
+    if (di.zh.indexOf('在会话回复中给出一段可独立阅读的说明') < 0) fail('tpl.diagnose zh 缺可独立阅读要求（不依赖前文的说明）')
+    if (di.zh.indexOf('依据以足以复核为限') < 0) fail('tpl.diagnose zh 缺依据限度要求（依据说到能复核为止）')
+    if (di.zh.indexOf('无法确认或属于推测的内容') < 0) fail('tpl.diagnose zh 缺不确定内容标注要求')
+    if (di.zh.indexOf('先给出简短结论再继续') < 0) fail('tpl.diagnose zh 缺中途反转汇报要求')
+    if (di.zh.indexOf('## 说明诊断结论') < di.zh.indexOf('## 调查（建议先查后问）')) fail('tpl.diagnose zh 的说明诊断结论节应在调查节之后')
+    if (di.zh.indexOf('## 说明诊断结论') > di.zh.indexOf('## 收尾')) fail('tpl.diagnose zh 的说明诊断结论节应在收尾之前')
+    if (di.en.indexOf('## Explain the diagnosis conclusion') < 0) fail('tpl.diagnose en 缺说明诊断结论节（同中文那条）')
+    if (di.en.indexOf('a self-contained explanation') < 0) fail('tpl.diagnose en 缺可独立阅读要求（同中文那条）')
+    if (di.en.indexOf('enough to check it') < 0) fail('tpl.diagnose en 缺依据限度要求（同中文那条）')
+    if (di.en.indexOf('Mark anything unconfirmed or inferred as such') < 0) fail('tpl.diagnose en 缺不确定内容标注要求（同中文那条）')
+    if (di.en.indexOf('state a brief conclusion first') < 0) fail('tpl.diagnose en 缺中途反转汇报要求（同中文那条）')
+    if (di.en.indexOf('## Explain the diagnosis conclusion') < di.en.indexOf('## Investigate (recommended: look before asking)')) fail('tpl.diagnose en 的说明诊断结论节应在调查节之后（同中文那条）')
+    if (di.en.indexOf('## Explain the diagnosis conclusion') > di.en.indexOf('## Wrap-up')) fail('tpl.diagnose en 的说明诊断结论节应在 Wrap-up 之前（同中文那条）')
     if (di.zh.indexOf('说明回复后你准备执行什么标签动作') < 0) fail('tpl.diagnose zh 缺收尾第二条（回复后执行什么标签动作）')
     if (di.zh.indexOf('写明这张票已转到哪个终态') < 0) fail('tpl.diagnose zh 缺收尾第二条（无待拍板时写终态）')
     if (di.zh.indexOf('## 弄清现象') >= 0 || di.zh.indexOf('## 根因候选') >= 0 || di.zh.indexOf('## 分流建议') >= 0 || di.zh.indexOf('## 阶段闸门') >= 0) fail('tpl.diagnose zh 不该再复述 triage 的诊断步骤（#1281 去技能规则复述）')
@@ -2461,10 +2480,12 @@ const selfDigest = function () {
 //   src/tracker/rooms/github/room/index.ts（扫描内容与判据都没动），自摘要按新内容重算。
 // 2026-10-31（同日第二笔，#1725）：specExecute v7→v8 —— 降级路线实现者子代理一条写明「用全新上下文的子代理、
 //   不要 fork 当前对话」，与 /implement-spec v1.3.2 口径一致；V_MIN 7 → 8，中英各两条关键词断言，自摘要按新内容重算。
+// 2026-11-01：tpl.diagnose v22→v23 —— 新增「说明诊断结论」节（诊断结束后在会话回复里讲清问题本身，
+//   中途出现反转结论的事实时先给简短结论），V_MIN 21 → 23，自摘要按新内容重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': '65e3acb4c066f83a74996dda33196bb19cce7d0421ce1a9a9dc6d87187c53bcd',
   'tests/prompt-gate-payloads.json': '0d5a71daafeb4a3bb1052a614f77ad6778a72fbe50801e146e518e1e7c273468',
-  'tests/verify-prompts.ts': '1ec4434e35863b4fed41af704ebdee1d36c00b518928ee48bcd8f4a529b16037',
+  'tests/verify-prompts.ts': '3fc57e0ba1d0a115d13509ccd2d564d9950441973dd2372bef397a0201315779',
 }
 // ---- LOCK-END ----
 

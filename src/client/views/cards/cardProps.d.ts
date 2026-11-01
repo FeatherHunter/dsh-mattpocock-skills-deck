@@ -18,6 +18,17 @@ export interface BlocksChipInfo { no?: string; title?: string; }
 /** 整卡暗层的 props：有挡路票标题时封条占两行，暗层只压暗、不再写居中的点击提示（#1401）。 */
 export interface DimVeilProps { quiet?: boolean; }
 export interface CardActionStyle { colorKey?: string; icon?: string; hollow?: boolean; }
+/**
+ * 卡片动作门的 props（#1792）：主按钮与新会话能不能点、为什么、被哪几张票阻塞。
+ * disabled 为真时卡片只给这两颗加 aria-disabled / tabIndex=-1 / 悬停说明；复制与打开不经过它。
+ */
+export interface CardActionGateProps {
+  disabled?: boolean;
+  /** 不可点时的悬停说明（已关闭 / 被 #N 阻塞）。 */
+  tip?: string;
+  reason?: 'closed' | 'blocked' | 'none';
+  blockedNumbers?: number[];
+}
 export interface IssueCardProps {
   action?: CardActionKind;
   noText?: string;
@@ -27,6 +38,8 @@ export interface IssueCardProps {
   updatedText?: string;
   footActionText?: string;
   closed?: boolean;
+  /** 主按钮与新会话的动作门（#1792）；不传时按可点处理。 */
+  actionGate?: CardActionGateProps | null;
   claimedBy?: string | null;
   bugCorner?: boolean;
   pickCorner?: string | null;
