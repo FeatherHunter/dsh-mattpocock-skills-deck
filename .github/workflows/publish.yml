@@ -148,8 +148,8 @@ jobs:
           set -euo pipefail
           V="${{ steps.version.outputs.version }}"
           TAG="v$V"
-          WORK=$(mktemp -d)
-          cd "$WORK"
+          mkdir -p dist-stable
+          cd dist-stable
           ok=0
           for attempt in 1 2 3 4 5 6; do
             if npm pack "$PKG_NAME@$V" >/dev/null 2>&1 && [ -f "$PKG_NAME-$V.tgz" ]; then ok=1; break; fi
@@ -159,7 +159,9 @@ jobs:
           test "$ok" = "1"
           mv "$PKG_NAME-$V.tgz" "$PKG_NAME.tgz"
           sha256sum "$PKG_NAME.tgz"
-          gh release upload "$TAG" "$PKG_NAME.tgz" --clobber
+          # gh 需要在 git 仓库里解析 -R；回到工作区再上传（临时目录不是 git 仓库）。
+          cd "$GITHUB_WORKSPACE"
+          gh release upload -R "$GITHUB_REPOSITORY" "$TAG" "dist-stable/$PKG_NAME.tgz" --clobber
           # 为什么这里自己附固定名资产：本 workflow 用自带 GITHUB_TOKEN 创建 Release，
           # 而 GITHUB_TOKEN 创建 Release 不会触发 release-tarball.yml（GitHub 事件规则），
           # 那份 workflow 只覆盖「由维护者 token 手动建 Release」的路径；两边都用 --clobber，幂等。
