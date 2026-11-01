@@ -12,6 +12,7 @@ import { findDshPaths, assertWritableTarget } from './paths.mts'
 import { ensureDir, exists, info, isDir, nowIso, readJson, sleep, today, writeJson } from './util.mts'
 import { PLUGIN_CACHE_DIR } from './home.mts'
 import { loadInstanceEnvFile } from './envfile.mts'
+import { credentialSourceLabel, ensureLaunchModel, inspectLaunchModel, type LaunchModelReport, type ModelSelection } from './model.mts'
 
 export interface Instance {
   /** DSH 进程号；停止实例时用它。 */
@@ -43,6 +44,8 @@ export interface Instance {
   envFileNames?: string[]
   /** 这次启动显式设置的全部环境变量名（不含从本命令进程继承的环境）。 */
   envNames?: string[]
+  /** 这次启动用的模型配置与密钥来源；密钥值不在里面。 */
+  model: LaunchModelReport
 }
 
 export interface StartOptions {
@@ -57,6 +60,11 @@ export interface StartOptions {
   extraEnv?: Record<string, string>
   /** 环境文件：一行一个 KEY=VALUE，值只合并进子进程环境，不写日志、不进 instance.json。 */
   envFile?: string
+  /**
+   * 模型选择：不传就用默认的 MiniMax CN；传 false 表示本次启动跳过自动配置与模型密钥注入。
+   * 无论哪种情况，密钥值都不会写进日志或 instance.json。
+   */
+  model?: ModelSelection | false
 }
 
 /** 计划模式（--launch-plan）给人看的一份启动计划：只有变量名与启动命令，没有变量值。 */
@@ -84,6 +92,8 @@ export interface LaunchPlanReport {
   envNames: string[]
   /** 实例的 stdout、stderr 与插件日志落点。 */
   logFiles: { stdout: string; stderr: string; pluginLogDir: string }
+  /** 这次启动会用的模型配置与密钥来源；密钥值不在里面。 */
+  model: LaunchModelReport
   /** 一句话说明这份计划为什么没有值。 */
   note: string
 }
@@ -103,6 +113,9 @@ interface ResolvedLaunch {
   envFileNames: string[]
   secretEnvNames: string[]
   envNames: string[]
+  model: LaunchModelReport
+  /** 模型密钥的值；只交给子进程环境，绝不写日志或回执。 */
+  modelApiKey: string | null
 }
 
 /** 显式设置的、与实例隔离有关的变量名；顺序固定，计划里照这个顺序出现。 */
@@ -112,6 +125,7 @@ const BASE_ENV_NAMES = ['ELECTRON_RUN_AS_NODE', 'DSH_HOME', 'USERPROFILE', 'HOME
 function displayArgv(argv: string[]): string {
   return argv.map((item) => (/\s/.test(item) ? JSON.stringify(item) : item)).join(' ')
 }
+
 
 /**
  * 把所有启动前的检查与计算集中在一处：路径、profile、环境文件、程序路径、参数与环境变量。
@@ -129,6 +143,11 @@ function resolveLaunch(options: StartOptions): ResolvedLaunch {
     throw new Error('home「' + home + '」里没有 profiles/' + profile + '：先跑 copy-home 生成批次 home。')
   }
   const userprofile = path.resolve(options.userprofile || path.join(dir, 'userprofile'))
+  // 模型状态在 resolveLaunch 里只读不写：计划模式看到的就是真正启动时会用的配置与密钥来源。
+  // 真正写 profile 的动作由 startInstance 在启动前调用 ensureLaunchModel 完成。
+  const modelInspection = inspectLaunchModel({ home, profile, selection: options.model === false ? false : options.model })
+  const model = modelInspection.report
+  const modelApiKey = modelInspection.credential ? modelInspection.credential.value : null
   const envFile = options.envFile ? loadInstanceEnvFile(options.envFile) : null
   const { exe, cli } = findDshPaths({ exe: options.exe || process.env.DSH_EXE, cli: options.cli || process.env.DSH_CLI_JS })
   const port = options.port ?? 0
@@ -144,9 +163,16 @@ function resolveLaunch(options: StartOptions): ResolvedLaunch {
   // 环境文件最后合并：它是这批实例的显式输入，优先于继承来的进程环境与调用方给的 extraEnv。
   if (envFile) for (const [key, value] of Object.entries(envFile.values)) env[key] = value
   const envFileNames = envFile ? envFile.names : []
-  const secretEnvNames = envFile ? envFile.secretNames : []
+  const secretEnvNames = envFile ? envFile.secretNames.slice() : []
   const envNames = BASE_ENV_NAMES.concat(envFileNames)
-  return { home, dir, userprofile, profile, port, exe, cli, argv, env, envFile: envFile ? envFile.file : null, envFileNames, secretEnvNames, envNames }
+  // 模型密钥最后合并：它来自批次 home / 真实 home 的凭证存储或当前进程环境，显式覆盖同名变量。
+  // 只把「这次真正注入的变量名」列进 envNames，避免报告里出现一个其实没值的名字。
+  if (model.enabled && model.apiKeyEnv && modelApiKey) {
+    env[model.apiKeyEnv] = modelApiKey
+    if (envNames.indexOf(model.apiKeyEnv) < 0) envNames.push(model.apiKeyEnv)
+    if (secretEnvNames.indexOf(model.apiKeyEnv) < 0) secretEnvNames.push(model.apiKeyEnv)
+  }
+  return { home, dir, userprofile, profile, port, exe, cli, argv, env, envFile: envFile ? envFile.file : null, envFileNames, secretEnvNames, envNames, model, modelApiKey }
 }
 
 /**
@@ -170,12 +196,13 @@ export function describeLaunch(options: StartOptions): LaunchPlanReport {
     envFileNames: resolved.envFileNames,
     secretEnvNames: resolved.secretEnvNames,
     envNames: resolved.envNames,
+    model: resolved.model,
     logFiles: {
       stdout: path.join(resolved.dir, 'stdout.log'),
       stderr: path.join(resolved.dir, 'stderr.log'),
       pluginLogDir: path.join(resolved.dir, PLUGIN_CACHE_DIR, 'logs'),
     },
-    note: '这份计划只列变量名与启动命令；环境文件里的值只交给实例进程，不写在这里。',
+    note: '这份计划只列变量名、模型名与启动命令；环境文件与模型密钥的值只交给实例进程，不写在这里。',
   }
 }
 
@@ -252,6 +279,11 @@ function findTodayLog(pluginLogDir: string): string | null {
  * 需要停掉时用 stopInstance()，它会按 pid 结束整棵进程树。
  */
 export async function startInstance(options: StartOptions): Promise<Instance> {
+  // 模型配置要在启动前写进批次 home 的 profile；已经配齐时不写盘，所以重复启动不会改文件。
+  // --no-model（model:false）时跳过，连密钥也不注入。
+  if (options.model !== false) {
+    ensureLaunchModel({ home: path.resolve(options.home), profile: options.profile || 'web', selection: options.model })
+  }
   // 启动前的检查与计算都在 resolveLaunch 里做，计划模式（--launch-plan）走的是同一份结论：
   // 两条路不会各算各的，计划里看到的命令就是真正要跑的命令。
   const launch = resolveLaunch(options)
@@ -267,6 +299,15 @@ export async function startInstance(options: StartOptions): Promise<Instance> {
   if (launch.envFile) {
     // 只报文件与变量名，不报值：这行会进命令的 stderr（执行会话记录里也会留一份），token 原文不能跟着进去。
     info('环境文件：' + launch.envFile + '；注入变量：' + launch.envFileNames.join('、') + '（值不输出）')
+  }
+  if (launch.model.enabled) {
+    info(
+      '模型：' + String(launch.model.provider) + '/' + String(launch.model.model) +
+        '；profile ' + (launch.model.profileConfigured ? '已配置' : '未配置') +
+        '；密钥来源 ' + credentialSourceLabel(launch.model.credentialSource) +
+        (launch.model.credentialAvailable ? '' : '（缺失，实例能起来但调用模型会失败）') +
+        '；值不输出',
+    )
   }
 
   // detached：让实例脱离本命令所在的进程组；否则命令退出时，宿主清理进程树会把实例一起带走。
@@ -300,6 +341,7 @@ export async function startInstance(options: StartOptions): Promise<Instance> {
     envFile: launch.envFile,
     envFileNames: launch.envFileNames,
     envNames: launch.envNames,
+    model: launch.model,
   }
   // 日志文件常在访问地址出现之后才写出来：再等一小会儿，让调用方拿到的是已经可读的路径。
   for (let i = 0; i < 20 && !instance.pluginLogFile; i += 1) {

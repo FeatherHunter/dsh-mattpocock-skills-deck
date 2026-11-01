@@ -4,7 +4,10 @@
 //   node --import ./scripts/ts-hook.mts scripts/real-machine/commands/start-instance.mts
 //         --home <批次home> --dir <独立启动目录> [--userprofile <目录>] [--profile web]
 //         [--port 0] [--timeout 120000] [--exe <DSH程序>] [--cli <cli.js>]
-//         [--instance-env-file <环境文件>] [--launch-plan]
+//         [--instance-env-file <环境文件>] [--launch-plan] [--no-model]
+//
+// 默认会自动把批次 profile 的默认模型配成 MiniMax CN，并从批次 home / 真实 home 的凭证存储或当前进程环境
+// 取密钥注入实例；--no-model 跳过这两步。密钥值不写命令行、不写日志、不进 instance.json。
 //
 // 环境文件：一行一个 KEY=VALUE，只认 GLAB_CONFIG_DIR、PATH、GITLAB_TOKEN；前两个必需，token 可选。
 // 值只合并进实例进程的环境，不写命令行、不写日志、不进 instance.json；命令只传文件路径。
@@ -37,6 +40,7 @@ runCli(async () => {
     cli: args.get('cli'),
   }
   if (envFile !== undefined) options.envFile = envFile
+  if (args.has('no-model')) options.model = false
 
   if (args.has('launch-plan')) {
     // 计划模式只打印、不落盘：这是规格里「起进程的命令要有不出真实副作用的计划模式」那一条。

@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { assertWritableTarget } from './paths.mts'
 import { dirStats, ensureDir, exists, isDir, readJson, rmrf, sha256Text, writeJson } from './util.mts'
+import { configureProfileModel, resolveModelSelection, type ModelSelection, type ProfileModelConfig } from './model.mts'
 
 export interface WorkspaceSpec {
   /** 工作区根目录的绝对路径。 */
@@ -26,6 +27,11 @@ export interface CopyHomeOptions {
   profile?: string
   /** 目标已存在时清掉重来。 */
   force?: boolean
+  /**
+   * 复制完要写进 profile 的模型选择；不传就用默认选择（MiniMax CN），传 false 表示不写模型配置。
+   * 只改批次 home 里的副本，绝不碰真实 profile。
+   */
+  model?: ModelSelection | false
 }
 
 export interface CopyHomeResult {
@@ -37,6 +43,8 @@ export interface CopyHomeResult {
   files: number
   bytes: number
   staleLogsRemoved: string[]
+  /** 复制后写进 profile 的模型配置；调用方传 model:false 时是 null。 */
+  model: ProfileModelConfig | null
 }
 
 /** 插件缓存目录名：profile 里与启动目录下用的是同一个名字。 */
@@ -94,6 +102,8 @@ export function copyWebProfile(options: CopyHomeOptions): CopyHomeResult {
     rmrf(copiedLogs)
   }
 
+  // 模型配置在复制之后、统计之前写进副本，这样 copy-home.json 里的 files/bytes 已经把 cordis.patch.yml 算进去。
+  const model = options.model === false ? null : configureProfileModel(targetProfile, options.model || resolveModelSelection())
   const stats = dirStats(targetProfile)
   writeJson(path.join(targetHome, 'copy-home.json'), {
     generatedAt: new Date().toISOString(),
@@ -103,6 +113,7 @@ export function copyWebProfile(options: CopyHomeOptions): CopyHomeResult {
     files: stats.files,
     bytes: stats.bytes,
     staleLogsRemoved,
+    model,
   })
 
   return {
@@ -114,6 +125,7 @@ export function copyWebProfile(options: CopyHomeOptions): CopyHomeResult {
     files: stats.files,
     bytes: stats.bytes,
     staleLogsRemoved,
+    model,
   }
 }
 

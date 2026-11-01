@@ -128,7 +128,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/freeze-candida
 node --import ./scripts/ts-hook.mts scripts/real-machine/commands/prepare-batch.mts --name <批次名> --ticket <票号>
 ```
 
-参数：`--batch <批次目录>` 直接指定批次目录；`--name <批次名>` 指定批次名，默认批次目录是 `<工作根>/batches/<批次名>`；`--ticket <票号>` 记下这批属于哪张票；`--allow-dirty` 允许在脏树上准备（这样冻结出来的候选 `validity` 是 `development`，只能算开发验证）；`--profile <profile>` 选要核对的界面 profile（默认 `web`）；`--install-method extract|cli` 选安装方式；`--no-start` 只准备、不起实例；`--no-ui` 跳过界面版本串核对；`--timeout <毫秒>` 给构建与打包设上限；`--base-ref <基线分支>` 指定本地基线分支（默认 `main`）；`--allow-outdated-base` 允许候选落后于基线（只在开发验证里用，这样开的批次收尾时会标 `stale`）；`--instance-env-file <环境文件路径>` 把 `GLAB_CONFIG_DIR`、`PATH`、`GITLAB_TOKEN` 直接交给本批实例。批次目录里已经存在 `batch.json` 的同名批次会被拒绝复用，免得把旧批次的产物当成新批次。冻结完成之后命令会再读一次 git 状态：HEAD 前进了、或者 release 候选对应的工作树不干净，都会拒绝开批；实例启动或前置巡检没通过时不写 `batch.json`，这一批不能开始收证据。开批前还会先读本地基线的 tip 与 `package.json` 版本：候选提交不包含基线 tip 默认拒绝（`--allow-outdated-base` 只放行这一条），候选版本不等于基线版本一律拒绝（两个开关都不能绕过）。
+参数：`--batch <批次目录>` 直接指定批次目录；`--name <批次名>` 指定批次名，默认批次目录是 `<工作根>/batches/<批次名>`；`--ticket <票号>` 记下这批属于哪张票；`--allow-dirty` 允许在脏树上准备（这样冻结出来的候选 `validity` 是 `development`，只能算开发验证）；`--profile <profile>` 选要核对的界面 profile（默认 `web`）；`--install-method extract|cli` 选安装方式；`--no-start` 只准备、不起实例；`--no-ui` 跳过界面版本串核对；`--timeout <毫秒>` 给构建与打包设上限；`--base-ref <基线分支>` 指定本地基线分支（默认 `main`）；`--allow-outdated-base` 允许候选落后于基线（只在开发验证里用，这样开的批次收尾时会标 `stale`）；`--instance-env-file <环境文件路径>` 把 `GLAB_CONFIG_DIR`、`PATH`、`GITLAB_TOKEN` 直接交给本批实例。批次目录里已经存在 `batch.json` 的同名批次会被拒绝复用，免得把旧批次的产物当成新批次。冻结完成之后命令会再读一次 git 状态：HEAD 前进了、或者 release 候选对应的工作树不干净，都会拒绝开批；实例启动或前置巡检没通过时不写 `batch.json`，这一批不能开始收证据。开批前还会把批次 profile 的默认模型配成 MiniMax CN（可用 `DSH_REAL_MACHINE_MODEL*` 覆盖），并把「模型已配置」与「密钥可用」写进前置巡检硬检查；没有可用密钥就不开批，`batch-preflight.json` 里只记变量名与来源，不记值。开批前还会先读本地基线的 tip 与 `package.json` 版本：候选提交不包含基线 tip 默认拒绝（`--allow-outdated-base` 只放行这一条），候选版本不等于基线版本一律拒绝（两个开关都不能绕过）。
 
 版本口径：验的永远是下一个要发布的版本。已发布 `1.9.0-beta.32` 时 `main` 的 `package.json` 已经是 `1.9.0-beta.33`，所以这一轮验 `1.9.0-beta.33`；稳定版同理，已发布 `1.9.0` 就验 `1.9.1`。
 
@@ -204,6 +204,17 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 的「工具与环境」一节：工作根总量不超过 15GB、批次目录不超过 20 个、单个批次不超过 2GB；
 每次批次结束、发布前、换版本重跑之前各清一次。2026-10 有过一次 4.3GB / 4.9 万文件的堆积，
 就是因为没有这条命令、也没人记着清。
+
+## 模型：批次实例默认自动配置 MiniMax CN
+
+`copy-home` 与 `start-instance` 默认会把批次 home 里的默认模型配成 MiniMax CN，人不用每次在界面里手选：
+
+- 写的是批次 home 的 `profiles/<profile>/cordis.patch.yml`，只改 `agent-default-model` 与 `llm-pi-ai` 两条，其它条目原样保留；真实 profile 不动。
+- 默认 provider 是 `minimax-cn`、模型是 `Minimax-M3.1-Flash`、密钥变量是 `MINIMAX_CN_API_KEY`；模型条目带上下文窗口 1000000、最大输出 120000、输入 text/image。
+- 密钥不写进 profile，也不写进候选包。profile 里的 `apiKeyEnv` 只是凭证引用：DSH 先查批次 home 的 `.credentials.yaml`，再查实例的启动环境（我们注入的就是这一层），最后查 `.env`。启动时按「批次 home 的 `.credentials.yaml` → 真实 home 的 `.credentials.yaml` → 当前进程环境」顺序找模型密钥，只注入实例进程；命令行、`instance.json`、stdout/stderr、插件日志与 `copy-home.json` 都不出现值。
+- 已有 `cordis.patch.yml` 缺条目时补条目；文件不存在时新建；文件不是合法 YAML 或顶层不是数组时直接失败，并提示可以用 `--no-model` 跳过。`copy-home`、`start-instance` 都认 `--no-model`。
+- 想换模型时用 `DSH_REAL_MACHINE_MODEL_PROVIDER`、`DSH_REAL_MACHINE_MODEL`（支持 `provider/model` 写法）、`DSH_REAL_MACHINE_MODEL_KEY_ENV` 三个环境变量；`prepare-batch` 也沿用同一套。
+- `prepare-batch` 把「profile 模型已配置」与「模型密钥可用」作为前置巡检的硬检查：没有密钥就不开批，免得批次开到一半才发现调不了模型。密钥只报变量名与来源，不报值。
 
 ## GitLab 沙箱项目
 
@@ -286,9 +297,9 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/start-instance
 
 | 命令 | 做什么 |
 | --- | --- |
-| `copy-home` | 把真实 web profile（或候选 home 模板）安静复制成批次专属 `DSH_HOME`，不打印文件名与文件内容 |
+| `copy-home` | 把真实 web profile（或候选 home 模板）安静复制成批次专属 `DSH_HOME`，并默认把默认模型配成 MiniMax CN（`--no-model` 跳过），不打印文件名与文件内容 |
 | `seed-workspace` | 把工作区登记写进 home 的 `storages/workspace.json`，绕过无头环境点不了原生目录选择器的问题 |
-| `start-instance` | 在独立启动目录起一个实例，把 pid、端口、访问地址、日志位置写成 `instance.json`；支持 `--instance-env-file <环境文件>` 把 GLAB_CONFIG_DIR、PATH、GITLAB_TOKEN 传进实例进程，`--launch-plan` 只打印启动命令与变量名、不起进程 |
+| `start-instance` | 在独立启动目录起一个实例，把 pid、端口、访问地址、日志位置写成 `instance.json`；启动前确保批次 profile 的默认模型配置并注入模型密钥（`--no-model` 跳过）；支持 `--instance-env-file <环境文件>` 把 GLAB_CONFIG_DIR、PATH、GITLAB_TOKEN 传进实例进程，`--launch-plan` 只打印启动命令、变量名与模型来源、不起进程 |
 | `stop-instance` | 按 pid 结束实例整棵进程树，等它真的消失 |
 
 造工作区：
@@ -328,8 +339,8 @@ GitLab 沙箱项目（建删细节见上面的「GitLab 沙箱项目」一节）
 
 | 命令 | 做什么 |
 | --- | --- |
-| `freeze-candidate` | 构建 + 打包 + 逐文件清单 + 装隔离 home + 核对界面版本串 |
-| `prepare-batch` | 用当前 HEAD 重新冻结候选，构建、打包、装隔离 home、起实例、前置巡检，一条命令完成；开批前核对候选包含本地基线 tip、版本等于基线 `package.json` 版本 |
+| `freeze-candidate` | 构建 + 打包 + 逐文件清单 + 装隔离 home（默认配成 MiniMax CN）+ 核对界面版本串 |
+| `prepare-batch` | 用当前 HEAD 重新冻结候选，构建、打包、装隔离 home、起实例、前置巡检，一条命令完成；开批前核对候选包含本地基线 tip、版本等于基线 `package.json` 版本，并检查模型已配置、模型密钥可用 |
 | `check-batch` | 批次结束时比较当前 HEAD 与本地基线 tip，任一前进就把批次标成 `stale` |
 | `two-instance-smoke` | 从零跑一次双实例冒烟 |
 | `cleanup` | 先报占用与文件数，确认后删批次产物 |

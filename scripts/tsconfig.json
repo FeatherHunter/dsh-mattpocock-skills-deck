@@ -100,6 +100,8 @@
     "real-machine/lib/isolation.mts",
     "real-machine/lib/launch.mts",
     "real-machine/lib/logs.mts",
+    // 真机实例的模型配置与密钥来源（默认 MiniMax CN）；库与命令共用同一份选择与报告。
+    "real-machine/lib/model.mts",
     "real-machine/lib/paths.mts",
     "real-machine/lib/util.mts",
     "real-machine/lib/workspaces.mts",
