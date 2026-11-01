@@ -148,6 +148,8 @@ const VC_FILES = [
   // #1743 提交页：动作层与正文叶子（与构建同序，排在页面壳之前，壳要调 vcCommitPageNode）。
   'src/client/views/versionControl/vcCommitOps.js',
   'src/client/views/versionControl/vcCommitPage.js',
+  // #1740 长任务区（真任务在跑时的进度、四类结论与取消按钮）：M2 的容器要读任务槽并轮询，拼闭包缺它就会在挂载那一帧抛错。
+  'src/client/views/versionControl/vcTaskPanel.js',
   // #1742 改动页操作面板（13 条动作的渲染面板）：页面壳只在传了改动读数时才挂它；与构建同序，排在页面壳之前。
   'src/client/views/versionControl/vcChangesPage.js',
   // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
@@ -185,8 +187,17 @@ const VC_FILES = [
   'src/client/views/versionControl/vcMaintenancePage.js',
   'src/client/views/versionControl/vcMaintenanceDiag.js',
   'src/client/views/versionControl/vcShellPages.js',
-  // #1776 M1 真实页签容器四叶（与构建同序）：纯状态换算 → 事件翻译 → 数据装载与动作 → 容器组件。
+  // #1776 M1 真实页签容器四叶 + #1776 M2 管理页七叶（与构建同序）：纯状态换算 → 管理页状态与模型
+  //   → 每页读数分发 → 分支/远端/同步动作 → 配置/钩子/诊断/子模块/平台动作 → 迁移与任务轮询
+  //   → 冲突与变基动作 → 导航动作与顶部条 → 事件翻译 → 数据装载与动作 → 容器组件。
   'src/client/views/versionControl/vcRealModel.js',
+  'src/client/views/versionControl/vcRealManage.js',
+  'src/client/views/versionControl/vcRealManageReads.js',
+  'src/client/views/versionControl/vcRealManageActions.js',
+  'src/client/views/versionControl/vcRealManageActions2.js',
+  'src/client/views/versionControl/vcRealManageActions3.js',
+  'src/client/views/versionControl/vcRealManageSide.js',
+  'src/client/views/versionControl/vcRealShell.js',
   'src/client/views/versionControl/vcRealDelegate.js',
   'src/client/views/versionControl/vcRealActions.js',
   'src/client/views/versionControl/vcRealTab.js',
@@ -3027,8 +3038,10 @@ async function main() {
     { name: '配置页不再挂进页面壳（四组与身份两键都画不出来）', patch: (s) => s.replace("if (page === 'config' && opts.config !== undefined && typeof vcConfigPageNode === 'function') children.push", 'if (false) children.push'), test: configMountedJudgmentOf, what: 'Z17a' },
     { name: '只读边界放行（任意配置键都能写）', patch: (s) => s.replace('if (!configKeyEditable(key))', 'if (false)'), test: configReadonlyJudgmentOf, what: 'Z17h' },
     { name: '2.36 的版本门恒放行（低版本也画运行按钮）', patch: (s) => s.replace("  if (!atLeast(v, 2, 36, 0)) return { state: 'hidden', needed: CONFIG_HOOK_RUN_MIN_VERSION, alternative: CONFIG_HOOK_RUN_ALTERNATIVE }", "  if (false) return { state: 'hidden', needed: CONFIG_HOOK_RUN_MIN_VERSION, alternative: CONFIG_HOOK_RUN_ALTERNATIVE }"), test: hooksGateJudgmentOf, what: 'Z17ac' },
-    // #1748：变基待办页不再挂历史改写面板 —— Z17a 必须当场红。
-    { name: '变基待办页不再挂历史改写面板', patch: (s) => s.replace("if (page === 'rebase' && typeof vcUndoPageNode === 'function') children.push(keyed(vcUndoPageNode(", "if (false) children.push(keyed(vcUndoPageNode("), test: undoMountedJudgmentOf, what: 'Z17a' },
+    // #1748 / #1776 M2：变基待办页不再挂历史改写面板 —— Z17a 必须当场红。
+    //   M2 把这一页改成挂自带状态的面板（VC_UNDO_PANEL，内部自己走三段式），改法跟着新的挂载点一起搬；
+    //   否则这条改法落在已经不存在的源码文本上，自己空转却仍然假绿。
+    { name: '变基待办页不再挂历史改写面板', patch: (s) => s.replace("if (page === 'rebase' && typeof VC_UNDO_PANEL === 'function') children.push(keyed(h(VC_UNDO_PANEL,", "if (false) children.push(keyed(h(VC_UNDO_PANEL,"), test: undoMountedJudgmentOf, what: 'Z17a' },
     // #1748：硬重置不再标危险档（用户看到的是一个「不危险」的毁级动作）—— Z17e 必须当场红。
     { name: '硬重置不再标危险档', patch: (s) => s.replace("targetDefault: '', danger: true, recovery: true,", "targetDefault: '', danger: false, recovery: true,"), test: undoDangerJudgmentOf, what: 'Z17e' },
     // #1748：确认卡不再画恢复点（点确认之前看不到会丢什么、怎么找回）—— Z17k 必须当场红。

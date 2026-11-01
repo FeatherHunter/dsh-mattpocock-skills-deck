@@ -27,9 +27,17 @@ const NOW = Date.parse('2026-11-01T10:00:00+08:00')
 const CWD = 'D:/w/repo'
 
 // ---------------- 源码闭包：与 scripts/build.mts 的拼接次序同源 ----------------
-// 四个新叶子按入口次序插在页面壳之后、VersionControlTab 之前；818 已经登记过时直接用它登记过的次序。
+// 十一个新叶子按构建次序插在页面壳之后、VersionControlTab 之前（M1 四叶 + M2 七叶）；
+// 818 已经登记过时直接用它登记过的次序，这里只作为「必须都在」的清单。
 const NEW_FILES = [
   'src/client/views/versionControl/vcRealModel.js',
+  'src/client/views/versionControl/vcRealManage.js',
+  'src/client/views/versionControl/vcRealManageReads.js',
+  'src/client/views/versionControl/vcRealManageActions.js',
+  'src/client/views/versionControl/vcRealManageActions2.js',
+  'src/client/views/versionControl/vcRealManageActions3.js',
+  'src/client/views/versionControl/vcRealManageSide.js',
+  'src/client/views/versionControl/vcRealShell.js',
   'src/client/views/versionControl/vcRealDelegate.js',
   'src/client/views/versionControl/vcRealActions.js',
   'src/client/views/versionControl/vcRealTab.js',
@@ -105,6 +113,26 @@ function makeHost(opts) {
     if (phone === 'wf.gitChangesWrite') return { ok: true, cmd: 'git add -A', ms: 3, n: 1 }
     if (phone === 'wf.gitWorktreeCheck') return { ok: true, decision: { verdict: 'allow', reasons: ['ok'] }, plan: { cmd: 'git worktree prune' }, ticket: { id: 'wt-ticket', checkedAtMs: NOW, expiresAtMs: NOW } }
     if (phone === 'wf.gitWorktreeRun') return { ok: true, plan: {}, result: { cmd: 'git worktree prune', ms: 2, n: 1 } }
+    // ———— M2 管理页与侧页的读数与动作电话 ————
+    if (phone === 'wf.gitBranches') return { ok: true, contract: 'version-control.branch-board', version: 1, readAtMs: NOW, current: { name: 'main', oid: 'abcdef1' }, branches: [{ name: 'main', current: true, remote: 'origin', upstream: 'origin/main', oid: 'abcdef1', subject: '首条提交' }, { name: 'feat/x', current: false, oid: 'abc1234' }], tags: [{ name: 'v1.0', oid: 'aaaa111', subject: '首版' }], descriptions: {} }
+    if (phone === 'wf.gitBranchCheck') return { ok: true, contract: 'version-control.branch-check', version: 1, readAtMs: NOW, op: String((args || {}).op || 'switch'), decision: { verdict: 'warn', reasons: ['会切换当前分支'] }, confirmRequired: true, confirm: { verb: '切换到分支', target: 'main' }, ticket: { id: 'br-ticket', op: String((args || {}).op || 'switch'), checkedAtMs: NOW, expiresAtMs: NOW + 120000 } }
+    if (phone === 'wf.gitBranchWrite') return { ok: true, command: 'git switch main', ms: 3, n: 1 }
+    if (phone === 'wf.gitRemoteList') return { ok: true, source: 'local', readAtMs: NOW, remotes: [{ name: 'origin', fetchUrl: 'git@example.com:repo.git', pushUrl: 'git@example.com:repo.git' }, { name: 'mirror', fetchUrl: 'https://mirror.example.com/repo.git', pushUrl: '' }] }
+    if (phone === 'wf.gitRemoteAdd') return { ok: true, action: 'add', command: 'git remote add ' + String((args || {}).name || ''), name: String((args || {}).name || ''), ms: 2, n: 1 }
+    if (phone === 'wf.gitRemoteRename') return { ok: true, action: 'rename', command: 'git remote rename', ms: 2, n: 1 }
+    if (phone === 'wf.gitRemoteRemove') return { ok: true, action: 'remove', command: 'git remote remove', ms: 2, n: 1 }
+    if (phone === 'wf.gitRemoteSetUrl') return { ok: true, action: 'set-url', command: 'git remote set-url', ms: 2, n: 1 }
+    if (phone === 'wf.gitSubmodules') return { ok: true, contract: 'version-control.submodule-board', version: 1, readAtMs: NOW, rows: [{ path: 'vendor/lib', state: 'clean', initialized: true, urlDisplay: 'https://example.com/lib.git', headBranch: 'main', oid: 'abc1234' }] }
+    if (phone === 'wf.gitConfigRead') return { ok: true, readAtMs: NOW, repoRoot: 'D:/w/repo', gitVersion: '2.45.0', hookRunVersion: null, configPath: 'D:/w/repo/.git/config', groups: [], identity: { name: { local: '某甲', global: null }, email: { local: 'a@b.c', global: null } }, hooks: { dir: 'D:/w/repo/.git/hooks', configured: null, readable: true, entries: [], known: [] }, attr: { state: 'ok', entries: [] }, mailmap: { state: 'ok', entries: [] }, entries: [] }
+    if (phone === 'wf.gitDiagnosticsRead') return { ok: true, readAtMs: NOW, kind: 'ls-files', rows: [], files: [], text: '', truncated: false }
+    if (phone === 'wf.gitPlatformRead') return { ok: true, readAtMs: NOW, credential: { state: 'ok', helpers: [], store: '', risk: 'ok', advice: 'ok' }, updateRefs: { state: 'ok', value: 'false', enabled: false } }
+    if (phone === 'wf.gitConflicts') return { ok: true, state: 'merge', headOid: 'abcdef1', gitVersion: '2.45.0', conflicts: [], conflictCount: 0, clean: true, readAtMs: NOW }
+    if (phone === 'wf.gitRebaseRead') return String((args || {}).op || '') === 'rebase-window' ? { ok: true, base: 'main', commits: [], commitCount: 0, readAtMs: NOW } : { ok: true, state: null, branch: 'main', headOid: 'abcdef1', updateRefs: false, readAtMs: NOW }
+    if (phone === 'wf.gitMigrateCheck') return { ok: true, action: String((args || {}).action || ''), decision: { verdict: 'allow', reasons: [] }, confirmRequired: false, readAtMs: NOW }
+    if (phone === 'wf.gitSyncCheck') return { ok: true, readAtMs: NOW, capabilityId: '8.5', action: 'fetch', decision: { verdict: 'warn', reasons: [] }, confirmRequired: true, confirm: { verb: '抓取', target: 'origin' }, ticket: { id: 'sy-ticket', op: 'fetch', checkedAtMs: NOW, expiresAtMs: NOW + 120000 } }
+    if (phone === 'wf.gitSyncWrite') return { ok: true, task: { taskId: 't1', kind: 'fetch', state: 'queued' } }
+    if (phone === 'wf.gitTaskQuery') return { ok: true, tasks: [{ taskId: 't0', kind: 'fetch', state: 'done' }], running: 0 }
+    if (phone === 'wf.gitTaskCancel') return { ok: true }
     if (phone === 'wf.gitLog') return { ok: true, commits: [], hasMore: false }
     if (phone === 'wf.gitDiff') return { ok: true, files: [], lines: [], text: '', truncated: false }
     return { ok: true }
@@ -412,27 +440,175 @@ function scenarioRegistration() {
   const buildSrc = read('scripts/build.mts')
   const indexSrc = read('src/client/index.ts')
   const g818 = read('tests/verify-818-version-control-view.ts')
-  const newTs = ['vcRealModel', 'vcRealDelegate', 'vcRealActions', 'vcRealTab']
-  check(newTs.every(function (id) { return buildSrc.indexOf('id: \'' + id + '\'') >= 0 }), 'T22 scripts/build.mts 叶子清单登记了四个新叶子')
-  check(newTs.every(function (id) { return indexSrc.indexOf('leaf:' + id) >= 0 }), 'T22b src/client/index.ts 有四个新叶子的拼接标记')
-  check(NEW_FILES.every(function (f) { return g818.indexOf(f) >= 0 }), 'T22c verify-818 的闭包文件清单登记了四个新叶子（否则 818 渲染会缺函数）')
+  const newTs = ['vcRealModel', 'vcRealManage', 'vcRealManageReads', 'vcRealManageActions', 'vcRealManageActions2', 'vcRealManageActions3', 'vcRealManageSide', 'vcRealShell', 'vcRealDelegate', 'vcRealActions', 'vcRealTab']
+  check(newTs.every(function (id) { return buildSrc.indexOf('id: \'' + id + '\'') >= 0 }), 'T22 scripts/build.mts 叶子清单登记了十一个新叶子')
+  check(newTs.every(function (id) { return indexSrc.indexOf('leaf:' + id) >= 0 }), 'T22b src/client/index.ts 有十一个新叶子的拼接标记')
+  check(NEW_FILES.every(function (f) { return g818.indexOf(f) >= 0 }), 'T22c verify-818 的闭包文件清单登记了十一个新叶子（否则 818 渲染会缺函数）')
   const tabSrc = read('src/client/views/versionControl/VersionControlTab.ts')
   check(tabSrc.indexOf('VcRealTab') >= 0 && tabSrc.indexOf('vcBlocksOf') < 0, 'T22d 入口组件只做委托（出现 VcRealTab、不再有旧块渲染入口）')
   const files = fs.readdirSync(path.join(ROOT, 'src/client/views/versionControl')).filter(function (name) { return /\.ts$/.test(name) })
   const bad = files.filter(function (name) { return /\bon(click|input|change)\s*:/.test(read('src/client/views/versionControl/' + name)) })
   check(bad.length === 0, 'T22e 版本管理客户端源码里没有小写事件属性（' + (bad.length === 0 ? '全部驼峰' : '仍剩 ' + bad.join(',')) + '）')
-  const tabSrcAll = read('src/client/views/versionControl/vcRealTab.ts')
+  // 顶部条与失败条 M2 已从容器搬到 vcRealShell 一叶（容器行数要留在每文件 350 有效行以内）。
+  const shellSrc = read('src/client/views/versionControl/vcRealShell.ts')
   const logKeys = ['vc.reload', 'vc.row.open.', 'vc.commit.back', 'vc.changes.back']
-  check(logKeys.every(function (key) { return tabSrcAll.indexOf(key) >= 0 }), 'T22f 新容器保留 ui-feedback 门禁要求的四个 data-log 词条')
-  check(read('src/client/views/versionControl/vcRealTab.ts').indexOf('data-vc-refresh') >= 0, 'T22g 手动刷新入口写在容器里（data-vc-refresh）')
-  check(read('src/client/views/versionControl/vcRealTab.ts').indexOf('data-vc-slice-fail') >= 0, 'T22h 片级失败条写在容器里（data-vc-slice-fail）')
+  check(logKeys.every(function (key) { return shellSrc.indexOf(key) >= 0 }), 'T22f 新容器保留 ui-feedback 门禁要求的四个 data-log 词条')
+  check(shellSrc.indexOf('data-vc-refresh') >= 0, 'T22g 手动刷新入口写在容器里（data-vc-refresh）')
+  check(shellSrc.indexOf('data-vc-slice-fail') >= 0, 'T22h 片级失败条写在容器里（data-vc-slice-fail）')
+}
+
+// ---------------- 场景六：九个管理分区与两个侧页的读数、三段式动作、浮层与能力行 ----------------
+// 这一段的假宿主记录每一次电话：断言的是「点了之后真的打了哪个电话、带了什么参数」，
+//   不是源码里有没有某个字符串。三段式的三段分别是：预检电话、页面上的确认卡、凭票执行电话。
+async function scenarioManage() {
+  console.log('\n== 场景六：管理分区与侧页的真实读数与三段式动作 ==')
+  const host = makeHost({})
+  const view = buildView(host, null)
+  const m = mountOf(view, { st: { cwd: CWD } })
+  await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+
+  // ---- 九个管理分区：进入即读数、正文不是骨架、能从来源页返回 ----
+  // hooks 与 config 共用一份配置读数（wf.gitConfigRead），所以进 hooks 那一轮按去重不打第二通电话。
+  const pages: any[] = [
+    { page: 'branch-tags', root: '[data-vc-branch2]', phone: 'wf.gitBranches' },
+    { page: 'remote', root: '[data-vc-remote-page]', phone: 'wf.gitRemoteList' },
+    { page: 'submodules', root: '[data-vc-sub-page]', phone: 'wf.gitSubmodules' },
+    { page: 'maintenance', root: '[data-vc-page-body="maintenance"]', phone: '' },
+    { page: 'migrate', root: '[data-vc-migrate-page]', phone: 'wf.gitMigrateCheck' },
+    { page: 'config', root: '[data-vc-config-page]', phone: 'wf.gitConfigRead' },
+    { page: 'hooks', root: '[data-vc-hooks-page]', phone: 'wf.gitConfigRead', dedupe: true },
+    { page: 'diagnostics', root: '[data-vc-diag-panel]', phone: 'wf.gitDiagnosticsRead' },
+    { page: 'platform', root: '[data-vc-platform]', phone: 'wf.gitPlatformRead' },
+  ]
+  for (const one of pages) {
+    if (!m.q('[data-vc-gear-index]')) await m.click('[data-vc-gear-btn]')
+    const before = one.phone ? countKin(host, one.phone) : 0
+    const opened = await m.click('[data-vc-gear-item="' + one.page + '"]')
+    const entered = opened && m.page() === one.page && m.depth() === '2' && !!m.q(one.root)
+    const noSkeleton = !m.q('[data-vc-page-body="' + one.page + '"] [data-vc-skeleton]')
+    const after = one.phone ? countKin(host, one.phone) : 0
+    const readOk = one.phone ? (one.dedupe === true ? after === before : after === before + 1) : true
+    const readNote = one.phone ? (one.dedupe === true ? '共用读数不重复发 ' + one.phone : '进入读数电话 ' + one.phone + ' 真发一次') : '这一页不需要进入读数'
+    check(entered && noSkeleton && readOk, 'T23 进入管理分区 ' + one.page + '：正文已接上（' + one.root + '）、不画骨架、' + readNote)
+    await m.click('[data-vc-back]')
+    check(m.page() === 'changes', 'T23b 从 ' + one.page + ' 返回来源页（改动页）')
+  }
+  // 两个侧页走顶部入口：变基要读状态与窗口两条电话，冲突读冲突清单一条。
+  const rebaseBefore = countKin(host, 'wf.gitRebaseRead')
+  await m.click('[data-vc-extra-link="rebase"]')
+  check(m.page() === 'rebase' && !!m.q('[data-vc-rebase-page]') && countKin(host, 'wf.gitRebaseRead') === rebaseBefore + 2, 'T23c 进入变基页发两条读数电话（rebase-state 与 rebase-window）')
+  await m.click('[data-vc-back]')
+  const conflictBefore = countKin(host, 'wf.gitConflicts')
+  await m.click('[data-vc-extra-link="conflicts"]')
+  check(m.page() === 'conflicts' && !!m.q('[data-vc-conflicts-page]') && countKin(host, 'wf.gitConflicts') === conflictBefore + 1, 'T23d 进入冲突页发一条冲突清单读数电话（wf.gitConflicts）')
+  await m.click('[data-vc-back]')
+
+  // ---- 分支板三段式：点动作 → 预检电话 → 确认卡 → 凭票执行 → 结果贴回触发点、写后重读 ----
+  if (!m.q('[data-vc-gear-index]')) await m.click('[data-vc-gear-btn]')
+  await m.click('[data-vc-gear-item="branch-tags"]')
+  const branchesBefore = countKin(host, 'wf.gitBranches')
+  const switchBtn = m.q('[data-vc-branch-row="feat/x"] [data-vc-branch-action="switch"]')
+  check(!!switchBtn, 'T24 分支板画出「切换分支」入口（feat/x 行）')
+  if (switchBtn) await m.click(switchBtn)
+  const checkLog = host.calls.filter(function (one: any) { return one.phone === 'wf.gitBranchCheck' })
+  const checkArgs = (checkLog[checkLog.length - 1] || {}).args || {}
+  check(checkLog.length > 0 && String(checkArgs.op || '') === 'switch' && String(checkArgs.name || '') === 'feat/x', 'T24b 点「切换分支」先发预检电话 wf.gitBranchCheck（op=switch、name=feat/x），不直接执行')
+  check(!!m.q('[data-vc-branch2] [data-vc-confirm]'), 'T24c 预检要确认时停在页面确认卡上（不自动执行）')
+  const branchWritesBefore = countKin(host, 'wf.gitBranchWrite')
+  await m.click('[data-vc-branch2] .vcs-confirm-go')
+  const writeLog = host.calls.filter(function (one: any) { return one.phone === 'wf.gitBranchWrite' })
+  const writeArgs = (writeLog[writeLog.length - 1] || {}).args || {}
+  check(countKin(host, 'wf.gitBranchWrite') === branchWritesBefore + 1 && String(writeArgs.ticketId || '') === 'br-ticket' && writeArgs.confirmed === true, 'T24d 确认后才凭票发执行电话 wf.gitBranchWrite（带预检拿到的 ticketId、confirmed=true）')
+  check(countKin(host, 'wf.gitBranches') > branchesBefore, 'T24e 写成功后重读分支板（wf.gitBranches 再发一次）')
+  check(!!m.q('[data-vc-branch2] [data-vc-result="ok"]'), 'T24f 分支动作的结果回到触发点（结果块 data-vc-result=ok）')
+
+  // ---- 远端写：远端四条写没有预检电话，提交表单后直接发真写电话并重读列表 ----
+  await m.click('[data-vc-back]')
+  if (!m.q('[data-vc-gear-index]')) await m.click('[data-vc-gear-btn]')
+  await m.click('[data-vc-gear-item="remote"]')
+  const triggerOk = await m.click('[data-vc-remote-trigger="add"]')
+  check(triggerOk && !!m.q('[data-vc-remote-form="add"]') && m.qa('[data-vc-remote-form="add"] [data-vc-remote-field]').length === 2, 'T25 点「新增远端」展开表单（名字与地址两格）')
+  await m.type('[data-vc-remote-form="add"] [data-vc-remote-field="name"]', 'backup')
+  await m.type('[data-vc-remote-form="add"] [data-vc-remote-field="url"]', 'git@example.com:backup.git')
+  const addBefore = countKin(host, 'wf.gitRemoteAdd')
+  await m.click('[data-vc-remote-submit="add"]')
+  const addLog = host.calls.filter(function (one: any) { return one.phone === 'wf.gitRemoteAdd' })
+  const addArgs = (addLog[addLog.length - 1] || {}).args || {}
+  check(countKin(host, 'wf.gitRemoteAdd') === addBefore + 1 && String(addArgs.name || '') === 'backup' && String(addArgs.url || '').indexOf('backup.git') >= 0, 'T25b 提交表单后发真电话 wf.gitRemoteAdd（名字与地址取自表单）')
+
+  // ---- 同步带三段式：展开 → 预检电话 → 确认卡 → 凭票执行 ----
+  const syncCheckBefore = countKin(host, 'wf.gitSyncCheck')
+  await m.click('[data-vc-sync-act="8.5"]')
+  const syncCheckBtn = m.q('[data-vc-sync-check="8.5"]')
+  check(!!syncCheckBtn, 'T26 远端页的同步带里能展开 8.5 并看到预检按钮')
+  if (syncCheckBtn) await m.click(syncCheckBtn)
+  const syncCheckLog = host.calls.filter(function (one: any) { return one.phone === 'wf.gitSyncCheck' })
+  const syncCheckArgs = (syncCheckLog[syncCheckLog.length - 1] || {}).args || {}
+  check(countKin(host, 'wf.gitSyncCheck') === syncCheckBefore + 1 && String(syncCheckArgs.action || '') === 'fetch', 'T26b 点同步预检发 wf.gitSyncCheck（action=fetch）')
+  check(!!m.q('[data-vc-sync-confirm]'), 'T26c 同步预检要确认时停同步确认卡')
+  const syncWriteBefore = countKin(host, 'wf.gitSyncWrite')
+  await m.click('[data-vc-sync-confirm] .vcs-confirm-go')
+  const syncWriteLog = host.calls.filter(function (one: any) { return one.phone === 'wf.gitSyncWrite' })
+  const syncWriteArgs = (syncWriteLog[syncWriteLog.length - 1] || {}).args || {}
+  check(countKin(host, 'wf.gitSyncWrite') === syncWriteBefore + 1 && String(syncWriteArgs.ticketId || '') === 'sy-ticket' && String(syncWriteArgs.action || '') === 'fetch', 'T26d 确认后凭票发 wf.gitSyncWrite（票号与动作取自预检回包）')
+
+  // ---- 分支浮层五项动作：点了跳分支板并保留返回入口（壳里那五个只有文字，靠委托） ----
+  await m.click('[data-vc-back]')
+  await m.click('[data-vc-branch-btn]')
+  const overlayItem = m.q('[data-vc-branch-overlay] [data-vc-branch-action="create"]')
+  check(!!overlayItem, 'T27 分支浮层画出五个动作项（「新建」这一项在）')
+  if (overlayItem) await m.click(overlayItem)
+  check(m.page() === 'branch-tags' && !m.q('[data-vc-branch-overlay]') && !!m.q('[data-vc-back]'), 'T27b 点浮层里的「新建」跳到分支板、浮层关闭、保留返回来源页的入口')
+
+  // ---- 能力行：点了跳该能力所在页并高亮，不自动执行 ----
+  const capRow = m.q('[data-cap-row]')
+  check(!!capRow, 'T28 分支页的能力行可点（data-cap-row）')
+  if (capRow) await m.click(capRow)
+  check(!!m.q('[data-cap-hit]'), 'T28b 点能力行后落到该能力并高亮（data-cap-hit，不自动执行动作）')
+  await m.click('[data-vc-back]')
+  check(countKin(host, 'wf.gitTaskQuery') >= 1, 'T29 容器轮询任务通道（wf.gitTaskQuery 至少一次）')
+  await m.unmount()
+
+  // ---- 任务面板：运行中的任务能点取消，取消要发 wf.gitTaskCancel ----
+  const host2 = makeHost({ reply: { 'wf.gitTaskQuery': function () { return { ok: true, tasks: [{ taskId: 't9', kind: 'fetch', state: 'running' }], running: 1 } } } })
+  const view2 = buildView(host2, null)
+  const m2 = mountOf(view2, { st: { cwd: CWD } })
+  await React.act(async function () { m2.root.render(React.createElement(view2.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  const cancelBtn = m2.q('[data-vc-task-cancel]')
+  check(!!cancelBtn, 'T29b 任务面板画出运行中任务的取消按钮（wf.gitTaskQuery 回 running=1 时）')
+  if (cancelBtn) await m2.click(cancelBtn)
+  const cancelLog = host2.calls.filter(function (one: any) { return one.phone === 'wf.gitTaskCancel' })
+  check(cancelLog.length === 1 && String(((cancelLog[0] || {}).args || {}).taskId || '') === 't9', 'T29c 点取消发出 wf.gitTaskCancel（带任务号）')
+  await m2.unmount()
+
+  // ---- 反证：把分支动作的预检电话换成执行电话，T24b 必须判红 ----
+  const actionFile = 'src/client/views/versionControl/vcRealManageActions.js'
+  const original = readSource(actionFile)
+  const needle = 'Promise.resolve(vcBranchCheck({ branch: m.branch }, callHost, cwd, op, f))'
+  check(original.indexOf(needle) >= 0, 'T30 自证：分支动作源码里确有预检调用（改法能命中；失效时这条先红）')
+  const host3 = makeHost({})
+  const patched = buildView(host3, {
+    [actionFile]: function (code: any) { return code.replace(needle, 'Promise.resolve(vcBranchWrite({ branch: m.branch }, callHost, cwd, op, f))') },
+  })
+  const m3 = mountOf(patched, { st: { cwd: CWD } })
+  await React.act(async function () { m3.root.render(React.createElement(patched.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  if (!m3.q('[data-vc-gear-index]')) await m3.click('[data-vc-gear-btn]')
+  await m3.click('[data-vc-gear-item="branch-tags"]')
+  const sw3 = m3.q('[data-vc-branch-row="feat/x"] [data-vc-branch-action="switch"]')
+  if (sw3) await m3.click(sw3)
+  check(countKin(host3, 'wf.gitBranchCheck') === 0 && countKin(host3, 'wf.gitBranchWrite') >= 1, 'T30b 反证成立：去掉预检直接执行时 wf.gitBranchCheck 为 0、wf.gitBranchWrite 有记录（T24b 的断言抓得住这类退化）')
+  await m3.unmount()
 }
 
 // ---------------- main ----------------
 async function main() {
   const locUrl = (f) => pathToFileURL(path.join(ROOT, sourcePath(f))).href
-  const fams = ['panel', 'flow', 'vcworktrees', 'vcsubmodules', 'vcwrite', 'vcshell', 'vcquery', 'vcstash', 'vcconfig', 'vchooks', 'vcdiagnostics', 'vcundo', 'vcplatform']
-  const names = { panel: 'L_PANEL', flow: 'L_FLOW', vcworktrees: 'L_VCWORKTREES', vcsubmodules: 'L_VCSUBMODULES', vcwrite: 'L_VCWRITE', vcshell: 'L_VCSHELL', vcquery: 'L_VCQUERY', vcstash: 'L_VCSTASH', vcconfig: 'L_VCCONFIG', vchooks: 'L_VCHOOKS', vcdiagnostics: 'L_VCDIAGNOSTICS', vcundo: 'L_VCUNDO', vcplatform: 'L_VCPLATFORM' }
+  // M2 起管理分区与侧页的正文全部接上，它们各自的词条也要装进来，否则页面上的文字会退回键名。
+  const fams = ['panel', 'flow', 'vcworktrees', 'vcsubmodules', 'vcwrite', 'vcshell', 'vcquery', 'vcstash', 'vcconfig', 'vchooks', 'vcdiagnostics', 'vcundo', 'vcplatform', 'vcchanges', 'vcconflicts', 'vcmaintenance', 'vcrebase', 'vcrewrite', 'vctask']
+  const names = { panel: 'L_PANEL', flow: 'L_FLOW', vcworktrees: 'L_VCWORKTREES', vcsubmodules: 'L_VCSUBMODULES', vcwrite: 'L_VCWRITE', vcshell: 'L_VCSHELL', vcquery: 'L_VCQUERY', vcstash: 'L_VCSTASH', vcconfig: 'L_VCCONFIG', vchooks: 'L_VCHOOKS', vcdiagnostics: 'L_VCDIAGNOSTICS', vcundo: 'L_VCUNDO', vcplatform: 'L_VCPLATFORM', vcchanges: 'L_VCCHANGES', vcconflicts: 'L_VCCONFLICTS', vcmaintenance: 'L_VCMAINTENANCE', vcrebase: 'L_VCREBASE', vcrewrite: 'L_VCREWRITE', vctask: 'L_VCTASK' }
   const zh = {}
   for (const f of fams) {
     const mod = await import(locUrl('src/client/kernel/locale-' + f + '.js'))
@@ -445,6 +621,7 @@ async function main() {
   await scenarioSliceFail()
   await scenarioEmptyCwd()
   await scenarioReverseProof()
+  await scenarioManage()
 
   console.log('\n断言 ' + total + ' 条，失败 ' + failed + ' 条')
   printGateResult('verify-1776-vc-live-tab', total, failed ? 1 : 0)
