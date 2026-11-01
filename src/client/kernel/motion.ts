@@ -86,6 +86,7 @@ export const MOTION = {
   suggestPillMs: 140, // 选项药丸悬停的底色/描边/阴影过渡
   suggestPopMs: 120, // 悬停浮层的透明度与位移过渡
   suggestCloseMs: 120, // 关闭按钮的透明度与底色过渡
+  suggestAnchorPollMs: 120, // 侧栏收起/展开：逐帧轮询锚点的最小间隔（宿主不发 resize/scroll，见 suggestBubble 文件头）
 
   // ---- 系统要求减少动态效果时 ----
   motionOffMs: 1, // 把动画压到几乎为零的一毫秒（suggestStyles 的 reduced-motion 分支）

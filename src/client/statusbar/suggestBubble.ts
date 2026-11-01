@@ -18,6 +18,9 @@
 // 硬约束（票面 #1411）：
 //   - 只读借用：界面绝不碰会话服务里那几个保活接口（#1409 已设守卫，本文件连 sessions 都不提）；
 //   - 不新增常驻定时器：只用一次性 DOM 监听（resize / scroll / keydown），卸载即摘；
+//     唯一例外是 #1787 现象④的侧栏轮询：宿主收起/展开左侧边栏时胶囊尺寸不变、窗口不 resize、
+//     也没有 scroll，没有任何事件可等，只能用 requestAnimationFrame 每 suggestAnchorPollMs 读一次
+//     锚点矩形（只读；位置没变时 setPos 返回同一个对象，不触发渲染），卸载时取消；
 //   - 数据防御：缺字段、空数组、条数越界都不许崩，也不假设 item 形状合法；
 //   - 不新增日志事件：#1409 已有 suggest.bind/call/ready，本票只挂既有交互标识（data-log / data-press）。
 //
@@ -28,7 +31,9 @@ declare const PortalOverlay: any;
 declare function inject(...args: any[]): any;
 declare const SUGGEST_Z: any;
 declare const SUGGEST_APPEARANCE: any;
+declare const MOTION: any;
 declare function createSuggestEngine(...args: any[]): any;
+declare function suggestPopShiftOf(rect: any, viewWidth: any, viewHeight: any, margin: any): any;
 
 /** 一组建议最多显示多少颗按钮：与工具/取数层同一组上下限，界面这层只防越界，不重复校验内容。 */
 const SUGGEST_VIEW_MAX_ITEMS = 4
@@ -153,6 +158,27 @@ export const suggestAnchorOf = function (probeEl: any) {
   return fallback
 }
 
+/**
+ * 把浮层推回视口内：只写两个 CSS 变量（横向 --dsws-sugg-pop-shift、纵向 --dsws-sugg-pop-shift-y），
+ * 位移量由 suggestTimeline 的 suggestPopShiftOf 算（纯函数、可脱 DOM 验），不改浮层别的样式。
+ * 先清成 0 再量：上一颗浮层留下的位移不能掺进这次测量。显示前调一次；锚点被窗口或侧栏挪动后，
+ * feature 的 measure 回调再对打开着的浮层调一次（#1787 现象③的窄窗口分支）。
+ */
+const suggestClampPopToViewport = function (pop: any) {
+  try {
+    if (!pop || !pop.style || typeof pop.style.setProperty !== 'function' || typeof pop.getBoundingClientRect !== 'function') return
+    pop.style.setProperty('--dsws-sugg-pop-shift', '0px')
+    pop.style.setProperty('--dsws-sugg-pop-shift-y', '0px')
+    const rect = pop.getBoundingClientRect()
+    if (!rect) return
+    const margin = Number(SUGGEST_APPEARANCE && SUGGEST_APPEARANCE.popViewportMarginPx) || 0
+    const viewWidth = (typeof window !== 'undefined' && Number(window.innerWidth)) || 0, viewHeight = (typeof window !== 'undefined' && Number(window.innerHeight)) || 0
+    const shift = suggestPopShiftOf(rect, viewWidth, viewHeight, margin)
+    if (shift && shift.x) pop.style.setProperty('--dsws-sugg-pop-shift', shift.x + 'px')
+    if (shift && shift.y) pop.style.setProperty('--dsws-sugg-pop-shift-y', shift.y + 'px')
+  } catch (eClampPop) {}
+}
+
 /** 浮层内容：四行固定顺序「推荐分 / 理由 / 优点 / 缺点」，每行左边一个灰色标签、右边正文；
  *  旧事件缺哪一格就跳过哪一行，不补空行。推荐分印数字不画进度条：模型给的是「谁更该先做」的
  *  相对判断，画条会让人以为它是可校准的刻度。 */
@@ -210,7 +236,20 @@ export const SuggestBubble = function (props: any) {
   React.useEffect(function () {
     if (!items.length) return undefined
     function measure() {
-      try { setPos(suggestAnchorOf(probeRef.current)) } catch (eMeasure) {}
+      // 位置没变就返回同一个对象，React 不重渲染：侧栏轮询每 suggestAnchorPollMs 调一次，
+      // 稳态下不能每次都建新对象、触发整组重渲染（#1787 两轴审查）。
+      try {
+        const next = suggestAnchorOf(probeRef.current)
+        setPos(function (prev: any) {
+          return (prev && prev.left === next.left && prev.bottom === next.bottom) ? prev : next
+        })
+      } catch (eMeasure) {}
+      // 锚点挪了以后，已经打开着的浮层可能又贴回视口边：按新矩形再夹一次（不重新显示、不改内容）。
+      try {
+        const layer = layerRef.current
+        const openPop = (layer && typeof layer.querySelector === 'function') ? layer.querySelector('.dsws-sugg-show-pop .dsws-sugg-pop') : null
+        if (openPop) suggestClampPopToViewport(openPop)
+      } catch (eReclamp) {}
     }
     measure()
     let ro: any = null
@@ -227,7 +266,30 @@ export const SuggestBubble = function (props: any) {
       window.addEventListener('resize', measure)
       window.addEventListener('scroll', measure, true)
     }
+    // #1787 现象④：宿主收起/展开左侧边栏时，胶囊尺寸不变、窗口不 resize、也没有 scroll，
+    // ResizeObserver 一条通知都收不到，气泡就停在旧中心。宿主的侧栏实现不是我们能依赖的契约，
+    // 也不该去认它的 DOM 类名或过渡结束事件；这里用逐帧轮询，每 suggestAnchorPollMs 读一次锚点
+    // 矩形（只读）。位置没变时 measure 里的 setPos 返回同一个对象，不触发渲染，所以稳态成本只是
+    // 一次 getBoundingClientRect；它也是本文件唯一的常驻循环，卸载即取消（文件头的例外说明）。
+    let rafId = 0
+    let lastMeasureAt = -1
+    const pollIntervalMs = Number(MOTION && MOTION.suggestAnchorPollMs) || 120
+    // 时间戳直接用 requestAnimationFrame 传来的那个（与浏览器帧同源），不额外读时钟；
+    // 第一次回调没有可用的上次时间，lastMeasureAt 是 -1，正好量一次。
+    function pollAnchor(now: any) {
+      rafId = 0
+      try {
+        const stamp = (typeof now === 'number' && now > 0) ? now : Date.now()
+        if (lastMeasureAt < 0 || stamp - lastMeasureAt >= pollIntervalMs) {
+          lastMeasureAt = stamp
+          measure()
+        }
+        if (typeof requestAnimationFrame === 'function') rafId = requestAnimationFrame(pollAnchor)
+      } catch (ePoll) { rafId = 0 }
+    }
+    if (typeof requestAnimationFrame === 'function') { try { rafId = requestAnimationFrame(pollAnchor) } catch (eRafStart) { rafId = 0 } }
     return function () {
+      if (rafId) { try { cancelAnimationFrame(rafId) } catch (eRafEnd) {} rafId = 0 }
       try { if (ro && typeof ro.disconnect === 'function') ro.disconnect() } catch (eROD) {}
       if (typeof window !== 'undefined' && window.removeEventListener) {
         window.removeEventListener('resize', measure)
@@ -338,11 +400,27 @@ export const SuggestBubble = function (props: any) {
       onKeyDown: function (ev: any) { onPillKey(ev, prompt) },
     }, label)
     // 没有理由也不裸奔：照样包进定位壳（只是里面不放浮层），有理由没理由 DOM 形状一致。
+    // 显示浮层：#1787 现象③的窄窗口分支——先让浮层按原位置显示，再量一次矩形，把超出视口
+    // 边距的部分写进两个位移变量推回来（横向 --dsws-sugg-pop-shift、纵向 --dsws-sugg-pop-shift-y，
+    // 由样式叶子接在 translate 里）。算术在 suggestTimeline.suggestPopShiftOf，这里只搬 DOM。
     function showPop(ev: any) {
-      try { if (ev && ev.currentTarget && ev.currentTarget.classList) ev.currentTarget.classList.add('dsws-sugg-show-pop') } catch (eShow) {}
+      const wrap = ev && ev.currentTarget
+      try { if (wrap && wrap.classList) wrap.classList.add('dsws-sugg-show-pop') } catch (eShow) {}
+      try {
+        const pop = (wrap && typeof wrap.querySelector === 'function') ? wrap.querySelector('.dsws-sugg-pop') : null
+        if (pop) suggestClampPopToViewport(pop)
+      } catch (eShowShift) {}
     }
     function hidePop(ev: any) {
-      try { if (ev && ev.currentTarget && ev.currentTarget.classList) ev.currentTarget.classList.remove('dsws-sugg-show-pop') } catch (eHide) {}
+      const wrap = ev && ev.currentTarget
+      try { if (wrap && wrap.classList) wrap.classList.remove('dsws-sugg-show-pop') } catch (eHide) {}
+      try {
+        const pop = (wrap && typeof wrap.querySelector === 'function') ? wrap.querySelector('.dsws-sugg-pop') : null
+        if (pop && pop.style && typeof pop.style.setProperty === 'function') {
+          pop.style.setProperty('--dsws-sugg-pop-shift', '0px')
+          pop.style.setProperty('--dsws-sugg-pop-shift-y', '0px')
+        }
+      } catch (eHideShift) {}
     }
     return React.createElement('span', {
       key: 'suggest-wrap-' + index,

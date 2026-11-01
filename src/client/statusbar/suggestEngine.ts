@@ -1,8 +1,12 @@
 // src/client/statusbar/suggestEngine.ts —— 「下一步建议」小泡动效的 DOM 执行者（#1411）
 //
 // 职责：整组气泡挂载后，量一次布局、按 suggestTimeline 算好的计划生成小泡节点、用 CSS transition
-// 把它们从关闭按钮下方（或对话区）送到各自选项里侧，同时逐帧抬高选项行与关闭按钮行的共用透明度；
+// 把它们从关闭按钮下方（或对话区）送到各自选项里侧，同时逐帧抬高每颗药丸与关闭按钮自己的透明度；
 // 选中一条时关闭按钮先消失、每个选项胶囊化作小泡向上飘走（#1451 用户拍板），关闭与被覆盖仍走整组淡出。
+//
+// 为什么不 fade 祖先行（#1787 现象①）：祖先 opacity 小于 1 会形成 Backdrop Root，药丸的
+// backdrop-filter 实际被关掉，渐变到 1 的那一帧整片像素会跳一下（真机逐像素实测 27%~41% 像素跳变）。
+// 所以入场与收尾都只写 .dsws-sugg-pill 与 .dsws-sugg-close 自己的 opacity，永远不碰两行的 opacity。
 // 所有算术都在 suggestTimeline（纯函数、可脱 DOM 测），这里只做测量、建节点、套样式、清节点。
 //
 // 为什么这么切：动效参数与时间线要能在门禁里精确验证，不能靠「真跑一遍动画看着像」；把算术抽成
@@ -24,6 +28,7 @@ declare function suggestPickPlan(layout: any, rand?: any): any;
 declare function suggestRowOpacity(landed: any, total: any): number;
 declare function suggestCloseOpacity(landed: any, total: any): number;
 declare function suggestLandedCount(bubbles: any, elapsedMs: any): number;
+declare function suggestNowMs(): number; // 时间源与组件共用一份（suggestTimeline 的纯函数）
 
 /**
  * 给一整组气泡建一个动效执行器。layerEl 是挂到页面浮层上的那一层容器（.dsws-sugg-layer），
@@ -59,15 +64,47 @@ export const createSuggestEngine = function (layerEl: any) {
     bubbles = []
   }
 
-  /** 收尾：小泡清掉、两行回到全清楚（动画结束后的稳定态）。 */
+  /** 这一层里现有的选项药丸节点（渲染层已把整组画好，执行者只改它们自己的 style）。 */
+  function pillNodesOf() {
+    try {
+      if (layerEl && typeof layerEl.querySelectorAll === 'function') return layerEl.querySelectorAll('.dsws-sugg-pill')
+    } catch (ePills) {}
+    return []
+  }
+
+  /** 关闭按钮节点（入场时和药丸一起淡入）。 */
+  function closeNodeOf() {
+    try {
+      if (layerEl && typeof layerEl.querySelector === 'function') return layerEl.querySelector('.dsws-sugg-close')
+    } catch (eCloseNode) {}
+    return null
+  }
+
+  /** 把同一档不透明度写到每颗药丸与关闭按钮自己身上（入场逐帧、落地收尾、选中退场共用一份），
+   *  永远不写祖先两行的 opacity：祖先小于 1 会形成 Backdrop Root，药丸的 backdrop-filter 被关掉。 */
+  function setNodesOpacity(pillOpacity: string, closeOpacity: string) {
+    const pills = pillNodesOf()
+    for (let i = 0; i < pills.length; i++) {
+      const node = pills[i]
+      try { if (node && node.style) node.style.opacity = pillOpacity } catch (ePillOpacity) {}
+    }
+    const close = closeNodeOf()
+    try { if (close && close.style) close.style.opacity = closeOpacity } catch (eCloseOpacity) {}
+  }
+
+  /**
+   * 把入场进度写到「每颗药丸与关闭按钮自己的 opacity」上，不写祖先选项行的 opacity。
+   * 为什么：祖先 opacity 小于 1 会形成 Backdrop Root，药丸的 backdrop-filter 会被关掉，
+   * 淡到 1 的那一帧整片像素跳变（#1787 现象①，真机逐像素证据）。
+   */
+  function setEntranceOpacity(landed: number, total: number) {
+    setNodesOpacity(String(suggestRowOpacity(landed, total)), String(suggestCloseOpacity(landed, total)))
+  }
+
+  /** 收尾：小泡清掉、每颗药丸与关闭按钮回到全清楚（动画结束后的稳定态）。 */
   function settle() {
     clearBubbles()
-    try {
-      const row = layerEl.querySelector('.dsws-sugg-row')
-      const xrow = layerEl.querySelector('.dsws-sugg-xrow')
-      if (row && row.style) row.style.opacity = '1'
-      if (xrow && xrow.style) xrow.style.opacity = '1'
-    } catch (eSettle) {}
+    setNodesOpacity('1', '1')
   }
 
   /** 系统是否要求减少动效（拿不到 matchMedia 就当没要求）。 */
@@ -161,15 +198,13 @@ export const createSuggestEngine = function (layerEl: any) {
     bubbles = plan.bubbles
     const total = plan.total
     animatable = true
-    const row = layerEl.querySelector('.dsws-sugg-row')
-    const xrow = layerEl.querySelector('.dsws-sugg-xrow')
-    try {
-      if (row && row.style) row.style.opacity = String(suggestRowOpacity(0, total))
-      if (xrow && xrow.style) xrow.style.opacity = '0'
-    } catch (eInitial) {}
+    // 开场就停在第一档：药丸与关闭按钮自己几乎透明，但祖先行始终不透明（Backdrop Root 不成立）。
+    setEntranceOpacity(0, total)
     for (let i = 0; i < bubbles.length; i++) spawnBubble(bubbles[i], 0, false)
     // 第一帧先让起点生效（opacity 从 0 到 0.9 也算一段），下一帧再统一改成终点，过渡才会真的走。
-    frame = requestAnimationFrame(function () {
+    // 第一帧的回调时间戳必须传下去：它是整趟动画的计时起点。以前这里传 0，而后续帧是
+    // performance.now()（页面已运行时长），两帧之间 elapsed 一下跳到几秒，入场被瞬间判完（#1787 现象①）。
+    frame = requestAnimationFrame(function (now: number) {
       frame = 0
       if (disposed) return
       for (let i = 0; i < nodes.length && i < bubbles.length; i++) {
@@ -181,19 +216,17 @@ export const createSuggestEngine = function (layerEl: any) {
         node.style.opacity = '0.9'
         node.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'
       }
-      tick(0)
+      tick((typeof now === 'number' && now > 0) ? now : suggestNowMs())
     })
     let started = -1
     function tick(ts: number) {
       if (disposed) return
-      const stamp = (typeof ts === 'number' && ts > 0) ? ts : 0
+      // 兜底也取真实时间：无论调用方传什么，计时基准与后续帧都在同一时间源上。
+      const stamp = (typeof ts === 'number' && ts > 0) ? ts : suggestNowMs()
       if (started < 0) started = stamp
       const elapsed = stamp - started
       const landed = suggestLandedCount(bubbles, elapsed)
-      try {
-        if (row && row.style) row.style.opacity = String(suggestRowOpacity(landed, total))
-        if (xrow && xrow.style) xrow.style.opacity = String(suggestCloseOpacity(landed, total))
-      } catch (eTick) {}
+      setEntranceOpacity(landed, total)
       if (landed >= total) {
         cleanupTimer = setTimeout(function () { cleanupTimer = 0; if (!disposed) settle() }, MOTION.suggestBubbleCleanupDelayMs)
         return
@@ -213,16 +246,11 @@ export const createSuggestEngine = function (layerEl: any) {
     const plan = suggestPickPlan(layout)
     if (!plan || !plan.total || !plan.bubbles || !plan.bubbles.length) return false
     stopEntrance()
-    try {
-      const row = layerEl.querySelector('.dsws-sugg-row')
-      const xrow = layerEl.querySelector('.dsws-sugg-xrow')
-      // 两行一起立刻隐去：用户看到的先是「关闭按钮没了」，再是胶囊化泡上飘。
-      if (row && row.style) row.style.opacity = '0'
-      if (xrow && xrow.style) {
-        xrow.style.opacity = '0'
-        xrow.style.pointerEvents = 'none'
-      }
-    } catch (eHide) {}
+    // 每颗药丸与关闭按钮一起立刻隐去：用户看到的先是「关闭按钮没了」，再是胶囊化泡上飘。
+    // 同样不动两行的 opacity（理由见文件头：祖先 opacity 会关掉药丸的磨砂）。
+    setNodesOpacity('0', '0')
+    const pickClose = closeNodeOf()
+    try { if (pickClose && pickClose.style) pickClose.style.pointerEvents = 'none' } catch (eCloseHide) {}
     clearBubbles()
     const outBubbles = plan.bubbles
     for (let i = 0; i < outBubbles.length; i++) spawnBubble(outBubbles[i], 0.85, true)

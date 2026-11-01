@@ -45,7 +45,8 @@ const SUGGEST_GROUP_KEEP_LIMIT = 32
 const suggestGroupsBySid: any = new Map()
 
 /**
- * 按会话记下「用户在本进程里点走或关掉过这个会话的建议组」（#1526，规格 #1525）。
+ * 按会话记下「用户在本进程里跳过（点走或关掉）这个会话的建议组，或者这个会话又开始了新一轮」
+ * （#1526 规格 #1525；#1787 现象⑥ 把「发消息」也算作不再回放）。
  * 为什么要单独留一份：用户关掉之后缓存被清空，下次切回这个会话时「缓存为空」这个条件又会成立，
  * 补出逻辑会把历史重放里的那组建议再补一遍 —— 那等于用户关不掉它。所以关掉时留一个标记，
  * 补出前先看它；这个会话之后又有新建议正常交付时把标记清掉（新建议理应能冒）。
@@ -65,7 +66,7 @@ const suggestMarkDismissed = function (sid: string) {
   }
 }
 
-/** 这个会话在本进程里被用户关掉过没有：补出前查它，是真的关过就不补。 */
+/** 这个会话的建议组已经被用户跳过、或已经开始了新一轮没有：补出前查它，是就不补。 */
 export const suggestSessionWasDismissed = function (sid: string) {
   if (!sid) return false
   return suggestDismissedBySid.has(sid)
@@ -96,7 +97,7 @@ export const suggestGroupRemember = function (sid: string, group: any) {
   }
 }
 
-/** 取出某个会话留下的那一组建议；没留下过（或已经被用户关掉）返回 null。 */
+/** 取出某个会话留下的那一组建议；没留下过（或已经被用户跳过/换轮）返回 null。 */
 export const suggestGroupRecall = function (sid: string) {
   if (!sid) return null
   return suggestGroupsBySid.has(sid) ? suggestGroupsBySid.get(sid) : null
@@ -114,8 +115,10 @@ export const suggestGroupForget = function (sid: string) {
 
 /**
  * 造一条取数流：借当前会话的事件流，认建议工具调用，等整轮结束再交付。
- * options = { sessions, sid, onReady }；sessions 是平台 sessions 服务（可能为空），
+ * options = { sessions, sid, onReady, onClear }；sessions 是平台 sessions 服务（可能为空），
  * onReady(items) 是上层接缝（#1411 的界面渲染），这里不关心它做什么。
+ * onClear() 是「上一组建议已经作废」的通知（#1787 第五项）：用户自己发消息会开新的一轮，
+ * 那一刻上一轮的建议就没被采纳，上层要据此把气泡清掉；不传就不通知。
  * 返回 { dispose }：切会话或卸载时调用，退订并清空中间状态；重复调用无副作用。
  */
 export const createSuggestStream = function (options: any) {
@@ -123,6 +126,9 @@ export const createSuggestStream = function (options: any) {
   const sessions = opts.sessions
   const sid = (typeof opts.sid === 'string') ? opts.sid : ''
   const onReady = (typeof opts.onReady === 'function') ? opts.onReady : null
+  // #1787 第五项：用户自己发消息会开新的一轮，上一组建议随之作废；onClear 是通知上层清掉气泡的接缝。
+  // 与 onReady 同一写法：不是函数就当没给，安静不做。
+  const onClear = (typeof opts.onClear === 'function') ? opts.onClear : null
   // 要不要从历史重放里补出最后一组建议（#1526）：上层在按会话缓存为空时才传 true，
   // 缓存里已有这一组时不补，避免同一组建议出现两次。默认 false，保持 #1409 的取数契约不变。
   const restoreReplay = opts.restoreReplay === true
@@ -205,6 +211,15 @@ export const createSuggestStream = function (options: any) {
     if (!info) return
     if (info.kind === 'turn-start') {
       currentTurn = info.turn
+      // 新的一轮开始只可能来自用户按回车发消息（不是点了哪条建议）：上一轮的建议没被采纳，
+      // 这一组已经作废（#1787 第五项）。这里做两件事，顺序不能反：
+      //   ① 先给这个会话记下关闭标记。气泡清掉之后按会话的缓存就空了，下次切回来时「缓存为空」
+      //      这个补出条件又会成立，没有标记的话历史重放会把已作废的那组再补一遍 —— 等于清不掉。
+      //      这个标记会在之后有新建议正常交付时由 deliver() 清掉（新建议理应能冒）。
+      //   ② 再通知上层清掉当前显示的那组气泡。任何一次新轮开始都意味着上一轮的建议已作废，
+      //      所以这里无条件通知；上层当前没挂着组时收到通知什么也不做。
+      suggestMarkDismissed(sid)
+      try { if (onClear) onClear() } catch (eOnClearTurn) {}
       return
     }
     if (info.kind === 'turn-end') {
@@ -330,7 +345,8 @@ export const createSuggestStream = function (options: any) {
   function restoreFromReplay() {
     if (!restoreReplay || disposed || !sid || !bound) return
     if (!binding || !binding.eventSource || typeof binding.eventSource.getSnapshot !== 'function') return
-    // 用户在本进程里点走或关掉过这个会话的组：历史里就算还有，也不补（#1525 认可的边界）。
+    // 这个会话的组已被用户跳过，或这个会话已经开始了新一轮：历史里就算还有，也不补
+    // （#1525 认可的边界；#1787 现象⑥ 起「发消息」也落在标记里，换轮后不再回放旧组）。
     if (suggestSessionWasDismissed(sid)) return
     let snapshot: any = null
     try { snapshot = binding.eventSource.getSnapshot() } catch (eSnapshot) { logBind('error', 'restore-snapshot'); return }
@@ -415,6 +431,8 @@ export const createSuggestStream = function (options: any) {
  * 新会话只显示它自己留下的那一组建议（切回来时从按会话的缓存里取回，见 suggestGroupRecall）；
  * 缓存里没有时再从历史重放里补出最后一组（#1526）—— 后台跑完、当时没在看的那组建议也能补上；
  * 绝不把上一个会话的建议留在当前会话上；用户显式点走或关掉的组会从缓存里删掉，本次运行内不再补出。
+ * 用户自己发消息（新轮开始）时上一组建议已经作废：气泡立刻清掉，切走再切回也不会从历史重放里
+ * 补回来（#1787 第五项）。
  * 本组件自身不读会话、不 retain：取数只走 createSuggestStream 里那条只读订阅。
  */
 export const SuggestStreamMount = function (props: any) {
@@ -454,6 +472,14 @@ export const SuggestStreamMount = function (props: any) {
         suggestGroupRemember(sid, next)
         setGroup(next)
       },
+      onClear: function () {
+        // 用户自己发消息（新轮开始）时上一组建议已经作废：取数层收到 turn-start 时已经先记好了
+        // 关闭标记（见 takeEvent 的 turn-start 分支），这里再把按会话的暂存建议一起忘掉，并让气泡
+        // 立刻消失。这样切走再切回时缓存是空的、重放又有标记挡着，那组已作废的建议不会再冒出来。
+        if (!alive) return
+        suggestGroupForget(sid)
+        setGroup(null)
+      },
     })
     return function () {
       alive = false
@@ -466,7 +492,7 @@ export const SuggestStreamMount = function (props: any) {
     sid: sid,
     group: group,
     onDismiss: function () {
-      // 用户点走或关掉的组要连缓存一起忘掉：切走再切回时不该自己复活。
+      // 用户跳过的组要连缓存一起忘掉：切走再切回时不该自己复活。
       suggestGroupForget(sid)
       setGroup(null)
     },

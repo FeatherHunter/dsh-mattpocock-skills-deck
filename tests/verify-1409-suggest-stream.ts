@@ -7,7 +7,9 @@
 //      重放（replace）或流式增量当成新调用；
 //   ③ 等同一轮的 turn/end 再交付，不靠计时器；同一编号只交付一次；同一轮两次以后来的为准；
 //   ④ 参数解析失败、形状不对、条数不够时不出结果、只记日志；拿不到事件流安静不做；
-//   ⑤ 日志只落散列与计数，绝不落提示词与理由原文。
+//   ⑤ 日志只落散列与计数，绝不落提示词与理由原文；
+//   ⑥ 用户自己发消息带来新的一轮时，上一组建议已经作废：通知上层清掉气泡并给会话记关闭标记，
+//      之后切走再切回时历史重放也不能把它补回来（#1787 第五项）。
 // 所以这里用假事件流逐条断言外部行为（交付了什么、记了什么日志），再用源码守卫钉住
 // 「不许 retain」「不许新增定时器」「挂载点在状态栏里」「界面与工具两侧的上下限一致」。
 const fs = require('fs')
@@ -26,6 +28,8 @@ function check(ok, message) {
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
 
 const SID = 'sess-1409-probe'
+// #1787 第五项单独用一个会话号：新轮开始会给这个会话记「关闭标记」，用共享的 SID 会把别的断言搅浑。
+const SID_CLEAR = 'sess-1787-clear'
 const GOOD_ARGS = JSON.stringify({ items: [
   { prompt: '/to-tickets', reason: '把计划拆成票' },
   { prompt: '/grill', reason: '先拷问一下方案' },
@@ -168,9 +172,9 @@ async function main() {
   check(facts.SUGGEST_MAX_ITEMS === tool.MAX_ITEMS && facts.SUGGEST_MAX_ITEMS === 4, '最多条数两侧一致且为 4')
   check(facts.SUGGEST_INTRO_MAX_WIDTH === tool.INTRO_MAX_WIDTH && facts.SUGGEST_INTRO_MAX_WIDTH === 30, '简介上限两侧一致且为 30 格（15 个汉字宽）')
   check(facts.SUGGEST_PROMPT_MAX_CHARS === tool.PROMPT_MAX_CHARS && facts.SUGGEST_PROMPT_MAX_CHARS === 500, '提示词上限两侧一致且为 500')
-  check(facts.SUGGEST_REASON_MAX_CHARS === tool.REASON_MAX_CHARS && facts.SUGGEST_REASON_MAX_CHARS === 30, '理由上限两侧一致且为 30')
-  check(facts.SUGGEST_GAIN_MAX_CHARS === tool.GAIN_MAX_CHARS && facts.SUGGEST_GAIN_MAX_CHARS === 30, '优点上限两侧一致且为 30')
-  check(facts.SUGGEST_COST_MAX_CHARS === tool.COST_MAX_CHARS && facts.SUGGEST_COST_MAX_CHARS === 30, '缺点上限两侧一致且为 30')
+  check(facts.SUGGEST_REASON_MAX_CHARS === tool.REASON_MAX_CHARS && facts.SUGGEST_REASON_MAX_CHARS === 48, '理由上限两侧一致且为 48')
+  check(facts.SUGGEST_GAIN_MAX_CHARS === tool.GAIN_MAX_CHARS && facts.SUGGEST_GAIN_MAX_CHARS === 48, '优点上限两侧一致且为 48')
+  check(facts.SUGGEST_COST_MAX_CHARS === tool.COST_MAX_CHARS && facts.SUGGEST_COST_MAX_CHARS === 48, '缺点上限两侧一致且为 48')
   check(facts.SUGGEST_PRIORITY_MIN === tool.PRIORITY_MIN && facts.SUGGEST_PRIORITY_MIN === 0, '优先级下限两侧一致且为 0')
   check(facts.SUGGEST_PRIORITY_MAX === tool.PRIORITY_MAX && facts.SUGGEST_PRIORITY_MAX === 10, '优先级上限两侧一致且为 10')
   // 气泡叶子在本地再钳一次条数（构建时是同一闭包里的常量，不能跨文件 import），所以读源码把第四个 4
@@ -249,8 +253,8 @@ async function main() {
   ] }))
   check(parsedClipped.ok === true && parsedClipped.clipped === 1, '一条里提示词与三格理由文本都超长只算「被截断一条」')
   check(parsedClipped.items[0].prompt.length === 501 && parsedClipped.items[0].prompt.slice(-1) === '…', '提示词保留前 500 个码点并另加省略号（#1540）')
-  check(parsedClipped.items[0].reason.length === 31 && parsedClipped.items[0].reason.slice(-1) === '…', '理由保留前 30 个码点并另加省略号（2026-10-31 统一上限 30）')
-  check(parsedClipped.items[0].gain.length === 31 && parsedClipped.items[0].cost.length === 31, '优点与缺点同样截到 30 个码点并加省略号')
+  check(parsedClipped.items[0].reason.length === 49 && parsedClipped.items[0].reason.slice(-1) === '…', '理由保留前 48 个码点并另加省略号（统一上限 48）')
+  check(parsedClipped.items[0].gain.length === 49 && parsedClipped.items[0].cost.length === 49, '优点与缺点同样截到 48 个码点并加省略号')
   const parsedNoReason = facts.suggestItemsOf(JSON.stringify({ items: [{ prompt: '/a' }, { prompt: '/b' }] }))
   check(parsedNoReason.ok === true && parsedNoReason.items[0].reason === '', '缺理由的条目按空理由收（不因少一句解释丢掉整条提示词）')
   // #1451 起每条多带一句十五个字以内的简介；旧事件里没有这一格，按空串收，界面只显示提示词。
@@ -631,6 +635,76 @@ async function main() {
     } finally { cap.restore() }
   }
 
+  // ── 15b. 用户自己发消息（新轮开始）后建议组自动作废（#1787 第五项） ──
+  // 现象：用户没点任何选项，直接按回车发出下一条消息，上一条建议的气泡还挂在上面。
+  // 用户发消息必然带来一次新的 turn/start，这就是「上一轮的建议没被采纳、这一组已经作废」的信号：
+  // 取数层收到后先给这个会话记关闭标记（历史重放补出时跳过它），再通知上层把气泡清掉。
+  {
+    const cap = captureLog()
+    try {
+      const env = makeEnv()
+      let clearCalls = 0
+      let dismissedSeenByClear = false
+      const stream = streamMod.createSuggestStream({
+        sessions: env.sessions,
+        sid: SID_CLEAR,
+        onReady: env.onReady,
+        onClear: function () {
+          clearCalls += 1
+          // 关闭标记必须在通知上层之前就记好：上层即使还没来得及清自己的缓存，之后的「切走再切回」
+          // 也不能从历史重放里把这组补回来。
+          dismissedSeenByClear = streamMod.suggestSessionWasDismissed(SID_CLEAR)
+          // 挂载组件的 onClear 做的就是这件事（先忘掉按会话的暂存建议，再让气泡消失）；这里照它的动作清缓存。
+          streamMod.suggestGroupForget(SID_CLEAR)
+        },
+      })
+      env.notify([startEvent(1), callEvent('call_clear_1', 1, GOOD_ARGS), endEvent(1)])
+      check(env.ready.length === 1 && env.ready[0].length === 2, '（这条用例的起点）上一轮正常交付了两条建议')
+      // 第一轮的 turn/start 也通知了一次清除（那一刻还没有组，上层收到什么也不做）；真正要验的是
+      // 「一组建议已经上屏之后，用户再发消息」这一次，所以把基线记下来、按增量断言。
+      const clearsAfterFirstTurn = clearCalls
+      check(clearsAfterFirstTurn === 1, '每一轮开始时都通知一次清除（第一轮时还没有组，通知是无条件的）')
+      // 模拟挂载组件在 onReady 里做的事：把上屏的那一组记进按会话的缓存，切走再回来靠它放回原位。
+      streamMod.suggestGroupRemember(SID_CLEAR, { id: 1, items: env.ready[0] })
+      env.notify([startEvent(2)])
+      check(clearCalls === clearsAfterFirstTurn + 1, '用户发消息带来新轮开始：onClear 恰好通知一次')
+      check(dismissedSeenByClear === true, '通知上层之前先给这个会话记下关闭标记（上层能放心清缓存）')
+      check(streamMod.suggestSessionWasDismissed(SID_CLEAR) === true, '新轮开始后这个会话带关闭标记（历史重放不会把这组补回来）')
+      check(streamMod.suggestGroupRecall(SID_CLEAR) === null, '新轮开始后这个会话的暂存建议已经清掉（切走切回不再冒出来）')
+      // 关闭标记真的挡住了补出：另建一条带 restoreReplay 的流，历史里就有那一组，但不该补。
+      const blockedEnv = makeEnv()
+      blockedEnv.notify([startEvent(1), callEvent('call_clear_hist', 1, GOOD_ARGS), endEvent(1)], 'replace')
+      const blocked = streamMod.createSuggestStream({ sessions: blockedEnv.sessions, sid: SID_CLEAR, restoreReplay: true, onReady: blockedEnv.onReady })
+      check(blockedEnv.ready.length === 0, '带关闭标记时切回来不补历史里的最后一组（不会被历史重放复活）')
+      blocked.dispose()
+      // 反向对照：这个会话来了新一组建议并正常交付之后，标记失效，同一份历史再补就能补出来。
+      env.notify([callEvent('call_clear_2', 2, GOOD_ARGS), endEvent(2)])
+      check(env.ready.length === 2 && env.ready[1][0].prompt === '/to-tickets', '新轮里的新建议照常交付（关闭标记不挡更晚的新建议）')
+      check(streamMod.suggestSessionWasDismissed(SID_CLEAR) === false, '新建议正常交付后关闭标记被清掉（之后切回来按缓存显示）')
+      const controlEnv = makeEnv()
+      controlEnv.notify([startEvent(1), callEvent('call_clear_hist2', 1, GOOD_ARGS), endEvent(1)], 'replace')
+      const control = streamMod.createSuggestStream({ sessions: controlEnv.sessions, sid: SID_CLEAR, restoreReplay: true, onReady: controlEnv.onReady })
+      check(controlEnv.ready.length === 1 && controlEnv.ready[0].length === 2, '对照：没有关闭标记时同一份历史能补出（证明上一条挡住它的是标记，不是夹具坏了）')
+      control.dispose()
+      env.notify([startEvent(3)])
+      check(clearCalls === clearsAfterFirstTurn + 2, '每一次新轮开始都通知清除（不管这一轮最后有没有新建议）')
+      // 上层没挂 onClear 时新轮开始照常工作；onClear 自己抛错不能把整条事件通道带崩。
+      const quietEnv = makeEnv()
+      const quiet = streamMod.createSuggestStream({ sessions: quietEnv.sessions, sid: SID_CLEAR + '-quiet', onReady: quietEnv.onReady })
+      let quietCrashed = false
+      try { quietEnv.notify([startEvent(1)]) } catch (e) { quietCrashed = true }
+      check(!quietCrashed, '没有给 onClear 时新轮开始不抛（清除接缝可选，不影响取数）')
+      quiet.dispose()
+      const throwingEnv = makeEnv()
+      const throwing = streamMod.createSuggestStream({ sessions: throwingEnv.sessions, sid: SID_CLEAR + '-throw', onReady: throwingEnv.onReady, onClear: function () { throw new Error('上层清气泡炸了') } })
+      let throwingCrashed = false
+      try { throwingEnv.notify([startEvent(1)]) } catch (e) { throwingCrashed = true }
+      check(!throwingCrashed, 'onClear 抛错被吞掉，不把整条事件通道带崩')
+      throwing.dispose()
+      stream.dispose()
+    } finally { cap.restore() }
+  }
+
   // ── 16. 源码守卫：只借不保、不新增定时器、不订阅会话列表 ──
   const clientFiles = walkFiles(path.join(ROOT, 'src/client'), [])
   check(clientFiles.length > 100, 'src/client 全树扫到 ' + clientFiles.length + ' 份源码（守卫覆盖整棵树）')
@@ -655,9 +729,12 @@ async function main() {
   check(factsSrc.indexOf("'suggest_next_steps'") >= 0, '界面侧工具名是字面量（不靠运行时拼）')
   check(factsSrc.indexOf("'tool/ptc-dispatch-start'") >= 0 && factsSrc.indexOf("'turn-start'") >= 0, '事件识别里显式包含 PTC 派发与 turn/start（两种预设都要认）')
   check(streamSrc.indexOf("'turn-start'") >= 0, '订阅层处理 turn/start（PTC 调用靠它补轮次）')
-  check(/SUGGEST_MIN_ITEMS = 2/.test(factsSrc) && /SUGGEST_MAX_ITEMS = 4/.test(factsSrc) && /SUGGEST_INTRO_MAX_WIDTH = 30/.test(factsSrc) && /SUGGEST_PROMPT_MAX_CHARS = 500/.test(factsSrc) && /SUGGEST_REASON_MAX_CHARS = 30/.test(factsSrc) && /SUGGEST_GAIN_MAX_CHARS = 30/.test(factsSrc) && /SUGGEST_COST_MAX_CHARS = 30/.test(factsSrc), '界面侧七个上下限常量是字面量')
+  check(streamSrc.indexOf('onClear') >= 0, '订阅层把「新轮开始作废上一组建议」的通知（onClear）留给了上层')
+  const onClearInMount = streamSrc.indexOf('onClear: function')
+  check(onClearInMount >= 0 && streamSrc.indexOf('suggestGroupForget(sid)', onClearInMount) > onClearInMount && streamSrc.indexOf('setGroup(null)', onClearInMount) > onClearInMount, '挂载组件收到清除通知后忘掉这组暂存建议并让气泡消失')
+  check(/SUGGEST_MIN_ITEMS = 2/.test(factsSrc) && /SUGGEST_MAX_ITEMS = 4/.test(factsSrc) && /SUGGEST_INTRO_MAX_WIDTH = 30/.test(factsSrc) && /SUGGEST_PROMPT_MAX_CHARS = 500/.test(factsSrc) && /SUGGEST_REASON_MAX_CHARS = 48/.test(factsSrc) && /SUGGEST_GAIN_MAX_CHARS = 48/.test(factsSrc) && /SUGGEST_COST_MAX_CHARS = 48/.test(factsSrc), '界面侧七个上下限常量是字面量')
   const toolSrc = fs.readFileSync(path.join(ROOT, 'src/deck/tools/suggest-next-steps.ts'), 'utf8')
-  check(/MIN_ITEMS = 2/.test(toolSrc) && /MAX_ITEMS = 4/.test(toolSrc) && /INTRO_MAX_WIDTH = 30/.test(toolSrc) && /PROMPT_MAX_CHARS = 500/.test(toolSrc) && /REASON_MAX_CHARS = 30/.test(toolSrc) && /GAIN_MAX_CHARS = 30/.test(toolSrc) && /COST_MAX_CHARS = 30/.test(toolSrc), '工具侧七个上下限常量是字面量（两边数字由上面的导入比对钉住）')
+  check(/MIN_ITEMS = 2/.test(toolSrc) && /MAX_ITEMS = 4/.test(toolSrc) && /INTRO_MAX_WIDTH = 30/.test(toolSrc) && /PROMPT_MAX_CHARS = 500/.test(toolSrc) && /REASON_MAX_CHARS = 48/.test(toolSrc) && /GAIN_MAX_CHARS = 48/.test(toolSrc) && /COST_MAX_CHARS = 48/.test(toolSrc), '工具侧七个上下限常量是字面量（两边数字由上面的导入比对钉住）')
 
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   printGateResult('verify-1409-suggest-stream', total, failed ? 1 : 0)

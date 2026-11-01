@@ -28,6 +28,18 @@ function check(ok, label) {
 function near(a, b, eps) {
   return Math.abs(Number(a) - Number(b)) <= (eps || 1e-6)
 }
+// 颜色与对比度工具来自两扇像素皮肤门禁共用的 tests/lib/contrast.ts（#1787 两轴审查意见：
+// 不要在各门禁里各抄一份 WCAG 实现，否则同一个色值会在两扇门里一红一绿）。这里的口径与共用实现一致：
+// 对比度按 WCAG 2.x 的 sRGB 相对亮度算，半透明颜色先按 CSS 合成公式叠到页面底色上再算；验的是
+// 「标签、正文、关闭按钮在真实合成背景上的对比度」，光看颜色值不算数（#1787 现象②：深色主题里
+// 浅玻璃底上的浅色标签实测只有 1.36~1.48:1）。
+const contrastLib = require('./lib/contrast.ts')
+const parseColor = contrastLib.parseColor
+const colorStopsOf = contrastLib.colorStopsOf
+const compositeOver = contrastLib.compositeOver
+const contrastRatioOfRgb = contrastLib.contrastRatioOfRgb
+const worstTextContrast = contrastLib.worstTextContrast
+const worstSurfaceContrast = contrastLib.worstSurfaceContrast
 
 async function main() {
   // ---------- 0. 载入外观旋钮与两片动效叶子（不需要 jsdom：时间线是纯函数） ----------
@@ -72,19 +84,20 @@ async function main() {
     check(A.pillGapPx === 6, '旋钮：选项间距 6')
     check(A.pillMaxWidthPx === 360, '旋钮：单颗选项宽度上限 360')
     check(A.pillIntroGapPx === undefined, '旋钮：简介与提示词之间的间距旋钮已退役（框里只剩简介）')
-    check(A.popGapPx === 6 && A.popMaxWidthPx === 340, '旋钮：浮层离框顶边 6、最大宽度 340（四行放得下 30 字正文）')
+    check(A.popGapPx === 6 && A.popMaxWidthPx === 540 && A.popViewportMarginPx === 16, '旋钮：浮层离框顶边 6、最大宽度 540、离视口边 16（四行放得下 48 码点正文）')
     check(A.popRowGapPx === 2 && A.popLabelGapPx === 6 && A.scoreGapPx === undefined, '旋钮：四行行距 2、标签与内容间距 6；旧分数泡间距旋钮已退役')
     check(A.popRadiusPx === 8 && A.popPadY === 6 && A.popPadX === 10, '旋钮：浮层圆角 8、内边距 6 10')
     check(A.pillBlurPx === 12, '旋钮：选项框磨砂模糊半径 12（#1451 后续：磨砂为主、底色加实）')
-    check(A.popBlurPx === 10, '旋钮：浮层磨砂模糊半径 10（与选项框同一套磨砂）')
+    check(A.popBlurPx === undefined, '旋钮：浮层不再半透明磨砂（底色改成不透明卡片），旧模糊半径旋钮已退役')
     check(A.closeRowMarginTopPx === 10, '旋钮：关闭按钮行与选项行间距 10')
     check(A.closeFontPx === 13 && A.closePadY === 2 && A.closePadX === 10, '旋钮：关闭按钮字号 13、内边距 2 10')
-    check(A.closeIdleOpacity === 0.6, '旋钮：关闭按钮空闲不透明度 0.6')
+    check(A.closeIdleOpacity === 1, '旋钮：关闭按钮空闲就完全可辨（0.6 时半透明到看不清，#1787 关闭按钮）')
     check(A.bubblePxPerPill === 20 && A.bubbleMinPerPill === 4, '旋钮：每 20 像素一颗、最少 4 颗')
     check(A.bubbleSizeMin === 5.25 && A.bubbleSizeRange === 9, '旋钮：小泡直径 5.25~14.25（#1451 放大五成）')
     check(A.bubbleFallbackCount === 8, '旋钮：量不到宽度时兜底 8 颗')
     check(MOTION.suggestBubbleDelayMaxMs === 560, '动效令牌：出发延迟上限 560 毫秒（#1236 起住 motion.ts）')
     check(MOTION.suggestBubbleTravelMinMs === 500 && MOTION.suggestBubbleTravelMaxMs === 1030, '动效令牌：飞行时长 500~1030 毫秒（出场整体约 2 秒）')
+  check(MOTION.suggestAnchorPollMs === 120, '动效令牌：侧栏收起/展开时锚点轮询间隔 120 毫秒（唯一常驻循环，#1787 现象④）')
     check(A.bubbleFromButtonRatio === 0.8, '旋钮：八成从关闭按钮下方出发')
     check(A.bubbleButtonSpreadPx === 90 && A.bubbleClampPx === 40, '旋钮：按钮两侧各约 90、再钳 40')
     check(A.bubbleStartTopOffset === 14 && A.bubbleStartTopSpread === 116, '旋钮：按钮下方出发点 14~130')
@@ -110,10 +123,59 @@ async function main() {
     check(typeof A.lightPillBg === 'string' && A.lightPillBorder !== A.pillBorder, '旋钮：亮色主题另给一组颜色')
     check(typeof A.popBg === 'string' && A.popBg.indexOf('linear-gradient') === 0 && A.popBg !== A.pillBg, '旋钮：浮层底色另给一档，不能与选项框完全同色')
     check(typeof A.lightPopBg === 'string' && A.lightPopBg !== A.lightPillBg, '旋钮：浅色主题的浮层底色也比选项框淡一档')
+    check(typeof A.popText === 'string' && typeof A.popLabelText === 'string' && A.popText !== A.popLabelText, '旋钮：浮层正文与四行标签各有一个深色文字色（不再用主题次要色）')
+    check(typeof A.closeBg === 'string' && typeof A.closeBorder === 'string' && typeof A.closeText === 'string' && typeof A.closeHoverBg === 'string', '旋钮：关闭按钮有实心底、描边、文字色与悬停底色')
+    check(typeof A.lightCloseBg === 'string' && typeof A.lightCloseBorder === 'string' && typeof A.lightCloseText === 'string' && typeof A.lightCloseHoverBg === 'string', '旋钮：亮色主题的关闭按钮另给一组反色芯片')
     check(Object.keys(A).length >= 60, '旋钮：外观参数集中在一个对象里（至少 60 项）')
     const appearanceSrc = fs.readFileSync(path.join(ROOT, 'src/client/statusbar/suggestAppearance.ts'), 'utf8')
     const zDefs = appearanceSrc.split('SUGGEST_Z').length - 1
     check(zDefs >= 1 && /SUGGEST_Z = 0/.test(appearanceSrc), '旋钮：层级常量只有一个定义，值写在这里')
+  }
+
+  // ---------- 1b. 对比度：浮层标签/正文与关闭按钮在合成背景上的实测比值（#1787 现象②与关闭按钮） ----------
+  // 页面底色用保守近似：深色主题按 #0d1117、亮色主题按 #ffffff。浮层改成不透明浅色卡片后，
+  // 文字相对卡片底色的比值与宿主主题无关，两个主题用同一套文字色；关闭按钮则是深色主题用浅芯片、
+  // 亮色主题用深芯片，芯片对页面底色与「×」对芯片都要过 WCAG 2.2 非文本对比度 3:1。
+  {
+    const DARK_PAGE = [13, 17, 23]
+    const LIGHT_PAGE = [255, 255, 255]
+    const popTextDark = worstTextContrast(A.popText, A.popBg, DARK_PAGE)
+    const popLabelDark = worstTextContrast(A.popLabelText, A.popBg, DARK_PAGE)
+    const popTextLight = worstTextContrast(A.popText, A.lightPopBg, LIGHT_PAGE)
+    const popLabelLight = worstTextContrast(A.popLabelText, A.lightPopBg, LIGHT_PAGE)
+    check(popTextDark >= 4.5, '对比度：深色主题浮层正文对合成底色 ≥ 4.5:1（实测 ' + popTextDark.toFixed(2) + ':1）')
+    check(popLabelDark >= 4.5, '对比度：深色主题四行标签对合成底色 ≥ 4.5:1（实测 ' + popLabelDark.toFixed(2) + ':1）')
+    check(popTextLight >= 4.5, '对比度：亮色主题浮层正文对合成底色 ≥ 4.5:1（实测 ' + popTextLight.toFixed(2) + ':1）')
+    check(popLabelLight >= 4.5, '对比度：亮色主题四行标签对合成底色 ≥ 4.5:1（实测 ' + popLabelLight.toFixed(2) + ':1）')
+    const closeChipDark = compositeOver(parseColor(A.closeBg) || { rgb: [0, 0, 0], alpha: 0 }, DARK_PAGE)
+    const closeChipLight = compositeOver(parseColor(A.lightCloseBg) || { rgb: [0, 0, 0], alpha: 0 }, LIGHT_PAGE)
+    const closeTextDark = parseColor(A.closeText)
+    const closeTextLight = parseColor(A.lightCloseText)
+    check(worstSurfaceContrast(A.closeBg, DARK_PAGE) >= 3, '对比度：深色主题关闭按钮芯片对页面底色 ≥ 3:1（实测 ' + worstSurfaceContrast(A.closeBg, DARK_PAGE).toFixed(2) + ':1）')
+    check(worstSurfaceContrast(A.lightCloseBg, LIGHT_PAGE) >= 3, '对比度：亮色主题关闭按钮芯片对页面底色 ≥ 3:1（实测 ' + worstSurfaceContrast(A.lightCloseBg, LIGHT_PAGE).toFixed(2) + ':1）')
+    check(closeTextDark !== null && contrastRatioOfRgb(closeTextDark.rgb, closeChipDark) >= 3, '对比度：深色主题关闭按钮的「×」对芯片底色 ≥ 3:1')
+    check(closeTextLight !== null && contrastRatioOfRgb(closeTextLight.rgb, closeChipLight) >= 3, '对比度：亮色主题关闭按钮的「×」对芯片底色 ≥ 3:1')
+  }
+
+  // ---------- 1c. 浮层夹取：算位移的纯函数（#1787 现象①的窄窗降级） ----------
+  // 浮层挂在选项框上方，默认水平居中；视口装不下时把整块推回视口内，纵向只处理顶边越界
+  // （顶部越界时向下推，底部越界不会出现：浮层底边贴着选项框）。这里只验算术，DOM 侧的量与重夹
+  // 由 verify-1411-suggest-bubble 的源码守卫与真机证据覆盖。
+  {
+    const suggestPopShiftOf = timelineMod.suggestPopShiftOf
+    check(typeof suggestPopShiftOf === 'function', '夹取：时间线里导出按视口算位移的纯函数')
+    const inside = suggestPopShiftOf({ left: 100, right: 300, top: 100, width: 200, height: 100 }, 800, 600, 16)
+    check(inside.x === 0 && inside.y === 0, '夹取：完全在视口内时不位移')
+    const rightOut = suggestPopShiftOf({ left: 900, right: 1060, top: 100, width: 160, height: 100 }, 800, 600, 16)
+    check(rightOut.x === -276 && rightOut.y === 0, '夹取：右边溢出时整块往左推回（1060 顶到 784，位移 -276）')
+    const leftOut = suggestPopShiftOf({ left: -30, right: 170, top: 100, width: 200, height: 100 }, 800, 600, 16)
+    check(leftOut.x === 46 && leftOut.y === 0, '夹取：左边溢出时整块往右推回（-30 推到 16，位移 46）')
+    const topOut = suggestPopShiftOf({ left: 100, right: 300, top: -20, width: 200, height: 80 }, 800, 600, 16)
+    check(topOut.x === 0 && topOut.y === 36, '夹取：顶边溢出时整块往下推回（-20 推到 16，位移 36）')
+    const noHeight = suggestPopShiftOf({ left: 100, right: 300, top: -20, width: 200, height: 80 }, 800, 0, 16)
+    check(noHeight.x === 0 && noHeight.y === 0, '夹取：视口高度量不到（0）时不做纵向猜测，只按横向处理')
+    const noViewport = suggestPopShiftOf({ left: 0, right: 0, top: 0, width: 100, height: 100 }, 0, 0, 16)
+    check(noViewport.x === 0 && noViewport.y === 0, '夹取：视口尺寸量不到（0）时不位移，由调用方按原位置显示')
   }
 
   // ---------- 2. 泡数：每 20 像素一颗、最少 4 颗，量不到宽度返回空 ----------
@@ -300,9 +362,10 @@ async function main() {
       row: { style: {}, getBoundingClientRect: function () { return { left: 100, top: 20, width: 320, height: 24 } } },
       xrow: { style: {}, getBoundingClientRect: function () { return { left: 240, top: 54, width: 40, height: 20 } } },
       pills: [
-        { getBoundingClientRect: function () { return { left: 100, top: 20, width: 100, height: 24 } } },
-        { getBoundingClientRect: function () { return { left: 220, top: 20, width: 200, height: 24 } } },
+        { style: {}, getBoundingClientRect: function () { return { left: 100, top: 20, width: 100, height: 24 } } },
+        { style: {}, getBoundingClientRect: function () { return { left: 220, top: 20, width: 200, height: 24 } } },
       ],
+      close: { style: {}, getBoundingClientRect: function () { return { left: 250, top: 54, width: 20, height: 20 } } },
     }
     const layer = {
       children: [],
@@ -311,7 +374,12 @@ async function main() {
       querySelector: function (sel) {
         if (sel === '.dsws-sugg-row') return world.row
         if (sel === '.dsws-sugg-xrow') return world.xrow
+        if (sel === '.dsws-sugg-close') return world.close
         return null
+      },
+      querySelectorAll: function (sel) {
+        if (sel === '.dsws-sugg-pill') return world.pills
+        return []
       },
       appendChild: function (node) { node.parentNode = layer; layer.children.push(node) },
       removeChild: function (node) { node.parentNode = null; layer.children = layer.children.filter(function (x) { return x !== node }) },
@@ -326,8 +394,15 @@ async function main() {
     const engine = createSuggestEngine(layer)
     check(engine.run() === true, '执行者：量得到布局时真的演动画')
     check(layer.children.length === 15, '执行者：按计划生成了 15 颗小泡节点')
-    check(world.row.style.opacity === String(A.rowOpacityBase), '执行者：开场选项行几乎透明（0.04）')
-    check(world.xrow.style.opacity === '0', '执行者：开场关闭按钮完全不亮')
+    let pillBaseOk = world.pills.length === 2
+    for (let i = 0; i < world.pills.length; i++) {
+      if (String(world.pills[i].style.opacity) !== String(A.rowOpacityBase)) pillBaseOk = false
+    }
+    check(pillBaseOk, '执行者：开场每颗选项自己的 opacity 是 0.04（不再动选项行）')
+    check(world.close.style.opacity === '0', '执行者：开场关闭按钮自己的 opacity 是 0')
+    // #1787 现象①(b)：祖先行的 opacity 小于 1 会让药丸的 backdrop-filter 实际失效；执行者从此只写
+    // 每颗药丸与关闭按钮自身的 opacity，选项行与关闭按钮行的 style 里不该留下 opacity。
+    check(world.row.style.opacity === undefined && world.xrow.style.opacity === undefined, '执行者：选项行与关闭按钮行都不写 opacity（避免 Backdrop Root）')
     let nodeStylesOk = true
     for (let i = 0; i < layer.children.length; i++) {
       const node = layer.children[i]
@@ -340,20 +415,40 @@ async function main() {
     }
     check(nodeStylesOk, '执行者：每颗节点的时长/延迟都来自计划，节点类是 .dsws-sugg-bub')
 
-    // 逐帧驱动：第一帧先量起点、第二帧改成终点、第三帧时早已全部落完。
+    // 逐帧驱动：第一帧只让起点生效（时间戳用真实值），第二帧仍在 0.04，第三帧才全部落完。
+    // 时间戳故意用页面已运行约 3 秒时的时间（3017），这正是真机复现出的现象：旧实现把首帧的 0
+    // 当计时基准，第二帧（3030）就判全部落地，13 毫秒内跳满；新实现只过了 13 毫秒，停在开场态。
     const firstFrame = frames.shift()
     check(typeof firstFrame === 'function', '执行者：第一帧排进了 requestAnimationFrame')
-    firstFrame(1000)
+    firstFrame(3017)
     let transformOk = layer.children.length > 0
     for (let i = 0; i < layer.children.length; i++) {
       if (!layer.children[i].style.transform || String(layer.children[i].style.transform).indexOf('translate(') !== 0) transformOk = false
     }
     check(transformOk, '执行者：起飞帧给每颗小泡设了位移终点（translate）')
+    let firstFrameBaseOk = true
+    for (let i = 0; i < world.pills.length; i++) {
+      if (String(world.pills[i].style.opacity) !== String(A.rowOpacityBase)) firstFrameBaseOk = false
+    }
+    check(firstFrameBaseOk && world.close.style.opacity === '0', '执行者：起飞帧仍停在开场态（首帧按真实时间戳起步）')
     const secondFrame = frames.shift()
     check(typeof secondFrame === 'function', '执行者：起飞后又排了一帧继续数已落')
-    secondFrame(5000)
-    check(world.row.style.opacity === '1', '执行者：全部落完后选项行完全清楚')
-    check(world.xrow.style.opacity === '1', '执行者：全部落完后关闭按钮也完全清楚')
+    secondFrame(3030)
+    let secondFrameBaseOk = true
+    for (let i = 0; i < world.pills.length; i++) {
+      if (String(world.pills[i].style.opacity) !== String(A.rowOpacityBase)) secondFrameBaseOk = false
+    }
+    check(secondFrameBaseOk && world.close.style.opacity === '0', '执行者：约 13 毫秒后仍停在开场态（回归 #1787 现象①：不再一帧跳到 1）')
+    const thirdFrame = frames.shift()
+    check(typeof thirdFrame === 'function', '执行者：逐帧续排直到全部落地')
+    if (thirdFrame) thirdFrame(5000)
+    let landedOk = true
+    for (let i = 0; i < world.pills.length; i++) {
+      if (String(world.pills[i].style.opacity) !== '1') landedOk = false
+    }
+    check(landedOk, '执行者：全部落完后每颗选项自己的 opacity 回到 1')
+    check(world.close.style.opacity === '1', '执行者：全部落完后关闭按钮也完全清楚')
+    check(world.row.style.opacity === undefined && world.xrow.style.opacity === undefined, '执行者：入场全程都没往选项行/关闭行写 opacity')
     engine.dispose()
     check(layer.children.length === 0, '执行者：dispose 清掉全部小泡节点')
     check(engine.isAnimatable() === false, '执行者：dispose 后不再接管动画')
@@ -391,8 +486,8 @@ async function main() {
     global.setTimeout = function (cb, ms) { pickTimers.push({ cb: cb, ms: Number(ms) || 0 }); return pickTimers.length }
     let picked = 0
     check(pickEngine.playOut('pick', function () { picked++ }) === true, '执行者：选中一条时接管退场（胶囊化作小泡上飘）')
-    check(world.row.style.opacity === '0', '执行者：选中后选项行立刻隐去')
-    check(world.xrow.style.opacity === '0' && world.xrow.style.pointerEvents === 'none', '执行者：选中后关闭按钮立刻消失、不再可点')
+    check(world.pills[0].style.opacity === '0' && world.pills[1].style.opacity === '0', '执行者：选中后每颗选项立刻隐去')
+    check(world.close.style.opacity === '0' && world.close.style.pointerEvents === 'none', '执行者：选中后关闭按钮立刻消失、不再可点')
     check(layer.children.length === 5, '执行者：按退场计划给两颗胶囊生成 5 颗小泡')
     let pickNodeOk = layer.children.length === 5
     for (let i = 0; i < layer.children.length; i++) {
@@ -441,7 +536,12 @@ async function main() {
     check(stylesSrc.indexOf('body:not([data-ds-dark-theme])') >= 0, '守卫：亮色主题有单独覆盖')
     check(stylesSrc.indexOf('prefers-reduced-motion') >= 0, '守卫：系统减少动效有兜底')
     check(stylesSrc.indexOf('will-change') >= 0, '守卫：小泡标了 will-change（动效性能）')
-    check(stylesSrc.indexOf('SUGGEST_APPEARANCE.pillBlurPx') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.popBlurPx') >= 0, '守卫：磨砂模糊半径取自外观旋钮')
+    check(stylesSrc.indexOf('SUGGEST_APPEARANCE.pillBlurPx') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.popBlurPx') < 0, '守卫：只有药丸保留磨砂；浮层改成不透明卡片，不再引用已退役的 popBlurPx')
+    check(stylesSrc.indexOf('SUGGEST_APPEARANCE.popText') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.popLabelText') >= 0, '守卫：浮层正文与四行标签各有自己的深色文字色（#1787 现象②）')
+    check(stylesSrc.indexOf('--dsw-alias-label-secondary') < 0, '守卫：浮层标签与关闭按钮不再借用主题次要文字色（实测对比度不够）')
+    check(stylesSrc.indexOf('SUGGEST_APPEARANCE.closeBg') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.closeBorder') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.closeText') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.closeHoverBg') >= 0, '守卫：关闭按钮的实心底、描边、文字色与悬停底色都取自外观旋钮（#1787 关闭按钮）')
+    check(stylesSrc.indexOf('SUGGEST_APPEARANCE.lightCloseBg') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.lightCloseText') >= 0, '守卫：亮色主题的关闭按钮另给一组反色芯片')
+    check(stylesSrc.indexOf('SUGGEST_APPEARANCE.popViewportMarginPx') >= 0 && cssText.indexOf('calc(100vw - ') >= 0, '守卫：浮层宽度上限同时收在视口内（窄窗口不横向溢出）')
     check(cssText.indexOf('backdrop-filter:blur(') >= 0 && cssText.indexOf('-webkit-backdrop-filter:blur(') >= 0, '守卫：产出的 CSS 里真有磨砂（含 -webkit- 前缀）')
     check(stylesSrc.indexOf('.dsws-sugg-pop-row') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.popLabelGapPx') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.popRowGapPx') >= 0, '守卫：浮层四行的列宽与行距取自外观旋钮')
     check(stylesSrc.indexOf('.dsws-sugg-score') < 0 && stylesSrc.indexOf('.dsws-sugg-reason') < 0, '守卫：旧的分数泡与理由同行样式已删')
@@ -454,9 +554,14 @@ async function main() {
     check(engineSrc.indexOf('prefers-reduced-motion') >= 0, '守卫：执行者在运行时也尊重减少动效')
     check(engineSrc.indexOf('suggestBubblePlan') >= 0 && engineSrc.indexOf('suggestPickPlan') >= 0 && engineSrc.indexOf('suggestRowOpacity') >= 0, '守卫：执行者复用时间线纯函数（入场与退场两份计划），不自己算数')
     check(engineSrc.indexOf('dsws-sugg-picking') < 0 && engineSrc.indexOf('playPickOut') >= 0, '守卫：选中退场由执行者生成小泡接管，不再给整组套退场 class')
+    check(engineSrc.indexOf('row.style.opacity') < 0 && engineSrc.indexOf('xrow.style.opacity') < 0, '守卫：执行者不再写选项行/关闭行的 opacity（祖先 opacity 会让药丸磨砂失效）')
+    check(engineSrc.indexOf('suggestNowMs') >= 0 && timelineSrc.indexOf('performance.now') >= 0 && engineSrc.indexOf('tick(0)') < 0, '守卫：入场首帧用真实时间戳起步（时钟源统一在时间线里，不再把 0 当计时基准）')
+    check(engineSrc.indexOf('.dsws-sugg-pill') >= 0 && engineSrc.indexOf('.dsws-sugg-close') >= 0, '守卫：入场淡入写在每颗药丸与关闭按钮自己身上（祖先不动）')
     check(bubbleSrc.indexOf('createSuggestEngine') >= 0 && bubbleSrc.indexOf('playOut') >= 0, '守卫：气泡薄壳通过执行器演退场，不另造一套')
     check(bubbleSrc.indexOf('setTimeout') < 0 && bubbleSrc.indexOf('setInterval') < 0, '守卫：气泡薄壳仍不新增定时器')
     check(bubbleSrc.indexOf('leavingRef') >= 0, '守卫：气泡薄壳只认第一次退场（重复点击不重复注入）')
+    check(bubbleSrc.indexOf('requestAnimationFrame') >= 0 && bubbleSrc.indexOf('suggestAnchorPollMs') >= 0, '守卫：气泡薄壳逐帧轮询锚点（宿主侧栏收起/展开不触发 resize 也能重排；间隔取自 MOTION，#1787）')
+    check(bubbleSrc.indexOf('dsws-sugg-pop-shift') >= 0 && bubbleSrc.indexOf('dsws-sugg-pop-shift-y') >= 0 && bubbleSrc.indexOf('suggestPopShiftOf') >= 0, '守卫：浮层靠自己的横向/纵向位移变量夹在视口内（横向不溢出、顶边越界下推；算术在时间线纯函数里，夹取在显示与锚点挪动后各做一次）')
     check(indexSrc.indexOf('leaf:suggestTimeline') >= 0 && indexSrc.indexOf('leaf:suggestEngine') >= 0, '接线：两片新叶子在入口登记了拼接标记')
     check(indexSrc.indexOf('leaf:suggestTimeline') < indexSrc.indexOf('leaf:suggestEngine') && indexSrc.indexOf('leaf:suggestEngine') < indexSrc.indexOf('leaf:suggestBubble'), '接线：拼接次序是时间线 → 执行者 → 气泡薄壳')
     check(buildSrc.indexOf("id: 'suggestTimeline'") >= 0 && buildSrc.indexOf("id: 'suggestEngine'") >= 0, '接线：两片新叶子在构建清单登记')

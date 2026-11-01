@@ -31,19 +31,23 @@ export const SUGGEST_STYLE_TEXT: string = [
   '.dsws-sugg-intro{font-weight:600;letter-spacing:.01em}',
   // 选项框的定位壳：给悬停浮层当锚点（浮层按「框顶边正上方」摆，不跟鼠标走）。
   '.dsws-sugg-pill-wrap{position:relative;display:inline-flex;pointer-events:auto}',
-  // 悬停浮层：平时透明，悬停或聚焦时在框正上方浮现；内容是四行「推荐分 / 理由 / 优点 / 缺点」；
-  // 底色比选项框淡一档（popBg/lightPopBg），两层玻璃贴在一起也分得清；不吃鼠标事件所以不闪烁。
-  '.dsws-sugg-pop{position:absolute;bottom:calc(100% + ' + SUGGEST_APPEARANCE.popGapPx + 'px);left:50%;transform:translateX(-50%) translateY(3px);width:max-content;max-width:' + SUGGEST_APPEARANCE.popMaxWidthPx + 'px;padding:' + SUGGEST_APPEARANCE.popPadY + 'px ' + SUGGEST_APPEARANCE.popPadX + 'px;border-radius:' + SUGGEST_APPEARANCE.popRadiusPx + 'px;border:1px solid ' + SUGGEST_APPEARANCE.pillBorder + ';background:' + SUGGEST_APPEARANCE.popBg + ';color:var(--dsw-alias-label-primary,#e6edf3);box-shadow:' + SUGGEST_APPEARANCE.pillShadow + ';font-size:' + SUGGEST_APPEARANCE.pillFontPx + 'px;line-height:1.5;text-align:left;white-space:normal;opacity:0;pointer-events:none;transition:opacity ' + MOTION.suggestPopMs + 'ms ease,transform ' + MOTION.suggestPopMs + 'ms ease;z-index:3;display:block;backdrop-filter:blur(' + SUGGEST_APPEARANCE.popBlurPx + 'px) saturate(1.2);-webkit-backdrop-filter:blur(' + SUGGEST_APPEARANCE.popBlurPx + 'px) saturate(1.2)}',
-  '.dsws-sugg-pill-wrap.dsws-sugg-show-pop .dsws-sugg-pop{opacity:1;transform:translateX(-50%) translateY(0)}',
-  // 浮层里的四行：左边一列灰色标签（推荐分/理由/优点/缺点），右边正文；标签列固定宽，几行对齐。
+  // 悬停浮层：平时透明，悬停或聚焦时在框正上方浮现；内容是四行「推荐分 / 理由 / 优点 / 缺点」。
+  // #1787 现象②：底色改成不透明浅色卡片（popBg/lightPopBg）、文字用固定深色（popText/popLabelText），
+  // 不再做半透明磨砂——半透明底上算出来的标签对比度只有 1.36~1.48:1。浮层靠两条位移变量夹在
+  // 视口内：--dsws-sugg-pop-shift 横向、--dsws-sugg-pop-shift-y 纵向（组件在显示前与锚点挪动后
+  // 各量一次矩形；窄窗口不横向溢出、浮层顶边也不会被推出视口）。不吃鼠标事件所以不闪烁。
+  '.dsws-sugg-pop{position:absolute;bottom:calc(100% + ' + SUGGEST_APPEARANCE.popGapPx + 'px);left:50%;transform:translateX(calc(-50% + var(--dsws-sugg-pop-shift,0px))) translateY(calc(3px + var(--dsws-sugg-pop-shift-y,0px)));width:max-content;max-width:min(' + SUGGEST_APPEARANCE.popMaxWidthPx + 'px, calc(100vw - ' + (SUGGEST_APPEARANCE.popViewportMarginPx * 2) + 'px));padding:' + SUGGEST_APPEARANCE.popPadY + 'px ' + SUGGEST_APPEARANCE.popPadX + 'px;border-radius:' + SUGGEST_APPEARANCE.popRadiusPx + 'px;border:1px solid ' + SUGGEST_APPEARANCE.pillBorder + ';background:' + SUGGEST_APPEARANCE.popBg + ';color:' + SUGGEST_APPEARANCE.popText + ';box-shadow:' + SUGGEST_APPEARANCE.pillShadow + ';font-size:' + SUGGEST_APPEARANCE.pillFontPx + 'px;line-height:1.5;text-align:left;white-space:normal;opacity:0;pointer-events:none;transition:opacity ' + MOTION.suggestPopMs + 'ms ease,transform ' + MOTION.suggestPopMs + 'ms ease;z-index:3;display:block}',
+  '.dsws-sugg-pill-wrap.dsws-sugg-show-pop .dsws-sugg-pop{opacity:1;transform:translateX(calc(-50% + var(--dsws-sugg-pop-shift,0px))) translateY(var(--dsws-sugg-pop-shift-y,0px))}',
+  // 浮层里的四行：左边一列深色标签（推荐分/理由/优点/缺点），右边正文；标签列固定宽，几行对齐。
   '.dsws-sugg-pop-row{display:grid;grid-template-columns:3.2em auto;column-gap:' + SUGGEST_APPEARANCE.popLabelGapPx + 'px;align-items:baseline}',
   '.dsws-sugg-pop-row + .dsws-sugg-pop-row{margin-top:' + SUGGEST_APPEARANCE.popRowGapPx + 'px}',
-  '.dsws-sugg-pop-label{color:var(--dsw-alias-label-secondary,#9aa4b2);font-weight:600}',
+  '.dsws-sugg-pop-label{color:' + SUGGEST_APPEARANCE.popLabelText + ';font-weight:600}',
   '.dsws-sugg-pop-value{white-space:normal}',
-  // 关闭按钮行：整行居中；按钮平时半透明，悬停或聚焦才实。
+  // 关闭按钮行：整行居中。#1787 现象⑥：按钮改成实心芯片（深色主题浅芯片配深「×」），
+  // 空闲就完全不透明；以前是透明底 + 主题次要色 + 0.6 透明度，看起来几乎不存在。
   '.dsws-sugg-xrow{position:relative;z-index:2;display:flex;justify-content:center;margin-top:' + SUGGEST_APPEARANCE.closeRowMarginTopPx + 'px;pointer-events:none}',
-  '.dsws-sugg-close{pointer-events:auto;font:inherit;font-size:' + SUGGEST_APPEARANCE.closeFontPx + 'px;line-height:1.5;padding:' + SUGGEST_APPEARANCE.closePadY + 'px ' + SUGGEST_APPEARANCE.closePadX + 'px;border-radius:' + SUGGEST_APPEARANCE.pillRadiusPx + 'px;border:0;background:transparent;color:var(--dsw-alias-label-secondary,#9aa4b2);cursor:pointer;opacity:' + SUGGEST_APPEARANCE.closeIdleOpacity + ';transition:opacity ' + MOTION.suggestCloseMs + 'ms ease,background ' + MOTION.suggestCloseMs + 'ms ease}',
-  '.dsws-sugg-close:hover{opacity:1;background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.10))}',
+  '.dsws-sugg-close{pointer-events:auto;font:inherit;font-size:' + SUGGEST_APPEARANCE.closeFontPx + 'px;line-height:1.5;padding:' + SUGGEST_APPEARANCE.closePadY + 'px ' + SUGGEST_APPEARANCE.closePadX + 'px;border-radius:' + SUGGEST_APPEARANCE.pillRadiusPx + 'px;border:1px solid ' + SUGGEST_APPEARANCE.closeBorder + ';background:' + SUGGEST_APPEARANCE.closeBg + ';color:' + SUGGEST_APPEARANCE.closeText + ';cursor:pointer;opacity:' + SUGGEST_APPEARANCE.closeIdleOpacity + ';transition:opacity ' + MOTION.suggestCloseMs + 'ms ease,background ' + MOTION.suggestCloseMs + 'ms ease,border-color ' + MOTION.suggestCloseMs + 'ms ease}',
+  '.dsws-sugg-close:hover{opacity:1;background:' + SUGGEST_APPEARANCE.closeHoverBg + '}',
   '.dsws-sugg-close:focus-visible{opacity:1;outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#58a6ff));outline-offset:2px}',
   // 小泡：绝对定位于整组之内，落在选项行下面一层（z-index 1），由引擎逐颗安排出发与落点。
   '.dsws-sugg-bub{position:absolute;z-index:1;left:0;top:0;border-radius:50%;pointer-events:none;background:' + SUGGEST_APPEARANCE.bubbleBg + ';border:1px solid ' + SUGGEST_APPEARANCE.bubbleBorder + ';box-shadow:' + SUGGEST_APPEARANCE.bubbleGlow + ';opacity:0;will-change:transform,opacity}',
@@ -57,6 +61,9 @@ export const SUGGEST_STYLE_TEXT: string = [
   'body:not([data-ds-dark-theme]) .dsws-sugg-pill{background:' + SUGGEST_APPEARANCE.lightPillBg + ';border-color:' + SUGGEST_APPEARANCE.lightPillBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillShadow + ';text-shadow:none}',
   'body:not([data-ds-dark-theme]) .dsws-sugg-pill:hover{border-color:' + SUGGEST_APPEARANCE.lightPillHoverBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillHoverShadow + '}',
   'body:not([data-ds-dark-theme]) .dsws-sugg-pop{background:' + SUGGEST_APPEARANCE.lightPopBg + ';border-color:' + SUGGEST_APPEARANCE.lightPillBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightPillShadow + '}',
+  // #1787 现象⑥：亮色主题的关闭按钮换成深芯片配浅「×」，与深色主题的浅芯片互为反色。
+  'body:not([data-ds-dark-theme]) .dsws-sugg-close{background:' + SUGGEST_APPEARANCE.lightCloseBg + ';color:' + SUGGEST_APPEARANCE.lightCloseText + ';border-color:' + SUGGEST_APPEARANCE.lightCloseBorder + '}',
+  'body:not([data-ds-dark-theme]) .dsws-sugg-close:hover{background:' + SUGGEST_APPEARANCE.lightCloseHoverBg + '}',
   'body:not([data-ds-dark-theme]) .dsws-sugg-bub{background:' + SUGGEST_APPEARANCE.lightBubbleBg + ';border-color:' + SUGGEST_APPEARANCE.lightBubbleBorder + ';box-shadow:' + SUGGEST_APPEARANCE.lightBubbleGlow + '}',
   // 系统要求减少动效：去掉过渡与淡出动画（小泡由引擎直接跳过）。
   '@media (prefers-reduced-motion: reduce){.dsws-sugg-pill,.dsws-sugg-close,.dsws-sugg-pop{transition:none}.dsws-sugg-layer.dsws-sugg-fading{animation-duration:' + MOTION.motionOffMs + 'ms}}',

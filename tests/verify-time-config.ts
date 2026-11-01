@@ -585,6 +585,9 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/client/statusbar/suggestTimeline.ts', name: 'delayMs', reason: '算出来的动画时间轴值（每颗小泡的出发延迟），不是可调参数' },
   { file: 'src/client/statusbar/suggestTimeline.ts', name: 'durationMs', reason: '算出来的动画时间轴值（每颗小泡的飞行时长），不是可调参数' },
   { file: 'src/client/statusbar/suggestTimeline.ts', name: 'endMs', reason: '算出来的动画时间轴值（每颗小泡的落点时刻），不是可调参数' },
+  // #1787：侧栏收起/展开时的锚点轮询间隔来自动效令牌，读钟函数只回答「现在几毫秒」；两者都不是新时长参数。
+  { file: 'src/client/statusbar/suggestBubble.ts', name: 'pollIntervalMs', reason: '派生变量：每帧轮询的最小间隔，值来自动效令牌 MOTION.suggestAnchorPollMs（#1787 现象④ 的唯一常驻循环，verify-motion-tokens 管），不是新参数' },
+  { file: 'src/client/statusbar/suggestTimeline.ts', name: 'suggestNowMs', reason: '读钟函数：返回当前毫秒（优先 performance.now，退 Date.now），不是可调时长' },
   // 名字里带时间词但不是时长：状态对象与函数名。
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: '_probeBackoff', reason: '退避状态对象（第几档、上次什么时候、上次哪个目录、基数），不是时长参数' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', name: 'logProbeBackoff', reason: '函数名：退避档位变化时记日志，不是时长参数' },
