@@ -65,8 +65,7 @@ export const PRIMITIVE_KIND = Object.freeze({
   SKILL_PROBE: 'skillProbe',       // 例：{skill:'wayfinder'}
   HOME_DIR: 'homeDir',             // 例：{} — 用户主目录可解析：一律问平台层（#171：win32 不读 HOME，走 os.homedir→USERPROFILE；linux/mac 走 os.homedir），
                                    //   不再直接读 process.env.HOME（Windows 从不设置该变量，会误报 HOME not set）
-  DIR_WRITABLE: 'dirWritable',     // 例：{path:'.scratch'} — 目录「存在且可写」：写探测（往目录写临时探针并清理），
-                                   //   跨 OS 唯一可靠的「可写」判据（stat/lstat 的权限位在 Windows 不可靠）；谓词只读纪律的唯一例外
+  DIR_WRITABLE: 'dirWritable',     // 例：{path:'.scratch'} — 当前不执行写探测，返回 pending；不能据此断言目录可写。
 })
 
 /** 展示等级（蓝/黄/红条；与 SHOW_LEVELS 同义，小写）。 */
@@ -214,7 +213,7 @@ export type Action = {
  * @property {{show: Show|null, actions: Action[]}} onFail 未通过时的展示与动作
  * @property {string} [label] 人读标签（可选，仅调试/日志）
  * @property {string} [group] 可选分组（'gate'|'env' 等，供编排链分段用；不驱动求值）
- * @property {boolean} [sessionScoped] 这一项的结果是否取决于「当前是哪个会话」（例：写探测读会话的沙箱许可）；
+ * @property {boolean} [sessionScoped] 缓存命中时是否按当前会话重新求值（md:scratchWritable 当前不做写探测）；
  *   置 true 的项在链快照缓存命中时会被按当前会话重算，不沿用缓存里别的会话的结论（#1483）
  */
 export type CheckItem = {

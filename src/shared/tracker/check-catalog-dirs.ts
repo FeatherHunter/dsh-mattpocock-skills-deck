@@ -17,8 +17,7 @@ const PRIMITIVE_KIND = Object.freeze({
   SKILL_PROBE: 'skillProbe',       // 例：{skill:'wayfinder'}
   HOME_DIR: 'homeDir',             // 例：{} — 用户主目录可解析：一律问平台层（#171：win32 不读 HOME，走 os.homedir→USERPROFILE；linux/mac 走 os.homedir），
                                    //   不再直接读 process.env.HOME（Windows 从不设置该变量，会误报 HOME not set）
-  DIR_WRITABLE: 'dirWritable',     // 例：{path:'.scratch'} — 目录「存在且可写」：写探测（往目录写临时探针并清理），
-                                   //   跨 OS 唯一可靠的「可写」判据（stat/lstat 的权限位在 Windows 不可靠）；谓词只读纪律的唯一例外
+  DIR_WRITABLE: 'dirWritable',     // 例：{path:'.scratch'} — 当前不执行写探测，返回 pending；不能据此断言目录可写。
 })
 
 /**
@@ -48,7 +47,7 @@ const PRIMITIVE_KIND = Object.freeze({
  * @property {string[]} backends 适用后端（generic 为 ['github','markdown','gitlab']，backend 为子集）
  * @property {CatalogCheck} check 谓词描述（primitive/backend/preflight）
  * @property {string} origin 盘点来源（文件:行号或 inventory 类别）
- * @property {boolean} [sessionScoped] 结果是否取决于当前会话的沙箱许可（例：md:scratchWritable 的写探测）；#1483
+ * @property {boolean} [sessionScoped] 是否在缓存命中时按当前会话重新求值（md:scratchWritable 保留此标记，当前返回 pending）；#1483
  */
 
 // 目录项的静态形态：与上面的 @typedef 同口径，类型注解用，运行时不存在。
@@ -188,13 +187,13 @@ export const GITLAB_CATALOG: readonly CatalogItem[] = Object.freeze([
  *
  * #1513 起固定三项、顺序固定（workspace → scratchWritable → containersReadable）：
  *   1. md:workspace —— 有工作单元或空工作区算通过，.scratch 读不出来算失败；
- *   2. md:scratchWritable —— .scratch 可写（或没有 .scratch 但仓库根可写）算通过；沙箱拦写探测算 pending；
+ *   2. md:scratchWritable —— 当前不做写探测，返回 pending，可写性未验证；
  *   3. md:containersReadable —— 没有容器文件，或容器都读得动且版本 md-v1 算通过。
  * 三项都是后端谓词：判据本体在 src/tracker/rooms/markdown/workspace-checks.ts，房间 preflight 与宿主检查链
  *   共用同一份实现（票面硬条件：不许各写一套）。从前那条「只找 map.md」的判据已经拆掉（#1513），
  *   它的职责并进了上面三项：空工作区与容器文件由第一、三项分别量，不再单独判「有没有地图文件」。
- * 历史：2026-08-29 曾把 md:scratchWritable 从「只判存在」改成写探测；写探测行为保留，只是位置从 primitive
- *   搬到了房间的共用判据里（沙箱拦截的判定口径不变）。
+ * 历史：2026-08-29 曾把 md:scratchWritable 从「只判存在」改成写探测，后来从 primitive 搬到房间共用判据；
+ *   当前不执行写探测，统一返回 pending。
  */
 export const MARKDOWN_CATALOG: readonly CatalogItem[] = Object.freeze([
   {
@@ -207,13 +206,12 @@ export const MARKDOWN_CATALOG: readonly CatalogItem[] = Object.freeze([
   },
   {
     id: 'md:scratchWritable',
-    label: '本地数据目录可读写',
+    label: '本地数据目录写入能力待验证',
     scope: 'backend',
     backends: ['markdown'],
     check: { kind: 'backend', id: 'scratchWritable', backendId: 'markdown' },
     origin: 'backends/markdown/preflight.js / inventory 类别 8 / research 2026-08-29',
-    // #1483：这一项量的是「当前会话能不能往写」——同一工作区的只读会话与可写会话答案不同，
-    //   所以链快照缓存命中时要按当前会话重算，不能沿用别的会话量出的结论（#1513 改成后端谓词后仍保留）。
+    // #1483：保留按会话重算的标记；当前谓词不做写探测，各会话均返回 pending。
     sessionScoped: true,
   },
   {

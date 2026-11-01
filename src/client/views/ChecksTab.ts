@@ -136,6 +136,7 @@ export const ChecksTab = ({ st }: any) => {
     const sts = s.status
     // #1379 收口：四个分支各带一个归一后的状态名 state，行上标成 data-state 供浅色层逐态换色。
     //   state 只描述「这一行属于哪一态」，与颜色、文案同源，不另算一份判据。
+    if (sts === 'done' && s.show && s.show.level === 'warn') return { state: 'current', dot: '#f59e0b', color: '#f59e0b', label: '!' }
     if (sts === 'done') return { state: 'done', dot: '#16a34a', color: '#4ade80', label: '\u2713' }
     if (sts === 'current') return { state: 'current', dot: '#f59e0b', color: '#f59e0b', label: '!' }
     if (sts === 'fail') return { state: 'fail', dot: '#ef4444', color: '#f87171', label: '\u2715' }

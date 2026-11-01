@@ -168,33 +168,27 @@ async function main() {
     check(/带上了.*仍然拒绝/.test(String((errWithPolicy && errWithPolicy.message) || '')), 'I4 有许可文案说清带上了许可仍被拒（与缺许可不同档）', String((errWithPolicy && errWithPolicy.message) || '').slice(0, 300))
   }
 
-  // —— I4b：探针透传许可（有许可按许可量，无许可判灰说量不出） ——
+  // —— I4b：无论有无许可，都不做有副作用的可写探测 ——
   {
     const { createPredicateRegistry } = await imp('src/host/tracker/predicateCore.js')
-    let seenPolicy = 'unset'
-    const okFs = {
+    let writes = 0
+    let deletes = 0
+    const probeFs = {
       async resolve(p, o) { return (o && o.cwd ? o.cwd + '/' + p : p) },
-      async writeText(t, c, a3, a4, policy) { seenPolicy = policy; },
-      async unlink() {},
-    }
-    const okPlat = { path: { join: (...a) => a.join('/') }, env: { get: () => undefined }, fs: okFs }
-    const reg = createPredicateRegistry({ timeout: 2000 })
-    const chain = [{ id: 'md:scratchWritable', check: { kind: 'primitive', primitive: 'dirWritable', path: '.scratch' } }]
-    await reg.resolveAll(chain, { platform: okPlat, backendId: 'markdown', cwd: '/ws', sandboxPolicy: { p: 1 } })
-    check(seenPolicy && seenPolicy.p === 1, 'I4b 写探测把本次调用的许可透传给文件服务', JSON.stringify(seenPolicy).slice(0, 200))
-    // 无许可时沙箱拒因诚实判灰
-    const denyFs2 = {
-      async resolve(p, o) { return (o && o.cwd ? o.cwd + '/' + p : p) },
-      async writeText() { throw new Error('file access denied under workspace-write mode') },
       async exists() { return true },
-      async listDir() { return [] },
+      async writeText() { writes++; throw new Error('unexpected write') },
+      async unlink() { deletes++; throw new Error('unexpected unlink') },
     }
-    const denyPlat = { path: { join: (...a) => a.join('/') }, env: { get: () => undefined }, fs: denyFs2 }
-    const reg2 = createPredicateRegistry({ timeout: 2000 })
-    const r = await reg2.resolveAll(chain, { platform: denyPlat, backendId: 'markdown', cwd: '/ws', lang: 'zh' })
-    const one = r['md:scratchWritable']
-    check(one && one.status === 'pending', 'I4b 无许可量不出时判灰（不谎报目录不可写）', one && one.detail)
-    check(/沙箱/.test((one && one.detail) || '') && !/目录不可写/.test((one && one.detail) || ''), 'I4b 灰文案讲清沙箱、不写目录不可写', one && one.detail)
+    const platform = { path: { join: (...a) => a.join('/') }, env: { get: () => undefined }, fs: probeFs }
+    const chain = [{ id: 'md:scratchWritable', check: { kind: 'primitive', primitive: 'dirWritable', path: '.scratch' } }]
+    for (const sandboxPolicy of [undefined, { p: 1 }]) {
+      const reg = createPredicateRegistry({ timeout: 2000 })
+      const r = await reg.resolveAll(chain, { platform, backendId: 'markdown', cwd: '/ws', lang: 'zh', sandboxPolicy })
+      const one = r['md:scratchWritable']
+      check(one && one.status === 'pending', 'I4b 有无许可均判灰', one && one.detail)
+      check(/未验证/.test((one && one.detail) || '') && !/目录不可写/.test((one && one.detail) || ''), 'I4b 文案如实说明可写性未验证', one && one.detail)
+    }
+    check(writes === 0 && deletes === 0, 'I4b 有无许可均不写入或删除探针', JSON.stringify({ writes, deletes }))
   }
 
   console.log('\n' + (failed ? '有失败 — 两条不变式门禁未通过（' + total + ' 条）' : '全部通过 — 两条不变式成立（' + total + ' 条）'))

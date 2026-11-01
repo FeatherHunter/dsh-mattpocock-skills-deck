@@ -214,6 +214,9 @@ export function createDeckContext(deps?: DeckContextDeps) {
       if (!listed.ok) notes.push('地图清单这次没取到（后端原话：' + String((listed.error && listed.error.message) || '').slice(0, 200) + '）。')
       if (listMapsUsed && listed.ok === true && listed.data && listed.data.truncated === true) notes.push('地图只取回了前 ' + thinRows.length + ' 张（共 ' + listed.data.total + ' 张，撞到封顶页数），剩下的这次没拿。')
       if (pre && pre.ok === false) notes.push('环境预检没过（' + String((pre.error && pre.error.message) || '').slice(0, 200) + '）：票还是能读，写操作可能失败。')
+      if (pre && Array.isArray(pre.warnings)) {
+        for (const warning of pre.warnings) if (typeof warning === 'string' && warning) notes.push(warning)
+      }
       if (permissions && permissions.push === false) {
         notes.push('这个仓库只读：标签与写操作不可用。')
         notes.push('要在只读库上长期协作，建议先 fork 到自己名下，再把工作区 origin 指向 fork（插件只认 origin，不代改配置）。')

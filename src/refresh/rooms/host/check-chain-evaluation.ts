@@ -511,8 +511,7 @@ export function createDetectChain(deps: DetectChainDeps) {
                 if (tmod && fixMod.attachFixContract) items = fixMod.attachFixContract(items, tmod, chainLang, { cwd: cwd, owner: _fixOwner }) as CheckItem[]   // 返回按 unknown 收（契约说「不是数组就原样返回」，这里只知道它给回同一份数组）
               } catch (e) {}
               const resolved = await registry.resolveAll(items, ctx)
-              const predResults = predMod.toPredicateResults ? predMod.toPredicateResults(resolved) : resolved
-              const snapshot = stepEvalParallel(items, predResults)
+              const snapshot = stepEvalParallel(items, resolved)
               const errs = chainMod.validateChain ? chainMod.validateChain(items) : []
               backendChain = { chain: items, resolved: resolved, snapshot: snapshot, errors: errs }
             }

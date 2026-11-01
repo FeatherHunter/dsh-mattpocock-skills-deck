@@ -254,7 +254,8 @@ export function createMarkdownBackend(ctx: OpContext) {
           emitPreflightCheck(c,i+1,rows[i],cwd)
         }
         const failed=rows.filter(row=>row.result.status==='fail')
-        if(failed.length===0)return{ok:true}
+        const warnings=rows.filter(row=>row.result.status==='pending').map(row=>String(row.result.detail||''))
+        if(failed.length===0)return warnings.length?{ok:true,warnings}:{ok:true}
         // 失败那句人话：先说哪一项没过，再把判据自己写下的证据原样接上（路径、错误码都在这段证据里）。
         const first=failed[0]
         const lang=c&&(c as {lang?:string}).lang
@@ -263,7 +264,8 @@ export function createMarkdownBackend(ctx: OpContext) {
         //   与「预检中途抛异常」的 preflight:fs-fail 分开：后者这一趟根本没跑完，前者是跑完了、结论不过。
         //   三项各自的证据与耗时在上面 preflight.check 那几行里。
         emitReadDegraded(c,'preflight','preflight:check-fail',Date.now()-startedAt)
-        return failAs(ERROR_KIND.ENV,message,rawJson(rows)) as PreflightResult
+        const failure=failAs(ERROR_KIND.ENV,message,rawJson(rows)) as PreflightResult
+        return warnings.length?{...failure,warnings}:failure
       }catch(e){
         // 档位按本步语义定：预检问的是「这个工作区能不能用本地 Markdown 当票仓」，
         // 中途任何意外都归环境档（这不是一次真的读写调用，判成网络档会让人去查错方向）。
@@ -368,15 +370,15 @@ export const prompts = {
 }
 
 /** 修复契约（Fix Contract · 2026-08-28）：后端检查失败 → 修复指引；结构见 host/tracker/fixContract.js。
- * #1513 起本地 Markdown 只有一条修复合约：md:scratchWritable —— 数据目录写不进去，人能做的是换一个可写的会话
+ * #1513 起本地 Markdown 只有一条修复合约：md:scratchWritable —— 历史上供确认写入失败时使用；当前未做写探测，返回 pending。若确知数据目录写不进去，人能换一个可写的会话
  *   或去查目录权限，然后重查；后端自己修不了这件事。其余两项（工作区读不出来、容器版本不支持）同样不是
  *   后端能补的，如实展示、不挂任何动作。#1514 删掉了「执行 wayfinder 构造地图」那个按钮（连同它的提示词）：
  *   三项判据不再把「还没建地图」当失败，这个修复动作对着错误的因果指路。 */
 export const fixes = Object.freeze({
   'md:scratchWritable': {
     hint: {
-      zh: '本地数据目录写不进去。换一个可写的会话再试，或检查这个目录的权限，然后重查。',
-      en: 'The local data directory cannot be written. Retry in a writable session or check the directory permissions, then re-check.',
+      zh: '本地数据目录的写入能力未验证。请检查目录权限和会话许可。',
+      en: 'The local data directory writability has not been verified. Check the directory permissions and session policy.',
     },
     actions: [
       { type: 'refresh', target: 'chain' },

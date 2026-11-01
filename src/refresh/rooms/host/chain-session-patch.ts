@@ -1,10 +1,10 @@
 // src/refresh/rooms/host/chain-session-patch.ts —— 缓存命中时按「当前会话」重算依赖会话许可的检查行（#1483）。
 //
 // 为什么需要：链快照的退避缓存按「工作区 + 后端 + 语言」共享，同一工作区的多个会话读同一份。
-//   但其中一项 md:scratchWritable 的结果取决于会话的沙箱许可（只读会话量出来是 pending，可写会话是 done）。
-//   缓存命中时直接回上一份快照，就会让只读会话看到别的会话量出的「可写」。
+//   标记 sessionScoped 的项需要按当前会话重算，避免复用其他会话的结论。
+//   md:scratchWritable 保留此标记，但当前不做写探测，各会话均为 pending。
 //
-// 做法：只重算链上标了 sessionScoped 的那几项（本机写探测，几毫秒），把结果覆盖到回包的副本上；
+// 做法：只重算链上标了 sessionScoped 的那几项，把结果覆盖到回包的副本上；
 //   缓存里那一份一个字不动——别的会话还要照着它秒显。
 //
 // 约定不能改：
@@ -15,9 +15,9 @@
 // 反例：拿缓存回包直接原地改 resolved 再返回——下一毫秒另一个会话读同一份缓存，就会看到被改过的判定。
 import type { CheckItem } from '../../../shared/tracker/chain-types.js'
 import { assembleFullSnapshot, enrichSnap, stepEvalParallel } from './chain-step-rows.js'
-import type { EvalMap, FullSnapView, PredicateResultView, ResolvedMap, SnapStepView, SnapStepsView } from './chain-step-rows.js'
+import type { FullSnapView, PredicateResultView, ResolvedMap, SnapStepView, SnapStepsView } from './chain-step-rows.js'
 
-/** 重算会话相关行时交进去的上下文：只有文件写探测用得到的几格（平台、目录、语言、沙箱许可、会话号）。 */
+/** 重算会话相关行时交进去的上下文：会话相关判据可能用到的几格（平台、目录、语言、沙箱许可、会话号）。 */
 export type SessionPatchContext = {
   platform: unknown
   cwd: string
@@ -32,7 +32,7 @@ export type SessionPatchContext = {
   onError?: (message: string) => void
   /**
    * 整趟补算的预算（毫秒，可选）。正常求值的每个谓词都有 PREDICATE_TIMEOUT_MS 那一档兜底；
-   * 补算这一路原来直接 await，工作区在网络盘上、写探测挂住时，缓存命中这条本该纯内存返回的路会被无限拖住。
+   * 补算这一路原来直接 await，判据挂住时，缓存命中这条本该纯内存返回的路会被无限拖住。
    * 这是整趟的总预算，不按检查项个数累加（项多时不能等成 N 倍）；超时的那几项按 pending 落行
    * （诚实的「没量出来」），不沿用缓存里别的会话的判定。
    * 两个都给才生效：只给 timeoutMs 而没有注入定时器时不设预算（宁可慢，也不假装超时）。
@@ -92,7 +92,7 @@ async function evalSessionScoped(item: CheckItem, ctx: SessionPatchContext): Pro
  * 补算超时时那一行显示的说明文案。
  *
  * 为什么按界面语言分中英：这一行会直接显示在检查页的步骤描述里，中文界面不该出现英文整句。
- *   宿主里已有先例（src/host/tracker/predicateFileProbes.ts 的写探测说明就是这样分语言的）；
+ *   宿主里已有先例（src/host/tracker/predicateFileProbes.ts 的提示说明就是这样分语言的）；
  *   正常求值那一路的超时说明目前只有英文（predicateCore.ts:86/110），那是既有口径，不在这里冒充一致。
  * 为什么不写具体毫秒数：预算是实现细节（PREDICATE_TIMEOUT_MS 由 config 注入），不该出现在界面文案里。
  */
@@ -116,7 +116,7 @@ type PatchTimeout = { __patchTimedOut: true }
  * 跑完整趟补算，最多花 ctx.timeoutMs 毫秒（#1492）。
  *
  * 为什么需要：正常求值经 predicateCore 的 withTimeout 兜底；补算这条路没有那层壳，
- *   工作区在网络盘上写探测挂住时，缓存命中会一直等下去。
+ *   判据挂住时，缓存命中会一直等下去。
  * 为什么整趟一枚定时器、不按项比赛跑：宿主 timer 端口是 Promise 形态、外部撤不掉定时器
  *   （src/refresh/contract/host-timer-ports.ts 写明），按项开会在命中路径上留下一串活定时器；
  *   而且总时长该有上限，不能项数一多就等成 N 倍。
@@ -126,7 +126,7 @@ type PatchTimeout = { __patchTimedOut: true }
  */
 async function patchWithBudget(scoped: CheckItem[], ctx: SessionPatchContext): Promise<{ fresh: ResolvedMap; timedOut: boolean }> {
   const fresh: ResolvedMap = {}
-  // 逐项串行：会话相关行目前只有一项（md:scratchWritable 的写探测），串行读起来最直白；将来变多也仍受同一笔总预算约束。
+  // 逐项串行：会话相关行目前只有一项（md:scratchWritable，当前返回 pending），串行读起来最直白；将来变多也仍受同一笔总预算约束。
   // evalSessionScoped 自己吞掉所有异常、绝不 reject，所以这里不接 catch 也不会留下未处理拒绝。
   const runAll: Promise<ResolvedMap> = (async function (): Promise<ResolvedMap> {
     for (const item of scoped) {
@@ -168,18 +168,8 @@ async function applyFreshResolved(cached: CachedReplyView, backend: BackendChain
     const r = fresh[id]
     if (r) mergedResolved[id] = r
   }
-  // 状态串由谓词核心折叠（与正常求值同一处口径）；本模块只交代「哪些 id 的判定变了」。
-  //   为什么不自己写一份 status 映射：两份三态折叠一旦口径不同，就会出现「resolved 说 pass、
-  //   快照行说 pending」这种自相矛盾的视图（审阅指出过这个重复）。
-  const predCore: any = await import('../../../host/tracker/predicateCore.js')
-  const cachedEval: EvalMap = (typeof predCore.toPredicateResults === 'function')
-    ? predCore.toPredicateResults(mergedResolved as any)
-    : {}
-  const freshEval: EvalMap = (typeof predCore.toPredicateResults === 'function')
-    ? predCore.toPredicateResults(fresh as any)
-    : {}
-  const mergedEval: EvalMap = Object.assign({}, cachedEval, freshEval)
-  const backendSnap = enrichSnap(stepEvalParallel(chain, mergedEval), mergedResolved)
+  // 保留结果对象中的未验证证据，使用与正常求值相同的快照投影。
+  const backendSnap = enrichSnap(stepEvalParallel(chain, mergedResolved), mergedResolved)
   const nextBackend = Object.assign({}, backend, { resolved: mergedResolved, snapshot: backendSnap })
   const nextReply: CachedReplyView = Object.assign({}, cached, { backendChain: nextBackend })
 
