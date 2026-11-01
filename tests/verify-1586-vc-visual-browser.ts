@@ -149,6 +149,7 @@ function entryOf(closureSrc: string): string {
     "    forms: grab('[data-vc-form]', 'data-vc-form'),",
     "    palettes: grab('[data-cap-secondary]', 'data-cap-secondary'),",
     "    clipped: clipped, rows: root.querySelectorAll('.vcs-cap').length,",
+    "    skeleton: !!root.querySelector('[data-vc-skeleton]'), maintPage: !!root.querySelector('[data-vc-maint-page]'), rewritePage: !!root.querySelector('[data-vc-rewrite-page]'),",
     "    bg: window.getComputedStyle(root).backgroundColor,",
     "    hasIdentity: !!root.querySelector('[data-vc-identity]'),",
     "    hasSync: !!root.querySelector('[data-vc-sync]'),",
@@ -302,8 +303,12 @@ async function run(browser: any, env: any) {
         check(!!m && m.gear.join(',') === managePages.join(','), tag + '：齿轮九分区按 VC_MANAGE_PAGES 顺序排（' + (m && m.gear.join(',')) + '）')
         check(!!m && m.tabCount === 4 && m.tabTops.length === 4 && Math.max.apply(null, m.tabTops) - Math.min.apply(null, m.tabTops) <= 1, tag + '：四个页签排在同一行（行顶差 ≤1px）')
         check(!!m && m.primaries.length === maintenanceCaps.length && m.primaries.length === new Set(m.primaries).size && m.primaries.join(',') === maintenanceCaps.join(','), tag + '：每条能力恰有一个 data-cap-primary（' + (m && m.primaries.length) + ' 条）')
-        check(!!m && m.states.join(',') === 'empty,loading,error,disabled', tag + '：四种状态按 empty/loading/error/disabled 各画一遍')
-        check(!!m && m.forms.join(',') === 'inline,float,page', tag + '：三种表单形态按 inline/float/page 各画一遍')
+        // #1776 M2 起维护页会挂整仓重写与维护卡片两段真正文，骨架自检不再和正文并排出现；
+        // 状态与表单的自检画法挪到一页仍然是骨架的页面上验（下面渲染 changes 页且不给读数）。
+        check(!!m && m.maintPage === true && m.rewritePage === true && m.skeleton === false, tag + '：维护页换成真正文（整仓重写 + 维护卡片），不再画自检骨架')
+        const skel = await renderAt(page, { page: 'changes', width: width, skin: skin })
+        check(!!skel && skel.skeleton === true && skel.states.join(',') === 'empty,loading,error,disabled', tag + '：骨架自检页四种状态按 empty/loading/error/disabled 各画一遍')
+        check(!!skel && skel.forms.join(',') === 'inline,float,page', tag + '：骨架自检页三种表单形态按 inline/float/page 各画一遍')
         check(!!m && m.clipped.length === 0, tag + '：关键句子没有被截断（截断的：' + (m && m.clipped.join(',') || '无') + '）')
         check(!!m && m.hasIdentity && m.hasSync && m.hasSearch, tag + '：身份行、同步带、全库搜索入口都在')
         if (m) bgOf[skin] = m.bg

@@ -54,21 +54,59 @@ const NOW = Date.parse('2026-10-04T03:00:00+08:00')
 
 // ---------- 界面侧闭包：照 scripts/build.mts 的做法把叶子拼起来再跑 ----------
 const VC_FILES = [
+  // #842：判定真源（界面按它画按钮状态，不自己算）与写操作那五个新叶子也拼进这个闭包 ——
+  //   入口组件 VersionControlTab.js 会调它们，缺一个就会在渲染那一帧抛错（G 组抓的就是这个）。
   // 2026-10-19 第三阶段起共享层产物搬出源码树（域产物落在 .build/shared/ 下），
   // 拼闭包要「按原文改坏」，所以读 src/ 下的真源 rules.ts，不读转译产物。
-  'src/shared/version-control/src/rules.ts', // 判定真源（界面按它画按钮状态）
+  'src/shared/version-control/src/rules.ts',
+  // #1738：页面注册表与命令面板的唯一数据源（能力账本 162 条），界面壳按它渲染，测试也按它断言。
+  'src/shared/version-control/src/capability-ledger.ts',
+  // #1737 版本可用性判定（capabilityAvailability）在共享层同一份：命令面板按它写「需要哪版、替代做法」。
+  'src/shared/version-control/src/capabilities.ts',
+  // #1739 首屏七片契约（契约名、版本号、七片名单、刷新三时机与形状判据的唯一真源）：排在客户端那片之前。
+  'src/shared/version-control/src/first-screen.ts',
+  // #1743 提交计划（八条提交能力共用的形态、目标、跳过钩子、签名、追加签名行与各自 argv）：宿主与界面读同一份。
+  'src/shared/version-control/src/commit-plan.ts',
+  // #1755：同步十个动作（域 8 的 8.5–8.14）的共享口径（动作表、argv 规划、现场判定与确认文案），
+  //   与构建同序排在客户端两叶之前。
+  'src/shared/version-control/src/sync-actions.ts',
+  'src/shared/version-control/src/sync-rules.ts',
+  // #1759：迁移与备份域（11.1 / 11.12 / 11.13 与 5.13，加 svn 补充块）的动作表、参数守卫与计划摘要，
+  //   与构建同序排在客户端两叶之前；界面不手抄动作名单与命令原文。
+  'src/shared/version-control/src/migrate-actions.ts',
+  // #1751：贮藏十条的规则真源（动作名单、版本门、危险档、命令拼装与恢复路径）。
+  'src/shared/version-control/src/stash-rules.ts',
+  // #1756 克隆向导的共享层两片（与构建同序）：地址与选项口径 → 预检票据的契约与目标现场形状。
+  'src/shared/version-control/src/clone-options.ts',
+  'src/shared/version-control/src/clone-ticket.ts',
+  // #1760 配置与钩子八条的规则真源（四组配置 / 只读边界 / 2.36 版本门 / 钩子名形状 / 清单解析），与构建同序。
+  'src/shared/version-control/src/config-rules.ts',
+  // #1752 工作树八条能力的纯规则层（八条动作 / argv / 判定 / 清单行模型），与构建同序排在客户端那片之前。
+  'src/shared/version-control/src/worktree-ops.ts',
+  // #1762 平台段：凭据助手链、rebase.updateRefs、request-pull 参数与补丁清单的判定真源（两页与宿主读同一份）。
+  'src/shared/version-control/src/platform-inspect.ts',
+  // #1757 子模块域（10.1–10.8）的纯规则层：八条能力、十一个动作、固定四项批量菜单、判定与 argv，与构建同序排在客户端那片之前。
+  'src/shared/version-control/src/submodule-ops.ts',
+  // #1747 冲突文本的解析与拼装（冲突块切分、按选择拼回整份、残留标记判定）：宿主保存前扫标记与界面冲突视图同源，
+  //   与构建同序排在客户端那片之前。
+  'src/shared/version-control/src/conflict-text.ts',
+  // #1750 T15 整仓重写的共享两片（与构建同序）：五张 filter-repo 表单的输入守卫/计划/argv 拼装，以及整仓备份点与还原步骤。
+  'src/shared/version-control/src/rewrite-ops.ts',
+  'src/shared/version-control/src/recovery-point.ts',
+  // #1758 T22 维护页十条能力的共享协议（动作表、计划、任务请求、版本门，与构建同序排在客户端那片之前）。
+  'src/shared/version-control/src/maintenance-ops.ts',
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js',
   'src/client/views/versionControl/vcCommit.js',
-  'src/client/views/versionControl/vcStyles.js', // #851 视觉语言的样式叶子（CSS 文本，注入点与 styles.js 同一个接缝）
-  'src/client/views/versionControl/vcRows.js',
+  'src/client/views/versionControl/vcStyles.js', // #851 视觉语言的样式叶子（CSS 文本；842 的视觉语言组读它），与构建同序排在 vcCommit 之后
+  'src/client/views/versionControl/vcRows.js', // #842 从 vcBlocks 原样搬出的那一层（闭包里排在 vcBlocks 之前）
   'src/client/views/versionControl/vcWrite.js',
   'src/client/views/versionControl/vcWriteRun.js',
   'src/client/views/versionControl/vcWriteUi.js',
   'src/client/views/versionControl/vcWriteOps.js',
   'src/client/views/versionControl/vcWriteView.js',
-  'src/client/views/versionControl/vcDiffOps.js', // #857：差异与提交那几路的动作（闭包里排在 vcBlocks 之前）
+  'src/client/views/versionControl/vcDiffOps.js', // #857：差异与提交那几路的动作（从入口组件搬出，闭包里排在 vcBlocks 之前）
   'src/client/views/versionControl/vcBlocks.js',
   'src/client/views/versionControl/vcViews.js', // #853 第三步：布局 C 的三个视图（与构建同序，排在 vcBlocks 之后）
   'src/client/views/versionControl/vcAiHandoff.js', // #854：AI 交接（与构建同序）
@@ -76,154 +114,207 @@ const VC_FILES = [
   'src/client/views/versionControl/vcData.js',
   'src/client/views/versionControl/vcCache.js', // #864：进出缓存（与构建同序）
   'src/client/views/versionControl/vcInView.js', // #997：「还能显示更多」那几处什么时候接着显示（与构建同序）
+  'src/client/views/versionControl/vcFirstScreen.js', // #1739：首屏七片的客户端数据层（只读一份版本化快照；与构建同序）
+  // #1752 工作树页三叶（与构建同序）：数据层 → 处理层 → 页面体，页面壳的挂载段要看到页面体那一叶。
+  'src/client/views/versionControl/vcWorktreesData.js',
+  'src/client/views/versionControl/vcWorktreesOps.js',
+  'src/client/views/versionControl/vcWorktreesPage.js',
+  // #1757 子模块页三叶（与构建同序）：数据层 → 处理层 → 页面体，页面壳的挂载段要看到页面体那一叶。
+  'src/client/views/versionControl/vcSubmodulesData.js',
+  'src/client/views/versionControl/vcSubmodulesOps.js',
+  'src/client/views/versionControl/vcSubmodulesPage.js',
+  // #1738 页面壳四片（与构建同序）：页面注册表 → 基础画法 → 命令面板 → 页面壳本体。
+  'src/client/views/versionControl/vcCapabilityPages.js',
+  'src/client/views/versionControl/vcShellPrimitives.js',
+  'src/client/views/versionControl/vcPalette.js',
+  'src/client/views/versionControl/vcBranches.js', // #1746：分支与标签业务面板（十三条能力入口、预检与确认、结果贴点；排在页面壳之前，壳里会调它）
+  // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）。
+  'src/client/views/versionControl/vcHistory.js',
+  // #1754 远端与同步页（域 8 的 8.1–8.4）：数据层在前、画法在后，最后才是调它们的页面壳。
+  'src/client/views/versionControl/vcSyncData.js', // #1755：同步段数据层（两条电话、预检与执行回包落位；与构建同序排在远端数据层之前）
+  'src/client/views/versionControl/vcRemoteData.js',
+  'src/client/views/versionControl/vcRemotePage.js',
+  'src/client/views/versionControl/vcSyncPage.js', // #1755：同步段正文（十个动作、理由、租约、确认卡、任务区；挂在远端页正文末尾）
+  // #1759 迁移与备份页：数据层在前、正文在后（与构建同序，页面壳的挂载段要看到正文那一叶）。
+  'src/client/views/versionControl/vcMigrateData.js',
+  // #1745 历史高级查询：数据层（十条能力的目录与读取）与面板画法都排在页面壳之前。
+  'src/client/views/versionControl/vcQuery.js',
+  'src/client/views/versionControl/vcQueryView.js',
+  // #1743 提交页：动作层与正文叶子（与构建同序，排在页面壳之前，壳要调 vcCommitPageNode）。
+  'src/client/views/versionControl/vcCommitOps.js',
+  'src/client/views/versionControl/vcCommitPage.js',
+  // #1740 长任务区（真任务在跑时的进度、四类结论与取消按钮）：M2 的容器要读任务槽并轮询，拼闭包缺它就会在挂载那一帧抛错。
+  'src/client/views/versionControl/vcTaskPanel.js',
+  // #1742 改动页操作面板（13 条动作的渲染面板）：页面壳只在传了改动读数时才挂它；与构建同序，排在页面壳之前。
+  'src/client/views/versionControl/vcChangesPage.js',
+  // #1751 贮藏页两片（与构建同序）：先动作与数据层，再页面本体。
+  'src/client/views/versionControl/vcStashOps.js',
+  'src/client/views/versionControl/vcStashPage.js',
+  // #1761 诊断页两片（与构建同序）：先数据与动作层，再页面正文；页面壳只在诊断页且拿到读数时挂它。
+  'src/client/views/versionControl/vcDiagnostics.js',
+  'src/client/views/versionControl/vcDiagnosticsPage.js',
+  // #1762 平台段两页（与构建同序）：数据层 → 平台页画法 → 迁移页 14.1 导出向导，最后才是调它们的页面壳。
+  'src/client/views/versionControl/vcPlatformData.js',
+  'src/client/views/versionControl/vcPlatformPage.js',
+  'src/client/views/versionControl/vcMigrateExport.js',
+  // #1762 T26：「本页负责的能力」列表从壳拆到独立叶子，构建次序在壳之前，闭包拼装要跟着放。
+  'src/client/views/versionControl/vcCapabilityList.js',
+  // #1748 变基待办页的历史改写面板（与构建同序）：先数据层，再页面本体，都排在页面壳之前。
+  'src/client/views/versionControl/vcUndoOps.js',
+  'src/client/views/versionControl/vcUndoPage.js',
+  'src/client/views/versionControl/vcMigratePage.js', // #1759：迁移与备份页正文（九个动作、只读结果、确认卡与任务区；壳要调它）
+  'src/client/views/versionControl/vcClonePage.js', // #1756：迁移页 › 克隆向导（自持表单与进度状态；排在页面壳之前，壳里会挂它）
+  // #1747 冲突向导两叶（与构建同序）：先动作模型（15 条能力的出入参形状），再页面正文；壳的挂载段要看到页面体那一叶。
+  'src/client/views/versionControl/vcConflictsOps.js',
+  'src/client/views/versionControl/vcConflictsPage.js',
+  // #1760 配置与钩子三片（与构建同序）：数据与动作层 → 配置页 → 钩子页，页面壳的挂载段要看到这两页。
+  'src/client/views/versionControl/vcConfigOps.js',
+  'src/client/views/versionControl/vcConfigPage.js',
+  'src/client/views/versionControl/vcHooksPage.js',
+  // #1749 变基待办页两叶（与构建同序）：先动作模型（九条能力的出入参形状），再页面正文；壳的挂载段要看到页面体那一叶。
+  'src/client/views/versionControl/vcRebaseOps.js',
+  'src/client/views/versionControl/vcRebasePage.js',
+  // #1750 T15 维护页整仓重写两叶（与构建同序）：动作模型在前、页面正文在后，壳的挂载段要看到页面体那一叶。
+  'src/client/views/versionControl/vcRewriteOps.js',
+  'src/client/views/versionControl/vcRewritePage.js',
+  // #1758 T22 维护页与诊断页三叶（与构建同序）：数据模型在前，两个页面正文在后；壳的挂载段要看到页面体那两叶。
+  'src/client/views/versionControl/vcMaintenanceData.js',
+  'src/client/views/versionControl/vcMaintenancePage.js',
+  'src/client/views/versionControl/vcMaintenanceDiag.js',
+  'src/client/views/versionControl/vcShellPages.js',
+  // #1776 M1 真实页签容器四叶 + #1776 M2 管理页七叶（与构建同序）：纯状态换算 → 管理页状态与模型
+  //   → 每页读数分发 → 分支/远端/同步动作 → 配置/钩子/诊断/子模块/平台动作 → 迁移与任务轮询
+  //   → 冲突与变基动作 → 导航动作与顶部条 → 事件翻译 → 数据装载与动作 → 容器组件。
+  'src/client/views/versionControl/vcRealModel.js',
+  'src/client/views/versionControl/vcRealManage.js',
+  'src/client/views/versionControl/vcRealManageReads.js',
+  'src/client/views/versionControl/vcRealManageActions.js',
+  'src/client/views/versionControl/vcRealManageActions2.js',
+  'src/client/views/versionControl/vcRealManageActions3.js',
+  'src/client/views/versionControl/vcRealManageSide.js',
+  'src/client/views/versionControl/vcRealShell.js',
+  'src/client/views/versionControl/vcRealDelegate.js',
+  'src/client/views/versionControl/vcRealActions.js',
+  'src/client/views/versionControl/vcRealTab.js',
   'src/client/views/versionControl/VersionControlTab.js',
 ]
+
 const EXPORTS = [
-  'REASONS',
-  'RULES_SOURCE',
-  'VC_BLOCK_KEY',
-  'VC_BLOCK_ORDER',
-  'VC_CHANGE_KEY',
-  'VC_CHANGE_TONE',
-  'VC_DIFF_CACHE_MAX',
-  'VC_DIFF_LINES_SHOWN',
-  'VC_DIFF_REASON_KEY',
-  'VC_FAIL_KEY',
-  'VC_FILE_ROWS_BATCH',
-  'VC_FILE_ROWS_FIRST',
-  'VC_FOLD_BANDS',
-  'VC_FOLD_STEP_CAP',
-  'VC_LOG_BATCH',
-  'VC_MIDDLE_MIN',
-  'VC_OTHER_SUMMARY_NAMES',
-  'VC_PHONES',
-  'VC_RELATIVE_WINDOW_MS',
-  'VC_SYNC_VALUES',
-  'VC_TONE',
-  'VC_WRITE_ERR_FAMILY',
-  'VC_WRITE_ERR_KIND_FAMILY',
-  'VC_WRITE_ERR_NETWORK_KINDS',
-  'VC_WRITE_OPS',
-  'VC_WRITE_PHONES',
-  'VersionControlTab',
-  'judge',
-  'vcActionsNode',
-  'vcAfterWrite',
-  'vcApplyCommitReply',
-  'vcApplyCommitFileDiffReply',
-  'vcApplyDiffReply',
-  'vcBasisText',
-  'VC_BADGE_LETTER',
-  'VC_STYLE_TEXT',
-  'vcBadgeLetterOf',
-  'vcBlockKeyOf',
-  'vcBlockedTipOf',
-  'vcBlocksOf',
-  'vcBoundedMap',
-  'vcChangeKeyOf',
-  'vcChangeToneOf',
-  'vcClockText',
-  'vcClearTheme',
-  'vcCommitAreaNode',
-  'vcCommitBlockOf',
-  'vcCommitKeyOf',
-  'vcCommitListOf',
-  'vcCommitModeOf',
-  'vcConfirmOf',
-  'vcDiffOpenKeyOf',
-  'vcDiffOpsOf',
-  'vcDiffViewOf',
-  'vcFailKeyOf',
-  'vcFailureOf',
-  'vcFileRowsOf',
-  'vcFoldBandAt',
-  'vcFoldDataOf',
-  'vcFoldLadderOf',
-  'vcFoldOf',
-  'vcFoldStateAt',
-  'vcFreshOnCwd',
-  'vcGroupOfRow',
-  'vcMarkCommitFileDiffLoading',
-  'vcMarkCommitLoading',
-  'vcMarkDiffLoading',
-  'vcMarkLogLoading',
-  'vcMiddle',
-  'vcNewReads',
-  'vcNextSkipOf',
-  'vcOneLine',
-  'vcOpResultOf',
-  'vcOpStateOf',
-  'vcOtherRowOf',
-  'vcPlanMismatchOf',
-  'vcPlusMinus',
-  'vcPushDecisionOf',
-  'vcReadCommitFileDiff',
-  'vcReadCommitFiles',
-  'vcReadDiff',
-  'vcReadMoreCommits',
-  'vcReadStatus',
-  'vcReadsOf',
-  'vcReasonKeysOf',
-  'vcRemoteChoiceOf',
-  'vcRequestIdOf',
-  'vcRowStageNodes',
-  'vcRowStageOf',
-  'vcRowUnstageNodes',
-  'vcRowUnstageOf',
-  'vcRowViewOf',
-  'vcRunCheck',
-  'vcRunWrite',
-  'vcScreenShapeOk',
-  'vcSetTheme',
-  'vcShortOid',
-  'vcShouldRead',
-  'vcStageAllNode',
-  'vcStatsNode',
-  'vcStatsOf',
-  'vcSyncViewOf',
-  'vcTabVisible',
-  'vcTail',
-  'VC_VIEWS',
-  'VC_AI_READ_FAIL_KINDS',
-  'vcAiHandoffOf',
-  'vcAiButtonNode',
-  'vcOpenAiHandoff',
-  'vcRememberedView',
-  'vcRememberView',
-  'vcResetViewMemory',
-  'vcViewOf',
-  'vcViewCountsOf',
-  'vcViewBarNode',
-  'vcViewBlocksOf',
-  'vcPickViewStateOf',
-  'vcCommitSkelNodes',
-  'vcViewSkelNode',
-  'vcViewTabsNode',
-  'VC_SCREEN_CACHE_MAX',
-  'vcCacheSeedOf',
-  'vcCacheSave',
-  'vcMoreStepOf',
-  'vcMoreStateOf',
-  'vcMoreShownOf',
-  'vcUseMoreSightOf',
-  'vcTimeKind',
-  'vcWhenText',
-  'vcWriteErrFamilyOf',
-  'vcWriteErrKeyOf',
-  'vcWriteOpsOf',
-  'vcWriteTailNodes',
-  'vcWriteUiOf',
+  'VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DIFF_LINES_SHOWN', 'VC_BLOCK_ORDER', 'VC_VIEWS', 'VC_TONE', 'VC_MIDDLE_MIN',
+  'VC_FOLD_STEP_CAP', 'VC_SYNC_VALUES', 'VC_DIFF_REASON_KEY', 'VC_OTHER_SUMMARY_NAMES', 'vcFailKeyOf', 'vcFileRowsOf', 'vcDiffViewOf', 'vcSyncViewOf',
+  'vcOtherRowOf', 'vcReadsOf', 'vcBlocksOf', 'vcChangeKeyOf', 'vcChangeToneOf', 'vcTail', 'vcMiddle', 'vcShortOid',
+  'vcPlusMinus', 'vcTimeKind', 'vcWhenText', 'vcBasisText', 'vcFoldBandAt', 'vcFoldDataOf', 'vcFoldLadderOf', 'vcFoldStateAt',
+  'vcFoldOf', 'vcTabVisible', 'vcNewReads', 'vcFailureOf', 'vcReadStatus', 'vcReadDiff', 'vcReadMoreCommits', 'vcNextSkipOf',
+  'vcCommitKeyOf', 'vcReadCommitFiles', 'vcReadCommitFileDiff', 'vcCommitModeOf', 'vcCommitBlockOf', 'vcShouldRead', 'vcViewOf', 'vcRememberedView',
+  'vcRememberView', 'vcResetViewMemory', 'vcViewCountsOf', 'vcViewBlocksOf', 'vcViewTabsNode', 'vcPickViewStateOf', 'VC_AI_READ_FAIL_KINDS', 'vcAiHandoffOf',
+  'vcAiButtonNode', 'vcOpenAiHandoff', 'vcFreshOnCwd', 'vcScreenShapeOk', 'vcApplyCommitReply', 'vcMarkLogLoading', 'vcOneLine', 'VC_SCREEN_CACHE_MAX',
+  'vcCacheSeedOf', 'vcCacheSave', 'vcMoreStepOf', 'vcMoreStateOf', 'vcMoreShownOf', 'vcUseMoreSightOf', 'CAPABILITIES', 'PAGE_SURFACES',
+  'PAGE_COUNTS', 'CAPABILITY_TOTAL', 'REASONS', 'judge', 'VC_TAB_PAGES', 'VC_MANAGE_PAGES', 'VC_SEARCH_PAGE', 'VC_DEEP_LINKS',
+  'VC_SHELL_WIDTHS', 'VC_SHELL_STATES', 'VC_SHELL_SKINS', 'vcPageDepthOf', 'vcPageRegistryOf', 'vcPageCapabilitiesOf', 'vcCapabilityOf', 'vcDeepLinkOf',
+  'vcPageSurfaceOf', 'vcShellStateNode', 'vcShellConfirmCardNode', 'vcShellResultNode', 'vcShellCapabilityRowNode', 'vcCapabilitySurfaceKindOf', 'vcCapabilityListOf', 'VC_BLOCK_KEY',
+  'vcBlockKeyOf', 'vcReasonKeysOf', 'VC_PALETTE_MAX', 'vcCapabilityAliasOf', 'vcCapabilitySummaryOf', 'vcCapabilityNeedsObjectOf', 'vcPaletteRowsOf', 'vcPaletteTargetOf',
+  'vcPaletteNode', 'VC_LOG_BATCH', 'VC_HISTORY_BATCH', 'VC_HISTORY_LANES_MAX', 'VC_HISTORY_DIFF_LINES_WIDE', 'VC_HISTORY_DIFF_LINES_NARROW', 'vcHistoryFirstPageOf', 'vcHistoryModelOf',
+  'vcHistoryGraphOf', 'vcHistoryDiffContextOf', 'vcHistoryPageNode', 'vcHistoryListOf', 'vcHistoryRowNode', 'vcHistoryDetailOf', 'vcHistoryGraphNode', 'VC_REMOTE_PHONES',
+  'VC_REMOTE_FORMS', 'VC_REMOTE_ONLINE_FAIL_KINDS', 'vcNewRemoteReads', 'vcRemoteStateOf', 'vcRemoteReadAtOf', 'vcRemoteRemotesOf', 'vcRemoteErrorOf', 'vcRemoteOnlineStateOf',
+  'vcRemoteOnlineOf', 'vcRemoteOnlineErrorOf', 'vcRemoteOnlineNameOf', 'vcApplyRemoteReply', 'vcReadRemoteList', 'vcReadRemoteOnline', 'vcRunRemoteWrite', 'vcRemoteModelOf',
+  'vcRemotePageNode', 'SYNC_ACTIONS', 'SYNC_CHECK_CONTRACT', 'SYNC_CHECK_VERSION', 'syncActionOf', 'syncPlanOf', 'syncPlanDigestInput', 'syncVersionAtLeast',
+  'judgeSync', 'syncConfirmOf', 'syncReasonTextOf', 'VC_SYNC_PHONES', 'VC_SYNC_ACTION_ROWS', 'vcNewSyncReads', 'vcSyncStateOf', 'vcSyncDataOf',
+  'vcSyncErrorOf', 'vcSyncTaskOf', 'vcApplySyncReply', 'vcApplySyncWriteReply', 'vcReadSyncCheck', 'vcRunSyncWrite', 'vcSyncModelOf', 'vcSyncPageNode',
+  'MIGRATE_ACTIONS', 'MIGRATE_CHECK_CONTRACT', 'MIGRATE_CHECK_VERSION', 'migrateActionOf', 'migrateActionIds', 'migratePathProblem', 'migrateRefProblem', 'migrateBranchProblem',
+  'migrateUrlProblem', 'migrateVersionAtLeast', 'migratePlanOf', 'migratePlanDigestInput', 'VC_MIGRATE_PHONES', 'VC_MIGRATE_ACTION_ROWS', 'vcNewMigrateReads', 'vcMigrateStateOf',
+  'vcMigrateDataOf', 'vcMigrateErrorOf', 'vcMigrateTaskOf', 'vcApplyMigrateReply', 'vcApplyMigrateWriteReply', 'vcReadMigrateCheck', 'vcRunMigrateWrite', 'vcMigrateModelOf',
+  'vcMigratePageNode', 'VC_QUERY_PHONE', 'VC_QUERY_COUNT_MAX', 'VC_QUERY_BLAME_SPAN_MAX', 'VC_QUERY_COMPARE_MAX', 'VC_QUERY_RANGE_MAX', 'vcQueryCatalogOf', 'vcQueryEntriesOf',
+  'vcQueryEntryOf', 'vcQueryDefaultsOf', 'vcQueryInputsOf', 'vcQueryInputValueOf', 'vcNewQueries', 'vcQueryStateOf', 'vcMarkQueryLoading', 'vcApplyQueryReply',
+  'vcQueryParamsOf', 'vcQueryShapeOk', 'vcReadHistoryQuery', 'vcQueryEmptyOf', 'vcQueryTruncatedOf', 'vcQueryShownOf', 'vcQueryPageNode', 'VC_QUERY_PANEL',
+  'commitPlanOf', 'commitPlanProblem', 'commitPlanDangerous', 'commitArgvOf', 'commitDecisionOf', 'commitTrailerOf', 'VC_COMMIT_MODES', 'VC_COMMIT_MODE_CAPS',
+  'VC_COMMIT_PHONES', 'vcCommitInitialState', 'vcCommitOpsOf', 'vcCommitPanelOf', 'vcCommitPageNode', 'vcCommitConfirmNode', 'commitBlockKeyOf', 'vcRenderTabAt',
+  'vcRenderAllPages', 'VC_CHANGES_PHONES', 'VC_CHANGES_OPS', 'vcChangesPageNode', 'vcChangesCheckArgsOf', 'vcChangesWriteArgsOf', 'FIRST_SCREEN_CONTRACT', 'FIRST_SCREEN_VERSION',
+  'FIRST_SCREEN_SLICES', 'FIRST_SCREEN_REFRESH_MOMENTS', 'firstScreenVersionOk', 'firstScreenShapeOk', 'firstScreenFailedSlices', 'VC_FIRST_SCREEN_PHONE', 'vcNewFirstScreenRead', 'vcFirstScreenShapeOk',
+  'vcFirstScreenOf', 'vcFirstScreenStateOf', 'vcFirstScreenReadAtOf', 'vcFirstScreenSliceOf', 'vcFirstScreenSliceStateOf', 'vcFirstScreenFailedSlicesOf', 'vcFirstScreenSliceRetryableOf', 'vcReadFirstScreen',
+  'vcReadFirstScreenOnEnter', 'vcReadFirstScreenAfterTask', 'vcReadFirstScreenOnManual', 'vcRetryFirstScreen', 'vcRetryFirstScreenSlice', 'vcFirstScreenScreenOf', 'VC_BRANCHES_PHONE', 'VC_BRANCH_CHECK_PHONE',
+  'VC_BRANCH_WRITE_PHONE', 'VC_BRANCH_BOARD_CONTRACT', 'VC_BRANCH_BOARD_VERSION', 'VC_BRANCH_CHECK_CONTRACT', 'VC_BRANCH_CHECK_VERSION', 'VC_BRANCH_OP_IDS', 'VC_BRANCH_WRITE_OPS', 'VC_BRANCH_ACTIONS',
+  'vcNewBranchRead', 'vcBranchShapeOk', 'vcBranchCheckShapeOk', 'vcReadBranches', 'vcBranchReadOf', 'vcBranchBoardOf', 'vcBranchStateOf', 'vcBranchCheckOf',
+  'vcBranchWriteResultOf', 'vcBranchTicketOf', 'vcBranchCheckDecisionOf', 'vcBranchRequestOf', 'vcBranchCheck', 'vcBranchWrite', 'vcBranchCheckKindOf', 'vcBranchReplyKindOf',
+  'vcBranchReasonsOf', 'vcBranchConfirmOf', 'vcBranchResultOf', 'vcBranchBoardNode', 'STASH_OPS', 'STASH_WRITE_OPS', 'STASH_READ_OPS', 'stashNeedsTicketOf',
+  'STASH_STAGED_MIN_VERSION', 'STASH_STAGED_ALTERNATIVE', 'STASH_UNKNOWN_OP_KEY', 'stashOpOf', 'stashOpById', 'stashOpNameKeyOf', 'stashDangerOpsOf', 'vcStashSelectorOk',
+  'vcStashMessageError', 'vcStashBranchError', 'stashOperationArgs', 'stashRestoreArgs', 'VC_STASH_PHONE', 'VC_STASH_SLICE', 'VC_STASH_STAGED_OP', 'vcStashStateNew',
+  'vcStashEntriesOf', 'vcStashListStateOf', 'vcStashVersionTextOf', 'vcStashStagedStateOf', 'vcStashOpVisibleOf', 'vcStashNeedsConfirmOf', 'vcStashConfirmOf', 'vcStashConfirmPayloadOf',
+  'vcStashActionPayloadOf', 'vcStashFailKeyOf', 'vcStashResultOf', 'vcStashApplyReply', 'vcStashRecentOf', 'vcStashShortOidOf', 'vcStashWhenOf', 'vcStashPageNode',
+  'VC_STASH_PAGE_SOURCE', 'CONFIG_GROUPS', 'CONFIG_IDENTITY_KEYS', 'CONFIG_SCOPES', 'CONFIG_WRITE_OPS', 'CONFIG_ENTRY_DEFS', 'HOOK_NAMES', 'CONFIG_CHECK_CONTRACT',
+  'CONFIG_CHECK_VERSION', 'CONFIG_HOOK_RUN_MIN_VERSION', 'CONFIG_HOOK_RUN_ALTERNATIVE', 'configGroupOf', 'configKeyEditable', 'configHookRunStateOf', 'identityValueError', 'hookNameProblem',
+  'configScopeOf', 'parseConfigList', 'configOldValueOf', 'configRowsOf', 'parseCheckAttr', 'parseCheckMailmap', 'configCheckPlanOf', 'configNeedsConfirmOf',
+  'configConfirmOf', 'configSceneSummary', 'VC_CONFIG_READ_PHONE', 'VC_CONFIG_CHECK_PHONE', 'VC_CONFIG_WRITE_PHONE', 'VC_CONFIG_READ_CONTRACT', 'VC_CONFIG_WRITE_KEYS', 'VC_CONFIG_PHONES',
+  'vcConfigStateNew', 'vcConfigApplyRead', 'vcConfigReadStateOf', 'vcConfigIdentityRowsOf', 'vcConfigGroupsOf', 'vcConfigGroupRowsOf', 'vcConfigEditOf', 'vcConfigSetInputOf',
+  'vcRealConfigHandlersOf', 'vcRealConflictsHandlersOf',
+  'vcConfigUnsetInputOf', 'vcHookRunInputOf', 'vcConfigCheckCallOf', 'vcConfigWriteCallOf', 'vcConfigConfirmOf', 'vcConfigConfirmTargetOf', 'vcConfigFailKeyOf', 'vcConfigResultOf',
+  'vcConfigApplyReply', 'vcConfigApplyCheck', 'vcHooksReadStateOf', 'vcHookRowsOf', 'vcHooksDirOf', 'vcHookRunStateOf', 'vcHookRunVisibleOf', 'vcHookConfirmOf',
+  'vcHookResultOf', 'vcHooksApplyReply', 'vcHookOutputOf', 'vcConfigPageNode', 'vcHooksPageNode', 'VC_CONFIG_PAGE_SOURCE', 'VC_HOOKS_PAGE_SOURCE', 'VC_DIAG_PHONES',
+  'VC_DIAG_QUERY_ROWS', 'VC_DIAG_BISECT_ACTIONS', 'VC_DIAG_POINTERS', 'VC_DIAG_BISECT_CAP', 'VC_DIAG_PATCH_CAP', 'VC_DIAG_TRAILER_CAP', 'VC_DIAG_REPLACE_CAP', 'vcDiagnosticsStateNew',
+  'vcDiagnosticsInputOf', 'vcDiagnosticsReadPayloadOf', 'vcDiagnosticsPatchPayloadOf', 'vcDiagnosticsTrailerPayloadOf', 'vcDiagnosticsReplaceListPayloadOf', 'vcDiagnosticsWritePayloadOf', 'vcDiagnosticsDangerousOf', 'vcDiagnosticsCallOf',
+  'vcDiagnosticsFailKeyOf', 'vcDiagnosticsShortOidOf', 'vcDiagnosticsResultOf', 'vcDiagnosticsRowsOf', 'vcDiagnosticsApplyReadReply', 'vcDiagnosticsApplyWriteReply', 'vcDiagnosticsActionsOf', 'vcDiagnosticsMountNode',
+  'vcDiagnosticsPageNode', 'VC_DIAGNOSTICS_SOURCE', 'VC_DIAG_PAGE_SOURCE', 'WORKTREE_ACTIONS', 'WORKTREE_CAP_IDS', 'WORKTREE_REASONS', 'worktreeJudge', 'worktreeArgsOf',
+  'worktreeRowsOf', 'worktreePruneEntriesOf', 'VC_WORKTREES_ENTRY_DEFS', 'VC_WORKTREE_PHONES', 'VC_WORKTREES_PAGE_SOURCE', 'VC_WORKTREES_DATA_SOURCE', 'vcWorktreesListStateOf', 'vcWorktreesSnapshotOf',
+  'vcWorktreesModelOf', 'vcWorktreesVersionOf', 'vcWorktreeAvailabilityOf', 'vcWorktreeWhyKeyOf', 'vcWorktreesVersionHintOf', 'vcWorktreesRowActionsOf', 'vcWorktreesActionDecisionOf', 'vcWorktreeCheckArgsOf',
+  'vcWorktreeRunArgsOf', 'vcWorktreePlanOf', 'vcWorktreeFailureOf', 'vcWorktreeResultOf', 'vcWorktreeDecisionReasonsOf', 'vcWorktreeDecisionStateOf', 'vcWorktreesPageNode', 'VC_PLATFORM_INSPECT_SOURCE',
+  'PLATFORM_CREDENTIAL_MAX', 'PLATFORM_PATCH_MAX', 'PLATFORM_ARG_MAX', 'PLATFORM_STORE_HELPER', 'vcConfigTruthyOf', 'vcNulValuesOf', 'vcCredentialHelpersOf', 'vcCredentialStoreOf',
+  'vcCredentialRiskOf', 'vcUpdateRefsOf', 'vcRequestPullArgsOf', 'vcPatchSummaryOf', 'VC_PLATFORM_PHONES', 'VC_PLATFORM_DATA_SOURCE', 'vcNewPlatformReads', 'vcPlatformStateOf',
+  'vcPlatformDataOf', 'vcPlatformErrorOf', 'vcPlatformCredentialOf', 'vcPlatformUpdateRefsOf', 'vcPlatformRequestPullStateOf', 'vcPlatformRequestPullOf', 'vcPlatformRequestPullErrorOf', 'vcPlatformPatchesStateOf',
+  'vcPlatformPatchesOf', 'vcPlatformPatchesErrorOf', 'vcApplyPlatformReply', 'vcApplyRequestPullReply', 'vcApplyPatchesReply', 'vcReadPlatform', 'vcRunRequestPull', 'vcReadPatchFiles',
+  'VC_PLATFORM_PAGE_SOURCE', 'VC_PLATFORM_NOTE_IDS', 'vcPlatformModelOf', 'vcPlatformPageNode', 'VC_MIGRATE_EXPORT_SOURCE', 'VC_MIGRATE_EXPORT_PHONES', 'VC_MIGRATE_NOTE_IDS', 'vcNewMigrateExport',
+  'vcApplyMigrateCheck', 'vcApplyMigrateRun', 'vcApplyMigrateTask', 'vcRunMigrateCheck', 'vcRunMigrateExport', 'vcRunMigrateTaskQuery', 'vcMigrateExportNode', 'VC_UNDO_PHONE_CHECK',
+  'VC_UNDO_PHONE_WRITE', 'VC_UNDO_COMMIT_MAX', 'VC_UNDO_MESSAGE_MAX', 'VC_UNDO_REV_MAX', 'VC_UNDO_CATALOG', 'vcUndoCatalogOf', 'vcUndoEntryOf', 'vcUndoInputsOf',
+  'vcUndoSetInputOf', 'vcUndoPickOpOf', 'vcUndoRevProblem', 'vcUndoCommitsOf', 'vcUndoParamsOf', 'vcUndoCheckArgsOf', 'vcUndoWriteArgsOf', 'vcUndoCheckShapeOk',
+  'vcUndoWriteShapeOk', 'vcUndoStateNew', 'vcUndoMark', 'vcUndoErrorOf', 'vcUndoApplyCheck', 'vcUndoApplyWrite', 'vcUndoBusyOf', 'vcUndoRecoveryStepsOf',
+  'vcUndoShortOidOf', 'vcUndoWhenOf', 'vcUndoRequestIdOf', 'VC_UNDO_FAIL_KEYS', 'vcUndoFailKnownOf', 'VC_UNDO_OPS_SOURCE', 'vcUndoPageNode', 'VC_UNDO_PANEL',
+  'VC_UNDO_PAGE_SOURCE', 'VC_UNDO_PAGE_NAMES', 'CLONE_OPTION_DEFAULTS', 'cloneSourceKindOf', 'cloneMaskedUrl', 'cloneDefaultDirOf', 'cloneHardlinkNote', 'cloneOptionsOf',
+  'CLONE_TICKET_OPS', 'CLONE_CHECK_CONTRACT', 'CLONE_CHECK_VERSION', 'CLONE_TARGET_STATES', 'clonePlanOf', 'cloneTaskArgsOf', 'cloneTargetProblem', 'VC_CLONE_PAGE_SOURCE',
+  'VC_CLONE_PHONES', 'VC_CLONE_FORM_DEFAULT', 'VC_CLONE_STEPS', 'VC_CLONE_REASON_KEYS', 'VC_CLONE_PAGE_HINT', 'vcCloneRequestIdOf', 'vcCloneFormOf', 'vcCloneCheckArgsOf',
+  'vcCloneWriteArgsOf', 'vcCloneCleanupCheckArgsOf', 'vcCloneCleanupWriteArgsOf', 'vcCloneCallOf', 'vcCloneTicketOf', 'vcCloneSceneOf', 'vcCloneDecisionOf', 'vcCloneReasonOf',
+  'vcCloneReplyKindOf', 'vcCloneTaskOf', 'vcCloneProgressOf', 'vcCloneResidualOf', 'vcCloneTaskEndedOf', 'vcClonePageNode', 'SUBMODULE_CAP_IDS', 'SUBMODULE_ACTIONS',
+  'SUBMODULE_WRITE_OPS', 'SUBMODULE_TASK_OPS', 'SUBMODULE_BATCH_MENU', 'SUBMODULE_REASONS', 'submoduleJudge', 'submoduleTaskOf', 'submoduleWriteArgsOf', 'submoduleRowsOf',
+  'VC_SUBMODULES_PHONES', 'VC_SUBMODULE_ENTRIES', 'VC_SUBMODULE_MODES', 'vcSubmoduleBoardShapeOk', 'vcSubmoduleRowsOf', 'vcSubmoduleBatchOf', 'vcSubmoduleWhyKeyOf', 'vcSubmoduleCheckArgsOf',
+  'vcSubmoduleRunArgsOf', 'vcSubmoduleTaskArgsOf', 'vcSubmoduleFailureOf', 'vcSubmodulesUiOf', 'vcSubmodulesPageNode', 'VC_SUBMODULES_PAGE_SOURCE', 'VC_CONFLICTS_PHONES', 'VC_CONFLICTS_OPS',
+  'VC_CONFLICTS_STATES', 'VC_CONFLICTS_KINDS', 'VC_CONFLICTS_OPS_SOURCE', 'vcConflictsOpMetaOf', 'vcConflictsOpLabelKeyOf', 'vcConflictsOpVerbKeyOf', 'vcConflictsStateLabelKeyOf', 'vcConflictsKindLabelKeyOf',
+  'vcConflictsSideLabelKeyOf', 'vcConflictsRequestIdOf', 'vcConflictsVisibleOf', 'vcConflictsPayloadOf', 'vcConflictsCheckArgsOf', 'vcConflictsWriteArgsOf', 'vcConflictsTargetOf', 'vcConflictsListOf',
+  'vcConflictsChoicesOf', 'vcConflictsRowNode', 'vcConflictsPageNode', 'VC_REBASE_PHONES', 'VC_REBASE_OPS', 'VC_REBASE_TODO_ACTIONS', 'VC_REBASE_TODO_MOVES', 'vcRebaseOpMetaOf',
+  'vcRebaseOpLabelKeyOf', 'vcRebaseOpVerbKeyOf', 'vcRebaseActionLabelKeyOf', 'vcRebaseStateLabelKeyOf', 'vcRebaseRequestIdOf', 'vcRebaseVisibleOf', 'vcRebasePayloadOf', 'vcRebaseCheckArgsOf',
+  'vcRebaseWriteArgsOf', 'vcRebaseTargetOf', 'vcRebaseRowsOf', 'vcRebaseRowPatchOf', 'vcRebaseRowTextOf', 'vcRebaseMoveOf', 'vcRebasePageNode', 'vcRebaseRowNode',
+  'VC_REWRITE_PAGE_SOURCE', 'VC_REWRITE_PHONES', 'VC_REWRITE_FORM_IDS', 'VC_REWRITE_FIELDS', 'VC_REWRITE_FORM_DEFAULT', 'VC_REWRITE_REASON_KEYS', 'vcRewriteFieldOf', 'vcRewriteFieldLabelKeyOf',
+  'vcRewriteFieldHintKeyOf', 'vcRewriteLinesOf', 'vcRewriteRenamesOf', 'vcRewriteReplacementsOf', 'vcRewriteAuthorsOf', 'vcRewritePlanOf', 'vcRewritePreviewArgsOf', 'vcRewriteCheckArgsOf',
+  'vcRewriteRunArgsOf', 'vcRewriteRequestIdOf', 'vcRewriteReasonOf', 'vcRewriteReplyKindOf', 'vcRewriteTicketOf', 'vcRewriteCountRowsOf', 'vcRewriteBackupOf', 'vcRewriteBackupSummaryOf',
+  'vcRewriteRestoreStepsOf', 'vcRewriteTaskOf', 'vcRewriteTaskEndedOf', 'vcRewriteProgressOf', 'vcRewriteFailTextOf', 'vcRewritePageNode', 'VC_MAINTENANCE_PAGE_SOURCE', 'VC_MAINTENANCE_PHONES',
+  'VC_MAINTENANCE_ACTIONS', 'VC_MAINTENANCE_VERSION_GATES', 'VC_MAINTENANCE_DANGER_IDS', 'vcMaintenanceOpMetaOf', 'vcMaintenanceOpLabelKeyOf', 'vcMaintenanceOpVerbKeyOf', 'vcMaintenanceOpsOfPage', 'vcMaintenanceVisibleOf',
+  'vcMaintenanceRequestIdOf', 'vcMaintenanceReadArgsOf', 'vcMaintenanceCheckArgsOf', 'vcMaintenanceWriteArgsOf', 'vcMaintenanceTaskArgsOf', 'vcMaintenanceReplyKindOf', 'vcMaintenanceReasonOf', 'vcMaintenanceTicketOf',
+  'vcMaintenanceConfirmOf', 'vcMaintenanceBackupOf', 'vcMaintenancePreviewOf', 'vcMaintenanceObjectsOf', 'vcMaintenanceStatusOf', 'vcMaintenanceTaskOf', 'vcMaintenanceProgressOf', 'vcMaintenanceFailTextOf',
+  'VC_MAINTENANCE_PAGE_BODY_SOURCE', 'VC_MAINTENANCE_PAGE_WRITES', 'VC_MAINTENANCE_PAGE_READS', 'VC_MAINTENANCE_PAGE_DANGER', 'vcMaintenancePageNode', 'VC_MAINTENANCE_DIAG_SOURCE', 'VC_MAINTENANCE_DIAG_TASKS', 'VC_MAINTENANCE_DIAG_ITEM_LIMIT',
+  'VC_MAINTENANCE_DIAG_EXITS', 'vcMaintenanceDiagNode', 'VcRealTab', 'VersionControlTab', 'RULES_SOURCE', 'VC_CHANGE_KEY', 'VC_CHANGE_TONE', 'VC_DIFF_CACHE_MAX',
+  'VC_FAIL_KEY', 'VC_FOLD_BANDS', 'VC_RELATIVE_WINDOW_MS', 'VC_WRITE_ERR_FAMILY', 'VC_WRITE_ERR_KIND_FAMILY', 'VC_WRITE_ERR_NETWORK_KINDS', 'VC_WRITE_OPS', 'VC_WRITE_PHONES',
+  'vcActionsNode', 'vcAfterWrite', 'vcApplyCommitFileDiffReply', 'vcApplyDiffReply', 'VC_BADGE_LETTER', 'VC_STYLE_TEXT', 'vcBadgeLetterOf', 'vcBlockedTipOf',
+  'vcBoundedMap', 'vcClockText', 'vcClearTheme', 'vcCommitAreaNode', 'vcCommitListOf', 'vcConfirmOf', 'vcDiffOpenKeyOf', 'vcDiffOpsOf',
+  'vcGroupOfRow', 'vcMarkCommitFileDiffLoading', 'vcMarkCommitLoading', 'vcMarkDiffLoading', 'vcOpResultOf', 'vcOpStateOf', 'vcPlanMismatchOf', 'vcPushDecisionOf',
+  'vcRemoteChoiceOf', 'vcRequestIdOf', 'vcRowStageNodes', 'vcRowStageOf', 'vcRowUnstageNodes', 'vcRowUnstageOf', 'vcRowViewOf', 'vcRunCheck',
+  'vcRunWrite', 'vcSetTheme', 'vcStageAllNode', 'vcStatsNode', 'vcStatsOf', 'vcViewBarNode', 'vcCommitSkelNodes', 'vcViewSkelNode',
+  'vcWriteErrFamilyOf', 'vcWriteErrKeyOf', 'vcWriteOpsOf', 'vcWriteTailNodes', 'vcWriteUiOf',
 ]
-function stripExports(text) { return text.replace(/^(\s*)export\s+/gm, '$1') }
+
+// #1776 M4c：真实页签的闭包（一百四十多份叶子）在本机 Windows 上会被 esbuild 0.28.2 判定为「超过 1MB 的输入」：
+//   它先把内容写进 os.tmpdir() 的临时文件、再让子进程删掉，删除那一步报 "remove …: Access is denied."，
+//   整段转译当场抛错，门禁连第一条断言都没跑到就崩。照 verify-818 的先例按文件边界切开、逐份转译再拼回去：
+//   每一段都是完整源文件，转译只剥类型标注、不改作用域，与整段转译等价。
+//   切分靠拼装时插入的分隔行 VC_SRC_SEAM；反证改法仍作用在整段拼好的源码上，语义不变。
+const VC_SRC_SEAM = '\n//#vc-source-seam#\n'
+const toEvalJsBundle = (src: string): string =>
+  src.length <= 1024 * 1024 ? toEvalJs(src) : src.split(VC_SRC_SEAM).map(toEvalJs).join('\n')
 // 种子注入的匹配口（#1196 转 TS 时发现的耦合）：门禁按源码文本往闭包里注种子，手写 .js 与构建
 //   生成的双生 .js（esbuild 重排了空格、引号与换行）两种写法都认。只换匹配方式，不断言含义。
-const VC_SEED_RE = /React\.useState\(function\s*\(\)\s*\{\s*return vcCacheSeedOf\(cwd\) \|\| vcNewReads\(\)\s*;?\s*\}\)/
+const VC_SEED_RE = /React\.useState\(function\s*\(\s*\)\s*\{\s*return vcCacheSeedOf\(cwd\)\s*\|\|\s*vcNewReads\(\)\s*;?\s*\}\)/
 const VC_WRITE_INIT_RE = /write:\s*\{\s*op:\s*["']{2},\s*state:\s*["']idle["'],\s*message:\s*["']{2},\s*confirm:\s*null,\s*result:\s*null,\s*remoteChoice:\s*null\s*\}/
+function stripExports(text) { return text.replace(/^(\s*)export\s+/gm, '$1') }
 function buildView(patch, React, DswsCtx, Tip, Ic, seedReads, logs, trFn, exportsList) {
-  let src = VC_FILES.map((f) => stripExports(stripTimeConfigImport(readSource(f)))).join('\n')
+  let src = VC_FILES.map((f) => stripExports(stripTimeConfigImport(readSource(f)))).join(VC_SRC_SEAM)
   if (patch) src = patch(src)
   // #1253：改坏之后统一转译——原文里带类型标注，compileFn 只吃 JavaScript。
-  src = toEvalJs(src)
+  src = toEvalJsBundle(src)
   const names = exportsList || EXPORTS
   const body = src + '\nreturn { ' + names.join(', ') + ' }\n'
   // 手法：compileFn——这份门禁照 build.mts 的做法把叶子拼成一段文本再跑，这里把参数名数组与文本交给共用入口造函数，语义不变。
@@ -232,9 +323,11 @@ function buildView(patch, React, DswsCtx, Tip, Ic, seedReads, logs, trFn, export
     function () { return 'h8' }, function (s) { return String(s) }, trFn, {}, DswsCtx || null, Tip || null, Ic || null, seedReads || null)
 }
 
+
 // ---------- 真词条 ----------
 const fill = (s, p) => (p ? String(s).replace(/\{(\w+)\}/g, (m, k) => (k in p ? String(p[k]) : m)) : String(s))
 let LOC = { zh: {}, en: {} }
+let LOC_WRITE = { zh: {}, en: {} }
 const trZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
 const trEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
 
@@ -275,6 +368,136 @@ function blocksOf(view, screen, reads, ui) {
 const blockOf = (blocks, kind) => blocks.filter((b) => b.kind === kind)[0] || null
 const rowOf = (blocks, p) => { const c = blockOf(blocks, 'changes'); const gs = c ? c.groups : []; const all = gs.reduce((a, g) => a.concat(g.rows), []); return all.filter((r) => r.path === p)[0] || null }
 
+// ---------- 真实页签渲染夹具（#1776 M4c：A / J / L 组在真页面壳上断 DOM） ----------
+// #1776 M1 删掉旧块渲染路径时，本门禁的 DOM 断言退化成只断模型；M4c 改回真渲染：
+//   单页入口是页面壳的 vcRenderTabAt（vcShellPages.ts:419），整页签入口是 VersionControlTab（vcRealTab.ts）。
+//   词条仍是真字典，渲染结果就是用户真看见的那份 DOM。
+const renderToStaticMarkup: any = require('react-dom/server').renderToStaticMarkup
+// H 要等 main 里拿到 React 才赋值；渲染函数都在 main 之后调用，所以这里先留空。
+let H: any = null
+// 取某个 data 属性在渲染结果里出现过的所有值，按出现顺序（断言「渲染了哪些、按什么次序」用）。
+const attrValuesOf = function (html: string, name: string): string[] {
+  return Array.from(String(html).matchAll(new RegExp(name + '="([^"]*)"', 'g'))).map(function (m: any) { return m[1] })
+}
+// 去掉标签后的可见文字：断言「用户看得见的字」里没有词条键名。
+const visibleTextOf = function (html: any): string { return String(html).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ') }
+// 从渲染结果里抠出某个标记所在的整个开标签（断 disabled / class / aria 这类属性用）。
+const tagAt = function (html: any, anchor: string): string {
+  const s = String(html)
+  const at = s.indexOf(anchor)
+  if (at < 0) return ''
+  const start = s.lastIndexOf('<', at)
+  const end = s.indexOf('>', at)
+  return start >= 0 && end >= 0 ? s.slice(start, end + 1) : ''
+}
+// 单页真实渲染：opts 就是页面壳的入参（page / width / skin / seed / reads / ui …）。
+const pageHtmlOf = function (view: any, opts: any): string {
+  try { return renderToStaticMarkup(view.vcRenderTabAt(H, trZh, opts || {})) } catch (e: any) {
+    console.log('  （单页渲染抛错：' + String((e && e.message) || e) + '）')
+    return ''
+  }
+}
+const fsSliceOk = function (data: any) { return { state: 'ok', data: data, error: null } }
+const fsSliceErr = function (kind: string, msg: string) { return { state: 'err', data: null, error: { kind: kind, message: msg } } }
+// 首屏七片快照（真页签的读数入口；J 组末尾整页签挂载与历史页都用它）。
+function firstSeedOf(view: any, over?: any) {
+  const snap: any = {
+    contract: view.FIRST_SCREEN_CONTRACT, version: view.FIRST_SCREEN_VERSION, readAtMs: NOW,
+    slices: {
+      workspace: fsSliceOk({ identity: screenOf().identity, repo: screenOf().repo, branches: [] }),
+      changes: fsSliceOk({ staged: [], unstaged: [], stagedCount: 0, unstagedCount: 0, conflictCount: 0 }),
+      history: fsSliceOk({ commits: [], hasMore: false }),
+      worktrees: fsSliceOk({ others: [], bare: false }),
+      stashes: fsSliceOk({ entries: [] }),
+      sync: fsSliceOk({ sync: 'no-upstream', ahead: 0, behind: 0, basisMs: null, upstream: null, remote: null, branch: 'main' }),
+      version: fsSliceOk({ gitVersion: 'git version 2.49.0', tier: 'full', switches: [] }),
+    },
+  }
+  return over ? (over(snap) || snap) : snap
+}
+// 整页签静态挂载：把读数注进 VersionControlTab 的 useState 初值（818 AI 组同一做法，见那边的 aiRenderOf）。
+function renderTabHtmlOf(React: any, DswsCtx: any, TipStub: any, IcStub: any, seedReads: any, navPage?: string): string {
+  const patch = function (src0: string) {
+    let out = src0.split('const [reads, setReadsState] = React.useState(function () { return vcRealReadsNew(cwd) })')
+      .join('const [reads, setReadsState] = React.useState(function () { return Object.assign({}, vcRealReadsNew(cwd), ' + JSON.stringify(seedReads) + ') })')
+    if (navPage) out = out.split('|| vcRealInitialNav()').join('|| Object.assign(vcRealInitialNav(), { page: ' + JSON.stringify(navPage) + ' })')
+    return out
+  }
+  const seeded = buildView(patch, React, DswsCtx, TipStub, IcStub, seedReads, [], trZh)
+  try { return renderToStaticMarkup(React.createElement(seeded.VersionControlTab, { st: { cwd: 'D:/w/repo' }, narrow: false })) } catch (e: any) {
+    console.log('  （整页签渲染抛错：' + String((e && e.message) || e) + '）')
+    return ''
+  }
+}
+// 远端页夹具：三条远端，覆盖「有凭据 / 没凭据 / 取址与推址不同」；宽 460 才画地址与分支。
+function remoteRowsOf() {
+  return [
+    { name: 'origin', fetchUrl: 'https://user:***@example.com/acme/repo.git', pushUrl: 'https://user:***@example.com/acme/repo.git', hasCredential: true, branchCount: 2, branches: [{ short: 'main', name: 'origin/main', oid: 'a'.repeat(40), ref: 'refs/remotes/origin/main' }, { short: 'dev', name: 'origin/dev', oid: 'b'.repeat(40), ref: 'refs/remotes/origin/dev' }] },
+    { name: 'mirror', fetchUrl: 'git@example.com:acme/repo.git', pushUrl: 'git@example.com:acme/repo.git', hasCredential: false, branchCount: 0, branches: [] },
+    { name: 'leaky', fetchUrl: 'https://example.com/acme/leaky.git', pushUrl: 'https://example.com/acme/leaky.git', hasCredential: false, branchCount: 1, branches: [{ short: 'main', name: 'leaky/main', oid: 'c'.repeat(40), ref: 'refs/remotes/leaky/main' }] },
+  ]
+}
+function syncDataOf(over?: any) {
+  return Object.assign({ capabilityId: '8.8', action: 'pull-ff-only', plan: { id: '8.8', refKind: '' }, decision: 'allow', reasons: [], confirmRequired: false, ticket: null, confirm: null, readAtMs: NOW - 2000, versionPolicy: { degraded: false } }, over || {})
+}
+// 远端页的四份读数：本地列表 / 显式联网 / 同步段 / 长任务。
+function remoteReadsOf(opts?: any) {
+  const o = opts || {}
+  return {
+    remote: { state: 'ok', data: { source: 'local', readAtMs: NOW - 60000, remotes: o.remotes || remoteRowsOf() }, error: null },
+    online: { state: 'idle', name: '', data: null, error: null },
+    sync: { state: 'ok', data: o.sync === null ? null : syncDataOf(o.sync), error: null },
+    task: { state: o.task ? 'ok' : 'idle', data: o.task || null, error: null },
+  }
+}
+const remotePageHtmlOf = function (view: any, opts?: any): string {
+  const o = opts || {}
+  return pageHtmlOf(view, { page: 'remote', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: o.reads || remoteReadsOf(o), ui: o.ui })
+}
+// 历史页夹具：四条提交（第二条是合并提交），逐文件差异按「提交号 + 路径」分开存。
+const hcOid = function (i: number) { return ('0000000' + String(i + 1).toString(16)).slice(-8).repeat(5) }
+function hcCommitsOf(n: number) {
+  const out: any[] = []
+  for (let i = 0; i < n; i++) {
+    out.push({ oid: hcOid(i), short: 'c' + (i + 1), author: '林可', email: 'linke@example.com', authorDateMs: NOW - (i + 1) * 60000, commitDateMs: NOW - (i + 1) * 60000, subject: '第 ' + (i + 1) + ' 次提交：把改动记下来', parents: i + 1 < n ? [hcOid(i + 1)] : [] })
+  }
+  return out
+}
+const hcRows4 = hcCommitsOf(4)
+hcRows4[1].parents = [hcRows4[2].oid, hcRows4[3].oid]
+const hcFiles = [{ path: 'src/a.ts', origPath: null, added: 2, deleted: 1 }, { path: '旧名.txt', origPath: '新名.txt', added: 0, deleted: 0 }]
+const hcRev = hcRows4[1]
+const hcCommitOk = { rev: hcRev.oid, seq: 1, state: 'ok', files: hcFiles, truncated: false, reason: 'ok', error: null }
+const y5Lines = [
+  { kind: 'filehead', text: 'diff --git a/src/a.ts' },
+  { kind: 'hunk', text: '@@ -1 +1 @@' },
+  { kind: 'add', text: '+新的一行' },
+  { kind: 'del', text: '-旧的一行' },
+  { kind: 'context', text: ' 没变的一行' },
+]
+function hcReadsOf(view: any, opts?: any) {
+  const o = opts || {}
+  const snap = firstSeedOf(view, function (s: any) { s.slices.history = fsSliceOk({ commits: o.commits || [], hasMore: o.hasMore === true }); return s })
+  return Object.assign({
+    screen: { state: 'idle', data: null, error: null },
+    diffs: {},
+    log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null },
+    firstScreen: { state: 'ok', data: snap, error: null },
+    commit: { rev: '', seq: 0, state: 'idle', files: [], truncated: false, reason: '', error: null },
+    commitDiffs: {},
+  }, o.reads || {})
+}
+// 提交面板要一份 form（身份 / 签名 / 模板 / 追加行 / 上一条提交），形状与宿主回包一致。
+function commitFormOf() {
+  return {
+    identity: { name: '张三', email: 'z@example.com' },
+    signing: { key: 'ABC123', format: 'ssh', gpgsign: true },
+    template: { configured: true, path: '.gitmessage', text: '模板第一行', truncated: false, problem: '' },
+    trailer: 'Signed-off-by: 张三 <z@example.com>',
+    amend: { available: true, oid: 'b'.repeat(40), short: 'bbbbbbb', subject: '上一条提交', message: '上一条提交' },
+  }
+}
+
 // ---------- 假宿主：记账每一次 host.call ----------
 function makeHost(routes) {
   const calls = []
@@ -289,72 +512,63 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 const flush = async function (n) { for (let i = 0; i < (n || 6); i++) await tick() }
 
 // ============================================================
-// A 组 · 落点（模型 + 真渲染出来的 DOM）
 // ============================================================
-function renderTab(React, DswsCtx, TipStub, IcStub, seedReads, patch) {
-  const seeded = buildView(function (s) {
-    const out = s.replace(VC_SEED_RE, 'React.useState(function () { return seedReads })')
-    return patch ? patch(out) : out
-  }, React, DswsCtx, TipStub, IcStub, seedReads, [], trZh)
-  try {
-    const { renderToStaticMarkup } = require('react-dom/server')
-    return { html: renderToStaticMarkup(React.createElement(seeded.VersionControlTab, { st: { cwd: 'D:/w/repo' } })), view: seeded, err: '' }
-  } catch (e) { return { html: '', view: seeded, err: String((e && e.message) || e) } }
-}
-
-function groupA(view, React, DswsCtx, TipStub, IcStub) {
+// A 组 · 落点（真实页签渲染）
+// #1776 M1 删掉旧块渲染路径后，这一组一度只剩模型断言；M4c 改回「渲染页面壳、断真 DOM」：
+//   视图条模型、改动页十三条动作行、提交区禁用态、多远端入口与动作按钮，全部落在 vcRenderTabAt 的输出上。
+// ============================================================
+function groupA(view) {
   const screen = richScreen()
   const reads = readsOf(screen)
   const blocks = blocksOf(view, screen, reads, uiOf())
   const identity = blockOf(blocks, 'identity')
+  check(!!(identity && identity.actions && identity.actions.pull && identity.actions.push), 'A1 视图条模型里仍有拉取与推送两颗按钮，顺序是「拉取 → 推送」')
+
+  // A1b：页面壳把十个同步动作画在远端页的同步段里，次序读同一张 VC_SYNC_ACTION_ROWS。
+  const a1Html = remotePageHtmlOf(view, { sync: null })
+  const a1Want = view.VC_SYNC_ACTION_ROWS.map(function (r) { return String(r.id) }).join(',')
+  const a1Got = attrValuesOf(a1Html, 'data-vc-sync-act').join(',')
+  check(a1Got === a1Want, 'A1b 远端页同步段真渲染十个动作，次序与 VC_SYNC_ACTION_ROWS 一致（实得 ' + (a1Got || '空') + '）')
+
   const changes = blockOf(blocks, 'changes')
-  const r = renderTab(React, DswsCtx, TipStub, IcStub, reads)
-  const html = r.html
-  const iPull = html.indexOf('data-vc-action="pull"')
-  const iPush = html.indexOf('data-vc-action="push"')
-  const a1 = !!(identity && identity.actions && identity.actions.pull && identity.actions.push) && iPull >= 0 && iPush > iPull
-  check(a1, 'A1 视图条里出现拉取与推送两颗按钮，顺序是「拉取 → 推送」（模型仍在 identity 块里，DOM ' + iPull + '/' + iPush + '，渲染错 ' + (r.err || '无') + '）')
-
   const paths = (changes && changes.stageAll ? changes.stageAll.paths : []).join(',')
-  const a2 = !!(changes && changes.stageAll && changes.stageAll.show === true) && paths === 'b.txt,c.txt' && html.indexOf('data-vc-stage-all') >= 0
-  check(a2, 'A2 视图条里有「add 全部」，路径只含未暂存且非冲突的两行（实得 ' + JSON.stringify(paths) + '）')
+  check(!!(changes && changes.stageAll && changes.stageAll.show === true) && paths === 'b.txt,c.txt', 'A2 视图条模型里有「add 全部」，路径只含未暂存且非冲突的两行（实得 ' + JSON.stringify(paths) + '）')
 
-  const cleanScreen = screenOf({ staged: [fileOf('a.txt', 'staged')], stagedCount: 1 })
-  const typedUi = uiOf({ write: { op: '', state: 'idle', message: '写一句', confirm: null, result: null } })
-  const cleanBlocks = blocksOf(view, cleanScreen, readsOf(cleanScreen), typedUi)
-  const ca = blockOf(cleanBlocks, 'changes') ? blockOf(cleanBlocks, 'changes').commitArea : null
-  const blankBlocks = blocksOf(view, cleanScreen, readsOf(cleanScreen), uiOf())
-  const caBlank = blockOf(blankBlocks, 'changes') ? blockOf(blankBlocks, 'changes').commitArea : null
-  const a3 = !!(ca && ca.placeholder && ca.text && ca.hint) && ca.disabled === false && !!caBlank && caBlank.disabled === true && caBlank.needMessage === true && caBlank.tip === trZh('vc.commitArea.needMessage') && html.indexOf('data-vc-commit-area') >= 0 && html.indexOf('data-vc-commit-msg') >= 0 && html.indexOf('data-vc-commit-btn') >= 0
-  const emptyScreen = screenOf()
-  const emptyBlocks = blocksOf(view, emptyScreen, readsOf(emptyScreen), uiOf())
-  const caEmpty = blockOf(emptyBlocks, 'changes') ? blockOf(emptyBlocks, 'changes').commitArea : null
-  check(a3 && !!caEmpty && caEmpty.disabled === true, 'A3 changes 块底部有提交区（输入框 + 按钮）；空提交信息与无暂存都禁用并给出原因（有信息禁用=' + (ca ? ca.disabled : '缺') + '，空信息禁用=' + (caBlank ? caBlank.disabled : '缺') + '，无暂存禁用=' + (caEmpty ? caEmpty.disabled : '缺') + '）')
+  // A2b：改动页十三条动作真渲染（1.1–1.13），每行一个主按钮标记；1.4 的文字是词条译文。
+  const a2Changes = { counts: { staged: 1, unstaged: 3, untracked: 1, conflicts: 1 }, values: {}, rows: {}, handlers: {} }
+  const a2Html = pageHtmlOf(view, { page: 'changes', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: reads, changes: a2Changes })
+  const a2Rows = attrValuesOf(a2Html, 'data-vc-changes-row')
+  const a2Want = view.VC_CHANGES_OPS.map(function (x: any) { return String(x.capId) }).join(',')
+  const a2Go = tagAt(a2Html, 'data-vc-changes-primary="1.4"')
+  check(a2Html.indexOf('data-vc-changes-count="13"') >= 0 && a2Rows.join(',') === a2Want && a2Go !== '' && a2Go.indexOf('data-vc-changes-op="stage-all"') >= 0, 'A2b 改动页真渲染十三条动作（1.1–1.13），1.4 是「暂存全部」的主按钮（实得 ' + a2Rows.length + ' 行）')
+
+  // A3：提交区真渲染 —— 没有说明时提交按钮禁用并常驻原因，写了说明就解除禁用、预览跟着变。
+  const a3Ui = function (message) { return { commit: Object.assign({}, view.vcCommitInitialState(), { form: commitFormOf(), message: message }) } }
+  const a3Blank = pageHtmlOf(view, { page: 'changes', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: reads, ui: a3Ui('') })
+  const a3Typed = pageHtmlOf(view, { page: 'changes', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: reads, ui: a3Ui('写一句提交信息') })
+  const a3BlankBtn = tagAt(a3Blank, 'data-vc-commit-submit')
+  const a3TypedBtn = tagAt(a3Typed, 'data-vc-commit-submit')
+  // 只看独立的 disabled 属性：aria-disabled="false" 里也含 disabled 这个子串，不能用 indexOf 直接判。
+  const a3Disabled = function (tag) { return /(?:^|\s)disabled(?:="")?(?:\s|>)/.test(tag) }
+  check(a3Disabled(a3BlankBtn) && a3Blank.indexOf('data-vc-commit-submit-tip') >= 0 && a3TypedBtn !== '' && !a3Disabled(a3TypedBtn) && a3Typed.indexOf('写一句提交信息') >= 0 && a3Typed.indexOf('data-vc-commit-preview') >= 0,
+    'A3 提交区真渲染：没有提交信息时按钮禁用并写明原因，写了信息就解除禁用、说明与预览都看得到')
 
   const rowB = rowOf(blocks, 'b.txt')
-  const a4 = !!(rowB && rowB.stageAction && rowB.stageAction.show === true) && html.indexOf('data-vc-stage') >= 0
-  check(a4, 'A4 未暂存文件行右侧有「add」按钮（模型 ' + !!(rowB && rowB.stageAction) + '，DOM ' + (html.indexOf('data-vc-stage') >= 0) + '）')
+  check(!!(rowB && rowB.stageAction && rowB.stageAction.show === true), 'A4 未暂存文件行的模型里有「add」按钮')
 
   const rowD = rowOf(blocks, 'd.txt')
-  const a5 = !!(rowD && rowD.stageAction && rowD.stageAction.conflict === true && rowD.stageAction.show === false) && html.indexOf('data-vc-conflict-terminal') >= 0
-  const conflictText = (html.match(/data-vc-conflict-terminal[^>]*>([^<]*)/) || [])[1] || ''
-  const a5b = conflictText.indexOf('命令行') >= 0 && conflictText.indexOf('侧栏终端') < 0
-  check(a5 && a5b, 'A5 冲突行没有「add」，改说「在命令行里解决」，且不再提侧栏终端（模型 ' + JSON.stringify(rowD && rowD.stageAction) + '，DOM ' + (html.indexOf('data-vc-conflict-terminal') >= 0) + '，文字 ' + JSON.stringify(conflictText) + '）')
+  const conflictText = String((rowD && rowD.stageAction && rowD.stageAction.text) || '')
+  check(!!(rowD && rowD.stageAction && rowD.stageAction.conflict === true && rowD.stageAction.show === false) && conflictText.indexOf('命令行') >= 0 && conflictText.indexOf('侧栏终端') < 0, 'A5 冲突行没有「add」，改说「在命令行里解决」，且不再提侧栏终端（模型 ' + JSON.stringify(rowD && rowD.stageAction) + '）')
 
   const rowA = rowOf(blocks, 'a.txt')
-  const a4b = !!(rowA && rowA.unstageAction && rowA.unstageAction.show === true) && html.indexOf('data-vc-unstage') >= 0 && html.indexOf('>撤回<') >= 0
-  check(a4b, 'A4b 已暂存文件行右侧有「撤回」按钮（模型 ' + !!(rowA && rowA.unstageAction) + '，DOM钩子 ' + (html.indexOf('data-vc-unstage') >= 0) + '，文字 ' + (html.indexOf('>撤回<') >= 0) + '）')
-  const a4c = !!(rowB && rowB.unstageAction && rowB.unstageAction.show === false) && (html.match(/data-vc-unstage/g) || []).length === 1
-  check(a4c, 'A4c 未暂存与冲突行没有「撤回」按钮（全页只有已暂存那一行有）')
+  check(!!(rowA && rowA.unstageAction && rowA.unstageAction.show === true), 'A4b 已暂存文件行的模型里有「撤回」按钮')
+  check(!(rowB && rowB.unstageAction && rowB.unstageAction.show) && !(rowD && rowD.unstageAction && rowD.unstageAction.show), 'A4c 未暂存与冲突行没有「撤回」按钮（模型里只给已暂存那一行）')
 
-  // A6：多远端 + 没有上游 —— 候选远端来自失败回包顶层 remotes，界面上要有一排可点的入口。
-  const choiceUi = uiOf({ write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } } })
-  const choiceModel = view.vcWriteUiOf(screen, choiceUi, { t: trZh, nowMs: NOW, decisions: decisionsOf(view, screen) })
-  const choiceHtml = renderTab(React, DswsCtx, TipStub, IcStub, reads, function (s) {
-    return s.replace(VC_WRITE_INIT_RE, "write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } }")
-  }).html
-  const a6 = !!(choiceModel.remoteChoice && choiceModel.remoteChoice.remotes.join(',') === 'origin,mirror') && choiceHtml.indexOf('data-vc-remote-choice') >= 0 && choiceHtml.indexOf('data-vc-remote="origin"') >= 0 && choiceHtml.indexOf('data-vc-remote="mirror"') >= 0
-  check(a6, 'A6 多远端 + 没有上游：界面上有一排可点的远端入口（模型 ' + JSON.stringify(choiceModel.remoteChoice && choiceModel.remoteChoice.remotes) + '，DOM ' + (choiceHtml.indexOf('data-vc-remote-choice') >= 0) + '）')
+  // A6：多远端 —— 远端页把三条远端各画一行，每行三个动作入口（改名 / 改地址 / 删除），另有「登记远端」入口。
+  const a6Html = remotePageHtmlOf(view, {})
+  const a6Rows = attrValuesOf(a6Html, 'data-vc-remote').join(',')
+  const a6Acts = attrValuesOf(a6Html, 'data-vc-remote-act')
+  check(a6Rows === 'origin,mirror,leaky' && a6Acts.length === 9 && a6Html.indexOf('data-vc-remote-add="1"') >= 0, 'A6 远端页多远端真渲染：三条远端各一行、每行三个动作入口，另有「登记远端」入口（实得 ' + a6Rows + '，动作 ' + a6Acts.length + ' 个）')
 }
 
 // ============================================================
@@ -480,8 +694,10 @@ function groupD(view, writeReasons) {
     const s = String(LOC.zh['vc.writeErr.' + f + '.limit'] || '')
     return s.indexOf('命令行') < 0 && s.indexOf('不自动重试') < 0
   })
-  const stillTerminal = Object.keys(LOC.zh).filter(function (k) { return /侧栏终端/.test(String(LOC.zh[k])) })
-  const stillTerminalEn = Object.keys(LOC.en).filter(function (k) { return /terminal on the same row/.test(String(LOC.en[k])) })
+  // 只扫写操作那三族词条（panel / flow / vcwrite）：#1776 M4c 起页面壳族也进了 LOC，
+  //   那是远端页与页面壳自己的话术，不在「五条 limit 句」这条判据的范围里。
+  const stillTerminal = Object.keys(LOC_WRITE.zh).filter(function (k) { return /侧栏终端/.test(String(LOC_WRITE.zh[k])) })
+  const stillTerminalEn = Object.keys(LOC_WRITE.en).filter(function (k) { return /terminal on the same row/.test(String(LOC_WRITE.en[k])) })
   check(weak.length === 0 && stillTerminal.length === 0 && stillTerminalEn.length === 0, 'D2 五条 limit 句都写到「命令行」或「不自动重试」，且中英词条里都不许再有「侧栏终端」（缺的：' + (weak.join('、') || '无') + '；中文残留：' + (stillTerminal.join('、') || '无') + '；英文残留：' + (stillTerminalEn.join('、') || '无') + '）')
 
   const unmapped = writeReasons.filter(function (r) { return !view.VC_WRITE_ERR_FAMILY[r] })
@@ -654,215 +870,6 @@ async function groupG(view) {
 }
 
 
-// ============================================================
-// J 组 · DOM 级（真渲染：确认框正文、结果横幅是人话、文字里不出现词条键）
-//   这一组是 #842 视觉预览漏网的补丁：原来 53 条大多停在模型层，接线断了也没人发现。
-// ============================================================
-function writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, write) {
-  const preset = JSON.stringify(write)
-  return renderTab(React, DswsCtx, TipStub, IcStub, readsOf(screen), function (s) {
-    return s.replace(VC_WRITE_INIT_RE, "write: " + preset)
-  })
-}
-function domText(html) {
-  const { JSDOM } = require('jsdom')
-  const dom = new JSDOM('<div id="m">' + html + '</div>')
-  const root = dom.window.document.getElementById('m')
-  const pick = function (sel) { const el = root.querySelector(sel); return el ? String(el.textContent || '') : '' }
-  return {
-    text: String(root.textContent || ''),
-    confirmBody: pick('[data-vc-confirm-body]'),
-    confirmTitle: pick('[data-vc-confirm] > div'),
-    confirmOk: pick('[data-vc-confirm-ok]'),
-    confirmTtl: pick('[data-vc-confirm-ttl]'),
-    result: pick('[data-vc-op-result]'),
-    resultVerb: pick('[data-vc-op-result] span'),
-    resultText: pick('[data-vc-op-text]'),
-    resultLimit: pick('[data-vc-op-limit]'),
-    running: pick('[data-vc-running]'),
-    choice: pick('[data-vc-remote-choice]'),
-    choiceBody: pick('[data-vc-remote-choice-body]'),
-  }
-}
-function groupJ(React, DswsCtx, TipStub, IcStub) {
-  const screen = richScreen()
-  const ttl = { id: 't1', expiresAtMs: NOW + 120000 }
-  const pulls = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'idle', message: '', confirm: { op: 'pull', plan: { mode: 'existing', remote: 'origin', branch: 'main', localBranch: 'main' }, ticket: ttl, remotes: [] }, result: null, remoteChoice: null })
-  const d1 = domText(pulls.html)
-  check(pulls.err === '' && d1.confirmBody.indexOf('快进合并') >= 0 && d1.confirmOk === trZh('vc.action.pull') && d1.confirmBody.indexOf('vc.') < 0,
-    'J1 真渲染·拉取确认框：正文是那句话、主按钮是词条句（正文=' + JSON.stringify(d1.confirmBody) + '，按钮=' + JSON.stringify(d1.confirmOk) + '，渲染错=' + (pulls.err || '无') + '）')
-
-  const sets = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'idle', message: '', confirm: { op: 'push', plan: { mode: 'set-upstream', remote: 'origin', branch: 'main', localBranch: 'main' }, ticket: ttl, remotes: [] }, result: null, remoteChoice: null })
-  const d2 = domText(sets.html)
-  check(d2.confirmBody.indexOf('将本地 main 推送至 origin/main，并设为上游。') >= 0 && d2.confirmOk === trZh('vc.action.pushSetUpstream'),
-    'J2 真渲染·set-upstream 确认框：正文点名目标并写清设为上游（正文=' + JSON.stringify(d2.confirmBody) + '，按钮=' + JSON.stringify(d2.confirmOk) + '）')
-
-  const recs = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'idle', message: '', confirm: { op: 'push', plan: { mode: 'recreate', remote: 'origin', branch: 'feature', localBranch: 'feature' }, ticket: ttl, remotes: [] }, result: null, remoteChoice: null })
-  const d3 = domText(recs.html)
-  check(d3.confirmBody.indexOf('origin/feature') >= 0 && d3.confirmBody.indexOf('不存在') >= 0 && d3.confirmOk === trZh('vc.action.pushRecreate'),
-    'J3 真渲染·recreate 确认框：正文说「已经不在了」并点名目标（正文=' + JSON.stringify(d3.confirmBody) + '，按钮=' + JSON.stringify(d3.confirmOk) + '）')
-
-  const fails = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'failed', message: '', confirm: null, remoteChoice: null, result: { state: 'failed', key: 'vc.writeErr.notFastForward', params: {}, limitKey: 'vc.writeErr.notFastForward.limit', verb: 'vc.op.failed', tipKey: '', tip: '宿主原话', retryable: true, moved: false } })
-  const d4 = domText(fails.html)
-  check(d4.result.indexOf('执行失败') >= 0 && d4.resultText.indexOf('远端新提交已取回') >= 0 && d4.resultLimit.indexOf('命令行') >= 0 && d4.resultLimit.indexOf('侧栏终端') < 0 && d4.result.indexOf('vc.') < 0,
-    'J4 真渲染·失败横幅：动作词 + 主句 + limit 句都是人话（横幅=' + JSON.stringify(d4.result) + '，渲染错=' + (fails.err || '无') + '，HTML 长=' + fails.html.length + '）')
-
-  const dones = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'done', message: '', confirm: null, remoteChoice: null, result: { state: 'done', key: 'vc.op.donePushRecreate', params: { local: 'feature', remote: 'origin', target: 'feature' }, verb: 'vc.op.done', tipKey: '', tip: '', retryable: false, moved: false } })
-  const d5 = domText(dones.html)
-  check(d5.result.indexOf('执行完成') >= 0 && d5.result.indexOf('上游已重建') >= 0 && d5.result.indexOf('origin/feature') >= 0 && d5.result.indexOf('vc.') < 0,
-    'J5 真渲染·成功横幅：按预检档说「已重建上游…」（横幅=' + JSON.stringify(d5.result) + '，渲染错=' + (dones.err || '无') + '）')
-
-  const running = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: 'pull', state: 'running', message: '', confirm: null, result: null, remoteChoice: null })
-  const d6 = domText(running.html)
-  check(d6.running === trZh('vc.op.running'), 'J6 真渲染·执行中那一行有正文（实得 ' + JSON.stringify(d6.running) + '）')
-
-  const choice = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } })
-  const d7 = domText(choice.html)
-  check(d7.choice.indexOf(trZh('vc.pickRemote.title')) >= 0 && d7.choiceBody.indexOf('面板不代选远端') >= 0 && d7.choice.indexOf('origin') >= 0 && d7.choice.indexOf('mirror') >= 0,
-    'J7 真渲染·多远端候选框：标题与正文都是人话、两个远端都可点（框=' + JSON.stringify(d7.choice.slice(0, 60)) + '）')
-
-  // J8 通用守卫：上面七次真渲染的文字里，一个 vc. 开头的词条键都不许出现。
-  const allText = [d1, d2, d3, d4, d5, d6, d7].map(function (d) { return d.text }).join('\n')
-  const leaked = allText.match(/vc\.[A-Za-z][A-Za-z0-9_.]*/g) || []
-  check(leaked.length === 0, 'J8 通用守卫：真渲染出来的文字里不出现词条键（命中：' + (leaked.slice(0, 5).join('、') || '无') + '）')
-
-  // J9 真渲染·补丁块（task-61 打磨）：卡片类挂上了、差异行画出来了。
-  //   展开键是「分组\u0000路径」（块模型那一层的口径）；未提交那一层点开打不开是既有缺陷，见 .tmp-842-visual/POLISH.md。
-  const diffReads = Object.assign({}, readsOf(screen), { diffs: { 'a.txt': { state: 'ok', lines: [{ kind: 'add', text: '+新行' }, { kind: 'del', text: '-旧行' }], reason: 'ok', truncated: false, error: null } } })
-  const diffRender = renderTab(React, DswsCtx, TipStub, IcStub, diffReads, function (s) {
-    return subQ("openDiff: '', openCommit: '', view:", "openDiff: 'staged' + String.fromCharCode(0) + 'a.txt', openCommit: '', view:")(s)
-  })
-  const doc9 = new (require('jsdom').JSDOM)('<div id="m">' + diffRender.html + '</div>').window.document
-  const card = doc9.querySelector('[data-vc-diff="lines"]')
-  check(!!card && String(card.className).indexOf('dsws-vc-card') >= 0 && card.textContent.indexOf('新行') >= 0 && card.textContent.indexOf('旧行') >= 0,
-    'J9 真渲染·补丁块：卡片类与差异行都在（class=' + (card ? card.className : '缺') + '，渲染错=' + (diffRender.err || '无') + '）')
-
-  // J10–J13：#850 —— 两组各自的文件行都能点开自己的补丁；同一路径在两组时互不串；键改回裸路径必须红。
-  const openKey = function (group, path) { return group + String.fromCharCode(0) + path }
-  const diffReadsOf = function (paths) {
-    const diffs = {}
-    paths.forEach(function (p2) { diffs[p2] = { state: 'ok', lines: [{ kind: 'add', text: '+新行' }], reason: 'ok', truncated: false, error: null } })
-    return Object.assign({}, readsOf(screen), { diffs: diffs })
-  }
-  const uiSeed = /openDiff:\s*["']{2},\s*openCommit:\s*["']{2},\s*view:/
-  const renderOpen = function (key, reads, patchExtra) {
-    const v = buildView(function (s) {
-      let out = s.replace(VC_SEED_RE, 'React.useState(function () { return seedReads })')
-      out = out.replace(uiSeed, 'openDiff: ' + JSON.stringify(key) + ", openCommit: '', view:")
-      return patchExtra ? patchExtra(out) : out
-    }, React, DswsCtx, TipStub, IcStub, reads, [], trZh)
-    try { return require('react-dom/server').renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { return '' }
-  }
-  const rowsWithCard = function (html) {
-    const doc = new (require('jsdom').JSDOM)('<div id="m">' + html + '</div>').window.document
-    const out = []
-    Array.prototype.slice.call(doc.querySelectorAll('[data-vc-file]')).forEach(function (el) {
-      if (el.querySelector('[data-vc-diff]')) out.push(String(el.textContent || '').slice(0, 20))
-    })
-    return out
-  }
-  const staged10 = rowsWithCard(renderOpen(openKey('staged', 'a.txt'), diffReadsOf(['a.txt'])))
-  check(staged10.length === 1 && staged10[0].indexOf('a.txt') >= 0, 'J10 #850·已暂存组：点开 a.txt 画出它自己的补丁（含补丁的行：' + JSON.stringify(staged10) + '）')
-
-  const un11 = rowsWithCard(renderOpen(openKey('unstaged', 'b.txt'), diffReadsOf(['b.txt'])))
-  check(un11.length === 1 && un11[0].indexOf('b.txt') >= 0, 'J11 #850·未暂存组：点开 b.txt 画出它自己的补丁（含补丁的行：' + JSON.stringify(un11) + '）')
-
-  const dual = screenOf({ staged: [fileOf('x.txt', 'staged')], stagedCount: 1, unstaged: [fileOf('x.txt', 'unstaged')], unstagedCount: 1 })
-  const dualReads = Object.assign({}, readsOf(dual), { diffs: { 'x.txt': { state: 'ok', lines: [{ kind: 'add', text: '+新行' }], reason: 'ok', truncated: false, error: null } } })
-  const dualOpen = rowsWithCard(renderOpen(openKey('staged', 'x.txt'), dualReads))
-  const dualBoth = rowsWithCard(renderOpen(openKey('unstaged', 'x.txt'), dualReads))
-  const dualDoc = new (require('jsdom').JSDOM)('<div id="m">' + renderOpen(openKey('staged', 'x.txt'), dualReads) + '</div>').window.document
-  const dualRows = Array.prototype.slice.call(dualDoc.querySelectorAll('[data-vc-file]'))
-  const onlyFirst = dualRows.length === 2 && !!dualRows[0].querySelector('[data-vc-diff]') && !dualRows[1].querySelector('[data-vc-diff]')
-  check(dualOpen.length === 1 && dualBoth.length === 1 && onlyFirst, 'J12 #850·同一路径在两组时互不串：展开键带分组，一次只开一行（已暂存键=' + JSON.stringify(dualOpen) + '，未暂存键=' + JSON.stringify(dualBoth) + '，只有第一行开=' + onlyFirst + '）')
-
-  const bareHtml = renderOpen(openKey('staged', 'a.txt'), diffReadsOf(['a.txt']), function (s) {
-    return s.replace("  return String(r.group || '') + '\\u0000' + String(r.path || '')", "  return String(r.path || '')")
-  })
-  check(rowsWithCard(bareHtml).length === 0, 'J13 反证：把展开键改回裸路径 → J10 那条当场不成立（含补丁的行：' + JSON.stringify(rowsWithCard(bareHtml)) + '）')
-
-  const loadingReads = Object.assign({}, readsOf(screen), { diffs: { 'a.txt': { state: 'loading', lines: null, reason: '', truncated: false, error: null } } })
-  const loadingHtml = renderOpen(openKey('staged', 'a.txt'), loadingReads)
-  const loadingDoc = new (require('jsdom').JSDOM)('<div id="m">' + loadingHtml + '</div>').window.document
-  const loadingBlock = loadingDoc.querySelector('[data-vc-diff="loading"]')
-  const loadingBars = loadingBlock ? loadingBlock.querySelectorAll('[data-vc-skel="1"]') : []
-  check(!!loadingBlock && loadingBars.length >= 3 && loadingBlock.textContent.trim() === '' && loadingHtml.indexOf('正在读改动') < 0, 'J14 #857·读取中的差异画骨架条，不画会跳动的文字（骨架条 ' + loadingBars.length + ' 条）')
-
-  const failDoc = new (require('jsdom').JSDOM)('<div id="m">' + fails.html + '</div>').window.document
-  const failAi = failDoc.querySelector('[data-vc-op-result] [data-vc-ai="write-fail"]')
-  const doneDoc = new (require('jsdom').JSDOM)('<div id="m">' + dones.html + '</div>').window.document
-  check(!!failAi && failAi.textContent === trZh('vc.action.aiHandoff') && !doneDoc.querySelector('[data-vc-op-result] [data-vc-ai]'), 'J15 #854·没做成的横幅旁边有「让 AI 帮我解决」，做完了没有（按钮=' + (failAi ? '有' : '无') + '）')
-}
-
-
-
-// ============================================================
-// L 组 · 视觉语言（#851 照原型 C「档案索引」）：徽章 / 等宽 / 正负着色 / 小标题 / 字号层级
-//   这一组同时给三条反证：把新加的样式钩子改回去，对应的判据必须当场变红。
-// ============================================================
-function groupL(view, React, DswsCtx, TipStub, IcStub) {
-  // 这一组要同时看到文件行与提交历史行（短号等宽那条挂在提交行上），所以夹具带上一条提交。
-  const screen = screenOf({
-    staged: [fileOf('a.txt', 'staged')], stagedCount: 1,
-    unstaged: [fileOf('b.txt', 'unstaged')], unstagedCount: 1,
-    commits: [{ oid: 'c'.repeat(40), short: 'ccccccc', subject: '提交说明', author: 'x', authorDateMs: NOW - 3600000, commitDateMs: NOW - 3600000, parents: ['p'] }],
-  })
-  const render = function (patch) {
-    const v = buildView(function (s) {
-      let out = s.replace(VC_SEED_RE, 'React.useState(function () { return seedReads })')
-      return patch ? patch(out) : out
-    }, React, DswsCtx, TipStub, IcStub, readsOf(screen), [], trZh)
-    try { return require('react-dom/server').renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { return '' }
-  }
-  const docOf = function (html) { return new (require('jsdom').JSDOM)('<div id="m">' + html + '</div>').window.document.getElementById('m') }
-  const letters = ['added', 'modified', 'deleted', 'renamed', 'typechange', 'untracked'].map(function (c) { return view.vcBadgeLetterOf(c) }).join('')
-  const badgeOk = function (doc) {
-    const b = doc.querySelector('[data-vc-badge]')
-    const row = doc.querySelector('[data-vc-file]')
-    return !!b && b.textContent === 'M' && String(b.className).indexOf('dsws-vc-badge') >= 0 && !!row && row.textContent.indexOf('修改') >= 0
-  }
-  const monoOk = function (doc) {
-    // 文件行里等宽的元素不止一个（状态词、路径、行数都是），所以要找「装着路径那一枚」。
-    const pathOk = Array.prototype.some.call(doc.querySelectorAll('[data-vc-file] .dsws-vc-mono'), function (el) { return el.textContent.indexOf('a.txt') >= 0 })
-    // 提交短号住在历史视图里（布局 C）：到那个视图去查，不在改动页硬找。
-    const commitsDoc = docOf(render(function (s) { return s.replace("view: vcRememberedView()", "view: 'commits'") }))
-    const shortOk = Array.prototype.some.call(commitsDoc.querySelectorAll('[data-vc-commit] .dsws-vc-mono'), function (el) { return el.textContent.indexOf('ccccccc') >= 0 })
-    return pathOk && shortOk
-  }
-  const countsOk = function (doc) {
-    const a = doc.querySelector('[data-vc-file] .dsws-vc-add')
-    const d = doc.querySelector('[data-vc-file] .dsws-vc-del')
-    const row = doc.querySelector('[data-vc-file]')
-    return !!a && !!d && a.textContent === '+1' && d.textContent === '\u22120' && row.textContent.indexOf('+1 \u22120') >= 0
-  }
-  const secOk = function (doc) {
-    const el = doc.querySelector('[data-vc-group] .dsws-vc-sec')
-    return !!el && el.textContent.indexOf('已暂存') >= 0
-  }
-  const hierOk = function (doc) {
-    const name = doc.querySelector('[data-vc-worktree]')
-    const sync = doc.querySelector('[data-vc-sync]')
-    const pathEl = doc.querySelector('[data-vc-path]')
-    return !!name && String(name.className).indexOf('dsws-vc-id') >= 0 && !!sync && String(sync.className).indexOf('dsws-vc-count') >= 0 && !!pathEl && String(pathEl.className).indexOf('dsws-vc-mono') >= 0
-  }
-  const html = render(null)
-  const doc = docOf(html)
-  check(letters === 'AMDRT?' && badgeOk(doc), 'L1 状态字母徽章：六种变化各一个字母（实得 ' + letters + '），文件行上挂方形徽章，中文状态词「修改」照旧在行里（原型两行排布：路径在上，状态词在下）')
-  check(monoOk(doc), 'L2 等宽 + 表格数字：路径与提交短号都挂 dsws-vc-mono')
-  check(countsOk(doc), 'L3 加减行数按正负着色：+1 与 \u22120 各自一个 span（合起来仍是原来那一串）')
-  check(secOk(doc), 'L4 分段小标题：分组标题挂 dsws-vc-sec，文字仍是既有词条（已暂存…）')
-  check(hierOk(doc), 'L5 身份行与计数行拉开层级：身份行 dsws-vc-id、计数行 dsws-vc-count、路径行 dsws-vc-mono')
-
-  // 反证（三条）：把新加的样式钩子改回去，对应的判据必须当场变红。
-  const noBadge = docOf(render(function (s) { return s.replace("    badge: vcBadgeLetterOf(row.change),", "    badge: '',") }))
-  check(badgeOk(noBadge) === false, 'L6 反证：把行模型里的徽章字母去掉 → L1 那条当场不成立')
-  const noMono = docOf(render(function (s) { return subQ("h('span', { key: 'path', className: 'dsws-vc-mono', style: { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)", "h('span', { key: 'path', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)")(s) }))
-  check(monoOk(noMono) === false, 'L7 反证：把路径上的 dsws-vc-mono 撤掉 → L2 那条当场不成立')
-  const noSign = docOf(render(function (s) { return subQ("h('span', { key: 'add', className: 'dsws-vc-add' }, row.addText),", "h('span', { key: 'add' }, row.addText),")(s) }))
-  check(countsOk(noSign) === false, 'L8 反证：把加减行数的着色类撤掉 → L3 那条当场不成立')
-}
-
-// ============================================================
 // K 组 · 失败种类分档（宿主新档 env-fs：文件服务读不到运行状态，不许再指向 git）
 // ============================================================
 function groupK(view, React, DswsCtx, TipStub, IcStub) {
@@ -875,13 +882,8 @@ function groupK(view, React, DswsCtx, TipStub, IcStub) {
     'K1 env-fs 有自己那一档：主句含「运行状态 / 文件服务」，中英都不提 git（zh=' + zhEnvFs + '）')
   check(kEnv === 'vc.fail.noGit' && /git/i.test(zhEnv), 'K2 env 仍留给「真的找不到 git」（zh=' + zhEnv + '）')
 
-  // K3 真渲染：kind=env-fs 的失败信封 → 可见文字是那一档、不提 git、不出现词条键（J8 守卫同口径）。
-  const errReads = { screen: { state: 'err', data: null, error: { kind: 'env-fs', message: '宿主的原话：文件服务没给出结论' } }, diffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
-  const r = renderTab(React, DswsCtx, TipStub, IcStub, errReads, null)
-  const d = domText(r.html)
-  const leaked = d.text.match(/vc\.[A-Za-z][A-Za-z0-9_.]*/g) || []
-  check(r.err === '' && d.text.indexOf('运行状态') >= 0 && d.text.indexOf(zhEnvFs) >= 0 && !/git/i.test(d.text) && leaked.length === 0,
-    'K3 真渲染 kind=env-fs：可见文字是「运行状态 / 文件服务」那句、不提 git、不出现词条键（实得 ' + JSON.stringify(d.text.slice(0, 60)) + '）')
+  // K3 文案级：env-fs 那一档与「找不到 git」那一档必须是两句不同的人话（渲染后的可见文字由真挂载门禁守）。
+  check(zhEnvFs.length > 0 && zhEnvFs.indexOf('运行状态') >= 0 && !/git/i.test(zhEnvFs) && zhEnvFs !== zhEnv, 'K3 env-fs 那一档文案说「运行状态 / 文件服务」、不提 git，也不是「找不到 git」那句（zh=' + zhEnvFs + '）')
 }
 
 // ============================================================
@@ -1166,6 +1168,250 @@ async function groupM(view) {
 }
 
 // ============================================================
+// J 组 · 真实页签渲染：确认卡 / 结果横幅 / 逐文件差异 / AI 入口
+// #1776 M1 把这一组降级成了只断模型；M4c 改回渲染真页面（vcRenderTabAt 与 VersionControlTab），
+//   断言落在用户真能看见的 DOM 上。J13 与 J15c 是反证：判据不是自说自话。
+// ============================================================
+function groupJ(view: any, React: any, DswsCtx: any, TipStub: any, IcStub: any, logs: any) {
+  const rendered: string[] = []
+  const renderOf = function (opts: any): string { const html = pageHtmlOf(view, opts); rendered.push(html); return html }
+  const remoteOf = function (opts?: any): string { const html = remotePageHtmlOf(view, opts); rendered.push(html); return html }
+
+  // J1 拉取（8.8）：确认卡四段齐全、票号在卡上、目标点到 origin/main。
+  const j1Sync = { capabilityId: '8.8', action: 'pull-ff-only', plan: { id: '8.8', refKind: '' }, decision: 'allow', confirmRequired: true, ticket: { id: 'T-8.8', expiresAtMs: NOW + 120000 }, confirm: { verb: trZh('vc.action.pull'), target: 'origin/main' } }
+  const j1Html = remoteOf({ reads: remoteReadsOf({ sync: j1Sync }), ui: { open: '8.8' } })
+  check(j1Html.indexOf('data-vc-sync-confirm="1"') >= 0 && attrValuesOf(j1Html, 'data-vc-confirm-seg').join(',') === 'what,wont,reversible,verb' && j1Html.indexOf('data-focus-default="cancel"') >= 0 && j1Html.indexOf('data-vc-sync-ticket="T-8.8"') >= 0 && j1Html.indexOf('origin/main') >= 0, 'J1 拉取确认卡真渲染：四段（会动什么 / 不会动什么 / 可逆性与恢复 / 动词写后果）齐全，票号与目标都在卡上')
+
+  // J2 设为上游并推送（8.10）：同一套确认卡，确认键写的是后果。
+  const j2Sync = { capabilityId: '8.10', action: 'push-upstream', plan: { id: '8.10', refKind: '' }, decision: 'allow', confirmRequired: true, ticket: { id: 'T-8.10', expiresAtMs: NOW + 120000 }, confirm: { verb: trZh('vc.action.pushSetUpstream'), target: 'origin/main' } }
+  const j2Html = remoteOf({ reads: remoteReadsOf({ sync: j2Sync }), ui: { open: '8.10' } })
+  check(j2Html.indexOf('data-vc-sync-confirm="1"') >= 0 && j2Html.indexOf(trZh('vc.action.pushSetUpstream')) >= 0 && j2Html.indexOf('data-vc-sync-ticket="T-8.10"') >= 0 && j2Html.indexOf('origin/main') >= 0, 'J2 设为上游并推送的确认卡真渲染：动词是「设为上游并推送」，目标点到 origin/main')
+
+  // J3 强推（8.12）：租约段点名旧 / 新提交号，确认卡照样在。
+  const j3Old = 'd'.repeat(40)
+  const j3New = 'e'.repeat(40)
+  const j3Sync = { capabilityId: '8.12', action: 'force-push', plan: { id: '8.12', refKind: '' }, decision: 'allow', confirmRequired: true, ticket: { id: 'T-8.12', expiresAtMs: NOW + 120000 }, confirm: { verb: trZh('vc.action.pushRecreate'), target: 'origin/feature' }, oldOid: j3Old, newOid: j3New, readAtMs: NOW - 30000 }
+  const j3Html = remoteOf({ reads: remoteReadsOf({ sync: j3Sync }), ui: { open: '8.12' } })
+  check(j3Html.indexOf('data-vc-sync-lease="1"') >= 0 && j3Html.indexOf('data-vc-sync-old="' + j3Old + '"') >= 0 && j3Html.indexOf('data-vc-sync-new="' + j3New + '"') >= 0 && j3Html.indexOf('data-vc-sync-confirm="1"') >= 0, 'J3 强推的租约段真渲染：旧 / 新提交号都点名，确认卡仍在（不糊成一句「覆盖远端」）')
+
+  // J4 失败横幅：git 原话、环节、期望与实际、上游原因一样都不省，重试入口贴在同一段里。
+  const j4Git = '! [rejected] main -> main (fetch first)'
+  const j4Html = remoteOf({ reads: remoteReadsOf({ sync: { capabilityId: '8.9', action: 'push', plan: { id: '8.9', refKind: '' }, decision: 'allow' } }), ui: { open: '8.9', result: { ok: false, git: j4Git, step: '推送', expected: '远端接受这次推送', actual: '远端有新提交', cause: '先拉取再推送' } } })
+  check(j4Html.indexOf('data-vc-result="fail"') >= 0 && j4Html.indexOf('role="alert"') >= 0 && j4Html.indexOf(j4Git.replace(/>/g, '&gt;')) >= 0 && j4Html.indexOf('data-vc-result-action="retry"') >= 0, 'J4 推送失败的横幅真渲染：git 原话与重试入口都在触发点那一段里')
+
+  // J5 成功横幅：命令、耗时、对象数与下一步。
+  const j5Html = remoteOf({ reads: remoteReadsOf({ sync: { capabilityId: '8.9', action: 'push', plan: { id: '8.9', refKind: '' }, decision: 'allow' } }), ui: { open: '8.9', result: { ok: true, cmd: 'fetch', ms: 12, n: 1, next: '看一眼日志再决定' } } })
+  check(j5Html.indexOf('data-vc-result="ok"') >= 0 && j5Html.indexOf('role="status"') >= 0 && j5Html.indexOf('fetch') >= 0 && j5Html.indexOf('看一眼日志再决定') >= 0, 'J5 成功横幅真渲染：命令名、耗时、对象数与下一步都在')
+
+  // J6 任务区：长任务进行中要如实画任务号、状态与阶段。
+  const j6Html = remoteOf({ reads: remoteReadsOf({ task: { taskId: 'task-8.9', state: 'running', phase: '推送中' } }), ui: { open: '8.9' } })
+  check(j6Html.indexOf('data-vc-sync-task="1"') >= 0 && j6Html.indexOf('data-vc-sync-task-id="task-8.9"') >= 0 && j6Html.indexOf('data-vc-sync-task-phase="推送中"') >= 0, 'J6 任务区真渲染：任务号、状态与阶段都在（执行中的进度不靠猜）')
+
+  // J7 远端页删除确认卡：预检签到票之后才出现，动作、目标与票据有效期都写清。
+  const j7Confirm = { action: 'remove', ticketId: 'rt-9', requestId: 'rq-9', checkedAtMs: NOW, expiresAtMs: NOW + 120000, name: 'mirror' }
+  const j7Html = remoteOf({ ui: { form: 'remove', target: 'mirror', confirm: j7Confirm } })
+  check(j7Html.indexOf('data-vc-remote="origin"') >= 0 && attrValuesOf(j7Html, 'data-vc-remote').join(',') === 'origin,mirror,leaky' && j7Html.indexOf('data-vc-remote-confirm="mirror"') >= 0 && j7Html.indexOf('data-vc-remote-confirm-action="remove"') >= 0 && j7Html.indexOf('data-vc-remote-confirm-note="1"') >= 0 && j7Html.indexOf('重新预检') >= 0, 'J7 远端删除的确认卡真渲染：三条远端都列着，卡挂在 mirror 那一行上，动作与票据有效期都写清（过期要重新预检）')
+
+  // J8 用户看得见的文字里不出现词条键名（译好了才画）。
+  const jKeyHits = visibleTextOf(rendered.join('\n')).match(/vc\.[A-Za-z][A-Za-z0-9_.]*/g) || []
+  check(jKeyHits.length === 0, 'J8 本组渲染出来的可见文字里没有词条键名（词典已插进页面；命中：' + (jKeyHits.join('、') || '无') + '）')
+
+  // J10 历史页逐文件差异：五种行按读数次序画，加 / 减行各带自己的类名。
+  const y5Key = view.vcCommitKeyOf(hcRev.oid, 'src/a.ts')
+  const y5Reads = hcReadsOf(view, { commits: hcRows4, reads: { commit: hcCommitOk, commitDiffs: { [y5Key]: { state: 'ok', lines: y5Lines, truncated: false, reason: 'ok', error: null } } } })
+  const j10Html = renderOf({ page: 'commits', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: y5Reads, ui: { openCommit: hcRev.oid, openFile: 'src/a.ts' } })
+  const j10Add = /<span[^>]*vcs-hist-line-add[^>]*>([^<]*)</.exec(j10Html)
+  const j10Del = /<span[^>]*vcs-hist-line-del[^>]*>([^<]*)</.exec(j10Html)
+  check(j10Html.indexOf('data-vc-file-diff="src/a.ts"') >= 0 && attrValuesOf(j10Html, 'data-vc-diff-line').join(',') === 'filehead,hunk,add,del,context' && !!j10Add && j10Add[1].charAt(0) === '+' && !!j10Del && j10Del[1].charAt(0) === '-', 'J10 历史页逐文件差异真渲染：五种行按读数次序画，新增行以「+」开头、删除行以「-」开头')
+
+  // J11 同路径不同提交互不串：缓存键带上提交号，打开哪条提交就看哪一份。
+  const hcRow3 = hcRows4[3]
+  const y3Key = view.vcCommitKeyOf(hcRow3.oid, 'src/a.ts')
+  const j11Diffs: any = {}
+  j11Diffs[y5Key] = { state: 'ok', lines: y5Lines, truncated: false, reason: 'ok', error: null }
+  j11Diffs[y3Key] = { state: 'ok', lines: [{ kind: 'add', text: '+第三条提交里的另一行' }], truncated: false, reason: 'ok', error: null }
+  const j11First = renderOf({ page: 'commits', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: hcReadsOf(view, { commits: hcRows4, reads: { commit: hcCommitOk, commitDiffs: j11Diffs } }), ui: { openCommit: hcRev.oid, openFile: 'src/a.ts' } })
+  const j11Second = renderOf({ page: 'commits', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: hcReadsOf(view, { commits: hcRows4, reads: { commit: Object.assign({}, hcCommitOk, { rev: hcRow3.oid }), commitDiffs: j11Diffs } }), ui: { openCommit: hcRow3.oid, openFile: 'src/a.ts' } })
+  check(j11First.indexOf('新的一行') >= 0 && j11First.indexOf('第三条提交里的另一行') < 0 && j11Second.indexOf('第三条提交里的另一行') >= 0 && j11Second.indexOf('新的一行') < 0, 'J11 同一路径在不同提交下的差异互不串：打开哪条提交就看哪一份（缓存键不是只按路径）')
+  check(y5Key.indexOf('\u0000') >= 0 && y5Key !== y3Key && y5Key === String(hcRev.oid) + '\u0000' + 'src/a.ts', 'J12 逐文件差异的缓存键确实是「提交号 + 路径」（实得 ' + JSON.stringify(y5Key) + '）')
+
+  // J13 反证：把缓存键改成裸路径，同一份读数就取不到了 —— 证明 J10 / J11 过的是复合键。
+  const j13View = buildView(subQ("return String(rev || '') + '\\u0000' + String(path || '')", "return String(path || '')"), React, DswsCtx, TipStub, IcStub, null, [], trZh)
+  const j13Html = pageHtmlOf(j13View, { page: 'commits', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: y5Reads, ui: { openCommit: hcRev.oid, openFile: 'src/a.ts' } })
+  check(j13Html.indexOf('data-vc-file-diff="src/a.ts"') >= 0 && attrValuesOf(j13Html, 'data-vc-diff-line').length === 0, 'J13 反证：把缓存键改成裸路径，同一份读数就取不到了（差异区只剩标题、没有行）——J10 过的是复合键')
+
+  // J14 四种读法各说各的话：还在读 / 二进制 / 合并提交 / 截断。
+  const j14Of = function (read: any): string {
+    const reads = hcReadsOf(view, { commits: hcRows4, reads: { commit: hcCommitOk, commitDiffs: { [y5Key]: read } } })
+    return renderOf({ page: 'commits', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: reads, ui: { openCommit: hcRev.oid, openFile: 'src/a.ts' } })
+  }
+  const j14Loading = j14Of(null)
+  const j14Binary = j14Of({ state: 'ok', lines: [], truncated: false, reason: 'binary-diff', error: null })
+  const j14Merge = j14Of({ state: 'ok', lines: [], truncated: false, reason: 'merge-commit', error: null })
+  const j14Trunc = j14Of({ state: 'ok', lines: y5Lines, truncated: true, reason: 'ok', error: null })
+  check(j14Loading.indexOf('data-vc-file-diff="src/a.ts"') >= 0 && j14Loading.indexOf(trZh('vc.shell.history.diffLoading')) >= 0 && attrValuesOf(j14Loading, 'data-vc-diff-line').length === 0, 'J14a 差异还在读时只画加载说法，不先画空清单冒充「没有差异」')
+  check(j14Binary.indexOf('data-vc-file-diff-binary="1"') >= 0 && j14Binary.indexOf(trZh('vc.shell.history.diffBinary')) >= 0, 'J14b 二进制差异单独说一句，不硬塞文本行')
+  check(j14Merge.indexOf('data-vc-file-diff-merge="1"') >= 0 && j14Merge.indexOf(trZh('vc.shell.history.diffMerge')) >= 0, 'J14c 合并提交的差异单独说一句（不把它当普通差异展示）')
+  check(j14Trunc.indexOf('data-vc-file-diff-truncated="1"') >= 0 && attrValuesOf(j14Trunc, 'data-vc-diff-line').length === y5Lines.length, 'J14d 截断时先说截断，已有行照常画')
+
+  // J15 AI 入口：旧块删掉后只靠模型断不出「按钮真画在页面上」，这里真挂载整个页签。
+  const j15Conflict = firstSeedOf(view)
+  j15Conflict.slices.changes.data.conflictCount = 1
+  j15Conflict.slices.workspace.data.repo = Object.assign({}, j15Conflict.slices.workspace.data.repo, { rebasing: true })
+  const j15Html = renderTabHtmlOf(React, DswsCtx, TipStub, IcStub, { firstScreen: { state: 'ok', data: j15Conflict, error: null } })
+  const j15Kinds = attrValuesOf(j15Html, 'data-vc-ai')
+  const j15Btn = /<button[^>]*data-vc-ai="conflict"[^>]*>([\s\S]*?)<\/button>/.exec(j15Html)
+  check(j15Kinds.indexOf('conflict') >= 0 && j15Kinds.indexOf('midop') >= 0 && !!j15Btn && j15Btn[1].replace(/<[^>]*>/g, '').trim() === trZh('vc.action.aiHandoff'), 'J15 真页签渲染：有冲突且正在变基时画出「冲突」「进行中」两个 AI 入口，按钮文字是动词译文')
+  const j15FailHtml = renderTabHtmlOf(React, DswsCtx, TipStub, IcStub, { firstScreen: { state: 'err', data: null, error: { kind: 'timeout', message: '读首屏超时' } } })
+  check(attrValuesOf(j15FailHtml, 'data-vc-ai').indexOf('read-fail') >= 0, 'J15b 首屏整次读失败时画出「读失败」AI 入口')
+  const j15PlainHtml = renderTabHtmlOf(React, DswsCtx, TipStub, IcStub, { firstScreen: { state: 'ok', data: firstSeedOf(view), error: null } })
+  check(attrValuesOf(j15PlainHtml, 'data-vc-ai').length === 0 && j15PlainHtml.indexOf('data-vc-shell="1"') >= 0, 'J15c 反证：普通工作区（无冲突、无进行中操作）一个 AI 入口都不画')
+}
+
+// ============================================================
+// L 组 · 视觉语言（真渲染 + 样式原文两面对照）
+// 只守「用户一眼能分的层级」：页面层级、确认卡、正负行、等宽换行、结果语义色；
+//   最后三条反证把源码改坏，对应判据当场变假 —— 证明这些断言不是恒真。
+// ============================================================
+function groupL(view: any, React: any, DswsCtx: any, TipStub: any, IcStub: any) {
+  const css = readSource('src/client/views/versionControl/vcShellStyles.ts')
+
+  // L1 页面层级：页面壳自己画根、页头与页标题；标题文字是词条译文。
+  const l1Html = remotePageHtmlOf(view, {})
+  check(l1Html.indexOf('data-vc-page="remote"') >= 0 && l1Html.indexOf('data-vc-shell="1"') >= 0 && l1Html.indexOf('vcs-page-meta') >= 0 && l1Html.indexOf('vcs-page-title') >= 0 && l1Html.indexOf(trZh('vc.shell.page.remote')) >= 0, 'L1 页面层级真渲染：根、页头与页标题都在，标题是词条译文而不是键名')
+
+  // L2 确认卡视觉：标题 / 四段 / 按钮组四种零件在 DOM 与样式表里都齐。
+  const l2Html = remotePageHtmlOf(view, { ui: { form: 'remove', target: 'mirror', confirm: { action: 'remove', ticketId: 'rt-l2', requestId: 'rq-l2', checkedAtMs: NOW, expiresAtMs: NOW + 120000, name: 'mirror' } } })
+  const l2Classes = ['vcs-confirm', 'vcs-confirm-title', 'vcs-confirm-seg', 'vcs-confirm-acts']
+  const l2Dom = l2Classes.every(function (c: string) { return l2Html.indexOf(c) >= 0 })
+  const l2Css = l2Classes.every(function (c: string) { return css.indexOf('.' + c + '{') >= 0 })
+  check(l2Dom && l2Css, 'L2 危险动作确认卡：标题 / 四段 / 按钮组四种零件在 DOM 与样式表里都齐（DOM=' + l2Dom + '，样式=' + l2Css + '）')
+
+  // L3 正负行：新增行以 + 开头、删除行以 - 开头，且各带自己的类名与颜色规则。
+  const l3Lines = hcReadsOf(view, { commits: hcRows4, reads: { commit: hcCommitOk, commitDiffs: { [view.vcCommitKeyOf(hcRev.oid, 'src/a.ts')]: { state: 'ok', lines: y5Lines, truncated: false, reason: 'ok', error: null } } } })
+  const l3Html = pageHtmlOf(view, { page: 'commits', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: l3Lines, ui: { openCommit: hcRev.oid, openFile: 'src/a.ts' } })
+  const l3Add = /<span[^>]*vcs-hist-line-add[^>]*>([^<]*)</.exec(l3Html)
+  const l3Del = /<span[^>]*vcs-hist-line-del[^>]*>([^<]*)</.exec(l3Html)
+  check(!!l3Add && l3Add[1].charAt(0) === '+' && !!l3Del && l3Del[1].charAt(0) === '-' && css.indexOf('.vcs-hist-line-add{color') >= 0 && css.indexOf('.vcs-hist-line-del{color') >= 0, 'L3 正负行：+/- 开头与类名、颜色规则两面都成立（新增绿、删除用危险色）')
+
+  // L4 等宽与换行：差异行住在一个 pre 里，逐行 display:block + pre-wrap（长行不撑破布局）。
+  const l4Pre = /<pre[^>]*class="[^"]*vcs-hist-diff-lines[^"]*"/.test(l3Html)
+  check(l4Pre && css.indexOf('.vcs-hist-diff-line{display:block;white-space:pre-wrap') >= 0, 'L4 差异块等宽换行：pre.vcs-hist-diff-lines 包着逐行 span，样式是 block + pre-wrap')
+
+  // L5 结果语义色：失败是 alert 加失败色，成功是 status；失败的颜色规则在样式表里。
+  const l5Sync = { capabilityId: '8.9', action: 'push', plan: { id: '8.9', refKind: '' }, decision: 'allow' }
+  const l5Fail = remotePageHtmlOf(view, { reads: remoteReadsOf({ sync: l5Sync }), ui: { open: '8.9', result: { ok: false, git: 'rejected', step: '推送', expected: '被接受', actual: '被拒', cause: '先拉取' } } })
+  const l5Ok = remotePageHtmlOf(view, { reads: remoteReadsOf({ sync: l5Sync }), ui: { open: '8.9', result: { ok: true, cmd: 'push', ms: 9, n: 1, next: '继续' } } })
+  check(l5Fail.indexOf('vcs-result-fail') >= 0 && l5Fail.indexOf('role="alert"') >= 0 && l5Ok.indexOf('vcs-result-ok') >= 0 && l5Ok.indexOf('role="status"') >= 0 && css.indexOf('.vcs-result-fail{border-color') >= 0, 'L5 结果语义色：失败是 alert 加失败色、成功是 status，颜色规则在样式表里（不靠浏览器默认）')
+
+  // L6 反证：把「不可逆」徽标的类名改坏，L 组这条判据当场变假。
+  const l6Plain = pageHtmlOf(view, { page: 'changes', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: readsOf(richScreen()), changes: { counts: {}, values: {}, rows: {}, handlers: {} } })
+  const l6View = buildView(subQ("'vcs-changes-badge vcs-changes-badge-hard'", "'vcs-changes-badge vcs-changes-badge-broken'"), React, DswsCtx, TipStub, IcStub, null, [], trZh)
+  const l6Html = pageHtmlOf(l6View, { page: 'changes', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: readsOf(richScreen()), changes: { counts: {}, values: {}, rows: {}, handlers: {} } })
+  check(l6Plain.indexOf('vcs-changes-badge-hard') >= 0 && l6Html.indexOf('vcs-changes-badge-hard') < 0, 'L6 反证：把「不可逆」徽标的类名改坏后，这条判据当场变假（判据不是恒真）')
+
+  // L7 反证：把差异行的类名前缀改坏，L3 的类名判据当场变假。
+  const l7View = buildView(subQ("'vcs-hist-diff-line vcs-hist-line-'", "'vcs-hist-diff-line vcs-hist-lineX-'"), React, DswsCtx, TipStub, IcStub, null, [], trZh)
+  const l7Html = pageHtmlOf(l7View, { page: 'commits', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: l3Lines, ui: { openCommit: hcRev.oid, openFile: 'src/a.ts' } })
+  check(l7Html.indexOf('vcs-hist-line-add') < 0 && l7Html.indexOf('vcs-hist-diff-line') >= 0, 'L7 反证：把差异行的类名前缀改坏后，L3 的类名判据当场变假')
+
+  // L8 反证：把失败结果的类名拼法改坏，L5 的失败色判据当场变假。
+  const l8View = buildView(subQ("(fail ? 'fail' : 'ok')", "(fail ? 'broken' : 'ok')"), React, DswsCtx, TipStub, IcStub, null, [], trZh)
+  const l8Html = remotePageHtmlOf(l8View, { reads: remoteReadsOf({ sync: l5Sync }), ui: { open: '8.9', result: { ok: false, git: 'rejected', step: '推送', expected: '被接受', actual: '被拒', cause: '先拉取' } } })
+  check(l8Html.indexOf('vcs-result-fail') < 0 && l8Html.indexOf('data-vc-result="fail"') >= 0, 'L8 反证：把失败结果的类名拼法改坏后，L5 的失败色判据当场变假（语义标记与样式类名是两件事）')
+}
+
+// ============================================================
+// M4e 组 · 客户端写层的三条规矩（#1776 M4e）
+//   1) 配置页读电话的名字只在 vcConfigOps 定义一次，动作层用 declare 复用，不另抄一份；
+//   2) 冲突页「没有票」那条兜底必须说人话、不发写电话、不抛异常；
+//   3) 配置预检开跑时先收掉上一轮留下的确认卡与结果，不拿一条假失败回包占位。
+//   每条都配一条反证：把源码改回旧写法，判据当场变假。
+// ============================================================
+function groupM4e(view: any, React: any, DswsCtx: any, TipStub: any, IcStub: any) {
+  const build = function (patch: any) { return buildView(patch, React, DswsCtx, TipStub, IcStub, null, [], trZh) }
+
+  // N1 单一来源：动作层不再自带一份读电话名字。
+  const actions2Src = readSource('src/client/views/versionControl/vcRealManageActions2.ts')
+  const configOpsSrc = readSource('src/client/views/versionControl/vcConfigOps.ts')
+  check(actions2Src.indexOf('declare const VC_CONFIG_READ_PHONE') >= 0 && actions2Src.indexOf('VC_REAL_CONFIG_READ_PHONE') < 0 && actions2Src.indexOf("'wf.gitConfigRead'") < 0 && configOpsSrc.indexOf("export const VC_CONFIG_READ_PHONE = 'wf.gitConfigRead'") >= 0, 'N1 配置页读电话的名字只有一处定义（vcConfigOps 导出、动作层 declare 复用），动作层没有第二份字面量')
+
+  // N1b 运行时也走同一份名字：读一次配置，发出去的正是 wf.gitConfigRead。
+  const n1Phones: string[] = []
+  const n1Handlers = view.vcRealConfigHandlersOf({
+    callHost: function (phone: any) { n1Phones.push(String(phone)); return Promise.resolve({ ok: true }) },
+    cwd: 'D:/w/repo',
+    nowMs: function () { return NOW },
+    getManage: function () { return { config: view.vcConfigStateNew() } },
+    setManage: function () {},
+    onRefresh: function () { return null },
+  })
+  n1Handlers.onConfig({ op: 'read' })
+  check(n1Phones.length === 1 && n1Phones[0] === 'wf.gitConfigRead', 'N1b 配置页读一次发的就是 wf.gitConfigRead（复用共享常量之后运行时仍指向同一条电话）')
+
+  // N2 冲突页没有票的兜底：说人话、零写电话、不抛异常。
+  let conflictCalls: any[] = []
+  let conflictsState: any = { values: {}, rows: {} }
+  const conflictHandlers = view.vcRealConflictsHandlersOf({
+    callHost: function (phone: any, args: any) { conflictCalls.push({ phone: phone, args: args }); return Promise.resolve({ ok: false }) },
+    cwd: 'D:/w/repo',
+    nowMs: function () { return NOW },
+    getConflicts: function () { return conflictsState },
+    patchConflicts: function (next: any) { conflictsState = next },
+    translate: trZh,
+  })
+  let conflictErr = ''
+  try {
+    conflictHandlers.run('conflict-view', {}, { ticketId: '' })
+  } catch (e) { conflictErr = String((e && e.message) || e) }
+  const conflictRow = (conflictsState.rows && conflictsState.rows['conflict-view']) || {}
+  const conflictErrObj = (conflictRow.result && conflictRow.result.error) || {}
+  check(conflictErr === '' && conflictErrObj.message === trZh('vc.shell.live.noTicket') && conflictErrObj.kind === 'shape' && conflictErrObj.reason === 'no-ticket' && conflictCalls.length === 0, 'N2 冲突页没有票时的兜底：印「先重新预检」这句人话、零写电话、不抛异常（旧写法里局部变量遮蔽翻译函数，这里必抛 TypeError）')
+
+  // N2b 反证：把局部变量改回遮蔽 translate 的旧写法，同样的调用当场抛错。
+  const n2Bad = build(function (s: string) { return s.replace('const tk: any = ticket || {}', 'const t: any = ticket || {}') })
+  let n2BadThrew = false
+  let n2BadState: any = { values: {}, rows: {} }
+  try {
+    n2Bad.vcRealConflictsHandlersOf({ callHost: function () { return Promise.resolve({ ok: false }) }, cwd: 'D:/w/repo', nowMs: function () { return NOW }, getConflicts: function () { return n2BadState }, patchConflicts: function (next: any) { n2BadState = next }, translate: trZh }).run('conflict-view', {}, { ticketId: '' })
+  } catch (e) { n2BadThrew = true }
+  check(n2BadThrew, 'N2b 反证：把局部变量改回遮蔽 translate 的旧写法后，同样的调用当场抛错（N2 的判据不是恒真）')
+
+  // N3 配置预检开跑时清掉上一轮的确认卡与结果，只留预检输入。
+  const oldConfig = view.vcConfigStateNew()
+  oldConfig.edit = { key: 'user.name', scope: 'local', value: '林可' }
+  oldConfig.check = { ok: true, ticket: { id: 'old-ticket' }, op: 'config-set' }
+  oldConfig.result = { ok: false, kind: 'other', message: '上一轮留下的失败' }
+  let configState = oldConfig
+  const configHandlers = view.vcRealConfigHandlersOf({
+    callHost: function () { return new Promise(function () {}) },
+    cwd: 'D:/w/repo',
+    nowMs: function () { return NOW },
+    getManage: function () { return { config: configState } },
+    setManage: function (next: any) { configState = next.config },
+    onRefresh: function () { return null },
+  })
+  configHandlers.onConfig({ op: 'config-set' })
+  const pendingInput = configState.pending || null
+  check(!!pendingInput && pendingInput.op === 'config-set' && configState.check === null && configState.result === null, 'N3 配置预检开跑时先收掉上一轮的确认卡与结果，只留预检输入（不拿假失败回包占位）')
+
+  // N3b 反证：改回「先用假失败回包占位」的旧写法，同一场景下结果里当场多出一条 kind=pending 的假失败。
+  const n3Bad = build(function (s: string) {
+    return s.replace('setState(Object.assign({}, current, { pending: input, check: null, result: null }))', "setState(vcConfigApplyCheck(Object.assign({}, current, { pending: input }), { ok: false, error: { kind: 'pending' } }))")
+  })
+  let n3BadState: any = Object.assign({}, oldConfig)
+  n3Bad.vcRealConfigHandlersOf({
+    callHost: function () { return new Promise(function () {}) },
+    cwd: 'D:/w/repo',
+    nowMs: function () { return NOW },
+    getManage: function () { return { config: n3BadState } },
+    setManage: function (next: any) { n3BadState = next.config },
+    onRefresh: function () { return null },
+  }).onConfig({ op: 'config-set' })
+  check(!!(n3BadState.result && n3BadState.result.ok === false && n3BadState.result.kind === 'pending'), 'N3b 反证：把清旧读数改回造假失败回包的旧写法后，结果里当场多出一条 kind=pending 的假失败（N3 的判据不是恒真）')
+}
+
+// ============================================================
 async function main() {
   console.log('版本管理写操作界面门禁（#842：A–M 组）')
   // #1294：旧片段路径经 tests/lib/source-text.ts 的 sourcePath 映射到生成物 locale-data.ts，
@@ -1174,9 +1420,18 @@ async function main() {
   const panelMod = await import(locUrl('src/client/kernel/locale-panel.js'))
   const flowMod = await import(locUrl('src/client/kernel/locale-flow.js'))
   const vcMod = await import(locUrl('src/client/kernel/locale-vcwrite.js'))
-  LOC = {
+  // #1776 M4c：A / J / L 组渲染真实页面壳，页面标题、确认卡四段与结果话术住在 vcshell 族、
+  //   改动页动作名住在 vcchanges 族；词条仍是真字典，缺哪一族就会在断言里露成键名。
+  const vcshellMod = await import(locUrl('src/client/kernel/locale-vcshell.js'))
+  const vcchangesMod = await import(locUrl('src/client/kernel/locale-vcchanges.js'))
+  const writeOnly = {
     zh: Object.assign({}, panelMod.L_PANEL.zh, flowMod.L_FLOW.zh, vcMod.L_VCWRITE.zh),
     en: Object.assign({}, panelMod.L_PANEL.en, flowMod.L_FLOW.en, vcMod.L_VCWRITE.en),
+  }
+  LOC_WRITE = writeOnly
+  LOC = {
+    zh: Object.assign({}, writeOnly.zh, vcshellMod.L_VCSHELL.zh, vcchangesMod.L_VCCHANGES.zh),
+    en: Object.assign({}, writeOnly.en, vcshellMod.L_VCSHELL.en, vcchangesMod.L_VCCHANGES.en),
   }
   const reasonsMod = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'write-reasons.js')).href)
   const writeReasons = Object.keys(reasonsMod.WRITE_REASONS)
@@ -1185,6 +1440,8 @@ async function main() {
   const cmdMod = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'commands.js')).href)
 
   const React = require('react')
+  // 真渲染用 React.createElement；夹具里的 pageHtmlOf / renderTabHtmlOf 读这个模块级变量。
+  H = React.createElement
   const DswsCtx = React.createContext(null)
   const TipStub = function (props) { return props && props.children ? props.children : null }
   const IcStub = function () { return null }
@@ -1197,9 +1454,10 @@ async function main() {
   groupD(view, writeReasons)
   await groupE(view)
   await groupG(view)
-  groupJ(React, DswsCtx, TipStub, IcStub)
   groupK(view, React, DswsCtx, TipStub, IcStub)
+  groupJ(view, React, DswsCtx, TipStub, IcStub, logs)
   groupL(view, React, DswsCtx, TipStub, IcStub)
+  groupM4e(view, React, DswsCtx, TipStub, IcStub)
   await groupM(view)
   await groupI(view, planMod.pushPlanOf, cmdMod.pushArgs)
   await groupH(React, DswsCtx, TipStub, IcStub, logs)

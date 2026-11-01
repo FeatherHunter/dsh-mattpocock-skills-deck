@@ -196,6 +196,25 @@ export function remoteRefSelectorProblem(ref: unknown): string | null {
   return null
 }
 
+/**
+ * 远端四条写动作的登记表：动作名、git 子命令、执行电话与预检电话一次写清。
+ * 宿主预检用它做白名单（不认识的动作直接拒绝，不猜），界面按动作名取电话，两边都不另写名单。
+ * checkPhone 四条相同是故意的：预检只签一种票，票里带着动作与目标。
+ */
+export const REMOTE_WRITE_ACTIONS: Array<{ action: string; command: string; execPhone: string; checkPhone: string }> = [
+  { action: 'add', command: 'git remote add', execPhone: 'wf.gitRemoteAdd', checkPhone: 'wf.gitRemoteCheck' },
+  { action: 'rename', command: 'git remote rename', execPhone: 'wf.gitRemoteRename', checkPhone: 'wf.gitRemoteCheck' },
+  { action: 'remove', command: 'git remote remove', execPhone: 'wf.gitRemoteRemove', checkPhone: 'wf.gitRemoteCheck' },
+  { action: 'setUrl', command: 'git remote set-url', execPhone: 'wf.gitRemoteSetUrl', checkPhone: 'wf.gitRemoteCheck' },
+]
+
+/** 按动作名查写动作登记表；不在表里一律回 null（预检与执行都据此拒绝）。 */
+export function remoteWriteActionOf(action: unknown): { action: string; command: string; execPhone: string; checkPhone: string } | null {
+  const want = String(action || '')
+  for (let i = 0; i < REMOTE_WRITE_ACTIONS.length; i += 1) if (REMOTE_WRITE_ACTIONS[i].action === want) return REMOTE_WRITE_ACTIONS[i]
+  return null
+}
+
 /** 联网读取的失败分类：ADR 第 6 节要求至少分开 没网络 / 要凭据 / 远端不在或没权限 / 超时 / 输出截断 / 其他。 */
 export interface LsRemoteFailure {
   kind: 'timeout' | 'needs-credential' | 'no-network' | 'remote-missing' | 'truncated' | 'other'

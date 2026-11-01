@@ -1,4 +1,5 @@
-// 远端与同步页六条宿主电话的「日志包装 + 按需取件」小件（#1754 T18，域 8 的 8.1–8.4）。
+// 远端与同步页七条宿主电话的「日志包装 + 按需取件」小件（#1754 T18 起六条，域 8 的 8.1–8.4；
+// #1776 M4b 加远端预检 wf.gitRemoteCheck 后七条）。
 //
 // 为什么放在共享层、而不是宿主父文件 src/host/versionControl.ts：
 //   1. 父文件贴着 350 有效行上限，六条字段逐个写不下；
@@ -20,6 +21,7 @@ export function remoteHandles(loggedPhone: any, phoneLoader: () => any): any {
   }
   return {
     handleGitRemoteList: wrap('wf.gitRemoteList', 'git-remote-list', 'handleGitRemoteList'),
+    handleGitRemoteCheck: wrap('wf.gitRemoteCheck', 'git-remote-check', 'handleGitRemoteCheck'),
     handleGitRemoteAdd: wrap('wf.gitRemoteAdd', 'git-remote-add', 'handleGitRemoteAdd'),
     handleGitRemoteRename: wrap('wf.gitRemoteRename', 'git-remote-rename', 'handleGitRemoteRename'),
     handleGitRemoteRemove: wrap('wf.gitRemoteRemove', 'git-remote-remove', 'handleGitRemoteRemove'),

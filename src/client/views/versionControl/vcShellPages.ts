@@ -13,7 +13,6 @@
 
 declare const CAPABILITIES: any[]
 declare const PAGE_SURFACES: any[]
-declare const PAGE_COUNTS: Record<string, number>
 declare function vcPageDepthOf(pageId: any): number
 declare function vcPageRegistryOf(): any[]
 declare function vcPageCapabilitiesOf(pageId: any): any[]
@@ -48,6 +47,7 @@ declare function vcChangesPageNode(h: any, t: any, o: any): any
 // 与动作面板（#1749 T14，vcRebasePage.ts）、配置页与钩子页两叶（#1760）、维护页整仓重写一叶（#1750 T15，vcRewritePage.ts）、诊断页正文一叶（#1761）以及 #1762 T26 的平台页
 // （vcPlatformPage.ts）与迁移页 14.1 导出向导（vcMigrateExport.ts）都由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。十三条声明并进同一条物理行：本文件贴着 350 有效行上限。
 declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcMigratePageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any; declare function vcRebasePageNode(h: any, t: any, o: any): any; declare const vcRewritePageNode: any; declare function vcConfigPageNode(h: any, t: any, o: any): any; declare function vcHooksPageNode(h: any, t: any, o: any): any; declare function vcDiagnosticsMountNode(h: any, t: any, o: any): any; declare function vcPlatformPageNode(h: any, t: any, o: any): any; declare function vcMigrateExportNode(h: any, t: any, o: any): any; declare const vcMaintenancePageNode: any; declare const vcMaintenanceDiagNode: any // #1758 T22 维护页与诊断页两叶；#1761 诊断页正文（只在诊断页且传了读数时挂载）
+declare const VC_UNDO_PANEL: any // #1748 变基待办页的自带状态面板（预检→确认卡→凭票执行），#1776 M2 起由它替代只画骨架的 vcUndoPageNode
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']; // 两套皮肤：深浅各一套语义色，页面壳只把皮肤名透传给 CSS 与根属性。
@@ -58,6 +58,8 @@ export const VC_TAB_LABEL_KEYS: Record<string, string> = {
   worktrees: 'vc.shell.tab.worktrees',
   stash: 'vc.shell.tab.stash',
 }
+// 页签计数的量词（#1776 M4d）：计数来自首屏真实读数，不拿能力账本条数；四种读数各有自己的单位。
+export const VC_TAB_UNIT_KEYS: Record<string, string> = { changes: 'vc.shell.tab.unit.changes', commits: 'vc.shell.tab.unit.commits', worktrees: 'vc.shell.tab.unit.worktrees', stash: 'vc.shell.tab.unit.stash' }
 
 const vcWidthOf = function (w: any) {
   const n = Number(w)
@@ -180,6 +182,7 @@ export const vcPageTabsNode = function (h: any, t: any, o: any) {
   for (let i = 0; i < VC_TAB_PAGES.length; i += 1) {
     const id = VC_TAB_PAGES[i]
     const selected = id === opts.active
+    const one: any = (opts.counts || {})[id] || {}; const known: boolean = one.state === 'ok' && typeof one.n === 'number'
     tabs.push(h('button', {
       key: id,
       id: vcPagePrefixOf(opts.pagePrefix || '') + '-tab-' + id,
@@ -192,7 +195,7 @@ export const vcPageTabsNode = function (h: any, t: any, o: any) {
       tabIndex: selected ? 0 : -1,
     }, [
       h('span', { key: 'label', className: 'vcs-tab-label' }, t(VC_TAB_LABEL_KEYS[id])),
-      h('span', { key: 'n', className: 'vcs-tab-count' }, String(Number(PAGE_COUNTS && PAGE_COUNTS[id]) || 0)),
+      h('span', Object.assign({ key: 'n', className: 'vcs-tab-count', 'data-vc-tab-count-state': known ? 'ok' : 'unknown' }, known ? { 'data-vc-tab-count': String(one.n) } : {}), known ? t(VC_TAB_UNIT_KEYS[id], { n: one.n }) : '—'),
     ]))
   }
   return h('div', {
@@ -201,6 +204,21 @@ export const vcPageTabsNode = function (h: any, t: any, o: any) {
     'aria-label': t('vc.shell.tabs.label'),
     'data-vc-tabs': '1',
   }, tabs)
+}
+
+// 这一页在下面还有自己的正文节点吗（#1776 M2）：有的话就不再画「形态与状态」自检骨架，
+//   否则正文与骨架并排出现，看起来像页面还没接上。判断只按这一页真正会挂的正文来，不猜读数是否已到。
+const vcOwnBodyOf = function (page: string, opts: any) {
+  const o: any = opts || {}
+  if (page === 'maintenance' || page === 'migrate' || page === 'diagnostics') return true
+  if (page === 'config' || page === 'hooks') return o.config !== undefined || o.hooks !== undefined
+  if (page === 'branch-tags') return o.branchBoard !== undefined
+  if (page === 'conflicts') return o.conflicts !== undefined
+  if (page === 'rebase') return o.rebase !== undefined
+  if (page === 'submodules') return o.submodules !== undefined
+  if (page === 'worktrees') return typeof vcWorktreesPageNode === 'function'
+  if (page === 'platform') return typeof vcPlatformPageNode === 'function'
+  return !!o.reads
 }
 
 const vcPageNotesOf = function (h: any, t: any, page: string) {
@@ -278,14 +296,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
       reads: opts.platform, ui: opts.platformUi, width: opts.width, nowMs: opts.nowMs,
       onRpInput: opts.onPlatformRpInput, onRequestPull: opts.onPlatformRequestPull,
     }), { key: 'platform-body' }))
-  } else if (page === 'migrate' && typeof vcMigrateExportNode === 'function') {
-    // #1762 T26 迁移与备份页：14.1 导出向导是本页唯一可执行能力；其余五条只给说明。同样不画主入口。
-    children.push(Object.assign({}, vcMigrateExportNode(h, t, {
-      state: opts.migrate, reads: opts.migrateReads, width: opts.width, nowMs: opts.nowMs,
-      onEdit: opts.onMigrateEdit, onCheck: opts.onMigrateCheck, onRun: opts.onMigrateRun,
-      onRescan: opts.onMigrateRescan, onCancel: opts.onMigrateCancel,
-    }), { key: 'migrate-body' }))
-  } else if (page !== 'submodules' || opts.submodules === undefined) {
+  } else if (!vcOwnBodyOf(page, opts)) {
     // 骨架自检：三种表单形态与四种状态各画一遍；各页正文由它自己的叶子画，主入口由下面的能力清单统一给。
     children.push(h('div', { key: 'skeleton', className: 'vcs-skeleton', 'data-vc-skeleton': '1' }, [
       h('div', { key: 'forms', className: 'vcs-forms' }, vcShellFormNodes(h, t, o)),
@@ -294,6 +305,9 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
       })),
     ]))
   }
+  // #1762 T26 / #1776 M2 迁移与备份页的 14.1 导出向导：它是本页唯一可执行能力，和上面的迁移页正文并排挂（原来接在
+  //   上面那条骨架判断链里，被『迁移页有读数就画正文』的分支挡成永远不可达，M2 改成独立的判断）。
+  if (page === 'migrate' && typeof vcMigrateExportNode === 'function' && opts.migrate !== undefined) children.push(Object.assign({}, vcMigrateExportNode(h, t, { state: opts.migrate, reads: opts.migrateReads, width: opts.width, nowMs: opts.nowMs, onEdit: opts.onMigrateEdit, onCheck: opts.onMigrateCheck, onRun: opts.onMigrateRun, onRescan: opts.onMigrateRescan, onCancel: opts.onMigrateCancel }), { key: 'migrate-body' }))
   // #1756 T20 克隆向导（能力 8.16）：迁移与备份页的正文；组件自己保存表单与进度，壳只把取词、工作区与发电话的函数递进去。
   if (page === 'migrate') children.push(h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcRewritePageNode, { key: 'rewrite', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcMaintenancePageNode, { key: 'maintenance-cards', t: t, cwd: opts.cwd || '', call: opts.call || null })) // #1750 T15 维护页整仓重写（能力 5.11）正文；#1758 T22 维护页 11.4–11.11 正文；三块同一物理行：本文件贴着 350 有效行上限
   // 分支与标签页的业务面板（#1746 T11）：调用方把一份读数传进来才画；没传整块不出现，其它页渲染不变。
@@ -309,7 +323,9 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   //   「管理 › 诊断」页落 3.5 / 3.9 / 3.11 / 3.13 四组（四条的主入口就在那一页，面板自己标主入口）。
   //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。
   const queryNode = vcQueryPageNode(h, t, opts); if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' })); const diagNode: any = typeof vcDiagnosticsMountNode === 'function' ? vcDiagnosticsMountNode(h, t, opts) : null; if (diagNode) children.push(Object.assign({}, diagNode, { key: 'diagnostics' })); if (page === 'diagnostics' && typeof vcMaintenanceDiagNode === 'function') { const maintDiagNode: any = h(vcMaintenanceDiagNode, { key: 'maintenance-diag', t: t, cwd: opts.cwd || '', call: opts.call || null }); children.push(Object.assign({}, maintDiagNode, { key: 'maintenance-diag' })) } // #1758 T22 诊断页 11.2–11.4 正文；#1761 诊断页正文：二分与替换是仅有的两个受控写，其余只读；判断与推入也并成一行（本文件贴着 350 有效行上限）。
-  children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
+  // 任务页是流程页，能力账本里没有它的条目（162 条不变），不画能力清单，只画任务面板。
+  if (page !== 'task') children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
+  if (page === 'task' && typeof vcTaskPanelNode === 'function') children.push(Object.assign({}, vcTaskPanelNode(h, t, { tasks: opts.tasks, running: opts.running, onCancel: opts.onCancel }), { key: 'task-body' }))
   // 改动页的 13 条动作面板（#1742）：页面把改动读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
     children.push(Object.assign({}, vcChangesPageNode(h, t, { changes: opts.changes }), { key: 'changes' }))
@@ -356,7 +372,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   if (gearOpen) children.push(keyed(vcGearIndexNode(h, t, { id: gearId, pagePrefix: opts.pagePrefix || '', active: isManage ? page : '' }), 'gear'))
   // 命令面板：全库搜索页把它画在能力行里（唯一一个输入框）；其它页按种子画成贴触发点的浮层。
   if (paletteOpen && !isSearch) children.push(keyed(vcPaletteNode(h, t, { id: paletteId, query: seed.query, highlight: seed.highlight, limit: seed.paletteLimit, reads: opts.reads }), 'palette'))
-  children.push(keyed(vcPageTabsNode(h, t, { pagePrefix: opts.pagePrefix || '', active: VC_TAB_PAGES.indexOf(page) >= 0 ? page : '' }), 'tabs'))
+  children.push(keyed(vcPageTabsNode(h, t, { pagePrefix: opts.pagePrefix || '', active: VC_TAB_PAGES.indexOf(page) >= 0 ? page : '', counts: opts.counts }), 'tabs'))
   children.push(keyed(vcPageBodyNode(h, t, {
     page: page, pagePrefix: opts.pagePrefix || '',
     openSurface: openSurface,
@@ -382,9 +398,12 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   }
   // #1748 变基待办页（域 5 历史改写）：五种动作都是「预检出票 → 确认 → 凭票执行」三段式，
   // 页面壳只把调用方持有的状态与回调递进叶子；续作与拒绝理由都在叶子里讲，壳不重复。
-  if (page === 'rebase' && typeof vcUndoPageNode === 'function') children.push(keyed(vcUndoPageNode(h, t, { seed: seed, state: opts.undo, onUndoCheck: opts.onUndoCheck, onUndoWrite: opts.onUndoWrite, onUndoInput: opts.onUndoInput }), 'undoPage'))
+  // #1776 M2：变基待办页挂自带状态的面板（VC_UNDO_PANEL，内部走 wf.gitUndoCheck / wf.gitUndoWrite 三段式），
+  //   原来挂的 vcUndoPageNode 只是画法且回调名与壳对不上（onInput/onPick/onCheck/onCancel/onGo/onRetry），点了没反应。
+  if (page === 'rebase' && typeof VC_UNDO_PANEL === 'function') children.push(keyed(h(VC_UNDO_PANEL, { t: t, cwd: opts.cwd || '', state: opts.undo }), 'undoPage'))
   // 长任务区（#1740）：页面把任务清单传进来时才画；没传整块不出现，既有页面的渲染结果不受影响。
-  if (opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {
+  // 任务页把这块画进页面正文（见 vcPageBodyNode），这里不再重复挂一份。
+  if (page !== 'task' && opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {
     children.push(keyed(vcTaskPanelNode(h, t, { tasks: opts.tasks, running: opts.running, onCancel: opts.onCancel }), 'tasks'))
   }
   return h('div', {

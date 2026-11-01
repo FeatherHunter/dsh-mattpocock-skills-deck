@@ -431,12 +431,29 @@ async function main() {
   check(digestBodies.every((body) => body && body.length > 40), 'C3 八份十六进制短摘要都取到了算法体（取不到就等于没证）')
   check(digestBodies.every((body) => body === digestBodies[0]), 'C4 八份十六进制短摘要（sha256 前 8 字节）的算法体逐字节同形')
 
-  const FNV_COPIES = [
-    ['src/shared/version-control/src/undo-ticket.ts', 'undoHash16'],
-    ['src/host/versionControlStashTicket.ts', 'hash16'],
+  // 短哈希（FNV）在 #1776 M4e 收口：宿主两份预检不再各自拷贝，都导入共享层票表导出的 hash16。
+  // 共享层的另一叶 undo-ticket 按「共享层叶子自包含、禁同层互引」的规矩保留自带副本，
+  // 由 C5 逐字节比对守着它和正本同形：改一处必须两处一起改。
+  const FNV_OWNER = 'src/shared/version-control/src/write-ticket.ts'
+  const fnvOwnerSrc = srcOf(FNV_OWNER)
+  const fnvOwnerBody = bodyNamed(fnvOwnerSrc, 'hash16')
+  const fnvUndoBody = bodyNamed(srcOf('src/shared/version-control/src/undo-ticket.ts'), 'undoHash16')
+  check(fnvOwnerSrc.indexOf('export function hash16(') >= 0 && !!fnvOwnerBody && fnvOwnerBody.length > 50 &&
+    fnvOwnerBody === fnvUndoBody, 'C5 共享层正本 hash16 与 undo-ticket 自带副本 undoHash16 的算法体逐字节同形')
+  const FNV_HOST_USERS = [
+    ['src/host/versionControlStashTicket.ts', '贮藏预检'],
+    ['src/host/versionControlRemoteCheck.ts', '远端预检'],
   ]
-  const fnvBodies = FNV_COPIES.map((pair) => bodyNamed(srcOf(pair[0]), pair[1]))
-  check(fnvBodies.every((body) => body && body === fnvBodies[0]), 'C5 两份 FNV 短哈希的算法体逐字节同形')
+  const fnvBad = FNV_HOST_USERS.filter((pair) => {
+    const src = srcOf(pair[0])
+    const importOk = /import\s*\{[\s\S]*?\bhash16\b[\s\S]*?\}\s*from\s*'[^']*write-ticket\.js'/.test(src)
+    const copyGone = src.indexOf('function hash16(') < 0
+    return !(importOk && copyGone && src.indexOf('hash16(') >= 0)
+  }).map((pair) => pair[1])
+  check(fnvBad.length === 0, 'C5b 宿主两处（贮藏预检 / 远端预检）都导入同一份 FNV 短哈希，各自没有本地副本' + (fnvBad.length ? '（没证到：' + fnvBad.join('、') + '）' : ''))
+  const fnvMod = await import(pathToFileURL(path.join(ROOT, 'src/shared/version-control/src/write-ticket.js')).href)
+  const fnvKnown = typeof fnvMod.hash16 === 'function' && fnvMod.hash16('') === '811c9dc501000193' && fnvMod.hash16('abc') === '1a47e90c58f6d400'
+  check(fnvKnown, 'C5c 共享层 hash16 的金标不变（空串与 abc 的定值）：抽成唯一正本后算法没有漂移')
 
   console.log(failed ? '\n存在失败 — ' + GATE + ' 未通过' : '\n全部通过 — ' + GATE + ' 生效（' + total + ' 项断言）')
   printGateResult(GATE, total, failed ? 1 : 0)

@@ -111,6 +111,8 @@ const KEYS: Array<[string, string, string]> = [
   ['vcWorktreeOpTimeoutMs', 'VC_WORKTREE_OP_TIMEOUT_MS', 'timeouts'],
   // #1754 T18 远端与同步页：用户显式点「联网查看」时 git ls-remote 的超时（真走网络，与本地那档分开）。
   ['vcRemoteOnlineTimeoutMs', 'VC_REMOTE_ONLINE_TIMEOUT_MS', 'timeouts'],
+  // #1776 M4b 远端四条写动作：预检签票后凭票执行，执行那一步单条命令的超时（本地配置动作）。
+  ['vcRemoteWriteTimeoutMs', 'VC_REMOTE_WRITE_TIMEOUT_MS', 'timeouts'],
   // #1740 长任务通道：进度轮询节奏、软取消宽限、强杀后等待。
   ['vcTaskPollIntervalMs', 'VC_TASK_POLL_INTERVAL_MS', 'timeouts'],
   ['vcTaskCancelGraceMs', 'VC_TASK_CANCEL_GRACE_MS', 'timeouts'],
