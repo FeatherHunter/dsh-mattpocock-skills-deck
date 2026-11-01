@@ -282,8 +282,14 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 截断趟的状态段由回执承载（成功回包不记错误行），文档写明；34 条单跑实测。
   'verify-closeout-log-trips': 34,
   // 2026-10-31 #1766：批次候选身份与证据绑定（旧候选、脏候选、证据缺身份、HEAD 前进、候选文件与 tgz 被换、
-  // 批次名不能是 . 与 ..、collect-evidence 命令层拒收被改过的候选）；29 条单跑实测。
-  'verify-1766-batch-identity': 29,
+  // 批次名不能是 . 与 ..、collect-evidence 命令层拒收被改过的候选；#1777 起再加一条「本地基线前进而 HEAD 没动
+  // 时批次也标 stale」）；30 条单跑实测。
+  'verify-1766-batch-identity': 30,
+  // 2026-11-01 #1777：开批新鲜度与版本口径守卫（基线 tip 与 package.json 版本读取、候选须包含基线 tip、
+  // 落后与分叉都拒绝、--allow-outdated-base 只放行落后且标 outdatedBase、版本不符与 development 候选都不能绕过、
+  // 收尾时基线前进/读不到基线/旧批次无 base 都判 stale、batch.json base 往返与坏记录拒绝、
+  // check-batch 与 prepare-batch 命令层接线）；34 条单跑实测。
+  'verify-1777-batch-freshness-guards': 34,
   // 2026-10-31 #1766：发布候选审计与发布字节对账（身份行、候选提交祖先、差异审计、候选包哈希、
   // validate/match 命令行入口、publish-token.ps1 传 -Candidate 时的真实冒烟）；59 条单跑实测。
   'verify-1766-release-audit': 59,

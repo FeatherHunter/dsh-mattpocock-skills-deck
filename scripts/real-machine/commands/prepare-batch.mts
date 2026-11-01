@@ -9,6 +9,12 @@
 //         [--batch <批次名或批次目录>] [--name <批次名>]
 //         [--ticket <来源票号>] [--allow-dirty]
 //         [--profile <profile>] [--install-method extract|cli] [--no-start] [--no-ui] [--timeout <毫秒>]
+//         [--base-ref <基线分支，默认 main>] [--allow-outdated-base]
+//         [--instance-env-file <环境文件路径>]
+//
+// 开批前必须能证明两件事（#1777）：候选提交包含本地基线分支（默认 main）的 tip——这一批验的是最新代码；
+// 候选版本等于基线分支 package.json 的版本——这一批验的是这次要发布的版本。不成立就拒绝开批；
+// --allow-outdated-base 只放行前者且只用于开发验证，--allow-dirty 不能绕过版本核对。
 //
 // 产物：
 //   <批次>/pkg/candidate.json   候选清单（含提交、validity、fileDigest、buildCommit）
@@ -25,6 +31,7 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import {
   assertBatchName,
+  batchBaseLine,
   batchIdentityLine,
   createBatchRecord,
   evidenceCandidate,
@@ -32,8 +39,9 @@ import {
   readCandidateFile,
   writeBatch,
 } from '../lib/batch.mts'
+import { loadInstanceEnvFile, type InstanceEnvFile } from '../lib/envfile.mts'
 import { probeSettingsIsolation } from '../lib/isolation.mts'
-import { findInstalledPackage, gitState } from '../lib/candidate.mts'
+import { findInstalledPackage, gitContains, gitState, readLocalBaseline } from '../lib/candidate.mts'
 import { startInstance } from '../lib/launch.mts'
 import { assertWritableTarget, batchDir, realDshHome, repo, resolveBatchPath, workRoot } from '../lib/paths.mts'
 import { assert, ensureDir, exists, info, isEmptyDir, nowIso, parseArgs, printJson, runCli, stamp, writeJson } from '../lib/util.mts'
@@ -83,12 +91,33 @@ runCli(async () => {
       )
     }
   }
+  // 开批基线与环境文件都在动手之前验：路径写错、基线落后时要立刻停，不要先花几分钟构建。
+  const baseRef = String(args.get('base-ref') || 'main')
+  const allowOutdatedBase = args.has('allow-outdated-base')
+  const instanceEnvFileArg = args.get('instance-env-file')
+  let instanceEnv: InstanceEnvFile | null = null
+  if (instanceEnvFileArg) {
+    instanceEnv = loadInstanceEnvFile(String(instanceEnvFileArg))
+    info('实例环境文件：' + instanceEnv.file + '（注入变量：' + instanceEnv.names.join('、') + '；值不输出）')
+  }
+  const baseline = readLocalBaseline(repository, baseRef)
+  info('开批基线：本地 ' + baseline.ref + ' ' + baseline.tip + '，目标版本 ' + baseline.expectedVersion)
+  const headAtStart = gitState(repository)
+  if (!gitContains(repository, baseline.tip, headAtStart.commit)) {
+    if (!allowOutdatedBase) {
+      throw new Error(
+        '当前 HEAD ' + headAtStart.commit + ' 不包含本地 ' + baseline.ref + ' 的 tip ' + baseline.tip +
+          '：这一批会验证落后于最新代码的版本。先把 ' + baseline.ref + ' 合进当前分支再开批；' +
+          '只在开发验证里可以加 --allow-outdated-base 放行（放行的批次 check-batch 会标 stale，不能用于发布收口）。',
+      )
+    }
+    info('注意：--allow-outdated-base 放行了「候选不包含基线 tip」，这一批只能做开发验证，不能用于发布收口。')
+  }
   ensureDir(targetDir)
   const candidateOut = path.join(targetDir, 'pkg')
   const home = path.join(targetDir, 'home')
   const runDir = path.join(targetDir, 'run')
   const timeoutMs = args.get('timeout') ? Number(args.get('timeout')) : undefined
-  const headAtStart = gitState(repository)
 
   // 1. 用当前 HEAD 重新冻结候选。所有参数原样交给 freeze-candidate：构建、打包、装 home、界面核对都在那边，
   //    这里只负责把输出放进本批次目录，并在冻结完成后再验一次候选身份。
@@ -137,9 +166,19 @@ runCli(async () => {
     batchDir: targetDir,
     batchStartedAt,
     currentHead: headAfterFreeze.commit,
+    repository,
+    baseline: {
+      ref: baseline.ref,
+      tip: baseline.tip,
+      expectedVersion: baseline.expectedVersion,
+      allowOutdated: allowOutdatedBase,
+    },
   })
   if (!verdict.ok) {
     throw new Error('冻结出来的候选不能作为本批次的起点：\n  ' + verdict.problems.join('\n  '))
+  }
+  if (verdict.outdatedBase) {
+    info('注意：候选没有包含基线 ' + baseline.ref + ' 的 tip，--allow-outdated-base 已放行；这一批只能做开发验证。')
   }
   if (verdict.validity === 'release' && headAfterFreeze.dirtyFiles.length > 0) {
     throw new Error(
@@ -156,6 +195,12 @@ runCli(async () => {
     batchDir: targetDir,
     now: startedAt,
     git: { commit: verdict.identity.commit, branch: String(candidate.manifest.git?.branch || '') },
+    base: {
+      ref: baseline.ref,
+      tip: baseline.tip,
+      expectedVersion: baseline.expectedVersion,
+      allowOutdated: verdict.outdatedBase,
+    },
   })
   record.candidate = verdict.identity
   // batch.json 先不落盘：等实例与前置巡检都通过再写。否则一个巡检失败的半成品批次
@@ -170,9 +215,15 @@ runCli(async () => {
     info('--no-start：不启动实例，只完成候选与隔离 home。')
   } else {
     try {
-      const started = await startInstance({ home, dir: runDir, profile, timeoutMs })
+      // 环境文件路径原样交给 startInstance：它负责解析与注入，prepare-batch 只记路径与变量名，不碰值。
+      const startOptions: any = { home, dir: runDir, profile, timeoutMs }
+      if (instanceEnv) startOptions.envFile = instanceEnv.file
+      const started = await startInstance(startOptions)
+      const injectedEnvNames = started.envFileNames ?? []
       instance = {
         ok: true,
+        envFile: started.envFile,
+        envFileNames: injectedEnvNames,
         pid: started.pid,
         port: started.port,
         tokenUrl: started.tokenUrl,
@@ -185,6 +236,13 @@ runCli(async () => {
         pluginLogFile: started.pluginLogFile,
       }
       checks.push({ name: '实例可达', ok: true, detail: '端口 ' + started.port + '，启动耗时 ' + started.readyMs + ' 毫秒。' })
+      if (instanceEnv) {
+        checks.push({
+          name: '实例环境文件已注入',
+          ok: injectedEnvNames.length > 0,
+          detail: '注入变量：' + (injectedEnvNames.join('、') || '无') + '（值不输出）。',
+        })
+      }
     } catch (error: any) {
       instanceError = String(error && error.message ? error.message : error)
       instance = { ok: false, error: instanceError }
@@ -224,6 +282,12 @@ runCli(async () => {
   const preflight = {
     checkedAt: nowIso(),
     ok: checks.every((entry) => entry.ok),
+    base: {
+      ref: baseline.ref,
+      tip: baseline.tip,
+      expectedVersion: baseline.expectedVersion,
+      allowOutdated: verdict.outdatedBase,
+    },
     candidate: {
       path: verdict.identity.path,
       sha256: verdict.identity.sha256,
@@ -232,6 +296,8 @@ runCli(async () => {
       validity: verdict.identity.validity,
       fileDigest: verdict.identity.fileDigest,
     },
+    // 环境文件只记路径与变量名：值可能是 token，任何输出与落盘文件都不许出现。
+    envFile: instanceEnv ? { file: instanceEnv.file, names: instanceEnv.names, secretNames: instanceEnv.secretNames } : null,
     instance,
     checks,
     isolation,
@@ -251,10 +317,12 @@ runCli(async () => {
       batchName,
       batchDir: targetDir,
       batchJson: null,
+      base: record.base,
       candidate: record.candidate,
       instance,
       preflight: { ok: preflight.ok, checks },
       identityLine: batchIdentityLine(preparedBinding),
+      baseLine: batchBaseLine(record.base),
       error:
         '前置巡检没有通过' + (instanceError ? '（实例启动失败：' + instanceError + '）' : '') +
         '：没有写 batch.json，这一批不能开始收证据。按 batch-preflight.json 的检查项修好环境后换一个批次名重来。',
@@ -273,14 +341,16 @@ runCli(async () => {
     batchName,
     batchDir: targetDir,
     batchJson: path.join(targetDir, 'batch.json'),
+    base: saved.base,
     candidate: saved.candidate,
     instance,
     preflight: { ok: preflight.ok, checks },
     identityLine,
+    baseLine: batchBaseLine(saved.base),
     nextSteps: [
-      '把 identityLine 原样写进批次开始评论（批次号、环境、场景清单也写清楚）。',
+      '把 identityLine 与 baseLine 一起原样写进批次开始评论（批次号、环境、场景清单也写清楚）。',
       '每条场景结果评论都带同一行 identityLine；证据用 collect-evidence --batch ' + batchName + ' 收。',
-      '批次结束跑 check-batch --batch ' + batchName + '；HEAD 前进会标 stale，不能用于发布收口。',
+      '批次结束跑 check-batch --batch ' + batchName + '；HEAD 或本地基线前进会标 stale，不能用于发布收口。',
     ],
   })
 })

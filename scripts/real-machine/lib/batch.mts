@@ -13,6 +13,7 @@
 import path from 'node:path'
 import { COMMIT_PATTERN, IDENTITY_PREFIX, PACKAGE_SHA256_PATTERN } from '../../lib/release-candidate-audit.mts'
 import { digestOfFiles } from '../../release-integrity.mts'
+import { gitContains } from './candidate.mts'
 import { exists, readJson, sha256File, writeJson } from './util.mts'
 
 /** candidate.json 里的逐文件条目（与 freeze-candidate 的 CandidateFile 一致）。 */
@@ -73,6 +74,22 @@ export interface BatchCandidateIdentity {
   fileDigest: string
 }
 
+/**
+ * 开批时的本地基线。它回答「这一批验的是不是当前最新代码、验的是不是要发布的那个版本」：
+ * 候选提交必须包含 base.tip（否则是落后代码），候选版本必须等于 expectedVersion（否则版本口径不对）。
+ * allowOutdated=true 只用于开发验证，check-batch 会据此把批次标 stale。
+ */
+export interface BatchBase {
+  /** 基线分支名（默认 main）。 */
+  ref: string
+  /** 批次开始时本地基线分支的提交。 */
+  tip: string
+  /** 开批时从基线分支 package.json 读到的版本：这次要发布的版本。 */
+  expectedVersion: string
+  /** 是否放行了「候选不包含基线 tip」；放行的批次不能用于发布收口。 */
+  allowOutdated: boolean
+}
+
 /** batch.json 的结构。status=stale 表示批次结束后源码前进了，这条批次的证据只对它自己的候选提交有效。 */
 export interface BatchRecord {
   schemaVersion: 1
@@ -84,6 +101,8 @@ export interface BatchRecord {
   /** 批次开始时的 HEAD。候选提交必须等于它。 */
   startHead: string
   startBranch: string
+  /** 开批时的本地基线；旧记录没有这个字段，读出来是 null（check-batch 会判 stale）。 */
+  base: BatchBase | null
   /** 批次结束时（跑 check-batch 时）的 HEAD；还没结束是 null。 */
   endHead: string | null
   endCheckedAt: string | null
@@ -114,6 +133,8 @@ export function createBatchRecord(options: {
   batchDir: string
   now: string
   git: { commit: string; branch: string }
+  /** 开批时的本地基线。prepare-batch 必传；只有内部测试会省略。 */
+  base?: BatchBase | null
 }): BatchRecord {
   return {
     schemaVersion: 1,
@@ -124,6 +145,7 @@ export function createBatchRecord(options: {
     status: 'active',
     startHead: options.git.commit,
     startBranch: options.git.branch,
+    base: options.base ?? null,
     endHead: null,
     endCheckedAt: null,
     candidate: null,
@@ -148,6 +170,9 @@ export function readBatch(batchDir: string): BatchRecord {
     throw new Error('batch.json 不是合法 JSON（' + String(error && error.message) + '）：「' + file + '」')
   }
   assertBatchRecord(raw, file)
+  // 旧记录没有 base 字段：读出来统一成 null，让「没有开批基线」成为一条明确的判据，
+  // 而不是靠 undefined 在别处悄悄当成「不检查」。
+  if (raw.base === undefined) raw.base = null
   return raw as BatchRecord
 }
 
@@ -167,6 +192,14 @@ function assertBatchRecord(raw: any, file: string): void {
   if (!BATCH_NAME.test(String(raw.batchName || ''))) bad('batchName 不合法')
   if (!COMMIT_PATTERN.test(String(raw.startHead || ''))) bad('startHead 不是 40 位提交')
   if (raw.status !== 'active' && raw.status !== 'stale') bad('status 只能是 active 或 stale')
+  if (raw.base !== null && raw.base !== undefined) {
+    const base = raw.base
+    if (!base || typeof base !== 'object') bad('base 不是对象')
+    if (typeof base.ref !== 'string' || !base.ref.trim()) bad('base.ref 为空')
+    if (!COMMIT_PATTERN.test(String(base.tip || ''))) bad('base.tip 不是 40 位提交')
+    if (typeof base.expectedVersion !== 'string' || !base.expectedVersion.trim()) bad('base.expectedVersion 为空')
+    if (typeof base.allowOutdated !== 'boolean') bad('base.allowOutdated 不是布尔值')
+  }
   if (raw.candidate !== null && raw.candidate !== undefined) {
     const candidate = raw.candidate
     if (!COMMIT_PATTERN.test(String(candidate.commit || ''))) bad('candidate.commit 不是 40 位提交')
@@ -221,6 +254,8 @@ export interface CandidateVerdict {
   /** 供调用方直接写进 batch.json 的候选身份；不合格时也会填，方便把不合格原因落盘。 */
   identity: BatchCandidateIdentity
   validity: 'release' | 'development'
+  /** 候选提交没有包含开批基线 tip、但调用方用 allowOutdated 放行了：这一批只能做开发验证。 */
+  outdatedBase: boolean
 }
 
 /**
@@ -243,11 +278,50 @@ export function judgeCandidateForBatch(options: {
   batchStartedAt: string
   /** 批次开始时的 HEAD。 */
   currentHead: string
+  /** 用来判断祖先关系的仓库目录（一般是准备开批的工作树）。 */
+  repository: string
+  /**
+   * 开批时的本地基线：候选提交必须包含它的 tip，候选版本必须等于它的 expectedVersion。
+   * 祖先关系在这里用 git 现算，不信任调用方传进来的结论。
+   */
+  baseline: { ref: string; tip: string; expectedVersion: string; allowOutdated: boolean }
 }): CandidateVerdict {
   const problems: string[] = []
   const manifest = options.candidate.manifest
   const identity = candidateIdentity(options.candidate)
   const validity = identity.validity
+
+  // 新鲜度守卫（#1777）：候选必须包含开批时本地基线的 tip，否则这一批验的是落后代码。
+  // 基线 tip 从 git 现读，这里再用 git 现算祖先关系；allowOutdated 只放行「落后」这一条，不跳过版本核对。
+  let containsBase = true
+  if (!COMMIT_PATTERN.test(String(options.baseline.tip || ''))) {
+    problems.push('开批基线缺少 40 位提交（' + String(options.baseline.tip) + '）：没法证明候选包含本地最新代码。')
+  } else if (COMMIT_PATTERN.test(identity.commit)) {
+    try {
+      containsBase = gitContains(options.repository, options.baseline.tip, identity.commit)
+    } catch (error: any) {
+      problems.push('判断候选是否包含开批基线失败：' + String(error && error.message))
+    }
+    if (!containsBase && !options.baseline.allowOutdated) {
+      problems.push(
+        '候选提交 ' + identity.commit + ' 不包含本地 ' + options.baseline.ref + ' 的 tip ' + options.baseline.tip +
+          '：这一批会验证落后于最新代码的版本。先把 ' + options.baseline.ref +
+          ' 合进当前分支再重新冻结；只在开发验证里可以加 --allow-outdated-base 放行。',
+      )
+    }
+  }
+
+  // 版本口径守卫（#1777）：候选版本必须等于开批时基线分支 package.json 里的版本。
+  // 「已发布 1.9.0-beta.32 → 验 1.9.0-beta.33；稳定版 1.9.x → 验下一个版本」这条口径写在这里，
+  // allow-dirty 与 allow-outdated-base 都不能绕过它。
+  if (!options.baseline.expectedVersion) {
+    problems.push('开批基线没有记录目标版本 expectedVersion：没法核对候选是不是这次要发布的版本。')
+  } else if (identity.version !== options.baseline.expectedVersion) {
+    problems.push(
+      '候选版本 ' + identity.version + ' 不是这次要发布的版本 ' + options.baseline.expectedVersion + '（本地 ' +
+        options.baseline.ref + ' 的 package.json）：先核对版本口径（已发布 1.9.0-beta.32 就验 1.9.0-beta.33，稳定版同理），再重新冻结。',
+    )
+  }
 
   const rel = path.relative(path.resolve(options.batchDir), path.resolve(options.candidatePath))
   if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
@@ -308,7 +382,7 @@ export function judgeCandidateForBatch(options: {
     problems.push('候选缺少逐文件清单 package.files：无法复核内容指纹。')
   }
 
-  return { ok: problems.length === 0, problems, identity, validity }
+  return { ok: problems.length === 0, problems, identity, validity, outdatedBase: !containsBase && options.baseline.allowOutdated }
 }
 
 /**
@@ -385,24 +459,50 @@ export function judgeBatchCandidateFile(batch: BatchRecord): { ok: boolean; prob
   }
 }
 
-/** 批次收尾判断：当前 HEAD 与批次开始时不同，就说明这一批之后代码又前进了。 */
+/**
+ * 批次收尾判断：当前 HEAD 或本地基线在开批之后前进了，这一批的证据就不再代表最新代码。
+ *
+ * 只比 HEAD 是不够的：在集成分支上开批时，HEAD 是集成分支的合并提交，它可能一直不动，
+ * 而 main 分支又前进了几十个提交——这时候选已经不包含最新代码，但 HEAD 比对仍然说 active。
+ * 所以收尾时必须重读开批基线的 tip：#1777 把「基线前进」也写成 stale 判据。
+ */
 export function judgeBatchFreshness(options: {
   batch: BatchRecord
   currentHead: string
   now: string
+  /** 收尾时重读到的本地基线 tip。批次记录里没有 base 时传 null 即可；读基线失败也传 null，并把原因写进 baseReadError。 */
+  currentBaseTip: string | null
+  /** 读基线失败的原因摘要（成功读到时不传）。 */
+  baseReadError?: string
 }): { status: 'active' | 'stale'; endHead: string; endCheckedAt: string; problems: string[]; message: string } {
   const problems: string[] = []
   if (!COMMIT_PATTERN.test(options.currentHead)) problems.push('当前 HEAD 不是 40 位提交：「' + options.currentHead + '」。')
-  const stale = options.currentHead !== options.batch.startHead
-  if (stale) {
+  if (options.currentHead !== options.batch.startHead) {
     problems.push(
       '批次开始时的 HEAD 是 ' + options.batch.startHead + '，现在是 ' + options.currentHead +
         '：这一批之后代码前进了，它的证据只对候选提交 ' + options.batch.startHead + ' 有效，不能用于发布收口。',
     )
   }
+  const base = options.batch.base
+  if (!base) {
+    problems.push('这条批次没有记录开批基线（base）：无法证明候选包含开批时的本地最新代码，不能用于发布收口。用新版 prepare-batch 重新开一批。')
+  } else {
+    if (!COMMIT_PATTERN.test(String(base.tip || ''))) {
+      problems.push('批次记录里的开批基线 tip 不是 40 位提交：「' + String(base.tip) + '」。')
+    }
+    if (base.allowOutdated) {
+      problems.push('开批时用了 --allow-outdated-base：候选没有包含基线 ' + base.ref + ' 的 tip ' + base.tip + '，这一批只能做开发验证，不能用于发布收口。')
+    }
+    if (options.currentBaseTip === null) {
+      problems.push('收尾时读不到本地基线「' + base.ref + '」的 tip：' + String(options.baseReadError || '原因未知') + '。不能确认开批后基线有没有前进，这一批不能用于发布收口。')
+    } else if (options.currentBaseTip !== base.tip) {
+      problems.push('批次开始后本地基线「' + base.ref + '」前进了：开批时 tip ' + base.tip + '，现在 ' + options.currentBaseTip + '。这一批验的不是最新代码，不能用于发布收口。')
+    }
+  }
+  const stale = problems.length > 0
   const message = stale
-    ? '批次已标为 stale：原件保留，重新开一批从当前 HEAD 冻结候选再来。'
-    : '批次保持 active：HEAD 没有前进，可以继续往这一批里收证据。'
+    ? '批次已标为 stale：原件保留；基线或代码前进后要重新开一批从当前 HEAD 冻结候选再来。'
+    : '批次保持 active：HEAD 与本地基线都没有前进，可以继续往这一批里收证据。'
   return {
     status: stale ? 'stale' : 'active',
     endHead: options.currentHead,
@@ -454,4 +554,13 @@ export function judgeEvidenceBinding(batch: BatchRecord, meta: Record<string, an
 /** 批次身份行：批次开始评论与每条场景结果评论都要带这一行，发布前检查靠它把评论和 batch.json 对上。 */
 export function batchIdentityLine(binding: EvidenceCandidateBinding): string {
   return IDENTITY_PREFIX + binding.batchName + '；候选提交 ' + binding.commit + '；候选包 sha256 ' + binding.packageSha256
+}
+
+/**
+ * 验证基线行：批次开始评论里与身份行一起写，让读评论的人（和发布前检查的人）一眼看到
+ * 「这一批验的是哪个基线 tip、哪个目标版本」。身份行格式不动，因为发布前检查按它解析。
+ */
+export function batchBaseLine(base: BatchBase | null): string | null {
+  if (!base) return null
+  return '- 验证基线：本地 ' + base.ref + ' ' + base.tip + '；目标版本 ' + base.expectedVersion
 }

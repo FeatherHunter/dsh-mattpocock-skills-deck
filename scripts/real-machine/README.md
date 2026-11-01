@@ -128,7 +128,9 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/freeze-candida
 node --import ./scripts/ts-hook.mts scripts/real-machine/commands/prepare-batch.mts --name <批次名> --ticket <票号>
 ```
 
-参数：`--batch <批次目录>` 直接指定批次目录；`--name <批次名>` 指定批次名，默认批次目录是 `<工作根>/batches/<批次名>`；`--ticket <票号>` 记下这批属于哪张票；`--allow-dirty` 允许在脏树上准备（这样冻结出来的候选 `validity` 是 `development`，只能算开发验证）；`--profile <profile>` 选要核对的界面 profile（默认 `web`）；`--install-method extract|cli` 选安装方式；`--no-start` 只准备、不起实例；`--no-ui` 跳过界面版本串核对；`--timeout <毫秒>` 给构建与打包设上限。批次目录里已经存在 `batch.json` 的同名批次会被拒绝复用，免得把旧批次的产物当成新批次。冻结完成之后命令会再读一次 git 状态：HEAD 前进了、或者 release 候选对应的工作树不干净，都会拒绝开批；实例启动或前置巡检没通过时不写 `batch.json`，这一批不能开始收证据。
+参数：`--batch <批次目录>` 直接指定批次目录；`--name <批次名>` 指定批次名，默认批次目录是 `<工作根>/batches/<批次名>`；`--ticket <票号>` 记下这批属于哪张票；`--allow-dirty` 允许在脏树上准备（这样冻结出来的候选 `validity` 是 `development`，只能算开发验证）；`--profile <profile>` 选要核对的界面 profile（默认 `web`）；`--install-method extract|cli` 选安装方式；`--no-start` 只准备、不起实例；`--no-ui` 跳过界面版本串核对；`--timeout <毫秒>` 给构建与打包设上限；`--base-ref <基线分支>` 指定本地基线分支（默认 `main`）；`--allow-outdated-base` 允许候选落后于基线（只在开发验证里用，这样开的批次收尾时会标 `stale`）；`--instance-env-file <环境文件路径>` 把 `GLAB_CONFIG_DIR`、`PATH`、`GITLAB_TOKEN` 直接交给本批实例。批次目录里已经存在 `batch.json` 的同名批次会被拒绝复用，免得把旧批次的产物当成新批次。冻结完成之后命令会再读一次 git 状态：HEAD 前进了、或者 release 候选对应的工作树不干净，都会拒绝开批；实例启动或前置巡检没通过时不写 `batch.json`，这一批不能开始收证据。开批前还会先读本地基线的 tip 与 `package.json` 版本：候选提交不包含基线 tip 默认拒绝（`--allow-outdated-base` 只放行这一条），候选版本不等于基线版本一律拒绝（两个开关都不能绕过）。
+
+版本口径：验的永远是下一个要发布的版本。已发布 `1.9.0-beta.32` 时 `main` 的 `package.json` 已经是 `1.9.0-beta.33`，所以这一轮验 `1.9.0-beta.33`；稳定版同理，已发布 `1.9.0` 就验 `1.9.1`。
 
 批次目录里的东西：
 
@@ -139,7 +141,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/prepare-batch.
 - `batch.json`：这一批的机器可读记录，字段见下。
 - `evidence/`：场景证据。
 
-`batch.json` 记 `schemaVersion`、`batchName`、`batchDir`、`createdAt`、`updatedAt`、`status`（`active` / `stale`）、`startHead`、`startBranch`、`endHead`、`endCheckedAt`，以及 `candidate`（`path`、`sha256`、`commit`、`version`、`validity`、`tgzPath`、`tgzSha256`、`manifestDigest`、`fileDigest`）、`preflight`、`instance`。
+`batch.json` 记 `schemaVersion`、`batchName`、`batchDir`、`createdAt`、`updatedAt`、`status`（`active` / `stale`）、`startHead`、`startBranch`、`endHead`、`endCheckedAt`、`base`（开批基线：`ref`、`tip`、`expectedVersion`、`allowOutdated`），以及 `candidate`（`path`、`sha256`、`commit`、`version`、`validity`、`tgzPath`、`tgzSha256`、`manifestDigest`、`fileDigest`）、`preflight`、`instance`。
 
 `candidate.json` 在原来「提交、版本、tgz 与逐文件 SHA256」之外新增四个字段：`validity`（`release` = 干净树冻结、可用于发布；`development` = 带 `--allow-dirty` 的开发验证）、`sourceStable`（冻结前后 HEAD 与未提交文件集合是否一致，构建期间源码被改动会在这里露馅）、`package.buildCommit`（构建产物里的提交）、`package.fileDigest`（不含提交与版本的逐文件清单指纹，与 `scripts/release-integrity.mts` 的 digest 同一算法，用来和发布字节对账）。
 
@@ -149,13 +151,15 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/prepare-batch.
 node --import ./scripts/ts-hook.mts scripts/real-machine/commands/check-batch.mts --batch <批次目录>
 ```
 
-它读 `batch.json`，把当前 git HEAD 与候选提交比一次：不同就把 `status` 改成 `stale`、写 `endHead` 与 `endCheckedAt`，并提示这条批次不能用于发布收口（原件不删）；相同就只记 `endCheckedAt`，`status` 保持 `active`。
+它读 `batch.json`，把当前 git HEAD 与候选提交比一次，并重读本地基线分支的 tip：HEAD 前进、基线前进、收尾时读不到基线、或旧批次没有 `base` 记录，都会把 `status` 改成 `stale`、写 `endHead` 与 `endCheckedAt`，并提示这条批次不能用于发布收口（原件不删）；都没前进就只记 `endCheckedAt`，`status` 保持 `active`。只比 HEAD 抓不到「在集成分支开批、集成分支 HEAD 不动但 `main` 前进了」这种情况，所以要连基线一起比。
 
 批次开始评论与每条场景结果评论都要带同一行验证身份，精确格式是：
 
 ```
 - 验证身份：批次 <批次名>；候选提交 <40位小写提交>；候选包 sha256 <64位小写tgz哈希>
 ```
+
+批次开始评论还要再写一行验证基线（`prepare-batch` 输出的 `baseLine`），格式是 `- 验证基线：本地 main <40位提交>；目标版本 <版本号>`。这一行不参与发布前检查的机器核对，但它是「这批验的是不是最新代码」的唯一书面记录，写评论时别漏。
 
 发布前检查靠这一行把评论与候选清单对上；它只读票面评论与 `--candidate` 传来的 `candidate.json`，不读本机 `batch.json`（发布可能不在做真机验证的那台机器上）。格式不对或身份对不上的结果不算通过。收证据前 `collect-evidence` 还会拒绝状态不是 `active` 或前置巡检没通过的批次，并重新读一遍 `candidate.json` 与候选包，核对它们的 sha256 是否仍是批次记录里的那一份：候选文件被改过、候选包被换过，都会拒绝收证据。
 
@@ -265,6 +269,7 @@ GITLAB_TOKEN=<本批使用的 token>
 - 只认 `GLAB_CONFIG_DIR`、`PATH`、`GITLAB_TOKEN` 三个变量名；前两个必需，`GITLAB_TOKEN` 可选：这一批不需要访问 GitLab 时可以整行不写，或写成空值表示这次不注入 token。
 - 值只合并进实例进程的环境，不会出现在命令行参数、`instance.json`、实例的 stdout/stderr 与插件日志里。命令只在 stderr 报一句「环境文件：<路径>；注入变量：GLAB_CONFIG_DIR、PATH、GITLAB_TOKEN（值不输出）」。
 - 参数名是 `--instance-env-file` 而不是 `--env-file`：Node 自己有 `--env-file` 选项，会把后面的值当成 Node 自己的环境文件读，命令根本收不到这个参数。
+- `prepare-batch` 也认这个参数：开批时把环境文件直接交给本批实例，并在 `batch-preflight.json` 里记路径与变量名，不记值。
 - 文件不存在、缺少 `GLAB_CONFIG_DIR` 或 `PATH`、写了不认识的变量名、某行不是 `KEY=VALUE` 时，命令以退出码 1 失败，并在 stderr 用中文说清第几行、哪个变量名；错误信息不回显整行原文（那行可能正好写着 token）。
 
 只想看会怎么启动、还不想真起进程时加 `--launch-plan`：
@@ -324,8 +329,8 @@ GitLab 沙箱项目（建删细节见上面的「GitLab 沙箱项目」一节）
 | 命令 | 做什么 |
 | --- | --- |
 | `freeze-candidate` | 构建 + 打包 + 逐文件清单 + 装隔离 home + 核对界面版本串 |
-| `prepare-batch` | 用当前 HEAD 重新冻结候选，构建、打包、装隔离 home、起实例、前置巡检，一条命令完成 |
-| `check-batch` | 批次结束时比较当前 HEAD 与候选提交，HEAD 前进就把批次标成 `stale` |
+| `prepare-batch` | 用当前 HEAD 重新冻结候选，构建、打包、装隔离 home、起实例、前置巡检，一条命令完成；开批前核对候选包含本地基线 tip、版本等于基线 `package.json` 版本 |
+| `check-batch` | 批次结束时比较当前 HEAD 与本地基线 tip，任一前进就把批次标成 `stale` |
 | `two-instance-smoke` | 从零跑一次双实例冒烟 |
 | `cleanup` | 先报占用与文件数，确认后删批次产物 |
 

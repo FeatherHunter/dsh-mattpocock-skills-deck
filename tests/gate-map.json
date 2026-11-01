@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-01T01:36:26.929Z",
+  "generatedAt": "2026-11-01T01:50:38.781Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 493,
-  "gateCount": 493,
+  "chainLength": 494,
+  "gateCount": 494,
   "attributedGates": 433,
-  "unattributedGates": 60,
+  "unattributedGates": 61,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 54,
+  "completionRecordedGates": 55,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 662,
@@ -5102,7 +5102,7 @@
       "unattributed": true,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 29,
+      "expectedAssertions": 30,
       "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -11354,6 +11354,30 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条"
     },
     {
+      "step": "node tests/verify-1777-batch-freshness-guards.ts",
+      "file": "tests/verify-1777-batch-freshness-guards.ts",
+      "guards": [
+        "scripts/real-machine/commands/check-batch.mts",
+        "scripts/real-machine/commands/prepare-batch.mts",
+        "scripts/real-machine/lib/batch.mts",
+        "scripts/real-machine/lib/candidate.mts",
+        "scripts/release-integrity.mts",
+        "scripts/ts-hook.mts",
+        "tests/lib/gate-result.ts"
+      ],
+      "dirs": [
+        "scripts",
+        "scripts/real-machine/commands",
+        "scripts/real-machine/lib",
+        "tests/lib"
+      ],
+      "unattributed": true,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 34,
+      "reason": "读到的路径都落在 scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
+    },
+    {
       "step": "node tests/verify-locale-completeness.ts",
       "file": "tests/verify-locale-completeness.ts",
       "guards": [
@@ -11817,6 +11841,7 @@
       "node tests/verify-ui-feedback.ts",
       "node tests/verify-wire-subissues-script.ts",
       "node tests/verify-wizard-exit-609.ts",
+      "node tests/verify-1777-batch-freshness-guards.ts",
       "node tests/verify-md-format-config.ts",
       "node tests/verify-star-history.ts",
       "node tests/verify-thanks-table.ts"
@@ -11901,13 +11926,15 @@
     "scripts/real-machine": [],
     "scripts/real-machine/commands": [
       "node tests/verify-1709-deck-entry.ts",
-      "node tests/verify-1710-preflight.ts"
+      "node tests/verify-1710-preflight.ts",
+      "node tests/verify-1777-batch-freshness-guards.ts"
     ],
     "scripts/real-machine/lib": [
       "node tests/verify-1709-deck-entry.ts",
       "node tests/verify-1766-batch-identity.ts",
       "node tests/verify-real-machine-fullscreen.ts",
-      "node tests/verify-real-machine-size-presets.ts"
+      "node tests/verify-real-machine-size-presets.ts",
+      "node tests/verify-1777-batch-freshness-guards.ts"
     ],
     "src": [
       "node tests/verify-build-artifacts.ts",
@@ -13635,7 +13662,8 @@
       "node tests/verify-ui-feedback.ts",
       "node tests/verify-update-panel.ts",
       "node tests/verify-visible-truth.ts",
-      "node tests/verify-workspace-file-note.ts"
+      "node tests/verify-workspace-file-note.ts",
+      "node tests/verify-1777-batch-freshness-guards.ts"
     ],
     "tests/tracker-contract": [
       "node tests/verify-1179-gitlab-endpoint-coverage.ts",

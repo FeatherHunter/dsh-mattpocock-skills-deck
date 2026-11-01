@@ -82,6 +82,75 @@ export function gitState(repo: string): GitState {
   }
 }
 
+const COMMIT_RE = /^[0-9a-f]{40}$/
+
+/**
+ * 读一个 git 引用指向的提交（只看本地记录，不 fetch）。
+ *
+ * 版本与新鲜度守卫的参照物必须从本地分支读，不能从当前工作树读：在集成分支的工作树里跑验证时，
+ * 当前 HEAD 是集成分支的合并提交，而「本地最新代码」是 main 分支的 tip。两者的关系要专门判断。
+ */
+export function gitTipAt(repo: string, ref: string): string {
+  const result = run('git', ['rev-parse', '--verify', ref + '^{commit}'], { cwd: repo })
+  const tip = result.stdout.trim()
+  if (result.status !== 0 || !COMMIT_RE.test(tip)) {
+    throw new Error(
+      '读不到本地分支「' + ref + '」的提交：' + (result.stderr.trim() || 'git 没有返回 40 位提交') +
+        '。本工具不联网 fetch，先确认这个分支在本地存在（例如在主仓库跑一次 git fetch 后再试）。',
+    )
+  }
+  return tip
+}
+
+/**
+ * ancestor 是不是 descendant 的祖先（提交相等也算包含）。
+ * 退出码 0 表示是，1 表示不是，其它退出码说明 git 自己出错，必须报出来而不是当成「不是」。
+ */
+export function gitContains(repo: string, ancestor: string, descendant: string): boolean {
+  const result = run('git', ['merge-base', '--is-ancestor', ancestor, descendant], { cwd: repo })
+  if (result.status === 0) return true
+  if (result.status === 1) return false
+  throw new Error('判断提交祖先关系失败（git merge-base 退出码 ' + String(result.status) + '）：' + result.stderr.trim())
+}
+
+/**
+ * 读基线分支上 package.json 的版本号。这是「这次要发布哪个版本」的机器可读来源：
+ * 已发布 1.9.0-beta.32 时 main 的版本已经是 1.9.0-beta.33，候选必须与它一致；
+ * 稳定版同理（已发布 1.9.0 时验 1.9.1）。从 git 引用读而不是读当前工作树，避免用集成分支自己的版本自证。
+ */
+export function readVersionAtRef(repo: string, ref: string): string {
+  const result = run('git', ['show', ref + ':package.json'], { cwd: repo })
+  if (result.status !== 0) {
+    throw new Error(
+      '读不到本地分支「' + ref + '」上的 package.json：' + result.stderr.trim() +
+        '。版本口径要求开批时能从基线分支读到 package.json 的 version。',
+    )
+  }
+  let json: any
+  try {
+    json = JSON.parse(result.stdout)
+  } catch {
+    throw new Error('本地分支「' + ref + '」上的 package.json 不是合法 JSON，读不出版本号。')
+  }
+  const version = json && typeof json.version === 'string' ? json.version.trim() : ''
+  if (!version) {
+    throw new Error('本地分支「' + ref + '」上的 package.json 没有 version 字段：没法核对候选是不是这次要发布的版本。')
+  }
+  return version
+}
+
+/** 开批基线的三个事实：从哪个分支读、本地 tip 在哪、这次要发布哪个版本。 */
+export interface LocalBaseline {
+  ref: string
+  tip: string
+  expectedVersion: string
+}
+
+/** 一次读齐开批基线：分支 tip 与基线版本必须来自同一份本地记录。 */
+export function readLocalBaseline(repo: string, ref: string): LocalBaseline {
+  return { ref, tip: gitTipAt(repo, ref), expectedVersion: readVersionAtRef(repo, ref) }
+}
+
 /**
  * 跑一次只产出发行制品的构建（node scripts/build.mts --pkg-only）。失败时把 stderr 末尾带出来。
  *
