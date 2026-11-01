@@ -135,25 +135,28 @@
 
 ### 6.1 改后的 `composeSnapshot` 流程
 
-1. 取工作集：`list({state:'open'})`（后端必须下推状态）+ 开放地图的子票（每张地图循环 `subIssues` 拉全，见 6.4）。
-2. 取历史首页：`listPage({state:'closed'}, {limit:100})`。
-3. 取数字：`counts({})`。
-4. 组装：`assembleSnapshot`（不动）→ `deriveDeck` → **用 `counts` 覆盖 `deck` 里的数字**（拿不到就保留派生值）→ 置 `deck.partial`。
-5. 版号：`snapshotVersionOf` **必须把 `counts` 与 `partial` 算进去**（否则数字变了可能被 304 糊过去）。
-6. 缓存与 304 照旧（LRU 20 / TTL 5 秒 / `ifNoneMatch`）。
+1. 取开放工作集：`list({state:'open'})`（后端必须下推状态；开放工单与开放拉取请求都在这一份里，界面自己按类型过滤）。
+2. 拉全开放地图的子票：对每张**开放**的地图容器逐张 `listSubIssues` 拉到底（底层走 GraphQL 的 `subIssues` 连接循环，含已关闭子票，硬上限 1000，见 6.4）；宿主补 `parentKey`/`effortId` 并入组装池。
+3. 补已关闭地图的容器行：热启动沿用现有的已关闭回补；冷启动用 `listPage({state:'closed', labels:['wayfinder:map']}, {limit:100})` 补一页**薄行**，宿主补 `number`/`state`/`type`（薄行没有正文，地图页的「目的地」可以缺）。已关闭地图的**子票**不抓。
+4. 取数字：`counts({})`。
+5. 组装与版号：`assembleSnapshot`（不动）→ `deriveDeck` → **用 `counts` 覆盖 `deck` 里的数字**（拿不到就保留派生值）→ 置 `deck.partial` 与 `deck.missingOpen` → `snapshotVersionOf` **必须把 `counts`、`partial`、`missingOpen` 算进去**（否则数字变了可能被 304 糊过去）。缓存与 304 照旧（LRU 20 / TTL 5 秒 / `ifNoneMatch`）。
 
-### 6.2 `deck` 增两个字段
+### 6.2 `deck` 增三个字段
 
 - `deck.counts = {open, closed, total}`：来自 `counts` 的真实数字；拿不到时省略。
-- `deck.partial = true|false`：**手上这份行数据是不是被截断过**。三种情况置真：`list` 触到后端上限、历史只装了首页、大仓库降级（见第 9 节）。
-- 界面只读这两个；`deck` 的其余字段（`total/open/closed/frontier/claimed/blocked/levels/levelOf`）保持现在的含义与消费者（`sections/deck.js`、`labelColorPatch.js`）不变。
+- `deck.partial = true|false`：**只报「异常缺失」**——下列任一为真才置真：开放工单行数少于后端 `counts.open`；`list` 触到后端上限（500 条的安全上限保留，见 5.1）；后端退回 REST 首屏（GraphQL 不可用时的降级，拿到的行不全）；`counts` 冲突（派生数与后端数对不上）或 `counts` 缺失。**「已关闭只装首页」不再算**：首屏本来就不装已关闭票的历史，已关闭按需翻页，装不全属正常。
+- `deck.missingOpen?: number`：缺多少张未关闭票 = `counts.open` 减首屏数到的开放行数，小于 0 按 0 记；缺后端计数或缺行数时省略（宿主日志里记成 `-1`）。
+- 界面只读这三个：琥珀小点在 `deck.partial === true` 时出现；悬停文案在 `missingOpen > 0` 时说「缺 N 张未关闭票，体检可能遗漏。」，否则用兜底「ISSUE 未完全加载，体检可能遗漏。」（词条 `list.partialMissing` / 兜底 `list.partialTitle`）；橙点的 aria-label 一直是「这份清单不全」（`list.partial`）。`deck` 的其余字段（`total/open/closed/frontier/claimed/blocked/levels/levelOf`）保持现在的含义与消费者（`sections/deck.js`、`labelColorPatch.js`）不变。
 
 ### 6.3 首屏装哪些行
 
-- 全部开放票（工单口径与拉取请求都在池子里，界面自己过滤）；
-- 开放地图的全部子票（含已关闭子票 —— 地图行上的进度环、「完成」判定需要）；
-- 已关闭票的最近 100 条（工单口径），作为折叠行的第一屏；
-- 已关闭地图的**容器行**（不带子票）；它下面还开着的子票按工作集放回首屏（#1291），已关闭的子票不抓。
+- 开放工作集全量：全部开放票（工单口径与拉取请求都在池子里，界面自己过滤）；
+- 开放地图子票全量：开放地图的全部子票（含已关闭子票 —— 地图行上的进度环、「完成」判定需要）；
+- 已关闭地图的**容器行**（薄行，不带子票；怎么来见 6.1 第 3 步）；它下面还开着的子票按工作集放回首屏（#1291），已关闭的子票不抓；
+- 已关闭票的历史行**不再预装**：这一版首屏不取「已关闭最近 100 条」，已关闭历史改由按需折叠行取（#690）。这是对本文旧字面（原 6.3 第 3 条）的有意偏离，理由是首屏点数与体积（第 10 节第 5 条），不是为了省事。
+- 一句口径：开放工作集与开放地图子票装不全才是异常（见 6.2 的 `partial`）；已关闭行按需翻页、装不全属正常，所以不计入 `partial`。
+- 已知残留（不在本版首屏流程里）：冷启动时已关闭**规格**容器的行会丢——薄行没有正文，规格容器又没有 `wayfinder:map` 这类能认出来的标签；顶层未挂图票「只补不删」另见 #1798。
+- 本轮实现范围：只改 GitHub 的取数路径；GitLab / 本地 Markdown 的 `counts`、`listPage` 实现与薄片段瘦身不在这一轮（阶段划分见第 11 节）。
 
 ### 6.4 地图详情按需
 
@@ -201,7 +204,7 @@
 ### 7.5 日志点
 
 - `wf.issuesPage` 是新跨边界调用 → **记常驻**（用户主动触发、低频）：事件名建议 `issues.page`，字段按白名单取 `state`、`labelsCount`、`returned`、`total`、`latencyMs`、`ok`、`errorHash`（路径只记散列）。
-- `counts` 随每次重建发生 → **不新增事件**，把 `open`/`closed`/`partial` 三个字段加进既有的 `snapshot.built`（常驻）里，避免条数膨胀。
+- `counts` 随每次重建发生 → **不新增事件**，把 `open`/`closed`/`partial` 三个字段加进既有的 `snapshot.built`（常驻）里，避免条数膨胀（#1796 又补一个 `missingOpen`：缺多少张未关闭票，`-1` 表示算不出）。
 - 同步：`research/489-appendix.md` 第 1 章对照表与条数（常驻 31 → 32）、`tests/verify-log-count.js` / `verify-log-fields.js` / `verify-log-guards.js`。
 
 ---
@@ -210,7 +213,7 @@
 
 | 文件 | 改什么 | 备注 |
 | --- | --- | --- |
-| `src/client/views/ListTab.js` | 顶部三个数字改读 `deck`；折叠行文案改「已关闭 N（已加载 x）」；三个触发点接翻页；`deck.partial` 为真时一句「这份清单不全」；主列表按工单口径过滤掉拉取请求行 | 现在 298 行，装不下 → 把 KPI 行与折叠行拆成独立文件（既有做法） |
+| `src/client/views/ListTab.js` | 顶部三个数字改读 `deck`；折叠行文案改「已关闭 N（已加载 x）」；三个触发点接翻页；`deck.partial` 为真时亮橙点（aria-label 仍是「这份清单不全」），悬停按 `deck.missingOpen` 说「缺 N 张未关闭票，体检可能遗漏。」，没有数字时用兜底「ISSUE 未完全加载，体检可能遗漏。」；主列表按工单口径过滤掉拉取请求行 | 现在 298 行，装不下 → 把 KPI 行与折叠行拆成独立文件（既有做法） |
 | `src/client/views/MapDetail.js` | 头部加一行「本图 N 张子票（已关闭 M 张）」；打开地图时触发拉全 | 现在 336 行 → 头部拆出去 |
 | `src/client/views/PrTab.js` | 不动（它的口径已经是「只收 `isPullRequest === true`」） | 确认一次即可 |
 | `src/client/kernel/api-io.js` | 加一处 `wf.issuesPage` 的客户端包装 | 照 `wf.issueComments` 的写法 |
@@ -236,7 +239,7 @@
 | 子工作区会话（#647） | 同仓库不同目录 | 沿用工作区键分桶，本规格不改这条 |
 | 已删票 / 归档仓库 / 权限不足 | 数字与行都在同一权限下 | `counts` 与 `list` 走同一授权，天然一致；不额外处理 |
 | 自建 GitLab / GHES | 接口形状相同 | 沿用现有 gh/glab 通道，失败如实报 |
-| 大仓库（开放票 > 1000） | 工作集太大 | 只取最新 1000 张开放票，置 `partial`，界面明说「只加载了最近 1000 张开放票」 |
+| 大仓库（开放票多到触 `list` 上限） | 工作集太大 | `list` 翻到工单 500 条上限就停，置 `partial`，橙点悬停按 `missingOpen` 说还缺几张未关闭票；不再用「只取最近 1000 张开放票」的截断策略（那是旧写法） |
 | 地图子票 > 1000 | 层网格画不全 | 硬上限 1000，明说「只加载了前 1000 张」 |
 | 地图没有子票 | 环为空、按钮空 | 沿用现有空态（`mapEmpty`） |
 | Markdown 票文件被手改坏 | 解析失败 | 后端如实报 `parse`，不静默丢票 |
@@ -267,7 +270,7 @@
 ## 11. 分阶段落地（每阶段独立验收、可回滚，且不返工）
 
 **阶段 1 · 数字先对、首屏更省**（改动最小、当天可验收）
-- 契约加 `counts`；GitHub 实现（`totalCount`）；宿主用 `counts` 覆盖 `deck`、加 `partial`；版号把 `counts` 算进去。
+- 契约加 `counts`；GitHub 实现（`totalCount`）；宿主用 `counts` 覆盖 `deck`、加 `partial` 与 `missingOpen`；版号把 `counts` / `partial` / `missingOpen` 算进去。
 - 列表按工单口径过滤；KPI 与状态栏改读工单口径与 `deck`。
 - 界面：折叠行文案、`partial` 提示。
 - 验收：第 10 节 1、2、3、4、5、10 条。
@@ -289,7 +292,7 @@
 ## 12. 风险登记与「还没证明的」
 
 - **`counts` 与行数据的时刻差**：两次调用之间有人关票 → 数字与行差 1。缓解：同一次重建里取（6.1 的顺序），并在验收里接受 ±1 的瞬时差。
-- **版号漏算**：`snapshotVersionOf` 没把 `counts`/`partial` 算进去 → 数字变了被 304 糊过去。这是本次最容易漏的一处，必须写夹具断它。
+- **版号漏算**：`snapshotVersionOf` 没把 `counts`/`partial`/`missingOpen` 算进去 → 数字变了被 304 糊过去。这是本次最容易漏的一处，必须写夹具断它。
 - **薄片段字段不够**：`listPage` 只取列表行需要的字段；`IssueDetail` 的兜底（`IssueDetail.js:36-37`）会拿到没有正文的行 → 详情页要能容忍「兜底行没有正文」，显示加载态而不是空白。落地前要按「谁在读快照/页数据的哪个字段」列一次清单。
 - **GitLab 计数口未实测**：`X-Total` 与 `issues_statistics` 二选一，落地时实测后再定（这一轮没有环境）。
 - **本地 Markdown 未逐条核**：`counts` 要数哪些文件（票文件 vs 目录），落地时按工作单元目录结构核一遍。

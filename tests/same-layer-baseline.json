@@ -219,6 +219,15 @@
       "note": "#1255 拆分：版号是 304 正确性的核心，纯函数值得独立屋顶；方向 snapshot → snapshotVersion（被依赖方），反向不依赖。"
     },
     {
+      "file": "src/host/tracker/snapshot.ts",
+      "spec": "./snapshotWorkingSet.js",
+      "resolved": "src/host/tracker/snapshotWorkingSet.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1796（首屏开放工作集）",
+      "note": "#1796 新增：首屏工作集装配（开放池 + 开放地图子票 + 已关闭地图容器行）从编排里拆出；方向 snapshot → snapshotWorkingSet（被依赖方），反向不依赖。"
+    },
+    {
       "file": "src/host/tracker/predicatePrimitives.ts",
       "spec": "./predicateFileProbes.js",
       "resolved": "src/host/tracker/predicateFileProbes.ts",

@@ -30,6 +30,9 @@
  *  11. object-kind 段（#1403 T1 / #1408）：同一份「首行幂等锚、第二行规格标记」的正文，
  *      GitHub 房、GitLab 房、本地 Markdown 房归一化后的对象类型一致判成 spec；标记落在
  *      首个标题之后或与别的字挤在同一行，三家都判 issue。见 sections/object-kind.ts。
+ *  12. list-state 段（#1796）：列表的状态筛下推到查询 —— list({state:'open'}) 两类票都只查 OPEN、
+ *      list({state:'closed'}) 拉取请求要 CLOSED+MERGED、不带 state 时状态齐全；
+ *      GraphQL 失败走 REST 时请求地址带 state 与按更新时间倒序。见 sections/list-state.ts。
  *
  * 每段含「✗ probe」违规样例自证测试会逮。
  * 运行：node tests/verify-tracker-contract.ts
@@ -54,6 +57,7 @@ import listPageSection from './tracker-contract/sections/listPage.js'
 import idempotencySection from './tracker-contract/sections/idempotency.js'
 import roomGitlabExtrasSection from './tracker-contract/sections/room-gitlab-extras.js'
 import objectKindSection from './tracker-contract/sections/object-kind.js'
+import listStateSection from './tracker-contract/sections/list-state.js'
 
 const results = [
   ...runContractTests(compliant), // 合规 → 应全 PASS
@@ -251,7 +255,7 @@ try {
   results.push({ name: 'pr-shape · probe-crash', ok: false, detail: String(e && e.stack || e) })
 }
 
-for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection, labelsSection, countsSection, listPageSection, idempotencySection, roomGitlabExtrasSection, objectKindSection]) {
+for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection, labelsSection, countsSection, listPageSection, idempotencySection, roomGitlabExtrasSection, objectKindSection, listStateSection]) {
   try {
     const r = await s.run()
     results.push(...r)

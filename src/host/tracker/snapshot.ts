@@ -4,7 +4,7 @@
 //   调用方能按类型取用编排器，缓存键、版号与降级标记的口径仍与原来逐行一致。
 // 什么约定不能改：
 //   1. snapshot 不进 OpName：它是宿主编排便利函数，不是后端操作；children 用 list 组合，deck 由 host 计算。
-//   2. 缓存只缓存数据，绝不缓存能力判定；可选后端快路径只接受完整数组，否则回落 list。
+//   2. 缓存只缓存数据，绝不缓存能力判定；首屏一律经 list({state:'open'}) 取开放工作集，再并上开放地图子票与已关闭地图容器行；后端快路径整条不走（它只回完整数组，表达不了「只要未关闭」）。
 //   3. 同池不分片：拉取请求与普通工单同池，身份靠池内标识区分，不互相吞；组装只做直通，不补默认值。
 //   4. 数字与全不全由这一层写进 deck：counts 问后端要，拿不到一律按拿不到处理，不猜数。
 //   5. 相对导入一律保留 .js 后缀，运行时由 scripts/ts-hook.mts 改指同名 .ts，本文件不改说明符。
@@ -12,13 +12,15 @@
 
 import { ERROR_KIND } from '../../tracker/contract/vocabulary.js'
 import { deriveDeck } from '../../tracker/deck-derive.js'
-// #1698 计数诚实：数字从哪来、能不能信、要不要标待校准，口径统一收在 tracker/deck-counts.ts。
-import { planDeckCounts, rowCountsOf } from '../../tracker/deck-counts.js'
+// #1698 计数诚实、#1796 改口径：数字从哪来、能不能信、清单缺没缺，口径统一收在 tracker/deck-counts.ts。
+import { openRowsOf, planDeckCounts } from '../../tracker/deck-counts.js'
 // 快照与依赖边两份缓存的缺省存活时间住中央 YAML（config/ttl.yaml 的 snapshotTtlMs 键，注释写着
 // 「快照组合器的缓存有效期：5 秒」）：这里直接读中央常量，不再造新本地名，调时间改 YAML。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
 import { SNAPSHOT_TTL_MS } from '../../shared/time-config/src/values.js'
 import { assembleSnapshot, carryOverMapTickets, failKindOfListError } from './snapshotAssemble.js'
+// #1796 首屏工作集：开放池 + 开放地图子票 + 已关闭地图容器行（只读后端、只回事实，编排仍在本文件）。
+import { assembleWorkingSet } from './snapshotWorkingSet.js'
 import { snapshotVersionOf } from './snapshotVersion.js'
 
 // 类型只做编译期约束，不产生运行时引用：对外形状以共享层为准，内部动态行一律按 any 收。
@@ -206,10 +208,13 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
   // #1439 A2：取数的门面。生产接了 openSession 就经 Tracker 会话调操作（过闸、记账、房间实例不外泄）；
   // 没接（门禁单测、老调用点）或会话这一层开不起来（宿主装配还没就绪）时回落到注册表取实例，形状与今天一致：
   // 面板取数不能因为会话没接好就整份快照失败（#927 可用性优先）。门面故意不提供 snapshotFast：
-  // 快路径不是契约操作，会话路径退回普通 list，结果正确、只是少一趟捷径。
+  // 快路径只回「完整数组」，表达不了首屏要的「只要未关闭」（#1796），所以首屏一律走普通 list 加状态筛选。
+  // listPage 与 listSubIssues 是 #1796 新增的两件只读能力（补已关闭地图容器行、拉开放地图的子票）：
+  // 老会话或门禁里的假会话没有这两个方法，回 unsupported 让调用方跳过，绝不在这里抛（快照可用性优先）。
   const instanceOf = (backendId: string): any => {
     try { return registry.get(backendId) } catch (e) { return null }
   }
+  const missingOp = (op: string): any => ({ ok: false, error: { kind: (ERROR_KIND as any).UNSUPPORTED, message: op + ' unavailable on this session' } })
   const trackerFor = async (backendId: string, ctx: any): Promise<any> => {
     const open = opts && opts.openSession
     if (typeof open !== 'function') return instanceOf(backendId)
@@ -218,9 +223,13 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
     try { opened = await open(cwd, { write: false }) } catch (e) { opened = null }
     if (!opened || opened.ok !== true || typeof opened.call !== 'function' || String(opened.backendId) !== String(backendId)) return instanceOf(backendId)
     return {
-      list: (ref: any) => opened.call((s: any, c: any) => s.list(ref, {}, c)),
+      // #1796：filter 真的下推给后端（首屏传 {state:'open'}）；老调用方不传时仍是 {}（全部状态）。
+      list: (ref: any, filter: any) => opened.call((s: any, c: any) => s.list(ref, filter || {}, c)),
       counts: (ref: any) => opened.call((s: any, c: any) => s.counts(ref, {}, c)),
       getDependencies: (ref: any, key: any, o: any) => opened.call((s: any, c: any) => s.getDependencies(ref, key, o || {}, c)),
+      // 缺席时回 unsupported 而不是抛：会话实现缺这两个方法只说明这一类行补不出来，不能让整份快照失败。
+      listPage: (ref: any, filter: any, pageOpts: any) => opened.call((s: any, c: any) => typeof s.listPage === 'function' ? s.listPage(ref, filter || {}, pageOpts || {}, c) : missingOp('listPage')),
+      listSubIssues: (ref: any, key: any, o: any) => opened.call((s: any, c: any) => typeof s.listSubIssues === 'function' ? s.listSubIssues(ref, key, o || {}, c) : missingOp('listSubIssues')),
     }
   }
 
@@ -249,52 +258,64 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       const missReason = o.force ? 'force' : (!cachedEntry ? 'empty' : (((o as any).ifNoneMatch && cachedEntry.version && cachedEntry.version !== (o as any).ifNoneMatch) ? 'version-mismatch' : 'expired'))
       try { if (fire) fire('info', 'snapshot.cache.miss', { reason: missReason }) } catch (eL) {}
 
-      // 可选后端快路径（非 op；只接受完整 Issue[]，否则回落 list——桩不误导）
-      let all: any[] | null = null
       // #715：这一趟 list 到底走的 GraphQL 还是掉到了 REST —— 后端真的降级时才往上报（见 github/issues.js 的 REST 通道）。
       let listFallback: string | null = null
       // #1696：这一趟列表是不是被后端截断了。截断 / 降级都算「不完整来源」——地图容器的子票与计数
       //   只能补、不能删（见 snapshotAssemble.ts 的 carryOverMapTickets）；完整来源才允许以本次为准删缩。
       let listTruncated = false
-      // #734：降级原因随 fallback 一起上报（quota / other / 未知=null 三档；未知 = 老快路径没给、
-      //   老快照本来就没有这个字段）。界面只有 quota 才说配额耗尽，other 与未知一律说中性那句。
+      // #734：降级原因随 fallback 一起上报（quota / other / 未知=null 三档；未知 = 老快照本来就没有这个字段）。
+      //   界面只有 quota 才说配额耗尽，other 与未知一律说中性那句。
       let listFallbackReason: string | null = null
-      if (typeof tracker.snapshotFast === 'function') {
-        const fast = await tracker.snapshotFast(ref, ctx)
-        if (fast && fast.ok === true && Array.isArray(fast.data)) { all = fast.data; if ((fast as any).truncated === true) listTruncated = true; if (fast.fallback === 'rest') { listFallback = 'rest'; listFallbackReason = fast.fallbackReason || null } }
-      }
-      if (!all) {
-        const res = await tracker.list(ref, {}, ctx)
-        if (!res.ok) return { ok: false, error: res.error, fail: { kind: failKindOfListError(res.error), at: Date.now() } }
-        if ((res as any).truncated === true) listTruncated = true
-        if ((res as any).fallback === 'rest') { listFallback = 'rest'; listFallbackReason = (res as any).fallbackReason || null }
-        all = res.data
-      }
-      if (!Array.isArray(all)) {
+      // #1796 首屏只取开放工作集：状态筛选由后端先做（list 契约支持 filter.state），未关闭票不再和
+      //   已关闭历史挤同一个 500 条窗口 —— 这正是「编号靠后的旧开放票被挤掉」的根因所在。
+      //   后端可选快路径不再调用：它只回完整数组，表达不了「只要未关闭」。
+      const res = await tracker.list(ref, { state: 'open' }, ctx)
+      if (!res.ok) return { ok: false, error: res.error, fail: { kind: failKindOfListError(res.error), at: Date.now() } }
+      if ((res as any).truncated === true) listTruncated = true
+      if ((res as any).fallback === 'rest') { listFallback = 'rest'; listFallbackReason = (res as any).fallbackReason || null }
+      const pool: any[] = res.data
+      if (!Array.isArray(pool)) {
         return { ok: false, error: { kind: (ERROR_KIND as any).PARSE, message: 'list returned non-array data; cannot compose snapshot' } }
       }
 
+      // #1796 首屏工作集：开放池只装得下开放票，还要并上两样东西才是一份完整首屏：
+      //   ① 开放地图的子票（含已关闭的子票 —— 地图详情要数得清「共 N 张」）；
+      //   ② 已关闭地图的容器行（开放池里没有它们，列表上的容器行不能凭空消失）。
+      //   子票拉取失败只跳过不抛；失败或不完整的次数决定这一份来源全不全（sourceComplete），
+      //   来源不全时下面的 carryOverMapTickets 只能补不能删。
+      const prelim: any = assembleSnapshot(ref, pool)
+      const workingSet: any = await assembleWorkingSet({
+        tracker,
+        ref,
+        ctx,
+        pool,
+        openContainers: prelim.maps,
+        previousMaps: cachedEntry && cachedEntry.snapshot ? cachedEntry.snapshot.maps : [],
+      })
+      const sourceComplete: boolean = !listFallback && !listTruncated && workingSet.subIssuesFailed === 0 && workingSet.subIssuesIncomplete === 0
+
       // #1696：组装出来的 map.tickets 是后端原始行，客户端首帧画不出关系与计数；这里统一归一化，
       //   并在列表被截断或降级时把上次快照已知的子票与计数按编号补回来（只补不删）。已关闭容器口径不动。
-      const assembled: any = assembleSnapshot(ref, all)
+      const assembled: any = assembleSnapshot(ref, workingSet.rows)
       const snapshot: any = carryOverMapTickets(cachedEntry && cachedEntry.snapshot, assembled, {
-        sourceComplete: !listFallback && !listTruncated,
+        sourceComplete,
         nowMs: Date.now(),
       })
       const deck: any = deriveDeck(snapshot)
-      // #689 起步、#1698 收口：数字与「这份行数据全不全」分开写，且每个数字都带来源与时刻。
-      //   · 后端 counts 可信（行数不超过后端总数）→ 用后端数字，来源「后端」，这是老口径；
-      //   · 后端拿不到但列表完整 → 本地按行重算，来源「本地枚举」（不再静默派生冒充完整）；
-      //   · 列表不完整（降级或截断）→ 保留上次已知的数字与时刻，标 countsPending（界面显示待校准）；
-      //   · 后端数字与行数据冲突（后端总数比行还少）→ 以行数据为准，冲突的后端数字留痕；
-      //   · 一点证据都没有 → 不写 deck.counts（绝不写 0/0/0 冒充「真的没有票」）。
+      // #689 起步、#1698 收口、#1796 改口径：数字与「这份清单全不全」分开写，且每个数字都带来源与时刻。
+      //   · 数字：后端 counts 是整仓口径，拿到就用（来源「后端」）；拿不到保留上次已知并标 countsPending；
+      //     一点证据都没有时不写 deck.counts（绝不写 0/0/0 冒充「真的没有票」）。
+      //   · 全不全（partial）：只报异常缺失 —— 开放行数比后端 open 少、列表触上限、REST 降级、计数冲突或缺失。
+      //     「已关闭历史只装了一部分」是设计，不算缺（#1796 票面第五条）。
       //   与行数据同一趟重建里取（快照缓存 TTL 5 秒 + 版号），所以数字与列表看到的是同一时刻的仓库。
       const counts = await countsFromBackend(tracker, ref, ctx)
+      const openRows = openRowsOf(workingSet.rows)
       const previousDeck: any = (cachedEntry && cachedEntry.snapshot && cachedEntry.snapshot.deck) ? cachedEntry.snapshot.deck : null
       const plan: any = planDeckCounts({
         backendCounts: counts,
-        rows: rowCountsOf(snapshot),
-        rowsComplete: !listFallback && !listTruncated,
+        openRows,
+        listTruncated,
+        listFallback: listFallback === 'rest',
         previousCounts: previousDeck ? previousDeck.counts : null,
         previousAtMs: cachedEntry && typeof cachedEntry.at === 'number' ? cachedEntry.at : 0,
         nowMs: Date.now(),
@@ -302,6 +323,9 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       if (plan.counts) deck.counts = plan.counts
       deck.countsPending = plan.pending
       deck.partial = plan.partial
+      // #1796：界面橙点要能说出「缺几张未关闭票」。计数与开放行数都拿到才算得出；算不出就不写，
+      //   别拿 0 冒充「一张都不缺」。
+      if (plan.counts && openRows !== null) deck.missingOpen = Math.max(0, plan.counts.open - openRows)
       snapshot.deck = deck
       // #715（诚实显示）：降级标记与「推迟 / 暂停 / 这个窗口没在刷新」这四项读数，只在这里写。
       //   降级标记（'rest'）是上面那一趟 list 真实掉到 REST 通道才带回来的事实 —— 界面层永远不许写它

@@ -100,6 +100,16 @@ function restIssue(n: number): Record<string, unknown> {
   return out
 }
 
+/** #1796：状态条件挪进了查询变量，真 gh 收到的实参里是 -F states[]=OPEN 这样一段一段。
+ *  假身照实参回答（与真 GitHub 一致），断言也读同一处，不再从查询正文里抠字面量。 */
+function stateArgsOf(args: string[]): string[] {
+  const out: string[] = []
+  for (const a of args || []) {
+    if (typeof a === 'string' && a.startsWith('states[]=')) out.push(a.slice('states[]='.length))
+  }
+  return out
+}
+
 /** 主路：GraphQL 能正常返回。桩按查询里写的状态条件回答（与真 GitHub 行为一致），并记下收到的查询文本。 */
 function makeGraphQLCtx(): { ctx: Record<string, unknown>; queries: string[] } {
   const queries: string[] = []
@@ -109,11 +119,11 @@ function makeGraphQLCtx(): { ctx: Record<string, unknown>; queries: string[] } {
     platform: { resolveExecutable: async (n: string) => (n === 'gh' ? 'gh' : null), env: { get: () => '' } },
     exec: async (cmd: string, args: string[]) => {
       const joined = (args || []).join('\n')
+      const argStates = stateArgsOf(args)
       if (joined.includes('graphql')) {
         if (joined.includes('pullRequests(')) {
           queries.push(joined)
-          const statesPart = (joined.match(/states:\[([^\]]*)\]/) || [])[1] || ''
-          const wantMerged = /MERGED/.test(statesPart)
+          const wantMerged = argStates.indexOf('MERGED') >= 0
           const nodes = ALL_PR_NUMBERS.filter((n) => wantMerged || !Object.prototype.hasOwnProperty.call(MERGED_AT, n)).map(gqlPR)
           return { code: 0, stdout: JSON.stringify({ data: { repository: { pullRequests: { nodes, pageInfo: { hasNextPage: false, endCursor: null } } } } }), stderr: '' }
         }
@@ -189,9 +199,10 @@ function prsOf(res: { ok: boolean; data: ListedPr[] } | null | undefined): Liste
   const closedOnly = prs.filter((p) => CLOSED_ONLY_NUMBERS.indexOf(Number(p.key)) >= 0)
   check(closedOnly.length === 5 && closedOnly.every((p) => p.state === 'closed' && !p.mergedAt), '主路：已关闭没合并的 5 条仍是「已关闭」且合并时间为空')
   const prQuery = queries.find((q) => q.includes('pullRequests(')) || ''
-  const statesPart = (prQuery.match(/states:\[([^\]]*)\]/) || [])[1] || ''
-  check(/MERGED/.test(statesPart), '主路：拉取请求列表查询把「已合并」写进条件（实得 states:[' + statesPart + ']）')
-  check(statesPart.split(',').length === 3, '主路：条件是三种状态而不是两种（实得 ' + statesPart + '）')
+  // #1796：状态条件现在走查询变量，检查的是 gh 实参里的 -F states[]=… 那几段。
+  const statesArg = stateArgsOf(prQuery.split('\n')).join(',')
+  check(/MERGED/.test(statesArg), '主路：拉取请求列表查询把「已合并」写进实参条件（实得 states[]=' + statesArg + '）')
+  check(statesArg.split(',').length === 3, '主路：实参里是三种状态而不是两种（实得 ' + statesArg + '）')
 }
 
 {

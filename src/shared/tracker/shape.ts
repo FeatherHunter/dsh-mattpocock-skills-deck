@@ -310,6 +310,7 @@ export type MapNode = {
  * @property {{total: number; open: number; closed: number}[]} stats.levels 每层（数组）
  * @property {Record<string, number>} stats.levelOf 每 key 的 level
  * @property {Record<string, string[]>} [blockedByKeys] 把 IssueRef[] 投影成 key 数组（UI 用）
+ * @property {number} [missingOpen] 缺几张未关闭票（#1796：后端 open 计数减首屏数到的未关闭行数，负数截 0；界面橙点用）
  */
 export type DeckProjection = {
   progressOf: Record<string, number | null>

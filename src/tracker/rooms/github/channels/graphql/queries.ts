@@ -68,10 +68,13 @@ export const LIST_ISSUE_FRAGMENT = issueFragmentFields('').filter(function (f) {
 // 不再把每条 GraphQL 都当成 1 点。mutation 拿不到这一格（RateLimit 只挂在 Query 根），写操作仍按 1 点估。
 
 // GraphQL list 查询（批量取；filter 在内存完成）
-export const LIST_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after:String){
+// #1796：状态不再写死在查询正文里，改由调用方按 filter.state 给变量。
+//   原因：一次只翻到 500 条就停，若把「打开」与「已关闭」挤在同一个窗口里，高编号的已关闭票
+//   会把低编号的未关闭票挤出窗口，面板上看起来就是「这些票不见了」。用法见 issues.ts 的 issueStatesOf。
+export const LIST_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[IssueState!]!){
   rateLimit{ cost }
   repository(owner:$owner,name:$name){
-    issues(first:$first, after:$after, states:[OPEN,CLOSED], orderBy:{field:UPDATED_AT, direction:DESC}){
+    issues(first:$first, after:$after, states:$states, orderBy:{field:UPDATED_AT, direction:DESC}){
       nodes{ ${LIST_ISSUE_FRAGMENT} }
       pageInfo{ hasNextPage endCursor }
     }
@@ -284,10 +287,11 @@ export const PULL_REQUEST_FRAGMENT = [
 //   不是两种；只写 OPEN 与 CLOSED 时，已合并的会被 GitHub 整批排除，
 //   面板上表现为「本仓 10 条 PR 只出现 5 条」（2026-09-11 真仓查证：写两种回来 5 条，写三种回来 10 条）。
 //   取回来之后归一与显示的口径见 normalize.js 的 normalizeIssue 与 views/shared/stateKind.js。
-export const LIST_PR_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after:String){
+// #1796：三种状态仍由调用方按 filter.state 以变量给出（pullStatesOf），默认三态齐全，这条判据不放松。
+export const LIST_PR_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[PullRequestState!]!){
   rateLimit{ cost }
   repository(owner:$owner,name:$name){
-    pullRequests(first:$first, after:$after, states:[OPEN,CLOSED,MERGED], orderBy:{field:UPDATED_AT, direction:DESC}){
+    pullRequests(first:$first, after:$after, states:$states, orderBy:{field:UPDATED_AT, direction:DESC}){
       nodes{ ${PULL_REQUEST_FRAGMENT} }
       pageInfo{ hasNextPage endCursor }
     }

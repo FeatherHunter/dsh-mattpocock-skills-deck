@@ -1,24 +1,31 @@
 /**
- * src/tracker/deck-counts.ts —— 面板计数的诚实口径（#1698）。
+ * src/tracker/deck-counts.ts —— 面板计数的诚实口径（#1698 起步，#1796 收口）。
  *
  * 为什么单独一层：计数有三个消费者（宿主拼快照、增量补行、客户端列表 KPI），三处必须用同一套
- * 「这个数字从哪来、能不能信」的判断，否则界面会出现假 0，或者列表与状态栏各说各的。
+ * 「这个数字从哪来、能不能信、这份清单缺没缺」的判断，否则界面会出现假 0，或者列表与状态栏各说各的。
  * 本文件只放纯函数：不读写快照、不发请求、不碰缓存。
  *
- * 口径（票 #1698 与规格 #1681 第 23 条）：
- * 1. 完整枚举（列表没降级、没截断）时本地按行重算，来源记「本地枚举」——不静默按池子派生冒充完整；
- * 2. 完整枚举拿不到、或列表不完整时，保留上次已知的数字与时刻，标「待校准」，界面显示未知而不是 0；
- * 3. 后端数字与行数据冲突（后端总数比行还少）时以行数据为准，并把冲突的后端数字留痕（conflictWith）；
- * 4. 后端数字可信（行数不超过后端总数）时用后端数字，来源记「后端」——这是老口径，保持不变。
+ * #1796 起口径分成两件事：
+ * 一、数字（deck.counts）：后端 counts 是整仓口径，可信时就用它，来源记「后端」；拿不到时保留上次已知的
+ *   数字与时刻，标「待校准」，界面显示未知而不是 0；一点证据都没有时不写 counts（绝不写 0/0/0 冒充
+ *   「真的没有票」）。#1796 之前还有一档「本地按行重算」——首屏改成只装开放工作集之后，已关闭历史本来
+ *   就不进首屏，本地数不出 closed 与 total，这一档随之取消。
+ * 二、全不全（deck.partial）：只报「异常缺失」。首屏按设计只装开放工作集与地图容器行，已关闭历史不装，
+ *   所以「已关闭只装了一部分」不算缺。真正算缺的只有四种：
+ *   1) 开放工作集的行数比后端计数的 open 少（旧开放票又被窗口挤掉了 —— 这就是 #1796 的现场）；
+ *   2) 这一趟列表触到了后端上限（工单 500 / 拉取请求 1000）；
+ *   3) 这一趟走了 REST 降级（行是兜回来的，可能与 GraphQL 的口径不同）；
+ *   4) 后端计数与开放行数冲突（行比后端还多，留痕 conflictWith）或者压根拿不到计数。
+ *   开放行数比后端多时同样 partial 置真，并把后端数字留在 conflictWith 里供排查。
  *
  * 反例（写代码时最常犯的两个错）：
  * - 拿不到任何证据时返回 0/0/0 —— 界面会当成「真的没有票」，必须返回 null 并标待校准；
- * - 有上次已知就直接沿用它而不重算 —— 列表完整时必须按行重算，旧值只在来源不完整时保留。
+ * - 把「已关闭历史只装首页」当成缺 —— 那是规格 677 §6.3 的设计，不是异常，置真会让橙点常亮。
  */
 
 import { effortOf } from './kernel/identity-keys.js'
 
-/** 计数来源的三个取值：后端给的、本地按行数出来的、上次已知保留的。 */
+/** 计数来源的三个取值：后端给的、本地按行数出来的、上次已知保留的（本地枚举只留老快照与界面文案用）。 */
 export const DECK_COUNT_SOURCES = Object.freeze(['backend', 'local-enumeration', 'previous-known'] as const)
 /** 计数来源：见 DECK_COUNT_SOURCES 的三档。 */
 export type DeckCountSource = (typeof DECK_COUNT_SOURCES)[number]
@@ -40,18 +47,22 @@ export interface DeckCounts extends DeckCountsTriple {
   conflictWith?: DeckCountsTriple
 }
 
-/** 一次计数决策的结果：数字（可能没有）+ 待校准标记 + partial（清单全不全）。 */
+/** 一次计数决策的结果：数字（可能没有）+ 待校准标记 + partial（清单有没有异常缺失）。 */
 export interface DeckCountsPlan {
   counts: DeckCounts | null
   pending: boolean
   partial: boolean
 }
 
-/** planDeckCounts 的输入：后端数字、行数据、列表全不全、上次已知与本次时刻。 */
+/** planDeckCounts 的输入：后端数字、开放工作集行数、列表全不全、上次已知与本次时刻。 */
 export interface DeckCountsInput {
   backendCounts?: DeckCountsTriple | null
-  rows?: DeckCountsTriple | null
-  rowsComplete?: boolean
+  /** 首屏开放工作集里数到的未关闭行数（含开放地图的容器行）；拿不到时给 null 或省略。 */
+  openRows?: number | null
+  /** 这一趟列表触到了后端上限（工单 500 / 拉取请求 1000）。 */
+  listTruncated?: boolean
+  /** 这一趟列表走了 REST 降级。 */
+  listFallback?: boolean
   previousCounts?: any
   previousAtMs?: number
   nowMs?: number
@@ -73,37 +84,24 @@ function positiveMs (v: unknown): number {
 }
 
 /**
- * 决定这一次重建该往 deck 里写什么计数。
+ * 决定这一次重建该往 deck 里写什么数字、要不要标「待校准」、要不要把 partial 置真。
  *
- * 判定顺序就是文件头的四条口径：后端可信 → 完整枚举重算 → 只有后端数字 → 上次已知 → 什么都没有。
- * 顺序不能换：完整枚举优先于上次已知（列表完整时旧值必须被重算覆盖），后端可信优先于本地重算
- * （后端数字是整仓口径，行数据可能被截断）。
+ * 判定顺序：后端数字 → 上次已知 → 什么都没有。partial 的四种异常缺失见文件头第二条；
+ * 它们与「来源是哪一档」分开算 —— 有后端数字也可能 partial 为真（列表截断、降级、行对不上）。
  */
 export function planDeckCounts (input: DeckCountsInput): DeckCountsPlan {
   const src: DeckCountsInput = input || {}
   const nowMs: number = positiveMs(src.nowMs)
   const backend: DeckCountsTriple | null = tripleOf(src.backendCounts)
-  const rows: DeckCountsTriple | null = tripleOf(src.rows)
   const prev: DeckCountsTriple | null = tripleOf(src.previousCounts)
-  if (backend && rows && rows.total <= backend.total) {
-    return {
-      counts: { open: backend.open, closed: backend.closed, total: backend.total, source: 'backend', atMs: nowMs },
-      pending: false,
-      partial: rows.total < backend.total,
-    }
-  }
-  if (src.rowsComplete === true && rows) {
-    const conflict: DeckCountsTriple | null = (backend && rows.total > backend.total) ? backend : null
-    const counts: DeckCounts = { open: rows.open, closed: rows.closed, total: rows.total, source: 'local-enumeration', atMs: nowMs }
-    if (conflict) counts.conflictWith = { open: conflict.open, closed: conflict.closed, total: conflict.total }
-    return { counts: counts, pending: false, partial: !!conflict }
-  }
+  const openRows: number | null = isCount(src.openRows) ? (src.openRows as number) : null
   if (backend) {
-    return {
-      counts: { open: backend.open, closed: backend.closed, total: backend.total, source: 'backend', atMs: nowMs },
-      pending: false,
-      partial: true,
-    }
+    const counts: DeckCounts = { open: backend.open, closed: backend.closed, total: backend.total, source: 'backend', atMs: nowMs }
+    // 行比后端还多：两边对不上，以哪边为准都无法解释。数字仍用后端的（整仓口径），冲突留痕给排查。
+    const conflict: boolean = openRows !== null && openRows > backend.open
+    if (conflict) counts.conflictWith = { open: backend.open, closed: backend.closed, total: backend.total }
+    const partial: boolean = src.listTruncated === true || src.listFallback === true || openRows === null || openRows !== backend.open
+    return { counts: counts, pending: false, partial: partial }
   }
   if (prev) {
     const prevRaw: any = src.previousCounts || {}
@@ -118,34 +116,29 @@ export function planDeckCounts (input: DeckCountsInput): DeckCountsPlan {
 }
 
 /**
- * 数一份快照里的工单行：地图子票并集 + 未挂图的票，按身份去重（同一张票两处出现只算一次），
- * 拉取请求不算工单（与 #689 的工单口径一致）。
+ * 数首屏开放工作集里的未关闭行数（含开放地图的容器行，不含拉取请求），没有证据时回 null。
  *
- * 为什么按身份去重而不是直接数行：assembleSnapshot 理论上不会重复，但增量补行与地图补回两条路
- * 都可能把同一张票带进来；计数一旦重了，界面会多出一张不存在的票。
- * 没有快照、或快照里既没有 issues 也没有 maps 时回 null —— 让调用方按「拿不到」处理，不许当 0。
+ * 为什么单独数一遍而不是复用 rowCountsOf 那样的快照计数：后端 counts 的 open 含地图容器本身，
+ * 快照里的行数在组装后会漏掉容器行；两边口径不一致会把「本来没缺」误报成缺。这里直接数组装前的
+ * 并集行，口径与「已关闭之外的票 + 容器」对齐。
+ * 为什么按身份去重：子票既可能在开放池里（开放子票），也可能由地图子票这条线补回来；重了会虚增。
  */
-export function rowCountsOf (snapshot: any): DeckCountsTriple | null {
-  if (!snapshot || typeof snapshot !== 'object') return null
-  const maps: any[] = Array.isArray(snapshot.maps) ? snapshot.maps : []
-  if (!Array.isArray(snapshot.issues) && maps.length === 0) return null
+export function openRowsOf (rows: any[]): number | null {
+  if (!Array.isArray(rows)) return null
   const seen: Record<string, true> = {}
-  const out: DeckCountsTriple = { open: 0, closed: 0, total: 0 }
-  const put = (rows: any): void => {
-    for (const r of (Array.isArray(rows) ? rows : [])) {
-      if (!r || r.isPullRequest === true) continue
-      const key: string = String(r.key != null ? r.key : (r.number != null ? r.number : ''))
-      const id: string = effortOf(r) + '#' + key
-      if (seen[id]) continue
-      seen[id] = true
-      out.total += 1
-      if (String(r.state || '').toUpperCase() === 'CLOSED') out.closed += 1
-      else out.open += 1
-    }
+  let open = 0
+  for (const r of rows) {
+    if (!r || typeof r !== 'object') continue
+    // 拉取请求不算工单（#689 口径）：后端 counts 的 open 也不含它们。
+    if (r.isPullRequest === true) continue
+    const key: string = String(r.key != null ? r.key : (r.number != null ? r.number : ''))
+    if (!key) continue
+    const id: string = effortOf(r) + '#' + key
+    if (seen[id]) continue
+    seen[id] = true
+    if (String(r.state || '').toUpperCase() !== 'CLOSED') open += 1
   }
-  for (const m of maps) put(m && m.tickets)
-  put(snapshot.issues)
-  return out
+  return open
 }
 
-export default { DECK_COUNT_SOURCES, planDeckCounts, rowCountsOf }
+export default { DECK_COUNT_SOURCES, planDeckCounts, openRowsOf }

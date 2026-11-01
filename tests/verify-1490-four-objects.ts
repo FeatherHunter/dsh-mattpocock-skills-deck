@@ -342,13 +342,25 @@ try {
   check((specNode && Object.keys(specNode.sections || {}).join(',')) === 'problem,solution,userStories,implDecisions,testDecisions,outOfScope,furtherNotes', '快照里规格按原文七段给出 sections')
   check(!!mapNode && String(mapNode.title) === '探索地图乙', '快照里地图容器标题是 探索地图乙')
   check(!!mapNode && String(mapNode.destination).includes('先把现成方案摸清楚。'), '快照里地图的 Destination 来自 map.md')
-  check(!!mapNode && Array.isArray(mapNode.tickets) && mapNode.tickets.length === 1 && String(mapNode.tickets[0].key) === '01' && String(mapNode.tickets[0].parentKey) === '00', '快照里地图挂着子票 01（parentKey 00）')
+  // #1796 起首屏只装开放工作集 + 开放地图子票 + 已关闭地图容器行（规格 677 §6.3）；已关闭的子票靠
+  //   listSubIssues 补，本地 Markdown 后端这条操作是「设计上不支持」（src/tracker/rooms/markdown/index.ts:312），
+  //   所以这张地图的已关闭子票 01 补不回来 —— 票面「范围外：GitLab/Markdown 后端」的已知退化；
+  //   GitHub 侧「开放地图子票拉全」由 tests/tracker-contract/sections/snapshot.ts 自守。
+  check(!!mapNode && Array.isArray(mapNode.tickets) && mapNode.tickets.length === 0, '快照里开放地图的子票为空（本地后端不支持 listSubIssues，已关闭子票 01 不在首屏）')
   check(!!mapNode && Array.isArray(mapNode.decisions) && mapNode.decisions.length === 1 && String(mapNode.decisions[0].url) === 'issues/01-现成方案有哪些.md', '快照里地图的 Decisions 指针来自 map.md')
   const snapIssues: any[] = snapshot.issues || []
-  eq(snapIssues.length, 1, '快照里只把不挂地图的普通票放 issues 列表')
-  check(snapIssues.length === 1 && String(snapIssues[0].key) === '01' && String(snapIssues[0].state) === 'closed' && String(snapIssues[0].title).includes('已改'), '快照里普通票 01 已关闭、标题已改')
+  eq(snapIssues.length, 0, '快照 issues 列表为空：已关闭票的历史不再预装首屏（规格 677 §6.3）')
   const stats: any = snapshot.deck && snapshot.deck.stats
-  check(!!stats && stats.total === 2 && stats.open === 0 && stats.closed === 2, '快照统计 total 2 / open 0 / closed 2')
+  check(!!stats && stats.total === 0 && stats.open === 0 && stats.closed === 0, '快照派生统计按首屏行数算：没有票行，total/open/closed 都是 0')
+  const deck1: any = snapshot.deck || {}
+  const deck1Counts: any = deck1.counts
+  check(!!deck1Counts && deck1Counts.open === 0 && deck1Counts.closed === 2 && deck1Counts.total === 2 && deck1Counts.source === 'backend', '快照数字来自后端 counts：open 0 / closed 2 / total 2（来源 backend）')
+  check(deck1.missingOpen === 0, '缺几张未关闭票记 0：后端 open 0，首屏数到 0 张未关闭票')
+  // 本地 Markdown 的 counts 只数票、不含容器行（src/tracker/rooms/markdown/counts.ts:7-8 的口径），
+  // 首屏却装着两张开放的容器行（规格 00 与地图 00）→ 行数(2) 比后端 open(0) 多，按「计数冲突」判 partial 真。
+  // 这是 Markdown / GitLab 后端 counts 与首屏行数的既有口径差（票面「范围外」），GitHub 正常仓库上 partial 为假
+  // （tests/tracker-contract/sections/snapshot.ts 与 tests/verify-counts-honesty.ts 自守）。
+  check(deck1.partial === true, '快照把「首屏行数比后端计数多」判成 partial 真（本地后端 counts 不含容器的已知口径差）')
   check(!fs.existsSync(path.join(tmp1, 'issues')) && !fs.existsSync(path.join(tmp1, '.scratch', 'issues')), '新布局工作区根没有旧布局 issues/ 兜底目录')
 } finally {
   fs.rmSync(tmp1, { recursive: true, force: true })
@@ -410,12 +422,21 @@ try {
   const maps2: any[] = snapshot2.maps || []
   const legacySpecNode = maps2.find((m) => m.type === 'spec' && String(m.key) === '06')
   const legacyMapNode = maps2.find((m) => m.type === 'map' && String(m.key) === '00')
-  check(!!legacyMapNode, '旧布局快照里有旧地图 00')
-  check(!!legacySpecNode, '旧布局快照里有旧规格 06')
-  check(!!legacySpecNode && Object.keys(legacySpecNode.sections || {}).join(',') === 'problem,solution,userStories,implDecisions,testDecisions,outOfScope,furtherNotes', '旧布局规格的七段在快照里按原文键给出')
+  // #1796 后首屏 = 开放工作集 + 开放地图子票 + 已关闭地图容器行（规格 677 §6.3）：
+  //   · 旧地图 00 还开着（.scratch/map.md 没有 Status 行），所以它在开放工作集里；
+  //   · 旧规格 06 已关闭，冷启动补已关闭容器行只认带 wayfinder:map 的探索地图（本地后端的 listPage
+  //     也只切票、不返回容器行），所以它的容器行补不回来 —— 规格 §6.3「已知残留」那一句说的就是这件事；
+  //   · 已关闭票 02 不再预装首屏（规格 §6.3：已关闭历史改按需翻页）。
+  check(!!legacyMapNode, '旧布局快照里有旧地图 00（它还开着，在开放工作集里）')
+  check(!legacySpecNode, '旧布局快照里没有已关闭规格 06 的容器行（冷启动补不回已关闭规格容器，规格 §6.3 已知残留）')
   const legacyIssues: any[] = snapshot2.issues || []
-  eq(legacyIssues.length, 2, '旧布局快照 issues 列表里有两张票')
-  check(legacyIssues.some((i) => String(i.key) === '01') && legacyIssues.some((i) => String(i.key) === '02'), '旧布局快照 issues 里有 01 与 02')
+  eq(legacyIssues.length, 1, '旧布局快照 issues 只有开着的那一张票')
+  check(legacyIssues.length === 1 && String(legacyIssues[0].key) === '01' && String(legacyIssues[0].state) === 'open', '旧布局快照 issues 里是开着的 01，已关闭的 02 不再预装')
+  const deck2: any = snapshot2.deck || {}
+  const deck2Counts: any = deck2.counts
+  check(!!deck2Counts && deck2Counts.open === 1 && deck2Counts.closed === 1 && deck2Counts.total === 2 && deck2Counts.source === 'backend', '旧布局快照数字来自后端 counts：open 1 / closed 1 / total 2')
+  check(deck2.missingOpen === 0, '旧布局缺几张未关闭票记 0：后端 open 1，首屏数到的未关闭行不比它少')
+  check(deck2.partial === true, '旧布局因「首屏行数(2) 比后端 open(1) 多」判 partial 真（本地后端 counts 不含容器的已知口径差）')
 
   const degraded = ctx2.events.filter((e) => e.event === 'read.degraded').map((e) => String(e.fields && e.fields.reason))
   check(degraded.includes('list:legacy-root'), '读旧布局列表时留下兼容降级日志 list:legacy-root')
