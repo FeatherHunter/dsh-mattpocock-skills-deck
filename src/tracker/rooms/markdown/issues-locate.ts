@@ -118,6 +118,22 @@ export async function workUnitKindOf(ctx: OpContext, dir: string): Promise<WorkU
   return ''
 }
 
+/** 一张票文件走哪条写入路线（#1788）：按文件所在目录判，不看文件里写了什么。
+ *  票文件住在工作单元的 issues/ 下，所以工作单元目录是票目录的上一级；地图与规格文件本身就在工作单元目录里。
+ *  返回空串表示这个文件不在任何工作单元里（旧扁平路径就是这样），调用方保持旧行为。
+ *  为什么不能靠文件内容判：手写票没有加粗字段、也没有插件注释，内容判据会把它认成旧布局，
+ *  于是把一张普通实施票按地图子票的写法去改 —— 认领会静默覆盖它的可见状态，正是 #1788。 */
+export type TicketRoute = WorkUnitKind | ''
+export async function ticketRouteOf(ctx: OpContext, filePath: string): Promise<TicketRoute> {
+  const plat = getPlat(ctx)
+  const p = String(filePath || '')
+  if (!p) return ''
+  const name = p.split(/[\\/]/).filter(Boolean).pop() || ''
+  // 容器文件（map.md / spec.md）就在工作单元目录里；票文件在它的 issues/ 下。
+  const unitDir = /^(?:map|spec)\.md$/i.test(name) ? plat.dirname(p) : plat.dirname(plat.dirname(p))
+  return workUnitKindOf(ctx, unitDir)
+}
+
 /**
  * 列出全部工作单元（#1488 起读取端统一从这里发现）。顺序稳定：`.scratch` 根级扁平布局优先，
  * 其余按目录名排序；最后补旧版工作区根 `issues/`。
