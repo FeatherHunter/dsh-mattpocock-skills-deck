@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-01T01:26:23.275Z",
+  "generatedAt": "2026-11-01T01:36:26.929Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 493,
   "gateCount": 493,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 54,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 661,
+  "graphFileCount": 662,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -13660,9 +13660,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 682,
+    "fileCount": 683,
     "dirCount": 84,
-    "coveredFileCount": 682,
+    "coveredFileCount": 683,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -14218,6 +14218,7 @@
       "src/tracker/rooms/github/channels/rest/read-shapes.ts",
       "src/tracker/rooms/github/model/field-states.ts",
       "src/tracker/rooms/github/model/index.ts",
+      "src/tracker/rooms/github/model/issue-filter.ts",
       "src/tracker/rooms/github/model/issue-key.ts",
       "src/tracker/rooms/github/model/normalize.ts",
       "src/tracker/rooms/github/model/repo.ts",

@@ -25,6 +25,7 @@ import { fail } from '../../../kernel/preflight.js'
 import { emitReadDegraded } from '../support/read-log.js'
 import { ghClient } from '../transport/client.js'
 import { appendCommentPages, commentsWantOf, firstPageSizeOf, trimCommentsToWant } from '../channels/graphql/comment-paging.js'
+import { applyIssueFilter } from '../model/issue-filter.js'
 import { normalizeIssue } from '../model/normalize.js'
 import { ghFailureMessage, ghVerdictOf, toOpResultError } from '../support/errors.js'
 import { repairParentLinksREST } from './parent-repair.js'
@@ -105,33 +106,6 @@ function emitRestDetailGaps(ctx: OpContext, latencyMs: number, completion: RestD
   if (outcomes.dependencies === 'failed') emitReadDegraded(ctx, 'get', 'get:rest-deps', latencyMs)
   if (outcomes.review === 'failed') emitReadDegraded(ctx, 'get', 'get:rest-review', latencyMs)
   if (outcomes.mergeInfo === 'failed') emitReadDegraded(ctx, 'get', 'get:rest-merge', latencyMs)
-}
-
-// 内存过滤（list 两路共用）
-function applyIssueFilter(all: Issue[], filter: ListFilter | null | undefined): Issue[] {
-  let filtered = all
-  if (filter && typeof filter === 'object') {
-    if (filter.state) {
-      const want = String(filter.state).toLowerCase()
-      filtered = filtered.filter((i) => i.state === want)
-    }
-    if (filter.type) {
-      filtered = filtered.filter((i) => i.type === filter.type)
-    }
-    if (filter.parentKey !== undefined) {
-      if (filter.parentKey === null) filtered = filtered.filter((i) => i.parentKey === null)
-      else filtered = filtered.filter((i) => i.parentKey === String(filter.parentKey))
-    }
-    if (Array.isArray(filter.keys) && filter.keys.length) {
-      const set = new Set(filter.keys.map((k) => String(k)))
-      filtered = filtered.filter((i) => set.has(i.key))
-    }
-    if (filter.isPullRequest !== undefined) {
-      const want = filter.isPullRequest === true
-      filtered = filtered.filter((i) => i.isPullRequest === want)
-    }
-  }
-  return filtered
 }
 
 /**
