@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-01T13:14:36.925Z",
+  "generatedAt": "2026-11-01T14:02:19.371Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 527,
-  "gateCount": 527,
-  "attributedGates": 465,
+  "chainLength": 528,
+  "gateCount": 528,
+  "attributedGates": 466,
   "unattributedGates": 62,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 86,
@@ -5672,6 +5672,25 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
+    },
+    {
+      "step": "node tests/verify-1774-carry-wiring.ts",
+      "file": "tests/verify-1774-carry-wiring.ts",
+      "guards": [
+        "src/host/tracker/snapshot.ts",
+        "src/host/tracker/snapshotAssemble.ts",
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts"
+      ],
+      "dirs": [
+        "src/host/tracker",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
       "step": "node tests/verify-1776-vc-live-tab.ts",
@@ -13511,6 +13530,7 @@
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1490-four-objects.ts",
+      "node tests/verify-1774-carry-wiring.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-691-map-subissues.ts",
@@ -13729,6 +13749,7 @@
       "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-1692-disk-replay-eviction.ts",
       "node tests/verify-1770-gitlab-list-truncated.ts",
+      "node tests/verify-1774-carry-wiring.ts",
       "node tests/verify-1784-comment-pagination.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",

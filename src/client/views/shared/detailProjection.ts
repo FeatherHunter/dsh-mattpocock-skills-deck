@@ -96,14 +96,17 @@ export function detailFromRow(row: any): any {
   })
   // 评论已知与未知要分开：#1783 的根因就是「行上有正文、评论是空数组」被当成「这张票没有评论」。
   // 列表接口为了省请求不取评论（数组天然是空），票面总数 commentCount 才是「有没有评论」的真凭据：
-  //   - 行里带了评论（数组非空）→ 已知；
+  //   - 行里带了评论（数组非空）→ 已知（快照里的数组就是那个时刻取到的全部，总数就取它的长度）；
   //   - 票面总数明确是 0 → 已知，就是没有评论；
   //   - 票面总数 > 0 → 知道有评论，但这一趟没取正文，属于「未知」；
   //   - 票面总数缺失 → 不知道，同样属于「未知」，不能造一个空连接说「无评论」。
-  // 未知时 comments 整个不写（界面据此说「评论加载中」），commentCount 仍写出来给界面显示总数用。
+  // 注意「总数缺失」不能算已知：GitHub GraphQL 列表行（LIST_ISSUE_FRAGMENT）带正文、不带
+  // comments 也不带票面总数，把缺失当已知就会把「没取过」画成「评论 (0)」（#1783 的残留缺陷）。
+  // 未知时 comments 整个不写（界面据此说「评论加载中」）；commentCount 只有真知道总数时才写，
+  // 缺失时不许拿已取条数冒充总数。
   const countRaw: any = row && row.commentCount
   const commentCount: any = typeof countRaw === 'number' && isFinite(countRaw) && countRaw >= 0 ? Math.floor(countRaw) : null
-  const commentsKnown: boolean = comments.length > 0 || commentCount === null || commentCount === 0
+  const commentsKnown: boolean = comments.length > 0 || commentCount === 0
   const sub: any = row && row.subIssueCounts
   const out: any = {
     number: Number(row.number),
@@ -137,7 +140,11 @@ export function detailFromRow(row: any): any {
       totalCount: commentCount !== null ? commentCount : nodes.length,
     }
   }
-  out.commentCount = commentCount !== null ? commentCount : nodes.length
+  // 票面总数（#1783）：知道就写出来——即便评论这一趟没取到，总数本身仍是有用的已知事实（A4）。
+  // 票面总数缺失时，只有评论数组非空才能拿数组长度当总数（快照里的数组就是那个时刻取到的全部）；
+  // 数组也为空则是「不知道」，不写这个字段，更不许写 0（GitHub 常规列表行就是这种形状）。
+  if (commentCount !== null) out.commentCount = commentCount
+  else if (nodes.length > 0) out.commentCount = nodes.length
   return out
 }
 
