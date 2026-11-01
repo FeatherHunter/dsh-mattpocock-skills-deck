@@ -1,0 +1,147 @@
+{
+  "source": {
+    "live": true,
+    "gitVersion": "git version 2.49.0.windows.1",
+    "sampledAt": "2026-10-31T15:48:44.423Z",
+    "repo": "临时仓库：根提交→改行→标签与备注→分支→重命名→二进制→合并→两个对照分支",
+    "note": "所有 out 都是本机真 git 原样输出；NUL 在 JSON 里自动转义为 \\u0000。"
+  },
+  "fileHistory": {
+    "code": 0,
+    "out": "6a1ae6f14b3259e79e2b0a34e5d13681bca6f025\u00006a1ae6f\u0000样本作者\u0000sample@example.com\u00002026-10-31T23:48:42+08:00\u00002026-10-31T23:48:42+08:00\u0000重命名：旧名.txt 改为 新名.txt\u00007eefc85d809cc6b6d429b4e13fe0d79b16ea1396\u0000\u0000e46e480b5b9eb209d225f4e9f08fc76664807608\u0000e46e480\u0000样本作者\u0000sample@example.com\u00002026-10-31T23:48:41+08:00\u00002026-10-31T23:48:41+08:00\u0000初始提交：建立三份文件\u0000\u0000\u0000"
+  },
+  "fileHistoryMissingPath": {
+    "code": 0,
+    "out": ""
+  },
+  "blame": {
+    "code": 0,
+    "out": "e46e480b5b9eb209d225f4e9f08fc76664807608 1 1 1\nauthor 样本作者\nauthor-mail <sample@example.com>\nauthor-time 1793461721\nauthor-tz +0800\ncommitter 样本作者\ncommitter-mail <sample@example.com>\ncommitter-time 1793461721\ncommitter-tz +0800\nsummary 初始提交：建立三份文件\nboundary\nfilename 文件 一.txt\n\t第一行甲\nf35a13e8ed9b84fc67dc7e1af91d36d7349f64c5 2 2 1\nauthor 样本作者\nauthor-mail <sample@example.com>\nauthor-time 1793461721\nauthor-tz +0800\ncommitter 样本作者\ncommitter-mail <sample@example.com>\ncommitter-time 1793461721\ncommitter-tz +0800\nsummary 修改第二行并按需增补\nprevious e46e480b5b9eb209d225f4e9f08fc76664807608 文件 一.txt\nfilename 文件 一.txt\n\t第二行乙改\n7eefc85d809cc6b6d429b4e13fe0d79b16ea1396 3 3 1\nauthor 样本作者\nauthor-mail <sample@example.com>\nauthor-time 1793461722\nauthor-tz +0800\ncommitter 样本作者\ncommitter-mail <sample@example.com>\ncommitter-time 1793461722\ncommitter-tz +0800\nsummary 修改第三行内容\nprevious f35a13e8ed9b84fc67dc7e1af91d36d7349f64c5 文件 一.txt\nfilename 文件 一.txt\n\t第三行丙改\n"
+  },
+  "blameFirstLine": {
+    "code": 0,
+    "out": "e46e480b5b9eb209d225f4e9f08fc76664807608 1 1 1\nauthor 样本作者\nauthor-mail <sample@example.com>\nauthor-time 1793461721\nauthor-tz +0800\ncommitter 样本作者\ncommitter-mail <sample@example.com>\ncommitter-time 1793461721\ncommitter-tz +0800\nsummary 初始提交：建立三份文件\nboundary\nfilename 文件 一.txt\n\t第一行甲\n"
+  },
+  "blameBadRange": {
+    "code": 128,
+    "out": "",
+    "err": "fatal: file 文件 一.txt has only 3 lines\n"
+  },
+  "grep": {
+    "code": 0,
+    "out": "35c940ab8916ace61c31a9d4561a3cf961c84040\u000035c940a\u0000样本作者\u0000sample@example.com\u00002026-10-31T23:48:42+08:00\u00002026-10-31T23:48:42+08:00\u0000feat: 加入 MAGIC_TOKEN 甲 标记\u0000a791739464c1416a592a27fbfb605f22666b4aee\u0000\u0000"
+  },
+  "grepEmpty": {
+    "code": 0,
+    "out": ""
+  },
+  "grepBadRegex": {
+    "code": 128,
+    "out": "",
+    "err": "fatal: command line, '[': Invalid regular expression\n"
+  },
+  "pickaxeS": {
+    "code": 0,
+    "out": "35c940ab8916ace61c31a9d4561a3cf961c84040\u000035c940a\u0000样本作者\u0000sample@example.com\u00002026-10-31T23:48:42+08:00\u00002026-10-31T23:48:42+08:00\u0000feat: 加入 MAGIC_TOKEN 甲 标记\u0000a791739464c1416a592a27fbfb605f22666b4aee\u0000\u0000"
+  },
+  "pickaxeG": {
+    "code": 0,
+    "out": "35c940ab8916ace61c31a9d4561a3cf961c84040\u000035c940a\u0000样本作者\u0000sample@example.com\u00002026-10-31T23:48:42+08:00\u00002026-10-31T23:48:42+08:00\u0000feat: 加入 MAGIC_TOKEN 甲 标记\u0000a791739464c1416a592a27fbfb605f22666b4aee\u0000\u0000"
+  },
+  "diffTwoDot": {
+    "code": 0,
+    "out": "3\t0\tcode.js\u00001\t1\t文件 一.txt\u00000\t0\t\u0000旧名.txt\u0000新名.txt\u00001\t0\t标记.txt\u0000-\t-\t混入 空字节.bin\u0000"
+  },
+  "diffThreeDot": {
+    "code": 0,
+    "out": "3\t0\tcode.js\u00001\t1\t文件 一.txt\u00000\t0\t\u0000旧名.txt\u0000新名.txt\u00001\t0\t标记.txt\u0000-\t-\t混入 空字节.bin\u0000"
+  },
+  "diffSame": {
+    "code": 0,
+    "out": ""
+  },
+  "rangeDiff": {
+    "code": 0,
+    "out": "1:  ee3fe73 < -:  ------- feat: 对照甲\n-:  ------- > 1:  3e413e4 feat: 对照甲\n2:  195b21e = 2:  305a2a5 feat: 对照乙\n-:  ------- > 3:  ce543a2 feat: 只在新分支的提交\n"
+  },
+  "rangeDiffSame": {
+    "code": 0,
+    "out": "1:  ee3fe73 = 1:  ee3fe73 feat: 对照甲\n2:  195b21e = 2:  195b21e feat: 对照乙\n"
+  },
+  "rangeDiffBad": {
+    "code": 128,
+    "out": "",
+    "err": "fatal: bad revision 'nope..main'\n"
+  },
+  "describeTagged": {
+    "code": 0,
+    "out": "v1.0.0-6-g437a134\n"
+  },
+  "reflogRef": {
+    "code": 0,
+    "out": "437a134057357ce1a4e41d84b53e54472d70f871\u0000437a134\u0000main@{2026-10-31T23:48:42+08:00}\u0000样本作者\u0000merge feature: Merge made by the 'ort' strategy.\u0000\n35c940ab8916ace61c31a9d4561a3cf961c84040\u000035c940a\u0000main@{2026-10-31T23:48:42+08:00}\u0000样本作者\u0000commit: feat: 加入 MAGIC_TOKEN 甲 标记\u0000\n"
+  },
+  "reflogBadRef": {
+    "code": 128,
+    "out": "",
+    "err": "fatal: ambiguous argument '不存在的引用': unknown revision or path not in the working tree.\nUse '--' to separate paths from revisions, like this:\n'git <command> [<revision>...] -- [<file>...]'\n"
+  },
+  "describeUntagged": {
+    "code": 0,
+    "out": "75a3cbc\n"
+  },
+  "describeDirty": {
+    "code": 0,
+    "out": "v1.0.0-6-g437a134-dirty\n"
+  },
+  "reflog": {
+    "code": 0,
+    "out": "437a134057357ce1a4e41d84b53e54472d70f871\u0000437a134\u0000HEAD@{0}\u0000样本作者\u0000%gI\u0000checkout: moving from feat-new to main\u0000\nce543a239cc59cc4548f6b1d8b2668e7d2e338ba\u0000ce543a2\u0000HEAD@{1}\u0000样本作者\u0000%gI\u0000commit: feat: 只在新分支的提交\u0000\n305a2a5dd63039392f33585f800275ed6f4fc21b\u0000305a2a5\u0000HEAD@{2}\u0000样本作者\u0000%gI\u0000commit: feat: 对照乙\u0000\n3e413e4723ee912e3251c6e2c0af69297f19aac5\u00003e413e4\u0000HEAD@{3}\u0000样本作者\u0000%gI\u0000commit: feat: 对照甲\u0000\nf35a13e8ed9b84fc67dc7e1af91d36d7349f64c5\u0000f35a13e\u0000HEAD@{4}\u0000样本作者\u0000%gI\u0000checkout: moving from feat-old to feat-new\u0000\n195b21e564b3fb3c3d021145b8ffc74cf76f3662\u0000195b21e\u0000HEAD@{5}\u0000样本作者\u0000%gI\u0000commit: feat: 对照乙\u0000\nee3fe73d4978734ca7a8fd30b9187d1ddcf86a2c\u0000ee3fe73\u0000HEAD@{6}\u0000样本作者\u0000%gI\u0000commit: feat: 对照甲\u0000\nf35a13e8ed9b84fc67dc7e1af91d36d7349f64c5\u0000f35a13e\u0000HEAD@{7}\u0000样本作者\u0000%gI\u0000checkout: moving from main to feat-old\u0000\n437a134057357ce1a4e41d84b53e54472d70f871\u0000437a134\u0000HEAD@{8}\u0000样本作者\u0000%gI\u0000merge feature: Merge made by the 'ort' strategy.\u0000\n35c940ab8916ace61c31a9d4561a3cf961c84040\u000035c940a\u0000HEAD@{9}\u0000样本作者\u0000%gI\u0000commit: feat: 加入 MAGIC_TOKEN 甲 标记\u0000\na791739464c1416a592a27fbfb605f22666b4aee\u0000a791739\u0000HEAD@{10}\u0000样本作者\u0000%gI\u0000commit: 加入二进制样本文件\u0000\n6a1ae6f14b3259e79e2b0a34e5d13681bca6f025\u00006a1ae6f\u0000HEAD@{11}\u0000样本作者\u0000%gI\u0000commit: 重命名：旧名.txt 改为 新名.txt\u0000\n"
+  },
+  "reflogIso": {
+    "code": 0,
+    "out": "437a134057357ce1a4e41d84b53e54472d70f871\u0000437a134\u0000HEAD@{2026-10-31T23:48:43+08:00}\u0000样本作者\u0000checkout: moving from feat-new to main\u0000\nce543a239cc59cc4548f6b1d8b2668e7d2e338ba\u0000ce543a2\u0000HEAD@{2026-10-31T23:48:43+08:00}\u0000样本作者\u0000commit: feat: 只在新分支的提交\u0000\n305a2a5dd63039392f33585f800275ed6f4fc21b\u0000305a2a5\u0000HEAD@{2026-10-31T23:48:42+08:00}\u0000样本作者\u0000commit: feat: 对照乙\u0000\n3e413e4723ee912e3251c6e2c0af69297f19aac5\u00003e413e4\u0000HEAD@{2026-10-31T23:48:42+08:00}\u0000样本作者\u0000commit: feat: 对照甲\u0000\nf35a13e8ed9b84fc67dc7e1af91d36d7349f64c5\u0000f35a13e\u0000HEAD@{2026-10-31T23:48:42+08:00}\u0000样本作者\u0000checkout: moving from feat-old to feat-new\u0000\n195b21e564b3fb3c3d021145b8ffc74cf76f3662\u0000195b21e\u0000HEAD@{2026-10-31T23:48:42+08:00}\u0000样本作者\u0000commit: feat: 对照乙\u0000\nee3fe73d4978734ca7a8fd30b9187d1ddcf86a2c\u0000ee3fe73\u0000HEAD@{2026-10-31T23:48:42+08:00}\u0000样本作者\u0000commit: feat: 对照甲\u0000\nf35a13e8ed9b84fc67dc7e1af91d36d7349f64c5\u0000f35a13e\u0000HEAD@{2026-10-31T23:48:42+08:00}\u0000样本作者\u0000checkout: moving from main to feat-old\u0000\n437a134057357ce1a4e41d84b53e54472d70f871\u0000437a134\u0000HEAD@{2026-10-31T23:48:42+08:00}\u0000样本作者\u0000merge feature: Merge made by the 'ort' strategy.\u0000\n35c940ab8916ace61c31a9d4561a3cf961c84040\u000035c940a\u0000HEAD@{2026-10-31T23:48:42+08:00}\u0000样本作者\u0000commit: feat: 加入 MAGIC_TOKEN 甲 标记\u0000\na791739464c1416a592a27fbfb605f22666b4aee\u0000a791739\u0000HEAD@{2026-10-31T23:48:42+08:00}\u0000样本作者\u0000commit: 加入二进制样本文件\u0000\n6a1ae6f14b3259e79e2b0a34e5d13681bca6f025\u00006a1ae6f\u0000HEAD@{2026-10-31T23:48:42+08:00}\u0000样本作者\u0000commit: 重命名：旧名.txt 改为 新名.txt\u0000\n"
+  },
+  "notesHas": {
+    "code": 0,
+    "out": "备注：这条提交是发布点，别动\n"
+  },
+  "notesNone": {
+    "code": 1,
+    "out": "",
+    "err": "error: no note found for object e46e480b5b9eb209d225f4e9f08fc76664807608.\n"
+  },
+  "notesHeadNone": {
+    "code": 1,
+    "out": "",
+    "err": "error: no note found for object 437a134057357ce1a4e41d84b53e54472d70f871.\n"
+  },
+  "notesList": {
+    "code": 0,
+    "out": "c44965dd3a0e0fb068ac2e4da8c111884feea22f f35a13e8ed9b84fc67dc7e1af91d36d7349f64c5\n"
+  },
+  "showFile": {
+    "code": 0,
+    "out": "将被重命名的文件\n"
+  },
+  "showFileChinese": {
+    "code": 0,
+    "out": "第一行甲\n第二行乙改\n第三行丙改\n"
+  },
+  "showFileMissing": {
+    "code": 128,
+    "out": "",
+    "err": "fatal: path '不存在的文件.txt' does not exist in 'HEAD'\n"
+  },
+  "showFileBinary": {
+    "code": 0,
+    "out": "A\u0000B\n"
+  },
+  "showFileTagged": {
+    "code": 0,
+    "out": "第一行甲\n第二行乙改\n第三行丙\n"
+  },
+  "head": "437a134057357ce1a4e41d84b53e54472d70f871",
+  "c1": "e46e480b5b9eb209d225f4e9f08fc76664807608",
+  "c2": "f35a13e8ed9b84fc67dc7e1af91d36d7349f64c5"
+}

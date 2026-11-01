@@ -75,7 +75,7 @@ export const vcBlockedTipOf = function (decision: any, t: any) {
   return keys.map(function (k: any) { return t(k) }).join('；')
 }
 
-/** 宿主写失败：reason（WRITE_REASONS 的 25 个）→ 话术族。 */
+/** 宿主写失败：reason（WRITE_REASONS 的 38 个）→ 话术族。 */
 export const VC_WRITE_ERR_FAMILY: Record<string, string> = {
   'auth-failed': 'noCredential',
   'rejected-by-server': 'remoteRule',
@@ -89,7 +89,19 @@ export const VC_WRITE_ERR_FAMILY: Record<string, string> = {
   'stale-repo': 'stale',
   'target-changed': 'stale',
   'bad-paths': 'notReady',
+  // #1742 改动页新增的九种理由（共享真源 write-reasons.ts 已登记话术）：形状不对与状态不满足都属 notReady，
+  // 只有「确认之后那一块又变了」按 stale 处理——那一条要人重新看一眼，不是重试同一请求。
+  'bad-path': 'notReady',
+  'hunks-unavailable': 'notReady',
+  'hunk-out-of-range': 'stale',
+  'nothing-to-do': 'notReady',
+  'path-exists': 'notReady',
+  'path-modified': 'notReady',
+  'ignore-invalid': 'notReady',
+  'operation-in-progress': 'notReady',
+  'repo-bare': 'notReady',
   'bad-target': 'notReady',
+  'request-reused': 'notReady',
   'need-remote-choice': 'notReady',
   'no-remote': 'notReady',
   'nothing-to-stage': 'notReady',
@@ -99,8 +111,76 @@ export const VC_WRITE_ERR_FAMILY: Record<string, string> = {
   'empty-message': 'notReady',
   'message-too-long': 'notReady',
   'hooks-failed': 'notReady',
+
+  // #1743 提交页八条能力的理由：缺目标 / 目标不存在 / 没有可修订的提交 / 签名失败。
+  'need-commit-target': 'notReady',
+  'bad-commit-target': 'notReady',
+  'nothing-to-amend': 'notReady',
+  'signing-failed': 'notReady',
   'head-unreadable': 'moved',
   'head-moved': 'moved',
+
+  // #1747 冲突向导新增的十二种理由（共享真源 write-reasons.ts 已登记话术）：
+  // 「现场又被改过」的两条归 stale（要人刷新后重新看一眼）；「不可能快进」归 notFastForward（面板只做快进，合成/变基去终端）；
+  // 其余都属 notReady——输入或现场不满足这一步，照提示处理后重试同一动作即可。
+  'path-not-conflicted': 'stale',
+  'target-missing': 'stale',
+  'fast-forward-impossible': 'notFastForward',
+  'conflict-markers': 'notReady',
+  'side-missing': 'notReady',
+  'binary-file': 'notReady',
+  'version-unsupported': 'notReady',
+  'text-too-large': 'notReady',
+  'wrong-operation': 'notReady',
+  'no-operation': 'notReady',
+  'unmerged-files': 'notReady',
+  'bad-side': 'notReady',
+
+  // #1749 变基待办页新增的六种理由（共享真源 write-reasons.ts 已登记话术）：
+  // 待办窗口在执行前又变了的「对不上」归 stale（要人刷新重新排，不能拿旧判断重试）；其余是输入或现场不满足，归 notReady。
+  'update-refs-on': 'notReady',
+  'bad-todo': 'notReady',
+  'todo-too-long': 'notReady',
+  'todo-mismatch': 'stale',
+  'missing-message': 'notReady',
+  'bad-action': 'notReady',
+
+  // #1758 维护页新增的一种理由：完整性检查的模式认不出，属输入不满足，归 notReady。
+  'bad-mode': 'notReady',
+
+  // #1760 配置与钩子页新增的十二种理由（共享真源 write-reasons.ts 已登记话术）：
+  // 这些都属 notReady——要么输入不合规（键只读、作用域不对、值为空或过长、邮箱格式、钩子名字），
+  // 要么现场不满足（钩子文件不存在、版本低、配置读失败）；hook-failed 是钩子自己退出码非零，属结果不是这次电话失败，也归 notReady。
+  'key-readonly': 'notReady',
+  'scope-invalid': 'notReady',
+  'value-empty': 'notReady',
+  'value-too-long': 'notReady',
+  'value-invalid': 'notReady',
+  'email-invalid': 'notReady',
+  'hook-name': 'notReady',
+  'hook-not-found': 'notReady',
+  'hook-version': 'notReady',
+  'config-missing': 'notReady',
+  'config-failed': 'notReady',
+  'hook-failed': 'notReady',
+
+  // #1750 维护页整仓重写新增的十三种理由（共享真源 write-reasons.ts 已登记话术）：
+  // 工具没装、仓库是浅克隆、工作区不干净、表单输入不合规、备份没做成或读不全、临时目录不可用、任务起不来，
+  // 都是「输入或现场不满足这一步」，归 notReady——照提示处理后重试同一动作即可，不需要重新看一眼旧判断。
+  'tool-missing': 'notReady',
+  'shallow-repo': 'notReady',
+  'dirty-worktree': 'notReady',
+  'bad-form': 'notReady',
+  'bad-rename': 'notReady',
+  'bad-identity': 'notReady',
+  'bad-threshold': 'notReady',
+  'bad-replacement': 'notReady',
+  'too-many-items': 'notReady',
+  'backup-failed': 'notReady',
+  'backup-unreadable': 'notReady',
+  'temp-unavailable': 'notReady',
+  'task-start-failed': 'notReady',
+
   'unknown-write-failure': 'unknown',
 }
 

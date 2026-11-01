@@ -100,6 +100,85 @@ timeouts:
   # 写命令给整趟预算留的余量：10 秒。add / unstage / commit / pull / fetch / push 的整趟预算
   # = 该条命令的超时 + 这个余量（超时管「一条命令最多跑多久」，整趟预算管「这一步所有命令合起来的上限」）。
   vcWriteCallMarginMs: 10000
+  # 工作树八条（#1752）单条写命令的超时：30 秒。删除、移动、稀疏检出都是本地操作，不跟远端协商，
+  # 所以不按网络命令给宽余量；30 秒足够覆盖大仓库里复制文件树这类慢动作。
+  vcWorktreeOpTimeoutMs: 30000
+  # 域 8 远端与同步（#1754 T18）「联网查看」那一次 git ls-remote 的超时：15 秒。
+  # 这一步真的走网络，与本地 remote -v 那一档分开登记：超时就整体失败（不给半份、不自动重试），
+  # 由用户再点一次；它不落盘、不改远端跟踪引用，只用于这一屏查看。
+  vcRemoteOnlineTimeoutMs: 15000
+  # —— 长任务通道的节奏与取消宽限（#1740）——
+  # 查询进度的轮询间隔：400 毫秒。太密会白读输出收集器，太稀会让界面上的进度一跳一大段。
+  vcTaskPollIntervalMs: 400
+  # 软取消宽限：5 秒。先发终止信号，宽限期内进程没退再补一次强杀，结论如实写残留说明。
+  vcTaskCancelGraceMs: 5000
+  # 强杀后再等多久才下结论：2 秒。等不到退出事实也不能无限挂起，按残留说明收尾。
+  vcTaskHardKillGraceMs: 2000
+  # —— 改动页的单条命令超时（#1742）——
+  # 预检里单条只读 git 命令的超时：15 秒。读一块 diff 可能比普通配置读取大，与列表 files 那一档对齐。
+  vcChangesReadTimeoutMs: 15000
+  # 改动页写命令的单条超时：15 秒。apply --cached / add / reset / restore / clean / rm / mv 都是本地动作，
+  # 与暂存那一条同一档；它们不推远端，不需要 pull/push 那种分钟级预算。
+  vcChangesWriteTimeoutMs: 15000
+  # —— 分支与标签域的单条命令超时（#1746）——
+  # 预检里单条只读 git 命令的超时：15 秒。分支/标签/说明/已并入名单都是本地读取，与改动页只读同一档。
+  vcBranchReadTimeoutMs: 15000
+  # 分支域写命令的单条超时：15 秒。branch / tag / config --local 都是本地动作，不推远端。
+  vcBranchWriteTimeoutMs: 15000
+  # —— 配置与钩子域的单条命令超时（#1760）——
+  # 预检里的只读命令与两条配置写动作（config set/unset）的超时：15 秒，都是本地读写、不推远端，
+  # 与改动页、分支域同一档。
+  vcConfigReadTimeoutMs: 15000
+  vcConfigWriteTimeoutMs: 15000
+  # 手动跑一个钩子（git hook run）的超时：2 分钟。钩子是仓库里的脚本，可能真的在跑构建、跑测试、
+  # 调外部工具；给足时间但仍要上限，到点按超时失败、不假装跑完。
+  vcHookRunTimeoutMs: 120000
+  # —— 诊断页与替换对象的单条命令超时（#1761）——
+  # 预检与只读查询里单条 git 命令的超时：15 秒。二分日志、替换清单、grep、ls-tree 都是本地读取，与上面同一档。
+  vcDiagnosticsReadTimeoutMs: 15000
+  # 诊断写命令的单条超时：15 秒。bisect start/good/bad/skip/reset 与 replace -d 只改 .git 里的记录，不碰网络。
+  vcDiagnosticsWriteTimeoutMs: 15000
+  # —— 克隆向导的单条命令超时（#1756 T20，能力 8.16）——
+  # 预检里单条只读命令的超时：15 秒。当前仓库地址、目标目录探测都是本地读，与分支域只读同一档。
+  vcCloneReadTimeoutMs: 15000
+  # 清理残留目录这一步的单条命令超时：15 秒。只读一次 HEAD 复核，不删不改别的东西。
+  vcCloneWriteTimeoutMs: 15000
+  # 历史改写域（#1748 T13）预检里单条只读 git 命令的超时：15 秒。看现场、解析目标提交、数硬重置会丢多少东西
+  # 都是本地读取，与分支域只读同一档；数不全就整趟失败（不拿半份计数签票）。
+  vcUndoReadTimeoutMs: 15000
+  # 历史改写域写命令的单条超时：15 秒。reset / revert / commit / cherry-pick 全是本地动作，不推远端；
+  # 写命令的整趟预算 = 单条超时 + vcWriteCallMarginMs，与其它写电话同一套算法。
+  vcUndoWriteTimeoutMs: 15000
+  # —— 子模块域的单条命令超时（#1757 T21）——
+  # 预检里单条只读 git 命令的超时：15 秒。submodule status / config -f .gitmodules 与逐个子模块的
+  # rev-parse / rev-list 都是本地读取，与分支域只读同一档。
+  vcSubmoduleReadTimeoutMs: 15000
+  # 子模块写命令的单条超时：15 秒。set-url / sync / set-branch / deinit / absorbgitdirs 都是本地动作，
+  # 只有 absorbgitdirs 会移动目录里的 .git，仍不跟远端协商，用同一档。
+  vcSubmoduleWriteTimeoutMs: 15000
+  # —— 冲突向导的单条命令超时（#1747）——
+  # 冲突向导预检里单条只读 git 命令的超时：15 秒。冲突清单、文件内容、merge-tree 预演、rerere 都是本地读取。
+  vcConflictReadTimeoutMs: 15000
+  # 冲突向导凭票执行里单条写命令的超时：15 秒。merge / checkout / add / rm 都是本地动作，不推远端。
+  vcConflictWriteTimeoutMs: 15000
+  # —— 变基待办页的单条命令超时（#1749）——
+  # 预检与只读命令的单条超时：15 秒。读待办窗口、读换基座范围、捕获 --autosquash 待办、读合并结构代价都是本地读取。
+  vcRebaseReadTimeoutMs: 15000
+  # 变基执行时单条命令的超时：30 秒。交互式变基会逐个提交重放，仓库稍大就比普通本地动作慢；不推远端，不需要分钟级预算。
+  vcRebaseWriteTimeoutMs: 30000
+  # —— 维护页整仓重写的单条命令超时（#1750）——
+  # 预检与影响预览的单条只读命令超时：15 秒。读提交数、受影响的路径与作者、仓库大小都是本地读取。
+  vcRewriteReadTimeoutMs: 15000
+  # 前置整仓备份的单条命令超时：10 分钟。磁盘够时是本地镜像克隆（很快），不够时降级整仓打包，大仓库可能到分钟级；
+  # 这一条只盖备份本身，filter-repo 重写走长任务通道，不受这里约束。
+  vcRewriteWriteTimeoutMs: 600000
+  # —— 维护页（域 11）的单条命令超时（#1758）——
+  # 读数与预演的单条只读命令超时：30 秒。fsck --unreachable、prune -n -v、count-objects 都是本地读取，
+  # 但对象多的仓库会明显比普通状态读取慢，所以比别的页面宽松一档。
+  vcMaintenanceReadTimeoutMs: 30000
+  # 维护动作的单条命令超时：10 分钟。这一档要盖住「清除不可达对象」动手前的整仓备份（镜像克隆或整仓打包）；
+  # gc、prune、maintenance run 本体走长任务通道，不受这里约束；开启/关闭自动维护的本地命令通常瞬间完成。
+  vcMaintenanceWriteTimeoutMs: 600000
   # git 凭据代执行的整趟预算：4 分钟。上下限 5 秒与 10 分钟：接线给的预算会被钳进这个范围
   # （下限从 1 秒提到 5 秒；1 秒的预算在慢机器上连子进程启动都盖不住，等于没给）。
   gitCredentialCallBudgetMs: 240000

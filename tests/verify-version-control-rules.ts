@@ -6,6 +6,8 @@
 // 理由只能是 REASONS 表里的取值。最后带断言装置自检：把规则改坏（永远放行），同一套断言必须判红。
 // #819 复审 P2-8 补三条方向：合并/变基进行中推送拦住（推的是动手前那次提交）、落后远端推送拦住
 // （推上去会被拒，与拉取同一条边界）、游离头上提交至少提醒（提交完只剩 reflog 能找回来）。
+// #1737 票 T02 补「公共约定」组：理由只能来自固定表、判定只返回三态、纯函数（同输入同输出）、
+// 不修改调用方给的状态、未知操作诚实失败；域票（#1738 起的操作）据此追加理由与分支，不另造底座。
 const path = require('path')
 const { pathToFileURL } = require('url')
 
@@ -175,6 +177,57 @@ async function main() {
   check(oldFetchLikePull === 'block' && rules.judge(fetchNoUp, 'fetch').verdict === 'allow',
     '反证 d：旧方向（照拉取口径）把无上游更新判成拦住（实得 ' + oldFetchLikePull + '），新场景要求放行（实得 ' + rules.judge(fetchNoUp, 'fetch').verdict + '）')
 
+
+  // ---- #1737 票 T02：判定的公共约定（域票只追加理由与分支，不另造底座） ----
+  // 这里钉的是「以后谁给判定加一条分支时不能破坏的东西」：理由只能来自固定表、三态只有三种、
+  // 同输入同输出、不改调用方给的状态、未知操作诚实失败。域票（#1738 起的操作）在此基础上扩展。
+  check(Array.isArray(rules.REASON_IDS) && rules.REASON_IDS.length === Object.keys(rules.REASONS).length && rules.REASON_IDS.length === 15,
+    '理由标识符表导出 REASON_IDS，条数与 REASONS 一致（实得 ' + (Array.isArray(rules.REASON_IDS) ? rules.REASON_IDS.length : '未导出') + '）')
+  check(Array.isArray(rules.REASON_IDS) && rules.REASON_IDS.every((r) => rules.REASONS[r] === r), 'REASON_IDS 与 REASONS 键一一对应（标识符就是键名，中文话术在客户端词表里）')
+  check(Array.isArray(rules.REASON_IDS) && rules.REASON_IDS.every((r) => /^[a-z][a-z0-9-]*$/.test(r)), '理由标识符全部是小写 ASCII 短横线串（客户端词表按标识符查中文）')
+  const sampleScreens = [
+    base(),
+    base({ unstaged: [], unstagedCount: 0 }),
+    base({ staged: [file({ staged: true, unstaged: false })], stagedCount: 1 }),
+  ]
+  let verdictsOk = true
+  let reasonsOk = true
+  let pureOk = true
+  let inputUntouched = true
+  for (const s of sampleScreens) {
+    const before = JSON.stringify(s)
+    for (const op of ['stage', 'commit', 'pull', 'push', 'fetch', 'rebase']) {
+      let first = null
+      let second = null
+      try {
+        first = rules.judge(s, op)
+        second = rules.judge(s, op)
+      } catch (e) {
+        verdictsOk = false
+        reasonsOk = false
+        pureOk = false
+        continue
+      }
+      if (!first || ['allow', 'warn', 'block'].indexOf(first.verdict) < 0) verdictsOk = false
+      if (!Array.isArray(first.reasons) || first.reasons.length === 0 || first.reasons.some((r) => !rules.REASONS[r])) reasonsOk = false
+      if (JSON.stringify(first) !== JSON.stringify(second)) pureOk = false
+    }
+    if (JSON.stringify(s) !== before) inputUntouched = false
+  }
+  check(verdictsOk, '所有判定只返回三态之一（allow / warn / block），不出现第四种说法')
+  check(reasonsOk, '所有判定的理由非空且都在 REASONS 表里（不许新造一个没登记的标识符）')
+  check(pureOk, '同一个状态同一操作连判两次结果相同（纯函数，可以放心在渲染里调用）')
+  check(inputUntouched, '判定不修改调用方给的状态对象（调用方传进来的状态原样返回）')
+  const decided = rules.decide('warn', ['dirty-tree'])
+  check(!!decided && decided.verdict === 'warn' && JSON.stringify(decided.reasons) === JSON.stringify(['dirty-tree']), 'decide 按给定的三态与理由构造判定结果')
+  const decidedInput = ['dirty-tree']
+  const decidedCopy = rules.decide('allow', decidedInput)
+  decidedInput.push('ok')
+  check(Array.isArray(decidedCopy.reasons) && decidedCopy.reasons.length === 1 && decidedCopy.reasons[0] === 'dirty-tree',
+    'decide 复制理由数组，不把调用方给的数组直接塞进结果（调用方事后改动不影响判定）')
+  const unknownOp = rules.judge(base(), 'bogus-op')
+  check(unknownOp.verdict === 'block' && JSON.stringify(unknownOp.reasons) === JSON.stringify(['unknown-operation']),
+    '未知操作恰好返回 block + unknown-operation（不抛异常、不冒充允许）')
 
   console.log(failed ? '\n存在失败 — verify-version-control-rules 未通过' : '\n全部通过 — 判定规则门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)

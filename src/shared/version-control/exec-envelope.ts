@@ -6,9 +6,9 @@
  * failureFromExec 另认 cancelled（排队/在飞被取消）：调用方重试，不当成功。
  */
 
-// 进程执行结果的最小形状：kind 是唯一判据（cancelled、timeout、spawn-failed、non-zero 四选一），其余字段按 kind 取出来拼进人话。
+// 进程执行结果的最小形状：kind 是唯一判据（cancelled、timeout、spawn-failed、non-zero、stdin-failed 各一档），其余字段按 kind 取出来拼进人话。
 // 形状由宿主进程层定（见 host/versionControl.js 的调用点），这里只读不写，缺字段就拼出缺席的样子，不猜默认值。
-type ExecResult = { kind: string; timeoutMs?: any; message?: any; exitCode?: any; stderr?: any }
+type ExecResult = { kind: string; timeoutMs?: any; message?: any; exitCode?: any; stderr?: any; reason?: any }
 
 // 失败信封的形状：ok 恒为 false，error 里只有一个 kind 加一句人话，extra 里的附加字段原样并在顶层。
 // 调用方要带的单号、路径都在 extra 里，信封自己不拆不改，原样透传。
@@ -27,6 +27,9 @@ export function failureFromExec(res: ExecResult | null | undefined, what: string
   if (res.kind === 'timeout') return failPhone('timeout', what + '超时了（' + res.timeoutMs + ' 毫秒没有回音）')
   if (res.kind === 'spawn-failed') return failPhone('spawn', what + '时起不了 git 进程：' + res.message)
   if (res.kind === 'non-zero') return failPhone('exit', what + '失败（git 退出码 ' + res.exitCode + '）：' + firstLine(res.stderr))
+  // #1741：fast-import 的输入没送进 git（命令不许配、文件校验不符、传输层没有管道、EPIPE）也是明确失败，
+  // 不能因为不认识这个 kind 就当成「没有失败」放过去。
+  if (res.kind === 'stdin-failed') return failPhone('stdin-failed', what + '时标准输入没有送完（' + String(res.reason || 'stdin') + '）：' + firstLine(res.message))
   return null
 }
 

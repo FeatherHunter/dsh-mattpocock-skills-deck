@@ -25,7 +25,8 @@
 import { createHash } from 'node:crypto'
 import { fixedPrefix, lsFilesStageArgs, remoteListArgs, REMOTE_PATTERN } from '../shared/version-control/src/commands.js'
 import { judge } from '../shared/version-control/src/rules.js'
-import { makeTicket, indexRecordCount, fingerprintInputOf, hasIntentToAdd } from '../shared/version-control/src/write-ticket.js'
+import { commitPlanOf, commitPlanProblem, commitDecisionOf } from '../shared/version-control/src/commit-plan.js'
+import { makeTicket, indexRecordCount, fingerprintInputOf, hasIntentToAdd, makeBindings, planBindingInput, worktreeBindingInput, pathAbsentFromScreen, configOldValueOf } from '../shared/version-control/src/write-ticket.js'
 import { pushPlanOf } from '../shared/version-control/src/push-plan.js'
 import { messageProblem, writeHintFor } from '../shared/version-control/src/write-reasons.js'
 // 下面三个时间都住中央 YAML（config/timeouts.yaml 的 vcCheckCallBudgetMs / vcLsFilesTimeoutMs /
@@ -41,6 +42,12 @@ import { VC_CHECK_CALL_BUDGET_MS as CHECK_CALL_BUDGET_MS, VC_LSFILES_TIMEOUT_MS 
 /** 预算（附录第 5 节）：预检调用 60 秒；两条只读命令各自的单次预算。 */
 const LSFILES_LIMIT: number = 8 * 1024 * 1024
 const REMOTE_LIMIT: number = 4096
+
+/** 绑定表用的短摘要（#1741）：与索引指纹同一把尺 —— sha256 前 16 位十六进制，两个宿主文件的算法必须一致。
+ *  这八份的算法体由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须八处一起改。 */
+function digest16(text: any): string {
+  return createHash('sha256').update(String(text === undefined || text === null ? '' : text), 'utf8').digest('hex').slice(0, 16)
+}
 
 /** 父文件注入的依赖：首屏读数、安全执行层与时钟票据口都在这里，本文件不自取任何环境。 */
 export interface WriteCheckDeps {
@@ -69,6 +76,11 @@ export function createWriteCheck(deps: any): any {
     const r: any = await call.run({ args: fixedPrefix().concat(args), cwd: cwd, timeoutMs: timeoutMs, stdoutLimit: stdoutLimit })
     return r
   }
+  /** 读一条 git 配置原值（#1741 的 configOldValue 用）：读了但没配（非零退出）一律当空串。 */
+  async function readConfigValue(cwd: any, key: any): Promise<string> {
+    const r: any = await readOut(cwd, ['config', '--get', key], REMOTE_TIMEOUT_MS, REMOTE_LIMIT)
+    return (r && r.ok === true) ? String(r.stdout || '').trim() : ''
+  }
   async function handleGitWriteCheck(args: any): Promise<any> {
     const a: any = args || {}
     const op: string = String(a.op || '')
@@ -79,6 +91,14 @@ export function createWriteCheck(deps: any): any {
     if (!sr || sr.ok !== true) return sr || fail('env', 'unknown-write-failure', '读不到这个仓库的首屏')
     const screen: any = sr.screen
     let decision: any = judge(screen, op)
+    // #1743：提交计划先归一、再校验（缺目标 / 坏目标当场拒，不起任何进程），然后按模式修正判定。
+    const commitPlan: any = (op === 'commit') ? commitPlanOf(a.plan) : null
+    if (op === 'commit') {
+      const planBad: any = commitPlanProblem(a.plan)
+      if (planBad) return fail('args', planBad, writeHintFor(planBad))
+      // 判定与界面禁用原因同源：共享的 commitDecisionOf 按形态摘 / 补理由。
+      decision = commitDecisionOf(decision, commitPlan, screen)
+    }
     // D3 + 裁决 1：推送时「没有上游 / 上游被删」不是「不能推」，而是「走 set-upstream 档、显式 -u」——
     // 把这两条理由从 block 里摘掉，剩下的理由还成立才真挡（rules.ts 是只读版写的，这两档归写操作自己判）。
     if (op === 'push') {
@@ -97,6 +117,9 @@ export function createWriteCheck(deps: any): any {
     let plan: any = null
     let indexFingerprint: any = null
     let indexEntries: any = null
+    // 绑定表（#1741）：四个分支各自把「这个动作执行前必须还没变」的状态量一遍记进票里；
+    // 每条命令只绑自己用得上的格子，用不上的留 null（留 null 表示不比对，不是「一定为空」）。
+    let bindings: any = null
     if (op === 'push') {
       // ② 远端清单（只读）：多远端时列出去让用户选，不替用户挑。
       const rr: any = await readOut(cwd, remoteListArgs(), REMOTE_TIMEOUT_MS, REMOTE_LIMIT)
@@ -109,11 +132,36 @@ export function createWriteCheck(deps: any): any {
         return fail('args', pp.reason, writeHintFor(pp.reason))
       }
       plan = pp.plan
+      // 推送绑三格：目标计划摘要、决定往哪推的旧配置原值、远端跟踪引用此刻指向哪一提交。
+      // 只有 existing 档有「远端跟踪引用」可绑；set-upstream/recreate 档留 null（执行前本来就没有可比的旧值）。
+      const cfgRemote: string = await readConfigValue(cwd, 'branch.' + branch + '.remote')
+      const cfgMerge: string = await readConfigValue(cwd, 'branch.' + branch + '.merge')
+      let remoteOid: any = null
+      if (plan.mode === 'existing') {
+        const tr: any = await readOut(cwd, ['rev-parse', '--verify', 'refs/remotes/' + String(plan.remote) + '/' + String(plan.branch)], REMOTE_TIMEOUT_MS, REMOTE_LIMIT)
+        if (tr && tr.ok === true) remoteOid = String(tr.stdout || '').trim()
+      }
+      bindings = makeBindings({ preconditions: { planDigest: digest16(planBindingInput(plan)), configOldValue: configOldValueOf(cfgRemote, cfgMerge), remoteOid: remoteOid } })
     }
     if (op === 'pull') {
       const cur: any = (screen.branches || []).filter(function (b: any) { return b.short === branch })[0] || null
       if (!cur || !cur.upstream) return Object.assign(fail('blocked', 'blocked', '这个分支没有上游', { reasons: ['no-upstream'] }), { decision: { verdict: 'block', reasons: ['no-upstream'] } })
       plan = { mode: 'existing', remote: '', branch: '', localBranch: branch, upstream: cur.upstream }
+      // 拉取绑五格：工作树形状（拉取会不会冲突取决于它）、目标计划摘要、旧配置原值、远端跟踪引用、运行中标记文件名单。
+      const cfgRemote: string = await readConfigValue(cwd, 'branch.' + branch + '.remote')
+      const cfgMerge: string = await readConfigValue(cwd, 'branch.' + branch + '.merge')
+      let remoteOid: any = null
+      if (plan.upstream) {
+        const tr: any = await readOut(cwd, ['rev-parse', '--verify', 'refs/remotes/' + String(plan.upstream)], REMOTE_TIMEOUT_MS, REMOTE_LIMIT)
+        if (tr && tr.ok === true) remoteOid = String(tr.stdout || '').trim()
+      }
+      bindings = makeBindings({ preconditions: {
+        worktreeDigest: digest16(worktreeBindingInput(screen)),
+        planDigest: digest16(planBindingInput(plan)),
+        configOldValue: configOldValueOf(cfgRemote, cfgMerge),
+        remoteOid: remoteOid,
+        pathAbsent: pathAbsentFromScreen(screen),
+      } })
     }
     if (op === 'fetch') {
       // 更新远方记录只定远端，不定分支：远端名由上游解析或单远端默认，多远端请人选，不替人挑。
@@ -135,10 +183,22 @@ export function createWriteCheck(deps: any): any {
       } else {
         return fail('args', 'need-remote-choice', '这个仓库有多个远端，请选一个', { remotes: remotes })
       }
+      // 更新远方记录只绑目标计划摘要：它只改远端跟踪引用，不碰工作树、不改上游配置，其余格子留 null。
+      bindings = makeBindings({ preconditions: { planDigest: digest16(planBindingInput(plan)) } })
     }
     if (op === 'commit') {
-      const bad: any = messageProblem(a.message)
-      if (bad) return fail('args', bad, writeHintFor(bad))
+      plan = commitPlan
+      // 2.4 的 fixup / squash 先要有一个能被吸收的目标提交：目标不在仓库里就当参数错拒掉，零写命令。
+      // 目标本身是外部输入，先过 commitPlanProblem 的白名单（在 adjustCommitDecision 之前已经做过），这里再让 git 核一次在不在。
+      if (plan.mode === 'fixup' || plan.mode === 'squash') {
+        const tv: any = await readOut(cwd, ['rev-parse', '--verify', String(plan.target) + '^{commit}'], REMOTE_TIMEOUT_MS, REMOTE_LIMIT)
+        if (!tv || tv.ok !== true) return fail('args', 'bad-commit-target', writeHintFor('bad-commit-target'))
+      }
+      // 说明校验按模式分开：修订可以只改文件（--no-edit），fixup / squash 不写说明；其余两种必须有说明。
+      let msgBad: any = null
+      if (plan.mode === 'amend') msgBad = String(a.message === undefined || a.message === null ? '' : a.message).trim() === '' ? null : messageProblem(a.message)
+      else if (plan.mode !== 'fixup') msgBad = messageProblem(a.message)
+      if (msgBad) return fail('args', msgBad, writeHintFor(msgBad))
       // ③ 索引指纹与 i-t-a：两条都只读，且与执行前那次逐字节同一口径（同一固定前缀、同一 -z、不截断）。
       const lf: any = await readOut(cwd, lsFilesStageArgs(), LSFILES_TIMEOUT_MS, LSFILES_LIMIT)
       if (!lf || lf.ok !== true) return fail(lf && lf.kind ? lf.kind : 'other', 'fingerprint-unavailable', (lf && lf.message) || '读不到暂存区清单', { hint: writeHintFor('fingerprint-unavailable') })
@@ -146,13 +206,18 @@ export function createWriteCheck(deps: any): any {
       const text: any = fingerprintInputOf(lf.stdout)
       indexFingerprint = createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 16)
       indexEntries = indexRecordCount(lf.stdout)
+      // 提交绑两格：计划摘要（模式、目标、危险开关）与索引条数；2.2 的 commit -a 还要绑工作树形状，
+      // 否则「预检之后又改了一个已跟踪文件」会被 -a 静默带进这次提交。比对口径与执行前那一侧逐字节一致。
+      const pre: any = { planDigest: digest16(planBindingInput(commitPlan)) }
+      if (commitPlan.mode === 'all') pre.worktreeDigest = digest16(worktreeBindingInput(screen))
+      bindings = makeBindings({ counters: { indexEntries: indexEntries }, preconditions: pre })
       // i-t-a（git add -N）：与「真暂存一个空文件」指纹相同但提交结局不同，直接拒绝（总工订正 3）。
       const st: any = await readOut(cwd, ['status', '--porcelain=v2', '-z', '--untracked-files=all', '--find-renames'], LSFILES_TIMEOUT_MS, LSFILES_LIMIT)
       if (!st || st.ok !== true) return fail(st && st.kind ? st.kind : 'other', 'unknown-write-failure', (st && st.message) || '读不到工作区状态')
       if (st.truncated === true) return fail('other', 'fingerprint-unavailable', '工作区状态太大，被截断了')
       if (hasIntentToAdd(st.stdout) === true) return fail('args', 'intent-to-add', writeHintFor('intent-to-add'))
     }
-    const ticket: any = makeTicket({ id: mkId(), op: op, nowMs: now(), headOid: String(screen.identity.oid || ''), indexFingerprint: indexFingerprint, indexEntries: indexEntries, target: plan, repoRoot: String((screen.identity && screen.identity.worktreePath) || '') })
+    const ticket: any = makeTicket({ id: mkId(), op: op, nowMs: now(), headOid: String(screen.identity.oid || ''), indexFingerprint: indexFingerprint, indexEntries: indexEntries, target: plan, repoRoot: String((screen.identity && screen.identity.worktreePath) || ''), bindings: bindings })
     tickets.set(ticket.id, ticket)
     if (tickets.size > 200) { const oldest: any = tickets.keys().next().value; tickets.delete(oldest) } // 上限与清理：票据只在内存里，别无限长
     return {

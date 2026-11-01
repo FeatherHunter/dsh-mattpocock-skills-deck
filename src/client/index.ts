@@ -56,6 +56,8 @@
 declare const styles: any;
 declare const STYLE_TEXT: any;
 declare const VC_STYLE_TEXT: any;
+// #1738 页面壳样式（另起样式叶子 vcShellStyles.ts，走同一个 styles.insert 接缝）。
+declare const VC_SHELL_STYLE_TEXT: any;
 declare const PIXEL_STYLE_TEXT: any;
 declare const FEEDBACK_STYLE_TEXT: any;
 declare const installUiFeedback: any;
@@ -117,6 +119,9 @@ export default {
     //   注入仍走同一个 styles.insert 接缝 —— 不是第二个 <style>，也没有新的注入机制。
     // ==== leaf:vcStyles (spliced by build) ====
     styles.insert(VC_STYLE_TEXT)
+    // #1738 页面壳的视觉语言（深浅两套语义色、四档宽排布）：仍是 styles.insert 这同一个接缝。
+    // ==== leaf:vcShellStyles (spliced by build) ====
+    styles.insert(VC_SHELL_STYLE_TEXT)
     // 887：技能详情像素风皮肤另起一个样式叶子（与 vcStyles 同一套做法）。
     // ==== leaf:pixelStyles (spliced by build) ====
     styles.insert(PIXEL_STYLE_TEXT)
@@ -235,6 +240,48 @@ export default {
     // src/shared/version-control/rules.js）。界面按同一份判定画按钮状态，不自己算 —— 自己算就会与
     // 宿主执行前那次判定各说各话。
     // ==== shared:vcRules (spliced by build) ====
+    // #1743 提交计划（八条提交能力共用的形态与参数口径）也拼进界面闭包，与宿主读同一份 commit-plan.ts。
+    // ==== shared:vcCommitPlan (spliced by build) ====
+    // #1738 页面注册表与命令面板的唯一数据源（能力账本），拼接做法与上面几份相同。
+    // ==== shared:vcCapabilityLedger (spliced by build) ====
+    // #1737 版本可用性判定（capabilityAvailability）也只有一份真源（共享层 capabilities.ts）：
+    // 命令面板按它给被藏起来 / 降级的能力行写「需要哪版 git、可以改用哪种做法」。
+    // 这份与上面的能力账本同源同序拼接；文件名里的 tierFor/atLeast 已改名，不与额度档位、配置规则撞名。
+    // ==== shared:vcCapabilities (spliced by build) ====
+    // #1739 首屏七片一次取全的契约：片名、版本号、刷新三时机与形状判据只有一份真源（共享层 first-screen.ts），
+    // 宿主聚合与客户端数据层都从这一份读；界面不许再写第二份片名或版本号。
+    // ==== shared:vcFirstScreen (spliced by build) ====
+    // #1755 同步十个动作（域 8 的 8.5–8.14）的共享口径：动作表、argv 规划、现场判定与确认文案，
+    // 宿主与界面读同一份；界面不许自己再拼一遍命令或理由。
+    // ==== shared:vcSyncActions (spliced by build) ====
+    // ==== shared:vcSyncRules (spliced by build) ====
+    // #1759 迁移与备份域（域 11 与 5.13）的共享口径：九个动作、参数守卫与计划摘要只有一份，宿主与界面读同一份。
+    // ==== shared:vcMigrateActions (spliced by build) ====
+    // #1751 贮藏页十条（域 7）的规则单源：命令拼装、选择器与分支名校验、危险动作、2.35 版本门、
+    // 丢弃后的 store 恢复都在共享层 stash-rules.ts；宿主执行层与界面读同一份，界面不自己再说一遍。
+    // 拼接做法与上面几份相同（客户端半边今天没有任何对 src/shared 的运行时 import）。
+    // ==== shared:vcStashRules (spliced by build) ====
+    // #1762 平台段：凭据助手链、rebase.updateRefs 与 request-pull 参数判定（共享层）单源，宿主与界面同读一份。
+    // ==== shared:vcPlatformInspect (spliced by build) ====
+    // #1756 T20 克隆向导的两片共享口径（地址与选项、预检票据）与上面几份一样拼进闭包；宿主执行层读同一份。
+    // ==== shared:vcCloneOptions (spliced by build) ====
+    // ==== shared:vcCloneTicket (spliced by build) ====
+    // #1760 配置与钩子（域 12）的规则层：可写的只有身份两键、作用域怎么反推、钩子名形状与 2.36 版本门，
+    // 只有共享层 config-rules.ts 一份；宿主预检与配置页/钩子页读同一份，界面不自己再写一遍。
+    // ==== shared:vcConfigRules (spliced by build) ====
+    // #1752 工作树八条动作的 argv 与判定（共享层 worktree-ops.ts），宿主执行前与界面判定同源；与上面几份一样拼进闭包。
+    // ==== shared:vcWorktreeOps (spliced by build) ====
+    // #1757 T21 子模块域的动作表、判定与批量菜单（共享层 submodule-ops.ts），宿主预检/执行与界面判定同源；
+    // 与上面几份一样，界面那一半按拼接做法拼进这个闭包（不运行时 import src/shared）。
+    // ==== shared:vcSubmoduleOps (spliced by build) ====
+    // #1747 冲突文本纯解析与拼装（共享层 conflict-text.ts，零依赖）：宿主的保存前扫标记与界面的冲突视图/整份编辑同源。
+    // ==== shared:vcConflictText (spliced by build) ====
+    // #1750 T15 整仓重写的五张表单与整仓备份点（共享层 rewrite-ops.ts / recovery-point.ts，零依赖纯模块）：
+    // 宿主预检/执行与界面判定必须读同一份，与上面几份一样拼进闭包。
+    // ==== shared:vcRewriteOps (spliced by build) ====
+    // ==== shared:vcRecoveryPoint (spliced by build) ====
+    // #1758 T22 维护页域 11 的动作表与版本门（共享层 maintenance-ops.ts）：宿主预检/执行与界面判定同源，拼进闭包。
+    // ==== shared:vcMaintenanceOps (spliced by build) ====
     // #1342 域文档布局的两种取值（single / multi）只有一份真源（src/shared/doc-layout/src/layouts.ts →
     // .build/shared/doc-layout/layouts.js）。宿主侧选择记忆与工作区配置核按普通相对 import 取同一份；
     // 界面那一半不能运行时 import src/shared，与上面几份一样拼进闭包，状态栏与初始化卡按同一份名单校验，
@@ -341,7 +388,8 @@ export default {
     // ==== leaf:chainRenderer (spliced by build) ====
     // ==== leaf:skillFloatList (spliced by build) ====
     // ==== leaf:vcText (spliced by build) ==== // ==== leaf:vcFold (spliced by build) ==== // ==== leaf:vcDiff (spliced by build) ==== // ==== leaf:vcCommit (spliced by build) ==== // ==== leaf:vcRows (spliced by build) ==== // ==== leaf:vcWrite (spliced by build) ==== // ==== leaf:vcWriteRun (spliced by build) ==== // ==== leaf:vcWriteUi (spliced by build) ==== // ==== leaf:vcWriteOps (spliced by build) ==== // ==== leaf:vcWriteView (spliced by build) ==== // ==== leaf:vcDiffOps (spliced by build) ==== // ==== leaf:vcBlocks (spliced by build) ==== // ==== leaf:vcViews (spliced by build) ==== // ==== leaf:vcAiHandoff (spliced by build) ====
-    // ==== leaf:vcTabVisible (spliced by build) ==== // ==== leaf:vcData (spliced by build) ==== // ==== leaf:vcCache (spliced by build) ==== // ==== leaf:vcInView (spliced by build) ==== // ==== leaf:versionControlTab (spliced by build) ====
+    // #1752 工作树页三叶（数据 → 动作 → 画法）、#1757 子模块页三叶与 #1749 变基两叶按依赖次序拼在这里；#1746 分支与标签面板排在任务区之后、改动页之前；#1754 远端两叶、#1745 查询两叶、#1743 提交两叶、#1755 同步两叶与 #1759 迁移两叶都排在任务区之前；#1748 撤销两叶排在贮藏页之后、工作树页之前；#1756 克隆页与 #1747 冲突两叶都排在页面壳之前；#1761 诊断两叶排在贮藏页之后、撤销两叶之前（同一区块内，与构建同序）；#1760 配置页钩子页三叶（数据层、配置页、钩子页）与 #1750 维护页整仓重写两叶（数据层、页面）都排在变基两叶之前、页面壳之前；#1762 平台段三叶（数据层、平台页、迁移页 14.1 导出向导）与「本页负责的能力」列表叶也都排在页面壳之前
+    // ==== leaf:vcTabVisible (spliced by build) ==== // ==== leaf:vcData (spliced by build) ==== // ==== leaf:vcCache (spliced by build) ==== // ==== leaf:vcInView (spliced by build) ==== // ==== leaf:vcFirstScreen (spliced by build) ==== // ==== leaf:vcCapabilityPages (spliced by build) ==== // ==== leaf:vcShellPrimitives (spliced by build) ==== // ==== leaf:vcPalette (spliced by build) ==== // ==== leaf:vcCapabilityList (spliced by build) ==== // ==== leaf:vcHistory (spliced by build) ==== // ==== leaf:vcSyncData (spliced by build) ==== // ==== leaf:vcRemoteData (spliced by build) ==== // ==== leaf:vcRemotePage (spliced by build) ==== // ==== leaf:vcSyncPage (spliced by build) ==== // ==== leaf:vcMigrateData (spliced by build) ==== // ==== leaf:vcQuery (spliced by build) ==== // ==== leaf:vcQueryView (spliced by build) ==== // ==== leaf:vcCommitOps (spliced by build) ==== // ==== leaf:vcCommitPage (spliced by build) ==== // ==== leaf:vcTaskPanel (spliced by build) ==== // ==== leaf:vcBranches (spliced by build) ==== // ==== leaf:vcChangesPage (spliced by build) ==== // ==== leaf:vcStashOps (spliced by build) ==== // ==== leaf:vcStashPage (spliced by build) ==== // ==== leaf:vcDiagnostics (spliced by build) ==== // ==== leaf:vcDiagnosticsPage (spliced by build) ==== // ==== leaf:vcUndoOps (spliced by build) ==== // ==== leaf:vcUndoPage (spliced by build) ==== // ==== leaf:vcWorktreesData (spliced by build) ==== // ==== leaf:vcWorktreesOps (spliced by build) ==== // ==== leaf:vcWorktreesPage (spliced by build) ==== // ==== leaf:vcMigratePage (spliced by build) ==== // ==== leaf:vcClonePage (spliced by build) ==== // ==== leaf:vcSubmodulesData (spliced by build) ==== // ==== leaf:vcSubmodulesOps (spliced by build) ==== // ==== leaf:vcSubmodulesPage (spliced by build) ==== // ==== leaf:vcConflictsOps (spliced by build) ==== // ==== leaf:vcConflictsPage (spliced by build) ==== // ==== leaf:vcConfigOps (spliced by build) ==== // ==== leaf:vcConfigPage (spliced by build) ==== // ==== leaf:vcHooksPage (spliced by build) ==== // ==== leaf:vcPlatformData (spliced by build) ==== // ==== leaf:vcPlatformPage (spliced by build) ==== // ==== leaf:vcMigrateExport (spliced by build) ==== // ==== leaf:vcRebaseOps (spliced by build) ==== // ==== leaf:vcRebasePage (spliced by build) ==== // ==== leaf:vcRewriteOps (spliced by build) ==== // ==== leaf:vcRewritePage (spliced by build) ==== // ==== leaf:vcMaintenanceData (spliced by build) ==== // ==== leaf:vcMaintenancePage (spliced by build) ==== // ==== leaf:vcMaintenanceDiag (spliced by build) ==== // ==== leaf:vcShellPages (spliced by build) ==== // ==== leaf:versionControlTab (spliced by build) ====
     // ==== leaf:tabs (spliced by build) ====
     // ==== leaf:truthLines (spliced by build) ====
     // #1699：降级提示不再占列表一行 —— 小标识画在列表头部 KPI 那一行里（判据仍是上面 truthLines 里的 restFallbackView）；历史由通知中心承载。

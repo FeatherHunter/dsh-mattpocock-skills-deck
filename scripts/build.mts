@@ -678,6 +678,40 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // #842 写操作：判定（能不能暂存/提交/拉取/推送）只有一份真源 src/shared/version-control/src/rules.ts，
   //   界面不许自己算（自己算就会与宿主执行前那次判定各说各话），所以把这一份也拼进界面闭包。
   { marker: '// ==== shared:vcRules (spliced by build) ====', file: 'src/shared/version-control/src/rules.ts' },
+  // #1743 提交计划（八条提交能力的形态、目标、跳过钩子、签名、追加签名行）只有一份真源 commit-plan.ts：
+  //   宿主预检/执行与界面面板读同一份，参数口径与判定理由不各写一份；界面侧按老规矩拼进闭包。
+  { marker: '// ==== shared:vcCommitPlan (spliced by build) ====', file: 'src/shared/version-control/src/commit-plan.ts' },
+  // #1738 页面注册表与命令面板的唯一数据源：能力账本（162 条能力的 id、名称、命令原文、页面归属、
+  //   每页数量）只有这一份（T02 #1737 从规格第 11 节生成）。界面侧 page registry 与命令面板按同一份
+  //   账本渲染；谁在界面里再抄一份名单，验证 818 的 Z 组会判红。
+  { marker: '// ==== shared:vcCapabilityLedger (spliced by build) ====', file: 'src/shared/version-control/src/capability-ledger.ts' },
+  // #1737 能力在某版 git 上能不能用（capabilityAvailability）只有一份判定，住共享层 capabilities.ts。
+  //   命令面板要在被藏起来的能力行里写「需要哪版、可以改用哪种做法」，读的必须是同一份 minVersion
+  //   与 versionAlternative；客户端半边不能运行时 import，所以整段拼进界面闭包（文件只有类型导入，转译后是纯代码）。
+  //   这份里的 tierFor/atLeast 已改名 capabilityTierFor/capabilityAtLeast，避免与同处一个函数体的
+  //   refreshBudget（tierFor）和 vcConfigRules（atLeast）撞名 —— 见 capabilities.ts 头注释。
+  { marker: '// ==== shared:vcCapabilities (spliced by build) ====', file: 'src/shared/version-control/src/capabilities.ts' },
+  // #1739 首屏七片一次取全的契约（契约名、版本号、七片名单、刷新三时机、形状与逐片成败判据）只有一份真源
+  //   src/shared/version-control/src/first-screen.ts；宿主聚合电话与客户端数据层都从它读，界面不许再写第二份片名或版本号。
+  { marker: '// ==== shared:vcFirstScreen (spliced by build) ====', file: 'src/shared/version-control/src/first-screen.ts' },
+  // #1755 同步十个动作（域 8 的 8.5–8.14）的共享口径只有一份：动作表、argv 规划、现场判定与确认文案。
+  //   宿主预检/执行与界面都读同一份；界面自己再拼一遍命令或理由，就会与宿主执行前那次校验各说各话。
+  { marker: '// ==== shared:vcSyncActions (spliced by build) ====', file: 'src/shared/version-control/src/sync-actions.ts' },
+  { marker: '// ==== shared:vcSyncRules (spliced by build) ====', file: 'src/shared/version-control/src/sync-rules.ts' },
+  // #1759 迁移与备份域（11.1 / 11.12 / 11.13 与 5.13）的共享口径：九个动作的 id、命令原文、参数守卫、
+  //   计划摘要与版本门只有一份；宿主预检/执行与界面都读同一份，界面不再手抄一遍动作名单或命令。
+  { marker: '// ==== shared:vcMigrateActions (spliced by build) ====', file: 'src/shared/version-control/src/migrate-actions.ts' },
+  // #1751 贮藏页十条（域 7）的唯一规则层：命令怎么拼、选择器与分支名怎么校验、哪两条要确认、
+  //   哪一条要 2.35 版本门、丢掉的提交号怎么 store 回去，只有这一份。宿主执行层与界面读同一份；
+  //   界面自己再说一遍，就会与宿主执行前那次校验各说各话。
+  { marker: '// ==== shared:vcStashRules (spliced by build) ====', file: 'src/shared/version-control/src/stash-rules.ts' },
+  // #1756 T20 克隆向导：地址与选项口径（深度/分支/两个子模块开关/离线）、预检票据两片，宿主与界面读同一份。
+  { marker: '// ==== shared:vcCloneOptions (spliced by build) ====', file: 'src/shared/version-control/src/clone-options.ts' },
+  { marker: '// ==== shared:vcCloneTicket (spliced by build) ====', file: 'src/shared/version-control/src/clone-ticket.ts' },
+  // #1760 配置与钩子（域 12）的规则层：哪些键能写（只有身份两键）、作用域怎么反推、钩子名形状、
+  //   git hook run 的 2.36 版本门与替代做法，只有这一份。宿主预检/执行与配置页、钩子页读同一份，
+  //   界面不自己再说一遍——自己说一遍就会与宿主执行前那次判定各说各话。
+  { marker: '// ==== shared:vcConfigRules (spliced by build) ====', file: 'src/shared/version-control/src/config-rules.ts' },
   // #1342 域文档布局的取值（单上下文 / 多上下文）只有一份真源 src/shared/doc-layout/src/layouts.ts。
   //   界面侧状态栏与初始化卡要按同一份名单校验用户选的那一项（拒收第三档取值），所以拼进界面闭包；
   //   宿主侧选择记忆与工作区配置核按普通相对 import 取同一份源文件（不是拼接，是同一个文件）。
@@ -690,6 +724,26 @@ const SHARED_SPLICE: { marker: string; file: string }[] = [
   // 重名，见下面的 buildTimeConfigClientFragment），这里拼的是摘出来的 .tmp 片段（不入库，每次构建重算）。
   // 消费文件自己写模块级 declare const（见 src/client/views/pixelProps.d.ts 的约定）。
   { marker: '// ==== shared:timeConfig (spliced by build) ====', file: '.tmp/time-config.client.js' },
+  // #1752 工作树的八条动作（argv、行模型、判定与理由、剪枝清单、稀疏检出规则）：宿主执行前与界面判定必须读同一份，
+  //   界面不许自己再拼第二份 argv 或第二套理由。文件不带 import，可直接拼进界面闭包；宿主半走普通相对 import。
+  { marker: '// ==== shared:vcWorktreeOps (spliced by build) ====', file: 'src/shared/version-control/src/worktree-ops.ts' },
+  // #1762 平台段：凭据助手链、rebase.updateRefs 与 request-pull 参数的判定只有一份真源（共享层 platform-inspect.ts）。
+  //   宿主读取与界面画法读同一份；文件不带 import，可直接拼进界面闭包。
+  { marker: '// ==== shared:vcPlatformInspect (spliced by build) ====', file: 'src/shared/version-control/src/platform-inspect.ts' },
+  // #1757 T21 子模块域的十一个动作（argv、判定与理由、批量菜单、地址打码、任务动作对照）：宿主预检/执行与界面判定必须读同一份，
+  //   界面不许自己再拼第二份 argv 或第二套理由。文件不带 import，可直接拼进界面闭包；宿主半走普通相对 import。
+  { marker: '// ==== shared:vcSubmoduleOps (spliced by build) ====', file: 'src/shared/version-control/src/submodule-ops.ts' },
+  // #1747 冲突文本的解析与拼装（逐块读出当前边/对方边、按选择拼回整份、残留标记判定）：宿主预检执行与界面冲突视图、
+  //   6.7 整份编辑必须读同一份行号与同一套行尾口径，所以把这份零依赖模块拼进界面闭包；宿主半走普通相对 import。
+  { marker: '// ==== shared:vcConflictText (spliced by build) ====', file: 'src/shared/version-control/src/conflict-text.ts' },
+  // #1750 T15 整仓重写（能力 5.11）：五张 filter-repo 表单的输入守卫、计划与 argv 拼装（rewrite-ops.ts），以及前置强制备份的
+  //   备份点与还原步骤（recovery-point.ts，T13 恢复点装置在这里扩成整仓备份）。两份都是零依赖纯模块，宿主预检/执行与界面判定
+  //   必须读同一份，所以拼进界面闭包；宿主半走普通相对 import。
+  { marker: '// ==== shared:vcRewriteOps (spliced by build) ====', file: 'src/shared/version-control/src/rewrite-ops.ts' },
+  { marker: '// ==== shared:vcRecoveryPoint (spliced by build) ====', file: 'src/shared/version-control/src/recovery-point.ts' },
+  // #1758 T22 维护页域 11 的十条能力（11.2–11.11）：动作表、主入口归属、版本门与任务请求拼装（maintenance-ops.ts）。
+  //   宿主预检/执行与界面判定必须读同一份，所以这份零依赖模块拼进界面闭包；宿主半走普通相对 import。
+  { marker: '// ==== shared:vcMaintenanceOps (spliced by build) ====', file: 'src/shared/version-control/src/maintenance-ops.ts' },
 ]
 
 // ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------
@@ -758,6 +812,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcDiff', file: 'src/client/views/versionControl/vcDiff.ts' }, // #819 审查后从 vcBlocks 拆出：一处差异该怎么画（那个文件贴着 350 行）
   { id: 'vcCommit', file: 'src/client/views/versionControl/vcCommit.ts' }, // 规格故事 32：「这笔提交改了什么」那一层（排在 vcBlocks 之前，行是 vcBlocks 现传进去的同一份）
   { id: 'vcStyles', file: 'src/client/views/versionControl/vcStyles.ts' }, // #851 版本管理页签的视觉语言（档案索引）：一段 CSS 文本，经同一个 styles.insert 接缝注入
+  { id: 'vcShellStyles', file: 'src/client/views/versionControl/vcShellStyles.ts' }, // #1738 页面壳的视觉语言：深浅两套语义色、四档宽排布；同样走 styles.insert 接缝
   { id: 'vcRows', file: 'src/client/views/versionControl/vcRows.ts' }, // #842 从 vcBlocks 原样搬出：行分组 / 行画法 / 其他工作树行 / 某路径的差异读数（vcBlocks 要腾行给写操作）
   { id: 'vcWrite', file: 'src/client/views/versionControl/vcWrite.ts' }, // #842 写操作的纯规则层（判定→状态、理由→词条、写失败→话术族、确认框内容）
   { id: 'vcWriteRun', file: 'src/client/views/versionControl/vcWriteRun.ts' }, // #842 写操作的执行层（预检、四条写电话、结果记账、成功后的重读）
@@ -772,6 +827,72 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcData', file: 'src/client/views/versionControl/vcData.ts' },
   { id: 'vcCache', file: 'src/client/views/versionControl/vcCache.ts' }, // #864：进出缓存（首屏与历史首批按工作区暂存）
   { id: 'vcInView', file: 'src/client/views/versionControl/vcInView.ts' }, // #997：「还能显示更多」那几处什么时候接着显示（进入视野就接着显示、显示完再判一次；三处共用一套）
+  { id: 'vcFirstScreen', file: 'src/client/views/versionControl/vcFirstScreen.ts' }, // #1739 首屏七片的数据层（一次聚合一电话、逐片成败与重试、刷新三时机；不画界面）
+  // #1738 页面壳四片，依赖次序固定：页面注册表 → 基础画法 → 命令面板 → 页面壳本体。
+  //   VersionControlTab.ts 是冻结文件（基线 366 行，只许减不许增），壳不往它里面写一行。
+  { id: 'vcCapabilityPages', file: 'src/client/views/versionControl/vcCapabilityPages.ts' },
+  { id: 'vcShellPrimitives', file: 'src/client/views/versionControl/vcShellPrimitives.ts' },
+  { id: 'vcPalette', file: 'src/client/views/versionControl/vcPalette.ts' },
+  { id: 'vcCapabilityList', file: 'src/client/views/versionControl/vcCapabilityList.ts' }, // #1762 T26：「本页负责的能力」列表从壳拆出，排在壳之前
+  { id: 'vcHistory', file: 'src/client/views/versionControl/vcHistory.ts' }, // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）
+  { id: 'vcSyncData', file: 'src/client/views/versionControl/vcSyncData.ts' }, // #1755 T19 同步段的数据层（两条电话、预检与执行回包落位；排在页面壳之前）
+  { id: 'vcRemoteData', file: 'src/client/views/versionControl/vcRemoteData.ts' }, // #1754 T18 远端与同步页的数据层（六条电话、读数状态、联网与写动作回包落位）
+  { id: 'vcRemotePage', file: 'src/client/views/versionControl/vcRemotePage.ts' }, // #1754 T18 远端与同步页的正文（本地记录 / 联网查看 / 四种表单形态；排在页面壳之前，壳要调它）
+  { id: 'vcSyncPage', file: 'src/client/views/versionControl/vcSyncPage.ts' }, // #1755 T19 同步段正文（十个动作、理由、租约、确认卡、任务区；由 vcRemotePage 调用）
+  { id: 'vcMigrateData', file: 'src/client/views/versionControl/vcMigrateData.ts' }, // #1759 T23 迁移与备份页的数据层（两条电话、预检与执行回包落位；排在页面壳之前）
+  { id: 'vcQuery', file: 'src/client/views/versionControl/vcQuery.ts' }, // #1745 历史高级查询的数据层：十条能力的目录、输入校验与一次读取（纯逻辑，不画界面）
+  { id: 'vcQueryView', file: 'src/client/views/versionControl/vcQueryView.ts' }, // #1745 历史高级查询面板的画法（提交历史页六组、管理·诊断页四组；排在页面壳之前，壳要调它）
+  { id: 'vcCommitOps', file: 'src/client/views/versionControl/vcCommitOps.ts' }, // #1743 提交页的动作层（预检拿票、危险动作确认、写电话、模板套用；不画界面）
+  { id: 'vcCommitPage', file: 'src/client/views/versionControl/vcCommitPage.ts' }, // #1743 提交页正文（八条能力的主入口、多行说明、确认卡与结果都在面板里；排在页面壳之前，壳要调它）
+  { id: 'vcTaskPanel', file: 'src/client/views/versionControl/vcTaskPanel.ts' }, // #1740 长任务区（进度、四类结论、取消按钮、重启标注中断；由页面壳挂进任务区）
+  { id: 'vcBranches', file: 'src/client/views/versionControl/vcBranches.ts' }, // #1746 分支与标签业务面板（4.1–4.13 十三条入口、dryRun 判定、确认卡与结果；由页面壳挂进分支与标签页）
+  { id: 'vcChangesPage', file: 'src/client/views/versionControl/vcChangesPage.ts' }, // #1742 改动页 13 条动作的操作面板（由页面壳在 changes 页挂进页面体）
+  { id: 'vcStashOps', file: 'src/client/views/versionControl/vcStashOps.ts' }, // #1751 贮藏页的数据与动作层（首屏贮藏片怎么读、十条动作怎么拼、回包怎么落状态；不画界面）
+  { id: 'vcStashPage', file: 'src/client/views/versionControl/vcStashPage.ts' }, // #1751 贮藏页的入口与真实动作画法（十条动作、确认卡、最近丢弃、版本门提示；由页面壳挂进贮藏页）
+  { id: 'vcDiagnostics', file: 'src/client/views/versionControl/vcDiagnostics.ts' }, // #1761 诊断页的数据与动作层（域 13 只读查询与二分、5.12 替换对象；不画界面）
+  { id: 'vcDiagnosticsPage', file: 'src/client/views/versionControl/vcDiagnosticsPage.ts' }, // #1761 诊断页正文（十四条能力各一个入口、13.13 只读展示、13.3/13.14 只放指针；壳要调它）
+  // #1748 变基待办页的历史改写两叶（数据层 → 画法），排在页面壳之前；壳的 rebase 挂载段要调 vcUndoPageNode。
+  { id: 'vcUndoOps', file: 'src/client/views/versionControl/vcUndoOps.ts' }, // #1748 五条历史改写动作的输入整理、本地预检与回包落态（不画界面）
+  { id: 'vcUndoPage', file: 'src/client/views/versionControl/vcUndoPage.ts' }, // #1748 变基待办页的面板（动作选择、预检、确认卡、恢复点与执行结果；由页面壳挂进 rebase 页）
+  // #1752 工作树页三叶，依赖次序固定：读首屏那一片的数据层 → 动作层（判定与两条写电话）→ 页面画法（八条入口、行、确认与结果）。
+  //   排在 vcShellPages 之前，壳的挂载段才看得到 vcWorktreesPageNode；也排在 vcFirstScreen 之后，数据层只问那一份片。
+  { id: 'vcWorktreesData', file: 'src/client/views/versionControl/vcWorktreesData.ts' },
+  { id: 'vcWorktreesOps', file: 'src/client/views/versionControl/vcWorktreesOps.ts' },
+  { id: 'vcWorktreesPage', file: 'src/client/views/versionControl/vcWorktreesPage.ts' },
+  { id: 'vcMigratePage', file: 'src/client/views/versionControl/vcMigratePage.ts' }, // #1759 T23 迁移与备份页正文（九个动作、只读结果、确认卡与任务区；排在页面壳之前，壳要调它）
+  // #1756 T20 克隆向导：填地址与选项 → 预检签票 → 凭票执行（长任务通道）→ 取消后的残留清理入口；由页面壳挂进迁移与备份页。
+  { id: 'vcClonePage', file: 'src/client/views/versionControl/vcClonePage.ts' },
+  // #1757 T21 子模块页三叶，依赖次序固定：数据层（八条入口、批量菜单、读数状态）→ 动作层（预检、确认、写/任务电话、回包落位）→ 页面画法。
+  //   排在 vcShellPages 之前，壳的挂载段才看得到 vcSubmodulesPageNode。
+  { id: 'vcSubmodulesData', file: 'src/client/views/versionControl/vcSubmodulesData.ts' },
+  { id: 'vcSubmodulesOps', file: 'src/client/views/versionControl/vcSubmodulesOps.ts' },
+  { id: 'vcSubmodulesPage', file: 'src/client/views/versionControl/vcSubmodulesPage.ts' },
+  // #1747 冲突向导两叶：动作模型（15 条能力的出入参形状）→ 页面正文（状态、冲突清单、逐块选择、四段确认卡）。
+  //   排在页面壳之前，壳的挂载段才看得到 vcConflictsPageNode。
+  { id: 'vcConflictsOps', file: 'src/client/views/versionControl/vcConflictsOps.ts' },
+  { id: 'vcConflictsPage', file: 'src/client/views/versionControl/vcConflictsPage.ts' },
+  // #1760 配置页与钩子页三叶，依赖次序固定：数据与动作层 → 配置页画法 → 钩子页画法（都排在页面壳之前，壳要调它们）。
+  { id: 'vcConfigOps', file: 'src/client/views/versionControl/vcConfigOps.ts' },
+  { id: 'vcConfigPage', file: 'src/client/views/versionControl/vcConfigPage.ts' },
+  { id: 'vcHooksPage', file: 'src/client/views/versionControl/vcHooksPage.ts' },
+  // #1762 平台段两页：数据层 → 平台页画法 → 迁移页 14.1 导出向导；排在 vcShellPages 之前，壳的挂载段才调得到。
+  { id: 'vcPlatformData', file: 'src/client/views/versionControl/vcPlatformData.ts' },
+  { id: 'vcPlatformPage', file: 'src/client/views/versionControl/vcPlatformPage.ts' },
+  { id: 'vcMigrateExport', file: 'src/client/views/versionControl/vcMigrateExport.ts' },
+  // #1749 变基待办两叶：动作模型（9 条动作的出入参形状、待办行变换）→ 页面正文（状态、待办清单、三块预览、四段确认卡）。
+  //   排在页面壳之前，壳的挂载段才看得到 vcRebasePageNode。
+  { id: 'vcRebaseOps', file: 'src/client/views/versionControl/vcRebaseOps.ts' },
+  { id: 'vcRebasePage', file: 'src/client/views/versionControl/vcRebasePage.ts' },
+  // #1750 T15 维护页整仓重写两叶：动作模型（五张表单的字段、多行文本解析、回包分类）→ 页面正文（filter-branch 只读说明、
+  //   预览计数、四段确认卡、备份与还原、长任务进度与四类结论）。排在页面壳之前，壳的挂载段才看得到 vcRewritePageNode。
+  { id: 'vcRewriteOps', file: 'src/client/views/versionControl/vcRewriteOps.ts' },
+  { id: 'vcRewritePage', file: 'src/client/views/versionControl/vcRewritePage.ts' },
+  // #1758 T22 维护页与诊断页三叶：动作模型（16 条动作、电话参数、回包分类）→ 维护页正文（对象读数、垃圾回收、自动维护、危险区清除）
+  //   → 诊断页正文（完整性检查走长任务通道、不可达对象清单与两个出口）。排在页面壳之前，壳的挂载段才看得到三个页面节点。
+  { id: 'vcMaintenanceData', file: 'src/client/views/versionControl/vcMaintenanceData.ts' },
+  { id: 'vcMaintenancePage', file: 'src/client/views/versionControl/vcMaintenancePage.ts' },
+  { id: 'vcMaintenanceDiag', file: 'src/client/views/versionControl/vcMaintenanceDiag.ts' },
+  { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },
   { id: 'truthLines', file: 'src/client/views/shared/truthLines.ts' }, // #715 新增：面板头部那几句「上次更新 / 刷新失败 / 现在是不是降级」的判据（纯函数，画在 ListTab 最上面那一行；行上的「更新中」标记也问它）
@@ -1850,6 +1971,15 @@ guardBuildLock(buildLock, '构建开始')
     throw new Error('Markdown 格式映射生成失败（format/original-skills.yaml → generated.ts）：' + String((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(0, 3).join(' ／ '))
   }
 }
+{
+  // #1737 T02：版本管理页的能力账本（规格 #1586 第 11 节的 162 条矩阵）由生成器写成共享层源码。
+  // 排在这里的理由与上面四段相同：域构建的第一步是该域的类型检查，账本必须先就位；
+  // 产物带「自动生成」头注释，构建缓存把它排除在输入之外（#1530 的生成物纪律）。
+  const r: any = spawnSync(process.execPath, [resolve(ROOT, 'scripts', 'generate-1586-capability-ledger.mts')], { encoding: 'utf8' })
+  if (r.status !== 0) {
+    throw new Error('版本管理能力账本生成失败（scripts/generate-1586-capability-ledger.mts → capability-ledger.ts）：' + String((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(0, 3).join(' ／ '))
+  }
+}
 for (const domain of findDomains()) {
   buildDomain(domain, { handWritten: HAND_WRITTEN_IN_DOMAINS[domain] || [] })
 }
@@ -1894,6 +2024,8 @@ const CLIENT_TIME_NAMES: string[] = [
   'SYNC_DIRTY_ECHO_TTL_MS',
   'SYNC_POLL_GRID_MS',
   'SYNC_ACTION_PROBE_WINDOW_MS',
+  // #1756：克隆向导页按长任务通道的中央节拍轮询进度（vcClonePage.ts 只声明名字，值由这一片给）。
+  'VC_TASK_POLL_INTERVAL_MS',
   'SNAP_WAIT_MS',
   'VIEW_FLAG_WRITE_DEBOUNCE_MS',
   'REST_FALLBACK_STALE_MS',

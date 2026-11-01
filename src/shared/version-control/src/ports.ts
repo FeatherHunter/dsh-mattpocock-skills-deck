@@ -20,12 +20,16 @@ export interface GitVersion {
   patch: number
 }
 
-/** 端口返回的四种情形（#813 定案 5：成功含截断标志；拿不到截断标志就按可能截断处理）。 */
+/** 端口返回的几种情形（#813 定案 5：成功含截断标志；拿不到截断标志就按可能截断处理）。
+ *  #1741 补 stdin-failed：只有 fast-import 那一个只读文件流窄例外会把输入送进 git，
+ *  送不进去（命令不许配、路径/大小/摘要不符、传输层没有管道、EPIPE）一律显式失败，不能静默忽略；
+ *  ok 上的 stdinBytes 是这次真正送进管道的字节数（没送 stdin 的命令为 0 或不带）。 */
 export type ExecResult =
-  | { kind: 'ok'; stdout: string; truncated: boolean }
+  | { kind: 'ok'; stdout: string; truncated: boolean; stdinBytes?: number }
   | { kind: 'timeout'; timeoutMs: number }
   | { kind: 'spawn-failed'; message: string }
   | { kind: 'non-zero'; exitCode: number; stderr: string }
+  | { kind: 'stdin-failed'; reason: string; message: string; stdinBytes?: number }
 
 /** 首屏一次读全的五个采集项（patch 是按需的第六个，不在首屏内，见 commands.ts）。 */
 export type CollectionKey = 'status' | 'worktrees' | 'refs' | 'log' | 'diffFiles' | 'patch'
@@ -144,8 +148,59 @@ export interface ParseFailure {
   detail: string
 }
 
-/** 写操作四档（暂存不走票据，所以不在这里；更新远方记录是只读远端的网络读，不碰工作树）。 */
-export type WriteOp = 'commit' | 'pull' | 'push' | 'fetch'
+/** 写操作四档（暂存不走票据，所以不在这里；更新远方记录是只读远端的网络读，不碰工作树）。
+ *  #1742 起改动页那 11 条写动作也走同一套票据，所以一并合进本联合类型（见下面的 ChangesWriteOp）。 */
+export type WriteOp = 'commit' | 'pull' | 'push' | 'fetch' | ChangesWriteOp
+
+/**
+ * 改动页（#1742 域 1）的 11 条写动作标识符。
+ * 这些动作与上面四条一样都走票据：预检出一张票，执行前复核票、仓库根、HEAD、索引与这次动作的计划摘要。
+ * 为什么单独列一个联合类型：改动页的 11 条动作各管一件事（暂存一块、删一个未跟踪文件、改 .gitignore），
+ * 但它们共用同一套「票 + 绑定 + 执行」机制，所以合进 WriteOp 联合类型，不另造一套平行机制。
+ */
+export type ChangesWriteOp =
+  | 'stage-hunks'
+  | 'stage-file'
+  | 'stage-all'
+  | 'unstage'
+  | 'discard-file'
+  | 'discard-all'
+  | 'clean-untracked'
+  | 'rm-tracked'
+  | 'rm-cached'
+  | 'mv'
+  | 'ignore'
+
+/** 改动页的 2 条只读动作（看工作区状态、查为什么被忽略）：只读不发票。 */
+export type ChangesReadOp = 'status' | 'explain-ignored'
+
+/** 改动页 13 条能力的动作标识符全集。 */
+export type ChangesOp = ChangesWriteOp | ChangesReadOp
+
+/**
+ * 改动页写动作的计划（#1742）：预检把「这次到底对哪些路径、哪一块补丁、哪几行忽略规则动手」规范化后写进票里，
+ * 执行前再算一遍比对 —— 票据必须绑定到具体块（能力 1.2 的 hunkIndex 数据契约就落在这里）。
+ * 所有字段都是可枚举的普通值，不含函数、不含临时文件路径（临时补丁路径每次执行都不一样，不能进票据）。
+ */
+export interface ChangesPlan {
+  op: ChangesWriteOp
+  /** 这次动作涉及的仓库内相对路径（正斜杠；按动作语义使用）。 */
+  paths: string[]
+  /** 能力 1.2 用：选中第几块（从 0 起）；其余动作为 null。 */
+  hunkIndex: number | null
+  /** 能力 1.2 用：选中那一块补丁文本的摘要；其余动作为 null。 */
+  patchDigest: string | null
+  /** 能力 1.6 / 1.7 用：restore（git 2.23+）还是降级 checkout；其余动作为 null。 */
+  mode: 'restore' | 'checkout' | null
+  /** 能力 1.11 用：移动目标；其余动作为 null。 */
+  to: string | null
+  /** 能力 1.12 用：允许追加进仓库根 .gitignore 的行。 */
+  ignoreLines: string[]
+  /** 能力 1.12 用：动手前 .gitignore 全文的摘要（对不上说明文件被别人改过）。 */
+  ignoreOldDigest: string | null
+  /** 能力 1.8 用：预检列出的「将删除」清单（执行前重跑预演比对）。 */
+  removeList: string[]
+}
 
 /** 预检解析出来的推送目标；localBranch 是 refspec 左边那一段（本地分支）。 */
 export interface WritePlan {
@@ -157,6 +212,38 @@ export interface WritePlan {
   localBranch: string
   /** pull 用：预检时这个分支的上游短名（执行前要重量一次比对，防「预检后改上游/切分支」绕过）。 */
   upstream?: string | null
+}
+
+/**
+ * 写操作的绑定表（#1741）：预检那一刻把「执行前必须还没变的状态」量一遍记进票里，动手前重新量一遍逐格比对。
+ * 两个语义要点：
+ *   1. 只有票里记了值（非 null）的格子才比对——还没接线的动作留 null，别假装绑上了；
+ *   2. 绑定失配沿用既有理由标识符（索引条数 → stale-index，其余 → target-changed），不新增词表项，
+ *      所以客户端那张理由对照表不用改。
+ */
+export interface WritePreconditions {
+  /** 预检定下来的目标（推送计划 / 拉取目标 / 更新远方记录的远端选择）规范化后的摘要。 */
+  planDigest: string | null
+  /** 工作树此刻的形状（暂存与未暂存的路径清单）规范化后的摘要；拉取要它，因为拉取会不会冲突取决于它。 */
+  worktreeDigest: string | null
+  /** 会决定这次写操作往哪去的旧配置原值（branch.<名>.remote 与 branch.<名>.merge），对不上就说明上游被改过。 */
+  configOldValue: string | null
+  /** 远端跟踪引用此刻指向哪一提交；没有（或被删）时留 null。 */
+  remoteOid: string | null
+  /** 本轮四条写命令都不绑定这个格子，字段留给后续 prune/fsck 一类动作；注释写明是为了让「留空」看起来是有意的。 */
+  unreachableDigest: string | null
+  /** 预检时确认不存在的运行中操作标记文件（MERGE_HEAD 等）；执行前这些文件要是冒出来了就拒绝。 */
+  pathAbsent: string[]
+}
+
+export interface WriteCounters {
+  /** 索引条数（ls-files --stage 的 NUL 记录数）：索引里多一条少一条都算状态变过。 */
+  indexEntries: number | null
+}
+
+export interface WriteBindings {
+  preconditions: WritePreconditions
+  counters: WriteCounters
 }
 
 /**
@@ -175,6 +262,11 @@ export interface WriteTicket {
   indexFingerprint: string | null
   indexEntries: number | null
   target: WritePlan | null
+  /** 改动页写动作的计划（#1742）：只在改动页那 11 条写动作的票上出现，其余动作留空。
+   *  客户端拿不到票的原值，它只留在宿主进程内存里，用于执行前复核「还是不是同一块/同一批路径」。 */
+  changes?: ChangesPlan | null
+  /** 绑定表（#1741）：旧票据可能没有这个字段，执行前按「票里记了值才比对」处理，存量票据照样能用。 */
+  bindings?: WriteBindings
 }
 
 export const PORTS_SOURCE = 'src/shared/version-control/src/ports.ts'

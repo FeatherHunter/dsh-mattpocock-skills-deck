@@ -81,11 +81,37 @@ const REFERENCES: RefRow[] = [
   { file: 'src/host/versionControlCheck.ts', access: 'CHECK_CALL_BUDGET_MS', gen: 'VC_CHECK_CALL_BUDGET_MS', key: 'vcCheckCallBudgetMs' },
   { file: 'src/host/versionControlCheck.ts', access: 'LSFILES_TIMEOUT_MS', gen: 'VC_LSFILES_TIMEOUT_MS', key: 'vcLsFilesTimeoutMs' },
   { file: 'src/host/versionControlCheck.ts', access: 'REMOTE_TIMEOUT_MS', gen: 'VC_REMOTE_TIMEOUT_MS', key: 'vcRemoteTimeoutMs' },
+  // #1754 T18 远端与同步页：用户显式点「联网查看」时 git ls-remote 的超时（真走网络，与本地 remote -v 那一档分开）。
+  { file: 'src/host/versionControlRemote.ts', access: 'ONLINE_TIMEOUT_MS', gen: 'VC_REMOTE_ONLINE_TIMEOUT_MS', key: 'vcRemoteOnlineTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'ADD_TIMEOUT_MS', gen: 'VC_ADD_TIMEOUT_MS', key: 'vcAddTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'COMMIT_TIMEOUT_MS', gen: 'VC_COMMIT_TIMEOUT_MS', key: 'vcCommitTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'PULL_TIMEOUT_MS', gen: 'VC_PULL_TIMEOUT_MS', key: 'vcPullTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'PUSH_TIMEOUT_MS', gen: 'VC_PUSH_TIMEOUT_MS', key: 'vcPushTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'FETCH_TIMEOUT_MS', gen: 'VC_FETCH_TIMEOUT_MS', key: 'vcFetchTimeoutMs' },
+  // #1742 改动页：预检与只读命令、凭票写命令各一个时限键，叶子直接导入生成常量，不再由装配方传数字。
+  { file: 'src/host/versionControlChanges.ts', access: 'VC_CHANGES_READ_TIMEOUT_MS', gen: 'VC_CHANGES_READ_TIMEOUT_MS', key: 'vcChangesReadTimeoutMs' },
+  { file: 'src/host/versionControlChanges.ts', access: 'VC_CHANGES_WRITE_TIMEOUT_MS', gen: 'VC_CHANGES_WRITE_TIMEOUT_MS', key: 'vcChangesWriteTimeoutMs' },
+  // #1760 配置与钩子页：读取叶子导入预检只读超时，执行叶子导入配置写与手动跑钩子两档超时。
+  { file: 'src/host/versionControlConfig.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_CONFIG_READ_TIMEOUT_MS', key: 'vcConfigReadTimeoutMs' },
+  { file: 'src/host/versionControlConfigWrite.ts', access: 'WRITE_TIMEOUT_MS', gen: 'VC_CONFIG_WRITE_TIMEOUT_MS', key: 'vcConfigWriteTimeoutMs' },
+  { file: 'src/host/versionControlConfigWrite.ts', access: 'HOOK_TIMEOUT_MS', gen: 'VC_HOOK_RUN_TIMEOUT_MS', key: 'vcHookRunTimeoutMs' },
+  // #1757 T21 子模块域：预检只读与凭票执行各一档（叶子直接导入生成常量，别名只改名不改值）。
+  { file: 'src/host/versionControlSubmodulesCheck.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_SUBMODULE_READ_TIMEOUT_MS', key: 'vcSubmoduleReadTimeoutMs' },
+  { file: 'src/host/versionControlSubmodulesWrite.ts', access: 'WRITE_TIMEOUT_MS', gen: 'VC_SUBMODULE_WRITE_TIMEOUT_MS', key: 'vcSubmoduleWriteTimeoutMs' },
+  // #1761 诊断页与替换对象：只读查询与预检读同一条时限，凭票执行读另一条；三条都 direct import 生成常量（别名）。
+  { file: 'src/host/versionControlDiagnosticsRead.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_DIAGNOSTICS_READ_TIMEOUT_MS', key: 'vcDiagnosticsReadTimeoutMs' },
+  { file: 'src/host/versionControlDiagnosticsCheck.ts', access: 'READ_TIMEOUT_MS', gen: 'VC_DIAGNOSTICS_READ_TIMEOUT_MS', key: 'vcDiagnosticsReadTimeoutMs' },
+  { file: 'src/host/versionControlDiagnosticsWrite.ts', access: 'WRITE_TIMEOUT_MS', gen: 'VC_DIAGNOSTICS_WRITE_TIMEOUT_MS', key: 'vcDiagnosticsWriteTimeoutMs' },
+  { file: 'src/host/versionControlConflictScene.ts', access: 'VC_CONFLICT_READ_TIMEOUT_MS', gen: 'VC_CONFLICT_READ_TIMEOUT_MS', key: 'vcConflictReadTimeoutMs' },
+  { file: 'src/host/versionControlConflictWrite.ts', access: 'VC_CONFLICT_WRITE_TIMEOUT_MS', gen: 'VC_CONFLICT_WRITE_TIMEOUT_MS', key: 'vcConflictWriteTimeoutMs' },
+  { file: 'src/host/versionControlRebaseScene.ts', access: 'VC_REBASE_READ_TIMEOUT_MS', gen: 'VC_REBASE_READ_TIMEOUT_MS', key: 'vcRebaseReadTimeoutMs' },
+  { file: 'src/host/versionControlRebaseWrite.ts', access: 'VC_REBASE_WRITE_TIMEOUT_MS', gen: 'VC_REBASE_WRITE_TIMEOUT_MS', key: 'vcRebaseWriteTimeoutMs' },
+  // #1750 维护页整仓重写两片叶子各自直接导入的时间常量。
+  { file: 'src/host/versionControlRewriteScene.ts', access: 'VC_REWRITE_READ_TIMEOUT_MS', gen: 'VC_REWRITE_READ_TIMEOUT_MS', key: 'vcRewriteReadTimeoutMs' },
+  { file: 'src/host/versionControlRewriteWrite.ts', access: 'VC_REWRITE_WRITE_TIMEOUT_MS', gen: 'VC_REWRITE_WRITE_TIMEOUT_MS', key: 'vcRewriteWriteTimeoutMs' },
+  // #1758 维护页两片叶子各自直接导入的时间常量。
+  { file: 'src/host/versionControlMaintenanceRead.ts', access: 'VC_MAINTENANCE_READ_TIMEOUT_MS', gen: 'VC_MAINTENANCE_READ_TIMEOUT_MS', key: 'vcMaintenanceReadTimeoutMs' },
+  { file: 'src/host/versionControlMaintenanceWrite.ts', access: 'VC_MAINTENANCE_WRITE_TIMEOUT_MS', gen: 'VC_MAINTENANCE_WRITE_TIMEOUT_MS', key: 'vcMaintenanceWriteTimeoutMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'CALL_BUDGET_MS', gen: 'GIT_CREDENTIAL_CALL_BUDGET_MS', key: 'gitCredentialCallBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MIN_BUDGET_MS', gen: 'GIT_CREDENTIAL_MIN_BUDGET_MS', key: 'gitCredentialMinBudgetMs' },
   { file: 'src/refresh/rooms/host/gh-execution.ts', access: 'MAX_BUDGET_MS', gen: 'GIT_CREDENTIAL_MAX_BUDGET_MS', key: 'gitCredentialMaxBudgetMs' },
@@ -168,6 +194,10 @@ const REFERENCES: RefRow[] = [
   { file: 'src/refresh/kernel/host-budget.ts', access: 'FALLBACK_CALIBRATION_INTERVAL_MS', gen: 'FALLBACK_CALIBRATION_INTERVAL_MS', key: 'fallbackCalibrationIntervalMs' },
   { file: 'src/refresh/contract/tuning-parameters.ts', access: 'TUNING.deckEnsureTimeoutMs', gen: 'DECK_ENSURE_TIMEOUT_MS', key: 'deckEnsureMs' },
   { file: 'src/shared/version-control/src/write-ticket.ts', access: 'TICKET_TTL_MS', gen: 'TICKET_TTL_MS', key: 'ticketTtlMs' },
+  // —— #1740 长任务通道（规格 #1586 T05）：查询节奏与软取消宽限、强杀等待都住 timeouts.yaml ——
+  { file: 'src/host/versionControlTask.ts', access: 'VC_TASK_POLL_INTERVAL_MS', gen: 'VC_TASK_POLL_INTERVAL_MS', key: 'vcTaskPollIntervalMs' },
+  { file: 'src/host/versionControlTaskRun.ts', access: 'VC_TASK_CANCEL_GRACE_MS', gen: 'VC_TASK_CANCEL_GRACE_MS', key: 'vcTaskCancelGraceMs' },
+  { file: 'src/host/versionControlTaskRun.ts', access: 'VC_TASK_HARD_KILL_MS', gen: 'VC_TASK_HARD_KILL_MS', key: 'vcTaskHardKillGraceMs' },
   { file: 'src/refresh/kernel/index-window-rules.ts', access: 'MAX_WINDOW_MS', gen: 'TRACKER_INDEX_MAX_WINDOW_MS', key: 'trackerIndexMaxWindowMs' },
   { file: 'src/refresh/kernel/index-window-rules.ts', access: 'SKEW_MS', gen: 'TRACKER_INDEX_SKEW_MS', key: 'trackerIndexSkewMs' },
   { file: 'src/shared/tracker/sync.ts', access: 'SYNC.EVAL_GAP_MS', gen: 'SYNC_EVAL_GAP_MS', key: 'syncEvalGapMs' },
@@ -282,6 +312,8 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/client/views/primitives/Tip.ts', name: 'TIP_SHOW_DELAY_MS', key: 'tipShowDelayMs' },
   { file: 'src/client/views/primitives/Tip.ts', name: 'TIP_HIDE_DELAY_MS', key: 'tipHideDelayMs' },
   { file: 'src/client/views/versionControl/vcText.ts', name: 'VC_RELATIVE_WINDOW_MS', key: 'vcRelativeWindowMs' },
+  // #1756：克隆向导页按长任务通道的中央节拍轮询进度（源码里只声明名字，值由这一片给）。
+  { file: 'src/client/views/versionControl/vcClonePage.ts', name: 'VC_TASK_POLL_INTERVAL_MS', key: 'vcTaskPollIntervalMs' },
   { file: 'src/client/kernel/api-io.ts', name: 'DRAFT_REFOCUS_RETRY_MS', key: 'draftRefocusRetryMs' },
   // 「下一步建议」读自己那份工作路线的两档重试等待（work-route-own.ts）：数组常量同样由拼接片段提供。
   { file: 'src/client/kernel/work-route-own.ts', name: 'OWN_ROUTE_RETRY_MS', key: 'ownRouteRetryMs' },
@@ -408,6 +440,25 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/check-chain-evaluation.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
   { file: 'src/refresh/rooms/host/check-chain-evaluation.ts', name: 'waitMs', reason: '透传 backoff 的 verdict 结论，不是输入参数' },
   { file: 'src/host/platformChannel.ts', name: 'timeoutMs', reason: '透传变量，接注入的 TIMEOUT_MS（调用方按已登记的 stepWaitMs 装进来）' },
+  // #1751 贮藏页执行层：时限与读钟都由父文件按已登记参数注入，叶子不写数字。
+  { file: 'src/host/versionControlStash.ts', name: 'timeoutMs', reason: '注入参数，接父文件 TIMEOUT_MS（即 stepWaitMs，已登记），叶子不自留时限' },
+  { file: 'src/host/versionControlStash.ts', name: 'nowMs', reason: '读钟口（测试注入假钟，生产走 Date.now），不是可调时长' },
+  { file: 'src/host/versionControlStashTicket.ts', name: 'timeoutMs', reason: '注入参数，接父文件 TIMEOUT_MS（即 stepWaitMs，已登记）；票据层只把时限递给读现场那一步，不自留数字' },
+  // #1748 历史改写执行层：只读与写两档超时由装配壳按已登记参数注入，恢复点里的时刻由调用方给（本文件不读钟）。
+  { file: 'src/host/versionControlUndoCheck.ts', name: 'readTimeoutMs', reason: '注入字段，接的是 VC_UNDO_READ_TIMEOUT_MS（已登记），不是新参数' },
+  { file: 'src/host/versionControlUndoWrite.ts', name: 'writeTimeoutMs', reason: '注入字段，接的是 VC_UNDO_WRITE_TIMEOUT_MS（已登记），不是新参数' },
+  { file: 'src/shared/version-control/src/recovery-point.ts', name: 'atMs', reason: '恢复点里的时刻，由调用方（宿主时钟）给，本文件不读钟，不是可调参数' },
+  // #1750 维护页整仓重写：备份要记录实际耗时（由调用方用起止时刻相减算出），不是可配时长旋钮。
+  { file: 'src/shared/version-control/src/recovery-point.ts', name: 'elapsedMs', reason: '备份实际耗时字段，调用方用起止时刻算，不是可配时长' },
+  { file: 'src/shared/version-control/src/rewrite-ops.ts', name: 'nowMs', reason: '备份路径时间戳用的当前时刻，由调用方传入，本文件不读钟' },
+  // #1758：维护页三处读数与备份跑器里的时间名，都不是新的可调参数。
+  { file: 'src/host/versionControlBackup.ts', name: 'writeTimeoutMs', reason: '函数内局部变量，接的是注入的 writeTimeoutMs 或 VC_MAINTENANCE_WRITE_TIMEOUT_MS（已登记）' },
+  { file: 'src/host/versionControlBackup.ts', name: 'elapsedMs', reason: '备份实际耗时字段，由起止时刻算出来，不是可配时长' },
+  { file: 'src/host/versionControlMaintenanceRead.ts', name: 'mtimeMs', reason: '松散对象文件的修改时刻（fs.stat 读回来的值），不是可调参数' },
+  { file: 'src/host/versionControlRewriteWrite.ts', name: 'elapsedMs', reason: '备份实际耗时（起止时刻相减的派生值），不是可配时长；备份单条命令的超时另有 vcRewriteWriteTimeoutMs' },
+  // #1762 平台段执行层：读钟口由装配壳注入（生产走 Date.now），叶子不写数字。
+  { file: 'src/host/versionControlPlatform.ts', name: 'nowMs', reason: '读钟口（测试注入假钟，生产走 Date.now），不是可调时长' },
+  { file: 'src/host/versionControlPlatformRead.ts', name: 'nowMs', reason: '读钟口（测试注入假钟，生产走 Date.now），不是可调时长' },
   { file: 'src/refresh/rooms/host/chain-coalescing.ts', name: 'nowMs', reason: '测试注钟口（生产用 Date.now），不是可调参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'lingerMs', reason: '注入字段的本地接住（上游是 ACTIVE_LINGER_MS），不是新参数' },
   { file: 'src/refresh/kernel/attention-model.ts', name: 'expiryMs', reason: '注入字段的本地接住（上游是 ATTENTION_EXPIRY_MS），不是新参数' },
@@ -470,6 +521,14 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/chain-backoff.ts', name: 'waitMs', reason: '算出来的等待结果（退避结论的输出），不是输入参数' },
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'scanStartedMs', reason: '读钟时刻（这趟核对什么时候开始的），不是可调参数' },
   { file: 'src/refresh/rooms/host/row-patch.ts', name: 'sinceMs', reason: '算出来的起点时刻（上次水位减容差），不是可调参数' },
+  { file: 'src/host/versionControlFirstScreen.ts', name: 'readAtMs', reason: '读钟时刻（这一趟首屏聚合读取是什么时候开始的），不是可调参数' },
+  { file: 'src/host/versionControlSyncCheck.ts', name: 'readAtMs', reason: '读钟时刻（这一趟同步预检是什么时候读的现场），不是可调参数' },
+  // #1756：克隆预检与执行的回包都带自己那一刻的读钟时刻，用来和票据过期对上，不是可调参数。
+  { file: 'src/host/versionControlClone.ts', name: 'readAtMs', reason: '读钟时刻（这一趟克隆预检是什么时候读的现场），不是可调参数' },
+  { file: 'src/host/versionControlClone.ts', name: 'atMs', reason: '读钟时刻（这次克隆执行是什么时候起手的），不是可调参数' },
+  // #1759：迁移与备份的预检与执行也各自带注入的时钟，用来判票据过期与记回包时刻。
+  { file: 'src/host/versionControlMigrateCheck.ts', name: 'nowMs', reason: '读钟函数（宿主注入的时钟，预检签票与回包读钟时刻都从它取），不是可调参数' },
+  { file: 'src/host/versionControlMigrateWrite.ts', name: 'nowMs', reason: '读钟函数（宿主注入的时钟，凭票执行时判票据过期并记回包时刻），不是可调参数' },
   { file: 'src/refresh/rooms/host/probe-handler.ts', name: 'nowMs', reason: '读钟时刻（Date.now），降级探测与校准的窗口判定用，不是可调参数' },
   { file: 'src/host/skillProbeCache.ts', name: 'ttlMs', reason: '透传参数，缺省接 SKILL_PROBE_CACHE_MS（已登记）' },
   { file: 'src/host/skillProbe.ts', name: 'SKILL_CACHE_TTL_MS', reason: '函数内局部变量：接线给了正数就听接线的，没给时取中央常量 SKILL_LIST_CACHE_TTL_MS（已登记为 skillListCacheTtlMs）' },
@@ -477,6 +536,17 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/tracker/snapshot.ts', name: 'depsTtl', reason: '同上' },
   { file: 'src/host/versionControl.ts', name: 'timeoutMs', reason: '透传参数，缺省接本文件已登记的 RUN_TIMEOUT_MS' },
   { file: 'src/host/versionControl.ts', name: 'graceMs', reason: '透传参数，缺省接 PROC_GRACE_MS（已登记为 procGraceMs）' },
+  { file: 'src/host/versionControlStash.ts', name: 'timeoutMs', reason: '透传参数，缺省 30000 只为直接调用兜底；装配层注入的 deps.timeoutMs 来自父文件已登记的 RUN_TIMEOUT_MS' },
+  { file: 'src/host/versionControlStash.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
+  { file: 'src/host/versionControlStashTicket.ts', name: 'timeoutMs', reason: '透传参数，缺省接装配层注入的 deps.timeoutMs（父文件已登记 RUN_TIMEOUT_MS），不是本文件新增的可调时长' },
+  // #1743 提交页八条能力：两条新电话里的时间名字都是透传或读钟，不是本票新增的可调时长，沿用上面几行的口径。
+  { file: 'src/host/versionControlCommitForm.ts', name: 'timeoutMs', reason: '透传参数，缺省 20000 只为直接调用兜底；装配层注入的 deps.timeoutMs 来自父文件已登记的 RUN_TIMEOUT_MS' },
+  { file: 'src/client/views/versionControl/vcCommitOps.ts', name: 'nowMs', reason: '读钟时刻（Date.now），用来给 requestId 拼时间片，不是可调参数' },
+  // #1760 配置与钩子页域 12：读钟字段与中途选出来的时限变量，都不是本票新增的可调时长。
+  { file: 'src/client/views/versionControl/vcConfigOps.ts', name: 'readAtMs', reason: '读钟时刻（读数是什么时候回来的），照首屏同名字段的口径，不是可调参数' },
+  { file: 'src/host/versionControlConfigWrite.ts', name: 'timeoutMs', reason: '按动作二选一：手动跑钩子取已登记的 HOOK_TIMEOUT_MS，其余写动作取已登记的 WRITE_TIMEOUT_MS，本文件不自留数字' },
+  // #1757 子模块页：票据回包里读到的过期时刻只用来判断票是否已过期，不是本票新增的可调时长。
+  { file: 'src/client/views/versionControl/vcSubmodulesOps.ts', name: 'expiresAtMs', reason: '票据回包里读到的过期时刻，只用来判断这张票是否已过期，不是本文件新增的可调时长' },
   { file: 'src/refresh/kernel/index-window-rules.ts', name: 'sinceMs', reason: '算出来的起点时刻（水位减容差），不是可调参数' },
   // —— 派生变量：正常路径取 SYNC 契约里的同名项（已登记），兜底取拼进闭包的中央常量 ——
   { file: 'src/refresh/rooms/client/refresh-timer.ts', name: 'PROBE_MS', reason: '派生变量，取 SYNC.FALLBACK_PROBE_MS（已登记为 syncFallbackProbeMs），兜底取拼进闭包的 SYNC_FALLBACK_PROBE_MS；引用即跟随' },

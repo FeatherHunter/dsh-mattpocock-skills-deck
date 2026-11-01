@@ -232,7 +232,30 @@ async function main() {
     // #1436 加了一条只读电话 wf.workRoute（胶囊首帧读本机 work-path 存档），59 → 60。
     // #1191 加了一条契约操作电话 wf.contractOp（客户端 contract-op 按当前后端分发），60 → 61。
     // #1697 加了一条只读电话 wf.notifications（通知中心读宿主事件库历史），61 → 62。
-    check(nPhones === 62, '宿主电话六十二条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1740 加了一族长任务电话 wf.gitTaskStart / wf.gitTaskQuery / wf.gitTaskCancel（开始、查询、取消），62 → 65。
+    // #1742 加了改动页两条电话 wf.gitChangesCheck / wf.gitChangesWrite（预检与执行），65 → 67。
+    // #1739 的首屏电话 wf.gitFirstScreen 当年只实现、没在入口注册，#1746 收口时补注册（漏接线的缺陷，同时补了门禁断言），67 → 68。
+    // #1746（T11 返工）加了分支与标签域三条电话 wf.gitBranches / wf.gitBranchCheck / wf.gitBranchWrite（读一次取全、预检签 120 秒票、凭票执行），68 → 71。
+    // #1751 加了贮藏页两条电话 wf.gitStashCheck / wf.gitStash（写动作预检签票与凭票执行），71 → 73。
+    // #1752 加了工作树页两条电话 wf.gitWorktreeCheck / wf.gitWorktreeRun（预检与执行），73 → 75。
+    // #1754 加了远端与同步页六条电话 wf.gitRemoteList / wf.gitRemoteAdd / wf.gitRemoteRename / wf.gitRemoteRemove / wf.gitRemoteSetUrl / wf.gitRemoteOnline（读列表 + 四条写动作 + 显式联网查看），75 → 81。
+    // #1745 加了历史高级查询一条电话 wf.gitHistoryQuery（十条查询共用一个只读电话），81 → 82。
+    // #1743 加了提交页一条只读电话 wf.gitCommitForm（读身份、签名配置、提交说明模板与上一条提交原文），82 → 83。
+    // #1757（T21）加了子模块页四条电话 wf.gitSubmodules / wf.gitSubmoduleCheck / wf.gitSubmoduleWrite / wf.gitSubmoduleTask
+    //   （读数、预检签票、凭票执行五个写动作、把五个长任务动作转交 T05 通道），88 → 92。
+    // #1755 加了同步域两条电话 wf.gitSyncCheck / wf.gitSyncWrite（10 条动作共用的预检签票与凭票执行），83 → 85。
+    // #1747 加了冲突向导三条电话 wf.gitConflicts / wf.gitConflictCheck / wf.gitConflictWrite（只读一取全、预检签票、凭票执行），85 → 88。
+    // #1756 加了克隆向导两条电话 wf.gitCloneCheck / wf.gitCloneWrite（预检签票与凭票执行），88 → 90。
+    // #1748 加了变基待办页两条电话 wf.gitUndoCheck / wf.gitUndoWrite（历史改写五条动作的预检签票与凭票执行），90 → 92。
+    // #1757（T21）加了子模块页四条电话 wf.gitSubmodules / wf.gitSubmoduleCheck / wf.gitSubmoduleWrite / wf.gitSubmoduleTask（读数、预检签票、凭票执行五个写动作、把五个长任务动作转交 T05 通道），92 → 96。
+    // #1749（T14）又加了变基待办页三条电话 wf.gitRebaseRead / wf.gitRebaseCheck / wf.gitRebaseWrite（只读一取全、预检签票、凭票执行），96 → 99。
+    // #1759（T23）又加了迁移与备份域两条电话 wf.gitMigrateCheck / wf.gitMigrateWrite（预检签票与凭票执行），99 → 101。
+    // #1760（T24）加了配置与钩子页三条电话 wf.gitConfigRead / wf.gitConfigCheck / wf.gitConfigWrite（读配置、预检签 120 秒票、凭票执行），101 → 104。
+    // #1761（T25）加了诊断页三条电话 wf.gitDiagnosticsRead / wf.gitDiagnosticsCheck / wf.gitDiagnosticsWrite（只读查询、预检签 120 秒票、凭票执行），104 → 107。
+    // #1750（T15）又加了维护页整仓重写三条电话 wf.gitRewritePreview / wf.gitRewriteCheck / wf.gitRewriteRun（只读预览、预检签票、备份后凭票执行），107 → 110。
+    // #1762 加了平台段五条电话 wf.gitPlatformCheck / wf.gitPlatformRun / wf.gitPlatformRead / wf.gitRequestPull / wf.gitPatchFiles
+    // #1758（T22）又加了维护页三条电话 wf.gitMaintenanceRead / wf.gitMaintenanceCheck / wf.gitMaintenanceWrite（只读一取全、预检签票、凭票执行），115 → 118。
+    check(nPhones === 118, '宿主电话一百一十八条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——

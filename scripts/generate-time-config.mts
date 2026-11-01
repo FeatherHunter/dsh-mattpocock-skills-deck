@@ -107,6 +107,48 @@ const KEYS: Array<[string, string, string]> = [
   ['vcRemoteListCallBudgetMs', 'VC_REMOTE_LIST_CALL_BUDGET_MS', 'timeouts'],
   ['vcPrePushCheckCallBudgetMs', 'VC_PRE_PUSH_CHECK_CALL_BUDGET_MS', 'timeouts'],
   ['vcWriteCallMarginMs', 'VC_WRITE_CALL_MARGIN_MS', 'timeouts'],
+  // #1752 工作树八条：单条写命令的超时（本地操作，不跟远端协商）。
+  ['vcWorktreeOpTimeoutMs', 'VC_WORKTREE_OP_TIMEOUT_MS', 'timeouts'],
+  // #1754 T18 远端与同步页：用户显式点「联网查看」时 git ls-remote 的超时（真走网络，与本地那档分开）。
+  ['vcRemoteOnlineTimeoutMs', 'VC_REMOTE_ONLINE_TIMEOUT_MS', 'timeouts'],
+  // #1740 长任务通道：进度轮询节奏、软取消宽限、强杀后等待。
+  ['vcTaskPollIntervalMs', 'VC_TASK_POLL_INTERVAL_MS', 'timeouts'],
+  ['vcTaskCancelGraceMs', 'VC_TASK_CANCEL_GRACE_MS', 'timeouts'],
+  ['vcTaskHardKillGraceMs', 'VC_TASK_HARD_KILL_MS', 'timeouts'],
+  // #1742 改动页：预检只读命令与写命令各自的单条超时。
+  ['vcChangesReadTimeoutMs', 'VC_CHANGES_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcChangesWriteTimeoutMs', 'VC_CHANGES_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1746 分支与标签域：预检只读与凭票执行各一档，都是本地动作。
+  ['vcBranchReadTimeoutMs', 'VC_BRANCH_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcBranchWriteTimeoutMs', 'VC_BRANCH_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1760 配置与钩子域：预检只读、配置写、手动跑钩子（钩子可能跑分钟级）各一档。
+  ['vcConfigReadTimeoutMs', 'VC_CONFIG_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcConfigWriteTimeoutMs', 'VC_CONFIG_WRITE_TIMEOUT_MS', 'timeouts'],
+  ['vcHookRunTimeoutMs', 'VC_HOOK_RUN_TIMEOUT_MS', 'timeouts'],
+  // #1761 诊断页与替换对象：预检只读与凭票执行各一档，都是本地动作。
+  ['vcDiagnosticsReadTimeoutMs', 'VC_DIAGNOSTICS_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcDiagnosticsWriteTimeoutMs', 'VC_DIAGNOSTICS_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1756 T20 克隆向导：预检只读与清理各一档；克隆本体走长任务通道，不在这里给超时。
+  ['vcCloneReadTimeoutMs', 'VC_CLONE_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcCloneWriteTimeoutMs', 'VC_CLONE_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1748 撤销、重置与拣选：预检只读与凭票执行各一档，都是本地动作。
+  ['vcUndoReadTimeoutMs', 'VC_UNDO_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcUndoWriteTimeoutMs', 'VC_UNDO_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1757 T21 子模块域：预检只读与凭票执行各一档，都是本地动作。
+  ['vcSubmoduleReadTimeoutMs', 'VC_SUBMODULE_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcSubmoduleWriteTimeoutMs', 'VC_SUBMODULE_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1747 冲突向导：预检只读与凭票执行各一档，都是本地动作。
+  ['vcConflictReadTimeoutMs', 'VC_CONFLICT_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcConflictWriteTimeoutMs', 'VC_CONFLICT_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1749 变基待办页：预检只读与变基执行各一档。
+  ['vcRebaseReadTimeoutMs', 'VC_REBASE_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcRebaseWriteTimeoutMs', 'VC_REBASE_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1750 维护页整仓重写：预检只读与前置整仓备份两条命令超时。
+  ['vcRewriteReadTimeoutMs', 'VC_REWRITE_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcRewriteWriteTimeoutMs', 'VC_REWRITE_WRITE_TIMEOUT_MS', 'timeouts'],
+  // #1758 维护页：读数与维护动作各一档（维护动作那一档要盖住整仓备份）。
+  ['vcMaintenanceReadTimeoutMs', 'VC_MAINTENANCE_READ_TIMEOUT_MS', 'timeouts'],
+  ['vcMaintenanceWriteTimeoutMs', 'VC_MAINTENANCE_WRITE_TIMEOUT_MS', 'timeouts'],
   ['gitCredentialCallBudgetMs', 'GIT_CREDENTIAL_CALL_BUDGET_MS', 'timeouts'],
   ['gitCredentialMinBudgetMs', 'GIT_CREDENTIAL_MIN_BUDGET_MS', 'timeouts'],
   ['gitCredentialMaxBudgetMs', 'GIT_CREDENTIAL_MAX_BUDGET_MS', 'timeouts'],

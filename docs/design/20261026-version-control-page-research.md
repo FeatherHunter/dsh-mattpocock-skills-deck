@@ -51,7 +51,7 @@
 一条电话 `wf.gitStatus` 拿全首屏，宿主 `readScreen` 串起下面这些命令（`src/host/versionControl.ts:242-306`）：
 
 1. 第 0 步判仓库：`rev-parse --absolute-git-dir --is-inside-work-tree --is-bare-repository`（`src/shared/version-control/src/commands.ts:52-54`；调用 `src/host/versionControl.ts:165`），再 `rev-parse --show-toplevel` 拿仓库根（`versionControl.ts:171`）。
-2. 版本下限：`git --version` + `tierFor(parseVersion(...))`，低于 2.11 直接回 `unsupported`（`versionControl.ts:245-250`）。
+2. 版本下限：`git --version` + `capabilityTierFor(parseVersion(...))`，低于 2.11 直接回 `unsupported`（`versionControl.ts:245-250`）。
 3. 状态：`status --porcelain=v2 --branch -z --untracked-files=all --find-renames`（`commands.ts:73`；调用 `versionControl.ts:263`）。超前/落后取自 `# branch.ab`，上游缺失形态取自 `# branch.upstream`，游离头取自 `# branch.head`（ADR 表见 `docs/adr/20261002-version-control-readonly-no-network.md:32-38`）。
 4. 「远端信息更新于」（依据时间）：`git reflog show --date=iso-strict --format=%gD -1 <upstream>` 取末条时间；取不到退**这个上游自己的**松散引用文件 `refs/remotes/<upstream>` 的落盘时间；两条都不通回 `null`（`src/host/versionControlBasis.ts:69-77`、`:51-66`）。**不许**拿 `packed-refs` 的 mtime 顶替（`versionControlBasis.ts:47-50`；ADR `docs/adr/20261002-version-control-readonly-no-network.md:21`）。
 5. `readAtMs` 由宿主在组装完成时写一个 `Date.now()`（`versionControl.ts:305`），即「读取于」。

@@ -59,6 +59,7 @@ const PRODUCERS: Producer[] = [
   { script: 'scripts/generate-prompt-config.mts', files: ['src/client/kernel/prompt-data.ts'] },
   { script: 'scripts/generate-locale-config.mts', files: ['src/client/kernel/locale-data.ts'] },
   { script: 'scripts/generate-md-format-config.mts', files: ['src/tracker/rooms/markdown/format/generated.ts'] },
+  { script: 'scripts/generate-1586-capability-ledger.mts', files: ['src/shared/version-control/src/capability-ledger.ts'] },
 ]
 const GENERATED_FILES: string[] = PRODUCERS.flatMap((p: Producer) => p.files)
 

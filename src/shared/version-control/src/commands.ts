@@ -5,7 +5,8 @@
  * 核心既拼命令又解析，宿主只起进程。核心不知道只读和写的区别。
  * 写命令的参数口径不在这一批，但读写同表，将来加行即可。
  *
- * 固定前缀挡掉用户改过的全局配置（调研第六节）：--no-optional-locks（后台不抢锁）、
+ * 固定前缀挡掉用户改过的全局配置（调研第六节）：--no-pager（#1741：不调分页器，管道收输出不会挂住）、
+ * --no-optional-locks（后台不抢锁）、
  * core.quotepath=false（双保险，主力是 -z）、color.ui=false（管道下本已无色）、
  * i18n.logOutputEncoding=UTF-8（提交标题中文不乱码）。status.relativePaths 不在此——
  * 全量命令带 -z，-z 输出恒为仓库根相对（调研 7.1）。
@@ -29,8 +30,26 @@ export const RUNNING_MARKER_PATHS: string[] = [
   'rebase-apply',
 ]
 
+/** 必失败编辑器：GIT_EDITOR 一律指向它。
+ *  规格第 7 节：交互变基待办、分支说明、合并说明这三处要由面板写文件；万一面板没覆盖成功，
+ *  绝不能弹出编辑器把命令挂在那里等人，而要让 git 当场以非零退出失败。`false` 在 git 起编辑器
+ *  所经的 sh 里是内建命令，必定立刻返回非零；它不读文件、不写文件，选它是因为「必定失败」这件事本身可断言。 */
+export const FAILING_EDITOR: string = 'false'
+
+/** 非交互执行 git 时固定注入的环境：编辑器指向必失败命令，终端提示与 askpass 一并关死。
+ *  规格第 7 节：分支说明、合并说明、交互变基待办这三处由面板写文件，命令绝不能停下来等人输入。
+ *  为什么放在共享层：宿主层已经有别的执行点（gh-execution.ts）写了一份终端提示开关，
+ *  宿主层再定义第二次会被 tests/verify-prompts.ts 的「同名声明重复」判红；这里让
+ *  「终端提示必须关死」只有一处定义，两个执行点都从这一个函数取。 */
+export function nonInteractiveGitEnv(): any {
+  return { GIT_EDITOR: FAILING_EDITOR, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: FAILING_EDITOR }
+}
+
 export function fixedPrefix(): string[] {
   return [
+    // 不许调用分页器：宿主用管道收输出，一旦 git 认为该分页（用户配了 core.pager 或全局 -p），
+    // 管道这一头就不会有进程去翻页，命令会挂在等输入上直到超时。--no-pager 是全局选项，放最前面。
+    '--no-pager',
     '--no-optional-locks',
     // 路径参数一律按字面量解释，不许当通配（#819 复审 P0-1 真机复现）：默认口径下 `方括号[1].txt`
     // 会把 `[1]` 当字符组、连 `方括号1.txt` 一起匹配，补丁里就混进没被点名那个文件的内容。
@@ -46,6 +65,23 @@ export function fixedPrefix(): string[] {
     '-c', 'color.ui=false',
     '-c', 'i18n.logOutputEncoding=UTF-8',
   ]
+}
+
+/** 从完整 argv 里找出子命令：跳过 `-C <目录>`、`-c <键值>` 这类「选项后面还带一个值」的全局选项。
+ *  为什么需要它：日志要记命令名（规格第 8 节字段白名单），而 argv 前面是钉死目录与固定前缀，
+ *  测试里的扁平切片也常被全局选项错位；把「哪一项才是子命令」的判断收成一处纯函数，读日志与门禁共用。
+ *  没有子命令时回空串（例如只给了 -C，命令本身不成立），调用方据此给空值，不猜。 */
+const GLOBAL_OPTIONS_WITH_VALUE: string[] = ['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path', '--config-env']
+
+export function subcommandOf(args: string[]): string {
+  const list: string[] = Array.isArray(args) ? args : []
+  for (let i: number = 0; i < list.length; i++) {
+    const item: string = list[i]
+    if (item === '--') return ''
+    if (typeof item === 'string' && item.charAt(0) === '-') { if (GLOBAL_OPTIONS_WITH_VALUE.indexOf(item) >= 0) i++ ; continue }
+    return item
+  }
+  return ''
 }
 
 /** 第 0 步：确认是不是仓库（不进采集清单；失败直接返回，不白起后续进程）。 */
@@ -164,5 +200,201 @@ export function checkRefArgs(branch: string): string[] {
 export function autocrlfArgs(): string[] {
   return ['config', '--get', 'core.autocrlf']
 }
+
+/**
+ * 贮藏列表（只读，不进首屏的六个采集项，属于首屏七片里的「贮藏」这一片；#1739 T04 新建）。
+ * 每条一行、四个字段用 NUL 分隔：%gd 选择器 → %H 完整 oid → %ct 提交时间（秒）→ %gs reflog 主题。
+ * 为什么用 %gs 而不是 %s：贮藏的本质是 reflog 条目（git 的官方解释），%s 会按普通提交主题
+ * 重新渲染（可能拿到 WIP on … 以外的东西），%gs 才是「这条贮藏当初为什么被存下来」的原文。
+ * 解析在共享层 parse-stash.ts（解析器与命令原文同一份来源，两处都从这里读，不各写一份格式串）。
+ */
+export function stashListArgs(): string[] {
+  return ['stash', 'list', '--format=%gd%x00%H%x00%ct%x00%gs']
+}
+
+// ==== 域 4 分支与标签的 argv（#1746 T11）=================================================
+// 规矩与上面几条写命令一致：这里只描述「子命令与它自己的参数」，-C、固定前缀与非交互环境由宿主同一个出口补。
+// 每个能力各自一个 argv 构建函数（4.1 分支列表复用 commandFor('refs')，不另造读法），
+// 校验放在共享层 branch-decisions.ts 的取名规则里，宿主在拼 argv 之前先过一遍。
+
+/** 4.9 标签列表：一行五段，NUL 分隔（名字、对象号、对象类型、打标签时间秒、主题）。 */
+export function tagListArgs(): string[] {
+  return ['for-each-ref', '--format=%(refname:short)%00%(objectname)%00%(objecttype)%00%(taggerdate:unix)%00%(contents:subject)', 'refs/tags/']
+}
+
+/** 4.13（读）全部分支说明：一条命令取回所有 branch.<名>.description；-z 让值与键用 NUL 隔开，多行说明也读得回。 */
+export function branchDescriptionsArgs(): string[] {
+  return ['config', '--local', '-z', '--get-regexp', '^branch\\..*\\.description$']
+}
+
+/** 4.13（写）把面板里的说明写进 git 的说明存储：research 1592 §1.4 的口径，直接写配置键。
+ *  不走 git branch --edit-description：那条命令要编辑器，宿主把 GIT_EDITOR 固定成必失败命令（规格第 7 节），
+ *  走它只会失败；配置键是同一份存储，git 自己负责转义与写盘。 */
+export function branchDescriptionSetArgs(branch: string, text: string): string[] {
+  return ['config', '--local', 'branch.' + branch + '.description', text]
+}
+
+/** 4.13（清空）没有说明时删掉这个键，不留一个空串在那儿冒充说明。 */
+export function branchDescriptionUnsetArgs(branch: string): string[] {
+  return ['config', '--local', '--unset-all', 'branch.' + branch + '.description']
+}
+
+/** 4.2 新建并切换：git 2.23 以上用 switch -c；更老的走 checkout -b 降级（能力账本 4.2 的 versionAlternative）。 */
+export function branchCreateArgs(name: string, startPoint?: string): string[] {
+  const args: string[] = ['switch', '-c', name]
+  if (startPoint) args.push(startPoint)
+  return args
+}
+export function branchCreateCheckoutArgs(name: string, startPoint?: string): string[] {
+  const args: string[] = ['checkout', '-b', name]
+  if (startPoint) args.push(startPoint)
+  return args
+}
+
+/** 4.3 切换分支：switch 与 checkout 两条（同样按 git 版本选）。 */
+export function branchSwitchArgs(name: string): string[] {
+  return ['switch', name]
+}
+export function branchSwitchCheckoutArgs(name: string): string[] {
+  return ['checkout', name]
+}
+
+/** 4.4 切到某个提交（分离头指针）。 */
+export function branchDetachArgs(rev: string): string[] {
+  return ['switch', '--detach', rev]
+}
+export function branchDetachCheckoutArgs(rev: string): string[] {
+  return ['checkout', rev]
+}
+
+/** 4.5 重命名分支：-m 是改名不是覆盖，目标已存在时 git 自己会失败，失败原话照实回显。 */
+export function branchRenameArgs(from: string, to: string): string[] {
+  return ['branch', '-m', from, to]
+}
+
+/** 4.6 删除分支：默认 -d（只删已并入的，未并入 git 会拒绝），force 才用 -D。
+ *  -d 的拒绝本身就是保护：宿主先按合并状态判定，用户确认后才升到 -D。 */
+export function branchDeleteArgs(name: string, force: boolean): string[] {
+  return ['branch', force ? '-D' : '-d', name]
+}
+
+/** 4.7 设置或取消上游：设置用 -u <上游> <分支>，取消用 --unset-upstream <分支>。 */
+export function setUpstreamArgs(upstream: string, branch: string): string[] {
+  return ['branch', '-u', upstream, branch]
+}
+export function unsetUpstreamArgs(branch: string): string[] {
+  return ['branch', '--unset-upstream', branch]
+}
+
+/** 4.8 哪些分支已并入 / 没并入（只读）：which 只有 merged 与 no-merged 两个值。 */
+export function mergedBranchesArgs(which: string, base: string): string[] {
+  return ['branch', which === 'no-merged' ? '--no-merged' : '--merged', base]
+}
+
+/** 4.10 建标签：轻量 / 附注 / 签名三种形态（能力账本 4.10）。附注与签名必须带 -m 说明。
+ *  签名标签用 -s，签名能不能成要看本机 GPG 密钥；失败原话照实回显，不假装成功。 */
+export function tagCreateArgs(name: string, mode: string, target?: string, message?: string): string[] {
+  if (mode === 'annotated' || mode === 'signed') {
+    const args: string[] = ['tag', mode === 'signed' ? '-s' : '-a', '-m', message === undefined ? '' : message, name]
+    if (target) args.push(target)
+    return args
+  }
+  const args: string[] = ['tag', name]
+  if (target) args.push(target)
+  return args
+}
+
+/** 4.11 删标签。 */
+export function tagDeleteArgs(name: string): string[] {
+  return ['tag', '-d', name]
+}
+
+/** 4.12 验签：verify-commit 看提交、verify-tag 看标签；--raw 让 git 把签名结构与 gpg 输出都给出来。
+ *  退出码非零表示没验过（没签名、签名坏了、密钥不认）；这是读数的结论，不是命令执行失败。 */
+export function verifyCommitArgs(rev: string): string[] {
+  return ['verify-commit', '--raw', rev]
+}
+export function verifyTagArgs(name: string): string[] {
+  return ['verify-tag', '--raw', name]
+}
+
+/*
+ * —— #1742 改动页（工作区与暂存）的 argv 构造 ——
+ * 这些函数只负责「把已经过形状校验的参数拼成 argv 数组」，不碰仓库、不判断业务语义。
+ * 每个参数各自占一个数组元素（不拼 shell 字符串），门禁据此逐项断言「子命令之后每个路径都是独立元素」。
+ */
+
+/** 暂存全部改动（能力 1.4）。 */
+export function stageAllArgs(): string[] { return ['add', '-A'] }
+
+/** 逐块暂存（能力 1.2）：块补丁由宿主写成普通临时文件，路径作为独立 argv 元素传进来。 */
+export function applyCachedArgs(patchPath: string): string[] { return ['apply', '--cached', '--whitespace=nowarn', String(patchPath)] }
+
+/** 丢弃单文件未暂存改动（能力 1.6）：git 2.23 起用 restore，低于它退回 checkout。 */
+export function discardFileArgs(mode: string, paths: string[]): string[] {
+  return (mode === 'restore' ? ['restore', '--'] : ['checkout', '--']).concat(paths)
+}
+
+/** 丢弃全部未暂存改动（能力 1.7）：只认仓库根这一层，不回退到递归。 */
+export function discardAllArgs(mode: string): string[] {
+  return mode === 'restore' ? ['restore', '--', '.'] : ['checkout', '--', '.']
+}
+
+/** 删除未跟踪文件（能力 1.8）：预检先跑 cleanPreviewArgs 列清单，执行时把清单原样带上。 */
+export function cleanArgs(paths: string[]): string[] {
+  return paths.length ? ['clean', '-fd', '--'].concat(paths) : ['clean', '-fd']
+}
+
+/** 删除已跟踪文件（能力 1.9）：同时把删除放进暂存区。 */
+export function rmArgs(paths: string[]): string[] { return ['rm', '--'].concat(paths) }
+
+/** 只停止跟踪（能力 1.10）：删索引条目，文件留在工作区。 */
+export function rmCachedArgs(paths: string[]): string[] { return ['rm', '--cached', '--'].concat(paths) }
+
+/** 重命名或移动（能力 1.11）：from / to 各自占一个 argv 元素。 */
+export function mvArgs(from: string, to: string): string[] { return ['mv', '--', String(from), String(to)] }
+
+/** 查为什么被忽略（能力 1.13）：-v 让 git 回「规则文件:行号:规则」。 */
+export function checkIgnoreArgs(path: string): string[] { return ['check-ignore', '-v', '--', String(path)] }
+
+/** 逐块暂存读取补丁（能力 1.2）：不开颜色、不走外部 diff、保留重命名检测、上下文三行（与 git add -p 同档）。 */
+export function diffHunksArgs(path: string): string[] { return ['diff', '--no-color', '--no-ext-diff', '--find-renames', '--unified=3', '--', String(path)] }
+
+/** 删除未跟踪文件的预演（能力 1.8）：-n 只列「将删除」清单，不动文件。 */
+export function cleanPreviewArgs(paths: string[]): string[] {
+  return paths.length ? ['clean', '-nd', '--'].concat(paths) : ['clean', '-nd']
+}
+
+/** 单条路径的索引记录（能力 1.9/1.10 预检用）：读这一条路径在索引里的 blob 与模式。 */
+export function lsFilesOneArgs(path: string): string[] { return ['ls-files', '--stage', '-z', '--', String(path)] }
+
+// —— 配置与钩子（#1760 域 12）：下面几条只拼 argv，怎么判、怎么写由宿主那一片决定 ——
+
+/** 读全部配置（能力 12.1）：--show-origin 让每条都带上来源文件，面板据此反推作用域，不解析配置文件文本。 */
+export function configListArgs(): string[] { return ['config', '--list', '--show-origin', '-z'] }
+
+/** 读一个键在某个作用域的值（预检比对旧值用）：缺键时 git 退出码 1，宿主按「没有旧值」处理。 */
+export function configGetArgs(key: string, scope: string): string[] { return ['config', '--' + String(scope), '--get', String(key)] }
+
+/** 改配置（能力 12.2）：作用域只允许 local / global，系统级不给写。值单独占一个 argv，不经 shell。 */
+export function configSetArgs(key: string, value: string, scope: string): string[] { return ['config', '--' + String(scope), String(key), String(value)] }
+
+/** 删配置（能力 12.3）：--unset 精确删一个键；缺键时 git 退出码 5。 */
+export function configUnsetArgs(key: string, scope: string): string[] { return ['config', '--' + String(scope), '--unset', String(key)] }
+
+/** 手动跑钩子（能力 12.6，git 2.36 起）：钩子名字单独占一个 argv，工作区是当前仓库。 */
+export function hookRunArgs(name: string): string[] { return ['hook', 'run', String(name)] }
+
+/** 查属性规则（能力 12.7）：-a 列出这个路径全部属性，-z 用 NUL 分隔，值里带换行也不乱。 */
+export function checkAttrArgs(path: string): string[] { return ['check-attr', '-a', '-z', '--', String(path)] }
+
+/** 查邮件映射（能力 12.8）：只读地按 .mailmap 翻译一个地址，不改任何配置。 */
+export function checkMailmapArgs(address: string): string[] { return ['check-mailmap', '--', String(address)] }
+
+/** 读 git 自己的目录（12.5 钩子目录、12.1 本地 config 路径）：跟随 core.hooksPath 等配置，别自己拼路径。 */
+export function gitPathArgs(what: string): string[] { return ['rev-parse', '--git-path', String(what)] }
+
+/** 读 git 版本（版本门用）：输出形如 git version 2.49.0.windows.1。 */
+export function versionArgs(): string[] { return ['--version'] }
 
 export const COMMANDS_SOURCE = 'src/shared/version-control/src/commands.ts'
