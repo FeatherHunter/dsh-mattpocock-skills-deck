@@ -149,9 +149,41 @@ function backendBudgetOf(backendId: string, raw: any): RefreshBackendBudget | nu
   return out
 }
 
+/**
+ * #1774：调用方递来的「上一份快照」只有确实属于当前后端、当前仓库时才许用来补回。
+ *
+ * 为什么必须核对：会议室缓存只按工作区分桶（见 src/refresh/rooms/host/session-snapshot-cache.ts 与
+ * session-refresh-schedule.ts），用户切到另一台后端或另一个仓库后，缓存里那份仍是上一目标的快照。
+ * 不核对就补，会把别的后端的容器、子票乃至计数并进新快照。编排器自己的缓存以「后端 + 仓库」为键
+ * （见下面的 snapKeyOf），本来没有这个口子；这个校验把新开的调用方入口收紧到同一口径。
+ *
+ * 核对口径：快照里带了的身份必须一致 —— selection.backendId 与 repository.refId。两边都没带时才放行：
+ * 那是比本字段更早的老快照，无法证明它属于别的目标，按兼容处理。不额外问后端，纯本地判断。
+ */
+export function previousSnapshotFor(previousSnapshot: unknown, backendId: string, ref: RepositoryRef | any): any {
+  if (!previousSnapshot || typeof previousSnapshot !== 'object') return null
+  const snap: any = previousSnapshot
+  const sel = snap.selection
+  const snapBackend = (sel && typeof sel === 'object' && typeof sel.backendId === 'string') ? sel.backendId : ''
+  if (snapBackend && snapBackend !== String(backendId)) return null
+  const repo = snap.repository
+  const snapRefId = (repo && typeof repo === 'object' && repo.refId != null) ? String(repo.refId) : ''
+  const wantRefId = (ref && ref.refId != null) ? String(ref.refId) : ''
+  if (snapRefId && wantRefId && snapRefId !== wantRefId) return null
+  return snap
+}
+
 interface ComposeOpts {
   force?: boolean
   ifNoneMatch?: string
+  /**
+   * #1774：调用方手上那份「上一趟构建出来的快照」，来源不完整时用它补回上次已知的容器与子票。
+   *
+   * 为什么不能只靠本编排器自己的快照缓存：两条生产电话路（wf.snapshot / wf.refresh）每次请求
+   * 都新建一个编排器实例，那份进程内缓存永远是空的 —— 补回逻辑在生产上从来没拿到过上次快照。
+   * 所以上一份快照由调用方（会议室里的内存缓存）显式传进来；不传时仍回落到本实例缓存，老调用方行为不变。
+   */
+  previousSnapshot?: unknown
 }
 
 // 创建宿主编排器。
@@ -234,6 +266,12 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       }
       const sk = snapKeyOf(backendId, ref)
       const cachedEntry = snapCache.get(sk);
+      // #1774：上一份快照有两个来源——调用方显式传入的（生产电话路的会议室缓存）优先，
+      //   没有再用本编排器进程内的缓存（单实例连跑两趟的老调用方）。调用方那份先过 previousSnapshotFor
+      //   的归属核对：缓存只按工作区分桶，切后端或换仓库后它可能还是上一目标的快照，不能直接拿来补。
+      //   它同时供补回与计数沿用两处使用，只在这两处生效：缓存命中 / 304 / TTL 的语义一个字不动（仍然只看 snapCache）。
+      const passedPrev: any = previousSnapshotFor(o && o.previousSnapshot, backendId, ref)
+      const prevSnapshot: any = passedPrev || (cachedEntry && cachedEntry.snapshot) || null
       if (!o.force && (o as any).ifNoneMatch && cachedEntry && cachedEntry.version && cachedEntry.version===(o as any).ifNoneMatch) {
         try { if (fire && snapLogCtx.isEnabled('debug') && ((++snapHitSampleN % 100) === 0)) fire('debug', 'snapshot.cache.hit', { kind: 'snapshot-lru', ageMs: Date.now() - cachedEntry.at }) } catch (eL) {}
         touchSnapLRU(sk, cachedEntry) // 命中刷新 LRU 顺序（只动顺序，不改 at；TTL 照原创建时间过期）
@@ -277,7 +315,7 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       // #1696：组装出来的 map.tickets 是后端原始行，客户端首帧画不出关系与计数；这里统一归一化，
       //   并在列表被截断或降级时把上次快照已知的子票与计数按编号补回来（只补不删）。已关闭容器口径不动。
       const assembled: any = assembleSnapshot(ref, all)
-      const snapshot: any = carryOverMapTickets(cachedEntry && cachedEntry.snapshot, assembled, {
+      const snapshot: any = carryOverMapTickets(prevSnapshot, assembled, {
         sourceComplete: !listFallback && !listTruncated,
         nowMs: Date.now(),
       })
@@ -290,13 +328,15 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       //   · 一点证据都没有 → 不写 deck.counts（绝不写 0/0/0 冒充「真的没有票」）。
       //   与行数据同一趟重建里取（快照缓存 TTL 5 秒 + 版号），所以数字与列表看到的是同一时刻的仓库。
       const counts = await countsFromBackend(tracker, ref, ctx)
-      const previousDeck: any = (cachedEntry && cachedEntry.snapshot && cachedEntry.snapshot.deck) ? cachedEntry.snapshot.deck : null
+      const previousDeck: any = (prevSnapshot && prevSnapshot.deck) ? prevSnapshot.deck : null
       const plan: any = planDeckCounts({
         backendCounts: counts,
         rows: rowCountsOf(snapshot),
         rowsComplete: !listFallback && !listTruncated,
         previousCounts: previousDeck ? previousDeck.counts : null,
-        previousAtMs: cachedEntry && typeof cachedEntry.at === 'number' ? cachedEntry.at : 0,
+        // 上次计数的时刻：快照自己 deck.counts.atMs 最准（跨进程传进来的那份只剩它），
+        //   拿不到再回落到本实例缓存的写入时刻；两处都没有就按 0，由 planDeckCounts 用本次时刻补。
+        previousAtMs: (prevSnapshot && prevSnapshot.deck && prevSnapshot.deck.counts && typeof prevSnapshot.deck.counts.atMs === 'number') ? prevSnapshot.deck.counts.atMs : (cachedEntry && typeof cachedEntry.at === 'number' ? cachedEntry.at : 0),
         nowMs: Date.now(),
       })
       if (plan.counts) deck.counts = plan.counts

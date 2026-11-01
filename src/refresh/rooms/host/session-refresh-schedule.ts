@@ -40,7 +40,11 @@ type Reg = { get(id: string): BackendLike; describe(o: { cwd: string }, id: stri
 // 注册表交出来的后端模块（还没投影过），正是 projectUiDescription 的入参。
 type BackendModule = Parameters<typeof projectUiDescription>[0]
 type UiDescription = ReturnType<typeof projectUiDescription>
-type ComposerOpts = { ifNoneMatch?: string; force?: boolean }
+/**
+ * #1774：previousSnapshot 是上一趟已知的快照（会议室内存缓存里那份），来源不完整时交给编排层
+ * 补回上次的容器与子票。为什么由这里传：编排器是每次请求新建的实例，它自己的进程内缓存永远是空的。
+ */
+type ComposerOpts = { ifNoneMatch?: string; force?: boolean; previousSnapshot?: unknown }
 // 编排回包：snapshot 是后端原始快照（交给 upcaseSnapStates 收形）；error.message 是给人看的那句话。
 type Composed = { ok: boolean; error?: { message?: string } | null; snapshot?: unknown; fail?: unknown; notModified?: unknown; status?: unknown; version?: unknown; cached?: unknown }
 type Composer = { composeSnapshot(id: string, repo: RepoRef, ctx: unknown, o: ComposerOpts): Promise<Composed> }
@@ -125,6 +129,9 @@ export function createSessionRefresh(deps: RefreshDeps) {
   async function refreshBuild(args: Args, cwd: string, _sel: Sel | null) {
       // #195 修复：用户主动刷新时清空 gh 解析缓存，强制重探
       resetGhCache()
+      // #1774：强制刷新也要把上一趟快照传给编排层，来源不完整时它才能补回上次已知的容器与子票。
+      // 编排器是每次请求新建的实例，自带的进程内缓存永远是空的，只能从这里拿。
+      const cachedEntry = getCache(cwd)
       try {
         // 第一性原理分发：与 wf.snapshot 同构
         const useComposer = isComposerSelection(_sel)
@@ -147,7 +154,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
           if (typeof budgetReadout === 'function') composerOpts.budgetReadout = budgetReadout
           if (typeof openSession === 'function') composerOpts.openSession = openSession
           const composer: Composer = createSnapshotComposer(reg, composerOpts)
-          const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true })
+          const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null })
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
                     const inner = upcaseSnapStates(res.snapshot)
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
@@ -317,7 +324,7 @@ export function createSessionRefresh(deps: RefreshDeps) {
         // #1439 A2：会话门面也交给回退路径，两趟都经 Tracker 操作取数。
         if (typeof openSession === 'function') composer2Opts2.openSession = openSession
         const composer2: Composer = createComposer2(reg2, composer2Opts2)
-        const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true })
+        const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true, previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null })
         if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
                   const inner2 = upcaseSnapStates(res2.snapshot)
         ;(inner2.maps || []).forEach(function(m){ 
