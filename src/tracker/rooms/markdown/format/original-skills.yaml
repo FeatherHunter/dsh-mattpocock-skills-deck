@@ -141,6 +141,9 @@ objects:
         values: [claimed, resolved]
       - label: Blocked by
         line-shape: "Blocked by: <NN>, <NN>"
+    status:
+      visible-line: true
+      default: claimed
     resolve:
       answer-section: Answer
       append-map-decision-pointer: true
@@ -156,6 +159,9 @@ objects:
     path: .scratch/<feature-slug>/issues/<NN>-<slug>.md
     source: [issue-tracker-local]
     reuse: implementation-ticket
+    # 原文没有给普通 issue 规定状态；显式覆盖成「不写可见 Status 行、没有默认状态」。
+    status:
+      visible-line: false
     anchors:
       - .scratch/<feature-slug>/issues/<NN>-<slug>.md
       - <feature-slug>
@@ -166,6 +172,12 @@ objects:
 status:
   triage-roles: [needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix]
   wayfinder: [claimed, resolved]
+  # 完成词：issue 文件可见 Status 行的另一种合法取值（对应 Issue.state = closed）。
+  # 原文只规定 triage 与 claimed/resolved，这一组是插件为「关票落一个结果」补的增强。
+  completed: [resolved, completed, closed, done]
+  # 旧渲染器给 issue 文件写的默认状态。读旧文件时它不代表人的决定，因此只在没有其它
+  # 线索时兜底；它不是新的全局默认（新默认按票型在 create 时决定）。
+  legacy-default: ready-for-agent
 
 # 本插件写出的 HTML 注释。每一条都必须写清「为什么加」，一行一条，放在第一个可见标题之前
 # （规格与地图没有一级标题，第一个可见标题就是它们正文的第一个段标题）。
@@ -197,7 +209,11 @@ hidden-comments:
     - name: DSH-LABELS
       line: "<!-- DSH-LABELS: <标签>[, <标签>] -->"
       scope: [spec, map, implementation-ticket, wayfinder-child, plain-issue]
-      why: 本地 markdown 没有标签机制；wayfinder 类型与 triage 角色要保留，又不能写进可见正文。
+      why: 本地 markdown 没有标签机制；这里只保留非 triage 标签，triage 状态写在可见 Status 行，两处不再各存一份。
+    - name: DSH-STATUS-HISTORY
+      line: "<!-- DSH-STATUS-HISTORY: source=<来源> discarded=<落选值> adopted=<采用值> at=<ISO-8601 时间> -->"
+      scope: [implementation-ticket, wayfinder-child, plain-issue]
+      why: 记录状态归一或冲突解决时落选的值，便于追溯；它只供人查，读取状态时不看它。
     - name: DSH-BLOCKED-BY
       line: "<!-- DSH-BLOCKED-BY: <NN>[, <NN>] -->"
       scope: [implementation-ticket, wayfinder-child, plain-issue]

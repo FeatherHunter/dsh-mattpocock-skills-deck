@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-01T16:45:24.379Z",
+  "generatedAt": "2026-11-01T18:21:16.558Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 530,
-  "gateCount": 530,
-  "attributedGates": 468,
+  "chainLength": 531,
+  "gateCount": 531,
+  "attributedGates": 469,
   "unattributedGates": 62,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 86,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 822,
+  "graphFileCount": 823,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -5845,6 +5845,21 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1790-status-model.ts",
+      "file": "tests/verify-1790-status-model.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/status.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
     },
     {
       "step": "node tests/verify-1792-card-action-gate.ts",
@@ -14366,6 +14381,7 @@
       "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-1788-write-route.ts",
       "node tests/verify-1789-create-preserve-sections.ts",
+      "node tests/verify-1790-status-model.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -14712,9 +14728,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 843,
+    "fileCount": 844,
     "dirCount": 84,
-    "coveredFileCount": 843,
+    "coveredFileCount": 844,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -15547,6 +15563,7 @@
       "src/tracker/rooms/markdown/read-sources.ts",
       "src/tracker/rooms/markdown/read.ts",
       "src/tracker/rooms/markdown/scratch-listing.ts",
+      "src/tracker/rooms/markdown/status.ts",
       "src/tracker/rooms/markdown/template-guard.ts",
       "src/tracker/rooms/markdown/workspace-checks.ts",
       "src/tracker/rooms/markdown/write-guards.ts",

@@ -240,15 +240,28 @@ export function validateMdFormatConfig(doc: unknown): string[] {
   let triageRoles: string[] = []
   let wayfinderStatuses: string[] = []
   if (!isObject(cfg.status)) {
-    fail(problems, 'status 必须是一个对象（triage-roles / wayfinder）')
+    fail(problems, 'status 必须是一个对象（triage-roles / wayfinder / completed / legacy-default）')
   } else {
-    checkUnknownKeys(problems, 'status', cfg.status, ['triage-roles', 'wayfinder'])
+    checkUnknownKeys(problems, 'status', cfg.status, ['triage-roles', 'wayfinder', 'completed', 'legacy-default'])
     checkStringArray(problems, 'status.triage-roles', cfg.status['triage-roles'])
     checkStringArray(problems, 'status.wayfinder', cfg.status.wayfinder)
+    checkStringArray(problems, 'status.completed', cfg.status.completed)
     if (Array.isArray(cfg.status['triage-roles'])) triageRoles = cfg.status['triage-roles'].filter(isNonEmptyString)
     if (Array.isArray(cfg.status.wayfinder)) wayfinderStatuses = cfg.status.wayfinder.filter(isNonEmptyString)
+    let completedStatuses: string[] = []
+    if (Array.isArray(cfg.status.completed)) completedStatuses = cfg.status.completed.filter(isNonEmptyString)
     for (const role of triageRoles) {
       if (wayfinderStatuses.includes(role)) fail(problems, 'status 里「' + role + '」同时出现在 triage-roles 与 wayfinder；两个集合不能混用')
+    }
+    for (const value of completedStatuses) {
+      if (triageRoles.includes(value)) fail(problems, 'status 里「' + value + '」同时出现在 triage-roles 与 completed；triage 状态与完成词不能混用')
+      if (completedStatuses.filter((one) => one === value).length > 1) fail(problems, 'status.completed 里「' + value + '」写了两次；完成词不能重复')
+    }
+    const legacyDefault: unknown = cfg.status['legacy-default']
+    if (!isNonEmptyString(legacyDefault)) {
+      fail(problems, 'status.legacy-default 必须是非空字符串（旧渲染器给 issue 文件写的默认状态）')
+    } else if (!triageRoles.includes(legacyDefault)) {
+      fail(problems, 'status.legacy-default「' + legacyDefault + '」必须是一个 triage 角色（旧默认是作为 triage 状态被写下的）')
     }
   }
 

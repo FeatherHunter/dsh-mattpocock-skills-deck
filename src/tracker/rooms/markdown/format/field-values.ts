@@ -71,8 +71,8 @@ export const MAP_TICKET_TYPES: string[] = (() => {
 })()
 
 /** 地图子票的状态词：原文模板 wayfinder-child 的 Status 行取值（今天是 claimed / resolved）。
- *  只在本文件内部用（派生下面两个词），不导出：调用方只拿认好名字的词，不拿整张表。 */
-const WAYFINDER_STATUS_VALUES: string[] = (() => {
+ *  导出给 status.ts 判定「地图子票的可见 Status 是不是合法值」；其余调用方仍应拿下面认好名字的两个词。 */
+export const WAYFINDER_STATUS_VALUES: string[] = (() => {
   const got = valuesOf(topLineOf('wayfinder-child', 'Status'))
   return got.length ? got : ['claimed', 'resolved']
 })()
@@ -85,6 +85,45 @@ function statusWord(want: string, at: number, fallback: string): string {
 }
 export const WAYFINDER_STATUS_CLAIMED: string = statusWord('claimed', 0, 'claimed')
 export const WAYFINDER_STATUS_RESOLVED: string = statusWord('resolved', 1, 'resolved')
+
+type StatusEntry = {
+  'triage-roles'?: unknown
+  completed?: unknown
+  'legacy-default'?: unknown
+  wayfinder?: unknown
+}
+
+function statusOf(): StatusEntry {
+  const root = MD_FORMAT as unknown as { status?: unknown }
+  if (root && typeof root.status === 'object' && root.status !== null) return root.status as StatusEntry
+  return {}
+}
+
+function stringsOf(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((one) => typeof one === 'string').map((one) => String(one))
+}
+
+/** 五种 triage 角色（needs-triage / needs-info / ready-for-agent / ready-for-human / wontfix）。
+ *  这是「状态」的正式词表：可见 Status 行只认这五个加上完成词。 */
+export const TRIAGE_STATUS_ROLES: string[] = (() => {
+  const got = stringsOf(statusOf()['triage-roles'])
+  return got.length ? got : ['needs-triage', 'needs-info', 'ready-for-agent', 'ready-for-human', 'wontfix']
+})()
+
+/** 完成词（resolved / completed / closed / done）：可见 Status 行写它表示这张票已关闭。
+ *  原文没给这组词，它是插件为「关票落一个结果」补的；与 triage 词表不混用。 */
+export const COMPLETED_STATUS_VALUES: string[] = (() => {
+  const got = stringsOf(statusOf().completed)
+  return got.length ? got : ['resolved', 'completed', 'closed', 'done']
+})()
+
+/** 旧渲染器给 issue 文件默认写下的状态（ready-for-agent）。读旧文件时它只作兜底线索，
+ *  不是新票的全局默认；新票默认按票型在 create 时决定。 */
+export const STATUS_LEGACY_DEFAULT: string = (() => {
+  const got = statusOf()['legacy-default']
+  return typeof got === 'string' && got.trim() ? got : 'ready-for-agent'
+})()
 
 /** 把一组取值拼成正则里的「多选一」：特殊字符先转义，免得字段名里的符号被当成正则语法。 */
 export function regexAlt(values: readonly string[]): string {

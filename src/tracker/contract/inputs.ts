@@ -73,6 +73,13 @@ export interface CreateInput {
   title: string
   body?: string
   type?: IssueType
+  /**
+   * 本地 Markdown 后端建票时这张票属于哪一类（可选；#1790）。
+   * 为什么需要：票型决定默认 triage 状态与可见 Status 行写不写；目录路线能判出大部分票型，
+   * 但普通 issue 与实施票共用 issues/ 目录，建票时说不清就只能靠正文猜。
+   * 只有本地 Markdown 后端读它；GitHub/GitLab 忽略（与 `typeLine` 同类先例）。
+   */
+  fileKind?: 'spec-ticket' | 'plain-issue' | 'bug' | 'map-ticket'
   /** 挂在哪个地图下面；根票给 `null` 或省略。 */
   parentKey?: string | null
   labels?: LabelInput[]
@@ -128,6 +135,12 @@ export interface UpdatePatch {
  */
 export interface SetOpts {
   expectedUpdatedAt?: string
+  /**
+   * 本地 Markdown 后端专用：setLabels 时一并写下的 triage 状态（#1790）。
+   * 给了它，后端把状态原子写到可见 Status 行，并从隐藏与可见标签里移除同名 triage 角色，
+   * 保证「状态只有一处真源」；其他后端忽略这个字段。
+   */
+  status?: string
 }
 
 /**

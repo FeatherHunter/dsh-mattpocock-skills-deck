@@ -150,6 +150,35 @@ export interface IssueFieldStates {
 }
 
 /**
+ * 可见 Status 行与隐藏 DSH-LABELS 里的 triage 标签不一致时的冲突记录（#1790）。
+ *
+ * 为什么不直接报错：读一张旧文件不该失败；冲突是「两处都声称自己是状态」，读侧按可见值回答，
+ * 把两边都带出来，由下一次显式写统一成一份并往 DSH-STATUS-HISTORY 记一条。
+ * 只有本地 Markdown 后端会产生它；GitHub/GitLab 省略整个字段。
+ */
+export interface StatusConflict {
+  /** 冲突的字段名；今天只有 `'status'`。 */
+  field: 'status'
+  /** 可见 Status 行归一化后的值（读侧采用它）。 */
+  visible: string
+  /** 隐藏 DSH-LABELS 里找到的合法 triage 角色；冲突条件要求恰好一个。 */
+  hidden: string[]
+  /** hidden 的来源注释名固定是 DSH-LABELS。 */
+  hiddenSource: 'DSH-LABELS'
+  /** 按可见值算出的两态 state。 */
+  stateFromVisible: State
+  /** 按隐藏值算出的两态 state。 */
+  stateFromHidden: State
+  /** 读侧写死的处理方式：以可见值为准，下一次写时归一，历史进 DSH-STATUS-HISTORY。 */
+  resolution: {
+    default: 'visible'
+    rule: 'visible-status-wins'
+    action: 'write-visible-status-on-next-write'
+    history: 'DSH-STATUS-HISTORY'
+  }
+}
+
+/**
  * 票/图的完整实体。
  *
  * 核心字段**永远存在**（缺了用 `''`/`null` 补齐），能力字段**可以整个省略**（= 没有这个能力）：
@@ -190,6 +219,18 @@ export interface Issue {
   assignees?: Actor[]
   /** 标签；`[]` 表示有能力但没标签，省略表示这个后端给不了标签。 */
   labels?: Label[]
+  /**
+   * 规范化后的 triage 状态（#1790）。只有本地 Markdown 后端填：值来自可见 Status 行、
+   * 旧文件隐藏 DSH-LABELS 里的 triage 标签，或按票型得出的默认值；GitHub/GitLab 省略。
+   * ⚠️ 它不是 `state` 的替代：`state` 仍然只有 open/closed 两态，本字段是多出来的 triage 语义。
+   */
+  status?: string
+  /** 可见 Status 行归一化后的原值；只在它没有被采用为 `status` 时出现（非法值、旧默认兜底、冲突等），供首次写入归一与记历史。 */
+  statusVisible?: string
+  /** `status` 的来源：可见行 visible、隐藏 DSH-LABELS hidden、票型默认 default。没有 `status` 时省略。 */
+  statusSource?: 'visible' | 'hidden' | 'default'
+  /** 可见值与隐藏 triage 标签真冲突时的记录（读侧仍取可见值，不报错）；不冲突时省略。 */
+  statusConflict?: StatusConflict
   milestone?: Milestone
   customFields?: CustomField[]
   /** 关闭原因，只在 `state === 'closed'` 时有意义。 */
