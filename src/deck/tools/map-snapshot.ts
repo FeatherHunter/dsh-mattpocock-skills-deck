@@ -64,10 +64,30 @@ export const definition = {
   },
 }
 
+/**
+ * 从后端回来的认领人清单里挑出名字：字符串直接用，对象取 login，两种混着来也认。
+ * 取不到名字的记空串、最后去空：本地 Markdown 票面写着可见 Status: claimed、却没写认领人时，
+ * 解析层会补一个 {login:''} 的占位对象，意思是「已认领、这份文件没记下是谁」，不是「未认领」；
+ * 快照的两档行都按「没有名字可显示」处理，而不是把对象插值成 [object Object]（#1800）。
+ * 与 issue-list.ts 里的 assigneeNames 同一口径；那一份是模块内私有，这里照写法各留一份，不跨工具文件 import。
+ * full 与 thin 两档共用这一份，免得两处口径漂开。
+ */
+function assigneeNames(list: unknown): string[] {
+  if (!Array.isArray(list)) return []
+  return list.map((a) => {
+    if (typeof a === 'string') return a
+    if (a && typeof a === 'object') {
+      const v = (a && a.login) || ''
+      return String(v)
+    }
+    return ''
+  }).map((s) => s.trim()).filter(Boolean)
+}
+
 /** 一行子票（full 档）。行的形状是后端回来的运行时真值（契约层没建模），按开放表收口。 */
 function childRow(issue: Record<string, unknown>) {
   const labels = Array.isArray(issue.labels) ? issue.labels.map((l) => (l && l.name) || String(l)) : []
-  const assignees = Array.isArray(issue.assignees) ? issue.assignees.map((a) => (a && a.login) || String(a)) : []
+  const assignees = assigneeNames(issue.assignees)
   const blockedBy = Array.isArray(issue.blockedBy) ? issue.blockedBy.map((r) => (r && r.key) || String(r)) : []
   // 进度直接从正文算（与汇总用的同一个函数，结果一致）：汇总那张表按池内身份存键，
   // 行里拿裸票号去查恒查不到，之前有子票的地图就整包被外层拒收（只读空地图能过）。
@@ -86,7 +106,7 @@ function childRow(issue: Record<string, unknown>) {
 // 薄行：只要画清单用得上的格，不要正文与进度（回包小、票多时不断；统计与进度表另有去处）。
 function thinRow(issue: Record<string, unknown>) {
   const labels = Array.isArray(issue.labels) ? issue.labels.map((l) => (l && l.name) || String(l)) : []
-  const assignees = Array.isArray(issue.assignees) ? issue.assignees.map((a) => (a && a.login) || String(a)) : []
+  const assignees = assigneeNames(issue.assignees)
   const blockedBy = Array.isArray(issue.blockedBy) ? issue.blockedBy.map((r) => (r && r.key) || String(r)) : []
   return { key: issue.key, title: issue.title, state: issue.state, labels: labels, assignees: assignees, blockedBy: blockedBy, updatedAt: issue.updatedAt || '' }
 }

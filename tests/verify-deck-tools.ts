@@ -277,6 +277,48 @@ async function main() {
       'deck_map_snapshot 五个区块各自成形（destination/notes 是文字，decisions/fog/outOfScope 是清单）')
   }
 
+  // ── ④a 无名字的认领人：三个读工具都不得把哨兵对象显示成 [object Object]（#1800） ──
+  {
+    // 夹具：单独一个 effort 目录，手写两张本地 Markdown 票——
+    // 91 写了可见 Status: claimed、但没有认领人名字：解析层会补一个 {login:''} 哨兵，
+    //    意思是「已认领，这份文件没记下是谁」，不是「未认领」；
+    // 92 同样 claimed，并写了可见 Assignees: alice。
+    // 票面显示应把「没名字」当「没有名字可显示」，而不是把对象插值成 [object Object]。
+    const claimDir = path.join(ws.root, '.scratch', 'claim-demo')
+    fs.mkdirSync(path.join(claimDir, 'issues'), { recursive: true })
+    fs.writeFileSync(path.join(claimDir, 'map.md'), '# 认领演示地图\n\nStatus: ready-for-agent\n\n## Destination\n\n看认领人怎么显示\n\n## Notes\n\n## Decisions so far\n\n## Not yet specified\n\n## Out of scope\n', 'utf8')
+    fs.writeFileSync(path.join(claimDir, 'issues', '91-no-name.md'), '# 91: 没记名字的认领\n\nStatus: claimed\n\n## Question\n\n为什么没有名字？\n', 'utf8')
+    fs.writeFileSync(path.join(claimDir, 'issues', '92-named.md'), '# 92: 有名字的认领\n\nStatus: claimed\n\nAssignees: alice\n\n## Question\n\n为什么有名字？\n', 'utf8')
+    const get1 = await callTool('deck_issue_get', { key: '91', effort: 'claim-demo' })
+    check(envelopeOk(get1) && get1.data && get1.data.ticket, 'deck_issue_get 读到 claim-demo 的 91（实得 ' + (get1 && get1.status) + '）')
+    check(JSON.stringify(get1.data && get1.data.ticket && get1.data.ticket.assignees) === '[]', 'deck_issue_get：已认领但没记名字 → assignees 是 []（实得 ' + JSON.stringify(get1.data && get1.data.ticket && get1.data.ticket.assignees) + '）')
+    const get2 = await callTool('deck_issue_get', { key: '92', effort: 'claim-demo' })
+    check(JSON.stringify(get2.data && get2.data.ticket && get2.data.ticket.assignees) === '["alice"]', 'deck_issue_get：有名字 → assignees 仍是 ["alice"]（实得 ' + JSON.stringify(get2.data && get2.data.ticket && get2.data.ticket.assignees) + '）')
+    const full = await callTool('deck_map_snapshot', { key: '00', effort: 'claim-demo' })
+    const fullKids = (full.data && full.data.children) || []
+    const fullRow1 = fullKids.find((t) => String(t.key) === '91') || {}
+    const fullRow2 = fullKids.find((t) => String(t.key) === '92') || {}
+    check(JSON.stringify(fullRow1.assignees) === '[]', 'deck_map_snapshot（full）：没记名字的认领 → assignees 是 []（实得 ' + JSON.stringify(fullRow1.assignees) + '）')
+    check(JSON.stringify(fullRow2.assignees) === '["alice"]', 'deck_map_snapshot（full）：有名字 → assignees 仍是 ["alice"]（实得 ' + JSON.stringify(fullRow2.assignees) + '）')
+    check(JSON.stringify(full).indexOf('[object Object]') < 0, 'deck_map_snapshot（full）整份回执不含 [object Object]')
+    check(full.data && full.data.stats && full.data.stats.claimed === 2, 'deck_map_snapshot：统计仍把两张都算已认领（claimed=' + JSON.stringify(full.data && full.data.stats && full.data.stats.claimed) + '）')
+    const thin = await callTool('deck_map_snapshot', { key: '00', effort: 'claim-demo', detail: 'thin' })
+    const thinKids = (thin.data && thin.data.children) || []
+    const thinRow1 = thinKids.find((t) => String(t.key) === '91') || {}
+    const thinRow2 = thinKids.find((t) => String(t.key) === '92') || {}
+    check(JSON.stringify(thinRow1.assignees) === '[]', 'deck_map_snapshot（thin）：没记名字的认领 → assignees 是 []（实得 ' + JSON.stringify(thinRow1.assignees) + '）')
+    check(JSON.stringify(thinRow2.assignees) === '["alice"]', 'deck_map_snapshot（thin）：有名字 → assignees 仍是 ["alice"]（实得 ' + JSON.stringify(thinRow2.assignees) + '）')
+    const listed = await callTool('deck_issue_list', { state: 'open', effort: 'claim-demo' })
+    const listRows = (listed.data && listed.data.issues) || []
+    const listRow1 = listRows.find((t) => String(t.key) === '91') || {}
+    const listRow2 = listRows.find((t) => String(t.key) === '92') || {}
+    check(JSON.stringify(listRow1.assignees) === '[]' && JSON.stringify(listRow2.assignees) === '["alice"]',
+      'deck_issue_list 对照：91 是 []、92 是 ["alice"]（实得 ' + JSON.stringify([listRow1.assignees, listRow2.assignees]) + '）')
+    // 夹具用完就清掉：后面的改票、认领、上报都按裸票号读写，别的 effort 里留着同号票会让那些调用变歧义
+    // （与 ⑤ 末尾清 plan-demo 是同一个理由）。
+    fs.rmSync(claimDir, { recursive: true, force: true })
+  }
+
   // ── ⑤ deck_map_plan_create：一整张地图的骨架（含分片与中间态） ──
   {
     // 原文布局下一个目录只能有一份 map.md（issue-tracker-local.md:25-28）：这个工作区开头已经手写了一份
