@@ -245,8 +245,13 @@ function emptyRec(): AuthorRec {
 }
 
 // 编号已存在就保留原来的时间（诞生时间不会变）；不存在才追加。
-function pushUniqueDated(list: DatedNum[], n: number, at: string): void {
-  if (!list.some((d) => d.n === n)) list.push({ n, at });
+// 导出给 tests/verify-thanks-table.ts 做「追加即有序」的回归断言（#1794），别处不要调用。
+export function pushUniqueDated(list: DatedNum[], n: number, at: string): void {
+  if (list.some((d) => d.n === n)) return;
+  list.push({ n, at });
+  // 门禁 tests/verify-thanks-table.ts 要求每个编号数组升序无重复。拉取是按「新→旧」倒序翻页的，
+  // 直接追加会把新编号按倒序写进去（#1794 实测：main 因此被判红）。这里追加后就地排好，写入即合规。
+  list.sort((a, b) => a.n - b.n);
 }
 
 function main(): void {
