@@ -34,7 +34,7 @@ type Reg = { get(id: string): BackendLike; describe(o: { cwd: string }, id: stri
 type BackendModule = Parameters<typeof projectUiDescription>[0]
 type UiDescription = ReturnType<typeof projectUiDescription>
 /**
- * #1774：previousSnapshot 是上一趟已知的快照（会议室内存缓存里那份），来源不完整时交给编排层
+ * #1774：previousSnapshot 是上一趟已知的快照（房间内存缓存里那份），来源不完整时交给编排层
  * 补回上次的容器与子票。为什么由这里传：编排器是每次请求新建的实例，它自己的进程内缓存永远是空的。
  */
 type ComposerOpts = { ifNoneMatch?: string; force?: boolean; previousSnapshot?: unknown }

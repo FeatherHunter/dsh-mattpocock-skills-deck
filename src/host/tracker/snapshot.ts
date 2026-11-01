@@ -152,15 +152,16 @@ function backendBudgetOf(backendId: string, raw: any): RefreshBackendBudget | nu
 /**
  * #1774：调用方递来的「上一份快照」只有确实属于当前后端、当前仓库时才许用来补回。
  *
- * 为什么必须核对：会议室缓存只按工作区分桶（见 src/refresh/rooms/host/session-snapshot-cache.ts 与
+ * 为什么必须核对：房间缓存只按工作区分桶（见 src/refresh/rooms/host/session-snapshot-cache.ts 与
  * session-refresh-schedule.ts），用户切到另一台后端或另一个仓库后，缓存里那份仍是上一目标的快照。
  * 不核对就补，会把别的后端的容器、子票乃至计数并进新快照。编排器自己的缓存以「后端 + 仓库」为键
  * （见下面的 snapKeyOf），本来没有这个口子；这个校验把新开的调用方入口收紧到同一口径。
  *
- * 核对口径：快照里带了的身份必须一致 —— selection.backendId 与 repository.refId。两边都没带时才放行：
- * 那是比本字段更早的老快照，无法证明它属于别的目标，按兼容处理。不额外问后端，纯本地判断。
+ * 核对口径：快照里带了某一项身份，就必须与这一趟的同名身份一致；某一项双方都没带才跳过该项
+ * （那是比这些字段更早的老快照）。快照带了 repository.refId、这一趟却拿不到 refId 时，无法证明是同一
+ * 仓库，按拒绝处理，不放宽。不额外问后端，纯本地判断。
  */
-export function previousSnapshotFor(previousSnapshot: unknown, backendId: string, ref: RepositoryRef | any): any {
+export function previousSnapshotFor(previousSnapshot: unknown, backendId: string, ref: RepositoryRef): Record<string, any> | null {
   if (!previousSnapshot || typeof previousSnapshot !== 'object') return null
   const snap: any = previousSnapshot
   const sel = snap.selection
@@ -169,8 +170,8 @@ export function previousSnapshotFor(previousSnapshot: unknown, backendId: string
   const repo = snap.repository
   const snapRefId = (repo && typeof repo === 'object' && repo.refId != null) ? String(repo.refId) : ''
   const wantRefId = (ref && ref.refId != null) ? String(ref.refId) : ''
-  if (snapRefId && wantRefId && snapRefId !== wantRefId) return null
-  return snap
+  if (snapRefId && snapRefId !== wantRefId) return null
+  return snap as Record<string, any>
 }
 
 interface ComposeOpts {
@@ -181,7 +182,7 @@ interface ComposeOpts {
    *
    * 为什么不能只靠本编排器自己的快照缓存：两条生产电话路（wf.snapshot / wf.refresh）每次请求
    * 都新建一个编排器实例，那份进程内缓存永远是空的 —— 补回逻辑在生产上从来没拿到过上次快照。
-   * 所以上一份快照由调用方（会议室里的内存缓存）显式传进来；不传时仍回落到本实例缓存，老调用方行为不变。
+   * 所以上一份快照由调用方（房间里的内存缓存）显式传进来；不传时仍回落到本实例缓存，老调用方行为不变。
    */
   previousSnapshot?: unknown
 }
@@ -266,7 +267,7 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       }
       const sk = snapKeyOf(backendId, ref)
       const cachedEntry = snapCache.get(sk);
-      // #1774：上一份快照有两个来源——调用方显式传入的（生产电话路的会议室缓存）优先，
+      // #1774：上一份快照有两个来源——调用方显式传入的（生产电话路的房间缓存）优先，
       //   没有再用本编排器进程内的缓存（单实例连跑两趟的老调用方）。调用方那份先过 previousSnapshotFor
       //   的归属核对：缓存只按工作区分桶，切后端或换仓库后它可能还是上一目标的快照，不能直接拿来补。
       //   它同时供补回与计数沿用两处使用，只在这两处生效：缓存命中 / 304 / TTL 的语义一个字不动（仍然只看 snapCache）。
@@ -292,7 +293,7 @@ export function createSnapshotComposer(registry: SnapshotComposerRegistry, opts:
       // #715：这一趟 list 到底走的 GraphQL 还是掉到了 REST —— 后端真的降级时才往上报（见 github/issues.js 的 REST 通道）。
       let listFallback: string | null = null
       // #1696：这一趟列表是不是被后端截断了。截断 / 降级都算「不完整来源」——地图容器的子票与计数
-      //   只能补、不能删（见 snapshotAssemble.ts 的 carryOverMapTickets）；完整来源才允许以本次为准删缩。
+      //   只能补、不能删（见 snapshotAssemble.ts 的 carryOverMapTickets）；完整来源才允许以本次为准删减。
       let listTruncated = false
       // #734：降级原因随 fallback 一起上报（quota / other / 未知=null 三档；未知 = 老快路径没给、
       //   老快照本来就没有这个字段）。界面只有 quota 才说配额耗尽，other 与未知一律说中性那句。
