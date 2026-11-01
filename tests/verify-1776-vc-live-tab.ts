@@ -121,6 +121,7 @@ function makeHost(opts) {
     if (phone === 'wf.gitBranchCheck') return { ok: true, contract: 'version-control.branch-check', version: 1, readAtMs: NOW, op: String((args || {}).op || 'switch'), decision: { verdict: 'warn', reasons: ['会切换当前分支'] }, confirmRequired: true, confirm: { verb: '切换到分支', target: 'main' }, ticket: { id: 'br-ticket', op: String((args || {}).op || 'switch'), checkedAtMs: NOW, expiresAtMs: NOW + 120000 } }
     if (phone === 'wf.gitBranchWrite') return { ok: true, command: 'git switch main', ms: 3, n: 1 }
     if (phone === 'wf.gitRemoteList') return { ok: true, source: 'local', readAtMs: NOW, remotes: [{ name: 'origin', fetchUrl: 'git@example.com:repo.git', pushUrl: 'git@example.com:repo.git' }, { name: 'mirror', fetchUrl: 'https://mirror.example.com/repo.git', pushUrl: '' }] }
+    if (phone === 'wf.gitRemoteCheck') return { ok: true, action: String((args || {}).action || ''), command: 'git remote ' + String((args || {}).action || ''), ticket: { id: 'rm-ticket', op: String((args || {}).action || ''), checkedAtMs: NOW, expiresAtMs: NOW + 120000 }, plan: { action: String((args || {}).action || ''), name: String((args || {}).name || ''), url: String((args || {}).url || ''), from: String((args || {}).from || ''), to: String((args || {}).to || '') }, remotes: [{ name: 'origin', fetchUrl: 'git@example.com:repo.git', pushUrl: 'git@example.com:repo.git' }], readAtMs: NOW }
     if (phone === 'wf.gitRemoteAdd') return { ok: true, action: 'add', command: 'git remote add ' + String((args || {}).name || ''), name: String((args || {}).name || ''), ms: 2, n: 1 }
     if (phone === 'wf.gitRemoteRename') return { ok: true, action: 'rename', command: 'git remote rename', ms: 2, n: 1 }
     if (phone === 'wf.gitRemoteRemove') return { ok: true, action: 'remove', command: 'git remote remove', ms: 2, n: 1 }
@@ -531,7 +532,7 @@ async function scenarioManage() {
   check(countKin(host, 'wf.gitBranches') > branchesBefore, 'T24e 写成功后重读分支板（wf.gitBranches 再发一次）')
   check(!!m.q('[data-vc-branch2] [data-vc-result="ok"]'), 'T24f 分支动作的结果回到触发点（结果块 data-vc-result=ok）')
 
-  // ---- 远端写：四条远端写按 ADR 20261031 是无预检的直接写电话（只动本地配置），提交表单后直发真写电话、成功后重读列表，不立确认卡 ----
+  // ---- 远端写三段式（#1776 M4b）：提交表单先发预检电话签票 → 确认卡 → 凭票发执行电话，成功后重读列表 ----
   await m.click('[data-vc-back]')
   if (!m.q('[data-vc-gear-index]')) await m.click('[data-vc-gear-btn]')
   await m.click('[data-vc-gear-item="remote"]')
@@ -539,11 +540,20 @@ async function scenarioManage() {
   check(triggerOk && !!m.q('[data-vc-remote-form="add"]') && m.qa('[data-vc-remote-form="add"] [data-vc-remote-field]').length === 2, 'T25 点「新增远端」展开表单（名字与地址两格）')
   await m.type('[data-vc-remote-form="add"] [data-vc-remote-field="name"]', 'backup')
   await m.type('[data-vc-remote-form="add"] [data-vc-remote-field="url"]', 'git@example.com:backup.git')
+  const remoteCheckBefore = countKin(host, 'wf.gitRemoteCheck')
+  const listBefore = countKin(host, 'wf.gitRemoteList')
   const addBefore = countKin(host, 'wf.gitRemoteAdd')
   await m.click('[data-vc-remote-submit="add"]')
+  const remoteCheckLog = host.calls.filter(function (one: any) { return one.phone === 'wf.gitRemoteCheck' })
+  const remoteCheckArgs = (remoteCheckLog[remoteCheckLog.length - 1] || {}).args || {}
+  check(countKin(host, 'wf.gitRemoteCheck') === remoteCheckBefore + 1 && String(remoteCheckArgs.action || '') === 'add' && String(remoteCheckArgs.name || '') === 'backup' && String(remoteCheckArgs.url || '').indexOf('backup.git') >= 0, 'T25b 提交表单先发预检电话 wf.gitRemoteCheck（动作与目标都取自表单），不直接写')
+  check(countKin(host, 'wf.gitRemoteAdd') === addBefore && !!m.q('[data-vc-remote-confirm][data-vc-remote-confirm-action="add"] [data-vc-confirm="1"]'), 'T25c 预检成功后停在确认卡上（写电话还没发，卡上写明动作）')
+  await m.click('[data-vc-remote-confirm] .vcs-confirm-go')
   const addLog = host.calls.filter(function (one: any) { return one.phone === 'wf.gitRemoteAdd' })
   const addArgs = (addLog[addLog.length - 1] || {}).args || {}
-  check(countKin(host, 'wf.gitRemoteAdd') === addBefore + 1 && String(addArgs.name || '') === 'backup' && String(addArgs.url || '').indexOf('backup.git') >= 0, 'T25b 提交表单后发真电话 wf.gitRemoteAdd（名字与地址取自表单）')
+  check(countKin(host, 'wf.gitRemoteAdd') === addBefore + 1 && String(addArgs.ticketId || '') === 'rm-ticket' && addArgs.confirmed === true && String(addArgs.name || '') === 'backup' && String(addArgs.url || '').indexOf('backup.git') >= 0, 'T25d 确认后才凭票发 wf.gitRemoteAdd（带预检拿到的票号与确认标记）')
+  check(countKin(host, 'wf.gitRemoteList') > listBefore, 'T25e 写成功后重读远端列表')
+  check(!!m.q('.vcs-remote-add [data-vc-result="ok"]'), 'T25f 登记结果贴回登记入口那一段（data-vc-result=ok）')
 
   // ---- 同步带三段式：展开 → 预检电话 → 确认卡 → 凭票执行 ----
   const syncCheckBefore = countKin(host, 'wf.gitSyncCheck')

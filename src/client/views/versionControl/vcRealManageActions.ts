@@ -3,7 +3,8 @@
 //
 // 三个页面共用一套三段式：预检电话签票 → 页面确认卡 → 凭票执行电话 → 结果回触发点，成功后重读该页。
 // 这一层只做「点击 → 电话 → 状态」的搬运，不判断能不能做（判定一律看宿主预检回包）；
-// 回包形状不对就按失败呈现，绝不当成功。远端四条写没有预检，直接执行后重读列表。
+// 回包形状不对就按失败呈现，绝不当成功。远端四条写同样先发预检电话签票、停在确认卡、
+// 凭票才发执行电话（#1776 M4b），执行成功后重读远端列表。
 
 declare const tr: any
 declare function vcBranchCheck(reads: any, call: any, cwd: any, op: any, fields: any): any
@@ -14,6 +15,8 @@ declare function vcBranchResultOf(reply: any): any
 declare function vcBranchTicketOf(reads: any): any
 declare function vcReadRemoteList(reads: any, call: any, cwd: any): any
 declare function vcReadRemoteOnline(reads: any, call: any, cwd: any, name: any, refs: any): any
+declare function vcRemoteCheckCallOf(call: any, cwd: any, action: any, input: any): any
+declare function vcRemoteConfirmOf(action: any, input: any, reply: any, requestId: any): any
 declare function vcRunRemoteWrite(reads: any, call: any, phone: any, args: any): any
 declare function vcReadSyncCheck(reads: any, call: any, cwd: any, action: any, input: any): any
 declare function vcRunSyncWrite(reads: any, call: any, cwd: any, ticketId: any, action: any, requestId: any, confirmed: any): any
@@ -107,9 +110,17 @@ export const vcRealManageActionsOf = function (deps: any): any {
     setUi(function (cur: any) { return Object.assign({}, cur, patch || {}) })
   }
   const remoteTrigger = function (form: any, name: any): void {
-    remoteUi({ form: String(form || ''), target: String(name || ''), problem: '', result: null })
+    remoteUi({ form: String(form || ''), target: String(name || ''), problem: '', result: null, confirm: null })
   }
-  // 提交一条远端写：先按表单字段做最轻的非空检查（空值不打宿主），再直发写电话，成功后重读本地列表。
+  // 把表单字段折成宿主预检要的那几个参数（四种动作各取自己用得到的字段）。
+  const remoteInputOf = function (f: string, name: string, url: string, target: string, values: any): any {
+    const v: any = values || {}
+    if (f === 'add') return { name: name, url: url }
+    if (f === 'rename') return { from: String(v.from || target), to: String(v.to || '') }
+    if (f === 'setUrl') return { name: target, url: url }
+    return { name: target }
+  }
+  // 第一段：提交表单只发预检电话；签到票才停确认卡，预检失败只贴失败结果，不发写电话。
   const remoteSubmit = function (form: any, values: any): any {
     const f: string = String(form || '')
     const v: any = values || {}
@@ -119,30 +130,44 @@ export const vcRealManageActionsOf = function (deps: any): any {
     const url: string = String(v.url || '')
     if (f === 'add' && name.trim() === '') { remoteUi({ problem: 'name' }); return Promise.resolve(null) }
     if ((f === 'add' || f === 'setUrl') && url.trim() === '') { remoteUi({ problem: 'url' }); return Promise.resolve(null) }
-    const phone: any = VC_REMOTE_WRITE_PHONES[f]
+    if (!VC_REMOTE_WRITE_PHONES[f]) return Promise.resolve(null)
+    const input: any = remoteInputOf(f, name, url, target, v)
+    const requestId: string = vcRealRequestIdOf(nowMs(), f)
+    return Promise.resolve(vcRemoteCheckCallOf(callHost, cwd, f, input)).then(function (reply: any) {
+      const confirm: any = vcRemoteConfirmOf(f, input, reply, requestId)
+      if (confirm) remoteUi({ confirm: confirm, result: null, problem: '' })
+      else remoteUi({ confirm: null, result: vcRealRemoteResultOf(reply) })
+      return null
+    })
+  }
+  // 第二段：确认卡上点确认才凭票发执行电话；票与请求号都取自预检那一份（函数式读 prev.confirm）。
+  const remoteConfirmGo = function (): any {
+    // 读当前确认卡要用 getUi 的同步快照：setUi 的函数式更新由 React 在渲染时求值，
+    //   这里若靠 updater 回填外层变量，会拿到空值、把票丢了还发不出写电话。
+    const ui: any = getUi() || {}
+    const confirm: any = ui.confirm || null
+    remoteUi({ confirm: null })
+    if (!confirm || !confirm.ticketId) return Promise.resolve(null)
+    const action: string = String(confirm.action || '')
+    const phone: any = VC_REMOTE_WRITE_PHONES[action]
     if (!phone) return Promise.resolve(null)
-    let args: any = { cwd: cwd }
-    if (f === 'add') args = { cwd: cwd, name: name, url: url }
-    else if (f === 'rename') args = { cwd: cwd, from: String(v.from || target), to: String(v.to || '') }
-    else if (f === 'setUrl') args = { cwd: cwd, name: target, url: url }
-    else if (f === 'remove') args = { cwd: cwd, name: target }
+    const args: any = { cwd: cwd, ticketId: String(confirm.ticketId || ''), requestId: String(confirm.requestId || ''), confirmed: true }
+    if (action === 'add') { args.name = String(confirm.name || ''); args.url = String(confirm.url || '') }
+    else if (action === 'rename') { args.from = String(confirm.from || ''); args.to = String(confirm.to || '') }
+    else if (action === 'setUrl') { args.name = String(confirm.name || ''); args.url = String(confirm.url || '') }
+    else { args.name = String(confirm.name || '') }
     const m: any = getManage() || {}
     return Promise.resolve(vcRunRemoteWrite(m.remote || {}, callHost, phone, args)).then(function (out: any) {
       const reply: any = out && out.reply
       setManage(function (cur: any) { return Object.assign({}, cur, { remote: out && out.reads }) })
-      remoteUi({ result: vcRealRemoteResultOf(reply) })
-      if (reply && reply.ok === true) {
-        remoteUi({ form: '', target: '', problem: '', result: vcRealRemoteResultOf(reply) })
-        onRefresh('remote')
-      }
+      // 结果留在触发点：行内动作保留 target，登记动作 target 为空（结果画在登记入口那一段）。
+      remoteUi({ form: '', problem: '', result: vcRealRemoteResultOf(reply) })
+      if (reply && reply.ok === true) onRefresh('remote')
       return null
     })
   }
-  const remoteConfirmGo = function (): any {
-    return remoteSubmit('remove', {})
-  }
   const remoteCancel = function (): void {
-    remoteUi({ form: '', target: '', problem: '', result: null })
+    remoteUi({ form: '', target: '', problem: '', result: null, confirm: null })
   }
   // 联网查看：只有人点了才发（ADR 20261031 第 6 节），读完落 online 槽；返回按钮把 online 槽收回 idle。
   const remoteOnline = function (name: any): any {

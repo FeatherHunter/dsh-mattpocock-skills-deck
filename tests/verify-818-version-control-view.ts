@@ -2338,7 +2338,7 @@ async function main() {
 
   // R0 数据层：电话名与读数判据（页面只读这份，不在画法里另写一份）
   const rcPhones = VIEW.VC_REMOTE_PHONES
-  check(rcPhones.list === 'wf.gitRemoteList' && rcPhones.add === 'wf.gitRemoteAdd' && rcPhones.rename === 'wf.gitRemoteRename' && rcPhones.remove === 'wf.gitRemoteRemove' && rcPhones.setUrl === 'wf.gitRemoteSetUrl' && rcPhones.online === 'wf.gitRemoteOnline', 'R0a 客户端六条电话名与宿主登记的六条逐条相等（加/改名/删除/改地址/列表/联网）')
+  check(rcPhones.list === 'wf.gitRemoteList' && rcPhones.check === 'wf.gitRemoteCheck' && rcPhones.add === 'wf.gitRemoteAdd' && rcPhones.rename === 'wf.gitRemoteRename' && rcPhones.remove === 'wf.gitRemoteRemove' && rcPhones.setUrl === 'wf.gitRemoteSetUrl' && rcPhones.online === 'wf.gitRemoteOnline', 'R0a 客户端七条电话名与宿主登记的七条逐条相等（列表/联网/预检签票/加/改名/删除/改地址）')
   const rcIdleReads = VIEW.vcNewRemoteReads()
   check(VIEW.vcRemoteStateOf(rcIdleReads) === 'idle' && VIEW.vcRemoteOnlineStateOf(rcIdleReads) === 'idle' && VIEW.vcRemoteOnlineOf(rcIdleReads) === null, 'R0b 全新读数里两个槽都是 idle：打开页面没有任何一处会自动发联网请求')
   const rcApplied = VIEW.vcApplyRemoteReply(rcIdleReads, 'remote', { ok: true, source: 'local', readAtMs: NOW - 120000, remotes: rcRemotesOf() })
@@ -2402,9 +2402,20 @@ async function main() {
   const r4RenameHtml = rcHtmlOf({ ui: { form: 'rename', target: 'mirror' } })
   const r4RenameSeg = rcSegmentOf(r4RenameHtml, 'data-vc-remote="mirror"', ['data-vc-cap-list'])
   check(r4RenameSeg.indexOf('data-vc-form="float"') >= 0 && r4RenameSeg.indexOf('data-vc-remote-form="rename"') >= 0 && r4RenameSeg.indexOf('data-vc-remote-trigger="rename"') >= 0, 'R4b 改名贴触发点用浮层形态（浮层就在那一行里，不开居中模态）')
-  const r4RemoveHtml = rcHtmlOf({ ui: { form: 'remove', target: 'mirror' } })
+  const r4RemoveConfirm = { action: 'remove', ticketId: 'rt-x', requestId: 'rq-x', checkedAtMs: NOW, expiresAtMs: NOW + 120000, name: 'mirror' }
+  const r4RemoveHtml = rcHtmlOf({ ui: { form: 'remove', target: 'mirror', confirm: r4RemoveConfirm } })
   const r4RemoveSeg = rcSegmentOf(r4RemoveHtml, 'data-vc-remote="mirror"', ['data-vc-cap-list'])
-  check(r4RemoveSeg.indexOf('data-vc-confirm="1"') >= 0 && (r4RemoveSeg.match(/data-vc-confirm-seg=/g) || []).length === 4 && r4RemoveSeg.indexOf('data-focus-default="cancel"') >= 0, 'R4c 删除远端贴触发点画确认卡（固定四段，默认焦点在取消）')
+  check(r4RemoveSeg.indexOf('data-vc-remote-confirm-action="remove"') >= 0 && r4RemoveSeg.indexOf('data-vc-confirm="1"') >= 0 && (r4RemoveSeg.match(/data-vc-confirm-seg=/g) || []).length === 4 && r4RemoveSeg.indexOf('data-focus-default="cancel"') >= 0 && r4RemoveSeg.indexOf('data-vc-remote-confirm-note') >= 0 && r4RemoveSeg.indexOf('重新预检') >= 0, 'R4c 预检出票后删除远端贴触发点画确认卡（写明动作、目标与票据有效期，固定四段，默认焦点在取消）')
+  const r4RemoveNoTicketHtml = rcHtmlOf({ ui: { form: 'remove', target: 'mirror' } })
+  const r4RemoveNoTicketSeg = rcSegmentOf(r4RemoveNoTicketHtml, 'data-vc-remote="mirror"', ['data-vc-cap-list'])
+  check(r4RemoveNoTicketSeg.indexOf('data-vc-confirm="1"') < 0 && r4RemoveNoTicketSeg.indexOf('data-vc-remote-confirm') < 0, 'R4c2 没有预检票就不画确认卡（反证：只剩行内动作状态，不立空卡）')
+  const r4AddConfirm = { action: 'add', ticketId: 'rt-y', requestId: 'rq-y', checkedAtMs: NOW, expiresAtMs: NOW + 120000, name: 'backup', url: 'git@example.com:backup.git' }
+  const r4AddConfirmHtml = rcHtmlOf({ ui: { confirm: r4AddConfirm } })
+  const r4AddConfirmSeg = rcSegmentOf(r4AddConfirmHtml, 'data-vc-remote-trigger="add"', ['data-vc-cap-list'])
+  check(r4AddConfirmSeg.indexOf('data-vc-remote-confirm-action="add"') >= 0 && r4AddConfirmSeg.indexOf('data-vc-confirm="1"') >= 0 && r4AddConfirmSeg.indexOf('backup.git') >= 0, 'R4d2 登记远端的确认卡挂在登记入口那一段（动作与目标地址都写清，不另开居中模态）')
+  const r4AddFailHtml = rcHtmlOf({ ui: { result: { ok: false, git: 'fatal: remote backup already exists.', step: '执行预检', expected: '可以登记', actual: '同名远端已存在', cause: '同名远端已存在' } } })
+  const r4AddFailSeg = rcSegmentOf(r4AddFailHtml, 'data-vc-remote-trigger="add"', ['data-vc-cap-list'])
+  check(r4AddFailSeg.indexOf('data-vc-result="fail"') >= 0 && r4AddFailSeg.indexOf('data-vc-remote-confirm') < 0, 'R4d3 预检失败只贴失败结果、不出现确认卡（反证：没票不立卡）')
   const r4UrlHtml = rcHtmlOf({ ui: { form: 'setUrl', target: 'origin', problem: 'remote-url' } })
   const r4UrlSeg = rcSegmentOf(r4UrlHtml, 'data-vc-remote="origin"', ['data-vc-remote="mirror"'])
   check(r4UrlSeg.indexOf('data-vc-form="float"') >= 0 && r4UrlSeg.indexOf('data-vc-remote-field-error="remote-url"') >= 0, 'R4d 改地址的浮层当场报地址校验原因（判据标识与共享层同一套）')

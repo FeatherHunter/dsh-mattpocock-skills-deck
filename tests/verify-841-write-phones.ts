@@ -259,30 +259,40 @@ async function main(): Promise<void> {
   await vcCap.runGitCommand('git', rH, ['-C', rH, '--no-pager', 'status'])
   check((requests[0] || { stdio: {} }).stdio.stdout.maxBytes === 8 * 1024 * 1024, 'H10 不传 stdoutLimit 时默认上限是 8MB')
 
-  // J 远端写动作（#1754 T18，域 8 的 8.2 / 8.3）：同一族出口、固定 argv、真仓库读得回、日志不新开事件名
-  console.log('J 远端写动作（真仓库）')
+  // J 远端写动作（#1754 T18，域 8 的 8.2 / 8.3；#1776 M4b 改成预检签票 → 凭票执行）：
+  // 同一族出口、固定 argv、真仓库读得回、日志不新开事件名。
+  console.log('J 远端写动作（真仓库，预检签票 → 凭票执行）')
   const jRepo = mkRepo('j')
   const vcJRemote = makeVc()
-  const j1 = await vcJRemote.handleGitRemoteAdd({ cwd: jRepo, name: 'origin', url: 'https://example.com/acme/repo.git' })
+  const jWrites = () => spawns.filter((q) => after(q)[0] === 'remote' && ['add', 'remove', 'rename', 'set-url'].indexOf(after(q)[1]) >= 0).length
+  const jTicketArgs = (r, requestId, extra) => Object.assign({ cwd: jRepo, ticketId: r.ticket.id, requestId: requestId, confirmed: true }, extra || {})
+  const jRemoteCheck = await vcJRemote.handleGitRemoteCheck({ cwd: jRepo, action: 'add', name: 'origin', url: 'https://example.com/acme/repo.git' })
+  check(jRemoteCheck && jRemoteCheck.ok === true && jRemoteCheck.ticket && jRemoteCheck.ticket.expiresAtMs - jRemoteCheck.ticket.checkedAtMs === 120000 && jWrites() === 0, 'J1 远端写先预检出票：票有效期 120 秒，预检这一趟一个写进程都不起')
+  const j1 = await vcJRemote.handleGitRemoteAdd(jTicketArgs(jRemoteCheck, 'req-j-remote-1', { name: 'origin', url: 'https://example.com/acme/repo.git' }))
   const jRemoteLines = git(jRepo, ['remote', '-v']).out
-  check(j1 && j1.ok === true && jRemoteLines.indexOf('origin') >= 0, 'J1 登记远端走宿主电话：真仓库里读得回这个远端（不是只把回包说成成功）')
+  check(j1 && j1.ok === true && jRemoteLines.indexOf('origin') >= 0, 'J1b 凭票登记远端走宿主电话：真仓库里读得回这个远端（不是只把回包说成成功）')
   const jAddSpawn = spawns.filter((q) => after(q).slice(0, 2).join(',') === 'remote,add')[0] || []
   check(after(jAddSpawn).slice(0, 5).join(',') === 'remote,add,--,origin,https://example.com/acme/repo.git', 'J2 登记远端的 argv 固定为 remote add -- <名字> <地址>，名字与地址各自独立一项')
   const jAddExec = logs.filter((l) => l.event === 'git.exec' && l.fields.cmd === 'remote')[0]
   check(!!jAddExec && typeof jAddExec.fields.argc === 'number' && logs.every((l) => ['git.exec', 'git.exec.fail', 'host.call'].indexOf(l.event) >= 0), 'J3 远端写动作只落既有的 git.exec（cmd=remote），不新开事件名')
-  const j2 = await vcJRemote.handleGitRemoteRename({ cwd: jRepo, from: 'origin', to: 'upstream' })
+  const jRemoteCheckRen = await vcJRemote.handleGitRemoteCheck({ cwd: jRepo, action: 'rename', from: 'origin', to: 'upstream' })
+  const j2 = jRemoteCheckRen && jRemoteCheckRen.ok === true ? await vcJRemote.handleGitRemoteRename(jTicketArgs(jRemoteCheckRen, 'req-j-remote-2', { from: 'origin', to: 'upstream' })) : { ok: false }
   const jRenSpawn = spawns.filter((q) => after(q).slice(0, 2).join(',') === 'remote,rename')[0] || []
-  check(j2 && j2.ok === true && git(jRepo, ['remote']).out === 'upstream' && after(jRenSpawn).slice(2).join(',') === '--,origin,upstream', 'J4 改名远端：argv 为 remote rename <旧名> <新名>，真仓库里的名字跟着变')
-  const j3 = await vcJRemote.handleGitRemoteSetUrl({ cwd: jRepo, name: 'upstream', url: 'git@example.com:acme/other.git' })
+  check(j2 && j2.ok === true && git(jRepo, ['remote']).out === 'upstream' && after(jRenSpawn).slice(2).join(',') === '--,origin,upstream', 'J4 改名远端：先预检签票、再凭票执行，argv 为 remote rename <旧名> <新名>，真仓库里的名字跟着变')
+  const jRemoteCheckUrl = await vcJRemote.handleGitRemoteCheck({ cwd: jRepo, action: 'setUrl', name: 'upstream', url: 'git@example.com:acme/other.git' })
+  const j3 = jRemoteCheckUrl && jRemoteCheckUrl.ok === true ? await vcJRemote.handleGitRemoteSetUrl(jTicketArgs(jRemoteCheckUrl, 'req-j-remote-3', { name: 'upstream', url: 'git@example.com:acme/other.git' })) : { ok: false }
   const jUrlSpawn = spawns.filter((q) => after(q).slice(0, 2).join(',') === 'remote,set-url')[0] || []
-  check(j3 && j3.ok === true && git(jRepo, ['remote', 'get-url', 'upstream']).out === 'git@example.com:acme/other.git' && after(jUrlSpawn).slice(2).join(',') === '--,upstream,git@example.com:acme/other.git', 'J5 改地址：argv 为 remote set-url <名字> <地址>，真仓库里的地址跟着变')
-  const j4 = await vcJRemote.handleGitRemoteRemove({ cwd: jRepo, name: 'upstream' })
+  check(j3 && j3.ok === true && git(jRepo, ['remote', 'get-url', 'upstream']).out === 'git@example.com:acme/other.git' && after(jUrlSpawn).slice(2).join(',') === '--,upstream,git@example.com:acme/other.git', 'J5 改地址：先预检签票、再凭票执行，argv 为 remote set-url <名字> <地址>，真仓库里的地址跟着变')
+  const jRemoteCheckDel = await vcJRemote.handleGitRemoteCheck({ cwd: jRepo, action: 'remove', name: 'upstream' })
+  const j4 = jRemoteCheckDel && jRemoteCheckDel.ok === true ? await vcJRemote.handleGitRemoteRemove(jTicketArgs(jRemoteCheckDel, 'req-j-remote-4', { name: 'upstream' })) : { ok: false }
   const jDelSpawn = spawns.filter((q) => after(q).slice(0, 2).join(',') === 'remote,remove')[0] || []
-  check(j4 && j4.ok === true && git(jRepo, ['remote']).out === '' && after(jDelSpawn).slice(2).join(',') === '--,upstream', 'J6 删除远端：argv 为 remote remove <名字>，真仓库里这条远端没了')
-  const jBad = await vcJRemote.handleGitRemoteAdd({ cwd: jRepo, name: '--upload-pack=evil', url: 'https://example.com/x.git' })
-  check(jBad && jBad.ok === false && jBad.error && jBad.error.kind === 'args' && spawns.filter((q) => after(q).slice(0, 2).join(',') === 'remote,add').length === 1, 'J7 名字非法（前导减号）：零进程直接拒绝，注入串进不了 argv')
-  const jBadUrl = await vcJRemote.handleGitRemoteSetUrl({ cwd: jRepo, name: 'origin', url: ' https://example.com/x.git ' })
-  check(jBadUrl && jBadUrl.ok === false && jBadUrl.error && jBadUrl.error.kind === 'args', 'J8 地址带空白：零进程直接拒绝（不做 trim 之后照跑）')
+  check(j4 && j4.ok === true && git(jRepo, ['remote']).out === '' && after(jDelSpawn).slice(2).join(',') === '--,upstream', 'J6 删除远端：先预检签票、再凭票执行，argv 为 remote remove <名字>，真仓库里这条远端没了')
+  const jBadWrites = jWrites()
+  const jBad = await vcJRemote.handleGitRemoteCheck({ cwd: jRepo, action: 'add', name: '--upload-pack=evil', url: 'https://example.com/x.git' })
+  check(jBad && jBad.ok === false && jBad.error && jBad.error.kind === 'args' && jWrites() === jBadWrites, 'J7 名字非法（前导减号）：预检零写进程直接拒绝，注入串进不了 argv')
+  const jBadUrlWrites = jWrites()
+  const jBadUrl = await vcJRemote.handleGitRemoteCheck({ cwd: jRepo, action: 'setUrl', name: 'origin', url: ' https://example.com/x.git ' })
+  check(jBadUrl && jBadUrl.ok === false && jBadUrl.error && jBadUrl.error.kind === 'args' && jWrites() === jBadUrlWrites, 'J8 地址带空白：预检零写进程直接拒绝（不做 trim 之后照跑）')
   const jJudged = (r) => !!(r && r.ok === true && r.action && typeof r.ms === 'number' && typeof r.n === 'number')
   check(jJudged(j1) === true && jJudged(jBad) === false && jJudged({ ok: false, action: 'add', ms: 1, n: 1 }) === false, 'J9 反证装置自检：把失败回包喂给「写动作成功」判据必须判红')
   // I 改动页两条电话（#1742）：13 条动作走同一条「预检发票 → 执行复核」通道，票表只给门禁与测试读。

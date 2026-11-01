@@ -83,6 +83,8 @@ const REFERENCES: RefRow[] = [
   { file: 'src/host/versionControlCheck.ts', access: 'REMOTE_TIMEOUT_MS', gen: 'VC_REMOTE_TIMEOUT_MS', key: 'vcRemoteTimeoutMs' },
   // #1754 T18 远端与同步页：用户显式点「联网查看」时 git ls-remote 的超时（真走网络，与本地 remote -v 那一档分开）。
   { file: 'src/host/versionControlRemote.ts', access: 'ONLINE_TIMEOUT_MS', gen: 'VC_REMOTE_ONLINE_TIMEOUT_MS', key: 'vcRemoteOnlineTimeoutMs' },
+  // #1776 M4b 远端四条写动作：预检签票、凭票执行，执行那一步单条命令的时限（本地配置动作，与 vcRemoteTimeoutMs 同一档）。
+  { file: 'src/host/versionControlRemote.ts', access: 'WRITE_TIMEOUT_MS', gen: 'VC_REMOTE_WRITE_TIMEOUT_MS', key: 'vcRemoteWriteTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'ADD_TIMEOUT_MS', gen: 'VC_ADD_TIMEOUT_MS', key: 'vcAddTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'COMMIT_TIMEOUT_MS', gen: 'VC_COMMIT_TIMEOUT_MS', key: 'vcCommitTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'PULL_TIMEOUT_MS', gen: 'VC_PULL_TIMEOUT_MS', key: 'vcPullTimeoutMs' },
@@ -556,6 +558,9 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/versionControlConfigWrite.ts', name: 'timeoutMs', reason: '按动作二选一：手动跑钩子取已登记的 HOOK_TIMEOUT_MS，其余写动作取已登记的 WRITE_TIMEOUT_MS，本文件不自留数字' },
   // #1757 子模块页：票据回包里读到的过期时刻只用来判断票是否已过期，不是本票新增的可调时长。
   { file: 'src/client/views/versionControl/vcSubmodulesOps.ts', name: 'expiresAtMs', reason: '票据回包里读到的过期时刻，只用来判断这张票是否已过期，不是本文件新增的可调时长' },
+  // #1776 M4b 远端页：预检回包里读到的两个时刻只用来画确认卡的「票据有效期」，不是本文件新增的可调时长。
+  { file: 'src/client/views/versionControl/vcRemoteData.ts', name: 'checkedAtMs', reason: '预检回包里的检查时刻，只用来核对票据时间，不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRemoteData.ts', name: 'expiresAtMs', reason: '预检回包里的票据过期时刻，只用来判断这张票还能用多久，不是本文件新增的可调时长' },
   { file: 'src/refresh/kernel/index-window-rules.ts', name: 'sinceMs', reason: '算出来的起点时刻（水位减容差），不是可调参数' },
   // —— 派生变量：正常路径取 SYNC 契约里的同名项（已登记），兜底取拼进闭包的中央常量 ——
   { file: 'src/refresh/rooms/client/refresh-timer.ts', name: 'PROBE_MS', reason: '派生变量，取 SYNC.FALLBACK_PROBE_MS（已登记为 syncFallbackProbeMs），兜底取拼进闭包的 SYNC_FALLBACK_PROBE_MS；引用即跟随' },

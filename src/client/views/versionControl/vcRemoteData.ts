@@ -9,16 +9,17 @@
 // 失败与截断都不给半份：联网失败/输出被截断时引用清单保持为空，只画失败分类与下一步。
 // 刷新失败保留上一次的读数继续画（与 vcFirstScreen.ts 的约定一致），旧读数会在界面上标出来。
 //
-// 六条电话名是页面与宿主唯一对得上的接头：宿主在 src/host/versionControlRemote.ts 登记同名电话，
+// 七条电话名是页面与宿主唯一对得上的接头：宿主在 src/host/versionControlRemote.ts 登记同名电话，
 //   门禁拿这一份名单逐个对账（本文件不另写第二份字符串）。
 // 限频（同一远端同一时刻只飞一个请求、不排队、不自动重试）在宿主那一层做，客户端只负责「不重复发」：
 //   联网入口只在用户点它时调用一次 vcReadRemoteOnline，渲染函数本身不发任何请求。
 //
 // 日志设施（log / dswsLogHash / dswsLogTrunc）由 src/client/ts-pixel-ambient.d.ts 全局声明。
 
-/** 六条电话的真实名字（列表 / 登记 / 改名 / 删除 / 改地址 / 联网查看）。 */
+/** 七条电话的真实名字（列表 / 预检 / 登记 / 改名 / 删除 / 改地址 / 联网查看）。 */
 export const VC_REMOTE_PHONES: Record<string, string> = {
   list: 'wf.gitRemoteList',
+  check: 'wf.gitRemoteCheck',
   add: 'wf.gitRemoteAdd',
   rename: 'wf.gitRemoteRename',
   remove: 'wf.gitRemoteRemove',
@@ -189,6 +190,57 @@ export const vcReadRemoteOnline = function (reads: any, call: any, cwd: any, nam
       vcRmFailLog(VC_REMOTE_PHONES.online, 'git-remote-online', t0, fail)
       return vcRmMerge(loading, 'online', { state: 'err', name: remoteName, data: null, error: fail })
     })
+}
+/**
+ * 发一条远端预检电话（#1776 M4b）：只把这次动作与目标交给宿主判目标、签票。
+ * 成功时回包里有 ticket（120 秒有效），界面据此弹确认卡；失败时没有票，界面只贴失败结果。
+ */
+export const vcRemoteCheckCallOf = function (call: any, cwd: any, action: any, input: any) {
+  const a: any = input || {}
+  const payload: any = { cwd: String(cwd || ''), action: String(action || '') }
+  if (a.name !== undefined) payload.name = String(a.name || '')
+  if (a.url !== undefined) payload.url = String(a.url || '')
+  if (a.from !== undefined) payload.from = String(a.from || '')
+  if (a.to !== undefined) payload.to = String(a.to || '')
+  const t0 = Date.now()
+  return Promise.resolve()
+    .then(function () { return call(VC_REMOTE_PHONES.check, payload) })
+    .then(function (reply: any) {
+      if (reply && reply.ok === true) vcRmOkLog(VC_REMOTE_PHONES.check, 'git-remote-check', t0)
+      else vcRmFailLog(VC_REMOTE_PHONES.check, 'git-remote-check', t0, vcRmFailureOf(reply))
+      return reply
+    })
+    .catch(function (e: any) {
+      const fail = { kind: 'throw', message: String((e && e.message) || e) }
+      vcRmFailLog(VC_REMOTE_PHONES.check, 'git-remote-check', t0, fail)
+      return { ok: false, error: fail }
+    })
+}
+/** 预检回包里的票：只有 ok 且带票号才算签到了票（缺票一律当没签到，不弹确认卡）。 */
+export const vcRemoteTicketOf = function (reply: any) {
+  const ticket = reply && reply.ok === true ? reply.ticket : null
+  if (!ticket || !ticket.id) return null
+  return ticket
+}
+/**
+ * 把票与这次输入折成确认卡要用的那一份：动作、目标、票据有效期。
+ * 文案由页面按动作翻词条（vc.remote.confirmTarget.*），这里只带事实，不带说法。
+ */
+export const vcRemoteConfirmOf = function (action: any, input: any, reply: any, requestId: any) {
+  const ticket = vcRemoteTicketOf(reply)
+  if (!ticket) return null
+  const a: any = input || {}
+  return {
+    action: String(action || ''),
+    ticketId: String(ticket.id || ''),
+    requestId: String(requestId || ''),
+    checkedAtMs: typeof ticket.checkedAtMs === 'number' ? ticket.checkedAtMs : 0,
+    expiresAtMs: typeof ticket.expiresAtMs === 'number' ? ticket.expiresAtMs : 0,
+    name: String(a.name || ''),
+    url: String(a.url || ''),
+    from: String(a.from || ''),
+    to: String(a.to || ''),
+  }
 }
 /**
  * 发一条写动作电话（登记 / 改名 / 删除 / 改地址），把回包原样交给界面并落日志。
