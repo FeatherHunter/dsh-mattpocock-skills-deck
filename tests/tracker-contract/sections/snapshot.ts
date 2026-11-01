@@ -1,9 +1,10 @@
 // tests/tracker-contract/sections/snapshot.ts —— 快照拼装分区（原 snapshot.js）。
 //
 // 守的东西（#132 Q2=B）：composeSnapshot 非 op（纯 list 组合 + deck 派生）；快照缓存
-// （TTL 可配）+ 依赖边 LRU 只缓存边数据；unsupported 不缓存；可选快路径（snapshotFast，
-// 不完整回落 list）；map 正文五区块解析；拉取请求同池（#505 落 #294 形状 A）；数字走
-// 后端 counts（deck.counts / deck.partial，#689）。
+// （TTL 可配）+ 依赖边 LRU 只缓存边数据；unsupported 不缓存；#1796 起首屏一律经
+// list({state:'open'}) 取开放工作集（后端可选快路径整条不走），再并上开放地图子票与
+// 已关闭地图容器行；map 正文五区块解析；拉取请求同池（#505 落 #294 形状 A）；数字走
+// 后端 counts（deck.counts / deck.partial / deck.missingOpen）。
 //
 // 类型说明：
 // - 拼装器来自没类型的旧文件（allowJs 只保证引入得到，不做类型检查），
@@ -33,7 +34,7 @@ export interface SnapshotSectionResult {
 /**
  * 拼装成功包：拼装器的 JSDoc 只写了 {ok, snapshot, version, cached}，
  * 运行时带版号对上时的 304 那条还多带 notModified（见 snapshot.js:299），这里一并写上。
- * deck 在运行时带 counts/partial（数字走后端 counts，#689），
+ * deck 在运行时带 counts/partial/missingOpen（数字走后端 counts；「缺几张未关闭票」按 #1796 的新口径），
  * 共享形状的 DeckProjection 没跟上，这里按运行时补——不改源形状，本分区自用。
  * 本分区每个用例都先断言成功再读数，读版/读缓存/读 304 标记/读数字都走这个形状，一处一断言。
  */
@@ -43,6 +44,7 @@ interface ComposeSuccess {
     deck: DeckProjection & {
       counts?: { open: number; closed: number; total: number }
       partial?: boolean
+      missingOpen?: number
     }
   }
   version: string
@@ -365,44 +367,29 @@ export async function run() {
     await assert('✗ probe: unsupported 每调必达 op（不缓存）', unsupCalls === 2, `unsupCalls=${unsupCalls}`)
   }
 
-  // ── 可选后端快路径（非 op）：完整才用，不完整回落 list ──
+  // ── #1796 首屏不走后端快路径：一律经 list({state:'open'}) 取开放工作集 ──
+  // 为什么：可选快路径只回「完整数组」，表达不了「只要未关闭」；开放票与已关闭历史挤同一个
+  // 500 条窗口正是 #1796 的根因。所以哪怕后端提供了 snapshotFast，首屏也不走它。
   {
     let listCalls = 0
     let fastUsed = 0
+    let lastFilter: any = null
     const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'fast', label: 'fast',
-      // 这个桩只用来复现快路径，不断言额度，所以按离网口径声明。
+      // 这个桩只用来复现「快路径不再被调用」，不断言额度，所以按离网口径声明。
       budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
       create: () => ({
-        list: async () => { listCalls++; return { ok: true, data: ALL } },
+        list: async (_ref: any, filter: any) => { listCalls++; lastFilter = filter; return { ok: true, data: ALL } },
         snapshotFast: async () => { fastUsed++; return { ok: true, data: ALL } },
       }),
       matches: async () => true,
     } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 50, depsTtl: 50 })
-    const r1 = await composer.composeSnapshot('fast', ref, {})
-    await assert('快路径生效（list 不调，deck 照常派生）', r1.ok === true && fastUsed === 1 && listCalls === 0 && r1.snapshot.deck.stats.total === 2,
+    const r1 = await composer.composeSnapshot('fast', ref, {}) as ComposeSuccess
+    await assert('#1796 后端有快路径也不走：首屏走 list 取开放工作集', r1.ok === true && fastUsed === 0 && listCalls === 1 && r1.snapshot.deck.stats.total === 2,
       `fastUsed=${fastUsed} listCalls=${listCalls}`)
-  }
-  {
-    let listCalls = 0
-    let fastUsed = 0
-    const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
-    registry.register({
-      id: 'half', label: 'half',
-      // 这个桩只用来复现快路径回落，不断言额度，所以按离网口径声明。
-      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
-      create: () => ({
-        list: async () => { listCalls++; return { ok: true, data: ALL } },
-        snapshotFast: async () => { fastUsed++; return { ok: true, data: null } }, // 不完整 → 回落
-      }),
-      matches: async () => true,
-    } as unknown as BackendModule)
-    const composer = createSnapshotComposer(registry, { snapshotTtl: 50, depsTtl: 50 })
-    const r2 = await composer.composeSnapshot('half', ref, {})
-    await assert('✗ probe: 快路径不完整 → 回落 list（桩不误导）', r2.ok === true && fastUsed === 1 && listCalls === 1,
-      `fastUsed=${fastUsed} listCalls=${listCalls}`)
+    await assert("#1796 首屏 list 下推状态筛选（filter.state === 'open'）", !!lastFilter && lastFilter.state === 'open', JSON.stringify(lastFilter))
   }
 
   // ── map 正文五区块（Destination/Notes/Decisions so far/Not yet specified/Out of scope）──
@@ -590,22 +577,23 @@ export async function run() {
     await assert('✗ probe: 关调试开关 → 按需命中零记录，常驻未命中照记', hitsOff.length === 0 && missOff.length === 1 && missOff[0].fields.reason === 'empty', `hits=${hitsOff.length} miss=${JSON.stringify(missOff)}`)
   }
 
-  // ── #689：数字走后端计数（deck.counts / deck.partial / 版号覆盖新字段）──
-  //   这一段守的是「面板上的数字从哪来」：数字是后端 counts 给的真值（不是数池子数出来的），
-  //   「这份行数据全不全」由池子行数与 counts.total 对比得出；两者都要算进版号，否则数字变了会被 304 糊过去。
+  // ── #689 起步、#1796 改口径：数字走后端计数，partial 只报异常缺失 ──
+  //   这一段守的是「面板上的数字从哪来、缺没缺」：数字是后端 counts 给的真值（不是数池子数出来的）；
+  //   partial 只看开放工作集行数对不对得上后端 open、列表有没有触上限 / 降级、计数是否缺失或冲突；
+  //   「已关闭历史只装首页」是规格 677 §6.3 的设计、不算缺。数字与 partial 都要算进版号，否则变了会被 304 糊过去。
   {
     const POOL = [base({ key: '1', title: 'A' }), base({ key: '2', title: 'B', state: 'closed' })]
     let countsCalls = 0
     // countsImpl 故意收宽：四个用例里有三个返回坏形状（unsupported 桩、配额错、缺数字），
     // 本来就是要验证“拿不到计数时不写 deck.counts”的反例，类型上不可能是合规的 Counts。
-    const mkReg = (countsImpl: () => unknown) => {
+    const mkReg = (countsImpl: () => unknown, rows: any[]) => {
       const reg = createRegistry(emptyCtx, { matchesTimeout: 50 })
       // 这个桩只用来复现后端计数进快照，不断言额度，所以按离网口径声明。
       reg.register({
         id: 'counted', label: 'counted',
         budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
         create: () => ({
-          list: async () => ({ ok: true, data: POOL }),
+          list: async () => ({ ok: true, data: rows }),
           counts: async () => { countsCalls++; return countsImpl() },
         }),
         matches: async () => true,
@@ -613,47 +601,47 @@ export async function run() {
       return reg
     }
 
-    // ① 后端能计数、池子装全了：三个数进 deck，partial 为假，同数据版号可复现
+    // ① 后端能计数、开放行数对得上：三个数进 deck，partial 为假、missingOpen 为 0，同数据版号可复现
     {
       const live = { open: 1, closed: 1, total: 2 }
-      const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: Object.assign({}, live) })), { snapshotTtl: 60000, depsTtl: 60000 })
+      const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: Object.assign({}, live) }), POOL), { snapshotTtl: 60000, depsTtl: 60000 })
       const r = await composer.composeSnapshot('counted', ref, {}) as ComposeSuccess
       await assert('后端计数的三个数写进 deck.counts（面板不再自己数池子）',
         r.ok === true && r.snapshot.deck.counts && r.snapshot.deck.counts.open === 1 && r.snapshot.deck.counts.closed === 1 && r.snapshot.deck.counts.total === 2,
         JSON.stringify(r.snapshot.deck.counts))
-      await assert('池子装全了（工单行数 == 后端说的总数）→ partial 为假', r.snapshot.deck.partial === false, 'partial=' + JSON.stringify(r.snapshot.deck.partial))
+      await assert('#1796 开放行数与后端 open 对得上 → partial 为假', r.snapshot.deck.partial === false, 'partial=' + JSON.stringify(r.snapshot.deck.partial))
+      await assert('#1796 一张都不缺时 deck.missingOpen 为 0', r.snapshot.deck.missingOpen === 0, 'missingOpen=' + JSON.stringify(r.snapshot.deck.missingOpen))
       const v1 = r.version
       const again = await composer.composeSnapshot('counted', ref, {}, { force: true }) as ComposeSuccess
       await assert('同数据重建 → 版号不变（可复现）', again.version === v1, `v1=${v1} again=${again.version}`)
-      // ② 数字变了必须换版号：否则带着旧版号问一次就能被 304 糊过去（规格第 12 节点名的风险）
+      // 数字变了必须换版号：否则带着旧版号问一次就能被 304 糊过去（规格第 12 节点名的风险）
       live.total = 3
       live.closed = 2
       const rChanged = await composer.composeSnapshot('counted', ref, {}, { force: true, ifNoneMatch: v1 }) as ComposeSuccess
       await assert('✗ probe: 后端数字变了 → 版号变化且不回 304（数字变了不许被 304 糊过去）',
         rChanged.version !== v1 && rChanged.notModified !== true && rChanged.snapshot.deck.counts!.closed === 2,
         `v1=${v1} changed=${rChanged.version} notModified=${JSON.stringify(rChanged.notModified)}`)
-      // ③ 池子被截断（总数比手上这些行多）→ partial 为真；且这个变化也要换版号
-      const v2 = rChanged.version
-      const rTrunc = (await (async () => {
-        const reg2 = createRegistry(emptyCtx, { matchesTimeout: 50 })
-        reg2.register({
-          id: 'counted', label: 'counted',
-          budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
-          create: () => ({
-            list: async () => ({ ok: true, data: POOL }),
-            counts: async () => ({ ok: true, data: { open: 1, closed: 1, total: 649 } }),
-          }),
-          matches: async () => true,
-        } as unknown as BackendModule)
-        const c2 = createSnapshotComposer(reg2, { snapshotTtl: 60000, depsTtl: 60000 })
-        return c2.composeSnapshot('counted', ref, {})
-      })()) as ComposeSuccess
-      await assert('✗ probe: 池子被截断（总数 649 > 手上 2 行）→ partial 为真（夹具覆盖「池子被截断 + 总数更大」这一态）',
-        rTrunc.snapshot.deck.partial === true && rTrunc.snapshot.deck.counts!.total === 649 && rTrunc.version !== v2,
-        `partial=${JSON.stringify(rTrunc.snapshot.deck.partial)} version=${rTrunc.version} v2=${v2}`)
+    }
+    // ② 列表触到上限（后端自己说截断了）→ 数字仍用后端，partial 置真
+    {
+      const reg2 = createRegistry(emptyCtx, { matchesTimeout: 50 })
+      reg2.register({
+        id: 'counted', label: 'counted',
+        budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
+        create: () => ({
+          list: async () => ({ ok: true, data: POOL, truncated: true }),
+          counts: async () => ({ ok: true, data: { open: 1, closed: 1, total: 649 } }),
+        }),
+        matches: async () => true,
+      } as unknown as BackendModule)
+      const c2 = createSnapshotComposer(reg2, { snapshotTtl: 60000, depsTtl: 60000 })
+      const rTrunc = await c2.composeSnapshot('counted', ref, {}) as ComposeSuccess
+      await assert('✗ probe: 列表触到上限 → partial 置真（数字仍用后端）',
+        rTrunc.snapshot.deck.partial === true && rTrunc.snapshot.deck.counts!.total === 649,
+        `partial=${JSON.stringify(rTrunc.snapshot.deck.partial)} counts=${JSON.stringify(rTrunc.snapshot.deck.counts)}`)
     }
 
-    // ④ 拿不到计数（后端没实现 / 配额耗尽 / 形状不对）：deck 不写 counts、partial 置真，绝不猜一个数
+    // ④ 拿不到计数（后端没实现 / 配额耗尽 / 形状不对）：不写 counts、countsPending 与 partial 都置真
     {
       // label 与 impl 成对：断言名里直接用 label，impl 是上面 mkReg 要的宽形状。
       const cases: Array<[string, () => unknown]> = [
@@ -663,28 +651,32 @@ export async function run() {
       ]
       for (const [label, impl] of cases) {
         countsCalls = 0
-        const composer = createSnapshotComposer(mkReg(impl), { snapshotTtl: 60000, depsTtl: 60000 })
+        const composer = createSnapshotComposer(mkReg(impl, POOL), { snapshotTtl: 60000, depsTtl: 60000 })
         const r = await composer.composeSnapshot('counted', ref, {}) as ComposeSuccess
-        // #1698：拿不到后端计数、但这次列表是完整的（这个桩的 list 不分页、不降级）→ 本地按行重算并标来源，
-        //   不再留一个派生值冒充后端数字，也不把「拿不到」说成「这份清单不全」（partial 假）。
-        const c = r.snapshot.deck.counts
-        await assert('拿不到计数（' + label + '）→ 本地按行重算并标来源，partial 不置真（清单是完整的）',
-          !!c && c.open === 1 && c.closed === 1 && c.total === 2 && c.source === 'local-enumeration' && r.snapshot.deck.countsPending === false && r.snapshot.deck.partial === false && typeof r.snapshot.deck.stats.total === 'number',
-          JSON.stringify({ counts: c, pending: r.snapshot.deck.countsPending, partial: r.snapshot.deck.partial }))
+        // #1796：首屏只装开放工作集之后，本地再也数不出「已关闭多少、总共多少」——拿不到后端计数就无从
+        //   判断缺没缺，按规格 677 §6.5 把 partial 置真、countsPending 留作待定；绝不拿行数冒充后端数字。
+        const d = r.snapshot.deck
+        await assert('拿不到计数（' + label + '）→ 不写 counts、countsPending 与 partial 都置真',
+          !d.counts && d.countsPending === true && d.partial === true && d.missingOpen === undefined,
+          JSON.stringify({ counts: d.counts, pending: d.countsPending, partial: d.partial, missingOpen: d.missingOpen }))
         await composer.composeSnapshot('counted', ref, {}, { force: true })
         await assert('✗ probe: 计数失败不被缓存（' + label + '：每次重建都再问一次）', countsCalls === 2, 'countsCalls=' + countsCalls)
       }
     }
 
-    // ⑤ 池子里的工单行数比 counts.total 还多 = 这个数字不可能对 → 同样置 partial（编排层那道判据）
+    // ⑤ 数到的未关闭行比后端说的还多 = 这组数字不可能对 → 留痕冲突并置 partial（编排层那道判据）
     {
-      const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: { open: 1, closed: 0, total: 1 } })), { snapshotTtl: 60000, depsTtl: 60000 })
+      // 池里两行都是未关闭、键不同（同键会被身份去重成一票），后端却只说有 1 张开放票。
+      const twoOpen = [base({ key: '1', title: 'A' }), base({ key: '3', title: 'C' })]
+      const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: { open: 1, closed: 0, total: 1 } }), twoOpen), { snapshotTtl: 60000, depsTtl: 60000 })
       const r = await composer.composeSnapshot('counted', ref, {}) as ComposeSuccess
-      // #1698：数字与行数据冲突时以行数据为准，并把后端当时给的那组数字留痕（conflictWith）。
-      await assert('✗ probe: 池子行数（2）比后端说的总数（1）还多 → 以行数据为准、留痕冲突、partial 置真',
-        r.snapshot.deck.partial === true && r.snapshot.deck.counts.total === 2 && r.snapshot.deck.counts.source === 'local-enumeration'
-          && !!r.snapshot.deck.counts.conflictWith && r.snapshot.deck.counts.conflictWith.total === 1,
-        JSON.stringify({ counts: r.snapshot.deck.counts, partial: r.snapshot.deck.partial }))
+      // #1796：冲突时数字仍用后端（counts.open 仍是 1），把后端当时给的那组数字留在 conflictWith 里；
+      //   missingOpen 截 0，不报负数。
+      await assert('✗ probe: 未关闭行（2）比后端 open 计数（1）还多 → 留痕冲突、partial 置真',
+        r.snapshot.deck.partial === true && r.snapshot.deck.counts!.open === 1
+          && !!r.snapshot.deck.counts!.conflictWith && r.snapshot.deck.counts!.conflictWith.total === 1
+          && r.snapshot.deck.missingOpen === 0,
+        JSON.stringify({ counts: r.snapshot.deck.counts, partial: r.snapshot.deck.partial, missingOpen: r.snapshot.deck.missingOpen }))
     }
 
     // ⑥ 池子里的拉取请求不算工单：partial 的判据只数工单（与界面口径同一句话）
@@ -701,8 +693,86 @@ export async function run() {
       } as unknown as BackendModule)
       const c6 = createSnapshotComposer(reg6, { snapshotTtl: 60000, depsTtl: 60000 })
       const r6 = await c6.composeSnapshot('counted', ref, {}) as ComposeSuccess
-      await assert('拉取请求不计入「池子装全了没有」的判据（工单口径：2 张工单 == 总数 2 → partial 为假）',
+      await assert('拉取请求不计入「缺几张未关闭票」的判据（工单口径：1 张开放工单 == 后端 open 1 → partial 为假）',
         r6.snapshot.deck.partial === false && r6.snapshot.issues.length === 3, JSON.stringify({ partial: r6.snapshot.deck.partial, rows: r6.snapshot.issues.length }))
+    }
+
+    // ── #1796 首屏工作集：开放池 + 开放容器子票 + 已关闭地图容器行 ──
+    //   守的是「首屏装哪些行」：开放工作集由后端先筛状态；开放容器（探索地图与规格）的子票要逐张拉全
+    //   （含已关闭），否则地图详情数不清「共 N 张」、做完了的规格也会看着一张子票都没有；
+    //   已关闭地图的容器行热启动沿用上一份快照、冷启动补一页薄行。
+    {
+      const OPEN_MAP = base({ key: '300', type: 'map', title: '开放地图' })
+      const OPEN_TICKET = base({ key: '301', title: '开放票', parentKey: '300' })
+      const OPEN_SPEC = base({ key: '302', type: 'spec', title: '开放规格' })
+      const CLOSED_SUB = base({ key: '202', title: '已关闭子票', state: 'closed', parentKey: '300' })
+      const CLOSED_SPEC_TICKET = base({ key: '203', title: '规格下已关闭的实施票', state: 'closed', parentKey: '302' })
+      const calls: any = { listFilters: [] as any[], subIssueKeys: [] as any[], pageFilters: [] as any[], pageFails: false, capped: false, failKey: '' }
+      const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
+      registry.register({
+        id: 'work', label: 'work',
+        budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
+        create: () => ({
+          // 后端计数与首屏开放行数对齐（3 张开放容器/票）：partial 的基线才有意义。
+          counts: async () => ({ ok: true, data: { open: 3, closed: 2, total: 5 } }),
+          list: async (_ref: any, filter: any) => { calls.listFilters.push(filter); return { ok: true, data: [OPEN_MAP, OPEN_TICKET, OPEN_SPEC] } },
+          listSubIssues: async (_ref: any, key: any) => {
+            calls.subIssueKeys.push(key)
+            if (calls.failKey && calls.failKey === key) return { ok: false, error: { kind: 'transport', message: 'boom' } }
+            const all = key === '300' ? [CLOSED_SUB] : (key === '302' ? [CLOSED_SPEC_TICKET] : [])
+            // 撞上限要能传到 partial（#1796 code review：子票装不全是异常缺失，不再只影响回补）。
+            const capped = calls.capped && key === '300'
+            return { ok: true, data: { items: all, total: all.length + (capped ? 1 : 0), fetched: all.length, capped, missing: capped ? 1 : 0, dropped: 0 } }
+          },
+          listPage: async (_ref: any, filter: any) => {
+            calls.pageFilters.push(filter)
+            if (calls.pageFails) return { ok: false, error: { kind: 'transport', message: 'boom' } }
+            // 薄行只带列表画一行要的事实；类型由标签认出来（真实 GitHub 后端是 normalizeIssue 按 wayfinder:map 认）。
+            const items = [{ number: 200, title: '已关闭地图', state: 'closed', type: 'map', labels: [{ name: 'wayfinder:map', color: '' }] }]
+            return { ok: true, data: { items, total: items.length, hasNextPage: false } }
+          },
+        }),
+        matches: async () => true,
+      } as unknown as BackendModule)
+      const wc = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000 })
+      const r = await wc.composeSnapshot('work', ref, {}) as ComposeSuccess
+      await assert("#1796 首屏工作集取开放票（list 收到 state === 'open'）",
+        r.ok === true && calls.listFilters.length === 1 && !!calls.listFilters[0] && calls.listFilters[0].state === 'open',
+        JSON.stringify(calls.listFilters))
+      const maps = r.snapshot.maps as SnapshotMapNode[]
+      const openMap = maps.filter((m) => String(m.key) === '300')[0]
+      await assert('#1796 开放容器的子票拉全（已关闭子票 202 挂回地图 300，且只问过两张开放容器）',
+        !!openMap && openMap.tickets.some((t) => String(t.key) === '202') && calls.subIssueKeys.length === 2
+          && calls.subIssueKeys.indexOf('300') >= 0 && calls.subIssueKeys.indexOf('302') >= 0,
+        JSON.stringify({ tickets: openMap ? openMap.tickets.map((t) => String(t.key)) : null, asked: calls.subIssueKeys }))
+      const openSpec: any = maps.filter((m) => String(m.key) === '302')[0]
+      await assert('#1796 开放规格容器也拉子票（已关闭实施票 203 挂回规格 302，做完的规格不再显示一张子票都没有）',
+        !!openSpec && openSpec.type === 'spec' && openSpec.tickets.some((t) => String(t.key) === '203'),
+        JSON.stringify(openSpec && { tickets: openSpec.tickets.map((t) => String(t.key)) }))
+      await assert('#1796 后端计数与开放行数对得上时 partial 为假、missingOpen 为 0（子票补齐不虚增开放行数）',
+        r.snapshot.deck.partial === false && r.snapshot.deck.missingOpen === 0 && !!r.snapshot.deck.counts && r.snapshot.deck.counts.open === 3,
+        JSON.stringify({ partial: r.snapshot.deck.partial, missingOpen: r.snapshot.deck.missingOpen, counts: r.snapshot.deck.counts }))
+      const closedContainer: any = maps.filter((m) => String(m.key) === '200')[0]
+      await assert('#1796 冷启动补一页已关闭地图容器行（type=map、state=CLOSED、编号 200 在场）',
+        !!closedContainer && closedContainer.type === 'map' && String(closedContainer.state).toUpperCase() === 'CLOSED' && closedContainer.number === 200,
+        JSON.stringify(closedContainer && { key: closedContainer.key, type: closedContainer.type, state: closedContainer.state, number: closedContainer.number }))
+      await assert('#1796 已关闭地图容器行按列表页筛选取（state=closed + wayfinder:map）',
+        calls.pageFilters.length === 1 && !!calls.pageFilters[0] && calls.pageFilters[0].state === 'closed'
+          && Array.isArray(calls.pageFilters[0].labels) && calls.pageFilters[0].labels[0] === 'wayfinder:map',
+        JSON.stringify(calls.pageFilters))
+      // 热启动：补页失败时沿用上一份快照里的已关闭容器行，不让列表上的容器行凭空消失。
+      calls.pageFails = true
+      const r2 = await wc.composeSnapshot('work', ref, {}, { force: true }) as ComposeSuccess
+      const maps2 = r2.snapshot.maps as SnapshotMapNode[]
+      const kept: any = maps2.filter((m) => String(m.key) === '200')[0]
+      await assert('#1796 补页失败时热启动沿用上一份快照的已关闭容器行',
+        !!kept && kept.type === 'map' && String(kept.state).toUpperCase() === 'CLOSED',
+        JSON.stringify(maps2.map((m) => String(m.key))))
+      // #1796 code review：子票撞上限（capped）也算异常缺失 —— 从前只影响回补，橙点不亮。
+      calls.capped = true
+      const r3 = await wc.composeSnapshot('work', ref, {}, { force: true }) as ComposeSuccess
+      await assert('#1796 子票撞到上限时 partial 置真（开放工作集没缺，但子票不全）',
+        r3.snapshot.deck.partial === true, JSON.stringify({ partial: r3.snapshot.deck.partial }))
     }
   }
 

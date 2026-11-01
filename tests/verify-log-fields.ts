@@ -103,7 +103,14 @@ const ALLOWED = {
   //   「这一份里根本没有规格」与「有规格却没认出来」；`specs` 与 `maps` 配对读：specs=0 且 maps>0 说明
   //   这一轮一张规格都没认出来（识别或数据来源问题），specs=maps 说明全是规格、没有探索地图。
   //   只记计数：容器键名、标题一个都不记。落点两处：src/host/snapshotEnvelope.ts 与 src/refresh/rooms/host/session-refresh-schedule.ts 的 adoptSnapLog。
-  'snapshot.built': ['maps', 'specs', 'issues', 'labels', 'fallback', 'latencyMs', 'open', 'closed', 'partial'],
+  // 2026-11-01（#1796）`snapshot.built` 增补一格 `missingOpen`：缺几张未关闭票（后端 open 计数减首屏数到的
+  //   未关闭行数，负数截 0；-1 表示缺计数或缺行数、算不出）。为什么要有：partial 从「行数据全不全」收窄成
+  //   「只报异常缺失」之后，光看 true 不知道差几张；界面橙点悬停说的「缺 N 张未关闭票」与这一格是同一个数。
+  'snapshot.built': ['maps', 'specs', 'issues', 'labels', 'fallback', 'latencyMs', 'open', 'closed', 'partial', 'missingOpen'],
+  // 2026-11-01（#1796）新增常驻 #149 `snapshot.workingSet`：首屏工作集这一趟的事实。为什么要有：子票是按容器
+  //   逐张发的，失败只跳过不抛；不记的话，事后分不清「这张地图下面怎么少了几张」是没拉、拉到一半还是后端
+  //   不提供。失败清单只写「票号:错误档」，不记远端原文与正文。落点：src/host/tracker/snapshot.ts 的 composeSnapshot。
+  'snapshot.workingSet': ['openContainers', 'subIssues', 'subIssuesFailed', 'subIssuesIncomplete', 'closedMapRows', 'closedMapSource', 'failed', 'latencyMs'],
   // 2026-10-28（#1617）：删掉 `since`。逐版本核过发射行（从 #708 落地起直到今天）都只记三格，
   //   附录里写的「since 增量起点」是设计稿口径、从未发射；白名单要按真实发射维护。这条事件现在
   //   由运行时采集断言「实得键集与白名单一字不差」，多一格少一格都会变红。

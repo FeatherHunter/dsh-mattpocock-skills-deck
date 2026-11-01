@@ -138,7 +138,7 @@ const STATUS_EXCEPTIONS = [
   {
     file: 'src/client/views/ListTab.ts',
     segment: 'list.partial',
-    reason: '健康检查结果不完整（list.partial）的琥珀小点：结果状态提示。',
+    reason: '健康检查结果不完整（list.partial）的琥珀小点：只在清单异常缺失时亮（缺未关闭票、列表触上限、REST 降级、计数冲突或缺失），悬停按 missingOpen 说缺几张未关闭票；「已关闭只装首页」不再算。结果状态提示。',
   },
   {
     file: 'src/client/views/ListTab.ts',

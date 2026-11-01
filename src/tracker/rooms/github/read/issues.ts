@@ -5,6 +5,7 @@
  *
  * #440 拆分后：写路径见 `issues-write.ts`。parseRepo / repoId 导出供写路径共享。
  * #504：拉取请求主路（GraphQL 双查询同池）+ REST 帮手见 `pulls.ts`（单文件 350 行纪律）。
+ * #1796：首屏只取未关闭票，state 筛由本文件下推到查询；「state → GitHub 状态档」三件见 `list-state.ts`。
  *
  * 定版依据：#138 一页纸方案，契约操作签名归一。
  * 所有 op 返回 OpResult，不 throw；错误经 ghVerdictOf 归一（判档表在 src/tracker/kernel/error-rules.ts）。
@@ -26,6 +27,8 @@ import { emitReadDegraded } from '../support/read-log.js'
 import { ghClient } from '../transport/client.js'
 import { appendCommentPages, commentsWantOf, firstPageSizeOf, trimCommentsToWant } from '../channels/graphql/comment-paging.js'
 import { applyIssueFilter } from '../model/issue-filter.js'
+// #1796：状态筛下推查询（工单 / 拉取请求 / REST 三档）单独一文件，读路径只取结果。
+import { issueStatesOf, pullStatesOf, restStateOf } from './list-state.js'
 import { normalizeIssue } from '../model/normalize.js'
 import { ghFailureMessage, ghVerdictOf, toOpResultError } from '../support/errors.js'
 import { repairParentLinksREST } from './parent-repair.js'
@@ -108,6 +111,9 @@ function emitRestDetailGaps(ctx: OpContext, latencyMs: number, completion: RestD
   if (outcomes.mergeInfo === 'failed') emitReadDegraded(ctx, 'get', 'get:rest-merge', latencyMs)
 }
 
+// #1796：state 筛换成 GitHub 查询状态档的三件（工单 / 拉取请求 / REST）搬到了 ./list-state.ts，
+// 本文件只按调用方要的那一档下推查询，再让内存 applyIssueFilter 兜底过滤。
+
 /**
  * list(repo, filter, ctx) -> OpResult<Issue[]>
  * 读取用 GraphQL 批量（LIST_QUERY），GraphQL 失败（网络 EOF / 配额 / 无法解析）时 REST 降级；
@@ -149,11 +155,17 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       needRest = true
       needRestWhy = 'list:degraded'
     }
+    // #1796：这一趟要的状态档下推到查询里（工单与拉取请求各一套枚举）。
+    const issueStates = issueStatesOf(filter)
+    const pullStates = pullStatesOf(filter)
     // 分页按契约页大小取（一页 50，配合列表去评论把单查询压回 1.5 秒线内），超量分页
     while (!needRest && hasNext) {
-      // 构造带变量查询：gh api graphql -f query -f owner -f name -F first -F after
+      // 构造带变量查询：gh api graphql -f query -f owner -f name -F first -F after -F states[]
       const query = LIST_QUERY
       const args = ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
+      // gh 的 -F 数组写法（key[]=值）会拼成 GraphQL 的数组变量；沿用 page.ts 里同一套写法。
+      // （-F 把纯数字值推断成数字只坑 owner/name，那条已由 normalizeGhStringFields 归一成 -f。）
+      for (const s of issueStates) args.push('-F', `states[]=${s}`)
       if (after) args.push('-F', `after=${after}`)
       else args.push('-F', 'after=')
       const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'list.gql' })
@@ -182,6 +194,7 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       let prHasNext = true
       while (prHasNext) {
         const args = ['api', 'graphql', '-f', `query=${LIST_PR_QUERY}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
+        for (const s of pullStates) args.push('-F', `states[]=${s}`)
         if (prAfter) args.push('-F', `after=${prAfter}`)
         else args.push('-F', 'after=')
         const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'list.pr' })
@@ -226,9 +239,11 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       // 回执里的 fallbackReason 按「未知=缺省」交出去（契约里这一格是可选字符串，不是 null），界面只说中性那句，不提配额。
       if (channels.graphql) emitRestFallback(ctx, '地图', Date.now() - t0, pickFallbackReason(firstRestCause, ctx))
       const fbCause: 'quota' | 'other' | undefined = !channels.graphql ? undefined : (pickFallbackReason(firstRestCause, ctx) === 'rate-limit' ? 'quota' : 'other')
-      const rest = await fetchAllIssuesREST(parsed, ctx)
+      // #1796：状态档也要下推给 REST 降级路径（open / closed / all），与主路同一档。
+      const restState = restStateOf(filter)
+      const rest = await fetchAllIssuesREST(parsed, ctx, restState)
       if (!rest.ok) return { ok: false, error: rest.error }
-      const pulls = await fetchAllPullsREST(parsed, ctx)
+      const pulls = await fetchAllPullsREST(parsed, ctx, restState)
       const raws = enrichRestPRs(rest.data.rows, pulls.ok ? pulls.data : [])
       // #1691：先把每行自带的关系字段补进行内（父票边、依赖边、子票计数）；
       // 都在行里表达时，这一趟一张容器票的子票请求都不用发。

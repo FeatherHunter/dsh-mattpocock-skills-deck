@@ -8,6 +8,9 @@
  * 约定（改这里之前先读）：
  *   1. 摘要只用来判「两次读数一样不一样」，不参与任何安全判断；它是本文件自带的 64 位 FNV 变体
  *      短哈希，不引 node:crypto——客户端构建不该为了一个比对摘要把 crypto 拉进闭包。
+ *      共享层叶子之间禁止互相 import（依赖门禁 same-layer-import-shared），所以这份副本不能改成
+ *      从 write-ticket.ts 导入；它与写层票表那份由 tests/verify-1586-write-contracts.ts 的 C5
+ *      逐字节比对守着，改一处必须两处一起改。
  *   2. 键排序是稳定序列化的一部分：同一份计划无论对象字面量怎么写、字段顺序怎么排，摘要必须一样。
  *      否则「预检时的计划」与「执行前重算的计划」会被判成两个东西，写动作全部误报 target-changed。
  *   3. 场景摘要只写界面与日志需要的几个事实（头、分支、脏不脏、是否停在中途操作），不把整个屏幕
@@ -38,7 +41,7 @@ export function undoStableValue(value: any): string {
 }
 
 /** 64 位 FNV 变体短哈希：16 位十六进制，只用于比对，不用于任何密码学用途。
- *  两份 FNV 由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须两份一起改。 */
+ *  与写层票表那份由 tests/verify-1586-write-contracts.ts 的 C5 逐字节比对：改一处必须两份一起改。 */
 export function undoHash16(text: any): string {
   const s: string = String(text === undefined || text === null ? '' : text)
   let h1: number = 0x811c9dc5

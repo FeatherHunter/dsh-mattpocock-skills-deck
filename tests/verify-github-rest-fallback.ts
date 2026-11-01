@@ -48,7 +48,8 @@ const ctx = {
       return { code: 1, stdout: '', stderr: 'Post "https://api.github.com/graphql": unexpected EOF' }
     }
     const page = /[?&]page=(\d+)/.exec(joined)
-    if (joined.includes('/issues?state=all')) {
+    // #1796：状态档会下推给 REST（listIssues({state:'open'}) 时是 state=open），假身按端点认路、不认死 all。
+    if (/\/issues\?state=/.test(joined)) {
       const p = page ? Number(page[1]) : 1
       const start = (p - 1) * 100
       const slice = all.slice(start, start + 100)

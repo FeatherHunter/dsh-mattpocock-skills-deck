@@ -83,6 +83,8 @@ const REFERENCES: RefRow[] = [
   { file: 'src/host/versionControlCheck.ts', access: 'REMOTE_TIMEOUT_MS', gen: 'VC_REMOTE_TIMEOUT_MS', key: 'vcRemoteTimeoutMs' },
   // #1754 T18 远端与同步页：用户显式点「联网查看」时 git ls-remote 的超时（真走网络，与本地 remote -v 那一档分开）。
   { file: 'src/host/versionControlRemote.ts', access: 'ONLINE_TIMEOUT_MS', gen: 'VC_REMOTE_ONLINE_TIMEOUT_MS', key: 'vcRemoteOnlineTimeoutMs' },
+  // #1776 M4b 远端四条写动作：预检签票、凭票执行，执行那一步单条命令的时限（本地配置动作，与 vcRemoteTimeoutMs 同一档）。
+  { file: 'src/host/versionControlRemote.ts', access: 'WRITE_TIMEOUT_MS', gen: 'VC_REMOTE_WRITE_TIMEOUT_MS', key: 'vcRemoteWriteTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'ADD_TIMEOUT_MS', gen: 'VC_ADD_TIMEOUT_MS', key: 'vcAddTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'COMMIT_TIMEOUT_MS', gen: 'VC_COMMIT_TIMEOUT_MS', key: 'vcCommitTimeoutMs' },
   { file: 'src/host/versionControlWrite.ts', access: 'PULL_TIMEOUT_MS', gen: 'VC_PULL_TIMEOUT_MS', key: 'vcPullTimeoutMs' },
@@ -534,6 +536,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/skillProbe.ts', name: 'SKILL_CACHE_TTL_MS', reason: '函数内局部变量：接线给了正数就听接线的，没给时取中央常量 SKILL_LIST_CACHE_TTL_MS（已登记为 skillListCacheTtlMs）' },
   { file: 'src/host/tracker/snapshot.ts', name: 'snapshotTtl', reason: '透传参数，缺省接 SNAPSHOT_TTL_MS（已登记为 snapshotTtlMs）' },
   { file: 'src/host/tracker/snapshot.ts', name: 'depsTtl', reason: '同上' },
+  { file: 'src/host/tracker/snapshot.ts', name: 'workingSetStartedMs', reason: '测量用局部变量（首屏工作集装配的耗时 = 两次读钟的差，进 snapshot.workingSet 日志），不是可调参数' },
   { file: 'src/host/versionControl.ts', name: 'timeoutMs', reason: '透传参数，缺省接本文件已登记的 RUN_TIMEOUT_MS' },
   { file: 'src/host/versionControl.ts', name: 'graceMs', reason: '透传参数，缺省接 PROC_GRACE_MS（已登记为 procGraceMs）' },
   { file: 'src/host/versionControlStash.ts', name: 'timeoutMs', reason: '透传参数，缺省 30000 只为直接调用兜底；装配层注入的 deps.timeoutMs 来自父文件已登记的 RUN_TIMEOUT_MS' },
@@ -542,11 +545,23 @@ const EXEMPTS: ExemptRow[] = [
   // #1743 提交页八条能力：两条新电话里的时间名字都是透传或读钟，不是本票新增的可调时长，沿用上面几行的口径。
   { file: 'src/host/versionControlCommitForm.ts', name: 'timeoutMs', reason: '透传参数，缺省 20000 只为直接调用兜底；装配层注入的 deps.timeoutMs 来自父文件已登记的 RUN_TIMEOUT_MS' },
   { file: 'src/client/views/versionControl/vcCommitOps.ts', name: 'nowMs', reason: '读钟时刻（Date.now），用来给 requestId 拼时间片，不是可调参数' },
-  // #1760 配置与钩子页域 12：读钟字段与中途选出来的时限变量，都不是本票新增的可调时长。
+  // #1776 真实页签：界面层各动作把时钟作为可注入的口子往下传（Date.now 是生产实现），
+  //   只用来给写动作的 requestId 拼时间片；任务轮询的间隔来自已登记的 VC_TASK_POLL_INTERVAL_MS。
+  { file: 'src/client/views/versionControl/vcRealActions.ts', name: 'nowMs', reason: '读钟口（Date.now 的注入包装，给贮藏写动作的 requestId 拼时间片），不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRealManageActions.ts', name: 'nowMs', reason: '读钟口（同上，给分支写动作的 requestId 拼时间片），不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRealManageActions2.ts', name: 'nowMs', reason: '读钟口（同上，给配置与钩子写动作的 requestId 拼时间片），不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRealManageActions3.ts', name: 'nowMs', reason: '读钟口（同上，给迁移与备份写动作的 requestId 拼时间片），不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRealManageSide.ts', name: 'nowMs', reason: '读钟口（同上，给冲突与变基写动作的 requestId 拼时间片），不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRealModel.ts', name: 'atMs', reason: '首屏快照里读到的时刻（读数带来的时间戳），只用来折成人话显示，不是可调参数' },
+  { file: 'src/client/views/versionControl/vcRealTab.ts', name: 'nowMs', reason: '读钟口（Date.now 的包装，传给各动作层拼 requestId，并给首屏模型补「现在」），不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRealTab.ts', name: 'interval', reason: '派生变量：来自已登记的 VC_TASK_POLL_INTERVAL_MS（config/intervals.yaml 的任务轮询间隔），不是新时长' },  // #1760 配置与钩子页域 12：读钟字段与中途选出来的时限变量，都不是本票新增的可调时长。
   { file: 'src/client/views/versionControl/vcConfigOps.ts', name: 'readAtMs', reason: '读钟时刻（读数是什么时候回来的），照首屏同名字段的口径，不是可调参数' },
   { file: 'src/host/versionControlConfigWrite.ts', name: 'timeoutMs', reason: '按动作二选一：手动跑钩子取已登记的 HOOK_TIMEOUT_MS，其余写动作取已登记的 WRITE_TIMEOUT_MS，本文件不自留数字' },
   // #1757 子模块页：票据回包里读到的过期时刻只用来判断票是否已过期，不是本票新增的可调时长。
   { file: 'src/client/views/versionControl/vcSubmodulesOps.ts', name: 'expiresAtMs', reason: '票据回包里读到的过期时刻，只用来判断这张票是否已过期，不是本文件新增的可调时长' },
+  // #1776 M4b 远端页：预检回包里读到的两个时刻只用来画确认卡的「票据有效期」，不是本文件新增的可调时长。
+  { file: 'src/client/views/versionControl/vcRemoteData.ts', name: 'checkedAtMs', reason: '预检回包里的检查时刻，只用来核对票据时间，不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRemoteData.ts', name: 'expiresAtMs', reason: '预检回包里的票据过期时刻，只用来判断这张票还能用多久，不是本文件新增的可调时长' },
   { file: 'src/refresh/kernel/index-window-rules.ts', name: 'sinceMs', reason: '算出来的起点时刻（水位减容差），不是可调参数' },
   // —— 派生变量：正常路径取 SYNC 契约里的同名项（已登记），兜底取拼进闭包的中央常量 ——
   { file: 'src/refresh/rooms/client/refresh-timer.ts', name: 'PROBE_MS', reason: '派生变量，取 SYNC.FALLBACK_PROBE_MS（已登记为 syncFallbackProbeMs），兜底取拼进闭包的 SYNC_FALLBACK_PROBE_MS；引用即跟随' },

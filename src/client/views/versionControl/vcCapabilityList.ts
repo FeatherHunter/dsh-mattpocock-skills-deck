@@ -32,6 +32,8 @@ export const vcCapabilityListOf = function (h: any, t: any, o: any) {
       paletteNode: paletteNode,
       confirm: opts.confirm && opts.confirm.capId === cap.id ? opts.confirm : null,
       result: opts.result && opts.result.capId === cap.id ? opts.result : null,
+      // #1776：命令面板选中一条后落到目标页，那一行要能被一眼认出来（落点高亮，不自动执行）。
+      hit: opts.highlight === cap.id,
     })
   })
   return h('section', { className: 'vcs-caps', 'data-vc-cap-list': String(opts.page) }, [

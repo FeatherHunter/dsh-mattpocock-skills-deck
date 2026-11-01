@@ -29,7 +29,9 @@ interface ParsedRepo {
 }
 
 // 拉取请求 REST 列表（与 issues 同构；/issues 已含拉取请求条目，此处只为补合并时间做富化）。
-export async function fetchAllPullsREST(parsed: ParsedRepo, ctx: OpContext): Promise<OpResult<unknown[]>> {
+// #1796：state 由调用方按筛选档给（open / closed / all，缺省 all 与改造前一致）；
+//   sort=updated&direction=desc 与 GraphQL 主路的 orderBy 同一口径。
+export async function fetchAllPullsREST(parsed: ParsedRepo, ctx: OpContext, state: string = 'all'): Promise<OpResult<unknown[]>> {
   const c = ghClient(ctx)
   // 为什么标成未知数组：回包是 GitHub 的原始行，本函数只负责翻页搬运、不解读形状，解读是调用方的事。
   const out: unknown[] = []
@@ -37,7 +39,7 @@ export async function fetchAllPullsREST(parsed: ParsedRepo, ctx: OpContext): Pro
   const PAGE = PAGINATION.github.restPageSize
   for (let p = 1; p <= MAX_PAGES; p++) {
     // 这一笔是列表富化的 REST 翻页：标签写 pulls.rest，跟同一次读里的 list.rest 分得开。
-    const r = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls?state=all&per_page=' + PAGE + '&page=' + p], { cwd: ctx && ctx.cwd, via: 'pulls.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
+    const r = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls?state=' + state + '&sort=updated&direction=desc&per_page=' + PAGE + '&page=' + p], { cwd: ctx && ctx.cwd, via: 'pulls.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
     if (!r.ok) {
       if (!out.length) return { ok: false, error: r.error }
       return { ok: true, data: out }

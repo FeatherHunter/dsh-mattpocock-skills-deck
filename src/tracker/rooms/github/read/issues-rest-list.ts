@@ -8,6 +8,8 @@
  * 房内唯一的 gh 出口仍是 client.ts，这里只是它的一个使用者。
  *
  * 失败语义沿用 #415：首页失败 = 双路皆挂，诚实返回错误；尾页失败 = 按已得数据截断上报。
+ * #1796：第三个参数 state（open / closed / all，缺省 all）把列表筛选档下推到 REST 请求，
+ * 并固定 sort=updated&direction=desc —— 与 GraphQL 主路由调用方给状态、按更新时间倒序取数同一口径。
  * 完整度（#1685）：翻到空页、或尾页不满一页才算到底；触 10 页上限、尾页失败都算截断。
  * #1681 复审修复：恰好翻满 10 页且每页都满时，再打第 11 页做一次空页探测（只多 1 个请求，
  * 探测页的行不并入结果）——探测为空 = 真到底（complete），探测非空 = 仍按上限截断，
@@ -51,7 +53,7 @@ interface RestListFetch {
   paging: RestListPagingFacts
 }
 
-export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext): Promise<OpResult<RestListFetch>> {
+export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext, state: string = 'all'): Promise<OpResult<RestListFetch>> {
   const c = ghClient(ctx)
   // 为什么标成未知数组：回包是 GitHub 的原始行，本函数只负责翻页搬运、不解读形状，解读是调用方的事。
   const out: unknown[] = []
@@ -71,7 +73,9 @@ export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext): Pr
   const startsAt = Date.now()
   for (let p = 1; p <= MAX_PAGES; p++) {
     // 这是 GraphQL 主路失败之后的 REST 降级翻页：标签与主路分开，事后一眼看出走的是哪条路。
-    const r = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=all&per_page=${PAGE}&page=${p}`], { cwd: ctx && ctx.cwd, via: 'list.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
+    // #1796：state 由调用方按筛选档给（open / closed / all，缺省 all 与改造前一致）；
+    //   sort=updated&direction=desc 与 GraphQL 主路的 orderBy 同一口径，10 页窗口里放的是同一批优先票。
+    const r = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=${state}&sort=updated&direction=desc&per_page=${PAGE}&page=${p}`], { cwd: ctx && ctx.cwd, via: 'list.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
     if (!r.ok) {
       pageFailure = true
       if (!out.length) return { ok: false, error: r.error }
@@ -111,7 +115,7 @@ export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext): Pr
   // 请求或解析失败 = 截断，但不算「双路皆挂」——前面十页是真拿到的，照旧按已得数据回成功。
   if (!sawEmptyPage && !pageFailure && pagesFetched >= MAX_PAGES && lastPageRows >= PAGE) {
     probeAttempted = true
-    const probe = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=all&per_page=${PAGE}&page=${MAX_PAGES + 1}`], { cwd: ctx && ctx.cwd, via: 'list.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
+    const probe = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=${state}&sort=updated&direction=desc&per_page=${PAGE}&page=${MAX_PAGES + 1}`], { cwd: ctx && ctx.cwd, via: 'list.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
     let probeRows: unknown = null
     if (!probe.ok) probeFailed = true
     else {

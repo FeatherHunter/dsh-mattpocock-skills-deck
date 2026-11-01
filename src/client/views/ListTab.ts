@@ -384,13 +384,16 @@ export     const ListTab = ({ st, narrow }: any) => {
             if (!healthCheckVisible(st)) return null
             const nHc = healthCheckCountOf(st)
             const isPartial = !!(st.snapshot && st.snapshot.deck && st.snapshot.deck.partial === true) // #689：行数据不全时数字右上角多一颗圆点，悬浮里追加一句（圆点是状态不是控件）
+            // #1796：partial 只报「异常缺失」（缺未关闭票、列表触上限、REST 降级、计数冲突或缺失），不再把「已关闭只装首页」算进来。
+            //   宿主算得出缺多少张未关闭票时才写 missingOpen（计数与开放行数都拿到）；它缺省或是 0 时退回原来那句不带数字的说明，不显示 0。
+            const missingOpen = (st.snapshot && st.snapshot.deck && typeof st.snapshot.deck.missingOpen === 'number') ? st.snapshot.deck.missingOpen : null
             const btnTier = (!narrow && tr('list.healthCheck').length > 6) ? '' : (nHc == null ? ' narrow-icon' : ' narrow-count')
             // 下面是「先定基线、再按 btnTier 覆盖个别字段」的写法：justifyContent 只在窄图标态才补上，
             //   按字面量推断会报「该属性不存在」，所以标 : any。
             const hcStyle: any = { display: 'inline-flex', alignItems: 'center', gap: 3, flex: 'none', alignSelf: 'center', fontSize: 11, padding: '1px 6px', background: 'rgba(255,255,255,.06)', borderColor: 'rgba(255,255,255,.15)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', position: 'relative' }
             if (btnTier === ' narrow-icon') { hcStyle.padding = '0'; hcStyle.justifyContent = 'center' }
             else if (btnTier === ' narrow-count') { hcStyle.padding = '1px 5px'; hcStyle.gap = 2 }
-            return h(Tip, { content: tr('list.healthCheckTitle') + (isPartial ? '\n' + tr('list.partialTitle') : '') }, h('button', {
+            return h(Tip, { content: tr('list.healthCheckTitle') + (isPartial ? '\n' + (missingOpen != null && missingOpen > 0 ? tr('list.partialMissing', { n: missingOpen }) : tr('list.partialTitle')) : '') }, h('button', {
               // 本次界面反馈需求：体检按钮带按压态与点击日志，点了它从日志一眼认出是它；
               //   窄态（narrow-icon）下它只剩一枚图标，按用户口径只给按压态、不给下沉位移。
               className: 'dsws-btn' + btnTier + (btnTier === ' narrow-icon' ? '' : ' dsws-hov'),

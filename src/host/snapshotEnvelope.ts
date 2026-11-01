@@ -45,8 +45,8 @@ type SnapInput = {
   refresh?: unknown
 }
 
-/** deck 那一块里本文件真读到的两个字段。 */
-type DeckLike = { counts?: { open?: number; closed?: number } | null; partial?: boolean }
+/** deck 那一块里本文件真读到的几个字段（#1796 起多一个 missingOpen：缺几张未关闭票）。 */
+type DeckLike = { counts?: { open?: number; closed?: number } | null; partial?: boolean; missingOpen?: number }
 
 /**
  * #1695 快照顶层字段白名单：信封只许装这些字段。
@@ -138,8 +138,10 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
     return snap
   }
 
-  // #689：snapshot.built 多了三个字段（open / closed 是后端计数给的真值、拿不到记 -1；partial 说这份行数据全不全）
+  // #689：snapshot.built 多了三个字段（open / closed 是后端计数给的真值、拿不到记 -1；partial 说这份清单有没有异常缺失）
   // —— 加在既有事件里不新增一条（每次重建都会走到这里），字段表见 research/489-appendix.md 第 1 章。
+  // #1796：partial 收窄成「只报异常缺失」（开放行数少于后端 open、列表触上限、REST 降级、计数冲突或缺失），
+  //   并多记一个 missingOpen（后端 open 减数到的未关闭行数，负数截 0；-1 = 算不出）—— 界面橙点与这条日志共用同一个数。
   // #1295：再多记一个 specs —— 这一轮快照里认出几张「实施地图」（规格容器）。maps 是容器总数，
   //   maps 减 specs 就是「探索地图」的张数；面板的双轨分流一旦看起来不对，先拿这两个数对账：
   //   是这一轮就没认出来（specs=0），还是认出来了却没被列表画成蓝轨（渲染侧问题）。
@@ -156,7 +158,7 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
       if (logCtx && snap && (snap as SnapLike).fromCache !== true) {
         const _d: DeckLike = ((snap as SnapLike).deck && typeof (snap as SnapLike).deck === 'object') ? ((snap as SnapLike).deck as DeckLike) : {}
         const _ct = (_d.counts && typeof _d.counts === 'object') ? _d.counts : null
-        logCtx.fire('info', 'snapshot.built', { maps: ((snap as SnapLike).maps || []).length, specs: (((snap as SnapLike).maps || []) as any[]).filter(function (m: any) { return !!m && m.type === 'spec' }).length, issues: ((snap as SnapLike).issues || []).length, labels: ((snap as SnapLike).labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - ((snap as SnapLike).generatedMs || Date.now()) })
+        logCtx.fire('info', 'snapshot.built', { maps: ((snap as SnapLike).maps || []).length, specs: (((snap as SnapLike).maps || []) as any[]).filter(function (m: any) { return !!m && m.type === 'spec' }).length, issues: ((snap as SnapLike).issues || []).length, labels: ((snap as SnapLike).labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, missingOpen: (typeof _d.missingOpen === 'number' && isFinite(_d.missingOpen)) ? _d.missingOpen : -1, latencyMs: Date.now() - ((snap as SnapLike).generatedMs || Date.now()) })
       }
     } catch (e) {}
     return d.adoptSnapshot(snap, c) as T
