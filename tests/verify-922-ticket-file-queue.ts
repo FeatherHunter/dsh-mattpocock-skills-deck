@@ -111,7 +111,8 @@ const tracker = markdownModule.create({})
   check(both.every((r) => r.ok === true), '两路并发改同一张票都回成功（实得 ' + JSON.stringify(both.map((r) => r.ok)) + '）')
   const after = String(fake.show(FILE_01))
   check(after.includes('Type: task'), '① 先改的那一项（Type: task）没有被后写的那一路抹掉（文件里现在是：' + JSON.stringify(after.replace(/\n/g, ' | ')) + '）')
-  check(after.includes('Blocked by: #02'), '① 另一项（Blocked by: #02）也写进去了')
+  // #1788：夹具是地图工作单元（.scratch/demo/map.md 存在）里的手写子票，阻塞边按地图子票写法写裸行、值不带 #。
+  check(after.includes('Blocked by: 02') || after.includes('Blocked by: #02'), '① 另一项（Blocked by: 02）也写进去了')
 }
 
 // ── ② 关门与改标签并发（换一条写函数，守的是同一个毛病） ──
@@ -150,7 +151,7 @@ const tracker = markdownModule.create({})
   const both = await Promise.all([p1, p2])
   check(both.every((r) => r.ok === true), '两种写法（/ws 与 /WS）并发改同一张票都回成功')
   const after = String(fake.show(FILE_01))
-  check(after.includes('Type: task') && after.includes('Blocked by: #02'), '③ 两种写法落到同一条队上，两边的改动都在')
+  check(after.includes('Type: task') && (after.includes('Blocked by: 02') || after.includes('Blocked by: #02')), '③ 两种写法落到同一条队上，两边的改动都在')
 }
 
 // ── ④ 不同票文件互不排队：读第一份时按住不放，第二份的读必须能开始 ──

@@ -6,7 +6,8 @@
 //   ② 探索地图子票的状态是裸行 `Status:`，完成时把答案写进 `## Answer`、状态改 resolved，
 //      再往同一目录 map.md 的 Decisions so far 追加指针（issue-tracker-local.md:26-30）。
 //   ③ 容器（规格 spec.md / 地图 map.md）的状态只写在文件头隐藏注释 DSH-STATUS 里，可见正文不动。
-// 旧布局（可见 Status + Close reason 行）的行为一字不变，也在这里做回归。
+// 票在哪个目录决定它是地图子票还是普通票（#1788）：目录里有 map.md 的手写票按地图路线关票——
+// 可见裸行写 resolved、原因进 ## Answer，与实施票的「加粗状态行 + ## Comments」分开。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1489-status-write.ts
 
@@ -220,29 +221,35 @@ async function main(): Promise<void> {
   check(sectionBody(childAgain, 'Answer').indexOf('现成方案够用，走查完成') >= 0, '④ 重复关闭不重复写答案')
   check((sectionBody(readText(mapPath), 'Decisions so far').match(/现成方案有哪些？/g) || []).length === 1, '④ 重复关闭不重复追加地图指针')
 
-  // ══ 第四段：旧布局回归 —— 可见 Status + Close reason 行，一字不动 ══
-  const legacyTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1489-status-legacy-'))
-  const legacyCtx = mkctx(legacyTmp)
-  const legacyRepo = repoOf()
-  writeText(path.join(legacyTmp, '.scratch', 'demo', 'map.md'), '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n')
-  const legacyPath = path.join(legacyTmp, '.scratch', 'demo', 'issues', '01-first-ticket.md')
-  writeText(legacyPath, '# 第一张票\n\n正文\n\nStatus: ready-for-agent\nType: task\n\n## Comments\n')
-  const legacyBefore = readText(legacyPath)
-  const legacyClosed = await closeIssue(legacyCtx as never, legacyRepo as never, '01', { reason: '老票也关了' } as never)
-  check(!!(legacyClosed && legacyClosed.ok), '旧布局：关票返回 ok：' + (legacyClosed && legacyClosed.ok ? '' : JSON.stringify(legacyClosed)))
-  const legacyAfter = readText(legacyPath)
-  check(/^Status: resolved$/m.test(legacyAfter), '旧布局：可见 Status 行改成 resolved（旧行为不变）')
-  check(/^Close reason: 老票也关了$/m.test(legacyAfter), '旧布局：仍然写 Close reason 行（旧行为不变）')
-  check(!/\*\*Status:\*\*/.test(legacyAfter), '旧布局：不会被改成加粗行')
-  check(legacyAfter.indexOf('## Answer') < 0, '旧布局：不新增 ## Answer')
-  // 旧布局关票只该动两处：Status 行的值，和新增的一行 Close reason；其余原文一字不差。
-  // （不能拿「原文是不是连续子串」来判 —— 新插入的 Close reason 行把原文切成了两段。）
-  const legacyNormalized = legacyAfter.replace(/^Close reason: .*\n?/m, '').replace(/Status: resolved/, 'Status: ready-for-agent').replace(/\n$/, '')
-  check(legacyNormalized === legacyBefore.replace(/\n$/, ''), '旧布局：除状态与原因行外原文保留：' + JSON.stringify(legacyNormalized))
+  // ══ 第四段：目录里有 map.md 的手写票 —— 按地图路线关票（#1788：写什么由目录定，不再由文件文字猜） ══
+  // 这张票的正文是手写的老样子（没有文件头隐藏注释、没有加粗字段），但它所在目录有 map.md，
+  // 所以它是地图子票：关票写可见裸行 Status: resolved、原因写进 ## Answer，不写 Close reason 行。
+  const routeTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1489-status-route-'))
+  const routeCtx = mkctx(routeTmp)
+  const routeRepo = repoOf()
+  const routeMapPath = path.join(routeTmp, '.scratch', 'demo', 'map.md')
+  writeText(routeMapPath, '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n')
+  const routeMapBefore = readText(routeMapPath)
+  const routePath = path.join(routeTmp, '.scratch', 'demo', 'issues', '01-first-ticket.md')
+  writeText(routePath, '# 第一张票\n\n正文\n\nStatus: ready-for-agent\nType: task\n\n## Comments\n')
+  const routeBefore = readText(routePath)
+  const routeClosed = await closeIssue(routeCtx as never, routeRepo as never, '01', { reason: '老票也关了' } as never)
+  check(!!(routeClosed && routeClosed.ok), '地图路线：关票返回 ok：' + (routeClosed && routeClosed.ok ? '' : JSON.stringify(routeClosed)))
+  const routeAfter = readText(routePath)
+  check(/^Status: resolved$/m.test(routeAfter), '地图路线：可见裸行 Status 改成 resolved（原文两档之一）')
+  check(routeAfter.indexOf('Close reason') < 0, '地图路线：不写 Close reason 行（原文没有这一行）')
+  check(!/\*\*Status:\*\*/.test(routeAfter), '地图路线：不会被改成加粗行')
+  check(/^## Answer$/m.test(routeAfter), '地图路线：完成写 ## Answer')
+  check(sectionBody(routeAfter, 'Answer').indexOf('老票也关了') >= 0, '地图路线：关闭原因写进 ## Answer：' + JSON.stringify(sectionBody(routeAfter, 'Answer')))
+  // map.md 里没有 ## Decisions so far 段时，不往它里面追加指针（原文：指针只进已有的那一段）。
+  check(readText(routeMapPath) === routeMapBefore, '地图路线：map.md 没有 Decisions so far 段时一字不改')
+  // 除了状态值与新增的 ## Answer 段，原文一字不差。
+  const routeNormalized = routeAfter.replace(/^Status: resolved$/m, 'Status: ready-for-agent').replace(/\n## Answer\n\n老票也关了\n?$/, '\n')
+  check(routeNormalized.trimEnd() === routeBefore.trimEnd(), '地图路线：除状态与答案段外原文保留：' + JSON.stringify(routeNormalized))
 
   try { fs.rmSync(tmp, { recursive: true, force: true }) } catch { /* 临时目录清不掉不影响结论 */ }
   try { fs.rmSync(effortTmp, { recursive: true, force: true }) } catch { /* 同上 */ }
-  try { fs.rmSync(legacyTmp, { recursive: true, force: true }) } catch { /* 同上 */ }
+  try { fs.rmSync(routeTmp, { recursive: true, force: true }) } catch { /* 同上 */ }
 }
 
 main()

@@ -18,15 +18,19 @@ import type { EdgeTrail } from './edge-log.js'
 import { remoteTemplateRefusalForLocalFile, remoteTemplateSections } from './template-guard.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
-import { locateContainerFile, resolveIssueFile, resolveMapFile } from './issues-locate.js'
+import { locateContainerFile, resolveIssueFile, resolveMapFile, ticketRouteOf } from './issues-locate.js'
+import type { TicketRoute } from './issues-locate.js'
 // #1277：文件头里父注释的插入位置要认得类型标记行 —— 标记紧跟在幂等锚后面，父注释排在标记之后。
 import { markerKindOnLine } from '../../../shared/issue-file/src/marker.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import { replaceOrInsertField, rewriteTicketText } from './issues-status.js'
+// #1788：路线决定父票注释与阻塞边写到哪一行，见 write-route.js。
+import { parentCommentOf, writeBlockedByLine } from './write-route.js'
 // #1500 S5：原文 map-ticket 分支的状态词只从 YAML 真源读；旧布局分支的字面量保持冻结。
 import { WAYFINDER_STATUS_CLAIMED, regexAlt } from './format/field-values.js'
 // #1489：原文布局的字段原语（隐藏注释、裸字段行、票种类判定），见 original-fields.ts。
-import { hiddenCommentOf, removeBareField, replaceBareField, replaceBoldField, ticketFormOf, upsertHiddenComment } from './original-fields.js'
+import { hiddenCommentOf, removeBareField, ticketFormOf, upsertHiddenComment, writeFieldByStyle } from './original-fields.js'
+import type { TicketForm } from './original-fields.js'
 // #1174：写阻塞边之前的全图环检（契约明写「环检是写路径的一部分，不许省」）。
 // #922：票文件的读—改—写按文件排队，见 write-queue.js。
 import { checkExpectedUpdatedAt, cycleVerdictFor } from './write-guards.js'
@@ -47,6 +51,8 @@ interface ResolvedTarget {
   effortId: string
   /** 00 号容器的形状（规格 / 地图）：读回时按它给 parseMd 递 isMap/kind，别把规格当地图解析。 */
   container?: 'spec' | 'map'
+  /** 这张票该按哪条路线写（#1788）：按文件所在目录判，不看文件内容；空串表示不在任何工作单元里（旧扁平路径）。 */
+  route: TicketRoute
 }
 
 // 本文件交出去的失败形状：与 failAs 落的三段式一致（成功侧各函数自带）。
@@ -59,17 +65,18 @@ async function resolveTarget(ctx: OpContext,repo: RepoWithPath | null,norm: stri
   // 00 号的顺序（与读取侧 getIssue 相同）收在 issues-locate 一处，关闭与改正文共用同一份判据（#1480 两轴评审）。
   if(norm==='00'){
     const c=await locateContainerFile(ctx,repo,mode)
-    return c.ok?{ok:true,path:c.path,effortId:c.effortId,container:c.container}:{ok:false,error:c.error}
+    // 00 号容器自己就是规格 / 地图：路线直接取容器形状，不再按文件内容猜。
+    return c.ok?{ok:true,path:c.path,effortId:c.effortId,container:c.container,route:c.container}:{ok:false,error:c.error}
   }
   const r=await resolveIssueFile(ctx,repo,norm,{mode})
-  return r.ok?{ok:true,path:r.path,effortId:r.effortId}:{ok:false,error:r.error}
+  return r.ok?{ok:true,path:r.path,effortId:r.effortId,route:await ticketRouteOf(ctx,r.path)}:{ok:false,error:r.error}
 }
 /** 读一份票文件、在内存里改、再整份写回去。
  *  这三步必须排在该文件的单写者队列里跑完（#922）：中间那一次读会让出事件循环，
  *  两路并发改同一张票时会一起读到同一份旧内容，各自改各自的，后写的那一路把先写的那一路的改动整份抹掉
  *  —— 两路都回成功，盘上却少了一半改动。队按文件分：批量补边一次要改很多张票，
  *  它们是不同的文件、彼此不冲突，仍然可以同时做（#919 的并发改造就是照这个口径放宽的）。 */
-async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: ResolvedTarget,norm: string,fn: (txt: string) => string | undefined | PatchFailure | Promise<string | undefined | PatchFailure>, opts?: SetOpts, trail?: WriteTrail, onWritten?: () => void): Promise<{ ok: true; txt: string } | PatchFailure>{
+async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: ResolvedTarget,norm: string,fn: (txt: string, target: ResolvedTarget) => string | undefined | PatchFailure | Promise<string | undefined | PatchFailure>, opts?: SetOpts, trail?: WriteTrail, onWritten?: () => void): Promise<{ ok: true; txt: string } | PatchFailure>{
   return withFileWriter(ctx,repo,r.path,async function(){
     try{
       // 写前版本校验必须在队里、在读到这份文件之前（#1174 决策 9）：队外先比一次再进队，
@@ -77,7 +84,7 @@ async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: Resolv
       const guard=await checkExpectedUpdatedAt(ctx,r.path,opts)
       if(!guard.ok)return guard
       let txt=await readTextFile(ctx,r.path)
-      const out=await fn(txt);if(out&&typeof out==='object')return out
+      const out=await fn(txt,r);if(out&&typeof out==='object')return out
       // fn 也可以直接把失败退回来（#1509 的整份正文判据就是这么报的）：
       // 不走下面的写盘，也不经过 catch 的 failFromError —— 那一层会拿通用的「读—改—写这张票的文件时出错」
       // 顶掉判据写好的那句人话。失败对象已经带着档位、话术与原文，原样往上传即可。
@@ -121,7 +128,14 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
       // 判的是递进来的这一段正文，不是合并后的全文：存量文件里已有的远端段不归这次写负责。
       // 拒绝时在合并与写盘之前退回，盘上一个字节都不动，原文原样退回调用方（不归一化、不丢信息）。
       // 盘上这份文件的形状来自刚读到的 fnOldText：真读不出来时读文件那一步已经失败，走不到这里。
-      const refusal=remoteTemplateRefusalForLocalFile(r.container,ticketFormOf(fnOldText),remoteTemplateSections(patch.body));if(refusal)return failAs(ERROR_KIND.PARSE,refusal,String(patch.body))
+      // #1788：按路线选本地模板。只有地图路线认地图子票模板；规格/普通路线即使文件里有地图子票的字样
+      // （## Question、裸 Type 行），也只按实施票模板校验 —— 否则既可能拒错模板，又会把它当成地图子票。
+      const routeForm: TicketForm = r.container
+        ? 'impl-ticket'
+        : r.route === 'map'
+          ? 'map-ticket'
+          : (ticketFormOf(fnOldText) === 'map-ticket' ? 'impl-ticket' : ticketFormOf(fnOldText))
+      const refusal=remoteTemplateRefusalForLocalFile(r.container,routeForm,remoteTemplateSections(patch.body));if(refusal)return failAs(ERROR_KIND.PARSE,refusal,String(patch.body))
       if(isWholeIssueBody(patch.body)){
         // 整份正文：读回给的是整份文件，写回也按整份合并（锚与标题保住、字段与骨架搬回），不再猜它是片段。
         txt=moveLeadingSectionBelowTitle(mergeWholeBodyForPatch(patch.body, fnOldText));changed=true
@@ -285,7 +299,7 @@ async function setBlockedByInner(ctx: OpContext,repo: RepoWithPath | null,key: s
     // 差集为空：盘上本来挂的就是这几条边，这一趟一处都不用改（结论线记 noop、route 停在 none）。
     if(!added.length&&!removed.length)return undefined
     pending={ added: added.length, removed: removed.length }
-    return writeBlockedByLine(txt,arr,norm==='00')
+    return writeBlockedByLine(txt,arr,norm==='00',r.route)
   },opts,undefined,function(){
     if(!trail||!pending)return
     trail.route='file'
@@ -327,22 +341,28 @@ async function setAssigneesInner(ctx: OpContext,repo: RepoWithPath | null,key: s
   //  · 实施票的 **Status:** 原文只有 ready-for-agent/resolved 两档，认领不改它（写 claimed 读回来也认不出这个值）；
   //  · 地图子票的裸 Status 原文两档就是 claimed/resolved：派了人写 claimed，撤空则删掉这一行回到「没人派」。
   // 旧布局（没有原文标记的老文件）继续写可见 Status + Assignees 行，行为与 #1489 之前一字不差。
+  // #1788：认领怎么落盘按路线分派，不再按文件文字猜这张票是不是地图子票。
+  //  · 地图路线（票目录的上一级有 map.md）：沿用地图子票语义 —— 记隐藏认领人，可见状态在多档里只有
+  //    claimed / resolved，派了人就写 claimed；
+  //  · 规格 / 普通路线（有 spec.md 或只有 issues/）：只记认领人。普通实施票的可见状态是 triage 角色
+  //    （needs-triage / ready-for-agent 等），认领不是其中一档；过去写 claimed 会把分流结果静默盖掉。
   const res=await rewriteTicketText(ctx,repo,norm,function(txt,target){
-    if(target.container||ticketFormOf(txt)!=='legacy'){
-      const hidden=names.length?names.join(', '):null
-      if(target.container)return upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
-      if(ticketFormOf(txt)==='map-ticket'){
-        let out=upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
-        if(names.length) out=replaceBareField(out,'Status',WAYFINDER_STATUS_CLAIMED)
-        else if(new RegExp('^[ \\t]*Status[ \\t]*[:：][ \\t]*' + regexAlt([WAYFINDER_STATUS_CLAIMED]) + '[ \\t]*$', 'im').test(out)) out=removeBareField(out,'Status')
-        return out
-      }
-      // 实施票：只动隐藏注释，可见加粗状态行原样留着（认领不是原文里的一种状态）。
-      return upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
+    const hidden=names.length?names.join(', '):null
+    if(target.container)return upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
+    if(target.route==='map'){
+      let out=upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
+      if(names.length) out=writeFieldByStyle(out,'Status',WAYFINDER_STATUS_CLAIMED,'bare')
+      else if(new RegExp('^[ \\t]*Status[ \\t]*[:：][ \\t]*' + regexAlt([WAYFINDER_STATUS_CLAIMED]) + '[ \\t]*$', 'im').test(out)) out=removeBareField(out,'Status')
+      return out
     }
-    const statusLine=names.length?'Status: claimed':'Status: ready-for-agent'
-    const assigneeLine=names.length?'Assignees: '+names.join(', '):'Assignees:'
-    return insertFieldAfter(replaceOrInsertField(txt,'Status',statusLine),'Status',assigneeLine)
+    if(!target.route){
+      // 旧布局兜底：旧扁平路径的写在定位那一步已被拦下，这条分支只为保住旧文件的既有行为。
+      const statusLine=names.length?'Status: claimed':'Status: ready-for-agent'
+      const assigneeLine=names.length?'Assignees: '+names.join(', '):'Assignees:'
+      return insertFieldAfter(replaceOrInsertField(txt,'Status',statusLine),'Status',assigneeLine)
+    }
+    // 规格 / 普通路线：只记认领人，可见状态一行不动。
+    return upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
   },trail,opts)
   if(!res.ok)return{ok:false,error:res.error}
   return res
@@ -365,27 +385,6 @@ function currentParentOf(txt: string,key: string,effortId: string): { known: boo
     const cur0=parseMd(txt,{key:key,parentKey:'00',isMap:false,effortId:effortId}).parentKey
     return{known:true,key:cur0===undefined||cur0===null?null:normParentKey(cur0),explicit:hasExplicitParentComment(txt)||hiddenCommentOf(txt,'DSH-PARENT').found}
   }catch{return{known:false,key:null,explicit:false}}
-}
-/** 父票这条边落在文件的哪里：原文布局写文件头隐藏注释 DSH-PARENT（#1489），
- *  旧布局继续写旧的 parentKey 注释 —— 两种注释解析都认，但写的时候按文件自己的形状来，
- *  免得一份文件里同时留着「parentKey: 00」与「DSH-PARENT: 02」两条互相矛盾的父票记录。 */
-function parentCommentOf(txt: string,want: string | null): string{
-  if(ticketFormOf(txt)==='legacy')return upsertParentComment(txt,want)
-  return upsertHiddenComment(txt,'DSH-PARENT',want)
-}
-/** 阻塞边落在文件里的两处（原文布局）：可见行按票种类写（实施票加粗行、地图子票裸行），
- *  隐藏注释 DSH-BLOCKED-BY 与它成对更新。旧布局只写可见行，容器不写这类边。 */
-function writeBlockedByLine(txt: string,blockers: string[],container: boolean): string{
-  const keys=blockers.map(k=>String(k).padStart(2,'0'))
-  if(container||ticketFormOf(txt)==='legacy'){
-    const line=blockers.length?'Blocked by: '+blockers.map(k=>'#'+String(k).padStart(2,'0')).join(', '):'Blocked by:'
-    return replaceOrInsertField(txt,'Blocked\\s+by',line)
-  }
-  const out=upsertHiddenComment(txt,'DSH-BLOCKED-BY',keys.length?keys.join(', '):null)
-  if(ticketFormOf(txt)==='impl-ticket'){
-    return replaceBoldField(out,'Blocked by',keys.length?keys.map(k=>'#'+k).join(', '):'None (can start immediately)')
-  }
-  return keys.length?replaceBareField(out,'Blocked by',keys.join(', ')):removeBareField(out,'Blocked by')
 }
 /** 挂父 / 改挂 / 解除父子共用的那一趟读—改—写，顺手把这一趟边上的事实记进事实桶（#1060）。
  *
@@ -414,7 +413,7 @@ async function writeParentLink(ctx: OpContext,repo: RepoWithPath | null,r: Param
     // 解析不出来那一趟也看不见边在哪，两种都不记 removed（#1060 口径，与 hasExplicitParentComment 的说明同一件事）。
     const removed=(want===null)?1:((cur.known&&cur.explicit&&cur.key!==null)?1:0)
     pending={ added: added, removed: removed }
-    return parentCommentOf(txt, want)
+    return parentCommentOf(txt, want, r.route)
   },opts,undefined,function(){
     if(!trail||!pending)return
     trail.route='file'
@@ -492,7 +491,7 @@ async function setLabelsInner(ctx: OpContext,repo: RepoWithPath | null,key: stri
   // 手写文件里人自己补过可见 Labels 行时两处一起改：解析以可见行为准，只改隐藏注释会读回旧值。
   const res=await rewriteTicketText(ctx,repo,norm,function(txt,target){
     const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
-    if(!target.container&&ticketFormOf(txt)==='legacy')return replaceOrInsertField(txt,'Labels',line)
+    if(!target.container&&!target.route)return replaceOrInsertField(txt,'Labels',line)
     let out=upsertHiddenComment(txt,'DSH-LABELS',names.length?names.join(', '):null)
     if(/^[ \t]*(?:\*\*)?Labels(?:\*\*)?[ \t]*[:：]/im.test(out)) out=replaceOrInsertField(out,'Labels',line)
     return out

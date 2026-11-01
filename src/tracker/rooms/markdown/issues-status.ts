@@ -14,7 +14,8 @@ import { publishTextFile } from './write.js'
 import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
 import type { WriteTrail } from './write-log.js'
 import { failFromError } from './error-fail.js'
-import { getPlat, locateContainerFile, resolveIssueFile } from './issues-locate.js'
+import { getPlat, locateContainerFile, resolveIssueFile, ticketRouteOf } from './issues-locate.js'
+import type { TicketRoute } from './issues-locate.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Issue } from '../../contract/entities.js'
@@ -32,6 +33,7 @@ import {
   replaceBoldField,
   ticketFormOf,
   upsertHiddenComment,
+  writeFieldByStyle,
 } from './original-fields.js'
 // #1500 S5：子票状态词（claimed / resolved）只从 YAML 真源读；旧布局分支的字面量保持冻结（见下）。
 import {
@@ -56,6 +58,8 @@ interface WriteTarget {
   path: string
   effortId: string
   container: 'spec' | 'map' | null
+  /** 这张票该按哪条路线写（#1788）：按文件所在目录判；空串表示不在任何工作单元里（旧扁平路径）。 */
+  route: TicketRoute
 }
 
 /** 字段行改写：补一行，或把已有的那一行换成新的一行。
@@ -116,11 +120,12 @@ async function locateWriteTarget(ctx: OpContext, repo: RepoWithPath | null, key:
   if (norm === '00') {
     const r = await locateContainerFile(ctx, repo, 'write')
     if (!r.ok) return { ok: false, error: r.error }
-    return { ok: true, data: { path: r.path, effortId: r.effortId, container: r.container } }
+    // 00 号容器自己就是规格 / 地图：路线直接取容器形状。
+    return { ok: true, data: { path: r.path, effortId: r.effortId, container: r.container, route: r.container } }
   }
   const r = await resolveIssueFile(ctx, repo, norm, { mode: 'write' })
   if (!r.ok) return { ok: false, error: r.error }
-  return { ok: true, data: { path: r.path, effortId: r.effortId, container: null } }
+  return { ok: true, data: { path: r.path, effortId: r.effortId, container: null, route: await ticketRouteOf(ctx, r.path) } }
 }
 /** 读回的元数据：容器的父票固定 null，普通票的父票由目录结构兜底成 00（与旧读法一致）。 */
 function metaOf(norm: string, target: WriteTarget) {
@@ -172,23 +177,27 @@ export async function rewriteTicketText(
     }
   })
 }
-/** 改状态：按文件形状分派，可选再补一行（旧布局的关票原因走这条）。 */
+/** 改状态：按路线分派（#1788：先看票文件所在目录是哪条路线，再看文件里字段行的写法）。
+ *  规格 / 普通路线按实施票 / 普通票语义写可见状态行；地图路线沿用地图子票语义（claimed / resolved）；
+ *  旧布局与 00 号容器保持原样。字段行按文件已有样式写（加粗行改加粗行、裸行改裸行），不再凭空多造一种。 */
 async function setStatus(ctx: OpContext, repo: RepoWithPath | null, key: string, statusLine: string, extraLine?: string, trail?: WriteTrail): Promise<{ ok: true; data: Issue } | StatusFailure> {
   return rewriteTicketText(ctx, repo, key, function (txt, target) {
     if (target.container) return upsertHiddenComment(txt, 'DSH-STATUS', containerStatusValue(statusLine))
-    const form = ticketFormOf(txt)
     const value = statusValueOf(statusLine)
-    if (form === 'impl-ticket') return replaceBoldField(txt, 'Status', value)
-    if (form === 'map-ticket') {
+    if (target.route === 'map') {
       if (/^(ready-for-agent|open)$/i.test(value)) {
-        return hasAssigneeRecord(txt) ? replaceBareField(txt, 'Status', WAYFINDER_STATUS_CLAIMED) : removeBareField(txt, 'Status')
+        return hasAssigneeRecord(txt) ? writeFieldByStyle(txt, 'Status', WAYFINDER_STATUS_CLAIMED, 'bare') : removeBareField(txt, 'Status')
       }
-      return replaceBareField(txt, 'Status', value)
+      return writeFieldByStyle(txt, 'Status', value, 'bare')
     }
-    // 旧布局：可见 Status 行 + 关票原因行，行为与 #1489 之前一字不差。
-    let out = replaceOrInsertField(txt, 'Status', statusLine)
-    if (extraLine) out = replaceOrInsertField(out, 'Close\\s+reason', extraLine)
-    return out
+    if (!target.route) {
+      // 旧布局：可见 Status 行 + 关票原因行，行为与 #1489 之前一字不差。
+      let out = replaceOrInsertField(txt, 'Status', statusLine)
+      if (extraLine) out = replaceOrInsertField(out, 'Close\s+reason', extraLine)
+      return out
+    }
+    // 规格 / 普通路线：实施票 / 普通票语义。可见状态行按文件已有样式写；没有状态行时补裸行（原文普通票就写裸行）。
+    return writeFieldByStyle(txt, 'Status', value, 'bare')
   }, trail)
 }
 /** 从子票正文的 ## Answer 段取第一条内容当「决策」；没有就交回调用方给的关闭原因。 */
@@ -257,6 +266,16 @@ function appendClosingComment(ctx: OpContext, txt: string, reason: string, key: 
   const actor = String((ctx && (ctx as { actor?: unknown }).actor) || 'local')
   return appendSectionBlock(txt, 'Comments', commentBlockOf(actor, reason, new Date().toISOString()))
 }
+/** 地图子票 `## Answer` 段现在写的正文；没有这一段回空串。
+ *  用来判断同一段答案是不是已经写过了：重复关闭不该把同一条答案叠两遍。 */
+function answerTextOf(txt: string): string {
+  const lines = String(txt || '').split('\n')
+  const start = lines.findIndex(function (one: string) { return /^##\s*Answer\s*$/.test(one) })
+  if (start < 0) return ''
+  let end = start + 1
+  while (end < lines.length && !/^##\s/.test(lines[end])) end += 1
+  return lines.slice(start + 1, end).join('\n').trim()
+}
 export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,opts?: CloseOpts): Promise<{ok:true;data:Issue}|StatusFailure>{
   // 调用方给了原因就原样记下来（契约说这是开放字符串，不在这里分支：插件只认得 completed 与 duplicate，
   // GitHub 那边还会有 not_planned，照原样展示即可）；没给就一个字都不写。
@@ -266,23 +285,23 @@ export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: s
   const norm=String(key).padStart(2,'0')
   const r=await rewriteTicketText(ctx,repo,key,function(txt,target){
     if(target.container)return upsertHiddenComment(txt,'DSH-STATUS',containerStatusValue('Status: ' + WAYFINDER_STATUS_RESOLVED))
-    const form=ticketFormOf(txt)
-    if(form==='impl-ticket'){
-      // 实施票完成：只改可见的加粗状态行；原因作为一条评论追加在文件底部（原文 issue-tracker-local.md:10-11），
-      // 不写 ## Answer —— 原文只要求探索地图子票把答案写进 ## Answer（同文件 :30）。
-      let out=replaceBoldField(txt,'Status',WAYFINDER_STATUS_RESOLVED)
-      if(reason)out=appendClosingComment(ctx,out,reason,norm)
-      return out
-    }
-    if(form==='map-ticket'){
+    if(target.route==='map'){
       // 地图子票完成：答案写进 ## Answer、状态改 resolved；指针由下面 appendMapDecisionPointer 追加。
-      let out=replaceBareField(txt,'Status',WAYFINDER_STATUS_RESOLVED)
-      if(reason)out=appendSectionBlock(out,'Answer',reason)
+      let out=writeFieldByStyle(txt,'Status',WAYFINDER_STATUS_RESOLVED,'bare')
+      // 同一段答案已经写在段里就不再追加：重复关闭是幂等的，不该越关答案越多。
+      if(reason&&answerTextOf(out)!==reason.trim())out=appendSectionBlock(out,'Answer',reason)
       return out
     }
-    // 旧布局：可见 Status 行 + Close reason 行，与 #1489 之前一字不差。
-    let out=replaceOrInsertField(txt,'Status','Status: resolved')
-    if(reason)out=replaceOrInsertField(out,'Close\\s+reason','Close reason: '+reason)
+    if(!target.route){
+      // 旧布局：可见 Status 行 + Close reason 行，与 #1489 之前一字不差。
+      let out=replaceOrInsertField(txt,'Status','Status: resolved')
+      if(reason)out=replaceOrInsertField(out,'Close\s+reason','Close reason: '+reason)
+      return out
+    }
+    // 规格 / 普通路线（实施票 / 普通票）：只改可见状态行，原因追加到 ## Comments；
+    // 不写 ## Answer、不写 Close reason 行 —— 那是地图子票 / 旧布局的写法（#1788 行为规格 5）。
+    let out=writeFieldByStyle(txt,'Status',WAYFINDER_STATUS_RESOLVED,'bare')
+    if(reason)out=appendClosingComment(ctx,out,reason,norm)
     return out
   },trail)
   if(r.ok)await appendMapDecisionPointer(ctx,repo,r.data,reason,trail)

@@ -63,7 +63,8 @@ const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok 
   const K = (p) => String(p).toLowerCase()
   const files = new Map()
   const dirs = new Set(['/ws', '/ws/.scratch', '/ws/.scratch/demo', '/ws/.scratch/demo/issues'])
-  files.set(K('/ws/.scratch/demo/map.md'), '# 演示地图\n\nStatus: ready-for-agent\n')
+  // #1788：这张票是插件按实施票布局建的，夹具只放 issues/ 不放 map.md —— 目录形状按普通路线，
+  // 与票的布局一致；放一份 map.md 进去它会变成地图路线，字段写法与关闭方式都会换成地图子票那一套。
   const fs = {
     async resolve(p) { return String(p) },
     async readText(t) { const p = String(t); if (!files.has(K(p))) throw Object.assign(new Error('ENOENT: ' + p), { code: 'ENOENT' }); return files.get(K(p)) },
@@ -71,8 +72,10 @@ const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok 
     async rename(a, b) { files.set(K(String(b)), files.get(K(String(a)))); files.delete(K(String(a))) },
     async rm(p) { files.delete(K(String(p))) },
     async mkdir(p) { dirs.add(K(String(p))) },
-    async lstat(p) { return files.has(K(String(p))) ? { mtime: 0 } : null },
-    async stat(p) { return files.has(K(String(p))) ? { mtime: 0 } : null },
+    // #1788：真实文件系统对目录也回非空 stat。这里只认文件的话，workUnitKindOf 的「只有 issues/ 的目录」
+    // 这条判据会永远认不出普通路线（它靠 stat 看 issues/ 是否存在），夹具就建不出票。
+    async lstat(p) { return (files.has(K(String(p))) || dirs.has(K(String(p)))) ? { mtime: 0 } : null },
+    async stat(p) { return (files.has(K(String(p))) || dirs.has(K(String(p)))) ? { mtime: 0 } : null },
     async listDir(p) {
       const p2 = K(String(p)).replace(/[/]+$/, '')
       if (!dirs.has(p2)) throw Object.assign(new Error('ENOENT: ' + p2), { code: 'ENOENT' })

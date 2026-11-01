@@ -10,9 +10,9 @@
  * 那份缓存永远是空的 —— 补回上次已知的逻辑在生产上从来没拿到过上次快照。
  *
  * 这张票把两段接起来：
- *   一、编排层接受调用方显式传入的 previousSnapshot（会议室里的内存缓存就是它）；
+ *   一、编排层接受调用方显式传入的 previousSnapshot（房间里的内存缓存就是它）；
  *   二、纯组装层在来源不完整时，把「上次有、这次缺席」的容器并回 maps，并把已经漏进 issues 的
- *       子票按父键搬回容器（只补不删；完整来源照旧删缩）。
+ *       子票按父键搬回容器（只补不删；完整来源照旧删减）。
  *
  * 覆盖：
  *   A. 纯组装：截断时容器保留、子票补回、计数不缩水、carry 标记写出；完整来源照旧删除；
@@ -29,7 +29,6 @@
 // 门禁归属: src/host/tracker/snapshotAssemble.ts
 // 门禁归属: src/refresh/rooms/host/session-snapshot-cache.ts
 // 门禁归属: src/refresh/rooms/host/session-refresh-schedule.ts
-const fsx = require('fs')
 const nodePath = require('path')
 const nodeOs = require('os')
 const { pathToFileURL } = require('url')
@@ -173,7 +172,22 @@ async function main() {
     check(Array.isArray(next.issues) && next.issues.length === 0, '3003 不再同时挂在 issues 里（一处只出现一次）', show(keysOf(next.issues)))
   }
   {
-    // A3：同样的输入但来源完整 —— 完整来源仍以这次为准删缩，不许拿旧容器赖着不走。
+    // A2b（#1774 复审补的口子）：上次属于 5001 的子票 5003，这一趟改挂到了 5005 名下。
+    //     期望：5003 只算给 5005，不从上次清单补回 5001（否则一张票挂两个容器、统计各算一次）。
+    const prevRows = [mapRow('5001'), childRow('5003', '5001')]
+    const prev = asm.carryOverMapTickets(null, asm.assembleSnapshot(REF, prevRows), { sourceComplete: true })
+    const nextRows = [mapRow('5005'), childRow('5003', '5005')]
+    const next = asm.carryOverMapTickets(prev, asm.assembleSnapshot(REF, nextRows), { sourceComplete: false })
+    const wrong = mapByKey(next, '5001')
+    check(!!wrong && Array.isArray(wrong.tickets) && wrong.tickets.length === 0, '改挂走的子票不从上次容器补回', show(wrong && keysOf(wrong.tickets)))
+    check(!!wrong && wrong.stats && wrong.stats.total === 0, '被搬空的容器不沿用旧计数（清单与计数不打架）', show(wrong && wrong.stats))
+    const right = mapByKey(next, '5005')
+    check(!!right && keysOf(right.tickets).join(',') === '5003', '子票只算在这一次见到的容器名下', show(right && keysOf(right.tickets)))
+    const dup = (next.maps || []).reduce(function (n: number, m: any) { return n + (Array.isArray(m.tickets) ? m.tickets.filter(function (t: any) { return String(t.key) === '5003' }).length : 0) }, 0)
+    check(dup === 1, '同一张票在 maps 里只出现一次', show(dup))
+  }
+  {
+    // A3：同样的输入但来源完整 —— 完整来源仍以这次为准删减，不许拿旧容器赖着不走。
     const prevRows = [mapRow('3001'), childRow('3002', '3001')]
     const prev = asm.carryOverMapTickets(null, asm.assembleSnapshot(REF, prevRows), { sourceComplete: true })
     const next = asm.carryOverMapTickets(prev, asm.assembleSnapshot(REF, [childRow('3003', '3001')]), { sourceComplete: true })
@@ -191,10 +205,34 @@ async function main() {
     check(!!m && !m.carry, '已关闭容器不写 carry 标记', show(m && m.carry))
   }
   {
+    // A4b（#1774 复审补的漏）：已关闭容器缺席，但它的已关闭子票还留在本页列表里。
+    //     按 #1291 口径这批行不进首屏 issues，只留瘦身行供查标题（A4 只测了空列表，测不到这个形状）。
+    const prevRows = [mapRow('4101', { state: 'CLOSED' }), childRow('4102', '4101', { state: 'CLOSED' })]
+    const prev = asm.carryOverMapTickets(null, asm.assembleSnapshot(REF, prevRows), { sourceComplete: true })
+    const next = asm.carryOverMapTickets(prev, asm.assembleSnapshot(REF, [childRow('4102', '4101', { state: 'CLOSED' })]), { sourceComplete: false })
+    const m = mapByKey(next, '4101')
+    check(!!m, '已关闭容器 4101 仍被补回', show(keysOf(next.maps)))
+    check(Array.isArray(next.issues) && next.issues.length === 0, '已关闭子票不漏进首屏 issues', show(keysOf(next.issues)))
+    const thin = (next.thinTickets || []).filter(function (t: any) { return String(t.key) === '4102' })
+    check(thin.length === 1, '已关闭子票留了瘦身行供查标题', show((next.thinTickets || []).map(function (t: any) { return t.key })))
+  }
+  {
     // A5：没有上次快照时不凭空造容器。
     const next = asm.carryOverMapTickets(null, asm.assembleSnapshot(REF, TRUNC_ROWS), { sourceComplete: false })
     check(Array.isArray(next.maps) && next.maps.length === 0, '没有上次快照时不凭空造容器', show(keysOf(next.maps)))
     check(keysOf(next.issues).join(',') === '2002', '没有上次快照时子票照常留在 issues', show(keysOf(next.issues)))
+  }
+  {
+    // A6：票面主场景 —— 整棵子树（容器 + 全部子票）一起掉出第一页，这一趟列表里一行都没有。
+    const prevRows = [mapRow('6001'), childRow('6002', '6001'), childRow('6003', '6001'), childRow('6004', '6001')]
+    const prev = asm.carryOverMapTickets(null, asm.assembleSnapshot(REF, prevRows), { sourceComplete: true })
+    const next = asm.carryOverMapTickets(prev, asm.assembleSnapshot(REF, []), { sourceComplete: false })
+    const m = mapByKey(next, '6001')
+    check(!!m, '整棵子树掉出第一页：容器 6001 仍在', show(keysOf(next.maps)))
+    check(!!m && keysOf(m.tickets).join(',') === '6002,6003,6004', '三张子票全部从上次补齐', show(m && keysOf(m.tickets)))
+    check(!!m && m.stats && m.stats.total === 3, '计数不缩水（stats.total=3）', show(m && m.stats))
+    check(!!m && !!m.carry && m.carry.kept === 3, '补回三张、carry.kept=3', show(m && m.carry))
+    check(Array.isArray(next.issues) && next.issues.length === 0, '没有孤儿票漏进 issues', show(keysOf(next.issues)))
   }
 
   title('B) 编排层：每趟新建编排器（与生产同形），上一份快照由调用方显式传入')
@@ -227,10 +265,11 @@ async function main() {
     check(keysOf(r3.snapshot.issues).join(',') === '2002', '反证：不传时子票 2002 漏进 issues', show(keysOf(r3.snapshot.issues)))
   }
 
-  title('C) 快照电话路（wf.snapshot）：第二趟截断，容器与子票仍保住')
+  title('C) 快照电话路（wf.snapshot）：第二趟截断、第三趟整棵子树掉出，容器与子票仍保住')
   {
     const table = makeTable()
-    const tracker = makeTracker([{ rows: FULL_ROWS }, { rows: TRUNC_ROWS, truncated: true }])
+    // 三趟来源：完整 → 只剩后半页（2002/2003/2004）→ 一行都没有（整棵子树掉出第一页）。
+    const tracker = makeTracker([{ rows: FULL_ROWS }, { rows: TRUNC_ROWS, truncated: true }, { rows: [], truncated: true }])
     const h = snapRoomMod.createSessionSnapshot(await roomDeps(table, tracker))
     const r1 = await h.handleSnapshot({ cwd: 'K1774', force: true })
     check(!!mapByKey(r1, '2001') && mapByKey(r1, '2001').tickets.length === 3, '第一趟完整来源：容器 2001 带三张子票', show(r1 && keysOf(r1.maps)))
@@ -245,16 +284,28 @@ async function main() {
     check(keysOf(r2.issues).join(',') === '2001,2002,2003,2004', '第二趟截断：扁平列表仍是容器 + 三张子票，一张不多一张不少', show(keysOf(r2.issues)))
     const dec2 = r2.deck && r2.deck.counts
     check(!!dec2 && dec2.source === 'previous-known' && dec2.total === 3, '第二趟截断：列表计数沿用上次已知（previous-known、total=3）', show(dec2))
-    // 第三趟：来源恢复完整，且列表里确实没有 2001 —— 这时以本次为准，容器应当被删掉。
-    tracker.list = async function () { return { ok: true, data: [childRow('2002', '2001')] } }
+    check(!!r2.deck && r2.deck.partial === true, '第二趟截断：仓库级 deck.partial 为真（清单可能不全）', show(r2.deck && r2.deck.partial))
+    // 第三趟（票面主场景）：整棵子树一起掉出第一页，这一趟列表里一行都没有。
     const r3 = await h.handleSnapshot({ cwd: 'K1774', force: true })
-    check(!mapByKey(r3, '2001'), '来源恢复完整后容器 2001 被删（只补不删只限不完整来源）', show(r3 && keysOf(r3.maps)))
+    const m3 = mapByKey(r3, '2001')
+    check(!!m3, '第三趟整棵子树掉出：容器 2001 仍被补回', show(r3 && keysOf(r3.maps)))
+    check(!!m3 && keysOf(m3.tickets).join(',') === '2002,2003,2004', '第三趟：三张子票都从上次补齐', show(m3 && keysOf(m3.tickets)))
+    check(!!m3 && m3.stats && m3.stats.total === 3, '第三趟：容器计数仍是 3', show(m3 && m3.stats))
+    check(!!m3 && !!m3.carry && m3.carry.kept === 3, '第三趟：carry 记下补回三张', show(m3 && m3.carry))
+    check(keysOf(r3.issues).join(',') === '2001,2002,2003,2004', '第三趟：扁平列表仍是容器 + 三张子票，一张不多一张不少', show(keysOf(r3.issues)))
+    const dec3 = r3.deck && r3.deck.counts
+    check(!!dec3 && dec3.source === 'previous-known' && dec3.total === 3, '第三趟：列表计数沿用上次已知（previous-known、total=3）', show(dec3))
+    check(!!r3.deck && r3.deck.partial === true, '第三趟：仓库级 deck.partial 仍为真', show(r3.deck && r3.deck.partial))
+    // 第四趟：来源恢复完整，且列表里确实没有 2001 —— 这时以本次为准，容器应当被删掉。
+    tracker.list = async function () { return { ok: true, data: [childRow('2002', '2001')] } }
+    const r4 = await h.handleSnapshot({ cwd: 'K1774', force: true })
+    check(!mapByKey(r4, '2001'), '来源恢复完整后容器 2001 被删（只补不删只限不完整来源）', show(r4 && keysOf(r4.maps)))
   }
 
-  title('D) 刷新电话路（wf.refresh）：第二趟截断，容器与子票仍保住')
+  title('D) 刷新电话路（wf.refresh）：第二趟截断、第三趟整棵子树掉出，容器与子票仍保住')
   {
     const table = makeTable()
-    const tracker = makeTracker([{ rows: FULL_ROWS }, { rows: TRUNC_ROWS, truncated: true }])
+    const tracker = makeTracker([{ rows: FULL_ROWS }, { rows: TRUNC_ROWS, truncated: true }, { rows: [], truncated: true }])
     const h = refRoomMod.createSessionRefresh(await refreshDeps(table, tracker))
     const r1 = await h.handleRefresh({ cwd: 'K1774' })
     check(!!mapByKey(r1, '2001') && mapByKey(r1, '2001').tickets.length === 3, '第一趟完整来源：容器 2001 带三张子票', show(r1 && keysOf(r1.maps)))
@@ -267,6 +318,18 @@ async function main() {
     check(keysOf(r2.issues).join(',') === '2001,2002,2003,2004', '第二趟截断：扁平列表仍是容器 + 三张子票，一张不多一张不少', show(keysOf(r2.issues)))
     const dec2 = r2.deck && r2.deck.counts
     check(!!dec2 && dec2.source === 'previous-known' && dec2.total === 3, '第二趟截断：列表计数沿用上次已知（previous-known、total=3）', show(dec2))
+    check(!!r2.deck && r2.deck.partial === true, '第二趟截断：仓库级 deck.partial 为真', show(r2.deck && r2.deck.partial))
+    // 第三趟（票面主场景）：整棵子树一起掉出第一页，这一趟列表里一行都没有。
+    const r3 = await h.handleRefresh({ cwd: 'K1774' })
+    const m3 = mapByKey(r3, '2001')
+    check(!!m3, '第三趟整棵子树掉出：容器 2001 仍被补回', show(r3 && keysOf(r3.maps)))
+    check(!!m3 && keysOf(m3.tickets).join(',') === '2002,2003,2004', '第三趟：三张子票都从上次补齐', show(m3 && keysOf(m3.tickets)))
+    check(!!m3 && m3.stats && m3.stats.total === 3, '第三趟：容器计数仍是 3', show(m3 && m3.stats))
+    check(!!m3 && !!m3.carry && m3.carry.kept === 3, '第三趟：carry 记下补回三张', show(m3 && m3.carry))
+    check(keysOf(r3.issues).join(',') === '2001,2002,2003,2004', '第三趟：扁平列表仍是容器 + 三张子票，一张不多一张不少', show(keysOf(r3.issues)))
+    const dec3 = r3.deck && r3.deck.counts
+    check(!!dec3 && dec3.source === 'previous-known' && dec3.total === 3, '第三趟：列表计数沿用上次已知（previous-known、total=3）', show(dec3))
+    check(!!r3.deck && r3.deck.partial === true, '第三趟：仓库级 deck.partial 仍为真', show(r3.deck && r3.deck.partial))
   }
 
   title('E) 上一份快照的归属核对：别的后端 / 别的仓库不拿来补')
@@ -281,6 +344,9 @@ async function main() {
     check(snapMod.previousSnapshotFor(otherRepo, 'github', REF) === null, '别仓库的上一份快照拒绝采用', show(snapMod.previousSnapshotFor(otherRepo, 'github', REF)))
     const legacy = Object.assign({}, match, { selection: undefined, repository: undefined })
     check(snapMod.previousSnapshotFor(legacy, 'github', REF) === legacy, '两样身份都没带的老快照按兼容放行', show(!!snapMod.previousSnapshotFor(legacy, 'github', REF)))
+    // 只有一边带 refId：无法证明是同一仓库，按拒绝处理（旧实现会静默放行，见本轮复审）。
+    const oneSide = snapMod.previousSnapshotFor({ selection: { backendId: 'github' }, repository: { backend: 'github', refId: 'other/repo' } }, 'github', { backend: 'github', refId: '' })
+    check(oneSide === null, '快照带 refId、这一趟拿不到 refId 时拒绝采用', show(oneSide))
     // 把归属核对接进真编排器再验一次：上一份来自 gitlab，这一趟在 github 且列表截断。
     const tracker = makeTracker([{ rows: FULL_ROWS }, { rows: TRUNC_ROWS, truncated: true }])
     const reg = { get: function () { return tracker }, describe: function () { return REF }, modules: function () { return [] } }
@@ -293,6 +359,18 @@ async function main() {
     check(keysOf(r2.snapshot.issues).join(',') === '2002', '被拒的上一份快照不会把子票搬回容器', show(keysOf(r2.snapshot.issues)))
     const decE = r2.snapshot.deck && r2.snapshot.deck.counts
     check(!decE || decE.source !== 'previous-known', '被拒的上一份快照不沿用它的计数', show(decE))
+  }
+  {
+    // E2：真房间上切后端 —— 上一份快照属于 github，这一趟房间明确按 gitlab 取（同一份房间缓存），
+    //     截断那趟不许拿 github 的容器、子票、计数。这补的是「只测直调函数、没测真缓存」的口子。
+    const table = makeTable()
+    const tracker = makeTracker([{ rows: FULL_ROWS }, { rows: TRUNC_ROWS, truncated: true }])
+    const room = snapRoomMod.createSessionSnapshot(await roomDeps(table, tracker))
+    const g1 = await room.handleSnapshot({ cwd: 'K1774', backendId: 'github', force: true })
+    check(!!mapByKey(g1, '2001'), '切后端前：github 完整来源建出容器 2001', show(g1 && keysOf(g1.maps)))
+    const g2 = await room.handleSnapshot({ cwd: 'K1774', backendId: 'gitlab', force: true })
+    check(Array.isArray(g2.maps) && g2.maps.length === 0, '切到 gitlab 后：截断那趟不拿 github 的上一份快照补容器', show(g2 && keysOf(g2.maps)))
+    check(keysOf(g2.issues).join(',') === '2002', '切后端后：子票留在 issues，不被搬回旧容器', show(keysOf(g2.issues)))
   }
 
   console.log('\n=== 汇总 ===')

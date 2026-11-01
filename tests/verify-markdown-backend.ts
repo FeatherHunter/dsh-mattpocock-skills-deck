@@ -372,7 +372,8 @@ console.log('\n== #1174 复核订正闸：五处对不上的输入 ==')
   const rgTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'md-regress-'))
   const rgDir = path.join(rgTmp, '.scratch', 'demo', 'issues')
   fs.mkdirSync(rgDir, { recursive: true })
-  fs.writeFileSync(path.join(rgTmp, '.scratch', 'demo', 'map.md'), '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n', 'utf8')
+  // #1788：这里建的是普通票（实施票布局），夹具只放 issues/ 不放 map.md，目录形状按普通路线。
+  // 放一份 map.md 会让它变成地图路线，关票原因要写进 ## Answer 而不是 ## Comments，与本节钉的语义不符。
   const rgFs = {
     async resolve(p) { return p },
     async readText(t) { return fs.readFileSync(t, 'utf8') },

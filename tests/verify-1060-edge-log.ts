@@ -197,7 +197,8 @@ console.log('== 一、父子边：新挂记 added、复读记 noop、改挂记 d
     '挂父：kind=parent、reason=added、added=1/removed=0/kept=0、route=file → ' + [f.kind, f.reason, f.added, f.removed, f.kept, f.route].join('/'))
   check(ctx.writes.length === writesBefore + 1, '挂父：文件服务上真的多了一次写 → 实得 ' + (ctx.writes.length - writesBefore) + ' 次')
   check(f.removed === 0, '挂父：这张票本来没写父注释（读回来落在地图这个默认父上），不许把这条默认值算成撤下来一条边 → removed=' + f.removed)
-  check(/parentKey:\s*02/.test(readTicket(root, '01-a.md')), '挂父：盘上那张票的父注释真的变成了 02')
+  // #1788：夹具在地图工作单元里（有 map.md），父票边写文件头隐藏注释 DSH-PARENT，不再写旧的 parentKey 注释。
+  check(/DSH-PARENT:\s*02/.test(readTicket(root, '01-a.md')), '挂父：盘上那张票的父注释真的变成了 02')
 
   // 同一趟再挂一次：目标状态已经在位，一处都不许改，而且要记成「本来就挂着」。
   before = countBefore(ctx)
@@ -227,7 +228,7 @@ console.log('== 一、父子边：新挂记 added、复读记 noop、改挂记 d
   f = checkEdgeShape(lastEdge(ctx), '解除父子')
   check(f.reason === 'removed' && f.added === 0 && f.removed === 1 && f.kept === 0 && f.route === 'file',
     '解除父子：reason=removed、added=0/removed=1/kept=0 → ' + [f.reason, f.added, f.removed, f.kept, f.route].join('/'))
-  check(/parentKey:\s*null/.test(readTicket(root, '01-a.md')), '解除父子：盘上那张票的父注释真的变成了 null')
+  check(!/DSH-PARENT:|parentKey:/.test(readTicket(root, '01-a.md')), '解除父子：父注释整行删掉了，也没写旧的 parentKey 注释')
 
   // 再解除一次：本来就没有父可撤，一处不改（kept 不许记成 1——那是「边在位」的说法）。
   before = countBefore(ctx)
@@ -267,7 +268,9 @@ console.log('== 二、阻塞边：新挂与撤下逐条对账，入参写重复�
   check(f.kind === 'block' && f.reason === 'added' && f.added === 2 && f.removed === 0 && f.kept === 0 && f.route === 'file',
     '新挂两条：kind=block、reason=added、added=2/removed=0/kept=0、route=file → ' + [f.kind, f.reason, f.added, f.removed, f.kept, f.route].join('/'))
   check(ctx.writes.length === writesBefore + 1, '新挂两条：文件服务上真的写了一次（两条边落在同一行里）→ 实得 ' + (ctx.writes.length - writesBefore) + ' 次')
-  check(/Blocked by:\s*#02,\s*#03/.test(readTicket(root, '01-a.md')), '新挂两条：盘上那一行真的写成了 #02, #03')
+  // #1788：夹具是地图工作单元，地图子票的裸行按原文布局写编号、不写 #；
+  // 旧布局手写票才写 Blocked by: #02。两种写法都认，守的是「两条边落在同一行」。
+  check(/Blocked by:\s*(#02,\s*#03|02,\s*03)/.test(readTicket(root, '01-a.md')), '新挂两条：盘上那一行真的写成了 02, 03')
 
   // 撤掉其中一条：removed=1、kept=1（另一条还在位）。
   before = countBefore(ctx)
