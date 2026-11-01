@@ -193,7 +193,7 @@ async function setStatus(ctx: OpContext, repo: RepoWithPath | null, key: string,
     if (!target.route) {
       // 旧布局：可见 Status 行 + 关票原因行，行为与 #1489 之前一字不差。
       let out = replaceOrInsertField(txt, 'Status', statusLine)
-      if (extraLine) out = replaceOrInsertField(out, 'Close\s+reason', extraLine)
+      if (extraLine) out = replaceOrInsertField(out, 'Close\\s+reason', extraLine)
       return out
     }
     // 规格 / 普通路线：实施票 / 普通票语义。可见状态行按文件已有样式写；没有状态行时补裸行（原文普通票就写裸行）。
@@ -295,7 +295,7 @@ export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: s
     if(!target.route){
       // 旧布局：可见 Status 行 + Close reason 行，与 #1489 之前一字不差。
       let out=replaceOrInsertField(txt,'Status','Status: resolved')
-      if(reason)out=replaceOrInsertField(out,'Close\s+reason','Close reason: '+reason)
+      if(reason)out=replaceOrInsertField(out,'Close\\s+reason','Close reason: '+reason)
       return out
     }
     // 规格 / 普通路线（实施票 / 普通票）：只改可见状态行，原因追加到 ## Comments；

@@ -5,8 +5,9 @@
  * 回执如果只说「成了」，读回执的人会以为可见状态也被改过，于是下一次看到 triage 状态时以为写丢了。
  *
  * 判据只看写后读回来的正文，不看后端是谁：正文里有可见的 `Status: claimed`（加粗写法一样算），
- * 就说明这张票按地图子票的写法标了 claimed；没有这一行，就如实说可见状态没有改。
+ * 就按「可见状态已经是 claimed」来说；没有这一行，就如实说可见状态没有改。
  * 这样同一句话对本地 Markdown 与远端后端都成立：远端后端认领本来就不改状态。
+ * 判据只来自这一份正文，看不到所在目录里有没有 map.md，所以措辞只说读回来的事实，不替人断言目录形状。
  */
 
 /** 票文件正文里有没有可见的 `Status: claimed`（`**Status:** claimed` 这种加粗写法也算）。
@@ -17,8 +18,9 @@ function visibleStatusClaimed(body: unknown): boolean {
   return head.split(/\r?\n/).some((line) => /^[ \t]*Status[ \t]*[:：][ \t]*claimed[ \t]*$/.test(line.replace(/\*/g, '')))
 }
 
-/** 回执里那句「认领人记到哪了、可见状态有没有改」；给不出确定结论时回空串，调用方不补这句。 */
+/** 回执里那句「认领人记到哪了、可见状态有没有改」。
+ * 两种落盘方式各说一句，都把「读回来的事实」与「这是哪种票的正常写法」分开说，不混成一句断言。 */
 export function claimNoteOf(body: unknown): string {
-  if (visibleStatusClaimed(body)) return '认领人已记录；这张票所在目录里有 map.md，按地图子票的写法把可见状态标成了 claimed。'
-  return '认领人已记录，可见状态没有改：本地 Markdown 的普通实施票与普通票只记认领人，别的后端认领本来就不改状态。'
+  if (visibleStatusClaimed(body)) return '认领人已记录；写后读回来的票面上有可见的 Status: claimed（本地 Markdown 的地图子票认领会这样标状态）。'
+  return '认领人已记录，写后读回来的票面上可见状态没有改：本地 Markdown 的普通实施票与普通票只记认领人，别的后端认领本来也不改状态。'
 }
