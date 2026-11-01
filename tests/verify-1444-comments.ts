@@ -57,6 +57,8 @@ function issueFor (opts) {
     labels: [],
     assignees: [],
     comments: ALL_COMMENTS.slice(0, Math.min(first, ALL_COMMENTS.length)),
+    // 票面评论总数（#1783/#1784）：详情页据此说「共 N 条」并判还有没有下一页。
+    commentCount: ALL_COMMENTS.length,
     blockedBy: [],
   }
 }
@@ -166,14 +168,15 @@ check(detail && detail.ok === true, '详情：经会话 get 成功')
 // #1519：详情回包里的评论必须是 GraphQL 连接 {nodes, pageInfo}，不能把房间契约的数组原样透传给界面
 // （界面只读 comments.nodes，数组透传时评论区永远显示「评论 (0)」）。
 check(detail && detail.issue && detail.issue.comments && !Array.isArray(detail.issue.comments) && Array.isArray(detail.issue.comments.nodes) && detail.issue.comments.nodes.length === 50, '详情：评论按 {nodes, pageInfo} 连接交回、带回首屏 50 条（got ' + (detail && detail.issue && detail.issue.comments && detail.issue.comments.nodes && detail.issue.comments.nodes.length) + '）')
-check(detail && detail.issue && detail.issue.comments && detail.issue.comments.pageInfo && detail.issue.comments.pageInfo.hasNextPage === true && detail.issue.comments.pageInfo.endCursor === '50', '详情：分页信息按首屏 50 条推出 hasNextPage=true、endCursor=50')
+check(detail && detail.issue && detail.issue.comments && detail.issue.comments.pageInfo && detail.issue.comments.pageInfo.hasNextPage === true && detail.issue.comments.pageInfo.endCursor === '50', '详情：分页信息按票面总数判 hasNextPage=true、endCursor=50')
+check(detail && detail.issue && detail.issue.comments && detail.issue.comments.totalCount === ALL_COMMENTS.length, '详情：交回票面评论总数（界面「共 N 条」与加载更多都用它）')
 // 形状对了但字段掉了同样是坏的：作者、时间、正文都必须在，界面才画得出每一条评论。
 check(detail && detail.issue && detail.issue.comments && detail.issue.comments.nodes[0] && detail.issue.comments.nodes[0].author && detail.issue.comments.nodes[0].author.login === 'u1' && detail.issue.comments.nodes[0].body === 'body 1' && detail.issue.comments.nodes[0].createdAt === '2026-10-01T00:00:00Z', '详情：首条评论的作者、正文与时间都带回来了')
 check(openCalls === 1 && sessionCalls.length === 1, '详情：openSession 与 session.get 各一次')
 check(sessionCalls[0] && sessionCalls[0].repoRef && sessionCalls[0].repoRef.refId === 'o/r', '详情：仓库引用经注册表 describe 解析（refId=o/r）')
 check(sessionCalls[0] && sessionCalls[0].repoRef && sessionCalls[0].repoRef.effortId === '1001', '详情：effortId 放进仓库引用')
 check(sessionCalls[0] && sessionCalls[0].key === '05', '详情：key 按两位补零')
-check(sessionCalls[0] && sessionCalls[0].opts && !sessionCalls[0].opts.comments, '详情：不带 comments.first（沿用房间默认首屏）')
+check(sessionCalls[0] && sessionCalls[0].opts && sessionCalls[0].opts.comments && sessionCalls[0].opts.comments.first === 50, '详情：带 comments.first=50 取首屏（#1783：不带时房间只回默认一页）')
 
 sessionCalls.length = 0
 const firstPage = await handlers.handleIssueComments({ number: 5, cwd: CWD })

@@ -94,15 +94,69 @@ async function apiPut(opCtx: CtxLike | null | undefined, path: string, body: Raw
   return parseJsonSafe(res.stdout)
 }
 
-async function fetchAugment(opCtx: CtxLike | null | undefined, refId: string, raw: RawBag): Promise<RawBag> {
+// 一次详情最多取多少条评论（与宿主 comment-thread-fetch.ts 的 COMMENTS_MAX 同一个上限）。
+// 调用方按契约最多会要 200 条；房间按同一数字夹住，免得一次翻太多页把一次读拖成十几趟。
+const COMMENTS_MAX = 200
+
+/**
+ * 这次读单票要不要评论、要几条：没带 comments 选项返回 null（调用方要的是旧行为：一页 20 条、请求不带分页参数）。
+ * 带了就夹在 0..200 之间；first=0 表示一条正文都不要，只要票面上的总数。
+ */
+function commentsWantOf(opts: GetOpts | null | undefined): number | null {
+  const c = opts && opts.comments
+  if (!c || typeof c.first !== 'number' || !isFinite(c.first)) return null
+  return Math.max(0, Math.min(COMMENTS_MAX, Math.floor(c.first)))
+}
+
+/**
+ * 按 per_page/page 翻 notes 取够 want 条。
+ *
+ * 为什么要翻页：GitLab 的 notes 默认一页只有 20 条，调用方要 50/100/200 条时只发一次请求，
+ * 拿到的永远只是第一页 —— 详情页于是只能看到 20 条，「加载更多」也永远取不到后面的（#1784）。
+ * 取不满一页就说明远端没有更多，立刻停；任何一页失败都按「评论没取到」返回 null（沿用旧行为的 best-effort），
+ * 不拦主流程：正文与总数比评论列表更重要，评论列表可以等下一次再试。
+ */
+async function fetchNotes(
+  opCtx: CtxLike | null | undefined,
+  refId: string,
+  iid: string | number,
+  want: number,
+): Promise<unknown[] | null> {
+  const limit = Math.max(0, Math.min(COMMENTS_MAX, Math.floor(want)))
+  const out: unknown[] = []
+  if (limit === 0) return out
+  let page = 1
+  while (out.length < limit) {
+    const perPage = Math.min(PAGINATION.gitlab.maxPerPage, limit - out.length)
+    let notes: unknown
+    try {
+      notes = await apiGet(opCtx, `${notesPath(refId, iid)}?per_page=${perPage}&page=${page}`)
+    } catch {
+      return null
+    }
+    if (!Array.isArray(notes)) return null
+    const arr = notes as unknown[]
+    for (const n of arr) out.push(n)
+    if (arr.length < perPage) break
+    page += 1
+  }
+  return out.slice(0, limit)
+}
+
+async function fetchAugment(opCtx: CtxLike | null | undefined, refId: string, raw: RawBag, notesWant?: number | null): Promise<RawBag> {
   const iid = raw['iid']
   if (iid == null) return raw
   // 聚合 notes + links（best-effort，失败忽略）
-  try {
-    const notes = await apiGet(opCtx, notesPath(refId, iid as string | number))
-    if (Array.isArray(notes)) raw['notes'] = notes
-  } catch {
-    // 聚合失败就按无聚合归一，不拦主流程。
+  if (notesWant === undefined || notesWant === null) {
+    try {
+      const notes = await apiGet(opCtx, notesPath(refId, iid as string | number))
+      if (Array.isArray(notes)) raw['notes'] = notes
+    } catch {
+      // 聚合失败就按无聚合归一，不拦主流程。
+    }
+  } else {
+    const notes = await fetchNotes(opCtx, refId, iid as string | number, notesWant)
+    if (notes !== null) raw['notes'] = notes
   }
   try {
     const links = await apiGet(opCtx, linksPath(refId, iid as string | number))
@@ -191,7 +245,7 @@ export async function listIssues(
  * @param ctx 调用上下文（opCtx 缺时顶上）
  * @param repo 目标仓库（只取 refId/name）
  * @param key 票号（iid 字符串）
- * @param opts 读选项（今天只有评论分页，由宿主处理）
+ * @param opts 读选项：comments.first 要几条评论正文（0 表示只要总数）。不带时沿用旧行为（notes 只取第一页 20 条、请求不带分页参数）。
  * @param opCtx 本次调用的上下文（优先用它）
  */
 export async function getIssue(
@@ -201,7 +255,6 @@ export async function getIssue(
   opts: GetOpts | null | undefined,
   opCtx: CtxLike | null | undefined,
 ): Promise<OpResult<Issue>> {
-  void opts
   const effective = (opCtx || ctx) as CtxLike | undefined
   const id = repoId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'get: repo.refId missing', '')
@@ -213,7 +266,10 @@ export async function getIssue(
     if (!raw || typeof raw !== 'object') {
       return fail(ERROR_KIND.NOTFOUND as ErrorKind, `issue ${k} not found`, raw === undefined || raw === null ? '' : raw)
     }
-    await fetchAugment(effective, id, raw)
+    // 要没要评论、要几条：没带选项时 want 是 null，fetchAugment 走旧的单次聚合（一页 20 条）。
+    // 带了就按 per_page/page 翻够 want 条（#1784：不翻页时「加载更多」永远只能拿到同一页）。
+    const want = commentsWantOf(opts)
+    await fetchAugment(effective, id, raw, want)
     const issue = normalizeIssue(raw)
     return { ok: true, data: issue }
   } catch (err: unknown) {

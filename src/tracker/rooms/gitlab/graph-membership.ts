@@ -166,19 +166,34 @@ export async function setAssignees(
     // GitLab single/multi assignee: PUT assignee_ids
     // 需解析 username→id（via GET /users?username=）
     const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
+    // 先把每个用户名换成用户 id。换不出来（查不到这个人，或者查人这一步本身没跑成）的记在
+    // unresolved 里；只要有一个，就整步停在这里，一个写请求都不发。原因是 PUT assignee_ids 给的是
+    // 整集：少写一个名字，GitLab 就会把那个人的认领删掉，人却只看到「成了 0 步」。
     const assigneeIds: string[] = []
+    const unresolved: string[] = []
     for (const u of wanted) {
+      let resolved = ''
       try {
-        const res = await c.run(['api', `users?username=${encodeURIComponent(u)}`], { timeout: GITLAB_PROBE_TIMEOUT_MS })
-        if (res.code === 0) {
-          const arr: unknown = JSON.parse(res.stdout) as unknown
+        const probe = await c.run(['api', `users?username=${encodeURIComponent(u)}`], { timeout: GITLAB_PROBE_TIMEOUT_MS })
+        if (probe.code === 0) {
+          const arr: unknown = JSON.parse(probe.stdout) as unknown
           if (Array.isArray(arr) && arr[0] && (arr[0] as RawBag)['id']) {
-            assigneeIds.push(String((arr[0] as RawBag)['id']))
+            resolved = String((arr[0] as RawBag)['id'])
           }
         }
       } catch {
-        // 单个用户换不出 id 就跳过，不拦整批。
+        // 查人这一步抛错，同样算换不出 id，交给下面的整步失败处理，不再吞掉接着写。
       }
+      if (resolved !== '') assigneeIds.push(resolved)
+      else unresolved.push(u)
+    }
+    if (unresolved.length > 0) {
+      // 一个写请求都没发出去，远端认领还是原样，所以原文给空串。
+      return fail(
+        ERROR_KIND.NOTFOUND as ErrorKind,
+        `认领人用户名不存在：${unresolved.join('、')}。原认领没有改动，这次没有发出写请求。`,
+        '',
+      )
     }
     const res = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `assignee_ids=${assigneeIds.join(',')}`], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (res.code !== 0) {

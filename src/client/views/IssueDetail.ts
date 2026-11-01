@@ -340,7 +340,9 @@ export const IssueDetail = function (props: any): any {
       // #1694：从快照投影出来、或失败后保留的评论只读 —— 写评论仍要等这一趟详情取数成功。
       if (proj.source !== 'live') canComment = false
       const commentsNodes = (proj.source !== 'none' && !!rawComments && Array.isArray(rawComments.nodes)) ? rawComments.nodes : []
-      const isStale = proj.source === 'snapshot'
+      // #1783：快照投影里「评论未知」与「确实没有评论」是两件事。投影出来的详情没有 comments 字段时，
+      // 说明这一行只带了正文、评论还没取过（GitLab 列表就是这样）；这时既不能说「评论 (0)」，也不能说「只读」。
+      const commentsUnknown = !!(detail && proj.source === 'snapshot' && !(rawComments && Array.isArray(rawComments.nodes)))
       // ======== #255 · 评论输入区（GitHub 单点 · MISSING 零分支）========
       // 显隐以能力字段有无判：comments 存在即渲染（EMPTY=[] 渲染、MISSING=省略 不渲染），
       // 零后端身份分支。形状只认 GraphQL 连接一种，理由同上（#1519）。
@@ -351,7 +353,8 @@ export const IssueDetail = function (props: any): any {
       // #693：底部那句「只读」只在**确实不能评论**时才说。详情还没回来时 canComment 也是假
       //   （手上根本没有这份数据），但那只是「还没拿到」，不是「不能评论」——
       //   拉取请求，或详情回来说这个后端不带评论能力，才算真只读。
-      const readOnlyKnown = fromPullRequest || (!!detail && !canComment)
+      // #1783：评论未知时置灰只是「这一趟还没拿到」，不是「不能评论」，不许落成只读提示。
+      const readOnlyKnown = fromPullRequest || (!!detail && !canComment && !commentsUnknown)
       return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } }, [
         // 顶部固定行（#565 粘性固定，随滚动保持可见；#763 单行逐字折叠：越窄越收，只剩图标，不放省略号）
         // 折叠顺序：返回按钮的字先收（返回列表→返回→只剩图标），再收面包屑，再收快照提示，
@@ -468,7 +471,7 @@ export const IssueDetail = function (props: any): any {
         ]) : null,
       // comments（列表 + 输入区收进 views/IssueDetailComments.js，纯结构搬移，行为零变化）
       // #693：评论区也只喂详情那一份（快照那一行可能不带评论，喂进去会把「没拿到」画成「没有」）。
-      h('div', { style: { padding: '8px 0 4px' } }, renderIssueDetailComments(h, st, issueNumber, detail, mode, commentsNodes, canComment, issueEffort)),
+      h('div', { style: { padding: '8px 0 4px' } }, renderIssueDetailComments(h, st, issueNumber, detail, mode, commentsNodes, canComment, issueEffort, commentsUnknown)),
         // 底部动作（#763 主动作已搬到顶栏新会话左侧，底部只留只读提示；无提示时不占一行）
         readOnlyKnown ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 } }, [
           h('span', { style: { flex: 1 } }),

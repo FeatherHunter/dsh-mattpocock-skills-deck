@@ -133,6 +133,13 @@ export const GITLAB_ENDPOINTS: readonly GitlabEndpointSpec[] = [
     note: '读一张票的评论',
   },
   {
+    id: 'notes-list-paged',
+    method: 'GET',
+    shape: 'projects/{}/issues/{}/notes?per_page={}&page={}',
+    request: 'projects/{id}/issues/{iid}/notes?per_page=100&page=1',
+    note: '按页读一张票的评论正文：详情首屏要 50 条，翻到底最多 200 条；短页（不足一页）就是最后一页',
+  },
+  {
     id: 'note-create',
     method: 'POST',
     shape: 'projects/{}/issues/{}/notes',

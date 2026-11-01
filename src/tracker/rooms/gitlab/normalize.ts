@@ -366,6 +366,13 @@ export function normalizeIssue(raw: unknown): Issue {
     reason: bag && typeof bag['reason'] === 'string' ? (bag['reason'] as string) : '',
   }
 
+  // 评论总数：GitLab 票面自带 user_notes_count，比拿当前取到的评论条数估算可靠（列表页评论一律不取，条数是 0）。
+  // 这是详情页说「评论 (20) · 共 56 条」和「加载更多」判断的依据（#1783/#1784）；
+  // 只有拿到非负整数才写，拿不到就保持省略——调用方据此知道「总数未知」，不许拿 comments.length 冒充。
+  const totalRaw = bag ? (bag['user_notes_count'] != null ? bag['user_notes_count'] : bag['commentCount']) : undefined
+  const totalNum = typeof totalRaw === 'number' ? totalRaw : typeof totalRaw === 'string' && totalRaw.trim() !== '' ? Number(totalRaw) : NaN
+  if (isFinite(totalNum) && totalNum >= 0) issue.commentCount = Math.floor(totalNum)
+
   // milestone 独立能力字段：有→对象，无→省略(MISSING)
   const mileRaw = bag ? bag['milestone'] : undefined
   if (mileRaw && typeof mileRaw === 'object' && mileRaw !== null) {

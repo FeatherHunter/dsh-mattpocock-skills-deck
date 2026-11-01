@@ -94,8 +94,18 @@ export function detailFromRow(row: any): any {
       updatedAt: c && c.updatedAt,
     }
   })
+  // 评论已知与未知要分开：#1783 的根因就是「行上有正文、评论是空数组」被当成「这张票没有评论」。
+  // 列表接口为了省请求不取评论（数组天然是空），票面总数 commentCount 才是「有没有评论」的真凭据：
+  //   - 行里带了评论（数组非空）→ 已知；
+  //   - 票面总数明确是 0 → 已知，就是没有评论；
+  //   - 票面总数 > 0 → 知道有评论，但这一趟没取正文，属于「未知」；
+  //   - 票面总数缺失 → 不知道，同样属于「未知」，不能造一个空连接说「无评论」。
+  // 未知时 comments 整个不写（界面据此说「评论加载中」），commentCount 仍写出来给界面显示总数用。
+  const countRaw: any = row && row.commentCount
+  const commentCount: any = typeof countRaw === 'number' && isFinite(countRaw) && countRaw >= 0 ? Math.floor(countRaw) : null
+  const commentsKnown: boolean = comments.length > 0 || commentCount === null || commentCount === 0
   const sub: any = row && row.subIssueCounts
-  return {
+  const out: any = {
     number: Number(row.number),
     effortId: row.effortId === undefined || row.effortId === null ? '' : String(row.effortId),
     title: row.title || '',
@@ -108,7 +118,6 @@ export function detailFromRow(row: any): any {
     author: row.author,
     labels: { nodes: Array.isArray(row.labels) ? row.labels : [] },
     assignees: { nodes: (Array.isArray(row.assignees) ? row.assignees : []).map(function (a: any): any { return typeof a === 'string' ? { login: a } : a }) },
-    comments: { nodes: nodes, pageInfo: { hasNextPage: false, endCursor: String(nodes.length) } },
     subIssues: { totalCount: sub && typeof sub.total === 'number' ? sub.total : 0, nodes: [] },
     blockedBy: { nodes: Array.isArray(row.blockedBy) ? row.blockedBy : [] },
     blocking: { nodes: [] },
@@ -117,6 +126,19 @@ export function detailFromRow(row: any): any {
     reviews: Array.isArray(row.reviews) ? row.reviews : [],
     fromSnapshot: true,
   }
+  if (commentsKnown) {
+    out.comments = {
+      nodes: nodes,
+      pageInfo: {
+        // 快照行里的评论数组是那个时刻取到的全部（不是一页），所以「已知有更多」只能靠票面总数判断。
+        hasNextPage: commentCount !== null && commentCount > nodes.length,
+        endCursor: String(nodes.length),
+      },
+      totalCount: commentCount !== null ? commentCount : nodes.length,
+    }
+  }
+  out.commentCount = commentCount !== null ? commentCount : nodes.length
+  return out
 }
 
 /**
@@ -150,6 +172,16 @@ function rowHasDetail(row: any): boolean {
  */
 export function detailViewFor(st: any, n: any, effortId?: any): any {
   const eff: string = effortId === undefined || effortId === null ? '' : String(effortId)
+  // 这一趟真取回来的详情，只要拿到了（issueMode === 'real'）就优先于快照投影（#1783）。
+  // 为什么不能反过来：快照行是列表接口给的薄行，GitLab 列表只带票面字段、评论是空数组，
+  // 把薄行投影顶在 live 详情前面，详情页就永远显示「评论 (0)」并置灰输入框——宿主明明取回了评论却没人用。
+  // 失败（err）与取数中（loading）仍走下面的快照投影：那正是「先画上次内容」要起作用的时刻。
+  const liveNow: any = st && st.issueDetail
+  const liveNowEff: string = liveNow && liveNow.effortId !== undefined && liveNow.effortId !== null ? String(liveNow.effortId) : ''
+  const liveNowMatches: boolean = !!liveNow && Number(liveNow.number) === Number(n) && liveNowEff === eff
+  if (liveNowMatches && st.issueMode === 'real') {
+    return { issue: liveNow, source: 'live', lastKnownAtMs: 0, noticeKey: '', notice: '' }
+  }
   if (projectionUsesSnapshot()) {
     const row: any = snapshotRowFor(st, n, effortId)
     if (rowHasDetail(row)) {

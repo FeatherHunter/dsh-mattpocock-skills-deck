@@ -30,7 +30,9 @@ declare const COMMENT_RESULT_FLASH_MS: number;
 // 数值写在 config/ttl.yaml 的 commentsMoreLoadingMinMs，构建时由生成器变成常量拼进界面闭包；
 // 这里的 declare 只是让 TypeScript 知道这个名字存在。
 declare const COMMENTS_MORE_LOADING_MIN_MS: number;
-export const renderIssueDetailComments = function (h: any, st: any, issueNumber: any, detail: any, mode: any, commentsNodes: any, canComment: any, issueEffort: any): any {
+// 参数 commentsUnknown：快照投影出来的详情只带了正文、评论还没取过（#1783）。
+//   这时评论区说「加载中」，不说「评论 (0)」「无评论」；输入框与只读提示由调用方按同一判据决定。
+export const renderIssueDetailComments = function (h: any, st: any, issueNumber: any, detail: any, mode: any, commentsNodes: any, canComment: any, issueEffort: any, commentsUnknown: any): any {
       // 评论一页取多少条：只在这里写一次。切片、判「还有更多」、算「已显示多少」、以及
       //   「加载下 {count}」里的数字（config/copy/flow.yaml 的 detail.commentsMore）都用它。
       // 注意宿主取数那一半（src/refresh/rooms/host/comment-thread-fetch.ts 的 per_page=50 与按 50 算的页码）是另一份页大小，
@@ -91,10 +93,14 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
       }
       return [
         // #693：详情还没回来时不许报「评论 (0)」—— 那是把「还没拿到」说成「没有」。
+        // #1783：评论未知 ≠ 没有评论。未知时说「评论 · 加载中」，不报「(0)」。
         h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 6 } }, detail
-          ? '评论 ' + (commentsNodes.length ? '(' + commentsNodes.length + ')' : '(0)')
+          ? (commentsUnknown
+            ? '评论 · ' + (mode === 'err' ? tr('detail.notYet') : tr('list.loading'))
+            : '评论 ' + (commentsNodes.length ? '(' + commentsNodes.length + ')' : '(0)'))
           : '评论 · ' + (mode === 'err' ? tr('detail.notYet') : tr('list.loading'))),
-        commentsNodes.length ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } }, commentsNodes.slice(0, COMMENTS_PAGE_SIZE).map(function (c: any, i: any) {
+        // 列表画已取到的全部评论：以前这里只画前 50 条，加载更多把总数推到 56 后后 6 条永远画不出来（#1784）。
+        commentsNodes.length ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } }, commentsNodes.map(function (c: any, i: any) {
           const login = c.author && c.author.login || 'ghost'
           const t = c.createdAt ? String(c.createdAt).slice(0,10) : ''
           const itemCls = (typeof confirmedIdx === 'number' && confirmedIdx === i) ? ' dsws-row-added' : ''
@@ -109,7 +115,9 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
             h('div', { style: { fontSize: 12, lineHeight: 1.5 } }, (typeof mdToHtml === 'function' ? mdToHtml(c.body || '', { st: st }) : (c.body || ''))),
           ])
         })) : h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '8px', background: 'rgba(255,255,255,.03)', borderRadius: 6, border: '1px dashed rgba(255,255,255,.1)' } }, detail
-          ? tr('detail.noComments')
+          ? (commentsUnknown
+            ? (mode === 'err' ? tr('detail.notYet') : tr('list.loading'))
+            : tr('detail.noComments'))
           : (mode === 'loading' ? tr('list.loading') : tr('detail.notYet'))),
         // 加载更多按钮（T5 反向分页 cursor，节流 600ms，失败重试与 3 次兜底）
         commentsNodes.length ? (function(){
@@ -157,10 +165,22 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
             fail>0 && fail<3 ? h(Tip, { content: tr('detail.commentsLoadFailed') }, h('span', { style: { fontSize: 11, color: '#8b8b95', cursor: 'help' } }, 'ⓘ')) : null,
           ])
         })() : null,
-        // 超一页的静默提示（T5 前占位，T5 后由 hasMore 驱动）
-        commentsNodes.length > COMMENTS_PAGE_SIZE ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', textAlign: 'center', marginTop: 6 } }, st.issueCommentsHasMore===false
-          ? tr('detail.commentsShownAll', { shown: Math.min(COMMENTS_PAGE_SIZE, commentsNodes.length), total: commentsNodes.length })
-          : tr('detail.commentsShownMore', { shown: Math.min(COMMENTS_PAGE_SIZE, commentsNodes.length), total: commentsNodes.length })) : null,
+        // 已显示/总数提示（#1783/#1784）：总数优先取详情带的票面总数（commentCount），再退到连接上的 totalCount。
+        // 以前只在「已取超过 50 条」时显示、且 total 用的是已取条数，所以「20/56」这种最需要说明的情况反而没有。
+        commentsNodes.length ? (function () {
+          let knownTotal = 0
+          if (detail) {
+            if (typeof detail.commentCount === 'number' && isFinite(detail.commentCount) && detail.commentCount >= 0) knownTotal = Math.floor(detail.commentCount)
+            else if (detail.comments && typeof detail.comments.totalCount === 'number' && isFinite(detail.comments.totalCount) && detail.comments.totalCount >= 0) knownTotal = Math.floor(detail.comments.totalCount)
+          }
+          if (knownTotal > commentsNodes.length) {
+            return h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', textAlign: 'center', marginTop: 6 } }, tr('detail.commentsShownMore', { shown: commentsNodes.length, total: knownTotal }))
+          }
+          if (commentsNodes.length > COMMENTS_PAGE_SIZE) {
+            return h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', textAlign: 'center', marginTop: 6 } }, tr('detail.commentsShownAll', { shown: commentsNodes.length, total: knownTotal || commentsNodes.length }))
+          }
+          return null
+        })() : null,
         // #255 评论输入区：位于评论列表后、原只读提示处；MISSING 不渲染、EMPTY 渲染（零分支判据见谓词）。
         canComment ? h('div', { style: { padding: '2px 0 6px' } }, [
           st.cmtError ? h('div', { style: { marginBottom: 6, padding: '7px 9px', borderRadius: 6, fontSize: 11, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',

@@ -333,8 +333,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-acceptance-four': 27,
   // 2026-10-31 #1695：旧详情缓存与地图子票桶退役为投影（快照投影优先、snapshot 模式不读写 issueCache、
   // 短回包按编号增量合并不清空已知行、快照顶层字段白名单与会话呈现态不进快照、TTL 只决定何时重取、
-  // 排序只在投影层、legacy 开关旧路仍能跑）；39 条单跑实测。
-  'verify-retire-client-caches': 39,
+  // 排序只在投影层、legacy 开关旧路仍能跑）；#1783 起补一条「这一趟成功取回时用 live 详情」，
+  // 40 条单跑实测。
+  'verify-retire-client-caches': 40,
   // 2026-10-31 #1696：地图详情首帧用快照已知的阻塞关系与计数（子票行归一化：数字票号、
   // 阻塞者转数字、反推「我挡住谁」、层级与五组计数）；列表被截断或 REST 降级时按编号补回上次已知
   // 子票与计数（只补不删，已关闭容器口径不动）。#1768 起阻塞者不在本容器时按引用态判：明确 CLOSED
