@@ -179,6 +179,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-1711-report-index': 98,
   // 2026-10-31 #1705：真机工具台的进程级夹具门禁，正例单跑实测 43 条断言；负例用 --negative 单独跑，不计入开闸期望。
   'verify-1705-real-machine-fixture': 43,
+  // 2026-11-01：真机实例自动配置 MiniMax CN 模型的黑盒门禁，正例单跑实测 40 条断言；
+  // 负例行为由门禁内部的非法 YAML、缺密钥、密钥泄露检查覆盖，不另设 --negative。
+  'verify-real-machine-model': 40,
   // 2026-10-29 #1600：词表里 gate.wipNotice 已退役（GitLab 可用后不再有「筹备中」注解），
   // 这扇改成先钉「键已不在词表里」、再钉「初始化小卡上不再出现该文案」，单跑实测 31 条。
   'verify-669-collapsed-recoverable': 31,

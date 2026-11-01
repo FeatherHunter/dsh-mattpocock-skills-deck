@@ -192,8 +192,8 @@ async function main(): Promise<void> {
         harness.listFiles(),
       )
       check(
-        copyJson !== null && copyJson.files === 1,
-        'E7 回执里的文件数与复制结果一致（旧日志已删，只剩 settings.json）',
+        copyJson !== null && copyJson.files === 2,
+        'E7 回执里的文件数与复制结果一致（旧日志已删，剩下 settings.json 与自动写入的 cordis.patch.yml）',
         harness.formatFailure(copy),
       )
       check(

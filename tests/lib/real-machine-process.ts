@@ -292,6 +292,10 @@ export function createRealMachineHarness(options?: HarnessOptions): RealMachineH
   const env = copyStringEnv(process.env)
   // 清掉宿主可能带进来的假 glab 变量与调试开关，下面重新按本趟设置。
   for (const key of ['GLAB_BIN', 'GLAB_FAKE_LOG', 'GLAB_FAKE_PLAN', 'DSH_REAL_HOME', 'HARNESS_DEBUG', 'NODE_OPTIONS']) delete env[key]
+  // 模型默认 MiniMax CN：宿主环境里的同名密钥与模型覆盖会让断言随机器变化，这里一律清掉。
+  // 需要密钥的用例在调用命令时用 env 显式给假值，不再依赖真实 home 或宿主机。
+  delete env.MINIMAX_CN_API_KEY
+  for (const key of Object.keys(env)) if (key.indexOf('DSH_REAL_MACHINE_MODEL') === 0) delete env[key]
   env.DSH_VERIFY_WORK_ROOT = workRoot
   env.DECK_REPO_ROOT = REPO_ROOT
   env.USERPROFILE = sandboxHome
