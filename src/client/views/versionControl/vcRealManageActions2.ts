@@ -24,8 +24,7 @@ declare function vcReadPlatform(reads: any, call: any, cwd: any): any
 declare function vcRunRequestPull(reads: any, call: any, cwd: any, form: any): any
 declare function createSubmodulesOpsOf(deps: any): any
 declare function vcRealRequestIdOf(nowMs: any, salt: any): string
-
-const VC_REAL_CONFIG_READ_PHONE = 'wf.gitConfigRead'
+declare const VC_CONFIG_READ_PHONE: any
 
 /**
  * 配置页与钩子页共用的处理器。两页读写同一份配置状态（钩子清单也由同一条读电话带回），
@@ -48,14 +47,14 @@ export const vcRealConfigHandlersOf = function (deps: any): any {
     setManage(Object.assign({}, m, { config: next }))
   }
   const refresh = function (): any {
-    return Promise.resolve(callHost(VC_REAL_CONFIG_READ_PHONE, { cwd: cwd })).then(function (reply: any) {
+    return Promise.resolve(callHost(VC_CONFIG_READ_PHONE, { cwd: cwd })).then(function (reply: any) {
       setState(vcConfigApplyRead(stateNow(), reply))
       return null
     })
   }
   const readInto = function (extra: any): any {
     const payload: any = Object.assign({ cwd: cwd }, extra || {})
-    return Promise.resolve(callHost(VC_REAL_CONFIG_READ_PHONE, payload)).then(function (reply: any) {
+    return Promise.resolve(callHost(VC_CONFIG_READ_PHONE, payload)).then(function (reply: any) {
       setState(vcConfigApplyRead(stateNow(), reply))
       return null
     })
@@ -72,7 +71,9 @@ export const vcRealConfigHandlersOf = function (deps: any): any {
   }
   const check = function (input: any): any {
     const current: any = stateNow()
-    setState(vcConfigApplyCheck(Object.assign({}, current, { pending: input }), { ok: false, error: { kind: 'pending' } }))
+    // 预检开跑时只清场：把上一轮留下的确认卡与结果收掉、记下这次的预检输入，等回包再落状态。
+    // 不要拿一条造假失败回包（vcConfigApplyCheck 的 !ok 分支）来占位——页面会把它当真失败横幅闪一下。
+    setState(Object.assign({}, current, { pending: input, check: null, result: null }))
     return Promise.resolve(vcConfigCheckCallOf(callHost, cwd, input)).then(function (reply: any) {
       const next: any = vcConfigApplyCheck(stateNow(), reply)
       setState(next)

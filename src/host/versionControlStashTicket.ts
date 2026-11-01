@@ -26,6 +26,7 @@ import {
   ticketPureVerdict,
   bindingsVerdict,
   canonicalJson,
+  hash16,
   requestIdProblem,
 } from '../shared/version-control/src/write-ticket.js'
 import { idShapeProblem } from '../shared/version-control/src/write-reasons.js'
@@ -55,22 +56,6 @@ interface StashFacts {
   head: string
   statusDigest: string
   hasChanges: boolean
-}
-
-/** 绑定值用的稳定短哈希：只用来判「两次读数一样不一样」，不参与任何安全判断，所以不引 node:crypto。
- *  两份 FNV 由 tests/verify-1586-write-contracts.ts 的 C 组逐字节比对：改一处必须两份一起改。 */
-function hash16(text: any): string {
-  const s: string = String(text === undefined || text === null ? '' : text)
-  let h1: number = 0x811c9dc5
-  let h2: number = 0x01000193
-  for (let i = 0; i < s.length; i += 1) {
-    const c: number = s.charCodeAt(i)
-    h1 = ((h1 ^ c) * 16777619) >>> 0
-    h2 = ((h2 + c * (i + 1)) * 2246822519) >>> 0
-  }
-  const a: string = ('00000000' + h1.toString(16)).slice(-8)
-  const b: string = ('00000000' + h2.toString(16)).slice(-8)
-  return a + b
 }
 
 /** 贮藏清单的绑定摘要：选择器与提交号按选择器排序后逐行拼起来。 */

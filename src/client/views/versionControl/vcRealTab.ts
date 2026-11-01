@@ -22,7 +22,7 @@ declare function vcRealSkinOf(bodyEl: any): string
 declare function vcRealCommitTargetsOf(reads: any): any[]
 declare function vcRealChangesSeedOf(reads: any): any
 declare function vcRealActionsOf(deps: any): any
-declare function vcRealChangesHandlersOf(state: any, setState: any, call: any, cwd: any, translate: any): any
+declare function vcRealChangesHandlersOf(state: any, setState: any, call: any, cwd: any, translate: any, gate: any): any
 declare function vcRealDelegateOf(callbacks: any): any
 declare function vcRealMigrateFieldsOf(rootEl: any, action: any): any
 declare function vcStashStateNew(): any

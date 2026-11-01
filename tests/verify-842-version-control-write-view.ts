@@ -245,6 +245,7 @@ const EXPORTS = [
   'configScopeOf', 'parseConfigList', 'configOldValueOf', 'configRowsOf', 'parseCheckAttr', 'parseCheckMailmap', 'configCheckPlanOf', 'configNeedsConfirmOf',
   'configConfirmOf', 'configSceneSummary', 'VC_CONFIG_READ_PHONE', 'VC_CONFIG_CHECK_PHONE', 'VC_CONFIG_WRITE_PHONE', 'VC_CONFIG_READ_CONTRACT', 'VC_CONFIG_WRITE_KEYS', 'VC_CONFIG_PHONES',
   'vcConfigStateNew', 'vcConfigApplyRead', 'vcConfigReadStateOf', 'vcConfigIdentityRowsOf', 'vcConfigGroupsOf', 'vcConfigGroupRowsOf', 'vcConfigEditOf', 'vcConfigSetInputOf',
+  'vcRealConfigHandlersOf', 'vcRealConflictsHandlersOf',
   'vcConfigUnsetInputOf', 'vcHookRunInputOf', 'vcConfigCheckCallOf', 'vcConfigWriteCallOf', 'vcConfigConfirmOf', 'vcConfigConfirmTargetOf', 'vcConfigFailKeyOf', 'vcConfigResultOf',
   'vcConfigApplyReply', 'vcConfigApplyCheck', 'vcHooksReadStateOf', 'vcHookRowsOf', 'vcHooksDirOf', 'vcHookRunStateOf', 'vcHookRunVisibleOf', 'vcHookConfirmOf',
   'vcHookResultOf', 'vcHooksApplyReply', 'vcHookOutputOf', 'vcConfigPageNode', 'vcHooksPageNode', 'VC_CONFIG_PAGE_SOURCE', 'VC_HOOKS_PAGE_SOURCE', 'VC_DIAG_PHONES',
@@ -1321,6 +1322,96 @@ function groupL(view: any, React: any, DswsCtx: any, TipStub: any, IcStub: any) 
 }
 
 // ============================================================
+// M4e 组 · 客户端写层的三条规矩（#1776 M4e）
+//   1) 配置页读电话的名字只在 vcConfigOps 定义一次，动作层用 declare 复用，不另抄一份；
+//   2) 冲突页「没有票」那条兜底必须说人话、不发写电话、不抛异常；
+//   3) 配置预检开跑时先收掉上一轮留下的确认卡与结果，不拿一条假失败回包占位。
+//   每条都配一条反证：把源码改回旧写法，判据当场变假。
+// ============================================================
+function groupM4e(view: any, React: any, DswsCtx: any, TipStub: any, IcStub: any) {
+  const build = function (patch: any) { return buildView(patch, React, DswsCtx, TipStub, IcStub, null, [], trZh) }
+
+  // N1 单一来源：动作层不再自带一份读电话名字。
+  const actions2Src = readSource('src/client/views/versionControl/vcRealManageActions2.ts')
+  const configOpsSrc = readSource('src/client/views/versionControl/vcConfigOps.ts')
+  check(actions2Src.indexOf('declare const VC_CONFIG_READ_PHONE') >= 0 && actions2Src.indexOf('VC_REAL_CONFIG_READ_PHONE') < 0 && actions2Src.indexOf("'wf.gitConfigRead'") < 0 && configOpsSrc.indexOf("export const VC_CONFIG_READ_PHONE = 'wf.gitConfigRead'") >= 0, 'N1 配置页读电话的名字只有一处定义（vcConfigOps 导出、动作层 declare 复用），动作层没有第二份字面量')
+
+  // N1b 运行时也走同一份名字：读一次配置，发出去的正是 wf.gitConfigRead。
+  const n1Phones: string[] = []
+  const n1Handlers = view.vcRealConfigHandlersOf({
+    callHost: function (phone: any) { n1Phones.push(String(phone)); return Promise.resolve({ ok: true }) },
+    cwd: 'D:/w/repo',
+    nowMs: function () { return NOW },
+    getManage: function () { return { config: view.vcConfigStateNew() } },
+    setManage: function () {},
+    onRefresh: function () { return null },
+  })
+  n1Handlers.onConfig({ op: 'read' })
+  check(n1Phones.length === 1 && n1Phones[0] === 'wf.gitConfigRead', 'N1b 配置页读一次发的就是 wf.gitConfigRead（复用共享常量之后运行时仍指向同一条电话）')
+
+  // N2 冲突页没有票的兜底：说人话、零写电话、不抛异常。
+  let conflictCalls: any[] = []
+  let conflictsState: any = { values: {}, rows: {} }
+  const conflictHandlers = view.vcRealConflictsHandlersOf({
+    callHost: function (phone: any, args: any) { conflictCalls.push({ phone: phone, args: args }); return Promise.resolve({ ok: false }) },
+    cwd: 'D:/w/repo',
+    nowMs: function () { return NOW },
+    getConflicts: function () { return conflictsState },
+    patchConflicts: function (next: any) { conflictsState = next },
+    translate: trZh,
+  })
+  let conflictErr = ''
+  try {
+    conflictHandlers.run('conflict-view', {}, { ticketId: '' })
+  } catch (e) { conflictErr = String((e && e.message) || e) }
+  const conflictRow = (conflictsState.rows && conflictsState.rows['conflict-view']) || {}
+  const conflictErrObj = (conflictRow.result && conflictRow.result.error) || {}
+  check(conflictErr === '' && conflictErrObj.message === trZh('vc.shell.live.noTicket') && conflictErrObj.kind === 'shape' && conflictErrObj.reason === 'no-ticket' && conflictCalls.length === 0, 'N2 冲突页没有票时的兜底：印「先重新预检」这句人话、零写电话、不抛异常（旧写法里局部变量遮蔽翻译函数，这里必抛 TypeError）')
+
+  // N2b 反证：把局部变量改回遮蔽 translate 的旧写法，同样的调用当场抛错。
+  const n2Bad = build(function (s: string) { return s.replace('const tk: any = ticket || {}', 'const t: any = ticket || {}') })
+  let n2BadThrew = false
+  let n2BadState: any = { values: {}, rows: {} }
+  try {
+    n2Bad.vcRealConflictsHandlersOf({ callHost: function () { return Promise.resolve({ ok: false }) }, cwd: 'D:/w/repo', nowMs: function () { return NOW }, getConflicts: function () { return n2BadState }, patchConflicts: function (next: any) { n2BadState = next }, translate: trZh }).run('conflict-view', {}, { ticketId: '' })
+  } catch (e) { n2BadThrew = true }
+  check(n2BadThrew, 'N2b 反证：把局部变量改回遮蔽 translate 的旧写法后，同样的调用当场抛错（N2 的判据不是恒真）')
+
+  // N3 配置预检开跑时清掉上一轮的确认卡与结果，只留预检输入。
+  const oldConfig = view.vcConfigStateNew()
+  oldConfig.edit = { key: 'user.name', scope: 'local', value: '林可' }
+  oldConfig.check = { ok: true, ticket: { id: 'old-ticket' }, op: 'config-set' }
+  oldConfig.result = { ok: false, kind: 'other', message: '上一轮留下的失败' }
+  let configState = oldConfig
+  const configHandlers = view.vcRealConfigHandlersOf({
+    callHost: function () { return new Promise(function () {}) },
+    cwd: 'D:/w/repo',
+    nowMs: function () { return NOW },
+    getManage: function () { return { config: configState } },
+    setManage: function (next: any) { configState = next.config },
+    onRefresh: function () { return null },
+  })
+  configHandlers.onConfig({ op: 'config-set' })
+  const pendingInput = configState.pending || null
+  check(!!pendingInput && pendingInput.op === 'config-set' && configState.check === null && configState.result === null, 'N3 配置预检开跑时先收掉上一轮的确认卡与结果，只留预检输入（不拿假失败回包占位）')
+
+  // N3b 反证：改回「先用假失败回包占位」的旧写法，同一场景下结果里当场多出一条 kind=pending 的假失败。
+  const n3Bad = build(function (s: string) {
+    return s.replace('setState(Object.assign({}, current, { pending: input, check: null, result: null }))', "setState(vcConfigApplyCheck(Object.assign({}, current, { pending: input }), { ok: false, error: { kind: 'pending' } }))")
+  })
+  let n3BadState: any = Object.assign({}, oldConfig)
+  n3Bad.vcRealConfigHandlersOf({
+    callHost: function () { return new Promise(function () {}) },
+    cwd: 'D:/w/repo',
+    nowMs: function () { return NOW },
+    getManage: function () { return { config: n3BadState } },
+    setManage: function (next: any) { n3BadState = next.config },
+    onRefresh: function () { return null },
+  }).onConfig({ op: 'config-set' })
+  check(!!(n3BadState.result && n3BadState.result.ok === false && n3BadState.result.kind === 'pending'), 'N3b 反证：把清旧读数改回造假失败回包的旧写法后，结果里当场多出一条 kind=pending 的假失败（N3 的判据不是恒真）')
+}
+
+// ============================================================
 async function main() {
   console.log('版本管理写操作界面门禁（#842：A–M 组）')
   // #1294：旧片段路径经 tests/lib/source-text.ts 的 sourcePath 映射到生成物 locale-data.ts，
@@ -1366,6 +1457,7 @@ async function main() {
   groupK(view, React, DswsCtx, TipStub, IcStub)
   groupJ(view, React, DswsCtx, TipStub, IcStub, logs)
   groupL(view, React, DswsCtx, TipStub, IcStub)
+  groupM4e(view, React, DswsCtx, TipStub, IcStub)
   await groupM(view)
   await groupI(view, planMod.pushPlanOf, cmdMod.pushArgs)
   await groupH(React, DswsCtx, TipStub, IcStub, logs)

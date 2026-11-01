@@ -84,13 +84,14 @@ export const vcRealConflictsHandlersOf = function (deps: any): any {
   const run = function (op: any, payload: any, ticket: any): any {
     const c: any = getConflicts() || {}
     const values: any = Object.assign({}, c.values || {}, payload || {})
-    const t: any = ticket || {}
-    const ticketId: string = String(t.ticketId || '')
+    // 局部变量不能叫 t：那会遮蔽上面那个翻译函数，下面「没有票」的兜底一调用就抛 TypeError。
+    const tk: any = ticket || {}
+    const ticketId: string = String(tk.ticketId || '')
     if (ticketId === '') {
       patchConflicts(putRow(Object.assign({}, c, { values: values }), op, Object.assign({}, getRow(c, op), { busy: false, result: { ok: false, error: { kind: 'shape', message: t('vc.shell.live.noTicket'), reason: 'no-ticket' } } })))
       return Promise.resolve(null)
     }
-    const requestId: string = String(t.requestId || vcConflictsRequestIdOf(nowMs(), op))
+    const requestId: string = String(tk.requestId || vcConflictsRequestIdOf(nowMs(), op))
     return Promise.resolve(callHost(VC_CONFLICTS_PHONES.write, vcConflictsWriteArgsOf(cwd, op, values, ticketId, requestId))).then(function (reply: any) {
       const cur: any = getConflicts() || {}
       const result: any = vcRealWriteResultOf(reply)
@@ -178,7 +179,7 @@ export const vcRealRebaseHandlersOf = function (deps: any): any {
       const ticket: any = rr.ticket || null
       if (rr.ok !== true || !ticket) {
         acts[String(op)] = Object.assign({}, acts[String(op)] || {}, { busy: false, result: vcRealWriteResultOf(rr) })
-        patchRebase(Object.assign({}, cur, { actions: acts, confirmOp: '', confirm: null, ticketId: '', errorText: rr.ok === true ? String((rr.error || {}).message || '') : String(((rr.error || {}).message) || '') }))
+        patchRebase(Object.assign({}, cur, { actions: acts, confirmOp: '', confirm: null, ticketId: '', errorText: String((rr.error || {}).message || '') }))
         return null
       }
       acts[String(op)] = Object.assign({}, acts[String(op)] || {}, { busy: false })

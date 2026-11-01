@@ -24,27 +24,12 @@ import {
 import {
   bindingsVerdict,
   canonicalJson,
+  hash16,
   makeTicket,
   requestIdProblem,
   ticketPureVerdict,
 } from '../shared/version-control/src/write-ticket.js'
 import { idShapeProblem } from '../shared/version-control/src/write-reasons.js'
-
-/** 绑定值用的稳定短哈希：只用来判「两次读数一样不一样」，不参与任何安全判断，所以不引 node:crypto。
- *  实现与 versionControlStashTicket.ts 的 hash16 同一份口径（改动要两处一起改）。 */
-function hash16(text: any): string {
-  const s: string = String(text === undefined || text === null ? '' : text)
-  let h1: number = 0x811c9dc5
-  let h2: number = 0x01000193
-  for (let i = 0; i < s.length; i += 1) {
-    const c: number = s.charCodeAt(i)
-    h1 = ((h1 ^ c) * 16777619) >>> 0
-    h2 = ((h2 + c * (i + 1)) * 2246822519) >>> 0
-  }
-  const a: string = ('00000000' + h1.toString(16)).slice(-8)
-  const b: string = ('00000000' + h2.toString(16)).slice(-8)
-  return a + b
-}
 
 /** 远端列表的绑定摘要：名字、fetch 地址、push 地址按名字排序后逐条拼起来。
  *  只收这三样：跟踪分支数是本地缓存，凭据标记是显示派生物，它们变化不该让票据失效。 */
