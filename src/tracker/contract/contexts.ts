@@ -10,6 +10,7 @@
  */
 
 import type { OutboundControl } from './outbound.js'
+import type { ReadSpendChannel } from './operations-encyclopedia.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 三、调用上下文：进程级能力与单次调用上下文
@@ -194,6 +195,19 @@ export type OpContext = BackendContext & {
    * 所以这里必须有这一格，否则那些读取全部编译不过。
    */
   path?: BackendPlatform['path']
+  /**
+   * 这一次读允许走的渠道，按顺序；额度闸放行时写进来，房间照它选路。
+   *
+   * 为什么不给房间自己判断：#1765 之前额度闸只按「读/写」分族，房间再按自己的逻辑
+   * 试 GraphQL 失败退 REST，于是出现「闸按 REST 放行、实际花了 GraphQL」的错位（#1681），
+   * 以及「GraphQL 见底就整条读被拦、明明 REST 还有余量」的误拦。渠道计划只在一个地方生成
+   * （额度闸），房间只执行，不在第二处重新比较剩余额度。
+   *
+   * 没给表示调用方没经过额度闸（探测、测试、直连房间）：房间按老行为两渠道都试。
+   * 给了就必须照办——计划里没有的渠道，这一次一次都不试；计划里有的，按顺序换即可，
+   * 换渠道不会改变花的是哪一族额度，不需要回来重新问闸。
+   */
+  readChannels?: readonly ReadSpendChannel[]
   /**
    * 从宿主上下文里取一件东西。房间里取沙箱文件服务的写法是
    * `typeof ctx.get === 'function' ? ctx.get('fs') : null`，所以这一格按「取文件服务」定形状：

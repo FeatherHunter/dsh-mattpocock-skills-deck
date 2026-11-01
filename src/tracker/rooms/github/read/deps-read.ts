@@ -36,6 +36,8 @@ import { emitReadDegraded } from '../support/read-log.js'
 import { beginRead } from '../routing/read-result.js'
 import type { ReadClock } from '../routing/read-result.js'
 import { dependenciesProvenanceFromGraphql, dependenciesProvenanceFromRest } from '../routing/read-assembly.js'
+// #1765：额度闸放行时写下的「这次允许走哪些渠道」；计划不许 GraphQL 时连原生这条也不试。
+import { readChannelsOf } from '../routing/read-channels.js'
 import type { MemoContext } from '../model/roster.js'
 // #1698：企业版主机上的运行时能力回答（探测服务端版本后回答支持/部分支持/不支持）。
 import { attachRuntimeAnswer, runtimeCapabilityFor } from '../routing/runtime-capability.js'
@@ -157,7 +159,10 @@ export async function readDependencies(repo: RepositoryRef, parsed: ParsedRepo, 
   const started = Date.now()
   // 读来源记录从入口起算（#1686）：原生成功与退回反推两条路都在成功分支挂 provenance。
   const clock = beginRead()
-  const native = await readNativeDependencies(parsed, k, ctx, started)
+  // #1765：计划不许走 GraphQL 时连原生这一趟都不发命令，直接按兜底路走；
+  // 兜底路里面调用的 getIssue / listIssues 带着同一份上下文，也照同一份计划选路，不会偷偷走回 GraphQL 或计划外的 REST。
+  const channels = readChannelsOf(ctx)
+  const native = channels.graphql ? await readNativeDependencies(parsed, k, ctx, started) : null
   if (native) {
     return {
       ok: true,

@@ -149,11 +149,15 @@ export const cacheFirstThenAttend = function (st: any, kind: any): any {
 // 第四参 why（#1355）：本次强制刷新是因为手上缺本会话的工作路线表时传 'work-route-missing'，只落到常驻 #26 host.call 的 reason 格
 //   —— 成功那行与发起那行带，host.call.fail 的白名单里没有 reason，失败那行不带。
 export const loadSnapshot = function (st: any, force: any, silent: any, why: any): any {
-  // #727（I2 的表达面）：这一趟取数还没回话之前，「这个工作区用哪个后端」是「还不知道」，不是「没有设置」
-  //   —— 记在会话上，状态栏那条横幅据此改说「正在读取」（StatusBar 的 _selReading）。为什么放在最外层：
-  //   在途复用那条早退（_snapReuseInFlight）之后就没有第二次登记的机会了，而它同样意味着「有取数正飞着」。
-  //   清掉它的地方两处：回包处理完（含失败与超时）、以及迟到的回包落地时。
-  try { if (!(st.selection && st.selection.backendId)) st.selPending = true; } catch (ePend) {}
+  // #727 表达面的原始出发点：这一趟取数还没回话之前，「这个工作区用哪个后端」是「还不知道」，
+  //   不该显示成「没有设置」——状态栏那条横幅据此改说「正在读取」（StatusBar 的 _selReading 同时看
+  //   snapLoading 与 selPending 两个开关，照样能表达这件事）。
+  // #1767：这趟取数自己不再借用 selPending 登记「在飞」。那个开关只有一个主人——问后端的那条专用电话
+  //   （probe-scope-selection 的 askSelectionOnce 自己置、自己清）；快照取数在飞由 snapLoading 表达。
+  //   原先在这里置旗会漏掉一个出口：同一个工作区只问一次后端（_selAskedKey 记住问过），第二次取数
+  //   （例如空目录工作区点一次状态栏刷新）没有那条电话来顺手清旗，成功回包又只清 snapLoading，于是旗子
+  //   永远亮着，横幅永久停在「正在读取」（#1767 真机复现：302.8 秒仍在转圈）。两个开关各管一件事，
+  //   才不会有出口漏清。
   const doLoad = async function (): Promise<any> {
     // #1003 空目录闸：还没认出工作区目录之前，不发任何会被宿主补成进程目录的取数请求。
     //   不产出“没有后端”的结论、不在这条目录里起任何外部命令；界面保持“还没就绪”，就绪后自行恢复。

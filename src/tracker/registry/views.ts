@@ -44,6 +44,7 @@ export function describe(byId: RegistryStore, handle: RepoHandle, backendId: Bac
           refId: r.refId || '',
           name: r.name || r.refId || (handle.cwd || backendId),
           url: typeof r.url === 'string' ? r.url : '',
+          ...(typeof r.host === 'string' && r.host ? { host: r.host } : {}),
           ...(r.effortId !== undefined && r.effortId !== null ? { effortId: String(r.effortId) } : {}),
         })
       }
@@ -61,6 +62,7 @@ export function describe(byId: RegistryStore, handle: RepoHandle, backendId: Bac
           refId: r2.refId || '',
           name: r2.name || r2.refId || (handle.cwd || backendId),
           url: typeof r2.url === 'string' ? r2.url : '',
+          ...(typeof r2.host === 'string' && r2.host ? { host: r2.host } : {}),
           ...(r2.effortId !== undefined && r2.effortId !== null ? { effortId: String(r2.effortId) } : {}),
         })
       }

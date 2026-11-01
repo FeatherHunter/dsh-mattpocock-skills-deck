@@ -77,7 +77,7 @@ writePageDiagnostics({ ...opened, viewport }, evidenceDir)
 - 调预设前先把 MattSkillsDeck 面板打开：要核对 `.dsws-narrow` 与面板宽，页面里得先有 `.dsws-body`，没有就直接报错（只想设窗口时传 `requirePanel: false`）。
 - 空间类结论的证据里要有 `page-diagnostics.json` 的 `viewport` 字段（含实测面板宽与窄态），只贴截图不算。
 
-## 三条常用命令
+## 常用命令
 
 ### 冻结候选包：`freeze-candidate`
 
@@ -91,6 +91,7 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/freeze-candida
 
 - `candidate.json`：候选清单。记着提交、分支、工作树是否干净、包版本、tgz 的字节数与 SHA256、
   包内每个文件的字节数与 SHA256、清单摘要，以及装进隔离 home 和界面核对的结论。
+  另外还记着 `validity`、`sourceStable`、`package.buildCommit` 与 `package.fileDigest`，含义见下面「批次准备与收尾」一节。
 - `dsh-mattpocock-skills-deck-<版本>.tgz`：npm 打出来的候选包。
 - `evidence/ui-loaded.png`、`evidence/ui-probe.json`：界面里插件 client 包真的加载出来时的截图与核对数据。
 
@@ -106,6 +107,45 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/freeze-candida
   `ERR_PNPM_UNEXPECTED_STORE`）。解包法不依赖 pnpm 与网络，任何盘都能用，并且会逐文件核对解出来的内容
   与清单一致。要顺带验证真实安装命令时用 `--install-method cli`，命令会先判断是否同盘，不同盘直接说清原因。
 - 只想复现清单、不装界面时加 `--no-ui` 或 `--install-method none`；想复用已有构建产物加 `--skip-build`。
+
+### 批次准备与收尾：`prepare-batch` / `check-batch`
+
+`prepare-batch` 把「用当前 HEAD 重新冻结候选 → 构建 → 打包 → 装隔离 home → 起实例 → 前置巡检」收成一条命令：
+
+```
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/prepare-batch.mts --name <批次名> --ticket <票号>
+```
+
+参数：`--batch <批次目录>` 直接指定批次目录；`--name <批次名>` 指定批次名，默认批次目录是 `<工作根>/batches/<批次名>`；`--ticket <票号>` 记下这批属于哪张票；`--allow-dirty` 允许在脏树上准备（这样冻结出来的候选 `validity` 是 `development`，只能算开发验证）；`--profile <profile>` 选要核对的界面 profile（默认 `web`）；`--install-method extract|cli` 选安装方式；`--no-start` 只准备、不起实例；`--no-ui` 跳过界面版本串核对；`--timeout <毫秒>` 给构建与打包设上限。批次目录里已经存在 `batch.json` 的同名批次会被拒绝复用，免得把旧批次的产物当成新批次。冻结完成之后命令会再读一次 git 状态：HEAD 前进了、或者 release 候选对应的工作树不干净，都会拒绝开批；实例启动或前置巡检没通过时不写 `batch.json`，这一批不能开始收证据。
+
+批次目录里的东西：
+
+- `pkg/candidate.json` 与 `pkg/dsh-mattpocock-skills-deck-<版本>.tgz`：候选清单与候选包。
+- `home/`：装好候选的隔离 home。
+- `run/`：实例启动目录，`instance.json` 与插件日志都在这里。
+- `batch-preflight.json`：前置巡检的结论。
+- `batch.json`：这一批的机器可读记录，字段见下。
+- `evidence/`：场景证据。
+
+`batch.json` 记 `schemaVersion`、`batchName`、`batchDir`、`createdAt`、`updatedAt`、`status`（`active` / `stale`）、`startHead`、`startBranch`、`endHead`、`endCheckedAt`，以及 `candidate`（`path`、`sha256`、`commit`、`version`、`validity`、`tgzPath`、`tgzSha256`、`manifestDigest`、`fileDigest`）、`preflight`、`instance`。
+
+`candidate.json` 在原来「提交、版本、tgz 与逐文件 SHA256」之外新增四个字段：`validity`（`release` = 干净树冻结、可用于发布；`development` = 带 `--allow-dirty` 的开发验证）、`sourceStable`（冻结前后 HEAD 与未提交文件集合是否一致，构建期间源码被改动会在这里露馅）、`package.buildCommit`（构建产物里的提交）、`package.fileDigest`（不含提交与版本的逐文件清单指纹，与 `scripts/release-integrity.mts` 的 digest 同一算法，用来和发布字节对账）。
+
+批次结束时用 `check-batch` 收尾：
+
+```
+node --import ./scripts/ts-hook.mts scripts/real-machine/commands/check-batch.mts --batch <批次目录>
+```
+
+它读 `batch.json`，把当前 git HEAD 与候选提交比一次：不同就把 `status` 改成 `stale`、写 `endHead` 与 `endCheckedAt`，并提示这条批次不能用于发布收口（原件不删）；相同就只记 `endCheckedAt`，`status` 保持 `active`。
+
+批次开始评论与每条场景结果评论都要带同一行验证身份，精确格式是：
+
+```
+- 验证身份：批次 <批次名>；候选提交 <40位小写提交>；候选包 sha256 <64位小写tgz哈希>
+```
+
+发布前检查靠这一行把评论与候选清单对上；它只读票面评论与 `--candidate` 传来的 `candidate.json`，不读本机 `batch.json`（发布可能不在做真机验证的那台机器上）。格式不对或身份对不上的结果不算通过。收证据前 `collect-evidence` 还会拒绝状态不是 `active` 或前置巡检没通过的批次，并重新读一遍 `candidate.json` 与候选包，核对它们的 sha256 是否仍是批次记录里的那一份：候选文件被改过、候选包被换过，都会拒绝收证据。
 
 ### 双实例冒烟：`two-instance-smoke`
 
@@ -180,11 +220,13 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 | `backup-settings` / `restore-settings` | 备份与恢复真实用户设置（需要临时改真实设置做对照时才用） |
 | `global-lock` | 多人同时做真机验证时的互斥锁：拿锁、放锁 |
 
-冻结与清理：
+冻结、批次与清理：
 
 | 命令 | 做什么 |
 | --- | --- |
 | `freeze-candidate` | 构建 + 打包 + 逐文件清单 + 装隔离 home + 核对界面版本串 |
+| `prepare-batch` | 用当前 HEAD 重新冻结候选，构建、打包、装隔离 home、起实例、前置巡检，一条命令完成 |
+| `check-batch` | 批次结束时比较当前 HEAD 与候选提交，HEAD 前进就把批次标成 `stale` |
 | `two-instance-smoke` | 从零跑一次双实例冒烟 |
 | `cleanup` | 先报占用与文件数，确认后删批次产物 |
 
@@ -215,6 +257,8 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/cleanup.mts --
 `/plugins/??a/client.js,b/client.js`），取回来的内容比插件自己的 `lib/client.js` 大得多。
 所以界面核对比的是「这段加载出来的内容里，我们这一版的版本常量是不是期望值」，外加「内容里确实带了
 本插件名」，而不是拿整段内容的哈希去和安装目录比——那个比法只会得到假红。
+
+批次评论里那行「验证身份」、`candidate.json` 的 `package.fileDigest` 与 `batch.json` 的 `candidate.fileDigest` 是同一套身份在票面与文件里的写法：票面那行供发布前检查把评论和候选清单对上（不读本机 `batch.json`），两个 `fileDigest` 供 `publish-token.ps1 -Candidate` 把候选包和真正要发布的字节对上。
 
 ## 已知限制
 

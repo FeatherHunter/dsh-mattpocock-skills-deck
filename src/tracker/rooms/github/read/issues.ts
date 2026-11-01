@@ -26,7 +26,7 @@ import { emitReadDegraded } from '../support/read-log.js'
 import { ghClient } from '../transport/client.js'
 import { appendCommentPages, commentsWantOf, firstPageSizeOf, trimCommentsToWant } from '../channels/graphql/comment-paging.js'
 import { normalizeIssue } from '../model/normalize.js'
-import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
+import { ghFailureMessage, ghVerdictOf, toOpResultError } from '../support/errors.js'
 import { repairParentLinksREST } from './parent-repair.js'
 // #1691：REST 列表行自带的关系字段（父票链接、依赖摘要、子票摘要）先在行内补齐，
 // 不再逐张容器票发 sub_issues 兜底（只有当整页都没有父票链接时才退回旧兜底）。
@@ -39,6 +39,8 @@ import { fetchAllPullsREST, enrichRestPRs } from './pulls.js'
 import { completeRestDetail } from './rest-detail-completion.js'
 import type { RestDetailCompletion } from './rest-detail-completion.js'
 import { pickFallbackReason } from '../routing/fallback-reason.js'
+// #1765：额度闸放行时写下的「这次允许走哪些渠道」；读路径照它选路，计划外的渠道一次都不试。
+import { readChannelsOf } from '../routing/read-channels.js'
 import { fetchAllIssuesREST } from './issues-rest-list.js'
 // 读结果的来源与按字段组完整度（#1685）：起点在这里收，组装统一走 routing（不在每条读路径各自算）。
 import { beginRead } from '../routing/read-result.js'
@@ -165,8 +167,16 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
     let seenIssues = 0
     let droppedPulls = 0
     let seenPulls = 0
+    // #1765：这次放行允许走哪些渠道（额度闸放行时写进上下文；没有计划时两渠道都允许）。
+    // GraphQL 不在计划里就一次都不试：把 needRest 直接置上，下面两轮查询靠 needRest 让路，
+    // 原因记 list:degraded —— 不是主路坏了，是这次计划不让走 GraphQL。
+    const channels = readChannelsOf(ctx)
+    if (!channels.graphql) {
+      needRest = true
+      needRestWhy = 'list:degraded'
+    }
     // 分页按契约页大小取（一页 50，配合列表去评论把单查询压回 1.5 秒线内），超量分页
-    while (hasNext) {
+    while (!needRest && hasNext) {
       // 构造带变量查询：gh api graphql -f query -f owner -f name -F first -F after
       const query = LIST_QUERY
       const args = ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
@@ -224,6 +234,12 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       if (droppedPulls) emitBadNodes(ctx, 'pulls', droppedPulls, seenPulls)
     }
     if (needRest) {
+      // 计划不许走 REST 时如实失败（#1765）：GraphQL 那条命令已经试过且没读到，按计划不再换渠道，
+      // 也不在这里自己判额度 —— 计划就是这次放行的完整授权，计划外一次都不试。
+      if (!channels.rest) {
+        emitReadDegraded(ctx, 'list', 'list:degraded', Date.now() - tList)
+        return toOpResultError(firstRestCause || { message: '读渠道计划只允许 GraphQL，GraphQL 没读到列表后不降级 REST' }, ctx)
+      }
       // 降级这一趟先记一行：从入口到这里花了多久、主路是折在哪一步（回包坏 / 缺东西 / 起不了进程）。
       emitReadDegraded(ctx, 'list', String(needRestWhy), Date.now() - tList)
       // 双路兜底：GraphQL 不可用（unexpected EOF / 配额 / 形状差异）→ REST 分页 + pulls 富化 + sub_issues 树边修复。
@@ -231,9 +247,11 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       // #734：原因只算一次并随 fallback 交出去 —— 界面按它选句（只有 quota 才说配额耗尽）。
       //   日志里那两行仍由 emitRestFallback 落细原因（timeout / rate-limit / ghe-host / graphql-error，
       //   字段与附录不变）；快照里只放粗原因三档（quota / other / 未知=null），不真耗尽不许说耗尽。
-      const fbReason = pickFallbackReason(firstRestCause, ctx)
-      const fbCause = (fbReason === 'rate-limit' ? 'quota' : 'other')
-      emitRestFallback(ctx, '地图', Date.now() - t0, fbReason)
+      // GraphQL 这次根本没走（计划只放了 REST）时不算「主路失败改走备路」：不写 graphql.fallback，
+      // 原因也不报 graphql-error（那会是假的）。这件事上面那行 read.degraded 的 list:degraded 已经说清，
+      // 回执里的 fallbackReason 按「未知=缺省」交出去（契约里这一格是可选字符串，不是 null），界面只说中性那句，不提配额。
+      if (channels.graphql) emitRestFallback(ctx, '地图', Date.now() - t0, pickFallbackReason(firstRestCause, ctx))
+      const fbCause: 'quota' | 'other' | undefined = !channels.graphql ? undefined : (pickFallbackReason(firstRestCause, ctx) === 'rate-limit' ? 'quota' : 'other')
       const rest = await fetchAllIssuesREST(parsed, ctx)
       if (!rest.ok) return { ok: false, error: rest.error }
       const pulls = await fetchAllPullsREST(parsed, ctx)
@@ -333,36 +351,45 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
     const wantComments = commentsWantOf(opts)
     // 评论翻页中途失败过没有（#1685）：失败时保留第一页、整票仍回成功，但评论那组完整度要记截断。
     let commentsLost = false
-    const query = wantComments === null ? GET_QUERY : getIssueQuery(firstPageSizeOf(wantComments), false)
-    const args = ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `number=${num}`]
-    const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'get.gql' })
+    // #1765：这次放行允许走哪些渠道。GraphQL 不在计划里就一次都不试 —— graphqlResult 保持 null，
+    // 下面的拉取请求查询与工单主路都靠它跳过，直接进 REST 段；计划里没有 REST 时在下面如实失败。
+    const channels = readChannelsOf(ctx)
     let issueFromGraphQL = null
     // 为什么标成未知：这里装的是「第一现场的失败样子」（gh 的失败或抛出的值），形状不固定，只负责往下传、不解读。
-    let getCause: unknown = (!r.ok ? ((r && r.error) || r) : null)
-    if (r.ok) {
-      const text = r.data.stdout || ''
-      let j
-      try { j = JSON.parse(text) } catch (e) {
-        emitReadDegraded(ctx, 'get', 'get:json', Date.now() - tGet)
-        return fail(ERROR_KIND.PARSE, `get: invalid json ${caughtMessage(e, 200)}`, text)
-      }
-      if (j.errors) {
-        const msg = JSON.stringify(j.errors).slice(0, 800)
-        const verdict = ghVerdictOf({ message: msg, stderr: msg }, ctx)
-        // 不是配额/网络类的那一类直接如实失败：原文用 GraphQL 回给的那份错误清单，人自己看得见。
-        if (!/rate limit|forbidden|unexpected|network|eof/i.test(msg)) {
-          emitReadDegraded(ctx, 'get', 'get:gql-err', Date.now() - tGet)
-          return fail(verdict.kind, ghFailureMessage(verdict, msg), { message: msg, stderr: msg })
+    let getCause: unknown = null
+    // GraphQL 这一趟的原始回包（没走 GraphQL 时保持 null）：后面的拉取请求查询与失败分支都要看它到没到、成没成。
+    let graphqlResult: any = null
+    if (channels.graphql) {
+      const query = wantComments === null ? GET_QUERY : getIssueQuery(firstPageSizeOf(wantComments), false)
+      const args = ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `number=${num}`]
+      const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'get.gql' })
+      graphqlResult = r
+      getCause = (!r.ok ? ((r && r.error) || r) : null)
+      if (r.ok) {
+        const text = r.data.stdout || ''
+        let j
+        try { j = JSON.parse(text) } catch (e) {
+          emitReadDegraded(ctx, 'get', 'get:json', Date.now() - tGet)
+          return fail(ERROR_KIND.PARSE, `get: invalid json ${caughtMessage(e, 200)}`, text)
         }
-        // 配额/网络类 GraphQL 错误 → 走 REST 降级（下方单条 REST 通道）
-        getCause = { message: msg, stderr: msg }
-      } else {
-        issueFromGraphQL = j.data && j.data.repository && j.data.repository.issue
+        if (j.errors) {
+          const msg = JSON.stringify(j.errors).slice(0, 800)
+          const verdict = ghVerdictOf({ message: msg, stderr: msg }, ctx)
+          // 不是配额/网络类的那一类直接如实失败：原文用 GraphQL 回给的那份错误清单，人自己看得见。
+          if (!/rate limit|forbidden|unexpected|network|eof/i.test(msg)) {
+            emitReadDegraded(ctx, 'get', 'get:gql-err', Date.now() - tGet)
+            return fail(verdict.kind, ghFailureMessage(verdict, msg), { message: msg, stderr: msg })
+          }
+          // 配额/网络类 GraphQL 错误 → 走 REST 降级（下方单条 REST 通道）
+          getCause = { message: msg, stderr: msg }
+        } else {
+          issueFromGraphQL = j.data && j.data.repository && j.data.repository.issue
+        }
       }
     }
     let prFromGraphQL = null
-    if (!issueFromGraphQL && r.ok) {
-      // 单票按号先查工单、再查拉取请求（同号只有一类，查到即停；传输失败则直走 REST）
+    if (!issueFromGraphQL && graphqlResult && graphqlResult.ok) {
+      // 单票按号先查工单、再查拉取请求（同号只有一类，查到即停；传输失败则直走 REST）；计划不许 GraphQL 时这一段整段跳过。
       try {
         const prArgs = ['api', 'graphql', '-f', `query=${GET_PR_QUERY}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `number=${num}`]
         // 同一号先查工单、再查拉取请求：这一支就是「工单没查着、改查拉取请求」的那一步。
@@ -383,9 +410,17 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
       return { ok: true, data: prNorm, provenance: detailProvenanceFromPullRequest(clock, prFromGraphQL, { dropped: 0 }) }
     }
     if (!issueFromGraphQL) {
+      // 计划不许走 REST（#1765）：GraphQL 已经试过且没读到这张票，按计划不再换渠道。
+      // 计划就是这次放行的完整授权，计划外的渠道一次都不试；额度判断只有额度闸一处，这里不重问。
+      if (!channels.rest) {
+        emitReadDegraded(ctx, 'get', 'get:degraded', Date.now() - tGet)
+        return toOpResultError(getCause || (graphqlResult && !graphqlResult.ok ? graphqlResult.error : graphqlResult) || { message: '读渠道计划只允许 GraphQL，GraphQL 没读到这张票后不降级 REST' }, ctx)
+      }
       // REST 降级（与 list 同一背景：GraphQL POST 偶发 unexpected EOF，REST 稳定；原因分类与列表同口径，不恒写 graphql-error）
-      // 为什么用收窄式：r 在这里可能是成功也可能是失败，直接读 error 编译器不认；失败分支读 error、成功分支用 r 本身，与原来短路式的取值一字不差。
-      emitRestFallback(ctx, '单票', Date.now() - t0, pickFallbackReason(getCause || (!r.ok ? r.error : r), ctx))
+      // 为什么用收窄式：GraphQL 那一趟可能成功、失败或这次没走（计划不许），直接读 error 编译器不认；失败分支读 error、成功分支用回包本身。
+      // GraphQL 这次根本没走（计划只放了 REST）时不算「主路失败改走备路」：不写 graphql.fallback，
+      // 原因也不报 graphql-error；上面那行 get:degraded 已经把「这次走了备路」说清。
+      if (channels.graphql) emitRestFallback(ctx, '单票', Date.now() - t0, pickFallbackReason(getCause || (graphqlResult && !graphqlResult.ok ? graphqlResult.error : graphqlResult), ctx))
       emitReadDegraded(ctx, 'get', 'get:degraded', Date.now() - tGet)
       const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${num}`], { cwd: ctx && ctx.cwd, via: 'get.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
       if (rr.ok) {
@@ -426,7 +461,7 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
         // 原文交这次 /pulls 回包本身：形状里既没有 number，也就没有能当票看的东西。
         return fail(ERROR_KIND.NOTFOUND, `get: issue ${k} not found`, prr.data.stdout)
       }
-      if (!r.ok) return { ok: false, error: r.error }
+      if (graphqlResult && !graphqlResult.ok) return { ok: false, error: graphqlResult.error }
       return { ok: false, error: (!rr.ok ? rr.error : prr.error) }
     }
     const issue = issueFromGraphQL

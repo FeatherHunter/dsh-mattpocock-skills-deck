@@ -19,7 +19,8 @@
  *
  * 断的十四件事：
  *   1. 动作与状态词表：生产侧九种动作全有映射（implement 有自己的「实施」样张，不再借执行画），四种状态各用哪个词条键。
- *   2. 状态判定与宿主 groupTickets 同口径：已关闭 > 在办 > 被挡 > 可接；阻塞者不在本图就不算被挡。
+ *   2. 状态判定与宿主 groupTickets 同口径：已关闭 > 在办 > 被挡 > 可接；阻塞者不在本图时看引用态
+ *      （明确 CLOSED 才放行，OPEN / 读不到 / 没有引用态都按挡着收口，#1768）。
  *   3. 一张卡的刻画：编号文本、标题、类型小签（文字与真实标签色）、BUG 三角、认领人、更新日、
  *      页脚词条键、角标，以及三条不变量（结案卡不表现阻塞关系、只有被挡卡才有 blockedBy、
  *      卡片 id 一定带调用方给的前缀）。
@@ -162,7 +163,7 @@ section('1. 动作映射与状态词条键：九个生产动作全有去处，�
 // ===========================================================================
 // 2. 状态判定：与宿主 groupTickets 同口径
 // ===========================================================================
-section('2. 状态判定：已关闭 > 在办 > 被挡 > 可接，阻塞者不在本图不算被挡')
+section('2. 状态判定：已关闭 > 在办 > 被挡 > 可接；阻塞者不在本图时看引用态（未知不算可接）')
 {
   const openByNumber = { '1332': true, '1316': true }
   check(facts.ticketCardStatusOf({ state: 'CLOSED', claimedBy: 'x', blockedBy: [1332] }, openByNumber) === 'closed',
@@ -175,8 +176,15 @@ section('2. 状态判定：已关闭 > 在办 > 被挡 > 可接，阻塞者不�
     '没有 claimedBy 时从 assignees 第一个登录名认出在办')
   check(facts.ticketCardStatusOf({ state: 'OPEN', blockedBy: [1332] }, openByNumber) === 'blocked',
     '没人认领 + 有仍在开的阻塞者 → blocked')
-  check(facts.ticketCardStatusOf({ state: 'OPEN', blockedBy: [9999] }, openByNumber) === 'ready',
-    '阻塞者不在本图（9999 没在 openByNumber 里）→ 可接，与宿主 frontier 同口径')
+  // #1768：图外的票不再默认「不算挡」。读不到状态就是未知，未知按挡着收口（与 deck 安全侧同侧）。
+  check(facts.ticketCardStatusOf({ state: 'OPEN', blockedBy: [9999] }, openByNumber) === 'blocked',
+    '阻塞者不在本图、也没有引用态（9999 没在 openByNumber / blockerStates 里）→ 按挡着收口，不算可接')
+  check(facts.ticketCardStatusOf({ state: 'OPEN', blockedBy: [9999] }, openByNumber, { '9999': 'open' }) === 'blocked',
+    '图外阻塞者明确 OPEN → 被挡')
+  check(facts.ticketCardStatusOf({ state: 'OPEN', blockedBy: [9999] }, openByNumber, { '9999': 'closed' }) === 'ready',
+    '图外阻塞者明确 CLOSED → 不挡，可接')
+  check(facts.ticketCardStatusOf({ state: 'OPEN', blockedBy: [9999] }, openByNumber, {}) === 'blocked',
+    '图外阻塞者没有引用态（索引里没有它）→ 未知按挡着收口')
   check(facts.ticketCardStatusOf({ state: 'OPEN', blockedBy: ['1332'] }, openByNumber) === 'blocked',
     '字符串形式的阻塞者编号同样认')
   // 本地 / effort 后端的票号补零：行 key '01' 被 parseInt 成 1，阻塞者却原样写 '01'。
@@ -191,6 +199,40 @@ section('2. 状态判定：已关闭 > 在办 > 被挡 > 可接，阻塞者不�
     '状态缺失的脏行按开着判、排在可接里（与宿主 groupTickets 的有意差异）')
   check(facts.ticketCardStatusOf({ state: 'REOPENED' }, openByNumber) === 'ready',
     '不认识的状态写法同样按开着判')
+}
+
+// ===========================================================================
+// 2b. 跨容器引用态：宿主带回来的 blockedByRefs 决定图外阻塞者挡不挡、标题从哪来
+// ===========================================================================
+section('2b. 跨容器引用态：图外阻塞者按 blockedByRefs 收口，标题也能带出来')
+{
+  const env = { cardIdPrefix: 'x', colorOf: {}, actionOf: () => 'execute', textOf: (key) => key }
+  const factWith = (row) => facts.ticketCardFactsOf(row, facts.ticketFactsContextOf([row], env))
+  const base = { key: 'i-1500', number: 1500, title: '被别的地图挡住的票', state: 'OPEN' }
+
+  const outsideOpen = Object.assign({}, base, { blockedBy: [9001], blockedByRefs: [{ key: 9001, title: '别图里还开着', state: 'OPEN' }] })
+  const openFact = factWith(outsideOpen)
+  check(openFact.status === 'blocked' && openFact.blockedBy !== null && openFact.blockedBy.no === '9001',
+    '图外阻塞者明确 OPEN → 被挡，指向 #9001（实得 ' + show(openFact.status) + '）')
+  check(openFact.blockedBy !== null && openFact.blockedBy.title === '别图里还开着' && openFact.blockedBy.cardId === null,
+    '图外挡路者没有卡片可点亮，但标题从引用态带出来了（实得 ' + show(openFact.blockedBy) + '）')
+
+  const outsideClosed = Object.assign({}, base, { blockedBy: [9001], blockedByRefs: [{ key: 9001, title: '别图里已关掉', state: 'CLOSED' }] })
+  check(factWith(outsideClosed).status === 'ready', '图外阻塞者明确 CLOSED → 不挡，可接')
+
+  const outsideUnknown = Object.assign({}, base, { blockedBy: [9001], blockedByRefs: [{ key: 9001, title: '读不到状态' }] })
+  const unknownFact = factWith(outsideUnknown)
+  check(unknownFact.status === 'blocked' && unknownFact.blockedBy !== null && unknownFact.blockedBy.title === '读不到状态',
+    '图外阻塞者读不到状态 → 按挡着收口（未知不算可接）')
+
+  // 反例：阻塞者其实在本图里，就以行自己的状态为准，不被一条过期/写错的引用态推翻。
+  const inPageClosed = { key: 'i-9001', number: 9001, title: '本图里已经关掉', state: 'CLOSED' }
+  const ctxBoth = facts.ticketFactsContextOf([outsideOpen, inPageClosed], env)
+  check(facts.ticketCardFactsOf(outsideOpen, ctxBoth).status === 'ready',
+    '阻塞者在本图且已关闭 → 本图行状态优先，引用态里的 OPEN 不推翻它')
+  const ctxOutside = facts.ticketFactsContextOf([outsideOpen], env)
+  check(ctxOutside.firstBlockedByBlocker['9001'] === '1500',
+    '跨容器挡路关系同样记进看板（9001 → 1500），挡路卡红条有处可指')
 }
 
 // ===========================================================================

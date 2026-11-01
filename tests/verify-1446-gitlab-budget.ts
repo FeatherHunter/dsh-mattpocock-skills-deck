@@ -120,15 +120,18 @@ async function main() {
   const reqGone = decide({ op: 'comment', budget: REQUESTS, reading: requestsReading(0), canWrite: true }, limits)
   check(reqGone.allowed === false && reqGone.kind === 'rate-limit' && reqGone.reason === 'requests-exhausted', '只计请求：剩余 0 条就推迟（请求额度用尽）')
 
-  // #1418：两桶不是「任一桶见底就全停」—— 读只花 GraphQL 点数、写只花 REST 请求，各族只看自己那一桶。
+  // #1765：双渠道读两族任一有余即可，计划只保留放行瞬间高于保底的那一（几）族；单渠道读只看自己那一族，
+  //   两族都见底才拦。写操作的族选择与从前一样（写 REST，建前锚回查 GraphQL）。
   const restLowRead = decide({ op: 'list', budget: TWO, reading: twoReading(40, 900), canWrite: true }, limits)
-  check(restLowRead.allowed === true && restLowRead.reason === 'sufficient', '#1418：REST 见底时读操作照常放行（读花 GraphQL 点数，不看 REST 桶）')
+  check(restLowRead.allowed === true && JSON.stringify(restLowRead.channels) === '["graphql"]', '#1765：REST 见底时双渠道读改走 GraphQL（计划只剩 GraphQL）')
   const restLowWrite = decide({ op: 'create', budget: TWO, reading: twoReading(40, 900), canWrite: true }, limits)
   check(restLowWrite.allowed === false && restLowWrite.kind === 'rate-limit' && restLowWrite.reason === 'exhausted', '两桶：写操作遇到 REST 桶降到写保底就推迟（额度见底）')
   check(String(restLowWrite.message || '').indexOf('REST 请求') >= 0, '#1418：见底文案点名是哪一族（REST 请求）：' + String(restLowWrite.message || ''))
   const graphqlLowRead = decide({ op: 'get', budget: TWO, reading: twoReading(900, 40), canWrite: true }, limits)
-  check(graphqlLowRead.allowed === false && graphqlLowRead.reason === 'exhausted', '两桶：读操作遇到 GraphQL 桶降到写保底就推迟')
-  check(String(graphqlLowRead.message || '').indexOf('GraphQL 点数') >= 0, '#1418：见底文案点名 GraphQL 点数：' + String(graphqlLowRead.message || ''))
+  check(graphqlLowRead.allowed === true && JSON.stringify(graphqlLowRead.channels) === '["rest"]', '#1765：GraphQL 见底时双渠道读改走 REST（计划只剩 REST）')
+  const bothLowRead = decide({ op: 'get', budget: TWO, reading: twoReading(40, 40), canWrite: true }, limits)
+  check(bothLowRead.allowed === false && bothLowRead.reason === 'exhausted' && String(bothLowRead.message || '').indexOf('两种额度都不够') >= 0,
+    '#1765：两族都见底时双渠道读拦下并点名两种额度：' + String(bothLowRead.message || ''))
   // 恢复时刻：读数带 resetAt 时文案写「约 HH:MM 恢复」，没带就不写（不编时刻）。
   const withReset = { known: true, kind: 'two-buckets', buckets: { rest: { remaining: 40, limit: 1000, resetAt: 1761390000000 }, graphql: { remaining: 900, limit: 1000 } } }
   const withResetMsg = String(decide({ op: 'create', budget: TWO, reading: withReset, canWrite: true }, limits).message || '')

@@ -13,6 +13,9 @@
 - `workspace-ownership.ts` —— 「这个工作区的属主是不是当前运行用户」的单一判断
 - `outbound-tiers.ts` —— 出站命令的档位策略（读 12 秒 / 写 30 秒 / 探活 15 秒的纯判定；房间起 gh 命令前
   按它定超时，宿主起同一批命令时也按它定，所以它是两边共用的纯函数，不是宿主私有件）
+- `grouping.ts` —— 票的分组与分层（`computeLevels` / `groupTickets`；#1768 从 `src/tracker/body-parse.ts`
+  搬来，那个文件只把名字转出去）。宿主另有一份零依赖副本 `src/host/ticketGrouping.ts`（宿主动态 import
+  用），两份必须同一口径；`tests/verify-map-first-frame.ts` 的 I 组用例逐项交叉核对。
 
 **不在这里的**：契约层（`src/tracker/contract/`，只有类型与数据）、具体后端的实现（`rooms/<名字>/`）、
 装配点（`registry/builtins.ts`）。
