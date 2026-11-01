@@ -2,17 +2,18 @@
  * backends/gitlab/preflight.ts — 探测/登录/API 可达（三判据，capability-by-fill）。
  *
  * 契约：preflight只判环境（工具在/登录/可达），不预判能力；能力由操作/字段零推断（G5）。
- * 按 #144 §四：resolveExecutable→ENV / glab api user→AUTH / 探活→NETWORK；JH/self-hosted复用 GL_HOST。
+ * 按 #144 §四：resolveExecutable→ENV / glab api user→按原文判档 / 探活→按原文判档；JH/self-hosted复用 GL_HOST。
  *
  * 失败形状（#1111 收口）：预检也是「失败」，一样要带原文三段式 `{kind, message, raw}` ——
  * `raw` 或许为空串（本地就知道原因的，例如平台没给 `resolveExecutable`），但字段必须在，
  * 界面/日志才有统一的兜底可展开。有外部原文的那几条（api user、探活）原文一律带上。
  *
- * 判档口径（#1793 改准）：第一步问的是「工具在不在」，这一步的失败没有外部原文可看，档位按步骤语义
- * 给 ENV。第二、三步的失败则不能只看步骤 —— 第二关问「登录了没有」，但一次 api user 失败可能是凭据
- * 真的失效，也可能是网络断了、glab 根本没起来；第三关问「连不连得上」同理。所以这两关都按原文判档：
- * 第二关走房间唯一的判档出口 classifyGlabError，第三关保留本文件里的小口径。只按步骤给常量档位的话，
- * 一次网络抖动会被界面说成「登录状态已失效」，还叫用户重新登录，方向是错的。
+ * 判档口径（#1793 改准）：第一关问的是「工具在不在」，这一步的失败没有外部原文可看，档位按步骤语义
+ * 给 ENV。第二关问「登录了没有」，但一次 api user 失败可能是凭据真的失效，也可能是网络断了、glab
+ * 根本没起来，所以失败与抛错都按原文判档 —— 走房间唯一的判档出口 classifyGlabError，不再一律给
+ * AUTH（那样一次网络抖动会被界面说成「登录状态已失效」，还叫用户重新登录，方向是错的）。第三关
+ * （探活）的失败判档是本次改动之前就有的本地写法，本票边界只到登录判据，没有动它；它与「判据一源」
+ * 的收口另属一张票。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -20,7 +21,7 @@ import type { ErrorKind } from '../../contract/identity.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { PreflightResult } from '../../contract/results.js'
-import { fail } from '../../kernel/preflight.js'
+import { fail, HINT_UNRECOGNIZED } from '../../kernel/preflight.js'
 import { classifyGlabError } from './errors.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
@@ -40,6 +41,26 @@ function repoRefId(repo: { refId?: unknown; name?: unknown } | null | undefined)
   if (typeof repo.refId === 'string' && repo.refId) return repo.refId
   if (typeof repo.name === 'string' && repo.name) return repo.name
   return ''
+}
+
+/** 取抛上来的错误里那句可读的话：glab 进程的 stdout/stderr 挂在错误值身上，没有 message 就整段转字符串。 */
+function messageOf(e: unknown): string {
+  return e !== null && typeof e === 'object' && 'message' in (e as Record<string, unknown>)
+    ? String((e as Record<string, unknown>)['message'] || e)
+    : String(e)
+}
+
+/**
+ * 第二关（登录探针）交出去的档位：按原文判出来，但 not-found 收敛成 env。
+ *
+ * 为什么不能原样交 not-found：链上按档位反推「停在哪一关」（chain-env-map.ts 的 CHAIN_ENV_STAGE_OF），
+ * not-found 只对应第三关（仓库不存在）。glab api user 回 404 并不代表仓库不存在 —— 它说明这台主机
+ * 没按 GitLab 接口回答（GITLAB_HOST 指错、反代路径不对），登录态问不出来。原样交出去，链上会让
+ * 登录行显示「已登录（仓库可达性由下一项判断）」、仓库行判红「访问不到该仓库」，两行都说反。
+ * 收敛成 env 后链上如实 pending「环境检查没通过」，原文照旧带在 raw 里给人自己判断。
+ */
+function loginProbeKind(kind: ErrorKind): ErrorKind {
+  return kind === (ERROR_KIND.NOTFOUND as ErrorKind) ? (ERROR_KIND.ENV as ErrorKind) : kind
 }
 
 /**
@@ -92,17 +113,18 @@ export async function glabPreflight(
       const out = String(authRes.stdout || '') + '\n' + String(authRes.stderr || '')
       // 档位按原文判（#1793）：401 / unauthorized / no token 这类才是真未登录；EOF、超时、连不上归
       // NETWORK。以前这里一律给 AUTH，网络抖一下就被界面说成「登录状态已失效」，还让人重新登录。
-      const verdict = classifyGlabError(authRes)
-      return fail(verdict.kind, out.trim().slice(0, 500) || 'glab api user failed', out)
+      // 判档上下文传进去：调试开关打开时它会留一条 error.normalize（ADR 20261014 §2.8）。
+      const verdict = classifyGlabError(authRes, ctx || undefined)
+      // 规则表一条都没认出来时用全仓统一的那句「没认出来」，不拿原文假装判出来了（与 errors.ts 的 hintFor 同一口径）。
+      const message = verdict.fallback ? HINT_UNRECOGNIZED : (out.trim().slice(0, 500) || 'glab api user failed')
+      return fail(loginProbeKind(verdict.kind), message, out)
     }
   } catch (e: unknown) {
-    const msg = e !== null && typeof e === 'object' && 'message' in (e as Record<string, unknown>)
-      ? String((e as Record<string, unknown>)['message'] || e)
-      : String(e)
     // 原文 = 抛上来的那个 Error（glab 进程的 stdout/stderr 挂在它身上）。
     // 档位同样按原文判（#1793）：起进程失败带 ENOENT 归 ENV、本地超时归 NETWORK，其余才可能落到 AUTH。
-    const verdict = classifyGlabError(e)
-    return fail(verdict.kind, msg, e)
+    const verdict = classifyGlabError(e, ctx || undefined)
+    const message = verdict.fallback ? HINT_UNRECOGNIZED : messageOf(e)
+    return fail(loginProbeKind(verdict.kind), message, e)
   }
 
   // 3) 探活：glab api projects/:id（若有 refId），否则仅前两项即算 ok
@@ -134,11 +156,8 @@ export async function glabPreflight(
         return fail(probeKind, out.trim().slice(0, 500) || 'probe failed', out)
       }
     } catch (e: unknown) {
-      const msg = e !== null && typeof e === 'object' && 'message' in (e as Record<string, unknown>)
-        ? String((e as Record<string, unknown>)['message'] || e)
-        : String(e)
       // 原文 = 抛上来的那个 Error。
-      return fail(ERROR_KIND.NETWORK as ErrorKind, msg.slice(0, 500), e)
+      return fail(ERROR_KIND.NETWORK as ErrorKind, messageOf(e).slice(0, 500), e)
     }
   }
 

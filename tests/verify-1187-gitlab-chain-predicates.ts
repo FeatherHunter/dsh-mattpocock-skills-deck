@@ -15,8 +15,9 @@
 //   ⑤ 仓库身份走会话的 getRepoKey 能力，handle 带上 backend 与 refId，GitLab 不预取登录名；
 //   ⑥ 登录判据只问当前上下文主机（glab api user），不再调 `glab auth status` —— 多主机配置下
 //      无关主机的认证失败不许污染本仓库判定（#1779）。
-//   ⑦ 源头按原文判档（#1793）：EOF / 超时归 network、401 / no token 归 auth、ENOENT 归 env、
-//      403 带限流文案归 rate-limit；链上只按源头档位分派，不再自己拿原文词表猜第二遍。
+//   ⑥之三 源头按原文判档（#1793）：EOF / 超时归 network、401 / no token 归 auth、ENOENT 归 env、
+//      403 带限流文案归 rate-limit、api user 的 404 收敛成 env；规则表没认出来时用统一话术；
+//      链上只按源头档位分派，不再自己拿原文词表猜第二遍。
 // 门禁归属: src/refresh/rooms/host/check-chain-evaluation.ts
 // 门禁归属: src/refresh/rooms/host/chain-env-map.ts
 // 门禁归属: src/shared/tracker/check-catalog-dirs.ts
@@ -151,6 +152,21 @@ async function evaluateScenario(mods, opts) {
   })
   const out = await chain.handleChain({ cwd: DEMO_CWD, backendId: 'gitlab', lang: 'zh', force: true })
   return { out: out, fx: fx, exec: execPack, sessionCtx: sessionCtx }
+}
+
+/**
+ * 跑一次链求值，把第二关（glab api user）这一笔换成给定回包或抛错，其余调用照常回成功。
+ *
+ * ⑥之三 的五个场景只有 api user 这一笔不同；抽成一个口子，场景本身才看得清，
+ * 也免得每个场景各抄一份 execHandler。
+ */
+function chainWithApiUser(mods, apiUser) {
+  return evaluateScenario(mods, {
+    execHandler: function (cmd, args) {
+      if (args && args[1] === 'user') return typeof apiUser === 'function' ? apiUser() : apiUser
+      return { code: 0, stdout: '{}', stderr: '' }
+    },
+  })
 }
 
 async function main() {
@@ -310,6 +326,7 @@ async function main() {
   {
     // 这一节把「源头判档」与「链上分派」两段接起来验：
     //   - 房间 preflight 第二关（glab api user）的失败，按原文判成 network / auth / env / rate-limit；
+    //     规则表一条都没认出来时用统一的「没认出来」话术；api user 的 404 收敛成 env（见第 5 条）；
     //   - 链上 glabAuthVerdict 不再自己看原文，只按源头档位分派（真没登录才红，问不出去就 pending）。
     // ⑥ 与 ⑥之二 只看链上结果：源头若把网络失败判成 auth，链上照样要红；这里直接盯源头。
     const preflightCtx = function (exec) {
@@ -319,52 +336,65 @@ async function main() {
       const execPack = makeGlabExec(handler)
       return await mods.glabPreflight({ refId: 'group/proj' }, preflightCtx(execPack.exec))
     }
+    const hintMod = await import(url('src/tracker/kernel/preflight.ts'))
 
     // 1) 真机 glab 1.123 的 EOF 原文：网络不通，不是没登录。
     const eofRaw = 'ERROR: Get "https://gitlab.example.com/api/v4/user": EOF.'
     const eofRes = await runSource(function () { return { code: 1, stdout: '', stderr: eofRaw } })
     must(eofRes.ok === false && eofRes.error && eofRes.error.kind === 'network', '源头：EOF 原文判 network（不判未登录）', JSON.stringify(eofRes))
     must(String((eofRes.error || {}).raw || '').indexOf('EOF') >= 0, '源头：失败原文照样带出去（raw 里有 EOF）', String((eofRes.error || {}).raw))
-    const eofChain = await evaluateScenario(mods, {
-      execHandler: function (cmd, args) {
-        if (args && args[1] === 'user') return { code: 1, stdout: '', stderr: eofRaw }
-        return { code: 0, stdout: '{}', stderr: '' }
-      },
-    })
+    const eofChain = await chainWithApiUser(mods, { code: 1, stdout: '', stderr: eofRaw })
     must(resolvedOf(eofChain.out, 'glab:authed').status === 'pending', '链上：EOF 网络失败判 pending，不判未登录', JSON.stringify(resolvedOf(eofChain.out, 'glab:authed')))
     must(String(resolvedOf(eofChain.out, 'glab:authed').detail || '').indexOf('网络异常') >= 0, '链上：pending 说明写明网络异常', String(resolvedOf(eofChain.out, 'glab:authed').detail))
 
-    // 2) 401 Unauthorized、no token：真未登录，源头判 auth，链上才判红。
+    // 2) 401 Unauthorized、no token：真未登录，源头判 auth，链上判红并给重新登录指引。
     const unauthorizedRes = await runSource(function () { return { code: 1, stdout: '', stderr: '401 Unauthorized' } })
     must(unauthorizedRes.ok === false && unauthorizedRes.error && unauthorizedRes.error.kind === 'auth', '源头：401 Unauthorized 判 auth', JSON.stringify(unauthorizedRes))
     const noTokenRes = await runSource(function () { return { code: 1, stdout: '', stderr: 'ERROR: no token found for gitlab.com' } })
     must(noTokenRes.ok === false && noTokenRes.error && noTokenRes.error.kind === 'auth', '源头：no token 原文判 auth', JSON.stringify(noTokenRes))
+    const unauthorizedChain = await chainWithApiUser(mods, { code: 1, stdout: '', stderr: '401 Unauthorized' })
+    const unauthorizedVerdict = resolvedOf(unauthorizedChain.out, 'glab:authed')
+    must(unauthorizedVerdict.status === 'fail', '链上：401 判红（真未登录）', JSON.stringify(unauthorizedVerdict))
+    must(String(unauthorizedVerdict.detail || '').indexOf('重新执行 glab auth login') >= 0, '链上：401 的说明给「重新执行 glab auth login」指引', String(unauthorizedVerdict.detail))
 
-    // 3) 起进程失败带 ENOENT：环境问题，链上说「没找到 glab」，不许让人去重新登录。
+    // 3) 本地超时抛错：问不出去，源头判 network（不是没登录）。
+    const timeoutRes = await runSource(function () { throw new Error('timeout of 30000ms exceeded') })
+    must(timeoutRes.ok === false && timeoutRes.error && timeoutRes.error.kind === 'network', '源头：本地超时抛错判 network', JSON.stringify(timeoutRes))
+
+    // 4) 起进程失败带 ENOENT：环境问题，链上说「没找到 glab」，不许让人去重新登录。
     const enoent = function () { throw Object.assign(new Error('spawn glab ENOENT'), { code: 'ENOENT' }) }
     const enoentRes = await runSource(enoent)
     must(enoentRes.ok === false && enoentRes.error && enoentRes.error.kind === 'env', '源头：ENOENT 判 env', JSON.stringify(enoentRes))
-    const enoentChain = await evaluateScenario(mods, {
-      execHandler: function (cmd, args) {
-        if (args && args[1] === 'user') throw Object.assign(new Error('spawn glab ENOENT'), { code: 'ENOENT' })
-        return { code: 0, stdout: '{}', stderr: '' }
-      },
-    })
+    const enoentChain = await chainWithApiUser(mods, enoent)
     must(resolvedOf(enoentChain.out, 'glab:authed').status === 'pending', '链上：起进程失败判 pending', JSON.stringify(resolvedOf(enoentChain.out, 'glab:authed')))
     must(String(resolvedOf(enoentChain.out, 'glab:authed').detail || '').indexOf('没找到 glab') >= 0, '链上：说明写「没找到 glab」，不叫人重新登录', String(resolvedOf(enoentChain.out, 'glab:authed').detail))
 
-    // 4) 403 带限流文案：既不是未登录也不是网络抖动，链上按速率限制说「暂时确认不了」。
+    // 5) glab api user 回 404：这台主机没按 GitLab 接口回答，登录态问不出来。链上按档位反推停在哪一关，
+    //    原样交 not-found 会被读成第三关（仓库不存在）：登录行显示「已登录」、仓库行判红，两行都说反。
+    //    所以第二关把 not-found 收敛成 env，链上如实 pending「环境检查没通过」，原文照样带出。
+    const notFoundRaw = 'ERROR: 404 Not Found'
+    const notFoundRes = await runSource(function () { return { code: 1, stdout: '', stderr: notFoundRaw } })
+    must(notFoundRes.ok === false && notFoundRes.error && notFoundRes.error.kind === 'env', '源头：api user 的 404 收敛成 env（不冒充第三关的 not-found）', JSON.stringify(notFoundRes))
+    const notFoundChain = await chainWithApiUser(mods, { code: 1, stdout: '', stderr: notFoundRaw })
+    const notFoundAuth = resolvedOf(notFoundChain.out, 'glab:authed')
+    const notFoundRepo = resolvedOf(notFoundChain.out, 'glab:repoAccess')
+    must(notFoundAuth.status === 'pending', '链上：api user 404 时登录行 pending（不显示「已登录」）', JSON.stringify(notFoundAuth))
+    must(notFoundRepo.status === 'pending', '链上：api user 404 时仓库行 pending（不判「访问不到仓库」）', JSON.stringify(notFoundRepo))
+    must(String(notFoundAuth.detail || '').indexOf('环境检查没通过') >= 0, '链上：说明写「环境检查没通过」，不冒充登录结论', String(notFoundAuth.detail))
+
+    // 6) 403 带限流文案：既不是未登录也不是网络抖动，链上按速率限制说「暂时确认不了」。
     const limitedRes = await runSource(function () { return { code: 1, stdout: '', stderr: '403 Forbidden: rate limit exceeded' } })
     must(limitedRes.ok === false && limitedRes.error && limitedRes.error.kind === 'rate-limit', '源头：403 带限流文案判 rate-limit', JSON.stringify(limitedRes))
-    const limitedChain = await evaluateScenario(mods, {
-      execHandler: function (cmd, args) {
-        if (args && args[1] === 'user') return { code: 1, stdout: '', stderr: '403 Forbidden: rate limit exceeded' }
-        return { code: 0, stdout: '{}', stderr: '' }
-      },
-    })
+    const limitedChain = await chainWithApiUser(mods, { code: 1, stdout: '', stderr: '403 Forbidden: rate limit exceeded' })
     const limitedVerdict = resolvedOf(limitedChain.out, 'glab:authed')
     must(limitedVerdict.status === 'pending', '链上：限流不判未登录（诚实未知）', JSON.stringify(limitedVerdict))
     must(String(limitedVerdict.detail || '').indexOf('rate-limit') >= 0, '链上：pending 说明带上档位名 rate-limit', String(limitedVerdict.detail))
+
+    // 7) 规则表一条都没认出来（空输出）：兜底归 network，但话术用全仓统一的「没认出来」，
+    //    不拿本家编的一句话假装判出来了（ADR 20261014 §2.5）。
+    const blankRes = await runSource(function () { return { code: 1, stdout: '', stderr: '' } })
+    must(blankRes.ok === false && blankRes.error && blankRes.error.kind === 'network', '源头：空输出兜底归 network', JSON.stringify(blankRes))
+    must(blankRes.ok === false && String(blankRes.error.message) === hintMod.HINT_UNRECOGNIZED, '源头：兜底时话术是统一的「没认出来」，不假装判出来了', blankRes.ok === false ? String(blankRes.error.message) : '')
   }
 
   title('⑦ 全过 → 两行都绿；仓库身份走会话 getRepoKey，handle 带 backend 与 refId')

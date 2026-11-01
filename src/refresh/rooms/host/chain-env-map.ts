@@ -241,8 +241,9 @@ export function glabRepoAccessVerdict(pr: ChainEnvProbeReply, zh: boolean): Chai
  *
  * 与 GitHub 那行同一套口径：只有明确「未登录」（kind=auth）才判 fail 并展示登录指引，
  * 网络抖动归 pending（诚实未知）。区别在于档位由 GitLab 房间预检按原文判出来（#1793：真没登录
- * 才是 auth，EOF / 超时归 network，起进程失败带 ENOENT 归 env），这里只按档位分派，不再拿原文
- * 词表猜第二遍 —— 两份口径各判一次，迟早会互相矛盾。
+ * 才是 auth，EOF / 超时归 network，起进程失败带 ENOENT 归 env，api user 的 404 收敛成 env），
+ * auth 分支只按档位分派，不再拿原文词表猜第二遍 —— 两份口径各判一次，迟早会互相矛盾。
+ * （env 分支的 pending 文案仍由 envPendingDetail 按原文分流：它挑的是给人看的话术，不改变档位。）
  */
 export function glabAuthVerdict(pr: ChainEnvProbeReply, zh: boolean): ChainPredicateVerdict {
   if (pr.stage === 'pass') return { status: 'pass', detail: zh ? '已登录' : 'Logged in' }
