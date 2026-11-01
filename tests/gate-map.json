@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-01T16:45:24.379Z",
+  "generatedAt": "2026-11-01T17:46:39.807Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 530,
-  "gateCount": 530,
-  "attributedGates": 468,
+  "chainLength": 531,
+  "gateCount": 531,
+  "attributedGates": 469,
   "unattributedGates": 62,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 86,
@@ -5862,6 +5862,25 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1798-issues-carry.ts",
+      "file": "tests/verify-1798-issues-carry.ts",
+      "guards": [
+        "src/host/tracker/snapshot.ts",
+        "src/host/tracker/snapshotAssemble.ts",
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts"
+      ],
+      "dirs": [
+        "src/host/tracker",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -13567,6 +13586,7 @@
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1490-four-objects.ts",
       "node tests/verify-1774-carry-wiring.ts",
+      "node tests/verify-1798-issues-carry.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-691-map-subissues.ts",
@@ -13787,6 +13807,7 @@
       "node tests/verify-1770-gitlab-list-truncated.ts",
       "node tests/verify-1774-carry-wiring.ts",
       "node tests/verify-1784-comment-pagination.ts",
+      "node tests/verify-1798-issues-carry.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
