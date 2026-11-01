@@ -31,7 +31,7 @@ import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue
 import { addComment } from './comments.js'
 import { setLabels } from './labels.js'
 import { getDependencies, setBlockedBy, setParent, setAssignees } from './graph.js'
-import { getRepoKey } from './repo.js'
+import { getRepoKey, gitlabOriginOf } from './repo.js'
 import { counts } from './counts.js'
 import { listPage } from './pages.js'
 import { listLabels, setLabelColors } from './labels-ops.js'
@@ -190,8 +190,33 @@ async function matches(
   }
 }
 
+/** GitLab 官方站点的网页端地址：只有没从远端学到主机时，链接才用它兜底。 */
+const DEFAULT_GITLAB_WEB_ORIGIN = 'https://gitlab.com'
+
+/**
+ * 拼链接时该用的网页端 origin：仓库引用上带 host 就用它，否则用服务商默认域名。
+ *
+ * host 来自两处（都不保证有）：
+ *   1. 调用方传进来的 RepositoryRef.host（例如快照里已经补齐的身份）；
+ *   2. describe 在本进程里先收到过的「这台工作区的远端在哪」——由 getRepoKey 认仓库时学住
+ *      （见 repo.ts 的 learnGitlabOrigin）。
+ */
+function refOrigin(ref: Partial<RepositoryRef> | null | undefined): string {
+  const declared = ref && typeof ref.host === 'string' ? ref.host.trim().replace(/\/+$/, '') : ''
+  if (declared) return declared
+  // 有些调用方只拿得到仓库地址（快照里的 repository.url），原样是 https://host/owner/name：
+  // 从它身上取 origin，比一律退回服务商默认域名更接近事实。
+  const url = ref && typeof ref.url === 'string' ? ref.url.trim() : ''
+  const m = url.match(/^([a-z][a-z0-9+.-]*):\/\/([^/\s]+)\//i)
+  if (m) return m[1].toLowerCase() + '://' + m[2].replace(/^[^@]*@/, '')
+  return DEFAULT_GITLAB_WEB_ORIGIN
+}
+
 /**
  * 产出仓库身份：refId 优先用传入的标识，缺了才拿目录名顶上，远端地址按 GitLab 规则拼。
+ *
+ * 远端地址的 origin 优先用调用方给的 host，其次用「认仓库时学到的这台实例」，都没有才退回
+ * gitlab.com。自托管实例因此拼出的是自己的地址，而不是一律指向官网。
  *
  * @param handle 识别时给的那点线索（只取 refId 与 cwd）
  * @param backendId 后端 id（调用方透传 'gitlab'）
@@ -204,10 +229,19 @@ export function describe(
   // cwd 只在 RepoHandle 那一形上有，RepositoryRef 那一形没有，这里按存在判读而不是按类型硬取。
   const maybeCwd = (handle as RepoHandle | null | undefined)?.cwd
   const cwd = typeof maybeCwd === 'string' ? String(maybeCwd) : ''
-  let refId = rawRef
+  const declaredHost =
+    handle && typeof (handle as Partial<RepositoryRef>).host === 'string'
+      ? String((handle as Partial<RepositoryRef>).host).trim().replace(/\/+$/, '')
+      : ''
+  const learnedHost = !declaredHost && cwd ? gitlabOriginOf(cwd) : ''
+  const host = declaredHost || learnedHost
+  const refId = rawRef
   const name = refId || (cwd ? cwd.split(/[\\/]/).pop() || cwd : backendId) || backendId
-  const url = refId && refId.includes('/') ? 'https://gitlab.com/' + refId : ''
-  return { backend: backendId, refId: refId || '', name, url }
+  const url = refId && refId.includes('/') ? (host || DEFAULT_GITLAB_WEB_ORIGIN) + '/' + refId : ''
+  const ref: RepositoryRef = { backend: backendId, refId: refId || '', name, url }
+  // 主机与服务商默认域名相同时不写这一格：回包形状保持不变，下游按键数判读的地方不受影响。
+  if (host && host !== DEFAULT_GITLAB_WEB_ORIGIN) ref.host = host
+  return ref
 }
 
 // 链接三件（#1110 实现决定第 14 条 / #1135 改名 / #1141 删旧名）：名字讲的是「地址」而不是「网址」，
@@ -216,12 +250,16 @@ export function describe(
 export function issueAddress(ref: Partial<RepositoryRef> | null | undefined, key: string | number): string {
   const refId = ref && typeof ref.refId === 'string' ? ref.refId : ''
   if (!refId) return ''
-  return 'https://gitlab.com/' + refId + '/-/issues/' + String(key)
+  return refOrigin(ref) + '/' + refId + '/-/issues/' + String(key)
 }
 
 // 按名搜仓库的地址只做编码拼串，是因为全站搜索页不需要鉴权，拼不出就等调用方自己处理空串。
-export function repoSearchAddress(name: string | null | undefined): string {
-  return 'https://gitlab.com/search?search=' + encodeURIComponent(String(name || ''))
+// 第二格是可选的仓库引用：给了且带 host（自托管）就搜那台实例，否则搜默认站点。
+export function repoSearchAddress(
+  name: string | null | undefined,
+  ref?: Partial<RepositoryRef> | null,
+): string {
+  return refOrigin(ref) + '/search?search=' + encodeURIComponent(String(name || ''))
 }
 
 export const issueRefPattern = /gitlab\.com\/[^\/\s]+\/[^\/\s]+\/-\/issues\/(\d+)/g
@@ -237,7 +275,9 @@ export const issueRefPattern = /gitlab\.com\/[^\/\s]+\/[^\/\s]+\/-\/issues\/(\d+
  */
 const openRepository = 'url'
 
-/** #231：client 渲染模板数据（UI-lane 只读）。 */
+// #231：client 渲染模板数据（UI-lane 只读）。
+// 这三条模板只是**最后兜底**：快照里的 repository.url 与票自己的 url（GitLab API 的 web_url）
+// 才是权威地址，客户端优先用它们；模板拼不了自托管主机，所以只在两者都缺时才用。
 export const links = {
   issueUrlTemplate: 'https://gitlab.com/{refId}/-/issues/{key}',
   repoUrlTemplate: 'https://gitlab.com/{refId}',

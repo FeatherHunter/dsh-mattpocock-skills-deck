@@ -320,9 +320,10 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
         }
       }
       const rows = Array.isArray(listed.data) ? listed.data : []
-      // 后端自己的列表有安全上限（工单 500 条、拉取请求 1000 条）：它到顶就停，却仍回成功。
+      // 后端自己的列表都有安全上限：GitHub 是「工单 500 条、拉取请求 1000 条」的总量上限，
+      // GitLab 是「每页最多 100 条、只取第一页」的页上限（#1770）；它到顶就停，却仍回成功。
       // 走了 REST 降级通道时也一样：REST 自己有翻页上限，尾页失败时只回已经拿到的。
-      // 这两种「可能不全」都要如实转告，别让调用方当成「库里就这么多」（#1304）。
+      // 这几种「可能不全」都要如实转告，别让调用方当成「库里就这么多」（#1304）。
       const backendTruncated = listed.truncated === true
       const backendFallback = listed.fallback === 'rest'
       // 降级原因与操作编号一起摆出来：配额耗尽与其它失败走的是同一条 REST，日志里按 opId 才能对上同一趟。
@@ -379,7 +380,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
         if (fallbackReason === 'quota') notes.push('后端主路这次因配额耗尽走了 REST 降级通道（opId ' + (opId || '未知') + '）：REST 自己有翻页上限，尾页失败时只回已经拿到的，这份清单可能不全：收窄过滤再查一次。')
         else notes.push('后端主路这次用不了，走的是 REST 降级通道（原因 ' + (fallbackReason || 'other') + '，opId ' + (opId || '未知') + '，日志里按 opId 查 read.degraded 就是同一趟）：REST 自己有翻页上限，尾页失败时只回已经拿到的，这份清单可能不全：收窄过滤再查一次。')
       }
-      else if (backendTruncated) notes.push('后端这次只翻到自己的上限就停了（工单 500 条、拉取请求 1000 条），这份清单可能不全：收窄过滤再查一次。')
+      else if (backendTruncated) notes.push('后端这次取到自己的上限就停了（GitLab 是每页最多 100 条、只取第一页；GitHub 是工单 500 条、拉取请求 1000 条），这份清单可能不全：收窄过滤再查一次。')
       if (truncated) notes.push('只回前 ' + sliced.length + ' 行（共 ' + total + ' 行符合）：收窄过滤或调大 limit 再取一次。')
       // #1559：宿主收工具返回值时要求无损 JSON，data 上不许出现 undefined。缺省的键就不出现
       // （不用 null 顶替：金标准 03-deck_issue_list.golden.json 里本来就没有这两个键，序列化后的形状与它一致）；

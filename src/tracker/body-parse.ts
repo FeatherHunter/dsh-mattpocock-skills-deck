@@ -1,5 +1,7 @@
 /**
- * src/tracker/body-parse.ts —— 正文解析与票分组的纯函数叶子（宿主与客户端共用同一份）
+ * src/tracker/body-parse.ts —— 正文解析的纯函数叶子（宿主与客户端共用同一份）
+ * 票的分组与分层（computeLevels / groupTickets）住在 src/tracker/kernel/grouping.ts（#1768 搬出）；
+ * 本文件只把名字转出去，调用方 import 路径不变。
  *
  * 住处：#1148 修正了本文件开头此前一直写着的旧路径（原住 `src/shared/parser.js`）。
  * 今天的真源就是本文件：宿主侧还留着同名的内联副本，那两份副本不是真源，
@@ -266,145 +268,13 @@ export { parseOriginalWords } from '../shared/issue-file/src/original-words.js'
 export type { OriginalWordsDetailEntry, OriginalWordsEntry } from '../shared/issue-file/src/original-words.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 二、票的分组与分层（宿主侧同步调用，输入是「票号 + 状态 + 认领 + 阻塞」这几格）
+// 二、票的分组与分层：判定本体住在 src/tracker/kernel/grouping.ts（#1768 搬出）
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * 分组与分层只读票上这几格。字段一律从后端回包或老快照来，所以除票号外都按未知收口：
- * 缺一格、或者某个格不是期望的类型，都由这里的运行时判断兜住（`t.state === 'CLOSED'` 这类比较）。
- */
-export interface GroupingTicket {
-  /** 票号。分层与分组都拿它当键（拼进对象键时会被 JS 转成字符串）。 */
-  number: number
-  /** 状态。只有大写 `'CLOSED'` 算已关闭，其余（含缺席、别的写法）都算未关闭 —— 与老口径一致。 */
-  state?: string
-  /** 认领人。有值（非空串、非 null）算已认领；缺席或空串算「没人认领」。 */
-  claimedBy?: unknown
-  /**
-   * 直接阻塞我的票号。声明成**必填**，因为本文件两处读它的口径本来就不一样，而且两处都逐字保留了老写法：
-   *   · `computeLevels` 查阻塞者表时写的是 `(t.blockedBy || [])`——缺了这一格就按「没有阻塞者」；
-   *   · 层内统计与 `groupTickets` 写的是裸 `t.blockedBy.some(...)`——缺了这一格会当场抛。
-   * 类型按更严的那一处收（必填）：真数据里要么这一格是数组，要么根本没有这张票。
-   * 想把两处统一成「缺了就按空数组」，那是另一件事，别在类型迁移里顺手改（见本文件尾部说明）。
-   */
-  blockedBy: readonly (number | string)[]
-}
-
-/** 同深度的一层票与状态细分。 */
-export interface TicketLevel {
-  /** 深度：没有阻塞者的票是 0，其余是「直接阻塞者深度的最大值 + 1」。 */
-  level: number
-  /** 这一层的票号。 */
-  numbers: number[]
-  /** 这一层的全部票数。 */
-  total: number
-  /** 这一层里未关闭的张数。 */
-  open: number
-  /** 这一层里已关闭的张数。 */
-  closed: number
-  /** 这一层里可接的张数（未关闭、没被认领、阻塞都关掉了）。 */
-  frontier: number
-  /** 这一层里已被认领的张数。 */
-  claimed: number
-  /** 这一层里被仍然开着的票阻塞的张数。 */
-  blocked: number
-}
-
-/** 分层结果：逐票的深度 + 按深度归拢的层（层按深度升序、无空洞）。 */
-export interface LevelsResult {
-  /** 票号 → 深度。键是字符串（对象键的固有形态），值是 0 起的整数。 */
-  byNumber: Record<string, number>
-  /** 每层一条，按深度升序；中间没有票的深度不会出现。 */
-  levels: TicketLevel[]
-}
-
-// ——— computeLevels：blockedBy DAG 最长路径深度分层（level(root)=0；level(x)=1+max(level(直接阻塞者))） ———
-
-/**
- * 按阻塞关系给每张票算深度。
- *
- * 图由 `blockedBy` 给出（「谁阻塞我」是唯一真源，反向的「我阻塞了谁」不在这里推）。
- * 指向票池之外的票号（破链）按叶子算：查不到就当没有阻塞者，深度 0 —— 与老口径一致。
- */
-export function computeLevels(tickets: readonly GroupingTicket[]): LevelsResult {
-  // 票号表：每张票都在里面，所以下面查不到只可能是「阻塞者不在本批票里」。
-  const byNum: Record<string, GroupingTicket> = {}
-  tickets.forEach((t) => { byNum[t.number] = t })
-  const memo: Record<string, number> = {}
-  const levelOf = (t: GroupingTicket): number => {
-    if (memo[t.number] !== undefined) return memo[t.number]
-    const blockers = (t.blockedBy || []).map((b) => byNum[b]).filter(Boolean)
-    if (!blockers.length) { memo[t.number] = 0; return 0 }
-    let maxL = -1
-    blockers.forEach((b) => { const l = levelOf(b); if (l > maxL) maxL = l })
-    memo[t.number] = maxL + 1
-    return memo[t.number]
-  }
-  const byNumber: Record<string, number> = {}
-  tickets.forEach((t) => { byNumber[t.number] = levelOf(t) })
-  // 先按深度就位（下标即深度，中间没票的位置留空洞），最后再压掉空洞。
-  const levels: (TicketLevel | undefined)[] = []
-  tickets.forEach((t) => {
-    const lv = byNumber[t.number]
-    let layer = levels[lv]
-    if (!layer) { layer = { level: lv, numbers: [], open: 0, closed: 0, total: 0, frontier: 0, claimed: 0, blocked: 0 }; levels[lv] = layer }
-    layer.numbers.push(t.number)
-    layer.total++
-    if (t.state === 'CLOSED') layer.closed++
-    else layer.open++
-  })
-  // 层内状态细分（frontier/claimed/blocked 归层）
-  const openBlocker = (b: number | string): boolean => { const t = byNum[b]; return t !== undefined && t.state === 'OPEN' }
-  levels.forEach((layer) => {
-    // 稀疏数组的空洞不会被 forEach 访问，这一句只是让编译器知道 layer 一定在。
-    if (!layer) return
-    const openT = tickets.filter((t) => byNumber[t.number] === layer.level && t.state === 'OPEN')
-    layer.frontier = openT.filter((t) => !t.claimedBy && !t.blockedBy.some(openBlocker)).length
-    layer.claimed = openT.filter((t) => t.claimedBy).length
-    layer.blocked = openT.filter((t) => !t.claimedBy && t.blockedBy.some(openBlocker)).length
-  })
-  // 剔除空洞（levels 数组可能因跳级出现 undefined）
-  const compact = levels.filter((layer): layer is TicketLevel => Boolean(layer))
-  return { byNumber: byNumber, levels: compact }
-}
-
-/** 分组结果：各状态计数 + DAG 分层（面板的漏斗与层级都用这一份）。 */
-export interface TicketGroups {
-  total: number
-  open: number
-  closed: number
-  frontier: number
-  claimed: number
-  blocked: number
-  /** 按深度归拢的层，见 computeLevels。 */
-  levels: TicketLevel[]
-  /** 票号 → 深度。 */
-  levelOf: Record<string, number>
-}
-
-// ——— groupTickets：open/closed/frontier/claimed/blocked 分组 + 附 DAG 分层（v1.4 T1 #442） ———
-
-/**
- * 把一批票分成 open/closed/frontier/claimed/blocked 五组，并附上 DAG 分层。
- *
- * 五组里只有 open/closed 是「按状态分组」，另外三组是**可以重叠**的视角：
- * frontier 是「未关闭、认领已知且空、阻塞都关掉了」（#1 明确写着的可接票），
- * claimed 是「有人认领」，blocked 是「还有开着的票挡着」。
- */
-export function groupTickets(tickets: readonly GroupingTicket[]): TicketGroups {
-  const byNum: Record<string, GroupingTicket> = {}
-  tickets.forEach((t) => { byNum[t.number] = t })
-  const openBlocker = (b: number | string): boolean => { const t = byNum[b]; return t !== undefined && t.state === 'OPEN' }
-  const open = tickets.filter((t) => t.state === 'OPEN')
-  const closed = tickets.filter((t) => t.state === 'CLOSED')
-  const frontier = open.filter((t) => !t.claimedBy && !t.blockedBy.some(openBlocker))
-  const claimed = open.filter((t) => t.claimedBy)
-  const blocked = open.filter((t) => !t.claimedBy && t.blockedBy.some(openBlocker))
-  // v1.4（T1 #442）：附 DAG 分层（client 渲染漏斗分层用）
-  const lv = computeLevels(tickets)
-  return {
-    total: tickets.length, open: open.length, closed: closed.length,
-    frontier: frontier.length, claimed: claimed.length, blocked: blocked.length,
-    levels: lv.levels, levelOf: lv.byNumber,
-  }
-}
+//
+// 为什么搬走：这段判定随「跨容器阻塞者按引用态收口」变长，把本文件顶过 350 有效行上限（有效行口径见
+// scripts/lib/effective-lines.mts）；分组与分层本来就是纯判定，不是正文解析，住共享内核更合适。
+//
+// 调用方的 import 路径不变：宿主装配（src/host/tracker/snapshotAssemble.ts）、deck 读工具与门禁一直按
+// tracker/body-parse 取这两个函数，这里原样把名字转出去（与 #1090 进度区、#1092 原话区同一模式）。
+export { computeLevels, groupTickets } from './kernel/grouping.js'
+export type { BlockingRef, GroupingTicket, LevelsResult, TicketGroups, TicketLevel } from './kernel/grouping.js'

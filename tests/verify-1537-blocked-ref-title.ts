@@ -132,6 +132,8 @@ async function main() {
   const mrefs = (miss && miss.ok && Array.isArray(miss.data.blockedBy) ? miss.data.blockedBy : []) as any[]
   check(mrefs.length === 1 && String(mrefs[0].key) === '99', '99 这条引用还在（got ' + JSON.stringify(mrefs) + '）')
   check(String((mrefs[0] || {}).title || '') === '', '99 的标题留空（界面按契约回落成编号）', JSON.stringify(mrefs[0]))
+  // #1676：目标读不到时 state 也不能伪造 open —— 留缺省表示「未知」，否则详情页按钮会被永久置灰。
+  check(!('state' in (mrefs[0] || {})), '99 的引用不带 state（未知不扮成 open）', JSON.stringify(mrefs[0]))
 
   console.log('== ④ 被地图阻塞时标题取自本 effort 地图 ==')
   const byd = await be.get(REPO as never, '14', OPTS, ctx as never) as any

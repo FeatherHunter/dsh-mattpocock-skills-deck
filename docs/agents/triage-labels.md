@@ -14,6 +14,7 @@ Label colours are **not** kept in this file. On the **local Markdown backend** t
 | wayfinder:grilling | Grilling / discussion ticket (HITL) |
 | wayfinder:task | Task ticket (HITL or AFK) |
 | bug | Something is broken (fix action / BUG filter) |
+| enhancement | A feature request (category role; pairs with a state role) |
 | needs-triage | Unexamined issue awaiting diagnosis |
 | needs-info | Waiting on reporter for more information |
 | ready-for-agent | Fully specified, ready for an AFK agent |

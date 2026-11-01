@@ -7,6 +7,7 @@
 import { ERROR_KIND } from '../contract/vocabulary.js'
 import type { Tracker } from '../contract/operations.js'
 import type { AccountPort, AdmitPort, BackendBudgetModel, BudgetReading } from '../contract/budget-model.js'
+import type { ReadSpendChannel } from '../contract/operations-encyclopedia.js'
 import { newOpId } from '../../shared/op-id.js'
 
 /** 管线一次调用要齐的东西（装配时一次给齐，每次调用只给操作名与参数）。 */
@@ -125,23 +126,52 @@ function pipelineFail(kind: string, message: string, raw: string): PipelineFailu
 }
 
 /**
- * 本笔调用的编号：最后一个实参若像 OpContext（带 caller 或 cwd 的对象）就抄它的 opId，
- * 否则现场造一个。为什么不改 args：opId 是宿主侧追加的诊断信息，不是房间认得的参数，
- * 往 args 里塞东西会改变房间拿到的实参——那是另一种行为变化。
+ * 最后一个实参是不是 OpContext（带 caller 或 cwd 的对象）；是就回它的下标，不是回 -1。
  * 为什么限定「带 caller 或 cwd」：列表行、计划单这类对象也可能出现在实参末尾，
  * 不能一律当上下文读；OpContext 的形状约定见 src/tracker/contract/contexts.ts。
  */
-function opIdOf(args: unknown[]): string {
+function contextIndexOf(args: unknown[]): number {
   const last = args.length > 0 ? args[args.length - 1] : null
-  if (last && typeof last === 'object') {
-    const rec = last as Record<string, unknown>
-    const looksLikeOpContext = typeof rec.caller === 'string' || typeof rec.cwd === 'string'
-    if (looksLikeOpContext) {
-      const id = rec.opId
-      if (typeof id === 'string' && id.trim()) return id
-    }
+  if (!last || typeof last !== 'object') return -1
+  const rec = last as Record<string, unknown>
+  return typeof rec.caller === 'string' || typeof rec.cwd === 'string' ? args.length - 1 : -1
+}
+
+/**
+ * 本笔调用的编号：最后一个实参若像 OpContext 就抄它的 opId，否则现场造一个。
+ * 为什么不改 args：opId 是宿主侧追加的诊断信息，不是房间认得的参数，
+ * 往 args 里塞东西会改变房间拿到的实参——那是另一种行为变化。
+ */
+function opIdOf(args: unknown[]): string {
+  const index = contextIndexOf(args)
+  if (index >= 0) {
+    const id = (args[index] as Record<string, unknown>).opId
+    if (typeof id === 'string' && id.trim()) return id
   }
   return newOpId()
+}
+
+/**
+ * 把裁决给出的读渠道计划交给房间：浅拷贝最后一个上下文实参，写上 readChannels（#1765）。
+ *
+ * 为什么走上下文而不是新加参数：房间方法的签名（含三个后端的实现与桩）是契约的一部分，
+ * 为一次放行改签名会波及整条调用链；上下文本来就是「这一次调用的现场」，计划正是现场的一部分。
+ *
+ * 为什么必须浅拷贝：调用方可能复用同一个上下文对象发起多次操作，直接改写它会把这笔的
+ * 渠道计划带给下一笔，而下一笔的额度情况完全不同——计划只在这一次放行里有效。
+ *
+ * 没有上下文实参（直连房间、测试）时原样返回：房间按老行为两渠道都试，计划不丢也不乱。
+ */
+function withReadChannels(args: unknown[], channels: readonly ReadSpendChannel[]): unknown[] {
+  const usable = channels.filter(function (channel: ReadSpendChannel): boolean {
+    return typeof channel === 'string' && channel.length > 0
+  })
+  if (usable.length === 0) return args
+  const index = contextIndexOf(args)
+  if (index < 0) return args
+  const copy = args.slice()
+  copy[index] = Object.assign({}, args[index] as Record<string, unknown>, { readChannels: usable.slice() })
+  return copy
 }
 
 /**
@@ -202,7 +232,7 @@ export async function runPipelineOp(deps: PipelineDeps, op: string, args: unknow
     // 裁决自己炸了：调用方分不清「被拦」与「闸坏了」，一律按失败回（环境档：裁决这件工具不可用）。
     return pipelineFail(ERROR_KIND.ENV, '预算裁决执行失败，本次调用未发出（' + String((err as Error)?.message || err) + '）', '')
   }
-  const verdict = decision as { allowed?: unknown; kind?: string; message?: string; reason?: unknown }
+  const verdict = decision as { allowed?: unknown; kind?: string; message?: string; reason?: unknown; channels?: unknown }
   if (!verdict || verdict.allowed !== true) {
     // 推迟：房间一次都不碰，账上也不多一笔（没发生的事不记）。
     tell('pipeline.deferred', { op, reason: String(verdict?.reason || 'unknown') })
@@ -212,6 +242,9 @@ export async function runPipelineOp(deps: PipelineDeps, op: string, args: unknow
       '',
     )
   }
+  // #1765：裁决放行时可能交出一张读渠道计划（这一次允许走哪些渠道、按什么顺序）。
+  // 计划写进这一趟的上下文，房间照它选路；没交计划（写操作、名单外操作）就按原样调用。
+  const roomArgs = Array.isArray(verdict.channels) ? withReadChannels(args, verdict.channels as ReadSpendChannel[]) : args
   // #1627：裁决已经放行，这一笔真的要发出去了——先报一次「开始了」。被推迟的那笔不报：
   // 没发出去的操作没有资格出现在逐笔行里，否则窗口里「放行数」和「真的发出去的数」对不上。
   // 这根时刻也用作耗时起点：从裁决之后算起，不含排队等裁决的时间，量的是房间那一趟本身。
@@ -257,7 +290,7 @@ export async function runPipelineOp(deps: PipelineDeps, op: string, args: unknow
   let threw = false
   let thrown: unknown = null
   try {
-    result = await (room as (...a: unknown[]) => Promise<unknown>)(...args)
+    result = await (room as (...a: unknown[]) => Promise<unknown>)(...roomArgs)
   } catch (err) {
     threw = true
     thrown = err

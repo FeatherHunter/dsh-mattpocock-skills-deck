@@ -25,6 +25,12 @@ export interface MapTicketRow {
   labels?: Array<string | { name?: string | null; color?: string | null }> | null
   /** 阻塞者编号；数字与字符串两种后端形状都收。 */
   blockedBy?: Array<number | string> | null
+  /**
+   * 阻塞者引用态旁表（#1768）：宿主把 `blockedBy` 压成编号时，把编号之外的信息（标题、状态）另放这里。
+   * 阻塞者不在本图时，只看 `blockedBy` 分不出「还开着」与「已关闭」；这一格有状态才分得出，
+   * 缺席（或这一格整个没有）就是读不到，按未知收口——未知不当作可接（与 deck 安全侧同口径）。
+   */
+  blockedByRefs?: Array<{ key?: number | string | null; title?: string | null; state?: string | null }> | null
   /** 认领人（有的后端给 assignees，改从那里取第一个）。 */
   claimedBy?: string | null
   assignees?: Array<{ login?: string | null }> | null
@@ -122,7 +128,8 @@ export interface TicketCardFacts {
   cardId: string | null
   /**
    * 被挡时指向挡它的那张；只有 status==='blocked' 时才非空（与「在办优先」一致）。
-   * 取的是主阻塞者（页面上仍开着、编号最小），与 blocks 那一侧用同一判定，两侧说法不会矛盾。
+   * 取的是主阻塞者（页面上仍开着、或不在本图但引用态不明确关闭；编号最小），与 blocks 那一侧用同一判定，
+   * 两侧说法不会矛盾。#1768 起跨容器的阻塞者也可能出现在这里，它的标题取自 blockedByRefs。
    * #1401 起 PixelBlockedSeal 会把这个 title 画在封条第二行（过长单行省略），不再只显示编号。
    */
   blockedBy: CardTicketRef | null
@@ -149,6 +156,12 @@ export interface TicketFactsEnv {
 export interface TicketFactsContext extends TicketFactsEnv {
   /** 编号（规范键，补零的 '01' 已折成 '1'）→ 那张票是否还开着（'OPEN' 及任何非 'CLOSED' 都算开着）。 */
   openByNumber: Record<string, boolean>
+  /**
+   * 编号（规范键）→ 本图之外那张阻塞票明确读到的状态（#1768）：只记明确 OPEN / CLOSED 的引用。
+   * 本图内的票以 `openByNumber` 为准（那是行自己的状态）；这一格只回答「图外那张关没关」，
+   * 查不到就是未知，未知按挡着收口（与宿主两份 groupTickets、deck 安全侧同侧）。
+   */
+  blockerStates: Record<string, 'open' | 'closed'>
   titleByNumber: Record<string, string>
   cardIdByNumber: Record<string, string | null>
   /** 阻塞者编号 → 它作为主阻塞者挡住的第一张（编号最小、且确实处于被挡状态）票的编号。 */

@@ -280,7 +280,7 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
       const m = /#?(\d+)/.exec(p)
       if (m) {
         const k = String(m[1]).padStart(2, '0')
-        blockedBy.push({ key: k, title: '', state: STATE.OPEN })
+        blockedBy.push({ key: k, title: '' }) // #1676：只存 key，状态由读路径回填；读不到就是未知，不预写成 open。
       }
     }
   }

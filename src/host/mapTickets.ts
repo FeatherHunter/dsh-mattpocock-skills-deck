@@ -40,6 +40,48 @@ type WfArgs = any;
 // #1584 起只额外静态引用 tracker 层的共享补齐入口（同一把工作区→仓库身份的尺子），不引其它新文件。
 // 日志沿用既有的 host.call / host.call.fail 两个事件（不新增事件名）。
 import { resolveRepoRefForCwd } from '../tracker/session/repo-ref.js'
+
+// ── 阻塞者引用态归一（#1768）─────────────────────────────────────────────────────
+// 与 src/host/tracker/snapshotAssemble.ts 的同名逻辑同形：编号折成数字或原串，标题与状态有才带。
+// 为什么这里再写一份而不是 import：本文件是宿主电话，按约定只静态引用 tracker 层的共享补齐入口；
+// 两份都只做「对象 → {key,title,state}」的展开，门禁 tests/verify-map-first-frame.ts 会交叉核对产出。
+
+/** 引用或票号折成字符串键：数字、字符串、{key}、{number} 四种写法都认。 */
+function refKeyOf(value: any): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : ''
+  if (typeof value === 'string') return value.trim()
+  const inner = value.key !== undefined && value.key !== null ? value.key : value.number
+  return inner === undefined || inner === null ? '' : refKeyOf(inner)
+}
+
+/** 阻塞者写成客户端认的数字（数字字符串折成数字，非数字原样保留字符串）。 */
+function refNumberOf(value: any): any {
+  const key = refKeyOf(value)
+  if (!key) return null
+  return /^\d+$/.test(key) ? Number(key) : key
+}
+
+/**
+ * 把后端的阻塞引用展开成引用态旁表：`{key, title?, state?}`。
+ * 对象引用（契约 IssueRef）带标题与状态就原样带上；裸编号只剩编号，状态按未知处理。
+ * 折不岀编号的引用丢掉（与本文件 blockedBy 压编号的取舍一致）。
+ */
+function blockedByRefsOf(blockers: any[]): any[] {
+  const refs: any[] = []
+  blockers.forEach((ref: any) => {
+    const key = refKeyOf(ref)
+    if (!key) return
+    const out: any = { key: refNumberOf(ref) }
+    if (ref && typeof ref === 'object') {
+      if (ref.title != null && String(ref.title) !== '') out.title = String(ref.title)
+      if (ref.state != null && String(ref.state) !== '') out.state = String(ref.state)
+    }
+    refs.push(out)
+  })
+  return refs
+}
+
 export function createMapTickets(deps?: any): any {
   const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, DEFAULT_CWD, logCtx, groupTickets, getMapBody, detectionExec, openSession } = deps
 
@@ -89,6 +131,9 @@ export function createMapTickets(deps?: any): any {
     if (t.key != null && t.number == null) { const nn = parseInt(t.key, 10); if (!isNaN(nn)) t.number = nn }
     if (t.key != null) t.key = String(t.key)
     t.state = String(t.state || '').toUpperCase()
+    // #1768：压编号之前先把引用态收进旁表——跨容器的阻塞者不在这一批子票里，
+    // 首帧（以及取回之后）只能靠这几个字判断「那张票关没关」。编号语义不变。
+    t.blockedByRefs = blockedByRefsOf(Array.isArray(raw.blockedBy) ? raw.blockedBy : [])
     if (Array.isArray(t.blockedBy)) {
       t.blockedBy = t.blockedBy.map(function(ref?: any) {
         if (typeof ref === 'number' || typeof ref === 'string') return ref
