@@ -553,7 +553,7 @@ async function main() {
     check(css.indexOf('.dsws-sugg-intro') >= 0 && css.indexOf('.dsws-sugg-pill-wrap') >= 0 && css.indexOf('.dsws-sugg-pop') >= 0, '样式：简介、浮层定位壳、浮层的样式都在')
     check(css.indexOf('.dsws-sugg-cmd') < 0, '样式：提示词不再进按钮，旧的两段样式已删')
     check(css.indexOf('bottom:calc(100% + ' + appearanceMod.SUGGEST_APPEARANCE.popGapPx + 'px)') >= 0, '样式：浮层固定在框顶边正上方（间距来自外观旋钮，不跟鼠标）')
-    check(css.indexOf('max-width:' + appearanceMod.SUGGEST_APPEARANCE.popMaxWidthPx + 'px') >= 0, '样式：浮层最大宽度来自外观旋钮')
+    check(css.indexOf('max-width:min(' + appearanceMod.SUGGEST_APPEARANCE.popMaxWidthPx + 'px, calc(100vw - ' + (appearanceMod.SUGGEST_APPEARANCE.popViewportMarginPx * 2) + 'px))') >= 0, '样式：浮层最大宽度来自外观旋钮，同时收在视口内（窄窗口不横向溢出）')
     const popRule = (css.match(/\.dsws-sugg-pop\{[^}]*\}/) || [''])[0]
     check(popRule.indexOf('display:block') >= 0 && popRule.indexOf('display:flex') < 0, '样式：浮层按普通文字流排版（不用竖排 flex），评分才能和理由排在同一行')
     check(css.indexOf('.dsws-sugg-pop-row{display:grid') >= 0 && css.indexOf('column-gap:' + appearanceMod.SUGGEST_APPEARANCE.popLabelGapPx + 'px') >= 0, '样式：四行按两列网格排，标签与正文间距来自外观旋钮')
@@ -562,6 +562,13 @@ async function main() {
     check(css.indexOf('.dsws-sugg-score') < 0 && css.indexOf('.dsws-sugg-reason') < 0, '样式：旧分数泡与理由同行样式已删（四行取代它们）')
     check(popRule.indexOf('background:' + appearanceMod.SUGGEST_APPEARANCE.popBg) >= 0, '样式：浮层底色取自浮层专用旋钮（比选项框淡一档）')
     check(css.indexOf('body:not([data-ds-dark-theme]) .dsws-sugg-pop{background:' + appearanceMod.SUGGEST_APPEARANCE.lightPopBg) >= 0, '样式：浅色主题下浮层也另给一档更淡的底色')
+    check(popRule.indexOf('color:' + appearanceMod.SUGGEST_APPEARANCE.popText) >= 0, '样式：浮层正文用浮层自己的深色文字色（亮暗主题通用）')
+    check(css.indexOf('.dsws-sugg-pop-label{color:' + appearanceMod.SUGGEST_APPEARANCE.popLabelText) >= 0, '样式：四行标签有自己的深色文字色（不用主题次要色）')
+    check(popRule.indexOf('backdrop-filter') < 0, '样式：浮层不再做半透明磨砂（改成不透明卡片，标签对比度才稳）')
+    check(css.indexOf('--dsw-alias-label-secondary') < 0, '样式：浮层标签与关闭按钮都不再借用主题次要文字色')
+    const closeRule = (css.match(/\.dsws-sugg-close\{[^}]*\}/) || [''])[0]
+    check(closeRule.indexOf('background:' + appearanceMod.SUGGEST_APPEARANCE.closeBg) >= 0 && closeRule.indexOf('border:1px solid ' + appearanceMod.SUGGEST_APPEARANCE.closeBorder) >= 0 && closeRule.indexOf('color:' + appearanceMod.SUGGEST_APPEARANCE.closeText) >= 0, '样式：关闭按钮有空闲可见的实心底、描边与深色「×」')
+    check(css.indexOf('body:not([data-ds-dark-theme]) .dsws-sugg-close{background:' + appearanceMod.SUGGEST_APPEARANCE.lightCloseBg + ';color:' + appearanceMod.SUGGEST_APPEARANCE.lightCloseText) >= 0, '样式：浅色主题的关闭按钮换成反色芯片')
     check(css.indexOf('prefers-reduced-motion') >= 0, '样式：尊重系统减少动效偏好')
   }
 
@@ -581,8 +588,13 @@ async function main() {
     const bubbleCode = codeOnly(bubbleSrc)
     check(bubbleCode.indexOf('SUGGEST_Z') >= 0 && !/zIndex:\s*\d/.test(bubbleCode), '守卫：气泡层取具名常量，不写字面量层级')
     check(stylesSrc.indexOf('SUGGEST_APPEARANCE.pillFontPx') >= 0 && stylesSrc.indexOf('12.5') < 0, '守卫：样式尺寸来自外观旋钮，不写死数字')
+    check(stylesSrc.indexOf('SUGGEST_APPEARANCE.popText') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.popLabelText') >= 0 && stylesSrc.indexOf('--dsw-alias-label-secondary') < 0, '守卫：浮层文字用不透明卡片上的深色文字色，不再借主题次要色')
+    check(stylesSrc.indexOf('SUGGEST_APPEARANCE.closeBg') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.closeText') >= 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.lightCloseBg') >= 0, '守卫：关闭按钮的实心底与反色芯片来自外观旋钮')
+    check(stylesSrc.indexOf('SUGGEST_APPEARANCE.popBlurPx') < 0 && stylesSrc.indexOf('SUGGEST_APPEARANCE.popViewportMarginPx') >= 0, '守卫：浮层不再磨砂，宽度同时收在视口内')
     check(stylesSrc.indexOf('--dsw-alias-') >= 0, '守卫：样式颜色只用主题 token')
     check(bubbleSrc.indexOf('setInterval') < 0 && bubbleSrc.indexOf('setTimeout') < 0, '守卫：气泡薄壳不新增定时器')
+    check(bubbleSrc.indexOf('requestAnimationFrame') >= 0 && bubbleSrc.indexOf('suggestAnchorPollMs') >= 0, '守卫：气泡薄壳逐帧轮询锚点，间隔取自 MOTION（侧栏收起后重排，#1787）')
+    check(bubbleSrc.indexOf('dsws-sugg-pop-shift') >= 0 && bubbleSrc.indexOf('dsws-sugg-pop-shift-y') >= 0 && bubbleSrc.indexOf('suggestPopShiftOf') >= 0, '守卫：浮层靠自己的横向/纵向位移变量夹在视口内（窄窗口不溢出、顶边越界下推；算术取自时间线纯函数）')
     check(bubbleSrc.indexOf('dsws-sugg-intro') >= 0 && bubbleSrc.indexOf('dsws-sugg-pop') >= 0 && bubbleSrc.indexOf('dsws-sugg-pill-wrap') >= 0, '守卫：气泡薄壳只印简介，理由进正上方浮层')
     check(bubbleSrc.indexOf('dsws-sugg-cmd') < 0 && bubbleSrc.indexOf('Tip') < 0, '守卫：按钮里不再有提示词那段，也不再用跟鼠标走的悬停提示')
     check(bubbleCode.indexOf('sessions') < 0 && bubbleCode.indexOf('retain') < 0 && bubbleCode.indexOf('.binding') < 0, '守卫：气泡薄壳不碰会话服务（只读订阅在取数层）')

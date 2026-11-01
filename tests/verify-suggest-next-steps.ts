@@ -119,14 +119,14 @@ async function main() {
   check(String(promptSpec.description || '').indexOf('不编') >= 0, 'prompt 说明要求不编具体值（#1666）')
   check(String(promptSpec.description || '').indexOf('我已回答') < 0, 'prompt 说明不引用错误的已完成句式，避免把禁句带进上下文（#1666）')
   check(reasonSpec && reasonSpec.type === 'string' && String(reasonSpec.description || '').indexOf('理由（前因）') >= 0, 'reason 是「理由（前因）」格')
-  check(String(reasonSpec.description || '').indexOf('用户自己看得见') >= 0 && String(reasonSpec.description || '').indexOf('30 字以内') >= 0,
-    'reason 说明写清前因怎么写（这一轮用户自己看得见的那件事、它是现在该做的原因、30 字以内）')
+  check(String(reasonSpec.description || '').indexOf('用户自己看得见') >= 0 && String(reasonSpec.description || '').indexOf('48 字以内') >= 0,
+    'reason 说明写清前因怎么写（这一轮用户自己看得见的那件事、它是现在该做的原因、48 字以内）')
   const gainSpec = itemsSpec.items.properties && itemsSpec.items.properties.gain
   const costSpec = itemsSpec.items.properties && itemsSpec.items.properties.cost
-  check(gainSpec && gainSpec.type === 'string' && String(gainSpec.description || '').indexOf('优点') >= 0 && String(gainSpec.description || '').indexOf('30 字以内') >= 0,
-    'gain 是「优点」格：点下去马上拿到的具体东西，30 字以内')
-  check(costSpec && costSpec.type === 'string' && String(costSpec.description || '').indexOf('缺点') >= 0 && String(costSpec.description || '').indexOf('30 字以内') >= 0,
-    'cost 是「缺点」格：时间、风险或这次先搁下的事，30 字以内')
+  check(gainSpec && gainSpec.type === 'string' && String(gainSpec.description || '').indexOf('优点') >= 0 && String(gainSpec.description || '').indexOf('48 字以内') >= 0,
+    'gain 是「优点」格：点下去马上拿到的具体东西，48 字以内')
+  check(costSpec && costSpec.type === 'string' && String(costSpec.description || '').indexOf('缺点') >= 0 && String(costSpec.description || '').indexOf('48 字以内') >= 0,
+    'cost 是「缺点」格：时间、风险或这次先搁下的事，48 字以内')
   const prioritySpec = itemsSpec.items.properties && itemsSpec.items.properties.priority
   check(Array.isArray(itemsSpec.items.required) && itemsSpec.items.required.join(',') === 'intro,prompt,reason,gain,cost,priority', '每条必须同时给简介、提示词、理由、优点、缺点与推荐分六格')
   check(!!prioritySpec && prioritySpec.type === 'number', 'priority 是数字（推荐分）')
@@ -140,8 +140,8 @@ async function main() {
   check(JSON.stringify(def.parameters).indexOf('minItems') < 0 && JSON.stringify(def.parameters).indexOf('maxItems') < 0,
     '参数模式不带 minItems / maxItems（注册表子集不支持，约束由代码钳制）')
   check(tool.MIN_ITEMS === 2 && tool.MAX_ITEMS === 4, '上下限常量是 2 与 4')
-  check(tool.INTRO_MAX_WIDTH === 30 && tool.PROMPT_MAX_CHARS === 500 && tool.REASON_MAX_CHARS === 30 && tool.GAIN_MAX_CHARS === 30 && tool.COST_MAX_CHARS === 30,
-    '单项文本上限是简介 30 格宽、提示词 500 码点，理由/优点/缺点各 30 码点')
+  check(tool.INTRO_MAX_WIDTH === 30 && tool.PROMPT_MAX_CHARS === 500 && tool.REASON_MAX_CHARS === 48 && tool.GAIN_MAX_CHARS === 48 && tool.COST_MAX_CHARS === 48,
+    '单项文本上限是简介 30 格宽、提示词 500 码点，理由/优点/缺点各 48 码点（2026-11-01 由 30 放宽，#1787 浮层截断）')
   check(tool.PRIORITY_MIN === 0 && tool.PRIORITY_MAX === 10, '推荐优先级的合法区间是 0 到 10')
 
   // ── 2. 参数校验与钳制：纯函数结论（不经过回执壳，先把规矩钉死） ──
@@ -219,13 +219,14 @@ async function main() {
   const longReason = '理由'.repeat(30)
   const longGain = '优点'.repeat(30)
   const longCost = '缺点'.repeat(30)
+  // 放宽到 48 码点后，下面这几条 60 码点的文本仍然超长，用来验截断本身。
   const longIntro = '简'.repeat(30)
   const rLong = resolve({ items: [{ intro: longIntro, prompt: longPrompt, reason: longReason, gain: longGain, cost: longCost, priority: 9 }, two[1]] })
   check(rLong.accepted === true, '单项超长不报错、仍然接受')
   check(Array.from(rLong.items[0].intro).length === 16 && rLong.items[0].intro.slice(-1) === '…' && rLong.items[0].intro.slice(0, 15) === '简'.repeat(15), '超长简介保留前 15 个汉字（30 格宽）并另加省略号（#1540）')
   check(Array.from(rLong.items[0].prompt).length === 501 && rLong.items[0].prompt.slice(-1) === '…' && rLong.items[0].prompt.slice(0, 500) === '长'.repeat(500), '超长提示词保留前 500 个码点并另加省略号（#1540）')
-  check(rLong.items[0].reason === longReason.slice(0, 30) + '…' && rLong.items[0].gain === longGain.slice(0, 30) + '…' && rLong.items[0].cost === longCost.slice(0, 30) + '…',
-    '理由、优点、缺点各保留前 30 个码点并另加省略号（2026-10-31 统一上限 30）')
+  check(rLong.items[0].reason === longReason.slice(0, 48) + '…' && rLong.items[0].gain === longGain.slice(0, 48) + '…' && rLong.items[0].cost === longCost.slice(0, 48) + '…',
+    '理由、优点、缺点各保留前 48 个码点并另加省略号（2026-11-01 由 30 放宽，#1787）')
   check(rLong.counts.clipped === 1 && rLong.notes.indexOf('clipped:1') >= 0, '被截断的条数如实记下')
   const introHanExact = resolve({ items: [{ intro: '简'.repeat(15), prompt: '/a', reason: 'r', gain: 'g', cost: 'c', priority: 9 }, two[1]] })
   check(introHanExact.counts.clipped === 0 && introHanExact.items[0].intro === '简'.repeat(15), '15 个汉字的简介正好放得下、不截断')
@@ -237,7 +238,7 @@ async function main() {
   const rEmoji = resolve({ items: [{ intro: '表情', prompt: emoji, reason: '表情', gain: 'g', cost: 'c', priority: 9 }, two[1]] })
   check(rEmoji.accepted === true && Array.from(rEmoji.items[0].prompt).length === 501 && rEmoji.items[0].prompt.slice(-1) === '…' && Array.from(rEmoji.items[0].prompt.slice(0, -1)).every(function (c) { return c === '😀' }),
     '按码点截断，不切坏 emoji（代理对完整，#1540 保留前 500 个码点并另加省略号）')
-  const boundary = resolve({ items: [{ intro: '简介', prompt: 'a'.repeat(500), reason: 'b'.repeat(30), gain: 'g'.repeat(30), cost: 'c'.repeat(30), priority: 5 }, two[1]] })
+  const boundary = resolve({ items: [{ intro: '简介', prompt: 'a'.repeat(500), reason: 'b'.repeat(48), gain: 'g'.repeat(48), cost: 'c'.repeat(48), priority: 5 }, two[1]] })
   check(boundary.accepted === true && boundary.counts.clipped === 0, '正好卡在上限的文本不截断')
   const trimmed = resolve({ items: [{ intro: '  简介  ', prompt: '  /to-tickets  ', reason: '  理由  ', gain: '  优点  ', cost: '  缺点  ', priority: 9 }, two[1]] })
   check(trimmed.items[0].intro === '简介' && trimmed.items[0].prompt === '/to-tickets' && trimmed.items[0].reason === '理由' && trimmed.items[0].gain === '优点' && trimmed.items[0].cost === '缺点', '首尾空白被去掉')

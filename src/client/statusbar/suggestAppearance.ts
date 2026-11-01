@@ -41,26 +41,27 @@ export const SUGGEST_APPEARANCE = {
   /** 磨砂：选项药丸的背景模糊半径（backdrop-filter:blur），越大越看不清底字；配下面加实的底色一起用。 */
   pillBlurPx: 12,
   /** 悬停浮层：底边离选项框顶边的距离、最大宽度、圆角与内边距（#1451 后续：选项框上只留
-   *  简介，理由收进框正上方的浮层，不跟鼠标走；2026-10-31 浮层改成四行——推荐分/理由/优点/缺点，
-   *  宽度从 280 放到 340，让每行 30 个字的正文最多换两行）。 */
+   *  简介，理由收进框正上方的浮层，不跟鼠标走；2026-11-01 浮层改成四行——推荐分/理由/优点/缺点，
+   *  宽度从 280 放到 540，让每行 48 个码点的正文最多换两行，#1787 现象③）。
+   *  popViewportMarginPx 是浮层离视口左右边的最小距离：窄窗口时宽度按视口收，不横向溢出。 */
   popGapPx: 6,
-  popMaxWidthPx: 340,
+  popMaxWidthPx: 540,
+  popViewportMarginPx: 16,
   popRadiusPx: 8,
   popPadY: 6,
   popPadX: 10,
-  /** 悬停浮层的背景模糊半径（与药丸同一套磨砂）。 */
-  popBlurPx: 10,
   /** 浮层四行的行距，以及左边标签列与右边正文之间的间距。 */
   popRowGapPx: 2,
   popLabelGapPx: 6,
   /** 选项行与关闭按钮行之间的间距。 */
   groupGapPx: 7,
   closeRowMarginTopPx: 10,
-  /** 关闭按钮：字号、内边距、空闲时的不透明度（悬停升到 1）。 */
+  /** 关闭按钮：字号、内边距、空闲时的不透明度（#1787 现象⑥：以前空闲 0.6 且没有底，
+   *  看起来几乎不存在；现在空闲就是 1，靠下面的芯片底色与描边保证看得见）。 */
   closeFontPx: 13,
   closePadY: 2,
   closePadX: 10,
-  closeIdleOpacity: 0.6,
+  closeIdleOpacity: 1,
 
   // —— 小泡的尺寸、比例与曲线（#1397 定稿原型 C 版，经 #1451 按「出场面要看清、整体约 2 秒」重定）——
   //   出发延迟、飞行时长、清尾与淡出这些毫秒数不在这里：见 kernel/motion.ts 的 MOTION.suggest*（#1236）。
@@ -113,9 +114,12 @@ export const SUGGEST_APPEARANCE = {
   pillHoverShadow: '0 1px 14px rgba(150,190,255,.14)',
   pillShadow: 'inset 0 1px 0 rgba(255,255,255,.24),0 1px 10px rgba(140,180,255,.06)',
   pillTextShadow: '0 1px 1px rgba(0,0,0,.3)',
-  /** #1451 后续：悬停浮层的底色要比选项框再淡一档（更白、更透）。
-   *  浮层与选项框只隔几个像素，两层玻璃若用同一个底色会糊成一整块，看不出哪层是提示。 */
-  popBg: 'linear-gradient(180deg,rgba(216,234,254,.56),rgba(211,230,251,.50) 46%,rgba(201,221,246,.46))',
+  /** #1787 现象②：浮层改成足够不透明的浅色卡片，文字用一对固定深色——半透明玻璃底会让
+   *  四行的灰色标签在深色主题下只剩 1.36~1.48:1（WCAG 正文要 4.5:1）。做成不透明卡片后，
+   *  浮层内文字对比度与宿主主题无关，深浅两个主题共用同一对文字色。 */
+  popBg: 'linear-gradient(180deg,rgba(242,246,252,.97),rgba(236,242,250,.97) 46%,rgba(230,238,248,.97))',
+  popText: '#1f2328',
+  popLabelText: '#3d4a5c',
   bubbleBg: 'radial-gradient(circle at 34% 28%,rgba(255,255,255,.55),rgba(186,210,242,.22) 52%,rgba(150,180,220,.07) 78%)',
   bubbleBorder: 'rgba(200,220,250,.35)',
   bubbleGlow: '0 0 6px rgba(150,190,255,.25)',
@@ -124,8 +128,19 @@ export const SUGGEST_APPEARANCE = {
   lightPillHoverBorder: 'rgba(96,130,180,.5)',
   lightPillHoverShadow: '0 1px 14px rgba(90,130,190,.18)',
   lightPillShadow: 'inset 0 1px 0 rgba(255,255,255,.8),0 1px 8px rgba(90,120,160,.12)',
-  /** #1451 后续：浅色主题下浮层也要比选项框淡一档（更白、更浅），不能直接复用 lightPillBg。 */
+  /** #1451 后续：浅色主题下浮层要比选项框淡一档（更白、更浅），不能直接复用 lightPillBg；
+   *  #1787 起它与深色主题共用同一个深色文字 popText/popLabelText，所以底色保持近白不透明。 */
   lightPopBg: 'linear-gradient(180deg,rgba(255,255,255,.97),rgba(254,255,255,.95) 46%,rgba(252,254,255,.93))',
+  /** #1787 现象⑥：关闭按钮改成实心芯片——深色主题用浅芯片配深「×」，悬停再亮一点。 */
+  closeBg: 'rgba(226,234,244,.95)',
+  closeBorder: 'rgba(255,255,255,.55)',
+  closeText: '#1f2328',
+  closeHoverBg: 'rgba(255,255,255,.98)',
+  /** 亮色主题反过来：深芯片配浅「×」，芯片本身对白底也要有 3:1 以上。 */
+  lightCloseBg: 'rgba(45,53,66,.92)',
+  lightCloseBorder: 'rgba(45,53,66,.92)',
+  lightCloseText: '#f4f7fb',
+  lightCloseHoverBg: 'rgba(31,41,55,.97)',
   lightBubbleBg: 'radial-gradient(circle at 34% 28%,rgba(160,190,230,.5),rgba(180,205,240,.25) 52%,rgba(200,220,245,.1) 78%)',
   lightBubbleBorder: 'rgba(120,150,190,.25)',
   lightBubbleGlow: '0 0 6px rgba(120,160,220,.18)',

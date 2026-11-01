@@ -22,11 +22,12 @@ export const SUGGEST_MAX_ITEMS = 4
  *  英文每个字母算 1 格，所以最多 30 个字符。必须与工具侧一致。 */
 export const SUGGEST_INTRO_MAX_WIDTH = 30
 /** 提示词与三格理由文本都按 Unicode 码点数算，避免把 emoji 之类的代理对切坏；理由、优点、缺点
- *  各限 30 个字。必须与工具侧一致。 */
+ *  各限 48 个字（2026-11-01 由 30 放宽，让悬停浮层里的典型理由完整显示、不再被省略号截断，#1787
+ *  现象③）。必须与工具侧一致。 */
 export const SUGGEST_PROMPT_MAX_CHARS = 500
-export const SUGGEST_REASON_MAX_CHARS = 30
-export const SUGGEST_GAIN_MAX_CHARS = 30
-export const SUGGEST_COST_MAX_CHARS = 30
+export const SUGGEST_REASON_MAX_CHARS = 48
+export const SUGGEST_GAIN_MAX_CHARS = 48
+export const SUGGEST_COST_MAX_CHARS = 48
 export const SUGGEST_PRIORITY_MIN = 0
 export const SUGGEST_PRIORITY_MAX = 10
 

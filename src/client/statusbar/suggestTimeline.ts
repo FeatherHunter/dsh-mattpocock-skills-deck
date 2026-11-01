@@ -12,6 +12,39 @@
 declare const SUGGEST_APPEARANCE: any;
 declare const MOTION: any; // #1236 动效时长统一在 kernel/motion.ts，本文件只引用不写真值
 
+/** 取当前时间（毫秒）：优先 performance.now（与 requestAnimationFrame 的时间戳同一时间源），
+ *  没有就用 Date.now。浏览器端的执行者与组件共用这一份，避免两处各抄一遍（#1787 两轴审查）。 */
+export const suggestNowMs = function () {
+  try {
+    if (typeof performance !== 'undefined' && performance && typeof performance.now === 'function') return performance.now()
+  } catch (ePerf) {}
+  return Date.now()
+}
+
+/**
+ * 浮层要平移多少才留在视口内：rect 是浮层自己的屏幕矩形，viewWidth/viewHeight 是视口尺寸，
+ * margin 是要求留出的最小边距。返回 { x, y }（整数像素，0 表示不用动）。
+ * 横向：右溢出往左推、左溢出往右推；纵向只处理「顶边越过视口上边距」——浮层挂在按钮上方，
+ * 底边不会越界（挂法见 suggestStyles 的 .dsws-sugg-pop）。调用方在显示前、以及锚点被窗口或
+ * 侧栏挪动后再各调一次，量的都是当前时刻的矩形；传进来的矩形是「已经按基准位置摆好」的那个。
+ * 视口宽度量不到（0）时返回全 0，由调用方按原位置显示，不做无根据的猜测。
+ */
+export const suggestPopShiftOf = function (rect: any, viewWidth: any, viewHeight: any, margin: any) {
+  const left = Number(rect && rect.left) || 0
+  const right = Number(rect && rect.right) || 0
+  const top = Number(rect && rect.top) || 0
+  const width = Math.max(0, Number(viewWidth) || 0)
+  const height = Math.max(0, Number(viewHeight) || 0)
+  const gap = Math.max(0, Number(margin) || 0)
+  if (!width) return { x: 0, y: 0 }
+  let x = 0
+  if (right > width - gap) x = (width - gap) - right
+  else if (left < gap) x = gap - left
+  let y = 0
+  if (height && top < gap) y = gap - top
+  return { x: Math.round(x), y: Math.round(y) }
+}
+
 /** 把数字夹在区间里；不是有限数就退回下限。 */
 function suggestClampNumber(value: any, min: number, max: number) {
   const n = Number(value)

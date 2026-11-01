@@ -44,11 +44,12 @@ export const PRIORITY_MAX = 10
  *  英文每个字母算 1 格，所以最多 30 个字符。 */
 export const INTRO_MAX_WIDTH = 30
 /** 提示词与三格理由文本都按 Unicode 码点数算，避免把 emoji 之类的代理对切坏；理由、优点、缺点
- *  各限 30 个字，悬停浮层里每格最多两行，再多就挤成一团（维护者 2026-10-31 定为统一上限 30）。 */
+ *  各限 48 个字（2026-11-01 由 30 放宽，#1787 现象③：悬停浮层改成 540 像素宽的不透明卡片后，
+ *  48 个汉字最多两行放得下，典型理由不再被省略号截断）。 */
 export const PROMPT_MAX_CHARS = 500
-export const REASON_MAX_CHARS = 30
-export const GAIN_MAX_CHARS = 30
-export const COST_MAX_CHARS = 30
+export const REASON_MAX_CHARS = 48
+export const GAIN_MAX_CHARS = 48
+export const COST_MAX_CHARS = 48
 
 /** 工具定义：名字、一句话介绍、参数模式。参数形状是本票冻结的契约，界面票照它读。
  *  行为规则为什么写在说明里（#1412 反向后）：模型侧规则必须住在模型真能看到的地方。原先这节规则被
@@ -73,9 +74,9 @@ export const definition = {
           properties: {
             intro: { type: 'string', description: '一句话说清这一步做什么，15 个字以内；英文按显示宽度折算，最多 30 个字符。' },
             prompt: { type: 'string', description: '用用户的口气写用户下一轮会原样发出的话，只写现在就能确定的事，写清具体对象（文件、结论等），不写「继续推进」这类空话。还需要用户补充才能说全的话，只写前半句并留出待填位置（例如以冒号结尾，或用【在此填写…】标出要填的地方），还没发生的事留给用户填；实在写不清就换一条，不编具体值。' },
-            reason: { type: 'string', description: '理由（前因）：这一轮里刚发生、用户自己看得见的那件事——刚做完什么、刚发现什么、还差什么；它就是这条现在该做的原因。一句 30 字以内。' },
-            gain: { type: 'string', description: '优点：点下去马上拿到的东西，写到具体对象上——哪个文件改完、哪张票能关、哪个卡点解开；一句 30 字以内。' },
-            cost: { type: 'string', description: '缺点：走这一步要付出的东西——要多花的时间、要多担的风险、这次先搁下的事；一句 30 字以内。' },
+            reason: { type: 'string', description: '理由（前因）：这一轮里刚发生、用户自己看得见的那件事——刚做完什么、刚发现什么、还差什么；它就是这条现在该做的原因。一句 48 字以内。' },
+            gain: { type: 'string', description: '优点：点下去马上拿到的东西，写到具体对象上——哪个文件改完、哪张票能关、哪个卡点解开；一句 48 字以内。' },
+            cost: { type: 'string', description: '缺点：走这一步要付出的东西——要多花的时间、要多担的风险、这次先搁下的事；一句 48 字以内。' },
             priority: { type: 'number', description: '推荐分：0 到 10，只给这几条排先后。假设只能点一条，你会点的那条给 10，其次 8 左右，可缓的给 5 以下。' },
           },
           required: ['intro', 'prompt', 'reason', 'gain', 'cost', 'priority'],
