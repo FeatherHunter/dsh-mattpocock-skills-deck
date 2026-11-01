@@ -86,6 +86,34 @@
       ],
       "lastActive": "2026-10-19T05:35:24Z"
     },
+    "15326325141": {
+      "issues": [
+        {
+          "n": 1791,
+          "at": "2026-11-01T09:22:06Z"
+        },
+        {
+          "n": 1790,
+          "at": "2026-11-01T09:21:47Z"
+        },
+        {
+          "n": 1789,
+          "at": "2026-11-01T09:21:35Z"
+        },
+        {
+          "n": 1788,
+          "at": "2026-11-01T09:21:07Z"
+        },
+        {
+          "n": 1786,
+          "at": "2026-11-01T09:20:16Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-11-01T09:22:06Z"
+    },
     "9agj": {
       "comments": [],
       "discussions": [],
@@ -113,10 +141,15 @@
           "at": "2026-10-25T04:48:16Z"
         }
       ],
-      "prs": [],
+      "prs": [
+        {
+          "n": 1771,
+          "at": "2026-10-31T13:38:58Z"
+        }
+      ],
       "discussions": [],
       "comments": [],
-      "lastActive": "2026-10-25T04:48:16Z"
+      "lastActive": "2026-10-31T13:38:58Z"
     },
     "Ba7nice": {
       "issues": [
@@ -129,6 +162,18 @@
       "discussions": [],
       "comments": [],
       "lastActive": "2026-10-31T06:08:00Z"
+    },
+    "Creativeguys037": {
+      "issues": [],
+      "prs": [],
+      "discussions": [
+        {
+          "n": 1781,
+          "at": "2026-11-01T03:28:36Z"
+        }
+      ],
+      "comments": [],
+      "lastActive": "2026-11-01T03:28:36Z"
     },
     "CypressStar": {
       "issues": [
@@ -376,6 +421,18 @@
       "lastActive": "2026-10-08T02:00:51Z",
       "prs": []
     },
+    "clipsheep6": {
+      "issues": [
+        {
+          "n": 1767,
+          "at": "2026-10-31T10:53:05Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-10-31T10:53:05Z"
+    },
     "danyanp": {
       "issues": [
         {
@@ -467,6 +524,18 @@
       ],
       "lastActive": "2026-10-08T05:42:54Z",
       "prs": []
+    },
+    "jimorsm": {
+      "issues": [
+        {
+          "n": 1779,
+          "at": "2026-11-01T01:46:59Z"
+        }
+      ],
+      "prs": [],
+      "discussions": [],
+      "comments": [],
+      "lastActive": "2026-11-01T01:46:59Z"
     },
     "li873582595": {
       "comments": [],
@@ -738,7 +807,7 @@
     }
   },
   "cursors": {
-    "discussions": 1578,
-    "issues": 1763
+    "discussions": 1781,
+    "issues": 1793
   }
 }
