@@ -230,6 +230,23 @@ async function main() {
   check((rerun.r.notes || []).some((n: string) => n.indexOf('上次已经建好了') >= 0), '重跑备注说明地图上次已经建好')
   check((rerun.r.notes || []).some((n: string) => n.indexOf('建后读回核对通过') >= 0), '重跑也逐张核对了一遍')
 
+  // ── 三b、#1799：partial 的第二种形状（只是这一片没做完，没有任何失败项）──
+  // 一次最多建 60 张子票；给 61 张时这一片会留下 1 张到 restKeys。此时 status 是 partial，
+  // 但没有「失败原因」可说 —— reason 必须留空，续法写在 text 与 data.restKeys 里，不许编一个失败码。
+  console.log('— 三b、#1799：只是没做完的 partial，reason 留空、续法写在 text')
+  {
+    const many = Array.from({ length: 61 }, (_, i) => ({ key: 'r' + (i + 1), title: '分片票 ' + (i + 1), kind: 'issue' }))
+    const shardRun = await run('deck_map_plan_create', { planId: 'plan-1413-rest', title: '分片演示地图', effort: 'rest-1413', children: many })
+    const shard = (shardRun.r || {}) as any
+    check(!shardRun.threw && shard.status === 'partial' && shard.reason === '',
+      '#1799 partial（只是没做完）：status=partial、reason 留空（实得 ' + (shardRun.threw || (shard.status + '/' + JSON.stringify(shard.reason))) + '）')
+    const rest = Array.isArray(shard.data && shard.data.restKeys) ? shard.data.restKeys : []
+    check(rest.length >= 1 && String(shard.text || '').indexOf('带同一个 planId') >= 0,
+      '#1799 partial（只是没做完）：data.restKeys 与 text 的续法都写明（restKeys=' + JSON.stringify(rest.slice(0, 3)) + '，text=' + String(shard.text || '').slice(0, 160) + '）')
+    const failures = (Array.isArray(shard.items) ? shard.items : []).filter((i: any) => i && i.status !== 'ok')
+    check(failures.length === 0, '#1799 partial（只是没做完）：items 里没有失败项（实得 ' + JSON.stringify(failures).slice(0, 300) + '）')
+  }
+
   // ── 四、拒绝例：全部在碰后端之前挡下 ──
   console.log('— 四、拒绝例：缺 kind、旧值、在地图骨架里要 map/spec、label 误用与非法值')
   const filesBefore = countFiles()

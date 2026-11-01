@@ -10,7 +10,7 @@
 import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import type { OpContext } from '../../../contract/contexts.js';
 import type { Comment, RepositoryRef } from '../../../contract/entities.js';
-import type { OpResult, TrackerError } from '../../../contract/results.js';
+import { TRACKER_ERROR_STAGE, type OpResult, type TrackerError } from '../../../contract/results.js';
 import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
@@ -37,8 +37,8 @@ async function addCommentInner(repo: RepositoryRef, key: string, body: string, c
     // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `comment: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'comment: key required', key)
-    if (typeof body !== 'string' || !body.trim()) return fail(ERROR_KIND.PARSE, 'comment: body required', body)
+    if (!k) return fail(ERROR_KIND.PARSE, 'comment: key required', key, TRACKER_ERROR_STAGE.INPUT_REFUSED)
+    if (typeof body !== 'string' || !body.trim()) return fail(ERROR_KIND.PARSE, 'comment: body required', body, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     const c = ghClient(ctx)
     // 优先 REST：gh api POST repos/.../issues/<n>/comments -f body
     const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${k}/comments`, '--method', 'POST', '-f', `body=${body}`, '--jq', '.']

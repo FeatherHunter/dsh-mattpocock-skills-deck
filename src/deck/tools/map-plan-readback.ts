@@ -16,6 +16,7 @@ import { MAP_BLOCK_TITLES } from '../shell/minimal-spec.js'
 import { labelsToEnsure, isTypeLabel } from '../rules/object-kind.js'
 import type { CreateKindResolution } from '../rules/object-kind.js'
 import { stripProgressSections } from '../../shared/issue-file/src/progress.js'
+import { failureFields } from '../shell/edge-landing.js'
 import type { DeckTrackerLike } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 
 /** 建后读回核对的入参：全是调用方手上已经有的东西，这里不再取一次会话、不再选一次后端。 */
@@ -138,11 +139,30 @@ export async function readbackMapPlan(args: MapPlanReadbackArgs): Promise<MapPla
   }
   if (problems.length) {
     notes.push('建后读回核对有 ' + problems.length + ' 处没对上：' + problems.slice(0, 4).join('；') + (problems.length > 4 ? '；…' : '') + '。以盘上为准，别按计划数字往下走。')
-    for (const one of problems.slice(0, 8)) items.push({ key: '', role: 'verify', status: 'failed', reason: one })
+    // #1799：读回核对没对上也是失败项，要带映射码（本地来源 verify → 这条路走不通，以盘上为准），
+    // 否则顶层 reason 只能瞎猜一个默认值。
+    const ev = failureFields(null, 'write', 'verify')
+    for (const one of problems.slice(0, 8)) items.push(Object.assign({ key: '', role: 'verify', status: 'failed', reason: one }, ev))
   } else if (mapRow && liveRows) {
     notes.push('建后读回核对通过：地图五节与 ## 进度齐；' + Object.keys(keys).length + ' 张子票的父票、类型标签、## 进度' + (checkedTypeLine ? '与 Type 行' : '') + '都对。')
   } else {
     notes.push('建后读回核对：地图读回来了，但子票没按父票列出来（' + String(args.pickedNote || '后端没给出原因') + '），这次没核对子票。')
   }
   return { notes: notes, items: items }
+}
+
+/**
+ * 从失败项里挑一条最该先说的（与顶层 reason 同码的那条），返回拼在回执 text 后面的那句。
+ * 多失败时 reason 按「安全优先」选，这里保证 text 说同一处，不让人看到两个不同的下一步；
+ * 没有失败项、或 reason 是空串（只是没做完的 partial）时回空串。
+ */
+export function leadFailureText(items: ArrayLike<Record<string, unknown>>, reason: string): string {
+  const failed: Array<Record<string, unknown>> = []
+  for (let i = 0; i < items.length; i += 1) {
+    const one = items[i]
+    if (one && one.status !== 'ok') failed.push(one)
+  }
+  if (!failed.length || !reason) return ''
+  const lead = failed.find((one) => one.code === reason) || failed[0]
+  return ' 最该先说的是「' + String(lead.step || lead.role || '') + '」：' + String(lead.reason || '后端没给出原因').slice(0, 160)
 }

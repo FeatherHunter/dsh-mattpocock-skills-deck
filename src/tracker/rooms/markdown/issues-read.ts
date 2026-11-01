@@ -8,6 +8,7 @@ import { readTextFile, listDir, statFile, exists } from './read.js'
 import { mdPath, issuesDir } from './path.js'
 import { failAs, failFromError, kindFromError, rawFromError, rawTextOf } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import { TRACKER_ERROR_STAGE } from '../../contract/results.js'
 import { idOfParts } from '../../kernel/identity-keys.js'
 import { getPlat, getScratchRoot, listWorkUnits, listTicketFiles, ticketKey, workUnitKindOf, loadIssueFromFile, resolveIssueFile, resolveMapFile, resolveSpecFile, scopeOf } from './issues-locate.js'
 import type { WorkUnit } from './issues-locate.js'
@@ -376,7 +377,8 @@ export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, 
     emitReadDegraded(ctx,'get', k===ERROR_KIND.NOTFOUND?'get:notfound':'get:fs-fail', Date.now()-t0)
   }
   // 原文给空串：这条支路一个文件都没碰过，没有外部来源的原文可取。
-  if(!key){emitReadDegraded(ctx,'get','get:no-key',Date.now()-t0);return failAs(ERROR_KIND.NOTFOUND,'missing key','')}
+  // 调用方没给编号：这是参数缺项（不是「这张票不存在」），标成输入被拒，回执才会指向「改输入」。
+  if(!key){emitReadDegraded(ctx,'get','get:no-key',Date.now()-t0);return failAs(ERROR_KIND.NOTFOUND,'missing key','',TRACKER_ERROR_STAGE.INPUT_REFUSED)}
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   const scope=scopeOf(repo, opts)

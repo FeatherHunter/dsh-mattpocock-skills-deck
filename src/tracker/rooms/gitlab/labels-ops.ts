@@ -75,7 +75,7 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { LabelColor, LabelColorChange, RepositoryRef } from '../../contract/entities.js'
 import type { ErrorKind } from '../../contract/identity.js'
-import type { OpResult, TrackerError, LabelColorBatchResult } from '../../contract/results.js'
+import { type OpResult, type TrackerError, type LabelColorBatchResult } from '../../contract/results.js'
 import { normalizeColor } from '../../../shared/label-color/src/colors.js'
 import { fail } from '../../kernel/preflight.js'
 import { execGlab } from './client.js'
@@ -428,6 +428,7 @@ export async function setLabelColors(repo: RepositoryRef, changes: LabelColorCha
   try {
     const bad = changesProblem(changes)
     // 入参不合格时手里还没有任何外部原文，原文就交那份不合格的改动清单本身。
+    // 改动清单形状不合契约：在写任何东西之前拒绝，改入参才能继续，标输入被拒。
     if (bad) return fail(ERROR_KIND.PARSE, bad, changes)
     const refId = repoRefOf(repo)
     if (!refId) {

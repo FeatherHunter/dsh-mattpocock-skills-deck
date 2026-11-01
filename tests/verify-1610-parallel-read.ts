@@ -294,7 +294,9 @@ async function main() {
     const g = await w.run('deck_issue_get', { key: key })
     const r: any = g.r
     const a = got(r)
-    check(!g.threw && !!r && r.status === 'unsupported' && r.reason === 'backend-unsupported', '读票诚实失败仍走 backend-unsupported（实得 ' + label(r, g.threw) + '）')
+    // #1799：票不存在时下一步是「改票号再读」，所以 reason 是 bad-args，不再是 backend-unsupported。
+    check(!g.threw && !!r && r.status === 'unsupported' && r.reason === 'bad-args', '读票诚实失败：票不存在按 bad-args（实得 ' + label(r, g.threw) + '）')
+    check(!!r && !!r.data && !!r.data.error && r.data.error.code === 'bad-args' && r.data.error.kind === 'not-found', '失败证据保留后端原档位：error.kind=not-found、error.code=bad-args（实得 ' + JSON.stringify(r && r.data && r.data.error) + '）')
     check(probe.peak() === 2, '读票失败时依赖查询也已经在途（峰值 ' + probe.peak() + '）')
     check(a.requests === 2 && a.points === 6, '读票失败的回执照实际发出数报 2 条 6 点（实得 ' + JSON.stringify({ requests: a.requests, points: a.points }) + '）')
   }

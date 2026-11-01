@@ -21,7 +21,7 @@ import { STATE, ERROR_KIND } from '../../../contract/vocabulary.js'
 import type { OpContext } from '../../../contract/contexts.js';
 import type { Issue, RepositoryRef } from '../../../contract/entities.js';
 import type { GetOpts, ListFilter } from '../../../contract/inputs.js';
-import type { IssueDetailResult, IssueListResult, OpResult } from '../../../contract/results.js';
+import { TRACKER_ERROR_STAGE, type IssueDetailResult, type IssueListResult, type OpResult } from '../../../contract/results.js';
 import { fail } from '../../../kernel/preflight.js'
 import { emitReadDegraded } from '../support/read-log.js'
 import { ghClient } from '../transport/client.js'
@@ -328,10 +328,10 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
       return fail(ERROR_KIND.NOTFOUND, `get: repo.refId missing: ${repoId(repo)}`, repo)
     }
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'get: key required (string)', key)
+    if (!k) return fail(ERROR_KIND.PARSE, 'get: key required (string)', key, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     const num = Number(k)
     // 说「这个编号不是数字」的原文就是调用方传进来的那个值本身（原样交出去，别只放进话里）。
-    if (!Number.isFinite(num)) return fail(ERROR_KIND.PARSE, `get: key must be numeric for github: ${k}`, String(k))
+    if (!Number.isFinite(num)) return fail(ERROR_KIND.PARSE, `get: key must be numeric for github: ${k}`, String(k), TRACKER_ERROR_STAGE.INPUT_REFUSED)
     const c = ghClient(ctx)
     const t0 = Date.now()
     // 这一趟要多少条评论（#1444 评论「加载更多」）：没带 comments.first 就沿用旧路（GET_QUERY，评论 first:50），

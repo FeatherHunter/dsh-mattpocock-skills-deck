@@ -27,7 +27,7 @@
 | `deck_map_snapshot` | `key` | `frontierOnly`（布尔，只回可接的子票；缺省回全部）· `detail`（枚举 `full` / `thin`，缺省 `full`；`thin` 只回薄行，统计与进度表照算）· `effort` · `feature` |
 | `deck_issue_list` | 无 | `state`（枚举 `open` / `closed` / `all`，缺省 `open`）· `type`（枚举 `issue` / `map` / `all`，缺省 `all`）· `labels`（字符串数组，必须同时带上，AND）· `assignee` · `query`（标题与正文的子串）· `limit`（数字，缺省 50，钳在 1–200）· `effort` · `feature` |
 | `deck_issue_create` | `title`、`kind` | `body`（缺省按种类补最小骨架）· `kind`（必填，枚举 `map` / `map-ticket` / `spec` / `spec-ticket` / `bug` / `issue`；map 与 spec 是顶层容器，其余位置各有父票规则）· `label`（枚举 `wayfinder:research` / `wayfinder:prototype` / `wayfinder:grilling` / `wayfinder:task`；只在 kind=map-ticket 时必填，其他 kind 传了直接拒绝）· `parentKey` · `labels`（除 issue 外不许再放类型标签）· `assignees` · `idempotencyKey` · `effort` · `feature` |
-| `deck_map_plan_create` | `title`、`children` | `body`（缺省自动补五个区块）· `planId`（同一个值重跑就接着上次没做完的继续；想建第二张内容相同的计划时传一个不同的值，否则按重试复用旧票；它会原样当幂等键写进票面，字符集由后端定——只能用字母、数字、点、下划线、连字符、冒号与斜杠，写中文会被后端挡下并回 `backend-unsupported`）· `labels` · `edges`（每项必填 `from`、`to`；`type` 枚举 `blocked-by` / `parent`，省略按 `blocked-by`。**`from` 是这条边写进哪张票（写的是它的字段），`to` 是这条边指向的另一张票**：阻塞边是 `from` 的 Blocked by 里加上 `to`（即 `from` 被 `to` 阻塞），父子边是 `from` 的父票为 `to`；`@map` 指本次计划建的地图票，`from` 与 `to` 都可以写，父子边的常规写法是 `to` 写 `@map`；`type` 写成不认识的值整批拒写、回 `bad-args`、一张票都不动（#1421））· `effort` · `feature`；`children` 每项必填 `key`、`title`、`kind`（枚举 `map-ticket` / `bug` / `issue`），可选 `body`、`label`（kind=map-ticket 时必填，四选一）、`labels`、`assignees` |
+| `deck_map_plan_create` | `title`、`children` | `body`（缺省自动补五个区块）· `planId`（同一个值重跑就接着上次没做完的继续；想建第二张内容相同的计划时传一个不同的值，否则按重试复用旧票；它会原样当幂等键写进票面，字符集由后端定——只能用字母、数字、点、下划线、连字符、冒号与斜杠，写中文会被后端挡下并回 `bad-args`——输入不合规，改掉再重试，不是后端不支持）· `labels` · `edges`（每项必填 `from`、`to`；`type` 枚举 `blocked-by` / `parent`，省略按 `blocked-by`。**`from` 是这条边写进哪张票（写的是它的字段），`to` 是这条边指向的另一张票**：阻塞边是 `from` 的 Blocked by 里加上 `to`（即 `from` 被 `to` 阻塞），父子边是 `from` 的父票为 `to`；`@map` 指本次计划建的地图票，`from` 与 `to` 都可以写，父子边的常规写法是 `to` 写 `@map`；`type` 写成不认识的值整批拒写、回 `bad-args`、一张票都不动（#1421））· `effort` · `feature`；`children` 每项必填 `key`、`title`、`kind`（枚举 `map-ticket` / `bug` / `issue`），可选 `body`、`label`（kind=map-ticket 时必填，四选一）、`labels`、`assignees` |
 | `deck_map_link` | 无 | `key` 与 `edges` 二选一，两个都不给回 `bad-args`。`key`：要改的那张子票 · `parentKey`：要挂到的父票 · `blockedBy`：这张票被哪些票阻塞（**整批替换**，给空数组就是清空）· `edges`（一次改多张票，每项必填 `key`，其余同左）· `effort` · `feature` |
 | `deck_issue_patch` | `key` | `comment` · `addLabels` · `removeLabels` · `assignees`（整批替换，给空数组就是取掉认领）· `title` · `body` · `progress`（只改「## 进度」那一段）· `close`（布尔，`true` 关闭、`false` 重新打开）· `closeReason`（字符串，和 `close:true` 一起用：地图子票写进 Answer 段并在地图补指针；实施票追加成评论；旧布局写 Close reason 行；容器忽略；单独带它不关票）· `effort` · `feature` |
 | `deck_issue_report` | `key` | `note`（一句备注，只回显、不进调用链）· `effort` · `feature` · `release`（布尔，传 `true` 尝试撤销本会话对这个 ISSUE 的一条误报工作条目：只在从没实际处理过这张票时删得掉，建过、改过、关过、建过计划或挂过边的票不能释放、路径保留；票本身的状态与认领人不动） |
@@ -57,11 +57,12 @@
 
 `tool` · `status` · `ok` · `reason` · `text` · `workspace` · `backend` · `repo` · `cost` · `data` · `items` · `notes` · `readBack` · `touched`
 
-- `status`：三态之一，`ok`（做成了）/ `partial`（一批里有的成、有的没成，逐项列在 `items` 里）/ `unsupported`（没做成，原因写在 `reason` 里）。**没有第四种状态**：被闸挡下、没后端、后端抛错，都是 `unsupported` 加一个原因码。
+- `status`：三态之一，`ok`（做成了）/ `partial`（没全做完，逐项列在 `items` 里）/ `unsupported`（没做成，原因写在 `reason` 里）。`partial` 有两种形状：有失败项时，`reason` 取这些失败项里最该先告诉人的那个码（安全优先 `backend-timeout` > `bad-args` > `backend-unsupported` > `ai-tool-refused` > `gate-defer` > `backend-threw`，未必是执行顺序里的第一处，`text` 指向同一条失败）；没有失败项但没做完（时间预算用尽、还有子票没建、列表没取全）时允许空 `reason`，由 `text` 与 `notes` 说清还剩什么、怎么接着做。**没有第四种状态**：被闸挡下、没后端、后端抛错，都是 `unsupported` 加一个原因码。
 - `ok`：就是「`status` 是不是 `ok`」，跟着三态走。
-- `reason`：成功时是空串；失败时取下面七个码之一。
-  `no-session-context`（会话取不到工作区）· `ai-tool-refused`（超了单次硬顶，或花完这一笔会跌破服务端剩余 5% 保底；每小时顶只是回执提醒，不算拒绝，见 #1527）· `no-backend`（这个工作区没有定下后端）· `gate-defer`（被闸推迟）· `backend-threw`（后端实现抛错，已被拦下）· `backend-unsupported`（后端说做不到 / 这张票读不回来）· `bad-args`（参数不对，请按参数说明重调）
-- `text`：给人看的一句话。`data` / `items` / `notes` / `readBack` / `touched`：工具自己的数据、逐项明细、我替你做了什么、写后读回、这次动到的票。缺就是 `null` 或空数组，不省略这一格。
+- `reason`：成功时是空串；没做成时取下面八个码之一（`partial` 里没有失败项、只是没做完的那一种可以留空，见上一条 `status`）。这些码回答的是「拿到回执的人下一步做什么」，不是「这个错误叫什么」——同一个错误在读写两个方向上，下一步可能相反。
+  `no-session-context`（会话取不到工作区）· `ai-tool-refused`（超了单次硬顶，或花完这一笔会跌破服务端剩余 5% 保底；工具面上的规矩不允许也归这一档；每小时顶只是回执提醒，不算拒绝，见 #1527）· `no-backend`（这个工作区没有定下后端）· `gate-defer`（被闸推迟）· `backend-threw`（后端实现抛错，已被拦下；读的时候网络断、中止、冲突也归这一档，重试一次即可）· `backend-timeout`（没等到回执，或写操作的 network / parse / timeout：写请求可能已经生效，先读回确认，不要直接重试）· `backend-unsupported`（环境或权限不够，或后端说做不到）· `bad-args`（票不存在、参数不合规，或房间在动手前拒绝输入——`stage=input-refused`；请按参数说明改输入再调）
+- `text`：给人看的一句话。`data` / `items` / `notes` / `readBack` / `touched`：工具自己的数据、逐项明细、我替你做了什么、写后读回、这次动到的票。缺就是 `null` 或空数组，不省略这一格。`items` 里的失败项与边落点项都带 `code`（给下一步用的原因码）；失败来自后端时另带 `errorKind` 与 `stage`，保留后端的原始错误分类与失败阶段，排查时看与顶层 `reason` 同码的那一项就够（多失败时顶层取的是最该先告诉人的那个，未必是执行顺序第一处）；deck 本地这一环的失败（锁、额度、读回核对、参数）没有后两格，改为带 `local`（本地失败来源：`budget` / `lock` / `stale` / `unconfirmed` / `input` / `surface` / `verify`）。
+- 读写两个方向查的不是同一张映射表，映射只有一处实现（`src/deck/shell/receipt-reason.ts`，见 #1799）：写操作把 network / parse / timeout 归 `backend-timeout`；读操作把 network / parse 归 `backend-threw`，读的 timeout 也归 `backend-timeout`（等满了没回来，下一步是等一会儿重试）；房间在动手前拒绝输入（`stage=input-refused`）一律 `bad-args`；建票前按幂等锚回查失败（`stage=anchor-lookup`，票没建、原样重试安全）按读阶段查表；错误分类不认识或给了表外值时停在 `backend-unsupported`，不凭空建议重试。
 - `cost.estimated`：调用前的估算（点数、条数、硬顶判断、分片建议）。`cost.actual`：闸真正记下来的花费（谁绕开闸发请求，这个数就不动）。
 
 ### 形状乙：还没走到选后端就失败（6 格）
@@ -165,7 +166,7 @@
 | 参数表（取值：缺省是多少、传过头按哪个数截断） | `tests/verify-1106-deck-surface.ts`（换一个「只记录、不真读」的后端从外面撞） |
 | 参数说明的文本（工具本级一句 + 每个参数各一句，逐字） | `tests/verify-1106-deck-surface.ts` |
 | 参数说明的长度与两处关键文案 | `tests/verify-deck-tools.js`（描述 ≤350 字）、`tests/verify-deck-thin-reads.js` |
-| 信封表（14 格 / 6 格、三态、七个原因码、失败不抛） | `tests/verify-1106-deck-surface.ts`；记账数不外露另有 `tests/verify-deck-exec-phone.js` |
+| 信封表（14 格 / 6 格、三态、八个原因码、失败不抛） | `tests/verify-1106-deck-surface.ts`；记账数不外露另有 `tests/verify-deck-exec-phone.js` |
 | 点数表 | `tests/verify-1106-deck-surface.ts` |
 | 十个工具的整条来回（正例、负例、过闸、永不抛） | `tests/verify-deck-tools.js` |
 | 逐字节零变化（金标准回执） | `tests/verify-golden-receipts.ts`（基准在 `tests/tracker-contract/fixtures/golden-receipts/`） |

@@ -18,11 +18,12 @@ import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import { createMemoryPlanStore, createFilePlanStore, planCursorDir } from '../shell/plan-cursor.js'
-import { readbackMapPlan } from './map-plan-readback.js'
+import { readbackMapPlan, leadFailureText } from './map-plan-readback.js'
 import { adoptAnchoredChildren, repairOrphanParents } from './map-plan-resume.js'
 import { backendMapCreateFailure } from './map-plan-create-failure.js'
 import type { TransportResult } from '../shell/backend-transport.js'
-import { applyParentEdge, applyBlockEdges, statusOfItems, childrenOf } from '../shell/edge-landing.js'
+import { applyParentEdge, applyBlockEdges, statusOfItems, childrenOf, failureFields } from '../shell/edge-landing.js'
+import { reasonForFailure, reasonForItems } from '../shell/receipt-reason.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
 // #1413：子票的位置与标签口径只在 rules/object-kind.ts 那份位置表里写一份，这里照它收口，不再自带一套。
 import { resolveCreateKind, MAP_TICKET_LABELS } from '../rules/object-kind.js'
@@ -259,7 +260,8 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
     const usingAutoPlanId = (a.planId === undefined || a.planId === null || String(a.planId).trim() === '')
     const planId = String(usingAutoPlanId ? autoPlanId : String(a.planId))
     if (ACTIVE_PLANS.get(planId)) {
-      return shell.unsupported('deck_map_plan_create', REFUSAL_REASONS.BACKEND_UNSUPPORTED, '同一个计划标识（' + planId.slice(0, 60) + '）正在另一次执行里跑（进行中），这次没动手：等它做完再来，或换一个 planId。', { cost: { estimated: est } })
+      // #1799：同计划并发锁是本地失败，下一步是等它做完或换 planId（重试安全），不是「后端不支持」。
+      return shell.unsupported('deck_map_plan_create', reasonForFailure({ phase: 'write', local: 'lock' }), '同一个计划标识（' + planId.slice(0, 60) + '）正在另一次执行里跑（进行中），这次没动手：等它做完再来，或换一个 planId。', { cost: { estimated: est } })
     }
     ACTIVE_PLANS.set(planId, 1)
     const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_map_plan_create', kind: 'write' })
@@ -312,8 +314,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       const opCtx = sc.opCtx
       const prev = (await store.load(planId)) || { planId: planId, mapKey: '', keys: {}, edges: [], done: [] }
       const state: PlanState = { planId: planId, mapKey: prev.mapKey || '', keys: Object.assign({}, prev.keys), edges: Array.isArray(prev.edges) ? prev.edges.slice() : [], done: Array.isArray(prev.done) ? prev.done.slice() : [] }
-      const items = []
-      const notes = []
+      const items = [], notes = []
       if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
       if (usingAutoPlanId) notes.push('这次没传 planId，用了自动计划标识（' + planId.slice(0, 80) + '）：重试时必须显式传回这个 planId，否则会被当成新计划建重复票；想建第二张内容相同的计划时，必须显式传一个不同的 planId，否则会被当成重试而复用旧票。')
       const storeDurable = store.durable !== false
@@ -331,8 +332,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
         // 锚回查失败时补拿同一个计划标识原样重试，普通失败不补。
         if (!created || created.ok !== true) return backendMapCreateFailure(created as TransportResult, planId, notes)
         state.mapKey = String((created.data && created.data.key) || '')
-        state.done.push('map')
-        await store.save(planId, state)
+        state.done.push('map'); await store.save(planId, state)
         items.push({ key: state.mapKey, role: 'map', title: title, status: 'ok' })
       } else {
         notes.push('地图票 ' + state.mapKey + ' 上次已经建好了，这次直接接着做。')
@@ -383,17 +383,17 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
           // 子票建成了，但父子边是另一件事：房把挂父失败记在票上的 parentError 里（issues-write.ts 的 IssueWithNotes），
           // 这里必须读它 —— 否则整图建骨架会在每条父子边都没挂上的情况下报 status:'ok'（#790 审查指出）。
           // 为什么断言：契约的 Issue 没声明 parentError 这一格，断言只为过编译，读的还是原来那一格。
-          const childBag = (created.data || {}) as { parentError?: { message?: unknown } }
+          const childBag = (created.data || {}) as { parentError?: { kind?: unknown; message?: unknown } }
           const pErr = (childBag.parentError && childBag.parentError.message) ? String(childBag.parentError.message).slice(0, 200) : ''
           if (pErr) {
-            items.push({ key: state.keys[String(o.ch.key)], role: 'child', planKey: String(o.ch.key), title: String(o.ch.title), status: 'failed', reason: '子票建成了（票号 ' + (state.keys[String(o.ch.key)] || '后端没回票号') + '），但父子边没挂上：' + pErr })
+            items.push(Object.assign({ key: state.keys[String(o.ch.key)], role: 'child', planKey: String(o.ch.key), title: String(o.ch.title), status: 'failed', reason: '子票建成了（票号 ' + (state.keys[String(o.ch.key)] || '后端没回票号') + '），但父子边没挂上：' + pErr }, failureFields(childBag.parentError, 'write')))
           } else {
             state.done.push('child:' + String(o.ch.key))
             items.push({ key: state.keys[String(o.ch.key)], role: 'child', planKey: String(o.ch.key), title: String(o.ch.title), status: 'ok' })
           }
         } else {
           const msg = String((created && created.error && created.error.message) || '后端没给出原因').slice(0, 200)
-          items.push({ key: '', role: 'child', planKey: String(o.ch.key), title: String(o.ch.title), status: 'failed', reason: msg })
+          items.push(Object.assign({ key: '', role: 'child', planKey: String(o.ch.key), title: String(o.ch.title), status: 'failed', reason: msg }, failureFields(created, 'write')))
         }
         await store.save(planId, state)
       }
@@ -409,7 +409,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       const edgeJobs = []
       for (const e of edges) {
         const from = keyOf(e.from), to = keyOf(e.to)
-        if (!from || !to) { items.push({ key: from || '', role: 'edge', status: 'failed', reason: '边的端点还没有票号（' + String(e.from) + ' → ' + String(e.to) + '）：先把它那一张建出来再补这条边。' }); continue }
+        if (!from || !to) { items.push(Object.assign({ key: from || '', role: 'edge', status: 'failed', reason: '边的端点还没有票号（' + String(e.from) + ' → ' + String(e.to) + '）：先把它那一张建出来再补这条边。' }, failureFields(null, 'write', 'input'))); continue }
         edgeJobs.push({ idx: edgeJobs.length, from: from, to: to, parent: e.type === 'parent' })
       }
       const parentByFrom = new Map()
@@ -483,8 +483,10 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       const rawStatus = statusOfItems(items)
       // 没做完（限时自停或还有剩余）但逐项全成时，诚实报部分成功，不假装做完。
       const status = (rawStatus === DECK_STATUS.OK && (stoppedEarly || restKeys.length)) ? DECK_STATUS.PARTIAL : rawStatus
+      // #1799：有失败项时取它们映射码里最该先说的一个；只是没做完（没有失败项）时留空，续法写在 text 里。
+      const reason = status === DECK_STATUS.OK ? '' : reasonForItems(items)
       let text = '计划 ' + planId + '：这一片建了 ' + shard.length + ' 张子票（共计划 ' + children.length + ' 张），建成 ' + edgeCount + ' 条边' +
-        (restKeys.length ? '；还有 ' + restKeys.length + ' 张没建（' + restKeys.join('、') + '），带同一个 planId 再调一次就接着建。' : '。')
+        (restKeys.length ? '；还有 ' + restKeys.length + ' 张没建（' + restKeys.join('、') + '），带同一个 planId 再调一次就接着建。' : '。') + leadFailureText(items, reason)
       if (stoppedEarly) text += '时间不够先停在这里（剩余额度不足），已建的不用重建。'
       if (status === DECK_STATUS.OK && !restKeys.length && typeof store.remove === 'function') {
         try { await store.remove(planId) } catch (eRm) {}
@@ -492,7 +494,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       return {
         value: {
           status: status,
-          reason: status === DECK_STATUS.OK ? '' : REFUSAL_REASONS.BACKEND_UNSUPPORTED,
+          reason: reason,
           text: text,
           data: {
             planId: planId, mapKey: state.mapKey, durable: storeDurable,

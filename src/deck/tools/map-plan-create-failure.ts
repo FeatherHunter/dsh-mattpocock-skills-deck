@@ -8,7 +8,8 @@
 //
 // 搬出来还有一个现实原因：map-plan-create.ts 的有效行已经贴着文件粒度门禁的基线（373 行，只许减
 // 不许增），这一段进不去。
-import { DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { DECK_STATUS } from '../shell/call-shell.js'
+import { reasonForResult } from '../shell/receipt-reason.js'
 import type { TransportResult } from '../shell/backend-transport.js'
 // 回查阶段的取值从契约的同一张表里取，不在这里另写一遍字面量：改名时编译器能顺着常量找到每一处。
 import { TRACKER_ERROR_STAGE } from '../../tracker/contract/results.js'
@@ -29,8 +30,11 @@ export function backendMapCreateFailure(created: TransportResult, planId: string
   const retryAdvice = lookupFailed
     ? ' 拿同一个计划标识原样重试即可：这一支的幂等键是 deck-plan-' + String(planId).slice(0, 60) + '-map，同一个计划标识重试命中的是同一个键，命中会复用那张地图票，已经建好的部分会认回来，不会多建一张。'
     : ''
+  // 与建票失败回执同一个口径：顶层 reason 与 data.error.code 是同一张映射表出来的同一个码；
+  // data.error 另外保留后端原档位（kind）与阶段（stage），供人追查「为什么判成这个码」。
+  const code = reasonForResult(err || null, 'write')
   return {
-    value: { status: DECK_STATUS.UNSUPPORTED, reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED, text: '地图票没建成（后端原话：' + msg + '），后面的子票与边都没动。' + retryAdvice, data: { planId: planId, error: { kind: String((err && err.kind) || ''), message: msg } }, notes: notes },
+    value: { status: DECK_STATUS.UNSUPPORTED, reason: code, text: '地图票没建成（后端原话：' + msg + '），后面的子票与边都没动。' + retryAdvice, data: { planId: planId, error: { kind: String((err && err.kind) || ''), stage: String((err && err.stage) || ''), code: code, message: msg } }, notes: notes },
     claimed: { requests: 1, points: 4 },
   }
 }

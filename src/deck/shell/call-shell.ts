@@ -60,6 +60,12 @@ export const REFUSAL_REASONS = Object.freeze({
   BAD_ARGS: 'bad-args',
 })
 
+/**
+ * 原因码的类型：从上面那张表推出来，别处一律用它，不许再手写一份字符串联合。
+ * 这样新增/改名一个码时，所有按码分支的地方由编译器一次找齐（#1799）。
+ */
+export type RefusalReason = (typeof REFUSAL_REASONS)[keyof typeof REFUSAL_REASONS]
+
 // 落点表（EDGE_LANDING）与它的判定（landingOf / classifyEdgeLanding / edgeEvidence / childrenOf / statusOfItems）
 // 住在同目录的 rules/ 里：那边写的是「规矩」，这里写的是「机制」（会话怎么取、闸怎么过、信封怎么拼）。
 // 拆成两个文件的唯一原因是 350 行的单文件上限（tests/verify-file-granularity.ts），不是为了分层。

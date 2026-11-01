@@ -19,6 +19,7 @@
 import { HINT_UNRECOGNIZED, HINT_UNSUPPORTED, fail, rawText, verdictOf } from '../../kernel/preflight.js'
 import type { Judged, PreflightCtx } from '../../kernel/preflight.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { TrackerError, TrackerErrorStage } from '../../contract/results.js'
 
 /**
  * 判一个错误该归哪一档，并说清这条档位是谁给的。
@@ -61,9 +62,15 @@ export function rawFromError(err: unknown): unknown {
   return err
 }
 
-/** 由「已经判好的结果 + 本家那句话 + 原文」拼出失败结果。 */
-export function failWithHint(verdict: Judged, nativeMessage: string, raw: unknown): { ok: false; error: { kind: string; message: string; raw: string } } {
-  return fail(verdict.kind, messageForKind(verdict, nativeMessage), raw)
+/**
+ * 由「已经判好的结果 + 本家那句话 + 原文」拼出失败结果。
+ *
+ * 第 4 段 stage 可选：判档说的是「错在哪一类」，stage 说的是「失败发生在链路哪一段、
+ * 下一步该改输入还是原样重试」（取值见 TRACKER_ERROR_STAGE）。两种情况都要知道时才传，
+ * 见 fail() 的同名参数说明。
+ */
+export function failWithHint(verdict: Judged, nativeMessage: string, raw: unknown, stage?: TrackerErrorStage): { ok: false; error: TrackerError } {
+  return fail(verdict.kind, messageForKind(verdict, nativeMessage), raw, stage)
 }
 
 /**
@@ -73,15 +80,20 @@ export function failWithHint(verdict: Judged, nativeMessage: string, raw: unknow
  * 第三段是本家要说的那句话；它只在判定确实命中规则表时才会原样出现在用户眼前，
  * 兜底时会换成通用提示（原文仍然完整地放在 `raw` 里给人自己看）。
  */
-export function failFromError(err: unknown, ctx: PreflightCtx | undefined, nativeMessage: string): { ok: false; error: { kind: string; message: string; raw: string } } {
+export function failFromError(err: unknown, ctx: PreflightCtx | undefined, nativeMessage: string, stage?: TrackerErrorStage): { ok: false; error: TrackerError } {
   const got = kindFromError(err, ctx)
   const msg = nativeMessage || (err && (err as { message?: string }).message ? String((err as { message?: string }).message) : String(err))
-  return failWithHint(got.verdict, msg, rawFromError(err))
+  return failWithHint(got.verdict, msg, rawFromError(err), stage)
 }
 
-/** 本家自己就能定档的失败（入参不合规、被自己的判据拒绝）：档位照写，原文照给。 */
-export function failAs(kind: string, message: string, raw: unknown): { ok: false; error: { kind: string; message: string; raw: string } } {
-  return fail(kind as Parameters<typeof fail>[0], message, raw)
+/**
+ * 本家自己就能定档的失败（入参不合规、被自己的判据拒绝）：档位照写，原文照给。
+ *
+ * stage 可选，本房对「这次输入被自己拒了」的失败统一传 TRACKER_ERROR_STAGE.INPUT_REFUSED，
+ * 让 deck 工具回 bad-args 而不是把「改输入」误说成「后端不支持」；判断顺序见 #1799。
+ */
+export function failAs(kind: string, message: string, raw: unknown, stage?: TrackerErrorStage): { ok: false; error: TrackerError } {
+  return fail(kind as Parameters<typeof fail>[0], message, raw, stage)
 }
 
 /** 一条本家判据的原文快照（JSON 化的入参/中间结果）。给不出就返回空串，但字段照给。 */

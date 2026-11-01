@@ -18,6 +18,7 @@ import type { EdgeTrail } from './edge-log.js'
 import { remoteTemplateRefusalForLocalFile, remoteTemplateSections } from './template-guard.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import { TRACKER_ERROR_STAGE } from '../../contract/results.js'
 import { locateContainerFile, resolveIssueFile, resolveMapFile, ticketRouteOf } from './issues-locate.js'
 import type { TicketRoute } from './issues-locate.js'
 // #1277：文件头里父注释的插入位置要认得类型标记行 —— 标记紧跟在幂等锚后面，父注释排在标记之后。
@@ -135,7 +136,8 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
         : r.route === 'map'
           ? 'map-ticket'
           : (ticketFormOf(fnOldText) === 'map-ticket' ? 'impl-ticket' : ticketFormOf(fnOldText))
-      const refusal=remoteTemplateRefusalForLocalFile(r.container,routeForm,remoteTemplateSections(patch.body));if(refusal)return failAs(ERROR_KIND.PARSE,refusal,String(patch.body))
+      // 模板守卫在写盘之前拒绝：要改的是正文，重试同一份正文不会通过，属于输入被拒。
+      const refusal=remoteTemplateRefusalForLocalFile(r.container,routeForm,remoteTemplateSections(patch.body));if(refusal)return failAs(ERROR_KIND.PARSE,refusal,String(patch.body),TRACKER_ERROR_STAGE.INPUT_REFUSED)
       if(isWholeIssueBody(patch.body)){
         // 整份正文：读回给的是整份文件，写回也按整份合并（锚与标题保住、字段与骨架搬回），不再猜它是片段。
         txt=moveLeadingSectionBelowTitle(mergeWholeBodyForPatch(patch.body, fnOldText));changed=true
@@ -280,7 +282,8 @@ async function setBlockedByInner(ctx: OpContext,repo: RepoWithPath | null,key: s
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   // 原文 = 这张票自己的编号（结论是「入参自己和自己打架」，没有外部来源的原文）。
-  if(Array.isArray(blockers)&&blockers.map(k=>String(k).padStart(2,'0')).includes(norm)){return failAs(ERROR_KIND.CONFLICT,'self-block '+norm,norm)}
+  // 入参的阻塞名单里含本票自己：这是入参自相矛盾，改入参才能继续，标成输入被拒。
+  if(Array.isArray(blockers)&&blockers.map(k=>String(k).padStart(2,'0')).includes(norm)){return failAs(ERROR_KIND.CONFLICT,'self-block '+norm,norm,TRACKER_ERROR_STAGE.INPUT_REFUSED)}
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
   // 00 号容器（map.md / spec.md 文件本身）没有 Blocked by 这个字段，阻塞边只能挂在票上。

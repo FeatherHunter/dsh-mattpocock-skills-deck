@@ -206,6 +206,15 @@ async function main() {
   check(!!cursorState && cursorState.mapKey === plan1.data.mapKey, '游标里的地图票号与回执一致（游标 ' + (cursorState && cursorState.mapKey) + ' ／ 回执 ' + plan1.data.mapKey + '）')
   check(!!cursorState && cursorState.keys && Object.keys(cursorState.keys).length === 2, '游标里记下了已建的两张子票：' + JSON.stringify(cursorState && cursorState.keys))
 
+  // #1799：这一跑是「partial 且确有失败项」的那种形状。顶层 reason 必须是失败项按映射表得出的码
+  //（这里失败在本地：那条边的落点没有票号，属于改输入才能继续 → bad-args），失败项自己也要留下码。
+  const failed1 = (plan1 && Array.isArray(plan1.items) ? plan1.items : []).filter((i: any) => i && i.status !== 'ok')
+  check(plan1 && plan1.reason === 'bad-args', '#1799 partial 有失败项：顶层 reason 取失败项映射出的码 bad-args（实得 ' + (plan1 && plan1.reason) + '）')
+  check(failed1.length === 1 && failed1[0].code === 'bad-args' && failed1[0].errorKind === undefined && failed1[0].stage === undefined,
+    '#1799 失败项留下映射码与被拒输入这件事（实得 ' + JSON.stringify(failed1) + '）')
+  check(plan1 && String(plan1.text || '').indexOf('最该先说的是') >= 0,
+    '#1799 partial 的 text 带着与顶层 reason 同一条失败的原因（实得 ' + (plan1 && plan1.text) + '）')
+
   // ── 第二段：换一套全新装配（等价于进程重启）带同一个计划标识接着建 ──
   const second = await assemble(ws, logs)
   const plan2 = await second.table.tools.deck_map_plan_create.run(exec, {

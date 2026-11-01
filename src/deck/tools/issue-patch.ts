@@ -14,7 +14,7 @@ import { applyMdScope, mdScopeNote } from './md-scope.js'
 import { claimNoteOf } from './assignee-note.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
-import { statusOfItems } from '../shell/edge-landing.js'
+import { statusOfItems, failureFields } from '../shell/edge-landing.js'
 import { specCloseGuard } from '../shell/spec-close-guard.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import { withKeyLock } from '../shell/write-mutex.js'
@@ -22,6 +22,9 @@ import { ensureBody } from '../shell/minimal-spec.js'
 // #1195：执行层失败（抛错 / 中止 / 超时 / 预算耗尽）的收口从两个写工具里抽出来共用，判据一字未改。
 import { must, numOpt, timeoutMessage, withCap } from '../shell/backend-transport.js'
 import type { TransportResult } from '../shell/backend-transport.js'
+// #1799：非 ok 回执的 reason 只从 receipt-reason 来（它回答「下一步做什么」）；失败项同时保留 kind/stage 证据。
+import { failureOf, reasonForFailure, reasonForItems } from '../shell/receipt-reason.js'
+import type { LocalFailureCause } from '../shell/receipt-reason.js'
 // #1090：进度区的读、写、核对统一走 shared 层的那一份口径（读与写共用同一份写法，不再各留一份正则）。
 // #1091：维护者原话区同理；两块一起写时的组合与写后核对住在 body-write。
 import { PROGRESS_BODY_LIMIT } from '../../shared/issue-file/src/progress.js'
@@ -159,19 +162,23 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       let lockTimeout: string | null = null
       // result 是后端回包（形状是运行时真值，契约层还没建模）：参数就地收窄成「只读 error.message」，
       // 下面那句读的还是原来那个 result，字段名与默认值一个字没改。
-      const fail = (step: string, result: { error?: { message?: unknown } } | null | undefined) => {
-        const msg = String((result && result.error && result.error.message) || '后端没给出原因').slice(0, 200)
-        items.push({ key: key, step: step, status: 'failed', reason: msg })
+      // #1799：一处失败记一条 item —— reason 是给人看的原话，code/errorKind/stage 是「下一步做什么」与原始分类的证据。
+      // result 是后端回包（本地闸门、写后核对这类失败没有后端回包，传 null）；local 是 deck 本地这一环的失败来源；
+      // message 是调用方自己的话（有它就不用后端原话，例如正文指纹对不上）。同一个映射函数管所有回执的顶层 reason。
+      const fail = (step: string, result: unknown, local?: LocalFailureCause, message?: string) => {
+        const err = (result && typeof result === 'object' && (result as { error?: unknown }).error && typeof (result as { error?: unknown }).error === 'object') ? (result as { error: { message?: unknown } }).error : {}
+        const msg = String(message || (err && err.message) || '后端没给出原因').slice(0, 200)
+        items.push(Object.assign({ key: key, step: step, status: 'failed', reason: msg }, failureFields(result, 'write', local)))
       }
       // 剩余额度不够时停发新调用：与 deck_map_link 同一句话，逐项诚实报失败，不硬撑。
-      const over = (step: string) => {
-        items.push({ key: key, step: step, status: 'failed', reason: '剩余额度不够发这一次调用了，这一步这次没动：带同样参数再调一次即可。' })
-      }
+      // 这一环是「这次没发出去」，不是「AI 不许做」，所以下一步是稍后重试（backend-threw），不是 ai-tool-refused。
+      const over = (step: string) => fail(step, null, 'budget', '剩余额度不够发这一次调用了，这一步这次没动：带同样参数再调一次即可。')
       // 超时整笔回：执行层超时不是某一项没做成，整笔直接回独立原因码（可重试），不抛给壳。
       const timeoutReply = (msg: string) => ({
         value: {
           status: DECK_STATUS.UNSUPPORTED,
-          reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
+          // 执行层超时 = 这次调用没等到后端回话（可能已生效），下一步先读回确认；同一个映射函数给码。
+          reason: reasonForFailure({ kind: 'timeout', phase: 'write' }),
           text: '这次没改成（超时了：在限时内没等到后端回话，改上没有说不清；先读一次现状再续，不要直接重放）。',
           data: { key: key, backendId: pick.backendId, error: { kind: 'timeout', message: String(msg || '').slice(0, 300) } },
         },
@@ -179,9 +186,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       })
       // 同票并发写互斥：等不到锁就诚实记一笔，不硬挤（单次原子写不拿锁，只有读改写序列拿）。
       const lockOpts = { timeoutMs: numOpt(d.keyLockTimeoutMs) }
-      const lockedOut = (step: string) => {
-        items.push({ key: key, step: step, status: 'failed', reason: '这张票正被另一次调用改着，这次没动：稍后带同样参数再调一次即可。' })
-      }
+      const lockedOut = (step: string) => fail(step, null, 'lock', '这张票正被另一次调用改着，这次没动：稍后带同样参数再调一次即可。')
 
       // #1298 ⑤⑥⑦：关规格的前置闸。规格不是普通票：它只有在「收口核对通过」之后才允许自动关闭，
       // 而核对通过的证据就是同一次调用里那条评论（逐张核对结论）；实施票没全关时，关规格必须失败并说清缺哪几张。
@@ -248,9 +253,11 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
               const gotLabels = readOk ? names((after.data || {}).labels) : []
               const missing = uniq.filter((n) => gotLabels.indexOf(n) < 0)
               if (!readOk) {
-                items.push({ key: key, step: 'labels', status: 'failed', reason: '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + String((after && after.error && after.error.message) || '没给出原因').slice(0, 160) : '剩余额度不够读回这一次的结果') + '）：标签改成没改成不知道，别当成已经改好。' })
+                // 写成了、读回没成：下一步是先读回确认，别把整批标签再写一遍。
+                fail('labels', canRead ? after : null, 'unconfirmed', '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + String((after && after.error && after.error.message) || '没给出原因').slice(0, 160) : '剩余额度不够读回这一次的结果') + '）：标签改成没改成不知道，别当成已经改好。')
               } else if (missing.length) {
-                items.push({ key: key, step: 'labels', status: 'failed', reason: '写动作回了成功，但写后读回来的标签里没有这些（' + missing.join('、') + '）：整批替换没落全，别当成已经改好。' })
+                // 后端说写成了、读回来却没有：后端没做到这一步，重试同样的写法没有意义。
+                fail('labels', null, 'verify', '写动作回了成功，但写后读回来的标签里没有这些（' + missing.join('、') + '）：整批替换没落全，别当成已经改好。')
               } else items.push({ key: key, step: 'labels', status: 'ok', labels: uniq })
             } else fail('labels', r)
           }, lockOpts)
@@ -280,9 +287,9 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
             const got = Array.isArray(back.assignees) ? back.assignees.map((x) => (x && x.login) || String(x)) : []
             const missing = want.filter((w) => got.indexOf(w) < 0)
             if (!readOk) {
-              items.push({ key: key, step: 'assignees', status: 'failed', reason: '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + String((after && after.error && after.error.message) || '没给出原因').slice(0, 160) : '剩余额度不够读回这一次的结果') + '）：认领人记上没记上不知道，别当成已经记上。' })
+              fail('assignees', canRead ? after : null, 'unconfirmed', '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + String((after && after.error && after.error.message) || '没给出原因').slice(0, 160) : '剩余额度不够读回这一次的结果') + '）：认领人记上没记上不知道，别当成已经记上。')
             } else if (want.length && missing.length) {
-              items.push({ key: key, step: 'assignees', status: 'failed', reason: '后端回了 ok，但读回来的票上没有这些认领人（' + missing.join('、') + '）：认领人没记上，别当成认领已经记上。' })
+              fail('assignees', null, 'verify', '后端回了 ok，但读回来的票上没有这些认领人（' + missing.join('、') + '）：认领人没记上，别当成认领已经记上。')
             } else {
               items.push({ key: key, step: 'assignees', status: 'ok', assignees: want })
               // #1788：普通实施票与普通票的认领只记认领人、不动可见状态，这是正常的落盘方式 ——
@@ -290,7 +297,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
               if (want.length) notes.push(claimNoteOf(back.body))
             }
           } else if (r && r.error && r.error.kind === 'unsupported') {
-            items.push({ key: key, step: 'assignees', status: 'failed', reason: '这个后端做不到记认领人（后端原话：' + String(r.error.message || '').slice(0, 160) + '）。' })
+            fail('assignees', r, undefined, '这个后端做不到记认领人（后端原话：' + String(r.error.message || '').slice(0, 160) + '）。')
           } else fail('assignees', r)
         }
       }
@@ -309,6 +316,10 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
             // 索引签名只为让下面按字段名赋值、delete 与取键名能过编译；写进去的键与值一个字没改。
             const patch: Record<string, unknown> = {}
             let bodyProblem: string | null = null
+            // #1799：正文这一路的失败原因不在后端回包里，另记「本地哪一环」与能拿到的后端失败回包，
+            // 回执里的码才对得上下一步（改参数 / 重读再试 / 先读回确认）。
+            let bodyProblemLocal: LocalFailureCause | undefined
+            let bodyProblemFailure: unknown = null
             let beforeBase: string | null = null
             let bodyPlan: BodyWritePlan | null = null
             const explicitBody = typeof a.body === 'string'
@@ -317,24 +328,24 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
             // 整段正文替换的乐观锁（#1562）：调用方先用 body='full' 读出全文与指纹，这次把指纹带来；
             // 这里先读当前正文算指纹，对不上就一个字不动——防止两边同时改正文时后写的把先写的覆盖掉。
             // 只改进度或原话（不传整段 body）时走下面的读改写，不用这把锁。
-            if (explicitBody && wantDigest === '') bodyProblem = '改整段正文要先带上 bodyDigest：先用 deck_issue_get(body=\'full\') 读一次，把回来的 data.body.digest 原样带来，这次正文一个字没动。'
+            if (explicitBody && wantDigest === '') { bodyProblem = '改整段正文要先带上 bodyDigest：先用 deck_issue_get(body=\'full\') 读一次，把回来的 data.body.digest 原样带来，这次正文一个字没动。'; bodyProblemLocal = 'input' }
             else if (explicitBody && wantDigest !== '') {
-              if (sc.outOfBudget()) bodyProblem = '剩余额度不够读回旧正文验指纹：这次正文一个字没动。'
+              if (sc.outOfBudget()) { bodyProblem = '剩余额度不够读回旧正文验指纹：这次正文一个字没动。'; bodyProblemLocal = 'budget' }
               else {
                 const rawBase = await t.get(repo, key, {}, opCtx)
                 const baseTimeout = timeoutMessage(rawBase as unknown as TransportResult)
                 if (baseTimeout) { lockTimeout = baseTimeout; return }
                 const baseCur = must(rawBase)
                 const baseText = (baseCur && baseCur.ok === true && baseCur.data && typeof baseCur.data.body === 'string') ? baseCur.data.body : null
-                if (baseText === null) bodyProblem = '旧正文没读回来，不敢验指纹覆盖：这次正文没写，等能读回旧正文再写。'
-                else if (bodyDigestOf(baseText) !== wantDigest) bodyProblem = '正文指纹对不上：这张票在你上次读完之后被人改过，先用 deck_issue_get(body=\'full\') 重读一次，拿到新指纹再写，这次一个字没动。'
+                if (baseText === null) { bodyProblem = '旧正文没读回来，不敢验指纹覆盖：这次正文没写，等能读回旧正文再写。'; bodyProblemFailure = baseCur }
+                else if (bodyDigestOf(baseText) !== wantDigest) { bodyProblem = '正文指纹对不上：这张票在你上次读完之后被人改过，先用 deck_issue_get(body=\'full\') 重读一次，拿到新指纹再写，这次一个字没动。'; bodyProblemLocal = 'stale' }
               }
             }
             if (explicitBody && bodyProblem === null) patch.body = a.body
             // 点到了进度或原话时先拿到写前正文：传了整段 body 就用它，否则读回旧正文。
             if (progressEntry || originalWords) {
               if (explicitBody) beforeBase = a.body as string
-              else if (sc.outOfBudget()) bodyProblem = '剩余额度不够读回旧正文：这次正文一个字没动。'
+              else if (sc.outOfBudget()) { bodyProblem = '剩余额度不够读回旧正文：这次正文一个字没动。'; bodyProblemLocal = 'budget' }
               else {
                 const rawCur = await t.get(repo, key, {}, opCtx)
                 const currentTimeout = timeoutMessage(rawCur as unknown as TransportResult)
@@ -343,7 +354,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
                 const base = (cur && cur.ok === true && cur.data && typeof cur.data.body === 'string') ? cur.data.body : null
                 // 旧正文没读回来时不敢拿空正文覆盖：空写一次就会把整张票冲成只剩进度段（#908 亲历）。
                 // 这次宁可报失败，让调用方等能读回再写，或改传整段 body。
-                if (base === null) bodyProblem = '旧正文没读回来，不敢拿半截正文覆盖：这次正文没写，等能读回旧正文再写（若急用，改传整段 body）。'
+                if (base === null) { bodyProblem = '旧正文没读回来，不敢拿半截正文覆盖：这次正文没写，等能读回旧正文再写（若急用，改传整段 body）。'; bodyProblemFailure = cur }
                 // 进度区要追加到正文里，先按最小骨架补出「## 进度」；原话区不补（它的位置规则自己管）。
                 else beforeBase = progressEntry ? ensureBody(base, 'issue').body : base
               }
@@ -352,7 +363,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
               // 补文件头与字段行，读回来的整份正文本来就跟计划不一样，逐字比整份会误报。
               if (beforeBase !== null && bodyProblem === null) {
                 const planned = planBodyWrite(beforeBase, progressEntry, originalWords, PROGRESS_BODY_LIMIT, !explicitBody)
-                if (planned.plan === null) bodyProblem = planned.problem
+                if (planned.plan === null) { bodyProblem = planned.problem; bodyProblemLocal = 'input' }
                 else bodyPlan = planned.plan
                 // #1486：本地票传上来的是整份文件；原话区被共享规则放到标题前时搬回字段行之后，
                 // 否则标题前会多出一段 H2，父注释与字段行都跟着读不到（写后核对也会差一截）。
@@ -372,7 +383,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
             if (bodyProblem !== null) {
               // 正文没写时标题照写；如果只点了正文，这次文字一个字不动，失败原因在这里记好。
               delete patch.body
-              fail('text', { error: { message: bodyProblem } })
+              fail('text', bodyProblemFailure, bodyProblemLocal, bodyProblem)
             }
             if (Object.keys(patch).length > 0) {
               if (sc.outOfBudget()) over('text')
@@ -398,7 +409,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
         // 它没成（被额度挡下、后端拒了）时，这里不许再调关闭 —— 没有核对评论的关闭算不合规。
         const commentOk = items.some((i) => i.step === 'comment' && i.status === 'ok')
         if (a.close === true && specClose && !commentOk) {
-          items.push({ key: key, step: 'close', status: 'failed', reason: '收口核对评论没发出去：按规矩规格不能在没有这条评论的情况下关闭，这一步这次没做。先补发评论（同一次调用里带上 comment）再关。' })
+          fail('close', null, 'input', '收口核对评论没发出去：按规矩规格不能在没有这条评论的情况下关闭，这一步这次没做。先补发评论（同一次调用里带上 comment）再关。')
         } else if (sc.outOfBudget()) over(a.close === true ? 'close' : 'reopen')
         else {
           const closeOpts = rawCloseReason !== '' ? { reason: rawCloseReason } : {}
@@ -416,11 +427,11 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
             const readOk = !!(after && after.ok === true)
             const gotState = readOk ? String(((after.data || {}) as Record<string, unknown>).state || '').toLowerCase() : ''
             if (!readOk) {
-              items.push({ key: key, step: stateStep, status: 'failed', reason: '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + String((after && after.error && after.error.message) || '没给出原因').slice(0, 160) : '剩余额度不够读回这一次的结果') + '）：这张票现在是不是 ' + wantState + ' 不知道，别当成已经改好。' })
+              fail(stateStep, canRead ? after : null, 'unconfirmed', '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + String((after && after.error && after.error.message) || '没给出原因').slice(0, 160) : '剩余额度不够读回这一次的结果') + '）：这张票现在是不是 ' + wantState + ' 不知道，别当成已经改好。')
             } else if (!gotState) {
-              items.push({ key: key, step: stateStep, status: 'failed', reason: '写动作回了成功，但写后读回来的票没带状态字段，判不了这张票现在是不是 ' + wantState + '：别当成已经改好。' })
+              fail(stateStep, null, 'verify', '写动作回了成功，但写后读回来的票没带状态字段，判不了这张票现在是不是 ' + wantState + '：别当成已经改好。')
             } else if (gotState !== wantState) {
-              items.push({ key: key, step: stateStep, status: 'failed', reason: '写动作回了成功，但写后读回来的状态是 ' + gotState + '，不是 ' + wantState + '：别当成已经改好。' })
+              fail(stateStep, null, 'verify', '写动作回了成功，但写后读回来的状态是 ' + gotState + '，不是 ' + wantState + '：别当成已经改好。')
             } else items.push({ key: key, step: stateStep, status: 'ok' })
           } else fail(stateStep, r)
         }
@@ -440,11 +451,18 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       const readBackDigest = readBack ? { key: String(readBackRecord.key ?? key), state: readBackRecord.state == null ? null : String(readBackRecord.state), updatedAt: readBackRecord.updatedAt ?? null } : null
       const status = statusOfItems(items)
       if (status !== DECK_STATUS.OK) notes.push('有的步骤没成，逐条原因在上面：别把没成的那一步当成已经改好。')
+      // #1799：顶层 reason 取失败项里「最该先告诉人」的那个码（安全优先），text 说同一处，避免两处指向不同步骤。
+      const failedItems = items.filter((i) => i.status !== 'ok') as Array<{ step?: string; reason?: string; code?: string }>
+      const reason = status === DECK_STATUS.OK ? '' : reasonForItems(items)
+      const leadFailure = failedItems.find((i) => i.code === reason) || failedItems[0] || null
+      const firstFailureText = leadFailure
+        ? '最该先说的是「' + String(leadFailure.step || '') + '」：' + String(leadFailure.reason || '后端没给出原因').slice(0, 160)
+        : ''
       return {
         value: {
           status: status,
-          reason: status === DECK_STATUS.OK ? '' : REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-          text: '票 ' + key + '：这次点了 ' + items.length + ' 步，成了 ' + items.filter((i) => i.status === 'ok').length + ' 步。',
+          reason: reason,
+          text: '票 ' + key + '：这次点了 ' + items.length + ' 步，成了 ' + items.filter((i) => i.status === 'ok').length + ' 步。' + firstFailureText,
           data: { requested: Object.keys(wants).filter((k) => wants[k]), ticket: readBack },
           items: items,
           readBack: readBackDigest,

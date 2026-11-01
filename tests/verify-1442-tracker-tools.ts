@@ -145,6 +145,21 @@ async function main() {
       return { id: 'boom-1442', create: boom, list: boom, get: boom };
     },
   };
+  // #1799 多失败时的收口：评论那一步回 conflict（写阶段 → backend-threw），改标题那一步回 network
+  // （写阶段 → backend-timeout）。顶层 reason 必须按安全优先取 backend-timeout，而不是执行顺序里第一处的码。
+  const mixedModule = {
+    id: 'mixed-1442', label: '混合失败桩',
+    matches: () => false,
+    budget: OFF_NETWORK,
+    create: (ctx: unknown) => {
+      const inner = markdownModule.create(ctx) as Record<string, (...a: any[]) => unknown>;
+      return Object.assign({}, inner, {
+        id: 'mixed-1442',
+        comment: async () => ({ ok: false, error: { kind: 'conflict', message: '桩：评论这条写冲突' } }),
+        update: async () => ({ ok: false, error: { kind: 'network', message: '桩：改标题网络断了' } }),
+      });
+    },
+  };
 
   const workPathHome = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-1442-workpath-'));
   const workRouteBindings = workRouteMod.createWorkRouteBindings({
@@ -306,6 +321,26 @@ async function main() {
     const nb = await buildWorld('markdown', OFFLINE_READING);
     const { r, threw } = await nb.run('deck_context', {});
     check(!threw && !!r && r.status === 'ok', '判定出口缺席的反例由 tests/verify-deck-tools.ts 覆盖，这里只确认正常路（实得 ' + (threw || (r && r.status)) + '）');
+  }
+
+  // ── 四b、多失败收口：顶层 reason 取安全优先那个码，text 指同一步（#1799） ──
+  {
+    const w = await buildWorld('mixed-1442', OFF_NETWORK, [mixedModule]);
+    await w.run('deck_issue_create', { title: '混合失败甲票', kind: 'issue', body: '正文' });
+    const { r, threw } = await w.run('deck_issue_patch', { key: '01', comment: '1799：这条评论写不进去', title: '1799：这个标题也写不进去' });
+    check(!threw && !!r && r.status === 'unsupported',
+      '多失败时回 unsupported（实得 ' + (threw || JSON.stringify({ status: r && r.status, reason: r && r.reason })) + '）');
+    check(!!r && r.reason === 'backend-timeout',
+      '多失败时 reason 取安全优先的 backend-timeout，不是执行顺序第一处的 backend-threw（实得 ' + (r && r.reason) + '）');
+    const items = (r && r.items) || [];
+    const cmt = items.filter((i: any) => i.step === 'comment')[0];
+    const txt = items.filter((i: any) => i.step === 'text')[0];
+    check(!!cmt && cmt.status === 'failed' && cmt.code === 'backend-threw' && cmt.errorKind === 'conflict',
+      '评论那一步记下了自己的码与后端档位（实得 ' + JSON.stringify(cmt) + '）');
+    check(!!txt && txt.status === 'failed' && txt.code === 'backend-timeout' && txt.errorKind === 'network',
+      '改标题那一步记下了自己的码与后端档位（实得 ' + JSON.stringify(txt) + '）');
+    check(!!r && String(r.text || '').indexOf('最该先说的是「text」') >= 0,
+      'text 指向与顶层 reason 同一条失败（改标题那一步）（实得 ' + (r && r.text) + '）');
   }
 
   // ── 五、越过每小时提醒线：照常放行，回执里带一句提醒（#1457 原断拒绝，#1527 起降为警告） ──

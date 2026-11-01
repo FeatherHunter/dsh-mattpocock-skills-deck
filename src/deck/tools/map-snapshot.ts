@@ -6,6 +6,7 @@
 // 五区块（Destination / Notes / Decisions so far / Not yet specified / Out of scope）用共享层的
 // parseMapBody 解析，同样是单源。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { evidenceFields, failureOf } from '../shell/receipt-reason.js'
 import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
@@ -17,6 +18,17 @@ import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforce
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
+
+/** 失败回执里的「下一步做什么」：reason 已经回答了下一步，text 要跟它指向同一件事。
+ *  只给本工具判断得了的几种码补一句；其余（后端说做不到等）保持原话，不替后端发明退路。 */
+function nextStepText(reason: string): string {
+  if (reason === REFUSAL_REASONS.BAD_ARGS) return '票号可能写错了：先用 deck_issue_list 或 deck_issue_get 确认这张地图票存在，再重读。'
+  if (reason === REFUSAL_REASONS.BACKEND_TIMEOUT) return '等一会儿重调一次。'
+  if (reason === REFUSAL_REASONS.BACKEND_THREW) return '读没有副作用，可以直接重调一次。'
+  if (reason === REFUSAL_REASONS.OVER_CAP) return '稍等一会儿再调。'
+  if (reason === REFUSAL_REASONS.BACKEND_UNSUPPORTED) return '这条路当前走不通，按工具故障处理或换一个后端后再试。'
+  return '重调一次再看数。'
+}
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
@@ -128,12 +140,14 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
       const gotMap = await mapPromise
       if (!gotMap || gotMap.ok !== true) {
         const msg = String((gotMap && gotMap.error && gotMap.error.message) || '后端没给出原因').slice(0, 300)
+        // #1799：reason 走统一映射（读地图也是读后端），失败证据留后端原档位与映射后的码。
+        const ev = failureOf(gotMap, 'read')
         return {
           value: {
             status: DECK_STATUS.UNSUPPORTED,
-            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '这张地图没读回来（后端原话：' + msg + '）。',
-            data: { key: key, error: { kind: String((gotMap && gotMap.error && gotMap.error.kind) || ''), message: msg } },
+            reason: ev.code,
+            text: '这张地图没读回来（后端原话：' + msg + '）。' + nextStepText(ev.code),
+            data: { key: key, error: Object.assign({ message: msg }, evidenceFields(ev)) },
           },
           claimed: { requests: 1, points: 3 },
         }
@@ -159,6 +173,9 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
       const projection = deriveDeck({ maps: [Object.assign({}, map, { tickets: children })], issues: [] })
       const blocks = parseMapBody(String(map.body || ''))
       const partial = !kids || kids.ok !== true
+      // #1799：子票没取全时，失败的那一次读也要按统一映射给 reason；没有 kind 就落 backend-unsupported，
+      // 文案跟着换成同一方向，不能一边说「走不通」一边劝人原样重试。
+      const kidsEv = partial ? failureOf(kids, 'read') : null
       // frontierOnly：在手上这批子票里按派生口径筛可接（未关闭、认领已知且空、阻塞已满足；
       // 图外阻塞按未知计为被阻塞，与派生视图的 NOT-FOUND 安全侧一致，不误判可接）。
       let shown = children
@@ -192,13 +209,15 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
       return {
         value: {
           status: partial ? DECK_STATUS.PARTIAL : DECK_STATUS.OK,
-          reason: partial ? REFUSAL_REASONS.BACKEND_UNSUPPORTED : '',
-          text: partial ? '地图 ' + key + '：子票没取全（后端没给全），手上这 ' + children.length + ' 张算出来的数偏乐观，先重调一次再看数。' : '地图 ' + key + '：子票 ' + children.length + ' 张，未关闭 ' + projection.stats.open + ' 张、已关闭 ' + projection.stats.closed + ' 张、可接 ' + projection.stats.frontier + ' 张、被阻塞 ' + projection.stats.blocked + ' 张。',
+          reason: kidsEv ? kidsEv.code : '',
+          text: partial ? '地图 ' + key + '：子票没取全（后端没给全），手上这 ' + children.length + ' 张算出来的数偏乐观。' + nextStepText(kidsEv ? kidsEv.code : '') : '地图 ' + key + '：子票 ' + children.length + ' 张，未关闭 ' + projection.stats.open + ' 张、已关闭 ' + projection.stats.closed + ' 张、可接 ' + projection.stats.frontier + ' 张、被阻塞 ' + projection.stats.blocked + ' 张。',
           data: {
             map: { key: map.key, title: map.title, state: map.state, labels: Array.isArray(map.labels) ? map.labels.map((l: any) => (l && l.name) || String(l)) : [], updatedAt: map.updatedAt || '', url: map.url || '' },
             children: shown.map((t) => (thin ? thinRow(t) : childRow(t))),
             stats: partial ? null : projection.stats,
             truncated: partial,
+            // 失败证据只在子票没取全时出现，成功回执的形状一字不动（金标准回执在 tests/tracker-contract/fixtures/golden-receipts/）。
+            ...(kidsEv ? { kidsError: evidenceFields(kidsEv, 'errorKind') } : {}),
             labels: projection.labels,
             progressOf: projection.progressOf,
             blockedByKeys: projection.blockedByKeys,

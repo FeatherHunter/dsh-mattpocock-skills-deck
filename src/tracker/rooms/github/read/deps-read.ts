@@ -22,7 +22,7 @@
 
 import type { Issue, IssueRef, RepositoryRef } from '../../../contract/entities.js'
 import type { DepsOpts } from '../../../contract/inputs.js'
-import type { Dependencies, DependenciesResult, OpResult } from '../../../contract/results.js'
+import { TRACKER_ERROR_STAGE, type Dependencies, type DependenciesResult, type OpResult } from '../../../contract/results.js'
 import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
@@ -207,7 +207,7 @@ async function getDependenciesInner(repo: RepositoryRef, key: string, opts: Deps
       return { ok: true, data: results[0]?.data || { blockedBy: [], blocking: [] } }
     }
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'getDependencies: key required', key)
+    if (!k) return fail(ERROR_KIND.PARSE, 'getDependencies: key required', key, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     // 读路径整段委托给下面那条 readDependencies：原生优先、兜底自曝，这里只留入口校验与判档。
     return await readDependencies(repo, parsed, k, ctx)
   } catch (e) {

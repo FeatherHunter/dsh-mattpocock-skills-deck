@@ -18,6 +18,17 @@ import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
 // #1277：类型没标对的规格票靠票面文件头标记兜底认出来（与宿主快照组装层同一口径）。
 import { isSpecHeaderMarked } from '../../shared/issue-file/src/marker.js'
+import { evidenceFields, failureOf, reasonForResult } from '../shell/receipt-reason.js'
+
+/** 失败回执里的「下一步做什么」：reason 已经回答了下一步，text 要跟它指向同一件事。
+ *  只给本工具判断得了的几种码补一句；其余（后端说做不到等）保持原话，不替后端发明退路。 */
+function nextStepText(reason: string): string {
+  if (reason === REFUSAL_REASONS.BAD_ARGS) return '过滤条件可能写错了：换一组条件（state / type / label / assignee / query）再试一次。'
+  if (reason === REFUSAL_REASONS.BACKEND_TIMEOUT) return '等一会儿再调一次：重新读没有副作用，这次只是没等到回包。'
+  if (reason === REFUSAL_REASONS.BACKEND_THREW) return '重新读一次没有副作用，可以直接再调一次。'
+  if (reason === REFUSAL_REASONS.OVER_CAP) return '稍等一会儿再调，或把过滤条件收窄一点。'
+  return ''
+}
 
 /**
  * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
@@ -259,12 +270,14 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
         if (!thinUnsupported) {
           if (thinBody.ok !== true) {
             const thinMsg = String((thinBody.error && thinBody.error.message) || '后端没给出原因').slice(0, 300)
+            // #1799：reason 走统一映射（薄查也是读后端），失败证据留后端原档位与映射后的码。
+            const ev = failureOf(thinBody, 'read')
             return {
               value: {
                 status: DECK_STATUS.UNSUPPORTED,
-                reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-                text: 'ISSUE 列表没取回来（后端原话：' + thinMsg + '）。',
-                data: { error: { kind: String((thinBody.error && thinBody.error.kind) || ''), message: thinMsg } },
+                reason: ev.code,
+                text: 'ISSUE 列表没取回来（后端原话：' + thinMsg + '）。' + nextStepText(ev.code),
+                data: { error: Object.assign({ message: thinMsg }, evidenceFields(ev)) },
               },
               claimed: { requests: 1, points: 3 },
             }
@@ -309,12 +322,14 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       const listed = await t.list(repo, filter, opCtx)
       if (!listed || listed.ok !== true) {
         const msg = String((listed && listed.error && listed.error.message) || '后端没给出原因').slice(0, 300)
+        // #1799：与薄查同一套映射，不再把任何后端失败都写成「后端做不到」。
+        const ev = failureOf(listed, 'read')
         return {
           value: {
             status: DECK_STATUS.UNSUPPORTED,
-            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: 'ISSUE 列表没取回来（后端原话：' + msg + '）。',
-            data: { error: { kind: String((listed && listed.error && listed.error.kind) || ''), message: msg } },
+            reason: ev.code,
+            text: 'ISSUE 列表没取回来（后端原话：' + msg + '）。' + nextStepText(ev.code),
+            data: { error: Object.assign({ message: msg }, evidenceFields(ev)) },
           },
           claimed: { requests: 1, points: 3 },
         }

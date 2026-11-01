@@ -15,6 +15,7 @@
 // 一条误报工作条目删掉（不记任何动作，票本身的状态与认领人一个字不动）。#1349 起只撤销误报：
 // 建过、改过、关过、建过计划或挂过边的票不能释放；不再带这个参数就是老行为。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { evidenceFields, failureOf, reasonForFailure } from '../shell/receipt-reason.js'
 import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
@@ -23,6 +24,16 @@ import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-c
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
+
+/** 失败回执里的「下一步做什么」：reason 已经回答了下一步，text 要跟它指向同一件事。
+ *  只给本工具判断得了的几种码补一句；其余（后端说做不到等）保持原话，不替后端发明退路。 */
+function nextStepText(reason: string): string {
+  if (reason === REFUSAL_REASONS.BAD_ARGS) return '票号可能写错了：先用 deck_issue_list 或 deck_issue_get 确认这张票存在，再重试。'
+  if (reason === REFUSAL_REASONS.BACKEND_TIMEOUT) return '等一会儿重调一次：上报与释放都要先读到票，读没有副作用。'
+  if (reason === REFUSAL_REASONS.BACKEND_THREW) return '读票没有副作用，可以原样重调一次。'
+  if (reason === REFUSAL_REASONS.OVER_CAP) return '稍等一会儿再调。'
+  return ''
+}
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
@@ -157,7 +168,7 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
       if (gotTimeout) return {
         value: {
           status: DECK_STATUS.UNSUPPORTED,
-          reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
+          reason: reasonForFailure({ kind: 'timeout', phase: 'read' }),
           text: release
             ? '这张票这次没释放（超时了：在限时内没等到后端回话，释放有没有做上说不清，重调一次就行）。'
             : '这张票这次没上报（超时了：在限时内没等到后端回话，票有没有记上说不清，重调一次就行）。',
@@ -170,14 +181,17 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
       if (gotTransport) throw new Error(gotTransport)
       if (!got || got.ok !== true) {
         const msg = String((got && got.error && got.error.message) || '后端没给出原因').slice(0, 300)
+        // #1799：这一支失败的是「读票确认它存在」那一次读（写动作——记路线或释放——都还没发生），
+        // 所以按读阶段映射：票不存在归 bad-args，读侧网络/解析失败可原样重试，别按写阶段劝人先读回。
+        const ev = failureOf(got, 'read')
         return {
           value: {
             status: DECK_STATUS.UNSUPPORTED,
-            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: release
+            reason: ev.code,
+            text: (release
               ? '这张票没释放（票 ' + key + ' 没读回来；释放要先确认这张票真的存在，所以没动手。后端原话：' + msg + '）。'
-              : '这张票没上报（票 ' + key + ' 没读回来，后端原话：' + msg + '）。',
-            data: { key: key, backendId: pick.backendId, effortId: effortId, error: { kind: String((got && got.error && got.error.kind) || ''), message: msg } },
+              : '这张票没上报（票 ' + key + ' 没读回来，后端原话：' + msg + '）。') + nextStepText(ev.code),
+            data: { key: key, backendId: pick.backendId, effortId: effortId, error: Object.assign({ message: msg }, evidenceFields(ev)) },
             notes: notes,
           },
           claimed: { requests: 1, points: 3 },

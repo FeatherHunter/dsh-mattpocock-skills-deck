@@ -693,9 +693,10 @@ async function main() {
   {
     // 同一份计划标识同时在两次执行里跑：先到的那次上锁，后到的那次在碰后端之前就被挡下，一分钱不记。
     // 这一支写着「计划标识正被别的执行占用」，平常跑不出来，所以这里并发叫两次把它逼出来。
+    // #1799：同计划并发锁是本地失败，下一步是「等它做完再试」→ backend-threw（可重试），不是 backend-unsupported。
     const raceArgs = { planId: 'race-plan', title: '并发地图', effort: 'race-plan', children: [{ key: 'r1', title: '唯一子票', kind: 'issue' }] }
     const [one, two] = await Promise.all([run('deck_map_plan_create', raceArgs), run('deck_map_plan_create', raceArgs)])
-    const refused = [one, two].filter((x) => !x.threw && x.r && x.r.status === 'unsupported' && x.r.reason === 'backend-unsupported')
+    const refused = [one, two].filter((x) => !x.threw && x.r && x.r.status === 'unsupported' && x.r.reason === 'backend-threw')
     const succeeded = [one, two].filter((x) => !x.threw && x.r && x.r.status === 'ok')
     // 做成的那一笔自己报的价：1 张地图 + 1 张子票 + 1 条父子边 = 7 条 / 13 点；被挡下的那笔在碰后端之前就停了，
     // 回执里没有 cost.actual（只有估算），所以一分钱都不该报。
@@ -707,6 +708,35 @@ async function main() {
       '被挡下的那一次回的是「还没走到选后端」的那种形状（' + (refused[0] && refused[0].r ? Object.keys(refused[0].r).length : '?') + ' 格）')
     check(spent.requests === 7 && spent.points === 13 && refusedSpent.requests === 0 && refusedSpent.points === 0,
       '并发这一次只报做成的那一笔（1 张地图 + 1 张子票 + 1 条父子边 = 7 条 / 13 点），被挡下的那笔不报（做成 ' + spent.requests + ' 条 / ' + spent.points + ' 点，被挡下 ' + refusedSpent.requests + ' 条 / ' + refusedSpent.points + ' 点）')
+  }
+
+  {
+    // #1799：写请求发出去后没收到回包的两种失败（network / parse），下一步都是「先读回确认写没写进去」，
+    // 所以回 backend-timeout，而不是 backend-unsupported（停）。这里挂一个建票时如实回这两种档位的后端，
+    // 从工具的真装配里走一遍，确认失败回执的 reason 与证据三格都按同一张映射表出来。
+    const flakyCreate = (id: string, label: string, kind: string) => ({
+      id: id, label: label, matches: async () => false,
+      budget: { kind: 'off-network', countsRequests: false, countsPoints: false, independentBuckets: false },
+      create: () => ({
+        id: id,
+        async create() { return { ok: false, error: { kind: kind, message: '写请求没等到回包（门禁探针）' } } },
+      }),
+    })
+    for (const probe of [{ kind: 'network', id: 'write-lost-1799', label: '写后连接断了的后端' }, { kind: 'parse', id: 'reply-lost-1799', label: '回包解析不了的后端' }]) {
+      const dispose = registry.register(flakyCreate(probe.id, probe.label, probe.kind))
+      chooseWorkspace(ws.rootPosix, probe.id)
+      try {
+        const r = await run('deck_issue_create', { title: '写后没回包的一张', kind: 'issue' })
+        const got = (r.r || {}) as { status?: unknown, reason?: unknown, text?: unknown, data?: { error?: { kind?: unknown, code?: unknown, stage?: unknown } } }
+        const err = (got.data && got.data.error) || {}
+        check(!r.threw && got.status === 'unsupported' && got.reason === 'backend-timeout',
+          '#1799 写阶段 ' + probe.kind + '：工具回 unsupported + backend-timeout（实得 ' + (r.threw || (String(got.status) + '/' + String(got.reason))) + '）')
+        check(err.kind === probe.kind && err.code === 'backend-timeout' && err.stage === '',
+          '#1799 写阶段 ' + probe.kind + '：失败证据保留后端原档位并给出映射码（实得 ' + JSON.stringify(err) + '）')
+        check(String(got.text || '').indexOf('这张票没建成') >= 0,
+          '#1799 写阶段 ' + probe.kind + '：text 仍说清「票没建成」这件事（实得 ' + String(got.text || '') + '）')
+      } finally { dispose.dispose(); chooseWorkspace(ws.rootPosix, 'markdown') }
+    }
   }
 
   // ── 四、越界判据 ──
@@ -806,6 +836,29 @@ async function main() {
     // 它只是回执文案，不是独立工具，但住在工具层、同样受同一套扫描约束，所以进这张精确名单。
     const EXPECTED_FILES = ['assignee-note.ts', 'context.ts', 'issue-create-failure.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create-failure.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session-adapt.ts', 'tracker-session.ts', 'work-route.ts'].sort()
     check(names.join(',') === EXPECTED_FILES.join(','), '工具层是十份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + 会话适配壳 + md-scope + 工具定义 + 建票失败回执 + 建图失败回执 + 认领回执文案 这二十二份（实际 ' + names.join(',') + '）')
+
+    // #1799：非 ok 回执的 reason 只许从 src/deck/shell/receipt-reason.ts 那一张映射表出来。
+    // 工具层里如果又出现「有失败就写 backend-unsupported」或「映射不出码时手写兜底」，就是这张票要修的旧病复发，
+    // 所以这里按两条精确形状扫源码（不是扫注释、不是扫文案里的字符串）。每条规则先自证会命中、不误伤，再扫真文件。
+    const stripCode = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+    const HARDCODED: Array<{ re: RegExp, label: string, hit: string, miss: string }> = [
+      { re: /reason\s*:\s*REFUSAL_REASONS\.BACKEND_UNSUPPORTED/, label: '把失败理由直接写成 backend-unsupported', hit: 'reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED', miss: 'reason: reasonForItems(items)' },
+      { re: /\|\|\s*REFUSAL_REASONS\.BACKEND_UNSUPPORTED/, label: '映射不出码时手写 backend-unsupported 兜底', hit: 'worstReason(codes) || REFUSAL_REASONS.BACKEND_UNSUPPORTED', miss: 'worstReason(codes)' },
+      // #1799 review：换一种写法绕开上一条 —— 用 failureOf(null) 这种「取默认码」当兜底，实质还是同一个固定答案。
+      { re: /\|\|\s*(?:failureOf|evidenceOf)\(/, label: '映射不出码时改用另一个固定码兜底', hit: "worstReason(codes) || failureOf(null, 'write').code", miss: "failureFields(out.readback.failed, 'write')" },
+    ]
+    for (const rule of HARDCODED) {
+      check(rule.re.test(rule.hit), '手写失败理由的规则会命中：' + rule.label + '（' + rule.hit + '）')
+      check(!rule.re.test(rule.miss), '手写失败理由的规则不误伤正常写法：' + rule.label + '（' + rule.miss + '）')
+    }
+    const offenders: string[] = []
+    for (const name of names) {
+      const code = stripCode(fs.readFileSync(path.join(dir, name), 'utf8'))
+      for (const rule of HARDCODED) if (rule.re.test(code)) offenders.push(name + '：' + rule.label)
+    }
+    check(offenders.length === 0, offenders.length
+      ? '工具层又把失败理由手写成了固定码：' + offenders.join('；')
+      : '工具层没有手写 backend-unsupported 的失败理由与兜底：非 ok 回执统一走 receipt-reason 的映射表')
     const bad: string[] = []
     let sawClock = 0
     let toolTimer = 0

@@ -18,7 +18,7 @@ import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-she
 import { applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
-import { applyBlockEdges, classifyEdgeLanding, edgeVerdict, unsupportedEvidence, edgeEvidence } from '../shell/edge-landing.js'
+import { applyBlockEdges, classifyEdgeLanding, edgeVerdict, unsupportedEvidence, edgeEvidence, failureFields } from '../shell/edge-landing.js'
 import type { EdgeEvidence } from '../shell/edge-landing.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
@@ -45,9 +45,8 @@ import { DECK_SANDBOX_TIMEOUT_MS, DECK_HOOK_TIMEOUT_MS } from '../../shared/time
 import { definition, landingNote } from './issue-create-parts.js'
 // #1171：后端诚实失败的整支（原话 + 锚回查失败时那句原样重试）搬去同目录，见文件头注释。
 import { backendCreateFailure } from './issue-create-failure.js'
-
-/** 落点证据函数的收口形状：第四个形参（额外字段）按可选算，其余与调用处传的三个实参一致。 */
-type EdgeEvidenceFn = (op: unknown, target: unknown, evidence: unknown, extra?: unknown) => Record<string, unknown>
+import { failureOf, evidenceFields, reasonForFailure, reasonForItems } from '../shell/receipt-reason.js'
+import type { LocalFailureCause } from '../shell/receipt-reason.js'
 
 /**
  * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
@@ -202,17 +201,20 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       let parentCheck = { requests: 0, points: 0 }
       if (rel) {
         parentCheck = { requests: 1, points: 2 }
-        const refuse = (text: string, claimed: { requests: number, points: number }) => ({
-          value: { status: DECK_STATUS.UNSUPPORTED, reason: REFUSAL_REASONS.BAD_ARGS, text: text, data: { error: { kind: 'parent', message: text.slice(0, 300) } }, notes: notes },
-          claimed: claimed,
-        })
-        if (sc.outOfBudget()) return refuse('额度不够，没读父票：这张票没建。先核对父票号，再续。', { requests: 0, points: 0 })
+        const refuse = (text: string, claimed: { requests: number, points: number }, failure?: unknown, local?: LocalFailureCause) => {
+          const ev = failureOf(failure === undefined ? null : failure, 'read', local)
+          return {
+            value: { status: DECK_STATUS.UNSUPPORTED, reason: ev.code, text: text, data: { error: Object.assign({ kind: 'parent', message: text.slice(0, 300) }, evidenceFields(ev, 'errorKind')) }, notes: notes },
+            claimed: claimed,
+          }
+        }
+        if (sc.outOfBudget()) return refuse('额度不够，没读父票：这张票没建。先核对父票号，再续。', { requests: 0, points: 0 }, null, 'budget')
         const parentRead = await t.get(repo, rel, {}, opCtx)
         const parentTimeout = timeoutMessage(parentRead as TransportResult)
-        if (parentTimeout) return refuse('父票 ' + rel + ' 没读回来（超时：' + String(parentTimeout).slice(0, 160) + '）：这张票没建。先按票号核对父票，再续。', parentCheck)
+        if (parentTimeout) return refuse('父票 ' + rel + ' 没读回来（超时：' + String(parentTimeout).slice(0, 160) + '）：这张票没建。先按票号核对父票，再续。', parentCheck, { kind: 'timeout' })
         if (!parentRead || parentRead.ok !== true) {
           const why = String((parentRead && parentRead.error && parentRead.error.message) || '后端没给出原因').slice(0, 200)
-          return refuse('父票 ' + rel + ' 读不到（后端原话：' + why + '）：这张票没建。父票必须已经存在。', parentCheck)
+          return refuse('父票 ' + rel + ' 读不到（后端原话：' + why + '）：这张票没建。父票必须已经存在。', parentCheck, parentRead)
         }
         const parentData = (parentRead.data || {}) as Record<string, unknown>
         const declaredType = (typeof parentData.type === 'string') ? String(parentData.type) : ''
@@ -223,11 +225,11 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
         if (!parentKind) {
           notes.push('父票类型读不到，只核了存在性：父票 ' + rel + ' 已经在了，但它是不是该有的容器没法确认。')
         } else if (parentRule === 'map') {
-          if (parentKind !== 'map') return refuse('父票 ' + rel + ' 不是探索地图（读到的是 ' + parentKind + '）：地图工单的父必须是探索地图。这张票没建。', parentCheck)
+          if (parentKind !== 'map') return refuse('父票 ' + rel + ' 不是探索地图（读到的是 ' + parentKind + '）：地图工单的父必须是探索地图。这张票没建。', parentCheck, null, 'input')
         } else if (parentRule === 'spec') {
-          if (parentKind !== 'spec') return refuse('父票 ' + rel + ' 不是规格（读到的是 ' + parentKind + '）：实施票的父必须是规格。这张票没建。', parentCheck)
+          if (parentKind !== 'spec') return refuse('父票 ' + rel + ' 不是规格（读到的是 ' + parentKind + '）：实施票的父必须是规格。这张票没建。', parentCheck, null, 'input')
         } else if (parentKind !== 'map' && parentKind !== 'spec') {
-          return refuse('父票 ' + rel + ' 不是探索地图或规格（读到的是 ' + parentKind + '）：普通票的父只能是这两种容器。这张票没建。', parentCheck)
+          return refuse('父票 ' + rel + ' 不是探索地图或规格（读到的是 ' + parentKind + '）：普通票的父只能是这两种容器。这张票没建。', parentCheck, null, 'input')
         } else {
           notes.push('父票 ' + rel + ' 已核对：它是' + (parentKind === 'map' ? '探索地图' : '规格') + '。')
         }
@@ -249,7 +251,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       // 只有超时单列：直接回独立原因码 backend-timeout（是否生效说不清，重试前先核对）。
       const createdTimeout = timeoutMessage(created as TransportResult)
       if (createdTimeout) return {
-        value: { status: DECK_STATUS.UNSUPPORTED, reason: REFUSAL_REASONS.BACKEND_TIMEOUT, text: '这张票这次没建成（超时了：在限时内没等到后端回话，票建上没有说不清；先按标题查一次再续，不要直接重建）。', data: { error: { kind: 'timeout', message: createdTimeout.slice(0, 300) } }, notes: notes },
+        value: { status: DECK_STATUS.UNSUPPORTED, reason: reasonForFailure({ kind: 'timeout', phase: 'write' }), text: '这张票这次没建成（超时了：在限时内没等到后端回话，票建上没有说不清；先按标题查一次再续，不要直接重建）。', data: { error: { kind: 'timeout', message: createdTimeout.slice(0, 300) } }, notes: notes },
         claimed: { requests: 1, points: 4 },
       }
       const createdTransport = transportMessage(created as TransportResult)
@@ -276,18 +278,19 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       // #1091：原话写后核对。建票回包是写动作的自述，不算数；要读回来逐字相同才算写好。
       // 这一段与进度区（#1090）同一套口径：额度不够、读不回来、对不上，都逐项记失败并说「别当成已经写好」。
       let originalProblem = ''
+      let originalEvidence: Record<string, string> = {}
       if (bodyPlan !== null) {
-        if (sc.outOfBudget()) originalProblem = '原话写动作回了成功，但剩余额度不够读回核对：别当成已经写好，稍后读一次现状确认。'
+        if (sc.outOfBudget()) { originalProblem = '原话写动作回了成功，但剩余额度不够读回核对：别当成已经写好，稍后读一次现状确认。'; originalEvidence = failureFields(null, 'write', 'budget') }
         else {
           const rawBack = await t.get(repo, String(issue.key || ''), {}, opCtx)
           const backTimeout = timeoutMessage(rawBack as TransportResult)
           const okBack = (rawBack && rawBack.ok === true) ? rawBack : null
           const backBody = (okBack && okBack.data && typeof okBack.data.body === 'string') ? okBack.data.body : null
-          if (backTimeout) originalProblem = '原话写动作回了成功，但读回核对超时（' + String(backTimeout).slice(0, 160) + '）：别当成已经写好，稍后读一次现状确认。'
-          else if (backBody === null) originalProblem = '原话写动作回了成功，但写后没读回正文（后端原话：' + String((rawBack && rawBack.error && rawBack.error.message) || '没给出原因').slice(0, 160) + '）：写进去的对不对不知道，别当成已经写好。'
-          else originalProblem = bodyWriteReadbackProblem(bodyPlan, backBody)
+          if (backTimeout) { originalProblem = '原话写动作回了成功，但读回核对超时（' + String(backTimeout).slice(0, 160) + '）：别当成已经写好，稍后读一次现状确认。'; originalEvidence = failureFields(null, 'write', 'unconfirmed') }
+          else if (backBody === null) { originalProblem = '原话写动作回了成功，但写后没读回正文（后端原话：' + String((rawBack && rawBack.error && rawBack.error.message) || '没给出原因').slice(0, 160) + '）：写进去的对不对不知道，别当成已经写好。'; originalEvidence = failureFields(rawBack, 'read', 'unconfirmed') }
+          else { originalProblem = bodyWriteReadbackProblem(bodyPlan, backBody); if (originalProblem) originalEvidence = failureFields(null, 'write', 'verify') }
         }
-        if (originalProblem) items.push({ key: issue.key, step: 'text', status: 'failed', reason: originalProblem })
+        if (originalProblem) items.push(Object.assign({ key: issue.key, step: 'text', status: 'failed', reason: originalProblem }, originalEvidence))
         else items.push({ key: issue.key, step: 'text', status: 'ok', fields: bodyWriteFields(bodyPlan), originalWords: originalWords })
       }
       // 原话写后核对多花的那一次读：一次读 + 2 点，与标签/认领/关闭的写后读回同价。
@@ -323,7 +326,8 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
         parentEvidence = ev
         // 落点证据那一支：壳那层还没标类型（见 #1040），第四个形参（额外字段）本文件本来就没传，
         // 断言只为把「可选」告诉编译器，编译后这条语句与老写法逐字相同。
-        items.push(Object.assign({ key: issue.key, edge: { op: 'parent', target: rel }, status: parentLanded ? 'ok' : 'failed' }, (edgeEvidence as EdgeEvidenceFn)('parent', rel, ev)))
+        // #1799：父子边没建成时带映射证据（没读回=先读回确认；读回没有=后端没做到）。
+        items.push(Object.assign({ key: issue.key, edge: { op: 'parent', target: rel }, status: parentLanded ? 'ok' : 'failed' }, edgeEvidence('parent', rel, ev), parentLanded ? undefined : failureFields(parentVerdict === 'unconfirmed' ? readBack : null, 'write', parentVerdict === 'unconfirmed' ? 'unconfirmed' : 'verify')))
       }
       // #1299：阻塞边在票建成之后写（create 的入参里没有这一格）。语义与 deck_map_link 的 blockedBy 相同：
       //   整批替换。刚建出来的票上本来没有边，这一趟等价于「加上这批边」；幂等锚复用同一张票时，
@@ -337,7 +341,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
         blockAttempted = true
         if (sc.outOfBudget()) {
           blockFailed = '额度不够，这次没写'
-          blockItems.push({ key: issue.key, edge: { op: 'block', target: blockWant.join('、') }, status: 'failed', reason: blockFailed })
+          blockItems.push(Object.assign({ key: issue.key, edge: { op: 'block', target: blockWant.join('、') }, status: 'failed', reason: blockFailed }, failureFields(null, 'write', 'budget')))
         } else {
           const wrote = await applyBlockEdges(t, repo, opCtx, String(issue.key), blockWant, blockWant)
           for (const one of wrote.items) blockItems.push(one as unknown as Record<string, unknown>)
@@ -365,12 +369,12 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
           : '父子边没挂上（要 ' + rel + '）'
         notes.push('父子边没建成，别把它当成已经挂上：逐条原因在上面的 items 里。')
         if (blockFailed) notes.push('阻塞边也没建成，别把它们当成已经挂上：逐条原因也在上面的 items 里。')
-        if (labelFailed) items.push({ key: issue.key, step: 'labels', status: 'failed', reason: labelWhy })
+        if (labelFailed) items.push(Object.assign({ key: issue.key, step: 'labels', status: 'failed', reason: labelWhy }, failureFields(null, 'write')))
         if (originalProblem) notes.push('维护者原话也没核对上：' + originalProblem)
         return {
           value: {
             status: DECK_STATUS.PARTIAL,
-            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
+            reason: reasonForItems(items),
             text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。' + where + edgeHead + '：' + why
               + (labelFailed ? '标签也没挂上：' + labelWhy : '')
               + (blockFailed ? '阻塞边也没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed : '')
@@ -385,13 +389,13 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       }
       if (labelFailed) {
         // 票建成了、标签没挂上：按部分成功回（照父子边没挂上的 PARTIAL 先例），不再报“我替你补了”。
-        items.push({ key: issue.key, step: 'labels', status: 'failed', reason: labelWhy })
+        items.push(Object.assign({ key: issue.key, step: 'labels', status: 'failed', reason: labelWhy }, failureFields(null, 'write')))
         if (blockFailed) notes.push('阻塞边也没建成，别把它们当成已经挂上：逐条原因也在上面的 items 里。')
         if (originalProblem) notes.push('维护者原话也没核对上：' + originalProblem)
         return {
           value: {
             status: DECK_STATUS.PARTIAL,
-            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
+            reason: reasonForItems(items),
             text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。' + where + '标签没挂上：' + labelWhy
               + (blockFailed ? '阻塞边也没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed : '')
               + (originalProblem ? '维护者原话也没核对上：' + originalProblem : ''),
@@ -410,7 +414,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
         return {
           value: {
             status: DECK_STATUS.PARTIAL,
-            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
+            reason: reasonForItems(items),
             text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。' + where + '阻塞边没挂上（要 ' + blockWant.join('、') + '）：' + blockFailed
               + (originalProblem ? '维护者原话也没核对上：' + originalProblem : ''),
             data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
@@ -427,7 +431,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
         return {
           value: {
             status: DECK_STATUS.PARTIAL,
-            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
+            reason: reasonForItems(items),
             text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。' + where + '维护者原话没核对上：' + originalProblem,
             data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
             items: items,

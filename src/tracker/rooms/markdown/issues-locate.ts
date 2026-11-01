@@ -16,6 +16,7 @@ import { readTextFile, listDir, listDirOrThrow, namesOfListingOrThrow, visibleNa
 import type { ScratchRootListing } from './scratch-listing.js'
 import { issuesDir } from './path.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import { TRACKER_ERROR_STAGE } from '../../contract/results.js'
 import { failAs, rawJson } from './error-fail.js'
 import type { BackendPlatform, OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
@@ -284,7 +285,8 @@ export function scopeOf(repo: RepoWithPath | null | undefined, opts: LocateOpts 
 function conflict(key: string, hits: FileHit[]): { ok: false; error: { kind: string; message: string; raw: string } } {
   // 原文 = 命中的那几个文件与它们各自属于哪个 effort（本地就能定论：同名编号出现在多处）。
   // 这段原文正是人判断「该给哪个 effort 加范围」的依据，所以不许省。
-  return failAs(ERROR_KIND.CONFLICT, 'issue '+key+' 在 '+hits.length+' 个 effort 里都存在，但没指定 effortId（拒绝猜目标文件）', rawJson(hits))
+  // 缺的是调用方该指定的范围（effortId），不是后端故障：标成输入被拒，下一步才是补上这个参数。
+  return failAs(ERROR_KIND.CONFLICT, 'issue '+key+' 在 '+hits.length+' 个 effort 里都存在，但没指定 effortId（拒绝猜目标文件）', rawJson(hits), TRACKER_ERROR_STAGE.INPUT_REFUSED)
 }
 /** 按 (工作单元范围, 编号) 找票文件（#1488 起编号身份由 issues-locate 的目录内身份规则决定）。
  *  o.mode='write' 时多命中即 conflict；返回 {ok,path,effortId,key,legacy} 或 {ok:false,error}。

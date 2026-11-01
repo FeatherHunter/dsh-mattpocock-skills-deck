@@ -5,7 +5,7 @@ import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { Issue, IssueRef, RepositoryRef } from '../../contract/entities.js'
 import type { ErrorKind, IssueType, State } from '../../contract/identity.js'
 import type { DepsOpts, SetOpts } from '../../contract/inputs.js'
-import type { Dependencies, OpResult } from '../../contract/results.js'
+import { TRACKER_ERROR_STAGE, type Dependencies, type OpResult } from '../../contract/results.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
 import { normalizeIssue, parseBlockedByFallback, rewriteDescriptionWithBlockedPair } from './normalize.js'
@@ -412,12 +412,12 @@ export async function setBlockedBy(
   const id = repoId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'setBlockedBy: repo.refId missing', '')
   const k = String(key)
-  if (!k) return fail(ERROR_KIND.PARSE as ErrorKind, 'setBlockedBy: key required', '')
+  if (!k) return fail(ERROR_KIND.PARSE as ErrorKind, 'setBlockedBy: key required', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)
   const wanted: string[] = Array.isArray(blockers) ? [...new Set(blockers.map(String).filter(Boolean))] : []
   // 自环先判
   // 这一处没有外部来源的原文：结论是「入参自己和自己打架」。原文给这次请求的入参快照，
   // 让人一眼看见是哪张票被指成了自己的阻塞者。
-  if (wanted.includes(k)) return fail(ERROR_KIND.CONFLICT as ErrorKind, `conflict: self-loop ${k}`, JSON.stringify({ key: k, blockers: wanted }))
+  if (wanted.includes(k)) return fail(ERROR_KIND.CONFLICT as ErrorKind, `conflict: self-loop ${k}`, JSON.stringify({ key: k, blockers: wanted }), TRACKER_ERROR_STAGE.INPUT_REFUSED)
   try {
     const raw = (await fetchRawIssue(effective, id, k)) as RawBag | null
     // 回包不是一个带 iid 的票面（空对象/空值）：没有外部错误文本，原文给空串。
@@ -444,7 +444,7 @@ export async function setBlockedBy(
     const blockMap = await buildBlockMap(effective, id, k, wanted)
     if (hasCycle(blockMap, k, wanted)) {
       // 原文 = 这次看到的阻塞关系快照（人据此自己复算那条环），不是给人看的那句结论。
-      return fail(ERROR_KIND.CONFLICT as ErrorKind, 'conflict: cycle detected', JSON.stringify({ key: k, wanted, observed: Array.from(blockMap.entries()) }))
+      return fail(ERROR_KIND.CONFLICT as ErrorKind, 'conflict: cycle detected', JSON.stringify({ key: k, wanted, observed: Array.from(blockMap.entries()) }), TRACKER_ERROR_STAGE.INPUT_REFUSED)
     }
     if (!probe.probeFailed && !cancelMustClearBodyPair) {
       const keyOfProbe = (l: RawBag): string => String(l['iid'] ?? l['target_issue_iid'] ?? l['key'] ?? '')

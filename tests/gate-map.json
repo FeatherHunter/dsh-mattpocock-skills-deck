@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-01T16:45:24.379Z",
+  "generatedAt": "2026-11-01T19:56:02.375Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 530,
-  "gateCount": 530,
-  "attributedGates": 468,
+  "chainLength": 532,
+  "gateCount": 532,
+  "attributedGates": 470,
   "unattributedGates": 62,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 86,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 822,
+  "graphFileCount": 823,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -5864,6 +5864,43 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
+      "step": "node tests/verify-1799-input-stage.ts",
+      "file": "tests/verify-1799-input-stage.ts",
+      "guards": [
+        "src/tracker/contract/results.ts",
+        "src/tracker/contract/vocabulary.ts",
+        "src/tracker/rooms/github/room/backend.ts",
+        "src/tracker/rooms/markdown/index.ts"
+      ],
+      "dirs": [
+        "src/tracker/contract",
+        "src/tracker/rooms/github/room",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 4 条"
+    },
+    {
+      "step": "node tests/verify-1799-receipt-reasons.ts",
+      "file": "tests/verify-1799-receipt-reasons.ts",
+      "guards": [
+        "src/deck/shell/call-shell.ts",
+        "src/deck/shell/receipt-reason.ts",
+        "src/deck/shell/text-write-verify.ts"
+      ],
+      "dirs": [
+        "src/deck/shell"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
+    },
+    {
       "step": "node tests/verify-3-workspace-switch.ts",
       "file": "tests/verify-3-workspace-switch.ts",
       "guards": [
@@ -9050,7 +9087,8 @@
         "src/tracker/rooms/github/routing/fallback-reason.ts",
         "src/tracker/rooms/github/support/init-project-error-kinds.ts",
         "src/tracker/rooms/github/write/init-project.ts",
-        "src/tracker/rooms/github/write/issues.ts"
+        "src/tracker/rooms/github/write/issues.ts",
+        "src/tracker/rooms/markdown/error-fail.ts"
       ],
       "dirs": [
         "src/client",
@@ -9061,13 +9099,14 @@
         "src/tracker/kernel",
         "src/tracker/rooms/github/routing",
         "src/tracker/rooms/github/support",
-        "src/tracker/rooms/github/write"
+        "src/tracker/rooms/github/write",
+        "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 18 条"
+      "reason": "归属来自：源码里的路径字面量 19 条"
     },
     {
       "step": "node tests/verify-event-budget.ts",
@@ -13345,6 +13384,7 @@
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-1610-parallel-read.ts",
+      "node tests/verify-1799-receipt-reasons.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-bulk-deadline.ts",
@@ -14055,6 +14095,7 @@
       "node tests/verify-1444-list-detail-thin.ts",
       "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-1765-read-channel-plan.ts",
+      "node tests/verify-1799-input-stage.ts",
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-992-readonly-labels.ts",
@@ -14231,6 +14272,7 @@
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-1223-catalog-runtime-parity.ts",
       "node tests/verify-1443-github-readbudget.ts",
+      "node tests/verify-1799-input-stage.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -14366,6 +14408,7 @@
       "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-1788-write-route.ts",
       "node tests/verify-1789-create-preserve-sections.ts",
+      "node tests/verify-1799-input-stage.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -14382,6 +14425,7 @@
       "node tests/verify-dirwritable.ts",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-raw-samples.ts",
+      "node tests/verify-error-single-source.ts",
       "node tests/verify-field-tri-state.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-log-fields.ts",
@@ -14712,9 +14756,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 843,
+    "fileCount": 844,
     "dirCount": 84,
-    "coveredFileCount": 843,
+    "coveredFileCount": 844,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -15013,6 +15057,7 @@
       "src/deck/shell/in-flight-lease.ts",
       "src/deck/shell/minimal-spec.ts",
       "src/deck/shell/plan-cursor.ts",
+      "src/deck/shell/receipt-reason.ts",
       "src/deck/shell/session-workdir.ts",
       "src/deck/shell/spec-close-guard.ts",
       "src/deck/shell/table-cell.ts",
