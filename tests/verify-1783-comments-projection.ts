@@ -13,6 +13,13 @@
  *   二、界面：评论未知时不许说「评论 (0)」「无评论」「只读」；live 详情带回 20/56 条时
  *       标题写 20 条、有输入框、有「已显示 20 / 共 56」和「加载更多」。
  *
+ * 门禁覆盖三种「评论未知」的形状：
+ *   - GitLab 行：有正文、comments 是空数组、票面总数 56（A/B 组）；
+ *   - GitHub 行：有正文、没有 comments、没有票面总数（A6-A8、G 组）——这是 GitHub 的常规列表行，
+ *     「总数缺失」曾被误判成「已知」，导致首帧与取数失败回退时仍说「评论 (0)」「无评论」「只读」；
+ *   - 评论正文已经取到几条、票面总数缺失（A9-A10）：正文照画，但总数仍然不知道，
+ *     不许拿已取条数顶替总数（与 src/tracker/rooms/github/model/field-states.ts 的评论总数口径一致）。
+ *
  * 运行：node --import ./scripts/ts-hook.mts tests/verify-1783-comments-projection.ts
  */
 // 门禁归属: src/client/views/shared/detailProjection.ts
@@ -67,6 +74,13 @@ const gitlabRow = row(28, {
   commentCount: 56,
   url: 'https://gitlab.example.com/group/proj/-/issues/28',
 })
+// GitHub GraphQL 列表行：列表查询带正文、不带 comments、也不带票面评论总数
+// （src/tracker/rooms/github/channels/graphql/queries.ts 的 LIST_ISSUE_FRAGMENT）。
+// 这是 GitHub 的常规列表行，也是「有正文、评论未知」的第二种形状：评论数组与总数字段都缺。
+const githubRow = row(930, {
+  body: 'GitHub 常规列表行：有正文、没有评论数组、没有评论总数。',
+  url: 'https://github.com/o/r/issues/930',
+})
 {
   const view = proj.detailViewFor({ snapshot: snap([gitlabRow]), issueDetail: null, issueCache: {} }, 28, '')
   check(view && view.source === 'snapshot', 'A1 没有这一趟详情时读快照投影')
@@ -74,6 +88,30 @@ const gitlabRow = row(28, {
   check(!!view.issue && view.issue.comments === undefined, 'A3 行里没取过评论时不要造一个空连接（「没取过」不是「没有」）')
   check(!!view.issue && view.issue.commentCount === 56, 'A4 投影知道真实总数 56（后续界面要用来写「共 56」）')
   check(view.lastKnownAtMs === CLOCK0, 'A5 投影标出这份数据的时刻（上次数据提示用）')
+}
+{
+  // GitHub 的常规列表行：有正文，但评论数组与票面总数都没有（列表查询不取评论）。
+  // 投影不能把「没取过」说成「评论 0 条」——那正是 #1783 修好 GitLab 形状之后残留的缺陷形状。
+  const view = proj.detailViewFor({ snapshot: snap([githubRow]), issueDetail: null, issueCache: {} }, 930, '')
+  check(view && view.source === 'snapshot' && !!view.issue, 'A6 GitHub 形状的列表行（有正文、无评论数组、无总数）也能先投影出正文')
+  check(!!view.issue && view.issue.comments === undefined, 'A7 评论和总数都不知道时不要造空连接（「未知」不是「没有」）')
+  check(!!view.issue && view.issue.commentCount === undefined, 'A8 评论总数不知道时不要写 commentCount（不许拿 0 冒充总数）')
+}
+{
+  // 评论正文取到了 3 条、票面总数缺失：正文照常投影，但总数仍然不知道。
+  // 拿已取条数当总数，会把「只取到前几条」说成「一共就这几条」（#1783 规格；field-states.ts 同一口径）。
+  const partialRow = row(931, {
+    body: '有正文，评论正文取到了 3 条，但没有票面总数。',
+    comments: [
+      { author: { login: 'a' }, authorAssociation: 'NONE', body: 'c1', createdAt: '2026-11-01T00:00:00Z' },
+      { author: { login: 'b' }, authorAssociation: 'NONE', body: 'c2', createdAt: '2026-11-01T00:00:00Z' },
+      { author: { login: 'c' }, authorAssociation: 'NONE', body: 'c3', createdAt: '2026-11-01T00:00:00Z' },
+    ],
+  })
+  const view = proj.detailViewFor({ snapshot: snap([partialRow]), issueDetail: null, issueCache: {} }, 931, '')
+  const c = view && view.issue && view.issue.comments
+  check(view.source === 'snapshot' && !!c && Array.isArray(c.nodes) && c.nodes.length === 3, 'A9 评论正文取到了几条时照常投影出连接（正文能画）')
+  check(!!view.issue && view.issue.commentCount === undefined, 'A10 总数缺失时不许拿已取条数冒充总数（不写 commentCount）')
 }
 {
   // 快照行评论齐全（明确 0 条）：此时投影可以给一个空连接，界面说「评论 (0)」是真话。
@@ -235,6 +273,38 @@ function render (st: any): string {
   check(html.indexOf('detail.readOnlyHint') < 0, 'F4 没取到评论时不说「只读」')
   check(html.indexOf('<textarea') < 0, 'F5 评论未知时不给输入框')
   check(html.indexOf('list.loading') >= 0, 'F6 评论区说加载中（评论还没拿到）')
+}
+// G GitHub 形状的首帧与取数失败回退：这一趟详情还没到（首帧）或没取到（失败），页面退回快照行。
+// 旧判据把「总数缺失」误当成「已知」，于是造出空连接，界面说「评论 (0)」「无评论」「只读」。
+// 两组的 issueDetail 都为空：取数失败时这一趟本来就没有详情可画，能画的只有快照那一行。
+function renderGithubShape (mode: string): string {
+  return render({
+    cwd: 'D:/ws',
+    activeIssue: 930,
+    activeEffortId: '',
+    issueDetail: null,
+    issueMode: mode,
+    snapshot: { issues: [githubRow], maps: [] },
+  })
+}
+{
+  const html = renderGithubShape('loading')
+  check(html.indexOf('GitHub 常规列表行：有正文、没有评论数组、没有评论总数。') >= 0, 'G1 GitHub 形状首帧先把正文画出来')
+  check(html.indexOf('评论 (0)') < 0, 'G2 GitHub 形状首帧不说「评论 (0)」')
+  check(html.indexOf('detail.noComments') < 0, 'G3 GitHub 形状首帧不说「无评论」')
+  check(html.indexOf('detail.readOnlyHint') < 0, 'G4 GitHub 形状首帧不说「只读」')
+  check(html.indexOf('<textarea') < 0, 'G5 GitHub 形状首帧不给输入框（评论还没取到）')
+  check(html.indexOf('评论 · list.loading') >= 0, 'G6 GitHub 形状首帧评论区说加载中')
+}
+{
+  // 取数失败回退：评论区仍要说「还没取到」，不能退化成「评论 (0) / 无评论 / 只读」；
+  // 与 loading 的唯一区别是评论区把「加载中」换成「尚未取到」（mode 确实进了界面）。
+  const html = renderGithubShape('err')
+  check(html.indexOf('评论 (0)') < 0, 'G7 GitHub 形状取数失败回退不说「评论 (0)」')
+  check(html.indexOf('detail.noComments') < 0, 'G8 GitHub 形状取数失败回退不说「无评论」')
+  check(html.indexOf('detail.readOnlyHint') < 0, 'G9 GitHub 形状取数失败回退不说「只读」')
+  check(html.indexOf('<textarea') < 0, 'G10 GitHub 形状取数失败回退不给输入框')
+  check(html.indexOf('评论 · detail.notYet') >= 0, 'G11 GitHub 形状取数失败回退评论区说「尚未取到」')
 }
 
 if (failed) {

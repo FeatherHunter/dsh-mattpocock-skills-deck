@@ -5,6 +5,7 @@
 //   - 地图子票的可见阻塞行是裸行 Blocked by: NN, NN，没有就不写这一行；
 //   - 父票与「谁阻塞谁」这类原文没有的边信息放文件头隐藏注释（DSH-PARENT / DSH-BLOCKED-BY），一行一条。
 // 这一扇钉住：写边只改规定位置、旧文件没有注释时按目录结构兜底、读取能还原、日志是 edge.write。
+// #1788：写哪种行由票所在目录的路线决定（地图路线写裸行 + 隐藏注释，普通路线按文件已有字段样式写）。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1489-edges.ts
 
@@ -178,24 +179,31 @@ async function main(): Promise<void> {
   const handRead = await getIssue(ctx as never, featureRepo as never, '03', {} as never)
   check(edgeKeys(handRead && handRead.ok ? handRead.data : null) === '01', '② 手写票读回阻塞边 01')
 
-  // ══ 第五段：旧布局回归 —— 继续写可见行与 parentKey 注释 ══
-  const legacyTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1489-edges-legacy-'))
-  const legacyCtx = mkctx(legacyTmp)
-  const legacyRepo = repoOf()
-  writeText(path.join(legacyTmp, '.scratch', 'demo', 'map.md'), '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n')
-  const legacyDir = path.join(legacyTmp, '.scratch', 'demo', 'issues')
-  writeText(path.join(legacyDir, '01-first-ticket.md'), '# 第一张票\n\n正文\n\nStatus: ready-for-agent\n\n## Comments\n')
-  writeText(path.join(legacyDir, '02-second-ticket.md'), '# 第二张票\n\n正文\n\nStatus: ready-for-agent\n\n## Comments\n')
-  const legacyBlock = await setBlockedByIssue(legacyCtx as never, legacyRepo as never, '01', ['02'] as never, {} as never)
-  check(!!(legacyBlock && legacyBlock.ok), '旧布局：改阻塞边返回 ok')
-  check(/^Blocked by: #02$/m.test(readText(path.join(legacyDir, '01-first-ticket.md'))), '旧布局：阻塞边仍写可见行 Blocked by: #02')
-  const legacyParent = await setParentIssue(legacyCtx as never, legacyRepo as never, '01', '02' as never, {} as never)
-  check(!!(legacyParent && legacyParent.ok), '旧布局：改父子边返回 ok')
-  check(/<!-- parentKey: 02 -->/.test(readText(path.join(legacyDir, '01-first-ticket.md'))), '旧布局：父子边仍写旧的 parentKey 注释')
+  // ══ 第五段：目录里有 map.md 的手写票 —— 按地图路线写边（#1788：写什么由目录定，不再由文件文字猜） ══
+  // 两张手写票都没有文件头隐藏注释、没有加粗字段，但它们所在目录有 map.md，是地图子票：
+  // 阻塞边写可见裸行（值不带 #），父子边写隐藏注释 DSH-PARENT，不写旧的 parentKey 注释。
+  const routeTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1489-edges-route-'))
+  const routeCtx = mkctx(routeTmp)
+  const routeRepo = repoOf()
+  writeText(path.join(routeTmp, '.scratch', 'demo', 'map.md'), '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n')
+  const routeDir = path.join(routeTmp, '.scratch', 'demo', 'issues')
+  const routePath = path.join(routeDir, '01-first-ticket.md')
+  writeText(routePath, '# 第一张票\n\n正文\n\nStatus: ready-for-agent\n\n## Comments\n')
+  writeText(path.join(routeDir, '02-second-ticket.md'), '# 第二张票\n\n正文\n\nStatus: ready-for-agent\n\n## Comments\n')
+  const routeBlock = await setBlockedByIssue(routeCtx as never, routeRepo as never, '01', ['02'] as never, {} as never)
+  check(!!(routeBlock && routeBlock.ok), '地图路线：改阻塞边返回 ok')
+  const routeBlockText = readText(routePath)
+  check(/^Blocked by: 02$/m.test(routeBlockText), '地图路线：阻塞边写可见裸行（值不带 #，与原文一致）')
+  check(headerComments(routeBlockText).indexOf('<!-- DSH-BLOCKED-BY: 02 -->') >= 0, '地图路线：阻塞边同时写文件头隐藏注释：' + JSON.stringify(headerComments(routeBlockText)))
+  const routeParent = await setParentIssue(routeCtx as never, routeRepo as never, '01', '02' as never, {} as never)
+  check(!!(routeParent && routeParent.ok), '地图路线：改父子边返回 ok')
+  const routeParentText = readText(routePath)
+  check(routeParentText.indexOf('<!-- DSH-PARENT: 02 -->') >= 0, '地图路线：父子边写文件头隐藏注释 DSH-PARENT')
+  check(!/<!--\s*parentKey\s*:/.test(routeParentText), '地图路线：不写旧的 parentKey 注释')
 
   try { fs.rmSync(tmp, { recursive: true, force: true }) } catch { /* 临时目录清不掉不影响结论 */ }
   try { fs.rmSync(effortTmp, { recursive: true, force: true }) } catch { /* 同上 */ }
-  try { fs.rmSync(legacyTmp, { recursive: true, force: true }) } catch { /* 同上 */ }
+  try { fs.rmSync(routeTmp, { recursive: true, force: true }) } catch { /* 同上 */ }
   console.log(failed ? '\nFAILED' : '\nALL PASS')
   process.exitCode = failed ? 1 : 0
 }

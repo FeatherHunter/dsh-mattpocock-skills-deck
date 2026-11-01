@@ -4,7 +4,8 @@
 //   - 认领人、标签这些「deck 需要而原文没有」的信息放文件头隐藏注释（DSH-ASSIGNEES / DSH-LABELS），一行一条；
 //   - 地图子票的认领状态是可见的裸行 Status: claimed，实施票的可见状态是加粗行 **Status:**，
 //     认领实施票不改这个值（原文字段里没有 claimed 这一档）。
-// 这一扇同时钉住：改认领/标签时可见正文一字不动、隐藏注释同步更新、旧布局仍走原来的可见行。
+// 这一扇同时钉住：改认领/标签时可见正文一字不动、隐藏注释同步更新；写什么由票所在目录决定（#1788）。
+// 地图路线的票认领要标 claimed（原文裸行只有 claimed/resolved 两档），普通路线只记认领人。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1489-claim-labels.ts
 
@@ -210,25 +211,30 @@ async function main(): Promise<void> {
   const handLabels = ((handRead && handRead.ok && handRead.data.labels) || []).map((l) => (l && typeof l === 'object' ? l.name : l))
   check(JSON.stringify(handLabels) === '["bug"]', '① 手写票读回标签是 bug：' + JSON.stringify(handLabels))
 
-  // ══ 第五段：旧布局回归 —— 可见 Status/Assignees/Labels 行，行为不变 ══
-  const legacyTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1489-claim-legacy-'))
-  const legacyCtx = mkctx(legacyTmp)
-  const legacyRepo = repoOf()
-  writeText(path.join(legacyTmp, '.scratch', 'demo', 'map.md'), '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n')
-  const legacyPath = path.join(legacyTmp, '.scratch', 'demo', 'issues', '01-first-ticket.md')
-  writeText(legacyPath, '# 第一张票\n\n正文\n\nStatus: ready-for-agent\n\n## Comments\n')
-  const legacyAssigned = await setAssigneesIssue(legacyCtx as never, legacyRepo as never, '01', ['alice'] as never, {} as never)
-  check(!!(legacyAssigned && legacyAssigned.ok), '旧布局：认领返回 ok')
-  const legacyAfter = readText(legacyPath)
-  check(/^Status: claimed$/m.test(legacyAfter), '旧布局：认领仍写可见 Status: claimed')
-  check(/^Assignees: alice$/m.test(legacyAfter), '旧布局：认领仍写可见 Assignees 行')
-  const legacyLabeled = await setLabelsIssue(legacyCtx as never, legacyRepo as never, '01', ['bug'] as never, {} as never)
-  check(!!(legacyLabeled && legacyLabeled.ok), '旧布局：改标签返回 ok')
-  check(/^Labels: bug$/m.test(readText(legacyPath)), '旧布局：标签仍写可见 Labels 行')
+  // ══ 第五段：目录里有 map.md 的手写票 —— 按地图路线写（#1788：写什么由目录定，不再由文件文字猜） ══
+  // 这张票的正文是手写的老样子（没有文件头隐藏注释、没有加粗字段），但它所在目录有 map.md，
+  // 所以它是地图子票：认领要改可见裸行 Status（原文两档 claimed/resolved），认领人与标签进文件头隐藏注释。
+  const routeTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1489-claim-route-'))
+  const routeCtx = mkctx(routeTmp)
+  const routeRepo = repoOf()
+  writeText(path.join(routeTmp, '.scratch', 'demo', 'map.md'), '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n')
+  const routePath = path.join(routeTmp, '.scratch', 'demo', 'issues', '01-first-ticket.md')
+  writeText(routePath, '# 第一张票\n\n正文\n\nStatus: ready-for-agent\n\n## Comments\n')
+  const routeAssigned = await setAssigneesIssue(routeCtx as never, routeRepo as never, '01', ['alice'] as never, {} as never)
+  check(!!(routeAssigned && routeAssigned.ok), '地图路线：认领返回 ok')
+  const routeAfter = readText(routePath)
+  check(/^Status: claimed$/m.test(routeAfter), '地图路线：认领把可见裸行改成 claimed（原文两档之一）')
+  check(headerComments(routeAfter).indexOf('<!-- DSH-ASSIGNEES: alice -->') >= 0, '地图路线：认领人写进文件头隐藏注释：' + JSON.stringify(headerComments(routeAfter)))
+  check(!/^Assignees\s*[:：]/m.test(routeAfter), '地图路线：不写可见 Assignees 行（原文没有这一行）')
+  const routeLabeled = await setLabelsIssue(routeCtx as never, routeRepo as never, '01', ['bug'] as never, {} as never)
+  check(!!(routeLabeled && routeLabeled.ok), '地图路线：改标签返回 ok')
+  const routeLabeledText = readText(routePath)
+  check(headerComments(routeLabeledText).indexOf('<!-- DSH-LABELS: bug -->') >= 0, '地图路线：标签写进文件头隐藏注释：' + JSON.stringify(headerComments(routeLabeledText)))
+  check(!/^Labels\s*[:：]/m.test(routeLabeledText), '地图路线：不写可见 Labels 行')
 
   try { fs.rmSync(tmp, { recursive: true, force: true }) } catch { /* 临时目录清不掉不影响结论 */ }
   try { fs.rmSync(effortTmp, { recursive: true, force: true }) } catch { /* 同上 */ }
-  try { fs.rmSync(legacyTmp, { recursive: true, force: true }) } catch { /* 同上 */ }
+  try { fs.rmSync(routeTmp, { recursive: true, force: true }) } catch { /* 同上 */ }
   console.log(failed ? '\nFAILED' : '\nALL PASS')
   process.exitCode = failed ? 1 : 0
 }

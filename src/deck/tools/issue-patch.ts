@@ -11,6 +11,7 @@
 // 没有「看到子票都关了顺手关」的旁路：唯一的触发条件就是收口核对通过，而这条评论本身就是核对通过的证据。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { applyMdScope, mdScopeNote } from './md-scope.js'
+import { claimNoteOf } from './assignee-note.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { statusOfItems } from '../shell/edge-landing.js'
@@ -267,7 +268,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
           if (assigneesTimeout) return timeoutReply(assigneesTimeout)
           const r = must(rawAssign)
           if (r && r.ok === true) {
-            // 「回了 ok」不等于「认领人记上了」：本地 Markdown 只会把状态改成 claimed，认领人的名字不记。
+            // 「回了 ok」不等于「认领人记上了」：本地 Markdown 把认领人写进文件头隐藏注释，写后读回才看得见；别的后端各有各的落盘方式。
             // 判据只取写后读回这一次（后端的回答本身），不取写动作自己的回包 —— GitHub 房会把回包里的
             // 认领人覆盖成刚提交的那一份（issues-write.ts 的 setAssignees），拿它当证据等于自问自答，
             // 于是「写命令成功、认领人没记上」会被报成 ok（#790 同一类）。
@@ -281,8 +282,13 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
             if (!readOk) {
               items.push({ key: key, step: 'assignees', status: 'failed', reason: '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + String((after && after.error && after.error.message) || '没给出原因').slice(0, 160) : '剩余额度不够读回这一次的结果') + '）：认领人记上没记上不知道，别当成已经记上。' })
             } else if (want.length && missing.length) {
-              items.push({ key: key, step: 'assignees', status: 'failed', reason: '后端回了 ok，但读回来的票上没有这些认领人（' + missing.join('、') + '）：它可能只改了状态、没记认领人，别当成认领已经记上。' })
-            } else items.push({ key: key, step: 'assignees', status: 'ok', assignees: want })
+              items.push({ key: key, step: 'assignees', status: 'failed', reason: '后端回了 ok，但读回来的票上没有这些认领人（' + missing.join('、') + '）：认领人没记上，别当成认领已经记上。' })
+            } else {
+              items.push({ key: key, step: 'assignees', status: 'ok', assignees: want })
+              // #1788：普通实施票与普通票的认领只记认领人、不动可见状态，这是正常的落盘方式 ——
+              // 回执必须把这一点说清，否则读回执的人会以为可见状态也被改过。
+              if (want.length) notes.push(claimNoteOf(back.body))
+            }
           } else if (r && r.error && r.error.kind === 'unsupported') {
             items.push({ key: key, step: 'assignees', status: 'failed', reason: '这个后端做不到记认领人（后端原话：' + String(r.error.message || '').slice(0, 160) + '）。' })
           } else fail('assignees', r)

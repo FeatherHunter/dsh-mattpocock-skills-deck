@@ -88,6 +88,12 @@ function namePattern(name: string): string {
     .join('[ \\t]+')
 }
 
+/** 文件里第一个一级标题那一行；没有一级标题回空串。 */
+function firstHeadingLine(text: string): string {
+  const m = /^#[ \t]+\S.*$/m.exec(String(text || ''))
+  return m ? m[0] : ''
+}
+
 /** 判定文件形状：只看文件内容，不探目录。
  *  顺序有讲究：加粗字段行最硬（原文实施票模板），其次是地图子票的 `## Question`（wayfinder/SKILL.md:57-63），
  *  再退到裸 `Type:` 行（issue-tracker-local.md:26 的手写地图子票），都认不出就是旧布局，保持旧行为。 */
@@ -100,7 +106,9 @@ export function ticketFormOf(text: string): TicketForm {
   // 旧布局的票文件同样写 `Type: task`，但标题形状是 `# <标题>`、没有编号前缀，所以两个条件都要满足。
   // 类型词的取值只从 YAML 真源读（与创建侧同一份）。
   const bareType = new RegExp('^[ \\t]*' + namePattern('Type') + '[ \\t]*[:：][ \\t]*(' + regexAlt(MAP_TICKET_TYPES) + ')\\s*$', 'im').test(raw)
-  if (bareType && /^#[ \\t]*\d{1,3}[ \\t]*:/.test(raw)) return 'map-ticket'
+  // 编号标题只看第一个一级标题（#1788）：认领会把隐藏注释补在文件第 0 行，标题随之下移一行；
+  // 拿「文件第 0 行」当标题判据会让同一张票认领前后形状不同（map-ticket → legacy），下一次写就掉进旧布局分支。
+  if (bareType && /^#[ \t]*\d{1,3}[ \t]*:/.test(firstHeadingLine(raw))) return 'map-ticket'
   if (hiddenCommentOf(raw, 'DSH-FORMAT').found) return 'impl-ticket'
   return 'legacy'
 }
@@ -228,6 +236,22 @@ export function removeBareField(text: string, name: string): string {
     return lines.join('\n')
   }
   return raw
+}
+
+/** 文件里这个字段写的是哪种样式：有加粗行回 "bold"，只有裸行回 "bare"，两行都没有回空串。 */
+export function fieldStyleOf(text: string, name: string): 'bold' | 'bare' | '' {
+  if (boldFieldOf(text, name).found) return 'bold'
+  if (bareFieldOf(text, name).found) return 'bare'
+  return ''
+}
+
+/** 按文件已有样式写字段：有加粗行就改加粗行，有裸行就改裸行；两种都没有时按 fallback 补一种（缺行补在同类字段块末尾）。
+ *  #1788 行为规格 4 要的就是这个：同一份文件里不能出现两行样式不同的同一个字段。
+ *  fallback 只在「两种都没有」时生效 —— 加粗实施票补加粗行，手写票与地图子票补裸行，由调用方按路线给。 */
+export function writeFieldByStyle(text: string, name: string, value: string, fallback: 'bold' | 'bare' = 'bare'): string {
+  const style = fieldStyleOf(text, name)
+  if (style === 'bold' || (!style && fallback === 'bold')) return replaceBoldField(text, name, value)
+  return replaceBareField(text, name, value)
 }
 
 /** 把一段内容追加到 `## <title>` 段的末尾；没有这个段就在文末新建。

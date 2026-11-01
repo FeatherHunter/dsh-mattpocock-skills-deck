@@ -339,6 +339,8 @@ async function main(): Promise<void> {
   const mapTmp = tmpDir('md-1509-map-')
   const mapCtx = mkctx(mapTmp)
   const mapRepo = repoOf('地图改写', 'effort')
+  // #1788：地图子票按目录路线认 —— 工作单元目录里要有 map.md，否则这张手写票只算普通票。
+  writeText(path.join(mapTmp, '.scratch', '地图改写', 'map.md'), '# 地图改写\n\nStatus: ready-for-agent\n\n## Destination\n\n夹具\n')
   const mapFile = path.join(mapTmp, '.scratch', '地图改写', 'issues', '01-现成方案有哪些.md')
   writeText(mapFile, [
     '# 01: 现成方案有哪些？',

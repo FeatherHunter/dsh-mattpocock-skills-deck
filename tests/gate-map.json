@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-01T14:52:55.459Z",
+  "generatedAt": "2026-11-01T16:43:45.186Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 525,
-  "gateCount": 525,
-  "attributedGates": 463,
+  "chainLength": 528,
+  "gateCount": 528,
+  "attributedGates": 466,
   "unattributedGates": 62,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 84,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 808,
+  "graphFileCount": 810,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -740,6 +740,7 @@
         "src/deck/shell/minimal-spec.ts",
         "src/deck/shell/work-path-bindings.ts",
         "src/deck/tools",
+        "src/deck/tools/assignee-note.ts",
         "src/deck/tools/context.ts",
         "src/deck/tools/issue-create.ts",
         "src/deck/tools/issue-get.ts",
@@ -775,7 +776,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 25 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 26 条"
     },
     {
       "step": "node tests/verify-dependency-rules.ts",
@@ -5674,6 +5675,25 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
+      "step": "node tests/verify-1774-carry-wiring.ts",
+      "file": "tests/verify-1774-carry-wiring.ts",
+      "guards": [
+        "src/host/tracker/snapshot.ts",
+        "src/host/tracker/snapshotAssemble.ts",
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts"
+      ],
+      "dirs": [
+        "src/host/tracker",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
       "step": "node tests/verify-1783-comments-projection.ts",
       "file": "tests/verify-1783-comments-projection.ts",
       "guards": [
@@ -5723,6 +5743,40 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1788-write-route.ts",
+      "file": "tests/verify-1788-write-route.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/issues-patch.ts",
+        "src/tracker/rooms/markdown/issues-status.ts",
+        "src/tracker/rooms/markdown/issues.ts",
+        "src/tracker/rooms/markdown/original-fields.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 4 条"
+    },
+    {
+      "step": "node tests/verify-1789-create-preserve-sections.ts",
+      "file": "tests/verify-1789-create-preserve-sections.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/create-render.ts",
+        "src/tracker/rooms/markdown/issues-create.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-1792-card-action-gate.ts",
@@ -13364,6 +13418,7 @@
       "node tests/verify-1446-panel.ts",
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1490-four-objects.ts",
+      "node tests/verify-1774-carry-wiring.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-691-map-subissues.ts",
@@ -13582,6 +13637,7 @@
       "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-1692-disk-replay-eviction.ts",
       "node tests/verify-1770-gitlab-list-truncated.ts",
+      "node tests/verify-1774-carry-wiring.ts",
       "node tests/verify-1784-comment-pagination.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
@@ -14159,6 +14215,8 @@
       "node tests/verify-1605-markdown-map-list.ts",
       "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-1676-blocked-ref-unknown.ts",
+      "node tests/verify-1788-write-route.ts",
+      "node tests/verify-1789-create-preserve-sections.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -14502,9 +14560,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 829,
+    "fileCount": 831,
     "dirCount": 84,
-    "coveredFileCount": 829,
+    "coveredFileCount": 831,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -14805,6 +14863,7 @@
       "src/deck/shell/work-path-store.ts",
       "src/deck/shell/workspace-anchor.ts",
       "src/deck/shell/write-mutex.ts",
+      "src/deck/tools/assignee-note.ts",
       "src/deck/tools/context.ts",
       "src/deck/tools/issue-create-failure.ts",
       "src/deck/tools/issue-create-parts.ts",
@@ -15329,6 +15388,7 @@
       "src/tracker/rooms/markdown/write-guards.ts",
       "src/tracker/rooms/markdown/write-log.ts",
       "src/tracker/rooms/markdown/write-queue.ts",
+      "src/tracker/rooms/markdown/write-route.ts",
       "src/tracker/rooms/markdown/write.ts",
       "src/tracker/session/budget-reading.ts",
       "src/tracker/session/budget.ts",

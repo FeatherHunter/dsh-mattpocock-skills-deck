@@ -372,6 +372,32 @@ function poolKeyOf(row: any): string {
 }
 
 /**
+ * 把「上次已知的子票」与「这一趟见到的子票」合成一张清单，并算好展示计数。
+ *
+ * 完整来源只认这一趟（kept 记 0，表示没有借上次的数据）；不完整来源才按编号补回上次有、这次没见的行。
+ * prevStats 只在补回时沿用，且由 statsOf 判断上次总数更大才整体沿用 —— 计数比清单还少会让界面自相矛盾。
+ * seenThisPass 是这一趟在列表里出现过的票（所有容器的子票与 issues）：一张票这一趟跟在别的容器下，
+ * 就不许再从上次的清单里补回这个容器 —— 否则同一张票会同时挂在两个容器、统计各算一次。
+ */
+function mergeMapTickets(prevTickets: any[], ownTickets: any[], sourceComplete: boolean, prevStats: any, seenThisPass: Record<string, boolean>): { tickets: any[]; stats: any; kept: number } {
+  // 这一趟仍挂在本容器下的行，必须继续交给 mergeKnownTickets：它同时负责「本次没表达的字段沿用上次」
+  //   （正文、阻塞边、认领人）。只有「这一趟已在别处出现、却不在本容器清单里」的行才要从上次清单里摘掉，
+  //   否则同一张票会被补进旧容器、挂两处（#1774 复审的场景）。
+  const ownKeys: Record<string, boolean> = {}
+  ownTickets.forEach((t: any) => { const k = poolKeyOf(t); if (k) ownKeys[k] = true })
+  const borrowable = sourceComplete ? prevTickets : prevTickets.filter((t: any) => {
+    const k = poolKeyOf(t)
+    return !(k && seenThisPass[k] && !ownKeys[k])
+  })
+  const merged = sourceComplete ? { tickets: ownTickets, kept: 0 } : mergeKnownTickets(borrowable, ownTickets)
+  const normalized = normalizeMapTickets(merged.tickets)
+  // 只有真的借了上次的行（kept > 0）才沿用上次统计：一行没借时清单就是这一趟的数字，
+  //   再拿上次的总数盖上去会让「清单明明更短、计数却更大」自相矛盾（子票改挂到别的容器时就是这种形状）。
+  const keptStats = (!sourceComplete && merged.kept > 0 && prevStats && typeof prevStats === 'object') ? prevStats : null
+  return { tickets: normalized.tickets, stats: statsOf(normalized.tickets, keptStats), kept: merged.kept }
+}
+
+/**
  * 宿主重建快照时调用：把组装层产出的 maps[].tickets 整理成首帧可画的形状，并在来源不完整时
  * 用上次快照按编号补回已知子票与计数。返回新快照对象（不修改入参）。
  */
@@ -383,6 +409,19 @@ export function carryOverMapTickets(prevSnapshot: any, nextSnapshot: any, option
   prevMaps.forEach((m: any) => { prevByKey[containerKeyOf(m)] = m })
   const nowMs = options.nowMs === undefined ? Date.now() : options.nowMs
   const attached: Record<string, boolean> = {}
+  // 这一趟列表里「还没挂到任何容器」的行。容器缺席时，它这次仍在列表里的子票会落在这里。
+  const issues: any[] = Array.isArray(nextSnapshot.issues) ? nextSnapshot.issues : []
+  // 这一趟在列表里出现过的票（任何容器的子票 + issues）。补回上次子票时用它对账：
+  //   一张票这一趟跟在别的容器下，就不从上次清单里补回旧容器（否则同一张票挂两处、统计各算一次）。
+  const seenThisPass: Record<string, boolean> = {}
+  nextMaps.forEach((m: any) => {
+    if (!m || typeof m !== 'object') return
+    const own = Array.isArray(m.tickets) ? m.tickets : []
+    own.forEach((t: any) => { const k = poolKeyOf(t); if (k) seenThisPass[k] = true })
+  })
+  issues.forEach((row: any) => { const k = poolKeyOf(row); if (k) seenThisPass[k] = true })
+  // 已关闭容器补回时，按 #1291 的口径把它「自己已关闭」的子票从首屏 issues 摘掉，只保留瘦身行供查标题。
+  const thinTickets: any[] = Array.isArray(nextSnapshot.thinTickets) ? nextSnapshot.thinTickets.slice() : []
 
   const maps = nextMaps.map((map: any) => {
     if (!map || typeof map !== 'object') return map
@@ -393,19 +432,51 @@ export function carryOverMapTickets(prevSnapshot: any, nextSnapshot: any, option
     }
     const prev = prevByKey[containerKeyOf(map)]
     const prevTickets = prev && Array.isArray(prev.tickets) ? prev.tickets : []
-    const merged = options.sourceComplete
-      ? { tickets: ownTickets, kept: 0 }
-      : mergeKnownTickets(prevTickets, ownTickets)
-    const normalized = normalizeMapTickets(merged.tickets)
-    const prevStats = prev && prev.stats && typeof prev.stats === 'object' ? prev.stats : null
-    const stats = statsOf(normalized.tickets, options.sourceComplete ? null : prevStats)
-    const out: any = Object.assign({}, map, { tickets: normalized.tickets, stats })
+    const merged = mergeMapTickets(prevTickets, ownTickets, !!options.sourceComplete, prev && prev.stats, seenThisPass)
+    const out: any = Object.assign({}, map, { tickets: merged.tickets, stats: merged.stats })
     if (!options.sourceComplete && merged.kept > 0) out.carry = { at: nowMs, kept: merged.kept }
-    normalized.tickets.forEach((t: any) => { const k = poolKeyOf(t); if (k) attached[k] = true })
+    merged.tickets.forEach((t: any) => { const k = poolKeyOf(t); if (k) attached[k] = true })
     return out
   })
 
-  const issues = Array.isArray(nextSnapshot.issues) ? nextSnapshot.issues : []
+  // #1774：来源不完整时，把「上次有、这次没出现」的容器并回 maps。
+  //   为什么必须在这里补：后端只回第一页时，一张地图容器自己可能正好掉出页边界，而它的子票
+  //   前后几行还在列表里 —— 组装层只认这次见到的容器，于是容器行连同已归一的子票一起消失，
+  //   那些子票还会以「未挂图票」的身份漏进 issues，面板上地图与票数都对不上。
+  //   口径与「子票补回」同一条：只补不删；只有完整来源（没截断、没降级）才允许以本次为准删减。
+  if (!options.sourceComplete && prevMaps.length > 0) {
+    // nextKeys 记住这一趟见到的容器；补回一个就记一个，同名容器不会补两次（不用另开防重表）。
+    const nextKeys: Record<string, boolean> = {}
+    nextMaps.forEach((m: any) => { if (m && typeof m === 'object') nextKeys[containerKeyOf(m)] = true })
+    // 容器缺席时仍在列表里的子票，靠父键认回它属于哪个容器（父键就是容器身份键）。
+    const pointingTo = (containerKey: string): any[] => issues.filter((row: any) => row && typeof row === 'object' && idOfParts(effortOf(row), row.parentKey) === containerKey)
+    prevMaps.forEach((prev: any) => {
+      if (!prev || typeof prev !== 'object') return
+      const containerKey = containerKeyOf(prev)
+      if (!containerKey || nextKeys[containerKey]) return
+      nextKeys[containerKey] = true
+      // 已关闭容器按现行口径只保留容器行本身：子票为空，不写 carry（见 #691 / #1291 的说明）。
+      // #1774 复审补漏：这批「容器缺席、子票仍在本页」的行里，自己已关闭的票按 #1291 也不许进首屏，
+      //   只留瘦身行供工作路线查标题；还开着的子票照常留在 issues（与组装层对已关闭容器的处理一致）。
+      if (isClosed(prev)) {
+        pointingTo(containerKey).forEach((row: any) => {
+          if (!isClosedRow(row)) return
+          const k = poolKeyOf(row); if (k) attached[k] = true
+          const thin = thinRowOf(row); if (thin) thinTickets.push(thin)
+        })
+        maps.push(Object.assign({}, prev, { tickets: [] }))
+        return
+      }
+      const merged = mergeMapTickets(prev.tickets, pointingTo(containerKey), false, prev.stats, seenThisPass)
+      const out: any = Object.assign({}, prev, { tickets: merged.tickets, stats: merged.stats })
+      // 只要容器是被补回来的，就留下补回时刻：界面能说清「这是上次数据」，而不是冒充这一次的枚举。
+      out.carry = { at: nowMs, kept: merged.kept }
+      maps.push(out)
+      // 归回容器的子票要从 issues 里摘掉，同一张票不许在容器与 issues 两处同时出现。
+      merged.tickets.forEach((t: any) => { const k = poolKeyOf(t); if (k) attached[k] = true })
+    })
+  }
+
   const dedupedIssues = issues.filter((row: any) => !attached[poolKeyOf(row)])
-  return Object.assign({}, nextSnapshot, { maps, issues: dedupedIssues })
+  return Object.assign({}, nextSnapshot, { maps, issues: dedupedIssues, thinTickets })
 }

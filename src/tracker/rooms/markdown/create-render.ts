@@ -20,7 +20,7 @@ import { MD_FORMAT } from './format/generated.js'
 import { MAP_TICKET_TYPES, WAYFINDER_LABEL_RE } from './format/field-values.js'
 // 「哪一行算围栏、哪一行算二级标题」统一从 markdown-scan.ts 取：模板判据（template-guard.ts）也要判同一件事，
 // 两处各写一份正则会各说各话。
-import { isFenceLine, isHeadingTwoLine } from './markdown-scan.js'
+import { isHeadingTwoLine, scanFenceLines } from './markdown-scan.js'
 import type { CreateInput, LabelInput } from '../../contract/inputs.js'
 
 /** 本文件负责的六种对象。规格与实施票/普通票先落（#1486）；探索地图与地图子票本票接上（#1487）。 */
@@ -282,19 +282,33 @@ export function renderHeader(kind: OriginalKind, opts: {
   }
   return lines.join('\n') + (lines.length ? '\n' : '')
 }
+
+/** 逐行取出不在代码围栏里的正文行；围栏边界行与围栏内部的行都跳过。
+ *  字段只从这些行认（验收项与标题另按围栏状态判），否则「## 写法示例」里的示例字段会被当成真值（#1789）。 */
+function linesOutsideFence(body: string): string[] {
+  return scanFenceLines(body).filter((row) => !row.fenced).map((row) => row.line)
+}
+
 function fieldValue(body: string, label: string): string {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const re = new RegExp('^[ \\t]*\\*\\*' + escaped + ':\\*\\*[ \\t]*(.*)$', 'im')
-  const m = re.exec(body)
-  return m ? String(m[1] || '').trim() : ''
+  const re = new RegExp('^[ \\t]*\\*\\*' + escaped + ':\\*\\*[ \\t]*(.*)$', 'i')
+  for (const line of linesOutsideFence(body)) {
+    const m = re.exec(line)
+    if (m) return String(m[1] || '').trim()
+  }
+  return ''
 }
 
 /** 从正文里取状态行；没有 `**Status:**` 时认老的 `Status:` 行。 */
 function statusValue(body: string, label: string): string {
   const bold = fieldValue(body, label)
   if (bold) return bold
-  const m = new RegExp('^[ \\t]*' + label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[ \\t]*[:：][ \\t]*([^\\n]+)', 'im').exec(body)
-  return m ? String(m[1] || '').trim() : ''
+  const re = new RegExp('^[ \\t]*' + label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[ \\t]*[:：][ \\t]*([^\\n]+)', 'i')
+  for (const line of linesOutsideFence(body)) {
+    const m = re.exec(line)
+    if (m) return String(m[1] || '').trim()
+  }
+  return ''
 }
 
 /** 去掉正文里所有插件注释与旧骨架，只留用户写下的内容。 */
@@ -312,31 +326,52 @@ export function cleanBody(rawBody: string): string {
 /** 找第一个不在代码块里的二级标题；正文里的示例写法不能被当成真的区块开头。 */
 function firstHeadingOutsideFence(body: string): number {
   let offset = 0
-  let inFence = false
-  for (const line of String(body || '').split('\n')) {
-    if (isFenceLine(line)) inFence = !inFence
-    else if (!inFence && isHeadingTwoLine(line)) return offset
-    offset += line.length + 1
+  for (const row of scanFenceLines(body)) {
+    if (!row.fenced && isHeadingTwoLine(row.line)) return offset
+    offset += row.line.length + 1
   }
   return -1
 }
 
-/** 把实施票正文拆成原文模板要的三行字段 + 验收项 + 其余正文。 */
+/** 验收项的行形状：行首可选空白、列表符号、复选框。只在模板验收项位置用它认；进入二级小节后的 - [ ] 原样保留，不经过它。 */
+const ACCEPTANCE_LINE_RE = /^[ \t]*[-*][ \t]+\[[ xX]\][ \t]?/
+
+/** 把第一个二级标题之前的正文拆成三份：能当 What to build 的文字、要进模板验收项位置的
+ *  复选框、要原样留下的代码围栏（围栏里的行不拆散，也不抽走）。 */
+function splitPrefix(prefix: string): { text: string; acceptance: string[]; fences: string[] } {
+  const text: string[] = []
+  const acceptance: string[] = []
+  const fences: string[] = []
+  for (const row of scanFenceLines(prefix)) {
+    if (row.fenced) { fences.push(row.line); continue }
+    if (ACCEPTANCE_LINE_RE.test(row.line)) { acceptance.push(row.line.trim()); continue }
+    text.push(row.line)
+  }
+  return { text: text.join('\n').trim(), acceptance, fences }
+}
+
+/** 把实施票正文拆成原文模板要的三行字段 + 验收项 + 其余正文。
+ *
+ *  取舍（#1789）：只有第一个二级标题之前的 - [ ] 属于模板验收项位置；进入二级小节之后的行
+ *  原样留在正文里，代码围栏里的行更是一行都不动。围栏边界行与围栏内部行不进字段读取，
+ *  避免「## 写法示例」里的示例被当成真字段。 */
 function ticketParts(body: string, hasExplicitWhat: boolean, labels: string[]): { what: string; blocked: string; status: string; acceptance: string; rest: string } {
   const what = fieldValue(body, labels[0] || '')
   const blocked = fieldValue(body, labels[1] || '')
   const status = statusValue(body, labels[2] || '')
-  const lines = body.split('\n')
   const acceptance: string[] = []
   const rest: string[] = []
+  let seenSection = false
   const labelAlt = labels.map((one) => one.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
   const boldRe = new RegExp('^[ \\t]*\\*\\*(?:' + labelAlt + '):\\*\\*', 'i')
   const plainRe = new RegExp('^[ \\t]*(?:' + labelAlt + ')[ \\t]*[:：]', 'i')
-  for (const line of lines) {
-    if (/^[ \t]*[-*][ \t]+\[[ xX]\][ \t]?/.test(line)) { acceptance.push(line.trim()); continue }
-    if (boldRe.test(line)) continue
-    if (plainRe.test(line)) continue
-    rest.push(line)
+  for (const row of scanFenceLines(body)) {
+    if (row.fenced) { rest.push(row.line); continue }
+    if (isHeadingTwoLine(row.line)) seenSection = true
+    if (!seenSection && ACCEPTANCE_LINE_RE.test(row.line)) { acceptance.push(row.line.trim()); continue }
+    if (boldRe.test(row.line)) continue
+    if (plainRe.test(row.line)) continue
+    rest.push(row.line)
   }
   return {
     what: what || (hasExplicitWhat ? '' : rest.join('\n').trim()),
@@ -404,11 +439,18 @@ export function renderTicket(kind: OriginalKind, input: CreateView, opts: {
   // 原文模板里 `**What to build:**` 是字段行，但很多调用方只给一段话，后面再跟 `## 进度` 这类区块。
   // 没有字段行时把第一个二级标题之前的那段话当作 What to build，后面的区块原样留在票尾；
   // 否则整段（含 `## 进度` 标题）会被塞进字段行同一行，读回来就找不到进度区了。
+  // 那段话里的 - [ ] 是验收项（#1789）：不并进字段行，原样留在字段行之后，由 ticketParts 收进
+  // 模板验收项位置；代码围栏里的行整段留在字段行后面，不拆散、不抽走。
   const explicitWhat = !!fieldValue(rawBody, fieldLabels[0] || '')
   const splitAt = explicitWhat ? -1 : firstHeadingOutsideFence(rawBody)
-  const body = splitAt >= 0
-    ? fieldLine(fields[0]['line-shape'], rawBody.slice(0, splitAt).trim()) + '\n\n' + rawBody.slice(splitAt)
-    : rawBody
+  let body = rawBody
+  if (splitAt >= 0) {
+    const prefix = splitPrefix(rawBody.slice(0, splitAt).trim())
+    const afterField = prefix.acceptance.concat(prefix.fences)
+    body = fieldLine(fields[0]['line-shape'], prefix.text)
+      + (afterField.length ? '\n' + afterField.join('\n') : '')
+      + '\n\n' + rawBody.slice(splitAt)
+  }
   const parts = ticketParts(body, explicitWhat || splitAt >= 0, fieldLabels)
   // #1507：可见阻塞行与隐藏字段从同一份取值派生，两行不会再一个带 #、一个不带。
   const blocked = blockedPair(input, parts.blocked)

@@ -11,7 +11,16 @@
 - 这是有意写下的取舍，不是实现跑偏：#1506 正文逐字写「拒绝时不做自动归一化，不丢信息，老数据只读。」；#1509 收口评论第 3 条逐字写「存量票（盘上已经带远端四段的）以后的『进度/原话追加』会失败……这与『存量只读、读不出来的当没有』的口径一致，不做静默兼容。」报告人反对的正是这条取舍。
 - 报告人建议的「段名白名单」有四个可复现的漏洞：旧票已带全四段时整份原样写回会被放行（与 #1509 验收①字面冲突）；在旧段名下继续加内容会被放行；同名新增段会被按段名去重漏判；片段写路径也会被一起放宽，等于回退 #1506 修掉的片段旁路。逐条推演见 research/1786-triage-2026-11-01.md 的「提案评估」。
 - 维护者拍板（2026-11-01，本会话原话）：「老ISSUE本来就不支持，需要让AI 全部以 新deck工具转为 新结构下的ISSUE。」
-- 迁移路线 2026-11-01 实跑可行：老票读整份正文 → 按新结构改写 → deck_issue_patch 带 bodyDigest 整份写回 → 读回核对；迁移后远端段消失、内容/状态/旧评论保留，之后追加进度恢复正常。两个必须照做的细节与实测证据写在 [#1797](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1797) 与 research/1786-triage-2026-11-01.md 的收口追加一节。
+- 迁移路线 2026-11-01 实跑可行：老票读整份正文 → 按新结构改写 → deck_issue_patch 带 bodyDigest 整份写回 → 读回核对；迁移后远端段消失、内容/状态/旧评论保留，之后追加进度恢复正常。两个必须照做的细节与实测证据写在 research/1786-triage-2026-11-01.md 的收口追加一节；具体由谁发起迁移见下一节。
+
+## 项目不提供迁移，迁移由使用者自行发起
+
+这是维护者在 2026-11-01 明确说清的边界：**项目不提供迁移，迁移由使用者自行发起**。
+
+- 项目不提供迁移功能：不内置迁移命令或脚本，不批量迁移存量票，也不在仓库里维护迁移操作文档。
+- 迁移由使用者自行发起：哪张票需要迁移，就由使用它的人跟自己的 AI 说一声，由 AI 用新的 deck 工具把那张票整份读出来、按新结构改写、带正文指纹整份写回。仓库只保证这条路在技术上走得通（上一节已实跑）。
+- 已有的教学材料：仓库里的演示视频 [assets/video/中文-markdown后端-老版本迁移.mp4](../assets/video/中文-markdown后端-老版本迁移.mp4) 完整演示了怎么迁移（提交 d2cc71a3，约 2 分 14 秒、38 MB）；维护者明确「这个视频教了如何迁移」。撞到模板守卫时，报错文案本身也会说清本地票该写成什么形状。
+- 原本计划把迁移步骤写进 docs/agents/issue-tracker.md 的 [#1797](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1797) 已按「不跟进」关闭，理由正是这条边界：迁移是使用者发起的一次性操作，不是项目要交付的功能或文档。
 
 ## 如果以后重启
 
@@ -19,4 +28,4 @@
 
 ## 历史请求
 
-- [#1786](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1786)（2026-11-01）：报告人提出用盘上旧标题做白名单、只拦新旧差集。维护者同日拍板不跟进，按 wontfix 关闭并补 enhancement + wontfix 标签。分诊调查与证据见 research/1786-triage-2026-11-01.md；迁移流程另立 [#1797](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1797)。
+- [#1786](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1786)（2026-11-01）：报告人提出用盘上旧标题做白名单、只拦新旧差集。维护者同日拍板不跟进，按 wontfix 关闭并补 enhancement + wontfix 标签。分诊调查与证据见 research/1786-triage-2026-11-01.md；原计划写迁移文档的 [#1797](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1797) 已按不跟进关闭——项目不提供迁移，迁移由使用者自行发起。
