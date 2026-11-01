@@ -65,12 +65,14 @@ const CLOSURE = closureList()
 // patch 按相对路径改单个源文件的文本，用来做反证（把驼峰事件属性改回小写）。
 function buildView(hostStub, patch) {
   const patchMap = patch || {}
-  let src = CLOSURE.map(function (rel) {
+  // #1776 M4a：本机 Windows 上 esbuild 0.28.2 对超过 1MB 的输入改走 os.tmpdir() 临时文件，子进程删除它时
+  //   报 "remove …: Access is denied."，整段转译直接抛错。这里本来就按文件改坏、逐文件拼装，所以顺手
+  //   逐文件转译再拼回去：每段都是完整源文件，与整段转译等价，也绕开了上面那条 1MB 的坎。
+  const src = CLOSURE.map(function (rel) {
     let code = stripExports(stripTimeConfigImport(readSource(rel)))
     if (typeof patchMap[rel] === 'function') code = patchMap[rel](code)
-    return code
+    return toEvalJs(code)
   }).join('\n')
-  src = toEvalJs(src)
   const body = src + '\nreturn { ' + EXPORTS.join(', ') + ' }\n'
   const fn = compileFn(['React', 'log', 'dswsLogHash', 'dswsLogTrunc', 'tr', 'host', 'DswsCtx', 'Tip', 'Ic', 'seedReads'], body)
   return fn(React, function () {}, function () { return 'h8' }, function (s) { return String(s) }, tZh, hostStub || {}, DswsCtx, TipStub, IcStub, null)
@@ -105,6 +107,7 @@ function makeHost(opts) {
   const replyOf = function (phone, args) {
     if (o.reply && typeof o.reply[phone] === 'function') return o.reply[phone](args)
     if (phone === 'wf.gitFirstScreen') return { ok: true, firstScreen: snapshotOf({ failSlice: o.failSlice, failMessage: o.failMessage }), readAtMs: NOW }
+    if (phone === 'wf.gitStashCheck') return { ok: true, ticket: { id: 'st-ticket', checkedAtMs: NOW, expiresAtMs: NOW + 120000 }, plan: { subject: '第1条贮藏' } }
     if (phone === 'wf.gitStash') return { ok: true, entries: [], recent: [], stderr: '', stdout: '' }
     if (phone === 'wf.gitCommitForm') return { ok: true, form: { branch: 'main', stagedCount: 0, hooks: [], amend: { available: true, message: '上一条提交的说明' } } }
     if (phone === 'wf.gitWriteCheck') return { ok: true, decision: { verdict: 'allow', reasons: ['ok'] }, plan: { mode: 'amend' }, confirmRequired: true, ticket: { id: 'cm-ticket', checkedAtMs: NOW, expiresAtMs: NOW } }
@@ -361,12 +364,17 @@ async function scenarioMain() {
   check(countKin(host, 'wf.gitCommit') === commitBefore + 1, 'T16d 在确认卡上确认后才发执行电话 wf.gitCommit')
   check(!!m.q('[data-vc-commit-result]'), 'T16e 提交结果回到页面')
 
-  // ---- 贮藏页首批动作 ----
+  // ---- 贮藏页首批动作：写动作走三段式（预检签票 → 页面确认卡 → 凭票执行），不再一步直发 ----
   await m.click('[data-vc-tab="stash"]')
+  const stashCheckBefore = countKin(host, 'wf.gitStashCheck')
   const stashBefore = countKin(host, 'wf.gitStash')
   await m.click('[data-vc-stash-op="push"]')
+  const stashCheckCall = host.calls.filter(function (one) { return one.phone === 'wf.gitStashCheck' })[stashCheckBefore]
+  check(countKin(host, 'wf.gitStashCheck') === stashCheckBefore + 1 && !!stashCheckCall && String((stashCheckCall.args || {}).op || '') === 'push' && stashCheckCall.args.confirm === undefined && countKin(host, 'wf.gitStash') === stashBefore, 'T17 贮藏页点 push 先发预检电话 wf.gitStashCheck（op=push、不带 confirm），预检阶段不执行写')
+  check(!!m.q('[data-vc-stash-confirm]'), 'T17b 预检签出票后贴触发点出确认卡，等人过目')
+  await m.click('[data-vc-stash-confirm-go="1"]')
   const stashCall = host.calls.filter(function (one) { return one.phone === 'wf.gitStash' })[stashBefore]
-  check(countKin(host, 'wf.gitStash') === stashBefore + 1 && !!stashCall && String((stashCall.args || {}).op || '') === 'push', 'T17 贮藏页点 push 发出真电话 wf.gitStash（op=push）')
+  check(countKin(host, 'wf.gitStash') === stashBefore + 1 && !!stashCall && String((stashCall.args || {}).op || '') === 'push' && String((stashCall.args || {}).ticketId || '') === 'st-ticket' && stashCall.args.confirmed === true, 'T17c 确认后才凭票发执行电话 wf.gitStash（带预检拿到的 ticketId、confirmed=true）')
 
   // ---- 工作树页首批动作 ----
   await m.click('[data-vc-tab="worktrees"]')
@@ -523,7 +531,7 @@ async function scenarioManage() {
   check(countKin(host, 'wf.gitBranches') > branchesBefore, 'T24e 写成功后重读分支板（wf.gitBranches 再发一次）')
   check(!!m.q('[data-vc-branch2] [data-vc-result="ok"]'), 'T24f 分支动作的结果回到触发点（结果块 data-vc-result=ok）')
 
-  // ---- 远端写：远端四条写没有预检电话，提交表单后直接发真写电话并重读列表 ----
+  // ---- 远端写：四条远端写按 ADR 20261031 是无预检的直接写电话（只动本地配置），提交表单后直发真写电话、成功后重读列表，不立确认卡 ----
   await m.click('[data-vc-back]')
   if (!m.q('[data-vc-gear-index]')) await m.click('[data-vc-gear-btn]')
   await m.click('[data-vc-gear-item="remote"]')
@@ -603,6 +611,39 @@ async function scenarioManage() {
   await m3.unmount()
 }
 
+// ---------------- 场景七：AI 入口（#854）—— 只在面板解决不了时出现，点开的 prompt 只带已读事实 ----------------
+// 818 那扇门禁用静态渲染验「四个落点各在什么条件下出现」；这里真挂载、真点一次，验点开之后交给新会话的正文：
+// 仓库/分支/冲突这些面板已经读到的事实由面板填，目标与补充两行留给人补，且不发任何写电话（预填不发送）。
+async function scenarioAiHandoff() {
+  console.log('\n== 场景七：AI 入口真挂载与 prompt 内容 ==')
+  const snap = snapshotOf()
+  snap.slices.changes.data.conflictCount = 1
+  snap.slices.changes.data.unstaged.push({ path: 'a.txt', status: 'UU', staged: false, untracked: false, conflict: true })
+  snap.slices.workspace.data.repo = Object.assign({}, snap.slices.workspace.data.repo, { rebasing: true })
+  const host = makeHost({ reply: { 'wf.gitFirstScreen': function () { return { ok: true, firstScreen: snap, readAtMs: NOW } } } })
+  const view = buildView(host, null)
+  const opened = []
+  const prevOpener = global.openTextInNewSession
+  global.openTextInNewSession = function (st, body, title, opts) { opened.push({ st: st, body: body, title: title, opts: opts }) }
+  const m = mountOf(view, { st: { cwd: CWD } })
+  await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  const kinds = m.qa('[data-vc-ai]').map(function (el) { return el.getAttribute('data-vc-ai') })
+  check(kinds.indexOf('conflict') >= 0 && kinds.indexOf('midop') >= 0, 'T31 有冲突且正在变基时页面上出现两个 AI 入口（' + kinds.join(',') + '）')
+  const beforeCalls = host.calls.length
+  const clicked = await m.click('[data-vc-ai="conflict"]')
+  check(clicked && opened.length === 1, 'T31b 点冲突入口交给新会话一次（opener 被调一次，预填不发送）')
+  const handoff = opened[0] || {}
+  const body = String(handoff.body || '')
+  const lines = body.split('\n')
+  check(handoff.title === tZh('vc.ai.title', { branch: 'main' }) && handoff.opts && handoff.opts.kind === 'fix' && handoff.st && handoff.st.cwd === CWD, 'T31c 交出去的标题、fix 档与工作区都对（新会话落在同一个 cwd）')
+  check(lines[lines.length - 1] === tZh('vc.ai.extra') && lines[lines.length - 2] === tZh('vc.ai.goal'), 'T31d 目标与补充两行原样留白（只有词条本身，不替人编内容）')
+  check(body.indexOf('看到：') >= 0 && body.indexOf('想做：') >= 0 && body.indexOf('dsh-plugin') >= 0 && body.indexOf('- a.txt') >= 0 && body.indexOf('vc.') < 0, 'T31e prompt 带上已读事实（仓库、卡住的文件 a.txt、看到的难处），没有词条键名')
+  check(host.calls.length === beforeCalls, 'T31f 点 AI 入口只开会话、不发任何宿主电话（也没顺手执行修复）')
+  global.openTextInNewSession = prevOpener
+  await m.unmount()
+}
+
 // ---------------- main ----------------
 async function main() {
   const locUrl = (f) => pathToFileURL(path.join(ROOT, sourcePath(f))).href
@@ -622,6 +663,7 @@ async function main() {
   await scenarioEmptyCwd()
   await scenarioReverseProof()
   await scenarioManage()
+  await scenarioAiHandoff()
 
   console.log('\n断言 ' + total + ' 条，失败 ' + failed + ' 条')
   printGateResult('verify-1776-vc-live-tab', total, failed ? 1 : 0)

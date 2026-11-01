@@ -53,7 +53,10 @@ const CLOSURE_FILES = (function (): string[] {
   })
   return list
 })()
-const CLOSURE_JS = require('esbuild').transformSync(CLOSURE_FILES.map((rel: string) => stripExports(stripTimeImport(sourceOf(rel)))).join('\n'), TRANSPILE_OPTIONS).code
+// esbuild 0.28.2 在 Windows 上会把超过 1MB 的 transform 输入先写进系统临时目录，子进程读完再删；
+// 本机删这个临时文件一律被拒（Access is denied），于是整段转译闭包会直接崩在第一条断言之前。
+// 这里改成按文件逐份转译再按原顺序拼接：每份都远小于 1MB，产出的代码与整段转译相同（同样是 esm 写法、不加外壳）。
+const CLOSURE_JS = CLOSURE_FILES.map((rel: string) => require('esbuild').transformSync(stripExports(stripTimeImport(sourceOf(rel))), TRANSPILE_OPTIONS).code).join('\n')
 
 // ---------------- 首屏快照与假宿主回包 ----------------
 const okSlice = (data: any): any => ({ state: 'ok', data: data, error: null })

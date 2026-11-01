@@ -18,9 +18,10 @@ declare function vcRebaseMoveOf(rows: any, index: any, dir: any): any
 declare function splitConflictHunks(text: any): any
 declare function applyConflictChoices(text: any, choices: any): any
 declare function vcRealRequestIdOf(nowMs: any, salt: any): string
+declare const VC_CONFLICTS_PHONES: any
+declare const VC_REBASE_PHONES: any
 
-const VC_REAL_CONFLICTS_PHONES: any = { read: 'wf.gitConflicts', check: 'wf.gitConflictCheck', write: 'wf.gitConflictWrite' }
-const VC_REAL_REBASE_PHONES: any = { read: 'wf.gitRebaseRead', check: 'wf.gitRebaseCheck', write: 'wf.gitRebaseWrite' }
+// 电话名沿用既有叶子导出的常量，避免同一组电话在两处各写一遍（名字改了这里必然跟着变）。
 
 /** 把回包折成结果块要的形状：成功给命令与条数，失败把宿主原话与环节原样留下。 */
 const vcRealWriteResultOf = function (reply: any): any {
@@ -43,6 +44,7 @@ export const vcRealConflictsHandlersOf = function (deps: any): any {
   const nowMs: any = typeof d.nowMs === 'function' ? d.nowMs : function () { return Date.now() }
   const getConflicts: any = d.getConflicts
   const patchConflicts: any = d.patchConflicts
+  const t: any = typeof d.translate === 'function' ? d.translate : function (key: string) { return key }
   const getRow = function (c: any, op: any): any { return (c.rows && c.rows[String(op)]) ? c.rows[String(op)] : {} }
   const putRow = function (c: any, op: any, row: any): any {
     const rows: any = Object.assign({}, c.rows || {})
@@ -51,7 +53,7 @@ export const vcRealConflictsHandlersOf = function (deps: any): any {
   }
   const readList = function (): any {
     const c: any = getConflicts() || {}
-    return Promise.resolve(callHost(VC_REAL_CONFLICTS_PHONES.read, { cwd: cwd, op: 'conflict-list' })).then(function (reply: any) {
+    return Promise.resolve(callHost(VC_CONFLICTS_PHONES.read, { cwd: cwd, op: 'conflict-list' })).then(function (reply: any) {
       const reads: any = Object.assign({}, c.reads || {})
       reads['conflict-list'] = reply
       patchConflicts(Object.assign({}, c, { reads: reads }))
@@ -63,7 +65,7 @@ export const vcRealConflictsHandlersOf = function (deps: any): any {
     const values: any = Object.assign({}, c.values || {}, payload || {})
     const row: any = Object.assign({}, getRow(c, op), { busy: true })
     patchConflicts(putRow(Object.assign({}, c, { values: values }), op, row))
-    return Promise.resolve(callHost(VC_REAL_CONFLICTS_PHONES.check, vcConflictsCheckArgsOf(cwd, op, values))).then(function (reply: any) {
+    return Promise.resolve(callHost(VC_CONFLICTS_PHONES.check, vcConflictsCheckArgsOf(cwd, op, values))).then(function (reply: any) {
       const cur: any = getConflicts() || {}
       const r: any = reply || {}
       const ticket: any = r.ticket || null
@@ -85,11 +87,11 @@ export const vcRealConflictsHandlersOf = function (deps: any): any {
     const t: any = ticket || {}
     const ticketId: string = String(t.ticketId || '')
     if (ticketId === '') {
-      patchConflicts(putRow(Object.assign({}, c, { values: values }), op, Object.assign({}, getRow(c, op), { busy: false, result: { ok: false, error: { kind: 'shape', message: '预检没有签出票据', reason: 'no-ticket' } } })))
+      patchConflicts(putRow(Object.assign({}, c, { values: values }), op, Object.assign({}, getRow(c, op), { busy: false, result: { ok: false, error: { kind: 'shape', message: t('vc.shell.live.noTicket'), reason: 'no-ticket' } } })))
       return Promise.resolve(null)
     }
     const requestId: string = String(t.requestId || vcConflictsRequestIdOf(nowMs(), op))
-    return Promise.resolve(callHost(VC_REAL_CONFLICTS_PHONES.write, vcConflictsWriteArgsOf(cwd, op, values, ticketId, requestId))).then(function (reply: any) {
+    return Promise.resolve(callHost(VC_CONFLICTS_PHONES.write, vcConflictsWriteArgsOf(cwd, op, values, ticketId, requestId))).then(function (reply: any) {
       const cur: any = getConflicts() || {}
       const result: any = vcRealWriteResultOf(reply)
       patchConflicts(putRow(Object.assign({}, cur, { values: values }), op, Object.assign({}, getRow(cur, op), { busy: false, confirm: null, result: result })))
@@ -100,7 +102,7 @@ export const vcRealConflictsHandlersOf = function (deps: any): any {
   const read = function (op: any, payload: any): any {
     const c: any = getConflicts() || {}
     const values: any = Object.assign({}, c.values || {}, payload || {})
-    return Promise.resolve(callHost(VC_REAL_CONFLICTS_PHONES.read, vcConflictsCheckArgsOf(cwd, op, values))).then(function (reply: any) {
+    return Promise.resolve(callHost(VC_CONFLICTS_PHONES.read, vcConflictsCheckArgsOf(cwd, op, values))).then(function (reply: any) {
       const cur: any = getConflicts() || {}
       const next: any = Object.assign({}, cur, { values: values })
       patchConflicts(putRow(next, op, Object.assign({}, getRow(cur, op), { read: reply })))
@@ -169,7 +171,7 @@ export const vcRealRebaseHandlersOf = function (deps: any): any {
     const actions: any = Object.assign({}, r.actions || {})
     actions[String(op)] = Object.assign({}, actions[String(op)] || {}, { busy: true })
     patchRebase(Object.assign({}, r, { values: Object.assign({}, r.values || {}), actions: actions, errorText: '' }))
-    return Promise.resolve(callHost(VC_REAL_REBASE_PHONES.check, vcRebaseCheckArgsOf(cwd, op, values))).then(function (reply: any) {
+    return Promise.resolve(callHost(VC_REBASE_PHONES.check, vcRebaseCheckArgsOf(cwd, op, values))).then(function (reply: any) {
       const cur: any = getRebase() || {}
       const rr: any = reply || {}
       const acts: any = Object.assign({}, cur.actions || {})
@@ -189,7 +191,7 @@ export const vcRealRebaseHandlersOf = function (deps: any): any {
     const values: any = valuesOf(r)
     const tid: string = String(ticketId || '')
     if (tid === '') return Promise.resolve(null)
-    return Promise.resolve(callHost(VC_REAL_REBASE_PHONES.write, vcRebaseWriteArgsOf(cwd, op, values, tid, String(requestId || vcRebaseRequestIdOf(nowMs(), op))))).then(function (reply: any) {
+    return Promise.resolve(callHost(VC_REBASE_PHONES.write, vcRebaseWriteArgsOf(cwd, op, values, tid, String(requestId || vcRebaseRequestIdOf(nowMs(), op))))).then(function (reply: any) {
       const cur: any = getRebase() || {}
       const acts: any = Object.assign({}, cur.actions || {})
       acts[String(op)] = { busy: false, result: vcRealWriteResultOf(reply) }
@@ -206,7 +208,7 @@ export const vcRealRebaseHandlersOf = function (deps: any): any {
     const r: any = getRebase() || {}
     const values: any = valuesOf(r)
     const merged: any = Object.assign({}, values, payload || {})
-    return Promise.resolve(callHost(VC_REAL_REBASE_PHONES.read, vcRebaseReadArgsOf(cwd, op, merged))).then(function (reply: any) {
+    return Promise.resolve(callHost(VC_REBASE_PHONES.read, vcRebaseReadArgsOf(cwd, op, merged))).then(function (reply: any) {
       const cur: any = getRebase() || {}
       const reads: any = Object.assign({}, cur.reads || {})
       const rr: any = reply || {}

@@ -20,6 +20,8 @@ declare function vcFirstScreenSliceStateOf(reads: any, id: any): any
 declare function vcFirstScreenSliceErrorOf(reads: any, id: any): any
 declare function vcFirstScreenFailedSlicesOf(reads: any): any
 declare function vcFirstScreenSliceRetryableOf(reads: any, id: any): any
+declare function vcFirstScreenScreenOf(reads: any): any
+declare const VC_AI_READ_FAIL_KINDS: string[]
 
 // 容器的初始界面状态：#842 的旧写操作状态不再需要，新壳要的是「点开的那笔提交 / 那个文件」与一个
 //   用来强制重画动作行的计数（动作层把状态放在闭包里，改完敲一下 liveTick 让 React 重算）。
@@ -251,13 +253,67 @@ export const vcRealChangesSeedOf = function (reads: any): any {
   }
 }
 
-// 深链（#1586 的 VC_DEEP_LINKS）在 M1 用三个独立按钮补齐四个页签与齿轮到不了的页：
-//   全库搜索页、变基页、冲突页；其余深链落在管理与页签上，已由页签与齿轮覆盖。
-export const VC_REAL_EXTRA_LINKS: string[] = ['palette', 'rebase', 'conflicts']
+// 顶栏额外入口（#1586 的 VC_DEEP_LINKS 里页签与齿轮覆盖不到的那几个）：全库搜索页、任务页、
+//   变基页、冲突页；其余深链落在管理与页签上，已由页签与齿轮覆盖，不重复画按钮。
+export const VC_REAL_EXTRA_LINKS: string[] = ['palette', 'task', 'rebase', 'conflicts']
 
 export const vcRealDeeplinkPageOf = function (key: any): string {
   const link: any = vcDeepLinkOf(key)
   return link && link.page ? String(link.page) : ''
+}
+
+// 深链来源：容器 props.deeplink 优先（宿主或门禁可以直接给），否则读地址栏里的 ?vc=... 参数；
+//   服务端渲染没有 window 时回空串。深链只负责打开位置，不执行任何写动作。
+export const vcRealDeepLinkOf = function (props: any): string {
+  const p: any = props || {}
+  const given: string = String(p.deeplink || '')
+  if (given) return given
+  if (typeof window === 'undefined' || !window.location) return ''
+  const m = /[?&]vc=([^&]+)/.exec(String(window.location.search || ''))
+  if (!m) return ''
+  try { return decodeURIComponent(m[1]) } catch (e) { return '' }
+}
+
+// 深链落成初始导航：认得出的键跳到对应页并记下来源；认不出回 null，容器保持默认首页。
+export const vcRealDeepLinkNavOf = function (key: any): any {
+  const page: string = vcRealDeeplinkPageOf(key)
+  if (!page) return null
+  return vcRealNavTo(vcRealInitialNav(), page)
+}
+
+// 「让 AI 帮我解决」的候选（规格 48-50、79、387、440）：只在面板解决不了或诊断需要外带时出现。
+//   每条给一句具体难处（冲突、进行中的操作、读失败里值得外带的五档、工作树边界），文案全部走既有词条；
+//   塞进 prompt 的事实由 vcAiHandoffOf 从首屏快照里取，这里只决定「什么时候给这个入口」。
+export const vcRealAiEntriesOf = function (reads: any, nav: any, t: any): any[] {
+  const out: any[] = []
+  const screen: any = vcFirstScreenScreenOf(reads)
+  const repo: any = (screen && screen.repo) || {}
+  const data: any = (vcFirstScreenSliceOf(reads, 'changes') || {}).data || {}
+  const conflicts: number = Number((screen && (screen as any).conflictCount) || data.conflictCount || 0) || 0
+  if (conflicts > 0) {
+    let detail: string = t('vc.conflicts.other')
+    if (repo.merging === true) detail = t('vc.conflicts.merge')
+    else if (repo.rebasing === true) detail = t('vc.conflicts.rebase')
+    out.push({ kind: 'conflict', summary: t('vc.conflicts.count', { n: conflicts }), detail: detail })
+  }
+  const midos: string[] = []
+  if (repo.merging === true) midos.push(t('vc.band.merge'))
+  if (repo.rebasing === true) midos.push(t('vc.band.rebase'))
+  if (repo.cherryPicking === true) midos.push(t('vc.band.cherryPick'))
+  if (repo.reverting === true) midos.push(t('vc.band.revert'))
+  if (midos.length) out.push({ kind: 'midop', summary: midos.join('、'), detail: t('vc.band.terminalTip') })
+  const err: any = (reads && reads.firstScreen && reads.firstScreen.error) || {}
+  const failKind: string = String(err.kind || '')
+  if (String(vcFirstScreenStateOf(reads) || '') === 'err' && VC_AI_READ_FAIL_KINDS.indexOf(failKind) >= 0) {
+    const summary: string = t('vc.fail.' + failKind)
+    out.push({
+      kind: 'read-fail',
+      summary: summary === 'vc.fail.' + failKind ? t('vc.fail.unknown') : summary,
+      detail: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',
+    })
+  }
+  if (String((nav && nav.page) || '') === 'worktrees') out.push({ kind: 'boundary', summary: t('vc.terminal'), detail: t('vc.terminalTip') })
+  return out
 }
 
 export const vcRealIsMainPageOf = function (page: any): boolean {

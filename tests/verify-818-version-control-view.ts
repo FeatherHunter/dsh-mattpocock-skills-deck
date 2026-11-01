@@ -289,7 +289,7 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'STASH_STAGED_MIN_VERSION', 'STASH_STAGED_ALTERNATIVE', 'STASH_UNKNOWN_OP_KEY',
   'stashOpOf', 'stashOpById', 'stashOpNameKeyOf', 'stashDangerOpsOf', 'vcStashSelectorOk', 'vcStashMessageError', 'vcStashBranchError', 'stashOperationArgs', 'stashRestoreArgs',
   'VC_STASH_PHONE', 'VC_STASH_SLICE', 'VC_STASH_STAGED_OP', 'vcStashStateNew', 'vcStashEntriesOf', 'vcStashListStateOf', 'vcStashVersionTextOf',
-  'vcStashStagedStateOf', 'vcStashOpVisibleOf', 'vcStashNeedsConfirmOf', 'vcStashConfirmOf', 'vcStashConfirmPayloadOf', 'vcStashActionPayloadOf', 'vcStashCallOf',
+  'vcStashStagedStateOf', 'vcStashOpVisibleOf', 'vcStashNeedsConfirmOf', 'vcStashConfirmOf', 'vcStashConfirmPayloadOf', 'vcStashActionPayloadOf',
   'vcStashFailKeyOf', 'vcStashResultOf', 'vcStashApplyReply', 'vcStashRecentOf', 'vcStashShortOidOf', 'vcStashWhenOf',
   'vcStashPageNode', 'VC_STASH_PAGE_SOURCE',
   // #1760 配置与钩子（域 12）：共享规则层的分组 / 版本门 / 解析，读与写的电话名与判定，两页的数据层与页面体。
@@ -385,11 +385,19 @@ const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mts')
 const readSource = (rel: string): string => (fs.existsSync(path.join(ROOT, rel.replace(/\.js$/, '.ts'))) ? sourceText(rel) : read(rel))
 // 转译口径复用构建那一份（scripts/lib/transpile-unit.mts 的 TRANSPILE_OPTIONS），不在这里写第二套参数。
 const toEvalJs = (code: string): string => require('esbuild').transformSync(code, TRANSPILE_OPTIONS).code
+// #1776 M4a：本机 Windows 上 esbuild 0.28.2 对「超过 1MB 的输入」会把内容先写进 os.tmpdir() 的
+//   临时文件、再让子进程把它删掉；删除那一步报 "remove …: Access is denied."，整段转译当场抛错，
+//   门禁连第一条断言都没跑到就崩。版本管理闭包随这几张票增长已经超过 1MB，所以这里按文件边界切开、
+//   逐份转译再拼回去——每一段都是完整源文件，转译只剥类型标注、不改作用域，与整段转译等价。
+//   切分靠拼装时插入的分隔行 VC_SRC_SEAM；反证改法仍作用在整段拼好的源码上，语义不变。
+const VC_SRC_SEAM = '\n//#vc-source-seam#\n'
+const toEvalJsBundle = (src: string): string =>
+  src.length <= 1024 * 1024 ? toEvalJs(src) : src.split(VC_SRC_SEAM).map(toEvalJs).join('\n')
 function buildView(patch, logs, React, DswsCtx, Tip, Ic, seedReads, hostStub) {
-  let src = VC_FILES.map((f) => stripExports(stripTimeConfigImport(readSource(f)))).join('\n')
+  let src = VC_FILES.map((f) => stripExports(stripTimeConfigImport(readSource(f)))).join(VC_SRC_SEAM)
   if (patch) src = patch(src)
   // 改坏之后统一转译：原文里带类型标注，compileFn 只吃 JavaScript。
-  src = toEvalJs(src)
+  src = toEvalJsBundle(src)
   const body = src + '\nreturn { ' + EXPORTS.join(', ') + ' }\n'
   // 本处走 compileFn：参数名与参数值一一对应，与原来那种写法同一套依赖。
   const fn = compileFn(['React', 'log', 'dswsLogHash', 'dswsLogTrunc', 'tr', 'host', 'DswsCtx', 'Tip', 'Ic', 'seedReads'], body)
@@ -1300,15 +1308,21 @@ async function main() {
   const branchActions = attrValuesOf(branchHtml, 'data-vc-branch-action')
   check(branchHtml.indexOf('data-vc-branch-overlay="1"') >= 0 && branchActions.join(',') === 'list,create,delete,merge,rebase', 'Z12b 分支悬浮层画出五个动作（列表 / 新建 / 删除 / 合并 / 变基）')
   let deepOk = true
-  for (const key of Object.keys(VIEW.VC_DEEP_LINKS)) {
+  const deepKeys = Object.keys(VIEW.VC_DEEP_LINKS)
+  const deepPageIds = VIEW.PAGE_SURFACES.map(function (p2) { return p2.id })
+  for (const key of deepKeys) {
     const target = VIEW.vcDeepLinkOf(key)
     if (!target || target.executes !== false) { deepOk = false; console.log('    （深链 ' + key + ' 的目标不对）'); continue }
-    const pageIds = VIEW.PAGE_SURFACES.map(function (p2) { return p2.id })
-    if (pageIds.indexOf(target.page) < 0 || Number(target.depth) > 2) { deepOk = false; console.log('    （深链 ' + key + ' 指到 ' + target.page + '，深度 ' + target.depth + '）') }
+    // 任务页是流程页（只看进度与取消），不进 PAGE_SURFACES；除此之外每个深链都必须指到已登记的页面。
+    const known = deepPageIds.indexOf(target.page) >= 0 || target.page === VIEW.VC_SEARCH_PAGE || target.page === 'task'
+    if (!known || Number(target.depth) > 2) { deepOk = false; console.log('    （深链 ' + key + ' 指到 ' + target.page + '，深度 ' + target.depth + '）') }
   }
-  check(deepOk, 'Z13a 深链表每一项都指到真实页面、深度不超过 2、只打开位置不执行写动作')
+  check(deepOk && deepKeys.length === 13, 'Z13a 深链表 13 项每一项都指到真实页面（含任务页这个流程页）、深度不超过 2、只打开位置不执行写动作（实得 ' + deepKeys.length + ' 项）')
   const deepNarrow = shellHtmlOf({ page: VIEW.vcDeepLinkOf('manage').page, width: 300, skin: 'light' })
   check(attrValuesOf(deepNarrow, 'data-vc-page')[0] === VIEW.vcDeepLinkOf('manage').page && Number(attrValuesOf(deepNarrow, 'data-vc-depth')[0]) === 2, 'Z13b manage 深链在 300 宽下仍是第 2 层')
+  const taskTarget = VIEW.vcDeepLinkOf('task')
+  const taskHtml = shellHtmlOf({ page: taskTarget.page, width: 460, skin: 'dark' })
+  check(taskTarget.page === 'task' && Number(taskTarget.depth) === 2 && taskHtml.indexOf('data-vc-page="task"') >= 0 && taskHtml.indexOf('data-vc-depth="2"') >= 0 && taskHtml.indexOf('data-vc-task-area="1"') >= 0 && taskHtml.indexOf('data-vc-cap-list') < 0, 'Z13c task 深链落到第 2 层任务页：画的是任务面板（看进度与取消），不画能力清单（流程页不占 16 页里的位置）')
   check(LOC.zh['vc.shell.platform.pointer'].indexOf('13.14') >= 0 && LOC.en['vc.shell.platform.pointer'].indexOf('13.14') >= 0, 'Z14 平台页指回说明在两种语言里都点到 13.14（指向的是真能力编号）')
   const stateValues = attrValuesOf(shellHtmlOf({ page: 'changes', width: 460, skin: 'dark' }), 'data-vc-state')
   check(stateValues.join(',') === 'empty,loading,error,disabled', 'Z15a 四种状态各有画法（空 / 加载 / 失败 / 禁用）')
@@ -1523,6 +1537,42 @@ async function main() {
     s.slices.history = fsSliceErr('non-zero', '读提交历史这一步失败')
     return s
   }
+  // ---- AI7 / AI7a / AI7b / AI7c / AI7d / AI8（#854 的四个落点，接在真页签上验）----
+  // 旧块渲染退场后，这组行为不能再只靠 vcBlocksOf 的模型断言撑着。做法与 T1 一样真渲染整个入口组件，
+  // 只把容器里读数的初值换成这里造的首屏快照（buildView 的 seedReads 槽），按 data-vc-ai 看四个落点
+  // 各在什么条件下出现。放在 W 组夹具之后是为了复用同一份七片快照形状，不另造第二份。
+  const aiSeedReadsOf = function (snapshot) {
+    return { firstScreen: snapshot ? { state: 'ok', data: snapshot, error: null } : { state: 'err', data: null, error: { kind: 'timeout', message: '读首屏超时' } } }
+  }
+  const aiRenderOf = function (seed, navPage) {
+    const patch = function (src0) {
+      let out = src0.split('const [reads, setReadsState] = React.useState(function () { return vcRealReadsNew(cwd) })')
+        .join('const [reads, setReadsState] = React.useState(function () { return Object.assign({}, vcRealReadsNew(cwd), seedReads) })')
+      if (navPage) out = out.split('|| vcRealInitialNav()').join("|| Object.assign(vcRealInitialNav(), { page: '" + navPage + "' })")
+      return out
+    }
+    const view = buildView(patch, [], React, DswsCtx, TipStub, IcStub, seed)
+    return renderToStaticMarkup(React.createElement(view.VersionControlTab, { st: { cwd: 'D:/w/repo' }, narrow: false }))
+  }
+  const aiKindsOf = function (html) {
+    return Array.from(html.matchAll(/data-vc-ai="([^"]*)"/g)).map(function (m) { return m[1] })
+  }
+  const aiConflictSeed = firstSeedOf()
+  aiConflictSeed.slices.changes.data.conflictCount = 1
+  aiConflictSeed.slices.workspace.data.repo = Object.assign({}, aiConflictSeed.slices.workspace.data.repo, { rebasing: true })
+  const aiHtml = aiRenderOf(aiSeedReadsOf(aiConflictSeed))
+  const aiKinds = aiKindsOf(aiHtml)
+  check(aiHtml.indexOf('data-vc-width="460"') >= 0 && aiKinds.indexOf('conflict') >= 0 && aiKinds.indexOf('midop') >= 0, 'AI7 真页签渲染：有冲突且正在变基时，改动页上出现冲突与进行中两个 AI 入口（460 宽可见，实得 ' + aiKinds.join(',') + '）')
+  check(aiHtml.replace(/<[^>]*>/g, ' ').indexOf('vc.action.aiHandoff') < 0, 'AI7a AI 按钮印的是词条译文而不是键名（词典没插进按钮）')
+  const aiBtnMatch = /<button[^>]*data-vc-ai="conflict"[^>]*>([\s\S]*?)<\/button>/.exec(aiHtml)
+  check(!!aiBtnMatch && aiBtnMatch[1].replace(/<[^>]*>/g, '').trim() === tZh('vc.action.aiHandoff'), 'AI8 每颗 AI 按钮文字都是同一句「让 AI 帮我解决」的动作名（实得 ' + (aiBtnMatch ? aiBtnMatch[1].replace(/<[^>]*>/g, '').trim() : '没找到按钮') + '）')
+  const aiBoundaryHtml = aiRenderOf(aiSeedReadsOf(firstSeedOf()), 'worktrees')
+  const aiBoundaryKinds = aiKindsOf(aiBoundaryHtml)
+  check(aiBoundaryKinds.length === 1 && aiBoundaryKinds[0] === 'boundary' && aiBoundaryHtml.indexOf('data-vc-page="worktrees"') >= 0, 'AI7b 工作树页上的 AI 入口只出「工作树边界」这一档，别的落点不混进来（实得 ' + aiBoundaryKinds.join(',') + '）')
+  const aiFailHtml = aiRenderOf(aiSeedReadsOf(null))
+  check(aiKindsOf(aiFailHtml).indexOf('read-fail') >= 0, 'AI7c 首屏整次读失败（timeout）时出现「读失败」AI 入口（可外带的那五档之一）')
+  const aiPlainHtml = aiRenderOf(aiSeedReadsOf(firstSeedOf()))
+  check(aiKindsOf(aiPlainHtml).length === 0 && aiPlainHtml.indexOf('data-vc-shell="1"') >= 0, 'AI7d 反证：普通工作区（无冲突、无进行中操作、非工作树页）一个 AI 入口都不画')
   const fsCallOf = function (handler) {
     const calls = []
     const call = function (method, args) { calls.push({ method: method, args: args }); return handler(method, args) }

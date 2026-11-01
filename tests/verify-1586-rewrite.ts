@@ -699,7 +699,7 @@ async function main() {
     rwWalk(root, function (n) {
       if (!n || typeof n !== 'object') return
       const p = n.props || {}
-      if (typeof p.onclick === 'function' || typeof p.onClick === 'function') rwClickables.push(p)
+      if (typeof p.onClick === 'function') rwClickables.push(p)
     })
   }
   ;[rwPageNode, rwConfirmNode, rwTaskRun, rwResultFail, rwResultOk].forEach(rwCollectAttrs)
