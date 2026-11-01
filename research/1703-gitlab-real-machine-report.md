@@ -314,21 +314,22 @@
 
 #### 候选验证（重冻之后）
 
-重冻后的候选在源码检出 `candidate-src-beta34`（HEAD `2068b76b`，`git status` 干净）上跑了三轮全量并行门禁，每轮 524 步（主链、产物新鲜度段、5 条冒烟）：
+重冻后的候选在源码检出 `candidate-src-beta34`（HEAD `2068b76b`，`git status` 干净）上跑了三轮全量并行门禁；全部实施票关闭后又补跑一轮收口验证。每轮 524 步（主链、产物新鲜度段、5 条冒烟）：
 
 | 轮次 | 墙钟 | 主链真红 | 冒烟 | 复跑结论 |
 |---|---|---|---|---|
 | run1 | 550.3 秒 | 1 步 `verify-cap-fold-browser`（42 通过 1 失败；并行器只保留末尾 40 行输出，具体断言未留档） | 5/5 绿 | 该门禁单跑 46/46 通过 |
 | run2 | 290.5 秒 | 1 步 `verify-detail-levels`（2 条失败：`快照 ok`、`存在含子票的 map`） | 5/5 绿 | 失败原因是本机访问 github.com 抖动，refresh 探测返回 `ok:false`；网络恢复后单跑 20/20 通过 |
 | run3 | 728.8 秒 | 1 步 `verify-cap-fold-browser`（42 通过 1 失败，并行器串行复跑仍红） | 5/5 绿 | 单独复跑 46/46 通过；再用 56 个忙进程压满 28 核 CPU 复跑，仍 46/46 通过 |
+| run4（收口轮） | 191.9 秒 | 0 步 | 5/5 绿 | 1 步 `verify-capsule-layout` 被判并发假红，并行器串行复跑已绿 |
 
-三轮共 3 个红步，全部落在这两扇门禁上：`verify-cap-fold-browser` 是浏览器几何测量，与其它同时打开的浏览器门禁互相干扰时会偶发一条测量断言漂移；`verify-detail-levels` 依赖外网 GitHub，本机网络抖动时快照探测会返回失败。两扇门禁在安静环境下单跑都全绿，因此按「本机并发/网络造成的假红」记录，不判候选代码缺陷；它们仍是已知不稳定门禁，下一批复验时应单独复跑确认。
+前三轮共 3 个红步，全部落在这两扇门禁上；第四轮（收口轮，全部实施票关闭后补跑）真红 0 步，只有 `verify-capsule-layout` 一扇被判并发假红、串行复跑已绿：`verify-cap-fold-browser` 是浏览器几何测量，与其它同时打开的浏览器门禁互相干扰时会偶发一条测量断言漂移；`verify-detail-levels` 依赖外网 GitHub，本机网络抖动时快照探测会返回失败。两扇门禁在安静环境下单跑都全绿，因此按「本机并发/网络造成的假红」记录，不判候选代码缺陷；它们仍是已知不稳定门禁，下一批复验时应单独复跑确认。
 
 候选包的安装与界面验证（S1 与 B4 用同一个包）：`install.manifestMatched=true`、672 个文件、`versionConstant=v1.9.0-beta.34`；候选冻结时的界面探针 `pageErrors=0`（bundle sha256 `099a22ebd8e8e2bac08672f150706c992fdd137bf1224ab2e27dd034018d49ff`、截图 `pkg/evidence/ui-loaded.png`）；S1 重启后复核面板可打开、3 个工作区菜单、界面版本串 `1.9.0-beta.34`、glab 读回 FeatherHunter（keyring）、`pageErrors` 为空，截图在 `E/S1-20261101-1705/smoke/restart-panel.png` 与 `restart-settings-version.png`。
 
 真机冒烟：S1 的 J1-01 与 J2-01 各 6/6 通过（见 3.1、3.2 与 `E/S1-20261101-1705/j1-01/`、`j2-01/`）。
 
-验证日志与复跑日志：`E/candidate-verify-beta34/`（含三轮并行门禁日志、`verify-cap-fold-browser` 单跑与 CPU 加压复跑日志、`verify-detail-levels` 单跑日志、`SHA256SUMS.txt`）。
+验证日志与复跑日志：`E/candidate-verify-beta34/`（含四轮并行门禁日志——前三轮与收口轮 `run4-final-parallel.log`、`verify-cap-fold-browser` 单跑与 CPU 加压复跑日志、`verify-detail-levels` 单跑日志、`SHA256SUMS.txt`）。
 
 ### 6.3 批次（B1-B4 与补验批 S1）
 
@@ -365,7 +366,7 @@
 |---|---|---|
 | 批内原件 | `.worktrees/1703-integration/.scratch/verify-run/batches/<批次>/` | 每场景的 result.json、截图、DOM、运行日志、独立读回命令输出、批次 manifest |
 | 归档副本 | `.worktrees/1703-integration/.scratch/verify-run/evidence-archive/<批次>/` | 与批内一一对应的归档副本、`REPORT.md`、`INDEX.md`、`SHA256SUMS.txt` |
-| 候选验证日志 | `E/candidate-verify-beta34/` | 三轮全量并行门禁日志、两扇不稳定门禁的单跑与加压复跑日志、`README.md`、`SHA256SUMS.txt` |
+| 候选验证日志 | `E/candidate-verify-beta34/` | 四轮全量并行门禁日志（含收口轮 `run4-final-parallel.log`）、两扇不稳定门禁的单跑与加压复跑日志、`README.md`、`SHA256SUMS.txt` |
 | 全局索引 | `E/index.jsonl`（38 行）、`E/conditions.jsonl`（41 行）、`E/INDEX.md`（report-index 摘要）、`E/tmp-report-index.out.json`（生成输入） | 一行一次尝试（场景/候选/批次/断言/结果/证据路径/独立读回/声称）；条件账本；汇总统计 |
 
 各批哈希清单：B1 `SHA256SUMS.txt` 276 行、B2 362 行、B3 175 行、S1 812 行、B4 169 行；`E/hash-tree.mjs` 可重建整棵树。S1 与 B4 的归档在打包后做过 token 扫描（`glpat-`、`ghp_` 等），0 命中。
@@ -476,7 +477,7 @@ glab api projects/88359932/issues/7 | Select-String assignees
 | 2 | #1801 P1：免费档取消阻塞静默不生效、回执报成功 | 已开票，未修 |
 | 3 | #1802 P1：双窗共享设置整份写回覆盖另一窗刚写的值 | 已开票，未修 |
 | 4 | GitLab OAuth token 被 glab 当作 PAT 发送导致 401；`is_oauth2 + oauth2_expiry_date` 写进 config 并靠自动刷新解决 | 写入 B2-B4 驱动脚本，不改产品 |
-| 5 | 本机访问 github.com 不稳定：`verify-detail-levels` 的 refresh 偶发 `ok:false`，单独复跑 20/20 通过；`verify-cap-fold-browser` 在并发跑全链时单条测量断言漂移，单独复跑与 CPU 压满复跑都 46/46 通过 | 三轮全链验证各 1 步假红、单跑全绿，归环境问题，不归候选缺陷；详见 6.2 的「候选验证」段与 `E/candidate-verify-beta34/` |
+| 5 | 本机访问 github.com 不稳定：`verify-detail-levels` 的 refresh 偶发 `ok:false`，单独复跑 20/20 通过；`verify-cap-fold-browser` 在并发跑全链时单条测量断言漂移，单独复跑与 CPU 压满复跑都 46/46 通过 | 收口前三轮全链验证各 1 步假红、单跑全绿；收口轮全链验证真红 0（1 步并发假红复跑已绿）；归环境问题，不归候选缺陷；详见 6.2 的「候选验证」段与 `E/candidate-verify-beta34/` |
 | 6 | GitLab 单票端点带 `with_labels_details=true` 也不返回标签颜色（列表端点会返回） | 记 P2（5.3 #3） |
 | 7 | 成环回执 `status=unsupported`，而场景卡期望 `conflict` | 判回执语义差异（使用限制），不算假成功 |
 | 8 | 60 秒详情缓存导致「刚改完再读」需要等 62 秒以上 | 批次驱动显式等待，不判缺陷 |
