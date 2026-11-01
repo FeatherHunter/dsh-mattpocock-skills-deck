@@ -22,6 +22,10 @@ export const VC_STASH_PHONE = 'wf.gitStash'
 export const VC_STASH_SLICE = 'stashes'
 /** 只贮藏已暂存的文件：唯一带版本门的动作（2.35，规格第 6 节）。 */
 export const VC_STASH_STAGED_OP = 'push-staged'
+/** 贮藏写动作的预检电话：危险与非危险的写动作都先签一张 120 秒票，凭票才执行（规格第 63 / 385 行的三段式）。 */
+export const VC_STASH_CHECK_PHONE = 'wf.gitStashCheck'
+/** 需要预检票的写动作：读动作（list / show）与最近丢弃的恢复直接执行，其余一律先预检再确认再凭票执行。 */
+export const VC_STASH_CHECK_OPS: string[] = ['push', 'push-untracked', 'push-staged', 'apply', 'pop', 'branch', 'drop', 'clear']
 
 /** 贮藏页的初始状态：列表与最近丢弃都空，等首屏数据或动作回包填。 */
 export const vcStashStateNew = function (): any {
@@ -106,12 +110,56 @@ export const vcStashActionPayloadOf = function (input: any): any {
   return out
 }
 
-/** 一次电话调用：call(phone, {cwd, op, ...})，参数拼装只在 vcStashActionPayloadOf 一处。 */
-export const vcStashCallOf = function (call: any, cwd: any, input: any): any {
+/** 这条动作要不要先签预检票：读动作与恢复不要票，写动作要。 */
+export const vcStashNeedsTicketOf = function (op: any): boolean {
+  return VC_STASH_CHECK_OPS.indexOf(String(op || '')) >= 0
+}
+
+/** 一次预检请求的 requestId：宿主只要求 [A-Za-z0-9_-] 且不超过 64；同一号重放不二次执行。 */
+export const vcStashRequestIdOf = function (nowMs: any, salt: any): string {
+  return 's' + Number(nowMs || 0).toString(36) + String(salt || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 12)
+}
+
+/** 预检回包里的票据：只有 ok 且带回 ticket.id 才算签出，否则回 null（页面据此报错而不是硬发执行电话）。 */
+export const vcStashTicketOf = function (reply: any): any {
+  const ticket: any = reply && reply.ok === true ? reply.ticket : null
+  return ticket && ticket.id ? ticket : null
+}
+
+/** 预检电话：与执行电话同一组参数，另外带回票据与动作计划；不执行任何写操作。 */
+export const vcStashCheckCallOf = function (call: any, cwd: any, input: any): any {
   const payload = vcStashActionPayloadOf(input)
+  delete payload.confirm
   payload.cwd = String(cwd || '')
+  return call(VC_STASH_CHECK_PHONE, payload)
+}
+
+/** 凭票执行电话：带预检签出的 ticketId 与本次 requestId，confirmed 标明确认卡已经过目。 */
+export const vcStashWriteCallOf = function (call: any, cwd: any, input: any, ticketId: any, requestId: any): any {
+  const payload = vcStashActionPayloadOf(input)
+  delete payload.confirm
+  payload.cwd = String(cwd || '')
+  if (ticketId) payload.ticketId = String(ticketId)
+  if (requestId) payload.requestId = String(requestId)
+  payload.confirmed = true
   return call(VC_STASH_PHONE, payload)
 }
+
+/** 预检回包落成确认卡模型：触发点就地出卡，说清哪条动作、哪一条记录，票据与请求号随状态带着走。 */
+export const vcStashCheckConfirmOf = function (payload: any, reply: any, requestId: any): any {
+  const p: any = payload || {}
+  const ticket: any = vcStashTicketOf(reply)
+  if (!ticket) return null
+  const plan: any = (reply && reply.plan) || {}
+  return {
+    op: String(p.op || ''),
+    selector: String(p.selector || ''),
+    subject: String(plan.subject || p.subject || ''),
+    ticketId: String(ticket.id),
+    requestId: String(requestId || ''),
+  }
+}
+
 
 /** 失败原因码到词条键的白名单：宿主回的每个 kind 都有一条人话，认不出落其他。 */
 export const vcStashFailKeyOf = function (kind: any): string {
@@ -130,6 +178,7 @@ export const vcStashFailKeyOf = function (kind: any): string {
     timeout: 'vc.stash.fail.timeout',
     'spawn-failed': 'vc.stash.fail.spawn',
     cancelled: 'vc.stash.fail.cancelled',
+    stale: 'vc.stash.fail.stale',
   }
   return table[String(kind || '')] || 'vc.stash.fail.other'
 }

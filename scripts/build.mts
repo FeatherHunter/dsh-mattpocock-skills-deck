@@ -829,7 +829,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcInView', file: 'src/client/views/versionControl/vcInView.ts' }, // #997：「还能显示更多」那几处什么时候接着显示（进入视野就接着显示、显示完再判一次；三处共用一套）
   { id: 'vcFirstScreen', file: 'src/client/views/versionControl/vcFirstScreen.ts' }, // #1739 首屏七片的数据层（一次聚合一电话、逐片成败与重试、刷新三时机；不画界面）
   // #1738 页面壳四片，依赖次序固定：页面注册表 → 基础画法 → 命令面板 → 页面壳本体。
-  //   VersionControlTab.ts 是冻结文件（基线 366 行，只许减不许增），壳不往它里面写一行。
+  //   VersionControlTab.ts 在 #1776 M1 收成入口委托（13 有效行）后不再占冻结基线，壳也不往它里面写一行。
   { id: 'vcCapabilityPages', file: 'src/client/views/versionControl/vcCapabilityPages.ts' },
   { id: 'vcShellPrimitives', file: 'src/client/views/versionControl/vcShellPrimitives.ts' },
   { id: 'vcPalette', file: 'src/client/views/versionControl/vcPalette.ts' },
@@ -893,6 +893,23 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcMaintenancePage', file: 'src/client/views/versionControl/vcMaintenancePage.ts' },
   { id: 'vcMaintenanceDiag', file: 'src/client/views/versionControl/vcMaintenanceDiag.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
+  // #1776 M1 真实页签四叶：纯状态换算 → 事件委托 → 数据装载与动作分派 → 容器组件。次序即闭包里谁先有值：
+  //   容器要用前三叶，VersionControlTab 只做入口委托，所以四叶都排在它前面。
+  { id: 'vcRealModel', file: 'src/client/views/versionControl/vcRealModel.ts' },
+  // #1776 M2 管理页七叶：管理页状态与模型（vcRealManage）→ 每页进入时的读数分发（vcRealManageReads）
+  //   → 分支/远端/同步动作（vcRealManageActions）、配置/钩子/诊断/子模块/平台动作（vcRealManageActions2）、
+  //   迁移与任务轮询（vcRealManageActions3）、冲突与变基动作（vcRealManageSide）→ 导航动作与顶部条（vcRealShell）。
+  //   这些叶只被容器调用，全部排在 vcRealTab 之前。
+  { id: 'vcRealManage', file: 'src/client/views/versionControl/vcRealManage.ts' },
+  { id: 'vcRealManageReads', file: 'src/client/views/versionControl/vcRealManageReads.ts' },
+  { id: 'vcRealManageActions', file: 'src/client/views/versionControl/vcRealManageActions.ts' },
+  { id: 'vcRealManageActions2', file: 'src/client/views/versionControl/vcRealManageActions2.ts' },
+  { id: 'vcRealManageActions3', file: 'src/client/views/versionControl/vcRealManageActions3.ts' },
+  { id: 'vcRealManageSide', file: 'src/client/views/versionControl/vcRealManageSide.ts' },
+  { id: 'vcRealShell', file: 'src/client/views/versionControl/vcRealShell.ts' },
+  { id: 'vcRealDelegate', file: 'src/client/views/versionControl/vcRealDelegate.ts' },
+  { id: 'vcRealActions', file: 'src/client/views/versionControl/vcRealActions.ts' },
+  { id: 'vcRealTab', file: 'src/client/views/versionControl/vcRealTab.ts' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.ts' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.ts' },
   { id: 'truthLines', file: 'src/client/views/shared/truthLines.ts' }, // #715 新增：面板头部那几句「上次更新 / 刷新失败 / 现在是不是降级」的判据（纯函数，画在 ListTab 最上面那一行；行上的「更新中」标记也问它）

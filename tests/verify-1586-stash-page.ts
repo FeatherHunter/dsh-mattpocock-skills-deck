@@ -86,7 +86,7 @@ function buildStashLeaves() {
   // 真实构建里全局提示叶子 Tip 拼在所有视图叶子之前；这里给一个同形状垫片：把子节点原样交出去，
   // 叶子测试只关心「提示挂上没挂上、正文里的字对不对」，悬停面板本身由 818 与浏览器门禁去看。
   const tipStub = 'const Tip = function (props) { return (props && props.children !== undefined) ? props.children : null }\n'
-  const body = tipStub + src + '\nreturn { STASH_OPS, VC_STASH_STAGED_OP, STASH_STAGED_MIN_VERSION, vcStashPageNode, vcStashStateNew, vcStashStagedStateOf, vcStashActionPayloadOf, vcStashApplyReply, vcStashFailKeyOf, vcStashOpVersionStateOf, vcStashConfirmOf, vcStashConfirmPayloadOf, vcStashWhenOf, vcStashShortOidOf }\n'
+  const body = tipStub + src + '\nreturn { STASH_OPS, VC_STASH_STAGED_OP, STASH_STAGED_MIN_VERSION, vcStashPageNode, vcStashStateNew, vcStashStagedStateOf, vcStashActionPayloadOf, vcStashApplyReply, vcStashFailKeyOf, vcStashOpVersionStateOf, vcStashConfirmOf, vcStashConfirmPayloadOf, vcStashWhenOf, vcStashShortOidOf, vcStashNeedsTicketOf, vcStashRequestIdOf, vcStashCheckCallOf, vcStashWriteCallOf, vcStashCheckConfirmOf }\n'
   return compileFn([], body)()
 }
 
@@ -298,10 +298,10 @@ async function main() {
   const calls = []
   const actPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([entry(0)], 'git version 2.49.0'), onStash: (input) => calls.push(input) })
   const pushBtn = findAll(actPage, (n) => n.props && n.props['data-vc-stash-op'] === 'push' && n.props['data-vc-stash-cap'] === '7.1')[0]
-  pushBtn.props.onclick()
+  pushBtn.props.onClick()
   check(calls.length === 1 && calls[0].op === 'push', '点 7.1 把真实动作交给回调（带说明时一并带上）')
   const dropBtn = findAll(actPage, (n) => n.props && n.props['data-vc-stash-op'] === 'drop' && n.props['data-vc-stash-cap'] === '7.9')[0]
-  dropBtn.props.onclick()
+  dropBtn.props.onClick()
   check(calls.length === 2 && calls[1].op === 'drop' && calls[1].selector === 'stash@{0}' && calls[1].confirm !== true, '点 7.9 先交 drop 对象（不直接带确认，确认卡在前一步）')
   const confirmState = { confirm: { op: 'drop', selector: 'stash@{0}', subject: '第1条贮藏' } }
   const confirmPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([entry(0)]), state: Object.assign(leaf.vcStashStateNew(), confirmState) })
@@ -310,8 +310,24 @@ async function main() {
   check(attrsOf(confirmPage, 'data-focus-default').join(',') === 'cancel', '确认卡默认焦点在取消键')
   const confirmCalls = []
   const confirmPage2 = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([entry(0)]), state: Object.assign(leaf.vcStashStateNew(), confirmState), onStash: (input) => confirmCalls.push(input) })
-  findAll(confirmPage2, (n) => n.props && n.props['data-vc-stash-confirm-go'] === '1')[0].props.onclick()
+  findAll(confirmPage2, (n) => n.props && n.props['data-vc-stash-confirm-go'] === '1')[0].props.onClick()
   check(confirmCalls.length === 1 && confirmCalls[0].op === 'drop' && confirmCalls[0].confirm === true, '确认之后才带 confirm:true 交给宿主（与宿主侧第二道闸对得上）')
+  // 三段式的两通电话由数据层拼好：预检先签票（不带 confirm），执行凭票（带 ticketId / requestId / confirmed）。
+  const drawer1 = []
+  const fakeCall1 = (phone, args) => { drawer1.push({ phone, args }); return { ok: true } }
+  const ticketOps = ['push', 'push-untracked', 'push-staged', 'apply', 'pop', 'branch', 'drop', 'clear']
+  check(ticketOps.every((op) => leaf.vcStashNeedsTicketOf(op)) && !leaf.vcStashNeedsTicketOf('list') && !leaf.vcStashNeedsTicketOf('show'), '八个写动作要预检票、两个读动作不要（十动作按这一条分流）')
+  const actionPayload = leaf.vcStashActionPayloadOf({ op: 'drop', selector: 'stash@{0}', confirm: true })
+  check(actionPayload.confirm === true, '确认过的动作参数里带 confirm:true（页面只把确认过的对象交给宿主）')
+  leaf.vcStashCheckCallOf(fakeCall1, '/w/repo', actionPayload)
+  check(drawer1.length === 1 && drawer1[0].phone === 'wf.gitStashCheck' && drawer1[0].args.op === 'drop' && drawer1[0].args.selector === 'stash@{0}' && drawer1[0].args.cwd === '/w/repo' && drawer1[0].args.confirm === undefined, '预检电话走 wf.gitStashCheck：带动作与对象、带 cwd，不带 confirm（还没确认）')
+  const requestId = leaf.vcStashRequestIdOf(1700000000000, 'drop')
+  check(/^[A-Za-z0-9_-]+$/.test(requestId) && requestId.length <= 64 && requestId === leaf.vcStashRequestIdOf(1700000000000, 'drop'), '请求号同输入稳定可重放，字符集与长度符合宿主约定')
+  leaf.vcStashWriteCallOf(fakeCall1, '/w/repo', actionPayload, 'st-ticket', requestId)
+  check(drawer1.length === 2 && drawer1[1].phone === 'wf.gitStash' && drawer1[1].args.ticketId === 'st-ticket' && drawer1[1].args.requestId === requestId && drawer1[1].args.confirmed === true && drawer1[1].args.confirm === undefined, '执行电话走 wf.gitStash：带预检签出的 ticketId、requestId，confirmed 标明确认卡已过目')
+  const confirmModel = leaf.vcStashCheckConfirmOf(actionPayload, { ok: true, ticket: { id: 'st-ticket' }, plan: { subject: '第1条贮藏' } }, requestId)
+  check(confirmModel && confirmModel.op === 'drop' && confirmModel.selector === 'stash@{0}' && confirmModel.subject === '第1条贮藏' && confirmModel.ticketId === 'st-ticket' && confirmModel.requestId === requestId, '预检回包落成确认卡模型：动作、对象、票据、请求号都带着走')
+  check(leaf.vcStashCheckConfirmOf(actionPayload, { ok: false, error: { kind: 'exit' } }, requestId) === null, '预检失败没签出票时确认卡不出现（反证：不会凭失败回包硬发执行电话）')
   check(leaf.vcStashConfirmPayloadOf(null) === null, '没有确认态时不会凭空造出 confirm:true')
   const recentState = Object.assign(leaf.vcStashStateNew(), { recent: [{ selector: 'stash@{0}', oid: 'c'.repeat(40), subject: '丢掉的', atMs: 1, droppedAtMs: 2, byOp: 'drop' }] })
   const recentPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([]), state: recentState })

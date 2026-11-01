@@ -116,7 +116,9 @@ const MATRIX: [string, string, string[]][] = [
   ['src/client/views/skillDetail/PixelMarkdown.ts', '技能详情正文里的链接与图片', ['sd.md.']],
   ['src/client/views/skillDetail/PixelSkillDetailModal.ts', '技能详情弹窗', ['sd.detail.']],
   ['src/client/views/skillDetail/PixelSkillRow.ts', '技能列表行', ['sd.skillrow.']],
-  ['src/client/views/versionControl/VersionControlTab.ts', '版本管理页', ['vc.row.open.', 'vc.reload', 'vc.commit.back', 'vc.changes.back']],
+  // #1776 M1 起前端的真页签不再在入口文件里：VersionControlTab.ts 只剩一层委托，四个定位串落在 vcRealShell.ts
+  //   （刷新、返回来源页与提交历史行点开的按钮都在那一叶画）。
+  ['src/client/views/versionControl/vcRealShell.ts', '版本管理页', ['vc.row.open.', 'vc.reload', 'vc.commit.back', 'vc.changes.back']],
   ['src/client/views/versionControl/vcAiHandoff.ts', '版本管理的 AI 交接', ['vc.ai.']],
   ['src/client/views/versionControl/vcViews.ts', '版本管理的三个页签', ['vc.tab.']],
   ['src/client/views/versionControl/vcWriteView.ts', '版本管理的写操作', ['vc.row.stage.', 'vc.viewbar.', 'vc.action.']],

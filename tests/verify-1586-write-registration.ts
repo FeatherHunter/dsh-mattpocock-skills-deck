@@ -23,7 +23,7 @@
 // 反证至少四条（删一行宿主注册 / 改一个客户端电话名 / 少一个超时键 / 改一处白名单），
 // 每条只改一份副本、只期望一条缺，改完的副本跑同一个判据必须报红——判据太松时这几条会先红。
 // 电话总数不写死：从宿主源码数出实际条数，再核对它覆盖了本表登记的电话；总数登记在
-// tests/verify-settings-phones.ts 的 E9（nPhones === 118），本票不加电话，也不改那扇门禁。
+// tests/verify-settings-phones.ts 的 E9（nPhones === 119，#1776 M4b 给远端族补了预检电话后就改这里）。
 // 本文件是 CommonJS：判据工具用 require 取 .ts 需要钩子，跑法见文件末尾注释。
 const fs = require('fs')
 const path = require('path')
@@ -220,12 +220,12 @@ const FAMILIES = [
   },
   {
     name: '远端',
-    check: null,
+    check: 'wf.gitRemoteCheck',
     exec: ['wf.gitRemoteAdd', 'wf.gitRemoteRename', 'wf.gitRemoteRemove', 'wf.gitRemoteSetUrl', 'wf.gitRemoteOnline'],
-    guard: ['src/host/versionControlRemote.ts', 'remoteNameProblem('],
-    ops: null,
-    timeouts: ['vcRemoteTimeoutMs', 'vcRemoteOnlineTimeoutMs'],
-    clients: [['src/client/views/versionControl/vcRemoteData.ts', ['wf.gitRemoteList', 'wf.gitRemoteAdd', 'wf.gitRemoteRename', 'wf.gitRemoteRemove', 'wf.gitRemoteSetUrl', 'wf.gitRemoteOnline']]],
+    guard: ['src/host/versionControlRemoteCheck.ts', 'remoteWriteActionOf('],
+    ops: ['src/shared/version-control/src/remote.ts', 'export const REMOTE_WRITE_ACTIONS', ["'add'", "'rename'"]],
+    timeouts: ['vcRemoteTimeoutMs', 'vcRemoteOnlineTimeoutMs', 'vcRemoteWriteTimeoutMs'],
+    clients: [['src/client/views/versionControl/vcRemoteData.ts', ['wf.gitRemoteList', 'wf.gitRemoteCheck', 'wf.gitRemoteAdd', 'wf.gitRemoteRename', 'wf.gitRemoteRemove', 'wf.gitRemoteSetUrl', 'wf.gitRemoteOnline']]],
   },
   {
     name: '平台段',
@@ -280,13 +280,13 @@ for (const f of FAMILIES) {
   for (const [ok, label] of familyAssertions(f)) check(ok, f.name + '：' + label)
 }
 
-// 电话总数：从源码数，不与本表登记数脱节；E9 那扇门禁仍钉 118 条，本票一条电话都没加。
+// 电话总数：从源码数，不与本表登记数脱节；E9 那扇门禁钉 119 条（#1776 M4b 加了远端预检 wf.gitRemoteCheck）。
 const hostPhones = registeredPhoneCount(SOURCES.hostIndex)
 const listedPhones = new Set()
 for (const f of FAMILIES) { if (f.check) listedPhones.add(f.check); for (const p of f.exec) listedPhones.add(p) }
 for (const p of ['wf.gitWriteCheck', 'wf.gitStage', 'wf.gitUnstage', 'wf.gitCommit', 'wf.gitPull', 'wf.gitFetch', 'wf.gitPush']) listedPhones.add(p)
 check(hostPhones >= listedPhones.size, '宿主注册的 wf.git* 电话从源码数出 ' + hostPhones + ' 条，覆盖本门禁登记的 ' + listedPhones.size + ' 条')
-check(read('tests/verify-settings-phones.ts').indexOf('nPhones === 118') >= 0, 'E9 宿主电话总数仍由 tests/verify-settings-phones.ts 钉在 118 条（本票不改电话，也不改那扇门禁）')
+check(read('tests/verify-settings-phones.ts').indexOf('nPhones === 119') >= 0, 'E9 宿主电话总数仍由 tests/verify-settings-phones.ts 钉在 119 条（#1776 M4b 加了远端预检电话，两处一起改）')
 
 console.log('')
 console.log('反证：各改一份副本的一处，同一判据必须只报出那一处缺')

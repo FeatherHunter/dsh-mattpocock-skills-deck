@@ -56,6 +56,7 @@ zh:
   vc.stash.fail.read: 贮藏列表读不出来。
   vc.stash.fail.stashMissing: 这条贮藏记录已经不存在（可能被丢弃了）。
   vc.stash.fail.confirm: 删除类动作要先确认，没有执行。
+  vc.stash.fail.stale: 预检票已过期或现场已变，请重新预检再试。
   vc.stash.fail.exit: git 执行失败，贮藏记录没有变化。
   vc.stash.fail.timeout: git 超时没有回音，贮藏记录可能没有变化。
   vc.stash.fail.spawn: 起不了 git 进程。
@@ -116,6 +117,7 @@ en:
   vc.stash.fail.read: The stash list could not be read.
   vc.stash.fail.stashMissing: That stash entry no longer exists (it may have been dropped).
   vc.stash.fail.confirm: Destructive actions need confirmation; nothing ran.
+  vc.stash.fail.stale: The precheck ticket expired or the repository changed; run the precheck again.
   vc.stash.fail.exit: git failed; stash entries are unchanged.
   vc.stash.fail.timeout: git did not answer in time; stash entries may be unchanged.
   vc.stash.fail.spawn: git could not be started.

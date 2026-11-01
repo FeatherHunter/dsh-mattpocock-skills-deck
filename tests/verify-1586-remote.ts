@@ -199,49 +199,103 @@ async function hGroup() {
   const bad = await badVc.handleGitRemoteList({ cwd: ROOT })
   check(bad.ok === false && bad.error.kind === 'parse' && bad.error.reason === 'remote-list-malformed', 'H6 列表读不全时明确报解析失败（不给半份列表）')
 
+  /** 写子命令计数：只数真正动手的四条（add / rename / remove / set-url），读列表与联网不算。 */
+  const writeCountOf = () => spawns.filter((a) => subOf(a) === 'remote' && ['add', 'remove', 'rename', 'set-url'].indexOf(after(a)[1]) >= 0).length
+  /** 凭票执行时要带的三个固定字段：票号、请求号、确认标记。 */
+  const ticketArgsOf = (ticket: any, requestId: string, extra: any) => Object.assign({ cwd: ROOT, ticketId: ticket.ticket.id, requestId: requestId, confirmed: true }, extra || {})
+
+  // 第一段：预检只读列表、签到票；目标门槛（名字 / 地址 / 已存在）也都在预检就判，写进程一个都不起。
   const vcAdd = makeVc(repo.route)
   clock.t = 1700000001000
-  const added = await vcAdd.handleGitRemoteAdd({ cwd: ROOT, name: 'upstream', url: 'https://github.com/acme/up.git' })
+  const addCheck = await vcAdd.handleGitRemoteCheck({ cwd: ROOT, action: 'add', name: 'upstream', url: 'https://github.com/acme/up.git' })
+  check(addCheck.ok === true && !!addCheck.ticket && addCheck.ticket.checkedAtMs === clock.t && addCheck.ticket.expiresAtMs - addCheck.ticket.checkedAtMs === 120000, 'H7 远端写先预检签票：票记下检查时刻，有效期 120 秒（与贮藏写动作同一套口径）')
+  check(addCheck.ok === true && addCheck.action === 'add' && addCheck.command === 'git remote add' && String(addCheck.ticket.id).indexOf('rt') === 0, 'H7b 预检回包点名动作与 git 子命令，票号带 rt 前缀')
+  check(writeCountOf() === 0, 'H7c 预检只读远端列表，一个写进程都不起')
+  check(addCheck.ok === true && (addCheck.remotes || []).length === 3 && addCheck.remotes.every((r: any) => r.name !== undefined && r.fetchUrl !== undefined && r.pushUrl !== undefined), 'H8 预检回包带远端列表摘要（每个远端的名字与 fetch/push 地址）')
+  check(addCheck.ok === true && addCheck.plan && addCheck.plan.name === 'upstream' && addCheck.plan.url === 'https://github.com/acme/up.git', 'H8b 票据绑定这一次的目标：名字与地址都在 plan 里')
+  const added = await vcAdd.handleGitRemoteAdd(ticketArgsOf(addCheck, 'rq-add-1', { name: 'upstream', url: 'https://github.com/acme/up.git' }))
   const addArgv = spawns.filter((a) => subOf(a) === 'remote' && after(a)[1] === 'add')[0] || []
-  check(addArgv.length > 0 && after(addArgv).join(',') === 'remote,add,--,upstream,https://github.com/acme/up.git', 'H7 登记远端用固定 argv（名字与地址独立、排在 -- 之后）')
-  check(addArgv.indexOf('--force') < 0 && addArgv.indexOf('-f') < 0, 'H7b 登记远端不带任何自选选项（参数只有名字与地址）')
-  check(added.ok === true && added.action === 'add' && added.command === 'git remote add' && added.n === 1, 'H8 登记成功的回包带 git 子命令名、作用对象数与耗时')
-  check(added.ok === true && added.after && added.after.remotes.indexOf('upstream') >= 0, 'H9 写动作后重新读一遍远端列表（用真实状态说话，不把「发出去」当「成了」）')
-  const nAdd = spawns.length
-  const addBad = await vcAdd.handleGitRemoteAdd({ cwd: ROOT, name: '-x', url: 'https://x/y' })
-  check(addBad.ok === false && addBad.error.reason === 'remote-name' && spawns.length === nAdd, 'H10 名字不合法：零进程直接拒绝（参数注入不进 argv）')
-  const addBadUrl = await vcAdd.handleGitRemoteAdd({ cwd: ROOT, name: 'newremote', url: 'javascript:alert(1)' })
-  check(addBadUrl.ok === false && addBadUrl.error.reason === 'remote-url' && spawns.length === nAdd, 'H11 地址不合法：零进程直接拒绝')
-  const nAddRuns = countOf('remote', 'add')
-  const addDup = await vcAdd.handleGitRemoteAdd({ cwd: ROOT, name: 'origin', url: 'https://x/y' })
-  check(addDup.ok === false && addDup.error.reason === 'remote-exists' && countOf('remote', 'add') === nAddRuns, 'H12 同名远端已存在：拒绝而不是让 git 去撞')
+  check(addArgv.length > 0 && after(addArgv).join(',') === 'remote,add,--,upstream,https://github.com/acme/up.git', 'H9 凭票登记远端用固定 argv（名字与地址独立、排在 -- 之后）')
+  check(addArgv.indexOf('--force') < 0 && addArgv.indexOf('-f') < 0, 'H9b 登记远端不带任何自选选项（参数只有名字与地址）')
+  check(added.ok === true && added.action === 'add' && added.command === 'git remote add' && added.n === 1, 'H9c 登记成功的回包带 git 子命令名、作用对象数与耗时')
+  check(added.ok === true && added.after && added.after.remotes.indexOf('upstream') >= 0, 'H9d 写动作后重新读一遍远端列表（用真实状态说话，不把「发出去」当「成了」）')
+  const nWriteAfterAdd = writeCountOf()
+  const ticketless = await vcAdd.handleGitRemoteAdd({ cwd: ROOT, name: 'later', url: 'https://x/y', requestId: 'rq-ticketless', confirmed: true })
+  check(ticketless.ok === false && ticketless.error.reason === 'ticket-missing' && writeCountOf() === nWriteAfterAdd, 'H10 没有预检票的写电话：零进程拒绝（面板不会发，直发也挡下）')
+  const unconfirmed = await vcAdd.handleGitRemoteAdd({ cwd: ROOT, name: 'later', url: 'https://x/y', ticketId: addCheck.ticket.id, requestId: 'rq-unconfirmed' })
+  check(unconfirmed.ok === false && unconfirmed.error.reason === 'not-confirmed' && writeCountOf() === nWriteAfterAdd, 'H11 有票但没经过确认卡（confirmed 缺省）：零进程拒绝')
+  const nameBadCheck = await vcAdd.handleGitRemoteCheck({ cwd: ROOT, action: 'add', name: '-x', url: 'https://x/y' })
+  check(nameBadCheck.ok === false && nameBadCheck.error.reason === 'remote-name' && writeCountOf() === nWriteAfterAdd, 'H12 名字不合法在预检就拒绝：零写进程（参数注入不进 argv）')
+  const addUrlBadCheck = await vcAdd.handleGitRemoteCheck({ cwd: ROOT, action: 'add', name: 'newremote', url: 'javascript:alert(1)' })
+  check(addUrlBadCheck.ok === false && addUrlBadCheck.error.reason === 'remote-url' && writeCountOf() === nWriteAfterAdd, 'H13 地址不合法在预检就拒绝：零写进程')
+  const dupCheck = await vcAdd.handleGitRemoteCheck({ cwd: ROOT, action: 'add', name: 'origin', url: 'https://x/y' })
+  check(dupCheck.ok === false && dupCheck.error.reason === 'remote-exists' && writeCountOf() === nWriteAfterAdd, 'H14 同名远端已存在在预检就拒绝：零写进程')
 
-  const vcRemove = makeVc(repo.route)
-  const removeBefore = countOf('remote', 'remove')
-  const removed = await vcRemove.handleGitRemoteRemove({ cwd: ROOT, name: 'mirror' })
+  // 改名 / 删除 / 改地址：三次都走「预检拿票 → 凭票执行」，顺带守住旧两步流程不再出现。
+  const renameCheck = await vcAdd.handleGitRemoteCheck({ cwd: ROOT, action: 'rename', from: 'origin', to: 'backup' })
+  const renamed = renameCheck.ok === true ? await vcAdd.handleGitRemoteRename(ticketArgsOf(renameCheck, 'rq-ren-1', { from: 'origin', to: 'backup' })) : { ok: false }
+  const renameArgv = spawns.filter((a) => subOf(a) === 'remote' && after(a)[1] === 'rename')[0] || []
+  check(renameCheck.ok === true && renamed.ok === true && renamed.action === 'rename' && renamed.command === 'git remote rename', 'H15 改名：先预检签票、再凭票执行，回包说明这次做的是改名')
+  check(renameArgv.length > 0 && after(renameArgv).join(',') === 'remote,rename,--,origin,backup', 'H15b 改名 argv 固定（旧名与新名独立、排在 -- 之后）')
+  const nWriteAfterRename = writeCountOf()
+  const renameBadCheck = await vcAdd.handleGitRemoteCheck({ cwd: ROOT, action: 'rename', from: 'backup', to: '-x' })
+  check(renameBadCheck.ok === false && renameBadCheck.error.reason === 'remote-name' && writeCountOf() === nWriteAfterRename, 'H16 改名目标名字不合法在预检就拒绝：零写进程')
+  const renameSameCheck = await vcAdd.handleGitRemoteCheck({ cwd: ROOT, action: 'rename', from: 'backup', to: 'backup' })
+  check(renameSameCheck.ok === false && renameSameCheck.error.reason === 'remote-unchanged' && writeCountOf() === nWriteAfterRename, 'H16b 改成一个名字在预检就拒绝：零写进程（不做无意义动作）')
+
+  const removeCheck = await vcAdd.handleGitRemoteCheck({ cwd: ROOT, action: 'remove', name: 'mirror' })
+  const removed = removeCheck.ok === true ? await vcAdd.handleGitRemoteRemove(ticketArgsOf(removeCheck, 'rq-rem-1', { name: 'mirror' })) : { ok: false }
   const removeArgv = spawns.filter((a) => subOf(a) === 'remote' && after(a)[1] === 'remove')[0] || []
-  check(removeArgv.length > 0 && after(removeArgv).join(',') === 'remote,remove,--,mirror', 'H13 删除远端：argv 固定、名字独立')
-  check(removed.ok === true && removed.action === 'remove' && removed.before && removed.before.exists === true && removed.after && removed.after.remotes.indexOf('mirror') < 0, 'H14 删除回包带动手前后的状态（界面据此说清删掉的是哪一个）')
-  const nRemove = spawns.length
-  const nRemoveRuns = countOf('remote', 'remove')
-  const removeMissing = await vcRemove.handleGitRemoteRemove({ cwd: ROOT, name: 'nope' })
-  check(removeMissing.ok === false && removeMissing.error.reason === 'remote-missing' && countOf('remote', 'remove') === nRemoveRuns, 'H15 删一个不存在的远端：先查白名单，零进程拒绝')
+  check(removeArgv.length > 0 && after(removeArgv).join(',') === 'remote,remove,--,mirror', 'H17 删除远端：argv 固定、名字独立')
+  check(removed.ok === true && removed.action === 'remove' && removed.before && removed.before.exists === true && removed.after && removed.after.remotes.indexOf('mirror') < 0, 'H18 删除回包带动手前后的状态（界面据此说清删掉的是哪一个）')
+  const nWriteAfterRemove = writeCountOf()
+  const removeMissingCheck = await vcAdd.handleGitRemoteCheck({ cwd: ROOT, action: 'remove', name: 'nope' })
+  check(removeMissingCheck.ok === false && removeMissingCheck.error.reason === 'remote-missing' && writeCountOf() === nWriteAfterRemove, 'H19 删一个不存在的远端在预检就拒绝：零写进程')
 
-  const vcRename = makeVc(repo.route)
-  const renamed = await vcRename.handleGitRemoteRename({ cwd: ROOT, from: 'origin', to: 'backup' })
-  check(renamed.ok === true && renamed.action === 'rename' && renamed.command === 'git remote rename', 'H16 改名远端成功，回包说明这次做的是改名')
-  const nRename = spawns.length
-  const renameBad = await vcRename.handleGitRemoteRename({ cwd: ROOT, from: 'origin', to: '-x' })
-  check(renameBad.ok === false && renameBad.error.reason === 'remote-name' && spawns.length === nRename, 'H17 改名目标名字不合法：零进程拒绝')
-  const renameSame = await vcRename.handleGitRemoteRename({ cwd: ROOT, from: 'origin', to: 'origin' })
-  check(renameSame.ok === false && renameSame.error.reason === 'remote-unchanged' && spawns.length === nRename, 'H18 改成一个名字：零进程拒绝（不做无意义动作）')
+  const urlCheck = await vcAdd.handleGitRemoteCheck({ cwd: ROOT, action: 'setUrl', name: 'backup', url: 'git@github.com:acme/new.git' })
+  const setUrl = urlCheck.ok === true ? await vcAdd.handleGitRemoteSetUrl(ticketArgsOf(urlCheck, 'rq-url-1', { name: 'backup', url: 'git@github.com:acme/new.git' })) : { ok: false }
+  const setUrlArgv = spawns.filter((a) => subOf(a) === 'remote' && after(a)[1] === 'set-url')[0] || []
+  check(setUrl.ok === true && setUrl.action === 'setUrl' && setUrl.command === 'git remote set-url' && setUrl.name === 'backup', 'H20 改地址成功，回包点名改了哪个远端')
+  check(setUrlArgv.length > 0 && after(setUrlArgv).join(',') === 'remote,set-url,--,backup,git@github.com:acme/new.git', 'H20b 改地址 argv 固定（名字与地址独立、排在 -- 之后）')
+  const nWriteAfterUrl = writeCountOf()
+  const setUrlBadCheck = await vcAdd.handleGitRemoteCheck({ cwd: ROOT, action: 'setUrl', name: 'backup', url: 'a b' })
+  check(setUrlBadCheck.ok === false && setUrlBadCheck.error.reason === 'remote-url' && writeCountOf() === nWriteAfterUrl, 'H20c 改地址传了含空白的地址在预检就拒绝：零写进程')
 
-  const vcUrl = makeVc(repo.route)
-  const setUrl = await vcUrl.handleGitRemoteSetUrl({ cwd: ROOT, name: 'backup', url: 'git@github.com:acme/new.git' })
-  check(setUrl.ok === true && setUrl.action === 'set-url' && setUrl.command === 'git remote set-url' && setUrl.name === 'backup', 'H19 改地址成功，回包点名改了哪个远端')
-  const nUrl = spawns.length
-  const setUrlBad = await vcUrl.handleGitRemoteSetUrl({ cwd: ROOT, name: 'backup', url: 'a b' })
-  check(setUrlBad.ok === false && setUrlBad.error.reason === 'remote-url' && spawns.length === nUrl, 'H20 改地址传了含空白的地址：零进程拒绝')
+  // 反证一：票据过期。签发之后把时钟拨到有效期那一刻，执行电话必须一个进程都不起。
+  const expRepo = statefulGit()
+  const expVc = makeVc(expRepo.route)
+  const expCheck = await expVc.handleGitRemoteCheck({ cwd: ROOT, action: 'add', name: 'later', url: 'https://x/y' })
+  clock.t = expCheck.ok === true ? expCheck.ticket.expiresAtMs : clock.t
+  const expSpawns = spawns.length
+  const expired = await expVc.handleGitRemoteAdd({ cwd: ROOT, ticketId: expCheck.ticket.id, requestId: 'rq-exp-1', confirmed: true, name: 'later', url: 'https://x/y' })
+  check(expCheck.ok === true && expired.ok === false && expired.error.kind === 'stale' && expired.error.reason === 'ticket-expired' && spawns.length === expSpawns, 'H20d 票据过期后凭票执行：一个 git 进程都不起（只回「重新预检」）')
+
+  // 反证二：同一个 requestId 重放：回同一份结果，不再起写进程（重放去重）。
+  const replayRepo = statefulGit()
+  const replayVc = makeVc(replayRepo.route)
+  clock.t = 1700000004000
+  const replayCheck = await replayVc.handleGitRemoteCheck({ cwd: ROOT, action: 'add', name: 'replay', url: 'https://git.example/r.git' })
+  const replayArgs = Object.assign({ cwd: ROOT, ticketId: replayCheck.ticket.id, requestId: 'rq-replay-1', confirmed: true }, { name: 'replay', url: 'https://git.example/r.git' })
+  const firstRun = await replayVc.handleGitRemoteAdd(replayArgs)
+  const replayWrites = writeCountOf()
+  const secondRun = await replayVc.handleGitRemoteAdd(replayArgs)
+  check(firstRun.ok === true && JSON.stringify(secondRun) === JSON.stringify(firstRun) && writeCountOf() === replayWrites, 'H20e 同一个 requestId 重放：回同一份结果且不再起写进程（requestId 去重）')
+
+  // 反证三：预检之后远端列表变了（改地址 / 多一条），绑定摘要不一致 → 写进程不起，要求重新预检。
+  const driftRepo = statefulGit()
+  const driftVc = makeVc(driftRepo.route)
+  const driftCheck = await driftVc.handleGitRemoteCheck({ cwd: ROOT, action: 'remove', name: 'mirror' })
+  driftRepo.state.remotes[1].url = 'https://changed.example/mirror.git'
+  const driftWrites = writeCountOf()
+  const drift = await driftVc.handleGitRemoteRemove({ cwd: ROOT, ticketId: driftCheck.ticket.id, requestId: 'rq-drift-1', confirmed: true, name: 'mirror' })
+  check(drift.ok === false && drift.error.kind === 'stale' && drift.error.reason === 'target-changed' && writeCountOf() === driftWrites, 'H20f 预检之后目标远端的地址被改：绑定摘要不一致，零写进程要求重新预检')
+  const drift2Repo = statefulGit()
+  const drift2Vc = makeVc(drift2Repo.route)
+  const drift2Check = await drift2Vc.handleGitRemoteCheck({ cwd: ROOT, action: 'add', name: 'later', url: 'https://x/y' })
+  drift2Repo.state.remotes.push({ name: 'extra', url: 'https://extra.example/x.git' })
+  const drift2Writes = writeCountOf()
+  const drift2 = await drift2Vc.handleGitRemoteAdd({ cwd: ROOT, ticketId: drift2Check.ticket.id, requestId: 'rq-drift-2', confirmed: true, name: 'later', url: 'https://x/y' })
+  check(drift2.ok === false && drift2.error.reason === 'target-changed' && writeCountOf() === drift2Writes, 'H20g 预检之后列表多了一条远端：同样判绑定不一致，零写进程')
 
   const onlineRepo = statefulGit()
   const vcOnline = makeVc(onlineRepo.route)
@@ -287,12 +341,12 @@ async function hGroup() {
   check(gitExecFieldsOk({ cwdHash: 'x', bogus: 1 }) === false && gitExecFieldsOk({ cwdHash: 'x', via: 'exec' }) === true, 'H33 反证装置自检：非法键放在第二个位置也必须判红，合法键放几个都放行')
 
   // R 组：两边登记点（宿主注册表 + 客户端电话表），缺一处就红。
-  const methods = ['wf.gitRemoteList', 'wf.gitRemoteAdd', 'wf.gitRemoteRename', 'wf.gitRemoteRemove', 'wf.gitRemoteSetUrl', 'wf.gitRemoteOnline']
+  const methods = ['wf.gitRemoteList', 'wf.gitRemoteCheck', 'wf.gitRemoteAdd', 'wf.gitRemoteRename', 'wf.gitRemoteRemove', 'wf.gitRemoteSetUrl', 'wf.gitRemoteOnline']
   const hostSrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'index.ts'), 'utf8')
   const clientFile = path.join(ROOT, 'src', 'client', 'views', 'versionControl', 'vcRemoteData.ts')
   const clientSrc = fs.existsSync(clientFile) ? fs.readFileSync(clientFile, 'utf8') : ''
   const missingOf = (sources: string) => methods.filter((m) => sources.indexOf("'" + m + "'") < 0)
-  check(missingOf(hostSrc).length === 0 && missingOf(clientSrc).length === 0, 'R1 六条远端电话在宿主注册表与客户端电话表两边都登记' + (missingOf(hostSrc).length || missingOf(clientSrc).length ? ' —— 缺：' + missingOf(hostSrc).concat(missingOf(clientSrc)).join('、') : ''))
+  check(missingOf(hostSrc).length === 0 && missingOf(clientSrc).length === 0, 'R1 七条远端电话在宿主注册表与客户端电话表两边都登记' + (missingOf(hostSrc).length || missingOf(clientSrc).length ? ' —— 缺：' + missingOf(hostSrc).concat(missingOf(clientSrc)).join('、') : ''))
   const provableMissing = (list: string[]) => list.filter((m) => methods.indexOf(m) < 0)
   check(provableMissing(['wf.gitRemoteList', 'wf.gitRemoteNope']).join(',') === 'wf.gitRemoteNope', 'R2 反证装置自检：从名单里塞一个不存在的电话名就报一条缺（同一判据在真树上放行）')
 }

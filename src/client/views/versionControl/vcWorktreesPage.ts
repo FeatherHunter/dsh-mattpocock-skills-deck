@@ -169,7 +169,8 @@ const vcWtPrunePreviewNode = function (h: any, t: any, model: any): any {
   if (entries.length === 0) {
     return h('p', { key: 'pruneNone', className: 'vc-wt-prune-none', 'data-wt-prune-empty': '1' }, t('vc.wt.plan.pruneEmpty'))
   }
-  return h('div', { key: 'prune', className: 'vc-wt-prune', 'data-wt-prune': '1' }, [
+  // key 不能与 9.5 那个 prune 按钮重名（同一层子节点里重复 key，React 会告警）。
+  return h('div', { key: 'prune-preview', className: 'vc-wt-prune', 'data-wt-prune': '1' }, [
     h('p', { key: 'title', className: 'vc-wt-prune-title' }, t('vc.wt.plan.pruneTitle', { n: entries.length })),
     h('ul', { key: 'items', className: 'vc-wt-prune-items' }, entries.map(function (r: any): any {
       return h('li', { key: String(r.path || ''), className: 'vc-wt-prune-item', 'data-wt-prune-item': String(r.path || '') }, String(r.path || '') + (r.prunableReason ? ' · ' + String(r.prunableReason) : ''))

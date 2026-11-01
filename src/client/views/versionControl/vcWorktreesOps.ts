@@ -190,7 +190,11 @@ export const vcWorktreeDecisionReasonsOf = function (decision: any): string[] {
 
 /** 判定结论（allow / warn / block）；不认识的结论按 block 处理，绝不默认放行。 */
 export const vcWorktreeDecisionStateOf = function (decision: any): string {
-  const s: string = vcWtStr(decision && decision.state)
+  // 共享层 worktreeJudge 的结论字段叫 decision（宿主预检直接读它）；早先这里只读了 state，
+  // 于是页面把每一条都当成 block，所有工作树动作按钮在真 DOM 里全是灰的。两个字段都认。
+  const d: any = decision || {}
+  const raw: any = d.state !== undefined && d.state !== null ? d.state : d.decision
+  const s: string = vcWtStr(raw)
   return s === 'allow' || s === 'warn' ? s : 'block'
 }
 

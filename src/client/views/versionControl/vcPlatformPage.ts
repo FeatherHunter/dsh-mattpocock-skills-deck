@@ -127,7 +127,7 @@ const vcPlatformRequestPullNode = function (h: any, t: any, model: any, ctx: any
         'data-vc-platform-rp-field': attr,
         value: value,
         disabled: busy,
-        oninput: function (ev: any) { ctx.edit(attr, String((ev && ev.target && ev.target.value) || '')) },
+        onInput: function (ev: any) { ctx.edit(attr, String((ev && ev.target && ev.target.value) || '')) },
       }),
     ])
   }
@@ -144,7 +144,7 @@ const vcPlatformRequestPullNode = function (h: any, t: any, model: any, ctx: any
       'data-vc-platform-rp-run': '1',
       'data-press': 'button',
       disabled: busy,
-      onclick: function () { ctx.run() },
+      'data-log': 'vc.platform.rp-run', onClick: function () { ctx.run() },
     }, busy ? vcPlatformText(t, 'vc.platform.rp.loading', null) : vcPlatformText(t, 'vc.platform.rp.run', null)),
   ]
   // 数据层的失败态叫 err（与 vcRemoteData 等同一套约定），这里两者都认，免得多写一层映射。

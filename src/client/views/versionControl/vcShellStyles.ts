@@ -120,4 +120,18 @@ export const VC_SHELL_STYLE_TEXT = [
   '[data-vc-shell][data-vc-width="300"] .vcs-pal-alias,[data-vc-shell][data-vc-width="300"] .vcs-pal-cmd,[data-vc-shell][data-vc-width="300"] .vcs-cap-cmd,[data-vc-shell][data-vc-width="300"] .vcs-surface-cmd{display:none}',
   '[data-vc-shell][data-vc-width="300"] .vcs-caps-title{font-size:12px}',
   '[data-vc-shell][data-vc-width="380"] .vcs-pal-cmd{display:none}',
+  // #1776 M3 真实页签容器的顶栏、失败条与外壳：这一段在 [data-vc-shell] 之外（它是页面壳的父容器），
+  //   所以规则不套壳的作用域前缀。只约束宽度与换行：300 宽时顶栏折行、按钮不撑破，根节点永不超过容器宽；
+  //   配色只用继承色与一条自定义属性，不另造第二套主题色。
+  '.vcs-live{--vcs-live-danger:#d1242f;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;width:100%;max-width:100%;min-width:0;overflow-x:hidden;font-size:13px;line-height:1.5}',
+  '.vcs-live *{box-sizing:border-box;min-width:0}',
+  '.vcs-live-bar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:4px 6px;min-width:0;max-width:100%}',
+  '.vcs-live-at{color:inherit;opacity:.72;font-size:12px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}',
+  '.vcs-live-bar button,.vcs-live-retry{font:inherit;color:inherit;background:transparent;border:1px solid currentColor;border-radius:4px;padding:2px 6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}',
+  '.vcs-live-bar button:disabled{cursor:default;opacity:.5}',
+  '.vcs-live-bar button:focus-visible,.vcs-live-retry:focus-visible{outline:2px solid currentColor;outline-offset:1px}',
+  '.vcs-live-fails{display:grid;justify-items:start;gap:4px;padding:4px 6px;min-width:0}',
+  '.vcs-live-fail{margin:0;padding:4px 6px;border-left:3px solid var(--vcs-live-danger);background:rgba(209,36,47,.08);font-size:12px;overflow-wrap:anywhere}',
+  '.vcs-live-shell{width:100%;max-width:100%;min-width:0}',
+  '.vcs-live-empty{margin:8px;padding:8px;border:1px dashed currentColor;border-radius:4px;font-size:13px}',
 ].join('\n')
