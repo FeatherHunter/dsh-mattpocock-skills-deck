@@ -23,6 +23,10 @@
 //   <批次>/run                  实例启动目录（--no-start 时没有）
 //   <批次>/batch-preflight.json 前置巡检结论
 //
+// 批次 profile 的默认模型会在准备时配成 MiniMax CN（provider minimax-cn、模型 Minimax-M3.1-Flash），
+// 密钥从批次 home、真实 home 的 .credentials.yaml 或当前进程环境取，只注入实例，不落盘、不进回执。
+// 模型名与密钥变量名可用 DSH_REAL_MACHINE_MODEL* 三个环境变量覆盖。
+//
 // 默认批次目录是 <验证工作根>/batches/<批次名>；不给名字时用 batch-<时间戳>。
 // 场景执行不在这条命令里：实例起好后由人按清单票逐条验，证据用 collect-evidence 收。
 // 批次结束时跑 check-batch；HEAD 前进了这一批会标成 stale，不能用于发布收口。
@@ -43,6 +47,7 @@ import { loadInstanceEnvFile, type InstanceEnvFile } from '../lib/envfile.mts'
 import { probeSettingsIsolation } from '../lib/isolation.mts'
 import { findInstalledPackage, gitContains, gitState, readLocalBaseline } from '../lib/candidate.mts'
 import { startInstance } from '../lib/launch.mts'
+import { credentialSourceLabel, ensureLaunchModel } from '../lib/model.mts'
 import { assertWritableTarget, batchDir, realDshHome, repo, resolveBatchPath, workRoot } from '../lib/paths.mts'
 import { assert, ensureDir, exists, info, isEmptyDir, nowIso, parseArgs, printJson, runCli, stamp, writeJson } from '../lib/util.mts'
 
@@ -207,6 +212,10 @@ runCli(async () => {
   // 会以 status=active 留在盘上，后面 collect-evidence 还得再拦一次；不如让「没有 batch.json」
   // 直接表示这一批没准备好。
 
+  // 1.5 模型：freeze-candidate 复制 home 时已经写过一次；这里再确保一次并解析密钥，
+  // 让「模型配好了、密钥找得到」成为前置巡检的硬检查，而不是等实例里第一次调用模型才失败。
+  const modelRuntime = ensureLaunchModel({ home, profile })
+
   // 2. 起实例（除非明确只准备不启动）。实例留在后台，人接着在上面逐条验。
   const checks: { name: string; ok: boolean; detail: string }[] = []
   let instance: Record<string, any> | null = null
@@ -218,6 +227,7 @@ runCli(async () => {
       // 环境文件路径原样交给 startInstance：它负责解析与注入，prepare-batch 只记路径与变量名，不碰值。
       const startOptions: any = { home, dir: runDir, profile, timeoutMs }
       if (instanceEnv) startOptions.envFile = instanceEnv.file
+      if (modelRuntime.selection) startOptions.model = modelRuntime.selection
       const started = await startInstance(startOptions)
       const injectedEnvNames = started.envFileNames ?? []
       instance = {
@@ -234,6 +244,7 @@ runCli(async () => {
         stderrPath: started.stderrPath,
         pluginLogDir: started.pluginLogDir,
         pluginLogFile: started.pluginLogFile,
+        model: started.model,
       }
       checks.push({ name: '实例可达', ok: true, detail: '端口 ' + started.port + '，启动耗时 ' + started.readyMs + ' 毫秒。' })
       if (instanceEnv) {
@@ -250,6 +261,23 @@ runCli(async () => {
       info('实例启动失败：' + instanceError)
     }
   }
+
+  // 2.5 模型检查：批次必须真的能调用模型。只报 provider/模型名/密钥来源，不报密钥值。
+  const modelReport = modelRuntime.report
+  checks.push({
+    name: '模型已配置',
+    ok: modelReport.profileConfigured,
+    detail: modelReport.profileConfigured
+      ? String(modelReport.provider) + '/' + String(modelReport.model) + '；profile 文件与期望一致。'
+      : String(modelReport.profileReason || 'profile 里的模型配置与期望不一致。'),
+  })
+  checks.push({
+    name: '模型密钥可用',
+    ok: modelReport.credentialAvailable,
+    detail: modelReport.credentialAvailable
+      ? '变量 ' + String(modelReport.apiKeyEnv) + '，来源 ' + credentialSourceLabel(modelReport.credentialSource) + '（值不输出）。'
+      : String(modelReport.error || '没有找到模型密钥。'),
+  })
 
   // 3. 前置巡检：装进去的东西必须自证是这份候选，设置隔离必须成立。
   //    这些结论不替代逐条场景验证，只保证「开始验之前，环境与候选是干净的」。
@@ -298,6 +326,7 @@ runCli(async () => {
     },
     // 环境文件只记路径与变量名：值可能是 token，任何输出与落盘文件都不许出现。
     envFile: instanceEnv ? { file: instanceEnv.file, names: instanceEnv.names, secretNames: instanceEnv.secretNames } : null,
+    model: modelReport,
     instance,
     checks,
     isolation,
