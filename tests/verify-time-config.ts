@@ -542,7 +542,16 @@ const EXEMPTS: ExemptRow[] = [
   // #1743 提交页八条能力：两条新电话里的时间名字都是透传或读钟，不是本票新增的可调时长，沿用上面几行的口径。
   { file: 'src/host/versionControlCommitForm.ts', name: 'timeoutMs', reason: '透传参数，缺省 20000 只为直接调用兜底；装配层注入的 deps.timeoutMs 来自父文件已登记的 RUN_TIMEOUT_MS' },
   { file: 'src/client/views/versionControl/vcCommitOps.ts', name: 'nowMs', reason: '读钟时刻（Date.now），用来给 requestId 拼时间片，不是可调参数' },
-  // #1760 配置与钩子页域 12：读钟字段与中途选出来的时限变量，都不是本票新增的可调时长。
+  // #1776 真实页签：界面层各动作把时钟作为可注入的口子往下传（Date.now 是生产实现），
+  //   只用来给写动作的 requestId 拼时间片；任务轮询的间隔来自已登记的 VC_TASK_POLL_INTERVAL_MS。
+  { file: 'src/client/views/versionControl/vcRealActions.ts', name: 'nowMs', reason: '读钟口（Date.now 的注入包装，给贮藏写动作的 requestId 拼时间片），不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRealManageActions.ts', name: 'nowMs', reason: '读钟口（同上，给分支写动作的 requestId 拼时间片），不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRealManageActions2.ts', name: 'nowMs', reason: '读钟口（同上，给配置与钩子写动作的 requestId 拼时间片），不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRealManageActions3.ts', name: 'nowMs', reason: '读钟口（同上，给迁移与备份写动作的 requestId 拼时间片），不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRealManageSide.ts', name: 'nowMs', reason: '读钟口（同上，给冲突与变基写动作的 requestId 拼时间片），不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRealModel.ts', name: 'atMs', reason: '首屏快照里读到的时刻（读数带来的时间戳），只用来折成人话显示，不是可调参数' },
+  { file: 'src/client/views/versionControl/vcRealTab.ts', name: 'nowMs', reason: '读钟口（Date.now 的包装，传给各动作层拼 requestId，并给首屏模型补「现在」），不是可调时长' },
+  { file: 'src/client/views/versionControl/vcRealTab.ts', name: 'interval', reason: '派生变量：来自已登记的 VC_TASK_POLL_INTERVAL_MS（config/intervals.yaml 的任务轮询间隔），不是新时长' },  // #1760 配置与钩子页域 12：读钟字段与中途选出来的时限变量，都不是本票新增的可调时长。
   { file: 'src/client/views/versionControl/vcConfigOps.ts', name: 'readAtMs', reason: '读钟时刻（读数是什么时候回来的），照首屏同名字段的口径，不是可调参数' },
   { file: 'src/host/versionControlConfigWrite.ts', name: 'timeoutMs', reason: '按动作二选一：手动跑钩子取已登记的 HOOK_TIMEOUT_MS，其余写动作取已登记的 WRITE_TIMEOUT_MS，本文件不自留数字' },
   // #1757 子模块页：票据回包里读到的过期时刻只用来判断票是否已过期，不是本票新增的可调时长。
