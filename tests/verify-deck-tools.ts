@@ -407,6 +407,12 @@ async function main() {
     const assign = await callTool('deck_issue_patch', { key: createdKey, comment: '再来一条评论', assignees: ['someone'] })
     check(envelopeOk(assign) && assign.status === 'ok', '认领在本地 Markdown 上真能做成，回 ok（实得 ' + (assign && assign.status) + '）')
     check((assign.items || []).some((i) => i.step === 'assignees' && i.status === 'ok' && (i.assignees || []).indexOf('someone') >= 0), '认领那一步带回了写进去的名字：' + JSON.stringify((assign.items || []).filter((i) => i.step === 'assignees')[0]))
+    // #1788：普通实施票与普通票的认领只记人、不改可见状态，这是正常的落盘方式；回执要把这一点说清。
+    const claimNotes = (assign.notes || []).map((n) => String(n)).filter((n) => n.indexOf('认领') >= 0)
+    check(claimNotes.length === 1 && claimNotes[0].indexOf('可见状态没有改') >= 0, '认领回执写清认领人记在哪、可见状态没有改：' + JSON.stringify(assign.notes))
+    const claimNoteApi = await imp('src/deck/tools/assignee-note.ts')
+    const mapClaimNote = String(claimNoteApi.claimNoteOf('# 01: 地图子票\n\n<!-- DSH-ASSIGNEES: someone -->\n\nStatus: claimed\n\n## Question\n\n为什么？\n'))
+    check(mapClaimNote.indexOf('claimed') >= 0 && mapClaimNote.indexOf('地图子票') >= 0, '正文里可见状态是 claimed 时，回执说清按地图子票的写法标了 claimed：' + JSON.stringify(mapClaimNote))
     const nothing = await callTool('deck_issue_patch', { key: createdKey })
     check(nothing.ok === false && nothing.reason === 'bad-args', 'deck_issue_patch 负向：什么都没点名 → bad-args，不抛')
   }
