@@ -97,6 +97,12 @@ jobs:
           ( cd package && npm pack --pack-destination "$GITHUB_WORKSPACE/dist-pkg" )
           ls -l dist-pkg
 
+      # 打 annotated tag 需要提交者身份；Actions 的 runner 默认没有配。
+      - name: 配置 git 身份
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: 打 tag 并创建 GitHub Release（说明 = CHANGELOG 对应节原文）
         env:
           GH_TOKEN: ${{ github.token }}
