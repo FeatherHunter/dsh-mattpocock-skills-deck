@@ -9,6 +9,9 @@
  *    这里的旧布局分支只为保住既有文件形状，不再新增入口。
  *  · 加粗行与裸行同时存在时，按票种类挑一种写，绝不同时写两份 —— 否则同一份文件里会出现两条
  *    互相矛盾的记录，读回来是哪一个全看解析顺序。
+ *
+ * 术语区分：本文件的「路线」指票所在目录的形状（map / spec / plain / 旧扁平），与 GLOSSARY.md 里
+ * 讲「哪些会话在处理哪些票」的「工作路线」不是一回事；也与 write-log.ts 的 WriteRoute（这一趟写没写盘）无关。
  */
 import { replaceOrInsertField } from './issues-status.js'
 import type { TicketRoute } from './issues-locate.js'
@@ -29,19 +32,21 @@ export function writeBlockedByLine(txt: string,blockers: string[],container: boo
   const keys=blockers.map(k=>String(k).padStart(2,'0'))
   if(container||!route){
     const line=blockers.length?'Blocked by: '+blockers.map(k=>'#'+String(k).padStart(2,'0')).join(', '):'Blocked by:'
-    return replaceOrInsertField(txt,'Blocked\s+by',line)
+    return replaceOrInsertField(txt,'Blocked\\s+by',line)
   }
   const out=upsertHiddenComment(txt,'DSH-BLOCKED-BY',keys.length?keys.join(', '):null)
+  // 加粗行与其它字段同一套写法：值带 #（地图子票原文的加粗行也这么写），清空时写 None (can start immediately)。
+  const writeBold=function(): string{
+    return replaceBoldField(out,'Blocked by',keys.length?keys.map(k=>'#'+k).join(', '):'None (can start immediately)')
+  }
   if(route==='map'){
     // 地图子票：原文的可见行是裸行、值是不带 # 的编号。文件里已经有加粗行时按加粗行的写法改，
     // 不再另插一条裸行 —— 同一份文件里出现两行互相矛盾的 Blocked by，读回来是哪一个全看解析顺序。
-    if(fieldStyleOf(out,'Blocked by')==='bold'){
-      return replaceBoldField(out,'Blocked by',keys.length?keys.map(k=>'#'+k).join(', '):'None (can start immediately)')
-    }
+    if(fieldStyleOf(out,'Blocked by')==='bold')return writeBold()
     return keys.length?replaceBareField(out,'Blocked by',keys.join(', ')):removeBareField(out,'Blocked by')
   }
   // 规格 / 普通路线：按文件已有的字段样式写。文件里两种样式都没有时，加粗实施票补加粗行、手写票补裸行。
   const style=fieldStyleOf(out,'Blocked by')||(ticketFormOf(out)==='impl-ticket'?'bold':'bare')
-  if(style==='bold')return replaceBoldField(out,'Blocked by',keys.length?keys.map(k=>'#'+k).join(', '):'None (can start immediately)')
+  if(style==='bold')return writeBold()
   return keys.length?replaceBareField(out,'Blocked by',keys.map(k=>'#'+k).join(', ')):removeBareField(out,'Blocked by')
 }

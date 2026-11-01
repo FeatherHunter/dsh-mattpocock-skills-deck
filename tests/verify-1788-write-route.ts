@@ -14,6 +14,7 @@
 //   H 旧扁平路径（.scratch/map.md + .scratch/issues/）写认领仍然被拒绝，文件一个字节不动；
 //   I Blocked by 按票面已有样式写（只有裸字段的票写裸行，加粗实施票写加粗行）；
 //   J 挂父票写文件头隐藏 <!-- DSH-PARENT: NN -->，不再写旧的 <!-- parentKey: NN -->。
+//   K 目录里没有编号的手写票（文件名与标题都没有编号）：认领同样只写隐藏注释、可见 Status 不动。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1788-write-route.ts
 
@@ -233,6 +234,19 @@ async function main(): Promise<void> {
   check(headerComments(jAfter).indexOf('<!-- DSH-PARENT: 02 -->') >= 0, 'J 父票关系写进文件头隐藏注释 <!-- DSH-PARENT: 02 -->；实际文件头注释：' + JSON.stringify(headerComments(jAfter)))
   check(!/<!--\s*parentKey\s*:/.test(jAfter), 'J 不再写旧的 <!-- parentKey: ... --> 注释')
   check(withoutHiddenComment(jAfter, 'DSH-PARENT') === jBefore, 'J 除父票注释外票面一字未改；实际：' + head(withoutHiddenComment(jAfter, 'DSH-PARENT')))
+
+  // —— 场景 K：目录里没有编号的手写票（文件名与一级标题都没有编号） ——
+  // 分诊认定最容易被误伤的正是这种票：手写票不一定按插件建票的 NN-前缀命名。
+  const ticketK = path.join(issuesDir, '没有编号的手写票.md')
+  writeText(ticketK, '# 没有编号的手写票\n\n正文只有一句。\n\nStatus: needs-triage\n')
+  const kBefore = readText(ticketK)
+  const kClaim = await setAssigneesIssue(ctx as never, featureRepo as never, '没有编号的手写票', ['alice'] as never, {} as never)
+  check(!!(kClaim && kClaim.ok), 'K 认领没有编号的手写票要成功；实际返回：' + JSON.stringify(kClaim))
+  const kAfter = readText(ticketK)
+  check(headerComments(kAfter).indexOf('<!-- DSH-ASSIGNEES: alice -->') >= 0, 'K 认领人写进文件头隐藏注释；实际文件头注释：' + JSON.stringify(headerComments(kAfter)))
+  check(withoutHiddenComment(kAfter, 'DSH-ASSIGNEES') === kBefore, 'K 除认领人注释外票面一字未改；实际：' + head(withoutHiddenComment(kAfter, 'DSH-ASSIGNEES')))
+  check(/^Status: needs-triage$/m.test(kAfter), 'K 可见 Status 仍是 needs-triage；实际：' + JSON.stringify(kAfter.split('\n').filter((l) => /^Status/.test(l))))
+  check(ticketFormOf(kBefore) === ticketFormOf(kAfter), 'K 票面形状认领前后相同；认领前：' + ticketFormOf(kBefore) + '，认领后：' + ticketFormOf(kAfter))
 
   // ══ 第二组临时目录：加粗实施票（impl-ticket 路线语义不变） ══
   const tmpImpl = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1788-route-impl-'))
