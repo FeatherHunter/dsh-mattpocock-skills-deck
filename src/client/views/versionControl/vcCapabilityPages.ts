@@ -50,13 +50,15 @@ export const VC_DEEP_LINKS: Record<string, string> = {
   rebase: 'rebase',
   conflicts: 'conflicts',
   palette: 'search',
+  // 任务页是流程页：只开位置看进度与取消，不进 PAGE_SURFACES（162 条能力与 16 页计数不变）。
+  task: 'task',
 }
 
 // 层级：页签与全局面第 1 层；九个管理分区与两个二级页第 2 层。二级页不开三级页，所以没有第 3 层。
 const VC_PAGE_DEPTHS: Record<string, number> = {
   changes: 1, commits: 1, worktrees: 1, stash: 1, search: 1,
   'branch-tags': 2, remote: 2, submodules: 2, maintenance: 2, migrate: 2,
-  config: 2, hooks: 2, diagnostics: 2, platform: 2, rebase: 2, conflicts: 2,
+  config: 2, hooks: 2, diagnostics: 2, platform: 2, rebase: 2, conflicts: 2, task: 2,
 }
 
 export const vcPageDepthOf = function (pageId: any) {

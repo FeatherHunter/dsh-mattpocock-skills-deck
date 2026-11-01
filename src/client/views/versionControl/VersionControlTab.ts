@@ -20,8 +20,7 @@ export const VC_TONE: Record<string, string> = {
   primary: 'var(--vc-ink,#e6edf3)',
 }
 
+// 入参原样转交：st 给容器取工作区，narrow 给容器取初始宽度档（进入后仍以根节点实测宽度为准）。
 export const VersionControlTab = function (props: any) {
-  // narrow 是壳层「面板窄于 380」的那一档；真实页签自己量根节点宽度跟四档，比一个整面板布尔更准。
-  //   留着这个入参不读，是为了与 Dock 的调用形状一致。
   return React.createElement(VcRealTab, props)
 }

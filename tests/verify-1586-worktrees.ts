@@ -308,7 +308,7 @@ async function main(): Promise<void> {
     ['页面不再借壳的四段确认卡（自己拼一句「确定吗」）', 'page', function (t: string): string { return t.split('vcShellConfirmCardNode').join('vcOwnConfirm') }, 'confirmCard'],
     ['宿主叶子自己起进程（绕过 runPinned）', 'hostLeaf', function (t: string): string { return t.split('runPinned(').join('spawnGit(') }, 'pinnedOnly'],
     ['宿主不再区分「预检之后清单变了」', 'hostLeaf', function (t: string): string { return t.split("'worktrees-changed'").join("'changed'") }, 'ticketFlow'],
-    ['页面壳删掉工作树页的挂载段', 'shell', function (t: string): string { return t.replace("page === 'worktrees'", "page === 'never'") }, 'shellMount'],
+    ['页面壳删掉工作树页的挂载段', 'shell', function (t: string): string { return t.split("page === 'worktrees'").join("page === 'never'") }, 'shellMount'],
     ['构建登记里删掉动作层那一叶', 'build', function (t: string): string { return t.replace("shared:vcWorktreeOps (spliced by build)", 'shared:vcNoWorktrees (spliced by build)') }, 'buildReg'],
     ['词表中文段删掉一条判定理由', 'yaml', function (t: string): string { return t.replace('\n  vc.wt.why.ok:', '\n  vc.wt.why.removed:') }, 'words'],
   ]

@@ -321,7 +321,9 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   //   「管理 › 诊断」页落 3.5 / 3.9 / 3.11 / 3.13 四组（四条的主入口就在那一页，面板自己标主入口）。
   //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。
   const queryNode = vcQueryPageNode(h, t, opts); if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' })); const diagNode: any = typeof vcDiagnosticsMountNode === 'function' ? vcDiagnosticsMountNode(h, t, opts) : null; if (diagNode) children.push(Object.assign({}, diagNode, { key: 'diagnostics' })); if (page === 'diagnostics' && typeof vcMaintenanceDiagNode === 'function') { const maintDiagNode: any = h(vcMaintenanceDiagNode, { key: 'maintenance-diag', t: t, cwd: opts.cwd || '', call: opts.call || null }); children.push(Object.assign({}, maintDiagNode, { key: 'maintenance-diag' })) } // #1758 T22 诊断页 11.2–11.4 正文；#1761 诊断页正文：二分与替换是仅有的两个受控写，其余只读；判断与推入也并成一行（本文件贴着 350 有效行上限）。
-  children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
+  // 任务页是流程页，能力账本里没有它的条目（162 条不变），不画能力清单，只画任务面板。
+  if (page !== 'task') children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
+  if (page === 'task' && typeof vcTaskPanelNode === 'function') children.push(Object.assign({}, vcTaskPanelNode(h, t, { tasks: opts.tasks, running: opts.running, onCancel: opts.onCancel }), { key: 'task-body' }))
   // 改动页的 13 条动作面板（#1742）：页面把改动读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
     children.push(Object.assign({}, vcChangesPageNode(h, t, { changes: opts.changes }), { key: 'changes' }))
@@ -398,7 +400,8 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   //   原来挂的 vcUndoPageNode 只是画法且回调名与壳对不上（onInput/onPick/onCheck/onCancel/onGo/onRetry），点了没反应。
   if (page === 'rebase' && typeof VC_UNDO_PANEL === 'function') children.push(keyed(h(VC_UNDO_PANEL, { t: t, cwd: opts.cwd || '', state: opts.undo }), 'undoPage'))
   // 长任务区（#1740）：页面把任务清单传进来时才画；没传整块不出现，既有页面的渲染结果不受影响。
-  if (opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {
+  // 任务页把这块画进页面正文（见 vcPageBodyNode），这里不再重复挂一份。
+  if (page !== 'task' && opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {
     children.push(keyed(vcTaskPanelNode(h, t, { tasks: opts.tasks, running: opts.running, onCancel: opts.onCancel }), 'tasks'))
   }
   return h('div', {

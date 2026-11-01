@@ -7,7 +7,6 @@
 //   ③ 把管理页各自要的画法模型拼好（冲突、变基、任务面板），容器只再挂回调与处理器。
 // 动作一律由 vcRealManageActions.ts 与 vcRealManageActions2.ts 发；这里不出现任何电话名。
 
-declare const tr: any
 declare function vcNewBranchRead(): any
 declare function vcBranchBoardOf(reads: any): any
 declare function vcNewRemoteReads(): any
@@ -41,6 +40,7 @@ export const vcRealManageNew = function (): any {
     sync: vcNewSyncReads(),
     migrate: vcNewMigrateReads(),
     migrateExport: vcNewMigrateExport(),
+    // 补丁列表读数用平台读数包：vcMigrateExportNode 的 reads 参读的就是包里的 patches 槽。
     migratePatches: vcNewPlatformReads(),
     platform: vcNewPlatformReads(),
     config: vcConfigStateNew(),

@@ -22,7 +22,7 @@ declare function vcRealSkinOf(bodyEl: any): string
 declare function vcRealCommitTargetsOf(reads: any): any[]
 declare function vcRealChangesSeedOf(reads: any): any
 declare function vcRealActionsOf(deps: any): any
-declare function vcRealChangesHandlersOf(state: any, setState: any, call: any, cwd: any): any
+declare function vcRealChangesHandlersOf(state: any, setState: any, call: any, cwd: any, translate: any): any
 declare function vcRealDelegateOf(callbacks: any): any
 declare function vcRealMigrateFieldsOf(rootEl: any, action: any): any
 declare function vcStashStateNew(): any
@@ -50,6 +50,9 @@ declare function vcRealSelectCapOf(getNav: any, setNav: any): any
 declare function vcRealCallbacksOf(deps: any): any
 declare function vcRealBarNodesOf(h: any, tr: any, reads: any, nav: any, seed: any): any[]
 declare function vcRealFailNodesOf(h: any, tr: any, reads: any): any[]
+declare function vcRealAiNodesOf(h: any, tr: any, reads: any, nav: any, st: any): any
+declare function vcRealDeepLinkOf(props: any): string
+declare function vcRealDeepLinkNavOf(key: any): any
 
 export const VcRealTab = function (props: any) {
   const cx: any = React.useContext(DswsCtx)
@@ -57,10 +60,12 @@ export const VcRealTab = function (props: any) {
   const cwd: string = vcRealCwdOf(props)
   const [reads, setReadsState] = React.useState(function () { return vcRealReadsNew(cwd) })
   const [ui, setUiState] = React.useState(function () { return Object.assign({}, vcRealInitialUi(), vcRealManageUiNew()) })
-  const [nav, setNavState] = React.useState(vcRealInitialNav)
+  // 深链（规格 349 行）：props.deeplink 或地址栏 ?vc=... 只决定打开的位置，不做任何写动作；认不出就回首页。
+  const [nav, setNavState] = React.useState(function () { return vcRealDeepLinkNavOf(vcRealDeepLinkOf(props)) || vcRealInitialNav() })
   const [changes, setChangesState] = React.useState(function () { return { values: vcRealChangesSeedOf(reads).values, rows: {} } })
   const [manage, setManageState] = React.useState(vcRealManageNew)
-  const [width, setWidthState] = React.useState(460)
+  // 初始宽度按壳层给的 narrow 提示取档（窄面板 380，否则 460）；进入后由下面的 ResizeObserver 按真实宽度覆写。
+  const [width, setWidthState] = React.useState(function () { return props && props.narrow === true ? 380 : 460 })
   const [skin, setSkinState] = React.useState('dark')
   const rootRef: any = React.useRef(null)
   const readsRef: any = React.useRef(reads)
@@ -167,7 +172,7 @@ export const VcRealTab = function (props: any) {
     cwdRef.current = cwd
     setReadsState(vcRealReadsNew(cwd))
     setUiState(Object.assign({}, vcRealInitialUi(), vcRealManageUiNew()))
-    setNavState(vcRealInitialNav())
+    setNavState(vcRealDeepLinkNavOf(vcRealDeepLinkOf(props)) || vcRealInitialNav())
     setChangesState({ values: vcRealChangesSeedOf(vcRealReadsNew(cwd)).values, rows: {} })
     setManageState(vcRealManageNew())
     pollerRef.current = null
@@ -188,7 +193,8 @@ export const VcRealTab = function (props: any) {
     const need: string = vcRealManageNeedReadOf(page)
     if (need !== '') readsDispatchRef.current.readPage(page)
   }, [nav.page, cwd])
-  // 任务区轮询：每 cwd 一份计时器，进入即问一次；运行中的任务从有到无时按「任务完成后」重读首屏。
+  // 任务区轮询（规格 399-403、#1776 M4a 第 4 条）：只在有任务在跑或正看着任务页时按间隔问；空闲时进入只问一次、
+  //   不常驻计时器。运行中的任务从有到无时按「任务完成后」时机重读首屏。依赖里带页名与运行数，状态一变就换计时器。
   React.useEffect(function () {
     if (vcRealCwdEmptyOf(cwd)) return
     const poller: any = vcRealTaskPollerOf({
@@ -199,10 +205,12 @@ export const VcRealTab = function (props: any) {
     })
     pollerRef.current = poller
     poller.tick()
+    const running: number = Number((manage.tasks && manage.tasks.running) || 0)
+    if (running <= 0 && nav.page !== 'task') return
     const interval: number = poller.intervalMs > 0 ? poller.intervalMs : 5000
     const timer: any = typeof setInterval === 'function' ? setInterval(function () { poller.tick() }, interval) : null
     return function () { if (timer !== null && typeof clearInterval === 'function') clearInterval(timer) }
-  }, [cwd])
+  }, [cwd, nav.page, manage.tasks && manage.tasks.running])
   // 提交页的只读动作：打开改动页时读一次提交表单（wf.gitCommitForm）；换工作区后 cwd 变了会再读一次。
   const commitFormCwdRef: any = React.useRef('')
   React.useEffect(function () {
@@ -233,7 +241,7 @@ export const VcRealTab = function (props: any) {
   const seed: any = vcRealSeedOf(reads, nav, nowTick)
   const stash: any = Object.assign({}, vcStashStateNew(), ui.stash || {})
   const changesSeed: any = vcRealChangesSeedOf(reads)
-  const changeHandlers: any = vcRealChangesHandlersOf({ values: changes.values, rows: changes.rows }, setChangesState, callHost, cwd)
+  const changeHandlers: any = vcRealChangesHandlersOf({ values: changes.values, rows: changes.rows }, setChangesState, callHost, cwd, tr)
   changeHandlers.onDone = function () { actionsRef.current.refresh('task-done') }
   const changesModel: any = {
     counts: changesSeed.counts,
@@ -310,6 +318,10 @@ export const VcRealTab = function (props: any) {
   })
   const failNodes: any[] = vcRealFailNodesOf(h, tr, reads)
   const kids: any[] = [h('div', { key: 'bar', className: 'vcs-live-bar', 'data-vc-live-bar': '1' }, vcRealBarNodesOf(h, tr, reads, nav, seed))]
+  // AI 兜底入口只在有「面板解决不了的事」时出现（冲突、进行中的操作、读失败五档、工作树边界），
+  //   与旧块一样贴在顶栏下方；没有候选时整块不画。
+  const aiNode: any = vcRealAiNodesOf(h, tr, reads, nav, props && props.st)
+  if (aiNode) kids.push(aiNode)
   if (failNodes.length > 0) kids.push(h('div', { key: 'fails', className: 'vcs-live-fails', 'data-vc-live-fails': '1' }, failNodes))
   kids.push(h('div', { key: 'shell', className: 'vcs-live-shell' }, vcShellPageNode(h, tr, shellOpts)))
   return h('div', Object.assign({ id: 'vc-real-root', ref: rootRef, className: 'vcs-live', 'data-vc-live': '1', 'data-vc-live-page': nav.page, 'data-vc-live-depth': String(vcPageDepthOf(nav.page)) }, events), kids)

@@ -580,10 +580,10 @@ async function main() {
       ],
     },
     {
-      label: '冲突页（wf.gitConflicts 读数、wf.gitConflictCheck / wf.gitConflictWrite 两扇门、冲突模型递进壳）',
+      label: '冲突页（wf.gitConflicts 读数、共享常量 VC_CONFLICTS_PHONES 的预检与执行两扇门、冲突模型递进壳）',
       need: [
-        ['side', 'wf.gitConflictCheck'],
-        ['side', 'wf.gitConflictWrite'],
+        ['side', 'VC_CONFLICTS_PHONES.check'],
+        ['side', 'VC_CONFLICTS_PHONES.write'],
         ['side', 'conflict-list'],
         ['conflicts', 'wf.gitConflictCheck'],
         ['conflicts', 'wf.gitConflictWrite'],
@@ -592,10 +592,10 @@ async function main() {
       ],
     },
     {
-      label: '变基页（wf.gitRebaseRead 读数、wf.gitRebaseCheck / wf.gitRebaseWrite 两扇门、撤销面板换挂自带状态组件）',
+      label: '变基页（wf.gitRebaseRead 读数、共享常量 VC_REBASE_PHONES 的预检与执行两扇门、撤销面板换挂自带状态组件）',
       need: [
-        ['side', 'wf.gitRebaseCheck'],
-        ['side', 'wf.gitRebaseWrite'],
+        ['side', 'VC_REBASE_PHONES.check'],
+        ['side', 'VC_REBASE_PHONES.write'],
         ['rebase', 'wf.gitRebaseRead'],
         ['model', 'rebase: vcRealRebaseModelOf(mm.rebase)'],
         ['model', 'undo: mm.undo || vcUndoStateNew()'],

@@ -6,7 +6,6 @@
 // 这一层只发「读」，不判断能不能写；三段式的预检与凭票执行在 vcRealManageActions*.ts。
 // 失败绝不清空上一份读数：页面照常画旧数据，同时由错误字段说明这一次没读到。
 
-declare const tr: any
 declare function vcReadBranches(reads: any, call: any, cwd: any): any
 declare function vcReadRemoteList(reads: any, call: any, cwd: any): any
 declare function vcReadPlatform(reads: any, call: any, cwd: any): any

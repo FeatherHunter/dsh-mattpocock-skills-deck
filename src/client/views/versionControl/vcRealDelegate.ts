@@ -163,11 +163,9 @@ export const vcRealKeyIntentOf = function (el: any, key: any): any {
   return { kind: 'tabKey', key: k, page: vcRealAttrOf(tab, 'data-vc-tab') }
 }
 
-// 把意图翻译成回调名：容器只实现一张动作表，这里决定点哪一项。
-export const vcRealActionOf = function (intent: any): any {
-  if (!intent) return ''
-  const kind: string = String(intent.kind || '')
-  const table: any = {
+// 意图 → 回调名的一张表：容器只实现这些回调，这里决定点哪一项。
+//   表放在模块级只建一次；键是意图的 kind，值是容器回调表里的名字。
+const VC_REAL_ACTION_OF: any = {
     gear: 'page', gearToggle: 'gearToggle', searchEntry: 'searchEntry', branchToggle: 'branchToggle',
     branchClose: 'branchClose', sync: 'sync', branchOverlay: 'branchOverlay', palettePick: 'palettePick',
     tab: 'tab', refresh: 'refresh', sliceRetry: 'sliceRetry', retryAll: 'retryAll', back: 'back', page: 'page',
@@ -183,8 +181,12 @@ export const vcRealActionOf = function (intent: any): any {
     filesRetry: 'filesRetry', fileDiffRetry: 'fileDiffRetry', historyFile: 'historyFile',
     paletteInput: 'paletteInput', tabKey: 'tabKey', escape: 'escape',
     remoteField: 'remoteField', syncField: 'syncField', branchField: 'branchField', capRow: 'capRow',
-  }
-  return table[kind] || ''
+}
+
+export const vcRealActionOf = function (intent: any): any {
+  if (!intent) return ''
+  const kind: string = String(intent.kind || '')
+  return VC_REAL_ACTION_OF[kind] || ''
 }
 
 // React 侧的绑定器：每个容器实例持有一份回调表（放在 useRef 里，不随重画丢），返回可直接铺在根节点上的

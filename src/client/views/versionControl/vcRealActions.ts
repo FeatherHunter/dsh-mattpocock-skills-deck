@@ -21,7 +21,13 @@ declare function vcCommitInitialState(): any
 declare function vcCommitOpsOf(deps: any): any
 declare const VC_COMMIT_PHONES: any
 declare function vcStashStateNew(): any
-declare function vcStashCallOf(call: any, cwd: any, input: any): any
+declare function vcStashActionPayloadOf(input: any): any
+declare function vcStashNeedsTicketOf(op: any): boolean
+declare function vcStashRequestIdOf(nowMs: any, salt: any): string
+declare function vcStashTicketOf(reply: any): any
+declare function vcStashCheckCallOf(call: any, cwd: any, input: any): any
+declare function vcStashWriteCallOf(call: any, cwd: any, input: any, ticketId: any, requestId: any): any
+declare function vcStashCheckConfirmOf(payload: any, reply: any, requestId: any): any
 declare function vcStashApplyReply(state: any, reply: any): any
 declare function vcReadFirstScreenSliceOf(reads: any, id: any): any
 declare function vcFirstScreenSliceOf(reads: any, id: any): any
@@ -129,18 +135,42 @@ export const vcRealActionsOf = function (deps: any): any {
       const skip: number = commits.length + (Number(log.fetched) || 0)
       return Promise.resolve(vcReadMoreCommits(reads, call, cwd, skip)).then(function (next: any) { setReads(next); return next })
     },
-    // 贮藏：一条电话走全部动作；危险动作的确认卡由页面自己停在 state.confirm 上，这里只做电话与落状态。
+    // 贮藏：写动作走三段式 —— 先预检签票，再把确认卡停在触发点；用户确认后凭 ticketId + requestId 执行。
+    //   读动作（list / show）与最近丢弃的恢复不要票，直接走执行电话；预检失败只落结果，不发执行电话。
     stashAct: function (payload: any): any {
+      const p: any = payload || {}
+      const op: string = String(p.op || '')
       const ui: any = uiNow()
       const prev: any = Object.assign({}, vcStashStateNew(), ui.stash || {})
-      const pending: any = Object.assign({}, prev, { pending: String((payload && payload.op) || ''), message: '', result: prev.result })
-      setUi(Object.assign({}, ui, { stash: pending }))
-      return Promise.resolve(vcStashCallOf(call, cwd, payload)).then(function (reply: any) {
-        const cur: any = vcRealActionsOfLastUi(d)
-        const baseStash: any = Object.assign({}, vcStashStateNew(), cur.stash || {})
-        const next: any = vcStashApplyReply(baseStash, reply)
-        setUi(Object.assign({}, vcRealActionsOfLastUi(d), { stash: next }))
+      const patchStash = function (next: any): void { setUi(Object.assign({}, vcRealCurrentUiOf(d), { stash: next })) }
+      const replyInto = function (reply: any): any {
+        const base: any = Object.assign({}, vcStashStateNew(), (vcRealCurrentUiOf(d).stash) || {})
+        const next: any = vcStashApplyReply(base, reply)
+        patchStash(next)
         if (reply && reply.ok === true) refresh('task-done')
+        return next
+      }
+      const write = function (ticketId: any, requestId: any): any {
+        patchStash(Object.assign({}, prev, { pending: op, message: prev.message, result: prev.result, confirm: prev.confirm }))
+        return Promise.resolve(vcStashWriteCallOf(call, cwd, p, ticketId, requestId)).then(replyInto)
+      }
+      if (p.confirm === true) {
+        const confirm: any = prev.confirm || {}
+        if (!confirm.ticketId) {
+          const next: any = Object.assign({}, prev, { pending: null, result: { ok: false, error: { kind: 'confirm', message: '' } } })
+          patchStash(next)
+          return Promise.resolve(next)
+        }
+        return write(confirm.ticketId, confirm.requestId)
+      }
+      if (!vcStashNeedsTicketOf(op)) return write('', '')
+      const requestId: string = vcStashRequestIdOf(nowMs(), op)
+      patchStash(Object.assign({}, prev, { pending: op, message: prev.message, result: prev.result, confirm: null }))
+      return Promise.resolve(vcStashCheckCallOf(call, cwd, vcStashActionPayloadOf(p))).then(function (reply: any) {
+        if (!reply || reply.ok !== true) return replyInto(reply)
+        const confirm: any = vcStashCheckConfirmOf(p, reply, requestId)
+        const next: any = Object.assign({}, prev, { pending: null, confirm: confirm, result: prev.result })
+        patchStash(next)
         return next
       })
     },
@@ -179,28 +209,36 @@ export const vcRealActionsOf = function (deps: any): any {
 
 // vcCommitOpsOf 的 setUi 是函数式（fn(cur)=>next）；vcCommitOps 内部只按 ui.commit 拼一份新 ui 回来，
 //   所以这里把「当前 ui」交给它即可。容器统一用下面这个包装，避免两处各写一份。
-export const vcRealActionsOfLastUi = function (deps: any): any {
+export const vcRealCurrentUiOf = function (deps: any): any {
   return typeof deps.getUi === 'function' ? deps.getUi() : deps.ui || {}
 }
 
 // 改动页 13 条动作的处理器：状态由容器持有（values 与 rows），这里只做电话与落状态。
 //   begin 先走预检电话拿 120 秒票；危险动作停确认卡，其余直接凭票执行；run 只认确认卡给的票。
-export const vcRealChangesHandlersOf = function (state: any, setState: any, call: any, cwd: any): any {
+export const vcRealChangesHandlersOf = function (state: any, setState: any, call: any, cwd: any, translate: any): any {
+  const t = typeof translate === 'function' ? translate : function (key: string) { return key }
   const s: any = state || {}
+  // 每次改动都交给容器的函数式更新：异步回包落地时按「当前态」算下一态，不会被旧的闭包快照覆盖。
   const put = function (patch: any): void {
-    if (typeof setState === 'function') setState(Object.assign({}, s, patch))
+    if (typeof setState === 'function') setState(function (cur: any) { return Object.assign({}, cur || {}, patch) })
   }
   const putRow = function (op: any, patch: any): void {
-    const rows: any = Object.assign({}, s.rows || {})
-    rows[String(op)] = Object.assign({}, rows[String(op)] || {}, patch)
-    put({ rows: rows })
+    if (typeof setState !== 'function') return
+    setState(function (cur: any) {
+      const rows: any = Object.assign({}, (cur && cur.rows) || {})
+      rows[String(op)] = Object.assign({}, rows[String(op)] || {}, patch)
+      return Object.assign({}, cur || {}, { rows: rows })
+    })
   }
   const values: any = s.values || {}
   const handlers: any = {
     onValue: function (field: any, value: any): void {
-      const next: any = Object.assign({}, values)
-      next[String(field)] = value
-      put({ values: next })
+      if (typeof setState !== 'function') return
+      setState(function (cur: any) {
+        const next: any = Object.assign({}, (cur && cur.values) || {})
+        next[String(field)] = value
+        return Object.assign({}, cur || {}, { values: next })
+      })
     },
     begin: function (op: any, payload: any): any {
       const meta: any = vcChangesOpMetaOf(op)
@@ -240,7 +278,7 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
       return Promise.resolve(call(VC_CHANGES_PHONES.check, vcChangesCheckArgsOf(cwd, op, values))).then(function (reply: any) {
         const ok: boolean = !!(reply && reply.ok === true)
         const text: string = String((reply && (reply.text || reply.output || reply.stdout)) || '')
-        const message: string = String((reply && reply.error && reply.error.message) || (ok ? '' : '读取失败'))
+        const message: string = String((reply && reply.error && reply.error.message) || (ok ? '' : t('vc.shell.live.readFailed')))
         putRow(op, { busy: false, read: { ok: ok, text: text, message: message } })
         return reply
       })

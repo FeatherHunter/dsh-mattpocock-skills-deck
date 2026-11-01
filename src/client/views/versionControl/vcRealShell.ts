@@ -22,6 +22,12 @@ declare function vcRealRemoteValuesOf(el: any): any
 declare function vcRealMigrateFieldsOf(rootEl: any, action: any): any
 declare function vcRealBranchFieldsOf(intent: any, current: any): any
 declare const VC_REAL_EXTRA_LINKS: string[]
+declare function vcRealAiEntriesOf(reads: any, nav: any, t: any): any[]
+declare function vcAiHandoffOf(o: any): any
+declare function vcAiButtonNode(h: any, o: any): any
+declare function vcOpenAiHandoff(o: any): boolean
+declare function vcFirstScreenScreenOf(reads: any): any
+declare var openTextInNewSession: any
 
 // #842 与 ui-feedback 要求入口带这几枚 data-log 词条：刷新用 vc.reload，返回按来源页分 vc.changes.back /
 // vc.commit.back，提交历史的行点开走 vc.row.open.<oid>。前两枚真实铺在按钮上，行那一枚由宿主的提交历史叶子挂。
@@ -188,6 +194,23 @@ export const vcRealFailNodesOf = function (h: any, tr: any, reads: any): any[] {
       h('button', { key: 'retry', type: 'button', className: 'vcs-live-retry', 'data-vc-slice-retry': one.id }, tr('vc.shell.live.retry'))))
   })
   return nodes
+}
+
+// 「让 AI 帮我解决」入口（规格 48-50、79、387、440）：只在候选非空时画；点开时才把面板已读到的事实写成
+//   prompt 交给既有新会话通路（openTextInNewSession），现象/目标/补充三节由 vcAiHandoffOf 留空给人补。
+//   300/380 窄宽也不删入口，按钮在条里自己换行。
+export const vcRealAiNodesOf = function (h: any, tr: any, reads: any, nav: any, st: any): any {
+  const entries: any[] = vcRealAiEntriesOf(reads, nav, tr)
+  if (!entries.length) return null
+  const onOpen = function (ai: any): void {
+    const handoff: any = vcAiHandoffOf({ ai: ai, t: tr, screen: vcFirstScreenScreenOf(reads) })
+    vcOpenAiHandoff({ opener: typeof openTextInNewSession === 'function' ? openTextInNewSession : null, st: st || {}, handoff: handoff })
+  }
+  const nodes: any[] = entries.map(function (ai: any) {
+    return Object.assign({}, vcAiButtonNode(h, { ai: ai, tr: tr, onOpen: onOpen, logId: ai.kind }), { key: 'ai-' + ai.kind })
+  })
+  // 外层 div 带固定 key：它会被拼进容器组件的 kids 数组，不带 key 时 React 每次渲染都要打一条警告。
+  return h('div', { key: 'ai', className: 'vcs-live-ai', 'data-vc-live-ai': '1' }, nodes)
 }
 
 export const VC_REAL_SHELL_SOURCE = 'src/client/views/versionControl/vcRealShell.ts'
