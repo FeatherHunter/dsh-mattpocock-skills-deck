@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-01T18:21:16.558Z",
+  "generatedAt": "2026-11-01T19:02:59.887Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 531,
-  "gateCount": 531,
-  "attributedGates": 469,
+  "chainLength": 532,
+  "gateCount": 532,
+  "attributedGates": 470,
   "unattributedGates": 62,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 86,
@@ -5851,6 +5851,21 @@
       "file": "tests/verify-1790-status-model.ts",
       "guards": [
         "src/tracker/rooms/markdown/status.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1790-status-read.ts",
+      "file": "tests/verify-1790-status-read.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/parse.ts"
       ],
       "dirs": [
         "src/tracker/rooms/markdown"
@@ -14382,6 +14397,7 @@
       "node tests/verify-1788-write-route.ts",
       "node tests/verify-1789-create-preserve-sections.ts",
       "node tests/verify-1790-status-model.ts",
+      "node tests/verify-1790-status-read.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",

@@ -113,15 +113,17 @@ console.log('\n== ⑥ 标签名外层写法要剥净（#634：读这一层与写
   // 现象（用户在本地 Markdown 工作区实测到的）：票面写成 Labels: `wayfinder:map`（照抄文档里的代码写法），
   //   面板上那些标签就原样带着一对反引号，颜色也回落到灰——查色与身份判定都按名字精确匹配，带着反引号查不到。
   // 这一节把「读这一层要剥」与「写这一层也要剥」两件事都钉住：只剥外层成对的引号/反引号，不动名字本身。
+  // #1790 起 triage 状态由可见 Status 行合成：读出来的 labels 会带上这一枚 triage，隐藏/可见行里的旧
+  //   五 triage 先被过滤、再按有效状态补回，所以下面的期望数组都显式写着 ready-for-agent。
   const cases = [
     ['Labels: `wayfinder:map`', ['wayfinder:map'], '反引号包着一个标签'],
-    ['Labels: `wayfinder:task`, `wontfix`', ['wayfinder:task', 'wontfix'], '反引号包着两个标签'],
-    ['Labels: "bug"', ['bug'], '双引号包着'],
-    ["Labels: 'bug'", ['bug'], '单引号包着'],
-    ['Labels: `"bug"`', ['bug'], '两层包着'],
-    ['Labels: bug, needs-triage', ['bug', 'needs-triage'], '本来就没包（不许改动）'],
-    ["Labels: don't", ["don't"], '名字自带单引号但不包（不许切坏）'],
-    ['Labels: `bug`,', ['bug'], '包着、末尾还留一个空段（空段照旧丢弃）'],
+    ['Labels: `wayfinder:task`, `wontfix`', ['wayfinder:task', 'ready-for-agent'], '反引号包着两个标签'],
+    ['Labels: "bug"', ['bug', 'ready-for-agent'], '双引号包着'],
+    ["Labels: 'bug'", ['bug', 'ready-for-agent'], '单引号包着'],
+    ['Labels: `"bug"`', ['bug', 'ready-for-agent'], '两层包着'],
+    ['Labels: bug, needs-triage', ['bug', 'ready-for-agent'], '本来就没包（不许改动）'],
+    ["Labels: don't", ["don't", 'ready-for-agent'], '名字自带单引号但不包（不许切坏）'],
+    ['Labels: `bug`,', ['bug', 'ready-for-agent'], '包着、末尾还留一个空段（空段照旧丢弃）'],
   ]
   for (const [text, want, why] of cases) {
     const got = parseMd(text + '\n\nStatus: ready-for-agent\n', { key: '01', parentKey: '00', isMap: false }).labels.map((l) => l.name)

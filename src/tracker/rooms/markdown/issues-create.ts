@@ -63,6 +63,14 @@ async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: 
   try{
     // #1486/#1487：六种票全部走原文布局（#1500 S4 起 originalKindOf 不再回空，旧的自拼分支已删）。
     const originalKind=originalKindOf(input)
+    // #1790：显式票型（调用方给了 fileKind 就用它，否则由六种原文形状反推）要跟着路线一起交给读回解析，
+    // 读回来的 Issue 才能立刻带对 status / statusSource；容器不出状态，不给 fileKind 与路线。
+    const fileKind=input.fileKind!==undefined
+      ?input.fileKind
+      :(originalKind==='spec-ticket'||originalKind==='bug'||originalKind==='map-ticket'||originalKind==='issue'
+        ?(originalKind==='issue'?'plain-issue':originalKind)
+        :undefined)
+    const route=originalKind==='map'||originalKind==='map-ticket'?'map':(originalKind==='spec'||originalKind==='spec-ticket'?'spec':'plain')
     // #1507：正文里出现远端四段模板（不在代码围栏里）就当场拒绝，不落盘、不做归一化。
     // 放在落盘之前：拒得掉的请求不该先在磁盘上留半张票，也不该先占掉一个编号。
     const offending=remoteTemplateSections(input.body)
@@ -88,7 +96,7 @@ async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: 
       :(originalKind==='spec-ticket'||originalKind==='map-ticket'
         ?'00'
         :(wantedParent?(/^\d+$/.test(wantedParent)?wantedParent.padStart(2,'0'):wantedParent):null))
-    const iss=parseMd(content,{key:placement.key,parentKey:fallbackParent,isMap:originalKind==='map',effortId:placement.effortId,createdAt:placement.createdAt,updatedAt:mtime,url:placement.path,kind:originalKind==='spec'?'spec':(originalKind==='map'?'map':'issue')})
+    const iss=parseMd(content,{key:placement.key,parentKey:fallbackParent,isMap:originalKind==='map',effortId:placement.effortId,createdAt:placement.createdAt,updatedAt:mtime,url:placement.path,kind:originalKind==='spec'?'spec':(originalKind==='map'?'map':'issue'),route,fileKind})
     applyLabelColors(iss,colorMap)
     return{ok:true,data:iss}
   }catch(e){return failFromError(e,ctx,'建这张票时出错')}

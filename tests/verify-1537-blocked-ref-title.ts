@@ -86,7 +86,9 @@ const issuesDir = path.join(unit, 'issues')
 writeTicket(unit, 'map.md', '本组地图', 'ready-for-agent')
 writeTicket(issuesDir, '03-zh.md', '中文5处', 'ready-for-agent')
 writeTicket(issuesDir, '04-en.md', '英文4处', 'ready-for-agent')
-writeTicket(issuesDir, '05-check.md', '对账加微信', 'done')
+// 本组是地图目录（map.md）下的子票：#1790 起地图子票只认 claimed / resolved，
+// 这一张要验「已关闭的引用 state 是 closed」，所以用地图子票自己的完成词 resolved（不用 done）。
+writeTicket(issuesDir, '05-check.md', '对账加微信', 'resolved')
 writeTicket(issuesDir, '08-final.md', '源头定稿', 'ready-for-agent')
 writeTicket(issuesDir, '12-blocked.md', '被挡住的12', 'ready-for-agent', '03, 04, 05, 08')
 writeTicket(issuesDir, '13-missing.md', '指到空号的13', 'ready-for-agent', '99')

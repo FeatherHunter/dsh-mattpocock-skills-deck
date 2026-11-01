@@ -209,7 +209,9 @@ async function main(): Promise<void> {
   check(headerComments(handAfter).indexOf('<!-- DSH-LABELS: bug -->') >= 0, '① 手写票也补上隐藏标签注释')
   const handRead = await getIssue(ctx as never, featureRepo as never, '02', {} as never)
   const handLabels = ((handRead && handRead.ok && handRead.data.labels) || []).map((l) => (l && typeof l === 'object' ? l.name : l))
-  check(JSON.stringify(handLabels) === '["bug"]', '① 手写票读回标签是 bug：' + JSON.stringify(handLabels))
+  // #1790 起 triage 状态由可见 Status 行合成一枚进 labels（这张票是 ready-for-agent），
+  // 读回的是「隐藏/可见非 triage 标签 + 合成的那一枚」，不再只有 bug。
+  check(JSON.stringify(handLabels) === '["bug","ready-for-agent"]', '① 手写票读回标签是 bug + 合成 triage：' + JSON.stringify(handLabels))
 
   // ══ 第五段：目录里有 map.md 的手写票 —— 按地图路线写（#1788：写什么由目录定，不再由文件文字猜） ══
   // 这张票的正文是手写的老样子（没有文件头隐藏注释、没有加粗字段），但它所在目录有 map.md，

@@ -2,7 +2,9 @@
  * tests/verify-691-markdown-counts-page.ts — 本地 Markdown 后端的计数（counts）门禁（#691 的第 4 件交付物）。
  *
  * 断的是 #688 第一手实测定下的口径（数「列举会返回的那些票行」）与契约的「拿不全就整体失败」：
- *   一、计数等于目录里真实的票数（notes.md 不算票、地图容器行不算票）；
+ *   一、计数等于目录里真实的票数（notes.md 不算票、规格容器行不算票）；
+ *      夹具照 #688 的计数语义搭：目录是规格（spec.md + issues/），不是地图 —— #1790 起目录路线决定票型，
+ *      地图目录下的票只认 claimed / resolved，而这里要验的是普通 triage 票的计数。
  *   二、open / closed 按票面 Status 行分得对（同一份夹具上再验一次 filter.state 收窄）；
  *   三、作用域：给了 effortId 只数那一个工作单元，没给就两个工作单元一起数；
  *   四、某个票文件读不动 → counts 回失败（而不是少一行），消息里带那个编号；
@@ -64,11 +66,12 @@ function makeCtx (cwd: string, unreadable: string[] = []): MdCtx {
   return { platform: plat, fs: plat.fs, cwd, get (name: string) { if (name === 'fs') return plat.fs; return undefined } } as unknown as MdCtx
 }
 
-/** 在临时工作区里写一个工作单元（地图 + 若干票文件）；tickets 里每项是 [文件名, 状态, 额外行]。 */
+/** 在临时工作区里写一个工作单元（规格容器 + 若干票文件）；tickets 里每项是 [文件名, 状态, 额外行]。
+ *  用 spec.md 而不是 map.md：这里要数的是普通 triage 票，地图目录的子票按 #1790 只认 claimed / resolved。 */
 function writeEffort (root: string, effortId: string, tickets: Array<[file: string, status: string, extra?: string]>): string {
   const dir = path.join(root, '.scratch', effortId)
   fs.mkdirSync(path.join(dir, 'issues'), { recursive: true })
-  fs.writeFileSync(path.join(dir, 'map.md'), '# 工作单元 ' + effortId + '\n\nStatus: ready-for-agent\n\n## Destination\n\n夹具\n', 'utf8')
+  fs.writeFileSync(path.join(dir, 'spec.md'), '# 工作单元 ' + effortId + '\n\nStatus: ready-for-agent\n\n## Destination\n\n夹具\n', 'utf8')
   for (const [file, status, extra] of tickets) {
     const body = '# ' + file + '\n\nStatus: ' + status + '\n' + (extra || '') + '\n## Body\n\n夹具里的票\n'
     fs.writeFileSync(path.join(dir, 'issues', file), body, 'utf8')
@@ -79,7 +82,7 @@ function writeEffort (root: string, effortId: string, tickets: Array<[file: stri
 const REPO = { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '' } as unknown as CountRepo & PageRepo
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'md-691-counts-'))
 
-console.log('== 一、计数等于目录里真实的票数（notes.md 不算票、地图容器行不算票） ==')
+console.log('== 一、计数等于目录里真实的票数（notes.md 不算票、规格容器行不算票） ==')
 {
   const ws = fs.mkdtempSync(path.join(tmpRoot, 'ws-a-'))
   // demo：2 开 2 关（其中 02 带两个标签、03 带一个标签，留给下面按标签筛那一节用）
@@ -99,7 +102,7 @@ console.log('== 一、计数等于目录里真实的票数（notes.md 不算票�
     '两个工作单元一起数：2 开 + 3 关 = 5 张票（目录里真实票数）→ ' + countsText(r))
   const rows: ListOut = await listIssues(ctx, REPO, {})
   check(rows.ok && rows.data.length === 7,
-    '同一份夹具上列举回 7 行 = 5 张票 + 2 张地图容器行（数字与行同源，地图行没算进票数）→ 实得 ' + (rows.ok ? rows.data.length : '失败') + ' 行')
+    '同一份夹具上列举回 7 行 = 5 张票 + 2 张规格容器行（数字与行同源，容器行没算进票数）→ 实得 ' + (rows.ok ? rows.data.length : '失败') + ' 行')
 
   const narrowOpen = await countIssues(ctx, REPO, { state: 'open' })
   check(narrowOpen.ok && narrowOpen.data.open === 2 && narrowOpen.data.closed === 0 && narrowOpen.data.total === 2,
@@ -155,14 +158,14 @@ console.log('\n== 三、票文件读不动 → 失败（不是少一行），消
 console.log('\n== 四、一个票都没有的空工作区 → {open:0, closed:0, total:0} ==')
 {
   const ws = fs.mkdtempSync(path.join(tmpRoot, 'ws-d-'))
-  // 有工作单元目录与地图，但 issues/ 里一张票都没有
+  // 有工作单元目录与规格容器，但 issues/ 里一张票都没有
   writeEffort(ws, 'emptyone', [])
   const ctx = makeCtx(ws)
   const r = await countIssues(ctx, { ...REPO, refId: '.scratch/emptyone' }, {})
   check(r.ok && r.data.open === 0 && r.data.closed === 0 && r.data.total === 0,
-    '有地图、没有票的工作区 → ' + countsText(r))
+    '有规格容器、没有票的工作区 → ' + countsText(r))
 
-  // 连 .scratch 都还没有的工作区（刚选好后端、还没建地图）：也回 0，不回失败 —— 与列举同口径（列举回空清单）
+  // 连 .scratch 都还没有的工作区（刚选好后端、还没建容器）：也回 0，不回失败 —— 与列举同口径（列举回空清单）
   const bare = fs.mkdtempSync(path.join(tmpRoot, 'ws-e-'))
   const bareCtx = makeCtx(bare)
   const r2 = await countIssues(bareCtx, REPO, {})

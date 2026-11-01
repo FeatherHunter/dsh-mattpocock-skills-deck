@@ -123,9 +123,9 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
   /** 一个票文件读成一行：读不动时按上面的开关决定「静默跳过」还是「记下错误」。
    *  key 是这张票对外的完整身份串（#1488：正常票是两位编号，退化票是 `目录/编号-文件名`）；
    *  parentKey 只在这个工作单元真有容器（map.md / spec.md）时给 '00'，普通票目录按目录判父容器（null）。 */
-  const pushTicketRow = async function (fullPath: string, key: string, effortId: string, parentKey: string | null): Promise<void> {
+  const pushTicketRow = async function (fullPath: string, key: string, effortId: string, parentKey: string | null, route: 'map' | 'spec' | 'plain' | ''): Promise<void> {
     try {
-      const loaded = await loadIssueFromFile(ctx, repo, fullPath, { key, parentKey, isMap: false, effortId })
+      const loaded = await loadIssueFromFile(ctx, repo, fullPath, { key, parentKey, isMap: false, effortId, route })
       // 版本号检查要看原文：loadIssueFromFile 只回解析后对象，这里为检查再读一次原文。
       // 读不到就当没这回事（读失败那条线已经由 ticket-read-fail / 调用方失败负责），不额外记。
       try { noteBadFormat(await readTextFile(ctx, fullPath)) } catch {}
@@ -142,7 +142,7 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
    *  读法与单票读取同一口径（loadIssueFromFile 把 spec.md 认成 kind=spec，并带文件时间）。 */
   const pushSpecRow = async function (specPath: string, effortId: string): Promise<void> {
     try {
-      const loaded = await loadIssueFromFile(ctx, repo, specPath, { key: '00', parentKey: null, isMap: false, effortId })
+      const loaded = await loadIssueFromFile(ctx, repo, specPath, { key: '00', parentKey: null, isMap: false, effortId, route: 'spec' })
       try { noteBadFormat(await readTextFile(ctx, specPath)) } catch {}
       rows.push(loaded)
     }
@@ -158,7 +158,7 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
     const detail = err && (err as Record<string, unknown>).message ? String((err as Record<string, unknown>).message) : String(err)
     errors.push({ key: '', path: String(idir || ''), kind: got.kind, message: '这个工作单元的票目录读不出来：' + String(idir || '') + '（' + detail + '）', raw: rawTextOf(rawFromError(err)) })
   }
-  const collectTicketsIn = async function (idir: string, effortId: string, parentKey: string | null, useKeyFilter: boolean): Promise<void> {
+  const collectTicketsIn = async function (idir: string, effortId: string, parentKey: string | null, useKeyFilter: boolean, route: 'map' | 'spec' | 'plain' | ''): Promise<void> {
     // 这里用严格三态（listTicketFiles 与 listDir 同口径）：宽松口把「读不出来」压成空数组，
     // 上面那两条承诺就都落空了（开了收集就把错误记下来、没开就当场抛）—— 而且是在「看起来正常」的样子下落空的。
     const listing = await listTicketFiles(ctx, idir)
@@ -174,7 +174,7 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
       // 同一趟只留一条线：哪个文件退化了，行上的 key 本身就是证据，日志只说「有这件事」。
       if (tf.degenerate && op === 'list') degraded('dup-number')
       if (useKeyFilter && !keyWanted(tf, key)) continue
-      await pushTicketRow(tf.path, key, effortId, parentKey)
+      await pushTicketRow(tf.path, key, effortId, parentKey, route)
     }
   }
 
@@ -198,13 +198,13 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
     else if (u.kind === 'spec') await pushSpecRow(plat.join(u.dir, 'spec.md'), u.effortId)
     // 有容器的工作单元里票是容器子票（parentKey='00'）；只有 issues/ 的普通票目录不给父容器。
     const parentKey = u.kind === 'plain' || u.legacy ? null : '00'
-    await collectTicketsIn(plat.join(u.dir, 'issues'), u.effortId, parentKey, true)
+    await collectTicketsIn(plat.join(u.dir, 'issues'), u.effortId, parentKey, true, u.legacy ? '' : u.kind)
   }
   // 二、夹具形态兜底（repo.refId 直接当仓库根、没有 .scratch）：仅在没点目录、且全局一个都没找到时走。
   // #1486：点了 feature/effort 就只认那个目录；再退回 refId 会把另一个目录的票当成本次范围（跨目录串票）。
   if (rows.length === 0 && scope === undefined) {
     await pushMapRow(mdPath(repo, 'map', undefined, ctx), scope || '', true)
-    await collectTicketsIn(issuesDir(repo, ctx), scope || '', '00', true)
+    await collectTicketsIn(issuesDir(repo, ctx), scope || '', '00', true, 'plain')
     // 第三种夹具形态：repo.path 直接当仓库根（地图与 issues/ 都在它下面）。
     // 这里的「地图读不动就连票也不列」是既有行为（整段共用一个 try），照旧不动。
     if (rows.length === 0 && repo && repo.path) {
@@ -212,7 +212,7 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
         const mapP = plat.join(repo.path, 'map.md')
         const txt = await readTextFile(ctx, mapP)
         rows.push(parseMd(txt, { key: '00', parentKey: null, isMap: true, effortId: scope || '', url: mapP }))
-        await collectTicketsIn(plat.join(repo.path, 'issues'), scope || '', null, false)
+        await collectTicketsIn(plat.join(repo.path, 'issues'), scope || '', null, false, 'plain')
       } catch {}
     }
   }
@@ -357,7 +357,9 @@ async function hydrateBlockedByRefs(ctx: OpContext, repo: RepoWithPath, iss: Iss
       const tr = await resolveIssueFile(ctx, repo, rk, { effortId, mode: 'read' })
       if (!tr.ok) continue
       try {
-        const target = parseMd(await readTextFile(ctx, tr.path), { key: rk, parentKey: '00', isMap: false, effortId })
+        // 路线要跟着定位结果一起传：地图目录下的被引票也按地图子票读，
+        // 否则同一张票在 get 的引用里与 list 的行里会得到不同的 state（#1790）。
+        const target = parseMd(await readTextFile(ctx, tr.path), { key: rk, parentKey: '00', isMap: false, effortId, route: tr.route })
         ref.title = target.title || ''
         // #1676：明确读到状态才写；读不到保持缺省（未知）。
         if (target.state) ref.state = target.state
@@ -439,7 +441,7 @@ export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, 
     if(r.legacy) emitReadDegraded(ctx,'get','get:legacy-root',Date.now()-t0)
     if(r.degenerate) emitReadDegraded(ctx,'get','get:dup-number',Date.now()-t0)
     try{
-      const iss=await loadIssueFromFile(ctx,repo,r.path,{key:r.key,parentKey:r.parentKey,isMap:false,effortId:r.effortId})
+      const iss=await loadIssueFromFile(ctx,repo,r.path,{key:r.key,parentKey:r.parentKey,isMap:false,effortId:r.effortId,route:r.route,legacy:r.legacy})
       try { if (!isSupportedDshFormat(await readTextFile(ctx,r.path))) emitReadDegraded(ctx,'get','get:bad-format',Date.now()-t0) } catch {}
       applyLabelColors(iss, colorMap)
       await hydrateBlockedByRefs(ctx, repo, iss)

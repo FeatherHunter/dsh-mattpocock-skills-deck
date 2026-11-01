@@ -97,12 +97,14 @@ function loose(p: Promise<unknown>): Promise<CountsResult> {
  * 造一个临时工作区（系统临时目录里的 `.scratch/demo`），用完即删：给「真实 markdown 后端」的探针用。
  * 两个工作单元形态与 tests/verify-691-markdown-counts.js 同一套：2 张开着的票 + 3 张已关闭的票
  * （已关闭的判据是票里 `Status:` 行落进 resolved / completed / closed / done 四者之一，见 #688 的实测结论）。
+ * 这里放 spec.md 而不是 map.md：本段只验计数与 state；#1790 起地图目录下的票只认 claimed / resolved，
+ * 用地图容器会让这组普通 triage 票被按地图子票默认成 claimed，计数语义就变成跨种类旧数据的读数了。
  */
 function makeMarkdownFixture(): { repo: RepositoryRef; ctx: OpContext; cleanup(): void } {
   const root = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'dsws-counts-'))
   const dir = nodePath.join(root, '.scratch', 'demo')
   nodeFs.mkdirSync(nodePath.join(dir, 'issues'), { recursive: true })
-  nodeFs.writeFileSync(nodePath.join(dir, 'map.md'), '# Demo\n\nStatus: ready-for-agent\n', 'utf8')
+  nodeFs.writeFileSync(nodePath.join(dir, 'spec.md'), '# Demo\n\nStatus: ready-for-agent\n', 'utf8')
   const rows = [['01-a.md', 'in-progress'], ['02-b.md', 'ready-for-agent'], ['03-c.md', 'resolved'], ['04-d.md', 'done'], ['05-e.md', 'completed']]
   for (const [file, status] of rows) nodeFs.writeFileSync(nodePath.join(dir, 'issues', file), '# ' + file + '\n\nStatus: ' + status + '\n', 'utf8')
   const plat = {

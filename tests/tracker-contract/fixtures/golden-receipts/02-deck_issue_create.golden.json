@@ -37,10 +37,18 @@
       "createdAt": "<TIME>",
       "effortId": "demo",
       "key": "01",
-      "labels": [],
+      "labels": [
+        {
+          "color": "0e8a16",
+          "description": "",
+          "name": "ready-for-agent"
+        }
+      ],
       "parentKey": null,
       "reason": "",
       "state": "open",
+      "status": "ready-for-agent",
+      "statusSource": "visible",
       "title": "金标准演示票",
       "type": "issue",
       "updatedAt": "<TIME>",

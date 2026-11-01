@@ -20,6 +20,7 @@ import { failAs, rawJson } from './error-fail.js'
 import type { BackendPlatform, OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { Issue } from '../../contract/entities.js'
+import type { IssueFileKind } from './status.js'
 // @ts-expect-error 本域 tsconfig 有意不加载任何类型包（types 为空），node:path 的类型声明被挡在外面；
 // 运行时一定是 Node，该模块必然存在。忽略这一行导入的类型错误（path.ts 同款，不影响运行时转译）。
 import nodePath from 'node:path'
@@ -48,6 +49,8 @@ interface FileHit {
   parentKey: string | null
   /** 这条身份是退化身份（重复编号或文件名没有编号）。 */
   degenerate: boolean
+  /** 命中文件所在工作单元的种类；旧版扁平目录与夹具兜底给空串（读侧只认 legacy 判别）。 */
+  kind: WorkUnitKind | ''
 }
 
 export function getPlat(ctx: OpContext): BackendPlatform['path'] {if(ctx&&ctx.platform&&ctx.platform.path)return ctx.platform.path;if(ctx&&ctx.path)return ctx.path;if(typeof process!=='undefined'&&process.platform==='win32')return nodePath.win32;return nodePath.posix}
@@ -289,7 +292,7 @@ function conflict(key: string, hits: FileHit[]): { ok: false; error: { kind: str
 /** 按 (工作单元范围, 编号) 找票文件（#1488 起编号身份由 issues-locate 的目录内身份规则决定）。
  *  o.mode='write' 时多命中即 conflict；返回 {ok,path,effortId,key,legacy} 或 {ok:false,error}。
  *  key 是对外的完整身份串：正常票就是两位编号；退化票是 `目录/编号-文件名`。 */
-export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null, key: string, o: LocateOpts = {}): Promise<{ ok: true; path: string; effortId: string; key: string; legacy: boolean; parentKey: string | null; degenerate: boolean } | { ok: false; error: { kind: string; message: string; raw: string } }> {
+export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null, key: string, o: LocateOpts = {}): Promise<{ ok: true; path: string; effortId: string; key: string; legacy: boolean; parentKey: string | null; degenerate: boolean; route: WorkUnitKind | '' } | { ok: false; error: { kind: string; message: string; raw: string } }> {
   const plat=getPlat(ctx)
   const parsed=splitTicketKey(key)
   // 调用方给的编号：纯数字的照旧归一成两位（01 / 1 都认）；退化身份原样当目录内寻址串比对。
@@ -313,13 +316,13 @@ export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null
     for(const tf of listing.files){
       const displayKey=ticketKey(u.effortId, tf)
       if(tf.inner===norm || displayKey===String(key)){
-        exact.push({ path:tf.path, effortId:u.effortId, key:displayKey, legacy:!!u.legacy, parentKey:(u.kind==='plain'||u.legacy)?null:'00', degenerate:tf.degenerate })
+        exact.push({ path:tf.path, effortId:u.effortId, key:displayKey, legacy:!!u.legacy, parentKey:(u.kind==='plain'||u.legacy)?null:'00', degenerate:tf.degenerate, kind:u.legacy?'':u.kind })
         continue
       }
       // 旧 `#01` 链接：目录里编号重复或没有编号时，按数字前缀找旧编号（只读兜底）。
       if(/^\d+$/.test(norm)){
         const m=/^(\d+)-/.exec(tf.file)
-        if(m && m[1].padStart(2,'0')===norm) approx.push({ path:tf.path, effortId:u.effortId, key:displayKey, legacy:!!u.legacy, parentKey:(u.kind==='plain'||u.legacy)?null:'00', degenerate:tf.degenerate })
+        if(m && m[1].padStart(2,'0')===norm) approx.push({ path:tf.path, effortId:u.effortId, key:displayKey, legacy:!!u.legacy, parentKey:(u.kind==='plain'||u.legacy)?null:'00', degenerate:tf.degenerate, kind:u.legacy?'':u.kind })
       }
     }
   }
@@ -335,10 +338,10 @@ export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null
     if(listing.ok){
       for(const tf of listing.files){
         const displayKey=ticketKey(scope, tf)
-        if(tf.inner===norm || displayKey===String(key)) exact.push({ path:tf.path, effortId:scope, key:displayKey, legacy:false, parentKey:probeParent, degenerate:tf.degenerate })
+        if(tf.inner===norm || displayKey===String(key)) exact.push({ path:tf.path, effortId:scope, key:displayKey, legacy:false, parentKey:probeParent, degenerate:tf.degenerate, kind:probeKind })
         else if(/^\d+$/.test(norm)){
           const m=/^(\d+)-/.exec(tf.file)
-          if(m && m[1].padStart(2,'0')===norm) approx.push({ path:tf.path, effortId:scope, key:displayKey, legacy:false, parentKey:probeParent, degenerate:tf.degenerate })
+          if(m && m[1].padStart(2,'0')===norm) approx.push({ path:tf.path, effortId:scope, key:displayKey, legacy:false, parentKey:probeParent, degenerate:tf.degenerate, kind:probeKind })
         }
       }
     }
@@ -357,7 +360,7 @@ export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null
         const m=/^(\d+)-/.exec(f)
         if(!m) continue
         if(m[1].padStart(2,'0')!==norm) continue
-        hits.push({ path: plat.join(idir,f), effortId: scope!==undefined?scope:'', key:norm, legacy:isLegacyTicketDir(ctx,idir), parentKey:'00', degenerate:false })
+        hits.push({ path: plat.join(idir,f), effortId: scope!==undefined?scope:'', key:norm, legacy:isLegacyTicketDir(ctx,idir), parentKey:'00', degenerate:false, kind:'' })
       }
       if(hits.length) break
     }
@@ -372,7 +375,9 @@ export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null
   if(o.mode==='write' && (hit.legacy || isLegacyTicketDir(ctx, plat.dirname(hit.path)))) {
     return failAs(ERROR_KIND.UNSUPPORTED, '旧布局的票只读：'+hit.path+' 落在旧版工作区根或「.scratch」的 issues/ 扁平目录里，本次一个字都没写；迁移另行处理', rawJson({key:norm,path:hit.path,legacy:true}))
   }
-  return { ok:true, path:hit.path, effortId:hit.effortId, key:hit.key, legacy:!!hit.legacy, parentKey:hit.parentKey, degenerate:!!hit.degenerate }
+  // route 是读侧判票型的目录线索：旧版扁平目录一律空串（legacy=true 时 statusKindOf 不按目录猜）；
+  // 其余沿用命中工作单元的种类（map/spec/plain）。
+  return { ok:true, path:hit.path, effortId:hit.effortId, key:hit.key, legacy:!!hit.legacy, parentKey:hit.parentKey, degenerate:!!hit.degenerate, route:hit.legacy?'':hit.kind }
 }
 /** 按 effort 范围找地图文件（map.md）。未给范围且多命中时，读取第一个、写报 conflict。 */
 export async function resolveMapFile(ctx: OpContext, repo: RepoWithPath | null, o: LocateOpts = {}): Promise<{ ok: true; path: string; effortId: string } | { ok: false; error: { kind: string; message: string; raw: string } }> {
@@ -382,15 +387,15 @@ export async function resolveMapFile(ctx: OpContext, repo: RepoWithPath | null, 
   const efforts=await listEfforts(ctx)
   for(const e of efforts){
     if(scope!==undefined && e.effortId!==scope) continue
-    hits.push({ path: plat.join(e.dir,'map.md'), effortId: e.effortId, key:'00', legacy:false, parentKey:null, degenerate:false })
+    hits.push({ path: plat.join(e.dir,'map.md'), effortId: e.effortId, key:'00', legacy:false, parentKey:null, degenerate:false, kind:'map' })
   }
   if(hits.length===0){
     try{
       const mapP=plat.join(issuesDir(repo,ctx),'..','map.md')
-      if(await exists(ctx,mapP)) hits.push({ path:mapP, effortId: scope!==undefined?scope:'', key:'00', legacy:false, parentKey:null, degenerate:false })
+      if(await exists(ctx,mapP)) hits.push({ path:mapP, effortId: scope!==undefined?scope:'', key:'00', legacy:false, parentKey:null, degenerate:false, kind:'' })
     }catch{}
     if(!hits.length && repo && repo.path){
-      try{ const mapP=plat.join(repo.path,'map.md'); if(await exists(ctx,mapP)) hits.push({ path:mapP, effortId: scope!==undefined?scope:'', key:'00', legacy:false, parentKey:null, degenerate:false }) }catch{}
+      try{ const mapP=plat.join(repo.path,'map.md'); if(await exists(ctx,mapP)) hits.push({ path:mapP, effortId: scope!==undefined?scope:'', key:'00', legacy:false, parentKey:null, degenerate:false, kind:'' }) }catch{}
     }
   }
   // 原文 = 这次找的范围与仓库里现有的 effort（本地就能定论：这个范围里没有地图文件）。
@@ -412,19 +417,19 @@ export async function resolveSpecFile(ctx: OpContext, repo: RepoWithPath | null,
   const hits: FileHit[]=[]
   if(scope!==undefined){
     const p=plat.join(scratch, scope, 'spec.md')
-    try{ if(await exists(ctx,p)) hits.push({ path:p, effortId:scope, key:'00', legacy:false, parentKey:null, degenerate:false }) }catch{}
+    try{ if(await exists(ctx,p)) hits.push({ path:p, effortId:scope, key:'00', legacy:false, parentKey:null, degenerate:false, kind:'spec' }) }catch{}
   } else {
     // 根级扁平布局（repo.path / refId 直接当仓库根）也要认。
-    try{ const p=plat.join(issuesDir(repo,ctx),'..','spec.md'); if(await exists(ctx,p)) hits.push({ path:p, effortId:'', key:'00', legacy:false, parentKey:null, degenerate:false }) }catch{}
+    try{ const p=plat.join(issuesDir(repo,ctx),'..','spec.md'); if(await exists(ctx,p)) hits.push({ path:p, effortId:'', key:'00', legacy:false, parentKey:null, degenerate:false, kind:'spec' }) }catch{}
     if(!hits.length && repo && repo.path){
-      try{ const p=plat.join(repo.path,'spec.md'); if(await exists(ctx,p)) hits.push({ path:p, effortId:'', key:'00', legacy:false, parentKey:null, degenerate:false }) }catch{}
+      try{ const p=plat.join(repo.path,'spec.md'); if(await exists(ctx,p)) hits.push({ path:p, effortId:'', key:'00', legacy:false, parentKey:null, degenerate:false, kind:'spec' }) }catch{}
     }
     if(!hits.length){
       const entries=await listDirOrThrow(ctx, scratch)
       const names=visibleNamesOf(entries).sort()
       for(const e of names){
         const p=plat.join(scratch,e,'spec.md')
-        try{ if(await exists(ctx,p)) hits.push({ path:p, effortId:String(e), key:'00', legacy:false, parentKey:null, degenerate:false }) }catch{}
+        try{ if(await exists(ctx,p)) hits.push({ path:p, effortId:String(e), key:'00', legacy:false, parentKey:null, degenerate:false, kind:'spec' }) }catch{}
       }
     }
   }
@@ -473,6 +478,12 @@ interface FileMetaExtra {
   parentKey?: string | null
   isMap?: boolean
   effortId?: string
+  /** 读侧判票型的目录路线（resolveIssueFile 给的 route）；夹具与旧调用不传时走正文线索。 */
+  route?: WorkUnitKind | ''
+  /** 旧版扁平目录的票：true 时读侧不按目录路线猜票型。 */
+  legacy?: boolean
+  /** 调用方已知的票型（建票读回时原样给）；显式票型优先于 bug 标签与目录路线。 */
+  fileKind?: IssueFileKind
 }
 export async function loadIssueFromFile(ctx: OpContext, repo: RepoWithPath | null, fullPath: string, metaExtra: FileMetaExtra = {}): Promise<Issue> {
   const txt=await readTextFile(ctx,fullPath)
@@ -503,5 +514,5 @@ export async function loadIssueFromFile(ctx: OpContext, repo: RepoWithPath | nul
   // 「它在盘上叫什么名字」的地方，所以在这里把它交给 parseMd；上层（列举、读单张、分页）不必各自再算一遍。
   // #1486：新布局不再写 DSH-ISSUE-KIND，文件名就是身份线索：spec.md 是规格容器。
   const kind=base.toLowerCase()==='spec.md'?'spec':''
-  return parseMd(txt,{key,parentKey:effectiveParent,isMap,effortId,createdAt:mtime,updatedAt:mtime,url:fullPath,kind})
+  return parseMd(txt,{key,parentKey:effectiveParent,isMap,effortId,createdAt:mtime,updatedAt:mtime,url:fullPath,kind,route:metaExtra.route,legacy:metaExtra.legacy,fileKind:metaExtra.fileKind})
 }

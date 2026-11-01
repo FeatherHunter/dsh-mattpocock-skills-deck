@@ -99,8 +99,10 @@ const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1676-unknown-'))
 const ws = fs.mkdtempSync(path.join(tmpRoot, 'ws-'))
 const unit = path.join(ws, '.scratch', EFFORT)
 const issuesDir = path.join(unit, 'issues')
+// 本组票在地图目录（map.md）下，是地图子票：#1790 起地图子票只认 claimed / resolved，
+// 所以下面用 claimed 表示开着、用 resolved 表示已关闭；再用 done 这类普通完成词会被读成默认值。
 writeTicket(unit, 'map.md', '本组地图', 'ready-for-agent')
-writeTicket(issuesDir, '01-blocked.md', '等一张读不到的票', 'ready-for-agent', '99')
+writeTicket(issuesDir, '01-blocked.md', '等一张读不到的票', 'claimed', '99')
 
 const ctx = makeCtx(ws)
 const be = createMarkdownBackend(ctx as never) as any
@@ -194,7 +196,7 @@ async function main() {
     '读不到目标的票仍算 blocked、不当成可开工', JSON.stringify(deck && deck.stats))
 
   console.log('== ④ 目标票补成 open：引用与宿主节点都是 OPEN，界面置灰并点名 99 ==')
-  writeTicket(issuesDir, '99-target.md', '目标99', 'ready-for-agent')
+  writeTicket(issuesDir, '99-target.md', '目标99', 'claimed')
   for (const via of ['get', 'list', 'getDependencies']) {
     const refs = await adapterRefs(via)
     const ref = refs[0] || {}
@@ -207,7 +209,7 @@ async function main() {
     '界面判据置灰并点名 99', JSON.stringify(gateB))
 
   console.log('== ⑤ 目标票改成 done：引用与宿主节点都是 CLOSED，界面恢复可点 ==')
-  writeTicket(issuesDir, '99-target.md', '目标99', 'done')
+  writeTicket(issuesDir, '99-target.md', '目标99', 'resolved')
   const refsC = await adapterRefs('get')
   check(String((refsC[0] || {}).state) === 'closed', 'get 的 99 引用 state 是 closed', JSON.stringify(refsC[0]))
   const nodesC = await hostNodes(host)

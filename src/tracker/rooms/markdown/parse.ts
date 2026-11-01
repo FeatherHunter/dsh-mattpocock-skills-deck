@@ -5,6 +5,9 @@ import type { IssueType, State } from '../../contract/identity.js'
 import { markerKindInHeader } from '../../../shared/issue-file/src/marker.js'
 // #1489：文件头隐藏注释的「有这一行 / 没有这一行」要分开（空名单 ≠ 没记下来），用原文布局那层的读法。
 import { hiddenCommentOf } from './original-fields.js'
+// #1790：状态判定与标签合成的纯函数住 status.ts；parse 只做接线，不再自己维护一份状态词表。
+import { labelsWithSynthesizedTriage, resolveStatusRead, stateOfStatus, statusKindOf } from './status.js'
+import type { IssueFileKind, StatusRead } from './status.js'
 
 // parseMd 的元数据：调用方（读路径各处）已知的票身份，不从正文里读；
 // 契约 Issue 的核心字段多由此补齐（key/effortId/parentKey/时间/url）。
@@ -20,6 +23,10 @@ export interface ParseMeta {
   // #1486：调用方已经知道这张文件是规格还是普通票（文件名 spec.md / 旧标记 / 建票上下文）。
   // 新布局不再写 DSH-ISSUE-KIND，读侧就靠这一格把「规格」这一身份带进来。
   kind?: string
+  // #1790：调用方从目录路线与建票上下文带来的票型线索；读侧据此判状态默认值。
+  route?: 'map' | 'spec' | 'plain' | ''
+  legacy?: boolean
+  fileKind?: IssueFileKind
 }
 
 // 标题转文件名后缀。保留各语言的字母与数字：中文标题过去会被整串删光、只剩 `untitled`
@@ -237,13 +244,8 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   // #1486：新布局把状态写在 DSH-STATUS 隐藏注释里；可见的 Status: 行优先（老文件与人工改过的票都还有）。
   // #1489：原文实施票可见状态行是加粗写法（**Status:** resolved）；字段名两侧的 ** 都当装饰剥掉，
   //   值仍是冒号后面那一段（值前面可能还有一个收尾的 **，一并跳过）。可见行依旧优先于隐藏注释。
-  const statusRaw = (/^\s*(?:\*\*)?Status(?:\*\*)?\s*[:\uFF1A][ \t]*(?:\*\*)?[ \t]*([^\n]+)/im.exec(field)?.[1]?.trim() || '')
-    || hiddenHeaderValue(raw, 'DSH-STATUS')
-  const statusNorm = statusRaw.toLowerCase().replace(/\s+/g, '-')
-  const closedSet = new Set(['resolved', 'completed', 'closed', 'done'])
-  const state = (closedSet.has(statusNorm) ? STATE.CLOSED : STATE.OPEN) as State
-  // 上一行断言的原因：STATE 是冻住的对象字面量（vocabulary.ts），成员类型被拓宽成 string；
-  // 运行时这里必为两态之一，转成契约的 State 字面量联合只为过类型，值不变。下同（type 一处）。
+  // #1790：可见 Status 行只取票面上那一行；隐藏 DSH-STATUS 只在容器路线读（见下面的 statusLine）。
+  const visibleStatus = /^\s*(?:\*\*)?Status(?:\*\*)?\s*[:\uFF1A][ \t]*(?:\*\*)?[ \t]*([^\n]+)/im.exec(field)?.[1]?.trim() || ''
   // 标题读取顺序（#1480 两轴评审修）：
   //   ① 可见一级标题 —— 旧 deck 文件与手写原文模板都还有它，旧读法一个字节不变；新布局 `# NN: 标题` 在下面剥掉编号前缀（#1500，与写侧 cleanTitle 同一个口径）；
   //   ② 文件头 DSH-TITLE 隐藏注释 —— 新布局的规格与地图没有可见一级标题，标题值只在这里；
@@ -284,28 +286,18 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
       }
     }
   }
-  // Labels: 调色盘模型（#312 定版）——票只写名，色在总表，缺行按空、非法段丢弃、没冒号视为缺行；兼容历史单数 Label:
-  // #634：每段先经 stripLabelDecoration 剥掉外层成对引号/反引号（照抄文档代码写法写进来的那层），
-  //   剥完全空的段一样按「非法段丢弃」处理，与原来的空段口径一致。
-  let labels = []
+  // Labels: 调色盘模型（#312 定版）——票只写名，色在总表；#634 每段剥掉文档写法带进来的成对引号/反引号。
+  // #1790：可见 Labels: 行与隐藏 DSH-LABELS 都算标签来源；先收集，过滤 triage 与合成状态标签留到 statusRead 之后。
+  const visibleLabelNames: string[] = []
   const labelsMatch = /^\s*(?:\*\*)?Labels?(?:\*\*)?\s*[:\uFF1A][ \t]*(?:\*\*)?[ \t]*([^\n]*)/im.exec(field)
-  if (labelsMatch) {
-    const rawNames = labelsMatch[1] || ''
-    // 逗号（含全角）分隔，仅名字
-    const parts = rawNames.split(/[,\uFF0C]+/)
-    for (const part of parts) {
-      const name = stripLabelDecoration(part)
-      if (!name) continue
-      // 颜色留空：由 applyLabelColors 按配色文件与内置默认色填上（没填就是空串=界面按灰显示）
-      labels.push({ name, color: '', description: '' })
-    }
-  } else {
-    // 新布局把标签写在 DSH-LABELS 隐藏注释里；没有这一行才按空（不抛、空数组）。
-    for (const name of splitHiddenList(hiddenHeaderValue(raw, 'DSH-LABELS'))) {
-      const clean = stripLabelDecoration(name)
-      if (clean) labels.push({ name: clean, color: '', description: '' })
-    }
+  if (labelsMatch) for (const part of (labelsMatch[1] || '').split(/[,\uFF0C]+/)) {
+    const name = stripLabelDecoration(part)
+    if (name) visibleLabelNames.push(name)
   }
+  // 新布局把标签写在 DSH-LABELS 隐藏注释里；没有这一行按空（不抛、空数组）。
+  const hiddenLabelNames = splitHiddenList(hiddenHeaderValue(raw, 'DSH-LABELS')).map((name) => stripLabelDecoration(name)).filter((name) => !!name)
+  // 判对象类型沿用旧口径：有可见 Labels 行就只看它，否则看隐藏标签。
+  const labelNamesForType = labelsMatch ? visibleLabelNames : hiddenLabelNames
   let comments = []
   const cmAnchor = /^\s*##\s*Comments\s*$/im
   const cmExec = cmAnchor.exec(raw)
@@ -354,7 +346,7 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   //   最后才是老的形状判据（map.md 本身、或老文件里的 Type: map），保证老数据照旧读得对。
   const markedKind = markerKindInHeader(raw)
   const metaKind = String((meta && meta.kind) || '').trim().toLowerCase()
-  const hasMapLabel = labels.some((one: { name?: unknown }) => String((one && one.name) || '').trim().toLowerCase() === 'wayfinder:map')
+  const hasMapLabel = labelNamesForType.some((name) => name.trim().toLowerCase() === 'wayfinder:map')
   let type: IssueType
   if (metaKind === 'spec') type = ISSUE_TYPE.SPEC
   else if (metaKind === 'map') type = ISSUE_TYPE.MAP
@@ -362,6 +354,14 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   else if (markedKind === 'ticket') type = ISSUE_TYPE.ISSUE
   else if ((meta && meta.isMap) || hasMapLabel || typeRaw === 'map') type = ISSUE_TYPE.MAP
   else type = ISSUE_TYPE.ISSUE
+  // #1790：容器（规格/地图）保持旧读法：可见 Status 行优先、隐藏 DSH-STATUS 兜底，不暴露新的状态字段。
+  // issue 文件按票型与目录路线判定状态；labels 先过滤五 triage，再按有效状态合成那一枚（plan §1.5/§1.6）。
+  const container = type === ISSUE_TYPE.SPEC || type === ISSUE_TYPE.MAP
+  const statusLine = visibleStatus || (container ? hiddenHeaderValue(raw, 'DSH-STATUS') : '')
+  const statusRead: StatusRead | null = container ? null : resolveStatusRead(statusKindOf({ route: meta.route, fileKind: meta.fileKind }, visibleLabelNames.concat(hiddenLabelNames), field), visibleStatus, hiddenLabelNames)
+  const state = (statusRead ? statusRead.state : stateOfStatus(statusLine)) as State
+  const labelNames = container ? labelNamesForType : labelsWithSynthesizedTriage(visibleLabelNames.concat(hiddenLabelNames), statusRead ? statusRead.status : undefined)
+  const labels = labelNames.map((name) => ({ name, color: '', description: '' }))
   // #971：父子关系以文件顶注释为准，有注释就用注释，没有注释的老文件才回落。
   // 地图文件本身没有父票（恒为空）；计划里用票文件冒充的地图（正文写着 Type: map、却没有父注释）同样视作没有父票。
   // #1403：规格是顶层容器，盘中没写父注释就是没有父票 —— 本地房老数据里规格可能落在默认 00（根地图）下，
@@ -420,16 +420,17 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
     comments,
     labels,
   }
+  if (statusRead) Object.assign(issue, statusRead)
   if (customFields) issue.customFields = customFields
   // #1174 决策 12：认领人**原样读回来**。票面上写着 `Assignees:` 那一行时，读的就是那几个名字；
   // 没有这一行的老票（写的人还没经过这次改动）落到老口径：认领了、但这份文件没记下是谁，就诚实给空名字
   // ——「本地用户名或 ''」本来就是契约允许的值（contract/identity.ts 对 login 的说法），
   // 而 `@me` 是个占位符，它既不是调用方给的名字、也不是本地用户名。
-  // 没有 Status 行时仍然整个字段省略，表示「认领状态未知」，与 entities.ts 里 EMPTY 与省略的区别对齐。
-  if (statusRaw) {
+  // #1790：条件改成「可见 Status 行存在」；默认 claimed 的票不凭空给 assignees。
+  if (statusLine) {
     const named = assigneesFromFile(raw)
     if (named.found) issue.assignees = named.value
-    else if (statusNorm === 'claimed') issue.assignees = [{ login: '', kind: 'user' }]
+    else if (statusLine.toLowerCase().replace(/\s+/g, '-') === 'claimed') issue.assignees = [{ login: '', kind: 'user' }]
     else issue.assignees = []
   }
   if (state === STATE.CLOSED) issue.reason = closeReasonFromFile(raw) || 'completed'
