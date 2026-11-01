@@ -240,7 +240,7 @@ const vcCloneFieldNode = function (h: any, t: any, o: any): any {
       key: 'input', type: o.type || 'text', value: o.value === undefined ? '' : o.value,
       className: 'vcs-clone-input', 'data-vc-clone-input': o.name,
       placeholder: o.placeholder ? vcCloneTextOf(t, o.placeholder, null) : undefined,
-      oninput: function (e: any) { o.onInput(e && e.target ? e.target.value : '') },
+      onInput: function (e: any) { o.onInput(e && e.target ? e.target.value : '') },
     }),
   ])
 }
@@ -248,7 +248,7 @@ const vcCloneFieldNode = function (h: any, t: any, o: any): any {
 /** 两个子模块开关与离线的复选框行；勾选状态直接进表单。 */
 const vcCloneFlagNode = function (h: any, t: any, o: any): any {
   return h('label', { key: o.name, className: 'vcs-clone-flag', 'data-vc-clone-flag': o.name }, [
-    h('input', { key: 'box', type: 'checkbox', checked: o.checked === true, 'data-vc-clone-checkbox': o.name, onchange: function (e: any) { o.onChange(!!(e && e.target && e.target.checked)) } }),
+    h('input', { key: 'box', type: 'checkbox', checked: o.checked === true, 'data-vc-clone-checkbox': o.name, onChange: function (e: any) { o.onChange(!!(e && e.target && e.target.checked)) } }),
     h('span', { key: 'text' }, vcCloneTextOf(t, o.labelKey, null)),
   ])
 }
@@ -292,7 +292,7 @@ const vcCloneProgressNode = function (h: any, t: any, o: any): any {
     h('p', { key: 'state', className: 'vcs-clone-task-state', 'data-vc-clone-task-state': String(task.state || '') }, vcCloneTextOf(t, 'vc.shell.clone.taskState.' + String(task.state || 'running'), null)),
   ]
   if (!vcCloneTaskEndedOf(task)) {
-    children.push(h('button', { key: 'cancel', type: 'button', className: 'vcs-clone-cancel', 'data-vc-clone-action': 'cancel', onclick: o.onCancel }, vcCloneTextOf(t, 'vc.shell.clone.cancel', null)))
+    children.push(h('button', { key: 'cancel', type: 'button', className: 'vcs-clone-cancel', 'data-vc-clone-action': 'cancel', 'data-press': 'button', 'data-log': 'vc.clone.cancel', onClick: o.onCancel }, vcCloneTextOf(t, 'vc.shell.clone.cancel', null)))
   }
   return h('div', { className: 'vcs-clone-progress', 'data-vc-clone-progress': String(task.taskId || '') }, children)
 }
@@ -306,7 +306,7 @@ const vcCloneEndNode = function (h: any, t: any, o: any): any {
   const children = [h('p', { key: 'done', className: 'vcs-clone-done', 'data-vc-clone-conclusion': conclusion }, vcCloneTextOf(t, key, null))]
   if (residual) {
     children.push(h('p', { key: 'residual', className: 'vcs-clone-residual', 'data-vc-clone-residual': '1' }, vcCloneTextOf(t, 'vc.shell.clone.residual', { residual: residual })))
-    children.push(h('button', { key: 'cleanup', type: 'button', className: 'vcs-clone-cleanup-open', 'data-vc-clone-action': 'cleanup-open', onclick: o.onCleanupOpen }, vcCloneTextOf(t, 'vc.shell.clone.cleanup.open', null)))
+    children.push(h('button', { key: 'cleanup', type: 'button', className: 'vcs-clone-cleanup-open', 'data-vc-clone-action': 'cleanup-open', 'data-press': 'button', 'data-log': 'vc.clone.cleanup-open', onClick: o.onCleanupOpen }, vcCloneTextOf(t, 'vc.shell.clone.cleanup.open', null)))
   }
   return h('div', { className: 'vcs-clone-end', 'data-vc-clone-end': conclusion || 'none' }, children)
 }
@@ -401,11 +401,11 @@ export const vcClonePageNode = function (props: any): any {
     children.push(h('div', { key: 'cleanup', className: 'vcs-clone-cleanup', 'data-vc-clone-cleanup': '1' }, [
       h('p', { key: 'note', className: 'vcs-clone-cleanup-note' }, vcCloneTextOf(t, 'vc.shell.clone.cleanup.note', null)),
       vcCloneFieldNode(h, t, { name: 'cleanupDir', labelKey: 'vc.shell.clone.cleanup.dir', value: cleanupDir, onInput: setCleanupDir }),
-      h('button', { key: 'check', type: 'button', className: 'vcs-clone-cleanup-check', 'data-vc-clone-action': 'cleanup-check', onclick: onCleanupCheck }, vcCloneTextOf(t, 'vc.shell.clone.cleanup.check', null)),
+      h('button', { key: 'check', type: 'button', className: 'vcs-clone-cleanup-check', 'data-vc-clone-action': 'cleanup-check', 'data-press': 'button', 'data-log': 'vc.clone.cleanup-check', onClick: onCleanupCheck }, vcCloneTextOf(t, 'vc.shell.clone.cleanup.check', null)),
       cleanup ? Object.assign({}, vcCloneCheckNode(h, t, cleanup), { key: 'checked' }) : null,
-      cleanup && vcCloneTicketOf(cleanup) ? h('button', { key: 'run', type: 'button', className: 'vcs-clone-cleanup-run', 'data-vc-clone-action': 'cleanup-run', onclick: onCleanupRun }, vcCloneTextOf(t, 'vc.shell.clone.cleanup.run', null)) : null,
+      cleanup && vcCloneTicketOf(cleanup) ? h('button', { key: 'run', type: 'button', className: 'vcs-clone-cleanup-run', 'data-vc-clone-action': 'cleanup-run', 'data-press': 'button', 'data-log': 'vc.clone.cleanup-run', onClick: onCleanupRun }, vcCloneTextOf(t, 'vc.shell.clone.cleanup.run', null)) : null,
       cleanup && cleanup.ok === true && cleanup.removed === true ? h('p', { key: 'removed', className: 'vcs-clone-removed', 'data-vc-clone-removed': '1' }, vcCloneTextOf(t, 'vc.shell.clone.cleanup.removed', null)) : null,
-      h('button', { key: 'back', type: 'button', className: 'vcs-clone-back', 'data-vc-clone-action': 'back', onclick: function () { setStep('form') } }, vcCloneTextOf(t, 'vc.shell.clone.back', null)),
+      h('button', { key: 'back', type: 'button', className: 'vcs-clone-back', 'data-vc-clone-action': 'back', 'data-press': 'button', 'data-log': 'vc.clone.back', onClick: function () { setStep('form') } }, vcCloneTextOf(t, 'vc.shell.clone.back', null)),
     ]))
   } else {
     children.push(h('div', { key: 'fields', className: 'vcs-clone-fields', 'data-vc-clone-fields': '1' }, [
@@ -422,9 +422,9 @@ export const vcClonePageNode = function (props: any): any {
     if (check && vcCloneReplyKindOf(check) === 'need-confirm') children.push(h('p', { key: 'confirm', className: 'vcs-clone-confirm', 'data-vc-clone-confirm': '1' }, vcCloneTextOf(t, 'vc.shell.clone.confirm.text', null)))
     if (check && vcCloneReplyKindOf(check) === 'checked') {
       children.push(h('p', { key: 'warn', className: 'vcs-clone-warn', 'data-vc-clone-warn': '1' }, cloneHardlinkNote(form.url, { offline: form.offline })))
-      children.push(h('button', { key: 'start', type: 'button', className: 'vcs-clone-start', 'data-vc-clone-action': 'start', onclick: onStart }, vcCloneTextOf(t, 'vc.shell.clone.start', null)))
+      children.push(h('button', { key: 'start', type: 'button', className: 'vcs-clone-start', 'data-vc-clone-action': 'start', 'data-press': 'button', 'data-log': 'vc.clone.start', onClick: onStart }, vcCloneTextOf(t, 'vc.shell.clone.start', null)))
     }
-    children.push(h('button', { key: 'check', type: 'button', className: 'vcs-clone-check', 'data-vc-clone-action': 'check', onclick: onCheck, disabled: step === 'checking' || step === 'running' }, vcCloneTextOf(t, 'vc.shell.clone.check', null)))
+    children.push(h('button', { key: 'check', type: 'button', className: 'vcs-clone-check', 'data-vc-clone-action': 'check', 'data-press': 'button', 'data-log': 'vc.clone.check', onClick: onCheck, disabled: step === 'checking' || step === 'running' }, vcCloneTextOf(t, 'vc.shell.clone.check', null)))
     if (task) children.push(Object.assign({}, vcCloneProgressNode(h, t, { task: task, onCancel: onCancel }), { key: 'progress' }))
     if (task && vcCloneTaskEndedOf(task)) children.push(Object.assign({}, vcCloneEndNode(h, t, { task: task, onCleanupOpen: onCleanupOpen }), { key: 'end' }))
   }

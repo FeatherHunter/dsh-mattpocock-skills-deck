@@ -54,7 +54,14 @@ export const vcCapabilityNeedsObjectOf = function (cap: any) {
 // 命令面板的版本说明：只在真的读到过 git 版本（首屏状态读成功）时才画。
 // 版本未知时 capabilityAvailability 会按「低于 2.11 底线」给出 hidden，照着写「版本不支持」就是假话，
 // 所以这里版本为空就什么都不说；账本里没有版本限制（versionPolicy 为空）的行也不画。
+// #1776：真实页签的首屏快照在 reads.firstScreen（七片聚合），旧块那一份在 reads.screen；
+//   先读新形状的 version 片，读不到再看旧形状，两代入口共用这同一份行渲染。
 const vcPaletteVersionOf = function (reads: any) {
+  const first = reads && reads.firstScreen && reads.firstScreen.data
+  const slices = first && first.slices ? first.slices : null
+  const slice = slices && slices.version ? slices.version : null
+  const fresh = slice && slice.state === 'ok' ? slice.data : null
+  if (fresh && fresh.gitVersion) return String(fresh.gitVersion)
   const data = reads && reads.screen && reads.screen.data
   return data && data.gitVersion ? String(data.gitVersion) : ''
 }

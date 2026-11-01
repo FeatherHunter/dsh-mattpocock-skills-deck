@@ -289,35 +289,20 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 const flush = async function (n) { for (let i = 0; i < (n || 6); i++) await tick() }
 
 // ============================================================
-// A 组 · 落点（模型 + 真渲染出来的 DOM）
 // ============================================================
-function renderTab(React, DswsCtx, TipStub, IcStub, seedReads, patch) {
-  const seeded = buildView(function (s) {
-    const out = s.replace(VC_SEED_RE, 'React.useState(function () { return seedReads })')
-    return patch ? patch(out) : out
-  }, React, DswsCtx, TipStub, IcStub, seedReads, [], trZh)
-  try {
-    const { renderToStaticMarkup } = require('react-dom/server')
-    return { html: renderToStaticMarkup(React.createElement(seeded.VersionControlTab, { st: { cwd: 'D:/w/repo' } })), view: seeded, err: '' }
-  } catch (e) { return { html: '', view: seeded, err: String((e && e.message) || e) } }
-}
-
-function groupA(view, React, DswsCtx, TipStub, IcStub) {
+// A 组 · 落点（模型级）#1776 M1：旧块渲染路径删除后，这几项只断模型；
+//   页面壳里的渲染落点由 tests/verify-1776-vc-live-tab.ts 真挂载守，等 M2/M3 把远端页动作接上再补 DOM 断言。
+// ============================================================
+function groupA(view) {
   const screen = richScreen()
   const reads = readsOf(screen)
   const blocks = blocksOf(view, screen, reads, uiOf())
   const identity = blockOf(blocks, 'identity')
   const changes = blockOf(blocks, 'changes')
-  const r = renderTab(React, DswsCtx, TipStub, IcStub, reads)
-  const html = r.html
-  const iPull = html.indexOf('data-vc-action="pull"')
-  const iPush = html.indexOf('data-vc-action="push"')
-  const a1 = !!(identity && identity.actions && identity.actions.pull && identity.actions.push) && iPull >= 0 && iPush > iPull
-  check(a1, 'A1 视图条里出现拉取与推送两颗按钮，顺序是「拉取 → 推送」（模型仍在 identity 块里，DOM ' + iPull + '/' + iPush + '，渲染错 ' + (r.err || '无') + '）')
+  check(!!(identity && identity.actions && identity.actions.pull && identity.actions.push), 'A1 视图条模型里仍有拉取与推送两颗按钮，顺序是「拉取 → 推送」（页面壳把它们搬到远端页，DOM 待在那边补）')
 
   const paths = (changes && changes.stageAll ? changes.stageAll.paths : []).join(',')
-  const a2 = !!(changes && changes.stageAll && changes.stageAll.show === true) && paths === 'b.txt,c.txt' && html.indexOf('data-vc-stage-all') >= 0
-  check(a2, 'A2 视图条里有「add 全部」，路径只含未暂存且非冲突的两行（实得 ' + JSON.stringify(paths) + '）')
+  check(!!(changes && changes.stageAll && changes.stageAll.show === true) && paths === 'b.txt,c.txt', 'A2 视图条模型里有「add 全部」，路径只含未暂存且非冲突的两行（实得 ' + JSON.stringify(paths) + '）')
 
   const cleanScreen = screenOf({ staged: [fileOf('a.txt', 'staged')], stagedCount: 1 })
   const typedUi = uiOf({ write: { op: '', state: 'idle', message: '写一句', confirm: null, result: null } })
@@ -325,36 +310,27 @@ function groupA(view, React, DswsCtx, TipStub, IcStub) {
   const ca = blockOf(cleanBlocks, 'changes') ? blockOf(cleanBlocks, 'changes').commitArea : null
   const blankBlocks = blocksOf(view, cleanScreen, readsOf(cleanScreen), uiOf())
   const caBlank = blockOf(blankBlocks, 'changes') ? blockOf(blankBlocks, 'changes').commitArea : null
-  const a3 = !!(ca && ca.placeholder && ca.text && ca.hint) && ca.disabled === false && !!caBlank && caBlank.disabled === true && caBlank.needMessage === true && caBlank.tip === trZh('vc.commitArea.needMessage') && html.indexOf('data-vc-commit-area') >= 0 && html.indexOf('data-vc-commit-msg') >= 0 && html.indexOf('data-vc-commit-btn') >= 0
+  const a3 = !!(ca && ca.placeholder && ca.text && ca.hint) && ca.disabled === false && !!caBlank && caBlank.disabled === true && caBlank.needMessage === true && caBlank.tip === trZh('vc.commitArea.needMessage')
   const emptyScreen = screenOf()
   const emptyBlocks = blocksOf(view, emptyScreen, readsOf(emptyScreen), uiOf())
   const caEmpty = blockOf(emptyBlocks, 'changes') ? blockOf(emptyBlocks, 'changes').commitArea : null
-  check(a3 && !!caEmpty && caEmpty.disabled === true, 'A3 changes 块底部有提交区（输入框 + 按钮）；空提交信息与无暂存都禁用并给出原因（有信息禁用=' + (ca ? ca.disabled : '缺') + '，空信息禁用=' + (caBlank ? caBlank.disabled : '缺') + '，无暂存禁用=' + (caEmpty ? caEmpty.disabled : '缺') + '）')
+  check(a3 && !!caEmpty && caEmpty.disabled === true, 'A3 changes 块底部模型里有提交区（输入框 + 按钮）；空提交信息与无暂存都禁用并给出原因（有信息禁用=' + (ca ? ca.disabled : '缺') + '，空信息禁用=' + (caBlank ? caBlank.disabled : '缺') + '，无暂存禁用=' + (caEmpty ? caEmpty.disabled : '缺') + '）')
 
   const rowB = rowOf(blocks, 'b.txt')
-  const a4 = !!(rowB && rowB.stageAction && rowB.stageAction.show === true) && html.indexOf('data-vc-stage') >= 0
-  check(a4, 'A4 未暂存文件行右侧有「add」按钮（模型 ' + !!(rowB && rowB.stageAction) + '，DOM ' + (html.indexOf('data-vc-stage') >= 0) + '）')
+  check(!!(rowB && rowB.stageAction && rowB.stageAction.show === true), 'A4 未暂存文件行的模型里有「add」按钮')
 
   const rowD = rowOf(blocks, 'd.txt')
-  const a5 = !!(rowD && rowD.stageAction && rowD.stageAction.conflict === true && rowD.stageAction.show === false) && html.indexOf('data-vc-conflict-terminal') >= 0
-  const conflictText = (html.match(/data-vc-conflict-terminal[^>]*>([^<]*)/) || [])[1] || ''
-  const a5b = conflictText.indexOf('命令行') >= 0 && conflictText.indexOf('侧栏终端') < 0
-  check(a5 && a5b, 'A5 冲突行没有「add」，改说「在命令行里解决」，且不再提侧栏终端（模型 ' + JSON.stringify(rowD && rowD.stageAction) + '，DOM ' + (html.indexOf('data-vc-conflict-terminal') >= 0) + '，文字 ' + JSON.stringify(conflictText) + '）')
+  const conflictText = String((rowD && rowD.stageAction && rowD.stageAction.text) || '')
+  check(!!(rowD && rowD.stageAction && rowD.stageAction.conflict === true && rowD.stageAction.show === false) && conflictText.indexOf('命令行') >= 0 && conflictText.indexOf('侧栏终端') < 0, 'A5 冲突行没有「add」，改说「在命令行里解决」，且不再提侧栏终端（模型 ' + JSON.stringify(rowD && rowD.stageAction) + '）')
 
   const rowA = rowOf(blocks, 'a.txt')
-  const a4b = !!(rowA && rowA.unstageAction && rowA.unstageAction.show === true) && html.indexOf('data-vc-unstage') >= 0 && html.indexOf('>撤回<') >= 0
-  check(a4b, 'A4b 已暂存文件行右侧有「撤回」按钮（模型 ' + !!(rowA && rowA.unstageAction) + '，DOM钩子 ' + (html.indexOf('data-vc-unstage') >= 0) + '，文字 ' + (html.indexOf('>撤回<') >= 0) + '）')
-  const a4c = !!(rowB && rowB.unstageAction && rowB.unstageAction.show === false) && (html.match(/data-vc-unstage/g) || []).length === 1
-  check(a4c, 'A4c 未暂存与冲突行没有「撤回」按钮（全页只有已暂存那一行有）')
+  check(!!(rowA && rowA.unstageAction && rowA.unstageAction.show === true), 'A4b 已暂存文件行的模型里有「撤回」按钮')
+  check(!(rowB && rowB.unstageAction && rowB.unstageAction.show) && !(rowD && rowD.unstageAction && rowD.unstageAction.show), 'A4c 未暂存与冲突行没有「撤回」按钮（模型里只给已暂存那一行）')
 
-  // A6：多远端 + 没有上游 —— 候选远端来自失败回包顶层 remotes，界面上要有一排可点的入口。
+  // A6：多远端 + 没有上游 —— 候选远端来自失败回包顶层 remotes，模型里要有一排可点的入口。
   const choiceUi = uiOf({ write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } } })
   const choiceModel = view.vcWriteUiOf(screen, choiceUi, { t: trZh, nowMs: NOW, decisions: decisionsOf(view, screen) })
-  const choiceHtml = renderTab(React, DswsCtx, TipStub, IcStub, reads, function (s) {
-    return s.replace(VC_WRITE_INIT_RE, "write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } }")
-  }).html
-  const a6 = !!(choiceModel.remoteChoice && choiceModel.remoteChoice.remotes.join(',') === 'origin,mirror') && choiceHtml.indexOf('data-vc-remote-choice') >= 0 && choiceHtml.indexOf('data-vc-remote="origin"') >= 0 && choiceHtml.indexOf('data-vc-remote="mirror"') >= 0
-  check(a6, 'A6 多远端 + 没有上游：界面上有一排可点的远端入口（模型 ' + JSON.stringify(choiceModel.remoteChoice && choiceModel.remoteChoice.remotes) + '，DOM ' + (choiceHtml.indexOf('data-vc-remote-choice') >= 0) + '）')
+  check(!!(choiceModel.remoteChoice && choiceModel.remoteChoice.remotes.join(',') === 'origin,mirror'), 'A6 多远端 + 没有上游：模型里有一排可点的远端入口（实得 ' + JSON.stringify(choiceModel.remoteChoice && choiceModel.remoteChoice.remotes) + '）')
 }
 
 // ============================================================
@@ -654,215 +630,6 @@ async function groupG(view) {
 }
 
 
-// ============================================================
-// J 组 · DOM 级（真渲染：确认框正文、结果横幅是人话、文字里不出现词条键）
-//   这一组是 #842 视觉预览漏网的补丁：原来 53 条大多停在模型层，接线断了也没人发现。
-// ============================================================
-function writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, write) {
-  const preset = JSON.stringify(write)
-  return renderTab(React, DswsCtx, TipStub, IcStub, readsOf(screen), function (s) {
-    return s.replace(VC_WRITE_INIT_RE, "write: " + preset)
-  })
-}
-function domText(html) {
-  const { JSDOM } = require('jsdom')
-  const dom = new JSDOM('<div id="m">' + html + '</div>')
-  const root = dom.window.document.getElementById('m')
-  const pick = function (sel) { const el = root.querySelector(sel); return el ? String(el.textContent || '') : '' }
-  return {
-    text: String(root.textContent || ''),
-    confirmBody: pick('[data-vc-confirm-body]'),
-    confirmTitle: pick('[data-vc-confirm] > div'),
-    confirmOk: pick('[data-vc-confirm-ok]'),
-    confirmTtl: pick('[data-vc-confirm-ttl]'),
-    result: pick('[data-vc-op-result]'),
-    resultVerb: pick('[data-vc-op-result] span'),
-    resultText: pick('[data-vc-op-text]'),
-    resultLimit: pick('[data-vc-op-limit]'),
-    running: pick('[data-vc-running]'),
-    choice: pick('[data-vc-remote-choice]'),
-    choiceBody: pick('[data-vc-remote-choice-body]'),
-  }
-}
-function groupJ(React, DswsCtx, TipStub, IcStub) {
-  const screen = richScreen()
-  const ttl = { id: 't1', expiresAtMs: NOW + 120000 }
-  const pulls = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'idle', message: '', confirm: { op: 'pull', plan: { mode: 'existing', remote: 'origin', branch: 'main', localBranch: 'main' }, ticket: ttl, remotes: [] }, result: null, remoteChoice: null })
-  const d1 = domText(pulls.html)
-  check(pulls.err === '' && d1.confirmBody.indexOf('快进合并') >= 0 && d1.confirmOk === trZh('vc.action.pull') && d1.confirmBody.indexOf('vc.') < 0,
-    'J1 真渲染·拉取确认框：正文是那句话、主按钮是词条句（正文=' + JSON.stringify(d1.confirmBody) + '，按钮=' + JSON.stringify(d1.confirmOk) + '，渲染错=' + (pulls.err || '无') + '）')
-
-  const sets = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'idle', message: '', confirm: { op: 'push', plan: { mode: 'set-upstream', remote: 'origin', branch: 'main', localBranch: 'main' }, ticket: ttl, remotes: [] }, result: null, remoteChoice: null })
-  const d2 = domText(sets.html)
-  check(d2.confirmBody.indexOf('将本地 main 推送至 origin/main，并设为上游。') >= 0 && d2.confirmOk === trZh('vc.action.pushSetUpstream'),
-    'J2 真渲染·set-upstream 确认框：正文点名目标并写清设为上游（正文=' + JSON.stringify(d2.confirmBody) + '，按钮=' + JSON.stringify(d2.confirmOk) + '）')
-
-  const recs = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'idle', message: '', confirm: { op: 'push', plan: { mode: 'recreate', remote: 'origin', branch: 'feature', localBranch: 'feature' }, ticket: ttl, remotes: [] }, result: null, remoteChoice: null })
-  const d3 = domText(recs.html)
-  check(d3.confirmBody.indexOf('origin/feature') >= 0 && d3.confirmBody.indexOf('不存在') >= 0 && d3.confirmOk === trZh('vc.action.pushRecreate'),
-    'J3 真渲染·recreate 确认框：正文说「已经不在了」并点名目标（正文=' + JSON.stringify(d3.confirmBody) + '，按钮=' + JSON.stringify(d3.confirmOk) + '）')
-
-  const fails = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'failed', message: '', confirm: null, remoteChoice: null, result: { state: 'failed', key: 'vc.writeErr.notFastForward', params: {}, limitKey: 'vc.writeErr.notFastForward.limit', verb: 'vc.op.failed', tipKey: '', tip: '宿主原话', retryable: true, moved: false } })
-  const d4 = domText(fails.html)
-  check(d4.result.indexOf('执行失败') >= 0 && d4.resultText.indexOf('远端新提交已取回') >= 0 && d4.resultLimit.indexOf('命令行') >= 0 && d4.resultLimit.indexOf('侧栏终端') < 0 && d4.result.indexOf('vc.') < 0,
-    'J4 真渲染·失败横幅：动作词 + 主句 + limit 句都是人话（横幅=' + JSON.stringify(d4.result) + '，渲染错=' + (fails.err || '无') + '，HTML 长=' + fails.html.length + '）')
-
-  const dones = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'done', message: '', confirm: null, remoteChoice: null, result: { state: 'done', key: 'vc.op.donePushRecreate', params: { local: 'feature', remote: 'origin', target: 'feature' }, verb: 'vc.op.done', tipKey: '', tip: '', retryable: false, moved: false } })
-  const d5 = domText(dones.html)
-  check(d5.result.indexOf('执行完成') >= 0 && d5.result.indexOf('上游已重建') >= 0 && d5.result.indexOf('origin/feature') >= 0 && d5.result.indexOf('vc.') < 0,
-    'J5 真渲染·成功横幅：按预检档说「已重建上游…」（横幅=' + JSON.stringify(d5.result) + '，渲染错=' + (dones.err || '无') + '）')
-
-  const running = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: 'pull', state: 'running', message: '', confirm: null, result: null, remoteChoice: null })
-  const d6 = domText(running.html)
-  check(d6.running === trZh('vc.op.running'), 'J6 真渲染·执行中那一行有正文（实得 ' + JSON.stringify(d6.running) + '）')
-
-  const choice = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } })
-  const d7 = domText(choice.html)
-  check(d7.choice.indexOf(trZh('vc.pickRemote.title')) >= 0 && d7.choiceBody.indexOf('面板不代选远端') >= 0 && d7.choice.indexOf('origin') >= 0 && d7.choice.indexOf('mirror') >= 0,
-    'J7 真渲染·多远端候选框：标题与正文都是人话、两个远端都可点（框=' + JSON.stringify(d7.choice.slice(0, 60)) + '）')
-
-  // J8 通用守卫：上面七次真渲染的文字里，一个 vc. 开头的词条键都不许出现。
-  const allText = [d1, d2, d3, d4, d5, d6, d7].map(function (d) { return d.text }).join('\n')
-  const leaked = allText.match(/vc\.[A-Za-z][A-Za-z0-9_.]*/g) || []
-  check(leaked.length === 0, 'J8 通用守卫：真渲染出来的文字里不出现词条键（命中：' + (leaked.slice(0, 5).join('、') || '无') + '）')
-
-  // J9 真渲染·补丁块（task-61 打磨）：卡片类挂上了、差异行画出来了。
-  //   展开键是「分组\u0000路径」（块模型那一层的口径）；未提交那一层点开打不开是既有缺陷，见 .tmp-842-visual/POLISH.md。
-  const diffReads = Object.assign({}, readsOf(screen), { diffs: { 'a.txt': { state: 'ok', lines: [{ kind: 'add', text: '+新行' }, { kind: 'del', text: '-旧行' }], reason: 'ok', truncated: false, error: null } } })
-  const diffRender = renderTab(React, DswsCtx, TipStub, IcStub, diffReads, function (s) {
-    return subQ("openDiff: '', openCommit: '', view:", "openDiff: 'staged' + String.fromCharCode(0) + 'a.txt', openCommit: '', view:")(s)
-  })
-  const doc9 = new (require('jsdom').JSDOM)('<div id="m">' + diffRender.html + '</div>').window.document
-  const card = doc9.querySelector('[data-vc-diff="lines"]')
-  check(!!card && String(card.className).indexOf('dsws-vc-card') >= 0 && card.textContent.indexOf('新行') >= 0 && card.textContent.indexOf('旧行') >= 0,
-    'J9 真渲染·补丁块：卡片类与差异行都在（class=' + (card ? card.className : '缺') + '，渲染错=' + (diffRender.err || '无') + '）')
-
-  // J10–J13：#850 —— 两组各自的文件行都能点开自己的补丁；同一路径在两组时互不串；键改回裸路径必须红。
-  const openKey = function (group, path) { return group + String.fromCharCode(0) + path }
-  const diffReadsOf = function (paths) {
-    const diffs = {}
-    paths.forEach(function (p2) { diffs[p2] = { state: 'ok', lines: [{ kind: 'add', text: '+新行' }], reason: 'ok', truncated: false, error: null } })
-    return Object.assign({}, readsOf(screen), { diffs: diffs })
-  }
-  const uiSeed = /openDiff:\s*["']{2},\s*openCommit:\s*["']{2},\s*view:/
-  const renderOpen = function (key, reads, patchExtra) {
-    const v = buildView(function (s) {
-      let out = s.replace(VC_SEED_RE, 'React.useState(function () { return seedReads })')
-      out = out.replace(uiSeed, 'openDiff: ' + JSON.stringify(key) + ", openCommit: '', view:")
-      return patchExtra ? patchExtra(out) : out
-    }, React, DswsCtx, TipStub, IcStub, reads, [], trZh)
-    try { return require('react-dom/server').renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { return '' }
-  }
-  const rowsWithCard = function (html) {
-    const doc = new (require('jsdom').JSDOM)('<div id="m">' + html + '</div>').window.document
-    const out = []
-    Array.prototype.slice.call(doc.querySelectorAll('[data-vc-file]')).forEach(function (el) {
-      if (el.querySelector('[data-vc-diff]')) out.push(String(el.textContent || '').slice(0, 20))
-    })
-    return out
-  }
-  const staged10 = rowsWithCard(renderOpen(openKey('staged', 'a.txt'), diffReadsOf(['a.txt'])))
-  check(staged10.length === 1 && staged10[0].indexOf('a.txt') >= 0, 'J10 #850·已暂存组：点开 a.txt 画出它自己的补丁（含补丁的行：' + JSON.stringify(staged10) + '）')
-
-  const un11 = rowsWithCard(renderOpen(openKey('unstaged', 'b.txt'), diffReadsOf(['b.txt'])))
-  check(un11.length === 1 && un11[0].indexOf('b.txt') >= 0, 'J11 #850·未暂存组：点开 b.txt 画出它自己的补丁（含补丁的行：' + JSON.stringify(un11) + '）')
-
-  const dual = screenOf({ staged: [fileOf('x.txt', 'staged')], stagedCount: 1, unstaged: [fileOf('x.txt', 'unstaged')], unstagedCount: 1 })
-  const dualReads = Object.assign({}, readsOf(dual), { diffs: { 'x.txt': { state: 'ok', lines: [{ kind: 'add', text: '+新行' }], reason: 'ok', truncated: false, error: null } } })
-  const dualOpen = rowsWithCard(renderOpen(openKey('staged', 'x.txt'), dualReads))
-  const dualBoth = rowsWithCard(renderOpen(openKey('unstaged', 'x.txt'), dualReads))
-  const dualDoc = new (require('jsdom').JSDOM)('<div id="m">' + renderOpen(openKey('staged', 'x.txt'), dualReads) + '</div>').window.document
-  const dualRows = Array.prototype.slice.call(dualDoc.querySelectorAll('[data-vc-file]'))
-  const onlyFirst = dualRows.length === 2 && !!dualRows[0].querySelector('[data-vc-diff]') && !dualRows[1].querySelector('[data-vc-diff]')
-  check(dualOpen.length === 1 && dualBoth.length === 1 && onlyFirst, 'J12 #850·同一路径在两组时互不串：展开键带分组，一次只开一行（已暂存键=' + JSON.stringify(dualOpen) + '，未暂存键=' + JSON.stringify(dualBoth) + '，只有第一行开=' + onlyFirst + '）')
-
-  const bareHtml = renderOpen(openKey('staged', 'a.txt'), diffReadsOf(['a.txt']), function (s) {
-    return s.replace("  return String(r.group || '') + '\\u0000' + String(r.path || '')", "  return String(r.path || '')")
-  })
-  check(rowsWithCard(bareHtml).length === 0, 'J13 反证：把展开键改回裸路径 → J10 那条当场不成立（含补丁的行：' + JSON.stringify(rowsWithCard(bareHtml)) + '）')
-
-  const loadingReads = Object.assign({}, readsOf(screen), { diffs: { 'a.txt': { state: 'loading', lines: null, reason: '', truncated: false, error: null } } })
-  const loadingHtml = renderOpen(openKey('staged', 'a.txt'), loadingReads)
-  const loadingDoc = new (require('jsdom').JSDOM)('<div id="m">' + loadingHtml + '</div>').window.document
-  const loadingBlock = loadingDoc.querySelector('[data-vc-diff="loading"]')
-  const loadingBars = loadingBlock ? loadingBlock.querySelectorAll('[data-vc-skel="1"]') : []
-  check(!!loadingBlock && loadingBars.length >= 3 && loadingBlock.textContent.trim() === '' && loadingHtml.indexOf('正在读改动') < 0, 'J14 #857·读取中的差异画骨架条，不画会跳动的文字（骨架条 ' + loadingBars.length + ' 条）')
-
-  const failDoc = new (require('jsdom').JSDOM)('<div id="m">' + fails.html + '</div>').window.document
-  const failAi = failDoc.querySelector('[data-vc-op-result] [data-vc-ai="write-fail"]')
-  const doneDoc = new (require('jsdom').JSDOM)('<div id="m">' + dones.html + '</div>').window.document
-  check(!!failAi && failAi.textContent === trZh('vc.action.aiHandoff') && !doneDoc.querySelector('[data-vc-op-result] [data-vc-ai]'), 'J15 #854·没做成的横幅旁边有「让 AI 帮我解决」，做完了没有（按钮=' + (failAi ? '有' : '无') + '）')
-}
-
-
-
-// ============================================================
-// L 组 · 视觉语言（#851 照原型 C「档案索引」）：徽章 / 等宽 / 正负着色 / 小标题 / 字号层级
-//   这一组同时给三条反证：把新加的样式钩子改回去，对应的判据必须当场变红。
-// ============================================================
-function groupL(view, React, DswsCtx, TipStub, IcStub) {
-  // 这一组要同时看到文件行与提交历史行（短号等宽那条挂在提交行上），所以夹具带上一条提交。
-  const screen = screenOf({
-    staged: [fileOf('a.txt', 'staged')], stagedCount: 1,
-    unstaged: [fileOf('b.txt', 'unstaged')], unstagedCount: 1,
-    commits: [{ oid: 'c'.repeat(40), short: 'ccccccc', subject: '提交说明', author: 'x', authorDateMs: NOW - 3600000, commitDateMs: NOW - 3600000, parents: ['p'] }],
-  })
-  const render = function (patch) {
-    const v = buildView(function (s) {
-      let out = s.replace(VC_SEED_RE, 'React.useState(function () { return seedReads })')
-      return patch ? patch(out) : out
-    }, React, DswsCtx, TipStub, IcStub, readsOf(screen), [], trZh)
-    try { return require('react-dom/server').renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { return '' }
-  }
-  const docOf = function (html) { return new (require('jsdom').JSDOM)('<div id="m">' + html + '</div>').window.document.getElementById('m') }
-  const letters = ['added', 'modified', 'deleted', 'renamed', 'typechange', 'untracked'].map(function (c) { return view.vcBadgeLetterOf(c) }).join('')
-  const badgeOk = function (doc) {
-    const b = doc.querySelector('[data-vc-badge]')
-    const row = doc.querySelector('[data-vc-file]')
-    return !!b && b.textContent === 'M' && String(b.className).indexOf('dsws-vc-badge') >= 0 && !!row && row.textContent.indexOf('修改') >= 0
-  }
-  const monoOk = function (doc) {
-    // 文件行里等宽的元素不止一个（状态词、路径、行数都是），所以要找「装着路径那一枚」。
-    const pathOk = Array.prototype.some.call(doc.querySelectorAll('[data-vc-file] .dsws-vc-mono'), function (el) { return el.textContent.indexOf('a.txt') >= 0 })
-    // 提交短号住在历史视图里（布局 C）：到那个视图去查，不在改动页硬找。
-    const commitsDoc = docOf(render(function (s) { return s.replace("view: vcRememberedView()", "view: 'commits'") }))
-    const shortOk = Array.prototype.some.call(commitsDoc.querySelectorAll('[data-vc-commit] .dsws-vc-mono'), function (el) { return el.textContent.indexOf('ccccccc') >= 0 })
-    return pathOk && shortOk
-  }
-  const countsOk = function (doc) {
-    const a = doc.querySelector('[data-vc-file] .dsws-vc-add')
-    const d = doc.querySelector('[data-vc-file] .dsws-vc-del')
-    const row = doc.querySelector('[data-vc-file]')
-    return !!a && !!d && a.textContent === '+1' && d.textContent === '\u22120' && row.textContent.indexOf('+1 \u22120') >= 0
-  }
-  const secOk = function (doc) {
-    const el = doc.querySelector('[data-vc-group] .dsws-vc-sec')
-    return !!el && el.textContent.indexOf('已暂存') >= 0
-  }
-  const hierOk = function (doc) {
-    const name = doc.querySelector('[data-vc-worktree]')
-    const sync = doc.querySelector('[data-vc-sync]')
-    const pathEl = doc.querySelector('[data-vc-path]')
-    return !!name && String(name.className).indexOf('dsws-vc-id') >= 0 && !!sync && String(sync.className).indexOf('dsws-vc-count') >= 0 && !!pathEl && String(pathEl.className).indexOf('dsws-vc-mono') >= 0
-  }
-  const html = render(null)
-  const doc = docOf(html)
-  check(letters === 'AMDRT?' && badgeOk(doc), 'L1 状态字母徽章：六种变化各一个字母（实得 ' + letters + '），文件行上挂方形徽章，中文状态词「修改」照旧在行里（原型两行排布：路径在上，状态词在下）')
-  check(monoOk(doc), 'L2 等宽 + 表格数字：路径与提交短号都挂 dsws-vc-mono')
-  check(countsOk(doc), 'L3 加减行数按正负着色：+1 与 \u22120 各自一个 span（合起来仍是原来那一串）')
-  check(secOk(doc), 'L4 分段小标题：分组标题挂 dsws-vc-sec，文字仍是既有词条（已暂存…）')
-  check(hierOk(doc), 'L5 身份行与计数行拉开层级：身份行 dsws-vc-id、计数行 dsws-vc-count、路径行 dsws-vc-mono')
-
-  // 反证（三条）：把新加的样式钩子改回去，对应的判据必须当场变红。
-  const noBadge = docOf(render(function (s) { return s.replace("    badge: vcBadgeLetterOf(row.change),", "    badge: '',") }))
-  check(badgeOk(noBadge) === false, 'L6 反证：把行模型里的徽章字母去掉 → L1 那条当场不成立')
-  const noMono = docOf(render(function (s) { return subQ("h('span', { key: 'path', className: 'dsws-vc-mono', style: { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)", "h('span', { key: 'path', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)")(s) }))
-  check(monoOk(noMono) === false, 'L7 反证：把路径上的 dsws-vc-mono 撤掉 → L2 那条当场不成立')
-  const noSign = docOf(render(function (s) { return subQ("h('span', { key: 'add', className: 'dsws-vc-add' }, row.addText),", "h('span', { key: 'add' }, row.addText),")(s) }))
-  check(countsOk(noSign) === false, 'L8 反证：把加减行数的着色类撤掉 → L3 那条当场不成立')
-}
-
-// ============================================================
 // K 组 · 失败种类分档（宿主新档 env-fs：文件服务读不到运行状态，不许再指向 git）
 // ============================================================
 function groupK(view, React, DswsCtx, TipStub, IcStub) {
@@ -875,13 +642,8 @@ function groupK(view, React, DswsCtx, TipStub, IcStub) {
     'K1 env-fs 有自己那一档：主句含「运行状态 / 文件服务」，中英都不提 git（zh=' + zhEnvFs + '）')
   check(kEnv === 'vc.fail.noGit' && /git/i.test(zhEnv), 'K2 env 仍留给「真的找不到 git」（zh=' + zhEnv + '）')
 
-  // K3 真渲染：kind=env-fs 的失败信封 → 可见文字是那一档、不提 git、不出现词条键（J8 守卫同口径）。
-  const errReads = { screen: { state: 'err', data: null, error: { kind: 'env-fs', message: '宿主的原话：文件服务没给出结论' } }, diffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
-  const r = renderTab(React, DswsCtx, TipStub, IcStub, errReads, null)
-  const d = domText(r.html)
-  const leaked = d.text.match(/vc\.[A-Za-z][A-Za-z0-9_.]*/g) || []
-  check(r.err === '' && d.text.indexOf('运行状态') >= 0 && d.text.indexOf(zhEnvFs) >= 0 && !/git/i.test(d.text) && leaked.length === 0,
-    'K3 真渲染 kind=env-fs：可见文字是「运行状态 / 文件服务」那句、不提 git、不出现词条键（实得 ' + JSON.stringify(d.text.slice(0, 60)) + '）')
+  // K3 文案级：env-fs 那一档与「找不到 git」那一档必须是两句不同的人话（渲染后的可见文字由真挂载门禁守）。
+  check(zhEnvFs.length > 0 && zhEnvFs.indexOf('运行状态') >= 0 && !/git/i.test(zhEnvFs) && zhEnvFs !== zhEnv, 'K3 env-fs 那一档文案说「运行状态 / 文件服务」、不提 git，也不是「找不到 git」那句（zh=' + zhEnvFs + '）')
 }
 
 // ============================================================
@@ -1197,9 +959,7 @@ async function main() {
   groupD(view, writeReasons)
   await groupE(view)
   await groupG(view)
-  groupJ(React, DswsCtx, TipStub, IcStub)
   groupK(view, React, DswsCtx, TipStub, IcStub)
-  groupL(view, React, DswsCtx, TipStub, IcStub)
   await groupM(view)
   await groupI(view, planMod.pushPlanOf, cmdMod.pushArgs)
   await groupH(React, DswsCtx, TipStub, IcStub, logs)

@@ -83,7 +83,7 @@ const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
       'data-vc-stash-op': op,
       'data-vc-stash-cap': def.id,
       disabled: ctx.pending === true,
-      onclick: function () { ctx.act({ op: op, selector: selector }) },
+      'data-press': 'button', 'data-log': 'vc.stash.row-op', onClick: function () { ctx.act({ op: op, selector: selector }) },
     }
     if (isDanger) props['data-vc-stash-danger'] = '1'
     return h('button', props, vcStashText(t, def.nameKey, null))
@@ -98,10 +98,10 @@ const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
           'data-vc-stash-branch-input': '1',
           placeholder: vcStashText(t, 'vc.stash.branch.placeholder', null),
           value: ctx.branchName,
-          oninput: function (ev: any) { ctx.edit({ branch: String((ev && ev.target && ev.target.value) || '') }) },
+          onInput: function (ev: any) { ctx.edit({ branch: String((ev && ev.target && ev.target.value) || '') }) },
         }),
-        h('button', { key: 'go', type: 'button', 'data-vc-stash-branch-go': '1', disabled: ctx.pending === true, onclick: function () { ctx.act({ op: 'branch', selector: selector, branch: ctx.branchName }) } }, vcStashText(t, 'vc.stash.branch.go', null)),
-        h('button', { key: 'cancel', type: 'button', 'data-vc-stash-branch-cancel': '1', onclick: function () { ctx.edit({ branchFor: '' }) } }, vcStashText(t, 'vc.stash.branch.cancel', null)),
+        h('button', { key: 'go', type: 'button', 'data-vc-stash-branch-go': '1', disabled: ctx.pending === true, 'data-press': 'button', 'data-log': 'vc.stash.branch-go', onClick: function () { ctx.act({ op: 'branch', selector: selector, branch: ctx.branchName }) } }, vcStashText(t, 'vc.stash.branch.go', null)),
+        h('button', { key: 'cancel', type: 'button', 'data-vc-stash-branch-cancel': '1', 'data-press': 'button', 'data-log': 'vc.stash.branch-cancel', onClick: function () { ctx.edit({ branchFor: '' }) } }, vcStashText(t, 'vc.stash.branch.cancel', null)),
       ])
     )
   }
@@ -123,7 +123,7 @@ const vcStashToolbarOf = function (h: any, t: any, ctx: any): any {
       'data-vc-stash-op': op,
       'data-vc-stash-cap': def.id,
       disabled: ctx.pending === true,
-      onclick: function () { ctx.act({ op: op, message: ctx.message, selector: '' }) },
+      'data-press': 'button', 'data-log': 'vc.stash.tool-op', onClick: function () { ctx.act({ op: op, message: ctx.message, selector: '' }) },
     }
     if (isDanger) props['data-vc-stash-danger'] = '1'
     buttons.push(h('button', props, vcStashText(t, def.nameKey, null)))
@@ -136,7 +136,7 @@ const vcStashToolbarOf = function (h: any, t: any, ctx: any): any {
       'data-vc-stash-message-input': '1',
       placeholder: vcStashText(t, 'vc.stash.message.placeholder', null),
       value: ctx.message,
-      oninput: function (ev: any) { ctx.edit({ message: String((ev && ev.target && ev.target.value) || '') }) },
+      onInput: function (ev: any) { ctx.edit({ message: String((ev && ev.target && ev.target.value) || '') }) },
     }),
   ])
   const staged = vcStashStagedStateOf(ctx.versionText)
@@ -162,8 +162,8 @@ const vcStashConfirmBlockOf = function (h: any, t: any, state: any, ctx: any): a
   return h('div', { className: 'vcs-stash-confirm-wrap', 'data-vc-stash-confirm': state.confirm.op }, [
     vcShellConfirmCardNode(h, t, { verb: verb, target: targetText }),
     h('div', { key: 'acts', className: 'vcs-stash-confirm-acts' }, [
-      h('button', { key: 'go', type: 'button', className: 'vcs-confirm-go', 'data-vc-stash-confirm-go': '1', disabled: ctx.pending === true, onclick: function () { ctx.actConfirmed() } }, vcStashText(t, 'vc.stash.confirm.go', { verb: verb })),
-      h('button', { key: 'cancel', type: 'button', 'data-vc-stash-confirm-cancel': '1', onclick: function () { ctx.edit({ confirm: null }) } }, vcStashText(t, 'vc.stash.confirm.cancel', null)),
+      h('button', { key: 'go', type: 'button', className: 'vcs-confirm-go', 'data-vc-stash-confirm-go': '1', disabled: ctx.pending === true, 'data-press': 'button', 'data-log': 'vc.stash.confirm-go', onClick: function () { ctx.actConfirmed() } }, vcStashText(t, 'vc.stash.confirm.go', { verb: verb })),
+      h('button', { key: 'cancel', type: 'button', 'data-vc-stash-confirm-cancel': '1', 'data-press': 'button', 'data-log': 'vc.stash.confirm-cancel', onClick: function () { ctx.edit({ confirm: null }) } }, vcStashText(t, 'vc.stash.confirm.cancel', null)),
     ]),
   ])
 }
@@ -179,7 +179,7 @@ const vcStashDetailBlockOf = function (h: any, t: any, state: any, ctx: any): an
     h('ul', { key: 'files', 'data-vc-stash-detail-files': '1' }, items),
     h('pre', { key: 'patch', className: 'vcs-stash-patch', 'data-vc-stash-patch': '1' }, detail.patch),
     detail.truncated ? h('p', { key: 'trunc', className: 'vcs-stash-truncated', 'data-vc-stash-truncated': '1' }, vcStashText(t, 'vc.stash.detail.truncated', null)) : null,
-    h('button', { key: 'close', type: 'button', 'data-vc-stash-detail-close': '1', onclick: function () { ctx.edit({ detail: null }) } }, vcStashText(t, 'vc.stash.detail.close', null)),
+    h('button', { key: 'close', type: 'button', 'data-vc-stash-detail-close': '1', 'data-press': 'button', 'data-log': 'vc.stash.detail-close', onClick: function () { ctx.edit({ detail: null }) } }, vcStashText(t, 'vc.stash.detail.close', null)),
   ])
 }
 
@@ -191,7 +191,7 @@ const vcStashRecentBlockOf = function (h: any, t: any, state: any, ctx: any): an
       h('span', { key: 'subject' }, vcStashEntrySubjectOf(t, one)),
       h('span', { key: 'selector', className: 'vcs-stash-selector' }, one.selector),
       h('span', { key: 'when' }, vcStashText(t, 'vc.stash.recent.droppedAt', { when: vcStashWhenOf(one.droppedAtMs) })),
-      h('button', { key: 'restore', type: 'button', 'data-vc-stash-restore': one.oid, disabled: ctx.pending === true, onclick: function () { ctx.act({ op: 'restore', oid: one.oid, subject: one.subject }) } }, vcStashText(t, 'vc.stash.recent.restore', null)),
+      h('button', { key: 'restore', type: 'button', 'data-vc-stash-restore': one.oid, disabled: ctx.pending === true, 'data-press': 'button', 'data-log': 'vc.stash.restore', onClick: function () { ctx.act({ op: 'restore', oid: one.oid, subject: one.subject }) } }, vcStashText(t, 'vc.stash.recent.restore', null)),
     ])
   })
   return h('section', { className: 'vcs-stash-recent', 'data-vc-stash-recent': String(recent.length) }, [

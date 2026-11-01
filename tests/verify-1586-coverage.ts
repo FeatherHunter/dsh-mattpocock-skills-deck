@@ -246,6 +246,20 @@ const paletteVersionHtmlOf = function (view, capId, version) {
   const reads = version === null ? null : { screen: { state: 'ok', data: { gitVersion: version } } }
   return renderPage(view, { page: 'search', width: 460, skin: 'dark', seed: { query: capId }, reads: reads })
 }
+// #1776 M1：真实页签的首屏读数在 reads.firstScreen 的七片里，version 片才是新的版本来源。
+// 这里按同一口径另造一份「只有首屏快照」的读数：命令面板的版本说明要能在这一份上同样成立。
+const firstScreenReadsOf = function (version: any, state: any) {
+  const slice = state === 'err'
+    ? { state: 'err', data: null, error: { kind: 'env', message: '首屏读失败' } }
+    : { state: 'ok', data: version === null ? null : { gitVersion: version }, error: null }
+  return { firstScreen: { state: 'ok', data: { contract: 'version-control.first-screen', version: 2, readAtMs: 1, slices: { version: slice } } } }
+}
+const paletteVersionHtmlFirstOf = function (view: any, capId: any, version: any) {
+  return renderPage(view, { page: 'search', width: 460, skin: 'dark', seed: { query: capId }, reads: firstScreenReadsOf(version, 'ok') })
+}
+const paletteVersionHtmlFirstErrOf = function (view: any, capId: any) {
+  return renderPage(view, { page: 'search', width: 460, skin: 'dark', seed: { query: capId }, reads: firstScreenReadsOf(null, 'err') })
+}
 const versionSegmentOf = function (html, capId) {
   const at = html.indexOf('data-vc-palette-version="' + capId + '"')
   if (at < 0) return ''
@@ -253,12 +267,12 @@ const versionSegmentOf = function (html, capId) {
   const end = html.indexOf('</li>', at)
   return htmlTextOf(html.slice(start < 0 ? 0 : start, end < 0 ? html.length : end))
 }
-const versionProblemsOf = function (view, caps) {
+const versionProblemsWithOf = function (view, caps, htmlOf) {
   const problems = []
   caps.forEach(function (cap) {
     if (!cap.versionPolicy) { problems.push(cap.id + ' 没有登记版本策略，不该按版本限制验收'); return }
     if (!cap.versionAlternative) { problems.push(cap.id + ' 没有登记替代做法'); return }
-    const segment = versionSegmentOf(paletteVersionHtmlOf(view, cap.id, lowVersionOf(cap.minVersion)), cap.id)
+    const segment = versionSegmentOf(htmlOf(view, cap.id, lowVersionOf(cap.minVersion)), cap.id)
     if (!segment) { problems.push(cap.id + ' 在 ' + lowVersionOf(cap.minVersion) + ' 上看不到版本说明'); return }
     const want = cap.versionPolicy === 'degrade' ? 'degraded' : 'hidden'
     if (segment.indexOf('data-vc-palette-version-state="' + want + '"') < 0) problems.push(cap.id + ' 的说明状态不是 ' + want)
@@ -268,6 +282,7 @@ const versionProblemsOf = function (view, caps) {
   })
   return problems
 }
+const versionProblemsOf = function (view, caps) { return versionProblemsWithOf(view, caps, paletteVersionHtmlOf) }
 
 async function main() {
   let view = null
@@ -394,6 +409,258 @@ async function main() {
   const brokenVersion = versionProblemsOf(view, [versionVictim])
   versionVictim.versionAlternative = keptAlternative
   check(brokenVersion.length > 0, '八 反证：把 ' + versionVictim.id + ' 的替代做法清空 → 版本说明判据当场判红')
+
+  // ---- 九 真实页签入口（#1776 M1）：入口只做委托、四个固定页签与 16 页仍由同一页面壳画出、
+  //      版本说明在首屏七片的 version 片上同样成立 ----
+  console.log('\n九 真实页签入口与首屏七片（#1776 M1）')
+  const entrySrc = sourceText('src/client/views/versionControl/VersionControlTab.ts')
+  check(entrySrc.indexOf('React.createElement(VcRealTab, props)') >= 0, '九 入口组件只把入参原样交给真实页签容器 VcRealTab（入口不再自己渲染）')
+  check(entrySrc.indexOf('vcBlocksOf') < 0 && entrySrc.indexOf('data-vc-root') < 0, '九 入口组件里没有旧块渲染路径（没有 vcBlocksOf、没有 data-vc-root）')
+  check(entrySrc.indexOf('--vc-warn,#f59e0b') >= 0, '九 入口组件仍保留本页配色表（容器身份色门禁按这一行找警告色令牌）')
+  const fixedTabsHtml = renderPage(view, { page: 'changes', width: 460, skin: 'dark' })
+  check(attrValuesOf(fixedTabsHtml, 'data-vc-tab').join(',') === view.VC_TAB_PAGES.join(','), '九 四个固定页签按账本顺序画在同一行（改动、提交历史、工作树、贮藏）')
+  const allPagesHtml2 = renderToStaticMarkup(view.vcRenderAllPages(h, tZh, {}))
+  const allPageIds = attrValuesOf(allPagesHtml2, 'data-vc-page')
+  check(allPageIds.join(',') === view.PAGE_SURFACES.map(function (p) { return p.id }).join(','), '九 一次渲染把 16 页都画出来：四个主页签、九个管理分区、两个侧页、搜索页')
+  const firstScreenLimited = view.CAPABILITIES.filter(function (cap) { return !!cap.versionPolicy })
+  firstScreenLimited.forEach(function (cap) {
+    check(versionProblemsWithOf(view, [cap], paletteVersionHtmlFirstOf).length === 0, '九 ' + cap.id + ' 的版本说明在首屏七片的 version 片上同样读得到（需要 ' + cap.minVersion + ' 与替代做法）')
+  })
+  const firstNotNew = firstScreenLimited.filter(function (cap) {
+    return versionSegmentOf(paletteVersionHtmlFirstOf(view, cap.id, 'git version 2.49.0'), cap.id) !== ''
+  }).map(function (cap) { return cap.id })
+  check(firstNotNew.length === 0, '九 首屏七片读到 2.49 时 19 条都不画版本说明' + (firstNotNew.length ? '：' + firstNotNew.join('、') : ''))
+  const firstFailedCaps = firstScreenLimited.filter(function (cap) {
+    return versionSegmentOf(paletteVersionHtmlFirstOf(view, cap.id, null), cap.id) !== '' ||
+      versionSegmentOf(paletteVersionHtmlFirstErrOf(view, cap.id), cap.id) !== ''
+  }).map(function (cap) { return cap.id })
+  check(firstFailedCaps.length === 0, '九 首屏七片读不到版本（片失败或读数为空）时不写「版本不支持」' + (firstFailedCaps.length ? '：' + firstFailedCaps.join('、') : ''))
+  const liveKeys = [
+    'vc.shell.live.refresh', 'vc.shell.live.loading', 'vc.shell.live.readAt', 'vc.shell.live.back',
+    'vc.shell.live.link.palette', 'vc.shell.live.link.rebase', 'vc.shell.live.link.conflicts',
+    'vc.shell.live.fail.whole', 'vc.shell.live.fail.slice', 'vc.shell.live.retry', 'vc.shell.live.retryAll',
+    'vc.shell.live.emptyCwd',
+    'vc.shell.slice.workspace', 'vc.shell.slice.changes', 'vc.shell.slice.history', 'vc.shell.slice.worktrees',
+    'vc.shell.slice.stashes', 'vc.shell.slice.sync', 'vc.shell.slice.version',
+  ]
+  const missingLiveKeys = liveKeys.filter(function (key) {
+    return !COPY_TEXT.zh[key] || !COPY_TEXT.en[key] || !String(COPY_TEXT.zh[key]).trim() || !String(COPY_TEXT.en[key]).trim()
+  })
+  check(missingLiveKeys.length === 0, '九 真实页签新增的 ' + liveKeys.length + ' 个词条中英成对齐全' + (missingLiveKeys.length ? '：缺 ' + missingLiveKeys.join('、') : ''))
+
+  // ---- 十 管理分区与侧页接上真实读数与动作（#1776 M2）：每一页要成立，源码里必须同时看见三样东西 ——
+  //      进入这一页时发哪条读数电话、页上动作走「预检电话 → 确认卡 → 凭票执行电话」里的哪两扇门、
+  //      以及容器把这页的数据与回调递进了页面壳（不再落骨架）。这一组只守接线没被哪次重构剪断；
+  //      真点一遍页面是 verify-1776-vc-live-tab 那扇真挂载门禁的事，这里不重复起浏览器。
+  console.log('\n十 管理分区与侧页的真实读数与动作（#1776 M2）')
+  const m2Sources: any = {
+    model: sourceText('src/client/views/versionControl/vcRealManage.ts'),
+    reads: sourceText('src/client/views/versionControl/vcRealManageReads.ts'),
+    act1: sourceText('src/client/views/versionControl/vcRealManageActions.ts'),
+    act2: sourceText('src/client/views/versionControl/vcRealManageActions2.ts'),
+    act3: sourceText('src/client/views/versionControl/vcRealManageActions3.ts'),
+    side: sourceText('src/client/views/versionControl/vcRealManageSide.ts'),
+    shell: sourceText('src/client/views/versionControl/vcRealShell.ts'),
+    tab: sourceText('src/client/views/versionControl/vcRealTab.ts'),
+    pages: sourceText('src/client/views/versionControl/vcShellPages.ts'),
+    delegate: sourceText('src/client/views/versionControl/vcRealDelegate.ts'),
+    branches: sourceText('src/client/views/versionControl/vcBranches.ts'),
+    remote: sourceText('src/client/views/versionControl/vcRemoteData.ts'),
+    sync: sourceText('src/client/views/versionControl/vcSyncData.ts'),
+    config: sourceText('src/client/views/versionControl/vcConfigOps.ts'),
+    diag: sourceText('src/client/views/versionControl/vcDiagnostics.ts'),
+    platform: sourceText('src/client/views/versionControl/vcPlatformData.ts'),
+    migrate: sourceText('src/client/views/versionControl/vcMigrateData.ts'),
+    submodules: sourceText('src/client/views/versionControl/vcSubmodulesData.ts'),
+    conflicts: sourceText('src/client/views/versionControl/vcConflictsOps.ts'),
+    rebase: sourceText('src/client/views/versionControl/vcRebaseOps.ts'),
+  }
+  const missingNeedlesOf = function (sources: any, need: any[]): string[] {
+    return need.filter(function (pair: any) {
+      return String(sources[pair[0]] || '').indexOf(pair[1]) < 0
+    }).map(function (pair: any) { return pair[0] + ' 里找不到「' + pair[1] + '」' })
+  }
+  const pageWiring: any[] = [
+    {
+      label: '分支与标签页（wf.gitBranches 读数、wf.gitBranchCheck / wf.gitBranchWrite 两扇门、分支板与确认卡递进壳）',
+      need: [
+        ['reads', "'branch-tags': readBranch"],
+        ['branches', 'wf.gitBranchCheck'],
+        ['branches', 'wf.gitBranchWrite'],
+        ['act1', 'vcBranchCheck'],
+        ['act1', 'vcBranchWrite'],
+        ['model', 'branchBoard: vcBranchBoardOf(branches)'],
+        ['model', 'branchConfirm: mm.branchConfirm'],
+        ['tab', 'onBranchRetry'],
+      ],
+    },
+    {
+      label: '远端页（wf.gitRemoteList 读数、四条远端写电话、同步预检 wf.gitSyncCheck 与执行 wf.gitSyncWrite）',
+      need: [
+        ['reads', 'remote: readRemote'],
+        ['remote', 'wf.gitRemoteList'],
+        ['remote', 'wf.gitRemoteAdd'],
+        ['act1', 'VC_REMOTE_WRITE_PHONES'],
+        ['sync', 'wf.gitSyncCheck'],
+        ['sync', 'wf.gitSyncWrite'],
+        ['act1', 'vcReadSyncCheck'],
+        ['act1', 'vcRunSyncWrite'],
+        ['model', 'vcRealManageShellReadsOf'],
+      ],
+    },
+    {
+      label: '子模块页（wf.gitSubmodules 读数、createSubmodulesOpsOf 的预检与执行、板与交互态递进壳）',
+      need: [
+        ['reads', 'submodules: readSubmodules'],
+        ['submodules', 'wf.gitSubmodules'],
+        ['act2', 'createSubmodulesOpsOf'],
+        ['tab', 'submodules: manage.submodules ? manage.submodules.board : null'],
+      ],
+    },
+    {
+      label: '维护页（重写与维护两块面板仍在页面壳里挂出来，页面只读不写）',
+      need: [
+        ['pages', "page === 'maintenance'"],
+        ['pages', 'vcRewritePageNode'],
+        ['pages', 'vcMaintenancePageNode'],
+      ],
+    },
+    {
+      label: '迁移页（进入发 wf.gitMigrateCheck、执行发 wf.gitMigrateWrite、导出向导的补丁清单电话与五个回调）',
+      need: [
+        ['migrate', 'wf.gitMigrateCheck'],
+        ['migrate', 'wf.gitMigrateWrite'],
+        ['act3', 'vcReadMigrateCheck'],
+        ['act3', 'vcRunMigrateWrite'],
+        ['act3', 'vcReadPatchFiles'],
+        ['tab', "migrateRef.current.check('init')"],
+        ['tab', 'migrate: manage.migrateExport'],
+        ['tab', 'migrateReads: manage.migratePatches'],
+      ],
+    },
+    {
+      label: '配置页（wf.gitConfigRead 读数、wf.gitConfigCheck / wf.gitConfigWrite 两扇门、配置状态与两个回调递进壳）',
+      need: [
+        ['reads', 'config: readConfig'],
+        ['config', 'wf.gitConfigCheck'],
+        ['config', 'wf.gitConfigWrite'],
+        ['act2', 'vcConfigCheckCallOf'],
+        ['act2', 'vcConfigWriteCallOf'],
+        ['tab', 'config: manage.config'],
+        ['tab', 'onConfig: function'],
+      ],
+    },
+    {
+      label: '钩子页（与配置页共用同一份读数与状态，执行结果按钩子口径回写）',
+      need: [
+        ['reads', 'config: readConfig'],
+        ['act2', 'vcHooksApplyReply'],
+        ['tab', 'hooks: manage.config'],
+        ['tab', 'onHooks: function'],
+      ],
+    },
+    {
+      label: '诊断页（wf.gitDiagnosticsRead 读数、诊断动作状态与确认/取消五个回调递进壳）',
+      need: [
+        ['reads', 'diagnostics: readDiagnostics'],
+        ['diag', 'wf.gitDiagnosticsRead'],
+        ['tab', 'diagnostics: diag.state()'],
+        ['tab', 'onDiagnosticsConfirm'],
+      ],
+    },
+    {
+      label: '平台页（wf.gitPlatformRead 读数、wf.gitPlatformCheck / wf.gitRequestPull 两处动作、平台数据与两个回调递进壳）',
+      need: [
+        ['reads', 'platform: readPlatform'],
+        ['platform', 'wf.gitPlatformRead'],
+        ['act2', 'vcReadPlatform'],
+        ['act2', 'vcRunRequestPull'],
+        ['tab', 'platform: manage.platform'],
+        ['tab', 'onPlatformRequestPull: function'],
+      ],
+    },
+    {
+      label: '冲突页（wf.gitConflicts 读数、wf.gitConflictCheck / wf.gitConflictWrite 两扇门、冲突模型递进壳）',
+      need: [
+        ['side', 'wf.gitConflictCheck'],
+        ['side', 'wf.gitConflictWrite'],
+        ['side', 'conflict-list'],
+        ['conflicts', 'wf.gitConflictCheck'],
+        ['conflicts', 'wf.gitConflictWrite'],
+        ['model', 'conflicts: vcRealConflictsModelOf(mm.conflicts)'],
+        ['tab', 'conflicts: conflictsModel'],
+      ],
+    },
+    {
+      label: '变基页（wf.gitRebaseRead 读数、wf.gitRebaseCheck / wf.gitRebaseWrite 两扇门、撤销面板换挂自带状态组件）',
+      need: [
+        ['side', 'wf.gitRebaseCheck'],
+        ['side', 'wf.gitRebaseWrite'],
+        ['rebase', 'wf.gitRebaseRead'],
+        ['model', 'rebase: vcRealRebaseModelOf(mm.rebase)'],
+        ['model', 'undo: mm.undo || vcUndoStateNew()'],
+        ['tab', 'rebase: rebaseModel'],
+        ['pages', 'VC_UNDO_PANEL'],
+      ],
+    },
+  ]
+  pageWiring.forEach(function (page: any) {
+    const problems = missingNeedlesOf(m2Sources, page.need)
+    check(problems.length === 0, '十 ' + page.label + (problems.length ? ' —— 缺 ' + problems.join('；') : ''))
+  })
+  // 四组横向接线：它们不属于某一页，但管理页与侧页能被操作全靠这四处。
+  const crossWiring: any[] = [
+    {
+      label: '三时机刷新（进入、任务完成后、手动）与片级重试都还在容器这一层',
+      need: [
+        ['tab', "refresh('enter')"],
+        ['tab', "refresh('task-done')"],
+        ['shell', "'manual'"],
+        ['shell', 'data-vc-slice-retry'],
+        ['shell', 'data-vc-refresh'],
+      ],
+    },
+    {
+      label: '命令面板的开合、搜索与落点高亮由根节点事件委托接',
+      need: [
+        ['delegate', 'palette-input'],
+        ['delegate', 'palette-row'],
+        ['shell', 'vcRealSelectCapOf'],
+        ['shell', 'vcPaletteTargetOf'],
+      ],
+    },
+    {
+      label: '分支浮层五个动作项与能力行都能点：点了跳到对应页面并高亮，不自动执行',
+      need: [
+        ['delegate', 'data-vc-branch-action'],
+        ['delegate', 'capRow'],
+        ['shell', 'branchOverlay'],
+        ['act1', 'branchOverlay'],
+      ],
+    },
+    {
+      label: '任务区轮询、取消与任务完成后的重读接线还在',
+      need: [
+        ['tab', 'onCancel: function (taskId'],
+        ['act3', 'vcTaskQuery'],
+        ['act3', 'vcTaskCancel'],
+        ['pages', 'vcTaskPanelNode'],
+      ],
+    },
+  ]
+  crossWiring.forEach(function (cross: any) {
+    const problems = missingNeedlesOf(m2Sources, cross.need)
+    check(problems.length === 0, '十 ' + cross.label + (problems.length ? ' —— 缺 ' + problems.join('；') : ''))
+  })
+  // 反证（test-the-test）：把接线的两头各剪断一处，上面同一套判据必须当场判红。
+  const brokenReadsSrc = Object.assign({}, m2Sources, {
+    reads: String(m2Sources.reads).replace("'branch-tags': readBranch", "'branch-tags': readRemote"),
+  })
+  check(missingNeedlesOf(brokenReadsSrc, pageWiring[0].need).length > 0, '十 反证：把分支与标签页的进入读数换成远端列表 → 该页接线判据当场判红')
+  const brokenTabSrc = Object.assign({}, m2Sources, {
+    tab: String(m2Sources.tab).replace('conflicts: conflictsModel', 'conflicts: null'),
+  })
+  check(missingNeedlesOf(brokenTabSrc, pageWiring[9].need).length > 0, '十 反证：把冲突页的模型改成 null → 该页接线判据当场判红')
 
   console.log('\n' + (failed ? '存在失败' : '全部通过') + ' — 版本管理页覆盖验收门禁（' + total + ' 项断言）')
   printGateResult(GATE, total, failedCount)

@@ -59,7 +59,7 @@ const vcRewriteFormTabsNode = function (h: any, t: any, o: any): any {
     kids.push(h('button', {
       key: id, type: 'button', className: 'dsws-btn dsws-hov' + (current ? ' is-primary' : ''),
       'data-vc-rewrite-form': id, 'data-vc-rewrite-form-current': current ? '1' : '0',
-      'data-press': 'button', 'data-log': 'vc.rewrite.form', onclick: function () { o.onPick(id) },
+      'data-press': 'button', 'data-log': 'vc.rewrite.form', onClick: function () { o.onPick(id) },
     }, vcRewritePageTextOf(t, rewriteFormLabelKeyOf(id), null)))
   }
   return h('div', { className: 'vcs-rewrite-forms', 'data-vc-rewrite-forms': String(VC_REWRITE_FORM_IDS.length) }, kids)
@@ -74,11 +74,11 @@ const vcRewriteFieldNode = function (h: any, t: any, o: any): any {
   const input = isText
     ? h('textarea', {
       key: 'input', rows: 6, className: 'vcs-rewrite-input', 'data-vc-rewrite-field': field, 'data-vc-rewrite-input': field,
-      value: value, oninput: function (e: any) { o.onInput(field, e && e.target ? e.target.value : '') },
+      value: value, onInput: function (e: any) { o.onInput(field, e && e.target ? e.target.value : '') },
     })
     : h('input', {
       key: 'input', type: 'text', className: 'vcs-rewrite-input', 'data-vc-rewrite-field': field, 'data-vc-rewrite-input': field,
-      value: value, oninput: function (e: any) { o.onInput(field, e && e.target ? e.target.value : '') },
+      value: value, onInput: function (e: any) { o.onInput(field, e && e.target ? e.target.value : '') },
     })
   return h('label', { key: 'field', className: 'vcs-rewrite-field' }, [
     h('span', { key: 'label', className: 'vcs-rewrite-label' }, vcRewritePageTextOf(t, vcRewriteFieldLabelKeyOf(field), null)),
@@ -145,8 +145,8 @@ const vcRewriteConfirmNode = function (h: any, t: any, o: any): any {
     ]))
   }
   kids.push(h('div', { key: 'actions', className: 'vcs-rewrite-confirm-actions' }, [
-    h('button', { key: 'cancel', type: 'button', className: 'dsws-btn dsws-hov', 'data-vc-rewrite-confirm-cancel': '1', 'data-press': 'button', 'data-log': 'vc.rewrite.confirm.cancel', 'data-focus-default': 'cancel', onclick: o.onCancel }, vcRewritePageTextOf(t, 'vc.rewrite.confirm.cancel', null)),
-    h(Tip, { key: 'go-tip', content: vcRewritePageTextOf(t, 'vc.rewrite.confirm.goTip', null) }, h('button', { key: 'go', type: 'button', className: 'dsws-btn dsws-hov is-danger', 'data-vc-rewrite-confirm-go': '1', 'data-press': 'button', 'data-log': 'vc.rewrite.confirm.go', onclick: o.onConfirm }, vcRewritePageTextOf(t, 'vc.rewrite.confirm.go', null))),
+    h('button', { key: 'cancel', type: 'button', className: 'dsws-btn dsws-hov', 'data-vc-rewrite-confirm-cancel': '1', 'data-press': 'button', 'data-log': 'vc.rewrite.confirm.cancel', 'data-focus-default': 'cancel', onClick: o.onCancel }, vcRewritePageTextOf(t, 'vc.rewrite.confirm.cancel', null)),
+    h(Tip, { key: 'go-tip', content: vcRewritePageTextOf(t, 'vc.rewrite.confirm.goTip', null) }, h('button', { key: 'go', type: 'button', className: 'dsws-btn dsws-hov is-danger', 'data-vc-rewrite-confirm-go': '1', 'data-press': 'button', 'data-log': 'vc.rewrite.confirm.go', onClick: o.onConfirm }, vcRewritePageTextOf(t, 'vc.rewrite.confirm.go', null))),
   ]))
   return h('div', { className: 'vcs-rewrite-confirm', 'data-vc-rewrite-confirm': '1' }, kids)
 }
@@ -164,7 +164,7 @@ const vcRewriteTaskNode = function (h: any, t: any, o: any): any {
   ]
   if (p.phase) kids.push(h('p', { key: 'phase', className: 'vcs-rewrite-task-phase', 'data-vc-rewrite-task-phase': p.phase }, vcRewritePageTextOf(t, 'vc.rewrite.task.phase', { phase: p.phase })))
   if (!vcRewriteTaskEndedOf(task)) {
-    kids.push(h('button', { key: 'cancel', type: 'button', className: 'dsws-btn dsws-hov', 'data-vc-rewrite-task-cancel': '1', 'data-press': 'button', 'data-log': 'vc.rewrite.task.cancel', onclick: o.onCancel }, vcRewritePageTextOf(t, 'vc.rewrite.task.cancel', null)))
+    kids.push(h('button', { key: 'cancel', type: 'button', className: 'dsws-btn dsws-hov', 'data-vc-rewrite-task-cancel': '1', 'data-press': 'button', 'data-log': 'vc.rewrite.task.cancel', onClick: o.onCancel }, vcRewritePageTextOf(t, 'vc.rewrite.task.cancel', null)))
   } else {
     kids.push(h('p', { key: 'done', className: 'vcs-rewrite-task-conclusion', 'data-vc-rewrite-task-conclusion': String(task.conclusion || '') }, vcRewritePageTextOf(t, 'vc.rewrite.conclusion.' + String(task.conclusion || 'failed'), null)))
     if (task.residual) kids.push(h('p', { key: 'residual', className: 'vcs-rewrite-task-residual', 'data-vc-rewrite-task-residual': '1' }, vcRewritePageTextOf(t, 'vc.rewrite.task.residual', { residual: String(task.residual) })))
@@ -192,7 +192,7 @@ const vcRewriteResultNode = function (h: any, t: any, o: any): any {
     }
   } else {
     kids.push(h('p', { key: 'fail', className: 'vcs-rewrite-fail', 'data-vc-rewrite-fail': vcRewriteReasonOf(result) }, vcRewriteFailTextOf(t, result)))
-    kids.push(h('button', { key: 'retry', type: 'button', className: 'dsws-btn dsws-hov', 'data-vc-rewrite-retry': '1', 'data-press': 'button', 'data-log': 'vc.rewrite.retry', onclick: o.onRetry }, vcRewritePageTextOf(t, 'vc.rewrite.result.retry', null)))
+    kids.push(h('button', { key: 'retry', type: 'button', className: 'dsws-btn dsws-hov', 'data-vc-rewrite-retry': '1', 'data-press': 'button', 'data-log': 'vc.rewrite.retry', onClick: o.onRetry }, vcRewritePageTextOf(t, 'vc.rewrite.result.retry', null)))
   }
   return h('div', { className: 'vcs-rewrite-result', 'data-vc-rewrite-result': ok ? '1' : '0' }, kids)
 }
@@ -293,12 +293,12 @@ export const vcRewritePageNode = function (props: any): any {
   children.push(Object.assign({}, vcRewriteFieldNode(h, t, { form: String(values.form || ''), values: values, onInput: onChange }), { key: 'field' }))
   children.push(h('button', {
     key: 'preview', type: 'button', className: 'dsws-btn dsws-hov', 'data-vc-rewrite-preview': '1',
-    'data-press': 'button', 'data-log': 'vc.rewrite.preview', disabled: !plan, onclick: onPreview,
+    'data-press': 'button', 'data-log': 'vc.rewrite.preview', disabled: !plan, onClick: onPreview,
   }, vcRewritePageTextOf(t, 'vc.rewrite.preview', null)))
   const previewNode = vcRewritePreviewNode(h, t, { preview: preview })
   if (previewNode) children.push(Object.assign({}, previewNode, { key: 'previewed' }))
   if (error) children.push(h('p', { key: 'error', className: 'vcs-rewrite-error', 'data-vc-rewrite-error': '1' }, error))
-  if (preview) children.push(h('button', { key: 'begin', type: 'button', className: 'dsws-btn dsws-hov is-danger', 'data-vc-rewrite-begin': '1', 'data-press': 'button', 'data-log': 'vc.rewrite.begin', onclick: onBegin }, vcRewritePageTextOf(t, 'vc.rewrite.begin', null)))
+  if (preview) children.push(h('button', { key: 'begin', type: 'button', className: 'dsws-btn dsws-hov is-danger', 'data-vc-rewrite-begin': '1', 'data-press': 'button', 'data-log': 'vc.rewrite.begin', onClick: onBegin }, vcRewritePageTextOf(t, 'vc.rewrite.begin', null)))
   const verdictNode = vcRewriteVerdictNode(h, t, check)
   if (verdictNode) children.push(Object.assign({}, verdictNode, { key: 'verdict' }))
   const confirmNode = vcRewriteConfirmNode(h, t, { check: check, onConfirm: onConfirm, onCancel: function () { setCheck(null) } })
