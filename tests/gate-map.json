@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-01T09:07:32.569Z",
+  "generatedAt": "2026-11-01T10:45:37.424Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 524,
-  "gateCount": 524,
-  "attributedGates": 462,
+  "chainLength": 525,
+  "gateCount": 525,
+  "attributedGates": 463,
   "unattributedGates": 62,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 84,
@@ -5722,6 +5722,23 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1792-card-action-gate.ts",
+      "file": "tests/verify-1792-card-action-gate.ts",
+      "guards": [
+        "src/client/kernel/detail-top-gate.ts",
+        "src/client/views"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -12770,6 +12787,7 @@
       "node tests/verify-1668-detail-top-gate-wire.ts",
       "node tests/verify-1668-detail-top-gate.ts",
       "node tests/verify-1676-blocked-ref-unknown.ts",
+      "node tests/verify-1792-card-action-gate.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -12919,6 +12937,7 @@
       "node tests/verify-1664-md-eff-filter.ts",
       "node tests/verify-1668-detail-top-gate-wire.ts",
       "node tests/verify-1783-comments-projection.ts",
+      "node tests/verify-1792-card-action-gate.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",

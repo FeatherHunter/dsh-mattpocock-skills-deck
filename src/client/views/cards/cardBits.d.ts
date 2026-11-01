@@ -14,6 +14,10 @@ export interface CornerMarkProps { kind?: string; }
 export interface CardHeadProps { no?: any; sign?: string | null; closed?: boolean; }
 export interface CardBtnsProps {
   mainLabel?: string; icon?: string; mainColor?: string;
+  /** 主按钮与新会话是否置灰（#1792）；复制与打开不受影响。 */
+  disabled?: boolean;
+  /** 置灰时的悬停说明；不传时没有提示。 */
+  disabledTip?: string;
   onMain?: (() => void) | null; onNew?: (() => void) | null;
   onCopy?: (() => void) | null; onOpen?: (() => void) | null;
 }

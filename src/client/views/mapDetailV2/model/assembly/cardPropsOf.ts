@@ -45,6 +45,12 @@ export function cardPropsOf(
     updatedText: facts.updatedText,
     footActionText: facts.footText,
     closed: facts.status === 'closed',
+    actionGate: {
+      disabled: !facts.actionGate.clickable,
+      tip: facts.actionTip || '',
+      reason: facts.actionGate.reason,
+      blockedNumbers: facts.actionGate.blockedNumbers,
+    },
     claimedBy: facts.claimedBy || null,
     bugCorner: facts.bug,
     pickCorner: facts.pickCorner,

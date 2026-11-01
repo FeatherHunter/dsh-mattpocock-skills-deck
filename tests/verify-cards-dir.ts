@@ -18,7 +18,8 @@
  * 怎么把它跑起来（与闭包里的跑法一致）：
  *   把 16 份真源按拼接次序（= scripts/build.mts 的 LEAF_MODULES 登记次序）拼成一段函数体、
  *   去掉行首 export，用 tests/lib/eval-probe.js 的 compileFn 造函数。这些组件在闭包里的自由变量
- *   只有三个：React、DswsCtx、tr。React 与 DswsCtx 用真的；tr 用 src/client/kernel/locale-cards.ts
+ *   有四个：React、DswsCtx、tr、Tip（#1792 起按钮行用 Tip 给置灰按钮挂悬停说明）。
+ *   React 与 DswsCtx 用真的；tr 用 src/client/kernel/locale-cards.ts
  *   那份真字典 + src/client/index.ts 里「locale 服务缺失」时的同一套退化实现（读 zh 字典、替换 {n}），
  *   所以按钮上、封条上的字是真的词条，不是替身。然后用 jsdom + 真 React 挂载，量渲染出来的 DOM
  *   与浏览器算出来的计算样式。
@@ -109,11 +110,21 @@ function readTs (name: string): string { return fs.readFileSync(path.join(CARDS,
 /** 去掉行首 export：闭包拼接就是这么拼的（build.mts 拼叶子前也只剥这个）。 */
 function stripExports (text: string): string { return text.replace(/^export\s+/gm, '') }
 
-/** 把 16 份真源拼成一段函数体，自由变量只有 React / DswsCtx / tr 三个。 */
-function loadCardsLeaves (React_: unknown, DswsCtx_: unknown, tr_: unknown): Record<string, unknown> {
+/**
+ * Tip 的测试替身：真 Tip 会克隆触发元素、补 aria-label 并挂 portal。
+ * 这里只做同一件可观察的事（补 aria-label），不挂 portal，免得门禁依赖浮层定位。
+ */
+const TipStub = function (props: any): any {
+  const p = props || {}
+  if (p.content !== undefined && p.children) return React.cloneElement(p.children, { 'aria-label': String(p.content) })
+  return p.children
+}
+
+/** 把 16 份真源拼成一段函数体，自由变量是 React / DswsCtx / tr / Tip 四个。 */
+function loadCardsLeaves (React_: unknown, DswsCtx_: unknown, tr_: unknown, Tip_: unknown): Record<string, unknown> {
   const body = LEAF_ORDER.map((name) => stripExports(readJs(name))).join('\n')
-  const factory = compileFn(['React', 'DswsCtx', 'tr'], body + '\nreturn { ' + LEAF_EXPORTS.join(', ') + ' };')
-  return factory(React_, DswsCtx_, tr_)
+  const factory = compileFn(['React', 'DswsCtx', 'tr', 'Tip'], body + '\nreturn { ' + LEAF_EXPORTS.join(', ') + ' };')
+  return factory(React_, DswsCtx_, tr_, Tip_)
 }
 
 /** 真字典 + src/client/index.ts 里 locale 服务缺失时的同一套退化实现（zh 字典 + {n} 参数替换）。 */
@@ -415,7 +426,7 @@ check(tr('card.newSession') === '新会话' && tr('card.updated', { n: '刚刚' 
 // #1236：卡片样式叶子里的动效时长读 kernel/motion.ts 的 MOTION；compileFn 的自由变量落回 globalThis。
 globalThis.MOTION = require('../src/client/kernel/motion.ts').MOTION
 let M = null
-try { M = loadCardsLeaves(React, DswsCtx, tr) } catch (e) { check(false, '装载 cards 产物：' + ((e && e.message) || e)) }
+try { M = loadCardsLeaves(React, DswsCtx, tr, TipStub) } catch (e) { check(false, '装载 cards 产物：' + ((e && e.message) || e)) }
 {
   const missing = M ? LEAF_EXPORTS.filter((n) => M[n] === undefined) : LEAF_EXPORTS
   check(M && missing.length === 0,

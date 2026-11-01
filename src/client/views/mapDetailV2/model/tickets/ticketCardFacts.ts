@@ -13,6 +13,7 @@
  * 复杂度：建索引一趟 O(票数 × 每张票的阻塞者数)；之后每张票 O(1)~O(标签数) 查表。
  */
 import type {
+  CardActionGate,
   CardActionKey,
   CardTicketRef,
   MapTicketRow,
@@ -22,6 +23,13 @@ import type {
   TicketFactsContext,
   TicketFactsEnv,
 } from '../contracts/mapDetailTypes'
+
+/**
+ * 动作门的判据只有一份：kernel:detail-top-gate 在客户端闭包里排在卡片叶子之前
+ * （src/client/index.ts 的 kernel:detailTopGate 标记）。叶子只能 import type，运行时按名字取；
+ * 这里直接调它，不抄第二套判据。单独 require 本模块的门禁要把同一个函数挂到 globalThis。
+ */
+declare function detailTopGate(...args: any[]): any
 
 /**
  * 生产侧九种行级动作 → 卡片九种样张键。
@@ -135,6 +143,26 @@ function claimedPersonOf(row: MapTicketRow): string {
   return ''
 }
 
+/**
+ * 这一行是不是已结案。
+ *
+ * 宿主正常只给 OPEN / CLOSED；GitHub 的合并行可能写成 MERGED，也可能 state 仍写着 OPEN、
+ * 另带一个 mergedAt（#1792）。两种形状都按已结案处理，与 detailTopGate 的 prStateKind 同口径，
+ * 否则卡片会画成未结案、动作按钮还能点。
+ */
+function rowClosedOf(row: MapTicketRow): boolean {
+  const state = text(row && row.state).trim().toUpperCase()
+  if (state === CLOSED_STATE || state === 'MERGED') return true
+  const mergedAt = row && (row as any).mergedAt
+  return !!(mergedAt && text(mergedAt).trim())
+}
+
+/** 行自己的状态：动作门只认精确的 OPEN / CLOSED（含合并行），其它写法记 unknown（不猜）。 */
+function rowStateOf(row: MapTicketRow): 'open' | 'closed' | 'unknown' {
+  if (rowClosedOf(row)) return 'closed'
+  return text(row && row.state).trim().toUpperCase() === 'OPEN' ? 'open' : 'unknown'
+}
+
 /** 阻塞者编号列表：数字与字符串都读，统一成规范键（'01' 与 '1' 是同一张票）。 */
 function blockerNumbersOf(row: MapTicketRow): string[] {
   const out: string[] = []
@@ -183,7 +211,7 @@ export function ticketCardStatusOf(
   openByNumber: Record<string, boolean>,
   blockerStates?: Record<string, 'open' | 'closed'> | null,
 ): TicketCardStatus {
-  if (text(row && row.state).toUpperCase() === CLOSED_STATE) return 'closed'
+  if (rowClosedOf(row)) return 'closed'
   if (claimedPersonOf(row)) return 'doing'
   for (const blockerNo of blockerNumbersOf(row)) {
     if (blockerBlocksPage(blockerNo, openByNumber, blockerStates)) return 'blocked'
@@ -271,6 +299,7 @@ export function rowCardIdOf(prefix: string | null | undefined, numberKey: string
 export function ticketFactsContextOf(rows: MapTicketRow[], env: TicketFactsEnv): TicketFactsContext {
   const openByNumber: Record<string, boolean> = {}
   const blockerStates: Record<string, 'open' | 'closed'> = {}
+  const rowStates: Record<string, 'open' | 'closed' | 'unknown'> = {}
   const titleByNumber: Record<string, string> = {}
   const cardIdByNumber: Record<string, string | null> = {}
   const firstBlockedByBlocker: Record<string, string> = {}
@@ -279,7 +308,8 @@ export function ticketFactsContextOf(rows: MapTicketRow[], env: TicketFactsEnv):
     const number = ticketNumberOf(row)
     if (number === null) continue
     const key = String(number)
-    openByNumber[key] = text(row.state).toUpperCase() !== CLOSED_STATE
+    openByNumber[key] = !rowClosedOf(row)
+    rowStates[key] = rowStateOf(row)
     titleByNumber[key] = text(row.title)
     // 同号只认先出现的那张：阻塞关系按编号找，撞号时没有更好的答案；这样每次跑到的 id 也一样。
     if (cardIdByNumber[key] === undefined) {
@@ -327,6 +357,7 @@ export function ticketFactsContextOf(rows: MapTicketRow[], env: TicketFactsEnv):
     textOf: env.textOf,
     openByNumber,
     blockerStates,
+    rowStates,
     titleByNumber,
     cardIdByNumber,
     firstBlockedByBlocker,
@@ -349,6 +380,61 @@ function primaryBlockerNumberOf(
     if (!best || parseInt(blockerNo, 10) < parseInt(best, 10)) best = blockerNo
   }
   return best
+}
+
+/** 本图行状态旁表里有没有这个编号（用 hasOwnProperty，避免原型链上的键混进来）。 */
+function hasOwnNumber(table: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(table, key)
+}
+
+/**
+ * 把一张票的阻塞者整理成 detailTopGate 认的节点：编号只留可用的正整数，状态只留明确读到的。
+ *
+ * 本图内的行以它自己的状态为准（OPEN / CLOSED / 其它）；图外看引用态旁表（blockerStates）。
+ * 状态未知一律留空，交给 detailTopGate 按「未知不置灰」处理——卡片状态那一侧为了安全会把
+ * 未知阻塞者算成「被挡」，但动作按钮不能跟着灰掉：未知只说明这一趟没读到，不代表那张票真没做完。
+ */
+function actionBlockerNodesOf(row: MapTicketRow, ctx: TicketFactsContext): any[] {
+  const out: any[] = []
+  for (const blockerNo of blockerNumbersOf(row)) {
+    const number = parseInt(blockerNo, 10)
+    if (!Number.isInteger(number) || number <= 0) continue
+    let state = ''
+    if (hasOwnNumber(ctx.rowStates, blockerNo)) {
+      const own = ctx.rowStates[blockerNo]
+      state = own === 'open' ? 'OPEN' : own === 'closed' ? 'CLOSED' : ''
+    } else if (ctx.blockerStates[blockerNo] === 'open') state = 'OPEN'
+    else if (ctx.blockerStates[blockerNo] === 'closed') state = 'CLOSED'
+    out.push({ number: number, state: state })
+  }
+  return out
+}
+
+/**
+ * 一张票的动作门：整行交给 detailTopGate 判（已结案/已合并、被明确未完成票阻塞都在它里面）。
+ * 这里只把阻塞者整理成它认的节点，不另写一套「什么时候置灰」的判据。
+ *
+ * 为什么不在 status === 'blocked' 时才算：卡片状态把「图外读不到、票号认不出」也按被挡收口
+ * （安全侧，宁可多算挡着），那些票的动作按钮必须保持可点；只有「明确读到还没完成」的阻塞者
+ * 才置灰。反过来，在办卡即使画成「在办」，只要阻塞者明确开着，也与详情页顶栏同一口径地置灰。
+ */
+function actionGateOf(row: MapTicketRow, ctx: TicketFactsContext): CardActionGate {
+  // 判据函数缺席时宁可保持可点：那是接线出了问题，不该顺手把整页按钮锁死（与 detailTopGate 的兜底一致）。
+  if (typeof detailTopGate !== 'function') return { clickable: true, reason: 'none', blockedNumbers: [] }
+  // 把真实行交给 detailTopGate，让它的 state / mergedAt 分支自己判已结案（含合并）；
+  // 这里只负责把阻塞者整理成它认的节点。不要在调用方先短路 closed，否则等于另写一套判据。
+  const gate = detailTopGate(row, actionBlockerNodesOf(row, ctx))
+  return gate as CardActionGate
+}
+
+/** 动作不可点时的悬停说明：关闭 / 被阻塞各一条词条；可点时为空串。 */
+function actionTipOf(gate: CardActionGate, ctx: TicketFactsContext): string {
+  if (gate.reason === 'closed') return ctx.textOf('tip.detailClosedReadonly')
+  if (gate.reason === 'blocked') {
+    const ids = gate.blockedNumbers.map(function (n: number) { return '#' + n }).join(ctx.textOf('tip.detailBlockedByJoin'))
+    return ctx.textOf('tip.detailBlockedBy', { n: ids })
+  }
+  return ''
 }
 
 /** 把编号变成卡片上的指向：编号、标题、对方卡片元素 id（用来点亮对方那张）。 */
@@ -378,6 +464,8 @@ export function ticketCardFactsOf(row: MapTicketRow, ctx: TicketFactsContext): T
   const status = ticketCardStatusOf(row, ctx.openByNumber, ctx.blockerStates)
   const closed = status === 'closed'
   const action = cardActionOf(ctx.actionOf(row))
+  const actionGate = actionGateOf(row, ctx)
+  const actionTip = actionTipOf(actionGate, ctx)
 
   let blockedBy: CardTicketRef | null = null
   if (status === 'blocked') {
@@ -408,6 +496,8 @@ export function ticketCardFactsOf(row: MapTicketRow, ctx: TicketFactsContext): T
     updatedText: updatedTextOf(row),
     closedAt: text(row.closedAt),
     footText: ctx.textOf(CARD_STATUS_COPY_KEY[status]),
+    actionGate,
+    actionTip,
     pickCorner,
     cardId: rowCardIdOf(ctx.cardIdPrefix, numberKey, rowKey),
     blockedBy,

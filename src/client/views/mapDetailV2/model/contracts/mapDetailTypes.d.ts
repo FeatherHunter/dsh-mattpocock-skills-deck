@@ -19,8 +19,10 @@ export interface MapTicketRow {
   /** 票号。宿主算好分层用的是数字编号；解析不出时按 key 兜底。 */
   number?: number | null
   title?: string | null
-  /** 宿主保证是 'OPEN' / 'CLOSED'（大写）；其它取值一律按「不是已关闭」处理。 */
+  /** 宿主正常给 'OPEN' / 'CLOSED'（大写）；合并行可能给 'MERGED'，也按已结案处理。 */
   state?: string | null
+  /** GitHub 的合并时间；有值的行同样按已结案处理（state 可能仍写着 OPEN）。 */
+  mergedAt?: string | null
   /** 标签两种形状都可能在：名字字符串，或 {name,color} 对象。颜色优先取标签自己带的。 */
   labels?: Array<string | { name?: string | null; color?: string | null }> | null
   /** 阻塞者编号；数字与字符串两种后端形状都收。 */
@@ -90,6 +92,19 @@ export interface CardTicketRef {
 }
 
 /**
+ * 一张卡上「主按钮 / 新会话」能不能点的判据结果（#1792）。
+ *
+ * 与详情页顶栏的 DetailTopGate（src/client/kernel/detail-top-gate.ts）同一套语义：
+ * 票已关闭（含已合并）→ closed；票没关、但有明确读到「还没完成」的阻塞票 → blocked；
+ * 其余（含阻塞状态未知、票号认不出）→ none，保持可点。复制与打开不经过这里。
+ */
+export interface CardActionGate {
+  readonly clickable: boolean
+  readonly reason: 'closed' | 'blocked' | 'none'
+  readonly blockedNumbers: number[]
+}
+
+/**
  * 一张 ISSUE 卡片要画的东西。
  *
  * 不能原样摊进 views/cards 的 IssueCardProps：页面适配层还要做三处改名——bug 要给
@@ -122,6 +137,10 @@ export interface TicketCardFacts {
   closedAt: string
   /** 页脚右侧的状态词（可接 / 在办 / 被挡 / 已结案），由 textOf 取。 */
   footText: string
+  /** 主按钮与新会话能不能点（#1792）；复制与打开不受影响。 */
+  actionGate: CardActionGate
+  /** 动作不可点时的悬停说明；可点时是空串。 */
+  actionTip: string
   /** 左下角状态角标：可接 / 在办 / 无。 */
   pickCorner: 'ready' | 'doing' | null
   /** 本卡的 DOM id；同屏唯一（前缀由调用方按工作单元与地图编号给）。 */
@@ -149,7 +168,7 @@ export interface TicketFactsEnv {
   /** 这张票的生产侧动作。真页传 rowActionKind，门禁传桩，保证只有一处判定。 */
   actionOf: (row: MapTicketRow) => SourceActionKind
   /** 词条取字。真页传 tr，门禁传「只回键名」的桩，于是门禁断言的是键而不是中文。 */
-  textOf: (key: string) => string
+  textOf: (key: string, params?: Record<string, string | number>) => string
 }
 
 /** 全图索引：判状态、取阻塞者标题、算卡片 id 都从这里查，不每张票各扫一遍全表。 */
@@ -162,6 +181,11 @@ export interface TicketFactsContext extends TicketFactsEnv {
    * 查不到就是未知，未知按挡着收口（与宿主两份 groupTickets、deck 安全侧同侧）。
    */
   blockerStates: Record<string, 'open' | 'closed'>
+  /**
+   * 编号（规范键）→ 本图那张行自己写着的状态（#1792）：只认精确的 OPEN / CLOSED，
+   * 其它写法记 unknown。动作门只把明确 open 的行算作「还没完成」的阻塞者。
+   */
+  rowStates: Record<string, 'open' | 'closed' | 'unknown'>
   titleByNumber: Record<string, string>
   cardIdByNumber: Record<string, string | null>
   /** 阻塞者编号 → 它作为主阻塞者挡住的第一张（编号最小、且确实处于被挡状态）票的编号。 */

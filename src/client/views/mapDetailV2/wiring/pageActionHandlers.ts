@@ -78,6 +78,14 @@ function sourceRowOf(facts: TicketCardFacts, index: RowIndex): MapTicketRow | nu
   return null
 }
 
+/**
+ * 主按钮与新会话执行前再拦一次（#1792）：卡片已经把置灰态画出来了，但点击事件在极端情况下
+ * （键盘、脚本触发、旧 DOM 残留）仍可能到达回调，这里按同一份判据兜底。复制与打开不经过这里。
+ */
+function actionAllowed(facts: TicketCardFacts): boolean {
+  return !facts || !facts.actionGate || facts.actionGate.clickable !== false
+}
+
 /** 这条票在本机的链接或网页地址；取不到时返回空串。 */
 function urlOf(st: any, facts: TicketCardFacts, row: MapTicketRow | null): string {
   try {
@@ -99,12 +107,14 @@ export function pageActionHandlersOf(st: any, rows: MapTicketRow[]): TicketCardH
   return {
     /** 主按钮：把这张票的推进提示词注入输入框（注入内容与列表行的同一颗按钮同源：rowActionText）。 */
     onMain: function (facts: TicketCardFacts): void {
+      if (!actionAllowed(facts)) return
       const row = sourceRowOf(facts, index)
       if (!row) return
       try { inject(st, rowActionText(st, row)) } catch (e) {}
     },
     /** 新会话：在新会话里推进这张票（与列表行、老地图的行内按钮同一个入口）。 */
     onNew: function (facts: TicketCardFacts): void {
+      if (!actionAllowed(facts)) return
       const row = sourceRowOf(facts, index)
       if (!row) return
       try { openInNewSession(st, row) } catch (e) {}

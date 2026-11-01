@@ -21,6 +21,10 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
   const st = CARD_ACTION_STYLE[p.action || "execute"] || CARD_ACTION_STYLE.execute;
   const mainColor = cardColorOf(st.colorKey, p.colorOf || null);
   const blocked = !!(p.blockedBy && p.blockedBy.no);
+  // #1792：动作门只作用在主按钮与新会话；置灰时把原因文案一并交给按钮行（复制与打开不经过它）。
+  const gate = p.actionGate || null;
+  const actionDisabled = !!(gate && gate.disabled);
+  const actionTip = actionDisabled && gate && gate.tip ? gate.tip : undefined;
   // 整卡点按只有页面明确给了 onCard 才接：卡片在别处（例如原型演示）仍可以只做「点一下点亮挡路关系」，
   // 不会因为组件升级就悄悄多出一个跳转。
   const onCard: (() => void) | null = typeof p.onCard === 'function' ? p.onCard : null;
@@ -65,7 +69,7 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
   kids.push(h(PixelCardTags, { key: 'tg', tags: p.tags || [] }));
   if (p.note) kids.push(h(PixelCardNote, { key: 'nt', text: p.note }));
   // 按钮组把自己的定位名前缀传下去：同一屏里多张票卡各带各的前缀，组里四颗按钮才认得出自己属于哪张卡。
-  kids.push(h(PixelCardBtns, { key: 'ab', logKey: logKey, mainLabel: tr('card.act.' + (p.action || 'execute')), icon: st.icon, mainColor, onMain: p.onMain || null, onNew: p.onNew || null, onCopy: p.onCopy || null, onOpen: p.onOpen || null }));
+  kids.push(h(PixelCardBtns, { key: 'ab', logKey: logKey, mainLabel: tr('card.act.' + (p.action || 'execute')), icon: st.icon, mainColor, disabled: actionDisabled, disabledTip: actionTip, onMain: p.onMain || null, onNew: p.onNew || null, onCopy: p.onCopy || null, onOpen: p.onOpen || null }));
   if (p.blocksChip) kids.push(h(PixelBlockerChip, { key: 'chip', no: p.blocksChip.no, title: p.blocksChip.title }));
   kids.push(h(PixelCardFoot, { key: 'ft', left: tr('card.updated', { n: p.updatedText || '' }), right: p.footActionText || '' }));
   // 封条画出挡路票标题时（#1401），居中提示字会被两行封条压住；这时暗层只压暗、不写字。

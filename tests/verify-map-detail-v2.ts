@@ -80,6 +80,12 @@ const feed = require('../src/client/views/mapDetailV2/model/tickets/ticketFeed.t
 const profile = require('../src/client/views/mapDetailV2/model/container/mapProfile.ts')
 const cardProps = require('../src/client/views/mapDetailV2/model/assembly/cardPropsOf.ts')
 
+// #1792：卡片动作门复用 kernel:detail-top-gate 的判据；单独 require 模型时把它挂到 globalThis，
+// 让门禁验的与客户端闭包里拼进去的是同一个函数。detailTopGate 依赖 stateKind 的 prStateKind，
+// 也一并挂上，否则已结案/已合并的行会被当成开着。
+globalThis.prStateKind = require('../src/client/views/shared/stateKind.ts').prStateKind
+globalThis.detailTopGate = require('../src/client/kernel/detail-top-gate.ts').detailTopGate
+
 // 最后一份是「把上面几个按次序串起来」的组合函数。它将来要当界面闭包里的叶子拼进 client.js，
 // 所以只能 import 类型、靠作用域里的名字调那六个函数（见该文件开头的说明）。门禁按同一种方式求值：
 // 读真源文本 → 按构建同一口径转译 → 把六个函数当参数注入，得到与闭包里一字不差的那份代码。
