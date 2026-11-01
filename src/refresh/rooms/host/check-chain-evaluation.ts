@@ -448,8 +448,8 @@ export function createDetectChain(deps: DetectChainDeps) {
         // #1187：GitLab 后端的两行。目录项要的键是 glab:authed → preflight:glabAuth、glab:repoAccess →
         //   backend:gitlab:repoAccess；从前全仓一条都没注册，注册表便把这两行如实回成
         //   「predicate not registered: …」的 pending —— 界面看到的是一句英文内部串，永远查不出结论。
-        // 判定与话术在 chain-env-map.ts 的 glabAuthVerdict / glabRepoAccessVerdict（那边写清了为什么不能
-        //   拿 glabPreflight 的 auth 档直接判未登录：房间把起进程失败与网络超时也归在 auth 档）。
+        // 判定与话术在 chain-env-map.ts 的 glabAuthVerdict / glabRepoAccessVerdict（#1793：房间预检已按
+        //   原文把「真没登录」与「问不出去（网络 / 环境）」分开，那边只按档位分派，不再看原文猜第二遍）。
         try { registry.register('preflight:glabAuth', async function (check, pctx: PredicateCtx) {
           try {
             const zh = (pctx && pctx.lang) !== 'en'

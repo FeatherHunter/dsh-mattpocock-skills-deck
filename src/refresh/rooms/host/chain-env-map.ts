@@ -215,19 +215,6 @@ export function ghAuthVerdict(pr: ChainEnvProbeReply, zh: boolean): ChainPredica
 
 // ── GitLab 的两行（#1187）：与上面两个谓词同构，只换后端与话术 ───────────────────────────
 /**
- * 判断一段错误原文像不像网络或环境故障（而不是「凭据确实失效」）。
- *
- * 为什么 GitLab 这一路要自己看原文：房间预检的第二关（glab api user）按「这一步问的是登录了没有」
- * 把一切失败都归 auth 档（src/tracker/rooms/gitlab/preflight.ts 文件头写了这条约定），起进程失败
- * 与本地超时也在其中。直接拿 auth 档判 fail，就会把一次网络不通说成人没登录。这里只排除两种
- * 确定不是「凭据失效」的原文：网络类与「命令找不到」类；其余仍按 auth 判 fail。
- */
-function looksLikeTransportFailure(message?: string): boolean {
-  const text = String(message || '')
-  return /network|timeout|timed out|econnrefused|econnreset|etimedout|enotfound|dns|proxy|socket|tls|connection|command not found|is not recognized|enoent|service unavailable|502|503|504/i.test(text)
-}
-
-/**
  * 「GitLab 仓库可达」这一项的判定（第三关）。
  *
  * 与 GitHub 那行同一套口径：只有「确定仓库不存在或无权限」（kind=not-found）才判 fail；
@@ -253,8 +240,9 @@ export function glabRepoAccessVerdict(pr: ChainEnvProbeReply, zh: boolean): Chai
  * 「glab 已登录」这一项的判定（前两关）。
  *
  * 与 GitHub 那行同一套口径：只有明确「未登录」（kind=auth）才判 fail 并展示登录指引，
- * 网络抖动归 pending（诚实未知）。区别在于 GitLab 房间把起进程失败也归在 auth 档，
- * 所以这里要用 looksLikeTransportFailure 把网络类与「命令找不到」类原文退回 pending。
+ * 网络抖动归 pending（诚实未知）。区别在于档位由 GitLab 房间预检按原文判出来（#1793：真没登录
+ * 才是 auth，EOF / 超时归 network，起进程失败带 ENOENT 归 env），这里只按档位分派，不再拿原文
+ * 词表猜第二遍 —— 两份口径各判一次，迟早会互相矛盾。
  */
 export function glabAuthVerdict(pr: ChainEnvProbeReply, zh: boolean): ChainPredicateVerdict {
   if (pr.stage === 'pass') return { status: 'pass', detail: zh ? '已登录' : 'Logged in' }
@@ -262,7 +250,7 @@ export function glabAuthVerdict(pr: ChainEnvProbeReply, zh: boolean): ChainPredi
   if (pr.stage === 'repo') return { status: 'pass', detail: zh ? '已登录（仓库可达性由下一项判断）' : 'logged in (repo reachability is checked by the next item)' }
   if (pr.stage === 'auth') {
     const kind = pr.kind || 'exit'
-    if (kind === 'network' || looksLikeTransportFailure(pr.message)) return { status: 'pending', detail: zh ? '网络异常，暂时无法确认 glab 登录状态' : 'glab login probe transport failure; login state unknown' }
+    if (kind === 'network') return { status: 'pending', detail: zh ? '网络异常，暂时无法确认 glab 登录状态' : 'glab login probe transport failure; login state unknown' }
     if (kind === 'auth') return { status: 'fail', detail: zh ? 'glab 登录状态已失效（重新执行 glab auth login）' : 'glab credential invalid or not logged in: re-authenticate (glab auth login)' }
     return { status: 'pending', detail: zh ? '暂时无法确认登录状态（' + kind + '）' : 'glab login probe failed (' + kind + '); login state unknown' }
   }

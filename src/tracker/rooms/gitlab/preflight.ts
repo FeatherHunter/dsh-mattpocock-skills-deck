@@ -8,11 +8,11 @@
  * `raw` 或许为空串（本地就知道原因的，例如平台没给 `resolveExecutable`），但字段必须在，
  * 界面/日志才有统一的兜底可展开。有外部原文的那几条（api user、探活）原文一律带上。
  *
- * 判档口径（与「一处真源」不冲突，写在这里免得后人以为漏改）：预检这三步的档位是**步骤语义**
- * 定的，不是从文本猜的 —— 第一步问的是「工具在不在」（ENV），第二步问的是「登录了没有」（AUTH），
- * 第三步问的是「连不连得上」（可达性）。所以本文件直接用常量档位 + 原文，而不走「按原文判档」：
- * 那会把「api user 因为网络抖了一下没跑成」判成网络、把「探活撞上权限不足」判成认证，
- * 反而比按步骤判更不准。
+ * 判档口径（#1793 改准）：第一步问的是「工具在不在」，这一步的失败没有外部原文可看，档位按步骤语义
+ * 给 ENV。第二、三步的失败则不能只看步骤 —— 第二关问「登录了没有」，但一次 api user 失败可能是凭据
+ * 真的失效，也可能是网络断了、glab 根本没起来；第三关问「连不连得上」同理。所以这两关都按原文判档：
+ * 第二关走房间唯一的判档出口 classifyGlabError，第三关保留本文件里的小口径。只按步骤给常量档位的话，
+ * 一次网络抖动会被界面说成「登录状态已失效」，还叫用户重新登录，方向是错的。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -21,6 +21,7 @@ import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { PreflightResult } from '../../contract/results.js'
 import { fail } from '../../kernel/preflight.js'
+import { classifyGlabError } from './errors.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/src/values.js'
 
@@ -72,7 +73,7 @@ export async function glabPreflight(
     return fail(ERROR_KIND.ENV as ErrorKind, 'glab not found', '')
   }
 
-  // 2) glab api user → AUTH
+  // 2) glab api user → 按原文判档（真没登录是 auth，问不出去是 network / env）
   //
   // 为什么不用 `glab auth status`：它回答的是「所有已配置主机都健康吗」，不是「当前仓库这台主机
   // 登录了吗」。多主机配置下任何一台无关主机失败都会让它非零退出（#1779：glab 1.68 与 1.123 实测），
@@ -89,15 +90,19 @@ export async function glabPreflight(
     if (authRes.code !== 0) {
       // 原文 = api user 这一趟的完整输出（stdout+stderr），人据此看出远端到底说了什么。
       const out = String(authRes.stdout || '') + '\n' + String(authRes.stderr || '')
-      return fail(ERROR_KIND.AUTH as ErrorKind, out.trim().slice(0, 500) || 'glab api user failed', out)
+      // 档位按原文判（#1793）：401 / unauthorized / no token 这类才是真未登录；EOF、超时、连不上归
+      // NETWORK。以前这里一律给 AUTH，网络抖一下就被界面说成「登录状态已失效」，还让人重新登录。
+      const verdict = classifyGlabError(authRes)
+      return fail(verdict.kind, out.trim().slice(0, 500) || 'glab api user failed', out)
     }
   } catch (e: unknown) {
     const msg = e !== null && typeof e === 'object' && 'message' in (e as Record<string, unknown>)
       ? String((e as Record<string, unknown>)['message'] || e)
       : String(e)
     // 原文 = 抛上来的那个 Error（glab 进程的 stdout/stderr 挂在它身上）。
-    // 档位仍是本步语义（问的是「登录了没有」），所以给 AUTH 而不是按原文再猜一遍。
-    return fail(ERROR_KIND.AUTH as ErrorKind, msg, e)
+    // 档位同样按原文判（#1793）：起进程失败带 ENOENT 归 ENV、本地超时归 NETWORK，其余才可能落到 AUTH。
+    const verdict = classifyGlabError(e)
+    return fail(verdict.kind, msg, e)
   }
 
   // 3) 探活：glab api projects/:id（若有 refId），否则仅前两项即算 ok
