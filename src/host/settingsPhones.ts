@@ -190,8 +190,9 @@ export function createSettingsPhones(deps?: any): any {
     return { ok: false, error: { kind: 'readonly', message: '这份本机设置文件是新版本插件写的，当前插件只认识到版本一，可以读来展示，不许写回去，请升级插件到最新版本后再改。' } }
   }
 
-  // #1802：补丁写与跨进程文件锁搬成独立叶子（手机文件本就贴着文件粒度门禁的上限），
+  // #1802：补丁写搬成独立叶子（手机文件本就贴着文件粒度门禁的上限），
   //   这里把本片手边的读写口与回执文案工具递进去；宿主入口与门禁看到的仍是同一个 writeSettingsPatch。
+  //   串行由本文件的 serialWrite 负责——两窗共用一个宿主进程，setSettings 与调试开关写同一队列，不会交错。
   const patchWriter = createSettingsPatchWriter({
     buildIo: buildIo,
     readLocalSettings: readLocalSettings,

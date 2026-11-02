@@ -201,7 +201,7 @@ function makeView(env) {
   pieces.push(spliceableJs(UI_REL))
   const body = pieces.join('\n')
   const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer', 'currentOs', 'workspaceRootByCwd']
-  const tail = '\nreturn { viewFlagOf: viewFlagOf, viewFlagOfRoot: viewFlagOfRoot, setViewFlag: setViewFlag, setViewFlagRoot: setViewFlagRoot, setViewFlagValue: setViewFlagValue, viewFlagDocKeyOf: viewFlagDocKeyOf, viewFlagWriteKeyOf: viewFlagWriteKeyOf, settingsViewLoad: settingsViewLoad, settingsViewReload: (typeof settingsViewReload === "function" ? settingsViewReload : null), viewFlagDiffDocOf: (typeof viewFlagDiffDocOf === "function" ? viewFlagDiffDocOf : null), viewFlagApplyJournalToDoc: (typeof viewFlagApplyJournalToDoc === "function" ? viewFlagApplyJournalToDoc : null), viewFlagReadyNow: viewFlagReadyNow, viewFlagSubscribe: viewFlagSubscribe, setUiPref: setUiPref, saveUiPrefs: saveUiPrefs, listPrefs: listPrefs, saveListPrefs: saveListPrefs, saveListPrefsLegacy: saveListPrefsLegacy, LIST_PREFS_KEY: LIST_PREFS_KEY, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }'
+  const tail = '\nreturn { viewFlagOf: viewFlagOf, viewFlagOfRoot: viewFlagOfRoot, setViewFlag: setViewFlag, setViewFlagRoot: setViewFlagRoot, setViewFlagValue: setViewFlagValue, viewFlagDocKeyOf: viewFlagDocKeyOf, viewFlagWriteKeyOf: viewFlagWriteKeyOf, settingsViewLoad: settingsViewLoad, settingsViewReload: (typeof settingsViewReload === "function" ? settingsViewReload : null), viewFlagDiffDocOf: (typeof viewFlagDiffDocOf === "function" ? viewFlagDiffDocOf : null), viewFlagApplyJournalToDoc: (typeof viewFlagApplyJournalToDoc === "function" ? viewFlagApplyJournalToDoc : null), viewFlagReadyNow: viewFlagReadyNow, viewFlagSubscribe: viewFlagSubscribe, setUiPref: setUiPref, saveUiPrefs: saveUiPrefs, listPrefs: listPrefs, saveListPrefs: saveListPrefs, saveListPrefsLegacy: saveListPrefsLegacy, LIST_PREFS_KEY: LIST_PREFS_KEY, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS, viewFlagEmptyDoc: (typeof viewFlagEmptyDoc === "function" ? viewFlagEmptyDoc : null) }'
   const factory = compileFn(names, body + tail)
   return factory.apply(null, names.map(function (n) { return env[n] }))
 }
@@ -458,31 +458,42 @@ async function main() {
       '写完再读，回包里的指纹与盘上这份文档一致。', JSON.stringify(after && after.contentHash))
   })
 
-  await section('宿主：两个电话实例共用同一 home 也不互相覆盖', async function () {
-    const home = makeHome('host-two')
-    const phonesA = makePhones(home, [])
-    const phonesB = makePhones(home, [])
-    await store.writeLocalSettings(docWithWorkspaces({ 'D:\\ilife': workspaceRecord('show', 'on'), 'D:\\other': workspaceRecord('show', 'on') }), home, realIo)
-    const seen = await phonesA.handleGetSettings({})
+  await section('宿主：同一实例并发两笔补丁写也不互相覆盖', async function () {
+    const home = makeHome('host-concurrent')
+    const phones = makePhones(home, [])
+    await store.writeLocalSettings(docWithWorkspaces({ 'D:\\ilife': workspaceRecord('show', 'on') }), home, realIo)
+    const seen = await phones.handleGetSettings({})
     const baseHash = seen && seen.contentHash
-    check(typeof baseHash === 'string' && baseHash.length > 0, '两个宿主进程的替身先各自读到同一份文档与它的指纹。', JSON.stringify(baseHash))
-    const a = await phonesA.handleSetSettings({ patch: { workspaces: { 'D:\\ilife': { statusBar: 'hide' } } }, baseHash: baseHash })
-    check(!!a && a.ok === true, 'A 宿主进程先把 statusBar=hide 补丁写进文件。', JSON.stringify(a))
-    const bStale = await phonesB.handleSetSettings({ patch: { workspaces: { 'D:\\ilife': { deckTools: 'off' } } }, baseHash: baseHash })
-    const bOk = !!(bStale && bStale.ok === true)
-    const bConflict = !!(bStale && bStale.ok === false && bStale.error && bStale.error.kind === 'conflict')
-    check(bOk || bConflict, 'B 宿主进程拿旧指纹写时，要么被合并成功、要么明确回 conflict；不许回 ok 却把 A 刚写的那格悄悄改回去。', JSON.stringify(bStale))
-    const docAfterB = await readDoc(home)
-    check(!!docAfterB && !!docAfterB.workspaces['D:\\ilife'] && docAfterB.workspaces['D:\\ilife'].statusBar === 'hide',
-      '不管 B 这一笔是合并还是 conflict，A 刚写的 statusBar=hide 都还在文件里。', JSON.stringify(docAfterB && docAfterB.workspaces['D:\\ilife']))
-    check(!bOk || (!!docAfterB && docAfterB.workspaces['D:\\ilife'].deckTools === 'off'),
-      'B 若回 ok，盘上就必须真有它要写的 deckTools=off，不能只是回包好看。', JSON.stringify(docAfterB && docAfterB.workspaces['D:\\ilife']))
-    const latest = await phonesB.handleGetSettings({})
-    const retry = await phonesB.handleSetSettings({ patch: { workspaces: { 'D:\\ilife': { deckTools: 'off' } } }, baseHash: latest && latest.contentHash })
-    check(!!retry && retry.ok === true, 'B 重新读一份新指纹之后再发同一格补丁，写入成功。', JSON.stringify(retry))
+    check(typeof baseHash === 'string' && baseHash.length > 0, '并发组先拿到两笔写共同的基底指纹。', JSON.stringify(baseHash))
+    const requests = [
+      { cell: 'statusBar', value: 'hide', patch: { workspaces: { 'D:\\ilife': { statusBar: 'hide' } } } },
+      { cell: 'deckTools', value: 'off', patch: { workspaces: { 'D:\\ilife': { deckTools: 'off' } } } },
+    ]
+    const results = await Promise.all(requests.map(function (r) {
+      return phones.handleSetSettings({ patch: r.patch, baseHash: baseHash })
+    }))
+    const okCount = results.filter(function (r) { return !!r && r.ok === true }).length
+    const conflictCount = results.filter(function (r) { return !!r && r.ok === false && r.error && r.error.kind === 'conflict' }).length
+    check(okCount === 1 && conflictCount === 1,
+      '同一个宿主实例把两笔写放进同一条串行队列：先到的一笔成功，后到的一笔拿到 conflict，而不是两笔都拿同一份旧基底各自覆盖。',
+      JSON.stringify(results))
+    let winner = -1
+    let conflicted = -1
+    for (let i = 0; i < results.length; i++) {
+      if (results[i] && results[i].ok === true) winner = i
+      if (results[i] && results[i].ok === false && results[i].error && results[i].error.kind === 'conflict') conflicted = i
+    }
+    const afterWinner = await readDoc(home)
+    const winnerRec = afterWinner && afterWinner.workspaces['D:\\ilife']
+    check(winner >= 0 && !!winnerRec && winnerRec[requests[winner].cell] === requests[winner].value,
+      '成功那一笔点的格已经写进文件。', JSON.stringify({ winner: winner, rec: winnerRec }))
+    const latest = winner >= 0 && conflicted >= 0 ? await phones.handleGetSettings({}) : null
+    const retry = latest ? await phones.handleSetSettings({ patch: requests[conflicted].patch, baseHash: latest.contentHash }) : null
+    check(!!retry && retry.ok === true, '拿到 conflict 的那一笔重新读一份新指纹再写，成功。', JSON.stringify(retry))
     const finalDoc = await readDoc(home)
-    check(!!finalDoc && !!finalDoc.workspaces['D:\\ilife'] && finalDoc.workspaces['D:\\ilife'].statusBar === 'hide' && finalDoc.workspaces['D:\\ilife'].deckTools === 'off',
-      '两个宿主进程写完之后，statusBar=hide 与 deckTools=off 两格都在，谁也没有把谁整份顶掉。', JSON.stringify(finalDoc && finalDoc.workspaces['D:\\ilife']))
+    const finalRec = finalDoc && finalDoc.workspaces['D:\\ilife']
+    check(!!finalRec && finalRec.statusBar === 'hide' && finalRec.deckTools === 'off',
+      '两笔都成交之后，statusBar=hide 与 deckTools=off 两格都在文件里，没有谁把谁顶掉。', JSON.stringify(finalRec))
   })
 
   // ---------------------------------------------------------------------------------------------
@@ -498,6 +509,10 @@ async function main() {
       '客户端闭包里拼进了新片导出的 settingsViewReload（没有它，设置页打开时就没法重读别的窗口刚写的值）。', typeof envB.mod.settingsViewReload)
     check(typeof envB.mod.viewFlagDiffDocOf === 'function',
       '客户端闭包里拼进了补丁生成函数 viewFlagDiffDocOf（客户端靠它把本窗改动压成按格补丁）。', typeof envB.mod.viewFlagDiffDocOf)
+    const clientEmpty = envB.mod.viewFlagEmptyDoc ? envB.mod.viewFlagEmptyDoc() : null
+    check(!!clientEmpty && JSON.stringify(clientEmpty) === JSON.stringify(settingsCore.settingsEmptyDocument()),
+      '客户端片里的空文档与设置核里的空文档逐字一致（空文档只在核里定义一处，客户端片按 ADR 20261021 的门禁口径盯住这份拷贝）。',
+      JSON.stringify({ client: clientEmpty, core: settingsCore.settingsEmptyDocument() }))
     envA.mod.settingsViewLoad()
     envB.mod.settingsViewLoad()
     await settle(envA.mod)
@@ -627,6 +642,52 @@ async function main() {
     })
     check(retriedClean, '重试成功那一笔的补丁里没有外部刚写的 subwsMarkAutoShown（没有拿旧文档整份盖回去）。', JSON.stringify(okSets.map(function (c) { return c.args && c.args.patch })))
     if (external) { try { await external } catch (e) {} }
+  })
+
+  await section('客户端：设置页第一次打开（还没读过文档）也走重读那一趟', async function () {
+    const home = makeHome('reload-idle')
+    await store.writeLocalSettings(docWithWorkspaces({ 'D:\\ilife': workspaceRecord('hide', 'off') }), home, realIo)
+    const env = makeEnv({ tag: 'reload-idle-a', home: home })
+    check(env.mod.viewFlagReadyNow() === false,
+      '新建的窗口还没问过设置文档，处于空闲状态。', env.mod.viewFlagReadyNow())
+    let reloadError = null
+    try { env.mod.settingsViewReload() } catch (e) { reloadError = e }
+    check(reloadError === null, '空闲状态调用 settingsViewReload() 时不抛错。', reloadError && reloadError.stack)
+    const ready = await waitFor(function () { return env.mod.viewFlagReadyNow() === true })
+    check(ready, '空闲状态的重读交给既有的惰性加载，文档读进内存后进入就绪状态。', env.mod.viewFlagReadyNow())
+    const gets = env.calls.filter(function (c) { return c.method === 'wf.getSettings' }).length
+    check(gets >= 1, '这一趟真的向宿主读了设置文档（wf.getSettings 至少一次）。', gets)
+    const seen = env.mod.viewFlagOfRoot(env.root, 'statusBar')
+    check(!!seen && seen.known === true && seen.value === 'hide',
+      '设置页第一次打开就读到盘上已有的值，不用先经过一次别的动作才把文档读进来。', JSON.stringify(seen))
+  })
+
+  await section('客户端：第一笔保存只发用户点过的格', async function () {
+    const home = makeHome('first-save')
+    const sharedPhones = makePhones(home, [])
+    const env = makeEnv({ tag: 'first-save-a', home: home, phones: sharedPhones })
+    env.mod.settingsViewLoad()
+    await settle(env.mod)
+    check(env.mod.viewFlagReadyNow() === true,
+      '文件还没建时读回 absent，客户端按空文档起步进入就绪状态。', env.mod.viewFlagReadyNow())
+    const accepted = env.mod.setViewFlagValue(env.cwd, 'statusBar', 'hide', false)
+    check(accepted === true, '把 statusBar 改成 hide 时客户端接下了这一笔。', accepted)
+    const sent = await waitFor(function () {
+      return env.calls.some(function (c) { return c.method === 'wf.setSettings' && c.res && c.res.ok === true })
+    })
+    check(sent, '这一笔保存交给宿主之后写入成功。',
+      JSON.stringify(env.calls.filter(function (c) { return c.method === 'wf.setSettings' }).map(function (c) { return c.res })))
+    const setCall = env.calls.filter(function (c) { return c.method === 'wf.setSettings' })[0]
+    const patch = setCall && setCall.args ? setCall.args.patch : null
+    const wsKeys = patch && patch.workspaces ? Object.keys(patch.workspaces) : []
+    const entry = wsKeys.length === 1 ? patch.workspaces[wsKeys[0]] : null
+    check(!!entry && entry.statusBar === 'hide',
+      '补丁里带着用户点过的那一格 statusBar=hide。', JSON.stringify(patch))
+    check(!!entry && !Object.prototype.hasOwnProperty.call(entry, 'deckTools') && !Object.prototype.hasOwnProperty.call(entry, 'subwsMarkAutoShown') && !Object.prototype.hasOwnProperty.call(entry, 'unopened'),
+      '补丁里没有用户没点过的格（deckTools、subwsMarkAutoShown，以及正式记录不该带的 unopened）：新建记录时种下的缺省不跟着发出去。', JSON.stringify(entry))
+    const doc = await readDoc(home)
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].statusBar === 'hide' && doc.workspaces['D:\\ilife'].deckTools === 'on',
+      '文件里这条新记录是用户改的那一格，其余格按既有缺省补全（deckTools 缺省 on）。', JSON.stringify(doc && doc.workspaces['D:\\ilife']))
   })
 
   // ---------------------------------------------------------------------------------------------

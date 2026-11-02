@@ -88,9 +88,10 @@
     declare function viewFlagApplyJournalToDoc(...args: any[]): any;
     declare function viewFlagDiffDocOf(...args: any[]): any;
     declare function viewFlagSentValsOf(...args: any[]): any;
+    // #1802 评审修正：新建普通记录时先种下的三格缺省不跟着发出去；临时记录的 unopened 标记按队列条目保住。
+    declare function viewFlagTrimNewRecordPatch(...args: any[]): any;
     // 宿主的定时器（真源在 kernel/hostShim.js）：本片的防抖与撤销都走它，拿不到时退回页面自己的 setTimeout。
     declare const timer: any;
-    // #1802：读最新一份、算补丁、按格取值这三件工具住在 kernel/settings-view-reload.ts（拼在本片之后，
     // 防抖窗口取 500 毫秒，理由有三条。第一条：一次收起或展开在界面上往往连着来两下（点按钮那一下，
     //   加同一个工作区别的会话跟着重渲染那一趟），而每一次落盘都是宿主先读整份文件、再整份写回。
     // 第二条：与仓库既有的写合并窗口同一量级（日志转发的 1000 毫秒、交接的 800 毫秒），比它们略短。
@@ -360,7 +361,8 @@
           if (!fresh || !fresh.target) { viewFlagFallbackToLegacy(sentKeys, 'read-failed'); return }
           // 照相与记值必须对着同一份：先照相，再从这份相里按格取出「这一趟发出去的值」（文件头那一条判据）。
           const snap = viewFlagSnapshotDoc(fresh.target)
-          const patch = viewFlagDiffDocOf(fresh.base, snap)
+          let patch = viewFlagDiffDocOf(fresh.base, snap)
+          if (viewFlagState.mergePending !== true) patch = viewFlagTrimNewRecordPatch(patch, fresh.base, sentKeys)
           viewFlagSendPatch(patch, fresh.baseHash, sentKeys, viewFlagSentValsOf(snap, sentKeys), t0)
         }, function (): void { viewFlagFallbackToLegacy(sentKeys, 'read-failed') })
       } catch (e) { try { viewFlagFallbackToLegacy(Object.keys(viewFlagState.journal), 'write-error') } catch (e2) {} }
