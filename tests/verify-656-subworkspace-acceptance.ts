@@ -2,11 +2,14 @@
 /**
  * verify-656-subworkspace-acceptance.ts — 子目录工作区场景验收门禁（地图 #647 · 票 #656）
  *
- * 判据的出处是架构决定记录 docs/adr/20260918-subworkspace-identity-root.md 第 4 节，票 #656 把它
+ * 判据的出处是架构决定记录 docs/adr/20261102-workspace-identity-records.md（根标记的定义；票 #1806 定版），
+ * B / C / D 三组的验收框架沿用 docs/adr/20260918-subworkspace-identity-root.md 第 4 节，票 #656 把它
  * 分成四组。每条断言都先说清「守的是哪条不变式」，失败时把那句话原样打出来，不只有一个行号。
  *
- *   A. 锚点判定的边界情形：从会话所选目录逐层向上，最近一个「自带 .git（文件或目录都算）」或
- *      「自带主锚文件 docs/agents/issue-tracker.md」的目录就是工作区根；两种标记同等优先、谁近听谁；
+ *   A. 根判定的边界情形：从会话所选目录逐层向上，最近一个「自带 .git（文件或目录都算）」或
+ *      「自带插件工作区记录（docs/agents/workspace.yaml 或 docs/agents/workspace-root.yaml）」的目录
+ *      就是工作区根；两种标记同等优先、谁近听谁；判定只问路径在不在、不读内容——人写的
+ *      docs/agents/issue-tracker.md 只回答「这一层用哪个后端」，不再是身份标记（#1806）；
  *      一路到盘符根 / 文件系统根 / UNC 根都没有，就用所选目录本身；同一目录的几种写法洗成同一把钥匙。
  *   B. 四个抽屉的分桶：面板快照、检查链快照、后端绑定、仓库引用，在「仓库根 / 子目录 / 兄弟目录」
  *      三种形态下——同一个工作区根里的会话必须同桶，不同工作区根必须不同桶。其中「后端绑定」这一格
@@ -18,11 +21,11 @@
  *   D. 性能与体验：同一把钥匙 30 秒内只判定一次（数真探测次数，第二次必须为零）。
  *
  * 测法（尽量跑真代码，不另写仿制品）：
- *   A / C —— 真夹具目录 + 真判定函数（src/host/workspaceKey.js）与真后端路径函数
+ *   A / C —— 真夹具目录 + 真判定函数（src/host/workspaceKey.ts）与真后端路径函数
  *            （tracker/backends/markdown/path.js、label-colors.js、remotePredicates.js、explicitDetector.js）。
  *   B —— 真夹具算出来的这把钥匙，喂给真客户端缓存表（store-snapshot.js / store-prefs.js 的切片）与
  *        真注册表（src/tracker/registry/core.ts），并真的走一遍宿主的 wf.bind / wf.selection 处理体
- *        （workspaceCwd.js）与统一判定出口（tracker/detection/backendDecision.ts）；「后端绑定」这一格
+ *        （workspaceCwd.ts）与统一判定出口（tracker/detection/backendDecision.ts）；「后端绑定」这一格
  *        的落点由本门禁自己那条内存文件服务（makeAuthorityFs）供着——它只替换磁盘，判定仍是生产那一份。
  *   D —— 在同一把钥匙上数真探测次数（第二次必须为零）。
  *   E —— 本门禁与票面点名的两条用例都在 npm run verify 链里。
@@ -131,19 +134,39 @@ async function main() {
 
   // ── 夹具树（真目录、真文件）──────────────────────────────────────────────
   // 一棵树里把票面点名的每种情形各放一处，A / B / C 三组都在它上面跑。
-  //   base/repo/                        自带 .git 与主锚（两种标记同层）→ 仓库根
-  //   base/repo/packages/a/             子目录（自己与祖先都没有标记）→ 归仓库根
-  //   base/repo/packages/b/deep/        更深的子目录 → 归仓库根
-  //   base/repo/vendor/nested/          自带 .git（嵌套仓库）→ 自成一套
-  //   base/repo/vendor/nested/leaf/     嵌套仓库里的目录 → 归那个嵌套仓库
-  //   base/repo/standalone/             自带主锚文件（别人在这里初始化过）→ 自成一套
-  //   base/gitonly/                     自带 .git、没有主锚 → 归它（这一档就是「没有主锚时用 git 根」）
-  //   base/mdws/                        本地 Markdown 工作区：只有主锚、没有 .git → 归它
-  //   base/outer/                       外层带主锚
-  //   base/outer/inner/                 内层自带 .git（更近）→ 截住上溯，不跳到 outer
-  //   base/plain/sub/                   一路上去一个标记都没有 → 根就是它自己
-  //   base/sibling/                     另一棵工作区（兄弟目录）→ 与 repo 不同根
+  // 规则（#1806 定版）：工作区标记只有两类——自带 .git（文件或目录都算）、自带插件工作区记录；
+  // 谁近听谁；一路都没有就用所选目录本身。docs/agents/issue-tracker.md 只回答「这一层用哪个后端」，
+  // 不再是身份标记，所以下面那些「只有主锚文件」的目录一律不截住上溯。
+  //   base/repo/                           自带 .git 与主锚文件（两种标记同层）→ 仓库根
+  //   base/repo/packages/a/                子目录（自己与祖先都没有标记）→ 归仓库根
+  //   base/repo/packages/b/deep/           更深的子目录 → 归仓库根
+  //   base/repo/vendor/nested/             自带 .git（嵌套仓库）→ 自成一套
+  //   base/repo/vendor/nested/leaf/        嵌套仓库里的目录 → 归那个嵌套仓库
+  //   base/repo/standalone/                只有主锚文件、没有任何记录 → 归仓库根（记录制下的历史遗留）
+  //   base/repo/marked/                    自带身份记录 workspace-root.yaml → 自成一套
+  //   base/repo/config-recorded/           自带后端记录 workspace.yaml（旧规则下留在子目录里的那份）→ 自成一套
+  //   base/repo/bad-config-record/         后端记录内容写坏了（空文件）→ 照样自成一套（只问在不在）
+  //   base/repo/bad-identity-record/       身份记录内容写坏了 → 照样自成一套
+  //   base/repo/legacy-json/               只有旧版 workspace.json → 归仓库根（旧格式不算记录）
+  //   base/repo/nested-records/            祖辈有后端记录
+  //   base/repo/nested-records/child/      自己有身份记录（更近）→ 归 child
+  //   base/gitonly/                        自带 .git、没有主锚与记录 → 归它
+  //   base/gitfile/                        自带 .git 文件（子模块形态）→ 归它
+  //   base/mdws/                           本地 Markdown 工作区：主锚文件 + 后端记录、没有 .git → 归它
+  //   base/record-outer/                   外层带身份记录
+  //   base/record-outer/inner-git/         内层自带 .git（更近）→ 截住上溯，不跳到 record-outer
+  //   base/plain/sub/                      一路上去一个标记都没有 → 根就是它自己
+  //   base/sibling/                        另一棵工作区（兄弟目录）→ 与 repo 不同根
   //   base/repo/packages/cache-probe/deep/  D 组专用：没被问过的目录（缓存是空的）
+  //   base/anchor-only/                    只有主锚文件（内容还是标准声明）→ 记录制下不再聚拢，根就是所选目录
+  //   base/anchor-only/deep/               上一档里的子目录 → 根就是 deep 自己（#1806 的历史遗留）
+  //   base/repo/handwritten/               子目录手写说明 → 归 repo（主锚文件不再参与身份）
+  //   base/repo/empty-anchor/              空锚文件 → 归 repo
+  //   base/repo/dir-anchor/                锚位置是目录 → 归 repo
+  //   base/repo/translated/                翻译过的标题 → 归 repo
+  //   base/repo/quoted-heading/            正文里引用标准标题 → 归 repo
+  //   base/repo/bom-anchor/                带 BOM 的标准标题 → 归 repo
+  //   base/repo/cap-no-read/               身份记录（A15 用没有 readText 的文件服务复核）
   BASE = fsx.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'subws656-'))
   const at = (rel: string): string => nodePath.isAbsolute(rel) ? rel : nodePath.join(BASE, rel)
   const put = (rel: string, content: string): string => {
@@ -163,28 +186,65 @@ async function main() {
     nested: W('repo/vendor/nested'),
     nestedLeaf: W('repo/vendor/nested/leaf'),
     standalone: W('repo/standalone'),
+    marked: W('repo/marked'),
+    configRecorded: W('repo/config-recorded'),
+    badConfigRecord: W('repo/bad-config-record'),
+    badIdentityRecord: W('repo/bad-identity-record'),
+    legacyJson: W('repo/legacy-json'),
+    nestedRecords: W('repo/nested-records'),
+    nestedRecordsChild: W('repo/nested-records/child'),
     gitonly: W('gitonly'),
     gitonlyDeep: W('gitonly/deep'),
+    gitfile: W('gitfile'),
+    gitfileDeep: W('gitfile/deep'),
     mdws: W('mdws'),
     mdwsDeep: W('mdws/sub/deep'),
-    outer: W('outer'),
-    inner: W('outer/inner'),
-    innerLeaf: W('outer/inner/leaf'),
+    recordOuter: W('record-outer'),
+    recordOuterInner: W('record-outer/inner-git'),
+    recordOuterLeaf: W('record-outer/inner-git/leaf'),
     plainSub: mkdir('plain/sub'),
     sibling: W('sibling'),
     cacheProbe: mkdir('repo/packages/cache-probe/deep'),
+    anchorOnly: W('anchor-only'),
+    anchorOnlyDeep: mkdir('anchor-only/deep'),
+    handwritten: mkdir('repo/handwritten'),
+    emptyAnchor: mkdir('repo/empty-anchor'),
+    dirAnchor: mkdir('repo/dir-anchor'),
+    translated: mkdir('repo/translated'),
+    quotedHeading: mkdir('repo/quoted-heading'),
+    bomAnchor: mkdir('repo/bom-anchor'),
+    capNoRead: mkdir('repo/cap-no-read'),
   }
   mkdir('repo/vendor/nested/leaf')
   put(W('repo/vendor/nested/.git/config'), '[core]\n')
   put(W('repo/standalone/docs/agents/issue-tracker.md'), '# Issue tracker: GitHub\n')
+  put(W('repo/marked/docs/agents/workspace-root.yaml'), '# 由插件写入：表示这一层本身是一个工作区。\nversion: 1\n')
+  put(W('repo/config-recorded/docs/agents/workspace.yaml'), 'version: 2\nbackendId: github\npickedAt: 1\nsource: user\nlayout: single\n')
+  put(W('repo/bad-config-record/docs/agents/workspace.yaml'), '')
+  put(W('repo/bad-identity-record/docs/agents/workspace-root.yaml'), 'not: [valid\n')
+  put(W('repo/legacy-json/docs/agents/workspace.json'), '{\n  "version": 1,\n  "backendId": "github"\n}\n')
+  put(W('repo/nested-records/docs/agents/workspace.yaml'), 'version: 2\nbackendId: github\npickedAt: 1\nsource: user\nlayout: single\n')
+  put(W('repo/nested-records/child/docs/agents/workspace-root.yaml'), 'version: 1\n')
   put(W('gitonly/.git/config'), '[core]\n')
   mkdir('gitonly/deep')
+  put(W('gitfile/.git'), 'gitdir: ../.git/modules/gitfile\n')
+  mkdir('gitfile/deep')
   put(W('mdws/docs/agents/issue-tracker.md'), '# Issue tracker: Local Markdown\n\n.scratch\n')
+  put(W('mdws/docs/agents/workspace.yaml'), 'version: 2\nbackendId: markdown\npickedAt: 1\nsource: user\nlayout: single\n')
   mkdir('mdws/sub/deep')
-  put(W('outer/docs/agents/issue-tracker.md'), '# Issue tracker: GitHub\n')
-  put(W('outer/inner/.git/config'), '[core]\n')
-  mkdir('outer/inner/leaf')
-
+  put(W('record-outer/docs/agents/workspace-root.yaml'), '# 身份记录\nversion: 1\n')
+  put(W('record-outer/inner-git/.git/config'), '[core]\n')
+  mkdir('record-outer/inner-git/leaf')
+  put(W('anchor-only/docs/agents/issue-tracker.md'), '# Issue tracker: GitHub\n')
+  mkdir('anchor-only/deep')
+  // #1806：主锚文件的各种内容写法。记录制下它们一律不是身份标记，全落在 repo 底下，钉住「回归仓库根」这一条。
+  put(W('repo/handwritten/docs/agents/issue-tracker.md'), '# 智剪工坊 · 问题追踪协议\n\n本目录的票跟随仓库根的 docs/agents/issue-tracker.md。\n')
+  put(W('repo/empty-anchor/docs/agents/issue-tracker.md'), '')
+  mkdir('repo/dir-anchor/docs/agents/issue-tracker.md')
+  put(W('repo/translated/docs/agents/issue-tracker.md'), '# 问题追踪：GitHub Issues\n')
+  put(W('repo/quoted-heading/docs/agents/issue-tracker.md'), '# 子项目说明\n\n本目录的票做法见仓库根，那份文件的标题行是：\n# Issue tracker: GitHub\n\n具体步骤略。\n')
+  put(W('repo/bom-anchor/docs/agents/issue-tracker.md'), '\uFEFF# Issue tracker: GitHub\n')
+  put(W('repo/cap-no-read/docs/agents/workspace-root.yaml'), 'version: 1\n')
   const counter = { probes: 0 }
   const fixtureFs = makeFsSvc(counter)
   const deps = { getPlatform: async () => PLATFORM, getFs: () => fixtureFs }
@@ -197,43 +257,35 @@ async function main() {
     sibling: await canon(RAW.sibling),
   }
 
-  title('A) 锚点判定的边界情形（真夹具 + 真判定函数）')
+  title('A) 根判定的边界情形（真夹具 + 真判定函数）')
 
-  // —— A1 最近一个自带主锚文件的祖先 ——
-  {
-    const r = await wm.resolveWorkspaceRoot(normPath(RAW.mdwsDeep), deps)
-    must(r.root === normPath(RAW.mdws) && r.source === 'anchor',
-      '本地 Markdown 工作区：没有 .git 时，最近一个自带 docs/agents/issue-tracker.md 的祖先目录就是工作区根',
-      'root=' + r.root + ' source=' + r.source)
+  // 小助手：算根，并把 root 与 source 一起比掉；失败时把实测值带出来。
+  async function expectRoot(label: string, dir: string, wantRoot: string, wantSource: string, invariant: string) {
+    const r = await wm.resolveWorkspaceRoot(normPath(dir), deps)
+    must(r.root === normPath(wantRoot) && r.source === wantSource, invariant,
+      label + '：root=' + r.root + ' source=' + r.source)
   }
-  // —— A2 没有主锚文件时用 git 根 ——
-  {
-    const r = await wm.resolveWorkspaceRoot(normPath(RAW.gitonlyDeep), deps)
-    must(r.root === normPath(RAW.gitonly) && r.source === 'git',
-      '目录自己与逐层祖先都没有主锚文件时，工作区根就是最近那个自带 .git 的祖先（git 根那一档照样成立）',
-      'root=' + r.root + ' source=' + r.source)
-  }
+
+  // —— A1 本地 Markdown 工作区：没有 .git 时靠插件记录认身份 ——
+  await expectRoot('mdwsDeep', RAW.mdwsDeep, RAW.mdws, 'record',
+    '本地 Markdown 工作区没有 .git 时靠插件工作区记录认身份：子目录会话归到带记录的那一层（记录制下不再靠主锚文件聚拢）')
+
+  // —— A2 没有记录时用 git 根 ——
+  await expectRoot('gitonlyDeep', RAW.gitonlyDeep, RAW.gitonly, 'git',
+    '目录自己与逐层祖先都没有插件记录时，工作区根就是最近那个自带 .git 的祖先（git 根那一档照样成立）')
+
   // —— A3 嵌套仓库自成一套 ——
-  {
-    const r = await wm.resolveWorkspaceRoot(normPath(RAW.nestedLeaf), deps)
-    must(r.root === normPath(RAW.nested) && r.source === 'git',
-      '子目录自带 .git（嵌套仓库）时停在自己那一层，自成一套，不被外层仓库吞掉',
-      'root=' + r.root + ' source=' + r.source)
-  }
-  // —— A4 自带主锚文件的子目录自成一套 ——
-  {
-    const r = await wm.resolveWorkspaceRoot(normPath(RAW.standalone), deps)
-    must(r.root === normPath(RAW.standalone) && r.source === 'anchor',
-      '子目录自带主锚文件（别人在这里初始化过）时同样自成一套，不并进外层仓库',
-      'root=' + r.root + ' source=' + r.source)
-  }
+  await expectRoot('nestedLeaf', RAW.nestedLeaf, RAW.nested, 'git',
+    '子目录自带 .git（嵌套仓库）时停在自己那一层，自成一套，不被外层仓库吞掉')
+
+  // —— A4 子目录里只有主锚文件：记录制下不再自成一套（#1806 的核心改动）——
+  await expectRoot('standalone', RAW.standalone, RAW.repo, 'git',
+    '子目录里只有 docs/agents/issue-tracker.md、没有任何插件记录时归外层仓库：这份人写的说明回答「这一层用哪个后端」，不回答「这一层是不是独立工作区」（#1806）')
+
   // —— A5 一路到顶都没有标记 ——
-  {
-    const r = await wm.resolveWorkspaceRoot(normPath(RAW.plainSub), deps)
-    must(r.root === normPath(RAW.plainSub) && r.source === 'self',
-      '一路上去一个标记都没有（不在任何 git 仓库里）时，工作区根就是所选目录自己，不做任何上溯',
-      'root=' + r.root + ' source=' + r.source)
-  }
+  await expectRoot('plainSub', RAW.plainSub, RAW.plainSub, 'self',
+    '一路上去一个标记都没有（不在任何 git 仓库里、也没有记录）时，工作区根就是所选目录自己，不做任何上溯')
+
   // —— A6 盘符根与 UNC 根：到顶就停，不转圈 ——
   {
     const noMarker = makeFsSvc(null)          // 真服务形状但一条都不存在：只剩「往上走」这一件事
@@ -268,15 +320,12 @@ async function main() {
         'upper=' + kUpper + ' plain=' + k2)
     }
   }
-  // —— A8 更近的 .git 截住上溯 ——
-  {
-    const r = await wm.resolveWorkspaceRoot(normPath(RAW.innerLeaf), deps)
-    must(r.root === normPath(RAW.inner) && r.root !== normPath(RAW.outer),
-      '更近的那一层自带 .git 时截住上溯：不会跳到外层那个带主锚文件的目录去',
-      'root=' + r.root + ' source=' + r.source)
-  }
+  // —— A8 更近的 .git 截住更远的插件记录 ——
+  await expectRoot('recordOuterLeaf', RAW.recordOuterLeaf, RAW.recordOuterInner, 'git',
+    '更近的那一层自带 .git 时截住上溯：不会跳到外层那个带插件记录的目录去')
+
   // —— A9 探测能力缺失时诚实回退，且回退结论不进缓存 ——
-  // 这一档必须用**没被问过**的目录：判定结果有 30 秒缓存，缓存命中时压根不会再去看文件服务，
+  // 这一档必须用没被问过的目录：判定结果有 30 秒缓存，缓存命中时压根不会再去看文件服务，
   // 拿一条已经问过的目录来测「没有探测能力时会怎样」，测的其实是缓存。
   {
     const noFsDir = mkdir('mdws/sub/nofs-deep')
@@ -285,7 +334,7 @@ async function main() {
       '文件服务拿不到时回退「所选目录自己」，如实标注这不是真结论，绝不让面板因此失败',
       JSON.stringify(noFs))
     const later = await wm.resolveWorkspaceRoot(normPath(noFsDir), deps)
-    must(later.root === normPath(RAW.mdws) && later.source === 'anchor',
+    must(later.root === normPath(RAW.mdws) && later.source === 'record',
       '「这次没有探测能力」这个回退结论不被记成永久答案：探测能力回来后，同一条目录按规矩得出真结论',
       JSON.stringify(later))
     const noProbeDir = mkdir('gitonly/noprobe-deep')
@@ -293,6 +342,66 @@ async function main() {
     must(noProbe.root === normPath(noProbeDir) && noProbe.source === 'no-probe',
       '文件服务在、但它没有「问某条路径在不在」的能力时，同样诚实回退，不猜一个根出来',
       JSON.stringify(noProbe))
+  }
+
+  // —— A10 主锚文件的内容不参与身份判定：手写、空、目录、翻译、正文引用、BOM 一律归仓库根 ——
+  for (const c of [
+    ['手写子协议说明', RAW.handwritten],
+    ['空文件', RAW.emptyAnchor],
+    ['路径是目录', RAW.dirAnchor],
+    ['翻译过的标题', RAW.translated],
+    ['正文里引用标准标题', RAW.quotedHeading],
+    ['带 BOM 的标准标题', RAW.bomAnchor],
+  ]) {
+    const r = await wm.resolveWorkspaceRoot(normPath(c[1]), deps)
+    must(r.root === normPath(RAW.repo) && r.source === 'git',
+      '主锚文件是「' + c[0] + '」时都不算工作区身份：工作区根仍是最近那个自带 .git 的祖先（#1806 记录制）',
+      'root=' + r.root + ' source=' + r.source)
+  }
+  // —— A11 插件记录本身就是身份：两份记录都算，内容空或写坏也照样算 ——
+  for (const c of [
+    ['身份记录 workspace-root.yaml', RAW.marked],
+    ['后端记录 workspace.yaml', RAW.configRecorded],
+    ['内容为空的后端记录', RAW.badConfigRecord],
+    ['内容写坏的身份记录', RAW.badIdentityRecord],
+  ]) {
+    const r = await wm.resolveWorkspaceRoot(normPath(c[1]), deps)
+    must(r.root === normPath(c[1]) && r.source === 'record',
+      '自带的插件工作区记录（' + c[0] + '）让这一层自成一套：判定只问记录在不在，内容空或写坏也照样算（#1806）',
+      'root=' + r.root + ' source=' + r.source)
+  }
+  // —— A12 两层都有记录时听更近的 ——
+  await expectRoot('nestedRecordsChild', RAW.nestedRecordsChild, RAW.nestedRecordsChild, 'record',
+    '两层都有插件记录时听更近的那一层：子目录里的身份记录截住上溯，不归到带后端记录的祖先')
+  // —— A13 旧版 workspace.json 不算记录 ——
+  await expectRoot('legacyJson', RAW.legacyJson, RAW.repo, 'git',
+    '旧版 docs/agents/workspace.json 不算工作区记录：它是 #652 之前的旧版本写在会话所选目录上的，按记录算会把子目录里的假身份重新扶正')
+  // —— A14 .git 是文件（子模块形态）同样算边界 ——
+  await expectRoot('gitfileDeep', RAW.gitfileDeep, RAW.gitfile, 'git',
+    '自带 .git 是文件（子模块 / 链接工作树形态）时同样算仓库边界（真实样本里 SKILLS 子模块就是这种形态）')
+  // —— A15 判定不依赖读文件内容：没有 readText 的文件服务给出同一结论 ——
+  {
+    const noReadFs: any = Object.assign({}, makeFsSvc(null))
+    delete noReadFs.readText
+    const cap = await wm.resolveWorkspaceRoot(normPath(RAW.capNoRead), { platform: PLATFORM, getFs: () => noReadFs })
+    must(cap.root === normPath(RAW.capNoRead) && cap.source === 'record',
+      '文件服务没有读文件内容的能力时，插件记录照样让这一层自成一套：判定只问路径在不在，不依赖 readText（#1806）',
+      'root=' + cap.root + ' source=' + cap.source)
+    const hand = await wm.resolveWorkspaceRoot(normPath(RAW.handwritten), { platform: PLATFORM, getFs: () => noReadFs })
+    must(hand.root === normPath(RAW.repo) && hand.source === 'git',
+      '没有 readText 时，子目录里那份手写说明同样不构成身份：结论不随文件服务的可选能力变化',
+      'root=' + hand.root + ' source=' + hand.source)
+  }
+  // —— A16 只有主锚文件、没有记录的历史工作区不再聚拢 ——
+  {
+    const only = await wm.resolveWorkspaceRoot(normPath(RAW.anchorOnly), deps)
+    must(only.root === normPath(RAW.anchorOnly) && only.source === 'self',
+      '只有主锚文件的那一层本身也不再自称工作区：身份只认 .git 与插件记录（#1806 记录制）',
+      'root=' + only.root + ' source=' + only.source)
+    const deep = await wm.resolveWorkspaceRoot(normPath(RAW.anchorOnlyDeep), deps)
+    must(deep.root === normPath(RAW.anchorOnlyDeep) && deep.source === 'self',
+      '祖上只有主锚文件、没有任何记录时不再聚拢：根就是所选目录自己（记录制下的历史遗留，后续步骤在界面上给一次性「标为独立工作区」的入口）',
+      'root=' + deep.root + ' source=' + deep.source)
   }
 
   title('B) 四个抽屉的分桶（仓库根 / 子目录 / 兄弟目录）')
@@ -534,14 +643,22 @@ async function main() {
     must(readPaths.length === 1 && readPaths[0] === nodePath.join(K.repo, 'docs', 'agents', 'issue-tracker.md'),
       '主锚文件只被读工作区根那一条路径：判定一次都没去读子目录里的同名文件（子目录里那份不会被当成这个工作区的配置）',
       readPaths.join(' | '))
-    // 反过来：子目录里真的凭空多出一份，它不会被当成父工作区的配置，而是让那一层自成一套（规则里的边界②）
-    const strayRoot = mkdir('stray')
-    put(W('stray/docs/agents/issue-tracker.md'), '# Issue tracker: Local Markdown\n')
+    // 反过来：子目录里真的凭空多出一份主锚文件，不再让那一层自成一套（#1806 记录制）。
+    // 主锚仍回答「这一层自己的后端声明」，但工作区根的判定只认 .git 与插件记录。
+    const strayRoot = mkdir('repo/stray-anchor')
+    put(W('repo/stray-anchor/docs/agents/issue-tracker.md'), '# Issue tracker: Local Markdown\n')
     const strayRes = await wm.resolveWorkspaceRoot(normPath(strayRoot), deps)
     const strayExists = await fileExists(plat, normPath(strayRoot), 'docs/agents/issue-tracker.md')
-    must(strayRes.root === normPath(strayRoot) && strayRes.source === 'anchor' && strayExists === true,
-      '子目录里真的多出一份主锚文件时，它是「这一层自成一套工作区」的信号（谁近听谁），不会被当作父工作区的那一份读走',
+    must(strayRes.root === normPath(RAW.repo) && strayRes.source === 'git' && strayExists === true,
+      '子目录里真多出一份主锚文件时它不再让那一层自成一套：判定仍归仓库根，文件在不在只影响「这一层用哪个后端」',
       JSON.stringify(strayRes))
+    // 同一位置换成插件身份记录，才让那一层自成一套：身份凭据是记录，不是人写的说明。
+    const markedStray = mkdir('repo/stray-marked')
+    put(W('repo/stray-marked/docs/agents/workspace-root.yaml'), 'version: 1\n')
+    const markedRes = await wm.resolveWorkspaceRoot(normPath(markedStray), deps)
+    must(markedRes.root === normPath(markedStray) && markedRes.source === 'record',
+      '同一位置换成插件身份记录（docs/agents/workspace-root.yaml）后才让那一层自成一套：身份的凭据是记录，不是说明文件',
+      JSON.stringify(markedRes))
   }
 
   title('D) 性能与体验（同一把钥匙只算一次）')
