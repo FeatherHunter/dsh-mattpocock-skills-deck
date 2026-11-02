@@ -24,6 +24,12 @@ import type { ConfigParseResult, ConfigStringifyResult } from './ports.js'
 /** 工作区后端配置的新路径（YAML）与老路径（JSON，只做兼容读）。 */
 export const WORKSPACE_YAML_REL = 'docs/agents/workspace.yaml'
 export const WORKSPACE_JSON_REL = 'docs/agents/workspace.json'
+/**
+ * 工作区身份记录（#1806）：只表示「这一层是一个工作区」，不表示用哪个后端。
+ * 与后端记录 `workspace.yaml` 同属根判定认的两份插件记录，所以路径也放在这里一处定义；
+ * 判定层（src/host/workspaceKey.ts）与写入侧都必须 import 这里，不许各自再抄字面量。
+ */
+export const WORKSPACE_IDENTITY_REL = 'docs/agents/workspace-root.yaml'
 /** 核认识的版本就是 2（老 JSON 是版本 1，读进来做迁移）。 */
 export const WORKSPACE_KNOWN_VERSION = 2
 

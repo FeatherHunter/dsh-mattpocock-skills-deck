@@ -17,7 +17,7 @@
  *      bind/bound/allBindings 三个口子已经删掉），所以 B 组自己带一条内存文件服务来落这份文件，
  *      再让统一判定出口 decideBackend 从它读回来。
  *   C. 写路径：子目录会话里不许出现第二套 .scratch（票仓与建票目录）、不许出现第二份
- *      docs/agents/label-colors.json；初始化产出的主锚文件只认工作区根那一份。
+ *      docs/agents/label-colors.json；初始化产出的声明文件（docs/agents/issue-tracker.md）只认工作区根那一份。
  *   D. 性能与体验：同一把钥匙 30 秒内只判定一次（数真探测次数，第二次必须为零）。
  *
  * 测法（尽量跑真代码，不另写仿制品）：
@@ -213,6 +213,11 @@ async function main() {
     translated: mkdir('repo/translated'),
     quotedHeading: mkdir('repo/quoted-heading'),
     bomAnchor: mkdir('repo/bom-anchor'),
+    crlfAnchor: mkdir('repo/crlf-anchor'),
+    otherBackend: mkdir('repo/other-backend'),
+    dirRecord: mkdir('repo/dir-record'),
+    dirIdentityRecord: mkdir('repo/dir-identity-record'),
+    gitfileSkillCraft: mkdir('gitfile/skill-craft'),
     capNoRead: mkdir('repo/cap-no-read'),
   }
   mkdir('repo/vendor/nested/leaf')
@@ -244,6 +249,14 @@ async function main() {
   put(W('repo/translated/docs/agents/issue-tracker.md'), '# 问题追踪：GitHub Issues\n')
   put(W('repo/quoted-heading/docs/agents/issue-tracker.md'), '# 子项目说明\n\n本目录的票做法见仓库根，那份文件的标题行是：\n# Issue tracker: GitHub\n\n具体步骤略。\n')
   put(W('repo/bom-anchor/docs/agents/issue-tracker.md'), '\uFEFF# Issue tracker: GitHub\n')
+  put(W('repo/crlf-anchor/docs/agents/issue-tracker.md'), '# Issue tracker: GitHub\r\n\r\n.scratch\r\n')
+  put(W('repo/other-backend/docs/agents/issue-tracker.md'), '我们用 Linear 管票，具体流程见团队 wiki。\n')
+  mkdir('repo/dir-record/docs/agents/workspace.yaml')
+  mkdir('repo/dir-identity-record/docs/agents/workspace-root.yaml')
+  // #1806 现场形状：父层 .git 是文件（子模块），子层只有手写说明，没有任何记录。
+  put(W('gitfile/skill-craft/docs/agents/issue-tracker.md'), '# 智剪工坊 · 问题追踪协议\n\n本目录的票跟随仓库根的 docs/agents/issue-tracker.md。\n')
+  // 同一层既有 .git 又有插件记录：依据应优先报 .git，结论不变。
+  put(W('repo/docs/agents/workspace-root.yaml'), 'version: 1\n')
   put(W('repo/cap-no-read/docs/agents/workspace-root.yaml'), 'version: 1\n')
   const counter = { probes: 0 }
   const fixtureFs = makeFsSvc(counter)
@@ -344,7 +357,7 @@ async function main() {
       JSON.stringify(noProbe))
   }
 
-  // —— A10 主锚文件的内容不参与身份判定：手写、空、目录、翻译、正文引用、BOM 一律归仓库根 ——
+  // —— A10 主锚文件的内容不参与身份判定：手写、空、目录、翻译、正文引用、BOM、CRLF、其他后端一律归仓库根 ——
   for (const c of [
     ['手写子协议说明', RAW.handwritten],
     ['空文件', RAW.emptyAnchor],
@@ -352,6 +365,8 @@ async function main() {
     ['翻译过的标题', RAW.translated],
     ['正文里引用标准标题', RAW.quotedHeading],
     ['带 BOM 的标准标题', RAW.bomAnchor],
+    ['CRLF 换行', RAW.crlfAnchor],
+    ['其他后端的自由文本', RAW.otherBackend],
   ]) {
     const r = await wm.resolveWorkspaceRoot(normPath(c[1]), deps)
     must(r.root === normPath(RAW.repo) && r.source === 'git',
@@ -364,6 +379,8 @@ async function main() {
     ['后端记录 workspace.yaml', RAW.configRecorded],
     ['内容为空的后端记录', RAW.badConfigRecord],
     ['内容写坏的身份记录', RAW.badIdentityRecord],
+    ['后端记录位置是个目录', RAW.dirRecord],
+    ['身份记录位置是个目录', RAW.dirIdentityRecord],
   ]) {
     const r = await wm.resolveWorkspaceRoot(normPath(c[1]), deps)
     must(r.root === normPath(c[1]) && r.source === 'record',
@@ -403,6 +420,13 @@ async function main() {
       '祖上只有主锚文件、没有任何记录时不再聚拢：根就是所选目录自己（记录制下的历史遗留，后续步骤在界面上给一次性「标为独立工作区」的入口）',
       'root=' + deep.root + ' source=' + deep.source)
   }
+
+  // —— A17 同一层既有 .git 又有记录时，依据报 .git（结论不变）——
+  await expectRoot('repoSameLayer', RAW.repo, RAW.repo, 'git',
+    '同一层既有 .git 又有插件记录时，判定依据优先报 .git：两种标记同等优先，谁近听谁，依据只影响日志与面板措辞，不影响根在哪')
+  // —— A18 #1806 现场形状：父层 .git 是文件、子层只有手写说明 ——
+  await expectRoot('gitfileSkillCraft', RAW.gitfileSkillCraft, RAW.gitfile, 'git',
+    '子模块那种 .git 是文件的父层，照样截住带手写说明的子目录（#1806 现场形状：SKILLS 子模块 → 智剪工坊）')
 
   title('B) 四个抽屉的分桶（仓库根 / 子目录 / 兄弟目录）')
 
@@ -724,9 +748,9 @@ async function main() {
 
 /**
  * 真机样本腿（可选）：本机存在样本目录时才跑，样本不在就只打一行说明。
- * 对应架构决定记录第 4 节的两条真机验收：
+ * 对应 docs/adr/20260918-subworkspace-identity-root.md 第 4 节的两条真机验收：
  *   ① 在 D:\ilife 的子目录里开会话时，算出来的工作区根就是 D:\ilife 那一层，
- *      「工作区已初始化」读的是根上那份主锚文件；
+ *      「工作区已初始化」读的是工作区根上的声明文件；
  *   ② 反着来一条：在自带 .git 的嵌套仓库里开会话，它自成一套，不被外层仓库吞掉
  *      （样本由本机现找：在 ① 那棵仓库里找一个自带 .git 的子目录；找不到就只打一行说明）。
  */
@@ -748,11 +772,11 @@ async function realSamples(canon: (raw: string) => Promise<string>) {
     must(kSub === kRoot,
       '真机·' + s.label + '：子目录会话算出来的工作区根就是仓库根（' + s.root + '）',
       'root=' + kRoot + ' sub=' + kSub)
-    const anchor = nodePath.join(s.root, 'docs', 'agents', 'issue-tracker.md')
+    const trackerDecl = nodePath.join(s.root, 'docs', 'agents', 'issue-tracker.md')
     const green = await fileExists(plat, kSub, 'docs/agents/issue-tracker.md')
-    must(green === true && fsx.existsSync(anchor),
-      '真机·' + s.label + '：「工作区已初始化」这一步在子目录会话里是绿的（读的是根上那份主锚文件）',
-      '根上有主锚=' + fsx.existsSync(anchor) + ' 检查结果=' + green)
+    must(green === true && fsx.existsSync(trackerDecl),
+      '真机·' + s.label + '：「工作区已初始化」这一步在子目录会话里是绿的（读的是工作区根上的声明文件）',
+      '根上有声明文件=' + fsx.existsSync(trackerDecl) + ' 检查结果=' + green)
     // 反向样本：这棵仓库里自带 .git 的子目录（嵌套仓库）
     const nested = findNestedRepo(s.root, 0)
     if (!nested) {
@@ -766,6 +790,43 @@ async function realSamples(canon: (raw: string) => Promise<string>) {
     must(kNested !== kRoot && kInside === kNested,
       '真机·反向：自带 .git 的嵌套仓库自成一套，不被外层仓库吞掉（' + nested + '）',
       '外层根=' + kRoot + ' 嵌套根=' + kNested + ' 它里面的目录=' + kInside)
+  }
+  // #1806 现场样本：子模块 SKILLS（.git 是文件）下面有 6 个只有手写说明、没有记录的子目录；它们应全部归 SKILLS。
+  // 同时钉住四个自带 .git 的目录保持独立。样本用 existsSync 守卫，别的机器上没有就跳过。
+  const studyNotes = 'D:\\2Study\\StudyNotes'
+  const skills = nodePath.join(studyNotes, 'SKILLS')
+  if (fsx.existsSync(studyNotes) && fsx.existsSync(skills)) {
+    const kSkills = await canon(skills)
+    const kStudy = await canon(studyNotes)
+    for (const name of ['SKILL开发总纲', '卡路里', '备忘录', '居家管家', '智剪工坊', '饼干记账']) {
+      const dir = nodePath.join(skills, name)
+      if (!fsx.existsSync(dir)) { console.log('  · #1806 样本不在本机，跳过：' + dir); continue }
+      ran++
+      const k = await canon(dir)
+      must(k === kSkills,
+        '真机·#1806：' + name + ' 里只有手写说明、没有插件记录，应归到 SKILLS（父层 .git 是文件）',
+        'root=' + k + ' want=' + kSkills)
+    }
+    const independent = [
+      { label: 'SKILLS 子模块', dir: skills, parent: studyNotes },
+      { label: 'StudyNotes 根', dir: studyNotes, parent: nodePath.dirname(studyNotes) },
+      { label: '.db 子目录', dir: nodePath.join(studyNotes, '.db'), parent: studyNotes },
+      { label: '作息管家', dir: nodePath.join(skills, '作息管家'), parent: skills },
+    ]
+    for (const s of independent) {
+      if (!fsx.existsSync(s.dir) || !fsx.existsSync(nodePath.join(s.dir, '.git')) || !fsx.existsSync(s.parent)) {
+        console.log('  · #1806 独立样本不齐，跳过：' + s.label)
+        continue
+      }
+      ran++
+      const k = await canon(s.dir)
+      const kParent = await canon(s.parent)
+      must(k !== kParent,
+        '真机·#1806：' + s.label + ' 自带 .git，应按自己的根算，不归到上级',
+        'root=' + k + ' parentRoot=' + kParent)
+    }
+  } else {
+    console.log('  · 本机没有 #1806 现场样本（' + skills + '），这一组跳过')
   }
   console.log(ran ? '  · 真机腿跑过 ' + ran + ' 条样本' : '  · 本机没有可用的真样本，真机腿这次什么都没跑')
 }

@@ -15,7 +15,7 @@
  *
  * 判定规则（2026-11-02 #1806 定版，取代 #649 的「主锚文件在不在」口径）：
  *   从所选目录逐层向上，第一个「自带 .git（文件或目录都算）」或「自带一份插件工作区记录」的目录就是
- *   工作区根；两种标记同等优先、谁近听谁；一路到盘符根或文件系统根都没有，就用所选目录本身。
+ *   工作区根；两种标记同等优先、谁近听谁；一路到盘符根、POSIX 根或 UNC 共享根都没有，就用所选目录本身。
  *   插件工作区记录只有两份，都是插件自己写下、随仓库提交的「这一层是工作区」的凭据：
  *     - docs/agents/workspace.yaml：用户为这个工作区选定后端时写下（#1138 起是后端绑定的唯一去处）；
  *     - docs/agents/workspace-root.yaml：只表示「这个目录是一个工作区」、不表示后端；由初始化流程或
@@ -34,6 +34,7 @@
  *   记录时按上级工作区处理，界面会给一次性的「标为独立工作区」入口（写入侧与界面是后续步骤）。
  * 缓存与失败：判定结果按所选目录的规整键存在宿主内存里，30 秒后重算（记录可能后来才出现——用户刚
  *   建仓、刚跑完初始化、刚在面板选定后端，都会往根上放记录，永久缓存会让子目录会话一直停在旧结论上）；
+ *   30 秒这个值住在 config/ttl.yaml 的 workspaceRootTtlMs，调时间改 YAML，一致性由 tests/verify-time-config.ts 看守；
  *   探测失败（目录不存在、文件服务不可用）一律回退所选目录，并且不写进缓存。
  *
  * 为什么这样标注：
@@ -43,11 +44,12 @@
  *    `listDir`、`exists` 与 `isAbsolute` 等少数成员，所以全部按 `any` 收，
  *    类型不替代运行时的能力检测。
  * 3. 缓存表的类型参数（键是规整钥匙、值是判定结果）只存在于类型层面，转译时整体剥离。
- * 4. #1806 起不再引用追踪器内核的声明解析器：判定只查记录存不存在，不读内容。跨层 import 只剩
- *    两条，都来自 shared 的纯函数模块：中央 TTL 常量与工作区文件名常量。
+ * 4. 判定只查两条记录在不在，不读内容，也不起 git 子进程；跨层 import 两条，都来自 shared 的纯函数
+ *    模块：中央 TTL 常量与 config-store 里的两份记录路径。旧版把记录路径直接写在本文件，
+ *    #1806 把它们收进各自真源，避免写侧再抄一份字面量。
  */
 import { WORKSPACE_ROOT_TTL_MS } from '../shared/time-config/src/values.js'
-import { WORKSPACE_YAML_REL } from '../shared/config-store/src/workspace.js'
+import { WORKSPACE_YAML_REL, WORKSPACE_IDENTITY_REL } from '../shared/config-store/src/workspace.js'
 
 export function normalizeWorkspacePath(raw: any, platform: any): string {
   if (raw == null) return '';
@@ -90,22 +92,28 @@ export function normalizeWorkspacePath(raw: any, platform: any): string {
   return s;
 }
 // ── 工作区根判定（#652 落地；2026-11-02 按 #1806 改为认插件记录）────────────────
-// 标记只有两类：自带 .git、自带插件工作区记录。记录相对路径写在这里（换记录只改下面两行）；
-// 判定只问在不在，不读内容。身份记录（workspace-root.yaml）的写入侧是 #1806 的后续步骤，
-// 判定侧先认它，这样「初始化 / 人显式标独立」两条记录产生路径的门禁可以先行落地。
-export const WORKSPACE_CONFIG_RECORD_REL: string = WORKSPACE_YAML_REL
-export const WORKSPACE_IDENTITY_RECORD_REL: string = 'docs/agents/workspace-root.yaml'
-const WORKSPACE_RECORD_RELS: string[] = [WORKSPACE_CONFIG_RECORD_REL, WORKSPACE_IDENTITY_RECORD_REL]
+// 标记只有两类：自带 .git、自带插件工作区记录。两份记录的路径真源都在
+// src/shared/config-store/src/workspace.ts（一个值只有一处定义），本文件只消费、组成下面这张表；
+// 换记录、改路径都只改真源。判定只问在不在，不读内容。身份记录（workspace-root.yaml）的
+// 写入侧是 #1806 的后续步骤，判定侧先认它，这样「初始化 / 人显式标独立」两条记录产生路径的
+// 门禁可以先行落地。
+const WORKSPACE_RECORD_RELS: string[] = [WORKSPACE_YAML_REL, WORKSPACE_IDENTITY_REL]
 const workspaceRootCache = new Map<string, any>()   // 所选目录规整键 → { root, source, at }
 let rootLogSampleN: number = 0
 
 // #491 房外埋点同款：日志里只记散列，不记路径原文。
 function hash8(s: any): string { try { const t: string = String(s || ''); let h: number = 5381; for (let i: number = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
 
+/**
+ * 判定结果的来源值。取值集合就是 resolveWorkspaceRoot 可能回的全部结果，用联合类型锁死，
+ * 其中没有旧口径的 'anchor'（#1806 起判定不读声明文件，也就不可能停在它上面）。
+ */
+export type WorkspaceRootSource = 'git' | 'record' | 'self' | 'fail' | 'no-fs' | 'no-probe' | 'empty' | 'relative'
+
 /** 根判定结果的形状：算出来的工作区根、停在哪种标记、这一次是命中缓存还是现算。 */
 export interface WorkspaceRootResult {
   root: string
-  source: string
+  source: WorkspaceRootSource
   cache: string
 }
 
@@ -183,7 +191,7 @@ async function existsAt(fsSvc: any, abs: any): Promise<boolean> {
  * 回答的只有「这一层是工作区」这一件事，内容由别的读取方按各自的需要解释（后端选择读 workspace.yaml）。
  * 记录路径本身是目录、内容空、写坏了都按「在」算——判定不替人猜记录的有效性，也不读内容（#1806）。
  */
-async function markerOf(fsSvc: any, dir: any): Promise<string> {
+async function markerOf(fsSvc: any, dir: any): Promise<'git' | 'record' | ''> {
   if (await existsAt(fsSvc, joinKey(dir, '.git'))) return 'git'
   for (const rel of WORKSPACE_RECORD_RELS) {
     if (await existsAt(fsSvc, joinKey(dir, rel))) return 'record'
@@ -203,7 +211,8 @@ function isAbsoluteKey(key: any, platform: any): boolean {
  * @param {{ getPlatform?: Function, getFs?: Function, logCtx?: Object }} [deps]
  * @returns {Promise<{ root: string, source: string, cache: string }>}
  *   source：git 停在自带 .git 的那一层、record 停在自带插件工作区记录的那一层、self 一路到顶都没有标记、
- *           fail 探测失败回退所选目录、no-fs 与 no-probe 是连探测能力都没有。
+ *           fail 探测失败回退所选目录、no-fs 与 no-probe 是连探测能力都没有；另两种没有进入探测：
+ *           empty 是空路径、relative 是相对路径（两者原样返回、不缓存）。
  *   cache：hit 用的是缓存、miss 与 expired 是这次真算的、skip 没算（空路径、相对路径、没有探测能力、
  *           探测失败这几种都不写缓存）。
  */
@@ -229,9 +238,9 @@ export async function resolveWorkspaceRoot(selectedKey: any, deps?: any): Promis
         // 层数上限只是兜底（真有环也不至于转不出来）。每层最多问三条固定路径（.git 与两份记录）。
         let cursor: any = key
         let root: string = key
-        let source: string = 'self'
+        let source: WorkspaceRootSource = 'self'
         for (let i: number = 0; i < 64; i++) {
-          const kind: string = await markerOf(fsSvc, cursor)
+          const kind: 'git' | 'record' | '' = await markerOf(fsSvc, cursor)
           if (kind) { root = cursor; source = kind; break }
           const up: string | null = parentWorkspaceDir(cursor)
           if (!up) break
