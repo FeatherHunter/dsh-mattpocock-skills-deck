@@ -126,8 +126,11 @@ export const PIXEL_STYLE_TEXT: string[] = [
   ".pixel-doc hr{border:none;border-top:3px solid var(--pixel-frame);margin:10px 0}",
   ".pixel-doc img{max-width:100%;max-height:220px;object-fit:contain;display:block;margin:8px 0;border:3px solid var(--pixel-frame);background:var(--pixel-card);cursor:zoom-in}",
   ".pixel-doc label.pixel-task{display:flex;gap:8px;align-items:flex-start;margin:5px 0}",
-  ".pixel-skillrow{display:flex;gap:8px;align-items:center;background:var(--pixel-card);border:3px solid var(--pixel-frame);box-shadow:3px 3px 0 var(--pixel-shadow);padding:6px 10px;margin:8px 0;transition:transform " + MOTION.pixelPressMs + "ms steps(2,end),box-shadow " + MOTION.pixelPressMs + "ms steps(2,end)}",
+  ".pixel-skillrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--pixel-card);border:3px solid var(--pixel-frame);box-shadow:3px 3px 0 var(--pixel-shadow);padding:6px 10px;margin:8px 0;transition:transform " + MOTION.pixelPressMs + "ms steps(2,end),box-shadow " + MOTION.pixelPressMs + "ms steps(2,end)}",
   ".pixel-skillrow.rec{background:var(--pixel-rec-bg)}",
+  // 两颗按钮装成一组：面板被拖窄、一行放不下时整组换到下一行（不把注入与详情拆到两行），
+  // 组本身 margin-left:auto 保持右对齐；460 宽时整组仍在描述右边，与之前一致。
+  ".pixel-sbtns{display:inline-flex;align-items:center;gap:8px;margin-left:auto}",
   // 悬停与焦点拆开：悬停不是焦点，深浅两套照旧；:focus-within 只在深色下画整行的圈，
   // 浅色这一行不画环，交给宿主给里面那颗拿到焦点的控件画焦点环。
   ".pixel-skillrow:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--pixel-shadow);outline:2px solid var(--pixel-dc,var(--pixel-gold));outline-offset:1px}",
@@ -160,6 +163,13 @@ export const PIXEL_STYLE_TEXT: string[] = [
   ".pixel-tab{position:relative;background-color:var(--pixel-tab2);background-image:repeating-conic-gradient(var(--pixel-tab1) 0% 25%,var(--pixel-tab2) 0% 50%);background-size:8px 8px;border:4px solid var(--pixel-frame);box-shadow:6px 6px 0 var(--pixel-shadow);padding:10px}",
   ".pixel-tab .dsws-grp{color:var(--pixel-tab-ink);font-weight:700;letter-spacing:1px}",
   ".pixel-tab .dsws-grp svg{color:var(--pixel-tab-ink)}",
+  // ---- 技能列表标题行与重要程度图例（#1837）----
+  // 标题行左边是「■ 技能」，右边是图例；面板窄到一行放不下时，图例整体换到第二行、仍然贴着右边，
+  // 图例内部的几项也允许换行——换行只多占一行，横向溢出会让整页多出滚动条，那才是看不下去的状态。
+  ".pixel-skillhead{flex-wrap:wrap;row-gap:4px}",
+  ".pixel-skilllegend{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px 5px;max-width:100%;color:var(--pixel-ink2);font-size:10.5px;font-weight:400;letter-spacing:0}",
+  ".pixel-legenditem{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}",
+  ".pixel-legendstar{color:var(--pixel-acc);font-weight:700}",
   ".pixel-tab .dsws-seg{font:700 11px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-paper);color:var(--pixel-ink);border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow);padding:1px 8px;border-radius:0;cursor:pointer}",
   ".pixel-tab .dsws-seg.on{background:var(--pixel-acc);color:var(--pixel-acc-ink)}",
   ".pixel-tab .dsws-chip{font:700 11px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-card);color:var(--pixel-ink);border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow);border-radius:0;padding:0 7px}",

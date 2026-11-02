@@ -30,7 +30,8 @@ export const SkillsTab = ({ st }: any): any => {
       const items: PixelSkillItem[] = SKILLS.map(function (sk: any) {
         return {
           name: sk.name,
-          level: sk.level,
+          // #1837：色点画的是重要程度（core / common / rare），不再是能不能用的状态档。
+          importance: sk.importance,
           use: tr('skilldesc.' + sk.name),
           recommended: rec.indexOf(sk.name) >= 0,
         }

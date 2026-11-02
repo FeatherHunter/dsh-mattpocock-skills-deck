@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-02T20:23:23.363Z",
+  "generatedAt": "2026-11-02T20:28:38.548Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 541,
-  "gateCount": 541,
-  "attributedGates": 484,
+  "chainLength": 543,
+  "gateCount": 543,
+  "attributedGates": 486,
   "unattributedGates": 57,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 83,
+  "completionRecordedGates": 85,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 844,
@@ -6164,6 +6164,54 @@
       "completionRecord": true,
       "expectedAssertions": 21,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1837-legend-browser.ts",
+      "file": "tests/verify-1837-legend-browser.ts",
+      "guards": [
+        "config/copy/skilldetail.yaml",
+        "src/client/views/pixel/PixelDot.ts",
+        "src/client/views/skillDetail/PixelSkillList.ts",
+        "src/client/views/skillDetail/PixelStyles.ts",
+        "src/shared/matt-skills.ts"
+      ],
+      "dirs": [
+        "config/copy",
+        "src/client/views/pixel",
+        "src/client/views/skillDetail",
+        "src/shared"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 181,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
+    {
+      "step": "node tests/verify-1837-skill-importance.ts",
+      "file": "tests/verify-1837-skill-importance.ts",
+      "guards": [
+        "config/copy/skilldetail.yaml",
+        "src/client/views/SkillsTab.ts",
+        "src/client/views/pixel/PixelDot.ts",
+        "src/client/views/pixelProps.d.ts",
+        "src/client/views/skillDetail/PixelSkillList.ts",
+        "src/client/views/skillDetail/PixelSkillRow.ts",
+        "src/client/views/skillDetail/PixelStyles.ts",
+        "src/shared/matt-skills.ts"
+      ],
+      "dirs": [
+        "config/copy",
+        "src/client/views",
+        "src/client/views/pixel",
+        "src/client/views/skillDetail",
+        "src/shared"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 30,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -12804,6 +12852,8 @@
       "node tests/verify-1612-deck-door.ts",
       "node tests/verify-1654-ws-pending-hint.ts",
       "node tests/verify-1661-banner-singleline.ts",
+      "node tests/verify-1837-legend-browser.ts",
+      "node tests/verify-1837-skill-importance.ts",
       "node tests/verify-notification-center.ts",
       "node tests/verify-rest-fallback-banner.ts"
     ],
@@ -13445,6 +13495,7 @@
       "node tests/verify-1792-card-action-gate.ts",
       "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-1833-list-sticky.ts",
+      "node tests/verify-1837-skill-importance.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -13506,6 +13557,8 @@
     ],
     "src/client/views/pixel": [
       "node tests/verify-1522-skill-md-refs.ts",
+      "node tests/verify-1837-legend-browser.ts",
+      "node tests/verify-1837-skill-importance.ts",
       "node tests/verify-skill-detail-stack.ts",
       "node tests/verify-ui-feedback.ts"
     ],
@@ -13564,6 +13617,8 @@
     ],
     "src/client/views/skillDetail": [
       "node tests/verify-1522-skill-md-refs.ts",
+      "node tests/verify-1837-legend-browser.ts",
+      "node tests/verify-1837-skill-importance.ts",
       "node tests/verify-skill-detail-stack.ts",
       "node tests/verify-time-config.ts",
       "node tests/verify-ui-feedback.ts"
@@ -14189,6 +14244,8 @@
       "node tests/verify-1281-entries.ts",
       "node tests/verify-1612-deck-tool-gate.ts",
       "node tests/verify-1642-toggle-logs.ts",
+      "node tests/verify-1837-legend-browser.ts",
+      "node tests/verify-1837-skill-importance.ts",
       "node tests/verify-730-cwd-consistent.ts",
       "node tests/verify-948-feedback-map.ts",
       "node tests/verify-952-short-text.ts",
