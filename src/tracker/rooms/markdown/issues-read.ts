@@ -28,9 +28,9 @@ type RowFilter = ListFilter & { effortId?: string | null }
 // 枚举选项：今天只有「票文件读不动时收不收集」一个开关（list 静默跳过，counts 收集后整体失败）。
 interface EnumerateOpts {
   collectErrors?: boolean
-  /** 这一趟是谁在枚举（list / counts / listPage）：只用来给日志那行的操作名定位，不参与任何判定。
-   *  收成这三个字面量，是让这一层拼不出登记表以外的操作名（reason 的前缀就是它）。 */
-  op?: 'list' | 'counts' | 'listPage'
+  /** 这一趟是谁在枚举（list / counts / listPage / listSubIssues）：只用来给日志那行的操作名定位，
+   *  不参与任何判定。收成这几个字面量，是让这一层拼不出登记表以外的操作名（reason 的前缀就是它）。 */
+  op?: 'list' | 'counts' | 'listPage' | 'listSubIssues'
 }
 // 一条读不动的票文件：编号、文件、判出的档位、给人看的话、原文（调用方据此如实报失败，不许猜数）。
 export interface RowReadError {
@@ -65,7 +65,7 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
   const scope = scopeOf(repo, filter)
   const collectErrors = !!(opts && opts.collectErrors === true)
   // 这一趟是谁在枚举：只影响日志那行的操作名（list / counts / listPage 三条路的降级原因各写各的）。
-  const op: 'list' | 'counts' | 'listPage' = (opts && opts.op) || 'list'
+  const op: 'list' | 'counts' | 'listPage' | 'listSubIssues' = (opts && opts.op) || 'list'
   /** 记一行「这一趟读得不完整」（#1058）：耗时从这一次枚举的入口算起。记日志不许改变读的结果。
    *
    *  同一趟里同一个步骤只留一条线（#1058 复核）：主形态读不动之后本函数还会再试夹具兜底形态，

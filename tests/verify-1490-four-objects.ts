@@ -347,16 +347,16 @@ try {
   check((specNode && Object.keys(specNode.sections || {}).join(',')) === 'problem,solution,userStories,implDecisions,testDecisions,outOfScope,furtherNotes', '快照里规格按原文七段给出 sections')
   check(!!mapNode && String(mapNode.title) === '探索地图乙', '快照里地图容器标题是 探索地图乙')
   check(!!mapNode && String(mapNode.destination).includes('先把现成方案摸清楚。'), '快照里地图的 Destination 来自 map.md')
-  // #1796 起首屏只装开放工作集 + 开放地图子票 + 已关闭地图容器行（规格 677 §6.3）；已关闭的子票靠
-  //   listSubIssues 补，本地 Markdown 后端这条操作是「设计上不支持」（src/tracker/rooms/markdown/index.ts:312），
-  //   所以这张地图的已关闭子票 01 补不回来 —— 票面「范围外：GitLab/Markdown 后端」的已知退化；
-  //   GitHub 侧「开放地图子票拉全」由 tests/tracker-contract/sections/snapshot.ts 自守。
-  check(!!mapNode && Array.isArray(mapNode.tickets) && mapNode.tickets.length === 0, '快照里开放地图的子票为空（本地后端不支持 listSubIssues，已关闭子票 01 不在首屏）')
+  // #1796 起首屏只装开放工作集 + 开放地图子票 + 已关闭地图容器行（规格 677 §6.3）；开放容器的已关闭
+  //   子票靠 listSubIssues 补。#1826 起本地 Markdown 后端实现了这条操作（src/tracker/rooms/markdown/sub-issues.ts），
+  //   所以这张开放地图的已关闭子票 01 会被补回首屏 —— 正是这一条要断的（此前是「本地后端不支持」的已知退化）。
+  check(!!mapNode && Array.isArray(mapNode.tickets) && mapNode.tickets.length === 1 && String(mapNode.tickets[0].key) === '01' && String(mapNode.tickets[0].state) === 'closed',
+    '快照里开放地图的子票补回了 1 张（已关闭的子票 01 也在首屏，本地 Markdown 后端 #1826 起支持 listSubIssues）')
   check(!!mapNode && Array.isArray(mapNode.decisions) && mapNode.decisions.length === 1 && String(mapNode.decisions[0].url) === 'issues/01-现成方案有哪些.md', '快照里地图的 Decisions 指针来自 map.md')
   const snapIssues: any[] = snapshot.issues || []
   eq(snapIssues.length, 0, '快照 issues 列表为空：已关闭票的历史不再预装首屏（规格 677 §6.3）')
   const stats: any = snapshot.deck && snapshot.deck.stats
-  check(!!stats && stats.total === 0 && stats.open === 0 && stats.closed === 0, '快照派生统计按首屏行数算：没有票行，total/open/closed 都是 0')
+  check(!!stats && stats.total === 1 && stats.open === 0 && stats.closed === 1, '快照派生统计按首屏行数算：补回来的这张已关闭子票计入 total 1 / closed 1 → ' + JSON.stringify({ total: stats && stats.total, open: stats && stats.open, closed: stats && stats.closed }))
   const deck1: any = snapshot.deck || {}
   const deck1Counts: any = deck1.counts
   check(!!deck1Counts && deck1Counts.open === 0 && deck1Counts.closed === 2 && deck1Counts.total === 2 && deck1Counts.source === 'backend', '快照数字来自后端 counts：open 0 / closed 2 / total 2（来源 backend）')

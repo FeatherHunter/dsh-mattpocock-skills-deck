@@ -5,9 +5,10 @@
  * `src/tracker/contract/capability-answer.ts` 的文件头，这里不重复。
  *
  * ── 这一家与另外两家不一样的三处（都如实记在下面，别以为是漏写）────────────────
- *   1. 四条操作**明确不支持，但后端自己在实例上放了显式桩**：`getCurrentUser`、`initProject`、
- *      `getRepoPermissions`、`listSubIssues`。它们写 `stubBy: 'backend'`，所以仍然算在实例成员里
- *      （见 `MarkdownBackendMembers`）——「不支持」是分类，不是「成员不在」。
+ *   1. 三条操作**明确不支持，但后端自己在实例上放了显式桩**：`getCurrentUser`、`initProject`、
+ *      `getRepoPermissions`。它们写 `stubBy: 'backend'`，所以仍然算在实例成员里
+ *      （见 `MarkdownBackendMembers`）——「不支持」是分类，不是「成员不在」。`listSubIssues` 原先也
+ *      在这一组，2026-11-02（#1826）起有真实现，移到上面的「提供」里。
  *   2. 两条定位口（`describe`、`issueAddress`）是提供的，但**住在模块对象上**（`markdownModule`），
  *      不在工厂实例上；`getRepoKey` 在实例上，答案恒为空（见下面的说明）。
  *   3. 四条操作是 `partial`（做了、但有某些输入与承诺对不上）。这一档是 #1174 加的：
@@ -21,7 +22,7 @@
  */
 import type { CapabilityRegister } from '../../contract/capability-answer.js'
 
-/** 本地 Markdown 后端：27 条里 20 条真提供（含 #1446 落地的读预算与 #1605 落地的地图薄行）、3 条做了但有对不上的输入、4 条明确不支持（后端自己补桩）。
+/** 本地 Markdown 后端：27 条里 21 条真提供（含 #1446 落地的读预算、#1605 落地的地图薄行、#1826 落地的子票）、3 条做了但有对不上的输入、3 条明确不支持（后端自己补桩）。
  *
  *  `getRepoKey` 为什么算「提供」而不是「不支持」：契约对定位口只有一种答案形态 —— 名字或者空，
  *  空也是答案、不是失败（见 `contract/operations.ts` 定位口那一段）。本地房的身份就是工作区目录本身，
@@ -30,7 +31,7 @@ import type { CapabilityRegister } from '../../contract/capability-answer.js'
  *  于是这个后端实例上压根没有这个方法，调用方一调就抛类型错误。现在改成真的实现一条回空的。
  *  #1174 决策 2、决策 11③。 */
 export const MARKDOWN_CAPABILITY_REGISTER = {
-  // —— 操作 24 条：16 条真提供（每种合法输入都对得上承诺）——
+  // —— 操作 24 条：17 条真提供（每种合法输入都对得上承诺）——
   preflight: { tier: 'provided' },
   list: { tier: 'provided' },
   get: { tier: 'provided' },
@@ -48,6 +49,9 @@ export const MARKDOWN_CAPABILITY_REGISTER = {
   ensureLabelColorsFile: { tier: 'provided' },
   // 地图薄行（#1605 落地）：真实现在 ./maps.ts——与 list 共用同一份枚举，只做内存复核与排序。
   listMaps: { tier: 'provided' },
+  // 子票（#1826 落地）：真实现在 ./sub-issues.ts——与 list 共用同一份枚举，读「父容器编号等于这个容器」
+  // 的票行（规格与地图都是 00 号容器，工作单元靠 repo.effortId 定）；读不动票文件整体失败，不回缺行清单。
+  listSubIssues: { tier: 'provided' },
 
   // —— 操作 24 条：3 条做了但有对不上的输入（差在哪写在 gap 里，这是给人看的账）——
   getDependencies: {
@@ -67,11 +71,10 @@ export const MARKDOWN_CAPABILITY_REGISTER = {
     ticket: '#1174',
   },
 
-  // —— 操作 24 条：4 条明确不支持（后端自己在实例上补了显式桩）——
+  // —— 操作 24 条：3 条明确不支持（后端自己在实例上补了显式桩）——
   getCurrentUser: { tier: 'unsupported-by-design', stubBy: 'backend' },
   initProject: { tier: 'unsupported-by-design', stubBy: 'backend' },
   getRepoPermissions: { tier: 'unsupported-by-design', stubBy: 'backend' },
-  listSubIssues: { tier: 'unsupported-by-design', stubBy: 'backend' },
   // 读预算（#1446 落地）：本地房是离网口径，读数恒为「离网」那一支，不读盘、不调任何东西。
   // 实现在 ./budget.ts；这里从「未来会开发」改成「明确提供功能」，是因为调用方今天就会问到它。
   readBudget: { tier: 'provided' },

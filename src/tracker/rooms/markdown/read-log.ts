@@ -63,6 +63,7 @@ export const READ_DEGRADED_OPS = Object.freeze([
   'get',
   'counts',
   'listPage',
+  'listSubIssues',
 ] as const)
 
 /**
@@ -95,6 +96,14 @@ export const READ_DEGRADED_OPS = Object.freeze([
  * 而且它与「读了声明文件、里面没写 Local Markdown」那条不记的判据直接打架。所以「没找到地图」
  * 本身不记，只有后面那一层（声明文件）也读不动时才留下痕迹。GitLab 房同理不记 `.git/config`
  * 里没写 gitlab 这一条。
+ *
+ * 子票取数（`op: 'listSubIssues'`，#1826）另有一组取值，因为它的判据与列举不同：
+ *  - `listSubIssues:bad-key`  : 调用方给的容器编号不是一个数字，连文件都没找过（输入被拒）
+ *  - `listSubIssues:notfound` : 这个范围里没有那个编号的容器（没有规格文件，也没有地图文件）
+ *  - `listSubIssues:ambiguous`: 同一个编号在多个工作单元里都是容器，调用方没指定工作单元（拒绝猜）
+ *  - `listSubIssues:read-fail`: 有票文件或票目录读不动，整条如实失败（拒绝回缺行的子票清单）
+ *  - `listSubIssues:map-read-fail`: 容器文件读不动，这一趟找不到容器（枚举那一步落的线）
+ *  - `listSubIssues:fs-fail`  : 其余故障，整条如实失败
  *
  * 只记「读不动却照旧回成功」那几种细步骤（票文件读不动被静默跳过、地图行读不动），
  * 以及每条操作整条失败时的一行粗结论。为什么不给失败再细分步骤：**整条失败时，失败结果本身
@@ -129,6 +138,14 @@ export const READ_DEGRADED_REASONS = Object.freeze([
   'get:notfound',
   'get:read-fail',
   'get:fs-fail',
+  // #1826 子票取数（listSubIssues）的五档落点：容器编号非法、容器没找到、多个工作单元同名容器、
+  //   票读不动、其余故障。map-read-fail 由枚举那一步记（与 list / counts 同一套步骤名）。
+  'listSubIssues:bad-key',
+  'listSubIssues:notfound',
+  'listSubIssues:ambiguous',
+  'listSubIssues:read-fail',
+  'listSubIssues:map-read-fail',
+  'listSubIssues:fs-fail',
   // #1488 兼容与退化（都是「读成功、路径不常规」，不是故障；结果照常返回）：
   //  - `legacy-root` : 这张票来自旧版工作区根 `<cwd>/issues/`（#1486 之前的落点）。读到它的目的是排查
   //                    「为什么这张票不在 .scratch 下」以及「新版发现口是不是漏了这个目录」。

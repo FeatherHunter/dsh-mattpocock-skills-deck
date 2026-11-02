@@ -31,6 +31,7 @@ import { listIssues, getIssue } from '../src/tracker/rooms/markdown/issues-read.
 import { countIssues } from '../src/tracker/rooms/markdown/counts.ts'
 import { listIssuesPage } from '../src/tracker/rooms/markdown/page.ts'
 import { createMarkdownBackend, matches } from '../src/tracker/rooms/markdown/index.ts'
+import { listSubIssues } from '../src/tracker/rooms/markdown/sub-issues.ts'
 import { READ_DEGRADED_OPS, READ_DEGRADED_REASONS } from '../src/tracker/rooms/markdown/read-log.ts'
 
 type LogLine = { level: string; event: string; fields: Record<string, unknown> }
@@ -502,6 +503,71 @@ console.log('\n== 九、识别这一趟（matches）三档落点：#1182 第 4 �
   delete (silentMatchCtx as { logEvent?: unknown }).logEvent
   const silentHit = await matchCall(silentMatchCtx, wsP, '.scratch/demo')
   check(silentHit === true, 'matches：上下文没有 logEvent 时照样认出 true（日志不许反过来左右识别）→ ' + String(silentHit))
+}
+
+console.log('\n== 九之二、容器子票这条路（#1826）：六条降级各留一行 ==')
+{
+  // 首屏靠 listSubIssues 把开放容器的已关闭子票补回来，进度环的分母才数得全。这条路自己折了、
+  // 读不动、找不到容器、编号不受理、范围说不清时，各自要留一行 —— 事后只看日志能说清停在哪一步。
+  const wsSub = fs.mkdtempSync(path.join(tmpRoot, 'ws-sub-'))
+  writeEffort(wsSub, 'demo', [['01-open-a.md', 'ready-for-agent'], ['02-broken.md', 'ready-for-agent']])
+
+  // 一档：编号不是数字 —— 调用方拼错了编号，这里直接拒，不静默回空清单。
+  const badKeyCtx = makeCtx(wsSub)
+  const badKey = await listSubIssues(badKeyCtx, REPO, 'abc', undefined)
+  const badKeyLines = degraded(badKeyCtx)
+  check(!badKey.ok && String(badKeyLines[0] && badKeyLines[0].fields.reason) === 'listSubIssues:bad-key',
+    'listSubIssues：编号不是数字 → 照旧失败，落一行 listSubIssues:bad-key → ' + (badKeyLines.map(lineText).join(' / ') || '一行都没有'))
+  if (badKeyLines.length) checkShape(badKeyLines[0], '容器编号不受理那一行')
+
+  // 二档：这个范围里没有该编号的容器。
+  const missingCtx = makeCtx(wsSub)
+  const missing = await listSubIssues(missingCtx, REPO, '99', undefined)
+  const missingLines = degraded(missingCtx)
+  check(!missing.ok && String(missingLines[0] && missingLines[0].fields.reason) === 'listSubIssues:notfound',
+    'listSubIssues：99 号容器不存在 → 照旧失败，落一行 listSubIssues:notfound → ' + (missingLines.map(lineText).join(' / ') || '一行都没有'))
+  if (missingLines.length) checkShape(missingLines[0], '找不到容器那一行')
+
+  // 三档：已找到容器，但它的票文件读不动 —— 整趟失败，不返回缺行的清单。
+  const readBadCtx = makeCtx(wsSub, ['02-broken.md'])
+  const readBad = await listSubIssues(readBadCtx, { ...REPO, effortId: 'demo' }, '00', undefined)
+  const readBadLines = degraded(readBadCtx)
+  check(!readBad.ok && String(readBadLines[0] && readBadLines[0].fields.reason) === 'listSubIssues:read-fail',
+    'listSubIssues：容器的票读不动 → 整趟失败，落一行 listSubIssues:read-fail → ' + (readBadLines.map(lineText).join(' / ') || '一行都没有'))
+  if (readBadLines.length) checkShape(readBadLines[0], '票读不动那一行（listSubIssues）')
+
+  // 四档：容器文件自己读不动 —— 枚举那一步先落一条地图读不动的线，随后这一趟如实回「没找到容器」。
+  const mapBadCtx = makeCtx(wsSub, ['map.md'])
+  const mapBad = await listSubIssues(mapBadCtx, { ...REPO, effortId: 'demo' }, '00', undefined)
+  const mapBadLines = degraded(mapBadCtx)
+  check(!mapBad.ok && mapBadLines.some((l) => String(l.fields.reason) === 'listSubIssues:map-read-fail'),
+    'listSubIssues：容器文件读不动 → 落一行 listSubIssues:map-read-fail → ' + (mapBadLines.map(lineText).join(' / ') || '一行都没有'))
+  const mapBadLine = mapBadLines.filter((l) => String(l.fields.reason) === 'listSubIssues:map-read-fail')[0]
+  if (mapBadLine) checkShape(mapBadLine, '容器文件读不动那一行（listSubIssues）')
+
+  // 五档：两个工作单元各有一个 00 号容器、调用方又没指定工作单元 —— 如实报歧义，不猜。
+  const ambWs = fs.mkdtempSync(path.join(tmpRoot, 'ws-sub-amb-'))
+  writeEffort(ambWs, 'unit-a', [['01-a.md', 'ready-for-agent']])
+  writeEffort(ambWs, 'unit-b', [['01-b.md', 'ready-for-agent']])
+  const ambCtx = makeCtx(ambWs)
+  const amb = await listSubIssues(ambCtx, REPO, '00', undefined)
+  const ambLines = degraded(ambCtx)
+  check(!amb.ok && String(ambLines[0] && ambLines[0].fields.reason) === 'listSubIssues:ambiguous',
+    'listSubIssues：两个工作单元都有 00 号容器、又没指定工作单元 → 照旧失败，落一行 listSubIssues:ambiguous → ' + (ambLines.map(lineText).join(' / ') || '一行都没有'))
+  if (ambLines.length) checkShape(ambLines[0], '范围说不清那一行')
+
+  // 六档：这一趟自己折了（路径拼不出来）—— 与「找不到容器」「读不动」是两回事。
+  const throwCtx = makeCtx(wsSub)
+  const realPathImpl = throwCtx.platform.path
+  throwCtx.platform.path = {
+    ...realPathImpl,
+    join() { throw new Error('boom: join 抛了（模拟取子票这一趟自己折了）') },
+  } as typeof realPathImpl
+  const threw = await listSubIssues(throwCtx, REPO, '00', undefined)
+  const threwLines = degraded(throwCtx)
+  check(!threw.ok && String(threwLines[0] && threwLines[0].fields.reason) === 'listSubIssues:fs-fail',
+    'listSubIssues：这一趟自己折了 → 照旧失败，落一行 listSubIssues:fs-fail → ' + (threwLines.map(lineText).join(' / ') || '一行都没有'))
+  if (threwLines.length) checkShape(threwLines[0], '取子票自己折了那一行')
 }
 
 console.log('\n== 九、取值表与落点两向对账 ==')

@@ -15,6 +15,8 @@ import { countIssues } from './counts.js'
 import { listIssuesPage } from './page.js'
 // #1605：地图薄查真实现（此前 planned，注册表补桩；今天起走真实现）。
 import { listMaps } from './maps.js'
+// #1826：容器的全部子票（含已关闭的）真实现——与 list 共用同一份枚举，不再是 unsupported 桩。
+import { listSubIssues } from './sub-issues.js'
 import { getDependenciesForKey } from './graph.js'
 import { addComment } from './comments.js'
 import { listLabels, setLabelColors } from './label-colors-ops.js'
@@ -36,7 +38,8 @@ import type { MARKDOWN_CAPABILITY_REGISTER } from './capability-register.js'
 
 // —— Markdown 交出来的成员：24 条能力 + id（读预算自 #1446 起「明确提供功能」，地图薄行自 #1605 起进成员集合） ——
 // 这份集合不再手写，从本房的登记数据推出来：明说「提供」的名字、明说「做了但没做到位」的名字（#1174 第四档，
-// 它们的实现是有的），再加上「明确不支持、但后端自己在实例上补了显式桩」的那 4 条（登记里 `stubBy: 'backend'`）。
+// 它们的实现是有的），再加上「明确不支持、但后端自己在实例上补了显式桩」的那 3 条（登记里 `stubBy: 'backend'`；
+// #1826 起 listSubIssues 不再算这一档，它有了真实现，见下面的接线）。
 // 定位口要摘掉两条：本后端只有 `describe` / `issueAddress` 住在模块对象上（`markdownModule`）、不在工厂实例上，
 // 所以这里点名摘它们；`getRepoKey` 则相反 —— 以前它在登记里写「由注册表补桩」，可注册表只按 23 条操作那个
 // 名录补桩、不给定位口补，于是实例上没有这个方法却又不被要求有（#1174 决策 2）。现在它按「提供」登记、
@@ -284,6 +287,11 @@ export function createMarkdownBackend(ctx: OpContext) {
     listPage:(repo,filter,opts,opCtx)=>asOpResult<PageResult>(listIssuesPage(opCtx||ctx,repo,filter,opts)),
     // #1605 地图薄查：纯地图筛的列表走这条快速路（与 list 共用同一份枚举，不读正文）。
     listMaps:(repo,opCtx)=>asOpResult<MapListResult>(listMaps(opCtx||ctx,repo)),
+    // #1826：容器的全部子票（含已关闭的）。子票没有独立清单文件，真源就是与 list 同一份枚举里
+    //   「父容器编号等于这个容器」的票行（规格与地图都是 00 号容器）；工作单元从 repo.effortId 定，
+    //   因为 00 这个编号在每个工作单元里都重复。宿主首屏靠它把「做完了已经关掉」的子票补回来，
+    //   进度环的分母才数得全。
+    listSubIssues:(repo,mapKey,opts,opCtx)=>asOpResult<SubIssueList>(listSubIssues(opCtx||ctx,repo,mapKey,opts)),
     get:(repo,key,opts,opCtx)=>asOpResult<Issue>(getIssue(opCtx||ctx,repo,key,opts)),
     getDependencies:(repo,key,opts,opCtx)=>asOpResult<Dependencies>(getDependenciesForKey(opCtx||ctx,repo,key,opts)),
     create:(repo,input,opCtx)=>asOpResult<Issue>(createIssue(opCtx||ctx,repo,input)),
@@ -308,8 +316,6 @@ export function createMarkdownBackend(ctx: OpContext) {
     initProject: ()=>asOpResult<RepositoryRef>(failAs(ERROR_KIND.UNSUPPORTED,'markdown initProject unsupported','')),
     // 本地票仓的写入能力由目录权限与沙箱决定，没有「仓库权限」这回事，所以没有可问的对象。
     getRepoPermissions: ()=>asOpResult<RepoPermissions>(failAs(ERROR_KIND.UNSUPPORTED,'markdown getRepoPermissions unsupported','')),
-    // 子票就在工作区的票文件里，宿主要「这张地图的全部子票」直接读文件即可，不经这里。
-    listSubIssues: ()=>asOpResult<SubIssueList>(failAs(ERROR_KIND.UNSUPPORTED,'markdown listSubIssues unsupported','')),
     // 定位口（#1174 决策 2）：问「这个仓库在这个后端上叫什么」。本地房的身份就是工作区目录本身，
     // 没有 owner/name 可以解析出来，所以恒回 null —— 契约写着定位口的答案「是名字或者空，
     // 空也是答案，不是失败」，所以这不是一条失败桩，是一条诚实回空的实现。

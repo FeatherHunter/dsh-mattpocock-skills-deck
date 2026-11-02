@@ -232,7 +232,7 @@ interface DeckProjection {
 - 旧文件兼容：早期渲染器给 issue 文件写 `Status: ready-for-agent` 当默认值，读旧文件时它只算兜底线索；若隐藏 `DSH-LABELS` 里恰好有一个合法 triage，则以它为准并带出 `statusVisible`。第一次显式写会把两份归一成可见 Status 行，落选值记入文件头 `DSH-STATUS-HISTORY`。
 - `Issue.labels` 不再恒为 MISSING：读侧给非 triage 标签加合成的 triage 标签；`ListFilter` 不加 status 筛选，要按状态筛就继续按标签筛。
 - `Issue.type` 由 wayfinder 语义定（issue/map/spec），与 `Type:`（research/prototype/grilling/task）正交；`Type:` 作为附加信息保留在 body/诊断。
-- `Issue.parentKey` / `MapNode.tickets`：由 `.scratch/<effort>/` 目录层级推导（map.md 下的 issues/ 即其子票）。
+- `Issue.parentKey` / `MapNode.tickets`：由票的归属声明与 `.scratch/<effort>/` 目录层级共同推导——新布局的票认文件头 `DSH-PARENT` 注释，旧布局的票按目录归属（`map.md` 同目录的 `issues/` 即其子票，`spec.md` 同目录的 `issues/` 同理）。`listSubIssues` 与 `list` 共用同一份枚举，「父容器编号等于这个容器」的票行就是它的子票，不另读 `map.md` 正文（#1826）。
 
 ---
 

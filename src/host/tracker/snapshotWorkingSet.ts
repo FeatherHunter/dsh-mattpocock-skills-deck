@@ -15,10 +15,13 @@
 // 什么约定不能改：
 //   1. 失败只跳过不抛：某张地图的子票拉不到，其余来源照常返回；失败与不完整的次数如实交给调用方记日志、
 //      判「这一份来源全不全」。
-//   2. 不猜数：listSubIssues 回 unsupported（本地 Markdown 后端）既不算失败也不造假行；没有 listPage 的
+//   2. 不猜数：listSubIssues 回 unsupported（确实不提供子票的后端）既不算失败也不造假行；没有 listPage 的
 //      后端只是补不出已关闭容器行，不做任何替代。
 //   3. 行身份用 (effortId, key) 这一对（tracker/kernel 的 idOfParts）：同一张票只出现一次；同一张票在
 //      开放池里已有、子票里也回来时以池里那份为准，只补它缺的 parentKey。
+//   3之1. 向 listSubIssues 点名容器所属的工作单元：本地 Markdown 后端的容器编号在每个工作单元里都是
+//      00，只传编号分不清是哪一张地图/规格（#1826）。范围放进仓库引用的 effortId 里，且克隆一份
+//      引用再传，不改调用方手里那份；其它后端忽略这个字段。
 //   4. 已关闭地图容器行是薄行：显式给 body:''，让组装层的正文解析不依赖「这一行有没有正文」。
 //   5. 相对导入保留 .js 后缀（构建后由 scripts/ts-hook.mts 改指同名 .ts，本文件不改说明符）。
 
@@ -213,7 +216,11 @@ export async function assembleWorkingSet(input: WorkingSetInput): Promise<Workin
       openContainers++
       let res: any = null
       try {
-        res = await tracker.listSubIssues(ref, containerKey, {}, ctx)
+        // #1826：容器编号在本地 Markdown 后端里每个工作单元都是 00，把这一行容器的工作单元一起放进
+        //   仓库引用，后端才分得清是哪一个 00 号容器（克隆引用，不改调用方手里那一份）。
+        const mapEffort: string = effortOf(container)
+        const scopedRef: any = mapEffort ? Object.assign({}, ref, { effortId: mapEffort }) : ref
+        res = await tracker.listSubIssues(scopedRef, containerKey, {}, ctx)
       } catch (e) {
         res = null
       }
