@@ -209,12 +209,12 @@ try {
   eq(ticketKeys, ['01', '02', '03', '04', '05', '06', '07', '08'], '快照里这张规格挂着 8 张子票（已关闭的 7 张也补回来了）')
   check(rawTickets.filter((t: any) => String(t.state).toUpperCase() === 'CLOSED').length === 7,
     '这 8 张里 7 张是已关闭状态（面板进度环的分子）')
-  // 宿主电话层（src/refresh/rooms/host/session-snapshot-cache.ts:199/216）会把快照里的状态升成大写，
+  // 宿主方法层（src/refresh/rooms/host/session-snapshot-cache.ts:199/216）会把快照里的状态升成大写，
   // 再用同一份 groupTickets 重算每个容器的 stats —— 环上读的是重算后的那份。这里照那条路复算一次。
   const upcased = rawTickets.map((t: any) => Object.assign({}, t, { state: String(t.state || '').toUpperCase() === 'CLOSED' ? 'CLOSED' : 'OPEN' }))
   const ringStats: any = createTicketGrouping().groupTickets(upcased)
   check(ringStats.total === 8 && ringStats.open === 1 && ringStats.closed === 7,
-    '电话层重算后的容器统计按 8 张算：总 8 / 开 1 / 关 7（进度环 7/8，不再是 0/1）→ ' + JSON.stringify({ total: ringStats.total, open: ringStats.open, closed: ringStats.closed }))
+    '宿主方法层重算后的容器统计按 8 张算：总 8 / 开 1 / 关 7（进度环 7/8，不再是 0/1）→ ' + JSON.stringify({ total: ringStats.total, open: ringStats.open, closed: ringStats.closed }))
   const snapIssues: any[] = snapshot.issues || []
   check(snapIssues.every((t: any) => String(t.effortId) !== 'base-package-rollout'), '这 8 张挂在规格行上，没有散落到 issues 列表里')
 } finally {
@@ -332,7 +332,7 @@ try {
   check(broken.ok === false, '有票文件读不动时整体失败，不返回只有 1 张的清单')
   if (!broken.ok) {
     check(String(broken.error.message).indexOf('本地 Markdown 有票文件或票目录读不动') === 0,
-      '失败消息直说「有票文件或票目录读不动，数字不完整」→ ' + String(broken.error.message).slice(0, 60))
+      '失败消息直说「有票文件或票目录读不动，子票清单不完整」→ ' + String(broken.error.message).slice(0, 60))
     check(String(broken.error.message).includes('02-坏票.md'), '失败消息点名是哪一张读不动（用户能照着去查）')
   }
   check(degradedReasons(ctxD).includes('listSubIssues:read-fail'), '票读不动落一行 listSubIssues:read-fail')

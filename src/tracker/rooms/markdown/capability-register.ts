@@ -31,7 +31,7 @@ import type { CapabilityRegister } from '../../contract/capability-answer.js'
  *  于是这个后端实例上压根没有这个方法，调用方一调就抛类型错误。现在改成真的实现一条回空的。
  *  #1174 决策 2、决策 11③。 */
 export const MARKDOWN_CAPABILITY_REGISTER = {
-  // —— 操作 24 条：17 条真提供（每种合法输入都对得上承诺）——
+  // —— 操作 24 条：18 条真提供（每种合法输入都对得上承诺）——
   preflight: { tier: 'provided' },
   list: { tier: 'provided' },
   get: { tier: 'provided' },

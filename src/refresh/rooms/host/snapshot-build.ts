@@ -384,8 +384,8 @@ export function createSnapshotBuilder(deps: SnapshotDeps) {
       const num = numOf(m.key)
       // #1826：本地 Markdown 后端的容器编号在每个工作单元里都是 00，只传编号分不清是哪一张地图/规格；
       //   把这一行容器的工作单元放进仓库引用的 effortId 里（克隆引用，不改上面共用的那一份）。
-      const mapEffort = (m.effortId !== undefined && m.effortId !== null) ? String(m.effortId) : ''
-      const scopedRef = mapEffort ? Object.assign({}, repoRef, { effortId: mapEffort }) : repoRef
+      const containerEffort = (m.effortId !== undefined && m.effortId !== null) ? String(m.effortId) : ''
+      const scopedRef = containerEffort ? Object.assign({}, repoRef, { effortId: containerEffort }) : repoRef
       const got = await readOne(session, opCtx, 'listSubIssues', [scopedRef, String(num), undefined])
       if (!got.ok) {
         // 迁移前 GraphQL 单个别名拿不到详情时就是这一格降级形状（tickets 空、stats 全零），照旧。

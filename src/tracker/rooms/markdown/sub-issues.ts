@@ -24,7 +24,7 @@ import { TRACKER_ERROR_STAGE } from '../../contract/results.js'
 import { failAs, failFromError, rawJson } from './error-fail.js'
 import { emitReadDegraded } from './read-log.js'
 import { enumerateIssueRows } from './issues-read.js'
-import { readFailureMessage } from './counts.js'
+import type { RowReadError } from './issues-read.js'
 import { scopeOf } from './issues-locate.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { Issue, RepositoryRef } from '../../contract/entities.js'
@@ -38,6 +38,17 @@ type LocateOptions = Parameters<typeof scopeOf>[1]
 /** 一张行是不是容器行（规格或地图）。容器行不进子票清单：进度环数的是容器里的票。 */
 function isContainerRow(row: Issue): boolean {
   return !!row && (row.type === ISSUE_TYPE.SPEC || row.type === ISSUE_TYPE.MAP)
+}
+
+/** 把「读不动的票文件 / 读不动的票目录」清单拼成一句人看得懂的话。
+ *  为什么不用 counts.ts 的那一句：counts 交回的是数字，它说「数字不完整，拒绝回一个偏小的数」；
+ *  这里交回的是子票清单，同一种失败要说成「清单不完整，拒绝回缺行的清单」，用户才知道缺的是什么。
+ *  句式与 maps.ts 的 mapReadFailureMessage 一致，名词各按各的输出换。 */
+function subIssuesReadFailureMessage(errors: RowReadError[]): string {
+  const parts = errors.map(function (err) { return (err.key ? String(err.key) : '票目录') + '（' + String(err.path) + '）' })
+  const first = errors[0] as RowReadError | undefined
+  return '本地 Markdown 有票文件或票目录读不动，子票清单不完整，拒绝回缺行的清单：' + parts.join('、') +
+    '（' + String((first && first.kind) || '') + '：' + String((first && first.message) || '') + '）'
 }
 
 /** 子票按编号升序：01、02…10 是自然顺序，退化身份（目录/编号-文件名）排在数字编号之后、按字典序。 */
@@ -83,6 +94,9 @@ export async function listSubIssues(ctx: OpContext, repo: RepoWithPath, containe
       return failAs(ERROR_KIND.NOTFOUND, '子票取数：' + norm + ' 号容器没找到（这个范围里没有规格文件，也没有地图文件）', rawJson({ containerKey: norm, effort: scope })) as SubIssueListResult
     }
     // 二、定工作单元。调用方给了范围就听它的；没给时只在唯一命中时自动定，多个命中不猜。
+    //    这里与 GLOSSARY「诚实冲突」条写的「读按目录顺序回落」不同，是照 issues-locate 在 #1595 定下的
+    //    「读也不猜」先例：同一编号在两处都存在时，先挑一个再读，用户看到的就是另一张容器的子票；
+    //    拒绝猜并报出候选，调用方补上 effortId 再问一次，才拿得到确定的那一份。
     const efforts: string[] = []
     for (const container of containers) {
       const effort = container.effortId === undefined || container.effortId === null ? '' : String(container.effortId)
@@ -98,7 +112,7 @@ export async function listSubIssues(ctx: OpContext, repo: RepoWithPath, containe
     if (read.errors.length) {
       emitReadDegraded(ctx, 'listSubIssues', 'listSubIssues:read-fail', Date.now() - t0)
       const rawLines = read.errors.map(function (err) { return err.key + ' ' + err.path + ' [' + err.kind + '] ' + err.message }).join('\n')
-      return failAs(read.errors[0].kind || ERROR_KIND.ENV, readFailureMessage(read.errors), rawLines) as SubIssueListResult
+      return failAs(read.errors[0].kind || ERROR_KIND.ENV, subIssuesReadFailureMessage(read.errors), rawLines) as SubIssueListResult
     }
     const items = read.rows.filter(function (row) {
       return !!row && !isContainerRow(row) && row.parentKey !== undefined && row.parentKey !== null && String(row.parentKey) === norm
