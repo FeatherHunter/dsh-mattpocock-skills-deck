@@ -7,7 +7,8 @@
 //   一、新鲜度：时间戳取快照的**取数时刻**（generatedMs），阈值 5 分钟黄 / 30 分钟红（常量来自 budget.ts）；
 //      2026-09-22 起这条信息显示在面板头部那个小时间标签上（panel/Dock.js），标签只画相对时间、
 //      完整说法与精确时刻在悬停提示里 —— 那一节判据（truthFreshnessBox）也在这里量。
-//   二、两种失败是两句不同的话（「插件自己的取数失败」与「配额已被其他使用者耗尽」），放弃等待后活还在跑时说「仍在等」不说失败（无快照也说）；
+//   二、当前是否失败改由面板头部刷新按钮旁一枚带文字的小标识表达（#1833，三种原因各有一句完整说明），
+//      列表状态行不再出现失败句；放弃等待后活还在跑时说「仍在等」不说失败（无快照也说）；
 //   三、T3 那两句也要有读取点（「自动刷新已暂停」与「未在刷新（同时活跃上限 2）」）；
 //   四、降档时把延迟承诺说出来（"数据可能落后 X 分钟"），绿档不说、红档说的是「已暂停」；
 //   五、推迟发生时说「有更新，已推后」；
@@ -15,6 +16,8 @@
 //   七、降级标记（fallback: 'rest'）到得了界面：把快照回包组装函数真跑一遍，上游真降级时回包带 'rest'、没降级时是 null。
 //   八、面板的额度读数（#1446）：只读宿主写下的 refresh.backend.budgetKind，两桶 / 只计请求 / 离网 / 未知四种后端各说各的话；
 //      读数未知时只许说「还没同步上来」，不许出现数字 0，也不许上红档（不知道不等于紧张）。
+//      #1833：额度不再并进列表状态行，改为按「充足 / 紧张 / 未知 / 离网 / 没有额度」给通知中心那一行
+//      （budgetTierViewOf），列表行一个字都不再说额度。
 //
 // 跑法：node tests/verify-visible-truth.ts
 // 判据不是「字符串出现过」，而是把界面那一半的**真代码**加载起来喂两组输入、看它吐出什么话
@@ -24,6 +27,9 @@ const path = require('path')
 // 转译参数从仓库唯一那一份取（scripts/lib/transpile-unit.mts 写明这组参数只在那处写、别处各抄一份会静默分叉）；
 // 从 CJS require 一个 .mjs，与 tests/verify-file-granularity.ts 里 require('../scripts/lib/effective-lines.mts') 是同一种用法。
 const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mts')
+// #1833：头部失败小标识要真渲染一次，确认「健康态不画、失败态带文字且原因进悬停」。
+const React = require('react')
+const { renderToStaticMarkup } = require('react-dom/server')
 const { compileFn } = require('./lib/eval-probe.js')
 // 取源走共用入口（tests/lib/source-text.ts）：这一阶段 src/client 下的同名 .js 构建产物已经删掉，
 //   下面 loadModule 按 .js 路径直接读会 ENOENT。sourcePath 问 .js 时同名 .ts 优先，问到的是手写真源；
@@ -103,6 +109,16 @@ const say = function (key, params) {
   return s
 }
 const textOf = function (line) { return say(line.key, line.params) }
+// #1833：面板头部「失败」小标识的叶子。依赖照拼接闭包里的邻居显式传进来，不读本文件作用域。
+const failMark = loadModule('src/client/views/shared/refreshFailMark.js', {
+  React: React,
+  DswsCtx: React.createContext({ h: React.createElement }),
+  truthFailureOf: truth.truthFailureOf,
+  freshnessToneColor: truth.freshnessToneColor,
+  Ic: function (props) { return '[icon:' + String(props && props.n) + ']' },
+  tr: function (key, params) { return say(key, params) },
+  Tip: function (props) { return React.createElement('span', { 'data-tip': String(props && props.content) }, props && props.children) },
+})
 
 // ---------- 一、新鲜度：取数时刻 + 两个阈值 ----------
 const T1204 = new Date(2026, 0, 1, 12, 4, 0).getTime()
@@ -156,21 +172,54 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   if (truth.truthFreshnessBox({ snapshot: null }, T1204) !== null) fail('还没拿到快照时头部时间标签不该算出任何一句话')
 })()
 
-// ---------- 二、两种失败是两句不同的话；第三种「已暂停」也说得出来 ----------
-;(function checkTwoFailures() {
+// ---------- 二、当前是否失败改由头部小标识表达；列表状态行不再出现失败句 ----------
+;(function checkFailureMarkFacts() {
   const base = { snapshot: snapAt(T1204, { refresh: { tier: null, deferred: false, paused: false, notRefreshing: false } }), snapMode: 'err', snapError: 'boom' }
-  const byOthers = truth.truthNoticeLines(Object.assign({}, base, { snapFail: { kind: 'quota-exhausted', at: T1204 } }), T1204)
-  const byUs = truth.truthNoticeLines(Object.assign({}, base, { snapFail: { kind: 'fetch-failed', at: T1204 } }), T1204)
-  const tOther = byOthers.filter(function (l) { return l.kind === 'fail' }).map(textOf)[0] || ''
-  const tOurs = byUs.filter(function (l) { return l.kind === 'fail' }).map(textOf)[0] || ''
-  if (!tOther || !tOurs) fail('两种失败各缺一句：' + JSON.stringify([tOther, tOurs]))
+  // 失败这一事实仍分三种原因，只是承载它的地方从列表行换到了面板头部；tipKey 是悬停里那句完整说明的词条。
+  const quota = truth.truthFailureOf(Object.assign({}, base, { snapFail: { kind: 'quota-exhausted', at: T1204 } }))
+  const retry = truth.truthFailureOf(Object.assign({}, base, { snapFail: { kind: 'fetch-failed', at: T1204 } }))
+  const pausedFail = truth.truthFailureOf(Object.assign({}, base, { snapFail: { kind: 'fetch-failed', at: T1204 }, snapshot: snapAt(T1204, { refresh: { tier: 'red', deferred: false, paused: true, notRefreshing: false } }) }))
+  // 健康态没有失败事实：小标识不画，列表状态行也不该凭空多一句话。
+  if (truth.truthFailureOf(stWith()) !== null) fail('健康态不该算出「失败」这件事')
+  if (truth.truthNoticeLines(stWith(), T1204).length !== 0) fail('健康态的列表状态行该是空的（失败与额度都不再占列表这一行）')
+  if (!quota || quota.reason !== 'quota' || quota.tipKey !== 'truth.failQuota') fail('配额被别人耗尽时该算出 reason=quota / tipKey=truth.failQuota，实得：' + JSON.stringify(quota))
+  if (!retry || retry.reason !== 'retry' || retry.tipKey !== 'truth.failRetry') fail('插件自己的取数失败还在重试时该算出 reason=retry / tipKey=truth.failRetry，实得：' + JSON.stringify(retry))
+  if (!pausedFail || pausedFail.reason !== 'paused' || pausedFail.tipKey !== 'truth.failPaused' || pausedFail.paused !== true) fail('失败且已暂停时该算出 reason=paused / tipKey=truth.failPaused，实得：' + JSON.stringify(pausedFail))
+  const tOther = quota ? say(quota.tipKey) : ''
+  const tOurs = retry ? say(retry.tipKey) : ''
+  if (!tOther || !tOurs) fail('两种失败各缺一句悬停说明：' + JSON.stringify([tOther, tOurs]))
   if (tOther === tOurs) fail('两种失败说了同一句话（必须分开）: ' + tOurs)
   if (tOther.indexOf('其他使用者') < 0 || tOther.indexOf('整点') < 0) fail('「配额被别人耗尽」那句没说清等整点恢复：' + tOther)
   if (tOurs.indexOf('刷新失败') < 0 || tOurs.indexOf('重试') < 0) fail('「插件自己的取数失败」那句没说要重试：' + tOurs)
-  // 插件自己的失败 + 已经暂停（配额紧张）时，说的是第三句
-  const pausedFail = truth.truthNoticeLines(Object.assign({}, base, { snapFail: { kind: 'fetch-failed', at: T1204 }, snapshot: snapAt(T1204, { refresh: { tier: 'red', deferred: false, paused: true, notRefreshing: false } }) }), T1204)
-  const tPaused = pausedFail.filter(function (l) { return l.kind === 'fail' }).map(textOf)[0] || ''
-  if (tPaused.indexOf('已暂停') < 0 || tPaused.indexOf('配额紧张') < 0) fail('失败且已暂停时那句不对：' + tPaused)
+  if (say(pausedFail.tipKey).indexOf('已暂停') < 0 || say(pausedFail.tipKey).indexOf('配额紧张') < 0) fail('失败且已暂停时那句不对：' + say(pausedFail.tipKey))
+  // 放弃等待后活还在跑：说「仍在等」，既不画失败标识，列表行也不说失败。
+  const late = { snapshot: snapAt(T1204), snapMode: 'err', snapError: 'timeout', snapPending: true }
+  if (truth.truthFailureOf(late) !== null) fail('还在等的时候（snapPending）不该画失败标识')
+  if (truth.truthNoticeLines(late, T1204).some(function (l) { return l.kind === 'fail' })) fail('还在等的时候列表行不该说失败')
+  // #1833 的落点：失败这一行从列表状态行退役后，列表行里再也不出现 kind=fail 的句子（有快照、无快照都一样）。
+  if (truth.truthNoticeLines(base, T1204).some(function (l) { return l.kind === 'fail' })) fail('列表状态行不该再说失败（失败改由头部小标识表达）')
+  if (truth.truthNoticeLines(Object.assign({}, base, { snapshot: null }), T1204).some(function (l) { return l.kind === 'fail' })) fail('无快照时列表状态行也不该说失败')
+})()
+
+// ---------- 二之二、头部小标识真渲染：健康态不画、失败态带「失败」两个字的可见文字、原因进悬停 ----------
+;(function checkFailureMarkRender() {
+  const render = function (st) { return renderToStaticMarkup(React.createElement(failMark.RefreshFailMark, { st: st })) }
+  const htmlOf = function (kind, extra) {
+    return render(Object.assign({ snapshot: snapAt(T1204), snapMode: 'err', snapError: 'boom' }, kind ? { snapFail: { kind: kind, at: T1204 } } : {}, extra || {}))
+  }
+  if (render(stWith()) !== '') fail('健康态头部不该画失败标识，实得：' + JSON.stringify(render(stWith())))
+  const quotaHtml = htmlOf('quota-exhausted')
+  if (quotaHtml.indexOf('data-head-fail="quota"') < 0) fail('配额耗尽时头部小标识没带 data-head-fail="quota"：' + JSON.stringify(quotaHtml))
+  if (quotaHtml.indexOf('失败') < 0) fail('失败小标识必须带可读的「失败」文字（不靠悬停才看得见）：' + JSON.stringify(quotaHtml))
+  if (quotaHtml.indexOf(say('truth.failQuota')) < 0) fail('配额耗尽那次的完整原因没进悬停提示：' + JSON.stringify(quotaHtml))
+  const retryHtml = htmlOf('fetch-failed')
+  if (retryHtml.indexOf('data-head-fail="retry"') < 0) fail('取数失败时头部小标识没带 data-head-fail="retry"：' + JSON.stringify(retryHtml))
+  if (retryHtml.indexOf(say('truth.failRetry')) < 0) fail('取数失败的完整原因没进悬停提示：' + JSON.stringify(retryHtml))
+  const pausedHtml = htmlOf('fetch-failed', { snapshot: snapAt(T1204, { refresh: { tier: 'red', deferred: false, paused: true, notRefreshing: false } }) })
+  if (pausedHtml.indexOf('data-head-fail="paused"') < 0) fail('失败且已暂停时头部小标识没带 data-head-fail="paused"：' + JSON.stringify(pausedHtml))
+  const nullSnapHtml = render({ snapshot: null, snapMode: 'err', snapError: 'boom', snapFail: { kind: 'fetch-failed', at: T1204 } })
+  if (nullSnapHtml.indexOf('data-head-fail="retry"') < 0) fail('无快照时失败也要在头部看得见（不能只靠列表里那行全屏错误）：' + JSON.stringify(nullSnapHtml))
+  if (render({ snapshot: null, snapMode: 'err', snapError: 'timeout', snapPending: true }) !== '') fail('还在等的时候头部不该画失败标识')
 })()
 
 // ---------- 三、T3 那两句（自动刷新已暂停 / 未在刷新（同时活跃上限 2））----------
@@ -221,7 +270,7 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   if (!truth.truthWriteWindowOpen(t0, t0 + 1000)) fail('写入窗口内应当算「更新中」')
   if (truth.truthWriteWindowOpen(t0, t0 + PATCH_MERGE_WINDOW_MS + 1)) fail('窗口一过就不该再算「更新中」')
   // 词条两面都在（中英双语，走现有红线检查的那一套）
-  ;['truth.updatedAt', 'truth.failRetry', 'truth.failPaused', 'truth.failQuota', 'truth.pendingLate', 'truth.deferred', 'truth.paused', 'truth.notRefreshing', 'truth.lag', 'truth.writing'].forEach(function (k) {
+  ;['truth.updatedAt', 'truth.failBadge', 'truth.failRetry', 'truth.failPaused', 'truth.failQuota', 'truth.pendingLate', 'truth.deferred', 'truth.paused', 'truth.notRefreshing', 'truth.lag', 'truth.writing'].forEach(function (k) {
     if (!zh[k]) fail('zh 缺词条 ' + k)
     if (!en[k]) fail('en 缺词条 ' + k)
   })
@@ -361,12 +410,29 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
     sync: { lastFailAt: 0, lastFailKind: 'fatal' },
   }))
   if (keysOf(bogusSync).join(',') !== 'truth.budgetUnknown') fail('形状不对的 sync 不猜类别，应说 truth.budgetUnknown，实得：' + JSON.stringify(keysOf(bogusSync)))
-  // 面板那一行真的把额度句并进去了
+  // #1833：列表状态行不再并入额度句；额度改由通知中心那一行按档位说，档位判据在这里量。
   const panel = truth.truthNoticeLines(withBackend({
     id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: true, offNetwork: false,
     buckets: { graphql: { remaining: 4200, limit: 5000 }, rest: { remaining: 60, limit: 60 } },
   }), T1204)
-  if (!panel.some(function (l) { return l.key === 'truth.budgetGraphql' })) fail('面板那一行没有并入额度句，实得：' + JSON.stringify(keysOf(panel)))
+  if (panel.length !== 0) fail('列表状态行不该再并入额度句（额度改由通知中心那一行说），实得：' + JSON.stringify(keysOf(panel)))
+  const plentyView = truth.budgetTierViewOf(refreshWith({
+    id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: true, offNetwork: false,
+    buckets: { graphql: { remaining: 4200, limit: 5000 }, rest: { remaining: 4500, limit: 5000 } },
+  }))
+  if (!plentyView || plentyView.tier !== 'plenty' || keysOf(plentyView.lines).join(',') !== 'truth.budgetGraphql,truth.budgetRest') fail('两桶都宽裕时额度档位该是 plenty 且带 GraphQL / REST 两个读数，实得：' + JSON.stringify(plentyView))
+  const tightView = truth.budgetTierViewOf(refreshWith({
+    id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: true, offNetwork: false,
+    buckets: { graphql: { remaining: 500, limit: 5000 }, rest: { remaining: 4500, limit: 5000 } },
+  }))
+  if (!tightView || tightView.tier !== 'tight') fail('读数进黄档时额度档位该是 tight，实得：' + JSON.stringify(tightView))
+  const unknownView = truth.budgetTierViewOf(refreshWith({ id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: false, offNetwork: false }))
+  if (!unknownView || unknownView.tier !== 'unknown') fail('读数未知时额度档位该是 unknown（写「还没同步」，不编 0），实得：' + JSON.stringify(unknownView))
+  const offView = truth.budgetTierViewOf(refreshWith({ id: 'backend-off', budgetKind: 'none', readKnown: true, offNetwork: true }))
+  if (!offView || offView.tier !== 'off') fail('离网后端额度档位该是 off（不需要额度），实得：' + JSON.stringify(offView))
+  const noneView = truth.budgetTierViewOf(refreshWith({ id: 'local', budgetKind: 'none', readKnown: true, offNetwork: false }))
+  if (!noneView || noneView.tier !== 'none') fail('没有额度模型的后端档位该是 none，实得：' + JSON.stringify(noneView))
+  if (truth.budgetTierViewOf(refreshWith(undefined)) !== null) fail('后端没声明额度时不该凭空给出一个档位')
 })()
 console.log('#715 诚实显示门禁（新鲜度 / 失败 / 降级）')
 if (failed) {
@@ -376,10 +442,11 @@ if (failed) {
 }
 console.log('  PASS 新鲜度取快照取数时刻，5 分钟黄 / 30 分钟红（阈值来自 budget.ts）')
 console.log('  PASS 头部那个小时间标签：四档相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前）都算对，精确时刻只在悬停提示里，没快照时一句话都不画')
-console.log('  PASS 两种失败两句不同的话（插件自己的取数失败 / 配额已被其他使用者耗尽）')
+console.log('  PASS 当前失败由面板头部小标识表达（三种原因各一句悬停说明，健康态不画），列表状态行不再出现失败句')
 console.log('  PASS T3 两句有读取点（自动刷新已暂停 / 未在刷新（同时活跃上限 2））')
 console.log('  PASS 降档说出延迟承诺（数据可能落后 ' + Math.round(PROBE_INTERVAL_YELLOW_MS / 60000) + ' 分钟）')
 console.log('  PASS 推迟说「有更新，已推后」；写入窗口内/外判得对，那批词条中英两面都在')
 console.log('  PASS 降级标记到得了界面：上游真降级时回包带 \'rest\'、没降级时是 null')
 console.log('  PASS 面板额度读数按后端声明说话（两桶 / 仅请求 / 离网 / 未知），未知时不出现 0 与红档；后台同步失败按 hard / soft 说清原因（读数未知说有旧读数都说得出来），模型未知仍优先')
+console.log('  PASS 额度档位视图（充足 / 紧张 / 未知 / 离网 / 没有额度）与列表行分离：列表行不再并入额度句')
 console.log('\n全部通过')

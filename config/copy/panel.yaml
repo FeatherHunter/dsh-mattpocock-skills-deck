@@ -356,6 +356,14 @@ zh:
   notice.empty: 还没有通知
   notice.unreadCount: 未读 {n} 条
   notice.read: 已读
+  notice.budget: 额度
+  notice.budgetPlenty: 充足
+  notice.budgetTight: 紧张
+  notice.budgetUnknown: 还没同步
+  notice.budgetOff: 不需要额度
+  notice.budgetNone: 没有额度
+  notice.budgetExpand: 原始读数
+  notice.budgetCollapse: 收起
 en:
   nav.word: Consolidate
   nav.takeable: Ready
@@ -702,3 +710,11 @@ en:
   notice.empty: No notifications yet
   notice.unreadCount: "{n} unread"
   notice.read: read
+  notice.budget: Quota
+  notice.budgetPlenty: Plenty
+  notice.budgetTight: Tight
+  notice.budgetUnknown: Not synced yet
+  notice.budgetOff: No quota needed
+  notice.budgetNone: No quota
+  notice.budgetExpand: Raw numbers
+  notice.budgetCollapse: Hide

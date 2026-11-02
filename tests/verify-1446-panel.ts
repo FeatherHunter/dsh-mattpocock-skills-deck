@@ -229,19 +229,26 @@ console.log('#1446 面板额度读数（纯函数 / 快照编排器 / 信封透�
   check(offWithFail.length === 1 && offWithFail[0].key === 'truth.budgetOffNetwork', '离网后端即使记过失败，说的仍是「不需要额度」（实得 ' + keysOf(offWithFail) + '）')
 })()
 
-// ---------- 一之三、并进面板那一行：truthNoticeLines 读得到额度那句 ----------
+// ---------- 一之三、额度与列表行分离：truthNoticeLines 不再并额度，档位交给 budgetTierViewOf（#1833） ----------
 ;(function checkPanelMerge() {
   const stWith = function (backend: any, extra?: any): any {
     return Object.assign({ snapshot: { generatedMs: 1, refresh: { tier: null, deferred: false, paused: false, notRefreshing: false, backend: backend } }, snapMode: 'real', snapError: null }, extra || {})
   }
-  const merged = truth.truthNoticeLines(stWith({ budgetKind: 'two-buckets', readKnown: true, offNetwork: false, buckets: { graphql: { remaining: 4200, limit: 5000 }, rest: { remaining: 4500, limit: 5000 } } }), 1)
-  check(keysOf(merged).indexOf('truth.budgetGraphql') >= 0 && keysOf(merged).indexOf('truth.budgetRest') >= 0, '面板那一行（truthNoticeLines）里并进了额度两句（实得 ' + keysOf(merged) + '）')
-  const unknownMerged = truth.truthNoticeLines(stWith({ budgetKind: 'two-buckets', readKnown: false, offNetwork: false }), 1)
-  check(keysOf(unknownMerged) === 'truth.budgetUnknown' && unknownMerged[0].tone === 'fresh', '读数未知时面板只说一句「还没同步」，不叠红档')
+  const two = { budgetKind: 'two-buckets', readKnown: true, offNetwork: false, buckets: { graphql: { remaining: 4200, limit: 5000 }, rest: { remaining: 4500, limit: 5000 } } }
+  const merged = truth.truthNoticeLines(stWith(two), 1)
+  check(merged.length === 0, '#1833：列表状态行不再并入额度句（实得 ' + keysOf(merged) + '）')
+  const plenty = truth.budgetTierViewOf(stWith(two).snapshot.refresh)
+  check(!!plenty && plenty.tier === 'plenty' && keysOf(plenty.lines) === 'truth.budgetGraphql,truth.budgetRest', '额度两句改由通知中心那一行承载：档位「充足」，逐条读数原样带过去（实得 ' + (plenty && keysOf(plenty.lines)) + '）')
+  const tightView = truth.budgetTierViewOf(stWith(Object.assign({}, two, { buckets: { graphql: { remaining: 500, limit: 5000 }, rest: { remaining: 4500, limit: 5000 } } })).snapshot.refresh)
+  check(!!tightView && tightView.tier === 'tight' && keysOf(tightView.lines).indexOf('truth.budgetGraphql') >= 0, '…见底的那一桶把档位压到「紧张」')
+  const unknownView = truth.budgetTierViewOf(stWith({ budgetKind: 'two-buckets', readKnown: false, offNetwork: false }).snapshot.refresh)
+  check(!!unknownView && unknownView.tier === 'unknown' && keysOf(unknownView.lines) === 'truth.budgetUnknown', '读数未知时档位是「未知」，逐条只有一句「还没同步」，不编数字')
   const noBudget = truth.truthNoticeLines({ snapshot: { generatedMs: 1, refresh: { tier: null, deferred: false, paused: false, notRefreshing: false } }, snapMode: 'real', snapError: null }, 1)
-  check(noBudget.length === 0, '没有额度读数时不新增任何一行（老快照的回包行为不变）')
+  check(noBudget.length === 0 && truth.budgetTierViewOf({ tier: null, deferred: false }) === null, '没有额度读数时列表不新增一行，通知中心那一行也不画（不拿空值冒充「没有额度」）')
   const dup = truth.truthNoticeLines(stWith({ budgetKind: 'requests', readKnown: true, offNetwork: false, requests: { remaining: 0, limit: 5000 } }, { snapMode: 'err', snapError: 'boom', snapFail: { kind: 'quota-exhausted' } }), 1)
-  check(linesWith(dup, 'truth.failQuota').length === 1, '取数失败那句与额度耗尽那句是同一个事实：去重后只说一遍（实得 ' + keysOf(dup) + '）')
+  check(keysOf(dup).indexOf('truth.failQuota') < 0 && keysOf(dup).indexOf('truth.budget') < 0, '#1833：取数失败与配额耗尽都不再住列表状态行（失败由头部小标识说，额度由通知中心说）')
+  const exhausted = truth.budgetTierViewOf(stWith({ budgetKind: 'requests', readKnown: true, offNetwork: false, requests: { remaining: 0, limit: 5000 } }).snapshot.refresh)
+  check(!!exhausted && exhausted.tier === 'tight' && keysOf(exhausted.lines) === 'truth.failQuota', '真耗尽仍照实说（档位「紧张」，逐条是那句「等整点恢复」）')
 })()
 
 // ---------- 二、快照编排器：拿到就写 backend，拿不到保持四格 ----------
@@ -299,8 +306,9 @@ await (async function checkComposer() {
   check(!!umBackend && umBackend.buckets === undefined && umBackend.requests === undefined, '未知模型身上不补 0、不补空桶（不知道就是不知道）')
   // 面板这一端真吃到宿主编出来的那一格：一句「未知」，没有数字、没有红档。
   const panelState = { snapshot: { generatedMs: 1, refresh: unknownModel.snapshot.refresh }, snapMode: 'real', snapError: null }
-  const panelLines = truth.truthNoticeLines(panelState, 1)
-  check(panelLines.length === 1 && panelLines[0].key === 'truth.budgetUnknownModel' && panelLines[0].tone === 'fresh', '宿主写出未知模型后，面板那一行说的是「未知」（实得 ' + keysOf(panelLines) + '）')
+  const panelView = truth.budgetTierViewOf(panelState.snapshot.refresh)
+  const panelLines = (panelView && panelView.lines) || []
+  check(!!panelView && panelView.tier === 'unknown' && panelLines.length === 1 && panelLines[0].key === 'truth.budgetUnknownModel' && panelLines[0].tone === 'fresh', '宿主写出未知模型后，通知中心那一行说的是「未知」（实得 ' + (panelView && panelView.tier) + ' / ' + keysOf(panelLines) + '）')
   check(!/[0-9]/.test(say(panelLines[0] && panelLines[0].key, panelLines[0] && panelLines[0].params)), '未知模型在面板上一个数字都不出现（不出现假 0）')
   // 从生产者到面板的整条链（#1455）：注册表声明 unknown → budget-state 的面板读数 → 快照 → 界面那一行。
   // 前面几条喂的是手搓对象，这一条让生产者自己的输出走完全程，防「每一段都像对的、接起来是断的」。
@@ -313,8 +321,9 @@ await (async function checkComposer() {
   const produced = unknownState('fake')
   check(!!produced && produced.budgetKind === 'unknown' && produced.readKnown === false && produced.reason === 'unsupported', '生产者（budget-state）对 unknown 模型回「未知 + 原因 unsupported」')
   const e2eSnap = await makeComposer({ budgetReadout: function (): any { return produced } }).composeSnapshot(REF.backend, REF, {}, { force: true })
-  const e2eLines = truth.truthNoticeLines({ snapshot: { generatedMs: 1, refresh: e2eSnap.snapshot.refresh }, snapMode: 'real', snapError: null }, 1)
-  check(e2eLines.length === 1 && e2eLines[0].key === 'truth.budgetUnknownModel', 'unknown 模型从注册表一路走到面板那一行「未知」（实得 ' + keysOf(e2eLines) + '）')
+  const e2eView = truth.budgetTierViewOf(e2eSnap.snapshot.refresh)
+  const e2eLines = (e2eView && e2eView.lines) || []
+  check(!!e2eView && e2eView.tier === 'unknown' && e2eLines.length === 1 && e2eLines[0].key === 'truth.budgetUnknownModel', 'unknown 模型从注册表一路走到通知中心那一行「未知」（实得 ' + keysOf(e2eLines) + '）')
   check(!!e2eSnap.snapshot.refresh.backend && e2eSnap.snapshot.refresh.backend.reason === 'unsupported', '回执（wf.snapshot 回包）里带着 unknown 模型的原因')
 
   // #1006：后台同步失败的结论随读数一起进快照，面板才有话可说。形状只认两种类别 + 有限正数时刻，
@@ -358,7 +367,7 @@ await (async function checkComposer() {
   check(!!chainPanel && chainPanel.readKnown === false && !!chainPanel.sync && chainPanel.sync.lastFailKind === 'hard', '生产者把后台同步失败带到面板状态上（读数未知时带 sync）')
   const chainSnap = await makeComposer({ budgetReadout: function (): any { return chainPanel } }).composeSnapshot(REF.backend, REF, {}, { force: true })
   check(!!chainSnap.snapshot.refresh.backend && !!chainSnap.snapshot.refresh.backend.sync, '快照把面板状态的 sync 原样带到 refresh.backend')
-  const chainLines = truth.truthNoticeLines({ snapshot: { generatedMs: 1, refresh: chainSnap.snapshot.refresh }, snapMode: 'real', snapError: null }, 1)
+  const chainLines = (truth.budgetTierViewOf(chainSnap.snapshot.refresh) || { lines: [] }).lines
   check(chainLines.length === 1 && chainLines[0].key === 'truth.budgetSyncFailedHard' && chainLines[0].tone === 'yellow', '整条链走到界面说的是「环境没准备好」（实得 ' + keysOf(chainLines) + '）')
   // 同一条链换成 soft：说的换成「刚才没连上」那句。
   const softStore = createQuotaSyncStatus()
@@ -369,7 +378,7 @@ await (async function checkComposer() {
     syncStatus: function (id: string): any { return softStore.view(id) },
   })('fake')
   const softSnap = await makeComposer({ budgetReadout: function (): any { return softPanel } }).composeSnapshot(REF.backend, REF, {}, { force: true })
-  const softChainLines = truth.truthNoticeLines({ snapshot: { generatedMs: 1, refresh: softSnap.snapshot.refresh }, snapMode: 'real', snapError: null }, 1)
+  const softChainLines = (truth.budgetTierViewOf(softSnap.snapshot.refresh) || { lines: [] }).lines
   check(softChainLines.length === 1 && softChainLines[0].key === 'truth.budgetSyncFailedSoft' && softChainLines[0].tone === 'fresh', 'soft 失败走完整条链说的是「刚才没连上」（实得 ' + keysOf(softChainLines) + '）')
   // 同步成功之后：面板状态不再带 sync，界面退回中性的那句。
   chainStore.note('fake', { ok: true, at: 1712345680000 })

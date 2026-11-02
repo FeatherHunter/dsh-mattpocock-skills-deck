@@ -27,6 +27,9 @@ declare const tr: any
 declare function freshnessToneColor(...args: any[]): any
 // 相对时间阶梯与词条的唯一真源（views/shared/truthLines.ts）：通知中心不另写一套毫秒阈值。
 declare function truthAgoViewOf(...args: any[]): any
+// #1833：额度读数折成「充足 / 紧张 / 未知 / 离网 / 没有额度」五档（判据全在 views/shared/truthLines.ts，
+//   这里只把档位翻成词条；逐条原始读数原样带过去，通知中心的展开区照原样念，不重算数字）。
+declare function budgetTierViewOf(...args: any[]): any
 
 /** 宿主侧四类事件，顺序与 src/refresh/kernel/notification-events.ts 的类型清单一致（筛选按钮照它排）。 */
 export const NOTICE_TYPES = ['degraded-start', 'degraded-recovery', 'refresh-failed', 'write-failed']
@@ -280,6 +283,33 @@ export const noticeToastTextOf = function (event: any) {
 export const noticeCurrentDegradedOf = function (st: any) {
   const snap = (st && st.snapshot) || null
   return !!(snap && snap.fallback === 'rest')
+}
+
+/** 额度档位 → 通知中心「额度」那一行显示的词条键。判据不在这里：五档由 truthLines 的 budgetTierViewOf 给。 */
+export const NOTICE_BUDGET_STATE_KEYS: any = {
+  plenty: 'notice.budgetPlenty',
+  tight: 'notice.budgetTight',
+  unknown: 'notice.budgetUnknown',
+  off: 'notice.budgetOff',
+  none: 'notice.budgetNone',
+}
+
+/**
+ * 通知中心「额度」那一行要画什么（#1833：额度句从列表状态行搬进通知中心，维护者 2026-11-03 拍板）。
+ * 快照里没有 refresh.backend 时返回 null —— 这一行不画，也不拿空值冒充「没有额度」。
+ * 档位与逐条读数都由 truthLines 的 budgetTierViewOf 给，这里不重算数字、不猜档位。
+ */
+export const noticeBudgetViewOf = function (st: any) {
+  const snap = (st && st.snapshot) || null
+  const refresh = (snap && snap.refresh) || null
+  const view = budgetTierViewOf(refresh)
+  if (!view) return null
+  return {
+    tier: view.tier,
+    stateKey: NOTICE_BUDGET_STATE_KEYS[view.tier] || 'notice.budgetUnknown',
+    lines: Array.isArray(view.lines) ? view.lines : [],
+    color: freshnessToneColor(view.tier === 'tight' ? 'yellow' : 'fresh'),
+  }
 }
 
 /**

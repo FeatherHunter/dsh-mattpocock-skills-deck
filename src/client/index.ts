@@ -490,6 +490,8 @@ export default {
 
     // 2026-09-24：快照还没回来时那条灰色占位骨架（排在 dock 之前 —— 面板头部那一行要画它）。
     // ==== leaf:repoChipSkeleton (spliced by build) ====
+    // #1833：头部刷新按钮旁那枚「当前是不是失败」的小标识（判据在 truthLines，排在 dock 之前拼进闭包）。
+    // ==== leaf:refreshFailMark (spliced by build) ====
     // ==== leaf:DockSync (spliced by build) ==== // ==== leaf:headFold (spliced by build) ==== // ==== leaf:notificationCenterModel (spliced by build) ==== // ==== leaf:notificationCenter (spliced by build) ==== // ==== leaf:dock (spliced by build) ====
 
     // ==== leaf:OverlayGate (spliced by build) ====

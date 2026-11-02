@@ -63,6 +63,8 @@ declare const MapDetailV2Page: any; // #1402：地图详情页入口已切到 V2
 declare const NamingFailBanner: any;
 // #1697：通知中心的徽标入口与历史浮层（实现住在 views/shared/notificationCenter.ts）。
 declare const NotificationCenter: any;
+// #1833：刷新按钮旁那枚「当前是不是失败」的小标识（实现住在 views/shared/refreshFailMark.ts）。
+declare const RefreshFailMark: any;
 declare const NOTICE_COLOR: any;
 declare const PrTab: any;
 declare const RepoChipSkeleton: any;
@@ -338,6 +340,9 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
             style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, flex: 'none' },
           }, [h('span', { className: 'dsws-rficon' + (s.refreshing ? ' dsws-spin' : '') }, [Ic({ n: 'refresh', size: 11 })]),
             h('span', { 'data-head-refresh-text': 1, style: { whiteSpace: 'nowrap' } }, headNow ? headNow.refresh : tr('list.refresh'))])),
+          // #1833：当前是否失败改成刷新按钮旁一枚带「失败」文字的小标识（不占行、不靠悬停才看得见），
+          //   列表里那条独占一行的红字退役；完整原因在悬停提示里。健康态它返回 null，不占位。
+          h(RefreshFailMark, { key: 'refreshFail', st: s }),
           // #1697：通知中心的未读入口（带数字的铃铛）插在刷新与时间标签之间，窄面板里先收它 —— 仓库名与时间要保住。
           //   浮层挂 document.body，不占列表页的高度。
           h(NotificationCenter, { key: 'notices', st: s, view: noticeView, folded: !headNow || headNow.badge === false }),

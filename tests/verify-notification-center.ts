@@ -86,6 +86,14 @@ const trDict = {
   'notice.empty': '还没有通知',
   'notice.unreadCount': '未读 {n} 条',
   'notice.read': '已读',
+  'notice.budget': '额度',
+  'notice.budgetPlenty': '充足',
+  'notice.budgetTight': '紧张',
+  'notice.budgetUnknown': '还没同步',
+  'notice.budgetOff': '不需要额度',
+  'notice.budgetNone': '没有额度',
+  'notice.budgetExpand': '原始读数',
+  'notice.budgetCollapse': '收起',
   'notice.entryLabel': '通知中心',
   'notice.entryTip': '通知中心：降级与失败的历史',
 }
@@ -110,6 +118,10 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   globalThis.freshnessToneColor = truth.freshnessToneColor
   // 「多久以前」的阶梯也从真源注入（同下文的 tr）：模型不自己算阈值，以免两份说法又分开。
   globalThis.truthAgoViewOf = truth.truthAgoViewOf
+  // #1833：额度档位用的阈值判据住在宿主预算内核，这里注入真实现，不另写一份 0.6 / 0.85。
+  const budgetKernel = await import('../src/refresh/kernel/host-budget.js')
+  globalThis.tierFor = budgetKernel.tierFor
+  globalThis.lagPromiseFor = budgetKernel.lagPromiseFor
   globalThis.noticeToneColorOf = model.noticeToneColorOf
   globalThis.NOTICE_TYPES = model.NOTICE_TYPES
   globalThis.noticeRowsOf = model.noticeRowsOf
@@ -118,6 +130,9 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   globalThis.noticeUnreadTextOf = model.noticeUnreadTextOf
   globalThis.noticeTypeKeyOf = model.noticeTypeKeyOf
   globalThis.noticeHeadBadgeOf = model.noticeHeadBadgeOf
+  // #1833：额度档位由 truthLines 判（五档），通知中心只负责翻成词条。
+  globalThis.budgetTierViewOf = truth.budgetTierViewOf
+  globalThis.noticeBudgetViewOf = model.noticeBudgetViewOf
 
   const kernel = await import('../src/refresh/kernel/notification-events.js')
   const fold = await import('../src/client/panel/headFold.js')
@@ -245,6 +260,21 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   check(badgeMono && badgeSeenOff, '徽标只收走一次，收走之后每一档都不再出现')
   check(fold.headFoldStateAt(noBadge, noBadge.steps.length).badge === true, '没有徽标步的阶梯在任何一档都说「徽标还在画」（旧调用方行为不变）')
 
+  // ── 一之三、额度那一行（#1833：额度句从列表状态行搬进通知中心「当前状态」区）──
+  const stBudget = function (backend: any) { return { cwd: '/w/acme', snapshot: { repo: 'acme/demo', fallback: 'graphql', generatedMs: NOW, refresh: { backend: backend } } } }
+  check(model.noticeBudgetViewOf(stNormal()) === null, '快照里没有额度读数 → 不画额度行（不拿空值冒充「没有额度」）')
+  const plentyView = model.noticeBudgetViewOf(stBudget({ budgetKind: 'two-buckets', readKnown: true, offNetwork: false, buckets: { graphql: { remaining: 4200, limit: 5000 }, rest: { remaining: 4500, limit: 5000 } } }))
+  check(!!plentyView && plentyView.tier === 'plenty' && plentyView.stateKey === 'notice.budgetPlenty', '额度读数：两桶都有余量 → 档位「充足」')
+  check(!!plentyView && plentyView.lines.length === 2 && plentyView.lines[0].key === 'truth.budgetGraphql', '…逐条原始读数原样带过去（GraphQL / REST 各一句），不在这里重算数字')
+  const tightView = model.noticeBudgetViewOf(stBudget({ budgetKind: 'two-buckets', readKnown: true, offNetwork: false, buckets: { graphql: { remaining: 500, limit: 5000 }, rest: { remaining: 4500, limit: 5000 } } }))
+  check(!!tightView && tightView.tier === 'tight' && tightView.stateKey === 'notice.budgetTight', '一桶见底 → 档位「紧张」')
+  const unknownView = model.noticeBudgetViewOf(stBudget({ budgetKind: 'two-buckets', readKnown: false, offNetwork: false }))
+  check(!!unknownView && unknownView.tier === 'unknown' && unknownView.stateKey === 'notice.budgetUnknown' && unknownView.lines.length === 1 && unknownView.lines[0].key === 'truth.budgetUnknown', '还没同步 → 档位「未知」，只说「还没同步」，不编数字、不编「用尽」')
+  const offView = model.noticeBudgetViewOf(stBudget({ budgetKind: 'none', readKnown: true, offNetwork: true }))
+  check(!!offView && offView.tier === 'off' && offView.stateKey === 'notice.budgetOff', '离网后端 → 档位「不需要额度」')
+  const noneView = model.noticeBudgetViewOf(stBudget({ budgetKind: 'none', readKnown: true, offNetwork: false }))
+  check(!!noneView && noneView.tier === 'none' && noneView.stateKey === 'notice.budgetNone', '后端声明没有额度这回事 → 档位「没有额度」')
+
   // ── 三、真投影渲染：历史浮层与头部入口 ──
   const normalMarkup = renderPanel(stNormal(), viewOf(EVENTS, {}))
   check(normalMarkup.indexOf('data-notice-current="normal"') >= 0, '历史浮层：快照正常 → 当前状态说正常')
@@ -298,6 +328,17 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   const unreadableView = viewOf(EVENTS, {})
   unreadableView.readable = false
   check(renderEntry(unreadableView, false) === '', '负例：读不到历史 → 不画入口（不拿「没有通知」冒充读不到）')
+
+  // #1833：当前状态区里那一行额度（真投影渲染，负例与三档都覆盖）。
+  const budgetPlentyMarkup = renderPanel(stBudget({ budgetKind: 'two-buckets', readKnown: true, offNetwork: false, buckets: { graphql: { remaining: 4200, limit: 5000 }, rest: { remaining: 4500, limit: 5000 } } }), viewOf(EVENTS, {}))
+  check(budgetPlentyMarkup.indexOf('data-notice-budget="plenty"') >= 0 && budgetPlentyMarkup.indexOf('额度：') >= 0 && budgetPlentyMarkup.indexOf('>充足<') >= 0, '历史浮层：额度行说「充足」')
+  check(budgetPlentyMarkup.indexOf('data-notice-budget-toggle="1"') >= 0 && budgetPlentyMarkup.indexOf('原始读数') >= 0, '…有原始读数可展开时给一个「原始读数」按钮')
+  check(budgetPlentyMarkup.indexOf('data-notice-budget-detail') < 0, '…默认收起，不把数字铺在浮层上')
+  const budgetTightMarkup = renderPanel(stBudget({ budgetKind: 'two-buckets', readKnown: true, offNetwork: false, buckets: { graphql: { remaining: 500, limit: 5000 }, rest: { remaining: 4500, limit: 5000 } } }), viewOf(EVENTS, {}))
+  check(budgetTightMarkup.indexOf('data-notice-budget="tight"') >= 0 && budgetTightMarkup.indexOf('>紧张<') >= 0, '快照说一桶见底 → 额度行说「紧张」')
+  const budgetUnknownMarkup = renderPanel(stBudget({ budgetKind: 'two-buckets', readKnown: false, offNetwork: false }), viewOf(EVENTS, {}))
+  check(budgetUnknownMarkup.indexOf('data-notice-budget="unknown"') >= 0 && budgetUnknownMarkup.indexOf('还没同步') >= 0, '读不到数字 → 额度行说「还没同步」，不编 0')
+  check(normalMarkup.indexOf('data-notice-budget') < 0, '负例：快照里没有额度读数 → 不画额度行')
 
   // ── 四、词表与宿主接线 ──
   const panelYaml = read('config/copy/panel.yaml')

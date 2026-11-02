@@ -2,7 +2,8 @@
 //
 // 契约：模块真源（ESM 导出）；scripts/build.mts 构建时剥行首 export，拼回 src/client/index.ts
 // 的 leaf 标记处（源码树里只有这一份真源）。本文件是纯函数，不画界面、不碰 React：吃的是一份事实，吐的是
-// 「要显示哪几条词条、各带什么参数、用哪一种颜色轻重」。真正画出来在 views/ListTab.ts 头部那两行。
+// 「要显示哪几条词条、各带什么参数、用哪一种颜色轻重」。真正画出来在 views/ListTab.ts 的状态行、
+// panel/Dock.ts 头部那枚失败小标识，以及 views/shared/notificationCenter.ts 的「额度」行。
 //
 // 为什么单独一个文件：这几句话的判据（新鲜度阈值、降档承诺）必须只有一份实现，而且要能在门禁里
 // 不开浏览器、直接拿两组输入跑出来对比（tests/verify-visible-truth.ts 就是这么验的）。
@@ -18,8 +19,10 @@
 //      （src/host/tracker/snapshot.ts）。界面这一侧只读不写：谁在这里补一句赋值让横幅亮起来，
 //      就是把诚实做成了假装。tests/verify-visible-truth.ts 有一条静态断言盯着这件事。
 //   3. **判据不在界面**：两种失败（插件自己的取数失败 / 配额已被其他使用者耗尽）是宿主看真实读数
-//      分好类之后，作为事实（st.snapFail.kind）送进来的；界面只把两种事实翻成两句不同的话，
-//      不许自己按错误文本猜。
+//      分好类之后，作为事实（st.snapFail.kind）送进来的；界面只把事实翻成可读的话，不许自己按错误文本猜。
+//      #1833 起失败不再独占列表一行：truthFailureOf 把事实交给头部那枚小标识，列表状态行只说
+//      「数据为什么旧」（落后 / 暂停 / 推后 / 未在刷新 / 磁盘回放）；额度读数同理交给通知中心，
+//      由 budgetTierViewOf 折成「充足 / 紧张 / 未知」一档。这两个都不改判据，只是换承载的地方。
 //
 // 事实从哪儿来（三个都是别人写好的，这里只读）：
 //   · 快照取数时刻：st.snapshot.generatedMs（宿主组装快照时写下的一刻，不是界面渲染的一刻）
@@ -113,6 +116,33 @@ export const truthFreshnessBox = function (st: any, nowMs: any) {
 export const freshnessToneColor = function (tone: any) {
   return tone === 'red' ? 'var(--dsw-alias-state-error-primary,#f87171)' : (tone === 'yellow' ? 'var(--dsw-alias-state-warning-primary,#f59e0b)' : 'var(--dsw-alias-label-caption,#8b8b95)')
 }
+// ── 当前是否失败（#1833）：不再独占列表一行，交给面板头部那枚小标识 ──
+// 判据一个字没改：仍然是客户端这一侧观察到的真实结果（st.snapMode / st.snapError / st.snapFail），
+// 只是承载它的人从列表状态行换成了头部小标识。改这个函数的人先看两条：
+//   1. **失败必可见**（#715）：小标识要带可读的「失败」两个字，不靠悬停才看得见；悬停只补完整原因。
+//   2. **还在等不算失败**：放弃等待但活还在跑（snapPending）时说「仍在等」，不说失败。
+/** 自动刷新是不是停了：宿主报 paused，或额度降档到红档（lagPromiseFor(...).paused）。 */
+export const truthPausedOf = function (st: any) {
+  const refresh = (st && st.snapshot && st.snapshot.refresh) || null
+  const tierPaused = !!(refresh && refresh.tier && lagPromiseFor(refresh.tier).paused)
+  return !!(refresh && refresh.paused === true) || tierPaused
+}
+/**
+ * 当前是否失败、是哪一种：配额已被其他使用者耗尽（quota）/ 失败且已暂停（paused）/ 还在重试（retry）。
+ * 没失败返回 null。tipKey 是悬停里那句完整原因的词条 —— 列表行退役后，三句话仍保留给悬停与通知中心，
+ * 不因为换了承载的地方就把话说丢。
+ */
+export const truthFailureOf = function (st: any) {
+  if (!st || st.snapMode !== 'err' || !st.snapError || st.snapPending === true) return null
+  const byOthers = ((st.snapFail && st.snapFail.kind) || '') === 'quota-exhausted'
+  const paused = truthPausedOf(st)
+  return {
+    reason: byOthers ? 'quota' : (paused ? 'paused' : 'retry'),
+    paused: paused,
+    tipKey: byOthers ? 'truth.failQuota' : (paused ? 'truth.failPaused' : 'truth.failRetry'),
+  }
+}
+
 // ── 额度读数那一句（#1446）──
 // 后端是哪一种额度形态，只看 refresh.backend.budgetKind（'two-buckets' / 'requests' / 'none' / 'unknown'）：
 // 面板不按后端名字推算类型，将来同一门后端换一种计费方式，这里不用跟着改。
@@ -194,6 +224,32 @@ export const budgetNoticeLines = function (refresh: any): any[] {
   if (rest) lines.push(budgetBucketLine('truth.budgetRest', rest))
   return lines.concat(staleAfterFail())
 }
+// ── 额度档位（#1833）：通知中心「当前状态」区只说人话档位，展开才看原始数字 ──
+// 档位只有四种说法 + 一种「没有额度」：充足 / 紧张 / 未知 / 离网（不需要额度）/ 没有额度。
+// 判据全部沿用 budgetNoticeLines 那一份（它念什么，这里就按轻重归档），不另写第二套数字或阈值：
+//   · 有一条红/黄档读数就报「紧张」—— 真耗尽也在这档里说清（展开能看到 failQuota 那句）；
+//   · 读数原来就不知道（readKnown 不为真、模型未知、该念的桶缺了）报「未知」，不编 0、不编「用尽」；
+//   · 离网后端报 off（不出站就没有额度这回事），本机模型报 none（没有额度可念）。
+// 返回 null 表示后端没声明额度（老快照），调用方一个字的额度信息都不画。
+export const budgetTierViewOf = function (refresh: any) {
+  const backend = refresh && refresh.backend
+  if (!backend || typeof backend !== 'object') return null
+  const lines = budgetNoticeLines(refresh)
+  if (backend.offNetwork === true) return { tier: 'off', lines: lines }
+  if (KNOWN_BUDGET_KINDS.indexOf(String(backend.budgetKind || '')) < 0) return { tier: 'unknown', lines: lines }
+  if (backend.readKnown !== true) return { tier: 'unknown', lines: lines }
+  if (backend.budgetKind === 'none') return { tier: 'none', lines: lines }
+  for (let i = 0; i < lines.length; i++) {
+    const k = lines[i].key
+    if (k === 'truth.budgetUnknown' || k === 'truth.budgetUnknownModel' || k === 'truth.budgetSyncFailedHard' || k === 'truth.budgetSyncFailedSoft') return { tier: 'unknown', lines: lines }
+  }
+  if (!lines.length) return { tier: 'unknown', lines: lines }
+  let tight = false
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].tone === 'red' || lines[i].tone === 'yellow') tight = true
+  }
+  return { tier: tight ? 'tight' : 'plenty', lines: lines }
+}
 export const truthNoticeLines = function (st: any, nowMs: any) {
   // 这里标 any[]：lines 只在下面那个 push 闭包里被读写，闭包里的演化类型推不出来，标出来才让
   // 「只加类型、不改代码」成立（push 的按键去重与逐条返回都一个字没动）。
@@ -204,45 +260,35 @@ export const truthNoticeLines = function (st: any, nowMs: any) {
   }
   const snap = (st && st.snapshot) || null
   const refresh = (snap && snap.refresh) || null
-  const tierPaused = !!(refresh && refresh.tier && lagPromiseFor(refresh.tier).paused)
-  const paused = !!(refresh && refresh.paused === true) || tierPaused
+  // 失败与暂停的判据抽到 truthPausedOf / truthFailureOf 一处：头部小标识与列表状态行共用同一份事实。
+  const paused = truthPausedOf(st)
   // #1009 优化：放弃等待后活还在跑时，无快照也要说「仍在等」，不留白。
   if (st && st.snapMode === 'err' && st.snapError && st.snapPending === true) {
     return [{ key: 'truth.pendingLate', params: {}, tone: 'yellow', kind: 'pending' }]
   }
   if (!snap) return lines
-  // 一、上次刷新失败。有旧数据也照说：老数据配一句「刷新失败」，才说得清「你现在看的这份是旧的」。
-  //   三种情形三句话，判据全是宿主送进来的事实：
-  //   ① 配额已被其他使用者耗尽（重试也没用，等整点恢复）
-  //   ② 插件自己的取数失败、但已经暂停（配额紧张，先不再打请求）
-  //   ③ 插件自己的取数失败、还在重试
-  if (st && st.snapMode === 'err' && st.snapError) {
-    const byOthers = ((st.snapFail && st.snapFail.kind) || '') === 'quota-exhausted'
-    push({ key: byOthers ? 'truth.failQuota' : (paused ? 'truth.failPaused' : 'truth.failRetry'), params: {}, tone: 'red', kind: 'fail' })
-  }
-  // 二、降档时把延迟承诺说出来：黄档说「数据可能落后 X 分钟」。绿档（承诺还是 5 秒）不说，
+  // 一、降档时把延迟承诺说出来：黄档说「数据可能落后 X 分钟」。绿档（承诺还是 5 秒）不说，
   //   因为那时候没有任何东西变长；红档不说「落后多久」——它说的是下面那句「已暂停」。
+  //   #1833：失败不再在这里说。它改由头部那枚小标识表达（truthFailureOf），列表这一行只说
+  //   「数据为什么旧」—— 落后 / 暂停 / 推后 / 未在刷新 / 磁盘回放。
   if (refresh && refresh.tier) {
     const p = lagPromiseFor(refresh.tier)
     if (typeof p.maxLagMs === 'number' && p.maxLagMs > PROBE_INTERVAL_MS) push({ key: 'truth.lag', params: { min: Math.round(p.maxLagMs / 60000) }, tone: 'yellow', kind: 'lag' })
   }
-  // 三、自动刷新确实停了：可见却断流（宿主报 paused）或额度降档到红档（自动刷新全停）。
-  //   已经因为失败说过一次的那句就不重复说（push 按键去重，上面先说的算）。
+  // 二、自动刷新确实停了：可见却断流（宿主报 paused）或额度降档到红档（自动刷新全停）。
   if (paused) push({ key: 'truth.paused', params: {}, tone: 'yellow', kind: 'paused' })
-  // 四、有更新但被推后了；五、这个窗口没在刷新（同时活跃上限 2 个窗口，第 3 个在这里明说）。
+  // 三、有更新但被推后了；四、这个窗口没在刷新（同时活跃上限 2 个窗口，第 3 个在这里明说）。
   if (refresh && refresh.deferred === true) push({ key: 'truth.deferred', params: {}, tone: 'yellow', kind: 'deferred' })
   if (refresh && refresh.notRefreshing === true) push({ key: 'truth.notRefreshing', params: {}, tone: 'fresh', kind: 'notRefreshing' })
-  // 七、磁盘回放（#1692）：这份快照是从磁盘上的旧文件回放出来的，内容只到「上次已知」那一刻。
+  // 五、磁盘回放（#1692）：这份快照是从磁盘上的旧文件回放出来的，内容只到「上次已知」那一刻。
   //   说清那一刻，免得把回放出来的旧数据当成刚取到的；时刻由宿主在回放时挂到快照的 diskReplay 上。
   if (snap.diskReplay && typeof snap.diskReplay.lastKnownAtMs === 'number' && snap.diskReplay.lastKnownAtMs > 0) {
     const rd = new Date(snap.diskReplay.lastKnownAtMs)
     const rpad = function (n: any) { return (n < 10 ? '0' : '') + n }
     push({ key: 'truth.replayLastKnown', params: { time: rpad(rd.getHours()) + ':' + rpad(rd.getMinutes()) }, tone: 'yellow', kind: 'replay' })
   }
-  // 六、额度读数（#1446）：面板那一行只调 truthNoticeLines，所以额度这句要并进同一份列表里；
-  //   按键去重，与上面几句不会重复说同一件事。
-  const budgetLines = budgetNoticeLines(refresh)
-  for (let i = 0; i < budgetLines.length; i++) push(budgetLines[i])
+  // #1833：额度读数不再并进列表这一行 —— 它改由通知中心「当前状态」区的「额度」行表达
+  //   （budgetTierViewOf 给档位，展开看原始数字）。列表这一行只说数据为什么旧。
   return lines
 }
 // 行上那个「更新中」标记的窗口：一次写入成功之后，这一行在合并窗口内还算「正在更新」。

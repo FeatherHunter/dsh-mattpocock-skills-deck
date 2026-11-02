@@ -31,6 +31,9 @@ declare function noticeUnreadTextOf(...args: any[]): any
 declare function noticeTypeKeyOf(...args: any[]): any
 declare function noticeHeadBadgeOf(...args: any[]): any
 declare function noticeToneColorOf(...args: any[]): any
+// #1833：当前状态区里那一行额度（档位与读数由 model 的 noticeBudgetViewOf 给）。
+declare function noticeBudgetViewOf(...args: any[]): any
+declare function freshnessToneColor(...args: any[]): any
 
 /** 浮层最小宽度：面板再窄也读得下发时间与标题（与尾部注释「宽度怎么定」一条）。 */
 const NOTICE_POPOVER_MIN_WIDTH = 320
@@ -43,6 +46,9 @@ export const NotificationHistoryPanel = ({ st, view, onClose }: any) => {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   const [filter, setFilter] = React.useState('all')
+  // #1833：额度读数收进「当前状态」区；默认只看人话档位，想核对数字再展开（未知时不编数字）。
+  const [budgetOpen, setBudgetOpen] = React.useState(false)
+  const budgetView = noticeBudgetViewOf(st)
   const now = Date.now()
   const events = (view && Array.isArray(view.events)) ? view.events : []
   const rows = noticeRowsOf(events, filter, view ? view.readIds : {}, now)
@@ -65,6 +71,20 @@ export const NotificationHistoryPanel = ({ st, view, onClose }: any) => {
     h('span', { key: 'label' }, tr('notice.current') + '：'),
     h('span', { key: 'value' }, degraded ? tr('notice.currentDegraded') : tr('notice.currentNormal')),
     unread > 0 ? h('span', { key: 'unread', 'data-notice-unread-count': 1, style: { marginLeft: 'auto' } }, tr('notice.unreadCount', { n: unread })) : null,
+  ])
+  // #1833：额度行 —— 一行说清「充足 / 紧张 / 还没同步 / 不需要额度 / 没有额度」；
+  //   按钮展开后逐条念宿主给的原始读数（GraphQL / REST 剩余与上限、同步失败原因），不在这里算新数字。
+  const budgetRow = !budgetView ? null : h('div', { key: 'budget', 'data-notice-budget': budgetView.tier, style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, fontSize: 11, padding: '0 2px 6px', color: budgetView.color } }, [
+    h('span', { key: 'label' }, tr('notice.budget') + '：'),
+    h('span', { key: 'state', 'data-notice-budget-state': 1 }, tr(budgetView.stateKey)),
+    budgetView.lines.length > 0 ? h('button', {
+      key: 'toggle', className: 'dsws-btn dsws-hov', 'data-press': 'chip', 'data-log': 'notice.budget.toggle', 'data-notice-budget-toggle': 1, type: 'button',
+      onClick: function () { setBudgetOpen(!budgetOpen) }, style: { fontSize: 10, padding: '1px 7px', marginLeft: 'auto' },
+    }, tr(budgetOpen ? 'notice.budgetCollapse' : 'notice.budgetExpand')) : null,
+    budgetOpen && budgetView.lines.length > 0 ? h('div', { key: 'detail', 'data-notice-budget-detail': 1, style: { flexBasis: '100%', display: 'flex', flexDirection: 'column', gap: 1, padding: '2px 0 0' } },
+      budgetView.lines.map(function (ln: any, i: number) {
+        return h('span', { key: String(ln.key) + i, style: { color: freshnessToneColor(ln.tone) } }, tr(ln.key, ln.params))
+      })) : null,
   ])
   const mismatchRow = mismatch
     ? h('div', { key: 'mismatch', 'data-notice-mismatch': 1, style: { fontSize: 10, lineHeight: 1.5, color: 'var(--dsw-alias-label-caption,#8b8b95)', padding: '0 2px 6px' } }, tr('notice.historyMismatch'))
@@ -89,7 +109,7 @@ export const NotificationHistoryPanel = ({ st, view, onClose }: any) => {
           row.read ? null : h('span', { key: 'unread', 'data-notice-unread-row': 1, style: { fontSize: 9, color: '#58a6ff', border: '1px solid rgba(88,166,255,.4)', borderRadius: 5, padding: '0 4px', marginTop: 2, whiteSpace: 'nowrap' } }, tr('notice.read')),
         ])
       }))
-  return h('div', { 'data-notification-center': 1, 'data-notice-panel': 1, 'aria-label': tr('notice.title'), style: { padding: '6px 8px' } }, [head, current, mismatchRow, filterRow, body])
+  return h('div', { 'data-notification-center': 1, 'data-notice-panel': 1, 'aria-label': tr('notice.title'), style: { padding: '6px 8px' } }, [head, current, budgetRow, mismatchRow, filterRow, body])
 }
 
 /**

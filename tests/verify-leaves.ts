@@ -124,6 +124,8 @@ const LEAVES = [
   // 登在这里是为了让「单文件 ≤350 行」与「产物已拼接」两条检查也覆盖到它们。
   // #1699：占一行的降级横幅退役，换成列表头部那枚不占行的小标识（判据仍是 truthLines 的 restFallbackView）。
   { file: 'src/client/views/shared/fallbackMark.js', exports: ['FallbackMark'], components: ['FallbackMark'] },
+  // #1833：失败从列表那行红字改成头部刷新按钮旁一枚带文字的小标识（判据是 truthLines 的 truthFailureOf）。
+  { file: 'src/client/views/shared/refreshFailMark.js', exports: ['RefreshFailMark'], components: ['RefreshFailMark'] },
   { file: 'src/client/panel/RepoChipSkeleton.js', exports: ['RepoChipSkeleton'], components: ['RepoChipSkeleton'] },
   // #725 状态栏胶囊那条横条：「谁先让位、一次让多少」的判据（纯函数）与读写的机器（碰 DOM）各一份。
   { file: 'src/client/statusbar/capFold.js', exports: ['CAP_FOLD_POLICY', 'capFoldLadderOf', 'capFoldStateAt', 'capFoldStepCount'], components: [] },

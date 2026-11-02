@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-02T17:55:10.218Z",
+  "generatedAt": "2026-11-02T18:36:49.782Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 538,
-  "gateCount": 538,
-  "attributedGates": 481,
+  "chainLength": 540,
+  "gateCount": 540,
+  "attributedGates": 483,
   "unattributedGates": 57,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 82,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 839,
+  "graphFileCount": 843,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -206,6 +206,7 @@
         "src/client/views/shared/liquidInk.ts",
         "src/client/views/shared/md.ts",
         "src/client/views/shared/openFolder.ts",
+        "src/client/views/shared/refreshFailMark.ts",
         "src/client/views/shared/stateKind.ts",
         "src/client/views/shared/tagsFit.ts",
         "src/client/views/shared/ticket.ts",
@@ -248,7 +249,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 86 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 87 条"
     },
     {
       "step": "node tests/verify-chain-capsule.ts",
@@ -5995,6 +5996,35 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 8 条"
     },
     {
+      "step": "node tests/verify-1806-record-write-paths.ts",
+      "file": "tests/verify-1806-record-write-paths.ts",
+      "guards": [
+        "src/client/kernel/prompts-setup.ts",
+        "src/host/index.ts",
+        "src/host/workspaceCwd.ts",
+        "src/host/workspaceKey.ts",
+        "src/host/workspaceRecords.ts",
+        "src/shared/config-store/src/workspace.ts",
+        "src/tracker/detection/backendDecision.ts",
+        "src/tracker/registry/core.ts",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/host",
+        "src/shared/config-store/src",
+        "src/tracker/detection",
+        "src/tracker/registry",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 8 条"
+    },
+    {
       "step": "node tests/verify-1826-markdown-subissues.ts",
       "file": "tests/verify-1826-markdown-subissues.ts",
       "guards": [
@@ -6053,6 +6083,34 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
+    {
+      "step": "node tests/verify-1831-read-timeout.ts",
+      "file": "tests/verify-1831-read-timeout.ts",
+      "guards": [
+        "src/deck/tools/issue-get.ts",
+        "src/deck/tools/issue-list.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
+        "src/shared/time-config/src/values.ts",
+        "src/tracker/rooms/github/transport/client-support.ts",
+        "tests/lib/deck-decide-stub.ts"
+      ],
+      "dirs": [
+        "src/deck/tools",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
+        "src/shared/time-config/src",
+        "src/tracker/rooms/github/transport",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-1832-single-triage-state.ts",
@@ -7434,6 +7492,7 @@
         "src/client/views/versionControl/vcWorktreesData.ts",
         "src/client/views/versionControl/vcWorktreesOps.ts",
         "src/client/views/versionControl/vcWorktreesPage.ts",
+        "src/client/views/versionControl/vcWorktreesView.ts",
         "src/client/views/versionControl/vcWrite.ts",
         "src/client/views/versionControl/vcWriteOps.ts",
         "src/client/views/versionControl/vcWriteRun.ts",
@@ -7480,7 +7539,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 732,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 103 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 104 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -7643,6 +7702,7 @@
         "src/client/views/versionControl/vcWorktreesData.ts",
         "src/client/views/versionControl/vcWorktreesOps.ts",
         "src/client/views/versionControl/vcWorktreesPage.ts",
+        "src/client/views/versionControl/vcWorktreesView.ts",
         "src/client/views/versionControl/vcWrite.ts",
         "src/client/views/versionControl/vcWriteOps.ts",
         "src/client/views/versionControl/vcWriteRun.ts",
@@ -7686,7 +7746,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 103 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 104 条"
     },
     {
       "step": "node tests/verify-847-stall-watch.ts",
@@ -10709,6 +10769,7 @@
         "src/client/views/shared/truthLines.ts",
         "src/host/index.ts",
         "src/host/notifications.ts",
+        "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/notification-events.ts",
         "tests/lib/gate-result.ts"
       ],
@@ -10723,8 +10784,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 104,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 7 条"
+      "expectedAssertions": 117,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 7 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-notification-events.ts",
@@ -12393,6 +12454,7 @@
       "file": "tests/verify-visible-truth.ts",
       "guards": [
         "scripts/lib/transpile-unit.mts",
+        "src/client/views/shared/refreshFailMark.ts",
         "src/client/views/shared/truthLines.ts",
         "src/host/snapshotEnvelope.ts",
         "src/refresh/kernel/host-budget.ts",
@@ -12412,7 +12474,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-windows.ts",
@@ -13206,6 +13268,7 @@
       "node tests/verify-1776-vc-tab-browser.ts",
       "node tests/verify-1792-card-action-gate.ts",
       "node tests/verify-1802-settings-cross-window.ts",
+      "node tests/verify-1806-record-write-paths.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -13617,6 +13680,7 @@
       "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-surface.ts",
       "node tests/verify-1830-list-label-honesty.ts",
+      "node tests/verify-1831-read-timeout.ts",
       "node tests/verify-1832-single-triage-state.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
@@ -13696,6 +13760,7 @@
       "node tests/verify-1654-ws-pending-hint.ts",
       "node tests/verify-1762-platform.ts",
       "node tests/verify-1802-settings-cross-window.ts",
+      "node tests/verify-1806-record-write-paths.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
@@ -13862,6 +13927,7 @@
       "node tests/verify-1765-read-channel-plan.ts",
       "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-surface.ts",
+      "node tests/verify-1831-read-timeout.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
@@ -14019,6 +14085,7 @@
       "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-surface.ts",
       "node tests/verify-1798-issues-carry.ts",
+      "node tests/verify-1831-read-timeout.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -14117,7 +14184,8 @@
     "src/shared/config-store": [],
     "src/shared/config-store/src": [
       "node tests/verify-1612-deck-tool-gate.ts",
-      "node tests/verify-1802-settings-cross-window.ts"
+      "node tests/verify-1802-settings-cross-window.ts",
+      "node tests/verify-1806-record-write-paths.ts"
     ],
     "src/shared/doc-layout": [],
     "src/shared/doc-layout/src": [
@@ -14153,6 +14221,7 @@
       "node tests/verify-1776-vc-live-tab.ts",
       "node tests/verify-1776-vc-tab-browser.ts",
       "node tests/verify-1802-settings-cross-window.ts",
+      "node tests/verify-1831-read-timeout.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-669-choice-precedence.ts",
@@ -14312,6 +14381,7 @@
     "src/tracker/detection": [
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
+      "node tests/verify-1806-record-write-paths.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-669-choice-precedence.ts",
@@ -14373,6 +14443,7 @@
       "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-surface.ts",
+      "node tests/verify-1806-record-write-paths.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-669-choice-precedence.ts",
@@ -14515,6 +14586,7 @@
       "node tests/verify-1007-transport-cooldown.ts",
       "node tests/verify-1443-github-readbudget.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
+      "node tests/verify-1831-read-timeout.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-github-gh-via.ts",
@@ -14819,6 +14891,8 @@
       "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-surface.ts",
       "node tests/verify-1802-settings-cross-window.ts",
+      "node tests/verify-1806-record-write-paths.ts",
+      "node tests/verify-1831-read-timeout.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
@@ -14956,9 +15030,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 860,
+    "fileCount": 864,
     "dirCount": 84,
-    "coveredFileCount": 860,
+    "coveredFileCount": 864,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -15136,6 +15210,7 @@
       "src/client/views/shared/notificationCenter.ts",
       "src/client/views/shared/notificationCenterModel.ts",
       "src/client/views/shared/openFolder.ts",
+      "src/client/views/shared/refreshFailMark.ts",
       "src/client/views/shared/stateKind.ts",
       "src/client/views/shared/tagsFit.ts",
       "src/client/views/shared/ticket.ts",
@@ -15230,6 +15305,7 @@
       "src/client/views/versionControl/vcWorktreesData.ts",
       "src/client/views/versionControl/vcWorktreesOps.ts",
       "src/client/views/versionControl/vcWorktreesPage.ts",
+      "src/client/views/versionControl/vcWorktreesView.ts",
       "src/client/views/versionControl/vcWrite.ts",
       "src/client/views/versionControl/vcWriteOps.ts",
       "src/client/views/versionControl/vcWriteRun.ts",
@@ -15284,6 +15360,7 @@
       "src/deck/tools/issue-create-parts.ts",
       "src/deck/tools/issue-create.ts",
       "src/deck/tools/issue-get.ts",
+      "src/deck/tools/issue-list-filter.ts",
       "src/deck/tools/issue-list.ts",
       "src/deck/tools/issue-patch-definition.ts",
       "src/deck/tools/issue-patch-labels.ts",
@@ -15422,6 +15499,7 @@
       "src/host/workspaceCwd.ts",
       "src/host/workspaceKey.ts",
       "src/host/workspaceLabelColors.ts",
+      "src/host/workspaceRecords.ts",
       "src/refresh/README.md",
       "src/refresh/contract/.gitkeep",
       "src/refresh/contract/host-timer-ports.ts",
