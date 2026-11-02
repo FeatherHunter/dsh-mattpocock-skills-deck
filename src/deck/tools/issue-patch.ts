@@ -36,6 +36,8 @@ import { textWriteVerify } from '../shell/text-write-verify.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+// #1790 缺陷 A：状态冲突的预检、归一与拒绝回执住在 issue-patch-status（本文件有效行贴着每文件 350 行的上限）。
+import { guardStatus, nonTriageLabelsOf, triageNamesOf } from './issue-patch-status.js'
 
 /**
  * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
@@ -150,8 +152,8 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!
       const opCtx = sc.opCtx
-      const items = []
-      const notes = []
+      const items: Array<Record<string, unknown>> = []
+      const notes: string[] = []
       if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
       const touched = [key]
       // 锁内超时的传话格：锁回调里不能直接回整笔回执（那只会结束锁回调），超时原话先记在这里，
@@ -206,6 +208,16 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
         specClose = gate.kind === 'ok'
       }
 
+      // #1790 缺陷 A：先看这张票的可见 Status 行与隐藏 triage 标签是否各说各话。
+      // 真冲突时整次不写（半写比不写更糟），调用方给了 resolveStatus 时先归一；判定与回执住在 issue-patch-status。
+      const statusGuard = await guardStatus({
+        args: a, key: key, repo: repo, tracker: t, opCtx: opCtx, estimate: est,
+        items: items, outOfBudget: () => sc.outOfBudget(), fail: fail, over: over,
+        timeoutReply: timeoutReply, lockedOut: lockedOut, lockOpts: lockOpts,
+      })
+      if (!statusGuard.ok) return statusGuard.reply
+      const explicit = statusGuard.explicit
+
       if (wants.comment) {
         if (sc.outOfBudget()) over('comment')
         else {
@@ -223,6 +235,10 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
         // 读改写序列持同票锁：同票并发改标签不再丢一次改动；不同票照旧并行。
         if (sc.outOfBudget()) over('labels')
         else {
+          // #1790 缺陷 A：removeLabels 里出现 triage 时，摘标签不会清掉状态（状态住在可见 Status 行），
+          // 回执必须把这一点说清，否则调用方会以为票已经变回「未分流」。
+          const removedTriage = triageNamesOf(removeLabels)
+          if (removedTriage.length) notes.push('removeLabels 里的 ' + removedTriage.join('、') + ' 是状态而不是普通标签：本地 Markdown 的状态住在可见 Status 行，摘标签不会清掉状态；要改状态请用 addLabels 带一枚 triage，或关闭这张票。')
           lockTimeout = null
           const held = await withKeyLock(repo, key, async () => {
             const rawCur = await t.get(repo, key, {}, opCtx)
@@ -230,11 +246,15 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
             if (currentTimeout) { lockTimeout = currentTimeout; return }
             const cur = must(rawCur)
             if (!cur || cur.ok !== true) { fail('labels', cur); return }
-            const have = names(cur.data && cur.data.labels)
-            const want = have.concat(addLabels).filter((n) => removeLabels.indexOf(n) < 0)
+            // #1790 缺陷 A：可见 Status 行是状态真源，DSH-LABELS 只放非 triage 标签。
+            // 先滤掉读回来时由状态合成的那枚 triage，再把 addLabels 里的 triage 交给 setLabels 的 status 选项写进可见行。
+            const have = nonTriageLabelsOf(cur.data && cur.data.labels)
+            const want = have.concat(nonTriageLabelsOf(addLabels)).filter((n) => removeLabels.indexOf(n) < 0)
             const uniq = want.filter((n, i) => want.indexOf(n) === i)
             if (sc.outOfBudget()) { over('labels'); return }
-            const rawLabels = await t.setLabels(repo, key, uniq, {}, opCtx)
+            // addLabels 最多一枚 triage（多枚在预检里已经拒掉）：它只改可见状态，不写进隐藏名单。
+            const labelStatusOpt = explicit.triage.length === 1 ? { status: explicit.triage[0] } : {}
+            const rawLabels = await t.setLabels(repo, key, uniq, labelStatusOpt, opCtx)
             const labelsTimeout = timeoutMessage(rawLabels as unknown as TransportResult)
             if (labelsTimeout) { lockTimeout = labelsTimeout; return }
             const r = must(rawLabels)

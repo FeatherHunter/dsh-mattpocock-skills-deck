@@ -9,7 +9,7 @@ import { MD_SCOPE_LOCATE } from './md-scope.js'
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_patch',
-  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、关闭、标题正文、progress 区、维护者原话区，一次只动点名的那些；重开不在这个工具上（只由人在后端做），关规格要先在这一次调用里带收口核对评论、且实施票已全关。本地后端认领会写进票里的 Assignees 行。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、关闭、标题正文、progress 区、维护者原话区，一次只动点名的那些；重开不在这个工具上（只由人在后端做），关规格要先在这一次调用里带收口核对评论、且实施票已全关。本地后端认领会写进票里的 Assignees 行。本地 Markdown 的票若可见 Status 行与隐藏 triage 标签冲突，这个工具会整次拒绝并回 data.retry：按它重试，或用 resolveStatus 显式选按哪一侧归一。',
   parameters: {
     type: 'object',
     properties: {
@@ -43,6 +43,7 @@ export const definition = {
       },
       close: { type: 'boolean', description: 'true 关闭这张票；关规格时必须在同一次调用里带 comment（逐张核对结论），且实施票全关，否则关闭会被拒绝。重开只能由人在后端做，这个工具不支持 false' },
       closeReason: { type: 'string', description: '关闭原因：和 close:true 一起用，告诉后端这次为什么关。地图子票的原因写进正文的 Answer 段，还会在地图的 Decisions so far 里补一条指针；实施票的原因按原文追加成一条评论；旧布局票写 Close reason 行；规格与地图容器只记状态，原因忽略。只带 closeReason、不带 close:true 时整笔拒绝，一个字都不动。' },
+      resolveStatus: { type: 'string', enum: ['visible', 'hidden'], description: '只在本地 Markdown 票的状态冲突时需要：这张票的可见 Status 行与隐藏 triage 标签各写了一个状态，读侧暂时按可见行回答。visible 表示按可见 Status 行归一，hidden 表示按隐藏 triage 标签归一；不给时遇到冲突整次拒绝（一个字都不写），回执的 data.retry.args 可直接拿来重试。' },
       ...MD_SCOPE_LOCATE,
     },
     required: ['key'],

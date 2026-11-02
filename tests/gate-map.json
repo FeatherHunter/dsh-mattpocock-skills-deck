@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-01T19:02:59.887Z",
+  "generatedAt": "2026-11-02T01:02:20.393Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 532,
-  "gateCount": 532,
-  "attributedGates": 470,
+  "chainLength": 535,
+  "gateCount": 535,
+  "attributedGates": 473,
   "unattributedGates": 62,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 86,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 823,
+  "graphFileCount": 826,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -5847,6 +5847,38 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
+      "step": "node tests/verify-1790-status-conflict.ts",
+      "file": "tests/verify-1790-status-conflict.ts",
+      "guards": [
+        "src/deck/shell/work-path-bindings.ts",
+        "src/deck/tools/issue-create.ts",
+        "src/deck/tools/issue-get.ts",
+        "src/deck/tools/issue-patch.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/tracker/registry/core.ts",
+        "src/tracker/rooms/markdown/index.ts",
+        "src/tracker/rooms/markdown/issues.ts",
+        "tests/lib/deck-decide-stub.ts"
+      ],
+      "dirs": [
+        "src/deck/shell",
+        "src/deck/tools",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
+        "src/tracker/registry",
+        "src/tracker/rooms/markdown",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 11 条"
+    },
+    {
       "step": "node tests/verify-1790-status-model.ts",
       "file": "tests/verify-1790-status-model.ts",
       "guards": [
@@ -5866,6 +5898,53 @@
       "file": "tests/verify-1790-status-read.ts",
       "guards": [
         "src/tracker/rooms/markdown/parse.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 1 条"
+    },
+    {
+      "step": "node tests/verify-1790-status-surface.ts",
+      "file": "tests/verify-1790-status-surface.ts",
+      "guards": [
+        "src/deck/shell/work-path-bindings.ts",
+        "src/deck/tools/issue-create.ts",
+        "src/deck/tools/issue-get.ts",
+        "src/deck/tools/issue-list.ts",
+        "src/deck/tools/map-snapshot.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/tracker/registry/core.ts",
+        "src/tracker/rooms/markdown/index.ts",
+        "tests/lib/deck-decide-stub.ts"
+      ],
+      "dirs": [
+        "src/deck/shell",
+        "src/deck/tools",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
+        "src/tracker/registry",
+        "src/tracker/rooms/markdown",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 11 条"
+    },
+    {
+      "step": "node tests/verify-1790-status-write.ts",
+      "file": "tests/verify-1790-status-write.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/issues.ts"
       ],
       "dirs": [
         "src/tracker/rooms/markdown"
@@ -13375,6 +13454,8 @@
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1511-ticket-label.ts",
       "node tests/verify-1610-parallel-read.ts",
+      "node tests/verify-1790-status-conflict.ts",
+      "node tests/verify-1790-status-surface.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-bulk-deadline.ts",
@@ -13425,6 +13506,8 @@
       "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-1612-deck-tool-gate.ts",
       "node tests/verify-1770-gitlab-list-truncated.ts",
+      "node tests/verify-1790-status-conflict.ts",
+      "node tests/verify-1790-status-surface.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -13663,6 +13746,8 @@
       "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-1692-disk-replay-eviction.ts",
       "node tests/verify-1765-read-channel-plan.ts",
+      "node tests/verify-1790-status-conflict.ts",
+      "node tests/verify-1790-status-surface.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
@@ -13817,6 +13902,8 @@
       "node tests/verify-1770-gitlab-list-truncated.ts",
       "node tests/verify-1774-carry-wiring.ts",
       "node tests/verify-1784-comment-pagination.ts",
+      "node tests/verify-1790-status-conflict.ts",
+      "node tests/verify-1790-status-surface.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -14164,6 +14251,8 @@
       "node tests/verify-1447-gitlab-e2e.ts",
       "node tests/verify-1495-deck-close-reason.ts",
       "node tests/verify-1610-parallel-read.ts",
+      "node tests/verify-1790-status-conflict.ts",
+      "node tests/verify-1790-status-surface.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-669-choice-precedence.ts",
@@ -14396,8 +14485,11 @@
       "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-1788-write-route.ts",
       "node tests/verify-1789-create-preserve-sections.ts",
+      "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-model.ts",
       "node tests/verify-1790-status-read.ts",
+      "node tests/verify-1790-status-surface.ts",
+      "node tests/verify-1790-status-write.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -14608,6 +14700,8 @@
       "node tests/verify-1711-report-index.ts",
       "node tests/verify-1776-vc-live-tab.ts",
       "node tests/verify-1776-vc-tab-browser.ts",
+      "node tests/verify-1790-status-conflict.ts",
+      "node tests/verify-1790-status-surface.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
@@ -14744,9 +14838,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 844,
+    "fileCount": 847,
     "dirCount": 84,
-    "coveredFileCount": 844,
+    "coveredFileCount": 847,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -15066,6 +15160,7 @@
       "src/deck/tools/issue-get.ts",
       "src/deck/tools/issue-list.ts",
       "src/deck/tools/issue-patch-definition.ts",
+      "src/deck/tools/issue-patch-status.ts",
       "src/deck/tools/issue-patch.ts",
       "src/deck/tools/issue-report.ts",
       "src/deck/tools/map-link.ts",
@@ -15579,6 +15674,8 @@
       "src/tracker/rooms/markdown/read-sources.ts",
       "src/tracker/rooms/markdown/read.ts",
       "src/tracker/rooms/markdown/scratch-listing.ts",
+      "src/tracker/rooms/markdown/status-create.ts",
+      "src/tracker/rooms/markdown/status-write.ts",
       "src/tracker/rooms/markdown/status.ts",
       "src/tracker/rooms/markdown/template-guard.ts",
       "src/tracker/rooms/markdown/workspace-checks.ts",

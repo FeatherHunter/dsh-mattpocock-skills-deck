@@ -288,6 +288,10 @@ export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: s
     // #1790 缺陷 A：关闭是显式状态决定（resolved；已经 wontfix 的票保留 wontfix 不被覆盖）。
     // 归一顺手把旧文件里隐藏的 triage 并回可见 Status 行，落选值记历史，不再两处各存一份。
     const read=statusReadOfText(txt,target.route)
+    // #1790 缺陷 A：可见 Status 行与隐藏 triage 还各说各话时，关闭不替调用方挑一侧：
+    // 这里没有「显式状态」这个入口（CloseOpts 只有原因），挑一侧就是悄悄改掉别人的决定。
+    // 先按冲突拒绝，让调用方用 setLabels 带一个状态归一（deck 的 issue-patch 会先做这一步）。
+    if(read.statusConflict)return failAs(ERROR_KIND.PARSE,'这张票的可见 Status 行与隐藏 DSH-LABELS 里的 triage 标签冲突：关闭这一笔没写，先显式归一状态再关（deck 的 issue-patch 回执会带 retry 参数）。',JSON.stringify(read.statusConflict))
     const wanted=read.status==='wontfix'?'wontfix':WAYFINDER_STATUS_RESOLVED
     const normed=normalizeIssueStatusText(txt,target.route,{status:wanted})
     if(!normed.ok)return normed
