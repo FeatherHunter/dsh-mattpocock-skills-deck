@@ -12,8 +12,9 @@
  *
  * 身份行：2026-10-23 曾删掉（顶栏的面包屑与身份小签已经写着同一个编号，页内重复），
  * 2026-11-02 维护者拍板恢复——标题前补「地图图标 + 容器词 + 编号徽标」，与标题同一行在左，
- * 标题折行时从标记下方走过（半包围）。所以本文件重新带上三格：容器词词条键、徽标编号、徽标目录；
- * 模型只给数，图标与画面由档案头（view/profile/MapProfileHeader.ts）画。
+ * 标题折行时从标记下方走过（半包围）。所以本文件重新带上两格：徽标编号与徽标目录；
+ * 容器词不进模型——档案头按容器种类从 kernel 中央表 CONTAINER_CHIP_LABEL_KEY 取（一个值一处定义），
+ * 图标与画面也由档案头（view/profile/MapProfileHeader.ts）画。
  *
  * 两类容器（维护者 2026-10-22 定：规格与探索地图没有本质区别，顶多个别标签不一样）：
  * 差别只在「子票那句」的计数词（map.subCount / map.specSubCount）与规格没有目的地时不画空态提示，
@@ -48,14 +49,6 @@ const FEED_PLACEHOLDER = '–'
 const MAP_PROFILE_COUNT_KEY: Record<ContainerKind, string> = {
   map: 'map.subCount',
   spec: 'map.specSubCount',
-}
-
-/** 两种容器在标题前身份标记里的词条键（与 kernel/container-view.ts 的 CONTAINER_CHIP_LABEL_KEY 同值）。
- *  为什么不直接 import 那张表：本文件同时要被门禁直接 require、又要当构建叶子拼进闭包（只能 import 类型），
- *  所以按「子票那句」计数词的同一口径在模型里留一份键；改中央表时两处一起改，门禁对着字面量断。 */
-const MAP_PROFILE_CHIP_KEY: Record<ContainerKind, string> = {
-  map: 'list.mapChip',
-  spec: 'list.specChip',
 }
 
 /** 读成一段干净的文字：给的不是字符串就当空串（不做类型猜测）。 */
@@ -177,7 +170,6 @@ export function mapProfileOf(
     progressPercent: mapProgressPercentOf(counts),
     feedSegments: mapFeedSegmentsOf(feed, kind),
     errorText: mapErrorTextOf(row),
-    chipLabelKey: MAP_PROFILE_CHIP_KEY[kind],
     badgeKey: badgeKeyOf(row),
     badgeEffortId: typeof effortId === 'string' ? effortId : '',
   }

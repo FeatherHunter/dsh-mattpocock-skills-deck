@@ -671,10 +671,11 @@ section('9. MAP 自身内容：标题、目的地、完成度、子票那句的�
     '目的地原文带出，hasDestination 说有没有（实得 ' + show(full.hasDestination) + '）')
   check(show(full.counts) === show(COUNTS) && full.progressPercent === 50,
     '看板计数原样带出，完成度按同一份计数算（实得 ' + show(full.counts) + ' / ' + full.progressPercent + '）')
-  check(Object.keys(full).sort().join(',') === 'badgeEffortId,badgeKey,chipLabelKey,counts,destination,errorText,feedSegments,hasDestination,kind,progressPercent,title',
-    'MAP 自身内容只剩页面要画的十格：标题 / 目的地 / 计数 / 完成度 / 子票那句 / 错误 / 容器种类 / 容器词 / 徽标编号 / 目录（没有档案与抽屉）')
-  check(full.chipLabelKey === 'list.mapChip' && full.badgeKey === '1314' && full.badgeEffortId === '',
-    '身份标记取到容器词词条键与编号（地图 → list.mapChip；编号取快照行的 key；没给目录时为空串；实得 ' + show([full.chipLabelKey, full.badgeKey, full.badgeEffortId]) + '）')
+  const MAP_PROFILE_KEYS = 'badgeEffortId,badgeKey,counts,destination,errorText,feedSegments,hasDestination,kind,progressPercent,title'
+  check(Object.keys(full).sort().join(',') === MAP_PROFILE_KEYS,
+    'MAP 自身内容只剩页面要画的九格：标题 / 目的地 / 计数 / 完成度 / 子票那句 / 错误 / 容器种类 / 徽标编号 / 目录（没有档案、抽屉与词表）')
+  check(full.badgeKey === '1314' && full.badgeEffortId === '',
+    '身份标记的徽标编号取快照行的 key；没给目录时目录为空串（实得 ' + show([full.badgeKey, full.badgeEffortId]) + '）')
   const withEffort = profile.mapProfileOf(MAP_ROW, realFeed, COUNTS, 'demo')
   check(withEffort.badgeEffortId === 'demo',
     '页面把目录短名传进来时原样带出（多工作单元徽标才拼得出「#目录/编号」；实得 ' + show(withEffort.badgeEffortId) + '）')
@@ -738,10 +739,10 @@ section('9. MAP 自身内容：标题、目的地、完成度、子票那句的�
     '规格的标题也去空白后带出（实得 ' + show(specFull.title) + '）')
   check(show(specFull.feedSegments) === show([{ key: 'map.specSubCount', params: { n: 8, c: 4 } }]),
     '规格的「子票那句」用 map.specSubCount，不再说成探索地图（实得 ' + show(specFull.feedSegments) + '）')
-  check(Object.keys(specFull).sort().join(',') === 'badgeEffortId,badgeKey,chipLabelKey,counts,destination,errorText,feedSegments,hasDestination,kind,progressPercent,title',
+  check(Object.keys(specFull).sort().join(',') === MAP_PROFILE_KEYS,
     '规格与探索地图用同一份 MAP 自身内容，没有另一套字段')
-  check(specFull.chipLabelKey === 'list.specChip' && specFull.badgeKey === 1380,
-    '规格的容器词是 list.specChip，行没有 key 时徽标编号退回 number（实得 ' + show([specFull.chipLabelKey, specFull.badgeKey]) + '）')
+  check(specFull.badgeKey === 1380,
+    '行没有 key 时徽标编号退回数字 number（实得 ' + show(specFull.badgeKey) + '）')
   const emptySpec = profile.mapProfileOf({ type: 'spec' }, null, null)
   check(show(emptySpec.feedSegments) === show([]) && emptySpec.kind === 'spec',
     '没有取数结果时那句不出，规格身份照旧（实得 ' + show(emptySpec.feedSegments) + '）')
@@ -962,8 +963,9 @@ section('§12 入口接线')
     headerText.indexOf('MapProfileDrawers') < 0,
     '档案区不再画抽屉；档案区带定位串、可键盘进入')
   check(headerText.indexOf('m2v2-id') >= 0 && headerText.indexOf('ticketBadgeOf') >= 0 &&
-    headerText.indexOf('chipLabelKey') >= 0 && headerText.indexOf("Ic({ n: 'map'") >= 0,
-    '档案标题前有身份标记：地图图标 + 容器词 + 编号徽标（编号走 #1564 徽标契约，不自己拼「#编号」）')
+    headerText.indexOf('CONTAINER_CHIP_LABEL_KEY') >= 0 && headerText.indexOf('MAP_PROFILE_CHIP_KEY') < 0 &&
+    headerText.indexOf("Ic({ n: 'map'") >= 0,
+    '档案标题前有身份标记：地图图标 + 容器词 + 编号徽标（容器词取 kernel 中央表、编号走 #1564 徽标契约，不自己拼「#编号」）')
   check(pageSourceText.indexOf('pushNav') >= 0 && pageSourceText.indexOf("pushNav(st, 'issue', n, effortOf(m))") >= 0 &&
     pageSourceText.indexOf('onOpenArchive: openArchive') >= 0,
     '点档案区压入这张地图自己的 issue 详情页（地图就是一条 issue，正文与评论都在那里）')
@@ -975,9 +977,10 @@ section('§12 入口接线')
     stylesText.indexOf('.m2v2-title-link') < 0 && stylesText.indexOf('.m2v2-drawer') < 0,
     '整块档案有自己的悬停 / 焦点样式；抽屉与标题链接样式已删干净')
   const idRuleAt = stylesText.indexOf('.m2v2-id{')
-  check(idRuleAt >= 0 && stylesText.indexOf('float:left', idRuleAt) > idRuleAt &&
-    stylesText.indexOf('color-mix', idRuleAt) > idRuleAt,
-    '身份标记靠左浮动、标题折行从它下方走过（半包围）；身份色在深浅两套底色上各提亮 / 压暗一档')
+  const idRuleEnd = idRuleAt >= 0 ? stylesText.indexOf('}', idRuleAt) : -1
+  const idRuleBody = idRuleAt >= 0 && idRuleEnd > idRuleAt ? stylesText.slice(idRuleAt, idRuleEnd) : ''
+  check(idRuleBody.indexOf('float:left') >= 0 && idRuleBody.indexOf('color-mix') >= 0,
+    '身份标记那条规则自己写着靠左浮动与主题混色（标题折行从它下方走过＝半包围；身份色在深浅两套底色上各提亮 / 压暗一档）')
   check(stylesText.indexOf('body:not([data-ds-dark-theme]) .m2v2-id{') >= 0,
     '浅色主题有身份标记的单独配色（规格蓝 / 探索紫在暖纸上压暗后才读得清）')
 

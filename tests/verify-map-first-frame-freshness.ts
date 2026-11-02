@@ -336,14 +336,18 @@ const cardIds = (html: string) => (html.match(/id="m2-default-100-(\d+)"/g) || [
   const specSnapshot: any = carryOverMapTickets(null, assembleSnapshot({ owner: 'o', name: 'r' }, specRows), { sourceComplete: true, nowMs: NOW })
   const mapHtml = renderPage(firstSnapshot, '100', null)
   const specHtml = renderPage(specSnapshot, '700', null)
-  const idBlockOf = (html: string) => html.slice(html.indexOf('m2v2-id'), html.indexOf('m2v2-id') + 600)
+  const idBlockOf = (html: string) => {
+    const start = html.indexOf('m2v2-id')
+    const end = html.indexOf('m2v2-title-txt')
+    return start >= 0 && end > start ? html.slice(start, end) : ''
+  }
   const mapIdBlock = idBlockOf(mapHtml)
   const specIdBlock = idBlockOf(specHtml)
   check(mapIdBlock.indexOf('[icon:map]') >= 0, 'K1 身份标记里有地图图标', mapIdBlock)
   check(mapIdBlock.indexOf(trFn('list.mapChip')) >= 0, 'K2 探索地图的身份标记写「地图」', mapIdBlock)
-  check(mapIdBlock.indexOf('dsws-idnum') >= 0 && mapIdBlock.indexOf('100') >= 0,
-    'K3 身份标记里有编号徽标，编号走共享徽标契约', mapIdBlock)
-  check(specIdBlock.indexOf(trFn('list.specChip')) >= 0 && specIdBlock.indexOf('dsws-idnum') >= 0 && specIdBlock.indexOf('700') >= 0,
+  check(mapIdBlock.indexOf('dsws-idnum') >= 0 && mapIdBlock.indexOf('/100') >= 0,
+    'K3 身份标记里有编号徽标（编号尾巴 /100 由共享徽标契约拼出，不会混进标题文字）', mapIdBlock)
+  check(specIdBlock.indexOf(trFn('list.specChip')) >= 0 && specIdBlock.indexOf('dsws-idnum') >= 0 && specIdBlock.indexOf('/700') >= 0,
     'K4 规格的身份标记写「规格」并带编号徽标', specIdBlock)
   check(mapHtml.indexOf('m2v2-id') >= 0 && mapHtml.indexOf('m2v2-id') < mapHtml.indexOf('m2v2-title-txt'),
     'K5 身份标记排在标题文字前面（同一行在左）', [mapHtml.indexOf('m2v2-id'), mapHtml.indexOf('m2v2-title-txt')])

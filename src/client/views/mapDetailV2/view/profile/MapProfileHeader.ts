@@ -27,6 +27,7 @@ declare function Ic(props?: any): any
 declare function mdToHtml(...args: any[]): any
 declare function ticketBadgeOf(...args: any[]): any
 declare const CONTAINER_ACCENT: any
+declare const CONTAINER_CHIP_LABEL_KEY: any
 
 /** 四枚计数：顺序固定为 可接 → 已认领 → 被阻塞 → 已关闭（与卡片流「在办 → 可接 → 被挡 → 已完成」不是一回事，
  *  这里是「现在各有多少张」，按票的三个活状态加一个终态排，好扫）。 */
@@ -80,23 +81,25 @@ function progressNode(h: any, profile: MapProfile, feed: TicketFeed | null, busy
  * 标题前是身份标记（#1803，维护者 2026-11-02 拍板恢复）：地图图标 + 容器词 + 编号徽标。
  * 它靠左浮动，所以标题文字沿它右侧排、折行时从它下方走过（半包围）——标记只占第一行的左侧一小块。
  * 编号走 #1564 共享徽标契约（ticketBadgeOf 的 badge 外壳，目录与编号的拼法由它负责）；
- * 容器词走词条键（地图 / 规格）；容器身份色由 CONTAINER_ACCENT 取，不在这一层写字面色值。
+ * 容器词按容器种类从 kernel 中央表 CONTAINER_CHIP_LABEL_KEY 取（地图 / 规格，一个值一处定义）；
+ * 容器身份色由 CONTAINER_ACCENT 取，不在这一层写字面色值。
  */
 function titleNode(h: any, profile: MapProfile, openable: boolean): any {
   const title = profile.title || ''
   const accent = CONTAINER_ACCENT && typeof CONTAINER_ACCENT === 'object' ? CONTAINER_ACCENT[profile.kind] : ''
   const identity = h('span', {
     key: 'id',
-    className: 'm2v2-id' + (profile.kind === 'spec' ? ' m2v2-id-spec' : ''),
+    className: 'm2v2-id',
     style: accent ? { '--m2v2-id-accent': accent } : null,
   }, [
     h('span', { key: 'chip', className: 'm2v2-chip' }, [
-      Ic({ n: 'map', size: 11 }),
-      h('span', { key: 'txt' }, tr(profile.chipLabelKey || 'list.mapChip')),
+      h('span', { key: 'ic', style: { display: 'inline-flex' } }, Ic({ n: 'map', size: 11 })),
+      h('span', { key: 'txt' }, tr(CONTAINER_CHIP_LABEL_KEY[profile.kind])),
     ]),
-    profile.badgeKey === null || profile.badgeKey === ''
+    profile.badgeKey === null || profile.badgeKey === undefined
       ? null
-      : ticketBadgeOf(h, { surface: 'badge', key: profile.badgeKey, effortId: profile.badgeEffortId }),
+      : h('span', { key: 'badge', style: { display: 'inline-flex', alignItems: 'center' } },
+        ticketBadgeOf(h, { surface: 'badge', key: profile.badgeKey, effortId: profile.badgeEffortId })),
   ])
   return h('h1', { key: 'title', className: 'm2v2-title' }, [
     identity,
