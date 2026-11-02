@@ -40,7 +40,9 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-const CLIENT_FILES = ['src/shared/version-control/src/branch-decisions.ts', 'src/client/views/versionControl/vcBranches.ts']
+// #1829 阶段 3：面板画法搬到视图叶子（vcBranchPage.ts），vcBranchBoardNode 改为转调它的纯函数 vcBranchTreeOf；
+//   这里仍只拼数据层 + 视图叶子两份，断言一条不动。
+const CLIENT_FILES = ['src/shared/version-control/src/branch-decisions.ts', 'src/client/views/versionControl/vcBranches.ts', 'src/client/views/versionControl/vcBranchPage.ts']
 const CLIENT_EXPORTS = ['BRANCH_REASONS', 'BRANCH_REASON_IDS', 'BRANCH_OP_IDS', 'BRANCH_WRITE_KINDS', 'branchNameProblem', 'tagNameProblem',
   'upstreamNameProblem', 'descriptionTextProblem', 'decideBranchSwitch', 'decideBranchDelete', 'decideBranchCreate', 'decideTagCreate',
   'decideDescriptionWrite', 'branchReasonText', 'VC_BRANCHES_PHONE', 'VC_BRANCH_CHECK_PHONE', 'VC_BRANCH_WRITE_PHONE', 'VC_BRANCH_BOARD_CONTRACT',

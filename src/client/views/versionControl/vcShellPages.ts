@@ -48,6 +48,7 @@ declare function vcChangesPageNode(h: any, t: any, o: any): any
 // （vcPlatformPage.ts）与迁移页 14.1 导出向导（vcMigrateExport.ts）都由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。十三条声明并进同一条物理行：本文件贴着 350 有效行上限。
 declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcMigratePageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any; declare function vcRebasePageNode(h: any, t: any, o: any): any; declare const vcRewritePageNode: any; declare function vcConfigPageNode(h: any, t: any, o: any): any; declare function vcHooksPageNode(h: any, t: any, o: any): any; declare function vcDiagnosticsMountNode(h: any, t: any, o: any): any; declare function vcPlatformPageNode(h: any, t: any, o: any): any; declare function vcMigrateExportNode(h: any, t: any, o: any): any; declare const vcMaintenancePageNode: any; declare const vcMaintenanceDiagNode: any; declare function vcShellIdentityNode(h: any, t: any, o: any): any; declare function vcChangesViewNode(h: any, t: any, o: any): any // #1758 T22 维护页与诊断页两叶；#1761 诊断页正文（只在诊断页且传了读数时挂载）
 declare const VC_UNDO_PANEL: any // #1748 变基待办页的自带状态面板（预检→确认卡→凭票执行），#1776 M2 起由它替代只画骨架的 vcUndoPageNode
+declare const vcBranchPageOf: any // #1829 阶段 3：分支与标签页换成有状态组件（筛选与搜索在组件里），静态树仍由 vcBranchBoardNode 给门禁
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
 export const VC_SHELL_SKINS: string[] = ['dark', 'light']; // 两套皮肤：深浅各一套语义色，页面壳只把皮肤名透传给 CSS 与根属性。
@@ -274,15 +275,9 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   if (page === 'migrate' && typeof vcMigrateExportNode === 'function' && opts.migrate !== undefined) children.push(Object.assign({}, vcMigrateExportNode(h, t, { state: opts.migrate, reads: opts.migrateReads, width: opts.width, nowMs: opts.nowMs, onEdit: opts.onMigrateEdit, onCheck: opts.onMigrateCheck, onRun: opts.onMigrateRun, onRescan: opts.onMigrateRescan, onCancel: opts.onMigrateCancel }), { key: 'migrate-body' }))
   // #1756 T20 克隆向导（能力 8.16）：迁移与备份页的正文；组件自己保存表单与进度，壳只把取词、工作区与发电话的函数递进去。
   if (page === 'migrate') children.push(h(vcClonePageNode, { key: 'clone', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcRewritePageNode, { key: 'rewrite', t: t, cwd: opts.cwd || '', call: opts.call || null })); if (page === 'maintenance') children.push(h(vcMaintenancePageNode, { key: 'maintenance-cards', t: t, cwd: opts.cwd || '', call: opts.call || null })) // #1750 T15 维护页整仓重写（能力 5.11）正文；#1758 T22 维护页 11.4–11.11 正文；三块同一物理行：本文件贴着 350 有效行上限
-  // 分支与标签页的业务面板（#1746 T11）：调用方把一份读数传进来才画；没传整块不出现，其它页渲染不变。
-  if (page === 'branch-tags' && opts.branchBoard !== undefined) {
-    children.push(Object.assign({}, vcBranchBoardNode(h, t, {
-      board: opts.branchBoard,
-      confirm: opts.branchConfirm,
-      result: opts.branchResult,
-      onRetry: opts.onBranchRetry,
-    }), { key: 'branch-board' }))
-  }
+  // 分支与标签页（#1746 T11；#1829 阶段 3 换成有状态组件叶子）：调用方把一份读数传进来才画，
+  //   没传整块不出现，其它页渲染不变；筛选与搜索的组件状态在叶子内部，壳只往下递读数与处理函数。
+  if (page === 'branch-tags' && opts.branchBoard !== undefined) children.push(h(vcBranchPageOf, { key: 'branch-board', t: t, board: opts.branchBoard, confirm: opts.branchConfirm, result: opts.branchResult, onRetry: opts.onBranchRetry, nowMs: opts.nowMs }))
   // 历史高级查询面板（#1745 T10）：提交历史页落 3.4 / 3.6 / 3.7 / 3.8 / 3.10 / 3.12 六组，
   //   「管理 › 诊断」页落 3.5 / 3.9 / 3.11 / 3.13 四组（四条的主入口就在那一页，面板自己标主入口）。
   //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。

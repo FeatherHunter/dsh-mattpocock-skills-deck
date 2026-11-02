@@ -84,6 +84,8 @@ const VC_FILES = [
   'src/client/views/versionControl/vcMaintenanceDiag.js',
   'src/client/views/versionControl/vcShellIdentity.js',
   'src/client/views/versionControl/vcChangesView.js',
+  'src/client/views/versionControl/vcBranches.js', // #1829：分支与标签的数据层（读数归一、票与结果落位；页面壳挂页面前要先有它）
+  'src/client/views/versionControl/vcBranchPage.js', // #1829：分支与标签页的视图叶子（页头、筛选与搜索、卡片、页尾折叠）
   'src/client/views/versionControl/vcShellPages.js',
 ]
 
@@ -178,6 +180,25 @@ function entryOf(closureSrc: string): string {
     "    diffPath: (function () { const e = root.querySelector('[data-vc-file-diff]'); return e ? e.getAttribute('data-vc-file-diff') : null; })(),",
     "    diffLines: grab('[data-vc-diff-line]', 'data-vc-diff-line'),",
     "    histClipped: (function () { const out = []; const sel = ['.vcs-hist-title', '.vcs-hist-budget', '.vcs-hist-subject', '.vcs-hist-detail-title', '.vcs-hist-graph-title', '.vcs-hist-graph-note', '.vcs-hist-diff-title']; root.querySelectorAll(sel.join(',')).forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1) out.push(String(el.className)); }); return out; })(),",
+    // #1829 阶段 3 分支与标签页：首屏顺序、根读数、行与标签、筛选与搜索、折叠区、确认与结果的位置。
+    "    branchPage: !!root.querySelector('[data-vc-branch2]'),",
+    "    branchOrder: (function () { const s = root.querySelector('[data-vc-branch2]'); if (!s) return []; return Array.prototype.map.call(s.children, function (el) { return String(el.className || el.tagName) }); })(),",
+    "    branchRows: grab('[data-vc-branch-row]', 'data-vc-branch-row'),",
+    "    tagRows: grab('[data-vc-tag-row]', 'data-vc-tag-row'),",
+    "    branchOps: (function () { const e = root.querySelector('[data-vc-branch2]'); return e ? e.getAttribute('data-vc-branch-ops') : null; })(),",
+    "    branchWrites: (function () { const e = root.querySelector('[data-vc-branch2]'); return e ? e.getAttribute('data-vc-branch-writes') : null; })(),",
+    "    branchChecks: (function () { const e = root.querySelector('[data-vc-branch2]'); return e ? e.getAttribute('data-vc-branch-checks') : null; })(),",
+    "    branchForms: (function () { const e = root.querySelector('[data-vc-branch-forms]'); return e ? e.getAttribute('data-vc-branch-forms') : null; })(),",
+    "    branchMerged: (function () { const e = root.querySelector('[data-vc-branch-merged]'); return e ? e.getAttribute('data-vc-branch-merged') : null; })(),",
+    "    branchNotMerged: (function () { const e = root.querySelector('[data-vc-branch-notmerged]'); return e ? e.getAttribute('data-vc-branch-notmerged') : null; })(),",
+    "    branchScope: (function () { const e = root.querySelector('[data-vc-branch-scope]'); return e ? e.getAttribute('data-vc-branch-scope') : null; })(),",
+    "    branchFilters: grab('[data-vc-branch-filter]', 'data-vc-branch-filter'),",
+    "    branchQuery: !!root.querySelector('[data-vc-branch-query]'),",
+    "    branchConfirm: root.querySelectorAll('[data-vc-branch2] [data-vc-confirm]').length,",
+    "    branchResult: root.querySelectorAll('[data-vc-branch2] [data-vc-result]').length,",
+    "    branchRetry: root.querySelectorAll('[data-vc-branch2-retry]').length,",
+    "    branchEmpty: root.querySelectorAll('[data-vc-branch2-empty]').length,",
+    "    branchOidsShown: (function () { const out = []; root.querySelectorAll('[data-vc-branch-row] .vcs-branch2-oid').forEach(function (el) { if (window.getComputedStyle(el).display !== 'none') out.push(String(el.textContent)); }); return out; })(),",
     '  };',
     '};',
     'window.__expectedPalette = function (q) { return window.__VC.vcPaletteRowsOf(q).map((r) => r.id); };',
@@ -285,6 +306,30 @@ function histReadsOf(extra: any) {
   return reads
 }
 
+// ---------- 分支与标签页（#1829 阶段 3）的种子读数 ----------
+// 三条分支（当前 main、未并入的 feature/x 与 release/2026-10）与两个标签，形状照宿主回包：
+// 契约名与版本、读时刻、branches/tags 数组、descriptions 对象都在，页面才会画成有读数的那一版。
+// 提交短号取前 7 位由页面自己截，这里给整串 40 位，顺便验「300 宽收起短号」那条样式规则。
+const BRANCH_NOW = Date.parse('2026-10-04T10:00:00+08:00')
+function branchBoardOf() {
+  return {
+    contract: 'version-control.branch-board', version: 1, readAtMs: BRANCH_NOW,
+    current: { name: 'main', oid: 'a'.repeat(40) },
+    branches: [
+      { name: 'main', oid: 'a'.repeat(40), current: true, upstream: 'origin/main', ahead: 2, behind: 1, commitDateMs: BRANCH_NOW - 6 * 60000 },
+      { name: 'feature/x', oid: 'b'.repeat(40), current: false, upstream: null, ahead: 0, behind: 0, commitDateMs: BRANCH_NOW - 2 * 3600000 },
+      { name: 'release/2026-10', oid: 'c'.repeat(40), current: false, upstream: 'origin/release/2026-10', ahead: 0, behind: 4, commitDateMs: BRANCH_NOW - 26 * 3600000 },
+    ],
+    tags: [
+      { name: 'v1.0.0', oid: 'd'.repeat(40), objectType: 'commit', annotated: false, atMs: BRANCH_NOW, subject: '发布 1.0.0' },
+      { name: 'v1.1.0', oid: 'e'.repeat(40), objectType: 'tag', annotated: true, atMs: BRANCH_NOW, subject: '发布 1.1.0' },
+    ],
+    descriptions: { main: '主干；发布从这里切' },
+    merged: ['main'], notMerged: ['feature/x', 'release/2026-10'],
+    capabilities: { gitVersion: 'git version 2.49.0', tier: 'full', actions: [] },
+  }
+}
+
 async function run(browser: any, env: any) {
   const { closure, dict, css, relMs } = env
   const shotDir = path.join(ROOT, '.scratch', '1586-visual')
@@ -376,6 +421,62 @@ async function run(browser: any, env: any) {
         }
       }
     }
+    // ---- G 组：分支与标签页（#1829 阶段 3）—— 四档宽 × 两皮肤 ----
+    // 判据只看结构与读数：面板在、行按读数顺序、十三条能力仍各一个主入口、四条根读数不变、
+    // 首屏顺序（页头 → 说明 → 只读边界 → 当前分支 → 筛选与列表 → 标签 → 页尾折叠）、无溢出、无截断。
+    const branchCaps: string[] = await page.evaluate(() => window.__capsOf('branch-tags'))
+    const branchBoard = branchBoardOf()
+    for (let s = 0; s < SKINS.length; s += 1) {
+      const skin = SKINS[s]
+      for (let w = 0; w < WIDTHS.length; w += 1) {
+        const width = WIDTHS[w]
+        const tag = '分支与标签页 ' + skin + ' / ' + width + ' 宽'
+        await page.setViewportSize({ width: width, height: 1400 })
+        const m = await renderAt(page, { page: 'branch-tags', width: width, skin: skin, branchBoard: branchBoard, nowMs: BRANCH_NOW })
+        check(!!m && m.page === 'branch-tags' && m.width === String(width) && m.skin === skin && m.depth === '2', tag + '：根节点读数是分支与标签页 / 档宽 / 皮肤 / 层级 2')
+        check(!!m && !overflowOf(m), tag + '：没有横向溢出（文档 ' + (m && m.docScrollWidth) + ' ≤ viewport ' + (m && m.innerWidth) + '）')
+        check(!!m && m.branchPage === true, tag + '：分支与标签面板画出来了')
+        check(!!m && m.branchRows.join(',') === 'main,feature/x,release/2026-10' && m.tagRows.join(',') === 'v1.0.0,v1.1.0', tag + '：分支与标签都按读数顺序各画一行（分支 ' + (m && m.branchRows.length) + ' / 标签 ' + (m && m.tagRows.length) + '）')
+        check(!!m && m.branchOps === '13' && m.branchWrites === '9' && m.branchChecks === '1' && m.branchForms === '10', tag + '：根上仍报 13 条能力 / 9 条写 / 1 条验签，页尾折叠区仍画十条写动作（实得 ' + (m && [m.branchOps, m.branchWrites, m.branchChecks, m.branchForms].join('/')) + '）')
+        check(!!m && m.primaries.length === branchCaps.length && m.primaries.join(',') === branchCaps.join(','), tag + '：十三条能力仍各有一个 data-cap-primary 在能力行（' + (m && m.primaries.length) + ' 条）')
+        check(!!m && m.branchFilters.join(',') === 'all,current,unmerged' && m.branchQuery === true, tag + '：首屏有搜索框与三颗筛选胶囊（全部 / 当前分支 / 未并入当前分支）')
+        check(!!m && m.branchScope === '3' && m.branchMerged === '1' && m.branchNotMerged === '2', tag + '：筛选计数与两张名单的条数对得上读数（显示 ' + (m && m.branchScope) + ' / 已并入 ' + (m && m.branchMerged) + ' / 没并入 ' + (m && m.branchNotMerged) + '）')
+        const head = m && m.branchOrder ? m.branchOrder.slice(0, 4).join(',') : ''
+        check(head === 'vcs-branch2-head,vcs-branch2-lede,vcs-branch2-boundary,vcs-branch2-cur', tag + '：首屏从上到下是页头 → 说明 → 只读边界 → 当前分支（实得 ' + head + '）')
+        check(!!m && m.branchOrder.indexOf('vcs-branch2-list') > 0 && m.branchOrder.indexOf('vcs-branch2-forms') > m.branchOrder.indexOf('vcs-tag-list'), tag + '：分支列表在标签之前、十条写动作收在页尾折叠区')
+        if (width === 300) check(!!m && m.branchOidsShown.length === 0, tag + '：300 宽把提交短号收起来，避免把行撑破')
+        else check(!!m && m.branchOidsShown.length > 0, tag + '：' + width + ' 宽继续显示提交短号')
+        check(!!m && m.clipped.length === 0, tag + '：关键句子没有被截断（截断的：' + (m && m.clipped.join(',') || '无') + '）')
+        await page.screenshot({ path: path.join(shotDir, 'branch-tags-' + skin + '-' + width + '.png') })
+        // 筛选与搜索是这块新做的交互：点一下、输入一次，看行数与计数真的跟着变（只在 460 宽深色做一次）。
+        if (width === 460 && skin === 'dark') {
+          await page.click('[data-vc-branch2] [data-vc-branch-filter="unmerged"]')
+          await page.waitForTimeout(150)
+          const mf: any = await page.evaluate(() => window.__measure())
+          check(!!mf && mf.branchRows.join(',') === 'feature/x,release/2026-10' && mf.branchScope === '2', tag + '：点「未并入当前分支」后只留未并入的两行（筛选在组件里真的生效，实得 ' + (mf && mf.branchRows.join(',')) + '）')
+          const qsel = '[data-vc-branch2] [data-vc-branch-query]'
+          await page.fill(qsel, 'release')
+          await page.waitForTimeout(150)
+          const mq: any = await page.evaluate(() => window.__measure())
+          check(!!mq && mq.branchRows.join(',') === 'release/2026-10' && !overflowOf(mq), tag + '：搜索框输入 release 后按分支名收窄到一行（搜索真的生效，实得 ' + (mq && mq.branchRows.join(',')) + '）')
+          await page.screenshot({ path: path.join(shotDir, 'branch-tags-filtered-dark-460.png') })
+          await page.fill(qsel, '')
+          await page.click('[data-vc-branch2] [data-vc-branch-filter="all"]')
+          await page.waitForTimeout(100)
+        }
+      }
+    }
+    // 确认卡与结果：818 BR22/BR22b 的静态判据在真浏览器里的对照——都在面板里，且排在页尾折叠区之后。
+    await page.setViewportSize({ width: 460, height: 1600 })
+    const mb = await renderAt(page, {
+      page: 'branch-tags', width: 460, skin: 'dark', branchBoard: branchBoard, nowMs: BRANCH_NOW,
+      branchConfirm: { verb: '切换', target: 'feature/x', kind: 'switch' },
+      branchResult: { state: 'fail', error: true, git: 'fatal: 分支 feature/x 未并入', step: 'branch-write', expected: '', actual: '', cause: '', reason: '' },
+    })
+    check(!!mb && mb.branchConfirm === 1 && mb.branchResult === 1, '分支与标签页：确认卡与结果都贴在面板里（确认 ' + (mb && mb.branchConfirm) + ' / 结果 ' + (mb && mb.branchResult) + '）')
+    const order2 = mb && mb.branchOrder ? mb.branchOrder.join(',') : ''
+    check(order2.indexOf('vcs-confirm') > order2.indexOf('vcs-branch2-forms') && order2.indexOf('vcs-result') > order2.indexOf('vcs-confirm'), '分支与标签页：确认卡与结果排在页尾折叠区之后（实得 ' + order2.slice(-90) + '）')
+    await page.screenshot({ path: path.join(shotDir, 'branch-tags-confirm-dark-460.png') })
   } finally {
     await close()
   }

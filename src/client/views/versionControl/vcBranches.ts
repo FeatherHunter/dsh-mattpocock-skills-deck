@@ -21,8 +21,7 @@
 declare function log(level: any, event: any, fields: any): void
 declare function dswsLogHash(text: any): string
 declare function dswsLogTrunc(text: any, n: any, kind: any): string
-declare function vcShellConfirmCardNode(h: any, t: any, o: any): any
-declare function vcShellResultNode(h: any, t: any, o: any): any
+declare const vcBranchTreeOf: any // 视图叶子（vcBranchPage.ts）里的纯函数：本文件只保留旧入口名，画法在那边
 
 export const VC_BRANCHES_PHONE = 'wf.gitBranches'
 export const VC_BRANCH_CHECK_PHONE = 'wf.gitBranchCheck'
@@ -244,8 +243,9 @@ export const vcBranchResultOf = function (reply: any) {
 }
 
 // ———— 业务面板 ————
-// 面板只读一份读数（board），按读数画四块：当前分支与列表、标签列表、十个写动作的入口、结果与确认卡。
-// 每个动作按钮都带 data-vc-branch-action（宿主 kind）与 data-vc-op（能力号），一行一条、不重复。
+// 面板视图本体搬到了 vcBranchPage.ts（#1829 阶段 3 重做）：那边画页头、筛选与搜索、分支卡片与标签、
+// 页尾折叠区，并把确认卡与结果永远排在最后。这里只留这一份读数与该画法的旧入口名，
+// 静态树（门禁直接调 vcBranchBoardNode）与 React 组件（壳的生产路径）画的是同一份结构。
 /** 版本降级那一行要的几条：只挑账本判成 degraded 的动作（4.2 / 4.3 / 4.4 在 2.23 以下），
  *  完整可用的与低于硬底线藏起来的不画——这一行说的是「能做，但换一种做法」，不是「能做」或「不能做」。 */
 export const vcBranchDegradedOf = function (board: any) {
@@ -254,95 +254,11 @@ export const vcBranchDegradedOf = function (board: any) {
   return rows.filter(function (a: any) { return a && a.state === 'degraded' })
 }
 
+/** 旧入口名：门禁（818 BR 组 / 1586-branches D 组）直接调它拿静态树；画法在 vcBranchPage.ts 的 vcBranchTreeOf。 */
 export const vcBranchBoardNode = function (h: any, t: any, o: any) {
-  const opts = o || {}
-  const board = vcBranchShapeOk(opts.board) ? opts.board : null
-  const kids: any[] = []
-  kids.push(h('h4', { key: 'title', className: 'vcs-branch2-title' }, t('vc.shell.branch2.title')))
-  const current = board && board.current ? String(board.current.name || '') : ''
-  kids.push(h('p', { key: 'cur', className: 'vcs-branch2-cur', 'data-vc-branch-current': current }, t('vc.shell.branch2.current', { branch: current || t('vc.shell.branch2.unknown') })))
-  // 降级说明：低版本 git 上新建/切换/切提交改用 checkout 等价动作，替代做法逐条来自账本，界面不自己编。
-  const degraded: any[] = board ? vcBranchDegradedOf(board) : []
-  if (degraded.length > 0) {
-    const gitVersion: string = String((board.capabilities || {}).gitVersion || '')
-    const alternatives: string = degraded.map(function (a: any) { return String(a.alternative || '') }).filter(function (s: string) { return s !== '' }).join('；')
-    kids.push(h('p', { key: 'degraded', className: 'vcs-branch2-degraded', 'data-vc-branch-degraded': String(degraded.length), 'data-vc-branch-git-version': gitVersion }, t('vc.shell.branch2.degraded', { version: gitVersion, alternatives: alternatives })))
-  }
-  if (!board) {
-    kids.push(h('p', { key: 'none', className: 'vcs-branch2-empty', 'data-vc-branch2-empty': '1' }, t('vc.shell.branch2.empty')))
-    if (opts.onRetry) kids.push(h('button', { key: 'retry', type: 'button', className: 'vcs-branch2-retry', 'data-vc-branch2-retry': '1', 'data-press': 'button', 'data-log': 'vc.branch.retry', onClick: opts.onRetry }, t('vc.shell.state.retry')))
-  } else {
-    const rows: any[] = []
-    for (let i = 0; i < board.branches.length; i += 1) {
-      const b = board.branches[i] || {}
-      const name = String(b.name || '')
-      const acts: any[] = []
-      const add = function (op: any, kind: any, labelKey: any) { acts.push(h('button', { key: kind, type: 'button', className: 'vcs-branch2-act', 'data-vc-branch-action': kind, 'data-vc-op': op, 'data-vc-branch-name': name, 'data-press': 'button', 'data-log': 'vc.branch.act.' + kind }, t(labelKey))) }
-      add('4.3', 'switch', 'vc.shell.branch2.switch')
-      add('4.4', 'detach', 'vc.shell.branch2.detach')
-      add('4.5', 'rename', 'vc.shell.branch2.rename')
-      add('4.6', 'delete', 'vc.shell.branch2.delete')
-      add('4.7', 'upstream', 'vc.shell.branch2.upstream')
-      add('4.13', 'describe', 'vc.shell.branch2.describe')
-      const badges: any[] = []
-      if (b.current === true) badges.push(h('span', { key: 'cur', className: 'vcs-branch2-badge' }, t('vc.shell.branch2.currentBadge')))
-      if (String(b.upstream || '')) badges.push(h('span', { key: 'up', className: 'vcs-branch2-badge', 'data-vc-branch-upstream': String(b.upstream) }, t('vc.shell.branch2.upstreamShort', { upstream: String(b.upstream), ahead: Number(b.ahead) || 0, behind: Number(b.behind) || 0 })))
-      if (String((board.descriptions || {})[name] || '')) badges.push(h('span', { key: 'desc', className: 'vcs-branch2-desc' }, String((board.descriptions || {})[name])))
-      rows.push(h('li', { key: name, className: 'vcs-branch2-row', 'data-vc-branch-row': name }, [
-        h('span', { key: 'name', className: 'vcs-branch2-name' }, name),
-        h('span', { key: 'badges', className: 'vcs-branch2-badges' }, badges),
-        h('span', { key: 'acts', className: 'vcs-branch2-acts' }, acts),
-      ]))
-    }
-    kids.push(h('div', { key: 'list', className: 'vcs-branch2-list', 'data-vc-branch-list': String(board.branches.length) }, [
-      h('p', { key: 'h', className: 'vcs-branch2-h' }, t('vc.shell.branch2.list')),
-      rows.length ? h('ul', { key: 'rows', className: 'vcs-branch2-rows' }, rows) : h('p', { key: 'none', className: 'vcs-branch2-empty' }, t('vc.shell.branch2.noBranches')),
-    ]))
-    // 4.8：已并入 / 没并入两张名单（读 4.1 时一起取回，不另发电话）。
-    const merged = Array.isArray(board.merged) ? board.merged : null
-    const notMerged = Array.isArray(board.notMerged) ? board.notMerged : null
-    if (merged && notMerged) {
-      kids.push(h('div', { key: 'merged', className: 'vcs-branch2-merged', 'data-vc-branch-merged': String(merged.length), 'data-vc-branch-notmerged': String(notMerged.length) }, [
-        h('p', { key: 'mh', className: 'vcs-branch2-h' }, t('vc.shell.branch2.merged')),
-        h('p', { key: 'm', className: 'vcs-branch2-names', 'data-vc-branch-merged-list': merged.join(',') }, merged.join('、') || t('vc.shell.branch2.none')),
-        h('p', { key: 'nh', className: 'vcs-branch2-h' }, t('vc.shell.branch2.notMerged')),
-        h('p', { key: 'n', className: 'vcs-branch2-names', 'data-vc-branch-notmerged-list': notMerged.join(',') }, notMerged.join('、') || t('vc.shell.branch2.none')),
-      ]))
-    }
-    // 4.9 / 4.10 / 4.11 / 4.12：标签清单与每个标签的动作。
-    const tagRows: any[] = []
-    for (let i = 0; i < board.tags.length; i += 1) {
-      const tag = board.tags[i] || {}
-      const name = String(tag.name || '')
-      tagRows.push(h('li', { key: name, className: 'vcs-tag-row', 'data-vc-tag-row': name, 'data-vc-tag-annotated': tag.annotated === true ? '1' : '0' }, [
-        h('span', { key: 'name', className: 'vcs-tag-name' }, name),
-        h('button', { key: 'del', type: 'button', className: 'vcs-tag-act', 'data-vc-tag-action': 'delete', 'data-vc-op': '4.11', 'data-vc-tag-name': name, 'data-press': 'button', 'data-log': 'vc.branch.tag.delete' }, t('vc.shell.branch2.tagDelete')),
-        h('button', { key: 'ver', type: 'button', className: 'vcs-tag-act', 'data-vc-tag-action': 'verify', 'data-vc-op': '4.12', 'data-vc-tag-name': name, 'data-press': 'button', 'data-log': 'vc.branch.tag.verify' }, t('vc.shell.branch2.verify')),
-      ]))
-    }
-    kids.push(h('div', { key: 'tags', className: 'vcs-tag-list', 'data-vc-tag-list': String(board.tags.length) }, [
-      h('p', { key: 'h', className: 'vcs-branch2-h' }, t('vc.shell.branch2.tags')),
-      tagRows.length ? h('ul', { key: 'rows', className: 'vcs-tag-rows' }, tagRows) : h('p', { key: 'none', className: 'vcs-branch2-empty' }, t('vc.shell.branch2.noTags')),
-    ]))
-  }
-  // 十个写动作的表单入口：一行一条，带 kind 与能力号（新建分支/建标签等需要输入的放输入框）。
-  const forms: any[] = []
-  for (let i = 0; i < VC_BRANCH_ACTIONS.length; i += 1) {
-    const act = VC_BRANCH_ACTIONS[i]
-    const row: any[] = [h('span', { key: 'label', className: 'vcs-branch2-label' }, t(act.label))]
-    if (act.form) {
-      row.push(h('input', { key: 'input', type: 'text', className: 'vcs-branch2-input', 'data-vc-branch-input': act.kind, placeholder: t('vc.shell.branch2.inputHint') }))
-    }
-    row.push(h('button', { key: 'go', type: 'button', className: 'vcs-branch2-go', 'data-vc-branch-action': act.kind, 'data-vc-op': act.op, 'data-vc-branch-form': act.form ? '1' : '0', 'data-press': 'button', 'data-log': 'vc.branch.go.' + act.kind }, t('vc.shell.branch2.go')))
-    forms.push(h('li', { key: act.op, className: 'vcs-branch2-form', 'data-vc-op-row': act.op }, row))
-  }
-  kids.push(h('div', { key: 'forms', className: 'vcs-branch2-forms', 'data-vc-branch-forms': String(forms.length) }, [
-    h('p', { key: 'h', className: 'vcs-branch2-h' }, t('vc.shell.branch2.actions')),
-    h('ul', { key: 'rows', className: 'vcs-branch2-form-rows' }, forms),
-  ]))
-  if (opts.confirm) kids.push(Object.assign({}, vcShellConfirmCardNode(h, t, opts.confirm), { key: 'confirm' }))
-  if (opts.result) kids.push(Object.assign({}, vcShellResultNode(h, t, opts.result), { key: 'result' }))
-  return h('section', { className: 'vcs-branch2', 'data-vc-branch2': '1', 'data-vc-branch-ops': String(VC_BRANCH_OP_IDS.length), 'data-vc-branch-writes': String(VC_BRANCH_WRITE_OPS.length), 'data-vc-branch-checks': '1' }, kids)
+  return vcBranchTreeOf(h, t, o || {})
 }
+
+
 
 export const VC_BRANCHES_SOURCE = 'src/client/views/versionControl/vcBranches.ts'
