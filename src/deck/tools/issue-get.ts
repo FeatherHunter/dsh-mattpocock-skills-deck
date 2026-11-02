@@ -108,6 +108,40 @@ export const definition = {
 }
 
 /**
+ * 状态四格（#1790 缺陷 A 的 P4）：本地 Markdown 房返回的 Issue 已经按读侧约定算好
+ * status / statusSource / statusVisible / statusConflict（见 src/tracker/rooms/markdown/status.ts），
+ * 这里把它们原样搬给调用方，只多做一件事：没有值的格不出现（宿主收工具返回值时要求无损 JSON）。
+ * 为什么不用空串或 null 顶替：没有状态与状态值为空是两件事，读的人要分得开。
+ */
+function statusFieldsOf(issue: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  const put = function (name: string, value: unknown): void {
+    if (value !== undefined && value !== null && value !== '') out[name] = value
+  }
+  put('status', issue.status)
+  put('statusVisible', issue.statusVisible)
+  put('statusSource', issue.statusSource)
+  put('statusConflict', issue.statusConflict)
+  return out
+}
+
+/**
+ * 把状态与冲突说成一句话（#1790 缺陷 A 的 P4）：这三个值只有本地 Markdown 会给，
+ * 远端后端没有 status 时整句不加，免得把「这个后端不报状态」说成「这张票没有状态」。
+ */
+function statusSentenceOf(issue: Record<string, unknown>): string {
+  const conflict = issue.statusConflict as Record<string, unknown> | null | undefined
+  if (conflict && typeof conflict.visible === 'string') {
+    const hidden = Array.isArray(conflict.hidden) ? conflict.hidden.filter((one) => typeof one === 'string') : []
+    return '；状态有冲突：可见 Status 是「' + conflict.visible + '」，隐藏标签是「' + hidden.join('、') + '」，读侧按可见值；写入前按 deck_issue_patch 回执里的 retry 参数重试。'
+  }
+  const status = typeof issue.status === 'string' ? issue.status : ''
+  if (!status) return ''
+  const source = typeof issue.statusSource === 'string' ? issue.statusSource : ''
+  return '；状态：' + status + (source ? '（来源：' + source + '）' : '')
+}
+
+/**
  * 列表行里挑出要给 AI 看的那几项。读的是后端回来的运行时真值（形状未在契约层建模的房内字段也在），
  * 所以先当未知收口：不是对象就回 null，字段缺了用空串/null 补，不猜。
  */
@@ -127,6 +161,8 @@ function issueBrief(issue: Record<string, unknown> | null | undefined) {
     // 出处与记录时间随条目返回；recordedAt 只从出处文字里认（出处没写时间时是 null，不拿票的修改时间顶替）。
     // 没写原话时是 []，不是 null——「没写」与「写坏了」分开看；正文原封不动仍可读 body。
     originalWords: parseOriginalWords(issue.body !== undefined ? issue.body : null),
+    // #1790 缺陷 A 的 P4：状态四格按需追加在列表行末尾，原有字段的顺序与含义一个都不动。
+    ...statusFieldsOf(issue),
   }
 }
 
@@ -280,7 +316,7 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
       return {
         value: {
           status: DECK_STATUS.OK,
-          text: '票 ' + key + ' 读回来了：状态 ' + stateText + closedText + '，父票 ' + (rel.parentKey || '（没有）') + '，被阻塞 ' + rel.blockedBy.length + ' 条，' + blockingText,
+          text: '票 ' + key + ' 读回来了：状态 ' + stateText + closedText + '，父票 ' + (rel.parentKey || '（没有）') + '，被阻塞 ' + rel.blockedBy.length + ' 条，' + blockingText + statusSentenceOf(issue as Record<string, unknown>),
           data: {
             ticket: brief,
             excerpt: excerpt,

@@ -73,6 +73,18 @@ function labelNames(list: unknown): string[] { return namesOf(list, (l) => l.nam
 /** 认领人名字：对象形态取 login，取不到记空串（namesOf 会把它滤掉）。 */
 function assigneeNames(list: unknown): string[] { return namesOf(list, (a) => (a && a.login) || '') }
 
+/**
+ * 一行读面的状态两格（#1790 缺陷 A 的 P4）：本地 Markdown 房返回的 Issue 已经算好 status 与 statusConflict。
+ * status 有才给；statusConflict 是布尔、总是给（没有冲突就是 false）——调用方不用再猜
+ * 「字段缺席」是这张票没状态，还是这个后端不认这条约定。
+ */
+function statusRowFields(issue: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  if (typeof issue.status === 'string' && issue.status !== '') out.status = issue.status
+  out.statusConflict = !!issue.statusConflict
+  return out
+}
+
 // 沙箱许可等待上限见 ../shell/capped-wait.ts（#1114 第二批）：到点就按「没等到」处理并清掉等待定时器；
 // 超时按缺席走老路（不限权），与既有 catch null 同形。
 
@@ -330,7 +342,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       const fallbackReason = String((listed as { fallbackReason?: unknown }).fallbackReason || '')
       const opId = String(((opCtx as Record<string, unknown> | null | undefined) || {}).opId || '')
       const wantLabelLow = wantLabels.map((x) => x.toLowerCase())
-      const matched = []
+      const matched: Record<string, unknown>[] = []
       for (const issue of rows) {
         if (!issue || typeof issue !== 'object') continue
         // type 在内存里再判一次：后端可能忽略它（契约只保证它透传，不过滤包容）。
@@ -362,11 +374,17 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
           url: issue.url || '',
           effortId: issue.effortId !== undefined ? issue.effortId : '',
           parentKey: issue.parentKey !== undefined ? issue.parentKey : null,
+          // #1790 缺陷 A 的 P4：状态两格追加在行末，原有字段的顺序与含义一个都不动。
+          ...statusRowFields(issue as Record<string, unknown>),
         })
       }
       const total = matched.length
       const sliced = matched.slice(0, limit)
       const truncated = total > sliced.length
+      // #1790 缺陷 A 的 P4：text 里的冲突数按「这次回给调用方的行」数，与上面的 returned 同一口径；
+      // 冲突行自己带 statusConflict=true，数字与行能对上。
+      let statusConflictCount = 0
+      for (const row of sliced) if (row.statusConflict === true) statusConflictCount += 1
       const cond = []
       cond.push('state=' + state)
       if (type !== 'all') cond.push('type=' + type)
@@ -399,7 +417,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       return {
         value: {
           status: DECK_STATUS.OK,
-          text: 'ISSUE 列表：共 ' + total + ' 行符合（' + cond.join('，') + '），回 ' + sliced.length + ' 行。',
+          text: 'ISSUE 列表：共 ' + total + ' 行符合（' + cond.join('，') + '），回 ' + sliced.length + ' 行，其中状态冲突 ' + statusConflictCount + ' 张。',
           data: data,
           notes: notes,
           touched: [],

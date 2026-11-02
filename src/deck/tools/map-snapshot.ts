@@ -52,6 +52,17 @@ export const definition = {
   },
 }
 
+/**
+ * 一行子票的状态两格（#1790 缺陷 A 的 P4）：本地 Markdown 房返回的 Issue 已经算好 status 与 statusConflict。
+ * status 有才给；statusConflict 是布尔、总是给（没有冲突就是 false）。与 deck_issue_list 的行字段同一口径。
+ */
+function statusRowFields(issue: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  if (typeof issue.status === 'string' && issue.status !== '') out.status = issue.status
+  out.statusConflict = !!issue.statusConflict
+  return out
+}
+
 /** 一行子票（full 档）。行的形状是后端回来的运行时真值（契约层没建模），按开放表收口。 */
 function childRow(issue: Record<string, unknown>) {
   const labels = Array.isArray(issue.labels) ? issue.labels.map((l) => (l && l.name) || String(l)) : []
@@ -68,6 +79,8 @@ function childRow(issue: Record<string, unknown>) {
     // #1092：full 行也带上「维护者原话」的结构化读回，与 deck_issue_get 是同一份（同一函数、逐字）。
     // thin 行故意不加：薄行是「票多时只要清单」那一档，要原话的人应当逐张读 deck_issue_get。
     originalWords: parseOriginalWords(issue.body),
+    // #1790 缺陷 A 的 P4：状态两格追加在行末，原有字段的顺序与含义一个都不动。
+    ...statusRowFields(issue),
   }
 }
 
@@ -76,7 +89,7 @@ function thinRow(issue: Record<string, unknown>) {
   const labels = Array.isArray(issue.labels) ? issue.labels.map((l) => (l && l.name) || String(l)) : []
   const assignees = Array.isArray(issue.assignees) ? issue.assignees.map((a) => (a && a.login) || String(a)) : []
   const blockedBy = Array.isArray(issue.blockedBy) ? issue.blockedBy.map((r) => (r && r.key) || String(r)) : []
-  return { key: issue.key, title: issue.title, state: issue.state, labels: labels, assignees: assignees, blockedBy: blockedBy, updatedAt: issue.updatedAt || '' }
+  return { key: issue.key, title: issue.title, state: issue.state, labels: labels, assignees: assignees, blockedBy: blockedBy, updatedAt: issue.updatedAt || '', ...statusRowFields(issue) }
 }
 
 /**
@@ -185,6 +198,8 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
       // 行级明细缺省全量：只有显式传 thin 才变薄。统计、进度表、阻塞键都用全量行算好
       // 再薄行，数字与 full 一字不差；行里不带正文，回包小、票多时不断。
       // 远端传输量今天不变（瘦的是回包，不是这一趟的拉取），注记里如实说。
+      // #1790 缺陷 A 的 P4：text 里的冲突数按这次回给调用方的行数（frontierOnly 筛过也照它数）。
+      const statusConflictCount = shown.filter(function (t) { return !!t.statusConflict }).length
       const thin = String(a.detail || 'full').trim().toLowerCase() === 'thin'
       if (thin) notes.push('子票行是薄的（detail=thin：无正文无行级进度，回包小、清单不断；统计与进度表照算不变；要正文用 deck_issue_get 逐张取，远端拉取量今天与 full 相同）。')
       // labels 是后端回来的运行时真值（元素可能是名字串，也可能是带 name 的对象，契约层没建模），
@@ -193,7 +208,7 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
         value: {
           status: partial ? DECK_STATUS.PARTIAL : DECK_STATUS.OK,
           reason: partial ? REFUSAL_REASONS.BACKEND_UNSUPPORTED : '',
-          text: partial ? '地图 ' + key + '：子票没取全（后端没给全），手上这 ' + children.length + ' 张算出来的数偏乐观，先重调一次再看数。' : '地图 ' + key + '：子票 ' + children.length + ' 张，未关闭 ' + projection.stats.open + ' 张、已关闭 ' + projection.stats.closed + ' 张、可接 ' + projection.stats.frontier + ' 张、被阻塞 ' + projection.stats.blocked + ' 张。',
+          text: partial ? '地图 ' + key + '：子票没取全（后端没给全），手上这 ' + children.length + ' 张算出来的数偏乐观，先重调一次再看数。' : '地图 ' + key + '：子票 ' + children.length + ' 张，未关闭 ' + projection.stats.open + ' 张、已关闭 ' + projection.stats.closed + ' 张、可接 ' + projection.stats.frontier + ' 张、被阻塞 ' + projection.stats.blocked + ' 张，其中状态冲突 ' + statusConflictCount + ' 张。',
           data: {
             map: { key: map.key, title: map.title, state: map.state, labels: Array.isArray(map.labels) ? map.labels.map((l: any) => (l && l.name) || String(l)) : [], updatedAt: map.updatedAt || '', url: map.url || '' },
             children: shown.map((t) => (thin ? thinRow(t) : childRow(t))),

@@ -31,6 +31,7 @@
         "labels": [],
         "parentKey": null,
         "state": "open",
+        "statusConflict": false,
         "title": "金标准底图",
         "type": "map",
         "updatedAt": "<TIME>",
@@ -43,6 +44,8 @@
         "labels": [],
         "parentKey": null,
         "state": "open",
+        "status": "claimed",
+        "statusConflict": false,
         "title": "金标准演示票",
         "type": "issue",
         "updatedAt": "<TIME>",
@@ -66,7 +69,7 @@
     "url": ""
   },
   "status": "ok",
-  "text": "ISSUE 列表：共 2 行符合（state=open），回 2 行。",
+  "text": "ISSUE 列表：共 2 行符合（state=open），回 2 行，其中状态冲突 0 张。",
   "tool": "deck_issue_list",
   "touched": [],
   "workspace": {
