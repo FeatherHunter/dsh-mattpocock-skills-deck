@@ -8,7 +8,7 @@
 - 额度句的边界：refresh.backend 不存在时 budgetNoticeLines 返回空；readKnown 不是 true 时给「额度读数还没同步上来」；two-buckets 且两桶都见底时给 quota 失败句；否则按桶给 truth.budgetGraphql / truth.budgetRest；有旧读数且同步失败过再追加 stale 句（来源：truthLines.ts:152-196；词条见 config/copy/pages.yaml:31-50）。
 - GitHub 后端声明的是 two-buckets 额度（来源：src/tracker/rooms/github/room/index.ts:232；GitLab 是 requests-only（src/tracker/rooms/gitlab/index.ts:493）；markdown 是 off-network（src/tracker/rooms/markdown/index.ts:425））；宿主在 src/host/index.ts:229、:233 把 budgetReadout 接给快照组装，最终读到 src/host/tracker/snapshot.ts:93-101 的 BudgetReadout；读不到读数时 src/refresh/rooms/host/budget-state.ts:114-141 会给出 readKnown:false。因此正常 GitHub 面板只要快照带 refresh.backend，状态行至少常驻额度句或额度未知句（推断，依据上面两处类型与接线；维护者截图里只有红字，这一点待核实）。
 - 画出来的是一个块级 flex 行：src/client/views/ListTab.ts:429-436 里 div.dsws-truth 带 display:flex、flexWrap:wrap、gap:8、fontSize:11、padding:'2px 2px 4px'，每句一个 span；只有失败句时整行只有一段文字，右侧留白。:431 的注释记着 2026-09-22 维护者定过「上次更新」搬去面板头部，这一行从此只说其余状态句。
-- 同一棵列表树里，状态行的邻居是：已选标签过滤条（:348-362，只在 st.lblFilters 非空时画）、统计行（:365-409，行上 data-list-head="kpi"）、多目录签（:411-414，有才画）、筛选行（:415，实现在 src/client/views/listFilterRow.ts）、已关闭折叠（:416-418）；首开遮罩（:424）与无快照错误行（:428）也在树里（来源：src/client/views/ListTab.ts:346-450）。
+- 同一棵列表树里，状态行的邻居是：已选标签过滤条（:348-362，只在 st.lblFilters 非空时画）、统计行（:365-409，行上 data-list-head="kpi"）、多目录签（:411-414，有才画）、筛选行（:415；实现在 src/client/views/listFilterRow.ts:110-119，是一个 div.dsws-ink-host、display:flex、flexWrap:wrap，标签芯片在同一个容器里换行，所以维护者截图里绿框的第二、三行其实是同一块）、已关闭折叠（:416-418）；首开遮罩（:424）与无快照错误行（:428）也在树里（来源：src/client/views/ListTab.ts:346-450）。
 
 ## 二、面板头部与通知中心各自管什么
 
@@ -21,7 +21,7 @@
 ## 三、列表头为什么随列表滚走
 
 - 面板的滚动容器只有一处：src/client/panel/Dock.ts:432 的 div.dsws-body（flex:1、overflowY:auto、padding:'10px 12px'）。列表、详情等页面都挂在这个容器里（列表是 :435-436）。
-- ListTab 返回的整棵树都在这个容器内（src/client/views/ListTab.ts:346），统计行、筛选行、标签芯片行、状态行都没有 sticky 类；所以内容一滚，它们就一起走。
+- ListTab 返回的整棵树都在这个容器内（src/client/views/ListTab.ts:346），统计行、筛选行（标签芯片在同一块里换行）、状态行都没有 sticky 类；所以内容一滚，它们就一起走。
 - 页签行（Dock.ts:376）在 dsws-body 外面，因此不滚。这说明「搬出滚动容器」在结构上可行（改 Dock，影响所有页面），「在容器里吸顶」不用改 Dock。
 
 ## 四、现成的吸顶机制
