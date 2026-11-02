@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-02T20:28:38.548Z",
+  "generatedAt": "2026-11-02T20:38:14.778Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 543,
   "gateCount": 543,
@@ -11975,6 +11975,7 @@
         "src/client/views/skillDetail/PixelSkillDetailModal.ts",
         "src/client/views/skillDetail/PixelSkillOps.ts",
         "src/client/views/versionControl/vcBlocks.ts",
+        "src/client/views/versionControl/vcBranchPage.ts",
         "src/client/views/versionControl/vcClonePage.ts",
         "src/client/views/versionControl/vcCommitOps.ts",
         "src/client/views/versionControl/vcConfigOps.ts",
@@ -12152,7 +12153,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 164 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 165 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
