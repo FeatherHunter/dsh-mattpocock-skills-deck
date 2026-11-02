@@ -1,0 +1,17 @@
+把列表内存过滤抽到独立模型文件，修掉主分支文件粒度门禁的真红（#1778）
+
+主分支 0e949059 上跑 node tests/verify-file-granularity.ts 判红：
+src/tracker/rooms/github/read/issues.ts 有 355 有效行，超过 350 行上限。
+这个文件不在零增长基线里，是 #1765 的读渠道计划改动把它顶过线的；
+集成分支合并 main 后也继承这条红，做不到全链真红 0。
+
+改法：新增 src/tracker/rooms/github/model/issue-filter.ts，把 list 的 GraphQL 主路与
+REST 降级路共用的纯函数 applyIssueFilter 搬过去，issues.ts 改为导入它。
+函数体一字未改，行为零变化；issues.ts 从 355 有效行降到 331 行。
+
+tests/gate-map.json 是按规划名单重新生成的：新文件被 issues.ts 的导入闭包带进门禁覆盖，
+src/ 覆盖仍是 683/683 个文件、0 个目录整目录没有覆盖。
+
+验证：typecheck 全绿；verify-file-granularity、verify-gate-map、verify-room-layering，
+以及归到 issues.ts 的 12 扇门禁（1765/rest-fallback/1444/provenance/rest-fallback-completion/
+gh-via/504/507/599/closeout-log-trips/rest-detail-completion/time-config）单跑全绿。

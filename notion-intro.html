@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notion 是什么？和 GitHub 有什么不一样？新手介绍</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; line-height: 1.8; max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; color: #222; }
+  h1 { font-size: 28px; line-height: 1.4; }
+  h2 { margin-top: 48px; border-top: 1px solid #eee; padding-top: 24px; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #f6f6f6; }
+  code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-size: 0.95em; }
+  .tip { background: #f0f7ff; border-left: 4px solid #3b82f6; padding: 12px 16px; margin: 16px 0; }
+  .warn { background: #fff7ed; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 16px 0; }
+  footer { margin-top: 48px; color: #888; font-size: 14px; }
+  a { color: #2563eb; }
+</style>
+</head>
+<body>
+<h1>Notion 是什么？和 GitHub 有什么不一样？<br><small style="font-weight:normal;color:#666">给新手的一份详细介绍</small></h1>
+<p>这份介绍只讲三件事：Notion 是什么，它和 GitHub 的根本差别，以及它对外提供哪些接口（API / CLI / 公共平台）。</p>
+
+<h2>一、Notion 是什么</h2>
+<p><strong>一句话：Notion 是一本“活的笔记本 + 表格”，用来记事情、管任务、写文档。</strong></p>
+<p>你打开 Notion，会看到页面（Page）和数据库（Database）：</p>
+<ul>
+  <li><strong>页面：</strong>像一篇文档，可以写字、插图片、列清单、评论。一张任务票，在 Notion 里就是一个页面。</li>
+  <li><strong>数据库：</strong>像一张表格，很多页面排在一起，每一行是一张票，每一列是一个字段，比如标题、状态、负责人、日期、标签。</li>
+  <li><strong>数据源：</strong>较新的 Notion 把表格底下又分了“数据源（data source）”，一个表格下面可以有多个数据源。认准数据源编号（data source id）才不会找错，这就是为什么技术方案里写用 <code>collection://&lt;id&gt;</code> 来定位。</li>
+  <li><strong>内容块：</strong>页面里的正文不是一整坨文字，而是一个个小块（段落、标题、待办、图片）。程序读出来要把这些小块转成我们常见的 Markdown 才好显示。</li>
+</ul>
+<div class="tip">打个比方：Notion 是你们团队共用的一本任务台账，本子在 Notion 的云上，不在你电脑里。</div>
+
+<h2>二、Notion 和 GitHub 的差别</h2>
+<table>
+<tr><th></th><th>GitHub</th><th>Notion</th></tr>
+<tr><td><strong>主要管什么</strong></td><td>代码和围绕代码的协作。核心是仓库（存代码历史）和 Issue（记 bug 和需求）。</td><td>事情和文档。核心是页面和数据库，记任务、写知识库、做计划。</td></tr>
+<tr><td><strong>版本管理</strong></td><td>有。Git 记录每一行代码谁改的、能回滚、能合并，是真正的版本管理。</td><td>没有 Git 那种版本管理。只有页面历史记录，能看改过什么，但不能像代码那样分支合并。</td></tr>
+<tr><td><strong>一张票长什么样</strong></td><td>Issue：有标题、正文、标签、负责人、评论、状态（打开/关闭）。</td><td>数据库里的一行：标题是名称字段，正文是页面内容，状态是单选字段，标签是多选，负责人是人员字段，父子/阻塞靠关系字段连起来。</td></tr>
+<tr><td><strong>关系</strong></td><td>Issue 之间有子任务、阻塞关系，语义比较固定。</td><td>关系是自己连的。你说哪两列是“父项”“阻塞”，它就是什么，没有固定含义，所以不同团队叫法不一样。</td></tr>
+<tr><td><strong>权限</strong></td><td>仓库的读写权限，比较粗：能看、能写、管理员。</td><td>页面级的分享和数据库权限，比较细：谁能看哪一页、谁能改哪个字段。</td></tr>
+</table>
+<div class="warn">所以记住结论：<strong>Notion 不是 Git，也不是版本管理工具。</strong>Git 回答“代码变成什么样了”，Notion 回答“事情做到哪一步了”。我们插件里的“后端”指的就是“票存在哪里”，GitHub 是一种，Notion 是另一种。</div>
+
+<h2>三、接口是什么形式的</h2>
+<p>程序和 Notion 打交道，主要走 <strong>REST API</strong>，就是通过网址发请求、拿回 JSON 数据。官方文档在 <a href="https://developers.notion.com/">developers.notion.com</a>。</p>
+<ul>
+  <li><strong>查表格：</strong>按数据库 / 数据源编号查出一批页面，可以过滤和分页。</li>
+  <li><strong>读一页：</strong>按页面编号读属性（标题、状态、负责人）再读内容块。</li>
+  <li><strong>建页 / 改属性：</strong>新建一行、改某个字段（比如把状态从“进行中”改成“完成”）。</li>
+  <li><strong>评论：</strong>列出评论、新加一条评论。</li>
+  <li><strong>用户：</strong>查当前是谁、列出成员，用来做“认领人”。</li>
+  <li><strong>搜索：</strong>按标题搜页面和数据库。</li>
+  <li><strong>鉴权：</strong>两种。自己用的走 <strong>Integration Token</strong>（一串密钥，请求时放在请求头里）；给别人用的走 <strong>OAuth</strong>（点授权按钮，不直接碰密钥）。我们插件要求走已有渠道（连接器或环境变量），不自己发明存密钥的新格式。</li>
+  <li><strong>额度：</strong>Notion 按请求次数限流，不是按点数。用坏了会回限流错误，程序要等一会儿再试。对应到插件里就是 <code>requests-only</code> 那种口径。</li>
+</ul>
+
+<h2>四、有没有 CLI</h2>
+<p><strong>有，但和 Git 的命令行不是一回事。</strong></p>
+<ul>
+  <li>GitHub 有 <code>gh</code>，GitLab 有 <code>glab</code>，装在本机敲命令就能建票、看票，因为它们本来就是给程序员用的。</li>
+  <li>Notion 官方有一套 <a href="https://developers.notion.com/cli/get-started/overview">Notion CLI</a>，可以从终端调 API，适合写脚本时用。但它比较新、功能偏调试和搭线，不像 <code>gh</code> 那样是人人必装的日常工具。</li>
+  <li>日常用 Notion 还是网页和客户端为主，CLI 只是给开发者省事的。</li>
+</ul>
+
+<h2>五、有没有公共平台</h2>
+<p><strong>有，两层意思：</strong></p>
+<ul>
+  <li><strong>给人用的：</strong>Notion 网页版和客户端 + 模板市场，大家在上面建工作区、分享页面。这就是“公共平台”的本体。</li>
+  <li><strong>给程序用的：</strong>开发者平台（上面的 API 文档站）+ 集成库。你做好一个集成，可以设成只给自己工作区用（内部集成），也可以发布到集成库给别人安装（公开集成，走 OAuth 授权）。这和 GitHub 的 Marketplace / OAuth App 是一个思路。</li>
+</ul>
+
+<h2>六、还有什么新手该知道的</h2>
+<ul>
+  <li><strong>SDK：</strong>官方有 JavaScript / Python 的包，把发请求包了一层，不用手拼网址。社区也有很多现成的。</li>
+  <li><strong>Webhook / 自动化：</strong>Notion 有自动化（状态变了自动做点什么），外部程序要实时知道变化，一般靠轮询（隔一会儿查一次）或自动化回调，不像 GitHub 那样 Webhook 那么成熟。</li>
+  <li><strong>导出：</strong>页面可以导出 Markdown / CSV / PDF，搬家时有用。</li>
+  <li><strong>和我们插件的关系：</strong>插件要新盖一间“Notion 屋”，学会上面这些接口，才能把 Notion 的一行当一张票来显示。今天只会 GitHub / GitLab / 本地文件，所以 Notion 的库还认不出来。</li>
+</ul>
+
+<h2>七、插件的 27 个接口映射到 Notion：哪些能做</h2>
+<p>我们插件不管后端是谁，只认同一套 27 个动作（24 个操作 + 3 个定位口，唯一真源在 <code>src/tracker/contract/operations-catalog.ts</code>）。后端对每一条只许回答“我实现”或“我不支持”，不许自己加私活。下面按新手能看懂的话逐条给判断。</p>
+<div class="tip">先记结论：<strong>日常看票、建票、改票、评论这十来条可以直接做；父子、阻塞、标签颜色要打折；问仓库权限、放配色文件这两条建议直接报不支持。</strong>最小可跑集和本地小样例一样，只要 4 条（<code>list / get / create / getDependencies</code>）就能把主流程转起来。</div>
+<table>
+<tr><th>插件要的动作</th><th>Notion 对应做法</th><th>判断</th><th>新手话备注</th></tr>
+<tr><td><code>preflight</code>（路通不通）</td><td>拿密钥问一次表格在不在、能不能读</td><td>✅ 可以</td><td>只查环境，不预判能不能建票。</td></tr>
+<tr><td><code>list / listPage</code>（列票/翻页）</td><td>按数据源编号查一批行，支持过滤和分页</td><td>✅ 可以</td><td>排序固定按创建时间倒序，游标原样传回即可。</td></tr>
+<tr><td><code>counts</code>（数有多少张）</td><td>同一查询多翻几页数出来</td><td>⚠️ 能做但贵</td><td>Notion 没有“只给数字”的接口，只能把行拿回来数，票多时会慢，要如实报截断。</td></tr>
+<tr><td><code>get</code>（读一张）</td><td>读一行属性 + 读页面内容块 + 按需读评论</td><td>✅ 可以</td><td>正文块要转成 Markdown，样式会丢一点。</td></tr>
+<tr><td><code>getDependencies</code>（谁挡了我）</td><td>读约定的关系列（如“阻塞”列）再反查“我挡了谁”</td><td>⚠️ 打折</td><td>Notion 的关系没有固定含义，必须先约定哪一列算阻塞，否则读不到。</td></tr>
+<tr><td><code>create</code>（建票）</td><td>新建一行，标题、状态、标签一次写好，正文当内容块附上</td><td>✅ 可以</td><td>支持幂等键，避免重复建两行。</td></tr>
+<tr><td><code>close / reopen</code>（关闭/重开）</td><td>把状态字段改成“完成”，或把页面归档；重开则恢复</td><td>✅ 可以</td><td>关闭原因要另找一处记，Notion 状态本身不存原因。</td></tr>
+<tr><td><code>comment</code>（评论）</td><td>列评论、新加一条评论</td><td>✅ 可以</td><td>和 GitHub 评论基本一一对应。</td></tr>
+<tr><td><code>update</code>（改字段）</td><td>一次改多个属性</td><td>✅ 可以（子集）</td><td>标题、正文、状态好改；空补丁不发请求。</td></tr>
+<tr><td><code>setLabels</code>（改标签）</td><td>覆盖式写多选列</td><td>✅ 可以</td><td>传什么就是什么，不是增量加。</td></tr>
+<tr><td><code>setAssignees</code>（改负责人）</td><td>写人员列</td><td>✅ 可以</td><td>人必须已在工作区里，否则写不上去。</td></tr>
+<tr><td><code>setParent</code>（挂到哪张地图下）</td><td>写约定的“父项”关系列，<code>null</code> 表示移到根</td><td>⚠️ 打折</td><td>Notion 表格行没有原生父子，只能靠约定的一列来模拟。</td></tr>
+<tr><td><code>setBlockedBy</code>（改阻塞）</td><td>写约定的“阻塞”关系列</td><td>⚠️ 打折</td><td>自己挡自己、转圈这两种必须在插件侧拦下，Notion 自己不拦。</td></tr>
+<tr><td><code>getCurrentUser</code>（我是谁）</td><td>查集成自己是谁、列成员</td><td>⚠️ 打折</td><td>能认出机器人自己，但“当前操作的人”不如 GitHub 准。</td></tr>
+<tr><td><code>initProject</code>（建仓发布）</td><td>新建一个数据库并配好列</td><td>⚠️ 能做但重</td><td>相当于帮用户搭一张新表，首版可以先不做。</td></tr>
+<tr><td><code>listLabels</code>（有哪些标签）</td><td>读多选列的全部选项</td><td>✅ 可以</td><td>取不全必须整体报错，不许给残缺清单。</td></tr>
+<tr><td><code>setLabelColors</code>（改标签颜色）</td><td>改选项颜色</td><td>⚠️ 打折</td><td>Notion 只有固定几种颜色，自定义的颜色值贴不上去。</td></tr>
+<tr><td><code>getRepoPermissions</code>（有没有写权限）</td><td>问集成权限</td><td>❌ 建议不支持</td><td>Notion 是按页面和集成能力授权，折不成“能推/能整理”两格，诚实回不支持。</td></tr>
+<tr><td><code>listSubIssues</code>（一张地图下全部子票）</td><td>按“父项”列过滤并翻页拉到底</td><td>⚠️ 打折</td><td>依赖同一约定列；拿不全要报 <code>capped/missing</code>。</td></tr>
+<tr><td><code>ensureLabelColorsFile</code>（放配色文件）</td><td>往工作区放文件</td><td>❌ 建议不支持</td><td>颜色真源在 Notion 远端，放本地文件改了也不算数，和 GitHub 一样报不支持。</td></tr>
+<tr><td><code>listMaps</code>（一次取全量地图）</td><td>查“类型是地图”的行</td><td>✅ 可以</td><td>内部写死查打开+关闭、标签含地图标记，撞上限如实报截断。</td></tr>
+<tr><td><code>readBudget</code>（读剩余额度）</td><td>只读本地缓存，不碰 Notion</td><td>✅ 可以</td><td>唯一不记账的动作，永远放行。</td></tr>
+<tr><td>定位口 <code>getRepoKey / describe / issueAddress</code></td><td>目录解析 / 表格身份 / 票的网址</td><td>✅ 可以（其一为空）</td><td><code>getRepoKey</code> 恒回空（没有 owner/name 是合法答案）；地址回 Notion 页面链接。</td></tr>
+</table>
+<div class="warn">落地顺序建议：<strong>第一批</strong>先做 <code>preflight / list / listPage / get / create / update / comment / close / reopen / setLabels / setAssignees / listLabels / listMaps / readBudget</code>；<strong>第二批</strong>再做关系三件（<code>getDependencies / setParent / setBlockedBy / listSubIssues</code>），前提是和用户约定好“父项”“阻塞”分别是哪两列；<strong>不做</strong>的如实报 <code>unsupported</code>，上层会自动降级，不算故障。</div>
+
+<footer>
+<p>参考：<a href="https://developers.notion.com/">Notion 开发者文档</a> · <a href="https://developers.notion.com/guides/data-apis/working-with-databases">Working with databases</a> · <a href="https://developers.notion.com/cli/get-started/overview">Notion CLI</a> · <a href="https://developers.notion.com/guides/get-started/authorization">授权方式</a></p>
+<p>生成时间：2026-11-02（给新手看的介绍，不含诊断过程）</p>
+</footer>
+</body>
+</html>

@@ -1,0 +1,866 @@
+
+> dsh-mattpocock-skills-deck@1.9.0-beta.33 verify:parallel
+> node scripts/verify-parallel.mts --keep-going --json node_modules/.cache/dsh-verify-last.json
+
+(node:50620) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/tests/lib/gate-result.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\D:\dsh-plugin\dsh-mattpocock-skills-deck\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[并行门禁] 跑 483 步，并发 8（全链 483 步，档位 full，分 build5步→contract25步→behavior445步→freshness8步（段间串行、段内并发，共 467 节车厢，其中互斥组 3 节）
+[并行门禁] 完成证据判据：链上 45 步带期望（tests/gate-map.json 里 completionRecord 为 true 的那几扇）
+[并行门禁] 完成证据判据：冒烟阶段 2/5 步带期望（同样查 tests/gate-map.json）
+[并行门禁] —— build 段（5 步） ——
+  PASS    311 ms  tests/verify-663-banner-chain.ts
+  PASS    445 ms  tests/verify-leaves.ts
+  PASS    505 ms  scripts/build.mts（预构建：让后面十几扇门禁直接命中构建缓存）
+  PASS   1349 ms  tests/verify-1207-splice-ts.ts
+  PASS   1407 ms  tests/verify-build-artifacts.ts
+  FAIL  96050 ms  tests/verify-build-cwd-products.ts
+[并行门禁] —— contract 段（25 步） ——
+  PASS    821 ms  tests/verify-chain-env-e2e.ts
+  PASS    944 ms  tests/verify-contract-vocabulary.ts
+  PASS   1029 ms  tests/verify-deck-tools-matrix.ts
+  PASS   1300 ms  tests/verify-gate-map.ts
+  PASS    375 ms  tests/verify-deck-event-gate.ts
+  PASS   1397 ms  tests/verify-contract-types.ts
+  PASS   1701 ms  tests/verify-deck-parallel.ts
+  PASS    476 ms  tests/verify-deck-no-hang.ts
+  PASS    941 ms  tests/verify-deck-tools.ts
+  PASS    402 ms  tests/verify-chain-capsule.ts
+  PASS    471 ms  tests/verify-deck-tools-row-zero-dep.ts
+  PASS    782 ms  tests/verify-deck-tools-agent-register.ts
+  PASS    209 ms  tests/verify-deck-slots.ts
+  PASS    258 ms  tests/verify-no-title.ts
+  PASS    395 ms  tests/verify-deck-exec-phone.ts
+  PASS    399 ms  tests/verify-deck-thin-reads.ts
+  PASS   2226 ms  tests/verify-no-mixed-session.ts
+  PASS    561 ms  tests/verify-deck-repo-resolve.ts
+  PASS    182 ms  tests/verify-deck-quota-sync.ts
+  PASS    226 ms  tests/verify-pagination-limits.ts
+  PASS    151 ms  tests/verify-chain-session.ts
+  PASS    134 ms  tests/verify-chain.ts
+  PASS    180 ms  tests/verify-deck-render-detail.ts
+  PASS   2582 ms  tests/verify-dependency-rules.ts
+  PASS   1095 ms  tests/verify-chain-renderer.ts
+[并行门禁] —— behavior 段（445 步） ——
+  PASS    870 ms  tests/verify-1106-deck-surface.ts
+  PASS   1042 ms  tests/verify-1083-work-path-persist.ts
+  PASS   1514 ms  tests/verify-1245-plan-resume.ts
+  PASS    662 ms  tests/verify-1184-body-parse-gap.ts
+  PASS   1752 ms  tests/verify-1003-migration.ts
+  PASS    934 ms  tests/verify-1195-cell-cancel.ts
+  PASS    820 ms  tests/verify-1418-probe-cost-and-failure.ts
+  PASS    647 ms  tests/verify-1150-plan-store-durable.ts
+  PASS    699 ms  tests/verify-1007-transport-cooldown.ts
+  PASS    704 ms  tests/verify-1003-no-cwd-masquerade.ts
+  PASS    643 ms  tests/verify-1090-progress-roundtrip.ts
+  PASS    688 ms  tests/verify-1109-matches-timeout.ts
+  PASS    754 ms  tests/verify-1298-spec-close.ts
+  PASS    617 ms  tests/verify-1092-original-words-roundtrip.ts
+  PASS    489 ms  tests/verify-1091-original-words.ts
+  PASS    577 ms  tests/verify-1157-in-flight-lease.ts
+  PASS    546 ms  tests/verify-1082-work-route-table.ts
+  PASS    738 ms  tests/verify-1355-cross-session-table.ts
+  PASS    608 ms  tests/verify-1403-kind-two-layer.ts
+  PASS    566 ms  tests/verify-1305-session-permit.ts
+  PASS    631 ms  tests/verify-1261-work-route-receipt.ts
+  PASS    532 ms  tests/verify-1413-map-plan-two-layer.ts
+  PASS   4527 ms  tests/verify-1158-completion-evidence.ts
+  PASS    375 ms  tests/verify-1146-virtual-clock-liveness.ts
+  PASS    434 ms  tests/verify-1392-disposed-timer.ts
+  PASS    426 ms  tests/verify-1373-stale-table-graft.ts
+  FAIL    491 ms  tests/verify-1242-panel-numbers.ts
+        完成证据对不上：门禁退出码 1（不是 0）
+  PASS    396 ms  tests/verify-1058-markdown-read-log.ts
+  PASS    388 ms  tests/verify-1059-issue-write.ts
+  PASS    361 ms  tests/verify-1145-open-local.ts
+  PASS    244 ms  tests/verify-1433-snapshot-layout-file.ts
+  PASS    334 ms  tests/verify-1431-snapshot-refresh-parity.ts
+  PASS    241 ms  tests/verify-1434-workspace-legacy-cleanup.ts
+  PASS   5217 ms  tests/verify-1114-timer-exit.ts
+  PASS    204 ms  tests/verify-1439-panel-accounting.ts
+  PASS    387 ms  tests/verify-1438-banner-recheck-button.ts
+  PASS    481 ms  tests/verify-1436-own-work-route.ts
+  PASS    328 ms  tests/verify-1443-github-readbudget.ts
+  PASS    322 ms  tests/verify-1443-static-gate.ts
+  PASS    168 ms  tests/verify-1444-list-detail-thin.ts
+  PASS    239 ms  tests/verify-1444-comments.ts
+  PASS    193 ms  tests/verify-1444-snapshot.ts
+  PASS    160 ms  tests/verify-1446-backend-ledger.ts
+  PASS    226 ms  tests/verify-1446-gitlab-budget.ts
+  PASS    257 ms  tests/verify-1446-receipts.ts
+  PASS    309 ms  tests/verify-1446-panel.ts
+  PASS    290 ms  tests/verify-1446-static-gate.ts
+  PASS    894 ms  tests/verify-1442-tracker-tools.ts
+  PASS    352 ms  tests/verify-1447-gitlab-e2e.ts
+  PASS    311 ms  tests/verify-1449-layout-single-source.ts
+  PASS    329 ms  tests/verify-1453-repo-locate-via-session.ts
+  PASS    131 ms  tests/verify-1456-handoff-claim-write.ts
+  PASS   6344 ms  tests/verify-1195-timeout-split.ts
+  PASS    466 ms  tests/verify-1454-ledger-single-entry.ts
+  PASS    179 ms  tests/verify-1465-detail-refid.ts
+  PASS    259 ms  tests/verify-1463-env-counts-pending.ts
+  PASS    405 ms  tests/verify-1463-banner-recheck.ts
+  PASS    473 ms  tests/verify-1472-write-event-fetch.ts
+  PASS    219 ms  tests/verify-1482-graphql-accounting.ts
+  PASS    286 ms  tests/verify-1483-chain-session-cache.ts
+  PASS    547 ms  tests/verify-1480-review-fixes.ts
+  PASS    334 ms  tests/verify-1483-client-chain-cache.ts
+  PASS    833 ms  tests/verify-1474-chain-auto-retry.ts
+  PASS   1354 ms  tests/verify-1451-suggest-session-keep.ts
+  PASS    397 ms  tests/verify-1487-map-create.ts
+  PASS    485 ms  tests/verify-1486-md-create-layout.ts
+  PASS    161 ms  tests/verify-1489-original-fields.ts
+  PASS    464 ms  tests/verify-1488-read-mixed-layout.ts
+  PASS    563 ms  tests/verify-1487-map-plan.ts
+  PASS    506 ms  tests/verify-1489-claim-labels.ts
+  PASS    552 ms  tests/verify-1489-edges.ts
+  PASS    499 ms  tests/verify-1489-progress.ts
+  PASS    492 ms  tests/verify-1489-status-write.ts
+  PASS    552 ms  tests/verify-1490-four-objects.ts
+  PASS    613 ms  tests/verify-1490-declaration-file.ts
+  PASS    192 ms  tests/verify-1510-guard-dispatch.ts
+  PASS    470 ms  tests/verify-1507-create-strict.ts
+  PASS    143 ms  tests/verify-1511-ticket-label.ts
+  PASS    718 ms  tests/verify-1495-deck-close-reason.ts
+  PASS    437 ms  tests/verify-1509-update-strict.ts
+  PASS    217 ms  tests/verify-1519-detail-comments.ts
+  PASS    442 ms  tests/verify-1512-md-chain.ts
+  PASS    274 ms  tests/verify-1532-github-close-reason.ts
+  PASS    382 ms  tests/verify-1533-git-remote-claim.ts
+  PASS    330 ms  tests/verify-1537-blocked-ref-title.ts
+  PASS    143 ms  tests/verify-1548-map-row-nav.ts
+  PASS    198 ms  tests/verify-1545-workroute-row-nav.ts
+  PASS    195 ms  tests/verify-1555-gitlab-claim-declaration.ts
+  PASS   1203 ms  tests/verify-1526-suggest-replay-restore.ts
+  PASS    288 ms  tests/verify-1555-session-uses-decision.ts
+  PASS    113 ms  tests/verify-1564-ticket-badge.ts
+  PASS     99 ms  tests/verify-1571-gh-flag-writing.ts
+  PASS    477 ms  tests/verify-1559-deck-output-lossless.ts
+  PASS    603 ms  tests/verify-1565-workroute-first-col-browser.ts
+  PASS   5392 ms  tests/verify-1444-chain.ts
+  PASS    485 ms  tests/verify-1581-session-locators.ts
+  PASS    111 ms  tests/verify-1583-repo-ref-fallback.ts
+  PASS    123 ms  tests/verify-1584-repo-ref-for-cwd.ts
+  PASS    144 ms  tests/verify-1595-resolvespec.ts
+  PASS    132 ms  tests/verify-1599-gitlab-hidden-markers.ts
+  PASS    205 ms  tests/verify-1596-md-eff-filter.ts
+  PASS    176 ms  tests/verify-1603-map-thin-list.ts
+  PASS    150 ms  tests/verify-1605-gitlab-map-list.ts
+  PASS    224 ms  tests/verify-1604-pure-map-routing.ts
+  PASS    944 ms  tests/verify-1582-open-folder.ts
+  PASS    204 ms  tests/verify-1607-gh-unc-cwd.ts
+  PASS    274 ms  tests/verify-1605-markdown-map-list.ts
+  PASS    371 ms  tests/verify-1605-map-routing-guard.ts
+  PASS    139 ms  tests/verify-1612-deck-state.ts
+  PASS   2770 ms  tests/verify-1522-skill-md-refs.ts
+  PASS    270 ms  tests/verify-1612-deck-door.ts
+  PASS    365 ms  tests/verify-1612-deck-tool-gate.ts
+  PASS    302 ms  tests/verify-1612-prompt-filter.ts
+  PASS    254 ms  tests/verify-1621-gh-missing-copy.ts
+  PASS    608 ms  tests/verify-1610-parallel-read.ts
+  PASS    409 ms  tests/verify-1625-wf-selection-outlet.ts
+  PASS    706 ms  tests/verify-1626-cold-start-chain.ts
+  PASS    895 ms  tests/verify-1639-md-eff-split-browser.ts
+  PASS   5365 ms  tests/verify-1505-chain-env-selection.ts
+  PASS    105 ms  tests/verify-1647-checklist-consistency.ts
+  PASS   6538 ms  tests/verify-1612-settings-switches.ts
+  PASS    197 ms  tests/verify-1649-detail-closed-link.ts
+  PASS  12110 ms  tests/verify-1475-predicate-budget.ts
+  PASS   6238 ms  tests/verify-1642-toggle-logs.ts
+  PASS    198 ms  tests/verify-1661-banner-singleline.ts
+  PASS    331 ms  tests/verify-1664-md-eff-filter.ts
+  PASS   7225 ms  tests/verify-1640-unopened-merge.ts
+  PASS    394 ms  tests/verify-1668-detail-top-gate-wire.ts
+  PASS    144 ms  tests/verify-1668-detail-top-gate.ts
+  PASS    185 ms  tests/verify-1692-disk-replay-eviction.ts
+  PASS    259 ms  tests/verify-1732-chain-menu-resize.ts
+  PASS    421 ms  tests/verify-1676-blocked-ref-unknown.ts
+  PASS    317 ms  tests/verify-1765-read-channel-plan.ts
+  PASS    226 ms  tests/verify-3-workspace-switch.ts
+  PASS    328 ms  tests/verify-344-chain-auto-refresh.ts
+  PASS    190 ms  tests/verify-497-slash.ts
+  PASS    255 ms  tests/verify-504-github-pr.ts
+  PASS    297 ms  tests/verify-507-pr-offline.ts
+  PASS    189 ms  tests/verify-524-pr-detail.ts
+  PASS   1441 ms  tests/verify-423-title-clamp.ts
+  PASS    341 ms  tests/verify-544-standalone-blocked.ts
+  PASS   8978 ms  tests/verify-1646-publish-token-file.ts
+  PASS    197 ms  tests/verify-589-list-dedupe.ts
+  PASS    167 ms  tests/verify-596-rpc-carrier.ts
+  PASS  10123 ms  tests/verify-1641-listed-workspace-flags.ts
+  PASS    375 ms  tests/verify-626-type-chip.ts
+  PASS   2076 ms  tests/verify-530-pr-tab.ts
+  PASS   3605 ms  tests/verify-423-title-clamp-browser.ts
+  PASS   2068 ms  tests/verify-587-update-live.ts
+  PASS    367 ms  tests/verify-653-subworkspace.ts
+  PASS   1842 ms  tests/verify-599-merged-pr.ts
+  PASS    586 ms  tests/verify-656-subworkspace-acceptance.ts
+  PASS    487 ms  tests/verify-663-gh-install-inject.ts
+  PASS    180 ms  tests/verify-668-guide-steps-single-source.ts
+  PASS   2224 ms  tests/verify-646-native-tab.ts
+  PASS   2653 ms  tests/verify-640-dock-width-browser.ts
+  PASS   1215 ms  tests/verify-669-chain-after-pick.ts
+  PASS    919 ms  tests/verify-669-choice-precedence.ts
+  PASS   2368 ms  tests/verify-666-subws-mark-root.ts
+  PASS   1595 ms  tests/verify-671-modal-global-overlay.ts
+  PASS   9868 ms  tests/verify-1654-ws-pending-hint.ts
+  PASS    618 ms  tests/verify-683-choice-rev.ts
+  PASS    889 ms  tests/verify-683-choice-store.ts
+  PASS    714 ms  tests/verify-683-host-wiring.ts
+  PASS    522 ms  tests/verify-685-healthcheck-button.ts
+  PASS    461 ms  tests/verify-686-accept.ts
+  PASS    167 ms  tests/verify-689-counts-ui.ts
+  PASS    300 ms  tests/verify-691-map-subissues.ts
+  PASS    385 ms  tests/verify-690-closed-pages.ts
+  PASS    489 ms  tests/verify-691-markdown-counts-page.ts
+  PASS   5037 ms  tests/verify-670-panel-first-frame.ts
+  PASS    266 ms  tests/verify-698-switch-asks-layout.ts
+  PASS   1805 ms  tests/verify-693-detail-fallback-honesty.ts
+  PASS    650 ms  tests/verify-709-no-self-continuing-timers.ts
+  PASS    530 ms  tests/verify-723-single-refresh-instance.ts
+  PASS    698 ms  tests/verify-723-gate-wiring.ts
+  PASS    311 ms  tests/verify-730-cwd-consistent.ts
+  PASS    134 ms  tests/verify-733-unknown-endpoint.ts
+  PASS    287 ms  tests/verify-763-detail-fold.ts
+  PASS    202 ms  tests/verify-782-cwd-disk.ts
+  PASS    568 ms  tests/verify-784-effortId.ts
+  PASS    247 ms  tests/verify-786-focus-end.ts
+  PASS   2030 ms  tests/verify-729-force-dedup.ts
+  PASS    390 ms  tests/verify-790-parent-edge.ts
+  PASS    317 ms  tests/verify-829-parent-reread.ts
+  PASS   5910 ms  tests/verify-696-shared-cache.ts
+  PASS   4325 ms  tests/verify-842-version-control-write-view.ts
+  PASS  15291 ms  tests/verify-669-switch-visible.ts
+  PASS    109 ms  tests/verify-849-fs-absence.ts
+  PASS    121 ms  tests/verify-881-commit-open.ts
+  PASS    208 ms  tests/verify-891-setup-refresh.ts
+  PASS   1134 ms  tests/verify-895-bulk-deadline.ts
+  PASS    876 ms  tests/verify-895-github-memo.ts
+  PASS    225 ms  tests/verify-898-block-merge.ts
+  PASS    236 ms  tests/verify-907-chain-titles.ts
+  PASS   8979 ms  tests/verify-841-write-phones.ts
+  PASS    109 ms  tests/verify-908-progress-replace.ts
+  PASS    136 ms  tests/verify-916-ghauth-crosscheck.ts
+  PASS    204 ms  tests/verify-916-ghauth-unknown-banner.ts
+  PASS    168 ms  tests/verify-926-capfold-gate.ts
+  PASS    564 ms  tests/verify-922-ticket-file-queue.ts
+  PASS    349 ms  tests/verify-927-gate-injection.ts
+  PASS    286 ms  tests/verify-928-field-line-rewrite.ts
+  PASS    315 ms  tests/verify-934-935-invariants.ts
+  PASS    230 ms  tests/verify-947-workspace-file.ts
+  PASS    109 ms  tests/verify-948-feedback-map.ts
+  PASS    117 ms  tests/verify-952-short-text.ts
+  PASS    105 ms  tests/verify-955-alignment.ts
+  PASS    246 ms  tests/verify-957-workspace-writer.ts
+  PASS   1177 ms  tests/verify-958-label-name-visible.ts
+  PASS  22961 ms  tests/verify-669-collapsed-recoverable.ts
+  PASS  48457 ms  scripts/build.mts（预构建：让后面十几扇门禁直接命中构建缓存）
+  PASS    445 ms  tests/verify-968-skill-ondemand.ts
+  PASS    646 ms  tests/verify-1115-timer-handle.ts
+  PASS   2547 ms  tests/verify-963-log-order.ts
+  PASS   5095 ms  tests/verify-929-batch-cycle.ts
+  PASS    202 ms  tests/verify-970-whole-document.ts
+  PASS    361 ms  tests/verify-971-markdown-parent.ts
+  PASS    202 ms  tests/verify-972-title-body.ts
+  PASS     79 ms  tests/verify-976-pull-dirty-warn.ts
+  PASS    292 ms  tests/verify-992-readonly-labels.ts
+  PASS    168 ms  tests/verify-997-vc-sight.ts
+  PASS    137 ms  tests/verify-998-half-open.ts
+  PASS    119 ms  tests/verify-acceptance-four.ts
+  PASS    107 ms  tests/verify-attention-model.ts
+  PASS    206 ms  tests/verify-b2-map-newsession.ts
+  PASS    270 ms  tests/verify-backend-quota-model.ts
+  PASS     97 ms  tests/verify-budget-page-upper-bound.ts
+  PASS     86 ms  tests/verify-budget-worstcase.ts
+  PASS    177 ms  tests/verify-bug-entry.ts
+  PASS    499 ms  tests/verify-bundled-discovery.ts
+  PASS     88 ms  tests/verify-bundled-skills-upstream.ts
+  PASS    125 ms  tests/verify-bundled-skills-zh.ts
+  PASS  19988 ms  tests/verify-839-credential-exec.ts
+  PASS   6618 ms  tests/verify-1323-build-lock.ts
+  PASS  15942 ms  tests/verify-847-stall-watch.ts
+  PASS    178 ms  tests/verify-capability-register.ts
+  PASS   4478 ms  tests/verify-cap-fold-browser.ts
+  PASS   7006 ms  tests/verify-997-vc-sight-browser.ts
+  PASS    237 ms  tests/verify-capsule-narrow.ts
+  PASS    223 ms  tests/verify-client-hardcode-gate.ts
+  PASS   1696 ms  tests/verify-cards-dir.ts
+  PASS    111 ms  tests/verify-closeout-acceptance.ts
+  PASS  45340 ms  tests/verify-1648-release-integrity.ts
+  PASS    143 ms  tests/verify-config-store-comments.ts
+  PASS    392 ms  tests/verify-closeout-log-trips.ts
+  PASS    284 ms  tests/verify-config-store-core.ts
+  PASS    146 ms  tests/verify-config-store-migration.ts
+  PASS    156 ms  tests/verify-config-store-package.ts
+  PASS  11011 ms  tests/verify-969-tiered-timeout.ts
+  PASS    139 ms  tests/verify-counts-honesty.ts
+  PASS    133 ms  tests/verify-delta-patch.ts
+  PASS    503 ms  tests/verify-container-colors.ts
+  PASS    303 ms  tests/verify-ctx.ts
+  PASS    125 ms  tests/verify-detail-incremental.ts
+  PASS    339 ms  tests/verify-delta-wiring.ts
+  PASS    162 ms  tests/verify-detection-evidence.ts
+  PASS    302 ms  tests/verify-detection-cascade.ts
+  PASS     91 ms  tests/verify-detection-log-reach.ts
+  PASS    103 ms  tests/verify-diagnostic-log-model.ts
+  PASS    183 ms  tests/verify-dirwritable.ts
+  PASS    194 ms  tests/verify-error-normalize-log.ts
+  PASS    278 ms  tests/verify-error-raw-samples.ts
+  PASS    149 ms  tests/verify-error-rule-samples.ts
+  PASS   4512 ms  tests/verify-client-no-undef.ts
+  PASS    512 ms  tests/verify-error-single-source.ts
+  PASS   1583 ms  tests/verify-diagnostic-log-actions.ts
+  PASS     94 ms  tests/verify-event-budget.ts
+  PASS    146 ms  tests/verify-fallback-fetch-budget.ts
+  PASS    120 ms  tests/verify-field-tri-state.ts
+  PASS    108 ms  tests/verify-generated-no-shadow.ts
+  PASS    224 ms  tests/verify-gate-accounting.ts
+  FAIL    295 ms  tests/verify-file-granularity.ts
+  PASS    232 ms  tests/verify-generic-catalog.ts
+  PASS    164 ms  tests/verify-ghes-runtime-capability.ts
+  PASS    209 ms  tests/verify-gh-gateway.ts
+  PASS    139 ms  tests/verify-github-gh-via.ts
+  PASS    169 ms  tests/verify-github-rest-fallback.ts
+  PASS     96 ms  tests/verify-glossary-terms.ts
+  PASS    174 ms  tests/verify-gitlab-single-write.ts
+  PASS    430 ms  tests/verify-github-label-colors.ts
+  PASS    143 ms  tests/verify-handoff-latest-sort.ts
+  PASS    466 ms  tests/verify-golden-receipts.ts
+  PASS    131 ms  tests/verify-host-log-slot-single-source.ts
+  PASS    125 ms  tests/verify-hovertip.ts
+  PASS     99 ms  tests/verify-index-window.ts
+  PASS    147 ms  tests/verify-inject-trailing-newline.ts
+  PASS   2478 ms  tests/verify-handoff-isolation-787.ts
+  PASS    232 ms  tests/verify-issue-comment.ts
+  PASS   2552 ms  tests/verify-handoff-split.ts
+  PASS    139 ms  tests/verify-issue195.ts
+  PASS    138 ms  tests/verify-issue22-popovers.ts
+  PASS    182 ms  tests/verify-issue297.ts
+  PASS    112 ms  tests/verify-issue529-checks-i18n.ts
+  FAIL   9003 ms  tests/verify-capsule-layout.ts
+  PASS    179 ms  tests/verify-issue60-cwd.ts
+  PASS    122 ms  tests/verify-labels-sync.ts
+  PASS    395 ms  tests/verify-kernel.ts
+  PASS    164 ms  tests/verify-log-1627.ts
+  PASS    335 ms  tests/verify-log-client.ts
+  PASS    396 ms  tests/verify-log-artifacts.ts
+  PASS    185 ms  tests/verify-log-count.ts
+  PASS  42905 ms  tests/verify-667-dock-header-no-brand.ts
+  PASS   1217 ms  tests/verify-label-color-core.ts
+  PASS    351 ms  tests/verify-log-fields.ts
+  PASS    112 ms  tests/verify-log-statusbar.ts
+  PASS    672 ms  tests/verify-log-exec-606.ts
+  PASS    291 ms  tests/verify-log-selfmon.ts
+  PASS    148 ms  tests/verify-log-switch-526.ts
+  PASS    306 ms  tests/verify-log-switch-single-source.ts
+  PASS    294 ms  tests/verify-map-detail-v2.ts
+  PASS    606 ms  tests/verify-log-store.ts
+  FAIL    149 ms  tests/verify-map-first-frame.ts
+        完成证据对不上：断言数 51 ≠ 归属表里记着的 41（多跑了 10 条，加了断言就顺手改 tests/gate-map.json 的期望）
+  PASS    264 ms  tests/verify-map-drill.ts
+  PASS    158 ms  tests/verify-markdown.ts
+  PASS    124 ms  tests/verify-market-tarball.ts
+  PASS    550 ms  tests/verify-markdown-backend.ts
+  PASS    424 ms  tests/verify-motion-tokens.ts
+  PASS   4975 ms  tests/verify-issue-body-script.ts
+  PASS    422 ms  tests/verify-multi-effort-panel.ts
+  PASS   1126 ms  tests/verify-markdown-label-colors.ts
+  PASS    253 ms  tests/verify-multilevel-cache.ts
+  PASS    373 ms  tests/verify-multi-effort.ts
+  PASS    129 ms  tests/verify-naming-host-suppression.ts
+  PASS    189 ms  tests/verify-naming-guardian.ts
+  PASS    132 ms  tests/verify-naming-title-fact.ts
+  PASS    235 ms  tests/verify-nav-stack.ts
+  PASS    751 ms  tests/verify-naming-e2e.ts
+  PASS    409 ms  tests/verify-newsession-blank-seed-315.ts
+  PASS    178 ms  tests/verify-notification-center.ts
+  PASS    120 ms  tests/verify-operation-catalog.ts
+  PASS    267 ms  tests/verify-notification-events.ts
+  PASS    111 ms  tests/verify-panel-snapshot-merge.ts
+  PASS     90 ms  tests/verify-panel-workspace-isolation.ts
+  PASS    276 ms  tests/verify-platform-contract.ts
+  FAIL    328 ms  tests/verify-parse-leaf.ts
+  PASS    106 ms  tests/verify-policy.ts
+  PASS    105 ms  tests/verify-progress.ts
+  PASS    207 ms  tests/verify-read-result-provenance.ts
+  PASS    292 ms  tests/verify-prompt-config.ts
+  PASS   1470 ms  tests/verify-newsession-preset-guard.ts
+  PASS     97 ms  tests/verify-real-machine-fullscreen.ts
+  PASS    115 ms  tests/verify-real-machine-size-presets.ts
+  PASS    124 ms  tests/verify-refresh-adr.ts
+  PASS    162 ms  tests/verify-reply-envelope-parity.ts
+  PASS    428 ms  tests/verify-refresh-workspace-key.ts
+  PASS    159 ms  tests/verify-rest-detail-completion.ts
+  PASS    449 ms  tests/verify-release-template.ts
+  PASS    143 ms  tests/verify-rest-fallback-completion.ts
+  PASS    113 ms  tests/verify-retire-client-caches.ts
+  PASS    184 ms  tests/verify-rest-fallback-reason.ts
+  PASS   4079 ms  tests/verify-log-switch-597.ts
+  PASS    103 ms  tests/verify-reuse.ts
+  PASS    186 ms  tests/verify-room-layering.ts
+  PASS    134 ms  tests/verify-session-title.ts
+  PASS   2224 ms  tests/verify-newsession-workspace-fallback.ts
+  PASS    130 ms  tests/verify-single-read-source.ts
+  PASS    195 ms  tests/verify-setup-describe.ts
+  PASS    343 ms  tests/verify-settings-phones.ts
+  PASS    166 ms  tests/verify-snapshot-cache-first.ts
+  PASS    117 ms  tests/verify-statusbar-filter-reset.ts
+  PASS    934 ms  tests/verify-rest-fallback-banner.ts
+  PASS    148 ms  tests/verify-strict-module-syntax.ts
+  PASS    125 ms  tests/verify-t3-locale.ts
+  PASS    371 ms  tests/verify-tabsfold-leaf.ts
+  PASS    928 ms  tests/verify-skill-probe-redcard-and-waiting.ts
+  PASS     87 ms  tests/verify-tip-place.ts
+  PASS    982 ms  tests/verify-subdir-first-frame.ts
+  PASS    302 ms  tests/verify-tracker-session.ts
+  PASS    147 ms  tests/verify-ui-description-single-source.ts
+  PASS   1278 ms  tests/verify-suggest-next-steps.ts
+  PASS     90 ms  tests/verify-unmigrated-tests.ts
+  PASS    394 ms  tests/verify-ui-feedback.ts
+  PASS    153 ms  tests/verify-update-migration.ts
+  PASS    957 ms  tests/verify-tracker-contract.ts
+  PASS    164 ms  tests/verify-update-panel.ts
+  PASS    139 ms  tests/verify-version-control-host.ts
+  PASS   2100 ms  tests/verify-skill-detail-stack.ts
+  PASS    123 ms  tests/verify-version-control-parsers.ts
+  PASS     94 ms  tests/verify-version-control-rules.ts
+  PASS    186 ms  tests/verify-visible-truth.ts
+  PASS    186 ms  tests/verify-workspace-file-note.ts
+  PASS     96 ms  tests/verify-write-detect.ts
+  PASS    214 ms  tests/verify-1291-closed-map-open-children.ts
+  PASS    322 ms  tests/verify-1060-edge-log.ts
+  PASS    825 ms  tests/verify-wizard-exit-609.ts
+  PASS    257 ms  tests/verify-1182-ticket-file-publish.ts
+  PASS    251 ms  tests/verify-1129-markdown-claim.ts
+  PASS    210 ms  tests/verify-1195-budget-start.ts
+  PASS    237 ms  tests/verify-1199-row-closed-link.ts
+  PASS    201 ms  tests/verify-1363-first-run-recovery.ts
+  PASS    285 ms  tests/verify-1277-md-spec-container.ts
+  PASS    225 ms  tests/verify-1144-markdown-issue-address.ts
+  PASS  20680 ms  tests/verify-cap-fold.ts
+  PASS    221 ms  tests/verify-1295-dual-panel.ts
+  PASS    191 ms  tests/verify-1286-detail.ts
+  PASS    242 ms  tests/verify-1220-shown-store.ts
+  PASS    187 ms  tests/verify-1187-gitlab-chain-predicates.ts
+  PASS    219 ms  tests/verify-1003-single-outlet.ts
+  PASS    186 ms  tests/verify-1412-ask-matt-next-steps.ts
+  PASS    195 ms  tests/verify-1003-unified-decision.ts
+  PASS    146 ms  tests/verify-1003-workspace-write-robust.ts
+  PASS    201 ms  tests/verify-1385-howto.ts
+  PASS    178 ms  tests/verify-1003-layout-in-file.ts
+  PASS    166 ms  tests/verify-1130-gitlab-marker-read.ts
+  PASS    156 ms  tests/verify-1304-deps-native.ts
+  PASS    194 ms  tests/verify-1286-list.ts
+  PASS   1279 ms  tests/verify-1411-suggest-bubble.ts
+  PASS    165 ms  tests/verify-1054-edge-graph.ts
+  PASS    181 ms  tests/verify-1053-issue-write.ts
+  PASS    140 ms  tests/verify-1182-log-emit-single-source.ts
+  PASS    213 ms  tests/verify-1297-entry.ts
+  PASS    172 ms  tests/verify-1206-glossary-naming.ts
+  PASS    152 ms  tests/verify-1237-mapdetail-copy.ts
+  PASS    147 ms  tests/verify-1302-panel-list-skeleton.ts
+  PASS    151 ms  tests/verify-1407-next-steps-reminders.ts
+  PASS    151 ms  tests/verify-1281-entries.ts
+  PASS    108 ms  tests/verify-1179-gitlab-endpoint-coverage.ts
+  PASS    135 ms  tests/verify-1409-suggest-stream.ts
+  PASS    155 ms  tests/verify-1039-rules-pure.ts
+  PASS    102 ms  tests/verify-1411-suggest-appearance.ts
+  PASS     98 ms  tests/verify-1191-contract-op.ts
+  PASS    114 ms  tests/verify-1286-snapshot.ts
+  PASS     85 ms  tests/verify-1182-docs-paths.ts
+  PASS     94 ms  tests/verify-1125-gate-coverage.ts
+  PASS     91 ms  tests/verify-1231-ws-overview-rows.ts
+  PASS    101 ms  tests/verify-1305-client-session.ts
+  PASS     85 ms  tests/verify-1223-catalog-runtime-parity.ts
+  PASS   5905 ms  tests/verify-typecheck.mts
+  PASS  30109 ms  tests/verify-bundled-skills.ts
+  PASS  40240 ms  tests/verify-wire-subissues-script.ts
+  FAIL  69580 ms  tests/verify-detail-levels.ts
+  FAIL  95777 ms  tests/verify-1325-build-cache-nowrite.ts
+  PASS    190 ms  tests/verify-1530-generated-outputs-not-inputs.ts
+  PASS    328 ms  tests/verify-655-setup-layout.ts
+  PASS    791 ms  tests/verify-665-fresh-workspace-chain.ts
+  PASS   1905 ms  tests/verify-818-version-control-view.ts
+  PASS    153 ms  tests/verify-issue232-sync.ts
+  PASS   8452 ms  tests/verify-prompts.ts
+  PASS   1734 ms  tests/verify-release-contract.ts
+  PASS  15039 ms  tests/verify-settings-debug.ts
+  PASS  22717 ms  tests/verify-settings-templates.ts
+  PASS  39483 ms  tests/verify-settings-view.ts
+  PASS  21308 ms  tests/verify-t1-getrepokey.ts
+  PASS   6226 ms  tests/verify-t1-initpublish.ts
+  PASS   1318 ms  tests/verify-time-config.ts
+[并行门禁] —— freshness 段（8 步） ——
+  PASS    170 ms  tests/verify-readme-sync.ts
+  PASS    147 ms  tests/verify-thanks-table.ts
+  PASS    156 ms  tests/verify-star-history.ts
+  FAIL    289 ms  tests/verify-map-first-frame-freshness.ts
+        完成证据对不上：断言数 45 ≠ 归属表里记着的 39（多跑了 6 条，加了断言就顺手改 tests/gate-map.json 的期望）
+  PASS    406 ms  tests/verify-md-format-config.ts
+  PASS    443 ms  tests/verify-1327-freshness-content.ts
+  PASS    866 ms  tests/verify-locale-completeness.ts
+  PASS    946 ms  tests/verify-locale-config.ts
+
+[并行门禁] 第一轮有 9 步红，串行复跑一遍以排除「抢资源造成的假红」：
+  复跑绿（并发假红）   31324 ms  tests/verify-build-cwd-products.ts
+  复跑仍红（真红）     678 ms  tests/verify-1242-panel-numbers.ts
+  复跑仍红（真红）     517 ms  tests/verify-file-granularity.ts
+  复跑仍红（真红）    9546 ms  tests/verify-capsule-layout.ts
+  复跑仍红（真红）     248 ms  tests/verify-map-first-frame.ts
+  复跑仍红（真红）     801 ms  tests/verify-parse-leaf.ts
+  复跑仍红（真红）   73901 ms  tests/verify-detail-levels.ts
+  复跑仍红（真红）   37678 ms  tests/verify-1325-build-cache-nowrite.ts
+  复跑仍红（真红）     309 ms  tests/verify-map-first-frame-freshness.ts
+
+[并行门禁] —— 冒烟阶段（5 步，按 scripts.smoke 的顺序串行） ——
+  PASS   1398 ms  tests/smoke-client.test.ts
+  PASS   2185 ms  tests/smoke-host-dispatch.test.ts
+  PASS   1583 ms  tests/smoke-render.test.ts
+  FAIL  10239 ms  tests/smoke-naming-persistence.test.ts
+        完成证据对不上：门禁退出码 1（不是 0）
+  FAIL    306 ms  tests/smoke-comment-passthrough.test.ts
+[并行门禁] 冒烟阶段：跑 5/5 步，真红 2 步，用时 15.7 秒
+
+[并行门禁] 跑完 483/483 步，墙钟 373.0 秒；真红 8 步
+[并行门禁] 判定：主链真红 8 步，冒烟真红 2 步
+  并发假红（复跑已绿）1 步：verify-build-cwd-products.ts
+  最慢的几步：
+     73901 ms  FAIL  tests/verify-detail-levels.ts
+     48457 ms  PASS  scripts/build.mts
+     45340 ms  PASS  tests/verify-1648-release-integrity.ts
+     42905 ms  PASS  tests/verify-667-dock-header-no-brand.ts
+     40240 ms  PASS  tests/verify-wire-subissues-script.ts
+     39483 ms  PASS  tests/verify-settings-view.ts
+     37678 ms  FAIL  tests/verify-1325-build-cache-nowrite.ts
+     31324 ms  PASS  tests/verify-build-cwd-products.ts
+     30109 ms  PASS  tests/verify-bundled-skills.ts
+     22961 ms  PASS  tests/verify-669-collapsed-recoverable.ts
+
+=== FAIL tests/verify-1242-panel-numbers.ts（退出码 1）===
+  完成证据对不上：门禁退出码 1（不是 0）
+  …（前 66 行省略）
+    PASS 五、标签带名字与颜色
+    FAIL 五、六格统计与两层分层和手数一致 — 实际={"blocked":1,"claimed":1,"closed":1,"frontier":3,"levelOf":{"101":0,"102":0,"103":1,"104":0,"105":0},"levels":[{"blocked":0,"claimed":1,"closed":1,"frontier":3,"level":0,"numbers":[101,102,104,105],"open":3,"total":4},{"blocked":1,"claimed":0,"closed":0,"frontier":0,"level":1,"numbers":[103],"open":1,"total":1}],"open":4,"total":5} 期望={"blocked":1,"claimed":1,"closed":1,"frontier":2,"levelOf":{"101":0,"102":0,"103":1,"104":0,"105":0},"levels":[{"blocked":0,"claimed":1,"closed":1,"frontier":2,"level":0,"numbers":[101,102,104,105],"open":3,"total":4},{"blocked":1,"claimed":0,"closed":0,"frontier":0,"level":1,"numbers":[103],"open":1,"total":1}],"open":4,"total":5}
+    PASS 五、总数 / 实到 / 截断 / 差额四格照实交代
+    PASS 五、整趟只发一条 gh 命令（没有旁路）
+    PASS 五、按地图 #100 与仓库坐标取子票
+    PASS 五、没有门禁没脚本化却被悄悄放过的命令
+    PASS 五、子票取不回来时如实失败
+    PASS 五、失败原因带可归类的档位（不吞成一句空话）
+    PASS 五、把 #104 改关之后 #103 解锁（open3 / closed2 / blocked0）
+    PASS 五、现场一变，原来的手写 stats 期望就不成立
+  == 六、失败面：列表取不回来时如实失败 ==
+    PASS 六、列表 GraphQL 与 REST 都失败时快照 ok:false
+    PASS 六、失败原因带 kind 与说明
+    PASS 六、失败时没有伪造 maps / issues 两个空集合
+    PASS 六、主路失败后确实走到过 REST 降级
+    PASS 六、失败回包不带旧信封的默认字段（由上层决定要不要用缓存）
+  == 七、敏感性：分组算错或现场变了，手写期望都会当场不成立 ==
+    PASS 七、分组六格任何一格算错，整块 stats 期望就不成立（六格各 +1）
+    PASS 七、六格逐格点名：total 被改坏时手写期望能抓到
+    PASS 七、六格逐格点名：open 被改坏时手写期望能抓到
+    PASS 七、六格逐格点名：closed 被改坏时手写期望能抓到
+    PASS 七、六格逐格点名：frontier 被改坏时手写期望能抓到
+    PASS 七、六格逐格点名：claimed 被改坏时手写期望能抓到
+    PASS 七、六格逐格点名：blocked 被改坏时手写期望能抓到
+    PASS 七、把「可接」错算成票数时，手写期望不成立（5 对 2）
+    FAIL 七、把 #104 改关之后 #103 解锁（open3 / closed2 / frontier2 / blocked0） — 实际={"blocked":0,"claimed":1,"closed":2,"frontier":3,"levelOf":{"101":0,"102":0,"103":1,"104":0,"105":0},"levels":[{"blocked":0,"claimed":1,"closed":2,"frontier":2,"level":0,"numbers":[101,102,104,105],"open":2,"total":4},{"blocked":0,"claimed":0,"closed":0,"frontier":1,"level":1,"numbers":[103],"open":1,"total":1}],"open":3,"total":5} 期望={"blocked":0,"closed":2,"frontier":2,"open":3}
+    PASS 七、现场一变（#104 关闭），原来的手写 stats 期望就不成立
+  == 八、自检：门禁自身不联网、不另起进程 ==
+    PASS 八、门禁源码不含 child_process
+    PASS 八、门禁源码不含 spawn(
+    PASS 八、门禁源码不含 execSync
+    PASS 八、门禁源码不含 gh.exe
+    PASS 八、门禁源码不含 https://api.github.com
+    PASS 八、门禁加载的是真快照装配（不是另抄一份口径）
+    PASS 八、门禁加载的是真 GitHub 房间（不是假会话）
+    PASS 八、门禁加载的是面板真正走的取数电话（不是另抄一份口径）
+    PASS 八、门禁加载的是真会话装配（出站都经会话管线）
+  GATE-RESULT {"gate":"verify-1242-panel-numbers","assertions":95,"failed":3}
+  
+  1242 PANEL NUMBERS TESTS FAILED（共 95 条断言，3 条失败）
+
+=== FAIL tests/verify-file-granularity.ts（退出码 1）===
+    PASS src/client/kernel/api-io.ts 冻结中：基线 369，现 369 有效行（未增长）
+    PASS src/client/kernel/entry-card.ts 冻结中：基线 357，现 357 有效行（未增长）
+    PASS src/client/views/versionControl/VersionControlTab.ts 冻结中：基线 366，现 366 有效行（未增长）
+    PASS src/deck/tools/map-plan-create.ts 冻结中：基线 367，现 367 有效行（未增长）
+    PASS src/host/namingGuardian.ts 冻结中：基线 374，现 374 有效行（未增长）
+    FAIL src/tracker/body-parse.ts 新增超标：407 有效行（上限 350）
+    PASS src/tracker/detection/backendDecision.ts 冻结中：基线 642，现 642 有效行（未增长）（严重：超 500 有效行，阻断发布）
+    FAIL src/tracker/rooms/github/read/issues.ts 新增超标：355 有效行（上限 350）
+    PASS src/tracker/rooms/gitlab/graph-blocking.ts 冻结中：基线 402，现 402 有效行（未增长）
+    INFO 其余 635 个文件全部 ≤350 有效行（注释与空行不计），共扫 644 个 src/ 源文件：.ts/.mts/.cts 644 个 + 手写 .js 一档 0 个
+  
+  存在失败
+
+=== FAIL tests/verify-capsule-layout.ts（退出码 1）===
+  === 状态栏胶囊布局：图标与文字成整体 · 各项间隔均匀（真 Chromium 量）===
+  
+  A) 真机几何下的四档：1600 / 900 / 600 / 380（相邻两项空隙、图标与文字间隙）
+    FAIL 胶囊挂不起来：{"ok":false,"arrived":false,"thrown":null} / 页面错误 []
+  
+  0 条通过，1 条失败
+  === FAIL：胶囊里图标与文字还不是一个整体、或各项间隔还不均匀 ===
+  
+  [stderr]
+  (node:79144) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/tests/verify-capsule-layout.ts is not specified and it doesn't parse as CommonJS.
+  Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+  To eliminate this warning, add "type": "module" to \\?\D:\dsh-plugin\dsh-mattpocock-skills-deck\package.json.
+  (Use `node --trace-warnings ...` to show where the warning was created)
+
+=== FAIL tests/verify-map-first-frame.ts（退出码 0）===
+  完成证据对不上：断言数 51 ≠ 归属表里记着的 41（多跑了 10 条，加了断言就顺手改 tests/gate-map.json 的期望）
+  …（前 12 行省略）
+    PASS B1 完整来源以本次为准：上次有、本次没有的票可以消失（允许删）
+    PASS B2 完整来源的计数按本次算（不保留上次的多余数字）
+    PASS B3 已关闭容器首帧子票为空是现行口径，不完整来源也不复活
+    PASS C1 不完整来源：本次没取到的已知子票要补回来（只补不删）
+    PASS C2 本次取到的行以本次为准（新标题覆盖旧标题）
+    PASS C3 本次没表达的正文沿用上次已知（空字符串不当成新事实）
+    PASS C4 本次没表达的阻塞边沿用上次已知（降级薄行不得清掉已知关系）
+    PASS C5 本次没表达的认领人沿用上次已知
+    PASS C6 上次独有的票仍挂在容器下（清单未取不等于票没了）
+    PASS C7 不完整来源的计数不缩水
+    PASS C8 补回来的行留痕（何时、补了几张），界面能说这是上次数据
+    PASS C9 只把本次缺的票算作补回（701 有本次行，不算补回）
+    PASS D1 上次计数比清单大时保留已知计数（清单未取不显示成 0 张）
+    PASS D2 同时把上次已知的那张子票补回来
+    PASS E1 已挂进容器的票从「未挂图票」里移除（同一张票不画两处）
+    PASS E2 真正没挂图的票仍留在未挂图票里
+    PASS E3 完整来源同样去重（两张清单不重叠）
+    PASS F1 组装层把三张子票挂进容器（首帧快照的原料）
+    PASS F2 首帧快照直接带容器计数（不用等 wf.mapTickets）
+    PASS F3 首帧子票行带数字阻塞者与层级（卡片首帧就能画被挡）
+    PASS F4 首帧计数里被挡 1 张
+    PASS F5 组装层仍把地图当容器
+    PASS G1 合并是纯函数：不改调用方传进来的两份快照
+    PASS H1 composeSnapshot 在接好补回后照常出快照
+    PASS H2 第一趟完整来源：容器子票已归一成首帧形状（数字票号）
+    PASS H3 第二趟降级来源：上次已知子票被补回（不缩成 1 张）
+    PASS H4 降级重建后容器计数仍是 3（没有被降级结果改成 1）
+    PASS H5 降级结果没表达的阻塞边沿用上次已知（被挡关系不消失）
+    PASS H6 补回之后版本号照旧写进快照（304 语义与内容散列不受影响）
+    PASS I1 阻塞者在别的地图且开着：这张票算被挡，可接计数不计入
+    PASS I2 阻塞者引用态（编号/标题/状态）留在行上，卡片能说出被谁挡着
+    PASS I3 阻塞者在别的地图但已关闭：不挡，算可接
+    PASS I4 读不到阻塞者状态时按安全侧算被挡，不算可接
+    PASS I5 没拿到状态就不伪造状态（引用态只留编号与标题）
+    PASS I6 不完整来源的薄行没带引用态时，沿用上次已知的引用态（被挡关系不因降级丢失）
+    PASS I7 两份 groupTickets 副本对同一夹具给出同样计数（跨容器口径不许只改一处）
+    PASS I8 两份副本的层级推导也一致（跨容器引用不参与层级深度）
+    PASS I9 宿主分组：图内 OPEN、跨图 OPEN、跨图未知各挡一张；跨图 CLOSED 放行
+    PASS I10 跨容器引用不参与层级深度（第 3 张仍算第 0 层）
+  GATE-RESULT {"gate":"verify-map-first-frame","assertions":51,"failed":0}
+
+=== FAIL tests/verify-parse-leaf.ts（退出码 1）===
+    PASS 产物门禁 host.js（存在且新鲜）
+    PASS 产物门禁 package/lib/index.js（存在且新鲜）
+    PASS src/tracker/body-parse.ts 导出 normalizeBody
+    PASS src/tracker/body-parse.ts 导出 parseMapBody
+    PASS src/tracker/body-parse.ts 导出 computeLevels
+    PASS src/tracker/body-parse.ts 导出 groupTickets
+    PASS src/tracker/body-parse.ts 导出 parseProgress
+    PASS 产物(_dev) host.js 含 normalizeBody（对照基准）
+    PASS 产物(_dev) host.js 含 parseMapBody（对照基准）
+    PASS 产物(_dev) host.js 含 computeLevels（对照基准）
+    PASS 产物(_dev) host.js 含 groupTickets（对照基准）
+    PASS diff normalizeBody[0] 叶子===产物(_dev)
+    PASS diff parseMapBody[0] 叶子===产物(_dev)
+    PASS diff normalizeBody[1] 叶子===产物(_dev)
+    PASS diff parseMapBody[1] 叶子===产物(_dev)
+    PASS diff normalizeBody[2] 叶子===产物(_dev)
+    PASS diff parseMapBody[2] 叶子===产物(_dev)
+    PASS diff normalizeBody[3] 叶子===产物(_dev)
+    PASS diff parseMapBody[3] 叶子===产物(_dev)
+    PASS diff normalizeBody[4] 叶子===产物(_dev)
+    PASS diff parseMapBody[4] 叶子===产物(_dev)
+    PASS diff normalizeBody[5] 叶子===产物(_dev)
+    PASS diff parseMapBody[5] 叶子===产物(_dev)
+    PASS diff normalizeBody[6] 叶子===产物(_dev)
+    PASS diff parseMapBody[6] 叶子===产物(_dev)
+    PASS diff normalizeBody[7] 叶子===产物(_dev)
+    PASS diff parseMapBody[7] 叶子===产物(_dev)
+    PASS diff normalizeBody[8] 叶子===产物(_dev)
+    PASS diff parseMapBody[8] 叶子===产物(_dev)
+    PASS diff normalizeBody[9] 叶子===产物(_dev)
+    PASS diff parseMapBody[9] 叶子===产物(_dev)
+    PASS diff normalizeBody[10] 叶子===产物(_dev)
+    PASS diff parseMapBody[10] 叶子===产物(_dev)
+  
+  [stderr]
+  ReferenceError: refKeyOf is not defined
+      at eval-probe.ts:103:7
+      at Array.forEach (<anonymous>)
+      at Object.computeLevels (eval-probe.ts:102:13)
+      at main (file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/tests/verify-parse-leaf.ts:123:80)
+
+=== FAIL tests/verify-detail-levels.ts（退出码 1）===
+    ✓ 快照 ok
+    ✓ 存在含子票的 map
+    ✓ map #1586 stats.levels 存在
+    ✓ map #1586 levels 层级连续(0..17)
+    ✓ map #1586 每层 total=open+closed
+    ✓ map #1586 每层 open=frontier+claimed+blocked
+    ✓ map #1586 每层 numbers 数量=total
+    ✓ map #1703 stats.levels 存在
+    ✓ map #1703 levels 层级连续(0..12)
+    ✓ map #1703 每层 total=open+closed
+    ✓ map #1703 每层 numbers 数量=total
+    ✓ map #1586 每张票带 level
+    ✓ map #1586 票 level 与 stats.levels 一致
+    ✓ map #1703 每张票带 level
+    ✓ map #1703 票 level 与 stats.levels 一致
+    ✓ map #1586 DAG 语义：被阻塞者 level 严格大于阻塞者（bad=0）
+    ✓ map #1703 DAG 语义：被阻塞者 level 严格大于阻塞者（bad=0）
+    ✓ map #1586 层级数 18 不超过票数 27（每层至少一张票）
+    ✓ map #1703 层级数 13 不超过票数 17（每层至少一张票）
+  
+  TOTAL 20 PASS 19 FAIL 1
+  
+  [stderr]
+  (node:80344) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/src/host/index.ts is not specified and it doesn't parse as CommonJS.
+  Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+  To eliminate this warning, add "type": "module" to \\?\D:\dsh-plugin\dsh-mattpocock-skills-deck\package.json.
+  (Use `node --trace-warnings ...` to show where the warning was created)
+  (node:80344) TimeoutNaNWarning: NaN is not a number.
+  Timeout duration was set to 1.
+    ✗ FAIL: map #1703 每层 open=frontier+claimed+blocked
+
+=== FAIL tests/verify-1325-build-cache-nowrite.ts（退出码 1）===
+  构建缓存命中时不许改写产物（#1325）
+    PASS 第一次 node scripts/build.mts 退出码 0
+    第一次构建花了 18699ms（完整构建）
+    PASS 缓存条目里记着这次构建的产物清单（559 个文件）
+    PASS 缓存清单里的 559 个产物都在盘上
+    PASS 第一次构建打出了五行产物大小清单
+    PASS 第二次 node scripts/build.mts 退出码 0
+    FAIL 第二次构建报告缓存命中（第二次输出里没有「缓存命中：」：  package/lib/index.js (pkg)  63066 bytes / [build] 完整构建：本次要构建的产物已重新生成并写盘（缓存命中时整个构建跳过，产物一个字节都不会被写） / [build] 构建只写仓库内产物，不碰本机已装配置 / [build] 构建锁：pid 83500（主机 洋洋の辰辰）释放了锁（持有约 18 秒））
+    FAIL 缓存命中的提示写明这次没有写任何产物文件（第二次输出里没写清楚「没写盘」：  package/lib/index.js (pkg)  63066 bytes / [build] 完整构建：本次要构建的产物已重新生成并写盘（缓存命中时整个构建跳过，产物一个字节都不会被写） / [build] 构建只写仓库内产物，不碰本机已装配置 / [build] 构建锁：pid 83500（主机 洋洋の辰辰）释放了锁（持有约 18 秒））
+    第二次构建花了 18808ms（完整构建）
+    PASS 第二次构建跑完，缓存清单里的产物一个都没少
+    FAIL 第二次构建没有改写任何产物文件：559 个产物的修改时间一个都没变（有 448 个产物的修改时间被动了：.build/refresh/contract/host-timer-ports.js（1793459409064.8645 → 1793459427315.6519）、.build/refresh/contract/idempotency-keys.js（1793459409067.488 → 1793459427318.2778）、.build/refresh/contract/refresh-ports.js（1793459409069.0925 → 1793459427319.871）、.build/refresh/contract/trigger-classification.js（1793459409071.2197 → 1793459427321.5488）、.build/refresh/contract/tuning-parameters.js（1793459409073.3633 → 1793459427322.6116） 等）
+    FAIL 连缓存文件自己都没被重写（命中路径不往盘上写任何东西）（缓存文件变了：修改时间 1793459424610.2659 → 1793459443420.663）
+    PASS 第二次构建也打出了五行产物大小清单
+    PASS 第二次的产物大小清单与第一次逐行一致（大小一个字节都没变）
+  
+  失败 12 条断言
+
+=== FAIL tests/verify-map-first-frame-freshness.ts（退出码 0）===
+  完成证据对不上：断言数 45 ≠ 归属表里记着的 39（多跑了 6 条，加了断言就顺手改 tests/gate-map.json 的期望）
+  …（前 118 行省略）
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+  Each child in a list should have a unique "key" prop.
+  
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+  Each child in a list should have a unique "key" prop.
+  
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+  Each child in a list should have a unique "key" prop.
+  
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+  Each child in a list should have a unique "key" prop.
+  
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+  Each child in a list should have a unique "key" prop.
+  
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+  Each child in a list should have a unique "key" prop.
+  
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+  Each child in a list should have a unique "key" prop.
+  
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+  Each child in a list should have a unique "key" prop.
+  
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+  Each child in a list should have a unique "key" prop.
+  
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+  Each child in a list should have a unique "key" prop.
+  
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+  Each child in a list should have a unique "key" prop.
+  
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+  Each child in a list should have a unique "key" prop.
+  
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+  Each child in a list should have a unique "key" prop.
+  
+  Check the render method of `MapDetailTop`. See https://react.dev/link/warning-keys for more information.
+
+=== 冒烟 FAIL tests/smoke-naming-persistence.test.ts（退出码 1）===
+  完成证据对不上：门禁退出码 1（不是 0）
+  …（前 17 行省略）
+    PASS 重启后 io-s4 仍在账上（等待中，或已被重启后的首轮扫描结算为编号档）
+    PASS 重启后差值结算 → numbered 订单（#266 跨重启归属）
+    PASS 重启后 numbered renamed 回报受理
+    PASS 重启后落定收敛不再出单
+    PASS 取消监视后清账（终局清理通道可用）
+    PASS #267 注册受踪（io-s5）
+    PASS #267 fail#1 受理且回执未达上限
+    PASS #267 失败入账即时落盘（计数/时刻/摘要 · 预算跨重启底座）
+    PASS #267 冷却窗内不重复出单（瞬时故障自愈窗口生效）
+    PASS #267 重启后冷却窗依旧生效（预算从盘恢复，未归零）
+    PASS #267 连败第三次回执标注定败
+    PASS #267 定败后永不再出单（有限重试耗尽即收敛）
+    PASS #267 面板级定败清单携完整画像（次数/末次错误/档位形态/线索）
+    PASS #267 定败画像附值比对锁信息（协商化解依据随清单下发）
+  
+  [stderr]
+  (node:50864) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/tests/smoke-naming-persistence.test.ts is not specified and it doesn't parse as CommonJS.
+  Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+  To eliminate this warning, add "type": "module" to \\?\D:\dsh-plugin\dsh-mattpocock-skills-deck\package.json.
+  (Use `node --trace-warnings ...` to show where the warning was created)
+  node:internal/modules/esm/resolve:271
+      throw new ERR_MODULE_NOT_FOUND(
+            ^
+  
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'D:\dsh-plugin\dsh-mattpocock-skills-deck\package\refresh\rooms\host\refresh-runtime.js' imported from D:\dsh-plugin\dsh-mattpocock-skills-deck\package\lib\index.js
+      at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+      at moduleResolve (node:internal/modules/esm/resolve:865:10)
+      at defaultResolve (node:internal/modules/esm/resolve:992:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
+      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
+      at nextStep (node:internal/modules/customization_hooks:189:26)
+      at resolve (file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/scripts/ts-hook.mts:87:12)
+      at nextStep (node:internal/modules/customization_hooks:189:26)
+      at resolveWithHooks (node:internal/modules/customization_hooks:417:10)
+      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:747:16) {
+    code: 'ERR_MODULE_NOT_FOUND',
+    url: 'file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/package/refresh/rooms/host/refresh-runtime.js'
+  }
+  
+  Node.js v24.19.0
+
+=== 冒烟 FAIL tests/smoke-comment-passthrough.test.ts（退出码 1）===
+    PASS ESM 语法编译 OK
+  
+  [stderr]
+  (node:45636) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/tests/smoke-comment-passthrough.test.ts is not specified and it doesn't parse as CommonJS.
+  Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+  To eliminate this warning, add "type": "module" to \\?\D:\dsh-plugin\dsh-mattpocock-skills-deck\package.json.
+  (Use `node --trace-warnings ...` to show where the warning was created)
+  node:internal/modules/esm/resolve:271
+      throw new ERR_MODULE_NOT_FOUND(
+            ^
+  
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'D:\dsh-plugin\dsh-mattpocock-skills-deck\package\refresh\rooms\host\refresh-runtime.js' imported from D:\dsh-plugin\dsh-mattpocock-skills-deck\package\lib\index.js
+      at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+      at moduleResolve (node:internal/modules/esm/resolve:865:10)
+      at defaultResolve (node:internal/modules/esm/resolve:992:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
+      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
+      at nextStep (node:internal/modules/customization_hooks:189:26)
+      at resolve (file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/scripts/ts-hook.mts:87:12)
+      at nextStep (node:internal/modules/customization_hooks:189:26)
+      at resolveWithHooks (node:internal/modules/customization_hooks:417:10)
+      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:747:16) {
+    code: 'ERR_MODULE_NOT_FOUND',
+    url: 'file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/package/refresh/rooms/host/refresh-runtime.js'
+  }
+  
+  Node.js v24.19.0
+[并行门禁] 结果另存一份（含 HEAD 与逐扇结果）：node_modules/.cache/dsh-verify-last.json

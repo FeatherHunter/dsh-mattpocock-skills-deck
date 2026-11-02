@@ -63,49 +63,45 @@
 
 ## 二、工具与环境
 
-真机验证用的工具台在 [scripts/real-machine/README.md](../../scripts/real-machine/README.md)（#1645 把它从临时目录提升进了仓库）：复制隔离 home、造工作区、起停实例、抓日志与截图、准备与收尾批次、冻结候选、清理批次产物，每条都是一条命令。这一节只写与规则有关的部分：环境和产物放在哪、验完怎么清、怎么确认验的是哪个候选。
+真机验证的工具分两层：通用能力在 base 仓的 real-machine-verification（命令行 `dsh-verify`，由根 `devDependencies` 提供），插件特有命令留在本仓 `scripts/real-machine/`。接入方式、命令表与场景写法见 [verify/README.md](../../verify/README.md) 与 base 的 `AGENTS-USAGE.md`；这一节只写与规则有关的部分：环境和产物放在哪、验完怎么清、怎么确认验的是哪个候选。
 
-- **命令怎么跑**：从仓库根目录跑，统一写法是 `node --import ./scripts/ts-hook.mts scripts/real-machine/commands/<命令>.mts <参数>`。成功时 stdout 只有一段 JSON；失败时退出码非 0，stderr 用一句中文说清原因。完整参数与输出字段看每个命令文件的开头注释。
-- **工作根**：默认是仓库里的 `.scratch/verify-run/`，这个目录被版本库忽略，批次产物不会进提交。换位置用环境变量 `DSH_VERIFY_WORK_ROOT`，或单条命令的 `--out` / `--batch` / `--root`。工具只往工作根、系统临时目录和命令显式给的目录写，写别处会被拒绝。
-- **启动**：每个实例用自己复制出来的 `DSH_HOME`、独立启动目录、独立 `USERPROFILE`/`HOME`，端口用 `--port 0` 交给系统分配，所以多开不会抢端口。冷启动到打印访问地址约 10 到 18 秒，页面可交互再等约 6 秒。
-- **模型与密钥**：批次实例默认自动配置 MiniMax CN（provider `minimax-cn`、模型 `Minimax-M3.1-Flash`、密钥变量 `MINIMAX_CN_API_KEY`），写的是批次 home 里的 `profiles/<profile>/cordis.patch.yml`，真实 profile 不动；`copy-home` 与 `start-instance` 都认 `--no-model` 跳过。密钥不写进 profile；profile 里的 `apiKeyEnv` 是凭证引用，DSH 先查批次 home 的 `.credentials.yaml`，再查实例启动环境（注入的密钥就在这一层）。启动时按「批次 home 的 `.credentials.yaml` → 真实 home 的 `.credentials.yaml` → 当前进程环境」查找，只注入实例进程；命令行、`instance.json`、stdout/stderr、插件日志与证据里都不出现值。想换模型用 `DSH_REAL_MACHINE_MODEL_PROVIDER`、`DSH_REAL_MACHINE_MODEL`、`DSH_REAL_MACHINE_MODEL_KEY_ENV` 覆盖。`prepare-batch` 把「模型已配置」与「密钥可用」作为前置巡检硬检查，没有密钥不开批；回执只记 provider、模型名、变量名与来源，不记值。
-- **浏览器窗口**：判断「浮层会不会被别的界面元素盖住」「提示贴到屏幕边缘会不会越界」这类空间问题时，必须有头、必须真全屏：页面视口与外框（`innerWidth`/`outerWidth`、`innerHeight`/`outerHeight`）都要等于 `screen.width`/`screen.height`。固定视口（例如 1600x1000）或无头窗口只看得到「这个尺寸下长什么样」，不能拿来判定遮挡与越界——2026-10-29 验 1655-01 时，Playwright 的 `--start-fullscreen` 被忽略、窗口只有 1083 像素宽，再用 `setViewportSize` 强设页面视口，截图看起来铺满屏幕，据此得出的「浮层被右侧面板盖住」结论后来被真全屏复核推翻。工具台已把这层保护做进 `lib/browser.mts`：`openInstance(url, { headless: false })` 会自动切真全屏并核对尺寸，切不成直接报错，全屏测量写进 `page-diagnostics.json` 的 `fullscreen` 字段；细节见工具台 README 的「有头验证」一节。
-- **三款窗口尺寸**：2026-10-29 定版，真机验证只跑三款窗口形态，定义在 `scripts/real-machine/lib/presets.mts` 的 `VIEWPORT_PRESETS`：`wide` 真全屏、`narrow` 外框宽 800 且高铺满屏幕（插件面板落在 300–359 像素、`.dsws-narrow` 生效）、`short` 外框宽铺满屏幕且高 600。用 `applyViewportPreset(page, '<编号>')` 设置窗口并核对插件真的进了那一支布局，对不上直接抛中文错误（调用前先打开 MattSkillsDeck 面板，默认要求 `.dsws-body` 已渲染）；实测快照（窗口外框、页面视口、面板宽、窄态）写进 `page-diagnostics.json` 的 `viewport` 字段，空间类结论的证据里必须有它。窄窗是 800 不是 720：窗口宽与面板宽不线性，720 宽时宿主把右侧面板切成整宽覆盖，反而进不了插件窄态；实测映射与理由见工具台 README 的「三款窗口尺寸」一节。
-- **隔离原理**：四层隔离（home、启动目录、USERPROFILE、浏览器上下文）的细节见工具台 README 的「隔离是怎么做到的」。隔离是否真的生效由 `isolation-probe` 回答：它对比真实用户设置文件在探针前后的 SHA256，没变才算通过；验证批次里要保留这条结论。
+- **命令怎么跑**：通用命令在仓库根跑 `node <baseCli> <命令>`（`<baseCli>` 是 `node_modules/dsh-featherhunter-plugin-base/dist/real-machine-verification/cli/main.js`，或 `node_modules/.bin/dsh-verify`）；`freeze` 必须在 `package/` 下跑并带 `--declaration ../verify/profile.ts`。插件特有命令在仓库根跑 `node --import ./scripts/ts-hook.mts scripts/real-machine/commands/<命令>.mts <参数>`。两种命令都是：`--json` 时 stdout 只有一段 JSON；失败时退出码非 0，stderr 一句中文说清原因。完整参数与输出字段看 `dsh-verify describe --json` 与命令文件开头的注释。
+- **工作根**：`dsh-verify` 默认写到 `<cwd>/.scratch/verify/`，该目录被版本库忽略；要留档时用 `--work-root` 指到仓外临时目录。命令只往工作根、系统临时目录和命令显式给的目录写，写别处会被拒绝。
+- **启动与隔离**：每个实例用自己复制出来的 `DSH_HOME`（批次 home）、独立启动目录、独立 `USERPROFILE`/`HOME`，端口用 `--port 0` 交给系统分配，所以多开不会抢端口。冷启动到打印访问地址约 10 到 18 秒，页面可交互再等约 6 秒。四层隔离（home、启动目录、USERPROFILE、浏览器上下文）是否真的生效由 `dsh-verify isolation` 回答：它对比真实用户设置文件在探针前后的 SHA256，没变才算通过；验证批次里要保留这条结论。真实 home 只读，任何命令都不要对它跑。
+- **模型与密钥**：实例的模型由声明里的 `model` 字段与 `dsh-verify model` 描述/修复（`--provider`、`--model`、`--api-key-env`，带 `--fix` 才写盘；默认 provider `minimax-cn`、模型 `Minimax-M3.1-Flash`、密钥变量 `MINIMAX_CN_API_KEY`）。写的是批次 home 里 `profiles/<profile>/cordis.patch.yml`，真实 profile 不动。密钥不写进 profile；profile 里的 `apiKeyEnv` 是凭证引用，DSH 先查批次 home 的 `.credentials.yaml`，再查实例启动环境（注入的密钥就在这一层）。`model-configured` 与 `model-credential` 两条检查只消费引用名，回执只记 provider、模型名、变量名与来源，不记值；命令行、`instance.json`、stdout/stderr、插件日志与证据里都不出现值。
+- **浏览器窗口**：判断「浮层会不会被别的界面元素盖住」「提示贴到屏幕边缘会不会越界」这类空间问题时，必须有头、必须真全屏：页面视口与外框（`innerWidth`/`outerWidth`、`innerHeight`/`outerHeight`）都要等于 `screen.width`/`screen.height`。固定视口（例如 1600x1000）或无头窗口只看得到「这个尺寸下长什么样」，不能拿来判定遮挡与越界——2026-10-29 验 1655-01 时，Playwright 的 `--start-fullscreen` 被忽略、窗口只有 1083 像素宽，再用 `setViewportSize` 强设页面视口，截图看起来铺满屏幕，据此得出的「浮层被右侧面板盖住」结论后来被真全屏复核推翻。这层保护现在落在 `verify/windows.mjs`：判据（含 2px 容差、NaN 拒绝）与 CDP `Browser.setWindowBounds` 执行函数都在里面，切不成直接报错；有头核对的尺寸记录与截图要写进证据。
+- **三款窗口尺寸**：2026-10-29 定版，真机验证只跑三款窗口形态，定义在 `verify/presets.mjs` 的 `VIEWPORT_PRESETS`：`wide` 真全屏、`narrow` 外框宽 800 且高铺满屏幕（插件面板落在 300–359 像素）、`short` 外框宽铺满屏幕且高 600。设置窗口后要核对插件真的进了那一支布局，对不上直接抛中文错误；空间类结论的证据里必须有窗口外框、页面视口、面板宽与窄态的快照。窄窗是 800 不是 720：窗口宽与面板宽不线性，720 宽时宿主把右侧面板切成整宽覆盖，反而进不了插件窄态；实测映射与理由见 [verify/README.md](../../verify/README.md)。
 - **日志位置**：插件日志写在 `<启动目录>/.dsh-mattskillsdeck-cache/logs/<日期>.log`。用 `log-query` 按事件名、级别、字段过滤；写证据时把关键几行贴进评论，只给路径不算证据。
-- **工作区注入**：无头环境点不了原生目录选择器，所以由 `seed-workspace` 直接写 home 的 `storages/workspace.json` 完成登记。验证用的工作区夹具放在批次目录里，不要放在本仓库里，否则插件会把本仓库的 git 根当成仓库身份，结论会被污染。
-- **GitLab 沙箱项目**：需要 GitLab 后端时，先用 `gitlab-sandbox create --batch <批次目录> --path <group>/<project>` 在 gitlab.com 建一个带批次标记的私有空项目（记录写在 `<批次目录>/gitlab-projects.json`），再用 `make-workspace --kind gitlab --project <group>/<project>` 生成工作区：本地空仓库，`origin` 指向沙箱项目地址，工作区文件写 GitLab 后端。GitLab 的删除接口返回 202 之后延迟生效，所以 `gitlab-sandbox delete --batch <批次目录> --id <项目 id>` 会按 id 读回 `marked_for_deletion_at`，读到才算删掉；读回失败时项目 id 保留在清单里、状态标成 `delete-failed`，重跑 delete 可以补完。每批只建 1-2 个，场景验完立刻删。
+- **工作区注入**：无头环境点不了原生目录选择器，所以验证工作区由场景钩子 `prepareHome` 在宿主启动前写进 home 的 `storages/workspace.json`：`beforeLaunch` 时 home 还不存在，`afterLaunch` 时 DSH 已经起来，它会在首次页面加载时用内存里的默认工作区覆盖注册表，只有「home 刚复制完、进程还没启动」这一瞬间可靠。夹具内容（`docs/agents/workspace.yaml` 与 `.scratch/` 下的地图）放在实例目录里，`verify/hooks.ts` 负责写，`verify/scenarios/ui.ts` 断言启动后菜单里就能看到它。验证用的工作区不要放在本仓库里，否则插件会把本仓库的 git 根当成仓库身份，结论会被污染。
+- **GitLab 沙箱项目**：需要 GitLab 后端时，先用 `gitlab-sandbox create --batch <批次目录> --path <group>/<project>` 在 gitlab.com 建一个带批次标记的私有空项目（记录写在 `<批次目录>/gitlab-projects.json`）。GitLab 的删除接口返回 202 之后延迟生效，所以 `gitlab-sandbox delete --batch <批次目录> --id <项目 id>` 会按 id 读回 `marked_for_deletion_at`，读到才算删掉；读回失败时项目 id 保留在清单里、状态标成 `delete-failed`，重跑 delete 可以补完。每批只建 1-2 个，场景验完立刻删。
 - **GitLab 种子票池**：票池用 `seed-gitlab --batch <批次目录> --project <group>/<project>` 幂等种出：默认 101 张票（含 5 张已关闭）、两张地图与子票、5 个标签、指派、父子与阻塞关系。每张票正文文件头带稳定键 `<!-- DSH-SEED-KEY: … -->`（子票另带 `<!-- DSH-PARENT: <地图 iid> -->`），重跑按稳定键认回已有的，只补缺的；种好后 `<批次目录>/gitlab-seed.json` 的 `mode` 是 `read-only`，之后补种必须显式加 `--unlock-readonly`，补完自动恢复只读。免费档可能拿不到原生 `is_blocked_by` 边，命令会自动回落成正文成对两行（`Blocked by: #N` 与 `<!-- DSH-BLOCKED-BY: N -->`），验证结论里要写清实际用了哪种。B1 批次要核对票数与关系，并把 `gitlab-seed.json` 的 `stats` 抄进批次记录。
-- **批次前置巡检**：每批开始前先跑 `preflight --batch <批次目录>`（写法见工具台 README 的「批次前置巡检」一节），它以一段 JSON 回执回答九项环境预检：候选包身份、隔离 home 与 profile、工作区与 git remote、glab 版本与认证、沙箱项目 id 与状态、票池数量、日志目录可写、屏幕分辨率与主屏、Node 版本。任一硬项失败退出码非 0 并逐项写清原因；全绿之前不开批。
-- **证据目录**：每个批次一个目录 `<工作根>/batches/<批次名>/`，证据先落在 `evidence/` 下，再由 `collect-evidence` 生成带每个文件 SHA256 的 `evidence.json`。批次目录里还有候选、隔离 home、实例启动目录与批次记录，见下两条。规则要求证据能独立看懂：评论里贴截图关键区域、日志关键行或接口返回字段，不把临时目录路径当唯一证据。
-- **批次准备与收尾**：用 `prepare-batch` 一条命令完成「用当前 HEAD 重新冻结候选 → 构建 → 打包 → 装隔离 home → 起实例 → 前置巡检」，不再由人把几条命令串起来。批次目录默认 `<工作根>/batches/<批次名>/`：候选清单与候选包在 `<批次>/pkg/`，隔离 home 在 `<批次>/home`，实例启动目录在 `<批次>/run`，前置巡检结论写在 `<批次>/batch-preflight.json`。参数有 `--batch <批次目录>`、`--name <批次名>`、`--ticket <票号>`、`--allow-dirty`、`--profile <profile>`、`--install-method extract|cli`、`--no-start`、`--no-ui`、`--timeout <毫秒>`，以及 `--base-ref <基线分支，默认 main>`、`--allow-outdated-base`、`--instance-env-file <环境文件路径>`（把 GitLab 环境文件直接交给本批实例，见下面「GitLab 实例环境」）。批次目录里已经存在 `batch.json` 的同名批次会被拒绝复用，免得把旧批次的产物当成新批次；冻结完成之后会再读一次 git 状态，HEAD 前进了、或 release 候选对应的工作树不干净，都拒绝开批。开批之前还会先读本地基线分支的 tip 与 `package.json` 版本（见下面「版本口径与开批基线」）：候选提交不包含基线 tip 默认拒绝，候选版本不等于基线版本一律拒绝。开批前还会确保批次 profile 的模型配置并解析密钥，把「模型已配置」与「密钥可用」作为前置巡检硬检查，没有可用密钥就不开批。批次结束时用 `check-batch --batch <批次目录>` 收尾：它读 `batch.json`，比较当前 git HEAD，并重读本地基线 tip；HEAD 前进、基线前进、收尾时读不到基线、或旧批次没有开批基线记录，都会把状态改成 `stale`、写 `endHead` 与 `endCheckedAt`，并提示这条批次不能用于发布收口（原件不删）；都没前进就只记 `endCheckedAt`，状态保持 `active`。
-- **批次记录文件**：批次目录里有三份机器可读记录。`batch.json` 记 `schemaVersion`、`batchName`、`batchDir`、`createdAt`、`updatedAt`、`status`（`active` 或 `stale`）、`startHead`、`startBranch`、`endHead`、`endCheckedAt`、`base`（开批基线：`ref` 是基线分支名，`tip` 是开批时该分支的 40 位提交，`expectedVersion` 是开批时该分支 `package.json` 的版本，`allowOutdated` 记是否用 `--allow-outdated-base` 放行过落后候选），以及 `candidate`（`path`、`sha256`、`commit`、`version`、`validity`、`tgzPath`、`tgzSha256`、`manifestDigest`、`fileDigest`）、`preflight`、`instance`。`candidate.json` 在原有字段上新增四个：`validity`（`release` 表示干净树冻结、可以用于发布，`development` 表示带 `--allow-dirty` 的开发验证）、`sourceStable`（冻结前后 HEAD 与未提交文件集合是否一致）、`package.buildCommit`（构建产物里的提交）、`package.fileDigest`（不含提交与版本的逐文件清单指纹，与 `scripts/release-integrity.mts` 的 digest 同一算法）。`batch-preflight.json` 是前置巡检的结论（含实例、已装包、设置隔离与模型检查）；实例启动或前置巡检没通过时，`prepare-batch` 不写 `batch.json`，这一批不能开始收证据。收证据前 `collect-evidence` 会拒绝 `status` 不是 `active` 或前置巡检没通过的批次，并重新读一遍 `candidate.json` 与候选包，核对它们的 SHA256 是否仍是 `batch.json` 里的那一份：候选文件被改过、候选包被换过，都拒绝收证据。评论里引用这些记录时写清路径与关键字段，不要只贴一个目录。
-- **候选身份判据**：用 `prepare-batch` 冻结候选（单独跑 `freeze-candidate` 也可以，只是不会准备整个批次），清单写在批次目录的 `pkg/candidate.json`；单独跑 `freeze-candidate` 时默认在 `<工作根>/pkg/candidate.json`。清单记着提交、版本、包内每个文件的 SHA256、tgz 的 SHA256，以及 `validity`、`sourceStable`、`package.buildCommit`、`package.fileDigest`（含义见上一条）。界面里的插件脚本是宿主把多个插件合并成一次请求加载的，所以界面核对比的是「这段内容里本版的版本常量是不是期望值」，不要拿合并后的包哈希当身份（带启动期构建标识的产物每次启动哈希都会变）。
-- **清理要求与上限**：用 `cleanup` 先报账、确认后再删。工作根总量建议不超过 15GB、批次目录不超过 20 个、单个批次不超过 2GB；每次批次结束、发布前、换版本重跑之前各清一次。批次里的 GitHub 工作区是源仓库的 `git worktree`，批次目录删掉之后在源仓库跑一次 `git worktree prune` 清掉失效登记。
-- **从零可用**：`two-instance-smoke` 用一条命令在一个从没跑过真机验证的检出里跑通双实例冒烟（复制两份 home、造两种后端工作区、起两个实例、浏览器核对、收证据、停实例），用来证明工具台本身是好的。
-- **GitLab 实例环境**：批次实例要访问 GitLab 时，用 `start-instance --instance-env-file <批次>/env.txt` 把 `GLAB_CONFIG_DIR`、`PATH`、`GITLAB_TOKEN` 传进实例进程；token 只写在环境文件里，不进命令行、批次评论、证据文件与日志。先加 `--launch-plan` 可以只看启动命令与变量名、不起进程。`prepare-batch` 也认这一个参数：开批时把环境文件直接交给本批实例，并在 `batch-preflight.json` 里记路径与变量名、不记值。写法与失败行为见 `scripts/real-machine/README.md` 的「带 GitLab 环境起实例」一节。
-- **GitLab 写场景直调入口**：要证明「隔离实例里能直调 deck 写工具」时，用 `deck-write --tool <工具名> --args <入参 JSON 文件> --ref <group>/<project> --workspace <工作区目录>` 按固定入参调一次 `deck_issue_create` / `deck_issue_patch` / `deck_map_link`，回执是无损 JSON（`--out` 另存一份，缺省 `tool-response.json`）；再用 `deck-readback --ref <group>/<project> --key <票号>` 直接走 `glab api` 独立读回，写与读是两条路径，读回一致才算数。缺 `GLAB_BIN`、`GLAB_BIN` 指向的文件不存在、工作区不存在或仓库标识不是 `<group>/<project>` 时退出码 3 并说明原因；工具名不在清单或入参文件读不了时退出码 2；工具回失败时退出码 1。命令细节见 `scripts/real-machine/README.md` 的「直调 deck 写工具」一节，提交门禁是 `tests/verify-1709-deck-entry.ts`（加 `--negative` 可单独触发负例）。B0 批次要真建一张票、真改一次、真挂一次父票，再用 `deck-readback` 读回并把回执与读回两份 JSON 贴进证据。
+- **批次身份与候选**：`dsh-verify freeze` 产出 `candidate.json`（候选提交、包名/版本、tgz sha256、逐文件摘要 `fileDigest`、`validity`/`sourceStable`）。`dsh-verify batch open --name <批次名> --base-ref <基线> --candidate <候选目录> --work-root <工作根>` 把批次名、候选与基线 tip / 目标版本写成 `batch.json`，并给出两条逐字契约行：`- 验证身份：批次 <批次名>；候选提交 <40位小写hex>；候选包 sha256 <64位小写hex>` 与 `- 验证基线：本地 <ref> <tip>；目标版本 <version>`。身份行里的「候选包 sha256」绑定候选清单摘要，tgz 的 sha256 不参与；没有基线时 batch 记 blocked（`--allow-stale` 只降级「HEAD 已移动」这一项）。之后用 `batch status` 复核新鲜度；发布前检查不读本机批次目录，只核对票面评论与传入的 `candidate.json`。
+- **证据目录**：每个批次一个目录 `<工作根>/batches/<批次名>/`（或 `--work-root` 指定的位置），证据先落在 `evidence/files/` 下，再由 `dsh-verify evidence add` 登记成带每个文件 SHA256 的 `evidence.json`；`evidence archive` 归档（`SHA256SUMS`）、`evidence verify` 复核，同名证据加序号而不覆盖。规则要求证据能独立看懂：评论里贴截图关键区域、日志关键行或接口返回字段，不把临时目录路径当唯一证据。
+- **清理要求与上限**：用 `dsh-verify cleanup --yes` 先报账、确认后再删（`--keep-batches` / `--keep-homes` 控制保留份数，`--include-pkg` 连候选包一起清）。工作根总量建议不超过 15GB、批次目录不超过 20 个、单个批次不超过 2GB；每次批次结束、发布前、换版本重跑之前各清一次。批次里的 GitHub 工作区是源仓库的 `git worktree`，批次目录删掉之后在源仓库跑一次 `git worktree prune` 清掉失效登记。
+- **从零可用**：`dsh-verify self-check`、`dsh-verify concurrent --count 2` 与 `npm run verify:ui` / `npm run verify:smoke` 要能在一个从没跑过真机验证的检出里跑通「起两个隔离实例、界面可交互、停干净」；`verify/scenarios/smoke.ts` 就是这条冒烟的终态，用来证明接入本身是好的。
+- **GitLab 实例环境**：批次实例要访问 GitLab 时，由声明里的 `instanceEnvAllowlist`（恰为 `GLAB_CONFIG_DIR`、`GITLAB_TOKEN`、`GLAB_BIN`）限定可注入变量；`dsh-verify launch` 从当前进程环境取这些变量传给实例，命令行、`instance.json`、日志与证据里只记变量名、不记值。token 放在环境文件里加载进当前 shell，不要写进命令行；只需要看计划时用 `--dry-run`。
+- **GitLab 写场景直调入口**：要证明「隔离实例里能直调 deck 写工具」时，用 `deck-write --tool <工具名> --args <入参 JSON 文件> --ref <group>/<project> --workspace <工作区目录>` 按固定入参调一次 `deck_issue_create` / `deck_issue_patch` / `deck_map_link`，回执是无损 JSON（`--out` 另存一份，缺省 `tool-response.json`）；再用 `deck-readback --ref <group>/<project> --key <票号>` 直接走 `glab api` 独立读回，写与读是两条路径，读回一致才算数。缺 `GLAB_BIN`、`GLAB_BIN` 指向的文件不存在、工作区不存在或仓库标识不是 `<group>/<project>` 时退出码 3 并说明原因；工具名不在清单或入参文件读不了时退出码 2；工具回失败时退出码 1。提交门禁是 `tests/verify-1709-deck-entry.ts`（加 `--negative` 可单独触发负例）。B0 批次要真建一张票、真改一次、真挂一次父票，再用 `deck-readback` 读回并把回执与读回两份 JSON 贴进证据。
 
 ### 版本口径与开批基线
 
 真机验证验的永远是**下一个要发布的版本**：候选版本必须等于本地基线分支（默认 `main`）`package.json` 里的 `version`。已发布 `1.9.0-beta.32` 时，`main` 的版本已经是 `1.9.0-beta.33`，所以这一轮验的是 `1.9.0-beta.33`；稳定版同理，已发布 `1.9.0` 就验 `1.9.1`。这就是 #1777 定下的口径：不看候选自己声称什么版本，也不看旧候选文件里写着什么，而是看基线分支此刻的版本。
 
-候选提交还必须包含本地基线分支的 tip——「这一批验的是不是最新代码」由 `git merge-base --is-ancestor` 现算，不由人说。两条守卫都在 `prepare-batch` 开批时检查，不成立就拒绝，不产生 `batch.json`：
+候选提交还必须包含本地基线分支的 tip——「这一批验的是不是最新代码」由 `git merge-base --is-ancestor` 现算，不由人说。两条守卫都在 `dsh-verify batch open` 检查，不成立就记 `batch-freshness` blocked、不产生可用的批次身份：
 
-- 候选提交不包含基线 tip：这一批验的是落后于最新代码的版本。默认拒绝；只在开发验证里可以加 `--allow-outdated-base` 放行，但这样开的批次 `check-batch` 会标 `stale`，不能用于发布收口。
-- 候选版本不等于基线 `package.json` 的版本：版本口径不对，重新冻结。`--allow-dirty` 与 `--allow-outdated-base` 都不能绕过这条。
+- 候选提交不包含基线 tip：这一批验的是落后于最新代码的版本。默认拒绝；只在开发验证里可以用 `--allow-stale` 放行，放行后这条批次会标成陈旧，不能用于发布收口。
+- 候选版本不等于基线 `package.json` 的版本：版本口径不对，重新冻结。`--allow-stale` 不能绕过这条。
 
-批次开始评论里除了机器可读的验证身份行，再写一行验证基线（`prepare-batch` 输出里的 `baseLine`，格式 `- 验证基线：本地 main <40位提交>；目标版本 <版本号>`），让读评论的人一眼看出这批验的是哪个基线 tip、哪个目标版本。批次结束时 `check-batch` 会重读基线 tip；如果这期间 `main` 前进了，这条批次同样标 `stale`——只比 HEAD 抓不到这种情况：在集成分支上开批时，集成分支 HEAD 可以一直不动，`main` 却已经前进了。
+批次开始评论里除了机器可读的验证身份行，再写一行基线行（`batch open` 输出里给的那一行），让读评论的人一眼看出这批验的是哪个基线 tip、哪个目标版本。批次结束时用 `dsh-verify batch status` 重读基线 tip；如果这期间基线前进了，这条批次同样标成陈旧——只比 HEAD 抓不到这种情况：在集成分支上开批时，集成分支 HEAD 可以一直不动，`main` 却已经前进了。
 
 ### 证据归档、不可变与批次环境记录
 
 批次留下的证据是发布结论的唯一凭据，但批次目录会被清理、文件也可能被下一次重跑覆盖，所以另外定三条规矩：
 
-- **每批结束立刻归档**：结果评论发出前后，把整批证据复制到 `<工作根>/evidence-archive/<批次名>-<时间戳>/`。归档目录放在批次目录之外（`cleanup` 只删批次目录，不碰归档），原文件不删不改；同时复制 `pkg/candidate.json`，并生成一份 `SHA256SUMS.txt` 记录每个文件的哈希。归档副本至少保留到下一版发布结束。起因：2026-10-30 beta.32 批次重跑一次就覆盖了 `measure-banner.json`，1661-02 矮窗的机器可读证据丢失，只剩一张截图和一份日志。
+- **每批结束立刻归档**：结果评论发出前后，用 `dsh-verify evidence archive` 把整批证据复制到 `<工作根>/evidence-archive/<批次名>-<时间戳>/`。归档目录放在批次目录之外（`cleanup` 只删批次目录，不碰归档），原文件不删不改；同时复制 `candidate.json`，并生成一份 `SHA256SUMS.txt` 记录每个文件的哈希。归档副本至少保留到下一版发布结束。起因：2026-10-30 beta.32 批次重跑一次就覆盖了 `measure-banner.json`，1661-02 矮窗的机器可读证据丢失，只剩一张截图和一份日志。
 - **证据不可变**：证据 JSON 与截图写出之后不再编辑。需要更正（例如脚本里残留了旧提交号）时，新写一份旁注文件说明「哪个文件、哪个字段、为什么改、以哪份为准」，再在清单票评论里写清楚，不要直接改原件冒充当时的记录。beta.32 批次手动改过证据副本里的 `commit` 字段，虽然测量数值没动，但「测量当刻写下的原件」因此不复存在。
-- **每批开始记录宿主显示状态**：批次开始那条评论的「验证环境」里要有这一项。直接抄 `preflight` JSON 的 `items[]` 里 id 为 `screen` 的那一项：`details.primaryDevice` 是主屏的宽、高与设备名，`details.devices` 是全部显示器及是否主屏。预检自己执行屏幕命令，不靠人抄；批次记录以这份 JSON 为准。
+- **每批开始记录宿主显示状态**：批次开始那条评论的「验证环境」里要有这一项。跑一次 `dsh-verify self-check --screen --json`，抄报告里 `screen-present` 检查的实际值（显示器数量与分辨率；只有一台显示器时 base 只报总数与尺寸，多显示器时补一句人工确认的主屏与分辨率）。预检不靠人回忆；批次记录以这份报告为准。
 
-这只是「批次开始那一刻主机是什么样」的快照，不能证明整个批次期间都稳定；真正的视口以真全屏实例的 `page-diagnostics.json` 里 `fullscreen` 与 `viewport` 字段为准。宿主在多个显示器或分辨率之间自动切换时，先请人把显示器固定住再开批；不要用看门狗去抢每次只出现两三分钟的横屏窗口——切屏会打断测量，留下的证据不可信，还要整批重跑。beta.32 批次因此两次作废 1660 的证据，最终 wide/short 没能按登记尺寸复跑。
+这只是「批次开始那一刻主机是什么样」的快照，不能证明整个批次期间都稳定；真正的视口以有头核对留下的窗口外框、页面视口与截图为准。宿主在多个显示器或分辨率之间自动切换时，先请人把显示器固定住再开批；不要用看门狗去抢每次只出现两三分钟的横屏窗口——切屏会打断测量，留下的证据不可信，还要整批重跑。beta.32 批次因此两次作废 1660 的证据，最终 wide/short 没能按登记尺寸复跑。
 
 ### 报告索引：把批次证据汇总成报告能用的数字
 
@@ -119,9 +115,9 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/report-index.m
 
 ## 三、验证批次
 
-验证主持人从当前 HEAD 重新冻结的候选上跑一批（`prepare-batch` 默认就是这样做的）。每批做四件事：
+验证主持人从当前 HEAD 重新冻结的候选上跑一批（`dsh-verify freeze` + `batch open` 就是这样做的）。每批做四件事：
 
-1. **批次开始时发一条评论**：批次号、版本与提交、构建产物及其 sha256、验证环境（操作系统、DSH 版本、隔离的 home/profile、已装插件版本、网络条件、前置巡检结果（preflight JSON，含屏幕分辨率与主屏））、本批要验的场景编号清单、开始时间。这条评论必须含一行机器可读的验证身份，精确格式是 `- 验证身份：批次 <批次名>；候选提交 <40位小写提交>；候选包 sha256 <64位小写tgz哈希>`；批次名、候选提交与候选包 sha256 要和本批 `batch.json` 里的记录一致（`collect-evidence` 收证据时会核；发布前检查不读本机批次目录，只核对票面评论与传入的 `candidate.json`）。另外还要写一行验证基线（`prepare-batch` 输出里的 `baseLine`，格式是 `- 验证基线：本地 <基线分支> <40位提交>；目标版本 <版本号>`），让人看出这批验的是哪个基线 tip、哪个目标版本。
+1. **批次开始时发一条评论**：批次号、版本与提交、构建产物及其 sha256、验证环境（操作系统、DSH 版本、隔离的 home/profile、已装插件版本、网络条件、自检结果（`dsh-verify self-check --json` 的报告，含 `screen-present` 的屏幕分辨率与主屏））、本批要验的场景编号清单、开始时间。这条评论必须含一行机器可读的验证身份，精确格式是 `- 验证身份：批次 <批次名>；候选提交 <40位小写提交>；候选包 sha256 <64位小写候选清单摘要>`（这一项绑定 `candidate.json` 的清单摘要，不是 tgz 的 sha256；tgz 的哈希另记在候选与批次评论的产物信息里）；批次名、候选提交与候选包 sha256 要和本批 `batch.json` / `candidate.json` 里的记录一致（`dsh-verify evidence add` 收证据时会核；发布前检查不读本机批次目录，只核对票面评论与传入的 `candidate.json`）。另外还要写一行基线行（`batch open` 输出里的格式 `- 验证基线：本地 <基线分支> <40位提交>；目标版本 <版本号>`），让人看出这批验的是哪个基线 tip、哪个目标版本。
 2. **逐场景执行并记录结果**。每验完一条就记下通过还是失败，不要等整批结束再凭记忆补。每条记录场景结果的评论都要带同一行验证身份（同一个批次名、候选提交、候选包 sha256）；缺这一行或身份与批次开始评论对不上，这条结果不算进通过项。
 3. **批次结束时发一条结果评论**（同样要带验证身份行）：逐场景写 `通过` / `失败（→ #新票号）` / `未测（原因）`，每条附决定性证据。证据要能独立看懂：截图路径、关键日志行、接口返回字段；临时目录里的文件路径不能作为唯一证据，因为目录会删，要把关键几行贴进评论。
 
@@ -154,28 +150,38 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/report-index.m
 
 有争议的豁免转成正式场景验证。主持人每批可以抽一条豁免做冒烟，抽检结果记在批次结果评论里。豁免不算通过，发布计数时把「通过」和「豁免」分开写。
 
-## 五、发布前：机器检查五道
+## 五、发布前：机器检查六道
 
-发布前检查有五条判据，由 `scripts/release-preflight.mts` 执行：
+发布前检查有六条判据。规则实现在 base 仓的 `runReleaseGate` 里，本仓只接线：
+`scripts/release-preflight.mts` 是薄命令行，`scripts/lib/release-preflight-gate.mts` 是唯一的组合根
+（读 `verify/profile.ts` 与 `verify/ticket-face.mts`、取发布提交、调 base 门禁一次），规则本身不在这里复制。
+六条判据：
 
 1. 本版清单票**恰好一张**。
 2. 这张清单票**已经关闭**。
 3. 这张票的**正文与评论记录内部一致**：场景总览表的编号集合、每条场景的状态，与评论里的场景块、批次结果、收口计数对得上；正文自称的条数、分组计数、发布计数也和表的实际统计一致。
 4. 本版**批次评论都带验证身份**：批次开始评论与每条场景结果评论里都有格式正确的「验证身份」行，批次名、候选提交与候选包 sha256 和传入的 `candidate.json`（`--candidate`）记录一致。发布前检查不读本机 `batch.json`：发布可能不在做真机验证的那台机器上，机器检查只凭票面评论与候选清单判断；找不到身份行、格式不对或同一批次的记录互相矛盾的，不算通过。
 5. **候选提交与发布提交的关系成立**：所有候选提交都能在发布提交的历史里找到（是发布提交的祖先）；候选提交与发布提交不同时，清单票正文的「候选与发布差异审计」一节必须写清差异为什么可以接受（一行 `- 候选提交 <40位小写提交> → 发布提交 <40位小写提交>：<一句话说明差异为什么可接受>`）。候选提交不是发布提交的祖先，或两者不同却没有差异审计，都拦住发布。
+6. **候选清单是可发布产物**：传入 `--candidate` 时，`validity` 必须是 `release`、`sourceStable` 必须为真、各类摘要格式正确；`development` 候选直接拒绝。不传候选时这一条记 `skip`（不是通过），输出会写明「只核对票面与身份行，不证明要发的字节」。
 
-五条都满足才能继续发布。检查挂在两条发布路径上，走的都是同一个脚本：
+六条都满足才能继续发布。检查挂在两条发布路径上，走的都是同一个脚本，没有跳过开关：
 
-- `scripts/publish-token.ps1`（有写权限 token 时的无人值守路径，token 经 `-TokenFile` 临时文件传入，命令行里只有路径；传法与轮换见 [`RELEASE-RUNBOOK.md` 第 12 节](../releases/RELEASE-RUNBOOK.md)）：发布前检查失败就中止，`-DryRun` 试运行时只提示不阻断。
-- `scripts/wizard-release.sh`（需要人扫码的交互向导）：同样在发布步骤之前检查，失败就中止；`--dry-run` 时只提示。
+- `scripts/publish-token.ps1`（有写权限 token 时的无人值守路径，token 经 `-TokenFile` 临时文件传入，命令行里只有路径；传法与轮换见 [`RELEASE-RUNBOOK.md` 第 12 节](../releases/RELEASE-RUNBOOK.md)）：按检查退出码四态分流，`-DryRun` 试运行时任何非 0 只提示不阻断。
+- `scripts/wizard-release.sh`（需要人扫码的交互向导）：同样在发布步骤之前检查，按退出码四态分流；`--dry-run` 时只提示。
 
-通过这五道检查之后，发布脚本还可以再做一道字节对账（#1766）：`scripts/publish-token.ps1 -Candidate <candidate.json>` 在发布前把待发字节的逐文件清单指纹与候选包的 `package.fileDigest` 比一次。一致就继续发布；不一致但清单票里有差异审计（发布前检查会打 `PREFLIGHT-CANDIDATE-AUDIT`）时继续发布并记 `CANDIDATE-DIFF-AUDITED`；不一致又没有差异审计时打 `CANDIDATE-DIFF` 并中止。候选的 `validity` 是 `development` 时直接拒绝发布。不传 `-Candidate` 时记 `CANDIDATE-SKIP`，只做票面检查、不做字节对账，行为与以前一样。
+发布前检查的退出码分四态，两条发布路径按它分流：`0` 通过（`PREFLIGHT-OK`）；`1` 票面或候选要人改
+（`PREFLIGHT-FAIL`，逐条列出 finding 与「改法」）；`2` 无法判定（`PREFLIGHT-BLOCKED` / `PREFLIGHT-ENV`，
+例如 gh 没登录、git 不可用、票面适配器缺失）；未知退出码也按环境失败处理。`-DryRun` / `--dry-run` 只改
+「要不要中止发布」，不改检查本身跑不跑——检查永远跑，演练只决定提不提示。票面从哪读由
+`verify/ticket-face.mts`（gh CLI + git）回答；没有适配器时门禁记 blocked（exit 2）并给出三步注入方法，绝不绿。
+
+通过这六道检查之后，发布脚本还可以再做一道字节对账（#1766）：`scripts/publish-token.ps1 -Candidate <candidate.json>` 在发布前把待发字节的逐文件清单指纹与候选包的 `package.fileDigest` 比一次。一致就继续发布；不一致但清单票里有差异审计（发布前检查会打 `PREFLIGHT-CANDIDATE-AUDIT`）时继续发布并记 `CANDIDATE-DIFF-AUDITED`；不一致又没有差异审计时打 `CANDIDATE-DIFF` 并中止。候选的 `validity` 是 `development` 时直接拒绝发布。不传 `-Candidate` 时记 `CANDIDATE-SKIP`，只做票面检查、不做字节对账，行为与以前一样。
 
 清单票什么时候能关：所有已登记场景都是「已验证」「通过」或「豁免被接受」。如果验的过程中发现了新问题，就开新 bug 票；这个问题需要真机复验的话，把场景追加进清单票并标成待验证，于是清单票关不上、发布自然被拦。这就是整套机制的闭环，不需要额外检查代码改了什么。
 
 关闭评论里写一行计数给读的人看（例如 `[发布就绪] 通过 12 / 失败 0 / 豁免 3`；开发期已验过的场景计入「通过」，在备注里写明验证时间与证据出处）。这一行以及正文里各处的数字现在也参与机器核对：正文「## 场景总览」一节开头写的条数、各状态分组计数、来源票数，正文「## 发布前对账」与关闭评论里的通过/失败/豁免计数，以及收口评论里「N 条已登记场景」「N 条登记前已验证」「N 条本版真机通过」「N 条豁免」这类自称计数，都必须和场景总览表的实际统计一致；对不上会逐条列出「哪里写了什么、实际是什么、按什么改」，修正前发布被拦住。脚本只核对记录是否自洽；某个豁免该不该接受、场景是不是真的验过，仍然由人判断。
 
-发布前建议再做一次人工对账：用 CHANGELOG 里的「对应提交」与自上一版发布以来合并的提交逐票对照，确认每个影响使用方的票都有场景块。代码冻结是规则的一部分，不是「安排批次的建议」：每一批都必须从当前 HEAD 重新冻结候选（`prepare-batch` 默认这样做），不能拿早先冻结的旧候选冒充新批次；批次结束后用 `check-batch` 收尾，HEAD 或本地基线前进了就把这条批次标成 `stale`，它的证据只对它自己那个候选提交有效，不能用于发布收口。发布前人工对账只认最后一批干净批次（`validity=release`）且候选提交是发布提交祖先的那条记录（机器检查只看票面评论与候选清单，见第五节）；候选提交与发布提交不同时，清单票的「候选与发布差异审计」必须写清差异为什么可以接受。验完之后如果必须再改代码，只补验受影响的那几条场景，不必重验全清单——但下一批仍然要从新的 HEAD 重新冻结。
+发布前建议再做一次人工对账：用 CHANGELOG 里的「对应提交」与自上一版发布以来合并的提交逐票对照，确认每个影响使用方的票都有场景块。代码冻结是规则的一部分，不是「安排批次的建议」：每一批都必须从当前 HEAD 重新冻结候选（`dsh-verify freeze` + `batch open` 这样做），不能拿早先冻结的旧候选冒充新批次；批次结束后用 `dsh-verify batch status` 收尾，HEAD 或本地基线前进了就把这条批次标成陈旧（stale），它的证据只对它自己那个候选提交有效，不能用于发布收口。发布前人工对账只认最后一批干净批次（`validity=release`）且候选提交是发布提交祖先的那条记录（机器检查只看票面评论与候选清单，见第五节）；候选提交与发布提交不同时，清单票的「候选与发布差异审计」必须写清差异为什么可以接受。验完之后如果必须再改代码，只补验受影响的那几条场景，不必重验全清单——但下一批仍然要从新的 HEAD 重新冻结。
 
 ## 六、发布之后
 
@@ -198,5 +204,5 @@ node --import ./scripts/ts-hook.mts scripts/real-machine/commands/report-index.m
 - 清单票模板：[checklist-issue-template.md](checklist-issue-template.md)
 - 发布流程：[docs/releases/RELEASE-RUNBOOK.md](../releases/RELEASE-RUNBOOK.md)
 - 票的读写规则：[docs/agents/issue-tracker.md](issue-tracker.md)
-- 检查脚本：`scripts/release-preflight.mts`、`scripts/release-postflight.mts`
-- 真机验证工具台：[scripts/real-machine/README.md](../../scripts/real-machine/README.md)
+- 检查脚本：`scripts/release-preflight.mts`（薄命令行）、`scripts/lib/release-preflight-gate.mts`（组合根）、`scripts/release-postflight.mts`
+- 真机验证接入与工具：[verify/README.md](../../verify/README.md)

@@ -209,21 +209,11 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-1708-seed-data': 57,
   // 2026-10-31 #1709：deck 写工具直调入口门禁，正例单跑实测 64 条断言；负例用 --negative 单独跑（2 条断言、2 条故意红），不计入开闸期望。
   'verify-1709-deck-entry': 64,
-  // 2026-10-31 #1710：批次前置巡检门禁，正例单跑实测 76 条断言；负例用 --negative 单独跑（5 条断言、3 条故意红），不计入开闸期望。
-  // 2026-11-01 #1793：登录检查改为只问 gitlab.com 这一台主机，补 2 条断言（只跑带 --hostname 的命令、未登录原因写清下一步），单跑实测 78 条。
-  'verify-1710-preflight': 78,
   // 2026-10-31 #1706：GitLab 沙箱项目与工作区的黑盒门禁，正例单跑实测 58 条断言；负例用 --negative 单独跑，不计入开闸期望。
   'verify-1706-gitlab-project': 58,
-  // 2026-10-31 #1707：真机实例环境注入门禁，正例单跑实测 79 条断言；负例用 --negative 单独跑（5 条断言、3 条故意红），不计入开闸期望。
-  'verify-1707-env-injection': 79,
   // 2026-10-31 #1711：报告索引脚本门禁，正例单跑实测 94 条断言；负例用 --negative 单独跑，不计入开闸期望。
   // 2026-10-31 #1714：执行 B1 时发现 P2 产品缺陷按规格不开票、defect 必须允许 null，补 4 条断言，单跑实测 98 条。
   'verify-1711-report-index': 98,
-  // 2026-10-31 #1705：真机工具台的进程级夹具门禁，正例单跑实测 43 条断言；负例用 --negative 单独跑，不计入开闸期望。
-  'verify-1705-real-machine-fixture': 43,
-  // 2026-11-01：真机实例自动配置 MiniMax CN 模型的黑盒门禁，正例单跑实测 40 条断言；
-  // 负例行为由门禁内部的非法 YAML、缺密钥、密钥泄露检查覆盖，不另设 --negative。
-  'verify-real-machine-model': 40,
   // 2026-10-29 #1600：词表里 gate.wipNotice 已退役（GitLab 可用后不再有「筹备中」注解），
   // 这扇改成先钉「键已不在词表里」、再钉「初始化小卡上不再出现该文案」，单跑实测 31 条。
   'verify-669-collapsed-recoverable': 31,
@@ -327,12 +317,19 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-29 #1654：没点开过的工作区行显示「已存住，打开该工作区后生效」；
   // 名单上、认不出根的行画小字，点开过与兜底行不画，真内核走一遍存临时、认出根、合并；20 条是单跑实测得出的。
   'verify-1654-ws-pending-hint': 20,
-  // 2026-10-29 全屏误判收口：有头验证必须真全屏，固定视口不能拿来做遮挡类结论；
-  // 判据与源码约定各占一组断言，21 条是单跑实测得出的（真全屏探针另在批次证据里验过一次）。
-  'verify-real-machine-fullscreen': 21,
-  // 2026-10-29 三款窗口尺寸定版：全屏宽 / 窄窗（外框 800，面板 300–359）/ 宽矮窗（高 600）；
-  // 数据换算、browser.mts 实现约定与两份文档各占一组断言，32 条是单跑实测得出的（真机探针另在批次证据里跑过）。
-  'verify-real-machine-size-presets': 32,
+  // 2026-11-02 票 #13 阶段 B1b：旧真机全屏与窗口预设迁到 base 声明/场景机制后，插件侧仍保留的覆盖——
+  // 真全屏判据（含 2026-10-29 的 1083 vs 2195 事故）、CDP Browser.setWindowBounds 改窗、三款窗口预设换算；
+  // 迁移自已删的 tests/verify-real-machine-fullscreen.ts 与 tests/verify-real-machine-size-presets.ts，单跑实测 60 条。
+  'verify-windows': 60,
+  // 2026-11-02 票 #13 阶段 B1b：插件五项自检的登记与数据缺失语义、实例环境只放行三个变量、
+  // base 的 formatIdentityLine 生成的身份行能被发布审计解析；迁移自已删的 tests/verify-1710-preflight.ts 检查部分、
+  // tests/verify-1707-env-injection.ts allowlist 部分与 tests/verify-1766-batch-identity.ts 身份行部分，单跑实测 67 条。
+  'verify-verify-checks': 67,
+  // 2026-11-02 票 #16 阶段 2：发布门禁接线——组合根只用 base 的 runReleaseGate 一次判定、
+  // 薄 CLI 没有跳过开关、两条发布路径（publish-token.ps1 / wizard-release.sh）按退出码四态分流、
+  // gh 票面适配器形状合规；六条规则的输入用假适配器 + 假 git 端口驱动，不碰真 gh、不发网络请求。
+  // 16 组 A–L 共 88 条，单跑实测得出的。
+  'verify-release-gate': 88,
   // 2026-10-31 #1685：读结果的来源与按字段组完整度（从操作百科枚举 12 条读操作逐条对账、
   // 两套协议形状互不引用、十二种坏来源负例、stub 执行器真调三条读路径）；
   // 251 条是单跑实测得出的。
@@ -393,7 +390,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-map-first-frame': 51,
   // 2026-10-31 #1696：真投影驱动渲染（react-dom/server 渲染真 MapDetailV2Page）：首帧画出被挡关系
   // 与四枚计数、加载与失败不覆盖已知、降级快照不缩水、未归一原始行判红（负例）、跨容器阻塞者三态
-  // （OPEN/CLOSED/未知）在真投影里画对被挡与可接（#1768）、构建产物里有投影函数；
+  // （OPEN/CLOSED/未知）在真投影里画对被挡与可接（#1768）、构建产物里有投影函数。
   // 2026-11-02 #1803：加 5 条身份标记断言（图标、容器词「地图/规格」两种、共享徽标编号、标记排在标题前），
   // 文件名带 freshness，按阶段表排在构建之后；50 条单跑实测。
   'verify-map-first-frame-freshness': 50,
@@ -461,24 +458,9 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 真镜像备份后交接长任务（C）、维护页两片客户端叶子与词表对账（D）、七个登记点与 filter-repo 参数语法（E），末尾带反证；
   // 单跑实测 353 条。
   'verify-1586-rewrite': 353,
-  // 2026-10-31 #1766：批次候选身份与证据绑定（旧候选、脏候选、证据缺身份、HEAD 前进、候选文件与 tgz 被换、
-  // 批次名不能是 . 与 ..、collect-evidence 命令层拒收被改过的候选；#1777 起再加一条「本地基线前进而 HEAD 没动
-  // 时批次也标 stale」）；30 条单跑实测。
-  'verify-1766-batch-identity': 30,
-  // 2026-11-01 #1777：开批新鲜度与版本口径守卫（基线 tip 与 package.json 版本读取、候选须包含基线 tip、
-  // 落后与分叉都拒绝、--allow-outdated-base 只放行落后且标 outdatedBase、版本不符与 development 候选都不能绕过、
-  // 收尾时基线前进/读不到基线/旧批次无 base 都判 stale、batch.json base 往返与坏记录拒绝、
-  // check-batch 与 prepare-batch 命令层接线）；34 条单跑实测。
-  'verify-1777-batch-freshness-guards': 34,
   // 2026-10-31 #1766：发布候选审计与发布字节对账（身份行、候选提交祖先、差异审计、候选包哈希、
   // validate/match 命令行入口、publish-token.ps1 传 -Candidate 时的真实冒烟）；59 条单跑实测。
   'verify-1766-release-audit': 59,
-  // 2026-11-02 #1802（两窗共用设置文件时旧窗口整份写回覆盖）：双客户端门禁——宿主按格补丁写入的
-  // 七组（缺文件、旧整份入参兼容、只改点名格、null 删临时记录、旧版本指纹回 conflict 且文件不动、
-  // 同一宿主实例并发两笔补丁写也不互相覆盖、内容指纹形状），客户端闭包五组（两窗重读、两窗各写一格
-  // 最终两格都在且入参是补丁、conflict 后重读重试、设置页第一次打开走惰性加载、第一笔保存只发用户点过的格），设置页挂载重读接线与两份产物各一条，
-  // 再加一条「客户端片里的空文档与设置核里的空文档逐字一致」的 ADR 拷贝断言；74 条单跑实测。
-  'verify-1802-settings-cross-window': 74,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

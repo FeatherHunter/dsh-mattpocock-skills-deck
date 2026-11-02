@@ -5,8 +5,10 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { PLUGIN_CACHE_DIR } from './home.mts'
 import { exists, isDir, today } from './util.mts'
+
+/** 插件缓存目录名：插件把日志写在「DSH 进程当前目录」下的这个目录里。 */
+export const PLUGIN_CACHE_DIR = '.dsh-mattskillsdeck-cache'
 
 export interface LogEvent {
   line: number

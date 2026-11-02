@@ -30,8 +30,10 @@ const WORK_REL = 'test/wizard-609-work'
 const WORK = path.join(ROOT, WORK_REL)
 const GIT_BASH = 'C:\\Program Files\\Git\\bin\\bash.exe'
 // 发布那一段的行号：抽的是产品源码本身，不手抄。改向导的人若把这段挪了位置，这段门禁会当场花掉提醒对齐。
-const PUBLISH_START = 304
-const PUBLISH_END = 339
+// 2026-11-02 票 #16 把 stage 3 的 ⑤「真机验证清单」从旧口径（--soft）改成四态后，这段整体下移 7 行；
+// 抽取段本身（准备发布 → 本终端/另一窗口两条发布路径 → 记「已发布」）逐字未改。
+const PUBLISH_START = 311
+const PUBLISH_END = 346
 
 let failed = false
 let total = 0

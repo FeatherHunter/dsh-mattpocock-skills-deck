@@ -1,0 +1,7 @@
+读操作额度闸改为按实际花费渠道放行（#1765）
+
+操作百科里读操作的 budget 声明的是「按哪族记账」，额度闸与会话预检却拿它当「实际花哪族」用，于是三类误判：只走 REST 的四条读（preflight、getCurrentUser、getRepoPermissions、listLabels）在 GraphQL 见底时被拦；只走 GraphQL 的 listMaps 在 REST 见底时被拦；能降级 REST 的 list、get、getDependencies 在 GraphQL 见底时整笔被拒。
+
+这次把声明改成 spend：读操作写「实际会花哪些渠道、按什么顺序」。额度闸从百科派生这份计划，放行时按各族保底把可行的渠道按顺序交给房间；房间只在计划内换渠道，计划外一次都不试；两族都低于保底才拒绝并点名两族。会话预检不再按读/写决定探哪一族，读调用也两族任一通过即放行。
+
+新增 tests/verify-1765-read-channel-plan.ts 钉住 12 条读的映射、额度闸四种放行场景与房间选路；同步改写操作百科、1418 预检与 1446 GitLab 额度门禁。

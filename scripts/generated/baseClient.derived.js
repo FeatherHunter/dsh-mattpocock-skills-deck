@@ -1,17 +1,17 @@
-// 派生文件（base 包接入）：由已安装的 dsh-featherhunter-plugin-base@0.1.5 的 dist/client/index.js 内联生成，内容与安装版本一致，人手不改。
+// 派生文件（base 包接入）：由已安装的 dsh-featherhunter-plugin-base@0.1.6 的 dist/client/index.js 内联生成，内容与安装版本一致，人手不改。
 // 构建时拼入客户端闭包（src/client/index.ts 的 kernel:baseClient 标记处）；首行保留包的版本横幅供 doctor 的 inline-bundle-version 核对。
 // 重新生成：node scripts/derive-base-from-package.mts（重跑零 diff）。
 // ---- 作用域隔离：包体顶层声明包进 IIFE 藏起来，只留两个外面要用的 ----
 const __basePkgScope = (() => {
-  /*! dsh-featherhunter-plugin-base v0.1.5 */
+  /*! dsh-featherhunter-plugin-base v0.1.6 */
 
   // src/core/baseline.ts
   var BASELINE = {
     "manifest": {
       "schema": 1,
-      "version": "0.1.5",
-      "revision": 2,
-      "updatedAt": "2026-10-31T00:00:00+08:00",
+      "version": "0.1.6",
+      "revision": 3,
+      "updatedAt": "2026-11-01T00:00:00+08:00",
       "fallbackUrl": "https://github.com/FeatherHunter/featherhunter-plugin-manage",
       "groups": [
         {
@@ -94,10 +94,6 @@ const __basePkgScope = (() => {
           "title": {
             "zh": "DSH \u63D2\u4EF6\u4EA4\u6D41\u7FA4",
             "en": "DSH Plugin Community"
-          },
-          "subtitle": {
-            "zh": "\u7FA4\u804A\uFF1ADSH \u63D2\u4EF6\u4EA4\u6D41\u7FA4",
-            "en": "Group chat: DSH Plugin Community"
           },
           "validUntil": "2026-11-07"
         }
@@ -236,14 +232,14 @@ const __basePkgScope = (() => {
     const day = until.getUTCDate();
     if (days <= 0) {
       if (options.lang === "en") {
-        return `Valid today (until ${month}/${day}), refreshed on re-entry`;
+        return `Valid today (until ${month}/${day})`;
       }
-      return `\u8BE5\u4E8C\u7EF4\u7801\u4ECA\u5929\uFF08${month} \u6708 ${day} \u65E5\u524D\uFF09\u6709\u6548\uFF0C\u91CD\u65B0\u8FDB\u5165\u5C06\u66F4\u65B0`;
+      return `\u8BE5\u4E8C\u7EF4\u7801\u4ECA\u5929\uFF08${month} \u6708 ${day} \u65E5\u524D\uFF09\u6709\u6548`;
     }
     if (options.lang === "en") {
-      return `Valid for ${days} day${days === 1 ? "" : "s"} (until ${month}/${day}), refreshed on re-entry`;
+      return `Valid for ${days} day${days === 1 ? "" : "s"} (until ${month}/${day})`;
     }
-    return `\u8BE5\u4E8C\u7EF4\u7801 ${days} \u5929\u5185\uFF08${month} \u6708 ${day} \u65E5\u524D\uFF09\u6709\u6548\uFF0C\u91CD\u65B0\u8FDB\u5165\u5C06\u66F4\u65B0`;
+    return `\u8BE5\u4E8C\u7EF4\u7801 ${days} \u5929\u5185\uFF08${month} \u6708 ${day} \u65E5\u524D\uFF09\u6709\u6548`;
   }
   function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -1581,6 +1577,65 @@ const __basePkgScope = (() => {
     return new ContentLoader(options);
   }
 
+  // src/client/channel-badges.ts
+  var CHANNEL_BADGES = {
+    feishu: {
+      platform: "feishu",
+      labelKey: "channelFeishu",
+      color: "#3370FF",
+      viewBox: "0 0 48 48",
+      fillRule: "evenodd",
+      paths: [
+        "M41.0716 5.99409L3.31071 16.5187L12.3856 25.8126L20.7998 25.9594L30.4827 16.5187C30.2266 15.9943 30.0985 15.5552 30.0985 15.2013C30.0985 14.4074 30.4104 13.7786 30.8947 13.333C31.7241 12.57 32.7222 12.4558 33.8889 12.9905L41.0716 5.99409Z",
+        "M42.1021 6.72842L31.5775 44.4893L22.2836 35.4144L22.1367 27.0002L31.5115 17.4816C32.0195 17.8454 32.5743 18.0105 33.1759 17.9769C34.0784 17.9264 34.6614 17.3813 34.9349 17.0602C35.2083 16.7392 35.5293 16.2051 35.5025 15.4113C35.4847 14.8821 35.3109 14.3941 34.9812 13.9472L42.1021 6.72842Z"
+      ]
+    },
+    qq: {
+      platform: "qq",
+      labelKey: "channelQq",
+      color: "#12B7F5",
+      viewBox: "0 0 24 24",
+      fillRule: "nonzero",
+      paths: [
+        "M21.395 15.035a40 40 0 0 0-.803-2.264l-1.079-2.695c.001-.032.014-.562.014-.836C19.526 4.632 17.351 0 12 0S4.474 4.632 4.474 9.241c0 .274.013.804.014.836l-1.08 2.695a39 39 0 0 0-.802 2.264c-1.021 3.283-.69 4.643-.438 4.673c.54.065 2.103-2.472 2.103-2.472c0 1.469.756 3.387 2.394 4.771c-.612.188-1.363.479-1.845.835c-.434.32-.379.646-.301.778c.343.578 5.883.369 7.482.189c1.6.18 7.14.389 7.483-.189c.078-.132.132-.458-.301-.778c-.483-.356-1.233-.646-1.846-.836c1.637-1.384 2.393-3.302 2.393-4.771c0 0 1.563 2.537 2.103 2.472c.251-.03.581-1.39-.438-4.673"
+      ]
+    },
+    wechat: {
+      platform: "wechat",
+      labelKey: "channelWechat",
+      color: "#07C160",
+      viewBox: "0 0 24 24",
+      fillRule: "nonzero",
+      paths: [
+        "M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213c0 .163.13.295.29.295a.33.33 0 0 0 .167-.054l1.903-1.114a.86.86 0 0 1 .717-.098a10.2 10.2 0 0 0 2.837.403c.276 0 .543-.027.811-.05c-.857-2.578.157-4.972 1.932-6.446c1.703-1.415 3.882-1.98 5.853-1.838c-.576-3.583-4.196-6.348-8.596-6.348M5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178a1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18m5.34 2.867c-1.797-.052-3.746.512-5.28 1.786c-1.72 1.428-2.687 3.72-1.78 6.22c.942 2.453 3.666 4.229 6.884 4.229c.826 0 1.622-.12 2.361-.336a.72.72 0 0 1 .598.082l1.584.926a.3.3 0 0 0 .14.047c.134 0 .24-.111.24-.247c0-.06-.023-.12-.038-.177l-.327-1.233a.6.6 0 0 1-.023-.156a.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-6.656-6.088V8.89c-.135-.01-.27-.027-.407-.03zm-2.53 3.274c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983a.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983a.976.976 0 0 1-.969-.983c0-.542.434-.982.969-.982"
+      ]
+    }
+  };
+  function channelBadge(platform) {
+    return Object.prototype.hasOwnProperty.call(CHANNEL_BADGES, platform) ? CHANNEL_BADGES[platform] : void 0;
+  }
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  function createChannelBadge(doc, badge) {
+    const tile = doc.createElement("span");
+    tile.className = "dsh-base-modal__card-badge";
+    tile.dataset.platform = badge.platform;
+    tile.setAttribute("aria-hidden", "true");
+    tile.style.setProperty("--dsh-base-badge-color", badge.color);
+    const svg = doc.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", badge.viewBox);
+    svg.setAttribute("focusable", "false");
+    svg.setAttribute("role", "presentation");
+    for (const d of badge.paths) {
+      const path = doc.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", d);
+      path.setAttribute("fill", "currentColor");
+      if (badge.fillRule === "evenodd") path.setAttribute("fill-rule", "evenodd");
+      svg.append(path);
+    }
+    tile.append(svg);
+    return tile;
+  }
+
   // src/client/styles.ts
   var BASE_STYLE_ID = "dsh-base-ui-style";
   function rowSkin(className) {
@@ -1690,11 +1745,19 @@ const __basePkgScope = (() => {
     ".dsh-base-modal__grid{display:grid;grid-template-columns:repeat(var(--dsh-base-columns,4),minmax(0,1fr));gap:14px;align-items:start}",
     ".dsh-base-modal__card{display:flex;flex-direction:column;align-items:stretch;gap:6px;min-width:0;padding:14px 12px;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.2));border-radius:14px;background:var(--dsw-alias-bg-layer-2,#fff);text-align:center}",
     ".dsh-base-modal__card--expired{background:var(--dsw-alias-state-warn-tertiary,#fffaf3);border-color:var(--dsw-alias-state-warn-secondary,rgba(180,83,9,.28))}",
-    ".dsh-base-modal__card-title{margin:0;font-size:13px;font-weight:600;line-height:1.4;color:var(--dsw-alias-label-primary,#1f2329)}",
+    ".dsh-base-modal__card-title{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px 6px;margin:0;font-size:13px;font-weight:600;line-height:1.4;color:var(--dsw-alias-label-primary,#1f2329)}",
+    ".dsh-base-modal__card-name{min-width:0}",
+    // Brand colour comes from the data row as the --dsh-base-badge-color custom
+    // property; everything visual about the tile stays in this rule.
+    ".dsh-base-modal__card-badge{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;background:var(--dsh-base-badge-color,#6b7280);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}",
+    ".dsh-base-modal__card-badge svg{display:block;width:12px;height:12px}",
     ".dsh-base-modal__card-subtitle{display:inline-block;align-self:center;margin:0;padding:2px 6px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary,#86909c);font:inherit;font-size:11px;line-height:1.5;cursor:pointer;transition:background .15s ease,color .15s ease}",
     ".dsh-base-modal__card-subtitle:hover{background:rgba(127,127,127,.1);color:var(--dsw-alias-label-secondary,#4e5969)}",
     ".dsh-base-modal__card-subtitle[data-copied='true']{color:var(--dsw-alias-link,#4d6bfe)}",
     ".dsh-base-modal__card-subtitle:focus-visible{outline:2px solid var(--dsw-alias-link,#4d6bfe);outline-offset:2px}",
+    // Invisible subtitle row: same box metrics as the copyable subtitle button, so
+    // cards that dropped their subtitle keep the QR codes on one horizontal line.
+    ".dsh-base-modal__card-subtitle-gap{display:block;align-self:center;min-height:1.5em;padding:2px 6px;font-size:11px;line-height:1.5;visibility:hidden;pointer-events:none}",
     // The QR surface stays white in every theme: scanners need the printed contrast.
     // border-box keeps the 6px white quiet zone inside the card column: with content-box
     // the image's padding escapes to the right and the QR sits visibly off-centre.
@@ -1727,7 +1790,10 @@ const __basePkgScope = (() => {
     "@media (max-width:719px){.dsh-base-modal__grid{grid-template-columns:repeat(2,minmax(0,1fr))}}",
     "@media (max-width:479px){.dsh-base-modal__grid{grid-template-columns:minmax(0,1fr)}}",
     "@media (max-width:719px){.dsh-base-modal__mobile-hint{display:inline}}",
-    "@media (prefers-reduced-motion:reduce){.dsh-base-modal__close,.dsh-base-modal__card-subtitle,.dsh-base-contact-button,.dsh-base-contact-row,.dsh-base-plugins__row,.dsh-base-icon-action,.dsh-base-tip{transition:none}}"
+    "@media (prefers-reduced-motion:reduce){.dsh-base-modal__close,.dsh-base-modal__card-subtitle,.dsh-base-contact-button,.dsh-base-contact-row,.dsh-base-plugins__row,.dsh-base-icon-action,.dsh-base-tip{transition:none}}",
+    // --- shared utilities --------------------------------------------------------
+    // Text read by assistive tech only (e.g. the channel name in a card title).
+    ".dsh-base-visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}"
   ].join("\n");
   function ensureBaseStyles(doc) {
     if (doc.getElementById(BASE_STYLE_ID)) return;
@@ -1759,7 +1825,11 @@ const __basePkgScope = (() => {
       starLabel: "Star \u8FD9\u4E2A\u9879\u76EE",
       issueLabel: "\u63D0\u4EA4 Issue",
       actionsLabel: "\u5FEB\u6377\u64CD\u4F5C",
-      moreActions: "\u66F4\u591A\u64CD\u4F5C"
+      moreActions: "\u66F4\u591A\u64CD\u4F5C",
+      // Contact modal card titles: channel name in front of the group name.
+      channelFeishu: "\u98DE\u4E66\u7FA4",
+      channelQq: "QQ\u7FA4",
+      channelWechat: "\u5FAE\u4FE1\u7FA4"
     },
     en: {
       contact: "Contact us",
@@ -1781,7 +1851,11 @@ const __basePkgScope = (() => {
       starLabel: "Star this project",
       issueLabel: "Open an issue",
       actionsLabel: "Quick actions",
-      moreActions: "More actions"
+      moreActions: "More actions",
+      // Contact modal card titles: channel name in front of the group name.
+      channelFeishu: "Feishu group",
+      channelQq: "QQ group",
+      channelWechat: "WeChat group"
     }
   };
   function resolveText(key, lang, overrides) {
@@ -1929,7 +2003,18 @@ const __basePkgScope = (() => {
       const qrSrc = expired ? null : current.resolveQr(group);
       const cardTitle = doc.createElement("h3");
       cardTitle.className = "dsh-base-modal__card-title";
-      cardTitle.textContent = pickText(group.title, lang);
+      const badge = channelBadge(group.platform);
+      if (badge) {
+        cardTitle.append(createChannelBadge(doc, badge));
+        const channel = doc.createElement("span");
+        channel.className = "dsh-base-visually-hidden";
+        channel.textContent = t(badge.labelKey);
+        cardTitle.append(channel);
+      }
+      const cardName = doc.createElement("span");
+      cardName.className = "dsh-base-modal__card-name";
+      cardName.textContent = pickText(group.title, lang);
+      cardTitle.append(cardName);
       card.append(cardTitle);
       if (group.subtitle) {
         const subtitle = doc.createElement("button");
@@ -1939,6 +2024,11 @@ const __basePkgScope = (() => {
         subtitle.title = t("copyHint");
         subtitle.addEventListener("click", () => copyText(subtitle, subtitle.textContent ?? ""));
         card.append(subtitle);
+      } else {
+        const gap = doc.createElement("span");
+        gap.className = "dsh-base-modal__card-subtitle-gap";
+        gap.setAttribute("aria-hidden", "true");
+        card.append(gap);
       }
       if (qrSrc) {
         const image = doc.createElement("img");

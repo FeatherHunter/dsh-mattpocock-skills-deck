@@ -1,0 +1,136 @@
+
+> dsh-mattpocock-skills-deck@1.9.0-beta.34 verify:changed
+> node scripts/verify-parallel.mts --changed
+
+(node:47956) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/tests/lib/gate-result.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\D:\dsh-plugin\dsh-mattpocock-skills-deck\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[并行门禁] 改动 132 个文件；选中 527 步（全链，原因：改了横切文件 docs/agents/real-machine-verification.md：它是文档或规格文件，仓库里的门禁会拿它当契约来校验）
+    · 改了横切文件 docs/agents/real-machine-verification.md：它是文档或规格文件，仓库里的门禁会拿它当契约来校验
+[并行门禁] 跑 527 步，并发 8（全链 527 步，档位 full，分 build5步→contract25步→behavior489步→freshness8步（段间串行、段内并发，共 506 节车厢，其中互斥组 3 节）
+[并行门禁] 完成证据判据：链上 80 步带期望（tests/gate-map.json 里 completionRecord 为 true 的那几扇）
+[并行门禁] 完成证据判据：冒烟阶段 2/5 步带期望（同样查 tests/gate-map.json）
+[并行门禁] —— build 段（5 步） ——
+  PASS    287 ms  tests/verify-663-banner-chain.ts
+  PASS    559 ms  tests/verify-leaves.ts
+  PASS    630 ms  scripts/build.mts（预构建：让后面十几扇门禁直接命中构建缓存）
+  PASS   2206 ms  tests/verify-1207-splice-ts.ts
+  PASS   1982 ms  tests/verify-build-artifacts.ts
+  PASS  72947 ms  tests/verify-build-cwd-products.ts
+[并行门禁] —— contract 段（25 步） ——
+  PASS    476 ms  tests/verify-deck-event-gate.ts
+  PASS    581 ms  tests/verify-chain-capsule.ts
+  PASS    734 ms  tests/verify-deck-tools-agent-register.ts
+  PASS    458 ms  tests/verify-deck-repo-resolve.ts
+  PASS    500 ms  tests/verify-deck-tools-row-zero-dep.ts
+  PASS   1641 ms  tests/verify-contract-types.ts
+  PASS   1742 ms  tests/verify-deck-parallel.ts
+  PASS   1825 ms  tests/verify-gate-map.ts
+  PASS    400 ms  tests/verify-deck-thin-reads.ts
+  PASS   1643 ms  tests/verify-contract-vocabulary.ts
+  PASS   1327 ms  tests/verify-chain-renderer.ts
+  PASS   2437 ms  tests/verify-no-mixed-session.ts
+  PASS    388 ms  tests/verify-deck-exec-phone.ts
+  PASS   1266 ms  tests/verify-deck-tools-matrix.ts
+  PASS    197 ms  tests/verify-deck-render-detail.ts
+  PASS    234 ms  tests/verify-deck-slots.ts
+  PASS    242 ms  tests/verify-pagination-limits.ts
+  PASS    357 ms  tests/verify-no-title.ts
+  PASS    622 ms  tests/verify-deck-no-hang.ts
+  PASS    178 ms  tests/verify-deck-quota-sync.ts
+  PASS    975 ms  tests/verify-chain-env-e2e.ts
+  PASS   1146 ms  tests/verify-deck-tools.ts
+  PASS    129 ms  tests/verify-chain.ts
+  PASS    238 ms  tests/verify-chain-session.ts
+  PASS   3447 ms  tests/verify-dependency-rules.ts
+[并行门禁] —— behavior 段（489 步） ——
+  PASS    624 ms  scripts/build.mts（预构建：让后面十几扇门禁直接命中构建缓存）
+  PASS   1129 ms  tests/verify-1115-timer-handle.ts
+  PASS   7346 ms  tests/verify-1323-build-lock.ts
+  PASS   1429 ms  tests/verify-1325-build-cache-nowrite.ts
+  PASS    335 ms  tests/verify-1530-generated-outputs-not-inputs.ts
+  PASS  54064 ms  tests/verify-1586-conflicts.ts
+  PASS    701 ms  tests/verify-1586-history-query.ts
+  PASS  80382 ms  tests/verify-1648-release-integrity.ts
+  PASS  86348 ms  tests/verify-1586-commit-page.ts
+  PASS  86699 ms  tests/verify-1586-stash-page.ts
+  PASS 102837 ms  tests/verify-1586-write-contracts.ts
+  PASS 107921 ms  tests/verify-1586-undo-restore.ts
+  PASS  46910 ms  tests/verify-1586-rebase.ts
+  PASS  27581 ms  tests/verify-1776-vc-live-tab.ts
+  PASS  37906 ms  tests/verify-667-dock-header-no-brand.ts
+  PASS 121498 ms  tests/verify-wire-subissues-script.ts
+  PASS  15042 ms  tests/verify-1586-rewrite.ts
+  PASS    282 ms  tests/verify-1586-worktrees.ts
+  PASS    714 ms  tests/verify-655-setup-layout.ts
+  PASS   1297 ms  tests/verify-665-fresh-workspace-chain.ts
+  PASS  14386 ms  tests/verify-669-collapsed-recoverable.ts
+  PASS  30220 ms  tests/verify-bundled-skills.ts
+  FAIL  11804 ms  tests/verify-cap-fold.ts
+  PASS  51086 ms  tests/verify-1708-seed-data.ts
+  PASS  30279 ms  tests/verify-1776-vc-tab-browser.ts
+  PASS  24438 ms  tests/verify-839-credential-exec.ts
+  PASS  13862 ms  tests/verify-669-switch-visible.ts
+  PASS  17157 ms  tests/verify-847-stall-watch.ts
+  PASS  26793 ms  tests/verify-818-version-control-view.ts
+  PASS 281546 ms  tests/verify-841-write-phones.ts
+
+[并行门禁] 第一轮有 1 步红，串行复跑一遍以排除「抢资源造成的假红」：
+  复跑仍红（真红）    9447 ms  tests/verify-cap-fold.ts
+
+[并行门禁] 冒烟阶段：没跑（主链首红即停（没加 --keep-going），后面的阶段不再跑）
+
+[并行门禁] 跑完 59/527 步，墙钟 360.6 秒；真红 1 步
+[并行门禁] 判定：主链真红 1 步，冒烟真红 0 步（冒烟阶段没跑：主链首红即停（没加 --keep-going），后面的阶段不再跑）
+  最慢的几步：
+    281546 ms  PASS  tests/verify-841-write-phones.ts
+    121498 ms  PASS  tests/verify-wire-subissues-script.ts
+    107921 ms  PASS  tests/verify-1586-undo-restore.ts
+    102837 ms  PASS  tests/verify-1586-write-contracts.ts
+     86699 ms  PASS  tests/verify-1586-stash-page.ts
+     86348 ms  PASS  tests/verify-1586-commit-page.ts
+     80382 ms  PASS  tests/verify-1648-release-integrity.ts
+     72947 ms  PASS  tests/verify-build-cwd-products.ts
+     54064 ms  PASS  tests/verify-1586-conflicts.ts
+     51086 ms  PASS  tests/verify-1708-seed-data.ts
+
+=== FAIL tests/verify-cap-fold.ts（退出码 1）===
+  === #725 状态栏胶囊：随宽度一格一格变短（有位置就显示品牌 / 品牌第一个让位 / 每步只让一个单位）===
+  
+  A) 判据层：那一条阶梯本身（纯函数，不开浏览器）
+    PASS A1 让位表就是定的那张：1=品牌（char，第一个让位）· 2=更新字（word，排在时间前面）· 3=日期串（char）· 4=环境字（word，晚于日期早于时间）· 5=环境计数（char，早于时间）· 6=时间串（char，撑后）· 7–11=五段词（word）· 12=在办编号（char，排在最后），全表没有一段是 pinned（实测 {"1":{"cut":"char"},"2":{"cut":"word"},"3":{"cut":"char"},"4":{"cut":"word"},"5":{"cut":"char"},"6":{"cut":"char"},"7":{"cut":"word"},"8":{"cut":"word"},"9":{"cut":"word"},"10":{"cut":"word"},"11":{"cut":"word"},"12":{"cut":"char"}}）
+    PASS A2 第 0 档（最宽那一档）各段字全都在：品牌那串看得见（这是维护者的真意「有位置就显示」，上一版在这里是空的）、其余各段也都是完整的那串字（实测 {"1":"MattSkills","2":"更新","3":" 09-28","4":"环境","5":"10/10","6":" 09:48","7":"沉淀","8":"交接","9":"可接","10":"BUG","11":"诊断","12":"#760"}）
+    PASS A3 每往下一档只让掉一个单位（一个字，或一整段词），别的段一个字都不动（实测 39 档，违反 0 处）
+    PASS A4 品牌那串字收的是 10 步、这 10 步里别段一个字都不动（实测品牌字长 10，第 10 档时第 2 段 "更新"）
+    PASS A5 品牌收完了才轮到第 2 段（更新字）：品牌空掉那一档更新字还是完整那句，再下一档它整段消失（图标留着）；日期串一字未动（实测第 10 档 "更新" → 第 11 档 ""，日期串 " 09-28"）
+    PASS A5b 拆分函数：带日期拆成两段，没日期的日期取空（实测 [{"date":" 09-28","time":" 09:48"},{"date":"","time":" 12:34:56"},{"date":"","time":"-- --:--"}]）
+    PASS A5b 空掉的先后是品牌 → 更新字 → 日期串 → 环境字 → 环境计数 → 时间串（环境计数早于时间；实测 {"1":10,"2":11,"3":17,"4":18,"5":23,"6":29}）
+    PASS A6 往下第一段台阶就是品牌掉一个字（别的段一个字都不少：更新字、日期串与环境字还是完整那串；实测品牌 "MattSkills" → "MattSkill"）
+    PASS A7 收到底：最后一档所有段都空了，档数恰是「第 0 档 + 品牌十个字十步 + 更新字一步 + 日期串六步 + 环境字一步 + 环境计数五步 + 时间串六步 + 五段词各一步 + 编号四步」= 39（实测 39 档）
+    PASS A8 capFoldStepCount 说的档数与真排出来的档数一致（实测 39）
+    PASS A9 档号算小了（-5）停在最宽那一档（实测 tier 0）
+    PASS A10 档号算大了（999）停在最后一档、不越界（收到底之后不再撤；实测 tier 38）
+    PASS A11 让位次序就是号码升序（小号先让位，品牌 1 排在头一个；实测 1,2,3,4,5,6,7,8,9,10,11,12）
+    PASS A12 没有任何一段被 pinned（pinned = 这段字任何宽度都不显示）：第 0 档各段一段都不许是空的（实测带 pinned 的号码 []、第 0 档空的段 []）
+    PASS A13 英文那一套同样只让一个单位：第一段台阶同样是品牌掉一个字母（更新字、日期串、环境字与环境计数一字未动），多词的那段到它自己让位时一次只少一整个词（实测品牌 "MattSkills" → "MattSkill"、第 2 段第 1 档 "Refresh"，违反 0 处）
+    PASS A14 自带反证：一步掉好几个字、一步动两段的坏阶梯都会被这把尺子抓住（实测 5 / 1 处）
+    PASS A15 真源排出来的每一档都等于「照让位表自己排一遍」的那一档（真源那一侧只要把品牌起手收掉、或漏掉它任何一段台阶，这里就对不上；实测档数 期望 39 / 实际 39，对不上的档 []）
+    PASS A16 自带反证：把期望改成「品牌起手就空、一路空到底」（上一版 pinned: true 的效果）时，同一条比对会当场报出来（实测 10 档对不上，头三条：["第0档对不上（1）","第1档对不上（1）","第2档对不上（1）"]）
+    PASS A17 这把尺子对真的那条阶梯一处都不报（不是「谁进来都报错」的假尺子；实测 0 处）
+    PASS A18 首帧的起始态就是维护者要的「默认折叠」：品牌那一段是收起的，其余各段照原样（实测 {"1":"","2":"更新","3":" 09-28","4":"环境","5":"10/10","6":" 09:48","7":"沉淀","8":"交接","9":"可接","10":"BUG","11":"诊断","12":"#760"}）
+    PASS A19 首帧要加折叠类的只有品牌那一段（号码 1）——计数器与图标一个都不在名单里（实测 ["1"]）
+    PASS A20 阶梯第 0 档（量到可用宽之后走的那一档）品牌那串字可见 —— 起始态不是终态（实测 "MattSkills"）
+  
+  B) 文件层：判据、机器、状态栏、样式与两份产物这些文件都在
+  
+  C) 真渲染层：宽度 900 → 240 每 6 像素扫一档（真产物 + 真词条）
+    FAIL C 状态胶囊栏没挂起来：{"ok":false,"arrived":false,"thrown":null} / 页面错误 ["console: Each child in a list should have a unique \"key\" prop.%s%s See https://react.dev/link/warning-keys for more information. \n\nCheck the render method of `StatusBar`. ","console: Each child in a list should have a unique \"key\" prop.%s%s See https://react.dev/link/warning-keys for more information. \n\nCheck the render method of `Tip`.  It was passed a child from StatusBar.","console: Each child in a list should have a unique \"key\" prop.%s%s See https://react.dev/link/warning-keys for more information. \n\nCheck the render method of `StatusBar`. "]
+  
+  22 条通过，1 条失败
+  
+  [stderr]
+  (node:59908) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/dsh-plugin/dsh-mattpocock-skills-deck/tests/verify-cap-fold.ts is not specified and it doesn't parse as CommonJS.
+  Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+  To eliminate this warning, add "type": "module" to \\?\D:\dsh-plugin\dsh-mattpocock-skills-deck\package.json.
+  (Use `node --trace-warnings ...` to show where the warning was created)

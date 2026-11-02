@@ -359,15 +359,17 @@ try {
   } else {
     Log 'TAG 待定：发布自证脚本会在发布前读当前 dist-tag，按版本形态决定发到 beta 还是 latest（TAG-PLAN 行）'
   }
-  # ── 真机验证清单闸：本版清单票恰好一张且已关闭（规则见 docs/agents/real-machine-verification.md） ──
+  # ── 真机验证清单闸：六条规则由 base 的 release gate 一次裁决（规则见 docs/agents/real-machine-verification.md） ──
   # 只在本仓有 scripts/release-preflight.mts 时生效：五仓同步的 token 协议别处不带这套票务规则。
+  # 退出码四态：0=CHECK-OK 继续；1=CHECK-FAIL 票面/候选要人改（exit 1）；2=CHECK-BLOCKED 环境或
+  # 票面适配器缺失、无法判定（exit 2）；其它=CHECK-ENV 未知失败（exit 2）。DryRun 时任何非 0 都只提示。
+  # 本段不传「跳过/只提示」的开关：演练模式只影响这里要不要阻断，不改变门禁本身跑不跑。
   $preflight = Join-Path $RepoRoot 'scripts/release-preflight.mts'
   if (-not (Test-Path $preflight)) { Log 'CHECK 跳过（本仓没有 scripts/release-preflight.mts）' }
   else {
     if ($DryRun) { Log 'CHECK 真机验证清单（DryRun 只提示不阻断）' } else { Log 'CHECK 真机验证清单：本版 [真机验证] 清单票恰好一张且已关闭' }
     Push-Location $RepoRoot
     $chkArgs = @('scripts/release-preflight.mts')
-    if ($DryRun) { $chkArgs += '--soft' }
     if ($candidatePathResolved -ne '') { $chkArgs += @('--candidate', $candidatePathResolved) }
     $chkOut = (node @chkArgs 2>&1 | Out-String)
     $chkCode = $LASTEXITCODE
@@ -376,8 +378,11 @@ try {
     # 记下来给后面的发布字节对账用：指纹不同但有它，说明差异已经在清单票里说清了。
     if ($chkOut -match 'PREFLIGHT-CANDIDATE-AUDIT') { $candidateAuditOk = $true }
     $chkTrim = $chkOut.Trim(); if ($chkTrim.Length -gt 1200) { $chkTrim = $chkTrim.Substring($chkTrim.Length - 1200) }
-    if (($chkCode -ne 0) -and (-not $DryRun)) { Log ('CHECK-FAIL 真机验证清单没通过（exit=' + $chkCode + '）：' + $chkTrim); exit 1 }
-    if ($chkCode -ne 0) { Log ('CHECK-SOFT 演练模式不阻断：' + $chkTrim) } else { Log ('CHECK-OK ' + $chkTrim) }
+    if ($chkCode -eq 0) { Log ('CHECK-OK ' + $chkTrim) }
+    elseif ($DryRun) { Log ('CHECK-SOFT 演练模式不阻断（exit=' + $chkCode + '）：' + $chkTrim) }
+    elseif ($chkCode -eq 1) { Log ('CHECK-FAIL 真机验证清单没通过（exit=1，按上面的「改法」改票后重跑）：' + $chkTrim); exit 1 }
+    elseif ($chkCode -eq 2) { Log ('CHECK-BLOCKED 真机验证清单无法判定（exit=2，环境或票面适配器缺失，按上面 hint 修好再重跑）：' + $chkTrim); exit 2 }
+    else { Log ('CHECK-ENV 发布前检查以未知退出码结束（exit=' + $chkCode + '）：' + $chkTrim); exit 2 }
   }
   if ($candidatePathResolved -eq '') { Log 'CANDIDATE-SKIP 未给 -Candidate：跳过候选包对账' }
   if ($DryRun) {

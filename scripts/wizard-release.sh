@@ -246,21 +246,28 @@ else
   say "✓ 版本 $VERSION 尚未占用，可发布"
 fi
 
-say "⑤ 真机验证清单检查（本版清单票恰好一张且已关闭）"
-note "规则见 docs/agents/real-machine-verification.md；dry-run 只提示不阻断"
+say "⑤ 真机验证清单检查（六条规则一次裁决：清单票 / 记录一致 / 批次身份 / 候选祖先与审计）"
+note "规则见 docs/agents/real-machine-verification.md；退出码 0=通过 1=票面或候选要人改 2=环境/适配器缺失无法判定"
 if [[ -f scripts/release-preflight.mts ]]; then
   set +e
   node scripts/release-preflight.mts --version "$VER_NUM" 2>&1 | sed 's/^/  /'
   PREFLIGHT_CODE=${PIPESTATUS[0]}
   set -e
   if [[ "$PREFLIGHT_CODE" -eq 0 ]]; then
-    say "✓ 真机验证清单已收口（本版清单票已关闭）"
+    say "✓ 真机验证清单与身份行已收口（本版清单票唯一、已关闭、记录一致）"
   elif [[ "$DRY_RUN" -eq 1 ]]; then
-    warn "真机验证清单没通过（dry-run 只提示，不阻断）——正式发布前必须先建票、验完、关票。"
-  else
-    warn "真机验证清单没通过，已阻断后续发布。"
-    warn "按 docs/agents/real-machine-verification.md 处理：建清单票、登记场景、验完关票后重跑本向导。"
+    warn "真机验证清单没通过（exit=$PREFLIGHT_CODE；dry-run 只提示，不阻断）——正式发布前必须先改票或修环境。"
+  elif [[ "$PREFLIGHT_CODE" -eq 2 ]]; then
+    warn "真机验证清单无法判定（exit=2：环境或票面适配器缺失），已阻断后续发布。"
+    warn "按上面 PREFLIGHT-BLOCKED / PREFLIGHT-ENV 行的「改法」修好（gh 登录、git、verify/ticket-face.mts）后重跑本向导。"
+    exit 2
+  elif [[ "$PREFLIGHT_CODE" -eq 1 ]]; then
+    warn "真机验证清单没通过（exit=1），已阻断后续发布。"
+    warn "按上面每条 PREFLIGHT-FAIL 的「改法」改完清单票（或候选清单）后重跑本向导。"
     exit 1
+  else
+    warn "发布前检查以未知退出码结束（exit=$PREFLIGHT_CODE），已阻断后续发布。"
+    exit 2
   fi
 else
   note "没有 scripts/release-preflight.mts，跳过真机验证清单检查。"

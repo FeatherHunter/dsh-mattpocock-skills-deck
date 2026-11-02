@@ -1,8 +1,9 @@
 // tests/verify-1706-gitlab-project.ts —— #1706「GitLab 沙箱项目与工作区」的自证门禁。
 //
-// 只走规格 #1703 定下的唯一测试接缝：命令行进程接口。本文件不 import 命令内部函数，也不读命令源码文本；
-// 它起子进程跑 scripts/real-machine/commands/gitlab-sandbox.mts 与 make-workspace.mts，读 stdout 的 JSON、
-// 退出码、文件副作用与假 glab 的调用记录。整个门禁不访问网络、不需要真 glab、不碰真实 DSH 配置。
+// 规格 #1703 定的测试接缝原本是命令行进程接口。阶段 B 把 make-workspace 这类通用命令删掉了
+// （造工作区改由 base 的场景钩子按需完成），但 GitLab 沙箱项目仍是插件特有命令，所以本门禁分两条路：
+// gitlab-sandbox 起子进程走进程接口；造工作区直接调共享库 scripts/real-machine/lib/workspaces.mts
+// （命令与库本是同一份实现，命令删掉后库就是唯一入口）。整个门禁不访问网络、不需要真 glab、不碰真实 DSH 配置。
 //
 // 覆盖的验收判据：
 //   A. 建项目：先 repo create，再按 URL 编码路径读回 id / path_with_namespace / web_url；本地报 EOF 时也靠读回算成功。
@@ -11,19 +12,20 @@
 //   D. 已标记删除的项目再删一次：只读回，不重复 DELETE。
 //   E. 删除请求已发出但读回失败：命令退出码 1、stderr 点明项目 id，批次清单保留这个 id（不丢、不假装成功）。
 //   F. 没有批次清单/批次标记的项目：拒绝删除，且一次 glab 都不调。
-//   G. make-workspace --kind gitlab：本地 git init + origin 指向沙箱项目 + workspace.yaml backendId=gitlab，
-//      不调用 glab、不联网；缺 --project 或路径形状不对时拒绝生成。
+//   G. 造 GitLab 工作区（直调共享库）：本地 git init + origin 指向沙箱项目 + workspace.yaml backendId=gitlab，
+//      不调用 glab、不联网；缺 project 或路径形状不对时抛错拒绝生成。
 //
 // 跑法：
 //   node --import ./scripts/ts-hook.mts tests/verify-1706-gitlab-project.ts
 //   node --import ./scripts/ts-hook.mts tests/verify-1706-gitlab-project.ts --negative
-// 正例退出码 0；--negative 走负例通道：真的起子进程跑一条会成功的命令，然后故意把期望写错，
+// 正例退出码 0；--negative 走负例通道：真的造一个 GitLab 工作区，然后故意把两处期望写错，
 // 证明这扇门禁的断言能红（不是删掉断言换来的红）。正例收尾还会起一份 --negative 子门禁自检，
 // 这样负例本身也进了每次全链的判据。
 
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO_ROOT, createRealMachineHarness, samePath } from './lib/real-machine-process.ts'
+import { createGitlabWorkspace, writeWorkspaceManifest } from '../scripts/real-machine/lib/workspaces.mts'
 import { printGateResult, scanGateResult } from './lib/gate-result.ts'
 
 const GATE = 'verify-1706-gitlab-project'
@@ -116,18 +118,29 @@ function markedProjectJson(options: { id: number; fullPath: string; description:
   return project
 }
 
-/** 负例：起一条真的会成功的命令（本地造 GitLab 工作区，不联网），然后故意把两处期望写错，让断言红。 */
-function runNegative(harness: ReturnType<typeof createRealMachineHarness>): void {
+/** 负例：真的造一个 GitLab 工作区（本地 init，不联网），然后故意把两处期望写错，让断言红。 */
+async function runNegative(harness: ReturnType<typeof createRealMachineHarness>): Promise<void> {
   const batch = path.join(harness.workRoot, 'batch-negative')
-  const run = harness.runCommand('make-workspace', {
-    args: ['--batch', batch, '--kind', 'gitlab', '--name', 'ws-neg', '--project', 'FixtureGroup/dsh-gl-neg'],
+  const workspace = await createGitlabWorkspace({
+    dir: path.join(batch, 'workspaces', 'ws-neg'),
+    project: 'FixtureGroup/dsh-gl-neg',
   })
-  const json = asRecord(run.json)
-  check(run.exitCode === 1, '[负例] 故意把一条成功命令的退出码期望成 1：这条断言必须红', harness.formatFailure(run))
-  const workspaces = json && Array.isArray(json.workspaces) ? json.workspaces : []
-  const record = asRecord(workspaces[0])
+  writeWorkspaceManifest(batch, [workspace])
+  const run = {
+    command: 'createGitlabWorkspace(' + path.join(batch, 'workspaces', 'ws-neg') + ')',
+    cwd: REPO_ROOT,
+    exitCode: 0,
+    signal: null,
+    timedOut: false,
+    stdout: '',
+    stderr: '',
+    elapsedMs: 0,
+    json: { workspaces: [workspace] },
+    jsonError: '',
+  }
+  check(run.exitCode === 1, '[负例] 故意把一条成功路径的退出码期望成 1：这条断言必须红', harness.formatFailure(run))
   check(
-    record !== null && record.backendId === 'github',
+    workspace.backendId === 'github',
     '[负例] 故意把 backendId 期望成 github：这条断言必须红',
     harness.formatFailure(run),
   )
@@ -139,7 +152,7 @@ async function main(): Promise<void> {
     console.log('临时工作根：' + harness.workRoot)
 
     if (NEGATIVE) {
-      runNegative(harness)
+      await runNegative(harness)
     } else {
       const batchGl = path.join(harness.workRoot, 'batch-gl')
       const batchWs = path.join(harness.workRoot, 'batch-ws')
@@ -388,19 +401,25 @@ async function main(): Promise<void> {
       )
       check(harness.readGlabCalls().length === beforeEmpty, 'G3 没有批次标记时一次 glab 都没调（连读回都不做）')
 
-      // ── H. make-workspace --kind gitlab：本地空仓库 + 假 remote，不联网 ───────
+      // ── H. 造 GitLab 工作区（共享库直调）：本地空仓库 + origin，不联网 ───────
       const beforeWs = harness.readGlabCalls().length
-      const ws = harness.runCommand('make-workspace', {
-        args: ['--batch', batchWs, '--kind', 'gitlab', '--name', 'ws-gl', '--project', project1Path],
-      })
-      check(ws.exitCode === 0, 'H1 make-workspace --kind gitlab：退出码 0', harness.formatFailure(ws))
-      const wsJson = asRecord(ws.json)
-      const workspaces = wsJson && Array.isArray(wsJson.workspaces) ? wsJson.workspaces : []
-      const wsRecord = asRecord(workspaces[0])
-      const wsExtra = wsRecord ? asRecord(wsRecord.extra) : null
-      check(wsJson !== null && wsJson.kind === 'gitlab' && wsRecord !== null && wsRecord.backendId === 'gitlab', 'H2 回执里的 kind 与 backendId 都是 gitlab', harness.formatFailure(ws))
       const wsDir = path.join(batchWs, 'workspaces', 'ws-gl')
-      check(wsRecord !== null && samePath(String(wsRecord.dir), wsDir), 'H3 工作区目录落在批次目录下的 workspaces/ws-gl', harness.formatFailure(ws))
+      let wsRecord: Awaited<ReturnType<typeof createGitlabWorkspace>> | null = null
+      let wsError = ''
+      try {
+        wsRecord = await createGitlabWorkspace({ dir: wsDir, project: project1Path })
+        writeWorkspaceManifest(batchWs, [wsRecord])
+      } catch (error) {
+        wsError = error instanceof Error ? error.message : String(error)
+      }
+      check(wsRecord !== null, 'H1 造 GitLab 工作区不抛错（原 make-workspace --kind gitlab 的成功路径）', wsError)
+      const wsExtra = wsRecord ? asRecord(wsRecord.extra) : null
+      check(
+        wsRecord !== null && wsRecord.kind === 'gitlab' && wsRecord.backendId === 'gitlab',
+        'H2 回执里的 kind 与 backendId 都是 gitlab',
+        wsError,
+      )
+      check(wsRecord !== null && samePath(wsRecord.dir, wsDir), 'H3 工作区目录落在批次目录下的 workspaces/ws-gl', wsError)
       const gitTree = harness.runOnPath('git', ['-C', wsDir, 'rev-parse', '--is-inside-work-tree'])
       check(
         gitTree.exitCode === 0 && gitTree.stdout.trim() === 'true',
@@ -430,25 +449,27 @@ async function main(): Promise<void> {
       check(
         wsExtra !== null && wsExtra.project === project1Path && wsExtra.remoteUrl === 'https://gitlab.com/' + project1Path + '.git',
         'H8 回执记下 project 与 remoteUrl（会话侧据此核对仓库身份）',
-        harness.formatFailure(ws),
+        wsError,
       )
       check(harness.readGlabCalls().length === beforeWs, 'H9 造工作区不调用 glab（本地 init + remote add 即可，不联网）')
-      const missingProject = harness.runCommand('make-workspace', {
-        args: ['--batch', batchWs, '--kind', 'gitlab', '--name', 'ws-bad'],
-      })
-      check(missingProject.exitCode === 1, 'H10 不给 --project 时拒绝生成（退出码 1）', harness.formatFailure(missingProject))
+      let missingProjectError = ''
+      try {
+        await createGitlabWorkspace({ dir: path.join(batchWs, 'workspaces', 'ws-bad'), project: undefined as unknown as string })
+      } catch (error) {
+        missingProjectError = error instanceof Error ? error.message : String(error)
+      }
+      check(missingProjectError.length > 0, 'H10 不给 project 时拒绝生成（抛错）', missingProjectError)
+      check(missingProjectError.includes('--project'), 'H11 错误消息说清缺的是 --project', missingProjectError)
+      let badProjectError = ''
+      try {
+        await createGitlabWorkspace({ dir: path.join(batchWs, 'workspaces', 'ws-bad'), project: '没有斜杠' })
+      } catch (error) {
+        badProjectError = error instanceof Error ? error.message : String(error)
+      }
       check(
-        missingProject.stdout.trim() === '' && missingProject.stderr.includes('--project'),
-        'H11 stderr 说清缺的是 --project',
-        harness.formatFailure(missingProject),
-      )
-      const badProject = harness.runCommand('make-workspace', {
-        args: ['--batch', batchWs, '--kind', 'gitlab', '--name', 'ws-bad', '--project', '没有斜杠'],
-      })
-      check(
-        badProject.exitCode === 1 && badProject.stderr.includes('--project'),
+        badProjectError.length > 0 && badProjectError.includes('--project'),
         'H12 项目路径形状不对时也拒绝（必须像 group/project）',
-        harness.formatFailure(badProject),
+        badProjectError,
       )
 
       // ── I. 负例自检：正例跑一趟 --negative 子门禁，证明这扇门禁真的能红 ───────
