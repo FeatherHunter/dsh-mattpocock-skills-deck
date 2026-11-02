@@ -181,6 +181,8 @@ const VC_FILES = [
   'src/client/views/versionControl/vcMaintenanceData.js',
   'src/client/views/versionControl/vcMaintenancePage.js',
   'src/client/views/versionControl/vcMaintenanceDiag.js',
+  'src/client/views/versionControl/vcShellIdentity.js',
+  'src/client/views/versionControl/vcChangesView.js',
   'src/client/views/versionControl/vcShellPages.js',
   // #1776 M1 真实页签容器四叶 + #1776 M2 管理页七叶（与构建同序）：纯状态换算 → 管理页状态与模型
   //   → 每页读数分发 → 分支/远端/同步动作 → 配置/钩子/诊断/子模块/平台动作 → 迁移与任务轮询

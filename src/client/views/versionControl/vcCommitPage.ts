@@ -187,7 +187,10 @@ export function vcCommitPageNode(h: any, t: any, o: any): any {
     h('span', { key: 'hint', className: 'vcs-note', 'data-vc-commit-mode-hint': 1 }, p.modeHint),
   ]))
   if (p.amendNote) children.push(h('div', { key: 'amend', className: 'vcs-note', 'data-vc-commit-amend-note': 1 }, p.amendNote))
-  children.push(h('div', { key: 'modes', className: 'vcs-commit-modes', role: 'radiogroup', 'aria-label': t('vc.commit.modeLabel') }, p.modes.map(function (m: any) {
+  // 形态 / 目标 / 模板 / 三个开关都收进「更多提交选项」：首屏只留说明与提交（原型 62 的紧凑提交区），
+  //   控件仍在面板 DOM 里，门禁数得到、点得开，只是默认不占首屏。
+  const advanced: any[] = []
+  advanced.push(h('div', { key: 'modes', className: 'vcs-commit-modes', role: 'radiogroup', 'aria-label': t('vc.commit.modeLabel') }, p.modes.map(function (m: any) {
     const kids: any[] = [h('span', { key: 'label' }, m.label)]
     if (m.disabled && m.tip) kids.push(h('span', { key: 'why', className: 'vcs-commit-why', 'data-cap-why': m.reasonKey }, m.tip))
     return h('button', {
@@ -197,7 +200,7 @@ export function vcCommitPageNode(h: any, t: any, o: any): any {
     }, kids)
   })))
   if (p.targetRow && p.targetRow.show) {
-    children.push(h('div', { key: 'target', className: 'vcs-commit-target' }, [
+    advanced.push(h('div', { key: 'target', className: 'vcs-commit-target' }, [
       h('label', { key: 'label', 'data-vc-commit-target-label': 1 }, p.targetRow.label),
       h('select', {
         key: 'select', className: 'vcs-commit-target-select', value: p.targetRow.value,
@@ -224,15 +227,18 @@ export function vcCommitPageNode(h: any, t: any, o: any): any {
     h('span', { key: 'note', className: 'vcs-note', 'data-vc-commit-template-note': 1 }, p.templateNote),
   ]
   if (p.templateText) templateKids.push(h('pre', { key: 'text', className: 'vcs-commit-template-text', 'data-vc-template-text': 1 }, p.templateText))
-  children.push(h('div', { key: 'template', className: 'vcs-commit-template' }, templateKids))
-  children.push(h('div', { key: 'options', className: 'vcs-commit-options' }, p.options.map(function (opt: any) {
+  advanced.push(h('div', { key: 'template', className: 'vcs-commit-template' }, templateKids))
+  advanced.push(h('div', { key: 'options', className: 'vcs-commit-options' }, p.options.map(function (opt: any) {
     return h('label', { key: opt.key, className: 'vcs-commit-opt' }, [
       h('input', { type: 'checkbox', checked: opt.checked === true, disabled: opt.disabled === true, 'data-vc-commit-opt': opt.key, 'data-cap-control': opt.cap, onChange: click('toggleOption', opt.key) }),
       h('span', { key: 'label' }, opt.label),
       h('span', { key: 'hint', className: 'vcs-note', 'data-vc-commit-opt-hint': opt.key }, opt.hint),
     ])
   })))
-  if (p.trailerText) children.push(h('div', { key: 'trailer', className: 'vcs-note', 'data-vc-commit-trailer': 1 }, p.trailerText))
+  if (p.trailerText) advanced.push(h('div', { key: 'trailer', className: 'vcs-note', 'data-vc-commit-trailer': 1 }, p.trailerText))
+  children.push(h('details', { key: 'advanced', className: 'vcs-commit-advanced', 'data-vc-commit-advanced': 1 }, [
+    h('summary', { key: 'summary', className: 'vcs-commit-advanced-title' }, t('vc.commit.moreOptions')),
+  ].concat(advanced)))
   children.push(h('div', { key: 'submit', className: 'vcs-commit-actions' }, [
     h(Tip, { key: 'go', content: String(p.submitTip || '') }, h('button', { key: 'go', type: 'button', className: 'vcs-btn is-primary', 'data-vc-commit-submit': 1, disabled: p.submitDisabled === true, 'aria-disabled': p.submitDisabled === true, 'data-press': 'button', 'data-log': 'vc.commit.panel.submit', onClick: click('submit') }, p.running ? t('vc.commit.running') : t('vc.commit.action.submit'))),
     p.submitTip ? h('span', { key: 'tip', className: 'vcs-commit-why', 'data-vc-commit-submit-tip': 1 }, p.submitTip) : null,

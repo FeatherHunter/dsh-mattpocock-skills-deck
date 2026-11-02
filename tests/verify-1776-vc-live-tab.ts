@@ -246,6 +246,14 @@ async function scenarioMain() {
   check(m.text('[data-vc-live-at]').indexOf('读取于') >= 0, 'T4c 身份行附近显示读取时刻文案')
   check(!!m.q('[data-vc-commit-panel]'), 'T5 改动页挂上了提交面板（vcCommitPageNode）')
   check(m.qa('[data-vc-changes-op]').length === 13, 'T5b 改动页 13 条动作按钮都在（' + m.qa('[data-vc-changes-op]').length + ' 条）')
+  // #1829 首屏顺序：统计卡与文件行 → 折叠的 13 条动作 → 提交面板 → 能力清单；能力清单不再占首屏。
+  const comesBefore = function (a: any, b: any) { return !!(a && b && (a.compareDocumentPosition(b) & 4)) }
+  const viewNode = m.q('[data-vc-changes-view]'); const commitNode = m.q('[data-vc-commit-panel]'); const moreNode = m.q('[data-vc-more-actions]'); const capsNode = m.q('[data-vc-cap-list]')
+  check(!!viewNode && !!m.q('[data-vc-changes-stats]') && m.qa('[data-vc-stat]').length === 3, 'T5c 改动页首屏先画统计卡（三张，数据源是改动读数）')
+  check(comesBefore(viewNode, commitNode) && comesBefore(moreNode, commitNode) && comesBefore(commitNode, capsNode), 'T5d 首屏顺序：文件列表 → 折叠动作 → 提交面板 → 能力清单（提交面板不再排在文件列表和动作之前）')
+  check(!!moreNode && moreNode.tagName === 'DETAILS' && moreNode.open === false, 'T5e 13 条动作面板默认收起（13 行仍在 DOM 里，T5b 已经数过）')
+  check(comesBefore(m.q('[data-vc-identity]'), viewNode), 'T5f 身份行排在改动正文之前')
+  check(!!m.q('[data-vc-identity-handoff]'), 'T5g 身份行右侧有「交给 AI」入口（原型四颗入口之一）')
 
   const leaves = { changes: '[data-vc-commit-panel]', commits: '[data-vc-history]', worktrees: '[data-vc-wt-page]', stash: '[data-vc-stash-page]' }
   for (const pageId of view.VC_TAB_PAGES) {

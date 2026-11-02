@@ -46,7 +46,7 @@ declare function vcChangesPageNode(h: any, t: any, o: any): any
 // vcClonePage.ts）、冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）、变基待办页的历史改写面板（#1748 T13，vcUndoPage.ts）
 // 与动作面板（#1749 T14，vcRebasePage.ts）、配置页与钩子页两叶（#1760）、维护页整仓重写一叶（#1750 T15，vcRewritePage.ts）、诊断页正文一叶（#1761）以及 #1762 T26 的平台页
 // （vcPlatformPage.ts）与迁移页 14.1 导出向导（vcMigrateExport.ts）都由构建拼进同一个闭包，这里只声明形状；挂载条件在下面。十三条声明并进同一条物理行：本文件贴着 350 有效行上限。
-declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcMigratePageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any; declare function vcRebasePageNode(h: any, t: any, o: any): any; declare const vcRewritePageNode: any; declare function vcConfigPageNode(h: any, t: any, o: any): any; declare function vcHooksPageNode(h: any, t: any, o: any): any; declare function vcDiagnosticsMountNode(h: any, t: any, o: any): any; declare function vcPlatformPageNode(h: any, t: any, o: any): any; declare function vcMigrateExportNode(h: any, t: any, o: any): any; declare const vcMaintenancePageNode: any; declare const vcMaintenanceDiagNode: any // #1758 T22 维护页与诊断页两叶；#1761 诊断页正文（只在诊断页且传了读数时挂载）
+declare function vcBranchBoardNode(h: any, t: any, o: any): any; declare function vcStashPageNode(h: any, t: any, o: any): any; declare function vcMigratePageNode(h: any, t: any, o: any): any; declare const vcClonePageNode: any; declare function vcConflictsPageNode(h: any, t: any, o: any): any; declare function vcUndoPageNode(h: any, t: any, o: any): any; declare function vcRebasePageNode(h: any, t: any, o: any): any; declare const vcRewritePageNode: any; declare function vcConfigPageNode(h: any, t: any, o: any): any; declare function vcHooksPageNode(h: any, t: any, o: any): any; declare function vcDiagnosticsMountNode(h: any, t: any, o: any): any; declare function vcPlatformPageNode(h: any, t: any, o: any): any; declare function vcMigrateExportNode(h: any, t: any, o: any): any; declare const vcMaintenancePageNode: any; declare const vcMaintenanceDiagNode: any; declare function vcShellIdentityNode(h: any, t: any, o: any): any; declare function vcChangesViewNode(h: any, t: any, o: any): any // #1758 T22 维护页与诊断页两叶；#1761 诊断页正文（只在诊断页且传了读数时挂载）
 declare const VC_UNDO_PANEL: any // #1748 变基待办页的自带状态面板（预检→确认卡→凭票执行），#1776 M2 起由它替代只画骨架的 vcUndoPageNode
 
 export const VC_SHELL_WIDTHS: number[] = [300, 380, 460, 520]
@@ -137,43 +137,10 @@ export const vcGearIndexNode = function (h: any, t: any, o: any) {
   ])
 }
 
+// #1829 身份行整体交给 vcShellIdentity：仓库名 / 分支 / 短号 / 能力计数 + 同步事实行 + 同步动作行。
+//   这一段只保留函数名与参数透传（旧测试与导出清单仍按 vcIdentityRowNode 找它）。
 export const vcIdentityRowNode = function (h: any, t: any, o: any) {
-  const opts = o || {}
-  const left: any[] = []
-  const branchAttrs: any = {
-    key: 'branch',
-    className: 'vcs-identity-branch',
-    type: 'button',
-    'data-vc-branch-btn': '1',
-    'aria-expanded': opts.branchOpen ? 'true' : 'false',
-  }
-  if (opts.branchOpen) branchAttrs['aria-controls'] = opts.branchOverlayId
-  left.push(h('button', branchAttrs, t('vc.shell.identity.branch') + '：' + String(opts.branch || '')))
-  left.push(Object.assign({}, vcSyncBandNode(h, t, { remote: opts.remote, when: opts.when }), { key: 'sync' }))
-  const right: any[] = []
-  const searchAttrs: any = {
-    key: 'search',
-    className: 'vcs-identity-search',
-    type: 'button',
-    'data-vc-search-entry': '1',
-    'aria-expanded': opts.paletteOpen ? 'true' : 'false',
-  }
-  if (opts.paletteOpen) searchAttrs['aria-controls'] = opts.paletteId
-  right.push(h('button', searchAttrs, t('vc.shell.identity.search')))
-  const gearAttrs: any = {
-    key: 'gear',
-    className: 'vcs-identity-gear',
-    type: 'button',
-    'data-vc-gear-btn': '1',
-    'aria-expanded': opts.gearOpen ? 'true' : 'false',
-  }
-  if (opts.gearOpen) gearAttrs['aria-controls'] = opts.gearId
-  right.push(h('button', gearAttrs, t('vc.shell.gear.open')))
-  return h('header', { className: 'vcs-identity', 'data-vc-identity': '1' }, [
-    h('div', { key: 'left', className: 'vcs-identity-left' }, left),
-    h('div', { key: 'right', className: 'vcs-identity-right' }, right),
-    h('span', { key: 'count', className: 'vcs-identity-count' }, t('vc.shell.identity.capCount', { n: CAPABILITIES.length })),
-  ])
+  return vcShellIdentityNode(h, t, o)
 }
 
 export const vcPageTabsNode = function (h: any, t: any, o: any) {
@@ -282,13 +249,6 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     // 迁移与备份页正文（#1759 T23，域 11 的 11.1 / 11.12 / 11.13 与域 5 的 5.13，加 svn 补充块）。与远端页同一口径：
     // 只在拿到读数时换成真正文，没读数的骨架渲染保持不变；主入口 data-cap-primary 仍由下面的能力行统一给。
     children.push(Object.assign({}, vcMigratePageNode(h, t, { reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs }), { key: 'migrate' }))
-  } else if (page === 'changes' && opts.reads) {
-    // #1743 域 2：改动页读到读数时，提交面板画在能力清单之前（能力清单本身不动，唯一主入口计数仍是 162）。
-    children.push(Object.assign({}, vcCommitPageNode(h, t, {
-      reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs,
-      ops: opts.commitOps || null, targets: opts.commitTargets || [],
-      panel: opts.commitPanel || null,
-    }), { key: 'commit' }))
   } else if (page === 'platform' && typeof vcPlatformPageNode === 'function') {
     // #1762 T26 平台与边界页：九条只读/说明能力没有可执行写动作，正文无条件画（不依赖首屏读数），
     //   凭据链与 updateRefs 各自有加载/失败态；这一块不画 data-cap-primary，主入口仍由下面的能力清单给。
@@ -324,12 +284,34 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。
   const queryNode = vcQueryPageNode(h, t, opts); if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' })); const diagNode: any = typeof vcDiagnosticsMountNode === 'function' ? vcDiagnosticsMountNode(h, t, opts) : null; if (diagNode) children.push(Object.assign({}, diagNode, { key: 'diagnostics' })); if (page === 'diagnostics' && typeof vcMaintenanceDiagNode === 'function') { const maintDiagNode: any = h(vcMaintenanceDiagNode, { key: 'maintenance-diag', t: t, cwd: opts.cwd || '', call: opts.call || null }); children.push(Object.assign({}, maintDiagNode, { key: 'maintenance-diag' })) } // #1758 T22 诊断页 11.2–11.4 正文；#1761 诊断页正文：二分与替换是仅有的两个受控写，其余只读；判断与推入也并成一行（本文件贴着 350 有效行上限）。
   // 任务页是流程页，能力账本里没有它的条目（162 条不变），不画能力清单，只画任务面板。
-  if (page !== 'task') children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
+  // #1829 改动页的能力清单不再排在这一段：它压到页尾（提交区之后），首屏留给统计卡与文件行。
+  if (page !== 'task' && page !== 'changes') children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
   if (page === 'task' && typeof vcTaskPanelNode === 'function') children.push(Object.assign({}, vcTaskPanelNode(h, t, { tasks: opts.tasks, running: opts.running, onCancel: opts.onCancel }), { key: 'task-body' }))
-  // 改动页的 13 条动作面板（#1742）：页面把改动读数传进来时才画；没传整块不出现，其它页渲染结果不变。
-  if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
-    children.push(Object.assign({}, vcChangesPageNode(h, t, { changes: opts.changes }), { key: 'changes' }))
+  // #1829 改动页首屏顺序（按定稿原型 62-changes-460.png）：统计卡与分组文件行 → 13 条动作面板（折叠）→ 提交区 → 能力清单。
+  //   文件行与统计卡来自新叶子 vcChangesView；13 条动作面板保持原样（13 个 data-vc-changes-op 必须初始就在 DOM 里）。
+  if (page === 'changes' && opts.changes !== undefined && typeof vcChangesViewNode === 'function') {
+    children.push(Object.assign({}, vcChangesViewNode(h, t, { changes: opts.changes, onOpenHandoff: opts.onOpenHandoff }), { key: 'changes-view' }))
   }
+  // #1829 改动页首屏顺序（按定稿原型 62-changes-460.png，票面验收④「提交面板不再排在文件列表和改动动作之前」）：
+  //   统计卡与分组文件行 → 13 条动作面板（折叠、默认收起，13 行仍在 DOM 里）→ 提交区 → 能力清单。
+  if (page === 'changes' && opts.changes !== undefined && typeof vcChangesPageNode === 'function') {
+    children.push(h('details', { key: 'changes-more', className: 'vcs-more-actions', 'data-vc-more-actions': '1' }, [
+      h('summary', { key: 'summary', className: 'vcs-more-actions-title', 'data-log': 'vc.changes.more-actions', 'data-press': 'button' }, t('vc.changes.view.allActions')),
+      Object.assign({}, vcChangesPageNode(h, t, { changes: opts.changes }), { key: 'changes' }),
+    ]))
+  }
+  if (page === 'changes' && opts.reads) {
+    // #1743 域 2 提交区：按原型贴在文件行与动作面板之后；说明与选项展开，提交按钮固定在这块底部。
+    children.push(Object.assign({}, vcCommitPageNode(h, t, {
+      reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs,
+      ops: opts.commitOps || null, targets: opts.commitTargets || [],
+      panel: opts.commitPanel || null,
+    }), { key: 'commit' }))
+  }
+
+
+  // 能力清单压到改动页最尾：162 条仍可到达、每条仍恰一个主入口，但不再占首屏（#1829）。
+  if (page === 'changes') children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
   // 冲突向导的 15 条能力面板（#1747 T12）：页面把冲突状态与读数传进来时才画；没传整块不出现，其它页渲染结果不变。
   // 判断与推入写成同一条物理行：本文件贴着 350 有效行上限。
   if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' })); if (page === 'rebase' && opts.rebase !== undefined && typeof vcRebasePageNode === 'function') children.push(Object.assign({}, vcRebasePageNode(h, t, { rebase: opts.rebase }), { key: 'rebase' }))
@@ -365,8 +347,10 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   const keyed = function (node: any, key: string) { return Object.assign({}, node, { key: key }) }
   const children: any[] = []
   children.push(keyed(vcIdentityRowNode(h, t, {
-    branch: seed.branch || '', remote: seed.remote || 'origin', when: readAt, branchOpen: branchOpen, branchOverlayId: branchOverlayId,
-    paletteOpen: paletteOpen, paletteId: paletteId, gearOpen: gearOpen, gearId: gearId,
+    branch: seed.branch || '', repo: seed.repoDisplay || '', worktreePath: seed.worktreePath || '', oid: seed.oid || '',
+    remote: seed.remote || 'origin', when: readAt, basis: seed.basisWhen || '', ahead: seed.ahead, behind: seed.behind,
+    detached: seed.detached === true, branchOpen: branchOpen, branchOverlayId: branchOverlayId,
+    paletteOpen: paletteOpen, paletteId: paletteId, gearOpen: gearOpen, gearId: gearId, onOpenHandoff: opts.onOpenHandoff,
   }), 'identity'))
   if (branchOpen) children.push(keyed(vcBranchOverlayNode(h, t, { id: branchOverlayId, branch: seed.branch }), 'branch'))
   if (gearOpen) children.push(keyed(vcGearIndexNode(h, t, { id: gearId, pagePrefix: opts.pagePrefix || '', active: isManage ? page : '' }), 'gear'))
@@ -378,7 +362,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     openSurface: openSurface,
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,
-    changes: opts.changes, conflicts: opts.conflicts, rebase: opts.rebase, // #1747 T12 / #1749 T14：冲突向导与变基待办的交互态原样往下传，壳不改形状。
+    changes: opts.changes, onOpenHandoff: opts.onOpenHandoff, conflicts: opts.conflicts, rebase: opts.rebase, // #1747 T12 / #1749 T14：冲突向导与变基待办的交互态原样往下传，壳不改形状。
     // #1744 T09：提交历史页要真读数与交互态，页面壳原样往下传，不在壳里改形状。
     reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
     // #1746 T11：分支与标签业务面板的读数与确认卡/结果（没给就不画，T03 既有渲染不变）。

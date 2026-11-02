@@ -53,6 +53,9 @@ const CLOSURE_FILES = [
   'src/client/views/versionControl/vcShellPrimitives.ts',
   'src/client/views/versionControl/vcPalette.ts',
   'src/client/views/versionControl/vcCapabilityList.ts',
+  // #1829 身份行与同步带拆成独立叶子；壳只在渲染时调用它，覆盖验收拼进来才能渲染页面。
+  'src/client/views/versionControl/vcShellIdentity.ts',
+  'src/client/views/versionControl/vcChangesView.ts',
   'src/client/views/versionControl/vcShellPages.ts',
 ]
 // 页面壳里直接调用的几个叶子（克隆向导、维护页重写、历史查询）在覆盖验收里不参与判定；

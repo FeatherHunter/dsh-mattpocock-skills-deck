@@ -427,6 +427,8 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/tracker/rooms/github/read/issues.ts', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
   // #1698：KPI 投影里的「上次校准时刻」，0 表示不知道时刻（界面显示占位），不是可调参数。
   { file: 'src/client/kernel/store-derived.ts', name: 'atMs', reason: '界面占位：0 表示不知道上次校准时刻，不是可调参数' },
+  // #1829：改动页同步事实行的「远端跟踪分支更新于」，值来自首屏聚合读的快照，不是本文件决定的可调时长。
+  { file: 'src/client/views/versionControl/vcRealModel.ts', name: 'basisMs', reason: '读数快照里的远端跟踪分支时刻（宿主首屏聚合读给），不是本文件决定的可调时长' },
   { file: 'src/client/views/ListTab.ts', name: 'atMs', reason: '透传 KPI 投影里的上次校准时刻（只用于格式化成 HH:mm），不是可调参数' },
   // #1698：计数判定读钟、企业版能力探测时刻，都是读钟记下来的值，不是可调参数。
   { file: 'src/tracker/deck-counts.ts', name: 'nowMs', reason: '读钟时刻（Date.now 的注入口），用来标计数「什么时候校准的」，不是可调参数' },

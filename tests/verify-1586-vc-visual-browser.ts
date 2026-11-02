@@ -79,6 +79,8 @@ const VC_FILES = [
   'src/client/views/versionControl/vcMaintenanceData.js',
   'src/client/views/versionControl/vcMaintenancePage.js',
   'src/client/views/versionControl/vcMaintenanceDiag.js',
+  'src/client/views/versionControl/vcShellIdentity.js',
+  'src/client/views/versionControl/vcChangesView.js',
   'src/client/views/versionControl/vcShellPages.js',
 ]
 

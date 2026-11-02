@@ -219,6 +219,12 @@ export const vcRealAiNodesOf = function (h: any, tr: any, reads: any, nav: any, 
   // 外层 div 带固定 key：它会被拼进容器组件的 kids 数组，不带 key 时 React 每次渲染都要打一条警告。
   return h('div', { key: 'ai', className: 'vcs-live-ai', 'data-vc-live-ai': '1' }, nodes)
 }
+// 页面内「交给 AI」入口（定稿原型 62 的 composer-foot）：把一处具体难处交出去。参数与 vcRealAiNodesOf 同源，
+//   ai 由调用点给（这里是「拿不准怎么拆提交」）；opener 走既有 openTextInNewSession，预填但不自动发送。
+export const vcRealAiOpenOf = function (tr: any, reads: any, st: any, ai: any, opener: any): boolean {
+  const handoff: any = vcAiHandoffOf({ ai: ai, t: tr, screen: vcFirstScreenScreenOf(reads) })
+  return vcOpenAiHandoff({ opener: typeof opener === 'function' ? opener : null, st: st || {}, handoff: handoff })
+}
 
 
 // 可聚焦控件的选择器（规格第 391 行的焦点接管用）：禁用的与 tabindex=-1 的不算，第一个命中的就是落点。

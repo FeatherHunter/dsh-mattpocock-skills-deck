@@ -895,6 +895,10 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcMaintenanceData', file: 'src/client/views/versionControl/vcMaintenanceData.ts' },
   { id: 'vcMaintenancePage', file: 'src/client/views/versionControl/vcMaintenancePage.ts' },
   { id: 'vcMaintenanceDiag', file: 'src/client/views/versionControl/vcMaintenanceDiag.ts' },
+  // #1829 改动页首屏两叶：身份行与同步带（仓库名 / 分支 / 短号 + 同步事实行 + 同步动作行）、
+  //   统计卡与分组文件行。都排在页面壳之前，壳的挂载段才调得到；壳自己只保留页面顺序。
+  { id: 'vcShellIdentity', file: 'src/client/views/versionControl/vcShellIdentity.ts' },
+  { id: 'vcChangesView', file: 'src/client/views/versionControl/vcChangesView.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   // #1776 M1 真实页签四叶：纯状态换算 → 事件委托 → 数据装载与动作分派 → 容器组件。次序即闭包里谁先有值：
   //   容器要用前三叶，VersionControlTab 只做入口委托，所以四叶都排在它前面。

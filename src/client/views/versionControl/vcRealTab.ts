@@ -10,6 +10,7 @@
 declare const React: any
 declare const DswsCtx: any
 declare const host: any
+declare var openTextInNewSession: any
 declare const tr: any
 declare function vcShellPageNode(h: any, t: any, opts: any): any
 declare function vcRealReadsNew(cwd: any): any
@@ -51,6 +52,7 @@ declare function vcRealCallbacksOf(deps: any): any
 declare function vcRealBarNodesOf(h: any, tr: any, reads: any, nav: any, seed: any): any[]
 declare function vcRealFailNodesOf(h: any, tr: any, reads: any): any[]
 declare function vcRealAiNodesOf(h: any, tr: any, reads: any, nav: any, st: any): any
+declare function vcRealAiOpenOf(tr: any, reads: any, st: any, ai: any, opener: any): boolean
 declare function vcRealDeepLinkOf(props: any): string
 declare function vcRealDeepLinkNavOf(key: any): any
 declare function vcRealTabCountsOf(reads: any): any
@@ -271,6 +273,11 @@ export const VcRealTab = function (props: any) {
     values: changes.values,
     rows: changes.rows,
     handlers: changeHandlers,
+    // #1829 首屏文件行读的是首屏 changes 片里归一后的两组 FileEntry；筛选值住在 values.filter（默认 all）。
+    files: changesSeed.files,
+    // 空仓态（#1829 验收④）：工作区与改动两片都读到了，但仓库还没有任何提交（身份行没有 HEAD 短号）时给专属空态。
+    //   读数没到或某片失败时不判空仓，免得把「正在读」画成「还没有提交」。
+    repoEmpty: vcFirstScreenSliceStateOf(reads, 'changes') === 'ok' && vcFirstScreenSliceStateOf(reads, 'workspace') === 'ok' && String(seed.oid || '') === '',
   }
   if (vcFirstScreenSliceStateOf(reads, 'changes') === 'err') {
     changesModel.state = 'error'
@@ -340,6 +347,11 @@ export const VcRealTab = function (props: any) {
     tasks: manage.tasks && Array.isArray(manage.tasks.items) ? manage.tasks.items : [],
     running: manage.tasks && typeof manage.tasks.running === 'number' ? manage.tasks.running : 0,
     onCancel: function (taskId: any) { if (pollerRef.current) pollerRef.current.cancel(taskId) },
+    // 改动页提交区旁的「拿不准怎么拆提交？交给 AI」（#1829）：只开新会话并预填 prompt，不发 git 写电话。
+    onOpenHandoff: function () {
+      vcRealAiOpenOf(tr, reads, props && props.st, { kind: 'commit-split', summary: tr('vc.changes.view.aiSplit') },
+        typeof openTextInNewSession === 'function' ? openTextInNewSession : null)
+    },
   })
   const failNodes: any[] = vcRealFailNodesOf(h, tr, reads)
   const kids: any[] = [h('div', { key: 'bar', className: 'vcs-live-bar', 'data-vc-live-bar': '1' }, vcRealBarNodesOf(h, tr, reads, nav, seed))]

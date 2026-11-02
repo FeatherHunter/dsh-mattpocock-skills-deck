@@ -66,6 +66,17 @@ export const vcChangesPayloadOf = function (op: any, values: any) {
   return {}
 }
 
+// 行级状态键（#1829）：同一动作对同一文件（或同一条两路径动作）各落一份忙 / 确认 / 结果。
+//   带路径的取「动作|路径」，不带对象的仍是动作名。界面行、13 条动作面板与动作层必须调同一个函数算键，
+//   否则确认卡与结果会写在一处、画在另一处（#1829 审查里真出现过这种不回显）。
+export const vcChangesRowKeyOf = function (op: any, payload: any): string {
+  const p: any = payload || {}
+  const path: string = p.path !== undefined && p.path !== null ? String(p.path) : ''
+  if (path !== '') return String(op) + '|' + path
+  const from: string = p.from !== undefined && p.from !== null ? String(p.from) : ''
+  return from !== '' ? String(op) + '|' + from : String(op)
+}
+
 // 检查电话的参数（票据由宿主预检发；界面只给动作与载荷，不自己算判定）。
 export const vcChangesCheckArgsOf = function (cwd: any, op: any, values: any) {
   const args: any = { cwd: String(cwd === undefined || cwd === null ? '' : cwd), op: String(op === undefined || op === null ? '' : op) }
@@ -156,7 +167,7 @@ const vcChangesConfirmNode = function (h: any, t: any, meta: any, confirm: any, 
     h('p', { key: 'reversible', className: 'vcs-changes-confirm-seg', 'data-vc-changes-confirm-seg': 'reversible' }, t('vc.changes.confirm.reversible', { answer: answer })),
     h('p', { key: 'verb', className: 'vcs-changes-confirm-seg', 'data-vc-changes-confirm-seg': 'verb' }, t('vc.changes.confirm.verb', { verb: t(vcChangesOpVerbKeyOf(meta.op)) })),
     h('div', { key: 'acts', className: 'vcs-changes-confirm-acts' }, [
-      h('button', { key: 'cancel', type: 'button', className: 'vcs-changes-confirm-cancel', 'data-vc-changes-confirm-cancel': '1', 'data-focus-default': 'cancel', 'data-press': 'button', 'data-log': 'vc.changes.confirm.cancel', onClick: function () { if (handlers && typeof handlers.cancel === 'function') handlers.cancel(meta.op) } }, t('vc.changes.confirm.cancel')),
+      h('button', { key: 'cancel', type: 'button', className: 'vcs-changes-confirm-cancel', 'data-vc-changes-confirm-cancel': '1', 'data-focus-default': 'cancel', 'data-press': 'button', 'data-log': 'vc.changes.confirm.cancel', onClick: function () { if (handlers && typeof handlers.cancel === 'function') handlers.cancel(meta.op, vcChangesPayloadOf(meta.op, values)) } }, t('vc.changes.confirm.cancel')),
       h('button', { key: 'go', type: 'button', className: 'vcs-changes-confirm-go', 'data-vc-changes-confirm-go': '1', 'data-press': 'button', 'data-log': 'vc.changes.confirm.go', onClick: function () { if (handlers && typeof handlers.run === 'function') handlers.run(meta.op, vcChangesPayloadOf(meta.op, values), { ticketId: String(c.ticketId || ''), requestId: String(c.requestId || '') }) } }, t('vc.changes.confirm.go')),
     ]),
   ])
@@ -176,7 +187,11 @@ export const vcChangesRowNode = function (h: any, t: any, meta: any, opts: any) 
   const o: any = opts || {}
   const values: any = o.values || {}
   const handlers: any = o.handlers || {}
-  const state: any = (o.rows && o.rows[meta.op]) || {}
+  // #1829 行级状态按「动作 + 作用对象」分键（文件行与这一行共用同一份 rows）：带了路径的取 op|path，
+  //   不带路径的仍是动作名本身；查找与写入用同一条规则，确认卡 / 结果才贴得回触发它的那一行。
+  const seedPayload: any = vcChangesPayloadOf(meta.op, values)
+  const rowKey: string = vcChangesRowKeyOf(meta.op, seedPayload)
+  const state: any = (o.rows && o.rows[rowKey]) || {}
   const kids: any[] = [
     h('div', { key: 'head', className: 'vcs-changes-head' }, [
       h('span', { key: 'cap', className: 'vcs-changes-cap', 'data-vc-changes-cap': String(meta.capId) }, String(meta.capId) + ' ' + t(vcChangesOpLabelKeyOf(meta.op))),
@@ -188,9 +203,8 @@ export const vcChangesRowNode = function (h: any, t: any, meta: any, opts: any) 
   if (inputs.length > 0) kids.push(h('div', { key: 'inputs', className: 'vcs-changes-inputs' }, inputs))
   const primaryAttrs: any = { key: 'primary', type: 'button', className: 'vcs-changes-go', 'data-vc-changes-primary': String(meta.capId), 'data-vc-changes-op': String(meta.op), disabled: state.busy === true, 'data-press': 'button', 'data-log': 'vc.changes.run' }
   primaryAttrs.onClick = function () {
-    const payload: any = vcChangesPayloadOf(meta.op, values)
-    if (meta.write !== true) { if (typeof handlers.read === 'function') handlers.read(meta.op, payload) }
-    else if (typeof handlers.begin === 'function') handlers.begin(meta.op, payload)
+    if (meta.write !== true) { if (typeof handlers.read === 'function') handlers.read(meta.op, seedPayload) }
+    else if (typeof handlers.begin === 'function') handlers.begin(meta.op, seedPayload)
   }
   kids.push(h('button', primaryAttrs, t(vcChangesOpLabelKeyOf(meta.op))))
   if (state.confirm) kids.push(vcChangesConfirmNode(h, t, meta, state.confirm, values, handlers))

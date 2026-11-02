@@ -37,6 +37,7 @@ declare function vcChangesOpMetaOf(op: any): any
 declare function vcChangesCheckArgsOf(cwd: any, op: any, values: any): any
 declare function vcChangesWriteArgsOf(cwd: any, op: any, values: any, ticketId: any, requestId: any): any
 declare function vcChangesRequestIdOf(nowMs: any, salt: any): string
+declare function vcChangesRowKeyOf(op: any, payload: any): string
 declare function vcWorktreesUiOf(ui: any): any
 declare function createWorktreesOpsOf(deps: any): any
 declare function vcFailureOf(reply: any): any
@@ -238,15 +239,21 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
   const put = function (patch: any): void {
     if (typeof setState === 'function') setState(function (cur: any) { return Object.assign({}, cur || {}, patch) })
   }
-  const putRow = function (op: any, patch: any): void {
+  const values: any = s.values || {}
+  // #1829 行级状态按「动作 + 作用对象」分键：同一动作有多个文件行时各自落自己的忙/确认/结果，
+  //   旧 13 条动作面板不带 payload，键仍是动作名，行为与以前完全一样。
+  // 键的算法只有一处：vcChangesRowKeyOf（与改动页界面行、13 条动作面板共用）。
+  const putRow = function (op: any, patch: any, payload?: any): void {
     if (typeof setState !== 'function') return
+    const key: string = vcChangesRowKeyOf(op, payload)
     setState(function (cur: any) {
       const rows: any = Object.assign({}, (cur && cur.rows) || {})
-      rows[String(op)] = Object.assign({}, rows[String(op)] || {}, patch)
+      rows[key] = Object.assign({}, rows[key] || {}, patch)
       return Object.assign({}, cur || {}, { rows: rows })
     })
   }
-  const values: any = s.values || {}
+  // 行内按钮只递 payload（例如 path），表单值是共享的 values：拼电话参数时把两层合并成这一次要操作的对象。
+  const effOf = function (payload: any): any { return Object.assign({}, values, payload || {}) }
   // 闸键＝动作 + 作用对象（路径 / 来源 / 去向 / 块号）：同对象同动作撞一把，不同对象各走各的。
   const objectKeyOf = function (op: any, payload: any): string {
     const p: any = payload || {}
@@ -272,17 +279,17 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
     beginNow: function (op: any, payload: any): any {
       const meta: any = vcChangesOpMetaOf(op)
       if (!meta || meta.write !== true) return handlers.read(op, payload)
-      putRow(op, { busy: true, result: null, confirm: null, read: null })
-      return Promise.resolve(call(VC_CHANGES_PHONES.check, vcChangesCheckArgsOf(cwd, op, values))).then(function (reply: any) {
+      putRow(op, { busy: true, result: null, confirm: null, read: null }, payload)
+      return Promise.resolve(call(VC_CHANGES_PHONES.check, vcChangesCheckArgsOf(cwd, op, effOf(payload)))).then(function (reply: any) {
         if (!reply || reply.ok !== true) {
-          putRow(op, { busy: false, result: { ok: false, error: vcFailureOf(reply), values: values } })
+          putRow(op, { busy: false, result: { ok: false, error: vcFailureOf(reply), values: effOf(payload) } }, payload)
           return reply
         }
         const ticket: any = reply.ticket || {}
         const ticketId: string = String(ticket.id || reply.ticketId || '')
         const requestId: string = vcChangesRequestIdOf(Date.now(), String(op))
         if (reply.confirmRequired === true || meta.dangerous === true) {
-          putRow(op, { busy: false, confirm: { ticketId: ticketId, requestId: requestId } })
+          putRow(op, { busy: false, confirm: { ticketId: ticketId, requestId: requestId } }, payload)
           return reply
         }
         return handlers.run(op, payload, { ticketId: ticketId, requestId: requestId })
@@ -293,28 +300,28 @@ export const vcRealChangesHandlersOf = function (state: any, setState: any, call
     },
     runNow: function (op: any, payload: any, ticket: any): any {
       const t: any = ticket || {}
-      putRow(op, { busy: true, confirm: null })
-      return Promise.resolve(call(VC_CHANGES_PHONES.write, vcChangesWriteArgsOf(cwd, op, values, t.ticketId, t.requestId))).then(function (reply: any) {
+      putRow(op, { busy: true, confirm: null }, payload)
+      return Promise.resolve(call(VC_CHANGES_PHONES.write, vcChangesWriteArgsOf(cwd, op, effOf(payload), t.ticketId, t.requestId))).then(function (reply: any) {
         if (reply && reply.ok === true) {
-          putRow(op, { busy: false, result: { ok: true, cmd: String(reply.cmd || op), ms: reply.ms, n: reply.n, values: values } })
+          putRow(op, { busy: false, result: { ok: true, cmd: String(reply.cmd || op), ms: reply.ms, n: reply.n, values: effOf(payload) } }, payload)
           if (typeof handlers.onDone === 'function') handlers.onDone()
         } else {
-          putRow(op, { busy: false, result: { ok: false, error: vcFailureOf(reply), values: values } })
+          putRow(op, { busy: false, result: { ok: false, error: vcFailureOf(reply), values: effOf(payload) } }, payload)
         }
         return reply
       })
     },
-    cancel: function (op: any): void { putRow(op, { busy: false, confirm: null }) },
+    cancel: function (op: any, payload?: any): void { putRow(op, { busy: false, confirm: null }, payload) },
     read: function (op: any, payload: any): any {
       return gated('changes-read', op, payload, function () { return handlers.readNow(op, payload) })
     },
     readNow: function (op: any, payload: any): any {
-      putRow(op, { busy: true, read: null })
-      return Promise.resolve(call(VC_CHANGES_PHONES.check, vcChangesCheckArgsOf(cwd, op, values))).then(function (reply: any) {
+      putRow(op, { busy: true, read: null }, payload)
+      return Promise.resolve(call(VC_CHANGES_PHONES.check, vcChangesCheckArgsOf(cwd, op, effOf(payload)))).then(function (reply: any) {
         const ok: boolean = !!(reply && reply.ok === true)
         const text: string = String((reply && (reply.text || reply.output || reply.stdout)) || '')
         const message: string = String((reply && reply.error && reply.error.message) || (ok ? '' : t('vc.shell.live.readFailed')))
-        putRow(op, { busy: false, read: { ok: ok, text: text, message: message } })
+        putRow(op, { busy: false, read: { ok: ok, text: text, message: message } }, payload)
         return reply
       })
     },

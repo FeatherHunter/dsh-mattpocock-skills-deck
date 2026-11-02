@@ -173,6 +173,9 @@ export const vcRealSeedOf = function (reads: any, nav: any, nowMs: any): any {
   const sync: any = vcFirstScreenSliceOf(reads, 'sync') || {}
   const syncData: any = (sync && sync.data) || {}
   const atMs: number = vcRealReadAtMsOf(reads)
+  // #1829 身份行要读工作区名、提交号、领先 / 落后与远端依据时间：都从 workspace 片取，缺了给空值，
+  //   界面读到空值就少画一格，不拿假数据补位（远端依据时间由同一个时间格式函数统一）。
+  const basisMs: number = Number(identity.basisMs || syncData.basisMs || 0)
   return Object.assign({}, snapshot, {
     branch: String(identity.branch || syncData.branch || ''),
     remote: String(syncData.remote || identity.remote || 'origin'),
@@ -180,6 +183,13 @@ export const vcRealSeedOf = function (reads: any, nav: any, nowMs: any): any {
     nowMs: Number(nowMs) > 0 ? Number(nowMs) : Date.now(),
     query: String(nav && nav.query ? nav.query : ''),
     highlight: String(nav && nav.highlight ? nav.highlight : ''),
+    repoDisplay: String(identity.worktreeDisplay || ''),
+    worktreePath: String(identity.worktreePath || ''),
+    oid: String(identity.oid || ''),
+    detached: identity.detached === true,
+    ahead: Math.max(0, Number(identity.ahead || syncData.ahead || 0)),
+    behind: Math.max(0, Number(identity.behind || syncData.behind || 0)),
+    basisWhen: basisMs > 0 ? vcRealWhenTextOf(basisMs) : '',
   })
 }
 
@@ -242,6 +252,24 @@ export const vcRealChangesSeedOf = function (reads: any): any {
     const status: string = String(row.status || row.kind || '')
     if (row.untracked === true || status === '??' || status.indexOf('untracked') >= 0) untracked += 1
   }
+  // #1829 文件行要逐行读数：把片里两组 FileEntry 归一成同一形状再交给界面；
+  //   缺字段给缺省值（change 缺省 modified、增删行数缺省 null 表示「不知道」），
+  //   一个文件同时有暂存与未暂存两边改动时会在两组各出现一行——这正是原型的两组，不在界面里合并。
+  const normOf = function (row: any, inStaged: boolean): any {
+    const change: string = String((row && row.change) || 'modified')
+    return {
+      path: String((row && row.path) || ''),
+      origPath: String((row && row.origPath) || ''),
+      staged: inStaged ? true : row && row.staged === true,
+      unstaged: inStaged ? false : true,
+      change: change,
+      conflict: !!(row && row.conflict === true),
+      addedLines: row && typeof row.addedLines === 'number' ? row.addedLines : null,
+      deletedLines: row && typeof row.deletedLines === 'number' ? row.deletedLines : null,
+      untracked: change === 'untracked' || !!(row && row.untracked === true),
+    }
+  }
+  const stagedRows: any[] = Array.isArray(data.staged) ? data.staged : []
   return {
     counts: {
       staged: Number(data.stagedCount || 0),
@@ -249,7 +277,11 @@ export const vcRealChangesSeedOf = function (reads: any): any {
       untracked: untracked,
       conflicts: Number(data.conflictCount || 0),
     },
-    values: { path: '', from: '', to: '', hunks: '', hunkIndex: '' },
+    values: { path: '', from: '', to: '', hunks: '', hunkIndex: '', filter: 'all' },
+    files: {
+      staged: stagedRows.map(function (row: any) { return normOf(row, true) }),
+      unstaged: unstaged.map(function (row: any) { return normOf(row, false) }),
+    },
   }
 }
 
