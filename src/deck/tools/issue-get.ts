@@ -1,6 +1,9 @@
 // src/deck/tools/issue-get.ts —— deck_issue_get（#713 第六批；#1019 换到新树、#1035 转 TypeScript）
 //
 // 一次把一张票的完整关系读回来：正文、评论、标签、认领、父子、阻塞边。
+// #1828：正文在回执里只出现一处——摘要档回 data.body.text，全文档回 data.body.chunks，
+// 只读某一节时原文回 data.section.text（data.body 只报这档叫 section 与全文长度/指纹）；
+// 票面（data.ticket）与回执顶层不再各抄一份正文。
 // 读票与读阻塞边是两次远端调用，#1610 起这两条一起发出去：串行等于把两次等待相加，
 // 并发之后只等较长的那一条，发出去的请求数一条不少。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
@@ -107,7 +110,7 @@ export const definition = {
     type: 'object',
     properties: {
       key: { type: 'string', description: '票号，例如 713' },
-      body: { type: 'string', description: '正文怎么回：excerpt 只回前 2000 字（缺省，省上下文）；full 回全文分块（大正文不截断，带指纹可验完整）。' },
+      body: { type: 'string', description: '正文怎么回：excerpt 只回前 2000 字（缺省，省上下文）；full 回全文分块（大正文不截断，带指纹可验完整）。正文在回执里只出现一处：摘要回 data.body.text、全文回 data.body.chunks，只读某一节时原文在 data.section.text。' },
       comments: { type: 'number', description: '最多带回几条评论，缺省 0（只回总数不回正文）；要看评论正文再按需取，最大 200' },
       section: { type: 'string', description: '只回正文里这一节（## 标题子串），缺省回正文前 2000 字' },
       blocking: { type: 'boolean', description: '要不要反向阻塞边（谁被这张票阻塞）。缺省要：读全量关系，一次查询就取回反向边，阻塞者的标题与状态随行回来。关掉只读单票本身，跳过一次反向边查询，快；反向边记空并注记，要就再调一次。' },
@@ -183,8 +186,9 @@ function issueBrief(issue: Record<string, unknown> | null | undefined) {
     assignees: assigneeNames(issue.assignees),
     updatedAt: issue.updatedAt || '', closedAt: issue.closedAt || '', url: issue.url || '',
     commentCount: typeof issue.commentCount === 'number' ? issue.commentCount : (Array.isArray(issue.comments) ? issue.comments.length : 0),
-    body: issue.body !== undefined ? issue.body : null,
-    // #1090：正文里的进度区按结构化形状回一份（旧字段一个不删，读的人想只取数字仍可读 body）。
+    // #1828：这里不装正文。回执里正文只出现一处，在 data.body（摘要 text / 全文 chunks / 只读某节的档位）；
+    // 票面再抄一份会让同一段正文在回执里出现两三次。进度与原话仍从正文解析出来单独回，见下面两格。
+    // #1090：正文里的进度区按结构化形状回一份（旧字段一个不删，读的人想只取数字仍可读 data.body）。
     // 没写进度时是 {percent:null,note:'',updatedAt:null,entries:[]}，不是 null——「没写」与「写坏了」分开看。
     progress: parseProgressDetail(issue.body !== undefined ? issue.body : null),
     // #1092：正文里「## 维护者原话」区按结构化形状回一份，原话逐字（引用块只去掉一个 > 前缀），
@@ -330,10 +334,23 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
       const bodyText = typeof issue.body === 'string' ? issue.body : ''
       const digest = bodyDigest(bodyText)
       const sec = sectionOf(bodyText, a.section)
-      if (typeof a.section === 'string' && a.section.trim() !== '' && !sec.found) notes.push('正文里没找到标题含「' + String(a.section).trim().slice(0, 60) + '」的节，回的是正文前 2000 字。')
+      const wantsSection = typeof a.section === 'string' && a.section.trim() !== ''
+      if (wantsSection && !sec.found) notes.push('正文里没找到标题含「' + String(a.section).trim().slice(0, 60) + '」的节，回的是' + (bodyMode === 'full' ? '全文分块' : '正文前 2000 字') + '。')
       const excerpt = (sec.found ? sec.text : bodyText).slice(0, BODY_EXCERPT_LEN)
       const commentTotal = typeof (issue as { commentCount?: unknown }).commentCount === 'number' ? (issue as { commentCount: number }).commentCount : (Array.isArray(issue.comments) ? issue.comments.length : 0)
-      if (bodyMode === 'excerpt') notes.push(bodyText.length <= BODY_EXCERPT_LEN ? '正文共 ' + bodyText.length + ' 字，已全量在上面 ticket.body / excerpt 里（指纹 ' + digest.slice(0, 12) + '）：写回正文时仍要先 body=\'full\' 取指纹再传 bodyDigest。' : '正文只回前 2000 字（全文共 ' + bodyText.length + ' 字，指纹 ' + digest.slice(0, 12) + '）：要全文带 body=\'full\' 再调一次，按分块回、可验指纹。')
+      // #1828：只读某一节时正文在 data.section.text；摘要档在 data.body.text。两处都只说一次，
+      // 不再像以前那样写成「上面 ticket.body / excerpt 里」——那两格已经不放正文了。
+      if (bodyMode === 'excerpt') {
+        if (sec.found) {
+          notes.push(sec.text.length <= BODY_EXCERPT_LEN
+            ? '正文「' + sec.name + '」这一节已全量在 data.section.text 里（正文共 ' + bodyText.length + ' 字，指纹 ' + digest.slice(0, 12) + '）：写回正文时仍要先 body=\'full\' 取指纹再传 bodyDigest。'
+            : '正文「' + sec.name + '」这一节只回前 2000 字（该节共 ' + sec.text.length + ' 字，正文全文 ' + bodyText.length + ' 字，指纹 ' + digest.slice(0, 12) + '）：要全文带 body=\'full\' 再调一次。')
+        } else {
+          notes.push(bodyText.length <= BODY_EXCERPT_LEN
+            ? '正文共 ' + bodyText.length + ' 字，已全量在 data.body.text 里（指纹 ' + digest.slice(0, 12) + '）：写回正文时仍要先 body=\'full\' 取指纹再传 bodyDigest。'
+            : '正文只回前 2000 字（全文共 ' + bodyText.length + ' 字，指纹 ' + digest.slice(0, 12) + '）：要全文带 body=\'full\' 再调一次，按分块回、可验指纹。')
+        }
+      }
       if (first === 0) notes.push('评论默认 0 条（共有 ' + commentTotal + ' 条）：要看评论正文带 comments=N 再调一次（最大 200），总数这次已给。')
       const stateText = String(issue.state || '未知状态')
       const closedText = issue.closedAt ? '（关闭于 ' + String(issue.closedAt).slice(0, 10) + '）' : ''
@@ -342,20 +359,26 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
         ? ('阻塞别人 ' + rel.blocking.length + ' 条' + (dependencies && dependencies.blockingComplete === false ? '（可能不全，见注记）。' : '。'))
         : '阻塞别人未取（blocking=false）。'
       const brief = issueBrief(issue)
-      if (brief && bodyMode === 'excerpt') brief.body = excerpt
+      // #1828：正文只装一处。只读某一节时 data.body 只报档位、全文长度与指纹，节原文放 data.section.text；
+      // 全文 + 指定节时正文已在 chunks，section 只报节名，不再重复节原文。
+      const sectionMode = bodyMode === 'excerpt' && sec.found
       const bodyPayload = bodyMode === 'full'
         ? { mode: 'full', length: bodyText.length, digest: digest, chunks: chunkBody(bodyText) }
-        : { mode: 'excerpt', length: bodyText.length, digest: digest, text: excerpt }
+        : sectionMode
+          ? { mode: 'section', length: bodyText.length, digest: digest }
+          : { mode: 'excerpt', length: bodyText.length, digest: digest, text: excerpt }
+      const sectionPayload = sec.found
+        ? (bodyMode === 'full' ? { name: sec.name } : { name: sec.name, text: excerpt })
+        : null
       return {
         value: {
           status: DECK_STATUS.OK,
           text: '票 ' + key + ' 读回来了：状态 ' + stateText + closedText + '，父票 ' + (rel.parentKey || '（没有）') + '，被阻塞 ' + rel.blockedBy.length + ' 条，' + blockingText + statusSentenceOf(issue as Record<string, unknown>),
           data: {
             ticket: brief,
-            excerpt: excerpt,
             body: bodyPayload,
             commentCount: commentTotal,
-            section: sec.found ? { name: sec.name, text: excerpt } : null,
+            section: sectionPayload,
             relations: rel,
             landings: {
               // 读路径只知道「契约的字段里有这条关系」，分不出原生层级与平级链接，如实降一档（判据见 shell.js）。

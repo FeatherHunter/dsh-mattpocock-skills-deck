@@ -125,7 +125,8 @@ async function main() {
     '原话正文逐字相同（长度 ' + String(w1[0] && w1[0].text.length) + ' / 写入 ' + TRICKY.length + '，空行、行首行尾空格、> 开头都没有被改写）')
   check(w1[0] && w1[0].source === e1.source, '出处原样带出（实得 ' + String(w1[0] && w1[0].source) + '）')
   check(w1[0] && w1[0].recordedAt === null, '出处里没有时间时 recordedAt 是 null（实得 ' + String(w1[0] && w1[0].recordedAt) + '）')
-  const body1 = String((g1.data && g1.data.ticket && g1.data.ticket.body) || '')
+  // #1828：正文只在 data.body.text（摘要档），票面不再带正文。
+  const body1 = String((g1.data && g1.data.body && g1.data.body.text) || '')
   check(body1.indexOf('出处：' + e1.source) >= 0 && body1.indexOf('> ' + TRICKY_LINES[0]) >= 0 && body1.indexOf('> > 这一行') >= 0,
     '正文里写出的是「出处行 + 引用块」规范写法（含 > 开头的行再加一层引用）')
   check(body1.split('\n').some((l: string) => l.indexOf('> 出处：这一行看起来像出处') === 0),

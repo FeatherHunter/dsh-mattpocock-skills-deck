@@ -184,8 +184,11 @@ async function main() {
   check(oldTicket.statusSource === 'hidden', 'get 旧文件实施票 statusSource=hidden（实得 ' + oldTicket.statusSource + '）')
   check(!('statusVisible' in oldTicket), 'get 旧文件实施票可见值与采用值相同，不带 statusVisible')
   check(!('statusConflict' in oldTicket), 'get 旧文件实施票没有冲突时不带 statusConflict')
-  check(oldTicket.body === (gOld.data && gOld.data.excerpt), 'get 的 data.ticket.body 仍是 2000 字摘录（与 excerpt 一致）')
-  check(String(gOld.data && gOld.data.excerpt).length <= 2000, 'get 正文摘录仍不超过 2000 字')
+  // #1828：正文只在 data.body 里出现一处，票面与回执顶层不再各抄一份。
+  check(!('body' in oldTicket), 'get 的 data.ticket 不再带正文（#1828）')
+  check(!('excerpt' in gOld.data), 'get 回执顶层不再多装一份摘录（#1828）')
+  check(String(gOld.data && gOld.data.body && gOld.data.body.text).length > 0
+    && String(gOld.data.body.text).length <= 2000, 'get 正文摘录在 data.body.text 里、不超过 2000 字')
 
   const gChild = await callTool('deck_issue_get', { key: childKey, effort: E })
   const childTicket = (gChild && gChild.data && gChild.data.ticket) || {}

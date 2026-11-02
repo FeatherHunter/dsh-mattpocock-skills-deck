@@ -160,6 +160,9 @@ async function main() {
   const createTool = (await imp('src/deck/tools/issue-create.ts')).createDeckIssueCreate(deps)
   const patchTool = (await imp('src/deck/tools/issue-patch.ts')).createDeckIssuePatch(deps)
   const getTool = (await imp('src/deck/tools/issue-get.ts')).createDeckIssueGet(deps)
+  // #1828：读票回执里正文只放一处——摘要档在 data.body.text，data.ticket 不再带正文。
+  // 这几张票正文都短，摘要档就是全文，所以逐字比对正文都从这里取。
+  const readBody = (res: any): string => String((res && res.data && res.data.body && res.data.body.text) || '')
   const execA = { agent: { session: { id: 's-1091', cwd: rootAPosix } } }
   const ticketFiles = (): string[] => { try { return fs.readdirSync(issuesDir).filter((f) => f.endsWith('.md')) } catch (e) { return [] } }
 
@@ -170,7 +173,7 @@ async function main() {
   const cItem = ((created && created.items) || []).find((i: any) => i.step === 'text') || {}
   check(cItem.status === 'ok' && !!cItem.originalWords && cItem.originalWords.source === e1.source, '建票写后核对那一步回 ok、记了写的是哪一条原话')
   const g0 = await getTool.run(execA, { key: cKey })
-  const body0 = String((g0.data && g0.data.ticket && g0.data.ticket.body) || '')
+  const body0 = readBody(g0)
   check(body0.indexOf('## 目的') >= 0 && body0.indexOf('## 维护者原话') > body0.indexOf('## 目的'), '读回正文：原话区在建出来的票上、排在目的区后面')
   check(body0.indexOf('## 维护者原话') < body0.indexOf('## 边界'), '读回正文：原话区夹在目的区与下一节之间')
   check(body0.indexOf(quoteBlock) >= 0, '读回正文：原话逐字读得回来（出处行 + 引用块，空行保留）')
@@ -182,7 +185,7 @@ async function main() {
   const w1Item = ((w1 && w1.items) || []).find((i: any) => i.step === 'text') || {}
   check(w1Item.status === 'ok' && Array.isArray(w1Item.fields) && w1Item.fields.indexOf('originalWords') >= 0, '改票写后核对那一步回 ok，fields 里写了 originalWords')
   const g1 = await getTool.run(execA, { key: cKey })
-  const body1 = String((g1.data && g1.data.ticket && g1.data.ticket.body) || '')
+  const body1 = readBody(g1)
   check(body1.indexOf('> 第一行原话') >= 0 && body1.indexOf('> 第一行原话') < body1.indexOf('> ' + e2.text), '读回正文：第一条在前、第二条在后，旧的原样保留')
   check(body1.split(/\r?\n/).filter((l: string) => /^##\s*维护者原话\s*$/.test(l)).length === 1, '读回正文：追加以后仍然只有一个维护者原话标题')
 
@@ -191,14 +194,14 @@ async function main() {
   const w2Item = ((w2 && w2.items) || []).find((i: any) => i.step === 'text') || {}
   check(!!w2 && w2.status === 'ok' && w2Item.skipped === true, '重复提交同一段原话 + 同一出处时幂等跳过（实得 skipped=' + String(w2Item.skipped) + '）')
   const g2 = await getTool.run(execA, { key: cKey })
-  check(String((g2.data && g2.data.ticket && g2.data.ticket.body) || '') === body1, '幂等跳过后正文一个字没动')
+  check(readBody(g2) === body1, '幂等跳过后正文一个字没动')
 
   // ④ 缺出处拒绝：整笔拒绝、正文一个字不动（原话是一字不改的东西，不替调用方编出处）。
   const w3 = await patchTool.run(execA, { key: cKey, originalWords: { text: '没有出处的原话' } })
   check(!!w3 && w3.status !== 'ok', '缺出处的原话被整笔拒绝（实得 ' + String(w3 && w3.status) + '）')
   check(String((w3 && w3.text) || '').indexOf('出处') >= 0 && String((w3 && w3.text) || '').indexOf('一个字都没动') >= 0, '拒绝说明里讲清出处必填、也说了一个字都没动')
   const g3 = await getTool.run(execA, { key: cKey })
-  check(String((g3.data && g3.data.ticket && g3.data.ticket.body) || '') === body1, '被拒以后正文一个字没动')
+  check(readBody(g3) === body1, '被拒以后正文一个字没动')
 
   // ⑤ 建票带缺出处的原话：这张票不建（一个文件都不多）。
   const filesBefore = ticketFiles().length
@@ -220,7 +223,7 @@ async function main() {
   const bothItem = ((both && both.items) || []).find((i: any) => i.step === 'text') || {}
   check(bothItem.status === 'ok' && (bothItem.fields || []).indexOf('progress') >= 0 && (bothItem.fields || []).indexOf('originalWords') >= 0, '一起写时写后核对那一步报了两块（实得 ' + JSON.stringify((bothItem && bothItem.fields) || []) + '）')
   const gBoth = await getTool.run(execA, { key: bothKey })
-  const bothBody = String((gBoth.data && gBoth.data.ticket && gBoth.data.ticket.body) || '')
+  const bothBody = readBody(gBoth)
   const bothProgress = (gBoth.data && gBoth.data.ticket && gBoth.data.ticket.progress) || null
   check(!!bothProgress && bothProgress.percent === 50 && bothProgress.note === '一半', '一起写时进度读回来是 50%（实得 ' + JSON.stringify(bothProgress) + '）')
   check(bothBody.indexOf('- 进度：50%') >= 0 && bothBody.indexOf(e3.text) >= 0, '一起写时正文里进度与原话都在')
@@ -236,7 +239,7 @@ async function main() {
   const w4 = await patchTool.run(execA, { key: cKey, body: whole, bodyDigest: wholeDigest })
   check(!!w4 && w4.status === 'ok', '整份正文改写回 ok（实得 ' + String(w4 && w4.status) + '，说明 ' + String((w4 && w4.text) || '').slice(0, 160) + '）')
   const g4 = await getTool.run(execA, { key: cKey })
-  const body4 = String((g4.data && g4.data.ticket && g4.data.ticket.body) || '')
+  const body4 = readBody(g4)
   check(body4.indexOf('## 维护者原话') >= 0, '整份正文改写以后维护者原话区还在（没有被整份覆盖丢掉）')
   check(body4.indexOf('## 维护者原话') > body4.indexOf('改写后的目的。'), '搬回来的原话区仍跟在目的区后面')
   check(body4.indexOf(quoteBlock) >= 0 && body4.indexOf(e2.text) >= 0, '搬回来的原话逐字没变（两条都在）')

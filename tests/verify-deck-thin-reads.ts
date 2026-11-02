@@ -9,6 +9,8 @@
 //      （#1562：缺省省上下文，要全文或评论正文再按需取一次）；
 //   ② 跳过必注记：没取的记空不记 0，正文里不写“0 条”这种假话，注记写清怎么拿全量；
 //   ③ 统计不变：thin 只薄行，统计与进度表用全量行算好再薄，数字与 full 一字不差。
+//   ④ 正文只出现一处（#1828）：摘要、全文、指定节三档都只在 data.body（或 data.section.text）里
+//      各一份；回执不再把同一段正文抄进 data.ticket.body、data.excerpt，section 档也不在 data.body 里重复。
 // 全文交付可验完整：body='full' 按 7000 字分块、带全文 SHA-256 指纹，拼回去逐字节相同；
 // 写整段正文凭指纹验旧，对不上一个字不动。
 // 本文件不联网：后端全是桩，只验“调没调、记没记、数对不对”。
@@ -23,6 +25,8 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+// #1828：同一段正文在回执里只许出现一次。数它在整份回执里出现了几次。
+const countOf = (text, part) => (part ? String(text).split(part).length - 1 : 0)
 
 function stubGateLedger(gateMod, ledgerMod) {
   const now = 1700000000000
@@ -222,7 +226,9 @@ async function main() {
       const sample = '甲乙丙\u{1F600}混合 mixed 123'
       check(bodyDigest(sample) === createHash('sha256').update(sample, 'utf8').digest('hex'), '中文与表情的指纹与标准库一致')
     }
-    const bigBody = '# 大正文\n\n' + '甲'.repeat(5000) + '\n'
+    // 正文里放一段只出现一次的标记：整份回执只能数到一次（#1828）。
+    const MARK = '正文唯一标记-1828'
+    const bigBody = '# 大正文\n\n' + MARK + '\n' + '甲'.repeat(5000) + '\n'
     const cmts = [0, 1, 2].map((i) => ({ author: { login: 'u' + i }, body: '评论' + i, createdAt: '', updatedAt: '' }))
     const bodyTracker = {
       get: async (_repo, _key, opts) => {
@@ -238,7 +244,9 @@ async function main() {
       const r = await tool.run(execFor(), { key: '7' })
       check(r && r.status === 'ok' && r.data.body.mode === 'excerpt', '缺省正文走摘要档')
       check(r && r.data.body.length === bigBody.length && r.data.body.text.length === 2000, '摘要档长度诚实（全文长度 + 前 2000 字）')
-      check(r && r.data.ticket.body.length === 2000, '票面正文缺省只带前 2000 字')
+      check(r && !('body' in (r.data.ticket || {})), '票面不再带正文（data.ticket.body 不存在）')
+      check(r && !('excerpt' in r.data), '顶层不再多装一份摘要（data.excerpt 不存在）')
+      check(countOf(JSON.stringify(r), MARK) === 1, '正文唯一标记在整份回执里只出现一次（实得 ' + countOf(JSON.stringify(r), MARK) + ' 次）')
       check(r && r.data.body.digest === bodyDigest(bigBody), '摘要档指纹即全文指纹')
       check(r && Array.isArray(r.data.comments) && r.data.comments.length === 0 && r.data.commentCount === 3, '缺省评论 0 条、总数照给')
       const notes = JSON.stringify(r.notes || [])
@@ -252,6 +260,27 @@ async function main() {
       check(r && r.status === 'ok' && r.data.body.mode === 'full', 'body=full 走全文档')
       check(r && joinChunks(r.data.body.chunks) === bigBody, '全文分块拼回去逐字节相同')
       check(r && r.data.body.digest === bodyDigest(bigBody), '全文指纹对得上')
+      check(r && !('body' in (r.data.ticket || {})), '全文档票面也不带正文（正文只在 data.body.chunks）')
+      check(countOf(JSON.stringify(r), MARK) === 1, '全文在整份回执里只出现一次（实得 ' + countOf(JSON.stringify(r), MARK) + ' 次）')
+    }
+    // 指定节：只回这一节，且原文只出现在 data.section.text 一处（#1828）。
+    {
+      const sectionBody = '# 带节票\n\n' + MARK + '\n\n## 进度\n\n这一步做完了\n\n## 其他\n\n别的内容\n'
+      const tracker = {
+        get: async () => ({ ok: true, data: Object.assign({}, demoIssue, { body: sectionBody, comments: [], commentCount: 0 }) }),
+        getDependencies: async () => ({ ok: true, data: { blockedBy: [], blocking: [] } }),
+      }
+      const g = stubGateLedger(gateMod, ledgerMod)
+      const tool = getMod.createDeckIssueGet(baseDeps(g.gate, stubRegistry(tracker), budget))
+      const r = await tool.run(execFor(), { key: '7', section: '进度' })
+      check(r && r.status === 'ok' && r.data.body.mode === 'section' && !('text' in r.data.body), '只读某一节时正文走 section 档，data.body 不再重复这一节')
+      check(r && r.data.section && String(r.data.section.text).indexOf('这一步做完了') >= 0, '指定节的原文在 data.section.text')
+      check(countOf(JSON.stringify(r), '这一步做完了') === 1, '指定节的原文在整份回执里只出现一次（实得 ' + countOf(JSON.stringify(r), '这一步做完了') + ' 次）')
+      check(r && !('body' in (r.data.ticket || {})) && !('excerpt' in r.data), '指定节时票面与顶层也不带正文')
+      // 全文 + 指定节：正文在 chunks 里，section 只报节名，不再重复节原文。
+      const rf = await tool.run(execFor(), { key: '7', section: '进度', body: 'full' })
+      check(rf && rf.data.body.mode === 'full' && rf.data.section && rf.data.section.name === '进度' && rf.data.section.text === undefined,
+        '全文 + 指定节：正文只在 chunks，section 只报节名')
     }
     // 按需评论：传几回几。
     {
@@ -259,6 +288,28 @@ async function main() {
       const tool = getMod.createDeckIssueGet(baseDeps(g.gate, stubRegistry(bodyTracker), budget))
       const r = await tool.run(execFor(), { key: '7', comments: 2 })
       check(r && r.status === 'ok' && r.data.comments.length === 2 && r.data.commentCount === 3, '传几条回几条、总数不变')
+    }
+    // #1828 验收：10KB 正文 + 5 条评论，缺省回执不超过 3KB，正文只出现一次。
+    {
+      const body10k = '# 十千字票\n\n' + 'a'.repeat(10000) + '\n'
+      const many = [0, 1, 2, 3, 4].map((i) => ({ author: { login: 'u' + i }, body: '评论' + i, createdAt: '', updatedAt: '' }))
+      const tracker = {
+        get: async () => ({ ok: true, data: Object.assign({}, demoIssue, { body: body10k, comments: [], commentCount: many.length }) }),
+        getDependencies: async () => ({ ok: true, data: { blockedBy: [], blocking: [] } }),
+      }
+      const g = stubGateLedger(gateMod, ledgerMod)
+      const tool = getMod.createDeckIssueGet(baseDeps(g.gate, stubRegistry(tracker), budget))
+      const r = await tool.run(execFor(), { key: '7' })
+     // 量两个数：data 是工具自己装的那一块（正文、票面、关系、落点），整份回执外面还有壳的公共字段
+      // （tool/workspace/backend/repo/cost/notes 等，约 700 字，由会话壳统一加，跟正文重复无关）。
+      // #1562 时同构造整份 7433 字；#1828 唯一化正文后 data 2705、整份 3406，所以卡这两个上限。
+      const size = JSON.stringify(r).length
+      const dataSize = JSON.stringify(r.data).length
+      check(r && r.status === 'ok' && r.data.body.text.length === 2000 && r.data.body.length === body10k.length && r.data.commentCount === 5,
+        '10KB 正文 + 5 条评论：摘要 2000 字、全文长度与评论总数照给')
+      check(dataSize <= 3000, '10KB 正文 + 5 条评论：回执的 data 部分 ≤3KB（实得 ' + dataSize + ' 字）')
+      check(size <= 3500, '10KB 正文 + 5 条评论：整份回执 ≤3.5KB（实得 ' + size + ' 字）')
+      check(countOf(JSON.stringify(r), '十千字票') === 1, '正文在整份回执里只出现一次（实得 ' + countOf(JSON.stringify(r), '十千字票') + ' 次）')
     }
     // 写整段正文：没带指纹、指纹对不上，都一个字不动。
     {

@@ -491,8 +491,10 @@ async function main() {
           check(specText.indexOf('Type: spec') < 0 && specText.indexOf('DSH-ISSUE-KIND') < 0,
             '[' + lane.id + '] 双轨 B 规格票不再写 Type: spec 与旧类型标记')
         } else {
-          check(marker.markerKindInHeader(specBrief.body) === 'spec' && String(specBrief.type || '') === 'spec',
-            '[' + lane.id + '] 双轨 B 规格票正文第一段带对象类型标记、契约类型也归一成 spec：type=' + String(specBrief.type) + '，' + JSON.stringify(String(specBrief.body || '').split('\n').slice(0, 2)))
+          // #1828：读票回执里正文只在 data.body（摘要档是 data.body.text），票面不再带正文。
+          const specBody = String((specGet && specGet.data && specGet.data.body && specGet.data.body.text) || '')
+          check(marker.markerKindInHeader(specBody) === 'spec' && String(specBrief.type || '') === 'spec',
+            '[' + lane.id + '] 双轨 B 规格票正文第一段带对象类型标记、契约类型也归一成 spec：type=' + String(specBrief.type) + '，' + JSON.stringify(specBody.split('\n').slice(0, 2)))
         }
         const emptySnap = await run('deck_map_snapshot', Object.assign({ key: specKey }, specScope))
         const emptyState = await snapshotState(emptySnap)

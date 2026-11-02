@@ -32,7 +32,6 @@
     "commentCount": 0,
     "comments": [],
     "dependenciesRaw": null,
-    "excerpt": "<!-- DSH-FORMAT: md-v1 -->\n<!-- DSH-IDEMPOTENCY-KEY: deck-dafdda6d-5666666 -->\n<!-- DSH-CREATED: <TIME> -->\n# 01: 金标准演示票\n\n**What to build:** 正文\n\n**Blocked by:** None (can start immediately)\n\n## 进度\n",
     "landings": {
       "blockedBy": "说不好（这次没读回来，别当它已经建好）",
       "caveat": "这两个落点是从契约返回的字段读出来的；要精确知道这个后端把父子放在原生层级还是平级链接，看返回里本次写操作留下的 evidence（deck_map_link 会写）。",
@@ -46,7 +45,6 @@
     "section": null,
     "ticket": {
       "assignees": [],
-      "body": "<!-- DSH-FORMAT: md-v1 -->\n<!-- DSH-IDEMPOTENCY-KEY: deck-dafdda6d-5666666 -->\n<!-- DSH-CREATED: <TIME> -->\n# 01: 金标准演示票\n\n**What to build:** 正文\n\n**Blocked by:** None (can start immediately)\n\n## 进度\n",
       "closedAt": "",
       "commentCount": 0,
       "key": "01",
@@ -70,7 +68,7 @@
   "items": [],
   "notes": [
     "反向阻塞边这次没取（blocking=false，跳过一次反向边查询）：上面“阻塞别人”记空不是 0 条，要就带 blocking=true 再调一次。",
-    "正文共 215 字，已全量在上面 ticket.body / excerpt 里（指纹 <DIGEST12>）：写回正文时仍要先 body='full' 取指纹再传 bodyDigest。",
+    "正文共 215 字，已全量在 data.body.text 里（指纹 <DIGEST12>）：写回正文时仍要先 body='full' 取指纹再传 bodyDigest。",
     "评论默认 0 条（共有 0 条）：要看评论正文带 comments=N 再调一次（最大 200），总数这次已给。"
   ],
   "ok": true,

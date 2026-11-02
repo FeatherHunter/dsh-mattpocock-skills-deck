@@ -81,6 +81,14 @@ async function main() {
   const planTool = (await imp('src/deck/tools/map-plan-create.ts')).createDeckMapPlanCreate(deps)
   const patchTool = (await imp('src/deck/tools/issue-patch.ts')).createDeckIssuePatch(deps)
   const getTool = (await imp('src/deck/tools/issue-get.ts')).createDeckIssueGet(deps)
+  // #1828：读票回执里正文只放一处——摘要档在 data.body.text，全文档在 data.body.chunks（按顺序拼回来）。
+  // 要逐字比正文的地方都走这个取法，不再读已经去掉的 data.ticket.body。
+  const bodyOf = (res: any): string => {
+    const b = (res && res.data && res.data.body) || {}
+    if (typeof b.text === 'string') return b.text
+    if (Array.isArray(b.chunks)) return b.chunks.join('')
+    return ''
+  }
   const snapTool = (await imp('src/deck/tools/map-snapshot.ts')).createDeckMapSnapshot(deps)
   const createTool = (await imp('src/deck/tools/issue-create.ts')).createDeckIssueCreate(deps)
   const execA = { agent: { session: { id: 's-1090', cwd: rootAPosix } } }
@@ -98,7 +106,7 @@ async function main() {
   check(!!mapKey && !!childKey, '地图与子票票号都拿到了（地图 ' + mapKey + '，子票 ' + childKey + '）')
 
   const before = await getTool.run(execA, { key: childKey })
-  const beforeBody = String((before.data && before.data.ticket && before.data.ticket.body) || '')
+  const beforeBody = bodyOf(before)
   const w1 = await patchTool.run(execA, { key: childKey, progress: { percent: 90, note: '写完了' } })
   check(w1 && w1.status === 'ok', '写一条进度回 ok（实得 ' + (w1 && w1.status) + '，说明 ' + String((w1 && w1.text) || '').slice(0, 120) + '）')
   const w1item = ((w1 && w1.items) || []).find((i) => i.step === 'text') || {}
@@ -110,7 +118,7 @@ async function main() {
   check(!!p1 && ISO_MS.test(String(p1.updatedAt)), '时间由工具盖成 ISO 8601 带时区（实得 ' + String(p1 && p1.updatedAt) + '）')
   check(!!p1 && Array.isArray(p1.entries) && p1.entries.length === 1 && p1.entries[0].percent === 90
     && p1.entries[0].note === '写完了' && p1.entries[0].updatedAt === p1.updatedAt, '第一条记录就是刚写的这条（实得 ' + JSON.stringify(p1 && p1.entries) + '）')
-  const g1body = String((g1.data && g1.data.ticket && g1.data.ticket.body) || '')
+  const g1body = bodyOf(g1)
   check(g1body.indexOf('- 进度：90%') >= 0, '正文里写出了规范条目（实得含 = ' + (g1body.indexOf('- 进度：90%') >= 0) + '）')
 
   // ⑧ 只动进度区：去掉进度区以后，正文其余部分与写前逐字相同。
@@ -152,7 +160,7 @@ async function main() {
   const oldStyle = await patchTool.run(execA, { key: childKey, progress: '95%' })
   check(oldStyle && oldStyle.status !== 'ok', '自由文字 progress 被拒（实得 ' + (oldStyle && oldStyle.status) + '）')
   const gOld = await getTool.run(execA, { key: childKey })
-  check(String((gOld.data && gOld.data.ticket && gOld.data.ticket.body) || '') === g1body, '被拒以后正文一个字没动')
+  check(bodyOf(gOld) === g1body, '被拒以后正文一个字没动')
 
   // ═══ ⑤ 老格式第一次被写入：旧百分比搬成一条「时间未记录」，旧自由文字保留 ═══
   const legacyBody = '## 进度：90%\n\n以前随手写的一段旧文字。'
@@ -163,7 +171,7 @@ async function main() {
   check(lw && lw.status === 'ok', '老格式票写新进度回 ok（实得 ' + (lw && lw.status) + '，说明 ' + String((lw && lw.text) || '').slice(0, 160) + '）')
   const lg = await getTool.run(execA, { key: legacyKey })
   const lp = (lg.data && lg.data.ticket && lg.data.ticket.progress) || null
-  const lgbody = String((lg.data && lg.data.ticket && lg.data.ticket.body) || '')
+  const lgbody = bodyOf(lg)
   check(!!lp && lp.percent === 70 && lp.entries.length === 2, '老格式票读回新记录在先、旧记录在后（实得 ' + JSON.stringify(lp) + '）')
   check(!!lp && lp.entries.length === 2 && lp.entries[1].percent === 90 && lp.entries[1].updatedAt === null && lp.entries[1].note === '',
     '旧标题里的百分比搬成「时间未记录」一条、说明为空（实得 ' + JSON.stringify(lp && lp.entries) + '）')
@@ -179,7 +187,7 @@ async function main() {
   check(dw && dw.status === 'ok', '重复进度区票写进度回 ok（实得 ' + (dw && dw.status) + '）')
   const dg = await getTool.run(execA, { key: dupKey })
   const dp = (dg.data && dg.data.ticket && dg.data.ticket.progress) || null
-  const dgbody = String((dg.data && dg.data.ticket && dg.data.ticket.body) || '')
+  const dgbody = bodyOf(dg)
   check(!!dp && dp.percent === 50 && dp.entries.length === 3, '重复进度区的三条记录都在（实得 ' + JSON.stringify(dp) + '）')
   check(!!dp && dp.entries.map((e) => e.percent).join(',') === '50,30,40', '顺序是新的最上、两段旧记录按出现顺序（实得 ' + (dp && dp.entries.map((e) => e.percent).join(',')) + '）')
   const headingCount = dgbody.split(/\r?\n/).filter((l) => /^##\s*进度/.test(l)).length
@@ -194,7 +202,7 @@ async function main() {
   check(fw && fw.status === 'ok', '代码块示例票写进度回 ok（实得 ' + (fw && fw.status) + '）')
   const fg = await getTool.run(execA, { key: fenceKey })
   const fp = (fg.data && fg.data.ticket && fg.data.ticket.progress) || null
-  const fgbody = String((fg.data && fg.data.ticket && fg.data.ticket.body) || '')
+  const fgbody = bodyOf(fg)
   check(!!fp && fp.percent === 20, '示例里的 99% 没被当成当前进度（实得 ' + JSON.stringify(fp) + '）')
   check(fgbody.indexOf(FENCE + '\n## 进度：99%\n' + FENCE) >= 0, '代码块示例原样保留、一个字没被改写')
 
@@ -203,15 +211,15 @@ async function main() {
   const bc = await createTool.run(execA, { title: '超长正文票', kind: 'issue', body: bigBody })
   check(bc && bc.status === 'ok', '超长正文票建成功（实得 ' + (bc && bc.status) + '）')
   const bigKey = String((bc.data && bc.data.ticket && bc.data.ticket.key) || '')
-  const bBefore = await getTool.run(execA, { key: bigKey })
-  const bBeforeBody = String((bBefore.data && bBefore.data.ticket && bBefore.data.ticket.body) || '')
+  const bBefore = await getTool.run(execA, { key: bigKey, body: 'full' })
+  const bBeforeBody = bodyOf(bBefore)
   const bw = await patchTool.run(execA, { key: bigKey, progress: { percent: 10, note: '想写但超长' } })
   check(bw && bw.status !== 'ok', '超过 60KB 时明确拒绝写入（实得 ' + (bw && bw.status) + '）')
   const bwReasons = ((bw && bw.items) || []).map((i) => String((i.error && i.error.message) || i.reason || '')).join(' ')
   check(bwReasons.indexOf('硬顶') >= 0 && bwReasons.indexOf('一个字没动') >= 0,
     '拒绝说明里讲了 60KB 这条硬顶、也说了正文没动（实得：' + bwReasons.slice(0, 220) + '）')
-  const bAfter = await getTool.run(execA, { key: bigKey })
-  check(String((bAfter.data && bAfter.data.ticket && bAfter.data.ticket.body) || '') === bBeforeBody, '被拒以后正文一个字没动')
+  const bAfter = await getTool.run(execA, { key: bigKey, body: 'full' })
+  check(bodyOf(bAfter) === bBeforeBody, '被拒以后正文一个字没动')
 
   try { dispose.dispose() } catch (e) {}
   try { fs.rmSync(rootA, { recursive: true, force: true }) } catch (e) {}
