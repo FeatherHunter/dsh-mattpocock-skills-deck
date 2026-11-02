@@ -344,6 +344,11 @@ export     const ListTab = ({ st, narrow }: any) => {
       const foldCounts = deckCountsOf(st, !!(((st.effFilters || []).length) || ((st.lblFilters || []).length)))
       const kpi = (num: any, lab: any, icon: any, color: any) => h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, [Ic({ n: icon, size: 11, color: color }), h('span', null, (num == null ? tr('list.countsUnknown') : String(num)) + ' ' + lab)])
       return h('div', null, [
+        // #1833 第二步：列表头部吸顶 —— 已选标签过滤条、统计行、多目录签与筛选行整块挂进 .dsws-stickybar，
+        //   列表滚动时这几行停在顶部。样式复用 styles.ts 里详情页那套（负 top/margin 抵掉 .dsws-body 的 10px 12px 内边距），
+        //   所以不需要改 Dock；历史票翻页行、加载/失败整行、其余状态句与列表行仍留在滚动区。
+        //   窄面板下筛选芯片会换行，吸顶块随之变高，这是有意的：常用筛选与统计不随内容滚走。
+        h('div', { className: 'dsws-stickybar', 'data-list-sticky': '1', key: 'listSticky' }, [
         // v1.5：已选标签过滤条（仅标签 · 颜色 = 该标签配置色 · 点 ✕ 关闭）
         (st.lblFilters && st.lblFilters.length) ? h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 6 } }, [
           h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', flex: 'none' } }, tr('list.filterActive')),
@@ -413,6 +418,8 @@ export     const ListTab = ({ st, narrow }: any) => {
         //   末尾省略号）都住在 views/mdEffortRow.ts —— 排布要能用真浏览器量，画法与判据放在同一份真源。
         multiEffort ? mdEffortRowNode(h, st, effortNames) : null,
         listFilterRowNode(h, st, colorOf, sortedLabels),
+        ]),
+        // #1833：吸顶块到此为止（历史票翻页行、加载/失败整行、状态句与列表行仍随列表滚动）。
         // #690：历史票翻页那一行 —— 「已加载 x / 共 N」、翻页位置失效、取不到、后端不支持翻页各说各的
         //   （出处见 views/ListTabClosed.js 的注释；x 与折叠行那两个数同源：就是当前列表里真的画出来的行数）。
         closedPagesNode(h, st, closedRows.length),

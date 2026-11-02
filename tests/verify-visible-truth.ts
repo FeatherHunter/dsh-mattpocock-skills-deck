@@ -433,6 +433,29 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   const noneView = truth.budgetTierViewOf(refreshWith({ id: 'local', budgetKind: 'none', readKnown: true, offNetwork: false }))
   if (!noneView || noneView.tier !== 'none') fail('没有额度模型的后端档位该是 none，实得：' + JSON.stringify(noneView))
   if (truth.budgetTierViewOf(refreshWith(undefined)) !== null) fail('后端没声明额度时不该凭空给出一个档位')
+  // #1833 复审修复：未知按行上的显式标记认（不按词条键猜），黄档「数字可能不是最新的」提醒句不算紧张。
+  if (!unknownView || !unknownView.lines[0] || unknownView.lines[0].unknown !== true) fail('读数未知的行要带 unknown 机器标记（档位按标记认，新加一种未知原因不会漏判成充足）：' + JSON.stringify(unknownView))
+  if (modelWithSync[0] && modelWithSync[0].unknown !== true) fail('模型未知的行也要带 unknown 标记：' + JSON.stringify(modelWithSync[0]))
+  if (bogusSync[0] && bogusSync[0].unknown !== true) fail('形状不对的 sync 说「还没同步」时也要带 unknown 标记：' + JSON.stringify(bogusSync[0]))
+  if (staleHard[2] && staleHard[2].unknown === true) fail('有旧读数时那句「数字可能不是最新」说的是读数过期、不是未知，不该带 unknown 标记（否则档位被算成未知）：' + JSON.stringify(staleHard[2]))
+  const staleWarnView = truth.budgetTierViewOf(refreshWith({
+    id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: true, offNetwork: false,
+    buckets: { graphql: { remaining: 4200, limit: 5000 }, rest: { remaining: 4500, limit: 5000 } },
+    sync: { lastFailAt: 1767221040000, lastFailKind: 'hard' },
+  }))
+  if (!staleWarnView || staleWarnView.tier !== 'plenty') fail('黄档提醒句「数字可能不是最新的」不算紧张（读数本身是充足的，判成紧张会与展开后读数自相矛盾），档位该是 plenty，实得：' + JSON.stringify(staleWarnView))
+  const staleWarnLine = (staleWarnView && staleWarnView.lines[2]) || {}
+  if (staleWarnLine.key !== 'truth.budgetStaleSyncFailedHard' || staleWarnLine.tone !== 'yellow' || staleWarnLine.unknown === true) fail('紧邻读数的黄档提醒句仍是黄档提醒、不带 unknown 标记，实得：' + JSON.stringify(staleWarnLine))
+  const hardUnknownView = truth.budgetTierViewOf(refreshWith({
+    id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: false, offNetwork: false,
+    sync: { lastFailAt: 1767221040000, lastFailKind: 'hard' },
+  }))
+  if (!hardUnknownView || hardUnknownView.tier !== 'unknown') fail('读数未知且同步硬失败：档位该是 unknown（按标记认），不能被黄档提醒句算成紧张，实得：' + JSON.stringify(hardUnknownView))
+  const nearYellowView = truth.budgetTierViewOf(refreshWith({
+    id: 'gh-graphql', budgetKind: 'two-buckets', readKnown: true, offNetwork: false,
+    buckets: { graphql: { remaining: 1000, limit: 5000 }, rest: { remaining: 4200, limit: 5000 } },
+  }))
+  if (!nearYellowView || nearYellowView.tier !== 'tight') fail('黄档读数本身仍算紧张（带剩余量的读数是「快用完了」的真读数，不能因为只是黄档就放过），实得：' + JSON.stringify(nearYellowView))
 })()
 console.log('#715 诚实显示门禁（新鲜度 / 失败 / 降级）')
 if (failed) {
@@ -448,5 +471,5 @@ console.log('  PASS 降档说出延迟承诺（数据可能落后 ' + Math.round
 console.log('  PASS 推迟说「有更新，已推后」；写入窗口内/外判得对，那批词条中英两面都在')
 console.log('  PASS 降级标记到得了界面：上游真降级时回包带 \'rest\'、没降级时是 null')
 console.log('  PASS 面板额度读数按后端声明说话（两桶 / 仅请求 / 离网 / 未知），未知时不出现 0 与红档；后台同步失败按 hard / soft 说清原因（读数未知说有旧读数都说得出来），模型未知仍优先')
-console.log('  PASS 额度档位视图（充足 / 紧张 / 未知 / 离网 / 没有额度）与列表行分离：列表行不再并入额度句')
+console.log('  PASS 额度档位视图（充足 / 紧张 / 未知 / 离网 / 没有额度）与列表行分离：列表行不再并入额度句；紧张只看读数本身（黄档提醒句不算），未知按行上标记认')
 console.log('\n全部通过')

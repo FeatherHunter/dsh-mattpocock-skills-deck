@@ -194,7 +194,7 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
       const headAgo = headBox ? tr(headBox.agoKey, headBox.agoParams) : ''
       const headTip = headBox ? tr('truth.updatedTip', { ago: headAgo, time: headBox.time }) : ''
       // 仓库名按版面上显示的那一串（就是芯片里那串字）逐字变短；完整的那一串留在悬停提示里，一个字都不丢。
-      const headLadder = (typeof headFoldLadderOf === 'function') ? headFoldLadderOf({ name: headRepo ? String(headRepo.name || '') : '', refresh: tr('list.refresh'), time: headAgo, icons: ['palette', 'switch', 'mark'], badge: (typeof noticeHeadBadgeOf === 'function') ? noticeHeadBadgeOf(noticeView) : '' }) : null
+      const headLadder = (typeof headFoldLadderOf === 'function') ? headFoldLadderOf({ name: headRepo ? String(headRepo.name || '') : '', refresh: tr('list.refresh'), time: headAgo, icons: ['palette', 'switch', 'mark'], badge: (typeof noticeHeadBadgeOf === 'function') ? noticeHeadBadgeOf(noticeView, s) : '' }) : null
       const headNow = headLadder ? headFoldStateAt(headLadder, headFold) : null
       const headIconCls = function (id: any) { return (headNow && headNow.icons[id] === false) ? 'dsws-folded' : undefined }
       // 头部自适应（#28 那条收缩链的第三代，维护者 2026-09-22 定）：空间不够时照 panel/headFold.js 那条阶梯

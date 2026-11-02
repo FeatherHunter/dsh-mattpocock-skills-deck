@@ -157,7 +157,9 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
     return { readable: true, loading: false, events: events, unread: model.noticeUnreadOf(events, ids), latest: model.noticeLatestOf(events), readIds: ids, key: 'k', markAllRead: function () {}, clearRead: function () {}, refresh: function () {} }
   }
   const renderPanel = function (st, view) { return renderToStaticMarkup(React.createElement(center.NotificationHistoryPanel, { st: st, view: view })) }
-  const renderEntry = function (view, folded) { return renderToStaticMarkup(React.createElement(center.NotificationCenter, { st: stNormal(), view: view, folded: !!folded })) }
+  // #1833：入口渲染也能换状态 —— 「历史为空、只有额度可看」这一种要能单独验（入口不能只认历史）。
+  const renderEntryWith = function (st, view, folded) { return renderToStaticMarkup(React.createElement(center.NotificationCenter, { st: st, view: view, folded: !!folded })) }
+  const renderEntry = function (view, folded) { return renderEntryWith(stNormal(), view, folded) }
 
   // ── 一、判据：事件类型、当前状态、对不上、未读、排序、时间、回声 ──
   check(JSON.stringify(model.NOTICE_TYPES) === JSON.stringify(['degraded-start', 'degraded-recovery', 'refresh-failed', 'write-failed']), '四类事件：降级开始、降级恢复、刷新失败、写失败')
@@ -274,6 +276,11 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   check(!!offView && offView.tier === 'off' && offView.stateKey === 'notice.budgetOff', '离网后端 → 档位「不需要额度」')
   const noneView = model.noticeBudgetViewOf(stBudget({ budgetKind: 'none', readKnown: true, offNetwork: false }))
   check(!!noneView && noneView.tier === 'none' && noneView.stateKey === 'notice.budgetNone', '后端声明没有额度这回事 → 档位「没有额度」')
+  check(!!unknownView && unknownView.lines[0].unknown === true, '读数未知的行带 unknown 机器标记（档位按标记认，不按词条键猜）')
+  const plentyBackend = { budgetKind: 'two-buckets', readKnown: true, offNetwork: false, buckets: { graphql: { remaining: 4200, limit: 5000 }, rest: { remaining: 4500, limit: 5000 } } }
+  check(model.noticeHeadBadgeOf({ readable: true, unread: 0, events: [] }, stBudget(plentyBackend)) === 'badge', '历史为空但有额度读数 → 头部仍让一格（额度住在这颗铃铛里，健康仓库也要打得开）')
+  check(model.noticeHeadBadgeOf({ readable: true, unread: 0, events: [] }, stNormal()) === '', '负例：历史与额度都没有 → 不让格（不占窄面板的地方）')
+  check(model.noticeHeadBadgeOf({ readable: false, unread: 0, events: [] }, stBudget(plentyBackend)) === '', '负例：读不到历史 → 不让格（额度也救不回来）')
 
   // ── 三、真投影渲染：历史浮层与头部入口 ──
   const normalMarkup = renderPanel(stNormal(), viewOf(EVENTS, {}))
@@ -328,6 +335,10 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   const unreadableView = viewOf(EVENTS, {})
   unreadableView.readable = false
   check(renderEntry(unreadableView, false) === '', '负例：读不到历史 → 不画入口（不拿「没有通知」冒充读不到）')
+  // #1833：额度只从快照派生，健康仓库的历史通常是空的 —— 这种仓库的额度行也必须打得开。
+  check(renderEntryWith(stBudget(plentyBackend), viewOf([], {}), false).indexOf('data-notice-entry') >= 0, '历史为空但有额度读数 → 入口仍画（「当前状态·额度」在健康仓库里打得开）')
+  check(renderEntryWith(stBudget(plentyBackend), viewOf([], {}), true).indexOf('dsws-folded') >= 0, '…折叠到这一档时照旧带 dsws-folded（窄面板收得走）')
+  check(renderEntryWith(stNormal(), viewOf([], {}), false) === '', '负例：历史与额度都没有 → 入口仍不画')
 
   // #1833：当前状态区里那一行额度（真投影渲染，负例与三档都覆盖）。
   const budgetPlentyMarkup = renderPanel(stBudget({ budgetKind: 'two-buckets', readKnown: true, offNetwork: false, buckets: { graphql: { remaining: 4200, limit: 5000 }, rest: { remaining: 4500, limit: 5000 } } }), viewOf(EVENTS, {}))
@@ -380,6 +391,7 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   check(modelSrc.indexOf('localStorage') < 0 && modelSrc.indexOf('sessionStorage') >= 0, '未读标记只写会话呈现态（sessionStorage），不落盘')
   const dockSrc = read('src/client/panel/Dock.ts')
   check(dockSrc.indexOf('NotificationCenter') >= 0 && dockSrc.indexOf('useNotifications(s)') >= 0, '面板头部那一排接上了通知中心入口')
+  check(dockSrc.indexOf('noticeHeadBadgeOf(noticeView, s)') >= 0, '…折叠阶梯算徽标格时把状态传进去（有额度可看时才让得出这一格）')
 
   console.log('verify-notification-center：共 ' + total + ' 条断言，失败 ' + failed + ' 条')
   printGateResult(GATE, total, failed ? 1 : 0)

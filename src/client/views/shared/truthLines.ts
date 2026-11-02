@@ -22,7 +22,7 @@
 //      分好类之后，作为事实（st.snapFail.kind）送进来的；界面只把事实翻成可读的话，不许自己按错误文本猜。
 //      #1833 起失败不再独占列表一行：truthFailureOf 把事实交给头部那枚小标识，列表状态行只说
 //      「数据为什么旧」（落后 / 暂停 / 推后 / 未在刷新 / 磁盘回放）；额度读数同理交给通知中心，
-//      由 budgetTierViewOf 折成「充足 / 紧张 / 未知」一档。这两个都不改判据，只是换承载的地方。
+//      由 budgetTierViewOf 折成「充足 / 紧张 / 未知 / 离网 / 没有额度」五档。这两个都不改判据，只是换承载的地方。
 //
 // 事实从哪儿来（三个都是别人写好的，这里只读）：
 //   · 快照取数时刻：st.snapshot.generatedMs（宿主组装快照时写下的一刻，不是界面渲染的一刻）
@@ -185,11 +185,13 @@ export const budgetNoticeLines = function (refresh: any): any[] {
   if (backend.offNetwork === true) return [{ key: 'truth.budgetOffNetwork', params: {}, tone: 'fresh', kind: 'budget' }]
   // 读数未知时说什么：后台同步报过失败（#1006）就按类别补一句原因，否则仍说中性的「还没同步上来」。
   // 只认两种已知类别：形状不对的 sync 不猜 —— 猜错类别比不说话更坏（会说成另一种故障）。
+  // #1833：这三句说的都是「读数未知」，行上带 unknown: true 这个显式机器标记 ——
+  //   budgetTierViewOf 按标记归「未知」档，不靠词条键去猜（新加一种未知原因不会漏判成充足）。
   const unknown = function (): any[] {
     const sync = backend.sync
-    if (sync && sync.lastFailKind === 'hard') return [{ key: 'truth.budgetSyncFailedHard', params: {}, tone: 'yellow', kind: 'budget' }]
-    if (sync && sync.lastFailKind === 'soft') return [{ key: 'truth.budgetSyncFailedSoft', params: {}, tone: 'fresh', kind: 'budget' }]
-    return [{ key: 'truth.budgetUnknown', params: {}, tone: 'fresh', kind: 'budget' }]
+    if (sync && sync.lastFailKind === 'hard') return [{ key: 'truth.budgetSyncFailedHard', params: {}, tone: 'yellow', kind: 'budget', unknown: true }]
+    if (sync && sync.lastFailKind === 'soft') return [{ key: 'truth.budgetSyncFailedSoft', params: {}, tone: 'fresh', kind: 'budget', unknown: true }]
+    return [{ key: 'truth.budgetUnknown', params: {}, tone: 'fresh', kind: 'budget', unknown: true }]
   }
   // 有旧读数时最近一次同步失败也说一句（#1006 复核）：只认两种已知类别，形状不对不猜。
   // 为什么数字照念：旧读数仍有参考价值，删掉数字会退化成「什么都没说」；但必须点明它可能过期。
@@ -203,7 +205,7 @@ export const budgetNoticeLines = function (refresh: any): any[] {
   // 模型未知排在读数未知之前：连「这个后端的额度怎么算」都说不清时，「这次读没读到」是下一层的问题。
   // 两句说的是不同的事实 —— 一句是模型不知道（它可能永远说不清），一句是这次还没读到（等一等就有）。
   if (KNOWN_BUDGET_KINDS.indexOf(String(backend.budgetKind || '')) < 0) {
-    return [{ key: 'truth.budgetUnknownModel', params: {}, tone: 'fresh', kind: 'budget' }]
+    return [{ key: 'truth.budgetUnknownModel', params: {}, tone: 'fresh', kind: 'budget', unknown: true }]
   }
   if (backend.readKnown !== true) return unknown()
   if (backend.budgetKind === 'requests') {
@@ -227,8 +229,11 @@ export const budgetNoticeLines = function (refresh: any): any[] {
 // ── 额度档位（#1833）：通知中心「当前状态」区只说人话档位，展开才看原始数字 ──
 // 档位只有四种说法 + 一种「没有额度」：充足 / 紧张 / 未知 / 离网（不需要额度）/ 没有额度。
 // 判据全部沿用 budgetNoticeLines 那一份（它念什么，这里就按轻重归档），不另写第二套数字或阈值：
-//   · 有一条红/黄档读数就报「紧张」—— 真耗尽也在这档里说清（展开能看到 failQuota 那句）；
-//   · 读数原来就不知道（readKnown 不为真、模型未知、该念的桶缺了）报「未知」，不编 0、不编「用尽」；
+//   · 紧张只看「读数本身」：有一条红档读数，或一条黄档读数还带着剩余量（params.remaining 是数字）就报「紧张」。
+//     黄档里那句「数字可能不是最新的」不算 —— 它只提醒读数可能过期，数字本身仍可能是充足的，
+//     判成紧张会与展开后「还剩大半」的读数自相矛盾；
+//   · 读数原来就不知道（readKnown 不为真、模型未知、该念的桶缺了）报「未知」，不编 0、不编「用尽」——
+//     未知由行上的 unknown: true 标记来认，不按词条键匹配（见 budgetNoticeLines 的 unknown()）；
 //   · 离网后端报 off（不出站就没有额度这回事），本机模型报 none（没有额度可念）。
 // 返回 null 表示后端没声明额度（老快照），调用方一个字的额度信息都不画。
 export const budgetTierViewOf = function (refresh: any) {
@@ -240,13 +245,15 @@ export const budgetTierViewOf = function (refresh: any) {
   if (backend.readKnown !== true) return { tier: 'unknown', lines: lines }
   if (backend.budgetKind === 'none') return { tier: 'none', lines: lines }
   for (let i = 0; i < lines.length; i++) {
-    const k = lines[i].key
-    if (k === 'truth.budgetUnknown' || k === 'truth.budgetUnknownModel' || k === 'truth.budgetSyncFailedHard' || k === 'truth.budgetSyncFailedSoft') return { tier: 'unknown', lines: lines }
+    if (lines[i].unknown === true) return { tier: 'unknown', lines: lines }
   }
   if (!lines.length) return { tier: 'unknown', lines: lines }
   let tight = false
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].tone === 'red' || lines[i].tone === 'yellow') tight = true
+    const ln = lines[i]
+    // 红档一定紧张；黄档只有「带着剩余量的读数」才算紧张 —— 「数字可能不是最新的」这类提醒句不算。
+    if (ln.tone === 'red') tight = true
+    else if (ln.tone === 'yellow' && typeof ln.params.remaining === 'number' && isFinite(ln.params.remaining)) tight = true
   }
   return { tier: tight ? 'tight' : 'plenty', lines: lines }
 }

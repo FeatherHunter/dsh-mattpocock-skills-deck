@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-02T19:56:55.831Z",
+  "generatedAt": "2026-11-02T20:15:10.095Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 540,
-  "gateCount": 540,
-  "attributedGates": 483,
+  "chainLength": 541,
+  "gateCount": 541,
+  "attributedGates": 484,
   "unattributedGates": 57,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 82,
+  "completionRecordedGates": 83,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 843,
+  "graphFileCount": 844,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4619,6 +4619,8 @@
       "step": "node tests/verify-1586-vc-visual-browser.ts",
       "file": "tests/verify-1586-vc-visual-browser.ts",
       "guards": [
+        "src/client/views/versionControl/vcBranchPage.ts",
+        "src/client/views/versionControl/vcBranches.ts",
         "src/client/views/versionControl/vcCapabilityList.ts",
         "src/client/views/versionControl/vcCapabilityPages.ts",
         "src/client/views/versionControl/vcChangesView.ts",
@@ -4655,7 +4657,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 210,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 22 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 24 条"
     },
     {
       "step": "node tests/verify-1586-worktrees.ts",
@@ -6145,6 +6147,25 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 14 条）"
     },
     {
+      "step": "node tests/verify-1833-list-sticky.ts",
+      "file": "tests/verify-1833-list-sticky.ts",
+      "guards": [
+        "src/client/kernel/styles.ts",
+        "src/client/views/ListTab.ts",
+        "src/client/views/listFilterRow.ts",
+        "src/client/views/mdEffortRow.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 21,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
       "step": "node tests/verify-3-workspace-switch.ts",
       "file": "tests/verify-3-workspace-switch.ts",
       "guards": [
@@ -7419,6 +7440,7 @@
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/client/views/versionControl/vcAiHandoff.ts",
         "src/client/views/versionControl/vcBlocks.ts",
+        "src/client/views/versionControl/vcBranchPage.ts",
         "src/client/views/versionControl/vcBranches.ts",
         "src/client/views/versionControl/vcCache.ts",
         "src/client/views/versionControl/vcCapabilityList.ts",
@@ -7540,7 +7562,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 732,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 104 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 105 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -7627,6 +7649,7 @@
         "src/client/views/versionControl/VersionControlTab.ts",
         "src/client/views/versionControl/vcAiHandoff.ts",
         "src/client/views/versionControl/vcBlocks.ts",
+        "src/client/views/versionControl/vcBranchPage.ts",
         "src/client/views/versionControl/vcBranches.ts",
         "src/client/views/versionControl/vcCache.ts",
         "src/client/views/versionControl/vcCapabilityList.ts",
@@ -7747,7 +7770,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 104 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 105 条"
     },
     {
       "step": "node tests/verify-847-stall-watch.ts",
@@ -10785,7 +10808,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 117,
+      "expectedAssertions": 125,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 7 条；源码里的路径字面量 7 条"
     },
     {
@@ -13270,6 +13293,7 @@
       "node tests/verify-1792-card-action-gate.ts",
       "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-1806-record-write-paths.ts",
+      "node tests/verify-1833-list-sticky.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -13420,6 +13444,7 @@
       "node tests/verify-1783-comments-projection.ts",
       "node tests/verify-1792-card-action-gate.ts",
       "node tests/verify-1802-settings-cross-window.ts",
+      "node tests/verify-1833-list-sticky.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -15031,9 +15056,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 864,
+    "fileCount": 865,
     "dirCount": 84,
-    "coveredFileCount": 864,
+    "coveredFileCount": 865,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -15230,6 +15255,7 @@
       "src/client/views/versionControl/VersionControlTab.ts",
       "src/client/views/versionControl/vcAiHandoff.ts",
       "src/client/views/versionControl/vcBlocks.ts",
+      "src/client/views/versionControl/vcBranchPage.ts",
       "src/client/views/versionControl/vcBranches.ts",
       "src/client/views/versionControl/vcCache.ts",
       "src/client/views/versionControl/vcCapabilityList.ts",

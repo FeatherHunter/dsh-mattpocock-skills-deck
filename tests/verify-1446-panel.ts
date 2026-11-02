@@ -249,6 +249,12 @@ console.log('#1446 面板额度读数（纯函数 / 快照编排器 / 信封透�
   check(keysOf(dup).indexOf('truth.failQuota') < 0 && keysOf(dup).indexOf('truth.budget') < 0, '#1833：取数失败与配额耗尽都不再住列表状态行（失败由头部小标识说，额度由通知中心说）')
   const exhausted = truth.budgetTierViewOf(stWith({ budgetKind: 'requests', readKnown: true, offNetwork: false, requests: { remaining: 0, limit: 5000 } }).snapshot.refresh)
   check(!!exhausted && exhausted.tier === 'tight' && keysOf(exhausted.lines) === 'truth.failQuota', '真耗尽仍照实说（档位「紧张」，逐条是那句「等整点恢复」）')
+  // #1833 复审修复：未知按行上显式标记认；黄档「数字可能不是最新的」提醒句不算紧张。
+  check(!!unknownView && !!unknownView.lines[0] && unknownView.lines[0].unknown === true, '读数未知的句子带 unknown 机器标记（档位按标记认，不按词条键猜）')
+  const staleWarn = truth.budgetTierViewOf(stWith(Object.assign({}, two, { sync: { lastFailAt: 1712345678000, lastFailKind: 'hard' } })).snapshot.refresh)
+  check(!!staleWarn && staleWarn.tier === 'plenty' && keysOf(staleWarn.lines).indexOf('truth.budgetStaleSyncFailedHard') >= 0 && !staleWarn.lines[2].unknown, '黄档提醒句「数字可能不是最新的」不算紧张（读数充足时档位仍是「充足」，句子也不带 unknown 标记）')
+  const nearYellow = truth.budgetTierViewOf(stWith(Object.assign({}, two, { buckets: { graphql: { remaining: 1000, limit: 5000 }, rest: { remaining: 4200, limit: 5000 } } })).snapshot.refresh)
+  check(!!nearYellow && nearYellow.tier === 'tight', '黄档读数本身仍算紧张（不能因为只是黄档就放过）')
 })()
 
 // ---------- 二、快照编排器：拿到就写 backend，拿不到保持四格 ----------

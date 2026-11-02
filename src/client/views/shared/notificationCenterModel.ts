@@ -17,7 +17,8 @@
  *
  * 取数走宿主电话 wf.notifications（返回 { ok, events }，事件来自宿主侧事件库）；
  * 还没读到、读坏了、宿主版本太旧没有这条电话时，readable=false，入口与历史都不画，
- * 不拿「没有通知」冒充「读不到」。
+ * 不拿「没有通知」冒充「读不到」。入口另外认「额度」（#1833）：历史为空但从快照读得到额度读数时，
+ * 入口照样让出一格，否则「当前状态·额度」在健康仓库里没有打开的地方。
  */
 declare const React: any
 declare const host: any
@@ -326,10 +327,16 @@ export const noticeHistoryMismatchOf = function (st: any, events: any) {
   return open !== noticeCurrentDegradedOf(st)
 }
 
-/** 头部要不要让出一格给徽标：读得到历史且历史非空就让出（没有未读也要能点开看历史，不再整颗藏起来）；
- * 读不到历史或历史为空才不让格 —— 空历史没有可看的东西，不占窄面板的地方。 */
-export const noticeHeadBadgeOf = function (view: any) {
-  return (view && view.readable && Array.isArray(view.events) && view.events.length > 0) ? 'badge' : ''
+/**
+ * 头部要不要让出一格给徽标：读得到历史、且「有历史可看」或「有额度可看」就让出。
+ * #1833：额度只从快照派生（「当前状态」不是历史），健康仓库的历史通常是空的 —— 只看历史的话，
+ * 「当前状态·额度」这一行在健康仓库里永远打不开。所以历史非空或者 noticeBudgetViewOf(st) 非空都让格；
+ * 两者都没有（或读不到历史）才不让格，不占窄面板的地方。
+ */
+export const noticeHeadBadgeOf = function (view: any, st: any) {
+  if (!view || !view.readable) return ''
+  if (Array.isArray(view.events) && view.events.length > 0) return 'badge'
+  return noticeBudgetViewOf(st) ? 'badge' : ''
 }
 
 /** 徽标上的数字：0 或读不到给空串（不画数字），超过 99 说 99+。 */

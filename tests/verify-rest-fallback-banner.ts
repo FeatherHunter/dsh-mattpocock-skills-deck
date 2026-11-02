@@ -147,6 +147,8 @@ const q = function (html: string) { return new JSDOM('<!doctype html><html><body
   const truth: any = await import('../src/client/views/shared/truthLines.js')
   G.restFallbackView = truth.restFallbackView
   G.freshnessToneColor = truth.freshnessToneColor
+  // 复审修复（#1833）：通知中心额度行经 noticeBudgetViewOf 再取 budgetTierViewOf 分档，一起接真源。
+  G.budgetTierViewOf = truth.budgetTierViewOf
   G.truthNoticeLines = () => []
   // 通知中心：判据与两个组件都走真实现。
   const model: any = await import('../src/client/views/shared/notificationCenterModel.js')
@@ -157,6 +159,9 @@ const q = function (html: string) { return new JSDOM('<!doctype html><html><body
   G.noticeUnreadTextOf = model.noticeUnreadTextOf
   G.noticeTypeKeyOf = model.noticeTypeKeyOf
   G.noticeToneColorOf = model.noticeToneColorOf
+  // 复审修复（#1833）：通知中心「当前状态」区新增额度行，组件渲染时直接取这份判据；
+  // 真投影渲染要把它一起接上，否则面板一画就抛 ReferenceError。
+  G.noticeBudgetViewOf = model.noticeBudgetViewOf
   const center: any = await import('../src/client/views/shared/notificationCenter.js')
   // 列表页渲染需要的其余名字：本门禁不测行与筛选条，给空实现即可（判据不在这里）。
   const mark: any = await import('../src/client/views/shared/fallbackMark.js')
