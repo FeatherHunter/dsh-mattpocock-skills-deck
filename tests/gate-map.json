@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-02T22:47:49.810Z",
+  "generatedAt": "2026-11-02T22:50:43.275Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 543,
-  "gateCount": 543,
-  "attributedGates": 486,
+  "chainLength": 547,
+  "gateCount": 547,
+  "attributedGates": 490,
   "unattributedGates": 57,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 85,
+  "completionRecordedGates": 89,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 844,
+  "graphFileCount": 848,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4620,6 +4620,7 @@
       "file": "tests/verify-1586-vc-visual-browser.ts",
       "guards": [
         "src/client/views/versionControl/vcBranchPage.ts",
+        "src/client/views/versionControl/vcBranchPopover.ts",
         "src/client/views/versionControl/vcBranches.ts",
         "src/client/views/versionControl/vcCapabilityList.ts",
         "src/client/views/versionControl/vcCapabilityPages.ts",
@@ -4632,6 +4633,9 @@
         "src/client/views/versionControl/vcMaintenanceData.ts",
         "src/client/views/versionControl/vcMaintenanceDiag.ts",
         "src/client/views/versionControl/vcMaintenancePage.ts",
+        "src/client/views/versionControl/vcManageIndex.ts",
+        "src/client/views/versionControl/vcPageHead.ts",
+        "src/client/views/versionControl/vcPageStyles.ts",
         "src/client/views/versionControl/vcPalette.ts",
         "src/client/views/versionControl/vcQuery.ts",
         "src/client/views/versionControl/vcQueryView.ts",
@@ -4657,7 +4661,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 310,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 24 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 27 条"
     },
     {
       "step": "node tests/verify-1586-worktrees.ts",
@@ -6068,6 +6072,67 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 4 条"
+    },
+    {
+      "step": "node tests/verify-1829-branch-popover.ts",
+      "file": "tests/verify-1829-branch-popover.ts",
+      "guards": [
+        "src/client/views/versionControl/vcBranchPopover.ts"
+      ],
+      "dirs": [
+        "src/client/views/versionControl"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 23,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1829-manage-index.ts",
+      "file": "tests/verify-1829-manage-index.ts",
+      "guards": [
+        "src/client/views/versionControl/vcManageIndex.ts"
+      ],
+      "dirs": [
+        "src/client/views/versionControl"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 33,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1829-page-head.ts",
+      "file": "tests/verify-1829-page-head.ts",
+      "guards": [
+        "src/client/views/versionControl/vcPageHead.ts",
+        "src/client/views/versionControl/vcPageStyles.ts"
+      ],
+      "dirs": [
+        "src/client/views/versionControl"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 75,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1829-palette-overlay.ts",
+      "file": "tests/verify-1829-palette-overlay.ts",
+      "guards": [
+        "src/client/views/versionControl/vcPalette.ts"
+      ],
+      "dirs": [
+        "src/client/views/versionControl"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 39,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-1830-list-label-honesty.ts",
@@ -7494,6 +7559,7 @@
         "src/client/views/versionControl/vcAiHandoff.ts",
         "src/client/views/versionControl/vcBlocks.ts",
         "src/client/views/versionControl/vcBranchPage.ts",
+        "src/client/views/versionControl/vcBranchPopover.ts",
         "src/client/views/versionControl/vcBranches.ts",
         "src/client/views/versionControl/vcCache.ts",
         "src/client/views/versionControl/vcCapabilityList.ts",
@@ -7523,9 +7589,11 @@
         "src/client/views/versionControl/vcMaintenanceData.ts",
         "src/client/views/versionControl/vcMaintenanceDiag.ts",
         "src/client/views/versionControl/vcMaintenancePage.ts",
+        "src/client/views/versionControl/vcManageIndex.ts",
         "src/client/views/versionControl/vcMigrateData.ts",
         "src/client/views/versionControl/vcMigrateExport.ts",
         "src/client/views/versionControl/vcMigratePage.ts",
+        "src/client/views/versionControl/vcPageHead.ts",
         "src/client/views/versionControl/vcPalette.ts",
         "src/client/views/versionControl/vcPlatformData.ts",
         "src/client/views/versionControl/vcPlatformPage.ts",
@@ -7615,7 +7683,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 732,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 105 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 108 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -7703,6 +7771,7 @@
         "src/client/views/versionControl/vcAiHandoff.ts",
         "src/client/views/versionControl/vcBlocks.ts",
         "src/client/views/versionControl/vcBranchPage.ts",
+        "src/client/views/versionControl/vcBranchPopover.ts",
         "src/client/views/versionControl/vcBranches.ts",
         "src/client/views/versionControl/vcCache.ts",
         "src/client/views/versionControl/vcCapabilityList.ts",
@@ -7732,9 +7801,11 @@
         "src/client/views/versionControl/vcMaintenanceData.ts",
         "src/client/views/versionControl/vcMaintenanceDiag.ts",
         "src/client/views/versionControl/vcMaintenancePage.ts",
+        "src/client/views/versionControl/vcManageIndex.ts",
         "src/client/views/versionControl/vcMigrateData.ts",
         "src/client/views/versionControl/vcMigrateExport.ts",
         "src/client/views/versionControl/vcMigratePage.ts",
+        "src/client/views/versionControl/vcPageHead.ts",
         "src/client/views/versionControl/vcPalette.ts",
         "src/client/views/versionControl/vcPlatformData.ts",
         "src/client/views/versionControl/vcPlatformPage.ts",
@@ -7823,7 +7894,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 105 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 108 条"
     },
     {
       "step": "node tests/verify-847-stall-watch.ts",
@@ -13648,6 +13719,10 @@
       "node tests/verify-1762-platform.ts",
       "node tests/verify-1776-vc-live-tab.ts",
       "node tests/verify-1776-vc-tab-browser.ts",
+      "node tests/verify-1829-branch-popover.ts",
+      "node tests/verify-1829-manage-index.ts",
+      "node tests/verify-1829-page-head.ts",
+      "node tests/verify-1829-palette-overlay.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-881-commit-open.ts",
@@ -15121,9 +15196,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 865,
+    "fileCount": 869,
     "dirCount": 84,
-    "coveredFileCount": 865,
+    "coveredFileCount": 869,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -15321,6 +15396,7 @@
       "src/client/views/versionControl/vcAiHandoff.ts",
       "src/client/views/versionControl/vcBlocks.ts",
       "src/client/views/versionControl/vcBranchPage.ts",
+      "src/client/views/versionControl/vcBranchPopover.ts",
       "src/client/views/versionControl/vcBranches.ts",
       "src/client/views/versionControl/vcCache.ts",
       "src/client/views/versionControl/vcCapabilityList.ts",
@@ -15350,9 +15426,12 @@
       "src/client/views/versionControl/vcMaintenanceData.ts",
       "src/client/views/versionControl/vcMaintenanceDiag.ts",
       "src/client/views/versionControl/vcMaintenancePage.ts",
+      "src/client/views/versionControl/vcManageIndex.ts",
       "src/client/views/versionControl/vcMigrateData.ts",
       "src/client/views/versionControl/vcMigrateExport.ts",
       "src/client/views/versionControl/vcMigratePage.ts",
+      "src/client/views/versionControl/vcPageHead.ts",
+      "src/client/views/versionControl/vcPageStyles.ts",
       "src/client/views/versionControl/vcPalette.ts",
       "src/client/views/versionControl/vcPlatformData.ts",
       "src/client/views/versionControl/vcPlatformPage.ts",

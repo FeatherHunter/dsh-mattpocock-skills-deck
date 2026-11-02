@@ -188,6 +188,10 @@ const VC_FILES = [
   'src/client/views/versionControl/vcMaintenanceDiag.js',
   'src/client/views/versionControl/vcShellIdentity.js',
   'src/client/views/versionControl/vcChangesView.js',
+  // #1829 阶段 4 三个共享件（与构建同序）：页头与页面原语、齿轮里的管理索引卡、分支浮层；壳的挂载段要看到它们。
+  'src/client/views/versionControl/vcPageHead.js',
+  'src/client/views/versionControl/vcManageIndex.js',
+  'src/client/views/versionControl/vcBranchPopover.js',
   'src/client/views/versionControl/vcShellPages.js',
   // #1776 M1 真实页签容器四叶 + #1776 M2 管理页七叶（与构建同序）：纯状态换算 → 管理页状态与模型
   //   → 每页读数分发 → 分支/远端/同步动作 → 配置/钩子/诊断/子模块/平台动作 → 迁移与任务轮询

@@ -86,6 +86,10 @@ const VC_FILES = [
   'src/client/views/versionControl/vcChangesView.js',
   'src/client/views/versionControl/vcBranches.js', // #1829：分支与标签的数据层（读数归一、票与结果落位；页面壳挂页面前要先有它）
   'src/client/views/versionControl/vcBranchPage.js', // #1829：分支与标签页的视图叶子（页头、筛选与搜索、卡片、页尾折叠）
+  // #1829 阶段 4 三个共享件（与构建同序）：页头与页面原语、齿轮里的管理索引卡、分支浮层；壳的挂载段要看到它们。
+  'src/client/views/versionControl/vcPageHead.js',
+  'src/client/views/versionControl/vcManageIndex.js',
+  'src/client/views/versionControl/vcBranchPopover.js',
   'src/client/views/versionControl/vcShellPages.js',
 ]
 
@@ -494,7 +498,10 @@ async function run(browser: any, env: any) {
   const valuesMod = await import('file://' + path.join(ROOT, sourcePath('src/shared/time-config/values.js')).replace(/\\/g, '/'))
   const relMs = Number(valuesMod.VC_RELATIVE_WINDOW_MS)
   const stylesMod = await import('file://' + path.join(ROOT, 'src/client/views/versionControl/vcShellStyles.ts').replace(/\\/g, '/'))
-  const css = 'html,body{margin:0;padding:0}#pane{width:100%}' + String(stylesMod.VC_SHELL_STYLE_TEXT || '')
+  // #1829 阶段 4：新样式是独立叶子 vcPageStyles，运行时由 index.ts 接在 vcShellStyles 之后注入同一个样式表；
+  //   这里量尺也要按同一顺序拼起来，否则页头、管理索引卡与遮罩拿不到新规则，窄档会量出假溢出。
+  const pageStylesMod = await import('file://' + path.join(ROOT, 'src/client/views/versionControl/vcPageStyles.ts').replace(/\\/g, '/'))
+  const css = 'html,body{margin:0;padding:0}#pane{width:100%}' + String(stylesMod.VC_SHELL_STYLE_TEXT || '') + String(pageStylesMod.VC_PAGE_STYLE_TEXT || '')
 
   // 悬停薄预设 Tip 在真机构建里是 leaf:tip（排在全部视图叶子之前），本闭包不拼 kernel 叶子，这里按契约给同形函数组件桩：
   // 只把触发节点原样渲染出来（真 Tip 额外挂悬停气泡，不影响布局量尺）。维护页与诊断页的禁用原因经它挂，缺了就会渲染抛错。

@@ -42,6 +42,11 @@ declare function vcWorktreesPageNode(h: any, t: any, o: any): any
 declare function vcSubmodulesPageNode(h: any, t: any, o: any): any
 // 改动页操作面板叶子（#1742，vcChangesPage.ts）：同样由构建拼进闭包；只在 changes 页且页面传入改动读数时挂载。
 declare function vcChangesPageNode(h: any, t: any, o: any): any
+// #1829 阶段 4：页头与四个页面原语（vcPageHead.ts）、齿轮里的管理索引卡片（vcManageIndex.ts）、分支浮层的四段结构（vcBranchPopover.ts）。
+//   三者都由构建按叶子登记次序拼进同一个闭包，这里只声明形状。
+declare function vcPageHeadNode(h: any, t: any, o: any): any
+declare function vcManageIndexNode(h: any, t: any, o: any): any
+declare function vcBranchPopoverNode(h: any, t: any, o: any): any
 // 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）、贮藏页叶子（#1751，vcStashPage.ts）、克隆向导页叶子（#1756，
 // vcClonePage.ts）、冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）、变基待办页的历史改写面板（#1748 T13，vcUndoPage.ts）
 // 与动作面板（#1749 T14，vcRebasePage.ts）、配置页与钩子页两叶（#1760）、维护页整仓重写一叶（#1750 T15，vcRewritePage.ts）、诊断页正文一叶（#1761）以及 #1762 T26 的平台页
@@ -83,59 +88,16 @@ export const vcSyncBandNode = function (h: any, t: any, o: any) {
   }, t('vc.shell.sync.text', { remote: remote, when: when }))
 }
 
+// #1829 阶段 4-D：浮层四段结构搬到 vcBranchPopover；这里只保留函数名与参数透传
+//   （旧测试与导出清单仍按 vcBranchOverlayNode 找它），五个动作仍是标签、不造假按钮。
 export const vcBranchOverlayNode = function (h: any, t: any, o: any) {
-  const opts = o || {}
-  const actions: any[] = []
-  const list = ['list', 'create', 'delete', 'merge', 'rebase']
-  for (let i = 0; i < list.length; i += 1) {
-    // 这五颗只列动作名：真正做动作的地方是「管理 › 分支与标签」页（#1746 T11）。
-    //   不画假按钮，也不在悬浮层里另造一套动作；标签后由一行指路说明讲清去哪儿做。
-    actions.push(h('li', { key: list[i], className: 'vcs-branch-item' }, [
-      h('span', { key: 'label', className: 'vcs-branch-label', 'data-vc-branch-action': list[i] }, t('vc.shell.branch.' + list[i])),
-    ]))
-  }
-  return h('div', {
-    id: opts.id,
-    className: 'vcs-branch-overlay',
-    'data-vc-branch-overlay': '1',
-    role: 'dialog',
-    'aria-modal': 'false',
-    'aria-label': t('vc.shell.branch.title'),
-  }, [
-    h('p', { key: 'cur', className: 'vcs-branch-cur' }, t('vc.shell.branch.current', { branch: String(opts.branch || '') })),
-    h('p', { key: 'ptr', className: 'vcs-branch-pointer' }, t('vc.shell.branch.pointer')),
-    h('ul', { key: 'acts', className: 'vcs-branch-list' }, actions),
-    h('button', { key: 'close', type: 'button', className: 'vcs-branch-close', 'data-vc-branch-close': '1' }, t('vc.shell.branch.close')),
-  ])
+  return vcBranchPopoverNode(h, t, o)
 }
 
+// #1829 阶段 4-B：九分区索引改成卡片列表，结构搬到 vcManageIndex；这里只保留函数名与参数透传
+//   （旧测试与导出清单仍按 vcGearIndexNode 找它），九项顺序仍严格取 VC_MANAGE_PAGES。
 export const vcGearIndexNode = function (h: any, t: any, o: any) {
-  const opts = o || {}
-  const ids = VC_MANAGE_PAGES
-  const items: any[] = []
-  for (let i = 0; i < ids.length; i += 1) {
-    const id = ids[i]
-    const attrs: any = {
-      key: id,
-      type: 'button',
-      className: 'vcs-gear-item',
-      'data-vc-gear-item': id,
-      // 九分区的目标面板 id 是全局面唯一的（vc-page-<页面>）：单页渲染时别的分区还没画，
-      // 一次渲染全部页面时全部指得到（门禁 Z 组按后者验 aria-controls 是否落在真实 id 上）。
-      'aria-controls': 'vc-page-' + id,
-    }
-    if (id === opts.active) attrs['aria-current'] = 'page'
-    items.push(h('li', { key: id, className: 'vcs-gear-li' }, h('button', attrs, t(VC_MANAGE_SECTION_KEYS[id] || id))))
-  }
-  return h('nav', {
-    id: opts.id,
-    className: 'vcs-gear-index',
-    'data-vc-gear-index': '1',
-    'aria-label': t('vc.shell.gear.title'),
-  }, [
-    h('p', { key: 'title', className: 'vcs-gear-title' }, t('vc.shell.gear.title')),
-    h('ul', { key: 'items', className: 'vcs-gear-list' }, items),
-  ])
+  return vcManageIndexNode(h, t, o)
 }
 
 // #1829 身份行整体交给 vcShellIdentity：仓库名 / 分支 / 短号 / 能力计数 + 同步事实行 + 同步动作行。
@@ -213,12 +175,8 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const page = String(opts.page || 'changes')
   const children: any[] = []
-  const surface = PAGE_SURFACES.filter(function (p: any) { return p && p.id === page })[0]
-  children.push(h('div', { key: 'meta', className: 'vcs-page-meta' }, [
-    h('span', { key: 'title', className: 'vcs-page-title' }, t('vc.shell.page.' + page)),
-    h('span', { key: 'kind', className: 'vcs-page-kind' }, surface ? String(surface.kind) : ''),
-    h('span', { key: 'depth', className: 'vcs-page-depth' }, t('vc.shell.depth', { n: vcPageDepthOf(page) })),
-  ]))
+  // #1829 阶段 4-A：页头整体交给 vcPageHead（标题行、种类与层级、导语三段），壳只保留页面顺序。
+  children.push(Object.assign({}, vcPageHeadNode(h, t, { page: page, back: opts.back === true }), { key: 'meta' }))
   children.push.apply(children, vcPageNotesOf(h, t, page))
   // #1752 工作树页正文：读首屏聚合里那一份工作树片，八条能力的入口与执行面由 vcWorktreesPage 自己画；
   //   壳只负责把宿主数据与处理函数透传进去（没有传入时页面自己画空态，不影响其它页）。
@@ -357,7 +315,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   if (paletteOpen && !isSearch) children.push(keyed(vcPaletteNode(h, t, { id: paletteId, query: seed.query, highlight: seed.highlight, limit: seed.paletteLimit, reads: opts.reads }), 'palette'))
   children.push(keyed(vcPageTabsNode(h, t, { pagePrefix: opts.pagePrefix || '', active: VC_TAB_PAGES.indexOf(page) >= 0 ? page : '', counts: opts.counts }), 'tabs'))
   children.push(keyed(vcPageBodyNode(h, t, {
-    page: page, pagePrefix: opts.pagePrefix || '',
+    page: page, pagePrefix: opts.pagePrefix || '', back: opts.back === true,
     openSurface: openSurface,
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,

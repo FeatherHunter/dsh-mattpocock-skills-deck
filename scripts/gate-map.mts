@@ -484,6 +484,13 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-11-03 #1837 二次收紧：技能行加 flex-wrap、两颗按钮装成一组，360/300 也要求整页与 27 行零横向溢出
   // （行可变高，不许出横向滚动条）；单跑实测 181 条。
   'verify-1837-legend-browser': 181,
+  // 2026-11-03 #1829 阶段 4：四个新页面的结构与样式门禁——页头与四个页面原语（含样式规则的作用域与冻结类名）、
+  // 齿轮九分区索引卡片（顺序、aria、真按钮）、命令面板遮罩（底栏与面板结构）、分支浮层（四段结构与五个动作标签）；
+  // 单跑实测依次 75 / 33 / 39 / 23 条。
+  'verify-1829-page-head': 75,
+  'verify-1829-manage-index': 33,
+  'verify-1829-palette-overlay': 39,
+  'verify-1829-branch-popover': 23,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

@@ -163,6 +163,10 @@ export const vcPaletteRowNode = function (h: any, t: any, row: any, hit: boolean
   return h('li', { key: row.id, className: 'vcs-pal-li' }, [h('button', attrs, kids)])
 }
 
+// 命令面板的整块画法：遮罩 div.vcs-palette-backdrop 包住面板 section.vcs-palette.vcs-pal-panel。
+// 遮罩自己不带 role、不带按钮，只带一枚 data 标记给样式与门禁认；面板仍是一块 role=search 的搜索区，
+// id 留在 section 上——焦点选择器 [data-vc-palette-input] 与身份行的 aria-controls 都指着这个 id，
+// 把它挪到遮罩上，两边会一起断。
 export const vcPaletteNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const version = vcPaletteVersionOf(opts.reads)
@@ -190,6 +194,9 @@ export const vcPaletteNode = function (h: any, t: any, o: any) {
     body.push(h('ul', { key: 'rows', className: 'vcs-pal-list', 'data-vc-palette-list': '1' },
       rows.map(function (row: any) { return vcPaletteRowNode(h, t, row, !!hitId && row.id === hitId) })))
   }
-  const attrs: any = { id: opts.id, className: 'vcs-palette', 'data-vc-palette': '1', role: 'search' }
-  return h('section', attrs, body)
+  // 底栏只把面板的边界说清楚：选中一条就跳过去并高亮，写动作一律不在这里执行。
+  // 它排在列表或空态之后，用 p 而不是 button：多一颗假按钮会让人以为这里能执行写操作。
+  body.push(h('p', { key: 'foot', className: 'vcs-pal-foot' }, t('vc.shell.palette.foot')))
+  const panelAttrs: any = { id: opts.id, className: 'vcs-palette vcs-pal-panel', 'data-vc-palette': '1', role: 'search' }
+  return h('div', { className: 'vcs-palette-backdrop', 'data-vc-palette-backdrop': '1' }, [h('section', panelAttrs, body)])
 }

@@ -817,6 +817,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcCommit', file: 'src/client/views/versionControl/vcCommit.ts' }, // 规格故事 32：「这笔提交改了什么」那一层（排在 vcBlocks 之前，行是 vcBlocks 现传进去的同一份）
   { id: 'vcStyles', file: 'src/client/views/versionControl/vcStyles.ts' }, // #851 版本管理页签的视觉语言（档案索引）：一段 CSS 文本，经同一个 styles.insert 接缝注入
   { id: 'vcShellStyles', file: 'src/client/views/versionControl/vcShellStyles.ts' }, // #1738 页面壳的视觉语言：深浅两套语义色、四档宽排布；同样走 styles.insert 接缝
+  { id: 'vcPageStyles', file: 'src/client/views/versionControl/vcPageStyles.ts' }, // #1829 阶段 4：重做页面新增的样式（页头、分区/折叠/事实网格/对象行、管理索引卡、命令面板遮罩、分支浮层），仍走同一个 styles.insert 接缝
   { id: 'vcRows', file: 'src/client/views/versionControl/vcRows.ts' }, // #842 从 vcBlocks 原样搬出：行分组 / 行画法 / 其他工作树行 / 某路径的差异读数（vcBlocks 要腾行给写操作）
   { id: 'vcWrite', file: 'src/client/views/versionControl/vcWrite.ts' }, // #842 写操作的纯规则层（判定→状态、理由→词条、写失败→话术族、确认框内容）
   { id: 'vcWriteRun', file: 'src/client/views/versionControl/vcWriteRun.ts' }, // #842 写操作的执行层（预检、四条写电话、结果记账、成功后的重读）
@@ -906,6 +907,11 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   //   统计卡与分组文件行。都排在页面壳之前，壳的挂载段才调得到；壳自己只保留页面顺序。
   { id: 'vcShellIdentity', file: 'src/client/views/versionControl/vcShellIdentity.ts' },
   { id: 'vcChangesView', file: 'src/client/views/versionControl/vcChangesView.ts' },
+  // #1829 阶段 4 三个共享件：页头与四个页面原语、齿轮里的管理索引卡片、分支浮层；
+  //   都排在页面壳之前，壳的挂载段才调得到（页面壳自己只保留页面顺序）。
+  { id: 'vcPageHead', file: 'src/client/views/versionControl/vcPageHead.ts' },
+  { id: 'vcManageIndex', file: 'src/client/views/versionControl/vcManageIndex.ts' },
+  { id: 'vcBranchPopover', file: 'src/client/views/versionControl/vcBranchPopover.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },
   // #1776 M1 真实页签四叶：纯状态换算 → 事件委托 → 数据装载与动作分派 → 容器组件。次序即闭包里谁先有值：
   //   容器要用前三叶，VersionControlTab 只做入口委托，所以四叶都排在它前面。

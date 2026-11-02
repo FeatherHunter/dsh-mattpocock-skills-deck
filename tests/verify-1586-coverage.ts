@@ -56,6 +56,10 @@ const CLOSURE_FILES = [
   // #1829 身份行与同步带拆成独立叶子；壳只在渲染时调用它，覆盖验收拼进来才能渲染页面。
   'src/client/views/versionControl/vcShellIdentity.ts',
   'src/client/views/versionControl/vcChangesView.ts',
+  // #1829 阶段 4 三个共享件（与构建同序）：页头与页面原语、齿轮里的管理索引卡、分支浮层；壳渲染时要调它们。
+  'src/client/views/versionControl/vcPageHead.ts',
+  'src/client/views/versionControl/vcManageIndex.ts',
+  'src/client/views/versionControl/vcBranchPopover.ts',
   'src/client/views/versionControl/vcShellPages.ts',
 ]
 // 页面壳里直接调用的几个叶子（克隆向导、维护页重写、历史查询）在覆盖验收里不参与判定；
