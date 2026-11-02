@@ -110,7 +110,7 @@ export const definition = {
     type: 'object',
     properties: {
       key: { type: 'string', description: '票号，例如 713' },
-      body: { type: 'string', description: '正文怎么回：excerpt 只回前 2000 字（缺省，省上下文）；full 回全文分块（大正文不截断，带指纹可验完整）。正文在回执里只出现一处：摘要回 data.body.text、全文回 data.body.chunks，只读某一节时原文在 data.section.text。' },
+      body: { type: 'string', description: '正文怎么回：excerpt 只回前 2000 字（缺省，省上下文）；full 回全文分块（大正文不截断，带指纹可验完整）。正文只出现一处：data.body.text、data.body.chunks 或 data.section.text。' },
       comments: { type: 'number', description: '最多带回几条评论，缺省 0（只回总数不回正文）；要看评论正文再按需取，最大 200' },
       section: { type: 'string', description: '只回正文里这一节（## 标题子串），缺省回正文前 2000 字' },
       blocking: { type: 'boolean', description: '要不要反向阻塞边（谁被这张票阻塞）。缺省要：读全量关系，一次查询就取回反向边，阻塞者的标题与状态随行回来。关掉只读单票本身，跳过一次反向边查询，快；反向边记空并注记，要就再调一次。' },
@@ -188,12 +188,12 @@ function issueBrief(issue: Record<string, unknown> | null | undefined) {
     commentCount: typeof issue.commentCount === 'number' ? issue.commentCount : (Array.isArray(issue.comments) ? issue.comments.length : 0),
     // #1828：这里不装正文。回执里正文只出现一处，在 data.body（摘要 text / 全文 chunks / 只读某节的档位）；
     // 票面再抄一份会让同一段正文在回执里出现两三次。进度与原话仍从正文解析出来单独回，见下面两格。
-    // #1090：正文里的进度区按结构化形状回一份（旧字段一个不删，读的人想只取数字仍可读 data.body）。
+    // #1090：正文里的进度区按结构化形状回一份；#1828 起回执不再带正文，这里单回结构化进度，正文要看时另用 body 参数取。
     // 没写进度时是 {percent:null,note:'',updatedAt:null,entries:[]}，不是 null——「没写」与「写坏了」分开看。
     progress: parseProgressDetail(issue.body !== undefined ? issue.body : null),
     // #1092：正文里「## 维护者原话」区按结构化形状回一份，原话逐字（引用块只去掉一个 > 前缀），
     // 出处与记录时间随条目返回；recordedAt 只从出处文字里认（出处没写时间时是 null，不拿票的修改时间顶替）。
-    // 没写原话时是 []，不是 null——「没写」与「写坏了」分开看；正文原封不动仍可读 body。
+    // 没写原话时是 []，不是 null——「没写」与「写坏了」分开看；正文本身不再随回执返回（#1828），要看时另用 body 参数取。
     originalWords: parseOriginalWords(issue.body !== undefined ? issue.body : null),
     // #1790 缺陷 A 的 P4：状态四格按需追加在列表行末尾，原有字段的顺序与含义一个都不动。
     ...statusFieldsOf(issue),
@@ -335,13 +335,17 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
       const digest = bodyDigest(bodyText)
       const sec = sectionOf(bodyText, a.section)
       const wantsSection = typeof a.section === 'string' && a.section.trim() !== ''
+      // #1828 评审收口：section 到底算不算命中只在这一处判定，摘要、注记、data.body 的档位与 data.section
+      // 都读它。sectionOf 会把非字符串先转成字符串再匹配，不在这里卡一道，section 传数组之类时会把正文
+      // 误切成某一节、还会把 data.body.text 抹掉。
+      const sectionFound = wantsSection && sec.found
       if (wantsSection && !sec.found) notes.push('正文里没找到标题含「' + String(a.section).trim().slice(0, 60) + '」的节，回的是' + (bodyMode === 'full' ? '全文分块' : '正文前 2000 字') + '。')
-      const excerpt = (sec.found ? sec.text : bodyText).slice(0, BODY_EXCERPT_LEN)
+      const excerpt = (sectionFound ? sec.text : bodyText).slice(0, BODY_EXCERPT_LEN)
       const commentTotal = typeof (issue as { commentCount?: unknown }).commentCount === 'number' ? (issue as { commentCount: number }).commentCount : (Array.isArray(issue.comments) ? issue.comments.length : 0)
       // #1828：只读某一节时正文在 data.section.text；摘要档在 data.body.text。两处都只说一次，
       // 不再像以前那样写成「上面 ticket.body / excerpt 里」——那两格已经不放正文了。
       if (bodyMode === 'excerpt') {
-        if (sec.found) {
+        if (sectionFound) {
           notes.push(sec.text.length <= BODY_EXCERPT_LEN
             ? '正文「' + sec.name + '」这一节已全量在 data.section.text 里（正文共 ' + bodyText.length + ' 字，指纹 ' + digest.slice(0, 12) + '）：写回正文时仍要先 body=\'full\' 取指纹再传 bodyDigest。'
             : '正文「' + sec.name + '」这一节只回前 2000 字（该节共 ' + sec.text.length + ' 字，正文全文 ' + bodyText.length + ' 字，指纹 ' + digest.slice(0, 12) + '）：要全文带 body=\'full\' 再调一次。')
@@ -361,13 +365,13 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
       const brief = issueBrief(issue)
       // #1828：正文只装一处。只读某一节时 data.body 只报档位、全文长度与指纹，节原文放 data.section.text；
       // 全文 + 指定节时正文已在 chunks，section 只报节名，不再重复节原文。
-      const sectionMode = bodyMode === 'excerpt' && sec.found
+      const sectionMode = bodyMode === 'excerpt' && sectionFound
       const bodyPayload = bodyMode === 'full'
         ? { mode: 'full', length: bodyText.length, digest: digest, chunks: chunkBody(bodyText) }
         : sectionMode
           ? { mode: 'section', length: bodyText.length, digest: digest }
           : { mode: 'excerpt', length: bodyText.length, digest: digest, text: excerpt }
-      const sectionPayload = sec.found
+      const sectionPayload = sectionFound
         ? (bodyMode === 'full' ? { name: sec.name } : { name: sec.name, text: excerpt })
         : null
       return {

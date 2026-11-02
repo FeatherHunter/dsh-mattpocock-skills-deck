@@ -283,6 +283,11 @@ async function main() {
       const rf = await tool.run(execFor(), { key: '7', section: '进度', body: 'full' })
       check(rf && rf.data.body.mode === 'full' && rf.data.section && rf.data.section.name === '进度' && rf.data.section.text === undefined,
         '全文 + 指定节：正文只在 chunks，section 只报节名')
+      // #1828 评审收口：section 传空串按「没请求节」处理，不能把正文误切成某一节、也不能丢 data.body.text。
+      const re = await tool.run(execFor(), { key: '7', section: '' })
+      check(re && re.data.body && re.data.body.mode === 'excerpt' && typeof re.data.body.text === 'string' && re.data.body.text.length > 0,
+        'section 传空串时仍回摘要档正文（data.body.text）')
+      check(re && re.data.section === null, 'section 传空串时 data.section 为 null')
     }
     // 按需评论：传几回几。
     {
