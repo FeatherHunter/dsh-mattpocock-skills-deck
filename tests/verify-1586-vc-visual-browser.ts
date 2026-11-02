@@ -67,6 +67,9 @@ const VC_FILES = [
   'src/client/views/versionControl/vcShellPrimitives.js',
   'src/client/views/versionControl/vcPalette.js',
   'src/client/views/versionControl/vcHistory.js',
+  // #1829 阶段 3：图形视图与提交详情从历史页拆成独立叶子；它们在 vcHistory 之后、页面壳之前拼接。
+  'src/client/views/versionControl/vcHistoryGraph.js',
+  'src/client/views/versionControl/vcHistoryDetail.js',
   // #1745：提交历史页六组 / 诊断页四组的历史高级查询面板（页面壳要调它，闭包里少一片就 ReferenceError）。
   'src/client/views/versionControl/vcQuery.js',
   'src/client/views/versionControl/vcQueryView.js',

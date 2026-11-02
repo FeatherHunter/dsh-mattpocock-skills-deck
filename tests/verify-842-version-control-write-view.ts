@@ -130,6 +130,9 @@ const VC_FILES = [
   'src/client/views/versionControl/vcBranches.js', // #1746：分支与标签业务面板（十三条能力入口、预检与确认、结果贴点；排在页面壳之前，壳里会调它）
   // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）。
   'src/client/views/versionControl/vcHistory.js',
+  // #1829 阶段 3：图形视图与提交详情从历史页拆成独立叶子；它们在 vcHistory 之后、页面壳之前拼接。
+  'src/client/views/versionControl/vcHistoryGraph.js',
+  'src/client/views/versionControl/vcHistoryDetail.js',
   // #1754 远端与同步页（域 8 的 8.1–8.4）：数据层在前、画法在后，最后才是调它们的页面壳。
   'src/client/views/versionControl/vcSyncData.js', // #1755：同步段数据层（两条电话、预检与执行回包落位；与构建同序排在远端数据层之前）
   'src/client/views/versionControl/vcRemoteData.js',

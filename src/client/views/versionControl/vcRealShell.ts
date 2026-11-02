@@ -118,6 +118,19 @@ export const vcRealCallbacksOf = function (deps: any): any {
     filesRetry: function () { actionsRef.current.retryFiles() },
     fileDiffRetry: function () { actionsRef.current.retryFileDiff() },
     historyFile: function (intent: any) { actionsRef.current.openHistoryFile(intent && intent.path) },
+    // 历史列表的筛选、只看合并、行尾菜单；菜单里的能力项只跳主入口并高亮，不在这里执行 git。
+    historyQuery: function (intent: any) { actionsRef.current.historyQuery(intent && intent.value) },
+    historyMerge: function () { actionsRef.current.historyMerge() },
+    historyMenu: function (intent: any) { actionsRef.current.historyMenu(intent && intent.oid) },
+    historyMenuClose: function () { actionsRef.current.historyMenu('') },
+    historyMenuCap: function (intent: any) {
+      actionsRef.current.historyMenu('')
+      selectCap(intent && intent.capId)
+    },
+    historyMenuCopy: function (intent: any) {
+      actionsRef.current.historyCopy(intent && intent.oid)
+      actionsRef.current.historyMenu('')
+    },
     // ———— 管理页 ————
     // 分支浮层的五个动作项只是 span（壳里没给按钮），点它跳到分支板并把焦点送到对应动作按钮。
     branchOverlay: function (intent: any) {

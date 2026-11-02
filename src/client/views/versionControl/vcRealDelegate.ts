@@ -119,6 +119,15 @@ export const vcRealClickIntentOf = function (el: any): any {
     if (sub) return { kind: 'migrateAct', action: vcRealAttrOf(sub, 'data-vc-migrate-act') }
     if (vcRealClosestOf(el, 'data-vc-migrate-cancel')) return { kind: 'migrateCancel' }
   }
+  // 历史行的菜单贴在行尾，按钮本身带 data-vc-history-more；先认菜单与开关，再认整行打开。
+  hit = vcRealClosestOf(el, 'data-vc-history-menu-cap')
+  if (hit) return { kind: 'historyMenuCap', capId: vcRealAttrOf(hit, 'data-vc-history-menu-cap') }
+  hit = vcRealClosestOf(el, 'data-vc-history-menu-copy')
+  if (hit) return { kind: 'historyMenuCopy', oid: vcRealAttrOf(hit, 'data-vc-history-menu-copy') }
+  if (vcRealClosestOf(el, 'data-vc-history-menu-close')) return { kind: 'historyMenuClose' }
+  hit = vcRealClosestOf(el, 'data-vc-history-more')
+  if (hit) return { kind: 'historyMenu', oid: vcRealAttrOf(hit, 'data-vc-history-more') }
+  if (vcRealClosestOf(el, 'data-vc-history-merge-only')) return { kind: 'historyMerge' }
   hit = vcRealClosestOf(el, 'data-vc-history-open')
   if (hit) return { kind: 'historyOpen', oid: vcRealAttrOf(hit, 'data-vc-history-open') }
   if (vcRealClosestOf(el, 'data-vc-history-back')) return { kind: 'historyBack' }
@@ -147,6 +156,8 @@ export const vcRealInputIntentOf = function (el: any): any {
   if (hit) return { kind: 'remoteField', field: vcRealAttrOf(hit, 'data-vc-remote-field'), value: String(el && el.value !== undefined ? el.value : '') }
   hit = vcRealClosestOf(el, 'data-vc-sync-input')
   if (hit) return { kind: 'syncField', field: vcRealAttrOf(hit, 'data-vc-sync-input'), value: String(el && el.value !== undefined ? el.value : '') }
+  hit = vcRealClosestOf(el, 'data-vc-history-query')
+  if (hit) return { kind: 'historyQuery', value: String(el && el.value !== undefined ? el.value : '') }
   hit = vcRealClosestOf(el, 'data-vc-branch-input')
   if (hit) return { kind: 'branchField', field: vcRealAttrOf(hit, 'data-vc-branch-input'), value: String(el && el.value !== undefined ? el.value : '') }
   return null
@@ -179,6 +190,8 @@ const VC_REAL_ACTION_OF: any = {
     migrateAct: 'migrateAct', migrateCheck: 'migrateCheck', migrateGo: 'migrateGo', migrateCancel: 'migrateCancel',
     historyOpen: 'historyOpen', historyBack: 'historyBack', loadMore: 'loadMore', historyRetry: 'historyRetry',
     filesRetry: 'filesRetry', fileDiffRetry: 'fileDiffRetry', historyFile: 'historyFile',
+    historyQuery: 'historyQuery', historyMerge: 'historyMerge', historyMenu: 'historyMenu',
+    historyMenuClose: 'historyMenuClose', historyMenuCap: 'historyMenuCap', historyMenuCopy: 'historyMenuCopy',
     paletteInput: 'paletteInput', tabKey: 'tabKey', escape: 'escape',
     remoteField: 'remoteField', syncField: 'syncField', branchField: 'branchField', capRow: 'capRow',
 }

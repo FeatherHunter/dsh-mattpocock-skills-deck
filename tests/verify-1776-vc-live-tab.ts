@@ -805,6 +805,91 @@ async function scenarioM4d() {
   await foc.m.unmount()
 }
 
+// ---------------- 场景十：提交历史页按定稿原型 68 重排（搜索、只看合并、行菜单、详情） ----------------
+// 定稿依据 docs/prototype/vc-redesign/screenshots/68-commit-menu-460.png（列表与行菜单）与 03-commit-detail-460.png（详情）。
+//   这一段断言的是「点了之后界面怎么变、跳到哪里」：筛选只筛已读回来的提交、行菜单里的三条历史改写动作只跳主入口
+//   并高亮（不在历史页执行 git），详情按原型画出四行元信息与文件行。
+async function scenarioHistoryRedesign() {
+  console.log('\n== 场景十：提交历史页的筛选、行菜单与详情 ==')
+  const snap = snapshotOf()
+  const dayMs = 86400000
+  snap.slices.history.data = {
+    commits: [
+      { oid: 'aaaa1111222233334444', short: 'aaaa111', author: '某甲', email: 'a@b.c', authorDateMs: NOW - 3600000, commitDateMs: NOW - 3600000, subject: '合并分支 daily', parents: ['p1', 'p2'] },
+      { oid: 'bbbb2222333344445555', short: 'bbbb222', author: '某乙', email: 'b@b.c', authorDateMs: NOW - 7200000, commitDateMs: NOW - 7200000, subject: '补一条说明', parents: ['p1'] },
+      { oid: 'cccc3333444455556666', short: 'cccc333', author: '某丙', email: 'c@b.c', authorDateMs: NOW - dayMs, commitDateMs: NOW - dayMs, subject: '昨天那条', parents: [] },
+    ], hasMore: false, readAtMs: NOW,
+  }
+  const host = makeHost({
+    reply: {
+      'wf.gitFirstScreen': function () { return { ok: true, firstScreen: snap, readAtMs: NOW } },
+      'wf.gitDiff': function (args: any) {
+        if (String((args || {}).rev || '') !== '') {
+          return { ok: true, files: [{ path: 'src/a.ts', added: 3, deleted: 1 }, { path: 'docs/b.md', added: 2, deleted: 0 }], truncated: false, reason: 'ok' }
+        }
+        return { ok: true, lines: [], reason: 'ok' }
+      },
+    },
+  })
+  const view = buildView(host, null)
+  const m = mountOf(view, { st: { cwd: CWD } })
+  await React.act(async function () { m.root.render(React.createElement(view.VersionControlTab, { st: { cwd: CWD } })) })
+  await settle()
+  await m.click('[data-vc-tab="commits"]')
+  const comesBefore = function (a: any, b: any) { return !!(a && b && (a.compareDocumentPosition(b) & 4)) }
+  const query = m.q('[data-vc-history-query]')
+  const mergeBtn = m.q('[data-vc-history-merge-only]')
+  const list = m.q('#vc-history-list')
+  check(!!query && !!mergeBtn && comesBefore(m.q('.vcs-hist-tools'), list) && comesBefore(m.q('[data-vc-history-scope]'), list),
+    'T36 提交历史页先画工具行（搜索框 + 只看合并）与范围行，再画列表')
+  check(!!query && String(query.getAttribute('placeholder') || '').indexOf('3') >= 0,
+    'T36b 搜索框占位写明「在已加载的 3 条提交里筛选」：' + String((query || {}).placeholder || ''))
+  check(m.qa('.vcs-hist-day').length === 2,
+    'T36c 列表按作者时间分组，三天跨两天画出「今天」「昨天」两个日期分组（实得 ' + m.qa('.vcs-hist-day').length + ' 段）')
+  check(m.qa('[data-vc-history-more]').length === 3 && m.qa('[data-vc-history-row]').length === 3,
+    'T36d 三条提交各有一行，行尾都有「更多」菜单按钮（' + m.qa('[data-vc-history-more]').length + ' 个）')
+  await m.click('[data-vc-history-merge-only]')
+  check(m.qa('[data-vc-history-row]').length === 1 && m.text('[data-vc-history-scope]').indexOf('1') >= 0 && String((m.q('[data-vc-history-merge-only]') || {}).getAttribute('aria-pressed')) === 'true',
+    'T36e 点「只看合并」后只剩那一条合并提交，按钮 aria-pressed=true，范围行跟着变')
+  await m.click('[data-vc-history-merge-only]')
+  check(m.qa('[data-vc-history-row]').length === 3, 'T36f 再点一次恢复三条（开关是切换，不是钉死）')
+  await m.type('[data-vc-history-query]', '补一条')
+  check(m.qa('[data-vc-history-row]').length === 1 && !!m.q('[data-vc-history-scope]') && m.qa('[data-vc-history-row]')[0].getAttribute('data-vc-history-row') === 'bbbb2222333344445555',
+    'T36g 搜索只筛已读回来的三条提交，命中「补一条说明」那一条，不另发电话')
+  const screenReads = host.calls.filter(function (one: any) { return one.phone === 'wf.gitFirstScreen' }).length
+  check(screenReads === 1, 'T36h 筛选与只看合并都不重读首屏（wf.gitFirstScreen 仍只有进入页面那一次）')
+  await m.type('[data-vc-history-query]', '')
+  const rowMore = m.q('[data-vc-history-more="aaaa1111222233334444"]')
+  check(!!rowMore && (!m.q('[data-vc-history-menu]')), 'T36i 行菜单默认收起（只画行尾按钮）')
+  if (rowMore) await m.click(rowMore)
+  const menu = m.q('[data-vc-history-menu="aaaa1111222233334444"]')
+  check(!!menu && m.qa('[data-vc-history-menu-cap]').length === 3 && !!m.q('[data-vc-history-menu-copy]') && !!m.q('[data-vc-history-menu-close]'),
+    'T36j 点行尾「⋯」贴行展开菜单：三条历史改写动作 + 复制提交 ID + 收起菜单')
+  const revertTarget = view.vcPaletteTargetOf('5.4')
+  const revertBtn = m.q('[data-vc-history-menu-cap="5.4"]')
+  if (revertBtn) await m.click(revertBtn)
+  check(m.page() === revertTarget.page && !m.q('[data-vc-history-menu]') && !!m.q('[data-vc-history-menu-close="1"]') === false,
+    'T36k 点菜单里的「还原这次提交」不在这里执行 git：跳到 5.4 主入口所在的 ' + revertTarget.page + ' 页并收起菜单')
+  const hitRow = m.q('[data-cap-hit]')
+  check(!!hitRow && hitRow.getAttribute('data-cap-primary') === '5.4', 'T36l 跳过去后 5.4 那一行带落点高亮（data-cap-hit）')
+  await m.click('[data-vc-back]')
+  check(m.page() === 'commits', 'T36m 从主入口返回提交历史页（来源页入口保留）')
+  const openRow = m.q('[data-vc-history-open="bbbb2222333344445555"]')
+  if (openRow) await m.click(openRow)
+  const detail = m.q('[data-vc-history-detail="1"]')
+  check(!!detail && String((detail || {}).getAttribute('data-vc-history-detail-state')) === 'ok' && m.qa('.vcs-hist-meta-row').length === 4,
+    'T36n 点开一条提交后进入详情：按原型画出「提交 / 作者 / 提交时间 / 父提交」四行元信息')
+  const title = m.q('#vc-history-detail-title')
+  check(!!title && String(title.textContent || '').indexOf('补一条说明') >= 0 && m.qa('[data-vc-history-file]').length === 2,
+    'T36o 详情标题是提交说明全文，文件清单来自 wf.gitDiff 的 rev 读数（2 个文件）')
+  const fileRow = m.q('[data-vc-history-file="src/a.ts"]')
+  if (fileRow) await m.click(fileRow)
+  check(!!m.q('[data-vc-file-diff="src/a.ts"]') && String((m.q('[data-vc-history-file="src/a.ts"]') || {}).getAttribute('aria-expanded')) === 'true',
+    'T36p 点文件行展开该文件的差异块（贴在这一行下面，不跳页）')
+  await m.click('[data-vc-history-back]')
+  check(!m.q('[data-vc-history-detail="1"]') && m.qa('[data-vc-history-row]').length === 3, 'T36q 「返回提交历史」回到列表，不再画详情')
+  await m.unmount()
+}
 // ---------------- main ----------------
 async function main() {
   const locUrl = (f) => pathToFileURL(path.join(ROOT, sourcePath(f))).href
@@ -826,6 +911,7 @@ async function main() {
   await scenarioManage()
   await scenarioAiHandoff()
   await scenarioM4d()
+  await scenarioHistoryRedesign()
 
   console.log('\n断言 ' + total + ' 条，失败 ' + failed + ' 条')
   printGateResult('verify-1776-vc-live-tab', total, failed ? 1 : 0)

@@ -35,7 +35,7 @@ export const vcRealReadsNew = function (cwd: any): any {
 }
 
 export const vcRealInitialUi = function (): any {
-  return { fileShown: {}, openDiff: '', openCommit: '', openFile: '', liveTick: 0 }
+  return { fileShown: {}, openDiff: '', openCommit: '', openFile: '', liveTick: 0, historyQuery: '', historyMergeOnly: false, historyMenu: '' }
 }
 
 // 新壳的导航状态：当前页、来源页（二级页的返回目标）、打开的浮层、搜索词与落点高亮，

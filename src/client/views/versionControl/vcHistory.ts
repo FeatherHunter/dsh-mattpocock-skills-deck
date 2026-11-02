@@ -22,6 +22,9 @@ declare function vcShortOid(...args: any[]): any
 declare function vcWhenText(...args: any[]): any
 declare function vcOneLine(...args: any[]): any
 declare function vcCommitKeyOf(...args: any[]): any
+declare function vcHistoryDetailOf(...args: any[]): any
+declare function vcHistoryGraphOf(...args: any[]): any
+declare function vcHistoryGraphNode(...args: any[]): any
 
 export const VC_HISTORY_BATCH = VC_LOG_BATCH
 export const VC_HISTORY_LANES_MAX = 6
@@ -95,112 +98,179 @@ export const vcHistoryModelOf = function (reads: any, ui: any) {
   }
 }
 
-// 图形化视图：每条提交画一行，父提交连线落进车道。车道上限 VC_HISTORY_LANES_MAX 条；
-//   父提交不在这页里（下一页才读得到）或车道占满时，这条连线不画，并记进 hiddenLanes 如实报数。
-export const vcHistoryGraphOf = function (commits: any) {
-  const list = Array.isArray(commits) ? commits : []
-  const inPage: Record<string, boolean> = {}
-  for (let i = 0; i < list.length; i += 1) inPage[String((list[i] && list[i].oid) || '')] = true
-  const cols: any[] = []
-  for (let i = 0; i < VC_HISTORY_LANES_MAX; i += 1) cols.push(null)
-  const freeColOf = function () {
-    for (let i = 0; i < VC_HISTORY_LANES_MAX; i += 1) if (cols[i] === null) return i
-    return -1
-  }
-  const colOf = function (oid: string) {
-    for (let i = 0; i < VC_HISTORY_LANES_MAX; i += 1) if (cols[i] === oid) return i
-    return -1
-  }
-  const rows: any[] = []
-  let hiddenLanes = 0
-  for (let r = 0; r < list.length; r += 1) {
-    const c = list[r] || {}
-    const oid = String(c.oid || '')
-    let lane = colOf(oid)
-    if (lane < 0) lane = freeColOf()
-    if (lane < 0) { lane = VC_HISTORY_LANES_MAX - 1; hiddenLanes += 1 }
-    cols[lane] = null
-    const parentList = Array.isArray(c.parents) ? c.parents : []
-    const edges: number[] = []
-    for (let p = 0; p < parentList.length; p += 1) {
-      const poid = String(parentList[p])
-      // 父提交在这一页里没有对应行（还没读到）时，不画一条凭空断掉的线，只记一处没画。
-      if (inPage[poid] !== true) { hiddenLanes += 1; continue }
-      let at = colOf(poid)
-      if (at < 0) {
-        const target = p === 0 && cols[lane] === null ? lane : freeColOf()
-        if (target >= 0) { at = target; cols[target] = poid } else hiddenLanes += 1
-      }
-      if (at >= 0) edges.push(at)
-    }
-    rows.push({
-      oid: oid,
-      short: String(c.short || vcShortOid(oid)),
-      subject: String(c.subject || ''),
-      author: String(c.author || ''),
-      authorDateMs: c.authorDateMs,
-      parents: parentList.slice(),
-      edges: edges,
-      lane: lane,
-    })
-  }
-  return { rows: rows, hiddenLanes: hiddenLanes, lanes: VC_HISTORY_LANES_MAX, external: false }
+// ———— 列表：搜索 / 只看合并 / 日期分组 / 行与行菜单（定稿 68-commit-menu-460.png） ————
+
+// 菜单里的三条历史改写动作只做「跳到主入口」，不在这里执行 git：
+//   capId 与能力账本 5.1（撤销上一条提交、改动回到已暂存）/ 5.4（还原这次提交）/ 5.5（拣选到当前分支）
+//   一一对应，点下去由委托层调 selectCap 跳到主入口所在页并高亮该行 —— 账本的主入口归属与确认流程都没有改。
+const VC_HISTORY_MENU_ACTS: any[] = [
+  { key: 'revert', capId: '5.4', labelKey: 'vc.shell.history.menuRevert' },
+  { key: 'cherry', capId: '5.5', labelKey: 'vc.shell.history.menuCherryPick' },
+  { key: 'undo', capId: '5.1', labelKey: 'vc.shell.history.menuUndo', danger: true },
+]
+
+// 只看合并：两个父提交的才是合并提交（与图形视图的判据一致）。
+const vcHistoryIsMergeOf = function (commit: any): boolean {
+  return Array.isArray(commit && commit.parents) && commit.parents.length >= 2
 }
 
-const vcHistoryPlusMinusOf = function (file: any) {
-  const added = file && file.added !== null && file.added !== undefined ? '+ ' + String(file.added) : ''; const deleted = file && file.deleted !== null && file.deleted !== undefined ? '− ' + String(file.deleted) : ''
-  return (added + ' ' + deleted).trim()
+// 搜索只筛「已经读回来的」提交（票面边界：不为了筛选多读一条）；主题、作者、短号都能命中。
+export const vcHistoryFilterOf = function (commits: any, query: any, mergeOnly: any) {
+  const list: any[] = Array.isArray(commits) ? commits : []
+  const q: string = String(query === undefined || query === null ? '' : query).trim().toLowerCase()
+  const only: boolean = mergeOnly === true
+  const out: any[] = []
+  for (let i = 0; i < list.length; i += 1) {
+    const c: any = list[i] || {}
+    if (only && !vcHistoryIsMergeOf(c)) continue
+    if (q !== '') {
+      const hay: string = (String(c.subject || '') + ' ' + String(c.author || '') + ' ' + String(c.short || '') + ' ' + String(c.oid || '')).toLowerCase()
+      if (hay.indexOf(q) < 0) continue
+    }
+    out.push(c)
+  }
+  return out
+}
+
+// 日期分组：今天 / 昨天 / M 月 D 日，按提交时间与这次读数时刻的本地日算；往回超过一天就写日期。
+const vcHistoryDayOf = function (ms: any, nowMs: any) {
+  const at: number = Number(ms)
+  const today: Date = new Date(Number(nowMs) || Date.now())
+  const day: Date = new Date(isFinite(at) && at > 0 ? at : 0)
+  const startToday: number = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+  const startDay: number = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime()
+  const diff: number = Math.round((startToday - startDay) / 86400000)
+  if (diff <= 0) return { key: 'today', day: 'today' }
+  if (diff === 1) return { key: 'yesterday', day: 'yesterday' }
+  return { key: 'd' + String(startDay), day: 'date', m: day.getMonth() + 1, d: day.getDate() }
+}
+const vcHistoryDayTextOf = function (t: any, info: any): string {
+  if (info.day === 'today') return t('vc.shell.history.groupToday')
+  if (info.day === 'yesterday') return t('vc.shell.history.groupYesterday')
+  return t('vc.shell.history.groupDate', { m: info.m, d: info.d })
+}
+
+// 行尾的「⋯」菜单：贴在行尾，条目文字左对齐（定稿 67/68 的口径）。
+const vcHistoryMenuOf = function (h: any, t: any, o: any) {
+  const opts = o || {}
+  const oid: string = String(opts.oid || '')
+  const isHead: boolean = opts.isHead === true
+  const isMerge: boolean = opts.isMerge === true
+  const items: any[] = []
+  for (let i = 0; i < VC_HISTORY_MENU_ACTS.length; i += 1) {
+    const act: any = VC_HISTORY_MENU_ACTS[i]
+    const label: string = t(act.labelKey)
+    // 原型口径（history.ts 菜单）：只有最新一条能撤销（分支会退一步），合并提交不能拣选（git 不知道带哪一边）。
+    //   这里只把不可用的那几颗置灰，不另写说明文字；点下去什么都不会发生。
+    const off: boolean = act.key === 'undo' ? !isHead : (act.key === 'cherry' ? isMerge : false)
+    items.push(h('button', {
+      key: act.key, type: 'button', className: 'vcs-hist-menu-item' + (act.danger === true ? ' is-danger' : ''),
+      'data-vc-history-menu-cap': act.capId,
+      'aria-label': t('vc.shell.history.menuCapHint', { act: label }),
+      disabled: off ? true : undefined,
+      'data-press': 'button', 'data-log': 'vc.history.menu-cap.' + act.key,
+    }, label))
+  }
+  items.push(h('button', {
+    key: 'copy', type: 'button', className: 'vcs-hist-menu-item', 'data-vc-history-menu-copy': oid,
+    'data-press': 'button', 'data-log': 'vc.history.menu-copy',
+  }, t('vc.shell.history.menuCopy')))
+  items.push(h('button', {
+    key: 'close', type: 'button', className: 'vcs-hist-menu-item is-close vcs-hist-menu-close', 'data-vc-history-menu-close': '1',
+    'data-press': 'button', 'data-log': 'vc.history.menu-close',
+  }, t('vc.shell.history.menuClose')))
+  return h('div', { key: 'menu', className: 'vcs-hist-menu', role: 'menu', 'data-vc-history-menu': oid }, items)
 }
 
 export const vcHistoryRowNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const c = opts.commit || {}
   const width = vcHistoryWidthOf(opts.width)
-  const subject = vcOneLine(String(c.subject || ''), width >= 380 ? 90 : 56)
-  const kids: any[] = [h('span', { key: 'subject', className: 'vcs-hist-subject' }, subject)]
-  if (width >= 380) kids.push(h('span', { key: 'short', className: 'vcs-hist-short', 'data-vc-history-short': '1' }, String(c.short || vcShortOid(c.oid))))
-  if (width >= 460) {
-    kids.push(h('span', { key: 'author', className: 'vcs-hist-author', 'data-vc-history-author': '1' }, String(c.author || '')))
-    kids.push(h('span', { key: 'when', className: 'vcs-hist-when', 'data-vc-history-when': '1' }, vcWhenText(t, opts.nowMs, c.authorDateMs)))
-  }
-  const attrs: any = {
+  const oid: string = String(c.oid || '')
+  const open: boolean = opts.expanded === true
+  const menuOpen: boolean = opts.menuOpen === true
+  const line: any[] = []
+  line.push(h('button', {
     key: 'open',
     type: 'button',
     className: 'vcs-hist-open',
-    'data-vc-history-open': String(c.oid || ''),
-    'aria-expanded': opts.expanded === true ? 'true' : 'false',
+    'data-vc-history-open': oid,
+    'aria-expanded': open ? 'true' : 'false',
     'aria-controls': 'vc-history-detail',
-    title: t('vc.shell.history.open', { subject: vcOneLine(String(c.subject || ''), 120) }),
-  }
-  return h('li', { key: String(c.oid || ''), className: 'vcs-hist-row', 'data-vc-history-row': String(c.oid || '') }, h('button', attrs, kids))
+    'aria-label': t('vc.shell.history.open', { subject: vcOneLine(String(c.subject || ''), 120) }),
+    'data-press': 'button', 'data-log': 'vc.history.row.' + String(opts.index || 0),
+  }, [
+    width >= 380 ? h('span', { key: 'short', className: 'vcs-hist-short', 'data-vc-history-short': '1' }, String(c.short || vcShortOid(oid))) : null,
+    h('span', { key: 'subject', className: 'vcs-hist-subject' }, String(c.subject || '')),
+    width >= 460 ? h('span', { key: 'meta', className: 'vcs-hist-meta' }, [
+      h('span', { key: 'author', className: 'vcs-hist-author', 'data-vc-history-author': '1' }, String(c.author || '')),
+      h('span', { key: 'when', className: 'vcs-hist-when', 'data-vc-history-when': '1' }, vcWhenText(t, opts.nowMs, c.authorDateMs)),
+    ]) : null,
+    h('span', { key: 'chev', className: 'vcs-hist-chevron', 'aria-hidden': 'true' }, '›'),
+  ]))
+  line.push(h('button', {
+    key: 'more', type: 'button', className: 'vcs-hist-more' + (menuOpen ? ' is-open' : ''),
+    'data-vc-history-more': oid,
+    'aria-haspopup': 'menu',
+    'aria-expanded': menuOpen ? 'true' : 'false',
+    'aria-label': t('vc.shell.history.menuOpen'),
+    'data-press': 'button', 'data-log': 'vc.history.more.' + String(opts.index || 0),
+  }, '⋯'))
+  const wrapKids: any[] = [h('div', { key: 'line', className: 'vcs-hist-line' }, line)]
+  if (menuOpen) wrapKids.push(vcHistoryMenuOf(h, t, { oid: oid, isHead: opts.isHead === true, isMerge: vcHistoryIsMergeOf(c) }))
+  return h('li', { key: oid, className: 'vcs-hist-row', 'data-vc-history-row': oid }, wrapKids)
 }
 
 export const vcHistoryListOf = function (h: any, t: any, o: any) {
   const opts = o || {}
   const model = opts.model || {}
-  const commits = Array.isArray(model.commits) ? model.commits : []
+  const ui = opts.ui || {}
+  const width = vcHistoryWidthOf(opts.width)
+  const commits: any[] = Array.isArray(model.commits) ? model.commits : []
+  const query: string = String(ui.historyQuery || '')
+  const mergeOnly: boolean = ui.historyMergeOnly === true
+  const visible: any[] = vcHistoryFilterOf(commits, query, mergeOnly)
+  const menu: string = String(ui.historyMenu || '')
   const rows: any[] = []
-  for (let i = 0; i < commits.length; i += 1) {
+  let dayKey = ''
+  for (let i = 0; i < visible.length; i += 1) {
+    const c: any = visible[i] || {}
+    const info: any = vcHistoryDayOf(c.authorDateMs, opts.nowMs)
+    if (info.key !== dayKey) {
+      dayKey = info.key
+      rows.push(h('li', { key: 'day-' + dayKey, className: 'vcs-hist-day', role: 'presentation' }, vcHistoryDayTextOf(t, info)))
+    }
+    const oid: string = String(c.oid || '')
     rows.push(vcHistoryRowNode(h, t, {
-      commit: commits[i],
-      width: opts.width,
-      nowMs: opts.nowMs,
-      expanded: String((commits[i] && commits[i].oid) || '') === String(model.openCommit || ''),
+      commit: c, width: width, nowMs: opts.nowMs, index: i,
+      isHead: i === 0,
+      expanded: oid === String(model.openCommit || ''),
+      menuOpen: menu !== '' && menu === oid,
     }))
   }
-  const kids: any[] = [h('ol', {
-    key: 'list',
-    id: 'vc-history-list',
-    className: 'vcs-hist-list',
-    role: 'list',
-    'aria-label': t('vc.shell.history.listLabel'),
-  }, rows)]
+  const tools: any[] = [h('input', {
+    key: 'q', type: 'search', className: 'vcs-hist-query', 'data-vc-history-query': '1',
+    placeholder: t('vc.shell.history.searchPlaceholder', { n: model.loaded }),
+    'aria-label': t('vc.shell.history.searchPlaceholder', { n: model.loaded }),
+    defaultValue: query,
+  })]
+  tools.push(h('button', {
+    key: 'merge', type: 'button', className: 'vcs-hist-merge-only' + (mergeOnly ? ' is-on' : ''),
+    'data-vc-history-merge-only': mergeOnly ? 'on' : 'off',
+    'aria-pressed': mergeOnly ? 'true' : 'false',
+    'data-press': 'button', 'data-log': 'vc.history.merge-only',
+  }, t('vc.shell.history.mergeOnly')))
+  const kids: any[] = [h('div', { key: 'tools', className: 'vcs-hist-tools' }, tools)]
+  const scopeKey: string = mergeOnly || query.trim() !== '' ? 'scopeFiltered' : 'scope'
+  kids.push(h('p', { key: 'scope', className: 'vcs-hist-scope', 'data-vc-history-scope': '1' }, t('vc.shell.history.' + scopeKey, { n: commits.length, m: visible.length })))
+  if (!visible.length) kids.push(h('p', { key: 'filterEmpty', className: 'vcs-hist-filter-empty', 'data-vc-history-filter-empty': '1' }, t('vc.shell.history.filterEmpty')))
+  kids.push(h('div', { key: 'list', id: 'vc-history-list', className: 'vcs-hist-list', role: 'list', 'aria-label': t('vc.shell.history.listLabel') }, rows))
   const hasMore = model.hasMore === true
   if (hasMore === true) {
     kids.push(h('button', {
       key: 'more',
       type: 'button',
-      className: 'vcs-hist-more',
+      className: 'vcs-hist-load-more',
       'data-vc-load-more': '1',
       'aria-controls': 'vc-history-list',
       disabled: model.logState === 'loading' ? true : undefined,
@@ -210,137 +280,11 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
     kids.push(h('span', { key: 'moreLoading', className: 'vcs-hist-more-state', 'data-vc-history-more-state': 'loading' }, t('vc.shell.history.loadingMore')))
   } else if (model.logState === 'err') {
     kids.push(h('span', { key: 'moreError', className: 'vcs-hist-more-state', 'data-vc-history-more-state': 'error' }, t('vc.shell.history.moreError')))
-    kids.push(h('button', { key: 'moreRetry', type: 'button', className: 'vcs-hist-more-retry', 'data-vc-history-more-retry': '1' }, t('vc.shell.history.moreRetry')))
+    kids.push(h('button', { key: 'moreRetry', type: 'button', className: 'vcs-hist-more-retry', 'data-vc-history-more-retry': '1', 'data-press': 'button', 'data-log': 'vc.history.more-retry' }, t('vc.shell.history.moreRetry')))
   }
   const attrs: any = { key: 'wrap', className: 'vcs-hist-list-wrap' }
   if (opts.hidden === true) attrs.hidden = true
   return h('div', attrs, kids)
-}
-
-const vcHistoryFileDiffOf = function (h: any, t: any, o: any) {
-  const opts = o || {}
-  const read = opts.read || null
-  const path = String(opts.path || '')
-  const kids: any[] = [h('h5', { key: 'title', className: 'vcs-hist-diff-title' }, t('vc.shell.history.diffTitle', { path: path }))]
-  if (!read) {
-    kids.push(h('p', { key: 'wait', className: 'vcs-hist-diff-state' }, t('vc.shell.history.diffLoading'))); return h('div', { key: 'diff', className: 'vcs-hist-diff', 'data-vc-file-diff': path }, kids)
-  }
-  if (read.state === 'err') {
-    kids.push(h('p', { key: 'err', className: 'vcs-hist-diff-state', 'data-vc-file-diff-error': '1' }, t('vc.shell.history.diffError'))); kids.push(h('button', { key: 'retry', type: 'button', className: 'vcs-hist-diff-retry', 'data-vc-file-diff-retry': '1' }, t('vc.shell.history.diffRetry'))); return h('div', { key: 'diff', className: 'vcs-hist-diff', 'data-vc-file-diff': path }, kids)
-  }
-  if (read.state !== 'ok') {
-    kids.push(h('p', { key: 'loading', className: 'vcs-hist-diff-state' }, t('vc.shell.history.diffLoading'))); return h('div', { key: 'diff', className: 'vcs-hist-diff', 'data-vc-file-diff': path }, kids)
-  }
-  const reason = String(read.reason || '')
-  if (reason === 'binary-diff') kids.push(h('p', { key: 'binary', className: 'vcs-hist-diff-state', 'data-vc-file-diff-binary': '1' }, t('vc.shell.history.diffBinary')))
-  else if (reason === 'merge-commit') kids.push(h('p', { key: 'merge', className: 'vcs-hist-diff-state', 'data-vc-file-diff-merge': '1' }, t('vc.shell.history.diffMerge')))
-  else {
-    if (read.truncated === true) kids.push(h('p', { key: 'trunc', className: 'vcs-hist-diff-state', 'data-vc-file-diff-truncated': '1' }, t('vc.shell.history.diffTruncated')))
-    const lines = Array.isArray(read.lines) ? read.lines : []
-    if (!lines.length) kids.push(h('p', { key: 'none', className: 'vcs-hist-diff-state' }, t('vc.shell.history.diffNoDiff')))
-    else {
-      kids.push(h('pre', { key: 'lines', className: 'vcs-hist-diff-lines' }, lines.map(function (line: any, i: number) {
-        return h('span', { key: 'l' + i, className: 'vcs-hist-diff-line vcs-hist-line-' + String(line.kind || 'context'), 'data-vc-diff-line': String(line.kind || 'context') }, String(line.text || '') + '\n')
-      })))
-    }
-  }
-  return h('div', { key: 'diff', className: 'vcs-hist-diff', 'data-vc-file-diff': path }, kids)
-}
-
-export const vcHistoryDetailOf = function (h: any, t: any, o: any) {
-  const opts = o || {}
-  const ui = opts.ui || {}
-  const model = opts.model || {}
-  const read = opts.commit || {}
-  const rev = String(ui.openCommit || '')
-  const hit = (Array.isArray(model.commits) ? model.commits : []).filter(function (c: any) { return String((c && c.oid) || '') === rev })[0] || null
-  const state = String(read.state || 'idle')
-  const detailState = state === 'ok' ? 'ok' : (state === 'err' ? 'error' : 'loading')
-  const files = Array.isArray(read.files) ? read.files : []
-  const kids: any[] = []
-  kids.push(h('button', { key: 'back', type: 'button', className: 'vcs-hist-back', 'data-vc-history-back': '1' }, t('vc.shell.history.detailBack')))
-  kids.push(h('h3', { key: 'title', id: 'vc-history-detail-title', className: 'vcs-hist-detail-title' }, t('vc.shell.history.detailTitle') + '：' + vcOneLine(String((hit && hit.subject) || rev), 120)))
-  if (hit) {
-    const parents = Array.isArray(hit.parents) ? hit.parents : []
-    kids.push(h('p', { key: 'meta', className: 'vcs-hist-detail-meta' }, [
-      h('span', { key: 'author', 'data-vc-history-author': '1' }, t('vc.shell.history.detailAuthor', { author: String(hit.author || '') })),
-      h('span', { key: 'when' }, t('vc.shell.history.detailWhen', { when: vcWhenText(t, opts.nowMs, hit.authorDateMs) })),
-      h('span', { key: 'parents' }, t('vc.shell.history.detailParents', { n: parents.length })),
-    ]))
-    if (parents.length >= 2) kids.push(h('p', { key: 'merge', className: 'vcs-hist-detail-flag', 'data-vc-history-merge': '1' }, t('vc.shell.history.detailMerge')))
-    if (parents.length === 0) kids.push(h('p', { key: 'root', className: 'vcs-hist-detail-flag', 'data-vc-history-root': '1' }, t('vc.shell.history.detailRoot')))
-  }
-  kids.push(h('h4', { key: 'filesTitle', className: 'vcs-hist-files-title' }, t('vc.shell.history.filesTitle', { n: files.length })))
-  if (detailState === 'loading') {
-    kids.push(h('p', { key: 'filesLoading', className: 'vcs-hist-files-state', 'data-vc-history-files-loading': '1' }, t('vc.shell.history.filesLoading')))
-  } else if (detailState === 'error') {
-    kids.push(h('p', { key: 'filesError', className: 'vcs-hist-files-state', 'data-vc-history-files-error': '1' }, t('vc.shell.history.filesError')))
-    kids.push(h('button', { key: 'filesRetry', type: 'button', className: 'vcs-hist-files-retry', 'data-vc-history-files-retry': '1' }, t('vc.shell.history.filesRetry')))
-  } else {
-    if (read.truncated === true) kids.push(h('p', { key: 'filesTrunc', className: 'vcs-hist-files-state', 'data-vc-history-files-truncated': '1' }, t('vc.shell.history.filesTruncated')))
-    if (!files.length) kids.push(h('p', { key: 'filesEmpty', className: 'vcs-hist-files-state' }, t('vc.shell.history.filesEmpty')))
-    else {
-      kids.push(h('ul', { key: 'files', className: 'vcs-hist-files' }, files.map(function (file: any) {
-        const path = String((file && file.path) || '')
-        const orig = file && file.origPath ? String(file.origPath) : ''
-        const label = (orig ? orig + ' → ' : '') + path + ' ' + vcHistoryPlusMinusOf(file)
-        return h('li', { key: path, className: 'vcs-hist-file' }, h('button', {
-          key: 'open', type: 'button', className: 'vcs-hist-file-open',
-          'data-vc-history-file': path,
-          'aria-expanded': ui.openFile === path ? 'true' : 'false',
-          title: t('vc.shell.history.openFile', { path: path }),
-        }, label))
-      })))
-    }
-    const openFile = String(ui.openFile || '')
-    if (openFile && detailState === 'ok') {
-      kids.push(vcHistoryFileDiffOf(h, t, {
-        path: openFile,
-        read: (opts.commitDiffs || {})[vcCommitKeyOf(rev, openFile)] || null,
-      }))
-    }
-  }
-  return h('section', {
-    key: 'detail',
-    id: 'vc-history-detail',
-    className: 'vcs-hist-detail',
-    'data-vc-history-detail': '1',
-    'data-vc-form': 'page',
-    'data-vc-history-detail-state': detailState,
-    role: 'region',
-    'aria-labelledby': 'vc-history-detail-title',
-  }, kids)
-}
-
-export const vcHistoryGraphNode = function (h: any, t: any, o: any) {
-  const opts = o || {}
-  const width = vcHistoryWidthOf(opts.width)
-  const graph = opts.graph || { rows: [], hiddenLanes: 0 }
-  const rows = Array.isArray(graph.rows) ? graph.rows : []
-  const kids: any[] = [
-    h('h4', { key: 'title', className: 'vcs-hist-graph-title' }, t('vc.shell.history.graphTitle')),
-    h('p', { key: 'note', className: 'vcs-hist-graph-note' }, t('vc.shell.history.graphNote')),
-  ]
-  if (graph.hiddenLanes > 0) kids.push(h('p', { key: 'capped', className: 'vcs-hist-graph-capped', 'data-vc-graph-lanes-capped': '1' }, t('vc.shell.history.graphCapped', { n: graph.hiddenLanes })))
-  if (width < 380) {
-    kids.push(h('p', { key: 'narrow', className: 'vcs-hist-graph-narrow', 'data-vc-graph-narrow': '1' }, t('vc.shell.history.graphNarrow', { n: VC_HISTORY_LANES_MAX, m: rows.length })))
-  } else {
-    kids.push(h('ol', { key: 'rows', className: 'vcs-hist-graph-rows', role: 'list' }, rows.map(function (row: any) {
-      const lane = Math.max(0, Math.min(VC_HISTORY_LANES_MAX - 1, Number(row.lane) || 0))
-      return h('li', { key: String(row.oid || ''), className: 'vcs-hist-graph-row', 'data-vc-graph-row': String(row.oid || '') }, [
-        h('span', { key: 'lane', className: 'vcs-hist-graph-lane', 'data-vc-graph-lane': String(lane) }, String(lane + 1)),
-        h('span', { key: 'subject', className: 'vcs-hist-graph-subject' }, vcOneLine(String(row.subject || ''), 60)),
-      ])
-    })))
-  }
-  return h('section', {
-    key: 'graph',
-    className: 'vcs-hist-graph',
-    'data-vc-graph': '1',
-    'data-vc-graph-source': 'panel',
-    role: 'img',
-    'aria-label': t('vc.shell.history.graphLabel'),
-  }, kids)
 }
 
 export const vcHistoryPageNode = function (h: any, t: any, o: any) {
@@ -360,25 +304,22 @@ export const vcHistoryPageNode = function (h: any, t: any, o: any) {
     ui: ui, width: width, nowMs: readAt,
   }) : null
   const kids: any[] = []
-  kids.push(h('div', { key: 'head', className: 'vcs-hist-head' }, [
-    h('h3', { key: 'title', className: 'vcs-hist-title' }, t('vc.shell.history.title')),
-    h('span', { key: 'loaded', className: 'vcs-hist-loaded' }, t('vc.shell.history.loaded', { n: model.loaded })),
-    h('span', { key: 'budget', className: 'vcs-hist-budget' }, t('vc.shell.history.budget', { first: VC_HISTORY_BATCH, batch: VC_HISTORY_BATCH })),
-  ]))
   if (model.state === 'loading') {
     kids.push(h('p', { key: 'loading', className: 'vcs-hist-state', 'data-vc-history-loading': '1' }, t('vc.shell.history.loading')))
   } else if (model.state === 'error') {
     kids.push(h('p', { key: 'error', className: 'vcs-hist-state', 'data-vc-history-error': '1' }, t('vc.shell.history.error')))
     if (model.error && model.error.message) kids.push(h('p', { key: 'errorDetail', className: 'vcs-hist-error-detail' }, t('vc.shell.history.errorDetail', { msg: String(model.error.message) })))
-    kids.push(h('button', { key: 'retry', type: 'button', className: 'vcs-hist-retry', 'data-vc-history-retry': 'history' }, t('vc.shell.history.retry')))
+    kids.push(h('button', { key: 'retry', type: 'button', className: 'vcs-hist-retry', 'data-vc-history-retry': 'history', 'data-press': 'button', 'data-log': 'vc.history.retry' }, t('vc.shell.history.retry')))
   } else if (model.state === 'empty') {
     kids.push(h('p', { key: 'empty', className: 'vcs-hist-state', 'data-vc-history-empty': '1' }, t('vc.shell.history.empty')))
     kids.push(h('p', { key: 'next', className: 'vcs-hist-next', 'data-vc-history-next': '1' }, t('vc.shell.history.emptyNext')))
   } else {
-    kids.push(vcHistoryListOf(h, t, { model: model, width: width, nowMs: readAt, hidden: !!detail }))
+    kids.push(vcHistoryListOf(h, t, { model: model, ui: ui, width: width, nowMs: readAt, hidden: !!detail }))
   }
   if (detail) kids.push(detail)
-  kids.push(vcHistoryGraphNode(h, t, { graph: vcHistoryGraphOf(model.commits), width: width }))
+  // 详情是整页替换的阅读视图（定稿 03 截图里没有图形视图），打开详情时把 13.14 那一块收起来，
+  //   返回列表再画 —— 它仍在列表页、仍是同一条能力 13.14 的呈现，不删入口也不改归属。
+  if (!detail) kids.push(vcHistoryGraphNode(h, t, { graph: vcHistoryGraphOf(model.commits), width: width }))
   return h('section', {
     className: 'vcs-history',
     'data-vc-history': '1',

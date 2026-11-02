@@ -107,7 +107,7 @@ export const vcRealActionsOf = function (deps: any): any {
     },
     // 提交详情：同一笔已经读好就不重复发；打开另一笔时先落加载态（vcReadCommitFiles 自己处理）。
     openCommit: function (oid: any): any {
-      const ui: any = Object.assign({}, uiNow(), { openCommit: String(oid || ''), openFile: '' })
+      const ui: any = Object.assign({}, uiNow(), { openCommit: String(oid || ''), openFile: '', historyMenu: '' })
       setUi(ui)
       const reads: any = readsNow()
       const prev: any = reads.commit || {}
@@ -117,7 +117,27 @@ export const vcRealActionsOf = function (deps: any): any {
         return next
       })
     },
-    closeCommit: function (): void { setUi(Object.assign({}, uiNow(), { openCommit: '', openFile: '' })) },
+    closeCommit: function (): void { setUi(Object.assign({}, uiNow(), { openCommit: '', openFile: '', historyMenu: '' })) },
+    // 历史列表的筛选与「只看合并」：只筛已经读回来的那批提交，不另发电话（原型 68 的搜索框就是这样）。
+    historyQuery: function (value: any): void { setUi(Object.assign({}, uiNow(), { historyQuery: String(value === undefined || value === null ? '' : value) })) },
+    historyMerge: function (): void {
+      const ui: any = uiNow()
+      setUi(Object.assign({}, ui, { historyMergeOnly: ui.historyMergeOnly !== true }))
+    },
+    // 行尾「⋯」：同一时刻只开一行，再点同一行收起；打开菜单时把当前筛选原样带着。
+    historyMenu: function (oid: any): void {
+      const ui: any = uiNow()
+      const id: string = String(oid || '')
+      setUi(Object.assign({}, ui, { historyMenu: String(ui.historyMenu || '') === id ? '' : id }))
+    },
+    // 「复制提交 ID」：写剪贴板失败也不能把整页点炸，所以与身份行复制路径同一个静默写法。
+    historyCopy: function (oid: any): void {
+      const text: string = String(oid || '')
+      if (typeof navigator === 'undefined' || !navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') return
+      let writing: any = null
+      try { writing = navigator.clipboard.writeText(text) } catch (err) { return }
+      if (writing && typeof writing.catch === 'function') writing.catch(function () {})
+    },
     openHistoryFile: function (path: any): any {
       const ui: any = Object.assign({}, uiNow(), { openFile: String(path || '') })
       setUi(ui)
