@@ -324,3 +324,107 @@ export function stringifySettings(value: unknown): ConfigStringifyResult {
   }
   return { ok: true, text: lines.join('\n') + '\n' }
 }
+
+// ── #1802：跨窗口写设置时的三件纯工具 ──
+// 为什么放在核里：它们描述的是「本机设置文档」本身的约定（空文档长什么样、内容指纹怎么算、只带改动格的
+//   补丁怎么并进一份文档），宿主写文件那一侧与门禁都读同一份；谁再写一份拷贝就是第二套房。
+//   三件都是纯函数，不碰文件系统。
+
+/** 一份「什么都还没设置」的完整设置文档（文件还不存在时，客户端内存里与宿主眼里都按这一份算）。 */
+export function settingsEmptyDocument(): Record<string, unknown> {
+  return {
+    version: 1,
+    ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} },
+    workspaces: {},
+    debug: { enabled: false, sampleRate: 1 },
+    templates: {},
+  }
+}
+
+/** 把一份值写成「键按字典序排好」的 JSON 文字：同一份内容无论键的先后都得到同一段文字。 */
+function canonicalSettingsText(value: unknown): string {
+  if (value === null || value === undefined) return 'null'
+  if (Array.isArray(value)) return '[' + value.map(canonicalSettingsText).join(',') + ']'
+  if (isRecord(value)) {
+    const keys = Object.keys(value).sort()
+    return '{' + keys.map((k) => JSON.stringify(k) + ':' + canonicalSettingsText(value[k])).join(',') + '}'
+  }
+  return JSON.stringify(value)
+}
+
+/**
+ * 设置文档的内容指纹：形如 1a2b3c4d:312（前一段是 32 位散列，后一段是规范化文字的长度）。
+ * 用途只有一个：写之前拿它比对「我读到的是不是还是盘上这一份」。它不保密、不防篡改，
+ * 只回答「两个窗口读到的是不是同一份内容」。
+ */
+export function settingsContentHash(value: unknown): string {
+  const text = canonicalSettingsText(isRecord(value) ? value : {})
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return ('0000000' + (h >>> 0).toString(16)).slice(-8) + ':' + text.length
+}
+
+/** 合并结果：成功时带合并后的整份文档，changed 说明这次真的改动了内容没有。 */
+type SettingsMergeResult =
+  | { ok: true; value: Record<string, unknown>; changed: boolean }
+  | { ok: false; reason: string; message: string; keys?: string[] }
+
+/** 把补丁里的对象并进基底：对象逐键递归，null 表示删掉这个键，其它值直接替换。 */
+function mergePatchObject(base: Record<string, unknown>, patch: Record<string, unknown>): { value: Record<string, unknown>; changed: boolean } {
+  const next: Record<string, unknown> = { ...base }
+  let changed = false
+  for (const key of Object.keys(patch)) {
+    if (isDangerousKey(key)) throw new Error('补丁里不能用这个名字：' + key)
+    const pv = patch[key]
+    if (pv === null) {
+      if (Object.prototype.hasOwnProperty.call(next, key)) {
+        delete next[key]
+        changed = true
+      }
+      continue
+    }
+    if (isRecord(pv)) {
+      const before = isRecord(next[key]) ? (next[key] as Record<string, unknown>) : {}
+      const merged = mergePatchObject(before, pv)
+      if (!merged.changed) continue
+      next[key] = merged.value
+      changed = true
+      continue
+    }
+    if (canonicalSettingsText(next[key]) !== canonicalSettingsText(pv)) {
+      next[key] = pv
+      changed = true
+    }
+  }
+  return { value: next, changed }
+}
+
+/**
+ * 把「只含改动的格」的补丁并进一份最新读到的设置文档（#1802）。
+ * 补丁的形状与设置文档同构：例如 { workspaces: { 'D:/proj': { statusBar: 'hide' } } }；
+ * 值为 null 表示把这个键删掉（临时记录搬到正式键上时用它清掉旧的那一条）。
+ * 合并完再按读同一套规矩校验一遍 —— 补丁里若出现核不认识的名字或坏值，整份拒绝，一个格都不改。
+ */
+export function mergeSettingsPatch(base: unknown, patch: unknown): SettingsMergeResult {
+  if (!isRecord(patch)) return { ok: false, reason: 'bad-shape', message: '这次保存没有带「要改的格」（补丁必须是一组「名字 → 值」）' }
+  const strangeTop = unknownIn(patch, TOP_KEYS)
+  if (strangeTop.length > 0) return { ok: false, reason: 'unknown-keys', message: '这次保存要改的名字核不认识：' + strangeTop.join('、'), keys: strangeTop }
+  const start = isRecord(base) ? base : settingsEmptyDocument()
+  let merged: { value: Record<string, unknown>; changed: boolean }
+  try {
+    merged = mergePatchObject(start, patch)
+  } catch (e) {
+    return { ok: false, reason: 'bad-shape', message: String((e && (e as Error).message) || e || '补丁里有不能用的名字') }
+  }
+  const changed = merged.changed || canonicalSettingsText(start) !== canonicalSettingsText(merged.value)
+  const check = parseSettings(merged.value)
+  if (!check.ok) {
+    const bad = check as { ok: false; reason: string; message: string; keys?: string[] }
+    const reason = bad.reason === 'unknown-keys' ? 'unknown-keys' : 'bad-shape'
+    return { ok: false, reason: reason, message: bad.message, keys: bad.keys }
+  }
+  return { ok: true, value: (check as { ok: true; value: Record<string, unknown> }).value, changed }
+}

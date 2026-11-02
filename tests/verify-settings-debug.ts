@@ -175,6 +175,9 @@ const DERIVED_REL = 'scripts/generated/logKernel.derived.js'
 const STATE_REL = 'src/client/kernel/settings-view-state.js'
 const VIEW_REL = 'src/client/kernel/settings-view.js'
 const WRITE_REL = 'src/client/kernel/settings-view-write.js'
+  // #1802：跨窗口合写要用到的几件工具（重读后的合并、算补丁、按格取值）另住一片，
+  //   构建时按次序拼在写这一片之后；这里也照同一次序拼，门禁跑到的才是产物里的那一段。
+  const RELOAD_REL = 'src/client/kernel/settings-view-reload.js'
 const DEBUG_REL = 'src/client/kernel/settings-debug.js'
 // 行数口径量真源（转成 TS 后产物经转译排版会胀行，胀的是机器排版不是手写；零增长守的是手写，量真源）。
 const DEBUG_TRUTH_REL = 'src/client/kernel/settings-debug.ts'
@@ -187,7 +190,7 @@ function makeClient(env) {
   // 设置文档三片与 debug 这一片都已有同名 .ts 真源（旁边 .js 是构建产物），取源走共用入口的 spliceableJs：
   // 它按构建唯一口径转译、去掉行首 export、剥掉中央时间 import，拼出来就是真正进产物的那段代码。
   // logKernel.derived.js 是纯派生产物、没有手写真源，继续直接读。
-  const body = [noExport(readText(DERIVED_REL)), spliceableJs(STATE_REL), spliceableJs(VIEW_REL), spliceableJs(WRITE_REL), spliceableJs(DEBUG_REL)].join('\n')
+  const body = [noExport(readText(DERIVED_REL)), spliceableJs(STATE_REL), spliceableJs(VIEW_REL), spliceableJs(WRITE_REL), spliceableJs(RELOAD_REL), spliceableJs(DEBUG_REL)].join('\n')
   const names = ['host', 'timer', 'localStorage', 'broadcastLogSwitch', 'keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'currentOs', 'workspaceRootByCwd', 'dswsLogHash', 'SETTINGS_DEBUG_PUSH_WAIT_MS']
   return compileFn(names, body + TAIL).apply(null, names.map((n) => env[n]))
 }
@@ -632,9 +635,11 @@ async function main(): Promise<void> {
     check(!!dShell && dShell.ui.stateFilter === 'open' && dShell.templates.comment === 'hello',
       '半份文档没被当成基底：别的节（ui.stateFilter、templates.comment）原样还在，没被写成空值。',
       JSON.stringify({ ui: dShell && dShell.ui, templates: dShell && dShell.templates }))
-    // 三、第一趟问到真文档（debug 节是 {enabled: true, sampleRate: 0.25}），写之前那次重读答半份 {version:1}：这一笔
-    //   要退回内存那一份当基底，所以内存文档里刚写进去的采样率必须跟着走 —— 只写开关那一格时，文件里会留着 0.25
-    //   （2026-10-12 复核的必修 4：变异体下这一档原来 105 条全绿）。
+    // 三、第一趟问到真文档（debug 节是 {enabled: true, sampleRate: 0.25}），写之前那次重读答半份 {version:1}：
+    //   #1802 起这一趟不再退回内存旧文档当基底整份写回，而是放弃这一趟、留着待写格等下一趟重试（重读答半份
+    //   等于「拿不到可信的最新基底」，拿旧的整份写就是这条票要修的覆盖别人）。下一趟重读问到真文档，只送
+    //   「本窗改动过的格」的补丁：用户拨开时递进去的采样率是 1，所以补丁里必须有 sampleRate: 1 —— 若按旧思路
+    //   只送开关那一格，文件里会留着 0.25（2026-10-12 复核的必修 4：变异体下这一档原来 105 条全绿）。
     const home3 = makeHome('rate-base')
     await store.writeLocalSettings(dbgDoc({ enabled: true, sampleRate: 0.25 }), home3, realIo)
     const env3 = makeEnv({ tag: 'rate-base', home: home3, getSeq: [null, { ok: true, value: { version: 1 } }] })
@@ -648,11 +653,19 @@ async function main(): Promise<void> {
     check(dRate, '落盘后 debug 节是 {enabled: true, sampleRate: 1}（重读答半份时以内存那一份当基底，两格都是新写的值）。', JSON.stringify(((await readDoc(home3)) || {}).debug))
     // 光看盘上最后那一份还不够：这一趟若只把开关那一格写进内存文档，盘上那份带着旧的 0.25，回包按值划队列时这条
     //   对不上，于是自己又重排一趟、把队列里的值补写进去，最后盘上看起来也是对的（复核指出：变异体下 105 条全绿）。
-    //   所以要直接查「第一趟发出去的那份文档」与「一共发了几趟」，这两条才是这一格的判据。
-    const firstWrite = callsOf(env3, 'wf.setSettings')[0]
-    const sentDbg = firstWrite && firstWrite.args && firstWrite.args.value && firstWrite.args.value.debug
-    check(!!sentDbg && sentDbg.enabled === true && sentDbg.sampleRate === 1,
-      '第一趟发出去的 debug 节就是 {enabled: true, sampleRate: 1}（只写开关那一格时这里会是旧的 0.25）。', JSON.stringify(sentDbg))
+    //   所以要直接查「最终发出去的那份补丁」与「一共发了几趟」，这两条才是这一格的判据。
+    //   半份文档那一趟必须没有发出去（写电话一次都不该在那趟调用），重试那一趟只发按格补丁。
+    const sends = callsOf(env3, 'wf.setSettings')
+    const sentPatch = sends.length === 1 && sends[0].args && sends[0].args.patch
+    const sentDbg = sentPatch && sentPatch.debug
+    check(!!sentDbg && sentDbg.sampleRate === 1 && sentDbg.enabled !== false,
+      '重读答半份那一趟没有发出去；重试那一趟的补丁里带着 sampleRate: 1（只写开关那一格时这里会是旧的 0.25）。',
+      JSON.stringify({ sends: sends.length, patch: sentPatch }))
+    check(sends.every((c) => !c.args || c.args.value === undefined),
+      '这一笔从头到尾没有整份 {value} 发出去（拿不到可信基底时放弃这一趟，不拿内存旧文档顶别人）。',
+      JSON.stringify(sends.map((c) => Object.keys(c.args || {}))))
+    const baseGets = callsOf(env3, 'wf.getSettings').length
+    check(baseGets >= 3, '写之前一共问了三次文档：第一次加载、第一次重读（答半份、这一趟放弃）、重试前再问一次（这才拿到真基底）。', String(baseGets))
     // 「只发一趟」也要等防抖窗口走完再数（2026-10-12 复核的顺带建议 ②）：窗口没过时「补的那一趟」还没排上，
     //   数出来永远是 1，那条断言就成了结构上不可能失败的断言。判据仍是上面「第一趟发出去的那份文档」。
     await quietAfter(env3)
@@ -861,7 +874,14 @@ async function main(): Promise<void> {
         if (endpoint === 'logBatch') { try { logSends.push(JSON.stringify(args).slice(0, 400)) } catch (e) {} return { ok: true, value: { ok: true, accepted: 1 } } }
         if (endpoint === 'getSettings') return { ok: true, value: { ok: true, value: fullDocOf(opts.docEnabled) } }
         // 只留一份能安全打印的摘要（真文档里带 getter 之类时 JSON.stringify 整份会抛，门禁不该踩这个坑）。
-        if (endpoint === 'setSettings') { setCalls.push({ keys: Object.keys(args || {}), valueKeys: (args && args.value) ? Object.keys(args.value) : null, dbg: (args && args.value && args.value.debug) ? JSON.parse(JSON.stringify(args.value.debug)) : null }); return { ok: true, value: { ok: true } } }
+        // #1802 起客户端送的是「按格补丁 + 基底指纹」（{patch, baseHash}），旧整份 {value} 只作兼容保留。
+        //   这一档要量「写进文件的 debug 节是什么」，所以两种入参里的 debug 都记下来，dbg 取哪一边有就用哪一边。
+        if (endpoint === 'setSettings') {
+          const patchDbg = (args && args.patch && args.patch.debug) ? JSON.parse(JSON.stringify(args.patch.debug)) : null
+          const valueDbg = (args && args.value && args.value.debug) ? JSON.parse(JSON.stringify(args.value.debug)) : null
+          setCalls.push({ keys: Object.keys(args || {}), valueKeys: (args && args.value) ? Object.keys(args.value) : null, patchKeys: (args && args.patch) ? Object.keys(args.patch) : null, dbg: valueDbg || patchDbg })
+          return { ok: true, value: { ok: true, contentHash: 'fake-hash' } }
+        }
         if (endpoint === 'logGetSwitch') return { ok: true, value: { ok: true, enabled: opts.docEnabled === true, sampleRate: 1 } }
         if (endpoint === 'logSetSwitch') { logSet.push(args); return setReply(args) }
         return { ok: true, value: { ok: true } }

@@ -82,7 +82,15 @@
     //   这里按仓里跨片规矩声明一句（实现只在拼好的闭包里有一份），用来判「这一笔在文件里写进去了没有」。
     declare function viewFlagIsTextNameOf(...args: any[]): any;
     declare function viewFlagTextValuesOf(...args: any[]): any;
+    // #1802：跨窗口合写要用的四件工具（实现住在 kernel/settings-view-reload.ts，构建时拼在本片之后）：
+    //   空文档、把待写格合进一份文档、按「基底 → 目标」算补丁、按住快照取这一笔发出去的值。
+    declare function viewFlagEmptyDoc(...args: any[]): any;
+    declare function viewFlagApplyJournalToDoc(...args: any[]): any;
+    declare function viewFlagDiffDocOf(...args: any[]): any;
+    declare function viewFlagSentValsOf(...args: any[]): any;
+    // 宿主的定时器（真源在 kernel/hostShim.js）：本片的防抖与撤销都走它，拿不到时退回页面自己的 setTimeout。
     declare const timer: any;
+    // #1802：读最新一份、算补丁、按格取值这三件工具住在 kernel/settings-view-reload.ts（拼在本片之后，
     // 防抖窗口取 500 毫秒，理由有三条。第一条：一次收起或展开在界面上往往连着来两下（点按钮那一下，
     //   加同一个工作区别的会话跟着重渲染那一趟），而每一次落盘都是宿主先读整份文件、再整份写回。
     // 第二条：与仓库既有的写合并窗口同一量级（日志转发的 1000 毫秒、交接的 800 毫秒），比它们略短。
@@ -206,14 +214,14 @@
         viewFlagState.mergePending = false
       } catch (e) {}
     }
-    // 把这一趟要写的整份文档备好：先重读一次文件，再把本窗改过的那几格合并进刚读回来的那一份。
-    //   重读不回来（手机不通、文件是更高版本、内容坏了、还没建出来）就照内存里那一份写：内存那一份至少
-    //   带着本窗的改动，比什么都不写强；顶掉别人别的格的风险与改动前一样，不会更差。
-    //   返回值是一个 Promise，值是这次要写出去的文档。
-    const viewFlagFreshDocFor = function (sentKeys: any): any {
-      const useMemory = function (): any { return viewFlagState.doc }
+    // 写之前读一次盘上最新的一份（#1802）：返回这次真正要写出去的目标文档与它对应的指纹。
+    //   基线与目标分开：基线是刚读回来、还没并本窗改动的那一份（用来算补丁），目标是并进本窗待写格之后的那一份。
+    //   读不回来（手机不通、更高版本、形状不对、不是能用的文档）时回 null —— 这一趟放弃写、把待写格留在
+    //   队列里等下一趟，绝不拿内存旧文档整份覆盖：那正是 #1802 里丢掉另一窗刚写值的做法。
+    //   文件还没建（absent）时从五节齐全的空文档起步，第一次保存照样能把文件建出来。
+    const viewFlagReadBase = function (sentKeys: any): any {
       try {
-        if (typeof host === 'undefined' || !host || typeof host.call !== 'function') return Promise.resolve(useMemory())
+        if (typeof host === 'undefined' || !host || typeof host.call !== 'function') return Promise.resolve(null)
         const t0 = Date.now()
         return host.call('wf.getSettings', {}).then(function (res: any): any {
           const okRes = !!(res && res.ok === true)
@@ -221,36 +229,32 @@
             if (okRes) log('info', 'host.call', { method: 'wf.getSettings', latencyMs: Date.now() - t0, ok: true, kind: 'settings' })
             else log('warn', 'host.call.fail', { method: 'wf.getSettings', kind: 'settings', errorHash: dswsLogHash(String((res && res.error && (res.error.message || res.error.kind)) || 'get-not-ok')) })
           } catch (eL) {}
-          // 只认能整份写回去的那一份：更高版本（readonly）与形状不对的都退回内存那一份，别拿读不懂的内容去覆盖。
-          if (!okRes || res.readonly === true || !res.value || typeof res.value !== 'object') return useMemory()
-          // 再拦一道形状：一份「半份文档」（比如占位电话答上来的 {version: 1}，或少了某几节的东西）当基底整份
-          //   写回去，核会按「缺的那几节是空的」归一之后落盘，用户本来的 ui / workspaces / templates 就被写成
-          //   空值 —— 这是纵深防御（真核归一之后五节齐全，正常路径到不了这里），但代价只是一次形状判断。
-          //   判据取自 kernel/settings-debug.js 同一个产物里的名字；老产物里没有这个函数时按改动前的行为走。
-          if (typeof settingsDebugDocLooksReal === 'function' && !settingsDebugDocLooksReal(res.value, true)) return useMemory()
-          const fresh = res.value
-          // #1640：盘上那份里可能还留着别窗写进去、本窗内存里没有的临时记录，先按同一套规则合并掉 ——
-          //   这一趟写出去的就是合并后的一份，文件里不留两处分家。
-          try { viewFlagMergeDoc(fresh, 'write') } catch (eM) {}
-          for (let i = 0; i < sentKeys.length; i++) {
-            const d = viewFlagState.journal[sentKeys[i]]
-            if (!d) continue
-            // 界面偏好那一族（kernel/settings-ui.js）只有格名、没有工作区路径，直接改进 ui 节。
-            if (d.section === 'ui') { settingsUiSetInDoc(fresh, d.name, d.value); continue }
-            // 动作模板那一族（kernel/settings-templates.js）同样只有格名、没有工作区路径，直接改进 templates 节。
-            if (d.section === 'templates') { settingsTemplatesSetInDoc(fresh, d.name, d.value); continue }
-            // 调试开关那一族（kernel/settings-debug.js）同 ui 与 templates：只有格名，直接改进 debug 节。
-            if (d.section === 'debug') { settingsDebugSetInDoc(fresh, d.name, d.value); continue }
-            // 用队列里这一笔自带的键，不重算（#1012 后续修复的建议 2）：本会话若在排期与落盘之间跟丢了根，
-            //   重算出来的键会换成会话目录那一条，文件里就长出同一工作区的第二条记录、根那条还是旧值。
-            const key = d.key || viewFlagDocKeyOf(d.cwd)
-            if (key) viewFlagSetInDoc(fresh, d.cwd, key, d.name, d.value, d.unopened)
+          if (okRes) {
+            if (res.readonly === true || !res.value || typeof res.value !== 'object') return null
+            if (typeof settingsDebugDocLooksReal === 'function' && !settingsDebugDocLooksReal(res.value, true)) return null
+            // 基线要先照一张相：下面会把本窗待写格并进 res.value，那份响应对象就是目标文档了。
+            const base = viewFlagSnapshotDoc(res.value)
+            const baseHash = String(res.contentHash || '')
+            const target = res.value
+            try { viewFlagMergeDoc(target, 'write') } catch (eM) {}
+            viewFlagApplyJournalToDoc(target, sentKeys)
+            viewFlagState.doc = target
+            viewFlagState.contentHash = baseHash
+            return { base: base, target: target, baseHash: baseHash }
           }
-          // 内存那一份换成刚读回来的那一份：这样界面接下来读到的，与盘上那一份是同一份（含别人写进去的格）。
-          viewFlagState.doc = fresh
-          return fresh
-        }, function (): any { return useMemory() })
-      } catch (e) { return Promise.resolve(useMemory()) }
+          if (res && res.error && res.error.kind === 'absent') {
+            const base = viewFlagEmptyDoc()
+            const baseHash = String((res && res.contentHash) || '')
+            const target = viewFlagEmptyDoc()
+            try { viewFlagMergeDoc(target, 'write') } catch (eM) {}
+            viewFlagApplyJournalToDoc(target, sentKeys)
+            viewFlagState.doc = target
+            viewFlagState.contentHash = baseHash
+            return { base: base, target: target, baseHash: baseHash }
+          }
+          return null
+        }, function (): any { return null })
+      } catch (e) { return Promise.resolve(null) }
     }
     // 写成功回包：只划掉「发出去之后值没被改过」的那几笔，被改过的留在队列里再排一趟（文件头第一条）。
     //   顺带把自动重试的额度恢复一次：这一趟成功了，下一次真失败时还值得自动再试一趟。
@@ -310,68 +314,37 @@
     const viewFlagSnapshotDoc = function (doc: any): any {
       try { return JSON.parse(JSON.stringify(doc)) } catch (e) { return doc }
     }
-    // 这一趟真正写出去的值：从交给宿主的那份快照里按格取，不是从队列里取「发出前那一刻的值」。
-    //   为什么必须这样（#1012 后续修复的 M1 残留）：重读那一个来回里用户又改了值，合并用的是「合并那一刻」
-    //   的值、快照里落的也是它；判据若仍比发出前的值，用户在回包前又改回发出前那个值就会被判成「没改过」，
-    //   这一笔被划掉 —— 盘上留中间值、内存是最后那一下，两边从此不一致（要等用户再点这一格才可能修回来）。
-    //   按格取值时先按折算键找那条记录（同一工作区的两种写法算同一条），找不到就退回队列里的值。
-    const viewFlagSentValIn = function (snap: any, d: any): any {
-      try {
-        // 界面偏好那一格发出去的值就在 ui 节里（同一个格名）；文件那一份里没写进去时退回队列里的值。
-        if (d.section === 'ui') {
-          const uv = (snap && snap.ui && typeof snap.ui === 'object') ? snap.ui[d.name] : undefined
-          return (typeof uv === 'string' && uv !== '') ? uv : d.value
-        }
-        // 动作模板那一格发出去的值就在 templates 节里（同一个格名）；文件那一份里没写进去时退回队列里的值。
-        if (d.section === 'templates') {
-          const tv = (snap && snap.templates && typeof snap.templates === 'object') ? snap.templates[d.name] : undefined
-          return (typeof tv === 'string' && tv !== '') ? tv : d.value
-        }
-        // 调试开关那两格发出去的值就在 debug 节里（同一个格名）：enabled 是布尔、sampleRate 是数字，
-        //   按格各自的类型判「文件里写进去了没有」，判不出来就退回队列里的值（判据与上面两族同一条思路）。
-        if (d.section === 'debug') {
-          const dv = (snap && snap.debug && typeof snap.debug === 'object') ? snap.debug[d.name] : undefined
-          if (d.name === 'enabled') return (typeof dv === 'boolean') ? dv : d.value
-          return (typeof dv === 'number' && isFinite(dv)) ? dv : d.value
-        }
-        const key = d.key || viewFlagDocKeyOf(d.cwd)
-        if (!key || !snap || !snap.workspaces || typeof snap.workspaces !== 'object') return d.value
-        const ek = viewFlagEntryKeyOf(snap, key)
-        const v = ek ? (snap.workspaces[ek] || {})[d.name] : undefined
-        // #1612 的两个文字开关：文件里是各自允许的字符串才算「这一笔写进去了」，读不懂就退回队列里的值。
-        if (viewFlagIsTextNameOf(d.name)) {
-          const allowed: any = viewFlagTextValuesOf(d.name)
-          return (typeof v === 'string' && allowed.indexOf(v) >= 0) ? v : d.value
-        }
-        return (typeof v === 'boolean') ? v : d.value
-      } catch (e) { return d.value }
-    }
-    const viewFlagSentValsOf = function (snap: any, sentKeys: any): any {
-      const out: any = {}
-      for (let i = 0; i < sentKeys.length; i++) {
-        const d = viewFlagState.journal[sentKeys[i]]
-        if (d) out[sentKeys[i]] = viewFlagSentValIn(snap, d)
-      }
-      return out
-    }
-    // 把这一份已经照过相的文档交给宿主（wf.setSettings 收的是整份文档），回包按上面那两条约定处理。
-    //   sentVals 必须是对着同一份快照算出来的（见 viewFlagSentValIn）：这一趟发的是哪个值只有一个答案。
-    const viewFlagSendDoc = function (snap: any, sentKeys: any, sentVals: any, t0: any): void {
+    // 把补丁交给宿主（wf.setSettings 收的是 { patch, baseHash }）：宿主会合并进它刚读到的最新一份再落盘。
+    //   sentVals 必须是对着同一份目标快照算出来的（见 viewFlagSentValsOf）：这一趟发的是哪个值只有一个答案。
+    //   回包分三种：成功（按值划队列）；冲突（别的窗口刚改过，重读后重试，额度用完才兜底）；其它失败（写回旧键兜底）。
+    const viewFlagSendPatch = function (patch: any, baseHash: any, sentKeys: any, sentVals: any, t0: any): void {
       try {
         if (typeof host === 'undefined' || !host || typeof host.call !== 'function') { viewFlagFallbackToLegacy(sentKeys, 'host-missing'); return }
-        host.call('wf.setSettings', { value: snap }).then(function (res: any): any {
+        host.call('wf.setSettings', { patch: patch, baseHash: baseHash }).then(function (res: any): any {
           const okRes = !!(res && res.ok === true)
           try {
             if (okRes) log('info', 'host.call', { method: 'wf.setSettings', latencyMs: Date.now() - t0, ok: true, kind: 'settings' })
             else log('warn', 'host.call.fail', { method: 'wf.setSettings', kind: 'settings', errorHash: dswsLogHash(String((res && res.error && (res.error.message || res.error.kind)) || 'set-not-ok')) })
           } catch (eL) {}
-          if (okRes) { viewFlagConfirmSent(sentKeys, sentVals); return }
-          // 写失败（含文件只读被拒、手机说不行）：写回旧键做过渡，并把这几个还留在队列里。
+          if (okRes) {
+            viewFlagState.contentHash = String((res && res.contentHash) || viewFlagState.contentHash || '')
+            viewFlagState.conflictLeft = 3
+            viewFlagConfirmSent(sentKeys, sentVals)
+            return
+          }
+          const kind = String((res && res.error && res.error.kind) || '')
+          if (kind === 'conflict') {
+            if (res && typeof res.contentHash === 'string' && res.contentHash) viewFlagState.contentHash = res.contentHash
+            if (viewFlagState.conflictLeft > 0) { viewFlagState.conflictLeft = viewFlagState.conflictLeft - 1; viewFlagScheduleWrite(); return }
+            viewFlagFallbackToLegacy(sentKeys, 'write-conflict')
+            return
+          }
           viewFlagFallbackToLegacy(sentKeys, 'write-refused')
         }, function (): void { viewFlagFallbackToLegacy(sentKeys, 'write-error') })
       } catch (e) { viewFlagFallbackToLegacy(sentKeys, 'write-error') }
     }
-    // 真写一趟：先重读合并，再把「真正要发出去的那一份」照一张相，按这一份记下这一趟发出去的值，最后整份写出去。
+    // 真写一趟（#1802 改法）：先读盘上最新一份，把本窗待写格并进去，再算出「改动格」补丁连基底指纹一起送出。
+    //   不再送整份文档：别的窗口同时间写进去的格不会被这一窗整份顶掉；读不回来就放弃这一趟、留队等下一趟。
     const viewFlagWriteNow = function (): void {
       try {
         viewFlagState.timer = 0
@@ -383,19 +356,13 @@
         if (!sentKeys.length && viewFlagState.mergePending !== true) return
         if (typeof host === 'undefined' || !host || typeof host.call !== 'function') { viewFlagFallbackToLegacy(sentKeys, 'host-missing'); return }
         const t0 = Date.now()
-        // 照相与记值必须对着同一份：先照相，再从这份相里按格取出「这一趟发出去的值」（文件头那一条判据）。
-        const sendOf = function (doc: any): void {
-          const snap = viewFlagSnapshotDoc(doc)
-          viewFlagSendDoc(snap, sentKeys, viewFlagSentValsOf(snap, sentKeys), t0)
-        }
-        viewFlagFreshDocFor(sentKeys).then(function (fresh: any): any {
-          const value = fresh || viewFlagState.doc
-          if (!value) { viewFlagFallbackToLegacy(sentKeys, 'write-error'); return }
-          sendOf(value)
-        }, function (): void {
-          if (viewFlagState.doc) sendOf(viewFlagState.doc)
-          else viewFlagFallbackToLegacy(sentKeys, 'write-error')
-        })
+        viewFlagReadBase(sentKeys).then(function (fresh: any): any {
+          if (!fresh || !fresh.target) { viewFlagFallbackToLegacy(sentKeys, 'read-failed'); return }
+          // 照相与记值必须对着同一份：先照相，再从这份相里按格取出「这一趟发出去的值」（文件头那一条判据）。
+          const snap = viewFlagSnapshotDoc(fresh.target)
+          const patch = viewFlagDiffDocOf(fresh.base, snap)
+          viewFlagSendPatch(patch, fresh.baseHash, sentKeys, viewFlagSentValsOf(snap, sentKeys), t0)
+        }, function (): void { viewFlagFallbackToLegacy(sentKeys, 'read-failed') })
       } catch (e) { try { viewFlagFallbackToLegacy(Object.keys(viewFlagState.journal), 'write-error') } catch (e2) {} }
     }
     // 撤销上一次排的那支等待。宿主那只 timer 交回的是可调用的撤销器函数，对它调全局 clearTimeout 是

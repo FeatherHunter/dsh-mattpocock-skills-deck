@@ -472,6 +472,11 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-31 #1766：发布候选审计与发布字节对账（身份行、候选提交祖先、差异审计、候选包哈希、
   // validate/match 命令行入口、publish-token.ps1 传 -Candidate 时的真实冒烟）；59 条单跑实测。
   'verify-1766-release-audit': 59,
+  // 2026-11-02 #1802（两窗共用设置文件时旧窗口整份写回覆盖）：双客户端门禁——宿主按格补丁写入的
+  // 七组（缺文件、旧整份入参兼容、只改点名格、null 删临时记录、旧版本指纹回 conflict 且文件不动、
+  // 两个宿主实例共用一个 home 不互相覆盖、内容指纹形状），客户端闭包三组（两窗重读、两窗各写一格
+  // 最终两格都在且入参是补丁、conflict 后重读重试），设置页挂载重读接线与两份产物各一条；64 条单跑实测。
+  'verify-1802-settings-cross-window': 64,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

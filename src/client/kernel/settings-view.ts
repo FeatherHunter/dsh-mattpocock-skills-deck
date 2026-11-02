@@ -427,12 +427,20 @@ declare const process: any;
             // 形状对不上（「ok 但没有文档」的半份回复）不许当文档收下：拿它当基底整份写回会把别的节写成空值（严格档：五节齐全才算能用的文档；缺席那一档的 viewFlagEmptyDoc 五节齐全，过得了）。
             if (!res.value || typeof res.value !== 'object' || (typeof settingsDebugDocLooksReal === 'function' && !settingsDebugDocLooksReal(res.value, true))) { viewFlagSettle('unavailable'); return }
             viewFlagState.doc = res.value
+            // #1802：记下这一份对应盘上哪一版，下一次写拿它当「我读到的是这一版」的凭据。
+            viewFlagState.contentHash = String(res.contentHash || '')
             viewFlagSettle('ready')
             return
           }
           // 文件还没建（种类是没有）不算故障：后端通着，第一次写入会把它建出来，所以按一份空文档起步；
           //   读的时候这一节是空的，照样落到旧表兜底（文档缺席时回退读旧键，行为与改动前一致）。
-          if (res && res.error && res.error.kind === 'absent') { viewFlagState.doc = viewFlagEmptyDoc(); viewFlagSettle('ready'); return }
+          if (res && res.error && res.error.kind === 'absent') {
+            viewFlagState.doc = viewFlagEmptyDoc()
+            // 文件还没建时宿主也给了空文档的指纹，第一次保存用它当基底比对。
+            viewFlagState.contentHash = String((res && res.contentHash) || '')
+            viewFlagSettle('ready')
+            return
+          }
           viewFlagSettle('unavailable')
         }, function (): void { viewFlagSettle('unavailable') })
       } catch (e) { viewFlagSettle('unavailable') }

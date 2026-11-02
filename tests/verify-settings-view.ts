@@ -149,6 +149,9 @@ function keyOfFn() { return sharedKeyFn('keyOf') }
 const VIEW_REL = 'src/client/kernel/settings-view.js'
 const VIEW_STATE_REL = 'src/client/kernel/settings-view-state.js'
 const VIEW_WRITE_REL = 'src/client/kernel/settings-view-write.js'
+  // #1802：跨窗口合写要用到的几件工具（重读后的合并、算补丁、按格取值）另住一片，
+  //   构建时按次序拼在写这一片之后；这里也照同一次序拼，门禁跑到的才是产物里的那一段。
+  const VIEW_RELOAD_REL = 'src/client/kernel/settings-view-reload.js'
 const UI_REL = 'src/client/kernel/settings-ui.js'
 const noExport = (s) => s.replace(/^\s*export\s+/gm, '')
 // 取源走共用入口（#1207 立的 tests/lib/source-text.ts）：
@@ -179,7 +182,7 @@ function makeView(env) {
   // 被测那几片都已有同名 .ts 真源（旁边 .js 是构建产物），取源统一走共用入口的 spliceableJs：
   // 它按构建唯一口径转译、去掉行首 export、剥掉中央时间 import，拼出来就是真正进产物的那段代码；
   // 所以这里不再自己 readText + 去 export + 剥 import —— 那几步只该在共用入口里有一份。
-  const body = [listPrefsSlice(), spliceableJs(VIEW_STATE_REL), spliceableJs(VIEW_REL), spliceableJs(VIEW_WRITE_REL), spliceableJs(UI_REL)].join('\n')
+  const body = [listPrefsSlice(), spliceableJs(VIEW_STATE_REL), spliceableJs(VIEW_REL), spliceableJs(VIEW_WRITE_REL), spliceableJs(VIEW_RELOAD_REL), spliceableJs(UI_REL)].join('\n')
   const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer', 'currentOs', 'workspaceRootByCwd']
   const factory = compileFn(names, body + '\nreturn { viewFlagOf: viewFlagOf, viewFlagOfRoot: viewFlagOfRoot, setViewFlag: setViewFlag, setViewFlagRoot: setViewFlagRoot, viewFlagDocKeyOf: viewFlagDocKeyOf, viewFlagWriteKeyOf: viewFlagWriteKeyOf, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagSubscribe: viewFlagSubscribe, setUiPref: setUiPref, saveUiPrefs: saveUiPrefs, listPrefs: listPrefs, saveListPrefs: saveListPrefs, saveListPrefsLegacy: saveListPrefsLegacy, LIST_PREFS_KEY: LIST_PREFS_KEY, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }')
   return factory.apply(null, names.map((n) => env[n]))
@@ -221,7 +224,7 @@ async function main() {
         rel + ' 里拼进了这一片的读写两个入口（读与写都在，才算真接上）。')
       check(t.indexOf('const viewFlagReadyNow = function') >= 0 && t.indexOf('const viewFlagSubscribe = function') >= 0,
         rel + ' 里拼进了「问完真源了没有」那两个公开口子（加载状态与订阅这一片真的进了产物）。')
-      check(t.indexOf('const viewFlagWriteNow = function') >= 0 && t.indexOf('const viewFlagFreshDocFor = function') >= 0,
+      check(t.indexOf('const viewFlagWriteNow = function') >= 0 && t.indexOf('const viewFlagReadBase = function') >= 0 && t.indexOf('const viewFlagSendPatch = function') >= 0,
         rel + ' 里拼进了写这一趟（待写队列、防抖、写前重读合并都在，写这条路才算真接上）。')
       check(t.indexOf('const viewFlagState = {') >= 0 && t.indexOf('const viewFlagState = {') < t.indexOf('const viewFlagOf = function'),
         rel + ' 里状态对象排在它的使用方之前（拼接次序对，先有定义再有用它的那一片）。')
@@ -348,7 +351,7 @@ const wait = (env) => realSleep(300)
     // A4：新建这一条记录时，无仓库红卡那一格不由本窗口替用户答 false（那张卡要退役，答了会在以后把用户
     //   已经收起的红卡重新弹出来）。这里量的是发出去的那一份文档：它不该带这一格。
     const sentFirst = env.calls.filter((c) => c.method === 'wf.setSettings')[0]
-    const sentEntry = sentFirst && sentFirst.args && sentFirst.args.value && sentFirst.args.value.workspaces['D:\\ilife']
+    const sentEntry = sentFirst && sentFirst.args && sentFirst.args.patch && sentFirst.args.patch.workspaces['D:\\ilife']
     check(!!sentEntry && sentEntry.noRepoDismissed === undefined,
       '新建记录时本窗口不替无仓库红卡那一格答 false（发出去的文档里没有这一格）。', JSON.stringify(sentEntry))
     check(!!sentEntry && sentEntry.bannerFolded === undefined && typeof sentEntry.subwsMarkAutoShown === 'boolean',
@@ -511,7 +514,7 @@ const wait = (env) => realSleep(300)
     await wait(env)
     const writes = env.calls.filter((c) => c.method === 'wf.setSettings')
     check(writes.length === 1, '五次改动只发了一次写电话（防抖把窗口内的几下并成一次）。', '实得 ' + writes.length + ' 次')
-    check(writes.length === 1 && Object.keys(writes[0].args.value.workspaces).length >= 1, '那一次写电话带的是整份文档（value 里有 workspaces 这一节）。')
+    check(writes.length === 1 && Object.keys(writes[0].args.patch.workspaces).length >= 1, '那一次写电话带的是补丁（patch 里有 workspaces 这一节，别的格不带）。')
     const doc = await readDoc(env.home)
     check(!!doc && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === false && doc.workspaces['D:\\ilife'].noRepoDismissed === true,
       '文件里留下的是最后那一下的值（标志那格回到 false、另一格 true）。', JSON.stringify(doc && doc.workspaces))
@@ -882,7 +885,9 @@ const wait = (env) => realSleep(300)
     let failNext = 1
     const env = makeEnv({
       tag: 'keepqueue', cwd: cwd,
-      fsOverrides: { writeFile: async (p, text, enc) => { if (failNext > 0) { failNext -= 1; throw failCode('EPERM', 'operation not permitted') } return realFs.writeFile(p, text, enc) } },
+      fsOverrides: { writeFile: async (p, text, enc) => { // #1802：锁文件也是走 writeFile 建出来的，这一档要量的是「设置文件写不进去」，不能拿锁文件那一次充数。
+        if (failNext > 0 && !/\.lock$/.test(String(p))) { failNext -= 1; throw failCode('EPERM', 'operation not permitted') }
+        return realFs.writeFile(p, text, enc) } },
     })
     check(env.mod.setViewFlag(cwd, 'subwsMarkAutoShown', true) === true, '写这一笔时先按能写接下来（落盘失败再走过渡）。')
     // 等到旧键真的落地再断言（复核建议：固定 700 毫秒要装下 500 毫秒防抖加一次真写，机器忙时会假红）。
@@ -927,7 +932,7 @@ const wait = (env) => realSleep(300)
     await waitFor(() => env.calls.filter((c) => c.method === 'wf.setSettings').length >= 2)
     const sent = env.calls.filter((c) => c.method === 'wf.setSettings')
     check(sent.length >= 2, '第一趟飞在天上时改的那一下没有被划掉：真的又排了第二趟写，实得 ' + sent.length + ' 次。')
-    const firstEntry = sent[0] && sent[0].args && sent[0].args.value && sent[0].args.value.workspaces['D:\\ilife']
+    const firstEntry = sent[0] && sent[0].args && sent[0].args.patch && sent[0].args.patch.workspaces['D:\\ilife']
     check(!!firstEntry && firstEntry.subwsMarkAutoShown === true, '第一趟发出去的确实是当时那个值 true（这一条才有东西可丢）。', JSON.stringify(firstEntry))
     // 电话是「先记一笔、后落盘」，而第二趟写还要先重读一次文档（多一个 await）。只等电话出现就抢着读盘，
     //   会读到第一趟那个 true —— 门禁在跟自己抢时序（2026-10-12 复核量到 25% 概率的抖动红）。

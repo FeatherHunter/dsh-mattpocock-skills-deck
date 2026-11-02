@@ -49,7 +49,16 @@ import { mkdir as nodeMkdir, readFile as nodeReadFile, unlink as nodeUnlink, wri
 // 本文件在每次成功读 / 写设置之后，把那份归一后的设置文档投到槽位上，闸门订阅这个槽位。
 // 槽位缺席就当场建出来；监听器是谁、有几个都不由本文件关心，逐个调用并吞掉异常，
 // 任何发布动作都不许影响两条设置电话的返回值与串行写队列语义。
-import { DECK_SETTINGS_BUS_SLOT } from '../shared/config-store/src/settings.js'
+// #1802：补丁合并与内容指纹也定义在同一份核里，与读侧共用同一套「设置文档长什么样」的约定；
+// 文件锁的路径段同样从核里取，避免这里再写一份 .dsh/mattskillsdeck/settings.yaml 的字面量。
+import {
+  DECK_SETTINGS_BUS_SLOT,
+  SETTINGS_REL_SEGMENTS,
+  mergeSettingsPatch,
+  settingsContentHash,
+  settingsEmptyDocument,
+} from '../shared/config-store/src/settings.js'
+import { createSettingsPatchWriter } from './settingsPatchWrite.js'
 
 function publishSettingsSnapshot(value?: any): void {
   try {
@@ -133,6 +142,11 @@ export function createSettingsPhones(deps?: any): any {
       async rm(absPath?: any) {
         await sysFs.unlink(String(absPath))
       },
+      // #1802：只在文件不存在时创建（WX 独占创建），用来做跨进程写设置的文件锁。
+      // 假文件系统不一定实现 flag 语义，但写文件与删文件照样能跑，锁退化成进程内串行，不影响正确性。
+      async createExclusive(absPath?: any, text?: any) {
+        await sysFs.writeFile(String(absPath), String(text), { encoding: 'utf8', flag: 'wx' })
+      },
     }
   }
 
@@ -171,6 +185,21 @@ export function createSettingsPhones(deps?: any): any {
     return next
   }
 
+  // 写高版本文件时的同一句只读文案，读前检查与写后遇到 version-newer 都复用它，不让两种只读说两种话。
+  function readonlyUpgrade(): any {
+    return { ok: false, error: { kind: 'readonly', message: '这份本机设置文件是新版本插件写的，当前插件只认识到版本一，可以读来展示，不许写回去，请升级插件到最新版本后再改。' } }
+  }
+
+  // #1802：补丁写与跨进程文件锁搬成独立叶子（手机文件本就贴着文件粒度门禁的上限），
+  //   这里把本片手边的读写口与回执文案工具递进去；宿主入口与门禁看到的仍是同一个 writeSettingsPatch。
+  const patchWriter = createSettingsPatchWriter({
+    buildIo: buildIo,
+    readLocalSettings: readLocalSettings,
+    writeLocalSettings: writeLocalSettings,
+    publishSettingsSnapshot: publishSettingsSnapshot,
+    mapSettingsKind: mapSettingsKind,
+    readonlyUpgrade: readonlyUpgrade,
+  })
   // 读本机设置，成功保留值与警告与只读标记与来源四个字段，失败按映射表分档。
   async function handleGetSettings() {
     const home = await resolveHome()
@@ -185,9 +214,12 @@ export function createSettingsPhones(deps?: any): any {
     if (raw && raw.ok === true) {
       // #1612：读成功就把这份归一后的设置文档发布给 deck 工具闸门（闸门据此决定哪些工作区要收掉 deck 工具）。
       publishSettingsSnapshot(raw.value)
-      return { ok: true, value: raw.value, warnings: raw.warnings || [], readonly: raw.readonly === true, from: raw.from || 'yaml' }
+      return { ok: true, value: raw.value, warnings: raw.warnings || [], readonly: raw.readonly === true, from: raw.from || 'yaml', contentHash: settingsContentHash(raw.value) }
     }
     const reason = String((raw && raw.reason) || 'env')
+    // #1802：文件还没建时也给出「空文档的内容指纹」，让客户端第一次保存能拿它当基底比对；
+    // 空文档的样子由核里的 settingsEmptyDocument 定义，宿主与客户端算出来是同一个指纹。
+    if (reason === 'missing') return { ok: false, error: { kind: 'absent', message: String((raw && raw.message) || '本机设置文件还没有。') }, contentHash: settingsContentHash(settingsEmptyDocument()) }
     return { ok: false, error: { kind: mapSettingsKind(reason), message: String((raw && raw.message) || '读本机设置文件这一步出错了。') } }
   }
 
@@ -198,6 +230,10 @@ export function createSettingsPhones(deps?: any): any {
       const home = await resolveHome()
       if (!home) return { ok: false, error: { kind: 'environment', message: '拿不到用户主目录，所以保存不了本机设置文件。请检查平台主目录能力是否可用，然后重试。' } }
       if (typeof readLocalSettings !== 'function' || typeof writeLocalSettings !== 'function') return { ok: false, error: { kind: 'environment', message: '写本机设置这一步没有装好，所以没有动盘上的任何文件。请重试一次，如果仍然失败请把这条提示原文报告给插件维护者。' } }
+      // #1802：新客户端只送「改动的格 + 读到的那一版的指纹」，走补丁写；
+      // 旧客户端仍然送整份文档，继续走下面原来的整份覆盖路径，形状不改。
+      const patch = (args && typeof args.patch === 'object' && args.patch !== null && !Array.isArray(args.patch)) ? args.patch : null
+      if (patch !== null) return patchWriter.writeSettingsPatch(home, patch, args && args.baseHash)
       const inputValue = (args && typeof args.value === 'object' && args.value !== null) ? args.value : ((args && typeof args.settings === 'object' && args.settings !== null) ? args.settings : null)
       if (inputValue === null) return { ok: false, error: { kind: 'invalid', message: '要保存的本机设置不是一份名字到值的组合，请回到设置界面重新保存一次。' } }
       let before: any = null
@@ -206,9 +242,7 @@ export function createSettingsPhones(deps?: any): any {
       } catch (e) {
         before = null
       }
-      if (before && before.ok === true && before.readonly === true) {
-        return { ok: false, error: { kind: 'readonly', message: '这份本机设置文件是新版本插件写的，当前插件只认识到版本一，可以读来展示，不许写回去，请升级插件到最新版本后再改。' } }
-      }
+      if (before && before.ok === true && before.readonly === true) return readonlyUpgrade()
       let made: any = null
       try {
         made = await writeLocalSettings(inputValue, home, buildIo())
@@ -222,9 +256,7 @@ export function createSettingsPhones(deps?: any): any {
       }
       const reason = String((made && made.reason) || 'env')
       // 写时遇到高版本同样按只读拒绝，文案与读前检查同一句，不让两种只读说两种话。
-      if (reason === 'version-newer') {
-        return { ok: false, error: { kind: 'readonly', message: '这份本机设置文件是新版本插件写的，当前插件只认识到版本一，可以读来展示，不许写回去，请升级插件到最新版本后再改。' } }
-      }
+      if (reason === 'version-newer') return readonlyUpgrade()
       // out 后面可能按条件追加 keys（一句内核返回的键清单）；先标成 any，追加语义与原来一致。
       const out: any = { kind: mapSettingsKind(reason), message: String((made && made.message) || '保存失败，写不进本机设置文件。') }
       if (made && Array.isArray(made.keys)) out.keys = made.keys
