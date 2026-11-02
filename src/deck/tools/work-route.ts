@@ -10,7 +10,8 @@
 //   回执里那三个数不是写死的文案：保留期与在办窗口从中央 YAML 的生成常量算，体积上限从
 //   裁剪那一份字节数算，改 YAML（或改 CHAIN_MAX_BYTES）这里跟着变。
 //   隐私：会话只给 sessionLabel（例如「会话 ab12cd」），原始会话 id 永不进回执。
-import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { createDeckShell, DECK_STATUS } from '../shell/call-shell.js'
+import { evidenceFields, failureOf } from '../shell/receipt-reason.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
@@ -117,12 +118,15 @@ export function createDeckWorkRoute(deps?: DeckWorkRouteDeps) {
       const atFallbackIso: string = (typeof d.now === 'function') ? new Date(at).toISOString() : new Date(at).toISOString()
       const readFn = (d as UnknownRecord).workRouteRead as ((input: UnknownRecord) => Promise<unknown>) | undefined
       if (typeof readFn !== 'function') {
+        // #1799：本地读不出来同样走统一映射。这里没有任何后端 kind（装配没接上读这一支），
+        // 映射给的是「这条路走不通」，所以文案不能再劝人原样重试，要指向「按工具故障处理」。
+        const ev = failureOf(null, 'read')
         return {
           value: {
             status: DECK_STATUS.UNSUPPORTED,
-            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '在办表这次读不出来（no-read-binding）：当前装配没接上读这一支，下一次再试。',
-            data: { total: 0, returned: 0, omitted: 0, includeStale: includeStale, limit: limit },
+            reason: ev.code,
+            text: '在办表这次读不出来（no-read-binding）：当前装配没接上读这一支，这是插件内部接线问题，不是你的参数或工作区的问题；按工具故障处理（重启或升级插件）后再调一次。',
+            data: { total: 0, returned: 0, omitted: 0, includeStale: includeStale, limit: limit, error: evidenceFields(ev, 'errorKind') },
             notes: [ARCHIVE_SCOPE_NOTE + '，存档上限 ' + CHAIN_MAX_BYTES_LABEL + '。'],
             touched: [],
           },
@@ -137,12 +141,15 @@ export function createDeckWorkRoute(deps?: DeckWorkRouteDeps) {
       }
       if (!ro || ro.ok !== true || !ro.readout || typeof ro.readout !== 'object') {
         const reason = str(ro && (ro as UnknownRecord).reason) || 'read-failed'
+        // #1799：读存档失败只带本地原因串（threw / read-failed），没有后端 kind，映射按「不知道档位」
+        // 给 backend-unsupported（停，别发明重试）。文案跟着改成同一方向：先按工具故障处理，反复出现再查存档。
+        const ev = failureOf(ro, 'read')
         return {
           value: {
             status: DECK_STATUS.UNSUPPORTED,
-            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '在办表这次读不出来（' + reason + '）：下一次写票或再调一次会重新读盘，不用改参数。',
-            data: { total: 0, returned: 0, omitted: 0, includeStale: includeStale, limit: limit },
+            reason: ev.code,
+            text: '在办表这次读不出来（' + reason + '）：先按工具故障处理（重启或升级插件）后再调一次；如果反复出现，检查本机工作区存档是否可读、文件是否损坏，不要靠反复重试硬碰。',
+            data: { total: 0, returned: 0, omitted: 0, includeStale: includeStale, limit: limit, error: evidenceFields(ev, 'errorKind') },
             notes: [ARCHIVE_SCOPE_NOTE + '，存档上限 ' + CHAIN_MAX_BYTES_LABEL + '。'],
             touched: [],
           },

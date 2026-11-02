@@ -49,7 +49,8 @@
  *      （不额外写「正在取子票」，也不空出一行），取数中计数写占位、那句的数字也写占位；
  *      「正在取数」只用进度条轨道上的流动斜纹表达；没有子票时整块隐藏但留位置。
  *      进入页面时不会因为取数状态增删行让卡片上下抖。同样只读源码文本。
- *   14. 紧凑档案：页内不再重复「地图 / 规格 + 编号」那一行（顶栏已经写着同一个编号），
+ *   14. 紧凑档案：档案标题前有身份标记（地图图标 + 容器词 + 编号徽标），与标题同一行、在左侧；
+ *      它靠左浮动，标题折行时从标记下方走过（半包围，维护者 2026-11-02 拍板恢复身份行）。
  *      整块档案都是进「地图档案」的入口（点它压入这张地图的 issue 详情页）；页面源码里没有抽屉组件。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-map-detail-v2.ts（在插件根目录，不需要先构建）
@@ -670,8 +671,14 @@ section('9. MAP 自身内容：标题、目的地、完成度、子票那句的�
     '目的地原文带出，hasDestination 说有没有（实得 ' + show(full.hasDestination) + '）')
   check(show(full.counts) === show(COUNTS) && full.progressPercent === 50,
     '看板计数原样带出，完成度按同一份计数算（实得 ' + show(full.counts) + ' / ' + full.progressPercent + '）')
-  check(Object.keys(full).sort().join(',') === 'counts,destination,errorText,feedSegments,hasDestination,kind,progressPercent,title',
-    'MAP 自身内容只剩页面要画的七格：标题 / 目的地 / 计数 / 完成度 / 子票那句 / 错误 / 容器种类（没有档案与身份行）')
+  const MAP_PROFILE_KEYS = 'badgeEffortId,badgeKey,counts,destination,errorText,feedSegments,hasDestination,kind,progressPercent,title'
+  check(Object.keys(full).sort().join(',') === MAP_PROFILE_KEYS,
+    'MAP 自身内容只剩页面要画的九格：标题 / 目的地 / 计数 / 完成度 / 子票那句 / 错误 / 容器种类 / 徽标编号 / 目录（没有档案、抽屉与词表）')
+  check(full.badgeKey === '1314' && full.badgeEffortId === '',
+    '身份标记的徽标编号取快照行的 key；没给目录时目录为空串（实得 ' + show([full.badgeKey, full.badgeEffortId]) + '）')
+  const withEffort = profile.mapProfileOf(MAP_ROW, realFeed, COUNTS, 'demo')
+  check(withEffort.badgeEffortId === 'demo',
+    '页面把目录短名传进来时原样带出（多工作单元徽标才拼得出「#目录/编号」；实得 ' + show(withEffort.badgeEffortId) + '）')
   check(full.errorText === '', '没有快照错误时 errorText 是空串（页面不画红字）')
 
   check(show(full.feedSegments) === show([{ key: 'map.subCount', params: { n: 8, c: 4 } }]),
@@ -732,11 +739,15 @@ section('9. MAP 自身内容：标题、目的地、完成度、子票那句的�
     '规格的标题也去空白后带出（实得 ' + show(specFull.title) + '）')
   check(show(specFull.feedSegments) === show([{ key: 'map.specSubCount', params: { n: 8, c: 4 } }]),
     '规格的「子票那句」用 map.specSubCount，不再说成探索地图（实得 ' + show(specFull.feedSegments) + '）')
-  check(Object.keys(specFull).sort().join(',') === 'counts,destination,errorText,feedSegments,hasDestination,kind,progressPercent,title',
+  check(Object.keys(specFull).sort().join(',') === MAP_PROFILE_KEYS,
     '规格与探索地图用同一份 MAP 自身内容，没有另一套字段')
+  check(specFull.badgeKey === 1380,
+    '行没有 key 时徽标编号退回数字 number（实得 ' + show(specFull.badgeKey) + '）')
   const emptySpec = profile.mapProfileOf({ type: 'spec' }, null, null)
   check(show(emptySpec.feedSegments) === show([]) && emptySpec.kind === 'spec',
     '没有取数结果时那句不出，规格身份照旧（实得 ' + show(emptySpec.feedSegments) + '）')
+  check(emptySpec.badgeKey === null,
+    '行里既没有 key 也没有 number 时没有徽标编号（不画一颗空号；实得 ' + show(emptySpec.badgeKey) + '）')
 }
 
 
@@ -947,10 +958,14 @@ section('§12 入口接线')
   check(pageSourceText.indexOf("mode || '') === 'loading'") >= 0 && pageSourceText.indexOf('busy: busy') >= 0,
     '页面把「正在按需取子票」传给档案区（第一帧与取数中都是 busy）')
 
-  // ---- 紧凑档案：整块档案是入口（m02892、m03176）----
+  // ---- 紧凑档案：整块档案是入口；标题前有身份标记（m02892、m03176；#1803 恢复身份行）----
   check(headerText.indexOf('onOpenArchive') >= 0 && headerText.indexOf('mapv2.archive.open') >= 0 &&
-    headerText.indexOf('m2v2-id') < 0 && headerText.indexOf('MapProfileDrawers') < 0,
-    '档案区不再有自己的身份行与抽屉；档案区带定位串、可键盘进入')
+    headerText.indexOf('MapProfileDrawers') < 0,
+    '档案区不再画抽屉；档案区带定位串、可键盘进入')
+  check(headerText.indexOf('m2v2-id') >= 0 && headerText.indexOf('ticketBadgeOf') >= 0 &&
+    headerText.indexOf('CONTAINER_CHIP_LABEL_KEY') >= 0 && headerText.indexOf('MAP_PROFILE_CHIP_KEY') < 0 &&
+    headerText.indexOf("Ic({ n: 'map'") >= 0,
+    '档案标题前有身份标记：地图图标 + 容器词 + 编号徽标（容器词取 kernel 中央表、编号走 #1564 徽标契约，不自己拼「#编号」）')
   check(pageSourceText.indexOf('pushNav') >= 0 && pageSourceText.indexOf("pushNav(st, 'issue', n, effortOf(m))") >= 0 &&
     pageSourceText.indexOf('onOpenArchive: openArchive') >= 0,
     '点档案区压入这张地图自己的 issue 详情页（地图就是一条 issue，正文与评论都在那里）')
@@ -959,9 +974,15 @@ section('§12 入口接线')
     '可点的是整块档案（不再只有标题一行）；档案区里的链接与图片仍然各管各的交互')
   check(stylesText.indexOf('.m2v2-profile-link:hover') >= 0 &&
     stylesText.indexOf('.m2v2-profile-link:focus-visible') >= 0 &&
-    stylesText.indexOf('.m2v2-title-link') < 0 && stylesText.indexOf('.m2v2-drawer') < 0 &&
-    stylesText.indexOf('.m2v2-id') < 0,
-    '整块档案有自己的悬停 / 焦点样式；抽屉与身份行的样式已删干净')
+    stylesText.indexOf('.m2v2-title-link') < 0 && stylesText.indexOf('.m2v2-drawer') < 0,
+    '整块档案有自己的悬停 / 焦点样式；抽屉与标题链接样式已删干净')
+  const idRuleAt = stylesText.indexOf('.m2v2-id{')
+  const idRuleEnd = idRuleAt >= 0 ? stylesText.indexOf('}', idRuleAt) : -1
+  const idRuleBody = idRuleAt >= 0 && idRuleEnd > idRuleAt ? stylesText.slice(idRuleAt, idRuleEnd) : ''
+  check(idRuleBody.indexOf('float:left') >= 0 && idRuleBody.indexOf('color-mix') >= 0,
+    '身份标记那条规则自己写着靠左浮动与主题混色（标题折行从它下方走过＝半包围；身份色在深浅两套底色上各提亮 / 压暗一档）')
+  check(stylesText.indexOf('body:not([data-ds-dark-theme]) .m2v2-id{') >= 0,
+    '浅色主题有身份标记的单独配色（规格蓝 / 探索紫在暖纸上压暗后才读得清）')
 
   // ---- 整卡点按进详情（m02533）----
   const propsContractText = fs.readFileSync(path.join(ROOT, 'src/client/views/cards/cardProps.d.ts'), 'utf8')

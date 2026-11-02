@@ -43,7 +43,9 @@ check(shouldUseThinMapList({ type: 'map', labels: ['wayfinder:map'], assignee: '
 console.log('== 四、不支持才走老路（分流文件只读断言，本票不碰它） ==')
 const issueListSrc = fs.readFileSync(path.join(process.cwd(), 'src/deck/tools/issue-list.ts'), 'utf8')
 check(issueListSrc.indexOf("String(thinBody.error.kind) === 'unsupported'") >= 0, '回落条件仍是“仅当 kind 为 unsupported”')
-check(issueListSrc.indexOf('BACKEND_UNSUPPORTED') >= 0, '其余薄查失败走拒绝、不回落')
+// #1799 起顶层 reason 由统一映射给出，不再手写 BACKEND_UNSUPPORTED；这里跟着判「拒绝支仍走统一映射、
+// 且仍直接返回不回落到老路」，判据本意（薄查失败是拒绝，不是拿半份当整仓）不变。
+check(issueListSrc.indexOf("failureOf(thinBody, 'read')") >= 0 && issueListSrc.indexOf('ISSUE 列表没取回来') >= 0, '其余薄查失败走统一映射的拒绝、不回落')
 
 if (failures > 0) { console.error('verify-1605-map-routing-guard: ' + failures + ' 处未过'); process.exit(1) }
 else console.log('verify-1605-map-routing-guard: 全过')

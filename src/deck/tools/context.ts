@@ -6,6 +6,7 @@
 //
 // 拿不到的东西一律如实说：没有会话工作区、没有后端、后端不认这条路，都在返回值里写明。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { evidenceFields, failureOf, reasonForFailure } from '../shell/receipt-reason.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
@@ -15,6 +16,16 @@ import { knownWritePermissions } from '../../shared/tracker/backendWritePermissi
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
+
+/** 地图清单没取到时「下一步做什么」：partial 没有失败项时的续法就写在这里，text 与 reason 指向同一步。 */
+function partialNextStep(reason: string): string {
+  if (reason === REFUSAL_REASONS.BAD_ARGS) return '先确认工作区与后端选对了，再调一次。'
+  if (reason === REFUSAL_REASONS.BACKEND_TIMEOUT) return '等一会儿重调一次。'
+  if (reason === REFUSAL_REASONS.BACKEND_THREW) return '重调一次就行。'
+  if (reason === REFUSAL_REASONS.OVER_CAP) return '稍等一会儿再调。'
+  if (reason === REFUSAL_REASONS.BACKEND_UNSUPPORTED) return '这条路当前走不通，按工具故障处理或换一个后端。'
+  return '重调一次；仍然不行就按工具故障处理。'
+}
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
@@ -167,7 +178,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
       if (preTimeout) return {
         value: {
           status: DECK_STATUS.UNSUPPORTED,
-          reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
+          reason: reasonForFailure({ kind: 'timeout', phase: 'read' }),
           text: '工作区这次没确认下来（超时了：在限时内没等到后端回话，这次读没动手，重调一次就行）。',
           data: { backendId: pick.backendId, error: { kind: 'timeout', message: preTimeout.slice(0, 300) } },
         },
@@ -179,7 +190,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
       if (listedTimeout) return {
         value: {
           status: DECK_STATUS.UNSUPPORTED,
-          reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
+          reason: reasonForFailure({ kind: 'timeout', phase: 'read' }),
           text: '地图清单这次没取到（超时了：在限时内没等到后端回话，这次读没动手，重调一次就行）。',
           data: { backendId: pick.backendId, error: { kind: 'timeout', message: listedTimeout.slice(0, 300) } },
         },
@@ -191,7 +202,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
       if (permTimeout) return {
         value: {
           status: DECK_STATUS.UNSUPPORTED,
-          reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
+          reason: reasonForFailure({ kind: 'timeout', phase: 'read' }),
           text: '写权限那一问超时了：在限时内没等到后端回话，这次读没动手，重调一次就行。',
           data: { backendId: pick.backendId, error: { kind: 'timeout', message: permTimeout.slice(0, 300) } },
         },
@@ -218,12 +229,19 @@ export function createDeckContext(deps?: DeckContextDeps) {
         notes.push('这个仓库只读：标签与写操作不可用。')
         notes.push('要在只读库上长期协作，建议先 fork 到自己名下，再把工作区 origin 指向 fork（插件只认 origin，不代改配置）。')
       }
+      // #1799：partial 的 reason 也走统一映射。这一支没有逐项失败清单，唯一没成的是地图清单这一读：
+      // 有后端 kind 就按读阶段映射；没有就落 backend-unsupported（停）。文字要把「0 张不是真的没有」
+      // 和续法说清，不能只换个码。
+      const listedEv = listed.ok ? null : failureOf(listed, 'read')
       const status = listed.ok ? DECK_STATUS.OK : DECK_STATUS.PARTIAL
+      const mapsLine = listed.ok
+        ? '地图 ' + maps.length + ' 张。'
+        : '地图清单这次没取到（下面显示 0 张不是仓库里真的没有地图）。' + partialNextStep(listedEv ? listedEv.code : '')
       return {
         value: {
           status: status,
-          reason: listed.ok ? '' : REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-          text: '这里是 ' + s.cwd + '，后端 ' + pick.backendId + '（' + pick.source + '，用户手动选择 > 锚文件 > 自动识别），仓库 ' + (repo.refId || '（这个后端没有仓库标识）') + '，地图 ' + maps.length + ' 张。',
+          reason: listedEv ? listedEv.code : '',
+          text: '这里是 ' + s.cwd + '，后端 ' + pick.backendId + '（' + pick.source + '，用户手动选择 > 锚文件 > 自动识别），仓库 ' + (repo.refId || '（这个后端没有仓库标识）') + '，' + mapsLine,
           data: {
             workspace: { root: s.cwd, key: s.workspaceKey, sessionId: s.sessionId, source: s.source },
             backend: { id: pick.backendId, source: pick.source, label: '' },
@@ -234,6 +252,8 @@ export function createDeckContext(deps?: DeckContextDeps) {
             // 这一句是给 AI 的用法说明（描述只有路由，语义放这里；本地后端追加建票契约，见上面 howtoFor）。
             howto: howtoFor(pick.backendId),
             quota: { perCallPoints: budget.AI_TOOL_MAX_POINTS_PER_CALL, perCallRequests: budget.AI_TOOL_MAX_REQUESTS_PER_CALL, perHourPoints: budget.AI_TOOL_MAX_POINTS_PER_HOUR, perHourRequests: budget.AI_TOOL_MAX_REQUESTS_PER_HOUR, maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL },
+            // 失败证据只在失败时出现，成功回执的形状一字不动（金标准回执在 tests/tracker-contract/fixtures/golden-receipts/）。
+            ...(listedEv ? { listError: evidenceFields(listedEv, 'errorKind') } : {}),
           },
           notes: notes,
           touched: [],

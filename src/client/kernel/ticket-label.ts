@@ -91,8 +91,10 @@ export const ticketLabelNodesOf = function (h: any, key: unknown, effortId: unkn
   const p = ticketLabelPartsOf(key, effortId)
   if (p.full === '') return []
   return [
-    h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: '1 1 auto' } }, p.prefix),
-    h('span', { style: { flex: 'none' } }, p.number),
+    // 两段都带 key：这组节点常被父组件的数组直接使用（#1803 起地图详情档案头也这么用），
+    // 没有 key 时 React 会在每次渲染时打印「Each child in a list should have a unique 'key'」。
+    h('span', { key: 'prefix', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: '1 1 auto' } }, p.prefix),
+    h('span', { key: 'number', style: { flex: 'none' } }, p.number),
   ]
 }
 

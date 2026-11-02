@@ -14,6 +14,7 @@ import { failAs } from './error-fail.js'
 import { withWorkspaceWriter } from './write-queue.js'
 import { idempotencyKeyOf } from '../../../refresh/contract/idempotency-keys.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import { TRACKER_ERROR_STAGE } from '../../contract/results.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { CreateInput } from '../../contract/inputs.js'
@@ -189,7 +190,8 @@ async function resolveTarget(ctx: OpContext, repo: RepoWithPath, kind: OriginalK
     if (found.dirs.length === 0) {
       return failAs(ERROR_KIND.NOTFOUND, '实施票必须挂在规格票下：这个工作区里还没有 spec.md。先建规格，或者用 feature 指定规格所在的目录。', '')
     }
-    return failAs(ERROR_KIND.CONFLICT, '这个工作区里有 ' + found.dirs.length + ' 个规格目录（' + found.dirs.map((d) => d.dirName).join('、') + '），没法判断实施票该落哪一个：请用 feature 指定目录名。', JSON.stringify(found.dirs.map((d) => d.dirName)))
+    // 缺的是调用方该给的 feature（目录选择参数），不是后端故障：标成输入被拒，下一步才是补上这个参数。
+    return failAs(ERROR_KIND.CONFLICT, '这个工作区里有 ' + found.dirs.length + ' 个规格目录（' + found.dirs.map((d) => d.dirName).join('、') + '），没法判断实施票该落哪一个：请用 feature 指定目录名。', JSON.stringify(found.dirs.map((d) => d.dirName)), TRACKER_ERROR_STAGE.INPUT_REFUSED)
   }
 
   // 地图子票没给 effort：必须挂在某张地图下，就落在那张 map.md 所在的目录（与普通票挂地图同一口径）。
@@ -275,11 +277,12 @@ async function requireSpec(ctx: OpContext, root: string): Promise<{ ok: true; pa
   try { text = await readTextFile(ctx, specPath) } catch {
     return failAs(ERROR_KIND.NOTFOUND, '实施票必须挂在规格票下：目录「' + root + '」里没有 spec.md。先在那个目录建规格，或者用 feature 指定规格所在的目录。', specPath)
   }
-  if (!text.trim()) return failAs(ERROR_KIND.PARSE, '目录「' + root + '」里的 spec.md 是空的，没法确认它是不是规格：这次没建实施票。', specPath)
+  // 下面两处是本地容器文件形状不对（空文件、类型标记写错）：调用方要换目录或先修文件，属于输入被拒。
+  if (!text.trim()) return failAs(ERROR_KIND.PARSE, '目录「' + root + '」里的 spec.md 是空的，没法确认它是不是规格：这次没建实施票。', specPath, TRACKER_ERROR_STAGE.INPUT_REFUSED)
   // 老文件可能还带 DSH-ISSUE-KIND；写着别的类型就拒绝，避免把实施票挂到地图或普通票下面。
   const marked = markerKindInHeader(text)
   if (marked && marked !== 'spec') {
-    return failAs(ERROR_KIND.PARSE, '目录「' + root + '」里的 spec.md 写着「' + marked + '」标记，不是规格容器：这次没建实施票。', specPath)
+    return failAs(ERROR_KIND.PARSE, '目录「' + root + '」里的 spec.md 写着「' + marked + '」标记，不是规格容器：这次没建实施票。', specPath, TRACKER_ERROR_STAGE.INPUT_REFUSED)
   }
   return { ok: true, path: specPath, text: text }
 }
@@ -292,11 +295,12 @@ async function requireMap(ctx: OpContext, root: string): Promise<{ ok: true; pat
   try { text = await readTextFile(ctx, mapPath) } catch {
     return failAs(ERROR_KIND.NOTFOUND, '地图子票必须挂在一张探索地图下：目录「' + root + '」里没有 map.md。先在那个目录建地图，或者用 effort 指定地图所在的目录。', mapPath)
   }
-  if (!text.trim()) return failAs(ERROR_KIND.PARSE, '目录「' + root + '」里的 map.md 是空的，没法确认它是不是地图：这次没建地图子票。', mapPath)
+  // 与上面 spec.md 同理：容器文件形状不对，改输入（换目录或先修文件）才能继续。
+  if (!text.trim()) return failAs(ERROR_KIND.PARSE, '目录「' + root + '」里的 map.md 是空的，没法确认它是不是地图：这次没建地图子票。', mapPath, TRACKER_ERROR_STAGE.INPUT_REFUSED)
   // 老文件可能还带 DSH-ISSUE-KIND；写着别的类型就拒绝，避免把子票挂到规格或普通票下面。
   const marked = markerKindInHeader(text)
   if (marked && marked !== 'map') {
-    return failAs(ERROR_KIND.PARSE, '目录「' + root + '」里的 map.md 写着「' + marked + '」标记，不是地图容器：这次没建地图子票。', mapPath)
+    return failAs(ERROR_KIND.PARSE, '目录「' + root + '」里的 map.md 写着「' + marked + '」标记，不是地图容器：这次没建地图子票。', mapPath, TRACKER_ERROR_STAGE.INPUT_REFUSED)
   }
   return { ok: true, path: mapPath, text: text }
 }
@@ -376,7 +380,8 @@ export async function createInOriginalLayout(ctx: OpContext, repo: RepoWithPath 
     // 实施票：父票只能是本次目录里的规格（00）。没给父票也按 00 处理，原文靠目录表达父子。
     if (kind === 'spec-ticket') {
       if (parentKey && parentKey !== '00') {
-        return failAs(ERROR_KIND.PARSE, '实施票的父票要填 00（一个目录里只有一份规格容器），收到的是「' + parentKey + '」：这次没建。', parentKey)
+        // 父票编号形状不合规（只能填 00）：改入参才能继续，标成输入被拒。
+        return failAs(ERROR_KIND.PARSE, '实施票的父票要填 00（一个目录里只有一份规格容器），收到的是「' + parentKey + '」：这次没建。', parentKey, TRACKER_ERROR_STAGE.INPUT_REFUSED)
       }
       const spec = await requireSpec(ctx, root)
       if (!spec.ok) return spec
@@ -385,7 +390,7 @@ export async function createInOriginalLayout(ctx: OpContext, repo: RepoWithPath 
     // 地图子票：父票只能是同一目录的地图（00）；目录里必须有 map.md，否则不知道挂哪张地图。
     if (kind === 'map-ticket') {
       if (parentKey && parentKey !== '00') {
-        return failAs(ERROR_KIND.PARSE, '地图子票的父票要填 00（一个目录里只有一张地图容器），收到的是「' + parentKey + '」：这次没建。', parentKey)
+        return failAs(ERROR_KIND.PARSE, '地图子票的父票要填 00（一个目录里只有一张地图容器），收到的是「' + parentKey + '」：这次没建。', parentKey, TRACKER_ERROR_STAGE.INPUT_REFUSED)
       }
       const map = await requireMap(ctx, root)
       if (!map.ok) return map

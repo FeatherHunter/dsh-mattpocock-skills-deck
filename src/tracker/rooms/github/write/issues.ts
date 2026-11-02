@@ -12,7 +12,7 @@ import type { OpContext } from '../../../contract/contexts.js';
 import type { Issue, RepositoryRef } from '../../../contract/entities.js';
 import type { Actor } from '../../../contract/identity.js';
 import type { AssigneeInput, CloseOpts, CreateInput, SetOpts, UpdatePatch } from '../../../contract/inputs.js';
-import type { OpResult } from '../../../contract/results.js';
+import { TRACKER_ERROR_STAGE, type OpResult } from '../../../contract/results.js';
 import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
 import { normalizeIssue } from '../model/normalize.js'
@@ -74,12 +74,13 @@ async function createIssueInner(repo: RepositoryRef, input: CreateInput, ctx: Me
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `create: repo.refId missing: ${repoId(repo)}`, repo)
-    if (!input || typeof input.title !== 'string' || !input.title.trim()) return fail(ERROR_KIND.PARSE, 'create: title required', input)
+    // 标题与幂等键都在发出写命令之前检查：失败说明输入要改，重试同一份输入没有意义，所以标输入被拒。
+    if (!input || typeof input.title !== 'string' || !input.title.trim()) return fail(ERROR_KIND.PARSE, 'create: title required', input, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     // 幂等键当场检查：不合规（空、超长、带换行或注释收尾符）绝不落到正文上，
     // 而且必须比「回查」更早失败 —— 键不合法时连回查都无从做起。
     const wantKey = input.idempotencyKey === undefined || input.idempotencyKey === null ? null : checkIdempotencyKey(input.idempotencyKey)
     // 键本身不合规时，原文就交那个不合规的键值（为什么不合规已经写在给人看的那句话里）。
-    if (wantKey && !wantKey.ok) return fail(ERROR_KIND.PARSE, `create: idempotencyKey 不能用：${wantKey.reason}`, input.idempotencyKey)
+    if (wantKey && !wantKey.ok) return fail(ERROR_KIND.PARSE, `create: idempotencyKey 不能用：${wantKey.reason}`, input.idempotencyKey, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     const idemKey = wantKey ? wantKey.key : ''
     if (idemKey) {
       const found = await lookupByAnchor(repo, idemKey, ctx, normalizeIssue)
@@ -225,7 +226,7 @@ async function closeIssueInner(repo: RepositoryRef, key: string, opts: CloseOpts
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `close: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'close: key required', key)
+    if (!k) return fail(ERROR_KIND.PARSE, 'close: key required', key, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     const c = ghClient(ctx)
     // gh issue close 不认 --json：先关，再用 view 取回
     const args = ['issue', 'close', k, '--repo', `${parsed.owner}/${parsed.name}`]
@@ -281,7 +282,7 @@ async function reopenIssueInner(repo: RepositoryRef, key: string, ctx: OpContext
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `reopen: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'reopen: key required', key)
+    if (!k) return fail(ERROR_KIND.PARSE, 'reopen: key required', key, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     const c = ghClient(ctx)
     const args = ['issue', 'reopen', k, '--repo', `${parsed.owner}/${parsed.name}`]
     // 从这一步起真会发出写命令：走的是 gh issue 子命令（cli）。
@@ -329,8 +330,8 @@ async function updateIssueInner(repo: RepositoryRef, key: string, patch: UpdateP
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `update: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'update: key required', key)
-    if (!patch || typeof patch !== 'object') return fail(ERROR_KIND.PARSE, 'update: patch required', patch)
+    if (!k) return fail(ERROR_KIND.PARSE, 'update: key required', key, TRACKER_ERROR_STAGE.INPUT_REFUSED)
+    if (!patch || typeof patch !== 'object') return fail(ERROR_KIND.PARSE, 'update: patch required', patch, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     // 能力分支：milestone/customFields 不支持 → unsupported（不假装）
     if (patch.milestone !== undefined || patch.customFields !== undefined) {
       // milestone 若需支持可走 REST，但当前按 GH API 简化：milestone 需 number，此处诚实返回 unsupported
@@ -347,7 +348,7 @@ async function updateIssueInner(repo: RepositoryRef, key: string, patch: UpdateP
     const args = ['issue', 'edit', k, '--repo', `${parsed.owner}/${parsed.name}`]
     if (typeof patch.title === 'string') args.push('--title', patch.title)
     if (typeof patch.body === 'string') args.push('--body', patch.body)
-    if (args.length <= 4) return fail(ERROR_KIND.PARSE, 'update: empty patch (no title/body)', patch)
+    if (args.length <= 4) return fail(ERROR_KIND.PARSE, 'update: empty patch (no title/body)', patch, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     // 从这一步起真会发出写命令：走的是 gh issue 子命令（cli）。
     trail.route = 'cli'
     trail.written += 1
@@ -410,7 +411,7 @@ async function setAssigneesInner(repo: RepositoryRef, key: string, assignees: As
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setAssignees: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'setAssignees: key required', key)
+    if (!k) return fail(ERROR_KIND.PARSE, 'setAssignees: key required', key, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     // 为什么显式标：循环里才往里装，编译器判成隐式 any；装的本来就是归一后的认领，运行时还是原来那几个值。
     const wanted: Actor[] = []
     const seen = new Set<string>()

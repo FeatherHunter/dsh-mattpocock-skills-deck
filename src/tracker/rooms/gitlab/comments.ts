@@ -8,7 +8,7 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { ErrorKind } from '../../contract/identity.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { Comment, RepositoryRef } from '../../contract/entities.js'
-import type { OpResult } from '../../contract/results.js'
+import { TRACKER_ERROR_STAGE, type OpResult } from '../../contract/results.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
 import { failGlab } from './errors.js'
@@ -56,9 +56,9 @@ export async function addComment(
   const id = repoId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'comment: repo.refId missing', '')
   const k = String(key)
-  if (!k) return fail(ERROR_KIND.PARSE as ErrorKind, 'comment: key required', '')
+  if (!k) return fail(ERROR_KIND.PARSE as ErrorKind, 'comment: key required', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)
   if (typeof body !== 'string' || !body.trim()) {
-    return fail(ERROR_KIND.PARSE as ErrorKind, 'comment: body required', '')
+    return fail(ERROR_KIND.PARSE as ErrorKind, 'comment: body required', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)
   }
   try {
     const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)

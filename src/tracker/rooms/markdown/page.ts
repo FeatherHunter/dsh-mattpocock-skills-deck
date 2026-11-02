@@ -21,6 +21,7 @@
  */
 
 import { ERROR_KIND, ISSUE_TYPE, STATE } from '../../contract/vocabulary.js'
+import { TRACKER_ERROR_STAGE } from '../../contract/results.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Issue } from '../../contract/entities.js'
 import type { ListFilter, PageOpts } from '../../contract/inputs.js'
@@ -73,7 +74,8 @@ function startIndexOf(cursor: string, total: number): { ok: true; start: number 
   if (!cursor) return { ok: true, start: 0 }
   if (!/^\d+$/.test(cursor)) {
     // 原文 = 收到的那段游标本身（本地就能定论：它不是一个下标数字）。
-    return { ok: false, reason: 'listPage:cursor', error: failAs(ERROR_KIND.PARSE, '游标已失效，请重新加载（这个后端的游标是排好序的票行列表里的下标，收到的不是数字：' + cursor.slice(0, 32) + '）', cursor.slice(0, 120)).error }
+    // 游标不是数字是调用方给错了参数（越界另有一条），改游标重试即可，标成输入被拒。
+    return { ok: false, reason: 'listPage:cursor', error: failAs(ERROR_KIND.PARSE, '游标已失效，请重新加载（这个后端的游标是排好序的票行列表里的下标，收到的不是数字：' + cursor.slice(0, 32) + '）', cursor.slice(0, 120), TRACKER_ERROR_STAGE.INPUT_REFUSED).error }
   }
   const start = parseInt(cursor, 10)
   if (start >= total) {

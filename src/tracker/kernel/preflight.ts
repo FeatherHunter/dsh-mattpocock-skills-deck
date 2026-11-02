@@ -20,7 +20,7 @@
 
 import { ERROR_KIND } from '../contract/vocabulary.js'
 import type { ErrorKind } from '../contract/identity.js'
-import type { TrackerError } from '../contract/results.js'
+import type { TrackerError, TrackerErrorStage } from '../contract/results.js'
 import {
   HINT_UNRECOGNIZED,
   HINT_UNSUPPORTED,
@@ -114,9 +114,14 @@ export function verdictOf(err: unknown, ctx?: PreflightCtx): Judged {
  * @param kind 八档之一
  * @param message 给人看的一句话（允许直接展示；不要把原文塞进来）
  * @param raw 原文，或任何含原文的错误值
+ * @param stage 失败发生在链路哪一段（可选；取值见 TRACKER_ERROR_STAGE）。不传就不写这一格，
+ *   形状与 #1171 之前完全一样。只有房间确实知道「下一步该改什么/重试为什么安全」时才传，
+ *   别为了填满字段硬猜：填错比不填更糟，调用方会照着错的下一步去动。
  */
-export function fail(kind: ErrorKind, message: string, raw: unknown): { ok: false; error: TrackerError } {
-  return { ok: false, error: { kind, message, raw: rawText(raw) } }
+export function fail(kind: ErrorKind, message: string, raw: unknown, stage?: TrackerErrorStage): { ok: false; error: TrackerError } {
+  const error: TrackerError = { kind, message, raw: rawText(raw) }
+  if (stage) error.stage = stage
+  return { ok: false, error }
 }
 
 export const PREFLIGHT = Object.freeze({ version: 1 })

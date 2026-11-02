@@ -193,6 +193,7 @@ async function ensureForDialog(ctx: OpContext, repo: RepositoryRef | null): Prom
 export async function setLabelColors(ctx: OpContext, repo: RepositoryRef | null, changes: LabelColorChange[]): Promise<{ ok: true; data: LabelColorBatchResult } | OpsFailure> {
   const bad = shapeProblem(changes)
   // 原文 = 这次收到的整批改动（本地就能定论：形状不合契约，所以整条拒绝）。
+  // 整批改动的形状不合契约：在写任何文件之前拒绝，改入参才能继续，标成输入被拒。
   if (bad) return failAs(ERROR_KIND.PARSE, bad, rawJson(changes))
   return await withLabelColorsWriter(ctx, repo, async () => {
     const read = await readLabelColors(ctx, repo)

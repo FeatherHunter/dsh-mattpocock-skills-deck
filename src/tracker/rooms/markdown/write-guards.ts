@@ -15,6 +15,7 @@
 import { statFile } from './read.js'
 import { failAs } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import { TRACKER_ERROR_STAGE } from '../../contract/results.js'
 import { readBlockedByGraph, cycleThrough } from './graph.js'
 // #1060：环检这一趟的结论线（事件 `edge.cycle`，与 GitHub 房同一个名字、同一套字段）。
 import { emitEdgeCycle, EDGE_CYCLE_VERDICT } from './edge-log.js'
@@ -93,5 +94,6 @@ export async function cycleVerdictFor(ctx: OpContext, repo: RepoWithPath | null,
     return{ok:true}
   }
   emitEdgeCycle(ctx,EDGE_CYCLE_VERDICT.CYCLE,graph.size,blockers.length,t0)
-  return failAs(ERROR_KIND.CONFLICT,'这条依赖写下去会成环（'+cycle.join(' → ')+'），所以这次一个字都没写',JSON.stringify({key:key,blockers:blockers,cycle:cycle}))
+  // 成环是这批入参自己把图写成了环，改入参才能继续；重试同一批边不会变好。
+  return failAs(ERROR_KIND.CONFLICT,'这条依赖写下去会成环（'+cycle.join(' → ')+'），所以这次一个字都没写',JSON.stringify({key:key,blockers:blockers,cycle:cycle}),TRACKER_ERROR_STAGE.INPUT_REFUSED)
 }

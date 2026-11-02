@@ -4,10 +4,15 @@
  * 维护者 2026-10-23 定的两件事：
  *   1) 地图页不再展示「正文详情 / 已定决策 / 战雾 / 范围外」这些长内容，点标题进 issue 详情页，
  *      看这张地图自己的完整 issue 正文与评论（以后打磨 issue 详情页即可，地图页保持紧凑）；
- *   2) 页内不再重复「地图 / 规格 + 编号」这一行：顶栏的面包屑与身份小签已经写着同一个编号。
+ *   2) 当时还定过「页内不再重复「地图 / 规格 + 编号」这一行」：顶栏的面包屑与身份小签已经写着同一个编号。
  *
- * 所以这一块从上到下只剩四样：标题（整块档案都能点进 issue 详情页）→ 目的地一句话 → 四枚计数 →
- * 「进度条 + 子票那句」同一行 → 地图行自带的错误。它替代老页的 MapDetailHead 与三块正文折叠。
+ * 2026-11-02 维护者拍板反转第 2 条：档案区标题前恢复身份标记——地图图标 + 容器词 + 编号徽标，
+ * 与标题同一行、在左侧；标记靠左浮动，标题文字沿它右侧排，折行时从它下方走过（半包围）。
+ * 顶栏身份小签与面包屑保留不动（顶栏是导航上下文，页内是阅读锚点）；编号走 #1564 共享徽标契约，
+ * 不在这里自己拼「#编号」。反转理由记在 docs/adr/20261102-mapdetailv2-title-identity-marker.md。
+ *
+ * 所以这一块从上到下只剩四样：标题（标题前带身份标记；整块档案都能点进 issue 详情页）→ 目的地一句话 →
+ * 四枚计数 → 「进度条 + 子票那句」同一行 → 地图行自带的错误。它替代老页的 MapDetailHead 与三块正文折叠。
  *
  * 为什么这些值全从 profile 拿：档案里每个数字与每句文案的口径都在 model/container/mapProfile.ts 里定死
  * （与老页 views/MapDetailHead.ts 的取数口径对齐），这一层只做排版。
@@ -20,6 +25,9 @@ import type { MapProfile, TicketFeed } from '../../model/contracts/mapDetailType
 
 declare function Ic(props?: any): any
 declare function mdToHtml(...args: any[]): any
+declare function ticketBadgeOf(...args: any[]): any
+declare const CONTAINER_ACCENT: any
+declare const CONTAINER_CHIP_LABEL_KEY: any
 
 /** 四枚计数：顺序固定为 可接 → 已认领 → 被阻塞 → 已关闭（与卡片流「在办 → 可接 → 被挡 → 已完成」不是一回事，
  *  这里是「现在各有多少张」，按票的三个活状态加一个终态排，好扫）。 */
@@ -69,10 +77,32 @@ function progressNode(h: any, profile: MapProfile, feed: TicketFeed | null, busy
  * 标题：整块档案里最显眼的一行，但它自己不再单独接点按——入口是整块档案（见下面的 section），
  * 这样鼠标不用精确落在这一行字上，档案区里任何空白处都能点进 issue 详情页。末尾那枚「档案」小签
  * 仍然只画在标题里，作为「这里能点」的可见线索。
+ *
+ * 标题前是身份标记（#1803，维护者 2026-11-02 拍板恢复）：地图图标 + 容器词 + 编号徽标。
+ * 它靠左浮动，所以标题文字沿它右侧排、折行时从它下方走过（半包围）——标记只占第一行的左侧一小块。
+ * 编号走 #1564 共享徽标契约（ticketBadgeOf 的 badge 外壳，目录与编号的拼法由它负责）；
+ * 容器词按容器种类从 kernel 中央表 CONTAINER_CHIP_LABEL_KEY 取（地图 / 规格，一个值一处定义）；
+ * 容器身份色由 CONTAINER_ACCENT 取，不在这一层写字面色值。
  */
 function titleNode(h: any, profile: MapProfile, openable: boolean): any {
   const title = profile.title || ''
+  const accent = CONTAINER_ACCENT && typeof CONTAINER_ACCENT === 'object' ? CONTAINER_ACCENT[profile.kind] : ''
+  const identity = h('span', {
+    key: 'id',
+    className: 'm2v2-id',
+    style: accent ? { '--m2v2-id-accent': accent } : null,
+  }, [
+    h('span', { key: 'chip', className: 'm2v2-chip' }, [
+      h('span', { key: 'ic', style: { display: 'inline-flex' } }, Ic({ n: 'map', size: 11 })),
+      h('span', { key: 'txt' }, tr(CONTAINER_CHIP_LABEL_KEY[profile.kind])),
+    ]),
+    profile.badgeKey === null || profile.badgeKey === undefined
+      ? null
+      : h('span', { key: 'badge', style: { display: 'inline-flex', alignItems: 'center' } },
+        ticketBadgeOf(h, { surface: 'badge', key: profile.badgeKey, effortId: profile.badgeEffortId })),
+  ])
   return h('h1', { key: 'title', className: 'm2v2-title' }, [
+    identity,
     h('span', { key: 'txt', className: 'm2v2-title-txt' }, title),
     openable
       ? h('span', { key: 'go', className: 'm2v2-title-go', 'aria-hidden': '1' }, tr('map.archive') + ' ›')

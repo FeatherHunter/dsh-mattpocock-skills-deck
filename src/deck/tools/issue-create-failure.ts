@@ -7,7 +7,8 @@
 // 这层保证，一个字都不多给。
 //
 // 搬出来还有一个现实原因：issue-create.ts 的有效行已经贴着文件粒度门禁的 350 行上限，这一段进不去。
-import { DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { DECK_STATUS } from '../shell/call-shell.js'
+import { reasonForResult } from '../shell/receipt-reason.js'
 import type { TransportResult } from '../shell/backend-transport.js'
 // 回查阶段的取值从契约的同一张表里取，不在这里另写一遍字面量：改名时编译器能顺着常量找到每一处。
 import { TRACKER_ERROR_STAGE } from '../../tracker/contract/results.js'
@@ -28,8 +29,11 @@ export function backendCreateFailure(created: TransportResult, explicitKey: bool
   const retryAdvice = lookupFailed
     ? ' 原样重试即可：重试带的是' + (explicitKey ? '同一个幂等键' : '同一个 5 分钟窗口内算出的同一个锚（标题和标签都别改）') + '，会先按它回查，命中就复用那张票，不会多建一张。'
     : ''
+  // 映射码同时写进顶层 reason 与 data.error.code：前者告诉人下一步做什么，后者让调用方在逐条核对时
+  // 还能看到「为什么判成这个码」的原始档位（kind / stage）——两处说的是同一件事，不许各说各的。
+  const code = reasonForResult(err || null, 'write')
   return {
-    value: { status: DECK_STATUS.UNSUPPORTED, reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED, text: '这张票没建成（后端原话：' + msg + '）。' + retryAdvice, data: { error: { kind: String((err && err.kind) || ''), message: msg } }, notes: notes },
+    value: { status: DECK_STATUS.UNSUPPORTED, reason: code, text: '这张票没建成（后端原话：' + msg + '）。' + retryAdvice, data: { error: { kind: String((err && err.kind) || ''), stage: String((err && err.stage) || ''), code: code, message: msg } }, notes: notes },
     claimed: { requests: 1, points: 4 },
   }
 }

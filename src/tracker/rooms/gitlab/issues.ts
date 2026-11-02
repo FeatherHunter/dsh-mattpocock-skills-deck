@@ -10,7 +10,7 @@ import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { Issue, RepositoryRef } from '../../contract/entities.js'
 import type { CloseOpts, CreateInput, GetOpts, ListFilter, UpdatePatch } from '../../contract/inputs.js'
 import type { OpResult, IssueListResult } from '../../contract/results.js'
-import { LIST_TRUNCATED_REASON } from '../../contract/results.js'
+import { LIST_TRUNCATED_REASON, TRACKER_ERROR_STAGE } from '../../contract/results.js'
 import { PAGINATION } from '../../contract/pagination.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
@@ -259,7 +259,7 @@ export async function getIssue(
   const id = repoId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'get: repo.refId missing', '')
   const k = String(key)
-  if (!k) return fail(ERROR_KIND.PARSE as ErrorKind, 'get: key required', '')
+  if (!k) return fail(ERROR_KIND.PARSE as ErrorKind, 'get: key required', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)
   try {
     const raw = (await apiGet(effective, `${issuePath(id, k)}?with_labels_details=true`)) as RawBag | null
     // 原文 = 这次接口回给我们的那个值（它不是一张票的形状，所以按「没找到」如实失败）。
@@ -296,7 +296,8 @@ export async function createIssue(
   const id = repoId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'create: repo.refId missing', '')
   if (!input || typeof input.title !== 'string' || !input.title.trim()) {
-    return fail(ERROR_KIND.PARSE as ErrorKind, 'create: title required', '')
+    // 标题与幂等键都在发出建票请求之前检查：失败说明输入要改，重试同一份输入没有意义，所以标输入被拒。
+    return fail(ERROR_KIND.PARSE as ErrorKind, 'create: title required', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)
   }
   try {
     // #711：幂等键当场检查 —— 不合规的键绝不落到 description 上，而且必须比回查更早失败。
@@ -307,7 +308,7 @@ export async function createIssue(
         : (checkIdempotencyKey(input.idempotencyKey) as unknown as { ok: boolean; key: string; reason: string })
     // 原文给这次用不了的键本身（判据不成立的原因在 message 里，原文让人看见实际给的是什么）。
     if (wantKey && !wantKey.ok) {
-      return fail(ERROR_KIND.PARSE as ErrorKind, 'create: idempotencyKey 不能用：' + wantKey.reason, String(input.idempotencyKey))
+      return fail(ERROR_KIND.PARSE as ErrorKind, 'create: idempotencyKey 不能用：' + wantKey.reason, String(input.idempotencyKey), TRACKER_ERROR_STAGE.INPUT_REFUSED)
     }
     const idemKey = wantKey ? wantKey.key : ''
     // #711：建票之前先按锚回查（回查看的是票面上的 description，不是内存里的表）。
@@ -431,7 +432,7 @@ export async function updateIssue(
   const id = repoId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'update: repo.refId missing', '')
   const k = String(key)
-  if (!patch || typeof patch !== 'object') return fail(ERROR_KIND.PARSE as ErrorKind, 'update: patch required', '')
+  if (!patch || typeof patch !== 'object') return fail(ERROR_KIND.PARSE as ErrorKind, 'update: patch required', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)
   try {
     const body: RawBag = {}
     if (typeof patch.title === 'string') body['title'] = patch.title

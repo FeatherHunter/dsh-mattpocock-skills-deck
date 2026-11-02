@@ -35,7 +35,7 @@ import type { ErrorKind } from '../../../contract/identity.js';
 // #105 labelDefs.write：仓库标签定义改写的常驻结论线（轨迹形状与发射口在 ./write-log.js）。
 import { beginWriteTrail, emitLabelDefsWrite } from '../support/write-log.js'
 import type { WriteTrail } from '../support/write-log.js';
-import type { OpResult, RepoPermissions, TrackerError, LabelColorBatchResult } from '../../../contract/results.js';
+import { type OpResult, type RepoPermissions, type TrackerError, type LabelColorBatchResult } from '../../../contract/results.js';
 import { normalizeColor } from '../../../../shared/label-color/src/colors.js'
 import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
@@ -149,6 +149,7 @@ async function setLabelColorsInner(repo: RepositoryRef, changes: LabelColorChang
   try {
     const bad = changesProblem(changes)
     // 入参不合格时手里还没有任何外部原文，原文就交那份不合格的改动清单本身。
+    // 改动清单形状不合契约：在写任何东西之前拒绝，改入参才能继续，标输入被拒。
     if (bad) return fail(ERROR_KIND.PARSE, bad, changes)
     const target = await resolveRepoTarget(repo, ctx)
     // （noRepoTarget 只收一个字：原来多传的 repo 本来就被忽略，去掉后行为不变。）

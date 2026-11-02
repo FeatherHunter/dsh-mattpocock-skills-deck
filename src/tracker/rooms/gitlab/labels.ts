@@ -13,7 +13,7 @@ import type { ErrorKind } from '../../contract/identity.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { Issue, Label, RepositoryRef } from '../../contract/entities.js'
 import type { LabelInput, SetOpts } from '../../contract/inputs.js'
-import type { OpResult } from '../../contract/results.js'
+import { TRACKER_ERROR_STAGE, type OpResult } from '../../contract/results.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
@@ -96,7 +96,7 @@ export async function setLabels(
   const id = repoId(repo)
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'setLabels: repo.refId missing', '')
   const k = String(key)
-  if (!k) return fail(ERROR_KIND.PARSE as ErrorKind, 'setLabels: key required', '')
+  if (!k) return fail(ERROR_KIND.PARSE as ErrorKind, 'setLabels: key required', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)
   const wanted = normalizeLabelInputs(labels)
 
   try {

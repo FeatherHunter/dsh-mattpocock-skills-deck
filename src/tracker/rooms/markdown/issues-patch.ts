@@ -18,6 +18,7 @@ import type { EdgeTrail } from './edge-log.js'
 import { remoteTemplateRefusalForLocalFile, remoteTemplateSections } from './template-guard.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import { TRACKER_ERROR_STAGE } from '../../contract/results.js'
 import { locateContainerFile, resolveIssueFile, resolveMapFile, ticketRouteOf } from './issues-locate.js'
 import type { TicketRoute } from './issues-locate.js'
 // #1277：文件头里父注释的插入位置要认得类型标记行 —— 标记紧跟在幂等锚后面，父注释排在标记之后。
@@ -27,7 +28,7 @@ import { replaceOrInsertField, rewriteTicketText } from './issues-status.js'
 // #1788：路线决定父票注释与阻塞边写到哪一行，见 write-route.js。
 import { parentCommentOf, writeBlockedByLine } from './write-route.js'
 // #1500 S5：原文 map-ticket 分支的状态词只从 YAML 真源读；旧布局分支的字面量保持冻结。
-import { WAYFINDER_STATUS_CLAIMED, regexAlt } from './format/field-values.js'
+import { WAYFINDER_STATUS_CLAIMED, MAP_TICKET_TYPES, regexAlt } from './format/field-values.js'
 // #1489：原文布局的字段原语（隐藏注释、裸字段行、票种类判定），见 original-fields.ts。
 import { hiddenCommentOf, removeBareField, ticketFormOf, upsertHiddenComment, writeFieldByStyle } from './original-fields.js'
 import type { TicketForm } from './original-fields.js'
@@ -135,7 +136,8 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
         : r.route === 'map'
           ? 'map-ticket'
           : (ticketFormOf(fnOldText) === 'map-ticket' ? 'impl-ticket' : ticketFormOf(fnOldText))
-      const refusal=remoteTemplateRefusalForLocalFile(r.container,routeForm,remoteTemplateSections(patch.body));if(refusal)return failAs(ERROR_KIND.PARSE,refusal,String(patch.body))
+      // 模板守卫在写盘之前拒绝：要改的是正文，重试同一份正文不会通过，属于输入被拒。
+      const refusal=remoteTemplateRefusalForLocalFile(r.container,routeForm,remoteTemplateSections(patch.body));if(refusal)return failAs(ERROR_KIND.PARSE,refusal,String(patch.body),TRACKER_ERROR_STAGE.INPUT_REFUSED)
       if(isWholeIssueBody(patch.body)){
         // 整份正文：读回给的是整份文件，写回也按整份合并（锚与标题保住、字段与骨架搬回），不再猜它是片段。
         txt=moveLeadingSectionBelowTitle(mergeWholeBodyForPatch(patch.body, fnOldText));changed=true
@@ -195,10 +197,18 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
       // #1174：契约里的自定义字段是开放形状（一个名字加一个值），本地票只有 `Type:` 这一行能放。
       // 以前是把不认识的字段悄悄丢掉、照样回成功。现在只认 Type，其余如实回不支持。
       const unknown=patch.customFields.filter(cf=>!(cf&&cf.name==='Type'&&typeof cf.value==='string'&&cf.value.trim()))
-      if(unknown.length) throw {kind:ERROR_KIND.UNSUPPORTED,message:'markdown update unsupported (customFields '+unknown.map(cf=>String(cf&&cf.name)).join(', ')+')：本地票只有 Type 这一行能放，其余字段没有地方存'}
+      if(unknown.length) throw {kind:ERROR_KIND.UNSUPPORTED,message:'markdown update unsupported (customFields '+unknown.map(cf=>String(cf&&cf.name)).join(', ')+')：本地票只有地图子票的 Type 这一行能放，其余字段没有地方存'}
+      // #1788 复核：原文里 Type 只属于探索地图子票（wayfinder-child 的裸行 Type: research|prototype|grilling|task）；
+      // 实施票、普通票与规格/地图容器都没有这个字段。对它们写 Type 会在标题下面插出一行原文布局不认的
+      // 字段，所以按票所在目录判出的写路线如实拒绝，一个字节都不写。
+      if(r.container||r.route!=='map') throw {kind:ERROR_KIND.UNSUPPORTED,message:'markdown update unsupported (customFields Type)：原文里 Type 只属于探索地图子票；实施票、普通票与规格/地图容器都没有这一行，这次没写'}
       for(const cf of patch.customFields){
         if(cf&&cf.name==='Type'&&typeof cf.value==='string'&&cf.value.trim()){
-          txt=replaceOrInsertField(txt,'Type','Type: '+String(cf.value).trim().toLowerCase());changed=true
+          const value=String(cf.value).trim().toLowerCase()
+          // 地图子票的 Type 只有原文那四个词；写进别的值，读路径就不再认这张票是地图子票了。
+          if(MAP_TICKET_TYPES.indexOf(value)<0) throw {kind:ERROR_KIND.UNSUPPORTED,message:'markdown update unsupported (customFields Type)：地图子票的 Type 只能是 '+MAP_TICKET_TYPES.join(' / ')+'，这次没写：'+value}
+          // 按票面已有样式改：原文地图子票是裸行；手写票若用了加粗行，就维持这份文件自己的写法，不再多插一行裸行。
+          txt=writeFieldByStyle(txt,'Type',value,'bare');changed=true
         }
       }
     }
@@ -272,7 +282,8 @@ async function setBlockedByInner(ctx: OpContext,repo: RepoWithPath | null,key: s
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   // 原文 = 这张票自己的编号（结论是「入参自己和自己打架」，没有外部来源的原文）。
-  if(Array.isArray(blockers)&&blockers.map(k=>String(k).padStart(2,'0')).includes(norm)){return failAs(ERROR_KIND.CONFLICT,'self-block '+norm,norm)}
+  // 入参的阻塞名单里含本票自己：这是入参自相矛盾，改入参才能继续，标成输入被拒。
+  if(Array.isArray(blockers)&&blockers.map(k=>String(k).padStart(2,'0')).includes(norm)){return failAs(ERROR_KIND.CONFLICT,'self-block '+norm,norm,TRACKER_ERROR_STAGE.INPUT_REFUSED)}
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
   // 00 号容器（map.md / spec.md 文件本身）没有 Blocked by 这个字段，阻塞边只能挂在票上。

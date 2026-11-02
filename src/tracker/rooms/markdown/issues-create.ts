@@ -14,6 +14,7 @@ import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js
 import type { WriteTrail } from './write-log.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import { TRACKER_ERROR_STAGE } from '../../contract/results.js'
 
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 // #1486/#1487：六种票的原文形状落盘（spec.md、map.md、issues/NN-slug.md）住在 create-layout.ts，
@@ -53,12 +54,14 @@ export async function createIssue(ctx: OpContext,repo: RepoWithPath | null,input
 }
 async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: CreateInput,trail: WriteTrail): Promise<{ ok: true; data: Issue } | CreateFailure>{
   const colorMap=await loadPaintColorMap(ctx)
-  if(!input||typeof input.title!=='string'||!input.title.trim()){return failAs(ERROR_KIND.PARSE,'title required','')}
+  // 下面三处都在落盘之前拒绝，而且只能靠改输入解决：改标题、换一个合规的幂等键、把正文里的远端模板删掉。
+  // 所以标成「输入被拒」，回执才会说「改输入再来」，而不是把写阶段的「可能已生效、先读回」安上去。
+  if(!input||typeof input.title!=='string'||!input.title.trim()){return failAs(ERROR_KIND.PARSE,'title required','',TRACKER_ERROR_STAGE.INPUT_REFUSED)}
   // #711：带锚的创建。检查放在最前面、而且是当场失败：键不合规（空、超长、带换行或注释收尾符）
   // 绝不能落到票面上 —— 落下去会把正文写坏，而且第二次提交的键与第一次不是同一个串，「幂等」就成了运气。
   const keyCheck=input.idempotencyKey===undefined||input.idempotencyKey===null?null:checkIdempotencyKey(input.idempotencyKey)
   // 原文 = 这次用不了的那个键本身（判据不成立的原因在 message 里，原文让人看见实际给的是什么）。
-  if(keyCheck&&!keyCheck.ok)return failAs(ERROR_KIND.PARSE,'idempotencyKey 不能用：'+keyCheck.reason,String(input.idempotencyKey))
+  if(keyCheck&&!keyCheck.ok)return failAs(ERROR_KIND.PARSE,'idempotencyKey 不能用：'+keyCheck.reason,String(input.idempotencyKey),TRACKER_ERROR_STAGE.INPUT_REFUSED)
   const idemKey=keyCheck?keyCheck.key:''
   try{
     // #1486/#1487：六种票全部走原文布局（#1500 S4 起 originalKindOf 不再回空，旧的自拼分支已删）。
@@ -68,7 +71,7 @@ async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: 
     const offending=remoteTemplateSections(input.body)
     if(offending.length){
       const message=remoteTemplateRefusalFor(originalKind,offending)
-      if(message)return failAs(ERROR_KIND.PARSE,message,String(input.body==null?'':input.body))
+      if(message)return failAs(ERROR_KIND.PARSE,message,String(input.body==null?'':input.body),TRACKER_ERROR_STAGE.INPUT_REFUSED)
     }
     const placement=await createInOriginalLayout(ctx,repo,input,originalKind,idemKey)
     if(!placement.ok)return placement

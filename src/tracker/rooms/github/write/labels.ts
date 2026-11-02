@@ -20,7 +20,7 @@ import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import type { OpContext } from '../../../contract/contexts.js';
 import type { Issue, Label, RepositoryRef } from '../../../contract/entities.js';
 import type { LabelInput, SetOpts } from '../../../contract/inputs.js';
-import type { OpResult, TrackerError } from '../../../contract/results.js';
+import { TRACKER_ERROR_STAGE, type OpResult, type TrackerError } from '../../../contract/results.js';
 // #104 `issue.write`：票写入的常驻结论线（轨迹形状与发射口在 ./write-log.js）。
 import { beginWriteTrail, emitIssueWrite } from '../support/write-log.js'
 import type { WriteTrail } from '../support/write-log.js';
@@ -107,7 +107,7 @@ export async function setLabels(repo: RepositoryRef, key: string, labels: LabelI
 async function setLabelsInner(repo: RepositoryRef, key: string, labels: LabelInput[] | undefined, opts: SetOpts | undefined, ctx: MemoContext, trail: WriteTrail): Promise<OpResult<Issue>> {
   const wanted = normalizeLabelInputs(labels)
   const k = String(key || '').trim()
-  if (!k) return fail(ERROR_KIND.PARSE, 'setLabels: key required (string)', key)
+  if (!k) return fail(ERROR_KIND.PARSE, 'setLabels: key required (string)', key, TRACKER_ERROR_STAGE.INPUT_REFUSED)
 
   try {
     const parsed = parseRepo(repo)

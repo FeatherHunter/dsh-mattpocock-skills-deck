@@ -19,6 +19,8 @@
 //   F 负例：绕过宿主归一（直接把 assembleSnapshot 的原始行交给页面）时被挡计数必须变成 0、被挡封印消失——
 //     证明「首帧画得出关系与计数」这件事确实是本票修的那一段在起作用，而不是门禁自己凑出来的；
 //   G 产物：package/lib/client.js 里确实有这页与投影函数（构建新鲜度）。
+//   K 档案标题身份标记（#1803）：首帧渲染出的档案标题前有地图图标 + 容器词 + 编号徽标，
+//     地图与规格都画，且标记排在标题文字前面（同一行在左，标题折行从标记下方走过）。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-map-first-frame-freshness.ts
 import fs from 'node:fs'
@@ -323,6 +325,32 @@ const cardIds = (html: string) => (html.match(/id="m2-default-100-(\d+)"/g) || [
     'J5 首帧画出跨容器被挡封印（被 #6001 阻塞）')
   check(crossHtml.indexOf('被 #6003 阻塞') >= 0,
     'J6 读不到状态的阻塞者也画出来（按安全侧算被挡，不装作可接）')
+}
+
+// ---- K 档案标题身份标记（#1803）：地图图标 + 容器词 + 编号徽标 ----
+// 维护者 2026-11-02 拍板：恢复页内身份行，但半包围——标记与标题同一行、在左，标题折行从标记下方走过。
+// 这里断首帧渲染出来的结构（图标桩、容器词、徽标类名与编号都真的在标题前面）；折行几何由
+// view skin 的 float 规则决定，verify-map-detail-v2 第 14 条与那两条样式断言守着。
+{
+  const specRows = [issue(700, { type: 'spec', title: '规格 700' })]
+  const specSnapshot: any = carryOverMapTickets(null, assembleSnapshot({ owner: 'o', name: 'r' }, specRows), { sourceComplete: true, nowMs: NOW })
+  const mapHtml = renderPage(firstSnapshot, '100', null)
+  const specHtml = renderPage(specSnapshot, '700', null)
+  const idBlockOf = (html: string) => {
+    const start = html.indexOf('m2v2-id')
+    const end = html.indexOf('m2v2-title-txt')
+    return start >= 0 && end > start ? html.slice(start, end) : ''
+  }
+  const mapIdBlock = idBlockOf(mapHtml)
+  const specIdBlock = idBlockOf(specHtml)
+  check(mapIdBlock.indexOf('[icon:map]') >= 0, 'K1 身份标记里有地图图标', mapIdBlock)
+  check(mapIdBlock.indexOf(trFn('list.mapChip')) >= 0, 'K2 探索地图的身份标记写「地图」', mapIdBlock)
+  check(mapIdBlock.indexOf('dsws-idnum') >= 0 && mapIdBlock.indexOf('/100') >= 0,
+    'K3 身份标记里有编号徽标（编号尾巴 /100 由共享徽标契约拼出，不会混进标题文字）', mapIdBlock)
+  check(specIdBlock.indexOf(trFn('list.specChip')) >= 0 && specIdBlock.indexOf('dsws-idnum') >= 0 && specIdBlock.indexOf('/700') >= 0,
+    'K4 规格的身份标记写「规格」并带编号徽标', specIdBlock)
+  check(mapHtml.indexOf('m2v2-id') >= 0 && mapHtml.indexOf('m2v2-id') < mapHtml.indexOf('m2v2-title-txt'),
+    'K5 身份标记排在标题文字前面（同一行在左）', [mapHtml.indexOf('m2v2-id'), mapHtml.indexOf('m2v2-title-txt')])
 }
 
 // ---- G 构建产物：这页与投影函数确实在 package/lib/client.js 里（构建没跟上源码时判红） ----

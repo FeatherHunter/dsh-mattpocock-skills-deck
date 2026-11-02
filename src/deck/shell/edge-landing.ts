@@ -22,6 +22,8 @@ import {
 } from '../rules/edge-landing.js'
 import type { EdgeEvidence } from '../rules/edge-landing.js'
 import { hasCycleInAdj as hasCycleInAdjRules, refuseCyclicBlockBatch } from '../rules/dependency-graph.js'
+import { evidenceFields, failureOf } from './receipt-reason.js'
+import type { LocalFailureCause } from './receipt-reason.js'
 
 export { EDGE_LANDING } from '../rules/edge-landing.js'
 // 类型导出与值导出走的是两条不同的通道：这里把纯侧的三个类型原样转出去，
@@ -59,6 +61,12 @@ export interface EdgeItem {
   role?: string
   /** 这一行的结论：ok / failed。 */
   status?: string
+  /** 这一条失败该让调用方下一步做什么（八码之一；item 成的时候不出现）。 */
+  code?: string
+  /** 后端原始 ErrorKind（可空；失败详情里有才带上，给调试与分类用）。 */
+  errorKind?: string
+  /** 房间标注的失败阶段（可空，取值见 TRACKER_ERROR_STAGE）。 */
+  stage?: string
   /** 其余由调用方补的字段（例如「重复出现的次数」）原样带上。 */
   [extra: string]: unknown
 }
@@ -108,11 +116,11 @@ export function childrenOf(rows: unknown, mapKey: unknown): { children: Record<s
   }
 }
 
-/** 契约的一行返回：成不成、数据、失败原话。 */
+/** 契约的一行返回：成不成、数据、失败原话与它所属的档位/阶段。 */
 interface ContractReply {
   ok?: boolean
   data?: unknown
-  error?: { message?: unknown } | null
+  error?: { message?: unknown; kind?: unknown; stage?: unknown } | null
 }
 
 /**
@@ -137,6 +145,17 @@ function failureText(reply: ContractReply | null | undefined): string {
 }
 
 /**
+ * 把一次失败翻译成逐项证据：code（下一步做什么）+ errorKind（后端原档位）+ stage + local（本地失败来源）。
+ *
+ * 为什么逐项还要带这三格：顶层 reason 只说「这一批里最要紧的下一步」，对不上具体哪一条边；
+ * 调试与人工对账时还得知道那一条边失败的原档位是什么（#1799）。空的值不写进项里，
+ * 免得回执里到处都是 errorKind: '' 这种噪音。
+ */
+export function failureFields(failure: unknown, phase: 'read' | 'write', local?: LocalFailureCause): Record<string, string> {
+  return evidenceFields(failureOf(failure, phase, local), 'errorKind')
+}
+
+/**
  * 写一条父子边并读回核对。回 { item, applied }：item 是拼好明细的那一行，
  * applied 表示读回来的 parentKey 确实等于目标。
  * 同一张票的父子写必须串行（同时写同一张票会丢一次改动），不同票的可以同时调。
@@ -149,7 +168,7 @@ export async function applyParentEdge(
   if (!written || written.ok !== true) {
     // #1421：失败回执也要说清方向 —— 只留「后端原话」的话，读回执的人得回头翻参数才知道要写的是什么。
     const ev: EdgeEvidence = { kind: 'unsupported', ok: false, text: '写这一步就没成：要把 #' + want + ' 写成票 #' + from + ' 的父票（后端原话：' + failureText(written) + '）' }
-    return { item: Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('parent', want, ev)), applied: false }
+    return { item: Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('parent', want, ev, failureFields(written, 'write'))), applied: false }
   }
   // 契约没提供可选的读票方法时，这一步根本没读回 —— 不是「读回来了、里面没有这条边」。
   // 照 #790 的规矩只能说「判不了」，绝不许把没读到的状态说成读回来的 parentKey 是空。
@@ -165,12 +184,19 @@ export async function applyParentEdge(
   // #790 的教训：判「落上了」只看写后读回的结构字段（纯侧的 edgeVerdict），
   // 不许再拿「正文里出现过票号」或写动作自己的返回当证据 —— 那两条会把没挂上的边报成挂上。
   const landedOk = edgeVerdictRules('parent', want, afterIssue === null ? null : { issue: afterIssue, dependencies: null }) === 'landed'
+  let extra: Record<string, string> | undefined
   if (!landedOk) {
-    ev = readFailed
-      ? { kind: 'unknown', ok: false, text: '写动作回了成功，但' + (canRead ? '读票没成功' : '契约没有提供可选的读票方法') + '：写后没读回票 #' + from + '，判不了「票 #' + from + ' 的父票是 #' + want + '」有没有写成；这条边可能已建成但没确认' + (canRead ? '（后端原话：' + backError + '）' : '') }
-      : { kind: 'missing', ok: false, text: '写后读回：票 #' + from + ' 的父票读到的是 ' + (landedKey || '空') + '，要的是 #' + want + '。' }
+    if (readFailed) {
+      ev = { kind: 'unknown', ok: false, text: '写动作回了成功，但' + (canRead ? '读票没成功' : '契约没有提供可选的读票方法') + '：写后没读回票 #' + from + '，判不了「票 #' + from + ' 的父票是 #' + want + '」有没有写成；这条边可能已建成但没确认' + (canRead ? '（后端原话：' + backError + '）' : '') }
+      // 写成了、读回没成：下一步是先读回确认，别把整条边再写一遍（写两遍的副作用不一定可逆）。
+      extra = failureFields(canRead ? back : null, 'read', 'unconfirmed')
+    } else {
+      ev = { kind: 'missing', ok: false, text: '写后读回：票 #' + from + ' 的父票读到的是 ' + (landedKey || '空') + '，要的是 #' + want + '。' }
+      // 后端说写成了、读回来却没有：后端没做到这条边，重试同样的写法没有意义，说出来让人换路。
+      extra = failureFields(null, 'write', 'verify')
+    }
   }
-  return { item: Object.assign({ key: from, role: 'edge', status: landedOk ? 'ok' : 'failed' }, edgeEvidence('parent', want, ev)), applied: landedOk }
+  return { item: Object.assign({ key: from, role: 'edge', status: landedOk ? 'ok' : 'failed' }, edgeEvidence('parent', want, ev, extra)), applied: landedOk }
 }
 
 /**
@@ -199,7 +225,7 @@ export async function applyBlockEdges(
     const why = failureText(written)
     const failed: EdgeEvidence = { kind: 'unsupported', ok: false, text: '写这一步就没成：要把 #' + want.join('、') + ' 加进票 #' + from + ' 的 blockedBy（也就是票 #' + from + ' 被这些票阻塞）（后端原话：' + why + '）' }
     return {
-      items: list.map((to) => Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('block', to, { kind: 'unsupported', ok: false, text: '写这一步就没成：要把 #' + to + ' 加进票 #' + from + ' 的 blockedBy（也就是票 #' + from + ' 被 #' + to + ' 阻塞）（后端原话：' + why + '）' }))),
+      items: list.map((to) => Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('block', to, { kind: 'unsupported', ok: false, text: '写这一步就没成：要把 #' + to + ' 加进票 #' + from + ' 的 blockedBy（也就是票 #' + from + ' 被 #' + to + ' 阻塞）（后端原话：' + why + '）' }, failureFields(written, 'write')))),
       applied: [], landed: [], after: { issue: null, dependencies: null }, failed: failed, readOk: false,
     }
   }
@@ -217,11 +243,13 @@ export async function applyBlockEdges(
     if (!readOk) {
       // #1421：读失败这句是我们自己的判断，不该挂「后端原话：」前缀；后端原话单独放进括号里。
       const ev: EdgeEvidence = { kind: 'unknown', ok: false, text: '写动作回了成功，但读票没成功：写后没读回票 #' + from + '，判不了 #' + from + ' 的 blockedBy 里有没有 #' + to + '；这条边可能已建成但没确认（后端原话：' + (readError || '读回没成功') + '）' }
-      return Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('block', to, ev))
+      // 写成了、读回没成：下一步是先读回确认，别把整批边再写一遍。
+      return Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('block', to, ev, failureFields((back && back.ok !== true) ? back : dep, 'read', 'unconfirmed')))
     }
     const hit = edgeVerdictRules('block', to, after) === 'landed'
     const ev: EdgeEvidence = hit ? classifyEdgeLandingRules('block', to, after, from) : { kind: 'missing', ok: false, text: '写后读回：票 #' + from + ' 的 blockedBy 里没有 #' + to + '（读回来的是 ' + (landed.join('、') || '空') + '）' }
-    return Object.assign({ key: from, role: 'edge', status: hit ? 'ok' : 'failed' }, edgeEvidence('block', to, ev))
+    // 写成了、读回来却没有：后端没做到这条边，重试同样的写法没有意义，说出来让人换路。
+    return Object.assign({ key: from, role: 'edge', status: hit ? 'ok' : 'failed' }, edgeEvidence('block', to, ev, hit ? undefined : failureFields(null, 'write', 'verify')))
   })
   return { items: items, applied: list.filter((to) => landed.indexOf(to) >= 0), landed: landed, after: after, failed: null, readOk: readOk }
 }
