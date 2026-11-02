@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-02T20:38:14.778Z",
+  "generatedAt": "2026-11-02T22:47:49.810Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 543,
   "gateCount": 543,
@@ -6001,7 +6001,10 @@
       "step": "node tests/verify-1806-record-write-paths.ts",
       "file": "tests/verify-1806-record-write-paths.ts",
       "guards": [
+        "docs/agents/issue-tracker.md",
         "src/client/kernel/prompts-setup.ts",
+        "src/client/views/SettingsWorkspaces.ts",
+        "src/client/views/SubworkspaceMark.ts",
         "src/host/index.ts",
         "src/host/workspaceCwd.ts",
         "src/host/workspaceKey.ts",
@@ -6013,7 +6016,9 @@
         "tests/lib/source-text.ts"
       ],
       "dirs": [
+        "docs/agents",
         "src/client/kernel",
+        "src/client/views",
         "src/host",
         "src/shared/config-store/src",
         "src/tracker/detection",
@@ -6024,7 +6029,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-1826-markdown-subissues.ts",
@@ -12894,6 +12899,7 @@
       "node tests/verify-1522-skill-md-refs.ts",
       "node tests/verify-1621-gh-missing-copy.ts",
       "node tests/verify-1646-publish-token-file.ts",
+      "node tests/verify-1806-record-write-paths.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -13495,6 +13501,7 @@
       "node tests/verify-1783-comments-projection.ts",
       "node tests/verify-1792-card-action-gate.ts",
       "node tests/verify-1802-settings-cross-window.ts",
+      "node tests/verify-1806-record-write-paths.ts",
       "node tests/verify-1833-list-sticky.ts",
       "node tests/verify-1837-skill-importance.ts",
       "node tests/verify-544-standalone-blocked.ts",
