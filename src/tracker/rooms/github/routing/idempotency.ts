@@ -26,7 +26,7 @@
  *    「拿不准」当成「没找到」正是重复建票的来路，而且是看起来成功了的那种。
  */
 
-import { anchorLineFor, matchAnchor, isAnchorHit, describeAnchorFailure, anchorUnsupported } from '../../../../refresh/contract/idempotency-keys.js'
+import { anchorLineFor, stripAnchorLines, matchAnchor, isAnchorHit, describeAnchorFailure, anchorUnsupported } from '../../../../refresh/contract/idempotency-keys.js'
 import type { AnchorMatch } from '../../../../refresh/contract/idempotency-keys.js'
 import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import type { OpContext } from '../../../contract/contexts.js';
@@ -74,10 +74,14 @@ const CANDIDATE_FIELDS = 'number,body,state,createdAt,updatedAt'
 /**
  * 把锚那一行拼到正文前面。不带锚时原样返回（一个字节都不改）。
  * 带锚时锚是正文第一行：渲染后看不见，读回来还在，重试时能凭它找回这张票。
+ *
+ * #1827：拼之前先把正文里已有的锚行剥掉。调用方在正文里手写过同一行锚时，
+ * 直接拼会落成两行相同的注释（票面看不出哪一行算数，也白占一行）；剥掉再拼，
+ * 文件头永远只有本次这把键唯一的一行 —— 与本地 Markdown 房写正文前的做法一致。
  */
 export function withAnchor(body: string, key: unknown): string {
   if (!key) return body
-  return anchorLineFor(String(key)) + (body || '')
+  return anchorLineFor(String(key)) + stripAnchorLines(body)
 }
 
 /** 把一张原始行（gh 回的 JSON）变成回查判据要的候选。读不出关键字段就返回 null（由调用方按「这一条不可用」处理）。 */

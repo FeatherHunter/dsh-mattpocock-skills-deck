@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-02T04:13:57.498Z",
+  "generatedAt": "2026-11-02T12:18:53.670Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 534,
-  "gateCount": 534,
-  "attributedGates": 477,
+  "chainLength": 535,
+  "gateCount": 535,
+  "attributedGates": 478,
   "unattributedGates": 57,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 82,
@@ -5988,6 +5988,27 @@
       "completionRecord": true,
       "expectedAssertions": 74,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 8 条"
+    },
+    {
+      "step": "node tests/verify-1827-double-anchor.ts",
+      "file": "tests/verify-1827-double-anchor.ts",
+      "guards": [
+        "scripts/lib/discover-gates.ts",
+        "src/refresh/contract/idempotency-keys.ts",
+        "src/tracker/rooms/github/routing/idempotency.ts",
+        "src/tracker/rooms/gitlab/idempotency.ts"
+      ],
+      "dirs": [
+        "scripts/lib",
+        "src/refresh/contract",
+        "src/tracker/rooms/github/routing",
+        "src/tracker/rooms/gitlab"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 4 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -12933,6 +12954,7 @@
       "node tests/verify-1766-release-audit.ts",
       "node tests/verify-1776-vc-live-tab.ts",
       "node tests/verify-1776-vc-tab-browser.ts",
+      "node tests/verify-1827-double-anchor.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-596-rpc-carrier.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -13705,6 +13727,7 @@
     ],
     "src/refresh/contract": [
       "node tests/verify-1115-timer-handle.ts",
+      "node tests/verify-1827-double-anchor.ts",
       "node tests/verify-970-whole-document.ts",
       "node tests/verify-gitlab-single-write.ts",
       "node tests/verify-refresh-workspace-key.ts",
@@ -14373,6 +14396,7 @@
     ],
     "src/tracker/rooms/github/routing": [
       "node tests/verify-1765-read-channel-plan.ts",
+      "node tests/verify-1827-double-anchor.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-ghes-runtime-capability.ts",
       "node tests/verify-github-gh-via.ts",
@@ -14432,6 +14456,7 @@
       "node tests/verify-1770-gitlab-list-truncated.ts",
       "node tests/verify-1784-comment-pagination.ts",
       "node tests/verify-1785-assign-unknown.ts",
+      "node tests/verify-1827-double-anchor.ts",
       "node tests/verify-686-accept.ts",
       "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",

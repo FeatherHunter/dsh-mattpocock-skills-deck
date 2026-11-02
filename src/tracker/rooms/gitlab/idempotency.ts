@@ -19,7 +19,7 @@
  *    「拿不准」当成「没找到」正是重复建票的来路，而且是看起来成功了的那种。
  */
 
-import { anchorLineFor, matchAnchor, isAnchorHit, describeAnchorFailure, anchorUnsupported } from '../../../refresh/contract/idempotency-keys.js'
+import { anchorLineFor, stripAnchorLines, matchAnchor, isAnchorHit, describeAnchorFailure, anchorUnsupported } from '../../../refresh/contract/idempotency-keys.js'
 import type { AnchorCandidate, AnchorMatch } from '../../../refresh/contract/idempotency-keys.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { ErrorKind } from '../../contract/identity.js'
@@ -51,10 +51,14 @@ export type LookupByAnchorResult =
 /**
  * 把锚那一行拼到 description 前面。不带锚时原样返回（一个字节都不改）。
  * 带锚时锚是 description 的第一行：渲染后看不见，读回来还在，重试时能凭它找回这张票。
+ *
+ * #1827：拼之前先把 description 里已有的锚行剥掉。调用方在正文里手写过同一行锚时，
+ * 直接拼会落成两行相同的注释；剥掉再拼，文件头永远只有本次这把键唯一的一行 ——
+ * 与本地 Markdown 房写正文前的做法一致。
  */
 export function withAnchor(description: string, key: string | null | undefined): string {
   if (!key) return description
-  return anchorLineFor(String(key)) + (description || '')
+  return anchorLineFor(String(key)) + stripAnchorLines(description)
 }
 
 function repoId(repo: Partial<RepositoryRef> | null | undefined): string {

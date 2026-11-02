@@ -107,6 +107,42 @@ export function idempotencyKeyOf(text: unknown): string {
   return ''
 }
 
+/**
+ * 这一行是不是「整行只有一条幂等锚注释」。
+ *
+ * 只认整行：行首是 `<!--`（后面允许若干空白），去掉空白后以标记开头，整行以 `-->` 收尾。
+ * 正文里举例写到标记名字、或一行里注释后面还有别的字的，都不算 —— 剥的时候只剥整行。
+ * 判法与 anchorLineFor 拼出来的形状对齐，但比 idempotencyKeyOf 宽一档：不检查键的字符是否合法，
+ * 因为要剥掉的是「看起来就是锚」的整行，键合不合法都不该留在正文里。
+ */
+function isAnchorOnlyLine(line: string): boolean {
+  const trimmed = line.replace(/\r$/, '').trim()
+  if (!trimmed) return false
+  // 把 `<!--` 后面的任意空白归一成一个空格，再拿锚前缀比：这样 `<!--  DSH-…` 也认得出，
+  // 同时前缀仍然只有 IDEMPOTENCY_MARKER_PREFIX 这一处定义，不会两边漂移。
+  const normalized = trimmed.replace(/^<!--[ \t]+/, '<!-- ')
+  return normalized.indexOf(IDEMPOTENCY_MARKER_PREFIX) === 0 && /-->$/.test(normalized)
+}
+
+/**
+ * 剥掉正文里所有整行的幂等锚注释（返回新串；一行都没剥时原样返回同一个字符串）。
+ *
+ * 为什么写入前要先剥：锚是工具拼在文件头的行，调用方在正文里又手写一遍时，
+ * 后端再拼一次就会落成两行相同的注释（#1827 的来路）。三个后端的方针应当一致：
+ * 本地 Markdown 房早就这么做（写正文前先剥掉传入正文里的锚行，见 src/tracker/rooms/markdown/patch-body.ts），
+ * 远端两间房此前只负责「拼」、没有这道防护。
+ *
+ * 只删整行，其余字节一个不动：空行、行尾空格、CRLF 都按原样留着，调用方拼出来的正文
+ * 不会因为「剥锚」这一下被顺手改写。
+ */
+export function stripAnchorLines(body: unknown): string {
+  const text = String(body === null || body === undefined ? '' : body)
+  if (text.indexOf('DSH-IDEMPOTENCY-KEY') < 0) return text
+  const lines = text.split('\n')
+  const kept = lines.filter((line) => !isAnchorOnlyLine(line))
+  return kept.length === lines.length ? text : kept.join('\n')
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 二、回查命中要满足什么条件
 // ─────────────────────────────────────────────────────────────────────────────
