@@ -88,7 +88,8 @@ export const LIST_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after
 // 是 OR（匹配任意一个），不是 AND —— bug 388 条、ready-for-agent 596 条，两个一起给回来 788 条（并集）。
 // 所以下推得到的是「至少带一个」的超集，调用方要「同时带齐」时再交 applyIssueFilter 按 AND 收窄；
 // 先下推的好处是 500 条窗口里装的全是相关票，不再先按更新时间装 500 条整仓票、再在内存里挑掉大半。
-// （下面两条计数查询与按页查询的旧注释曾写「AND 语义」，实测不成立，已在各自注释里订正；代码行为不动。）
+// （下面两条计数查询与按页查询的旧注释曾写「AND 语义」，实测不成立，已在各自注释里订正；page.ts 与
+// counts.ts 调用处的说明也一并订正，代码行为不动。计数那边多标签仍按 OR 超集算，记在 #1830 的已知边界。）
 export const LIST_QUERY_WITH_LABELS = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[IssueState!]!,$labels:[String!]!){
   rateLimit{ cost }
   repository(owner:$owner,name:$name){

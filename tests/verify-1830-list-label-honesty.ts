@@ -212,7 +212,13 @@ async function makeHarness(opts) {
       const tracker = markdownModule.create(backendCtx)
       tracker.list = async function (_ref, filter) {
         seen.filter = filter
-        return { ok: true, data: opts.rows || [], truncated: opts.truncated === true }
+        const out: Record<string, unknown> = { ok: true, data: opts.rows || [], truncated: opts.truncated === true }
+        // 九、十两段要演练 REST 降级路径：桩里把 fallback / fallbackReason 一起回，形状与 GitHub 房的返回一致。
+        if (opts.fallback) {
+          out.fallback = opts.fallback
+          out.fallbackReason = opts.fallbackReason || 'other'
+        }
+        return out
       }
       if (opts.thin) {
         tracker.listMaps = async function () {
@@ -293,6 +299,22 @@ async function partTool() {
   const f = await runTool({ thin: true, thinRows: [{ key: '00', title: '地图', state: 'open', url: '' }], thinTruncated: false }, { state: 'open', labels: ['wayfinder:map'] })
   const fd = (f.r && f.r.data) || {}
   check(fd.backendTruncated === false && fd.truncated === false, '八、薄查没到封顶时两个旗标都是 false', { truncated: fd.truncated, backendTruncated: fd.backendTruncated })
+
+  // 九、REST 降级、但后端没撞上限：降级本身不等于清单不全，notes 与 text 都不许说「可能不全」。
+  const g = await runTool({ rows: bugRows(), truncated: false, fallback: 'rest', fallbackReason: 'quota' }, closedArgs)
+  const gd = (g.r && g.r.data) || {}
+  check(gd.backendTruncated === false && gd.truncated === false, '九、降级但未撞后端上限时两个旗标都是 false', { truncated: gd.truncated, backendTruncated: gd.backendTruncated })
+  check(gd.fallback === 'rest' && gd.fallbackReason === 'quota', '九、data 照旧写明走了 REST 降级与原因', { fallback: gd.fallback, fallbackReason: gd.fallbackReason })
+  check(notesOf(g.r).indexOf('REST 降级通道') >= 0, '九、notes 照旧说明走了降级通道', notesOf(g.r))
+  check(notesOf(g.r).indexOf('可能不全') < 0, '九、降级但未撞上限时 notes 不说「可能不全」', notesOf(g.r))
+  check(String(g.r.text || '').indexOf('可能不全') < 0, '九、降级但未撞上限时 text 也不说「可能不全」', g.r && g.r.text)
+
+  // 十、降级且撞到后端上限：两个旗标、notes、text 说的是同一件事。
+  const h = await runTool({ rows: bugRows(), truncated: true, fallback: 'rest', fallbackReason: 'other' }, closedArgs)
+  const hd = (h.r && h.r.data) || {}
+  check(hd.fallback === 'rest' && hd.backendTruncated === true, '十、降级且撞上限时 data 同时有 fallback 与 backendTruncated', { fallback: hd.fallback, backendTruncated: hd.backendTruncated })
+  check(notesOf(h.r).indexOf('可能不全') >= 0, '十、此时 notes 说「可能不全」', notesOf(h.r))
+  check(String(h.r.text || '').indexOf('可能不全') >= 0, '十、此时 text 也说「可能不全」', h.r && h.r.text)
 }
 
 async function main() {

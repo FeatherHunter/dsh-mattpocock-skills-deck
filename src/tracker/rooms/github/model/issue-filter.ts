@@ -18,8 +18,9 @@ import type { ListFilter } from '../../../contract/inputs.js';
 
 /**
  * filter.labels 归一：去掉首尾空白与空项、去重、保持原顺序；标签名本身的大小写不动。
- * 为什么也放在这里：list 的 GraphQL 主路（拼查询变量）与 REST 降级路（拼查询参数）都要同一份归一，
- * 两处各写一份会漂移；read/page.ts 与 read/counts.ts 里的同名私有副本这次不动（避免顺手扩大改动面）。
+ * 为什么放在这里：list 的 GraphQL 主路（拼查询变量）、REST 降级路（拼查询参数）、按页取票与计数
+ * 都要同一份归一，各写各的会漂移。#1830 评审后把 read/page.ts 与 read/counts.ts 里原来的同名私有
+ * 副本并到了这一份，房间里只剩这一处。
  */
 export function labelsOf(filter: ListFilter | null | undefined): string[] {
   if (!filter || typeof filter !== 'object' || !Array.isArray(filter.labels)) return []

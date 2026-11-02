@@ -193,7 +193,9 @@ async function main() {
   {
     const listMod = await imp('src/deck/tools/issue-list.ts')
     const tracker = {
-      list: async () => ({ ok: true, data: [Object.assign({}, demoIssue)], fallback: 'rest', fallbackReason: 'other' }),
+      // GitHub 房的 REST 降级分支恒回 truncated:true（read/issues.ts）。桩按真实形状给，
+      // 否则这里会把「降级但没标截断」当成「一定可能不全」，与 data.backendTruncated 说不到一起（#1830）。
+      list: async () => ({ ok: true, data: [Object.assign({}, demoIssue)], fallback: 'rest', fallbackReason: 'other', truncated: true }),
     }
     const g = stubGateLedger(gateMod, ledgerMod)
     const tool = listMod.createDeckIssueList(baseDeps(g.gate, stubRegistry(tracker), budget))

@@ -4,9 +4,10 @@
 // 全仓开放清单、按 label 与 assignee 筛这两件事原来只能走 gh。这一只走同一只壳、同一道闸、
 // 同一个账（读一档），薄行不回正文与评论，调用方按需再用 deck_issue_get 读全文。
 //
-// 过滤口径：state 与 type 交给后端 filter（全选就省略）；label（AND）、assignee、query
-// 在内存里再筛一遍 —— GitHub 房的列表查询本来就是批量取回内存筛（见 backends/github/queries.js
-// 的 LIST_QUERY 注释），三后端行为一致，不逐后端写分支。顺序沿用后端原序，不重排。
+// 过滤口径：state、type 与 label 交给后端 filter（全选就省略）；#1830 起 label 也下推了，
+// GitHub 的多标签下推是 OR 超集，所以拿回来仍要在内存里按 AND 再收窄一遍（markdown 房自己按标签筛，
+// 这一步只等于复核）；assignee、query 一直在内存里筛。三后端因此行为一致，不逐后端写分支。
+// 顺序沿用后端原序，不重排。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
@@ -19,6 +20,10 @@ import { withCap } from '../shell/capped-wait.js'
 // #1277：类型没标对的规格票靠票面文件头标记兜底认出来（与宿主快照组装层同一口径）。
 import { isSpecHeaderMarked } from '../../shared/issue-file/src/marker.js'
 import { evidenceFields, failureOf, reasonForResult } from '../shell/receipt-reason.js'
+
+// #1830：后端撞到自己取数上限时，回执正文与 notes 共用这一句。data.backendTruncated 是唯一的判据，
+// 本地 limit 截断（data.truncated）另有说法，两件事不互相顶替。
+const BACKEND_INCOMPLETE = '后端到自己的取数上限就停了，这份清单可能不全。'
 
 /** 失败回执里的「下一步做什么」：reason 已经回答了下一步，text 要跟它指向同一件事。
  *  只给本工具判断得了的几种码补一句；其余（后端说做不到等）保持原话，不替后端发明退路。 */
@@ -329,7 +334,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
           return {
             value: {
               status: DECK_STATUS.OK,
-              text: 'ISSUE 列表：共 ' + thinTotal + ' 行符合（' + thinCond.join('，') + '），回 ' + thinSliced.length + ' 行。' + (thinBackendTruncated ? '后端到自己的取数上限就停了，这份清单可能不全。' : ''),
+              text: 'ISSUE 列表：共 ' + thinTotal + ' 行符合（' + thinCond.join('，') + '），回 ' + thinSliced.length + ' 行。' + (thinBackendTruncated ? BACKEND_INCOMPLETE : ''),
               data: thinData,
               notes: thinNotes,
               touched: [],
@@ -415,18 +420,23 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       if (wantQuery) cond.push('query=' + String(a.query).trim().slice(0, 40))
       const notes = []
       if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
+      // 「可能不全」只跟 backendTruncated 走：REST 降级本身不等于没取全（今天 GitHub 的降级路确实总会
+      // 标 truncated，但半径按事实说，不按通道名说）。notes 与下面的 text 因此永远说同一件事。
+      const backendIncompleteNote = backendTruncated ? '这份清单可能不全：收窄 state 或 label 再查一次（这两样会真的下推给后端；assignee 与 query 只在本层筛，收窄它们不会让后端少取）。' : ''
       if (backendFallback) {
         // 配额耗尽与其它失败分开说：前者等额度恢复，后者按 opId 去日志里查 read.degraded 同一趟的原因。
-        if (fallbackReason === 'quota') notes.push('后端主路这次因配额耗尽走了 REST 降级通道（opId ' + (opId || '未知') + '）：REST 自己有翻页上限，尾页失败时只回已经拿到的，这份清单可能不全：收窄过滤再查一次。')
-        else notes.push('后端主路这次用不了，走的是 REST 降级通道（原因 ' + (fallbackReason || 'other') + '，opId ' + (opId || '未知') + '，日志里按 opId 查 read.degraded 就是同一趟）：REST 自己有翻页上限，尾页失败时只回已经拿到的，这份清单可能不全：收窄过滤再查一次。')
+        if (fallbackReason === 'quota') notes.push('后端主路这次因配额耗尽走了 REST 降级通道（opId ' + (opId || '未知') + '）：REST 自己有翻页上限，尾页失败时只回已经拿到的。' + backendIncompleteNote)
+        else notes.push('后端主路这次用不了，走的是 REST 降级通道（原因 ' + (fallbackReason || 'other') + '，opId ' + (opId || '未知') + '，日志里按 opId 查 read.degraded 就是同一趟）：REST 自己有翻页上限，尾页失败时只回已经拿到的。' + backendIncompleteNote)
       }
-      else if (backendTruncated) notes.push('后端这次取到自己的上限就停了（GitLab 是每页最多 100 条、只取第一页；GitHub 是工单 500 条、拉取请求 1000 条），这份清单可能不全：收窄过滤再查一次。')
+      else if (backendTruncated) notes.push('后端这次取到自己的上限就停了（GitLab 是每页最多 100 条、只取第一页；GitHub 是工单 500 条、拉取请求 1000 条），这份清单可能不全：收窄 state 或 label 再查一次（这两样会真的下推给后端；assignee 与 query 只在本层筛，收窄它们不会让后端少取）。')
       if (truncated) notes.push('只回前 ' + sliced.length + ' 行（共 ' + total + ' 行符合）：收窄过滤或调大 limit 再取一次。')
       // #1559：宿主收工具返回值时要求无损 JSON，data 上不许出现 undefined。缺省的键就不出现
       // （不用 null 顶替：金标准 03-deck_issue_list.golden.json 里本来就没有这两个键，序列化后的形状与它一致）；
       // opId 正常总有值，恒为字符串。
       // #1830：data 上两个旗标各说一件事 —— truncated 是「本地 limit 截断了这份回执」，
       // backendTruncated 是「后端到自己的取数上限就停了，这份清单可能不全」。两者可能同时成立。
+      // 降级通道标了截断时，别把「到取数上限」这句硬按到它头上：notes 已说明是降级通道，正文只说可能不全。
+      const backendIncompleteText = backendTruncated ? (backendFallback ? '这份清单可能不全。' : BACKEND_INCOMPLETE) : ''
       const data: Record<string, unknown> = {
         total: total,
         returned: sliced.length,
@@ -442,7 +452,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       return {
         value: {
           status: DECK_STATUS.OK,
-          text: 'ISSUE 列表：共 ' + total + ' 行符合（' + cond.join('，') + '），回 ' + sliced.length + ' 行，其中状态冲突 ' + statusConflictCount + ' 张。' + (backendTruncated ? '后端到自己的取数上限就停了，这份清单可能不全。' : ''),
+          text: 'ISSUE 列表：共 ' + total + ' 行符合（' + cond.join('，') + '），回 ' + sliced.length + ' 行，其中状态冲突 ' + statusConflictCount + ' 张。' + backendIncompleteText,
           data: data,
           notes: notes,
           touched: [],

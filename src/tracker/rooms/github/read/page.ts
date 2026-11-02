@@ -40,6 +40,7 @@ import { ghClient } from '../transport/client.js'
 import { normalizeIssue } from '../model/normalize.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { parseRepo, repoId } from '../model/issue-key.js'
+import { labelsOf } from '../model/issue-filter.js'
 import { LIST_PAGE_QUERY, LIST_PAGE_QUERY_WITH_LABELS } from '../channels/graphql/queries.js'
 // 读结果的来源与按字段组完整度（#1685）：起点在这里收，组装统一走 routing。
 import { beginRead } from '../routing/read-result.js'
@@ -92,23 +93,6 @@ function cursorOf(opts: PageOpts | null | undefined): string {
   return v.trim()
 }
 
-/** filter.labels 归一：去掉空白项与重复项，保持原顺序（名字大小写不动，交给后端筛）。 */
-function labelsOf(filter: ListFilter | null | undefined): string[] {
-  const bag = (filter && typeof filter === 'object' ? (filter as Record<string, unknown>) : null) as Record<string, unknown> | null;
-  const raw = bag ? bag.labels : null
-  if (!Array.isArray(raw)) return []
-  const out: string[] = []
-  // 为什么显式标成记录：空对象起手再按名索引，编译器会判成隐式索引，标成字符串记录才过得了严格模式。
-  const seen: Record<string, boolean> = {}
-  for (const v of raw) {
-    const name = typeof v === 'string' ? v.trim() : ''
-    if (!name || seen[name]) continue
-    seen[name] = true
-    out.push(name)
-  }
-  return out
-}
-
 /**
  * filter.since 归一：合法 ISO 时刻原样回传（转成 UTC ISO 串再给远端），非法或缺失回空串（= 不设窗口）。
  * 为什么用 Date.parse 校验：GraphQL 的 DateTime 收到半截日期会整页报错，与其把错误交给远端，不如在这里
@@ -139,7 +123,8 @@ function emitBadNodes(ctx: OpContext, dropped: number, total: number): void {
 /**
  * listPage(repo, filter, opts, ctx) -> OpResult<{items, nextCursor, total}>
  *
- * filter 认 state（收窄到「未关闭」「已关闭」之一）、labels（必须同时带上这些标签）与 since
+ * filter 认 state（收窄到「未关闭」「已关闭」之一）、labels（多标签下推是 OR 超集，本 op 目前不按 AND 再收窄，
+ * #1830 记的已知边界）与 since
  * （只要更新时间不早于这个时刻的票，刷新后台的增量索引窗口用），其余字段忽略 —— 与 counts 那条同一口径。
  * requested 之外的多余字段不许影响结果：分页与计数说的必须是同一批票。
  * 失败语义与 counts 一致；游标失效单独认得出（回 not-found，消息里明说「游标已失效，请重新加载」），

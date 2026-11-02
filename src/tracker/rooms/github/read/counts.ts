@@ -36,29 +36,13 @@ import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
 import { ghFailureMessage, ghVerdictOf } from '../support/errors.js'
 import { parseRepo, repoId } from '../model/issue-key.js'
+import { labelsOf } from '../model/issue-filter.js'
 import { COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS } from '../channels/graphql/queries.js'
 import { emitReadDegraded } from '../support/read-log.js'
 import { beginRead } from '../routing/read-result.js'
 import { countsProvenance } from '../routing/read-assembly.js'
 // #1796 code review：状态归一只留 list-state.ts 这一份（列表主路与计数同用一套读法）。
 import { narrowStateOf } from './list-state.js'
-
-/** filter.labels 归一：去掉空白项与重复项，保持原顺序（原样交给后端筛，名字大小写不动）。 */
-function labelsOf(filter: ListFilter | null | undefined): string[] {
-  const bag = (filter && typeof filter === 'object' ? (filter as Record<string, unknown>) : null) as Record<string, unknown> | null;
-  const raw = bag ? bag.labels : null
-  if (!Array.isArray(raw)) return []
-  const out: string[] = []
-  // 为什么显式标成记录：空对象起手再按名索引，编译器会判成隐式索引，标成字符串记录才过得了严格模式。
-  const seen: Record<string, boolean> = {}
-  for (const v of raw) {
-    const name = typeof v === 'string' ? v.trim() : ''
-    if (!name || seen[name]) continue
-    seen[name] = true
-    out.push(name)
-  }
-  return out
-}
 
 /** totalCount 只接受非负整数：形状不对就等于没拿到，绝不用别的数凑一个出来。 */
 function countOf(node: unknown): number | null {
@@ -69,7 +53,8 @@ function countOf(node: unknown): number | null {
 
 /**
  * counts(repo, filter, ctx) -> OpResult<{open, closed, total}>
- * 只数工单；filter 只认 state（收窄）与 labels（必须同时带上）；其余字段忽略（契约「计数契约」一节）。
+ * 只数工单；filter 只认 state（收窄）与 labels（多标签下推是 OR 超集，本 op 目前不按 AND 再收窄，
+ * #1830 记的已知边界）；其余字段忽略（契约「计数契约」一节）。
  * @param {import('../../../contract/index.js').RepositoryRef} repo
  * @param {import('../../../contract/index.js').ListFilter} [filter]
  * @param {import('../../../contract/index.js').OpContext} ctx
