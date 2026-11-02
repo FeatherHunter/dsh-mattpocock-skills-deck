@@ -16,7 +16,7 @@ import { parseMapBody, parseOriginalWords, parseProgressDetail } from '../../tra
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+import { DECK_SANDBOX_TIMEOUT_MS, READ_CALL_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
 
 /** 失败回执里的「下一步做什么」：reason 已经回答了下一步，text 要跟它指向同一件事。
@@ -161,7 +161,8 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
     // exec 的形状由 DSH 给（会话壳那批还没标类型，见 #1040），三处 exec.signal 各按纯类型断言收口：
     // 取值表达式一字不动，所以转译出来的 JS 与转换前逐字节一致。
     return callDeckSession({ deps: d, opened: pick, session: s, repo: repo, estimate: est, tool: 'deck_map_snapshot', sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), DECK_SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined }, async (c: unknown) => {
-      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
+      // #1831：地图快照是读——没注入小预算时落到读调用总时限（90 秒），不等满 5 分钟。
+      const sc = withCallScope(c, exec, { timeoutMs: (numOpt(d.toolTimeoutMs) ?? READ_CALL_TIMEOUT_MS), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!

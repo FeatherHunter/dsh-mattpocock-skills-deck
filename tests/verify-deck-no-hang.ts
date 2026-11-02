@@ -10,6 +10,8 @@
 //   ① 挂住的归一 → 如实失败（no-session-context），不凑钥匙；
 //   ② 挂住的沙箱/钩子/游标 → 走既有缺席路径，成功路径不变；
 //   ③ 挂住的后端 → 30 秒内诚实回超时（backend-timeout，可重试），不改判成“做不到”；
+//      #1831 起读工具超时回的是部分结果（status=partial、data.partial=true），原因码仍是 backend-timeout，
+//      因为「没读全」和「这张票不存在」是两件事，不许把读超时压成 unsupported；
 //   ④ 已中止的调用 → 立刻诚实回，不起新进程；
 //   ⑤ 执行层抛错仍走 backend-threw（可重试），与“做不到”分得开（与 verify-deck-tools ⑨ 同口径）。
 // 本文件不联网：后端全是桩，只量“回不回、快不快、判得对不对”。
@@ -175,7 +177,9 @@ async function main() {
     const t1 = Date.now()
     const r = await tool.run(execFor(), { key: '7' })
     const dt = Date.now() - t1
-    check(r && r.ok === false && r.status === 'unsupported', '挂住的后端诚实回没做成（实得 ' + (r && r.status) + '）')
+    // #1831：读超时回部分结果（partial + data.partial），原因码仍是 backend-timeout；旧断言写死 unsupported，
+    // 会把「没读全」压成「这张票做不到」，与本票要求 2 相反。
+    check(r && r.ok === false && r.status === 'partial' && r.data && r.data.partial === true, '挂住的后端诚实回部分结果（实得 ' + (r && r.status) + '，data.partial=' + String(r && r.data && r.data.partial) + '）')
     check(r && r.reason === 'backend-timeout', '超时判成独立的超时原因（实得 ' + (r && r.reason) + '）')
     check(dt < 10000, '后端挂住仍在钳制内回来（' + dt + 'ms）')
   }

@@ -113,7 +113,11 @@ export interface BackendPlatform {
   exec?(
     cmd: string,
     args: string[],
-    opts?: { cwd?: string; timeout?: number; signal?: AbortSignal },
+    /**
+     * 可选参数。`opId` 是 2026-11-03 #1831 加的：房间起命令时把这一趟操作的编号带下去，
+     * 宿主 exec.run 日志才能和 gh.exec / gh.timeout 按同一个 opId 对上，读超时能追到具体哪条命令。
+     */
+    opts?: { cwd?: string; timeout?: number; signal?: AbortSignal; opId?: string },
   ): Promise<ExecResult>
   /** 用户主目录（本机设置文件住在那下面）。 */
   getHome?(): Promise<string>
@@ -138,7 +142,8 @@ export interface BackendContext {
   exec: (
     cmd: string,
     args: string[],
-    opts?: { cwd?: string; timeout?: number; signal?: AbortSignal },
+    /** 同上：`opId` 由房间带下来，用于把宿主 exec.run 与房间日志按同一趟操作串起来（#1831）。 */
+    opts?: { cwd?: string; timeout?: number; signal?: AbortSignal; opId?: string },
   ) => Promise<ExecResult>
   /** 定时器（测试注入假时钟用；房间不许直接摸全局 setTimeout）。 */
   timers: { setTimeout: typeof setTimeout; clearTimeout: typeof clearTimeout }

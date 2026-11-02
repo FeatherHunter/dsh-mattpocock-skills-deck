@@ -145,7 +145,7 @@ export interface CallScope {
   budget: BudgetInfo;
   remainingMs(): number;
   outOfBudget(): boolean;
-  execOp(label: string, fn: (ctx: Record<string, unknown>) => unknown): Promise<OpRecord>;
+  execOp(label: string, fn: (ctx: Record<string, unknown>) => unknown, mode?: 'read' | 'write'): Promise<OpRecord>;
   /** 这次调用里真的派发出去的远端调用数（#1610）：发出前就被预算或取消拒掉的那些不算数。
    *  工具侧的报账按它算「实际发出了几条请求」——预算壳把「发出前被拒」与「飞到一半被掐」
    *  折成同一个 kind，工具那边光看回执分辨不出来，这里才是分辨得清的那一处。 */
@@ -207,7 +207,11 @@ function newAbort(): AbortControllerLike | null {
 }
 
 
-function timeoutResult(): OpOutcome {
+/** 超时回执。读与写分开说（#1831）：读没有副作用，重调一次就行；写可能已经在远端落地，
+ *  不能叫人直接重放（是否生效说不清）。以前所有超时共用写口径，列表读超时的回执一边说
+ *  「重新读没有副作用」一边说「不要直接重放写操作」，自相矛盾。 */
+function timeoutResult(mode?: 'read' | 'write'): OpOutcome {
+  if (mode === 'read') return { ok: false, error: { kind: 'timeout', message: '这一次读在限时内没等到后端回话：读没有副作用，等一会儿重调一次就行（没读全不代表内容不存在）。' } }
   return { ok: false, error: { kind: 'timeout', message: '这一次远端调用在限时内没回来，是否生效说不清：先按返回里说的办法核对现状再续，不要直接重放写操作。' } }
 }
 function abortedResult(): OpOutcome {
@@ -253,24 +257,38 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
   let sentCount = 0
   function sentRequests(): number { return sentCount }
 
-  async function execOp(label: string, fn: (ctx: Record<string, unknown>) => unknown): Promise<OpRecord> {
+  /** 一次远端调用的执行口。
+   *  #1831：这里是**硬截止**——到点或调用方取消，函数立刻返回，绝不再等那笔调用落地。
+   *  以前的做法只是 abort 之后继续 await fn：执行层不理会中止信号时就永远等不到结算，
+   *  整步被宿主 run_code 的 120 秒上限先判死（#1831 实测插件侧晚了 173 秒才回来）。
+   *  现在让「这次调用结算」与「到点/取消」赛跑，先到的一方算数；之后才落地的结果已经收成对象，
+   *  不会再抛成未处理拒绝。被丢下的调用仍在存活租约里（见派发处注释）：租约只保证进程不带着
+   *  在飞的调用收摊，回执不等它。
+   *  mode 只影响超时回执的文案：读可以放心说「没有副作用、重调一次」，写必须提醒
+   *  「是否生效说不清、先核对再续」。 */
+  async function execOp(label: string, fn: (ctx: Record<string, unknown>) => unknown, mode?: 'read' | 'write'): Promise<OpRecord> {
     void label
     if (outOfBudget()) return { ok: false, refused: 'budget' }
     if (callerSignal && callerSignal.aborted === true) return { ok: false, refused: 'aborted' }
     const clamp = Math.min(budget.perOpTimeoutMs, Math.max(1, remainingMs() - budget.marginMs))
     const ctrl = newAbort()
     const sig = ctrl ? ctrl.signal : null
+    // 先到的一方定结论：到点（timeout）或调用方取消（aborted）。这个 promise 一旦结算，
+    // 下面的赛跑立即返回；没结算的那一支（调用本身）继续跑也不影响回执。
+    let giveUp: ((why: 'timeout' | 'aborted') => void) | null = null
+    const giveUpP = new Promise<'timeout' | 'aborted'>(function (resolve) { giveUp = resolve })
+    const giveUpNow = function (why: 'timeout' | 'aborted'): void { try { if (giveUp) giveUp(why) } catch (e) {} }
     let onCaller: (() => void) | null = null
     if (callerSignal && typeof callerSignal.addEventListener === 'function' && ctrl) {
       const handle = ctrl
-      onCaller = function () { try { handle.abort() } catch (e) {} }
+      onCaller = function () { try { handle.abort() } catch (e) {}; giveUpNow('aborted') }
       try { callerSignal.addEventListener('abort', onCaller, { once: true }) } catch (e) {}
     }
     let timedOut = false
     let stopWait: (() => void) | null = null
     try {
       if (ctrl) {
-        // 钳制计时走等待口（缺省真定时器）：到点就标超时并中止这次调用。
+        // 钳制计时走等待口（缺省真定时器）：到点就标超时、中止这次调用，并让赛跑立刻结算。
         // 这次调用自己先回来时，用 stopWait 把等待叫停——注入等待口之后不再靠 clearTimeout
         // 清尾巴，改成发中止信号，语义与原来一致（等不到就不等，不留一个跑到最后才醒的定时器）。
         const handle = ctrl
@@ -280,15 +298,32 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
           if (stopWait === null) return
           timedOut = true
           try { handle.abort() } catch (e) {}
+          giveUpNow('timeout')
         }, function () {})
       }
       const ctx2 = sig ? Object.assign({}, baseOpCtx, { signal: sig }) : baseOpCtx
       // #1157：等这次调用回来 = 这场调用还没结算，整段圈进存活租约。缺了它，被抓的那次调用
       // 只剩钳制那笔 unref 过的等待时（#1114），进程会带着这次调用收摊——调用方永远等不到回执，
       // 契约层记的 timeout / aborted 只会随进程一起消失。
+      // #1831：赛跑到点先返回时，真调用可能还没落地，租约要到它自己结算才释放。这是有意的——
+      // 租约保的是进程别带着在飞的调用收摊，不是让回执等它；被中止的调用一般很快结算，真不结算
+      // 也不影响这次回执。
       // 派发出去的这一次算一条（#1610）：后端回什么都不改这条计数，只有「压根没发出去」才不算。
       sentCount += 1
-      const result = await withInFlightLease(function () { return fn(ctx2) })
+      const settleP = withInFlightLease(function () {
+        return Promise.resolve().then(function () { return fn(ctx2) }).then(
+          function (v): { tag: 'settle'; ok: true; value: unknown } { return { tag: 'settle', ok: true, value: v } },
+          function (e): { tag: 'settle'; ok: false; error: unknown } { return { tag: 'settle', ok: false, error: e } },
+        )
+      })
+      const raced = await Promise.race([
+        settleP,
+        giveUpP.then(function (why): { tag: 'giveUp'; why: 'timeout' | 'aborted' } { return { tag: 'giveUp', why: why } }),
+      ])
+      // 到点/取消先到：这一笔按超时或中止结算，立即返回，绝不再 await fn（它可能永远不落地）。
+      if (raced.tag === 'giveUp') return raced.why === 'timeout' ? { ok: false, timeout: true } : { ok: false, aborted: true }
+      if (!raced.ok) throw raced.error
+      const result = raced.value
       if (timedOut) return { ok: false, timeout: true, result: result }
       if (sig && sig.aborted) return { ok: false, aborted: true, result: result }
       return { ok: true, result: result }
@@ -304,9 +339,9 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
     }
   }
 
-  function mapOpOutcome(r: OpRecord): OpOutcome {
+  function mapOpOutcome(r: OpRecord, mode?: 'read' | 'write'): OpOutcome {
     if (r.ok) return r.result as OpOutcome
-    if (r.timeout) return timeoutResult()
+    if (r.timeout) return timeoutResult(mode)
     if (r.aborted || r.refused === 'aborted') return abortedResult()
     if (r.refused === 'budget') return budgetResult()
     const err = (r.error || null) as UnknownRecord | null
@@ -328,7 +363,7 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
   // （与 setParent/setBlockedBy 同形）；超时与中止的回执与现有六个一字同形。
   async function writeThru(op: string, repo: unknown, key: unknown, invoke: (ctx: Record<string, unknown>) => unknown): Promise<OpOutcome> {
     if (!real || !real[op]) return noTracker()
-    const out = mapOpOutcome(await execOp(op, function (c2) { return invoke(c2) }))
+    const out = mapOpOutcome(await execOp(op, function (c2) { return invoke(c2) }, 'write'), 'write')
     if (out && out.ok === true) rosterDirty(memo, repo, [String(key)])
     return out
   }
@@ -341,7 +376,7 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
         const k = repoIdOf(repo) + '|' + String(key)
         const hit = memoGet('get', k)
         if (hit) return hit
-        const out = mapOpOutcome(await execOp('get', function (c2) { return real.get!(repo, key, f || {}, c2) }))
+        const out = mapOpOutcome(await execOp('get', function (c2) { return real.get!(repo, key, f || {}, c2) }, 'read'), 'read')
         if (out && out.ok === true && out.data) { memoPut('get', k, out); rosterUpsert(memo, out.data) }
         return out
       },
@@ -350,7 +385,7 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
         const k = repoIdOf(repo) + '|' + canon(filter || {})
         const hit = memoGet('list', k)
         if (hit) return hit
-        const out: ListOpOutcome = mapOpOutcome(await execOp('list', function (c2) { return real.list!(repo, filter || {}, c2) }))
+        const out: ListOpOutcome = mapOpOutcome(await execOp('list', function (c2) { return real.list!(repo, filter || {}, c2) }, 'read'), 'read')
         if (out && out.ok === true && isArr(out.data)) {
           // 后端列表被上限截断过、或走了 REST 降级通道（#1304）：这份数据不能当整仓收进名册，
           // 否则名册的读者会拿不全的索引静默少边（成环检查会因此把真环判成没有）。
@@ -365,7 +400,7 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
         const k = repoIdOf(repo) + '|' + String(key)
         const hit = memoGet('deps', k)
         if (hit) return hit
-        const out = mapOpOutcome(await execOp('deps', function (c2) { return real.getDependencies!(repo, key, f || {}, c2) }))
+        const out = mapOpOutcome(await execOp('deps', function (c2) { return real.getDependencies!(repo, key, f || {}, c2) }, 'read'), 'read')
         if (out && out.ok === true && out.data) {
           memoPut('deps', k, out)
           rosterUpsert(memo, { key: String(key), blockedBy: (out.data as UnknownRecord).blockedBy })
@@ -375,21 +410,21 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
       create: async function (repo: unknown, input?: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         if (!real.create) return noTracker()
-        const out = mapOpOutcome(await execOp('create', function (c2) { return real.create!(repo, input, c2) }))
+        const out = mapOpOutcome(await execOp('create', function (c2) { return real.create!(repo, input, c2) }, 'write'), 'write')
         if (out && out.ok === true) rosterAddCreated(memo, repo, out.data)
         return out
       },
       setParent: async function (repo: unknown, key: unknown, parent: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         if (!real.setParent) return noTracker()
-        const out = mapOpOutcome(await execOp('setParent', function (c2) { return real.setParent!(repo, key, parent, f || {}, c2) }))
+        const out = mapOpOutcome(await execOp('setParent', function (c2) { return real.setParent!(repo, key, parent, f || {}, c2) }, 'write'), 'write')
         if (out && out.ok === true) rosterDirty(memo, repo, [String(key)])
         return out
       },
       setBlockedBy: async function (repo: unknown, key: unknown, blockers: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         if (!real.setBlockedBy) return noTracker()
-        const out = mapOpOutcome(await execOp('setBlockedBy', function (c2) { return real.setBlockedBy!(repo, key, blockers, f || {}, c2) }))
+        const out = mapOpOutcome(await execOp('setBlockedBy', function (c2) { return real.setBlockedBy!(repo, key, blockers, f || {}, c2) }, 'write'), 'write')
         if (out && out.ok === true) rosterDirty(memo, repo, [String(key)])
         return out
       },
@@ -399,7 +434,7 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
       preflight: async function (handle: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         if (!real.preflight) return noTracker()
-        return mapOpOutcome(await execOp('preflight', function (c2) { return real.preflight!(handle, c2) }))
+        return mapOpOutcome(await execOp('preflight', function (c2) { return real.preflight!(handle, c2) }, 'read'), 'read')
       },
       // #992：仓库写权限旁路（只读探活一次，次次真问；没有这个方法的后端诚实回未知，
       //   不走 backend-threw —— 缺方法不是执行层失败，调用方按未知处理）。
@@ -409,12 +444,12 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
         void ctx
         const listMapsFn = real.listMaps as ((repo: unknown, ctx: unknown) => Promise<unknown>) | undefined
         if (typeof listMapsFn !== 'function') return { ok: false, error: { kind: 'unsupported', message: '这个后端没有地图薄行，按老路取' } }
-        return mapOpOutcome(await execOp('listMaps', function (c2) { return listMapsFn(repo, c2) }))
+        return mapOpOutcome(await execOp('listMaps', function (c2) { return listMapsFn(repo, c2) }, 'read'), 'read')
       },
       getRepoPermissions: async function (repo: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         if (!real.getRepoPermissions) return { ok: false, error: { kind: 'unsupported', message: '这个后端没有仓库写权限旁路，按未知处理' } }
-        return mapOpOutcome(await execOp('repoPermissions', function (c2) { return real.getRepoPermissions!(repo, c2) }))
+        return mapOpOutcome(await execOp('repoPermissions', function (c2) { return real.getRepoPermissions!(repo, c2) }, 'read'), 'read')
       },
       close: async function (repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx

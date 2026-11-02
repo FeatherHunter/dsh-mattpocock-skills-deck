@@ -15,11 +15,11 @@ import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+import { DECK_SANDBOX_TIMEOUT_MS, READ_CALL_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
-// #1277：类型没标对的规格票靠票面文件头标记兜底认出来（与宿主快照组装层同一口径）。
-import { isSpecHeaderMarked } from '../../shared/issue-file/src/marker.js'
 import { evidenceFields, failureOf, reasonForResult } from '../shell/receipt-reason.js'
+// #1831：内存二次筛与行形状收口搬去独立文件（主文件有效行要落在 350 行以内）。
+import { filterRows } from './issue-list-filter.js'
 
 // #1830：后端撞到自己取数上限时，回执正文与 notes 共用这一句。data.backendTruncated 是唯一的判据，
 // 本地 limit 截断（data.truncated）另有说法，两件事不互相顶替。
@@ -44,8 +44,28 @@ export interface DeckIssueListDeps {
   /** 沙箱许可策略：给工作区与会话，回这一轮的策略快照；等不到就当没有（不拦事）。
    *  两个值都按会话壳给的原样传（工作区没定下来时可能还没有），不许在这里补空串或假目录。 */
   sandboxPolicyFor?: (arg: { cwd: string | undefined; sessionId: string | undefined }) => Promise<unknown>
+  /** 读调用整趟的总时限（毫秒）：缺省退 toolTimeoutMs，再退中央键。
+   *  #1831：列表读必须比宿主 run_code 的 120 秒先收手，以前没传就落到 5 分钟的工具预算上。 */
+  readTimeoutMs?: number
+  /** 预算壳留给收尾的余量（毫秒）。 */
+  toolMarginMs?: number
+  /** 单次后端调用的超时预算（毫秒）；缺省由预算壳自己定。 */
+  toolTimeoutMs?: number
   /** 时钟旁路：测试里换成假时钟用，缺省 Date.now。 */
   now?: () => number
+}
+
+/** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
+function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+
+/** 读调用这一趟的总时限：回退顺序 readTimeoutMs → toolTimeoutMs → READ_CALL_TIMEOUT_MS。
+ *  老门禁注入 toolTimeoutMs 小预算继续生效；没注入的读工具落到 90 秒，不再等满 5 分钟。 */
+function readTimeoutOf(d: DeckIssueListDeps): number {
+  const own = numOpt(d.readTimeoutMs)
+  if (own !== undefined) return own
+  const legacy = numOpt(d.toolTimeoutMs)
+  if (legacy !== undefined) return legacy
+  return READ_CALL_TIMEOUT_MS
 }
 
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
@@ -68,66 +88,8 @@ export const definition = {
   },
 }
 
-/**
- * 从后端回来的清单里挑出名字：字符串直接用，对象按下标取一项（标签取 name、认领取 login），
- * 两种混着来也认。给的清单不是数组就当空，取不到名字记空串，最后去空。
- */
-function namesOf(list: unknown, pick: (item: Record<string, unknown>) => unknown): string[] {
-  if (!Array.isArray(list)) return []
-  return list.map((l) => {
-    if (typeof l === 'string') return l
-    if (l && typeof l === 'object') {
-      const v = pick(l)
-      return v === undefined || v === null ? '' : String(v)
-    }
-    return ''
-  }).map((s) => String(s).trim()).filter(Boolean)
-}
-
-/** 标签名字：对象形态取 name，字符串形态原样用。 */
-function labelNames(list: unknown): string[] { return namesOf(list, (l) => l.name) }
-/** 认领人名字：对象形态取 login，取不到记空串（namesOf 会把它滤掉）。 */
-function assigneeNames(list: unknown): string[] { return namesOf(list, (a) => (a && a.login) || '') }
-
-/**
- * 一行读面的状态两格（#1790 缺陷 A 的 P4）：本地 Markdown 房返回的 Issue 已经算好 status 与 statusConflict。
- * status 有才给；statusConflict 是布尔、总是给（没有冲突就是 false）——调用方不用再猜
- * 「字段缺席」是这张票没状态，还是这个后端不认这条约定。
- */
-function statusRowFields(issue: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  if (typeof issue.status === 'string' && issue.status !== '') out.status = issue.status
-  out.statusConflict = !!issue.statusConflict
-  return out
-}
-
 // 沙箱许可等待上限见 ../shell/capped-wait.ts（#1114 第二批）：到点就按「没等到」处理并清掉等待定时器；
 // 超时按缺席走老路（不限权），与既有 catch null 同形。
-
-/** 这一行是不是地图：后端回的 type 认地图、或带 isMap 标记、或戴着 wayfinder:map 标签都算。 */
-function isMapRow(issue: Record<string, unknown> | null | undefined): boolean {  try {
-    if (!issue || typeof issue !== 'object') return false
-    if (issue.type === 'map' || issue.isMap === true) return true
-    const labs = labelNames(issue.labels).map((s) => s.toLowerCase())
-    return labs.indexOf('wayfinder:map') >= 0
-  } catch (e) { return false }
-}
-
-/** 把一行归成三种契约类型之一：地图 / 规格 / 普通票。
- *
- *  后端的 type 认 map/spec 时直接采用；没标对时按标签与票面文件头标记兜底 —— 标签先于标记，
- *  与客户端 containerKindOf、宿主快照组装层的判定次序一致（#1277 的视图兜底）。
- */
-function rowKindOf(issue: Record<string, unknown> | null | undefined): string {
-  try {
-    if (!issue || typeof issue !== 'object') return 'issue'
-    const declared = String(issue.type || '')
-    if (declared === 'map' || declared === 'spec') return declared
-    if (isMapRow(issue)) return 'map'
-    if (isSpecHeaderMarked(issue.body)) return 'spec'
-    return 'issue'
-  } catch (e) { return 'issue' }
-}
 
 /** 地图薄查认的标签（写死小写）：发给服务端的筛子与内存二次校验都用它，大小写输入先归一到它再比。 */
 export const THIN_MAP_LABEL = 'wayfinder:map'
@@ -267,7 +229,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
     } catch (eS) { sandbox = null }
 
     return callDeckSession({ deps: d, opened: pick, session: s, repo: repo, estimate: est, tool: 'deck_issue_list', sandbox: sandbox }, async (c: unknown) => {
-      const sc = withCallScope(c, exec, { timeoutMs: undefined, marginMs: undefined, startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
+      const sc = withCallScope(c, exec, { timeoutMs: readTimeoutOf(d), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!
@@ -293,6 +255,21 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
             const thinMsg = String((thinBody.error && thinBody.error.message) || '后端没给出原因').slice(0, 300)
             // #1799：reason 走统一映射（薄查也是读后端），失败证据留后端原档位与映射后的码。
             const ev = failureOf(thinBody, 'read')
+            // #1831：读超时回已经拿到的部分并明确标没读全，不再回「没取回来」的空手；
+            // 文案只用读口径（读没有副作用），不出现写操作那句「不要直接重放写操作」。
+            if (thinBody.error && String(thinBody.error.kind) === 'timeout') {
+              return {
+                value: {
+                  status: DECK_STATUS.PARTIAL,
+                  reason: ev.code,
+                  text: 'ISSUE 列表这次没读全（超时了：在限时内没等到后端回话）。这次读没有副作用，等一会儿重调一次就行（清单为空只说明这次没拿到，不代表没有）。',
+                  data: { total: null, returned: 0, truncated: true, backendTruncated: false, issues: [], partial: true, incomplete: 'timeout', opId: String((opCtx && (opCtx as Record<string, unknown>).opId) || '') },
+                  notes: ['这次是读超时：只回了已经拿到的部分，清单为空不代表没有。'],
+                  touched: [],
+                },
+                claimed: { requests: 1, points: 3 },
+              }
+            }
             return {
               value: {
                 status: DECK_STATUS.UNSUPPORTED,
@@ -348,6 +325,20 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
         const msg = String((listed && listed.error && listed.error.message) || '后端没给出原因').slice(0, 300)
         // #1799：与薄查同一套映射，不再把任何后端失败都写成「后端做不到」。
         const ev = failureOf(listed, 'read')
+        // #1831：与薄查同款——读超时回部分结果 + 明确标没读全，文案只用读口径。
+        if (listed && listed.error && String(listed.error.kind) === 'timeout') {
+          return {
+            value: {
+              status: DECK_STATUS.PARTIAL,
+              reason: ev.code,
+              text: 'ISSUE 列表这次没读全（超时了：在限时内没等到后端回话）。这次读没有副作用，等一会儿重调一次就行（清单为空只说明这次没拿到，不代表没有）。',
+              data: { total: null, returned: 0, truncated: true, backendTruncated: false, issues: [], partial: true, incomplete: 'timeout', opId: String((opCtx && (opCtx as Record<string, unknown>).opId) || '') },
+              notes: ['这次是读超时：只回了已经拿到的部分，清单为空不代表没有。'],
+              touched: [],
+            },
+            claimed: { requests: 1, points: 3 },
+          }
+        }
         return {
           value: {
             status: DECK_STATUS.UNSUPPORTED,
@@ -368,43 +359,10 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       // 降级原因与操作编号一起摆出来：配额耗尽与其它失败走的是同一条 REST，日志里按 opId 才能对上同一趟。
       const fallbackReason = String((listed as { fallbackReason?: unknown }).fallbackReason || '')
       const opId = String(((opCtx as Record<string, unknown> | null | undefined) || {}).opId || '')
-      const wantLabelLow = wantLabels.map((x) => x.toLowerCase())
-      const matched: Record<string, unknown>[] = []
-      for (const issue of rows) {
-        if (!issue || typeof issue !== 'object') continue
-        // type 在内存里再判一次：后端可能忽略它（契约只保证它透传，不过滤包容）。
-        if (type !== 'all') {
-          if (rowKindOf(issue) !== type) continue
-        }
-        if (wantLabelLow.length) {
-          const have = labelNames(issue.labels).map((x) => x.toLowerCase())
-          let hit = true
-          for (const w of wantLabelLow) if (have.indexOf(w) < 0) { hit = false; break }
-          if (!hit) continue
-        }
-        if (wantAssignee) {
-          const have = assigneeNames(issue.assignees).map((x) => x.toLowerCase())
-          if (have.indexOf(wantAssignee) < 0) continue
-        }
-        if (wantQuery) {
-          const hay = String(issue.title || '') + '\n' + String(issue.body || '')
-          if (hay.toLowerCase().indexOf(wantQuery) < 0) continue
-        }
-        matched.push({
-          key: issue.key,
-          title: issue.title,
-          state: issue.state,
-          type: rowKindOf(issue),
-          labels: labelNames(issue.labels),
-          assignees: assigneeNames(issue.assignees),
-          updatedAt: issue.updatedAt || '',
-          url: issue.url || '',
-          effortId: issue.effortId !== undefined ? issue.effortId : '',
-          parentKey: issue.parentKey !== undefined ? issue.parentKey : null,
-          // #1790 缺陷 A 的 P4：状态两格追加在行末，原有字段的顺序与含义一个都不动。
-          ...statusRowFields(issue as Record<string, unknown>),
-        })
-      }
+      // #1831：内存二次筛与行形状搬进 issue-list-filter.ts（主文件撞了 350 行粒度上限）。
+      // 传过去的都是本层已经收口的值：type 四档之一、labels 原样、assignee 与 query 已 trim+小写；
+      // 逐条筛选口径与行字段顺序一个字都没变。
+      const matched = filterRows(rows, { type: type, labels: wantLabels, assignee: wantAssignee, query: wantQuery })
       const total = matched.length
       const sliced = matched.slice(0, limit)
       const truncated = total > sliced.length

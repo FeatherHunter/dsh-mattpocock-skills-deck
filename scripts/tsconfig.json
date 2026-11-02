@@ -112,5 +112,7 @@
     "../verify/scenarios/smoke.ts",
     // #1830：标签筛选下推与列表回执两层截断的真机场景（web profile，经宿主代执行通道调 deck 工具）。
     "../verify/scenarios/1830-list-honesty.ts",
+    // #1831：读操作总时限、部分结果与读口径的真机场景（两个模式：真 gh / 挂住的假 gh）。
+    "../verify/scenarios/1831-read-timeout.ts",
   ]
 }

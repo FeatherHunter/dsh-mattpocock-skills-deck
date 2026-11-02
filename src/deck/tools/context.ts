@@ -14,7 +14,7 @@ import * as budget from '../../refresh/kernel/host-budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 import { knownWritePermissions } from '../../shared/tracker/backendWritePermissions.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+import { DECK_SANDBOX_TIMEOUT_MS, READ_CALL_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
 
 /** 地图清单没取到时「下一步做什么」：partial 没有失败项时的续法就写在这里，text 与 reason 指向同一步。 */
@@ -144,7 +144,8 @@ export function createDeckContext(deps?: DeckContextDeps) {
     return callDeckSession({ deps: d, opened: pick, session: s, repo: repo, estimate: est, tool: 'deck_context', sandbox: sandbox }, async (c: unknown) => {
       // 进预算壳 + 两路并行：预检与清单互相独立，之前串行要等两份慢调用，
       // 并行后只等较慢的那一份。回包的字段与 notes 顺序与之前一致。
-      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
+      // #1831：读上下文也是读——没注入小预算时落到读调用总时限（90 秒），不等满 5 分钟。
+      const sc = withCallScope(c, exec, { timeoutMs: (numOpt(d.toolTimeoutMs) ?? READ_CALL_TIMEOUT_MS), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!

@@ -47,8 +47,10 @@ interface SpawnHandle {
 interface ByteSink { readFrom(from: number): { text: string } }
 /** 一次外部命令的收尾结果（正常退出、超时、取消三条路都会给出它）。 */
 interface ExecOutcome { exitCode?: number; signal?: string }
-/** detectionExec 的选项：工作区目录、超时、取消信号（缺了就走缺省）。 */
-interface ExecOpts { cwd?: string; timeout?: number; signal?: AbortSignal | null }
+/** detectionExec 的选项：工作区目录、超时、取消信号、操作编号（缺了就走缺省）。
+ *  opId 是 #1831 加的：超时/取消发生时要能从 exec.run 那一行追回是宿主哪一趟操作（与
+ *  房间侧 gh.exec / gh.timeout 的 opId 同一个键）。 */
+interface ExecOpts { cwd?: string; timeout?: number; signal?: AbortSignal | null; opId?: string }
 /** 技能探测单项结果（宿主注入的 probeSkill 的产出，本文件只读这几个字段）。 */
 interface SkillProbe { ok?: boolean; level?: string; detail?: string; hint?: string; error?: string }
 /** 技能探测批量结果（探测服务要的形状）。 */
@@ -407,7 +409,10 @@ export function createPlatformChannel(deps: Deps) {
       try { if (opts && opts.signal && onAbortSig && typeof opts.signal.removeEventListener === 'function') opts.signal.removeEventListener('abort', onAbortSig) } catch (e) {}
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
-      try { if (execT0 && logCtx!.isEnabled('debug')) logCtx!.fire('debug', 'exec.run', { argv0: progName(argv[0]), cwdHash: hash8(c || DEFAULT_CWD), latencyMs: Date.now() - execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
+      // #1831：opId 与 endReason 让「这一趟怎么结束的」可追（ok / exit / timeout / aborted / error），
+      // 从前只有耗时与退出码，超时被杀与正常非零退出分不开，也没法和房间侧的 gh.exec 对上。
+      // 两个值直接内联在日志行里（#1831 撞到文件粒度 350 行上限，省下两行给本文件）。
+      try { if (execT0 && logCtx!.isEnabled('debug')) logCtx!.fire('debug', 'exec.run', { argv0: progName(argv[0]), opId: String((opts && (opts as { opId?: unknown }).opId) || ''), cwdHash: hash8(c || DEFAULT_CWD), latencyMs: Date.now() - execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified'), endReason: (outcome && outcome.signal) ? String(outcome.signal) : ((outcome && outcome.exitCode === 0) ? 'ok' : 'exit') }) } catch (eL) {}
       // #1007：这一趟的结局回写给同一只准入桶（三条口径见 tracker/kernel/outbound-tiers.ts 末尾那一节）。
       if (deIsGh) reportGhOutcome(getGhLane(backendLogCtx), { bucket: deBucket, cmd: deCmd, outcome: outcome, stdout: out.text, stderr: err.text })
       if (deIsOutbound) { try { if (deRelease) deRelease() } catch {} }

@@ -404,7 +404,9 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       reportOutbound(ctx, args, usage)
       // #1007：起进程这一段同样与「到点」赛跑 —— 执行器要是不落地，房内的表到点就掀桌子。
       processStarted = true
-      const raced = await raceDeadline(exec('gh', args, { cwd, timeout, signal: laneSignal }))
+      // #1831：把这一趟的 opId 一路带到宿主 exec.run 那一行，超时/取消时按 opId 能把
+      // 「房间哪一次调用」与「宿主哪一条命令怎么结束的」串起来。
+      const raced = await raceDeadline(exec('gh', args, { cwd, timeout, signal: laneSignal, opId: String((ctx && ctx.opId) || '') }))
       if (isDeadlineHit(raced)) return selfTimeoutOutcome('inflight')
       const result = raced
       // DSH ctx.exec 契约：{stdout, stderr, code}

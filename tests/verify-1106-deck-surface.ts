@@ -836,8 +836,10 @@ async function main() {
     // 它只是回执文案，不是独立工具，但住在工具层、同样受同一套扫描约束，所以进这张精确名单。
     // 2026-11 #1790 再加一份 issue-patch-status.ts：状态冲突的预检、归一与拒绝回执从 issue-patch.ts 搬出
     // （那份文件又撞回 350 行上限）；它同样只是工具层的一份内部模块，进这张精确名单。
-    const EXPECTED_FILES = ['assignee-note.ts', 'context.ts', 'issue-create-failure.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch-labels.ts', 'issue-patch-status.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create-failure.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session-adapt.ts', 'tracker-session.ts', 'work-route.ts'].sort()
-    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是十份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + 会话适配壳 + md-scope + 工具定义 + 建票失败回执 + 建图失败回执 + 认领回执文案 + 状态冲突预检 这二十四份（实际 ' + names.join(',') + '）')
+    // 2026-11 #1831 再加一份 issue-list-filter.ts：读列表把后端回来的行做内存二次筛的那一小段从
+    // issue-list.ts 搬出（那份文件撞到 350 行粒度上限）；它只是工具层的一份内部模块，进这张精确名单。
+    const EXPECTED_FILES = ['assignee-note.ts', 'context.ts', 'issue-create-failure.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list-filter.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch-labels.ts', 'issue-patch-status.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create-failure.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session-adapt.ts', 'tracker-session.ts', 'work-route.ts'].sort()
+    check(names.join(',') === EXPECTED_FILES.join(','), '工具层是十份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + 会话适配壳 + md-scope + 工具定义 + 建票失败回执 + 建图失败回执 + 认领回执文案 + 状态冲突预检 + 列表内存二次筛 这二十五份（实际 ' + names.join(',') + '）')
 
     // #1799：非 ok 回执的 reason 只许从 src/deck/shell/receipt-reason.ts 那一张映射表出来。
     // 工具层里如果又出现「有失败就写 backend-unsupported」或「映射不出码时手写兜底」，就是这张票要修的旧病复发，
@@ -876,7 +878,7 @@ async function main() {
       : '工具层又出现了自己写的超时定时器（' + toolTimer + ' 处），等待竞速应当收进 capped-wait.ts 一处')
     check(bad.length === 0, bad.length
       ? '工具层有直连外面的写法：' + bad.join('；')
-      : '二十四份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；工具层与壳层等待件里，时间只用在票面点名的两种形状上')
+      : '二十五份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；工具层与壳层等待件里，时间只用在票面点名的两种形状上')
     check(sawClock > 0 && sawTimer > 0, '允许形状表在真实文件上确实被走到（时钟缺省 ' + sawClock + ' 处、超时钳制 ' + sawTimer + ' 处，钳制这一处落在 capped-wait.ts 里），这套判据不是空转')
   }
 

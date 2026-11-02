@@ -73,6 +73,7 @@ const KEYS: Array<[string, string, string]> = [
   ['toolTimeoutMs', 'TOOL_TIMEOUT_MS', 'timeouts'],
   ['toolMarginMs', 'TOOL_MARGIN_MS', 'timeouts'],
   ['perOpTimeoutMs', 'PER_OP_TIMEOUT_MS', 'timeouts'],
+  ['readCallTimeoutMs', 'READ_CALL_TIMEOUT_MS', 'timeouts'],
   ['outboundReadMs', 'OUTBOUND_READ_TIMEOUT_MS', 'timeouts'],
   ['outboundWriteMs', 'OUTBOUND_WRITE_TIMEOUT_MS', 'timeouts'],
   ['outboundProbeMs', 'OUTBOUND_PROBE_TIMEOUT_MS', 'timeouts'],

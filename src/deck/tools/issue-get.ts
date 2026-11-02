@@ -15,7 +15,7 @@ import { EDGE_LANDING, relationsOf } from '../shell/edge-landing.js'
 import { withCallScope, type OpOutcome } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+import { DECK_SANDBOX_TIMEOUT_MS, READ_CALL_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
 // #1090：进度区的结构化读回（{percent,note,updatedAt,entries}）与写侧共用同一份解析。
 // #1092：维护者原话区的结构化读回（{text,source,recordedAt}）同样与该区的写侧共用同一份解析。
@@ -55,18 +55,6 @@ function nextStepText(reason: string): string {
   return ''
 }
 
-/** 超时回执：状态与失败那一支同形（unsupported + 独立原因码 + 原话进 data），不抛。 */
-function timeoutValue(text: string, data: Record<string, unknown>, claimed: { requests: number; points: number }) {
-  return {
-    value: {
-      status: DECK_STATUS.UNSUPPORTED,
-      reason: reasonForFailure({ kind: 'timeout', phase: 'read' }),
-      text: text,
-      data: data,
-    },
-    claimed: claimed,
-  }
-}
 // 执行层失败的回执：原因码与原话跟壳里「后端实现抛错」那一支一字不差，
 // 区别是这里自己把实际用量带上（#1610）：抛给壳的话用量丢在壳的兜底里，回执只能报 0 条。
 function transportValue(message: string, claimed: { requests: number; points: number }, data: Record<string, unknown>) {
@@ -94,12 +82,26 @@ export interface DeckIssueGetDeps {
   canonicalKey?: (key: string) => string | null
   /** 工作区短指纹：宿主按工作区目录加会话算出来，用来把同一处的几趟调用串起来。 */
   workspaceKeyOf?: (cwd: string, sessionId: string) => string | null
+  /** 读调用整趟的总时限（毫秒，含选后端与探沙箱之前的时间）：缺省退 toolTimeoutMs，再退中央键。
+   *  #1831：读票必须比宿主 run_code 的 120 秒先收手，不能等满 toolTimeoutMs 的 5 分钟。 */
+  readTimeoutMs?: number
   /** 单次后端调用的超时预算（毫秒）；缺省由预算壳自己定。 */
   toolTimeoutMs?: number
   /** 预算壳留给收尾的余量（毫秒）。 */
   toolMarginMs?: number
   /** 时钟旁路：测试里换成假时钟用，缺省 Date.now。 */
   now?: () => number
+}
+
+/** 读调用这一趟的总时限：#1831 起按「读」单独设一档，缺省从中央 YAML 的 readCallTimeoutMs 来。
+ *  回退顺序是 readTimeoutMs → toolTimeoutMs → READ_CALL_TIMEOUT_MS：老的注入点（门禁里的
+ *  toolTimeoutMs 小预算）继续生效，没注入的读工具落到 90 秒，而不是等满 5 分钟。 */
+function readTimeoutOf(d: DeckIssueGetDeps): number {
+  const own = numOpt(d.readTimeoutMs)
+  if (own !== undefined) return own
+  const legacy = numOpt(d.toolTimeoutMs)
+  if (legacy !== undefined) return legacy
+  return READ_CALL_TIMEOUT_MS
 }
 
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
@@ -269,7 +271,7 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
     return callDeckSession({ deps: d, opened: pick, session: s, repo: repo, estimate: est, tool: 'deck_issue_get', sandbox: sandbox }, async (c: unknown) => {
       // 进预算壳：两次远端各有 30 秒单次钳制、可中止，超时只坏自己那一项；
       // 名册随上下文走，后端内部的定向重读能用上。成功路径的形状一字不动。
-      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
+      const sc = withCallScope(c, exec, { timeoutMs: readTimeoutOf(d), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!
@@ -284,14 +286,46 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
       // 并发之后只等较长的那一条，发出去的请求数一条不少。
       const gotP = t.get(repo, key, { comments: { first: first } }, opCtx)
       // 依赖查询先挂上失败兜底：读票先失败的话整次读会提前返回，这一条的拒绝没人接手就成未处理拒绝。
+      // depSettled 记「这条已经落地」：超时回执只等已落地的那半份，不为它再等第二段 90 秒（#1831）。
+      let depSettled = false
       const depP = (wantBlocking && typeof t.getDependencies === 'function')
-        ? t.getDependencies(repo, key, {}, opCtx).catch(function (e: unknown): OpOutcome {
+        ? t.getDependencies(repo, key, {}, opCtx).then(function (v: OpOutcome): OpOutcome {
+          depSettled = true
+          return v
+        }, function (e: unknown): OpOutcome {
+          depSettled = true
           return { ok: false, error: { kind: 'backend-threw', message: String((e && (e as Error).message) || e) } }
         })
         : null
       const got = await gotP
       const gotTimeout = timeoutMessage(got as TransportResult)
-      if (gotTimeout) return timeoutValue('这张票这次没读回来（超时了：在限时内没等到后端回话，这次读没动手，重调一次就行）。', { key: key, backendId: pick.backendId, error: { kind: 'timeout', message: gotTimeout.slice(0, 300) } }, claimedOf())
+      // #1831：读超时不再回空手说「没读回来」，而是把已经拿到的部分交出去，并明确标出没读全。
+      // 票本身没拿到是事实，但阻塞边可能已经落地；能给的先给，调用方不必为这半份再等一次。
+      if (gotTimeout) {
+        const depPartial = (depP && depSettled) ? await depP : null
+        const dependencies = (depPartial && depPartial.ok === true) ? depPartial.data : null
+        const rel = relationsOf({}, dependencies)
+        const partialData: Record<string, unknown> = {
+          key: key,
+          backendId: pick.backendId,
+          partial: true,
+          incomplete: 'timeout',
+          relations: rel,
+          error: { kind: 'timeout', message: gotTimeout.slice(0, 300) },
+        }
+        if (dependencies) partialData.dependenciesRaw = dependencies
+        return {
+          value: {
+            status: DECK_STATUS.PARTIAL,
+            reason: reasonForFailure({ kind: 'timeout', phase: 'read' }),
+            text: '票 ' + key + ' 这次没读全（超时了：在限时内没等到后端回话）。这次读没有副作用，等一会儿重调一次就行。',
+            data: partialData,
+            notes: ['这次是读超时：只回了已经拿到的部分，没拿到的不代表不存在。'],
+            touched: [],
+          },
+          claimed: claimedOf(),
+        }
+      }
       const gotTransport = transportMessage(got as TransportResult)
       // 执行层失败今天靠抛给壳收成 backend-threw；这里改成回同形的信封，好让回执里的实际用量
       // 带上真的发出去了几条（抛出去的话用量丢在壳的兜底里，回执只能报 0 条）。

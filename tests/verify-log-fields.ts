@@ -94,7 +94,10 @@ const ALLOWED = {
   //   子命令、waitedMs 在名额队列里等了多久、phase 到点发生在哪一段（queue 还在排队没起进程 /
   //   inflight 进程已经起来）。为什么要有：「面板所有功能超时」时四类超时行从前长得一模一样，
   //   分不清是守在门口排到超时，还是命令自己跑到超时。
-  'gh.timeout': ['argv0', 'timeoutMs', 'layer', 'via', 'cmd', 'waitedMs', 'phase'],
+  // 2026-11-03（#1831）常驻 #6 gh.timeout 再增补一格 opId：与 #5 gh.exec 同键，超时行才能和
+  //   同一趟操作的 gh.exec / exec.run 对上（从「这次读为什么挂住」追到「哪条命令到点、之后还有没有
+  //   继续发命令」）。
+  'gh.timeout': ['argv0', 'opId', 'timeoutMs', 'layer', 'via', 'cmd', 'waitedMs', 'phase'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],
   'graphql.fallback': ['scope', 'reason'],
   'issues.fallback': ['from', 'to', 'reason'],
@@ -311,7 +314,10 @@ const ALLOWED = {
   'client.snapshot.miss': ['keyHash', 'reason'],
   'detail.cache.hit': ['numHash', 'ageMs'],
   // #606 新增两条按需事件（附录 1.5 节）：exec.run 记经 ctx.exec 起的外部命令，panel.render 记面板打开各阶段耗时。
-  'exec.run': ['argv0', 'cwdHash', 'latencyMs', 'exitCode', 'via'],
+  // 2026-11-03（#1831）exec.run 增补两格：opId 与 #5 gh.exec / #6 gh.timeout 同键，能把「房间哪一次调用」
+  //   与「宿主哪一条命令、怎么结束的」串起来；endReason 说清结局（ok / exit / timeout / aborted / error），
+  //   从前只有耗时与退出码，超时被杀与正常非零退出分不开。
+  'exec.run': ['argv0', 'opId', 'cwdHash', 'latencyMs', 'exitCode', 'via', 'endReason'],
   // mode 仍在白名单里，但只剩更新面板那条线在用（views/useUpdatePanel.js 记 mode:'update'，
   //   用来把它自己的阶段推进与「打开面板那一路的阶段」分开）；面板打开那一路（kernel/router.js 的
   //   logPanelStage）自 2026-09-21 起不再记 mode —— 面板只有一条路之后它没有第二种取值。
@@ -633,7 +639,7 @@ const ROOM_SHAPES = {
   // 2026-10-14（#1052 补做）房内两条新结论线的形状（字段含义见上面 ALLOWED 里同名的两段注释）。
   'read.degraded': ['op', 'reason', 'latencyMs', 'opId', 'kind', 'limitBefore', 'limitAfter'],
   'preflight.gate': ['gate', 'reason', 'latencyMs', 'opId'],
-  'gh.timeout': ['argv0', 'timeoutMs', 'layer', 'via', 'cmd', 'waitedMs', 'phase'],
+  'gh.timeout': ['argv0', 'opId', 'timeoutMs', 'layer', 'via', 'cmd', 'waitedMs', 'phase'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],
   'graphql.fallback': ['scope', 'reason'],
   'issues.fallback': ['from', 'to', 'reason'],

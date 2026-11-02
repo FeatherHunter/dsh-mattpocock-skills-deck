@@ -116,8 +116,10 @@ export function emitGhExec(ctx: OpContext, kind: string, exitCode: number, t0: n
 // phase 到点发生在哪一段（queue 还在排队没起进程 / inflight 进程已经起来）。
 // 为什么非记不可：「面板所有功能超时」这类报告，只有这三格能把「守在门口排到超时」与
 // 「命令自己跑到超时」分开；从前四条超时行长得一模一样，只能靠猜。
+// #1831 起多记一格 opId：超时行要和同一趟操作的 gh.exec / exec.run 对得上，才能从
+// 「这次读为什么挂住」一路追到「哪条命令到点、后面还有没有继续发命令」。
 export function emitGhTimeout(ctx: OpContext, timeoutMs: number, layer?: string, via?: string, cmd?: string, waitedMs?: number, phase?: string): void {
   try {
-    roomLogEvent(ctx, 'warn', 'gh.timeout', { argv0: 'gh', timeoutMs: typeof timeoutMs === 'number' ? timeoutMs : GITHUB_CLIENT_TIMEOUT_MS, layer: String(layer || 'room-tier'), via: String(via || ''), cmd: String(cmd || ''), waitedMs: (typeof waitedMs === 'number' && isFinite(waitedMs) && waitedMs > 0) ? Math.floor(waitedMs) : 0, phase: String(phase || 'inflight') })
+    roomLogEvent(ctx, 'warn', 'gh.timeout', { argv0: 'gh', opId: String((ctx && ctx.opId) || ''), timeoutMs: typeof timeoutMs === 'number' ? timeoutMs : GITHUB_CLIENT_TIMEOUT_MS, layer: String(layer || 'room-tier'), via: String(via || ''), cmd: String(cmd || ''), waitedMs: (typeof waitedMs === 'number' && isFinite(waitedMs) && waitedMs > 0) ? Math.floor(waitedMs) : 0, phase: String(phase || 'inflight') })
   } catch {}
 }
