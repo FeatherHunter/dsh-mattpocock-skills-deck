@@ -38,11 +38,17 @@ export const SUGGEST_STYLE_TEXT: string = [
   // 各量一次矩形；窄窗口不横向溢出、浮层顶边也不会被推出视口）。不吃鼠标事件所以不闪烁。
   '.dsws-sugg-pop{position:absolute;bottom:calc(100% + ' + SUGGEST_APPEARANCE.popGapPx + 'px);left:50%;transform:translateX(calc(-50% + var(--dsws-sugg-pop-shift,0px))) translateY(calc(3px + var(--dsws-sugg-pop-shift-y,0px)));width:max-content;max-width:min(' + SUGGEST_APPEARANCE.popMaxWidthPx + 'px, calc(100vw - ' + (SUGGEST_APPEARANCE.popViewportMarginPx * 2) + 'px));padding:' + SUGGEST_APPEARANCE.popPadY + 'px ' + SUGGEST_APPEARANCE.popPadX + 'px;border-radius:' + SUGGEST_APPEARANCE.popRadiusPx + 'px;border:1px solid ' + SUGGEST_APPEARANCE.pillBorder + ';background:' + SUGGEST_APPEARANCE.popBg + ';color:' + SUGGEST_APPEARANCE.popText + ';box-shadow:' + SUGGEST_APPEARANCE.pillShadow + ';font-size:' + SUGGEST_APPEARANCE.pillFontPx + 'px;line-height:1.5;text-align:left;white-space:normal;opacity:0;pointer-events:none;transition:opacity ' + MOTION.suggestPopMs + 'ms ease,transform ' + MOTION.suggestPopMs + 'ms ease;z-index:3;display:block}',
   '.dsws-sugg-pill-wrap.dsws-sugg-show-pop .dsws-sugg-pop{opacity:1;transform:translateX(calc(-50% + var(--dsws-sugg-pop-shift,0px))) translateY(var(--dsws-sugg-pop-shift-y,0px))}',
+  // #1834：浮层节点带着 role="tooltip"（读屏的 aria-describedby 依赖它，不能删）。宿主样式表里有一条
+  // body [role="tooltip"]{color:...}（深色主题给 tooltip 的浅色文字），特异性 (0,1,1) 压过上面
+  // .dsws-sugg-pop 的 (0,1,0)，把浮层自己写的深色文字色顶掉了。这里把颜色单独写成带属性选择器的规则，
+  // 抬到 (0,2,0)，宿主那条就压不动；右列正文另有 .dsws-sugg-pop-value 的显式颜色兜底。
+  '.dsws-sugg-pop[role="tooltip"]{color:' + SUGGEST_APPEARANCE.popText + '}',
   // 浮层里的四行：左边一列深色标签（推荐分/理由/优点/缺点），右边正文；标签列固定宽，几行对齐。
   '.dsws-sugg-pop-row{display:grid;grid-template-columns:3.2em auto;column-gap:' + SUGGEST_APPEARANCE.popLabelGapPx + 'px;align-items:baseline}',
   '.dsws-sugg-pop-row + .dsws-sugg-pop-row{margin-top:' + SUGGEST_APPEARANCE.popRowGapPx + 'px}',
   '.dsws-sugg-pop-label{color:' + SUGGEST_APPEARANCE.popLabelText + ';font-weight:600}',
-  '.dsws-sugg-pop-value{white-space:normal}',
+  // #1834：正文显式给深色，不再只靠从浮层继承——浮层的颜色可能被宿主规则压掉，继承链一断正文就发白。
+  '.dsws-sugg-pop-value{white-space:normal;color:' + SUGGEST_APPEARANCE.popText + '}',
   // 关闭按钮行：整行居中。#1787 现象⑥：按钮改成实心芯片（深色主题浅芯片配深「×」），
   // 空闲就完全不透明；以前是透明底 + 主题次要色 + 0.6 透明度，看起来几乎不存在。
   '.dsws-sugg-xrow{position:relative;z-index:2;display:flex;justify-content:center;margin-top:' + SUGGEST_APPEARANCE.closeRowMarginTopPx + 'px;pointer-events:none}',
