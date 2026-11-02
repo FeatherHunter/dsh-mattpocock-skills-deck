@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-02T12:18:53.670Z",
+  "generatedAt": "2026-11-02T13:00:48.614Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 535,
-  "gateCount": 535,
-  "attributedGates": 478,
+  "chainLength": 536,
+  "gateCount": 536,
+  "attributedGates": 479,
   "unattributedGates": 57,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 82,
@@ -6009,6 +6009,28 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 4 条"
+    },
+    {
+      "step": "node tests/verify-1830-list-label-honesty.ts",
+      "file": "tests/verify-1830-list-label-honesty.ts",
+      "guards": [
+        "src/deck/tools/issue-list.ts",
+        "src/tracker/rooms/github/channels/graphql/queries.ts",
+        "src/tracker/rooms/github/model/issue-filter.ts",
+        "src/tracker/rooms/github/read/issues-rest-list.ts",
+        "src/tracker/rooms/github/read/issues.ts"
+      ],
+      "dirs": [
+        "src/deck/tools",
+        "src/tracker/rooms/github/channels/graphql",
+        "src/tracker/rooms/github/model",
+        "src/tracker/rooms/github/read"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -13529,6 +13551,7 @@
       "node tests/verify-1770-gitlab-list-truncated.ts",
       "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-surface.ts",
+      "node tests/verify-1830-list-label-honesty.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
@@ -14324,6 +14347,7 @@
     "src/tracker/rooms/github/channels/graphql": [
       "node tests/verify-1418-probe-cost-and-failure.ts",
       "node tests/verify-1482-graphql-accounting.ts",
+      "node tests/verify-1830-list-label-honesty.ts",
       "node tests/verify-github-gh-via.ts",
       "node tests/verify-read-result-provenance.ts"
     ],
@@ -14335,6 +14359,7 @@
       "node tests/verify-1286-snapshot.ts",
       "node tests/verify-1443-static-gate.ts",
       "node tests/verify-1453-repo-locate-via-session.ts",
+      "node tests/verify-1830-list-label-honesty.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -14352,6 +14377,7 @@
       "node tests/verify-1605-map-routing-guard.ts",
       "node tests/verify-1607-gh-unc-cwd.ts",
       "node tests/verify-1765-read-channel-plan.ts",
+      "node tests/verify-1830-list-label-honesty.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-599-merged-pr.ts",

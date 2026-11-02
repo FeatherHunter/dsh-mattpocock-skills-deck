@@ -10,6 +10,8 @@
  * 失败语义沿用 #415：首页失败 = 双路皆挂，诚实返回错误；尾页失败 = 按已得数据截断上报。
  * #1796：第三个参数 state（open / closed / all，缺省 all）把列表筛选档下推到 REST 请求，
  * 并固定 sort=updated&direction=desc —— 与 GraphQL 主路由调用方给状态、按更新时间倒序取数同一口径。
+ * #1830：第四个参数 labels 把标签筛也下推（REST 查询参数 labels=a,b，AND 由调用方在内存里再判）。
+ *   标签名本身带逗号时整批不下推：REST 用逗号分隔标签，硬拼会把一个名字拆成两个，拆错比不下推更糟。
  * 完整度（#1685）：翻到空页、或尾页不满一页才算到底；触 10 页上限、尾页失败都算截断。
  * #1681 复审修复：恰好翻满 10 页且每页都满时，再打第 11 页做一次空页探测（只多 1 个请求，
  * 探测页的行不并入结果）——探测为空 = 真到底（complete），探测非空 = 仍按上限截断，
@@ -30,6 +32,13 @@ import type { RestListPagingFacts } from '../channels/rest/read-shapes.js'
 interface ParsedRepo {
   owner: string;
   name: string;
+}
+
+/** 标签查询参数（#1830）：逗号分隔、逐个编码；空项与带逗号的名字不下推，交给调用方的内存过滤兜底。 */
+function labelsQueryOf(labels: string[]): string {
+  const names = (Array.isArray(labels) ? labels : []).map((n) => String(n === undefined || n === null ? '' : n).trim()).filter((n) => !!n && n.indexOf(',') < 0)
+  if (!names.length) return ''
+  return '&labels=' + names.map((n) => encodeURIComponent(n)).join(',')
 }
 
 /** 为什么 catch 里的错误要先转这层再读：catch 出来是 unknown，直接读 message 编译不过，转后读法与别处一致。 */
@@ -53,12 +62,14 @@ interface RestListFetch {
   paging: RestListPagingFacts
 }
 
-export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext, state: string = 'all'): Promise<OpResult<RestListFetch>> {
+export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext, state: string = 'all', labels: string[] = []): Promise<OpResult<RestListFetch>> {
   const c = ghClient(ctx)
   // 为什么标成未知数组：回包是 GitHub 的原始行，本函数只负责翻页搬运、不解读形状，解读是调用方的事。
   const out: unknown[] = []
   const MAX_PAGES = PAGINATION.github.restMaxPages
   const PAGE = PAGINATION.github.restPageSize
+  // 标签参数在整趟翻页里原样重复（数据页与探测页都带），只算一次。
+  const labelQuery = labelsQueryOf(labels)
   // 翻页事实（#1685）：完整度判定要「翻到空页没有、尾页满没满、触没触 10 页上限」，
   // 这些只有发起翻页的这一段知道，随产出一起交给路由层组装来源信息。
   let pagesFetched = 0
@@ -75,7 +86,7 @@ export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext, sta
     // 这是 GraphQL 主路失败之后的 REST 降级翻页：标签与主路分开，事后一眼看出走的是哪条路。
     // #1796：state 由调用方按筛选档给（open / closed / all，缺省 all 与改造前一致）；
     //   sort=updated&direction=desc 与 GraphQL 主路的 orderBy 同一口径，10 页窗口里放的是同一批优先票。
-    const r = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=${state}&sort=updated&direction=desc&per_page=${PAGE}&page=${p}`], { cwd: ctx && ctx.cwd, via: 'list.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
+    const r = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=${state}&sort=updated&direction=desc&per_page=${PAGE}&page=${p}${labelQuery}`], { cwd: ctx && ctx.cwd, via: 'list.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
     if (!r.ok) {
       pageFailure = true
       if (!out.length) return { ok: false, error: r.error }
@@ -115,7 +126,7 @@ export async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext, sta
   // 请求或解析失败 = 截断，但不算「双路皆挂」——前面十页是真拿到的，照旧按已得数据回成功。
   if (!sawEmptyPage && !pageFailure && pagesFetched >= MAX_PAGES && lastPageRows >= PAGE) {
     probeAttempted = true
-    const probe = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=${state}&sort=updated&direction=desc&per_page=${PAGE}&page=${MAX_PAGES + 1}`], { cwd: ctx && ctx.cwd, via: 'list.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
+    const probe = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=${state}&sort=updated&direction=desc&per_page=${PAGE}&page=${MAX_PAGES + 1}${labelQuery}`], { cwd: ctx && ctx.cwd, via: 'list.rest', timeout: GITHUB_REST_READ_TIMEOUT_MS })
     let probeRows: unknown = null
     if (!probe.ok) probeFailed = true
     else {

@@ -272,6 +272,10 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       const filter: Record<string, unknown> = {}
       if (state !== 'all') filter.state = state
       if (type !== 'all') filter.type = type
+      // #1830：标签与状态一样是「取数窗口」的筛选，必须下推给后端 —— 否则 500 条的窗口里装的是整仓
+      // 最新票，标签只在内存里筛，筛出的子集既不是全部命中的票，也没有任何一格能看出它只是窗口的一部分。
+      // 后端对多标签可能是 OR（GitHub 实测是并集），下面的内存筛按 AND 再收窄一次，两层各司其职。
+      if (wantLabels.length) filter.labels = wantLabels.slice()
       // #1604：纯地图筛走薄查快速回（只筛地图标签、不读正文时调 listMaps），
       // 其余（文本搜、规格识别、指派、目录限定、掺杂其它标签）一律走下面的老全量路径。
       // 薄查只有「不支持」才回落：超时与传输失败直接失败，不拿半份当整仓。
@@ -299,12 +303,14 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
           const thinTotal = mapped.length
           const thinSliced = mapped.slice(0, limit)
           const thinTruncated = thinTotal > thinSliced.length
+          // #1830：薄查也会撞封顶页数（map 只取回前若干张），那是「后端到自己的上限」，与本地 limit 截断是两件事。
+          const thinBackendTruncated = !!(thinBody.data && thinBody.data.truncated === true)
           const thinCond = []
           thinCond.push('state=' + state)
           if (type !== 'all') thinCond.push('type=' + type)
           if (wantLabels.length) thinCond.push('label=' + wantLabels.join('&'))
           const thinNotes = ['这次走地图薄查快速回（只筛地图标签，不读正文）。']
-          if (thinBody.data && thinBody.data.truncated === true) thinNotes.push('地图只取回了前 ' + mapped.length + ' 张（共 ' + String(thinBody.data.total) + ' 张，撞到封顶页数），剩下的这次没拿。')
+          if (thinBackendTruncated) thinNotes.push('地图只取回了前 ' + mapped.length + ' 张（共 ' + String(thinBody.data && thinBody.data.total) + ' 张，撞到封顶页数），剩下的这次没拿。')
           if (thinTruncated) thinNotes.push('只回前 ' + thinSliced.length + ' 行（共 ' + thinTotal + ' 行符合）：收窄过滤或调大 limit 再取一次。')
           const thinRawUsage: unknown = (thin as { usage?: unknown }).usage
           const thinUsageObj: { requests?: unknown; points?: unknown } = (thinRawUsage !== null && typeof thinRawUsage === 'object') ? (thinRawUsage as { requests?: unknown; points?: unknown }) : {}
@@ -316,13 +322,14 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
             total: thinTotal,
             returned: thinSliced.length,
             truncated: thinTruncated,
+            backendTruncated: thinBackendTruncated,
             issues: thinSliced,
             opId: thinOpId,
           }
           return {
             value: {
               status: DECK_STATUS.OK,
-              text: 'ISSUE 列表：共 ' + thinTotal + ' 行符合（' + thinCond.join('，') + '），回 ' + thinSliced.length + ' 行。',
+              text: 'ISSUE 列表：共 ' + thinTotal + ' 行符合（' + thinCond.join('，') + '），回 ' + thinSliced.length + ' 行。' + (thinBackendTruncated ? '后端到自己的取数上限就停了，这份清单可能不全。' : ''),
               data: thinData,
               notes: thinNotes,
               touched: [],
@@ -418,10 +425,13 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       // #1559：宿主收工具返回值时要求无损 JSON，data 上不许出现 undefined。缺省的键就不出现
       // （不用 null 顶替：金标准 03-deck_issue_list.golden.json 里本来就没有这两个键，序列化后的形状与它一致）；
       // opId 正常总有值，恒为字符串。
+      // #1830：data 上两个旗标各说一件事 —— truncated 是「本地 limit 截断了这份回执」，
+      // backendTruncated 是「后端到自己的取数上限就停了，这份清单可能不全」。两者可能同时成立。
       const data: Record<string, unknown> = {
         total: total,
         returned: sliced.length,
         truncated: truncated,
+        backendTruncated: backendTruncated,
         issues: sliced,
         opId: opId,
       }
@@ -432,7 +442,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       return {
         value: {
           status: DECK_STATUS.OK,
-          text: 'ISSUE 列表：共 ' + total + ' 行符合（' + cond.join('，') + '），回 ' + sliced.length + ' 行，其中状态冲突 ' + statusConflictCount + ' 张。',
+          text: 'ISSUE 列表：共 ' + total + ' 行符合（' + cond.join('，') + '），回 ' + sliced.length + ' 行，其中状态冲突 ' + statusConflictCount + ' 张。' + (backendTruncated ? '后端到自己的取数上限就停了，这份清单可能不全。' : ''),
           data: data,
           notes: notes,
           touched: [],

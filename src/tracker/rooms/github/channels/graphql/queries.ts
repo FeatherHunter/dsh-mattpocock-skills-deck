@@ -81,6 +81,24 @@ export const LIST_QUERY = `query($owner:String!,$name:String!,$first:Int!,$after
   }
 }`
 
+// 同上，多了「按标签收窄」这一层筛（#1830）。单独一份查询，不把 $labels 塞进 LIST_QUERY 让它在
+// 无标签时也出现：空数组是「不筛」还是「全都要有」在 GitHub 各版本上行为不一致（与下面两条计数
+// 查询同一处置），所以只有真要筛标签时才用这一份。
+// 实测口径（2026-11-02 真仓 FeatherHunter/dsh-mattpocock-skills-deck）：一次给多个标签时 filterBy.labels
+// 是 OR（匹配任意一个），不是 AND —— bug 388 条、ready-for-agent 596 条，两个一起给回来 788 条（并集）。
+// 所以下推得到的是「至少带一个」的超集，调用方要「同时带齐」时再交 applyIssueFilter 按 AND 收窄；
+// 先下推的好处是 500 条窗口里装的全是相关票，不再先按更新时间装 500 条整仓票、再在内存里挑掉大半。
+// （下面两条计数查询与按页查询的旧注释曾写「AND 语义」，实测不成立，已在各自注释里订正；代码行为不动。）
+export const LIST_QUERY_WITH_LABELS = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[IssueState!]!,$labels:[String!]!){
+  rateLimit{ cost }
+  repository(owner:$owner,name:$name){
+    issues(first:$first, after:$after, states:$states, orderBy:{field:UPDATED_AT, direction:DESC}, filterBy:{labels:$labels}){
+      nodes{ ${LIST_ISSUE_FRAGMENT} }
+      pageInfo{ hasNextPage endCursor }
+    }
+  }
+}`
+
 // 单票查询
 export const GET_QUERY = `query($owner:String!,$name:String!,$number:Int!){
   rateLimit{ cost }
@@ -141,7 +159,8 @@ export const COUNTS_QUERY = `query($owner:String!,$name:String!){
   }
 }`
 
-// 同上，多了「必须同时带上这些标签」这一层筛（GraphQL 的 filterBy.labels 是 AND 语义）。
+// 同上，多了「按标签收窄」这一层筛。口径订正（2026-11-02 真仓实测）：filterBy.labels 一次给多个标签时
+// 是 OR（匹配任意一个），不是本注释从前写的 AND；调用方要「同时带齐」时得自己在内存里再收窄。
 export const COUNTS_QUERY_WITH_LABELS = `query($owner:String!,$name:String!,$labels:[String!]!){
   rateLimit{ cost }
   repository(owner:$owner,name:$name){
@@ -192,7 +211,8 @@ export const LIST_PAGE_QUERY = `query($owner:String!,$name:String!,$first:Int!,$
   }
 }`
 
-// 同上，多了「必须同时带上这些标签」这一层筛（GraphQL 的 filterBy.labels 是 AND 语义）。
+// 同上，多了「按标签收窄」这一层筛。口径订正（2026-11-02 真仓实测）：filterBy.labels 一次给多个标签时
+// 是 OR（匹配任意一个），不是本注释从前写的 AND；调用方要「同时带齐」时得自己在内存里再收窄。
 export const LIST_PAGE_QUERY_WITH_LABELS = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[IssueState!]!,$labels:[String!]!,$since:DateTime){
   rateLimit{ cost }
   repository(owner:$owner,name:$name){
@@ -298,6 +318,18 @@ export const LIST_PR_QUERY = `query($owner:String!,$name:String!,$first:Int!,$af
   }
 }`
 
+// 拉取请求列表的带标签版本（#1830）。拉取请求连接没有 filterBy，标签直接作为 labels 参数给；
+// 多标签同样是 OR 语义（见上面 LIST_QUERY_WITH_LABELS 的实测注释），调用方再按 AND 收窄。
+export const LIST_PR_QUERY_WITH_LABELS = `query($owner:String!,$name:String!,$first:Int!,$after:String,$states:[PullRequestState!]!,$labels:[String!]!){
+  rateLimit{ cost }
+  repository(owner:$owner,name:$name){
+    pullRequests(first:$first, after:$after, states:$states, labels:$labels, orderBy:{field:UPDATED_AT, direction:DESC}){
+      nodes{ ${PULL_REQUEST_FRAGMENT} }
+      pageInfo{ hasNextPage endCursor }
+    }
+  }
+}`
+
 // 拉取请求单票查询（get 按号先查 issue、再查此查询，见 issues.js）
 export const GET_PR_QUERY = `query($owner:String!,$name:String!,$number:Int!){
   rateLimit{ cost }
@@ -343,4 +375,4 @@ export function issueNodeIdsQuery(keys: string[]): string {
 
 // 兼容旧命名（#132 登记旧片段迁移）：保留但指向新 fragment
 export const GITHUB_ISSUE_FIELDS = ISSUE_FRAGMENT
-export default { ISSUE_FRAGMENT, GITHUB_ISSUE_FIELDS, LIST_QUERY, GET_QUERY, getIssueQuery, COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS, PULL_REQUEST_FRAGMENT, LIST_PR_QUERY, GET_PR_QUERY, ADD_BLOCKED_BY_MUTATION, REMOVE_BLOCKED_BY_MUTATION, issueNodeIdsQuery }
+export default { ISSUE_FRAGMENT, GITHUB_ISSUE_FIELDS, LIST_QUERY, LIST_QUERY_WITH_LABELS, GET_QUERY, getIssueQuery, COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS, PULL_REQUEST_FRAGMENT, LIST_PR_QUERY, LIST_PR_QUERY_WITH_LABELS, GET_PR_QUERY, ADD_BLOCKED_BY_MUTATION, REMOVE_BLOCKED_BY_MUTATION, issueNodeIdsQuery }

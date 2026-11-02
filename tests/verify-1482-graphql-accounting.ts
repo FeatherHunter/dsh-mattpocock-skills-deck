@@ -274,6 +274,7 @@ function partE(): void {
   console.log('== E、每条读查询都取 rateLimit{ cost } ==')
   const queries: any[] = [
     ['LIST_QUERY', Q.LIST_QUERY],
+    ['LIST_QUERY_WITH_LABELS', Q.LIST_QUERY_WITH_LABELS],
     ['GET_QUERY', Q.GET_QUERY],
     ['getIssueQuery(50,false)', Q.getIssueQuery(50, false)],
     ['getIssueQuery(50,true)', Q.getIssueQuery(50, true)],
@@ -284,13 +285,14 @@ function partE(): void {
     ['LIST_PAGE_QUERY_WITH_LABELS', Q.LIST_PAGE_QUERY_WITH_LABELS],
     ['SUB_ISSUES_QUERY', Q.SUB_ISSUES_QUERY],
     ['LIST_PR_QUERY', Q.LIST_PR_QUERY],
+    ['LIST_PR_QUERY_WITH_LABELS', Q.LIST_PR_QUERY_WITH_LABELS],
     ['GET_PR_QUERY', Q.GET_PR_QUERY],
   ]
   let missing: string[] = []
   for (const row of queries) {
     if (String(row[1]).indexOf('rateLimit{ cost }') < 0) missing.push(row[0])
   }
-  check(missing.length === 0, 'E、12 份读查询都在 Query 根带 rateLimit{ cost }（缺的：' + (missing.join('、') || '无') + '）')
+  check(missing.length === 0, 'E、14 份读查询都在 Query 根带 rateLimit{ cost }（缺的：' + (missing.join('、') || '无') + '）')
   check(Q.ADD_BLOCKED_BY_MUTATION.indexOf('rateLimit') < 0 && Q.REMOVE_BLOCKED_BY_MUTATION.indexOf('rateLimit') < 0,
     'E、两份 mutation 不带 rateLimit（mutation 拿不到 cost，仍按 1 点估）')
 }

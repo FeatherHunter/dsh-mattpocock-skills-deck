@@ -26,7 +26,7 @@ import { fail } from '../../../kernel/preflight.js'
 import { emitReadDegraded } from '../support/read-log.js'
 import { ghClient } from '../transport/client.js'
 import { appendCommentPages, commentsWantOf, firstPageSizeOf, trimCommentsToWant } from '../channels/graphql/comment-paging.js'
-import { applyIssueFilter } from '../model/issue-filter.js'
+import { applyIssueFilter, labelsOf } from '../model/issue-filter.js'
 // #1796：状态筛下推查询（工单 / 拉取请求 / REST 三档）单独一文件，读路径只取结果。
 import { issueStatesOf, pullStatesOf, restStateOf } from './list-state.js'
 import { normalizeIssue } from '../model/normalize.js'
@@ -37,7 +37,7 @@ import { repairParentLinksREST } from './parent-repair.js'
 import { completeRestListRelations } from './rest-list-relations.js'
 import { rosterAdoptList, rosterUpsert } from '../model/roster.js'
 import type { MemoContext } from '../model/roster.js'
-import { LIST_QUERY, GET_QUERY, LIST_PR_QUERY, GET_PR_QUERY, getIssueQuery } from '../channels/graphql/queries.js'
+import { LIST_QUERY, LIST_QUERY_WITH_LABELS, GET_QUERY, LIST_PR_QUERY, LIST_PR_QUERY_WITH_LABELS, GET_PR_QUERY, getIssueQuery } from '../channels/graphql/queries.js'
 import { fetchAllPullsREST, enrichRestPRs } from './pulls.js'
 // #1691：REST 单票降级时按需补评论正文、依赖边、评审与合并时间；每类最多一次请求，补不到记未知。
 import { completeRestDetail } from './rest-detail-completion.js'
@@ -117,7 +117,11 @@ function emitRestDetailGaps(ctx: OpContext, latencyMs: number, completion: RestD
 /**
  * list(repo, filter, ctx) -> OpResult<Issue[]>
  * 读取用 GraphQL 批量（LIST_QUERY），GraphQL 失败（网络 EOF / 配额 / 无法解析）时 REST 降级；
- * 内存过滤 filter{type,state,parentKey,keys}
+ * 档位（state / labels）在查询里下推，内存过滤 filter{type,state,parentKey,keys,labels} 兜底收窄。
+ * #1830：labels 也下推（GraphQL 用 $labels 变量、REST 用 labels= 参数）。为什么必须下推：一次只翻 500 条
+ *   就停，若标签只留在内存里筛，窗口里装的是整仓最新的 500 条，筛出来的子集既不是「全部命中的票」，
+ *   也没有任何一格能看出它只是窗口的一部分。GitHub 对多个标签是 OR，下推拿到的是超集，
+ *   调用方要「同时带齐」时交 applyIssueFilter 按 AND 收窄。
  */
 export async function listIssues(repo: RepositoryRef, filter: ListFilter | undefined, ctx: MemoContext): Promise<ListIssuesResult> {
   // 这一笔的起点：只给降级日志算耗时用；主路失败原因要的那份耗时刻是下面单独的 `t0`，两者不混。
@@ -158,14 +162,17 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
     // #1796：这一趟要的状态档下推到查询里（工单与拉取请求各一套枚举）。
     const issueStates = issueStatesOf(filter)
     const pullStates = pullStatesOf(filter)
+    // #1830：标签同样是一档筛选，和状态一样下推；无标签时不带变量，走不带 labels 的那份查询。
+    const labels = labelsOf(filter)
     // 分页按契约页大小取（一页 50，配合列表去评论把单查询压回 1.5 秒线内），超量分页
     while (!needRest && hasNext) {
       // 构造带变量查询：gh api graphql -f query -f owner -f name -F first -F after -F states[]
-      const query = LIST_QUERY
+      const query = labels.length ? LIST_QUERY_WITH_LABELS : LIST_QUERY
       const args = ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
       // gh 的 -F 数组写法（key[]=值）会拼成 GraphQL 的数组变量；沿用 page.ts 里同一套写法。
       // （-F 把纯数字值推断成数字只坑 owner/name，那条已由 normalizeGhStringFields 归一成 -f。）
       for (const s of issueStates) args.push('-F', `states[]=${s}`)
+      for (const l of labels) args.push('-F', `labels[]=${l}`)
       if (after) args.push('-F', `after=${after}`)
       else args.push('-F', 'after=')
       const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'list.gql' })
@@ -193,8 +200,9 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       let prAfter = null
       let prHasNext = true
       while (prHasNext) {
-        const args = ['api', 'graphql', '-f', `query=${LIST_PR_QUERY}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
+        const args = ['api', 'graphql', '-f', `query=${labels.length ? LIST_PR_QUERY_WITH_LABELS : LIST_PR_QUERY}`, '-f', `owner=${parsed.owner}`, '-f', `name=${parsed.name}`, '-F', `first=${PAGINATION.github.listPageSize}`]
         for (const s of pullStates) args.push('-F', `states[]=${s}`)
+        for (const l of labels) args.push('-F', `labels[]=${l}`)
         if (prAfter) args.push('-F', `after=${prAfter}`)
         else args.push('-F', 'after=')
         const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'list.pr' })
@@ -241,7 +249,8 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       const fbCause: 'quota' | 'other' | undefined = !channels.graphql ? undefined : (pickFallbackReason(firstRestCause, ctx) === 'rate-limit' ? 'quota' : 'other')
       // #1796：状态档也要下推给 REST 降级路径（open / closed / all），与主路同一档。
       const restState = restStateOf(filter)
-      const rest = await fetchAllIssuesREST(parsed, ctx, restState)
+      // #1830：状态与标签都下推给 REST 降级路；REST 用逗号分隔标签，带逗号的名字由这一层放弃下推（见 issues-rest-list.ts）。
+      const rest = await fetchAllIssuesREST(parsed, ctx, restState, labels)
       if (!rest.ok) return { ok: false, error: rest.error }
       const pulls = await fetchAllPullsREST(parsed, ctx, restState)
       const raws = enrichRestPRs(rest.data.rows, pulls.ok ? pulls.data : [])

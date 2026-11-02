@@ -23,6 +23,7 @@
     "note": "本后端不需要额度（离网口径）。"
   },
   "data": {
+    "backendTruncated": false,
     "issues": [
       {
         "assignees": [],
