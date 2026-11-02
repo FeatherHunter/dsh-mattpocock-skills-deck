@@ -166,7 +166,8 @@ function makeEnv(opts) {
   const tail = '\n;return { makeStore, loadSnapshot, hydrateFromCache, getCachedSnapshot, getCachedSelection,'
     + ' workspaceRootByCwd, rememberWorkspaceRoot, keyOf, wsKeyOf, emit, mergeSelection, askSelectionOnce,'
     + ' _snapRequestKeyWas, _snapInstallState, _snapMarkRequest, _snapRespStale,'
-    + ' _installLateSnapshot, _installLateSnapshotSelection, _snapInstallBody }'
+    + ' _installLateSnapshot, _installLateSnapshotSelection, _snapInstallBody,'
+    + ' dswsLogHash, dswsLogTrunc }'
   // 手法：compileFn——这几片内核按 build.mts 的顺序拼成一段文本后造函数，改走 tests/lib/eval-probe.js 的共用入口；名字数组照原样传。
   const factory = compileFn(names, moduleText(o.patch) + tail)
   const mod = factory.apply(null, names.map((n) => sandbox[n]))
@@ -540,6 +541,8 @@ async function main() {
         asked: env.seen.calls.filter((c) => c.method === 'wf.selection').length,
         // 这个数在 150 毫秒处是 1：快照 100 毫秒落地、安装那一步叫过一次补发守卫（#1626 的汇合点）。
         //   到点之后要在这个数上恰好再加 1 —— 那才是等待上限自己的补发。
+        // 本门量的是共用收尾口有没有叫到补发守卫（_flushDeferredChain）；补发真的发出一次链求值那一步
+        //   由 verify-1626 的 D 段钉住，两边走的是同一段 _finishSelAsk 代码（本文件只给守卫换成记录器）。
         flushes: env.seen.flushes.length,
       }
       await p
@@ -556,10 +559,15 @@ async function main() {
       '等待上限到点之后横幅回到可点的「还没有设置」（实得 reading=' + fixed.after.reading + '，键 ' + JSON.stringify(fixed.after.textKey) + '）')
     ok(fixed.env.seen.calls.filter((c) => c.method === 'wf.selection').length === 1, '到点不重问那条专用电话（每个工作区一次就是一次）')
     ok(fixed.env.seen.flushes.length === fixed.mid.flushes + 1,
-      '到点这一次自己也补发一次被推迟的链求值（在既有汇合点之外恰好 +1；实得 ' + fixed.mid.flushes + ' → ' + fixed.env.seen.flushes.length + ' 次）')
+      '到点这一次也经共用收尾口补发一次（补发守卫在既有汇合点之外恰好 +1；真实链求值由 verify-1626 钉住；实得 ' + fixed.mid.flushes + ' → ' + fixed.env.seen.flushes.length + ' 次）')
     const timeoutLogs = fixed.env.seen.logs.filter((l) => l.event === 'host.call.fail' && l.fields && l.fields.method === 'wf.selection' && l.fields.kind === 'selection')
     ok(timeoutLogs.length === 1 && typeof timeoutLogs[0].fields.errorHash === 'string' && timeoutLogs[0].fields.errorHash.length > 0,
       '到点落一行可定位的失败日志（host.call.fail，method=wf.selection、kind=selection、带 errorHash）')
+    // 固定失败串是「按散列检索」这条约定的检索键，也写在 research/489-appendix.md 的 #1775 补记里：
+    //   这里把「散列到底是不是这个固定串算出来的」钉住 —— 改了串而没同步附录与门禁，这条当场变红。
+    const expectTimeoutHash = fixed.env.mod.dswsLogHash(fixed.env.mod.dswsLogTrunc('client wf.selection timeout', 120, 'error'))
+    ok(timeoutLogs[0].fields.errorHash === expectTimeoutHash,
+      '超时日志的 errorHash 就是固定串 client wf.selection timeout 的散列（实得 ' + timeoutLogs[0].fields.errorHash + '，期望 ' + expectTimeoutHash + '）')
 
     // I3：宿主只是回得慢，不是没有答案 —— 回得比等待上限还晚，答案到了照样装上，
     //   不许因为「已经放过手」就整份丢掉（与快照那条 30 秒死线同一个口径）。

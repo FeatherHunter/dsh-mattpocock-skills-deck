@@ -62,6 +62,8 @@ const _finishSelAsk = function (st: any): void {
 // 为什么需要序号：整份闭包在进程里只建一次，同一个会话对象上理论上只问一次；万一换了工作区、旧的
 //   定时器还没到点，序号对不上时它就什么都不做，不会把新一次询问的在途标记误清掉。
 // 失败串固定内联、不按等待时长拼（照快照那条死线的先例）：日志按 errorHash 检索，换 YAML 数值不用改文案。
+// 如果选择已经从别的路（例如快照自带 selection）落地、而这次调用仍然没回，到点照记一行失败：
+//   这次调用确实超时了，如实记录；上限只结束这一次等待，不回头判断界面此刻是否已经好了。
 const _armSelWaitDeadline = function (st: any): any {
   try {
     const seq: number = (st._selAskSeq || 0) + 1;
