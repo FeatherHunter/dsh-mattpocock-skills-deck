@@ -562,6 +562,8 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/client/views/versionControl/vcRealTab.ts', name: 'nowMs', reason: '读钟口（Date.now 的包装，传给各动作层拼 requestId，并给首屏模型补「现在」），不是可调时长' },
   { file: 'src/client/views/versionControl/vcRealTab.ts', name: 'interval', reason: '派生变量：来自已登记的 VC_TASK_POLL_INTERVAL_MS（config/intervals.yaml 的任务轮询间隔），不是新时长' },  // #1760 配置与钩子页域 12：读钟字段与中途选出来的时限变量，都不是本票新增的可调时长。
   { file: 'src/client/views/versionControl/vcConfigOps.ts', name: 'readAtMs', reason: '读钟时刻（读数是什么时候回来的），照首屏同名字段的口径，不是可调参数' },
+  // #1829 阶段 3 分支页：页面壳把「现在」传进来，只给提交时间折成人话（相对时间/日期），本文件不另留可调时长。
+  { file: 'src/client/views/versionControl/vcBranchPage.ts', name: 'nowMs', reason: '读钟口（Date.now 的注入包装，用来把提交时刻折成「几天前」这类相对时间），不是可调时长' },
   { file: 'src/host/versionControlConfigWrite.ts', name: 'timeoutMs', reason: '按动作二选一：手动跑钩子取已登记的 HOOK_TIMEOUT_MS，其余写动作取已登记的 WRITE_TIMEOUT_MS，本文件不自留数字' },
   // #1757 子模块页：票据回包里读到的过期时刻只用来判断票是否已过期，不是本票新增的可调时长。
   { file: 'src/client/views/versionControl/vcSubmodulesOps.ts', name: 'expiresAtMs', reason: '票据回包里读到的过期时刻，只用来判断这张票是否已过期，不是本文件新增的可调时长' },
