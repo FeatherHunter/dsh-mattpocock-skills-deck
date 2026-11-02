@@ -1,15 +1,15 @@
-// 派生文件（base 包接入）：由已安装的 dsh-featherhunter-plugin-base@0.1.6 的 dist/client/index.js 内联生成，内容与安装版本一致，人手不改。
+// 派生文件（base 包接入）：由已安装的 dsh-featherhunter-plugin-base@0.1.7 的 dist/client/index.js 内联生成，内容与安装版本一致，人手不改。
 // 构建时拼入客户端闭包（src/client/index.ts 的 kernel:baseClient 标记处）；首行保留包的版本横幅供 doctor 的 inline-bundle-version 核对。
 // 重新生成：node scripts/derive-base-from-package.mts（重跑零 diff）。
 // ---- 作用域隔离：包体顶层声明包进 IIFE 藏起来，只留两个外面要用的 ----
 const __basePkgScope = (() => {
-  /*! dsh-featherhunter-plugin-base v0.1.6 */
+  /*! dsh-featherhunter-plugin-base v0.1.7 */
 
   // src/core/baseline.ts
   var BASELINE = {
     "manifest": {
       "schema": 1,
-      "version": "0.1.6",
+      "version": "0.1.7",
       "revision": 3,
       "updatedAt": "2026-11-01T00:00:00+08:00",
       "fallbackUrl": "https://github.com/FeatherHunter/featherhunter-plugin-manage",
