@@ -8,7 +8,12 @@
  *
  * 2026-10-23 维护者定：地图页不再展示正文详情（笔记 / 已定决策 / 战雾 / 范围外 / 规格七段），
  * 点标题进 issue 详情页看这张图自己的完整信息。所以本文件不再解析或整理正文分节，
- * 只留下页面还画的三样：标题、目的地、计数与完成度。身份小签与编号也由顶栏交代，页内不重复。
+ * 只留下页面还画的三样：标题、目的地、计数与完成度。
+ *
+ * 身份行：2026-10-23 曾删掉（顶栏的面包屑与身份小签已经写着同一个编号，页内重复），
+ * 2026-11-02 维护者拍板恢复——标题前补「地图图标 + 容器词 + 编号徽标」，与标题同一行在左，
+ * 标题折行时从标记下方走过（半包围）。所以本文件重新带上三格：容器词词条键、徽标编号、徽标目录；
+ * 模型只给数，图标与画面由档案头（view/profile/MapProfileHeader.ts）画。
  *
  * 两类容器（维护者 2026-10-22 定：规格与探索地图没有本质区别，顶多个别标签不一样）：
  * 差别只在「子票那句」的计数词（map.subCount / map.specSubCount）与规格没有目的地时不画空态提示，
@@ -43,6 +48,14 @@ const FEED_PLACEHOLDER = '–'
 const MAP_PROFILE_COUNT_KEY: Record<ContainerKind, string> = {
   map: 'map.subCount',
   spec: 'map.specSubCount',
+}
+
+/** 两种容器在标题前身份标记里的词条键（与 kernel/container-view.ts 的 CONTAINER_CHIP_LABEL_KEY 同值）。
+ *  为什么不直接 import 那张表：本文件同时要被门禁直接 require、又要当构建叶子拼进闭包（只能 import 类型），
+ *  所以按「子票那句」计数词的同一口径在模型里留一份键；改中央表时两处一起改，门禁对着字面量断。 */
+const MAP_PROFILE_CHIP_KEY: Record<ContainerKind, string> = {
+  map: 'list.mapChip',
+  spec: 'list.specChip',
 }
 
 /** 读成一段干净的文字：给的不是字符串就当空串（不做类型猜测）。 */
@@ -129,13 +142,28 @@ export function mapErrorTextOf(m: MapRowContent | null | undefined): string {
 }
 
 /**
+ * 徽标要显示的编号：快照行的 key 优先（本地 Markdown 后端可能是「目录/01-文件名」这种退化身份），
+ * 没有 key 时退回数字 number；两格都空时是 null——宁可这一格不画，也不要画一颗认不出是哪张图的空徽标。
+ */
+function badgeKeyOf(row: MapRowContent): string | number | null {
+  const key = row.key
+  if (key !== undefined && key !== null && String(key).trim() !== '') return key
+  const n = row.number
+  if (typeof n === 'number' && Number.isFinite(n)) return n
+  return null
+}
+
+/**
  * 合成 MAP 自身内容。m 是快照里的地图行（或规格行），feed 是子票取数结果，
  * counts 是看板计数（由 ticketBoard.boardCountsOf 算，页面已有一份，所以传进来而不是在这里重算）。
+ * effortId 是这一行所在工作单元的目录短名（页面从原始行取来，单工作单元后端是空串）：
+ * 编号徽标按 #1564 的显示口径要拼「#目录/编号」，模型不自己猜。
  */
 export function mapProfileOf(
   m: MapRowContent | null | undefined,
   feed: TicketFeed | null | undefined,
   counts: TicketBoardCounts | null | undefined,
+  effortId?: string | null,
 ): MapProfile {
   const row = m || {}
   const kind = containerKindOfRow(row)
@@ -149,5 +177,8 @@ export function mapProfileOf(
     progressPercent: mapProgressPercentOf(counts),
     feedSegments: mapFeedSegmentsOf(feed, kind),
     errorText: mapErrorTextOf(row),
+    chipLabelKey: MAP_PROFILE_CHIP_KEY[kind],
+    badgeKey: badgeKeyOf(row),
+    badgeEffortId: typeof effortId === 'string' ? effortId : '',
   }
 }

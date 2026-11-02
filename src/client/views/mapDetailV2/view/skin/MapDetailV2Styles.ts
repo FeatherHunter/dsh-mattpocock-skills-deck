@@ -27,10 +27,18 @@ export const MAP_DETAIL_V2_STYLE_TEXT: string[] = [
   '.m2v2-profile{border:1px solid var(--m2v2-line,var(--dsw-alias-border-l1,#2a2d35));border-radius:12px;padding:12px 14px;background:var(--m2v2-panel,var(--dsw-alias-bg-layer-1,rgba(255,255,255,.03)));min-width:0}',
   // 整块档案是进「地图档案」的入口（维护者 2026-10-23 第二次反馈：可点区域只有标题一行，太小）。
   // 悬停只提亮描边并加一圈淡影，不换面板底色——浅色主题下面板是暖白纸，改用宿主的深色层会脏。
-  // 页内不再画「地图 / 规格 + 编号」那一行：顶栏的面包屑与身份小签已经写着同一个编号。
-  '.m2v2-title{display:flex;align-items:baseline;gap:8px;margin:0;font-size:15px;line-height:1.4;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3)}',
-  '.m2v2-title-txt{min-width:0;word-break:break-word}',
-  '.m2v2-title-go{flex:none;align-self:center;font-size:10px;font-weight:500;line-height:16px;letter-spacing:.04em;padding:0 6px;border:1px solid var(--m2v2-line,var(--dsw-alias-border-l1,#2a2d35));border-radius:999px;color:var(--dsw-alias-label-caption,#8b8b95)}',
+  // 页内身份标记（#1803，维护者 2026-11-02 拍板恢复）：标题前「地图图标 + 容器词 + 编号徽标」，
+  // 与标题同一行、在左侧。它靠左浮动，标题文字沿它右侧排、折行时从它下方走过（半包围）；
+  // 编号徽标颜色取容器身份色（页面把 CONTAINER_ACCENT[kind] 放进 --m2v2-id-accent）：深色底往白里提一档、
+  // 浅色底往黑里压一档，两种主题下都读得清；容器词用 caption 令牌，中性、不抢编号。
+  '.m2v2-title{display:block;margin:0;font-size:15px;line-height:1.4;font-weight:600;color:var(--dsw-alias-label-primary,#e6edf3)}',
+  '.m2v2-title::after{content:"";display:block;clear:both}',
+  '.m2v2-title-txt{word-break:break-word}',
+  '.m2v2-title-go{display:inline-block;margin-left:8px;font-size:10px;font-weight:500;line-height:16px;letter-spacing:.04em;padding:0 6px;border:1px solid var(--m2v2-line,var(--dsw-alias-border-l1,#2a2d35));border-radius:999px;color:var(--dsw-alias-label-caption,#8b8b95)}',
+  '.m2v2-id{--m2v2-id-color:color-mix(in srgb,var(--m2v2-id-accent,var(--dsw-alias-label-secondary,#a1a1aa)) 55%,#fff);float:left;display:inline-flex;align-items:center;gap:6px;margin:0 8px 2px 0;font-size:10px;line-height:16px;letter-spacing:.04em;color:var(--dsw-alias-label-caption,#8b8b95);white-space:nowrap}',
+  'body:not([data-ds-dark-theme]) .m2v2-id{--m2v2-id-color:color-mix(in srgb,var(--m2v2-id-accent,var(--dsw-alias-label-secondary,#a1a1aa)) 68%,#000)}',
+  '.m2v2-id .m2v2-chip{display:inline-flex;align-items:center;gap:3px;flex:none;padding:0 6px;border:1px solid currentColor;border-radius:6px}',
+  '.m2v2-id .dsws-idnum{color:var(--m2v2-id-color,var(--dsw-alias-label-secondary,#a1a1aa));border-color:currentColor}',
   '.m2v2-profile-link{cursor:pointer;transition:border-color ' + MOTION.hoverFadeMs + 'ms ease,box-shadow ' + MOTION.hoverFadeMs + 'ms ease}',
   '.m2v2-profile-link:hover{border-color:var(--dsw-alias-label-caption,#8b8b95);box-shadow:0 0 0 3px var(--dsw-alias-bg-layer-2,rgba(255,255,255,.06))}',
   '.m2v2-profile-link:hover .m2v2-title-go{color:var(--dsw-alias-label-secondary,#a1a1aa);border-color:var(--dsw-alias-label-caption,#8b8b95)}',
