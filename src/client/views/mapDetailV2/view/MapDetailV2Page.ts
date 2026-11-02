@@ -93,6 +93,8 @@ export function MapDetailV2Page(props: any): any {
     map: m,
     bucket: bucket,
     cardIdPrefix: cardIdPrefix,
+    // 编号徽标要拼「#目录/编号」，所以把这一行的目录短名一起交给模型（单工作单元后端返回空串）。
+    effortId: effortOf(m),
     colorOf: colorOf,
     // 主按钮的动作由内核按原始行判定（九种动作名），卡片层再映射成九种样张（model/tickets/ticketCardFacts.ts）。
     actionOf: function (row: any) { return rowActionKind(row) },

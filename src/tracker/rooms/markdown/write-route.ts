@@ -27,10 +27,13 @@ export function parentCommentOf(txt: string,want: string | null,route: TicketRou
 }
 /** 阻塞边落在文件里的两处（原文布局）：可见行按路线与字段样式写，隐藏注释 DSH-BLOCKED-BY 与它成对更新。
  *  #1788：路线决定语义（地图子票的裸行 / 普通票的字段行），字段样式决定写加粗还是裸行，避免同一份文件里
- *  出现两行互相矛盾的 Blocked by。旧布局与 00 号容器保持原来的可见行写法。 */
-export function writeBlockedByLine(txt: string,blockers: string[],container: boolean,route: TicketRoute): string{
+ *  出现两行互相矛盾的 Blocked by。旧布局（route 为空串）保持原来的可见行写法。
+ *  00 号容器不在这里：容器文件（map.md / spec.md 本身）的原文布局没有 Blocked by 字段，写入口已经
+ *  如实拒绝，不再把可见行塞进正文段 —— 那行会在下一次「整段正文重建」时被当成正文吞掉
+ *  （见 issues-patch.ts 的 setBlockedByInner）。 */
+export function writeBlockedByLine(txt: string,blockers: string[],route: TicketRoute): string{
   const keys=blockers.map(k=>String(k).padStart(2,'0'))
-  if(container||!route){
+  if(!route){
     const line=blockers.length?'Blocked by: '+blockers.map(k=>'#'+String(k).padStart(2,'0')).join(', '):'Blocked by:'
     return replaceOrInsertField(txt,'Blocked\\s+by',line)
   }

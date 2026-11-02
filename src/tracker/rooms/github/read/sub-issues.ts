@@ -34,7 +34,7 @@
 import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import type { OpContext } from '../../../contract/contexts.js';
 import type { Issue, RepositoryRef } from '../../../contract/entities.js';
-import type { SubIssueListResult } from '../../../contract/results.js';
+import { TRACKER_ERROR_STAGE, type SubIssueListResult } from '../../../contract/results.js';
 import { fail } from '../../../kernel/preflight.js'
 import { ghClient } from '../transport/client.js'
 import { normalizeIssue } from '../model/normalize.js'
@@ -74,7 +74,7 @@ async function listSubIssuesInner(repo: RepositoryRef, mapKey: unknown, opts: un
       return fail(ERROR_KIND.NOTFOUND, `子票取数：repo.refId 缺失或形状不对：${repoId(repo)}`, repo)
     }
     const num = Number(String(mapKey == null ? '' : mapKey).trim())
-    if (!Number.isFinite(num)) return fail(ERROR_KIND.PARSE, `子票取数：GitHub 的地图编号必须是数字：${mapKey}`, mapKey)
+    if (!Number.isFinite(num)) return fail(ERROR_KIND.PARSE, `子票取数：GitHub 的地图编号必须是数字：${mapKey}`, mapKey, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     const c = ghClient(ctx)
     const items: Issue[] = []
     // 为什么显式标：空值起手再在分支里赋值，编译器会判成隐式 any；标成契约的形状才过得了严格模式，运行时还是原来那几个值。

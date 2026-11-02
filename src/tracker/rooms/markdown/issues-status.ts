@@ -28,8 +28,9 @@ import { checkExpectedUpdatedAt } from './write-guards.js'
 // #1489：原文布局（加粗字段行 / 裸字段行 / 隐藏注释）的读写原语，见 original-fields.ts。
 import { appendSectionBlock, upsertHiddenComment } from './original-fields.js'
 // #1790 缺陷 A：写侧归一的纯文本实现住 status-write.ts（读侧在 status.ts）。
-import { normalizeIssueStatusText, statusReadOfText } from './status-write.js'
-import { defaultStatusOf } from './status.js'
+import { labelsChoiceText, normalizeIssueStatusText, statusReadOfText } from './status-write.js'
+import type { StatusWriteFailure } from './status-write.js'
+import { defaultStatusOf, statusInBody } from './status.js'
 // #1500 S5：子票状态词（claimed / resolved）只从 YAML 真源读；旧布局分支的字面量保持冻结（见下）。
 import {
   WAYFINDER_STATUS_CLAIMED,
@@ -88,6 +89,14 @@ export function replaceOrInsertField(txt: string,fieldName: string,newLine: stri
   for(let i=0;i<lines.length;i++){ if(isFieldLine(lines[i])) lastField=i }
   lines.splice(lastField>=0?lastField+1:insertIdx,0,newLine)
   return lines.join('\n')
+}
+
+/** 整份补丁里的标签那一步（#1790 缺陷 A）：原文布局走状态归一，旧布局继续写可见 Labels 行。
+ *  返回整份文本；归一失败时返回失败对象，调用方原样上抛（盘上一个字都不动）。 */
+export function patchLabelsText(txt: string,route: TicketRoute | null,container: unknown,names: string[],body: unknown,statusOpt?: string): string | StatusWriteFailure {
+  if(!container&&route)return labelsChoiceText(txt,route,names,typeof body==='string'?statusInBody(body):null,statusOpt)
+  const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
+  return replaceOrInsertField(txt,'Labels',line)
 }
 
 /** 容器的状态值只认注释里的三档（YAML 的 DSH-STATUS 约定：closed / ready-for-agent / open）。

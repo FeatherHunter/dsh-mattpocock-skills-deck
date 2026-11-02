@@ -4,7 +4,12 @@
  *
  * 这个门禁回答三个问题：
  *
- * A. 共享的失败构造函数只能有一种调用形状：`fail(kind, message, raw)` 恰好三个参数。
+ * A. 共享的失败构造函数只有一种调用形状：`fail(kind, message, raw)` 三个参数。从票 #1799 起
+ *    允许可选的第 4 个参数 stage，用来标注「房间在动手之前就拒绝了这次输入」这类失败；第 4 个参数
+ *    只许写成 TRACKER_ERROR_STAGE.<阶段名>，写成别的表达式一律判红——放行任意第 4 个参数等于
+ *    这扇门不再管调用形状。唯一例外是 src/tracker/rooms/markdown/error-fail.ts：它是三个房共用的
+ *    失败构造函数转发处，failWithHint / failFromError / failAs 把自己收到的 stage 形参原样往下传，
+ *    那里允许写裸的 `stage`（就是那个已声明类型的形参），别的文件写裸标识符照样判红。
  *    定义在 src/tracker/kernel/preflight.ts（第三段 raw 是必填的：确实没有原文时给空串，参数不能省）。
  *    扫描范围是 src/tracker/** 与 src/client/**：`fail(...)` 只在这两棵树下用。
  *    括号按配平扫描，注释与字符串字面量都先顶掉，所以 `fail(` 出现在注释、模板串或文档里不算。
@@ -191,7 +196,38 @@ function splitTop(text, hadTrailingComma = false) {
   return parts
 }
 
-console.log('── A. fail(...) 一律三个参数（kind, message, raw）')
+/**
+ * 判断一次 fail(...) 调用的参数表是否合规。抽成函数是为了下面能拿几个假样例自证判据
+ * （既认得出越界写法，也不误伤正常写法），不用另搭一套装配。
+ * 合规形状只有两种：恰好三段（kind, message, raw）；或四段且第 4 段是 TRACKER_ERROR_STAGE.<阶段名>。
+ * 第三段写死 undefined/null 一律不合规：那等于不给原文，raw 必填这条就名存实亡了。
+ */
+function checkFailArgs(argsText, hadTrailingComma = false, file = '') {
+  const args = splitTop(argsText, hadTrailingComma)
+  const badRaw = () => /^\s*(undefined|null)\s*$/.test(args[2])
+  if (args.length === 3) {
+    return badRaw()
+      ? { ok: false, why: '第三段写死 undefined/null —— 等于不给原文' }
+      : { ok: true, why: '' }
+  }
+  if (args.length === 4) {
+    if (badRaw()) return { ok: false, why: '第三段写死 undefined/null —— 等于不给原文' }
+    const isStageConstant = /^\s*TRACKER_ERROR_STAGE\.[A-Za-z_]+\s*$/.test(args[3])
+    // 共用转发处把自己收到的 stage 形参原样往下传，那里允许裸的 `stage`。
+    const isForwardedStage = file === STAGE_FORWARD_FILE && /^\s*stage\s*$/.test(args[3])
+    if (!isStageConstant && !isForwardedStage) {
+      return { ok: false, why: '第 4 个参数只能是 TRACKER_ERROR_STAGE.<阶段名>，实得「' + args[3].trim() + '」' }
+    }
+    return { ok: true, why: '' }
+  }
+  return { ok: false, why: '实得 ' + args.length + ' 个参数' }
+}
+
+// 三个房共用的失败构造函数转发处：failWithHint / failFromError / failAs 把 stage 形参原样传给 fail。
+// 只放行这一个文件里的裸 `stage`，别的文件写裸标识符（包括别的变量名）仍然判红。
+const STAGE_FORWARD_FILE = 'src/tracker/rooms/markdown/error-fail.ts'
+
+console.log('── A. fail(...) 三个参数（kind, message, raw），或四段且第 4 段是 TRACKER_ERROR_STAGE.<阶段名>')
 {
   const FAIL_ROOTS = ['src/tracker', 'src/client']
   const SHARED_FAIL_FILE = 'src/tracker/kernel/preflight.ts'
@@ -241,17 +277,10 @@ console.log('── A. fail(...) 一律三个参数（kind, message, raw）')
         continue
       }
       const rawArgs = src.slice(open + 1, close)
-      const args = splitTop(noStrings.slice(open + 1, close), /,\s*$/.test(rawArgs))
-      if (args.length !== 3) {
+      const verdict = checkFailArgs(noStrings.slice(open + 1, close), /,\s*$/.test(rawArgs), file)
+      if (!verdict.ok) {
         violations.push({
-          file, line: lineOf(src, m.index), why: '实得 ' + args.length + ' 个参数',
-          text: src.slice(m.index, Math.min(close + 1, m.index + 120)).replace(/\s+/g, ' '),
-        })
-        continue
-      }
-      if (/^\s*(undefined|null)\s*$/.test(args[2])) {
-        violations.push({
-          file, line: lineOf(src, m.index), why: '第三段写死 undefined/null —— 等于不给原文',
+          file, line: lineOf(src, m.index), why: verdict.why,
           text: src.slice(m.index, Math.min(close + 1, m.index + 120)).replace(/\s+/g, ' '),
         })
       }
@@ -264,8 +293,25 @@ console.log('── A. fail(...) 一律三个参数（kind, message, raw）')
   for (const f of localFailInScope) console.log('     · ' + f + ' —— 本文件自造了一份 fail（交出去的失败对象没有 raw 字段）')
   for (const f of localFailOutOfScope) console.log('     · ' + f + ' —— 票外文件（src/client/views 等），只记录不判：它的失败值不走后端通道')
   for (const w of localFailAllowed) console.log('     · ' + w.file + ' —— 自造 fail，白名单放行（' + w.why + '）')
-  check(violations.length === 0, 'A1 每一处 fail(...) 都恰好三个参数（kind, message, raw）（实得 ' + violations.length + ' 处不合规）')
+  check(violations.length === 0, 'A1 每一处 fail(...) 都是三个参数（kind, message, raw），或四个参数且第 4 个是 TRACKER_ERROR_STAGE.<阶段名>（实得 ' + violations.length + ' 处不合规）')
   check(localFailInScope.length === 0, 'A2 本票范围（src/tracker/**、src/client/kernel/**）内没有自造 fail 的文件（实得 ' + localFailInScope.length + ' 个）')
+
+  // 判据自证：拿几条假样例走同一个判断函数。前四条是正常写法（不许误伤），
+  // 后四条是越界写法（必须认出来）；只认样例行，不读盘、不联网。
+  const SELF_CASES = [
+    { text: 'ERROR_KIND.PARSE, msg, raw', ok: true, why: '三段普通写法' },
+    { text: 'ERROR_KIND.PARSE, msg, raw, TRACKER_ERROR_STAGE.INPUT_REFUSED', ok: true, why: '四段且第 4 段是阶段标注' },
+    { text: 'ERROR_KIND.PARSE, msg, raw,', trailing: true, ok: true, why: '三段加尾随逗号（排版习惯，不是第四段）' },
+    { text: 'ERROR_KIND.PARSE, msg, raw, stage', file: STAGE_FORWARD_FILE, ok: true, why: '共用转发处原样传自己的 stage 形参' },
+    { text: 'ERROR_KIND.PARSE, msg, raw, stage', file: 'src/tracker/rooms/github/write/issues.ts', ok: false, why: '转发处以外的文件写裸标识符' },
+    { text: 'ERROR_KIND.PARSE, msg, raw, TRACKER_ERROR_STAGE.INPUT_REFUSED, extra', ok: false, why: '五段写法' },
+    { text: 'ERROR_KIND.PARSE, msg', ok: false, why: '缺 raw 的两段写法' },
+    { text: 'ERROR_KIND.PARSE, msg, undefined', ok: false, why: '第三段写死 undefined' },
+  ]
+  for (const c of SELF_CASES) {
+    const got = checkFailArgs(c.text, c.trailing === true, c.file === undefined ? '' : c.file)
+    check(got.ok === c.ok, 'A3 判据自证：' + c.why + (c.ok ? ' 应放行' : ' 应判红') + '（实得 ' + (got.ok ? '放行' : '判红：' + got.why) + '）')
+  }
 }
 
 console.log('── B. 档位字面量只许出现在真源文件里')

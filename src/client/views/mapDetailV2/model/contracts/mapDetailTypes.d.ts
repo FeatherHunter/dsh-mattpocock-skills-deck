@@ -259,11 +259,14 @@ export interface MapProfileFeedSegment {
 }
 
 /**
- * MAP 自身内容的刻画：标题、目的地、计数、完成度、「子票那句」与快照错误。
+ * MAP 自身内容的刻画：标题、目的地、计数、完成度、「子票那句」、快照错误，以及标题前身份标记要的
+ * 徽标编号与目录两格。
  *
  * 档案区（正文、已定决策、战雾、范围外、规格七段）不在这里：那部分已经移出本页，
- * 点标题进 issue 详情页看原文（维护者 2026-10-23 定）。身份小签与编号也删了：
- * 顶栏的面包屑与身份小签已经写着同一个编号，页内再说一遍是重复（维护者 2026-10-23 定）。
+ * 点标题进 issue 详情页看原文（维护者 2026-10-23 定）。身份行 2026-10-23 曾删掉（顶栏已写着同一个编号），
+ * 2026-11-02 维护者拍板恢复：标题前补「地图图标 + 容器词 + 编号徽标」，标记与标题同一行、在左侧，
+ * 标题折行时从标记下方走过（半包围）。容器词不进模型：档案头按容器种类从 kernel 中央表
+ * CONTAINER_CHIP_LABEL_KEY 取（一个值一处定义），所以模型只补徽标要的编号、目录两格。
  */
 export interface MapProfile {
   /** 这是哪一种容器：决定「子票那句」的计数词，以及规格没有目的地时不画空态提示。 */
@@ -282,6 +285,10 @@ export interface MapProfile {
   feedSegments: MapProfileFeedSegment[]
   /** 快照错误（截到 160 字）；没有错误时是空串。 */
   errorText: string
+  /** 编号徽标要显示的票号键：快照行的 key，没有就用 number；两格都空时是 null（不画空徽标）。 */
+  badgeKey: string | number | null
+  /** 徽标所在目录的短名（单工作单元后端是空串）：交给 #1564 徽标契约拼「#目录/编号」。 */
+  badgeEffortId: string
 }
 
 /**
@@ -314,6 +321,11 @@ export interface MapDetailPageInputs {
   bucket?: MapTicketsBucket | null
   /** 卡片 DOM id 前缀：调用方按「工作单元 + 地图编号」给。 */
   cardIdPrefix: string
+  /**
+   * 地图行所在工作单元的目录短名（单工作单元后端是空串）：档案标题前的编号徽标按它拼「#目录/编号」。
+   * 由页面从原始行取（effortOf(m)）再传进来，模型不自己猜。
+   */
+  effortId?: string
   /** 标签名 → 十六进制色；页面传 buildColorOf(st)。 */
   colorOf?: Record<string, string> | null
   /** 这张票的生产侧动作（真页传 rowActionKind）。 */

@@ -514,6 +514,9 @@ const KERNEL_MODULES: { name: string; file: string }[] = [
   // #1251：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
   //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 已删，不再入库）。
   { name: 'settingsViewWrite', file: 'src/client/kernel/settings-view-write.ts' },
+  // #1802：设置页打开时重读一次文档、写只发改动格。它给写那一片提供「按最新一份算补丁」的三件工具，
+  //   又在重读成功后调用写那一片的合并工具，所以标记必须排在 settingsViewWrite 之后、与写共用同一份文档。
+  { name: 'settingsViewReload', file: 'src/client/kernel/settings-view-reload.ts' },
   // #1012 第 3 步：界面偏好那三格（列表筛选/排序键/排序方向）从 localStorage 搬到本机设置文件的 ui 节。
   //   与上面那一族共用同一个待写队列与同一份文档，所以标记必须排在 settingsViewWrite 之后；
   //   旧键 dsws.listPrefs 那一条留着当过渡，读写两头的分工见该文件开头的说明。
@@ -2043,6 +2046,8 @@ const CLIENT_TIME_NAMES: string[] = [
   'SYNC_ACTION_PROBE_WINDOW_MS',
   // #1756：克隆向导页按长任务通道的中央节拍轮询进度（vcClonePage.ts 只声明名字，值由这一片给）。
   'VC_TASK_POLL_INTERVAL_MS',
+  // #1775：进工作区问宿主「用哪个后端」的等待上限（probe-scope-selection.ts 拼进闭包时，名字由这一片提供）。
+  'SEL_WAIT_MS',
   'SNAP_WAIT_MS',
   'VIEW_FLAG_WRITE_DEBOUNCE_MS',
   'REST_FALLBACK_STALE_MS',

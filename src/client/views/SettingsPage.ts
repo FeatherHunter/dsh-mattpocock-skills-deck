@@ -25,6 +25,9 @@ declare function noticeIcon(kind: unknown): string;
 declare const DSW_REPO_URL: string;
 declare const DSW_VERSION: unknown;
 declare const DiagnosticLogSection: (props: { sessionId?: unknown }) => unknown;
+// #1802：设置页每次挂上来都重读一次本机设置文档。内核的惰性读只问一次，重开设置页不再重读，
+//   于是别的窗口刚写进去的值看不到；重读要合并本窗还没落盘的待写格再替换内存文档（实现见 kernel/settings-view-reload.ts）。
+declare function settingsViewReload(): void;
 // base 包接入：客户端内联产物（scripts/generated/baseClient.derived.js，由 derive-base 脚本从已安装包生成）
 // 只 surfacing 这两个名字，实现每份在客户端闭包里各有一份；这里按本页用到的形状声明。
 declare const __baseCreateUI: (react: unknown, options: { lang?: string; selfId?: string; repoUrl?: string; issuesUrl?: string }) => any;
@@ -80,6 +83,9 @@ export     const SettingsPage = (props: { sessionId?: unknown }): unknown => {
       const sharedSt = cx ? cx.storeSvc.useStore(props && props.sessionId) : useStore(props && props.sessionId)
       // T2 悬停提示迁移：设置提示框的挂顶显示已统一交给 HoverTip 负责，显示悬停提示、移动悬停提示、隐藏悬停提示三个旧函数（showCfgTip/moveCfgTip/hideCfgTip）已经下线，移除了全局显示时序，方位与样式走统一配置表，页面行为没有变化
       const [foldVer, setFoldVer] = React.useState(0)
+      // #1802 读侧：每次打开设置页重读一次文件，看到别的窗口刚写进去的值（不要求实时推送）。
+      //   挂载时读一次，与仓里其它页面「挂载时取数」同一个模式；重读失败时保留原内存文档，不拿旧文档覆盖别人。
+      React.useEffect(function (): void { settingsViewReload() }, [])
       // #492 调试分组已搬进 views/diagnosticLog/DiagnosticLogSection.ts（状态、跑腿、画法全在里面，
       //   本页只剩一行挂载）；拨开关写本机设置文件 debug 节、导出四键走宿主电话，口径一点没变。
       // #876 更新入口全权委托：标题行按钮与更新面板 dialog 形态都由更新包的入口件挂上

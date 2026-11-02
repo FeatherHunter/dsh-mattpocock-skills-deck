@@ -50,7 +50,7 @@ import type { ErrorKind } from '../../contract/identity.js'
 import type { OpContext, RepoHandle } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { InitProjectInput } from '../../contract/inputs.js'
-import type { OpResult } from '../../contract/results.js'
+import { TRACKER_ERROR_STAGE, type OpResult } from '../../contract/results.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
 import { failGlab } from './errors.js'
@@ -202,13 +202,14 @@ export async function initProject(
 ): Promise<OpResult<RepositoryRef>> {
   const cwd = (handle && typeof handle.cwd === 'string' && handle.cwd) || (ctx && ctx.cwd) || ''
   const name = input && typeof input.name === 'string' ? input.name.trim() : ''
-  if (!name) return fail(ERROR_KIND.PARSE as ErrorKind, 'initProject: 仓库名不能为空', '')
+  // 仓库名与它的字符集/长度都在发出任何 git 或 glab 命令之前检查，标输入被拒。
+  if (!name) return fail(ERROR_KIND.PARSE as ErrorKind, 'initProject: 仓库名不能为空', '', TRACKER_ERROR_STAGE.INPUT_REFUSED)
   if (!/^[A-Za-z0-9._-]+$/.test(name) || name.length > 100) {
     // 原文取调用方给的那个名字（名字里可能有换行之类，原样带出去让界面能展开看）。
     return fail(
       ERROR_KIND.PARSE as ErrorKind,
       'initProject: 仓库名只支持字母、数字、点、下划线、连字符，最长 100 个字符',
-      String(input.name),
+      String(input.name), TRACKER_ERROR_STAGE.INPUT_REFUSED,
     )
   }
   const visibility = input && input.visibility === 'public' ? 'public' : 'private'

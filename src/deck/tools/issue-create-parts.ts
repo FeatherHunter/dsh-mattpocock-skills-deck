@@ -11,6 +11,9 @@
 //   2. 描述文案是提示词成本：改字等于改模型看到的东西，不属于「拆文件」的范围。
 //   3. 工具名 deck_issue_create 由这里出，改名要同时改装配层、门禁与文档，不在本文件自留地里做。
 import { MD_SCOPE_CREATE } from './md-scope.js'
+import { DECK_STATUS } from '../shell/call-shell.js'
+import { reasonForItems } from '../shell/receipt-reason.js'
+import * as budget from '../../refresh/kernel/host-budget.js'
 
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
@@ -60,4 +63,13 @@ export function landingNote(issue: Record<string, unknown> | null | undefined): 
     return '落在 ' + (effort ? '.scratch/' + effort + '/spec.md' : file) + '（容器编号 00）。'
   }
   return '落在 ' + (effort ? '.scratch/' + effort + '/issues/' : '') + file + '（编号 ' + String((issue && issue.key) || '') + '）。'
+}
+
+/** 部分成功（票建成、某一步没做成）的回执形状：四处分支的 status / reason / data / items / notes /
+ *  touched 与拆之前逐字相同，集中在这里只为把 issue-create.ts 压回 350 有效行以内。 */
+export function partialCreateResult(issue: Record<string, unknown>,kind: string,anchor: string,items: Array<Record<string, unknown>>,notes: string[],text: string,claimed: { requests: number; points: number }): unknown {
+  return {
+    value: { status: DECK_STATUS.PARTIAL, reason: reasonForItems(items), text: text, data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } }, items: items, notes: notes, touched: issue.key ? [String(issue.key)] : [] },
+    claimed: claimed,
+  }
 }

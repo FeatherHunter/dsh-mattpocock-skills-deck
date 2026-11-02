@@ -31,7 +31,7 @@ declare function ticketFactsContextOf(rows: any, env: any): any;
 declare function ticketCardFactsOf(row: any, ctx: any): any;
 declare function orderTicketBoard(facts: any): any;
 declare function boardCountsOf(facts: any): any;
-declare function mapProfileOf(m: any, feed: any, counts: any): any;
+declare function mapProfileOf(m: any, feed: any, counts: any, effortId?: string): any;
 declare function cardPropsListOf(facts: any, handlers: any, colorOf: any): any;
 
 /**
@@ -66,7 +66,7 @@ export function mapDetailPageModelOf(input: MapDetailPageInputs): MapDetailPageM
   const facts: TicketCardFacts[] = feed.rows.map(function (row: any) { return ticketCardFactsOf(row, ctx) })
   const board = orderTicketBoard(facts)
   const counts = boardCountsOf(facts)
-  const profile = mapProfileOf(input.map, feed, counts)
+  const profile = mapProfileOf(input.map, feed, counts, input.effortId)
   const colorOf = input.colorOf || null
   const rawHandlers = input.handlers || null
   // handlers 可以是回调对象，也可以是「拿到这批行再给回调」的函数：后者让页面先看见行、再造回调。

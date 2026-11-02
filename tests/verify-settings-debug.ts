@@ -175,6 +175,9 @@ const DERIVED_REL = 'scripts/generated/logKernel.derived.js'
 const STATE_REL = 'src/client/kernel/settings-view-state.js'
 const VIEW_REL = 'src/client/kernel/settings-view.js'
 const WRITE_REL = 'src/client/kernel/settings-view-write.js'
+  // #1802：跨窗口合写要用到的几件工具（重读后的合并、算补丁、按格取值）另住一片，
+  //   构建时按次序拼在写这一片之后；这里也照同一次序拼，门禁跑到的才是产物里的那一段。
+  const RELOAD_REL = 'src/client/kernel/settings-view-reload.js'
 const DEBUG_REL = 'src/client/kernel/settings-debug.js'
 // 行数口径量真源（转成 TS 后产物经转译排版会胀行，胀的是机器排版不是手写；零增长守的是手写，量真源）。
 const DEBUG_TRUTH_REL = 'src/client/kernel/settings-debug.ts'
@@ -187,7 +190,7 @@ function makeClient(env) {
   // 设置文档三片与 debug 这一片都已有同名 .ts 真源（旁边 .js 是构建产物），取源走共用入口的 spliceableJs：
   // 它按构建唯一口径转译、去掉行首 export、剥掉中央时间 import，拼出来就是真正进产物的那段代码。
   // logKernel.derived.js 是纯派生产物、没有手写真源，继续直接读。
-  const body = [noExport(readText(DERIVED_REL)), spliceableJs(STATE_REL), spliceableJs(VIEW_REL), spliceableJs(WRITE_REL), spliceableJs(DEBUG_REL)].join('\n')
+  const body = [noExport(readText(DERIVED_REL)), spliceableJs(STATE_REL), spliceableJs(VIEW_REL), spliceableJs(WRITE_REL), spliceableJs(RELOAD_REL), spliceableJs(DEBUG_REL)].join('\n')
   const names = ['host', 'timer', 'localStorage', 'broadcastLogSwitch', 'keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'currentOs', 'workspaceRootByCwd', 'dswsLogHash', 'SETTINGS_DEBUG_PUSH_WAIT_MS']
   return compileFn(names, body + TAIL).apply(null, names.map((n) => env[n]))
 }
@@ -632,9 +635,11 @@ async function main(): Promise<void> {
     check(!!dShell && dShell.ui.stateFilter === 'open' && dShell.templates.comment === 'hello',
       '半份文档没被当成基底：别的节（ui.stateFilter、templates.comment）原样还在，没被写成空值。',
       JSON.stringify({ ui: dShell && dShell.ui, templates: dShell && dShell.templates }))
-    // 三、第一趟问到真文档（debug 节是 {enabled: true, sampleRate: 0.25}），写之前那次重读答半份 {version:1}：这一笔
-    //   要退回内存那一份当基底，所以内存文档里刚写进去的采样率必须跟着走 —— 只写开关那一格时，文件里会留着 0.25
-    //   （2026-10-12 复核的必修 4：变异体下这一档原来 105 条全绿）。
+    // 三、第一趟问到真文档（debug 节是 {enabled: true, sampleRate: 0.25}），写之前那次重读答半份 {version:1}：
+    //   #1802 起这一趟不再退回内存旧文档当基底整份写回，而是放弃这一趟、留着待写格等下一趟重试（重读答半份
+    //   等于「拿不到可信的最新基底」，拿旧的整份写就是这条票要修的覆盖别人）。下一趟重读问到真文档，只送
+    //   「本窗改动过的格」的补丁：用户拨开时递进去的采样率是 1，所以补丁里必须有 sampleRate: 1 —— 若按旧思路
+    //   只送开关那一格，文件里会留着 0.25（2026-10-12 复核的必修 4：变异体下这一档原来 105 条全绿）。
     const home3 = makeHome('rate-base')
     await store.writeLocalSettings(dbgDoc({ enabled: true, sampleRate: 0.25 }), home3, realIo)
     const env3 = makeEnv({ tag: 'rate-base', home: home3, getSeq: [null, { ok: true, value: { version: 1 } }] })
@@ -648,11 +653,19 @@ async function main(): Promise<void> {
     check(dRate, '落盘后 debug 节是 {enabled: true, sampleRate: 1}（重读答半份时以内存那一份当基底，两格都是新写的值）。', JSON.stringify(((await readDoc(home3)) || {}).debug))
     // 光看盘上最后那一份还不够：这一趟若只把开关那一格写进内存文档，盘上那份带着旧的 0.25，回包按值划队列时这条
     //   对不上，于是自己又重排一趟、把队列里的值补写进去，最后盘上看起来也是对的（复核指出：变异体下 105 条全绿）。
-    //   所以要直接查「第一趟发出去的那份文档」与「一共发了几趟」，这两条才是这一格的判据。
-    const firstWrite = callsOf(env3, 'wf.setSettings')[0]
-    const sentDbg = firstWrite && firstWrite.args && firstWrite.args.value && firstWrite.args.value.debug
-    check(!!sentDbg && sentDbg.enabled === true && sentDbg.sampleRate === 1,
-      '第一趟发出去的 debug 节就是 {enabled: true, sampleRate: 1}（只写开关那一格时这里会是旧的 0.25）。', JSON.stringify(sentDbg))
+    //   所以要直接查「最终发出去的那份补丁」与「一共发了几趟」，这两条才是这一格的判据。
+    //   半份文档那一趟必须没有发出去（写电话一次都不该在那趟调用），重试那一趟只发按格补丁。
+    const sends = callsOf(env3, 'wf.setSettings')
+    const sentPatch = sends.length === 1 && sends[0].args && sends[0].args.patch
+    const sentDbg = sentPatch && sentPatch.debug
+    check(!!sentDbg && sentDbg.sampleRate === 1 && sentDbg.enabled !== false,
+      '重读答半份那一趟没有发出去；重试那一趟的补丁里带着 sampleRate: 1（只写开关那一格时这里会是旧的 0.25）。',
+      JSON.stringify({ sends: sends.length, patch: sentPatch }))
+    check(sends.every((c) => !c.args || c.args.value === undefined),
+      '这一笔从头到尾没有整份 {value} 发出去（拿不到可信基底时放弃这一趟，不拿内存旧文档顶别人）。',
+      JSON.stringify(sends.map((c) => Object.keys(c.args || {}))))
+    const baseGets = callsOf(env3, 'wf.getSettings').length
+    check(baseGets >= 3, '写之前一共问了三次文档：第一次加载、第一次重读（答半份、这一趟放弃）、重试前再问一次（这才拿到真基底）。', String(baseGets))
     // 「只发一趟」也要等防抖窗口走完再数（2026-10-12 复核的顺带建议 ②）：窗口没过时「补的那一趟」还没排上，
     //   数出来永远是 1，那条断言就成了结构上不可能失败的断言。判据仍是上面「第一趟发出去的那份文档」。
     await quietAfter(env3)
@@ -854,14 +867,56 @@ async function main(): Promise<void> {
       const setCalls = []
       const endpoints = []
       const logSends = []
+      // #1802：设置页每次打开都会重读一次文件（设置页挂载时那条重读口子），所以这一层的假宿主也要像真宿主那样
+      //   把 setSettings 写进去的那几格记下来，getSettings 再答出来。否则「A 页刚拨、B 页打开」这一档会读到一份
+      //   永远不更新的旧文件，那是在量假件自己的记忆缺口，不是在量页面。
+      const cloneDoc = (d) => JSON.parse(JSON.stringify(d))
+      let servedDoc = fullDocOf(opts.docEnabled)
+      const applyPatchToDoc = (doc, patch) => {
+        if (!doc || !patch || typeof patch !== 'object') return doc
+        const merge = (dst, src) => {
+          const keys = Object.keys(src)
+          for (let i = 0; i < keys.length; i++) {
+            const k = keys[i]
+            const v = src[k]
+            if (v === null) { delete dst[k]; continue }
+            if (v && typeof v === 'object' && !Array.isArray(v)) {
+              if (!dst[k] || typeof dst[k] !== 'object' || Array.isArray(dst[k])) dst[k] = {}
+              merge(dst[k], v)
+              continue
+            }
+            dst[k] = v
+          }
+          return dst
+        }
+        return merge(doc, patch)
+      }
       let setReply = opts.setReply
       let setDelayMs = opts.setDelayMs || 0
+      // #1802：设置页挂载时就会重读一次文档，假宿主若立刻答话，「文档还没到手时用户先拨一下」这一整组老路档就失去前提。
+      //   真宿主读一次文件通常比 300 毫秒快，但那个窗口确实存在；这里故意慢成 300 毫秒，让这一档在门禁里稳定可复现。
+      //   想换时长可传 docDelayMs（0 表示不等）。
+      const docDelayMs = (opts.docDelayMs === undefined) ? 300 : opts.docDelayMs
+      // 只慢第一次（页面打开那一趟重读/惰性读）；写之前那次「再读一份最新的」照常快回，不然后面的写会排队等门。
+      let docDelayLeft = docDelayMs > 0 ? 1 : 0
       const hostReply = (endpoint, args) => {
         endpoints.push(endpoint)
         if (endpoint === 'logBatch') { try { logSends.push(JSON.stringify(args).slice(0, 400)) } catch (e) {} return { ok: true, value: { ok: true, accepted: 1 } } }
-        if (endpoint === 'getSettings') return { ok: true, value: { ok: true, value: fullDocOf(opts.docEnabled) } }
+        // 真宿主每次答的都是从文件里重新解析出来的一份新对象；这里也必须给拷贝：页面会把拿到的文档就地改，
+        //   与假宿主手里那份同一个引用时，「写之前再读一次」读回来的正好是页面刚改过的那份，补丁会算成空。
+        if (endpoint === 'getSettings') return { ok: true, value: { ok: true, value: cloneDoc(servedDoc) } }
         // 只留一份能安全打印的摘要（真文档里带 getter 之类时 JSON.stringify 整份会抛，门禁不该踩这个坑）。
-        if (endpoint === 'setSettings') { setCalls.push({ keys: Object.keys(args || {}), valueKeys: (args && args.value) ? Object.keys(args.value) : null, dbg: (args && args.value && args.value.debug) ? JSON.parse(JSON.stringify(args.value.debug)) : null }); return { ok: true, value: { ok: true } } }
+        // #1802 起客户端送的是「按格补丁 + 基底指纹」（{patch, baseHash}），旧整份 {value} 只作兼容保留。
+        //   这一档要量「写进文件的 debug 节是什么」，所以两种入参里的 debug 都记下来，dbg 取哪一边有就用哪一边。
+        if (endpoint === 'setSettings') {
+          const patchDbg = (args && args.patch && args.patch.debug) ? JSON.parse(JSON.stringify(args.patch.debug)) : null
+          const valueDbg = (args && args.value && args.value.debug) ? JSON.parse(JSON.stringify(args.value.debug)) : null
+          setCalls.push({ keys: Object.keys(args || {}), valueKeys: (args && args.value) ? Object.keys(args.value) : null, patchKeys: (args && args.patch) ? Object.keys(args.patch) : null, dbg: valueDbg || patchDbg })
+          // 真宿主写完马上就能读回来；这一点下面「A 页刚拨、B 页打开」那一档要靠它。
+          if (args && args.patch) servedDoc = applyPatchToDoc(cloneDoc(servedDoc), args.patch)
+          else if (args && args.value && typeof args.value === 'object') servedDoc = cloneDoc(args.value)
+          return { ok: true, value: { ok: true, contentHash: 'fake-hash' } }
+        }
         if (endpoint === 'logGetSwitch') return { ok: true, value: { ok: true, enabled: opts.docEnabled === true, sampleRate: 1 } }
         if (endpoint === 'logSetSwitch') { logSet.push(args); return setReply(args) }
         return { ok: true, value: { ok: true } }
@@ -873,6 +928,7 @@ async function main(): Promise<void> {
       let maxInFlight = 0
       let sampleAtHostCall = null
       const callHost = async (endpoint, args) => {
+        if (endpoint === 'getSettings' && docDelayLeft > 0) { docDelayLeft -= 1; await sleep(docDelayMs); return hostReply(endpoint, args) }
         if (endpoint !== 'logSetSwitch') return hostReply(endpoint, args)
         logSet.push(args)
         // 电话到宿主手里的那一刻给测试一个采样点：第六段用它分辨「这一趟是在这一拨收场之前发出去的、还是收场之后
@@ -1160,8 +1216,8 @@ async function main(): Promise<void> {
     //   一张设置页里做不出「窗口里再拨一下」：拨动一开始复选框就被 dbgPending 禁用了，第二下点不动（本轮实测，
     //   第一版就是这么写的、当场红了三条）。能复现的是「两扇窗口同时开着这一页」：A 页那一趟在飞，B 页自己的
     //   pending 还是空的，于是 B 这一拨只能排队 —— 用户在两个窗口里连着拨就是这件事。
-    //   两页读的是同一份共享提示，所以第一拨故意让它失败：留在提示里的是失败那句话，不会跟 B 页要读的那句撞车
-    //   （第一版让第一拨成功，提示里留着同一句「已打开」，B 页那条断言就成了空过的）。
+    //   #1802 起 B 页打开时自己重读一次文件，所以这一档的开局改成：A 页先拨开（写进文件、宿主那一趟故意拖 800 毫秒），
+    //   B 页在窗口中间打开、重读文件读到这个开，再拨关排队。这样 B 页读到的「开」来自文件，不再依赖两页共用的内存。
     {
       // 宿主一律拒收「开」、收下「关」：A 页那两拨（第一拨走老路、第二拨走文件这条路）都轮不到收下，B 页排队的
       //   那一拨（关）会被收下 —— 「排队那趟拿的是自己那趟的结果」才有对照。
@@ -1172,16 +1228,18 @@ async function main(): Promise<void> {
           : { ok: true, value: { ok: true, enabled: false, sampleRate: 1 } }),
       })
       const a = await p.mount()
-      check(await p.click(a.container), 'A 页第一拨（拨成开，走老路、副本拒收）点得动（这一拨只为把文档问起来）。')
-      await sleep(300)
+      // #1802 起设置页挂载时自己重读一次文档，所以不必再靠一拨「把文档问起来」：等这一趟读回来、页面稳下来即可。
+      await sleep(400)
+      const boxA0 = p.boxOf(a.container)
+      check(!!boxA0 && boxA0.checked === false, 'A 页开局是关（文件里 debug 关着）。', String(!!boxA0 && boxA0.checked))
       const beforeQueued = p.logSet.length
-      // 宿主回话拖到 800 毫秒：A 页那一趟（开、要被拒）在飞，B 页这一拨才排得进窗口。
+      // 宿主回话拖到 800 毫秒：A 页这一趟（开）在飞，B 页这一拨才排得进窗口。
       p.setDelay(800)
-      check(await p.click(a.container), 'A 页第二拨（拨成开，走文件这条路）点得动（这一趟要在飞 800 毫秒）。')
-      // B 页在窗口中间打开：它开局读到的是内存里刚落的开，所以它这一拨是拨成关。
+      check(await p.click(a.container), 'A 页拨成开（走文件这条路）点得动（这一趟要在飞 800 毫秒）。')
+      // B 页在窗口中间打开：它重读文件读到刚落的开，所以它这一拨是拨成关。
       const b = await p.mount()
       const boxB0 = p.boxOf(b.container)
-      check(!!boxB0 && boxB0.checked === true, 'B 页在窗口中间打开，开局是开（读到内存里刚落的开）。', String(!!boxB0 && boxB0.checked))
+      check(!!boxB0 && boxB0.checked === true, 'B 页在窗口中间打开，开局是开（重读文件读到 A 页刚写进去的开）。', String(!!boxB0 && boxB0.checked))
       // 电话到的那一刻采一笔「B 页复选框现在禁用不禁用」：收场之前它禁用着；收场之后（自愈补推那一趟）已经放开。
       //   同值不同时刻，就靠这一笔分开。
       p.setHostCallSample((rec) => { const bb = p.boxOf(b.container); rec.duringPending = !!(bb && bb.disabled) })

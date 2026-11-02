@@ -6,6 +6,7 @@
 // 五区块（Destination / Notes / Decisions so far / Not yet specified / Out of scope）用共享层的
 // parseMapBody 解析，同样是单源。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { evidenceFields, failureOf } from '../shell/receipt-reason.js'
 import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
@@ -17,6 +18,17 @@ import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforce
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
+
+/** 失败回执里的「下一步做什么」：reason 已经回答了下一步，text 要跟它指向同一件事。
+ *  只给本工具判断得了的几种码补一句；其余（后端说做不到等）保持原话，不替后端发明退路。 */
+function nextStepText(reason: string): string {
+  if (reason === REFUSAL_REASONS.BAD_ARGS) return '票号可能写错了：先用 deck_issue_list 或 deck_issue_get 确认这张地图票存在，再重读。'
+  if (reason === REFUSAL_REASONS.BACKEND_TIMEOUT) return '等一会儿重调一次。'
+  if (reason === REFUSAL_REASONS.BACKEND_THREW) return '读没有副作用，可以直接重调一次。'
+  if (reason === REFUSAL_REASONS.OVER_CAP) return '稍等一会儿再调。'
+  if (reason === REFUSAL_REASONS.BACKEND_UNSUPPORTED) return '这条路当前走不通，按工具故障处理或换一个后端后再试。'
+  return '重调一次再看数。'
+}
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
@@ -62,11 +74,30 @@ function statusRowFields(issue: Record<string, unknown>): Record<string, unknown
   out.statusConflict = !!issue.statusConflict
   return out
 }
+/**
+ * 从后端回来的认领人清单里挑出名字：字符串直接用，对象取 login，两种混着来也认。
+ * 取不到名字的记空串、最后去空：本地 Markdown 票面写着可见 Status: claimed、却没写认领人时，
+ * 解析层会补一个 {login:''} 的占位对象，意思是「已认领、这份文件没记下是谁」，不是「未认领」；
+ * 快照的两档行都按「没有名字可显示」处理，而不是把对象插值成 [object Object]（#1800）。
+ * 与 issue-list.ts 里的 assigneeNames 同一口径；那一份是模块内私有，这里照写法各留一份，不跨工具文件 import。
+ * full 与 thin 两档共用这一份，免得两处口径漂开。
+ */
+function assigneeNames(list: unknown): string[] {
+  if (!Array.isArray(list)) return []
+  return list.map((a) => {
+    if (typeof a === 'string') return a
+    if (a && typeof a === 'object') {
+      const v = (a && a.login) || ''
+      return String(v)
+    }
+    return ''
+  }).map((s) => s.trim()).filter(Boolean)
+}
 
 /** 一行子票（full 档）。行的形状是后端回来的运行时真值（契约层没建模），按开放表收口。 */
 function childRow(issue: Record<string, unknown>) {
   const labels = Array.isArray(issue.labels) ? issue.labels.map((l) => (l && l.name) || String(l)) : []
-  const assignees = Array.isArray(issue.assignees) ? issue.assignees.map((a) => (a && a.login) || String(a)) : []
+  const assignees = assigneeNames(issue.assignees)
   const blockedBy = Array.isArray(issue.blockedBy) ? issue.blockedBy.map((r) => (r && r.key) || String(r)) : []
   // 进度直接从正文算（与汇总用的同一个函数，结果一致）：汇总那张表按池内身份存键，
   // 行里拿裸票号去查恒查不到，之前有子票的地图就整包被外层拒收（只读空地图能过）。
@@ -87,7 +118,7 @@ function childRow(issue: Record<string, unknown>) {
 // 薄行：只要画清单用得上的格，不要正文与进度（回包小、票多时不断；统计与进度表另有去处）。
 function thinRow(issue: Record<string, unknown>) {
   const labels = Array.isArray(issue.labels) ? issue.labels.map((l) => (l && l.name) || String(l)) : []
-  const assignees = Array.isArray(issue.assignees) ? issue.assignees.map((a) => (a && a.login) || String(a)) : []
+  const assignees = assigneeNames(issue.assignees)
   const blockedBy = Array.isArray(issue.blockedBy) ? issue.blockedBy.map((r) => (r && r.key) || String(r)) : []
   return { key: issue.key, title: issue.title, state: issue.state, labels: labels, assignees: assignees, blockedBy: blockedBy, updatedAt: issue.updatedAt || '', ...statusRowFields(issue) }
 }
@@ -141,12 +172,14 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
       const gotMap = await mapPromise
       if (!gotMap || gotMap.ok !== true) {
         const msg = String((gotMap && gotMap.error && gotMap.error.message) || '后端没给出原因').slice(0, 300)
+        // #1799：reason 走统一映射（读地图也是读后端），失败证据留后端原档位与映射后的码。
+        const ev = failureOf(gotMap, 'read')
         return {
           value: {
             status: DECK_STATUS.UNSUPPORTED,
-            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '这张地图没读回来（后端原话：' + msg + '）。',
-            data: { key: key, error: { kind: String((gotMap && gotMap.error && gotMap.error.kind) || ''), message: msg } },
+            reason: ev.code,
+            text: '这张地图没读回来（后端原话：' + msg + '）。' + nextStepText(ev.code),
+            data: { key: key, error: Object.assign({ message: msg }, evidenceFields(ev)) },
           },
           claimed: { requests: 1, points: 3 },
         }
@@ -172,6 +205,9 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
       const projection = deriveDeck({ maps: [Object.assign({}, map, { tickets: children })], issues: [] })
       const blocks = parseMapBody(String(map.body || ''))
       const partial = !kids || kids.ok !== true
+      // #1799：子票没取全时，失败的那一次读也要按统一映射给 reason；没有 kind 就落 backend-unsupported，
+      // 文案跟着换成同一方向，不能一边说「走不通」一边劝人原样重试。
+      const kidsEv = partial ? failureOf(kids, 'read') : null
       // frontierOnly：在手上这批子票里按派生口径筛可接（未关闭、认领已知且空、阻塞已满足；
       // 图外阻塞按未知计为被阻塞，与派生视图的 NOT-FOUND 安全侧一致，不误判可接）。
       let shown = children
@@ -207,13 +243,15 @@ export function createDeckMapSnapshot(deps?: DeckMapSnapshotDeps) {
       return {
         value: {
           status: partial ? DECK_STATUS.PARTIAL : DECK_STATUS.OK,
-          reason: partial ? REFUSAL_REASONS.BACKEND_UNSUPPORTED : '',
-          text: partial ? '地图 ' + key + '：子票没取全（后端没给全），手上这 ' + children.length + ' 张算出来的数偏乐观，先重调一次再看数。' : '地图 ' + key + '：子票 ' + children.length + ' 张，未关闭 ' + projection.stats.open + ' 张、已关闭 ' + projection.stats.closed + ' 张、可接 ' + projection.stats.frontier + ' 张、被阻塞 ' + projection.stats.blocked + ' 张，其中状态冲突 ' + statusConflictCount + ' 张。',
+          reason: kidsEv ? kidsEv.code : '',
+          text: partial ? '地图 ' + key + '：子票没取全（后端没给全），手上这 ' + children.length + ' 张算出来的数偏乐观。' + nextStepText(kidsEv ? kidsEv.code : '') : '地图 ' + key + '：子票 ' + children.length + ' 张，未关闭 ' + projection.stats.open + ' 张、已关闭 ' + projection.stats.closed + ' 张、可接 ' + projection.stats.frontier + ' 张、被阻塞 ' + projection.stats.blocked + ' 张，其中状态冲突 ' + statusConflictCount + ' 张。',
           data: {
             map: { key: map.key, title: map.title, state: map.state, labels: Array.isArray(map.labels) ? map.labels.map((l: any) => (l && l.name) || String(l)) : [], updatedAt: map.updatedAt || '', url: map.url || '' },
             children: shown.map((t) => (thin ? thinRow(t) : childRow(t))),
             stats: partial ? null : projection.stats,
             truncated: partial,
+            // 失败证据只在子票没取全时出现，成功回执的形状一字不动（金标准回执在 tests/tracker-contract/fixtures/golden-receipts/）。
+            ...(kidsEv ? { kidsError: evidenceFields(kidsEv, 'errorKind') } : {}),
             labels: projection.labels,
             progressOf: projection.progressOf,
             blockedByKeys: projection.blockedByKeys,

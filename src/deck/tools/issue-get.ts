@@ -4,6 +4,7 @@
 // 读票与读阻塞边是两次远端调用，#1610 起这两条一起发出去：串行等于把两次等待相加，
 // 并发之后只等较长的那一条，发出去的请求数一条不少。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
+import { evidenceFields, failureOf, reasonForFailure, reasonForResult } from '../shell/receipt-reason.js'
 import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
@@ -41,12 +42,22 @@ function timeoutMessage(result: TransportResult): string | null {
   if (e && e.kind === 'timeout') return String(e.message || '执行层没回来')
   return null
 }
+/** 失败回执里的「下一步做什么」：reason 已经回答了下一步，text 要跟它指向同一件事，不能各说各的。
+ *  只给本工具判断得了的几种码补一句；其余（后端说做不到等）保持原话，不替后端发明退路。 */
+function nextStepText(reason: string): string {
+  if (reason === REFUSAL_REASONS.BAD_ARGS) return '票号可能写错了：先用 deck_issue_list 或 deck_issue_get 确认这张票存在，再重读。'
+  if (reason === REFUSAL_REASONS.BACKEND_TIMEOUT) return '等一会儿重调一次：读票没有副作用，这次只是没等到回包。'
+  if (reason === REFUSAL_REASONS.BACKEND_THREW) return '读票没有副作用，可以原样重调一次。'
+  if (reason === REFUSAL_REASONS.OVER_CAP) return '稍等一会儿再调，或把这次读拆小一点。'
+  return ''
+}
+
 /** 超时回执：状态与失败那一支同形（unsupported + 独立原因码 + 原话进 data），不抛。 */
 function timeoutValue(text: string, data: Record<string, unknown>, claimed: { requests: number; points: number }) {
   return {
     value: {
       status: DECK_STATUS.UNSUPPORTED,
-      reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
+      reason: reasonForFailure({ kind: 'timeout', phase: 'read' }),
       text: text,
       data: data,
     },
@@ -59,7 +70,7 @@ function transportValue(message: string, claimed: { requests: number; points: nu
   return {
     value: {
       status: DECK_STATUS.UNSUPPORTED,
-      reason: REFUSAL_REASONS.BACKEND_THREW,
+      reason: reasonForFailure({ kind: 'backend-threw', phase: 'read' }),
       text: '后端实现抛错了（我没有把它抛给 AI，按三态返回）：' + String(message).slice(0, 300),
       data: data,
     },
@@ -142,6 +153,25 @@ function statusSentenceOf(issue: Record<string, unknown>): string {
 }
 
 /**
+ * 从后端回来的认领人清单里挑出名字：字符串直接用，对象取 login，两种混着来也认。
+ * 取不到名字的记空串、最后去空：本地 Markdown 票面写着可见 Status: claimed、却没写认领人时，
+ * 解析层会补一个 {login:''} 的占位对象，意思是「已认领、这份文件没记下是谁」，不是「未认领」；
+ * 票面显示应当按「没有名字可显示」处理，而不是把对象插值成 [object Object]（#1800）。
+ * 与 issue-list.ts 里的 assigneeNames 同一口径；那一份是模块内私有，这里照写法各留一份，不跨工具文件 import。
+ */
+function assigneeNames(list: unknown): string[] {
+  if (!Array.isArray(list)) return []
+  return list.map((a) => {
+    if (typeof a === 'string') return a
+    if (a && typeof a === 'object') {
+      const v = (a && a.login) || ''
+      return String(v)
+    }
+    return ''
+  }).map((s) => s.trim()).filter(Boolean)
+}
+
+/**
  * 列表行里挑出要给 AI 看的那几项。读的是后端回来的运行时真值（形状未在契约层建模的房内字段也在），
  * 所以先当未知收口：不是对象就回 null，字段缺了用空串/null 补，不猜。
  */
@@ -150,7 +180,7 @@ function issueBrief(issue: Record<string, unknown> | null | undefined) {
   return {
     key: issue.key, title: issue.title, state: issue.state, type: issue.type,
     labels: Array.isArray(issue.labels) ? issue.labels.map((l) => (l && l.name) || String(l)) : [],
-    assignees: Array.isArray(issue.assignees) ? issue.assignees.map((a) => (a && a.login) || String(a)) : [],
+    assignees: assigneeNames(issue.assignees),
     updatedAt: issue.updatedAt || '', closedAt: issue.closedAt || '', url: issue.url || '',
     commentCount: typeof issue.commentCount === 'number' ? issue.commentCount : (Array.isArray(issue.comments) ? issue.comments.length : 0),
     body: issue.body !== undefined ? issue.body : null,
@@ -264,12 +294,15 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
       if (gotTransport) return transportValue(gotTransport, claimedOf(), { key: key, backendId: pick.backendId, error: { kind: String((got && got.error && got.error.kind) || 'backend-threw'), message: gotTransport.slice(0, 300) } })
       if (!got || got.ok !== true) {
         const msg = String((got && got.error && got.error.message) || '后端没给出原因').slice(0, 300)
+        // #1799：reason 不再手写「后端做不到」，改由统一映射从后端原档位（以及房间标的失败阶段）推出来；
+        // 失败证据也一并留下：code 是映射后的下一步，kind/stage 是后端原值。
+        const ev = failureOf(got, 'read')
         return {
           value: {
             status: DECK_STATUS.UNSUPPORTED,
-            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '这张票没读回来（后端原话：' + msg + '）。',
-            data: { key: key, backendId: pick.backendId, error: { kind: String((got && got.error && got.error.kind) || ''), message: msg } },
+            reason: ev.code,
+            text: '这张票没读回来（后端原话：' + msg + '）。' + nextStepText(ev.code),
+            data: { key: key, backendId: pick.backendId, error: Object.assign({ message: msg }, evidenceFields(ev)) },
           },
           claimed: claimedOf(),
         }

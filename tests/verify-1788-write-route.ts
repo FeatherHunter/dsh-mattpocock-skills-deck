@@ -14,15 +14,18 @@
 //   H 旧扁平路径（.scratch/map.md + .scratch/issues/）写认领仍然被拒绝，文件一个字节不动；
 //   I Blocked by 按票面已有样式写（只有裸字段的票写裸行，加粗实施票写加粗行）；
 //   J 挂父票写文件头隐藏 <!-- DSH-PARENT: NN -->，不再写旧的 <!-- parentKey: NN -->。
-//   K 目录里没有编号的手写票（文件名与标题都没有编号）：认领同样只写隐藏注释、可见 Status 不动；
-//   L 普通目录（既没有 spec.md 也没有 map.md）里的票重开：可见 Status 行被删掉，普通票可以没有状态。
+//   K 目录里没有编号的手写票（文件名与标题都没有编号）：认领同样只写隐藏注释、可见 Status 不动。
+//   L 普通目录（既没有 spec.md 也没有 map.md）里的票重开：可见 Status 行被删掉，普通票可以没有状态；
+//     对 00 号容器（spec.md / map.md 本身）写阻塞边同样如实拒绝，文件一个字节不动。
+//   M 规格路线（手写票、加粗实施票、规格容器）上写 customFields Type：如实拒绝，文件一个字节不动；
+//   N 地图子票写 Type：只改那行裸 Type（值只认四个类型词），不加粗、不出现第二行。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1788-write-route.ts
 
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { createIssue, getIssue } from '../src/tracker/rooms/markdown/issues.ts'
+import { createIssue, getIssue, updateIssue } from '../src/tracker/rooms/markdown/issues.ts'
 import { setAssigneesIssue, setBlockedByIssue, setParentIssue } from '../src/tracker/rooms/markdown/issues-patch.ts'
 import { closeIssue, reopenIssue } from '../src/tracker/rooms/markdown/issues-status.ts'
 import { ticketFormOf } from '../src/tracker/rooms/markdown/original-fields.ts'
@@ -130,6 +133,9 @@ function withoutHiddenComment(text: string, name: string): string {
 }
 function countStatusLines(text: string): number {
   return text.split('\n').filter((line) => /^Status\s*[:：]/.test(line)).length
+}
+function countTypeLines(text: string): number {
+  return text.split('\n').filter((line) => /^\s*(?:\*\*)?Type(?:\*\*)?\s*[:：]/.test(line)).length
 }
 
 async function main(): Promise<void> {
@@ -265,6 +271,29 @@ async function main(): Promise<void> {
   check(/^Status: needs-triage$/m.test(kAfter), 'K 可见 Status 仍是 needs-triage；实际：' + JSON.stringify(kAfter.split('\n').filter((l) => /^Status/.test(l))))
   check(ticketFormOf(kBefore) === ticketFormOf(kAfter), 'K 票面形状认领前后相同；认领前：' + ticketFormOf(kBefore) + '，认领后：' + ticketFormOf(kAfter))
 
+  // —— 场景 L：00 号容器（spec.md 本身）没有 Blocked by 字段，写阻塞边要如实拒绝 ——
+  const specPath = path.join(tmp, '.scratch', '验收甲', 'spec.md')
+  const lSpecBefore = readText(specPath)
+  const lSpecBlocked = await setBlockedByIssue(ctx as never, featureRepo as never, '00', ['01'] as never, {} as never)
+  check(!(lSpecBlocked && lSpecBlocked.ok), 'L 对规格容器 00 写阻塞边要失败（容器原文没有 Blocked by）；实际返回：' + JSON.stringify(lSpecBlocked))
+  check(!!(lSpecBlocked && !lSpecBlocked.ok && lSpecBlocked.error.kind === 'unsupported'), 'L 失败档位是 unsupported；实际：' + JSON.stringify(lSpecBlocked && !lSpecBlocked.ok ? lSpecBlocked.error : lSpecBlocked))
+  check(readText(specPath) === lSpecBefore, 'L 被拒绝后 spec.md 一个字节都没变；实际：' + head(readText(specPath)))
+  check(readText(specPath).indexOf('Blocked by') < 0, 'L spec.md 里没有被插入 Blocked by 行')
+
+  // —— 场景 M（规格路线）：原文实施票与普通票都没有 Type 字段，写它要如实拒绝 ——
+  const mSpecBefore = readText(ticket02)
+  const mSpecType = await updateIssue(ctx as never, featureRepo as never, '02', { customFields: [{ name: 'Type', value: 'prototype', type: 'single' }] } as never)
+  check(!(mSpecType && mSpecType.ok), 'M 对规格目录里的手写票写 customFields Type 要失败（原文实施票没有 Type）；实际返回：' + JSON.stringify(mSpecType))
+  check(!!(mSpecType && !mSpecType.ok && mSpecType.error.kind === 'unsupported'), 'M 失败档位是 unsupported；实际：' + JSON.stringify(mSpecType && !mSpecType.ok ? mSpecType.error : mSpecType))
+  check(readText(ticket02) === mSpecBefore, 'M 被拒绝后手写票一个字节都没变；实际：' + head(readText(ticket02)))
+  check(countTypeLines(readText(ticket02)) === 1, 'M 手写票里仍然只有原来那一行 Type: task；实际 ' + countTypeLines(readText(ticket02)) + ' 行')
+
+  const mContainerBefore = readText(specPath)
+  const mContainerType = await updateIssue(ctx as never, featureRepo as never, '00', { customFields: [{ name: 'Type', value: 'task', type: 'single' }] } as never)
+  check(!(mContainerType && mContainerType.ok), 'M 对规格容器 00 写 customFields Type 同样要失败；实际返回：' + JSON.stringify(mContainerType))
+  check(readText(specPath) === mContainerBefore, 'M 被拒绝后 spec.md 一个字节都没变；实际：' + head(readText(specPath)))
+  check(readText(specPath).indexOf('Type:') < 0, 'M spec.md 里没有被插入 Type 行')
+
   // ══ 第二组临时目录：加粗实施票（impl-ticket 路线语义不变） ══
   const tmpImpl = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1788-route-impl-'))
   const ctxImpl = mkctx(tmpImpl)
@@ -308,6 +337,14 @@ async function main(): Promise<void> {
   check(fReopened.indexOf('**Status:** ready-for-agent') >= 0, 'F 重开后加粗状态行回到 **Status:** ready-for-agent；实际：' + JSON.stringify(fReopened.split('\n').filter((l) => /Status/.test(l))))
   check(countStatusLines(fReopened) === 0, 'F 重开后仍然没有裸 Status 行；实际裸行数：' + countStatusLines(fReopened))
 
+  // —— 场景 M（加粗实施票）：没有 Type 字段，写 Type 不能再插一行裸行 ——
+  const implBPath = implB && implB.ok ? String(implB.data.url) : ''
+  const mImplBefore = readText(implBPath)
+  check(mImplBefore.indexOf('Type:') < 0, '前置：加粗实施票乙本来没有 Type 行')
+  const mImplType = await updateIssue(ctxImpl as never, implRepo as never, '02', { customFields: [{ name: 'Type', value: 'prototype', type: 'single' }] } as never)
+  check(!(mImplType && mImplType.ok), 'M 对加粗实施票写 customFields Type 要失败；实际返回：' + JSON.stringify(mImplType))
+  check(readText(implBPath) === mImplBefore, 'M 被拒绝后加粗实施票一个字节都没变；实际：' + head(readText(implBPath)))
+
   // ══ 第三组临时目录：真正的地图子票（map 路线语义不变） ══
   const tmpMap = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1788-route-map-'))
   const ctxMap = mkctx(tmpMap)
@@ -316,8 +353,11 @@ async function main(): Promise<void> {
   check(!!(map && map.ok), '前置：地图「探索地图甲」建得成；实际返回：' + JSON.stringify(map))
   const child = await create(ctxMap, mapRepo, { title: '现有方案有哪些？', body: '先把已知的开源方案列出来。', type: 'issue', typeLine: 'research', labels: ['wayfinder:research'], parentKey: '00', idempotencyKey: 'child-1788-route' })
   check(!!(child && child.ok), '前置：地图子票建得成；实际返回：' + JSON.stringify(child))
+  const child2 = await create(ctxMap, mapRepo, { title: '还有哪些替代方案？', body: '把可替代的方案也列一列。', type: 'issue', typeLine: 'research', labels: ['wayfinder:research'], parentKey: '00', idempotencyKey: 'child2-1788-route' })
+  check(!!(child2 && child2.ok), '前置：第二张地图子票建得成；实际返回：' + JSON.stringify(child2))
   const mapPath = map && map.ok ? String(map.data.url) : ''
   const childPath = child && child.ok ? String(child.data.url) : ''
+  const child2Path = child2 && child2.ok ? String(child2.data.url) : ''
   const mapBefore = readText(mapPath)
   const gChildClaim = await setAssigneesIssue(ctxMap as never, mapRepo as never, '01', ['alice'] as never, {} as never)
   check(!!(gChildClaim && gChildClaim.ok), 'G 认领地图子票要成功；实际返回：' + JSON.stringify(gChildClaim))
@@ -339,6 +379,36 @@ async function main(): Promise<void> {
   check(pointerLines.length > 0 && /^-\s/.test(pointerLines[0]), 'G 指针行是列表项（以 - 开头）；实际：' + JSON.stringify(pointerLines[0]))
   check(mapAfter.indexOf('## Decisions so far') >= 0, 'G 地图里仍有 ## Decisions so far 段')
   check(mapAfter !== '' && mapBefore !== '', '前置：地图文件读得到')
+
+  // —— 场景 L（地图容器）：map.md 本身同样没有 Blocked by 字段，也要如实拒绝 ——
+  const lMapBefore = readText(mapPath)
+  const lMapBlocked = await setBlockedByIssue(ctxMap as never, mapRepo as never, '00', ['01'] as never, {} as never)
+  check(!(lMapBlocked && lMapBlocked.ok), 'L 对地图容器 00 写阻塞边同样要失败；实际返回：' + JSON.stringify(lMapBlocked))
+  check(readText(mapPath) === lMapBefore, 'L 被拒绝后 map.md 一个字节都没变；实际：' + head(readText(mapPath)))
+  check(readText(mapPath).indexOf('Blocked by') < 0, 'L map.md 里没有被插入 Blocked by 行')
+
+  // —— 场景 N（地图路线）：Type 是地图子票的字段，按原文裸行改、值只认四个类型词 ——
+  const nBefore = readText(child2Path)
+  check(ticketFormOf(nBefore) === 'map-ticket', '前置：第二张子票的票面形状是地图子票；实际：' + ticketFormOf(nBefore))
+  const nType = await updateIssue(ctxMap as never, mapRepo as never, '02', { customFields: [{ name: 'Type', value: 'prototype', type: 'single' }] } as never)
+  check(!!(nType && nType.ok), 'N 地图子票改 Type 要成功；实际返回：' + JSON.stringify(nType))
+  const nAfter = readText(child2Path)
+  check(/^Type: prototype$/m.test(nAfter), 'N 地图子票的 Type 改成裸行 Type: prototype；实际：' + JSON.stringify(nAfter.split('\n').filter((l) => /Type/.test(l))))
+  check(countTypeLines(nAfter) === 1, 'N 文件里只有一行 Type；实际 ' + countTypeLines(nAfter) + ' 行')
+  check(nAfter.indexOf('**Type:**') < 0, 'N 地图子票不用加粗 Type 行')
+  check(nAfter === nBefore.replace(/^Type: research$/m, 'Type: prototype'), 'N 除 Type 的值以外票面一字未改；实际：' + head(nAfter))
+  check(ticketFormOf(nAfter) === 'map-ticket', 'N 改完 Type 后票面形状仍是地图子票；实际：' + ticketFormOf(nAfter))
+
+  const nBadBefore = readText(child2Path)
+  const nBad = await updateIssue(ctxMap as never, mapRepo as never, '02', { customFields: [{ name: 'Type', value: 'not-a-type', type: 'single' }] } as never)
+  check(!(nBad && nBad.ok), 'N 地图子票的 Type 写四个类型词以外的值要失败；实际返回：' + JSON.stringify(nBad))
+  check(!!(nBad && !nBad.ok && nBad.error.kind === 'unsupported'), 'N 非法 Type 值的失败档位是 unsupported；实际：' + JSON.stringify(nBad && !nBad.ok ? nBad.error : nBad))
+  check(readText(child2Path) === nBadBefore, 'N 非法 Type 值被拒绝后票文件一字未改；实际：' + head(readText(child2Path)))
+
+  const nContainerBefore = readText(mapPath)
+  const nContainer = await updateIssue(ctxMap as never, mapRepo as never, '00', { customFields: [{ name: 'Type', value: 'task', type: 'single' }] } as never)
+  check(!(nContainer && nContainer.ok), 'N 对地图容器 00 写 customFields Type 也要失败；实际返回：' + JSON.stringify(nContainer))
+  check(readText(mapPath) === nContainerBefore, 'N 被拒绝后 map.md 一个字节都没变；实际：' + head(readText(mapPath)))
 
   // ══ 第四组临时目录：旧扁平路径（写路线仍拒绝） ══
   const tmpLegacy = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1788-route-legacy-'))

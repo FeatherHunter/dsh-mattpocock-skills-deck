@@ -13,7 +13,7 @@ import { ERROR_KIND } from '../../../contract/vocabulary.js'
 import type { OpContext } from '../../../contract/contexts.js';
 import type { Issue, IssueRef, RepositoryRef } from '../../../contract/entities.js';
 import type { SetOpts } from '../../../contract/inputs.js';
-import type { OpResult } from '../../../contract/results.js';
+import { TRACKER_ERROR_STAGE, type OpResult } from '../../../contract/results.js';
 import { fail } from '../../../kernel/preflight.js'
 // 记日志那层壳、耗时与「成没成、失败哪一档」的读法都在内核一份（#1182 第 3 件）：
 // 本文件从前留着手写副本，与另两座房逐字同形，留着就是「同一句承诺三处实现」。
@@ -161,7 +161,7 @@ async function setParentInner(repo: RepositoryRef, key: string, parentKey: strin
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setParent: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'setParent: key required', key)
+    if (!k) return fail(ERROR_KIND.PARSE, 'setParent: key required', key, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     const wantParent = parentKey == null ? null : String(parentKey).trim() || null
 
     // If-Match 前置
@@ -224,8 +224,8 @@ async function setParentInner(repo: RepositoryRef, key: string, parentKey: strin
     } else {
       // 设置父子：先走原生旗 `gh issue edit --parent`（按票号；裸接口要数据库编号且用 -F，-f 传票号必 422，见 #790）。
       // 说「编号必须是数字」的原文就是调用方给的那个值本身。
-      if (!/^\d+$/.test(wantParent)) return fail(ERROR_KIND.PARSE, `setParent: parentKey 必须是数字编号：${wantParent}`, String(wantParent))
-      if (!/^\d+$/.test(k)) return fail(ERROR_KIND.PARSE, `setParent: key 必须是数字编号：${k}`, String(k))
+      if (!/^\d+$/.test(wantParent)) return fail(ERROR_KIND.PARSE, `setParent: parentKey 必须是数字编号：${wantParent}`, String(wantParent), TRACKER_ERROR_STAGE.INPUT_REFUSED)
+      if (!/^\d+$/.test(k)) return fail(ERROR_KIND.PARSE, `setParent: key 必须是数字编号：${k}`, String(k), TRACKER_ERROR_STAGE.INPUT_REFUSED)
       let set = await c.execGh(['issue', 'edit', k, '--repo', slug, '--parent', wantParent], { cwd: ctx && ctx.cwd })
       if (!set.ok) {
         const m = errMessageOrStderr(set.error)
@@ -356,13 +356,14 @@ async function setBlockedByInner(repo: RepositoryRef, key: string, blockers: str
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setBlockedBy: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'setBlockedBy: key required', key)
+    if (!k) return fail(ERROR_KIND.PARSE, 'setBlockedBy: key required', key, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     const want = Array.isArray(blockers) ? blockers.map((b) => String(b).trim()).filter(Boolean) : []
     // 去重
     const uniq = [...new Set(want)]
     // 自环
     // 原文交调用方给的这份阻塞列表本身：自环就是从它里面看出来的。
-    if (uniq.includes(k)) return fail(ERROR_KIND.CONFLICT, `conflict: self in blockers (${k})`, blockers)
+    // 阻塞名单里含本票自己：入参自相矛盾，改入参才能继续，标输入被拒。
+    if (uniq.includes(k)) return fail(ERROR_KIND.CONFLICT, `conflict: self in blockers (${k})`, blockers, TRACKER_ERROR_STAGE.INPUT_REFUSED)
     try { if (ctx && ctx.memo) markDirty(ctx.memo, k) } catch (eM) { /* 名册脏标记失败不影响写本身 */ }
     // If-Match 前置
     if (opts && typeof opts.expectedUpdatedAt === 'string' && opts.expectedUpdatedAt !== '') {
@@ -375,7 +376,8 @@ async function setBlockedByInner(repo: RepositoryRef, key: string, blockers: str
     // 成环检测（写前，不落盘）
     const verdict = await cycleVerdict(repo, k, uniq, ctx)
     // 成环是本地拿读回来的邻接关系算出来的，还没有任何上游报错可交，原文就交调用方给的这份阻塞列表。
-    if (verdict === CYCLE_VERDICT.CYCLE) return fail(ERROR_KIND.CONFLICT, `conflict: cycle detected for ${k} -> [${uniq.join(',')}]`, blockers)
+    // 本地写前环检发现成环：这批边本身把图写成了环，改入参才能继续，标输入被拒。
+    if (verdict === CYCLE_VERDICT.CYCLE) return fail(ERROR_KIND.CONFLICT, `conflict: cycle detected for ${k} -> [${uniq.join(',')}]`, blockers, TRACKER_ERROR_STAGE.INPUT_REFUSED)
 
     const c = ghClient(ctx)
     // 读当前 blockedBy 做 diff（需额外 API：GitHub dependencies API）

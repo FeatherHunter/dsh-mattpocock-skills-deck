@@ -5,7 +5,7 @@ import type { ErrorKind } from '../../contract/identity.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { Issue, RepositoryRef } from '../../contract/entities.js'
 import type { AssigneeInput, SetOpts } from '../../contract/inputs.js'
-import type { OpResult } from '../../contract/results.js'
+import { TRACKER_ERROR_STAGE, type OpResult } from '../../contract/results.js'
 import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
 import { normalizeIssue, rewriteDescriptionWithHiddenParent } from './normalize.js'
@@ -100,7 +100,7 @@ export async function setParent(
       const pk = String(parentKey)
       // 环检：parentKey成环 → conflict（若 pk == k 自环）
       // 自环先判：结论是「入参自己和自己打架」，不是外部来源说了什么，所以原文给这次入参快照。
-      if (pk === k) return fail(ERROR_KIND.CONFLICT as ErrorKind, 'conflict: self-parent', JSON.stringify({ key: k, parentKey: pk }))
+      if (pk === k) return fail(ERROR_KIND.CONFLICT as ErrorKind, 'conflict: self-parent', JSON.stringify({ key: k, parentKey: pk }), TRACKER_ERROR_STAGE.INPUT_REFUSED)
       const oldBody = String((curRaw as RawBag)['description'] || (curRaw as RawBag)['body'] || '')
       const newBody = rewriteDescriptionWithHiddenParent(oldBody, pk)
       if (newBody !== oldBody) {

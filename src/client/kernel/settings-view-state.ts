@@ -31,9 +31,12 @@
 //   mergePending 与 mergeLog 是 #1640 临时记录合并的两个尾巴：合并已经把临时记录搬进根记录、但结果还没
 //   落进文件时 mergePending 为 true（写成功一趟才清，写失败留到下一趟）；mergeLog 是这一趟合并该发的那几行
 //   日志，按临时记录键的短散列存着，同样等写成功才发 —— 写失败时不发「合了」的假话。
+// #1802：contentHash 是「内存里这份文档对应盘上哪一版」的指纹（宿主读/写回包都带它），写之前拿它跟盘上最新
+//   一份比对，对不上说明别的窗口刚改过、这一笔要重读后合并再写，不能拿旧文档整份覆盖。
+//   conflictLeft 是「发现别人改过时还允许自己重读重试几趟」的额度，成功一趟就恢复；用完仍然冲突就留队走旧表兜底。
 // 类型一律写 any 是刻意的：status 有五个字符串取值、doc 在各片里按文档形状读写，
 //   在这里写窄只会把别处正常的改动变成这里的假报错（与 kernel/link.ts 同例）。
-const viewFlagState: any = { status: 'idle', doc: null, deferred: {}, journal: {}, timer: 0, retryLeft: 1, mergePending: false, mergeLog: {} }
+const viewFlagState: any = { status: 'idle', doc: null, deferred: {}, journal: {}, timer: 0, retryLeft: 1, mergePending: false, mergeLog: {}, contentHash: '', conflictLeft: 3 }
 // 登记过「问完了叫我一声」的回调名单。一次问话只有一个终点，所以通知过就把名单清空。
 const viewFlagWaiters: any[] = []
 // 现在给出的判断问过真源了没有：语义见文件头那段「就绪的确切意思」。

@@ -38,6 +38,9 @@ const { spliceableJs } = require('./lib/source-text.ts')
 // 中央时间真值：快照等待只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
 const centralTime = require('../src/shared/time-config/values.js')
 ;(globalThis as unknown as Record<string, unknown>).SNAP_WAIT_MS = centralTime.SNAP_WAIT_MS
+// #1775：真 askSelectionOnce 现在会架一条「等宿主回 wf.selection 的上限」。本门不量那条等待（场景里
+//   选择都已在手上，正常走不到架设那一步），预埋同一份中央导出即可；值住 config/timeouts.yaml 的 selWaitMs。
+;(globalThis as unknown as Record<string, unknown>).SEL_WAIT_MS = centralTime.SEL_WAIT_MS
 // jsdom 挂载要往 Node 全局上写浏览器对象，测试里按任意值处理；运行时与原来一样。
 declare const global: any
 // 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。

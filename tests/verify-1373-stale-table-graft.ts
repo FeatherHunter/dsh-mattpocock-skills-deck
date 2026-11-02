@@ -33,7 +33,7 @@
 //   node --import ./scripts/ts-hook.mts tests/verify-1373-stale-table-graft.ts
 import { compileFn } from './lib/eval-probe.js'
 import { spliceableJs, sourceText } from './lib/source-text.ts'
-import { SNAP_WAIT_MS } from '../src/shared/time-config/values.js'
+import { SNAP_WAIT_MS, SEL_WAIT_MS } from '../src/shared/time-config/values.js'
 // #1440 D：真宿主 + 真信封 + 真读数口那一趟要用的五个模块（不伪造回包，绕开信封的旧用例不算数）。
 import { createSnapshotEnvelope } from '../src/host/snapshotEnvelope.js'
 import { createSnapshotComposer } from '../src/host/tracker/snapshot.js'
@@ -209,6 +209,10 @@ const makeSnapMod = function (adoptFn: any, hostCall: any): any {
     + '\n' + spliceableJs('src/refresh/rooms/client/probe-scope-selection.js')
   const scope: Record<string, any> = {
     SNAP_WAIT_MS: SNAP_WAIT_MS,
+    // #1775：真 askSelectionOnce 现在会架一条「等宿主回 wf.selection 的上限」。值读中央导出
+    //   （住 config/timeouts.yaml 的 selWaitMs），不在测试里写第二份数字；场景里选择都已在手上，
+    //   正常不会真的用到它，到点也只会安静收尾。
+    SEL_WAIT_MS: SEL_WAIT_MS,
     host: { call: function (method: any, params: any): any { calls.push({ method: method, params: params }); return hostCall(method, params) } },
     wsKeyOf: function (p: any): string { return String(p || '').replace(/\\/g, '/').toLowerCase() },
     tr: function (k: any): string { return String(k) },

@@ -9,7 +9,8 @@
 //   3. 行为与拆分前逐行一致：本文件内容即原来 snapshot.ts 的对应段落原样搬运，只加 export，不改逻辑。
 // 跨文件边只有两条（snapshot.ts → 本文件，被依赖方）：assembleSnapshot（编排器每趟重建调它）与
 //   failKindOfListError（list 失败分类）；poolIdOf/thinRowOf 只在本文件内用，不导出。
-// 地图子票的首帧归一与「来源不完整时补回上次已知」也在这里（carryOverMapTickets / normalizeMapTickets / mergeKnownTickets）：
+// 地图子票的首帧归一与「来源不完整时补回上次已知」也在这里（carryOverMapTickets / normalizeMapTickets / mergeKnownTickets）；
+//   #1798 起同一条「只补不删」也管顶层未挂图票（issues）——容器与子票补回来了，它们旁边的未挂图票不能反而被删掉：
 //   它同样是纯组装，只是输入多了一份上次快照。为什么不另起一份文件：.dependency-cruiser.ts 的
 //   same-layer-import-host 写着「接线由装配文件负责，干活的文件之间不许互相引用」，编排器 snapshot.ts
 //   已经引本文件，另起一份会让它多出一条同层边；而本文件是纯函数、有效行远不到 350，合在这里不增依赖。
@@ -170,7 +171,7 @@ export function assembleSnapshot(repo: RepositoryRef, all: any[]): any {
 }
 
 // ── 地图子票首帧归一与保底合并（#1696）───────────────────────────────────────────────
-/** 合并时要不要把上次已知补回来：来源完整（没截断、没降级）才允许删/缩。 */
+/** 合并（地图子票与顶层未挂图票 #1798）时要不要把上次已知补回来：来源完整（没截断、没降级）才允许删/缩。 */
 export interface MapCarryOptions {
   /** true = 这次列表是完整的（可以删、可以缩）；false = 截断或降级（只补不删）。 */
   sourceComplete: boolean
@@ -398,8 +399,52 @@ function mergeMapTickets(prevTickets: any[], ownTickets: any[], sourceComplete: 
 }
 
 /**
+ * #1798：来源不完整时，把「上次有、这一趟没出现」的顶层未挂图票补回来。
+ *
+ * 为什么必须补：每趟重建都从后端列表重新组装 issues。列表被截断或掉到 REST 通道时，页边界
+ *   之外的票这一趟根本没见到；旧实现只看这一趟，于是仍然存在的票被静默从面板上删掉。而同一趟的
+ *   计数还会沿用上次已知（#1698 的 previous-known），数字说还有、列表里却没有，自相矛盾。
+ * 口径与地图子票补回同一条：
+ *   · 只补不删 —— 入口由调用方判（sourceComplete === false）；完整来源照旧以本次为准删减。
+ *   · 整行沿用上一份的值，不按字段拼 —— 这一趟没见到它，分不清哪一格是后端真变了、哪一格是没取到。
+ *   · 按池内身份去重（poolKeyOf），本次结果优先：同号 PR 与普通工单各算一行，按编号去重会把它们错并成一行。
+ *   · 已关闭容器里的已关闭子票只留瘦身行（#1291），不许因为「上次在 issues 里」复活成顶层行。
+ *   · 这一趟已经升格成容器（map / spec）的同一张票不补回：容器行在 maps 里，issues 是「未挂到
+ *     地图」的清单（见 src/tracker/deck-derive.ts 对 issues 的定义），补回来同一张票会两处出现。
+ *   补回的结果仍由调用方过「已挂到地图」过滤（attached），同一张票不能同时出现在 maps[].tickets 与 issues。
+ *   补回行不写地图子票的 carry 标记：carry 表达的是「这批容器/子票来自上次快照」；顶层清单的来源
+ *   是否完整由整份快照的 partial 表达（#1796），逐行另加字段会改快照形状，本票不做。
+ */
+function carryOverIssues(prevIssues: any[], issues: any[], thinTickets: any[], seenThisPass: Record<string, boolean>, containerIds: Record<string, boolean>): any[] {
+  const prevList = Array.isArray(prevIssues) ? prevIssues : []
+  if (prevList.length === 0) return issues
+  // 瘦身行没有 isPullRequest，只能按 effort + 编号核对：这一趟它被隐藏口径挡在首屏外，
+  //   不能因为「上次在 issues 里」又把它复活成一张顶层票。
+  const thinIds: Record<string, boolean> = {}
+  thinTickets.forEach((row: any) => {
+    const id = idOfParts(effortOf(row), rowKeyOf(row))
+    if (id) thinIds[id] = true
+  })
+  const seen: Record<string, boolean> = Object.assign({}, seenThisPass)
+  const carried: any[] = []
+  prevList.forEach((row: any) => {
+    if (!row || typeof row !== 'object') return
+    const k = poolKeyOf(row)
+    if (!k || seen[k]) return
+    // 同一张票这一趟可能被瘦身行挡在首屏外，也可能已经升格成容器：两种都不许从上次的 issues 里补回来。
+    //   PR 与容器是不同池内身份（同号各算一行），只按编号排除会误删 PR 行，所以容器这一条要求不是 PR。
+    const baseId = idOfParts(effortOf(row), rowKeyOf(row))
+    if (thinIds[baseId]) return
+    if (containerIds[baseId] && row.isPullRequest !== true) return
+    seen[k] = true
+    carried.push(Object.assign({}, row))
+  })
+  return carried.length > 0 ? issues.concat(carried) : issues
+}
+
+/**
  * 宿主重建快照时调用：把组装层产出的 maps[].tickets 整理成首帧可画的形状，并在来源不完整时
- * 用上次快照按编号补回已知子票与计数。返回新快照对象（不修改入参）。
+ * 用上次快照按编号补回已知子票与计数（#1798 起也补回顶层未挂图票）。返回新快照对象（不修改入参）。
  */
 export function carryOverMapTickets(prevSnapshot: any, nextSnapshot: any, options: MapCarryOptions): any {
   if (!nextSnapshot || typeof nextSnapshot !== 'object') return nextSnapshot
@@ -411,6 +456,8 @@ export function carryOverMapTickets(prevSnapshot: any, nextSnapshot: any, option
   const attached: Record<string, boolean> = {}
   // 这一趟列表里「还没挂到任何容器」的行。容器缺席时，它这次仍在列表里的子票会落在这里。
   const issues: any[] = Array.isArray(nextSnapshot.issues) ? nextSnapshot.issues : []
+  // 上一份快照的顶层未挂图票（#1798）：来源不完整时，这一趟没见到的行从这里整行补回。
+  const prevIssues: any[] = Array.isArray(prevSnapshot && prevSnapshot.issues) ? prevSnapshot.issues : []
   // 这一趟在列表里出现过的票（任何容器的子票 + issues）。补回上次子票时用它对账：
   //   一张票这一趟跟在别的容器下，就不从上次清单里补回旧容器（否则同一张票挂两处、统计各算一次）。
   const seenThisPass: Record<string, boolean> = {}
@@ -477,6 +524,20 @@ export function carryOverMapTickets(prevSnapshot: any, nextSnapshot: any, option
     })
   }
 
-  const dedupedIssues = issues.filter((row: any) => !attached[poolKeyOf(row)])
+  // 这一趟最终留在 maps 里的容器身份（#1798）：补回旧 issues 行时，同号的容器行不能再以「未挂图票」补回来。
+  //   放在地图补回之后算，才盖得住这一趟新升格的容器和从上次补回来的容器两类。
+  const containerIds: Record<string, boolean> = {}
+  maps.forEach((m: any) => {
+    if (!m || typeof m !== 'object') return
+    const id = idOfParts(effortOf(m), rowKeyOf(m))
+    if (id) containerIds[id] = true
+  })
+
+  // #1798：顶层未挂图票也走「只补不删」。入口条件与地图补回同一条：只有 options.sourceComplete === false
+  //   才进；完整来源照旧以本次为准删减。补回结果仍要过下面这道「已挂到地图」过滤。
+  const issuesWithCarry = options.sourceComplete === false
+    ? carryOverIssues(prevIssues, issues, thinTickets, seenThisPass, containerIds)
+    : issues
+  const dedupedIssues = issuesWithCarry.filter((row: any) => !attached[poolKeyOf(row)])
   return Object.assign({}, nextSnapshot, { maps, issues: dedupedIssues, thinTickets })
 }

@@ -47,7 +47,7 @@ Issues and specs for this repo live as GitHub issues.
 
 **版本三查**：本机装的是哪个版本 —— `(Get-Content "$env:USERPROFILE\.dsh\profiles\desktop\package.json" -Raw | ConvertFrom-Json).dependencies.'dsh-mattpocock-skills-deck'`；工作区 `package.json` 的版号；`npm view dsh-mattpocock-skills-deck version` 的远端最新。三个数一起看：工作区版号是正在开发的版本，不是本机跑着的版本。
 
-**失败回执怎么读**：`status`、`reason` 都在回执的「明细（JSON）」那一段里。`status` 三态（`ok` / `partial` / `unsupported`）；`reason` 按下一步分四档——可重试（`backend-threw` 等）/ 等额度（`ai-tool-refused`）/ 后端做不到（`backend-unsupported`）/ 超时（`backend-timeout`）；另外几种少见原因码（`gate-defer` / `bad-args` / `no-backend`）遇到时直接看回执里的说明文字。`items` 里逐条看哪一步失败、原因是什么；`notes` 里若写「这份清单可能不全」，就收窄条件再查一次。整份回执被判非法（报 `invalid output`）时，先按上面的自检确认是哪把工具坏了，再按替代命令绕开。
+**失败回执怎么读**：`status`、`reason` 都在回执的「明细（JSON）」那一段里。`status` 三态（`ok` / `partial` / `unsupported`）；`reason` 回答的是「拿到回执的人下一步做什么」，不是「这个错误叫什么」，按下一步分四档——可重试（`backend-threw` 等）/ 等额度（`ai-tool-refused`）/ 后端做不到（`backend-unsupported`）/ 超时（`backend-timeout`）；另外几种少见原因码（`gate-defer` / `bad-args` / `no-backend`）遇到时直接看回执里的说明文字。写操作报 `backend-timeout` 要特别小心：它代表请求发出后没等到回执，写可能已经生效，先读回确认再决定要不要重试。要看失败细节，看 `items` 里与顶层 `reason` 同码的那一项（多项失败时顶层取的是最该先告诉人的那个，未必是执行顺序第一处）——它带 `code`（给下一步用的原因码）；失败来自后端时另带 `errorKind`、`stage`，保留原始错误分类与失败阶段，deck 本地失败（锁、额度、读回核对）没有这两格、改为带 `local`（本地失败来源）；`notes` 里若写「这份清单可能不全」，就收窄条件再查一次。整份回执被判非法（报 `invalid output`）时，先按上面的自检确认是哪把工具坏了，再按替代命令绕开。
 
 **状态冲突的回执（本地 Markdown）**：本地 Markdown 后端的 triage 状态写在票文件里可见的 `Status:` 行，文件头隐藏的 `DSH-LABELS` 只留非 triage 标签。可见行与旧文件隐藏 triage 真冲突时，`deck_issue_get` / `deck_issue_list` 会带 `statusConflict`；`deck_issue_patch` 会整次不写地回 `status:'unsupported'`、`reason:'bad-args'`，并在 `data.retry.args` 里给好带 `resolveStatus` 的重试参数。按 `data.retry.args` 重发，不要原样重试；没有冲突时传 `resolveStatus` 也按普通调用执行。
 

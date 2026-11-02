@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-02T01:58:42.001Z",
+  "generatedAt": "2026-11-02T03:14:17.559Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 535,
-  "gateCount": 535,
-  "attributedGates": 473,
+  "chainLength": 539,
+  "gateCount": 539,
+  "attributedGates": 477,
   "unattributedGates": 62,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 86,
+  "completionRecordedGates": 87,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 828,
+  "graphFileCount": 831,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -5003,6 +5003,7 @@
       "step": "node tests/verify-1612-settings-switches.ts",
       "file": "tests/verify-1612-settings-switches.ts",
       "guards": [
+        "src/client/kernel/settings-view-reload.ts",
         "src/client/kernel/settings-view-state.ts",
         "src/client/kernel/settings-view-write.ts",
         "src/client/kernel/settings-view.ts",
@@ -5023,7 +5024,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 53,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-1621-gh-missing-copy.ts",
@@ -5098,6 +5099,7 @@
       "step": "node tests/verify-1640-unopened-merge.ts",
       "file": "tests/verify-1640-unopened-merge.ts",
       "guards": [
+        "src/client/kernel/settings-view-reload.ts",
         "src/client/kernel/settings-view-state.ts",
         "src/client/kernel/settings-view-write.ts",
         "src/client/kernel/settings-view.ts",
@@ -5120,13 +5122,14 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 36,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-1641-listed-workspace-flags.ts",
       "file": "tests/verify-1641-listed-workspace-flags.ts",
       "guards": [
         "src/client/kernel/deck-state.ts",
+        "src/client/kernel/settings-view-reload.ts",
         "src/client/kernel/settings-view-state.ts",
         "src/client/kernel/settings-view-write.ts",
         "src/client/kernel/settings-view.ts",
@@ -5149,13 +5152,14 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 42,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-1642-toggle-logs.ts",
       "file": "tests/verify-1642-toggle-logs.ts",
       "guards": [
         "research/489-appendix.md",
+        "src/client/kernel/settings-view-reload.ts",
         "src/client/kernel/settings-view-state.ts",
         "src/client/kernel/settings-view-write.ts",
         "src/client/kernel/settings-view.ts",
@@ -5182,7 +5186,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 54,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-1646-publish-token-file.ts",
@@ -5260,6 +5264,7 @@
         "config/copy/flow.yaml",
         "src/client/kernel/deck-state.ts",
         "src/client/kernel/locale-data.ts",
+        "src/client/kernel/settings-view-reload.ts",
         "src/client/kernel/settings-view-state.ts",
         "src/client/kernel/settings-view-write.ts",
         "src/client/kernel/settings-view.ts",
@@ -5283,7 +5288,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 20,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-1661-banner-singleline.ts",
@@ -5972,6 +5977,100 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1798-issues-carry.ts",
+      "file": "tests/verify-1798-issues-carry.ts",
+      "guards": [
+        "src/host/tracker/snapshot.ts",
+        "src/host/tracker/snapshotAssemble.ts",
+        "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts"
+      ],
+      "dirs": [
+        "src/host/tracker",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
+    },
+    {
+      "step": "node tests/verify-1799-input-stage.ts",
+      "file": "tests/verify-1799-input-stage.ts",
+      "guards": [
+        "src/tracker/contract/results.ts",
+        "src/tracker/contract/vocabulary.ts",
+        "src/tracker/rooms/github/room/backend.ts",
+        "src/tracker/rooms/markdown/index.ts"
+      ],
+      "dirs": [
+        "src/tracker/contract",
+        "src/tracker/rooms/github/room",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 4 条"
+    },
+    {
+      "step": "node tests/verify-1799-receipt-reasons.ts",
+      "file": "tests/verify-1799-receipt-reasons.ts",
+      "guards": [
+        "src/deck/shell/call-shell.ts",
+        "src/deck/shell/receipt-reason.ts",
+        "src/deck/shell/text-write-verify.ts"
+      ],
+      "dirs": [
+        "src/deck/shell"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
+    },
+    {
+      "step": "node tests/verify-1802-settings-cross-window.ts",
+      "file": "tests/verify-1802-settings-cross-window.ts",
+      "guards": [
+        "package/lib/client.js",
+        "scripts/build.mts",
+        "src/client/kernel/settings-ui.ts",
+        "src/client/kernel/settings-view-reload.ts",
+        "src/client/kernel/settings-view-state.ts",
+        "src/client/kernel/settings-view-write.ts",
+        "src/client/kernel/settings-view.ts",
+        "src/client/kernel/store-prefs.ts",
+        "src/client/views/SettingsPage.ts",
+        "src/host/configStore.ts",
+        "src/host/settingsPhones.ts",
+        "src/shared/config-store/src/settings.ts",
+        "src/shared/time-config/src/values.ts",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/gate-result.ts",
+        "tests/lib/source-text.ts",
+        "tests/lib/time-compress.ts"
+      ],
+      "dirs": [
+        "package/lib",
+        "scripts",
+        "src/client/kernel",
+        "src/client/views",
+        "src/host",
+        "src/shared/config-store/src",
+        "src/shared/time-config/src",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 74,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -9160,7 +9259,8 @@
         "src/tracker/rooms/github/routing/fallback-reason.ts",
         "src/tracker/rooms/github/support/init-project-error-kinds.ts",
         "src/tracker/rooms/github/write/init-project.ts",
-        "src/tracker/rooms/github/write/issues.ts"
+        "src/tracker/rooms/github/write/issues.ts",
+        "src/tracker/rooms/markdown/error-fail.ts"
       ],
       "dirs": [
         "src/client",
@@ -9171,13 +9271,14 @@
         "src/tracker/kernel",
         "src/tracker/rooms/github/routing",
         "src/tracker/rooms/github/support",
-        "src/tracker/rooms/github/write"
+        "src/tracker/rooms/github/write",
+        "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 18 条"
+      "reason": "归属来自：源码里的路径字面量 19 条"
     },
     {
       "step": "node tests/verify-event-budget.ts",
@@ -11275,6 +11376,7 @@
         "scripts/lib/effective-lines.mts",
         "src/client/index.ts",
         "src/client/kernel/settings-debug.ts",
+        "src/client/kernel/settings-view-reload.ts",
         "src/client/kernel/settings-view-state.ts",
         "src/client/kernel/settings-view-write.ts",
         "src/client/kernel/settings-view.ts",
@@ -11309,7 +11411,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 13 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 14 条"
     },
     {
       "step": "node tests/verify-settings-phones.ts",
@@ -11339,6 +11441,7 @@
         "src/client/kernel/config.ts",
         "src/client/kernel/settings-templates.ts",
         "src/client/kernel/settings-ui.ts",
+        "src/client/kernel/settings-view-reload.ts",
         "src/client/kernel/settings-view-state.ts",
         "src/client/kernel/settings-view-write.ts",
         "src/client/kernel/settings-view.ts",
@@ -11366,7 +11469,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 65,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-settings-view.ts",
@@ -11377,6 +11480,7 @@
         "scripts/lib/effective-lines.mts",
         "src/client/index.ts",
         "src/client/kernel/settings-ui.ts",
+        "src/client/kernel/settings-view-reload.ts",
         "src/client/kernel/settings-view-state.ts",
         "src/client/kernel/settings-view-write.ts",
         "src/client/kernel/settings-view.ts",
@@ -11407,7 +11511,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 217,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 7 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 7 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-setup-describe.ts",
@@ -12475,7 +12579,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 45,
+      "expectedAssertions": 50,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
@@ -12743,6 +12847,7 @@
       "node tests/verify-deck-slots.ts",
       "node tests/verify-gate-map.ts",
       "node tests/verify-1449-layout-single-source.ts",
+      "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-530-pr-tab.ts",
       "node tests/verify-587-update-live.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -12869,6 +12974,7 @@
       "node tests/verify-1710-preflight.ts",
       "node tests/verify-1711-report-index.ts",
       "node tests/verify-1776-vc-live-tab.ts",
+      "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-640-dock-width-browser.ts",
       "node tests/verify-bundled-skills-zh.ts",
       "node tests/verify-ctx.ts",
@@ -13102,6 +13208,7 @@
       "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-1776-vc-tab-browser.ts",
       "node tests/verify-1792-card-action-gate.ts",
+      "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -13251,6 +13358,7 @@
       "node tests/verify-1668-detail-top-gate-wire.ts",
       "node tests/verify-1783-comments-projection.ts",
       "node tests/verify-1792-card-action-gate.ts",
+      "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -13457,6 +13565,7 @@
       "node tests/verify-1610-parallel-read.ts",
       "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-surface.ts",
+      "node tests/verify-1799-receipt-reasons.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-bulk-deadline.ts",
@@ -13586,6 +13695,7 @@
       "node tests/verify-1642-toggle-logs.ts",
       "node tests/verify-1654-ws-pending-hint.ts",
       "node tests/verify-1762-platform.ts",
+      "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
@@ -13681,6 +13791,7 @@
       "node tests/verify-1475-predicate-budget.ts",
       "node tests/verify-1490-four-objects.ts",
       "node tests/verify-1774-carry-wiring.ts",
+      "node tests/verify-1798-issues-carry.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-691-map-subissues.ts",
@@ -13905,6 +14016,7 @@
       "node tests/verify-1784-comment-pagination.ts",
       "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-surface.ts",
+      "node tests/verify-1798-issues-carry.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -14002,7 +14114,8 @@
     ],
     "src/shared/config-store": [],
     "src/shared/config-store/src": [
-      "node tests/verify-1612-deck-tool-gate.ts"
+      "node tests/verify-1612-deck-tool-gate.ts",
+      "node tests/verify-1802-settings-cross-window.ts"
     ],
     "src/shared/doc-layout": [],
     "src/shared/doc-layout/src": [
@@ -14037,6 +14150,7 @@
       "node tests/verify-1654-ws-pending-hint.ts",
       "node tests/verify-1776-vc-live-tab.ts",
       "node tests/verify-1776-vc-tab-browser.ts",
+      "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-669-choice-precedence.ts",
@@ -14173,6 +14287,7 @@
       "node tests/verify-1444-list-detail-thin.ts",
       "node tests/verify-1676-blocked-ref-unknown.ts",
       "node tests/verify-1765-read-channel-plan.ts",
+      "node tests/verify-1799-input-stage.ts",
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-992-readonly-labels.ts",
@@ -14351,6 +14466,7 @@
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-1223-catalog-runtime-parity.ts",
       "node tests/verify-1443-github-readbudget.ts",
+      "node tests/verify-1799-input-stage.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -14491,6 +14607,7 @@
       "node tests/verify-1790-status-read.ts",
       "node tests/verify-1790-status-surface.ts",
       "node tests/verify-1790-status-write.ts",
+      "node tests/verify-1799-input-stage.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -14507,6 +14624,7 @@
       "node tests/verify-dirwritable.ts",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-raw-samples.ts",
+      "node tests/verify-error-single-source.ts",
       "node tests/verify-field-tri-state.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-log-fields.ts",
@@ -14703,6 +14821,7 @@
       "node tests/verify-1776-vc-tab-browser.ts",
       "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-surface.ts",
+      "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
@@ -14839,9 +14958,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 849,
+    "fileCount": 852,
     "dirCount": 84,
-    "coveredFileCount": 849,
+    "coveredFileCount": 852,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -14884,6 +15003,7 @@
       "src/client/kernel/settings-debug.ts",
       "src/client/kernel/settings-templates.ts",
       "src/client/kernel/settings-ui.ts",
+      "src/client/kernel/settings-view-reload.ts",
       "src/client/kernel/settings-view-state.ts",
       "src/client/kernel/settings-view-write.ts",
       "src/client/kernel/settings-view.ts",
@@ -15140,6 +15260,7 @@
       "src/deck/shell/in-flight-lease.ts",
       "src/deck/shell/minimal-spec.ts",
       "src/deck/shell/plan-cursor.ts",
+      "src/deck/shell/receipt-reason.ts",
       "src/deck/shell/session-workdir.ts",
       "src/deck/shell/spec-close-guard.ts",
       "src/deck/shell/table-cell.ts",
@@ -15206,6 +15327,7 @@
       "src/host/rpcChannel.ts",
       "src/host/runningMarkers.ts",
       "src/host/sessionLifecycle.ts",
+      "src/host/settingsPatchWrite.ts",
       "src/host/settingsPhones.ts",
       "src/host/skillDoc.ts",
       "src/host/skillProbe.ts",

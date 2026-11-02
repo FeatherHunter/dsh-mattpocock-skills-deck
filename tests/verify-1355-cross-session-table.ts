@@ -39,7 +39,7 @@
 import { compileFn } from './lib/eval-probe.js'
 import { spliceableJs, sourceText } from './lib/source-text.ts'
 // 中央时间真值：快照等待只住 config/*.yaml，这里读同一份导出，不在测试里写第二份数字。
-import { SNAP_WAIT_MS } from '../src/shared/time-config/values.js'
+import { SNAP_WAIT_MS, SEL_WAIT_MS } from '../src/shared/time-config/values.js'
 // #1564：整颗徽标收进共享叶子 ticketBadge.ts；本门禁按文本/模块单独加载视图叶子时闭包里没有这个名字，补上真身。
 ;(globalThis as any).ticketBadgeOf = (await import('../src/client/views/shared/ticketBadge.js')).ticketBadgeOf
 let failed = false
@@ -280,6 +280,10 @@ const partB = async function (store: any, ui: any): Promise<void> {
     const calls: any[] = []
     const scope: Record<string, any> = {
       SNAP_WAIT_MS: SNAP_WAIT_MS,
+      // #1775：真 askSelectionOnce 现在会架一条「等宿主回 wf.selection 的上限」。值读中央导出
+      //   （住 config/timeouts.yaml 的 selWaitMs），不在测试里写第二份数字；本门不量那段等待，
+      //   场景里选择都已在手上或回包很快，到点也只会安静收尾。
+      SEL_WAIT_MS: SEL_WAIT_MS,
       host: { call: function (method: any, params: any): any { const d = deferredOf(); calls.push({ method: method, params: params, d: d }); return d.p } },
       wsKeyOf: store && store.wsKeyOf ? store.wsKeyOf : function (p: any): string { return String(p || '').replace(/\\/g, '/').toLowerCase() },
       tr: function (k: any): string { return String(k) },

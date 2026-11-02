@@ -241,6 +241,8 @@ const REFERENCES: RefRow[] = [
   // #1143：src/client/kernel/log.ts 已删（包自带常量，中央键待另票清理），两行 REFERENCES 删除；
   // logFlushMs / logWatchdogMs 另有引用（生成器与包内常量），YAML 键保留。
   { file: 'src/refresh/rooms/client/snapshot-sync.ts', access: 'SNAP_WAIT_MS', gen: 'SNAP_WAIT_MS', key: 'snapWaitMs' },
+  // #1775：进工作区问宿主「这个工作区用哪个后端」（wf.selection）的客户端等待上限，到点收回状态栏的「正在读取」。
+  { file: 'src/refresh/rooms/client/probe-scope-selection.ts', access: 'SEL_WAIT_MS', gen: 'SEL_WAIT_MS', key: 'selWaitMs' },
   { file: 'src/client/kernel/settings-view-write.ts', access: 'VIEW_FLAG_WRITE_DEBOUNCE_MS', gen: 'VIEW_FLAG_WRITE_DEBOUNCE_MS', key: 'viewFlagWriteDebounceMs' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', access: 'ATTENTION_EXPIRY_MS', gen: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs' },
   { file: 'src/refresh/rooms/client/client-attention-heartbeat.ts', access: 'ATTENTION_HEARTBEAT_MS', gen: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
@@ -309,6 +311,8 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/client/kernel/store-prefs.ts', name: 'SYNC_ISSUE_CACHE_TTL_MS', key: 'syncIssueCacheTtlMs' },
   // 界面叶子与内核改成中央真引用后、剥掉 import 行的那些名字也由这一片提供。
   { file: 'src/refresh/rooms/client/snapshot-sync.ts', name: 'SNAP_WAIT_MS', key: 'snapWaitMs' },
+  // #1775：进工作区问宿主「这个工作区用哪个后端」的等待上限（源码里只声明名字，值由这一片给）。
+  { file: 'src/refresh/rooms/client/probe-scope-selection.ts', name: 'SEL_WAIT_MS', key: 'selWaitMs' },
   { file: 'src/client/kernel/settings-view-write.ts', name: 'VIEW_FLAG_WRITE_DEBOUNCE_MS', key: 'viewFlagWriteDebounceMs' },
   { file: 'src/client/views/shared/truthLines.ts', name: 'REST_FALLBACK_STALE_MS', key: 'restFallbackStaleMs' },
   { file: 'src/client/views/primitives/Tip.ts', name: 'TIP_SHOW_DELAY_MS', key: 'tipShowDelayMs' },

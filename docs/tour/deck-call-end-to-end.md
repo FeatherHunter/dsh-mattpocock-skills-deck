@@ -266,19 +266,23 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 - **「带记忆」的确切范围**（只在同一笔调用里，记忆体由 `createCallMemo` 造，:239）：读回来的东西进一张表（:305-311 的 `memoGet` / `memoPut`），同一个操作 + 同一把钥匙再来一次就直接拿表里那份，不再问后端。**只记成功的**——`get` 要 `ok === true` 且有 `data`（:334）、`list` 要 `ok === true` 且是数组（:343）、`getDependencies` 同样（:358-359）；失败结果不记，下一笔会老实再问一次。
 - **名册与记忆是两件事**：名册（`memo.roster`，由 `rosterUpsert` / `rosterAdoptList` / `rosterAddCreated` 维护）是「这张票和谁有关系」的关系索引，写操作之后只把**被波及的那几条**标脏（`rosterDirty`，:321、:375、:382），不整份作废；GitHub 房间做全仓检查时就靠它（`src/tracker/rooms/github/cycle-check.ts:26-27`、`roster.ts`）。
 
-### 三种状态与七种「没做成」的原因
+### 三种状态与八种「没做成」的原因
 
 `src/deck/shell/call-shell.ts:46-61`
 
 - 状态三值（`DECK_STATUS`）：`ok` / `partial` / `unsupported`
-- 原因七值（`REFUSAL_REASONS`）：
-  `no-session-context` / `ai-tool-refused` / `no-backend` / `gate-defer` / `backend-threw` / `backend-unsupported` / `bad-args`
+- 原因八值（`REFUSAL_REASONS`）：
+  `no-session-context` / `ai-tool-refused` / `no-backend` / `gate-defer` / `backend-threw` / `backend-timeout` / `backend-unsupported` / `bad-args`
 
-另外有五个工具各带一份**传输层**标记，用它区分「后端诚实说做不到」和「这一趟根本没回来」（`src/deck/tools/context.ts:29`、`src/deck/tools/issue-get.ts:31`、`src/deck/tools/issue-create.ts:29`、`src/deck/tools/issue-patch.ts:23`、`src/deck/tools/issue-report.ts:46`）：
+这八个码回答的是「拿到回执的人下一步做什么」，不是「这个错误叫什么」：读、写两个方向查的映射表不同——写操作的 network / parse / timeout 或「请求发出后没等到回执」归 `backend-timeout`（写请求可能已经生效：先读回确认，不要直接重试），读操作的 network / parse 归 `backend-threw`（读的 timeout 也归 `backend-timeout`，等一会儿重试即可）；票不存在、参数不合规、房间在动手前拒绝输入（`stage=input-refused`）归 `bad-args`；环境、权限或后端不支持归 `backend-unsupported`；rate-limit 或工具面上的规矩不允许归 `ai-tool-refused`；读的时候网络断、中止、并发冲突也归 `backend-threw`。映射只有一处实现：`src/deck/shell/receipt-reason.ts`（#1799）。
 
-`backend-threw` / `timeout` / `aborted` / `over-budget`
+`partial` 有两种形状：有失败项时 `reason` 取这些失败项里「最该先告诉人」的那个码——按下一步的紧迫性排，安全优先 `backend-timeout` > `bad-args` > `backend-unsupported` > `ai-tool-refused` > `gate-defer` > `backend-threw`，所以它未必是执行顺序里的第一处，`text` 会指向与该码同一条失败；没有失败项但没做完（时间预算用尽、还有子票没建、列表没取全）时 `reason` 允许留空，由 `text` 与 `notes` 说清还剩什么、怎么接着做。`items` 里的失败项与边落点项都带 `code`（给下一步用的原因码）；失败来自后端时另带 `errorKind` 与 `stage` 两格，保留后端的原始错误分类与失败阶段；deck 本地这一环的失败（锁没等到、额度不够、写后没读回、参数不合规）没有这两格，改为带 `local`（本地失败来源：`budget` / `lock` / `stale` / `unconfirmed` / `input` / `surface` / `verify`）。
 
-拿到这四个之一时，工具**当场抛**，让壳收成三态（例：`src/deck/tools/issue-create.ts:255-256`），而不是当成「后端做不到」记下来。
+另外有五个工具各带一份**传输层**标记，用它区分「后端诚实说做不到」和「这一趟根本没回来」（`src/deck/shell/backend-transport.ts:28-53` 是共用实现，`src/deck/tools/issue-create.ts:28` 与 `src/deck/tools/issue-patch.ts:23` 直接用它；`src/deck/tools/context.ts:38`、`src/deck/tools/issue-get.ts:30`、`src/deck/tools/issue-report.ts:54` 三处各写得跟它一样、还没并过去）：
+
+`backend-threw` / `aborted` / `over-budget`
+
+拿到这三档之一时，工具**当场抛**，让壳收成三态（例：`src/deck/tools/issue-create.ts:253-254`），而不是当成「后端做不到」记下来。超时（`kind='timeout'`）不在这三档里，五个工具各自单独认，收成 `backend-timeout` 回执：写阶段的意思是「请求可能已经生效，先读回确认」，读阶段的意思是「等满了没回来，等一会儿重试」（#1799）。
 
 ---
 
@@ -665,7 +669,7 @@ run                  src/deck/tools/issue-report.ts:112-223
 | 判据 | 在哪 | AI 看到 |
 | --- | --- | --- |
 | 三态状态 | `src/deck/shell/call-shell.ts:46`、`src/deck/tools/tracker-session.ts:438` 与 `:446` | `ok` / `partial` / `unsupported`，以及配套的一句话 `text` |
-| 机器可读原因 | `src/deck/shell/call-shell.ts:52-61` | `reason` 七值之一 |
+| 机器可读原因 | `src/deck/shell/call-shell.ts:52-61` | `reason` 八值之一（回答下一步做什么，不是错误名） |
 | 逐项明细 | 各工具的 `items` | 哪一项成了、哪一项没成、后端原话 |
 
 ### 9.2 失败在哪个位置，谁能看见
