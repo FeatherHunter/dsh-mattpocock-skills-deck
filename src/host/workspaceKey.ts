@@ -49,7 +49,7 @@
  *    #1806 把它们收进各自真源，避免写侧再抄一份字面量。
  */
 import { WORKSPACE_ROOT_TTL_MS } from '../shared/time-config/src/values.js'
-import { WORKSPACE_YAML_REL, WORKSPACE_IDENTITY_REL } from '../shared/config-store/src/workspace.js'
+import { WORKSPACE_YAML_REL, WORKSPACE_IDENTITY_REL, WORKSPACE_MEMBER_REL, WORKSPACE_TRACKER_DOC_REL } from '../shared/config-store/src/workspace.js'
 
 export function normalizeWorkspacePath(raw: any, platform: any): string {
   if (raw == null) return '';
@@ -98,6 +98,8 @@ export function normalizeWorkspacePath(raw: any, platform: any): string {
 // 写入侧是 #1806 的后续步骤，判定侧先认它，这样「初始化 / 人显式标独立」两条记录产生路径的
 // 门禁可以先行落地。
 const WORKSPACE_RECORD_RELS: string[] = [WORKSPACE_YAML_REL, WORKSPACE_IDENTITY_REL]
+// 从属记录（#1806 第 3 步）不在这张表里：它不是「这一层是工作区」的凭据，而是「这一层归上面」的遮罩，
+// 判定顺序见 markerOf：.git 永远优先，从属记录其次（跳过本层），最后才看上面两份记录。
 const workspaceRootCache = new Map<string, any>()   // 所选目录规整键 → { root, source, at }
 let rootLogSampleN: number = 0
 
@@ -186,17 +188,87 @@ async function existsAt(fsSvc: any, abs: any): Promise<boolean> {
 }
 
 /**
- * 这一层有没有工作区标记：'git'（自带 .git，文件或目录都算）、'record'（自带插件工作区记录）或 ''（没有）。
- * 只问路径在不在，不打开文件：.git 本身就是仓库边界；两份记录都是插件写下、随仓库提交的凭据，它们
- * 回答的只有「这一层是工作区」这一件事，内容由别的读取方按各自的需要解释（后端选择读 workspace.yaml）。
+ * 这一层有没有工作区标记：'git'（自带 .git，文件或目录都算）、'record'（自带插件工作区记录）、
+ * 'member'（自带从属记录，明确「这一层归上面的工作区」）或 ''（没有任何标记）。
+ * 只问路径在不在，不打开文件：.git 本身就是仓库边界；几份记录都是插件写下、随仓库提交的凭据，
+ * 它们回答的只有「这一层算不算一个工作区」这一件事，内容由别的读取方按各自的需要解释。
  * 记录路径本身是目录、内容空、写坏了都按「在」算——判定不替人猜记录的有效性，也不读内容（#1806）。
+ *
+ * 顺序是判定语义的一部分：.git 永远优先（人 clone 出来的仓库不可能被一份记录降级成子目录）；
+ * 从属记录其次，它只遮住同一层的两份工作区记录，让判定继续往上找（#1806 第 3 步「并入上级」）；
+ * 最后才看两份工作区记录。人写的说明文件从来不在这个顺序里，它只回答「用哪个后端」。
  */
-async function markerOf(fsSvc: any, dir: any): Promise<'git' | 'record' | ''> {
+async function markerOf(fsSvc: any, dir: any): Promise<'git' | 'member' | 'record' | ''> {
   if (await existsAt(fsSvc, joinKey(dir, '.git'))) return 'git'
+  if (await existsAt(fsSvc, joinKey(dir, WORKSPACE_MEMBER_REL))) return 'member'
   for (const rel of WORKSPACE_RECORD_RELS) {
     if (await existsAt(fsSvc, joinKey(dir, rel))) return 'record'
   }
   return ''
+}
+
+// ── 把判定依据说清楚（#1806 第 3 步）────────────────────────────────────────────
+// 面板与设置页只陈述可验证事实：根是谁、凭什么、外面还套着谁、这一层有没有别的记录。
+// 这些事实全部从探测结果推出来，界面不自己猜，也不把「看起来初始化过」当成依据。
+
+/** 一层目录里与工作区身份有关的事实；判定层只问「在不在」，界面拿它陈述依据。 */
+export interface WorkspaceLayerFacts {
+  hasGit: boolean
+  hasBackendRecord: boolean
+  hasIdentityRecord: boolean
+  hasMemberRecord: boolean
+  hasTrackerDoc: boolean
+}
+
+/** 一次「判定依据」查询的结果；面板与设置页都只读它，不各自再探一遍。 */
+export interface WorkspaceFacts {
+  cwd: string
+  root: string
+  source: WorkspaceRootSource
+  cache: string
+  probe: boolean
+  outer: { root: string; source: 'git' | 'record' } | null
+  layer: WorkspaceLayerFacts
+  rootLayer: WorkspaceLayerFacts | null
+  noRecord: boolean
+  canMerge: boolean
+  canMarkIndependent: boolean
+}
+
+/** 一层目录的事实初值：没探测成功时全部按「没有」，界面据此什么都不说，而不是瞎说。 */
+function emptyLayerFacts(): WorkspaceLayerFacts {
+  return { hasGit: false, hasBackendRecord: false, hasIdentityRecord: false, hasMemberRecord: false, hasTrackerDoc: false }
+}
+
+/** 探测一层目录的五件事。逐项 try：任意一项问不了都按「没有」算，不影响其它项。 */
+async function probeLayer(fsSvc: any, dir: any): Promise<WorkspaceLayerFacts> {
+  const out: WorkspaceLayerFacts = emptyLayerFacts()
+  try { out.hasGit = await existsAt(fsSvc, joinKey(dir, '.git')) } catch (e) {}
+  try { out.hasBackendRecord = await existsAt(fsSvc, joinKey(dir, WORKSPACE_YAML_REL)) } catch (e) {}
+  try { out.hasIdentityRecord = await existsAt(fsSvc, joinKey(dir, WORKSPACE_IDENTITY_REL)) } catch (e) {}
+  try { out.hasMemberRecord = await existsAt(fsSvc, joinKey(dir, WORKSPACE_MEMBER_REL)) } catch (e) {}
+  try { out.hasTrackerDoc = await existsAt(fsSvc, joinKey(dir, WORKSPACE_TRACKER_DOC_REL)) } catch (e) {}
+  return out
+}
+
+/** 比较两条规整键是不是同一个目录（小写、正斜杠、去尾斜杠；与写侧 pathKeyOf 同一口径）。 */
+function sameKeyOf(a: any, b: any): boolean {
+  return String(a || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() === String(b || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+}
+
+/**
+ * 从 root 的上一层继续往上找「另一个工作区」（用于「本工作区位于 X 内」这句事实）。
+ * 跳过从属记录层（那一层明确说自己不算工作区），第一个 .git 或工作区记录就是外面的工作区。
+ * 到顶没有就是 null——不猜。
+ */
+async function findOuterWorkspace(fsSvc: any, root: any): Promise<{ root: string; source: 'git' | 'record' } | null> {
+  let cursor: string | null = parentWorkspaceDir(root)
+  for (let i: number = 0; i < 64 && cursor; i++) {
+    const kind: 'git' | 'member' | 'record' | '' = await markerOf(fsSvc, cursor)
+    if (kind === 'git' || kind === 'record') return { root: cursor, source: kind }
+    cursor = parentWorkspaceDir(cursor)
+  }
+  return null
 }
 
 /** 规整后的钥匙看起来是不是一条绝对路径（只有绝对路径才谈得上往上找）。 */
@@ -234,14 +306,15 @@ export async function resolveWorkspaceRoot(selectedKey: any, deps?: any): Promis
       out = { root: key, source: fsSvc ? 'no-probe' : 'no-fs', cache: 'skip' }
     } else {
       try {
-        // 逐层向上：第一层有标记（.git 或记录）就停在这里；一路到顶都没有，工作区根就是所选目录自己。
-        // 层数上限只是兜底（真有环也不至于转不出来）。每层最多问三条固定路径（.git 与两份记录）。
+        // 逐层向上：第一层有工作区标记（.git 或工作区记录）就停在这里；从属记录层明确说自己不算工作区，
+        // 跳过它继续往上；一路到顶都没有标记，工作区根就是所选目录自己。
+        // 层数上限只是兜底（真有环也不至于转不出来）。每层最多问四条固定路径（.git、从属记录与两份记录）。
         let cursor: any = key
         let root: string = key
         let source: WorkspaceRootSource = 'self'
         for (let i: number = 0; i < 64; i++) {
-          const kind: 'git' | 'record' | '' = await markerOf(fsSvc, cursor)
-          if (kind) { root = cursor; source = kind; break }
+          const kind: 'git' | 'member' | 'record' | '' = await markerOf(fsSvc, cursor)
+          if (kind === 'git' || kind === 'record') { root = cursor; source = kind; break }
           const up: string | null = parentWorkspaceDir(cursor)
           if (!up) break
           cursor = up
@@ -272,58 +345,116 @@ export function forgetWorkspaceRootCache(): void {
   workspaceRootCache.clear()
 }
 
-export async function canonicalWorkspaceKey(raw: any, deps: any): Promise<any> {
+/**
+ * 把调用方递进来的目录洗成「所选目录本身」的规整钥匙（不锚根）。
+ * 与 canonicalWorkspaceKey 同一套三步归一：绝对路径直接用；相对路径先问文件服务它指向哪；
+ * 最后按 home 拼。抽出来是为了让「判定依据」查询用同一把尺子量调用方给的目录，
+ * 而不是各写一份归一逻辑——两处口径一旦分叉，面板说的根就会和实际归属对不上。
+ * 返回空钥匙表示连默认目录都没有。
+ */
+async function normalizeSelectedKey(raw: any, deps: any): Promise<{ key: string; platform: any }> {
   const getPlatform: any = deps && deps.getPlatform;
   const getFs: any = deps && deps.getFs;
   const getDefaultCwd: any = deps && deps.getDefaultCwd;
   let input: any = raw;
-  if (input == null || (typeof input==='string' && !input.trim())) {
-    try { input = getDefaultCwd ? getDefaultCwd() : ''; } catch { input = ''; }
-    if (!input) return '';
+  if (input == null || (typeof input === 'string' && !input.trim())) {
+    try { input = getDefaultCwd ? getDefaultCwd() : ''; } catch (e) { input = ''; }
+    if (!input) return { key: '', platform: null };
   }
-  if (typeof input!=='string') input=String(input);
-  input=input.trim();
-  if(!input){
-    try{ input = getDefaultCwd ? getDefaultCwd() : ''; }catch{}
+  if (typeof input !== 'string') input = String(input);
+  input = input.trim();
+  if (!input) {
+    try { input = getDefaultCwd ? getDefaultCwd() : ''; } catch (e) {}
+    if (!input) return { key: '', platform: null };
   }
-  let platform: any=null;
-  try{ platform = getPlatform ? await getPlatform() : null; }catch{}
-  // 三步归一都落在同一条出口上：洗出规整钥匙之后，再锚到工作区根（#652）。
-  // 只有绝对路径能锚根（相对路径连「在哪一层」都答不出来）；锚不了就原样返回，与旧行为一致。
-  async function rooted(norm: any): Promise<any>{
-    try{
-      const r: any = await resolveWorkspaceRoot(norm, { platform: platform, getFs: deps && deps.getFs, logCtx: deps && deps.logCtx });
-      return (r && r.root) ? r.root : norm;
-    }catch(e){ return norm }
-  }
-  try{
-    if(platform && platform.path && typeof platform.path.isAbsolute==='function' && platform.path.isAbsolute(input)){
-      return await rooted(normalizeWorkspacePath(input, platform));
+  let platform: any = null;
+  try { platform = getPlatform ? await getPlatform() : null; } catch (e) { platform = null; }
+  try {
+    if (platform && platform.path && typeof platform.path.isAbsolute === 'function' && platform.path.isAbsolute(input)) {
+      return { key: normalizeWorkspacePath(input, platform), platform: platform };
     }
-  }catch{}
-  try{
+  } catch (e) {}
+  try {
     const fss: any = getFs ? getFs() : null;
-    if(fss && typeof fss.resolve==='function'){
+    if (fss && typeof fss.resolve === 'function') {
       const t: any = await fss.resolve(input);
-      const target: any = (t && typeof t==='object') ? (t.path || t.target || t.displayPath || '') : t;
-      if(typeof target==='string' && target){
-        const isAbs: boolean = (platform && platform.path && typeof platform.path.isAbsolute==='function')
-          ? platform.path.isAbsolute(target)
-          : (/^[A-Za-z]:[\\\/]/.test(target) || /^\//.test(target) || /^\\\\/.test(target));
-        if(isAbs) return await rooted(normalizeWorkspacePath(target, platform));
+      const target: any = (t && typeof t === 'object') ? (t.path || t.target || t.displayPath || '') : t;
+      if (typeof target === 'string' && target) {
+        const isAbs: boolean = (platform && platform.path && typeof platform.path.isAbsolute === 'function')
+          ? platform.path.isAbsolute(target) === true
+          : (target.charAt(1) === ':' || target.charAt(0) === '/' || target.charAt(0) === '\\');
+        if (isAbs) return { key: normalizeWorkspacePath(target, platform), platform: platform };
       }
     }
-  }catch{}
-  try{
-    if(platform && typeof platform.getHome==='function'){
+  } catch (e) {}
+  try {
+    if (platform && typeof platform.getHome === 'function') {
       const home: any = await platform.getHome();
-      if(home && platform.path){
+      if (home && platform.path) {
         const joined: any = platform.path.join(home, input);
-        return await rooted(normalizeWorkspacePath(joined, platform));
+        return { key: normalizeWorkspacePath(joined, platform), platform: platform };
       }
     }
-  }catch{}
-  if(platform) return await rooted(normalizeWorkspacePath(input, platform));
-  return input;
+  } catch (e) {}
+  if (platform) return { key: normalizeWorkspacePath(input, platform), platform: platform };
+  return { key: input, platform: platform };
 }
-export default { normalizeWorkspacePath, canonicalWorkspaceKey, resolveWorkspaceRoot, parentWorkspaceDir };
+
+/**
+ * 一次「把工作区身份说清楚」的查询（#1806 第 3 步）：根是谁、凭什么、外面还套着谁、
+ * 这一层有没有说明文件与各种记录。面板与设置页只读它，不各自再探一遍、也不自己猜。
+ *
+ * 为什么是宿主电话而不是客户端自己算：判定与记录的口径只在宿主这一处；客户端拿快照里的
+ * workspaceRoot 只能知道「根是谁」，answer 不了「凭 .git 还是凭插件记录」「外面还有没有工作区」。
+ * 返回里的 canMerge / canMarkIndependent 是给界面用的「这个纠正动作现在做不做得了」，
+ * 判断依据全部来自上面这些事实，不额外加启发式。
+ */
+export async function inspectWorkspaceFacts(selectedKey: any, deps?: any): Promise<WorkspaceFacts> {
+  const d: any = deps || {};
+  let key: string = '';
+  let platform: any = null;
+  try {
+    const sel: any = await normalizeSelectedKey(selectedKey, d);
+    key = (sel && sel.key) ? sel.key : '';
+    platform = sel ? sel.platform : null;
+  } catch (e) { key = ''; platform = null; }
+  const facts: WorkspaceFacts = {
+    cwd: key, root: key, source: 'self', cache: 'skip', probe: false,
+    outer: null, layer: emptyLayerFacts(), rootLayer: null,
+    noRecord: true, canMerge: false, canMarkIndependent: false,
+  };
+  if (!key) { facts.source = 'empty'; return facts; }
+  if (!isAbsoluteKey(key, platform)) { facts.source = 'relative'; return facts; }
+  const fsSvc: any = (typeof d.getFs === 'function') ? d.getFs() : null;
+  facts.probe = !!fsSvc && hasProbe(fsSvc);
+  let res: WorkspaceRootResult = { root: key, source: 'fail', cache: 'skip' };
+  try { res = await resolveWorkspaceRoot(key, { platform: platform, getFs: d.getFs, logCtx: d.logCtx }) } catch (e) {}
+  facts.root = res.root || key;
+  facts.source = res.source;
+  facts.cache = res.cache;
+  facts.noRecord = facts.source === 'self';
+  if (!facts.probe) return facts;
+  try {
+    const layer: WorkspaceLayerFacts = await probeLayer(fsSvc, key);
+    facts.layer = layer;
+    facts.rootLayer = sameKeyOf(facts.root, key) ? layer : await probeLayer(fsSvc, facts.root);
+    if (facts.source === 'git' || facts.source === 'record') facts.outer = await findOuterWorkspace(fsSvc, facts.root);
+    facts.canMerge = facts.source === 'record' && sameKeyOf(facts.root, key) && !layer.hasGit && facts.outer !== null;
+    // 历史遗留：这一层有说明文件、却没有任何工作区记录（也不自带 .git），按上级工作区看待；
+    // 界面只提示「可以标为独立」，点了才写记录——系统不替人猜。
+    facts.canMarkIndependent = !sameKeyOf(facts.root, key) && layer.hasTrackerDoc && !layer.hasGit
+      && !layer.hasBackendRecord && !layer.hasIdentityRecord && !layer.hasMemberRecord;
+  } catch (e) {}
+  return facts;
+}
+
+export async function canonicalWorkspaceKey(raw: any, deps: any): Promise<any> {
+  const sel: any = await normalizeSelectedKey(raw, deps || {});
+  const key: string = (sel && sel.key) ? sel.key : '';
+  if (!key) return '';
+  try {
+    const r: any = await resolveWorkspaceRoot(key, { platform: sel.platform, getFs: deps && deps.getFs, logCtx: deps && deps.logCtx });
+    return (r && r.root) ? r.root : key;
+  } catch (e) { return key }
+}
+export default { normalizeWorkspacePath, canonicalWorkspaceKey, resolveWorkspaceRoot, parentWorkspaceDir, inspectWorkspaceFacts };

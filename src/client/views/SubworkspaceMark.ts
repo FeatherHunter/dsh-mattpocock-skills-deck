@@ -31,6 +31,11 @@
 //   当场弹一次 —— 那个工作区每进一次子目录会话都白弹一次，#650 承诺的「同一个工作区只弹一次」就没了。
 //   三档判决（等 / 弹 / 不弹）见下面的 subwsMarkAutoDecide，怎么重跑见下面那个订阅效果。
 //
+// #1806 第 3 步（2026-11-03）：这枚标志不再只回答「当前目录是不是子目录」。工作区根会话也用它陈述判定依据：
+//   由 .git 还是插件记录标记、外面还套着哪个工作区、一路没有任何记录；事实来自宿主电话 wf.workspaceFacts，
+//   本文件不自己拿快照猜。子目录会话的文案与「同一个工作区只自动展开一次」都不变；根会话只做悬浮说明，
+//   不自动展开、图标用灰色（红色留给「数据来自别处」这种需要一眼看见的情形）。
+//
 // 渲染之外的决定（取根、该不该出现、相对尾巴怎么拼、显示哪几行、显示成哪种写法）全在这几个纯函数里，
 //   组件只负责画与点击。门禁既直接跑这几个纯函数，也把组件真的渲染一次（tests/verify-666-subws-mark-root.ts
 //   的 A～D 组跑纯函数，E 组渲染组件）—— 因为本票的缺陷是「纯函数全对、组件却每次都返回 null」，
@@ -172,6 +177,34 @@ export const subwsMarkLinesOf = function (root: any, cwd: any, rootInitialized: 
     return (rootInitialized === false) ? parts : parts.slice(0, 3)
   } catch (e) { return [] }
 }
+// 根会话该说哪几行（#1806 第 3 步）：只陈述判定层给出的事实，不自己猜。
+//   事实来自宿主电话 wf.workspaceFacts 的回包：source 是 git / record / self 三档；
+//   其余（fail / no-fs / no-probe / relative / empty）一律什么都不说 —— 没查清就不开口，宁可不显示，也不编一句。
+//   只有当前目录就是工作区根时才用这几行：子目录情形已有上面那套更直白的说法（这份数据是谁的）。
+//   普通 git 仓库根（外面没有另一个工作区）不显示：那是绝大多数仓库的常态，多一枚图标只是噪音。
+//   外面还套着另一个工作区时补一句「位于 X 内」：让人知道这里的身份只到这一层，不会并进外面那一个。
+export const subwsMarkFactLinesOf = function (facts: any, cwd: any) {
+  try {
+    if (!facts) return []
+    if (subwsMarkCmpKey(facts.cwd) !== subwsMarkCmpKey(facts.root)) return []
+    const source = String(facts.source || '')
+    const outer = facts.outer || null
+    const out: string[] = []
+    if (source === 'self') {
+      out.push(String(tr('panel.wsMarkNoRecord')))
+      return out
+    }
+    if (source === 'record') out.push(String(tr('panel.wsMarkRootRecord')))
+    else if (source === 'git') {
+      if (!outer) return []
+      out.push(String(tr('panel.wsMarkRootGit')))
+    } else return []
+    if (outer && outer.root) {
+      out.push(String(tr('panel.wsMarkRootOuter')).replace(/\{outer\}/g, String(subwsMarkRootShown(outer.root, cwd))))
+    }
+    return out
+  } catch (e) { return [] }
+}
 // 该不该自动展开这一次浮层？三选一，'wait'（等）必须与 'skip'（不弹）分开 —— 这两件事在界面上完全不同：
 //   'wait' ＝ 设置文档还在路上，这一次先不弹，等它到手（或判定问不到）之后重跑再判；
 //   'skip' ＝ 问过真源了，这个工作区以前自动展开过，不再打扰；
@@ -217,8 +250,24 @@ export const SubworkspaceMark = function (props: any) {
   }
   const rootIsInitialized = function () { return chainStepOk('tracker:initialized') !== false }
   const inited = rootIsInitialized()
-  const shown = subwsMarkLinesOf(root, cwd, inited)
-  const isSub = shown.length > 0
+  const subShown = subwsMarkLinesOf(root, cwd, inited)
+  const isSub = subShown.length > 0
+  // #1806 第 3 步：根会话要陈述「这一层凭什么算工作区、外面还套着谁」，这些事实只有宿主的判定层知道，
+  //   所以这里向宿主问一次 wf.workspaceFacts。子目录会话沿用上面那套（数据来自哪个工作区），不必看事实；
+  //   问不到、回包不对、宿主不在（老产物与渲染替身）：facts 保持 null，按旧行为处理（根会话不显示）。
+  const [facts, setFacts] = React.useState(null)
+  React.useEffect(function () {
+    let cancelled = false
+    try {
+      if (typeof host !== 'undefined' && host && typeof host.call === 'function' && cwd) {
+        host.call('wf.workspaceFacts', { cwd: cwd }).then(function (res: any) {
+          if (cancelled) return
+          setFacts((res && res.ok && res.facts) ? res.facts : null)
+        }).catch(function () { if (!cancelled) setFacts(null) })
+      }
+    } catch (e) {}
+    return function () { cancelled = true }
+  }, [cwd])
   // 「第一次自动展开」按工作区记一份状态：记在工作区根这把键上，同一个工作区只展开一次。
   //   #1012 起这份状态的真源是本机设置文件（kernel/settings-view.js 的 viewFlagOf / setViewFlag，
   //   键取工作区根的可读路径），下面这两个函数只是过渡：新模块不在（老产物、或渲染替身里）、
@@ -311,23 +360,28 @@ export const SubworkspaceMark = function (props: any) {
     setAutoOpen(false)
     setAutoDone(true)
   }
-  if (!isSub) return null
+  // 子目录会话：原来那三/四行；根会话：按 #1806 第 3 步只说判定层给的事实。
+  //   两边都有内容时子目录优先：它回答「这份面板数据是谁的」，比「本层凭什么算根」更贴近当前这次对话。
+  const shown = isSub ? subShown : subwsMarkFactLinesOf(facts, cwd)
+  if (!shown.length) return null
   const aria = shown.join('；')
   // 显示与点击都用还原过写法的那一条：浮层里写着「点一下打开 D:\ilife」，点下去就不该打开另一条写法
-  const shownRoot = subwsMarkRootShown(root, cwd)
+  const shownRoot = isSub ? subwsMarkRootShown(root, cwd) : String(cwd || root)
   const dim = { fontSize: 11, lineHeight: '16px', whiteSpace: 'normal', wordBreak: 'break-word' }
   // 渲染时，最后一行是那条「还没初始化」的提醒，用琥珀色；其余灰色。
   const tipContent = h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, shown.map(function (s: any, i: any) {
-    const isWarn = (!inited && i === shown.length - 1)
+    const isWarn = (isSub && !inited && i === shown.length - 1)
     return h('div', { key: 'l' + i, style: Object.assign({}, dim, { color: (i === 0 ? '#e6edf3' : (isWarn ? '#f59e0b' : '#8b8b95')) }) }, s)
   }))
   // 图形颜色写死成与边框同一个红 #f85149（2026-09-19 维护者定）：原先用的是 currentColor，
   //   跟着所在那一行的字色走 —— 头部那行字色是浅色的，于是画出来是个橙色文件夹配一个红边框，两截颜色。
   //   写死之后框与图形是同一个红，不随外层字色漂移。
   const MARK_RED = '#f85149'
-  const iconSvg = h('svg', { key: 'icon', viewBox: '0 0 16 16', width: 13, height: 13, fill: 'none', stroke: MARK_RED, strokeWidth: 1.3, strokeLinejoin: 'round', strokeLinecap: 'round' }, [
+  // 子目录会话用红（数据来自别处，需要一眼看见）；根会话的依据陈述用灰（说明性信息，不抢眼）。
+  const markColor = isSub ? MARK_RED : '#8b8b95'
+  const iconSvg = h('svg', { key: 'icon', viewBox: '0 0 16 16', width: 13, height: 13, fill: 'none', stroke: markColor, strokeWidth: 1.3, strokeLinejoin: 'round', strokeLinecap: 'round' }, [
     h('path', { key: 'folder', d: 'M1.9 5.2A1.3 1.3 0 0 1 3.2 3.9h2.3l1.1 1.3h4.3a1.3 1.3 0 0 1 1.3 1.3v4.3a1.3 1.3 0 0 1-1.3 1.3H3.2a1.3 1.3 0 0 1-1.3-1.3z' }),
-    h('rect', { key: 'block', x: 8.1, y: 7.4, width: 3.9, height: 3.9, rx: 1.1, fill: MARK_RED, stroke: 'none' }),
+    h('rect', { key: 'block', x: 8.1, y: 7.4, width: 3.9, height: 3.9, rx: 1.1, fill: markColor, stroke: 'none' }),
   ])
   // 下面几处把子元素写成数组（iconSvg 里面的 [path, rect]、[iconSvg]、[span]），数组里每个元素都要带 key：
   //   React 19 对「当子元素传进来的数组」逐个要 key，**哪怕数组里只有一个元素**，缺了就在控制台留一行警告。
@@ -375,7 +429,7 @@ export const SubworkspaceMark = function (props: any) {
       // 底色与边框（维护者 2026-09-19 在真机上定，尺寸之外不变）：
       //   底色**纯透明**，不用那层淡紫 rgba(192,132,252,.07)（叠在深色底上泛粉紫，同排颜色不统一）；
       //   边框用本仓的红色档 #f85149，与右边蓝色那颗「切换后端」、木色那颗「标签配色」在颜色上区分开。
-      style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: 16, height: 16, borderRadius: 4, border: '1px solid ' + MARK_RED, background: 'transparent', cursor: 'pointer', flex: 'none' },
+      style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: 16, height: 16, borderRadius: 4, border: '1px solid ' + markColor, background: 'transparent', cursor: 'pointer', flex: 'none' },
     }, [iconSvg]),
   ])
   // 自动展开那一次用受控 visible；关掉（或本来就不再展开）之后交回 HoverTip 自己管（鼠标悬停照常出浮层）。

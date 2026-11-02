@@ -19,6 +19,7 @@ import {
   computeWsOverviewRows,
   wsDisplayOf,
   wsSuffixKeepOf,
+  wsOuterShownOf,
 } from '../src/client/views/SettingsWorkspaces.js';
 
 let failed = false;
@@ -178,6 +179,19 @@ async function main(): Promise<void> {
       depsOf({}),
     );
     check(out.rows[0].bound === true && out.rows[0].unboundHint === null, '已绑定的行不带线索');
+  }
+
+  // #1806 第 3 步：设置页要写「位于 X 内」，宿主回的外面那个工作区是折算过的键（小写、正斜杠），
+  //   直接显示会说成 d:/work。这里把「按这一行的原始写法逐段还原」那条纯函数钉住：
+  //   外面那层一定是这一行的祖先，所以取原始路径的前几段就能还原；还原不了就原样回，不猜。
+  console.log('— 「位于 X 内」那句里外面工作区的写法（#1806 第 3 步）');
+  {
+    check(wsOuterShownOf('d:\\work', 'D:\\work\\proj') === 'D:\\work', '宿主回小写键时按这一行的反斜杠写法还原');
+    check(wsOuterShownOf('d:/work/proj', 'D:/work/proj/sub') === 'D:/work/proj', '正斜杠写法同样还原（取原始路径的前几段）');
+    check(wsOuterShownOf('d:\\work', 'D:\\work\\proj\\deep\\er') === 'D:\\work', '外面那层与这一行隔了好几层也没关系，按段数取');
+    check(wsOuterShownOf('/home/w', '/home/w/proj') === '/home/w', 'POSIX 绝对路径开头的斜杠要保住');
+    check(wsOuterShownOf('', 'D:/work/proj') === '', '没有外面那层就不说这句话（不编一个根出来）');
+    check(wsOuterShownOf('d:/work', '') === 'd:/work', '这一行没有原始路径可借时原样回宿主给的值，不硬造写法');
   }
 
   console.log(`共 ${total} 条`);

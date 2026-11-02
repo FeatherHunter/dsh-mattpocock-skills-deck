@@ -235,6 +235,22 @@ zh:
   cfg.wsDeckTools: deck 工具箱
   cfg.wsDeckToolsTip: deck 工具箱：绿色是打开、灰色是关闭，点一下切换。关闭后这个工作区的 deck 工具、胶囊状态栏和右侧面板三处一起关，界面回到普通编码界面。
   cfg.wsPendingHint: 已存住，打开该工作区后生效
+  cfg.wsBasisGit: .git
+  cfg.wsBasisRecord: 插件记录
+  cfg.wsBasisNone: 没有记录
+  cfg.wsBasisGitTip: 这个工作区的身份来自它自带的 .git（文件或目录都算）
+  cfg.wsBasisRecordTip: 这个工作区的身份来自插件写下或你确认过的工作区记录
+  cfg.wsBasisNoneTip: 这个目录一路往上都没有 .git 也没有工作区记录，现在按它自己兜底
+  cfg.wsBasisUnknownTip: 这次没能查清这一行的依据
+  cfg.wsOuterIn: 位于 {root} 内
+  cfg.wsOuterTip: 这个工作区外面还套着另一个工作区；这里的数据只属于它自己，不并进外面那一个
+  cfg.wsMarkIndependent: 标为独立工作区
+  cfg.wsMarkIndependentTip: 这个目录里有说明文件但没有任何工作区记录，现在按上级工作区看待。点一下给它写一份记录，让它成为独立的工作区。
+  cfg.wsJoinParent: 并入上级
+  cfg.wsJoinParentTip: 这个目录现在是一个独立工作区，外面还套着 {root}。点一下把它并进上级工作区；现有记录不会被删除，以后还能改回来。
+  cfg.wsCorrectPromoted: 已标为独立工作区
+  cfg.wsCorrectJoined: 已并入上级工作区
+  cfg.wsCorrectFail: "操作没有成功：{msg}"
   cfg.updateManualTitle: 按钮装不了，用这条命令自己装
   cfg.updateCopy: 一键复制
   cfg.updateManualNote: 网络只放行内网镜像时，可以把命令末尾的 --registry=https://registry.npmjs.org/ 去掉，改用本机源。但如果报错说找不到新版本且地址是镜像源，那就是镜像源还没同步到新版本：这时不要去掉源参数，直接用这条命令装。
@@ -495,6 +511,22 @@ en:
   cfg.wsDeckTools: Deck tools
   cfg.wsDeckToolsTip: Deck tools — green means on, grey means off. A click toggles it; when off, this workspace's deck tools, capsule status bar and right-hand panel all close together and the usual coding view returns.
   cfg.wsPendingHint: Saved — takes effect after opening this workspace.
+  cfg.wsBasisGit: .git
+  cfg.wsBasisRecord: Plugin record
+  cfg.wsBasisNone: No record
+  cfg.wsBasisGitTip: This workspace's identity comes from its own .git (file or folder)
+  cfg.wsBasisRecordTip: This workspace's identity comes from a workspace record the plugin wrote or you confirmed
+  cfg.wsBasisNoneTip: Going up from this folder there is no .git and no workspace record, so it falls back to itself
+  cfg.wsBasisUnknownTip: Could not determine what this row is based on this time
+  cfg.wsOuterIn: Sits inside {root}
+  cfg.wsOuterTip: Another workspace wraps this one; this workspace's data belongs only to itself and does not merge into the outer one
+  cfg.wsMarkIndependent: Mark as its own workspace
+  cfg.wsMarkIndependentTip: This folder has a tracker note but no workspace record, so it currently counts as part of the parent workspace. Click to write a record and make it its own workspace.
+  cfg.wsJoinParent: Join parent workspace
+  cfg.wsJoinParentTip: This folder is currently its own workspace, and another workspace wraps it ({root}). Click to merge it into the parent workspace; existing records are not deleted and this can be undone later.
+  cfg.wsCorrectPromoted: Marked as its own workspace
+  cfg.wsCorrectJoined: Joined the parent workspace
+  cfg.wsCorrectFail: "The action did not succeed: {msg}"
   cfg.updateManualTitle: Button install unavailable — run this command instead
   cfg.updateCopy: Copy command
   cfg.updateManualNote: "On a network that only allows an internal mirror, drop the trailing --registry=https://registry.npmjs.org/ and your local registry is used instead. But if the error says the new version was not found on a mirror registry, the mirror has not synced the new release yet: keep the registry parameter and install with this command."

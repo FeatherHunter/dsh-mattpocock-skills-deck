@@ -44,6 +44,19 @@ function tipsFromLocale() {
   return out
 }
 
+/**
+ * 从生成词表里取一条词（#1806 第 3 步起用）：panel.* 走 L_PANEL、cfg.* 走 L_FLOW。
+ * 取不到就原样回键名——与旧行为一致（旧 tr 对未知键就是回键名），调用方不会因为缺词条而崩。
+ */
+function localeTextOf(key: string, lang: 'zh' | 'en'): string {
+  try {
+    const loc: any = require('../../src/client/kernel/locale-data.ts')
+    const table: any = key.indexOf('panel.') === 0 ? loc.L_PANEL : (key.indexOf('cfg.') === 0 ? loc.L_FLOW : null)
+    const val = table && table[lang] ? table[lang][key] : undefined
+    return typeof val === 'string' ? val : key
+  } catch (e) { return key }
+}
+
 /** 真源里的纯函数那把规整函数（大小写、分隔符都折算到同一把钥匙）。 */
 function subwsCmpKey(keyOf: any, v: any): string {
   try { return (typeof keyOf === 'function') ? String(keyOf(v)) : String(v == null ? '' : v) } catch (e) { return '' }
@@ -93,13 +106,14 @@ function tipTextOf(tipCalls: any): string {
 /**
  * 渲染这枚标志一次（可选再点一下）。
  * @param {object} store 本会话的 store（要断言的是它带着 st.snapshot.workspaceRoot、cwd 是子目录）
- * @param {{lang?:string, src?:string, click?:boolean, autoShown?:boolean, chainInit?:string}} [opts]
+ * @param {{lang?:string, src?:string, click?:boolean, autoShown?:boolean, chainInit?:string, facts?:object}} [opts]
  *   lang 取 'zh'（默认）| 'en'，决定浮层文案；src 换一版组件源码（复现脚本用它喂旧版）；
  *   click 为真时渲染完真的点一下那枚标志，把 host.call 的记录收回来；
  *   autoShown 为真时假装「这个工作区以前已经自动展开过」（记的键与组件读的键是同一条）；
- *   chainInit 给出检查链里 tracker:initialized 那一步的状态（'done' / 'current' / 不给）。
+ *   chainInit 给出检查链里 tracker:initialized 那一步的状态（'done' / 'current' / 不给）；
+ *   facts 给 wf.workspaceFacts 这条电话的答复体（#1806 第 3 步根会话的依据说明要它；不给就只答 {ok:true}）。
  */
-async function renderMark(store: any, opts?: { lang?: string; src?: string; click?: boolean; autoShown?: boolean; chainInit?: string }): Promise<any> {
+async function renderMark(store: any, opts?: { lang?: string; src?: string; click?: boolean; autoShown?: boolean; chainInit?: string; facts?: any }): Promise<any> {
   const o = opts || {}
   const lang = o.lang === 'en' ? 1 : 0
   const src = o.src || fs.readFileSync(path.join(ROOT, MARK_REL), 'utf8')
@@ -123,9 +137,12 @@ async function renderMark(store: any, opts?: { lang?: string; src?: string; clic
   const ReactDOMClient = require('react-dom/client')
   const { act } = require('react')
 
+  // 词条真源：wsMarkTip 仍走上面那条「从生成源码里取」的老路（外部调用方也依赖它）；
+  // #1806 第 3 步新加的 panel.wsMarkRoot* / panel.wsMarkNoRecord 与 cfg.* 词条直接从生成词表取，
+  // 不在这份工具里手抄第二份文案——手抄的文案跟真界面漂开时，门禁会拿错的期望值判绿。
   const tr = function (key, params) {
-    let s = (key === 'panel.wsMarkTip') ? tips[lang] : key
-    if (params) s = s.replace(/\{(\w+)\}/g, function (m, name) { return (name in params) ? String(params[name]) : m })
+    let s = (key === 'panel.wsMarkTip') ? tips[lang] : localeTextOf(key, o.lang === 'en' ? 'en' : 'zh')
+    if (params) s = String(s).replace(/\{(\w+)\}/g, function (m, name) { return (name in params) ? String(params[name]) : m })
     return s
   }
   const tipCalls = []
@@ -147,7 +164,15 @@ async function renderMark(store: any, opts?: { lang?: string; src?: string; clic
     return React.createElement('span', { 'data-tip': 1, 'data-tip-visible': p.visible === true ? '1' : '0' }, p.children)
   }
   const hostCalls = []
-  const host = { call: function (method, args) { hostCalls.push({ method: method, args: args }); return Promise.resolve({ ok: true }) } }
+  const host = {
+    call: function (method, args) {
+      hostCalls.push({ method: method, args: args })
+      // #1806 第 3 步：组件挂载后会问一次「本工作区凭什么算根」。不给 facts 时保持旧答复 {ok:true}，
+      // 组件就把事实当「不知道」、退回旧行为——这样老用例一条都不用改。
+      if (method === 'wf.workspaceFacts' && o.facts) return Promise.resolve({ ok: true, facts: o.facts })
+      return Promise.resolve({ ok: true })
+    },
+  }
   // #1582：组件打开失败会 flash 一句提示。本工具只看它有没有说话、说了哪句，所以只记录不弹。
   const flashCalls: Array<{ store: any; message: any; kind: any }> = []
   const flash = function (store: any, message: any, kind: any) { flashCalls.push({ store: store, message: message, kind: kind }) }
@@ -199,4 +224,4 @@ async function renderMark(store: any, opts?: { lang?: string; src?: string; clic
   }
 }
 
-module.exports = { renderMark: renderMark, tipsFromLocale: tipsFromLocale, keyOfFn: keyOfFn, tipTextOf: tipTextOf, ROOT: ROOT }
+module.exports = { renderMark: renderMark, tipsFromLocale: tipsFromLocale, keyOfFn: keyOfFn, tipTextOf: tipTextOf, localeTextOf: localeTextOf, ROOT: ROOT }

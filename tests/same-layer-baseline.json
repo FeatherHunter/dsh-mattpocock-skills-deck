@@ -1405,6 +1405,15 @@
       "count": 1,
       "owner": "#1806（工作区身份记录写电话）",
       "note": "装配扇入：工作区身份记录的两条写电话（初始化流程补写、人显式标为独立工作区）要接进宿主入口，而入口已贴着四百物理行上限，加载器与注册只能并进既有行；照 #500/#821/#1739 同一条先例把写逻辑拆成自包含叶子 workspaceRecords.ts（文件通道、判定键、快照缓存、根判定缓存、沙箱政策与日志全部由装配点显式传入，叶子不反向引用宿主入口）。"
+    },
+    {
+      "file": "src/host/index.ts",
+      "spec": "./workspaceKey.js",
+      "resolved": "src/host/workspaceKey.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1806（第 3 步：判定依据查询扇入）",
+      "note": "装配扇入：第 3 步的「查判定依据」电话要把判定层算出来的事实（根是谁、凭什么、外面还有谁、这一层有什么）交给面板与设置页，而事实只能由判定层 workspaceKey.ts 算（同一把尺子，客户端不自己猜）。按上面的先例，装配点 index 加载 workspaceKey 并把 inspectWorkspaceFacts 作为 resolveFacts 显式传给自包含叶子 workspaceRecords.ts；叶子本身仍不引任何宿主文件，反向不依赖。"
     }
   ]
 }

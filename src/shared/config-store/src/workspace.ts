@@ -34,6 +34,18 @@ export const WORKSPACE_JSON_REL = 'docs/agents/workspace.json'
  * 判定层（src/host/workspaceKey.ts）与写入侧都必须 import 这里，不许各自再抄字面量。
  */
 export const WORKSPACE_IDENTITY_REL = 'docs/agents/workspace-root.yaml'
+/**
+ * 从属记录（#1806 第 3 步）：表示「这一层不是工作区，归上面的工作区」。
+ * 与身份记录同一套写法，但语义相反：它遮住同一层已有的两份记录，让判定继续往上找。
+ * 「并入上级工作区」写它而不是删旧记录，是因为历史数据不迁移、不删除，而且动作要可逆
+ * （删掉从属记录，这个目录原来的记录就重新生效）。
+ */
+export const WORKSPACE_MEMBER_REL = 'docs/agents/workspace-member.yaml'
+/**
+ * 人写的说明文件路径（后端选择说明）。判定层从 #1806 起不读它、也不拿它当根标记；
+ * 界面事实用它判断「历史遗留：有说明文件、但没有任何工作区记录」，这时只提示、不参与判定。
+ */
+export const WORKSPACE_TRACKER_DOC_REL = 'docs/agents/issue-tracker.md'
 /** 核认识的版本就是 2（老 JSON 是版本 1，读进来做迁移）。 */
 export const WORKSPACE_KNOWN_VERSION = 2
 
@@ -311,6 +323,88 @@ export function parseIdentityRecord(text: unknown): ConfigParseResult {
   if (!isInt(doc['writtenAt']) || (doc['writtenAt'] as number) < 0) return fail('bad-shape', '工作区身份记录里的 writtenAt 必须是毫秒时间戳')
   if (typeof doc['source'] !== 'string' || WORKSPACE_IDENTITY_SOURCES.indexOf(doc['source']) < 0) {
     return fail('bad-shape', '工作区身份记录里的 source 必须是 setup 或 user')
+  }
+  return { ok: true, value: { version: doc['version'], kind: doc['kind'], writtenAt: doc['writtenAt'], source: doc['source'] }, readonly: false, warnings: [] }
+}
+
+/**
+ * 从属记录（#1806 第 3 步）：只回答「这一层归上面的工作区、不是独立工作区」，不回答用哪个后端。
+ *
+ * 为什么需要它：人要求把某个目录「并入上级工作区」时，不能删掉这个目录里已有的
+ * workspace.yaml 或 workspace-root.yaml——历史数据不迁移、不删除，而且动作必须可逆。
+ * 从属记录只是一份「遮罩」：判定层看到它，就跳过这一层已有的记录继续往上找；
+ * 人再点「标为独立工作区」时删掉它，原来的记录重新生效。
+ *
+ * 文件由插件写、内容由插件独占；判定层只查它在不在、不读内容，坏内容不会改变归属。
+ */
+export const WORKSPACE_MEMBER_KIND = 'workspace-member'
+/** 从属记录版本；与身份记录各记各的。 */
+export const WORKSPACE_MEMBER_KNOWN_VERSION = 1
+/** 谁写的这份记录：目前只有 user=人在面板上显式选择「并入上级工作区」。 */
+export const WORKSPACE_MEMBER_SOURCES = ['user']
+const MEMBER_KEYS = ['version', 'kind', 'writtenAt', 'source']
+const MEMBER_HEADER = [
+  '# 从属记录：这份文件由插件写下，表示「这个目录归上面的工作区，不算独立工作区」。',
+  '# 它不记录用哪个后端，也不删除这个目录里已有的工作区记录（那些记录只是被这份文件盖住）。',
+  '# 删掉它，这个目录里已有的工作区记录会重新生效。',
+]
+
+/** 拼装从属记录文本。值不合法时回失败，绝不写出半份文件。 */
+export function stringifyMemberRecord(value: unknown): ConfigStringifyResult {
+  if (!isRecord(value)) return { ok: false, reason: 'bad-shape', message: '要写入的从属记录不是一组「名字 → 值」' }
+  const strange = Object.keys(value).filter((k) => MEMBER_KEYS.indexOf(k) < 0)
+  if (strange.length > 0) {
+    return { ok: false, reason: 'unknown-keys', message: '要写入的从属记录里有多出来的名字，核不会把它们写进去：' + strange.join('、'), keys: strange }
+  }
+  const version = value['version'] === undefined ? WORKSPACE_MEMBER_KNOWN_VERSION : value['version']
+  if (!isInt(version)) return { ok: false, reason: 'bad-shape', message: '从属记录里的 version 必须是数字（缺席默认 1）' }
+  if ((version as number) > WORKSPACE_MEMBER_KNOWN_VERSION) {
+    return {
+      ok: false,
+      reason: 'version-newer',
+      message: '拒绝写入：这份从属记录是版本 ' + String(version) + '，核只认识到版本 1。旧版本写回去会把新字段抹掉，请升级插件后再改。',
+    }
+  }
+  if (version !== WORKSPACE_MEMBER_KNOWN_VERSION) return { ok: false, reason: 'bad-shape', message: '从属记录现在只出版本 1' }
+  if (value['kind'] !== WORKSPACE_MEMBER_KIND) {
+    return { ok: false, reason: 'bad-shape', message: '从属记录里的 kind 必须是 ' + WORKSPACE_MEMBER_KIND + '（这份文件只表示「这一层归上面的工作区」）' }
+  }
+  if (!isInt(value['writtenAt']) || (value['writtenAt'] as number) < 0) {
+    return { ok: false, reason: 'bad-shape', message: '从属记录里的 writtenAt 必须是写下这份文件的时间（毫秒，非负整数）' }
+  }
+  if (typeof value['source'] !== 'string' || WORKSPACE_MEMBER_SOURCES.indexOf(value['source']) < 0) {
+    return { ok: false, reason: 'bad-shape', message: '从属记录里的 source 必须是 user（人在面板上显式并入上级）' }
+  }
+  const lines = [...MEMBER_HEADER]
+  lines.push('version: ' + String(WORKSPACE_MEMBER_KNOWN_VERSION))
+  lines.push('kind: ' + WORKSPACE_MEMBER_KIND)
+  lines.push('writtenAt: ' + String(value['writtenAt']))
+  lines.push('source: ' + esc(value['source'] as string))
+  return { ok: true, text: lines.join('\n') + '\n' }
+}
+
+/** 读从属记录文本。判定层不靠它，排查与展示靠它；读不懂就明说读不懂，不猜。 */
+export function parseMemberRecord(text: unknown): ConfigParseResult {
+  if (typeof text !== 'string') return { ok: false, reason: 'yaml-error', message: '要解析的不是一段文字' }
+  const stripped = text.replace(/^\uFEFF/, '')
+  if (stripped.length > MAX_WORKSPACE_FILE_CHARS) {
+    return { ok: false, reason: 'oversize', message: '这份从属记录太大了（' + stripped.length + ' 字，上限 ' + MAX_WORKSPACE_FILE_CHARS + ' 字），核拒绝解析' }
+  }
+  let doc: unknown = null
+  try {
+    doc = parseYaml(stripped, { schema: 'core', maxAliasCount: MAX_WORKSPACE_ALIASES, uniqueKeys: true })
+  } catch (e) {
+    const msg = String((e && (e as Error).message) || e || '')
+    return { ok: false, reason: 'yaml-error', message: '这份从属记录的内容不是合法的 YAML：' + msg.slice(0, 160) }
+  }
+  if (!isRecord(doc)) return fail('bad-shape', '从属记录里放的不是一组「名字 → 值」')
+  const strange = Object.keys(doc).filter((k) => MEMBER_KEYS.indexOf(k) < 0)
+  if (strange.length > 0) return fail('unknown-keys', '从属记录里有多出来的名字，核不认识它们：' + strange.join('、'), strange)
+  if (doc['version'] !== WORKSPACE_MEMBER_KNOWN_VERSION) return fail('bad-shape', '从属记录里的 version 现在只认 1')
+  if (doc['kind'] !== WORKSPACE_MEMBER_KIND) return fail('bad-shape', '从属记录里的 kind 必须是 ' + WORKSPACE_MEMBER_KIND)
+  if (!isInt(doc['writtenAt']) || (doc['writtenAt'] as number) < 0) return fail('bad-shape', '从属记录里的 writtenAt 必须是毫秒时间戳')
+  if (typeof doc['source'] !== 'string' || WORKSPACE_MEMBER_SOURCES.indexOf(doc['source']) < 0) {
+    return fail('bad-shape', '从属记录里的 source 必须是 user')
   }
   return { ok: true, value: { version: doc['version'], kind: doc['kind'], writtenAt: doc['writtenAt'], source: doc['source'] }, readonly: false, warnings: [] }
 }

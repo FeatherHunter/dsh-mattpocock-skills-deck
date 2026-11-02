@@ -183,6 +183,10 @@ zh:
     当前目录是它的子目录：{rel}
     点一下打开 {root}
     {root}还未初始化
+  panel.wsMarkRootRecord: 本工作区由插件写下的工作区记录标记
+  panel.wsMarkRootGit: 本工作区由 .git 标记
+  panel.wsMarkRootOuter: 本工作区位于 {outer} 内
+  panel.wsMarkNoRecord: 本目录没有工作区记录
   panel.noRepoCardTitle: 当前工作区不是 Git 仓库 — 点此初始化并发布
   panel.noRepoCardDesc: 点击将它变成 GitHub 仓库并发布
   panel.noRepoCardAction: 创建并发布
@@ -537,6 +541,10 @@ en:
     The current folder is a subfolder of it: {rel}
     Click to open {root}
     {root} is not initialized yet
+  panel.wsMarkRootRecord: This workspace is marked by a workspace record the plugin wrote
+  panel.wsMarkRootGit: This workspace is marked by .git
+  panel.wsMarkRootOuter: This workspace sits inside {outer}
+  panel.wsMarkNoRecord: This folder has no workspace record
   panel.noRepoCardTitle: Current workspace is not a Git repo — click to init and publish
   panel.noRepoCardDesc: Turn this workspace into a GitHub repo and publish it
   panel.noRepoCardAction: Create and publish

@@ -1,12 +1,18 @@
 /**
- * src/host/workspaceRecords.ts —— 工作区身份记录的两条写电话（#1806 第 2 步）。
+ * src/host/workspaceRecords.ts —— 工作区身份记录的维护电话（#1806 第 2、3 步）。
  *
  * 为什么要有这个文件：判定层（src/host/workspaceKey.ts）已经改成「认插件工作区记录」，
- * 但记录得有人写。写记录有三条来源，本文件负责其中两条由宿主直接执行的动作：
+ * 但记录得有人写、也得有人能改回来。写记录有三条来源，本文件负责其中两条由宿主直接执行的动作：
  *   1. 初始化流程走完时补一份（source=setup，见 src/client/kernel/prompts-setup.ts 的调用）；
  *   2. 人在面板上显式「标为独立工作区」（source=user，电话 wf.markWorkspaceRoot）。
  * 第三条是「在面板里选定后端」——那条本来就会把 docs/agents/workspace.yaml 写到工作区根，
  * 后端记录本身就是判定层认的记录，所以不需要再补写一份身份记录。
+ *
+ * 第 3 步又加了三个动作，都围绕同一件事：让界面能「只陈述可验证事实、并给一键纠正」：
+ *   - wf.workspaceFacts：只读，回答根是谁、凭什么、外面还套着谁、这一层有什么文件；
+ *   - wf.joinParentWorkspace：把这一层「并入上级工作区」，写一份从属记录（workspace-member.yaml）。
+ *     不删现有的 workspace.yaml / workspace-root.yaml：历史数据不迁移、不删除，而且动作可逆；
+ *   - wf.markWorkspaceRoot 顺带删掉从属记录：人点「标为独立」时，先写的身份记录要能重新生效。
  *
  * 什么约定不能改：
  *   - 一台目录已经有一份身份记录时不重写（幂等）：重复初始化、重复点「标为独立」都不该改内容，
@@ -26,7 +32,16 @@
  *
  * 本文件是自包含叶子：不引用其它 host 文件；装配在 src/host/index.ts，依赖全由装配点显式传入。
  */
-import { WORKSPACE_IDENTITY_REL, WORKSPACE_IDENTITY_KIND, WORKSPACE_IDENTITY_KNOWN_VERSION, stringifyIdentityRecord } from '../shared/config-store/src/workspace.js'
+import {
+  WORKSPACE_IDENTITY_REL,
+  WORKSPACE_IDENTITY_KIND,
+  WORKSPACE_IDENTITY_KNOWN_VERSION,
+  stringifyIdentityRecord,
+  WORKSPACE_MEMBER_REL,
+  WORKSPACE_MEMBER_KIND,
+  WORKSPACE_MEMBER_KNOWN_VERSION,
+  stringifyMemberRecord,
+} from '../shared/config-store/src/workspace.js'
 
 type WfArgs = Record<string, any>
 type LogCtx = { fire(level: string, event: string, fields?: unknown): void; isEnabled(level: string): boolean } | null
@@ -35,6 +50,7 @@ type FsSvc = {
   readText(t: unknown): Promise<string>
   writeText(t: unknown, text: string, a?: unknown, b?: unknown, policy?: unknown): Promise<unknown>
   lstat?(p: unknown): Promise<unknown>
+  unlink?(p: unknown): Promise<unknown>
 }
 type Deps = {
   ctx: { get(key: string): any }
@@ -44,6 +60,12 @@ type Deps = {
   setCache(v: unknown): void
   canonicalKey(raw: string): Promise<string>
   resolveSandboxPolicy(args: WfArgs | null, cwd: string): { policy?: unknown; sessionId?: string }
+  /**
+   * 只读的「判定依据」查询，由装配侧接到 workspaceKey.inspectWorkspaceFacts。
+   * 写侧不能 import 判定层（宿主层文件之间不许互相引用），所以能力由装配点显式传入。
+   * 拿不到或抛错时，写侧一律当「不知道」处理：不写、不猜（失败关闭）。
+   */
+  resolveFacts(raw: string): Promise<any>
   invalidateRootCache?(): unknown
   logCtx?: LogCtx
 }
@@ -63,6 +85,12 @@ function fileWriteReasonOf(e: unknown): string {
 
 /** 一把用来比较「两条路径是不是同一个目录」的规整键：小写、正斜杠、去尾斜杠。 */
 function pathKeyOf(p: unknown): string { return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() }
+
+/** 看一条路径是不是绝对路径（Windows 盘符或 POSIX/UNC 开头）。相对路径连「是哪一层」都答不出来。 */
+function isAbsolutePath(p: unknown): boolean {
+  const s = String(p || '')
+  return /^[A-Za-z]:[\\/]/.test(s) || /^[\\/]/.test(s)
+}
 
 /** 拼一层目录下的某条相对路径。入参是已归一的工作区键，所以按它自己的分隔符拼，不经过平台路径模块。 */
 function joinKey(dir: unknown, rel: string): string { const s = String(dir || ''); const sep = s.indexOf('\\') >= 0 ? '\\' : '/'; return s.replace(/[\\/]+$/, '') + sep + rel }
@@ -84,6 +112,16 @@ export function createWorkspaceRecords(deps: Deps) {
 
   /** 一次失败回执：kind 说明是哪一类问题，reason 是机器可判的短码，message 是给人看的一句话。 */
   function fail(kind: string, reason: string, message: string): any { return { ok: false, error: { kind: kind, reason: reason, message: message } } }
+
+  /**
+   * 记录落盘或被删掉之后，三处缓存必须一起清：工作区快照、这一层的缓存、根判定的 30 秒缓存。
+   * 不清就会「事实已经变了，界面还在说旧话」，而 #1806 要的正是判定与事实一致。
+   */
+  async function clearCaches(cacheCwd: string): Promise<void> {
+    try { const ws = await deps.getWorkspaceStore(); if (ws && typeof ws.invalidate === 'function') ws.invalidate({ cwd: cacheCwd }) } catch (e) {}
+    try { deps.setCache({ ts: 0, snapshot: null, error: null, cwd: cacheCwd }) } catch (e) {}
+    try { if (typeof deps.invalidateRootCache === 'function') await deps.invalidateRootCache() } catch (e) {}
+  }
 
   /**
    * 记录“在不在”只看路径在不在，不看内容——判定层（workspaceKey.ts 的 markerOf）就是这个口径：
@@ -120,10 +158,58 @@ export function createWorkspaceRecords(deps: Deps) {
     let back = ''
     try { back = await fsSvc.readText(target) } catch (e) { return fail('env', 'read-back-mismatch', '工作区身份记录写完之后读不回来，这次写入不能算数。') }
     if (back !== built.text) return fail('env', 'read-back-mismatch', '工作区身份记录写完读回来的内容与写下去的不一致，这次写入不能算数。')
-    try { const ws = await deps.getWorkspaceStore(); if (ws && typeof ws.invalidate === 'function') ws.invalidate({ cwd: cacheCwd }) } catch (e) {}
-    try { deps.setCache({ ts: 0, snapshot: null, error: null, cwd: cacheCwd }) } catch (e) {}
-    try { if (typeof deps.invalidateRootCache === 'function') await deps.invalidateRootCache() } catch (e) {}
+    await clearCaches(cacheCwd)
     return { ok: true, placed: true, reason: 'created', dir: dir, path: WORKSPACE_IDENTITY_REL }
+  }
+
+  /**
+   * 往 dir 里写一份从属记录（#1806 第 3 步）：表示「这一层归上面的工作区」。
+   * 与身份记录同一套写入约定（先问在不在、读回核对、清三处缓存），区别只在文件与内容格式。
+   * 不删这个目录里已有的 workspace.yaml / workspace-root.yaml：它们只是被这份文件盖住，
+   * 人以后点「标为独立工作区」删掉从属记录，原来的记录就重新生效。
+   */
+  async function writeMemberRecord(dir: string, args: WfArgs, cacheCwd: string): Promise<any> {
+    const fsSvc = await getFs()
+    if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function' || typeof fsSvc.writeText !== 'function') {
+      return fail('env', 'no-channel', '这次没拿到可用的文件通道，所以没能把这个目录并入上级工作区。')
+    }
+    let target: any = null
+    try { target = await fsSvc.resolve(WORKSPACE_MEMBER_REL, { cwd: dir }) } catch (e) { return fail('env', fileWriteReasonOf(e), '这个目录里的从属记录路径解析不出来：' + msgOf(e).slice(0, 120)) }
+    if (await recordExistsAt(fsSvc, target)) return { ok: true, placed: false, reason: 'exists', dir: dir, path: WORKSPACE_MEMBER_REL }
+    const built = stringifyMemberRecord({ version: WORKSPACE_MEMBER_KNOWN_VERSION, kind: WORKSPACE_MEMBER_KIND, writtenAt: Date.now(), source: 'user' })
+    if (!built.ok) return { ok: false, error: { kind: 'record', reason: built.reason, message: built.message } }
+    let policy: unknown = undefined
+    try { policy = deps.resolveSandboxPolicy(args, dir).policy } catch (e) { policy = undefined }
+    const write = async (): Promise<void> => { await fsSvc.writeText(target, built.text, undefined, undefined, policy) }
+    try { await write() } catch (e1) { try { await write() } catch (e2) { return fail('env', fileWriteReasonOf(e2), '没能把从属记录写进这个目录：' + msgOf(e2).slice(0, 120)) } }
+    let back = ''
+    try { back = await fsSvc.readText(target) } catch (e) { return fail('env', 'read-back-mismatch', '从属记录写完之后读不回来，这次写入不能算数。') }
+    if (back !== built.text) return fail('env', 'read-back-mismatch', '从属记录写完读回来的内容与写下去的不一致，这次写入不能算数。')
+    await clearCaches(cacheCwd)
+    return { ok: true, placed: true, reason: 'created', dir: dir, path: WORKSPACE_MEMBER_REL }
+  }
+
+  /**
+   * 删掉 dir 里的从属记录（「标为独立工作区」的一部分）。没有就什么也不做。
+   * 删不掉必须如实失败：这时身份记录可能已经写了，但「从属记录还在」会让判定继续往上，
+   * 界面看到的归属与刚点的动作对不上，比直接报失败更糟。
+   */
+  async function deleteMemberRecord(fsSvc: FsSvc | null, dir: string): Promise<any> {
+    if (!fsSvc || typeof fsSvc.resolve !== 'function') return { ok: true, removed: false }
+    let target: any = null
+    try { target = await fsSvc.resolve(WORKSPACE_MEMBER_REL, { cwd: dir }) } catch (e) { return { ok: true, removed: false } }
+    if (!(await recordExistsAt(fsSvc, target))) return { ok: true, removed: false }
+    const p = (target && typeof target === 'object') ? (target.path || target.targetKey || target) : target
+    try {
+      if (typeof fsSvc.unlink !== 'function') throw new Error('文件通道不支持删除')
+      // 与 src/tracker/rooms/markdown/workspace-checks.ts 的 cleanupProbe 同一写法：
+      // 先递 resolve 出来的描述对象，个别实现只认纯路径，再试一次。
+      try { await fsSvc.unlink(target) } catch (e1) { await fsSvc.unlink(p) }
+    } catch (e) {
+      return fail('env', 'member-delete-failed', '没能删掉这个目录里的从属记录，这次「标为独立工作区」不能算数：' + msgOf(e).slice(0, 120))
+    }
+    await clearCaches(dir)
+    return { ok: true, removed: true }
   }
 
   /**
@@ -157,8 +243,54 @@ export function createWorkspaceRecords(deps: Deps) {
   async function handleMarkWorkspaceRoot(args: WfArgs): Promise<any> {
     const raw = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd.trim() : ''
     if (!raw) return fail('args', 'empty-cwd', '没拿到要标为独立工作区的那个目录。')
-    if (!/^[A-Za-z]:[\\/]/.test(raw) && !/^[\\/]/.test(raw)) return fail('args', 'not-absolute', '只能把一条完整的绝对路径标为独立工作区。')
-    return await writeIdentityRecord(raw, 'user', args, raw)
+    if (!isAbsolutePath(raw)) return fail('args', 'not-absolute', '只能把一条完整的绝对路径标为独立工作区。')
+    // 先写身份记录（已有就不重写），再删从属记录：这样「原来并入过上级、现在要独立」的目录
+    // 能一次完成两步，而重复点击不会刷新 writtenAt（幂等）。
+    const res = await writeIdentityRecord(raw, 'user', args, raw)
+    if (!res || !res.ok) return res
+    const del = await deleteMemberRecord(await getFs(), raw)
+    if (!del || !del.ok) return del
+    if (del.removed) return { ok: true, placed: true, reason: 'promoted', dir: raw, path: WORKSPACE_IDENTITY_REL }
+    return res
+  }
+
+  /**
+   * 只读：把「这一层凭什么算（或不算）工作区、外面还套着谁」一次说清（#1806 第 3 步）。
+   * 事实由判定层算，本电话只做参数检查与失败包装；界面不许自己拿快照猜依据。
+   */
+  async function handleWorkspaceFacts(args: WfArgs): Promise<any> {
+    const raw = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd.trim() : ''
+    if (!raw) return fail('args', 'empty-cwd', '没拿到要查工作区身份的那个目录。')
+    let facts: any = null
+    try { facts = await deps.resolveFacts(raw) } catch (e) {
+      return fail('env', 'root-unknown', '这次没能查清这个目录的工作区身份：' + msgOf(e).slice(0, 120))
+    }
+    if (!facts) return fail('env', 'root-unknown', '这次没能查清这个目录的工作区身份。')
+    return { ok: true, facts: facts }
+  }
+
+  /**
+   * 把这一层「并入上级工作区」（#1806 第 3 步）：写一份从属记录，判定继续往上找。
+   * 守卫顺序就是事实的顺序：先确认这一层现在确实是工作区根（不是就先说已经在哪个工作区里），
+   * 自带 .git 的目录不能并入（它是仓库边界，.git 永远优先于记录），已经在从属状态就幂等返回，
+   * 外面没有工作区就明说没有可并入的上级。所有「不写」都给出机器可判的 reason，界面照实说。
+   */
+  async function handleJoinParentWorkspace(args: WfArgs): Promise<any> {
+    const raw = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd.trim() : ''
+    if (!raw) return fail('args', 'empty-cwd', '没拿到要并入上级工作区的那个目录。')
+    if (!isAbsolutePath(raw)) return fail('args', 'not-absolute', '只能把一条完整的绝对路径并入上级工作区。')
+    let facts: any = null
+    try { facts = await deps.resolveFacts(raw) } catch (e) {
+      return fail('env', 'root-unknown', '这次没能确认这个目录现在是不是工作区根（判定这一步出错了），所以没有写记录。')
+    }
+    if (!facts || !facts.cwd) return fail('env', 'root-unknown', '这次没能确认这个目录现在是不是工作区根，所以没有写记录。')
+    if (pathKeyOf(facts.root) !== pathKeyOf(facts.cwd)) {
+      return { ok: true, placed: false, reason: 'inside-workspace', dir: facts.cwd, root: facts.root }
+    }
+    if (facts.layer && facts.layer.hasGit) return fail('state', 'git-root', '这个目录自带 .git，它本身就是一个仓库边界，不能并进上级工作区。')
+    if (facts.layer && facts.layer.hasMemberRecord) return { ok: true, placed: false, reason: 'exists', dir: facts.cwd, path: WORKSPACE_MEMBER_REL }
+    if (!facts.outer) return fail('state', 'no-parent', '这个目录外面没有另一个工作区，没有可并入的上级。')
+    return await writeMemberRecord(facts.cwd, args, facts.cwd)
   }
 
   /** 成功记常驻 host.call，失败记常驻 host.call.fail：字段与既有一族电话一致，只记散列与原因档。 */
@@ -189,5 +321,7 @@ export function createWorkspaceRecords(deps: Deps) {
   return {
     handleEnsureWorkspaceRecord: loggedPhone('wf.ensureWorkspaceRecord', 'workspace-record-ensure', handleEnsureWorkspaceRecord),
     handleMarkWorkspaceRoot: loggedPhone('wf.markWorkspaceRoot', 'workspace-record-mark', handleMarkWorkspaceRoot),
+    handleWorkspaceFacts: loggedPhone('wf.workspaceFacts', 'workspace-facts', handleWorkspaceFacts),
+    handleJoinParentWorkspace: loggedPhone('wf.joinParentWorkspace', 'workspace-record-join', handleJoinParentWorkspace),
   }
 }

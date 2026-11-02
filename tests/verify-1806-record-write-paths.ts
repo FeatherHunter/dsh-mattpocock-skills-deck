@@ -15,7 +15,11 @@
  *      后端记录本身就是判定层认的记录；父层后来才出现 .git 也不改变这个结论（谁近听谁）。
  *   E. 初始化流程的接线：prompts-setup.ts 在初始化文案真的交到会话之后（注入成功，或 injectNow:false
  *      下把文案交给调用方）才发出补写电话；注入抛错、还在等布局卡、没有目录、没有宿主通道时都不发。
- *   F. 静态接线：宿主入口注册了两条电话、workspaceCwd 把沙箱政策函数递给写记录叶子、叶子不反向引用宿主文件。
+ *   F. 静态接线：宿主入口注册了四条电话、workspaceCwd 把沙箱政策函数递给写记录叶子、叶子不反向引用宿主文件。
+ *   G. 判定依据查询（#1806 第 3 步）：根是谁、凭什么、外面还套着谁、这一层有没有历史遗留的说明文件；
+ *      历史遗留（有说明文件、没有任何记录）才给「标为独立」入口；记录根且外面还有工作区才给「并入上级」入口。
+ *   H. 「并入上级」与「标为独立」的写侧（#1806 第 3 步）：并入写的是从属记录、不删旧记录；
+ *      标独立会删掉从属记录让原记录重新生效；删不掉时如实报失败，不假装成功。
  *
  * 用法：node --import ./scripts/ts-hook.mts tests/verify-1806-record-write-paths.ts
  */
@@ -63,6 +67,12 @@ function makeMemFs() {
       return files.get(p) as string
     },
     async writeText(t: any, content: string) { files.set(key(targetPath(t)), String(content)) },
+    // #1806 第 3 步：「标为独立」要删掉从属记录，内存文件服务也得会删（删不存在的按 ENOENT 抛）。
+    async unlink(t: any) {
+      const k = key(targetPath(t))
+      if (!files.has(k)) throw Object.assign(new Error('ENOENT: no such file or directory, unlink ' + k), { code: 'ENOENT' })
+      files.delete(k)
+    },
     async lstat(p: any) {
       const k = key(String(p))
       if (files.has(k)) return {}
@@ -88,6 +98,7 @@ function makeRealFs() {
     },
     async readText(t: any) { return fsp.readFile(targetPath(t), 'utf8') },
     async writeText(t: any, content: string) { const p = targetPath(t); await fsp.mkdir(nodePath.dirname(p), { recursive: true }); await fsp.writeFile(p, String(content), 'utf8') },
+    async unlink(t: any) { await fsp.unlink(targetPath(t)) },
     async lstat(p: any) { return fsp.lstat(String(p)) },
     async stat(t: any) { return fsp.stat(targetPath(t)) },
     async listDir(t: any) { return fsp.readdir(targetPath(t)) },
@@ -124,6 +135,26 @@ async function main() {
     must(badKind.ok === false, '身份类型只能是 workspace-root，别的一律拒绝（这份文件只表示「这一层是工作区」）', JSON.stringify(badKind))
     const badParse = store.parseIdentityRecord('version: 1\nkind: workspace-root\n')
     must(badParse.ok === false, '读回时缺项（没有 writtenAt / source）判读不懂，不猜默认值', JSON.stringify(badParse))
+
+    // A2 起是从属记录（#1806 第 3 步）：它只表示「这一层归上面的工作区」，内容格式与身份记录同一套约定。
+    must(store.WORKSPACE_MEMBER_REL === 'docs/agents/workspace-member.yaml',
+      '从属记录的路径只有一处定义（共享 config-store 的常量），别处不再写第二份字面量', String(store.WORKSPACE_MEMBER_REL))
+    must(store.WORKSPACE_TRACKER_DOC_REL === 'docs/agents/issue-tracker.md',
+      '人写的说明文件路径同样只有一处定义（判定不读它，界面只用它判断历史遗留）', String(store.WORKSPACE_TRACKER_DOC_REL))
+    const member = store.stringifyMemberRecord({ version: 1, kind: 'workspace-member', writtenAt: 1767283200000, source: 'user' })
+    must(member.ok === true && typeof member.text === 'string', '一条合法的从属记录能拼成文本', JSON.stringify(member).slice(0, 200))
+    const memberTxt = (member.ok ? member.text : '') as string
+    must(memberTxt.indexOf('kind: workspace-member') >= 0 && memberTxt.indexOf('source: user') >= 0,
+      '从属记录的文本写着身份类型 workspace-member、来源是人的动作（user）', JSON.stringify(memberTxt))
+    must(memberTxt.indexOf('# 从属记录') === 0 && memberTxt.indexOf('归上面的工作区') >= 0 && memberTxt.indexOf('kind: workspace-member') > 0,
+      '从属记录开头有一段给人看的头注释，先说这份文件是什么意思，再说机器字段', JSON.stringify(memberTxt.slice(0, 80)))
+    const memberBack = store.parseMemberRecord(memberTxt)
+    must(memberBack.ok === true && memberBack.value.kind === 'workspace-member' && memberBack.value.source === 'user' && memberBack.value.writtenAt === 1767283200000,
+      '从属记录拼出来的文本能原样读回同一组值', JSON.stringify(memberBack))
+    must(store.stringifyMemberRecord({ version: 1, kind: 'workspace-root', writtenAt: 1, source: 'user' }).ok === false,
+      '从属记录的身份类型只能是 workspace-member（写成 workspace-root 会把「归上级」说成「独立」）', '居然接受了')
+    must(store.stringifyMemberRecord({ version: 1, kind: 'workspace-member', writtenAt: 1, source: 'setup' }).ok === false,
+      '从属记录只由人的显式动作写（source 只认 user），初始化流程不替人做这个决定', '居然接受了 setup')
   }
 
   // ── B) 初始化流程补写 ─────────────────────────────────────────────────────
@@ -294,6 +325,22 @@ async function main() {
     // 相对路径拒绝
     const rel = await h.handleMarkWorkspaceRoot({ cwd: 'some/relative/path' })
     must(rel.ok === false && rel.error && rel.error.reason === 'not-absolute', '相对路径拒绝：连「是哪一层」都答不出来的路径不许写记录', JSON.stringify(rel))
+
+    // #1806 第 3 步：一个「并入过上级」的目录再点「标为独立工作区」，要一次做完两步 ——
+    //   写身份记录（已有就不重写）＋删掉从属记录。删掉从属记录之后，原来的记录才重新生效。
+    const joined = mkdir('c/joined')
+    fsx.mkdirSync(nodePath.join(joined, 'docs', 'agents'), { recursive: true })
+    const memberPath = nodePath.join(joined, 'docs', 'agents', 'workspace-member.yaml')
+    fsx.writeFileSync(memberPath, 'version: 1\nkind: workspace-member\nwrittenAt: 1\nsource: user\n', 'utf8')
+    const promoted = await h.handleMarkWorkspaceRoot({ cwd: joined })
+    must(promoted.ok === true && promoted.placed === true && promoted.reason === 'promoted',
+      '从「并入」状态点「标为独立工作区」：写身份记录并删掉从属记录，回包说明这次是「提升」', JSON.stringify(promoted))
+    must(!fsx.existsSync(memberPath), '从属记录真的被删掉了（它还在的话，判定会继续往上，归属与刚点的动作对不上）')
+    must(fsx.existsSync(nodePath.join(joined, 'docs', 'agents', 'workspace-root.yaml')), '身份记录同时落下（一次动作两步都做完）')
+    wm.forgetWorkspaceRootCache()
+    const promotedRoot = await wm.resolveWorkspaceRoot(nodePath.normalize(joined), { platform: PLATFORM, getFs: () => realFs })
+    must(promotedRoot.root === nodePath.normalize(joined) && promotedRoot.source === 'record',
+      '提升之后判定层马上把它认成独立工作区根', JSON.stringify(promotedRoot))
   }
 
   // ── D) 在面板里选定后端 ──────────────────────────────────────────────────
@@ -445,6 +492,19 @@ async function main() {
     const indexSrc = sourceText('src/host/index.ts')
     must(indexSrc.indexOf("harness.handle('wf.ensureWorkspaceRecord'") >= 0 && indexSrc.indexOf("harness.handle('wf.markWorkspaceRoot'") >= 0,
       '宿主入口把两条写记录电话都注册了（初始化补写、人显式标独立）', '缺注册')
+    must(indexSrc.indexOf("harness.handle('wf.workspaceFacts'") >= 0 && indexSrc.indexOf("harness.handle('wf.joinParentWorkspace'") >= 0,
+      '宿主入口把第 3 步两条电话也注册了（查判定依据、并入上级）', '缺注册')
+    must(/resolveFacts:\s*function/.test(indexSrc),
+      '宿主把「查判定依据」接给写记录叶子：叶子里不自己再探一遍文件', '没找到 resolveFacts 注入')
+    const markSrc = sourceText('src/client/views/SubworkspaceMark.ts')
+    must(markSrc.indexOf("host.call('wf.workspaceFacts'") >= 0,
+      '面板的归属标志向宿主查判定依据（根是谁、凭什么、外面还有谁都不自己猜）', '没找到调用')
+    const settingsSrc = sourceText('src/client/views/SettingsWorkspaces.ts')
+    must(settingsSrc.indexOf("host.call('wf.workspaceFacts'") >= 0
+      && settingsSrc.indexOf("'wf.markWorkspaceRoot'") >= 0
+      && settingsSrc.indexOf("'wf.joinParentWorkspace'") >= 0
+      && /host\.call\(\s*method/.test(settingsSrc),
+      '设置页查到事实后，两个纠正按钮分别调「标为独立工作区」与「并入上级」两条电话', '缺调用')
     const cwdSrc = sourceText('src/host/workspaceCwd.ts')
     must(/resolveSandboxPolicy:\s*resolveSandboxPolicy/.test(cwdSrc),
       'workspaceCwd 把沙箱政策函数递给写记录叶子：写文件与其它写点用同一份政策算法，不另造第二份', '没找到导出')
@@ -456,6 +516,223 @@ async function main() {
   }
 
   console.log('')
+  // ── G) 判定依据查询（#1806 第 3 步）──────────────────────────────────────
+  title('G) 判定依据查询（inspectWorkspaceFacts）：根是谁、凭什么、外面还套着谁、这一层有什么')
+  {
+    // 判定层在 Windows 上把盘符路径折成小写、分隔符沿用平台原生写法；断言跟着用同一把尺子。
+    const K = (x: string): string => nodePath.normalize(x).toLowerCase()
+    const factsDeps = (fsSvc: any) => ({ getPlatform: async () => PLATFORM, getFs: () => fsSvc, getDefaultCwd: () => '' })
+
+    // G1：历史遗留 —— 子目录里有手写的说明文件、没有任何工作区记录，上级自带 .git
+    {
+      const mem = makeMemFs()
+      mem.seed('C:/g1/parent/.git', 'gitdir: somewhere')
+      mem.seed('C:/g1/parent/child/docs/agents/issue-tracker.md', '# Issue tracker: 我们自己的写法')
+      wm.forgetWorkspaceRootCache()
+      const f = await wm.inspectWorkspaceFacts('C:/g1/parent/child', factsDeps(mem.fs))
+      must(f.root === K('C:/g1/parent') && f.source === 'git', '根是上级那个自带 .git 的目录（说明文件不再参与判定）', JSON.stringify({ root: f.root, source: f.source }))
+      must(f.layer.hasTrackerDoc === true && f.layer.hasGit === false, '这一层的事实里：有手写说明文件、没有 .git', JSON.stringify(f.layer))
+      must(f.canMarkIndependent === true, '历史遗留（有说明文件、没有任何记录）才给「标为独立工作区」入口', JSON.stringify({ canMarkIndependent: f.canMarkIndependent, layer: f.layer }))
+      must(f.outer === null, '上级那个目录外面没有别的工作区时不编「位于 X 内」', JSON.stringify(f.outer))
+      must(f.noRecord === false, '找到 .git 根时不算「没有任何记录」', String(f.noRecord))
+    }
+    // G2：自己有一份后端记录（workspace.yaml），外面还套着自带 .git 的父目录
+    {
+      const mem = makeMemFs()
+      mem.seed('C:/g2/.git', 'gitdir: somewhere')
+      mem.seed('C:/g2/inner/docs/agents/workspace.yaml', 'version: 2\nbackendId: markdown\n')
+      wm.forgetWorkspaceRootCache()
+      const f = await wm.inspectWorkspaceFacts('C:/g2/inner', factsDeps(mem.fs))
+      must(f.root === K('C:/g2/inner') && f.source === 'record', '自己带记录就停在自己这一层（谁近听谁）', JSON.stringify({ root: f.root, source: f.source }))
+      must(f.layer.hasBackendRecord === true && f.canMerge === true, '记录根、自己不带 .git、外面还有工作区：才给「并入上级」入口', JSON.stringify({ canMerge: f.canMerge, layer: f.layer }))
+      must(!!f.outer && f.outer.root === K('C:/g2') && f.outer.source === 'git', '「位于 X 内」里的 X 是外面那个自带 .git 的工作区', JSON.stringify(f.outer))
+    }
+    // G3：从属记录 —— 这一层明确说自己不算工作区，判定继续往上
+    {
+      const mem = makeMemFs()
+      mem.seed('C:/g3/.git', 'gitdir: somewhere')
+      mem.seed('C:/g3/proj/docs/agents/workspace-member.yaml', 'kind: workspace-member')
+      wm.forgetWorkspaceRootCache()
+      const f = await wm.inspectWorkspaceFacts('C:/g3/proj', factsDeps(mem.fs))
+      must(f.root === K('C:/g3') && f.source === 'git', '从属记录遮住这一层：根继续往上，落到 .git 那一层', JSON.stringify({ root: f.root, source: f.source }))
+      must(f.layer.hasMemberRecord === true, '事实里说清这一层有从属记录', JSON.stringify(f.layer))
+      must(f.canMerge === false && f.canMarkIndependent === false, '已经有从属记录时两个纠正入口都不出现（已经并入过，不用再点）', JSON.stringify({ canMerge: f.canMerge, canMarkIndependent: f.canMarkIndependent }))
+    }
+    // G4：一路没有任何标记
+    {
+      const mem = makeMemFs()
+      wm.forgetWorkspaceRootCache()
+      const f = await wm.inspectWorkspaceFacts('C:/g4/plain', factsDeps(mem.fs))
+      must(f.source === 'self' && f.noRecord === true && f.root === K('C:/g4/plain'),
+        '一路没有任何标记：根就是所选目录自己，事实里标「没有任何记录」', JSON.stringify({ root: f.root, source: f.source, noRecord: f.noRecord }))
+      must(f.outer === null && f.canMerge === false && f.canMarkIndependent === false, '无记录情形不给纠正入口（没有可并的上级，也没有说明文件可标）', JSON.stringify({ outer: f.outer }))
+    }
+    // G5：自己自带 .git、外面没有工作区
+    {
+      const mem = makeMemFs()
+      mem.seed('C:/g5/.git', 'gitdir: somewhere')
+      wm.forgetWorkspaceRootCache()
+      const f = await wm.inspectWorkspaceFacts('C:/g5', factsDeps(mem.fs))
+      must(f.source === 'git' && f.outer === null, '自带 .git 的根外面没有工作区时 outer 为 null（普通仓库不多说一句）', JSON.stringify({ source: f.source, outer: f.outer }))
+      must(f.canMerge === false, '自带 .git 的目录不能并入上级（仓库边界不让人合并）', String(f.canMerge))
+    }
+    // G6：只有身份记录的根
+    {
+      const mem = makeMemFs()
+      mem.seed('C:/g6/docs/agents/workspace-root.yaml', 'kind: workspace-root')
+      wm.forgetWorkspaceRootCache()
+      const f = await wm.inspectWorkspaceFacts('C:/g6', factsDeps(mem.fs))
+      must(f.source === 'record' && f.layer.hasIdentityRecord === true && f.outer === null && f.canMerge === false,
+        '只有身份记录、外面没有工作区：不出现「并入上级」（没有可并的上级）', JSON.stringify({ source: f.source, outer: f.outer, canMerge: f.canMerge }))
+    }
+    // G7：连文件服务都没有 → 只说「没查清」，不给任何纠正入口
+    {
+      wm.forgetWorkspaceRootCache()
+      const f = await wm.inspectWorkspaceFacts('C:/g7/plain', { getPlatform: async () => PLATFORM, getFs: () => null, getDefaultCwd: () => '' })
+      must(f.probe === false && f.canMerge === false && f.canMarkIndependent === false,
+        '没有文件服务／探测能力时：probe 为假，两个纠正入口都不出现（不知道就别让人点）', JSON.stringify({ probe: f.probe, source: f.source }))
+    }
+    // G8：空路径与相对路径原样回答，不去猜一个目录
+    {
+      const empty = await wm.inspectWorkspaceFacts('', factsDeps(makeMemFs().fs))
+      must(empty.source === 'empty' && empty.root === '', '空路径：source 是 empty，不猜默认目录', JSON.stringify(empty))
+      wm.forgetWorkspaceRootCache()
+      // 相对路径先由文件服务/主目录拼成绝对路径（与 canonicalWorkspaceKey 同一把尺子）；
+      // 这里两样都拿不到，才落到「说不清是哪一层」这一档。
+      const relF = await wm.inspectWorkspaceFacts('some/relative/dir', { getPlatform: async () => ({ os: PLATFORM.os, path: PLATFORM.path }), getFs: () => null, getDefaultCwd: () => '' })
+      must(relF.source === 'relative', '相对路径：source 是 relative（连是哪一层都说不清，不给依据）', JSON.stringify({ source: relF.source, root: relF.root }))
+    }
+  }
+
+  // ── H) 「并入上级」与「标为独立工作区」的写侧 ─────────────────────────────
+  title('H) 「并入上级」与「标为独立工作区」（#1806 第 3 步）：写从属记录、可逆、删不掉就如实失败')
+  {
+    const MEMBER_REL = 'docs/agents/workspace-member.yaml'
+    const mkDeps = (opts: any) => ({
+      ctx: { get: () => null },
+      getPlatform: async () => (opts && opts.fs ? { fs: opts.fs } : {}),
+      getWorkspaceStore: async () => ({ invalidate() {} }),
+      setCache: () => {},
+      canonicalKey: async (raw: string) => raw,
+      resolveSandboxPolicy: () => ({ policy: 'test-policy' }),
+      invalidateRootCache: () => { wm.forgetWorkspaceRootCache() },
+      logCtx: null,
+      resolveFacts: opts && opts.resolveFacts,
+    })
+    const factsOf = (over: any) => Object.assign({
+      cwd: 'C:/h/proj', root: 'C:/h/proj', source: 'record', cache: 'miss', probe: true,
+      outer: { root: 'C:/h', source: 'git' },
+      layer: { hasGit: false, hasBackendRecord: false, hasIdentityRecord: true, hasMemberRecord: false, hasTrackerDoc: false },
+      rootLayer: null, noRecord: false, canMerge: true, canMarkIndependent: false,
+    }, over || {})
+
+    // H1～H3：只读的事实电话
+    {
+      const h = rec.createWorkspaceRecords(mkDeps({}))
+      const empty = await h.handleWorkspaceFacts({})
+      must(empty.ok === false && empty.error && empty.error.reason === 'empty-cwd', '事实电话：没有目录就回参数错，不去猜', JSON.stringify(empty))
+    }
+    {
+      const h = rec.createWorkspaceRecords(mkDeps({ resolveFacts: async () => { throw new Error('probe failed') } }))
+      const out = await h.handleWorkspaceFacts({ cwd: 'C:/h/proj' })
+      must(out.ok === false && out.error && out.error.kind === 'env' && out.error.reason === 'root-unknown',
+        '事实电话：判定这一步出错时如实回「没查清」，不编一份依据', JSON.stringify(out))
+    }
+    {
+      const facts = factsOf({})
+      const h = rec.createWorkspaceRecords(mkDeps({ resolveFacts: async () => facts }))
+      const out = await h.handleWorkspaceFacts({ cwd: 'C:/h/proj' })
+      must(out.ok === true && out.facts === facts, '事实电话：把判定层算出来的事实原样交回，界面不再自己猜', JSON.stringify(out).slice(0, 200))
+    }
+
+    // H4～H10：「并入上级」的守卫与成功路径
+    {
+      const h = rec.createWorkspaceRecords(mkDeps({ resolveFacts: async () => factsOf({}) }))
+      const relPath = await h.handleJoinParentWorkspace({ cwd: 'relative/proj' })
+      must(relPath.ok === false && relPath.error && relPath.error.reason === 'not-absolute',
+        '并入上级：相对路径拒绝（连是哪一层都答不出来，写下去可能落在插件当前目录上）', JSON.stringify(relPath))
+    }
+    {
+      const h = rec.createWorkspaceRecords(mkDeps({ resolveFacts: async () => { throw new Error('probe failed') } }))
+      const out = await h.handleJoinParentWorkspace({ cwd: 'C:/h/proj' })
+      must(out.ok === false && out.error && out.error.reason === 'root-unknown',
+        '并入上级：判定出错时失败关闭，一份记录都不写', JSON.stringify(out))
+    }
+    {
+      const h = rec.createWorkspaceRecords(mkDeps({ resolveFacts: async () => factsOf({ root: 'C:/h', source: 'git' }) }))
+      const out = await h.handleJoinParentWorkspace({ cwd: 'C:/h/proj' })
+      must(out.ok === true && out.placed === false && out.reason === 'inside-workspace',
+        '并入上级：这一层已经属于某个工作区时，明说「已经在里面」而不是再写一份', JSON.stringify(out))
+    }
+    {
+      const h = rec.createWorkspaceRecords(mkDeps({ resolveFacts: async () => factsOf({ layer: { hasGit: true } }) }))
+      const out = await h.handleJoinParentWorkspace({ cwd: 'C:/h/proj' })
+      must(out.ok === false && out.error && out.error.kind === 'state' && out.error.reason === 'git-root',
+        '并入上级：自带 .git 的目录拒绝（仓库边界不能并进上级）', JSON.stringify(out))
+    }
+    {
+      const h = rec.createWorkspaceRecords(mkDeps({ resolveFacts: async () => factsOf({ layer: { hasMemberRecord: true } }) }))
+      const out = await h.handleJoinParentWorkspace({ cwd: 'C:/h/proj' })
+      must(out.ok === true && out.placed === false && out.reason === 'exists',
+        '并入上级：已经有从属记录时幂等返回「已有」，不重写', JSON.stringify(out))
+    }
+    {
+      const h = rec.createWorkspaceRecords(mkDeps({ resolveFacts: async () => factsOf({ outer: null }) }))
+      const out = await h.handleJoinParentWorkspace({ cwd: 'C:/h/proj' })
+      must(out.ok === false && out.error && out.error.kind === 'state' && out.error.reason === 'no-parent',
+        '并入上级：外面没有另一个工作区时明说「没有可并入的上级」', JSON.stringify(out))
+    }
+    {
+      const mem = makeMemFs()
+      const cleared: any[] = []
+      const h = rec.createWorkspaceRecords(Object.assign(mkDeps({ fs: mem.fs, resolveFacts: async () => factsOf({}) }), {
+        getWorkspaceStore: async () => ({ invalidate(v: any) { cleared.push(v) } }),
+      }))
+      const out = await h.handleJoinParentWorkspace({ cwd: 'C:/h/proj' })
+      const written = mem.read('C:/h/proj/' + MEMBER_REL)
+      must(out.ok === true && out.placed === true && out.reason === 'created',
+        '并入上级：写下一份从属记录，回包说明这次写了', JSON.stringify(out))
+      must(!!written && written.indexOf('kind: workspace-member') >= 0 && written.indexOf('source: user') >= 0,
+        '从属记录的内容：身份类型 workspace-member、来源是人的动作（user）', JSON.stringify(written))
+      must(written.indexOf('workspace-root') < 0, '从属记录不是身份记录：它不声称「这一层是独立工作区」', JSON.stringify(written))
+      must(cleared.length === 1, '写完清掉这一层的工作区缓存（画面立刻按新归属说话）', JSON.stringify(cleared))
+      const again = await h.handleJoinParentWorkspace({ cwd: 'C:/h/proj' })
+      must(again.ok === true && again.placed === false && again.reason === 'exists', '重复点「并入上级」：幂等返回已有，不重写', JSON.stringify(again))
+    }
+    {
+      const mem = makeMemFs()
+      const badFs: any = Object.assign({}, mem.fs)
+      badFs.writeText = async (t: any) => { await mem.fs.writeText(t, 'got-mangled') }
+      const h = rec.createWorkspaceRecords(mkDeps({ fs: badFs, resolveFacts: async () => factsOf({}) }))
+      const out = await h.handleJoinParentWorkspace({ cwd: 'C:/h/proj' })
+      must(out.ok === false && out.error && out.error.reason === 'read-back-mismatch',
+        '并入上级：写完读回来不一致时这次写入不算数（不拿一份坏记录当成功）', JSON.stringify(out))
+    }
+
+    // H11～H12：「标为独立工作区」删从属记录（可逆）
+    {
+      const mem = makeMemFs()
+      mem.seed('C:/h/promote/' + MEMBER_REL, 'kind: workspace-member')
+      const h = rec.createWorkspaceRecords(mkDeps({ fs: mem.fs, resolveFacts: async () => factsOf({ cwd: 'C:/h/promote', root: 'C:/h/promote' }) }))
+      const out = await h.handleMarkWorkspaceRoot({ cwd: 'C:/h/promote' })
+      must(out.ok === true && out.placed === true && out.reason === 'promoted',
+        '从「并入」状态标为独立：写身份记录并删从属记录，回包说明是「提升」', JSON.stringify(out))
+      must(mem.read('C:/h/promote/' + MEMBER_REL) === null, '从属记录真的删掉了（删不掉的话归属还会继续往上）')
+      must((mem.read('C:/h/promote/docs/agents/workspace-root.yaml') || '').indexOf('source: user') >= 0, '身份记录同时落下，来源是人的动作')
+    }
+    {
+      const mem = makeMemFs()
+      mem.seed('C:/h/nounlink/' + MEMBER_REL, 'kind: workspace-member')
+      const fsNoUnlink: any = Object.assign({}, mem.fs)
+      delete fsNoUnlink.unlink
+      const h = rec.createWorkspaceRecords(mkDeps({ fs: fsNoUnlink, resolveFacts: async () => factsOf({ cwd: 'C:/h/nounlink', root: 'C:/h/nounlink' }) }))
+      const out = await h.handleMarkWorkspaceRoot({ cwd: 'C:/h/nounlink' })
+      must(out.ok === false && out.error && out.error.reason === 'member-delete-failed',
+        '删不掉从属记录时如实报失败（身份记录可能已写，但界面看到的归属会与动作对不上，不能说成功）', JSON.stringify(out))
+      must(mem.read('C:/h/nounlink/' + MEMBER_REL) !== null, '删不掉时从属记录确实还在（如实反映现场，不粉饰）')
+    }
+  }
+
   const okAll = broken.length === 0
   console.log(okAll ? ('全部 ' + total + ' 条判据都守住了') : ('有 ' + broken.length + ' 条判据没守住：'))
   if (!okAll) { for (const b of broken) console.log('  - ' + b); cleanup(); process.exit(1) }
