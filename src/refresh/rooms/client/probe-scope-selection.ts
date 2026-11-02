@@ -14,12 +14,19 @@
  * 三条不变量（门禁 tests/verify-subdir-first-frame.js 按这三条写）：
  * I1 便宜且专用：一条事实只由一条代价相称的专用通道投递；
  * I2 未知不等于否：「还没读到」必须与「确实没有设置」分开表达；
+ *    #1775 的唯一例外：这次等待到了上限（宿主一直不回）也不再算「正在读取」，
+ *    横幅可以回到可点的「还没有设置」——该工作区确实还没给出结论，但界面已不再自称在读；
+ *    唯一不能做的是「在途期间」就用空回包顶替结论，那一段仍按 I2 原文办。
  * I3 迟到的正确结果必须能落地：30 秒死线只决定这次等待结束，不决定结果作废。
  * 调用方只在 probe-snapshot.ts 的 doLoad 里接线，改接线先看那几行调用。
  *
  * 反例：不要在这里加运行时 import；不要把空回包当成「没有设置」去顶替结论；
  * 不要把迟到回包整份丢掉，用户只能靠再点一次刷新才看得见它。
  */
+// #1775：上面那条「不要在这里加运行时 import」有一个例外 —— 中央时间参数只此一处例外，
+// 写法和 snapshot-sync.ts 那条 SNAP_WAIT_MS 一样：源码里留一行真 import 让类型检查与门禁看得到，
+// 构建把它整行剥掉、名字由拼接的 time-config 片段提供（见 scripts/build.mts 的 CLIENT_TIME_NAMES）。
+import { SEL_WAIT_MS } from '../../../shared/time-config/values.js'
 // 跨闭包的值引用按仓里规矩写模块级 declare（实现只在拼好的闭包里有一份，类型检查各看各的）。
 declare const host: any;
 declare const wsKeyOf: any;
@@ -39,6 +46,34 @@ declare const _flushDeferredChain: any;
 // 收在这里而不是各调用点各写一遍，是为了以后新增汇合点不会漏。
 const _tryFlushDeferredChain = function (st: any): void {
   try { if (typeof _flushDeferredChain === 'function') _flushDeferredChain(st); } catch (eFlushDeferred) {}
+};
+// #1775：这次询问的三个收尾口（成功回包、调用失败、等待上限到点）共用这一小段：
+//   收回「在途」这个理由、补发被推迟的链求值、刷新界面。顺序不能换 —— 先收旗再补发，
+//   否则 loadChain 看到的 selPending 还是 true，会再推迟一次、首帧继续等下去。
+//   收在这里而不是三个口各写一遍，是为了以后新增收尾口（例如放弃、切走）不会漏掉补发。
+const _finishSelAsk = function (st: any): void {
+  st.selPending = false;
+  _tryFlushDeferredChain(st);
+  emit(st);
+};
+// #1775：那条询问的等待上限定时器。宿主一直不回 wf.selection 时，到点把「在途」这个理由收回来，
+// 于是状态栏横幅回到可点的「该工作区还没有设置」，而不是永久停在「正在读取」。
+// 这里只结束这一次等待，不判结果作废：迟到的正确回包稍后仍由 .then 那一支合并进来（I3）。
+// 为什么需要序号：整份闭包在进程里只建一次，同一个会话对象上理论上只问一次；万一换了工作区、旧的
+//   定时器还没到点，序号对不上时它就什么都不做，不会把新一次询问的在途标记误清掉。
+// 失败串固定内联、不按等待时长拼（照快照那条死线的先例）：日志按 errorHash 检索，换 YAML 数值不用改文案。
+const _armSelWaitDeadline = function (st: any): any {
+  try {
+    const seq: number = (st._selAskSeq || 0) + 1;
+    st._selAskSeq = seq;
+    return setTimeout(function (): void {
+      try {
+        if (st._selAskSeq !== seq) return;
+        try { log('warn', 'host.call.fail', { method: 'wf.selection', kind: 'selection', errorHash: dswsLogHash(dswsLogTrunc('client wf.selection timeout', 120, 'error')) }); } catch (eLog) {}
+        _finishSelAsk(st);
+      } catch (eExpire) {}
+    }, SEL_WAIT_MS);
+  } catch (eArm) { return null; }
 };
 declare const setCachedRepository: any;
 declare const diffSnapshots: any;
@@ -78,7 +113,23 @@ export const askSelectionOnce = function (st: any): any {
     const t0: number = Date.now();
     // 跨边界调用先记一行（按需级，外层先判开关），与收到回包那一行配成一对。
     try { if (isEnabled('debug')) log('debug', 'host.call', { method: method, kind: 'selection', ok: true, latencyMs: 0 }); } catch (eL) {}
-    return host.call(method, { cwd: st.cwd, sessionId: st.sessionId || '' }).then(function (res: any): any {
+    // #1775：先发出这次调用，再架等待上限。这样「电话根本发不出去」（host.call 同步抛出）能由下面那段
+    //   就地收尾，不会留下一条没人撤的定时器；上限只兜「发出去之后回不回」这一段。
+    let _selCall: any;
+    try {
+      _selCall = host.call(method, { cwd: st.cwd, sessionId: st.sessionId || '' });
+    } catch (eCall: any) {
+      // #1775：连电话都发不出去也算这一次询问的失败 —— 记一行、走同一个收尾口（收回在途理由、补发、刷新）。
+      //   不在这里收尾的话，「在途」会永远挂着，横幅永久停在「正在读取」，与本票要修的那一屏一模一样。
+      try { log('warn', 'host.call.fail', { method: method, kind: 'selection', errorHash: dswsLogHash(dswsLogTrunc(String((eCall && eCall.message) || eCall), 120, 'error')) }); } catch (eL) {}
+      _finishSelAsk(st);
+      return null;
+    }
+    // #1775：从这一刻起还有一条等待上限兜着 —— 宿主一直不回话时，到点由它结束这次等待。
+    const _selWaitTimer: any = _armSelWaitDeadline(st);
+    return _selCall.then(function (res: any): any {
+      // #1775：回包到了（无论成功失败）就撤掉等待上限，不留悬空定时器。
+      try { clearTimeout(_selWaitTimer); } catch (eClear) {}
       try {
         const okRes: boolean = !!(res && (res.ok === true || (res.value && res.value.ok === true)));
         if (okRes) log('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: 'selection' });
@@ -89,17 +140,15 @@ export const askSelectionOnce = function (st: any): any {
         const sel: any = (res && res.selection) || (res.value && res.value.selection) || null;
         if (sel && typeof mergeSelection === 'function' && mergeSelection(st, sel)) emit(st);
       } catch (eSel) {}
-      st.selPending = false;
       // #1626：选择落定了 —— 首帧被推迟的那一次链求值现在可以带着完整键发出去。
-      _tryFlushDeferredChain(st);
-      emit(st);
+      _finishSelAsk(st);
       return res;
     }).catch(function (e: any): any {
+      // #1775：调用失败也撤掉等待上限（失败路径收尾与正常路径同一套）。
+      try { clearTimeout(_selWaitTimer); } catch (eClear) {}
       try { log('warn', 'host.call.fail', { method: method, kind: 'selection', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }); } catch (eL) {}
-      st.selPending = false;
       // #1626：这条电话失败了也不吊死首帧 —— 照旧按空键求值一次（诚实降级，与以前的行为一致）。
-      _tryFlushDeferredChain(st);
-      emit(st);
+      _finishSelAsk(st);
       return null;
     });
   } catch (eAsk) { return null; }

@@ -185,6 +185,8 @@ const KEYS: Array<[string, string, string]> = [
   ['namingSummaryTimeoutMs', 'NAMING_SUMMARY_TIMEOUT_MS', 'timeouts'],
   ['logWatchdogMs', 'LOG_WATCHDOG_MS', 'timeouts'],
   ['probeAutoWaitMs', 'PROBE_AUTO_WAIT_MS', 'timeouts'],
+  // #1775 进工作区问宿主「这个工作区用哪个后端」（wf.selection）的客户端等待上限：到点收回状态栏的「正在读取」。
+  ['selWaitMs', 'SEL_WAIT_MS', 'timeouts'],
   ['procProbeGraceMs', 'PROC_PROBE_GRACE_MS', 'timeouts'],
   ['procGraceMs', 'PROC_GRACE_MS', 'timeouts'],
   // —— PATH 里找不到 gh 时那次兜底探活（`gh --version` 的等待上限；#1160 收尾自审补登记，

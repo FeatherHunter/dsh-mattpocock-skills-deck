@@ -25,8 +25,13 @@
  * 断言按三条不变量分三组，另加一组反证：
  *   I1 便宜且专用 —— 那条专用电话回来后 selection 必须装上，且横幅不再说「还没有设置」（判据层断言）；
  *   I2 未知 ≠ 否   —— 选择为空、取数在途时，横幅不得取 banner.gate 那一档（不得说「还没有设置」）；
+ *                      #1775 的唯一例外：等待上限到点之后，「在途」这个理由已经收回，
+ *                      横幅允许回到可点的 banner.gate —— 那时界面确实不再自称「正在读取」；
  *   I3 迟到能落地 —— 超时之后迟到的成功回包到达时，selection（至少）必须装上；
  *   反向 —— 拆掉三条修法里的任意一条，上面某一式必须当场变红；会话真换走了（A → B）仍须判过期。
+ *   #1775 追加一组：宿主一直不回 wf.selection 时必须有一条等待上限兜底 —— 到点收回「正在读取」、
+ *   回到可点的「还没有设置」，落一行可检索的失败日志，补发被推迟的链求值；宿主只是慢的时候，
+ *   迟到的回包仍要落地。反向同样成立：拆掉那条等待上限，横幅就永久停在「正在读取」。
  *
  * 用法: node tests/verify-subdir-first-frame.ts
  */
@@ -65,6 +70,11 @@ const GATE_TIMEOUT_MS = 900   // 快照等待那一条中央耐心在本门禁�
 const SNAP_LATE_MS = 1400     // 那份完整快照到得比死线晚 —— 正是真机那个「客户端放弃了、宿主才拿出来」的次序
 const SEL_MS = 20             // 那条专用电话很快（几十字节的事实，宿主侧本来也是现成的）
 const CWD_FAIL_MS = 5         // wf.cwd 真机上一直失败，只是失败得很快
+// #1775：那条专用电话的等待上限在本门禁里的替身。中央时间是 10 秒（config/timeouts.yaml 的 selWaitMs），
+//   这里压成 0.3 秒 —— 门禁量的是「上限到点之后收没收尾、迟到的回包还落不落地」，不是「等多久算超时」。
+//   本门开头装了时间压缩（见 :43-49）：这些等待都走虚拟定时器、按到期时间排队，先后次序与机器快慢、
+//   并发跑几路门禁无关 —— 所以下面那些毫秒余量量的是虚拟时间，不会因为 8 路并发抢 CPU 而假红。
+const SEL_WAIT_GATE_MS = 300
 
 const FILES = [
   '.build/shared/workspaceKey.js',
@@ -95,13 +105,18 @@ function moduleText(patch) {
   //   所以这里必须用 sourceText 读原文，换成转译结果会让前提自检误报。
   const TC_ANCHOR_RE = /^\s*import\s*\{[^}]*SNAP_WAIT_MS[^}]*\}\s*from\s*['"][^'"]*time-config\/values\.js['"]/m
   if (!TC_ANCHOR_RE.test(sourceText('src/refresh/rooms/client/snapshot-sync.js'))) throw new Error('源里找不到快照等待的中央引用（SNAP_WAIT_MS 的 time-config import）—— 本门禁的注入不成立')
-  return 'const SNAP_WAIT_MS = ' + GATE_TIMEOUT_MS + '\n' + body
+  // #1775：那条「问宿主用哪个后端」的等待上限同样必须来自中央时间参数，本门禁才有资格把它压成 0.3 秒。
+  //   与上面同一种自检：读真源原文（转译时那行 import 会被剥掉），锚不在就早点报错，别静悄悄地按中央值跑。
+  const SEL_ANCHOR_RE = /^\s*import\s*\{[^}]*SEL_WAIT_MS[^}]*\}\s*from\s*['"][^'"]*time-config\/values\.js['"]/m
+  if (!SEL_ANCHOR_RE.test(sourceText('src/refresh/rooms/client/probe-scope-selection.js'))) throw new Error('源里找不到那条询问的中央等待上限（SEL_WAIT_MS 的 time-config import）—— 本门禁的注入不成立')
+  return 'const SNAP_WAIT_MS = ' + GATE_TIMEOUT_MS + '\nconst SEL_WAIT_MS = ' + SEL_WAIT_GATE_MS + '\n' + body
 }
 
 // 按真机样子回话的假宿主 + 真内核。
 function makeEnv(opts) {
   const o = opts || {}
-  const seen = { calls: [], logs: [] }
+  // flushes 记的是被推迟的链求值补发了几次（#1775：等待上限到点时要补发一次；具体内容由 #1626 门禁量）。
+  const seen = { calls: [], logs: [], flushes: [] }
   const storage = Object.assign({}, o.seedLocal || {})
   const sandbox = {
     window: { innerHeight: 900 },                       // 没有 indexDB → 磁盘那一级天然关掉
@@ -116,7 +131,13 @@ function makeEnv(opts) {
       call: function (method, args) {
         seen.calls.push({ method: method, args: args })
         if (method === 'wf.cwd') return new Promise((r) => setTimeout(() => r({ ok: false, error: '会话无 cwd 信息' }), CWD_FAIL_MS))
-        if (method === 'wf.selection') return new Promise((r) => setTimeout(() => r(o.selectionReply || { ok: true, selection: { backendId: 'markdown', source: 'explicit', ref: null, rev: 3 } }), SEL_MS))
+        if (method === 'wf.selection') {
+          // #1775 的三个现场：宿主一直不回这条电话（selectionSilent）、回得比等待上限还晚（selectionDelayMs），
+          //   以及通道连调用都发不出去（selectionThrow，宿主那边同步抛出）。
+          if (o.selectionThrow) throw new Error('client wf.selection sync throw')
+          if (o.selectionSilent) return new Promise(() => {})
+          return new Promise((r) => setTimeout(() => r(o.selectionReply || { ok: true, selection: { backendId: 'markdown', source: 'explicit', ref: null, rev: 3 } }), o.selectionDelayMs != null ? o.selectionDelayMs : SEL_MS))
+        }
         if (method === 'wf.registry') return new Promise((r) => setTimeout(() => r({ ok: false }), SEL_MS))
         // wf.snapshot / wf.refresh：默认那份完整快照很晚才到（比客户端那条死线晚）；
         //   #1767 的现场要的是「按时回来」，所以留一个按场景覆盖的延迟口（缺省不变）。
@@ -136,6 +157,8 @@ function makeEnv(opts) {
     lcApplySavedColorsOnInstall: () => {},
     startAutoProbe: () => {},
     reportWorkspaceAttention: () => Promise.resolve(null),
+    // #1775：等待上限到点时要补发被推迟的链求值 —— 这里只记「补发被叫了几次」，真实现由 #1626 门禁求值。
+    _flushDeferredChain: (st) => seen.flushes.push(st),
     React: { useState: () => [0, () => {}], useEffect: () => {} },
     console: { log: () => {}, warn: () => {}, error: () => {} },
   }
@@ -487,6 +510,98 @@ async function main() {
     ok(stF.selPending === false, '失败之后「在途」这个理由收回（界面上不会永远停在「正在读取」）')
     await pF
     await wait(SNAP_LATE_MS + 300)
+  }
+
+  // ── #1775：宿主一直不回「这个工作区用哪个后端」时，等待上限必须替用户收场 ─────────
+  // 现场：那条专用电话发出去了，宿主一个字都不回（旧版宿主 / 卡住的通道）。改动前只有「回包」与
+  //   「调用失败」两条收尾路，于是 selPending 永远是 true，状态栏横幅永久停在「正在读取」。
+  //   这一组把等待上限缩成 SEL_WAIT_GATE_MS（0.3 秒），量四件事：
+  //   ① 在途那一帧确实说「正在读取」；② 到点收回、回到可点的「还没有设置」；
+  //   ③ 到点只说一次、不重问；④ 到点这一次自己也补发一次被推迟的链求值（在快照安装那次之外），
+  //   并落一行可检索的 host.call.fail。补发按「上限到点前后差一次」量：快照在 100 毫秒落地时
+  //   安装那一步本来就会叫一次补发守卫（#1626 早有的汇合点），那不是这条等待上限的功劳。
+  console.log('\n#1775) 宿主一直不回 wf.selection：等待上限到点，横幅从「正在读取」回到「还没有设置」')
+  {
+    // 这份快照按时回来，但不带 selection —— 让「专用电话在途」成为这一帧唯一的「正在读取」理由，
+    // 好把「上限到点收回了它」这件事单独量出来。
+    const noSelSnap = {
+      ok: true, maps: [], issues: [{ number: 1, state: 'OPEN', labels: [] }],
+      repository: { backend: 'markdown', refId: SUB_DIR, name: 'ilife' },
+      workspaceRoot: ROOT_DIR, deck: { counts: { open: 1, closed: 0, total: 1 } },
+      generatedMs: Date.now(), version: 'v1',
+    }
+    const runSilent = async (patch) => {
+      const env = makeEnv({ seedLocal: rootKeyedSeed(), selectionSilent: true, snapshotReply: noSelSnap, snapshotDelayMs: 100, patch: patch })
+      const st = freshStore(env)
+      const p = env.mod.loadSnapshot(st, false, true)
+      await wait(150) // 快照已经落地、专用电话仍在飞：这一刻横幅只有 selPending 这一个「正在读取」理由
+      const mid = {
+        selPending: st.selPending, snapLoading: st.snapLoading, banner: bannerVariant(st),
+        asked: env.seen.calls.filter((c) => c.method === 'wf.selection').length,
+        // 这个数在 150 毫秒处是 1：快照 100 毫秒落地、安装那一步叫过一次补发守卫（#1626 的汇合点）。
+        //   到点之后要在这个数上恰好再加 1 —— 那才是等待上限自己的补发。
+        flushes: env.seen.flushes.length,
+      }
+      await p
+      await wait(SEL_WAIT_GATE_MS + 150) // 等上限到点（0.3 秒），再留一点余量让到点那一刻的收尾跑完
+      return { st: st, env: env, mid: mid, after: bannerVariant(st) }
+    }
+    const fixed = await runSilent(null)
+    ok(fixed.mid.selPending === true && fixed.mid.banner.reading === true && fixed.mid.banner.textKey === 'banner.gateReading',
+      '（在途）宿主不回话时这一帧说「正在读取」（实得 selPending=' + fixed.mid.selPending + '，键 ' + JSON.stringify(fixed.mid.banner.textKey) + '）')
+    ok(fixed.mid.asked === 1 && fixed.mid.flushes === 1,
+      '（前提）到点之前只问了一次、补发守卫只被快照安装那一步叫过一次（实得 ' + fixed.mid.asked + ' 次询问 / ' + fixed.mid.flushes + ' 次补发）')
+    ok(fixed.st.selPending === false, '等待上限到点之后「在途」这个理由收回（实得 selPending=' + fixed.st.selPending + '）')
+    ok(fixed.after.reading === false && fixed.after.textKey === 'banner.gate',
+      '等待上限到点之后横幅回到可点的「还没有设置」（实得 reading=' + fixed.after.reading + '，键 ' + JSON.stringify(fixed.after.textKey) + '）')
+    ok(fixed.env.seen.calls.filter((c) => c.method === 'wf.selection').length === 1, '到点不重问那条专用电话（每个工作区一次就是一次）')
+    ok(fixed.env.seen.flushes.length === fixed.mid.flushes + 1,
+      '到点这一次自己也补发一次被推迟的链求值（在既有汇合点之外恰好 +1；实得 ' + fixed.mid.flushes + ' → ' + fixed.env.seen.flushes.length + ' 次）')
+    const timeoutLogs = fixed.env.seen.logs.filter((l) => l.event === 'host.call.fail' && l.fields && l.fields.method === 'wf.selection' && l.fields.kind === 'selection')
+    ok(timeoutLogs.length === 1 && typeof timeoutLogs[0].fields.errorHash === 'string' && timeoutLogs[0].fields.errorHash.length > 0,
+      '到点落一行可定位的失败日志（host.call.fail，method=wf.selection、kind=selection、带 errorHash）')
+
+    // I3：宿主只是回得慢，不是没有答案 —— 回得比等待上限还晚，答案到了照样装上，
+    //   不许因为「已经放过手」就整份丢掉（与快照那条 30 秒死线同一个口径）。
+    console.log('\n#1775 I3) 迟到的回包仍要落地：答案回得比等待上限晚，到达时照样装上')
+    const late = makeEnv({ seedLocal: rootKeyedSeed(), selectionDelayMs: SEL_WAIT_GATE_MS + 250, snapshotReply: noSelSnap, snapshotDelayMs: 100 })
+    const stL = freshStore(late)
+    const pL = late.mod.loadSnapshot(stL, false, true)
+    await pL
+    await wait(SEL_WAIT_GATE_MS + 40) // 上限先到：横幅已经回到「还没有设置」，答案还没来
+    ok(stL.selPending === false && bannerVariant(stL).textKey === 'banner.gate',
+      '（上限先到）横幅先回到可操作那一档（实得 ' + JSON.stringify(bannerVariant(stL).textKey) + '）')
+    await wait(SEL_WAIT_GATE_MS + 400) // 迟到的回包这时才到
+    ok(stL.selection && stL.selection.backendId === 'markdown',
+      '迟到的回包到达后 selection 仍然装上（实得 ' + (stL.selection ? String(stL.selection.backendId) : '空') + '）')
+    ok(stL.selPending === false, '迟到落地之后「在途」这个理由没有回来')
+    ok(bannerVariant(stL).reading === false, '迟到落地之后横幅不再说「正在读取」')
+
+    // (c) 连电话都发不出去：host.call 同步抛出时也必须走同一个收尾口。
+    //   这一形态下根本没有在途的回包可等，若只在成功/失败那两支收尾，selPending 就没人清、横幅永久「正在读取」。
+    console.log('\n#1775 同步抛出）通道连调用都发不出去时，也必须收回「正在读取」')
+    const envT = makeEnv({ seedLocal: rootKeyedSeed(), selectionThrow: true, snapshotReply: noSelSnap, snapshotDelayMs: 100 })
+    const stT = freshStore(envT)
+    await envT.mod.loadSnapshot(stT, false, true)
+    await wait(50)
+    ok(stT.selPending === false, '同步抛出之后「在途」这个理由当场收回（实得 selPending=' + stT.selPending + '）')
+    ok(envT.seen.flushes.length >= 1, '同步抛出也补发一次被推迟的链求值（实得 ' + envT.seen.flushes.length + ' 次）')
+    ok(bannerVariant(stT).reading === false && bannerVariant(stT).textKey === 'banner.gate',
+      '横幅回到可点的「还没有设置」（实得 reading=' + bannerVariant(stT).reading + '，键 ' + JSON.stringify(bannerVariant(stT).textKey) + '）')
+    const throwLogs = envT.seen.logs.filter((l) => l.event === 'host.call.fail' && l.fields && l.fields.method === 'wf.selection' && l.fields.kind === 'selection')
+    ok(throwLogs.length === 1 && typeof throwLogs[0].fields.errorHash === 'string' && throwLogs[0].fields.errorHash.length > 0,
+      '落一行可定位的 host.call.fail（method=wf.selection、kind=selection、带 errorHash）')
+
+    // 反证：把「架起等待上限」那一行拆掉，同一个「宿主永不回话」的现场必须变红
+    //   —— selPending 永久为真、横幅永久停在「正在读取」。没有这一条，上面的绿可能只是「没测到」。
+    console.log('\n反向 5) 拆掉 #1775 的等待上限那一行 → 横幅必须永久停在「正在读取」')
+    const probeSrc = spliceableJs('src/refresh/rooms/client/probe-scope-selection.js')
+    const ARM_RE = /^[ \t]*const _selWaitTimer = _armSelWaitDeadline\(st\);\r?\n/m
+    ok(ARM_RE.test(probeSrc), '（前提）真源里那条等待上限的架设行就是这一行')
+    const noArmSrc = cut(probeSrc, ARM_RE, '#1775 的等待上限那一行')
+    const bugRun = await runSilent({ file: 'src/refresh/rooms/client/probe-scope-selection.js', text: noArmSrc })
+    ok(bugRun.st.selPending === true && bugRun.after.reading === true && bugRun.after.textKey === 'banner.gateReading',
+      '🔴 反证成立：上限拆掉之后，宿主不回话时横幅就永久停在「正在读取」（实得 selPending=' + bugRun.st.selPending + '，键 ' + JSON.stringify(bugRun.after.textKey) + '）')
   }
 
   // ── 这次超时路上那几条「先无人接、随后被接住」的派生链：只许是那条超时 ────────

@@ -72,6 +72,9 @@ const SNAP_PENDING = {
 }
 const wsKeyOf = function (p: unknown): string { return p ? 'ws:' + String(p).replace(/\\/g, '/').toLowerCase() : '' }
 const getChainCacheKey = function (ws: string, bid: string, lang: string): string { return ws + '|' + bid + '|' + lang }
+// #1775：那条询问的等待上限在本门里压成 0.2 秒（中央是 10 秒，值住 config/timeouts.yaml 的 selWaitMs）。
+//   门里 A/B/C/D 各场景都在 0.2 秒内回话，上限只负责兜底；具名一处，别让同一个数字散在多处。
+const SEL_WAIT_ARM_MS = 200
 
 type Mode = 'github' | 'none' | 'fail' | 'reject' | 'manual'
 type World = {
@@ -150,12 +153,24 @@ function makeWorld (mode: Mode): World {
   // 真补发守卫（probe-scope-selection.ts 切函数体）：四个汇合点共用的那一段，内部转调上面那份补发。
   const guardSrc = extractFn(spliceableJs('src/refresh/rooms/client/probe-scope-selection.js'), '_tryFlushDeferredChain = function')
   const guardFn = compileFn(['_flushDeferredChain'], 'var ' + guardSrc + '\n;return _tryFlushDeferredChain')(flushFn)
+  // 真收尾段（probe-scope-selection.ts 切函数体）：成功回包、调用失败、等待上限到点三个口共用这一段。
+  //   先切它，下面那份等待上限与 askSelectionOnce 都转调它。
+  const settleSrc = extractFn(spliceableJs('src/refresh/rooms/client/probe-scope-selection.js'), '_finishSelAsk = function')
+  const settleFn = compileFn(['emit', '_tryFlushDeferredChain'], 'var ' + settleSrc + '\n;return _finishSelAsk')(emitFn, guardFn)
+  // #1775 真等待上限（probe-scope-selection.ts 切函数体）：askSelectionOnce 现在会架一条「等宿主回
+  //   wf.selection 的上限」，到点收回「正在读取」并补发被推迟的链求值。这里把那条上限也切出来，
+  //   给它一个短替身，好让真 askSelectionOnce 在这份沙箱里照常跑（A/B/C/D 各场景都在替身之前回话）。
+  const armSrc = extractFn(spliceableJs('src/refresh/rooms/client/probe-scope-selection.js'), '_armSelWaitDeadline = function')
+  const armFn = compileFn(
+    ['SEL_WAIT_MS', 'log', 'dswsLogHash', 'dswsLogTrunc', '_finishSelAsk'],
+    'var ' + armSrc + '\n;return _armSelWaitDeadline')(
+    SEL_WAIT_ARM_MS, logFn, hashFn, truncFn, settleFn)
   // 真 askSelectionOnce（probe-scope-selection.ts 切函数体）：内部会用真 mergeSelection、真守卫与上面那份补发。
   const askSrc = extractFn(spliceableJs('src/refresh/rooms/client/probe-scope-selection.js'), 'askSelectionOnce = function')
   holder.ask = compileFn(
-    ['host', 'wsKeyOf', 'isEnabled', 'log', 'dswsLogHash', 'dswsLogTrunc', 'mergeSelection', 'emit', '_flushDeferredChain', '_tryFlushDeferredChain'],
+    ['host', 'wsKeyOf', 'isEnabled', 'log', 'dswsLogHash', 'dswsLogTrunc', 'mergeSelection', 'emit', '_flushDeferredChain', '_tryFlushDeferredChain', '_finishSelAsk', '_armSelWaitDeadline'],
     'var ' + askSrc + '\n;return askSelectionOnce')(
-    w.host, wsKeyOf, function (): boolean { return true }, logFn, hashFn, truncFn, mergeSelection, emitFn, flushFn, guardFn)
+    w.host, wsKeyOf, function (): boolean { return true }, logFn, hashFn, truncFn, mergeSelection, emitFn, flushFn, guardFn, settleFn, armFn)
   w.chainMod = chainMod
   return w as World
 }
