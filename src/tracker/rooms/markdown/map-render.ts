@@ -58,7 +58,7 @@ export function renderMap(input: CreateView, opts: {
   const header = renderHeader('map', {
     // 与建票同一个状态来源：正文没有、调用方也没给（或只给空白）时落模板默认值，
     // 不让一张新地图带着空的 DSH-STATUS 出生（读侧会把它当未开始）。
-    status: statusFor(shape, input, ''),
+    status: statusFor('map', shape, input, '', opts.labels),
     parentKey: '',
     assignees: opts.assignees,
     labels: opts.labels,
@@ -98,12 +98,9 @@ export function renderWayfinderChild(input: CreateView, opts: {
   const topLines = shape['top-lines'] || []
   const title = cleanTitle(String(input.title || ''))
   const blocked = blockedKeysOf(input)
-  const statusTemplate = topLines.find((line) => line.label === 'Status')
-  // 调用方给了状态就照写；只给了指派人也算已认领（原文 Status: claimed 就是「有人在做」）。
-  let status = String(input.status == null ? '' : input.status).trim()
-  if (!status && opts.assignees.length && statusTemplate && statusTemplate.values) {
-    status = String(statusTemplate.values[0] || '')
-  }
+  // #1790 缺陷 A：子票状态只有 claimed / resolved 两种，默认 claimed；不再靠「有没有指派人」猜。
+  // 指派人不等于认领：认领是状态机上的一个值，指派是谁在做，两者分开记，读侧也不拿指派补状态。
+  const status = statusFor('map-ticket', shape, input, '', labelsOf(input))
   const values: Record<string, string> = {
     Type: wayfinderTypeOf(input),
     Status: status,

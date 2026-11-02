@@ -22,6 +22,10 @@ import { MAP_TICKET_TYPES, WAYFINDER_LABEL_RE } from './format/field-values.js'
 // 两处各写一份正则会各说各话。
 import { isHeadingTwoLine, scanFenceLines } from './markdown-scan.js'
 import type { CreateInput, LabelInput } from '../../contract/inputs.js'
+// #1790 缺陷 A：可见 Status 行是 triage 状态的唯一真源，隐藏 DSH-LABELS 只留非 triage 标签。
+// 默认值与标签过滤都从 status.ts 的纯函数取，渲染侧不另抄一份词表。
+import { hiddenLabelsOf } from './status.js'
+import type { IssueFileKind } from './status.js'
 
 /** 本文件负责的六种对象。规格与实施票/普通票先落（#1486）；探索地图与地图子票本票接上（#1487）。 */
 export type OriginalKind = 'spec' | 'spec-ticket' | 'issue' | 'bug' | 'map' | 'map-ticket'
@@ -61,9 +65,18 @@ function markerKindOf(input: CreateInput): 'spec' | 'ticket' | '' {
   return inHeader === 'spec' || inHeader === 'ticket' ? inHeader : ''
 }
 
-/** 判断这次按原文六种形状里的哪一种落盘：返回不会是空（#1500 S4 起旧分支已删，没有「不认识就走旧路」这一档）。 */
-export function originalKindOf(input: CreateInput): OriginalKind {
+/** 判断这次按原文六种形状里的哪一种落盘：返回不会是空（#1500 S4 起旧分支已删，没有「不认识就走旧路」这一档）。
+ *
+ *  fileKind 是调用方已经算好的落盘形状（建票时由建票种类映射而来）。它比从正文标记、explicit 字段
+ *  猜出来的更硬：建票读回时 parse.ts 也按同一个 fileKind 判形状，两边不一致会让同一张票
+ *  「建的时候是 bug、读回来是普通的」。#1790 缺陷 A 起显式值优先。 */
+export function originalKindOf(input: CreateInput, fileKind?: IssueFileKind): OriginalKind {
   const v = viewOf(input)
+  if (fileKind === 'spec-ticket') return 'spec-ticket'
+  if (fileKind === 'bug') return 'bug'
+  if (fileKind === 'map-ticket') return 'map-ticket'
+  // plain-issue（以及契约里没给 fileKind）继续按下面的既有优先级判。
+  if (fileKind === 'plain-issue') return 'issue'
   const explicit = String(v.kind || v.type || v.Type || '').trim().toLowerCase()
   const typeLine = String(v.typeLine || '').toLowerCase()
   const marker = markerKindOf(input)
@@ -80,6 +93,9 @@ export function originalKindOf(input: CreateInput): OriginalKind {
   // 契约里没有这四个值的位置：普通票的 type 可以随手写 'task'，与地图子票的类型词同名，
   // 没有专用通道时不能据此改渲染形状，一律按普通票走新布局（#1500 S4：旧分支已删，不再回旧路）。
   if (MAP_TICKET_TYPES.indexOf(explicit) >= 0) return 'issue'
+  // #1790 缺陷 A：bug 标签是票型判定的硬信号——缺陷票的默认状态是 needs-triage，与普通票（无默认状态）
+  // 不同。放在「显式说了普通票」之前：后端直接建票时没有 fileKind，唯一能说明这是缺陷票的就是这枚标签。
+  if (labelsOf(v).some((label) => String(label).trim().toLowerCase() === 'bug')) return 'bug'
   // 调用方明说了这是普通票（契约 kind/type = issue）时，顺带带的 wayfinder 标签只是一枚标签：
   // #1413 的夹具就有一条「普通票 + wayfinder:research」的输入，它要按普通票写、不能有 Type 行；
   // 地图子票由 deck 工具单独传 typeLine 认出来，不靠标签猜。
@@ -223,22 +239,9 @@ function blockedPair(input: CreateView, fromBody: string): { visible: string; hi
   return { visible: parts.join(', '), hidden: parts.filter((one) => /^\d+$/.test(one)) }
 }
 
-/**
- * 状态值的唯一来源（#1507）。顺序：正文里写的 > 调用方给的 > 模板默认值。
- *
- * 为什么要兜到默认值：读侧（parse.ts）把「没有状态」读成 open，也就是未开始；一张刚建出来的票
- * 不该一出生就是「未开始」。调用方给空白串（''、纯空格、换行）与没给是同一件事——空白的
- * `**Status:**` 行读回来仍然等于没有状态。默认值的事实来源是 format/original-skills.yaml 的
- * status.default（实施票与普通票是可见行里的 ready-for-agent，规格与地图是隐藏注释里的同一个值），
- * 这里不另写一份字面量，YAML 改了这里跟着变。
- */
-export function statusFor(shape: ObjectShape, input: CreateView, fromBody: string): string {
-  const bodyStatus = String(fromBody || '').trim()
-  if (bodyStatus) return bodyStatus
-  const given = String(input.status == null ? '' : input.status).trim()
-  if (given) return given
-  return String((shape.status && shape.status.default) || '').trim()
-}
+// 状态判定搬在 status-create.ts：渲染只消费它的结果；这里再导出一次，建票入口的 import 不必改。
+export { RenderStatusConflict, statusFor } from './status-create.js'
+import { statusFor } from './status-create.js'
 
 /**
  * 隐藏注释区块。顺序与 scope 以 format/original-skills.yaml 的 hidden-comments 表为准：
@@ -260,12 +263,15 @@ export function renderHeader(kind: OriginalKind, opts: {
 }): string {
   const entries = (MD_FORMAT['hidden-comments'].entries as unknown as Array<{ name: string; line: string; scope: readonly string[] }>)
   const objectKey = OBJECT_KEY_OF_KIND[kind]
+  // #1790 缺陷 A：票形文件的 DSH-LABELS 只留非 triage 标签；五枚 triage 状态写在可见 Status 行里。
+  // 容器（规格/地图）没有可见状态行，标签照旧整批写，不经过这道过滤。
+  const hiddenLabels = kind === 'spec' || kind === 'map' ? opts.labels : hiddenLabelsOf(opts.labels)
   const values: Record<string, string> = {
     'DSH-TITLE': opts.title || '',
     'DSH-STATUS': opts.status,
     'DSH-PARENT': opts.parentKey,
     'DSH-ASSIGNEES': opts.assignees.join(', '),
-    'DSH-LABELS': opts.labels.join(', '),
+    'DSH-LABELS': hiddenLabels.join(', '),
     'DSH-BLOCKED-BY': opts.blocked.join(', '),
     'DSH-IDEMPOTENCY-KEY': opts.idempotencyKey,
     'DSH-CREATED': opts.createdAt,
@@ -410,7 +416,7 @@ export function renderSpec(input: CreateView, opts: {
   const title = cleanTitle(String(input.title || ''))
   const body = ensureSpecSections(cleanBody(input.body ? String(input.body) : ''), shape.sections || [])
   const header = renderHeader('spec', {
-    status: statusFor(shape, input, ''),
+    status: statusFor('spec', shape, input, '', opts.labels),
     parentKey: '',
     assignees: opts.assignees,
     labels: opts.labels,
@@ -464,12 +470,15 @@ export function renderTicket(kind: OriginalKind, input: CreateView, opts: {
     idempotencyKey: opts.idempotencyKey,
     createdAt: opts.createdAt,
   })
-  const values = [parts.what, blocked.visible, statusFor(shape, input, parts.status)]
+  const values = [parts.what, blocked.visible, statusFor(kind, shape, input, parts.status, opts.labels)]
   const lines: string[] = []
   lines.push(shapeTitle(shape['title-shape'] || '', [opts.number, title]))
   fields.forEach((field, at) => {
+    const value = values[at] || ''
+    // 普通票可以没有状态：空值的 Status 行不写（写出空行读回来仍等于没有状态，只是多一行噪音）。
+    if (!value && field.label.trim().toLowerCase() === 'status') return
     lines.push('')
-    lines.push(fieldLine(field['line-shape'], values[at] || ''))
+    lines.push(fieldLine(field['line-shape'], value))
   })
   if (parts.acceptance) {
     lines.push('')

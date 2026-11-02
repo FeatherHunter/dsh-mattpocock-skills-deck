@@ -238,7 +238,14 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       // typeLine 是本地 markdown 文件头 Type 行该写什么：地图工单写 label 去前缀的那一个，其余位置明确给空串；
       // 远端后端不读它，契约类型仍由 type 走。给空串是为了让「issue 兜底也带了 wayfinder 标签」不会漏成 Type 行。
       const typeLine = kind === 'map-ticket' ? String(argued.label || '').replace(/^wayfinder:/, '') : ''
+      // #1790 缺陷 A：fileKind 是落盘形状的显式说明，读回时 parse.ts 用同一个值判票型与状态默认值。
+      // 容器没有 fileKind；普通票在契约里的名字是 plain-issue。不显式给会让读侧按标签与正文重新猜，
+      // 同一张票「建的时候是 bug、读回来是普通票」的岔子就是这么来的。
+      const fileKind = kind === 'spec-ticket' || kind === 'bug' || kind === 'map-ticket'
+        ? kind
+        : (kind === 'issue' ? 'plain-issue' : '')
       const input: Record<string, unknown> = { title: title, body: body.body, type: contractType, typeLine: typeLine, labels: ensured.labels, idempotencyKey: anchor }
+      if (fileKind) input.fileKind = fileKind
       if (rel) input.parentKey = rel
       if (Array.isArray(a.assignees) && a.assignees.length) input.assignees = a.assignees
       const created = await t.create(repo, input, opCtx)

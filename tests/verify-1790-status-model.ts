@@ -101,12 +101,14 @@ eq(defaultStatusOf('bug'), 'needs-triage', 'bug 默认 needs-triage')
 eq(defaultStatusOf('plain-issue'), undefined, 'plain-issue 没有默认状态')
 eq(defaultStatusOf('map-ticket'), 'claimed', 'map-ticket 默认 claimed')
 
-// ══════ 五、statusKindOf：显式 fileKind > bug 标签 > 路线 > 原文线索 > 普通票 ══════
+// ══════ 五、statusKindOf：显式 fileKind > 地图路线 > bug 标签 > 其余路线 > 原文线索 > 普通票 ══════
 console.log('\n五、statusKindOf')
 eq(statusKindOf({ fileKind: 'plain-issue' }, ['bug'], '**What to build:** x'), 'plain-issue', '显式 fileKind 优先于 bug 标签与正文线索')
 eq(statusKindOf({ fileKind: 'bug' }, [], ''), 'bug', '显式 fileKind 直接采用')
 eq(statusKindOf({}, ['bug'], ''), 'bug', 'bug 标签其次')
-eq(statusKindOf({ route: 'map' }, ['bug'], ''), 'bug', 'bug 标签先于目录路线')
+// 地图目录是物理事实：子票的状态词只有 claimed / resolved，一枚 bug 标签不能把它换成 triage 票。
+eq(statusKindOf({ route: 'map' }, ['bug'], ''), 'map-ticket', '地图路线先于 bug 标签')
+eq(statusKindOf({ route: 'spec' }, ['bug'], ''), 'bug', 'bug 标签先于其余目录路线')
 eq(statusKindOf({ route: 'map' }, [], ''), 'map-ticket', 'route map 是地图子票')
 eq(statusKindOf({ route: 'spec' }, [], ''), 'spec-ticket', 'route spec 是实施票')
 eq(statusKindOf({ route: 'plain' }, [], ''), 'plain-issue', 'route plain 是普通票')

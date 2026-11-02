@@ -156,7 +156,7 @@ function triageLabelsOf(labels: readonly StatusLabelLike[] | null | undefined): 
   return out
 }
 
-/** 判票型：显式 fileKind > bug 标签 > 目录路线 > 正文线索 > 普通票。
+/** 判票型：显式 fileKind > 地图路线 > bug 标签 > 其余目录路线 > 正文线索 > 普通票。
  *  目录路线是读侧主判据；正文线索只在没有路线时兜底（普通 issue 与实施票共用 issues/ 目录）。 */
 export function statusKindOf(
   meta: StatusKindMeta | null | undefined,
@@ -165,11 +165,13 @@ export function statusKindOf(
 ): IssueFileKind {
   const explicit = meta ? meta.fileKind : undefined
   if (explicit && includesValue(ISSUE_FILE_KINDS, explicit)) return explicit
+  const route = meta ? meta.route : undefined
+  // 地图目录是物理事实：地图子票的状态词只有 claimed / resolved，一枚 bug 标签不能把它变成
+  // 用 triage 词的缺陷票（否则给子票贴个 bug，读回的状态会从 claimed 翻成 needs-triage）。
+  if (route === 'map') return 'map-ticket'
   for (const name of labelNames(labels)) {
     if (name.toLowerCase() === 'bug') return 'bug'
   }
-  const route = meta ? meta.route : undefined
-  if (route === 'map') return 'map-ticket'
   if (route === 'spec') return 'spec-ticket'
   if (route === 'plain') return 'plain-issue'
   const text: string = typeof raw === 'string' ? raw : ''

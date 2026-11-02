@@ -14,7 +14,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { createIssue, closeIssue, reopenIssue, getIssue } from '../src/tracker/rooms/markdown/issues.ts'
+import { createIssue, closeIssue, reopenIssue, getIssue, setLabelsIssue } from '../src/tracker/rooms/markdown/issues.ts'
 
 let failed = false
 function check(ok: unknown, msg: string): void {
@@ -199,7 +199,7 @@ async function main(): Promise<void> {
   const childFile = fs.readdirSync(path.join(effortTmp, '.scratch', 'effort-a', 'issues')).filter((f) => f.indexOf('01-') === 0)[0]
   const childPath = path.join(effortTmp, '.scratch', 'effort-a', 'issues', childFile)
   const childBefore = readText(childPath)
-  check(!/^Status\s*[:：]/m.test(childBefore), '前置：未认领的子票没有 Status 行（原文：open、unassigned 即 unclaimed）')
+  check(/^Status: claimed$/m.test(childBefore), '前置：未认领的子票也默认写 claimed（状态与认领人分开记）')
 
   const childClosed = await closeIssue(mapCtx as never, effortRepo as never, '01', { reason: '现成方案够用，走查完成' } as never)
   check(!!(childClosed && childClosed.ok), '④ 关地图子票返回 ok：' + (childClosed && childClosed.ok ? '' : JSON.stringify(childClosed)))
@@ -246,6 +246,50 @@ async function main(): Promise<void> {
   // 除了状态值与新增的 ## Answer 段，原文一字不差。
   const routeNormalized = routeAfter.replace(/^Status: resolved$/m, 'Status: ready-for-agent').replace(/\n## Answer\n\n老票也关了\n?$/, '\n')
   check(routeNormalized.trimEnd() === routeBefore.trimEnd(), '地图路线：除状态与答案段外原文保留：' + JSON.stringify(routeNormalized))
+
+  // ══ 第五段：#1790 缺陷 A —— 缺陷票 / 普通票 / wontfix 的收尾口径 ══
+  // 缺陷票的默认状态是 needs-triage，重开要回到它（不是实施票的 ready-for-agent）。
+  const bugRepo = repoOf('1790-status-bug')
+  const bugTicket = await create(ctx, bugRepo, {
+    title: '缺陷票状态',
+    body: '## 缺陷说明\n\n重开应回到 needs-triage。',
+    type: 'bug',
+    labels: ['bug'],
+    idempotencyKey: 'bug-1489-status-write',
+  })
+  check(!!(bugTicket && bugTicket.ok), '⑤ 缺陷票建得成：' + (bugTicket && bugTicket.ok ? '' : JSON.stringify(bugTicket)))
+  const bugFile = path.join(tmp, '.scratch', '1790-status-bug', 'issues', '01-缺陷票状态.md')
+  check(/\*\*Status:\*\* needs-triage/.test(readText(bugFile)), '⑤ 缺陷票默认写 needs-triage')
+  await closeIssue(ctx as never, bugRepo as never, '01', {} as never)
+  const bugReopened = await reopenIssue(ctx as never, bugRepo as never, '01')
+  check(!!(bugReopened && bugReopened.ok), '⑤ 重开缺陷票返回 ok')
+  check(/\*\*Status:\*\* needs-triage/.test(readText(bugFile)), '⑤ 缺陷票重开回 needs-triage（不是 ready-for-agent）')
+  // 普通票建票不写状态行；重开后仍不写（普通票可以没有状态）。
+  const plainTicket = await create(ctx, bugRepo, {
+    title: '普通票状态',
+    body: '**What to build:** 普通票可以没有状态。',
+    type: 'issue',
+    idempotencyKey: 'plain-1489-status-write',
+  })
+  check(!!(plainTicket && plainTicket.ok), '⑤ 普通票建得成：' + (plainTicket && plainTicket.ok ? '' : JSON.stringify(plainTicket)))
+  const plainFile = path.join(tmp, '.scratch', '1790-status-bug', 'issues', '02-普通票状态.md')
+  check(!/^\s*(?:\*\*)?Status(?:\*\*)?\s*[:：]/m.test(readText(plainFile)), '⑤ 普通票建票不写可见 Status 行')
+  await closeIssue(ctx as never, bugRepo as never, '02', {} as never)
+  await reopenIssue(ctx as never, bugRepo as never, '02')
+  check(!/^\s*(?:\*\*)?Status(?:\*\*)?\s*[:：]/m.test(readText(plainFile)), '⑤ 普通票重开后仍没有可见 Status 行')
+  // wontfix 是人的决定：关票不能把它改写成 resolved。
+  const wontImpl = await create(ctx, featureRepo, {
+    title: '不修的第二步',
+    body: '**What to build:** 这一条不修。',
+    type: 'issue',
+    parentKey: '00',
+    idempotencyKey: 'wontfix-1489-status-write',
+  })
+  check(!!(wontImpl && wontImpl.ok), '⑤ 第二张实施票建得成：' + (wontImpl && wontImpl.ok ? '' : JSON.stringify(wontImpl)))
+  await setLabelsIssue(ctx as never, featureRepo as never, '02', ['wontfix'] as never)
+  await closeIssue(ctx as never, featureRepo as never, '02', {} as never)
+  const wontPath = path.join(tmp, '.scratch', '买咖啡积分', 'issues', '02-不修的第二步.md')
+  check(/\*\*Status:\*\* wontfix/.test(readText(wontPath)), '⑤ 关票保留 wontfix，不覆盖成 resolved')
 
   try { fs.rmSync(tmp, { recursive: true, force: true }) } catch { /* 临时目录清不掉不影响结论 */ }
   try { fs.rmSync(effortTmp, { recursive: true, force: true }) } catch { /* 同上 */ }

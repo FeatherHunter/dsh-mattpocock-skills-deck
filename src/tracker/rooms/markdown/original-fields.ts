@@ -238,6 +238,32 @@ export function removeBareField(text: string, name: string): string {
   return raw
 }
 
+/** 去掉加粗字段行；删完把因此多出来的空行收掉一行（与 removeBareField 对称）。 */
+export function removeBoldField(text: string, name: string): string {
+  const raw = String(text || '')
+  const lines = raw.split('\n')
+  const end = fieldEnd(raw)
+  const re = new RegExp('^[ \\t]*\\*\\*' + namePattern(name) + '[ \\t]*[:：][ \\t]*\\*\\*.*$', 'i')
+  for (let i = 0; i < end; i++) {
+    if (!re.test(lines[i])) continue
+    lines.splice(i, 1)
+    if (i > 0 && i < lines.length && lines[i - 1].trim() === '' && lines[i].trim() === '') lines.splice(i, 1)
+    return lines.join('\n')
+  }
+  return raw
+}
+
+/** 删掉这个字段的可见行，两种样式都认（#1790 缺陷 A：重开普通票时要去掉可见 Status）。
+ *  先看文件里实际写的是哪一种再删：旧文件可能只有裸行、新模板只有加粗行；
+ *  不按实际样式猜，就会把字段留在原地，下一次读又把旧状态读回来。 */
+export function removeField(text: string, name: string): string {
+  const raw = String(text || '')
+  const style = fieldStyleOf(raw, name)
+  if (style === 'bold') return removeBoldField(raw, name)
+  if (style === 'bare') return removeBareField(raw, name)
+  return raw
+}
+
 /** 文件里这个字段写的是哪种样式：有加粗行回 "bold"，只有裸行回 "bare"，两行都没有回空串。 */
 export function fieldStyleOf(text: string, name: string): 'bold' | 'bare' | '' {
   if (boldFieldOf(text, name).found) return 'bold'

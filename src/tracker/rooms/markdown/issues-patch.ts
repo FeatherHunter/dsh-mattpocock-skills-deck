@@ -24,12 +24,14 @@ import type { TicketRoute } from './issues-locate.js'
 import { markerKindOnLine } from '../../../shared/issue-file/src/marker.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import { replaceOrInsertField, rewriteTicketText } from './issues-status.js'
+// #1790 缺陷 A：改标签时把 triage 标签并成可见 Status 行；写侧归一住 status-write.ts。
+import { labelsChoiceText } from './status-write.js'
+import { statusInBody } from './status.js'
 // #1788：路线决定父票注释与阻塞边写到哪一行，见 write-route.js。
 import { parentCommentOf, writeBlockedByLine } from './write-route.js'
 // #1500 S5：原文 map-ticket 分支的状态词只从 YAML 真源读；旧布局分支的字面量保持冻结。
-import { WAYFINDER_STATUS_CLAIMED, regexAlt } from './format/field-values.js'
 // #1489：原文布局的字段原语（隐藏注释、裸字段行、票种类判定），见 original-fields.ts。
-import { hiddenCommentOf, removeBareField, ticketFormOf, upsertHiddenComment, writeFieldByStyle } from './original-fields.js'
+import { hiddenCommentOf, ticketFormOf, upsertHiddenComment } from './original-fields.js'
 import type { TicketForm } from './original-fields.js'
 // #1174：写阻塞边之前的全图环检（契约明写「环检是写路径的一部分，不许省」）。
 // #922：票文件的读—改—写按文件排队，见 write-queue.js。
@@ -209,8 +211,15 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
       // #634：写进去的标签名同样先剥掉外层成对引号/反引号——别人递进来的名字可能带着
       // 照着文档代码写法抄下来的那层引号，落盘时必须是干净的标签名，否则这层脏写法会被写进票面。
       const names=Array.isArray(patchLabels)? patchLabels.map(l=> typeof l==='string'? stripLabelDecoration(l) : (l&&l.name? stripLabelDecoration(l.name):'' )).filter(Boolean) : []
-      const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
-      txt=replaceOrInsertField(txt,'Labels',line);changed=true
+      // #1790 缺陷 A：新布局的标签列表里 triage 只代表状态，落成可见 Status 行；隐藏 DSH-LABELS 只留非 triage。
+      if(!r.container&&r.route){
+        const routed=labelsChoiceText(txt,r.route,names,typeof patch.body==='string'?statusInBody(patch.body):null,opts&&opts.status)
+        if(typeof routed!=='string')return routed
+        txt=routed;changed=true
+      }else{
+        const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
+        txt=replaceOrInsertField(txt,'Labels',line);changed=true
+      }
     }
     // #971 加固：改正文与标签不许顺手把父注释弄丢。整份替换的两条分支会拿递进来的正文盖掉整份文件，
     // 父注释不在字段行里，补不回来，下一次读回父就从 01 掉回 00。这里以盘上旧文件的父为准补回。
@@ -350,10 +359,10 @@ async function setAssigneesInner(ctx: OpContext,repo: RepoWithPath | null,key: s
     const hidden=names.length?names.join(', '):null
     if(target.container)return upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
     if(target.route==='map'){
-      let out=upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
-      if(names.length) out=writeFieldByStyle(out,'Status',WAYFINDER_STATUS_CLAIMED,'bare')
-      else if(new RegExp('^[ \\t]*Status[ \\t]*[:：][ \\t]*' + regexAlt([WAYFINDER_STATUS_CLAIMED]) + '[ \\t]*$', 'im').test(out)) out=removeBareField(out,'Status')
-      return out
+      // #1790 缺陷 A：地图子票的状态只有 claimed / resolved 两档，默认值就是 claimed（建票时写、
+      // 没认领人也写）——它记的是「这张票在推进」，不是「有没有人派」。认领人单独记在隐藏注释里，
+      // 改认领不再改可见状态，否则给一张关着的票派个人会把它重新打开。
+      return upsertHiddenComment(txt,'DSH-ASSIGNEES',hidden)
     }
     if(!target.route){
       // 旧布局兜底：旧扁平路径的写在定位那一步已被拦下，这条分支只为保住旧文件的既有行为。
@@ -487,15 +496,17 @@ async function setLabelsInner(ctx: OpContext,repo: RepoWithPath | null,key: stri
   const norm=String(key).padStart(2,'0')
   // #634：与 patch.labels 同口径——落盘的标签名先剥掉外层成对引号/反引号
   const names=Array.isArray(labels)? labels.map(l=> stripLabelDecoration(typeof l==='string'? l : (l&&typeof l.name==='string'? l.name:String(l)))).filter(Boolean) : []
-  // #1489：原文布局没有可见 Labels 行，标签写文件头隐藏注释 DSH-LABELS；旧布局继续写可见 Labels 行不变。
-  // 手写文件里人自己补过可见 Labels 行时两处一起改：解析以可见行为准，只改隐藏注释会读回旧值。
+  // #1790 缺陷 A：原文布局的标签只在隐藏 DSH-LABELS 里留非 triage；五枚 triage 是状态、写进可见 Status 行。
+  // 旧布局（没有目录路线）继续写可见 Labels 行，行为与 #1489 之前一字不差。
+  const writeOpts = opts ? { ...opts, allowStatusConflict: true } : { allowStatusConflict: true }
   const res=await rewriteTicketText(ctx,repo,norm,function(txt,target){
+    if(!target.container&&target.route)return labelsChoiceText(txt,target.route,names,null,opts&&opts.status)
     const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
     if(!target.container&&!target.route)return replaceOrInsertField(txt,'Labels',line)
     let out=upsertHiddenComment(txt,'DSH-LABELS',names.length?names.join(', '):null)
     if(/^[ \t]*(?:\*\*)?Labels(?:\*\*)?[ \t]*[:：]/im.test(out)) out=replaceOrInsertField(out,'Labels',line)
     return out
-  },trail,opts)
+  },trail,writeOpts)
   if(!res.ok)return{ok:false,error:res.error}
   return res
 }

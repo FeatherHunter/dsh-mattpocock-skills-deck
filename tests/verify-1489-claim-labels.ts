@@ -2,8 +2,8 @@
 //
 // 原文规定（issue-tracker-local.md:26-27、generated.ts 的 hidden-comments.entries）：
 //   - 认领人、标签这些「deck 需要而原文没有」的信息放文件头隐藏注释（DSH-ASSIGNEES / DSH-LABELS），一行一条；
-//   - 地图子票的认领状态是可见的裸行 Status: claimed，实施票的可见状态是加粗行 **Status:**，
-//     认领实施票不改这个值（原文字段里没有 claimed 这一档）。
+//   - 地图子票默认写可见的裸行 Status: claimed，实施票的可见状态是加粗行 **Status:**；
+//     认领只记认领人，不再改可见状态（#1790 缺陷 A：状态与认领人分开记）。
 // 这一扇同时钉住：改认领/标签时可见正文一字不动、隐藏注释同步更新；写什么由票所在目录决定（#1788）。
 // 地图路线的票认领要标 claimed（原文裸行只有 claimed/resolved 两档），普通路线只记认领人。
 //
@@ -158,7 +158,7 @@ async function main(): Promise<void> {
   const childFile = fs.readdirSync(path.join(effortTmp, '.scratch', 'effort-a', 'issues')).filter((f) => f.indexOf('01-') === 0)[0]
   const childPath = path.join(effortTmp, '.scratch', 'effort-a', 'issues', childFile)
   const childBefore = readText(childPath)
-  check(!/^Status\s*[:：]/m.test(childBefore), '前置：未认领的子票没有可见状态行')
+  check(/^Status: claimed$/m.test(childBefore), '前置：未认领的子票也默认写 claimed（状态与认领人分开记）')
 
   const childAssigned = await setAssigneesIssue(mapCtx as never, effortRepo as never, '01', ['alice'] as never, {} as never)
   check(!!(childAssigned && childAssigned.ok), '① 认领地图子票返回 ok：' + (childAssigned && childAssigned.ok ? '' : JSON.stringify(childAssigned)))
@@ -173,7 +173,7 @@ async function main(): Promise<void> {
   const childCleared = await setAssigneesIssue(mapCtx as never, effortRepo as never, '01', [] as never, {} as never)
   check(!!(childCleared && childCleared.ok), '① 子票解除认领返回 ok')
   const childClearedText = readText(childPath)
-  check(!/^Status\s*[:：]/m.test(childClearedText), '① 子票解除认领删掉可见状态行（回到「没人派」的原文形态）')
+  check(/^Status: claimed$/m.test(childClearedText), '① 子票解除认领保留默认 claimed（状态与认领人分开记）')
   check(headerComments(childClearedText).every((line) => line.indexOf('DSH-ASSIGNEES') < 0), '① 子票解除认领删掉隐藏认领人注释')
 
   // ══ 第三段：规格容器 —— 认领人也只进隐藏注释 ══
@@ -189,7 +189,9 @@ async function main(): Promise<void> {
   const labeled = await setLabelsIssue(ctx as never, featureRepo as never, '01', ['bug', 'needs-triage'] as never, {} as never)
   check(!!(labeled && labeled.ok), '① 改实施票标签返回 ok：' + (labeled && labeled.ok ? '' : JSON.stringify(labeled)))
   const implLabeled = readText(implPath)
-  check(headerComments(implLabeled).indexOf('<!-- DSH-LABELS: bug, needs-triage -->') >= 0, '① 标签写进隐藏注释：' + JSON.stringify(headerComments(implLabeled)))
+  // #1790 缺陷 A：triage 标签只代表状态，落成可见 Status 行；隐藏 DSH-LABELS 只留非 triage 标签。
+  check(headerComments(implLabeled).indexOf('<!-- DSH-LABELS: bug -->') >= 0, '① 标签写进隐藏注释（triage 不进隐藏标签）：' + JSON.stringify(headerComments(implLabeled)))
+  check(/\*\*Status:\*\* needs-triage/.test(implLabeled), '① triage 标签写成可见加粗状态行：' + JSON.stringify(implLabeled.split('\n').filter((l) => /Status/.test(l))))
   check(!/^Labels\s*[:：]/m.test(implLabeled), '① 实施票正文不插可见 Labels 行')
   const implLabelRead = await getIssue(ctx as never, featureRepo as never, '01', {} as never)
   check(JSON.stringify((implLabelRead && implLabelRead.ok && implLabelRead.data.labels) || []).indexOf('bug') >= 0, '① 读回标签里有 bug')
@@ -225,7 +227,7 @@ async function main(): Promise<void> {
   const routeAssigned = await setAssigneesIssue(routeCtx as never, routeRepo as never, '01', ['alice'] as never, {} as never)
   check(!!(routeAssigned && routeAssigned.ok), '地图路线：认领返回 ok')
   const routeAfter = readText(routePath)
-  check(/^Status: claimed$/m.test(routeAfter), '地图路线：认领把可见裸行改成 claimed（原文两档之一）')
+  check(/^Status: ready-for-agent$/m.test(routeAfter), '地图路线：认领不动可见状态行（状态与认领人分开记）')
   check(headerComments(routeAfter).indexOf('<!-- DSH-ASSIGNEES: alice -->') >= 0, '地图路线：认领人写进文件头隐藏注释：' + JSON.stringify(headerComments(routeAfter)))
   check(!/^Assignees\s*[:：]/m.test(routeAfter), '地图路线：不写可见 Assignees 行（原文没有这一行）')
   const routeLabeled = await setLabelsIssue(routeCtx as never, routeRepo as never, '01', ['bug'] as never, {} as never)

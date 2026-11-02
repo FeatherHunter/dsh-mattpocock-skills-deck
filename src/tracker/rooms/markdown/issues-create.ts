@@ -16,9 +16,10 @@ import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
+import { getPlat, getScratchRoot } from './issues-locate.js'
 // #1486/#1487：六种票的原文形状落盘（spec.md、map.md、issues/NN-slug.md）住在 create-layout.ts，
 // 本文件只做入口（标题与锚键格式检查）与回包解析，不拼正文、不取号、不落盘。
-import { originalKindOf } from './create-render.js'
+import { originalKindOf, RenderStatusConflict } from './create-render.js'
 import { createInOriginalLayout } from './create-layout.js'
 // #1507：新建时拒绝远端四段模板（判据与拒绝语在 template-guard.ts，与 #1509 的整份改写共用一件）。
 import { remoteTemplateRefusalFor, remoteTemplateSections } from './template-guard.js'
@@ -33,8 +34,8 @@ import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Issue } from '../../contract/entities.js'
 import type { CreateInput } from '../../contract/inputs.js'
 
-// 仓库引用：path 是本地后端的自有约定（契约不保证），有就多认那个目录（path.ts 的同款，房间里各备一份）。
-type RepoWithPath = RepositoryRef & { path?: string }
+// 仓库引用：path 与 mdScene 都是本地后端的自有约定（契约不保证），有就多认那个目录（path.ts 的同款，房间里各备一份）。
+type RepoWithPath = RepositoryRef & { path?: string; mdScene?: string }
 
 interface CreateFailure {
   ok: false
@@ -62,7 +63,22 @@ async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: 
   const idemKey=keyCheck?keyCheck.key:''
   try{
     // #1486/#1487：六种票全部走原文布局（#1500 S4 起 originalKindOf 不再回空，旧的自拼分支已删）。
-    const originalKind=originalKindOf(input)
+    // #1790 缺陷 A：后端直接建票（没经过 deck）时没有显式 fileKind，但 repo.mdScene 已经说明这次是
+    // feature（规格目录）还是 effort（地图目录）：用它当票型，建出来的状态默认值才与读侧一致。
+    // 只在容器已经存在时才算数：同一场景里建「还没有规格/地图的目录」本身是合法的（各条门禁的夹具
+    // 就这样建票），把它们强行当实施票/子票会让「实施票必须挂在规格下」的目录校验把它们全拒掉。
+    const scene=String(repo&&repo.mdScene||'')
+    let sceneKind: 'spec-ticket'|'map-ticket'|undefined
+    if((scene==='feature'||scene==='effort')&&repo&&repo.effortId!==undefined&&repo.effortId!==null&&String(repo.effortId).trim()){
+      const plat=getPlat(ctx)
+      const scratch=await getScratchRoot(ctx)
+      const container=scene==='feature'?'spec.md':'map.md'
+      if(await statFile(ctx,plat.join(scratch,String(repo.effortId).trim(),container)))sceneKind=scene==='feature'?'spec-ticket':'map-ticket'
+    }
+    let originalKind=originalKindOf(input,input.fileKind)
+    // 场景只是**兜底**：显式 type（map/spec/...）或显式 fileKind 已经说清楚形状时不能被 scene 盖掉
+    // （在 effort 目录里建 map.md 自己时 type 就是 map，按 scene 会误判成地图子票）。
+    if(originalKind==='issue'&&input.fileKind===undefined&&sceneKind)originalKind=originalKindOf(input,sceneKind)
     // #1790：显式票型（调用方给了 fileKind 就用它，否则由六种原文形状反推）要跟着路线一起交给读回解析，
     // 读回来的 Issue 才能立刻带对 status / statusSource；容器不出状态，不给 fileKind 与路线。
     const fileKind=input.fileKind!==undefined
@@ -99,5 +115,9 @@ async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: 
     const iss=parseMd(content,{key:placement.key,parentKey:fallbackParent,isMap:originalKind==='map',effortId:placement.effortId,createdAt:placement.createdAt,updatedAt:mtime,url:placement.path,kind:originalKind==='spec'?'spec':(originalKind==='map'?'map':'issue'),route,fileKind})
     applyLabelColors(iss,colorMap)
     return{ok:true,data:iss}
-  }catch(e){return failFromError(e,ctx,'建这张票时出错')}
+  }catch(e){
+    // 状态标签自相矛盾是调用方输入问题，要让它看见具体是哪几枚，不能被统一话术盖掉。
+    if(e instanceof RenderStatusConflict)return failAs(ERROR_KIND.PARSE,e.message,'')
+    return failFromError(e,ctx,'建这张票时出错')
+  }
 }

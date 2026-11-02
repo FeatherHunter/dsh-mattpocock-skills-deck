@@ -13,7 +13,8 @@ import { publishTextFile } from './write.js'
 // #1059：这一趟写没写下去的结论线（事件 `issue.write`，与 GitHub 房同一个名字、同一套字段；GitLab 房的写路径还没做）。
 import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
 import type { WriteTrail } from './write-log.js'
-import { failFromError } from './error-fail.js'
+import { failAs, failFromError } from './error-fail.js'
+import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { getPlat, locateContainerFile, resolveIssueFile, ticketRouteOf } from './issues-locate.js'
 import type { TicketRoute } from './issues-locate.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
@@ -27,14 +28,13 @@ import { checkExpectedUpdatedAt } from './write-guards.js'
 // #1489：原文布局（加粗字段行 / 裸字段行 / 隐藏注释）的读写原语，见 original-fields.ts。
 import {
   appendSectionBlock,
-  hiddenCommentOf,
-  removeBareField,
-  replaceBareField,
-  replaceBoldField,
   ticketFormOf,
   upsertHiddenComment,
   writeFieldByStyle,
 } from './original-fields.js'
+// #1790 缺陷 A：写侧归一的纯文本实现住 status-write.ts（读侧在 status.ts）。
+import { normalizeIssueStatusText, statusReadOfText } from './status-write.js'
+import { defaultStatusOf } from './status.js'
 // #1500 S5：子票状态词（claimed / resolved）只从 YAML 真源读；旧布局分支的字面量保持冻结（见下）。
 import {
   WAYFINDER_STATUS_CLAIMED,
@@ -52,6 +52,9 @@ interface StatusFailure {
   ok: false
   error: { kind: string; message: string; raw: string }
 }
+
+/** 写入口自己的选项：除契约的 SetOpts 外，状态冲突时允许 apply 自己显式归一（重开、改标签用）。 */
+type WriteOpts = SetOpts & { allowStatusConflict?: boolean }
 
 /** 这次写的文件是谁：spec/map 是容器（00 号），null 是普通票。 */
 interface WriteTarget {
@@ -92,11 +95,6 @@ export function replaceOrInsertField(txt: string,fieldName: string,newLine: stri
   return lines.join('\n')
 }
 
-/** 状态行传进来的是整行（`Status: resolved`），这里取出它的值（`resolved`）。 */
-function statusValueOf(statusLine: string): string {
-  const m = /^[ \t]*(?:\*\*)?Status(?:\*\*)?[ \t]*[:：][ \t]*(.*)$/i.exec(String(statusLine))
-  return String(m ? m[1] : statusLine).trim()
-}
 /** 容器的状态值只认注释里的三档（YAML 的 DSH-STATUS 约定：closed / ready-for-agent / open）。
  *  落成 closed 的那一档，一半认子票的「做完了」（取值只从 YAML 真源读），一半认容器自己的 closed；
  *  后两档是 triage 角色与容器自己的 open，原文没有给它们取值表，继续写死在这里。 */
@@ -105,13 +103,6 @@ function containerStatusValue(statusLine: string): string {
   if (CLOSED_STATUS_RE.test(statusLine)) return 'closed'
   if (/ready-for-agent|open/i.test(statusLine)) return 'ready-for-agent'
   return 'open'
-}
-/** 这张票文件里有没有「认领人」的记录（隐藏注释或旧布局的可见 Assignees 行）。
- *  地图子票重开时用：原文只有 claimed/resolved 两档，派了人就回 claimed，没派就删掉状态行回到未认领。 */
-function hasAssigneeRecord(text: string): boolean {
-  const hidden = hiddenCommentOf(text, 'DSH-ASSIGNEES')
-  if (hidden.found && hidden.value.trim()) return true
-  return /^[ \t]*Assignees[ \t]*[:：][ \t]*\S/m.test(text)
 }
 /** 定位这次要写的文件，并说清它是不是 00 号容器。
  *  00 号的顺序与读取侧 getIssue 相同，收在 issues-locate 的 locateContainerFile 一处（#1480 两轴评审）。 */
@@ -136,6 +127,8 @@ function metaOf(norm: string, target: WriteTarget) {
     kind: target.container === 'spec' ? 'spec' as const : undefined,
     effortId: target.effortId,
     url: target.path,
+    // #1790：读回时把目录路线带进 parse，票型判定与写后读回用同一条路线。
+    route: target.route,
   }
 }
 /** 票文件的公共写入口：读整份 → apply 在内存里改 → 有变化才写回 → 按新文本读回。
@@ -148,9 +141,9 @@ export async function rewriteTicketText(
   ctx: OpContext,
   repo: RepoWithPath | null,
   key: string,
-  apply: (before: string, target: WriteTarget) => string,
+  apply: (before: string, target: WriteTarget) => string | StatusFailure,
   trail?: WriteTrail,
-  opts?: SetOpts,
+  opts?: WriteOpts,
 ): Promise<{ ok: true; data: Issue } | StatusFailure> {
   const norm = String(key).padStart(2, '0')
   const loc = await locateWriteTarget(ctx, repo, norm)
@@ -163,7 +156,22 @@ export async function rewriteTicketText(
       const guard = await checkExpectedUpdatedAt(ctx, target.path, opts)
       if (!guard.ok) return guard
       const before = await readTextFile(ctx, target.path)
-      const txt = apply(before, target)
+      // #1790 缺陷 A：可见 Status 行与隐藏 triage 标签真冲突时，写侧不许替人挑一个吞掉，整次不写。
+      // 只有显式给了状态（opts.status）或 apply 明确会自己归一（allowStatusConflict）才放行。
+      if (!target.container && target.route && !(opts && opts.status) && !(opts && opts.allowStatusConflict)) {
+        const read = statusReadOfText(before, target.route)
+        if (read.statusConflict) {
+          const hidden = read.statusConflict.hidden.length ? read.statusConflict.hidden[0] : ''
+          return failAs(
+            ERROR_KIND.PARSE,
+            '这张票的可见 Status 行写的是「' + read.statusConflict.visible + '」，隐藏 DSH-LABELS 里的 triage 标签写的是「' + hidden + '」：两处冲突，这次一个字都没写。请显式给一个状态，或先用 setLabels 把两处归一。',
+            JSON.stringify(read.statusConflict),
+          )
+        }
+      }
+      const changed = apply(before, target)
+      if (typeof changed !== 'string') return changed
+      const txt = changed
       if (txt !== before) {
         // #1182：这一份走原子发布（同目录临时文件 + 改名；没有改名原语时退回整份直写），与同房另几条写票路同口径。
         await publishTextFile(ctx, target.path, txt, ctx && (ctx as { sandboxPolicy?: unknown }).sandboxPolicy)
@@ -176,29 +184,6 @@ export async function rewriteTicketText(
       return failFromError(e, ctx, '改这张票的文件时出错')
     }
   })
-}
-/** 改状态：按路线分派（#1788：先看票文件所在目录是哪条路线，再看文件里字段行的写法）。
- *  规格 / 普通路线按实施票 / 普通票语义写可见状态行；地图路线沿用地图子票语义（claimed / resolved）；
- *  旧布局与 00 号容器保持原样。字段行按文件已有样式写（加粗行改加粗行、裸行改裸行），不再凭空多造一种。 */
-async function setStatus(ctx: OpContext, repo: RepoWithPath | null, key: string, statusLine: string, extraLine?: string, trail?: WriteTrail): Promise<{ ok: true; data: Issue } | StatusFailure> {
-  return rewriteTicketText(ctx, repo, key, function (txt, target) {
-    if (target.container) return upsertHiddenComment(txt, 'DSH-STATUS', containerStatusValue(statusLine))
-    const value = statusValueOf(statusLine)
-    if (target.route === 'map') {
-      if (/^(ready-for-agent|open)$/i.test(value)) {
-        return hasAssigneeRecord(txt) ? writeFieldByStyle(txt, 'Status', WAYFINDER_STATUS_CLAIMED, 'bare') : removeBareField(txt, 'Status')
-      }
-      return writeFieldByStyle(txt, 'Status', value, 'bare')
-    }
-    if (!target.route) {
-      // 旧布局：可见 Status 行 + 关票原因行，行为与 #1489 之前一字不差。
-      let out = replaceOrInsertField(txt, 'Status', statusLine)
-      if (extraLine) out = replaceOrInsertField(out, 'Close\\s+reason', extraLine)
-      return out
-    }
-    // 规格 / 普通路线：实施票 / 普通票语义。可见状态行按文件已有样式写；没有状态行时补裸行（原文普通票就写裸行）。
-    return writeFieldByStyle(txt, 'Status', value, 'bare')
-  }, trail)
 }
 /** 从子票正文的 ## Answer 段取第一条内容当「决策」；没有就交回调用方给的关闭原因。 */
 function answerGist(ticket: Issue): string {
@@ -300,10 +285,16 @@ export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: s
     }
     // 规格 / 普通路线（实施票 / 普通票）：只改可见状态行，原因追加到 ## Comments；
     // 不写 ## Answer、不写 Close reason 行 —— 那是地图子票 / 旧布局的写法（#1788 行为规格 5）。
-    let out=writeFieldByStyle(txt,'Status',WAYFINDER_STATUS_RESOLVED,'bare')
+    // #1790 缺陷 A：关闭是显式状态决定（resolved；已经 wontfix 的票保留 wontfix 不被覆盖）。
+    // 归一顺手把旧文件里隐藏的 triage 并回可见 Status 行，落选值记历史，不再两处各存一份。
+    const read=statusReadOfText(txt,target.route)
+    const wanted=read.status==='wontfix'?'wontfix':WAYFINDER_STATUS_RESOLVED
+    const normed=normalizeIssueStatusText(txt,target.route,{status:wanted})
+    if(!normed.ok)return normed
+    let out=normed.data.text
     if(reason)out=appendClosingComment(ctx,out,reason,norm)
     return out
-  },trail)
+  },trail,{status:WAYFINDER_STATUS_RESOLVED})
   if(r.ok)await appendMapDecisionPointer(ctx,repo,r.data,reason,trail)
   emitIssueWrite(ctx,'close',trail,r,t0)
   return r
@@ -311,7 +302,20 @@ export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: s
 export async function reopenIssue(ctx: OpContext,repo: RepoWithPath | null,key: string): Promise<{ok:true;data:Issue}|StatusFailure>{
   const t0=Date.now()
   const trail=beginWriteTrail()
-  const r=await setStatus(ctx,repo,key,'Status: ready-for-agent',undefined,trail)
+  const r=await rewriteTicketText(ctx,repo,key,function(txt,target){
+    if(target.container)return upsertHiddenComment(txt,'DSH-STATUS',containerStatusValue('Status: ready-for-agent'))
+    if(!target.route){
+      // 旧布局：可见 Status 行，与 #1489 之前一字不差（扁平路径的写已在定位那一步拦下，这里只保旧文件行为）。
+      return replaceOrInsertField(txt,'Status','Status: ready-for-agent')
+    }
+    // 地图子票只有 claimed / resolved 两档：重开就是回到 claimed（不再看有没有认领人）。
+    if(target.route==='map')return writeFieldByStyle(txt,'Status',WAYFINDER_STATUS_CLAIMED,'bare')
+    // 规格 / 普通路线按票型默认：实施票回到 ready-for-agent，缺陷票回到 needs-triage；
+    // 普通票本来就没有状态，重开就是明确删掉可见 Status 行，而不是替它编一个不分流的状态。
+    const kind=statusReadOfText(txt,target.route).kind
+    const normed=normalizeIssueStatusText(txt,target.route,kind==='plain-issue'?{dropStatus:true}:{status:defaultStatusOf(kind)})
+    return normed.ok?normed.data.text:normed
+  },trail,{allowStatusConflict:true})
   emitIssueWrite(ctx,'reopen',trail,r,t0)
   return r
 }

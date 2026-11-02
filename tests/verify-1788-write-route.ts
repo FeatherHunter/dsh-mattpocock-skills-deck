@@ -14,7 +14,8 @@
 //   H 旧扁平路径（.scratch/map.md + .scratch/issues/）写认领仍然被拒绝，文件一个字节不动；
 //   I Blocked by 按票面已有样式写（只有裸字段的票写裸行，加粗实施票写加粗行）；
 //   J 挂父票写文件头隐藏 <!-- DSH-PARENT: NN -->，不再写旧的 <!-- parentKey: NN -->。
-//   K 目录里没有编号的手写票（文件名与标题都没有编号）：认领同样只写隐藏注释、可见 Status 不动。
+//   K 目录里没有编号的手写票（文件名与标题都没有编号）：认领同样只写隐藏注释、可见 Status 不动；
+//   L 普通目录（既没有 spec.md 也没有 map.md）里的票重开：可见 Status 行被删掉，普通票可以没有状态。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1788-write-route.ts
 
@@ -216,6 +217,22 @@ async function main(): Promise<void> {
   check(/^Status: ready-for-agent$/m.test(eAfter), 'E 可见状态回到裸行 Status: ready-for-agent；实际：' + JSON.stringify(eAfter.split('\n').filter((l) => /^Status/.test(l))))
   check(countStatusLines(eAfter) === 1, 'E 重开后文件里只有一行可见 Status；实际 ' + countStatusLines(eAfter) + ' 行')
   check(eAfter.indexOf('**Status:**') < 0, 'E 普通票重开后不出现加粗 **Status:** 行')
+
+  // —— 场景 L：普通目录（plain 路线）重开后删掉可见 Status 行 ——
+  // 普通票的状态是可有可无的：重开时没有「默认状态」可回，删掉状态行比编一个 ready-for-agent 更诚实。
+  const plainTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1788-route-plain-'))
+  const plainCtx = mkctx(plainTmp)
+  const plainRepo = repoOf('验收乙')
+  const plainTicket = path.join(plainTmp, '.scratch', '验收乙', 'issues', '01-普通票重开.md')
+  writeText(plainTicket, '# 01: 普通票重开\n\n正文只有一句。\n\nStatus: needs-triage\n')
+  const lClose = await closeIssue(plainCtx as never, plainRepo as never, '01', {} as never)
+  check(!!(lClose && lClose.ok), 'L 普通目录里的票关闭要成功；实际返回：' + JSON.stringify(lClose))
+  check(/^Status: resolved$/m.test(readText(plainTicket)), 'L 关闭后可见状态是 Status: resolved；实际：' + JSON.stringify(readText(plainTicket).split('\n').filter((l) => /^Status/.test(l))))
+  const lReopen = await reopenIssue(plainCtx as never, plainRepo as never, '01')
+  check(!!(lReopen && lReopen.ok), 'L 普通目录里的票重开要成功；实际返回：' + JSON.stringify(lReopen))
+  const lAfter = readText(plainTicket)
+  check(countStatusLines(lAfter) === 0, 'L 重开后可见 Status 行被删掉；实际 ' + countStatusLines(lAfter) + ' 行：' + JSON.stringify(lAfter.split('\n').filter((l) => /^Status/.test(l))))
+  check(lAfter.indexOf('**Status:**') < 0, 'L 重开后没有加粗 **Status:** 行')
 
   // —— 场景 I（手写票）：Blocked by 按已有样式写裸行 ——
   const iBefore = readText(ticket05)
