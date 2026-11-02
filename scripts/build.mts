@@ -864,6 +864,9 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   //   排在 vcShellPages 之前，壳的挂载段才看得到 vcWorktreesPageNode；也排在 vcFirstScreen 之后，数据层只问那一份片。
   { id: 'vcWorktreesData', file: 'src/client/views/versionControl/vcWorktreesData.ts' },
   { id: 'vcWorktreesOps', file: 'src/client/views/versionControl/vcWorktreesOps.ts' },
+  // #1829 阶段 3：工作树页版式独立一叶（说明条、当前工作区、头与筛选、逐行清单、页尾折叠入口、交接入口），
+  //   页面体只留八条能力的定义与按状态出现的拦截/计划/确认/结果面。
+  { id: 'vcWorktreesView', file: 'src/client/views/versionControl/vcWorktreesView.ts' },
   { id: 'vcWorktreesPage', file: 'src/client/views/versionControl/vcWorktreesPage.ts' },
   { id: 'vcMigratePage', file: 'src/client/views/versionControl/vcMigratePage.ts' }, // #1759 T23 迁移与备份页正文（九个动作、只读结果、确认卡与任务区；排在页面壳之前，壳要调它）
   // #1756 T20 克隆向导：填地址与选项 → 预检签票 → 凭票执行（长任务通道）→ 取消后的残留清理入口；由页面壳挂进迁移与备份页。

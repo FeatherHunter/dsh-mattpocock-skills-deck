@@ -30,6 +30,7 @@ declare function vcWorktreesUiOf(ui: any): any
 declare function vcShellStateNode(h: any, t: any, o: any): any
 declare function vcShellConfirmCardNode(h: any, t: any, o: any): any
 declare function vcShellResultNode(h: any, t: any, o: any): any
+declare function vcWorktreesLayoutNodesOf(h: any, t: any, o: any): any[]
 declare function vcWorktreeCall(ops: any, name: string, args?: any[]): any
 declare function vcWorktreeAttrOf(ev: any, name: string): string
 declare function vcWorktreeClassOf(ev: any): string
@@ -119,48 +120,6 @@ const vcWtFieldNode = function (h: any, t: any, o: any): any {
       onChange: function (ev: any) { vcWorktreeCall(opts.ops, 'field', [name, ev && ev.target ? ev.target.value : '']) },
     }),
   ])
-}
-
-/** 徽标：当前 / 已锁定 / 锁定状态读不出 / 待清理，各一枚，画在行首那一行里。 */
-const vcWtBadgesOf = function (h: any, t: any, row: any): any[] {
-  const out: any[] = []
-  if (row.current === true) out.push(h('span', { key: 'current', className: 'vc-wt-badge', 'data-wt-badge': 'current' }, t('vc.wt.current')))
-  if (row.locked === true) out.push(h('span', { key: 'locked', className: 'vc-wt-badge', 'data-wt-badge': 'locked' }, t('vc.wt.locked')))
-  if (row.lockUnknown === true) out.push(h('span', { key: 'lockUnknown', className: 'vc-wt-badge', 'data-wt-badge': 'lock-unknown' }, t('vc.wt.lockUnknown')))
-  if (row.prunable === true) out.push(h('span', { key: 'prunable', className: 'vc-wt-badge', 'data-wt-badge': 'prunable' }, t('vc.wt.prunable')))
-  return out
-}
-
-/** 清单一行：路径、提交、分支（或游离说明）、徽标、锁定/待清理原因、行内四个动作按钮。 */
-export const vcWorktreesRowNode = function (h: any, t: any, o: any): any {
-  const opts: any = o || {}
-  const row: any = opts.row || {}
-  const model: any = opts.model || {}
-  const actions: any[] = Array.isArray(opts.actions) ? opts.actions : vcWorktreesRowActionsOf(model, row)
-  const branchNode: any = row.detached === true
-    ? h('span', { key: 'branch', className: 'vc-wt-branch' }, t('vc.wt.detached'))
-    : h('span', { key: 'branch', className: 'vc-wt-branch' }, t('vc.wt.branch') + ' ' + String(row.branch || ''))
-  const head: any[] = [
-    h('span', { key: 'path', className: 'vc-wt-path' }, String(row.display || row.path || '')),
-    h('span', { key: 'head', className: 'vc-wt-head' }, t('vc.wt.head') + ' ' + String(row.head || '').slice(0, 12)),
-    branchNode,
-  ]
-  const kids: any[] = [h('div', { key: 'main', className: 'vc-wt-row-main' }, head.concat(vcWtBadgesOf(h, t, row)))]
-  if (row.locked === true && String(row.lockReason || '') !== '') kids.push(h('p', { key: 'lockReason', className: 'vc-wt-detail', 'data-wt-detail': 'locked' }, t('vc.wt.detailLocked', { reason: String(row.lockReason) })))
-  if (row.prunable === true) kids.push(h('p', { key: 'prunable', className: 'vc-wt-detail', 'data-wt-detail': 'prunable' }, t('vc.wt.detailPrunable', { reason: String(row.prunableReason || '') })))
-  const btns: any[] = actions.map(function (a: any): any {
-    return vcWtButtonNode(h, t, { op: a.op, capId: a.action.capId, label: t('vc.wt.action.' + a.op), path: row.path, decision: a.decision, ops: opts.ops })
-  })
-  kids.push(h('div', { key: 'acts', className: 'vc-wt-row-acts', 'data-wt-row-actions': '1' }, btns))
-  return h('li', {
-    key: String(row.path || ''),
-    className: 'vc-wt-row' + (row.current === true ? ' vc-wt-row-current' : ''),
-    'data-wt-row': '1',
-    'data-wt-path': String(row.path || ''),
-    'data-wt-current': row.current === true ? '1' : '0',
-    'data-wt-locked': row.locked === true ? '1' : '0',
-    'data-wt-prunable': row.prunable === true ? '1' : '0',
-  }, kids)
 }
 
 /** prune 清单：预检之前就先列出「将清理的登记项」（票面要求先列后清），没有就说不必执行。 */
@@ -350,47 +309,19 @@ const vcWtResultNode = function (h: any, t: any, ui: any, ops: any): any {
   return null
 }
 
-/** 清单区：四态（空/加载/失败/有数据）。失败态给「重试读数」的点击委托，不把旧读数当新读数。 */
-const vcWtListSectionNode = function (h: any, t: any, model: any, ui: any, ops: any): any {
-  const kids: any[] = [h('h4', { key: 'title', className: 'vc-wt-list-title' }, t('vc.wt.title') + ' · ' + t('vc.wt.count', { n: model.count }))]
-  if (model.state === 'loading') kids.push(vcShellStateNode(h, t, { state: 'loading' }))
-  else if (model.state === 'idle') {
-    kids.push(vcShellStateNode(h, t, { state: 'empty' }))
-    if (model.bare === true) kids.push(h('p', { key: 'bare', className: 'vc-wt-bare', 'data-wt-bare': '1' }, t('vc.wt.bare')))
-  } else if (model.state === 'error') {
-    const err: any = model.error || {}
-    kids.push(h('div', {
-      key: 'error', className: 'vc-wt-error', 'data-wt-error': String(err.kind || ''),
-      onClick: function (ev: any) { if (vcWorktreeAttrOf(ev, 'data-vc-state-action') === 'retry') vcWorktreeCall(ops, 'refresh') },
-    }, [vcShellStateNode(h, t, { state: 'error' })]))
-  } else if (model.count === 0) {
-    kids.push(vcShellStateNode(h, t, { state: 'empty' }))
-  } else {
-    kids.push(h('ul', { key: 'rows', className: 'vc-wt-rows', 'data-wt-list': '1' }, model.rows.map(function (row: any): any {
-      return vcWorktreesRowNode(h, t, { row: row, model: model, ops: ops })
-    })))
-  }
-  return h('section', { key: 'list', className: 'vc-wt-list', 'data-wt-list-section': '1' }, kids)
-}
 
 /**
  * 工作树页根节点。只读这一处：模型（或用 reads 现算）、ui 读数、处理函数。
- * 页面壳挂载时只传 opts.reads / opts.ui / opts.ops；门禁可以直接传模型，省掉首屏快照的构造。
+ * 版式在 vcWorktreesView（说明条 → 当前工作区 → 头与筛选 → 清单 → 页尾折叠入口 → 交接入口），
+ * 本函数只负责把拦截/计划/确认/结果这些按状态出现的面接在版式之后。
+ * 页面壳挂载时只传 opts.reads / opts.ui / opts.ops / opts.onOpenHandoff；门禁可以直接传模型，省掉首屏快照的构造。
  */
 export const vcWorktreesPageNode = function (h: any, t: any, o: any): any {
   const opts: any = o || {}
   const model: any = opts.worktrees || vcWorktreesModelOf(opts.reads || {})
   const ui: any = vcWorktreesUiOf(opts.ui || {})
   const ops: any = opts.ops || opts.handlers || {}
-  const kids: any[] = [
-    h('header', { key: 'header', className: 'vc-wt-header', 'data-wt-header': '1' }, [
-      h('h3', { key: 'title', className: 'vc-wt-title' }, t('vc.wt.title')),
-      h('span', { key: 'count', className: 'vc-wt-count', 'data-wt-count': String(model.count) }, t('vc.wt.count', { n: model.count })),
-      vcWtButtonNode(h, t, { op: 'list', capId: '9.1', label: t('vc.wt.listRefresh'), decision: vcWorktreesActionDecisionOf(model, 'list', {}), ops: ops }),
-    ]),
-    vcWtEntriesNode(h, t, model, ui, ops),
-    vcWtListSectionNode(h, t, model, ui, ops),
-  ]
+  const kids: any[] = vcWorktreesLayoutNodesOf(h, t, { model: model, ui: ui, ops: ops, onOpenHandoff: opts.onOpenHandoff })
   if (ui.mode === 'blocked') kids.push(vcWtBlockedNode(h, t, model, ui, ops))
   if (ui.mode === 'plan' && ui.op === 'sparse-list') kids.push(vcWtSparsePlanNode(h, t, model, ui, ops))
   if (ui.mode === 'confirm') kids.push(vcWtConfirmNode(h, t, ui, ops))

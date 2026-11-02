@@ -4,6 +4,8 @@
 zh:
   vc.stash.title: 贮藏
   vc.stash.lede: 十条贮藏能力都在这一页：新建、列出、查看、应用、弹出、删除、清空、从贮藏建分支，丢掉的还能从「最近丢弃」恢复。
+  vc.stash.boundary: 贮藏只留在本地：git 不会把贮藏推到远端，切换分支也不会带走它。
+  vc.stash.count: "{n} 条贮藏"
   vc.stash.message.label: 贮藏说明
   vc.stash.message.placeholder: 一句话说明这批改动是什么（写进贮藏列表的主题）
   vc.stash.op.push: 贮藏当前改动
@@ -65,6 +67,8 @@ zh:
 en:
   vc.stash.title: Stashes
   vc.stash.lede: "All ten stash capabilities live here: create, list, inspect, apply, pop, drop, clear, branch from a stash, and recover recently dropped entries."
+  vc.stash.boundary: "Stashes stay local: git never pushes them to the remote, and switching branches does not carry them along."
+  vc.stash.count: "{n} stash entries"
   vc.stash.message.label: Stash message
   vc.stash.message.placeholder: One line describing these changes (shown as the stash subject)
   vc.stash.op.push: Stash current changes

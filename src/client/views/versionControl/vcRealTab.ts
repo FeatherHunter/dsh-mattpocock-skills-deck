@@ -347,9 +347,11 @@ export const VcRealTab = function (props: any) {
     tasks: manage.tasks && Array.isArray(manage.tasks.items) ? manage.tasks.items : [],
     running: manage.tasks && typeof manage.tasks.running === 'number' ? manage.tasks.running : 0,
     onCancel: function (taskId: any) { if (pollerRef.current) pollerRef.current.cancel(taskId) },
-    // 改动页提交区旁的「拿不准怎么拆提交？交给 AI」（#1829）：只开新会话并预填 prompt，不发 git 写电话。
-    onOpenHandoff: function () {
-      vcRealAiOpenOf(tr, reads, props && props.st, { kind: 'commit-split', summary: tr('vc.changes.view.aiSplit') },
+    // 两处「交给 AI」（#1829 改动页提交区、身份行右侧、工作树页底部）：只开新会话并预填 prompt，不发 git 写电话。
+    //   调用方可以传自己那件事的形状；不传时按「拿不准怎么拆提交」这一件算，与改动页的文案一致。
+    onOpenHandoff: function (ai: any) {
+      const handoff: any = ai && ai.kind ? ai : { kind: 'commit-split', summary: tr('vc.changes.view.aiSplit') }
+      vcRealAiOpenOf(tr, reads, props && props.st, handoff,
         typeof openTextInNewSession === 'function' ? openTextInNewSession : null)
     },
   })

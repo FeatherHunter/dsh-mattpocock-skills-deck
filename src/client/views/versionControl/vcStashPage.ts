@@ -55,7 +55,7 @@ const vcStashEntrySubjectOf = function (t: any, entry: any): string {
   return text === '' ? vcStashText(t, 'vc.stash.entry.unknownSubject', null) : text
 }
 
-/** 一条记录的字段：选择器、提交号、时间、说明与涉及文件数（列表读法不给文件数，如实说不知道）。 */
+/** 一条记录的字段：选择器、说明、时间、提交号与涉及文件数；查看内容与确认卡都贴在这一条下面。 */
 const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
   const selector = String(entry.selector || '')
   const oid = String(entry.oid || '')
@@ -64,12 +64,16 @@ const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
   const fileNote = filesKnown
     ? vcStashText(t, 'vc.stash.entry.files', { n: String(ctx.detail.fileCount) })
     : vcStashText(t, 'vc.stash.entry.filesUnknown', null)
-  const head = h('p', { className: 'vcs-stash-line', 'data-vc-stash-line': 'summary' }, [
-    h('strong', { key: 'subject', 'data-vc-stash-subject': '1' }, vcStashEntrySubjectOf(t, entry)),
-    h('span', { key: 'selector', className: 'vcs-stash-selector', 'data-vc-stash-selector': selector }, selector),
+  // 记录行第一行是「stash@{n} + 说明」，原型 64 的 stash-id-line；说明是主体，选择器是身份。
+  const idLine = h('div', { key: 'id', className: 'vcs-stash-id-line', 'data-vc-stash-line': 'summary' }, [
+    h('span', { key: 'selector', className: 'vcs-stash-id', 'data-vc-stash-selector': selector }, selector),
+    h('strong', { key: 'subject', className: 'vcs-stash-subject', 'data-vc-stash-subject': '1' }, vcStashEntrySubjectOf(t, entry)),
+  ])
+  // 第二行是元信息：时间 · 文件数 · 提交号；列表读法给不出文件数时照实说。
+  const metaLine = h('div', { key: 'meta', className: 'vcs-stash-meta' }, [
+    h('span', { key: 'at', 'data-vc-stash-at': '1' }, vcStashText(t, 'vc.stash.entry.at', { when: when })),
+    h('span', { key: 'files', 'data-vc-stash-files': '1' }, fileNote),
     h(Tip, { key: 'oid', content: oid }, h('span', { key: 'oid', className: 'vcs-stash-oid', 'data-vc-stash-oid': '1' }, vcStashText(t, 'vc.stash.entry.oid', { oid: vcStashShortOidOf(oid) }))),
-    h('span', { key: 'at', className: 'vcs-stash-when', 'data-vc-stash-at': '1' }, vcStashText(t, 'vc.stash.entry.at', { when: when })),
-    h('span', { key: 'files', className: 'vcs-stash-files', 'data-vc-stash-files': '1' }, fileNote),
   ])
   const actions = VC_STASH_ROW_OPS.map(function (op: string) {
     const def: any = stashOpOf(op)
@@ -88,7 +92,12 @@ const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
     if (isDanger) props['data-vc-stash-danger'] = '1'
     return h('button', props, vcStashText(t, def.nameKey, null))
   }).filter(function (node: any) { return !!node })
-  const children = [head, h('div', { key: 'acts', className: 'vcs-stash-row-acts' }, actions)]
+  const children: any[] = [idLine, metaLine, h('div', { key: 'acts', className: 'vcs-stash-row-acts' }, actions)]
+  // 查看内容铺在这一条下面（就近），不再跑到页面底部另开一块。
+  const detailNode: any = ctx.detail && ctx.detail.selector === selector ? vcStashDetailBlockOf(h, t, ctx.state, ctx) : null
+  if (detailNode) children.push(h('div', { key: 'detail', className: 'vcs-stash-detail-wrap' }, [detailNode]))
+  const confirmNode: any = vcStashConfirmBlockOf(h, t, ctx.state, ctx, selector)
+  if (confirmNode) children.push(h('div', { key: 'confirm', className: 'vcs-stash-confirm-wrap' }, [confirmNode]))
   if (ctx.branchFor === selector) {
     children.push(
       h('div', { key: 'branch', className: 'vcs-stash-branch', 'data-vc-stash-branch-box': selector }, [
@@ -151,8 +160,10 @@ const vcStashToolbarOf = function (h: any, t: any, ctx: any): any {
 }
 
 /** 确认卡：危险动作（drop / clear）在触发点就地出，默认焦点在取消键（由确认卡原语保证）。 */
-const vcStashConfirmBlockOf = function (h: any, t: any, state: any, ctx: any): any {
+const vcStashConfirmBlockOf = function (h: any, t: any, state: any, ctx: any, wantSelector: any): any {
   if (!state.confirm || !state.confirm.op) return null
+  // 有 wantSelector 时只在它指的那一条上画（删除一条）；空串表示「不针对某条记录」（清空全部）。
+  if (wantSelector !== undefined && String(state.confirm.selector || '') !== String(wantSelector)) return null
   const def: any = stashOpOf(state.confirm.op)
   const verb = def ? vcStashText(t, def.nameKey, null) : vcStashText(t, STASH_UNKNOWN_OP_KEY, null)
   const target = vcStashConfirmOf(state.confirm.op, { selector: state.confirm.selector, subject: state.confirm.subject })
@@ -235,6 +246,7 @@ export const vcStashPageNode = function (h: any, t: any, opts: any): any {
     if (typeof o.onStashEdit === 'function') o.onStashEdit(patch || {})
   }
   const ctx: any = {
+    state: state,
     versionText: versionText,
     message: String(state.message || ''),
     detail: state.detail,
@@ -250,6 +262,8 @@ export const vcStashPageNode = function (h: any, t: any, opts: any): any {
   }
   const sorted = entries.slice().sort(function (a: any, b: any) { return (Number(b.atMs) || 0) - (Number(a.atMs) || 0) })
   const rows = sorted.map(function (entry: any) { return vcStashRowOf(h, t, entry, ctx) })
+  const detailMatched = state.detail ? sorted.some(function (entry: any) { return String(entry.selector || '') === String(state.detail.selector || '') }) : false
+  const detailFallbackNode = state.detail && !detailMatched ? vcStashDetailBlockOf(h, t, state, ctx) : null
   const status = state.branch && state.branch.errorKey
     ? h('p', { className: 'vcs-stash-branch-err', 'data-vc-stash-branch-err': state.branch.errorKey }, vcStashText(t, state.branch.errorKey, null))
     : null
@@ -261,6 +275,7 @@ export const vcStashPageNode = function (h: any, t: any, opts: any): any {
   } else {
     listNode = h('ul', { className: 'vcs-stash-list', 'data-vc-stash-list': 'ok', 'data-vc-stash-count': String(rows.length) }, rows)
   }
+  const boundaryNode = h('p', { key: 'boundary', className: 'vcs-stash-boundary' }, vcStashText(t, 'vc.stash.boundary', null))
   return h('section', {
     className: 'vcs-stash-page',
     'data-vc-stash-page': '1',
@@ -268,14 +283,21 @@ export const vcStashPageNode = function (h: any, t: any, opts: any): any {
     'data-vc-stash-version': versionText,
     'data-vc-stash-pending': pending ? '1' : '0',
   }, [
-    h('h2', { key: 'title', className: 'vcs-stash-title' }, vcStashText(t, 'vc.stash.title', null)),
+    h('div', { key: 'head', className: 'vcs-stash-head' }, [
+      h('h2', { key: 'title', className: 'vcs-stash-title' }, vcStashText(t, 'vc.stash.title', null)),
+      h('span', { key: 'count', className: 'vcs-stash-count', 'data-vc-stash-total': String(sorted.length) }, vcStashText(t, 'vc.stash.count', { n: String(sorted.length) })),
+    ]),
     h('p', { key: 'lede', className: 'vcs-stash-lede' }, vcStashText(t, 'vc.stash.lede', null)),
+    boundaryNode,
     h('div', { key: 'tools', className: 'vcs-stash-toolbar' }, vcStashToolbarOf(h, t, ctx)),
-    vcStashConfirmBlockOf(h, t, state, ctx),
+    // 清空全部才在页面级出确认卡；删除某一条的确认卡贴在那一条下面。
+    vcStashConfirmBlockOf(h, t, state, ctx, ''),
     status,
     h('div', { key: 'result' }, [vcStashResultBlockOf(h, t, state)]),
     listNode,
-    h('div', { key: 'detail' }, [vcStashDetailBlockOf(h, t, state, ctx)]),
+    // 详情正常贴在它那条记录下面；记录刚从列表里消失（被弹出或丢弃）而详情还在状态里时，
+    // 兜底把它铺在列表之后，别让人看不到刚查看的内容。
+    detailFallbackNode,
     vcStashRecentBlockOf(h, t, state, ctx),
   ])
 }

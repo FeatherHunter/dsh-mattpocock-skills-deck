@@ -223,7 +223,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   //   壳只负责把宿主数据与处理函数透传进去（没有传入时页面自己画空态，不影响其它页）。
   if (page === 'worktrees' && typeof vcWorktreesPageNode === 'function') {
     children.push(Object.assign({}, vcWorktreesPageNode(h, t, {
-      reads: opts.reads, ui: opts.ui, ops: opts.ops, handlers: opts.handlers,
+      reads: opts.reads, ui: opts.ui, ops: opts.ops, handlers: opts.handlers, onOpenHandoff: opts.onOpenHandoff,
     }), { key: 'worktrees' }))
   }
   // #1757 T21 子模块页正文：域 10 八条能力的入口、固定四项批量、逐行清单与确认/结果都在 vcSubmodulesPage 里；
@@ -256,6 +256,10 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
       reads: opts.platform, ui: opts.platformUi, width: opts.width, nowMs: opts.nowMs,
       onRpInput: opts.onPlatformRpInput, onRequestPull: opts.onPlatformRequestPull,
     }), { key: 'platform-body' }))
+  } else if (page === 'stash' && typeof vcStashPageNode === 'function') {
+    // #1751 贮藏页（域 7）：十条动作的入口、确认卡与最近丢弃都在叶子里；正文排在能力清单之前，
+    //   首屏先看到贮藏记录本身，而不是「本页负责 N 条能力」的长清单（#1829 同一口径）。
+    children.push(Object.assign({}, vcStashPageNode(h, t, { seed: opts.seed, state: opts.stash, onStash: opts.onStash, onStashEdit: opts.onStashEdit }), { key: 'stash-page' }))
   } else if (!vcOwnBodyOf(page, opts)) {
     // 骨架自检：三种表单形态与四种状态各画一遍；各页正文由它自己的叶子画，主入口由下面的能力清单统一给。
     children.push(h('div', { key: 'skeleton', className: 'vcs-skeleton', 'data-vc-skeleton': '1' }, [
@@ -371,15 +375,11 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     queries: opts.queries, inputs: opts.inputs,
     // #1743：#1743 提交页的动作层、目标提交候选与现成面板模型也从调用方传进来（壳不自己造）。
     commitOps: opts.commitOps || null, commitTargets: opts.commitTargets || [], commitPanel: opts.commitPanel || null,
+    // #1751 贮藏页要首屏读数与本地编辑状态/回调（不传就是空态，其它页渲染不变）。
+    seed: seed, stash: opts.stash, onStash: opts.onStash, onStashEdit: opts.onStashEdit,
     // 页面要的真数据与回调原样往下传（不传就是骨架，既有页面渲染不变）：#1752 工作树、#1756 克隆向导、#1757 子模块页、#1760 配置与钩子页；#1761 诊断页的读数与五个回调也原样往下传
     diagnostics: opts.diagnostics || null, onDiagnosticsRead: opts.onDiagnosticsRead, onDiagnosticsWrite: opts.onDiagnosticsWrite, onDiagnosticsEdit: opts.onDiagnosticsEdit, onDiagnosticsConfirm: opts.onDiagnosticsConfirm, onDiagnosticsCancel: opts.onDiagnosticsCancel, config: opts.config, onConfig: opts.onConfig, onConfigEdit: opts.onConfigEdit, hooks: opts.hooks, onHooks: opts.onHooks, onHooksEdit: opts.onHooksEdit, ops: opts.ops, handlers: opts.handlers, submodules: opts.submodules, submoduleUi: opts.submoduleUi, submoduleOps: opts.submoduleOps, cwd: opts.cwd, call: opts.call,platform: opts.platform, platformUi: opts.platformUi, onPlatformRpInput: opts.onPlatformRpInput, onPlatformRequestPull: opts.onPlatformRequestPull, migrate: opts.migrate, migrateReads: opts.migrateReads, onMigrateEdit: opts.onMigrateEdit, onMigrateCheck: opts.onMigrateCheck, onMigrateRun: opts.onMigrateRun, onMigrateRescan: opts.onMigrateRescan, onMigrateCancel: opts.onMigrateCancel, // #1761 诊断页读数与五个回调；#1760 配置页与钩子页要四组读数、身份两键编辑与钩子清单（回调原样往下传）；#1752 工作树页要真数据与处理函数；#1756 克隆向导要工作区与发电话的函数；#1757 T21 子模块页要读数、交互态与处理函数；#1762 T26 平台页的读数、交互态与回调，以及迁移页 14.1 导出向导的读数与回调，都从这里透传，页面壳不自己造数据
   }), 'body'))
-  // #1751 贮藏页（域 7）：只在贮藏页挂这一块；十条动作的入口、确认卡与最近丢弃都在叶子里，
-  // 这里只把首屏数据（seed）与回调递进去，页面壳不多说一句规则。
-  if (page === 'stash' && typeof vcStashPageNode === 'function') {
-    // 页面叶子的入参名是 state（本地编辑状态）与 seed（首屏读数）；这里按叶子认的名字递，不改叶子的形状。
-    children.push(keyed(vcStashPageNode(h, t, { seed: seed, state: opts.stash, onStash: opts.onStash, onStashEdit: opts.onStashEdit }), 'stashPage'))
-  }
   // #1748 变基待办页（域 5 历史改写）：五种动作都是「预检出票 → 确认 → 凭票执行」三段式，
   // 页面壳只把调用方持有的状态与回调递进叶子；续作与拒绝理由都在叶子里讲，壳不重复。
   // #1776 M2：变基待办页挂自带状态的面板（VC_UNDO_PANEL，内部走 wf.gitUndoCheck / wf.gitUndoWrite 三段式），

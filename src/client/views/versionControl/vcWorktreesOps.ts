@@ -87,6 +87,8 @@ export const vcWorktreesUiOf = function (ui: any): any {
     result: (w && w.result) || null,
     error: (w && w.error) || null,
     requestId: vcWtStr(w && w.requestId),
+    filter: w && w.filter === 'abnormal' ? 'abnormal' : 'all',
+    noteOpen: !(w && w.noteOpen === false),
   }
 }
 
@@ -311,6 +313,15 @@ export const createWorktreesOpsOf = function (deps: any): any {
     const input: any = Object.assign({}, prev.input, { dirs: dirs })
     return setWt({ input: input })
   }
+  // 版式上的两个开关（筛选 chip、说明条开合）只写界面读数：不碰模式面，也不发任何电话。
+  const view = function (patch: any): any {
+    const p: any = patch || {}
+    const next: any = {}
+    if (p.filter !== undefined) next.filter = p.filter === 'abnormal' ? 'abnormal' : 'all'
+    if (p.noteOpen !== undefined) next.noteOpen = p.noteOpen !== false
+    if (Object.keys(next).length === 0) return vcWorktreesUiOf(uiNow())
+    return setWt(next)
+  }
   const retry = function (): any {
     const prev: any = vcWorktreesUiOf(uiNow())
     if (prev.mode === 'blocked') return setWt({ mode: 'idle', decision: null, plan: null, error: null })
@@ -324,6 +335,7 @@ export const createWorktreesOpsOf = function (deps: any): any {
     pickDir: pickDir,
     confirmNow: confirmNow,
     cancelConfirm: cancelConfirm,
+    view: view,
     retry: retry,
   }
 }

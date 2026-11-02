@@ -123,6 +123,7 @@ const VC_FILES = [
   // #1752 工作树页三叶（与构建同序）：数据层 → 处理层 → 页面体，页面壳的挂载段要看到页面体那一叶。
   'src/client/views/versionControl/vcWorktreesData.js',
   'src/client/views/versionControl/vcWorktreesOps.js',
+  'src/client/views/versionControl/vcWorktreesView.js', // #1829 阶段 3：工作树页版式（页面体只留能力定义与状态面）
   'src/client/views/versionControl/vcWorktreesPage.js',
   // #1757 子模块页三叶（与构建同序）：数据层 → 处理层 → 页面体，页面壳的挂载段要看到页面体那一叶。
   'src/client/views/versionControl/vcSubmodulesData.js',
