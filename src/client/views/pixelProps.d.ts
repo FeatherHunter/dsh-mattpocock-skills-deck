@@ -4,6 +4,15 @@
  * 跨叶子值引用一律不在这里声明——每个消费文件自己写 declare const（模块作用域，不冲突），
  * 类型全部指向这里的接口，改接口即改两边的约定。
  */
+// 档位联合类型从 shared 的真源 import 过来，不在客户端再抄一份字面量：两边编译器连得起来，
+// 数据表改名/加档时这里跟着报错（配置归属那条 ADR 的「能连起来的用导入连起来」）。
+import type { MattSkillImportance } from '../../shared/matt-skills';
+export type { MattSkillImportance };
+/** 技能重要程度档位的外观：颜色（皮肤令牌，例如 var(--pixel-warn)）与是否空心。 */
+export interface PixelImportanceStyle {
+  color: string;
+  hollow: boolean;
+}
 export interface PixelBtnProps {
   children?: any;
   onClick?: () => void;
@@ -14,8 +23,10 @@ export interface PixelBtnProps {
   title?: string;
 }
 export interface PixelDotProps {
-  level?: 'ok' | 'warn' | 'bad';
+  /** CSS 颜色（通常是皮肤令牌，例如 var(--pixel-warn)）；不给就跟行上的 --pixel-dc 变量走。 */
   color?: string;
+  /** true 画空心方点：底色透明、只留描边；技能重要程度里的「备用」档用它。 */
+  hollow?: boolean;
 }
 export interface PixelNumProps {
   n?: number;
@@ -40,13 +51,15 @@ export interface PixelStatusLineProps {
 }
 export interface PixelSkillItem {
   name: string;
-  level?: string;
+  /** 重要程度档位；外观查 shared/matt-skills.ts 的 SKILL_IMPORTANCE_STYLES。 */
+  importance?: MattSkillImportance;
   use?: string;
   recommended?: boolean;
 }
 export interface PixelSkillRowProps {
   name: string;
-  level?: string;
+  /** 重要程度档位；外观查 shared/matt-skills.ts 的 SKILL_IMPORTANCE_STYLES。 */
+  importance?: MattSkillImportance;
   use?: string;
   recommended?: boolean;
   onDetail?: (name: string) => void;

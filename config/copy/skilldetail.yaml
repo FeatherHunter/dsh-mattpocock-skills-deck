@@ -14,6 +14,14 @@ zh:
   sd.listTitle: ■ 技能
   sd.detailBtn: 详情
   sd.injectChat: 注入对话
+  sd.imp.core: 核心
+  sd.imp.common: 常用
+  sd.imp.rare: 备用
+  sd.imp.star: 推荐
+  sd.imp.coreTip: 默认工作流里的一段，或者开工前、收尾时要用的技能。
+  sd.imp.commonTip: 多数任务里顺手会用到的支撑技能。
+  sd.imp.rareTip: 只在特定场合才用得上的专项技能。
+  sd.imp.starTip: 页面最上面的通用建议里推荐的那个技能。
   sd.copy: 复制链接
   sd.copyPath: 复制路径
   sd.retry: 重试
@@ -45,6 +53,14 @@ en:
   sd.listTitle: ■ Skills
   sd.detailBtn: Details
   sd.injectChat: Insert into chat
+  sd.imp.core: Core
+  sd.imp.common: Common
+  sd.imp.rare: Rare
+  sd.imp.star: Recommended
+  sd.imp.coreTip: A step in the default workflow, or a skill used before starting or when wrapping up.
+  sd.imp.commonTip: A supporting skill used on most tasks.
+  sd.imp.rareTip: A specialized skill used only in particular situations.
+  sd.imp.starTip: The recommended skill shown in the generic advice at the top of the page.
   sd.copy: Copy link
   sd.copyPath: Copy path
   sd.retry: Retry

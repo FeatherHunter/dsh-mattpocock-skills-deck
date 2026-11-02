@@ -19,7 +19,7 @@
 //    期望值一致；改色表不改这里、或改这里不改色表，都会红——两边必须一起改，diff 里看得见。
 // 5. 全仓零容忍：src 下所有 .ts/.mts/.tsx 原文都在扫描范围里（含注释、不区分大小写）。
 //    除中央色表外，两色每一处都必须落进 STATUS_EXCEPTIONS 的某一条「路径 + 段」里；白名单条目
-//    必须被实际命中，过期条目判红。今天全仓两色（中央色表之外）共 32 个文件 79 处；中央色表里各另有一处。
+//    必须被实际命中，过期条目判红。今天全仓两色（中央色表之外）共 30 个文件 77 处；中央色表里各另有一处。
 //    白名单只收语义上确实不是第二份拷贝的同值点——警告橙、票/issue 状态绿、标签色数据、主题串、
 //    颜色元数据、版本控制页签自带配色等，每条都写清改中央色时为什么不该顺带改它。
 // 6. 动态消费端那一圈仍单独检查：引用两个状态色常量、或裸色值落在空态/完成态语境里的文件，
@@ -206,11 +206,6 @@ const STATUS_EXCEPTIONS = [
     reason: '关闭时「还有未保存改动」的警告文字：防误关。',
   },
   {
-    file: 'src/client/views/pixel/PixelDot.ts',
-    segment: "p.level === 'warn'",
-    reason: '像素风状态点的 warn 档取色：像素主题调色板里的警告色。',
-  },
-  {
     file: 'src/client/views/shared/BackendSelector.ts',
     segment: 'multiHitBadge',
     reason: '多后端同时命中的标记徽章（同一行两处）：提醒人选中的 ID 命中多个后端。',
@@ -275,12 +270,6 @@ const STATUS_EXCEPTIONS = [
     segment: 'workRouteTable.unreadable',
     reason: '工作路线表不可读提示的琥珀色：读取失败提示。',
   },
-  {
-    file: 'src/client/views/skillDetail/PixelSkillRow.ts',
-    segment: "level === 'warn'",
-    reason: '像素技能行状态色表的 warn 档：像素主题调色板。',
-  },
-
   // ---- 成功 / 关闭绿：票与 issue 的状态色、标签色板绿 ----
   // 容器完成态绿只在容器三态里用；这些绿各有出处，中央色表改色不该顺带改它们。
   {
@@ -407,8 +396,10 @@ const STATUS_EXCEPTIONS = [
 // #1600：四处筹备中黄条摘掉，同值点 85→81（文件仍是 33 个，四个文件各少一处黄条）。
 // #1699：列表内兜底横幅退役、换成取中央色表来画的行内小标识，横幅里两处琥珀随文件删除，
 //   同值点 81→79、落点文件 33→32。
-const STATUS_REPO_HITS = 79
-const STATUS_REPO_FILES = 32
+// #1837：技能色点从「状态」改成「重要程度」三档，PixelDot.ts 与 PixelSkillRow.ts 都不再直接写
+//   #f59e0b/#0e8a16（改引像素皮肤令牌），白名单里这两条与落点一起删除：同值点 79→77、落点文件 32→30。
+const STATUS_REPO_HITS = 77
+const STATUS_REPO_FILES = 30
 // 这些文件是颜色流向的消费端：必须引用中央色表，不许自己藏一份身份色值。
 const CONSUMERS = [
   'src/client/floating/SkillFloatList.ts',
