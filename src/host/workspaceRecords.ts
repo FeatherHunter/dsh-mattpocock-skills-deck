@@ -1,0 +1,193 @@
+/**
+ * src/host/workspaceRecords.ts —— 工作区身份记录的两条写电话（#1806 第 2 步）。
+ *
+ * 为什么要有这个文件：判定层（src/host/workspaceKey.ts）已经改成「认插件工作区记录」，
+ * 但记录得有人写。写记录有三条来源，本文件负责其中两条由宿主直接执行的动作：
+ *   1. 初始化流程走完时补一份（source=setup，见 src/client/kernel/prompts-setup.ts 的调用）；
+ *   2. 人在面板上显式「标为独立工作区」（source=user，电话 wf.markWorkspaceRoot）。
+ * 第三条是「在面板里选定后端」——那条本来就会把 docs/agents/workspace.yaml 写到工作区根，
+ * 后端记录本身就是判定层认的记录，所以不需要再补写一份身份记录。
+ *
+ * 什么约定不能改：
+ *   - 一台目录已经有一份身份记录时不重写（幂等）：重复初始化、重复点「标为独立」都不该改内容，
+ *     更不该把 writtenAt 刷成新时间——它记录的是「第一次成为工作区」的那一刻。
+ *     “在不在”只问路径在不在、不看内容，与判定层同一个口径（空文件、坏内容、目录都算有记录）。
+ *   - 写进文件通道时走与其它写点同一条正规口子：先 resolve 出 target，再 writeText(target, text, …, policy)；
+ *     政策取自同一次请求的会话（由装配侧传进来的 resolveSandboxPolicy），拿不到就传 undefined，
+ *     交给 DSH 按部署默认政策判，不自己拼一份宽松政策。
+ *   - 写完必须读回核对，内容一致才算写成；同时清掉工作区快照缓存与根判定缓存，
+ *     否则面板最多 30 秒仍在说旧话。
+ *   - ensure 只在「这个目录自己就是工作区根」时才写：如果它已经在某个工作区里面，就不写——
+ *     往子目录里塞身份记录会把「上级工作区的一个目录」变成「一个独立工作区」，正好是 #1806 要避免的事。
+ *     判定这一步出错时宁可当场报失败（root-unknown）也不写：最该拦住子目录的时候，不能因为“不知道”就放行。
+ *
+ * 反例：如果 ensure 不先问判定层、直接写，用户对着仓库里任意子目录跑一遍初始化，
+ * 那个子目录就会从「仓库的一部分」变成独立工作区，后端绑定、票仓、标签配色全部另起一套。
+ *
+ * 本文件是自包含叶子：不引用其它 host 文件；装配在 src/host/index.ts，依赖全由装配点显式传入。
+ */
+import { WORKSPACE_IDENTITY_REL, WORKSPACE_IDENTITY_KIND, WORKSPACE_IDENTITY_KNOWN_VERSION, stringifyIdentityRecord } from '../shared/config-store/src/workspace.js'
+
+type WfArgs = Record<string, any>
+type LogCtx = { fire(level: string, event: string, fields?: unknown): void; isEnabled(level: string): boolean } | null
+type FsSvc = {
+  resolve(rel: string, opts?: unknown): Promise<any>
+  readText(t: unknown): Promise<string>
+  writeText(t: unknown, text: string, a?: unknown, b?: unknown, policy?: unknown): Promise<unknown>
+  lstat?(p: unknown): Promise<unknown>
+}
+type Deps = {
+  ctx: { get(key: string): any }
+  fs?: any
+  getPlatform(): Promise<any>
+  getWorkspaceStore(): Promise<any>
+  setCache(v: unknown): void
+  canonicalKey(raw: string): Promise<string>
+  resolveSandboxPolicy(args: WfArgs | null, cwd: string): { policy?: unknown; sessionId?: string }
+  invalidateRootCache?(): unknown
+  logCtx?: LogCtx
+}
+
+/** 日志里只记散列，不记路径原文（与 workspaceCwd / workspaceKey 同一个 djb2 写法）。 */
+function hash8(s: unknown): string { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+function msgOf(e: unknown): string { try { return String(((e as { message?: unknown }) && (e as { message?: unknown }).message) || e || '') } catch (e2) { return '' } }
+
+/**
+ * 写文件失败时把原因分成四档，与 src/host/workspaceCwd.ts 的 fileWriteReasonOf 同一口径：
+ * 拿不到文件通道、沙箱不给本次写许可、文件系统只读、目录不存在；判不出来归 other，不编具体原因。
+ */
+function fileWriteReasonOf(e: unknown): string {
+  const s = String(((e as { code?: unknown }) && (e as { code?: unknown }).code) || msgOf(e) || '')
+  return /EACCES|EPERM|permission|denied|permit|沙箱/i.test(s) ? 'no-permit' : (/EROFS|read-only|readonly/i.test(s) ? 'readonly' : (/ENOENT|not found|不存在/i.test(s) ? 'no-dir' : 'other'))
+}
+
+/** 一把用来比较「两条路径是不是同一个目录」的规整键：小写、正斜杠、去尾斜杠。 */
+function pathKeyOf(p: unknown): string { return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() }
+
+/** 拼一层目录下的某条相对路径。入参是已归一的工作区键，所以按它自己的分隔符拼，不经过平台路径模块。 */
+function joinKey(dir: unknown, rel: string): string { const s = String(dir || ''); const sep = s.indexOf('\\') >= 0 ? '\\' : '/'; return s.replace(/[\\/]+$/, '') + sep + rel }
+
+export function createWorkspaceRecords(deps: Deps) {
+  /** 取可用的文件通道：优先平台服务，缺了再看框架上下文里那一份（与 workspaceCwd 同一顺序）。 */
+  async function getFs(): Promise<FsSvc | null> {
+    let fsSvc: any = null
+    try { const plat = await deps.getPlatform(); fsSvc = (plat && plat.fs) || null } catch (e) { fsSvc = null }
+    if (!fsSvc && deps.ctx && typeof deps.ctx.get === 'function') { try { fsSvc = deps.ctx.get('fs') || null } catch (e) { fsSvc = null } }
+    return fsSvc
+  }
+
+  /** 这一层自不自带 .git（文件或目录都算）。只问在不在；问不了就当没有，让调用方继续写记录。 */
+  async function hasGitMarker(fsSvc: FsSvc | null, dir: string): Promise<boolean> {
+    if (!fsSvc || typeof fsSvc.lstat !== 'function') return false
+    try { await fsSvc.lstat(joinKey(dir, '.git')); return true } catch (e) { return false }
+  }
+
+  /** 一次失败回执：kind 说明是哪一类问题，reason 是机器可判的短码，message 是给人看的一句话。 */
+  function fail(kind: string, reason: string, message: string): any { return { ok: false, error: { kind: kind, reason: reason, message: message } } }
+
+  /**
+   * 记录“在不在”只看路径在不在，不看内容——判定层（workspaceKey.ts 的 markerOf）就是这个口径：
+   * 空文件、坏内容、记录位置是个目录，都算“这一层有记录”。写侧必须同一个口径，
+   * 否则写侧说“没有、我再写一份”的时候，判定层其实已经把这个目录当成工作区根了。
+   */
+  async function recordExistsAt(fsSvc: FsSvc, target: any): Promise<boolean> {
+    // resolve 回来的是一个带 path 的描述对象；文件服务的 lstat 收的是路径本身（与 hasGitMarker 传法一致）。
+    const p = (target && typeof target === 'object') ? (target.path || target.targetKey || target) : target
+    if (typeof fsSvc.lstat === 'function') { try { await fsSvc.lstat(p); return true } catch (e) { return false } }
+    try { await fsSvc.readText(target); return true } catch (e) { return false }
+  }
+
+  /**
+   * 往 dir 里写一份身份记录。source 只能是 'setup' 或 'user'。
+   * cacheCwd 是这次状态变化要清缓存的那把键：ensure 传判定层归好的根，mark 传人指定的这一层。
+   * 返回形状固定：{ ok, placed, reason, dir, path } 或 { ok:false, error:{ kind, reason, message } }。
+   * placed=false 表示这次什么都没写（已有记录 / 这个目录在别的工作区里面 / 自带 .git），不是错误。
+   */
+  async function writeIdentityRecord(dir: string, source: 'setup' | 'user', args: WfArgs, cacheCwd: string): Promise<any> {
+    const fsSvc = await getFs()
+    if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function' || typeof fsSvc.writeText !== 'function') {
+      return fail('env', 'no-channel', '这次没拿到可用的文件通道，所以没能把这个目录写成工作区。')
+    }
+    let target: any = null
+    try { target = await fsSvc.resolve(WORKSPACE_IDENTITY_REL, { cwd: dir }) } catch (e) { return fail('env', fileWriteReasonOf(e), '这个工作区里的记录文件路径解析不出来：' + msgOf(e).slice(0, 120)) }
+    if (await recordExistsAt(fsSvc, target)) return { ok: true, placed: false, reason: 'exists', dir: dir, path: WORKSPACE_IDENTITY_REL }
+    const built = stringifyIdentityRecord({ version: WORKSPACE_IDENTITY_KNOWN_VERSION, kind: WORKSPACE_IDENTITY_KIND, writtenAt: Date.now(), source: source })
+    if (!built.ok) return { ok: false, error: { kind: 'record', reason: built.reason, message: built.message } }
+    let policy: unknown = undefined
+    try { policy = deps.resolveSandboxPolicy(args, dir).policy } catch (e) { policy = undefined }
+    const write = async (): Promise<void> => { await fsSvc.writeText(target, built.text, undefined, undefined, policy) }
+    try { await write() } catch (e1) { try { await write() } catch (e2) { return fail('env', fileWriteReasonOf(e2), '没能把工作区身份记录写进这个目录：' + msgOf(e2).slice(0, 120)) } }
+    let back = ''
+    try { back = await fsSvc.readText(target) } catch (e) { return fail('env', 'read-back-mismatch', '工作区身份记录写完之后读不回来，这次写入不能算数。') }
+    if (back !== built.text) return fail('env', 'read-back-mismatch', '工作区身份记录写完读回来的内容与写下去的不一致，这次写入不能算数。')
+    try { const ws = await deps.getWorkspaceStore(); if (ws && typeof ws.invalidate === 'function') ws.invalidate({ cwd: cacheCwd }) } catch (e) {}
+    try { deps.setCache({ ts: 0, snapshot: null, error: null, cwd: cacheCwd }) } catch (e) {}
+    try { if (typeof deps.invalidateRootCache === 'function') await deps.invalidateRootCache() } catch (e) {}
+    return { ok: true, placed: true, reason: 'created', dir: dir, path: WORKSPACE_IDENTITY_REL }
+  }
+
+  /**
+   * 初始化流程走完时补写身份记录。只在「这个目录自己就是工作区根」时写：
+   * 它已经在某个工作区里面（判定层给出的根不是它自己）或自带 .git 时，都不写——
+   * 那两种情况下它已经是（或属于）一个工作区，再写一份只会把从属关系改成独立关系。
+   */
+  async function handleEnsureWorkspaceRecord(args: WfArgs): Promise<any> {
+    const raw = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd.trim() : ''
+    if (!raw) return fail('args', 'empty-cwd', '没拿到要写工作区记录的那个目录。')
+    let root: string = raw
+    try {
+      const r = await deps.canonicalKey(raw)
+      if (typeof r === 'string' && r) root = r
+    } catch (e) {
+      // 判定这一步出错时不能把 raw 当成根就写：最该拦住“上级工作区的子目录”的时候，
+      // “不知道”不等于“可以写”。当场说没写成，下次初始化还会再补一次。
+      return { ok: false, placed: false, reason: 'root-unknown', dir: raw, error: fail('env', 'root-unknown', '这次没能确认这个目录是不是工作区根（判定这一步出错了），所以没有写记录。').error }
+    }
+    if (pathKeyOf(root) !== pathKeyOf(raw)) return { ok: true, placed: false, reason: 'inside-workspace', dir: raw, root: root }
+    const fsSvc = await getFs()
+    if (await hasGitMarker(fsSvc, raw)) return { ok: true, placed: false, reason: 'git-root', dir: raw }
+    return await writeIdentityRecord(raw, 'setup', args, root)
+  }
+
+  /**
+   * 人显式把某个目录「标为独立工作区」。这条路不经过判定层：人指定的就是这一层本身，
+   * 即使它现在正属于某个上级工作区，也要在这里落一份记录、把它变成独立工作区（这正是这个动作的用途）。
+   * 只接受绝对路径：相对路径连「是哪一层」都答不出来，写下去可能落在插件当前目录上。
+   */
+  async function handleMarkWorkspaceRoot(args: WfArgs): Promise<any> {
+    const raw = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd.trim() : ''
+    if (!raw) return fail('args', 'empty-cwd', '没拿到要标为独立工作区的那个目录。')
+    if (!/^[A-Za-z]:[\\/]/.test(raw) && !/^[\\/]/.test(raw)) return fail('args', 'not-absolute', '只能把一条完整的绝对路径标为独立工作区。')
+    return await writeIdentityRecord(raw, 'user', args, raw)
+  }
+
+  /** 成功记常驻 host.call，失败记常驻 host.call.fail：字段与既有一族电话一致，只记散列与原因档。 */
+  function logPhone(method: string, kind: string, t0: number, res: any, err: unknown, cwdRaw: unknown): void {
+    try {
+      const lc = deps && deps.logCtx
+      if (!lc || typeof lc.fire !== 'function') return
+      // 没有目录可记时整格不带 cwdHash（与同族电话一致）：不带表示「不知道是哪个目录」，不写空串冒充。
+      const base: Record<string, unknown> = { method: method, kind: kind }
+      if (typeof cwdRaw === 'string' && cwdRaw) base.cwdHash = hash8(cwdRaw)
+      if (err !== undefined && err !== null) { lc.fire('warn', 'host.call.fail', Object.assign({}, base, { errorHash: hash8(msgOf(err)), errorKind: 'throw' })) ; return }
+      if (res && res.ok) { lc.fire('info', 'host.call', Object.assign({}, base, { latencyMs: Date.now() - t0, ok: true })) ; return }
+      const why = (res && res.error && res.error.reason) ? String(res.error.reason) : 'not-ok'
+      lc.fire('warn', 'host.call.fail', Object.assign({}, base, { errorHash: hash8(why), errorKind: why }))
+    } catch (eL) {}
+  }
+
+  /** 两条电话都经这里包一层：成功、业务失败、抛异常各落一行常驻日志。 */
+  function loggedPhone(method: string, kind: string, fn: (args: WfArgs) => Promise<any>) {
+    return async function (args: WfArgs): Promise<any> {
+      const t0 = Date.now()
+      let cwdRaw: unknown = undefined
+      try { cwdRaw = (args && typeof args.cwd === 'string') ? args.cwd : undefined } catch (e) {}
+      try { const r = await fn(args || {}); logPhone(method, kind, t0, r, null, cwdRaw); return r } catch (e) { logPhone(method, kind, t0, null, e, cwdRaw); throw e }
+    }
+  }
+
+  return {
+    handleEnsureWorkspaceRecord: loggedPhone('wf.ensureWorkspaceRecord', 'workspace-record-ensure', handleEnsureWorkspaceRecord),
+    handleMarkWorkspaceRoot: loggedPhone('wf.markWorkspaceRoot', 'workspace-record-mark', handleMarkWorkspaceRoot),
+  }
+}

@@ -5,6 +5,10 @@
  * 兼容读老 `workspace.json` 版本 1，JSON 是 YAML 的子集，直接可读）。
  * 注释原文与 #1012 票定案骨架逐字一致，改一个字注释门禁就红。
  *
+ * 2026-11-02 #1806 起，本文件同时承担工作区身份记录的格式（`docs/agents/workspace-root.yaml`，
+ * 见文件末尾的 stringifyIdentityRecord / parseIdentityRecord）：前面这段 #1012 的约定与注释原文
+ * 只针对后端配置那一份 YAML；身份记录是另一种文件，只表示「这一层是工作区」，不记录后端。
+ *
  * 本文件自包含：要用的小工具自己写一遍，不引用别的单元。
  * 原因是产物之间零相对引用（同层互引门禁），与 label-color-core 把同一段
  * 十六进制打印在 colors.ts 与 prompt.ts 各写一遍是同一个道理。
@@ -225,3 +229,89 @@ export function stringifyWorkspace(value: unknown, layouts: readonly string[]): 
   }
   return { ok: true, text: lines.join('\n') + '\n' }
 }
+
+/**
+ * 工作区身份记录（#1806）：只回答「这一层是不是一个工作区」，不回答用哪个后端。
+ *
+ * 为什么单独一份文件、而不是往 workspace.yaml 里加字段：后端记录是「人选了哪个后端」的
+ * 产物，一场只读的初始化、或人显式「标为独立工作区」，都不该顺带假装选了后端。
+ * 两份文件同属判定层认的插件记录（见 src/host/workspaceKey.ts），路径都定义在上方。
+ *
+ * 文件由插件写、内容由插件独占；人删掉它，这个目录就重新按上级工作区看待。
+ * 判定层只查它在不在、不读内容，所以这里的内容格式只服务于排查与将来展示，
+ * 坏内容不会改变归属（删了才改变）。
+ */
+export const WORKSPACE_IDENTITY_KIND = 'workspace-root'
+/** 身份记录版本；与后端记录的版本各记各的，互不影响。 */
+export const WORKSPACE_IDENTITY_KNOWN_VERSION = 1
+/** 谁写的这份记录：setup=初始化流程走完时插件自己补的；user=人在面板上显式标的。 */
+export const WORKSPACE_IDENTITY_SOURCES = ['setup', 'user']
+const IDENTITY_KEYS = ['version', 'kind', 'writtenAt', 'source']
+const IDENTITY_HEADER = [
+  '# 工作区身份记录：这份文件由插件写下，表示「这个目录是一个工作区」。',
+  '# 它不记录用哪个后端（那是 docs/agents/workspace.yaml 的事）。',
+  '# 删掉它，这个目录就会按上级工作区看待。',
+]
+
+/** 拼装身份记录文本。值不合法时回失败，绝不写出半份文件。 */
+export function stringifyIdentityRecord(value: unknown): ConfigStringifyResult {
+  if (!isRecord(value)) return { ok: false, reason: 'bad-shape', message: '要写入的工作区身份记录不是一组「名字 → 值」' }
+  const strange = Object.keys(value).filter((k) => IDENTITY_KEYS.indexOf(k) < 0)
+  if (strange.length > 0) {
+    return { ok: false, reason: 'unknown-keys', message: '要写入的工作区身份记录里有多出来的名字，核不会把它们写进去：' + strange.join('、'), keys: strange }
+  }
+  const version = value['version'] === undefined ? WORKSPACE_IDENTITY_KNOWN_VERSION : value['version']
+  if (!isInt(version)) return { ok: false, reason: 'bad-shape', message: '工作区身份记录里的 version 必须是数字（缺席默认 1）' }
+  if ((version as number) > WORKSPACE_IDENTITY_KNOWN_VERSION) {
+    return {
+      ok: false,
+      reason: 'version-newer',
+      message: '拒绝写入：这份工作区身份记录是版本 ' + String(version) + '，核只认识到版本 1。旧版本写回去会把新字段抹掉，请升级插件后再改。',
+    }
+  }
+  if (version !== WORKSPACE_IDENTITY_KNOWN_VERSION) return { ok: false, reason: 'bad-shape', message: '工作区身份记录现在只出版本 1' }
+  if (value['kind'] !== WORKSPACE_IDENTITY_KIND) {
+    return { ok: false, reason: 'bad-shape', message: '工作区身份记录里的 kind 必须是 ' + WORKSPACE_IDENTITY_KIND + '（这份文件只表示「这一层是工作区」）' }
+  }
+  if (!isInt(value['writtenAt']) || (value['writtenAt'] as number) < 0) {
+    return { ok: false, reason: 'bad-shape', message: '工作区身份记录里的 writtenAt 必须是写下这份文件的时间（毫秒，非负整数）' }
+  }
+  if (typeof value['source'] !== 'string' || WORKSPACE_IDENTITY_SOURCES.indexOf(value['source']) < 0) {
+    return { ok: false, reason: 'bad-shape', message: '工作区身份记录里的 source 必须是 setup（初始化流程补写的）、user（人在面板上显式标的）两者之一' }
+  }
+  const lines = [...IDENTITY_HEADER]
+  lines.push('version: ' + String(WORKSPACE_IDENTITY_KNOWN_VERSION))
+  lines.push('kind: ' + WORKSPACE_IDENTITY_KIND)
+  lines.push('writtenAt: ' + String(value['writtenAt']))
+  lines.push('source: ' + esc(value['source'] as string))
+  return { ok: true, text: lines.join('\n') + '\n' }
+}
+
+/** 读身份记录文本。判定层不靠它，排查与展示靠它；读不懂就明说读不懂，不猜。 */
+export function parseIdentityRecord(text: unknown): ConfigParseResult {
+  if (typeof text !== 'string') return { ok: false, reason: 'yaml-error', message: '要解析的不是一段文字' }
+  const stripped = text.replace(/^\uFEFF/, '')
+  if (stripped.length > MAX_WORKSPACE_FILE_CHARS) {
+    return { ok: false, reason: 'oversize', message: '这份工作区身份记录太大了（' + stripped.length + ' 字，上限 ' + MAX_WORKSPACE_FILE_CHARS + ' 字），核拒绝解析' }
+  }
+  let doc: unknown = null
+  try {
+    doc = parseYaml(stripped, { schema: 'core', maxAliasCount: MAX_WORKSPACE_ALIASES, uniqueKeys: true })
+  } catch (e) {
+    const msg = String((e && (e as Error).message) || e || '')
+    return { ok: false, reason: 'yaml-error', message: '这份工作区身份记录的内容不是合法的 YAML：' + msg.slice(0, 160) }
+  }
+  if (!isRecord(doc)) return fail('bad-shape', '工作区身份记录里放的不是一组「名字 → 值」')
+  const strange = Object.keys(doc).filter((k) => IDENTITY_KEYS.indexOf(k) < 0)
+  if (strange.length > 0) return fail('unknown-keys', '工作区身份记录里有多出来的名字，核不认识它们：' + strange.join('、'), strange)
+  if (doc['version'] !== WORKSPACE_IDENTITY_KNOWN_VERSION) {
+    return fail('bad-shape', '工作区身份记录里的 version 现在只认 1')
+  }
+  if (doc['kind'] !== WORKSPACE_IDENTITY_KIND) return fail('bad-shape', '工作区身份记录里的 kind 必须是 ' + WORKSPACE_IDENTITY_KIND)
+  if (!isInt(doc['writtenAt']) || (doc['writtenAt'] as number) < 0) return fail('bad-shape', '工作区身份记录里的 writtenAt 必须是毫秒时间戳')
+  if (typeof doc['source'] !== 'string' || WORKSPACE_IDENTITY_SOURCES.indexOf(doc['source']) < 0) {
+    return fail('bad-shape', '工作区身份记录里的 source 必须是 setup 或 user')
+  }
+  return { ok: true, value: { version: doc['version'], kind: doc['kind'], writtenAt: doc['writtenAt'], source: doc['source'] }, readonly: false, warnings: [] }
+}
+

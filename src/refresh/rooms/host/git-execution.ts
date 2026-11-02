@@ -298,6 +298,18 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       } catch (e) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'workspaceKey.canonical', function () { return { rawHash: hash8(raw), normalizedHash: hash8(raw), fallback: true } }) } catch (eL) {}; return raw }
     }
 
+
+    // #1806 第 2 步：写入一份新的工作区记录之后要立刻丢掉「根在哪」的 30 秒旧结论。
+    // 缓存住在 workspaceKey.js 内部，这里只借它自己的清缓存出口（模块句柄本来就在本文件手上），
+    // 装配侧拿到这个函数再传给工作区电话；拿不到（老版本模块）就当没有，绝不让写记录失败。
+    async function forgetWorkspaceRootCache() {
+      try {
+        if (!_workspaceKeyMod) _workspaceKeyMod = await import('../../../host/workspaceKey.js')
+        const fn = (_workspaceKeyMod as any).forgetWorkspaceRootCache
+        if (typeof fn === 'function') fn()
+      } catch (e) {}
+    }
+
     // ============ v1.5 T9：git 根检测 + 磁盘缓存（跨重启秒开）============
     // git rev-parse --show-toplevel 层层上溯找根；嵌套仓库（子目录含独立 .git）git 原生停在最近根 —— 符合用户要求
     // #652 补一句：工作区根（哪条目录算这个会话的工作区）不在这里算，在 workspaceKey.js 的 resolveWorkspaceRoot
@@ -469,5 +481,5 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       return urls === null ? null : identityFromUrls(urls)
     }
   // #723（T19）：TIMEOUT_MS 一并交出去，供还读它的老调用方兜底；分档由出站两路按命令认，不再两处各写一份。
-  return { resolveGh, resetGhCache, runGh, execProc, resolveGit, getHome, canonicalKey, getRepoRoot, getCacheDir, cacheFileName, readDiskCache, writeDiskCache, getRepoKey, getRepoIdentity, TIMEOUT_MS }
+  return { resolveGh, resetGhCache, runGh, execProc, resolveGit, getHome, canonicalKey, forgetWorkspaceRootCache, getRepoRoot, getCacheDir, cacheFileName, readDiskCache, writeDiskCache, getRepoKey, getRepoIdentity, TIMEOUT_MS }
 }

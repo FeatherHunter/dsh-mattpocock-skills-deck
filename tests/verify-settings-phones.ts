@@ -256,7 +256,8 @@ async function main() {
     // #1762 加了平台段五条电话 wf.gitPlatformCheck / wf.gitPlatformRun / wf.gitPlatformRead / wf.gitRequestPull / wf.gitPatchFiles
     // #1758（T22）又加了维护页三条电话 wf.gitMaintenanceRead / wf.gitMaintenanceCheck / wf.gitMaintenanceWrite（只读一取全、预检签票、凭票执行），115 → 118。
     // #1776 M4b 加了远端预检电话 wf.gitRemoteCheck（远端四条写动作改成预检签票 → 确认卡 → 凭票执行），118 → 119。
-    check(nPhones === 119, '宿主电话一百一十九条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
+    // #1806 第 2 步加了工作区记录两条电话 wf.ensureWorkspaceRecord / wf.markWorkspaceRoot（初始化后补写、人工标为独立工作区），119 → 121。
+    check(nPhones === 121, '宿主电话一百二十一条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——

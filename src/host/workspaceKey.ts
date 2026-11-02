@@ -260,6 +260,18 @@ export async function resolveWorkspaceRoot(selectedKey: any, deps?: any): Promis
   return out
 }
 
+/**
+ * 清掉根判定的 30 秒缓存（#1806 第 2 步）。写入一份新的工作区记录之后必须调用：
+ * 记录刚落盘时旧结论还在缓存里，从「自己」变成「某个根」或反过来都要立刻生效，
+ * 否则面板最多 30 秒仍在说旧话（#1806 要的是判定与事实一致，不是「等一会儿就一致」）。
+ *
+ * 只清整个表、不做前缀筛选：记录落盘是低频动作（初始化、面板绑定、人显式标注），
+ * 一次清空代价可忽略；按前缀清反而容易漏掉「父目录的缓存结论也变了」这一层。
+ */
+export function forgetWorkspaceRootCache(): void {
+  workspaceRootCache.clear()
+}
+
 export async function canonicalWorkspaceKey(raw: any, deps: any): Promise<any> {
   const getPlatform: any = deps && deps.getPlatform;
   const getFs: any = deps && deps.getFs;
