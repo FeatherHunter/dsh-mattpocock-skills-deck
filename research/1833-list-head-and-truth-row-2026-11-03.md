@@ -179,3 +179,5 @@ div.dsws-truth 这个类名只出现在 ListTab.ts 这一处，tests 里没有�
 - 门禁：tests/verify-visible-truth.ts、tests/verify-1446-panel.ts、tests/verify-rest-fallback-banner.ts、tests/verify-1692-disk-replay-eviction.ts。
 - 词表与文档：config/copy/pages.yaml、config/copy/panel.yaml、src/client/kernel/locale-data.ts、GLOSSARY.md、docs/adr/20261030-panel-snapshot-single-source.md、docs/adr/20261020-ui-copy-data-driven.md。
 - 提交与票：afca59f483（#715）、492357a2e1（2026-09-24 头部改造）、8ec5993bc9（头部折叠）、62c2b2c7（#1446）、f2ca853c（#1693）、56476b81（#1697）、225444e8（#1699）；#1833、#1699、#715、#734、#1446、#1753、#1732。
+
+维护者拍板结果见 research/1833-triage-2026-11-03.md 第九节（2026-11-03）：Q3 改为整行退役，额度句移入通知中心。
