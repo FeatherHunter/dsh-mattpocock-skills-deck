@@ -39,6 +39,12 @@
 - 状态、类型、依赖这些技能原文要求的行内字段照原文写（`Status:`、`Type:`、`Blocked by:`，以及实施票的加粗字段行），不另造可见字段。
 - #1486 起新写出的文件不再写对象类型标记 `<!-- DSH-ISSUE-KIND: ... -->`；但读取侧继续认旧工作区里的这枚标记（对象类型识别继续有效），整份替换正文时以盘上那一份为准保住它。
 
+**决定三 · 2026-11-02 补记（#1790 缺陷 A）。**
+
+- 可见 `Status:` 行是技能原文要求的行内字段，不是插件新增；#1790 起它是 issue 文件（实施票、地图子票、缺陷票、普通票）triage 状态的唯一真源。`DSH-LABELS` 只保留非 triage 标签，五种 triage 角色不再写进隐藏注释。
+- 规格与探索地图容器继续用 `DSH-STATUS`：它们的原文模板没有可见 `Status:` 行。
+- 旧文件里两份都在时按可见值读、把冲突记进 `Issue.statusConflict`；第一次写统一成一份，落选值记进新的文件头隐藏注释 `DSH-STATUS-HISTORY`。旧渲染器留下的 `Status: ready-for-agent` 默认值只当兜底线索，不当人的决定。
+
 **决定三之一 · 可见正文里的插件增强段：`## 进度` 保留。**
 
 - 规格、地图与票面的 `## 进度` 段是 deck 的增强，不是随包原文模板的段落：规格与地图建票时由 `ensureBody`（`src/deck/shell/minimal-spec.ts`）补出这一段，之后由 `deck_issue_patch` 的 `progress` 参数往里追加条目；格式映射 YAML 的 `enhancements` 单独声明它（`original-skills.yaml:234-237` 的 `progress-section`），原文模板的段落顺序里没有这一段。

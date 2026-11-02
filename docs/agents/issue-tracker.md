@@ -49,6 +49,8 @@ Issues and specs for this repo live as GitHub issues.
 
 **失败回执怎么读**：`status`、`reason` 都在回执的「明细（JSON）」那一段里。`status` 三态（`ok` / `partial` / `unsupported`）；`reason` 按下一步分四档——可重试（`backend-threw` 等）/ 等额度（`ai-tool-refused`）/ 后端做不到（`backend-unsupported`）/ 超时（`backend-timeout`）；另外几种少见原因码（`gate-defer` / `bad-args` / `no-backend`）遇到时直接看回执里的说明文字。`items` 里逐条看哪一步失败、原因是什么；`notes` 里若写「这份清单可能不全」，就收窄条件再查一次。整份回执被判非法（报 `invalid output`）时，先按上面的自检确认是哪把工具坏了，再按替代命令绕开。
 
+**状态冲突的回执（本地 Markdown）**：本地 Markdown 后端的 triage 状态写在票文件里可见的 `Status:` 行，文件头隐藏的 `DSH-LABELS` 只留非 triage 标签。可见行与旧文件隐藏 triage 真冲突时，`deck_issue_get` / `deck_issue_list` 会带 `statusConflict`；`deck_issue_patch` 会整次不写地回 `status:'unsupported'`、`reason:'bad-args'`，并在 `data.retry.args` 里给好带 `resolveStatus` 的重试参数。按 `data.retry.args` 重发，不要原样重试；没有冲突时传 `resolveStatus` 也按普通调用执行。
+
 **铁律**：写操作超时、报错（网络中断、EOF、回执判失败）后一律先读回现状，不许直接重发——超时或报错往往意味着写入其实已经落盘，重发会产生重复评论或重复关闭；只有读回确认没落盘，才允许重试。
 
 ### 关票一律先评论，再关闭
@@ -161,7 +163,7 @@ Issues and specs for this repo live as GitHub issues.
 | 缺陷票（`kind: bug`） | `bug` 与 `needs-triage` |
 | 普通票（`kind: issue`） | 一枚都不补：调用方给什么标签就带什么 |
 
-`deck_issue_create` 按这张表把缺的补上，补了哪几枚写进回执；改标签用 `deck_issue_patch`。
+`deck_issue_create` 按这张表把缺的补上，补了哪几枚写进回执；改标签用 `deck_issue_patch`。本地 Markdown 后端把 triage 角色落成票文件里可见的 `Status:` 行，不写进隐藏的 `DSH-LABELS`；规格与探索地图容器没有可见状态行，仍用隐藏的 `DSH-STATUS`。读侧会把可见状态合成回 triage 标签，所以 `deck_issue_list` 按 `labels` 筛选仍然有效。
 
 **wayfinder 的地图与地图子票只带 wayfinder 标签，不叠 `ready-for-agent` 这类 triage 标签。** 理由：它们是决策，不是实施工作；叠上 triage 标签会让它们混进「可以交给代理直接干」的筛选里，把还在讨论的东西当成已经定好的活。
 

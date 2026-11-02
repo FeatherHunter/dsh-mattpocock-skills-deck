@@ -39,6 +39,8 @@ When a skill mentions a role (for example "apply the AFK-ready triage label"), u
 
 `deck_issue_create` 按这张表把缺的补上。**wayfinder 的地图与地图子票只带 wayfinder 标签，不叠 `ready-for-agent` 这类 triage 标签**：它们是决策，不是实施工作。同一张表也写在 `docs/agents/issue-tracker.md` 的「Mandatory label set」一节。
 
+本地 Markdown 后端把上面的 triage 角色落成票文件里可见的 `Status:` 行，不写进文件头隐藏的 `DSH-LABELS`；规格与探索地图容器没有可见状态行，仍用隐藏的 `DSH-STATUS`。读侧会把可见状态合成回 triage 标签，所以「按标签筛选」和「按位置补标签」的用法都不变。
+
 `bug` / `needs-triage` / `wayfinder:grilling` 这三枚标签仍然保留：它们是面板上「修复」「诊断」「讨论」三个动作的入口，不是每张新票的必备项。
 
 ## Wayfinder label set

@@ -59,7 +59,7 @@ interface RepositoryRef {
 ### 2.2 Issue（票 / 图 统一实体）
 
 ```ts
-type State      = 'open' | 'closed'                     // deck 只认两态；GH OPEN/CLOSED、md Status→state 归 #115 后端归一
+type State      = 'open' | 'closed'                     // deck 只认两态；GH OPEN/CLOSED、md Status→state 的映射见第 4 节（Status 不是第三种 State 值）
 type IssueType  = 'issue' | 'map' | 'spec'             // wayfinder 语义；显式标记（map、spec 可空）；spec = 规格（实施地图）容器，正文文件头标记认出（#1403 起三个后端统一）
 type ClosedReason = 'completed' | 'not_planned' | 'reopened' | 'duplicate' | string   // 开放 string
 type ActorKind    = 'user' | 'bot' | 'organization' | string
@@ -84,12 +84,27 @@ interface Issue {
   author?: Actor            // 创建者（provenance）
   assignees?: Actor[]       // 指派/认领；[]=EMPTY=未认领；省略=indeterminate（未知认领态）
   labels?: Label[]          // EMPTY if none；MISSING if unsupported
+  status?: string           // 规范化后的 triage 状态（#1790）；仅本地 Markdown 给，GitHub/GitLab 省略
+  statusVisible?: string    // 可见 Status 行归一化后的原值；只在没有被采用为 status 时出现（仅本地 Markdown）
+  statusSource?: 'visible' | 'hidden' | 'default'   // status 的来源；没有 status 时省略（仅本地 Markdown）
+  statusConflict?: StatusConflict   // 可见行与隐藏 triage 真冲突时的记录；不冲突省略（仅本地 Markdown）
   milestone?: Milestone
   customFields?: CustomField[]   // 结构化、说明性，绝不驱动 deck 逻辑
   reason?: ClosedReason     // closed 时给原因（或 EMPTY=关了但没说明）；open 依后端支持给 ''(EMPTY) 或省略(MISSING)
   blockedBy?: IssueRef[]    // 谁阻塞我（入边；**唯一真源**）；引用上的 state 可缺省 = 不知道目标状态（#1676）
   blocking?: IssueRef[]     // 我阻塞谁（出边）
   comments?: Comment[]      // 决策记录
+}
+
+// 仅本地 Markdown 的附带信息（读侧输出，不是可写请求字段）；GitHub/GitLab 省略。
+interface StatusConflict {
+  field: 'status'
+  visible: string          // 读侧采用的值
+  hidden: string[]         // 隐藏 DSH-LABELS 里的合法 triage；真冲突时恰好一个
+  hiddenSource: 'DSH-LABELS'
+  stateFromVisible: State
+  stateFromHidden: State
+  resolution: { default: 'visible'; rule: 'visible-status-wins'; action: 'write-visible-status-on-next-write'; history: 'DSH-STATUS-HISTORY' }
 }
 ```
 
@@ -210,10 +225,13 @@ interface DeckProjection {
 
 ## 4. 本地 Markdown 的状态映射（**归 #115 后端**，契约层不议）
 
-- 本地 Markdown 无 labels，用行内字段表达语义（契约 §5）：`Status:`（claimed/resolved/ready-for-agent）、`Type:`（research/prototype/grilling/task）、`Blocked by:`。
-- **`Status` → `state` 的具体映射规则（`resolved→closed`、`claimed/ready-for-agent→open`）由 #115 后端归一化时定稿；本契约只约定 `state` 只两态（`open|closed`），不在契约层重复决策。**
-- `Issue.labels` 为 MISSING（本地无 labels 能力），而非 EMPTY。
-- `Issue.type` 由 wayfinder 语义定（issue/map），与 `Type:`（research/…）正交；`Type:` 作为附加信息保留在 body/诊断。
+- 本地 Markdown **有** labels（#1790 起）：非 triage 标签存在文件头隐藏注释 `DSH-LABELS`；五种 triage 角色（`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`）不写进 `DSH-LABELS`，唯一真源是 issue 文件里可见的 `Status:` 行。读侧把可见行归一后合成成标签，所以按标签筛选与判断动作的代码不用改。
+- 规格与探索地图容器没有 issue 模板的可见 `Status:` 行，仍用文件头隐藏注释 `DSH-STATUS` 存状态；容器不参与下面这套票型判定。
+- **`Status` → `state` 的映射**：`resolved` / `completed` / `closed` / `done` 与 `wontfix` 算 `closed`；其余合法 triage 状态（`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human`）与没有状态算 `open`。本契约只约定 `state` 两态（`open|closed`），不新增第三态。
+- `Issue.status` 是可选的规范化 triage 状态，只有本地 Markdown 后端填；`statusSource` 说明它来自可见行（`visible`）、旧文件隐藏 triage（`hidden`）还是票型默认（`default`）；`statusVisible` 只在可见值没有被采用时出现（非法值、旧默认兜底、冲突）；`statusConflict` 只在可见行与隐藏 triage 真冲突时出现，读侧仍按可见值回答。四个字段的形状与来源见 §2.2，GitHub/GitLab 后端省略。
+- 旧文件兼容：早期渲染器给 issue 文件写 `Status: ready-for-agent` 当默认值，读旧文件时它只算兜底线索；若隐藏 `DSH-LABELS` 里恰好有一个合法 triage，则以它为准并带出 `statusVisible`。第一次显式写会把两份归一成可见 Status 行，落选值记入文件头 `DSH-STATUS-HISTORY`。
+- `Issue.labels` 不再恒为 MISSING：读侧给非 triage 标签加合成的 triage 标签；`ListFilter` 不加 status 筛选，要按状态筛就继续按标签筛。
+- `Issue.type` 由 wayfinder 语义定（issue/map/spec），与 `Type:`（research/prototype/grilling/task）正交；`Type:` 作为附加信息保留在 body/诊断。
 - `Issue.parentKey` / `MapNode.tickets`：由 `.scratch/<effort>/` 目录层级推导（map.md 下的 issues/ 即其子票）。
 
 ---
