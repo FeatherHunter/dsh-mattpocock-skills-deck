@@ -11,6 +11,11 @@
 //   2) 文案层：notes 与正文（text）对「这份清单有没有可能不全」说同一件事。
 // 证据：每次工具回执与 gh 的独立结果都写进 evidence，报告里带 sha256，可复核。
 //
+// 收紧过一次判据（2026-11-02 晚）：第一次真机跑的「页面就绪」只要求可见文本超过 20 字，首开引导
+// 弹窗的文字就够，截图也只能说明当时页面长什么样，不能证明回执内容。现在页面检查一律要求：首开
+// 引导弹窗真的关掉、工作区按钮真的在、没有密码输入框（不是登录页）；截图改称「过程留痕」，只作
+// 排查线索。数据结论只看工具原始回执与 gh 独立真值。
+//
 // 手动跑法（工作根与批次 home 换成你自己的）：
 //   $env:DSH_HOME='<批次 home>'
 //   node node_modules/dsh-featherhunter-plugin-base/dist/real-machine-verification/cli/main.js `
@@ -18,6 +23,8 @@
 //     --work-root <工作根> --json --collect-all
 
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineScenario } from 'dsh-featherhunter-plugin-base/real-machine-verification'
@@ -32,9 +39,21 @@ const REPO_NAME = 'dsh-mattpocock-skills-deck'
 const EXAMPLE_KEY = '1303'
 /** 允许 gh 与工具两次独立读数之间的漂移：两次调用之间如果有人刚关了或开了票，数字会差几条。 */
 const TOTAL_TOLERANCE = 3
+/** 首开引导弹窗的遮罩；ui.ts 用同一个选择器判断弹窗有没有关掉。 */
+const MASK_COUNT_SCRIPT = 'document.querySelectorAll(' + JSON.stringify('[class*="_mask_"]') + ').length'
+/** 首开引导弹窗的关闭按钮；按 Escape 关不掉时点它。 */
+const CLOSE_BUTTON = 'button[aria-label="关闭"]'
+/** 工作区选择按钮：它出现才说明页面停在宿主工作台，不是登录页。 */
+const WORKSPACE_BUTTON = 'button[aria-label="选择工作区"]'
+/** 密码输入框数量：登录页会有，宿主工作台没有。 */
+const PASSWORD_INPUT_SCRIPT = 'document.querySelectorAll(' + JSON.stringify('input[type="password"]') + ').length'
+/** 页面可见文本；用 innerText 而不是 textContent，隐藏节点不算「看到的文字」。 */
+const BODY_TEXT_SCRIPT = 'document.body.innerText || ""'
 
 interface RawBrowserPage {
   readonly goto?: (url: string) => Promise<{ ok: boolean; error?: { message?: string } }>
+  readonly click?: (selector: string) => Promise<{ ok: boolean; error?: { message?: string } }>
+  readonly press?: (key: string) => Promise<{ ok: boolean; error?: { message?: string } }>
 }
 
 /** 宿主回的 deck 工具回执；失败时也可能只有 status/reason/text。 */
@@ -63,6 +82,7 @@ interface ListRow {
 interface GroundTruth {
   readonly ok: boolean
   readonly closedBugIssues: number | null
+  readonly mergedBugPrs: number | null
   readonly exampleState: string | null
   readonly exampleUpdatedAt: string | null
   readonly exampleLabels: readonly string[]
@@ -138,6 +158,45 @@ async function recordEvidence(context: ScenarioContext, name: string, value: unk
   return { path: saved.value.path, problem: null }
 }
 
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+interface InstalledProbe {
+  readonly version: string | null
+  readonly toolPath: string | null
+  readonly toolSha256: string | null
+  readonly hasBackendTruncated: boolean
+  readonly problem: string | null
+}
+
+/**
+ * 读运行实例里装着的插件包：版本号，以及 deck_issue_list 的实现文件摘要与修复标记。
+ * 候选身份由批次记录绑定；这里回答的是「跑起来的那份代码里到底有没有这次修复」。
+ */
+function inspectInstalledPlugin(home: string, profile: string): InstalledProbe {
+  const pkgDir = path.join(home, 'profiles', profile, 'node_modules', 'dsh-mattpocock-skills-deck')
+  let version: string | null = null
+  try {
+    const parsed = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf8')) as Record<string, unknown>
+    version = typeof parsed.version === 'string' ? parsed.version : null
+  } catch (error) {
+    return { version: null, toolPath: null, toolSha256: null, hasBackendTruncated: false, problem: '读不到实例里的插件 package.json：' + messageOf(error) }
+  }
+  const candidates = [path.join(pkgDir, 'deck', 'tools', 'issue-list.js'), path.join(pkgDir, 'lib', 'deck', 'tools', 'issue-list.js')]
+  for (const toolPath of candidates) {
+    if (!fs.existsSync(toolPath)) continue
+    try {
+      const source = fs.readFileSync(toolPath, 'utf8')
+      const toolSha256 = createHash('sha256').update(source).digest('hex')
+      return { version, toolPath, toolSha256, hasBackendTruncated: source.indexOf('backendTruncated') >= 0, problem: null }
+    } catch (error) {
+      return { version, toolPath, toolSha256: null, hasBackendTruncated: false, problem: '读不到实例里的 issue-list 实现：' + messageOf(error) }
+    }
+  }
+  return { version, toolPath: null, toolSha256: null, hasBackendTruncated: false, problem: '实例里找不到 deck/tools/issue-list.js' }
+}
+
 interface ObservationInput {
   readonly checkId: string
   readonly title: string
@@ -194,6 +253,7 @@ function measureGroundTruth(): GroundTruth {
     'query($owner:String!,$name:String!){',
     '  repository(owner:$owner,name:$name){',
     '    issues(states:[CLOSED],filterBy:{labels:["bug"]}){totalCount}',
+    '    mergedBugPrs: pullRequests(states:[MERGED],labels:["bug"]){totalCount}',
     '    ticket: issue(number:' + String(Number(EXAMPLE_KEY)) + '){number state updatedAt labels(first:20){nodes{name}}}',
     '  }',
     '}',
@@ -202,30 +262,32 @@ function measureGroundTruth(): GroundTruth {
   try {
     proc = spawnSync('gh', ['api', 'graphql', '-f', 'query=' + query, '-f', 'owner=' + OWNER, '-f', 'name=' + REPO_NAME], { encoding: 'utf8', timeout: 60000 })
   } catch (error) {
-    return { ok: false, closedBugIssues: null, exampleState: null, exampleUpdatedAt: null, exampleLabels: [], problem: '起不来 gh：' + (error instanceof Error ? error.message : String(error)) }
+    return { ok: false, closedBugIssues: null, mergedBugPrs: null, exampleState: null, exampleUpdatedAt: null, exampleLabels: [], problem: '起不来 gh：' + (error instanceof Error ? error.message : String(error)) }
   }
   if (proc.error !== undefined) {
-    return { ok: false, closedBugIssues: null, exampleState: null, exampleUpdatedAt: null, exampleLabels: [], problem: 'gh 调用失败：' + String(proc.error.message) }
+    return { ok: false, closedBugIssues: null, mergedBugPrs: null, exampleState: null, exampleUpdatedAt: null, exampleLabels: [], problem: 'gh 调用失败：' + String(proc.error.message) }
   }
   if (proc.status !== 0) {
-    return { ok: false, closedBugIssues: null, exampleState: null, exampleUpdatedAt: null, exampleLabels: [], problem: 'gh 退出码 ' + String(proc.status) + '：' + String(proc.stderr || '').trim().slice(0, 300) }
+    return { ok: false, closedBugIssues: null, mergedBugPrs: null, exampleState: null, exampleUpdatedAt: null, exampleLabels: [], problem: 'gh 退出码 ' + String(proc.status) + '：' + String(proc.stderr || '').trim().slice(0, 300) }
   }
   let parsed: unknown = null
   try {
     parsed = JSON.parse(String(proc.stdout || ''))
   } catch (error) {
-    return { ok: false, closedBugIssues: null, exampleState: null, exampleUpdatedAt: null, exampleLabels: [], problem: 'gh 输出不是 JSON：' + String(proc.stdout || '').slice(0, 200) }
+    return { ok: false, closedBugIssues: null, mergedBugPrs: null, exampleState: null, exampleUpdatedAt: null, exampleLabels: [], problem: 'gh 输出不是 JSON：' + String(proc.stdout || '').slice(0, 200) }
   }
   const repo = asRecord(asRecord(asRecord(parsed)?.data)?.repository)
   const totalCount = asRecord(repo?.issues)?.totalCount
+  const mergedPrs = asRecord(repo?.mergedBugPrs)?.totalCount
   const ticket = asRecord(repo?.ticket)
   return {
-    ok: typeof totalCount === 'number',
+    ok: typeof totalCount === 'number' && typeof mergedPrs === 'number',
     closedBugIssues: typeof totalCount === 'number' ? totalCount : null,
+    mergedBugPrs: typeof mergedPrs === 'number' ? mergedPrs : null,
     exampleState: typeof ticket?.state === 'string' ? ticket.state : null,
     exampleUpdatedAt: typeof ticket?.updatedAt === 'string' ? ticket.updatedAt : null,
     exampleLabels: labelNames(asRecord(ticket?.labels)?.nodes),
-    problem: typeof totalCount === 'number' ? null : 'gh 回包里没有 issues.totalCount',
+    problem: typeof totalCount === 'number' && typeof mergedPrs === 'number' ? null : 'gh 回包里没有 issues.totalCount 或 pullRequests.totalCount',
   }
 }
 
@@ -282,30 +344,106 @@ export default defineScenario<ScenarioContext>({
         if (raw.goto !== undefined) await raw.goto(instance.record.tokenUrl)
         await sleep(1500)
 
-        const bodyText = await page.evaluate<string>('document.body.innerText || ""')
+        // 首开引导弹窗会盖住宿主界面。第一次真机跑的「页面就绪」只数了可见文字长度，弹窗文字
+        // 就够 20 字，于是把「被引导弹窗盖住的页面」当成了「宿主界面已就绪」。现在按 ui.ts 的
+        // 成熟做法：按 Escape、点「关闭」，直到遮罩消失且工作区按钮出现（最多 60 轮，约 15 秒）。
+        let maskCount: number | null = null
+        let workspaceButtonText: string | null = null
+        for (let attempt = 0; attempt < 60; attempt += 1) {
+          const masks = await page.evaluate<number>(MASK_COUNT_SCRIPT)
+          maskCount = masks.ok ? masks.value : null
+          if (maskCount !== null && maskCount > 0) {
+            if (raw.press !== undefined) await raw.press('Escape')
+            if (raw.click !== undefined) await raw.click(CLOSE_BUTTON)
+            await sleep(300)
+            continue
+          }
+          const text = await page.text(WORKSPACE_BUTTON)
+          if (text.ok && text.value !== null) {
+            workspaceButtonText = text.value
+            break
+          }
+          await sleep(250)
+        }
+
+        const bodyText = await page.evaluate<string>(BODY_TEXT_SCRIPT)
+        const passwordInputs = await page.evaluate<number>(PASSWORD_INPUT_SCRIPT)
+        const pageUrl = page.url()
+        const bodyLength = bodyText.ok ? bodyText.value.trim().length : -1
+        const pageState = {
+          url: pageUrl,
+          origin: instance.record.originUrl,
+          maskCount,
+          workspaceButtonText,
+          passwordInputs: passwordInputs.ok ? passwordInputs.value : null,
+          bodyTextLength: bodyLength,
+          bodyTextHead: bodyText.ok ? bodyText.value.trim().slice(0, 200) : null,
+        }
+        const pageEvidence = await recordEvidence(context, 'page-state.json', pageState, '页面就绪检查的原始读数：遮罩数、工作区按钮、密码输入框、URL 与可见文本开头')
+        const pageIsHostUi =
+          maskCount === 0 &&
+          workspaceButtonText !== null &&
+          passwordInputs.ok && passwordInputs.value === 0 &&
+          pageUrl.indexOf(instance.record.originUrl) === 0 &&
+          bodyLength > 20 &&
+          bodyText.ok && bodyText.value.indexOf('登录 DeepSeek 账号') < 0
         observations.push(observe({
           checkId: 'page-ready',
-          title: '页面加载的是插件宿主界面，不是登录页',
-          ok: bodyText.ok && bodyText.value.trim().length > 20,
-          detail: bodyText.ok ? '页面可见文本 ' + String(bodyText.value.trim().length) + ' 字' : '读不到页面文本：' + bodyText.error.message,
-          expected: 'document.body.innerText 有超过 20 字的可见文本',
-          actual: bodyText.ok ? String(bodyText.value.trim().length) + ' 字' : bodyText.error.message,
-          hint: '实例可能没起来或卡在启动弹窗；看实例日志与截图',
+          title: '首开引导弹窗已关掉，页面是宿主工作台界面（不是登录页）',
+          ok: pageIsHostUi,
+          detail: '遮罩 ' + String(maskCount) + ' 个，工作区按钮 ' + (workspaceButtonText === null ? '没找到' : '「' + workspaceButtonText + '」') + '，密码输入框 ' + String(passwordInputs.ok ? passwordInputs.value : '读不到') + ' 个，可见文本 ' + String(bodyLength) + ' 字',
+          expected: '遮罩 0 个、工作区按钮存在、没有密码输入框、URL 在实例源上、可见文本超过 20 字且不含登录引导',
+          actual: '遮罩=' + String(maskCount) + '，工作区按钮=' + String(workspaceButtonText) + '，密码输入框=' + String(passwordInputs.ok ? passwordInputs.value : '读不到') + '，URL=' + pageUrl,
+          hint: '页面卡在首开登录弹窗时这几项会同时不对；先看证据里的 page-state.json 与截图',
+          evidence: pageEvidence.path === null ? [] : [pageEvidence.path],
+        }))
+
+        // 0pre) 运行中的实例里装着哪份插件：版本与修复标记。候选身份由批次记录绑定，
+        //       这里证明「跑起来的那份代码里确实有这次修复」，不是拿仓库里的源码充数。
+        const installed = inspectInstalledPlugin(instance.record.home, instance.record.profile)
+        const installedEvidence = await recordEvidence(context, 'installed-plugin.json', installed, '运行实例里装着的插件版本、deck_issue_list 实现文件路径与 sha256、是否带 backendTruncated')
+        observations.push(observe({
+          checkId: 'installed-plugin-has-fix',
+          title: '跑起来的实例里装着的插件代码带这次修复',
+          ok: installed.problem === null && installed.version !== null && installed.hasBackendTruncated,
+          status: installed.problem === null ? undefined : 'blocked',
+          detail: installed.problem === null
+            ? '版本 ' + String(installed.version) + '，实现文件 ' + String(installed.toolPath) + '，sha256 ' + String(installed.toolSha256) + '，含 backendTruncated=' + String(installed.hasBackendTruncated)
+            : installed.problem,
+          expected: '实例 home 里的插件 package.json 读得到版本，deck_issue_list 实现里含 backendTruncated',
+          actual: installed.problem === null ? String(installed.version) + ' / ' + String(installed.toolSha256) : installed.problem,
+          hint: '实例里的插件副本和候选包对不上时，后面的行为断言不能算在候选身上；先查 install 与批次 home',
+          evidence: installedEvidence.path === null ? [] : [installedEvidence.path],
         }))
 
         // 0) 先确认后端判定：隔离 home 没记过这个工作区的选择，只能靠声明文件与自动识别。
+        //    deck_context 会顺带做一次 GitHub 探测（GET /user），网络抖动时整条回执降成 partial；
+        //    这时后端与仓库仍能从 data 里读出来，后面的列表调用照常走。所以按结构化字段判定身份，
+        //    不按文本字面或状态名判定——状态只是这次探测的健康度，不是后端判定的依据。
         const contextProbe = await runDeckTool(page, 'deck_context', {})
         const contextEvidence = await recordEvidence(context, 'deck-context.json', contextProbe.envelope, 'deck_context 的原始回执：确认这个工作区被判成哪个后端')
         const contextText = String(contextProbe.receipt?.text || '')
-        const backendIsGithub = contextProbe.receipt !== null && contextProbe.receipt.status === 'ok' && contextText.indexOf('后端 github') >= 0
+        const contextData = asRecord(contextProbe.receipt?.data)
+        const contextBackend = asRecord(contextData?.backend)
+        const contextRepo = asRecord(contextData?.repo)
+        const preflight = asRecord(contextData?.preflight)
+        const contextStatus = contextProbe.receipt === null ? null : contextProbe.receipt.status
+        const backendId = typeof contextBackend?.id === 'string' ? contextBackend.id : null
+        const repoRef = typeof contextRepo?.refId === 'string' ? contextRepo.refId : null
+        const preflightOk = preflight === null ? null : preflight.ok === true
+        const backendIsGithub = (contextStatus === 'ok' || contextStatus === 'partial')
+          && backendId === 'github'
+          && repoRef === 'FeatherHunter/dsh-mattpocock-skills-deck'
         observations.push(observe({
           checkId: 'backend-github',
           title: '这个工作区被判成 GitHub 后端',
           ok: backendIsGithub,
           status: backendIsGithub ? undefined : 'blocked',
-          detail: contextProbe.problem === null ? contextText.slice(0, 300) : contextProbe.problem,
-          expected: 'deck_context 回执里有「后端 github」',
-          actual: contextProbe.receipt === null ? '没有工具回执' : String(contextProbe.receipt.status) + '：' + contextText.slice(0, 200),
+          detail: contextProbe.problem === null
+            ? '后端=' + String(backendId) + '，仓库=' + String(repoRef) + '，回执状态=' + String(contextStatus) + '，GitHub 探测=' + String(preflightOk) + '；' + contextText.slice(0, 160)
+            : contextProbe.problem,
+          expected: 'data.backend.id=github 且 data.repo.refId=FeatherHunter/dsh-mattpocock-skills-deck（回执 ok 或 partial 都算，partial 只说明探测请求抖了一下）',
+          actual: contextProbe.receipt === null ? '没有工具回执' : '后端=' + String(backendId) + '，仓库=' + String(repoRef) + '，状态=' + String(contextStatus),
           hint: '隔离实例没有后端选择记忆，靠 docs/agents/issue-tracker.md 与 .git/config 自动识别；识别失败就先把这两个文件检查一遍',
           evidence: contextEvidence.path === null ? [] : [contextEvidence.path],
         }))
@@ -331,13 +469,13 @@ export default defineScenario<ScenarioContext>({
         const truthEvidence = await recordEvidence(context, 'ground-truth-gh.json', truth, '用 gh 独立数出来的真值：已关闭且带 bug 的工单数，以及 #1303 的状态与标签')
         observations.push(observe({
           checkId: 'ground-truth',
-          title: 'gh 能独立数出「已关闭且带 bug」的工单',
+          title: 'gh 能独立数出「已关闭且带 bug」的工单与已合并的拉取请求',
           ok: truth.ok,
           status: truth.ok ? undefined : 'blocked',
           hard: truth.ok,
-          detail: truth.ok ? 'gh 数出来 ' + String(truth.closedBugIssues) + ' 张' : String(truth.problem),
-          expected: '一次 gh GraphQL 查询拿到 issues.totalCount',
-          actual: truth.ok ? String(truth.closedBugIssues) : String(truth.problem),
+          detail: truth.ok ? 'gh 数出来 ' + String(truth.closedBugIssues) + ' 张已关闭 bug 工单、' + String(truth.mergedBugPrs) + ' 张已合并 bug 拉取请求' : String(truth.problem),
+          expected: '一次 gh GraphQL 查询拿到 issues.totalCount 与 pullRequests.totalCount',
+          actual: truth.ok ? String(truth.closedBugIssues) + ' 张工单 + ' + String(truth.mergedBugPrs) + ' 张拉取请求' : String(truth.problem),
           hint: 'gh 没登录或没网时这条会 blocked，不影响其它断言，但总数核对会少一个独立参照',
           evidence: truthEvidence.path === null ? [] : [truthEvidence.path],
         }))
@@ -420,18 +558,22 @@ export default defineScenario<ScenarioContext>({
         }))
 
         // 2d) 关键证据：工具数出来的总数与 gh 独立数出来的一致 —— 标签筛选真的下推了，没在窗口里漏票。
-        const totalMatchesTruth = truth.ok && truth.closedBugIssues !== null && Math.abs(total - truth.closedBugIssues) <= TOTAL_TOLERANCE
+        //     deck_issue_list 的 state=closed 同时覆盖工单与拉取请求，所以真值 = 已关闭 bug 工单 + 已合并 bug PR。
+        const expectedTotal = truth.ok && truth.closedBugIssues !== null && truth.mergedBugPrs !== null
+          ? truth.closedBugIssues + truth.mergedBugPrs
+          : null
+        const totalMatchesTruth = expectedTotal !== null && Math.abs(total - expectedTotal) <= TOTAL_TOLERANCE
         observations.push(observe({
           checkId: 'closed-bug-total-vs-truth',
           title: '工具数出来的总数与 gh 独立数出来的真值一致',
           ok: totalMatchesTruth,
           status: truth.ok ? undefined : 'blocked',
           hard: truth.ok,
-          detail: truth.ok
-            ? '工具 data.total=' + String(total) + '，gh 独立数出来 ' + String(truth.closedBugIssues) + '，允许 ' + String(TOTAL_TOLERANCE) + ' 张的漂移'
-            : 'gh 真值没取到（' + String(truth.problem) + '），这条只能 blocked',
-          expected: 'data.total 与 gh 的 issues.totalCount 相差不超过 ' + String(TOTAL_TOLERANCE),
-          actual: truth.ok ? '工具 ' + String(total) + ' / gh ' + String(truth.closedBugIssues) : String(truth.problem),
+          detail: expectedTotal === null
+            ? 'gh 真值没取到（' + String(truth.problem) + '），这条只能 blocked'
+            : '工具 data.total=' + String(total) + '；gh 独立数出来 ' + String(truth.closedBugIssues) + ' 张已关闭 bug 工单 + ' + String(truth.mergedBugPrs) + ' 张已合并 bug 拉取请求 = ' + String(expectedTotal) + '，允许 ' + String(TOTAL_TOLERANCE) + ' 张的漂移',
+          expected: 'data.total 与 gh 的 issues.totalCount + pullRequests.totalCount 相差不超过 ' + String(TOTAL_TOLERANCE),
+          actual: expectedTotal === null ? String(truth.problem) : '工具 ' + String(total) + ' / gh ' + String(expectedTotal),
           hint: '数字对不上说明后端没按标签取，或者内存收窄又丢了行；看证据里的两份原始回包',
           evidence: truthEvidence.path === null ? [] : [truthEvidence.path],
         }))
@@ -480,9 +622,9 @@ export default defineScenario<ScenarioContext>({
           ok: exampleIsClosedBug && totalMatchesTruth,
           status: truth.ok ? undefined : 'blocked',
           hard: truth.ok,
-          detail: '#' + EXAMPLE_KEY + ' updatedAt=' + String(truth.exampleUpdatedAt) + '，' + (exampleInReturnedRows ? '落在本次返回的前 200 行里' : '不在本次返回的前 200 行里，但已计入 total') + '；total=' + String(total) + '，gh 真值=' + String(truth.closedBugIssues),
+          detail: '#' + EXAMPLE_KEY + ' updatedAt=' + String(truth.exampleUpdatedAt) + '，' + (exampleInReturnedRows ? '落在本次返回的前 200 行里' : '不在本次返回的前 200 行里，但已计入 total') + '；total=' + String(total) + '，gh 真值=' + (expectedTotal === null ? '没取到' : String(truth.closedBugIssues) + ' 张工单 + ' + String(truth.mergedBugPrs) + ' 张拉取请求 = ' + String(expectedTotal)),
           expected: '#' + EXAMPLE_KEY + ' 是已关闭且带 bug 的票，且清单 total 与 gh 独立数出来的真值一致（它因此被数进全集）',
-          actual: '在返回行里=' + String(exampleInReturnedRows) + '，total=' + String(total) + '，gh 真值=' + String(truth.closedBugIssues),
+          actual: '在返回行里=' + String(exampleInReturnedRows) + '，total=' + String(total) + '，gh 真值=' + String(expectedTotal),
           hint: '旧实现只数窗口里筛出来的行，total 会明显小于真值；这里比的是总数，不是它有没有出现在前 200 行',
         }))
 
@@ -534,16 +676,20 @@ export default defineScenario<ScenarioContext>({
           hint: 'notes 与正文必须由同一个布尔驱动；只改一边就会出现「一处说不全、一处像是全量」',
         }))
 
-        // 5) 截图进证据：失败时人第一眼要看的就是界面当时的样子。
+        // 5) 过程留痕：截图只用来事后排查界面当时长什么样。
+        //    第一次真机跑把截图列成了结论证据，被人一眼看穿：截图里是首开引导弹窗，画面不承载任何数据结论。
+        //    这里降级为过程留痕：判据只要求文件写成功，并且标题与 detail 都写明它不作为数据判据。
         const screenshotPath = path.join(context.evidence.root, 'web-profile-1830.png')
         const shot = await page.screenshot(screenshotPath)
         observations.push(observe({
-          checkId: 'page-screenshot',
-          title: '实例页面截图写进了证据',
+          checkId: 'page-screenshot-artifact',
+          title: '过程留痕：页面截图（不作为数据判据）',
           ok: shot.ok && shot.value.bytes > 0,
           hard: false,
-          detail: shot.ok ? String(shot.value.bytes) + ' 字节，' + screenshotPath : '截图失败：' + shot.error.message,
-          expected: '证据目录里有一张非空的 PNG',
+          detail: shot.ok
+            ? String(shot.value.bytes) + ' 字节，' + screenshotPath + '；只供排查界面状态，数据结论看工具原始回执与 gh 真值'
+            : '截图失败：' + shot.error.message,
+          expected: '证据目录里有一张非空的 PNG（过程留痕，不参与结论）',
           actual: shot.ok ? String(shot.value.bytes) + ' 字节' : shot.error.message,
           evidence: shot.ok && shot.value.bytes > 0 ? [screenshotPath] : [],
         }))
