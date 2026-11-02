@@ -13,9 +13,9 @@ import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
-import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
+import { readCallTimeoutOf, withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { DECK_SANDBOX_TIMEOUT_MS, READ_CALL_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
 import { evidenceFields, failureOf, reasonForResult } from '../shell/receipt-reason.js'
 // #1831：内存二次筛与行形状收口搬去独立文件（主文件有效行要落在 350 行以内）。
@@ -33,6 +33,42 @@ function nextStepText(reason: string): string {
   if (reason === REFUSAL_REASONS.BACKEND_THREW) return '重新读一次没有副作用，可以直接再调一次。'
   if (reason === REFUSAL_REASONS.OVER_CAP) return '稍等一会儿再调，或把过滤条件收窄一点。'
   return ''
+}
+
+/** #1831：读超时时回给调用方的那一份回执（地图薄查与普通列表两条路共用）：
+ *  列表后端是一次给整份，所以超时那一刻没有可回的行 —— 交空表而不是空手，并用 data.partial /
+ *  data.incomplete 明确标「这次没读全」；文案只用读口径，不出现写操作那句。
+ *  opId 从预算壳的上下文取，回执、日志与 outbound 记录按它对上同一趟。 */
+function partialTimeoutValue(ev: { code: string }, opCtx: unknown, claimed: { requests: number; points: number }) {
+  const op = (opCtx || {}) as Record<string, unknown>
+  return {
+    value: {
+      status: DECK_STATUS.PARTIAL,
+      reason: ev.code,
+      text: 'ISSUE 列表这次没读全（超时了：在限时内没等到后端回话）。这次读没有副作用，等一会儿重调一次就行（清单为空只说明这次没拿到，不代表没有）。',
+      data: { total: null, returned: 0, truncated: true, backendTruncated: false, issues: [], partial: true, incomplete: 'timeout', opId: String(op.opId || '') },
+      notes: ['这次是读超时：列表这次没有可回的行（后端一次给整份），清单为空不代表没有。'],
+      touched: [],
+    },
+    claimed: claimed,
+  }
+}
+
+/** #1831（评审 c5）：读的时间额度在发出请求之前就用完（over-budget）时回的那一份回执。
+ *  与超时回执同形：列表后端一次给整份，这一刻没有可回的行；差别只在 data.incomplete 与文案。 */
+function partialBudgetValue(ev: { code: string }, opCtx: unknown, claimed: { requests: number; points: number }) {
+  const op = (opCtx || {}) as Record<string, unknown>
+  return {
+    value: {
+      status: DECK_STATUS.PARTIAL,
+      reason: ev.code,
+      text: 'ISSUE 列表这次没读全（这次读的时间额度在发出请求之前就用完了，一个请求都没发出去）。这次读没有副作用，稍等一会儿重调一次就行。',
+      data: { total: null, returned: 0, truncated: true, backendTruncated: false, issues: [], partial: true, incomplete: 'budget', opId: String(op.opId || '') },
+      notes: ['这次是读的时间额度用完了：列表没有可回的行，清单为空不代表没有。'],
+      touched: [],
+    },
+    claimed: claimed,
+  }
 }
 
 /**
@@ -57,16 +93,6 @@ export interface DeckIssueListDeps {
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
-
-/** 读调用这一趟的总时限：回退顺序 readTimeoutMs → toolTimeoutMs → READ_CALL_TIMEOUT_MS。
- *  老门禁注入 toolTimeoutMs 小预算继续生效；没注入的读工具落到 90 秒，不再等满 5 分钟。 */
-function readTimeoutOf(d: DeckIssueListDeps): number {
-  const own = numOpt(d.readTimeoutMs)
-  if (own !== undefined) return own
-  const legacy = numOpt(d.toolTimeoutMs)
-  if (legacy !== undefined) return legacy
-  return READ_CALL_TIMEOUT_MS
-}
 
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
@@ -202,7 +228,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
     const rawState = String(a.state === undefined || a.state === null ? 'open' : a.state).trim().toLowerCase()
     const state = (rawState === 'closed' || rawState === 'all') ? rawState : 'open'
     const rawType = String(a.type === undefined || a.type === null ? 'all' : a.type).trim().toLowerCase()
-    const type = (rawType === 'issue' || rawType === 'map' || rawType === 'spec') ? rawType : 'all'
+    const type: 'issue' | 'map' | 'spec' | 'all' = (rawType === 'issue' || rawType === 'map' || rawType === 'spec') ? rawType : 'all'
     const wantLabels = (Array.isArray(a.labels) ? a.labels : []).map((x) => String(x).trim()).filter(Boolean)
     const wantAssignee = String(a.assignee === undefined || a.assignee === null ? '' : a.assignee).trim().toLowerCase()
     const wantQuery = String(a.query === undefined || a.query === null ? '' : a.query).trim().toLowerCase()
@@ -229,7 +255,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
     } catch (eS) { sandbox = null }
 
     return callDeckSession({ deps: d, opened: pick, session: s, repo: repo, estimate: est, tool: 'deck_issue_list', sandbox: sandbox }, async (c: unknown) => {
-      const sc = withCallScope(c, exec, { timeoutMs: readTimeoutOf(d), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
+      const sc = withCallScope(c, exec, { timeoutMs: readCallTimeoutOf(d), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!
@@ -255,21 +281,10 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
             const thinMsg = String((thinBody.error && thinBody.error.message) || '后端没给出原因').slice(0, 300)
             // #1799：reason 走统一映射（薄查也是读后端），失败证据留后端原档位与映射后的码。
             const ev = failureOf(thinBody, 'read')
-            // #1831：读超时回已经拿到的部分并明确标没读全，不再回「没取回来」的空手；
-            // 文案只用读口径（读没有副作用），不出现写操作那句「不要直接重放写操作」。
-            if (thinBody.error && String(thinBody.error.kind) === 'timeout') {
-              return {
-                value: {
-                  status: DECK_STATUS.PARTIAL,
-                  reason: ev.code,
-                  text: 'ISSUE 列表这次没读全（超时了：在限时内没等到后端回话）。这次读没有副作用，等一会儿重调一次就行（清单为空只说明这次没拿到，不代表没有）。',
-                  data: { total: null, returned: 0, truncated: true, backendTruncated: false, issues: [], partial: true, incomplete: 'timeout', opId: String((opCtx && (opCtx as Record<string, unknown>).opId) || '') },
-                  notes: ['这次是读超时：只回了已经拿到的部分，清单为空不代表没有。'],
-                  touched: [],
-                },
-                claimed: { requests: 1, points: 3 },
-              }
-            }
+            // #1831：读超时回「没读全」的部分结果，文案只用读口径；回执与普通路共用 partialTimeoutValue。
+            const thinKind = String((thinBody.error && thinBody.error.kind) || '')
+            if (thinKind === 'timeout') return partialTimeoutValue(ev, opCtx, { requests: 1, points: 3 })
+            if (thinKind === 'over-budget') return partialBudgetValue(ev, opCtx, { requests: 1, points: 3 })
             return {
               value: {
                 status: DECK_STATUS.UNSUPPORTED,
@@ -325,20 +340,10 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
         const msg = String((listed && listed.error && listed.error.message) || '后端没给出原因').slice(0, 300)
         // #1799：与薄查同一套映射，不再把任何后端失败都写成「后端做不到」。
         const ev = failureOf(listed, 'read')
-        // #1831：与薄查同款——读超时回部分结果 + 明确标没读全，文案只用读口径。
-        if (listed && listed.error && String(listed.error.kind) === 'timeout') {
-          return {
-            value: {
-              status: DECK_STATUS.PARTIAL,
-              reason: ev.code,
-              text: 'ISSUE 列表这次没读全（超时了：在限时内没等到后端回话）。这次读没有副作用，等一会儿重调一次就行（清单为空只说明这次没拿到，不代表没有）。',
-              data: { total: null, returned: 0, truncated: true, backendTruncated: false, issues: [], partial: true, incomplete: 'timeout', opId: String((opCtx && (opCtx as Record<string, unknown>).opId) || '') },
-              notes: ['这次是读超时：只回了已经拿到的部分，清单为空不代表没有。'],
-              touched: [],
-            },
-            claimed: { requests: 1, points: 3 },
-          }
-        }
+        // #1831：与薄查同款——读超时回「没读全」的部分结果，文案只用读口径。
+        const listedKind = String((listed && listed.error && listed.error.kind) || '')
+        if (listedKind === 'timeout') return partialTimeoutValue(ev, opCtx, { requests: 1, points: 3 })
+        if (listedKind === 'over-budget') return partialBudgetValue(ev, opCtx, { requests: 1, points: 3 })
         return {
           value: {
             status: DECK_STATUS.UNSUPPORTED,

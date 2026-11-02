@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-02T19:32:16.213Z",
+  "generatedAt": "2026-11-02T19:56:55.831Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 540,
   "gateCount": 540,
@@ -6088,6 +6088,7 @@
       "step": "node tests/verify-1831-read-timeout.ts",
       "file": "tests/verify-1831-read-timeout.ts",
       "guards": [
+        "src/deck/tools/context.ts",
         "src/deck/tools/issue-get.ts",
         "src/deck/tools/issue-list.ts",
         "src/refresh/kernel/host-budget.ts",
@@ -6110,7 +6111,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-1832-single-triage-state.ts",

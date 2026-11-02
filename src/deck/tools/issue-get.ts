@@ -12,10 +12,10 @@ import { MD_SCOPE_LOCATE, applyMdScope, mdScopeNote } from './md-scope.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { EDGE_LANDING, relationsOf } from '../shell/edge-landing.js'
-import { withCallScope, type OpOutcome } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
+import { readCallTimeoutOf, withCallScope, type OpOutcome } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { DECK_SANDBOX_TIMEOUT_MS, READ_CALL_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
 // #1090：进度区的结构化读回（{percent,note,updatedAt,entries}）与写侧共用同一份解析。
 // #1092：维护者原话区的结构化读回（{text,source,recordedAt}）同样与该区的写侧共用同一份解析。
@@ -91,17 +91,6 @@ export interface DeckIssueGetDeps {
   toolMarginMs?: number
   /** 时钟旁路：测试里换成假时钟用，缺省 Date.now。 */
   now?: () => number
-}
-
-/** 读调用这一趟的总时限：#1831 起按「读」单独设一档，缺省从中央 YAML 的 readCallTimeoutMs 来。
- *  回退顺序是 readTimeoutMs → toolTimeoutMs → READ_CALL_TIMEOUT_MS：老的注入点（门禁里的
- *  toolTimeoutMs 小预算）继续生效，没注入的读工具落到 90 秒，而不是等满 5 分钟。 */
-function readTimeoutOf(d: DeckIssueGetDeps): number {
-  const own = numOpt(d.readTimeoutMs)
-  if (own !== undefined) return own
-  const legacy = numOpt(d.toolTimeoutMs)
-  if (legacy !== undefined) return legacy
-  return READ_CALL_TIMEOUT_MS
 }
 
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
@@ -271,7 +260,7 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
     return callDeckSession({ deps: d, opened: pick, session: s, repo: repo, estimate: est, tool: 'deck_issue_get', sandbox: sandbox }, async (c: unknown) => {
       // 进预算壳：两次远端各有 30 秒单次钳制、可中止，超时只坏自己那一项；
       // 名册随上下文走，后端内部的定向重读能用上。成功路径的形状一字不动。
-      const sc = withCallScope(c, exec, { timeoutMs: readTimeoutOf(d), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
+      const sc = withCallScope(c, exec, { timeoutMs: readCallTimeoutOf(d), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!
@@ -320,7 +309,35 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
             reason: reasonForFailure({ kind: 'timeout', phase: 'read' }),
             text: '票 ' + key + ' 这次没读全（超时了：在限时内没等到后端回话）。这次读没有副作用，等一会儿重调一次就行。',
             data: partialData,
-            notes: ['这次是读超时：只回了已经拿到的部分，没拿到的不代表不存在。'],
+            notes: ['这次是读超时：票本身没读回来，父票、标签、正文这些格都是空的（不代表没有）；只回了已经落地的阻塞关系。'],
+            touched: [],
+          },
+          claimed: claimedOf(),
+        }
+      }
+      // #1831（评审 c5）：出发前时间额度就用完（over-budget）也是「这次没读全」，不是「后端抛错」。
+      // 一个请求都没发出去，所以没有副作用；照样把阻塞边那半份（如果已经落地）交出去并标清楚。
+      const gotKind = String((got && got.error && got.error.kind) || '')
+      if (gotKind === 'over-budget') {
+        const depPartial = (depP && depSettled) ? await depP : null
+        const dependencies = (depPartial && depPartial.ok === true) ? depPartial.data : null
+        const rel = relationsOf({}, dependencies)
+        const budgetData: Record<string, unknown> = {
+          key: key,
+          backendId: pick.backendId,
+          partial: true,
+          incomplete: 'budget',
+          relations: rel,
+          error: { kind: 'over-budget', message: String((got && got.error && got.error.message) || '').slice(0, 300) },
+        }
+        if (dependencies) budgetData.dependenciesRaw = dependencies
+        return {
+          value: {
+            status: DECK_STATUS.PARTIAL,
+            reason: failureOf(got, 'read').code,
+            text: '票 ' + key + ' 这次没读全（这次读的时间额度在发出请求之前就用完了，一个请求都没发出去）。这次读没有副作用，稍等一会儿重调一次就行。',
+            data: budgetData,
+            notes: ['这次是读的时间额度用完了：票本身没读回来，父票、标签、正文这些格都是空的（不代表没有）。'],
             touched: [],
           },
           claimed: claimedOf(),

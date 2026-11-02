@@ -160,6 +160,27 @@ async function sectionIssueGet(budget, ledgerMod, gateMod) {
   check(dt < 5000, '读票超时有硬截止（' + dt + 'ms）')
 }
 
+// —— 二点五、读上下文：三处读超时也回部分结果，不当整趟失败了 ——
+async function sectionContext(budget, ledgerMod, gateMod) {
+  console.log('\n[二点五] 读上下文超时：回 partial + 未完成标记，不把半份压成做不到')
+  const mod = await imp('src/deck/tools/context.ts')
+  const g = stubGateLedger(budget, gateMod, ledgerMod)
+  const tool = mod.createDeckContext(baseDeps({
+    gate: g.gate,
+    registry: stubRegistry('o/n', deadTracker()),
+    budget: budget,
+    readTimeoutMs: 900,
+  }))
+  const t0 = Date.now()
+  let r = null
+  try { r = await cap(tool.run(execFor(), {}), 8000) } catch (e) { check(false, '读上下文超时必须结束等待（' + e.message + '）'); return }
+  const dt = Date.now() - t0
+  check(r && r.status === 'partial', '读上下文超时回 status=partial（实得 ' + (r && r.status) + '）')
+  check(r && r.reason === 'backend-timeout', '读上下文超时 reason 仍是 backend-timeout（实得 ' + (r && r.reason) + '）')
+  check(r && r.data && r.data.partial === true && r.data.incomplete === 'timeout', '读上下文超时 data 带 partial:true / incomplete:timeout')
+  check(dt < 8000, '读上下文超时有硬截止（' + dt + 'ms）')
+}
+
 // —— 三、读列表：超时回部分结果，回执里不再出现互相矛盾的两句话 ——
 async function sectionIssueList(budget, ledgerMod, gateMod) {
   console.log('\n[三] 读列表超时：回 partial + 未完成标记，不拼写操作口径')
@@ -182,6 +203,32 @@ async function sectionIssueList(budget, ledgerMod, gateMod) {
   check(text.indexOf('不要直接重放写操作') < 0, '读列表回执不出现「不要直接重放写操作」（实际：' + text.slice(0, 110) + '…）')
   check(text.indexOf('读') >= 0 || text.indexOf('清单') >= 0, '读列表回执明说这是一次读/清单')
   check(dt < 5000, '读列表超时有硬截止（' + dt + 'ms）')
+}
+
+// —— 三点五、时间额度在发出请求前就用完：也回部分结果，不压成「后端抛错」 ——
+async function sectionBudgetExhausted(budget, ledgerMod, gateMod) {
+  console.log('\n[三点五] 读的额度用尽（over-budget）：回 partial + incomplete=budget')
+  const getMod = await imp('src/deck/tools/issue-get.ts')
+  const listMod = await imp('src/deck/tools/issue-list.ts')
+  const g1 = stubGateLedger(budget, gateMod, ledgerMod)
+  const getTool = getMod.createDeckIssueGet(baseDeps({ gate: g1.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, readTimeoutMs: 1, toolMarginMs: 300 }))
+  const t0 = Date.now()
+  let gr = null
+  try { gr = await cap(getTool.run(execFor(), { key: '7' }), 6000) } catch (e) { check(false, '读票额度用尽必须结束等待（' + e.message + '）'); return }
+  check(gr && gr.status === 'partial', '读票额度用尽回 status=partial（实得 ' + (gr && gr.status) + '）')
+  check(gr && gr.data && gr.data.partial === true && gr.data.incomplete === 'budget', '读票额度用尽 data 带 partial:true / incomplete:budget')
+  const gText = String((gr && gr.text) || '')
+  check(gText.indexOf('不要直接重放写操作') < 0 && gText.indexOf('读') >= 0, '读票额度用尽也用读口径文案（实际：' + gText.slice(0, 90) + '…）')
+  check(Date.now() - t0 < 5000, '读票额度用尽不挂住')
+
+  const g2 = stubGateLedger(budget, gateMod, ledgerMod)
+  const listTool = listMod.createDeckIssueList(baseDeps({ gate: g2.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, readTimeoutMs: 1, toolMarginMs: 300 }))
+  let lr = null
+  try { lr = await cap(listTool.run(execFor(), { state: 'all', limit: 5 }), 6000) } catch (e) { check(false, '读列表额度用尽必须结束等待（' + e.message + '）'); return }
+  check(lr && lr.status === 'partial', '读列表额度用尽回 status=partial（实得 ' + (lr && lr.status) + '）')
+  check(lr && lr.data && lr.data.partial === true && lr.data.incomplete === 'budget', '读列表额度用尽 data 带 partial:true / incomplete:budget')
+  const lText = String((lr && lr.text) || '')
+  check(lText.indexOf('不要直接重放写操作') < 0, '读列表额度用尽不出现写操作口径（实际：' + lText.slice(0, 90) + '…）')
 }
 
 // —— 四、中央时间键与日志字段 ——
@@ -208,7 +255,9 @@ async function main() {
   const support = await imp('src/tracker/rooms/github/transport/client-support.ts')
   try { await sectionBudget(budgetMod) } catch (e) { check(false, '预算壳段抛错：' + ((e && e.stack) || e)) }
   try { await sectionIssueGet(budget, ledgerMod, gateMod) } catch (e) { check(false, '读票段抛错：' + ((e && e.stack) || e)) }
+  try { await sectionContext(budget, ledgerMod, gateMod) } catch (e) { check(false, '读上下文段抛错：' + ((e && e.stack) || e)) }
   try { await sectionIssueList(budget, ledgerMod, gateMod) } catch (e) { check(false, '读列表段抛错：' + ((e && e.stack) || e)) }
+  try { await sectionBudgetExhausted(budget, ledgerMod, gateMod) } catch (e) { check(false, '额度用尽段抛错：' + ((e && e.stack) || e)) }
   try { await sectionConfigAndLog(timeMod, support) } catch (e) { check(false, '配置与日志段抛错：' + ((e && e.stack) || e)) }
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
   process.exit(failed ? 1 : 0)

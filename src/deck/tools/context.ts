@@ -9,12 +9,12 @@ import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-she
 import { evidenceFields, failureOf, reasonForFailure } from '../shell/receipt-reason.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { callDeckSession, openDeckSession } from './tracker-session.js'
-import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
+import { readCallTimeoutOf, withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 import * as budget from '../../refresh/kernel/host-budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 import { knownWritePermissions } from '../../shared/tracker/backendWritePermissions.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
-import { DECK_SANDBOX_TIMEOUT_MS, READ_CALL_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
+import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
 
 /** 地图清单没取到时「下一步做什么」：partial 没有失败项时的续法就写在这里，text 与 reason 指向同一步。 */
@@ -38,19 +38,18 @@ function numOpt(v: unknown): number | undefined { return (typeof v === 'number' 
 const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'aborted', 'over-budget']
 /** 后端回包在契约层还没建模：这里只按本工具真正会读的那一个字段收口，调用处拿断言喂进来（断言不产码）。 */
 type TransportResult = { error?: { kind?: string; message?: unknown } } | null | undefined
+/** 超时那一支的原话（kind 'timeout'）：调用处据此回独立的超时码，不抛给壳。 */
+function timeoutMessage(result: TransportResult): string | null {
+  const e = result && result.error
+  if (e && e.kind === 'timeout') return String(e.message || '执行层没回来')
+  return null
+}
 /** 后端回包里「执行层失败」的原话；不是执行层失败（后端诚实地说做不到）就回 null，一个字不改判。 */
 function transportMessage(result: TransportResult): string | null {
   const e = result && result.error
   if (e && TRANSPORT_KINDS.indexOf(e.kind as string) >= 0) return String(e.message || '执行层没回来')
   return null
 }
-/** 超时那一支的原话（kind 'timeout'）：调用处直接回独立原因码，不抛给壳。 */
-function timeoutMessage(result: TransportResult): string | null {
-  const e = result && result.error
-  if (e && e.kind === 'timeout') return String(e.message || '执行层没回来')
-  return null
-}
-
 /**
  * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
  * 列出来的是本工具自己会读的那几个，缺席时各自退默认。
@@ -59,6 +58,9 @@ export interface DeckContextDeps {
   readonly [key: string]: unknown
   /** 沙箱许可策略：给工作区与会话，回这一轮的策略快照；等不到就当没有（不拦事）。两个值原样传，可能还没有。 */
   sandboxPolicyFor?: (arg: { cwd: string | undefined; sessionId: string | undefined }) => Promise<unknown>
+  /** 读调用整趟的总时限（毫秒）：缺省退 toolTimeoutMs，再退中央键。
+   *  #1831：读上下文必须比宿主 run_code 的 120 秒先收手，不能等满 5 分钟。 */
+  readTimeoutMs?: number
   /** 时钟旁路：测试里换假时钟用，缺省 Date.now。 */
   now?: () => number
 }
@@ -145,7 +147,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
       // 进预算壳 + 两路并行：预检与清单互相独立，之前串行要等两份慢调用，
       // 并行后只等较慢的那一份。回包的字段与 notes 顺序与之前一致。
       // #1831：读上下文也是读——没注入小预算时落到读调用总时限（90 秒），不等满 5 分钟。
-      const sc = withCallScope(c, exec, { timeoutMs: (numOpt(d.toolTimeoutMs) ?? READ_CALL_TIMEOUT_MS), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
+      const sc = withCallScope(c, exec, { timeoutMs: readCallTimeoutOf(d), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!
@@ -175,40 +177,25 @@ export function createDeckContext(deps?: DeckContextDeps) {
       const mapClaimed = (typeof usageObj.requests === 'number' && typeof usageObj.points === 'number')
         ? { requests: usageObj.requests, points: usageObj.points }
         : { requests: 3, points: 2 }
+      // #1831：预检、地图清单、写权限这三读超时不再整趟回「没做成」，交出去的是「没读全」的部分结果：
+      // 预检超时在这一支直接回 PARTIAL（原因码仍是 backend-timeout，#1195 守的「超时与抛错分家」不变）；
+      // 地图清单超时走下面统一的 PARTIAL 路径；写权限超时按「未知」处理并在 notes 里点明。
       const preTimeout = timeoutMessage(pre as TransportResult)
       if (preTimeout) return {
         value: {
-          status: DECK_STATUS.UNSUPPORTED,
+          status: DECK_STATUS.PARTIAL,
           reason: reasonForFailure({ kind: 'timeout', phase: 'read' }),
-          text: '工作区这次没确认下来（超时了：在限时内没等到后端回话，这次读没动手，重调一次就行）。',
-          data: { backendId: pick.backendId, error: { kind: 'timeout', message: preTimeout.slice(0, 300) } },
+          text: '工作区这次没确认下来（超时了：在限时内没等到后端回话）。这次读没有副作用，等一会儿重调一次就行。',
+          data: { backendId: pick.backendId, partial: true, incomplete: 'timeout', error: { kind: 'timeout', message: preTimeout.slice(0, 300) } },
+          notes: ['这次是读超时：环境预检没回来，下面的地图与写权限也未必是全的。'],
+          touched: [],
         },
         claimed: mapClaimed,
       }
       const preTransport = transportMessage(pre as TransportResult)
       if (preTransport) throw new Error(preTransport)
-      const listedTimeout = timeoutMessage(listed as TransportResult)
-      if (listedTimeout) return {
-        value: {
-          status: DECK_STATUS.UNSUPPORTED,
-          reason: reasonForFailure({ kind: 'timeout', phase: 'read' }),
-          text: '地图清单这次没取到（超时了：在限时内没等到后端回话，这次读没动手，重调一次就行）。',
-          data: { backendId: pick.backendId, error: { kind: 'timeout', message: listedTimeout.slice(0, 300) } },
-        },
-        claimed: mapClaimed,
-      }
       const listedTransport = transportMessage(listed as TransportResult)
       if (listedTransport) throw new Error(listedTransport)
-      const permTimeout = timeoutMessage(perm as TransportResult)
-      if (permTimeout) return {
-        value: {
-          status: DECK_STATUS.UNSUPPORTED,
-          reason: reasonForFailure({ kind: 'timeout', phase: 'read' }),
-          text: '写权限那一问超时了：在限时内没等到后端回话，这次读没动手，重调一次就行。',
-          data: { backendId: pick.backendId, error: { kind: 'timeout', message: permTimeout.slice(0, 300) } },
-        },
-        claimed: mapClaimed,
-      }
       const permTransport = transportMessage(perm as TransportResult)
       if (permTransport) throw new Error(permTransport)
       // 薄行口回来的已经是薄行（key/title/state/url），不再过 mapRow；
@@ -226,6 +213,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
       if (!listed.ok) notes.push('地图清单这次没取到（后端原话：' + String((listed.error && listed.error.message) || '').slice(0, 200) + '）。')
       if (listMapsUsed && listed.ok === true && listed.data && listed.data.truncated === true) notes.push('地图只取回了前 ' + thinRows.length + ' 张（共 ' + listed.data.total + ' 张，撞到封顶页数），剩下的这次没拿。')
       if (pre && pre.ok === false) notes.push('环境预检没过（' + String((pre.error && pre.error.message) || '').slice(0, 200) + '）：票还是能读，写操作可能失败。')
+      if (perm && perm.ok === false) notes.push('写权限这次没问出来（' + String((perm.error && perm.error.message) || '').slice(0, 200) + '）：先按未知处理，写操作可能失败。')
       if (permissions && permissions.push === false) {
         notes.push('这个仓库只读：标签与写操作不可用。')
         notes.push('要在只读库上长期协作，建议先 fork 到自己名下，再把工作区 origin 指向 fork（插件只认 origin，不代改配置）。')
@@ -254,7 +242,8 @@ export function createDeckContext(deps?: DeckContextDeps) {
             howto: howtoFor(pick.backendId),
             quota: { perCallPoints: budget.AI_TOOL_MAX_POINTS_PER_CALL, perCallRequests: budget.AI_TOOL_MAX_REQUESTS_PER_CALL, perHourPoints: budget.AI_TOOL_MAX_POINTS_PER_HOUR, perHourRequests: budget.AI_TOOL_MAX_REQUESTS_PER_HOUR, maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL },
             // 失败证据只在失败时出现，成功回执的形状一字不动（金标准回执在 tests/tracker-contract/fixtures/golden-receipts/）。
-            ...(listedEv ? { listError: evidenceFields(listedEv, 'errorKind') } : {}),
+            // #1831：地图清单没读全时明确标出「这是部分结果、缺在哪一档」，调用方不必从文字里猜。
+            ...(listedEv ? { partial: true, incomplete: listedEv.code === REFUSAL_REASONS.BACKEND_TIMEOUT ? 'timeout' : 'read-failed', listError: evidenceFields(listedEv, 'errorKind') } : {}),
           },
           notes: notes,
           touched: [],

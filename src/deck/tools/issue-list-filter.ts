@@ -67,7 +67,8 @@ function rowKindOf(issue: Record<string, unknown> | null | undefined): string {
 
 /** 内存二次筛的输入：type 是收口后的四档之一，labels 原样（本函数逐项 trim+小写），assignee/query 已由调用方 trim+小写。 */
 export interface FilterRowsOptions {
-  type: string
+  /** 已收口的 type（issue | map | spec | all）：调用方按这四档传，本文件不再接受任意字符串。 */
+  type: 'issue' | 'map' | 'spec' | 'all'
   labels: unknown
   assignee: string
   query: string

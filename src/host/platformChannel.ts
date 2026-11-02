@@ -411,7 +411,9 @@ export function createPlatformChannel(deps: Deps) {
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
       // #1831：opId 与 endReason 让「这一趟怎么结束的」可追（ok / exit / timeout / aborted / error），
       // 从前只有耗时与退出码，超时被杀与正常非零退出分不开，也没法和房间侧的 gh.exec 对上。
-      // 两个值直接内联在日志行里（#1831 撞到文件粒度 350 行上限，省下两行给本文件）。
+      // timeout 只表示本层自己的计时器到点；aborted 是调用方信号中止——预算壳到点会走这一支，
+      // 所以这一档读作「被上面叫停」，分不出是工具时限还是人取消，要分得看同一 opId 的 gh.timeout 行。
+      // 两个值直接内联在日志行里。
       try { if (execT0 && logCtx!.isEnabled('debug')) logCtx!.fire('debug', 'exec.run', { argv0: progName(argv[0]), opId: String((opts && (opts as { opId?: unknown }).opId) || ''), cwdHash: hash8(c || DEFAULT_CWD), latencyMs: Date.now() - execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified'), endReason: (outcome && outcome.signal) ? String(outcome.signal) : ((outcome && outcome.exitCode === 0) ? 'ok' : 'exit') }) } catch (eL) {}
       // #1007：这一趟的结局回写给同一只准入桶（三条口径见 tracker/kernel/outbound-tiers.ts 末尾那一节）。
       if (deIsGh) reportGhOutcome(getGhLane(backendLogCtx), { bucket: deBucket, cmd: deCmd, outcome: outcome, stdout: out.text, stderr: err.text })

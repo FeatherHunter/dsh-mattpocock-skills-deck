@@ -17,7 +17,7 @@ import { callDeckSession, openDeckSession } from './tracker-session.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 import { withCallScope } from '../../refresh/rooms/host/tool-call-budget-enforcement.js'
 // 超时与两个窗口都住中央 YAML，调时间改 config/timeouts.yaml 与 config/ttl.yaml，这里只导入。
-import { DECK_SANDBOX_TIMEOUT_MS, READ_CALL_TIMEOUT_MS, WORK_ROUTE_ACTIVE_WINDOW_MS, WORK_ROUTE_IN_PROGRESS_WINDOW_MS } from '../../shared/time-config/src/values.js'
+import { DECK_SANDBOX_TIMEOUT_MS, WORK_ROUTE_ACTIVE_WINDOW_MS, WORK_ROUTE_IN_PROGRESS_WINDOW_MS } from '../../shared/time-config/src/values.js'
 import { CHAIN_MAX_BYTES } from '../../refresh/kernel/chain-pruning.js'
 import { withCap } from '../shell/capped-wait.js'
 
@@ -109,8 +109,8 @@ export function createDeckWorkRoute(deps?: DeckWorkRouteDeps) {
     } catch (eS) { sandbox = null }
 
     return callDeckSession({ deps: d, opened: pick, session: s, repo: repo, estimate: est, tool: 'deck_work_route', sandbox: sandbox }, async (c: unknown) => {
-      // #1831：在办表是读——没注入小预算时落到读调用总时限（90 秒），不等满 5 分钟。
-      const sc = withCallScope(c, exec, { timeoutMs: READ_CALL_TIMEOUT_MS, marginMs: undefined, startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
+      // 在办表只读本机工作区存档，不发远端调用：这里建预算壳只为拿统一的调用上下文与账目形状，计时不指望它。
+      const sc = withCallScope(c, exec, { timeoutMs: undefined, marginMs: undefined, startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
       void sc
       const nowFn: () => number = (typeof d.now === 'function') ? d.now as () => number : Date.now
       const at = nowFn()

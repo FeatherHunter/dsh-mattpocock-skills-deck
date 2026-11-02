@@ -301,14 +301,17 @@ async function main() {
     check(a.requests === 2 && a.points === 6, '读票失败的回执照实际发出数报 2 条 6 点（实得 ' + JSON.stringify({ requests: a.requests, points: a.points }) + '）')
   }
 
-  // ── 四、读票超时：原因码走 backend-timeout，报账同样是 2 条 ──
+  // ── 四、读票超时：回部分结果（#1831），原因码仍走 backend-timeout，报账同样是 2 条 ──
   {
     const probe = makeProbe({ mode: 'get-timeout' })
     const w = await buildWorld(DUAL_SYNCED, [makeProbeModule(markdownModule, probe)])
     const g = await w.run('deck_issue_get', { key: key })
     const r: any = g.r
     const a = got(r)
-    check(!g.threw && !!r && r.status === 'unsupported' && r.reason === 'backend-timeout', '读票超时走 backend-timeout（实得 ' + label(r, g.threw) + '）')
+    // #1831：超时不再回空手，回已经拿到的部分并明确标没读全；reason 仍走 #1799 的 backend-timeout 映射。
+    check(!g.threw && !!r && r.status === 'partial' && r.reason === 'backend-timeout', '读票超时回部分结果、原因码 backend-timeout（实得 ' + label(r, g.threw) + '）')
+    check(!!r && !!r.data && r.data.partial === true && r.data.incomplete === 'timeout', '超时回执明确标没读全：data.partial=true、data.incomplete=timeout（实得 ' + JSON.stringify(r && r.data) + '）')
+    check(!!r && String(r.text || '').indexOf('不要直接重放写操作') < 0 && String(r.text || '').indexOf('读') >= 0, '超时文案只用读口径、不出现写操作那句（实得 ' + String(r && r.text) + '）')
     check(a.requests === 2 && a.points === 6, '读票超时的回执照实际发出数报 2 条 6 点（实得 ' + JSON.stringify({ requests: a.requests, points: a.points }) + '）')
   }
 
