@@ -20,7 +20,6 @@ zh:
   act.takeover: 接手
   act.supplement: 补充
   act.view: 查看
-  act.load: 加载
   act.done: 完成
   act.inspect: 检查
   type.research: 研究
@@ -282,7 +281,6 @@ en:
   act.takeover: Take over
   act.supplement: Supplement
   act.view: View
-  act.load: Load
   act.done: Complete
   act.inspect: Inspect
   type.research: Research

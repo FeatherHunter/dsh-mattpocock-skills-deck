@@ -13,6 +13,7 @@
 zh:
   sd.listTitle: ■ 技能
   sd.detailBtn: 详情
+  sd.injectChat: 注入对话
   sd.copy: 复制链接
   sd.copyPath: 复制路径
   sd.retry: 重试
@@ -43,6 +44,7 @@ zh:
 en:
   sd.listTitle: ■ Skills
   sd.detailBtn: Details
+  sd.injectChat: Insert into chat
   sd.copy: Copy link
   sd.copyPath: Copy path
   sd.retry: Retry

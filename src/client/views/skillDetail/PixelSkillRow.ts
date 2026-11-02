@@ -3,7 +3,7 @@
  * 契约：本文件为真源；构建直接读这份 .ts 真源、用 esbuild 当场转译，再剥行首 export
  * 拼回 src/client/index.ts 的 `// ==== leaf:pixelSkillRow (spliced by build) ====` 标记处。
  * 用法：PixelSkillRow({name, level, use, recommended, onDetail, onLoad, loading})，纯展示，数据全由外层给。
- * 给了 onLoad 就在详情按钮前面再摆一颗加载按钮（生产页签的老行为）；loading 挂在详情按钮上（取数是异步的那一步），只转圈不换字。
+ * 给了 onLoad 就在详情按钮前面再摆一颗注入按钮（生产页签的老行为）；loading 挂在详情按钮上（取数是异步的那一步），只转圈不换字。
  * level ∈ 'ok' | 'warn' | 'bad'；行写 --px-dc 变量，方点与悬停描边同色；
  * 整行浮起只在悬停与框内聚焦时出现（键盘 Tab 到按钮上整行也亮）。
  */
@@ -31,9 +31,9 @@ export const PixelSkillRow = function (props?: PixelSkillRowProps): any {
       key: 'l',
       // 按压形状写明是 button 档（这两颗带字）；定位名后缀是清洗过的技能名，同屏两行不会撞名。
       'data-press': 'button',
-      'data-log': 'sd.skillrow.load.' + nameKey,
+      'data-log': 'sd.skillrow.inject.' + nameKey,
       onClick: function () { if (typeof p.onLoad === 'function') p.onLoad(p.name as string) },
-    }, tr('act.load')) : null,
+    }, tr('sd.injectChat')) : null,
     h(PixelBtn, {
       key: 'b',
       loading: p.loading,
