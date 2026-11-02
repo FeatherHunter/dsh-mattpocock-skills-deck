@@ -97,6 +97,18 @@ export function isTriageStatus(value: unknown): boolean {
   return norm !== null && includesValue(TRIAGE_STATUS_ROLES, norm)
 }
 
+/** 从一批标签名里挑出合法的 triage 角色（归一后去重、按出现顺序）：建票与改标签都要用同一份判定。
+ *  为什么放在这里：读、写、建票三处都会问「这堆标签里有几枚状态」，答案只能有一份实现。 */
+export function triageNamesOf(names: readonly string[]): string[] {
+  const out: string[] = []
+  for (const name of names) {
+    const norm: string | null = normalizeStatus(name)
+    if (norm === null || !includesValue(TRIAGE_STATUS_ROLES, norm)) continue
+    if (!out.includes(norm)) out.push(norm)
+  }
+  return out
+}
+
 function isCompletedStatus(value: string): boolean {
   return includesValue(COMPLETED_STATUS_VALUES, value)
 }
@@ -147,17 +159,15 @@ function labelNames(labels: readonly StatusLabelLike[] | null | undefined): stri
 /** 隐藏 DSH-LABELS 里的合法 triage 角色（去重、按出现顺序）。
  *  这是旧的第二个真源，只用于兼容读；写侧会把它们并回可见 Status 行并从这里移除。 */
 function triageLabelsOf(labels: readonly StatusLabelLike[] | null | undefined): string[] {
-  const out: string[] = []
-  for (const name of labelNames(labels)) {
-    const norm: string | null = normalizeStatus(name)
-    if (norm === null || !includesValue(TRIAGE_STATUS_ROLES, norm)) continue
-    if (!out.includes(norm)) out.push(norm)
-  }
-  return out
+  return triageNamesOf(labelNames(labels))
 }
 
-/** 判票型：显式 fileKind > 地图路线 > bug 标签 > 其余目录路线 > 正文线索 > 普通票。
- *  目录路线是读侧主判据；正文线索只在没有路线时兜底（普通 issue 与实施票共用 issues/ 目录）。 */
+/** 判票型：显式 fileKind > bug 标签 > 目录路线（地图 / 规格）> 正文线索 > 普通票。
+ *  顺序按 plan §1.3：bug 标签排在目录路线之前，因为一张地图目录里的缺陷票（地图骨架的 bug 子票）
+ *  与地图子票同住一个 issues/ 目录，只有这枚标签能说明它用的是 triage 词、不是 claimed / resolved；
+ *  反过来，真的地图子票通常带 Type 行或 wayfinder 标签，路线在地图目录里仍会走到 map-ticket。
+ *  容器（spec / map）在看这个函数之前就已经分派掉了。目录路线是读侧主判据；正文线索只在没有路线
+ *  时兜底（普通 issue 与实施票共用 issues/ 目录）。 */
 export function statusKindOf(
   meta: StatusKindMeta | null | undefined,
   labels: readonly StatusLabelLike[] | null | undefined,
@@ -166,12 +176,10 @@ export function statusKindOf(
   const explicit = meta ? meta.fileKind : undefined
   if (explicit && includesValue(ISSUE_FILE_KINDS, explicit)) return explicit
   const route = meta ? meta.route : undefined
-  // 地图目录是物理事实：地图子票的状态词只有 claimed / resolved，一枚 bug 标签不能把它变成
-  // 用 triage 词的缺陷票（否则给子票贴个 bug，读回的状态会从 claimed 翻成 needs-triage）。
-  if (route === 'map') return 'map-ticket'
   for (const name of labelNames(labels)) {
     if (name.toLowerCase() === 'bug') return 'bug'
   }
+  if (route === 'map') return 'map-ticket'
   if (route === 'spec') return 'spec-ticket'
   if (route === 'plain') return 'plain-issue'
   const text: string = typeof raw === 'string' ? raw : ''

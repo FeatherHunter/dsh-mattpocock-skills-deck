@@ -168,7 +168,23 @@ async function main() {
   const featureRepo = repoOfFeature(FEATURE)
   const labelsRefused = await issuesMod.setLabelsIssue(ws.ctx, featureRepo, implKey, ['front-end'], {})
   check(!!(labelsRefused && labelsRefused.ok === false && labelsRefused.error && labelsRefused.error.kind === 'parse'), '② 后端 setLabels 遇冲突拒绝（kind=parse）：' + JSON.stringify(labelsRefused && !labelsRefused.ok ? labelsRefused.error.kind : labelsRefused))
+  let refusedConflict = {}
+  try { refusedConflict = JSON.parse(String((labelsRefused && !labelsRefused.ok ? labelsRefused.error.raw : '') || '{}')) } catch (e) { refusedConflict = {} }
+  check(JSON.stringify(refusedConflict) === JSON.stringify(wantConflict), '② 拒绝回执的 raw 是读侧那一份冲突 JSON：' + JSON.stringify(refusedConflict))
+  const refusedMsg = String((labelsRefused && !labelsRefused.ok ? labelsRefused.error.message : '') || '')
+  check(refusedMsg.indexOf('wontfix') >= 0 && refusedMsg.indexOf('ready-for-agent') >= 0, '② 拒绝原因写清两边各是什么值：' + JSON.stringify(refusedMsg.slice(0, 160)))
   check(readTicketFile(FEATURE, implKey) === conflictBefore, '② setLabels 被拒后文件一个字节都不动')
+
+  // ②-b 裸行 Status:（非加粗）也是同一套规则：旧布局与手写票都用这种写法。
+  const barePath = path.join(ws.root, '.scratch', FEATURE, 'issues', '10-裸行冲突票.md')
+  fs.mkdirSync(path.dirname(barePath), { recursive: true })
+  fs.writeFileSync(barePath, ['<!-- DSH-FORMAT: md-v1 -->', '<!-- DSH-LABELS: ready-for-agent -->', '# 10: 裸行冲突票', '', '**What to build:** 裸行状态行。', '', 'Status: wontfix', ''].join('\n'), 'utf8')
+  const bareBefore = fs.readFileSync(barePath, 'utf8')
+  const bareRefused = await issuesMod.setLabelsIssue(ws.ctx, featureRepo, '10', ['front-end'], {})
+  let bareConflict = {}
+  try { bareConflict = JSON.parse(String((bareRefused && !bareRefused.ok ? bareRefused.error.raw : '') || '{}')) } catch (e) { bareConflict = {} }
+  check(!!(bareRefused && bareRefused.ok === false && bareRefused.error && bareRefused.error.kind === 'parse' && JSON.stringify(bareConflict) === JSON.stringify(wantConflict)), '② 裸行 Status: 的冲突也被读出来并按同一份冲突拒绝：' + JSON.stringify(bareConflict))
+  check(fs.readFileSync(barePath, 'utf8') === bareBefore, '② 裸行冲突票被拒后一个字节都不动')
 
   // ══ 三、deck：冲突回执形状与 retry ══
   const refused = await callTool('deck_issue_patch', { key: implKey, feature: FEATURE, comment: '冲突回执演示' })
@@ -182,7 +198,7 @@ async function main() {
   check(!!(retry && retry.args && retry.args.resolveStatus === 'visible' && retry.args.key === implKey && retry.args.feature === FEATURE && retry.args.comment === '冲突回执演示'), '③ data.retry.args 是原参数加 resolveStatus=visible：' + JSON.stringify(retry && retry.args))
   check(String(refused && refused.text || '').indexOf('data.retry') >= 0, '③ text 说明没有写入并按 data.retry 重试：' + String(refused && refused.text).slice(0, 120))
   check(readTicketFile(FEATURE, implKey) === conflictBefore, '③ 整笔被拒后文件一个字节都不动（评论没落盘）')
-  check((readTicketFile(FEATURE, implKey).match(/^### (?!Status)/gm) || []).length === 0, '③ 冲突票里没有多出评论段')
+  check(countOcc(readTicketFile(FEATURE, implKey), '### ') === 0, '③ 冲突票里没有多出评论段')
 
   // ══ 四、按 retry 重试成功（选择可见那侧）══
   const retried = await callTool('deck_issue_patch', retry.args)
@@ -220,6 +236,10 @@ async function main() {
   const before3 = readTicketFile(FEATURE, impl3Key)
   const closeRefused = await issuesMod.closeIssue(ws.ctx, featureRepo, impl3Key, { reason: '冲突时关票' })
   check(!!(closeRefused && closeRefused.ok === false && closeRefused.error && closeRefused.error.kind === 'parse'), '⑥ 后端 close 遇冲突也拒绝（kind=parse）：' + JSON.stringify(closeRefused && !closeRefused.ok ? closeRefused.error.kind : closeRefused))
+  let closeConflict = {}
+  try { closeConflict = JSON.parse(String((closeRefused && !closeRefused.ok ? closeRefused.error.raw : '') || '{}')) } catch (e) { closeConflict = {} }
+  check(JSON.stringify(closeConflict) === JSON.stringify(wantConflict), '⑥ close 的拒绝回执也原样带回同一份冲突 JSON：' + JSON.stringify(closeConflict))
+  check(String((closeRefused && !closeRefused.ok ? closeRefused.error.message : '') || '').indexOf('wontfix') >= 0, '⑥ close 的拒绝原因写清可见行的值')
   check(readTicketFile(FEATURE, impl3Key) === before3, '⑥ close 被拒后文件一个字节都不动，也没有评论落盘')
   const mismatch = await callTool('deck_issue_patch', { key: impl3Key, feature: FEATURE, resolveStatus: 'visible', addLabels: ['needs-triage'], comment: '不一致演示' })
   check(mismatch && mismatch.status === 'unsupported' && mismatch.reason === 'bad-args', '⑥ 显式 triage 与 resolveStatus=visible 不一致 bad-args：' + JSON.stringify({ status: mismatch && mismatch.status, reason: mismatch && mismatch.reason }))
@@ -241,6 +261,20 @@ async function main() {
   const notes = (removed && removed.notes) || []
   check(notes.some(function(n) { return String(n).indexOf('摘标签不会清掉状态') >= 0 }), '⑦ 回执说明摘 triage 不会清掉状态：' + JSON.stringify(notes))
   check(/^\*\*Status:\*\* ready-for-agent$/m.test(readTicketFile(FEATURE, impl4Key)), '⑦ 摘标签后可见状态仍是 ready-for-agent')
+
+  // ⑦-b §七.7：规格容器不并入单真源，改标签不能把它建票时带的 ready-for-agent 误删。
+  const labelNamesOf = function(issue) {
+    const list = issue && Array.isArray(issue.labels) ? issue.labels : []
+    return list.map(function(one) { return one && typeof one === 'object' && one.name !== undefined ? String(one.name) : String(one) })
+  }
+  const specBefore = await callTool('deck_issue_get', { key: '00', feature: FEATURE })
+  const specLabelsBefore = labelNamesOf(specBefore && specBefore.data && specBefore.data.ticket)
+  check(specBefore && specBefore.status === 'ok' && specLabelsBefore.indexOf('ready-for-agent') >= 0, '⑦ 前置：规格容器带 ready-for-agent：' + JSON.stringify(specLabelsBefore))
+  const specPatched = await callTool('deck_issue_patch', { key: '00', feature: FEATURE, addLabels: ['front-end'] })
+  check(specPatched && specPatched.status === 'ok', '⑦ 规格容器改标签成功：' + JSON.stringify(specPatched && specPatched.status))
+  const specAfter = await callTool('deck_issue_get', { key: '00', feature: FEATURE })
+  const specLabelsAfter = labelNamesOf(specAfter && specAfter.data && specAfter.data.ticket)
+  check(specLabelsAfter.indexOf('ready-for-agent') >= 0 && specLabelsAfter.indexOf('front-end') >= 0, '⑦ 规格容器的 ready-for-agent 没被误删、新标签也写上了：' + JSON.stringify(specLabelsAfter))
 
   ws.cleanup()
   try { fs.rmSync(workPathHome, { recursive: true, force: true }) } catch (e) {}

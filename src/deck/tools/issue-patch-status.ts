@@ -9,12 +9,17 @@
 //   3. deck_issue_patch 遇到真冲突时整次不写：要么调用方显式给 resolveStatus（visible / hidden），
 //      要么回执带 data.retry.args 让调用方按它重试。半写（先发评论、再把状态改坏）比不写更糟。
 //   4. 给了 resolveStatus 时先按选择把两处归一（写一次 setLabels），再执行调用方点名的步骤。
+//
+// 这里不 import 跟踪器房间的源码（依赖图不许 deck 直接摸 rooms）：状态词表的唯一真源在本地 Markdown 后端，
+// deck 只做两件不需要词表的事 —— 把后端读出来的 statusConflict 两侧原样比字符串，
+// 以及把归一这件事交回后端的 setLabels（它自己会把 triage 写进可见 Status 行、并记历史）。
 import { DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { must, timeoutMessage } from '../shell/backend-transport.js'
 import type { TransportResult } from '../shell/backend-transport.js'
 import { withKeyLock } from '../shell/write-mutex.js'
 import type { KeyLockOpts } from '../shell/write-mutex.js'
-import { isTriageStatus, normalizeStatus, statusInBody } from '../../tracker/rooms/markdown/status.js'
+import { rosterDirty } from '../shell/call-memo.js'
+import type { CallMemo } from '../shell/call-memo.js'
 import type { StatusConflict } from '../../tracker/contract/entities.js'
 
 /** 尚未建模的后端回包：逐格验，不猜。 */
@@ -23,14 +28,39 @@ type UnknownRecord = Record<string, unknown>
 /** 冲突时优先采用哪一侧：可见 Status 行（visible）或隐藏 DSH-LABELS 里的 triage 标签（hidden）。 */
 export type StatusChoice = 'visible' | 'hidden'
 
-/** 读现状的结果：读到冲突与否；读失败时区分超时（可重试）与其它错误（先能读回再改）。 */
-export type StatusRead =
-  | { ok: true; conflict: StatusConflict | null; status: string; labels: string[]; body: string }
+/** 读一次票的结果：读到冲突与否、当前有效状态与标签；读失败时区分超时（可重试）与其它错误。 */
+export type StatusConflictRead =
+  | { ok: true; conflict: StatusConflict | null; status: string; labels: string[]; statusModel: boolean }
   | { ok: false; kind: 'timeout' | 'error'; message: string }
 
 /** 只读轨迹：issue-patch.ts 里 t 是运行时真值，这里按实际用到的两个方法收窄。 */
-interface TrackerRead {
+interface TrackerStatus {
   get(repo: unknown, key: string, opts: unknown, opCtx: unknown): Promise<unknown>
+  setLabels(repo: unknown, key: string, labels: string[], opts: Record<string, unknown>, opCtx: unknown): Promise<unknown>
+}
+
+/** 从一批名字里收干净的字符串（字符串直接用，对象取 name，空串丢掉）。 */
+export function namesOf(list: unknown): string[] {
+  if (!Array.isArray(list)) return []
+  const out: string[] = []
+  for (const item of list) {
+    const name = String(typeof item === 'string' ? item : (item && (item as UnknownRecord).name) || '').trim()
+    if (name) out.push(name)
+  }
+  return out
+}
+
+/** 从这次要写的正文里取 Status 行：只认第一个一级标题之前的行（与后端取正文 Status 行的语法同一段）。
+ *  这里只做「同一次调用显式点的状态与 resolveStatus 是否一致」的字符串比较，不做词表校验：
+ *  哪些词算状态由后端决定，deck 不另存一份词表。 */
+function bodyStatusLineOf(body: unknown): string | null {
+  if (typeof body !== 'string' || !body) return null
+  const firstHeading = body.search(/^#\s+/m)
+  const head = firstHeading >= 0 ? body.slice(0, firstHeading) : body
+  const match = /^\s*(?:\*\*)?Status(?:\*\*)?\s*[:：][ \t]*(?:\*\*)?[ \t]*([^\n]*)/im.exec(head)
+  if (!match) return null
+  const value = String(match[1] || '').replace(/\*\*/g, '').replace(/[`'"]/g, '').trim().toLowerCase()
+  return value || null
 }
 
 /** 解析 resolveStatus：只接受 visible / hidden；没给时 choice 为 null（照常执行，不做归一）。 */
@@ -42,54 +72,12 @@ export function parseStatusChoice(args: UnknownRecord): { ok: true; choice: Stat
   return { ok: false, problem: 'resolveStatus 只接受 visible 或 hidden（告诉这次按可见 Status 行还是按隐藏 triage 标签归一）：这次给的是「' + String(raw) + '」。' }
 }
 
-/** 从一组标签名里挑出五枚 triage 状态标签（已归一、去重、保持顺序）。 */
-export function triageNamesOf(list: unknown): string[] {
-  const out: string[] = []
-  if (!Array.isArray(list)) return out
-  for (const item of list) {
-    const name = String(typeof item === 'string' ? item : (item && (item as UnknownRecord).name) || '').trim()
-    const norm = normalizeStatus(name)
-    if (norm !== null && isTriageStatus(norm) && out.indexOf(norm) < 0) out.push(norm)
-  }
-  return out
-}
-
-/** 从当前标签清单里滤掉合成出来的 triage 标签：只剩真正存在 DSH-LABELS 里的非 triage 标签。 */
-export function nonTriageLabelsOf(list: unknown): string[] {
-  const out: string[] = []
-  if (!Array.isArray(list)) return out
-  for (const item of list) {
-    const name = String(typeof item === 'string' ? item : (item && (item as UnknownRecord).name) || '').trim()
-    if (!name) continue
-    if (isTriageStatus(normalizeStatus(name) || '')) continue
-    if (out.indexOf(name) < 0) out.push(name)
-  }
-  return out
-}
-
-/**
- * 同一次调用里显式点名的状态：addLabels 里的 triage 标签与正文片段里的 Status 行。
- * 两处都点名且不一致、或 addLabels 一次给多枚 triage 时直接拒绝——它们会让「这次到底要哪个状态」说不清。
- */
-export function explicitStatusOf(args: UnknownRecord): { triage: string[]; bodyStatus: string | null; problem: string | null } {
-  const triage = triageNamesOf(args.addLabels)
-  const bodyStatus = typeof args.body === 'string' ? statusInBody(args.body) : null
-  if (triage.length > 1) {
-    return { triage: triage, bodyStatus: bodyStatus, problem: '这次给了多枚 triage 状态标签（' + triage.join('、') + '）：可见 Status 行只能写一个状态，请只留一枚。' }
-  }
-  if (triage.length === 1 && bodyStatus !== null && bodyStatus !== triage[0]) {
-    return { triage: triage, bodyStatus: bodyStatus, problem: '正文里的 Status 行写的是「' + bodyStatus + '」，addLabels 里的 triage 是「' + triage[0] + '」：两处不一致，请只留一处。' }
-  }
-  return { triage: triage, bodyStatus: bodyStatus, problem: null }
-}
-
 /** 读一次票，把状态冲突与当前标签带回来。读失败不猜：超时与其它错误分开报。 */
-export async function readStatusConflict(t: unknown, repo: unknown, key: string, opCtx: unknown): Promise<StatusRead> {
-  // t 是运行时真值（TrackerSession），这里只按 get 的形状收窄，避免把整份会话类型搬进本文件。
-  const tracker = t as unknown as TrackerRead
+export async function readStatusConflict(t: unknown, repo: unknown, key: string, opCtx: unknown): Promise<StatusConflictRead> {
+  const tracker = t as unknown as TrackerStatus
   const raw = await tracker.get(repo, key, {}, opCtx)
-  const timeout = timeoutMessage(raw as unknown as TransportResult)
-  if (timeout) return { ok: false, kind: 'timeout', message: timeout }
+  const timeoutText = timeoutMessage(raw as unknown as TransportResult)
+  if (timeoutText) return { ok: false, kind: 'timeout', message: timeoutText }
   const result = must(raw) as UnknownRecord | null
   if (!result || result.ok !== true) {
     const error = (result && result.error) as UnknownRecord | undefined
@@ -102,7 +90,9 @@ export async function readStatusConflict(t: unknown, repo: unknown, key: string,
     conflict: conflict && typeof conflict === 'object' ? (conflict as StatusConflict) : null,
     status: typeof ticket.status === 'string' ? ticket.status : '',
     labels: Array.isArray(ticket.labels) ? ticket.labels : [],
-    body: typeof ticket.body === 'string' ? ticket.body : '',
+    // 读回里带了「状态从哪来」才说明这个后端用可见状态行这套模型（本地 Markdown 的票）；
+    // 别的后端没有这两格，回执里的状态说明就不该按可见状态行去解释。
+    statusModel: ticket.statusSource !== undefined || ticket.statusVisible !== undefined,
   }
 }
 
@@ -120,15 +110,20 @@ export function conflictNote(conflict: StatusConflict): string {
 }
 
 /**
- * 显式点名的状态与这次选择是否一致：resolveStatus 做了选择，同一次调用里却给了另一个状态，
+ * 同一次调用里显式点的状态与这次选择是否一致：正文 Status 行或 addLabels 里点名了未被选择的那一侧，
  * 说明调用方自己没想清要哪个，整次拒绝最安全（不写、不归一）。
+ * 只比较冲突两侧的字面值：状态词表的判定仍在后端，deck 不复制词表。
  */
-export function choiceMismatchProblem(explicit: { triage: string[]; bodyStatus: string | null }, chosen: string): string | null {
-  if (explicit.triage.length === 1 && explicit.triage[0] !== chosen) {
-    return '这次 resolveStatus 选的是「' + chosen + '」，但 addLabels 里的 triage 是「' + explicit.triage[0] + '」：两处不一致，请只留一处。'
+export function explicitMismatchProblem(args: UnknownRecord, conflict: StatusConflict, chosen: string): string | null {
+  const hidden = Array.isArray(conflict.hidden) ? conflict.hidden : []
+  const other = chosen === String(conflict.visible || '') ? String(hidden[0] || '') : String(conflict.visible || '')
+  const picked: string[] = namesOf(args.addLabels).map((name) => name.toLowerCase())
+  if (other && picked.indexOf(other.toLowerCase()) >= 0) {
+    return '这次 resolveStatus 选的是「' + chosen + '」，但 addLabels 里点名了另一侧的状态「' + other + '」：两处不一致，请只留一处。'
   }
-  if (explicit.bodyStatus !== null && explicit.bodyStatus !== chosen) {
-    return '这次 resolveStatus 选的是「' + chosen + '」，但正文里的 Status 行写的是「' + explicit.bodyStatus + '」：两处不一致，请只留一处。'
+  const bodyStatus = bodyStatusLineOf(args.body)
+  if (bodyStatus !== null && bodyStatus !== chosen.toLowerCase()) {
+    return '这次 resolveStatus 选的是「' + chosen + '」，但正文里的 Status 行写的是「' + bodyStatus + '」：两处不一致，请只留一处。'
   }
   return null
 }
@@ -166,7 +161,7 @@ export function refusalReply(
       notes: [],
       touched: [key],
     },
-    // 预检只要读过一张票，就把这次读记进 claimed（与 specCloseGuard 的记账口径一致）。
+    // 预检读了几次票就记几次读：一次预读记 1，没读过不记（与调用方自己对写动作的记账相加，不重复算）。
     claimed: { requests: num(estimate && estimate.requests) + reads, points: num(estimate && estimate.points) },
   }
 }
@@ -195,11 +190,6 @@ export function conflictRefusal(
   )
 }
 
-/** 写标签这一路的最小形状：只为在归一那一步调用 setLabels，不把整份会话类型搬进来。 */
-interface TrackerLabels {
-  setLabels(repo: unknown, key: string, labels: string[], opts: Record<string, unknown>, opCtx: unknown): Promise<unknown>
-}
-
 /** issue-patch.ts 递进来的运行时袋子：预算、回执与失败记录都留在调用方，这里只管「看冲突、归一、拒绝」。 */
 export interface StatusGuardInput {
   args: UnknownRecord
@@ -215,61 +205,103 @@ export interface StatusGuardInput {
   timeoutReply: (message: string) => unknown
   lockedOut: (step: string) => void
   lockOpts: KeyLockOpts
-}
-
-/** 同一次调用里显式点名的状态（addLabels 的 triage 与正文 Status 行），归一后交给后面的标签步骤复用。 */
-export interface StatusGuardExplicit {
-  triage: string[]
-  bodyStatus: string | null
+  /** 这次还有标签步骤要点名改标签：归一与改标签合并到同一次 setLabels，少写一次盘。 */
+  deferToLabels: boolean
 }
 
 /** 预检结局：ok 继续执行调用方点名的步骤；不 ok 时 reply 就是整笔回执（一个字都没写）。 */
-export type StatusGuardResult = { ok: true; explicit: StatusGuardExplicit } | { ok: false; reply: unknown }
+export type StatusGuardResult =
+  | { ok: true; chosen: string | null; conflict: StatusConflict | null; normalized: boolean; status: string; statusModel: boolean }
+  | { ok: false; reply: unknown }
+
+/** 一次调用里的读缓存：归一前必须先作废这张票的旧读，否则锁内读到的是预检时的快照（#1790 并发丢更新）。 */
+function memoOf(opCtx: unknown): CallMemo | null {
+  const ctx = (opCtx || {}) as UnknownRecord
+  const memo = ctx.memo
+  return memo && typeof memo === 'object' ? (memo as CallMemo) : null
+}
+
+/** 作废这张票的读缓存；失败只影响新鲜度，不影响正确性（最坏退回旧快照，与不带缓存时同）。 */
+function forgetRead(memo: CallMemo | null, repo: unknown, key: string): void {
+  if (!memo) return
+  try { rosterDirty(memo, repo, [key]) } catch (e) { /* 缓存作废失败不该让写停下 */ }
+}
+
+/** 按已经选好的一侧把两处归一：锁内先读最新标签，再去掉冲突两侧的名字，最后把状态写回可见行。
+ *  读与写在同一把锁里，且读之前作废缓存：不会再用锁外快照覆盖同票并发加上的标签。 */
+async function normalizeConflict(input: StatusGuardInput, chosen: string, conflict: StatusConflict): Promise<{ ok: true } | { ok: false; reply: unknown }> {
+  const tracker = input.tracker as unknown as TrackerStatus
+  const memo = memoOf(input.opCtx)
+  let lockTimeout: string | null = null
+  let failed = false
+  const held = await withKeyLock(input.repo, input.key, async () => {
+    if (input.outOfBudget()) { input.over('status'); failed = true; return }
+    forgetRead(memo, input.repo, input.key)
+    const raw = await tracker.get(input.repo, input.key, {}, input.opCtx)
+    const readTimeout = timeoutMessage(raw as unknown as TransportResult)
+    if (readTimeout) { lockTimeout = readTimeout; return }
+    const cur = must(raw) as UnknownRecord | null
+    if (!cur || cur.ok !== true) { input.fail('status', cur); failed = true; return }
+    const labels = namesOf(((cur.data || {}) as UnknownRecord).labels)
+    // 冲突两侧的名字都从整批里去掉：选了 visible 就把隐藏那枚 triage 摘掉，反之亦然。
+    const kept = labels.filter((name) => name !== conflict.visible && conflict.hidden.indexOf(name) < 0)
+    const rawSet = await tracker.setLabels(input.repo, input.key, kept, { status: chosen }, input.opCtx)
+    const setTimeout = timeoutMessage(rawSet as unknown as TransportResult)
+    if (setTimeout) { lockTimeout = setTimeout; return }
+    const done = must(rawSet) as UnknownRecord | null
+    if (done && done.ok === true) {
+      input.items.push({ key: input.key, step: 'status', status: 'ok', adopted: chosen })
+      forgetRead(memo, input.repo, input.key)
+    } else {
+      input.fail('status', done)
+      failed = true
+    }
+  }, input.lockOpts)
+  if (lockTimeout !== null) return { ok: false, reply: input.timeoutReply(lockTimeout) }
+  if (held && held.ok === false && held.timedOut) input.lockedOut('status')
+  if (failed) {
+    return {
+      ok: false,
+      reply: refusalReply(input.key, REFUSAL_REASONS.BACKEND_UNSUPPORTED, '先把状态归一时没成（原因在上面）：这一步没成就不往下写，避免半写。', {}, input.items, input.estimate, 1),
+    }
+  }
+  return { ok: true }
+}
 
 /**
  * #1790 缺陷 A 的写前闸：读一次当前票，遇到「可见 Status 行与隐藏 triage 标签各说各话」时，
- * 没有 resolveStatus 就整次拒绝（回执带 data.retry）；给了就先按选择归一，再放后面步骤走。
+ * 没有 resolveStatus 就整次拒绝（回执带 data.retry）；给了就按选择归一，再放后面步骤走。
  *
- * 为什么归一要先于其它写动作：标签、关闭、评论都会改变这张票的可见内容，
- * 先归一能让后面每一步看到的都是同一份状态；归一自己没成时也不往下走，避免半写。
+ * 归一先于调用方点名的写动作：resolveStatus 是调用方显式授权的写，先归一能让后面每一步
+ * 看到的都是同一份状态；它自己没成时也不往下走，避免半写。
+ * 例外：这次还点了改标签时归一交给标签那一步合并写（deferToLabels），少写一次盘。
  */
 export async function guardStatus(input: StatusGuardInput): Promise<StatusGuardResult> {
   const choiceParse = parseStatusChoice(input.args)
   if (!choiceParse.ok) {
     return { ok: false, reply: refusalReply(input.key, REFUSAL_REASONS.BAD_ARGS, choiceParse.problem + '这次一个字都没动。', {}, [{ key: input.key, step: 'status', status: 'failed', reason: choiceParse.problem }], input.estimate) }
   }
-  const explicit = explicitStatusOf(input.args)
-  if (explicit.problem !== null) {
-    return { ok: false, reply: refusalReply(input.key, REFUSAL_REASONS.BAD_ARGS, explicit.problem + '这次一个字都没动。', {}, [{ key: input.key, step: 'status', status: 'failed', reason: explicit.problem }], input.estimate) }
-  }
+  // 先读一次现状：本地 Markdown 会在回包里带 statusConflict，别的后端没有这一格、读到空冲突就照常往下走。
+  // 这里不按后端编号分岔（工具层不许自己判后端）：多出来的这一次读是写前看现状的代价，
+  // 换来的是所有后端走同一条路，返修与新增后端都不用再动这里。
   const read = await readStatusConflict(input.tracker, input.repo, input.key, input.opCtx)
   if (!read.ok) {
     if (read.kind === 'timeout') return { ok: false, reply: input.timeoutReply(read.message) }
     return { ok: false, reply: refusalReply(input.key, REFUSAL_REASONS.BACKEND_UNSUPPORTED, '读这张票的当前状态时后端没回 ok：这次一个字都没动，等能读回再改。', { error: { kind: 'read', message: read.message } }, [{ key: input.key, step: 'status', status: 'failed', reason: read.message }], input.estimate) }
   }
-  if (read.conflict === null) return { ok: true, explicit: explicit }
+  // 预检这一读留在调用缓存里会让后面的读改写拿到旧快照：读完立刻作废（#1790 verify-deck-parallel 丢更新）。
+  forgetRead(memoOf(input.opCtx), input.repo, input.key)
+  if (read.conflict === null) return { ok: true, chosen: null, conflict: null, normalized: false, status: read.status, statusModel: read.statusModel }
   if (choiceParse.choice === null) return { ok: false, reply: conflictRefusal(input.key, read.conflict, input.args, input.estimate) }
   const chosen = chosenStatusOf(read.conflict, choiceParse.choice)
-  const mismatch = choiceMismatchProblem(explicit, chosen)
+  const mismatch = explicitMismatchProblem(input.args, read.conflict, chosen)
   if (mismatch !== null) {
     return { ok: false, reply: refusalReply(input.key, REFUSAL_REASONS.BAD_ARGS, mismatch + '这次一个字都没动。', { statusConflict: read.conflict }, [{ key: input.key, step: 'status', status: 'failed', reason: mismatch }], input.estimate, 1) }
   }
-  const tracker = input.tracker as unknown as TrackerRead & TrackerLabels
-  const kept = nonTriageLabelsOf(read.labels)
-  let lockTimeout: string | null = null
-  const held = await withKeyLock(input.repo, input.key, async () => {
-    if (input.outOfBudget()) { input.over('status'); return }
-    const rawNormalize = await tracker.setLabels(input.repo, input.key, kept, { status: chosen }, input.opCtx)
-    const normalizeTimeout = timeoutMessage(rawNormalize as unknown as TransportResult)
-    if (normalizeTimeout) { lockTimeout = normalizeTimeout; return }
-    const normalized = must(rawNormalize) as UnknownRecord | null
-    if (normalized && normalized.ok === true) input.items.push({ key: input.key, step: 'status', status: 'ok', adopted: chosen })
-    else input.fail('status', normalized)
-  }, input.lockOpts)
-  if (lockTimeout !== null) return { ok: false, reply: input.timeoutReply(lockTimeout) }
-  if (held && held.ok === false && held.timedOut) input.lockedOut('status')
-  if (input.items.some((item) => item.step === 'status' && item.status === 'failed')) {
-    return { ok: false, reply: refusalReply(input.key, REFUSAL_REASONS.BACKEND_UNSUPPORTED, '先把状态归一时没成（原因在上面）：这一步没成就不往下写，避免半写。', {}, input.items, input.estimate, 1) }
-  }
-  return { ok: true, explicit: explicit }
+  if (input.deferToLabels) return { ok: true, chosen: chosen, conflict: read.conflict, normalized: false, status: read.status, statusModel: read.statusModel }
+  // 顺序：归一排在评论/认领/正文之前，因为它最容易按调用方已选的一侧失败；先做它，失败时盘上只多了
+  // 这次显式授权的状态归一。评论写上去就撤不回来，所以评论排在归一之后，不抢在它前面。
+  const normalized = await normalizeConflict(input, chosen, read.conflict)
+  if (!normalized.ok) return { ok: false, reply: normalized.reply }
+  return { ok: true, chosen: chosen, conflict: read.conflict, normalized: true, status: chosen, statusModel: read.statusModel }
 }

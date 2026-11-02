@@ -289,33 +289,55 @@ async function main(): Promise<void> {
   const localEdges = Array.isArray(localData.blockedBy) ? (localData.blockedBy as Record<string, unknown>[]) : []
   check(localEdges.length === 1 && String(localEdges[0].key || '') === '03', '② 读回来的阻塞边是 03：' + JSON.stringify(localEdges))
 
-  // ══ ③ 新建的票必然带 Status 行 ══
+  // ══ ③ 新建的票按票型决定状态行：实施票默认 ready-for-agent，普通票没有状态 ══
   const statusTmp = tmpDir('md-1507-status-')
   const statusCtx = mkctx(statusTmp)
-  const statusRepo = repoOf('状态', 'feature')
-  const noStatus = await create(statusCtx, statusRepo, {
+  // #1790 缺陷 A：triage 状态住在可见 Status 行。普通票没有默认状态就不写这一行；
+  // 实施票（显式 type: 'ticket'）缺省落 ready-for-agent。
+  const plainRepo = repoOf('状态', 'feature')
+  const noStatus = await create(statusCtx, plainRepo, {
     title: '没给状态',
-    body: '**What to build:** 没给状态也要有 Status 行。',
+    body: '**What to build:** 没给状态也要能建。',
     type: 'issue',
     idempotencyKey: 'status-1507-a',
   })
-  check(!!(noStatus && (noStatus as { ok?: boolean }).ok), '③ 没给状态的票建得成：' + JSON.stringify(failOf(noStatus)))
+  check(!!(noStatus && (noStatus as { ok?: boolean }).ok), '③ 没给状态的普通票建得成：' + JSON.stringify(failOf(noStatus)))
   const noStatusText = readText(path.join(statusTmp, '.scratch', '状态', 'issues', '01-没给状态.md'))
-  check(/^\*\*Status:\*\* ready-for-agent$/m.test(noStatusText), '③ 没给状态时落成模板默认值 ready-for-agent')
-  check((noStatusText.match(/^\*\*Status:\*\*/gm) || []).length === 1, '③ 只有一行 Status，不重复')
-  check(headerComments(noStatusText).indexOf('<!-- DSH-STATUS: ready-for-agent -->') < 0, '③ 实施票不另写隐藏状态（可见行就是状态）')
+  check(!/\*\*Status:\*\*/.test(noStatusText), '③ 普通票没给状态时不写 Status 行')
 
-  const blankStatus = await create(statusCtx, statusRepo, {
+  const blankStatus = await create(statusCtx, plainRepo, {
     title: '空白状态',
-    body: '**What to build:** 只给空白状态也要落成默认值。',
+    body: '**What to build:** 只给空白状态也不写状态行。',
     type: 'issue',
     status: '   ',
     idempotencyKey: 'status-1507-b',
   })
-  check(!!(blankStatus && (blankStatus as { ok?: boolean }).ok), '③ 只给空白状态也建得成：' + JSON.stringify(failOf(blankStatus)))
+  check(!!(blankStatus && (blankStatus as { ok?: boolean }).ok), '③ 只给空白状态的普通票也建得成：' + JSON.stringify(failOf(blankStatus)))
   const blankText = readText(path.join(statusTmp, '.scratch', '状态', 'issues', '02-空白状态.md'))
-  check(/^\*\*Status:\*\* ready-for-agent$/m.test(blankText), '③ 只给空白状态时仍落成 ready-for-agent：' + JSON.stringify(blankText.split('\n').filter((l) => /Status/.test(l))))
+  check(!/\*\*Status:\*\*/.test(blankText), '③ 普通票只给空白状态时也不写 Status 行')
   check(!/^\*\*Status:\*\*[ \t]*$/m.test(blankText), '③ 不出现只有标签、没有值的 Status 行')
+
+  // 实施票挂在自己的规格目录下：显式 type: 'ticket'，缺省状态应落 ready-for-agent。
+  const statusSpec = await create(statusCtx, repoOf(), {
+    title: '状态规格',
+    body: '## Problem Statement\n\n实施票的状态默认值。',
+    type: 'spec',
+    idempotencyKey: 'status-1507-spec-0',
+  })
+  check(!!(statusSpec && (statusSpec as { ok?: boolean }).ok), '③ 建实施票前先建规格容器：' + JSON.stringify(failOf(statusSpec)))
+  const ticketRepo = repoOf('状态规格', 'feature')
+  const ticketNoStatus = await create(statusCtx, ticketRepo, {
+    title: '实施票没给状态',
+    body: '**What to build:** 缺省状态。',
+    type: 'ticket',
+    parentKey: '00',
+    idempotencyKey: 'status-1507-c',
+  })
+  check(!!(ticketNoStatus && (ticketNoStatus as { ok?: boolean }).ok), '③ 没给状态的实施票建得成：' + JSON.stringify(failOf(ticketNoStatus)))
+  const ticketText = readText(path.join(statusTmp, '.scratch', '状态规格', 'issues', '01-实施票没给状态.md'))
+  check(/^\*\*Status:\*\* ready-for-agent$/m.test(ticketText), '③ 实施票没给状态时落成模板默认值 ready-for-agent')
+  check((ticketText.match(/^\*\*Status:\*\*/gm) || []).length === 1, '③ 实施票只有一行 Status，不重复')
+  check(headerComments(ticketText).indexOf('<!-- DSH-STATUS: ready-for-agent -->') < 0, '③ 实施票不另写隐藏状态（可见行就是状态）')
 
   const specInput = await create(statusCtx, repoOf(), {
     title: '空白状态规格',

@@ -131,6 +131,7 @@ async function main() {
   check(!!plainKey, '造票：普通票 key=' + plainKey)
   // 普通票也能有状态：再造一张、稍后改写成「可见 Status 与隐藏 triage 冲突」的旧文件形态。
   // 地图子票不行——它只认 claimed / resolved，可见值非法时按默认读，永远不产生冲突。
+  // 也正因为读侧先看 bug 标签再认目录路线，造地图子票夹具时不能给它贴 bug（否则它会按缺陷票读成冲突）。
   const plainConflict = await callTool('deck_issue_create', { title: '状态冲突的普通票', kind: 'issue', effort: DEMO, body: '普通票的可见状态与隐藏标签不一致' })
   const plainConflictKey = createdKey(plainConflict)
   check(!!plainConflictKey, '造票：要改写成冲突的普通票 key=' + plainConflictKey)
@@ -138,7 +139,7 @@ async function main() {
   // ---- 改盘上文件造旧形态 ----
   const childConflictPath = ticketFilePath(ws.root, E, childConflictKey)
   check(!!childConflictPath, '找到冲突子票文件')
-  writeTicketFile(childConflictPath, { parent: '00', labels: 'bug, needs-triage', status: 'wontfix', title: childConflictKey + ': 状态冲突的子票', body: '## What to build 状态冲突演示' })
+  writeTicketFile(childConflictPath, { parent: '00', labels: 'front-end', status: 'wontfix', title: childConflictKey + ': 状态冲突的子票', body: '## What to build 状态冲突演示' })
   const implConflictPath = ticketFilePath(ws.root, F, implConflictKey)
   check(!!implConflictPath, '找到冲突实施票文件')
   writeTicketFile(implConflictPath, { parent: '00', labels: 'ready-for-agent', status: 'wontfix', title: implConflictKey + ': 冲突实施票', body: '**What to build:** 冲突演示' })

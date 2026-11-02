@@ -6,13 +6,14 @@
 //   1. 标签里出现两枚以上 triage 状态时直接拒绝（RenderStatusConflict），不能替调用方挑一个静默丢标签。
 //   2. 票型默认值的唯一来源是 format/original-skills.yaml 与 status.ts，这里不写字面量。
 //   3. 普通票（plain-issue）没有默认状态，返回空串：渲染时连可见 Status 行都不写。
-import { defaultStatusOf, isTriageStatus, normalizeStatus } from './status.js'
+import { defaultStatusOf, triageNamesOf } from './status.js'
+import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { IssueFileKind } from './status.js'
-import type { CreateView, ObjectShape, OriginalKind } from './create-render.js'
+import type { CreateView, ObjectShape, OriginalKind } from './create-types.js'
 
 /** 建票输入里的 triage 标签超过一枚：可见 Status 行只能写一个状态，不能替调用方挑一个悄悄丢掉其余。 */
 export class RenderStatusConflict extends Error {
-  readonly kind = 'parse'
+  readonly kind = ERROR_KIND.PARSE
   constructor(message: string) {
     super(message)
     this.name = 'RenderStatusConflict'
@@ -40,11 +41,7 @@ export function statusFor(kind: OriginalKind, shape: ObjectShape, input: CreateV
   if (bodyStatus) return bodyStatus
   const given = String(input.status == null ? '' : input.status).trim()
   if (given) return given
-  const triage: string[] = []
-  for (const label of labels) {
-    const status = normalizeStatus(label)
-    if (status && isTriageStatus(status) && triage.indexOf(status) < 0) triage.push(status)
-  }
+  const triage: string[] = triageNamesOf(labels)
   if (triage.length > 1) {
     throw new RenderStatusConflict('这次给了多枚 triage 状态标签（' + triage.join('、') + '）：可见 Status 行只能写一个状态，请只留一枚，或改用 status 明确指定。')
   }

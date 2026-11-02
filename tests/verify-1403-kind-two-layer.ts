@@ -139,6 +139,9 @@ async function main() {
   }
   const typeLines = (text: string) => (text.match(/^Type[：:].*$/gm) || [])
   const labelsLine = (text: string) => ((text.match(/^Labels[：:].*$/m) || [''])[0] || '').trim()
+// #1790 缺陷 A：状态住在可见 Status 行，普通标签住在隐藏 DSH-LABELS 注释里。
+const hiddenLabelsLine = (text: string) => ((text.match(/^<!-- DSH-LABELS: .* -->$/m) || [''])[0] || '').trim()
+const visibleStatusLine = (text: string) => ((text.match(/^\*\*Status:\*\* .*$/m) || [''])[0] || '').trim()
   const hasProgress = (text: string) => /^##\s*进度\s*$/m.test(text)
 
   // ── 一、六个位置各建一张 ──
@@ -192,14 +195,17 @@ async function main() {
       : fileOf(String(ticket.key))
     check(ticket.type === 'issue', 'spec-ticket 的契约类型是 issue（实得 ' + ticket.type + '）')
     check(/<!-- DSH-PARENT: 00 -->/.test(text), 'spec-ticket 的隐藏注释写父票 00')
-    check(/^<!-- DSH-LABELS: .*ready-for-agent -->$/m.test(text), 'spec-ticket 的 DSH-LABELS 带 ready-for-agent')
+    check(/^\*\*Status:\*\* ready-for-agent$/m.test(text), 'spec-ticket 的可见 Status 行是 ready-for-agent（实得 ' + JSON.stringify(visibleStatusLine(text)) + '）')
+    check(hiddenLabelsLine(text).indexOf('ready-for-agent') < 0, 'spec-ticket 的隐藏标签不含 triage（#1790：状态只写可见行，实得 ' + JSON.stringify(hiddenLabelsLine(text)) + '）')
     check(typeLines(text).length === 0, 'spec-ticket 不写 Type 行')
     check(hasProgress(text), 'spec-ticket 也补了 ## 进度')
   }
   const bugRes = await create({ title: '两层缺陷票', kind: 'bug' })
   if (bugRes && bugRes.data && bugRes.data.ticket) {
     const text = fileOf(String(bugRes.data.ticket.key))
-    check(/^<!-- DSH-LABELS: .*bug.*needs-triage -->$/m.test(text), 'bug 的 DSH-LABELS 带 bug 与 needs-triage（实得 ' + labelsLine(text) + '）')
+    check(/^\*\*Status:\*\* needs-triage$/m.test(text), 'bug 的可见 Status 行是 needs-triage（实得 ' + JSON.stringify(visibleStatusLine(text)) + '）')
+    check(/^<!-- DSH-LABELS: .*bug.* -->$/m.test(text), 'bug 的隐藏标签带 bug（实得 ' + JSON.stringify(hiddenLabelsLine(text)) + '）')
+    check(hiddenLabelsLine(text).indexOf('needs-triage') < 0, 'bug 的隐藏标签不含 triage（#1790：needs-triage 住在可见行，实得 ' + JSON.stringify(hiddenLabelsLine(text)) + '）')
     check(typeLines(text).length === 0, 'bug 不写 Type 行')
     check(!/DSH-ISSUE-KIND/.test(text), 'bug 不写旧类型标记')
     check(hasProgress(text), 'bug 的正文补了 ## 进度')
@@ -207,8 +213,9 @@ async function main() {
   const issueRes = await create({ title: '两层兜底票', kind: 'issue', labels: ['wayfinder:map', 'bug', 'ready-for-agent'] })
   if (issueRes && issueRes.data && issueRes.data.ticket) {
     const text = fileOf(String(issueRes.data.ticket.key))
-    const line = ((text.match(/^<!-- DSH-LABELS: .* -->$/m) || [''])[0] || '').trim()
-    check(line === '<!-- DSH-LABELS: wayfinder:map, bug, ready-for-agent -->', 'issue 兜底原样落盘任何标签（实得 ' + line + '）')
+    // #1790：triage 标签并进可见 Status 行，不再在隐藏注释里重复写一遍。
+    check(hiddenLabelsLine(text) === '<!-- DSH-LABELS: wayfinder:map, bug -->', 'issue 兜底原样落盘非 triage 标签（实得 ' + hiddenLabelsLine(text) + '）')
+    check(/^\*\*Status:\*\* ready-for-agent$/m.test(text), 'issue 兜底把调用方给的 triage 标签落成可见状态（实得 ' + JSON.stringify(visibleStatusLine(text)) + '）')
     check(typeLines(text).length === 0, 'issue 不写 Type 行')
     check(hasProgress(text), 'issue 的正文补了 ## 进度')
   }

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-02T01:02:20.393Z",
+  "generatedAt": "2026-11-02T01:58:42.001Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 535,
   "gateCount": 535,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 86,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 826,
+  "graphFileCount": 828,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -5944,7 +5944,8 @@
       "step": "node tests/verify-1790-status-write.ts",
       "file": "tests/verify-1790-status-write.ts",
       "guards": [
-        "src/tracker/rooms/markdown/issues.ts"
+        "src/tracker/rooms/markdown/issues.ts",
+        "src/tracker/rooms/markdown/status-write.ts"
       ],
       "dirs": [
         "src/tracker/rooms/markdown"
@@ -5953,7 +5954,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条"
+      "reason": "归属来自：静态 import 说明符 2 条"
     },
     {
       "step": "node tests/verify-1792-card-action-gate.ts",
@@ -14838,9 +14839,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 847,
+    "fileCount": 849,
     "dirCount": 84,
-    "coveredFileCount": 847,
+    "coveredFileCount": 849,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -15160,6 +15161,7 @@
       "src/deck/tools/issue-get.ts",
       "src/deck/tools/issue-list.ts",
       "src/deck/tools/issue-patch-definition.ts",
+      "src/deck/tools/issue-patch-labels.ts",
       "src/deck/tools/issue-patch-status.ts",
       "src/deck/tools/issue-patch.ts",
       "src/deck/tools/issue-report.ts",
@@ -15642,6 +15644,7 @@
       "src/tracker/rooms/markdown/counts.ts",
       "src/tracker/rooms/markdown/create-layout.ts",
       "src/tracker/rooms/markdown/create-render.ts",
+      "src/tracker/rooms/markdown/create-types.ts",
       "src/tracker/rooms/markdown/edge-log.ts",
       "src/tracker/rooms/markdown/error-fail.ts",
       "src/tracker/rooms/markdown/format/field-values.ts",

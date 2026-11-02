@@ -118,6 +118,8 @@ async function main() {
   }
   const typeLabelCount = (text: string) => labelsOf(text).filter((n) => kindRules.isTypeLabel(n)).length
   const hasProgress = (text: string) => /^##\s*进度\s*$/m.test(text)
+  // #1790 缺陷 A：triage 状态住在可见 Status 行，不再写进 DSH-LABELS。
+  const statusOf = (text: string): string => (text.match(/^\*\*Status:\*\*[ \t]*(\S+)[ \t]*$/m) || [])[1] || ''
   const parentComment = (key: string) => new RegExp('^<!-- (?:parentKey|DSH-PARENT): ' + key + ' -->', 'm')
 
   // ── 一、正例：一次建出混合骨架 ──
@@ -189,7 +191,7 @@ async function main() {
     if (bugKey) {
       const text = fileOf(bugKey)
       check(parentComment(mapKey).test(text), '缺陷票的文件头父票注释是地图')
-      check(labelsOf(text).indexOf('bug') >= 0 && labelsOf(text).indexOf('needs-triage') >= 0, '缺陷票的标签是 bug + needs-triage（实得 ' + JSON.stringify(labelsOf(text)) + '）')
+      check(labelsOf(text).indexOf('bug') >= 0 && statusOf(text) === 'needs-triage', '缺陷票的标签是 bug、可见状态行是 needs-triage（实得 ' + JSON.stringify(labelsOf(text)) + ' / ' + JSON.stringify(statusOf(text)) + '）')
       check(typeLabelCount(text) === 1 && labelsOf(text).filter((n) => kindRules.isTypeLabel(n))[0] === 'bug', '缺陷票只有一枚类型标签 bug')
       check(typeLines(text).length === 0, '缺陷票不写 Type 行')
       check(hasProgress(text), '缺陷票的正文补了 ## 进度')

@@ -535,8 +535,13 @@ async function main() {
           const t1File = lane.specTicketFileOf(t1Key)
           const t1Text = lane.readSpecTicket(t1File)
           const t1Lines = t1Text.split('\n')
-          check(t1File.indexOf('实施票一') >= 0 && t1Text.indexOf('wayfinder:') < 0 && /^<!-- DSH-LABELS: .*ready-for-agent -->$/m.test(t1Text) && t1Text.indexOf('<!-- DSH-PARENT: ' + specKey + ' -->') >= 0,
-            '[' + lane.id + '] 双轨 C 实施票文件：' + t1File + '；标签只留 ready-for-agent、隐藏注释指规格票')
+          // #1790 缺陷 A：实施票的 triage 状态落成可见状态行，隐藏 DSH-LABELS 只留非 triage 标签。
+          const hiddenM = /<!--\s*DSH-LABELS:\s*([^>]*?)\s*-->/.exec(t1Text)
+          const hiddenNames = hiddenM ? hiddenM[1].split(',').map((s) => s.trim()).filter(Boolean) : []
+          const triageWords = ['needs-triage', 'needs-info', 'ready-for-agent', 'ready-for-human', 'wontfix']
+          const triageInHidden = hiddenNames.filter((n) => triageWords.indexOf(n) >= 0)
+          check(t1File.indexOf('实施票一') >= 0 && t1Text.indexOf('wayfinder:') < 0 && /^\*\*Status:\*\* ready-for-agent$/m.test(t1Text) && triageInHidden.length === 0 && t1Text.indexOf('<!-- DSH-PARENT: ' + specKey + ' -->') >= 0,
+            '[' + lane.id + '] 双轨 C 实施票文件：' + t1File + '；可见状态行是 ready-for-agent、隐藏标签不含 triage、隐藏注释指规格票（隐藏标签：' + JSON.stringify(hiddenNames) + '）')
           check(t1Lines.slice(0, 6).every((l) => l.indexOf('DSH-ISSUE-KIND') < 0) && t1Text.indexOf('Labels: ready-for-agent') < 0,
             '[' + lane.id + '] 双轨 C 实施票不再写旧类型标记与可见 Labels 行：' + JSON.stringify(t1Lines.slice(0, 4)))
         }

@@ -14,14 +14,17 @@ import { parseMd } from './parse.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { failAs } from './error-fail.js'
 import { COMPLETED_STATUS_VALUES, WAYFINDER_STATUS_VALUES } from './format/field-values.js'
-import { fieldStyleOf, removeField, ticketFormOf, upsertHiddenComment, writeFieldByStyle } from './original-fields.js'
+import { fieldStyleOf, hiddenCommentOf, removeField, ticketFormOf, upsertHiddenComment, writeFieldByStyle } from './original-fields.js'
 import {
   appendStatusHistory,
   hiddenLabelsOf,
   isTriageStatus,
+  LEGACY_STATUS_DEFAULT,
   normalizeStatus,
+  resolveStatusRead,
   statusKindOf,
   TRIAGE_STATUS_ROLES,
+  triageNamesOf,
 } from './status.js'
 import type { IssueFileKind, StatusConflict, StatusHistoryEntry, StatusSource } from './status.js'
 import type { TicketRoute } from './issues-locate.js'
@@ -43,6 +46,8 @@ export interface StatusNormalizeChoice {
   status?: string
   /** 新的完整标签名单；给了它，隐藏 DSH-LABELS 按它重写。 */
   labels?: string[]
+  /** 判定票型与隐藏 triage 时要用的标签名单（改标签是整批替换，按替换后的名单判，默认用盘上的）。 */
+  readLabels?: string[]
   /** 明确去掉状态（普通票重开时用）：可见 Status 行整行删掉。 */
   dropStatus?: boolean
 }
@@ -59,11 +64,31 @@ export interface StatusWriteFailure {
   error: { kind: string; message: string; raw: string }
 }
 
-/** 从一份票文件文本读出状态结论；路线决定票型（地图子票 / 实施票 / 普通票 / 缺陷票）。 */
-export function statusReadOfText(txt: string, route: TicketRoute): StatusReadInfo {
+/** 从一份票文件文本读出状态结论；路线决定票型（地图子票 / 实施票 / 普通票 / 缺陷票）。
+ *
+ *  labelsOverride 给的是「这次写完以后标签会是什么」：改标签是整批替换，判定票型与隐藏 triage
+ *  都得按新名单算，不能按盘上的旧名单算。反例（不传它就会踩）：地图目录里一张可见 Status 是
+ *  ready-for-agent 的旧票，第一次 setLabels(['bug']) 后盘上多了 bug 标签；若第二次仍按旧文件判型，
+ *  票型会在「地图子票」与「缺陷票」之间来回跳，同一批标签每贴一次都会改一次状态、永远判不成 noop。 */
+export function statusReadOfText(txt: string, route: TicketRoute, labelsOverride?: readonly string[]): StatusReadInfo {
   const issue = parseMd(String(txt || ''), { key: '00', parentKey: null, isMap: false, route })
   const labels: string[] = []
   for (const one of issue.labels || []) labels.push(one.name)
+  if (labelsOverride !== undefined) {
+    // 可见状态行的原始值：读侧在「用的就是可见值」时不回填 statusVisible，要按来源补回来。
+    const visibleRaw: string | undefined =
+      issue.statusVisible !== undefined ? issue.statusVisible : issue.statusSource === 'visible' ? issue.status : undefined
+    const kind = statusKindOf({ route }, labelsOverride)
+    // 隐藏侧用盘上真正写在 DSH-LABELS 里的 triage（不拿读侧合成的那一枚）：合成值只是可见状态的影子，
+    // 把它当成第二个来源会让「重复贴同一批标签」每次都多出一行历史。
+    const read = resolveStatusRead(kind, visibleRaw, hiddenTriageOf(txt))
+    const info: StatusReadInfo = { kind, labels: labelsOverride.slice() }
+    if (read.status !== undefined) info.status = read.status
+    if (read.statusSource !== undefined) info.statusSource = read.statusSource
+    if (read.statusVisible !== undefined) info.statusVisible = read.statusVisible
+    if (read.statusConflict !== undefined) info.statusConflict = read.statusConflict
+    return info
+  }
   const info: StatusReadInfo = { kind: statusKindOf({ route }, issue.labels), labels }
   if (issue.status !== undefined) info.status = issue.status
   if (issue.statusSource !== undefined) info.statusSource = issue.statusSource
@@ -108,7 +133,11 @@ function historyFor(
     // 普通的状态流转（比如关闭时把 ready-for-agent 改成 resolved）不是归一：可见 Status 行仍是唯一真源，
     // 旧值本来就被这一行覆盖了，记账只会让每次关闭都多一行噪音。只有「旧文件里还藏着第二个来源」才记：
     // 隐藏 triage 被退场，或可见行带着一个没被采用的原值。
-    const dualSource: boolean = read.statusSource === 'hidden' || read.statusVisible !== undefined
+    // 可见行里的旧默认值（地图子票老文件的 Status: ready-for-agent 就是一例）不算第二个来源：
+    // 它是旧词表写法，不是调用方另做的决定；给它记历史只会让每次关闭都多一行噪音。
+    const dualSource: boolean =
+      read.statusSource === 'hidden' ||
+      (read.statusVisible !== undefined && read.statusVisible !== LEGACY_STATUS_DEFAULT)
     if (dualSource && read.status !== undefined && read.status !== explicit) {
       return { source: read.statusSource || 'visible', discarded: read.status, adopted: explicit, at: '' }
     }
@@ -121,17 +150,6 @@ function historyFor(
   // 隐藏 triage 被并进可见 Status 行：两者同值，历史记「隐藏来源这一枚退场」。
   if (read.statusSource === 'hidden') return { source: 'hidden', discarded: adopted, adopted, at: '' }
   return null
-}
-
-/** 从一批标签名里取出 triage 角色（归一后去重）：可见 Status 行最多只能落一枚。 */
-export function triageNamesOf(names: string[]): string[] {
-  const out: string[] = []
-  for (const name of names) {
-    const norm: string | null = normalizeStatus(name)
-    if (norm === null || !isTriageStatus(norm) || out.indexOf(norm) >= 0) continue
-    out.push(norm)
-  }
-  return out
 }
 
 /** 改标签前的状态护栏：多枚 triage 无法落成一条可见 Status 行，直接拒绝并说清怎么改。 */
@@ -164,9 +182,39 @@ export function labelsChoiceText(
       JSON.stringify({ bodyStatus, triage }),
     )
   }
+  // 同一次调用里显式点的状态只能有一个说法：标签里的 triage、正文里的 Status 行、调用方给的状态选项
+  // 三者不一致时整次拒绝（盘上一个字不动）。后端是这条判据的唯一实现处，deck 那一侧只负责把话带回来。
+  if (statusOpt && triage.length === 1 && statusOpt !== triage[0]) {
+    return failAs(
+      ERROR_KIND.PARSE,
+      '这次要落的状态是「' + statusOpt + '」，但标签里的 triage 是「' + triage[0] + '」：两处不一致，请只留一处。',
+      JSON.stringify({ status: statusOpt, triage }),
+    )
+  }
+  if (statusOpt && bodyStatus && bodyStatus !== statusOpt) {
+    return failAs(
+      ERROR_KIND.PARSE,
+      '这次要落的状态是「' + statusOpt + '」，但正文里的 Status 行写的是「' + bodyStatus + '」：两处不一致，请只留一处。',
+      JSON.stringify({ status: statusOpt, bodyStatus }),
+    )
+  }
   const chosen: string | undefined = triage.length === 1 ? triage[0] : (statusOpt || undefined)
-  const normed: { ok: true; data: StatusNormalizeResult } | StatusWriteFailure = normalizeIssueStatusText(txt, route, { status: chosen, labels: names })
+  // 改标签是整批替换：状态归一必须按「这次写完以后」的标签名单判票型，否则地图目录与缺陷票
+  // 会因盘上旧标签来回换词表，重复贴同一批标签永远不是 noop（见 statusReadOfText 的注释）。
+  const normed: { ok: true; data: StatusNormalizeResult } | StatusWriteFailure = normalizeIssueStatusText(txt, route, {
+    status: chosen,
+    labels: names,
+    readLabels: names,
+  })
   return normed.ok ? normed.data.text : normed
+}
+
+/** 原文隐藏 DSH-LABELS 里还留着的 triage 标签（归一后要被移除并记历史的那部分）。
+ *  只给地图子票用：issue 文件的隐藏 triage 由读侧报成冲突或旧默认，走的是另一条历史口径。 */
+function hiddenTriageOf(txt: string): string[] {
+  const hidden = hiddenCommentOf(txt, 'DSH-LABELS')
+  if (!hidden.found) return []
+  return triageNamesOf(hidden.value.split(/[,，]/).map((one) => one.trim()).filter(Boolean))
 }
 
 /**
@@ -181,7 +229,7 @@ export function normalizeIssueStatusText(
   choice?: StatusNormalizeChoice,
 ): { ok: true; data: StatusNormalizeResult } | StatusWriteFailure {
   const pick: StatusNormalizeChoice = choice || {}
-  const read: StatusReadInfo = statusReadOfText(txt, route)
+  const read: StatusReadInfo = statusReadOfText(txt, route, pick.readLabels)
   let explicit: string | undefined
   if (pick.status !== undefined) {
     const wanted: string | null = normalizeStatus(pick.status)
@@ -208,6 +256,9 @@ export function normalizeIssueStatusText(
       JSON.stringify(conflict),
     )
   }
+  // #1790 缺陷 A：地图子票只认 claimed / resolved，旧文件里若还藏着 triage 状态标签，它既不参与判定、
+  // 也不该留在隐藏注释里：首次写入时随归一一起移除，并把落选值记进历史（契约 §三，验收 §七.6）。
+  const mapHidden: string[] = read.kind === 'map-ticket' ? hiddenTriageOf(txt) : []
   const adopted: string | undefined = explicit !== undefined ? explicit : pick.dropStatus ? undefined : read.status
   const labels: string[] = pick.labels !== undefined ? pick.labels : read.labels
   const hidden: string[] = hiddenLabelsOf(labels)
@@ -223,6 +274,14 @@ export function normalizeIssueStatusText(
   if (history) {
     history.at = new Date().toISOString()
     out = appendStatusHistory(out, history)
+  }
+  if (mapHidden.length) {
+    const adoptedForHistory: string = adopted !== undefined ? adopted : ''
+    const at: string = new Date().toISOString()
+    for (const discarded of mapHidden) {
+      if (discarded === adoptedForHistory) continue
+      out = appendStatusHistory(out, { source: 'hidden', discarded, adopted: adoptedForHistory, at })
+    }
   }
   const data: StatusNormalizeResult = { text: out }
   if (adopted !== undefined) data.status = adopted

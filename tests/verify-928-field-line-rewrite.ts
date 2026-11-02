@@ -88,13 +88,15 @@ const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok 
   const ctx = { cwd: '/ws', platform: { path: nodePath.posix, fs: fs }, fs: fs, logEvent: () => {}, isEnabled: () => false }
   const REF = { backend: 'markdown', refId: '/ws', name: 'ws', url: '' }
   const tracker = markdownModule.create({})
-  const created = await tracker.create(REF, { title: '端到端那张票', labels: ['needs-triage'], status: 'ready-for-agent' }, ctx)
+  // #1790 缺陷 A：triage 状态已经住在可见 Status 行，不再写进隐藏标签；这里用一枚普通标签守 #928 的
+  // 「改一行不丢另一行」，与状态落在哪一行无关。
+  const created = await tracker.create(REF, { title: '端到端那张票', labels: ['front-end'], status: 'ready-for-agent' }, ctx)
   check(created.ok === true, '④ 建票成功（实得 ' + JSON.stringify(created && created.error || 'ok') + '）')
   const path = created.ok ? created.data.path || (created.data && created.data.finalPath) : ''
   const file = Array.from(files.keys()).filter((k) => k.includes('/issues/'))[0]
   const before = String(files.get(file))
   // #1486：新布局把标签写进隐藏注释，不再写可见的 Labels 行；断言两种写法都认，守的仍是「改一行不丢另一行」。
-  const hasLabels = (text: string) => text.includes('Labels: needs-triage') || text.includes('DSH-LABELS: needs-triage')
+  const hasLabels = (text: string) => text.includes('Labels: front-end') || text.includes('DSH-LABELS: front-end')
   // #1489：这张票是插件按原文布局建的，阻塞边写进加粗的可见行（**Blocked by:** #02）；旧布局的手写票才写裸 Blocked by 行。
   const hasBlockLine = (text: string) => text.includes('Blocked by: #02') || text.includes('**Blocked by:** #02')
   check(hasLabels(before), '④ 建出来的票面上有 Labels 行（实得 ' + JSON.stringify(before.split('\n').slice(0, 8)) + '）')

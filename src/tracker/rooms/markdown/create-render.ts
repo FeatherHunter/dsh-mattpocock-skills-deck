@@ -21,25 +21,14 @@ import { MAP_TICKET_TYPES, WAYFINDER_LABEL_RE } from './format/field-values.js'
 // 「哪一行算围栏、哪一行算二级标题」统一从 markdown-scan.ts 取：模板判据（template-guard.ts）也要判同一件事，
 // 两处各写一份正则会各说各话。
 import { isHeadingTwoLine, scanFenceLines } from './markdown-scan.js'
-import type { CreateInput, LabelInput } from '../../contract/inputs.js'
+import type { CreateInput } from '../../contract/inputs.js'
+// 三个建票类型搬在 create-types.ts（理由见那份文件头）；这里原样再导出，原来从本文件 import 的地方不必改。
+import type { CreateView, ObjectShape, OriginalKind } from './create-types.js'
+export type { CreateView, ObjectShape, OriginalKind } from './create-types.js'
 // #1790 缺陷 A：可见 Status 行是 triage 状态的唯一真源，隐藏 DSH-LABELS 只留非 triage 标签。
 // 默认值与标签过滤都从 status.ts 的纯函数取，渲染侧不另抄一份词表。
 import { hiddenLabelsOf } from './status.js'
 import type { IssueFileKind } from './status.js'
-
-/** 本文件负责的六种对象。规格与实施票/普通票先落（#1486）；探索地图与地图子票本票接上（#1487）。 */
-export type OriginalKind = 'spec' | 'spec-ticket' | 'issue' | 'bug' | 'map' | 'map-ticket'
-
-/** 建票输入的实际形状：契约只收小写子集，运行时还会带大小写写法、状态行与阻塞行。 */
-export type CreateView = Omit<CreateInput, 'labels'> & {
-  labels?: LabelInput[] | string
-  Type?: unknown
-  Labels?: unknown
-  status?: unknown
-  blockedBy?: unknown
-  kind?: unknown
-  typeLine?: unknown
-}
 
 /** 失败结果与 issues-create.ts 里的 CreateFailure 同形，调用方不必再翻译一次。 */
 export interface LayoutFailure {
@@ -106,26 +95,7 @@ export function originalKindOf(input: CreateInput, fileKind?: IssueFileKind): Or
   return 'issue'
 }
 
-/**
- * 原文模板里与建票有关的字段。模板文字只从 generated.ts 的 MD_FORMAT 取，
- * 代码里不再抄一份标题形状与字段行；模板改了这里自动跟着改。
- */
-// 下面这些通用件同时被 map-render.ts 复用（同一渲染管线的内部件），导出只是给同目录的实现文件用。
-export interface ObjectShape {
-  /** 可见一级标题形状：只有票形（实施票、地图子票）有；规格与地图的原文模板没有标题行。 */
-  'title-shape'?: string
-  /** 规格与地图的标题落在哪条文件头隐藏注释里（原文模板没有标题行，标题是 tracker 的 issue 上的）。 */
-  'title-comment'?: string
-  sections?: readonly string[]
-  fields?: readonly { label: string; 'line-shape': string }[]
-  acceptance?: string
-  status?: { 'visible-line'?: boolean; 'hidden-comment'?: string; default?: string }
-  reuse?: string
-  /** 地图子票的正文只有一个问题段，段名从模板取（原文是 Question）。 */
-  'body-section'?: string
-  /** 地图子票标题下要写的裸行：Type / Status / Blocked by；值位只出现在 line-shape 里。 */
-  'top-lines'?: readonly { label: string; values?: readonly string[]; 'line-shape'?: string }[]
-}
+// ObjectShape 与另外两个建票类型一起住在 create-types.ts（map-render / template-guard 仍从本文件 import）。
 
 const OBJECT_KEY_OF_KIND: Record<OriginalKind, string> = {
   spec: 'spec',

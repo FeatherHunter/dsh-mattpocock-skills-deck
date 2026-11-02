@@ -26,12 +26,7 @@ import { withFileWriter } from './write-queue.js'
 // #922/#1489：改认领人/标签这类 set* 调用可能带「上次看到的修改时间」，写前要在队内先核一次。
 import { checkExpectedUpdatedAt } from './write-guards.js'
 // #1489：原文布局（加粗字段行 / 裸字段行 / 隐藏注释）的读写原语，见 original-fields.ts。
-import {
-  appendSectionBlock,
-  ticketFormOf,
-  upsertHiddenComment,
-  writeFieldByStyle,
-} from './original-fields.js'
+import { appendSectionBlock, upsertHiddenComment } from './original-fields.js'
 // #1790 缺陷 A：写侧归一的纯文本实现住 status-write.ts（读侧在 status.ts）。
 import { normalizeIssueStatusText, statusReadOfText } from './status-write.js'
 import { defaultStatusOf } from './status.js'
@@ -272,7 +267,10 @@ export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: s
     if(target.container)return upsertHiddenComment(txt,'DSH-STATUS',containerStatusValue('Status: ' + WAYFINDER_STATUS_RESOLVED))
     if(target.route==='map'){
       // 地图子票完成：答案写进 ## Answer、状态改 resolved；指针由下面 appendMapDecisionPointer 追加。
-      let out=writeFieldByStyle(txt,'Status',WAYFINDER_STATUS_RESOLVED,'bare')
+      // #1790 缺陷 A：走状态写侧归一而非直接改一行 —— 旧文件若还藏着 triage 标签，首次写入时移除并记历史。
+      const normed=normalizeIssueStatusText(txt,target.route,{status:WAYFINDER_STATUS_RESOLVED})
+      if(!normed.ok)return normed
+      let out=normed.data.text
       // 同一段答案已经写在段里就不再追加：重复关闭是幂等的，不该越关答案越多。
       if(reason&&answerTextOf(out)!==reason.trim())out=appendSectionBlock(out,'Answer',reason)
       return out
@@ -290,15 +288,15 @@ export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: s
     const read=statusReadOfText(txt,target.route)
     // #1790 缺陷 A：可见 Status 行与隐藏 triage 还各说各话时，关闭不替调用方挑一侧：
     // 这里没有「显式状态」这个入口（CloseOpts 只有原因），挑一侧就是悄悄改掉别人的决定。
-    // 先按冲突拒绝，让调用方用 setLabels 带一个状态归一（deck 的 issue-patch 会先做这一步）。
-    if(read.statusConflict)return failAs(ERROR_KIND.PARSE,'这张票的可见 Status 行与隐藏 DSH-LABELS 里的 triage 标签冲突：关闭这一笔没写，先显式归一状态再关（deck 的 issue-patch 回执会带 retry 参数）。',JSON.stringify(read.statusConflict))
+    // 冲突由 rewriteTicketText 的统一闸在 apply 之前拦下（同一个错误档位与 raw），
+    // 调用方按 deck 的 issue-patch 回执先归一状态，再关这一笔。
     const wanted=read.status==='wontfix'?'wontfix':WAYFINDER_STATUS_RESOLVED
     const normed=normalizeIssueStatusText(txt,target.route,{status:wanted})
     if(!normed.ok)return normed
     let out=normed.data.text
     if(reason)out=appendClosingComment(ctx,out,reason,norm)
     return out
-  },trail,{status:WAYFINDER_STATUS_RESOLVED})
+  },trail)
   if(r.ok)await appendMapDecisionPointer(ctx,repo,r.data,reason,trail)
   emitIssueWrite(ctx,'close',trail,r,t0)
   return r
@@ -307,19 +305,24 @@ export async function reopenIssue(ctx: OpContext,repo: RepoWithPath | null,key: 
   const t0=Date.now()
   const trail=beginWriteTrail()
   const r=await rewriteTicketText(ctx,repo,key,function(txt,target){
+    // 容器重开就是回到「可继续做」那一档；这里给的是状态行原文，真实状态值由 containerStatusValue 统一映射。
     if(target.container)return upsertHiddenComment(txt,'DSH-STATUS',containerStatusValue('Status: ready-for-agent'))
     if(!target.route){
       // 旧布局：可见 Status 行，与 #1489 之前一字不差（扁平路径的写已在定位那一步拦下，这里只保旧文件行为）。
       return replaceOrInsertField(txt,'Status','Status: ready-for-agent')
     }
     // 地图子票只有 claimed / resolved 两档：重开就是回到 claimed（不再看有没有认领人）。
-    if(target.route==='map')return writeFieldByStyle(txt,'Status',WAYFINDER_STATUS_CLAIMED,'bare')
+    if(target.route==='map'){
+      // #1790 缺陷 A：与关闭同口径 —— 归一顺手把旧文件里藏着的 triage 标签移除并记历史。
+      const normed=normalizeIssueStatusText(txt,target.route,{status:WAYFINDER_STATUS_CLAIMED})
+      return normed.ok?normed.data.text:normed
+    }
     // 规格 / 普通路线按票型默认：实施票回到 ready-for-agent，缺陷票回到 needs-triage；
     // 普通票本来就没有状态，重开就是明确删掉可见 Status 行，而不是替它编一个不分流的状态。
     const kind=statusReadOfText(txt,target.route).kind
     const normed=normalizeIssueStatusText(txt,target.route,kind==='plain-issue'?{dropStatus:true}:{status:defaultStatusOf(kind)})
     return normed.ok?normed.data.text:normed
-  },trail,{allowStatusConflict:true})
+  },trail)
   emitIssueWrite(ctx,'reopen',trail,r,t0)
   return r
 }

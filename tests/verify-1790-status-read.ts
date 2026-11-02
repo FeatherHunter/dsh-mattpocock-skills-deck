@@ -238,6 +238,23 @@ for (const one of KINDS) {
   eq(issue.labels.map((label) => label.name), ['docs', 'ready-for-agent'], 'visible triage filter labels')
 }
 
+// 七、地图目录里的缺陷票：#1413 的混合骨架会往 map 目录里放 bug 子票，读侧没带 fileKind 时
+// 也要按 bug 标签判成缺陷票（plan §1.3：bug 标签排在目录路线之前），状态走 triage 词而不是 claimed。
+{
+  const meta = { key: '02', parentKey: '00', isMap: false, route: 'map' }
+  const bug = parseMd(textOf('needs-triage', ['bug']), meta)
+  eq(bug.status, 'needs-triage', 'map-dir bug status')
+  eq(bug.statusSource, 'visible', 'map-dir bug statusSource')
+  eq(bug.state, 'open', 'map-dir bug state')
+  present(bug, 'statusConflict', false, 'map-dir bug')
+  eq(bug.labels.map((label) => label.name), ['docs', 'bug', 'needs-triage'], 'map-dir bug labels')
+
+  const child = parseMd(textOf('claimed', []), meta)
+  eq(child.status, 'claimed', 'map-dir child status')
+  eq(child.statusSource, 'visible', 'map-dir child statusSource')
+  eq(child.state, 'open', 'map-dir child state')
+}
+
 if (failures.length) {
   console.error('FAIL ' + failures.length + ' / ' + checks + ' 项判据')
   for (const one of failures.slice(0, 40)) console.error('  - ' + one)

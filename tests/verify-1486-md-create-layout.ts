@@ -190,9 +190,10 @@ async function main(): Promise<void> {
   check(!/DSH-ISSUE-KIND/.test(ticketText), '③ 实施票不再写旧的 DSH-ISSUE-KIND 标记')
   check(!/##\s*Comments|##\s*Answer/.test(ticketText), '③ 实施票没有旧骨架')
   const ticketHeader = headerComments(ticketText)
-  check(ticketHeader.length === 5, '③ 实施票隐藏注释共 5 条：' + JSON.stringify(ticketHeader))
+  check(ticketHeader.length === 4, '③ 实施票隐藏注释共 4 条（#1790：triage 标签搬进可见 Status 行，空的 DSH-LABELS 不写）：' + JSON.stringify(ticketHeader))
   check(ticketHeader.indexOf('<!-- DSH-PARENT: 00 -->') >= 0, '③ 实施票父票写进 DSH-PARENT')
   check(ticketHeader.indexOf('<!-- DSH-STATUS: ready-for-agent -->') < 0, '③ 实施票不写隐藏状态（可见 Status 行就是状态）')
+  check(!/DSH-LABELS/.test(ticketText), '③ 实施票不写隐藏标签（唯一的标签是 triage，已经住在可见 Status 行）')
   check(commentsBeforeFirstHeading(ticketText), '③ 实施票隐藏注释都在一级标题之前')
 
   const ticketAgain = await create(ctx, featureRepo, {
@@ -207,20 +208,34 @@ async function main(): Promise<void> {
   check(!!(ticketAgain && ticketAgain.ok && ticketAgain.data.key === '01'), '① 同一幂等键重复建实施票仍回 01')
   check(listFiles(path.join(tmp, '.scratch', '买咖啡积分', 'issues')).length === 1, '① 重复建实施票没有多落一份')
 
-  // —— ① 建普通票：同目录接着 02，没有父票就不写 DSH-PARENT ——
-  const plain = await create(ctx, featureRepo, {
+  // —— ① 建普通票：另起一个普通工作单元（只有 issues/、没有 spec.md，读侧按普通路线认它）。
+  //    规格目录里的票会被读成实施票（#1790 读侧模型：目录就是身份），普通票得住在自己的目录里，
+  //    所以这里显式给普通目录，顺带验同一目录编号连续到 02，且没有父票就不写 DSH-PARENT。 ——
+  const plainRepo = Object.assign(repoOf(), { refId: '.scratch/普通说明', name: '普通说明', url: '' })
+  const plain = await create(ctx, plainRepo, {
     title: '补一条说明',
     body: '**What to build:** 补一条说明。',
     type: 'issue',
     idempotencyKey: 'issue-1486-a',
   })
   check(!!(plain && plain.ok), '① 建普通票返回 ok：' + (plain && plain.ok ? '' : JSON.stringify(plain)))
-  const plainPath = path.join(tmp, '.scratch', '买咖啡积分', 'issues', '02-补一条说明.md')
-  check(fs.existsSync(plainPath), '② 同一目录编号连续到 02')
+  const plainPath = path.join(tmp, '.scratch', '普通说明', 'issues', '01-补一条说明.md')
+  check(fs.existsSync(plainPath), '② 普通票落在自己的普通工作单元 issues/01-<slug>.md')
   if (plain && plain.ok) {
-    check(plain.data.key === '02', '② 普通票编号是 02：' + plain.data.key)
+    check(plain.data.key === '01', '② 普通票编号是 01：' + plain.data.key)
     check(plain.data.parentKey === null, '① 普通票没有父票：' + String(plain.data.parentKey))
     check(!headerComments(readText(plainPath)).some((l) => l.startsWith('<!-- DSH-PARENT')), '③ 普通票不写空的 DSH-PARENT')
+  }
+  const plainSecond = await create(ctx, plainRepo, {
+    title: '再补一条',
+    body: '**What to build:** 再补一条。',
+    type: 'issue',
+    idempotencyKey: 'issue-1486-b',
+  })
+  check(!!(plainSecond && plainSecond.ok && plainSecond.data.key === '02'), '② 同一普通目录编号连续到 02')
+  if (plainSecond && plainSecond.ok) {
+    check(fs.existsSync(path.join(tmp, '.scratch', '普通说明', 'issues', '02-再补一条.md')), '② 第二张普通票落在 issues/02-<slug>.md')
+    check(plainSecond.data.parentKey === null, '① 第二张普通票也没有父票：' + String(plainSecond.data.parentKey))
   }
 
   // —— ③ 目录撞名：同名标题的第二份规格加 -2 后缀并如实回报 ——
@@ -243,8 +258,9 @@ async function main(): Promise<void> {
   const keys = concurrent.map((r) => (r && r.ok ? r.data.key : '失败')).sort()
   check(keys.every((k) => /^\d{2}$/.test(k)), '② 8 路并发全部有编号：' + JSON.stringify(keys))
   check(new Set(keys).size === 8, '② 8 路并发编号不重号：' + JSON.stringify(keys))
-  check(JSON.stringify(keys) === JSON.stringify(['03', '04', '05', '06', '07', '08', '09', '10']), '② 8 路并发编号从 03 连续到 10：' + JSON.stringify(keys))
-  check(listFiles(path.join(tmp, '.scratch', '买咖啡积分', 'issues')).length === 10, '② 目录里共 10 份票文件')
+  // 规格目录里已有实施票 01（普通票 01 在自己的普通工作单元里，不占这里的号），8 路并发接着排到 09。
+  check(JSON.stringify(keys) === JSON.stringify(['02', '03', '04', '05', '06', '07', '08', '09']), '② 8 路并发编号从 02 连续到 09：' + JSON.stringify(keys))
+  check(listFiles(path.join(tmp, '.scratch', '买咖啡积分', 'issues')).length === 9, '② 目录里共 9 份票文件')
 
   // —— ⑤ 旧行为不再出现：工作区根没有 issues/ ——
   check(!fs.existsSync(path.join(tmp, '.scratch', 'issues')), '⑤ 旧行为不再落到工作区根 issues/')

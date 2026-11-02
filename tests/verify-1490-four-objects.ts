@@ -251,7 +251,7 @@ try {
   eq(h2s(childInitial), ['Question'], '地图子票按原文只有 Question 段')
   check(sectionBody(childInitial, 'Question').includes('把已知的开源方案列出来。'), '地图子票正文落在 Question 段')
   check(/^Type: research$/m.test(childInitial), '地图子票有可见 Type: research 行')
-  check(!/^Status:/m.test(childInitial), '未认领的地图子票没有可见 Status 行')
+  check(/^Status: claimed$/m.test(childInitial), '未认领的地图子票可见 Status 行是 claimed（#1790：子票状态写可见行，缺省 claimed）')
   check(headerComments(childInitial).some((l) => l.includes('DSH-PARENT: 00')), '地图子票的父子关系以文件头隐藏注释记录')
   check(!childInitial.includes('DSH-ISSUE-KIND'), '地图子票不再写对象类型标记')
 
@@ -275,7 +275,12 @@ try {
   check(gotChild.ok && String(gotChild.data.parentKey) === '00', '地图子票读回仍带 parentKey 00')
 
   console.log('-- ④ 普通票：建、改、完成（关闭只写 ## Comments，不写 ## Answer） --')
-  const plain: any = await be.create(featureRepo, {
+  // 普通票住在自己的普通工作单元里：规格目录里的票按读侧模型是实施票（目录就是身份），
+  // 所以这里给一个只有 issues/、没有 spec.md 的目录当普通票的家。
+  const plainRepo = repoOf('普通说明')
+  plainRepo.name = '普通说明'
+  const plainIssuesDir = path.join(tmp1, '.scratch', '普通说明', 'issues')
+  const plain: any = await be.create(plainRepo, {
     title: '补一条说明',
     body: '**What to build:** 补一条说明。\n\n- [ ] 能看懂说明',
     type: 'issue',
@@ -284,29 +289,29 @@ try {
   check(plain.ok === true, '普通票建票返回成功')
   check(plain.ok && String(plain.data.key) === '01', '普通票票号是 01')
   check(plain.ok && plain.data.parentKey == null, '普通票没有 parentKey（不挂地图）')
-  eq(fs.readdirSync(featureIssuesDir).sort(), ['01-补一条说明.md'], '普通票落在 issues/01-<slug>.md（原文位置与命名）')
-  const plainPath = path.join(featureIssuesDir, '01-补一条说明.md')
+  eq(fs.readdirSync(plainIssuesDir).sort(), ['01-补一条说明.md'], '普通票落在自己的普通工作单元 issues/01-<slug>.md（原文位置与命名）')
+  const plainPath = path.join(plainIssuesDir, '01-补一条说明.md')
   const plainInitial = readText(plainPath)
   check(plainInitial.includes('**What to build:** 补一条说明。'), '普通票正文按原文加粗字段行写')
   check(plainInitial.includes('**Blocked by:** None (can start immediately)'), '普通票带原文 Blocked by 字段行')
-  check(plainInitial.includes('**Status:** ready-for-agent'), '普通票带原文 Status 字段行')
+  check(!/\*\*Status:\*\*/.test(plainInitial), '普通票不写状态行（#1790：普通票没有默认状态）')
   check(h2s(plainInitial).length === 0, '未关闭的普通票没有二级标题段')
 
-  const update: any = await be.update(featureRepo, '01', { title: '补一条说明（已改）' }, ctx)
+  const update: any = await be.update(plainRepo, '01', { title: '补一条说明（已改）' }, ctx)
   check(update.ok === true, '普通票能改标题')
   check(readText(plainPath).split('\n').some((l) => l === '# 补一条说明（已改）'), '改完盘上 H1 是 补一条说明（已改）')
-  eq(fs.readdirSync(featureIssuesDir).sort(), ['01-补一条说明.md'], '改标题不改原位文件名')
-  const gotPlain: any = await be.get(featureRepo, '01', {}, ctx)
+  eq(fs.readdirSync(plainIssuesDir).sort(), ['01-补一条说明.md'], '改标题不改原位文件名')
+  const gotPlain: any = await be.get(plainRepo, '01', {}, ctx)
   check(gotPlain.ok === true && String(gotPlain.data.title).includes('补一条说明（已改）'), '普通票读回标题已改')
 
-  const closePlain: any = await be.close(featureRepo, '01', { reason: '说明补完了' }, ctx)
+  const closePlain: any = await be.close(plainRepo, '01', { reason: '说明补完了' }, ctx)
   check(closePlain.ok === true, '普通票能关闭')
   const plainClosed = readText(plainPath)
   eq(h2s(plainClosed), ['Comments'], '关闭普通票只多出 ## Comments 段（不写 ## Answer）')
   check(!plainClosed.includes('## Answer'), '普通票关闭不写 ## Answer')
   check(sectionBody(plainClosed, 'Comments').includes('说明补完了'), '## Comments 段写入关闭原因')
   check(plainClosed.includes('**Status:** resolved'), '关闭后普通票可见 Status 行是 resolved')
-  const gotPlainClosed: any = await be.get(featureRepo, '01', {}, ctx)
+  const gotPlainClosed: any = await be.get(plainRepo, '01', {}, ctx)
   check(gotPlainClosed.ok === true && gotPlainClosed.data.state === 'closed', '普通票读回状态是 closed')
 
   console.log('-- ⑤ 收口：预检、列表、计数、快照 --')
@@ -320,7 +325,7 @@ try {
   const rowSpec = rowOf(rows, '积分兑换', '00', 'spec')
   const rowMap = rowOf(rows, 'effort-a', '00', 'map')
   const rowChild = rowOf(rows, 'effort-a', '01', 'issue')
-  const rowPlain = rowOf(rows, '积分兑换', '01', 'issue')
+  const rowPlain = rowOf(rows, '普通说明', '01', 'issue')
   check(!!rowSpec && String(rowSpec.state) === 'open', '列表里有规格 00，状态 open')
   check(!!rowMap && String(rowMap.state) === 'open', '列表里有探索地图 00，状态 open')
   check(!!rowChild && String(rowChild.state) === 'closed' && String(rowChild.parentKey) === '00', '列表里有地图子票 01，已关闭且带 parentKey 00')

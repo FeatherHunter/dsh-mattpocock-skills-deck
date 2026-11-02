@@ -16,6 +16,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createIssue, closeIssue, reopenIssue, getIssue, setLabelsIssue } from '../src/tracker/rooms/markdown/issues.ts'
+import { normalizeIssueStatusText, statusReadOfText } from '../src/tracker/rooms/markdown/status-write.ts'
 
 let failed = false
 function check(ok: unknown, msg: string): void {
@@ -85,10 +86,10 @@ function issueFile(root: string, effortId: string, key: string): string {
   const hit = entries.filter((one) => one.indexOf(key + '-') === 0)[0]
   return hit ? path.join(dir, hit) : ''
 }
-/** 可见状态行（加粗或裸行）的值；没有回空串。 */
+/** 可见状态行（加粗或裸行）的值；没有回空串。加粗行的冒号在星号里面（**Status:** 值），行尾还可能再收一对星号。 */
 function statusValue(text: string): string {
-  const m = /^[ \t]*(?:\*\*)?Status(?:\*\*)?[ \t]*[:：][ \t]*(\S.*?)[ \t]*$/m.exec(text)
-  return m ? m[1] : ''
+  const m = /^[ \t]*(?:\*\*)?Status(?:\*\*)?[ \t]*[:：][ \t]*(?:\*\*)?[ \t]*(\S.*?)[ \t]*$/m.exec(text)
+  return m ? m[1].replace(/\*\*[ \t]*$/, '').trim() : ''
 }
 /** 文件头隐藏 DSH-LABELS 的值（没这一行回空串）。 */
 function hiddenLabels(text: string): string {
@@ -304,6 +305,108 @@ async function main(): Promise<void> {
   check(/^\*\*Status:\*\* wontfix$/m.test(conflictAfter), '⑤ 显式选的状态落成可见 Status 行')
   check(hiddenLabels(conflictAfter) === 'front-end', '⑤ 冲突后隐藏名单只留非 triage')
   check(historyLines(conflictAfter).length === 1 && historyLines(conflictAfter)[0].indexOf('discarded=ready-for-agent') >= 0, '⑤ 冲突解决后落选值记进历史：' + JSON.stringify(historyLines(conflictAfter)))
+
+  // ══ 六、§七.9 写侧矩阵：4 票型 × 10 可见值 × 9 隐藏集合，归一幂等 ══
+  // 读侧矩阵住在 verify-1790-status-read（直接打 parseMd）；这一扇打写侧归一这一对纯函数：
+  // 不论起点是旧默认值、真冲突、非法可见值、多枚隐藏 triage 还是地图子票的隐藏 triage，
+  // 归一都必须把文件落成同一套规则（可见行是唯一真源、隐藏只留非 triage、落选值记历史），
+  // 而且连着归一两次的结果逐字相同（幂等）。任何一格没有定义、两次结果不同都算红。
+  const M_TRIAGE = ['needs-triage', 'needs-info', 'ready-for-agent', 'ready-for-human', 'wontfix']
+  const M_COMPLETED = ['resolved', 'completed', 'closed', 'done']
+  const M_VISIBLE = ['', ...M_TRIAGE, ...M_COMPLETED]
+  // 九种隐藏集合：空、五枚 triage 各一枚、两枚 triage、非 triage 名称、非 triage + 多枚 triage。
+  // 'bug' 会改变票型判定（隐藏 bug 标签把 spec 路线读成缺陷票），所以对缺陷票那一组单独补上它，
+  // 其余三组用 'front-end' 占住「非 triage 名称」这一格，保证每种票型的九格都是同一票型。
+  const M_HIDDEN = [[], ['needs-triage'], ['needs-info'], ['ready-for-agent'], ['ready-for-human'], ['wontfix'], ['needs-info', 'wontfix'], ['front-end'], ['needs-info', 'front-end']]
+  const M_KINDS: Array<{ kind: string; route: 'spec' | 'plain' | 'map' }> = [
+    { kind: 'spec-ticket', route: 'spec' },
+    { kind: 'bug', route: 'spec' },
+    { kind: 'plain-issue', route: 'plain' },
+    { kind: 'map-ticket', route: 'map' },
+  ]
+  const matrixProblems: string[] = []
+  let matrixCases = 0
+  const mtext = (visible: string, hidden: string[]): string => {
+    const head = hidden.length ? '<!-- DSH-LABELS: ' + hidden.join(', ') + ' -->\n' : ''
+    const statusLine = visible ? '**Status:** ' + visible + '\n' : ''
+    return head + '# 矩阵票\n\n' + statusLine + 'Body.\n'
+  }
+  for (const one of M_KINDS) {
+    for (const visible of M_VISIBLE) {
+      for (const base of M_HIDDEN) {
+        const hidden = one.kind === 'bug' ? ['bug', ...base] : base
+        const caseName = one.kind + ' / visible=' + (visible || '(none)') + ' / hidden=' + hidden.join(',')
+        matrixCases += 1
+        const read1 = statusReadOfText(mtext(visible, hidden), one.route)
+        if (read1.kind !== one.kind) { matrixProblems.push(caseName + ' :: 票型读成 ' + read1.kind); continue }
+        // 归一的显式状态取读侧答案（冲突时读侧按可见行回答，正好是默认规则 visible 的答案）；
+        // 普通票没有状态时明确要求删掉状态行。
+        const choice = read1.status !== undefined ? { status: read1.status } : { dropStatus: true, labels: [] as string[] }
+        const once = normalizeIssueStatusText(mtext(visible, hidden), one.route, choice)
+        if (!once.ok) { matrixProblems.push(caseName + ' :: 归一失败 ' + JSON.stringify(once.error)); continue }
+        const afterText = once.data.text
+        const read2 = statusReadOfText(afterText, one.route)
+        if (read2.status !== read1.status) matrixProblems.push(caseName + ' :: 归一后状态变了 ' + JSON.stringify({ was: read1.status, now: read2.status }))
+        if (read2.statusConflict !== undefined) matrixProblems.push(caseName + ' :: 归一后仍报冲突 ' + JSON.stringify(read2.statusConflict))
+        const hidden2 = hiddenLabels(afterText).split(',').map((x) => x.trim()).filter(Boolean)
+        const triageLeft = hidden2.filter((x) => M_TRIAGE.indexOf(x) >= 0)
+        if (triageLeft.length) matrixProblems.push(caseName + ' :: 隐藏名单里还留着 triage ' + JSON.stringify(triageLeft))
+        if (one.kind !== 'map-ticket' && read1.status !== undefined && statusValue(afterText) !== read1.status) matrixProblems.push(caseName + ' :: 可见状态行没落成 ' + JSON.stringify({ want: read1.status, got: statusValue(afterText) }))
+        const twice = normalizeIssueStatusText(afterText, one.route, choice)
+        if (!twice.ok) { matrixProblems.push(caseName + ' :: 第二次归一失败 ' + JSON.stringify(twice.error)); continue }
+        if (twice.data.text !== afterText) matrixProblems.push(caseName + ' :: 两次归一结果不一致（幂等被破坏）')
+      }
+    }
+  }
+  check(matrixCases === 360, '⑥ 写侧矩阵覆盖 4 票型 × 10 可见值 × 9 隐藏集合：' + matrixCases + ' 格')
+  check(matrixProblems.length === 0, '⑥ 写侧矩阵每一格都有定义、归一幂等、归一后无冲突且隐藏名单不含 triage：' + (matrixProblems.length ? JSON.stringify(matrixProblems.slice(0, 6)) : '360 格全过'))
+
+  // ══ 七、wayfinder 子票：隐藏 triage 在首次写入时移除并记历史；重开不重复记 ══
+  const mapLegacyPath = path.join(tmp, '.scratch', effort, 'issues', '05-地图旧子票.md')
+  writeText(mapLegacyPath, [
+    '<!-- DSH-FORMAT: md-v1 -->',
+    '<!-- DSH-LABELS: needs-triage -->',
+    '# 05: 地图旧子票',
+    '',
+    'Status: claimed',
+    '',
+    '正文',
+    '',
+  ].join('\n'))
+  const mapLegacyBefore = readText(mapLegacyPath)
+  const mapLegacyClosed = await closeIssue(ctx as never, effortRepo as never, '05', {} as never)
+  check(!!(mapLegacyClosed && mapLegacyClosed.ok), '⑦ 带隐藏 triage 的地图子票关得成：' + (mapLegacyClosed && mapLegacyClosed.ok ? '' : JSON.stringify(mapLegacyClosed)))
+  const mapLegacyAfter = readText(mapLegacyPath)
+  check(/^Status: resolved$/m.test(mapLegacyAfter), '⑦ 关闭把可见状态行写成 resolved')
+  check(hiddenLabels(mapLegacyAfter).indexOf('needs-triage') < 0, '⑦ 隐藏 DSH-LABELS 里的 triage 被移除：' + JSON.stringify(hiddenLabels(mapLegacyAfter)))
+  const mapHistory = historyLines(mapLegacyAfter)
+  check(mapHistory.length === 1 && mapHistory[0].indexOf('source=hidden') >= 0 && mapHistory[0].indexOf('discarded=needs-triage') >= 0 && mapHistory[0].indexOf('adopted=resolved') >= 0, '⑦ 隐藏 triage 的去向记进 DSH-STATUS-HISTORY：' + JSON.stringify(mapHistory))
+  const mapLegacyReopen = await reopenIssue(ctx as never, effortRepo as never, '05')
+  check(!!(mapLegacyReopen && mapLegacyReopen.ok), '⑦ 重开这张地图子票返回 ok')
+  const mapReopenedText = readText(mapLegacyPath)
+  check(/^Status: claimed$/m.test(mapReopenedText), '⑦ 重开把可见状态行写回 claimed')
+  check(historyLines(mapReopenedText).length === 1, '⑦ 重开不再加历史行（同一段已经记过）：' + JSON.stringify(historyLines(mapReopenedText)))
+
+  // ══ 八、重开遇真冲突同样拒绝：没有显式状态入口时不许替调用方挑一侧 ══
+  const reopenConflictPath = path.join(tmp, '.scratch', feature, 'issues', '06-重开冲突票.md')
+  writeText(reopenConflictPath, [
+    '<!-- DSH-FORMAT: md-v1 -->',
+    '<!-- DSH-LABELS: ready-for-agent -->',
+    '# 06: 重开冲突票',
+    '',
+    '**What to build:** 重开遇冲突。',
+    '',
+    '**Status:** wontfix',
+    '',
+  ].join('\n'))
+  const reopenConflictBefore = readText(reopenConflictPath)
+  const reopenConflict = await reopenIssue(ctx as never, featureRepo as never, '06')
+  check(!!(reopenConflict && !reopenConflict.ok && reopenConflict.error.kind === 'parse'), '⑧ 重开遇真冲突整次拒绝（kind=parse）：' + JSON.stringify(reopenConflict && !reopenConflict.ok ? reopenConflict.error.kind : reopenConflict))
+  let reopenRaw: Record<string, unknown> = {}
+  try { reopenRaw = JSON.parse(String((reopenConflict && !reopenConflict.ok ? reopenConflict.error.raw : '') || '{}')) } catch (e) { reopenRaw = {} }
+  check(reopenRaw.field === 'status' && reopenRaw.visible === 'wontfix' && Array.isArray(reopenRaw.hidden) && reopenRaw.hidden[0] === 'ready-for-agent' && String(reopenRaw.hiddenSource) === 'DSH-LABELS' && !!(reopenRaw.resolution && (reopenRaw.resolution as Record<string, unknown>).default === 'visible'), '⑧ 拒绝回执的 raw 是读侧那一份冲突 JSON（调用方可据此先归一）：' + JSON.stringify(reopenRaw))
+  check(readText(reopenConflictPath) === reopenConflictBefore, '⑧ 被拒绝的重开一个字节都不动')
+  check(mapLegacyBefore.indexOf('DSH-LABELS: needs-triage') >= 0, '⑧ 前置：地图旧子票起点确实是隐藏 triage 形态')
 
   ws_cleanup(tmp)
   console.log(failed ? '存在失败' : '全部通过')

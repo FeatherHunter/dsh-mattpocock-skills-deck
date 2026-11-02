@@ -186,12 +186,13 @@ async function main(): Promise<void> {
       '说明。',
     ].join('\n'),
   } as never, renderOpts as never)
-  const statusC = textC.indexOf('**Status:**')
   const backgroundC = textC.indexOf('## 背景')
-  const betweenC = textC.slice(statusC, backgroundC)
+  // #1790：普通票没有默认状态，不再写 Status 行；判定仍看「第一个二级标题之前」。
+  const betweenC = textC.slice(0, backgroundC)
   check(/^\*\*What to build:\*\*[ \t]*$/m.test(textC), '② 复选框前缀没有被当成 What to build 的内容')
+  check(!/\*\*Status:\*\*/.test(textC), '② 普通票不写状态行')
   check(betweenC.includes('- [ ] 模板验收项甲') && betweenC.includes('- [ ] 模板验收项乙'), '② 二级标题之前的复选框进模板验收项位置')
-  check(checkboxLines(betweenC).length === 2, '② Status 与 ## 背景 之间只有两条模板验收项位置上的验收项')
+  check(checkboxLines(betweenC).length === 2, '② 一级标题与 ## 背景 之间只有两条模板验收项位置上的验收项')
 
   // —— ③ 围栏里的字段行示例不被当成真字段 ——
   const textD = renderTicket('issue', {
@@ -207,7 +208,7 @@ async function main(): Promise<void> {
       FENCE,
     ].join('\n'),
   } as never, renderOpts as never)
-  check(/\*\*Status:\*\* ready-for-agent/.test(textD), '③ 围栏里的 Status 示例不被当成真字段（仍是默认 ready-for-agent）')
+  check((textD.match(/\*\*Status:\*\*/g) || []).length === 1, '③ 围栏里的 Status 示例不被当成真字段（普通票全文只有围栏里那一处）')
   check(textD.includes(FENCE + 'md\n**Status:** resolved\n- [ ] 示例验收\n' + FENCE), '① 围栏里的字段行示例原样保留')
   const beforeFirstFenceD = textD.slice(0, textD.indexOf(FENCE))
   check(!/- \[ \]/.test(beforeFirstFenceD), '① 围栏里的 - [ ] 没有被搬到模板验收项位置')
@@ -255,7 +256,7 @@ async function main(): Promise<void> {
   const fenceBlockF = [TILDE + 'md', '- [ ] 外层围栏里的验收项', FENCE + 'md', '**Status:** resolved', '- [ ] 内层围栏里的验收项', FENCE, TILDE].join('\n')
   check(/\*\*What to build:\*\* 示例说明。/.test(textF), '② 混用围栏前的说明仍进 What to build')
   check(textF.includes(fenceBlockF), '④ 混用围栏（~~~ 里包 ```）整段原样保留')
-  check(/\*\*Status:\*\* ready-for-agent/.test(textF), '④ 混用围栏里的 Status 示例不被当成真字段')
+  check((textF.match(/\*\*Status:\*\*/g) || []).length === 1, '④ 混用围栏里的 Status 示例不被当成真字段（全文只有围栏里那一处）')
   check(textF.indexOf('## 背景') > textF.indexOf(fenceBlockF), '④ 混用围栏后面的二级小节仍在围栏之后')
   const beforeFenceF = textF.slice(0, textF.indexOf(TILDE + 'md'))
   check(!/- \[ \]/.test(beforeFenceF), '④ 混用围栏里的 - [ ] 没有被搬到模板验收项位置')
@@ -280,7 +281,7 @@ async function main(): Promise<void> {
   } as never, renderOpts as never)
   const fenceBlockG = [FENCE + 'md', '- [ ] 围栏里的验收项', '**Status:** resolved', FENCE].join('\r\n')
   check(textG.includes(fenceBlockG), '⑤ CRLF 正文的围栏整段原样保留（关闭行带 \\r 也能闭合）')
-  check(/\*\*Status:\*\* ready-for-agent/.test(textG), '⑤ CRLF 围栏里的 Status 示例不被当成真字段')
+  check((textG.match(/\*\*Status:\*\*/g) || []).length === 1, '⑤ CRLF 围栏里的 Status 示例不被当成真字段（全文只有围栏里那一处）')
   check(textG.indexOf('## 背景') > textG.indexOf(fenceBlockG), '⑤ CRLF 围栏后面的二级小节仍在围栏之后')
 
   console.log('\n' + (failures.length === 0 ? 'PASS' : 'FAIL') + ' verify-1789-create-preserve-sections: ' + checks + ' checks, ' + failures.length + ' failed')

@@ -37,7 +37,8 @@ import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-c
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
 import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 // #1790 缺陷 A：状态冲突的预检、归一与拒绝回执住在 issue-patch-status（本文件有效行贴着每文件 350 行的上限）。
-import { guardStatus, nonTriageLabelsOf, triageNamesOf } from './issue-patch-status.js'
+import { guardStatus, namesOf } from './issue-patch-status.js'
+import { runLabelsStep } from './issue-patch-labels.js'
 
 /**
  * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
@@ -55,11 +56,6 @@ export interface DeckIssuePatchDeps {
 // 对外形状不变：装配层（agent-row）与这里都从同一份定义出路由、参数名与给 AI 看的说明。
 import { definition } from './issue-patch-definition.js'
 export { definition }
-
-/** 从参数里收一束名字：字符串直接用，对象取它的 name，其余一律当空串丢掉（不猜）。 */
-function names(list: unknown) {
-  return Array.isArray(list) ? list.map((l) => (typeof l === 'string' ? l : (l && l.name) || '')).map((s) => String(s).trim()).filter(Boolean) : []
-}
 
 /**
  * 装配层调一次，拿到这对 { definition, run }。deps 是宿主注入的依赖袋（见 DeckIssuePatchDeps），
@@ -102,8 +98,8 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
     const scope = applyMdScope(repo, a)
     if (!scope.ok) return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, scope.message, { cost: { estimated: est } })
 
-    const addLabels = names(a.addLabels)
-    const removeLabels = names(a.removeLabels)
+    const addLabels = namesOf(a.addLabels)
+    const removeLabels = namesOf(a.removeLabels)
     // 索引签名只为让下面按 key 过滤时能取用；键名、值的算法与个数一个字没改。
     const wants: Record<string, boolean> = {
       comment: typeof a.comment === 'string' && a.comment.trim() !== '',
@@ -214,10 +210,35 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
         args: a, key: key, repo: repo, tracker: t, opCtx: opCtx, estimate: est,
         items: items, outOfBudget: () => sc.outOfBudget(), fail: fail, over: over,
         timeoutReply: timeoutReply, lockedOut: lockedOut, lockOpts: lockOpts,
+        // 这次还点了改标签时，归一交给标签那一步合并写（同一批标签 + 同一个状态只写一次盘）。
+        deferToLabels: wants.labels,
       })
       if (!statusGuard.ok) return statusGuard.reply
-      const explicit = statusGuard.explicit
+      // 三格含义：chosen 是按 resolveStatus 选定的状态（无冲突或没给 resolveStatus 时为空）；
+      // conflict 是读侧报的那一份冲突（没有就是空）；guardStatusValue 是这次读回来的当前状态（非 Markdown 后端为空）。
+      const chosen = statusGuard.chosen
+      const conflict = statusGuard.conflict
+      const guardStatusValue = statusGuard.status
+      const guardStatusModel = statusGuard.statusModel
 
+      // #1790 缺陷 A：状态冲突已由上面的闸处理完（没有冲突时 chosen、conflict 都是空）。
+      // 标签步骤排在评论前面：它最可能被后端驳回（这次带的显式状态与 resolveStatus 选的那一侧对不上），
+      // 排第一时驳回就是整笔没写，不会留下「评论已经发出去了」的半写。这一步的序列住在 issue-patch-labels。
+      if (wants.labels) {
+        if (sc.outOfBudget()) over('labels')
+        else {
+          const labelsStep = await runLabelsStep({
+            key: key, repo: repo, tracker: t, opCtx: opCtx, items: items, notes: notes,
+            addLabels: addLabels, removeLabels: removeLabels,
+            chosen: chosen, conflict: conflict, statusValue: guardStatusValue, statusModel: guardStatusModel,
+            estimate: est, lockOpts: lockOpts, outOfBudget: () => sc.outOfBudget(),
+            timeoutReply: timeoutReply, fail: fail, over: over, lockedOut: lockedOut,
+          })
+          if (labelsStep.kind === 'reply') return labelsStep.reply
+        }
+      }
+
+      // 评论排在标签之后：前面每一步都可能整笔拒绝，评论一旦发出去就撤不回来（不留下半写）。
       if (wants.comment) {
         if (sc.outOfBudget()) over('comment')
         else {
@@ -227,55 +248,6 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
           const r = must(rawComment)
           if (r && r.ok === true) items.push({ key: key, step: 'comment', status: 'ok' })
           else fail('comment', r)
-        }
-      }
-
-      if (wants.labels) {
-        // 标签是整批替换：先读回当前标签，再加上去/摘下来 —— 只有读到了才敢整批替换。
-        // 读改写序列持同票锁：同票并发改标签不再丢一次改动；不同票照旧并行。
-        if (sc.outOfBudget()) over('labels')
-        else {
-          // #1790 缺陷 A：removeLabels 里出现 triage 时，摘标签不会清掉状态（状态住在可见 Status 行），
-          // 回执必须把这一点说清，否则调用方会以为票已经变回「未分流」。
-          const removedTriage = triageNamesOf(removeLabels)
-          if (removedTriage.length) notes.push('removeLabels 里的 ' + removedTriage.join('、') + ' 是状态而不是普通标签：本地 Markdown 的状态住在可见 Status 行，摘标签不会清掉状态；要改状态请用 addLabels 带一枚 triage，或关闭这张票。')
-          lockTimeout = null
-          const held = await withKeyLock(repo, key, async () => {
-            const rawCur = await t.get(repo, key, {}, opCtx)
-            const currentTimeout = timeoutMessage(rawCur as unknown as TransportResult)
-            if (currentTimeout) { lockTimeout = currentTimeout; return }
-            const cur = must(rawCur)
-            if (!cur || cur.ok !== true) { fail('labels', cur); return }
-            // #1790 缺陷 A：可见 Status 行是状态真源，DSH-LABELS 只放非 triage 标签。
-            // 先滤掉读回来时由状态合成的那枚 triage，再把 addLabels 里的 triage 交给 setLabels 的 status 选项写进可见行。
-            const have = nonTriageLabelsOf(cur.data && cur.data.labels)
-            const want = have.concat(nonTriageLabelsOf(addLabels)).filter((n) => removeLabels.indexOf(n) < 0)
-            const uniq = want.filter((n, i) => want.indexOf(n) === i)
-            if (sc.outOfBudget()) { over('labels'); return }
-            // addLabels 最多一枚 triage（多枚在预检里已经拒掉）：它只改可见状态，不写进隐藏名单。
-            const labelStatusOpt = explicit.triage.length === 1 ? { status: explicit.triage[0] } : {}
-            const rawLabels = await t.setLabels(repo, key, uniq, labelStatusOpt, opCtx)
-            const labelsTimeout = timeoutMessage(rawLabels as unknown as TransportResult)
-            if (labelsTimeout) { lockTimeout = labelsTimeout; return }
-            const r = must(rawLabels)
-            if (r && r.ok === true) {
-              // 「回了 ok」不等于「标签改成了」：判据只取写后读回这一次（后端的回答本身），
-              // 不取写动作自己的回包 —— 后端把回包里的标签写成刚提交的那一份时，拿它当证据等于自问自答，
-              // 「写命令成功、盘上没落全」会被报成 ok（#790 同一类：回执只许说读回来的事）。
-              const canRead = typeof t.get === 'function' && !sc.outOfBudget()
-              const after = canRead ? await t.get(repo, key, {}, opCtx) : null
-              const readOk = !!(after && after.ok === true)
-              const gotLabels = readOk ? names((after.data || {}).labels) : []
-              const missing = uniq.filter((n) => gotLabels.indexOf(n) < 0)
-              if (!readOk) {
-                items.push({ key: key, step: 'labels', status: 'failed', reason: '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + String((after && after.error && after.error.message) || '没给出原因').slice(0, 160) : '剩余额度不够读回这一次的结果') + '）：标签改成没改成不知道，别当成已经改好。' })
-              } else if (missing.length) {
-                items.push({ key: key, step: 'labels', status: 'failed', reason: '写动作回了成功，但写后读回来的标签里没有这些（' + missing.join('、') + '）：整批替换没落全，别当成已经改好。' })
-              } else items.push({ key: key, step: 'labels', status: 'ok', labels: uniq })
-            } else fail('labels', r)
-          }, lockOpts)
-          if (lockTimeout) return timeoutReply(lockTimeout)
-          if (held && held.ok === false && held.timedOut) lockedOut('labels')
         }
       }
 
