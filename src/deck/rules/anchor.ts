@@ -16,6 +16,10 @@ import type { Timestamp } from './time.js'
 // 纯规则侧引共享域的纯数据常量不碰世界（禁的是宿主能力，见 .dependency-cruiser.cjs），
 // 调时间改 YAML。值由 tests/verify-time-config.ts 看守一致。
 import { ANCHOR_WINDOW_MS as CENTRAL_ANCHOR_WINDOW_MS } from '../../shared/time-config/src/values.js'
+// 标签清单收口只有一份实现，住在同目录的 label-names.ts；这里引它并原样转出去，
+// 让原来从本文件取 labelNames 的调用点（src/deck/shell/minimal-spec.ts）不用改路径。
+import { labelNames } from './label-names.js'
+export { labelNames }
 
 /**
  * 幂等窗口的长度，单位毫秒（5 分钟）。
@@ -35,15 +39,6 @@ export function anchorBucket(now: Timestamp, windowMs: number = ANCHOR_WINDOW_MS
 /** 拿不准是不是字符串时统一收口成字符串：不是字符串就当空串（调用方各自判空）。 */
 function str(v: unknown): string {
   return (typeof v === 'string') ? v : ''
-}
-
-/** 把各种形态的标签清单（字符串、`{name}` 对象、两种混着来）归一成去空后的名字数组。 */
-export function labelNames(list: unknown): string[] {
-  const arr = Array.isArray(list) ? list : []
-  return arr
-    .map((one) => (typeof one === 'string' ? one : (one && (one as { name?: unknown }).name) || ''))
-    .map((name) => String(name).trim())
-    .filter(Boolean)
 }
 
 /**

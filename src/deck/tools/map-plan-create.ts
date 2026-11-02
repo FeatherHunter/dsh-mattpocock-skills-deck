@@ -28,6 +28,8 @@ import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js
 // #1413：子票的位置与标签口径只在 rules/object-kind.ts 那份位置表里写一份，这里照它收口，不再自带一套。
 import { resolveCreateKind, MAP_TICKET_LABELS } from '../rules/object-kind.js'
 import type { CreateKindResolution } from '../rules/object-kind.js'
+// #1832：地图本体的 labels 也受「同一时刻至多一枚 triage 状态」管；判据与子票、单票建票共用同一份。
+import { triageStateProblem } from '../rules/triage-state.js'
 import * as budget from '../../refresh/kernel/host-budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../refresh/kernel/tool-call-budget.js'
 // 超时住中央 YAML，调时间改 config/timeouts.yaml。
@@ -215,9 +217,11 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
     // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 是会话壳里的运行时布尔，那一层还没标类型，
     // 见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
     if (!s.ok) return shell.unsupported('deck_map_plan_create', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
-    if (!title || !children.length) {
-      return shell.unsupported('deck_map_plan_create', REFUSAL_REASONS.BAD_ARGS, '建整张地图至少要给 title 与一张子票（children 里每项要有 key 与 title）。', { cost: { estimated: est } })
-    }
+    // #1832：地图本体的标签也在动手之前收口。这个工具建地图票时走的是 ensureLabels(a.labels, 'map')，
+    // 不经过单票建票的 resolveCreateKind；两枚状态标签如果放进来，会原样写到地图票上，与「一张票任何时刻
+    // 至多一枚 triage 状态」冲突。这里在选后端、开计划锁之前整批拒绝，盘上一张票都不动。
+    const mapLabelProblem = triageStateProblem(a.labels, '地图票的 labels')
+    if (!title || !children.length || mapLabelProblem) return shell.unsupported('deck_map_plan_create', REFUSAL_REASONS.BAD_ARGS, mapLabelProblem ? mapLabelProblem + '这一批子票也没建，一张票都没动。' : '建整张地图至少要给 title 与一张子票（children 里每项要有 key 与 title）。', { cost: { estimated: est } })
     // #1413：子票改用两层词表。先在动手之前把每个 child 的位置与标签收口一遍，任何一张说不清就整批拒绝 ——
     // 这时还没选后端、没开计划锁、没发一个调用，盘上一张票都不会动。
     // 为什么 parentKey 固定传 '@map'：这个工具的子票父票永远是本次计划的地图票（state.mapKey），children 不再收

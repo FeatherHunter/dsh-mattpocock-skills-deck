@@ -10,6 +10,8 @@
 // 某一项在生成物里缺失时，回落到今天写死的那个字（与旧行为一字不差）：
 // 生成物是构建时按 YAML 写出的，真源缺项属于异常，建票链路上不为此抛错，沿用旧字把票建出来。
 import { MD_FORMAT } from './generated.js'
+// #1832：五枚 triage 状态的跨后端名单住在契约层，与 deck 的单状态判据引同一份；这里只拿它当回退值。
+import { TRIAGE_STATE_LABELS } from '../../../contract/triage-states.js'
 
 type LabelEntry = { label?: unknown; values?: unknown }
 type ObjectEntry = { fields?: unknown; 'top-lines'?: unknown }
@@ -105,10 +107,11 @@ function stringsOf(value: unknown): string[] {
 }
 
 /** 五种 triage 角色（needs-triage / needs-info / ready-for-agent / ready-for-human / wontfix）。
- *  这是「状态」的正式词表：可见 Status 行只认这五个加上完成词。 */
+ *  这是「状态」的正式词表：可见 Status 行只认这五个加上完成词。
+ *  配置（status.triage-roles）是数据真源；读不到时回退到契约层的同一份名单（#1832，两边由门禁比对）。 */
 export const TRIAGE_STATUS_ROLES: string[] = (() => {
   const got = stringsOf(statusOf()['triage-roles'])
-  return got.length ? got : ['needs-triage', 'needs-info', 'ready-for-agent', 'ready-for-human', 'wontfix']
+  return got.length ? got : TRIAGE_STATE_LABELS.slice()
 })()
 
 /** 完成词（resolved / completed / closed / done）：可见 Status 行写它表示这张票已关闭。

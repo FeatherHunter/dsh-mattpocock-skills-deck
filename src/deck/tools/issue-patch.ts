@@ -42,6 +42,8 @@ import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 // #1790 缺陷 A：状态冲突的预检、归一与拒绝回执住在 issue-patch-status（本文件有效行贴着每文件 350 行的上限）。
 import { guardStatus, namesOf } from './issue-patch-status.js'
 import { runLabelsStep } from './issue-patch-labels.js'
+// #1832：一张票最多一枚 triage 状态；addLabels 一次给两枚以上时在选后端之前整笔拒绝。
+import { triageStateProblem } from '../rules/triage-state.js'
 
 /**
  * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
@@ -95,14 +97,18 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
     if (a.close === false) {
       return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.OVER_CAP, '重开不在这个 AI 工具面上：这个工具只允许关闭，不允许重新打开；要重开请人回到后端（GitHub 的票页面，或本地 .scratch 目录下的票文件）手动做。这次一个字都没动。', { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     }
+    // #1832：triage 状态是切换而不是叠加，一次只能给一枚。addLabels 里出现两枚以上状态时整笔拒绝，
+    // 并且在选后端之前拒 —— 连后端都不连、一个字都不动（与上面「重开」同一档收口）。
+    const addLabels = namesOf(a.addLabels)
+    const removeLabels = namesOf(a.removeLabels)
+    const labelStateProblem = triageStateProblem(addLabels, 'addLabels')
+    if (labelStateProblem) return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, labelStateProblem + '这次一个字都没动：没选后端、没花点数、没写盘。', { cost: { estimated: est } })
+
     const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_issue_patch', kind: 'write' })
     if (!pick.ok) return shell.unsupported('deck_issue_patch', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
     const scope = applyMdScope(repo, a)
     if (!scope.ok) return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, scope.message, { cost: { estimated: est } })
-
-    const addLabels = namesOf(a.addLabels)
-    const removeLabels = namesOf(a.removeLabels)
     // 索引签名只为让下面按 key 过滤时能取用；键名、值的算法与个数一个字没改。
     const wants: Record<string, boolean> = {
       comment: typeof a.comment === 'string' && a.comment.trim() !== '',

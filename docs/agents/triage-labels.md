@@ -33,11 +33,19 @@ When a skill mentions a role (for example "apply the AFK-ready triage label"), u
 | --- | --- |
 | 探索地图（`kind: map`） | `wayfinder:map` |
 | 地图工单（`kind: map-ticket`） | 调用时 `label` 给的那一枚 `wayfinder:<类型>`（`research` / `prototype` / `grilling` / `task` 四选一） |
-| 规格（`kind: spec`）与实施票（`kind: spec-ticket`） | `ready-for-agent` |
-| 缺陷票（`kind: bug`） | `bug` 与 `needs-triage` |
+| 规格（`kind: spec`）与实施票（`kind: spec-ticket`） | 类型标签不补；triage 状态没显式给时默认 `ready-for-agent` |
+| 缺陷票（`kind: bug`） | 类型标签 `bug`；triage 状态没显式给时默认 `needs-triage` |
 | 普通票（`kind: issue`） | 一枚都不补 |
 
 `deck_issue_create` 按这张表把缺的补上。**wayfinder 的地图与地图子票只带 wayfinder 标签，不叠 `ready-for-agent` 这类 triage 标签**：它们是决策，不是实施工作。同一张表也写在 `docs/agents/issue-tracker.md` 的「Mandatory label set」一节。
+
+**triage 状态在任何时刻至多一枚**（`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix` 五选一）。状态是「切换」不是「叠加」：
+
+- 建票时 `labels` 里显式带了一枚状态标签，就按调用方的来，不再叠上面那张位置表里的默认状态。例如缺陷票带 `needs-info`，最终只有 `bug` 与 `needs-info`，不会再多一枚 `needs-triage`。
+- 改标签时 `addLabels` 带一枚状态，工具会先把票上原来的状态标签摘掉，再换上新的，并在回执里写明摘了哪几枚。所以「把 `needs-triage` 推进成 `ready-for-agent`」只要加 `ready-for-agent`，不要自己再去摘旧的那枚。
+- 一次请求给两枚以上状态标签（建票或改标签都算）直接拒绝，票面一个标签都不动：这是调用方自己表达矛盾，工具不替人挑。
+
+五枚状态在程序里的名单只有一份：`src/tracker/contract/triage-states.ts`，`src/tracker/contract/canonical-labels.ts` 也从这里取名字，不再手抄。本地 Markdown 后端另有自己的配置来源——`original-skills.yaml` 的 `status.triage-roles`；两处由 `tests/verify-md-format-config.ts` 逐项比对，要改名单必须两处一起改。
 
 本地 Markdown 后端把上面的 triage 角色落成票文件里可见的 `Status:` 行，不写进文件头隐藏的 `DSH-LABELS`；规格与探索地图容器没有可见状态行，仍用隐藏的 `DSH-STATUS`。读侧会把可见状态合成回 triage 标签，所以「按标签筛选」和「按位置补标签」的用法都不变。
 

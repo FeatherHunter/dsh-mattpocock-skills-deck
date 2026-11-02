@@ -14,6 +14,8 @@ import type { TransportResult } from '../shell/backend-transport.js'
 import { REFUSAL_REASONS } from '../shell/call-shell.js'
 import type { StatusConflict } from '../../tracker/contract/entities.js'
 import { namesOf, refusalReply } from './issue-patch-status.js'
+// #1832：triage 状态是替换而不是叠加；「哪几枚算状态」的判断住 deck 纯规则侧。
+import { isTriageStateLabel, triageStatesIn } from '../rules/triage-state.js'
 
 /** 后端回包形状（运行时真值，契约层还没建模）：这里只读到 error.message / error.kind 与 data.labels。 */
 type UnknownRecord = Record<string, unknown>
@@ -54,6 +56,11 @@ export interface LabelsStepInput {
 /** 结局：继续跑后面的步骤，或者整笔回一个拒绝回执（此时别的步骤一步都还没写）。 */
 export type LabelsStepResult = { kind: 'done' } | { kind: 'reply'; reply: unknown }
 
+/** 比标签名用的统一拼写：GitHub 的标签名不分大小写，判「是不是同一枚」一律按小写比。 */
+function lower(name: string): string {
+  return String(name).trim().toLowerCase()
+}
+
 /**
  * 跑「改标签」这一步。锁内先读回当前标签再整批替换：只有读到了才敢整批写，
  * 读改写序列持同票锁，同票并发改标签不会丢一次改动；不同票照旧并行。
@@ -83,12 +90,32 @@ export async function runLabelsStep(input: LabelsStepInput): Promise<LabelsStepR
     if (!cur || cur.ok !== true) { input.fail('labels', cur); return }
     // 读回来的标签是全量（本地 Markdown 读侧会把状态合成一枚 triage）：整批替换先原样收下，
     // 由后端的 setLabels 自己把 triage 写进可见 Status 行、只把非 triage 写进隐藏名单。
-    // 容器（规格 / 地图）的标签原样保留，不会因为这里过滤而丢掉 ready-for-agent。
-    const wanted = namesOf(cur.data && cur.data.labels).concat(input.addLabels).filter((n) => input.removeLabels.indexOf(n) < 0)
-    let uniq = wanted.filter((n, i) => wanted.indexOf(n) === i)
+    // 规格 / 地图这类容器的非状态标签原样保留，不会因为下面的过滤而丢掉。
+    const currentNames = namesOf(cur.data && cur.data.labels)
+    // #1832：triage 状态是替换而不是叠加。addLabels 里恰有一枚状态时，先把读回来的旧状态全部摘掉，
+    // 再把要切到的那一枚并进来；摘了哪几枚写进回执（notes），否则调用方只知道「加了」，不知道旧状态不在了。
+    // 一次给两枚以上状态在 issue-patch 入口就整笔拒绝了，不会走到这里；真走到了也按「一枚都不摘」原样并。
+    const addStates = triageStatesIn(input.addLabels)
+    const addState = addStates.length === 1 ? addStates[0] : ''
+    const keepState = lower(addState)
+    const removeLower = input.removeLabels.map(lower)
+    const oldStates = triageStatesIn(currentNames)
+    const droppedStates = addState ? oldStates.filter((n) => lower(n) !== keepState) : []
+    let wanted = currentNames.concat(input.addLabels).filter((n) => removeLower.indexOf(lower(n)) < 0)
+    if (addState) wanted = wanted.filter((n) => !isTriageStateLabel(n) || lower(n) === keepState)
+    // 去重按小写比（GitHub 的标签名不分大小写），但保留第一次出现的原拼写：
+    // `Ready-For-Agent` 与 `ready-for-agent` 是同一枚，票上只留一枚。
+    const seen: string[] = []
+    for (const n of wanted) {
+      if (seen.map(lower).indexOf(lower(n)) < 0) seen.push(n)
+    }
+    let uniq = seen
     // 真冲突且这次选了 resolveStatus：冲突两侧里没被选中的名字一起从整批里去掉，
     // 归一与改标签在同一次 setLabels 里写完（后端会按 status 选项写可见行并记历史）。
-    if (chosen !== null && conflict !== null) uniq = uniq.filter((n) => n !== conflict.visible && conflict.hidden.indexOf(n) < 0)
+    if (chosen !== null && conflict !== null) {
+      const drop = [lower(conflict.visible)].concat(conflict.hidden.map(lower))
+      uniq = uniq.filter((n) => drop.indexOf(lower(n)) < 0)
+    }
     if (input.outOfBudget()) { input.over('labels'); return }
     const labelStatusOpt = chosen !== null ? { status: chosen } : {}
     const rawLabels = await t.setLabels(input.repo, key, uniq, labelStatusOpt, input.opCtx)
@@ -104,13 +131,19 @@ export async function runLabelsStep(input: LabelsStepInput): Promise<LabelsStepR
       const readOk = !!(after && after.ok === true)
       const afterData: UnknownRecord = (after && after.data) || {}
       const gotLabels = readOk ? namesOf(afterData.labels) : []
-      const missing = uniq.filter((n) => gotLabels.indexOf(n) < 0)
+      // 读回来的拼写可能被后端归一过（本地 Markdown 房统一写小写），比对同样按小写来，否则
+      // `Ready-For-Agent` 写进去、读回 `ready-for-agent` 会被误报成「整批替换没落全」（#1832 审查）。
+      const gotLower = gotLabels.map(lower)
+      const missing = uniq.filter((n) => gotLower.indexOf(lower(n)) < 0)
       if (!readOk) {
         const afterMsg = String((after && after.error && after.error.message) || '没给出原因').slice(0, 160)
         items.push({ key: key, step: 'labels', status: 'failed', reason: '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + afterMsg : '剩余额度不够读回这一次的结果') + '）：标签改成没改成不知道，别当成已经改好。' })
       } else if (missing.length) {
         items.push({ key: key, step: 'labels', status: 'failed', reason: '写动作回了成功，但写后读回来的标签里没有这些（' + missing.join('、') + '）：整批替换没落全，别当成已经改好。' })
-      } else items.push({ key: key, step: 'labels', status: 'ok', labels: uniq })
+      } else {
+        if (droppedStates.length) input.notes.push('这张票（' + key + '）：这次把 triage 状态换成「' + addState + '」，旧状态标签已从票上摘掉：' + droppedStates.join('、') + '（状态是替换，不会两枚并存）。')
+        items.push({ key: key, step: 'labels', status: 'ok', labels: uniq })
+      }
     } else if (chosen !== null && r && r.error && String(r.error.kind) === 'parse') {
       // 带着状态归一写的标签被后端驳回，且驳回原因是「状态与标签两处对不上」：
       // 标签与状态都还一个字没动，别的步骤一次都没开始，整笔回拒绝，让调用方先统一口径。

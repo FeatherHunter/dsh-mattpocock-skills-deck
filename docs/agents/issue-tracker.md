@@ -160,9 +160,11 @@ Issues and specs for this repo live as GitHub issues.
 | --- | --- |
 | 探索地图（`kind: map`） | `wayfinder:map` |
 | 地图工单（`kind: map-ticket`） | 调用时 `label` 给的那一枚 `wayfinder:<类型>`（`research` / `prototype` / `grilling` / `task` 四选一） |
-| 规格（`kind: spec`）与实施票（`kind: spec-ticket`） | `ready-for-agent` |
-| 缺陷票（`kind: bug`） | `bug` 与 `needs-triage` |
+| 规格（`kind: spec`）与实施票（`kind: spec-ticket`） | 类型标签不补；triage 状态没显式给时默认 `ready-for-agent` |
+| 缺陷票（`kind: bug`） | 类型标签 `bug`；triage 状态没显式给时默认 `needs-triage` |
 | 普通票（`kind: issue`） | 一枚都不补：调用方给什么标签就带什么 |
+
+**triage 状态在同一张票上任何时刻至多一枚**（`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix` 五选一），换状态是替换不是叠加：建票时 `labels` 显式带了状态就按调用方的来（不再叠位置默认值）；改标签时 `addLabels` 带一枚状态，工具会先摘掉票上原来的状态再换新的，摘了哪几枚写进回执；一次给两枚以上状态（建票或改标签）整笔拒绝，票面一个标签都不动。状态词表在程序里的名单只有一份：`src/tracker/contract/triage-states.ts`（`canonical-labels.ts` 也从这里取名字）；本地 Markdown 后端另有配置来源 `original-skills.yaml` 的 `status.triage-roles`，两处由 `tests/verify-md-format-config.ts` 逐项比对，要改名单必须两处一起改。
 
 `deck_issue_create` 按这张表把缺的补上，补了哪几枚写进回执；改标签用 `deck_issue_patch`。本地 Markdown 后端把 triage 角色落成票文件里可见的 `Status:` 行，不写进隐藏的 `DSH-LABELS`；规格与探索地图容器没有可见状态行，仍用隐藏的 `DSH-STATUS`。读侧会把可见状态合成回 triage 标签，所以 `deck_issue_list` 按 `labels` 筛选仍然有效。
 

@@ -15,6 +15,7 @@
 // 以及把归一这件事交回后端的 setLabels（它自己会把 triage 写进可见 Status 行、并记历史）。
 import { DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { must, timeoutMessage } from '../shell/backend-transport.js'
+import { labelNames } from '../rules/label-names.js'
 import type { TransportResult } from '../shell/backend-transport.js'
 import { withKeyLock } from '../shell/write-mutex.js'
 import type { KeyLockOpts } from '../shell/write-mutex.js'
@@ -39,16 +40,10 @@ interface TrackerStatus {
   setLabels(repo: unknown, key: string, labels: string[], opts: Record<string, unknown>, opCtx: unknown): Promise<unknown>
 }
 
-/** 从一批名字里收干净的字符串（字符串直接用，对象取 name，空串丢掉）。 */
-export function namesOf(list: unknown): string[] {
-  if (!Array.isArray(list)) return []
-  const out: string[] = []
-  for (const item of list) {
-    const name = String(typeof item === 'string' ? item : (item && (item as UnknownRecord).name) || '').trim()
-    if (name) out.push(name)
-  }
-  return out
-}
+// 标签名收口只有一份实现：rules/label-names.ts 的 labelNames。deck 工具侧一直把这件事叫 namesOf
+// （issue-patch 与 issue-patch-labels 都从这一格取），所以在这里原样转出，不另抄一份（#1832 审查指出
+// 同一套收法散在四处）。
+export { labelNames as namesOf } from '../rules/label-names.js'
 
 /** 从这次要写的正文里取 Status 行：只认第一个一级标题之前的行（与后端取正文 Status 行的语法同一段）。
  *  这里只做「同一次调用显式点的状态与 resolveStatus 是否一致」的字符串比较，不做词表校验：
@@ -117,7 +112,7 @@ export function conflictNote(conflict: StatusConflict): string {
 export function explicitMismatchProblem(args: UnknownRecord, conflict: StatusConflict, chosen: string): string | null {
   const hidden = Array.isArray(conflict.hidden) ? conflict.hidden : []
   const other = chosen === String(conflict.visible || '') ? String(hidden[0] || '') : String(conflict.visible || '')
-  const picked: string[] = namesOf(args.addLabels).map((name) => name.toLowerCase())
+  const picked: string[] = labelNames(args.addLabels).map((name) => name.toLowerCase())
   if (other && picked.indexOf(other.toLowerCase()) >= 0) {
     return '这次 resolveStatus 选的是「' + chosen + '」，但 addLabels 里点名了另一侧的状态「' + other + '」：两处不一致，请只留一处。'
   }
@@ -242,7 +237,7 @@ async function normalizeConflict(input: StatusGuardInput, chosen: string, confli
     if (readTimeout) { lockTimeout = readTimeout; return }
     const cur = must(raw) as UnknownRecord | null
     if (!cur || cur.ok !== true) { input.fail('status', cur); failed = true; return }
-    const labels = namesOf(((cur.data || {}) as UnknownRecord).labels)
+    const labels = labelNames(((cur.data || {}) as UnknownRecord).labels)
     // 冲突两侧的名字都从整批里去掉：选了 visible 就把隐藏那枚 triage 摘掉，反之亦然。
     const kept = labels.filter((name) => name !== conflict.visible && conflict.hidden.indexOf(name) < 0)
     const rawSet = await tracker.setLabels(input.repo, input.key, kept, { status: chosen }, input.opCtx)

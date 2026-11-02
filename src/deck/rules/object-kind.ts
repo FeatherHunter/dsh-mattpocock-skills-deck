@@ -13,6 +13,10 @@
 //
 // 纯在哪：只做字符串与数组的计算，不取会话、不起进程、不读写文件、不读钟；这张表被建票工具与纯规则单测共用。
 // 本地 Markdown 房不引它：房侧只按「文件头标记 / Type 行 / wayfinder 标签」各自收口，不判断位置值。
+// #1832：triage 状态的单枚判据住同目录的 triage-state.ts（它从契约层取五枚名单）；本表只回答位置默认值。
+import { triageStateProblem } from './triage-state.js'
+import { labelNames } from './label-names.js'
+
 /** 建票的六个位置值。顺序就是工具 schema 里列出来的顺序，也是本文件真值表的顺序。 */
 export type PositionKind = 'map' | 'map-ticket' | 'spec' | 'spec-ticket' | 'bug' | 'issue'
 
@@ -44,7 +48,8 @@ export interface ObjectKindRule {
   readonly contractType: ContractType
   /** 固定要补的类型标签（地图是 wayfinder:map，缺陷是 bug；地图工单的那一枚由 label 现给）。 */
   readonly typeLabels: readonly string[]
-  /** 固定要补的 triage 标签（规格与实施票是 ready-for-agent，缺陷是 needs-triage）。 */
+  /** 没有显式状态时要补的 triage 标签（规格与实施票是 ready-for-agent，缺陷是 needs-triage）；
+   *  调用方显式给了状态标签时一枚都不补——triage 状态由状态机决定，位置默认值不可叠加（#1832）。 */
   readonly triageLabels: readonly string[]
   /** 正文文件头要写的对象标记值；空串表示这一类不写标记。 */
   readonly marker: '' | 'spec' | 'ticket'
@@ -107,11 +112,9 @@ export function isTypeLabel(name: unknown): boolean {
 
 /** 找 labels 里第一枚类型标签（原样返回，找不到回空串）。拒绝文案与本地房的 Type 行都靠它定位。 */
 export function typeLabelIn(labels: unknown): string {
-  const list = Array.isArray(labels) ? labels : []
-  for (let i = 0; i < list.length; i += 1) {
-    const one: unknown = list[i]
-    const name = (typeof one === 'string') ? one : (one && (one as { name?: unknown }).name)
-    if (isTypeLabel(name)) return String(name).trim()
+  const names = labelNames(labels)
+  for (let i = 0; i < names.length; i += 1) {
+    if (isTypeLabel(names[i])) return names[i]
   }
   return ''
 }
@@ -120,6 +123,8 @@ export function typeLabelIn(labels: unknown): string {
  * 这一类建票时要补的标签（按顺序）。
  * 地图工单补的就是 label 那一枚，不再另补第二枚类型标签；issue 一枚都不补 —— 兜底就是原样透传。
  * 旧值 task / ticket 从 #1403 起不再认：按位置表取不到就一枚也不补，由调用方拒绝（见 resolveCreateKind）。
+ * 这里返回的是「位置默认值」：调用方显式给了 triage 状态时，ensureLabels 会把其中的状态标签滤掉，
+ * 不把位置默认状态叠加上去（状态是切换不是叠加，#1832）。
  */
 export function labelsToEnsure(kind: unknown, label?: unknown): string[] {
   const rule = ruleFor(kind)
@@ -160,7 +165,8 @@ const LABEL_MENU = MAP_TICKET_LABELS.join(' / ')
  *   1. 缺 kind 直接拒，不再回落 task；旧值 task / ticket 拒，并写清该改成哪个新值；
  *   2. label 只有地图工单收，且必填四选一；别的 kind 带了 label 一律拒；
  *   3. 除 issue 外，labels 里出现任何类型标签都拒 —— 类型标签由 kind/label 决定，调用方别在标签里重复表达身份；
- *   4. map 与 spec 是顶层容器，不收 parentKey；地图工单与实施票必须给 parentKey；bug / issue 父可选。
+ *   4. labels 里一次出现两枚以上 triage 状态一律拒（#1832）：一张票同一时刻只能有一枚状态，要的是切换不是叠加；
+ *   5. map 与 spec 是顶层容器，不收 parentKey；地图工单与实施票必须给 parentKey；bug / issue 父可选。
  *
  * 父票「到底是不是对的容器」要读盘才知道，这一步在工具里做；这里只管该不该带、带没带。
  */
@@ -207,19 +213,12 @@ export function resolveCreateKind(request: unknown): CreateKindResolution {
     }
   }
 
-  // labels 收口：只取名字，去掉空段；对象形状（{name}）也认（与 ensureLabels 同一套收法，不在这里另写一份）。
+  // labels 收口：只取名字，去掉空段；对象形状（{name}）也认。收口函数只有一份（rules/label-names.ts），
+  // 与 ensureLabels 用的是同一份实现。schema 写的是数组，这里仍照旧容忍单个字符串。
   const rawLabels: unknown = (req.labels === undefined || req.labels === null) ? [] : req.labels
-  const labels: string[] = []
-  if (Array.isArray(rawLabels)) {
-    for (let i = 0; i < rawLabels.length; i += 1) {
-      const one: unknown = rawLabels[i]
-      const name = (typeof one === 'string') ? one : (one && (one as { name?: unknown }).name)
-      const text = String(name === undefined || name === null ? '' : name).trim()
-      if (text) labels.push(text)
-    }
-  } else if (typeof rawLabels === 'string' && rawLabels.trim()) {
-    labels.push(rawLabels.trim())
-  }
+  const labels: string[] = Array.isArray(rawLabels)
+    ? labelNames(rawLabels)
+    : (typeof rawLabels === 'string' && rawLabels.trim() ? [rawLabels.trim()] : [])
   if (rule.kind !== 'issue') {
     const offending = typeLabelIn(labels)
     if (offending) {
@@ -230,6 +229,12 @@ export function resolveCreateKind(request: unknown): CreateKindResolution {
       }
     }
   }
+
+  // #1832：一张票同一时刻只能有一枚 triage 状态。调用方一次给两枚以上时整张票不建 —— 与其让
+  // 后端把两枚都写上去再等人收拾，不如在碰后端之前说清「只留一枚」。没给状态时位置默认照旧补
+  // （见 minimal-spec.ensureLabels：显式给了状态就不再叠位置默认）。
+  const triageProblem = triageStateProblem(labels, 'labels')
+  if (triageProblem) return { ok: false, problem: triageProblem }
 
   const parentKey = (req.parentKey === undefined || req.parentKey === null) ? '' : String(req.parentKey).trim()
   if ((rule.kind === 'map' || rule.kind === 'spec') && parentKey) {

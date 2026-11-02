@@ -258,7 +258,7 @@ console.log('\n四棵新树镜像校验（后缀换算 + 转译结果比对）')
 //        updateClient.derived.js、baseClient.derived.js，它们必须入库，因为客户端那份闭包要能离线拼出来）
 //     ④ 子包各自产物目录：packages/*/dist/**
 //   追踪器契约目录旁那份旧 JavaScript 影子文件（src/tracker/contract/vocabulary.js）的去向：
-//   它是词汇表五份真源拼段转译的拼接输入。#1026 收拾契约目录时没有直接删掉它，而是把拼段产物
+//   它是词汇表六份真源拼段转译的拼接输入。#1026 收拾契约目录时没有直接删掉它，而是把拼段产物
 //   搬到已被忽略的 .tmp/vocabulary.client.js（2026-10-19），src/ 里从此不再有这份影子文件；
 //   下面的已知产物名单跟着去掉这一条。
 //   两条断言：

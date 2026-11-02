@@ -1,6 +1,7 @@
 // verify-md-format-config.ts —— Markdown 后端格式映射门禁（#1480 T1 立，父票 #1480）。
 // 门禁归属: src/tracker/rooms/markdown/format/original-skills.yaml
 // 门禁归属: src/tracker/rooms/markdown/format/generated.ts
+// 门禁归属: src/tracker/contract/triage-states.ts
 // 门禁归属: scripts/generate-md-format-config.mts
 // 门禁归属: scripts/lib/md-format-config.mts
 // 门禁归属: package/bundled-skills/
@@ -134,6 +135,12 @@ async function main(): Promise<void> {
       check(triageText.includes(role), '③ status.triage-roles 的「' + String(role) + '」在 triage-labels.md 里找不到')
     }
   }
+  // #1832：五枚 triage 状态的名单有两处来源——契约层数据文件（deck 的建票与改标签判据、本地房回退值都引它）
+  // 与这里配置的 status.triage-roles（本地房的正规来源）。两处必须逐项一致：不一致时同一枚状态在 deck
+  // 与本地房会被认成两枚不同的东西，单状态判据就会漏。
+  const contractTriage: any = await import(pathToFileURL(path.join(ROOT, 'src/tracker/contract/triage-states.ts')).href)
+  const yamlTriage: string[] = (Array.isArray(cfg.status['triage-roles']) ? cfg.status['triage-roles'] : []).map(function(one: any) { return String(one) })
+  check(JSON.stringify(contractTriage.TRIAGE_STATE_LABELS) === JSON.stringify(yamlTriage), '③ 契约层 triage 状态名单与配置 status.triage-roles 不一致：契约 ' + JSON.stringify(contractTriage.TRIAGE_STATE_LABELS) + '，配置 ' + JSON.stringify(yamlTriage))
   const wayfindingText: string = textOf(cfg.sources['issue-tracker-local'].file)
   for (const value of cfg.status.wayfinder) {
     check(wayfindingText.includes(value), '③ status.wayfinder 的「' + String(value) + '」在 issue-tracker-local.md 里找不到')

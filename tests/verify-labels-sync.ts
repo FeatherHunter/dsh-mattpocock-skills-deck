@@ -130,15 +130,28 @@ check(cli.includes('dsws-labels-modal') && cli.includes('dsws-labels-overlay'), 
 check(pcli.includes('dsws-labels-modal'), 'package 含 labels Modal 镜像')
 
 // 7) package 同步（build.mts 按新树投放）
+// #1832：四枚 triage 状态的名字搬到 contract/triage-states.ts，canonical-labels 的投放件里那四行写的是
+// 常量名（name: NEEDS_TRIAGE_LABEL），字面量在同目录 triage-states.js。所以名字要两份投放件合起来解析：
+// 先读状态名投放件的常量表，再把 canonical-labels 投放件里 name: 后面的字符串或常量名换成真名。
 const pkgSharedPath = path.join(ROOT, 'package/tracker/contract/canonical-labels.js')
+const pkgStatesPath = path.join(ROOT, 'package/tracker/contract/triage-states.js')
 check(fs.existsSync(pkgSharedPath), 'package/tracker/contract/canonical-labels.js 存在（build 按新树投放）')
-if(fs.existsSync(pkgSharedPath)){
+check(fs.existsSync(pkgStatesPath), 'package/tracker/contract/triage-states.js 存在（状态名真源随包投放）')
+if(fs.existsSync(pkgSharedPath) && fs.existsSync(pkgStatesPath)){
   const pkgTxt = fs.readFileSync(pkgSharedPath,'utf8')
+  const pkgStatesTxt = fs.readFileSync(pkgStatesPath,'utf8')
   check(pkgTxt.includes('CANONICAL_LABELS'), 'package 投放含 CANONICAL_LABELS')
+  const stateNames = new Map()
+  const reState = /const\s+([A-Za-z_$][\w$]*)\s*=\s*['"]([^'"]+)['"]/g
+  let ms
+  while((ms=reState.exec(pkgStatesTxt))!==null) stateNames.set(ms[1], ms[2])
   // 2026-10-17 先修：原来只查「出现过 CANONICAL_LABELS 这个词」，投放漏掉几个名字照样过。
-  // 现在把投放件里的名字逐个对出来，与真源那 10 个名字做集合相等比较。
-  const pkgNames: string[]=[]; const re2=/name:\s*['"]([^'"]+)['"]/g; let m2
-  while((m2=re2.exec(pkgTxt))!==null) pkgNames.push(m2[1])
+  // 现在把投放件里的名字逐个对出来，与真源那 10 个名字做集合相等比较；#1832 起名字可能是常量名。
+  const pkgNames: string[]=[]; const re2=/name:\s*(?:['"]([^'"]+)['"]|([A-Za-z_$][\w$]*))/g; let m2
+  while((m2=re2.exec(pkgTxt))!==null){
+    const lit = m2[1] !== undefined ? m2[1] : stateNames.get(m2[2])
+    if(lit !== undefined) pkgNames.push(lit)
+  }
   check(pkgNames.length === truthNames.length && truthNames.every((n: string)=>pkgNames.indexOf(n)>=0), `package 投放的名字与真源一一对应（实得 ${pkgNames.length} 个）`)
 }
 

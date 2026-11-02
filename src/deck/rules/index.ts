@@ -5,16 +5,18 @@
 // 一眼看得见，也不会因为多了一个转发层而出现难查的环。
 //
 // 这里的重导出全是 `export { ... } from './x.js'` 的形状而不是 `export *`：
-// 一来看得见每件东西的来路，二来两件同名的东西（例如 anchor.ts 与 minimal-spec.ts 里
-// 各自手写的 `labelNames` 收口函数）不会在这里撞在一起。
+// 一来看得见每件东西的来路，二来同名但来路不同的东西不会在这里撞在一起。
 
 // —— 时钟：纯侧不读钟，时刻从形参进来 ——
 export type { Timestamp } from './time.js'
 export { toTimestamp } from './time.js'
 
+// —— 标签名收口：字符串与 {name} 两种形状归一成名字数组 ——
+export { labelNames } from './label-names.js'
+
 // —— 幂等锚 ——
 export type { AnchorParts } from './anchor.js'
-export { ANCHOR_WINDOW_MS, anchorBucket, anchorKeyFor, labelNames } from './anchor.js'
+export { ANCHOR_WINDOW_MS, anchorBucket, anchorKeyFor } from './anchor.js'
 
 // —— 强制最小规范：必备标签、进度区、整份判据 ——
 export type { DeckKind } from './minimal-spec.js'

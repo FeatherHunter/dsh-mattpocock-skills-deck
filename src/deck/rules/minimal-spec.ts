@@ -14,6 +14,8 @@
 // 一律当「形状不可信」先收口（收口函数与类型都在本文件里，不引别的目录）。
 // 例外是 src/shared/ 下的纯计算包：规格 / 实施票的判定与共享标记包共用一份，不在两侧各写一遍（#1277）。
 import { labelsToEnsure, ruleFor, type PositionKind } from './object-kind.js'
+import { labelNames } from './label-names.js'
+import { isTriageStateLabel, triageStatesIn } from './triage-state.js'
 
 /** 票的种类（deck_issue_create 的 kind 参数与各工具的写路径共用这一套词）。
  *
@@ -33,27 +35,23 @@ export const MAP_BLOCK_TITLES: readonly string[] = Object.freeze([
 ])
 
 /**
- * 把各种形态的标签清单（字符串、`{name}` 对象、两种混着来）归一成去空后的名字数组。
- * 与 anchor.ts 里的同名函数各有一份：两处的用途不同（这里要按顺序比对，
- * 那里要拼进哈希），合起来要跨文件传值，反而多一层耦合。
- */
-function labelNames(list: unknown): string[] {
-  return (Array.isArray(list) ? list : [])
-    .map((l) => (typeof l === 'string' ? l : (l && (l as { name?: unknown }).name) || ''))
-    .map((s) => String(s).trim())
-    .filter(Boolean)
-}
-
-/**
  * 补必备标签：返回补完的清单与「我替你补了哪些」（原话写进返回值，让人看得见）。
  *
- * 该补哪几枚完全由 object-kind.ts 的位置表回答（地图工单是 label 那一枚，规格与实施票是
+ * 该补哪几枚由 object-kind.ts 的位置表回答（地图工单是 label 那一枚，规格与实施票是
  * ready-for-agent，缺陷是 bug + needs-triage，普通票一枚都不补）。#1403 起不再有「认不出的种类
  * 就按 task 补 wayfinder:task」这条兜底：那张位置表里没有的名字，标签一枚都不猜，交给调用方拒绝。
+ *
+ * 位置表里的状态标签是「没显式给状态时」的默认值：调用方在 labels 里给了一枚 triage 状态，
+ * 就按调用方的来，位置默认的那一枚不再补（#1832）。一次给两枚以上在 resolveCreateKind 就整张
+ * 拒绝，走不到这里；真走到了也按「一枚默认都不补」处理，不让票上出现第二枚状态。
  */
 export function ensureLabels(labels: unknown, kind: string, label?: unknown): { labels: string[]; added: string[] } {
   const have = labelNames(labels)
-  const want = labelsToEnsure(kind, label)
+  // #1832：triage 状态是状态机的事，不是位置默认值。调用方显式给了状态标签（恰一枚）就按调用方的来，
+  // 不再叠上位置默认的那一枚（缺陷票默认 needs-triage、规格与实施票默认 ready-for-agent）。
+  // 一次给两枚以上在 resolveCreateKind 就整张拒绝，走不到这里；真走到了也一枚默认都不补，别叠第三枚。
+  const explicitStates = triageStatesIn(have)
+  const want = labelsToEnsure(kind, label).filter((name) => !(explicitStates.length > 0 && isTriageStateLabel(name)))
   const added: string[] = []
   for (const name of want) {
     // 大小写不敏感地比：GitHub 的标签名不分大小写，`Wayfinder:Map` 算已经有了。

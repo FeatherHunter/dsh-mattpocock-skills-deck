@@ -12,7 +12,7 @@ Issues live as GitHub issues; read and write them through the deck tools (`deck_
 
 ### Triage labels
 
-五种 triage 角色（`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`）加五种 wayfinder 标签（`wayfinder:map` / `research` / `prototype` / `grilling` / `task`）。建票时标签**按位置补**，不要求每张新票都带 triage 标签：探索地图补 `wayfinder:map`，地图工单补调用时给的那一枚 `wayfinder:<类型>`，规格与实施票补 `ready-for-agent`，缺陷票补 `bug` 与 `needs-triage`，普通票不补；wayfinder 的地图与子票只带 wayfinder 标签，不叠 `ready-for-agent` 这类 triage 标签（它们是决策，不是实施工作）。`bug` / `needs-triage` / `wayfinder:grilling` 三枚仍保留，它们是面板上「修复」「诊断」「讨论」三个动作的入口，不是每张新票的必备项。详见 `docs/agents/triage-labels.md`。
+五种 triage 角色（`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`）加五种 wayfinder 标签（`wayfinder:map` / `research` / `prototype` / `grilling` / `task`）。建票时**类型标签按位置补，triage 状态由状态机决定**：探索地图补 `wayfinder:map`，地图工单补调用时给的那一枚 `wayfinder:<类型>`，缺陷票补 `bug`，普通票不补类型标签。triage 状态**没显式给时**才补位置默认值（规格与实施票默认 `ready-for-agent`，缺陷票默认 `needs-triage`）；调用方显式带了状态就按调用方的来。一张票任何时刻至多一枚 triage 状态：换状态是替换不是叠加，一次给两枚以上整笔拒绝。wayfinder 的地图与子票只带 wayfinder 标签，不叠 `ready-for-agent` 这类 triage 标签（它们是决策，不是实施工作）。`bug` / `needs-triage` / `wayfinder:grilling` 三枚仍保留，它们是面板上「修复」「诊断」「讨论」三个动作的入口，不是每张新票的必备项。详见 `docs/agents/triage-labels.md`。
 
 ### Domain docs
 

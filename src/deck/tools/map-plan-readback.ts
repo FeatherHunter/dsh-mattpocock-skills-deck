@@ -13,7 +13,8 @@
 //      而远端后端不把文件头注释落进正文，正文里本来就没有 Type 行可核，按形状判正好各走各的。
 //   3. 这里只往外返回 notes 与 items 两摞文字，自己不发写请求、不写游标、不碰预算账本。
 import { MAP_BLOCK_TITLES } from '../shell/minimal-spec.js'
-import { labelsToEnsure, isTypeLabel } from '../rules/object-kind.js'
+import { ensureLabels } from '../rules/minimal-spec.js'
+import { isTypeLabel } from '../rules/object-kind.js'
 import type { CreateKindResolution } from '../rules/object-kind.js'
 import { stripProgressSections } from '../../shared/issue-file/src/progress.js'
 import { failureFields } from '../shell/edge-landing.js'
@@ -113,7 +114,8 @@ export async function readbackMapPlan(args: MapPlanReadbackArgs): Promise<MapPla
       return (typeof x === 'string') ? x : String((x && (x as { name?: unknown }).name) || '')
     }).filter(Boolean)
     const lower = names.map((n) => String(n).toLowerCase())
-    const expected = labelsToEnsure(resolved.kind, resolved.label)
+    // #1832：显式给过 triage 状态的子票，读回时不该再期待位置默认的那一枚；用与建票同一个函数算期望。
+    const expected = ensureLabels(resolved.labels, resolved.kind || '', resolved.label).labels
     const missingLabels = expected.filter((n) => lower.indexOf(String(n).toLowerCase()) < 0)
     if (missingLabels.length) problems.push('子票「' + planKey + '」缺标签：' + missingLabels.join('、'))
     // issue 兜底不推导类型标签、labels 原样传递（#1403）：它带 wayfinder:* 是调用方给的原样，不按「应为 0 枚」判错。
