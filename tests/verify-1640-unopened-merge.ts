@@ -76,8 +76,11 @@ function sharedKeyFn(name) {
 const VIEW_STATE_REL = 'src/client/kernel/settings-view-state.js'
 const VIEW_REL = 'src/client/kernel/settings-view.js'
 const VIEW_WRITE_REL = 'src/client/kernel/settings-view-write.js'
+  // #1802：跨窗口合写要用到的几件工具（重读后的合并、算补丁、按格取值）另住一片，
+  //   构建时按次序拼在写这一片之后；这里也照同一次序拼，门禁跑到的才是产物里的那一段。
+  const VIEW_RELOAD_REL = 'src/client/kernel/settings-view-reload.js'
 function makeView(env) {
-  const body = [spliceableJs(VIEW_STATE_REL), spliceableJs(VIEW_REL), spliceableJs(VIEW_WRITE_REL)].join('\n')
+  const body = [spliceableJs(VIEW_STATE_REL), spliceableJs(VIEW_REL), spliceableJs(VIEW_WRITE_REL), spliceableJs(VIEW_RELOAD_REL)].join('\n')
   const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer', 'currentOs', 'workspaceRootByCwd']
   const factory = compileFn(names, body + '\nreturn { viewFlagOf: viewFlagOf, viewFlagOfRoot: viewFlagOfRoot, setViewFlagValue: setViewFlagValue, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagDocKeyOf: viewFlagDocKeyOf, viewFlagWriteKeyOf: viewFlagWriteKeyOf, viewFlagMergeNow: viewFlagMergeNow }')
   return factory.apply(null, names.map((n) => env[n]))

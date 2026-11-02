@@ -130,12 +130,15 @@ const TPL_REL = 'src/client/kernel/settings-templates.js'
 const VIEW_REL = 'src/client/kernel/settings-view.js'
 const VIEW_STATE_REL = 'src/client/kernel/settings-view-state.js'
 const VIEW_WRITE_REL = 'src/client/kernel/settings-view-write.js'
+  // #1802：跨窗口合写要用到的几件工具（重读后的合并、算补丁、按格取值）另住一片，
+  //   构建时按次序拼在写这一片之后；这里也照同一次序拼，门禁跑到的才是产物里的那一段。
+  const VIEW_RELOAD_REL = 'src/client/kernel/settings-view-reload.js'
 const UI_REL = 'src/client/kernel/settings-ui.js'
 function makeClient(env) {
   // 被测那几片都已有同名 .ts 真源（旁边 .js 是构建产物），取源统一走共用入口的 spliceableJs：
   // 它按构建唯一口径转译、去掉行首 export、剥掉中央时间 import，拼出来就是真正进产物的那段代码；
   // 所以这里不再自己 readText + 去 export + 剥 import —— 那几步只该在共用入口里有一份。
-  const body = [spliceableJs(CONFIG_REL), listPrefsSlice(), spliceableJs(VIEW_STATE_REL), spliceableJs(VIEW_REL), spliceableJs(VIEW_WRITE_REL), spliceableJs(UI_REL), spliceableJs(TPL_REL)].join('\n')
+  const body = [spliceableJs(CONFIG_REL), listPrefsSlice(), spliceableJs(VIEW_STATE_REL), spliceableJs(VIEW_REL), spliceableJs(VIEW_WRITE_REL), spliceableJs(VIEW_RELOAD_REL), spliceableJs(UI_REL), spliceableJs(TPL_REL)].join('\n')
   const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer', 'currentOs', 'workspaceRootByCwd', 'promptText', 'promptTextFor']
   const tail = '\nreturn { TPL_KEY: TPL_KEY, templates: templates, saveTemplates: saveTemplates, tplText: tplText, TPL_DEFAULT: TPL_DEFAULT, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, settingsTemplatesSaveAll: settingsTemplatesSaveAll, settingsTemplatesSetInDoc: settingsTemplatesSetInDoc, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }'
   return compileFn(names, body + tail).apply(null, names.map((n) => env[n]))
