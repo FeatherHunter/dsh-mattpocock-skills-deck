@@ -9,8 +9,8 @@
 // 这里；真正改窗口、判断真全屏的执行部分在 verify/windows.mjs。
 //
 // 本文件零依赖（只导出数据与纯函数），也不 import 浏览器库：这样 headless 门禁可以直接
-// 测换算，而不用真的开一个窗口。改预设尺寸前先读 tests/verify-windows.ts 里钉住的口径，
-// 以及 D:/Temp/matt-t13-analysis.md §4.7 的迁移对照。
+// 测换算，而不用真的开一个窗口。改预设尺寸前先读 tests/verify-windows.ts 里钉住的口径
+// 与三款预设的来源说明（迁移对照在 docs/agents/real-machine-verification.md）。
 
 /**
  * 三款窗口预设。字段含义与旧文件一致：

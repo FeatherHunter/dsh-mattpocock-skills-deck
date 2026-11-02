@@ -35,7 +35,7 @@ jobs:
       # 接入 base 包起，README 三处受管块再没更新过，致谢数据却天天在变，离线门禁因此判红）。装到临时目录后按真实路径调用。
       - name: Sync managed README blocks
         run: |
-          npm install --prefix "$RUNNER_TEMP/base" --no-audit --no-fund --no-save dsh-featherhunter-plugin-base@0.1.5
+          npm install --prefix "$RUNNER_TEMP/base" --no-audit --no-fund --no-save dsh-featherhunter-plugin-base@0.1.7
           node "$RUNNER_TEMP/base/node_modules/dsh-featherhunter-plugin-base/dist/node/cli.js" readme:sync --repo .
       # 画完再核一遍：真画上了才算这一步成功。空跑或画错都当场判红，不把红色留给第二天的离线门禁（#1795）。
       - name: Verify managed README blocks

@@ -33,18 +33,20 @@
 
 ## 批次 home 与 DSH_HOME
 
-真实 home（`C:/Users/辰辰洋洋/.dsh`）只读：不要对它跑任何 `dsh-verify` 命令。写入目标是真实 home 本身或它里面
+真实 home（`$env:USERPROFILE/.dsh`）只读：不要对它跑任何 `dsh-verify` 命令。写入目标是真实 home 本身或它里面
 （含子目录、junction）时，`install`、`model --fix` 与任何显式写目标（`--work-root` / `--out` / `--archive-root`）都会被硬拒（exit 2）；
 `--dry-run` 只警告、不写盘。每次验证先复制一份 `profiles/web` 到批次 home，再让 `DSH_HOME`
 指向批次 home 的**父目录**：
 
 ```powershell
-$real = "C:/Users/辰辰洋洋/.dsh"
-$batch = "D:/Temp/matt-batch-home"
-New-Item -ItemType Directory -Force -Path "$batch/profiles" | Out-Null
-Copy-Item -Recurse -Force "$real/profiles/web" "$batch/profiles/web"
+$real = Join-Path $env:USERPROFILE ".dsh"
+$batch = Join-Path $env:TEMP "matt-batch-home"
+New-Item -ItemType Directory -Force -Path (Join-Path $batch "profiles") | Out-Null
+Copy-Item -Recurse -Force (Join-Path $real "profiles/web") (Join-Path $batch "profiles/web")
 $env:DSH_HOME = $batch
 ```
+
+下面命令序列里的 `$batch` 继续用这一份；批次工作根与并发工作根也放进系统临时目录，避免把机器路径写进文档。
 
 复制要包含 `node_modules`；实例能否启动取决于这份依赖。如果复制后的 profile 起不来，改为只复制
 `package.json`、`cordis.yml`、`cordis.patch.yml` 等配置文件，再在批次 home 里重新安装依赖。
@@ -86,45 +88,52 @@ cd ..
 然后按顺序跑。批次是两段式：先开批（此时还没有候选）、把候选冻进批次目录、再封存——顺序反了会被候选准入拒掉（「不在批次目录」/「早于批次」）。所有命令都在仓库根，只有 `freeze` 例外（它必须在 `package/` 下跑）。
 
 ```powershell
+# 入口与工作根：在仓库根取绝对路径，后面 cd package 也不会失效。
+$repo = (Get-Location).Path
+$baseCli = Join-Path $repo "node_modules/dsh-featherhunter-plugin-base/dist/real-machine-verification/cli/main.js"
+$workRoot = Join-Path $env:TEMP "matt-batches"
+$concurrentRoot = Join-Path $env:TEMP "matt-concurrent"
+
 # 1. 开批次（prepare）：只写 batch.json（candidate 为 null）并打印基线行。
-node <baseCli> batch open --name <批次名> --base-ref HEAD --work-root D:/Temp/matt-batches --json
+node $baseCli batch open --name <批次名> --base-ref HEAD --work-root $workRoot --json
 
 # 2. 冻结候选，必须冻进批次目录（工作区 dirty，必须 --allow-dirty）。
 #    freeze 会在 pkg/ 下建一个 <提交前缀>-<时间戳>/ 目录，candidate.json 与 tgz 都在里面。
 cd package
-node <baseCli> freeze --declaration ../verify/profile.ts --out D:/Temp/matt-batches/batches/<批次名>/pkg --allow-dirty --json
-cd ..
+node $baseCli freeze --declaration ../verify/profile.ts --out (Join-Path $workRoot "batches/<批次名>/pkg") --allow-dirty --json
+cd $repo
 
 # 3. 封存（seal）：--candidate 指向 freeze 打印的 candidatePath 所在目录；通过才写身份行。
-$candidateDir = (Get-ChildItem D:/Temp/matt-batches/batches/<批次名>/pkg -Directory | Select-Object -Last 1).FullName
-node <baseCli> batch open --name <批次名> --candidate $candidateDir --work-root D:/Temp/matt-batches --json
-node <baseCli> batch status --name <批次名> --work-root D:/Temp/matt-batches --json
+$candidateDir = (Get-ChildItem (Join-Path $workRoot "batches/<批次名>/pkg") -Directory | Select-Object -Last 1).FullName
+node $baseCli batch open --name <批次名> --candidate $candidateDir --work-root $workRoot --json
+node $baseCli batch status --name <批次名> --work-root $workRoot --json
 
 # 4. 把候选装进批次 home 的 web profile（cwd 必须是仓库根）。
-$env:DSH_HOME = "D:/Temp/matt-batch-home"
+$env:DSH_HOME = $batch
 $tgz = (Get-ChildItem $candidateDir -Filter *.tgz | Select-Object -First 1).FullName
-node <baseCli> install --tgz $tgz --profile web --method extract --candidate $candidateDir
+node $baseCli install --tgz $tgz --profile web --method extract --candidate $candidateDir
 
 # 5. 自检。必须 exit 0；红检查按 hint 修 verify/ 里的文件，不改 base。
-node <baseCli> self-check --profile web --json
+node $baseCli self-check --profile web --json
 
 # 6. 单实例验收。页面检查在无头模式下可能 blocked（exit 2），其余必须 pass。
-node <baseCli> single-instance --profile web --json
+node $baseCli single-instance --profile web --json
 
 # 7. 双实例隔离。instances-distinct 与 teardown-clean 必须 pass。
-node <baseCli> concurrent --count 2 --work-root D:/Temp/matt-concurrent --json
+node $baseCli concurrent --count 2 --work-root $concurrentRoot --json
 
 # 8. 场景：界面主场景与双实例冒烟（scenario 是位置参数，不是 --scenario）。
-node <baseCli> run verify/scenarios/ui.ts --profile web --json
-node <baseCli> run verify/scenarios/smoke.ts --profile web --json
+node $baseCli run verify/scenarios/ui.ts --profile web --json
+node $baseCli run verify/scenarios/smoke.ts --profile web --json
 
 # 9. 收尾：先报账再删。
-node <baseCli> cleanup --yes --keep-batches 5 --keep-homes 2 --json
+node $baseCli cleanup --yes --keep-batches 5 --keep-homes 2 --json
 ```
 
-`<baseCli>` 就是上面那条 `node .../dist/real-machine-verification/cli/main.js`；也可以直接用
-`node_modules/.bin/dsh-verify`。`npm run verify:ui` / `npm run verify:smoke` 是 8 的便捷入口
-（带 `--import ./scripts/ts-hook.mts`，让 base 能直接执行 `.ts` 场景文件）。
+`$baseCli` 就是上面设的仓库内 CLI 绝对路径（等价于从仓库根跑 `node_modules/.bin/dsh-verify`）。
+`npm run verify:self-check` / `verify:self-check:json` / `verify:acceptance` 是 5–6 的便捷入口；
+`npm run verify:ui` / `npm run verify:smoke` 是 8 的便捷入口（带 `--import ./scripts/ts-hook.mts`，
+让 base 能直接执行 `.ts` 场景文件）。
 
 场景启动的页面默认停在 `about:blank`，`primitives.page()` 不会自动导航；场景要先通过适配器的
 `goto(tokenUrl)` 打开实例（在场景里拿 `page.value.page` 原始句柄调 `goto`，再读 `page()` 的

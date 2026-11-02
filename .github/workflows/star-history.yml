@@ -45,7 +45,7 @@ jobs:
       # 不能经 npx 的 .bin 入口调用：符号链接启动时 base 包的入口判断会把它当成 import、静默退出 0（#1795）。
       - name: Sync managed README blocks
         run: |
-          npm install --prefix "$RUNNER_TEMP/base" --no-audit --no-fund --no-save dsh-featherhunter-plugin-base@0.1.5
+          npm install --prefix "$RUNNER_TEMP/base" --no-audit --no-fund --no-save dsh-featherhunter-plugin-base@0.1.7
           node "$RUNNER_TEMP/base/node_modules/dsh-featherhunter-plugin-base/dist/node/cli.js" readme:sync --repo .
       # 画完再核一遍：星图 ?v= 真跟着数据换了才算这一步成功（#1795）。
       - name: Verify managed README blocks
