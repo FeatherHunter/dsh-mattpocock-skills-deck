@@ -16,6 +16,9 @@ declare function dswsLogTrunc(v: any, n?: any): any
 declare const SUBMODULE_ACTIONS: any[]
 declare const SUBMODULE_WRITE_OPS: string[]
 declare const SUBMODULE_TASK_OPS: string[]
+// 固定批量菜单表与查表函数（同属共享判定层，构建时排在本文件之前）。
+// 为什么需要它：批量菜单里的「初始化」「检出记录的提交」与逐行动作同名，只看动作表的 place 认不出批量身份。
+declare function submoduleBatchMenuOf(id: any): any
 // 数据层的名字（构建按叶子次序先拼数据层，再拼本文件，所以这里只声明形状、不重复实现）。
 declare const VC_SUBMODULES_PHONES: any
 declare function vcSubmoduleBoardShapeOk(board: any): boolean
@@ -148,7 +151,11 @@ export function createSubmodulesOpsOf(deps: any): any {
     const action: any = vcSubmoduleActionOfId(id)
     if (!action) { patch({ mode: 'failed', error: { kind: 'invalid', reason: 'unknown-action', message: '页面里没有这个动作' } }); return null }
     if (action.kind === 'read') return refresh()
-    const batch: boolean = action.place === 'batch'
+    // 批量身份有两种来源：动作表里 place=batch 的逐条动作（抓取），以及固定批量菜单里的同名动作
+    // （初始化、检出记录的提交）。后者也属于菜单，必须把 batch=true 送进预检——只按动作表判会把它们
+    // 当逐行动作，空路径必然被 path-blank 拦住，页面上的批量按钮就永远点不通。
+    const menuItem: any = submoduleBatchMenuOf(id)
+    const batch: boolean = action.place === 'batch' || (menuItem !== null && menuItem !== undefined)
     patch({ mode: 'reading', op: id, batch: batch, error: null, plan: null, ticket: null, decision: null, reasons: [] })
     const startedAt: number = Date.now()
     let reply: any = null

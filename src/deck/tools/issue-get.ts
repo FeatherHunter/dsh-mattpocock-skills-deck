@@ -390,6 +390,14 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
       // 都读它。sectionOf 会把非字符串先转成字符串再匹配，不在这里卡一道，section 传数组之类时会把正文
       // 误切成某一节、还会把 data.body.text 抹掉。
       const sectionFound = wantsSection && sec.found
+      // A2（用户 m00239 拍板）：票上真有维护者原话时，先在 notes 最前面放一句权威提示 —— 下面其它说明都在
+      // 交代「这次读到了什么」，这一句交代「票面上哪些说法优先」。原话为空时一条都不加，老回执与金标准不动。
+      const originalWords = parseOriginalWords(issue.body !== undefined ? issue.body : null)
+      if (originalWords.length) {
+        // 正文摘要被截断时，原话区可能不在这次回来的前 2000 字里：补半句指向按节读的入口。
+        const excerptTruncated = bodyMode === 'excerpt' && (sectionFound ? sec.text.length > BODY_EXCERPT_LEN : bodyText.length > BODY_EXCERPT_LEN)
+        notes.unshift('这张票有 ' + originalWords.length + ' 条维护者原话（data.ticket.originalWords）：用户的原话是这张票的最高要求，票面其它说法与它冲突时以原话为准；判不清就告诉用户有冲突，别自己裁。' + (excerptTruncated ? "要看原话所在整区原文，传 section='维护者原话'。" : ''))
+      }
       if (wantsSection && !sec.found) notes.push('正文里没找到标题含「' + String(a.section).trim().slice(0, 60) + '」的节，回的是' + (bodyMode === 'full' ? '全文分块' : '正文前 2000 字') + '。')
       const excerpt = (sectionFound ? sec.text : bodyText).slice(0, BODY_EXCERPT_LEN)
       const commentTotal = typeof (issue as { commentCount?: unknown }).commentCount === 'number' ? (issue as { commentCount: number }).commentCount : (Array.isArray(issue.comments) ? issue.comments.length : 0)

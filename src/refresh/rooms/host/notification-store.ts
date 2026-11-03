@@ -32,6 +32,7 @@ import {
   clipNotificationText,
   currentDegradedOf,
   normalizeRepoKey,
+  notificationCodeOf,
   parseNotificationEventFile,
   pruneNotificationEvents,
 } from '../../kernel/notification-events.js'
@@ -186,16 +187,32 @@ export function createNotificationStore(deps: unknown) {
     }, null)
   }
 
-  /** 刷新失败：记一条瞬时事件（去重窗内并入上一条）。 */
-  function noteRefreshFailure(cwd: unknown, error: unknown): Promise<number | null> {
+  /**
+   * 刷新失败：记一条瞬时事件（去重窗内并入上一条）。
+   *
+   * 第三参 info 是可选的环节说明（#1835）：宿主探测失败与快照取数失败共用「刷新失败」这个类型，
+   * 靠 code 里的环节机器码区分（refresh-failed.probe / refresh-failed.snapshot），界面按 code 选
+   * 词条、按 params.kind 翻成原因类别。没给 info 时保持老行为（code=refresh-failed，params.reason
+   * 是截短的诊断文本），旧调用点与旧记录都不受影响。
+   */
+  function noteRefreshFailure(cwd: unknown, error: unknown, info?: unknown): Promise<number | null> {
     return enqueue(async function (): Promise<number | null> {
       const repo = await repoOf(cwd)
       if (!repo) return null
       const loaded = await loadHistory(repo)
-      const reason = clipNotificationText(error, 80)
+      const bag = (info && typeof info === 'object' ? info : {}) as any
+      const stage = notificationCodeOf(bag.stage, '')
+      // 拼接后仍要过一遍上限：环节名本身可截 60 字，加前缀会超过事件代码的 60 字上限。
+      const code = stage ? notificationCodeOf('refresh-failed.' + stage, '') : 'refresh-failed'
       const params: Record<string, string> = {}
-      if (reason) params.reason = reason
-      const events = appendInstant(loaded.events, { repo: repo, now: nowMs(), type: 'refresh-failed', code: 'refresh-failed', params: params, dedupeMs: dedupeMs })
+      if (stage) {
+        // 原因类别只存机器码（errorKind / failKind 的原值，归一后放 params.kind），界面再翻成词条。
+        params.kind = notificationCodeOf(bag.kind, '') || 'other'
+      } else {
+        const reason = clipNotificationText(error, 80)
+        if (reason) params.reason = reason
+      }
+      const events = appendInstant(loaded.events, { repo: repo, now: nowMs(), type: 'refresh-failed', code: code, params: params, dedupeMs: dedupeMs })
       const written = await persist(repo, events)
       return written ? events.length : null
     }, null)

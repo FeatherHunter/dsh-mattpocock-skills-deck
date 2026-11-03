@@ -46,12 +46,12 @@
 | 管什么 | 插件的**数据与写路径**：票仓、后端绑定、面板快照、检查链快照，以及 `docs/agents/` 下的主锚文件与配色文件 | 仓库的**领域词表怎么分**：`CONTEXT.md`、`CONTEXT-MAP.md`、`docs/adr/` |
 | 谁写 | 插件（配色文件、票）或会话按技能写（主锚文件） | 人和会话里的 AI——**插件既不读也不写** |
 | 放哪 | 永远在**工作区根**，只有一份；子目录里不许长第二套 | 单上下文＝仓库根一份；多上下文＝每个子项目各一份，根上一份地图指向它们 |
-| 怎么判 | 从所选目录逐层向上，第一个**自带 `.git` 或自带一份插件工作区记录（`docs/agents/workspace.yaml`／`docs/agents/workspace-root.yaml`）** 的目录（2026-11-02 修订，#1806） | 由用户在初始化时选定；插件不判定 |
+| 怎么判 | 从所选目录逐层向上，第一个**自带 `docs/agents/workspace.yaml`** 的目录（2026-11-03 定版；`.git` 与 `docs/agents/issue-tracker.md` 都不参与，见 `docs/adr/20261103-workspace-root-upward-search.md`） | 由用户在初始化时选定；插件不判定 |
 
 由这张表推出两条纪律：
 
 1. **子目录里出现 `CONTEXT.md` 是允许的**（那是领域词表，属于本决定）；**子目录里出现第二套 `docs/agents/` 或票仓是不允许的**（那属于 #649）。
-2. **工作区根的标记只有两类，不许扩建**：自带 `.git`（文件或目录都算）与自带一份插件工作区记录（`docs/agents/workspace.yaml`／`docs/agents/workspace-root.yaml`，见 `docs/adr/20261102-workspace-identity-records.md`）。**「这个目录自带一份 `CONTEXT.md`」绝不能加成第三个标记。**
+2. **工作区根的标记只有一份文件，不许扩建**：`docs/agents/workspace.yaml`（见 `docs/adr/20261103-workspace-root-upward-search.md`）。**「这个目录自带一份 `CONTEXT.md`」绝不能加成标记，`.git` 与 `docs/agents/issue-tracker.md` 也不是标记。**
 
 第 2 条要防的具体后果：一旦把 `CONTEXT.md` 当成标记，用户在 `D:\ilife\packages\skill-calorie` 这类子目录里开会话时，判定会停在该子目录——面板只显示子目录自己的票、票仓与配色文件会在子目录里长出第二套。这正是 #649 花一整张图根治的事。
 

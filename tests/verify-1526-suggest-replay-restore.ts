@@ -13,12 +13,16 @@
 //   ④ 挂载时事件窗口还空、之后第一次 replace 把窗口装进来时补出尾部一条；之后的 replace 不冒泡
 //      （#1409 的既有断言不回归）；会话已热、最后一次变更是 append 时也能按窗口补出；按会话缓存非空时不补；
 //   ⑤ 挂载组件：缓存为空才补、补出的组走到既有上屏/关闭通路、关掉后本次运行内不再复活、
-//      之后有新建议正常交付时关闭标记失效、两个会话互不串味；源码守卫仍是不落盘不加定时器不 retain；
+//      之后有新建议正常交付时关闭标记失效、两个会话互不串味；源码守卫：不碰文件系统、不加定时器、
+//      不 retain，关闭标记走 localStorage 且带环境守卫；
 //   ⑥ 补出扫的是整个事件窗口而不是这一次变更的增量（#1420 第五项，真机上补不出气泡的根因）；
 //   ⑦ turn/end 的结束原因不是 completed（aborted / error / interrupted）时，参数完整的那一组照常
 //      交付一次、整份参数解析不出来的不交付（#1420 第三项定下的口径，见 suggestStream.ts 里 turn-end
 //      那一段）；个别条目缺提示词时按 suggestFacts.ts 的宽松口径丢掉坏条目、剩下够数仍整组上屏，
-//      所以「不会半组」只指交付不拆组，显示条数可能比模型原本给的少（9c 钉住这条既有容错）。
+//      所以「不会半组」只指交付不拆组，显示条数可能比模型原本给的少（9c 钉住这条既有容错）；
+//   ⑧ 关闭之后刷新不复活（#1853）：最后一条建议调用之后又出现过 turn/start（用户发过新消息）时不补，
+//      也不收下等 turn/end；用户显式关掉（点关闭/点选）的那一组靠跨刷新保留的 localStorage 关闭标记
+//      挡住，新建议交付后标记失效。内存里的按会话标记仍是模块级 Set（不发消息的场景照旧）。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1526-suggest-replay-restore.ts
 // 断言数变化时同步 scripts/gate-map.mts 里 COMPLETION_RECORDED_GATES 的 verify-1526-suggest-replay-restore。
@@ -160,6 +164,19 @@ async function main() {
   globalThis.suggestItemsOf = facts.suggestItemsOf
   globalThis.suggestEventOf = facts.suggestEventOf
 
+  // #1853：用户显式关掉的那一组存在 localStorage 里。Node 里没有它，这里装一个内存版替身；
+  // 挂载组件那一节会换成 JSDOM 窗口自己的 localStorage（更接近真机）。
+  const fakeStore = (function () {
+    const data = {}
+    return {
+      getItem: function (key) { return Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null },
+      setItem: function (key, value) { data[key] = String(value) },
+      removeItem: function (key) { delete data[key] },
+      clear: function () { for (const key in data) delete data[key] },
+    }
+  })()
+  globalThis.localStorage = fakeStore
+
   // ── ① 直接建流：从历史重放补出最后一组 ──
   const cap = captureLog()
   // 1) 两条都已收尾：只补最后一条，日志记 restored，不记 delivered。
@@ -188,6 +205,55 @@ async function main() {
     check(env.ready.length === 1 && flatItemTexts(env.ready) === '/b-one|/b-two', '增量送来 turn/end 后正常交付一次（交的是尾部那一组）')
     check(outcomesOf(cap.records, 'suggest.ready').indexOf('delivered') >= 0, '这一趟日志结论记 delivered（不是 restored）')
     check(flatItemTexts(env.ready).indexOf('/a-one') < 0, '更早那条已收尾的建议自始至终没有补出来')
+    stream.dispose()
+  }
+
+  // 2b) 尾部那条建议之后用户又发过消息（turn/start）：作废，不补也不收下等 turn/end（#1853）。
+  // 这条判定只看重放窗口里的 turn/start，不依赖内存标记，所以刷新之后照样成立。
+  {
+    const before = cap.records.length
+    const env = makeEnv({ entries: [startEvent(1), callEvent('sup-a', 1, A_ITEMS), endEvent(1), startEvent(2)] })
+    const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-sup', restoreReplay: true, onReady: env.onReady })
+    check(env.ready.length === 0, '最后一条建议之后又发过消息：刷新后不补出')
+    check(rowsOf(cap.records.slice(before), 'suggest.bind').some(function (r) { return r.fields.outcome === 'skip' && r.fields.reason === 'restore-superseded' }), '跳过补出时日志结论记 skip、原因记 restore-superseded')
+    env.notify([endEvent(2)])
+    check(env.ready.length === 0, '作废的那组不会被收下等 turn/end 再交付')
+    stream.dispose()
+  }
+
+  // 2c) 尾部那一轮还没收尾、但之后用户又发过消息：同样作废（不能先收下 pending、等 turn/end 误交付）。
+  {
+    const env = makeEnv({ entries: [startEvent(1), callEvent('sup-b', 1, A_ITEMS), startEvent(2)] })
+    const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-sup2', restoreReplay: true, onReady: env.onReady })
+    check(env.ready.length === 0, '没收尾但之后已经开过新轮：不补也不排队')
+    env.notify([endEvent(2)])
+    check(env.ready.length === 0, '之后到来的 turn/end 也不会把作废的那组交出去')
+    stream.dispose()
+  }
+
+  // 2d) 用户显式关掉的那一组（跨刷新保留的关闭标记对得上）：不补；之后新建议交付时标记失效（#1853）。
+  {
+    fakeStore.setItem('dsws.suggestClosed', JSON.stringify({ 'sid-closed': { callId: 'closed-a', at: Date.now() } }))
+    const before = cap.records.length
+    const env = makeEnv({ entries: [startEvent(1), callEvent('closed-a', 1, A_ITEMS), endEvent(1)] })
+    const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-closed', restoreReplay: true, onReady: env.onReady })
+    check(env.ready.length === 0, '被用户关掉的那一组刷新后不再补出')
+    check(rowsOf(cap.records.slice(before), 'suggest.bind').some(function (r) { return r.fields.outcome === 'skip' && r.fields.reason === 'restore-closed' }), '跳过补出时日志原因记 restore-closed')
+    env.notify([startEvent(2), callEvent('closed-b', 2, B_ITEMS), endEvent(2)])
+    check(env.ready.length === 1 && flatItemTexts(env.ready) === '/b-one|/b-two', '关掉之后来了新建议：照常交付')
+    const table = JSON.parse(fakeStore.getItem('dsws.suggestClosed') || '{}')
+    check(table['sid-closed'] === undefined, '新建议交付后关闭标记失效')
+    stream.dispose()
+  }
+
+  // 2e) 关闭标记是更早的另一条调用（更晚的组没关过）：照常补出，并把旧标记清掉。
+  {
+    fakeStore.setItem('dsws.suggestClosed', JSON.stringify({ 'sid-stale': { callId: 'older-x', at: Date.now() } }))
+    const env = makeEnv({ entries: [startEvent(1), callEvent('newer-x', 1, A_ITEMS), endEvent(1)] })
+    const stream = streamMod.createSuggestStream({ sessions: env.sessions, sid: 'sid-stale', restoreReplay: true, onReady: env.onReady })
+    check(env.ready.length === 1 && flatItemTexts(env.ready) === '/a-one|/a-two', '关闭标记对不上这条调用时照常补出')
+    const table = JSON.parse(fakeStore.getItem('dsws.suggestClosed') || '{}')
+    check(table['sid-stale'] === undefined, '补出交付之后旧的关闭标记被清掉')
     stream.dispose()
   }
 
@@ -357,6 +423,9 @@ async function main() {
   const win = dom.window
   global.window = win
   global.document = win.document
+  // #1853：挂载组件这一节用 JSDOM 窗口自己的 localStorage（同一份替身换成真实实现的形状）。
+  global.localStorage = win.localStorage
+  win.localStorage.clear()
   try { global.navigator = win.navigator } catch (eNav) {}
   global.Node = win.Node
   global.HTMLElement = win.HTMLElement
@@ -447,6 +516,15 @@ async function main() {
   check(textHas('乙一') && !textHas('甲一'), '补出的是重放尾部最后一组建议')
   check(hasOutcome(cap2.records, 'suggest.ready', 'restored'), '挂载补出这一趟日志记 restored')
 
+  // a2) 重放尾部那条建议之后用户又发过消息（turn/start）：刷新后不再补出（#1853）。
+  {
+    const before = cap2.records.length
+    mountEnv('sid-m3', [startEvent(1), callEvent('m-c1', 1, A_ITEMS), endEvent(1), startEvent(2)])
+    await showSid('sid-m3')
+    check(layer() === null, '最后一条建议之后又发过消息：挂载时不再补出')
+    check(rowsOf(cap2.records.slice(before), 'suggest.bind').some(function (r) { return r.fields.outcome === 'skip' && r.fields.reason === 'restore-superseded' }), '挂载时跳过补出的原因记 restore-superseded')
+  }
+
   // b) 按会话缓存里已经有这一组：显示缓存，不从重放另补。
   streamMod.suggestGroupRemember('sid-m2', { id: 77, items: A_ITEMS })
   mountEnv('sid-m2', [startEvent(1), callEvent('m-b2', 1, B_ITEMS), endEvent(1)])
@@ -459,20 +537,33 @@ async function main() {
     check(after === before, '同一会话再挂载时缓存已在，不再走补出')
   }
 
-  // c) 用户点关闭之后：本次运行内再切回来不补（关闭标记生效）。
+  // c) 用户点关闭之后：本次运行内再切回来不补（内存关闭标记生效），并把「关的是哪一条调用」记进
+  //    localStorage，刷新之后才挡得住同一组（#1853）。
   await showSid('sid-m1')
   const close = closeBtn()
   check(!!close, '补出的气泡上有整组关闭按钮（沿用既有界面通路）')
   if (close) await act(async function () { close.click(); await tick() })
   check(layer() === null, '点关闭后气泡立刻消失')
+  const closedTable = JSON.parse(win.localStorage.getItem('dsws.suggestClosed') || '{}')
+  check(!!closedTable['sid-m1'] && closedTable['sid-m1'].callId === 'm-b1', '点关闭时记下会话号与这次关掉的调用编号')
   await showSid('sid-m2')
   await showSid('sid-m1')
   check(layer() === null, '关掉之后本次运行内再切回同一会话，不再从重放补出来')
 
+  // c2) 模拟刷新：内存清空（按会话缓存与内存关闭标记都没了），只有 localStorage 里的关闭标记还在。
+  // 刷新后挂载时会扫重放窗口，补出判定必须被这份标记挡住。
+  await showSid('sid-m2')
+  streamMod.suggestGroupForget('sid-m1')
+  streamMod.suggestSessionClearDismissed('sid-m1')
+  await showSid('sid-m1')
+  check(layer() === null, '刷新之后那组被关掉的建议不再从重放里补出来')
+  check(rowsOf(cap2.records, 'suggest.bind').some(function (r) { return r.fields.outcome === 'skip' && r.fields.reason === 'restore-closed' }), '刷新后跳过补出的原因记 restore-closed')
+
   // d) 这个会话之后有新建议正常交付：关闭标记失效，切走再切回按缓存找回这一组。
   await append('sid-m1', [startEvent(3), callEvent('m-new', 3, B_ITEMS), endEvent(3)])
-  check(layer() !== null && textHas('乙一'), '关掉之后该会话来了新建议：照常交付并冒出气泡')
+  check(layer() !== null && textHas('乙一'), '刷新之后该会话来了新建议：照常交付并冒出气泡')
   check(hasOutcome(cap2.records, 'suggest.ready', 'delivered'), '新建议这一趟日志记 delivered')
+  check(JSON.parse(win.localStorage.getItem('dsws.suggestClosed') || '{}')['sid-m1'] === undefined, '新建议交付后关闭标记失效')
   await showSid('sid-m2')
   await showSid('sid-m1')
   check(layer() !== null && textHas('乙一'), '新建议交付过之后切走再切回，按会话缓存放回这一组')
@@ -487,7 +578,7 @@ async function main() {
   await act(async function () { root.unmount() })
   cap2.restore()
 
-  // ── ③ 源码守卫：补出只借只读快照，不落盘、不加定时器、不 retain ──
+  // ── ③ 源码守卫：补出只借只读快照，不加定时器、不 retain；关闭状态分两层（#1853）──
   const streamSrc = fs.readFileSync(path.join(ROOT, 'src/client/statusbar/suggestStream.ts'), 'utf8')
   const code = codeOnly(streamSrc)
   check(code.indexOf('restoreReplay') >= 0, '取数层接受「要不要从重放补」的开关（缓存非空时不补）')
@@ -498,7 +589,10 @@ async function main() {
   check(/const suggestDismissedBySid: any = new Set\(\)/.test(code), '按会话的关闭标记是模块级 Set（只在内存里）')
   check(code.indexOf('suggestSessionWasDismissed(sid)') >= 0, '补出前先看这个会话有没有被关掉过')
   check(code.indexOf('suggestSessionClearDismissed(sid)') >= 0, '有新建议正常交付时清掉关闭标记')
-  check(code.indexOf('localStorage') < 0 && code.indexOf('readFileSync') < 0 && code.indexOf('writeFileSync') < 0, '补出与标记都不落盘')
+  check(code.indexOf('turnStartAfterLastCall') >= 0, '发消息后的作废判定按重放窗口里的 turn/start 做（不落盘）')
+  check(code.indexOf('dsws.suggestClosed') >= 0, '用户显式关掉的那一组另记一份跨刷新的关闭标记')
+  check(code.indexOf('typeof localStorage') >= 0 && code.indexOf('storage.fail') >= 0, '关闭标记的读写有环境守卫与失败降级')
+  check(code.indexOf('readFileSync') < 0 && code.indexOf('writeFileSync') < 0, '补出与关闭标记都不碰文件系统')
   check(code.indexOf('setInterval') < 0 && code.indexOf('setTimeout') < 0, '补出不加任何定时器（不用计时器猜历史）')
   check(!/\.retain\(/.test(code) && code.indexOf('retainScope') < 0, '补出不碰会话保活接口（只读快照，不 retain）')
   check(code.indexOf('getSnapshot()') >= 0, '补出读一次事件流快照（沿用既有只读接口）')

@@ -88,9 +88,12 @@ export const vcPageSectionNode = function (h: any, t: any, o: any) {
 // 折叠段：details.fold 带 data-vc-page-fold=<key>，opts.open === true 时才写 open 属性（默认收起）。
 // 标题行按原型先画一枚 chevron 图标（收起时朝右、展开时朝下，方向由样式表按 [open] 转），
 // 再是标题与条数；说明写在 summary 之后、正文之前，收起时也看得见这一段的用途。
+// opts.attrs 是给调用方的透传口：页面要在折叠段上挂自己的 data-*（例如配置页的组 id、可写/只读与能力编号）时
+// 从这里传，attr 会合到 details 上；注意不要再传 className 与 data-vc-page-fold，那两项由原语自己给。
 export const vcPageFoldNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const attrs: any = { className: 'fold', 'data-vc-page-fold': String(opts.key || '') }
+  if (opts.attrs) Object.assign(attrs, opts.attrs)
   if (opts.open === true) attrs.open = 'open'
   const head: any[] = [
     h('span', { key: 'chevron', className: 'fold-chevron' }, vcPageIconOf(h, 'chevron', 12)),
@@ -108,6 +111,8 @@ export const vcPageFoldNode = function (h: any, t: any, o: any) {
 
 // 事实网格：dl.fact-grid 里一格一项（div.fact-cell 包 dt.fact-key 与 dd.fact-value，HTML 允许 dl 下用 div 分组）。
 // 值按三件事加类：等宽（is-mono）、弱化（is-muted）、警示与失败（is-warn / is-error）；颜色只由样式表按令牌给。
+// 每格可选 attrs：页面要把 data-* 挂在具体一格上（例如配置页的 data-vc-config-row 与作用域）时从这里传，
+// 会合到 div.fact-cell 上；这两项只加属性，不改变网格与色板的既有行为。
 export const vcPageFactGridNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const facts = Array.isArray(opts.facts) ? opts.facts : []
@@ -120,7 +125,9 @@ export const vcPageFactGridNode = function (h: any, t: any, o: any) {
     else if (tone === 'warn') cls += ' is-warn'
     else if (tone === 'error') cls += ' is-error'
     const value = fact.value === undefined || fact.value === null ? '' : String(fact.value)
-    return h('div', { key: 'fact-' + i, className: 'fact-cell' }, [
+    const cellAttrs: any = { key: 'fact-' + i, className: 'fact-cell' }
+    if (fact.attrs) Object.assign(cellAttrs, fact.attrs)
+    return h('div', cellAttrs, [
       h('dt', { key: 'key', className: 'fact-key' }, t(String(fact.key || ''))),
       h('dd', { key: 'value', className: cls }, t(value)),
     ])
@@ -129,10 +136,13 @@ export const vcPageFactGridNode = function (h: any, t: any, o: any) {
 
 // 对象行：div.obj-row 左边是主体（obj-main）、右边是次要事实或入口（obj-side）；危险行整体加 is-danger。
 // 两侧都归一成数组，调用方给单个节点也能画；右侧为空时仍保留 obj-side，样式表据此让它不占宽度。
+// opts.attrs 同样透传到行容器（钩子页用它挂 data-vc-hook=<钩子名> 与 data-vc-hook-sample）。
 export const vcPageObjRowNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const danger = opts.danger === true
-  return h('div', { className: 'obj-row' + (danger ? ' is-danger' : '') }, [
+  const attrs: any = { className: 'obj-row' + (danger ? ' is-danger' : '') }
+  if (opts.attrs) Object.assign(attrs, opts.attrs)
+  return h('div', attrs, [
     h('div', { key: 'main', className: 'obj-main' }, vcPageKidsOf(opts.main)),
     h('div', { key: 'side', className: 'obj-side' }, vcPageKidsOf(opts.side)),
   ])

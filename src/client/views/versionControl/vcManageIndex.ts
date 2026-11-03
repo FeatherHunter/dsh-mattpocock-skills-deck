@@ -25,6 +25,10 @@ declare const VC_MANAGE_DANGER_PAGES: string[]
 // 账本在构建期就按 placement 归好四类落点的总数（直/折/诊/外，来自 capability-ledger.ts 的 PLACEMENT_COUNTS）。
 // 覆盖口径那一行直接读这四个数，不再遍历 162 条能力自己重算一遍——同一件事实只留一处真源（ADR 20261021）。
 declare const PLACEMENT_COUNTS: Record<string, number>
+// 卡片与两条跨区入口末尾的 chevron 图标由页头那片叶子导出（vcPageHead.ts 的 vcPageIconOf）：
+// 构建时两片叶子拼进 src/client/index.ts 的同一个闭包，这里按全仓「跨叶符号先 declare」的约定声明，
+// 运行时拿到的是同一份函数，不另画一份图标、也不在界面里写字符箭头。
+declare const vcPageIconOf: (h: any, kind: string, size: number) => any
 
 // 覆盖口径的键由分区名那条键派生（vc.shell.gear.<分区> → vc.shell.gear.card.<分区>）。
 // 派生函数单独导出：门禁直接用它算期望，不在测试里再抄一遍 replace 的字符串手术。

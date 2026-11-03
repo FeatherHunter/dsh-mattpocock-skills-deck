@@ -839,11 +839,13 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcShellPrimitives', file: 'src/client/views/versionControl/vcShellPrimitives.ts' },
   { id: 'vcPalette', file: 'src/client/views/versionControl/vcPalette.ts' },
   { id: 'vcCapabilityList', file: 'src/client/views/versionControl/vcCapabilityList.ts' }, // #1762 T26：「本页负责的能力」列表从壳拆出，排在壳之前
+  { id: 'vcSearchPage', file: 'src/client/views/versionControl/vcSearchPage.ts' }, // #1846 全库搜索页自己的版式（输入框在首屏、结果按页面分组），排在壳之前，壳要调它
   { id: 'vcHistory', file: 'src/client/views/versionControl/vcHistory.ts' }, // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图（排在页面壳之前，壳要调它）
   { id: 'vcHistoryGraph', file: 'src/client/views/versionControl/vcHistoryGraph.ts' }, // #1829 阶段 3：13.14 图形化视图从 vcHistory 拆出（数据与画法），由 vcHistory 调用
   { id: 'vcHistoryDetail', file: 'src/client/views/versionControl/vcHistoryDetail.ts' }, // #1829 阶段 3：提交详情按定稿原型 03 重排（dl 元信息、文件行、逐文件差异），由 vcHistory 调用
   { id: 'vcSyncData', file: 'src/client/views/versionControl/vcSyncData.ts' }, // #1755 T19 同步段的数据层（两条电话、预检与执行回包落位；排在页面壳之前）
   { id: 'vcRemoteData', file: 'src/client/views/versionControl/vcRemoteData.ts' }, // #1754 T18 远端与同步页的数据层（六条电话、读数状态、联网与写动作回包落位）
+  { id: 'vcRemoteFacts', file: 'src/client/views/versionControl/vcRemoteFacts.ts' }, // #1841 远端与同步页共享的读数助手（vcRemotePage 调 vcRemoteFactsOf），排在页面之前
   { id: 'vcRemotePage', file: 'src/client/views/versionControl/vcRemotePage.ts' }, // #1754 T18 远端与同步页的正文（本地记录 / 联网查看 / 四种表单形态；排在页面壳之前，壳要调它）
   { id: 'vcSyncPage', file: 'src/client/views/versionControl/vcSyncPage.ts' }, // #1755 T19 同步段正文（十个动作、理由、租约、确认卡、任务区；由 vcRemotePage 调用）
   { id: 'vcMigrateData', file: 'src/client/views/versionControl/vcMigrateData.ts' }, // #1759 T23 迁移与备份页的数据层（两条电话、预检与执行回包落位；排在页面壳之前）
@@ -910,6 +912,9 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   // #1829 阶段 4 三个共享件：页头与四个页面原语、齿轮里的管理索引卡片、分支浮层；
   //   都排在页面壳之前，壳的挂载段才调得到（页面壳自己只保留页面顺序）。
   { id: 'vcPageHead', file: 'src/client/views/versionControl/vcPageHead.ts' },
+  // #1845 流程页小部件：状态芯片、动作条、进度条、贴触发点的提示，变基 / 冲突 / 任务三页共用。
+  //   与页头原语同一处登记，页面壳之前的叶子都看得到它。
+  { id: 'vcFlowParts', file: 'src/client/views/versionControl/vcFlowParts.ts' },
   { id: 'vcManageIndex', file: 'src/client/views/versionControl/vcManageIndex.ts' },
   { id: 'vcBranchPopover', file: 'src/client/views/versionControl/vcBranchPopover.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },

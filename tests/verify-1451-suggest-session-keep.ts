@@ -10,6 +10,9 @@
 //   ② 挂载组件的行为（A 有建议 → 切 B 不串味 → B 有自己的 → 切回 A 原组回来 → 关掉后不再复活）；
 //   ③ 用户点走一条也要忘掉（同关闭按钮一条路）；
 //   ④ 源码守卫：缓存只在内存里（Map）、不落盘、不加定时器，组件里接的是这三个函数。
+//      2026-11-03 #1853 起，「用户显式关掉的是哪一条调用」另存一份 localStorage 标记
+//      （键 dsws.suggestClosed，只记会话号与调用编号、不记建议内容），本扇的「不落盘」
+//      只针对建议组缓存本身：组的内容仍然只在内存里。
 //
 // 跑法：node --import ./scripts/ts-hook.mts tests/verify-1451-suggest-session-keep.ts
 // 断言数变化时同步 scripts/gate-map.mts 里 COMPLETION_RECORDED_GATES 的 verify-1451-suggest-session-keep。
@@ -253,7 +256,7 @@ async function main() {
   const streamSrc = fs.readFileSync(path.join(ROOT, 'src/client/statusbar/suggestStream.ts'), 'utf8')
   const code = codeOnly(streamSrc)
   check(/const suggestGroupsBySid: any = new Map\(\)/.test(code), '按会话的缓存是一张模块级 Map（只在内存里）')
-  check(code.indexOf('localStorage') < 0 && code.indexOf('readFileSync') < 0 && code.indexOf('writeFileSync') < 0, '建议组不落盘')
+  check(code.indexOf('localStorage') >= 0 && code.indexOf('dsws.suggestClosed') >= 0 && code.indexOf('typeof localStorage') >= 0 && code.indexOf('readFileSync') < 0 && code.indexOf('writeFileSync') < 0, '建议组缓存只在内存里；跨刷新的关闭标记只存 localStorage 的会话号与调用编号（不碰文件系统）')
   check(code.indexOf('setInterval') < 0 && code.indexOf('setTimeout') < 0, '不新增常驻定时器（保留/丢弃都不靠计时器）')
   check(code.indexOf('suggestGroupRemember(sid, next)') >= 0, '新建议上屏前先记进按会话的缓存')
   check(code.indexOf('suggestGroupRecall(sid)') >= 0 && code.indexOf('React.useState(function () { return suggestGroupRecall(sid) })') >= 0, '挂载时与换会话时都从缓存取回')

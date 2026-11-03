@@ -6,13 +6,16 @@
 import { createSnapshotEnvelope } from '../../../host/snapshotEnvelope.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
 import { projectUiDescription } from '../../../tracker/ui-description.js'
-// #1433/#1449：布局的唯一真源是工作区文件，快照读文件认格式与 workspaceCwd 走同一处（跨层引用，不算同层互引）；本机记忆那层已经删了。
-import { parseWorkspaceFile, WORKSPACE_FILE_REL, isWorkspaceLayout } from '../../../deck/shell/workspace-anchor.js'
+// #1433/#1449：布局的唯一真源是工作区文件；读法已搬去 ./snapshot-decoration.js（#1835 让本文件回到 350 行以内）。
 // 有效期住中央 YAML，调时间改 config/ttl.yaml。
 import { SNAPSHOT_TTL_MS } from '../../../shared/time-config/src/values.js'
 // #1584 F1：面板首屏原来用注册表 describe 自己造仓库身份，空 refId 被当成「答出来了」；
 // 这里改成「describe 给不出 refId 时问会话」，共享补齐入口放在 tracker 层（宿主与刷新两侧都能引用）。
 import { resolveRepoRefForCwd } from '../../../tracker/session/repo-ref.js'
+// #1835：取数失败的「同一段只记一条」判重与写历史的兜错，与探测失败那一路共用一份实现。
+import { createFailureSegmentNotes } from './failure-segment-notes.js'
+// #1835：快照回包的三处装饰（布局答案、后端模块声明、跨会话在办表）搬去了 ./snapshot-decoration.js，本文件回到 350 行以内。
+import { createSnapshotDecoration } from './snapshot-decoration.js'
 
 // ===== 类型契约（#1155）：下面这些声明只给类型检查看，编译后一行都不剩，运行时不引用任何名字 =====
 // 为什么都堆在文件顶部：本文件的依赖全部由接线处 index.js 那份对象注入（JS 不查编译错误），
@@ -65,54 +68,53 @@ type SnapshotDeps = {
   budgetReadout?: ((backendId: string) => any) | null
   // #1439 A2：接线处注入的会话口。接了之后快照经 Tracker 会话取数（操作过闸、记账）；没接由 composer 回落注册表。
   openSession?: ((cwd: string, o?: { write?: boolean }) => Promise<any>) | null
+  // #1835：失败历史的口（与宿主刷新失败共用同一个事件库）。快照取数以前只在界面留失败态、没有历史，
+  //   事后查不到「什么时候、哪个环节、为什么」。只在这一段失败的第一次记一条，恢复后清标记。
+  noteRefreshFailure?: any
 }
 
 // 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
-// 接线：由 index.ts 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
+// 接线：由 index.ts 动态 import 加载；早选判据由 index 从启停模块转供给；#1835 起失败段判重、回包装饰各有一份同目录的共用实现。
 export function createSessionSnapshot(deps: SnapshotDeps) {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession, noteRefreshFailure } = deps
   // #723（T19）：快照信封（字段清单 + 落盘那一步的 snapshot.built 日志）搬到了 ./snapshotEnvelope.js
   // （这个文件贴着 350 行上限，要让出位置挂「每个会话在处理哪些票」的读数）。没注入时现造一个，
   // 行为与搬前逐字一致 —— 单测里手工拼实例的那几处就靠这条兜底。
   const env = envelope || createSnapshotEnvelope({ getGhPath: getGhPath, getGhLastError: getGhLastError, adoptSnapshot: adoptSnapshot, logCtx: logCtx })
   const buildSnap = env.buildSnap
   const adoptSnapLog = env.adoptSnapLog
+  // #1835：布局答案、后端模块声明、跨会话在办表这三处装饰搬去了 ./snapshot-decoration.js（本文件回到 350 行以内）。
+  const decoration = createSnapshotDecoration({ getPlatform: getPlatform, ctx: ctx, getTrackerRegistry: getTrackerRegistry, env: env })
   // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
   let _dedupeP: Promise<typeof import('../../../shared/tracker/list-dedupe.js')> | null = null
   function _dedupe() { if (!_dedupeP) _dedupeP = import('../../../shared/tracker/list-dedupe.js'); return _dedupeP }
-  // #595：快照带后端的 prompts 声明（正文格式按当前后端解析）。盘缓存存的是旧 backendModules、无 prompts，直接回放会丢两步写回，故命中时用当前注册表重挂，取不到保留原值。
-  async function freshBackendModules() {
-    try {
-      const regM = await getTrackerRegistry()
-      if (regM && typeof regM.modules === 'function') {
-        return regM.modules().map(projectUiDescription)
-      }
-    } catch (e) {}
-    return null
-  }
+  const { freshBackendModules, readSetupLayoutOf, attachWorkRouteTable } = decoration
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关+采样，字段函数只在守卫内求值。
   // #653 快照多带 workspaceRoot（即开头算出的 cwd，已锚到工作区根）；客户端靠它按根分桶并渲染归属提示，自己算不出根故由宿主带过去。
   function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
-  // #683（F1 · ADR 的 R6）：快照里带上记住的布局答案（同 R4 那条路：落后的那扇窗不靠它就永远停在老答案上）。
-  // #1433 起重播工作区文件；#1449 起这里是唯一读法——文件里没有就是「还没答过」，本机记忆不再参与。
-  async function readSetupLayoutOf(cwd: string) {
-    try {
-      const plat = await Promise.resolve(getPlatform()).catch(function () { return null }); let f: any = (plat && (plat as any).fs) || null
-      if (!f && ctx && typeof ctx.get === 'function') { try { f = ctx.get('fs') } catch (eG) {} }
-      if (f && typeof f.resolve === 'function' && typeof f.readText === 'function') { try { const rec = parseWorkspaceFile(await f.readText(await f.resolve(WORKSPACE_FILE_REL, { cwd: cwd }))); if (rec && isWorkspaceLayout(rec.layout)) return { layout: rec.layout, pickedAt: 0 } } catch (eR) {} }
-    } catch (e) {}
-    return null
-  }
   let snapSampleN = 0
   let _sharedInflightP: Promise<typeof import('../../../host/snapshotInflight.js')> | null = null // #729：本地表已撤，改用与刷新路共用的在途表（./snapshotInflight.js；D7 禁止静态 import，动态接线）
   function _loadSharedInflight() { if (!_sharedInflightP) _sharedInflightP = import('../../../host/snapshotInflight.js'); return _sharedInflightP }
-  // #1082：跨会话在办表的读数也在回包交出去之前现挂（异步读盘）；信封没这一口（旧测试手捏的）就不挂。
-  async function attachWorkRouteTable(reply: unknown, args: Args) {
-    return (env && typeof env.withWorkRouteTable === 'function') ? await env.withWorkRouteTable(reply, args) : reply
+  // #1835：快照取数失败的失败段记历史（同一段只记一条，任何一次成功回包都算这一段结束）。
+  const failureNotes = createFailureSegmentNotes(noteRefreshFailure)
+  /**
+   * #1835：快照取数失败补一条可回看的历史。
+   *
+   * 为什么包在外层：snapshotOf 的失败出口只有末尾一个 catch，但成功回包有好几种形状（快照对象、
+   * ok:true 的 304、缓存命中）；在末尾看「这条回包是不是失败」最不容易漏。判重与兜错在
+   * failure-segment-notes，这里只判「这条回包算不算成功」。
+   */
+  async function handleSnapshot(args: Args) {
+    const cwdRef: { cwd: string } = { cwd: '' } // 路径归一见下面 snapshotOf 里的 canonicalKey（#1835）
+    const reply: any = await snapshotOf(args, cwdRef)
+    if (cwdRef.cwd) {
+      if (reply && reply.ok === false) failureNotes.fail(cwdRef.cwd, 'snapshot', reply && reply.failKind)
+      else failureNotes.clear(cwdRef.cwd)
+    }
+    return await attachWorkRouteTable(reply, args)
   }
-  async function handleSnapshot(args: Args) { return await attachWorkRouteTable(await snapshotOf(args), args) }
-  async function snapshotOf(args: Args) {
-      const _rawSnapCwd = (args && args.cwd) || ''; if (!String(_rawSnapCwd).trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }; const cwd = await canonicalKey(_rawSnapCwd) // #1003 空目录闸：没目录不冒充取快照
+  async function snapshotOf(args: Args, cwdRef: { cwd: string }) {
+      const _rawSnapCwd = (args && args.cwd) || ''; if (!String(_rawSnapCwd).trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }; const cwd = await canonicalKey(_rawSnapCwd); if (String(cwd == null ? '' : cwd)) cwdRef.cwd = String(cwd) // #1003 空目录闸：没目录不冒充取快照；#1835 外层要按这个工作区记失败段
       const now = Date.now()
       // 第一性原理分发前置：先算 selection，再决定缓存与数据链路（避免旧 GitHub 缓存遮住 Markdown）
       const _selEarly = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })

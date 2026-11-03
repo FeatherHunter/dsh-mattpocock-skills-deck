@@ -262,8 +262,12 @@ if (!argv.includes('--skip-runtime')) {
     const n = W.normalize(String(p))
     return /^[a-z]:\\$/i.test(n) ? n.toLowerCase() : n.toLowerCase().replace(/[\\/]+$/, '')
   }
-  // 两个工作区：d:\mine（我们服务它）与 d:\theirs（别的工作区）。各自带一枚 .git 标记，上溯才停得下来。
-  const MARKERS = new Set([keyOf('D:\\mine\\.git'), keyOf('D:\\theirs\\.git')])
+  // 两个工作区：d:\mine（我们服务它）与 d:\theirs（别的工作区）。各自带一份
+  // docs\agents\workspace.yaml 作为停止标记 —— 2026-11-03 起 `.git` 不再参与认根，假文件服务也得跟着换标记。
+  const MARKERS = new Set([
+    keyOf('D:\\mine\\docs\\agents\\workspace.yaml'),
+    keyOf('D:\\theirs\\docs\\agents\\workspace.yaml'),
+  ])
   const fsSvc = { lstat: async (abs) => { if (MARKERS.has(keyOf(abs))) return { isDirectory: () => true }; throw new Error('ENOENT') } }
   const platform = { os: 'win32', path: W }
 

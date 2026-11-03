@@ -24,11 +24,12 @@
  *   --help               打印这段说明。
  *
  * 脚本做六件事：
- *   1. 认工作区：从当前目录逐层向上找到工作区根（自带 .git 或自带一份插件工作区记录
- *      docs/agents/workspace.yaml / docs/agents/workspace-root.yaml 的最近一层），读根上的主锚文件认后端。
- *      在子目录里跑也认得出；一路到顶都没有标记时，提示说清「请到工作区根目录去跑」并给出那条目录的名字。
- *      #1806 第 4 步起与宿主同一条规则：子目录里手写的 docs/agents/issue-tracker.md 不再自成一套工作区，
- *      只有 .git 或插件写下的工作区记录才是根；说明文件只回答「用哪个后端」。
+ *   1. 认工作区：从当前目录逐层向上找到工作区根（最近的一层自带
+ *      docs/agents/workspace.yaml 的目录），读根上的主锚文件认后端。在子目录里跑也认得出；
+ *      一路到顶都没有这份记录时，提示说清「请到工作区根目录去跑」并给出那条目录的名字。
+ *      2026-11-03 维护者定版：工作区根只认这份记录（往上找），.git 与手写的说明文件都不参与认根
+ *      （说明文件只回答「用哪个后端」）；身份记录 workspace-root.yaml 与从属记录 workspace-member.yaml
+ *      已删除，见 docs/adr/20261103-workspace-root-upward-search.md。
  *   2. 把 --body-file 的内容按正规化写法写回地图（剥开头不可见字符、按阈值还原字面 \n 转义），写完读回比对。
  *   3. 把 --children 里还没挂在地图下的子票，用 gh 原生旗 --parent 挂成原生子议题。
  *   4. 读每张子票正文第一处有内容的行里的 `Blocked by: #n, #n` 声明，升格成原生阻塞边（原生旗优先）。
@@ -89,14 +90,10 @@ const SIBLING_SCRIPT: string = "scripts/fix-issue-body.mts";
 const TRACKER_DOC: string = "docs/agents/issue-tracker.md";
 const BOM: string = "\uFEFF";
 const PAGE_SIZE: number = 100;
-/** 以上逐层找根时，在哪一层停下：自带 .git（文件或目录都算）或自带一份插件工作区记录的那一层，谁近听谁。 */
-const ROOT_MARKER_DIR: string = ".git";
-/** 逐层找根时认的插件工作区记录（#1806 第 4 步）：后端记录与身份记录都算，哪一份在都说明这一层是工作区。
- *  字面量与共享层 src/shared/config-store/src/workspace.ts 的 WORKSPACE_YAML_REL / WORKSPACE_IDENTITY_REL 同源；
+/** 逐层找根时认的那份工作区记录（2026-11-03 起只有这一份）：自带它的那一层就是工作区根。
+ *  字面量与共享层 src/shared/config-store/src/workspace.ts 的 WORKSPACE_YAML_REL 同源；
  *  脚本要能单跑、不依赖仓库源码，所以这里是一份自包含副本，两边是否同一条由本脚本的门禁钉住。 */
-const WORKSPACE_RECORD_RELS: string[] = ["docs/agents/workspace.yaml", "docs/agents/workspace-root.yaml"];
-/** 从属记录：说明这一层已经并入上级工作区，本层不是根，接着往上找（与宿主判定层的顺序一致）。 */
-const MEMBER_RECORD_REL: string = "docs/agents/workspace-member.yaml";
+const WORKSPACE_RECORD_REL: string = "docs/agents/workspace.yaml";
 /** 本次调用认出来的工作区根（main 一开始就填好）。后面每条 gh 命令都在这一层跑：
  *  脚本可能是在工作区的子目录里被调起来的，而 gh 的「当前仓库」与 `{owner}/{repo}` 占位符都按进程当前目录算。 */
 let WORKSPACE_ROOT: string = "";
@@ -128,24 +125,19 @@ interface ChildState {
   declared: number[];
 }
 
-/** 这一层有没有插件工作区记录（任意一份）。只看在不在、不读内容——与宿主判定层同一个口径。 */
+/** 这一层有没有插件工作区记录（docs/agents/workspace.yaml）。只看在不在、不读内容——与宿主判定层同一个口径。 */
 function hasWorkspaceRecord(dir: string): boolean {
-  for (const rel of WORKSPACE_RECORD_RELS) {
-    if (existsSync(join(dir, rel))) return true;
-  }
-  return false;
+  return existsSync(join(dir, WORKSPACE_RECORD_REL));
 }
 
 /**
- * 找工作区根：从 startDir 逐层向上，第一个满足下面任一条的目录就是工作区根：
- *   · 自带 .git（文件或目录都算）；
- *   · 自带一份插件工作区记录（docs/agents/workspace.yaml 或 docs/agents/workspace-root.yaml）。
- * 自带从属记录（docs/agents/workspace-member.yaml）的那一层不算根，跳过它继续往上——
- * 它说的是「这一层已经并入上级」，不是「这一层是工作区」，顺序与宿主 markerOf 一致。
- * 一路到磁盘根都没有标记，就用 startDir 本身。
- * 这条规则与宿主同一条（#1806 第 1 步定版、架构决定记录 docs/adr/20261102-workspace-identity-records.md，
- * 宿主侧实现在 src/host/workspaceKey.ts 的 resolveWorkspaceRoot）。手写的说明文件
- * docs/agents/issue-tracker.md 不再参与认根（它只回答「用哪个后端」），这是 #1806 第 4 步的同步。
+ * 找工作区根：从 startDir 逐层向上，第一个自带 docs/agents/workspace.yaml 的目录就是工作区根。
+ * 一路到磁盘根都没有这份记录，就用 startDir 本身（界面上提示初始化）。
+ * 这条规则与宿主同一条（2026-11-03 维护者定版，架构决定记录
+ * docs/adr/20261103-workspace-root-upward-search.md，宿主侧实现在 src/host/workspaceKey.ts 的
+ * resolveWorkspaceRoot）。.git 与手写的说明文件 docs/agents/issue-tracker.md 都不参与认根：
+ * .git 只是版本库边界（本地 Markdown 工作区可以没有 git，GitLab 同一项目可有多份本地副本），
+ * 说明文件只回答「用哪个后端」。
  * 脚本要能单跑、不依赖仓库源码，所以这里是一份自包含的副本——两份是否给出同一结论由
  * tests/verify-wire-subissues-script.ts 与 tests/verify-issue-body-script.ts 的子目录用例钉住。
  * @returns {{ root: string, found: boolean }} found=false 表示一路上一个标记都没有（root 就是 startDir 本身）。
@@ -154,11 +146,7 @@ function findWorkspaceRoot(startDir: string): { root: string; found: boolean } {
   let cursor = resolve(startDir);
   for (let i = 0; i < 64; i++) {
     try {
-      if (existsSync(join(cursor, ROOT_MARKER_DIR))) return { root: cursor, found: true };
-      // 从属记录优先于记录判断：这一层就算还留着旧的 workspace.yaml/workspace-root.yaml，
-      // 它已经声明「并入上级」，判定层也不会停在这里，脚本必须同一个结论。
-      const joinedToParent = existsSync(join(cursor, MEMBER_RECORD_REL));
-      if (!joinedToParent && hasWorkspaceRecord(cursor)) return { root: cursor, found: true };
+      if (hasWorkspaceRecord(cursor)) return { root: cursor, found: true };
     } catch (e) { /* 这一层探测不了就继续往上，与宿主同款：探测失败不算「找到了根」 */ }
     const up = dirname(cursor);
     if (!up || up === cursor) break;
@@ -337,7 +325,7 @@ function requireGithub(startDir: string): BackendDetect {
     }
     fail(2, `${head}已找到工作区根目录「${rootName}」，但这一层没有主锚文件 docs/agents/issue-tracker.md，认不出后端。请在那一层做一次工作区初始化（生成主锚文件），或者从别的目录调用本脚本。`);
   }
-  fail(2, `${head}认不出后端（从「${baseName(startDir)}」逐层向上都没找到 .git，也没有任何工作区记录：docs/agents/workspace.yaml 或 docs/agents/workspace-root.yaml）。请到工作区根目录去跑这条命令（当前找不到那条目录，请改用你的工作区根目录）；GitHub 工作区请确认该目录的主锚文件首行写着「# Issue tracker: GitHub」，本地 Markdown 工作区请直接改票文件存盘，GitLab 待第二批。`);
+  fail(2, `${head}认不出后端（从「${baseName(startDir)}」逐层向上都没找到工作区记录 docs/agents/workspace.yaml）。请到工作区根目录去跑这条命令（当前找不到那条目录，请改用你的工作区根目录）；GitHub 工作区请确认该目录的主锚文件首行写着「# Issue tracker: GitHub」，本地 Markdown 工作区请直接改票文件存盘，GitLab 待第二批。`);
 }
 
 /**

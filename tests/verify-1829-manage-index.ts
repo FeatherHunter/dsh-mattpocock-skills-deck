@@ -109,9 +109,13 @@ async function main() {
   const counts = countsOf(PLACEMENT_COUNTS)
 
   // 一、按构建同一套做法把叶子求值成真函数：跨叶符号当形参注入，等价于闭包里它们先有值。
+  // vcManageIndex.ts 画「打开」后面的 chevron 时调 vcPageIconOf（#1840 起卡片与入口都带图标），
+  // 它住在 vcPageHead.ts 那片叶子里；按构建口径把真身注进来，叶子求值才不会 ReferenceError。
+  const headLeaf: any = await imp('src/client/views/versionControl/vcPageHead.ts')
+  const vcPageIconOf: any = headLeaf.vcPageIconOf
   const leafSrc = spliceableJs('src/client/views/versionControl/vcManageIndex.js').replace(/^[ \t]*export[ \t]+/gm, '')
-  const leaf: any = compileFn(['VC_MANAGE_PAGES', 'VC_MANAGE_SECTION_KEYS', 'PAGE_COUNTS', 'PLACEMENT_COUNTS', 'CAPABILITIES', 'VC_MANAGE_DANGER_PAGES'],
-    leafSrc + '\nreturn { vcManageIndexNode, vcManageIndexPageNode, vcManageCardKeyOf }')(VC_MANAGE_PAGES, VC_MANAGE_SECTION_KEYS, PAGE_COUNTS, PLACEMENT_COUNTS, CAPABILITIES, VC_MANAGE_DANGER_PAGES)
+  const leaf: any = compileFn(['VC_MANAGE_PAGES', 'VC_MANAGE_SECTION_KEYS', 'PAGE_COUNTS', 'PLACEMENT_COUNTS', 'CAPABILITIES', 'VC_MANAGE_DANGER_PAGES', 'vcPageIconOf'],
+    leafSrc + '\nreturn { vcManageIndexNode, vcManageIndexPageNode, vcManageCardKeyOf }')(VC_MANAGE_PAGES, VC_MANAGE_SECTION_KEYS, PAGE_COUNTS, PLACEMENT_COUNTS, CAPABILITIES, VC_MANAGE_DANGER_PAGES, vcPageIconOf)
   check(typeof leaf.vcManageIndexNode === 'function', '叶子导出 vcManageIndexNode(h, t, o)')
   check(typeof leaf.vcManageIndexPageNode === 'function', '叶子导出 vcManageIndexPageNode(h, t, o)（#1840 独立索引屏）')
 
@@ -134,7 +138,7 @@ async function main() {
   check(lis.length === 9, '恰好九个 li.vcs-gear-li（实得 ' + lis.length + ' 个）')
   const buttons: any[] = lis.map((li: any) => (li.children || [])[0])
   check(buttons.length === 9 && buttons.every((b: any) => !!b && b.type === 'button'), '每个 li 里恰好一张卡，卡是 button')
-  check(buttons.length === 9 && buttons.every((b: any) => b.props.className === 'vcs-gear-item vcs-manage-card'), '每张卡两个类名都在：齿轮项 + 管理卡片')
+  check(buttons.length === 9 && buttons.every((b: any) => String(b.props.className).split(' ').indexOf('vcs-gear-item') >= 0 && String(b.props.className).split(' ').indexOf('vcs-manage-card') >= 0), '每张卡两个类名都在：齿轮项 + 管理卡片（维护卡再跟 is-danger）')
   check(buttons.length === 9 && buttons.every((b: any) => b.props.type === 'button'), '每张卡 type="button"（真按钮，不是可点的 div）')
   const ids: string[] = buttons.map((b: any) => String(b.props['data-vc-gear-item']))
   check(JSON.stringify(ids) === JSON.stringify(VC_MANAGE_PAGES), '九张卡的 data-vc-gear-item 顺序 = VC_MANAGE_PAGES（' + ids.join(',') + '）')
@@ -159,12 +163,16 @@ async function main() {
   check(partsOk.every(Boolean), '每张卡三段：头部 span / 覆盖口径 span / 脚部 span')
   const titleSpans: any[] = buttons.map((b: any) => spansOf(b, 'vcs-manage-card-title'))
   const textSpans: any[] = buttons.map((b: any) => spansOf(b, 'vcs-manage-card-text'))
-  const countSpans: any[] = buttons.map((b: any) => spansOf(b, 'vcs-manage-card-count'))
+  // 卡头右侧是范围摘要（vc.shell.gear.summary.<分区>），卡脚是本页能力条数（vc.shell.page.caps + PAGE_COUNTS）：
+  //   两件事分开写、分开验，摘要说的是「这一区管什么面」，条数说的是「这一区有几条能力」。
+  const summarySpans: any[] = buttons.map((b: any) => spansOf(b, 'vcs-manage-card-count'))
+  const capsSpans: any[] = buttons.map((b: any) => spansOf(b, 'vcs-manage-card-caps'))
   const goSpans: any[] = buttons.map((b: any) => spansOf(b, 'vcs-manage-card-go'))
-  check(titleSpans.every((s: any[]) => s.length === 1) && textSpans.every((s: any[]) => s.length === 1) && countSpans.every((s: any[]) => s.length === 1) && goSpans.every((s: any[]) => s.length === 1), '每张卡四块文字各恰好一块（名称 / 说明 / 条数 / 打开提示）')
+  check(titleSpans.every((s: any[]) => s.length === 1) && textSpans.every((s: any[]) => s.length === 1) && summarySpans.every((s: any[]) => s.length === 1) && capsSpans.every((s: any[]) => s.length === 1) && goSpans.every((s: any[]) => s.length === 1), '每张卡五块文字各恰好一块（名称 / 覆盖口径 / 范围摘要 / 本页条数 / 打开提示）')
   check(JSON.stringify(titleSpans.map((s: any[]) => textOf(s[0]))) === JSON.stringify(sectionKeys.map((k: string) => zh[k])), '九张卡的分区名逐项等于真词表（' + sectionKeys.map((k: string) => zh[k]).join('、') + '）')
   check(JSON.stringify(textSpans.map((s: any[]) => textOf(s[0]))) === JSON.stringify(cardKeys.map((k: string) => zh[k])), '九条覆盖口径说明逐项取 card.<分区> 词条，说的是这一区管什么')
-  check(JSON.stringify(countSpans.map((s: any[]) => textOf(s[0]))) === JSON.stringify(VC_MANAGE_PAGES.map((id: string) => tZh('vc.shell.page.caps', { n: PAGE_COUNTS[id] }))), '九张卡的条数文案按 vc.shell.page.caps + PAGE_COUNTS 取')
+  check(JSON.stringify(summarySpans.map((s: any[]) => textOf(s[0]))) === JSON.stringify(VC_MANAGE_PAGES.map((id: string) => zh['vc.shell.gear.summary.' + id])), '卡头范围摘要逐项取 vc.shell.gear.summary.<分区>（' + VC_MANAGE_PAGES.map((id: string) => zh['vc.shell.gear.summary.' + id]).join('、') + '）')
+  check(JSON.stringify(capsSpans.map((s: any[]) => textOf(s[0]))) === JSON.stringify(VC_MANAGE_PAGES.map((id: string) => tZh('vc.shell.page.caps', { n: PAGE_COUNTS[id] }))), '卡脚本页能力条数按 vc.shell.page.caps + PAGE_COUNTS 取（每张卡都写着「N 条能力」）')
   check(JSON.stringify(goSpans.map((s: any[]) => textOf(s[0]))) === JSON.stringify(VC_MANAGE_PAGES.map(() => zh['vc.shell.gear.cardOpen'])), '九张卡的打开提示都取真词表 vc.shell.gear.cardOpen')
 
   // 五、危险区只在 VC_MANAGE_DANGER_PAGES 点名的分区上出现。
@@ -200,7 +208,9 @@ async function main() {
   check(scBtns.length === 2 && scBtns.every((b: any) => b.type === 'button' && b.props.className === 'vcs-manage-shortcut' && b.props.type === 'button'), '两条入口都是真按钮 button.vcs-manage-shortcut（type="button"）')
   check(!!scBtns[0] && scBtns[0].props['data-vc-search-entry'] === '1' && scBtns[0].props['data-vc-extra-link'] === undefined, '第一条入口走既有命令面板属性 data-vc-search-entry（委托层不新增意图）')
   check(!!scBtns[1] && scBtns[1].props['data-vc-extra-link'] === 'search' && scBtns[1].props['data-vc-search-entry'] === undefined, '第二条入口走既有页面跳转属性 data-vc-extra-link="search"（落点是全库搜索页）')
-  check(textOf(scBtns[0]) === tZh('vc.shell.gear.shortcutPalette', { n: CAPABILITIES.length }) && textOf(scBtns[1]) === zh['vc.shell.gear.shortcutSearch'], '两条入口的话术取真词表，条数参数用账本总数 ' + CAPABILITIES.length)
+  const scLabel = (b: any) => textOf(spansOf(b, 'vcs-manage-shortcut-label')[0])
+  check(scLabel(scBtns[0]) === tZh('vc.shell.gear.shortcutPalette', { n: CAPABILITIES.length }) && scLabel(scBtns[1]) === zh['vc.shell.gear.shortcutSearch'], '两条入口的话术取真词表，条数参数用账本总数 ' + CAPABILITIES.length)
+  check(scBtns.every((b: any) => spansOf(b, 'vcs-manage-shortcut-chevron').length === 1), '两条入口各带一枚箭头图标（原型整行虚线框入口的左端）')
   check(scBtns.every((b: any) => b.props.onClick === undefined && b.props['data-action'] === undefined), '两条入口不挂 onClick、不写 data-action：点击仍走根节点的委托')
   const coverage: any = (page.children || [])[3] || null
   check(!!coverage && coverage.type === 'p' && coverage.props.className === 'vcs-coverage-note' && coverage.props['data-vc-note'] === 'coverage', '第四块是 p.vcs-coverage-note（覆盖口径）')
@@ -217,6 +227,7 @@ async function main() {
   const newKeys: string[] = ['vc.shell.page.manage', 'vc.shell.page.note.manage', 'vc.shell.gear.indexNote', 'vc.shell.gear.danger', 'vc.shell.gear.cardOpen',
     'vc.shell.gear.shortcutPalette', 'vc.shell.gear.shortcutSearch', 'vc.shell.gear.coverageChip', 'vc.shell.gear.coverageText', 'vc.shell.gear.coverageCount']
       .concat(cardKeys)
+      .concat(VC_MANAGE_PAGES.map((id: string) => 'vc.shell.gear.summary.' + id))
   check(newKeys.every((k: string) => typeof zh[k] === 'string' && zh[k].length > 0 && typeof en[k] === 'string' && en[k].length > 0), '索引屏新增的 ' + newKeys.length + ' 条词条在 zh 与 en 两边都有真话术')
   check(newKeys.filter((k: string) => zh[k].indexOf('{') >= 0).every((k: string) => { const zs = zh[k].match(/\{\w+\}/g) || []; const es = en[k].match(/\{\w+\}/g) || []; return JSON.stringify(zs.sort()) === JSON.stringify(es.sort()) }), '带占位符的词条两边占位符集合一致')
 
@@ -234,9 +245,10 @@ async function main() {
   check(JSON.stringify(asked.filter((a: any) => a.key === 'vc.shell.gear.shortcutPalette').map((a: any) => a.params)) === JSON.stringify([{ n: CAPABILITIES.length }]), '命令面板入口的话术问的是 vc.shell.gear.shortcutPalette，参数是账本总数')
   check(JSON.stringify(asked.filter((a: any) => a.key === 'vc.shell.gear.coverageText').map((a: any) => a.params)) === JSON.stringify([{ n: CAPABILITIES.length }]), '覆盖口径说明问的是 vc.shell.gear.coverageText，参数是账本总数')
   check(JSON.stringify(asked.filter((a: any) => a.key === 'vc.shell.gear.coverageCount').map((a: any) => a.params)) === JSON.stringify([counts]), '覆盖口径计数问的是 vc.shell.gear.coverageCount，参数是直折诊外四个数')
-  check(JSON.stringify(btnRec.map((b: any) => textOf(spansOf(b, 'vcs-manage-card-title')[0]))) === JSON.stringify(sectionKeys.map((k: string) => 't:' + k)), '分区名逐项问 VC_MANAGE_SECTION_KEYS 指到的那条键')
+  check(JSON.stringify(btnRec.map((b: any) => textOf(spansOf(b, 'vcs-manage-card-title')[0]))) === JSON.stringify(VC_MANAGE_PAGES.map((id: string) => 't:vc.shell.page.' + id)), '分区名逐项问页标题键 vc.shell.page.<分区>（与页头、分区路由用同一条键）')
   check(JSON.stringify(btnRec.map((b: any) => textOf(spansOf(b, 'vcs-manage-card-text')[0]))) === JSON.stringify(cardKeys.map((k: string) => 't:' + k)), '覆盖口径说明逐项由分区名键派生出 card.<分区> 键去问')
-  check(JSON.stringify(btnRec.map((b: any) => textOf(spansOf(b, 'vcs-manage-card-count')[0]))) === JSON.stringify(VC_MANAGE_PAGES.map((id: string) => 't:vc.shell.page.caps:{"n":' + PAGE_COUNTS[id] + '}')), '条数问的是 vc.shell.page.caps，参数是账本 PAGE_COUNTS[页面]')
+  check(JSON.stringify(btnRec.map((b: any) => textOf(spansOf(b, 'vcs-manage-card-count')[0]))) === JSON.stringify(VC_MANAGE_PAGES.map((id: string) => 't:vc.shell.gear.summary.' + id)), '范围摘要逐项问 vc.shell.gear.summary.<分区>')
+  check(JSON.stringify(btnRec.map((b: any) => textOf(spansOf(b, 'vcs-manage-card-caps')[0]))) === JSON.stringify(VC_MANAGE_PAGES.map((id: string) => 't:vc.shell.page.caps:{"n":' + PAGE_COUNTS[id] + '}')), '本页条数问的是 vc.shell.page.caps，参数是账本 PAGE_COUNTS[页面]')
   check(JSON.stringify(btnRec.map((b: any) => textOf(spansOf(b, 'vcs-manage-card-go')[0]))) === JSON.stringify(VC_MANAGE_PAGES.map(() => 't:vc.shell.gear.cardOpen')), '打开提示问的是词表键 vc.shell.gear.cardOpen')
   check(asked.filter((a: any) => a.key === 'vc.shell.gear.danger').length === VC_MANAGE_DANGER_PAGES.length, '「危险区」只问了危险分区数那么多次（' + VC_MANAGE_DANGER_PAGES.length + ' 次，只有维护分区那一张卡要它）')
 

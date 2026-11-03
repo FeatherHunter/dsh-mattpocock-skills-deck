@@ -675,7 +675,7 @@ async function main() {
   }
   const clientOpsSrc: string = sourceText('src/client/views/versionControl/vcRebaseOps.ts')
   const clientPageSrc: string = sourceText('src/client/views/versionControl/vcRebasePage.ts')
-  const leafBody = spliceableJs('src/client/views/versionControl/vcRebaseOps.ts') + '\n' + spliceableJs('src/client/views/versionControl/vcRebasePage.ts') + '\nreturn { VC_REBASE_PHONES: VC_REBASE_PHONES, VC_REBASE_OPS: VC_REBASE_OPS, VC_REBASE_TODO_ACTIONS: VC_REBASE_TODO_ACTIONS, VC_REBASE_TODO_MOVES: VC_REBASE_TODO_MOVES, vcRebaseOpMetaOf: vcRebaseOpMetaOf, vcRebaseOpLabelKeyOf: vcRebaseOpLabelKeyOf, vcRebaseOpVerbKeyOf: vcRebaseOpVerbKeyOf, vcRebaseActionLabelKeyOf: vcRebaseActionLabelKeyOf, vcRebaseStateLabelKeyOf: vcRebaseStateLabelKeyOf, vcRebaseRequestIdOf: vcRebaseRequestIdOf, vcRebaseVisibleOf: vcRebaseVisibleOf, vcRebaseRowsOf: vcRebaseRowsOf, vcRebaseMoveOf: vcRebaseMoveOf, vcRebaseRowPatchOf: vcRebaseRowPatchOf, vcRebasePayloadOf: vcRebasePayloadOf, vcRebaseCheckArgsOf: vcRebaseCheckArgsOf, vcRebaseReadArgsOf: vcRebaseReadArgsOf, vcRebaseWriteArgsOf: vcRebaseWriteArgsOf, vcRebaseTargetOf: vcRebaseTargetOf, vcRebaseRowTextOf: vcRebaseRowTextOf, vcRebasePageNode: vcRebasePageNode };'
+  const leafBody = spliceableJs('src/client/views/versionControl/vcRebaseOps.ts') + '\n' + spliceableJs('src/client/views/versionControl/vcRebasePage.ts') + '\n' + spliceableJs('src/client/views/versionControl/vcPageHead.ts') + '\n' + spliceableJs('src/client/views/versionControl/vcFlowParts.ts') + '\nreturn { VC_REBASE_PHONES: VC_REBASE_PHONES, VC_REBASE_OPS: VC_REBASE_OPS, VC_REBASE_TODO_ACTIONS: VC_REBASE_TODO_ACTIONS, VC_REBASE_TODO_MOVES: VC_REBASE_TODO_MOVES, vcRebaseOpMetaOf: vcRebaseOpMetaOf, vcRebaseOpLabelKeyOf: vcRebaseOpLabelKeyOf, vcRebaseOpVerbKeyOf: vcRebaseOpVerbKeyOf, vcRebaseActionLabelKeyOf: vcRebaseActionLabelKeyOf, vcRebaseStateLabelKeyOf: vcRebaseStateLabelKeyOf, vcRebaseRequestIdOf: vcRebaseRequestIdOf, vcRebaseVisibleOf: vcRebaseVisibleOf, vcRebaseRowsOf: vcRebaseRowsOf, vcRebaseMoveOf: vcRebaseMoveOf, vcRebaseRowPatchOf: vcRebaseRowPatchOf, vcRebasePayloadOf: vcRebasePayloadOf, vcRebaseCheckArgsOf: vcRebaseCheckArgsOf, vcRebaseReadArgsOf: vcRebaseReadArgsOf, vcRebaseWriteArgsOf: vcRebaseWriteArgsOf, vcRebaseTargetOf: vcRebaseTargetOf, vcRebaseRowTextOf: vcRebaseRowTextOf, vcRebasePageNode: vcRebasePageNode };'
   const leaf: any = compileFn(['h', 't', 'vcWriteErrFamilyOf'], leafBody)(fakeH, fakeT, function () { return 'notReady' })
   function rebaseReconcile(sharedRows: any[], clientRows: any[]) {
     const problems: string[] = []
@@ -851,6 +851,36 @@ async function main() {
   })
   const tamperProblems: string[] = rebaseReconcile(sharedRows, tampered)
   eq(tamperProblems.length >= 1, true, 'D70 反证：客户端名单把 5.10 写成 5.9 时对账必须报错（实测 ' + tamperProblems.length + ' 条）')
+
+  // 六步流程段（原型 48）：段计数是固定六步，不是进度；芯片只按仓库真实状态投影，没观测到的步骤一律待处理。
+  function pageSectionByTitle(page: any, key: string) {
+    const want: string = fakeT(key)
+    return findAll(page, function (n: any) { return n.props && n.props.className === 'page-section' && textAll(n).indexOf(want) >= 0 })[0]
+  }
+  function flowChipsOf(node: any) {
+    return findAll(node, function (n: any) { return n.props && n.props['data-vc-flow-chip'] !== undefined })
+  }
+  function stepRowsOf(page: any) {
+    const section: any = pageSectionByTitle(page, 'vc.rebase.section.steps')
+    return section ? findAll(section, function (n: any) { return n.props && n.props.className === 'obj-row' }) : []
+  }
+  const stepsSection: any = pageSectionByTitle(cleanPage, 'vc.rebase.section.steps')
+  const cleanStepRows: any[] = stepRowsOf(cleanPage)
+  const cleanCommands: any[] = cleanStepRows.map(function (row: any) { return findAll(row, function (n: any) { return n.props && String(n.props.className || '').split(/\s+/).indexOf('vcs-flow-cmd') >= 0 })[0] })
+  const stepsCountNode: any = stepsSection ? findAll(stepsSection, function (n: any) { return n.props && n.props.className === 'section-count' })[0] : null
+  const cleanSectionOrder: number = (cleanPage.children || []).indexOf(stepsSection)
+  check(!!stepsSection && cleanSectionOrder === 1 && textAll(stepsCountNode).join('') === '6' && cleanStepRows.length === 6 && cleanCommands.length === 6 && cleanCommands.every(function (n: any) { return n !== undefined && n !== null }) && cleanStepRows.every(function (row: any) { const chip: any = flowChipsOf(row)[0]; return !!chip && chip.props['data-vc-flow-chip'] === 'muted' }), 'D71 六步段在本次变基之后、变基动作之前，计数 6，六行都带等宽命令与待处理芯片（实测行 ' + cleanStepRows.length + ' 条、段序 ' + cleanSectionOrder + '）')
+  const busyStepTones: string[] = stepRowsOf(busyPage).map(function (row: any) { const chip: any = flowChipsOf(row)[0]; return chip ? String(chip.props['data-vc-flow-chip']) : '?' })
+  const mergePage: any = leaf.vcRebasePageNode(fakeH, fakeT, { rebase: { state: { state: 'merge' }, values: {}, rows: {}, handlers: {} } })
+  const mergeStepTones: string[] = stepRowsOf(mergePage).map(function (row: any) { const chip: any = flowChipsOf(row)[0]; return chip ? String(chip.props['data-vc-flow-chip']) : '?' })
+  const mergeSection: any = pageSectionByTitle(mergePage, 'vc.rebase.section.steps')
+  const mergeHint: any = mergeSection ? findAll(mergeSection, function (n: any) { return n.props && n.props['data-vc-flow-hint'] === 'vc.rebase.stepsNotRebase' })[0] : null
+  check(busyStepTones.join(',') === 'ok,ok,ok,warn,muted,muted' && mergeStepTones.length === 6 && mergeStepTones.every(function (t: string) { return t === 'muted' }) && !!mergeHint, 'D72 变基进行中只认前三步已完成、第四步进行中、后两步待处理；合并中不是变基，六步全部待处理并点明（实测变基 ' + busyStepTones.join(',') + '；合并 ' + mergeStepTones.join(',') + '）')
+  const errPage: any = leaf.vcRebasePageNode(fakeH, fakeT, { rebase: { state: { state: null, branch: 'main', headOid: BASE_OID }, errorText: 'fatal: read failed', values: {}, rows: {}, handlers: {} } })
+  const errNowSection: any = pageSectionByTitle(errPage, 'vc.rebase.section.now')
+  const errChip: any = errNowSection ? flowChipsOf(errNowSection)[0] : null
+  const errLine: any = attrAll(errPage, 'data-vc-rebase-error')[0]
+  check(!!errChip && errChip.props['data-vc-flow-chip'] === 'danger' && !!errLine && errLine.props.role === 'alert', 'D73 有错误时本次变基段芯片落 danger、错误行用 role=alert（实测 ' + String(errChip && errChip.props['data-vc-flow-chip']) + '/' + String(errLine && errLine.props.role) + '）')
 
   console.log('  D 组完成：' + total + ' 条')
 

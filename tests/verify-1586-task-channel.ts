@@ -460,7 +460,7 @@ async function main() {
     return { tag, props: props || {}, children: kids }
   }
   const fakeT = function (key, params) { return params ? key + JSON.stringify(params) : key }
-  const leaf = compileFn(['h', 't'], spliceableJs('src/client/views/versionControl/vcTaskPanel.ts') + '\nreturn { VC_TASK_PHONES: VC_TASK_PHONES, vcTaskStart: vcTaskStart, vcTaskQuery: vcTaskQuery, vcTaskCancel: vcTaskCancel, vcTaskProgressOf: vcTaskProgressOf, vcTaskConclusionOf: vcTaskConclusionOf, vcTaskRowNode: vcTaskRowNode, vcTaskPanelNode: vcTaskPanelNode, vcTaskOpLabelKeyOf: vcTaskOpLabelKeyOf };')(fakeH, fakeT)
+  const leaf = compileFn(['h', 't'], spliceableJs('src/client/views/versionControl/vcTaskPanel.ts') + '\n' + spliceableJs('src/client/views/versionControl/vcPageHead.ts') + '\n' + spliceableJs('src/client/views/versionControl/vcFlowParts.ts') + '\nreturn { VC_TASK_PHONES: VC_TASK_PHONES, vcTaskStart: vcTaskStart, vcTaskQuery: vcTaskQuery, vcTaskCancel: vcTaskCancel, vcTaskProgressOf: vcTaskProgressOf, vcTaskConclusionOf: vcTaskConclusionOf, vcTaskRowNode: vcTaskRowNode, vcTaskPanelNode: vcTaskPanelNode, vcTaskOpLabelKeyOf: vcTaskOpLabelKeyOf };')(fakeH, fakeT)
   function findAll(node, pred, out) {
     const acc = out || []
     if (Array.isArray(node)) { for (const item of node) findAll(item, pred, acc); return acc }
@@ -502,6 +502,29 @@ async function main() {
   cancelBtns[0].props.onClick({ stopPropagation() {} })
   check(cancelledIds.length === 1 && cancelledIds[0] === 't1', '点取消把任务 id 交给页面回调')
   check(findAll(runningPanel, (n) => n.props && n.props['data-vc-task-uncertain'] === '1').length === 1, '没有百分比时显示「无法确定」而不是编进度')
+
+  // 阶段芯片口径：四个点位是阶段的起点，percent 落在哪一段区间，哪一段就是「进行中」。
+  // 62% 落在「接收对象」区间 [20, 85)：准备目标目录已完成、接收对象进行中、检出文件与完成校验待处理。
+  // 旧写法按「第一个 percent < at」取当前段，会把还没开始的检出文件标成进行中，这里用边界用例把它钉死。
+  const stageChipsOf = (panel) => findAll(panel, (n) => n.props && typeof n.props['data-vc-flow-chip'] === 'string' && textOf(n).indexOf('vc.task.stage.') === 0)
+  const stageChipTexts = (panel) => stageChipsOf(panel).map((n) => textOf(n)).join(',')
+  const stageChipTones = (panel) => stageChipsOf(panel).map((n) => n.props['data-vc-flow-chip']).join(',')
+  const runningPanelAt = (percent) => leaf.vcTaskPanelNode(fakeH, fakeT, { tasks: [{ taskId: 'p' + percent, op: 'clone', state: 'running', percent }] })
+  check(stageChipTexts(runningPanelAt(62)) === 'vc.task.stage.done,vc.task.stage.active,vc.task.stage.waiting,vc.task.stage.waiting', '62% 落在接收对象区间：准备已完成、接收对象进行中、检出与校验待处理')
+  check(stageChipTones(runningPanelAt(62)) === 'ok,warn,muted,muted', '62% 的芯片色调：已完成绿、进行中琥珀、待处理灰')
+  check(findAll(runningPanelAt(62), (n) => n.props && n.props['data-vc-flow-meter'] === '62').length === 1, '62% 的进度条照实画读数')
+  const stageCases = [
+    { at: 0, texts: 'vc.task.stage.active,vc.task.stage.waiting,vc.task.stage.waiting,vc.task.stage.waiting', tones: 'warn,muted,muted,muted', what: '0% 时准备目标目录进行中，其余待处理' },
+    { at: 20, texts: 'vc.task.stage.done,vc.task.stage.active,vc.task.stage.waiting,vc.task.stage.waiting', tones: 'ok,warn,muted,muted', what: '20% 时接收对象进行中' },
+    { at: 85, texts: 'vc.task.stage.done,vc.task.stage.done,vc.task.stage.active,vc.task.stage.waiting', tones: 'ok,ok,warn,muted', what: '85% 时检出文件进行中' },
+    { at: 100, texts: 'vc.task.stage.done,vc.task.stage.done,vc.task.stage.done,vc.task.stage.done', tones: 'ok,ok,ok,ok', what: '100% 时四段全绿（原型 50 的完成态）' },
+  ]
+  for (const stageCase of stageCases) {
+    check(stageChipTexts(runningPanelAt(stageCase.at)) === stageCase.texts && stageChipTones(runningPanelAt(stageCase.at)) === stageCase.tones, stageCase.what)
+  }
+  const noPercentStagePanel = leaf.vcTaskPanelNode(fakeH, fakeT, { tasks: [{ taskId: 'np', op: 'fetch', state: 'running' }] })
+  check(stageChipTexts(noPercentStagePanel) === 'vc.task.stage.waiting,vc.task.stage.waiting,vc.task.stage.waiting,vc.task.stage.waiting' && stageChipTones(noPercentStagePanel) === 'muted,muted,muted,muted', '没有真实百分比时四段全灰，不拿点位冒充进度')
+  check(findAll(noPercentStagePanel, (n) => n.props && n.props['data-vc-flow-meter'] !== undefined).length === 0, '没有真实百分比时不画进度条')
   const donePanel = leaf.vcTaskPanelNode(fakeH, fakeT, { tasks: [{ taskId: 't2', op: 'gc', state: 'done', conclusion: 'succeeded' }], onCancel: () => { throw new Error('不该画取消按钮') } })
   check(findAll(donePanel, (n) => n.props && n.props['data-vc-task-cancel'] === '1').length === 0, '已结束任务没有取消按钮')
   check(findAll(donePanel, (n) => n.props && n.props['data-vc-task-conclusion'] === 'succeeded').length === 1, '已结束任务画结论')
@@ -510,6 +533,15 @@ async function main() {
   check(findAll(interruptedRow, (n) => n.props && n.props['data-vc-task-note'] === 'vc.task.interruptedNote').length === 1, '中断任务带上「上一次任务已中断」说明')
   const failedRow = leaf.vcTaskRowNode(fakeH, fakeT, { taskId: 't4', op: 'push', state: 'done', conclusion: 'failed', failureLine: 'fatal: no upstream' }, {})
   check(textOf(failedRow).indexOf('fatal: no upstream') >= 0, '失败行把 git 原话显示出来')
+  // 「取消之后」是纯静态说明段：讲清留下什么、由谁清理、怎么重来；不新增按钮，也不改取消入口。
+  const panelSections = findAll(emptyPanel, (n) => n.tag === 'section' && n.props && String(n.props.className || '').indexOf('page-section') >= 0)
+  const cancelAfterSections = panelSections.filter((sec) => textOf(sec).indexOf('vc.task.cancelAfterTitle') >= 0)
+  check(cancelAfterSections.length === 1 && panelSections.indexOf(cancelAfterSections[0]) === panelSections.length - 1, '「取消之后」是最后一段说明')
+  check(textOf(cancelAfterSections[0]).indexOf('vc.task.cancelAfterNote') >= 0 && textOf(cancelAfterSections[0]).indexOf('vc.task.cancelAfterRetry') >= 0, '「取消之后」讲清留下什么、由谁清理与怎么重来')
+  check(findAll(cancelAfterSections[0], (n) => n.tag === 'button').length === 0, '「取消之后」不新增按钮')
+  const sectionTitles = findAll(emptyPanel, (n) => n.tag === 'h3' && n.props && String(n.props.className || '').indexOf('section-title') >= 0).map(textOf)
+  check(sectionTitles.join(',') === 'vc.task.modesTitle,vc.task.progressTitle,vc.task.listTitle,vc.task.cancelAfterTitle', '四段顺序：选任务 → 进度 → 清单 → 取消之后')
+
   const calls = []
   const fakeCall = (method, args) => { calls.push({ method, args }); return { ok: true } }
   leaf.vcTaskStart(fakeCall, 'C:/repo', 'fetch', { args: { remote: 'origin' }, requestId: 'rq-2', confirm: true })

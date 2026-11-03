@@ -88,6 +88,10 @@ check(indexSrc.includes('noteRefreshFailure'), '宿主入口把刷新失败记�
 check(indexSrc.includes('noteWriteFailure'), '宿主入口把写失败记事件口注入代执行')
 check(srcText('src/refresh/rooms/host/issue-list-fetch.ts').includes('noteSnapshot'), '列表取数的 adoptSnapshot 漏斗会记降级开始/恢复')
 check(srcText('src/refresh/kernel/write-event-detection.ts').includes('isDeckWriteTool'), '写工具表对外可判定（isDeckWriteTool）')
+// #1835：两类以前没有历史的失败（探测失败、快照取数失败）由宿主两个失败出口补记；这里先静态确认出口真的接了记事件口，
+// 真实的失败段判重与落盘在 section 3 用假依赖 + 真 store 跑。
+check(srcText('src/refresh/rooms/host/probe-handler.ts').includes('noteRefreshFailure'), '探测失败的宿主出口把历史记进事件库（#1835）')
+check(srcText('src/refresh/rooms/host/session-snapshot-cache.ts').includes('noteRefreshFailure'), '快照取数失败的宿主出口把历史记进事件库（#1835）')
 
 // ---------------------------------------------------------------------------
 // 1. 纯逻辑：身份、配对、去重、清理、解析、当前状态从快照派生
@@ -151,6 +155,18 @@ if (K) {
   check(dedup.length === 2, '超出去重窗后再出现记新的一条')
   const mixed = K.appendInstant(K.appendInstant([], inst(1000)), { repo: 'acme/demo', now: 1001, type: WRITE, code: WRITE, params: { reason: '拒绝' }, dedupeMs: 600 })
   check(mixed.length === 2, '不同类型的瞬时事件不互相合并')
+  // #1835：同一类型里的不同环节（探测失败 / 取数失败）是两件事，不能按「同仓库同类型」合并成一条，
+  // 否则后到那条的环节信息会被吞掉（票面拍板 Q1 明确禁止）。
+  const stageProbe = (now: number) => ({ repo: 'acme/demo', now: now, type: INSTANT, code: 'refresh-failed.probe', params: { kind: 'network' }, dedupeMs: 600 })
+  const stageSnap = (now: number) => ({ repo: 'acme/demo', now: now, type: INSTANT, code: 'refresh-failed.snapshot', params: { kind: 'fetch-failed' }, dedupeMs: 600 })
+  const stageBoth = K.appendInstant(K.appendInstant([], stageProbe(1000)), stageSnap(1001))
+  check(stageBoth.length === 2 && stageBoth[0].code === 'refresh-failed.probe' && stageBoth[1].code === 'refresh-failed.snapshot', '同类型不同环节的失败不互相吞并（去重键含机器码）')
+  const stageMerged = K.appendInstant(stageBoth, stageProbe(1500))
+  check(stageMerged.length === 2 && stageMerged.filter((e: any) => e.code === 'refresh-failed.probe')[0].count === 2, '同一环节在去重窗内仍按原规则合并、次数加一')
+  const stageLegacyMerge = K.appendInstant([{ id: K.eventIdOf('acme/demo', INSTANT, 1000), type: INSTANT, repo: 'acme/demo', startedAt: 1000, endedAt: 1000, count: 1, summary: '旧', detail: '', updatedAt: 1000 }], { repo: 'acme/demo', now: 1500, type: INSTANT, code: 'refresh-failed', params: { reason: 'x' }, dedupeMs: 600 })
+  check(stageLegacyMerge.length === 1 && stageLegacyMerge[0].count === 2, '旧事件没有机器码时按类型归一，仍能与同类型的新事件合并（兼容旧文件）')
+  const stageSameMs = K.appendInstant(K.appendInstant([], stageProbe(1000)), stageSnap(1000))
+  check(stageSameMs.length === 2 && stageSameMs[0].id !== stageSameMs[1].id, '同一毫秒追加两条不同环节的事件：身份不撞（未读标记与列表键不串）')
 
   const closed = { id: K.eventIdOf('acme/demo', INSTANT, 1000), type: INSTANT, repo: 'acme/demo', startedAt: 1000, endedAt: 1100, count: 1, summary: '旧', detail: '', updatedAt: 1100 }
   const openOld = { id: K.eventIdOf('acme/demo', START, 1200), type: START, repo: 'acme/demo', startedAt: 1200, endedAt: null, count: 1, summary: '降级', detail: '', updatedAt: 1200 }
@@ -208,7 +224,7 @@ check(!!S, '落盘模块能被加载')
 if (S) {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'notif-1693-'))
   let clock = 1000000
-  const repoKeys: Record<string, any> = { '/ws': { owner: 'acme', name: 'demo' }, '/ws2': { owner: 'other', name: 'repo' } }
+  const repoKeys: Record<string, any> = { '/ws': { owner: 'acme', name: 'demo' }, '/ws2': { owner: 'other', name: 'repo' }, '/ws3': { owner: 'acme', name: 'stage' } }
   const fsFacade = {
     resolve: async (p: string) => p,
     readText: async (p: string) => { try { return fs.readFileSync(p, 'utf8') } catch (e) { return '' } },
@@ -281,6 +297,27 @@ if (S) {
   check(writeEvents.length === 1 && writeEvents[0].code === WRITE && writeEvents[0].params.tool === 'deck_issue_patch', '写失败落盘且把工具名记进结构化参数')
   check(!hasCjk(JSON.stringify(writeEvents[0])), '写失败事件里没有中文界面文案（文案在客户端按词条渲染）')
   check(writeEvents[0].code.length <= 60 && JSON.stringify(writeEvents[0].params).length <= 200, '事件代码与参数都按上限裁剪')
+
+  section('2c2 两类环节失败的机器码与去重键')
+  clock += 1000
+  await store.noteRefreshFailure('/ws3', null, { stage: 'probe', kind: 'network' })
+  await store.noteRefreshFailure('/ws3', null, { stage: 'snapshot', kind: 'fetch-failed' })
+  let stageEv = await store.read('/ws3')
+  check(stageEv.length === 2, '同一去重窗内探测失败与取数失败各留一条，后到的一条不被吞掉')
+  check(stageEv[0].code === 'refresh-failed.probe' && stageEv[0].params.kind === 'network', '探测失败落盘时把环节与原因类别记成机器码')
+  check(stageEv[1].code === 'refresh-failed.snapshot' && stageEv[1].params.kind === 'fetch-failed', '取数失败落盘时把环节与原因类别记成机器码')
+  check(!hasCjk(JSON.stringify(stageEv)), '两类环节失败的历史里没有中文界面文案')
+  await store.noteRefreshFailure('/ws3', null, { stage: 'probe', kind: 'network' })
+  stageEv = await store.read('/ws3')
+  check(stageEv.filter((e: any) => e.code === 'refresh-failed.probe').length === 1 && stageEv.filter((e: any) => e.code === 'refresh-failed.probe')[0].count === 2, '同一环节在去重窗内合并成一条、次数 2')
+  clock += 120000
+  await store.noteRefreshFailure('/ws3', null, { stage: 'probe', kind: 'env' })
+  stageEv = await store.read('/ws3')
+  check(stageEv.filter((e: any) => e.code === 'refresh-failed.probe').length === 2, '超出去重窗后同一环节再记一条')
+  await store.noteRefreshFailure('/ws3', null, { stage: 'x'.repeat(80), kind: 'network' })
+  stageEv = await store.read('/ws3')
+  const clamped = stageEv[stageEv.length - 1]
+  check(!!clamped && clamped.code.length <= 60 && clamped.code.indexOf('refresh-failed.') === 0, '环节名很长时事件代码仍截到 60 字上限内（界面不会拿到超长机器码）')
 
   section('2d 工作区隔离、拿不到仓库、坏文件、清理')
   await store.noteSnapshot({ fallback: 'rest' }, '/ws2')
@@ -401,6 +438,135 @@ if (S) {
   const deckSilent = deckMod.createDeckExec({ getTable: failingTable, logCtx: null })
   await deckSilent.handleDeckExec({ tool: 'deck_issue_patch', args: {}, session: { cwd: '/ws' } })
   check((await wireStore.read('/ws')).filter((e: any) => e.type === WRITE).length === 1, '没有接事件库时写失败静默跳过，不影响失败回执')
+
+  // ── 3b/3c/3d #1835：探测失败与快照取数失败的真实出口 ──
+  // 为什么放在这一节：事件库纯逻辑对了不等于出口接了；这里用真实 createProbeHandler /
+  // createSessionSnapshot（假依赖）+ 真 store，把「失败 → 记一条 → 同一段不再刷行 → 恢复后新一段再记」
+  // 整条路径跑一遍。每个用例用自己的临时目录与固定仓库键，不污染上面的接线用例。
+  const stageTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'notif-wire-1835-'))
+  const stageFs = {
+    resolve: async (p: string) => p,
+    readText: async (p: string) => { try { return fs.readFileSync(p, 'utf8') } catch (e) { return '' } },
+    writeText: async (p: string, t: string) => { fs.writeFileSync(p, t) },
+  }
+  const stagePlatform = { fs: { resolve: async (p: string) => p }, path: { join: (...xs: string[]) => path.join(...xs) } }
+  let stageClock = 8000000
+  const mkStageStore = function (repoName: string) {
+    const dir = path.join(stageTmp, repoName)
+    fs.mkdirSync(dir, { recursive: true })
+    return S.createNotificationStore({ fs: stageFs, getPlatform: async () => stagePlatform, getCacheDir: async () => dir, getRepoKey: async () => ({ owner: 'acme', name: repoName }), logCtx: null, now: () => stageClock, retentionMs: 600000, dedupeMs: 60000, maxEvents: 10 })
+  }
+
+  section('3b 真实接线：探测失败的失败段判重')
+  const probeStore = mkStageStore('probe')
+  const probeMod = await imp('src/refresh/rooms/host/probe-handler.ts')
+  let probeShouldFail = true
+  let probeWritePatch: any = null
+  const probe = probeMod.createProbeHandler({
+    canonicalKey: async (c: string) => c,
+    selectEarly: async () => null,
+    isComposerSelection: () => false,
+    getTrackerRegistry: async () => ({ get: () => null }),
+    getPlatform: async () => ({ ident: 'test' }),
+    ctx: { get: () => null },
+    detectionExec: () => {},
+    fetchIssueIndexWindowed: async () => (probeShouldFail ? { ok: false, error: { kind: 'network' } } : { ok: true, changed: false, repo: { owner: 'acme', name: 'probe' }, count: 0 }),
+    issueIndexChanged: () => false,
+    rememberIssueIndex: () => {},
+    commitIssueIndex: () => {},
+    getCache: () => null,
+    setCache: () => {},
+    lastIssueIndexByRepo: {},
+    lastProbeAtByRepo: {},
+    deltaRefresh: async () => null,
+    takeWritePatch: async () => probeWritePatch,
+    errText: (e: any) => String((e && e.message) || e),
+    noteRefreshFailure: (cwd: any, e: any, info: any) => probeStore.noteRefreshFailure(cwd, e, info),
+  })
+  const probeFail1 = await probe.handleProbe({ cwd: '/ws-probe' })
+  check(probeFail1 && probeFail1.ok === false, '探测失败仍然如实回失败（原有回包不变）')
+  let probeEvents = await probeStore.read('/ws-probe')
+  check(probeEvents.length === 1, '探测失败第一次就记进事件库（不是每 5 秒一条）')
+  check(probeEvents[0].type === INSTANT && probeEvents[0].code === 'refresh-failed.probe', '探测失败复用刷新失败类型、机器码标出「探测」环节')
+  check(probeEvents[0].params && probeEvents[0].params.kind === 'network', '探测失败把原因类别记成机器码（network）')
+  check(!hasCjk(JSON.stringify(probeEvents[0])), '探测失败历史里没有中文界面文案')
+  await probe.handleProbe({ cwd: '/ws-probe' })
+  await probe.handleProbe({ cwd: '/ws-probe' })
+  probeEvents = await probeStore.read('/ws-probe')
+  check(probeEvents.filter((e: any) => e.type === INSTANT).length === 1, '同一段探测失败连续发生只留一条（不按 5 秒拍刷历史）')
+  probeShouldFail = false
+  const probeOkReply = await probe.handleProbe({ cwd: '/ws-probe' })
+  check(probeOkReply && probeOkReply.ok === true, '探测恢复后照旧回成功')
+  stageClock += 120000
+  probeShouldFail = true
+  await probe.handleProbe({ cwd: '/ws-probe' })
+  probeEvents = await probeStore.read('/ws-probe')
+  check(probeEvents.filter((e: any) => e.type === INSTANT).length === 2, '恢复后的新一段失败再记一条（失败段判重不把两段并成一段）')
+  // 写事件补好的快照直接交付（mode:'patch'）这一拍根本没探测，不能当成恢复；否则一段没结束的失败会被切碎。
+  probeWritePatch = { snapshot: { repo: 'acme/probe' } }
+  const patchReply = await probe.handleProbe({ cwd: '/ws-probe' })
+  check(patchReply && patchReply.ok === true && patchReply.mode === 'patch', '写事件补好的快照直接交付仍走 patch 快路径')
+  stageClock += 120000
+  probeShouldFail = true
+  await probe.handleProbe({ cwd: '/ws-probe' })
+  probeEvents = await probeStore.read('/ws-probe')
+  check(probeEvents.filter((e: any) => e.type === INSTANT).length === 2, 'patch 快路径不算恢复：同一段失败没有被切成两段')
+
+  section('3c 真实接线：快照取数失败的失败段判重')
+  const snapStore = mkStageStore('snap')
+  const snapMod = await imp('src/refresh/rooms/host/session-snapshot-cache.ts')
+  let snapShouldFail = true
+  const snapHandler = snapMod.createSessionSnapshot({
+    envelope: { buildSnap: (x: any) => x, adoptSnapLog: (x: any) => x, withWorkRouteTable: async (r: any) => r },
+    canonicalKey: async (c: string) => c,
+    selectEarly: async () => ({ backendId: 'github' }),
+    isComposerSelection: () => false,
+    getTrackerRegistry: async () => ({ get: () => ({}), modules: () => [] }),
+    getPlatform: async () => ({}),
+    ctx: { get: () => null },
+    getCache: () => (snapShouldFail ? { ts: 0, snapshot: null } : { ts: stageClock, snapshot: { repo: 'acme/snap', repoRoot: '/w', selection: { backendId: 'github', rev: 0 } } }),
+    setCache: () => {},
+    CACHE_MS: 100000,
+    cacheSnapshotIsCurrent: () => true,
+    upcaseSnapStates: (v: any) => v,
+    computeLevels: () => ({ byNumber: {}, byKey: {} }),
+    groupTickets: () => ({ total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0, levels: [], levelOf: {} }),
+    getRepoRoot: async () => '/w',
+    getRepoKey: async () => { if (snapShouldFail) { const err: any = new Error('取数失败'); err.fail = { kind: 'quota-exhausted' }; throw err } return { owner: 'acme', name: 'snap' } },
+    readDiskCache: async () => null,
+    writeDiskCache: () => {},
+    adoptSnapshot: (snap: any) => snap,
+    detectionExec: () => {},
+    getGhPath: () => null,
+    getGhLastError: () => null,
+    errText: (e: any) => String((e && e.message) || e),
+    DEFAULT_CWD: '/w',
+    logCtx: null,
+    noteRefreshFailure: (cwd: any, e: any, info: any) => snapStore.noteRefreshFailure(cwd, e, info),
+  })
+  const snapFailReply = await snapHandler.handleSnapshot({ cwd: '/ws-snap' })
+  check(snapFailReply && snapFailReply.ok === false && snapFailReply.failKind === 'quota-exhausted', '取数失败仍然如实回失败与种类（原有回包不变）')
+  let snapEvents = await snapStore.read('/ws-snap')
+  check(snapEvents.length === 1 && snapEvents[0].code === 'refresh-failed.snapshot', '取数失败进历史，机器码标出「取数」环节')
+  check(snapEvents[0].params && snapEvents[0].params.kind === 'quota-exhausted', '取数失败的原因类别记成机器码（quota-exhausted）')
+  check(!hasCjk(JSON.stringify(snapEvents[0])), '取数失败历史里没有中文界面文案')
+  snapShouldFail = false
+  const snapOkReply = await snapHandler.handleSnapshot({ cwd: '/ws-snap' })
+  check(snapOkReply && snapOkReply.ok !== false, '取数恢复后照旧回成功（缓存命中即成功）')
+  stageClock += 120000
+  snapShouldFail = true
+  await snapHandler.handleSnapshot({ cwd: '/ws-snap' })
+  snapEvents = await snapStore.read('/ws-snap')
+  check(snapEvents.filter((e: any) => e.code === 'refresh-failed.snapshot').length === 2, '恢复后的新一段取数失败再记一条')
+
+  section('3d 两类环节在同一去重窗里互不吞并')
+  const bothStore = mkStageStore('both')
+  await Promise.all([
+    bothStore.noteRefreshFailure('/ws-both', null, { stage: 'probe', kind: 'network' }),
+    bothStore.noteRefreshFailure('/ws-both', null, { stage: 'snapshot', kind: 'fetch-failed' }),
+  ])
+  const bothEvents = await bothStore.read('/ws-both')
+  check(bothEvents.length === 2 && bothEvents[0].code !== bothEvents[1].code, '同一去重窗内探测与取数各一条，后到的环节信息没有被吞掉')
 }
 
 console.log('\nverify-notification-events：共 ' + total + ' 条断言，失败 ' + failed + ' 条')

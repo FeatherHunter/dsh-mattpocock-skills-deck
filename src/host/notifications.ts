@@ -46,7 +46,8 @@ export function createNotifications(deps?: any): any {
     }).catch(function () { return null })
   }
   function noteSnapshot(snap: any, cwd: any): Promise<any> { return note('noteSnapshot', [snap, cwd]) }
-  function noteRefreshFailure(cwd: any, error: any): Promise<any> { return note('noteRefreshFailure', [cwd, error]) }
+  // #1835：第三参是环节与原因类别（探测 / 取数），宿主两个失败出口传；旧调用不传也照旧工作。
+  function noteRefreshFailure(cwd: any, error: any, info?: any): Promise<any> { return note('noteRefreshFailure', [cwd, error, info]) }
   function noteWriteFailure(info: any): Promise<any> { return note('noteWriteFailure', [info]) }
   /** wf.notifications：按工作区读事件历史，读不到就是空历史（不冒充「没有事件」以外的任何状态）。 */
   async function handleNotifications(args: any): Promise<any> {

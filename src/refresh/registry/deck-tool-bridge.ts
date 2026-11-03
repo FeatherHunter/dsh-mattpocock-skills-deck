@@ -26,6 +26,10 @@ import { createOutboundControl } from '../rooms/host/outbound-control.js'
 import { publishDeckTable, noteDeckGate } from '../../deck/shell/table-cell.js'
 import { createSandboxPolicyFor } from '../../deck/registration/sandbox-guard.js'
 import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../deck/shell/workspace-anchor.js'
+// #1793：会话标签只有一处实现（与存档里 sessionLabel 同源），在办表的 running 标记必须按它对齐分组。
+import { workPathSessionLabel } from '../../deck/shell/work-path-readout.js'
+// #1793：谁此刻真有一轮开着只有宿主知道，筛选判据统一收在这支模块里（装配层与门禁共用一份）。
+import { runningSessionLabels } from '../../deck/shell/running-sessions.js'
 import * as budget from '../kernel/host-budget.js'
 import * as toolCost from '../kernel/tool-call-budget.js'
 import { decideByBudget } from '../kernel/budget-admission.js'
@@ -280,6 +284,36 @@ export function createDeckToolBridge(deps: any): any {
   const onOpEnd = d.onOpEnd
   const onToolReceipt = d.onToolReceipt
   let deckToolsP: Promise<any> | null = null
+  /**
+   * #1793：在办表的「此刻真有一轮开着」标记。判据与筛选全在 src/deck/shell/running-sessions.ts
+   * （装配层与门禁走同一份实现），这里只做两件事：从宿主上下文取那两份服务，把本层的键、标题、
+   * 标签换算口递进去。拿不到服务或任一环抛错都回空数组——上层按「不知道」处理，不标 running，
+   * 也不说没人在跑。
+   */
+  async function workRouteRunning(rawInput: any): Promise<string[]> {
+    try {
+      const input: any = (rawInput && typeof rawInput === 'object') ? rawInput : {}
+      const ctx: any = d.ctx
+      const services: any = { agents: null, sessions: null }
+      if (ctx && typeof ctx.get === 'function') {
+        try { services.agents = ctx.get('agents') } catch (eA: any) { services.agents = null }
+        try { services.sessions = ctx.get('sessions') } catch (eS: any) { services.sessions = null }
+      }
+      return await runningSessionLabels({
+        services: services,
+        deps: {
+          workspaceKeyOf: workspaceKeyOf,
+          canonicalKey: (typeof d.canonicalKey === 'function') ? d.canonicalKey : undefined,
+          sessionTitleSnapshotOf: (typeof sessionTitleSnapshotOf === 'function') ? sessionTitleSnapshotOf : undefined,
+          labelOf: workPathSessionLabel,
+          canonicalTimeoutMs: DECK_ASSEMBLY_TIMEOUT_MS,
+        },
+        selfSessionId: String(input.sessionId || ''),
+        workspaceKey: String(input.workspaceKey || ''),
+        cwd: String(input.cwd || ''),
+      })
+    } catch (e: any) { return [] }
+  }
   async function deckToolsForHost(): Promise<any> {
     if (!deckToolsP) {
       deckToolsP = (async function (): Promise<any> {        const empty = { tools: {}, names: [], definitions: [], missing: [], reason: '', files: DECK_TOOL_FILES }
@@ -384,6 +418,8 @@ export function createDeckToolBridge(deps: any): any {
           workRouteRead: function (input: any): any { try { return workRouteBindings ? workRouteBindings.read(input) : { ok: false, reason: 'no-store' } } catch (e: any) { return { ok: false, reason: 'read-failed' } } },
           // #1086：释放（带 release=true 的上报）走这一支；装配失败时回没释放的诚实原因，由回执备注如实写出。
           workRouteRelease: function (input: any): any { try { return workRouteBindings ? workRouteBindings.release(input) : Promise.resolve({ ok: false, reason: 'no-store' }) } catch (e: any) { return Promise.resolve({ ok: false, reason: 'threw' }) } },
+          // #1793：在办表标出「此刻真有一轮开着」的会话（B3）。只读宿主即时状态，不写存档；拿不到就回空。
+          workRouteRunning: workRouteRunning,
           hourUsage: function (): any { try { return ledger.hourOf('ai-tool') || {} } catch (e: any) { return {} } },
           ensureReading: function (cwd: any, workspaceKey: any): Promise<any> { return ensureDeckReading(cwd, workspaceKey) }, // #758 动手前保读数：差就免费读一次，不差不打；失败调用方照旧被闸推迟
           noteGate: function (info: any): void { try { noteDeckGate(info) } catch (eN: any) {} }, // #758 闸口径迹：探针读走，线上卡在哪段一眼可见

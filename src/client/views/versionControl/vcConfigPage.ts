@@ -5,6 +5,11 @@
  * 改键与删键的输入行与确认卡、属性规则与邮件映射两处只读查询。数据怎么读、回包怎么落状态
  * 在 vcConfigOps.ts；哪些键可写、作用域怎么定在共享层 config-rules.ts。
  * 挂载点只有页面壳 vcShellPages.ts 里的一小段（#1760 注释包着），别处不碰。
+ *
+ * #1842 起按定稿原型（docs/prototype/vc-redesign 第 44 张）重做版式：页头交给页面壳的 vcPageHeadNode，
+ * 正文分成「相关配置」与「只读读取」两段；相关配置的每组是一个折叠段，身份组默认展开，
+ * 可编辑的输入行留在身份组里，只读三组只画读数。所有 data-vc-config-* 判据照旧保留：
+ * 页面根、读数行、身份行、只读行、查询行、确认卡与结果条的位置变了，属性名与含义不变。
  */
 
 // 跨叶子与共享层的名字由构建拼进同一个闭包，这里只声明形状（类型检查按单文件跑）。
@@ -24,6 +29,10 @@ declare function vcConfigConfirmTargetOf(confirm: any): string
 declare function vcConfigFailKeyOf(kind: any): string
 // 来自页面壳基础画法 vcShellPrimitives.ts：
 declare function vcShellConfirmCardNode(h: any, t: any, o: any): any
+// 来自页面骨架原语 vcPageHead.ts（#1829 阶段 4）：
+declare function vcPageSectionNode(h: any, t: any, o: any): any
+declare function vcPageFoldNode(h: any, t: any, o: any): any
+declare function vcPageFactGridNode(h: any, t: any, o: any): any
 
 /** 真源标识：门禁按这一行找本文件，改路径要一起改门禁。 */
 export const VC_CONFIG_PAGE_SOURCE = 'src/client/views/versionControl/vcConfigPage.ts'
@@ -39,6 +48,16 @@ const vcConfigValueTextOf = function (t: any, value: any): string {
   return String(value)
 }
 
+/** 作用域的人话：local / global 不直接印给用户，按词条换成「本仓库 / 这台机器」。 */
+const vcConfigScopeTextOf = function (t: any, scope: any): string {
+  return vcConfigText(t, 'vc.config.scope.' + String(scope || 'other'), null)
+}
+
+/** 事实格的小标题：git 配置键 + 这个值来自哪个作用域，两段都是人能读的。 */
+const vcConfigFactKeyOf = function (t: any, key: string, scope: any): string {
+  return key + ' · ' + vcConfigScopeTextOf(t, scope)
+}
+
 /** 身份一条：本地与全局两个旧值、一个值输入框、一个作用域选择，保存与删除两个按钮。 */
 const vcConfigIdentityRowOf = function (h: any, t: any, row: any, ctx: any): any {
   const key = String(row.key || '')
@@ -49,6 +68,7 @@ const vcConfigIdentityRowOf = function (h: any, t: any, row: any, ctx: any): any
   const oldGlobal = vcConfigValueTextOf(t, row.global)
   const scopeNode = h('select', {
     key: 'scope',
+    className: 'vcs-config-select',
     'data-vc-config-scope': key,
     value: scope,
     onChange: function (ev: any) { ctx.edit({ key: key, scope: String((ev && ev.target && ev.target.value) || 'local') }) },
@@ -56,59 +76,134 @@ const vcConfigIdentityRowOf = function (h: any, t: any, row: any, ctx: any): any
     h('option', { key: 'local', value: 'local' }, vcConfigText(t, 'vc.config.identity.scope.local', null)),
     h('option', { key: 'global', value: 'global' }, vcConfigText(t, 'vc.config.identity.scope.global', null)),
   ])
-  return h('li', { key: key, className: 'vcs-config-identity', 'data-vc-config-identity': key }, [
-    h('span', { key: 'label', className: 'vcs-config-key' }, vcConfigText(t, row.labelKey, null) + ' (' + key + ')'),
-    h('span', { key: 'old', className: 'vcs-config-old', 'data-vc-config-old': key }, vcConfigText(t, 'vc.config.identity.old', { local: oldLocal, global: oldGlobal })),
-    h('input', {
-      key: 'value',
-      type: 'text',
-      'data-vc-config-value': key,
-      value: value,
-      placeholder: vcConfigText(t, 'vc.config.identity.placeholder', null),
-      onInput: function (ev: any) { ctx.edit({ key: key, value: String((ev && ev.target && ev.target.value) || '') }) },
-    }),
-    scopeNode,
-    h('button', {
-      key: 'set',
-      type: 'button',
-      'data-vc-config-op': 'config-set',
-      'data-vc-config-cap': '12.2',
-      'data-vc-config-key': key,
-      disabled: ctx.pending === true,
-      'data-press': 'button', 'data-log': 'vc.config.set', onClick: function () { ctx.actSet(key) },
-    }, vcConfigText(t, 'vc.config.identity.set', null)),
-    h('button', {
-      key: 'unset',
-      type: 'button',
-      className: 'vcs-config-danger',
-      'data-vc-config-op': 'config-unset',
-      'data-vc-config-cap': '12.3',
-      'data-vc-config-key': key,
-      'data-vc-config-danger': '1',
-      disabled: ctx.pending === true,
-      'data-press': 'button', 'data-log': 'vc.config.unset', onClick: function () { ctx.actUnset(key) },
-    }, vcConfigText(t, 'vc.config.identity.unset', null)),
+  return h('div', { key: key, className: 'vcs-config-id-row', 'data-vc-config-identity': key }, [
+    h('div', { key: 'head', className: 'vcs-config-id-head' }, [
+      h('span', { key: 'label', className: 'vcs-config-id-key' }, vcConfigText(t, row.labelKey, null) + ' (' + key + ')'),
+      h('span', { key: 'old', className: 'vcs-config-old', 'data-vc-config-old': key }, vcConfigText(t, 'vc.config.identity.old', { local: oldLocal, global: oldGlobal })),
+    ]),
+    h('div', { key: 'controls', className: 'vcs-config-id-controls' }, [
+      h('input', {
+        key: 'value',
+        type: 'text',
+        className: 'vcs-config-input',
+        'data-vc-config-value': key,
+        value: value,
+        placeholder: vcConfigText(t, 'vc.config.identity.placeholder', null),
+        onInput: function (ev: any) { ctx.edit({ key: key, value: String((ev && ev.target && ev.target.value) || '') }) },
+      }),
+      scopeNode,
+      h('button', {
+        key: 'set',
+        type: 'button',
+        className: 'vcs-config-btn',
+        'data-vc-config-op': 'config-set',
+        'data-vc-config-cap': '12.2',
+        'data-vc-config-key': key,
+        disabled: ctx.pending === true,
+        'data-press': 'button', 'data-log': 'vc.config.set', onClick: function () { ctx.actSet(key) },
+      }, vcConfigText(t, 'vc.config.identity.set', null)),
+      h('button', {
+        key: 'unset',
+        type: 'button',
+        className: 'vcs-config-btn vcs-config-danger',
+        'data-vc-config-op': 'config-unset',
+        'data-vc-config-cap': '12.3',
+        'data-vc-config-key': key,
+        'data-vc-config-danger': '1',
+        disabled: ctx.pending === true,
+        'data-press': 'button', 'data-log': 'vc.config.unset', onClick: function () { ctx.actUnset(key) },
+      }, vcConfigText(t, 'vc.config.identity.unset', null)),
+    ]),
   ])
 }
 
-/** 一组只读配置：行按「键 = 值（来源作用域）」印；一组一条都没有时明说未配置。 */
-const vcConfigGroupNodeOf = function (h: any, t: any, group: any): any {
-  const rows = vcConfigGroupRowsOf(group)
-  const items = rows.map(function (row: any) {
-    const one = row || {}
-    const key = String(one.key || '')
-    return h('li', { key: key, 'data-vc-config-row': key }, [
-      h('code', { key: 'key', className: 'vcs-config-row-key' }, key),
-      h('span', { key: 'value', className: 'vcs-config-row-value' }, vcConfigValueTextOf(t, one.value)),
-      h('span', { key: 'scope', className: 'vcs-config-row-scope', 'data-vc-config-row-scope': String(one.scope || '') }, vcConfigText(t, 'vc.config.scope.' + String(one.scope || 'other'), null)),
-    ])
+/** 身份组的读数格：本仓库两格在前、这台机器两格在后，值就是旧值（没有就明说未配置）。 */
+const vcConfigIdentityFactsOf = function (t: any, rows: any[]): any[] {
+  const facts: any[] = []
+  const scopes = ['local', 'global']
+  scopes.forEach(function (scope: string) {
+    rows.forEach(function (row: any) {
+      const one = row || {}
+      const raw = scope === 'local' ? one.local : one.global
+      const value = vcConfigValueTextOf(t, raw)
+      const empty = value === vcConfigText(t, 'vc.config.identity.never', null)
+      facts.push({ key: vcConfigFactKeyOf(t, String(one.key || ''), scope), value: value, mono: true, tone: empty ? 'muted' : '' })
+    })
   })
-  return h('section', { key: String(group.id || ''), className: 'vcs-config-group', 'data-vc-config-group': String(group.id || ''), 'data-vc-config-editable': group.editable === true ? 'true' : 'false' }, [
-    h('h4', { key: 'title' }, vcConfigText(t, String(group.titleKey || ''), null)),
-    h('span', { key: 'ro', className: 'vcs-config-ro', 'data-vc-config-readonly': '1' }, vcConfigText(t, 'vc.config.readonly', null)),
-    items.length === 0
-      ? h('p', { key: 'empty', 'data-vc-config-group-empty': '1' }, vcConfigText(t, 'vc.config.group.empty', null))
-      : h('ul', { key: 'rows' }, items),
+  return facts
+}
+
+/** 只读组的一条读数：键与作用域写在格子的 data-* 上，判据与读屏都按这两项找。 */
+const vcConfigReadonlyFactOf = function (t: any, row: any): any {
+  const one = row || {}
+  const key = String(one.key || '')
+  const value = vcConfigValueTextOf(t, one.value)
+  return {
+    key: vcConfigFactKeyOf(t, key, one.scope),
+    value: value,
+    mono: true,
+    tone: value === vcConfigText(t, 'vc.config.identity.never', null) ? 'muted' : '',
+    attrs: { 'data-vc-config-row': key, 'data-vc-config-row-scope': String(one.scope || '') },
+  }
+}
+
+/** 只读组的正文：有行就逐行画格；一行都没有就明说「用默认值」。另给两组补一条固定说明格。 */
+const vcConfigReadonlyBodyOf = function (h: any, t: any, group: any): any[] {
+  const rows = vcConfigGroupRowsOf(group)
+  if (rows.length === 0) {
+    return [h('p', { key: 'empty', className: 'vcs-config-group-empty', 'data-vc-config-group-empty': '1' }, vcConfigText(t, 'vc.config.group.empty', null))]
+  }
+  const facts = rows.map(function (row: any) { return vcConfigReadonlyFactOf(t, row) })
+  if (String(group.id || '') === 'hooksPath') {
+    facts.push({ key: 'vc.config.fact.defaultHooksDir', value: 'vc.config.fact.defaultHooksDirValue', tone: 'muted' })
+  }
+  if (String(group.id || '') === 'credential') {
+    facts.push({ key: 'vc.config.fact.panelCredentials', value: 'vc.config.fact.panelCredentialsValue', tone: 'warn' })
+  }
+  return [vcPageFactGridNode(h, t, { facts: facts })]
+}
+
+/** 一组配置：折叠段的标题与说明来自词条，可写组默认展开并给一个能力编号（12.4）。 */
+const vcConfigGroupFoldOf = function (h: any, t: any, group: any, identityRows: any[], ctx: any): any {
+  const id = String(group.id || '')
+  const editable = group.editable === true
+  const attrs: any = { 'data-vc-config-group': id, 'data-vc-config-editable': editable ? 'true' : 'false' }
+  if (!editable) attrs['data-vc-config-readonly'] = '1'
+  if (editable) attrs['data-vc-config-cap'] = '12.4'
+  let children: any[]
+  if (editable) {
+    children = [
+      vcPageFactGridNode(h, t, { facts: vcConfigIdentityFactsOf(t, identityRows) }),
+      h('div', { key: 'rows', className: 'vcs-config-id-rows' }, identityRows.map(function (row: any) { return vcConfigIdentityRowOf(h, t, row, ctx) })),
+    ]
+  } else {
+    children = vcConfigReadonlyBodyOf(h, t, group)
+  }
+  return vcPageFoldNode(h, t, {
+    key: id,
+    title: 'vc.config.group.' + id,
+    note: 'vc.config.group.' + id + '.note',
+    open: editable,
+    attrs: attrs,
+    children: children,
+  })
+}
+
+/** 读数行：重新读取与当前读状态（读成功 / 还没读 / 读失败）。 */
+const vcConfigReadRowOf = function (h: any, t: any, state: any, readState: string, ctx: any): any {
+  return h('div', { key: 'read', className: 'vcs-config-read-row' }, [
+    h('span', { key: 'label', className: 'vcs-config-read-label' }, vcConfigText(t, 'vc.config.read.label', null)),
+    h('button', {
+      key: 'refresh',
+      type: 'button',
+      className: 'vcs-config-btn',
+      'data-vc-config-refresh': '1',
+      disabled: ctx.pending === true,
+      'data-press': 'button', 'data-log': 'vc.config.refresh', onClick: function () { ctx.actRead() },
+    }, vcConfigText(t, 'vc.config.refresh', null)),
+    readState === 'err'
+      ? h('span', { key: 'err', className: 'vcs-config-read-err', 'data-vc-config-read': 'err' }, vcConfigText(t, 'vc.config.read.err', { kind: String(state.readError || '') }))
+      : h('span', { key: 'state', className: 'vcs-config-read-state', 'data-vc-config-read': readState }, vcConfigText(t, readState === 'ok' ? 'vc.config.read.ok' : 'vc.config.read.idle', null)),
   ])
 }
 
@@ -125,7 +220,7 @@ const vcConfigQueryRowOf = function (h: any, t: any, kind: string, ctx: any): an
   if (st === 'ok') {
     if (isAttr) {
       const entries = Array.isArray(state.entries) ? state.entries : []
-      text = entries.map(function (one: any) { return String(one.attr || '') + '=' + String(one.value || '') }).join('；') || vcConfigText(t, isAttr ? 'vc.config.attr.none' : 'vc.config.mailmap.none', null)
+      text = entries.map(function (one: any) { return String(one.attr || '') + '=' + String(one.value || '') }).join('；') || vcConfigText(t, 'vc.config.attr.none', null)
     } else {
       text = String(state.mapped || '')
     }
@@ -137,6 +232,7 @@ const vcConfigQueryRowOf = function (h: any, t: any, kind: string, ctx: any): an
     h('input', {
       key: 'input',
       type: 'text',
+      className: 'vcs-config-input',
       [inputKey]: '1',
       value: value,
       placeholder: vcConfigText(t, isAttr ? 'vc.config.attr.placeholder' : 'vc.config.mailmap.placeholder', null),
@@ -145,6 +241,7 @@ const vcConfigQueryRowOf = function (h: any, t: any, kind: string, ctx: any): an
     h('button', {
       key: 'go',
       type: 'button',
+      className: 'vcs-config-btn',
       [goKey]: '1',
       'data-vc-config-cap': isAttr ? '12.7' : '12.8',
       disabled: ctx.pending === true,
@@ -166,8 +263,8 @@ const vcConfigConfirmBlockOf = function (h: any, t: any, state: any, ctx: any): 
   return h('div', { key: 'confirm', className: 'vcs-config-confirm-wrap', 'data-vc-config-confirm': target }, [
     vcShellConfirmCardNode(h, t, { verb: verb, target: target }),
     h('div', { key: 'acts', className: 'vcs-config-confirm-acts' }, [
-      h('button', { key: 'go', type: 'button', className: 'vcs-confirm-go', 'data-vc-config-confirm-go': '1', disabled: ctx.pending === true, 'data-press': 'button', 'data-log': 'vc.config.confirm-go', onClick: function () { ctx.actConfirmed() } }, vcConfigText(t, 'vc.config.confirm.go', { verb: verb })),
-      h('button', { key: 'cancel', type: 'button', 'data-vc-config-confirm-cancel': '1', 'data-press': 'button', 'data-log': 'vc.config.confirm-cancel', onClick: function () { ctx.edit({ cancelCheck: true }) } }, vcConfigText(t, 'vc.config.confirm.cancel', null)),
+      h('button', { key: 'go', type: 'button', className: 'vcs-confirm-go vcs-config-btn', 'data-vc-config-confirm-go': '1', disabled: ctx.pending === true, 'data-press': 'button', 'data-log': 'vc.config.confirm-go', onClick: function () { ctx.actConfirmed() } }, vcConfigText(t, 'vc.config.confirm.go', { verb: verb })),
+      h('button', { key: 'cancel', type: 'button', className: 'vcs-config-btn', 'data-vc-config-confirm-cancel': '1', 'data-press': 'button', 'data-log': 'vc.config.confirm-cancel', onClick: function () { ctx.edit({ cancelCheck: true }) } }, vcConfigText(t, 'vc.config.confirm.cancel', null)),
     ]),
   ])
 }
@@ -186,7 +283,7 @@ const vcConfigResultBlockOf = function (h: any, t: any, state: any): any {
   return h('div', { key: 'result', className: 'vcs-config-result vcs-config-result-fail', 'data-vc-config-result': 'fail', 'data-vc-config-fail-kind': String(result.kind || ''), role: 'alert' }, vcConfigText(t, key, vars))
 }
 
-/** 配置页根节点：四组配置、只读查询、确认卡与结果条都在这一块里。 */
+/** 配置页根节点：页头由页面壳画，这里只画「相关配置」「只读读取」两段与确认卡、结果条。 */
 export const vcConfigPageNode = function (h: any, t: any, opts: any): any {
   const o = opts || {}
   const state = o.state || vcConfigStateNew()
@@ -210,6 +307,7 @@ export const vcConfigPageNode = function (h: any, t: any, opts: any): any {
     attr: state.attr,
     mailmap: state.mailmap,
     edit: function (patch: any): void { edit(patch) },
+    actRead: function (): void { act({ op: 'read' }) },
     actSet: function (key: any): void {
       pick(String(key))
       const next = vcConfigEditOf(state, { key: String(key) })
@@ -228,32 +326,33 @@ export const vcConfigPageNode = function (h: any, t: any, opts: any): any {
       act({ op: 'confirm-write', ticketId: String((check.ticket && check.ticket.id) || ''), checkOp: String(check.op || '') })
     },
   }
-  // 身份组：两条可编辑键单独画，按钮上带 12.2 / 12.3 的能力编号。
-  const identityGroup = {
-    id: 'identity', editable: true, titleKey: 'vc.config.group.identity',
-    rows: [],
-  }
-  const readonly = groups.filter(function (group: any): boolean { return group.editable !== true })
+  // 「相关配置 8 条键」里的 8 是共享层账本里的键数，不在页面里抄第二份数字。
+  const keyCount = CONFIG_GROUPS.reduce(function (sum: number, group: any): number {
+    return sum + (group && Array.isArray(group.keys) ? group.keys.length : 0)
+  }, 0)
   const children: any[] = []
-  children.push(h('header', { key: 'meta', className: 'vcs-config-meta' }, [
-    h('h3', { key: 'title' }, vcConfigText(t, 'vc.config.title', null)),
-    h('span', { key: 'path', className: 'vcs-config-path', 'data-vc-config-path': '1' }, String(state.configPath || '')),
-    h('span', { key: 'version', className: 'vcs-config-version', 'data-vc-config-git-version': '1' }, String(state.gitVersion || '')),
+  children.push(h('p', { key: 'meta', className: 'vcs-config-meta' }, [
+    h('span', { key: 'path-label', className: 'vcs-config-meta-key' }, vcConfigText(t, 'vc.config.meta.path', null)),
+    h('span', { key: 'path', className: 'vcs-config-meta-value', 'data-vc-config-path': '1' }, String(state.configPath || '')),
+    h('span', { key: 'ver-label', className: 'vcs-config-meta-key' }, vcConfigText(t, 'vc.config.meta.version', null)),
+    h('span', { key: 'version', className: 'vcs-config-meta-value', 'data-vc-config-git-version': '1' }, String(state.gitVersion || '')),
   ]))
-  children.push(h('p', { key: 'lede' }, vcConfigText(t, 'vc.config.lede', null)))
-  children.push(h('div', { key: 'readbar', className: 'vcs-config-readbar' }, [
-    h('button', { key: 'refresh', type: 'button', 'data-vc-config-refresh': '1', disabled: pending, 'data-press': 'button', 'data-log': 'vc.config.refresh', onClick: function () { act({ op: 'read' }) } }, vcConfigText(t, 'vc.config.refresh', null)),
-    readState === 'err'
-      ? h('span', { key: 'err', className: 'vcs-config-read-err', 'data-vc-config-read': 'err' }, vcConfigText(t, 'vc.config.read.err', { kind: String(state.readError || '') }))
-      : h('span', { key: 'state', 'data-vc-config-read': readState }, vcConfigText(t, readState === 'ok' ? 'vc.config.read.ok' : 'vc.config.read.idle', null)),
-  ]))
-  children.push(h('section', { key: 'identity', className: 'vcs-config-group', 'data-vc-config-group': 'identity', 'data-vc-config-editable': 'true', 'data-vc-config-cap': '12.4' }, [
-    h('h4', { key: 'title' }, vcConfigText(t, identityGroup.titleKey, null)),
-    h('ul', { key: 'rows' }, identityRows.map(function (row: any) { return vcConfigIdentityRowOf(h, t, row, ctx) })),
-  ]))
-  readonly.forEach(function (group: any) { children.push(vcConfigGroupNodeOf(h, t, group)) })
-  children.push(vcConfigQueryRowOf(h, t, 'attr', ctx))
-  children.push(vcConfigQueryRowOf(h, t, 'mailmap', ctx))
+  children.push(vcPageSectionNode(h, t, {
+    title: 'vc.config.section.related',
+    count: keyCount,
+    note: 'vc.config.section.relatedNote',
+    children: groups.map(function (group: any) { return vcConfigGroupFoldOf(h, t, group, identityRows, ctx) }),
+  }))
+  children.push(vcPageSectionNode(h, t, {
+    title: 'vc.config.section.readonly',
+    count: 3,
+    note: 'vc.config.section.readonlyNote',
+    children: [
+      vcConfigReadRowOf(h, t, state, readState, ctx),
+      vcConfigQueryRowOf(h, t, 'attr', ctx),
+      vcConfigQueryRowOf(h, t, 'mailmap', ctx),
+    ],
+  }))
   const confirmNode = vcConfigConfirmBlockOf(h, t, state, ctx)
   if (confirmNode) children.push(confirmNode)
   const resultNode = vcConfigResultBlockOf(h, t, state)

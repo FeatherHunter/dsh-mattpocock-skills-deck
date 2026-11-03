@@ -413,6 +413,8 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/deck/shell/plan-cursor.ts', name: 'ttl', reason: '函数内局部变量，接的是 7 天默认值（已登记），不是新参数' },
   { file: 'src/refresh/kernel/write-event-detection.ts', name: 'mergeWindowMs', reason: '函数内局部变量，接的是注入的 limits（上游是 PATCH_MERGE_WINDOW_MS），不是新参数' },
   { file: 'src/refresh/kernel/write-event-detection.ts', name: 'probeIntervalMs', reason: '函数内局部变量，接的是注入的 limits（上游是 PROBE_INTERVAL_MS），不是新参数' },
+  // 在办表（#1082）读「宿主接线」的统一等待上限：本文件不写数字，只把注入的 deps.canonicalTimeoutMs 换个名字。
+  { file: 'src/deck/shell/running-sessions.ts', name: 'timeoutMs', reason: '函数内局部变量，接的是注入的 deps.canonicalTimeoutMs（值来自 config/timeouts.yaml，已登记），不是本文件的新参数' },
   // —— 别名：恒等于已登记的参数，改一边自动跟另一边，不需要第二把锁 ——
   { file: 'src/refresh/rooms/host/quota-ledger.ts', name: 'SYNC_INTERVAL_MS', reason: '别名，恒等于 QUOTA_SYNC_INTERVAL_MS（已登记），引用即跟随' },
   // —— 注入结构体的字段：值由调用方按已登记参数装进来，本文件不写数字 ——

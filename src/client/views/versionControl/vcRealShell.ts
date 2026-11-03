@@ -22,7 +22,10 @@ declare function vcRealRemoteValuesOf(el: any): any
 declare function vcRealMigrateFieldsOf(rootEl: any, action: any): any
 declare function vcRealBranchFieldsOf(intent: any, current: any): any
 declare const VC_REAL_EXTRA_LINKS: string[]
+// #1840：管理索引屏的页面 id。齿轮与身份行「管理」都跳到这一页，它是导航上的一站，不是浮层。
 declare const VC_MANAGE_INDEX_PAGE: string
+// #1846：全库搜索页的页面 id。在这一页上放大镜不弹命令面板，而是把焦点送回页面里那个输入框。
+declare const VC_SEARCH_PAGE: string
 declare function vcRealAiEntriesOf(reads: any, nav: any, t: any): any[]
 declare function vcAiHandoffOf(o: any): any
 declare function vcAiButtonNode(h: any, o: any): any
@@ -64,6 +67,62 @@ export const vcRealSelectCapOf = function (getNav: any, setNav: any): any {
   }
 }
 
+// #1846：分支浮层的五个动作各自落到「真正做这件事的那一页的入口」。
+//   分支与标签页只拥有 4.1–4.13：列表、新建、删除、重命名、上游、标签都在它这里；
+//   合并属于域 6（冲突向导页的 6.1），变基属于域 6 的换基座（变基待办页）——账本没把这两条能力放在分支页，
+//   所以这里跳到那两页的入口，而不是在分支页硬造两颗按钮（#1846 的边界：浮层动作只导航或打开对应入口）。
+const VC_REAL_BRANCH_LANDING: any = {
+  list: { page: 'branch-tags', sel: '[data-vc-branch-query]' },
+  create: { page: 'branch-tags', sel: '[data-vc-branch-forms] [data-vc-branch-action="create"]' },
+  delete: { page: 'branch-tags', sel: '[data-vc-branch-forms] [data-vc-branch-action="delete"]' },
+  merge: { page: 'conflicts', sel: '[data-vc-conflicts-op="merge"]' },
+  rebase: { page: 'rebase', sel: '[data-vc-rebase-op="rebase-onto"]' },
+}
+// 目标页的读数还没到时入口按钮还不存在：退到这一页页根里的第一个可操作控件（页根本身不是可聚焦元素，直接 focus 没有效果），
+//   焦点至少落在目标页里，不留在已经关掉的浮层上。
+const VC_REAL_LANDING_FALLBACK: any = {
+  'branch-tags': '[data-vc-branch2]',
+  conflicts: '[data-vc-conflicts-page]',
+  rebase: '[data-vc-rebase-page]',
+}
+export const vcRealBranchLandingOf = function (action: any) {
+  const key: string = String(action || '')
+  return VC_REAL_BRANCH_LANDING[key] || VC_REAL_BRANCH_LANDING.list
+}
+// 跳页之后读数异步到位，入口按钮要等：每 100ms 找一次、最多 2 秒；找到就展开它所在的折叠区、滚进视野、聚焦。
+//   只在找不到时才重试，找到就停——不轮询界面，也不改任何数据。
+const VC_REAL_LANDING_TRIES = 20
+export const vcRealFocusLandingOf = function (rootRef: any, target: any, attempt: any): void {
+  if (typeof setTimeout !== 'function') return
+  const left: number = Number(attempt) || 0
+  setTimeout(function () {
+    const root: any = rootRef && rootRef.current
+    const findOf = function (sel: string) {
+      if (!root || !sel || typeof root.querySelector !== 'function') return null
+      return root.querySelector(sel)
+    }
+    const el: any = findOf(String((target && target.sel) || ''))
+    if (!el) {
+      if (left + 1 < VC_REAL_LANDING_TRIES) { vcRealFocusLandingOf(rootRef, target, left + 1); return }
+      const pageEl: any = findOf(String(VC_REAL_LANDING_FALLBACK[String((target && target.page) || '')] || ''))
+      const first: any = pageEl && typeof pageEl.querySelector === 'function' ? pageEl.querySelector(VC_REAL_FOCUSABLE) : null
+      const aim: any = first || pageEl
+      if (aim && typeof aim.focus === 'function') aim.focus({ preventScroll: true })
+      return
+    }
+    // 入口在折叠区里时先展开，否则聚焦了也看不见它。
+    const fold: any = el.closest ? el.closest('details') : null
+    if (fold && fold.open !== true) fold.open = true
+    if (typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'center' })
+    if (typeof el.focus === 'function') el.focus({ preventScroll: true })
+  }, left === 0 ? 0 : 100)
+}
+// 全库搜索页上放大镜的作用是把焦点送到页面里那个唯一的输入框（#1846）。
+const vcRealFocusSearchInputOf = function (root: any): void {
+  const box: any = root && typeof root.querySelector === 'function' ? root.querySelector('[data-vc-search-input]') : null
+  if (box && typeof box.focus === 'function') box.focus({ preventScroll: true })
+}
+
 // 全部事件回调的名字（与 vcRealDelegate 的意图名一一对应）。容器把它们交给委托层，自己不逐颗按钮接 onClick。
 // deps：getNav/getManage 读当前导航与管理页状态；setNav 落导航；rootRef 用来在跳转后把焦点送到目标按钮；
 //   actionsRef 是首屏/提交/贮藏/工作树动作；manageActions 是分支/远端/同步动作；readsDispatchRef/configRef/
@@ -85,12 +144,23 @@ export const vcRealCallbacksOf = function (deps: any): any {
     // 齿轮与身份行「管理」都打开管理索引屏（#1840）：索引是导航上的一站，不再当浮层开合；
     //   keepBack=true 让索引记下来源页，页头的返回键再把来源页带回来。
     manageOpen: function () { goPage(VC_MANAGE_INDEX_PAGE, true) },
-    searchEntry: function () { setNav(vcRealNavToggle(getNav(), 'palette')) },
+    // #1846：全库搜索页上放大镜不弹面板（那一页页头下面就是唯一的输入框），只把焦点送回去；
+    //   别的页面上它照旧切换命令面板遮罩。
+    searchEntry: function () {
+      const cur: any = getNav()
+      if (cur && String(cur.page) === String(VC_SEARCH_PAGE)) { vcRealFocusSearchInputOf(rootRef.current); return }
+      setNav(vcRealNavToggle(cur, 'palette'))
+    },
     branchToggle: function () { setNav(vcRealNavToggle(getNav(), 'branch')) },
     branchClose: function () { setNav(vcRealNavCloseAll(getNav())) },
     sync: function () { goPage('remote', true) },
     palettePick: function (intent: any) { selectCap(intent && intent.capId) },
     capRow: function (intent: any) { selectCap(intent && intent.capId) },
+    // #1846：点命令面板遮罩本身也关闭面板（Esc 另走 escape）；全库搜索页的结果行与输入框各有自己的意图，
+    //   选中结果与命令面板选中同一条规则：只跳到那条能力的入口并高亮。
+    paletteBackdrop: function () { setNav(vcRealNavCloseAll(getNav())) },
+    searchPick: function (intent: any) { selectCap(intent && intent.capId) },
+    searchInput: function (intent: any) { setNav(vcRealNavQuery(getNav(), intent && intent.value)) },
     paletteInput: function (intent: any) { setNav(vcRealNavQuery(getNav(), intent && intent.value)) },
     refresh: function () { actionsRef.current.refresh('manual') },
     sliceRetry: function (intent: any) { actionsRef.current.retrySlice(intent && intent.sliceId) },
@@ -138,13 +208,12 @@ export const vcRealCallbacksOf = function (deps: any): any {
     // 分支浮层的五个动作项只是 span（壳里没给按钮），点它跳到分支板并把焦点送到对应动作按钮。
     branchOverlay: function (intent: any) {
       const action: string = String((intent && intent.action) || '')
-      manageActions.branch.overlay(action)
-      if (typeof setTimeout === 'function') setTimeout(function () {
-        const root: any = rootRef.current
-        if (!root || typeof root.querySelector !== 'function') return
-        const btn: any = root.querySelector('[data-vc-branch-action="' + action + '"]')
-        if (btn && typeof btn.focus === 'function') btn.focus()
-      }, 0)
+      const target: any = vcRealBranchLandingOf(action)
+      // 分支页自己的三个动作仍走管理动作层（它顺带刷新分支板读数）；合并与变基只导航到真页面的入口，
+      //   不在这里执行任何 git 写（#1846 的边界）。
+      if (String(target.page) === 'branch-tags') manageActions.branch.overlay(action)
+      else goPage(target.page, true)
+      vcRealFocusLandingOf(rootRef, target, 0)
     },
     remoteTrigger: function (intent: any) { manageActions.remote.trigger(intent && intent.form, intent && intent.name) },
     remoteSubmit: function (intent: any) { manageActions.remote.submit(intent && intent.form, vcRealRemoteValuesOf(intent && intent.el)) },

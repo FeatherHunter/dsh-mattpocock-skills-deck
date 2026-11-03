@@ -18,8 +18,8 @@ import { shortestUniqueSuffix } from '../src/shared/version-control/src/state.js
 import {
   computeWsOverviewRows,
   wsDisplayOf,
+  wsRowKeyOf,
   wsSuffixKeepOf,
-  wsOuterShownOf,
 } from '../src/client/views/SettingsWorkspaces.js';
 
 let failed = false;
@@ -181,17 +181,15 @@ async function main(): Promise<void> {
     check(out.rows[0].bound === true && out.rows[0].unboundHint === null, '已绑定的行不带线索');
   }
 
-  // #1806 第 3 步：设置页要写「位于 X 内」，宿主回的外面那个工作区是折算过的键（小写、正斜杠），
-  //   直接显示会说成 d:/work。这里把「按这一行的原始写法逐段还原」那条纯函数钉住：
-  //   外面那层一定是这一行的祖先，所以取原始路径的前几段就能还原；还原不了就原样回，不猜。
-  console.log('— 「位于 X 内」那句里外面工作区的写法（#1806 第 3 步）');
+  // 【已删除】#1806 第 3/5 步那几组判据——「位于 X 内」的写法还原、子目录行归属、并入上级后的撤销入口、
+  //   判定事实表在源码里的接线——随 2026-11-03 定版一起撤掉：设置页不再显示依据/归属/纠正按钮，
+  //   宿主也不再提供 wf.workspaceFacts。wsRowKeyOf 仍在（行归并内部用），它的纯函数判据保留。
+  console.log('— 行归并用的路径键（wsRowKeyOf）');
   {
-    check(wsOuterShownOf('d:\\work', 'D:\\work\\proj') === 'D:\\work', '宿主回小写键时按这一行的反斜杠写法还原');
-    check(wsOuterShownOf('d:/work/proj', 'D:/work/proj/sub') === 'D:/work/proj', '正斜杠写法同样还原（取原始路径的前几段）');
-    check(wsOuterShownOf('d:\\work', 'D:\\work\\proj\\deep\\er') === 'D:\\work', '外面那层与这一行隔了好几层也没关系，按段数取');
-    check(wsOuterShownOf('/home/w', '/home/w/proj') === '/home/w', 'POSIX 绝对路径开头的斜杠要保住');
-    check(wsOuterShownOf('', 'D:/work/proj') === '', '没有外面那层就不说这句话（不编一个根出来）');
-    check(wsOuterShownOf('d:/work', '') === 'd:/work', '这一行没有原始路径可借时原样回宿主给的值，不硬造写法');
+    const raw = 'D:\\2Study\\StudyNotes\\SKILLS\\智剪工坊';
+    check(wsRowKeyOf(raw) === wsRowKeyOf('D:/2Study/StudyNotes/SKILLS/智剪工坊'), '反斜杠与正斜杠写法落到同一个键');
+    check(wsRowKeyOf(raw + '\\') === wsRowKeyOf(raw), '带不带尾斜杠是同一行');
+    check(wsRowKeyOf('') === '', '空目录给空串，不回退成当前目录');
   }
 
   console.log(`共 ${total} 条`);

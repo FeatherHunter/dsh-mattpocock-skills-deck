@@ -100,7 +100,7 @@ export const vcShellResultNode = function (h: any, t: any, o: any) {
 // 一条能力的主入口画法：终局形态决定画说明、只读读数还是入口提示；这里从不画假按钮。
 export const vcCapabilitySurfaceKindOf = function (cap: any) {
   if (!cap) return 'note'
-  if (cap.page === 'search') return 'palette'
+  // #1846：搜索页那条能力不再把命令面板当操作面画在行里（面板只作遮罩浮层），所以这里没有 palette 分支。
   if (cap.finalForm === '说明') return 'note'
   if (cap.finalForm === '只读') return 'readonly'
   return 'hint'
@@ -119,9 +119,7 @@ export const vcShellSurfaceNode = function (h: any, t: any, o: any) {
     ]))
     if (cap.command) kids.push(h('code', { key: 'cmd', className: 'vcs-surface-cmd' }, String(cap.command)))
   }
-  if (kind === 'palette') {
-    kids.push(Object.assign({}, o.paletteNode, { key: 'palette' }))
-  } else if (kind === 'note') {
+  if (kind === 'note') {
     const note = String((cap && cap.panelPath) || t('vc.shell.cap.note'))
     kids.push(h('p', { key: 'note', className: 'vcs-surface-note', 'data-cap-main': 'note' }, note))
   } else if (kind === 'readonly') {
@@ -152,7 +150,7 @@ export const vcShellCapabilityRowNode = function (h: any, t: any, o: any) {
       'data-cap-hint': '1',
     }, t('vc.shell.cap.hint')))
   } else {
-    kids.push(Object.assign({}, vcShellSurfaceNode(h, t, { cap: cap, paletteNode: opts.paletteNode }), { key: 'surface' }))
+    kids.push(Object.assign({}, vcShellSurfaceNode(h, t, { cap: cap }), { key: 'surface' }))
   }
   if (opts.confirm) kids.push(Object.assign({}, vcShellConfirmCardNode(h, t, opts.confirm), { key: 'confirm' }))
   if (opts.result) kids.push(Object.assign({}, vcShellResultNode(h, t, opts.result), { key: 'result' }))

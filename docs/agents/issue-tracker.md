@@ -21,7 +21,7 @@ Issues and specs for this repo live as GitHub issues.
 - 一次建出一整张地图（地图本身 + 子票 + 它们之间的边）→ `deck_map_plan_create`
 - 补一条边（父子边或阻塞边）→ `deck_map_link`
 - 改一张票（评论 / 标签 / 认领 / 关闭 / 改正文）→ `deck_issue_patch`
-- 查本工作区在办（谁在处理哪张票、有没有撞车）→ `deck_work_route`（写回执里不带表，要看在办就调它）
+- 查本工作区在办（谁在处理哪张票、谁此刻真有一轮开着、有没有撞车）→ `deck_work_route`（写回执里不带表，要看在办就调它；组上 `running: true` 表示宿主此刻报那个会话有一轮开着，不标只表示问不到）
 
 工具管不到的地方只剩两件事，它们都发生在跟踪器之外：
 
@@ -112,7 +112,7 @@ Issues and specs for this repo live as GitHub issues.
 
 **维护者原话区怎么写**
 
-标题固定写 `## 维护者原话`，紧跟在 `## 目的` 后面（没有目的就放正文最前面）。它是正文的一部分，不是评论：维护者本人说了一句需要留档的话，就把它追加进来。
+标题固定写 `## 维护者原话`，紧跟在 `## 目的` 后面（没有目的就放正文最前面）。它是正文的一部分，不是评论。
 
 一条原话由出处行和引用块两部分组成：
 
@@ -132,6 +132,8 @@ Issues and specs for this repo live as GitHub issues.
 
 几条规矩：
 
+- **用户亲手打的每句话都值得记**：他们自己打的字本来就不多，不要替他们判断哪句重要，也不要等他们专门说「记下来」。
+- **原话是这张票的最高要求**：以后的所有决定，与票面其它说法冲突时以原话为准；实在判不清，就告诉用户这里有明显冲突，不要自己裁。
 - **一字不改**：不润色、不改标点、不翻译、不摘要、不合并。要解释就写到别的章节里，引用块里保持原样。
 - **只追加**：不编辑、不删除、不排序、不合并；同一句话带同一个出处已经记过，就跳过，不再记第二遍。
 - 条数不限，和正文共用一个 60KB 上限。
@@ -140,7 +142,8 @@ Issues and specs for this repo live as GitHub issues.
 
 读这一区有两个入口（#1092 已落地）：
 
-- `deck_issue_get` 回 `originalWords: [{text, source, recordedAt}]`：`text` 与引用块逐字相同（只去掉每行一个 `>` 前缀，原话里的空行照旧是空行，不做 trim）；`source` 是出处行原文；`recordedAt` 只从出处文字里认带 `T` 的 ISO 8601 时间并原样返回，出处没写时间时是 `null`（不拿票的修改时间顶替）。只想看整区原文（含 `>` 前缀）时，给同一个工具传 `section: '维护者原话'`。
+- `deck_issue_get` 回 `originalWords: [{text, source, recordedAt}]`：`text` 与引用块逐字相同（只去掉每行一个 `>` 前缀，原话里的空行照旧是空行，不做 trim）；`source` 是出处行原文；`recordedAt` 只从出处文字里认带 `T` 的 ISO 8601 时间并原样返回，出处没写时间时是 `null`（不拿票的修改时间顶替）。有原话时 `notes` 会提醒一句：原话是这张票的最高要求。只想看整区原文（含 `>` 前缀）时，给同一个工具传 `section: '维护者原话'`。
+- `deck_issue_list` 的薄行不读正文，但有原话的票行上会带 `hasOriginalWords: true`，用来在清单里认出「这张票里有用户自己说的话」，再逐张读 `deck_issue_get` 看原文。
 - `deck_map_snapshot` 的 full 行带同一份 `originalWords`，thin 行故意不带（要原话的人逐张读 `deck_issue_get`）。
 
 解析只有一处实现：`src/shared/issue-file/src/original-words.ts` 的 `parseOriginalWords`，读工具与写侧共用同一套按行扫描。

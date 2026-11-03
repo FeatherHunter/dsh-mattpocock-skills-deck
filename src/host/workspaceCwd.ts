@@ -33,7 +33,7 @@ type ChoiceStore = { rememberWorkspace(cwd: unknown, backendId: unknown): Promis
 type DecisionOutlet = { decideBackend(cwd: string, opts: unknown): Promise<any>; selectionFromOutlet?(o: unknown, describe: (id: string) => unknown): unknown }
 type DetExec = (cmd: any, args: any, opts: any, via: any) => Promise<any> // 只转交不读：真签名唯一在平台通道 detectionExec（platformChannel.ts），这里写 any 透传；写 typeof 查值会多出一条同层边
 type LogCtx = { fire(level: string, event: string, fields?: unknown): void; isEnabled(level: string): boolean } | null
-type Deps = { ctx: Ctx; DEFAULT_CWD: string; getPlatform(): Promise<Platform | null>; getTrackerRegistry(): Promise<Registry | null>; getWorkspaceStore(): Promise<WorkspaceStore>; getChoiceStore(): Promise<ChoiceStore | null>; getDecisionFn(): Promise<any>; getDetectionService?: unknown; canonicalKey(raw: string): Promise<string>; setCache(v: unknown): void; logCtx: LogCtx; timer?: any; detectionExec: DetExec; openSession?: (cwd: string, opts?: any) => Promise<any> }
+type Deps = { ctx: Ctx; DEFAULT_CWD: string; getPlatform(): Promise<Platform | null>; getTrackerRegistry(): Promise<Registry | null>; getWorkspaceStore(): Promise<WorkspaceStore>; getChoiceStore(): Promise<ChoiceStore | null>; getDecisionFn(): Promise<any>; getDetectionService?: unknown; canonicalKey(raw: string): Promise<string>; setCache(v: unknown): void; logCtx: LogCtx; timer?: any; detectionExec: DetExec; openSession?: (cwd: string, opts?: any) => Promise<any>; forgetWorkspaceRootCache?: () => Promise<unknown> | unknown }
 // timer 为什么还留着这个字段：装配点（src/host/index.ts）现在仍然把宿主计时器服务传进来，
 // 本文件自己不再用它——#1445 起上下文由会话组装，会话的公共上下文自带 timers（hostTimers 那一份）。
 // 字段留着是为了不改装配点的调用形状；等装配点一并收掉这个参数，这里再删。
@@ -42,15 +42,15 @@ type Deps = { ctx: Ctx; DEFAULT_CWD: string; getPlatform(): Promise<Platform | n
 /**
  * 组装工作区路径归一、后端绑定选择、布局记忆与标签配色电话（#449 / #652 / #683 / #957 / #1003 / #1074 / #1138）。
  *
- * 为什么：所有涉及「当前工作区是哪个目录、绑定了哪个后端、域文档布局是单上下文还是多上下文、标签配什么颜色」的宿主电话都依赖同一把工作区根路径钥匙（`canonicalKey`）和同一份工作区配置文件（`docs/agents/workspace.json`）；集中在这里组装并用 `loggedPhone` 统一包一层常驻日志，能保证读写删三侧钥匙同形、每通电话留痕。
+ * 为什么：所有涉及「当前工作区是哪个目录、绑定了哪个后端、域文档布局是单上下文还是多上下文、标签配什么颜色」的宿主电话都依赖同一把工作区根路径钥匙（`canonicalKey`）和同一份工作区配置文件（`docs/agents/workspace.yaml`）；集中在这里组装并用 `loggedPhone` 统一包一层常驻日志，能保证读写删三侧钥匙同形、每通电话留痕。
  * 什么约定不能改：
  *   1. `handleBind` 的生效判据有且只有一条：先把选择写进工作区配置文件（`writeWorkspaceRecord`），只有文件写成功才算本次绑定生效（`ok: true`）；文件写失败必须当场返回 `ok: false` 与四档原因码（`no-permit` / `readonly` / `no-dir` / `other`），绝不能在文件未写成时返回 `ok: true`。
  *   2. `handleBind` 入口前 3 行内必须先做空目录守卫与 `canonicalKey` 归一（门禁 `verify-3-workspace-switch.js` 钉死）；`handleSelection` 调用统一判定出口 `decideBackend` 时必须递入 `caller: 'wf.selection', logCtx: logCtx`（门禁 `verify-detection-log-reach.ts` 钉死）。
  *   3. 对外暴露的电话处理器一律经 `loggedPhone` 包装，自动记录常驻事件 `host.call` 与失败时的 `host.call.fail`；标签配色两条电话委托给 `./workspaceLabelColors.js`。
- * 反例：若 `handleBind` 在工作区只读或沙箱拒绝写入 `docs/agents/workspace.json` 时只写了本机记忆 `~/.dsh/mattskillsdeck/choices.json` 就返回 `ok: true`，界面会欺骗用户显示「已切换」，而下一轮判定不读本机记忆，刷新后又跳回旧后端。
+ * 反例：若 `handleBind` 在工作区只读或沙箱拒绝写入 `docs/agents/workspace.yaml` 时只写了本机记忆 `~/.dsh/mattskillsdeck/choices.json` 就返回 `ok: true`，界面会欺骗用户显示「已切换」，而下一轮判定不读本机记忆，刷新后又跳回旧后端。
  */
 export function createWorkspaceCwd(deps: Deps) {
-  const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, getChoiceStore, getDecisionFn, getDetectionService, canonicalKey, setCache, logCtx, openSession } = deps
+  const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, getChoiceStore, getDecisionFn, getDetectionService, canonicalKey, setCache, logCtx, openSession, forgetWorkspaceRootCache } = deps
   // #176 + #190 修复：cwd 归一（绝对直通 + 相对尝试 fs.resolve + home 试探）
   // 根因：workspaces 服务在 client runtime 暴露的 item.path 可能是相对名（如 "matt-demo-markdown"），
   // 传给 wf.selection 后 select() 三级联中 markdown.matches 收到相对 cwd，plat.join(cwd,...) 仍是相对，
@@ -340,6 +340,10 @@ export function createWorkspaceCwd(deps: Deps) {
       let legacyDeleted = false; try { if (typeof (fsSvc as any).rm === 'function') { await (fsSvc as any).rm(await fsSvc.resolve(WORKSPACE_FILE_LEGACY_REL, { cwd: cwd }), { force: true }); legacyDeleted = true } } catch (eR) { legacyDeleted = /ENOENT|FS_NOT_FOUND|not found/i.test(String((eR as any).code || (eR as any).message || eR)) }; if (!legacyDeleted) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8('legacy-rm'), cwdHash: hash8(String(cwd)), errorKind: 'legacy-delete-failed' }) } catch (eL) {} }
       try { const ws = await getWorkspaceStore(); ws.invalidate({ cwd: cwd }) } catch {}
       try { setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) } catch {}
+      // 2026-11-03 起工作区根判定是「从所选目录往上找 workspace.yaml」，所以这份文件一落盘，
+      // 这一层（以及它下面的子目录）的归属结论就变了。根判定有 30 秒缓存，不在这里清掉，
+      // 面板最多 30 秒还在说旧话（例如刚选完后端，子目录仍显示归上级）。清不掉不影响本次绑定成功。
+      try { if (typeof forgetWorkspaceRootCache === 'function') await forgetWorkspaceRootCache() } catch (eC) {}
       return { ok: true, placed: true, reason: existed ? 'overwritten' : 'created', legacyDeleted: legacyDeleted, warnings: legacyDeleted ? [] : ['legacy-delete-failed：老文件（' + WORKSPACE_FILE_LEGACY_REL + '）没能删掉，它还在，但已经没用了，可以手动删掉。'] }
     } catch (eW) {
       // 写失败是本次切换没生效的唯一判据：记四档原因码与工作区散列，错误散列里带上有无会话政策，方便分组比对。

@@ -75,6 +75,9 @@ const VC_FILES = [
   'src/client/views/versionControl/vcQueryView.js',
   // #1762 T26：「本页负责的能力」列表从壳拆到独立叶子，构建次序在壳之前，闭包拼装要跟着放。
   'src/client/views/versionControl/vcCapabilityList.js',
+  // #1846：全库搜索页的正文叶子（输入框在首屏、结果按页面分组）；构建里排在 vcCapabilityList 之后、页面壳之前。
+  //   闭包里少了它，壳的挂载段 typeof vcSearchPageNode !== 'function'，搜索页退回旧版式，量不到输入框与结果行。
+  'src/client/views/versionControl/vcSearchPage.js',
   // #1750：维护页会挂整仓重写面板（vcRewritePage），页面壳渲染 maintenance 页时要调它；按构建次序排在页面壳之前。
   'src/client/views/versionControl/vcRewriteOps.js',
   'src/client/views/versionControl/vcRewritePage.js',
@@ -88,8 +91,23 @@ const VC_FILES = [
   'src/client/views/versionControl/vcBranchPage.js', // #1829：分支与标签页的视图叶子（页头、筛选与搜索、卡片、页尾折叠）
   // #1829 阶段 4 三个共享件（与构建同序）：页头与页面原语、齿轮里的管理索引卡、分支浮层；壳的挂载段要看到它们。
   'src/client/views/versionControl/vcPageHead.js',
+  // #1757 T21 子模块页（#1843 阶段 4 重做）：共享动作表 → 数据层 → 处理层 → 页面正文，按构建次序拼；
+  // 壳渲染 submodules 页时要调 vcSubmodulesPageNode，闭包里少一片就 ReferenceError。
+  '.build/shared/version-control/submodule-ops.js',
+  'src/client/views/versionControl/vcSubmodulesData.js',
+  'src/client/views/versionControl/vcSubmodulesOps.js',
+  'src/client/views/versionControl/vcSubmodulesPage.js',
+  // #1845 流程页共用小部件（状态芯片 / 动作条 / 进度条 / 行内提示）：变基、冲突、任务三页正文都要调它，
+  //   闭包里少了这一叶，三页渲染会直接 ReferenceError。
+  'src/client/views/versionControl/vcFlowParts.js',
   'src/client/views/versionControl/vcManageIndex.js',
   'src/client/views/versionControl/vcBranchPopover.js',
+  // #1842 阶段 4：配置页与钩子页共用数据层 vcConfigOps，共享层 config-rules 提供哪些键可写、
+  // 2.36 版本门与钩子名形状；两张页面叶子按构建次序排在壳之前。
+  '.build/shared/version-control/config-rules.js',
+  'src/client/views/versionControl/vcConfigOps.js',
+  'src/client/views/versionControl/vcConfigPage.js',
+  'src/client/views/versionControl/vcHooksPage.js',
   'src/client/views/versionControl/vcShellPages.js',
 ]
 
@@ -159,6 +177,7 @@ function entryOf(closureSrc: string): string {
     "    states: grab('[data-vc-state]', 'data-vc-state'),",
     "    forms: grab('[data-vc-form]', 'data-vc-form'),",
     "    palettes: grab('[data-cap-secondary]', 'data-cap-secondary'),",
+    "    searchRows: grab('[data-vc-search-row]', 'data-vc-search-row'),",
     "    clipped: clipped, rows: root.querySelectorAll('.vcs-cap').length,",
     "    skeleton: !!root.querySelector('[data-vc-skeleton]'), maintPage: !!root.querySelector('[data-vc-maint-page]'), rewritePage: !!root.querySelector('[data-vc-rewrite-page]'),",
     "    bg: window.getComputedStyle(root).backgroundColor,",
@@ -166,6 +185,8 @@ function entryOf(closureSrc: string): string {
     "    hasSync: !!root.querySelector('[data-vc-sync]'),",
     "    hasSearch: !!root.querySelector('[data-vc-search-entry]'),",
     "    paletteInput: !!root.querySelector('[data-vc-palette-input]'),",
+    "    searchInput: !!root.querySelector('[data-vc-search-input]'),",
+    "    searchEmpty: (function () { const e = root.querySelector('[data-vc-search-empty]'); return e ? e.getAttribute('data-vc-search-empty') : null; })(),",
     "    paletteEmpty: !!root.querySelector('[data-vc-palette-empty]'),",
     // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图的读数。
     "    histState: (function () { const e = root.querySelector('[data-vc-history]'); return e ? e.getAttribute('data-vc-history-state') : null; })(),",
@@ -203,6 +224,50 @@ function entryOf(closureSrc: string): string {
     "    branchRetry: root.querySelectorAll('[data-vc-branch2-retry]').length,",
     "    branchEmpty: root.querySelectorAll('[data-vc-branch2-empty]').length,",
     "    branchOidsShown: (function () { const out = []; root.querySelectorAll('[data-vc-branch-row] .vcs-branch2-oid').forEach(function (el) { if (window.getComputedStyle(el).display !== 'none') out.push(String(el.textContent)); }); return out; })(),",
+    // #1842 阶段 4：配置页与钩子页的结构读数（属性顺序即页面上从上到下的顺序）。
+    "    cfgPageRead: (function () { const e = root.querySelector('[data-vc-config-page]'); return e ? e.getAttribute('data-vc-config-read') : null; })(),",
+    "    cfgSections: (function () { const s = root.querySelector('[data-vc-config-page]'); if (!s) return []; return Array.prototype.map.call(s.children, function (el) { return String(el.className || el.tagName) }); })(),",
+    "    cfgGroups: grab('[data-vc-config-group]', 'data-vc-config-group'),",
+    "    cfgEditable: grab('[data-vc-config-editable]', 'data-vc-config-editable'),",
+    "    cfgReadonly: root.querySelectorAll('[data-vc-config-readonly]').length,",
+    "    cfgIdentityRows: grab('[data-vc-config-identity]', 'data-vc-config-identity'),",
+    "    cfgRows: grab('[data-vc-config-row]', 'data-vc-config-row'),",
+    "    cfgGroupEmpty: root.querySelectorAll('[data-vc-config-group-empty]').length,",
+    "    cfgReads: grab('[data-vc-config-read]', 'data-vc-config-read'),",
+    "    cfgClipped: (function () { const out = []; const sel = ['.vcs-config-old', '.vcs-config-id-key', '.vcs-config-meta-value', '.vcs-config-read-label', '.vcs-config-query-result']; root.querySelectorAll(sel.join(',')).forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1) out.push(String(el.className)) }); return out; })(),",
+    "    hooksPageEl: !!root.querySelector('[data-vc-hooks-page]'),",
+    "    hooksSections: (function () { const s = root.querySelector('[data-vc-hooks-page]'); if (!s) return []; return Array.prototype.map.call(s.children, function (el) { return String(el.className || el.tagName) }); })(),",
+    "    hooksList: (function () { const e = root.querySelector('[data-vc-hooks-list]'); return e ? e.getAttribute('data-vc-hooks-list') : null; })(),",
+    "    hooksListCount: (function () { const e = root.querySelector('[data-vc-hooks-list]'); return e ? e.getAttribute('data-vc-hooks-count') : null; })(),",
+    "    hookRows: grab('[data-vc-hook]', 'data-vc-hook'),",
+    "    hookSamples: grab('[data-vc-hook-sample]', 'data-vc-hook-sample'),",
+    "    hookRuns: grab('[data-vc-hook-run]', 'data-vc-hook-run'),",
+    "    hookCaps: grab('[data-vc-hooks-cap]', 'data-vc-hooks-cap'),",
+    "    hooksGate: (function () { const e = root.querySelector('[data-vc-hooks-gate]'); return e ? e.getAttribute('data-vc-hooks-gate') : null; })(),",
+    "    hooksInstall: root.querySelectorAll('[data-vc-hooks-install-note]').length,",
+    "    hooksDirAttr: (function () { const e = root.querySelector('[data-vc-hooks-dir]'); return e ? e.getAttribute('data-vc-hooks-dir') : null; })(),",
+    "    hooksClipped: (function () { const out = []; const sel = ['.vcs-hook-note', '.vcs-hook-name', '.vcs-hooks-install-note', '.vcs-hooks-run-note', '.vcs-hooks-gate']; root.querySelectorAll(sel.join(',')).forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1) out.push(String(el.className)) }); return out; })(),",
+    // #1843 阶段 4 子模块页：根读数、清单四态、行与差异、八条能力入口、四个批量按钮、添加表单。
+    "    subPage: !!root.querySelector('[data-vc-sub-page]'),",
+    "    subMode: (function () { const e = root.querySelector('[data-vc-sub-page]'); return e ? e.getAttribute('data-vc-sub-mode') : null })(),",
+    "    subState: (function () { const e = root.querySelector('[data-vc-sub-page]'); return e ? e.getAttribute('data-vc-sub-state') : null })(),",
+    "    subList: (function () { const e = root.querySelector('[data-vc-sub-list]'); return e ? e.getAttribute('data-vc-sub-list') : null })(),",
+    "    subRows: grab('[data-vc-sub-row]', 'data-vc-sub-row'),",
+    "    subInitialized: grab('[data-vc-sub-row]', 'data-vc-sub-initialized'),",
+    "    subRowTexts: (function () { const out = []; root.querySelectorAll('[data-vc-sub-row]').forEach(function (el) { out.push(String(el.textContent)) }); return out })(),",
+    "    subDiffs: grab('[data-vc-sub-diff]', 'data-vc-sub-diff'),",
+    "    subDiffTexts: (function () { const out = []; root.querySelectorAll('[data-vc-sub-diff]').forEach(function (el) { out.push(String(el.textContent)) }); return out })(),",
+    "    subEntries: grab('[data-vc-sub-entry]', 'data-vc-sub-entry'),",
+    "    subBatch: grab('[data-vc-sub-batch]', 'data-vc-sub-batch'),",
+    "    subForm: (function () { const e = root.querySelector('[data-vc-sub-form]'); return e ? e.getAttribute('data-vc-sub-form') : null })(),",
+    "    subForms: root.querySelectorAll('[data-vc-sub-form]').length,",
+    "    subFields: grab('[data-vc-sub-field]', 'data-vc-sub-field'),",
+    "    subEmptyTitle: root.querySelectorAll('[data-vc-sub-list=empty] .empty-title').length,",
+    "    subEmptyHint: root.querySelectorAll('[data-vc-sub-list=empty] .empty-hint').length,",
+    "    subErrorTitle: root.querySelectorAll('[data-vc-sub-list=error] .empty-title').length,",
+    "    subErrorHint: root.querySelectorAll('[data-vc-sub-list=error] .empty-hint').length,",
+    "    subErrorRetry: root.querySelectorAll('[data-vc-sub-list=error] [data-vc-sub-action=read]').length,",
+    "    subClipped: (function () { const out = []; const sel = ['.section-title', '.section-note', '.empty-title', '.empty-hint', '.page-card-title', '.page-card-sub', '.inline-label']; root.querySelectorAll(sel.join(',')).forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1) out.push(String(el.className)) }); return out })(),",
     '  };',
     '};',
     'window.__expectedPalette = function (q) { return window.__VC.vcPaletteRowsOf(q).map((r) => r.id); };',
@@ -334,6 +399,64 @@ function branchBoardOf() {
   }
 }
 
+// ---------- 配置页与钩子页（#1842 阶段 4）的种子读数 ----------
+// 形状照读配置电话的回包（vcConfigApplyRead 摊进状态之后的同一份对象）：四组配置行、身份两键的
+// 本仓库与这台机器旧值、钩子目录与三个文件（一个真钩子、一个示例、一个没有可执行位的真钩子）。
+// 页面只读这些字段，不另外打电话；这样量到的是版式与信息层级，不是宿主回包。
+const CFG_NOW = Date.parse('2026-10-04T10:00:00+08:00')
+const CFG_HOOK_ENTRIES = [
+  { name: 'pre-commit', sample: false, executable: true, size: 520 },
+  { name: 'pre-commit.sample', sample: true, executable: true, size: 1200 },
+  { name: 'post-merge', sample: false, executable: false, size: 10 },
+]
+function cfgRowOf(group: string, key: string, editable: boolean, local: string | null, global: string | null, scope: string) {
+  return { group: group, key: key, editable: editable, values: { local: local, global: global, system: null, other: null }, scope: scope, value: scope === 'local' ? local : global }
+}
+function cfgStateOf(over?: any) {
+  const base: any = {
+    readState: 'ok', readAtMs: CFG_NOW, repoRoot: 'D:/w/repo', gitVersion: 'git version 2.49.0',
+    hookRunVersion: { state: 'visible', needed: '2.36.0', alternativeKey: 'vc.hooks.gate.alternative' },
+    configPath: 'D:/w/repo/.git/config',
+    groups: [
+      cfgRowOf('identity', 'user.name', true, '基线名字', null, 'local'),
+      cfgRowOf('identity', 'user.email', true, 'base@example.com', 'machine@example.com', 'local'),
+      cfgRowOf('eol', 'core.autocrlf', false, 'true', null, 'local'),
+      cfgRowOf('hooksPath', 'core.hooksPath', false, null, '.githooks', 'global'),
+    ],
+    identity: { name: { local: '基线名字', global: null }, email: { local: 'base@example.com', global: 'machine@example.com' } },
+    hooks: { dir: 'D:/w/repo/.git/hooks', configured: null, readable: true, known: [], entries: CFG_HOOK_ENTRIES },
+    attr: { state: 'idle' }, mailmap: { state: 'idle' }, entries: [],
+    edit: { key: '', scope: 'local', value: '', path: '', address: '' },
+    check: null, pending: null, result: null,
+  }
+  return Object.assign(base, over || {})
+}
+
+// ---------- 子模块页（#1843 阶段 4）的种子读数 ----------
+// 两行覆盖两种常见状态：第一行已检出且与父仓记录一致；第二行检出内容与记录不同，还带着
+// 脱离分支的本地提交、可以吸收。形状照宿主回包（contract/version/rows），页面只读 rows 里的字段。
+function subBoardOf() {
+  return {
+    ok: true, contract: 'version-control.submodule-board', version: 1,
+    rows: [
+      {
+        name: 'native-kit', path: 'third_party/native-kit', oid: '1'.repeat(40), state: 'clean',
+        initialized: true, describe: 'v2.4.0-3-gabc1234',
+        url: 'https://example.com/native-kit.git', urlDisplay: 'https://example.com/native-kit.git',
+        branch: '', headBranch: '', detached: false, localCommits: 0, absorbable: false,
+        absorbFrom: '', absorbTo: '',
+      },
+      {
+        name: 'legacy', path: 'vendor/legacy', oid: '2'.repeat(40), state: 'different',
+        initialized: true, describe: 'v1.0.0-2-gdef5678',
+        url: 'https://example.com/legacy.git', urlDisplay: 'https://example.com/legacy.git',
+        branch: 'main', headBranch: 'main', detached: true, localCommits: 2, absorbable: true,
+        absorbFrom: '3'.repeat(40), absorbTo: '4'.repeat(40),
+      },
+    ],
+  }
+}
+
 async function run(browser: any, env: any) {
   const { closure, dict, css, relMs } = env
   const shotDir = path.join(ROOT, '.scratch', '1586-visual')
@@ -360,16 +483,56 @@ async function run(browser: any, env: any) {
         // #1776 M2 起维护页会挂整仓重写与维护卡片两段真正文，骨架自检不再和正文并排出现；
         // 状态与表单的自检画法挪到一页仍然是骨架的页面上验（下面渲染 changes 页且不给读数）。
         check(!!m && m.maintPage === true && m.rewritePage === true && m.skeleton === false, tag + '：维护页换成真正文（整仓重写 + 维护卡片），不再画自检骨架')
+        // 截图必须紧跟维护页这次渲染：下一行要换成 changes 页做骨架自检，跨过去再拍就会把改动页拍成维护页。
+        if (m) bgOf[skin] = m.bg
+        await page.screenshot({ path: path.join(shotDir, 'maintenance-' + skin + '-' + width + '.png') })
         const skel = await renderAt(page, { page: 'changes', width: width, skin: skin })
         check(!!skel && skel.skeleton === true && skel.states.join(',') === 'empty,loading,error,disabled', tag + '：骨架自检页四种状态按 empty/loading/error/disabled 各画一遍')
         check(!!skel && skel.forms.join(',') === 'inline,float,page', tag + '：骨架自检页三种表单形态按 inline/float/page 各画一遍')
         check(!!m && m.clipped.length === 0, tag + '：关键句子没有被截断（截断的：' + (m && m.clipped.join(',') || '无') + '）')
         check(!!m && m.hasIdentity && m.hasSync && m.hasSearch, tag + '：身份行、同步带、全库搜索入口都在')
-        if (m) bgOf[skin] = m.bg
-        await page.screenshot({ path: path.join(shotDir, 'maintenance-' + skin + '-' + width + '.png') })
       }
     }
     check(!!bgOf.dark && !!bgOf.light && bgOf.dark !== bgOf.light && bgOf.dark !== 'rgba(0, 0, 0, 0)', '两套皮肤各有自己的底色（深 ' + bgOf.dark + ' / 浅 ' + bgOf.light + '）')
+    // ---- H 组：子模块页（#1843 阶段 4）—— 四档宽 × 两皮肤 ----
+    // 判据只看结构与读数：三段正文都在、清单两行各带路径/提交/差异、八条能力入口与四个批量按钮
+    // 一个不少、添加表单两栏都在，且各档都不横向溢出、关键句子不截断。
+    const subBoard = subBoardOf()
+    for (let s = 0; s < SKINS.length; s += 1) {
+      const skin = SKINS[s]
+      for (let w = 0; w < WIDTHS.length; w += 1) {
+        const width = WIDTHS[w]
+        const tag = '子模块页 ' + skin + ' / ' + width + ' 宽'
+        await page.setViewportSize({ width: width, height: 1400 })
+        const m = await renderAt(page, { page: 'submodules', width: width, skin: skin, open: { gear: true }, submodules: { state: 'ok', board: subBoard }, submoduleOps: {} })
+        check(!!m && m.page === 'submodules' && m.width === String(width) && m.skin === skin && m.depth === '2', tag + '：根节点读数是子模块页 / 档宽 / 皮肤 / 层级 2')
+        check(!!m && !overflowOf(m), tag + '：没有横向溢出（文档 ' + (m && m.docScrollWidth) + ' ≤ viewport ' + (m && m.innerWidth) + '）')
+        check(!!m && m.subPage === true && m.subMode === 'idle' && m.subState === 'ok' && m.subList === 'rows', tag + '：清单按可用读数画成有行的一态（mode ' + (m && m.subMode) + ' / state ' + (m && m.subState) + '）')
+        check(!!m && m.gear.join(',') === managePages.join(','), tag + '：齿轮九分区按 VC_MANAGE_PAGES 顺序排（' + (m && m.gear.join(',')) + '）')
+        check(!!m && m.tabCount === 4 && m.tabTops.length === 4 && Math.max.apply(null, m.tabTops) - Math.min.apply(null, m.tabTops) <= 1, tag + '：四个页签排在同一行（行顶差 ≤1px）')
+        check(!!m && m.subRows.join(',') === 'third_party/native-kit,vendor/legacy', tag + '：清单按读数顺序画两行（实得 ' + (m && m.subRows.join(',')) + '）')
+        check(!!m && m.subInitialized.join(',') === '1,1' && m.subDiffs.join(',') === 'clean,different', tag + '：每行都带「是否已检出」与差异读数（' + (m && m.subDiffs.join(',')) + '）')
+        check(!!m && m.subRowTexts.length === 2 && m.subRowTexts[0].indexOf('third_party/native-kit') >= 0 && m.subRowTexts[0].indexOf('1'.repeat(10)) >= 0 && m.subRowTexts[1].indexOf('vendor/legacy') >= 0 && m.subRowTexts[1].indexOf('2'.repeat(10)) >= 0, tag + '：每行的路径与当前提交都画在行里')
+        check(!!m && m.subDiffTexts.length === 2 && m.subDiffTexts[0].length > 0 && m.subDiffTexts[1].length > 0, tag + '：每行的差异说明都有正文（不是空行）')
+        check(!!m && m.subEntries.join(',') === '10.1,10.2,10.3,10.4,10.5,10.6,10.7,10.8', tag + '：八条能力入口按 10.1–10.8 排（实得 ' + (m && m.subEntries.join(',')) + '）')
+        check(!!m && m.subBatch.join(',') === 'init,fetch,recorded,status', tag + '：四个批量按钮按固定菜单顺序排（实得 ' + (m && m.subBatch.join(',')) + '）')
+        check(!!m && m.subForm === 'add' && m.subFields.join(',') === 'path,url', tag + '：添加表单收路径与地址两栏（实得 ' + (m && m.subFields.join(',')) + '）')
+        check(!!m && m.subClipped.length === 0, tag + '：关键句子没有被截断（截断的：' + (m && m.subClipped.join(',') || '无') + '）')
+        await page.screenshot({ path: path.join(shotDir, 'submodules-' + skin + '-' + width + '.png') })
+      }
+    }
+    // 子模块页空态与错误态（只在 460 宽深色量一次）：空态照实画标题、说明与添加表单；
+    // 错误态给原因与重试键，两种状态都不影响下面的能力入口与批量动作段。
+    await page.setViewportSize({ width: 460, height: 1400 })
+    const subEmpty = await renderAt(page, { page: 'submodules', width: 460, skin: 'dark', open: { gear: true }, submodules: { state: 'empty', board: null }, submoduleOps: {} })
+    check(!!subEmpty && subEmpty.subState === 'empty' && subEmpty.subList === 'empty' && subEmpty.subRows.length === 0, '子模块页空态：没有子模块时画空态（data-vc-sub-list=empty）')
+    check(!!subEmpty && subEmpty.subEmptyTitle === 1 && subEmpty.subEmptyHint === 1 && subEmpty.subForm === 'add', '子模块页空态：空态块里有标题、说明与添加表单')
+    check(!!subEmpty && subEmpty.subEntries.length === 8 && subEmpty.subBatch.length === 4, '子模块页空态：八条能力入口与四个批量按钮仍在（空态只换清单段）')
+    await page.screenshot({ path: path.join(shotDir, 'submodules-empty-dark-460.png') })
+    const subErr = await renderAt(page, { page: 'submodules', width: 460, skin: 'dark', open: { gear: true }, submodules: { state: 'error', board: null, error: { kind: 'env', message: 'wf.gitSubmodules 失败' } }, submoduleOps: {} })
+    check(!!subErr && subErr.subState === 'error' && subErr.subList === 'error', '子模块页错误态：读数失败时画错误态（data-vc-sub-list=error）')
+    check(!!subErr && subErr.subErrorTitle === 1 && subErr.subErrorHint === 1 && subErr.subErrorRetry === 1, '子模块页错误态：错误块里有标题、原因与重试按钮')
+    await page.screenshot({ path: path.join(shotDir, 'submodules-error-dark-460.png') })
     for (let s = 0; s < SKINS.length; s += 1) {
       const skin = SKINS[s]
       for (let w = 0; w < WIDTHS.length; w += 1) {
@@ -378,15 +541,16 @@ async function run(browser: any, env: any) {
         await page.setViewportSize({ width: width, height: 1200 })
         const stashRows: string[] = await page.evaluate(() => window.__expectedPalette('stash'))
         let m = await renderAt(page, { page: 'search', width: width, skin: skin, seed: { query: 'stash' } })
-        check(!!m && m.paletteInput && m.palettes.join(',') === stashRows.join(','), tag + '：搜 stash 的命中行与 vcPaletteRowsOf 一致（' + (m && m.palettes.length) + ' 行）且每行带 data-cap-secondary')
+        // #1846：全库搜索页改成独立版式，结果行是自己的 data-vc-search-row；命令面板只作别的页面上的浮层。
+        check(!!m && m.searchInput && !m.paletteInput && m.searchRows.join(',') === stashRows.join(','), tag + '：搜 stash 的命中行与 vcPaletteRowsOf 一致（' + (m && m.searchRows.length) + ' 行）且搜索页只有一个自己的输入框')
         check(!!m && !overflowOf(m), tag + '：命令面板也不横向溢出（' + (m && m.docScrollWidth) + ' ≤ ' + (m && m.innerWidth) + '）')
         const m1314 = await renderAt(page, { page: 'search', width: width, skin: skin, seed: { query: '13.14' } })
-        check(!!m1314 && m1314.palettes.join(',') === '13.14', tag + '：按能力 id 搜 13.14 命中，结果显示所在页面')
+        check(!!m1314 && m1314.searchRows.join(',') === '13.14', tag + '：按能力 id 搜 13.14 命中，结果显示所在页面')
         const byName = await page.evaluate(() => window.__VC.vcPaletteRowsOf(window.__VC.vcPageCapabilitiesOf('commits')[0].name).length)
         const mName = await renderAt(page, { page: 'search', width: width, skin: skin, seed: { query: '提交' } })
-        check(byName > 0 && !!mName && mName.palettes.length > 0, tag + '：按名称 / 命令原文也能搜到（提交 命中 ' + (mName && mName.palettes.length) + ' 行）')
+        check(byName > 0 && !!mName && mName.searchRows.length > 0, tag + '：按名称 / 命令原文也能搜到（提交 命中 ' + (mName && mName.searchRows.length) + ' 行）')
         const mNone = await renderAt(page, { page: 'search', width: width, skin: skin, seed: { query: 'zzz-没有这个能力' } })
-        check(!!mNone && mNone.paletteEmpty === true && mNone.palettes.length === 0, tag + '：搜不到时画空态（data-vc-palette-empty）')
+        check(!!mNone && mNone.searchEmpty === 'hit' && mNone.searchRows.length === 0, tag + '：搜不到时画「没有命中」空态（data-vc-search-empty=hit）')
         if (width === 300 || width === 520) await page.screenshot({ path: path.join(shotDir, 'palette-' + skin + '-' + width + '.png') })
       }
     }
@@ -470,6 +634,65 @@ async function run(browser: any, env: any) {
         }
       }
     }
+    // ---- H 组：配置页（#1842 阶段 4）—— 元信息 → 相关配置（四组折叠）→ 只读读取 ----
+    // 判据只看版式与信息层级：页头由壳画（正文不许再画标题与导语）、四组折叠顺序、身份组可写
+    // 与三组只读的视觉区分、两处读数与两个查询行、六条能力仍各一个主入口、无溢出无截断。
+    const configCaps: string[] = await page.evaluate(() => window.__capsOf('config'))
+    const hooksCaps: string[] = await page.evaluate(() => window.__capsOf('hooks'))
+    const cfgOk = cfgStateOf(null)
+    for (let s = 0; s < SKINS.length; s += 1) {
+      const skin = SKINS[s]
+      for (let w = 0; w < WIDTHS.length; w += 1) {
+        const width = WIDTHS[w]
+        const tag = '配置页 ' + skin + ' / ' + width + ' 宽'
+        await page.setViewportSize({ width: width, height: 1400 })
+        const m = await renderAt(page, { page: 'config', width: width, skin: skin, config: cfgOk })
+        check(!!m && m.page === 'config' && m.width === String(width) && m.skin === skin && m.depth === '2', tag + '：根节点读数是配置页 / 档宽 / 皮肤 / 层级 2')
+        check(!!m && !overflowOf(m), tag + '：没有横向溢出（文档 ' + (m && m.docScrollWidth) + ' ≤ viewport ' + (m && m.innerWidth) + '）')
+        const struct = !!m && m.cfgSections.length === 3 && m.cfgSections[0] === 'vcs-config-meta' &&
+          m.cfgSections[1] === 'page-section' && m.cfgSections[2] === 'page-section' &&
+          m.cfgGroups.join(',') === 'identity,eol,hooksPath,credential' && m.cfgEditable.join(',') === 'true,false,false,false' &&
+          m.cfgReadonly === 3 && m.cfgIdentityRows.join(',') === 'user.name,user.email' &&
+          m.cfgRows.join(',') === 'core.autocrlf,core.hooksPath' && m.cfgGroupEmpty === 1 && m.cfgReads.join(',') === 'ok,ok'
+        check(struct, tag + '：正文是元信息 → 相关配置 → 只读读取；四组折叠加身份两行、两行只读、一组空态与两处读数都在（实得 ' + (m && m.cfgGroups.join(',')) + '）')
+        check(!!m && m.primaries.join(',') === configCaps.join(',') && m.hooksList === null && m.hookRows.length === 0, tag + '：六条能力仍各一个主入口（' + (m && m.primaries.length) + ' 条），没画第二套写入口、也没串到钩子页')
+        check(!!m && m.cfgClipped.length === 0 && m.clipped.length === 0, tag + '：关键句子没有被截断（截断的：' + (m && m.cfgClipped.concat(m.clipped).join(',') || '无') + '）')
+        await page.screenshot({ path: path.join(shotDir, 'config-' + skin + '-' + width + '.png') })
+      }
+    }
+    // ---- I 组：钩子页（#1842 阶段 4）—— 钩子目录（事实格）→ 钩子清单（每文件一行）→ 手动运行 ----
+    for (let s = 0; s < SKINS.length; s += 1) {
+      const skin = SKINS[s]
+      for (let w = 0; w < WIDTHS.length; w += 1) {
+        const width = WIDTHS[w]
+        const tag = '钩子页 ' + skin + ' / ' + width + ' 宽'
+        await page.setViewportSize({ width: width, height: 1400 })
+        const m = await renderAt(page, { page: 'hooks', width: width, skin: skin, hooks: cfgOk })
+        check(!!m && m.page === 'hooks' && m.width === String(width) && m.skin === skin && m.depth === '2', tag + '：根节点读数是钩子页 / 档宽 / 皮肤 / 层级 2')
+        check(!!m && !overflowOf(m), tag + '：没有横向溢出（文档 ' + (m && m.docScrollWidth) + ' ≤ viewport ' + (m && m.innerWidth) + '）')
+        const struct = !!m && m.hooksSections.length === 3 &&
+          m.hooksSections.every(function (x: string) { return x === 'page-section' }) &&
+          m.hooksList === 'ok' && m.hooksListCount === '3' &&
+          m.hookRows.join(',') === 'pre-commit,pre-commit.sample,post-merge' &&
+          m.hookSamples.join(',') === '0,1,0' && m.hookRuns.join(',') === 'pre-commit,post-merge' &&
+          m.hookCaps.join(',') === '12.6,12.6' && m.hooksGate === null && m.hooksInstall === 1 &&
+          m.hooksDirAttr === '1' && m.cfgGroups.length === 0
+        check(struct, tag + '：正文是钩子目录 → 钩子清单 → 手动运行；三个文件按名字排，示例与不可执行都标出来（实得 ' + (m && m.hookRows.join(',')) + '）')
+        check(!!m && m.primaries.join(',') === hooksCaps.join(',') && m.cfgReads.length === 0, tag + '：两条能力仍各一个主入口（' + (m && m.primaries.length) + ' 条），没串到配置页')
+        check(!!m && m.hooksClipped.length === 0 && m.clipped.length === 0, tag + '：关键句子没有被截断（截断的：' + (m && m.hooksClipped.concat(m.clipped).join(',') || '无') + '）')
+        await page.screenshot({ path: path.join(shotDir, 'hooks-' + skin + '-' + width + '.png') })
+      }
+    }
+    // ---- J 组：两页的空态 / 失败态 / 版本门（460 宽深色各核对一次）----
+    await page.setViewportSize({ width: 460, height: 1400 })
+    const cfgErr = await renderAt(page, { page: 'config', width: 460, skin: 'dark', config: cfgStateOf({ readState: 'err', readError: 'not-repo' }) })
+    check(!!cfgErr && cfgErr.cfgPageRead === 'err' && cfgErr.cfgReads.join(',') === 'err,err', '配置页：读失败时两处读数都标 err，页面照样画得出来')
+    const hkHidden = await renderAt(page, { page: 'hooks', width: 460, skin: 'dark', hooks: cfgStateOf({ gitVersion: 'git version 2.34.1', hookRunVersion: { state: 'hidden', needed: '2.36.0', alternativeKey: 'vc.hooks.gate.alternative' } }) })
+    check(!!hkHidden && hkHidden.hooksGate === 'hidden' && hkHidden.hookRuns.length === 0, '钩子页：2.36 以下版本不画运行按钮，改画版本门（实得 ' + (hkHidden && hkHidden.hookRuns.length) + ' 个按钮）')
+    const hkEmpty = await renderAt(page, { page: 'hooks', width: 460, skin: 'dark', hooks: cfgStateOf({ hooks: { dir: 'D:/w/repo/.git/hooks', configured: null, readable: true, known: [], entries: [] } }) })
+    check(!!hkEmpty && hkEmpty.hooksList === 'empty' && hkEmpty.hookRows.length === 0 && hkEmpty.hooksListCount === null, '钩子页：目录里一个文件都没有时画空态，不画「0 个文件」的清单')
+    const hkErr = await renderAt(page, { page: 'hooks', width: 460, skin: 'dark', hooks: cfgStateOf({ readState: 'err', readError: 'not-repo' }) })
+    check(!!hkErr && hkErr.hooksList === 'err' && hkErr.hooksListCount === null, '钩子页：读失败时清单标 err，不假装空目录')
     // 确认卡与结果：818 BR22/BR22b 的静态判据在真浏览器里的对照——都在面板里，且排在页尾折叠区之后。
     await page.setViewportSize({ width: 460, height: 1600 })
     const mb = await renderAt(page, {
@@ -492,7 +715,15 @@ async function run(browser: any, env: any) {
   const vcw = await import(locUrl('src/client/kernel/locale-vcwrite.js'))
   // #1745：查询面板的文案在新词族 vcquery 里，缺了它 t() 取不到键。
   const vcq = await import(locUrl('src/client/kernel/locale-vcquery.js'))
-  const dict = Object.assign({}, shellLoc.L_VCSHELL.zh, vcw.L_VCWRITE.zh, vcq.L_VCQUERY.zh)
+  // #1842：配置页与钩子页的文案分别在 vcconfig / vchooks 两个词族里，缺了它们 t() 取不到键。
+  const vccfg = await import(locUrl('src/client/kernel/locale-vcconfig.js'))
+  const vchk = await import(locUrl('src/client/kernel/locale-vchooks.js'))
+  // #1843 阶段 4：维护页与子模块页的词表也并进来，截图里显示真实中文而不是词条键；
+  //   维护页里挂的整仓重写面板用的是 vcrewrite 一族，漏了它维护页截图仍会露出 vc.rewrite.* 词条键。
+  const vcm = await import(locUrl('src/client/kernel/locale-vcmaintenance.js'))
+  const vcs = await import(locUrl('src/client/kernel/locale-vcsubmodules.js'))
+  const vcrw = await import(locUrl('src/client/kernel/locale-vcrewrite.js'))
+  const dict = Object.assign({}, shellLoc.L_VCSHELL.zh, vcw.L_VCWRITE.zh, vcq.L_VCQUERY.zh, vccfg.L_VCCONFIG.zh, vchk.L_VCHOOKS.zh, vcm.L_VCMAINTENANCE.zh, vcs.L_VCSUBMODULES.zh, vcrw.L_VCREWRITE.zh)
   // vcText.js 单独拼进闭包时，相对时间窗口常量在真机闭包里由共享层提供；这里从 time-config 的
   // 生成物取同一份真值，挂到 window 上让闭包里的裸名读得到（与 verify-997 的手法一致）。
   const valuesMod = await import('file://' + path.join(ROOT, sourcePath('src/shared/time-config/values.js')).replace(/\\/g, '/'))

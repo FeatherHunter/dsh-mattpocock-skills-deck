@@ -33,6 +33,7 @@ declare const vcUndoRequestIdOf: any
 declare const vcUndoFailKnownOf: any
 declare const VC_UNDO_PHONE_CHECK: any
 declare const VC_UNDO_PHONE_WRITE: any
+declare const vcPageSectionNode: any
 declare const React: any
 declare const host: any
 
@@ -181,6 +182,9 @@ function undoResultNode(h: any, t: any, result: any): any {
 /** 状态区：空闲一句、在途一句、失败照 reason 查词表（查不到给通用一句加原文）、完成画结果。 */
 function undoStateNode(h: any, t: any, state: any, ctx: any): any {
   const phase: string = String(state.phase || 'idle')
+  // 执行完成的结果条按「确认执行」那一段的位置画（见 vcUndoPageNode），这里返回 null，
+  // 免得同一个结果在页面上出现两次、读的人还得判断哪一份才算数。
+  if (phase === 'done' && state.result) return null
   const kids: any[] = []
   if (phase === 'checking' || phase === 'writing') {
     kids.push(h('p', { className: 'vcs-undo-running', 'data-vc-undo-running': '1' }, undoText(t, phase === 'checking' ? 'vc.undo.checking' : 'vc.undo.writing', null)))
@@ -191,8 +195,6 @@ function undoStateNode(h: any, t: any, state: any, ctx: any): any {
     kids.push(h('p', { className: 'vcs-undo-error', 'data-vc-undo-error': key, 'data-vc-undo-error-field': String(error.field || '') }, known ? undoText(t, 'vc.undo.fail.' + key, null) : undoText(t, 'vc.undo.failedDetail', null)))
     if (String(error.detail || '') !== '') kids.push(h('p', { className: 'vcs-undo-error-detail', 'data-vc-undo-error-detail': '1' }, String(error.detail)))
     kids.push(h('button', { type: 'button', className: 'vcs-undo-retry', 'data-vc-undo-retry': '1', 'data-press': 'button', 'data-log': 'vc.undo.retry', disabled: vcUndoBusyOf(state), onClick: ctx.retry ? function (): any { ctx.retry() } : undefined }, undoText(t, 'vc.undo.retry', null)))
-  } else if (phase === 'done' && state.result) {
-    kids.push(undoResultNode(h, t, state.result))
   } else {
     kids.push(h('p', { className: 'vcs-undo-idle', 'data-vc-undo-idle': '1' }, undoText(t, 'vc.undo.idle', null)))
   }
@@ -217,18 +219,32 @@ export function vcUndoPageNode(h: any, t: any, opts: any): any {
     retry: typeof o.onRetry === 'function' ? o.onRetry : o.onCheck,
   }
   const busy: boolean = vcUndoBusyOf(state)
-  const kids: any[] = [
-    h('h2', { className: 'vcs-undo-title' }, undoText(t, 'vc.undo.title', null)),
+  const phase: string = String(state.phase || 'idle')
+  // 五条动作的组织按定稿原型的「选动作 → 看影响 → 确认执行」三段走：第一段只选一条动作，
+  // 第二段只画这条动作要填的字段与预检（只读，不改仓库），第三段才是确认卡与执行结果。
+  // 三段分开画的理由：危险动作的第一下不该落在确认键上，段与段之间给读者一个停一下的位置。
+  const pickKids: any[] = [
     h('p', { className: 'vcs-undo-note' }, undoText(t, 'vc.undo.note', null)),
     h('p', { className: 'vcs-undo-ops-note' }, undoText(t, 'vc.undo.opsNote', null)),
     h('div', { className: 'vcs-undo-ops', role: 'radiogroup', 'aria-label': undoText(t, 'vc.undo.field.op', null) }, vcUndoCatalogOf().map(function (one: any): any { return undoOpRowNode(h, t, one, state, ctx) })),
+  ]
+  const impactKids: any[] = [
     undoFieldsNode(h, t, entry, state, ctx),
     h('div', { className: 'vcs-undo-actions' }, [
-      h('button', { type: 'button', className: 'vcs-undo-check', 'data-vc-undo-check': '1', 'data-press': 'button', 'data-log': 'vc.undo.check', disabled: busy, onClick: typeof ctx.check === 'function' ? function (): any { ctx.check() } : undefined }, vcUndoBusyOf(state) ? undoText(t, 'vc.undo.checking', null) : undoText(t, 'vc.undo.check', null)),
+      h('button', { type: 'button', className: 'vcs-undo-check', 'data-vc-undo-check': '1', 'data-press': 'button', 'data-log': 'vc.undo.check', disabled: busy, onClick: typeof ctx.check === 'function' ? function (): any { ctx.check() } : undefined }, busy ? undoText(t, 'vc.undo.checking', null) : undoText(t, 'vc.undo.check', null)),
     ]),
   ]
-  if (state.check) kids.push(undoConfirmNode(h, t, state, entry, ctx))
-  kids.push(undoStateNode(h, t, state, ctx))
+  const preStatus: any = undoStateNode(h, t, state, ctx)
+  if (preStatus) impactKids.push(preStatus)
+  const confirmKids: any[] = []
+  if (state.check) confirmKids.push(undoConfirmNode(h, t, state, entry, ctx))
+  else confirmKids.push(h('p', { className: 'vcs-undo-confirm-hint', 'data-vc-undo-confirm-hint': '1' }, undoText(t, 'vc.undo.section.confirmIdle', null)))
+  if (phase === 'done' && state.result) confirmKids.push(h('div', { className: 'vcs-undo-done', 'data-vc-undo-state': 'done' }, undoResultNode(h, t, state.result)))
+  const kids: any[] = [
+    vcPageSectionNode(h, t, { title: 'vc.undo.section.pick', count: String(vcUndoCatalogOf().length), note: 'vc.undo.section.pickNote', children: pickKids }),
+    vcPageSectionNode(h, t, { title: 'vc.undo.section.impact', note: 'vc.undo.section.impactNote', children: impactKids }),
+    vcPageSectionNode(h, t, { title: 'vc.undo.section.confirm', note: 'vc.undo.section.confirmNote', danger: entry.danger === true, children: confirmKids }),
+  ]
   return h('section', {
     className: 'vcs-undo-page',
     id: 'vc-undo-page',

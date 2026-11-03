@@ -89,6 +89,9 @@ async function main (): Promise<void> {
   const put = (rel: string, content: string): string => { const abs = at(rel); fsx.mkdirSync(nodePath.dirname(abs), { recursive: true }); fsx.writeFileSync(abs, content); return abs }
   const mkdir = (rel: string): string => { const abs = at(rel); fsx.mkdirSync(abs, { recursive: true }); return abs }
   put('repo/.git/config', '[core]\n')
+  // 2026-11-03 起工作区根只认 docs/agents/workspace.yaml（.git 不再参与认根），
+  // 所以夹具必须在 repo 根放这份文件，子目录往上找才停得下来。
+  put('repo/docs/agents/workspace.yaml', 'version: 2\nbackendId: github\npickedAt: 1\nsource: explicit\n')
   put('repo/docs/agents/issue-tracker.md', '# Issue tracker: GitHub\n')
   mkdir('repo/packages/a')
   mkdir('repo/packages/b/deep')

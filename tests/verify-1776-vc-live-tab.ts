@@ -176,6 +176,20 @@ async function settle() {
     await React.act(async function () { await new Promise(function (r) { setTimeout(r, 0) }) })
   }
 }
+// 等一件异步的事发生（落点聚焦是自己 setTimeout 轮询的，不在一轮渲染里完成）：每 50ms 看一次，最多 tries 次。
+async function waitFor(probe, tries) {
+  const max = tries || 40
+  for (let i = 0; i < max; i += 1) {
+    if (probe()) return true
+    await React.act(async function () { await new Promise(function (r) { setTimeout(r, 50) }) })
+  }
+  return !!probe()
+}
+// 焦点在不在某个元素上（用 m（挂载句柄）限定在测试容器里找，不用全局 activeElement 猜）。
+const focusOn = function (m, sel) {
+  const el = m.q(sel)
+  return !!el && document.activeElement === el
+}
 
 function mountOf(view, props) {
   const app = document.createElement('div')
@@ -323,6 +337,14 @@ async function scenarioMain() {
   check(!!m.q('[data-vc-back]'), 'T10i 跨页落点保留返回来源页的入口')
   await m.click('[data-vc-back]')
   check(m.page() === 'changes', 'T10j 从落点返回来源页（改动页）')
+  // #1846：命令面板按遮罩呈现 —— 点面板内部不关，点遮罩本身就关，关了焦点回搜索入口。
+  await m.click('[data-vc-search-entry]')
+  check(!!m.q('[data-vc-palette-backdrop]') && !!m.q('[data-vc-palette]'), 'T10k 命令面板外面套了一层可点的遮罩（data-vc-palette-backdrop）')
+  const insideClick = await m.click('[data-vc-palette-input]')
+  check(insideClick && !!m.q('[data-vc-palette]'), 'T10l 点面板内部不会把面板关掉（只有点遮罩本身才关）')
+  const backdropClick = await m.click('[data-vc-palette-backdrop]')
+  check(backdropClick && !m.q('[data-vc-palette]'), 'T10m 点遮罩本身关闭命令面板（Esc 之外的第二条关闭路径）')
+  check(focusOn(m, '[data-vc-search-entry]'), 'T10n 点遮罩关闭后焦点回到打开它的搜索入口')
 
   // ---- 分支浮层、同步带、搜索页与两个侧页 ----
   await m.click('[data-vc-branch-btn]')
@@ -343,11 +365,12 @@ async function scenarioMain() {
   }
   const searchPageOk = await (async function () {
     await m.click('[data-vc-extra-link="search"]')
-    const ok = m.page() === 'search' && !!m.q('[data-vc-palette-input]')
+    // #1846：搜索页改成独立版式，首屏就是这一页自己的搜索输入框（整页唯一一个），命令面板不再嵌进这一页。
+    const ok = m.page() === 'search' && m.qa('[data-vc-search-input]').length === 1 && m.qa('[data-vc-palette-input]').length === 0
     await m.click('[data-vc-back]')
     return ok
   })()
-  check(searchPageOk, 'T13b 搜索页自带命令面板输入框（唯一一个输入框）')
+  check(searchPageOk, 'T13b 搜索页画自己的搜索输入框（整页唯一一个输入框，命令面板不嵌这一页）')
 
   // ---- 三时机刷新：手动刷新 ----
   const before = countKin(host, 'wf.gitFirstScreen')
@@ -601,6 +624,31 @@ async function scenarioManage() {
   if (capRow) await m.click(capRow)
   check(!!m.q('[data-cap-hit]'), 'T28b 点能力行后落到该能力并高亮（data-cap-hit，不自动执行动作）')
   await m.click('[data-vc-back]')
+  // ---- #1846：分支浮层五个动作各自落到真正做这件事的入口，不是只到页顶 ----
+  // 分支页只拥有 4.1–4.13；合并属域 6（落冲突页 6.1）、变基属域 6（落变基页 5.7 换基座），
+  // 所以「新建/删除/列表」去分支页、「合并」去冲突页、「变基」去变基页——都是那条能力的真入口，不造假按钮。
+  const landingCases = [
+    { action: 'list', page: 'branch-tags', sel: '[data-vc-branch-query]' },
+    { action: 'create', page: 'branch-tags', sel: '[data-vc-branch-forms] [data-vc-branch-action="create"]' },
+    { action: 'delete', page: 'branch-tags', sel: '[data-vc-branch-forms] [data-vc-branch-action="delete"]' },
+    { action: 'merge', page: 'conflicts', sel: '[data-vc-conflicts-op="merge"]' },
+    { action: 'rebase', page: 'rebase', sel: '[data-vc-rebase-op="rebase-onto"]' },
+  ]
+  for (const one of landingCases) {
+    await m.click('[data-vc-branch-btn]')
+    const item = m.q('[data-vc-branch-overlay] [data-vc-branch-action="' + one.action + '"]')
+    check(!!item, 'T27c 分支浮层里有「' + one.action + '」这一项（纯文字条目，不是假按钮）')
+    if (!item) continue
+    await m.click(item)
+    const landed = await waitFor(function () { return m.page() === one.page && !!m.q(one.sel) }, 60)
+    check(landed, 'T27d 浮层动作「' + one.action + '」落到 ' + one.page + ' 页的对应入口（' + one.sel + '）')
+    if (landed) {
+      const focused = await waitFor(function () { return focusOn(m, one.sel) }, 60)
+      check(focused, 'T27e 浮层动作「' + one.action + '」把焦点送到那个入口（键盘能接着操作）')
+      check(!m.q('[data-vc-branch-overlay]'), 'T27f 浮层动作「' + one.action + '」落地后浮层已关掉')
+    }
+    if (m.depth() === '2') await m.click('[data-vc-back]')
+  }
   check(countKin(host, 'wf.gitTaskQuery') >= 1, 'T29 容器轮询任务通道（wf.gitTaskQuery 至少一次）')
   await m.unmount()
 

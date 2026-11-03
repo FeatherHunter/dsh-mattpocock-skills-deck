@@ -143,6 +143,8 @@ const VC_FILES = [
   // #1754 远端与同步页（域 8 的 8.1–8.4）：数据层在前、画法在后，最后才是调它们的页面壳。
   'src/client/views/versionControl/vcSyncData.js', // #1755：同步段数据层（两条电话、预检与执行回包落位；与构建同序排在远端数据层之前）
   'src/client/views/versionControl/vcRemoteData.js',
+  // #1841：远端与同步页共享的读数助手（vcRemotePage 调 vcRemoteFactsOf），必须排在两页之前拼进闭包。
+  'src/client/views/versionControl/vcRemoteFacts.js',
   'src/client/views/versionControl/vcRemotePage.js',
   'src/client/views/versionControl/vcSyncPage.js', // #1755：同步段正文（十个动作、理由、租约、确认卡、任务区；挂在远端页正文末尾）
   // #1759 迁移与备份页：数据层在前、正文在后（与构建同序，页面壳的挂载段要看到正文那一叶）。
@@ -169,6 +171,8 @@ const VC_FILES = [
   'src/client/views/versionControl/vcMigrateExport.js',
   // #1762 T26：「本页负责的能力」列表从壳拆到独立叶子，构建次序在壳之前，闭包拼装要跟着放。
   'src/client/views/versionControl/vcCapabilityList.js',
+  // #1846 全库搜索页自己的版式（输入框在首屏、结果按页面分组）；壳渲染搜索页时调它。
+  'src/client/views/versionControl/vcSearchPage.js',
   // #1748 变基待办页的历史改写面板（与构建同序）：先数据层，再页面本体，都排在页面壳之前。
   'src/client/views/versionControl/vcUndoOps.js',
   'src/client/views/versionControl/vcUndoPage.js',
@@ -194,7 +198,9 @@ const VC_FILES = [
   'src/client/views/versionControl/vcShellIdentity.js',
   'src/client/views/versionControl/vcChangesView.js',
   // #1829 阶段 4 三个共享件（与构建同序）：页头与页面原语、齿轮里的管理索引卡、分支浮层；壳的挂载段要看到它们。
+  // #1845 流程页共用小部件（状态芯片 / 进度条 / 动作条 / 行内提示）紧跟页头之后：任务、变基、冲突三页都会调它们。
   'src/client/views/versionControl/vcPageHead.js',
+  'src/client/views/versionControl/vcFlowParts.js',
   'src/client/views/versionControl/vcManageIndex.js',
   'src/client/views/versionControl/vcBranchPopover.js',
   'src/client/views/versionControl/vcShellPages.js',
@@ -261,7 +267,7 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   // #1755 同步十个动作：共享口径（动作表、规划、判定、确认文案）与客户端数据层、页面叶。
   'SYNC_ACTIONS', 'SYNC_CHECK_CONTRACT', 'SYNC_CHECK_VERSION', 'syncActionOf', 'syncPlanOf', 'syncPlanDigestInput', 'syncVersionAtLeast',
   'judgeSync', 'syncConfirmOf', 'syncReasonTextOf',
-  'VC_SYNC_PHONES', 'VC_SYNC_ACTION_ROWS', 'vcNewSyncReads', 'vcSyncStateOf', 'vcSyncDataOf', 'vcSyncErrorOf', 'vcSyncTaskOf',
+  'VC_SYNC_PHONES', 'VC_SYNC_ACTION_ROWS', 'VC_SYNC_GROUPS', 'vcNewSyncReads', 'vcSyncStateOf', 'vcSyncDataOf', 'vcSyncErrorOf', 'vcSyncTaskOf',
   'vcApplySyncReply', 'vcApplySyncWriteReply', 'vcReadSyncCheck', 'vcRunSyncWrite', 'vcSyncModelOf', 'vcSyncPageNode',
   // #1759 迁移与备份：共享动作表与计划、客户端数据层与正文叶。
   'MIGRATE_ACTIONS', 'MIGRATE_CHECK_CONTRACT', 'MIGRATE_CHECK_VERSION', 'migrateActionOf', 'migrateActionIds',
@@ -1305,9 +1311,9 @@ async function main() {
   check(!!writeCap && VIEW.vcPaletteTargetOf(writeCap.id).needsObject === true && VIEW.vcCapabilityNeedsObjectOf(writeCap) === true, 'Z9f 需要对象上下文的写动作标成 needsObject（只跳入口、不自动执行）')
   const paletteRows = VIEW.vcPaletteRowsOf('stash')
   const searchHtml = shellHtmlOf({ page: 'search', width: 460, skin: 'dark', seed: { query: 'stash', highlight: paletteRows[0].id } })
-  const secondaryIds = attrValuesOf(searchHtml, 'data-cap-secondary')
-  check(searchHtml.indexOf('data-vc-palette-input') >= 0 && secondaryIds.length === paletteRows.length && secondaryIds.join(',') === paletteRows.map(function (r) { return r.id }).join(','), 'Z9g 全库搜索页画出输入框，结果行数等于该关键词命中条数（每行带 data-cap-secondary 第二入口）')
-  check(searchHtml.indexOf('data-vc-palette-hit="1"') >= 0, 'Z9h 跳转目标那一行标了命中高亮')
+  const searchIds = attrValuesOf(searchHtml, 'data-vc-search-row')
+  check(searchHtml.indexOf('data-vc-search-input') >= 0 && searchHtml.indexOf('data-vc-palette-input') < 0 && searchIds.length === paletteRows.length && searchIds.join(',') === paletteRows.map(function (r) { return r.id }).join(','), 'Z9g 全库搜索页画自己的搜索输入框，结果行数等于该关键词命中条数（每行带 data-vc-search-row 第二入口；命令面板不嵌这一页）')
+  check(searchHtml.indexOf('data-vc-search-hit="1"') >= 0, 'Z9h 跳转目标那一行标了命中高亮')
   const darkHtml = shellHtmlOf({ page: 'maintenance', width: 460, skin: 'dark' })
   const lightHtml = shellHtmlOf({ page: 'maintenance', width: 460, skin: 'light' })
   check(attrValuesOf(darkHtml, 'data-vc-skin')[0] === 'dark' && attrValuesOf(lightHtml, 'data-vc-skin')[0] === 'light', 'Z10a 深浅两套皮肤都能渲染（根节点带 data-vc-skin）')
@@ -2913,10 +2919,14 @@ async function main() {
   const syShellOf = function (reads, ui, width, skin) {
     return shellHtmlOf({ page: 'remote', width: width || 460, skin: skin || 'dark', reads: reads, ui: ui || {} })
   }
-  const syIds = VIEW.SYNC_ACTIONS.map(function (row) { return row.id })
+  // 2026-11-03 起按 #1841 的四组摆放（获取 / 拉取 / 推送 / 远端引用，组序照定稿原型第 39 张）；
+  //   组内次序仍读账本次序，平铺编号顺序不再是判据（8.11 落在最后一组）。
+  const syIds = VIEW.VC_SYNC_GROUPS.map(function (g) {
+    return VIEW.VC_SYNC_ACTION_ROWS.filter(function (row) { return g.ids.indexOf(String(row.id)) >= 0 }).map(function (row) { return String(row.id) })
+  }).reduce(function (a, b) { return a.concat(b) }, [])
   const syOpen = syShellOf(syReadsOf(syReplyOf('force-push', '8.12')), { open: '8.12' })
   const syActs = attrValuesOf(syOpen, 'data-vc-sync-act')
-  check(syActs.length === 10 && JSON.stringify(syActs) === JSON.stringify(syIds), 'S1 同步段一次画出十个动作入口，顺序与账本 8.5–8.14 一致（' + syActs.join(',') + '）')
+  check(syActs.length === 10 && JSON.stringify(syActs) === JSON.stringify(syIds), 'S1 同步段一次画出十个动作入口，按四组摆放、组内次序与账本一致（' + syActs.join(',') + '）')
   const syPanels = attrValuesOf(syOpen, 'data-vc-sync-panel')
   check(syPanels.length === 1 && syPanels[0] === '8.12', 'S2 同时只展开一个动作面板（面板带 data-vc-sync-panel，值是这次展开的动作 id）')
   check(syOpen.indexOf('aria-controls="vc-sync-panel-8.12"') >= 0 && syOpen.indexOf('id="vc-sync-panel-8.12"') >= 0, 'S3 展开按钮的 aria-controls 指向真实存在的面板 id（键盘与读屏跟得到）')
@@ -3111,9 +3121,9 @@ async function main() {
     { name: '只读边界放行（任意配置键都能写）', patch: (s) => s.replace('if (!configKeyEditable(key))', 'if (false)'), test: configReadonlyJudgmentOf, what: 'Z17h' },
     { name: '2.36 的版本门恒放行（低版本也画运行按钮）', patch: (s) => s.replace("  if (!atLeast(v, 2, 36, 0)) return { state: 'hidden', needed: CONFIG_HOOK_RUN_MIN_VERSION, alternative: CONFIG_HOOK_RUN_ALTERNATIVE }", "  if (false) return { state: 'hidden', needed: CONFIG_HOOK_RUN_MIN_VERSION, alternative: CONFIG_HOOK_RUN_ALTERNATIVE }"), test: hooksGateJudgmentOf, what: 'Z17ac' },
     // #1748 / #1776 M2：变基待办页不再挂历史改写面板 —— Z17a 必须当场红。
-    //   M2 把这一页改成挂自带状态的面板（VC_UNDO_PANEL，内部自己走三段式），改法跟着新的挂载点一起搬；
+    //   #1845 把这块面板从壳根挪进了页面体（排在能力清单之前），改法跟着新的挂载点一起搬；
     //   否则这条改法落在已经不存在的源码文本上，自己空转却仍然假绿。
-    { name: '变基待办页不再挂历史改写面板', patch: (s) => s.replace("if (page === 'rebase' && typeof VC_UNDO_PANEL === 'function') children.push(keyed(h(VC_UNDO_PANEL,", "if (false) children.push(keyed(h(VC_UNDO_PANEL,"), test: undoMountedJudgmentOf, what: 'Z17a' },
+    { name: '变基待办页不再挂历史改写面板', patch: (s) => s.replace("if (page === 'rebase' && typeof VC_UNDO_PANEL === 'function') children.push(Object.assign({}, h(VC_UNDO_PANEL,", "if (false) children.push(Object.assign({}, h(VC_UNDO_PANEL,"), test: undoMountedJudgmentOf, what: 'Z17a' },
     // #1748：硬重置不再标危险档（用户看到的是一个「不危险」的毁级动作）—— Z17e 必须当场红。
     { name: '硬重置不再标危险档', patch: (s) => s.replace("targetDefault: '', danger: true, recovery: true,", "targetDefault: '', danger: false, recovery: true,"), test: undoDangerJudgmentOf, what: 'Z17e' },
     // #1748：确认卡不再画恢复点（点确认之前看不到会丢什么、怎么找回）—— Z17k 必须当场红。

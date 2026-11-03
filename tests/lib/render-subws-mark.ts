@@ -106,14 +106,13 @@ function tipTextOf(tipCalls: any): string {
 /**
  * 渲染这枚标志一次（可选再点一下）。
  * @param {object} store 本会话的 store（要断言的是它带着 st.snapshot.workspaceRoot、cwd 是子目录）
- * @param {{lang?:string, src?:string, click?:boolean, autoShown?:boolean, chainInit?:string, facts?:object}} [opts]
+ * @param {{lang?:string, src?:string, click?:boolean, autoShown?:boolean, chainInit?:string}} [opts]
  *   lang 取 'zh'（默认）| 'en'，决定浮层文案；src 换一版组件源码（复现脚本用它喂旧版）；
  *   click 为真时渲染完真的点一下那枚标志，把 host.call 的记录收回来；
  *   autoShown 为真时假装「这个工作区以前已经自动展开过」（记的键与组件读的键是同一条）；
- *   chainInit 给出检查链里 tracker:initialized 那一步的状态（'done' / 'current' / 不给）；
- *   facts 给 wf.workspaceFacts 这条电话的答复体（#1806 第 3 步根会话的依据说明要它；不给就只答 {ok:true}）。
+ *   chainInit 给出检查链里 tracker:initialized 那一步的状态（'done' / 'current' / 不给）。
  */
-async function renderMark(store: any, opts?: { lang?: string; src?: string; click?: boolean; autoShown?: boolean; chainInit?: string; facts?: any }): Promise<any> {
+async function renderMark(store: any, opts?: { lang?: string; src?: string; click?: boolean; autoShown?: boolean; chainInit?: string }): Promise<any> {
   const o = opts || {}
   const lang = o.lang === 'en' ? 1 : 0
   const src = o.src || fs.readFileSync(path.join(ROOT, MARK_REL), 'utf8')
@@ -138,8 +137,8 @@ async function renderMark(store: any, opts?: { lang?: string; src?: string; clic
   const { act } = require('react')
 
   // 词条真源：wsMarkTip 仍走上面那条「从生成源码里取」的老路（外部调用方也依赖它）；
-  // #1806 第 3 步新加的 panel.wsMarkRoot* / panel.wsMarkNoRecord 与 cfg.* 词条直接从生成词表取，
-  // 不在这份工具里手抄第二份文案——手抄的文案跟真界面漂开时，门禁会拿错的期望值判绿。
+  // 其它词条直接从生成词表取，不在这份工具里手抄第二份文案——手抄的文案跟真界面漂开时，
+  // 门禁会拿错的期望值判绿。
   const tr = function (key, params) {
     let s = (key === 'panel.wsMarkTip') ? tips[lang] : localeTextOf(key, o.lang === 'en' ? 'en' : 'zh')
     if (params) s = String(s).replace(/\{(\w+)\}/g, function (m, name) { return (name in params) ? String(params[name]) : m })
@@ -167,9 +166,6 @@ async function renderMark(store: any, opts?: { lang?: string; src?: string; clic
   const host = {
     call: function (method, args) {
       hostCalls.push({ method: method, args: args })
-      // #1806 第 3 步：组件挂载后会问一次「本工作区凭什么算根」。不给 facts 时保持旧答复 {ok:true}，
-      // 组件就把事实当「不知道」、退回旧行为——这样老用例一条都不用改。
-      if (method === 'wf.workspaceFacts' && o.facts) return Promise.resolve({ ok: true, facts: o.facts })
       return Promise.resolve({ ok: true })
     },
   }

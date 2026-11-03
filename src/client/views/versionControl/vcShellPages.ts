@@ -48,6 +48,8 @@ declare function vcPageHeadNode(h: any, t: any, o: any): any
 declare function vcManageIndexNode(h: any, t: any, o: any): any
 declare function vcManageIndexPageNode(h: any, t: any, o: any): any
 declare function vcBranchPopoverNode(h: any, t: any, o: any): any
+// #1846：全库搜索页的正文版式（vcSearchPage.ts）——输入框在首屏、结果按能力所属页面分组；命令面板不再嵌进这一页。
+declare function vcSearchPageNode(h: any, t: any, o: any): any
 // 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）、贮藏页叶子（#1751，vcStashPage.ts）、克隆向导页叶子（#1756，
 // vcClonePage.ts）、冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）、变基待办页的历史改写面板（#1748 T13，vcUndoPage.ts）
 // 与动作面板（#1749 T14，vcRebasePage.ts）、配置页与钩子页两叶（#1760）、维护页整仓重写一叶（#1750 T15，vcRewritePage.ts）、诊断页正文一叶（#1761）以及 #1762 T26 的平台页
@@ -154,7 +156,8 @@ export const vcPageTabsNode = function (h: any, t: any, o: any) {
 //   否则正文与骨架并排出现，看起来像页面还没接上。判断只按这一页真正会挂的正文来，不猜读数是否已到。
 const vcOwnBodyOf = function (page: string, opts: any) {
   const o: any = opts || {}
-  if (page === 'maintenance' || page === 'migrate' || page === 'diagnostics') return true
+  // #1846：全库搜索页的正文（输入框与分组结果）不依赖任何读数，这里直接算「有正文」，不该再并排画自检骨架。
+  if (page === 'maintenance' || page === 'migrate' || page === 'diagnostics' || page === VC_SEARCH_PAGE) return true
   if (page === 'config' || page === 'hooks') return o.config !== undefined || o.hooks !== undefined
   if (page === 'branch-tags') return o.branchBoard !== undefined
   if (page === 'conflicts') return o.conflicts !== undefined
@@ -203,6 +206,14 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     return h('section', { id: 'vc-page-' + page, className: 'vcs-page-body', role: 'tabpanel', 'data-vc-page-body': page }, [
       head, h('div', { key: 'scroll', className: 'vcs-page-scroll' }, children),
     ])
+  }
+  // #1846：全库搜索页改成独立版式 —— 输入框在首屏，结果按能力所属页面分组，不再把命令面板嵌进能力清单。
+  //   这一块不依赖读数，所以紧跟在页头与页面说明之后、其它页正文之前，第一屏就能看见输入框。
+  if (page === VC_SEARCH_PAGE && typeof vcSearchPageNode === 'function') {
+    children.push(Object.assign({}, vcSearchPageNode(h, t, {
+      id: vcPagePrefixOf(opts.pagePrefix || '') + '-search',
+      query: opts.query, highlight: opts.highlight, limit: opts.paletteLimit,
+    }), { key: 'search' }))
   }
   // #1752 工作树页正文：读首屏聚合里那一份工作树片，八条能力的入口与执行面由 vcWorktreesPage 自己画；
   //   壳只负责把宿主数据与处理函数透传进去（没有传入时页面自己画空态，不影响其它页）。
@@ -266,6 +277,9 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   //   「管理 › 诊断」页落 3.5 / 3.9 / 3.11 / 3.13 四组（四条的主入口就在那一页，面板自己标主入口）。
   //   无条件挂：没有读数的骨架渲染里也要能看到入口（本函数返回 null 表示这一页没有这十条里的任何一条）。
   const queryNode = vcQueryPageNode(h, t, opts); if (queryNode) children.push(Object.assign({}, queryNode, { key: 'query' })); const diagNode: any = typeof vcDiagnosticsMountNode === 'function' ? vcDiagnosticsMountNode(h, t, opts) : null; if (diagNode) children.push(Object.assign({}, diagNode, { key: 'diagnostics' })); if (page === 'diagnostics' && typeof vcMaintenanceDiagNode === 'function') { const maintDiagNode: any = h(vcMaintenanceDiagNode, { key: 'maintenance-diag', t: t, cwd: opts.cwd || '', call: opts.call || null }); children.push(Object.assign({}, maintDiagNode, { key: 'maintenance-diag' })) } // #1758 T22 诊断页 11.2–11.4 正文；#1761 诊断页正文：二分与替换是仅有的两个受控写，其余只读；判断与推入也并成一行（本文件贴着 350 有效行上限）。
+  // #1845：三个流程页的正文排在能力清单之前，读者先看到这一页要做什么，再看到「本页负责 N 条能力」的长清单。
+  //   变基页先画变基正文（第一段「本次变基」按原型 48 打头），历史改写五条面板从壳根挪进来紧随其后。
+  if (page === 'rebase' && opts.rebase !== undefined && typeof vcRebasePageNode === 'function') children.push(Object.assign({}, vcRebasePageNode(h, t, { rebase: opts.rebase }), { key: 'rebase' })); if (page === 'rebase' && typeof VC_UNDO_PANEL === 'function') children.push(Object.assign({}, h(VC_UNDO_PANEL, { t: t, cwd: opts.cwd || '', state: opts.undo }), { key: 'undo-page' })); if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' }))
   // 任务页是流程页，能力账本里没有它的条目（162 条不变），不画能力清单，只画任务面板。
   // #1829 改动页的能力清单不再排在这一段：它压到页尾（提交区之后），首屏留给统计卡与文件行。
   if (page !== 'task' && page !== 'changes') children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
@@ -295,9 +309,6 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
 
   // 能力清单压到改动页最尾：162 条仍可到达、每条仍恰一个主入口，但不再占首屏（#1829）。
   if (page === 'changes') children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))
-  // 冲突向导的 15 条能力面板（#1747 T12）：页面把冲突状态与读数传进来时才画；没传整块不出现，其它页渲染结果不变。
-  // 判断与推入写成同一条物理行：本文件贴着 350 有效行上限。
-  if (page === 'conflicts' && opts.conflicts !== undefined && typeof vcConflictsPageNode === 'function') children.push(Object.assign({}, vcConflictsPageNode(h, t, { conflicts: opts.conflicts }), { key: 'conflicts' })); if (page === 'rebase' && opts.rebase !== undefined && typeof vcRebasePageNode === 'function') children.push(Object.assign({}, vcRebasePageNode(h, t, { rebase: opts.rebase }), { key: 'rebase' }))
   return h('section', {
     id: 'vc-page-' + page,
     className: 'vcs-page-body',
@@ -330,12 +341,13 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   const gearOverlay = !indexPage && (!!open.gear || (isManage && !secondary))
   const gearOpen = gearOverlay || indexPage
   const branchOverlayId = prefix + '-branch-overlay'
-  const paletteId = prefix + '-palette'
+  // #1846：搜索页上放大镜的 aria-controls 指向搜索页自己的输入框区块（前缀 + -search）；
+  //   别的页面上它仍指向命令面板遮罩里的面板（前缀 + -palette）。两边各指各的那个真节点，不共用名字。
+  const paletteId = isSearch ? prefix + '-search' : prefix + '-palette'
   const gearId = prefix + '-gear-index'
   const readAt = String(seed.when === undefined || seed.when === null ? '' : seed.when)
-  const openSurface = isSearch
-    ? String(open.surface || (CAPABILITIES.filter(function (c: any) { return c && c.page === 'search' })[0] || {}).id || '')
-    : String(open.surface || '')
+  // #1846：搜索页不再默认展开某条能力的操作面（那份操作面本来画的就是命令面板，现在拆掉了）。
+  const openSurface = String(open.surface || '')
   // 页面根节点下的子节点按固定槽位排，各给一个稳定的 key（React 列表告警不该出现在这门禁的输出里）。
   const keyed = function (node: any, key: string) { return Object.assign({}, node, { key: key }) }
   const children: any[] = []
@@ -347,8 +359,11 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     secondary: secondary,
   }), 'identity'))
   if (branchOpen) children.push(keyed(vcBranchOverlayNode(h, t, { id: branchOverlayId, branch: seed.branch }), 'branch'))
+  // 受控渲染里只剩「旧形状」这一路会画齿轮索引面板（#1840 起真实入口改成打开独立索引屏）：
+  //   身份行下面那块浮层仍按 open.gear 或「管理分区页未开次级版式」渲染，供全页自检与 Z 组断言使用。
   if (gearOverlay) children.push(keyed(vcGearIndexNode(h, t, { id: gearId, pagePrefix: opts.pagePrefix || '', active: isManage ? page : '' }), 'gear'))
-  // 命令面板：全库搜索页把它画在能力行里（唯一一个输入框）；其它页按种子画成贴触发点的浮层。
+  // 命令面板：只在别的页面上按种子画成贴触发点的遮罩浮层（#1846：全库搜索页自己画输入框与结果，
+  //   不再把面板嵌进能力行；这一页的输入框在页头下面，页面上只有那一个）。
   if (paletteOpen && !isSearch) children.push(keyed(vcPaletteNode(h, t, { id: paletteId, query: seed.query, highlight: seed.highlight, limit: seed.paletteLimit, reads: opts.reads }), 'palette'))
   // 二级页不出四个固定页签（原型 37/39）：那四个是一级视图，二级页的返回与去向由页头与顶部条给。
   if (!secondary) children.push(keyed(vcPageTabsNode(h, t, { pagePrefix: opts.pagePrefix || '', active: VC_TAB_PAGES.indexOf(page) >= 0 ? page : '', counts: opts.counts }), 'tabs'))
@@ -359,7 +374,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     openSurface: openSurface,
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,
-    changes: opts.changes, onOpenHandoff: opts.onOpenHandoff, conflicts: opts.conflicts, rebase: opts.rebase, // #1747 T12 / #1749 T14：冲突向导与变基待办的交互态原样往下传，壳不改形状。
+    changes: opts.changes, onOpenHandoff: opts.onOpenHandoff, conflicts: opts.conflicts, rebase: opts.rebase, undo: opts.undo, // #1747 T12 / #1749 T14：冲突向导与变基待办的交互态原样往下传，壳不改形状。
     // #1744 T09：提交历史页要真读数与交互态，页面壳原样往下传，不在壳里改形状。
     reads: opts.reads, ui: opts.ui, width: width, nowMs: seed.nowMs,
     // #1746 T11：分支与标签业务面板的读数与确认卡/结果（没给就不画，T03 既有渲染不变）。
@@ -373,11 +388,8 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     // 页面要的真数据与回调原样往下传（不传就是骨架，既有页面渲染不变）：#1752 工作树、#1756 克隆向导、#1757 子模块页、#1760 配置与钩子页；#1761 诊断页的读数与五个回调也原样往下传
     diagnostics: opts.diagnostics || null, onDiagnosticsRead: opts.onDiagnosticsRead, onDiagnosticsWrite: opts.onDiagnosticsWrite, onDiagnosticsEdit: opts.onDiagnosticsEdit, onDiagnosticsConfirm: opts.onDiagnosticsConfirm, onDiagnosticsCancel: opts.onDiagnosticsCancel, config: opts.config, onConfig: opts.onConfig, onConfigEdit: opts.onConfigEdit, hooks: opts.hooks, onHooks: opts.onHooks, onHooksEdit: opts.onHooksEdit, ops: opts.ops, handlers: opts.handlers, submodules: opts.submodules, submoduleUi: opts.submoduleUi, submoduleOps: opts.submoduleOps, cwd: opts.cwd, call: opts.call,platform: opts.platform, platformUi: opts.platformUi, onPlatformRpInput: opts.onPlatformRpInput, onPlatformRequestPull: opts.onPlatformRequestPull, migrate: opts.migrate, migrateReads: opts.migrateReads, onMigrateEdit: opts.onMigrateEdit, onMigrateCheck: opts.onMigrateCheck, onMigrateRun: opts.onMigrateRun, onMigrateRescan: opts.onMigrateRescan, onMigrateCancel: opts.onMigrateCancel, // #1761 诊断页读数与五个回调；#1760 配置页与钩子页要四组读数、身份两键编辑与钩子清单（回调原样往下传）；#1752 工作树页要真数据与处理函数；#1756 克隆向导要工作区与发电话的函数；#1757 T21 子模块页要读数、交互态与处理函数；#1762 T26 平台页的读数、交互态与回调，以及迁移页 14.1 导出向导的读数与回调，都从这里透传，页面壳不自己造数据
   }), 'body'))
-  // #1748 变基待办页（域 5 历史改写）：五种动作都是「预检出票 → 确认 → 凭票执行」三段式，
-  // 页面壳只把调用方持有的状态与回调递进叶子；续作与拒绝理由都在叶子里讲，壳不重复。
-  // #1776 M2：变基待办页挂自带状态的面板（VC_UNDO_PANEL，内部走 wf.gitUndoCheck / wf.gitUndoWrite 三段式），
-  //   原来挂的 vcUndoPageNode 只是画法且回调名与壳对不上（onInput/onPick/onCheck/onCancel/onGo/onRetry），点了没反应。
-  if (page === 'rebase' && typeof VC_UNDO_PANEL === 'function') children.push(keyed(h(VC_UNDO_PANEL, { t: t, cwd: opts.cwd || '', state: opts.undo }), 'undoPage'))
+  // #1748/#1776 M2 的历史改写五条面板已挪进页面体，排在能力清单之前（见 vcPageBodyNode，
+  //   #1845 按定稿原型把五动作三段式放到读者先看到的位置）；壳根不再重复挂一份。
   // 长任务区（#1740）：页面把任务清单传进来时才画；没传整块不出现，既有页面的渲染结果不受影响。
   // 任务页把这块画进页面正文（见 vcPageBodyNode），这里不再重复挂一份。
   if (page !== 'task' && opts.tasks !== undefined && typeof vcTaskPanelNode === 'function') {

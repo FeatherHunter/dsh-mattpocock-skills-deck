@@ -243,7 +243,7 @@ async function main() {
   // —— 五、面板读数按模型说话：requests 一格，不出现两桶 ——
   {
     ledger.syncServer('gitlab', { requests: { limit: 600, remaining: 590 } })
-    const budgetState = budgetStateMod.createBudgetState({
+    const budgetState = await budgetStateMod.createBudgetState({
       getTrackerRegistry: function () { return { modules: function () { return [{ id: 'gitlab', budget: REQUESTS }] } } },
       ledger: ledger,
     })('gitlab')

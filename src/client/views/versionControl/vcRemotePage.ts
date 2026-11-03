@@ -13,6 +13,11 @@
 // 四档宽按宽度收放：300 只留名字与状态、其余动作进「更多」菜单、地址收起；460 起补地址与分支名；
 //   任何档位都不删入口（300 宽下三个动作仍在 details 里可点）。两套皮肤都只换颜色，不靠颜色单独传达。
 //
+// #1841 按定稿原型第 39 张重排正文的信息层级（只动版式，不改读数与写动作流程）：页头之后依次是
+//   ① 远端清单（已有远端、空态/失败态、联网面板、登记入口都在这一段里）② 同步（五条同步事实 +
+//   按用途分组的十个动作）③ 远端依据（这些数字来自哪一次读取，以及联网边界）。
+//   确认卡与结果始终贴在触发点那一段里：行内动作贴对应行，登记动作贴登记入口，同步动作贴各自的展开面板。
+//
 // 本文件只画界面，不发任何请求：所有读取与写动作都由数据层入口（vcReadRemoteList / vcReadRemoteOnline /
 //   vcRunRemoteWrite）在用户操作时发起，渲染函数本身保证「打开页面不联网」。
 
@@ -32,6 +37,10 @@ declare function vcRemoteOnlineErrorOf(reads: any): any
 declare const Tip: any
 // 同步段（域 8 的 8.5–8.14）画在正文末尾，见 vcSyncPage.ts；没有同步读数时它回 null，这里就少一段。
 declare function vcSyncPageNode(h: any, t: any, o: any): any
+// #1841：五条同步事实由 vcRemoteFacts 折成（缺读数写占位、不写 0），分区与事实格用页头原语画。
+declare function vcRemoteFactsOf(t: any, seed: any, changes: any): any[]
+declare function vcPageSectionNode(h: any, t: any, o: any): any
+declare function vcPageFactGridNode(h: any, t: any, o: any): any
 
 /** 联网失败分类 → 词条键；不认识的分类落到 other（不把没见过的失败装进已知分类）。 */
 const VC_REMOTE_FAIL_KEYS: Record<string, string> = {
@@ -62,7 +71,7 @@ const vcRemoteFieldErrorKeyOf = function (problem: any) {
  * 状态映射：本地读数 ok 且没有远端 → empty；idle / loading → loading（刚打开不冒充「没有远端」）；
  *   err → error。旧读数标记只在「加载/失败但手上还有上一份列表」时给。
  */
-export const vcRemoteModelOf = function (reads: any, ui: any, width: any, nowMs: any) {
+export const vcRemoteModelOf = function (reads: any, ui: any, width: any, nowMs: any, seed: any, changes: any) {
   const u = ui || {}
   const n = Number(width)
   const w = isFinite(n) && n > 0 ? n : 460
@@ -94,6 +103,10 @@ export const vcRemoteModelOf = function (reads: any, ui: any, width: any, nowMs:
     // 确认卡素材：预检成功时由动作层折成这一份（动作、目标、票号、票据有效期）；没有票时是 null。
     confirm: u.confirm || null,
     nowMs: typeof nowMs === 'number' ? nowMs : Date.now(),
+    // #1841：页面壳的首屏种子与工作区计数（事实格与「默认」标记用）；两样都可缺，缺了就不画那一部分。
+    seed: seed || {},
+    changes: changes || null,
+    defaultName: String((seed && seed.remote) || ''),
   }
 }
 
@@ -160,6 +173,10 @@ const vcRemoteRowNode = function (h: any, t: any, model: any, remote: any) {
   const onlineOpen = model.online.openName === name
   const kids: any[] = []
   const head: any[] = [h('strong', { key: 'name', className: 'vcs-remote-name' }, name)]
+  // 定稿原型第 39 张给取数用的那个远端标一枚「默认」：同步带上的领先与落后就是与它比出来的。
+  if (model.defaultName && name === model.defaultName) {
+    head.push(h('span', { key: 'default', className: 'vcs-remote-default', 'data-vc-remote-default': name }, t('vc.remote.defaultMark')))
+  }
   if (remote.hasCredential) {
     head.push(h('span', { key: 'cred', className: 'vcs-remote-credential', 'data-vc-remote-credential': name }, t('vc.remote.credential')))
   }
@@ -288,21 +305,9 @@ const vcRemoteStateNode = function (h: any, t: any, model: any) {
   return null
 }
 
-/**
- * 远端与同步页的正文。
- * o = { reads, ui, width, nowMs }：读数是数据层给的、ui 是当前打开的表单与结果（都为可空）。
- */
-export const vcRemotePageNode = function (h: any, t: any, o: any) {
-  const opts = o || {}
-  const model = vcRemoteModelOf(opts.reads, opts.ui, opts.width, opts.nowMs)
+/** 登记入口那一段：按钮 + 就地展开的表单/确认卡/结果。入口在远端清单段末尾，不是页面级工具栏。 */
+const vcRemoteAddNode = function (h: any, t: any, model: any) {
   const kids: any[] = []
-  kids.push(h('p', { key: 'note', className: 'vcs-remote-note', 'data-vc-remote-local-note': '1' }, t('vc.remote.localNote')))
-  if (model.readAtMs !== null) {
-    kids.push(h('p', { key: 'readAt', className: 'vcs-remote-read-at', 'data-vc-remote-local-read': String(model.readAtMs) }, t('vc.remote.readAt', { when: vcWhenText(t, model.nowMs, model.readAtMs) })))
-  }
-  kids.push(h('p', { key: 'hint', className: 'vcs-remote-hint', 'data-vc-remote-online-hint': '1' }, t('vc.remote.onlineHint')))
-  const stateNode = vcRemoteStateNode(h, t, model)
-  if (stateNode) kids.push(stateNode)
   kids.push(h('div', { key: 'toolbar', className: 'vcs-remote-toolbar' }, [
     h('button', {
       key: 'add',
@@ -328,11 +333,45 @@ export const vcRemotePageNode = function (h: any, t: any, o: any) {
     const resultNode = vcRemoteResultNode(h, t, model.result)
     if (resultNode) kids.push(h('div', { key: 'addForm', className: 'vcs-remote-add' }, [resultNode]))
   }
+  return kids
+}
+
+/**
+ * 远端与同步页的正文（#1841 按定稿原型第 39 张重排）。
+ * 页头之后三段固定顺序：
+ *   ① 远端清单：状态块（空/加载/失败）+ 各远端行 + 联网结果面板 + 登记入口，一段交代完「有哪些远端、怎么加」；
+ *   ② 同步：先五条同步事实（当前分支、领先落后、读取于、远端依据、工作区改动），再十个动作按用途分四组；
+ *   ③ 远端依据：这些数字来自哪一次读取，以及「本地记录 / 联网查看」的边界说明。
+ * 三种空态与失败（没有远端、读取失败、动作被拒）分别落在清单段与触发点，页面不会只剩空白。
+ * o = { reads, ui, width, nowMs, seed, changes }：读数是数据层给的，seed/changes 是页面壳的首屏事实。
+ */
+export const vcRemotePageNode = function (h: any, t: any, o: any) {
+  const opts = o || {}
+  const model = vcRemoteModelOf(opts.reads, opts.ui, opts.width, opts.nowMs, opts.seed, opts.changes)
+  const sections: any[] = []
+  // ① 远端清单：已有远端与状态块、联网面板、登记入口都收在同一段里；列表为空时由状态块给出判断与下一步。
+  const listKids: any[] = []
+  const stateNode = vcRemoteStateNode(h, t, model)
+  if (stateNode) listKids.push(stateNode)
   if (model.remotes.length > 0) {
-    kids.push(h('ul', { key: 'list', className: 'vcs-remote-list', role: 'list', 'aria-label': t('vc.remote.listLabel') }, model.remotes.map(function (remote: any) { return vcRemoteRowNode(h, t, model, remote) })))
+    listKids.push(h('ul', { key: 'list', className: 'vcs-remote-list', role: 'list', 'aria-label': t('vc.remote.listLabel') }, model.remotes.map(function (remote: any) { return vcRemoteRowNode(h, t, model, remote) })))
   }
-  kids.push(vcRemoteOnlineNode(h, t, model))
+  // 联网结果面板挂在它自己的入口下面一行：点过「联网查看」才有内容，打开页面时是空壳。
+  listKids.push(vcRemoteOnlineNode(h, t, model))
+  listKids.push.apply(listKids, vcRemoteAddNode(h, t, model))
+  sections.push(vcPageSectionNode(h, t, { title: 'vc.remote.section.list', count: model.remotes.length, note: 'vc.remote.section.listNote', children: listKids }))
+  // ② 同步：事实格先交代仓库现在在哪，再给按用途分组的十个动作；动作面板里的确认卡与结果贴各自触发点。
+  const syncKids: any[] = [vcPageFactGridNode(h, t, { facts: vcRemoteFactsOf(t, model.seed, model.changes) })]
   const syncNode = vcSyncPageNode(h, t, { reads: opts.reads, ui: opts.ui, width: opts.width, nowMs: opts.nowMs })
-  if (syncNode) kids.push(syncNode)
-  return h('section', { className: 'vcs-remote', 'data-vc-remote-page': '1', 'data-vc-remote-state': model.state }, kids)
+  if (syncNode) syncKids.push(syncNode)
+  sections.push(vcPageSectionNode(h, t, { title: 'vc.remote.section.sync', note: 'vc.remote.section.syncNote', children: syncKids }))
+  // ③ 远端依据：先把「这是哪一次读数、为什么打开页面不联网」说明白，再让人决定要不要联网核对。
+  const basisKids: any[] = []
+  basisKids.push(h('p', { key: 'note', className: 'vcs-remote-note', 'data-vc-remote-local-note': '1' }, t('vc.remote.localNote')))
+  if (model.readAtMs !== null) {
+    basisKids.push(h('p', { key: 'readAt', className: 'vcs-remote-read-at', 'data-vc-remote-local-read': String(model.readAtMs) }, t('vc.remote.readAt', { when: vcWhenText(t, model.nowMs, model.readAtMs) })))
+  }
+  basisKids.push(h('p', { key: 'hint', className: 'vcs-remote-hint', 'data-vc-remote-online-hint': '1' }, t('vc.remote.onlineHint')))
+  sections.push(vcPageSectionNode(h, t, { title: 'vc.remote.section.basis', note: 'vc.remote.section.basisNote', children: basisKids }))
+  return h('section', { className: 'vcs-remote', 'data-vc-remote-page': '1', 'data-vc-remote-state': model.state }, sections)
 }

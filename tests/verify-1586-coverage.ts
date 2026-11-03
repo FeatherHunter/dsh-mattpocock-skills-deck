@@ -53,6 +53,8 @@ const CLOSURE_FILES = [
   'src/client/views/versionControl/vcShellPrimitives.ts',
   'src/client/views/versionControl/vcPalette.ts',
   'src/client/views/versionControl/vcCapabilityList.ts',
+  // #1846 全库搜索页自己的版式（输入框在首屏、结果按页面分组）；壳渲染搜索页时调它，覆盖验收要拼进来。
+  'src/client/views/versionControl/vcSearchPage.ts',
   // #1829 身份行与同步带拆成独立叶子；壳只在渲染时调用它，覆盖验收拼进来才能渲染页面。
   'src/client/views/versionControl/vcShellIdentity.ts',
   'src/client/views/versionControl/vcChangesView.ts',
@@ -79,6 +81,7 @@ const EXPORTS = [
   'vcPageDepthOf', 'vcPageCapabilitiesOf', 'vcCapabilityOf', 'vcPageRegistryOf', 'vcPageSurfaceOf', 'vcDeepLinkOf',
   'vcCapabilityAliasOf', 'vcPaletteMatchOf', 'vcPaletteRowsOf', 'vcPaletteTargetOf', 'vcCapabilityNeedsObjectOf', 'vcCapabilitySummaryOf',
   'vcRenderTabAt', 'vcRenderAllPages', 'vcBranchOverlayNode', 'vcShellCapabilityRowNode', 'vcCapabilitySurfaceKindOf',
+  'vcSearchPageNode', 'vcSearchGroupsOf',
 ]
 const stripExports = function (text) { return text.replace(/^(\s*)export\s+/gm, '$1') }
 const buildView = function (patch) {
@@ -249,9 +252,10 @@ const lowVersionOf = function (minVersion) {
   const m = /^(\d+)\.(\d+)/.exec(String(minVersion || ''))
   return m ? 'git version ' + m[1] + '.' + String(Math.max(0, Number(m[2]) - 1)) + '.0' : ''
 }
+// #1846：版本说明只画在命令面板里（搜索页不画版本说明），所以这里按「别的页面上打开命令面板」来量。
 const paletteVersionHtmlOf = function (view, capId, version) {
   const reads = version === null ? null : { screen: { state: 'ok', data: { gitVersion: version } } }
-  return renderPage(view, { page: 'search', width: 460, skin: 'dark', seed: { query: capId }, reads: reads })
+  return renderPage(view, { page: 'maintenance', width: 460, skin: 'dark', open: { palette: true }, seed: { query: capId }, reads: reads })
 }
 // #1776 M1：真实页签的首屏读数在 reads.firstScreen 的七片里，version 片才是新的版本来源。
 // 这里按同一口径另造一份「只有首屏快照」的读数：命令面板的版本说明要能在这一份上同样成立。
@@ -262,10 +266,10 @@ const firstScreenReadsOf = function (version: any, state: any) {
   return { firstScreen: { state: 'ok', data: { contract: 'version-control.first-screen', version: 2, readAtMs: 1, slices: { version: slice } } } }
 }
 const paletteVersionHtmlFirstOf = function (view: any, capId: any, version: any) {
-  return renderPage(view, { page: 'search', width: 460, skin: 'dark', seed: { query: capId }, reads: firstScreenReadsOf(version, 'ok') })
+  return renderPage(view, { page: 'maintenance', width: 460, skin: 'dark', open: { palette: true }, seed: { query: capId }, reads: firstScreenReadsOf(version, 'ok') })
 }
 const paletteVersionHtmlFirstErrOf = function (view: any, capId: any) {
-  return renderPage(view, { page: 'search', width: 460, skin: 'dark', seed: { query: capId }, reads: firstScreenReadsOf(null, 'err') })
+  return renderPage(view, { page: 'maintenance', width: 460, skin: 'dark', open: { palette: true }, seed: { query: capId }, reads: firstScreenReadsOf(null, 'err') })
 }
 const versionSegmentOf = function (html, capId) {
   const at = html.indexOf('data-vc-palette-version="' + capId + '"')
@@ -329,8 +333,9 @@ async function main() {
   const otherPages = pages.filter(function (page) { return page !== 'commits' })
   const onlyCommits = otherPages.every(function (page) { return rowSegmentOf(renderPage(view, { page: page, width: 460, skin: 'dark' }), '13.14') === '' })
   check(onlyCommits && rowSegmentOf(renderPage(view, { page: 'commits', width: 460, skin: 'dark' }), '13.14') !== '', '四 13.14 的主入口只在提交历史页出现（其余 ' + otherPages.length + ' 页都没有它的主入口）')
+  // #1846：搜索页改成独立版式——首屏就是它自己的输入框，命令面板不再嵌进能力行，也不该在这一页出现。
   const searchHtml = renderPage(view, { page: 'search', width: 460, skin: 'dark' })
-  check(searchHtml.indexOf('data-surface="') >= 0 && searchHtml.indexOf('data-vc-palette-input') >= 0, '四 全库搜索页把命令面板画在主入口行里（输入框与打开的操作面都在）')
+  check(searchHtml.indexOf('data-vc-search-input') >= 0 && searchHtml.indexOf('data-vc-palette-input') < 0, '四 全库搜索页画自己的搜索输入框（命令面板不再嵌进这一页）')
 
   // ---- 五 占位清零：能力行画入口提示不画假话，分支悬浮层改成标签 + 指路说明 ----
   console.log('\n五 占位清零')

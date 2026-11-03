@@ -33,6 +33,16 @@ const vcSyncWidthOf = function (width: any): number {
   return 520
 }
 
+// #1841：十个动作按用途分四组（获取 / 拉取 / 推送 / 远端引用）。分组只改摆放与标题，不改动作本身：
+// 每条仍是同形状的 li + 按钮 + 展开面板，data-vc-sync-act 一个不少，300 宽也保留全部入口。
+// 组的顺序照定稿原型第 39 张：先取回远端信息，再拉、再推，最后清理远端引用。
+export const VC_SYNC_GROUPS: any[] = [
+  { id: 'fetch', titleKey: 'vc.remote.syncGroup.fetch', ids: ['8.5'] },
+  { id: 'pull', titleKey: 'vc.remote.syncGroup.pull', ids: ['8.6', '8.7', '8.8'] },
+  { id: 'push', titleKey: 'vc.remote.syncGroup.push', ids: ['8.9', '8.10', '8.12', '8.13', '8.14'] },
+  { id: 'refs', titleKey: 'vc.remote.syncGroup.refs', ids: ['8.11'] },
+]
+
 /** 宿主回包 → 画法模型；没预检过时模型为 null（只画动作入口，不画理由与确认卡）。 */
 export const vcSyncModelOf = function (reads: any, ui: any, width: any, nowMs: any) {
   const state = vcSyncStateOf(reads)
@@ -170,19 +180,35 @@ const vcSyncActionNode = function (h: any, t: any, model: any, row: any) {
     if (result) panelKids.push(result)
     kids.push(h('div', { key: 'panel', id: panelId, className: 'vcs-sync-panel', 'data-vc-sync-panel': id, role: 'group', 'aria-label': t(row.labelKey) }, panelKids))
   }
-  return h('li', { key: id, className: 'vcs-sync-row', 'data-vc-sync-row': id }, kids)
+  return h('li', { key: id, className: 'vcs-sync-row' + (open ? ' is-open' : ''), 'data-vc-sync-row': id }, kids)
 }
 
-/** 同步段正文：状态条 + 十个动作 + 任务区。宿主读数缺失时上层不会调用本函数。 */
+/** 一组同步动作：组标题 + 该组动作。组内动作与不分组时形状完全一样，组只负责标题与顺序。 */
+const vcSyncGroupNode = function (h: any, t: any, model: any, group: any) {
+  const rows = VC_SYNC_ACTION_ROWS.filter(function (row: any) { return group.ids.indexOf(String(row.id)) >= 0 })
+  if (rows.length === 0) return null
+  return h('div', { key: 'group-' + group.id, className: 'vcs-sync-group', 'data-vc-sync-group': group.id }, [
+    h('h4', { key: 'title', className: 'vcs-sync-group-title' }, t(group.titleKey)),
+    h('ul', { key: 'acts', className: 'vcs-sync-acts', role: 'list', 'aria-label': t(group.titleKey) }, rows.map(function (row: any) { return vcSyncActionNode(h, t, model, row) })),
+  ])
+}
+
+/**
+ * 同步段正文：状态块 + 按用途分组的十个动作 + 任务区。宿主读数缺失时上层不会调用本函数。
+ * 分组只改摆放：十个入口与展开面板的行为不变；确认卡与结果仍在各自动作的展开面板里（触发点旁）。
+ */
 export const vcSyncPageNode = function (h: any, t: any, o: any) {
   const opts: any = o || {}
   const model: any = vcSyncModelOf(opts.reads, opts.ui, opts.width, opts.nowMs)
-  const kids: any[] = [h('p', { key: 'note', className: 'vcs-sync-note', 'data-vc-sync-note': '1' }, t('vc.sync.note'))]
+  const kids: any[] = []
   const stateNode = vcShellStateNode(h, t, { state: model.state, reasonKey: model.state === 'error' ? 'vc.sync.loadFail' : undefined })
   if (stateNode) kids.push(stateNode)
   if (model.error && model.error.message) kids.push(h('p', { key: 'err', className: 'vcs-sync-error', role: 'alert', 'data-vc-sync-error': String(model.error.kind || 'host') }, String(model.error.message)))
-  kids.push(h('ul', { key: 'actions', className: 'vcs-sync-acts', role: 'list', 'aria-label': t('vc.sync.actionsLabel') }, VC_SYNC_ACTION_ROWS.map(function (row: any) { return vcSyncActionNode(h, t, model, row) })))
+  for (const group of VC_SYNC_GROUPS) {
+    const node = vcSyncGroupNode(h, t, model, group)
+    if (node) kids.push(node)
+  }
   const task = vcSyncTaskNode(h, t, model.task)
   if (task) kids.push(task)
-  return h('section', { className: 'vcs-sync', 'data-vc-sync-page': '1', 'data-vc-sync-state': model.state, 'data-vc-sync-decision': model.decision }, kids)
+  return h('div', { className: 'vcs-sync', 'data-vc-sync-page': '1', 'data-vc-sync-state': model.state, 'data-vc-sync-decision': model.decision }, kids)
 }

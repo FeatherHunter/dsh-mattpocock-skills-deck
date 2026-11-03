@@ -27,9 +27,6 @@ declare function setupRunPrompt(...args: any[]): any;
 declare const SETUP_LAYOUT_DEFAULT: any;
 declare function inject(...args: any[]): any;
 declare const isEnabled: any;
-// #1806 第 2 步：初始化流程走完时要把这个目录补记成工作区，走宿主电话。host 在客户端闭包里是全局已有的一份，
-// 与 kernel/api-handoff.ts 的写法一致；这里只声明、不 import。
-declare const host: any;
 export const layoutCardShouldOpen = function (st: any, opts: any): any {
   // 传了 askLayout（黄条那颗按钮 / 切换后端那条路）→ 问，布局答过也照旧问（卡上预选着上次那一项）；
   //   没传（检查页那颗「执行初始化」按钮）→ 只在还没答过时问。
@@ -74,28 +71,12 @@ export const injectSetupDecision = function (st: any, backendId: any, opts: any)
   try { st.pendingSetupAfterPublish = false; st.pendingSetupCwd = '' } catch (e) {}
   try { console.log('[MattSkillsDeck] setup-inject applied kind=' + kind) } catch (e) {}
   try { if (isEnabled('debug')) log('debug', 'inject.decision', { prompt: 'setupRun', kind: kind, layout: String(usedLayout) }) } catch (eL) {}
-  // #1806 第 2 步：这一次的初始化文案真的交出去了，才把这个目录补记成「插件工作区记录」——
-  //   记录制判定认的是记录，人写的 docs/agents/issue-tracker.md 不再回答身份。
-  //   顺序是先注入、注入成功后才补记录：注入抛错时一个字都没给出去，这时候写记录等于替用户
-  //   宣布「这个目录是工作区」，而用户什么都没拿到。两条入口（黄条/切换那条带开卡、检查页那颗
-  //   「执行初始化」按钮）都经过这里，所以钩子只放这一处。
-  //   检查页那条传 injectNow:false（注入由调用方紧接着做）：这里只能保证「文案已经交给调用方」，
-  //   调用方那一层是同步注入、失败自己兜底；插件看不到用户有没有真的发送、也看不到 AI 有没有把
-  //   初始化真正做完——插件本身从不执行初始化，没有完成回调，这是能做到的最晚时点。
-  //   开卡早退那条没有走到这里，也就不会提前写记录（卡还没答，布局都还没定）。
-  //   不挡注入、失败不上报：记录写不上，下次初始化会再补一次；一条标记都没有的目录，判定层仍按「它自己就是根」兜底。
-  let delivered = true
+  // 这一次的初始化文案该给就给出去。检查页那条传 injectNow:false（注入由调用方紧接着做），这里不重复注入。
+  // （#1806 曾在这里注入成功后 fire-and-forget 补写一份工作区身份记录；2026-11-03 那份记录已删除，
+  //   现在只认 docs/agents/workspace.yaml，初始化不再写任何新文件，见 ADR 20261103。）
   if (dec && dec.text && !(opts && opts.injectNow === false)) {
-    delivered = false
-    try { inject(st, dec.text); delivered = true } catch (e) {}
+    try { inject(st, dec.text) } catch (e) {}
   }
-  try {
-    if (delivered && dec && dec.text && typeof host !== 'undefined' && host && typeof host.call === 'function' && st && st.cwd) {
-      const recArgs: any = { cwd: String(st.cwd) }
-      if (st.sessionId) recArgs.sessionId = String(st.sessionId)
-      host.call('wf.ensureWorkspaceRecord', recArgs).catch(function () {})
-    }
-  } catch (eRec) {}
   return kind
 }
 /**
