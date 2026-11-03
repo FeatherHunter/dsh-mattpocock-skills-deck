@@ -6,6 +6,7 @@
 // （vcRealDelegate.ts）都只调这一层，门禁也能单独调它们量结果。
 
 declare const VC_TAB_PAGES: any[]
+declare const VC_MANAGE_INDEX_PAGE: string
 declare function vcPageDepthOf(page: any): number
 declare function vcDeepLinkOf(key: any): any
 declare function vcPaletteTargetOf(capId: any): any
@@ -38,10 +39,35 @@ export const vcRealInitialUi = function (): any {
   return { fileShown: {}, openDiff: '', openCommit: '', openFile: '', liveTick: 0, historyQuery: '', historyMergeOnly: false, historyMenu: '' }
 }
 
-// 新壳的导航状态：当前页、来源页（二级页的返回目标）、打开的浮层、搜索词与落点高亮，
-//   pages 是「离开某一页时的筛选与高亮」记忆，返回时从这里还原。层级最多两层：来源页只会是页签或入口页。
+// 新壳的导航状态：当前页、来源链（二级页的返回目标）、打开的浮层、搜索词与落点高亮，
+//   pages 是「离开某一页时的筛选与高亮」记忆，返回时从这里还原。
+//   来源页不再是单层：#1840 起管理索引自己也有来源页（页签），从索引进分区页时返回链是
+//   「分区页 → 索引 → 页签」三段，一次返回退一层，符合原型 page-back 的弹栈语义。
 export const vcRealInitialNav = function (): any {
   return { page: 'changes', depth: 1, back: null, open: { branch: false, palette: false, gear: false, surface: '' }, query: '', highlight: '', pages: {} }
+}
+
+// 返回链的一帧：{ page, query, highlight, back }。链只记「离开时按了什么」，不判断业务；
+//   给每一帧补上自己的 back，才能从分区页退到索引、再退到进来之前的页签。
+const vcRealBackFrameOf = function (frame: any): any {
+  if (!frame || !frame.page) return null
+  return {
+    page: String(frame.page),
+    query: String(frame.query === undefined || frame.query === null ? '' : frame.query),
+    highlight: String(frame.highlight || ''),
+    back: vcRealBackFrameOf(frame.back),
+  }
+}
+
+// 打开管理索引时的来源页：索引是「临时收起九个分区」的一屏，从哪个分区点齿轮进来都回到那一层页签，
+//   不把刚才的分区页塞进返回链（否则第一次返回到一张已经离开的分区页）。找不到页签时返回 null，由调用方兜底。
+const vcRealIndexOriginOf = function (cur: any): any {
+  let frame: any = cur
+  while (frame) {
+    if ((VC_TAB_PAGES || []).indexOf(String(frame.page || '')) >= 0) return vcRealBackFrameOf(frame)
+    frame = frame.back || null
+  }
+  return null
 }
 
 export const vcRealNavOf = function (nav: any): any {
@@ -50,7 +76,7 @@ export const vcRealNavOf = function (nav: any): any {
   return {
     page: page,
     depth: vcPageDepthOf(page),
-    back: n.back && n.back.page ? n.back : null,
+    back: vcRealBackFrameOf(n.back),
     open: Object.assign({ branch: false, palette: false, gear: false, surface: '' }, n.open || {}),
     query: String(n.query === undefined || n.query === null ? '' : n.query),
     highlight: String(n.highlight || ''),
@@ -68,8 +94,9 @@ export const vcRealCwdEmptyOf = function (cwd: any): boolean {
   return String(cwd === undefined || cwd === null ? '' : cwd).trim() === ''
 }
 
-// 跳页：走之前把当前页的搜索词记进 pages，进目标页时还原它上次的搜索词；来源页记在 back 上。
-//   页签之间切换不保留来源（页签是同一层），由调用方把 back 清掉。
+// 跳页：走之前把当前页的搜索词记进 pages，进目标页时还原它上次的搜索词；来源页记在 back 链上。
+//   管理索引是唯一会换来源记法的页：进它时来源取第一个页签帧（跳过刚离开的分区页），
+//   进别的页时把当前页连同它自己的来源页一起接上。页签之间切换不保留来源，由调用方把 back 清掉。
 export const vcRealNavTo = function (nav: any, page: any): any {
   const cur: any = vcRealNavOf(nav)
   const next: string = String(page || 'changes')
@@ -77,10 +104,13 @@ export const vcRealNavTo = function (nav: any, page: any): any {
   const pages: any = Object.assign({}, cur.pages)
   pages[cur.page] = { query: cur.query, highlight: cur.highlight }
   const saved: any = pages[next] || {}
+  const back: any = next === VC_MANAGE_INDEX_PAGE
+    ? (vcRealIndexOriginOf(cur) || { page: cur.page, query: cur.query, highlight: cur.highlight, back: null })
+    : { page: cur.page, query: cur.query, highlight: cur.highlight, back: cur.back }
   return {
     page: next,
     depth: vcPageDepthOf(next),
-    back: { page: cur.page, query: cur.query, highlight: cur.highlight },
+    back: back,
     open: { branch: false, palette: false, gear: false, surface: '' },
     query: String(saved.query === undefined || saved.query === null ? '' : saved.query),
     highlight: String(saved.highlight || ''),
@@ -88,12 +118,14 @@ export const vcRealNavTo = function (nav: any, page: any): any {
   }
 }
 
-// 返回来源页：来源页是这一层的「上一页」，回去之后 back 清空；来源页自己的搜索词照样从 pages 还原。
+// 返回来源页：退一层，退到的那一页恢复它自己的来源，搜索词照样从 pages 还原。
+//   这样「页签 → 索引 → 分区」两次返回依次回到索引与页签，而不是一步跳到顶。
 export const vcRealNavBack = function (nav: any): any {
   const cur: any = vcRealNavOf(nav)
-  if (!cur.back) return cur
-  const target: any = vcRealNavTo(cur, cur.back.page)
-  target.back = null
+  const frame: any = cur.back
+  if (!frame) return cur
+  const target: any = vcRealNavTo(cur, frame.page)
+  target.back = frame.back || null
   return target
 }
 

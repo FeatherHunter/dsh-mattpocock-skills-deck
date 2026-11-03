@@ -1,46 +1,68 @@
-// views/versionControl/vcPageHead.ts —— 页头与页面骨架原语（#1829 阶段 4）
+// views/versionControl/vcPageHead.ts —— 页头与页面骨架原语（#1829 阶段 4；#1840 按定稿原型对齐）
 // 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回同一个闭包，跨叶用 declare。
 //
-// 页头（vcPageHeadNode）照定稿原型 docs/prototype/vc-redesign/src/ui/views/page-shell.ts 的顺序画三段：
-// 标题行（可选返回键、页面标题、能力计数）、种类与层级、导语。原来的页面壳只画一行标题、种类与层级，
-// #1829 起换成这一段，页面壳调用它之后不再自己拼页头。
-// 四个原语（section / fold / factGrid / objRow）本轮还没有调用方，先把结构钉下来供后续页面接手。
+// 页头照定稿原型 docs/prototype/vc-redesign/src/ui/views/page-shell.ts 的 pageShell 画两段：
+// 标题行（返回键 + 页面标题 + 能力计数）与导语。原型页头没有「种类 / 第 N 层」这一行——那是 #1829
+// 阶段 4 早先自造的信息；#1840 起删掉，页头只保留读者真正需要的两段，管理索引这类不在能力账本里
+// 的屏幕因此也不需要再传 hideSub 把空行藏起来。
 // 文字形参一律收词条键：叶子内部统一过 t，调用方不自己拼文案，也不把中文写进组件。
-// 能力计数只在账本给出正数时出现；任务页是流程页，不在 16 页能力账本里，页头因此不画计数。
+// 能力计数只在账本给出正数时出现；任务页与索引屏不在 16 页能力账本里，页头因此不画计数。
+//
+// 图标：原型用内联 SVG（back / chevron），插件这边不再拿字符拼箭头——字符在不同字体下大小与基线
+// 都不一样，且读屏会把它念出来。vcPageIconOf 只给页头与骨架原语用，路径直接照抄原型 dom.ts。
 
 declare const PAGE_COUNTS: Record<string, number>
-declare const PAGE_SURFACES: any[]
-declare function vcPageDepthOf(pageId: any): number
 
-// 子节点允许数组、单个节点或空；这里统一成数组，四个原语就不必各写一份判空。
+// 子节点允许数组、单个节点或空；这里统一成数组，原语就不必各写一份判空。
 // 注意空数组也要原样交回 h：React 对空数组与不传子节点的结果一致，不会多出空壳。
 const vcPageKidsOf = function (children: any): any[] {
   if (children === undefined || children === null || children === false) return []
   return Array.isArray(children) ? children : [children]
 }
 
+// 原型里的两条图标路径（24×24 viewBox，描边 1.8、圆头圆角）。
+const VC_PAGE_ICON_PATHS: Record<string, string> = {
+  back: 'M20 12H5M11 6l-6 6 6 6',
+  chevron: 'M6 9l6 6 6-6',
+}
+
+// 画一枚内联 SVG 图标。kind 不认识时画一条空路径，调用方不会拿到 undefined 节点。
+// svg 属性按 React 的驼峰写法给：viewBox / strokeWidth 这些在 React DOM 里有白名单，
+// 写成连字符形式会在开发构建里报未知属性警告。
+export const vcPageIconOf = function (h: any, kind: string, size: number) {
+  const px = Number(size || 14)
+  return h('svg', {
+    viewBox: '0 0 24 24', width: px, height: px, fill: 'none', stroke: 'currentColor',
+    strokeWidth: '1.8', strokeLinecap: 'round', strokeLinejoin: 'round',
+    'aria-hidden': 'true', focusable: 'false',
+  }, [h('path', { key: 'path', d: VC_PAGE_ICON_PATHS[kind] || '' })])
+}
+
 // 页头：div.vcs-page-meta.vcs-page-head 带着 data-vc-page-head=页面 id，容器的事件委托据此认页。
-// 第一段是标题行：返回键只在 opts.back === true 时出现（它是导航，不是写动作），标题用 vc.shell.page.<页面>，
-// 计数用 vc.shell.page.caps 且只在账本正数时画；第二段是种类与层级；第三段是导语（vc.shell.page.note.<页面>）。
+// 第一段是标题行：返回键只在 opts.back === true 时出现（它是导航，不是写动作），标题用
+// vc.shell.page.<页面>，计数用 vc.shell.page.caps 且只在账本正数时画；第二段是导语。
+// #1840 两处补充：① 顶栏返回键退役后，页头返回键是唯一一颗，data-log 由调用方按来源页给
+//   （opts.backLog），缺省不挂——独立渲染页头的门禁不需要日志词条；② 返回键按原型画成
+//   图标 +「返回」，标题属性与 aria-label 都把「回上一页」说全。
 export const vcPageHeadNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const page = String(opts.page || 'changes')
   const titleRow: any[] = []
   if (opts.back === true) {
-    titleRow.push(h('button', { key: 'back', className: 'vcs-page-back', type: 'button', 'data-vc-back': '1' }, t('vc.shell.page.back')))
+    titleRow.push(h('button', {
+      key: 'back', className: 'vcs-page-back', type: 'button',
+      title: t('vc.shell.page.backTitle'), 'aria-label': t('vc.shell.page.backTitle'),
+      'data-vc-back': '1', 'data-press': 'button',
+      // 缺省 undefined 时 h 不会写这个属性；真机上 vcRealTab 按返回目标给 vc.changes.back 或 vc.commit.back。
+      'data-log': opts.backLog,
+    }, vcPageIconOf(h, 'back', 14), h('span', { key: 'label', className: 'vcs-page-back-label' }, t('vc.shell.page.back'))))
   }
   titleRow.push(h('h2', { key: 'title', className: 'vcs-page-title' }, t('vc.shell.page.' + page)))
   const count = Number(PAGE_COUNTS[page] || 0)
   // 任务页与未知页没有账本条目（undefined 经 Number 得 NaN），一律按 0 处理，不画空计数。
   if (count > 0) titleRow.push(h('span', { key: 'count', className: 'vcs-page-count' }, t('vc.shell.page.caps', { n: count })))
-  const surface = PAGE_SURFACES.filter(function (p: any) { return p && p.id === page })[0]
-  const sub = [
-    h('span', { key: 'kind', className: 'vcs-page-kind' }, surface ? String(surface.kind) : ''),
-    h('span', { key: 'depth', className: 'vcs-page-depth' }, t('vc.shell.depth', { n: vcPageDepthOf(page) })),
-  ]
   return h('div', { className: 'vcs-page-meta vcs-page-head', 'data-vc-page-head': page }, [
     h('div', { key: 'title-row', className: 'vcs-page-title-row' }, titleRow),
-    h('p', { key: 'sub', className: 'vcs-page-sub' }, sub),
     h('p', { key: 'lede', className: 'vcs-page-lede' }, t('vc.shell.page.note.' + page)),
   ])
 }
@@ -64,7 +86,8 @@ export const vcPageSectionNode = function (h: any, t: any, o: any) {
 }
 
 // 折叠段：details.fold 带 data-vc-page-fold=<key>，opts.open === true 时才写 open 属性（默认收起）。
-// 标题行给标题与条数；说明写在 summary 之后、正文之前，收起时也看得见这一段的用途。
+// 标题行按原型先画一枚 chevron 图标（收起时朝右、展开时朝下，方向由样式表按 [open] 转），
+// 再是标题与条数；说明写在 summary 之后、正文之前，收起时也看得见这一段的用途。
 // opts.attrs 是给调用方的透传口：页面要在折叠段上挂自己的 data-*（例如配置页的组 id、可写/只读与能力编号）时
 // 从这里传，attr 会合到 details 上；注意不要再传 className 与 data-vc-page-fold，那两项由原语自己给。
 export const vcPageFoldNode = function (h: any, t: any, o: any) {
@@ -72,7 +95,10 @@ export const vcPageFoldNode = function (h: any, t: any, o: any) {
   const attrs: any = { className: 'fold', 'data-vc-page-fold': String(opts.key || '') }
   if (opts.attrs) Object.assign(attrs, opts.attrs)
   if (opts.open === true) attrs.open = 'open'
-  const head: any[] = [h('span', { key: 'title', className: 'fold-title' }, t(String(opts.title || '')))]
+  const head: any[] = [
+    h('span', { key: 'chevron', className: 'fold-chevron' }, vcPageIconOf(h, 'chevron', 12)),
+    h('span', { key: 'title', className: 'fold-title' }, t(String(opts.title || ''))),
+  ]
   const count = Number(opts.count || 0)
   if (count > 0) head.push(h('span', { key: 'count', className: 'fold-count' }, String(count)))
   // 原生的 details/summary 也是可点控件：按全仓纪律挂 data-press（按压形状）与 data-log（点开/收起能定位到是哪一段折叠），

@@ -20,7 +20,7 @@ declare function vcCapabilityOf(capId: any): any
 // 「本页负责的能力」列表（#1762 T26 从本文件拆到 vcCapabilityList.ts 以守住单文件行数上限）。
 declare function vcCapabilityListOf(h: any, t: any, o: any): any
 declare const VC_TAB_PAGES: string[]; declare const VC_MANAGE_PAGES: string[]; declare const VC_SIDE_PAGES: string[]
-declare const VC_SEARCH_PAGE: string
+declare const VC_SEARCH_PAGE: string; declare const VC_MANAGE_INDEX_PAGE: string
 declare const VC_MANAGE_SECTION_KEYS: Record<string, string>
 declare function vcPaletteNode(h: any, t: any, o: any): any
 declare function vcShellStateNode(h: any, t: any, o: any): any
@@ -46,6 +46,7 @@ declare function vcChangesPageNode(h: any, t: any, o: any): any
 //   三者都由构建按叶子登记次序拼进同一个闭包，这里只声明形状。
 declare function vcPageHeadNode(h: any, t: any, o: any): any
 declare function vcManageIndexNode(h: any, t: any, o: any): any
+declare function vcManageIndexPageNode(h: any, t: any, o: any): any
 declare function vcBranchPopoverNode(h: any, t: any, o: any): any
 // #1846：全库搜索页的正文版式（vcSearchPage.ts）——输入框在首屏、结果按能力所属页面分组；命令面板不再嵌进这一页。
 declare function vcSearchPageNode(h: any, t: any, o: any): any
@@ -69,10 +70,23 @@ export const VC_TAB_LABEL_KEYS: Record<string, string> = {
 // 页签计数的量词（#1776 M4d）：计数来自首屏真实读数，不拿能力账本条数；四种读数各有自己的单位。
 export const VC_TAB_UNIT_KEYS: Record<string, string> = { changes: 'vc.shell.tab.unit.changes', commits: 'vc.shell.tab.unit.commits', worktrees: 'vc.shell.tab.unit.worktrees', stash: 'vc.shell.tab.unit.stash' }
 
+// #1840：data-vc-width 说的是四档版式里的哪一档，不是像素读数。
+//   宽度原值来自 vcRealTab 里 ResizeObserver 量到的根节点 contentRect；根节点自己带纵向滚动条，
+//   滚动条一出现可视宽就少一条滚动条（本机实测 4.43px）。把像素直接写进属性会出两个真故障：
+//   一是同一档宽在不同页报出两档（300 宽的页量到 304），CSS 里按档位写的规则就漏；
+//   二是 460 / 520 档的卡片列数随滚动条来回切，列数一变页面高度跟着变、滚动条再开合，
+//   形成自激回流，真机上门禁按钮一直「不稳定」。所以这里把量到的宽度归到最近的一档：
+//   档位只认档位，像素只是输入；四档之外的大面板取 520（最宽的档），两档正好等距时取较低的一档
+//   （只为结果确定，不表达偏好）。
 const vcWidthOf = function (w: any) {
   const n = Number(w)
   if (!isFinite(n) || n <= 0) return 460
-  return Math.max(260, Math.min(640, Math.round(n)))
+  const clamped = Math.max(260, Math.min(640, n))
+  let best = VC_SHELL_WIDTHS[0]
+  for (let i = 1; i < VC_SHELL_WIDTHS.length; i += 1) {
+    if (Math.abs(VC_SHELL_WIDTHS[i] - clamped) < Math.abs(best - clamped)) best = VC_SHELL_WIDTHS[i]
+  }
+  return best
 }
 const vcSkinOf = function (s: any) { return VC_SHELL_SKINS.indexOf(String(s)) >= 0 ? String(s) : 'dark' }
 const vcPagePrefixOf = function (page: any) { return 'vc-' + String(page || 'mount') }
@@ -178,9 +192,21 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   const opts = o || {}
   const page = String(opts.page || 'changes')
   const children: any[] = []
-  // #1829 阶段 4-A：页头整体交给 vcPageHead（标题行、种类与层级、导语三段），壳只保留页面顺序。
-  children.push(Object.assign({}, vcPageHeadNode(h, t, { page: page, back: opts.back === true }), { key: 'meta' }))
+  // #1829 阶段 4-A：页头整体交给 vcPageHead（标题行与导语两段），壳只保留页面顺序。
+  // #1840：① 返回键的 data-log 由容器按返回目标传进来（backLog）；② 页头与正文拆成两块——
+  //   页头固定占页面顶部，正文进 .vcs-page-scroll 拿原型的 10px/12px/18px 内边距（原型 .page-head / .page-scroll）。
+  const head = Object.assign({}, vcPageHeadNode(h, t, {
+    page: page, back: opts.back === true, backLog: opts.backLog,
+  }), { key: 'meta' })
   children.push.apply(children, vcPageNotesOf(h, t, page))
+  // #1840 管理索引屏：页头之后整屏都是索引（说明句、九张卡、两条跨区入口、覆盖口径），
+  //   不画分区正文、骨架与能力清单——索引本身不写仓库，也不在账本的 16 页里。
+  if (page === VC_MANAGE_INDEX_PAGE) {
+    children.push(Object.assign({}, vcManageIndexPageNode(h, t, { id: opts.gearIndexId, active: '' }), { key: 'manage-index' }))
+    return h('section', { id: 'vc-page-' + page, className: 'vcs-page-body', role: 'tabpanel', 'data-vc-page-body': page }, [
+      head, h('div', { key: 'scroll', className: 'vcs-page-scroll' }, children),
+    ])
+  }
   // #1846：全库搜索页改成独立版式 —— 输入框在首屏，结果按能力所属页面分组，不再把命令面板嵌进能力清单。
   //   这一块不依赖读数，所以紧跟在页头与页面说明之后、其它页正文之前，第一屏就能看见输入框。
   if (page === VC_SEARCH_PAGE && typeof vcSearchPageNode === 'function') {
@@ -288,7 +314,7 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
     className: 'vcs-page-body',
     role: 'tabpanel',
     'data-vc-page-body': page,
-  }, children)
+  }, [head, h('div', { key: 'scroll', className: 'vcs-page-scroll' }, children)])
 }
 
 export const vcShellPageNode = function (h: any, t: any, o: any) {
@@ -301,13 +327,19 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   const open = opts.open || {}
   const isManage = VC_MANAGE_PAGES.indexOf(page) >= 0
   const isSearch = page === VC_SEARCH_PAGE
+  // #1840：管理索引是导航上独立的一屏（不是浮层），它的正文就是索引本体。
+  const indexPage = page === VC_MANAGE_INDEX_PAGE
   // #1829 阶段 4：二级页（nav 带返回来源页的页）按定稿原型 37/39 换一套次级版式：
   //   身份行只留第一行、同步带与四个固定页签让位、齿轮里的管理索引不再默认铺开（要用时点「管理」再开）。
   //   默认 false 保证全页自检、能力账本与既有门禁的渲染结果一个字节都不变。
   const secondary = opts.pageOpen === true
   const branchOpen = !!open.branch
   const paletteOpen = !!open.palette || isSearch
-  const gearOpen = !!open.gear || (isManage && !secondary)
+  // 齿轮索引：真实入口（齿轮按钮与身份行「管理」）改成打开索引屏，不再点亮浮层；
+  //   受控渲染仍接受 open.gear 与「分区页未开次级版式」两种旧形状（全页自检与 Z 组靠它们画九卡）。
+  //   gearOpen 同时喂身份行的 aria-expanded / aria-controls：索引屏的 nav 在正文里，id 仍是 gearId。
+  const gearOverlay = !indexPage && (!!open.gear || (isManage && !secondary))
+  const gearOpen = gearOverlay || indexPage
   const branchOverlayId = prefix + '-branch-overlay'
   // #1846：搜索页上放大镜的 aria-controls 指向搜索页自己的输入框区块（前缀 + -search）；
   //   别的页面上它仍指向命令面板遮罩里的面板（前缀 + -palette）。两边各指各的那个真节点，不共用名字。
@@ -327,14 +359,18 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     secondary: secondary,
   }), 'identity'))
   if (branchOpen) children.push(keyed(vcBranchOverlayNode(h, t, { id: branchOverlayId, branch: seed.branch }), 'branch'))
-  if (gearOpen) children.push(keyed(vcGearIndexNode(h, t, { id: gearId, pagePrefix: opts.pagePrefix || '', active: isManage ? page : '' }), 'gear'))
+  // 受控渲染里只剩「旧形状」这一路会画齿轮索引面板（#1840 起真实入口改成打开独立索引屏）：
+  //   身份行下面那块浮层仍按 open.gear 或「管理分区页未开次级版式」渲染，供全页自检与 Z 组断言使用。
+  if (gearOverlay) children.push(keyed(vcGearIndexNode(h, t, { id: gearId, pagePrefix: opts.pagePrefix || '', active: isManage ? page : '' }), 'gear'))
   // 命令面板：只在别的页面上按种子画成贴触发点的遮罩浮层（#1846：全库搜索页自己画输入框与结果，
   //   不再把面板嵌进能力行；这一页的输入框在页头下面，页面上只有那一个）。
-  if (!!open.palette && !isSearch) children.push(keyed(vcPaletteNode(h, t, { id: paletteId, query: seed.query, highlight: seed.highlight, limit: seed.paletteLimit, reads: opts.reads }), 'palette'))
+  if (paletteOpen && !isSearch) children.push(keyed(vcPaletteNode(h, t, { id: paletteId, query: seed.query, highlight: seed.highlight, limit: seed.paletteLimit, reads: opts.reads }), 'palette'))
   // 二级页不出四个固定页签（原型 37/39）：那四个是一级视图，二级页的返回与去向由页头与顶部条给。
   if (!secondary) children.push(keyed(vcPageTabsNode(h, t, { pagePrefix: opts.pagePrefix || '', active: VC_TAB_PAGES.indexOf(page) >= 0 ? page : '', counts: opts.counts }), 'tabs'))
   children.push(keyed(vcPageBodyNode(h, t, {
-    page: page, pagePrefix: opts.pagePrefix || '', back: opts.back === true || secondary,
+    page: page, pagePrefix: opts.pagePrefix || '', back: opts.back === true || secondary, gearIndexId: gearId,
+    // #1840：页头返回键的点击日志（vc.changes.back / vc.commit.back）由调用方按来源页给，壳只往下传。
+    backLog: opts.backLog,
     openSurface: openSurface,
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,

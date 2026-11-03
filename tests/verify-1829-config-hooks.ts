@@ -146,6 +146,9 @@ async function main() {
 
   const headLeaf: any = await import(pathToFileURL(path.join(ROOT, 'src/client/views/versionControl/vcPageHead.ts')).href)
   const shellLeaf: any = await import(pathToFileURL(path.join(ROOT, 'src/client/views/versionControl/vcShellPrimitives.ts')).href)
+  // 样式叶子里读 MOTION（闭包里由 build 先拼 kernel:motion 片）；单文件 import 这个模块时没有闭包，
+  // 得把同一份真源补到 globalThis 上，否则 declare 只是类型声明、运行时没有值。
+  globalThis.MOTION = (await import(pathToFileURL(path.join(ROOT, 'src/client/kernel/motion.js')).href)).MOTION
   const styleMod: any = await import(pathToFileURL(path.join(ROOT, 'src/client/views/versionControl/vcPageStyles.ts')).href)
   const h = makeReact().createElement
 

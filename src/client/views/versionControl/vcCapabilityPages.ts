@@ -21,6 +21,11 @@ export const VC_MANAGE_PAGES: string[] = [
 ]
 export const VC_SIDE_PAGES: string[] = ['rebase', 'conflicts']
 export const VC_SEARCH_PAGE = 'search'
+// 管理索引自己也是一屏（#1840）：它不是账本里的第 17 页，只是导航上的一站，所以不登记进
+//   VC_PAGE_DEPTHS / PAGE_SURFACES，也不带能力条数——162 条能力仍归九个分区。层级按未知页兜底 2 层。
+export const VC_MANAGE_INDEX_PAGE = 'manage'
+// 九卡里要标危险区的分区（与定稿原型 PAGE_META.danger 同源）：维护页整仓不可逆动作最集中。
+export const VC_MANAGE_DANGER_PAGES: string[] = ['maintenance']
 
 // 齿轮九分区索引的文案键（顺序即规格第 9 节的顺序）。页面标题、能力清单都不在这里，仍从账本读。
 export const VC_MANAGE_SECTION_KEYS: Record<string, string> = {

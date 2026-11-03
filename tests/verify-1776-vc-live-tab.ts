@@ -286,20 +286,26 @@ async function scenarioMain() {
   await m.key('[data-vc-tab="stash"]', 'Home')
   check(m.page() === 'changes', 'T7e Home 键跳到第一个页签（改动）')
 
-  // ---- 齿轮九个管理分区：逐项进入、逐项返回 ----
+  // ---- 管理索引独立一屏 + 九个分区：逐项进入、逐层返回 ----
+  // #1840 起齿轮与身份行「管理」都进导航上的一屏（page=manage），不再是叠在页面上的浮层；
+  //   从分区页返回先退到索引、再退到进来之前的页签，退两层才回改动页。
   await m.click('[data-vc-tab="changes"]')
   await m.click('[data-vc-gear-btn]')
   const gearItems = m.qa('[data-vc-gear-item]').map(function (el) { return el.getAttribute('data-vc-gear-item') })
   check(!!m.q('[data-vc-gear-index]') && gearItems.length === view.VC_MANAGE_PAGES.length && view.VC_MANAGE_PAGES.length === 9, 'T8 点齿轮打开九分区索引（' + gearItems.length + ' 项）')
-  check(view.VC_MANAGE_PAGES.every(function (id) { return gearItems.indexOf(id) >= 0 }), 'T8b 九分区 id 与 VC_MANAGE_PAGES 一致')
+  check(m.page() === 'manage' && m.depth() === '2' && !!m.q('[data-vc-page-body="manage"]'), 'T8b 管理索引是独立一屏（page=manage、二级页、正文挂在 data-vc-page-body=manage 里）')
+  check(!!m.q('[data-vc-gear-index] [data-vc-gear-item]') && m.q('[data-vc-gear-index]').getAttribute('aria-label') !== null, 'T8c 索引屏里的九张卡仍是可点的真按钮（带 aria-label 的导航地标）')
+  check(view.VC_MANAGE_PAGES.every(function (id) { return gearItems.indexOf(id) >= 0 }), 'T8d 九分区 id 与 VC_MANAGE_PAGES 一致')
   for (const pageId of view.VC_MANAGE_PAGES) {
-    // 齿轮只在没展开时点开：二级页上齿轮是常显的，再点按钮会把展开状态收回去。
+    // 每一轮都从改动页重新进索引；索引不在时点齿轮把它打开。
     if (!m.q('[data-vc-gear-index]')) await m.click('[data-vc-gear-btn]')
     await m.click('[data-vc-gear-item="' + pageId + '"]')
     const entered = m.page() === pageId && m.depth() === '2' && !!m.q('[data-vc-page-body="' + pageId + '"]')
     const backBtn = !!m.q('[data-vc-back]')
+    const firstBack = await m.click('[data-vc-back]')
+    const backToIndex = m.page() === 'manage' && !!m.q('[data-vc-page-body="manage"]') && !!m.q('[data-vc-gear-item="' + pageId + '"]')
     await m.click('[data-vc-back]')
-    check(entered && backBtn && m.page() === 'changes', 'T9 齿轮进入管理分区 ' + pageId + '（二级页、有返回入口）再返回改动页')
+    check(entered && backBtn && firstBack && backToIndex && m.page() === 'changes', 'T9 齿轮进入管理分区 ' + pageId + '（二级页、有返回入口）后，返回先回索引、再回改动页')
   }
 
   // ---- 命令面板：162 条、搜索、落点高亮 ----
@@ -531,8 +537,10 @@ async function scenarioManage() {
     const readOk = one.phone ? (one.dedupe === true ? after === before : after === before + 1) : true
     const readNote = one.phone ? (one.dedupe === true ? '共用读数不重复发 ' + one.phone : '进入读数电话 ' + one.phone + ' 真发一次') : '这一页不需要进入读数'
     check(entered && noSkeleton && readOk, 'T23 进入管理分区 ' + one.page + '：正文已接上（' + one.root + '）、不画骨架、' + readNote)
+    const firstBack = await m.click('[data-vc-back]')
+    const backToIndex = m.page() === 'manage' && !!m.q('[data-vc-gear-index]')
     await m.click('[data-vc-back]')
-    check(m.page() === 'changes', 'T23b 从 ' + one.page + ' 返回来源页（改动页）')
+    check(firstBack && backToIndex && m.page() === 'changes', 'T23b 从 ' + one.page + ' 先回索引、再回来源页（改动页）')
   }
   // 两个侧页走顶部入口：变基要读状态与窗口两条电话，冲突读冲突清单一条。
   const rebaseBefore = countKin(host, 'wf.gitRebaseRead')
@@ -809,7 +817,9 @@ async function scenarioM4d() {
   await esc.m.click('[data-vc-gear-item="' + esc.view.VC_MANAGE_PAGES[0] + '"]')
   const subPage = esc.view.VC_MANAGE_PAGES[0]
   await esc.m.key('[data-vc-live]', 'Escape')
-  check(esc.m.page() === 'changes' && esc.m.depth() === '1', 'T34b 二级管理页按 Esc 回来源页（' + subPage + ' → changes）')
+  const escToIndex = esc.m.page() === 'manage' && !!esc.m.q('[data-vc-gear-index]')
+  await esc.m.key('[data-vc-live]', 'Escape')
+  check(escToIndex && esc.m.page() === 'changes' && esc.m.depth() === '1', 'T34b 二级管理页按 Esc 先回索引、再回来源页（' + subPage + ' → manage → changes）')
   check(scrollY === 240, 'T34c 回来源页后滚动位置还原到离开时的 240（实得 ' + scrollY + '）')
   await esc.m.click('[data-vc-search-entry]')
   const kept = esc.m.q('[data-vc-palette-input]')

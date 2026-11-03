@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T13:03:52.337Z",
+  "generatedAt": "2026-11-03T14:40:30.319Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 552,
   "gateCount": 552,
@@ -4331,7 +4331,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 435,
+      "expectedAssertions": 439,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 7 条）"
     },
     {
@@ -4621,6 +4621,7 @@
       "step": "node tests/verify-1586-vc-visual-browser.ts",
       "file": "tests/verify-1586-vc-visual-browser.ts",
       "guards": [
+        "src/client/kernel/motion.ts",
         "src/client/views/versionControl/vcBranchPage.ts",
         "src/client/views/versionControl/vcBranchPopover.ts",
         "src/client/views/versionControl/vcBranches.ts",
@@ -4663,6 +4664,7 @@
         "tests/lib/source-text.ts"
       ],
       "dirs": [
+        "src/client/kernel",
         "src/client/views/versionControl",
         "src/shared/time-config/src",
         "tests/lib"
@@ -4671,7 +4673,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 503,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 35 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 35 条"
     },
     {
       "step": "node tests/verify-1586-worktrees.ts",
@@ -5675,7 +5677,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 205,
+      "expectedAssertions": 207,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 15 条"
     },
     {
@@ -5702,7 +5704,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 234,
+      "expectedAssertions": 243,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 1 条"
     },
     {
@@ -6093,7 +6095,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 33,
+      "expectedAssertions": 67,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -6109,7 +6111,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 75,
+      "expectedAssertions": 78,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
@@ -13494,6 +13496,7 @@
       "node tests/verify-1548-map-row-nav.ts",
       "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1565-workroute-first-col-browser.ts",
+      "node tests/verify-1586-vc-visual-browser.ts",
       "node tests/verify-1612-deck-door.ts",
       "node tests/verify-1612-deck-state.ts",
       "node tests/verify-1612-prompt-filter.ts",
