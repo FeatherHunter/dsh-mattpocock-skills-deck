@@ -372,7 +372,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 三个漏斗的真实接线）。
   // 2026-10-31 #1681 复审修复：宿主接线搬进 src/host/notifications.ts（宿主入口只留薄 loader、只读断言）；
   // 119 条单跑实测。
-  'verify-notification-events': 119,
+  'verify-notification-events': 149,
   // 2026-10-31 #1694：详情读结果并进面板快照的增量合并（完整详情只改这一行、信封版本不动；
   // 降级不缩父边/依赖边/子票计数/评论/评审；版本门整份丢过期；失败不清空；无基线不凭空造）；31 条单跑实测。
   'verify-detail-incremental': 31,
@@ -407,7 +407,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 默认收起、点开看宿主给的原始读数），列表状态行不再并额度与失败；
   // 复审修复：历史为空但有额度读数时头部入口也让格（健康仓库的额度行要打得开），未知行带 unknown 标记；
   // 125 条单跑实测。
-  'verify-notification-center': 125,
+  'verify-notification-center': 135,
   // 2026-11-03 #1833 第二步：列表头部吸顶 —— 已选标签条、统计行、多目录签与筛选行整块挂进
   // div.dsws-stickybar[data-list-sticky]（列表树头一个孩子、内部顺序不变）；翻页行、状态句、列表行、
   // 加载遮罩留在滚动区；健康/暂停/加载三态真投影渲染；21 条单跑实测。
