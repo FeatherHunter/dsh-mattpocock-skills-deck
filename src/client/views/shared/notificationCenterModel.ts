@@ -148,18 +148,50 @@ export const noticeDetailKeyOf = function (event: any) {
   if (code === 'degraded-start') return params.reason === 'quota' ? 'notice.detail.degradedQuota' : 'notice.detail.degradedOther'
   if (code === 'degraded-recovery') return ''
   if (code === 'refresh-failed') return 'notice.detail.refreshFailed'
+  // #1835：同一「刷新失败」类型下用机器码区分环节。将来新增的环节即使这版界面不认识，也该说
+  // 「这次刷新没有成功」这句真话，而不是把新记录冒充成旧版记录（legacyFailure）。
+  if (code === 'refresh-failed.probe') return 'notice.detail.refreshFailedProbe'
+  if (code === 'refresh-failed.snapshot') return 'notice.detail.refreshFailedSnapshot'
+  if (code.indexOf('refresh-failed.') === 0) return 'notice.detail.refreshFailed'
   if (code === 'write-failed') return 'notice.detail.writeFailed'
   const t = String(e.type || '')
   if (t === 'degraded-start') return 'notice.detail.legacyDegradedStart'
   if (t === 'refresh-failed' || t === 'write-failed') return 'notice.detail.legacyFailure'
   return ''
 }
+/**
+ * 失败原因类别 → 词条键：事件里只存机器码（errorKind / failKind 的原值），界面按这张表翻成人话。
+ * 不认识的机器码归「其它原因」——绝不把机器码直接贴给用户，也不猜测具体原因。
+ */
+export const noticeReasonKeyOf = function (kind: any) {
+  const k = String(kind || '')
+  if (k === 'quota-exhausted') return 'notice.reason.quota'
+  if (k === 'rate-limit') return 'notice.reason.rateLimit'
+  if (k === 'network') return 'notice.reason.network'
+  // 取数契约的八种错误类别（src/tracker/contract/vocabulary.ts 的 ERROR_KIND）。
+  if (k === 'auth') return 'notice.reason.auth'
+  if (k === 'conflict') return 'notice.reason.conflict'
+  if (k === 'not-found') return 'notice.reason.notFound'
+  if (k === 'parse') return 'notice.reason.parse'
+  if (k === 'env') return 'notice.reason.env'
+  if (k === 'unsupported') return 'notice.reason.unsupported'
+  // 本机判档多出来的几种：都归到最接近的那一类，不硬造细分。
+  if (k === 'spawn' || k === 'no-gh' || k === 'missing-dep') return 'notice.reason.env'
+  if (k === 'no-git') return 'notice.reason.unsupported'
+  if (k === 'fetch-failed') return 'notice.reason.fetchFailed'
+  if (k === 'exception') return 'notice.reason.exception'
+  if (k === 'timeout') return 'notice.reason.timeout'
+  return 'notice.reason.other'
+}
 export const noticeDetailOf = function (event: any) {
   const key = noticeDetailKeyOf(event)
   if (!key) return ''
   const e = event || {}
   const params = (e.params && typeof e.params === 'object') ? e.params : {}
-  return tr(key, { tool: String(params.tool || '') })
+  // 两类环节失败要说清原因类别；其余说明只透传写工具名，不引入新词条依赖（老事件照旧渲染）。
+  const wantsReason = key === 'notice.detail.refreshFailedProbe' || key === 'notice.detail.refreshFailedSnapshot'
+  const reason = wantsReason ? tr(noticeReasonKeyOf(params.kind)) : ''
+  return tr(key, { tool: String(params.tool || ''), reason: reason })
 }
 
 /**
