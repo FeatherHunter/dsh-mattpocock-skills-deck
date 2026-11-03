@@ -20,6 +20,10 @@
 //   - 交付只看「调用到过、参数完整解析、这一轮已收尾」，不看 turn/end 的结束原因：completed 之外的
 //     aborted / error / interrupted 也可能带着完整一组建议（#1420 第三项定下的口径）。
 //     「参数完整解析」指整份参数能解析、过滤后不少于最少条数；个别坏条目怎么处理见 suggestFacts.ts。
+//   - 关闭状态分两层（#1853）：用户发消息（新轮开始）靠重放窗口里的 turn/start 判定 —— 最后一条建议
+//     调用之后又出现过 turn/start，那组建议就作废、不补；用户显式关掉（点走一条、点关闭、Esc）在会话
+//     事件里没有痕迹可判，另存一份 localStorage 关闭标记（只记会话号与调用编号，不记建议内容），新一组
+//     建议正常交付时失效。见 suggestClosedRemember 与 restoreFromReplay 里的两处判定。
 //
 // 契约（与仓库其它叶子文件同一套，见 scripts/build.mts 里的叶子清单）：
 //   模块真源是 ESM 导出，构建时剥掉行首 export 拼进 apply 闭包；运行时不许跨文件 import，
@@ -50,7 +54,8 @@ const suggestGroupsBySid: any = new Map()
  * 为什么要单独留一份：用户关掉之后缓存被清空，下次切回这个会话时「缓存为空」这个条件又会成立，
  * 补出逻辑会把历史重放里的那组建议再补一遍 —— 那等于用户关不掉它。所以关掉时留一个标记，
  * 补出前先看它；这个会话之后又有新建议正常交付时把标记清掉（新建议理应能冒）。
- * 与建议组缓存一样只在内存里、不落盘；超过上限删最早记入的那一个，防会话开得极多时无界。
+ * 与建议组缓存一样只在内存里、不落盘；用户显式关掉的那一组另有一份 localStorage 标记跨刷新保留
+ * （见 suggestClosedRemember，#1853）。超过上限删最早记入的那一个，防会话开得极多时无界。
  */
 const suggestDismissedBySid: any = new Set()
 
@@ -114,9 +119,67 @@ export const suggestGroupForget = function (sid: string) {
 }
 
 /**
+ * 用户显式关掉的那一组建议存在哪里（#1853）：刷新界面后内存清空，按会话缓存与内存关闭标记都没了，
+ * 补出逻辑又会把历史重放里的那一组补出来 —— 用户关不掉它。关闭动作在会话事件里没有痕迹（不像
+ * 「发消息」有 turn/start），只能另记一份：会话号 + 调用编号，新一组建议正常交付时失效，所以只挡
+ * 被关掉的那一组、不挡更晚的新建议。
+ * 为什么用 localStorage：DSH 桌面窗口的 origin 是 dsh-app://app（不是每次启动可能变化的 http 端口），
+ * 同一台机器上刷新、重启都还在；只记两个短编号，不记建议内容。读写都包住：存储不可用（隐私模式、
+ * 无浏览器环境）时当没记过，不能因为存不了让补出这条路抛错。
+ * 来龙去脉见 docs/adr/20260921-persist-user-choice-host-side.md。
+ */
+const SUGGEST_CLOSED_KEY = 'dsws.suggestClosed'
+/** 关闭标记最多记几个会话：防无界，超了按关闭时刻淘汰最早的。 */
+const SUGGEST_CLOSED_KEEP_LIMIT = 64
+
+/** 读整份关闭标记表：没记过、读不到或写坏了都当空表；不在浏览器里（Node 测试、无存储的壳）也当空表。 */
+const suggestClosedTable = function () {
+  try {
+    const raw = (typeof localStorage === 'undefined' || !localStorage) ? '' : localStorage.getItem(SUGGEST_CLOSED_KEY)
+    if (!raw) return {}
+    const table = JSON.parse(raw)
+    return (table && typeof table === 'object') ? table : {}
+  } catch (eRead) { return {} }
+}
+
+/** 写回整份关闭标记表：写失败只留一条能指路的 warn，不影响界面。 */
+const suggestClosedWrite = function (table: any, op: string) {
+  if (typeof localStorage === 'undefined' || !localStorage) return
+  try { localStorage.setItem(SUGGEST_CLOSED_KEY, JSON.stringify(table)) } catch (eWrite) {
+    try { log('warn', 'storage.fail', { key: SUGGEST_CLOSED_KEY, op: op }) } catch (eLog) {}
+  }
+}
+
+/** 记下用户关掉的是哪个会话的哪一条调用（同一会话再关一次覆盖旧的；超上限淘汰最早关的）。 */
+const suggestClosedRemember = function (sid: string, callId: string) {
+  if (!sid || !callId) return
+  const table = suggestClosedTable()
+  table[sid] = { callId: callId, at: Date.now() }
+  const sids = Object.keys(table).sort(function (a: string, b: string) { return (table[a].at || 0) - (table[b].at || 0) })
+  for (let i = 0; i < sids.length - SUGGEST_CLOSED_KEEP_LIMIT; i++) delete table[sids[i]]
+  suggestClosedWrite(table, 'remember')
+}
+
+/** 这个会话被关掉的是哪一条调用：没记过返回空串。 */
+const suggestClosedRecall = function (sid: string) {
+  const table = sid ? suggestClosedTable() : {}
+  const row = table[sid]
+  return (row && typeof row.callId === 'string') ? row.callId : ''
+}
+
+/** 新一组建议交付了：旧关闭标记失效（只挡被关掉的那一组，不挡更晚的新建议）。 */
+const suggestClosedForget = function (sid: string) {
+  const table = sid ? suggestClosedTable() : {}
+  if (table[sid] === undefined) return
+  delete table[sid]
+  suggestClosedWrite(table, 'forget')
+}
+
+/**
  * 造一条取数流：借当前会话的事件流，认建议工具调用，等整轮结束再交付。
  * options = { sessions, sid, onReady, onClear }；sessions 是平台 sessions 服务（可能为空），
- * onReady(items) 是上层接缝（#1411 的界面渲染），这里不关心它做什么。
+ * onReady(items, callId) 是上层接缝（#1411 的界面渲染），这里不关心它做什么；callId 是这一组
+ * 建议来自哪一次工具调用，上层关掉气泡时用它记关闭标记（#1853）。
  * onClear() 是「上一组建议已经作废」的通知（#1787 第五项）：用户自己发消息会开新的一轮，
  * 那一刻上一轮的建议就没被采纳，上层要据此把气泡清掉；不传就不通知。
  * 返回 { dispose }：切会话或卸载时调用，退订并清空中间状态；重复调用无副作用。
@@ -202,7 +265,10 @@ export const createSuggestStream = function (options: any) {
     // 一组新建议正常交付（增量通路送来并上屏）之后，这个会话「关过」的标记就该失效：
     // 用户后来关掉的组不该挡住更晚的新建议，切回来时也要能按缓存把新组找回来。
     if (outcome === 'delivered' || outcome === 'already-ended') suggestSessionClearDismissed(sid)
-    try { if (onReady) onReady(items) } catch (eDeliver) {}
+    // #1853：跨刷新保留的那份关闭标记同理 —— 它只挡被关掉的那一组，更晚的新建议交付后失效。
+    // 走到这里说明补出判定已经放行（要么没有标记、要么标记是更早的另一条调用），清掉不影响本次交付。
+    suggestClosedForget(sid)
+    try { if (onReady) onReady(items, callId) } catch (eDeliver) {}
   }
 
   /** 处理一条事件：建议工具调用先记下等整轮结束；turn/end 到了再交付这一轮最后那条。 */
@@ -299,6 +365,8 @@ export const createSuggestStream = function (options: any) {
    * 个别条目缺提示词时按 suggestFacts.ts 里 suggestItemsOf 的宽松口径丢掉坏条目、剩下够数仍整组上屏
    * （工具侧对同一份参数会整次拒绝，界面不读回执；这是 #1409 以来既有的容错，不是补出造成的半组）。
    * 尾部那一轮还没收尾时不补，改为收下等增量通路送来 turn/end 再正常交付。
+   * 另有两条不补（#1853）：最后一条调用之后又出现过 turn/start（用户已经发过新消息，那组作废），
+   * 以及这条调用正是用户显式关掉的那一组（跨刷新保留的关闭标记对得上）。
    *
    * 为什么扫整个窗口（snapshot.entries）而不是这一次变更的增量（snapshot.change.entries）：
    * 真机上挂载时机有两种。① 打开会话时先拿到空窗口，装载完成后平台再用一次 replace 把整个
@@ -319,16 +387,20 @@ export const createSuggestStream = function (options: any) {
    * 扫窗口里的历史，对齐轮次状态，并找出最后一条建议调用（带「它所在轮收尾没有」）。
    * 收尾只看轮次与有没有收到 turn/end，不看结束原因（completed / aborted / error / interrupted
    * 都算收尾，理由见 takeEvent 里 turn-end 那一段）。
+   * 另外记下「最后一条建议调用之后有没有再出现 turn/start」（#1853）：有就说明用户已经发过新消息，
+   * 那组建议在发消息那一刻就作废了，补出不能再把它当没上过屏的组补回来。
    */
   function lastCallOfReplay(entries: any[]) {
     let lastCall: any = null
     let endedTurn: any = null
     let openTurn: any = null
+    let turnStartAfterLastCall = false
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i]
       const info = suggestEventOf(entry && entry.event)
       if (!info) continue
-      if (info.kind === 'turn-start') { openTurn = info.turn; continue }
+      // 调用之后又开了新轮：用户发过新消息，前面那条建议已经作废（#1787 第五项的口径）。
+      if (info.kind === 'turn-start') { openTurn = info.turn; if (lastCall) turnStartAfterLastCall = true; continue }
       if (info.kind === 'turn-end') {
         endedTurn = info.turn
         openTurn = null
@@ -338,8 +410,10 @@ export const createSuggestStream = function (options: any) {
       }
       const callTurn = (info.turn === null || info.turn === undefined) ? openTurn : info.turn
       lastCall = { callId: info.callId, argumentsValue: info.argumentsValue, turn: callTurn, closed: false }
+      // 又出现一条新调用：作废判定只看它之后的 turn/start。
+      turnStartAfterLastCall = false
     }
-    return { lastCall: lastCall, endedTurn: endedTurn, openTurn: openTurn }
+    return { lastCall: lastCall, endedTurn: endedTurn, openTurn: openTurn, turnStartAfterLastCall: turnStartAfterLastCall }
   }
 
   function restoreFromReplay() {
@@ -367,6 +441,14 @@ export const createSuggestStream = function (options: any) {
       lastEndedTurn = scan.endedTurn
       currentTurn = scan.openTurn
       if (!scan.lastCall) return
+      // #1853：最后一条建议调用之后又出现过 turn/start —— 用户已经发过新消息，那组建议在发消息那一刻
+      // 就作废了（#1787 第五项）。这条判定只看重放窗口、不依赖内存标记，所以刷新之后照样成立：
+      // 不补，也不收下等 turn/end（那条建议已经没人要了）。
+      if (scan.turnStartAfterLastCall) { logBind('skip', 'restore-superseded'); return }
+      // #1853：用户显式关掉的那一组没有事件痕迹可判，只能靠跨刷新保留的关闭标记挡住；标记对得上
+      // 这条调用才跳过，对不上（更早关的是另一组）照常补。
+      const closedCallId = suggestClosedRecall(sid)
+      if (closedCallId && closedCallId === scan.lastCall.callId) { logBind('skip', 'restore-closed'); return }
       if (!markSeen(scan.lastCall.callId)) return
       const parsed = suggestItemsOf(scan.lastCall.argumentsValue)
       if (!parsed.ok) {
@@ -430,9 +512,10 @@ export const createSuggestStream = function (options: any) {
  * sid 变化（切会话）时 React 会先跑上一轮的清理再建新流 —— 旧订阅退掉、新会话重新借；
  * 新会话只显示它自己留下的那一组建议（切回来时从按会话的缓存里取回，见 suggestGroupRecall）；
  * 缓存里没有时再从历史重放里补出最后一组（#1526）—— 后台跑完、当时没在看的那组建议也能补上；
- * 绝不把上一个会话的建议留在当前会话上；用户显式点走或关掉的组会从缓存里删掉，本次运行内不再补出。
- * 用户自己发消息（新轮开始）时上一组建议已经作废：气泡立刻清掉，切走再切回也不会从历史重放里
- * 补回来（#1787 第五项）。
+ * 绝不把上一个会话的建议留在当前会话上；用户显式点走或关掉的组会从缓存里删掉，刷新后也不再补出
+ * （关闭标记跨刷新保留，#1853）。
+ * 用户自己发消息（新轮开始）时上一组建议已经作废：气泡立刻清掉，切走再切回、甚至刷新之后也不会从
+ * 历史重放里补回来（#1787 第五项；刷新后的判定见 restoreFromReplay 里的 turnStartAfterLastCall）。
  * 本组件自身不读会话、不 retain：取数只走 createSuggestStream 里那条只读订阅。
  */
 export const SuggestStreamMount = function (props: any) {
@@ -464,10 +547,11 @@ export const SuggestStreamMount = function (props: any) {
       sid: sid,
       // 缓存里已经有这一组就不补；缓存为空才从历史重放里补出最后一组（#1526，规格 #1525）。
       restoreReplay: !cached,
-      onReady: function (items: any) {
+      onReady: function (items: any, callId: any) {
         if (!alive) return
         seqRef.current = seqRef.current + 1
-        const next = { id: seqRef.current, items: items }
+        // callId 跟着组一起留着（#1853）：用户关掉气泡时要记「关的是哪一条调用」，刷新后才挡得住这一组。
+        const next = { id: seqRef.current, items: items, callId: callId }
         // 先记进按会话的缓存再上屏：切走再回来时靠它把这组气泡放回原位。
         suggestGroupRemember(sid, next)
         setGroup(next)
@@ -475,7 +559,8 @@ export const SuggestStreamMount = function (props: any) {
       onClear: function () {
         // 用户自己发消息（新轮开始）时上一组建议已经作废：取数层收到 turn-start 时已经先记好了
         // 关闭标记（见 takeEvent 的 turn-start 分支），这里再把按会话的暂存建议一起忘掉，并让气泡
-        // 立刻消失。这样切走再切回时缓存是空的、重放又有标记挡着，那组已作废的建议不会再冒出来。
+        // 立刻消失。这样切走再切回时缓存是空的、重放又有内存标记挡着；刷新丢了内存标记时，
+        // 重放窗口里的那条 turn/start 也会让补出跳过（#1853）。
         if (!alive) return
         suggestGroupForget(sid)
         setGroup(null)
@@ -493,6 +578,9 @@ export const SuggestStreamMount = function (props: any) {
     group: group,
     onDismiss: function () {
       // 用户跳过的组要连缓存一起忘掉：切走再切回时不该自己复活。
+      // #1853：再记一份跨刷新的关闭标记（会话号 + 这次关的调用编号），刷新后补出逻辑才不会把它补出来。
+      // 用渲染作用域里的 group（就是气泡上正显示的这一组），不用 effect 闭包里的旧值。
+      if (group && group.callId) suggestClosedRemember(sid, String(group.callId))
       suggestGroupForget(sid)
       setGroup(null)
     },
