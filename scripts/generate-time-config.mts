@@ -252,6 +252,8 @@ const KEYS: Array<[string, string, string]> = [
   ['skillSkeletonDelayMs', 'SKILL_SKELETON_DELAY_MS', 'intervals'],
   // —— 构建互斥锁的心跳间隔（#1365）：持锁期间证明还活着 ——
   ['buildLockHeartbeatMs', 'BUILD_LOCK_HEARTBEAT_MS', 'intervals'],
+  // #1862：工作区快照库单写者租约的续约心跳（与 ttl 那档的 snapshotLeaseTtlMs 成对使用）。
+  ['snapshotLeaseHeartbeatMs', 'SNAPSHOT_LEASE_HEARTBEAT_MS', 'intervals'],
   // —— 宿主出站排队段的日志节流（#1101）：等多久才记一行、同一只桶最短多久记一次 ——
   ['laneLongWaitLogMs', 'LANE_LONG_WAIT_LOG_MS', 'intervals'],
   ['laneWaitLogIntervalMs', 'LANE_WAIT_LOG_INTERVAL_MS', 'intervals'],
@@ -282,6 +284,8 @@ const KEYS: Array<[string, string, string]> = [
   ['snapshotCacheMs', 'SNAPSHOT_CACHE_MS', 'ttl'],
   // #1240：刚选中快照的保护窗（别用旧缓存盖掉用户刚点的选择）。
   ['snapshotPickedGuardMs', 'SNAPSHOT_PICKED_GUARD_MS', 'ttl'],
+  // #1862：工作区快照库写者租约的有效期（心跳在 intervals 那档，这里是多久没续可以被接管）。
+  ['snapshotLeaseTtlMs', 'SNAPSHOT_LEASE_TTL_MS', 'ttl'],
   ['planCursorTtlMs', 'PLAN_CURSOR_TTL_MS', 'ttl'],
   ['anchorWindowMs', 'ANCHOR_WINDOW_MS', 'ttl'],
   ['idempotencyLookbackMs', 'IDEMPOTENCY_LOOKBACK_MS', 'ttl'],

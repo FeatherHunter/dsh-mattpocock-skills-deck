@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T16:57:38.517Z",
+  "generatedAt": "2026-11-03T20:21:47.405Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 553,
-  "gateCount": 553,
-  "attributedGates": 497,
+  "chainLength": 555,
+  "gateCount": 555,
+  "attributedGates": 499,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 95,
+  "completionRecordedGates": 97,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 855,
+  "graphFileCount": 874,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -802,6 +802,7 @@
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/gitlab/index.ts",
+        "src/workspace-snapshot",
         "tests/same-layer-baseline.json",
         "tests/tracker-room-imports.json"
       ],
@@ -822,13 +823,14 @@
         "src/tracker/contract",
         "src/tracker/registry",
         "src/tracker/rooms/gitlab",
+        "src/workspace-snapshot",
         "tests"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 20 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 21 条"
     },
     {
       "step": "node tests/verify-gate-map.ts",
@@ -6377,6 +6379,36 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 5 条"
+    },
+    {
+      "step": "node tests/verify-1862-snapshot-database.ts",
+      "file": "tests/verify-1862-snapshot-database.ts",
+      "guards": [
+        "src/workspace-snapshot"
+      ],
+      "dirs": [
+        "src/workspace-snapshot"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 28,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1862-snapshot-merge.ts",
+      "file": "tests/verify-1862-snapshot-merge.ts",
+      "guards": [
+        "src/workspace-snapshot"
+      ],
+      "dirs": [
+        "src/workspace-snapshot"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 18,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -12292,6 +12324,8 @@
         "src/tracker/rooms/github/transport/client.ts",
         "src/tracker/rooms/gitlab/client.ts",
         "src/tracker/rooms/markdown/scratch-listing.ts",
+        "src/workspace-snapshot/runtime/lease.ts",
+        "src/workspace-snapshot/runtime/open.ts",
         "tests/verify-time-config.ts"
       ],
       "dirs": [
@@ -12333,13 +12367,14 @@
         "src/tracker/rooms/github/transport",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown",
+        "src/workspace-snapshot/runtime",
         "tests"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 166 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 168 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -15022,6 +15057,14 @@
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-tracker-session.ts"
     ],
+    "src/workspace-snapshot": [
+      "node tests/verify-dependency-rules.ts",
+      "node tests/verify-1862-snapshot-database.ts",
+      "node tests/verify-1862-snapshot-merge.ts"
+    ],
+    "src/workspace-snapshot/runtime": [
+      "node tests/verify-time-config.ts"
+    ],
     "tests": [
       "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-deck-tools-matrix.ts",
@@ -15313,12 +15356,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 876,
-    "dirCount": 84,
-    "coveredFileCount": 876,
+    "fileCount": 897,
+    "dirCount": 92,
+    "coveredFileCount": 897,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 68,
+    "dedicatedDirCount": 70,
     "guardedFiles": [
       "src/client/floating/Pop.ts",
       "src/client/floating/SkillFloatList.ts",
@@ -16195,7 +16238,28 @@
       "src/tracker/session/pipeline.ts",
       "src/tracker/session/repo-ref.ts",
       "src/tracker/tsconfig.json",
-      "src/tracker/ui-description.ts"
+      "src/tracker/ui-description.ts",
+      "src/workspace-snapshot/README.md",
+      "src/workspace-snapshot/contract/index.ts",
+      "src/workspace-snapshot/contract/types.ts",
+      "src/workspace-snapshot/merge/collection.ts",
+      "src/workspace-snapshot/merge/row.ts",
+      "src/workspace-snapshot/merge/version-gate.ts",
+      "src/workspace-snapshot/model/types.ts",
+      "src/workspace-snapshot/node-ambient.d.ts",
+      "src/workspace-snapshot/persistence/database.ts",
+      "src/workspace-snapshot/persistence/issue-groups-write.ts",
+      "src/workspace-snapshot/persistence/issue-row-write.ts",
+      "src/workspace-snapshot/persistence/schema.ts",
+      "src/workspace-snapshot/projection/list.ts",
+      "src/workspace-snapshot/runtime/ingest.ts",
+      "src/workspace-snapshot/runtime/lease.ts",
+      "src/workspace-snapshot/runtime/log.ts",
+      "src/workspace-snapshot/runtime/open-schema.ts",
+      "src/workspace-snapshot/runtime/open.ts",
+      "src/workspace-snapshot/runtime/paths.ts",
+      "src/workspace-snapshot/sources/README.md",
+      "src/workspace-snapshot/tsconfig.json"
     ],
     "guardedDirs": [
       "src",
@@ -16281,7 +16345,15 @@
       "src/tracker/rooms/gitlab",
       "src/tracker/rooms/markdown",
       "src/tracker/rooms/markdown/format",
-      "src/tracker/session"
+      "src/tracker/session",
+      "src/workspace-snapshot",
+      "src/workspace-snapshot/contract",
+      "src/workspace-snapshot/merge",
+      "src/workspace-snapshot/model",
+      "src/workspace-snapshot/persistence",
+      "src/workspace-snapshot/projection",
+      "src/workspace-snapshot/runtime",
+      "src/workspace-snapshot/sources"
     ],
     "dedicatedDirs": [
       "src",
@@ -16351,7 +16423,9 @@
       "src/tracker/rooms/gitlab",
       "src/tracker/rooms/markdown",
       "src/tracker/rooms/markdown/format",
-      "src/tracker/session"
+      "src/tracker/session",
+      "src/workspace-snapshot",
+      "src/workspace-snapshot/runtime"
     ],
     "dirsWithoutDedicated": [
       {
@@ -16417,6 +16491,30 @@
       {
         "path": "src/tracker/rooms/github/channels",
         "fileCount": 7
+      },
+      {
+        "path": "src/workspace-snapshot/contract",
+        "fileCount": 2
+      },
+      {
+        "path": "src/workspace-snapshot/merge",
+        "fileCount": 3
+      },
+      {
+        "path": "src/workspace-snapshot/model",
+        "fileCount": 1
+      },
+      {
+        "path": "src/workspace-snapshot/persistence",
+        "fileCount": 4
+      },
+      {
+        "path": "src/workspace-snapshot/projection",
+        "fileCount": 1
+      },
+      {
+        "path": "src/workspace-snapshot/sources",
+        "fileCount": 1
       }
     ],
     "ungated": [],

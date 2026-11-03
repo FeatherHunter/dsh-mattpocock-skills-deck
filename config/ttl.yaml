@@ -58,6 +58,9 @@ ttl:
   # （水合守卫，#1003 接替 userPicked；见 src/refresh/rooms/client/snapshot-cache-store.ts）。
   # 它管的是“别用旧快照盖掉刚点的东西”，不是缓存寿命——别和上面的 snapshotCacheMs 混用。
   snapshotPickedGuardMs: 60000
+  # 工作区快照库写者租约的有效期：15 秒。超过这么久没收到心跳，别的会话就可以接管；
+  # 三倍于 config/intervals.yaml 的 snapshotLeaseHeartbeatMs（5 秒），给两拍续约留出容错。
+  snapshotLeaseTtlMs: 15000
   # 计划游标文件的有效期：7 天。过期视为无游标，重走全量。
   planCursorTtlMs: 604800000
   # 幂等锚的时间档位宽度：5 分钟。把时刻压到档位上，同一档位内的重复调用视为同一笔。

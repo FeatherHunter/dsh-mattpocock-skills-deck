@@ -256,6 +256,9 @@ const REFERENCES: RefRow[] = [
   { file: 'src/client/kernel/api-handoff.ts', access: 'CLIENT_HANDOFF_DELAY_MS', gen: 'CLIENT_HANDOFF_DELAY_MS', key: 'clientHandoffDelayMs' },
   { file: 'src/client/views/primitives/Tip.ts', access: 'TIP_SHOW_DELAY_MS', gen: 'TIP_SHOW_DELAY_MS', key: 'tipShowDelayMs' },
   { file: 'src/client/views/primitives/Tip.ts', access: 'TIP_HIDE_DELAY_MS', gen: 'TIP_HIDE_DELAY_MS', key: 'tipHideDelayMs' },
+  // #1862 工作区快照库的单写者租约：心跳与过期两个时长，分别出自 config/intervals.yaml 与 config/ttl.yaml。
+  { file: 'src/workspace-snapshot/runtime/lease.ts', access: 'LEASE_HEARTBEAT_MS', gen: 'SNAPSHOT_LEASE_HEARTBEAT_MS', key: 'snapshotLeaseHeartbeatMs' },
+  { file: 'src/workspace-snapshot/runtime/lease.ts', access: 'LEASE_TTL_MS', gen: 'SNAPSHOT_LEASE_TTL_MS', key: 'snapshotLeaseTtlMs' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -622,6 +625,9 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/refresh/rooms/host/quota-observer.ts', name: 'ageMs', reason: '算出来的时间差（距上次服务端读数多久），不是可调参数' },
   { file: 'src/refresh/rooms/host/quota-observer.ts', name: 'latencyMs', reason: '测量用耗时（操作收尾时算出来的这一笔花了多久），不是可调参数' },
   { file: 'src/refresh/rooms/host/quota-observer.ts', name: 'failsInWindow', reason: '计数（这一窗里失败几次），名字带 Window 但不是毫秒数' },
+  // #1862 工作区快照库：租约与开库诊断路径上的两个名字是读钟或测量值，不是可调时长。
+  { file: 'src/workspace-snapshot/runtime/lease.ts', name: 'nowMs', reason: '读钟时刻（调用方注入的时钟），抢租约与续租时写进 meta，不是可调参数' },
+  { file: 'src/workspace-snapshot/runtime/open.ts', name: 'elapsedMs', reason: '测量用局部变量（开库耗时），写进诊断日志，不是可调参数' },
 ]
 
 // 时间味判定，两类都认：

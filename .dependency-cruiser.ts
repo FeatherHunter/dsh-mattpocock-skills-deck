@@ -11,12 +11,13 @@
 // 不需要转写。里面那行 require 读的是 JSON 登记表（Node 原生支持 require JSON），照旧。
 //
 // 怎么跑（在仓库根目录，手工复核用）：
-//   pnpm exec depcruise src\host src\shared src\seam src\tracker src\client src\refresh --config .dependency-cruiser.ts --output-type err-long --no-progress
+//   pnpm exec depcruise src\host src\shared src\seam src\tracker src\client src\refresh src\workspace-snapshot --config .dependency-cruiser.ts --output-type err-long --no-progress
 // 正式门禁是 tests/verify-dependency-rules.ts，它把本配置跑一遍、再核对存量豁免清单，最后判红或判绿。
 // 退出码就是「error 级违规的条数」，所以命令行直接跑也能当门禁用。
 //
 // 三条口径上的约定（改本文件前先读这三条）：
-//   1. 只看六棵树 —— src/host、src/shared、src/seam、src/tracker、src/client、src/refresh，前三棵与两条老门禁的扫描域逐字相同；
+//   1. 只看七棵树 —— src/host、src/shared、src/seam、src/tracker、src/client、src/refresh、src/workspace-snapshot，
+//      前六棵的老来历见下面几条，前三棵与两条老门禁的扫描域逐字相同；
 //      第四棵 src/tracker 是 #1136 补上的：房间（src/tracker/rooms/**）在那棵树里，而房间只靠 import 边
 //      入图，没人引的房间文件根本不进图（实测盘上 65 个房间源码只有 56 个进得来）。写进根清单之后，
 //      「图是完整的」就不再依赖「import 边碰巧够长」，房间纪律也才真的落在房间上。
@@ -29,11 +30,13 @@
 //      手写源码从此进图（实测 196 个 .ts 全进）；之前说它不进图的那句已经删掉，不要加回来。
 //      第六棵 src/refresh 是刷新机制的新家（规格 #1419）：#1424 建骨架时里面还没有手写源码，
 //      先进根清单占位，#1425 起搬进去的文件自动进图、自动受下面四条刷新规则管。
+//      第七棵 src/workspace-snapshot 是 #1862 建的工作区快照库（规格 #1861）：它要成为工作区数据的唯一根基，
+//      进图之后才受下面三条快照规则管（快照不许往上引宿主/界面/刷新/接缝，外面只许通过契约门面用快照）。
 //   2. tsPreCompilationDeps 开着：类型级别的 import（import type）也算一条引用边。
 //      老门禁是扫文本的，import type 那行同样带 from '...'，所以那时候也算；这里必须对齐，不能悄悄放松。
 //   3. 非字面量动态 import（例如 await import('./' + name + '.js')）是 dependency-cruiser 的盲区——
 //      解析器只在参数是字符串字面量时才产生依赖。老门禁的口径是「一律算违规」，这条严格度不能丢，
-//      所以由 tests/verify-dependency-rules.ts 用文本扫描补上（今天这六棵树里一条都没有）。
+//      所以由 tests/verify-dependency-rules.ts 用文本扫描补上（今天这七棵树里一条都没有）。
 
 // 房间（src/tracker/rooms/<名字>/）可以引用的房外目录，来自 tests/tracker-room-imports.json。
 //
@@ -316,6 +319,49 @@ module.exports = {
         + '#1443 到期说明：这是 A2 未迁路径的显式允许，1444/1445 把刷新后台读写链归位后，未迁路径清零，名单同步缩到空。',
       from: { path: '^src/', pathNot: ['^src/refresh/', '^src/host/index\\.ts$', '^src/host/platformChannel\\.ts$', '^src/host/versionControl\\.ts$', '^src/deck/tools/'] },
       to: { path: '^src/refresh/rooms/|^src/refresh/registry/' },
+    },
+
+    // ── 工作区快照库分层三条（#1862，规格 #1861 决策 1）──────────────────────────────────
+    // 为什么是三层判据而不是一句「快照是根基」：方向写错与外面深引实现是两种不同的失守方式。
+    // 方向写错（快照反过来引界面）会让库离不开界面，测试与宿主都没法单独装载它；
+    // 外面深引实现（界面直接拿数据库句柄、直接调合并函数）会让库的内部结构变成事实上的公共 API，
+    // 以后换连接方式、换投影形状就得改一圈调用方，而「界面不直接读库」这条也会从边上漏掉。
+    // 起点都写成单串轮替（不用数组），这样 tests/verify-dependency-rules.ts 的判据六能逐条验「图上活着」。
+    {
+      name: 'snapshot-no-upward-imports',
+      severity: 'error',
+      comment:
+        '工作区快照库（src/workspace-snapshot/）不许往上引宿主、界面、刷新房间与接缝：'
+        + '规格 #1861 定的方向是 tracker ← 快照 ← refresh ← 界面，快照只往上依赖追踪器契约（纯类型）与共享层，'
+        + '不许反过来依赖任何「碰世界」的那一侧。它要成为工作区数据的唯一根基，就必须能在没有界面、'
+        + '没有网络的世界里被单独测试与装载；一旦引了界面，这条根基就塌了。'
+        + '要加新依赖先改规格 #1861 的分层决定，不要在这里加白名单绕过去。',
+      from: { path: '^src/workspace-snapshot/' },
+      to: { path: '^src/(host|client|refresh|seam)/' },
+    },
+    {
+      name: 'snapshot-outside-only-contract',
+      severity: 'error',
+      comment:
+        '工作区快照库的对外面只有 contract/index.ts：别处的代码要用快照，只许从契约层引，'
+        + '不许深引 runtime/、persistence/、projection/、merge/、model/、sources/ 里的实现。'
+        + '理由与 refresh-outside-only-contract 同款：深引一多，库的内部结构就变成事实上的公共 API，'
+        + '再想换连接方式、换投影形状就得改一圈调用方。宿主装配点（src/host/index.ts）将来接库时也走契约层，'
+        + '不要为了方便直接 import 数据库句柄。',
+      from: { path: '^src/', pathNot: ['^src/workspace-snapshot/'] },
+      to: { path: '^src/workspace-snapshot/(runtime|persistence|projection|merge|model|sources)/' },
+    },
+    {
+      name: 'snapshot-contract-stays-pure',
+      severity: 'error',
+      comment:
+        '工作区快照库的契约层不许引持久化、投影、合并与来源实现（persistence/projection/merge/sources）：'
+        + '这些是实现细节，契约层一旦引用，上层就会连 SQL 组语句、行投影一起拖进自己的依赖里，'
+        + '「界面不直接读库文件」这条也就从契约层的类型上被绕过去了。'
+        + '两个方向放行：runtime/ 是门面的装配对象（contract/index.ts 只从 runtime/open.ts 转出开库函数，'
+        + '这一条边就是门面本身，见下面那句注释）；model/ 是纯值类型，契约层引它不算碰实现。',
+      from: { path: '^src/workspace-snapshot/contract/' },
+      to: { path: '^src/workspace-snapshot/(persistence|projection|merge|sources)/' },
     },
 
     // ── 图上的环 ────────────────────────────────────────────────────────────────────────────
