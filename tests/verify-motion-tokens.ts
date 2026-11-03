@@ -221,7 +221,55 @@ console.log('== ⑤ 无裸时长 ==')
   const VARIABLE_CONCAT_RE = /(?:^|[^.\w$])[A-Za-z_$][\w$]*\s*\+\s*['"](?:ms|s)\b/
   // 豁免落点：每一行都必须写明「这个写死的时长为什么可以留在源码里」。没有理由的豁免不算落点。
   // 典型场景：第三方 CSS 原样搬运、必须写 0s 才能关掉动画、运行时派生值的外部约定。
-  const EXEMPTS: { file: string; snippet: string; reason: string }[] = []
+  // #1860 起新增的原型样式叶子（vcProto*）：整段剪自定稿原型 app.css，过渡/动画时长是原型复制品的一部分。
+  // 它们不参与产品级动效令牌（MOTION）的收敛——改令牌值就会偏离原型的按下手感，而本票的验收基准正是原型。
+  const EXEMPTS: { file: string; snippet: string; reason: string }[] = [
+  {
+    file: 'src/client/views/versionControl/vcProtoChanges.ts',
+    snippet: 'transition',
+    reason: '原型定稿样式原样移植：时长取自 docs/prototype/vc-redesign/styles/app.css，是「按下与展开的手感」基准的一部分，改数值就偏离 460 宽并排截图的验收基准；抽成 MOTION 令牌会与原型值不一致（#1860）。',
+  },
+  {
+    file: 'src/client/views/versionControl/vcProtoChrome.ts',
+    snippet: 'transition',
+    reason: '原型定稿样式原样移植：时长取自 docs/prototype/vc-redesign/styles/app.css，是「按下与展开的手感」基准的一部分，改数值就偏离 460 宽并排截图的验收基准；抽成 MOTION 令牌会与原型值不一致（#1860）。',
+  },
+  {
+    file: 'src/client/views/versionControl/vcProtoControls.ts',
+    snippet: 'transition',
+    reason: '原型定稿样式原样移植：时长取自 docs/prototype/vc-redesign/styles/app.css，是「按下与展开的手感」基准的一部分，改数值就偏离 460 宽并排截图的验收基准；抽成 MOTION 令牌会与原型值不一致（#1860）。',
+  },
+  {
+    file: 'src/client/views/versionControl/vcProtoControls.ts',
+    snippet: 'animation',
+    reason: '原型定稿样式原样移植：时长取自 docs/prototype/vc-redesign/styles/app.css，是「按下与展开的手感」基准的一部分，改数值就偏离 460 宽并排截图的验收基准；抽成 MOTION 令牌会与原型值不一致（#1860）。',
+  },
+  {
+    file: 'src/client/views/versionControl/vcProtoComposer.ts',
+    snippet: 'transition',
+    reason: '原型定稿样式原样移植：时长取自 docs/prototype/vc-redesign/styles/app.css，是「按下与展开的手感」基准的一部分，改数值就偏离 460 宽并排截图的验收基准；抽成 MOTION 令牌会与原型值不一致（#1860）。',
+  },
+  {
+    file: 'src/client/views/versionControl/vcProtoHistory.ts',
+    snippet: 'transition',
+    reason: '原型定稿样式原样移植：时长取自 docs/prototype/vc-redesign/styles/app.css，是「按下与展开的手感」基准的一部分，改数值就偏离 460 宽并排截图的验收基准；抽成 MOTION 令牌会与原型值不一致（#1860）。',
+  },
+  {
+    file: 'src/client/views/versionControl/vcProtoMenus.ts',
+    snippet: 'transition',
+    reason: '原型定稿样式原样移植：时长取自 docs/prototype/vc-redesign/styles/app.css，是「按下与展开的手感」基准的一部分，改数值就偏离 460 宽并排截图的验收基准；抽成 MOTION 令牌会与原型值不一致（#1860）。',
+  },
+  {
+    file: 'src/client/views/versionControl/vcProtoMenus.ts',
+    snippet: 'animation-duration',
+    reason: '原型定稿样式原样移植：时长取自 docs/prototype/vc-redesign/styles/app.css，是「按下与展开的手感」基准的一部分，改数值就偏离 460 宽并排截图的验收基准；抽成 MOTION 令牌会与原型值不一致（#1860）。',
+  },
+  {
+    file: 'src/client/views/versionControl/vcProtoWorktrees.ts',
+    snippet: 'transition',
+    reason: '原型定稿样式原样移植：时长取自 docs/prototype/vc-redesign/styles/app.css，是「按下与展开的手感」基准的一部分，改数值就偏离 460 宽并排截图的验收基准；抽成 MOTION 令牌会与原型值不一致（#1860）。',
+  },
+  ]
 
   const hits: { file: string; lineNo: number; text: string; kind: string }[] = []
   for (const file of clientSources()) {

@@ -169,11 +169,21 @@ export function vcCommitConfirmNode(h: any, t: any, o: any): any {
   return h('div', { key: 'confirm', className: 'vcs-confirm', role: 'dialog', 'aria-modal': 'false', 'data-vc-confirm': '1', 'data-vc-commit-confirm': 1 }, kids)
 }
 
-/** 提交页正文：形态 → 参数 → 多行说明 → 模板 → 三个开关 → 提交按钮 → 确认卡 → 结果。 */
+/** 提交页正文：定稿原型 62 的底部提交区（composer）。
+ * 首屏只留四样东西：已暂存文件数与两个快捷入口、说明输入、底行提示与提交按钮。
+ * 形态 / 目标 / 模板 / 三个开关收进「更多提交选项」折叠：它们在原型首屏没有位置，
+ *   但每条都对应一条提交能力（2.5–2.8 等），不能在界面上消失，所以保留全部控件与 data-vc-commit-* 钩子；
+ *   「原型提交区没有这块折叠」已写进 #1860 的偏差表。 */
 export function vcCommitPageNode(h: any, t: any, o: any): any {
   const opts = o || {}
   const p = opts.panel || vcCommitPanelOf({ t: t, ui: opts.ui, reads: opts.reads, width: opts.width, nowMs: opts.nowMs, targets: opts.targets })
   const ops = opts.ops || null
+  const changes: any = opts.changes || {}
+  const counts: any = changes.counts || {}
+  const files: any = changes.files || {}
+  const handlers: any = changes.handlers || {}
+  const stagedCount = Number(counts.staged || 0)
+  const stagedRows: any[] = Array.isArray(files.staged) ? files.staged : []
   const handler = function (name: any) {
     const fn = ops && typeof ops[name] === 'function' ? ops[name] : null
     return fn
@@ -182,13 +192,76 @@ export function vcCommitPageNode(h: any, t: any, o: any): any {
     return function () { const fn = handler(name); if (fn) fn(arg) }
   }
   const children: any[] = []
-  children.push(h('div', { key: 'head', className: 'vcs-page-meta' }, [
-    h('span', { key: 'title', className: 'vcs-page-title', 'data-vc-commit-title': 1 }, t('vc.commit.panelTitle')),
-    h('span', { key: 'hint', className: 'vcs-note', 'data-vc-commit-mode-hint': 1 }, p.modeHint),
+  // 第一行：左边「N 个文件已暂存」，右边两个轻链接（取消全部暂存 / 储藏）。两者都只在真做得到时出现。
+  const links: any[] = []
+  if (stagedCount > 0) {
+    links.push(h('button', {
+      key: 'unstage-all', type: 'button', className: 'link-btn', 'data-vc-commit-unstage-all': 1,
+      'data-press': 'button', 'data-log': 'vc.commit.unstage-all',
+      onClick: function () { stagedRows.forEach(function (row: any) { if (handlers && typeof handlers.begin === 'function') handlers.begin('unstage', { path: String(row && row.path || '') }) }) },
+    }, t('vc.changes.view.composerUnstageAll')))
+  }
+  if (typeof opts.onStash === 'function') {
+    links.push(h('button', {
+      key: 'stash', type: 'button', className: 'link-btn', 'data-vc-stash-op': 'push',
+      title: t('vc.changes.view.composerStashHint'), 'data-press': 'button', 'data-log': 'vc.changes.composer.stash',
+      onClick: function () { opts.onStash({ op: 'push' }) },
+    }, t('vc.changes.view.composerStash')))
+  }
+  children.push(h('div', { key: 'head', className: 'composer-head' }, [
+    h('span', { key: 'count', className: 'composer-count', 'data-vc-staged-count': String(stagedCount) }, t('vc.changes.view.composerCount', { n: String(stagedCount) })),
+    links.length > 0 ? h('span', { key: 'links', className: 'composer-links' }, links) : null,
   ]))
-  if (p.amendNote) children.push(h('div', { key: 'amend', className: 'vcs-note', 'data-vc-commit-amend-note': 1 }, p.amendNote))
-  // 形态 / 目标 / 模板 / 三个开关都收进「更多提交选项」：首屏只留说明与提交（原型 62 的紧凑提交区），
-  //   控件仍在面板 DOM 里，门禁数得到、点得开，只是默认不占首屏。
+  if (p.amendNote) children.push(h('div', { key: 'amend', className: 'note', 'data-vc-commit-amend-note': 1 }, p.amendNote))
+  // 多行说明：原型 62 的占位文字与说明都一样，换行原样写进提交；预览留在「更多提交选项」里。
+  children.push(h('textarea', {
+    key: 'msg', rows: 2, className: 'commit-input', value: p.message,
+    placeholder: t('vc.changes.view.composerPlaceholder'), 'data-vc-commit-msg': 1, 'data-cap-control': '2.7',
+    'aria-label': t('vc.commit.msgLabel'), 'aria-describedby': 'commit-hint',
+    onChange: function (e: any) { const fn = handler('setMessage'); if (fn) fn(e && e.target ? e.target.value : '') },
+  }))
+  // 最后一行：左边禁用原因或提示、中间交给 AI、右边提交按钮；原因与按钮说的是同一件事，不各占一行。
+  // 定稿原型 62 在 0 个文件已暂存时左下角写的是「还没有暂存的文件」、按钮仍写「提交 0 个文件」；
+  // 所以「什么都没暂存」优先于「说明还没填」，按钮文案始终带数量（只在执行中换成「提交中…」）。
+  const foot: any[] = []
+  const emptyReason: string = stagedCount === 0 ? t('vc.changes.view.commitNoStaged') : ''
+  const footReason: string = emptyReason || (p.submitDisabled ? String(p.submitTip || '') : '')
+  if (footReason) foot.push(h('span', { key: 'reason', className: 'composer-reason', 'data-vc-commit-submit-tip': 1 }, [
+    h('svg', { key: 'icon', viewBox: '0 0 24 24', width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true' }, h('path', { d: 'M12 4l9 16H3zM12 10v4M12 17v.5' })),
+    h('span', { key: 'text' }, footReason),
+  ]))
+  else foot.push(h('span', { key: 'hint', className: 'hint-text' }, t('vc.changes.view.composerHint')))
+  if (typeof opts.onOpenHandoff === 'function') {
+    foot.push(h('button', {
+      key: 'ai', type: 'button', className: 'ai-entry ai-entry-inline', 'data-vc-changes-handoff': 1, 'data-log': 'vc.ai.commit-split',
+      title: t('vc.changes.view.aiSplit'), 'aria-label': t('vc.changes.view.aiSplit'), onClick: function () { opts.onOpenHandoff() },
+    }, [
+      h('svg', { key: 'icon', viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true' }, h('path', { d: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM18.5 16l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z' })),
+      h('span', { key: 'label', className: 'ai-entry-label' }, t('vc.changes.view.aiSplit')),
+    ]))
+  }
+  const submitTip = String(p.submitTip || '')
+  const submitNode = h('button', {
+    key: 'go', type: 'button', className: 'btn btn-primary btn-md', 'data-vc-commit-submit': 1,
+    disabled: p.submitDisabled === true, 'aria-disabled': p.submitDisabled === true,
+    'data-press': 'button', 'data-log': 'vc.commit.panel.submit', onClick: click('submit'),
+  }, p.running ? t('vc.commit.running') : t('vc.changes.view.commitLabel', { n: String(stagedCount) }))
+  // 悬停提示统一走 Tip 叶子（verify-no-title 门禁要求三处以上 title 抽组件）：原因已经写在左下角，这里只是补悬停。
+  foot.push(submitTip ? h(Tip, { key: 'submit', content: submitTip }, submitNode) : submitNode)
+  children.push(h('div', { key: 'foot', id: 'commit-hint', className: 'composer-foot' }, foot))
+  // 结果条贴在提交按钮之后（= 触发点）：成功给命令与耗时，失败给原因与重试。
+  //   位置跟着触发控件走，而不是浮到面板顶部（就近原则：结果贴着按下去的那颗按钮）。
+  if (p.result) {
+    const fail = p.result.state !== 'ok'
+    const rel: any[] = [
+      h('span', { key: 'tag', className: 'result-tag' }, t('vc.commit.panelTitle')),
+      h('span', { key: 'text', className: 'result-text', 'data-vc-commit-result-text': 1 }, p.result.text),
+    ]
+    if (p.result.tip) rel.push(h('span', { key: 'tip', className: 'result-detail' }, p.result.tip))
+    if (p.result.retry) rel.push(h('button', { key: 'retry', type: 'button', className: 'link-btn', 'data-vc-commit-retry': 1, 'data-press': 'button', 'data-log': 'vc.commit.retry', onClick: click('retry') }, t('vc.commit.result.retry')))
+    children.push(h('div', { key: 'result', className: 'result ' + (fail ? 'result-error' : 'result-ok'), role: fail ? 'alert' : 'status', 'data-vc-commit-result': p.result.state }, rel))
+  }
+  // 形态 / 目标 / 模板 / 三个开关 / 说明预览：原型首屏没有这些，收进折叠；控件与 data-vc-commit-* 钩子一个不少。
   const advanced: any[] = []
   advanced.push(h('div', { key: 'modes', className: 'vcs-commit-modes', role: 'radiogroup', 'aria-label': t('vc.commit.modeLabel') }, p.modes.map(function (m: any) {
     const kids: any[] = [h('span', { key: 'label' }, m.label)]
@@ -199,6 +272,7 @@ export function vcCommitPageNode(h: any, t: any, o: any): any {
       disabled: m.disabled === true, title: m.hint, onClick: click('selectMode', m.mode),
     }, kids)
   })))
+  advanced.push(h('div', { key: 'hint', className: 'vcs-note', 'data-vc-commit-mode-hint': 1 }, p.modeHint))
   if (p.targetRow && p.targetRow.show) {
     advanced.push(h('div', { key: 'target', className: 'vcs-commit-target' }, [
       h('label', { key: 'label', 'data-vc-commit-target-label': 1 }, p.targetRow.label),
@@ -206,22 +280,14 @@ export function vcCommitPageNode(h: any, t: any, o: any): any {
         key: 'select', className: 'vcs-commit-target-select', value: p.targetRow.value,
         'data-vc-commit-target': 1, 'aria-label': p.targetRow.label,
         onChange: function (e: any) { const fn = handler('selectTarget'); if (fn) fn(e && e.target ? e.target.value : '') },
-      }, [{ key: '', value: '' }, p.targetRow.options].flat().map(function (opt: any) {
+      }, [{ key: '', value: '' }].concat(p.targetRow.options).map(function (opt: any) {
         return h('option', { key: String(opt.oid || ''), value: String(opt.oid || '') }, String(opt.label || p.targetRow.placeholder))
       })),
       p.targetRow.problem ? h('span', { key: 'problem', className: 'vcs-commit-why', 'data-vc-commit-target-tip': 1 }, p.targetRow.problem) : null,
     ]))
   }
-  children.push(h('div', { key: 'msg', className: 'vcs-commit-msg' }, [
-    h('label', { key: 'label', 'data-vc-commit-msg-label': 1 }, t('vc.commit.msgLabel')),
-    h('textarea', {
-      key: 'area', rows: 6, className: 'vcs-commit-area', value: p.message,
-      placeholder: t('vc.commit.msgPlaceholder'), 'data-vc-commit-msg': 1, 'data-cap-control': '2.7',
-      'aria-label': t('vc.commit.msgLabel'), onChange: function (e: any) { const fn = handler('setMessage'); if (fn) fn(e && e.target ? e.target.value : '') },
-    }),
-    h('span', { key: 'hint', className: 'vcs-note' }, t('vc.commit.msgHint')),
-  ]))
-  children.push(h('pre', { key: 'preview', className: 'vcs-commit-preview', 'data-vc-commit-preview': 1, 'aria-label': t('vc.commit.msgPreview') }, p.preview))
+  advanced.push(h('pre', { key: 'preview', className: 'vcs-commit-preview', 'data-vc-commit-preview': 1, 'aria-label': t('vc.commit.msgPreview') }, p.preview))
+  advanced.push(h('span', { key: 'msgHint', className: 'vcs-note', 'data-vc-commit-msg-hint': 1 }, t('vc.commit.msgHint')))
   const templateKids: any[] = [
     h('button', { key: 'apply', type: 'button', className: 'vcs-btn', 'data-vc-commit-template': 1, 'data-cap-control': '2.8', disabled: p.templateDisabled === true, 'data-press': 'button', 'data-log': 'vc.commit.template.apply', onClick: click('applyTemplate') }, t('vc.commit.action.applyTemplate')),
     h('span', { key: 'note', className: 'vcs-note', 'data-vc-commit-template-note': 1 }, p.templateNote),
@@ -239,17 +305,7 @@ export function vcCommitPageNode(h: any, t: any, o: any): any {
   children.push(h('details', { key: 'advanced', className: 'vcs-commit-advanced', 'data-vc-commit-advanced': 1 }, [
     h('summary', { key: 'summary', className: 'vcs-commit-advanced-title' }, t('vc.commit.moreOptions')),
   ].concat(advanced)))
-  children.push(h('div', { key: 'submit', className: 'vcs-commit-actions' }, [
-    h(Tip, { key: 'go', content: String(p.submitTip || '') }, h('button', { key: 'go', type: 'button', className: 'vcs-btn is-primary', 'data-vc-commit-submit': 1, disabled: p.submitDisabled === true, 'aria-disabled': p.submitDisabled === true, 'data-press': 'button', 'data-log': 'vc.commit.panel.submit', onClick: click('submit') }, p.running ? t('vc.commit.running') : t('vc.commit.action.submit'))),
-    p.submitTip ? h('span', { key: 'tip', className: 'vcs-commit-why', 'data-vc-commit-submit-tip': 1 }, p.submitTip) : null,
-  ]))
   if (p.confirm) children.push(vcCommitConfirmNode(h, t, { confirm: p.confirm, ops: ops }))
-  if (p.result) {
-    const rel: any[] = [h('span', { key: 'text', 'data-vc-commit-result-text': 1 }, p.result.text)]
-    if (p.result.tip) rel.push(h('span', { key: 'tip', className: 'vcs-note' }, p.result.tip))
-    if (p.result.retry) rel.push(h('button', { key: 'retry', type: 'button', className: 'vcs-btn', 'data-vc-commit-retry': 1, 'data-press': 'button', 'data-log': 'vc.commit.retry', onClick: click('retry') }, t('vc.commit.result.retry')))
-    children.push(h('div', { key: 'result', className: 'vcs-commit-result', role: p.result.state === 'ok' ? 'status' : 'alert', 'data-vc-commit-result': p.result.state }, rel))
-  }
-  if (p.formProblem) children.push(h('div', { key: 'formProblem', className: 'vcs-note', 'data-vc-commit-form-problem': 1 }, p.formProblem))
-  return h('section', { className: 'vcs-commit-panel', 'data-vc-commit-panel': 1, 'data-vc-page': 'changes', 'aria-label': t('vc.commit.panelTitle') }, children)
+  if (p.formProblem) children.push(h('div', { key: 'formProblem', className: 'note', 'data-vc-commit-form-problem': 1 }, p.formProblem))
+  return h('div', { className: 'composer', 'data-vc-commit-panel': 1, 'data-vc-page': 'changes', 'aria-label': t('vc.commit.panelTitle') }, children)
 }

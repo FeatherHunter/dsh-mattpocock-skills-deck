@@ -542,7 +542,10 @@ function pageGroup() {
 
   const okHtml = renderPanel(pageUi({ result: { state: 'ok', ms: 12, cmd: 'commit' } }))
   const okIdx = okHtml.indexOf('data-vc-commit-result="ok"')
-  check(okIdx > okHtml.indexOf('data-vc-commit-submit') && okIdx < okHtml.lastIndexOf('</section>'), 'F7 成功回执贴在触发点：结果节点在提交按钮之后、仍在本面板 section 之内（不是全局横幅）')
+  const okRoot = okHtml.indexOf('data-vc-commit-panel="1"')
+  // #1860：提交区按原型 composer 重排，结果条的位置跟着原型走（原型把结果条放在 composer 顶部），
+  // 不再是「排在提交按钮之后」；这条判据只守「仍在本面板内、不是全局横幅」。
+  check(okRoot >= 0 && okIdx > okRoot && okIdx < okHtml.lastIndexOf('</div>'), 'F7 成功回执贴在本面板内：结果节点在 data-vc-commit-panel 根节点之内（原型把它放在 composer 顶部，不是全局横幅；#1860 起「在提交按钮之后」不再是判据）')
 
   const failHtml = renderPanel(pageUi({ result: { state: 'fail', reason: 'signing-failed', message: 'gpg: signing failed', hint: '检查签名配置', ms: 3 } }))
   check(failHtml.indexOf('data-vc-commit-result="fail"') >= 0 && failHtml.indexOf('role="alert"') >= 0 && failHtml.indexOf('vc.block.signingFailed') >= 0 && failHtml.indexOf('gpg: signing failed') >= 0, 'F8 失败回执也贴触发点：分类词条（signing-failed 那一族）与 git 原话一起显示，读屏用 role=alert')

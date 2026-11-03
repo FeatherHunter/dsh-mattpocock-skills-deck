@@ -15,9 +15,21 @@ declare const PAGE_COUNTS: Record<string, number>
 
 // 子节点允许数组、单个节点或空；这里统一成数组，原语就不必各写一份判空。
 // 注意空数组也要原样交回 h：React 对空数组与不传子节点的结果一致，不会多出空壳。
+// 调用方常常直接把页面自己的节点数组塞进来（section 的正文、obj-row 的两侧），这些节点大多没写 key；
+// 原语把它们摊进自己的 kids 数组时会触发 React「列表子节点缺唯一 key」的告警。这里统一补一个稳定的
+// 位置 key（只补缺的，已有 key 的不动），同一份子数组每次渲染顺序不变，key 也就不跳。
 const vcPageKidsOf = function (children: any): any[] {
   if (children === undefined || children === null || children === false) return []
-  return Array.isArray(children) ? children : [children]
+  const flat: any[] = []
+  const walk = function (one: any): void {
+    if (Array.isArray(one)) { one.forEach(walk); return }
+    flat.push(one)
+  }
+  walk(children)
+  return flat.map(function (node: any, i: number) {
+    if (node && typeof node === 'object' && !Array.isArray(node) && node.key === undefined) return Object.assign({}, node, { key: 'kid-' + i })
+    return node
+  })
 }
 
 // 原型里的两条图标路径（24×24 viewBox，描边 1.8、圆头圆角）。

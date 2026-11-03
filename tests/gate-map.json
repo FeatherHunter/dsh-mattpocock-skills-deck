@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T16:57:38.517Z",
+  "generatedAt": "2026-11-03T19:27:59.025Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 553,
   "gateCount": 553,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 95,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 855,
+  "graphFileCount": 863,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4672,7 +4672,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 503,
+      "expectedAssertions": 504,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 35 条"
     },
     {
@@ -5677,7 +5677,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 207,
+      "expectedAssertions": 211,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 15 条"
     },
     {
@@ -5704,7 +5704,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 243,
+      "expectedAssertions": 313,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 1 条"
     },
     {
@@ -7781,7 +7781,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 732,
+      "expectedAssertions": 727,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 111 条"
     },
     {
@@ -15313,9 +15313,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 876,
+    "fileCount": 884,
     "dirCount": 84,
-    "coveredFileCount": 876,
+    "coveredFileCount": 884,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -15553,6 +15553,14 @@
       "src/client/views/versionControl/vcPalette.ts",
       "src/client/views/versionControl/vcPlatformData.ts",
       "src/client/views/versionControl/vcPlatformPage.ts",
+      "src/client/views/versionControl/vcProtoChanges.ts",
+      "src/client/views/versionControl/vcProtoChrome.ts",
+      "src/client/views/versionControl/vcProtoComposer.ts",
+      "src/client/views/versionControl/vcProtoControls.ts",
+      "src/client/views/versionControl/vcProtoHistory.ts",
+      "src/client/views/versionControl/vcProtoMenus.ts",
+      "src/client/views/versionControl/vcProtoTokens.ts",
+      "src/client/views/versionControl/vcProtoWorktrees.ts",
       "src/client/views/versionControl/vcQuery.ts",
       "src/client/views/versionControl/vcQueryView.ts",
       "src/client/views/versionControl/vcRealActions.ts",

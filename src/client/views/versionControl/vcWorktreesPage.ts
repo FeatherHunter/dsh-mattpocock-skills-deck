@@ -324,7 +324,11 @@ export const vcWorktreesPageNode = function (h: any, t: any, o: any): any {
   const kids: any[] = vcWorktreesLayoutNodesOf(h, t, { model: model, ui: ui, ops: ops, onOpenHandoff: opts.onOpenHandoff })
   if (ui.mode === 'blocked') kids.push(vcWtBlockedNode(h, t, model, ui, ops))
   if (ui.mode === 'plan' && ui.op === 'sparse-list') kids.push(vcWtSparsePlanNode(h, t, model, ui, ops))
-  if (ui.mode === 'confirm') kids.push(vcWtConfirmNode(h, t, ui, ops))
+  // 按路径定位的确认卡已经由版式贴进目标行（vcWorktreesView），这里只补「没有行可贴」的那一种（清理登记项）。
+  const confirmPath: string = String((ui.plan || {}).targetPath || (ui.input || {}).path || '')
+  const rowPaths: string[] = (Array.isArray(model.rows) ? model.rows : []).map(function (r: any): string { return String(r.path || '') })
+  const confirmInline: boolean = ui.mode === 'confirm' && ui.op !== 'prune' && confirmPath !== '' && rowPaths.indexOf(confirmPath) >= 0
+  if (ui.mode === 'confirm' && !confirmInline) kids.push(vcWtConfirmNode(h, t, ui, ops))
   if (ui.mode === 'running' || ui.mode === 'failed' || ui.mode === 'done') {
     const result: any = vcWtResultNode(h, t, ui, ops)
     if (result) kids.push(result)

@@ -284,10 +284,14 @@ async function main() {
   check(page.props['data-vc-stash-page'] === '1', '贮藏页画出自己的根标记')
   check(page.props['data-vc-stash-count'] === '2', '根上带真实条数（与首屏贮藏片同一份数据）')
   const caps = attrsOf(page, 'data-vc-stash-cap')
-  check(caps.join(',') === ['7.1', '7.2', '7.3', '7.4', '7.10', '7.5', '7.6', '7.7', '7.8', '7.9', '7.5', '7.6', '7.7', '7.8', '7.9'].join(','), '十条能力在贮藏页都有入口（工具行 + 每条记录行，实得 ' + caps.join(',') + '）')
+  // #1860 整页还原：首屏按原型只留记录行（应用/弹出/丢弃 + 查看/建分支），
+  // 新建三条、列出、清空收进页底默认收起的「更多贮藏操作」。DOM 次序因此是「先记录、后工具」。
+  check(caps.join(',') === ['7.6', '7.7', '7.9', '7.5', '7.8', '7.6', '7.7', '7.9', '7.5', '7.8', '7.1', '7.2', '7.3', '7.4', '7.10'].join(','), '十条能力在贮藏页都有入口（记录行 + 页底折叠的工具行，实得 ' + caps.join(',') + '）')
   check(caps.indexOf('7.3') >= 0, '2.49 上 7.3 的按钮画出来')
-  const toolOps = attrsOf(page, 'data-vc-stash-op').slice(0, 7)
-  check(toolOps.indexOf('push') >= 0 && toolOps.indexOf('push-untracked') >= 0 && toolOps.indexOf('push-staged') >= 0 && toolOps.indexOf('list') >= 0, '新建三条与列出都在工具行')
+  // 工具行在页底折叠区里，按 data-vc-stash-cap 找它对应的 data-vc-stash-op（不能再用「前 N 个 op」的次序）。
+  const capOp: any = {}
+  findAll(page, (n) => n.props && n.props['data-vc-stash-cap'] && n.props['data-vc-stash-op']).forEach((n) => { capOp[n.props['data-vc-stash-cap']] = n.props['data-vc-stash-op'] })
+  check(capOp['7.1'] === 'push' && capOp['7.2'] === 'push-untracked' && capOp['7.3'] === 'push-staged' && capOp['7.4'] === 'list' && capOp['7.10'] === 'clear', '新建三条、列出与清空各按能力号挂在页底工具行（实得 ' + JSON.stringify(capOp) + '）')
   const dangerAttrs = attrsOf(page, 'data-vc-stash-danger')
   check(dangerAttrs.length === 3, '危险动作三处（清空一处 + 每条记录删除两处）都带危险标记')
   const oldPage = leaf.vcStashPageNode(fakeH, fakeT, { seed: firstScreenSeed([entry(0)], 'git version 2.34.0') })

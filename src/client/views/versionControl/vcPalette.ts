@@ -11,9 +11,12 @@ declare function vcPageDepthOf(pageId: any): number
 // 共享层 capabilities.ts 由构建整段拼进页面闭包（src/client/index.ts 的 shared:vcCapabilities 标记）。
 declare function capabilityAvailability(cap: any, version: any): any
 
-export const VC_PALETTE_MAX = 80
+// #1860：能力清单从页面体退役以后，命令面板成了 162 条能力的唯一主入口住处，
+//   所以空查询要把账本里的 162 条全部画出来（不再按 20 / 80 截断）：每条能力都必须能在面板里点到，
+//   「每条能力恰一个主入口」也才能在这一处被门禁逐条量到。
+export const VC_PALETTE_MAX = 200
 // 一次最多画几行：这是渲染上限，不是能力上限；命中数另外由 vcPaletteMatchOf 算出来显示。
-export const VC_PALETTE_RENDER_MAX = 20
+export const VC_PALETTE_RENDER_MAX = 200
 
 export const vcCapabilityAliasOf = function (cap: any) {
   const cmd = String((cap && cap.command) || '')
@@ -128,7 +131,9 @@ export const vcPaletteTargetOf = function (capId: any) {
   }
 }
 
-// 一行搜索结果：id、名称、别名、命令原文、所在页面；带 data-cap-secondary 标记这是能力在命令面板里的第二入口。
+// 一行搜索结果：id、名称、别名、命令原文、所在页面。
+// #1860：能力清单退役后，这里就是每条能力的唯一主入口，所以行上打 data-cap-primary；
+//   旧标记 data-cap-secondary 仍留着（旧门禁与旧样式按它认「命令面板里的第二入口」，两枚同时无害）。
 export const vcPaletteRowNode = function (h: any, t: any, row: any, hit: boolean) {
   const kids: any[] = [
     h('span', { key: 'id', className: 'vcs-pal-id' }, row.id),
@@ -154,6 +159,7 @@ export const vcPaletteRowNode = function (h: any, t: any, row: any, hit: boolean
   }
   const attrs: any = {
     key: row.id,
+    'data-cap-primary': row.id,
     'data-cap-secondary': row.id,
     'data-vc-palette-row': row.id,
     className: 'vcs-pal-row',

@@ -253,19 +253,21 @@ async function scenarioMain() {
   check(activeTab && activeTab.getAttribute('aria-selected') === 'true' && activeTab.getAttribute('tabindex') === '0', 'T2c 当前页签 aria-selected=true 且 tabIndex=0')
   check(!!m.q('[data-vc-branch-btn]') && !!m.q('[data-vc-search-entry]') && !!m.q('[data-vc-gear-btn]'), 'T3 身份行三个入口都在（分支、搜索、齿轮）')
   check(!!m.q('[data-vc-refresh]') && !m.q('[data-vc-refresh]').disabled, 'T3b 手动刷新入口在页面上真实存在且可点（data-vc-refresh）')
-  check(String((m.q('.vcs-identity-count') || {}).textContent || '').indexOf(String(view.CAPABILITIES.length)) >= 0, 'T3c 身份行能力计数与账本一致（' + view.CAPABILITIES.length + '）')
+  // #1860：能力清单退役，身份行不再画「共 N 条能力」这样的计数；能力总账改由命令面板底栏承担（T10b 验）。
+  check(!m.q('.vcs-identity-count') && String((m.q('[data-vc-identity]') || {}).textContent || '').indexOf('条能力') < 0, 'T3c 身份行不再画能力计数（能力总账改由命令面板承担）')
   check(countKin(host, 'wf.gitFirstScreen') === 1, 'T4 进入页面恰好发一次 wf.gitFirstScreen 聚合读')
   const fsCall = firstCallOf(host, 'wf.gitFirstScreen')
   check(!!fsCall && String((fsCall.args || {}).cwd || '') === CWD, 'T4b 聚合读带上当前工作区 cwd=' + CWD)
-  check(m.text('[data-vc-live-at]').indexOf('读取于') >= 0, 'T4c 身份行附近显示读取时刻文案')
+  // #1860：原型把「读取于」与时刻拆成两个 span（标签与值），data-vc-read-at 只挂在值上，所以整行找标签。
+  check(!!m.q('[data-vc-read-at]') && m.text('[data-vc-sync-facts]').indexOf('读取于') >= 0, 'T4c 身份行的同步事实行显示读取时刻文案（data-vc-read-at）')
   check(!!m.q('[data-vc-commit-panel]'), 'T5 改动页挂上了提交面板（vcCommitPageNode）')
-  check(m.qa('[data-vc-changes-op]').length === 13, 'T5b 改动页 13 条动作按钮都在（' + m.qa('[data-vc-changes-op]').length + ' 条）')
+  check(m.qa('[data-vc-changes-op]').length === 0 && !m.q('[data-vc-more-actions]'), 'T5b 改动页不再挂 13 条动作清单（#1860 能力清单退役，动作由命令面板到达）')
   // #1829 首屏顺序：统计卡与文件行 → 折叠的 13 条动作 → 提交面板 → 能力清单；能力清单不再占首屏。
   const comesBefore = function (a: any, b: any) { return !!(a && b && (a.compareDocumentPosition(b) & 4)) }
-  const viewNode = m.q('[data-vc-changes-view]'); const commitNode = m.q('[data-vc-commit-panel]'); const moreNode = m.q('[data-vc-more-actions]'); const capsNode = m.q('[data-vc-cap-list]')
+  const viewNode = m.q('[data-vc-changes-view]'); const commitNode = m.q('[data-vc-commit-panel]')
   check(!!viewNode && !!m.q('[data-vc-changes-stats]') && m.qa('[data-vc-stat]').length === 3, 'T5c 改动页首屏先画统计卡（三张，数据源是改动读数）')
-  check(comesBefore(viewNode, commitNode) && comesBefore(moreNode, commitNode) && comesBefore(commitNode, capsNode), 'T5d 首屏顺序：文件列表 → 折叠动作 → 提交面板 → 能力清单（提交面板不再排在文件列表和动作之前）')
-  check(!!moreNode && moreNode.tagName === 'DETAILS' && moreNode.open === false, 'T5e 13 条动作面板默认收起（13 行仍在 DOM 里，T5b 已经数过）')
+  check(comesBefore(viewNode, commitNode), 'T5d 首屏顺序：改动正文（统计卡与文件列表）在提交面板之前')
+  check(!m.q('[data-vc-cap-list]') && !m.q('[data-vc-more-actions]'), 'T5e 改动页上没有能力清单、也没有折叠的动作面板（都退役了）')
   check(comesBefore(m.q('[data-vc-identity]'), viewNode), 'T5f 身份行排在改动正文之前')
   check(!!m.q('[data-vc-identity-handoff]'), 'T5g 身份行右侧有「交给 AI」入口（原型四颗入口之一）')
 
@@ -323,9 +325,9 @@ async function scenarioMain() {
   check(hintAfter.indexOf(String(hit.length)) >= 0 && rowsAfter === Math.min(hit.length, view.VC_PALETTE_RENDER_MAX), 'T10d 输入「暂存」后命中 ' + hit.length + ' 条，面板画出 ' + rowsAfter + ' 条')
   const pickTarget = view.vcPaletteTargetOf('2.1')
   const pickOk = await m.click('[data-vc-palette-row="2.1"]')
-  const hitRow = m.q('[data-cap-hit]')
-  check(pickOk && m.page() === pickTarget.page && !!hitRow && hitRow.getAttribute('data-cap-primary') === '2.1', 'T10e 选中 2.1 落到 ' + pickTarget.page + ' 页并高亮那一条（data-cap-hit）')
-  check(!m.q('[data-vc-palette]'), 'T10f 选中后命令面板关闭')
+  // #1860：能力清单退役后页面体没有可高亮的能力行；选中命令面板里的能力只负责跳到它所在的页。
+  check(pickOk && m.page() === pickTarget.page && !m.q('[data-vc-palette]'), 'T10e 选中 2.1 落到 ' + pickTarget.page + ' 页并关面板')
+  check(!m.q('[data-vc-palette]') && !m.q('[data-cap-hit]') && !m.q('[data-vc-cap-list]'), 'T10f 面板已关，页面体也没有能力行可高亮（清单已退役）')
   // 跨页落点：2.1 的落点就在改动页，返回入口要另挑一条落在别的页的能力来验。
   await m.click('[data-vc-search-entry]')
   await m.type('[data-vc-palette-input]', '提交列表')
@@ -334,9 +336,18 @@ async function scenarioMain() {
   check(!!cross && !!m.q('[data-vc-palette-row="' + (cross ? cross.cap.id : '') + '"]'), 'T10g 搜索「提交列表」能找到落在别的页的能力（' + (cross ? cross.cap.id : '无') + '）')
   const crossOk = cross ? await m.click('[data-vc-palette-row="' + cross.cap.id + '"]') : false
   check(crossOk && !!cross && m.page() === cross.target.page && !m.q('[data-vc-palette]'), 'T10h 选中跨页能力后落到 ' + (cross ? cross.target.page : '') + ' 页并关面板')
-  check(!!m.q('[data-vc-back]'), 'T10i 跨页落点保留返回来源页的入口')
-  await m.click('[data-vc-back]')
-  check(m.page() === 'changes', 'T10j 从落点返回来源页（改动页）')
+  // #1860：落到一级页签时不进二级版式——清掉来源页，不画返回键，四个页签仍在（按页签切回）。
+  check(!m.q('[data-vc-back]') && m.qa('[data-vc-tab]').length === 4, 'T10i 落到一级页签时不画返回键、页签条仍在（' + m.page() + '）')
+  await m.click('[data-vc-tab="changes"]')
+  check(m.page() === 'changes', 'T10j 从一级页签落点点页签回改动页')
+  // 二级页落点（4.1 在分支与标签页）：保留返回来源页的键，返回一步回改动页。
+  await m.click('[data-vc-search-entry]')
+  await m.type('[data-vc-palette-input]', '4.1')
+  const secTarget = view.vcPaletteTargetOf('4.1')
+  const secOk = await m.click('[data-vc-palette-row="4.1"]')
+  const secBack = m.page() === secTarget.page && !!m.q('[data-vc-back]')
+  const secBackOk = secBack ? await m.click('[data-vc-back]') : false
+  check(secOk && secBack && secBackOk && m.page() === 'changes', 'T10j2 落到二级页时保留返回来源页的键（4.1 → ' + secTarget.page + ' → 改动页）')
   // #1846：命令面板按遮罩呈现 —— 点面板内部不关，点遮罩本身就关，关了焦点回搜索入口。
   await m.click('[data-vc-search-entry]')
   check(!!m.q('[data-vc-palette-backdrop]') && !!m.q('[data-vc-palette]'), 'T10k 命令面板外面套了一层可点的遮罩（data-vc-palette-backdrop）')
@@ -355,21 +366,34 @@ async function scenarioMain() {
   check(m.page() === 'remote', 'T12 点同步带进入远端与同步页')
   await m.click('[data-vc-back]')
   check(m.page() === 'changes', 'T12b 从远端页返回改动页')
-  const extra = { palette: 'search', rebase: 'rebase', conflicts: 'conflicts' }
-  for (const key of Object.keys(extra)) {
-    const pageId = extra[key]
-    const okClick = await m.click('[data-vc-extra-link="' + pageId + '"]')
-    const bodyOk = !!m.q('[data-vc-page-body="' + pageId + '"]')
-    await m.click('[data-vc-back]')
-    check(okClick && bodyOk && m.page() === 'changes', 'T13 侧入口「' + pageId + '」能进能回（入口 data-vc-extra-link=' + pageId + '）')
+  // ---- #1860：顶部条上的侧入口（data-vc-extra-link）随原型外壳一起退役；变基、冲突、搜索三个侧页
+  //   改由命令面板到达——每条能力本来就登记着「落在哪一页」，这里按落点页反查一条能力再点进去，
+  //   验的是「能力仍可从唯一主入口到达」，不是再造一个侧入口按钮。
+  const capIdOfPage = function (pageId) {
+    const rows = view.vcPaletteRowsOf('', view.VC_PALETTE_RENDER_MAX, '')
+    const hit = rows.filter(function (row) { return view.vcPaletteTargetOf(row.id).page === pageId })[0]
+    return hit ? String(hit.id) : ''
   }
-  const searchPageOk = await (async function () {
-    await m.click('[data-vc-extra-link="search"]')
-    // #1846：搜索页改成独立版式，首屏就是这一页自己的搜索输入框（整页唯一一个），命令面板不再嵌进这一页。
-    const ok = m.page() === 'search' && m.qa('[data-vc-search-input]').length === 1 && m.qa('[data-vc-palette-input]').length === 0
-    await m.click('[data-vc-back]')
-    return ok
-  })()
+  const enterViaPalette = async function (pageId) {
+    const capId = capIdOfPage(pageId)
+    if (!capId) return false
+    if (!m.q('[data-vc-palette]')) await m.click('[data-vc-search-entry]')
+    await m.type('[data-vc-palette-input]', capId)
+    const row = m.q('[data-vc-palette-row="' + capId + '"]')
+    if (!row) return false
+    await m.click(row)
+    return m.page() === pageId && !m.q('[data-vc-palette]')
+  }
+  for (const pageId of ['search', 'rebase', 'conflicts']) {
+    const entered = await enterViaPalette(pageId)
+    const bodyOk = !!m.q('[data-vc-page-body="' + pageId + '"]')
+    const backOk = entered ? await m.click('[data-vc-back]') : false
+    check(entered && bodyOk && backOk && m.page() === 'changes', 'T13 侧页「' + pageId + '」能从命令面板进去、再回改动页（' + (capIdOfPage(pageId) || '无') + ' 的主入口是命令面板）')
+  }
+  const searchEntered = await enterViaPalette('search')
+  // #1846：搜索页改成独立版式，首屏就是这一页自己的搜索输入框（整页唯一一个），命令面板不再嵌进这一页。
+  const searchPageOk = searchEntered && m.qa('[data-vc-search-input]').length === 1 && m.qa('[data-vc-palette-input]').length === 0
+  if (searchEntered) await m.click('[data-vc-back]')
   check(searchPageOk, 'T13b 搜索页画自己的搜索输入框（整页唯一一个输入框，命令面板不嵌这一页）')
 
   // ---- 三时机刷新：手动刷新 ----
@@ -379,7 +403,7 @@ async function scenarioMain() {
 
   // ---- 改动页首批动作：预检 + 执行 ----
   const changeCallsBefore = host.calls.length
-  await m.click('[data-vc-changes-op="stage-all"]')
+  await m.click('[data-vc-file-group-all="stage"]')
   const changeCalls = host.calls.slice(changeCallsBefore).map(function (one) { return one.phone })
   const checkCall = firstCallOf(host, 'wf.gitChangesCheck')
   const writeCall = firstCallOf(host, 'wf.gitChangesWrite')
@@ -437,7 +461,7 @@ async function scenarioSliceFail() {
   const failText = m.text('[data-vc-slice-fail="history"]')
   check(!!m.q('[data-vc-slice-fail="history"]') && failText.indexOf('提交历史首页') >= 0 && failText.indexOf('模拟：git log 读不到') >= 0, 'T19 失败片画出片名与宿主原话（不吞原因）')
   check(!!m.q('[data-vc-slice-retry="history"]'), 'T19b 失败片给出片级重试入口')
-  check(!!m.q('[data-vc-commit-panel]') && m.qa('[data-vc-changes-op]').length === 13, 'T19c 其它片仍然可用（改动页动作与提交面板都在）')
+  check(!!m.q('[data-vc-commit-panel]') && !!m.q('[data-vc-changes-view]') && m.qa('[data-vc-changes-op]').length === 0, 'T19c 其它片仍然可用（改动正文与提交面板都在，动作清单已退役）')
   check(countKin(host, 'wf.gitFirstScreen') === 1, 'T19d 失败时进入仍只读一次（不自动连环重试）')
   await m.click('[data-vc-slice-retry="history"]')
   check(countKin(host, 'wf.gitFirstScreen') === 2, 'T19e 点片级重试再发一次聚合读')
@@ -542,14 +566,26 @@ async function scenarioManage() {
     await m.click('[data-vc-back]')
     check(firstBack && backToIndex && m.page() === 'changes', 'T23b 从 ' + one.page + ' 先回索引、再回来源页（改动页）')
   }
-  // 两个侧页走顶部入口：变基要读状态与窗口两条电话，冲突读冲突清单一条。
+  // 两个侧页的入口与改动页一致：命令面板（#1860 顶部条退役后不再有 data-vc-extra-link）。
+  //   变基要读状态与窗口两条电话，冲突读冲突清单一条。
+  const enterSideViaPalette = async function (pageId) {
+    const rows = view.vcPaletteRowsOf('', view.VC_PALETTE_RENDER_MAX, '')
+    const hit = rows.filter(function (row) { return view.vcPaletteTargetOf(row.id).page === pageId })[0]
+    if (!hit) return false
+    if (!m.q('[data-vc-palette]')) await m.click('[data-vc-search-entry]')
+    await m.type('[data-vc-palette-input]', String(hit.id))
+    const row = m.q('[data-vc-palette-row="' + hit.id + '"]')
+    if (!row) return false
+    await m.click(row)
+    return m.page() === pageId
+  }
   const rebaseBefore = countKin(host, 'wf.gitRebaseRead')
-  await m.click('[data-vc-extra-link="rebase"]')
-  check(m.page() === 'rebase' && !!m.q('[data-vc-rebase-page]') && countKin(host, 'wf.gitRebaseRead') === rebaseBefore + 2, 'T23c 进入变基页发两条读数电话（rebase-state 与 rebase-window）')
+  const rebaseEntered = await enterSideViaPalette('rebase')
+  check(rebaseEntered && !!m.q('[data-vc-rebase-page]') && countKin(host, 'wf.gitRebaseRead') === rebaseBefore + 2, 'T23c 从命令面板进入变基页，发两条读数电话（rebase-state 与 rebase-window）')
   await m.click('[data-vc-back]')
   const conflictBefore = countKin(host, 'wf.gitConflicts')
-  await m.click('[data-vc-extra-link="conflicts"]')
-  check(m.page() === 'conflicts' && !!m.q('[data-vc-conflicts-page]') && countKin(host, 'wf.gitConflicts') === conflictBefore + 1, 'T23d 进入冲突页发一条冲突清单读数电话（wf.gitConflicts）')
+  const conflictEntered = await enterSideViaPalette('conflicts')
+  check(conflictEntered && !!m.q('[data-vc-conflicts-page]') && countKin(host, 'wf.gitConflicts') === conflictBefore + 1, 'T23d 从命令面板进入冲突页，发一条冲突清单读数电话（wf.gitConflicts）')
   await m.click('[data-vc-back]')
 
   // ---- 分支板三段式：点动作 → 预检电话 → 确认卡 → 凭票执行 → 结果贴回触发点、写后重读 ----
@@ -619,10 +655,14 @@ async function scenarioManage() {
   check(m.page() === 'branch-tags' && !m.q('[data-vc-branch-overlay]') && !!m.q('[data-vc-back]'), 'T27b 点浮层里的「新建」跳到分支板、浮层关闭、保留返回来源页的入口')
 
   // ---- 能力行：点了跳该能力所在页并高亮，不自动执行 ----
-  const capRow = m.q('[data-cap-row]')
-  check(!!capRow, 'T28 分支页的能力行可点（data-cap-row）')
-  if (capRow) await m.click(capRow)
-  check(!!m.q('[data-cap-hit]'), 'T28b 点能力行后落到该能力并高亮（data-cap-hit，不自动执行动作）')
+  // #1860：分支页不再挂能力清单。原先「点能力行跳落点」的动作改由命令面板承担，这里验分支页干净、面板能到 4.1。
+  check(!m.q('[data-cap-row]') && !m.q('[data-vc-cap-list]'), 'T28 分支页不再挂能力清单（能力行只在命令面板）')
+  await m.click('[data-vc-search-entry]')
+  await m.type('[data-vc-palette-input]', '4.1')
+  const branchCapRow = m.q('[data-vc-palette-row="4.1"]')
+  check(!!branchCapRow, 'T28b 命令面板搜得到 4.1（分支与标签页的主入口）')
+  if (branchCapRow) await m.click(branchCapRow)
+  check(m.page() === 'branch-tags' && !m.q('[data-vc-palette]'), 'T28c 点面板行落到分支与标签页并关面板')
   await m.click('[data-vc-back]')
   // ---- #1846：分支浮层五个动作各自落到真正做这件事的入口，不是只到页顶 ----
   // 分支页只拥有 4.1–4.13；合并属域 6（落冲突页 6.1）、变基属域 6（落变基页 5.7 换基座），
@@ -658,8 +698,13 @@ async function scenarioManage() {
   const m2 = mountOf(view2, { st: { cwd: CWD } })
   await React.act(async function () { m2.root.render(React.createElement(view2.VersionControlTab, { st: { cwd: CWD } })) })
   await settle()
+  // #1860：四个页签按原型铺满整屏，宿主的长任务区不再压在页签上（原型首屏没有它）；
+  //   它仍挂在二级页（这里是远端与同步页），运行中的任务照样能看到并取消。判据跟着真实挂载点走。
+  check(!m2.q('[data-vc-task-cancel]'), 'T29a 四个页签首屏不再压宿主的长任务区（原型首屏没有这一块）')
+  if (!m2.q('[data-vc-gear-index]')) await m2.click('[data-vc-gear-btn]')
+  await m2.click('[data-vc-gear-item="remote"]')
   const cancelBtn = m2.q('[data-vc-task-cancel]')
-  check(!!cancelBtn, 'T29b 任务面板画出运行中任务的取消按钮（wf.gitTaskQuery 回 running=1 时）')
+  check(!!cancelBtn, 'T29b 二级页上画出运行中任务的取消按钮（wf.gitTaskQuery 回 running=1 时）')
   if (cancelBtn) await m2.click(cancelBtn)
   const cancelLog = host2.calls.filter(function (one: any) { return one.phone === 'wf.gitTaskCancel' })
   check(cancelLog.length === 1 && String(((cancelLog[0] || {}).args || {}).taskId || '') === 't9', 'T29c 点取消发出 wf.gitTaskCancel（带任务号）')
@@ -735,33 +780,35 @@ async function scenarioM4d() {
     const want = typeof sel === 'string' ? m.q(sel) : sel
     return !!want && document.activeElement === want
   }
+  // #1860：页签按原画成 .tab-count > .count + .unit（数字与单位分开），读数是两者拼起来的文本。
   const tabCountText = function (m, id) {
-    const el = m.q('[data-vc-tab="' + id + '"] .vcs-tab-count')
+    const el = m.q('[data-vc-tab="' + id + '"] .tab-count')
     return el ? String(el.textContent || '') : ''
   }
   const tabCountState = function (m, id) {
-    const el = m.q('[data-vc-tab="' + id + '"] .vcs-tab-count')
+    const el = m.q('[data-vc-tab="' + id + '"] .tab-count')
     return el ? String(el.getAttribute('data-vc-tab-count-state') || '') : ''
   }
+  const tabCountWant = function (n, id) { return String(n) + tZh('vc.shell.tab.unit.' + id) }
 
   // —— 1) 页签计数：来自首屏四片真实读数（改动=工作区文件数、提交=已读条数、工作树=棵数、贮藏=条数），带单位 ——
   const first = await mountTab(makeHost({}))
-  check(tabCountText(first.m, 'changes') === tZh('vc.shell.tab.unit.changes', { n: 1 }) && tabCountState(first.m, 'changes') === 'ok',
+  check(tabCountText(first.m, 'changes') === tabCountWant(1, 'changes') && tabCountState(first.m, 'changes') === 'ok',
     'T32 改动页签计数来自首屏改动片（1 个工作区文件），不再是能力账本条数：' + tabCountText(first.m, 'changes'))
-  check(tabCountText(first.m, 'commits') === tZh('vc.shell.tab.unit.commits', { n: 1 }) && tabCountText(first.m, 'worktrees') === tZh('vc.shell.tab.unit.worktrees', { n: 1 }) && tabCountText(first.m, 'stash') === tZh('vc.shell.tab.unit.stash', { n: 0 }),
+  check(tabCountText(first.m, 'commits') === tabCountWant(1, 'commits') && tabCountText(first.m, 'worktrees') === tabCountWant(1, 'worktrees') && tabCountText(first.m, 'stash') === tabCountWant(0, 'stash'),
     'T32b 提交历史/工作树/贮藏三个计数各来自自己的首屏片（1 条提交、1 棵工作树、0 条贮藏）：' + [tabCountText(first.m, 'commits'), tabCountText(first.m, 'worktrees'), tabCountText(first.m, 'stash')].join(' / '))
   check(tabCountState(first.m, 'stash') === 'ok' && tabCountText(first.m, 'stash').indexOf('0') >= 0, 'T32c 已知为零照实显示 0，不拿未知的破折号糊弄')
   await first.m.unmount()
   const failed = await mountTab(makeHost({ failSlice: 'changes' }))
   check(tabCountText(failed.m, 'changes') === '—' && tabCountState(failed.m, 'changes') === 'unknown', 'T32d 改动片读失败时该页签不拿 0 冒充，标成未知（—）：' + tabCountText(failed.m, 'changes'))
-  check(tabCountText(failed.m, 'commits') === tZh('vc.shell.tab.unit.commits', { n: 1 }) && tabCountText(failed.m, 'worktrees') === tZh('vc.shell.tab.unit.worktrees', { n: 1 }), 'T32e 一片读失败不拖累其它页签的计数')
+  check(tabCountText(failed.m, 'commits') === tabCountWant(1, 'commits') && tabCountText(failed.m, 'worktrees') === tabCountWant(1, 'worktrees'), 'T32e 一片读失败不拖累其它页签的计数')
   await failed.m.unmount()
 
   // —— 2) 在途闸：同一帧连点两下同对象同动作只发一份电话，第二下复用同一份结果；不同对象照常并行 ——
   const gateHost = makeHost({})
   const g = await mountTab(gateHost)
-  await g.m.type('[data-vc-changes-row="1.3"] [data-vc-changes-field="path"]', 'a.txt')
-  const btn13 = g.m.q('[data-vc-changes-primary="1.3"]')
+  // #1860：13 条动作面板退役后，同一动作改在文件行上（1.3 暂存 = 行里的「暂存」）。
+  const btn13 = g.m.q('[data-vc-file-row="a.txt"] [data-vc-file-op="stage-file"]')
   await React.act(async function () {
     btn13.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }))
     btn13.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }))
@@ -772,16 +819,16 @@ async function scenarioM4d() {
   await g.m.unmount()
   const parHost = makeHost({})
   const par = await mountTab(parHost)
-  await par.m.type('[data-vc-changes-row="1.3"] [data-vc-changes-field="path"]', 'a.txt')
-  const par13 = par.m.q('[data-vc-changes-primary="1.3"]')
-  const par15 = par.m.q('[data-vc-changes-primary="1.5"]')
+  const par13 = par.m.q('[data-vc-file-row="a.txt"] [data-vc-file-op="stage-file"]')
+  // 第二个对象换成分组级「全部暂存」：它与逐文件暂存是两条不同的状态行（键不同），同时点应各发各的。
+  const par15 = par.m.q('[data-vc-file-group-all="stage"]')
   await React.act(async function () {
     par13.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }))
     par15.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }))
   })
   await settle()
   check(countKin(parHost, 'wf.gitChangesCheck') === 2 && countKin(parHost, 'wf.gitChangesWrite') === 2,
-    'T33b 不同对象（1.3 与 1.5）同一帧各点一下，两份都真发出去（不是一把全局布尔闸）')
+    'T33b 不同状态行（暂存 a.txt 与全部暂存）同一帧各点一下，两份都真发出去（不是一把全局布尔闸）')
   await par.m.unmount()
   const gateNeedle = 'actions.gate'
   check(readSource('src/client/views/versionControl/vcRealTab.js').indexOf(gateNeedle) >= 0, 'T33c 自证：容器把在途闸交给改动页处理器（源码里有 actions.gate，改法能命中）')
@@ -790,8 +837,7 @@ async function scenarioM4d() {
   const ng = mountOf(noGate, { st: { cwd: CWD } })
   await React.act(async function () { ng.root.render(React.createElement(noGate.VersionControlTab, { st: { cwd: CWD } })) })
   await settle()
-  await ng.type('[data-vc-changes-row="1.3"] [data-vc-changes-field="path"]', 'a.txt')
-  const ngBtn = ng.q('[data-vc-changes-primary="1.3"]')
+  const ngBtn = ng.q('[data-vc-file-row="a.txt"] [data-vc-file-op="stage-file"]')
   await React.act(async function () {
     ngBtn.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }))
     ngBtn.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }))
@@ -853,13 +899,17 @@ async function scenarioM4d() {
   check(activeIs(foc.m, '[data-vc-branch-overlay] [data-vc-branch-close]'), 'T35e 分支浮层打开后焦点进浮层第一个可操作控件（关闭键）')
   await foc.m.key('[data-vc-branch-overlay] [data-vc-branch-close]', 'Escape')
   check(activeIs(foc.m, '[data-vc-branch-btn]'), 'T35f Esc 关分支浮层后焦点回分支按钮')
-  await foc.m.type('[data-vc-changes-row="1.6"] [data-vc-changes-field="path"]', 'a.txt')
-  const dangerBtn = foc.m.q('[data-vc-changes-primary="1.6"]')
-  dangerBtn.focus()
-  await foc.m.click(dangerBtn)
-  check(!!foc.m.q('[data-vc-changes-confirm="1.6"]') && activeIs(foc.m, '[data-vc-changes-confirm="1.6"] [data-focus-default="cancel"]'), 'T35g 确认卡打开后焦点进卡里的取消键（危险动作默认停在安全那一颗）')
-  await foc.m.click('[data-vc-changes-confirm="1.6"] [data-vc-changes-confirm-cancel="1"]')
-  check(activeIs(foc.m, '[data-vc-changes-primary="1.6"]'), 'T35h 取消确认卡后焦点回触发它的那颗动作按钮')
+  // #1860：13 条动作面板退役后，危险动作的确认卡改由文件行菜单或分支板触发；这里用分支板的
+  //   「切换分支」当触发点——它在卡打开后仍然留在屏上，能验「取消后焦点回到触发它的那颗按钮」。
+  await foc.m.click('[data-vc-gear-btn]')
+  await foc.m.click('[data-vc-gear-item="branch-tags"]')
+  const switchBtn2 = foc.m.q('[data-vc-branch-row="feat/x"] [data-vc-branch-action="switch"]')
+  check(!!switchBtn2, 'T35g 分支板画出「切换分支」入口（确认卡焦点用例的触发点）')
+  if (switchBtn2) switchBtn2.focus()
+  if (switchBtn2) await foc.m.click(switchBtn2)
+  check(!!foc.m.q('[data-vc-branch2] [data-vc-confirm]') && activeIs(foc.m, '[data-vc-branch2] [data-vc-confirm] [data-focus-default="cancel"]'), 'T35h 确认卡打开后焦点进卡里的取消键（危险动作默认停在安全那一颗）')
+  await foc.m.click('[data-vc-branch2] [data-vc-confirm] [data-focus-default="cancel"]')
+  check(activeIs(foc.m, '[data-vc-branch-row="feat/x"] [data-vc-branch-action="switch"]'), 'T35i 取消确认卡后焦点回触发它的那颗按钮')
   await foc.m.unmount()
 }
 
@@ -928,8 +978,7 @@ async function scenarioHistoryRedesign() {
   if (revertBtn) await m.click(revertBtn)
   check(m.page() === revertTarget.page && !m.q('[data-vc-history-menu]') && !!m.q('[data-vc-history-menu-close="1"]') === false,
     'T36k 点菜单里的「还原这次提交」不在这里执行 git：跳到 5.4 主入口所在的 ' + revertTarget.page + ' 页并收起菜单')
-  const hitRow = m.q('[data-cap-hit]')
-  check(!!hitRow && hitRow.getAttribute('data-cap-primary') === '5.4', 'T36l 跳过去后 5.4 那一行带落点高亮（data-cap-hit）')
+  check(!m.q('[data-cap-hit]') && !m.q('[data-vc-cap-list]'), 'T36l 跳过去后落在 5.4 的页面；能力清单已退役，页面体不再画落点高亮')
   await m.click('[data-vc-back]')
   check(m.page() === 'commits', 'T36m 从主入口返回提交历史页（来源页入口保留）')
   const openRow = m.q('[data-vc-history-open="bbbb2222333344445555"]')

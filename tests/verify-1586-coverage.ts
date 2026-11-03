@@ -191,23 +191,25 @@ const countProblemsOf = function (view) {
   })
   return problems
 }
+// #1860 起能力清单从页面体退役：162 条能力的唯一主入口落在命令面板里。
+//   判据因此从「逐页主入口与账本一致」改成两句话：页面体里一条主入口都不许再有；
+//   命令面板空查询一次渲染 162 行，每行恰带一个 data-cap-primary，顺序与账本一致、无重复。
 const primaryProblemsOf = function (view) {
   const problems = []
   const pages = (view.PAGE_SURFACES || []).map(function (p) { return p.id })
   pages.forEach(function (page) {
     const html = renderPage(view, { page: page, width: 460, skin: 'dark' })
     const got = attrValuesOf(html, 'data-cap-primary')
-    const want = (view.vcPageCapabilitiesOf(page) || []).map(function (c) { return c.id })
-    if (got.join(',') !== want.join(',')) problems.push(page + ' 页主入口是 [' + got.join(',') + ']，账本是 [' + want.join(',') + ']')
+    if (got.length > 0) problems.push(page + ' 页正文里还有 ' + got.length + ' 个主入口标记（应全部只在命令面板）')
+    if (html.indexOf('data-vc-cap-list') >= 0) problems.push(page + ' 页正文里还有能力清单')
   })
-  const all = renderPage(view, { page: 'changes', width: 300, skin: 'light' })
-  if (!all) problems.push('单页渲染没有产出')
-  const allPages = renderToStaticMarkup(view.vcRenderAllPages(h, tZh, {}))
-  const ids = attrValuesOf(allPages, 'data-cap-primary')
+  const paletteHtml = renderPage(view, { page: 'changes', width: 460, skin: 'dark', open: { palette: true } })
+  const ids = attrValuesOf(paletteHtml, 'data-cap-primary')
+  const want = (view.CAPABILITIES || []).map(function (c) { return String(c.id) })
+  if (ids.join(',') !== want.join(',')) problems.push('命令面板空查询列出的主入口是 [' + ids.join(',') + ']，账本是 [' + want.join(',') + ']')
   const unique = {}
   ids.forEach(function (id) { unique[id] = true })
-  if (ids.length !== view.CAPABILITY_TOTAL) problems.push('一次渲染全部页面时主入口数 ' + ids.length + '，应为 ' + view.CAPABILITY_TOTAL)
-  if (Object.keys(unique).length !== ids.length) problems.push('一次渲染全部页面时有重复主入口')
+  if (Object.keys(unique).length !== ids.length) problems.push('命令面板里有重复主入口')
   return problems
 }
 const placeholderProblemsOf = function (entries) {
@@ -319,20 +321,17 @@ async function main() {
   const countProblems = countProblemsOf(view)
   check(countProblems.length === 0, '三 162 条、三组分布求和、119 / 36 / 7 与页面分布逐项对齐' + (countProblems.length ? '：' + countProblems.join('；') : ''))
 
-  // ---- 四 每条能力在主入口上可见：逐页主入口标记与账本一致，全量渲染 162 且不重复 ----
-  console.log('\n四 主入口逐页可见')
+  // ---- 四 主入口只在命令面板：页面体没有清单与标记，面板一次列全 162 条且顺序与账本一致 ----
+  console.log('\n四 主入口只在命令面板')
   const pages = view.PAGE_SURFACES.map(function (p) { return p.id })
   pages.forEach(function (page) {
     const html = renderPage(view, { page: page, width: 460, skin: 'dark' })
-    const got = attrValuesOf(html, 'data-cap-primary')
-    const want = view.vcPageCapabilitiesOf(page).map(function (c) { return c.id })
-    check(got.join(',') === want.join(','), '四 ' + page + ' 页的 ' + want.length + ' 条能力各有一个主入口，顺序与账本一致')
+    check(attrValuesOf(html, 'data-cap-primary').length === 0 && html.indexOf('data-vc-cap-list') < 0, '四 ' + page + ' 页正文里没有能力清单、也没有主入口标记')
   })
   const primaryProblems = primaryProblemsOf(view)
-  check(primaryProblems.length === 0, '四 一次渲染全部页面：162 个主入口、无重复、页数与注册表一致' + (primaryProblems.length ? '：' + primaryProblems.join('；') : ''))
-  const otherPages = pages.filter(function (page) { return page !== 'commits' })
-  const onlyCommits = otherPages.every(function (page) { return rowSegmentOf(renderPage(view, { page: page, width: 460, skin: 'dark' }), '13.14') === '' })
-  check(onlyCommits && rowSegmentOf(renderPage(view, { page: 'commits', width: 460, skin: 'dark' }), '13.14') !== '', '四 13.14 的主入口只在提交历史页出现（其余 ' + otherPages.length + ' 页都没有它的主入口）')
+  check(primaryProblems.length === 0, '四 命令面板空查询列出 162 条主入口、顺序与账本一致、无重复' + (primaryProblems.length ? '：' + primaryProblems.join('；') : ''))
+  const t1314 = view.vcPaletteTargetOf('13.14')
+  check(!!t1314 && t1314.page === 'commits', '四 13.14 的主入口落在命令面板、跳转落点是提交历史页（实得 ' + (t1314 && t1314.page) + '）')
   // #1846：搜索页改成独立版式——首屏就是它自己的输入框，命令面板不再嵌进能力行，也不该在这一页出现。
   const searchHtml = renderPage(view, { page: 'search', width: 460, skin: 'dark' })
   check(searchHtml.indexOf('data-vc-search-input') >= 0 && searchHtml.indexOf('data-vc-palette-input') < 0, '四 全库搜索页画自己的搜索输入框（命令面板不再嵌进这一页）')
@@ -340,9 +339,11 @@ async function main() {
   // ---- 五 占位清零：能力行画入口提示不画假话，分支悬浮层改成标签 + 指路说明 ----
   console.log('\n五 占位清零')
   const allPagesHtml = renderToStaticMarkup(view.vcRenderAllPages(h, tZh, {}))
-  const hintCount = countOf(allPagesHtml, 'data-cap-hint')
-  check(hintCount >= view.CAPABILITY_TOTAL - 1 && countOf(allPagesHtml, 'data-cap-pending') === 0, '五 ' + hintCount + ' 行能力画的是入口提示（data-cap-hint），没有一行再标「未实现」的旧标记')
-  check(allPagesHtml.indexOf(tZh('vc.shell.cap.hint')) >= 0, '五 入口提示的文案是「这一行只列能力与命令原文」这类真话（不是入口由后续票实现）')
+  // #1860：能力行退役后，旧的能力提示与「未实现」标记一个都不该再出现在页面里；
+  //   能力说明与命令原文现在只在命令面板的行里（一 章已逐条验过搜得到）。
+  check(countOf(allPagesHtml, 'data-cap-hint') === 0 && countOf(allPagesHtml, 'data-cap-pending') === 0, '五 全部页面里不再有旧能力提示（data-cap-hint）与「未实现」标记（data-cap-pending）')
+  const paletteHtml = renderPage(view, { page: 'changes', width: 460, skin: 'dark', open: { palette: true } })
+  check(paletteHtml.indexOf('data-cap-primary') >= 0 && paletteHtml.indexOf(tZh('vc.shell.cap.hint')) < 0, '五 命令面板行承担能力入口，不再画「这一行只列能力与命令原文」的旧提示')
   const branchHtml = renderPage(view, { page: 'changes', width: 460, skin: 'dark', open: { branch: true } })
   const branchActions = attrValuesOf(branchHtml, 'data-vc-branch-action')
   check(branchHtml.indexOf('data-vc-branch-overlay="1"') >= 0 && branchActions.join(',') === 'list,create,delete,merge,rebase', '五 分支悬浮层仍列出五个动作名（顺序不变）')

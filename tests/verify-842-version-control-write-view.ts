@@ -552,20 +552,21 @@ function groupA(view) {
   const paths = (changes && changes.stageAll ? changes.stageAll.paths : []).join(',')
   check(!!(changes && changes.stageAll && changes.stageAll.show === true) && paths === 'b.txt,c.txt', 'A2 视图条模型里有「add 全部」，路径只含未暂存且非冲突的两行（实得 ' + JSON.stringify(paths) + '）')
 
-  // A2b：改动页十三条动作真渲染（1.1–1.13），每行一个主按钮标记；1.4 的文字是词条译文。
+  // A2b：#1860 起 162 条能力主入口只在命令面板，改动页不再画十三条动作清单；这里反向守住「页面体里没有它」。
   const a2Changes = { counts: { staged: 1, unstaged: 3, untracked: 1, conflicts: 1 }, values: {}, rows: {}, handlers: {} }
   const a2Html = pageHtmlOf(view, { page: 'changes', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: reads, changes: a2Changes })
   const a2Rows = attrValuesOf(a2Html, 'data-vc-changes-row')
-  const a2Want = view.VC_CHANGES_OPS.map(function (x: any) { return String(x.capId) }).join(',')
-  const a2Go = tagAt(a2Html, 'data-vc-changes-primary="1.4"')
-  check(a2Html.indexOf('data-vc-changes-count="13"') >= 0 && a2Rows.join(',') === a2Want && a2Go !== '' && a2Go.indexOf('data-vc-changes-op="stage-all"') >= 0, 'A2b 改动页真渲染十三条动作（1.1–1.13），1.4 是「暂存全部」的主按钮（实得 ' + a2Rows.length + ' 行）')
+  check(a2Rows.length === 0 && a2Html.indexOf('data-vc-changes-count=') < 0 && a2Html.indexOf('data-vc-changes-page') < 0, 'A2b 改动页不再挂十三条动作清单（#1860：能力主入口只在命令面板；页面体 data-vc-changes-row 为 0，实得 ' + a2Rows.length + ' 行）')
 
   // A3：提交区真渲染 —— 没有说明时提交按钮禁用并常驻原因，写了说明就解除禁用、预览跟着变。
   const a3Ui = function (message) { return { commit: Object.assign({}, view.vcCommitInitialState(), { form: commitFormOf(), message: message }) } }
-  const a3Blank = pageHtmlOf(view, { page: 'changes', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: reads, ui: a3Ui('') })
-  const a3Typed = pageHtmlOf(view, { page: 'changes', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: reads, ui: a3Ui('写一句提交信息') })
-  const a3BlankBtn = tagAt(a3Blank, 'data-vc-commit-submit')
-  const a3TypedBtn = tagAt(a3Typed, 'data-vc-commit-submit')
+  // #1860 起提交区按原型 composer 排：先要有已暂存的文件，提交按钮才可能解除禁用。
+  const a3Changes = { counts: { staged: 1, unstaged: 0, untracked: 0, conflicts: 0 }, files: { staged: [{ path: 'a.txt' }], unstaged: [] }, values: {}, rows: {}, handlers: {} }
+  const a3Blank = pageHtmlOf(view, { page: 'changes', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: reads, changes: a3Changes, ui: a3Ui('') })
+  const a3Typed = pageHtmlOf(view, { page: 'changes', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: reads, changes: a3Changes, ui: a3Ui('写一句提交信息') })
+  // 锚点必须带等号与引号：原因行 span 的属性是 data-vc-commit-submit-tip，裸前缀会把它当成按钮抠出来。
+  const a3BlankBtn = tagAt(a3Blank, 'data-vc-commit-submit="')
+  const a3TypedBtn = tagAt(a3Typed, 'data-vc-commit-submit="')
   // 只看独立的 disabled 属性：aria-disabled="false" 里也含 disabled 这个子串，不能用 indexOf 直接判。
   const a3Disabled = function (tag) { return /(?:^|\s)disabled(?:="")?(?:\s|>)/.test(tag) }
   check(a3Disabled(a3BlankBtn) && a3Blank.indexOf('data-vc-commit-submit-tip') >= 0 && a3TypedBtn !== '' && !a3Disabled(a3TypedBtn) && a3Typed.indexOf('写一句提交信息') >= 0 && a3Typed.indexOf('data-vc-commit-preview') >= 0,
@@ -1322,11 +1323,12 @@ function groupL(view: any, React: any, DswsCtx: any, TipStub: any, IcStub: any) 
   const l5Ok = remotePageHtmlOf(view, { reads: remoteReadsOf({ sync: l5Sync }), ui: { open: '8.9', result: { ok: true, cmd: 'push', ms: 9, n: 1, next: '继续' } } })
   check(l5Fail.indexOf('vcs-result-fail') >= 0 && l5Fail.indexOf('role="alert"') >= 0 && l5Ok.indexOf('vcs-result-ok') >= 0 && l5Ok.indexOf('role="status"') >= 0 && css.indexOf('.vcs-result-fail{border-color') >= 0, 'L5 结果语义色：失败是 alert 加失败色、成功是 status，颜色规则在样式表里（不靠浏览器默认）')
 
-  // L6 反证：把「不可逆」徽标的类名改坏，L 组这条判据当场变假。
+  // L6 反证：把改动页统计卡的类名前缀改坏，同一份渲染结果里这个类名当场消失（证明类名判据不是恒真）。
+  //   #1860 之后旧的 13 条动作面板（「不可逆」徽标）已从改动页退役，反证目标换成新版首屏的三张统计卡。
   const l6Plain = pageHtmlOf(view, { page: 'changes', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: readsOf(richScreen()), changes: { counts: {}, values: {}, rows: {}, handlers: {} } })
-  const l6View = buildView(subQ("'vcs-changes-badge vcs-changes-badge-hard'", "'vcs-changes-badge vcs-changes-badge-broken'"), React, DswsCtx, TipStub, IcStub, null, [], trZh)
+  const l6View = buildView(subQ("'stat tone-'", "'stat-broken tone-'"), React, DswsCtx, TipStub, IcStub, null, [], trZh)
   const l6Html = pageHtmlOf(l6View, { page: 'changes', width: 460, skin: 'dark', seed: { nowMs: NOW }, reads: readsOf(richScreen()), changes: { counts: {}, values: {}, rows: {}, handlers: {} } })
-  check(l6Plain.indexOf('vcs-changes-badge-hard') >= 0 && l6Html.indexOf('vcs-changes-badge-hard') < 0, 'L6 反证：把「不可逆」徽标的类名改坏后，这条判据当场变假（判据不是恒真）')
+  check(l6Plain.indexOf('stat tone-') >= 0 && l6Html.indexOf('stat tone-') < 0, 'L6 反证：把改动页统计卡的类名改坏后，同一份渲染里这个类名当场消失（证明类名判据不是恒真）')
 
   // L7 反证：把差异行的类名前缀改坏，L3 的类名判据当场变假。
   const l7View = buildView(subQ("'vcs-hist-diff-line vcs-hist-line-'", "'vcs-hist-diff-line vcs-hist-lineX-'"), React, DswsCtx, TipStub, IcStub, null, [], trZh)

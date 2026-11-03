@@ -183,6 +183,9 @@ async function setSkin(page: any, skin: string) { await page.evaluate((s: string
 const measure = (page: any) => page.evaluate(() => window.__measureLive())
 const overflowOf = (m: any) => m.docScrollWidth > m.innerWidth + 1 || m.maxRight > m.rootRight + 1 || m.minLeft < m.rootLeft - 1
 async function shoot(page: any, name: string) { fs.mkdirSync(SHOT_DIR, { recursive: true }); await page.screenshot({ path: path.join(SHOT_DIR, name + '.png') }) }
+// 成对截图按「只截页面壳」出图：原型侧（screenshots.mjs）截的也是 .panel 元素本身，
+//   两张图同一裁切口径，并排对照时高度和留白才对得上。
+async function shootShell(page: any, name: string) { fs.mkdirSync(SHOT_DIR, { recursive: true }); await page.locator('[data-vc-shell]').screenshot({ path: path.join(SHOT_DIR, name + '.png') }) }
 
 // ---------------- A 组：四档宽 × 两皮肤 ----------------
 async function groupLayout(page: any) {
@@ -199,6 +202,12 @@ async function groupLayout(page: any) {
     check(!!m && m.tabs.length === 4 && m.selected.join(',') === 'changes', tag + '：四个页签都在、改动页签是选中态')
     check(!!m && m.firstScreenCalls === 1, tag + '：进入时恰好发一次首屏聚合读（实得 ' + (m && m.firstScreenCalls) + ' 次）')
     if (width === 300 || width === 520) await shoot(page, 'tab-' + skin + '-' + width)
+    // #1860 验收要的成对截图：四档宽 × 两皮肤下四个页签各来一张，供和原型同宽同皮肤并排对照
+    //   （原型侧用 docs/prototype/vc-redesign/tools/screenshots.mjs 的同 URL 参数出图）。
+    for (const tab of TAB_PAGES) {
+      if (tab !== 'changes') await click(page, '[data-vc-tab="' + tab + '"]')
+      await shootShell(page, 'shell-' + tab + '-' + skin + '-' + width)
+    }
   }
 }
 
@@ -223,7 +232,9 @@ async function groupNav(page: any) {
     await click(page, '[data-vc-gear-item="' + id + '"]')
     const m = await measure(page)
     check(!!m && m.page === id && m.depth === '2', 'B 齿轮：点「' + id + '」进入该分区页、层级 2（实得 ' + (m && m.page) + '）')
-    check(!!m && m.back === true && m.primaries > 0, 'B 齿轮：' + id + ' 页有返回入口、有真实正文与能力主入口')
+    // #1860：能力主入口搬到命令面板后，二级页正文只要求「有返回入口、真的换了页」；
+    //   能力可达性统一由下面的命令面板与 C 组判据验，不再要求页面体里出现 data-cap-primary。
+    check(!!m && m.back === true, 'B 齿轮：' + id + ' 页有返回入口（实得 ' + (m && m.back) + '）')
     // #1829 阶段 4：二级页按原型 37/39 收成「页头 + 正文」——四个固定页签与身份行的同步带都让位。
     check(!!m && m.tabs.length === 0, 'B 齿轮：' + id + ' 二级页不铺四个固定页签（实得 ' + (m && m.tabs.length) + ' 个）')
     check(!!m && m.syncFacts === false, 'B 齿轮：' + id + ' 二级页不铺同步事实与同步动作行')
@@ -235,14 +246,27 @@ async function groupNav(page: any) {
     const back = await measure(page)
     check(!!back && back.page === 'changes', 'B 齿轮：从索引再返回改动页（实得 ' + (back && back.page) + '，返回按钮 ' + (back && back.back) + '）')
   }
+  // #1860：定稿原型的一屏里没有额外顶栏，搜索/变基/冲突三页改从命令面板进入（能力入口只有一处）。
   for (const key of ['search', 'rebase', 'conflicts']) {
-    await click(page, '[data-vc-extra-link="' + key + '"]')
+    await mount(page)
+    const capId = await page.evaluate((p: string) => {
+      const list = (window.__VC.vcPaletteRowsOf('') || []).filter((r: any) => String(r.page || '') === p)
+      return list.length > 0 ? String(list[0].id) : ''
+    }, key)
+    check(capId !== '', 'B 命令面板入口：账本里 ' + key + ' 页有可定位的能力（' + capId + '）')
+    if (capId === '') continue
+    await click(page, '[data-vc-search-entry]')
+    await page.fill('[data-vc-palette-input]', capId)
+    await page.waitForTimeout(200)
+    const has = await page.evaluate((id: string) => !!document.querySelector('[data-vc-palette-row="' + id + '"]'), capId)
+    check(has, 'B 命令面板入口：搜「' + capId + '」能搜到该页能力')
+    if (has) { await click(page, '[data-vc-palette-row="' + capId + '"]'); await page.waitForTimeout(180) }
     const m = await measure(page)
-    check(!!m && m.page === key, 'B 顶栏入口：点「' + key + '」到该页（实得 ' + (m && m.page) + '）')
-    check(!!m && m.tabs.length === 0, 'B 顶栏入口：' + key + ' 二级页不铺四个固定页签（实得 ' + (m && m.tabs.length) + ' 个）')
+    check(!!m && m.page === key, 'B 命令面板入口：选中能力后落到 ' + key + ' 页（实得 ' + (m && m.page) + '）')
+    check(!!m && m.tabs.length === 0, 'B 命令面板入口：' + key + ' 二级页不铺四个固定页签（实得 ' + (m && m.tabs.length) + ' 个）')
     await click(page, '[data-vc-page-head] [data-vc-back]')
     const back = await measure(page)
-    check(!!back && back.page === 'changes', 'B 顶栏入口：从 ' + key + ' 返回改动页（实得 ' + (back && back.page) + '，返回按钮 ' + (back && back.back) + '）')
+    check(!!back && back.page === 'changes', 'B 命令面板入口：从 ' + key + ' 返回改动页（实得 ' + (back && back.page) + '，返回按钮 ' + (back && back.back) + '）')
   }
   await mount(page)
   await click(page, '[data-vc-search-entry]')
@@ -263,23 +287,47 @@ async function groupNav(page: any) {
   await click(page, '[data-vc-palette-row="' + pickId + '"]')
   m = await measure(page)
   check(!!m && m.page === target.page, 'B 命令面板：选中「' + pickId + '」落到目标页 ' + target.page + '（实得 ' + (m && m.page) + '）')
-  check(!!m && m.capHit === true, 'B 命令面板：落点那一条能力行高亮（data-cap-hit）')
+  // #1860：页面体里不再铺能力行，data-cap-hit 只剩页面内能力清单会用；这里改为判「落到目标页、浮层收起」。
+  check(!!m && m.page === target.page, 'B 命令面板：选中后停在目标页 ' + target.page + '（实得 ' + (m && m.page) + '）')
   check(!!m && m.palette.length === 0, 'B 命令面板：选中之后浮层面板关掉')
 }
 
-// ---------------- C 组：300 宽下逐页可达且主入口可点 ----------------
-async function primaryCheck(page: any, pageErrors: string[], tag: string) {
-  // #1829 阶段 4：页面尾部的「本页负责 N 条能力」长清单改成默认折叠的 details（首屏不再被它占满）。
-  //   主入口仍在页面里，只是要点开折叠入口才看得见；这里先展开再验证「滚进视口后可点」。
-  await page.evaluate(() => { document.querySelectorAll('details[data-vc-caps-fold]').forEach((d: any) => d.setAttribute('open', '')) })
-  await page.waitForTimeout(80)
-  const info = await page.evaluate(() => { const el = document.querySelector('[data-cap-primary]'); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { id: el.getAttribute('data-cap-primary'), left: r.left, right: r.right, top: r.top, bottom: r.bottom, iw: window.innerWidth, ih: window.innerHeight } })
-  check(!!info, tag + '：该页有可点的能力主入口（data-cap-primary）')
-  check(!!info && info.left >= -1 && info.right <= info.iw + 1 && info.top >= -1 && info.bottom <= info.ih + 1, tag + '：主入口滚进视口后完整可点（' + (info && info.id) + '）')
+// ---------------- C 组：300 宽下逐页可达、页面体不再出现能力清单、能力从命令面板可达 ----------------
+// #1860 改判据（不是放宽）：能力清单从页面体退役，162 条能力的唯一主入口落在命令面板里。
+//   所以这一组问的不再是「页面体里有没有可点的主入口」，而是两件事：
+//   ①页面体里看不到能力清单（data-vc-cap-list）与「本页负责 N 条能力」；
+//   ②这一页的能力在命令面板里搜得到、点得进该页、不报错。
+async function primaryCheck(page: any, pageErrors: string[], tag: string, opts?: any) {
+  const body = await page.evaluate(() => {
+    const el: any = document.querySelector('[data-vc-page-body]')
+    const pageId: string = el ? String(el.getAttribute('data-vc-page-body') || '') : ''
+    const cap: any = (window.__VC.vcPaletteRowsOf('') || []).filter((r: any) => String(r.page || '') === pageId)[0]
+    return {
+      page: pageId,
+      list: !!document.querySelector('[data-vc-cap-list]'),
+      lede: el ? String(el.textContent || '').indexOf('本页负责') >= 0 : false,
+      primary: document.querySelectorAll('[data-cap-primary]').length,
+      capId: cap ? String(cap.id) : '',
+    }
+  })
+  check(!body.list, tag + '：页面体里没有能力清单（data-vc-cap-list）')
+  check(!body.lede, tag + '：页面体里没有「本页负责 N 条能力」说明块')
+  check(body.primary === 0, tag + '：页面体里没有能力主入口标记（实得 ' + body.primary + ' 条，唯一主入口在命令面板）')
+  check(body.capId !== '', tag + '：账本里 ' + body.page + ' 页有可定位的能力（' + body.capId + '）')
   const before = pageErrors.length
-  await page.evaluate(() => { const el = document.querySelector('[data-cap-primary]'); if (el) el.click() })
-  await page.waitForTimeout(220)
-  check(pageErrors.length === before, tag + '：点主入口不报错（新增页面错误 ' + (pageErrors.length - before) + ' 条）')
+  // 搜索页（13.x）的身份行那颗按钮是「聚焦本页搜索框」，不打开命令面板；
+  //   从命令面板跳过来的路径已经在上一步验过「搜得到、点得进」，这里不重复开面板。
+  if (body.capId !== '' && !(opts && opts.skipPalette)) {
+    await click(page, '[data-vc-search-entry]')
+    await page.fill('[data-vc-palette-input]', body.capId)
+    await page.waitForTimeout(200)
+    const has = await page.evaluate((id: string) => !!document.querySelector('[data-vc-palette-row="' + id + '"]'), body.capId)
+    check(has, tag + '：命令面板里搜得到该页能力 ' + body.capId)
+    if (has) { await click(page, '[data-vc-palette-row="' + body.capId + '"]'); await page.waitForTimeout(200) }
+    const m = await measure(page)
+    check(!!m && m.page === body.page, tag + '：命令面板落到该页（实得 ' + (m && m.page) + '）')
+  }
+  check(pageErrors.length === before, tag + '：走一遍命令面板不报错（新增页面错误 ' + (pageErrors.length - before) + ' 条）')
 }
 async function groupReach(page: any, pageErrors: string[]) {
   await page.setViewportSize({ width: 300, height: 1400 }); await setSkin(page, 'dark')
@@ -300,13 +348,25 @@ async function groupReach(page: any, pageErrors: string[]) {
     check(!!m && !overflowOf(m), 'C 300 宽：管理分区 ' + id + ' 没有横向溢出（后代右边界 ' + (m && m.maxRight.toFixed(1)) + ' ≤ 根右边界 ' + (m && m.rootRight.toFixed(1)) + '）')
     await primaryCheck(page, pageErrors, 'C 分区 ' + id)
   }
+  // #1860：没有额外顶栏之后，搜索/变基/冲突三页从命令面板进入；到页后仍然验「页面体无能力清单 + 能力可达」。
   for (const key of ['search', 'rebase', 'conflicts']) {
     await mount(page)
-    await click(page, '[data-vc-extra-link="' + key + '"]')
+    const capId = await page.evaluate((p: string) => {
+      const list = (window.__VC.vcPaletteRowsOf('') || []).filter((r: any) => String(r.page || '') === p)
+      return list.length > 0 ? String(list[0].id) : ''
+    }, key)
+    check(capId !== '', 'C 300 宽：账本里 ' + key + ' 页有可定位的能力（' + capId + '）')
+    if (capId === '') continue
+    await click(page, '[data-vc-search-entry]')
+    await page.fill('[data-vc-palette-input]', capId)
+    await page.waitForTimeout(200)
+    const has = await page.evaluate((id: string) => !!document.querySelector('[data-vc-palette-row="' + id + '"]'), capId)
+    check(has, 'C 300 宽：命令面板搜得到 ' + key + ' 页能力 ' + capId)
+    if (has) { await click(page, '[data-vc-palette-row="' + capId + '"]'); await page.waitForTimeout(200) }
     const m = await measure(page)
-    check(!!m && m.page === key, 'C 300 宽：1 次点击到顶栏入口 ' + key)
-    check(!!m && !overflowOf(m), 'C 300 宽：顶栏入口 ' + key + ' 没有横向溢出（后代右边界 ' + (m && m.maxRight.toFixed(1)) + ' ≤ 根右边界 ' + (m && m.rootRight.toFixed(1)) + '）')
-    await primaryCheck(page, pageErrors, 'C 入口 ' + key)
+    check(!!m && m.page === key, 'C 300 宽：命令面板 2 次点击到 ' + key + ' 页（实得 ' + (m && m.page) + '）')
+    check(!!m && !overflowOf(m), 'C 300 宽：命令面板入口 ' + key + ' 没有横向溢出（后代右边界 ' + (m && m.maxRight.toFixed(1)) + ' ≤ 根右边界 ' + (m && m.rootRight.toFixed(1)) + '）')
+    await primaryCheck(page, pageErrors, 'C 入口 ' + key, { skipPalette: true })
   }
 }
 
@@ -339,8 +399,21 @@ async function groupEmpty(page: any) {
   const valuesMod = await import(pathToFileURL(path.join(ROOT, sourcePath('src/shared/time-config/values.js'))).href)
   const timeVals: any = {}
   for (const k of Object.keys(valuesMod)) if (typeof valuesMod[k] === 'number') timeVals[k] = valuesMod[k]
+  // 真机里样式按 src/client/index.ts 的顺序一次注入：壳样式 → #1829/#1840 新样式 → #1860 原型样式。
+  // 这里必须同序拼全，否则截出来的形状是没上色的裸文本，看不出还原得对不对。
   const stylesMod = await import(pathToFileURL(path.join(ROOT, 'src/client/views/versionControl/vcShellStyles.ts')).href)
-  const css = 'html,body{margin:0;padding:0}#pane{width:100%}' + String(stylesMod.VC_SHELL_STYLE_TEXT || '')
+  // vcPageStyles 是拼接型叶子（引用了同一闭包里的 MOTION 常量），单独 import 会 ReferenceError；
+  // 它只服务二级页，本门禁的四页签首屏用不到，这里不拼它。
+  // #1860 主屏原型样式按真源拆成八份叶子，这里按 src/client/index.ts 与 scripts/build.mts 的同序拼全。
+  const protoStyleNames: string[] = ['vcProtoTokens', 'vcProtoChrome', 'vcProtoControls', 'vcProtoChanges', 'vcProtoComposer', 'vcProtoHistory', 'vcProtoWorktrees', 'vcProtoMenus']
+  const protoCssParts: string[] = []
+  for (const name of protoStyleNames) {
+    const mod: any = await import(pathToFileURL(path.join(ROOT, 'src/client/views/versionControl/' + name + '.ts')).href)
+    protoCssParts.push(...(mod['VC_PROTO_STYLE_' + name.slice('vcProto'.length).toUpperCase()] || []))
+  }
+  const css = 'html,body{margin:0;padding:0}#pane{width:100%}'
+    + String(stylesMod.VC_SHELL_STYLE_TEXT || '')
+    + protoCssParts.join('\n')
   const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
   const browser = await getBrowser({ headless: true })
   try {

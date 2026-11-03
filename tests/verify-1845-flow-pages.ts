@@ -207,15 +207,17 @@ async function main() {
   const doneSections: any[] = findAll(donePage, function (n: any) { return classHas(n, 'page-section') })
   check(byAttr(doneSections[2], 'data-vc-undo-result').length === 1, 'D20 结果条画在第三段（跟着确认执行，而不是漂在页面末尾）')
 
-  // ===== E 页面壳：流程页正文与五条动作面板排在能力清单之前 =====
+  // ===== E 页面壳：流程页正文与五条动作面板在页面体里；能力清单随 #1860 退役 =====
+  //   #1860 起 162 条能力主入口只在命令面板与管理索引，页面壳不再挂能力清单，
+  //   所以 E 组从「排在清单之前」改成「正文在页面体里、壳里没有清单」。
   const shellSrc = readFileSync(path.join(ROOT, 'src/client/views/versionControl/vcShellPages.ts'), 'utf8')
   const atUndo = shellSrc.indexOf('h(VC_UNDO_PANEL')
-  const atCaps = shellSrc.indexOf("children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))")
+  const atCaps = shellSrc.indexOf('vcCapabilityListOf')
   const atRebase = shellSrc.indexOf('vcRebasePageNode(h, t, { rebase: opts.rebase })')
   const atConflicts = shellSrc.indexOf('vcConflictsPageNode(h, t, { conflicts: opts.conflicts })')
-  check(atUndo >= 0 && atCaps >= 0 && atUndo < atCaps, 'E1 五条动作面板在页面体里、排在能力清单之前（面板 @' + atUndo + '，清单 @' + atCaps + '）')
-  check(atRebase >= 0 && atCaps >= 0 && atRebase < atCaps, 'E2 变基页正文排在能力清单之前（正文 @' + atRebase + '）')
-  check(atConflicts >= 0 && atCaps >= 0 && atConflicts < atCaps, 'E3 冲突页正文排在能力清单之前（正文 @' + atConflicts + '）')
+  check(atUndo >= 0 && atCaps < 0, 'E1 五条动作面板在页面体里，页面壳不再挂能力清单（面板 @' + atUndo + '，清单 @' + atCaps + '）')
+  check(atRebase >= 0 && atCaps < 0, 'E2 变基页正文在页面体里，页面壳不再挂能力清单（正文 @' + atRebase + '）')
+  check(atConflicts >= 0 && atCaps < 0, 'E3 冲突页正文在页面体里，页面壳不再挂能力清单（正文 @' + atConflicts + '）')
   check(shellSrc.split('h(VC_UNDO_PANEL').length - 1 === 1, 'E4 面板只挂一处（壳根不再重复挂一份）')
 
   // ===== F 样式叶子：新零件类名全覆盖、作用域与令牌纪律 =====
@@ -251,12 +253,11 @@ async function main() {
   const brokenDonePage = brokenUndo.vcUndoPageNode(h, trZh, { state: brokenUndo.vcUndoApplyWrite(brokenUndo.vcUndoApplyCheck(brokenUndo.vcUndoStateNew(), 1, checkReply), 2, writeReply) })
   check(byAttr(brokenDonePage, 'data-vc-undo-result').length === 2, 'G2 反证：把「完成态结果不重复画」去掉，结果条当场变两处（说明 D18 抓得住）')
 
-  const orderPredicate = function (src: string): boolean {
+  const retiredPredicate = function (src: string): boolean {
     const a = src.indexOf('h(VC_UNDO_PANEL')
-    const c = src.indexOf("children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))")
-    return a >= 0 && c >= 0 && a < c
+    return a >= 0 && src.indexOf('vcCapabilityListOf') < 0
   }
-  check(orderPredicate("children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))" + shellSrc) === false, 'G4 反证：把能力清单挪到面板之前，同一条判据当场判否（说明 E1 抓的是位置，不是有没有）')
+  check(retiredPredicate("children.push(Object.assign({}, vcCapabilityListOf(h, t, opts), { key: 'caps' }))" + shellSrc) === false, 'G4 反证：把能力清单挂回页面壳，同一条判据当场判否（说明 E1 抓的是「清单已退役」，不是恒真）')
 
   console.log(failed ? '' : '\n全部通过 — 流程页共用部件与三段式面板门禁生效（' + total + ' 项断言）')
   printGateResult(GATE, total, failed ? 1 : 0)

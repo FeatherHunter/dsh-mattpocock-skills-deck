@@ -60,6 +60,8 @@ declare function vcRealDeepLinkOf(props: any): string
 declare function vcRealDeepLinkNavOf(key: any): any
 declare function vcRealTabCountsOf(reads: any): any
 declare function vcRealFocusStepOf(root: any, nav: any, state: any): any
+// 四个页签的名字表（changes/commits/worktrees/stash）：#1860 起四页签的首层顶栏由身份行取代。
+declare const VC_TAB_PAGES: string[]
 
 export const VcRealTab = function (props: any) {
   const cx: any = React.useContext(DswsCtx)
@@ -363,11 +365,19 @@ export const VcRealTab = function (props: any) {
     },
   })
   const failNodes: any[] = vcRealFailNodesOf(h, tr, reads)
-  const kids: any[] = [h('div', { key: 'bar', className: 'vcs-live-bar', 'data-vc-live-bar': '1' }, vcRealBarNodesOf(h, tr, reads, nav, seed))]
+  // #1860：定稿原型的一屏里没有额外顶栏——「读取于」「重新读取」和三个快捷入口都已经并进身份行与齿轮索引。
+  //   四个页签的首层不再画这条顶栏；二级页与其它页保持原样（它们不在本票范围，返回链与快捷入口也还要用）。
+  const firstLevelTab: boolean = VC_TAB_PAGES.indexOf(String(nav.page || '')) >= 0 && !(nav.back && nav.back.page)
+  const kids: any[] = []
+  if (!firstLevelTab) kids.push(h('div', { key: 'bar', className: 'vcs-live-bar', 'data-vc-live-bar': '1' }, vcRealBarNodesOf(h, tr, reads, nav, seed)))
   // AI 兜底入口只在有「面板解决不了的事」时出现（冲突、进行中的操作、读失败五档、工作树边界），
-  //   与旧块一样贴在顶栏下方；没有候选时整块不画。
+  //   与旧块一样贴在顶栏下方；没有候选时整块不画（vcRealAiNodesOf 返回 null），所以定稿原型的干净首屏
+  //   上它不占任何位置。
+  // #1860：四页签的干净首屏照原型只从身份行开始；AI 兜底条保留——它是「面板解决不了的事」的唯一出口，
+  //   干净状态下整块不画，不改变原型版式。
   const aiNode: any = vcRealAiNodesOf(h, tr, reads, nav, props && props.st)
-  if (aiNode) kids.push(aiNode)
+  // AI 兜底条是兜底节点（无 key 时 React 会报「列表子节点缺 key」），这里补一个稳定 key。
+  if (aiNode) kids.push(Object.assign({}, aiNode, { key: 'ai' }))
   if (failNodes.length > 0) kids.push(h('div', { key: 'fails', className: 'vcs-live-fails', 'data-vc-live-fails': '1' }, failNodes))
   kids.push(h('div', { key: 'shell', className: 'vcs-live-shell' }, vcShellPageNode(h, tr, shellOpts)))
   return h('div', Object.assign({ id: 'vc-real-root', ref: rootRef, className: 'vcs-live', 'data-vc-live': '1', 'data-vc-live-page': nav.page, 'data-vc-live-depth': String(vcPageDepthOf(nav.page)) }, events), kids)

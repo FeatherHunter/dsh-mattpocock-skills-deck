@@ -22,6 +22,8 @@ declare function vcRealRemoteValuesOf(el: any): any
 declare function vcRealMigrateFieldsOf(rootEl: any, action: any): any
 declare function vcRealBranchFieldsOf(intent: any, current: any): any
 declare const VC_REAL_EXTRA_LINKS: string[]
+// #1860：四个一级页签的页 id 名单（vcShellPages 叶里定义），这里用它判断落点要不要保留来源页。
+declare const VC_TAB_PAGES: string[]
 // #1840：管理索引屏的页面 id。齿轮与身份行「管理」都跳到这一页，它是导航上的一站，不是浮层。
 declare const VC_MANAGE_INDEX_PAGE: string
 // #1846：全库搜索页的页面 id。在这一页上放大镜不弹命令面板，而是把焦点送回页面里那个输入框。
@@ -63,6 +65,9 @@ export const vcRealSelectCapOf = function (getNav: any, setNav: any): any {
       highlight: id,
       open: { branch: false, palette: false, gear: false, surface: '' },
     })
+    // #1860：落到四个一级页签上就按切页签处理——清掉来源页，一级页签不画返回键、也不进二级版式；
+    //   落到二级页（管理九分区、分支页等）时才保留来源，页头返回键才回得去。
+    if ((VC_TAB_PAGES || []).indexOf(page) >= 0) next.back = null
     setNav(next)
   }
 }
@@ -317,7 +322,7 @@ const VC_REAL_FOCUS_OPEN: any = { palette: '[data-vc-palette-input]', gear: '[da
 // 浮层关掉后焦点回哪颗固定触发钮：键盘打开时浏览器没把焦点给按钮，靠这一条兜底。
 const VC_REAL_FOCUS_TRIGGER: any = { palette: '[data-vc-search-entry]', gear: '[data-vc-gear-btn]', branch: '[data-vc-branch-btn]' }
 // 确认卡外层标记：各页自己的卡都算（壳原语卡带 data-vc-confirm，其余页各带自己的标记）。
-const VC_REAL_CONFIRM_CARD = '[data-vc-confirm], [data-vc-changes-confirm], [data-vc-conflicts-confirm], [data-vc-stash-confirm], [data-vc-sync-confirm], [data-vc-commit-confirm], [data-vc-sub-confirm], [data-vc-undo-confirm], [data-vc-rebase-confirm], [data-vc-rewrite-confirm], [data-vc-maint-confirm], [data-vc-migrate-confirm], [data-vc-diag-confirm], [data-vc-config-confirm], [data-vc-hooks-confirm], [data-vc-clone-confirm], [data-vc-remote-confirm]'
+const VC_REAL_CONFIRM_CARD = '[data-vc-confirm], [data-vc-file-confirm], [data-vc-changes-confirm], [data-vc-conflicts-confirm], [data-vc-stash-confirm], [data-vc-sync-confirm], [data-vc-commit-confirm], [data-vc-sub-confirm], [data-vc-undo-confirm], [data-vc-rebase-confirm], [data-vc-rewrite-confirm], [data-vc-maint-confirm], [data-vc-migrate-confirm], [data-vc-diag-confirm], [data-vc-config-confirm], [data-vc-hooks-confirm], [data-vc-clone-confirm], [data-vc-remote-confirm]'
 
 const vcRealFocusIn = function (node: any): void {
   if (node && typeof node.focus === 'function') node.focus({ preventScroll: true })
