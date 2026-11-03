@@ -10,8 +10,10 @@
     "noEmit": true,
     "strict": true,
     // 本仓没有装 @types/node（口径见 src/host/tsconfig.json 与 scripts/node-ambient.d.ts）。
-    // 这一层要用 node:sqlite / node:fs / node:path，所以在同目录的 node-ambient.d.ts 里
-    // 只声明本模块真正用到的那几个成员，不引一整包 Node 类型把全局打开。
+    // 这一层要用 node:sqlite，所以在同目录的 node-ambient.d.ts 里只声明它用到的成员；
+    // node:fs / node:path 改由 runtime/node-builtins.ts 在运行时取，不进入类型程序，
+    // 这样刷新房间按字面量导入契约入口时，宿主里那批 @ts-expect-error 不会被顶掉。
+    // 只声明真正用到的成员，不引一整包 Node 类型把全局打开。
     "types": [],
     "skipLibCheck": true
   },

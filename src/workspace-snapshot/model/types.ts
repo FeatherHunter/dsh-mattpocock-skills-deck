@@ -80,10 +80,25 @@ export interface GroupState {
 }
 
 /**
+ * 边上的一张目标票。与 tracker 契约里的 IssueRef 同形，但本层不 import tracker：
+ * 快照库只承诺「引用能落到一张票上」，不知道上层怎么用它。
+ *
+ * state 缺省表示状态未知——不是 open；消费方不得把未知当成「还开着」去拦动作。
+ */
+export interface ListIssueRef {
+  key: string
+  title: string
+  state?: 'open' | 'closed'
+  type?: string
+}
+
+/**
  * 列表里的一行。
  *
  * 只包含「有 row 组记录」的票：没有 row 记录的引用骨架（只在边表里被提到）不出现。
  * row 组即使是 truncated / unknown 也会出现，并带着三态——上层能说清「这行不全」。
+ *
+ * parents / blockedBy 是边，不是行字段：目标票可能只有身份（引用骨架），所以给的是轻量引用。
  */
 export interface ListIssue {
   effortId: string
@@ -91,10 +106,14 @@ export interface ListIssue {
   row: IssueRowValue
   labels: SnapshotLabel[]
   assignees: SnapshotActor[]
+  parents: string[]
+  blockedBy: ListIssueRef[]
   groups: {
     row: GroupState | null
     labels: GroupState | null
     assignees: GroupState | null
+    parents: GroupState | null
+    blockedBy: GroupState | null
   }
 }
 

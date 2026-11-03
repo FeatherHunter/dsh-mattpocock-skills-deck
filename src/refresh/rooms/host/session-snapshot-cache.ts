@@ -40,7 +40,10 @@ type UiDescription = ReturnType<typeof projectUiDescription>
  * #1774：previousSnapshot 是上一趟已知的快照（房间内存缓存里那份），来源不完整时交给编排层
  * 补回上次的容器与子票。为什么由这里传：编排器是每次请求新建的实例，它自己的进程内缓存永远是空的。
  */
-type ComposerOpts = { ifNoneMatch?: string; force?: boolean; previousSnapshot?: unknown }
+type ComposerOpts = { ifNoneMatch?: string; force?: boolean; previousSnapshot?: unknown; onRows?: (rows: unknown[]) => void }
+// #1863：宿主侧快照库门面（./snapshot-library.ts）只经这两个口子接进来；没注入就整条回放关闭。
+type LibReplay = { snapshot: unknown; lastKnownAtMs: number }
+type SnapshotLibrary = { readSnapshotReplay(input: { workspaceRoot: string; backend: string; repoIdentity: string; repo: RepoRef }): Promise<LibReplay | null>; recordIssueRows(input: { workspaceRoot: string; backend: string; repoIdentity: string; rows: unknown[] }): Promise<unknown> }
 type Composed = { ok: boolean; error?: { message?: string } | null; snapshot?: unknown; fail?: unknown; notModified?: unknown; status?: unknown; version?: unknown; cached?: unknown }
 type Composer = { composeSnapshot(id: string, repo: RepoRef, ctx: unknown, o: ComposerOpts): Promise<Composed> }
 type Levels = { byNumber?: Record<string, unknown>; byKey?: Record<string, unknown> }
@@ -71,12 +74,14 @@ type SnapshotDeps = {
   // #1835：失败历史的口（与宿主刷新失败共用同一个事件库）。快照取数以前只在界面留失败态、没有历史，
   //   事后查不到「什么时候、哪个环节、为什么」。只在这一段失败的第一次记一条，恢复后清标记。
   noteRefreshFailure?: any
+  // #1863：首屏读本地快照库的口。没接时行为与今天一致（磁盘缓存 + 在线重建）。
+  getSnapshotLibrary?: (() => Promise<SnapshotLibrary | null> | SnapshotLibrary | null) | null
 }
 
 // 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
 // 接线：由 index.ts 动态 import 加载；早选判据由 index 从启停模块转供给；#1835 起失败段判重、回包装饰各有一份同目录的共用实现。
 export function createSessionSnapshot(deps: SnapshotDeps) {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession, noteRefreshFailure } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, getCache, setCache, CACHE_MS, cacheSnapshotIsCurrent, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send, budgetReadout, openSession, noteRefreshFailure, getSnapshotLibrary } = deps
   // #723（T19）：快照信封（字段清单 + 落盘那一步的 snapshot.built 日志）搬到了 ./snapshotEnvelope.js
   // （这个文件贴着 350 行上限，要让出位置挂「每个会话在处理哪些票」的读数）。没注入时现造一个，
   // 行为与搬前逐字一致 —— 单测里手工拼实例的那几处就靠这条兜底。
@@ -345,16 +350,23 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           }
         }
         const repo0b = await getRepoKey(cwd)
-        const diskb = await readDiskCache(repo0b)
-        if (diskb && diskb.selection && diskb.selection.backendId === backendId2) {
-          const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
-          if (currentb !== false) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { const rv = (diskb as any).diskReplay || {}; return { kind: 'disk', ageMs: Date.now() - (diskb.generatedMs || Date.now()), schema: rv.schema, source: rv.source, completeness: rv.completeness, legacy: rv.legacy === true } }) } catch (eL) {}; const freshModules = await freshBackendModules(); return adoptSnapLog(Object.assign({}, diskb, freshModules ? { backendModules: freshModules } : null, { fromCache: true, setupLayout: _layEarly }), cwd) } // #1433：磁盘回放也按这一轮的布局盖（文件为准，空就抹掉旧答案）；#1692：回放把格式版本/来源/完整度/上次已知时刻随日志说出来
-        }
+        // #1863：首屏先无条件读本地快照库——不探测远端、不等整份重建。有数据就直接回放；
+        // 库坏/为空才落到下面的磁盘缓存与在线重建（首屏不许因库不可用而空）。
+        const lib = (typeof getSnapshotLibrary === 'function') ? await getSnapshotLibrary() : null
+        const libKey = lib ? { workspaceRoot: cwd, backend: backendId2, repoIdentity: String((repoRef2 && repoRef2.refId) || '') } : null
+        const libReplay = (lib && libKey && !isForce) ? await lib.readSnapshotReplay(Object.assign({ repo: repoRef2 }, libKey)).catch(function () { return null }) : null, writeRows = (lib && libKey) ? function (rows: unknown[]) { try { lib.recordIssueRows(Object.assign({ rows: rows }, libKey)).catch(function () {}) } catch (eRows) {} } : undefined
+        if (!libReplay) {
+          const diskb = await readDiskCache(repo0b)
+          if (diskb && diskb.selection && diskb.selection.backendId === backendId2) {
+            const currentb = await cacheSnapshotIsCurrent(diskb, cwd)
+            if (currentb !== false) { try { if (logCtx && logCtx.isEnabled('debug') && ((++snapSampleN % 100) === 0)) logCtx.fire('debug', 'snapshot.cache.hit', function () { const rv = (diskb as any).diskReplay || {}; return { kind: 'disk', ageMs: Date.now() - (diskb.generatedMs || Date.now()), schema: rv.schema, source: rv.source, completeness: rv.completeness, legacy: rv.legacy === true } }) } catch (eL) {}; const freshModules = await freshBackendModules(); return adoptSnapLog(Object.assign({}, diskb, freshModules ? { backendModules: freshModules } : null, { fromCache: true, setupLayout: _layEarly }), cwd) } // #1433：磁盘回放也按这一轮的布局盖（文件为准，空就抹掉旧答案）；#1692：回放把格式版本/来源/完整度/上次已知时刻随日志说出来
+            }
+          }
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { return detectionExec(c, a, o, 'snapshot') } }
         const { createSnapshotComposer: createComposer2 } = await import('../../../host/tracker/snapshot.js')
         // #1446：回退路径也把额度读数带上；#1439 A2：会话口同主路径（见上方的 composer）。
         const composer2: Composer = createComposer2(reg2, Object.assign({ snapshotTtl: SNAPSHOT_TTL_MS }, typeof budgetReadout === 'function' ? { budgetReadout: budgetReadout } : null, typeof openSession === 'function' ? { openSession: openSession } : null))
-        const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force), previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null })
+        const res2: Composed = libReplay ? { ok: true, snapshot: libReplay.snapshot } : await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force), previousSnapshot: (cachedEntry && cachedEntry.snapshot) || null, onRows: writeRows })
         if (!res2.ok) { const _e2: Error & { fail?: unknown } = new Error((res2.error && res2.error.message) || 'composeSnapshot failed'); if (res2.fail) _e2.fail = res2.fail; throw _e2 }
                   const inner2 = upcaseSnapStates(res2.snapshot)
         ;(inner2.maps || []).forEach(function(m){ 
@@ -408,7 +420,8 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         let viewer2: unknown = null, viewerLogin2: string | null = null
         try {
           const tr = reg2.get(backendId2)
-          if (tr && typeof tr.getCurrentUser === 'function') {
+          // #1863：库回放这一趟不联网问当前用户；viewer 留给下一次在线刷新补。
+          if (!libReplay && tr && typeof tr.getCurrentUser === 'function') {
             const vr = await tr.getCurrentUser(repoRef2, ctx2b)
             if (vr && vr.ok && vr.data) { viewer2 = vr.data; viewerLogin2 = vr.data.login || null }
           }
@@ -419,7 +432,8 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           repository: repoRef2, backendModules: backendModules2, selection: _sel, setupLayout: _layEarly,
           viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck, fallback: inner2.fallback, fallbackAt: inner2.fallbackAt, fallbackReason: inner2.fallbackReason, refresh: inner2.refresh,
         })
-        await writeDiskCache(snap2.repo, snap2)
+        if (!libReplay) await writeDiskCache(snap2.repo, snap2)
+        if (libReplay) Object.assign(snap2, { fromCache: true, diskReplay: { schema: 'snapshot-sqlite-v1', source: 'sqlite', lastKnownAtMs: libReplay.lastKnownAtMs } })
         return adoptSnapLog(snap2, cwd)
       } catch (e) {
         setCache({ ts: Date.now(), snapshot: null, error: errText(e), cwd: cwd }) // #715 失败也把种类一起回给界面（见下一行）：配额被别人耗尽 / 插件自己的取数失败 = 两句不同的话；没带种类的一律按后者说，拿不准时不许说「等整点恢复」。

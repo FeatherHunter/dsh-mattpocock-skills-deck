@@ -550,6 +550,14 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 两扇都交完成记录，条数按单跑实测登记；改断言时两处一起改。
   'verify-1862-snapshot-merge': 18,
   'verify-1862-snapshot-database': 28,
+  // 2026-11-04 #1863：GitHub 首屏改读本地快照库。第一扇守真 SQLite 上的按组写入、容器树回放、
+  // 已关闭票在整池批次后仍在；第二扇守列表三条取数路径的写库钩子，以及「网络全断时首屏从库出」
+  // （在线探测 / 磁盘缓存 / 当前用户 / 开会话 / 执行命令五处都计数为零）。
+  'verify-1863-snapshot-library-replay': 18,
+  'verify-1863-snapshot-cold-start': 33,
+  // #1863 的边语义门禁是 #1862 建库时留下的测试文件；本票把父子边/阻塞边真正接进首屏，
+  // 它开始参与完成证据对账，条数按单跑实测登记（27 条）。
+  'verify-1863-snapshot-edges': 27,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。

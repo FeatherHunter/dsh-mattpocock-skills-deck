@@ -6,12 +6,12 @@
 // 那个会话」的读数，B 水合到 A 的快照，就把 A 的行当成自己的行。
 //
 // 修复分三处（都在客户端，不改宿主回执形状）：
-//   一、落缓存时把 workRouteTable 剥掉 —— 内存 LRU 与 IndexedDB 两条路都不留，也不动调用方手里那份；
+//   一、落缓存时把 workRouteTable 剥掉 —— 内存 LRU 这一条路不留，也不动调用方手里那份；
 //   二、水合时把旧版本缓存里已经带上的表剥掉再装，并且不原地改那份老对象（它可能正被别的会话当快照用）；
 //   三、装上的快照缺本会话的表时，不看 60 秒新鲜期，补发一次带当前会话号的强制请求；回包里的表挂回快照。
 //
 // 本门禁量五件事：
-//   A. 缓存与水合不串：落缓存不改调用方、内存与磁盘条目都无表、水合旧条目先剥表、判据真值表；
+//   A. 缓存与水合不串：落缓存不改调用方、内存条目无表、水合旧条目先剥表、判据真值表；
 //   B. 补拉真的发生：快照仍在新鲜期内也发 wf.refresh，请求参数带当前会话号；不搭别的会话的在途车
 //      （普通、强制、还没有快照三种现场都不搭，迟到的别人的回包也装不进本会话）；回包里的表装得进快照、
 //      判据随之转 false；回包没带表时胶囊回 idle，换目录接线再补一次；
@@ -73,8 +73,10 @@ const loadSpliced = function (relPath: string, exportNames: string[], scope: Rec
 const partA = async function (): Promise<any> {
   console.log('#1355 A. 缓存与水合不把别的会话的工作路线带过来')
 
-  // 假 IndexedDB：够 diskPutSnapshot 跑完一条 put 即可，把落盘条目记下来给断言看。
+  // 假 IndexedDB：装上探针看客户端还会不会碰它。#1863 起 GitHub 这一端不再写持久快照，
+  // 所以下面断言的是「连开库都没发生」，不是「写进去的内容对不对」。
   const diskPuts: any[] = []
+  let openCalls = 0
   const fakeDb = {
     createObjectStore: function (): void {},
     transaction: function (): any {
@@ -92,6 +94,7 @@ const partA = async function (): Promise<any> {
   const fakeWindow = {
     indexedDB: {
       open: function (): any {
+        openCalls += 1
         const req: any = { result: fakeDb }
         setTimeout(function () {
           try { if (typeof req.onupgradeneeded === 'function') req.onupgradeneeded() } catch (e) {}
@@ -144,9 +147,8 @@ const partA = async function (): Promise<any> {
     && entA.snapshot.status === undefined && entA.snapshot.cached === undefined,
     '内存条目里没有工作路线表，也没有 notModified / status / cached')
   await sleep(20)
-  const putA: any = diskPuts.filter(function (p) { return p.key === store.wsKeyOf(cwdA) }).pop()
-  check(!!putA && putA.entry && putA.entry.snapshot && putA.entry.snapshot.workRouteTable === undefined,
-    '磁盘条目同样没有工作路线表')
+  check(diskPuts.length === 0 && openCalls === 0,
+    '落缓存不再打开或写入 IndexedDB（#1863 起客户端持久快照退役）')
 
   // A2. 升级前的存量：缓存条目里带着表，水合到另一个会话时要先剥掉再装。
   const cwdB = 'D:\\ws1355-b'
@@ -175,9 +177,8 @@ const partA = async function (): Promise<any> {
     '缓存条目也换成了没有表的那一份（升级前的存量顺手清掉）')
   check(store.snapNeedsOwnWorkRoute(stB) === true, 'B 手上缺自己的表 → 判据说要补拉')
   await sleep(20)
-  const putB: any = diskPuts.filter(function (p) { return p.key === store.wsKeyOf(cwdB) }).pop()
-  check(!!putB && putB.entry && putB.entry.snapshot && putB.entry.snapshot.workRouteTable === undefined,
-    '磁盘里那条旧条目也被换成了没有表的版本（升级前的存量不只清内存）')
+  check(diskPuts.length === 0 && openCalls === 0,
+    '水合旧条目也不打开或写入 IndexedDB（客户端只留内存 LRU）')
 
   // A3. 判据真值表：只回答「缺不缺表」，不回答「行是不是自己的」。
   const T = store.snapNeedsOwnWorkRoute

@@ -17,19 +17,23 @@ import type { DatabaseSync } from 'node:sqlite'
 import type { GroupWrite, IssueWrite } from '../contract/types.js'
 import { decideRowMerge } from '../merge/row.js'
 import { normalizeStartMergeVersion, shouldDiscardBatch } from '../merge/version-gate.js'
+import { applyIssueEdges } from '../persistence/issue-edge-write.js'
 import { applyIssueAssignees, applyIssueLabels } from '../persistence/issue-groups-write.js'
+import { ensureIssueId, findIssueId } from '../persistence/issue-identity-write.js'
 import { fillIssueRow, replaceIssueRow } from '../persistence/issue-row-write.js'
 import { readMergeVersion } from '../persistence/schema.js'
 
-/** 三张组表的物理名字。组名是对外契约的一部分，不要在这里改成别的写法。 */
+/** 五张组表的物理名字。组名是对外契约的一部分，不要在这里改成别的写法。 */
 const GROUP_ROW = 'row'
 const GROUP_LABELS = 'labels'
 const GROUP_ASSIGNEES = 'assignees'
+const GROUP_PARENTS = 'parents'
+const GROUP_BLOCKED_BY = 'blockedBy'
 
 /** 本批实际表达的组。没出现的组不参与版本门，也不盖章。 */
 interface ExpressedGroup {
   write: IssueWrite
-  group: 'row' | 'labels' | 'assignees'
+  group: 'row' | 'labels' | 'assignees' | 'parents' | 'blockedBy'
 }
 
 export interface IngestWritesResult {
@@ -90,6 +94,8 @@ function collectExpressedGroups(writes: readonly IssueWrite[]): ExpressedGroup[]
     if (write.groups.row !== undefined) out.push({ write, group: 'row' })
     if (write.groups.labels !== undefined) out.push({ write, group: 'labels' })
     if (write.groups.assignees !== undefined) out.push({ write, group: 'assignees' })
+    if (write.groups.parents !== undefined) out.push({ write, group: 'parents' })
+    if (write.groups.blockedBy !== undefined) out.push({ write, group: 'blockedBy' })
   }
   return out
 }
@@ -105,7 +111,7 @@ function readGroupWrittenVersion(db: DatabaseSync, item: ExpressedGroup): number
   return row ? Number(row.written_version) : null
 }
 
-/** 落一张票的三组。row 组 complete+null 是「确认不存在」，删掉后不再处理同批的其它组。 */
+/** 落一张票表达的所有组。row 组 complete+null 是「确认不存在」，删掉后不再处理同批的其它组。 */
 function applyIssueWrite(
   db: DatabaseSync,
   write: IssueWrite,
@@ -115,7 +121,7 @@ function applyIssueWrite(
   if (typeof write.effortId !== 'string') throw new Error('写入缺少 effortId')
   if (typeof write.key !== 'string' || write.key.length === 0) throw new Error('写入缺少 key')
 
-  const { row, labels, assignees } = write.groups
+  const { row, labels, assignees, parents, blockedBy } = write.groups
   if (row !== undefined) {
     const decision = decideRowMerge(null, row)
     if (decision.kind === 'remove') {
@@ -143,31 +149,19 @@ function applyIssueWrite(
     applyIssueAssignees(db, issueId, assignees)
     stampGroup(db, issueId, GROUP_ASSIGNEES, assignees, nowMs, version)
   }
-}
 
-function findIssueId(db: DatabaseSync, effortId: string, key: string): number | null {
-  const row = db.prepare(
-    'SELECT issue_id FROM issue WHERE effort_id = ? AND key = ?',
-  ).get(effortId, key) as { issue_id?: number } | null
-  return row ? Number(row.issue_id) : null
-}
-
-/** 拿到票的代理键；没有就建一行骨架（只填身份与首末次见到的时间）。 */
-function ensureIssueId(
-  db: DatabaseSync,
-  effortId: string,
-  key: string,
-  nowMs: number,
-): number {
-  const existing = findIssueId(db, effortId, key)
-  if (existing !== null) {
-    db.prepare('UPDATE issue SET last_seen_ms = ? WHERE issue_id = ?').run(nowMs, existing)
-    return existing
+  // 两组边：先保证 subject 自己有代理键，再把目标票解析成 id。骨架行也算「见过」。
+  if (parents !== undefined) {
+    const issueId = ensureIssueId(db, write.effortId, write.key, nowMs)
+    applyIssueEdges(db, issueId, write.effortId, 'parent', parents, nowMs)
+    stampGroup(db, issueId, GROUP_PARENTS, parents, nowMs, version)
   }
-  const result = db.prepare(
-    'INSERT INTO issue (effort_id, key, first_seen_ms, last_seen_ms) VALUES (?, ?, ?, ?)',
-  ).run(effortId, key, nowMs, nowMs)
-  return Number(result.lastInsertRowid)
+
+  if (blockedBy !== undefined) {
+    const issueId = ensureIssueId(db, write.effortId, write.key, nowMs)
+    applyIssueEdges(db, issueId, write.effortId, 'blocks', blockedBy, nowMs)
+    stampGroup(db, issueId, GROUP_BLOCKED_BY, blockedBy, nowMs, version)
+  }
 }
 
 /**
@@ -206,7 +200,7 @@ function stampGroup(
   )
 }
 
-/** 给上层与门禁用：一张票三组都没表达时算空批。 */
+/** 给上层与门禁用：一张票一组都没表达时算空批。 */
 export function batchHasExpressedGroups(writes: readonly IssueWrite[]): boolean {
   return collectExpressedGroups(writes).length > 0
 }

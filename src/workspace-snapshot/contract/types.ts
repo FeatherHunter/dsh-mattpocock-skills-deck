@@ -19,6 +19,7 @@ export type {
   GroupState,
   IssueRowValue,
   ListIssue,
+  ListIssueRef,
   ListProjection,
   ListQuery,
   SnapshotActor,
@@ -45,11 +46,19 @@ export interface GroupWrite<T> {
   value?: T
 }
 
-/** 一张票这一批要表达的三组。没有出现的组 = 这次没取到，不参与合并，也不参与版本门。 */
+/**
+ * 一张票这一批要表达的字段组。没有出现的组 = 这次没取到，不参与合并，也不参与版本门。
+ *
+ * 两组边写的是「目标票的 key」，不是数据库 id：上层拿到的列表行里只有 key，写库时由快照库
+ * 自己解析成 issue_id，并在目标票还不存在时先建一行引用骨架（只有身份，不出现在列表里）。
+ * parents 是这张票的父票（容器树），blockedBy 是阻塞这张票的票（状态胶囊要它）。
+ */
 export interface IssueGroupsWrite {
   row?: GroupWrite<IssueRowValue | null>
   labels?: GroupWrite<SnapshotLabel[] | null>
   assignees?: GroupWrite<SnapshotActor[] | null>
+  parents?: GroupWrite<string[] | null>
+  blockedBy?: GroupWrite<string[] | null>
 }
 
 /**

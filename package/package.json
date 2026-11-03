@@ -32,6 +32,7 @@
     "deck",
     "tracker",
     "refresh",
+    "workspace-snapshot",
     "cordis.patch.yml",
     "bundled-skills",
     "bundled-skills-zh",

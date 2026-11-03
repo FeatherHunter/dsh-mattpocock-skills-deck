@@ -10,8 +10,7 @@
 //
 // 为什么重建用「删文件」而不是 DROP TABLE：损坏的库可能连 sqlite_master 都读不出来，
 // 删文件是唯一能保证回到可用状态的做法；备份改名先做，失败就抛，绝不在没有证据的情况下删库。
-import { existsSync, mkdirSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { dirname, existsSync, mkdirSync, resolve } from './node-builtins.js'
 import type {
   IngestResult,
   OpenWorkspaceSnapshotOptions,

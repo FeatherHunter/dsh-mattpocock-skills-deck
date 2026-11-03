@@ -4,7 +4,7 @@
 // 在这里：WAL 回退、只读连接、损坏文件的删除顺序都是容易写错的地方，集中一份才能被门禁
 // 反复走同一条路径。
 import { DatabaseSync } from 'node:sqlite'
-import { existsSync, renameSync, rmSync } from 'node:fs'
+import { existsSync, renameSync, rmSync } from '../runtime/node-builtins.js'
 
 /** 打开连接。文件不存在时 SQLite 会建一个空库；readOnly 下文件必须已存在。 */
 export function openDatabase(dbPath: string, readOnly: boolean): DatabaseSync {

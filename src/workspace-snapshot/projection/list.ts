@@ -17,6 +17,7 @@ import type {
   SnapshotLabel,
 } from '../model/types.js'
 import { readMergeVersion } from '../persistence/schema.js'
+import { readIssueEdges } from './edges.js'
 
 interface ListRow {
   issue_id: number
@@ -87,9 +88,10 @@ export function readListProjection(
   const rows = db.prepare(sql).all(...params) as ListRow[]
 
   const issueIds = rows.map((row) => Number(row.issue_id))
-  const groupStates = readGroupStates(db, issueIds, ['labels', 'assignees'])
+  const groupStates = readGroupStates(db, issueIds, ['labels', 'assignees', 'parents', 'blockedBy'])
   const labelsByIssue = readLabels(db, issueIds)
   const assigneesByIssue = readAssignees(db, issueIds)
+  const edgesByIssue = readIssueEdges(db, issueIds)
 
   const issues: ListIssue[] = rows.map((row) => {
     const issueId = Number(row.issue_id)
@@ -99,6 +101,8 @@ export function readListProjection(
       row: toRowValue(row),
       labels: labelsByIssue.get(issueId) ?? [],
       assignees: assigneesByIssue.get(issueId) ?? [],
+      parents: edgesByIssue.get(issueId)?.parents ?? [],
+      blockedBy: edgesByIssue.get(issueId)?.blockedBy ?? [],
       groups: {
         row: {
           completeness: normalizeCompleteness(row.row_completeness),
@@ -109,6 +113,8 @@ export function readListProjection(
         },
         labels: groupStates.get(`${issueId}:labels`) ?? null,
         assignees: groupStates.get(`${issueId}:assignees`) ?? null,
+        parents: groupStates.get(`${issueId}:parents`) ?? null,
+        blockedBy: groupStates.get(`${issueId}:blockedBy`) ?? null,
       },
     }
   })

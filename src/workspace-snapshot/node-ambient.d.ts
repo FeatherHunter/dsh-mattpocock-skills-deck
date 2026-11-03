@@ -26,22 +26,9 @@ declare module 'node:sqlite' {
   }
 }
 
-declare module 'node:fs' {
-  export function existsSync(path: any): boolean
-  export function mkdirSync(path: any, options?: any): any
-  export function rmSync(path: any, options?: any): void
-  export function renameSync(oldPath: any, newPath: any): void
-  export function readdirSync(path: any, options?: any): any
-  export function statSync(path: any, options?: any): any
-}
-
-declare module 'node:path' {
-  export function join(...parts: any[]): string
-  export function resolve(...parts: any[]): string
-  export function dirname(p: any): string
-  export function isAbsolute(p: any): boolean
-  export function relative(from: any, to: any): string
-}
+// node:fs / node:path 不在这里声明：runtime/node-builtins.ts 改用 process.getBuiltinModule
+// 取它们，避免契约入口被刷新房间导入时，把这两个模块的类型声明带进宿主的编译程序
+// （那里有一批 @ts-expect-error 依赖「node:fs / node:path 不可见」才成立）。
 
 // 生成默认租约标识要用进程号；宿主那几份文件也是按「可能不存在」的方式局部声明的。
 declare const process: { pid: number }

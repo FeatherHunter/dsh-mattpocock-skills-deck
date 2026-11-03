@@ -115,6 +115,19 @@ export function createIssueList(deps: any): any {
     }
   }
 
+  /**
+   * #1863：这一批列表读结果交给宿主写快照库（按组、分批）；写库失败不影响取数。
+   * 宿主没接钩子时整条关闭，老调用方行为一字不变。
+   */
+  async function recordRows(cwd: any, ref: RepositoryRef, rows: any[]): Promise<void> {
+    if (typeof deps.onIssueRows !== 'function' || !Array.isArray(rows) || !rows.length) return
+    // 快照列表从来不收拉取请求（旧 REST 的 select(.pull_request == null)）。会话的 list 两张表都给，
+    // 钩子又挂在过滤之前，这里必须先滤一遍，否则 PR 会以「票」的身份进库、回放时混进首屏。
+    const issues = rows.filter(function (x: any): boolean { return !!x && x.isPullRequest !== true })
+    if (!issues.length) return
+    try { await deps.onIssueRows(cwd, ref, issues) } catch (e: any) {}
+  }
+
   /** 地图票：只要带 wayfinder:map 且未关闭的票（旧 gh issue list 的两条筛，原样保留）。 */
   async function fetchMaps(cwd: any): Promise<any> {
     return withReadSession(cwd, async function (session: TrackerSession, ref: RepositoryRef, ctx: OpContext): Promise<any> {
@@ -123,6 +136,7 @@ export function createIssueList(deps: any): any {
         const err = (r && r.error) || {}
         return fail(String(err.kind || 'network'), err.message || '地图票读取失败')
       }
+      await recordRows(cwd, ref, r.data || [])
       // 与列表同一条口径：拉取请求不算地图（旧 gh issue list 本来就不返回 PR）。
       const maps = (r.data || []).filter(function (x: any): boolean { return !!x && x.isPullRequest !== true }).map(function (x: Issue): any {
         return {
@@ -145,6 +159,7 @@ export function createIssueList(deps: any): any {
         const err = (r && r.error) || {}
         return fail(String(err.kind || 'network'), err.message || '列表读取失败')
       }
+      await recordRows(cwd, ref, r.data || [])
       // 旧 REST 的 jq 是 select(.pull_request == null)：拉取请求从来不进快照。
       // 会话的 list 两张表都给，这里必须显式滤掉 —— 否则快照索引里有 PR、而 fetchIssueIndex
       // 走的 listPage 只翻 repository.issues，每轮探测都会把 PR 当成「被删掉的票」→ 整池重建。
@@ -197,6 +212,7 @@ export function createIssueList(deps: any): any {
         round.correct(ticket, 1)
         const data: PageResult = page.data || { items: [], nextCursor: null, total: 0 }
         const items: Issue[] = Array.isArray(data.items) ? data.items : []
+        await recordRows(cwd, ref, items)
         for (let i = 0; i < items.length; i++) {
           const it: any = items[i]
           if (!it || it.key == null) continue

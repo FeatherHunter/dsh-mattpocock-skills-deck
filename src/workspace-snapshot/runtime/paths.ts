@@ -7,8 +7,7 @@
 // 为什么这里重写一份同步版本而不是 import 宿主：快照层不得依赖宿主层（否则 refresh 与
 // 界面都拖不进来），而 shared/ 的约定是每棵树自包含、跨树相对引用会破坏构建产物。
 // 规则只有「标记文件在哪」一件事，重复的代价小于反向依赖的代价；两处要改时必须一起改。
-import { existsSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, existsSync, join, resolve } from './node-builtins.js'
 import type { SnapshotBackend } from '../model/types.js'
 
 /** 工作区标记文件。与 src/shared/config-store/src/workspace.ts:29 的常量同一含义。 */

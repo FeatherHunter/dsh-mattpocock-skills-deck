@@ -1571,8 +1571,28 @@ function deployMovedTrees(): void {
   }
   // gitlab 房已无手写 .js（2026-10-14 #1147 转完 13+1 个文件，全部 .ts 化；copyJsTree 遇到同名 .ts 会自动跳过 .js，这里只抄还剩 .js 的文件）。词汇表并排产物不归这里抄（见 copyJsTree）。
   const copiedJs = copyJsTree(resolve(ROOT, 'src/tracker'), resolve(ROOT, 'package/tracker'))
-  console.log(`[moved-trees] 转译 ${sources.length} 份 TypeScript 进包（改写宿主引用 ${rewrote} 处），复制手写 JavaScript ${copiedJs} 份`)
-  auditPackageSpecifiers(['package/lib', 'package/deck', 'package/tracker', 'package/refresh'])
+  // #1863：快照库树在宿主运行时被 package/refresh 深引（snapshot-library.js 里的
+  // import('../../../workspace-snapshot/contract/index.js')），所以它必须与 refresh 同深度进包。
+  // 源树的转译与 shared 说明符折叠由 buildWorkspaceSnapshotTree 统一做（产物在 .build/workspace-snapshot），
+  // 这里只抄已经折好的成品，避免第二套转译口径；清空后再抄，防止源码删掉的文件留在包里。
+  const snapshotBuilt: string = resolve(ROOT, '.build/workspace-snapshot')
+  const snapshotPkg: string = resolve(ROOT, 'package/workspace-snapshot')
+  let copiedSnapshot: number = 0
+  const copySnapshot = (s: string, d: string): void => {
+    for (const ent of readdirSync(s, { withFileTypes: true })) {
+      const ps: string = join(s, ent.name)
+      const pd: string = join(d, ent.name)
+      if (ent.isDirectory()) { mkdirSync(pd, { recursive: true }); copySnapshot(ps, pd); continue }
+      if (!ent.name.endsWith('.js')) continue
+      mkdirSync(d, { recursive: true })
+      cpSync(ps, pd)
+      copiedSnapshot++
+    }
+  }
+  rmSync(snapshotPkg, { recursive: true, force: true })
+  if (existsSync(snapshotBuilt)) copySnapshot(snapshotBuilt, snapshotPkg)
+  console.log(`[moved-trees] 转译 ${sources.length} 份 TypeScript 进包（改写宿主引用 ${rewrote} 处），复制手写 JavaScript ${copiedJs} 份，快照库产物 ${copiedSnapshot} 份`)
+  auditPackageSpecifiers(['package/lib', 'package/deck', 'package/tracker', 'package/refresh', 'package/workspace-snapshot'])
 }
 
 /** 散文件投放（#1256）：src/shared 下不属于域源码（`<域>/src/`）的 .ts 转译进 package/shared。

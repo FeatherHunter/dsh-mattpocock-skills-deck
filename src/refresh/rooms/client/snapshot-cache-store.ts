@@ -5,6 +5,8 @@
  * 后者随点击更新，更新节奏不同；混在一起时，一次快照回包会顺手把人刚点的东西盖掉。
  * 本文件由 store-snapshot.js 转写而来，只加类型标注与环境声明，运行行为一字不改。
  * 同工作区所有会话共用按工作区根分桶的内存表（#653），快照命中只记数不打扰人。
+ * #1863：GitHub 客户端的 IndexedDB 持久快照退役——首屏由宿主从工作区快照库回放，客户端只留内存 LRU
+ * 与在途请求；diskPutSnapshot/diskGetSnapshot 保留导出名给既有闭包文件引用，行为改成空操作。
  * 反例：不要在这里决定行该怎么画（那是 store-derived.ts 的事），也不要在这里存人的偏好（那是 store-prefs.ts 的事）。
  */
 declare function keyOf(...args: any[]): any;
@@ -132,7 +134,7 @@ export const setCachedSnapshot = function (cwd: any, snap: any): void { if(!cwd|
   try{ delete s2.notModified; delete s2.status; delete s2.cached }catch(eT){}
   // #1355 · 这份读数的「视角」只属于当时请求它的会话，不进按工作区共享的缓存（要这张表就用自己的会话号现算一份）
   try{ delete s2.workRouteTable }catch(eW){}
-  try{ const k: any=wsKeyOf(cwd); const ver: any=s2.version||s2.etag||''; const ent: any={snapshot:s2, version:ver, ts:Date.now(), key:k, lastProbeAt:getProbeAt(k)}; touchLRUClient(snapshotByCwd,k,ent); try{ diskPutSnapshot(k, ent) }catch(eD1){} }catch(e){} }
+  try{ const k: any=wsKeyOf(cwd); const ver: any=s2.version||s2.etag||''; const ent: any={snapshot:s2, version:ver, ts:Date.now(), key:k, lastProbeAt:getProbeAt(k)}; touchLRUClient(snapshotByCwd,k,ent) }catch(e){} }
 // #1355 · 本会话手上那份快照缺自己的 workRouteTable 吗？缺的来路不止一种：同工作区别的会话水合过来的、升级前旧缓存留下的、
 //   或这一版宿主根本没带这个字段；不管哪种，都得补发一次带当前会话号的快照请求。
 //   忙（正在刷新 / 后端还说不准）时不判缺，所以三处接线重复触发也不会重复发请求。
@@ -147,7 +149,7 @@ export const snapNeedsOwnWorkRoute = function (st: any): boolean {
 // #1355：剥表、补拉与三处接线共用的请求决策已搬到 kernel/work-route-own.ts（本文件贴着 350 行上限，#707 起如此；
 //   搬家原因与那片的分工写在它的文件头）。这里只留「缺不缺表」这一条判据，因为缺表的样子由本文件的缓存形状决定。
 export const getSnapshotVersion = function(cwd: any): string{ try{ const e: any=getCachedEntry(cwd); return e?e.version||'':''; }catch(e){ return ''; } }
-// ============ #327 特性 A/B：上次探测时间 + 快照多级缓存（内存→磁盘→网络）============
+// ============ #327 特性 A/B：上次探测时间 + 内存快照缓存（#1863 起不再有客户端磁盘层）============
 export const lastProbeAtByCwd: any = new Map() // Map<工作区键, ms> —— 对该工作区完成任一次检查（探针/刷新/快照校验）即推进，数据不变也走针
 export const getProbeAt = function (cwd: any): number { try { const v: any = lastProbeAtByCwd.get(wsKeyOf(cwd)); return v || 0 } catch (e) { return 0 } }
 export const touchProbeAt = function (cwd: any, ms: any): void {
@@ -159,59 +161,12 @@ export const touchProbeAt = function (cwd: any, ms: any): void {
     try { Object.keys(stores).forEach(function (kk: any): void { const st2: any = stores[kk]; if (st2 && st2.cwd && wsKeyOf(st2.cwd) === k) emit(st2) }) } catch (e2) {}
   } catch (e) {}
 }
-export const SNAP_DISK_CAP: number = 24
-const _snapDbPromise: any = (function (): any {
-  try {
-    if (typeof window === 'undefined' || !window.indexedDB || !window.indexedDB.open) return null
-    return new Promise(function (resolve: any): void {
-      let req: any
-      try { req = window.indexedDB.open('dsws-cache', 1) } catch (e0) { resolve(null); return }
-      req.onupgradeneeded = function (): void { try { req.result.createObjectStore('snapshots') } catch (e00) {} }
-      req.onsuccess = function (): void { resolve(req.result) }
-      req.onerror = function (): void { resolve(null) }
-      req.onblocked = function (): void { resolve(null) }
-    })
-  } catch (e) { return null }
-})()
-// 落盘：fire-and-forget；条目形如 {key, snapshot, version, ts, lastProbeAt}；超出 SNAP_DISK_CAP 按最旧淘汰
-export const diskPutSnapshot = function (k: any, entry: any): void {
-  try {
-    if (!_snapDbPromise || !k || !entry) return
-    _snapDbPromise.then(function (db: any): void {
-      if (!db) return
-      try {
-        const st: any = db.transaction('snapshots', 'readwrite').objectStore('snapshots')
-        st.put(entry, k)
-        const allReq: any = st.getAll()
-        allReq.onsuccess = function (): void {
-          try {
-            const rows: any[] = (allReq.result || []).filter(function (r: any): any { return r && r.key })
-            if (rows.length <= SNAP_DISK_CAP) return
-            rows.sort(function (a: any, b: any): number { return (a.ts || 0) - (b.ts || 0) })
-            const kill: any[] = rows.slice(0, rows.length - SNAP_DISK_CAP)
-            const tx2: any = db.transaction('snapshots', 'readwrite').objectStore('snapshots')
-            kill.forEach(function (r: any): void { try { tx2.delete(r.key) } catch (e3) {} })
-          } catch (eEv) {}
-        }
-      } catch (eTx) {}
-    }).catch(function (): void {})
-  } catch (e) {}
-}
-export const diskGetSnapshot = function (k: any): any {
-  try {
-    if (!_snapDbPromise || !k) return Promise.resolve(null)
-    return _snapDbPromise.then(function (db: any): any {
-      if (!db) return null
-      return new Promise(function (resolve: any): void {
-        try {
-          const req: any = db.transaction('snapshots', 'readonly').objectStore('snapshots').get(k)
-          req.onsuccess = function (): void { try { resolve(req.result || null) } catch (e2) { resolve(null) } }
-          req.onerror = function (): void { resolve(null) }
-        } catch (e) { resolve(null) }
-      })
-    }).catch(function (): any { return null })
-  } catch (e) { return Promise.resolve(null) }
-}
+export const SNAP_DISK_CAP: number = 0
+// #1863：客户端不再有自己的持久快照；这一行保留是因为旧门禁拿它给「上次探测时间」那段划边界。
+// #1863：持久快照退役，落盘是空操作（保留导出名给既有闭包文件与门禁名单）。
+export const diskPutSnapshot = function (_k: any, _entry: any): void {}
+// #1863：客户端不再读磁盘快照；首屏由宿主的列表快照库回放。
+export const diskGetSnapshot = function (_k: any): Promise<any> { return Promise.resolve(null) }
 // 链快照共享缓存（#324 · 键 = 工作区键 + 后端 id + 语言；#529 加语言维：中英快照分开存；#653：这里的「工作区键」走 wsKeyOf 锚到工作区根）
 export const CHAIN_CWD_LRU_MAX: number = 20
 // 条目的形状：{snapshot, ts, sessionId?}。sessionId 记「这份快照是哪个会话求出来的」——#1483 起用来
@@ -240,9 +195,8 @@ export const justPicked = function (st: any, c: any): boolean {
 export const hydrateFromCache = function (st: any): boolean {
   if (!st || !st.cwd) return false
   let c: any = getCachedSnapshot(st.cwd)
-  // #1355：旧版本落进内存/磁盘的缓存条目里还带着「当时请求那个会话」的工作路线读数。水合前先剥掉再装，
-  //   否则本会话会把别人的行当自己的行。剥干净后写回内存条目；带条目外壳的旧缓存同时写回磁盘
-  //   （裸快照形状只在更老版本出现，命中时按无表直接水合、不写回）。写盘前重读条目确认没被更新的写入换掉，避免旧条目盖新条目。
+  // #1355：旧版本落进内存的缓存条目里还带着「当时请求那个会话」的工作路线读数。水合前先剥掉再装，
+  //   否则本会话会把别人的行当自己的行。剥干净后写回内存条目（#1863 起客户端没有磁盘层）。
   //   不原地改老对象 —— 它可能正被同工作区的另一个会话当 st.snapshot 用（升级前的引用共享），原地删会清掉它的表。
   try {
     if (c && c.workRouteTable !== undefined) {
@@ -250,13 +204,7 @@ export const hydrateFromCache = function (st: any): boolean {
       delete clean.workRouteTable
       c = clean
       const ent: any = getCachedEntry(st.cwd)
-      if (ent && ent.snapshot) {
-        ent.snapshot = c
-        try {
-          const nowEnt: any = getCachedEntry(st.cwd)
-          if (nowEnt === ent) diskPutSnapshot(wsKeyOf(st.cwd), ent)
-        } catch (eD2) {}
-      }
+      if (ent && ent.snapshot) ent.snapshot = c
     }
   } catch (eWr0) {}
   // #653：这份缓存自己带着工作区根时先记住它，随后所有抽屉都按工作区根找（子目录会话秒显根会话的数据）
