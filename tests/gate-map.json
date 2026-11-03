@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T04:12:06.129Z",
+  "generatedAt": "2026-11-03T05:10:07.133Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 548,
-  "gateCount": 548,
-  "attributedGates": 491,
+  "chainLength": 549,
+  "gateCount": 549,
+  "attributedGates": 492,
   "unattributedGates": 57,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 90,
+  "completionRecordedGates": 91,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 848,
@@ -4625,11 +4625,14 @@
         "src/client/views/versionControl/vcCapabilityList.ts",
         "src/client/views/versionControl/vcCapabilityPages.ts",
         "src/client/views/versionControl/vcChangesView.ts",
+        "src/client/views/versionControl/vcConfigOps.ts",
+        "src/client/views/versionControl/vcConfigPage.ts",
         "src/client/views/versionControl/vcData.ts",
         "src/client/views/versionControl/vcFirstScreen.ts",
         "src/client/views/versionControl/vcHistory.ts",
         "src/client/views/versionControl/vcHistoryDetail.ts",
         "src/client/views/versionControl/vcHistoryGraph.ts",
+        "src/client/views/versionControl/vcHooksPage.ts",
         "src/client/views/versionControl/vcMaintenanceData.ts",
         "src/client/views/versionControl/vcMaintenanceDiag.ts",
         "src/client/views/versionControl/vcMaintenancePage.ts",
@@ -4660,8 +4663,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 310,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 27 条"
+      "expectedAssertions": 394,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 30 条"
     },
     {
       "step": "node tests/verify-1586-worktrees.ts",
@@ -6087,6 +6090,23 @@
       "completionRecord": true,
       "expectedAssertions": 23,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1829-config-hooks.ts",
+      "file": "tests/verify-1829-config-hooks.ts",
+      "guards": [
+        "src/client/views/versionControl/vcConfigPage.ts",
+        "src/client/views/versionControl/vcHooksPage.ts",
+        "src/client/views/versionControl/vcPageStyles.ts"
+      ],
+      "dirs": [
+        "src/client/views/versionControl"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 121,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-1829-manage-index.ts",
@@ -13737,6 +13757,7 @@
       "node tests/verify-1776-vc-live-tab.ts",
       "node tests/verify-1776-vc-tab-browser.ts",
       "node tests/verify-1829-branch-popover.ts",
+      "node tests/verify-1829-config-hooks.ts",
       "node tests/verify-1829-manage-index.ts",
       "node tests/verify-1829-page-head.ts",
       "node tests/verify-1829-palette-overlay.ts",

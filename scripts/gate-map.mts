@@ -93,7 +93,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 维护页本身改断言「真正文在、骨架不在」；单跑实测从 202 条涨到 210 条，期望值跟着改。
   // 2026-11-03 #1829（阶段 3 分支与标签页重做）：分支页换成按定稿原型排的页头、筛选与搜索、分支卡片、
   // 标签卡片与页尾折叠区，四档宽 × 两皮肤逐档补量首屏顺序与关键句不被截断；单跑实测从 210 条涨到 310 条，期望值跟着改。
-  'verify-1586-vc-visual-browser': 310,
+  'verify-1586-vc-visual-browser': 394,
   // 2026-11-01 #1776（规格 #1586 M3）：真实页签在真浏览器里的布局、导航与可达性门禁——四档宽 × 两皮肤
   // 逐档挂真实入口 VersionControlTab，量到底可见的 data-vc-live 里长着 data-vc-shell、根宽与档位一致、
   // 没有横向溢出；四页签切换、齿轮九分区与两个侧页逐项进出、命令面板 162 行与过滤落点、300 宽下逐页
@@ -499,6 +499,7 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   'verify-1829-manage-index': 33,
   'verify-1829-palette-overlay': 39,
   'verify-1829-branch-popover': 23,
+  'verify-1829-config-hooks': 121,
 }
 
 // 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。
