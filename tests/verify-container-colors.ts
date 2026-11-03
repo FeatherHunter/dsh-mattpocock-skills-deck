@@ -355,6 +355,15 @@ const STATUS_EXCEPTIONS = [
     segment: 'var(--vc-warn,#f59e0b)',
     reason: '版本控制徽章用 --vc-warn 变量、兜底里又写了一次同值（同一行两处）：页签配色表的兜底写法。',
   },
+  {
+    // #1840：管理索引页按定稿原型第 37 张重做，版本控制页签的深浅两套色板换成了原型令牌
+    // （原型 styles/app.css 的主强调绿就是 #3fb950，与中央的完成态绿同值）。这是页签自己的
+    // 调色板，容器三态改色时不该跟着变；--vcs-add 已改成 var(--vcs-accent) 别名，
+    // 所以这一行只剩主强调绿一处字面色值，就登记这一处。
+    file: 'src/client/views/versionControl/vcShellStyles.ts',
+    segment: '--vcs-accent:#3fb950',
+    reason: '版本控制页签按定稿原型换的深色色板主强调绿：原型的主强调与完成态绿同值，这是页签自带调色板，不是容器三态消费端。',
+  },
 
   // ---- 地图详情 V2：状态成功色变量缺省时的代换值 ----
   // 以下三处都是「主题别名变量 + 同值兜底」的写法，兜底只是变量缺失时的替身，
@@ -398,8 +407,10 @@ const STATUS_EXCEPTIONS = [
 //   同值点 81→79、落点文件 33→32。
 // #1837：技能色点从「状态」改成「重要程度」三档，PixelDot.ts 与 PixelSkillRow.ts 都不再直接写
 //   #f59e0b/#0e8a16（改引像素皮肤令牌），白名单里这两条与落点一起删除：同值点 79→77、落点文件 32→30。
-const STATUS_REPO_HITS = 77
-const STATUS_REPO_FILES = 30
+// #1840：版本控制页签按定稿原型换深浅两套色板，深色主强调绿 #3fb950 与完成态绿同值，
+//   页签自带调色板登记进白名单：同值点 77→78、落点文件 30→31。
+const STATUS_REPO_HITS = 78
+const STATUS_REPO_FILES = 31
 // 这些文件是颜色流向的消费端：必须引用中央色表，不许自己藏一份身份色值。
 const CONSUMERS = [
   'src/client/floating/SkillFloatList.ts',

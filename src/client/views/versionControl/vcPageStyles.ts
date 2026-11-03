@@ -9,6 +9,9 @@
 //      导语 10.5px、管理卡 9px 内边距、卡片网格 auto-fit minmax(148px,1fr)），不自己发明尺寸；
 //   4. 四档宽（300 / 380 / 460 / 520）都不许横向溢出：长标题、长路径、长命令一律允许在词内换行，
 //      300 宽按原型把页头与正文的左右内边距收到 10px，卡片的条数与「打开」一个都不删。
+// MOTION 由构建拼进同一个闭包（kernel:motion 片排在视图片之前）：动效时长只有 motion.ts 一份真源，
+declare const MOTION: any
+
 export const VC_PAGE_STYLE_TEXT = [
   // 根节点补定位：命令面板遮罩与分支浮层要贴着整个版本管理界面铺满，不能定位到更外层去。
   '[data-vc-shell]{position:relative}',
@@ -24,7 +27,6 @@ export const VC_PAGE_STYLE_TEXT = [
   //   上面的全局按钮规则会把它画成面板色小按钮，所以这里把背景、边框、内边距全部覆盖回原型。
   '[data-vc-shell] .vcs-page-back{display:inline-flex;align-items:center;gap:4px;flex:none;min-height:22px;padding:0 6px 0 2px;border:1px solid transparent;border-radius:var(--vcs-r-btn);background:transparent;color:var(--vcs-dim);font:inherit;font-size:11px;font-weight:650;cursor:pointer;max-width:none;overflow:visible;text-overflow:clip;white-space:nowrap}',
   '[data-vc-shell] .vcs-page-back:hover{background:var(--vcs-hover);border-color:var(--vcs-line-2);color:var(--vcs-fg)}',
-  '[data-vc-shell] .vcs-page-back:active{background:var(--vcs-press)}',
   '[data-vc-shell] .vcs-page-back:focus-visible{outline:2px solid var(--vcs-accent);outline-offset:1px}',
   '[data-vc-shell] .vcs-page-back-label{font-size:10.5px}',
   // 标题允许在词内换行：300 宽时「迁移与备份」这类长页名不会把整行撑横。
@@ -48,7 +50,7 @@ export const VC_PAGE_STYLE_TEXT = [
   '[data-vc-shell] .fold-head:hover{background:var(--vcs-hover);color:var(--vcs-fg)}',
   '[data-vc-shell] .fold-head:focus-visible{outline:2px solid var(--vcs-accent);outline-offset:-1px}',
   '[data-vc-shell] .fold-chevron{flex:none;display:inline-flex;color:var(--vcs-faint)}',
-  '[data-vc-shell] .fold-chevron svg{transform:rotate(-90deg);transition:transform .12s ease}',
+  '[data-vc-shell] .fold-chevron svg{transform:rotate(-90deg);transition:transform ' + MOTION.hoverFadeMs + 'ms ease}',
   '[data-vc-shell] .fold[open] .fold-chevron svg{transform:none}',
   '[data-vc-shell] .fold-title{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}',
   '[data-vc-shell] .fold-count{flex:0 0 auto;margin-left:auto;font-family:var(--vcs-mono);font-size:9.5px;color:var(--vcs-faint)}',
@@ -77,9 +79,8 @@ export const VC_PAGE_STYLE_TEXT = [
   '[data-vc-shell] .vcs-manage-index .vcs-gear-li{list-style:none;min-width:0}',
   // 管理卡与两条跨区入口都是 <button>，而全局按钮规则把它们定成单行省略；
   // 卡片上的覆盖口径是整句话，单行放不下就会被裁掉，所以这三处都改回换行并允许溢出的正常布局。
-  '[data-vc-shell] .vcs-manage-card{display:flex;flex-direction:column;gap:5px;width:100%;min-width:0;padding:9px;border:1px solid var(--vcs-line-2);border-radius:var(--vcs-r-md);background:var(--vcs-inset);color:inherit;text-align:left;cursor:pointer;transition:background .12s ease,border-color .12s ease,transform .06s ease;white-space:normal;overflow:visible;text-overflow:clip;max-width:none}',
+  '[data-vc-shell] .vcs-manage-card{display:flex;flex-direction:column;gap:5px;width:100%;min-width:0;padding:9px;border:1px solid var(--vcs-line-2);border-radius:var(--vcs-r-md);background:var(--vcs-inset);color:inherit;text-align:left;cursor:pointer;transition:background ' + MOTION.hoverFadeMs + 'ms ease,border-color ' + MOTION.hoverFadeMs + 'ms ease;white-space:normal;overflow:visible;text-overflow:clip;max-width:none}',
   '[data-vc-shell] .vcs-manage-card:hover{border-color:var(--vcs-accent);background:color-mix(in srgb,var(--vcs-accent-soft) 45%,var(--vcs-inset))}',
-  '[data-vc-shell] .vcs-manage-card:active{transform:translateY(1px)}',
   '[data-vc-shell] .vcs-manage-card:focus-visible{outline:2px solid var(--vcs-accent);outline-offset:1px}',
   '[data-vc-shell] .vcs-manage-card.is-danger{border-color:color-mix(in srgb,var(--vcs-danger) 35%,var(--vcs-line-2))}',
   '[data-vc-shell] .vcs-manage-card.is-danger:hover{border-color:var(--vcs-danger);background:color-mix(in srgb,var(--vcs-danger-soft) 40%,var(--vcs-inset))}',
@@ -96,7 +97,7 @@ export const VC_PAGE_STYLE_TEXT = [
   '[data-vc-shell] .vcs-manage-card-chevron{display:inline-flex}',
   // 两条跨区入口：原型是虚线框整行按钮，左边一枚小箭头，悬停浮出强调色。
   '[data-vc-shell] .vcs-manage-shortcuts{display:flex;flex-direction:column;gap:5px;min-width:0}',
-  '[data-vc-shell] .vcs-manage-shortcut{display:flex;align-items:center;gap:6px;width:100%;padding:6px 8px;border:1px dashed var(--vcs-line-2);border-radius:var(--vcs-r-btn);background:transparent;color:var(--vcs-dim);font:inherit;font-size:10.5px;text-align:left;cursor:pointer;transition:background .12s ease,border-color .12s ease,color .12s ease;white-space:normal;overflow:visible;text-overflow:clip;max-width:none}',
+  '[data-vc-shell] .vcs-manage-shortcut{display:flex;align-items:center;gap:6px;width:100%;padding:6px 8px;border:1px dashed var(--vcs-line-2);border-radius:var(--vcs-r-btn);background:transparent;color:var(--vcs-dim);font:inherit;font-size:10.5px;text-align:left;cursor:pointer;transition:background ' + MOTION.hoverFadeMs + 'ms ease,border-color ' + MOTION.hoverFadeMs + 'ms ease,color ' + MOTION.hoverFadeMs + 'ms ease;white-space:normal;overflow:visible;text-overflow:clip;max-width:none}',
   '[data-vc-shell] .vcs-manage-shortcut:hover{border-color:var(--vcs-accent);background:var(--vcs-accent-soft);color:var(--vcs-fg)}',
   '[data-vc-shell] .vcs-manage-shortcut:focus-visible{outline:2px solid var(--vcs-accent);outline-offset:1px}',
   '[data-vc-shell] .vcs-manage-shortcut-chevron{flex:none;display:inline-flex;color:var(--vcs-faint)}',

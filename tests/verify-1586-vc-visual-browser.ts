@@ -731,6 +731,9 @@ async function run(browser: any, env: any) {
   const stylesMod = await import('file://' + path.join(ROOT, 'src/client/views/versionControl/vcShellStyles.ts').replace(/\\/g, '/'))
   // #1829 阶段 4：新样式是独立叶子 vcPageStyles，运行时由 index.ts 接在 vcShellStyles 之后注入同一个样式表；
   //   这里量尺也要按同一顺序拼起来，否则页头、管理索引卡与遮罩拿不到新规则，窄档会量出假溢出。
+  // 样式叶子里读 MOTION（闭包里由 build 先拼 kernel:motion 片）；这里单文件 import 渲染样式文本，
+  // 没有闭包，得先把同一份真源补到 globalThis 上。
+  globalThis.MOTION = (await import('file://' + path.join(ROOT, 'src/client/kernel/motion.js').replace(/\\/g, '/'))).MOTION
   const pageStylesMod = await import('file://' + path.join(ROOT, 'src/client/views/versionControl/vcPageStyles.ts').replace(/\\/g, '/'))
   const css = 'html,body{margin:0;padding:0}#pane{width:100%}' + String(stylesMod.VC_SHELL_STYLE_TEXT || '') + String(pageStylesMod.VC_PAGE_STYLE_TEXT || '')
 

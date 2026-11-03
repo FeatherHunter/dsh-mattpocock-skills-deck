@@ -58,6 +58,8 @@ const vcManageCardNodeOf = function (h: any, t: any, id: string, active: any) {
     type: 'button',
     className: 'vcs-gear-item vcs-manage-card' + (danger ? ' is-danger' : ''),
     'data-vc-gear-item': id,
+    // 按压形状 row：整卡只压暗、不下沉（下沉会把同一行的相邻卡片带着错位），由中央 ui-feedback 挂 .dsws-pressing。
+    'data-press': 'row',
     // 九分区的目标面板 id 是全局面唯一的（vc-page-<页面>）：单页渲染时别的分区还没画，
     // 一次渲染全部页面时全部指得到（verify-818 的 Z8d 按后者验它是否落在真实 id 上）。
     'aria-controls': 'vc-page-' + id,

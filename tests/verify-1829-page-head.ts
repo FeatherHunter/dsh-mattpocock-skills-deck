@@ -245,6 +245,9 @@ async function main() {
   check(clsOf(plainObj) === 'obj-row' && plainObj.children.length === 2 && clsOf(plainObj.children[1]) === 'obj-side', 'G6 非危险、没给两侧内容时仍是 obj-row，obj-main 与 obj-side 都在')
 
   // ===== H 样式叶子：冻结类名齐全、每条规则以 [data-vc-shell] 开头、只用令牌、四档宽与遮罩定位都在 =====
+  // 样式叶子里读 MOTION（闭包里由 build 先拼 kernel:motion 片）；单文件 import 这个模块时没有闭包，
+  // 得把同一份真源补到 globalThis 上，否则 declare 只是类型声明、运行时没有值。
+  globalThis.MOTION = (await import('../src/client/kernel/motion.js')).MOTION
   const styleMod: any = await import(pathToFileURL(path.join(ROOT, 'src/client/views/versionControl/vcPageStyles.ts')).href)
   const styleText = String(styleMod.VC_PAGE_STYLE_TEXT || '')
   check(styleText.length > 2000, 'H1 样式文本存在且非空（实得 ' + styleText.length + ' 字符）')
