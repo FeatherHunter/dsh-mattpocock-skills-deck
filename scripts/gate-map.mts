@@ -371,8 +371,8 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-10-31 #1693：通知事件库（四类事件、事件身份与恢复配对、去重与清理只动历史、当前状态仍按快照、
   // 三个漏斗的真实接线）。
   // 2026-10-31 #1681 复审修复：宿主接线搬进 src/host/notifications.ts（宿主入口只留薄 loader、只读断言）；
-  // 119 条单跑实测。
-  'verify-notification-events': 119,
+  // 149 条单跑实测（2026-11-03 合入上游 #1835 通知事件改动后实测条数）。
+  'verify-notification-events': 149,
   // 2026-10-31 #1694：详情读结果并进面板快照的增量合并（完整详情只改这一行、信封版本不动；
   // 降级不缩父边/依赖边/子票计数/评论/评审；版本门整份丢过期；失败不清空；无基线不凭空造）；31 条单跑实测。
   'verify-detail-incremental': 31,
@@ -406,8 +406,8 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 2026-11-03 #1833：当前状态区加「额度」行（充足 / 紧张 / 还没同步 / 不需要额度 / 没有额度，
   // 默认收起、点开看宿主给的原始读数），列表状态行不再并额度与失败；
   // 复审修复：历史为空但有额度读数时头部入口也让格（健康仓库的额度行要打得开），未知行带 unknown 标记；
-  // 125 条单跑实测。
-  'verify-notification-center': 125,
+  // 135 条单跑实测（2026-11-03 合入上游 #1835 通知中心改动后实测条数）。
+  'verify-notification-center': 135,
   // 2026-11-03 #1833 第二步：列表头部吸顶 —— 已选标签条、统计行、多目录签与筛选行整块挂进
   // div.dsws-stickybar[data-list-sticky]（列表树头一个孩子、内部顺序不变）；翻页行、状态句、列表行、
   // 加载遮罩留在滚动区；健康/暂停/加载三态真投影渲染；21 条单跑实测。
@@ -418,6 +418,12 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 通知中心的额度视图与头部徽标让格都成立；另把「取注册表是 await 的」钉成源码形状断言。
   // 17 条单跑实测。
   'verify-1839-async-registry': 17,
+  // 2026-11-03 #1852：额度闸的预算模型必须按宿主真实异步形状解析 —— 刷新装配以前同步调
+  // getTrackerRegistry，把 Promise 当注册表读，闸的预算模型恒「未知」，两桶水位不参与裁决、
+  // 记账落 requests 桶后被账本拒绝并吞掉。这一扇验：抽出的 budget-model 只解析一次并缓存、
+  // send 过闸前 await 就绪、回包口径是 two-buckets、记账真的进 rest 桶、注册表拒绝或抛错时
+  // 照发并如实回 unknown，并把「send 里 await ensure()」钉成源码形状断言。22 条单跑实测。
+  'verify-1852-async-gate-model': 22,
   // 2026-10-31 #1698：计数诚实（拿不到保留上次已知并标待校准、行数据与后端数字冲突时留痕、
   // 界面不显示假 0、增量路径只标待校准不重算）。
   // 2026-11-01 #1796 改口径：partial 只报异常缺失（列表截断 / REST 降级 / 拿不到计数 / 首屏开放行数
