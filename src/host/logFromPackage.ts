@@ -58,6 +58,33 @@ interface LogFromPackageDeps {
 // 旧版开关文件的文件名（#1432：这个文件名只用于「开机顺手删掉」，不再是任何东西的真源）。
 const LEGACY_SWITCH_FILE_NAME = 'log-switch.json'
 
+// 宿主文件服务必须自带的四格能力（#1854）：追加写、改名、删文件、取文件长度。
+// 缺任一格 dsh-log 都会降级 —— 缺 appendText 退化成「读全文 + 拼新行 + 全文覆写」，
+// 缺 rename 放弃 5MB 封存（只落一行 log.rotate.degraded），缺 unlink 静默跳过按天清理，
+// 缺 sizeOf 每次追加都要回读整份文件核对。2026-11-03 宿主 OOM 就是这条降级路径在 180MB 单日日志上的后果。
+export const LOG_FS_CAPABILITIES = ['appendText', 'rename', 'unlink', 'sizeOf'] as const
+
+/**
+ * 探明一份文件服务缺哪几格能力（返回缺失的能力名，空数组表示四格齐全）。
+ *
+ * 为什么不用 `'appendText' in port`：平台对象可能用 getter 暴露方法，读属性本身就可能抛错；
+ * 这里逐格 try 住，读抛错与「没有这一格」同样按缺失处理，探测绝不把开机带崩。
+ * 调用方也不必保证端口是对象：null / undefined 直接按四格全缺算。
+ */
+export function missingLogFsCapabilities(port: unknown): string[] {
+  const missing: string[] = []
+  for (const name of LOG_FS_CAPABILITIES) {
+    let fn: unknown = undefined
+    try {
+      fn = port ? (port as Record<string, unknown>)[name] : undefined
+    } catch (e) {
+      fn = undefined
+    }
+    if (typeof fn !== 'function') missing.push(name)
+  }
+  return missing
+}
+
 // 目录摘要：与日志包和旧实现同一套 djb2 短散列（8 位十六进制），只用来在日志里指认目录，不记原文路径。
 function hashText(text?: unknown): string {
   try {
@@ -119,6 +146,45 @@ export async function createLogFromPackage(deps: LogFromPackageDeps): Promise<un
     DEFAULT_CWD: input.DEFAULT_CWD as never,
   }
   if (input.switchSource && typeof input.switchSource.get === 'function') storeDeps.switchSource = input.switchSource
+  // #1854：递进来的文件服务四格能力不全时，换成日志包自带的 Node 文件服务。
+  // 为什么非换不可：平台文件服务（ctx.get('fs')）为沙箱设计，只有读、写、列目录这些；日志库拿到它之后
+  // 每次刷盘都要把整份日志读出来再整份写回去，且封存与清理静默失效 —— 单日日志能长到 180MB，把宿主堆拖爆。
+  // 为什么同时要剥平台：日志库解析路径时会先问平台要目标对象，而 Node 服务只认 { path }；两头混用时
+  // 目标会被字符串化成 [object Object]，日志就写到一个错误名字上。所以平台对象收窄成只含 os 与 path.join，
+  // 让路径解析统一落到 Node 服务自己的 { path }。
+  // 时钟不用补：日志库拿不到计时器时自己退回全局 setTimeout（dsh-log 的 platform/later.js），补一个反而多一条
+  // 生产上走不到的分支。取不到日志包的 Node 入口时不切、不改旧接线，只记一条告警（不挡开机），老调用方行为不变。
+  const missingFsCaps = missingLogFsCapabilities(input.fs)
+  let nodeFsPortUnavailable = false
+  if (missingFsCaps.length > 0) {
+    let nodeMod: any = null
+    try {
+      nodeMod = await import('dsh-log/node')
+    } catch (e) {
+      nodeMod = null
+    }
+    const nodeFs = (nodeMod && typeof nodeMod.createNodeFileService === 'function') ? nodeMod.createNodeFileService() : null
+    if (nodeFs) {
+      storeDeps.fs = nodeFs
+      let basePlatform: any = null
+      if (typeof input.getPlatform === 'function') {
+        try { basePlatform = await (input.getPlatform as any)() } catch (e) { basePlatform = null }
+      }
+      if (basePlatform && typeof basePlatform === 'object') {
+        const joinFn: any = (basePlatform.path && typeof basePlatform.path.join === 'function')
+          ? basePlatform.path.join.bind(basePlatform.path)
+          : null
+        storeDeps.getPlatform = async () => (joinFn
+          ? { os: basePlatform.os, path: { join: joinFn } }
+          : { os: basePlatform.os })
+      } else {
+        // 没有平台对象时宁可删掉这一格：路径解析会退回 Node 服务的 { path }，不会混用目标形状。
+        delete storeDeps.getPlatform
+      }
+    } else {
+      nodeFsPortUnavailable = true
+    }
+  }
   const holder: any = mod.createHostLog(
     storeDeps,
     pluginVersion
@@ -126,11 +192,31 @@ export async function createLogFromPackage(deps: LogFromPackageDeps): Promise<un
       : { pluginId: 'wf', prefix: 'wf', eventList: LOG_EVENT_LIST }
   )
   const store: any = holder && holder.store
+  // 缓存目录只读一次：Node 服务兜底告警与遗留文件清理都要用同一个值；读失败按空串处理，不影响建库。
+  let cacheDirForLog: unknown = ''
+  let cacheDirRead = false
+  const readCacheDirOnce = async (): Promise<unknown> => {
+    if (cacheDirRead) return cacheDirForLog
+    cacheDirRead = true
+    try {
+      cacheDirForLog = (typeof input.getCacheDir === 'function') ? await (input.getCacheDir as any)() : ''
+    } catch (e) {
+      cacheDirForLog = ''
+    }
+    return cacheDirForLog
+  }
+  // #1854：Node 文件服务取不到时（旧包或裁剪安装）只记一条告警，沿用写盘失败的既有事件与字段，不挡开机。
+  if (nodeFsPortUnavailable) {
+    const dirForLog = await readCacheDirOnce()
+    try {
+      if (store && typeof store.log === 'function') {
+        store.log('warn', 'log.persist.fail', { op: 'node-fs-port', reason: 'import-fail', dirHash: hashText(dirForLog) })
+      }
+    } catch (e) {}
+  }
   // #1432：开关来源接上了才清理旧版开关文件（没接线时日志包还在用那份文件，删了会丢状态）。
   if (storeDeps.switchSource) {
-    let cacheDir: unknown = ''
-    try { cacheDir = (typeof input.getCacheDir === 'function') ? await (input.getCacheDir as any)() : '' } catch (e) { cacheDir = '' }
-    await removeLegacySwitchFile(store, input, cacheDir)
+    await removeLegacySwitchFile(store, input, await readCacheDirOnce())
   }
   return store
 }

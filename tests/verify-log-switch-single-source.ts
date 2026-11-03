@@ -10,6 +10,7 @@ const os = require('os')
 const path = require('path')
 const { pathToFileURL } = require('url')
 const { printGateResult } = require('./lib/gate-result.ts')
+const { makeMemoryLogFs } = require('./lib/memory-log-fs.ts')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = 0
@@ -125,19 +126,12 @@ async function main() {
   }
 
   // ── 行为面：开机清理遗留开关文件（临时缓存目录、真文件）────────────────
+  // #1854：宿主的 logFromPackage 建库前会探测文件服务有没有 appendText / rename / unlink / sizeOf 四格能力，
+  // 缺任一格就换用 dsh-log 自带的 Node 文件服务。这扇门禁要在「调用方递进来的这份服务」上断言落盘现场，
+  // 所以四格都要补上（tests/lib/memory-log-fs.ts 的共用假服务四格齐全、同一份文本 Map），
+  // 否则会被切换分支绕开，快照断言就变成空跑。
   function makeFs() {
-    const texts = new Map()
-    return {
-      async resolve(p) { return { __target: String(p) } },
-      async readText(t) {
-        const k = t && t.__target ? t.__target : String(t)
-        if (!texts.has(k)) throw new Error('文件不存在：' + k)
-        return texts.get(k)
-      },
-      async writeText(t, text) { texts.set(t && t.__target ? t.__target : String(t), String(text)) },
-      // 给门禁自己看的落盘现场：断言「调试行真的写进了日志文件」时要用。
-      snapshot() { return texts },
-    }
+    return makeMemoryLogFs().fs
   }
   const timer = { timeout(fn, ms) { if (typeof fn === 'number') return new Promise((r) => setTimeout(() => r({ exitCode: -1 }), fn)); return setTimeout(fn, ms) } }
   const platform = { os: 'test-os', path: { join(...parts) { return parts.join('/').replace(/\/+/g, '/') } }, fs: { async resolve(p) { return { __target: String(p) } }, async mkdir() {}, async listDir() { return [] } } }
