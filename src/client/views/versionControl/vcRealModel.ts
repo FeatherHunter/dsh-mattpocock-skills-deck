@@ -23,6 +23,11 @@ declare function vcFirstScreenFailedSlicesOf(reads: any): any
 declare function vcFirstScreenSliceRetryableOf(reads: any, id: any): any
 declare function vcFirstScreenScreenOf(reads: any): any
 declare const VC_AI_READ_FAIL_KINDS: string[]
+// #1860 相对时间：词条与分档都住在 vcText.vcWhenText 里，跨叶只声明，不复制一套。
+declare function vcWhenText(t: any, nowMs: any, ms: any): string
+// #1860 原因行：判定理由与词条映射由身份行叶子自己算（vcShellIdentity.vcRailReasonsOf），
+//   这里只声明，种子只负责把首屏快照交给它。
+declare function vcRailReasonsOf(screen: any, t: any): any[]
 
 // 容器的初始界面状态：#842 的旧写操作状态不再需要，新壳要的是「点开的那笔提交 / 那个文件」与一个
 //   用来强制重画动作行的计数（动作层把状态放在闭包里，改完敲一下 liveTick 让 React 重算）。
@@ -198,7 +203,9 @@ export const vcRealReadAtMsOf = function (reads: any): number {
 
 // 壳的种子一个对象担两种身份：页面叶子把它当首屏快照（读 slices.*），壳自己当展示种子
 //   （seed.branch / seed.remote / seed.when）。所以这里传的是「快照 + 身份行那几样」的合并对象。
-export const vcRealSeedOf = function (reads: any, nav: any, nowMs: any): any {
+// 第四个参数 t 是词条函数：传了就把两个时刻改说相对时间（原型「刚刚」「12 分钟前」）并带上原因行；
+//   没传时保持绝对写法与空原因行——静态渲染与旧调用点不该因为容器这一处改动换掉读数形状。
+export const vcRealSeedOf = function (reads: any, nav: any, nowMs: any, t: any): any {
   const snapshot: any = vcFirstScreenOf(reads) || {}
   const ws: any = vcFirstScreenSliceOf(reads, 'workspace') || {}
   const identity: any = (ws && ws.data && ws.data.identity) || {}
@@ -208,11 +215,15 @@ export const vcRealSeedOf = function (reads: any, nav: any, nowMs: any): any {
   // #1829 身份行要读工作区名、提交号、领先 / 落后与远端依据时间：都从 workspace 片取，缺了给空值，
   //   界面读到空值就少画一格，不拿假数据补位（远端依据时间由同一个时间格式函数统一）。
   const basisMs: number = Number(identity.basisMs || syncData.basisMs || 0)
+  const tFn: any = typeof t === 'function' ? t : null
+  const nowVal: number = Number(nowMs) > 0 ? Number(nowMs) : Date.now()
+  // 两个时刻共用一个格式函数：相对时间窗口只住在 vcWhenText 里（7 天），界面这边不另算一套。
+  const whenText = function (ms: number): string { return tFn ? vcWhenText(tFn, nowVal, ms) : vcRealWhenTextOf(ms) }
   return Object.assign({}, snapshot, {
     branch: String(identity.branch || syncData.branch || ''),
     remote: String(syncData.remote || identity.remote || 'origin'),
-    when: vcRealWhenTextOf(atMs),
-    nowMs: Number(nowMs) > 0 ? Number(nowMs) : Date.now(),
+    when: whenText(atMs),
+    nowMs: nowVal,
     query: String(nav && nav.query ? nav.query : ''),
     highlight: String(nav && nav.highlight ? nav.highlight : ''),
     repoDisplay: String(identity.worktreeDisplay || ''),
@@ -221,7 +232,8 @@ export const vcRealSeedOf = function (reads: any, nav: any, nowMs: any): any {
     detached: identity.detached === true,
     ahead: Math.max(0, Number(identity.ahead || syncData.ahead || 0)),
     behind: Math.max(0, Number(identity.behind || syncData.behind || 0)),
-    basisWhen: basisMs > 0 ? vcRealWhenTextOf(basisMs) : '',
+    basisWhen: basisMs > 0 ? whenText(basisMs) : '',
+    reasons: tFn ? vcRailReasonsOf(vcFirstScreenScreenOf(reads), tFn) : [],
   })
 }
 
@@ -414,7 +426,8 @@ export const vcRealAiEntriesOf = function (reads: any, nav: any, t: any): any[] 
       detail: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',
     })
   }
-  if (String((nav && nav.page) || '') === 'worktrees') out.push({ kind: 'boundary', summary: t('vc.terminal'), detail: t('vc.terminalTip') })
+  // 工作区页的交接入口在页面底部（vcWorktreesView 的 wt-foot，原型 worktrees.ts 第 58 行同位置），
+  //   顶部这条无条件兜底条会让每个干净的工作区页都多出一个原型没有的区块，所以不再在这里出。
   return out
 }
 

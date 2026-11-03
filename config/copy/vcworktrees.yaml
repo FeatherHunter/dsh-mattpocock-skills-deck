@@ -24,6 +24,7 @@ zh:
   vc.wt.current: "当前"
   vc.wt.locked: "已锁定"
   vc.wt.prunable: "待清理"
+  vc.wt.prunableUnknown: "无法确认目录是否存在"
   vc.wt.lockUnknown: "锁定状态读不出"
   vc.wt.head: "提交"
   vc.wt.branch: "分支"
@@ -121,8 +122,8 @@ zh:
   vc.wt.oidHint: "这棵工作树当前指向的提交短号"
   vc.wt.chevronGlyph: "›"
   vc.wt.copyPath: "复制路径"
-  vc.wt.aiEntry: 工作区太乱？交给 AI 收尾
-  vc.wt.aiEntryClean: 让 AI 检查这棵工作区
+  vc.wt.aiEntry: 不想自己排查？交给 AI
+  vc.wt.aiEntryClean: 想把工作区从头理一遍？交给 AI
   vc.wt.moreActions: "全部工作树动作（新建、清理、锁定、移动、稀疏检出）"
 
 en:
@@ -136,6 +137,7 @@ en:
   vc.wt.current: "Current"
   vc.wt.locked: "Locked"
   vc.wt.prunable: "Prunable"
+  vc.wt.prunableUnknown: "Cannot tell whether the directory exists"
   vc.wt.lockUnknown: "Lock state unknown"
   vc.wt.head: "Commit"
   vc.wt.branch: "Branch"
@@ -233,6 +235,6 @@ en:
   vc.wt.oidHint: "Short commit this worktree points at"
   vc.wt.chevronGlyph: "›"
   vc.wt.copyPath: "Copy path"
-  vc.wt.aiEntry: Worktrees in a mess? Hand it to AI
-  vc.wt.aiEntryClean: Ask AI to check this worktree
+  vc.wt.aiEntry: Rather not dig in yourself? Hand it to AI
+  vc.wt.aiEntryClean: Want to untangle these worktrees from scratch? Hand it to AI
   vc.wt.moreActions: "All worktree actions (create, prune, lock, move, sparse checkout)"

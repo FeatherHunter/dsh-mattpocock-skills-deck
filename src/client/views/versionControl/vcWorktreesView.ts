@@ -77,12 +77,16 @@ const vcWtChipNode = function (h: any, key: string, tone: string, label: string,
   return h('span', { key: key, className: 'chip chip-' + tone + ' chip-sm' + (mono ? ' mono' : '') }, label)
 }
 
-/** 行内状态徽章：正常时一枚都不画。 */
+/** 行内状态徽章：正常时一枚都不画。五档与原型 stateChipsOf 同序：已锁定 → 待清理 / 无法确认目录 → 锁定状态读不出 → 裸仓库 → 无分支。 */
 const vcWtStateChipsOf = function (h: any, t: any, row: any): any[] {
   const out: any[] = []
+  const branch: string = vcWtViewStr(row.branch)
   if (row.locked === true) out.push(h('span', { key: 'locked', className: 'chip chip-warn chip-sm', 'data-wt-state': 'locked', 'aria-label': t('vc.wt.locked'), title: t('vc.wt.locked') }, t('vc.wt.locked')))
-  if (row.lockUnknown === true) out.push(h('span', { key: 'lockUnknown', className: 'chip chip-muted chip-sm', 'data-wt-state': 'lock-unknown' }, t('vc.wt.lockUnknown')))
   if (row.prunable === true) out.push(h('span', { key: 'prunable', className: 'chip chip-error chip-sm', 'data-wt-state': 'prunable' }, t('vc.wt.prunable')))
+  else if (row.prunableUnknown === true) out.push(h('span', { key: 'prunableUnknown', className: 'chip chip-warn chip-sm', 'data-wt-state': 'prunable-unknown' }, t('vc.wt.prunableUnknown')))
+  if (row.lockUnknown === true) out.push(h('span', { key: 'lockUnknown', className: 'chip chip-muted chip-sm', 'data-wt-state': 'lock-unknown' }, t('vc.wt.lockUnknown')))
+  if (row.bare === true) out.push(h('span', { key: 'bare', className: 'chip chip-info chip-sm', 'data-wt-state': 'bare' }, t('vc.wt.bare')))
+  if (branch === '' && row.bare !== true) out.push(h('span', { key: 'noBranch', className: 'chip chip-muted chip-sm', 'data-wt-state': 'no-branch' }, t('vc.wt.noBranch')))
   return out
 }
 
@@ -115,7 +119,7 @@ const vcWtNoticeNode = function (h: any, t: any, ui: any, ops: any): any {
   ])
 }
 
-/** 当前工作区卡：chip 当前 + 名字 + 分支或「无分支」+ 短号 + 复制按钮，下面一行完整路径。 */
+/** 当前工作区卡：chip 当前 + 名字 + 分支或「无分支」+ 复制按钮，下面一行完整路径（原型不在这张卡上写短号）。 */
 const vcWtCurrentNode = function (h: any, t: any, row: any): any {
   if (!row) return null
   const rawPath: string = vcWtViewStr(row.path)
@@ -123,14 +127,12 @@ const vcWtCurrentNode = function (h: any, t: any, row: any): any {
   const split: any = vcWorktreesSplitPathOf(path)
   const name: string = split.name === '' ? vcWtViewStr(row.display) : split.name
   const branch: string = vcWtViewStr(row.branch)
-  const head: string = vcWtViewStr(row.head)
   const kids: any[] = [
     vcWtChipNode(h, 'current', 'ok', t('vc.wt.currentTitle'), false),
     h('span', { key: 'name', className: 'wt-name mono', 'aria-label': path, title: path }, name),
   ]
   if (branch === '') kids.push(vcWtChipNode(h, 'branch', 'muted', t('vc.wt.noBranch'), false))
   else kids.push(h('span', { key: 'branch', className: 'wt-branch', 'aria-label': t('vc.wt.factBranch'), title: t('vc.wt.factBranch') }, [h('span', { key: 'b', className: 'mono' }, branch)]))
-  if (head !== '') kids.push(h('span', { key: 'oid', className: 'wt-oid mono', 'data-wt-current-oid': head, 'aria-label': t('vc.wt.oidHint'), title: t('vc.wt.oidHint') }, head.slice(0, 8)))
   kids.push(vcWtCopyButtonNode(h, t, 'copy', path, 'icon-btn wt-current-copy', 'vc.wt.currentCopy'))
   return h('section', { key: 'current', className: 'wt-current', 'data-wt-current-card': '1' }, [
     h('div', { key: 'head', className: 'wt-current-head' }, kids),
@@ -244,7 +246,7 @@ const vcWtRowNode = function (h: any, t: any, model: any, row: any, ui: any, ops
   const nameRow: any[] = [h('span', { key: 'name', className: 'wt-name mono', 'aria-label': path, title: path }, name)]
   if (branch === '') nameRow.push(vcWtChipNode(h, 'branch', 'muted', t('vc.wt.noBranch'), false))
   else nameRow.push(h('span', { key: 'branch', className: 'wt-branch', 'aria-label': t('vc.wt.factBranch'), title: t('vc.wt.factBranch') }, [h('span', { key: 'b', className: 'mono' }, branch)]))
-  if (head !== '') nameRow.push(h('span', { key: 'oid', className: 'wt-oid mono', 'data-wt-row-oid': head, 'aria-label': t('vc.wt.oidHint'), title: t('vc.wt.oidHint') }, head.slice(0, 8)))
+  if (head !== '') nameRow.push(h('span', { key: 'oid', className: 'wt-oid mono', 'data-wt-row-oid': head, 'aria-label': t('vc.wt.oidHint'), title: t('vc.wt.oidHint') }, head.slice(0, 7)))
   const main: any = h('div', { key: 'main', className: 'wt-main' }, [
     h('div', { key: 'name-row', className: 'wt-name-row' }, nameRow),
     h('div', { key: 'path', className: 'wt-path' }, [
@@ -394,5 +396,8 @@ export const vcWorktreesLayoutNodesOf = function (h: any, t: any, o: any): any[]
   Array.prototype.push.apply(kids, vcWtListNodesOf(h, t, model, ui, ops))
   const foot: any = vcWtFootNode(h, t, abnormal, opts.onOpenHandoff)
   if (foot) kids.push(foot)
-  return [h('div', { key: 'view', className: 'view view-worktrees' }, kids)]
+  // 版式节点直接交给页面根 section：原型是 .panel-body > .view.view-worktrees 一层，
+  //   这里若再包一层 .view，section 夹在两层弹性容器中间会把高度链断掉，
+  //   清单就不会自己滚动、页底交接入口被顶出可视区（#1860 并排图里能直接看到）。
+  return kids
 }

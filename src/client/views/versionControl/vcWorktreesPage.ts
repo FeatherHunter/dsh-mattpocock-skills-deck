@@ -334,7 +334,7 @@ export const vcWorktreesPageNode = function (h: any, t: any, o: any): any {
     if (result) kids.push(result)
   }
   return h('section', {
-    className: 'vc-wt-page',
+    className: 'vc-wt-page view view-worktrees',
     'data-vc-wt-page': '1',
     'data-vc-wt-mode': ui.mode,
     'data-vc-wt-state': model.state,

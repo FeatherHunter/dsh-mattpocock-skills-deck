@@ -21,7 +21,7 @@ declare function vcRealInitialUi(): any
 declare function vcRealInitialNav(): any
 declare function vcRealCwdOf(props: any): string
 declare function vcRealCwdEmptyOf(cwd: any): boolean
-declare function vcRealSeedOf(reads: any, nav: any, nowMs: any): any
+declare function vcRealSeedOf(reads: any, nav: any, nowMs: any, t: any): any
 declare function vcRealSkinOf(bodyEl: any): string
 declare function vcRealCommitTargetsOf(reads: any): any[]
 declare function vcRealChangesSeedOf(reads: any): any
@@ -268,7 +268,7 @@ export const VcRealTab = function (props: any) {
       h('p', { className: 'vcs-live-empty', role: 'status' }, tr('vc.shell.live.emptyCwd')))
   }
   const nowTick: number = nowMs()
-  const seed: any = vcRealSeedOf(reads, nav, nowTick)
+  const seed: any = vcRealSeedOf(reads, nav, nowTick, tr)
   const stash: any = Object.assign({}, vcStashStateNew(), ui.stash || {})
   const changesSeed: any = vcRealChangesSeedOf(reads)
   const changeHandlers: any = vcRealChangesHandlersOf({ values: changes.values, rows: changes.rows }, setChangesState, callHost, cwd, tr, actions.gate)
@@ -380,7 +380,10 @@ export const VcRealTab = function (props: any) {
   if (aiNode) kids.push(Object.assign({}, aiNode, { key: 'ai' }))
   if (failNodes.length > 0) kids.push(h('div', { key: 'fails', className: 'vcs-live-fails', 'data-vc-live-fails': '1' }, failNodes))
   kids.push(h('div', { key: 'shell', className: 'vcs-live-shell' }, vcShellPageNode(h, tr, shellOpts)))
-  return h('div', Object.assign({ id: 'vc-real-root', ref: rootRef, className: 'vcs-live', 'data-vc-live': '1', 'data-vc-live-page': nav.page, 'data-vc-live-depth': String(vcPageDepthOf(nav.page)) }, events), kids)
+  // #1860：四个页签首层要像原型那样铺满宿主的可用高度（身份行、页签条、正文、提交区各就各位，正文列表自己滚动、
+  //   提交区贴底）。非首层页仍是内容高度、由宿主外层滚动，所以铺满只加在首层四页签上，用 is-tabpage 这一枚类名分辨。
+  const rootClass: string = 'vcs-live' + (firstLevelTab ? ' is-tabpage' : '')
+  return h('div', Object.assign({ id: 'vc-real-root', ref: rootRef, className: rootClass, 'data-vc-live': '1', 'data-vc-live-page': nav.page, 'data-vc-live-depth': String(vcPageDepthOf(nav.page)) }, events), kids)
 }
 
 export const VC_REAL_TAB_SOURCE = 'src/client/views/versionControl/vcRealTab.ts'

@@ -45,6 +45,8 @@ const NEW_FILES = [
 const EXPORTS = [
   'VersionControlTab', 'VcRealTab', 'CAPABILITIES', 'PAGE_COUNTS', 'VC_TAB_PAGES', 'VC_MANAGE_PAGES',
   'VC_PALETTE_RENDER_MAX', 'vcPaletteMatchOf', 'vcPaletteRowsOf', 'vcPaletteTargetOf',
+  // #1860：相对时间与原因行由种子函数产出，门禁直接调它算期望值（与界面同一份口径）。
+  'vcRealSeedOf', 'vcWhenText',
 ]
 const readSource = (rel) => (fs.existsSync(path.join(ROOT, rel.replace(/\.js$/, '.ts'))) ? sourceText(rel) : read(rel))
 const stripExports = (t) => t.replace(/^(\s*)export\s+/gm, '$1')
@@ -255,11 +257,29 @@ async function scenarioMain() {
   check(!!m.q('[data-vc-refresh]') && !m.q('[data-vc-refresh]').disabled, 'T3b 手动刷新入口在页面上真实存在且可点（data-vc-refresh）')
   // #1860：能力清单退役，身份行不再画「共 N 条能力」这样的计数；能力总账改由命令面板底栏承担（T10b 验）。
   check(!m.q('.vcs-identity-count') && String((m.q('[data-vc-identity]') || {}).textContent || '').indexOf('条能力') < 0, 'T3c 身份行不再画能力计数（能力总账改由命令面板承担）')
+  // #1860 还原：原型四颗全局入口的 svg 是 14px（icon(..., 14)），重新读取那颗仍是 13px。
+  const toolSvg = m.q('[data-vc-search-entry] svg')
+  check(!!toolSvg && String(toolSvg.getAttribute('width')) === '14' && String(toolSvg.getAttribute('height')) === '14', 'T3d 全局入口图标按原型画 14px（搜索入口的 svg）')
+  const reloadSvg = m.q('[data-vc-refresh] svg')
+  check(!!reloadSvg && String(reloadSvg.getAttribute('width')) === '13', 'T3e 重新读取的图标仍是 13px（不是全局入口那一档）')
   check(countKin(host, 'wf.gitFirstScreen') === 1, 'T4 进入页面恰好发一次 wf.gitFirstScreen 聚合读')
   const fsCall = firstCallOf(host, 'wf.gitFirstScreen')
   check(!!fsCall && String((fsCall.args || {}).cwd || '') === CWD, 'T4b 聚合读带上当前工作区 cwd=' + CWD)
   // #1860：原型把「读取于」与时刻拆成两个 span（标签与值），data-vc-read-at 只挂在值上，所以整行找标签。
   check(!!m.q('[data-vc-read-at]') && m.text('[data-vc-sync-facts]').indexOf('读取于') >= 0, 'T4c 身份行的同步事实行显示读取时刻文案（data-vc-read-at）')
+  // #1860 还原：原型「读取于」「远端依据」念相对时间（刚刚 / 12 分钟前），超过一周才回精确时刻。
+  //   期望值不另写一份分档，直接调界面同一支 vcWhenText；now 取断言时刻（与挂载只差毫秒，同一档不会翻）。
+  const readAtText = m.text('[data-vc-read-at]')
+  const relativeNow = Date.now()
+  check(readAtText !== '' && readAtText === view.vcWhenText(tZh, relativeNow, NOW), 'T4d 读取于按相对时间念（实际「' + readAtText + '」，同一口径应为「' + view.vcWhenText(tZh, relativeNow, NOW) + '」）')
+  check(!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(readAtText), 'T4d2 读取于不再是 yyyy-mm-dd hh:mm 的绝对写法（原型说相对时间）')
+  const basisText = m.text('[data-vc-sync]')
+  check(basisText.indexOf(view.vcWhenText(tZh, relativeNow, NOW)) >= 0, 'T4d3 远端依据同样念相对时间（' + basisText + '）')
+  // #1860 原因行：改动片有未暂存文件（提醒脏工作区），推送没有落后 → 只画拉取一行、提醒档；推送整行不出现。
+  const reasonIds = m.qa('[data-vc-reason]').map(function (el) { return String(el.getAttribute('data-vc-reason') || '') })
+  const pullReason = m.q('[data-vc-reason="pull"]')
+  check(!!m.q('[data-vc-reasons]') && reasonIds.join(',') === 'pull', 'T4e 原因行只画有原因的动作（' + (reasonIds.join(',') || '空') + '；推送没有理由不出行）')
+  check(!!pullReason && String(pullReason.className || '') === 'reason is-warn' && m.text('[data-vc-reason="pull"] .reason-k') === tZh('vc.shell.sync.pull') && m.text('[data-vc-reason="pull"] .reason-v') === tZh('vc.block.dirtyTree'), 'T4f 拉取原因行是提醒档 dirty-tree，动作名与原因句都来自词条')
   check(!!m.q('[data-vc-commit-panel]'), 'T5 改动页挂上了提交面板（vcCommitPageNode）')
   check(m.qa('[data-vc-changes-op]').length === 0 && !m.q('[data-vc-more-actions]'), 'T5b 改动页不再挂 13 条动作清单（#1860 能力清单退役，动作由命令面板到达）')
   // #1829 首屏顺序：统计卡与文件行 → 折叠的 13 条动作 → 提交面板 → 能力清单；能力清单不再占首屏。
@@ -759,6 +779,10 @@ async function scenarioAiHandoff() {
   check(lines[lines.length - 1] === tZh('vc.ai.extra') && lines[lines.length - 2] === tZh('vc.ai.goal'), 'T31d 目标与补充两行原样留白（只有词条本身，不替人编内容）')
   check(body.indexOf('看到：') >= 0 && body.indexOf('想做：') >= 0 && body.indexOf('dsh-plugin') >= 0 && body.indexOf('- a.txt') >= 0 && body.indexOf('vc.') < 0, 'T31e prompt 带上已读事实（仓库、卡住的文件 a.txt、看到的难处），没有词条键名')
   check(host.calls.length === beforeCalls, 'T31f 点 AI 入口只开会话、不发任何宿主电话（也没顺手执行修复）')
+  // #1860 原因行：冲突未解决 + 变基进行中时，拉取与推送都被核心判成 block，两行都按挡住着色、原因句是冲突词条。
+  const blockIds = m.qa('[data-vc-reason].is-block').map(function (el) { return String(el.getAttribute('data-vc-reason') || '') }).sort()
+  check(blockIds.join(',') === 'pull,push' && m.qa('[data-vc-reason].is-warn').length === 0, 'T31g 冲突且变基中：拉取与推送两行原因都按挡住着色（' + (blockIds.join(',') || '空') + '），没有提醒档')
+  check(m.text('[data-vc-reason="pull"] .reason-v') === tZh('vc.block.conflicts') && m.text('[data-vc-reason="push"] .reason-v') === tZh('vc.block.conflicts'), 'T31h 两行的原因句都是冲突未解决（同一词条，不各编一套说法）')
   global.openTextInNewSession = prevOpener
   await m.unmount()
 }

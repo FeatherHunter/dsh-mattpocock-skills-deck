@@ -133,6 +133,25 @@ export const vcWhenText = function (t: any, nowMs: any, ms: any) {
   return t('vc.ago.days', { n: String(Math.floor(hours / 24)) })
 }
 /**
+ * 提交行与提交详情里的时刻：原型提交历史用另一把尺（docs/prototype/vc-redesign/src/domain/select.ts:432-440 timeText）——
+ * 24 小时以内说相对时间（刚刚 / N 分钟前 / N 小时前），更早只写「10 月 31 日」，不带时刻也不带年份。
+ * 为什么和 vcWhenText 分开：同一屏里工作区、贮藏按一周窗口（超一周写精确时刻），提交历史按 24 小时窗口；
+ * 这是原型两处各自的写法，不是笔误，不要合成一个函数。
+ */
+export const vcCommitWhenText = function (t: any, nowMs: any, ms: any) {
+  // 规则与 vcWhenText 一致：没有时间、非正数都回空串，绝不画成 1970 年。
+  if (ms === null || ms === undefined || ms === '') return ''
+  const t0 = Number(ms)
+  if (!isFinite(t0) || t0 <= 0) return ''
+  const minutes = Math.max(0, Math.floor((Number(nowMs) - t0) / 60000))
+  if (minutes < 1) return t('vc.ago.justNow')
+  if (minutes < 60) return t('vc.ago.minutes', { n: String(minutes) })
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return t('vc.ago.hours', { n: String(hours) })
+  const d = new Date(t0)
+  return t('vc.commitWhen.day', { m: String(d.getMonth() + 1), d: String(d.getDate()) })
+}
+/**
  * 依据时间那一句（领先落后旁边永远要有的那一个）：读到了就写「远端信息更新于 <时刻>」，
  * 读不到就如实写读不到 —— 绝不拿「现在」冒充依据时间（规格第 10、11 条）。
  */

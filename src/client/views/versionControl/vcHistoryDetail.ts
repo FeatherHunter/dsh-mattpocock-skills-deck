@@ -9,9 +9,10 @@
 
 declare const React: any
 declare function vcShortOid(...args: any[]): any
-declare function vcWhenText(...args: any[]): any
+declare function vcCommitWhenText(...args: any[]): any
 declare function vcOneLine(...args: any[]): any
 declare function vcCommitKeyOf(...args: any[]): any
+declare const vcPageIconOf: (h: any, kind: string, size: number) => any
 
 // 逐文件差异块（原型 .file-detail）：读到了就把逐行差异放进 pre，没读到 / 读失败 / 二进制 / 合并 / 截断各说各的。
 //   旧类名 vcs-hist-diff-lines / vcs-hist-diff-line / vcs-hist-line-<kind> 是门禁认的契约，一个都不删。
@@ -91,7 +92,7 @@ export const vcHistoryDetailOf = function (h: any, t: any, o: any) {
   const headKids: any[] = [h('button', {
     key: 'back', type: 'button', className: 'back-btn', 'data-vc-history-back': '1',
     'data-press': 'button', 'data-log': 'vc.history.back',
-  }, '‹ ' + t('vc.shell.history.detailBack'))]
+  }, [vcPageIconOf(h, 'back', 13), h('span', { key: 'label' }, t('vc.shell.history.detailBack'))])]
   const scrollKids: any[] = []
   const titleAttrs: any = { key: 'title', id: 'vc-history-detail-title', className: 'detail-subject' }
   if (parents.length >= 2) titleAttrs['data-vc-history-merge'] = '1'
@@ -101,7 +102,7 @@ export const vcHistoryDetailOf = function (h: any, t: any, o: any) {
     const meta: any[] = []
     meta.push(vcHistoryMetaRowOf(h, 'hash', t('vc.shell.history.metaHash'), h('span', { key: 'oid', className: 'mono', 'aria-label': fullOid, title: fullOid }, vcShortOid(fullOid))))
     meta.push(vcHistoryMetaRowOf(h, 'author', t('vc.shell.history.metaAuthor'), String(hit.author || '')))
-    meta.push(vcHistoryMetaRowOf(h, 'when', t('vc.shell.history.metaWhen'), vcWhenText(t, opts.nowMs, hit.authorDateMs)))
+    meta.push(vcHistoryMetaRowOf(h, 'when', t('vc.shell.history.metaWhen'), vcCommitWhenText(t, opts.nowMs, hit.authorDateMs)))
     const parentKids: any[] = parents.map(function (oid: any) {
       const one: string = String(oid || '')
       return h('span', { key: 'p-' + one, className: 'parent-hash mono', 'aria-label': one, title: one }, vcShortOid(one))
@@ -142,7 +143,7 @@ export const vcHistoryDetailOf = function (h: any, t: any, o: any) {
           h('span', { key: 'name', className: 'file-name' }, vcHistoryNameOf(path)),
         ]),
         h('span', { key: 'delta', className: 'file-delta' }, vcHistoryFileDeltaOf(h, file)),
-        h('span', { key: 'chev', className: 'row-chevron' + (expanded ? ' is-open' : ''), 'aria-hidden': 'true' }, '›'),
+        h('span', { key: 'chev', className: 'row-chevron' + (expanded ? ' is-open' : ''), 'aria-hidden': 'true' }, vcPageIconOf(h, 'chevron', 12)),
       ]))
       if (expanded) filesKids.push(vcHistoryFileDiffOf(h, t, { path: path, read: (opts.commitDiffs || {})[vcCommitKeyOf(rev, path)] || null }))
     }

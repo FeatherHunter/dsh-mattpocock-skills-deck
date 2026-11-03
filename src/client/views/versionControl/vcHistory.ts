@@ -22,12 +22,13 @@ declare function vcFirstScreenSliceStateOf(...args: any[]): any
 declare function vcFirstScreenSliceErrorOf(...args: any[]): any
 declare function vcFirstScreenStateOf(...args: any[]): any
 declare function vcShortOid(...args: any[]): any
-declare function vcWhenText(...args: any[]): any
+declare function vcCommitWhenText(...args: any[]): any
 declare function vcOneLine(...args: any[]): any
 declare function vcCommitKeyOf(...args: any[]): any
 declare function vcHistoryDetailOf(...args: any[]): any
 declare function vcHistoryGraphOf(...args: any[]): any
 declare function vcHistoryGraphNode(...args: any[]): any
+declare const vcPageIconOf: (h: any, kind: string, size: number) => any
 
 export const VC_HISTORY_BATCH = VC_LOG_BATCH
 export const VC_HISTORY_LANES_MAX = 6
@@ -198,12 +199,20 @@ export const vcHistoryRowNode = function (h: any, t: any, o: any) {
   const menuOpen: boolean = opts.menuOpen === true
   const body: any[] = [
     width >= 380 ? h('span', { key: 'short', className: 'commit-hash mono', 'data-vc-history-short': '1' }, String(c.short || vcShortOid(oid))) : null,
-    h('span', { key: 'subject', className: 'commit-subject' }, subject),
+    // 合并提交的标题是 git 自动生成的原文（例如 Merge branch 'main'），直接读像乱码：
+    //   按原型先给「合并」chip 这个结论，原文降为下一行等宽小字；普通提交仍只画一行主题。
+    //   词表里没有提交历史专用的「合并」词条，先复用分支页那条同值词条；要独立成 key 时只换这一处。
+    vcHistoryIsMergeOf(c)
+      ? h('span', { key: 'subject', className: 'commit-subject commit-subject-merge' }, [
+        h('span', { key: 'lead', className: 'commit-merge-lead' }, t('vc.shell.branch.merge')),
+        h('span', { key: 'raw', className: 'commit-merge-raw mono' }, subject),
+      ])
+      : h('span', { key: 'subject', className: 'commit-subject' }, subject),
     width >= 460 ? h('span', { key: 'meta', className: 'commit-meta' }, [
       h('span', { key: 'author', className: 'commit-author', 'data-vc-history-author': '1' }, String(c.author || '')),
-      h('span', { key: 'when', className: 'commit-when', 'data-vc-history-when': '1' }, vcWhenText(t, opts.nowMs, c.authorDateMs)),
+      h('span', { key: 'when', className: 'commit-when', 'data-vc-history-when': '1' }, vcCommitWhenText(t, opts.nowMs, c.authorDateMs)),
     ]) : null,
-    h('span', { key: 'chev', className: 'commit-chevron', 'aria-hidden': 'true' }, '›'),
+    h('span', { key: 'chev', className: 'commit-chevron', 'aria-hidden': 'true' }, vcPageIconOf(h, 'chevron', 12)),
   ]
   const line: any = h('div', { key: 'line', className: 'commit-line' }, [
     h('div', {
@@ -243,6 +252,7 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
   const mergeOnly: boolean = ui.historyMergeOnly === true
   const visible: any[] = vcHistoryFilterOf(commits, query, mergeOnly)
   const menu: string = String(ui.historyMenu || '')
+  const hasMore: boolean = model.hasMore === true
   const rows: any[] = []
   let dayKey = ''
   for (let i = 0; i < visible.length; i += 1) {
@@ -274,7 +284,12 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
       'data-press': 'button', 'data-log': 'vc.history.merge-only',
     }, t('vc.shell.history.mergeOnly')),
   ]
-  const scopeKey: string = mergeOnly || query.trim() !== '' ? 'scopeFiltered' : 'scope'
+  // 范围行照原型是「已加载 n 条，共 m 条」：只有确认没有下一批（hasMore=false）时总数才可信，
+  //   hasMore=true 时总数未知，沿用「已加载 n 条」；筛选态仍用「已加载 n 条，筛出 m 条」那句。
+  const filtered: boolean = mergeOnly || query.trim() !== ''
+  const scopeText: string = filtered
+    ? t('vc.shell.history.scopeFiltered', { n: commits.length, m: visible.length })
+    : (hasMore ? t('vc.shell.history.scope', { n: commits.length }) : t('vc.shell.history.scopeTotal', { n: commits.length, m: commits.length }))
   const head: any[] = [
     h('div', {
       key: 'tools', className: 'history-tools vcs-hist-tools',
@@ -282,7 +297,7 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
       'data-vc-history-state': model.state,
       'data-vc-history-count': String(model.loaded),
     }, tools),
-    h('div', { key: 'scope', className: 'history-scope', 'data-vc-history-scope': '1' }, t('vc.shell.history.' + scopeKey, { n: commits.length, m: visible.length })),
+    h('div', { key: 'scope', className: 'history-scope', 'data-vc-history-scope': '1' }, scopeText),
   ]
   const scroll: any[] = []
   if (model.state === 'loading') {
@@ -302,7 +317,6 @@ export const vcHistoryListOf = function (h: any, t: any, o: any) {
   } else {
     scroll.push(h('div', { key: 'list', id: 'vc-history-list', className: 'history-list', role: 'list', 'aria-label': t('vc.shell.history.listLabel') }, rows))
   }
-  const hasMore = model.hasMore === true
   if (hasMore === true) {
     scroll.push(h('button', {
       key: 'more', type: 'button', className: 'vcs-hist-load-more',

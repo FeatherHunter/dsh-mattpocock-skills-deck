@@ -154,9 +154,13 @@ export const vcWorktreesModelOf = function (reads: any): any {
       rowTargeted: VC_WORKTREE_ROW_CAP_IDS.indexOf(capId) >= 0,
     })
   }
+  // 当前工作区单独成一棵卡（原型 section.wt-current）：worktreeRowsOf 把当前树也拼进清单并标 current，
+  //   这里挑出来交给版式，清单本身仍保留整份（行级动作与门禁按路径查行时不会漏掉当前树）。
+  const current: any = snapshot.rows.filter(function (r: any): boolean { return r && r.current === true })[0] || null
   return {
     state: snapshot.state,
     rows: snapshot.rows,
+    current: current,
     bare: snapshot.bare,
     count: snapshot.rows.length,
     error: snapshot.error,

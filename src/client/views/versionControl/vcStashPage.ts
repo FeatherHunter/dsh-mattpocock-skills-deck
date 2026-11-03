@@ -40,6 +40,8 @@ declare function vcStashActionPayloadOf(input: any): any
 declare function vcStashRecentOf(state: any): any[]
 declare function vcStashShortOidOf(oid: any): string
 declare function vcStashWhenOf(atMs: any): string
+// 来自同层叶子 vcText.ts：一个时刻怎么念（一周以内「3 小时前」，更早写精确时刻）。
+declare function vcWhenText(t: any, nowMs: any, ms: any): string
 declare function vcStashFailKeyOf(kind: any): string
 
 /** 真源标识：门禁按这一行找本文件，改路径要一起改门禁。 */
@@ -95,7 +97,9 @@ const vcStashPathsHintNode = function (h: any, t: any, quietActions: any[]): any
 const vcStashRowOf = function (h: any, t: any, entry: any, ctx: any): any {
   const selector = String(entry.selector || '')
   const oid = String(entry.oid || '')
-  const when = vcStashWhenOf(entry.atMs)
+  // 时间印法跟原型一致：一周以内说相对时间（「刚刚」「3 小时前」），更早才写精确时刻。
+  //   容器没传当前时刻时（静态渲染、门禁直接调页面叶子）退回精确写法，读数形状不因调用方改变。
+  const when = Number(ctx.nowMs) > 0 ? vcWhenText(t, ctx.nowMs, entry.atMs) : vcStashWhenOf(entry.atMs)
   const detail = ctx.detail && String(ctx.detail.selector || '') === selector ? ctx.detail : null
   const filesKnown = !!(detail && Array.isArray(detail.files))
   const fileNote = filesKnown
@@ -336,6 +340,7 @@ export const vcStashPageNode = function (h: any, t: any, opts: any): any {
   }
   const ctx: any = {
     state: state,
+    nowMs: Number(o.nowMs) > 0 ? Number(o.nowMs) : 0,
     versionText: versionText,
     message: String(state.message || ''),
     detail: state.detail,

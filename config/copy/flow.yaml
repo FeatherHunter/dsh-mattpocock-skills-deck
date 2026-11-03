@@ -249,6 +249,7 @@ zh:
   vc.ago.minutes: "{n} 分钟前"
   vc.ago.hours: "{n} 小时前"
   vc.ago.days: "{n} 天前"
+  vc.commitWhen.day: "{m} 月 {d} 日"
   vc.more: 另有 {n} 个文件，下滑会自动显示
   vc.row.conflict: 冲突
   vc.row.conflictTip: 该文件两侧均存在变更，git 保留了两份内容，等待处理。
@@ -509,6 +510,7 @@ en:
   vc.ago.minutes: "{n} min ago"
   vc.ago.hours: "{n} h ago"
   vc.ago.days: "{n} d ago"
+  vc.commitWhen.day: "{m}/{d}"
   vc.more: "{n} more files; scrolling down shows them"
   vc.row.conflict: Conflict
   vc.row.conflictTip: Both sides changed this file; git kept both versions awaiting resolution.

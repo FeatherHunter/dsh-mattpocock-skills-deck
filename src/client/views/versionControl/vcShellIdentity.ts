@@ -5,22 +5,30 @@
 //   第一行（任何页面都有）：仓库名（悬停给完整工作区路径）、分支按钮（没有分支时换成「分离头指针」标签）、
 //     短提交号，右侧是四颗图标入口：复制工作区路径、交给 AI、命令面板、管理；
 //   第二行（只有四个一级页签）：同步事实：领先 / 落后、读取于、远端依据（点它去「远端与同步」页）、重新读取；
-//   第三行（只有四个一级页签）：拉取 / 获取 / 推送（点它们同样去「远端与同步」页）+ 一句下一步。
+//   第三行（只有四个一级页签）：拉取 / 获取 / 推送（点它们同样去「远端与同步」页）+ 一句下一步；
+//   第四行（只有四个一级页签、且拉取或推送有原因时）：每个有原因的动作一行「动作名 + 原因句」，
+//     判定走核心 rules.judge（推送再用 vcWrite 的同一条修正），颜色分开机与提醒。
 // 二级页（管理分区与顶栏入口页）按定稿原型 37/39 只保留第一行，同步两行让位给页头与正文。
 //
-// 与原型已知的差异（写进 #1860 的偏差表）：原型第三行下面那条「拉取被工作区改动挡住」的原因行，
-//   首屏同步读数里没有对应字段（sync 片只有 ahead/behind/basisMs 与分支名），这里不画。
+// 与原型已知的差异（写进 #1860 的偏差表）：原型原因行里「推送但没有可推的提交」这一条，
+//   核心判定没有对应理由（领先为 0 时核心仍允许推送），这里不画。
 // 这些入口里只有复制路径自己处理点击（剪贴板不需要宿主电话）；其余只给 data-*，由容器的事件委托翻译。
 
 declare const CAPABILITIES: any[]
+// 原因行要用的判定与词条映射都住在客户端闭包里（核心 rules.judge、vcWrite 的推送修正与理由键映射），
+//   跨叶只声明，不复制判据。
+declare function judge(screen: any, op: any): any
+declare function vcReasonKeysOf(reasons: any): any
+declare function vcPushDecisionOf(decision: any): any
 
-// 身份行用到的五个图标：路径抄自原型 docs/prototype/vc-redesign/src/ui/dom.ts 的 ICON_PATHS，
+// 身份行用到的六个图标：路径抄自原型 docs/prototype/vc-redesign/src/ui/dom.ts 的 ICON_PATHS，
 //   形状与线宽与原型一致（24×24 视窗、1.8 线宽、圆头圆角）。
 const VC_RAIL_ICON_PATHS: Record<string, string> = {
   copy: 'M8 8h10v12H8zM6 16H4V4h12v2',
   spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
   search: 'M11 4a7 7 0 1 0 0 14a7 7 0 0 0 0-14M16.5 16.5L21 21',
   settings: 'M4 7h10M18 7h2M4 12h4M12 12h8M4 17h10M18 17h2',
+  chevron: 'M6 9l6 6 6-6',
   refresh: 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7',
 }
 
@@ -46,8 +54,35 @@ const vcRailIconButtonOf = function (h: any, t: any, o: any) {
   if (o.press) attrs['data-press'] = o.press
   if (o.log) attrs['data-log'] = o.log
   if (typeof o.onClick === 'function') attrs.onClick = o.onClick
-  attrs.children = vcRailIconOf(h, o.icon, o.size || 15)
+  // 四颗全局入口的图标与原型一致用 14px（原型 icon(..., 14)）；只有重新读取那颗仍是 13px。
+  attrs.children = vcRailIconOf(h, o.icon, o.size || 14)
   return h('button', attrs)
+}
+
+// 原因行的数据：拉取与推送各自把核心 rules.judge 的判定理由翻成页面那两行（原型 rail-reasons）。
+//   推送沿用写操作面板的同一条修正（没有上游 / 上游被删不算不能推，见 vcWrite.vcPushDecisionOf），
+//   否则会出现「按钮能点、原因行却说被挡住」的矛盾。没有原因的动作不出行；两行都没原因就是空数组。
+//   只翻词条、不写文案：理由键 → 词条键的映射只有 vcWrite 那一处（VC_BLOCK_KEY）。
+//   门禁直接调它算期望值（verify-1776 的 T4e / T31g），所以导出成一支纯函数，不碰 React。
+export const vcRailReasonsOf = function (screen: any, t: any): any[] {
+  if (!screen || typeof t !== 'function') return []
+  const rows: any[] = []
+  const ids: string[] = ['pull', 'push']
+  ids.forEach(function (id: string) {
+    const decision: any = id === 'push' ? vcPushDecisionOf(judge(screen, 'push')) : judge(screen, 'pull')
+    // 'ok' 是「没有理由」的占位：映射表里它的词条键是空串，而 vcReasonKeysOf 会把空串落到兜底
+    //   「该步骤当前不可用」——那是给表外理由的兜底，不能让允许的动作也冒出一行原因，所以先摘掉再翻。
+    const reasons: any[] = (Array.isArray(decision && decision.reasons) ? decision.reasons : []).filter(function (r: any) { return String(r) !== 'ok' })
+    const keys: string[] = vcReasonKeysOf(reasons)
+    if (keys.length === 0) return
+    rows.push({
+      id: id,
+      act: t('vc.shell.sync.' + id),
+      text: keys.map(function (k: string) { return t(k) }).join('；'),
+      tone: decision && decision.verdict === 'block' ? 'block' : 'warn',
+    })
+  })
+  return rows
 }
 
 export const vcShellIdentityNode = function (h: any, t: any, o: any) {
@@ -63,6 +98,9 @@ export const vcShellIdentityNode = function (h: any, t: any, o: any) {
   const behind = Number(opts.behind || 0)
   const detached = opts.detached === true || branch === ''
   const secondary = opts.secondary === true
+  // 原因行由容器算好再传进来（每条 { id: 'pull' | 'push', act, text, tone: 'block' | 'warn' }）：
+  //   这里只按原型的形状画，不自己判可点性；数组为空时整块不出现。
+  const reasons: any[] = Array.isArray(opts.reasons) ? opts.reasons : []
   // ── 第一行：仓库名 / 分支 / 短号 + 右侧四颗图标入口 ─────────────────────────────
   const idMain: any[] = []
   // 仓库名读不到时退回分支名，不留空行（与改造前的兜底一致）。
@@ -170,6 +208,18 @@ export const vcShellIdentityNode = function (h: any, t: any, o: any) {
         h('span', { key: 'v', className: 'next-v' }, t('vc.shell.sync.nextStage')),
       ]),
     ])))
+    // 原因行：原型只在有原因时画这一块，每行一个动作（拉取 / 推送），动作名在前、原因句在后；
+    //   被挡住的行按 is-block 着色、只提醒的行按 is-warn 着色（颜色由样式表按类名给）。
+    if (reasons.length > 0) {
+      kids.push(h('div', { key: 'reasons', className: 'rail-reasons', 'data-vc-reasons': '1' }, reasons.map(function (row: any) {
+        const id = String(row && row.id ? row.id : '')
+        const block = row && row.tone === 'block'
+        return h('div', { key: id, className: 'reason' + (block ? ' is-block' : ' is-warn'), 'data-vc-reason': id }, [
+          h('span', { key: 'k', className: 'reason-k' }, String(row && row.act ? row.act : '')),
+          h('span', { key: 'v', className: 'reason-v' }, String(row && row.text ? row.text : '')),
+        ])
+      })))
+    }
   }
   return h('header', { className: 'rail' + (secondary ? ' is-page' : ''), 'data-vc-identity': '1', 'aria-label': t('vc.shell.identity.label') }, kids)
 }

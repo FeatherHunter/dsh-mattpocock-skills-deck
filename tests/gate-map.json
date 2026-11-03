@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T19:27:59.025Z",
+  "generatedAt": "2026-11-03T21:27:32.604Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 553,
   "gateCount": 553,
@@ -5677,26 +5677,36 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 211,
+      "expectedAssertions": 220,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 15 条"
     },
     {
       "step": "node tests/verify-1776-vc-tab-browser.ts",
       "file": "tests/verify-1776-vc-tab-browser.ts",
       "guards": [
+        "docs/design/md-env-check-chain.png",
+        "docs/design/md-env-check-chain.svg",
+        "docs/review/20261025-spec-complete-prompt-review.html",
         "scripts/lib/transpile-unit.mts",
         "src/client/kernel/locale-data.ts",
+        "src/client/views/shared/workRouteTable.ts",
         "src/client/views/versionControl/vcShellStyles.ts",
+        "src/refresh/rooms/host/outbound-admission.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/browser-pool.ts",
         "tests/lib/gate-result.ts",
         "tests/lib/source-text.ts",
+        "tests/verify-1545-workroute-row-nav.ts",
         "tests/verify-818-version-control-view.ts"
       ],
       "dirs": [
+        "docs/design",
+        "docs/review",
         "scripts/lib",
         "src/client/kernel",
+        "src/client/views/shared",
         "src/client/views/versionControl",
+        "src/refresh/rooms/host",
         "src/shared/time-config/src",
         "tests",
         "tests/lib"
@@ -5704,8 +5714,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 313,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 1 条"
+      "expectedAssertions": 332,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-1783-comments-projection.ts",
@@ -13100,6 +13110,7 @@
       "node tests/verify-1612-deck-door.ts"
     ],
     "docs/design": [
+      "node tests/verify-1776-vc-tab-browser.ts",
       "node tests/verify-closeout-acceptance.ts"
     ],
     "docs/releases": [
@@ -13108,6 +13119,9 @@
       "node tests/verify-market-tarball.ts",
       "node tests/verify-release-contract.ts",
       "node tests/verify-release-template.ts"
+    ],
+    "docs/review": [
+      "node tests/verify-1776-vc-tab-browser.ts"
     ],
     "docs/tracker": [
       "node tests/verify-1443-github-readbudget.ts",
@@ -13785,6 +13799,7 @@
       "node tests/verify-1564-ticket-badge.ts",
       "node tests/verify-1565-workroute-first-col-browser.ts",
       "node tests/verify-1582-open-folder.ts",
+      "node tests/verify-1776-vc-tab-browser.ts",
       "node tests/verify-1783-comments-projection.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -14360,6 +14375,7 @@
       "node tests/verify-1692-disk-replay-eviction.ts",
       "node tests/verify-1770-gitlab-list-truncated.ts",
       "node tests/verify-1774-carry-wiring.ts",
+      "node tests/verify-1776-vc-tab-browser.ts",
       "node tests/verify-1784-comment-pagination.ts",
       "node tests/verify-1790-status-conflict.ts",
       "node tests/verify-1790-status-surface.ts",

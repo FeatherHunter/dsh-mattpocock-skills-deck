@@ -260,7 +260,8 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   } else if (page === 'stash' && typeof vcStashPageNode === 'function') {
     // #1751 贮藏页（域 7）：十条动作的入口、确认卡与最近丢弃都在叶子里；正文排在能力清单之前，
     //   首屏先看到贮藏记录本身，而不是「本页负责 N 条能力」的长清单（#1829 同一口径）。
-    children.push(Object.assign({}, vcStashPageNode(h, t, { seed: opts.seed, state: opts.stash, onStash: opts.onStash, onStashEdit: opts.onStashEdit }), { key: 'stash-page' }))
+    // nowMs 让记录行的时间跟原型一样说相对时间；不传时页面叶子退回精确时刻（静态渲染用）。
+    children.push(Object.assign({}, vcStashPageNode(h, t, { seed: opts.seed, state: opts.stash, nowMs: opts.nowMs, onStash: opts.onStash, onStashEdit: opts.onStashEdit }), { key: 'stash-page' }))
   } else if (!vcOwnBodyOf(page, opts)) {
     // 骨架自检：三种表单形态与四种状态各画一遍；各页正文由它自己的叶子画，主入口由下面的能力清单统一给。
     children.push(h('div', { key: 'skeleton', className: 'vcs-skeleton', 'data-vc-skeleton': '1' }, [
@@ -358,6 +359,7 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   children.push(keyed(vcIdentityRowNode(h, t, {
     branch: seed.branch || '', repo: seed.repoDisplay || '', worktreePath: seed.worktreePath || '', oid: seed.oid || '',
     remote: seed.remote || 'origin', when: readAt, basis: seed.basisWhen || '', ahead: seed.ahead, behind: seed.behind,
+    reasons: seed.reasons || [],
     detached: seed.detached === true, branchOpen: branchOpen, branchOverlayId: branchOverlayId,
     paletteOpen: paletteOpen, paletteId: paletteId, gearOpen: gearOpen, gearId: gearId, onOpenHandoff: opts.onOpenHandoff,
     secondary: secondary,

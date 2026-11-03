@@ -1597,9 +1597,12 @@ async function main() {
   check(aiHtml.replace(/<[^>]*>/g, ' ').indexOf('vc.action.aiHandoff') < 0, 'AI7a AI 按钮印的是词条译文而不是键名（词典没插进按钮）')
   const aiBtnMatch = /<button[^>]*data-vc-ai="conflict"[^>]*>([\s\S]*?)<\/button>/.exec(aiHtml)
   check(!!aiBtnMatch && aiBtnMatch[1].replace(/<[^>]*>/g, '').trim() === tZh('vc.action.aiHandoff'), 'AI8 每颗 AI 按钮文字都是同一句「让 AI 帮我解决」的动作名（实得 ' + (aiBtnMatch ? aiBtnMatch[1].replace(/<[^>]*>/g, '').trim() : '没找到按钮') + '）')
+  // #1860：原型的工作区页把交接入口放在页面底部（worktrees.ts 的 wt-foot），顶上不画兜底条；
+  //   这里锁住「顶部没有 AI 入口 + 底部交接入口在」，防止有人再把无条件兜底条加回来。
   const aiBoundaryHtml = aiRenderOf(aiSeedReadsOf(firstSeedOf()), 'worktrees')
   const aiBoundaryKinds = aiKindsOf(aiBoundaryHtml)
-  check(aiBoundaryKinds.length === 1 && aiBoundaryKinds[0] === 'boundary' && aiBoundaryHtml.indexOf('data-vc-page="worktrees"') >= 0, 'AI7b 工作树页上的 AI 入口只出「工作树边界」这一档，别的落点不混进来（实得 ' + aiBoundaryKinds.join(',') + '）')
+  const aiBoundaryFoot: boolean = aiBoundaryHtml.indexOf('data-wt-handoff="1"') >= 0
+  check(aiBoundaryKinds.length === 0 && aiBoundaryHtml.indexOf('data-vc-page="worktrees"') >= 0 && aiBoundaryFoot, 'AI7b 工作区页顶上不再出兜底 AI 条（实得 ' + aiBoundaryKinds.length + ' 个），交接入口在页面底部（实得 ' + aiBoundaryFoot + '）')
   const aiFailHtml = aiRenderOf(aiSeedReadsOf(null))
   check(aiKindsOf(aiFailHtml).indexOf('read-fail') >= 0, 'AI7c 首屏整次读失败（timeout）时出现「读失败」AI 入口（可外带的那五档之一）')
   const aiPlainHtml = aiRenderOf(aiSeedReadsOf(firstSeedOf()))

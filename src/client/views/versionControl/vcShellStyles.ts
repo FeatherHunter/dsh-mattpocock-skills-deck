@@ -219,6 +219,18 @@ export const VC_SHELL_STYLE_TEXT = [
   '.vcs-live-fails{display:grid;justify-items:start;gap:4px;padding:4px 6px;min-width:0}',
   '.vcs-live-fail{margin:0;padding:4px 6px;border-left:3px solid var(--vcs-live-danger);background:rgba(209,36,47,.08);font-size:12px;overflow-wrap:anywhere}',
   '.vcs-live-shell{width:100%;max-width:100%;min-width:0}',
+  // #1860 定稿原型：四个页签首层铺满宿主可用高度。高度链是 根.vcs-live → 外壳.vcs-live-shell → .vcs-root → .vcs-page-body → .view，
+  //   原型里对应 .panel/.panel-body/.view 三层 flex:1；这里不照搬原型类名，只在已有的壳层上加「撑满 + 子项弹性」。
+  //   为什么必须带 .is-tabpage：二级页（rebase/conflicts/九个管理分区等）仍是内容高度、由宿主外层滚动，不能一刀切。
+  //   为什么特异度要 0,3,0：proto 适配块里「.panel-body{flex:none}」是后注入的同特异度规则，必须压过它正文才能撑满。
+  '.vcs-live.is-tabpage{height:100%;min-height:0}',
+  '.vcs-live.is-tabpage>.vcs-live-shell{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}',
+  '.vcs-live.is-tabpage>.vcs-live-shell>.vcs-root{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}',
+  '.vcs-live.is-tabpage .vcs-root>.rail,.vcs-live.is-tabpage .vcs-root>.views{flex:none;min-height:0}',
+  //   页面体自己不带内边距：原型 .panel-body 是 0，四页正文各自的区块（统计卡、分组头、提交区）都按原型自带 8/12px 内边距；
+  //   多出这一层内边距会让提交区离面板底差 8px，正是并排图里能看出来的那条缝。
+  '.vcs-live.is-tabpage .vcs-root>.vcs-page-body{flex:1 1 auto;min-height:0;overflow:hidden;padding:0}',
+  '.vcs-live.is-tabpage .vcs-page-body>.view{flex:1 1 auto;min-height:0;overflow:hidden}',
   '.vcs-live-empty{margin:8px;padding:8px;border:1px dashed currentColor;border-radius:4px;font-size:13px}',
   "[data-vc-shell] .vc-wt-page{display:flex;flex-direction:column;gap:8px;padding:0 0 8px}",
   "[data-vc-shell] .vc-wt-notice{display:flex;gap:6px;align-items:flex-start;margin:8px 8px 0;padding:6px 8px;border:1px solid var(--vcs-line);border-radius:4px;background:var(--vcs-panel);color:var(--vcs-dim);font-size:12px}",
