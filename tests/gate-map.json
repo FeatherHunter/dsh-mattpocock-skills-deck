@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T06:11:02.655Z",
+  "generatedAt": "2026-11-03T09:55:23.567Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 552,
   "gateCount": 552,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 92,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 854,
+  "graphFileCount": 855,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1949,7 +1949,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 2 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1237-mapdetail-copy.ts",
@@ -4666,7 +4666,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 310,
+      "expectedAssertions": 394,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 31 条"
     },
     {
@@ -11026,7 +11026,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 125,
+      "expectedAssertions": 135,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 8 条；源码里的路径字面量 7 条"
     },
     {
@@ -11060,7 +11060,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 119,
+      "expectedAssertions": 149,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 13 条"
     },
     {
@@ -15299,9 +15299,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 875,
+    "fileCount": 876,
     "dirCount": 84,
-    "coveredFileCount": 875,
+    "coveredFileCount": 876,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -15618,6 +15618,7 @@
       "src/deck/shell/minimal-spec.ts",
       "src/deck/shell/plan-cursor.ts",
       "src/deck/shell/receipt-reason.ts",
+      "src/deck/shell/running-sessions.ts",
       "src/deck/shell/session-workdir.ts",
       "src/deck/shell/spec-close-guard.ts",
       "src/deck/shell/table-cell.ts",

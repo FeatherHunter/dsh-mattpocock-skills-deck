@@ -177,7 +177,7 @@ export const VC_PAGE_STYLE_TEXT = [
   '[data-vc-shell][data-vc-width="380"] .vcs-config-query .vcs-config-input{flex:1 1 100%}',
   '[data-vc-shell][data-vc-width="300"] .vcs-config-query .vcs-config-input{flex:1 1 100%}',
   '[data-vc-shell][data-vc-width="300"] .vcs-hook-run-btn{width:100%}',
-    // 380 与 300 两档：事实网格收成一列；300 档再收起层级、条数与分支事实这几项次要信息，入口不删。
+  // 380 与 300 两档：事实网格收成一列；300 档再收起层级、条数与分支事实这几项次要信息，入口不删。
   '[data-vc-shell][data-vc-width="380"] .fact-grid{grid-template-columns:minmax(0,1fr)}',
   '[data-vc-shell][data-vc-width="300"] .fact-grid{grid-template-columns:minmax(0,1fr)}',
   '[data-vc-shell][data-vc-width="300"] .vcs-page-depth{display:none}',

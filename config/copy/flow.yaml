@@ -248,6 +248,7 @@ zh:
   cfg.wsMarkIndependentTip: 这个目录里有说明文件但没有任何工作区记录，现在按上级工作区看待。点一下给它写一份记录，让它成为独立的工作区。
   cfg.wsJoinParent: 并入上级
   cfg.wsJoinParentTip: 这个目录现在是一个独立工作区，外面还套着 {root}。点一下把它并进上级工作区；现有记录不会被删除，以后还能改回来。
+  cfg.wsUnjoinTip: 这个目录已经并入了上级工作区。点一下给它写回一份独立记录，让它重新成为独立的工作区。
   cfg.wsCorrectPromoted: 已标为独立工作区
   cfg.wsCorrectJoined: 已并入上级工作区
   cfg.wsCorrectFail: "操作没有成功：{msg}"
@@ -524,6 +525,7 @@ en:
   cfg.wsMarkIndependentTip: This folder has a tracker note but no workspace record, so it currently counts as part of the parent workspace. Click to write a record and make it its own workspace.
   cfg.wsJoinParent: Join parent workspace
   cfg.wsJoinParentTip: This folder is currently its own workspace, and another workspace wraps it ({root}). Click to merge it into the parent workspace; existing records are not deleted and this can be undone later.
+  cfg.wsUnjoinTip: This folder has been merged into the parent workspace. Click to write back its own record and make it a workspace again.
   cfg.wsCorrectPromoted: Marked as its own workspace
   cfg.wsCorrectJoined: Joined the parent workspace
   cfg.wsCorrectFail: "The action did not succeed: {msg}"

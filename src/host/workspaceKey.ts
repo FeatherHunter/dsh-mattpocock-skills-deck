@@ -233,6 +233,7 @@ export interface WorkspaceFacts {
   noRecord: boolean
   canMerge: boolean
   canMarkIndependent: boolean
+  canUnjoin: boolean
 }
 
 /** 一层目录的事实初值：没探测成功时全部按「没有」，界面据此什么都不说，而不是瞎说。 */
@@ -421,7 +422,7 @@ export async function inspectWorkspaceFacts(selectedKey: any, deps?: any): Promi
   const facts: WorkspaceFacts = {
     cwd: key, root: key, source: 'self', cache: 'skip', probe: false,
     outer: null, layer: emptyLayerFacts(), rootLayer: null,
-    noRecord: true, canMerge: false, canMarkIndependent: false,
+    noRecord: true, canMerge: false, canMarkIndependent: false, canUnjoin: false,
   };
   if (!key) { facts.source = 'empty'; return facts; }
   if (!isAbsoluteKey(key, platform)) { facts.source = 'relative'; return facts; }
@@ -444,6 +445,10 @@ export async function inspectWorkspaceFacts(selectedKey: any, deps?: any): Promi
     // 界面只提示「可以标为独立」，点了才写记录——系统不替人猜。
     facts.canMarkIndependent = !sameKeyOf(facts.root, key) && layer.hasTrackerDoc && !layer.hasGit
       && !layer.hasBackendRecord && !layer.hasIdentityRecord && !layer.hasMemberRecord;
+    // 撤销「并入上级」（#1806 第 5 步真机复核发现）：并进去的时候，这一层的两份工作区记录被删了、只剩从属记录，
+    // 判定继续往上，所以 canMarkIndependent 是假——设置页上再没有任何入口把记录写回来，可并入时的提示却承诺
+    // 「以后还能改回来」。有从属记录、根在上面、自己不自带 .git，就是这个状态；给同一个动作一个撤销的说法。
+    facts.canUnjoin = !sameKeyOf(facts.root, key) && layer.hasMemberRecord && !layer.hasGit;
   } catch (e) {}
   return facts;
 }

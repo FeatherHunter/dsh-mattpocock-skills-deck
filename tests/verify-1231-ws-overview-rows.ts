@@ -14,12 +14,15 @@
  * 用法: node --import ./scripts/ts-hook.mts tests/verify-1231-ws-overview-rows.ts。
  * 退出码 0 = 全通过；1 = 有断言不成立（会卡住 verify 链）。
  */
+import { readFileSync } from 'node:fs';
 import { shortestUniqueSuffix } from '../src/shared/version-control/src/state.js';
 import {
   computeWsOverviewRows,
   wsDisplayOf,
+  wsFactsKeyOf,
   wsSuffixKeepOf,
   wsOuterShownOf,
+  wsRowOuterInOf,
 } from '../src/client/views/SettingsWorkspaces.js';
 
 let failed = false;
@@ -192,6 +195,64 @@ async function main(): Promise<void> {
     check(wsOuterShownOf('/home/w', '/home/w/proj') === '/home/w', 'POSIX 绝对路径开头的斜杠要保住');
     check(wsOuterShownOf('', 'D:/work/proj') === '', '没有外面那层就不说这句话（不编一个根出来）');
     check(wsOuterShownOf('d:/work', '') === 'd:/work', '这一行没有原始路径可借时原样回宿主给的值，不硬造写法');
+  }
+
+  // #1806 第 5 步真机复核发现的缺陷：设置页把「判定事实表」写进去与查出来的钥匙不一样，
+  //   真机（Windows）上依据标签与两个纠正按钮永远不出现（面板上的标记却正常，因为面板自己问宿主）。
+  //   这里钉两件事：① 规整函数把 Windows 原样路径与正斜杠写法落到同一个键；
+  //   ② 源码里写侧与查侧只用这一个函数，回退到旧的 normCwdClient 写法就红。
+  console.log('— 判定事实表的键（#1806 第 5 步真机复核回归）');
+  {
+    const raw = 'D:\\2Study\\StudyNotes\\SKILLS\\智剪工坊';
+    check(wsFactsKeyOf(raw) === wsFactsKeyOf('D:/2Study/StudyNotes/SKILLS/智剪工坊'), '反斜杠与正斜杠写法落到同一个键');
+    check(wsFactsKeyOf(raw + '\\') === wsFactsKeyOf(raw), '带不带尾斜杠是同一行');
+    check(wsFactsKeyOf('') === '', '空目录给空串，不回退成当前目录');
+  }
+  {
+    const src = readFileSync(new URL('../src/client/views/SettingsWorkspaces.ts', import.meta.url), 'utf8');
+    check(src.includes('facts[wsFactsKeyOf(cwd)]'), '写事实表时用与查表同一把钥匙');
+    check(!src.includes('facts[normCwdClient(cwd)]'), '不再用 normCwdClient 给事实表当键（Windows 上会查不到）');
+    check(src.includes('const normOf = wsFactsKeyOf'), '查表与行归并用同一把钥匙');
+  }
+
+  // #1806 第 5 步真机复核发现的第二个问题：子目录行的「位于 X 内」原本取的是根外面那层（StudyNotes），
+  //   而面板标记说数据来自根（SKILLS）。这一行要说的是它被归到哪个工作区，不是根自己又套在谁里面。
+  //   这里钉住纯函数与渲染的用法：回退到直接取 f.outer 就红。
+  console.log('— 子目录行「位于 X 内」说的是它归属的工作区（#1806 第 5 步真机复核回归）');
+  {
+    const child = 'D:\\2Study\\StudyNotes\\SKILLS\\智剪工坊';
+    const facts = {
+      cwd: 'd:/2study/studynotes/skills/智剪工坊',
+      root: 'd:/2study/studynotes/skills',
+      source: 'git',
+      outer: { root: 'd:/2study/studynotes' },
+    };
+    check(wsRowOuterInOf(facts, child) === 'D:\\2Study\\StudyNotes\\SKILLS', '子目录行说它被归到的根（SKILLS），不是根外面那层（StudyNotes）');
+  }
+  {
+    const facts = { cwd: 'd:/work/proj', root: 'd:/work/proj', source: 'git', outer: { root: 'd:/work' } };
+    check(wsRowOuterInOf(facts, 'D:\\work\\proj') === 'D:\\work', '根行本身照旧说外面套着的工作区');
+  }
+  {
+    check(wsRowOuterInOf({ cwd: 'd:/w/proj', root: 'd:/w/proj', source: 'git', outer: null }, 'D:/w/proj') === '', '根行外面没有工作区就不说这句话');
+    check(wsRowOuterInOf(null, 'D:/w/proj') === '', '事实没拿到就不说这句话');
+    check(wsRowOuterInOf({ cwd: 'd:/a/b', root: '', outer: { root: 'd:/a' } }, 'D:/a/b') === '', '认不出归属的根就不说，不拿别层凑');
+  }
+  {
+    const src = readFileSync(new URL('../src/client/views/SettingsWorkspaces.ts', import.meta.url), 'utf8');
+    check(src.includes('const outerInRoot = wsRowOuterInOf(f, cwd)'), '渲染「位于 X 内」时用这条纯函数，不直接取 f.outer');
+  }
+
+  // #1806 第 5 步真机复核发现的第三处：并进上级以后这一层只剩从属记录，canMarkIndependent 是假，
+  //   设置页原来没有任何撤销入口，可并入时的提示却承诺「以后还能改回来」。这里钉住撤销入口的接线：
+  //   事实层给 canUnjoin、渲染层按它换提示文案与日志点，回退成只认 canMarkIndependent 就红。
+  console.log('— 并入上级后能撤销（#1806 第 5 步真机复核回归）');
+  {
+    const src = readFileSync(new URL('../src/client/views/SettingsWorkspaces.ts', import.meta.url), 'utf8');
+    check(src.includes('const canUnjoin = !!(f && f.canUnjoin === true)'), '渲染层读撤销并入的事实（canUnjoin）');
+    check(src.includes("canUnjoin ? tr('cfg.wsUnjoinTip')"), '撤销并入时提示文案换成「写回独立记录」的说法');
+    check(src.includes("(canMark || canUnjoin) ?"), '按钮在「标为独立」与「撤销并入」两种状态下都出现');
+    check(src.includes("'settings.workspaces.unjoin'"), '撤销并入有自己的日志点（事后能分清点了哪种）');
   }
 
   console.log(`共 ${total} 条`);

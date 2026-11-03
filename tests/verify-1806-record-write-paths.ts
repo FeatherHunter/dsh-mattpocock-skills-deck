@@ -560,7 +560,19 @@ async function main() {
       const f = await wm.inspectWorkspaceFacts('C:/g3/proj', factsDeps(mem.fs))
       must(f.root === K('C:/g3') && f.source === 'git', '从属记录遮住这一层：根继续往上，落到 .git 那一层', JSON.stringify({ root: f.root, source: f.source }))
       must(f.layer.hasMemberRecord === true, '事实里说清这一层有从属记录', JSON.stringify(f.layer))
-      must(f.canMerge === false && f.canMarkIndependent === false, '已经有从属记录时两个纠正入口都不出现（已经并入过，不用再点）', JSON.stringify({ canMerge: f.canMerge, canMarkIndependent: f.canMarkIndependent }))
+      must(f.canMerge === false && f.canMarkIndependent === false, '已经有从属记录时，并入与「标为独立」两个入口都不出现', JSON.stringify({ canMerge: f.canMerge, canMarkIndependent: f.canMarkIndependent }))
+      // #1806 第 5 步真机复核发现：并进上级后设置页没有任何撤销入口，而并入时的提示承诺「以后还能改回来」。
+      must(f.canUnjoin === true, '已经并入上级（有从属记录、根在上面、自己不自带 .git）时给撤销入口', JSON.stringify({ canUnjoin: f.canUnjoin, root: f.root, layer: f.layer }))
+    }
+    // G3b：这一层既有从属记录又自带 .git —— .git 永远是边界，不能撤销并入
+    {
+      const mem = makeMemFs()
+      mem.seed('C:/g3b/proj/.git', 'gitdir: somewhere')
+      mem.seed('C:/g3b/proj/docs/agents/workspace-member.yaml', 'kind: workspace-member')
+      wm.forgetWorkspaceRootCache()
+      const f = await wm.inspectWorkspaceFacts('C:/g3b/proj', factsDeps(mem.fs))
+      must(f.root === K('C:/g3b/proj') && f.source === 'git', '自己自带 .git 时根就是它自己，从属记录不把仓库降级成子目录', JSON.stringify({ root: f.root, source: f.source }))
+      must(f.canUnjoin === false, '自带 .git 的目录不给撤销并入入口（它本来就是独立的仓库边界）', String(f.canUnjoin))
     }
     // G4：一路没有任何标记
     {
@@ -569,7 +581,7 @@ async function main() {
       const f = await wm.inspectWorkspaceFacts('C:/g4/plain', factsDeps(mem.fs))
       must(f.source === 'self' && f.noRecord === true && f.root === K('C:/g4/plain'),
         '一路没有任何标记：根就是所选目录自己，事实里标「没有任何记录」', JSON.stringify({ root: f.root, source: f.source, noRecord: f.noRecord }))
-      must(f.outer === null && f.canMerge === false && f.canMarkIndependent === false, '无记录情形不给纠正入口（没有可并的上级，也没有说明文件可标）', JSON.stringify({ outer: f.outer }))
+      must(f.outer === null && f.canMerge === false && f.canMarkIndependent === false && f.canUnjoin === false, '无记录情形不给纠正入口（没有可并的上级，也没有说明文件可标，更没有并入过）', JSON.stringify({ outer: f.outer }))
     }
     // G5：自己自带 .git、外面没有工作区
     {
@@ -578,7 +590,7 @@ async function main() {
       wm.forgetWorkspaceRootCache()
       const f = await wm.inspectWorkspaceFacts('C:/g5', factsDeps(mem.fs))
       must(f.source === 'git' && f.outer === null, '自带 .git 的根外面没有工作区时 outer 为 null（普通仓库不多说一句）', JSON.stringify({ source: f.source, outer: f.outer }))
-      must(f.canMerge === false, '自带 .git 的目录不能并入上级（仓库边界不让人合并）', String(f.canMerge))
+      must(f.canMerge === false && f.canUnjoin === false, '自带 .git 的目录不能并入上级、也没有撤销并入（仓库边界不让人合并）', JSON.stringify({ canMerge: f.canMerge, canUnjoin: f.canUnjoin }))
     }
     // G6：只有身份记录的根
     {
@@ -593,8 +605,8 @@ async function main() {
     {
       wm.forgetWorkspaceRootCache()
       const f = await wm.inspectWorkspaceFacts('C:/g7/plain', { getPlatform: async () => PLATFORM, getFs: () => null, getDefaultCwd: () => '' })
-      must(f.probe === false && f.canMerge === false && f.canMarkIndependent === false,
-        '没有文件服务／探测能力时：probe 为假，两个纠正入口都不出现（不知道就别让人点）', JSON.stringify({ probe: f.probe, source: f.source }))
+      must(f.probe === false && f.canMerge === false && f.canMarkIndependent === false && f.canUnjoin === false,
+        '没有文件服务／探测能力时：probe 为假，三个纠正入口都不出现（不知道就别让人点）', JSON.stringify({ probe: f.probe, source: f.source }))
     }
     // G8：空路径与相对路径原样回答，不去猜一个目录
     {
@@ -734,6 +746,92 @@ async function main() {
       must(out.ok === false && out.error && out.error.reason === 'member-delete-failed',
         '删不掉从属记录时如实报失败（身份记录可能已写，但界面看到的归属会与动作对不上，不能说成功）', JSON.stringify(out))
       must(mem.read('C:/h/nounlink/' + MEMBER_REL) !== null, '删不掉时从属记录确实还在（如实反映现场，不粉饰）')
+    }
+  }
+
+  // ── I) 真文件服务的契约（#1806 第 5 步真机复核发现的两个写侧缺陷）──────────────
+  title('I) 真文件服务的契约：lstat 对不存在的路径 resolve undefined、平台文件服务没有删除能力')
+  {
+    const IDENTITY_REL = 'docs/agents/workspace-root.yaml'
+    const MEMBER_REL = 'docs/agents/workspace-member.yaml'
+    // 真机实测（2026-11-03，web profile）：DSH 平台文件服务的 lstat 对不存在的路径 resolve undefined，
+    // 不抛异常；平台服务（plat.fs）也没有 unlink / rm / delete / remove / trash / rename 任何一个。
+    // 下面这组假文件服务按这两条真实契约回答，专门守住「单测全绿、真机不写」这类偏差。
+    const makeRealContractMemFs = () => {
+      const mem = makeMemFs()
+      const origLstat = mem.fs.lstat
+      mem.fs.lstat = async function (p: any) { try { return await origLstat(p) } catch (e) { return undefined } }
+      return mem
+    }
+    const mkDeps = (opts: any) => ({
+      ctx: { get: () => null },
+      getPlatform: async () => (opts && opts.fs ? { fs: opts.fs } : {}),
+      getWorkspaceStore: async () => ({ invalidate() {} }),
+      setCache: () => {},
+      canonicalKey: async (raw: string) => raw,
+      resolveSandboxPolicy: () => ({ policy: 'test-policy' }),
+      invalidateRootCache: () => {},
+      logCtx: null,
+      resolveFacts: opts && opts.resolveFacts,
+    })
+    const factsFor = (cwd: string) => ({
+      cwd: cwd, root: cwd, source: 'record', cache: 'miss', probe: true,
+      outer: { root: nodePath.dirname(cwd), source: 'git' },
+      layer: { hasGit: false, hasBackendRecord: false, hasIdentityRecord: false, hasMemberRecord: false, hasTrackerDoc: true },
+      rootLayer: null, noRecord: true, canMerge: true, canMarkIndependent: true,
+    })
+    // I1：「不在」要被当成不在 —— 原来的写法（调用没抛错就算在）把每个路径都判成存在，
+    //     初始化补写永远 placed:false，人点「标为独立工作区」也永远什么都不写。
+    {
+      const mem = makeRealContractMemFs()
+      const h = rec.createWorkspaceRecords(mkDeps({ fs: mem.fs, resolveFacts: async () => factsFor('C:/i/write') }))
+      const out = await h.handleEnsureWorkspaceRecord({ cwd: 'C:/i/write' })
+      const written = mem.read('C:/i/write/' + IDENTITY_REL)
+      must(out.ok === true && out.placed === true,
+        '真机契约下初始化补写真的会写一份身份记录（缺失不再被当成存在）', JSON.stringify(out))
+      must(!!written && written.indexOf('kind: workspace-root') >= 0,
+        '写下去的内容是一份身份记录，来源是初始化流程', JSON.stringify(written === null ? null : written.slice(0, 120)))
+      const again = await h.handleEnsureWorkspaceRecord({ cwd: 'C:/i/write' })
+      must(again.ok === true && again.placed === false && again.reason === 'exists',
+        '已经有记录时仍然幂等返回「已有」，不重写', JSON.stringify(again))
+    }
+    {
+      const mem = makeRealContractMemFs()
+      const h = rec.createWorkspaceRecords(mkDeps({ fs: mem.fs, resolveFacts: async () => factsFor('C:/i/mark') }))
+      const out = await h.handleMarkWorkspaceRoot({ cwd: 'C:/i/mark' })
+      must(out.ok === true && out.placed === true,
+        '真机契约下人点「标为独立工作区」真的会落一份身份记录（这正是 #1806 第 5 步真机复核点不动的原因）', JSON.stringify(out))
+      must((mem.read('C:/i/mark/' + IDENTITY_REL) || '').indexOf('source: user') >= 0,
+        '身份记录的来源是人的动作（user）', JSON.stringify(mem.read('C:/i/mark/' + IDENTITY_REL)))
+    }
+    // I2：平台文件服务没有删除能力时，退到 Node 的文件系统把从属记录删掉。
+    {
+      const realNoUnlink: any = Object.assign({}, realFs)
+      delete realNoUnlink.unlink
+      const child = nodePath.join(TMP, 'i-promote')
+      fsx.mkdirSync(nodePath.join(child, 'docs', 'agents'), { recursive: true })
+      fsx.writeFileSync(nodePath.join(child, MEMBER_REL), 'kind: workspace-member\n', 'utf8')
+      fsx.writeFileSync(nodePath.join(child, IDENTITY_REL), 'kind: workspace-root\n', 'utf8')
+      const h = rec.createWorkspaceRecords(mkDeps({ fs: realNoUnlink, resolveFacts: async () => factsFor(child) }))
+      const out = await h.handleMarkWorkspaceRoot({ cwd: child })
+      must(out.ok === true && out.reason === 'promoted',
+        '文件服务不会删时：靠 Node 的文件系统把从属记录删掉，回包说明是「提升」', JSON.stringify(out))
+      must(fsx.existsSync(nodePath.join(child, MEMBER_REL)) === false,
+        '从属记录真的删掉了（删不掉「并入上级」就永远撤不回来）')
+      must(fsx.existsSync(nodePath.join(child, IDENTITY_REL)) === true, '删从属记录不动原来的身份记录')
+    }
+    // I3：所有删除通道都失败时如实报失败，并以探测结果裁决（不假装成功）。
+    {
+      const realNoUnlink: any = Object.assign({}, realFs)
+      delete realNoUnlink.unlink
+      const child = nodePath.join(TMP, 'i-stuck')
+      fsx.mkdirSync(nodePath.join(child, MEMBER_REL), { recursive: true })   // 用目录占住从属记录的位置：unlink 删不掉目录
+      fsx.writeFileSync(nodePath.join(child, IDENTITY_REL), 'kind: workspace-root\n', 'utf8')
+      const h = rec.createWorkspaceRecords(mkDeps({ fs: realNoUnlink, resolveFacts: async () => factsFor(child) }))
+      const out = await h.handleMarkWorkspaceRoot({ cwd: child })
+      must(out.ok === false && out.error && out.error.reason === 'member-delete-failed',
+        '所有删除通道都失败时如实报失败（身份记录可能已写，但归属还与动作对不上，不能说成功）', JSON.stringify(out))
+      must(fsx.existsSync(nodePath.join(child, MEMBER_REL)) === true, '删不掉时从属记录确实还在（如实反映现场）')
     }
   }
 
