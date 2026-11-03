@@ -19,9 +19,15 @@
 // 可调环境变量：
 //   DSH_1860_FIXTURE        夹具仓库（默认 <系统临时目录>/matt1860/fixture/dsh-mattpocock-skills-deck）
 //   DSH_1860_WIDTHS         宽度清单，默认 300,380,460,520
-//   DSH_1860_SKINS          皮肤清单，默认 dark,light
+//   DSH_1860_SKIN           启动前把皮肤锁成 dark 或 light（改隔离 home 的 ui-theme 偏好）。锁了就只验这一种，
+//                           皮肤清单自动跟着它走——一种皮肤一个实例是最可靠的口径
+//   DSH_1860_SKINS          皮肤清单，默认跟着 DSH_1860_SKIN，没锁过就是 dark,light
 //   DSH_1860_QUICK          1 = 只跑第一档宽与第一种皮肤，先给四页拍基线
-//   DSH_1860_SKIN           锁定一种皮肤（宿主启动前改隔离 home 的 ui-theme 偏好）
+//
+// 为什么推荐一次只验一种皮肤：2026-11-04 实测，运行中改 ui-theme 偏好会让宿主重载客户端，重载后版本管理页签
+// 回到「分离头指针 / 数字全是 —」的空壳；改成先重载再按启动路径重新进页面之后，light→dark 能成，dark→light
+// 又会被回滚成 dark（设置写进去了，重载后读回来还是旧值）。所以整轮取证用 DSH_1860_SKIN 一种皮肤起一个实例，
+// 运行中切皮肤只当兜底，切不过去就如实记 blocked。
 //   DSH_1860_WINDOW_HEIGHT  有头窗口高度，默认 900
 //   DSH_1860_WORKTREES      其他工作树数量，默认 59（建太慢可调小，场景照实数记）
 
@@ -66,7 +72,9 @@ const WIDTHS = String(process.env.DSH_1860_WIDTHS || '300,380,460,520')
   .map((piece) => Number(piece.trim()))
   .filter((width): width is number => Number.isFinite(width) && width >= 260 && width <= 640)
 type Skin = 'dark' | 'light'
-const SKINS = String(process.env.DSH_1860_SKINS || 'dark,light')
+/** 启动前锁定的皮肤；锁了就只验这一种，不再在运行中切。 */
+const LOCKED_SKIN: string = process.env.DSH_1860_SKIN === 'dark' || process.env.DSH_1860_SKIN === 'light' ? process.env.DSH_1860_SKIN : ''
+const SKINS = String(process.env.DSH_1860_SKINS || (LOCKED_SKIN.length > 0 ? LOCKED_SKIN : 'dark,light'))
   .split(',')
   .map((piece) => piece.trim())
   .filter((skin): skin is Skin => skin === 'dark' || skin === 'light')
@@ -649,7 +657,7 @@ const hooks: ScenarioHooks = {
     if (!fixture.ok) throw new Error('1860 夹具准备失败：' + fixture.detail)
     const trimmed = trimIncompatibleBundles(info.home)
     console.log('[1860] 隔离引导项裁剪：' + trimmed.detail)
-    const lockedSkin = process.env.DSH_1860_SKIN === 'dark' || process.env.DSH_1860_SKIN === 'light' ? process.env.DSH_1860_SKIN : ''
+    const lockedSkin = LOCKED_SKIN
     if (lockedSkin.length > 0) {
       const themed = setHomeThemePreference(info.home, lockedSkin)
       console.log('[1860] 启动前皮肤锁定 ' + lockedSkin + '：' + themed.detail)
@@ -955,8 +963,15 @@ async function remountVersionControlTab(page: PageHandle, raw: RawBrowserPage): 
   await sleep(1500)
 }
 
-/** 把界面切到目标皮肤；启动前锁了别的皮肤时记 blocked，不硬改。 */
-async function ensureSkin(page: PageHandle, raw: RawBrowserPage, skin: Skin): Promise<SkinResult> {
+/**
+ * 把界面切到目标皮肤；启动前锁了别的皮肤时记 blocked，不硬改。
+ *
+ * 为什么切完要整页重来：改 ui-theme 偏好会让宿主的客户端重载，重载后版本管理页签又回到「分离头指针 / 页签数字 —」
+ * 的空壳——会话后端没接上夹具工作区，而且它会一直空着，不像刚挂载时那样几秒后自己补数据。
+ * 2026-11-04 的浅色批次就是只重挂页签，四张图全拍成空壳。这里重载之后按启动时同一套路径
+ * （进主视图 → 打开版本管理首屏）重新接一遍，并把「数据已确认」的缓存清掉，让后面的取证重新等数据。
+ */
+async function ensureSkin(page: PageHandle, raw: RawBrowserPage, skin: Skin, tokenUrl: string, originUrl: string): Promise<SkinResult> {
   const facts: Record<string, unknown> = {}
   const desiredDark = skin === 'dark'
   const measured = await measureUi(page)
@@ -966,12 +981,14 @@ async function ensureSkin(page: PageHandle, raw: RawBrowserPage, skin: Skin): Pr
   if (measured.ok && measured.value.attrSkin === skin && currentDark === desiredDark) {
     return { ok: true, blocked: false, detail: '界面已经是 ' + skin + ' 皮肤', facts: facts }
   }
-  const lockedSkin = process.env.DSH_1860_SKIN === 'dark' || process.env.DSH_1860_SKIN === 'light' ? process.env.DSH_1860_SKIN : ''
+  const lockedSkin = LOCKED_SKIN
   if (lockedSkin.length > 0 && lockedSkin !== skin) {
     return { ok: false, blocked: true, detail: '启动前锁了 ' + lockedSkin + ' 皮肤，这一轮不切到 ' + skin, facts: facts }
   }
-  const valueExpression = JSON.stringify(skin)
-  const argsExpression = '[' + JSON.stringify('ui-theme') + ', [{ op: ' + JSON.stringify('set') + ', path: [' + JSON.stringify('preference') + '], value: ' + valueExpression + ' }]]'
+  // settings/mutate 的参数按名字传：args 必须是「恰好一个普通对象」，即 { ns, ops }。
+  // 之前传数组被网关拒（gateway/internal「Remote payload must contain exactly one plain-object args field」），
+  // 只能靠启动前改偏好；启动前改会被宿主启动时按设置库回写，运行时切皮肤必须走这条对象参数。
+  const argsExpression = JSON.stringify({ ns: 'ui-theme', ops: [{ op: 'set', path: ['preference'], value: skin }] })
   const mutated = await evaluateThrough<RpcProbe>(page, rpcScript('settings/mutate', argsExpression))
   facts.settingsStatus = mutated.ok ? mutated.value.status : null
   facts.settingsText = mutated.ok ? snippet(mutated.value.text, 300) : mutated.error.message
@@ -988,7 +1005,20 @@ async function ensureSkin(page: PageHandle, raw: RawBrowserPage, skin: Skin): Pr
   }
   facts.bodyFlipped = flipped
   if (!flipped) return { ok: false, blocked: false, detail: '改了偏好，但 body 皮肤没有翻转', facts: facts }
-  await remountVersionControlTab(page, raw)
+  // 客户端会按新偏好重载；重载后先回到起点，再按启动时的路径重新接上夹具工作区与版本管理首屏。
+  // 不这么做就只能拿到空壳：页签还在，但身份行是「分离头指针」、四个数字都是「—」。
+  vcDataConfirmed = false
+  if (typeof raw.goto === 'function') {
+    await raw.goto(tokenUrl)
+    await sleep(3000)
+  }
+  const reentered = await openMainView(page, raw, tokenUrl, originUrl)
+  facts.reenterMainView = { ok: reentered.ok, via: reentered.via, detail: reentered.detail }
+  if (!reentered.ok) return { ok: false, blocked: false, detail: '换皮肤后回不到主视图：' + reentered.detail, facts: facts }
+  const reopened = await openVersionControlPanel(page, raw)
+  facts.reopenPanel = { ok: reopened.ok, detail: reopened.detail }
+  vcDataConfirmed = reopened.ok
+  if (!reopened.ok) return { ok: false, blocked: false, detail: '换皮肤后版本管理首屏没重新挂上：' + reopened.detail, facts: facts }
   for (let i = 0; i < 25; i += 1) {
     const probe = await measureUi(page)
     if (probe.ok && probe.value.attrSkin === skin) {
@@ -2024,10 +2054,12 @@ async function captureAt(
   width: number,
   skin: Skin,
   windowByWidth: Map<number, number>,
+  tokenUrl: string,
+  originUrl: string,
 ): Promise<CaptureResult> {
   const subdir = String(width) + '-' + skin
   const checkId = CHECK_ID + '-' + view + '-w' + String(width) + '-' + skin
-  const skinResult = await ensureSkin(page, raw, skin)
+  const skinResult = await ensureSkin(page, raw, skin, tokenUrl, originUrl)
   if (!skinResult.ok) {
     const detail = (skinResult.blocked ? '皮肤通道被挡：' : '皮肤没切过去：') + skinResult.detail
     return await captureBlocked(context, page, view, width, skin, 'skin', detail, skinResult.facts)
@@ -2219,7 +2251,7 @@ async function runSweep(context: ScenarioContext): Promise<ScenarioObservation[]
       for (const view of VIEWS) {
         console.log('[1860] 取证 ' + VIEW_TITLES[view] + ' @ ' + String(width) + ' / ' + skin)
         try {
-          const result = await captureAt(context, page, raw, view, width, skin, windowByWidth)
+          const result = await captureAt(context, page, raw, view, width, skin, windowByWidth, tokenUrl, originUrl)
           captures.push(result)
         } catch (error) {
           const checkId = CHECK_ID + '-' + view + '-w' + String(width) + '-' + skin
