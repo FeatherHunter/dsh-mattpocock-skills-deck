@@ -54,7 +54,9 @@ export const VC_PAGE_STYLE_TEXT = [
   '[data-vc-shell] .obj-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;padding:5px 6px;border-bottom:1px solid var(--vcs-line);min-width:0}',
   '[data-vc-shell] .obj-row.is-danger{padding-left:8px;border-left:2px solid var(--vcs-danger)}',
   '[data-vc-shell] .obj-main{flex:1 1 160px;min-width:0;overflow-wrap:anywhere}',
-  '[data-vc-shell] .obj-side{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;min-width:0}',
+  // 右侧动作区最多占满整行：不允许按 max-content 撑宽（8 个逐行动作排一行会伸出根节点），
+  // 也不收缩到看不见（flex-basis auto + min-width 0 负责在行内换行）。
+  '[data-vc-shell] .obj-side{flex:0 1 auto;display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;min-width:0;max-width:100%}',
   // 管理索引：齿轮索引里的卡片列表改成网格，宽档两列、最宽三列，窄档一列。
   '[data-vc-shell] .vcs-manage-index{padding:6px 0;min-width:0}',
   '[data-vc-shell] .vcs-manage-index .vcs-gear-list{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}',
@@ -79,6 +81,44 @@ export const VC_PAGE_STYLE_TEXT = [
   '[data-vc-shell] .vcs-branch-facts{display:flex;flex-wrap:wrap;gap:2px 8px;color:var(--vcs-dim);font-size:11px;min-width:0}',
   '[data-vc-shell] .vcs-branch-close{margin-left:auto;flex:0 0 auto;padding:1px 6px;border:1px solid var(--vcs-line);border-radius:4px;background:var(--vcs-panel);color:var(--vcs-dim);font:inherit;font-size:12px;cursor:pointer}',
   '[data-vc-shell] .vcs-branch-close:hover{color:var(--vcs-accent);border-color:var(--vcs-accent)}',
+  // 页面纵向栈：分区与卡片之间的统一间距，所有页面正文都套这一层，避免各页自己算外边距。
+  '[data-vc-shell] .page-stack{display:flex;flex-direction:column;gap:8px;min-width:0}',
+  // 说明段：排在分区标题下方的一段灰字，长中文与长路径都在词内换行。
+  '[data-vc-shell] .page-note{margin:0;color:var(--vcs-dim);font-size:12px;line-height:1.6;overflow-wrap:anywhere}',
+  // 动作卡与读数卡：卡内竖排「标题行 → 命令行 → 说明 → 操作」，危险卡在左缘加警示竖线；
+  // 危险卡不从外围整圈描红，避免与页面危险区的左缘红线叠成两道。
+  '[data-vc-shell] .page-card{display:flex;flex-direction:column;gap:4px;min-width:0;margin:0 0 6px;padding:6px 8px;border:1px solid var(--vcs-line);border-radius:4px;background:var(--vcs-panel)}',
+  '[data-vc-shell] .page-card.is-danger{border-left:3px solid var(--vcs-danger)}',
+  '[data-vc-shell] .page-card-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;min-width:0}',
+  '[data-vc-shell] .page-card-title{flex:1 1 auto;min-width:0;margin:0;font-size:12px;font-weight:600;overflow-wrap:anywhere}',
+  '[data-vc-shell] .page-card-sub{margin:0;color:var(--vcs-dim);font-size:11px;line-height:1.6;overflow-wrap:anywhere}',
+  // 命令行条：git 命令原样显示，等宽字体、允许在词内断行，窄档也不会撑出横向滚动。
+  '[data-vc-shell] .cmd-line{display:block;margin:0;padding:1px 4px;border-radius:3px;background:var(--vcs-bg);color:var(--vcs-dim);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}',
+  // 类型徽章：读 / 写 / 毁 / 警告 / 正常五种语气，靠令牌换肤，不在规则里写颜色。
+  '[data-vc-shell] .badge{flex:0 0 auto;display:inline-block;padding:0 5px;border:1px solid var(--vcs-line);border-radius:999px;font-size:10.5px;line-height:1.6;white-space:nowrap}',
+  '[data-vc-shell] .badge.is-read{color:var(--vcs-dim)}',
+  '[data-vc-shell] .badge.is-write{color:var(--vcs-accent);border-color:var(--vcs-accent)}',
+  '[data-vc-shell] .badge.is-danger{color:var(--vcs-danger);border-color:var(--vcs-danger)}',
+  '[data-vc-shell] .badge.is-warn{color:var(--vcs-warn);border-color:var(--vcs-warn)}',
+  '[data-vc-shell] .badge.is-ok{color:var(--vcs-accent);border-color:var(--vcs-accent)}',
+  // 一行里的动作组：靠右排，窄档由外层 obj-side 统一换行到左。
+  '[data-vc-shell] .page-row-actions{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;min-width:0}',
+  // 行内表单：路径与地址两栏并排，窄档各占一整行；输入框宽度只受容器约束，不写固定像素。
+  '[data-vc-shell] .inline-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px;min-width:0;margin-top:4px}',
+  '[data-vc-shell] .inline-field{display:flex;flex:1 1 140px;flex-direction:column;gap:2px;min-width:0}',
+  '[data-vc-shell] .inline-label{color:var(--vcs-dim);font-size:11px;overflow-wrap:anywhere}',
+  '[data-vc-shell] .inline-input{box-sizing:border-box;width:100%;min-width:0;padding:3px 6px;border:1px solid var(--vcs-line);border-radius:4px;background:var(--vcs-bg);color:var(--vcs-fg);font:inherit;font-size:12px}',
+  '[data-vc-shell] .inline-input:focus-visible{outline:1px solid var(--vcs-accent);outline-offset:0}',
+  // 主操作按钮：整页只留一个「现在就做」的入口用主色实底，其余按钮沿用壳里的普通按钮样式。
+  '[data-vc-shell] .btn-primary{flex:0 0 auto;padding:3px 8px;border:1px solid var(--vcs-accent);border-radius:4px;background:var(--vcs-accent);color:var(--vcs-bg);font:inherit;font-size:12px;cursor:pointer}',
+  '[data-vc-shell] .btn-primary:disabled{opacity:.6;cursor:default}',
+  // 空态块：虚线框 + 居中标题与说明，空态也要能评审，所以保留真实结构而不是拿演示行填满。
+  '[data-vc-shell] .empty-block{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;padding:10px 8px;border:1px dashed var(--vcs-line);border-radius:6px;text-align:center}',
+  '[data-vc-shell] .empty-title{margin:0;font-size:13px;font-weight:600;overflow-wrap:anywhere}',
+  '[data-vc-shell] .empty-hint{margin:0;max-width:100%;color:var(--vcs-dim);font-size:12px;line-height:1.6;overflow-wrap:anywhere}',
+  // 300 宽：行内表单每栏独占一行，避免两个输入框挤成一条细缝看不清标签。
+  '[data-vc-shell][data-vc-width="300"] .inline-field{flex-basis:100%}',
+  '[data-vc-shell][data-vc-width="300"] .page-row-actions{justify-content:flex-start}',
   // 380 与 300 两档：事实网格收成一列；300 档再收起层级、条数与分支事实这几项次要信息，入口不删。
   '[data-vc-shell][data-vc-width="380"] .fact-grid{grid-template-columns:minmax(0,1fr)}',
   '[data-vc-shell][data-vc-width="300"] .fact-grid{grid-template-columns:minmax(0,1fr)}',
