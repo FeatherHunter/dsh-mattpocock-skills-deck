@@ -7,9 +7,9 @@
 // 四档宽只改排布，不删入口：300 宽把别名、摘要、命令原文收起来，页签仍排一行四个。
 
 export const VC_SHELL_STYLE_TEXT = [
-  '[data-vc-shell]{--vcs-fg:#e6e6e6;--vcs-dim:#a8a8a8;--vcs-bg:#1f1f1f;--vcs-panel:#2a2a2a;--vcs-line:#454545;--vcs-accent:#7cc4ff;--vcs-warn:#ffd479;--vcs-danger:#ff8f8f;--vcs-add:#7ec699;box-sizing:border-box;width:100%;max-width:100%;color:var(--vcs-fg);background:var(--vcs-bg);font-size:13px;line-height:1.5;overflow-x:hidden}',
+  '[data-vc-shell]{--vcs-fg:#e7edf6;--vcs-ink2:#c9d3e2;--vcs-dim:#9aa7ba;--vcs-faint:#7d8ba1;--vcs-bg:#0c1118;--vcs-panel:#111823;--vcs-inset:#111823;--vcs-raised:#182230;--vcs-raised-2:#1d2838;--vcs-line:#1e2836;--vcs-line-2:#31404f;--vcs-accent:#3fb950;--vcs-accent-soft:rgba(63,185,80,.1);--vcs-warn:#d29922;--vcs-danger:#f85149;--vcs-danger-soft:rgba(248,81,73,.1);--vcs-info:#58a6ff;--vcs-info-soft:rgba(88,166,255,.1);--vcs-add:#3fb950;--vcs-hover:rgba(231,237,246,.055);--vcs-press:rgba(231,237,246,.1);--vcs-thumb:rgba(154,167,186,.34);--vcs-sans:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;--vcs-mono:"Cascadia Mono","JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--vcs-r-sm:4px;--vcs-r-btn:6px;--vcs-r-md:8px;--vcs-btn-h:26px;box-sizing:border-box;width:100%;max-width:100%;color:var(--vcs-fg);background:var(--vcs-bg);font-family:var(--vcs-sans);font-size:13px;line-height:1.5;overflow-x:hidden}',
   '[data-vc-shell] *{box-sizing:border-box;min-width:0}',
-  '[data-vc-shell][data-vc-skin="light"]{--vcs-fg:#1f2328;--vcs-dim:#57606a;--vcs-bg:#ffffff;--vcs-panel:#f6f8fa;--vcs-line:#d0d7de;--vcs-accent:#0969da;--vcs-warn:#9a6700;--vcs-danger:#cf222e;--vcs-add:#1a7f37}',
+  '[data-vc-shell][data-vc-skin="light"]{--vcs-fg:#171a1f;--vcs-ink2:#3a4149;--vcs-dim:#5a6371;--vcs-faint:#727a87;--vcs-bg:#fffdf8;--vcs-panel:#f3eee2;--vcs-inset:#f3eee2;--vcs-raised:#eee9db;--vcs-raised-2:#e7e1d0;--vcs-line:#ddd7c9;--vcs-line-2:#cec7b5;--vcs-accent:#12703f;--vcs-accent-soft:rgba(18,112,63,.1);--vcs-warn:#9a6700;--vcs-danger:#bf3a30;--vcs-danger-soft:rgba(191,58,48,.1);--vcs-info:#1d5b9e;--vcs-info-soft:rgba(29,91,158,.08);--vcs-add:#12703f;--vcs-hover:rgba(23,26,31,.05);--vcs-press:rgba(23,26,31,.09);--vcs-thumb:rgba(90,99,113,.32);--vcs-r-btn:8px;--vcs-btn-h:28px}',
   '[data-vc-shell] .vcs-identity{display:flex;flex-direction:column;align-items:stretch;flex-wrap:wrap;gap:4px;padding:6px 8px;border-bottom:1px solid var(--vcs-line);background:var(--vcs-panel)}',
   '[data-vc-shell] .vcs-identity-left,[data-vc-shell] .vcs-identity-right{display:flex;flex-wrap:wrap;gap:6px;align-items:center}',
   '[data-vc-shell] .vcs-identity-count{margin-left:auto;color:var(--vcs-dim);font-size:12px;white-space:nowrap}',
@@ -58,7 +58,6 @@ export const VC_SHELL_STYLE_TEXT = [
   '[data-vc-shell] .vcs-tab-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
   '[data-vc-shell] .vcs-tab-count{color:var(--vcs-dim);font-size:11px}',
   '[data-vc-shell] .vcs-gear-index{padding:6px 8px;border-bottom:1px solid var(--vcs-line);background:var(--vcs-panel)}',
-  '[data-vc-shell] .vcs-gear-title{margin:0 0 4px;color:var(--vcs-dim);font-size:12px}',
   '[data-vc-shell] .vcs-gear-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0;padding:0;list-style:none}',
   '[data-vc-shell] .vcs-gear-item{width:100%;text-align:left}',
   '[data-vc-shell] .vcs-gear-item[aria-current="page"]{border-color:var(--vcs-accent);color:var(--vcs-accent)}',

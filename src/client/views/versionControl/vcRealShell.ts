@@ -22,6 +22,7 @@ declare function vcRealRemoteValuesOf(el: any): any
 declare function vcRealMigrateFieldsOf(rootEl: any, action: any): any
 declare function vcRealBranchFieldsOf(intent: any, current: any): any
 declare const VC_REAL_EXTRA_LINKS: string[]
+declare const VC_MANAGE_INDEX_PAGE: string
 declare function vcRealAiEntriesOf(reads: any, nav: any, t: any): any[]
 declare function vcAiHandoffOf(o: any): any
 declare function vcAiButtonNode(h: any, o: any): any
@@ -81,7 +82,9 @@ export const vcRealCallbacksOf = function (deps: any): any {
   return {
     page: function (intent: any) { goPage(intent && intent.page, true) },
     tab: function (intent: any) { goPage(intent && intent.page, false) },
-    gearToggle: function () { setNav(vcRealNavToggle(getNav(), 'gear')) },
+    // 齿轮与身份行「管理」都打开管理索引屏（#1840）：索引是导航上的一站，不再当浮层开合；
+    //   keepBack=true 让索引记下来源页，页头的返回键再把来源页带回来。
+    manageOpen: function () { goPage(VC_MANAGE_INDEX_PAGE, true) },
     searchEntry: function () { setNav(vcRealNavToggle(getNav(), 'palette')) },
     branchToggle: function () { setNav(vcRealNavToggle(getNav(), 'branch')) },
     branchClose: function () { setNav(vcRealNavCloseAll(getNav())) },
@@ -181,15 +184,13 @@ export const vcRealCallbacksOf = function (deps: any): any {
   }
 }
 
-// 顶部条：读数时刻、返回来源页（二级页才有）、手动刷新、三个额外入口。刷新按钮在首屏读取中禁用。
+// 顶部条：读数时刻、手动刷新、三个额外入口。刷新按钮在首屏读取中禁用。
+//   #1840 起不再画顶栏返回键：二级页的返回只留页头那一颗，免得同一屏出现两颗作用相同的按钮。
+//   两枚返回日志词条（vc.changes.back / vc.commit.back）仍由本叶导出，由 vcRealTab 按返回目标传给页头返回键。
 export const vcRealBarNodesOf = function (h: any, tr: any, reads: any, nav: any, seed: any): any[] {
   const kids: any[] = [
     h('span', { key: 'at', className: 'vcs-live-at', 'data-vc-live-at': '1' }, seed.when ? tr('vc.shell.live.readAt', { when: seed.when }) : tr('vc.shell.live.loading')),
   ]
-  if (nav.back) {
-    const backPage: string = String(nav.back.page || '')
-    kids.push(h('button', { key: 'back', type: 'button', className: 'vcs-live-back', 'data-vc-back': '1', 'data-press': 'button', 'data-log': backPage === 'commits' ? VC_REAL_LOG_BACK_COMMIT : VC_REAL_LOG_BACK_CHANGES }, tr('vc.shell.live.back', { page: tr('vc.shell.page.' + backPage) })))
-  }
   kids.push(h('button', { key: 'refresh', type: 'button', className: 'vcs-live-refresh', 'data-vc-refresh': '1', 'data-press': 'button', 'data-log': VC_REAL_LOG_RELOAD, disabled: vcFirstScreenStateOf(reads) === 'loading' }, tr('vc.shell.live.refresh')))
   VC_REAL_EXTRA_LINKS.forEach(function (key: string) {
     const target: string = key === 'palette' ? 'search' : key
@@ -259,11 +260,15 @@ const vcRealFirstFocusableOf = function (root: any, sel: string): any {
   const list: any = typeof box.querySelectorAll === 'function' ? box.querySelectorAll(VC_REAL_FOCUSABLE) : []
   return list && list.length > 0 ? list[0] : null
 }
+// 焦点接管的「浮层种类」：三种浮层之外，管理索引屏也算一种（#1840）——
+//   它虽然是一个页面，但打开与返回时同样要把焦点送进索引第一项、离开时送回齿轮按钮，
+//   所以沿用同一套进出规则；键盘用户打开索引后按键即可直接落卡。
 const vcRealOverlayKindOf = function (nav: any): string {
   const open: any = (nav && nav.open) || {}
   if (open.palette === true) return 'palette'
   if (open.gear === true) return 'gear'
   if (open.branch === true) return 'branch'
+  if (String((nav && nav.page) || '') === VC_MANAGE_INDEX_PAGE) return 'gear'
   return ''
 }
 

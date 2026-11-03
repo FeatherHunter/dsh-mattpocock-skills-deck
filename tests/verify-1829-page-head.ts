@@ -161,6 +161,12 @@ async function main() {
   check(backRow.length === 3 && backRow[0] === back, 'B4 返回键排在标题之前，标题行因此有三个子节点')
   const backFalse = leaf.vcPageHeadNode(h, trZh, { page: 'changes', back: false })
   check(findAll(backFalse, function (n: any) { return n.props && n.props['data-vc-back'] !== undefined }).length === 0, 'B5 back 不是 true（false / 缺省）时不画返回键')
+  // 顶栏返回键退役后，页头返回键是唯一生产 vc.changes.back / vc.commit.back 的地方（#1840 评审）：
+  //   这里读渲染结果确认 data-log 真的落在返回键上，不能只靠源码里出现过常量字符串。
+  const withLog = leaf.vcPageHeadNode(h, trZh, { page: 'changes', back: true, backLog: 'vc.changes.back' })
+  const logBack = findAll(withLog, function (n: any) { return n.props && n.props['data-vc-back'] === '1' })[0]
+  check(!!logBack && logBack.props['data-log'] === 'vc.changes.back' && logBack.props['data-press'] === 'button', 'B6 调用方给 backLog 时返回键挂同一词条的 data-log 与 data-press=button（实得 ' + String(logBack && logBack.props['data-log']) + '）')
+  check(!back || back.props['data-log'] === undefined, 'B7 没给 backLog 时返回键不挂空的 data-log（独立渲染页头不产生假事件）')
 
   // ===== C 任务页：流程页、不在 16 页能力账本里，不画计数 =====
   const task = leaf.vcPageHeadNode(h, trZh, { page: 'task' })
@@ -168,6 +174,10 @@ async function main() {
   check(textOf(pick(task, 'vcs-page-title')) === trZh('vc.shell.page.task'), 'C2 任务页标题仍是「任务」（实得「' + textOf(pick(task, 'vcs-page-title')) + '」）')
   check(textOf(pick(task, 'vcs-page-kind')) === '', 'C3 任务页不在 PAGE_SURFACES 里，种类为空串而不是假词条')
   check(textOf(pick(task, 'vcs-page-lede')) === trZh('vc.shell.page.note.task'), 'C4 任务页导语用 vc.shell.page.note.task（实得「' + textOf(pick(task, 'vcs-page-lede')).slice(0, 24) + '…」）')
+  // 管理索引不在能力账本、没有种类（#1840）：传 hideSub 时整段种类与层级都不画，300 宽不会只剩一行空白。
+  const idxHead = leaf.vcPageHeadNode(h, trZh, { page: 'manage', hideSub: true })
+  const idxKids: any[] = (idxHead && Array.isArray(idxHead.children)) ? idxHead.children : []
+  check(idxKids.length === 2 && pick(idxHead, 'vcs-page-sub') === undefined && textOf(pick(idxHead, 'vcs-page-lede')) === trZh('vc.shell.page.note.manage'), 'C5 hideSub 时页头只剩标题行与导语两段：不画空的种类/层级，导语仍是管理索引那条（实得 ' + idxKids.length + ' 段）')
 
   // ===== D 分区原语：section.page-section，危险区加 is-danger 与 data 标记，标题行给条数与危险提示 =====
   const sec = leaf.vcPageSectionNode(h, trZh, {
@@ -275,9 +285,15 @@ async function main() {
   const missingWidths = widths.filter(function (w: string) { return styleText.indexOf('[data-vc-width="' + w + '"]') < 0 })
   check(missingWidths.length === 0, 'H12 四档宽选择器都在（缺 ' + missingWidths.join(',') + '）')
   check(/\[data-vc-width="300"\] \.vcs-page-depth\{display:none\}/.test(styleText), 'H13 300 宽收起层级这项次要信息（入口不删）')
-  check(/\[data-vc-width="300"\] \.vcs-manage-card-count\{display:none\}/.test(styleText), 'H14 300 宽收起管理卡片的条数')
+  // #1840 评审：本区能力条数是九张卡片的必带信息，300 基准图里每张卡都写着「13 条能力 · 打开」，
+  //   300 宽只能收次要信息（层级、分支事实），不能把条数藏掉；「打开」也要靠 margin-left:auto 留在右端。
+  check(!/\[data-vc-width="300"\] \.vcs-manage-card-count\{display:none\}/.test(styleText) && /\.vcs-manage-card-go\{[^}]*margin-left:auto/.test(styleText), 'H14 300 宽仍显示管理卡片条数，「打开」靠 margin-left:auto 留在卡片右端')
   check(/\[data-vc-width="380"\] \.fact-grid\{[^}]*minmax\(0,1fr\)/.test(styleText), 'H15 380 宽事实网格收成一列')
   check(/overflow-wrap:anywhere/.test(styleText), 'H16 长文字允许在词内换行（窄档不横向溢出）')
+  // 管理卡与两条跨区入口是真按钮：全局按钮规则（单行省略）会把整句覆盖口径裁掉，
+  // 真机 300/460/520 三档都拍到裁在卡片右边框上。这里守这两条覆盖规则不被顺手删掉。
+  check(/\.vcs-manage-card\{[^}]*white-space:normal/.test(styleText), 'H17 管理卡按钮允许换行（覆盖全局按钮的单行省略，覆盖口径不被裁掉）')
+  check(/\.vcs-manage-shortcut\{[^}]*white-space:normal/.test(styleText), 'H18 两条跨区入口按钮允许换行（命令面板与全库搜索的整句说明）')
 
   console.log('\n共 ' + total + ' 条断言，失败 ' + failed + ' 条')
   if (failed > 0) console.log('存在失败（共 ' + total + ' 项）')

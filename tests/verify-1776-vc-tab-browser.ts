@@ -218,7 +218,8 @@ async function groupNav(page: any) {
   for (const id of manage) {
     if (!(await page.evaluate(() => !!document.querySelector('[data-vc-gear-index]')))) await click(page, '[data-vc-gear-btn]')
     const opened = await measure(page)
-    check(!!opened && opened.gearOpen && opened.gear.length === 9, 'B 齿轮：打开齿轮索引看到九项（' + id + ' 这一轮实测 ' + (opened && opened.gear.length) + ' 项）')
+    // #1840：齿轮与身份行「管理」都打开一屏独立的管理索引（page=manage），不再是叠在页面上的浮层。
+    check(!!opened && opened.page === 'manage' && opened.gearOpen && opened.gear.length === 9, 'B 齿轮：打开管理索引独立一屏、看到九项（' + id + ' 这一轮实测 ' + (opened && opened.gear.length) + ' 项）')
     await click(page, '[data-vc-gear-item="' + id + '"]')
     const m = await measure(page)
     check(!!m && m.page === id && m.depth === '2', 'B 齿轮：点「' + id + '」进入该分区页、层级 2（实得 ' + (m && m.page) + '）')
@@ -226,18 +227,20 @@ async function groupNav(page: any) {
     // #1829 阶段 4：二级页按原型 37/39 收成「页头 + 正文」——四个固定页签与身份行的同步带都让位。
     check(!!m && m.tabs.length === 0, 'B 齿轮：' + id + ' 二级页不铺四个固定页签（实得 ' + (m && m.tabs.length) + ' 个）')
     check(!!m && m.syncFacts === false, 'B 齿轮：' + id + ' 二级页不铺同步事实与同步动作行')
-    // #1829 阶段 4：二级页的页头也有返回键（原型 37/39），顶部条那颗仍是同一个 data-vc-back；
-    //   这里点名顶部条，免得选择器同时命中两颗（Playwright 的严格模式会直接报错）。
-    await click(page, '[data-vc-live-bar] [data-vc-back]')
+    // #1840：返回只留页头一颗（顶部条那颗已删除），且一次退一层：分区 → 索引 → 改动页。
+    await click(page, '[data-vc-page-head] [data-vc-back]')
+    const backIndex = await measure(page)
+    check(!!backIndex && backIndex.page === 'manage' && backIndex.back === true, 'B 齿轮：从 ' + id + ' 返回先回管理索引（实得 ' + (backIndex && backIndex.page) + '）')
+    await click(page, '[data-vc-page-head] [data-vc-back]')
     const back = await measure(page)
-    check(!!back && back.page === 'changes', 'B 齿轮：从 ' + id + ' 返回改动页（实得 ' + (back && back.page) + '，返回按钮 ' + (back && back.back) + '）')
+    check(!!back && back.page === 'changes', 'B 齿轮：从索引再返回改动页（实得 ' + (back && back.page) + '，返回按钮 ' + (back && back.back) + '）')
   }
   for (const key of ['search', 'rebase', 'conflicts']) {
     await click(page, '[data-vc-extra-link="' + key + '"]')
     const m = await measure(page)
     check(!!m && m.page === key, 'B 顶栏入口：点「' + key + '」到该页（实得 ' + (m && m.page) + '）')
     check(!!m && m.tabs.length === 0, 'B 顶栏入口：' + key + ' 二级页不铺四个固定页签（实得 ' + (m && m.tabs.length) + ' 个）')
-    await click(page, '[data-vc-live-bar] [data-vc-back]')
+    await click(page, '[data-vc-page-head] [data-vc-back]')
     const back = await measure(page)
     check(!!back && back.page === 'changes', 'B 顶栏入口：从 ' + key + ' 返回改动页（实得 ' + (back && back.page) + '，返回按钮 ' + (back && back.back) + '）')
   }

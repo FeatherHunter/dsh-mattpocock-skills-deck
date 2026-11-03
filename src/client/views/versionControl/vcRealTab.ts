@@ -13,6 +13,9 @@ declare const host: any
 declare var openTextInNewSession: any
 declare const tr: any
 declare function vcShellPageNode(h: any, t: any, opts: any): any
+// #1840：页头返回键沿用旧顶栏的两枚点击日志词条（本叶只在渲染时读，常量在 vcRealShell 叶里定义）。
+declare const VC_REAL_LOG_BACK_CHANGES: string
+declare const VC_REAL_LOG_BACK_COMMIT: string
 declare function vcRealReadsNew(cwd: any): any
 declare function vcRealInitialUi(): any
 declare function vcRealInitialNav(): any
@@ -296,6 +299,8 @@ export const VcRealTab = function (props: any) {
     pagePrefix: nav.page,
     // #1829 阶段 4：带返回来源页的二级页换次级版式（身份行只剩第一行、同步带与四页签让位、管理索引不默认铺开）。
     pageOpen: !!(nav.back && nav.back.page),
+    // #1840：页头返回键按来源页挂 data-log——从提交历史返回是 vc.commit.back，其余（含索引回页签）是 vc.changes.back。
+    backLog: nav.back && nav.back.page === 'commits' ? VC_REAL_LOG_BACK_COMMIT : VC_REAL_LOG_BACK_CHANGES,
     width: width,
     skin: skin,
     seed: seed,

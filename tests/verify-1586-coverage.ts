@@ -669,6 +669,16 @@ async function main() {
   })
   check(missingNeedlesOf(brokenTabSrc, pageWiring[9].need).length > 0, '十 反证：把冲突页的模型改成 null → 该页接线判据当场判红')
 
+  // ---- 十一 宽度档位只认四档（#1840）：真实面板量到的是任意像素宽，根节点自己的纵向滚动条
+  //      还会让同一档宽差出 4 个像素（300 宽的页量到 304）。data-vc-width 必须归到最近的一档，
+  //      否则按档位写的 CSS 规则会漏，460 / 520 档还会因卡片列数来回切而自激回流。
+  console.log('\n十一 宽度档位归最近档（#1840）')
+  const widthOfTab = function (w) { return attrValuesOf(renderPage(view, { page: 'changes', width: w, skin: 'dark' }), 'data-vc-width')[0] }
+  check(view.VC_SHELL_WIDTHS.map(widthOfTab).join(',') === view.VC_SHELL_WIDTHS.join(','), '十一 四档原值照旧落在本档：300 / 380 / 460 / 520')
+  check([296, 304, 376, 384, 456, 464, 516, 524].map(widthOfTab).join(',') === '300,300,380,380,460,460,520,520', '十一 滚动条带来的 ±4 像素偏差都归回本档（300 宽的页不会报成 304）')
+  check(widthOfTab(350) === '380' && widthOfTab(470) === '460' && widthOfTab(640) === '520', '十一 四档之外的像素宽归最近的一档（350→380、470→460、大面板 640→520）')
+  check(widthOfTab(0) === '460' && widthOfTab(undefined) === '460', '十一 没量到宽度时仍回落 460（与旧口径一致）')
+
   console.log('\n' + (failed ? '存在失败' : '全部通过') + ' — 版本管理页覆盖验收门禁（' + total + ' 项断言）')
   printGateResult(GATE, total, failedCount)
   process.exit(failed ? 1 : 0)

@@ -39,7 +39,8 @@ const vcRealConfirmGoOf = function (el: any, scopeAttr: string): any {
 export const vcRealClickIntentOf = function (el: any): any {
   let hit: any = vcRealClosestOf(el, 'data-vc-gear-item')
   if (hit) return { kind: 'gear', page: vcRealAttrOf(hit, 'data-vc-gear-item') }
-  if (vcRealClosestOf(el, 'data-vc-gear-btn')) return { kind: 'gearToggle' }
+  // 齿轮与身份行「管理」都打开管理索引屏（#1840）：索引是导航上的一站，不是浮层开合。
+  if (vcRealClosestOf(el, 'data-vc-gear-btn')) return { kind: 'manageOpen' }
   if (vcRealClosestOf(el, 'data-vc-search-entry')) return { kind: 'searchEntry' }
   if (vcRealClosestOf(el, 'data-vc-branch-btn')) return { kind: 'branchToggle' }
   if (vcRealClosestOf(el, 'data-vc-branch-close')) return { kind: 'branchClose' }
@@ -177,7 +178,7 @@ export const vcRealKeyIntentOf = function (el: any, key: any): any {
 // 意图 → 回调名的一张表：容器只实现这些回调，这里决定点哪一项。
 //   表放在模块级只建一次；键是意图的 kind，值是容器回调表里的名字。
 const VC_REAL_ACTION_OF: any = {
-    gear: 'page', gearToggle: 'gearToggle', searchEntry: 'searchEntry', branchToggle: 'branchToggle',
+    gear: 'page', manageOpen: 'manageOpen', searchEntry: 'searchEntry', branchToggle: 'branchToggle',
     branchClose: 'branchClose', sync: 'sync', branchOverlay: 'branchOverlay', palettePick: 'palettePick',
     tab: 'tab', refresh: 'refresh', sliceRetry: 'sliceRetry', retryAll: 'retryAll', back: 'back', page: 'page',
     remoteTrigger: 'remoteTrigger', remoteSubmit: 'remoteSubmit', remoteCancel: 'remoteCancel',
