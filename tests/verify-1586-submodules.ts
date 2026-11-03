@@ -62,6 +62,9 @@ const CLIENT_FILES = [
   'src/shared/version-control/src/submodule-ops.ts',
   'src/client/views/versionControl/vcSubmodulesData.ts',
   'src/client/views/versionControl/vcSubmodulesOps.ts',
+  // #1843：子模块页改用页头原语（分区分段、对象行、事实网格）重做，原语叶子必须跟页面叶子一起求值；
+  // 次序与真实构建一致，原语排在页面之前。页头函数依赖的三个全局在下面补最小桩。
+  'src/client/views/versionControl/vcPageHead.ts',
   'src/client/views/versionControl/vcSubmodulesPage.ts',
 ]
 const CLIENT_EXPORTS = [
@@ -74,6 +77,9 @@ const CLIENT_EXPORTS = [
 ]
 function buildClient(patch) {
   const raw = CLIENT_FILES.map(function (f) { return stripExports(sourceText(f)) }).join('\n')
+    // #1843：页头原语里的 vcPageHeadNode 只用到这三个全局（真实闭包由页面壳提供），门禁给最小桩；
+    // 页面本轮只用得到 section / factGrid / objRow 三个原语，页头仍由页面壳统一画。
+    + '\nvar PAGE_COUNTS = {}\nvar PAGE_SURFACES = []\nvar vcPageDepthOf = function () { return 1 }\n'
   const patched = patch ? patch(raw) : raw
   const body = toEvalJs(patched) + '\nreturn { ' + CLIENT_EXPORTS.join(', ') + ' }\n'
   const calls = []
@@ -219,6 +225,20 @@ async function main() {
   check(bd.length === 2 && bd[0].path === 'libs/lib', 'D4 行模型把宿主回包规整成两行')
   check(V.vcSubmoduleWhyKeyOf('module-missing') === 'vc.sub.why.module-missing' && V.SUBMODULE_REASONS.indexOf('confirm-required') >= 0, 'D5 禁用理由走固定词条键')
   check(V.vcSubmoduleCheckArgsOf('D:/repo', 'deinit', { path: 'libs/lib' }).op === 'deinit' && V.vcSubmoduleCheckArgsOf('D:/repo', 'deinit', { path: 'libs/lib' }).url === undefined, 'D6 预检请求只送动作需要的字段（不多送空串）')
+  // D6b：批量菜单身份。页面上的「初始化」「检出记录的提交」按钮送出的动作名与逐行动作同名，
+  // 处理层必须按固定批量菜单表认出批量意图，把 batch=true 送进预检；否则宿主走逐行判定，
+  // 空路径被 path-blank 拦住，两个按钮就永远点不通（#1843 真机验证前发现的缺口）。
+  {
+    const seen: any = {}
+    const ids: string[] = ['init', 'recorded', 'fetch', 'deinit']
+    for (let i = 0; i < ids.length; i += 1) {
+      const box2 = withOps(function () { return Promise.resolve(CHECK_OK) })
+      await box2.ops.start(ids[i])
+      const hit = box2.call.calls.filter(function (c) { return c.phone === 'wf.gitSubmoduleCheck' })
+      seen[ids[i]] = hit.length > 0 ? hit[hit.length - 1].args.batch : 'no-call'
+    }
+    check(seen.init === true && seen.recorded === true && seen.fetch === true && seen.deinit === undefined, 'D6b 固定批量菜单的三项都送 batch=true，逐行动作不送 batch')
+  }
   check(V.vcSubmoduleRunArgsOf('D:/repo', 'sync', 't-1', 'r-1', { path: 'libs/lib' }).ticketId === 't-1' && V.vcSubmoduleRunArgsOf('D:/repo', 'sync', 't-1', 'r-1', { path: 'libs/lib' }).confirmed === true, 'D7 凭票执行请求带票号、requestId 与显式确认')
   check(V.vcSubmoduleTaskArgsOf('D:/repo', 'add', 't-1', 'r-2').confirmed === true && V.vcSubmoduleTaskArgsOf('D:/repo', 'add', 't-1', 'r-2').ticketId === 't-1', 'D8 任务请求带票号与确认，动作参数不在客户端拼')
   check(V.vcSubmoduleFailureOf({ ok: false, error: { kind: 'blocked', reason: 'module-missing', message: 'x' } }).reason === 'module-missing', 'D9 失败信封原样保留理由标识符')
