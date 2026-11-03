@@ -44,6 +44,10 @@ export interface DeckWorkRouteDeps {
   /** 沙箱许可策略：给工作区与会话，回这一轮的策略快照；等不到就当没有（不拦事）。
    *  两个值都按会话壳给的原样传（工作区没定下来时可能还没有），不许在这里补空串或假目录。 */
   sandboxPolicyFor?: (arg: { cwd: string | undefined; sessionId: string | undefined }) => Promise<unknown>
+  /** 宿主现报「哪些会话此刻真有一轮开着」（#1793）：只回会话标签数组，拿不到就回空。
+   *  必须按传进去的会话与工作区筛，并且排除当前会话自己；它只是即时状态，不进存档、也没有历史。
+   *  缺席或读失败只表示「不知道」——工具那边不标 running，也绝不说「没有别的会话在跑」。 */
+  workRouteRunning?: (arg: { sessionId: string; workspaceKey: string; cwd: string }) => Promise<unknown> | unknown
   /** 时钟旁路：测试里换成假时钟用，缺省 Date.now。 */
   now?: () => number
 }
@@ -51,7 +55,7 @@ export interface DeckWorkRouteDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_work_route',
-  description: '查看本工作区在办表（按会话分组）：默认只看 ' + ACTIVE_HOURS + ' 小时内在办的条目，传 includeStale:true 展开 ' + RETENTION_DAYS + ' 天内全部（含陈旧）；limit 控制最多回多少条。什么时候调：想了解有哪些会话在处理哪些票，或怀疑自己要和别的会话撞同一张票时。数据来自本机工作区存档，只含本工作区 ' + RETENTION_DAYS + ' 天内动过的条目；在办指 ' + ACTIVE_HOURS + ' 小时内动过这张票，不代表那个会话此刻还在跑；存档上限 ' + CHAIN_MAX_BYTES_LABEL + '。写票回执不再带在办表，要看就来这里。',
+  description: '查看本工作区在办表（按会话分组）：默认只看 ' + ACTIVE_HOURS + ' 小时内在办的条目，传 includeStale:true 展开 ' + RETENTION_DAYS + ' 天内全部（含陈旧）；limit 控制最多回多少条。什么时候调：想了解有哪些会话在处理哪些票，或怀疑自己要和别的会话撞同一张票时。数据来自本机工作区存档，只含本工作区 ' + RETENTION_DAYS + ' 天内动过的条目；在办指 ' + ACTIVE_HOURS + ' 小时内动过这张票，不代表那个会话此刻还在跑。组上带 running:true 的是宿主现报、此刻真有一轮开着（等审批、等回答也算），不标不等于没在跑；存档上限 ' + CHAIN_MAX_BYTES_LABEL + '。写票回执不再带在办表，要看就来这里。',
   parameters: {
     type: 'object',
     properties: {
@@ -165,7 +169,7 @@ export function createDeckWorkRoute(deps?: DeckWorkRouteDeps) {
       const sliced = filtered.slice(0, limit)
       const omitted = total - sliced.length
       // 按会话分组：键只用 sessionLabel（原始会话 id 永不进回执），当前会话一定排第一组。
-      const groupMap = new Map<string, { sessionLabel: string; currentSession: boolean; items: UnknownRecord[] }>()
+      const groupMap = new Map<string, { sessionLabel: string; currentSession: boolean; running?: boolean; items: UnknownRecord[] }>()
       for (const e of sliced) {
         const rec = (e || {}) as UnknownRecord
         const label = str(rec.sessionLabel) || '未知会话'
@@ -193,6 +197,22 @@ export function createDeckWorkRoute(deps?: DeckWorkRouteDeps) {
         if (x.currentSession !== y.currentSession) return x.currentSession ? -1 : 1
         return y.items.length - x.items.length
       })
+      // #1793：哪些会话此刻真有一轮开着。这是宿主进程里的即时状态，不是存档、也没有历史；
+      // 装配没接这一支、读不出来（空数组也当读不出来）时一律不标——不标只表示「不知道」，
+      // 不能反过来读成「没有别的会话在跑」，所以这里不因为空数组而往回执里写一句「没人」。
+      const runningFn = (d as UnknownRecord).workRouteRunning as ((input: UnknownRecord) => Promise<unknown> | unknown) | undefined
+      let runningLabels: string[] = []
+      if (typeof runningFn === 'function') {
+        try {
+          const raw = await Promise.resolve(runningFn({ sessionId: str(s.sessionId), workspaceKey: str(s.workspaceKey), cwd: str(s.cwd) }))
+          if (Array.isArray(raw)) runningLabels = raw.filter((x): x is string => typeof x === 'string' && x !== '')
+        } catch { runningLabels = [] }
+      }
+      const runningSet = new Set(runningLabels)
+      let runningGroups = 0
+      for (const g of groups) {
+        if (runningSet.has(g.sessionLabel)) { g.running = true; runningGroups += 1 }
+      }
       const staleCount = num((readout as UnknownRecord).staleCount)
       const notes: string[] = [ARCHIVE_SCOPE_NOTE + '，超过 ' + ACTIVE_HOURS + ' 小时、未满 ' + RETENTION_DAYS
         + ' 天记为陈旧；存档上限 ' + CHAIN_MAX_BYTES_LABEL + '，超限按时间从旧到新裁。']
@@ -201,6 +221,7 @@ export function createDeckWorkRoute(deps?: DeckWorkRouteDeps) {
       if (staleInView > 0) notes.push('其中 ' + staleInView + ' 条超过 ' + ACTIVE_HOURS + ' 小时未动（本工作区陈旧共 ' + staleCount + ' 条）。')
       else if (includeStale && staleCount > 0) notes.push('本工作区陈旧共 ' + staleCount + ' 条（超过 ' + ACTIVE_HOURS + ' 小时未动）。')
       else if (!includeStale && staleCount > 0) notes.push('另有 ' + staleCount + ' 条超过 ' + ACTIVE_HOURS + ' 小时未动（陈旧，只计数，不在默认视图里列出；传 includeStale:true 展开）。')
+      if (runningGroups > 0) notes.push('其中 ' + runningGroups + ' 个会话组此刻正在跑一轮（running 只说明那一轮开着，不代表正在改这张票）。')
       const collisions: UnknownRecord[] = Array.isArray((readout as UnknownRecord).collisions) ? ((readout as UnknownRecord).collisions as UnknownRecord[]) : []
       const data: UnknownRecord = {
         at: str((readout as UnknownRecord).at) || atFallbackIso,

@@ -14,6 +14,8 @@
 //      格子里写不下的内容用省略号，完整值交给悬停提示补。
 //   四、#1288 的提示：落在指针上方；一行两段（左边标题、右边会话），中间一条竖线，两边各一枚图标；
 //      动作词与完整动作时刻在格子里被截掉时补在末尾。
+//   五、#1793 的 running 标记：宿主现报「此刻真有一轮开着」的会话组标 running:true，notes 说清有几个组
+//      在跑；缺这支依赖、读不到、抛错时一格都不标（不知道 ≠ 没人在跑），自己发起的会话不算别人。
 //
 // 手法：主缝用真的工作路线存储（临时家目录 + 固定时钟），从工具壳写票收口处（recordWorkRoute）
 // 一路跑到面板快照挂载口，中间真跑一次读工具 deck_work_route（同一家目录、同一读口），两边回来的
@@ -243,7 +245,6 @@ async function main() {
     return !!p && p.title === it.title && p.action === it.action && p.actionAt === it.actionAt && p.active === it.active && p.currentSession === it.currentSession && p.source === it.source
   }), '读工具分组展平后与面板条目逐条相同（票号、标题、会话标签、动作、动作时刻、在办、当前会话、来源）')
   check(JSON.stringify(toolOut).indexOf(SID_A) < 0 && JSON.stringify(toolOut).indexOf(SID_B) < 0, '读工具回执同样不带原始会话 id（只出会话标签）')
-  toolRegDisposer.dispose()
   check(entries.length === 4, '四条在办条目全在（实得 ' + entries.length + ' 条）')
   const t101 = entries.filter((e: any) => e.ticketKey === '101')
   check(t101.length === 2 && t101[0].sessionLabel !== t101[1].sessionLabel, '同一张票被两个会话动过：显示两条、两个会话标签，不合并')
@@ -251,6 +252,61 @@ async function main() {
   check(entries.filter((e: any) => e.currentSession === true).length === 2, '当前会话的两条被标出（101 与 102）')
   check(JSON.stringify(field.readout).indexOf(SID_A) < 0 && JSON.stringify(field.readout).indexOf(SID_B) < 0, '原始会话 id 不进回执（只出会话标签）')
   check(typeof field.readout.at === 'string' && field.readout.at.endsWith('Z'), '读数带一个 ISO Z 串的更新时刻')
+
+  // ── 一之二、#1793：running 标记（宿主现报的「此刻真有一轮开着」）──
+  // 先验缺这一支时的口径：一格都不标、notes 也不说「没人在跑」——不知道就只是不知道。
+  check(toolOut.data.groups.every((g: any) => !('running' in g)), '缺 workRouteRunning 依赖：组上不出 running 键（不知道就不说，不冒充没人在跑）')
+  check(!(toolOut.notes || []).some((n: string) => n.indexOf('正在跑一轮') >= 0), '缺 workRouteRunning 依赖：notes 里不提在跑（同上）')
+  const otherLabel = toolOut.data.groups[1].sessionLabel
+  const runningSeen: any[] = []
+  const runningTool = workRouteMod.createDeckWorkRoute(Object.assign({}, toolDeps, {
+    workRouteRunning: async (arg: any) => { runningSeen.push(arg); return [otherLabel] },
+  }))
+  const runningOut: any = await runningTool.run({ agent: { session: { id: SID_B, cwd: ROOT_CWD } } }, {})
+  check(runningOut && runningOut.status === 'ok', '带 workRouteRunning 的读工具照常成功')
+  check(runningOut.data.groups[1].running === true && !('running' in runningOut.data.groups[0]), '宿主现报在跑的组标 running:true；当前会话组不标（自己发起调用时必然在跑，不算「谁在跑」）')
+  check((runningOut.notes || []).some((n: string) => n.indexOf('1 个会话组此刻正在跑一轮') >= 0), 'notes 说清有几个会话组此刻正在跑')
+  check(runningSeen.length === 1 && runningSeen[0] && runningSeen[0].sessionId === SID_B && runningSeen[0].workspaceKey === rootKey && runningSeen[0].cwd === ROOT_CWD, 'running 出口收到的入参是本次会话、工作区键与工作区根')
+  const throwRunningTool = workRouteMod.createDeckWorkRoute(Object.assign({}, toolDeps, {
+    workRouteRunning: async () => { throw new Error('探针：宿主状态读不到') },
+  }))
+  const throwRunningOut: any = await throwRunningTool.run({ agent: { session: { id: SID_B, cwd: ROOT_CWD } } }, {})
+  check(throwRunningOut && throwRunningOut.status === 'ok' && throwRunningOut.data.groups.every((g: any) => !('running' in g)), 'running 出口抛错：读工具照常成功、不标 running（不知道 ≠ 没有）')
+
+  // 筛「谁在跑」的判据住在 src/deck/shell/running-sessions.ts，装配层与这里共用一份；下面用假服务单测它。
+  const runMod: any = await imp('src/deck/shell/running-sessions.ts')
+  const readoutMod: any = await imp('src/deck/shell/work-path-readout.ts')
+  const runLabelOf = readoutMod.workPathSessionLabel
+  const runSessions: any = {
+    'run-a': { header: { cwd: ROOT_CWD } },
+    'idle-a': { header: { cwd: ROOT_CWD } },
+    'self': { header: { cwd: ROOT_CWD } },
+    'sub-agent': { header: { cwd: ROOT_CWD, origin: 'subagent' } },
+    'other-root': { header: { cwd: 'D:/elsewhere/other-workspace' } },
+    'sub-dir': { header: { cwd: ROOT_CWD + '/nested/deeper' } },
+  }
+  const runAgents = () => [
+    { id: 'run-a', status: 'running' }, { id: 'idle-a', status: 'idle' }, { id: 'self', status: 'running' },
+    { id: 'sub-agent', status: 'running' }, { id: 'other-root', status: 'running' }, { id: 'sub-dir', status: 'running' },
+  ]
+  const runDeps = {
+    workspaceKeyOf: keyMod.workspaceKeyOf,
+    canonicalKey: async () => ROOT_CWD,
+    sessionTitleSnapshotOf: (id: string) => (id === 'run-a' ? '搬砖会话' : ''),
+    labelOf: runLabelOf,
+  }
+  const runBase = { services: { agents: { list: runAgents }, sessions: { get: (id: string) => runSessions[id] || null } }, deps: runDeps, selfSessionId: 'self', workspaceKey: rootKey, cwd: ROOT_CWD }
+  const gotRunning = await runMod.runningSessionLabels(runBase)
+  check(Array.isArray(gotRunning) && gotRunning.length === 2 && gotRunning[0] === '搬砖会话' && gotRunning[1] === runLabelOf('', 'sub-dir'), '只认 status=running 且同根：非当前会话、非子代理、同根与归一后同根的会话各出一个标签（实得 ' + JSON.stringify(gotRunning) + '）')
+  check(gotRunning.indexOf(runLabelOf('', 'self')) < 0 && gotRunning.indexOf(runLabelOf('', 'sub-agent')) < 0, '发起调用的会话自己与子代理都不算「别人在跑」')
+  const canonThrow = await runMod.runningSessionLabels(Object.assign({}, runBase, { deps: Object.assign({}, runDeps, { canonicalKey: async () => { throw new Error('探针：归一失败') } }) }))
+  check(canonThrow.length === 1 && canonThrow[0] === '搬砖会话', '归一出口抛错：子目录会话不标，同根会话照标（实得 ' + JSON.stringify(canonThrow) + '）')
+  check((await runMod.runningSessionLabels(Object.assign({}, runBase, { services: {} }))).length === 0, '宿主两份服务缺席：回空数组（不知道，不冒充没人在跑）')
+  check((await runMod.runningSessionLabels(Object.assign({}, runBase, { services: { agents: { list: () => { throw new Error('探针：注册表读不到') } }, sessions: { get: () => null } } }))).length === 0, '宿主注册表抛错：回空数组')
+  check((await runMod.runningSessionLabels(Object.assign({}, runBase, { deps: Object.assign({}, runDeps, { maxAgents: 1 }) }))).length === 1, 'maxAgents 封住最多看几个 agent（只看到第一个 running 的）')
+  // #1793 的两次读工具真跑都过完之后再撤掉后端房：撤早了第二次会选不到后端，读工具会如实回 unsupported。
+  toolRegDisposer.dispose()
+
 
   // 空账：没有存档文件时是「读到了、就是空的」，不是读不到。
   const homeEmpty = fs.mkdtempSync(path.join(os.tmpdir(), 'wproute-1082e-'))
