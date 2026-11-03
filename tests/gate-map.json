@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T05:10:07.133Z",
+  "generatedAt": "2026-11-03T06:17:05.812Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 549,
   "gateCount": 549,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 91,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 848,
+  "graphFileCount": 850,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1341,6 +1341,7 @@
       "guards": [
         "src/deck/tools/issue-create.ts",
         "src/deck/tools/issue-get.ts",
+        "src/deck/tools/issue-list.ts",
         "src/deck/tools/issue-patch.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
@@ -1366,7 +1367,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 12 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 13 条"
     },
     {
       "step": "node tests/verify-1106-deck-surface.ts",
@@ -10956,6 +10957,7 @@
         "src/host/notifications.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/notification-events.ts",
+        "src/tracker/contract/vocabulary.ts",
         "tests/lib/gate-result.ts"
       ],
       "dirs": [
@@ -10964,13 +10966,14 @@
         "src/client/views/shared",
         "src/host",
         "src/refresh/kernel",
+        "src/tracker/contract",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 125,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 7 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 8 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-notification-events.ts",
@@ -10986,7 +10989,9 @@
         "src/refresh/kernel/write-event-detection.ts",
         "src/refresh/rooms/host/issue-list-fetch.ts",
         "src/refresh/rooms/host/notification-store.ts",
+        "src/refresh/rooms/host/probe-handler.ts",
         "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
         "tests/lib/gate-result.ts"
       ],
       "dirs": [
@@ -11002,7 +11007,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 119,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 13 条"
     },
     {
       "step": "node tests/verify-operation-catalog.ts",
@@ -14578,6 +14583,7 @@
       "node tests/verify-issue195.ts",
       "node tests/verify-labels-sync.ts",
       "node tests/verify-markdown-label-colors.ts",
+      "node tests/verify-notification-center.ts",
       "node tests/verify-operation-catalog.ts",
       "node tests/verify-read-result-provenance.ts",
       "node tests/verify-refresh-adr.ts",
@@ -15236,9 +15242,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 869,
+    "fileCount": 871,
     "dirCount": 84,
-    "coveredFileCount": 869,
+    "coveredFileCount": 871,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -15766,6 +15772,7 @@
       "src/refresh/rooms/host/check-chain-evaluation.ts",
       "src/refresh/rooms/host/comment-thread-fetch.ts",
       "src/refresh/rooms/host/detail-snapshot-merge.ts",
+      "src/refresh/rooms/host/failure-segment-notes.ts",
       "src/refresh/rooms/host/gh-execution.ts",
       "src/refresh/rooms/host/gh-run-report.ts",
       "src/refresh/rooms/host/git-execution.ts",
@@ -15794,6 +15801,7 @@
       "src/refresh/rooms/host/session-refresh-schedule.ts",
       "src/refresh/rooms/host/session-snapshot-cache.ts",
       "src/refresh/rooms/host/snapshot-build.ts",
+      "src/refresh/rooms/host/snapshot-decoration.ts",
       "src/refresh/rooms/host/thin-row-fetch.ts",
       "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
       "src/refresh/rooms/host/work-route-readout.ts",
@@ -16304,7 +16312,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 53
+        "fileCount": 55
       },
       {
         "path": "src/shared/command-cleanup",
