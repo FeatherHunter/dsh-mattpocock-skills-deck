@@ -222,7 +222,9 @@ async function groupNav(page: any) {
     const m = await measure(page)
     check(!!m && m.page === id && m.depth === '2', 'B 齿轮：点「' + id + '」进入该分区页、层级 2（实得 ' + (m && m.page) + '）')
     check(!!m && m.back === true && m.primaries > 0, 'B 齿轮：' + id + ' 页有返回入口、有真实正文与能力主入口')
-    await click(page, '[data-vc-back]')
+    // #1829 阶段 4：二级页的页头也有返回键（原型 37/39），顶部条那颗仍是同一个 data-vc-back；
+    //   这里点名顶部条，免得选择器同时命中两颗（Playwright 的严格模式会直接报错）。
+    await click(page, '[data-vc-live-bar] [data-vc-back]')
     const back = await measure(page)
     check(!!back && back.page === 'changes', 'B 齿轮：从 ' + id + ' 返回改动页（实得 ' + (back && back.page) + '，返回按钮 ' + (back && back.back) + '）')
   }
@@ -230,7 +232,7 @@ async function groupNav(page: any) {
     await click(page, '[data-vc-extra-link="' + key + '"]')
     const m = await measure(page)
     check(!!m && m.page === key, 'B 顶栏入口：点「' + key + '」到该页（实得 ' + (m && m.page) + '）')
-    await click(page, '[data-vc-back]')
+    await click(page, '[data-vc-live-bar] [data-vc-back]')
     const back = await measure(page)
     check(!!back && back.page === 'changes', 'B 顶栏入口：从 ' + key + ' 返回改动页（实得 ' + (back && back.page) + '，返回按钮 ' + (back && back.back) + '）')
   }
@@ -259,6 +261,10 @@ async function groupNav(page: any) {
 
 // ---------------- C 组：300 宽下逐页可达且主入口可点 ----------------
 async function primaryCheck(page: any, pageErrors: string[], tag: string) {
+  // #1829 阶段 4：页面尾部的「本页负责 N 条能力」长清单改成默认折叠的 details（首屏不再被它占满）。
+  //   主入口仍在页面里，只是要点开折叠入口才看得见；这里先展开再验证「滚进视口后可点」。
+  await page.evaluate(() => { document.querySelectorAll('details[data-vc-caps-fold]').forEach((d: any) => d.setAttribute('open', '')) })
+  await page.waitForTimeout(80)
   const info = await page.evaluate(() => { const el = document.querySelector('[data-cap-primary]'); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { id: el.getAttribute('data-cap-primary'), left: r.left, right: r.right, top: r.top, bottom: r.bottom, iw: window.innerWidth, ih: window.innerHeight } })
   check(!!info, tag + '：该页有可点的能力主入口（data-cap-primary）')
   check(!!info && info.left >= -1 && info.right <= info.iw + 1 && info.top >= -1 && info.bottom <= info.ih + 1, tag + '：主入口滚进视口后完整可点（' + (info && info.id) + '）')

@@ -294,6 +294,8 @@ export const VcRealTab = function (props: any) {
   const shellOpts: any = Object.assign({}, manageProps, {
     page: nav.page,
     pagePrefix: nav.page,
+    // #1829 阶段 4：带返回来源页的二级页换次级版式（身份行只剩第一行、同步带与四页签让位、管理索引不默认铺开）。
+    pageOpen: !!(nav.back && nav.back.page),
     width: width,
     skin: skin,
     seed: seed,

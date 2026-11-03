@@ -242,7 +242,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       // #1392：同 runGh —— 实例销毁后建计时器会同步抛 INACTIVE_EFFECT；startWaitTimeout 收完尾返回 null。
       const to = startWaitTimeout(timer, xpIsGh ? timeoutForGhArgs(xpArgs) : TIMEOUT_MS, function () { abandonCommand(handle, xpReleaseSlot) })
       if (!to) {
-        try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1, via: String(via || 'unspecified') }) } catch (eL) {}
+        try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), opId: '', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1, via: String(via || 'unspecified'), endReason: 'error' }) } catch (eL) {}
         return { ok: false, error: DISPOSED_MESSAGE }
       }
       let outcome
@@ -255,12 +255,12 @@ export function createRepoKeys(deps: RepoKeysDeps) {
         // #1392：计时器建出来之后实例才被销毁，它被撤销时 Promise 以拒绝落定，race 跟着拒绝。
         //   收尾与销毁那一档相同；失败对象保持原形状（没有 kind），不把这一路单独分类。
         abandonCommand(handle, xpReleaseSlot)
-        try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1, via: String(via || 'unspecified') }) } catch (eL) {}
+        try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), opId: '', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1, via: String(via || 'unspecified'), endReason: 'error' }) } catch (eL) {}
         return { ok: false, error: String((e && (e as { message?: unknown }).message) || e) }
       }
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
-      try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
+      try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), opId: '', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified'), endReason: (outcome && outcome.signal) ? String(outcome.signal) : ((outcome && outcome.exitCode === 0) ? 'ok' : 'exit') }) } catch (eL) {}
       xpReleaseSlot()
       if (outcome.exitCode !== 0) return { ok: false, code: outcome.exitCode, error: ((err.text || '') + (out.text || '')).slice(0, 400) }
       // #1482：GraphQL 的真实点数只有拿到回包才知道；成功之后按回包 rateLimit.cost 补差（失败不补）。
@@ -297,7 +297,6 @@ export function createRepoKeys(deps: RepoKeysDeps) {
         return canonOut
       } catch (e) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'workspaceKey.canonical', function () { return { rawHash: hash8(raw), normalizedHash: hash8(raw), fallback: true } }) } catch (eL) {}; return raw }
     }
-
 
     // #1806 第 2 步：写入一份新的工作区记录之后要立刻丢掉「根在哪」的 30 秒旧结论。
     // 缓存住在 workspaceKey.js 内部，这里只借它自己的清缓存出口（模块句柄本来就在本文件手上），

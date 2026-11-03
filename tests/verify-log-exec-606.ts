@@ -117,11 +117,13 @@ async function main() {
     check(logCtx.lines.every((l) => l.level === 'debug'), '按需级：四行都是调试级别（实得 ' + logCtx.lines.map((l) => l.level).join('、') + '）')
     const names = logCtx.lines.map((l) => l.fields && l.fields.argv0)
     check(names[0] === 'gh' && names[1] === 'git', '命令名如实：detectionExec 记 gh、execProc 记 git（实得 ' + names.join('、') + '）')
+    // #1831：exec.run 增了 opId（与房间 gh.exec/gh.timeout 按同一趟操作对齐）与 endReason
+    //（这一条命令怎么结束的：ok / exit / timeout / aborted / error）。两条起进程的路都记同一套字段。
     const keysOk = logCtx.lines.every((l) => {
       const k = Object.keys(l.fields || {}).sort().join(',')
-      return k === 'argv0,cwdHash,exitCode,latencyMs,via'
+      return k === 'argv0,cwdHash,endReason,exitCode,latencyMs,opId,via'
     })
-    check(keysOk, '字段恰为白名单五项（argv0、cwdHash、latencyMs、exitCode、via）')
+    check(keysOk, '字段恰为白名单七项（argv0、cwdHash、latencyMs、exitCode、via、opId、endReason）')
     // 证据一：同一条命令出现三种 via。
     const sameCmd = logCtx.lines.filter((l) => l.fields && l.fields.argv0 === 'gh')
     const viaSet = Array.from(new Set(sameCmd.map((l) => l.fields.via)))

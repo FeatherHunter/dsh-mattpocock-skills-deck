@@ -94,12 +94,18 @@ export const vcShellIdentityNode = function (h: any, t: any, o: any) {
     return h('button', attrs, t('vc.shell.sync.' + id))
   })
   acts.push(h('span', { key: 'next', className: 'vcs-sync-next' }, t('vc.shell.sync.next', { step: t('vc.shell.sync.nextStage') })))
-  return h('header', { className: 'vcs-identity', 'data-vc-identity': '1' }, [
+  // #1829 阶段 4：二级页（管理分区与顶栏入口页，打开时带返回来源页）按定稿原型 37/39 只保留身份行；
+  //   同步事实行与同步动作行属于「改动 / 提交 / 工作树 / 贮藏」四个一级页签，二级页让位给页头与正文。
+  const secondary = opts.secondary === true
+  const kids: any[] = [
     h('div', { key: 'main', className: 'vcs-id-main' }, [
       h('div', { key: 'left', className: 'vcs-identity-left' }, left),
       h('div', { key: 'right', className: 'vcs-identity-right' }, right),
     ]),
-    h('div', { key: 'facts', className: 'vcs-sync-facts', 'data-vc-sync-facts': '1' }, facts),
-    h('div', { key: 'acts', className: 'vcs-sync-acts', 'data-vc-sync-acts': '1' }, acts),
-  ])
+  ]
+  if (!secondary) {
+    kids.push(h('div', { key: 'facts', className: 'vcs-sync-facts', 'data-vc-sync-facts': '1' }, facts))
+    kids.push(h('div', { key: 'acts', className: 'vcs-sync-acts', 'data-vc-sync-acts': '1' }, acts))
+  }
+  return h('header', { className: 'vcs-identity' + (secondary ? ' is-secondary' : ''), 'data-vc-identity': '1' }, kids)
 }

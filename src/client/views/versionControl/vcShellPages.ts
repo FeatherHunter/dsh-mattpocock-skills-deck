@@ -290,9 +290,13 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   const open = opts.open || {}
   const isManage = VC_MANAGE_PAGES.indexOf(page) >= 0
   const isSearch = page === VC_SEARCH_PAGE
+  // #1829 阶段 4：二级页（nav 带返回来源页的页）按定稿原型 37/39 换一套次级版式：
+  //   身份行只留第一行、同步带与四个固定页签让位、齿轮里的管理索引不再默认铺开（要用时点「管理」再开）。
+  //   默认 false 保证全页自检、能力账本与既有门禁的渲染结果一个字节都不变。
+  const secondary = opts.pageOpen === true
   const branchOpen = !!open.branch
   const paletteOpen = !!open.palette || isSearch
-  const gearOpen = !!open.gear || isManage
+  const gearOpen = !!open.gear || (isManage && !secondary)
   const branchOverlayId = prefix + '-branch-overlay'
   const paletteId = prefix + '-palette'
   const gearId = prefix + '-gear-index'
@@ -308,14 +312,16 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
     remote: seed.remote || 'origin', when: readAt, basis: seed.basisWhen || '', ahead: seed.ahead, behind: seed.behind,
     detached: seed.detached === true, branchOpen: branchOpen, branchOverlayId: branchOverlayId,
     paletteOpen: paletteOpen, paletteId: paletteId, gearOpen: gearOpen, gearId: gearId, onOpenHandoff: opts.onOpenHandoff,
+    secondary: secondary,
   }), 'identity'))
   if (branchOpen) children.push(keyed(vcBranchOverlayNode(h, t, { id: branchOverlayId, branch: seed.branch }), 'branch'))
   if (gearOpen) children.push(keyed(vcGearIndexNode(h, t, { id: gearId, pagePrefix: opts.pagePrefix || '', active: isManage ? page : '' }), 'gear'))
   // 命令面板：全库搜索页把它画在能力行里（唯一一个输入框）；其它页按种子画成贴触发点的浮层。
   if (paletteOpen && !isSearch) children.push(keyed(vcPaletteNode(h, t, { id: paletteId, query: seed.query, highlight: seed.highlight, limit: seed.paletteLimit, reads: opts.reads }), 'palette'))
-  children.push(keyed(vcPageTabsNode(h, t, { pagePrefix: opts.pagePrefix || '', active: VC_TAB_PAGES.indexOf(page) >= 0 ? page : '', counts: opts.counts }), 'tabs'))
+  // 二级页不出四个固定页签（原型 37/39）：那四个是一级视图，二级页的返回与去向由页头与顶部条给。
+  if (!secondary) children.push(keyed(vcPageTabsNode(h, t, { pagePrefix: opts.pagePrefix || '', active: VC_TAB_PAGES.indexOf(page) >= 0 ? page : '', counts: opts.counts }), 'tabs'))
   children.push(keyed(vcPageBodyNode(h, t, {
-    page: page, pagePrefix: opts.pagePrefix || '', back: opts.back === true,
+    page: page, pagePrefix: opts.pagePrefix || '', back: opts.back === true || secondary,
     openSurface: openSurface,
     query: seed.query, highlight: seed.highlight, paletteLimit: seed.paletteLimit,
     confirm: seed.confirm, result: seed.result,

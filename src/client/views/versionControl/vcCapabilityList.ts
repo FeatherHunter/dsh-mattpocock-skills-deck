@@ -36,8 +36,12 @@ export const vcCapabilityListOf = function (h: any, t: any, o: any) {
       hit: opts.highlight === cap.id,
     })
   })
-  return h('section', { className: 'vcs-caps', 'data-vc-cap-list': String(opts.page) }, [
-    h('h3', { key: 'title', className: 'vcs-caps-title' }, t('vc.shell.page.lede', { n: rows.length })),
+  // #1829 阶段 4：这棵长清单默认折叠。定稿原型里页面正文不再铺「本页负责 N 条能力」的一长串行，
+  //   但 162 条能力仍要能从页面里打开、每条仍恰好一个 data-cap-primary（818 的 Z 组判据守）——
+  //   所以改成 details：summary 一行写清条数，展开才见行；节点结构与行本身一个不动，只加折叠外壳。
+  //   data-press / data-log 与其它 summary 一致，既有的可点未接线判据才认它。
+  return h('details', { className: 'vcs-caps', 'data-vc-cap-list': String(opts.page), 'data-vc-caps-fold': '1' }, [
+    h('summary', { key: 'title', className: 'vcs-caps-title', 'data-press': 'button', 'data-log': 'vc.shell.caps.toggle' }, t('vc.shell.page.lede', { n: rows.length })),
     rows.length ? h('ul', { key: 'rows', className: 'vcs-cap-rows' }, rows) : h('p', { key: 'none', className: 'vcs-caps-none' }, t('vc.shell.page.empty')),
   ])
 }
