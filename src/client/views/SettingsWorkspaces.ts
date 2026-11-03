@@ -167,6 +167,24 @@ export const wsOuterShownOf = function (outerRoot: unknown, cwd: unknown): strin
 }
 
 /**
+ * 「位于 X 内」这句里的 X（#1806 第 5 步真机复核发现的问题）。
+ * 代表行本身就是工作区根时，X 照旧是根外面还套着的另一个工作区（第 3 步的口径）；
+ * 代表行是被归进某个根的目录时（根不在工作区名单里，比如 智剪工坊 → SKILLS），X 必须是它被归到的那个根：
+ * 这一行要说的是「这个目录属于哪个工作区」，不是「根自己又套在谁里面」。
+ * 第一次做出来时两种情况都取了外面那层，真机上 智剪工坊 显示成「位于 D:\2Study\StudyNotes 内」，
+ * 与面板标记说的「面板数据来自工作区 SKILLS」对不上，看的人会以为它直接属于 StudyNotes。
+ * 认不出目标就回空串（这一行不显示这句话），不拿另一层凑。
+ */
+export const wsRowOuterInOf = function (facts: any, cwd: unknown): string {
+  if (!facts || !facts.root) return ''
+  const sameAsRoot = wsFactsKeyOf(facts.cwd) === wsFactsKeyOf(facts.root)
+  const target = sameAsRoot ? String((facts.outer && facts.outer.root) || '') : String(facts.root)
+  if (!target) return ''
+  const shown = wsOuterShownOf(target, cwd)
+  return shown || target
+}
+
+/**
  * 总览行计算：输入候选目录清单与统一判定结论表，输出要渲染的行。
  * 合并：能查到同一个工作区根的目录并成一行，代表行优先取根本身；查不到根的各自成行（不猜）。
  * 判定：代表行优先认自己的结论，没有再看组里有没有成员有结论（组里有一个就算这组已绑定）；
@@ -226,6 +244,21 @@ export const computeWsOverviewRows = function (paths: string[], selections: WsSe
 }
 
 /**
+ * 判定事实表（#{root, layer, outer, canMarkIndependent…}）的键规整（#1806 第 5 步真机复核发现的问题）。
+ * 为什么必须只留这一把：宿主回包按目录给事实，界面拿同一行目录去查；写入与查询要是两把不同的钥匙，
+ * 查表就永远落空。第一次做出来时写入用 normCwdClient（只去尾斜杠，Windows 上保留反斜杠与大小写），
+ * 查询用 keyOf（小写 + 正斜杠），于是真机上「工作区后端总览」既不显示依据、也不给纠正按钮，
+ * 而面板上的标记却正常——两侧读的是同一份事实，只是设置页这张表查不到。
+ * 现在两处都走这一把：优先用内核的 keyOf（与总览行计算、其余查表同一口径），拿不到时退回等价的手写版。
+ */
+export const wsFactsKeyOf = function (p: unknown): string {
+  try {
+    if (typeof keyOf === 'function') return String(keyOf(p) || '')
+    return String(p == null ? '' : p).trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  } catch (e) { return String(p == null ? '' : p) }
+}
+
+/**
  * 总览数据钩子：首屏自动拉一次，返回 state 与重拉函数。
  * 只认统一判定结论，不再批量预读另一份表——那份表是第二口径，已删。
  * 行名单只从工作区服务来；拿不到名单又没有当前目录就空着，不猜。
@@ -263,9 +296,10 @@ export const useWsOverview = function (cx: any, sharedSt: any): { wsOverview: an
           if(!all.length&&sharedSt.cwd) add(sharedSt.cwd)
           for(let i=0;i<all.length;i++){ const cwd=all[i]; try{ const r=await host.call('wf.selection',{cwd}); const sel=(r&&r.selection)||(r&&r.value&&r.value.selection)||(r&&r.value&&r.value.value&&r.value.value.selection)||null; if(sel) selections[cwd]=sel }catch(e){}; if(cancelled) return }
           // #1806 第 3 步：每一行的工作区身份依据（由 .git 还是插件记录、外面还套着谁、能不能一键纠正）只认宿主
-          //   判定层给的事实；拿不到就不说依据，不拿快照猜。键用与本文件其它地方同一把规整函数。
+          //   判定层给的事实；拿不到就不说依据，不拿快照猜。键用与渲染侧查表同一把规整函数（wsFactsKeyOf）；
+          //   #1806 第 5 步真机复核发现写侧曾用 normCwdClient（保留反斜杠与大小写），Windows 上查不到，已统一。
           const facts: Record<string, any>={}
-          for(let i=0;i<all.length;i++){ const cwd=all[i]; try{ const fr=await host.call('wf.workspaceFacts',{cwd}); const f=(fr&&fr.ok&&fr.facts)?fr.facts:null; if(f) facts[normCwdClient(cwd)]=f }catch(e){}; if(cancelled) return }
+          for(let i=0;i<all.length;i++){ const cwd=all[i]; try{ const fr=await host.call('wf.workspaceFacts',{cwd}); const f=(fr&&fr.ok&&fr.facts)?fr.facts:null; if(f) facts[wsFactsKeyOf(cwd)]=f }catch(e){}; if(cancelled) return }
           if(cancelled) return
           setWsOverview({loading:false,err:'',workspaces:wsList,modules,selections,facts})
         }
@@ -353,7 +387,7 @@ export const renderWsOverview = function (h: any, sharedSt: any, wsOverview: any
           }
           if(!all.length) return h('div',{style:{fontSize:11,color:'#8b8b95',padding:'6px 0'}},tr('cfg.wsEmpty'))
           // #653 归属标注所需的两个表：哪些行本身是工作区根、哪些行的根是谁（根用规整键比对，显示用原样路径）
-          const normOf = function (p: unknown): string { try { return (typeof keyOf === 'function') ? keyOf(p) : String(p || '').toLowerCase() } catch (e) { return String(p || '') } }
+          const normOf = wsFactsKeyOf
           const byNorm: Record<string, string> = {}
           all.forEach(function (c) { const n = normOf(c); if (n && !byNorm[n]) byNorm[n] = c })
           // #1231：行怎么算只认统一判定结论——合并、判定、排序都收进上面的纯函数，这里只递规整与查根，不再自建第二口径。
@@ -404,12 +438,20 @@ export const renderWsOverview = function (h: any, sharedSt: any, wsOverview: any
                 const basisLabel = basis === 'git' ? tr('cfg.wsBasisGit') : basis === 'record' ? tr('cfg.wsBasisRecord') : basis === 'none' ? tr('cfg.wsBasisNone') : ''
                 const basisTip = basis === 'git' ? tr('cfg.wsBasisGitTip') : basis === 'record' ? tr('cfg.wsBasisRecordTip') : basis === 'none' ? tr('cfg.wsBasisNoneTip') : tr('cfg.wsBasisUnknownTip')
                 const basisColor = basis === 'git' ? '#58a6ff' : basis === 'record' ? '#4ade80' : '#8b8b95'
-                const outerIn = (f && f.outer && f.outer.root) ? tr('cfg.wsOuterIn', { root: wsOuterShownOf(f.outer.root, cwd) }) : ''
+                // #1806 第 5 步真机复核：子目录行要说它被归到的根（见 wsRowOuterInOf 注释），不是根外面那层。
+                const outerInRoot = wsRowOuterInOf(f, cwd)
+                const outerIn = outerInRoot ? tr('cfg.wsOuterIn', { root: outerInRoot }) : ''
                 const canMark = !!(f && f.canMarkIndependent === true)
                 const canMerge = !!(f && f.canMerge === true)
+                // 撤销并入（#1806 第 5 步真机复核发现）：并进上级的目录这一层只剩从属记录，
+                // canMarkIndependent 是假，原来设置页上没有任何办法把记录写回来；这里按同一个动作给撤销的说法。
+                const canUnjoin = !!(f && f.canUnjoin === true)
                 // 历史遗留：并进这一组的成员里，有说明文件但没有任何记录的那些目录（#1806 第 3 步）。
                 //   它们已经被并进这一行，没有自己的行可以点，所以按钮挂在成员清单下面，一次说清是哪个目录。
+                //   #1806 第 5 步真机复核：代表行自己就是那个目录时，上面按行给的按钮已经替它说了，
+                //   这里再列一遍会出来两颗一模一样的「标为独立工作区」，所以把与代表行同一条的成员跳掉。
                 const legacyMembers: string[] = row.members.filter(function (m: string) {
+                  if (normOf(m) === normOf(cwd)) return false
                   const mf = factsMap[normOf(m)] || null
                   return !!(mf && mf.canMarkIndependent === true)
                 })
@@ -434,10 +476,10 @@ export const renderWsOverview = function (h: any, sharedSt: any, wsOverview: any
                     wsSwitchOf(cwd, toolsOn, tr('cfg.wsDeckTools'), tr('cfg.wsDeckToolsTip'), 'settings.workspaces.decktools', setDeckTools, listed),
                   ]),
                   showPending ? h('div',{ style:{ fontSize:10, color:'#8b8b95', textAlign:'right', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}, tr('cfg.wsPendingHint')) : null,
-                  (basisLabel || outerIn || canMark || canMerge || legacyMembers.length) ? h('div',{ style:{ display:'flex', alignItems:'center', gap:6, paddingLeft:2, fontSize:10, color:'#8b8b95', whiteSpace:'nowrap', overflow:'hidden', flexWrap:'wrap' }},[
+                  (basisLabel || outerIn || canMark || canUnjoin || canMerge || legacyMembers.length) ? h('div',{ style:{ display:'flex', alignItems:'center', gap:6, paddingLeft:2, fontSize:10, color:'#8b8b95', whiteSpace:'nowrap', overflow:'hidden', flexWrap:'wrap' }},[
                     basisLabel ? h(Tip, { content: basisTip }, h('span',{ style:{ color:basisColor, border:'1px solid '+basisColor, borderRadius:4, padding:'0 4px', flex:'none' } }, basisLabel)) : null,
                     outerIn ? h('span',{ style:{ overflow:'hidden', textOverflow:'ellipsis', minWidth:0 } }, outerIn) : null,
-                    canMark ? h(Tip, { content: tr('cfg.wsMarkIndependentTip') }, h('button',{ className:'dsws-hov','data-press':'button','data-log':'settings.workspaces.mark-independent', style:{ padding:'0 5px', fontSize:10, color:'#58a6ff', border:'1px solid #58a6ff', borderRadius:4, background:'transparent', cursor:'pointer', whiteSpace:'nowrap', flex:'none' }, onClick: wsCorrectOf(cwd, 'wf.markWorkspaceRoot', 'cfg.wsCorrectPromoted') }, tr('cfg.wsMarkIndependent'))) : null,
+                    (canMark || canUnjoin) ? h(Tip, { content: canUnjoin ? tr('cfg.wsUnjoinTip') : tr('cfg.wsMarkIndependentTip') }, h('button',{ className:'dsws-hov','data-press':'button','data-log':canUnjoin ? 'settings.workspaces.unjoin' : 'settings.workspaces.mark-independent', style:{ padding:'0 5px', fontSize:10, color:'#58a6ff', border:'1px solid #58a6ff', borderRadius:4, background:'transparent', cursor:'pointer', whiteSpace:'nowrap', flex:'none' }, onClick: wsCorrectOf(cwd, 'wf.markWorkspaceRoot', 'cfg.wsCorrectPromoted') }, tr('cfg.wsMarkIndependent'))) : null,
                     canMerge ? h(Tip, { content: tr('cfg.wsJoinParentTip', { root: wsOuterShownOf(f.outer && f.outer.root, cwd) }) }, h('button',{ className:'dsws-hov','data-press':'button','data-log':'settings.workspaces.join-parent', style:{ padding:'0 5px', fontSize:10, color:'#d29922', border:'1px solid #d29922', borderRadius:4, background:'transparent', cursor:'pointer', whiteSpace:'nowrap', flex:'none' }, onClick: wsCorrectOf(cwd, 'wf.joinParentWorkspace', 'cfg.wsCorrectJoined') }, tr('cfg.wsJoinParent'))) : null,
                     legacyMembers.map(function(m: string, mi: number){
                       return h('span',{ key:'legacy'+mi, style:{ display:'inline-flex', alignItems:'center', gap:4, minWidth:0, flex:'none' } },[

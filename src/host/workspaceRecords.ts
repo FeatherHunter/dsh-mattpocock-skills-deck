@@ -15,6 +15,14 @@
  *   - wf.markWorkspaceRoot 顺带删掉从属记录：人点「标为独立」时，先写的身份记录要能重新生效。
  *
  * 什么约定不能改：
+ *   - 「在不在」只问路径在不在、不看内容，与判定层同一个口径（空文件、坏内容、目录都算有记录）。
+ *     但“问在不在”要按真文件服务的契约读：lstat 对不存在的路径**resolve undefined（不抛异常）**，
+ *     所以必须判断返回值真假，不能“调用没抛错就算在”（#1806 第 5 步真机复核发现的缺陷：
+ *     原来的写法把每个路径都判成在，初始化补写与「标为独立」都因此什么都没写）。
+ *   - 平台文件服务没有删除能力（真机实测：unlink / rm / delete / remove / trash / rename 全是 undefined），
+ *     删记录文件按顺序退到能用的通道：文件服务自己的 unlink / rm，再到 Node 自带的 fs.unlink，
+ *     最后用一次「还在不在」的探测裁决删没删掉。记录文件是插件自己写的元数据，
+ *     仓库里 settingsPhones.ts、versionControlChanges.ts 等写点也直接用 Node 的文件系统删临时文件。
  *   - 一台目录已经有一份身份记录时不重写（幂等）：重复初始化、重复点「标为独立」都不该改内容，
  *     更不该把 writtenAt 刷成新时间——它记录的是「第一次成为工作区」的那一刻。
  *     “在不在”只问路径在不在、不看内容，与判定层同一个口径（空文件、坏内容、目录都算有记录）。
@@ -35,6 +43,10 @@
  *
  * 本文件是自包含叶子：不引用其它 host 文件；装配在 src/host/index.ts，依赖全由装配点显式传入。
  */
+// 本域 tsconfig 有意不加载任何类型包（types 为空），Node 内建模块的类型声明随 @types/node 一起被挡在门外；
+// 运行时一定是 Node（宿主进程），这个模块必然存在，所以只忽略这一行导入的类型错误（纯类型层面，不影响转译）。
+// @ts-expect-error
+import { unlink as nodeUnlink } from 'node:fs/promises'
 import {
   WORKSPACE_IDENTITY_REL,
   WORKSPACE_IDENTITY_KIND,
@@ -128,8 +140,10 @@ export function createWorkspaceRecords(deps: Deps) {
   async function recordExistsAt(fsSvc: FsSvc, target: any): Promise<boolean> {
     // resolve 回来的是一个带 path 的描述对象；文件服务的 lstat 收的是路径本身（与其它写点传法一致）。
     const p = (target && typeof target === 'object') ? (target.path || target.targetKey || target) : target
-    if (typeof fsSvc.lstat === 'function') { try { await fsSvc.lstat(p); return true } catch (e) { return false } }
-    try { await fsSvc.readText(target); return true } catch (e) { return false }
+    // 真文件服务的 lstat 对不存在的路径 resolve undefined、不抛异常（#1806 第 5 步真机实测）；
+    // 所以按返回值真假判断，抛异常也按不在算，两种契约都对。
+    if (typeof fsSvc.lstat === 'function') { try { return !!(await fsSvc.lstat(p)) } catch (e) { return false } }
+    try { const txt = await fsSvc.readText(target); return txt !== undefined && txt !== null } catch (e) { return false }
   }
 
   /**
@@ -196,14 +210,24 @@ export function createWorkspaceRecords(deps: Deps) {
     let target: any = null
     try { target = await fsSvc.resolve(WORKSPACE_MEMBER_REL, { cwd: dir }) } catch (e) { return { ok: true, removed: false } }
     if (!(await recordExistsAt(fsSvc, target))) return { ok: true, removed: false }
-    const p = (target && typeof target === 'object') ? (target.path || target.targetKey || target) : target
-    try {
-      if (typeof fsSvc.unlink !== 'function') throw new Error('文件通道不支持删除')
+    const p = (target && typeof target === 'object') ? (target.path || target.targetKey || '') : String(target || '')
+    // 删除通道按可用顺序排：文件服务自己带的 unlink / rm（有的部署与测试夹具提供），
+    // 最后是 Node 自带的 fs.unlink —— DSH 的平台文件服务真机上没有删除能力，只能退到这里。
+    const channels: Array<[string, (arg: any) => Promise<unknown>, any]> = []
+    if (typeof fsSvc.unlink === 'function') {
       // 与 src/tracker/rooms/markdown/workspace-checks.ts 的 cleanupProbe 同一写法：
       // 先递 resolve 出来的描述对象，个别实现只认纯路径，再试一次。
-      try { await fsSvc.unlink(target) } catch (e1) { await fsSvc.unlink(p) }
-    } catch (e) {
-      return fail('env', 'member-delete-failed', '没能删掉这个目录里的从属记录，这次「标为独立工作区」不能算数：' + msgOf(e).slice(0, 120))
+      channels.push(['fs.unlink(target)', function (a) { return fsSvc.unlink!(a) }, target])
+      if (p) channels.push(['fs.unlink(path)', function (a) { return fsSvc.unlink!(a) }, p])
+    }
+    if (typeof (fsSvc as any).rm === 'function') channels.push(['fs.rm', function (a) { return (fsSvc as any).rm(a, { force: true }) }, p])
+    if (p) channels.push(['node.unlink', function (a) { return nodeUnlink(String(a)) }, p])
+    let lastErr: unknown = null
+    for (const c of channels) { try { await c[1](c[2]); break } catch (e) { lastErr = e } }
+    // 删没删掉以探测结果为准：调用没抛错不等于文件真的没了（例如删错了对象、实现假装成功）。
+    if (await recordExistsAt(fsSvc, target)) {
+      const why = lastErr ? msgOf(lastErr).slice(0, 120) : '文件服务与 Node 都没有给出可用的删除通道'
+      return fail('env', 'member-delete-failed', '没能删掉这个目录里的从属记录，这次「标为独立工作区」不能算数：' + why)
     }
     await clearCaches(dir)
     return { ok: true, removed: true }
