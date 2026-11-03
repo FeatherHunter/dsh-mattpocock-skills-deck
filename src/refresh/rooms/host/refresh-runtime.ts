@@ -42,6 +42,7 @@ import { createDeckQuotaSync } from '../../registry/quota-sync-bridge.js'
 import { ledgerReadingsOf } from '../../kernel/budget-readings.js' // #1446：读数 → 账本格的唯一换算处
 import { createAccountPort, normalizeBudgetDeclaration } from '../../kernel/backend-accounting.js' // #1439：账本唯一写入口；面板/强制刷新经闸把真实用量交给它
 import { createBudgetState } from './budget-state.js' // #1446：面板要的额度状态（模型 + 水位 → 读数），单独一件免得本文件顶破行数上限
+import { createBudgetModel } from './budget-model.js' // #1852：闸的预算模型同样要等异步注册表，单独一件免得本文件顶破行数上限
 import { createQuotaSyncStatus } from './quota-sync-status.js' // #1006：后台同步失败的记事本，面板把「还没同步上来」说清是哪一种失败
 import { createSessionOpener } from './session-opener.js' // #1444 读路径 / #1445 写路径：刷新后台开会话的唯一装配口（六个取数文件与写路径共用这一份）
 import { createQuotaLogWiring } from './quota-log-wiring.js' // #1627：配额与限流诊断日志的接线（装配开关 quotaLog，关掉则整包不建观察器）
@@ -131,15 +132,9 @@ export function createRefreshWiring(deps: any): any {
 
   const ledger: any = d.ledger || createLedger({ logCtx: logCtx, onSpend: quotaLog.onSpend, onSync: quotaLog.onSync }); try { quotaLog.bindLedger(ledger) } catch (eQL: any) {} // #1627 记账与同步读数各交观察器一份（关掉装配开关时两个回调都是 undefined，账本按原样跑）
   // 后端的花钱口径由各后端模块自己声明（规格 #1439）：闸不维护静态表，这里从注册表现取一份注入进去。
-  // 取不到（注册表还没就绪、或这个后端没登记）就按「未知」口径，闸据此只记请求数，不凭空判两桶。
-  function budgetModelOf(backendId: string): any {
-    try {
-      const reg: any = (typeof d.getTrackerRegistry === 'function') ? d.getTrackerRegistry() : null
-      const mods: any[] = (reg && typeof reg.modules === 'function') ? reg.modules() : []
-      for (let i = 0; i < mods.length; i += 1) if (mods[i] && mods[i].id === backendId) return mods[i].budget || { kind: 'unknown' }
-    } catch (e) { /* 取不到声明不拦本次调用，按未知口径记账 */ }
-    return { kind: 'unknown' }
-  }
+  // 注册表是宿主异步加载的（#1852）：异步解析与缓存收在 ./budget-model.ts，本文件只把两个口接上 ——
+  // 会花钱的 send 等它就绪，闸的同步裁决口读缓存；取不到口径时一律按「未知」记账，不凭空判两桶。
+  const budgetModel = createBudgetModel({ getTrackerRegistry: d.getTrackerRegistry })
   // #1439：面板与强制刷新这两条路不经过操作管线，它们的真实用量由闸经同一个记账口交出去 ——
   // 闸自己不碰账本，唯一写入口仍是 createAccountPort。三个类别各一个口，分桶口径与管线共用一份实现；
   // 闸只报「谁、哪个后端、几条请求、几个点」，口径在这里补齐（normalizeBudgetDeclaration 与分桶同一份文件）。
@@ -149,10 +144,10 @@ export function createRefreshWiring(deps: any): any {
     if (!accountPorts[name]) accountPorts[name] = createAccountPort({ ledger: ledger, account: name })
     const port = accountPorts[name]
     return function (op: string, backendId: string, requests: number, points: number): any {
-      return port({ op: op, backendId: backendId, budget: normalizeBudgetDeclaration(budgetModelOf(backendId)), result: { ok: true, usage: { requests: requests, points: points } } })
+      return port({ op: op, backendId: backendId, budget: normalizeBudgetDeclaration(budgetModel.budgetModelOf(backendId)), result: { ok: true, usage: { requests: requests, points: points } } })
     }
   }
-  const gate: any = d.gate || createGate({ ledger: ledger, logCtx: logCtx, budgetModelOf: budgetModelOf, accountFor: accountFor, onDecision: quotaLog.onDecision })
+  const gate: any = d.gate || createGate({ ledger: ledger, logCtx: logCtx, budgetModelOf: budgetModel.budgetModelOf, accountFor: accountFor, onDecision: quotaLog.onDecision })
 
   // #758 剩余额度读数接线：动手前先保一次读数（差就经会话读一次，不差不打）；失败只影响这一次调用。
   // #1443 改道：不再经闸打免费的 gh 直调，读数走 Tracker 会话的 readBudget（房间自己读 gh，读预算本身不花额度）。
@@ -504,7 +499,9 @@ export function createRefreshWiring(deps: any): any {
     gate: gate,
     // #927：面板取数那两路要过闸（它们是「人的动作」那一类，只记账、不降档）。
     // #1446：回执要按后端说额度，闸的入参补上当前后端编号（还没读过就缺席，闸按未知后端处理）。
-    send: function (req: any, perform: any): any {
+    send: async function (req: any, perform: any): Promise<any> {
+      // #1852：闸的裁决与记账读的是缓存里的口径，注册表是一次异步解析；过闸前先等这一次就绪。
+      await budgetModel.ensure()
       const withBackend: any = (req && typeof req === 'object')
         ? Object.assign({}, req, currentBackendId ? { backendId: currentBackendId } : {})
         : req

@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T04:12:06.129Z",
+  "generatedAt": "2026-11-03T06:37:37.585Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 548,
-  "gateCount": 548,
-  "attributedGates": 491,
+  "chainLength": 549,
+  "gateCount": 549,
+  "attributedGates": 492,
   "unattributedGates": 57,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 90,
+  "completionRecordedGates": 91,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 848,
+  "graphFileCount": 851,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -1341,6 +1341,7 @@
       "guards": [
         "src/deck/tools/issue-create.ts",
         "src/deck/tools/issue-get.ts",
+        "src/deck/tools/issue-list.ts",
         "src/deck/tools/issue-patch.ts",
         "src/deck/tools/map-plan-create.ts",
         "src/deck/tools/map-snapshot.ts",
@@ -1366,7 +1367,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 12 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 13 条"
     },
     {
       "step": "node tests/verify-1106-deck-surface.ts",
@@ -2713,7 +2714,8 @@
       "guards": [
         "docs/agents",
         "docs/agents/workspace.yaml",
-        "src/refresh/rooms/host/session-snapshot-cache.ts"
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
+        "src/refresh/rooms/host/snapshot-decoration.ts"
       ],
       "dirs": [
         "docs/agents",
@@ -2723,7 +2725,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1434-workspace-legacy-cleanup.ts",
@@ -6298,6 +6300,22 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 17,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1852-async-gate-model.ts",
+      "file": "tests/verify-1852-async-gate-model.ts",
+      "guards": [
+        "src/refresh/rooms/host/budget-model.ts",
+        "src/refresh/rooms/host/refresh-runtime.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 22,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
@@ -10936,6 +10954,7 @@
         "src/host/notifications.ts",
         "src/refresh/kernel/host-budget.ts",
         "src/refresh/kernel/notification-events.ts",
+        "src/tracker/contract/vocabulary.ts",
         "tests/lib/gate-result.ts"
       ],
       "dirs": [
@@ -10944,13 +10963,14 @@
         "src/client/views/shared",
         "src/host",
         "src/refresh/kernel",
+        "src/tracker/contract",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 125,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 7 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 8 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-notification-events.ts",
@@ -10966,7 +10986,9 @@
         "src/refresh/kernel/write-event-detection.ts",
         "src/refresh/rooms/host/issue-list-fetch.ts",
         "src/refresh/rooms/host/notification-store.ts",
+        "src/refresh/rooms/host/probe-handler.ts",
         "src/refresh/rooms/host/session-refresh-schedule.ts",
+        "src/refresh/rooms/host/session-snapshot-cache.ts",
         "tests/lib/gate-result.ts"
       ],
       "dirs": [
@@ -10982,7 +11004,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 119,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 13 条"
     },
     {
       "step": "node tests/verify-operation-catalog.ts",
@@ -14269,6 +14291,7 @@
       "node tests/verify-1798-issues-carry.ts",
       "node tests/verify-1831-read-timeout.ts",
       "node tests/verify-1839-async-registry.ts",
+      "node tests/verify-1852-async-gate-model.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -14557,6 +14580,7 @@
       "node tests/verify-issue195.ts",
       "node tests/verify-labels-sync.ts",
       "node tests/verify-markdown-label-colors.ts",
+      "node tests/verify-notification-center.ts",
       "node tests/verify-operation-catalog.ts",
       "node tests/verify-read-result-provenance.ts",
       "node tests/verify-refresh-adr.ts",
@@ -15215,9 +15239,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 869,
+    "fileCount": 872,
     "dirCount": 84,
-    "coveredFileCount": 869,
+    "coveredFileCount": 872,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -15736,6 +15760,7 @@
       "src/refresh/rooms/client/snapshot-sync.ts",
       "src/refresh/rooms/client/staleness-indicator.ts",
       "src/refresh/rooms/host/.gitkeep",
+      "src/refresh/rooms/host/budget-model.ts",
       "src/refresh/rooms/host/budget-state.ts",
       "src/refresh/rooms/host/chain-backoff.ts",
       "src/refresh/rooms/host/chain-coalescing.ts",
@@ -15745,6 +15770,7 @@
       "src/refresh/rooms/host/check-chain-evaluation.ts",
       "src/refresh/rooms/host/comment-thread-fetch.ts",
       "src/refresh/rooms/host/detail-snapshot-merge.ts",
+      "src/refresh/rooms/host/failure-segment-notes.ts",
       "src/refresh/rooms/host/gh-execution.ts",
       "src/refresh/rooms/host/gh-run-report.ts",
       "src/refresh/rooms/host/git-execution.ts",
@@ -15773,6 +15799,7 @@
       "src/refresh/rooms/host/session-refresh-schedule.ts",
       "src/refresh/rooms/host/session-snapshot-cache.ts",
       "src/refresh/rooms/host/snapshot-build.ts",
+      "src/refresh/rooms/host/snapshot-decoration.ts",
       "src/refresh/rooms/host/thin-row-fetch.ts",
       "src/refresh/rooms/host/tool-call-budget-enforcement.ts",
       "src/refresh/rooms/host/work-route-readout.ts",
@@ -16283,7 +16310,7 @@
       },
       {
         "path": "src/refresh/rooms",
-        "fileCount": 53
+        "fileCount": 56
       },
       {
         "path": "src/shared/command-cleanup",

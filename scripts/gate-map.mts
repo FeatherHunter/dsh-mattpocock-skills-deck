@@ -418,6 +418,12 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // 通知中心的额度视图与头部徽标让格都成立；另把「取注册表是 await 的」钉成源码形状断言。
   // 17 条单跑实测。
   'verify-1839-async-registry': 17,
+  // 2026-11-03 #1852：额度闸的预算模型必须按宿主真实异步形状解析 —— 刷新装配以前同步调
+  // getTrackerRegistry，把 Promise 当注册表读，闸的预算模型恒「未知」，两桶水位不参与裁决、
+  // 记账落 requests 桶后被账本拒绝并吞掉。这一扇验：抽出的 budget-model 只解析一次并缓存、
+  // send 过闸前 await 就绪、回包口径是 two-buckets、记账真的进 rest 桶、注册表拒绝或抛错时
+  // 照发并如实回 unknown，并把「send 里 await ensure()」钉成源码形状断言。22 条单跑实测。
+  'verify-1852-async-gate-model': 22,
   // 2026-10-31 #1698：计数诚实（拿不到保留上次已知并标待校准、行数据与后端数字冲突时留痕、
   // 界面不显示假 0、增量路径只标待校准不重算）。
   // 2026-11-01 #1796 改口径：partial 只报异常缺失（列表截断 / REST 降级 / 拿不到计数 / 首屏开放行数
