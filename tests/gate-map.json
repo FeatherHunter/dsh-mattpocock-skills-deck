@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T01:59:14.272Z",
+  "generatedAt": "2026-11-03T04:12:06.129Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 547,
-  "gateCount": 547,
-  "attributedGates": 490,
+  "chainLength": 548,
+  "gateCount": 548,
+  "attributedGates": 491,
   "unattributedGates": 57,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 89,
+  "completionRecordedGates": 90,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 848,
@@ -6282,6 +6282,23 @@
       "completionRecord": true,
       "expectedAssertions": 30,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 8 条）"
+    },
+    {
+      "step": "node tests/verify-1839-async-registry.ts",
+      "file": "tests/verify-1839-async-registry.ts",
+      "guards": [
+        "src/host/tracker/snapshot.ts",
+        "src/refresh/rooms/host/budget-state.ts"
+      ],
+      "dirs": [
+        "src/host/tracker",
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 17,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -14022,6 +14039,7 @@
       "node tests/verify-1774-carry-wiring.ts",
       "node tests/verify-1798-issues-carry.ts",
       "node tests/verify-1826-markdown-subissues.ts",
+      "node tests/verify-1839-async-registry.ts",
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-691-map-subissues.ts",
@@ -14250,6 +14268,7 @@
       "node tests/verify-1790-status-surface.ts",
       "node tests/verify-1798-issues-carry.ts",
       "node tests/verify-1831-read-timeout.ts",
+      "node tests/verify-1839-async-registry.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",

@@ -471,6 +471,7 @@ export function createRefreshWiring(deps: any): any {
   function patchOf(): any { return patchWiring.patchOf() }
 
   // #1446 验收第 4 条：面板要的额度状态（模型在注册表、水位在账本，换算搬到 budget-state.ts，免得本文件顶破 350 行）。
+  // #1839：budgetState 是异步的（宿主取注册表是异步的）；快照那侧的 budgetReadout 本来就会 await，装配形状不变。
   const budgetState = createBudgetState({
     getTrackerRegistry: d.getTrackerRegistry,
     ledger: ledger,

@@ -324,7 +324,7 @@ await (async function checkComposer() {
     },
     ledger: { view: function (): any { return null } },
   })
-  const produced = unknownState('fake')
+  const produced = await unknownState('fake')
   check(!!produced && produced.budgetKind === 'unknown' && produced.readKnown === false && produced.reason === 'unsupported', '生产者（budget-state）对 unknown 模型回「未知 + 原因 unsupported」')
   const e2eSnap = await makeComposer({ budgetReadout: function (): any { return produced } }).composeSnapshot(REF.backend, REF, {}, { force: true })
   const e2eView = truth.budgetTierViewOf(e2eSnap.snapshot.refresh)
@@ -369,7 +369,7 @@ await (async function checkComposer() {
     ledger: { view: function (): any { return null } },
     syncStatus: function (id: string): any { return chainStore.view(id) },
   })
-  const chainPanel = chainState('fake')
+  const chainPanel = await chainState('fake')
   check(!!chainPanel && chainPanel.readKnown === false && !!chainPanel.sync && chainPanel.sync.lastFailKind === 'hard', '生产者把后台同步失败带到面板状态上（读数未知时带 sync）')
   const chainSnap = await makeComposer({ budgetReadout: function (): any { return chainPanel } }).composeSnapshot(REF.backend, REF, {}, { force: true })
   check(!!chainSnap.snapshot.refresh.backend && !!chainSnap.snapshot.refresh.backend.sync, '快照把面板状态的 sync 原样带到 refresh.backend')
@@ -378,7 +378,7 @@ await (async function checkComposer() {
   // 同一条链换成 soft：说的换成「刚才没连上」那句。
   const softStore = createQuotaSyncStatus()
   softStore.note('fake', { ok: false, failKind: 'soft', reason: 'network', at: 1712345678000 })
-  const softPanel = createBudgetState({
+  const softPanel = await createBudgetState({
     getTrackerRegistry: function (): any { return makeRegistry('two-buckets') },
     ledger: { view: function (): any { return null } },
     syncStatus: function (id: string): any { return softStore.view(id) },
@@ -388,23 +388,23 @@ await (async function checkComposer() {
   check(softChainLines.length === 1 && softChainLines[0].key === 'truth.budgetSyncFailedSoft' && softChainLines[0].tone === 'fresh', 'soft 失败走完整条链说的是「刚才没连上」（实得 ' + keysOf(softChainLines) + '）')
   // 同步成功之后：面板状态不再带 sync，界面退回中性的那句。
   chainStore.note('fake', { ok: true, at: 1712345680000 })
-  const recovered = chainState('fake')
+  const recovered = await chainState('fake')
   const recoveredLines = truth.budgetNoticeLines({ backend: recovered })
   check(!!recovered && recovered.sync === undefined && keysOf(recoveredLines) === 'truth.budgetUnknown', '同步成功之后面板不再报失败，退回中性的「还没同步上来」')
   // 离网后端不带 sync：没有额度这回事，不能说「同步坏了」。
-  const offPanel = createBudgetState({
+  const offPanel = await createBudgetState({
     getTrackerRegistry: function (): any { return makeRegistry('off-network') },
     ledger: { view: function (): any { return null } },
     syncStatus: function (): any { return { lastFailAt: 1712345678000, lastFailKind: 'hard' } },
   })('fake')
   check(!!offPanel && offPanel.offNetwork === true && offPanel.sync === undefined, '离网后端不带 sync（没有额度这回事，不说同步失败）')
   // syncStatus 自己回坏形状或抛错：面板状态不带 sync，不猜类别。
-  const weirdSync = createBudgetState({
+  const weirdSync = await createBudgetState({
     getTrackerRegistry: function (): any { return makeRegistry('two-buckets') },
     ledger: { view: function (): any { return null } },
     syncStatus: function (): any { return { lastFailAt: Number.NaN, lastFailKind: 'hard' } },
   })('fake')
-  const throwingSync = createBudgetState({
+  const throwingSync = await createBudgetState({
     getTrackerRegistry: function (): any { return makeRegistry('two-buckets') },
     ledger: { view: function (): any { return null } },
     syncStatus: function (): any { throw new Error('status down') },

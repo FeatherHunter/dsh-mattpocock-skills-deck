@@ -8,6 +8,11 @@
 // 3. 客户端不推算后端类型，只读 budgetKind —— 所以答案里的 kind 必须由注册表里的预算声明翻译成面板词
 //    （two-buckets / requests / none），不许按 backendId 猜。翻译只在这一处做：面板生产者说注册表词、
 //    面板消费者说面板词，两个词表在 #1447 之前没有接上，GitLab 的 requests-only 会被消费方当成不认识的口径整格丢掉。
+//
+// #1839（真机发现）：宿主接进来的 getTrackerRegistry 是异步函数（src/host/index.ts:80 返回 Promise），
+// 本文件从前同步调用它，把 Promise 当注册表，永远读不到 modules → 读数恒为 null → 快照里没有 refresh.backend，
+// 通知中心的额度行在健康仓库里从不出现。现在取注册表这一步统一 await；同步注册表（门禁、老调用点）照样能用，
+// 因为 await 一个普通值就是它本身。读数因此是 Promise，快照那侧本来就会 await budgetReadout。
 
 // 「后台同步最近一次失败」的形状只有一处定义：quota-sync-status 的失败出口。这里用别名而不是再抄一份
 // 字段 —— 两处各写一份时，改一处漏一处的形状校验最难发现，ADR 20261021 要求同一件事只留一处定义。
@@ -39,7 +44,7 @@ export interface BudgetPanelState {
 }
 
 export interface BudgetStateDeps {
-  /** 取注册表（拿 modules() 里的预算声明）；拿不到就当后端不认识，不改口。 */
+  /** 取注册表（拿 modules() 里的预算声明）；拿不到就当后端不认识，不改口。可以是异步的：宿主接的就是 Promise（#1839），这里会 await。 */
   readonly getTrackerRegistry?: () => any
   /** 账本；只读 view，不在这里记账。 */
   readonly ledger: any
@@ -51,9 +56,9 @@ export interface BudgetStateDeps {
 }
 
 /** 从注册表里取某个后端的预算口径（拿不到回 null：不编一个口径出来）。 */
-function backendModelOf(deps: BudgetStateDeps, backendId: string): any {
+async function backendModelOf(deps: BudgetStateDeps, backendId: string): Promise<any> {
   try {
-    const reg: any = (typeof deps.getTrackerRegistry === 'function') ? deps.getTrackerRegistry() : null
+    const reg: any = (typeof deps.getTrackerRegistry === 'function') ? await deps.getTrackerRegistry() : null
     if (!reg || typeof reg.modules !== 'function') return null
     const mods: any[] = reg.modules() || []
     for (const m of mods) {
@@ -110,12 +115,16 @@ function withSync(state: BudgetPanelState, sync: BudgetSyncFailure | null): Budg
   return { ...state, sync: sync }
 }
 
-/** 造一个「按后端编号取面板额度状态」的读数口；后端编号为空或模型不认识就回 null，调用方据此不写这一格。 */
-export function createBudgetState(deps: BudgetStateDeps): (backendId: any) => BudgetPanelState | null {
-  return function budgetState(backendId: any): BudgetPanelState | null {
+/**
+ * 造一个「按后端编号取面板额度状态」的读数口；后端编号为空或模型不认识就回 null，调用方据此不写这一格。
+ * #1839：答案是 Promise —— 取注册表在宿主里是异步的，这里必须等它回来才查得到预算声明。
+ * 调用方（快照编排器的 budgetReadout）本来就会 await；回 null 的语义与从前一字不差。
+ */
+export function createBudgetState(deps: BudgetStateDeps): (backendId: any) => Promise<BudgetPanelState | null> {
+  return async function budgetState(backendId: any): Promise<BudgetPanelState | null> {
     const id: string = (typeof backendId === 'string') ? backendId : String(backendId == null ? '' : backendId)
     if (!id) return null
-    const model: any = backendModelOf(deps, id)
+    const model: any = await backendModelOf(deps, id)
     if (!model) return null
     const kind: string = String(model.kind || 'unknown')
     if (kind === 'off-network') {

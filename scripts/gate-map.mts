@@ -412,6 +412,12 @@ export const COMPLETION_RECORDED_GATES: Record<string, number> = {
   // div.dsws-stickybar[data-list-sticky]（列表树头一个孩子、内部顺序不变）；翻页行、状态句、列表行、
   // 加载遮罩留在滚动区；健康/暂停/加载三态真投影渲染；21 条单跑实测。
   'verify-1833-list-sticky': 21,
+  // 2026-11-03 #1839：额度读数取注册表必须走异步 —— 真机发现宿主接的是异步 getTrackerRegistry，
+  // 生产者同步调用它时永远读不到 modules、快照里没有 refresh.backend，通知中心额度行从不出现。
+  // 这一扇按宿主真实形状验三层：生产者读出预算模型、快照回包里 refresh.backend 真的出现、
+  // 通知中心的额度视图与头部徽标让格都成立；另把「取注册表是 await 的」钉成源码形状断言。
+  // 17 条单跑实测。
+  'verify-1839-async-registry': 17,
   // 2026-10-31 #1698：计数诚实（拿不到保留上次已知并标待校准、行数据与后端数字冲突时留痕、
   // 界面不显示假 0、增量路径只标待校准不重算）。
   // 2026-11-01 #1796 改口径：partial 只报异常缺失（列表截断 / REST 降级 / 拿不到计数 / 首屏开放行数
