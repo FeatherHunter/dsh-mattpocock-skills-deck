@@ -75,6 +75,9 @@ const VC_FILES = [
   'src/client/views/versionControl/vcQueryView.js',
   // #1762 T26：「本页负责的能力」列表从壳拆到独立叶子，构建次序在壳之前，闭包拼装要跟着放。
   'src/client/views/versionControl/vcCapabilityList.js',
+  // #1846：全库搜索页的正文叶子（输入框在首屏、结果按页面分组）；构建里排在 vcCapabilityList 之后、页面壳之前。
+  //   闭包里少了它，壳的挂载段 typeof vcSearchPageNode !== 'function'，搜索页退回旧版式，量不到输入框与结果行。
+  'src/client/views/versionControl/vcSearchPage.js',
   // #1750：维护页会挂整仓重写面板（vcRewritePage），页面壳渲染 maintenance 页时要调它；按构建次序排在页面壳之前。
   'src/client/views/versionControl/vcRewriteOps.js',
   'src/client/views/versionControl/vcRewritePage.js',
@@ -175,9 +178,9 @@ function entryOf(closureSrc: string): string {
     "    hasIdentity: !!root.querySelector('[data-vc-identity]'),",
     "    hasSync: !!root.querySelector('[data-vc-sync]'),",
     "    hasSearch: !!root.querySelector('[data-vc-search-entry]'),",
-    "    paletteInput: !!root.querySelector('[data-vc-palette-input]'),
-    searchInput: !!root.querySelector('[data-vc-search-input]'),
-    searchEmpty: (function () { const e = root.querySelector('[data-vc-search-empty]'); return e ? e.getAttribute('data-vc-search-empty') : null; })(),",
+    "    paletteInput: !!root.querySelector('[data-vc-palette-input]'),",
+    "    searchInput: !!root.querySelector('[data-vc-search-input]'),",
+    "    searchEmpty: (function () { const e = root.querySelector('[data-vc-search-empty]'); return e ? e.getAttribute('data-vc-search-empty') : null; })(),",
     "    paletteEmpty: !!root.querySelector('[data-vc-palette-empty]'),",
     // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图的读数。
     "    histState: (function () { const e = root.querySelector('[data-vc-history]'); return e ? e.getAttribute('data-vc-history-state') : null; })(),",

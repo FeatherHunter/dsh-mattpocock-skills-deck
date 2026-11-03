@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T09:55:23.567Z",
+  "generatedAt": "2026-11-03T10:28:34.815Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 552,
   "gateCount": 552,
   "attributedGates": 495,
   "unattributedGates": 57,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 92,
+  "completionRecordedGates": 94,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 855,
@@ -4308,7 +4308,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 213,
+      "expectedAssertions": 216,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -4466,7 +4466,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 265,
+      "expectedAssertions": 268,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -4589,7 +4589,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 136,
+      "expectedAssertions": 149,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -4647,6 +4647,7 @@
         "src/client/views/versionControl/vcQueryView.ts",
         "src/client/views/versionControl/vcRewriteOps.ts",
         "src/client/views/versionControl/vcRewritePage.ts",
+        "src/client/views/versionControl/vcSearchPage.ts",
         "src/client/views/versionControl/vcShellIdentity.ts",
         "src/client/views/versionControl/vcShellPages.ts",
         "src/client/views/versionControl/vcShellPrimitives.ts",
@@ -4667,7 +4668,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 394,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 31 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 32 条"
     },
     {
       "step": "node tests/verify-1586-worktrees.ts",
@@ -5671,7 +5672,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 181,
+      "expectedAssertions": 205,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 15 条"
     },
     {
@@ -6338,7 +6339,7 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 61,
+      "expectedAssertions": 51,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
     },
     {
@@ -6352,8 +6353,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
+      "completionRecord": true,
+      "expectedAssertions": 45,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -6368,8 +6369,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
+      "completionRecord": true,
+      "expectedAssertions": 22,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
@@ -7703,6 +7704,7 @@
         "src/client/views/versionControl/vcRebaseOps.ts",
         "src/client/views/versionControl/vcRebasePage.ts",
         "src/client/views/versionControl/vcRemoteData.ts",
+        "src/client/views/versionControl/vcRemoteFacts.ts",
         "src/client/views/versionControl/vcRemotePage.ts",
         "src/client/views/versionControl/vcRewriteOps.ts",
         "src/client/views/versionControl/vcRewritePage.ts",
@@ -7774,7 +7776,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 732,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 110 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 111 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.ts",
@@ -7917,6 +7919,7 @@
         "src/client/views/versionControl/vcRebaseOps.ts",
         "src/client/views/versionControl/vcRebasePage.ts",
         "src/client/views/versionControl/vcRemoteData.ts",
+        "src/client/views/versionControl/vcRemoteFacts.ts",
         "src/client/views/versionControl/vcRemotePage.ts",
         "src/client/views/versionControl/vcRewriteOps.ts",
         "src/client/views/versionControl/vcRewritePage.ts",
@@ -7986,7 +7989,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 109 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 110 条"
     },
     {
       "step": "node tests/verify-847-stall-watch.ts",
@@ -12165,6 +12168,7 @@
         "src/deck/registration/suggest-steps-register.ts",
         "src/deck/rules/anchor.ts",
         "src/deck/shell/plan-cursor.ts",
+        "src/deck/shell/running-sessions.ts",
         "src/deck/shell/session-workdir.ts",
         "src/deck/shell/table-cell.ts",
         "src/deck/shell/work-path-readout.ts",
@@ -12325,7 +12329,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 165 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 166 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",

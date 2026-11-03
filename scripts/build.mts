@@ -845,7 +845,7 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   { id: 'vcHistoryDetail', file: 'src/client/views/versionControl/vcHistoryDetail.ts' }, // #1829 阶段 3：提交详情按定稿原型 03 重排（dl 元信息、文件行、逐文件差异），由 vcHistory 调用
   { id: 'vcSyncData', file: 'src/client/views/versionControl/vcSyncData.ts' }, // #1755 T19 同步段的数据层（两条电话、预检与执行回包落位；排在页面壳之前）
   { id: 'vcRemoteData', file: 'src/client/views/versionControl/vcRemoteData.ts' }, // #1754 T18 远端与同步页的数据层（六条电话、读数状态、联网与写动作回包落位）
-  { id: 'vcRemoteFacts', file: 'src/client/views/versionControl/vcRemoteFacts.ts' }, // #1841 远端与同步页共享的读数助手（vcRemotePage 调 vcRemoteFactsOf）；#1845 真机验证需要构建能过，先按登记清单补上这一叶
+  { id: 'vcRemoteFacts', file: 'src/client/views/versionControl/vcRemoteFacts.ts' }, // #1841 远端与同步页共享的读数助手（vcRemotePage 调 vcRemoteFactsOf），排在页面之前
   { id: 'vcRemotePage', file: 'src/client/views/versionControl/vcRemotePage.ts' }, // #1754 T18 远端与同步页的正文（本地记录 / 联网查看 / 四种表单形态；排在页面壳之前，壳要调它）
   { id: 'vcSyncPage', file: 'src/client/views/versionControl/vcSyncPage.ts' }, // #1755 T19 同步段正文（十个动作、理由、租约、确认卡、任务区；由 vcRemotePage 调用）
   { id: 'vcMigrateData', file: 'src/client/views/versionControl/vcMigrateData.ts' }, // #1759 T23 迁移与备份页的数据层（两条电话、预检与执行回包落位；排在页面壳之前）

@@ -36,7 +36,7 @@ const vcSyncWidthOf = function (width: any): number {
 // #1841：十个动作按用途分四组（获取 / 拉取 / 推送 / 远端引用）。分组只改摆放与标题，不改动作本身：
 // 每条仍是同形状的 li + 按钮 + 展开面板，data-vc-sync-act 一个不少，300 宽也保留全部入口。
 // 组的顺序照定稿原型第 39 张：先取回远端信息，再拉、再推，最后清理远端引用。
-const VC_SYNC_GROUPS: any[] = [
+export const VC_SYNC_GROUPS: any[] = [
   { id: 'fetch', titleKey: 'vc.remote.syncGroup.fetch', ids: ['8.5'] },
   { id: 'pull', titleKey: 'vc.remote.syncGroup.pull', ids: ['8.6', '8.7', '8.8'] },
   { id: 'push', titleKey: 'vc.remote.syncGroup.push', ids: ['8.9', '8.10', '8.12', '8.13', '8.14'] },

@@ -138,6 +138,7 @@ const VC_FILES = [
   // #1754 远端与同步页（域 8 的 8.1–8.4）：数据层在前、画法在后，最后才是调它们的页面壳。
   'src/client/views/versionControl/vcSyncData.js', // #1755：同步段数据层（两条电话、预检与执行回包落位；与构建同序排在远端数据层之前）
   'src/client/views/versionControl/vcRemoteData.js',
+  'src/client/views/versionControl/vcRemoteFacts.js', // #1841：远端页的同步事实格（vcRemotePage 调 vcRemoteFactsOf），与构建同序排在页面之前
   'src/client/views/versionControl/vcRemotePage.js',
   'src/client/views/versionControl/vcSyncPage.js', // #1755：同步段正文（十个动作、理由、租约、确认卡、任务区；挂在远端页正文末尾）
   // #1759 迁移与备份页：数据层在前、正文在后（与构建同序，页面壳的挂载段要看到正文那一叶）。
@@ -232,7 +233,7 @@ const EXPORTS = [
   'VC_REMOTE_FORMS', 'VC_REMOTE_ONLINE_FAIL_KINDS', 'vcNewRemoteReads', 'vcRemoteStateOf', 'vcRemoteReadAtOf', 'vcRemoteRemotesOf', 'vcRemoteErrorOf', 'vcRemoteOnlineStateOf',
   'vcRemoteOnlineOf', 'vcRemoteOnlineErrorOf', 'vcRemoteOnlineNameOf', 'vcApplyRemoteReply', 'vcReadRemoteList', 'vcReadRemoteOnline', 'vcRunRemoteWrite', 'vcRemoteModelOf',
   'vcRemotePageNode', 'SYNC_ACTIONS', 'SYNC_CHECK_CONTRACT', 'SYNC_CHECK_VERSION', 'syncActionOf', 'syncPlanOf', 'syncPlanDigestInput', 'syncVersionAtLeast',
-  'judgeSync', 'syncConfirmOf', 'syncReasonTextOf', 'VC_SYNC_PHONES', 'VC_SYNC_ACTION_ROWS', 'vcNewSyncReads', 'vcSyncStateOf', 'vcSyncDataOf',
+  'judgeSync', 'syncConfirmOf', 'syncReasonTextOf', 'VC_SYNC_PHONES', 'VC_SYNC_ACTION_ROWS', 'VC_SYNC_GROUPS', 'vcNewSyncReads', 'vcSyncStateOf', 'vcSyncDataOf',
   'vcSyncErrorOf', 'vcSyncTaskOf', 'vcApplySyncReply', 'vcApplySyncWriteReply', 'vcReadSyncCheck', 'vcRunSyncWrite', 'vcSyncModelOf', 'vcSyncPageNode',
   'MIGRATE_ACTIONS', 'MIGRATE_CHECK_CONTRACT', 'MIGRATE_CHECK_VERSION', 'migrateActionOf', 'migrateActionIds', 'migratePathProblem', 'migrateRefProblem', 'migrateBranchProblem',
   'migrateUrlProblem', 'migrateVersionAtLeast', 'migratePlanOf', 'migratePlanDigestInput', 'VC_MIGRATE_PHONES', 'VC_MIGRATE_ACTION_ROWS', 'vcNewMigrateReads', 'vcMigrateStateOf',
@@ -538,11 +539,14 @@ function groupA(view) {
   const identity = blockOf(blocks, 'identity')
   check(!!(identity && identity.actions && identity.actions.pull && identity.actions.push), 'A1 视图条模型里仍有拉取与推送两颗按钮，顺序是「拉取 → 推送」')
 
-  // A1b：页面壳把十个同步动作画在远端页的同步段里，次序读同一张 VC_SYNC_ACTION_ROWS。
+  // A1b：页面壳把十个同步动作画在远端页的同步段里。2026-11-03 起按 #1841 的四组摆放（获取 / 拉取 / 推送 / 远端引用，
+  //   组序照定稿原型第 39 张），组内次序仍读同一张 VC_SYNC_ACTION_ROWS；平铺编号顺序不再是判据（8.11 在最后一组）。
   const a1Html = remotePageHtmlOf(view, { sync: null })
-  const a1Want = view.VC_SYNC_ACTION_ROWS.map(function (r) { return String(r.id) }).join(',')
+  const a1Want = view.VC_SYNC_GROUPS.map(function (g) {
+    return view.VC_SYNC_ACTION_ROWS.filter(function (r) { return g.ids.indexOf(String(r.id)) >= 0 }).map(function (r) { return String(r.id) })
+  }).reduce(function (a, b) { return a.concat(b) }, []).join(',')
   const a1Got = attrValuesOf(a1Html, 'data-vc-sync-act').join(',')
-  check(a1Got === a1Want, 'A1b 远端页同步段真渲染十个动作，次序与 VC_SYNC_ACTION_ROWS 一致（实得 ' + (a1Got || '空') + '）')
+  check(a1Got === a1Want, 'A1b 远端页同步段真渲染十个动作，按四组摆放、组内次序与 VC_SYNC_ACTION_ROWS 一致（实得 ' + (a1Got || '空') + '）')
 
   const changes = blockOf(blocks, 'changes')
   const paths = (changes && changes.stageAll ? changes.stageAll.paths : []).join(',')
