@@ -146,6 +146,7 @@ function entryOf(): string {
     '    gear: attrAll("[data-vc-gear-item]", "data-vc-gear-item"), gearOpen: !!live.querySelector("[data-vc-gear-index]"),',
     '    palette: attrAll("[data-vc-palette-row]", "data-vc-palette-row"), paletteText: (live.querySelector("[data-vc-palette]") || { textContent: "" }).textContent,',
     '    capHit: !!live.querySelector("[data-cap-hit]"), back: !!live.querySelector("[data-vc-back]"), primaries: live.querySelectorAll("[data-cap-primary]").length,',
+    '    syncFacts: !!live.querySelector("[data-vc-sync-facts]"),',
     '    firstScreenCalls: window.__countPhone("wf.gitFirstScreen"),',
     '  };',
     '};',
@@ -222,6 +223,9 @@ async function groupNav(page: any) {
     const m = await measure(page)
     check(!!m && m.page === id && m.depth === '2', 'B 齿轮：点「' + id + '」进入该分区页、层级 2（实得 ' + (m && m.page) + '）')
     check(!!m && m.back === true && m.primaries > 0, 'B 齿轮：' + id + ' 页有返回入口、有真实正文与能力主入口')
+    // #1829 阶段 4：二级页按原型 37/39 收成「页头 + 正文」——四个固定页签与身份行的同步带都让位。
+    check(!!m && m.tabs.length === 0, 'B 齿轮：' + id + ' 二级页不铺四个固定页签（实得 ' + (m && m.tabs.length) + ' 个）')
+    check(!!m && m.syncFacts === false, 'B 齿轮：' + id + ' 二级页不铺同步事实与同步动作行')
     // #1829 阶段 4：二级页的页头也有返回键（原型 37/39），顶部条那颗仍是同一个 data-vc-back；
     //   这里点名顶部条，免得选择器同时命中两颗（Playwright 的严格模式会直接报错）。
     await click(page, '[data-vc-live-bar] [data-vc-back]')
@@ -232,6 +236,7 @@ async function groupNav(page: any) {
     await click(page, '[data-vc-extra-link="' + key + '"]')
     const m = await measure(page)
     check(!!m && m.page === key, 'B 顶栏入口：点「' + key + '」到该页（实得 ' + (m && m.page) + '）')
+    check(!!m && m.tabs.length === 0, 'B 顶栏入口：' + key + ' 二级页不铺四个固定页签（实得 ' + (m && m.tabs.length) + ' 个）')
     await click(page, '[data-vc-live-bar] [data-vc-back]')
     const back = await measure(page)
     check(!!back && back.page === 'changes', 'B 顶栏入口：从 ' + key + ' 返回改动页（实得 ' + (back && back.page) + '，返回按钮 ' + (back && back.back) + '）')
@@ -289,6 +294,7 @@ async function groupReach(page: any, pageErrors: string[]) {
     await click(page, '[data-vc-gear-item="' + id + '"]')
     const m = await measure(page)
     check(!!m && m.page === id && m.depth === '2', 'C 300 宽：2 次点击到管理分区 ' + id)
+    check(!!m && !overflowOf(m), 'C 300 宽：管理分区 ' + id + ' 没有横向溢出（后代右边界 ' + (m && m.maxRight.toFixed(1)) + ' ≤ 根右边界 ' + (m && m.rootRight.toFixed(1)) + '）')
     await primaryCheck(page, pageErrors, 'C 分区 ' + id)
   }
   for (const key of ['search', 'rebase', 'conflicts']) {
@@ -296,6 +302,7 @@ async function groupReach(page: any, pageErrors: string[]) {
     await click(page, '[data-vc-extra-link="' + key + '"]')
     const m = await measure(page)
     check(!!m && m.page === key, 'C 300 宽：1 次点击到顶栏入口 ' + key)
+    check(!!m && !overflowOf(m), 'C 300 宽：顶栏入口 ' + key + ' 没有横向溢出（后代右边界 ' + (m && m.maxRight.toFixed(1)) + ' ≤ 根右边界 ' + (m && m.rootRight.toFixed(1)) + '）')
     await primaryCheck(page, pageErrors, 'C 入口 ' + key)
   }
 }

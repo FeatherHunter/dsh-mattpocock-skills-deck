@@ -167,14 +167,21 @@ export default defineScenario({
           const got = await evaluateThrough<Record<string, unknown>>(page.value, markByTextScript(label))
           return got.ok ? got.value : { ok: false, error: got.message }
         }
+        // 适配器只保证 BrowserPageHandle；goto/click/press 是插件侧适配器额外给的（同 verify/scenarios/ui.ts），
+        // 挂在 page.value.page 上，不在 page.value 本身上。
+        const raw = page.value.page as {
+          goto?: (url: string) => Promise<unknown>
+          click?: (selector: string) => Promise<{ ok: boolean; error?: { message?: string } }>
+          press?: (key: string) => Promise<unknown>
+        }
         const realClick = async (selector: string): Promise<Record<string, unknown>> => {
-          const clicked = await page.value.click(selector)
-          return clicked.ok ? { ok: true } : { ok: false, error: clicked.error.message }
+          if (raw.click === undefined) return { ok: false, error: 'the browser adapter exposes no click()' }
+          const clicked = await raw.click(selector)
+          return clicked.ok ? { ok: true } : { ok: false, error: clicked.error === undefined ? 'unknown error' : clicked.error.message }
         }
         const clearMark = 'document.querySelectorAll("[data-probe-mark]").forEach(function (el) { el.removeAttribute("data-probe-mark") })'
 
         if (instance === null) return observations
-        const raw = page.value.page as { goto?: (url: string) => Promise<unknown>; press?: (key: string) => Promise<unknown> }
         if (raw.goto !== undefined) await raw.goto(instance.record.tokenUrl)
         await sleep(2500)
         let maskCount = -1
