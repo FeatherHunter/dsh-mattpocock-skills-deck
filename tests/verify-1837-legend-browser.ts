@@ -14,6 +14,9 @@
  *      英文换行时中文仍应一行放得下（同一套规则下中文更短）。
  *   F. 三档宽度 × 深浅 × 中英：文档、面板、页签、27 行都没有横向溢出。面板可被用户拖窄，
  *      窄时技能行靠换行适应（行可以变高），但不许出现横向滚动条；两颗按钮始终在同一组里换行。
+ *   G. 图例文字（含★）在棋盘底色上看得见：#1837 初次交付时用了 --pixel-ink2，深色皮肤下
+ *      深褐字压棕色棋盘只有约 1.2:1，真机反馈「看不到」。现在文字与标题同一个 --pixel-tab-ink 令牌，
+ *      深浅两套皮肤下文字色必须与标题一致，且对棋盘两色（tab1 / tab2）的对比度都 ≥3:1。
  *   D. 三档色点按皮肤令牌上色：深色核心 rgb(245,158,11)、常用 rgb(14,138,22)；浅色核心 rgb(180,83,9)、
  *      常用 rgb(21,128,61)；备用两套皮肤都是透明底（空心）。行里的点与图例里的点颜色一致（同源）。
  *   E. 反证：给同一把量尺强加「不许换行」的样式，300 宽必须量出横向溢出——量尺测不出真的坏了就没有证据力。
@@ -34,6 +37,8 @@ const { pathToFileURL } = require('node:url')
 const ROOT = path.resolve(__dirname, '..')
 const { sourcePath } = require('./lib/source-text.ts')
 const { printGateResult } = require('./lib/gate-result.ts')
+// 文字对比度用仓库那套 WCAG 算法（tests/lib/contrast.ts），不再自己抄一份公式。
+const { contrastRatioOfRgb, parseColor } = require('./lib/contrast.ts')
 const { parse: parseYaml } = require('yaml')
 
 const GATE = 'verify-1837-legend-browser'
@@ -100,6 +105,10 @@ function measure(): any {
   const legend = q('.pixel-skilllegend')
   const title = head ? head.querySelector('span') : null
   const legendItems = qa('.pixel-legenditem')
+  // 图例文字取每一项里的文字 span（第一项是色点 span，第二个才是字）；星标单独取。
+  const legendItemText = q('.pixel-legenditem span:last-child')
+  const legendStar = q('.pixel-legendstar')
+  const tabStyle = tab ? getComputedStyle(tab) : null
   const rows = qa('.pixel-skillrow')
   const sampleRows = [rows[0], rows[9], rows[12]]
   return {
@@ -123,6 +132,12 @@ function measure(): any {
     legendLabels: legendItems.map(function (it: any): string { return String(it.textContent) }),
     legendItemOverflows: legendItems.map(function (it: any): number { return overflow(it) }),
     legendDots: qa('.pixel-legenditem .pixel-dot').map(dotOf),
+    legendTextColor: legendItemText ? getComputedStyle(legendItemText).color : '',
+    starTextColor: legendStar ? getComputedStyle(legendStar).color : '',
+    headTextColor: title ? getComputedStyle(title).color : '',
+    // 棋盘两色直接从计算样式读自定义属性（深色 #93764f/#8a6f4d，浅色 #efe8d9/#e7ddc8）。
+    tabBg1: tabStyle ? tabStyle.getPropertyValue('--pixel-tab1').trim() : '',
+    tabBg2: tabStyle ? tabStyle.getPropertyValue('--pixel-tab2').trim() : '',
     rowCount: rows.length,
     rowOverflows: rows.map(function (r: any): number { return overflow(r) }),
     rowDots: sampleRows.map(function (r: any): any { return dotOf(r ? r.querySelector('.pixel-dot') : null) }),
@@ -155,6 +170,19 @@ function assertCombo(tag: string, lang: string, skin: string, width: number, m: 
   check(m.legendW > 0 && m.legendW <= m.headClientWidth + 1, label + ' 图例不宽于标题行（图例 ' + m.legendW.toFixed(2) + ' / 标题行 ' + m.headClientWidth + '）')
   const legendRightOk = m.legend.right <= m.head.right + 1 && m.legend.left >= m.head.left - 1
   check(legendRightOk, label + ' 图例在标题行内右对齐（右缘 ' + m.legend.right.toFixed(2) + ' / 标题行右缘 ' + m.head.right.toFixed(2) + '）')
+  // G：图例文字与★必须跟标题同一个字色，且压在棋盘两色上都够亮。初版用 --pixel-ink2 时，
+  // 深色皮肤下深褐字压棕色棋盘只有约 1.2:1，真机反馈「核心等文字看不到」——这两条就是那次回归的钉子。
+  const legendRgba = parseColor(m.legendTextColor)
+  const headRgba = parseColor(m.headTextColor)
+  const starRgba = parseColor(m.starTextColor)
+  const sameInk = !!legendRgba && !!headRgba && !!starRgba &&
+    legendRgba.rgb.join(',') === headRgba.rgb.join(',') && starRgba.rgb.join(',') === headRgba.rgb.join(',')
+  check(sameInk, label + ' 图例文字与★都跟标题同一个字色（文字 ' + m.legendTextColor + ' / ★ ' + m.starTextColor + ' / 标题 ' + m.headTextColor + '）')
+  const tab1Rgba = parseColor(m.tabBg1)
+  const tab2Rgba = parseColor(m.tabBg2)
+  const c1 = legendRgba && tab1Rgba ? contrastRatioOfRgb(legendRgba.rgb, tab1Rgba.rgb) : -1
+  const c2 = legendRgba && tab2Rgba ? contrastRatioOfRgb(legendRgba.rgb, tab2Rgba.rgb) : -1
+  check(c1 >= 3 && c2 >= 3, label + ' 图例文字对棋盘两色的对比度都 ≥3:1（tab1 ' + c1.toFixed(2) + ' / tab2 ' + c2.toFixed(2) + '）')
   const dots = m.legendDots
   const want = EXPECTED_DOT_BG[skin]
   // 先确认三个色点都在，再读各自底色：图例若整个丢了，这里应该报 PASS/FAIL，而不是因为读

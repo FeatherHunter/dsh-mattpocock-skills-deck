@@ -167,9 +167,12 @@ export const PIXEL_STYLE_TEXT: string[] = [
   // 标题行左边是「■ 技能」，右边是图例；面板窄到一行放不下时，图例整体换到第二行、仍然贴着右边，
   // 图例内部的几项也允许换行——换行只多占一行，横向溢出会让整页多出滚动条，那才是看不下去的状态。
   ".pixel-skillhead{flex-wrap:wrap;row-gap:4px}",
-  ".pixel-skilllegend{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px 5px;max-width:100%;color:var(--pixel-ink2);font-size:10.5px;font-weight:400;letter-spacing:0}",
+  // 图例文字用棋盘上的字色（--pixel-tab-ink），和左边「■ 技能」同一个令牌：深色是奶油色、浅色是深墨色。
+  // 别用 --pixel-ink2：它在深色棋盘的棕色底上只有 1.2:1 左右，真机反馈「核心等文字看不到」（#1837 补修）。
+  ".pixel-skilllegend{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px 5px;max-width:100%;color:var(--pixel-tab-ink);font-size:10.5px;font-weight:400;letter-spacing:0}",
   ".pixel-legenditem{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}",
-  ".pixel-legendstar{color:var(--pixel-acc);font-weight:700}",
+  // 星标在棋盘上也用同一个字色：紫色强调色压棕色底只有约 1.2:1，形状都难认（浅色下强调绿更没问题，但不分叉）。
+  ".pixel-legendstar{color:var(--pixel-tab-ink);font-weight:700}",
   ".pixel-tab .dsws-seg{font:700 11px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-paper);color:var(--pixel-ink);border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow);padding:1px 8px;border-radius:0;cursor:pointer}",
   ".pixel-tab .dsws-seg.on{background:var(--pixel-acc);color:var(--pixel-acc-ink)}",
   ".pixel-tab .dsws-chip{font:700 11px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-card);color:var(--pixel-ink);border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow);border-radius:0;padding:0 7px}",
