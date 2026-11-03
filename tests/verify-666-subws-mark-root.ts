@@ -72,9 +72,9 @@ const block = noExport(markSrc.slice(start, end))
 // 手法：compileFn——这段纯函数只是从真源里切出来的文本，交给 tests/lib/eval-probe.js 统一造函数，参数名照原样拆开。
 const makeApi = (tmpl: unknown) => compileFn(
   ['keyOf', 'tr'],
-  block + '\nreturn { rootOf: subwsMarkRootOf, cmpKey: subwsMarkCmpKey, shows: subwsMarkShows, relOf: subwsMarkRelOf, rootShown: subwsMarkRootShown, linesOf: subwsMarkLinesOf, factLinesOf: subwsMarkFactLinesOf, legacyLineOf: subwsMarkLegacyLineOf }'
+  block + '\nreturn { rootOf: subwsMarkRootOf, cmpKey: subwsMarkCmpKey, shows: subwsMarkShows, relOf: subwsMarkRelOf, rootShown: subwsMarkRootShown, linesOf: subwsMarkLinesOf }'
 )(keyOf, function (k: any) {
-  // #1806 第 3 步：除了老的四行模板，新加的「依据」词条也从真词表取，不在门禁里手抄。
+  // 浮层四行模板从真词表取，不在门禁里手抄。
   if (k === 'panel.wsMarkTip') return tmpl
   return localeTextOf(k, 'zh')
 })
@@ -189,49 +189,10 @@ else bad('C13 第一行没有用原始写法：' + JSON.stringify(api.linesOf('d
 if (rootShown('d:\\ilife-other', 'D:\\ilife-other\\x') === 'D:\\ilife-other') ok('C14 前缀相同的另一条目录：还原用的是它自己的写法，不会串到 D:\\ilife 上')
 else bad('C14 前缀相同的目录被串了写法：' + JSON.stringify(rootShown('d:\\ilife-other', 'D:\\ilife-other\\x')))
 
-// C15～C19 是 #1806 第 3 步新加的「根会话凭什么算工作区」那几句纯函数的边界。判定层已经保证事实本身对，
-//   这一组守的是「该说的说、不该说的一个字都不说」：子目录情形不看这几句、没查清（source 不是三档之一）
-//   不开口、普通 git 仓库根不显示（绝大多数仓库的常态，多一枚图标只是噪音）。
-const factLines = api.factLinesOf
-const L = function (k: string) { return localeTextOf(k, 'zh') }
-{
-  const recRoot = { cwd: 'd:\\ilife', root: 'd:\\ilife', source: 'record', outer: null, layer: {}, rootLayer: {} }
-  const gotRec = factLines(recRoot, 'D:\\ilife')
-  if (JSON.stringify(gotRec) === JSON.stringify([L('panel.wsMarkRootRecord')])) ok('C15 根会话凭插件记录：只说「本工作区由插件写下的工作区记录标记」')
-  else bad('C15 凭记录的根说得不对：' + JSON.stringify(gotRec))
-
-  const gitInside = { cwd: 'd:\\work\\proj', root: 'd:\\work\\proj', source: 'git', outer: { root: 'd:\\work', source: 'git' }, layer: {}, rootLayer: {} }
-  const gotInside = factLines(gitInside, 'D:\\work\\proj')
-  const wantInside = [L('panel.wsMarkRootGit'), L('panel.wsMarkRootOuter').replace('{outer}', 'D:\\work')]
-  if (JSON.stringify(gotInside) === JSON.stringify(wantInside)) ok('C16 里面还套着另一个工作区：先说凭 .git，再补「本工作区位于 D:\\work 内」（外套那层用原始写法）')
-  else bad('C16 「位于 X 内」说得不对：' + JSON.stringify(gotInside))
-
-  const selfRoot = { cwd: 'd:\\plain', root: 'd:\\plain', source: 'self', outer: null, layer: {}, rootLayer: {} }
-  if (JSON.stringify(factLines(selfRoot, 'D:\\plain')) === JSON.stringify([L('panel.wsMarkNoRecord')])) ok('C17 一路没有任何记录：直说「本目录没有工作区记录」')
-  else bad('C17 无记录那句不对：' + JSON.stringify(factLines(selfRoot, 'D:\\plain')))
-
-  const gitAlone = { cwd: 'd:\\solo', root: 'd:\\solo', source: 'git', outer: null, layer: {}, rootLayer: {} }
-  if (factLines(gitAlone, 'D:\\solo').length === 0) ok('C18 普通 git 仓库根（外面没有工作区）：一个字都不说，不额外加一枚图标')
-  else bad('C18 普通 git 仓库根多说了：' + JSON.stringify(factLines(gitAlone, 'D:\\solo')))
-
-  const subFacts = { cwd: 'd:\\ilife\\sub', root: 'd:\\ilife', source: 'record', outer: null, layer: {}, rootLayer: {} }
-  if (factLines(subFacts, 'D:\\ilife\\sub').length === 0) ok('C19 子目录会话不看这几句（那时已有「这份数据是谁的」那套更直白的说法）')
-  else bad('C19 子目录会话多说了依据：' + JSON.stringify(factLines(subFacts, 'D:\\ilife\\sub')))
-
-  const unknownSrc = { cwd: 'd:\\x', root: 'd:\\x', source: 'fail', outer: null, layer: {}, rootLayer: {} }
-  if (factLines(unknownSrc, 'D:\\x').length === 0) ok('C20 判定没查清（source 不是 git/record/self）：什么都不说，不编一句话')
-  else bad('C20 没查清却开口了：' + JSON.stringify(factLines(unknownSrc, 'D:\\x')))
-
-  // C21～C22（#1806 第 4 步）：历史遗留的子目录多一句归位提示。判据是判定层算好的 canMarkIndependent
-  //   （有手写说明文件、没有任何工作区记录、上级还有工作区），这里不重算，只守「该说时说、不该说时一个字都不说」。
-  const legacyLine = api.legacyLineOf
-  const legacyFacts = { cwd: 'd:\\skills\\zhijian', root: 'd:\\skills', source: 'record', outer: null, layer: { hasTrackerDoc: true }, rootLayer: {}, canMerge: false, canMarkIndependent: true }
-  if (legacyLine(legacyFacts) === L('panel.wsMarkLegacyTip')) ok('C21 历史遗留的子目录（有说明文件、没有任何工作区记录）：补一句归位提示，并指到设置页的「标为独立工作区」')
-  else bad('C21 历史遗留提示没说出来：' + JSON.stringify(legacyLine(legacyFacts)))
-  if (legacyLine(null) === '' && legacyLine({ canMarkIndependent: false }) === '' && legacyLine({}) === '')
-    ok('C22 不是历史遗留（判定层说不需标独立）、或事实还没到手：一个字都不说')
-  else bad('C22 不该说的时候开口了')
-}
+// 【已删除】C15～C22 原先断的是 #1806 第 3/4 步加在根会话与历史遗留子目录上的那几句依据/归位提示
+//   （凭 .git / 凭身份记录 / 位于 X 内 / 标为独立工作区）。2026-11-03 定版把那两份身份记录与整套
+//   「根会话陈述依据」的浮层都删掉了：根会话不再显示浮层，子目录浮层只剩「数据来自哪个工作区」。
+//   纯函数 subwsMarkFactLinesOf / subwsMarkLegacyLineOf 已随之一并删除，这几条判据没有对象了。
 
 console.log('\nD) 组件与产物')
 // 【已删除】原先这里有 D1 / D2 两条，读 SubworkspaceMark.js 的源码文本，断言组件里出现
@@ -328,8 +289,8 @@ try {
 
   if (r.hasLink === true) ok('E8 标志外面那圈可点的链接画出来了')
   else bad('E8 渲染结果里没有可点的链接')
-  // #1806 第 3 步起组件挂载时会先问一次 wf.workspaceFacts，所以这里按方法名找出打开目录那一条，
-  //   不再假设它一定是第一次调用（断言的内容没变：点一下打开的是工作区根）。
+  // 组件挂载后可能还会有别的宿主电话（例如 wf.cwd）；这里按方法名找出打开目录那一条，
+  //   不假设它一定是第一次调用（断言的内容没变：点一下打开的是工作区根）。
   const call = r.hostCalls.filter(function (c: any) { return c && c.method === 'wf.openFolder' })[0]
   if (call && call.args && call.args.cwd === ROOT_DIR) ok('E9 点一下真的调 wf.openFolder 打开工作区根')
   else bad('E9 点击没有调 wf.openFolder 打开工作区根，实测 ' + JSON.stringify(r.hostCalls))
@@ -368,54 +329,14 @@ try {
   if (!/还未初始化/.test(initLines)) ok('E15 根已初始化时不画第四行（不写安慰话）')
   else bad('E15 根已初始化却多画了第四行：' + JSON.stringify(initLines.slice(0, 160)))
 
-  // ── #1806 第 3 步：根会话也要陈述事实（凭 .git / 凭插件记录 / 一条记录都没有 / 位于 X 内）──
-  //   E10 断的是「没有事实时根会话一行都不画」；下面几条把真事实喂进去，断真的画出来了、画的是哪几句。
-  const facInside = { cwd: 'd:\\work\\proj', root: 'd:\\work\\proj', source: 'git', outer: { root: 'd:\\work', source: 'git' }, layer: { hasGit: true }, rootLayer: { hasGit: true }, canMerge: false, canMarkIndependent: false }
-  const rFactInside = await renderMarkFromSource({ cwd: 'D:\\work\\proj', snapshot: { ok: true, maps: [], workspaceRoot: 'd:\\work\\proj' } }, { facts: facInside })
-  const insideText = String(tipTextOf(rFactInside.tipCalls))
-  if (rFactInside.isSub === true && insideText.indexOf('本工作区由 .git 标记') >= 0 && insideText.indexOf('本工作区位于 D:\\work 内') >= 0)
-    ok('E16 根会话里外面还套着另一个工作区：画出「凭 .git」与「位于 D:\\work 内」两句（原始写法还原）')
-  else bad('E16 根会话依据没画全：' + JSON.stringify(insideText.slice(0, 200)))
+  // 【已删除】E16～E21 原先渲染根会话与「历史遗留子目录」的依据/归位提示。2026-11-03 定版删掉了
+  //   「根会话陈述依据」那套浮层（根会话不再显示浮层）与历史遗留提示；这里不再有可断的对象。
+  //   根会话一行都不画的结论仍由 E10 守着。
 
-  const facSelf = { cwd: 'd:\\plain', root: 'd:\\plain', source: 'self', outer: null, layer: {}, rootLayer: {}, canMerge: false, canMarkIndependent: false }
-  const rFactSelf = await renderMarkFromSource({ cwd: 'D:\\plain', snapshot: { ok: true, maps: [], workspaceRoot: 'd:\\plain' } }, { facts: facSelf })
-  if (rFactSelf.isSub === true && String(tipTextOf(rFactSelf.tipCalls)).indexOf('本目录没有工作区记录') >= 0)
-    ok('E17 一路没有任何记录的目录：画出来并直说「本目录没有工作区记录」')
-  else bad('E17 无记录情形没画出来：' + JSON.stringify(tipTextOf(rFactSelf.tipCalls).slice(0, 200)))
-
-  const facRecord = { cwd: 'd:\\recorded', root: 'd:\\recorded', source: 'record', outer: null, layer: { hasIdentityRecord: true }, rootLayer: { hasIdentityRecord: true }, canMerge: false, canMarkIndependent: false }
-  const rFactRecord = await renderMarkFromSource({ cwd: 'D:\\recorded', snapshot: { ok: true, maps: [], workspaceRoot: 'd:\\recorded' } }, { facts: facRecord })
-  if (rFactRecord.isSub === true && String(tipTextOf(rFactRecord.tipCalls)).indexOf('本工作区由插件写下的工作区记录标记') >= 0)
-    ok('E18 凭插件记录的根：说出依据是插件记录')
-  else bad('E18 凭记录的根没说依据：' + JSON.stringify(tipTextOf(rFactRecord.tipCalls).slice(0, 200)))
-
-  const facGitAlone = { cwd: 'd:\\solo', root: 'd:\\solo', source: 'git', outer: null, layer: { hasGit: true }, rootLayer: { hasGit: true }, canMerge: false, canMarkIndependent: false }
-  const rFactAlone = await renderMarkFromSource({ cwd: 'D:\\solo', snapshot: { ok: true, maps: [], workspaceRoot: 'd:\\solo' } }, { facts: facGitAlone })
-  if (rFactAlone.isSub === false && rFactAlone.html.trim() === '') ok('E19 普通 git 仓库根（外面没有工作区）：仍然一个图标都不加')
-  else bad('E19 普通 git 仓库根多画了东西：' + JSON.stringify(rFactAlone.html.slice(0, 120)))
-
-  // #1806 第 4 步：历史遗留的子目录那句归位提示，真画进浮层才算数（纯函数对了、组件没接上也白搭）。
-  const facLegacy = { cwd: 'd:\\ilife\\packages\\skill-calorie', root: 'd:\\ilife', source: 'record', outer: null, layer: { hasTrackerDoc: true }, rootLayer: {}, canMerge: false, canMarkIndependent: true }
-  const rLegacy = await renderMarkFromSource(subStore, { facts: facLegacy })
-  const legacyText = String(tipTextOf(rLegacy.tipCalls))
-  if (rLegacy.isSub === true && legacyText.indexOf(L('panel.wsMarkLegacyTip')) >= 0) ok('E20 历史遗留的子目录：浮层里真的多出归位提示那一句（指向设置页的「标为独立工作区」）')
-  else bad('E20 历史遗留提示没画进浮层：' + JSON.stringify(legacyText.slice(0, 240)))
-  const facNotLegacy = { cwd: 'd:\\ilife\\packages\\skill-calorie', root: 'd:\\ilife', source: 'record', outer: null, layer: {}, rootLayer: {}, canMerge: false, canMarkIndependent: false }
-  const rNotLegacy = await renderMarkFromSource(subStore, { facts: facNotLegacy })
-  if (String(tipTextOf(rNotLegacy.tipCalls)).indexOf(L('panel.wsMarkLegacyTip')) < 0) ok('E21 不是历史遗留的子目录：浮层里没有那句（不多说一句吓人的话）')
-  else bad('E21 不该出现归位提示时它出现了：' + JSON.stringify(String(tipTextOf(rNotLegacy.tipCalls)).slice(0, 240)))
-
-  // 根会话的图标与边框是灰的（子目录那枚是红的）：颜色本身也是「这不是异常、只是一条说明」的信号。
-  const rootMarkStyle = (/<span[^>]*data-subws-mark="1"[^>]*style="([^"]*)"/.exec(rFactRecord.html) || [])[1] || ''
-  // 浏览器会把 #8b8b95 算成 rgb(139, 139, 149)；两种写法都算灰，断言的是「不是子目录那枚红」。
-  const rootMarkLower = rootMarkStyle.toLowerCase()
-  if (rootMarkLower.indexOf('#8b8b95') >= 0 || rootMarkLower.indexOf('rgb(139, 139, 149)') >= 0) ok('E20 根会话那枚图标用灰色（与子目录的红色区分，不把说明当异常）')
-  else bad('E20 根会话图标颜色不对：' + JSON.stringify(rootMarkStyle.slice(0, 200)))
-
-  // 根会话不自动展开浮层：只在悬浮时看，不打断人。
-  const rootAutoOpened = rFactRecord.tipCalls.some(function (c: any) { return c.visible === true })
-  if (rootAutoOpened === false) ok('E21 根会话不自动展开浮层（说明性信息只在悬浮时出现）')
-  else bad('E21 根会话把浮层自动弹出来了')
+  // 根会话不画这枚标志，自然也没有自动展开的浮层（2026-11-03 起根会话不再显示归属说明）。
+  const rootDrawn = rRoot.tipCalls.length > 0 || rRoot.html.trim() !== ''
+  if (rootDrawn === false) ok('E21 根会话不画标志、也没有浮层（归属说明只在子目录会话里出现）')
+  else bad('E21 根会话画出了标志/浮层')
 } catch (e: any) {
   bad('E 组渲染没跑起来：' + ((e && e.message) || e))
 }
@@ -439,7 +360,8 @@ try {
   const wsRoot = nodePath.join(base, 'ws-root')
   const deep = nodePath.join(wsRoot, 'packages', 'skill-calorie')
   fsx.mkdirSync(deep, { recursive: true })
-  fsx.writeFileSync(nodePath.join(wsRoot, '.git'), 'gitdir: somewhere\n')   // 根上自带 .git（文件形态也算）
+  fsx.mkdirSync(nodePath.join(wsRoot, 'docs', 'agents'), { recursive: true })
+  fsx.writeFileSync(nodePath.join(wsRoot, 'docs', 'agents', 'workspace.yaml'), 'version: 2\nbackendId: github\npickedAt: 1\nsource: user\nlayout: single\n')   // 根上自带工作区记录
   const fsp2 = fsp
   let probes = 0
   /** 照 DSH 文件服务的形状做一个真读盘的服务：lstat 收路径，stat / listDir 收 resolve 出来的 target。 */
@@ -562,7 +484,8 @@ try {
   const wsRoot = nodePath.join(base, 'ws-root')
   const deep = nodePath.join(wsRoot, 'packages', 'skill-calorie')
   fsx.mkdirSync(deep, { recursive: true })
-  fsx.writeFileSync(nodePath.join(wsRoot, '.git'), 'gitdir: somewhere\n')
+  fsx.mkdirSync(nodePath.join(wsRoot, 'docs', 'agents'), { recursive: true })
+  fsx.writeFileSync(nodePath.join(wsRoot, 'docs', 'agents', 'workspace.yaml'), 'version: 2\nbackendId: github\npickedAt: 1\nsource: user\nlayout: single\n')
   const canon = async function (raw: unknown) {
     return wm.canonicalWorkspaceKey(raw, { getPlatform: async function () { return { os: process.platform, path: nodePath } }, getFs: function () { return fsSvc } })
   }

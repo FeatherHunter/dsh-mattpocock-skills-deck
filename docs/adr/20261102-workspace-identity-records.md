@@ -4,6 +4,8 @@
 > 地位：**修订** `docs/adr/20260918-subworkspace-identity-root.md` 第 3.1／3.2 节里「工作区根的标记」这个定义，以及 `docs/adr/20260918-init-domain-layout-choice.md` 第 2.5 节「工作区根的标记只有两个」那一句。两份决定的其余各节（数据分桶、写路径、既有工作区不迁移、用户可见措辞）仍然有效。
 > 效力：这份决定取代上述两份决定里与工作区根标记相关的写法；以后若要再改，以更新版本的 ADR 为准，本文不再被悄悄「顺带」修改。
 > 关联：#649（被修订的规则）· #652（旧判定落地）· #656（验收门禁）· #1806（起因与第一步落地）
+>
+> **2026-11-03 废止（整份）**：被 `docs/adr/20261103-workspace-root-upward-search.md` 取代。工作区根只认 `docs/agents/workspace.yaml`（从所选目录往上逐层找）；本文新增的身份记录 `docs/agents/workspace-root.yaml`、从属记录 `docs/agents/workspace-member.yaml` 以及四条工作区电话已全部删除，`tracker:initialized` 也改回看 `docs/agents/issue-tracker.md`。下文只作为历史记录保留，不要再按它理解工作区身份。
 
 ---
 

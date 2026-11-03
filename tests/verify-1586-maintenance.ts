@@ -868,8 +868,9 @@ async function main() {
   check(eIndexSrc.split("harness.handle('wf.gitMaintenanceRead'").length - 1 === 1 && eIndexSrc.split("harness.handle('wf.gitMaintenanceCheck'").length - 1 === 1 && eIndexSrc.split("harness.handle('wf.gitMaintenanceWrite'").length - 1 === 1, 'E7 宿主入口三条注册各一次（不多不少）')
   check(eIndexSrc.split('\n').length <= 400, 'E8 宿主入口物理行不超过四百行（实测 ' + eIndexSrc.split('\n').length + ' 行）')
   const eSettingsSrc = sourceText('tests/verify-settings-phones.ts')
-  // 电话总数由 tests/verify-settings-phones.ts 钉住；别处加电话时这一条也要跟着改（#1776 M4b 加远端预检后 118 → 119，#1806 第 2 步加工作区记录两条后 119 → 121，第 3 步加查依据与并入上级两条后 121 → 123）。
-  check(eSettingsSrc.indexOf('nPhones === 123') >= 0, 'E9 宿主电话总数登记为一百二十三条（维护页三条、#1776 M4b 的远端预检电话与 #1806 的四条工作区电话都算进去了）')
+  // 电话总数由 tests/verify-settings-phones.ts 钉住；别处加电话时这一条也要跟着改（#1776 M4b 加远端预检后 118 → 119；
+  // #1806 的四条工作区电话在 2026-11-03 随身份记录机制撤掉，回到 119）。
+  check(eSettingsSrc.indexOf('nPhones === 119') >= 0, 'E9 宿主电话总数登记为一百一十九条（维护页三条、#1776 M4b 的远端预检电话算进去了；#1806 的四条工作区电话已撤）')
   const eTimeouts = fs.readFileSync(path.join(ROOT, 'config/timeouts.yaml'), 'utf8')
   check(/vcMaintenanceReadTimeoutMs: 30000/.test(eTimeouts) && /vcMaintenanceWriteTimeoutMs: 600000/.test(eTimeouts), 'E10 时间配置两条键带值（读 30 秒 / 写 10 分钟盖住整仓备份）')
   const eGen = sourceText('scripts/generate-time-config.mts')

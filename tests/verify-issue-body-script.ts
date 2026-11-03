@@ -11,10 +11,10 @@
  *   6) CRLF 正文照常处理且不改写换行；
  *   7) 参数缺失、正文文件不存在：退出码 2 且回包 ok:false；
  *   8) 工作区后端不是 GitHub（Markdown / GitLab / 没有主锚）：直接拒绝并指明正确做法；
- *   8b) 子目录里跑（#654）：一路向上找到工作区根并跑通、每条 gh 命令都在根那一层起、自带 .git 的子目录
- *      自成一套、一个标记都没有时话里给出「请到工作区根目录去跑」这条出路（且不泄本地绝对路径）；
- *      认根的标记按 #1806 第 4 步：只有 .git 与插件工作区记录算根，子目录里手写的说明文件不再自成一套，
- *      本层有从属记录（workspace-member.yaml）时跳过这一层继续往上；
+ *   8b) 子目录里跑（#654）：一路向上找到工作区根并跑通、每条 gh 命令都在根那一层起、一个标记都没有时
+ *      话里给出「请到工作区根目录去跑」这条出路（且不泄本地绝对路径）。认根的标记按 2026-11-03 定版：
+ *      只有 docs/agents/workspace.yaml 算根——.git 与子目录里手写的说明文件都不再自成一套，
+ *      从属记录（workspace-member.yaml）也已删除；说明文件仍只回答「用哪个后端」；
  *   9) 差分钉住：脚本的校正结果逐字等于 src/tracker/body-parse.ts 的 normalizeBody（真源）。
  */
 const fs = require('fs')
@@ -44,11 +44,11 @@ function writeTrackerDoc(dir, title) {
   fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true })
   if (title) fs.writeFileSync(path.join(dir, 'docs', 'agents', 'issue-tracker.md'), title + '\n', 'utf8')
 }
-/** 写一份插件工作区记录（身份记录）。#1806 第 4 步起认根看的是 .git 或这份记录，
- *  光有说明文件 docs/agents/issue-tracker.md 已经不再说明「这一层是工作区」。 */
+/** 写一份插件工作区记录（2026-11-03 定版：只认 docs/agents/workspace.yaml）。
+ *  认根只看它在不在、不读内容；光有说明文件 docs/agents/issue-tracker.md 不说明「这一层是工作区」。 */
 function writeWorkspaceRecord(dir) {
   fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true })
-  fs.writeFileSync(path.join(dir, 'docs', 'agents', 'workspace-root.yaml'), 'version: 1\nkind: workspace-root\nwrittenAt: 1\nsource: setup\n', 'utf8')
+  fs.writeFileSync(path.join(dir, 'docs', 'agents', 'workspace.yaml'), 'version: 2\nbackendId: github\npickedAt: 1\nsource: explicit\n', 'utf8')
 }
 writeTrackerDoc(wsGithub, '# Issue tracker: GitHub')
 writeTrackerDoc(wsMarkdown, '# Issue tracker: Markdown')
@@ -209,9 +209,9 @@ console.log('正文写回脚本门禁（#571 · 命令行黑盒）')
 
 // ——— 8b) 子目录里跑：一路向上找到工作区根，命令也在根上跑（#654） ———
 // 为什么要有这一段：脚本原来只读「当前这一层」的主锚文件，在工作区的子目录里跑会回「认不出后端」，
-// 而工作区级的东西（主锚文件、票仓）物理上只有一份、只可能落在工作区根。判据与宿主同一条：从当前目录
-// 逐层向上，第一个自带 .git 或自带一份插件工作区记录的目录就是工作区根（#1806 第 4 步定版；
-// 手写的说明文件不再参与认根，它只回答「用哪个后端」）。
+// 而工作区级的东西（主锚文件、票仓）物理上只有一份、只可能落在工作区根。判据与宿主同一条（2026-11-03 定版）：
+// 从当前目录逐层向上，第一个自带 docs/agents/workspace.yaml 的目录就是工作区根；.git 与手写的说明文件都不参与认根，
+// 说明文件只回答「用哪个后端」。
 {
   const body = writeFixture('## 进度：90%\n\n下一步：等确认。\n')
   const deep = path.join(wsGithub, 'sub', 'deep')
@@ -227,12 +227,12 @@ console.log('正文写回脚本门禁（#571 · 命令行黑盒）')
   const ghCwds = String(fs.readFileSync(cwdLog, 'utf8')).trim().split(/\r?\n/).filter(Boolean)
   check(ran.status === 0 && ghCwds.length > 0 && ghCwds.every(function (c) { return c === wsGithub }), '8b.2b 每条 gh 命令都在工作区根那一层跑（不是在子目录里；实得 ' + JSON.stringify(ghCwds) + '）')
 
-  // 反向：更近的 .git 截住上溯，自带 .git 的子目录自成一套，不被外层吞掉。
+  // 反向：更近的 .git 不再截住上溯（2026-11-03 定版：.git 不是根标记），仍归外层工作区。
   const nested = path.join(wsGithub, 'nested')
   fs.mkdirSync(path.join(nested, '.git'), { recursive: true })
   writeTrackerDoc(nested, '# Issue tracker: GitLab')
   const r2 = runScript(['--issue', '571', '--body-file', body, '--dry-run'], nested)
-  check(r2.status === 2 && r2.stderr.indexOf('GitLab') >= 0, '8b.3 子目录自带 .git 时停在自己那一层（认到自己的 GitLab，不被外层 GitHub 吞掉）')
+  check(r2.status === 0 && r2.json && r2.json.ok === true, '8b.3 子目录自带 .git 也不再自成一套（.git 不是根标记），仍归外层 GitHub')
 
   // 一路到顶都没有标记：说清「请到工作区根目录去跑」，而不是只说一句「认不出后端」。
   const noDocDeep = path.join(wsNoDoc, 'sub', 'deep')
@@ -243,9 +243,10 @@ console.log('正文写回脚本门禁（#571 · 命令行黑盒）')
   check(r3.stderr.indexOf('issue-tracker.md') >= 0, '8b.6 话里仍点出主锚文件是哪一份（认出后端靠它）')
   check(r3.stderr.indexOf(TMP) < 0 && String(r3.json.error || '').indexOf(TMP) < 0, '8b.7 话里与回包 error 里都不出现本地绝对路径')
 
-  // 找到了根、根上却没有主锚文件：这是「还没初始化」，出路与上一种不同。
+  // 找到了根（有 workspace.yaml）、根上却没有主锚文件：这是「还没初始化」，出路与上一种不同。
   const bare = path.join(TMP, 'ws-bare')
   fs.mkdirSync(path.join(bare, '.git'), { recursive: true })
+  writeWorkspaceRecord(bare)
   const bareDeep = path.join(bare, 'sub')
   fs.mkdirSync(bareDeep, { recursive: true })
   const r4 = runScript(['--issue', '571', '--body-file', body, '--dry-run'], bareDeep)
@@ -271,19 +272,15 @@ console.log('正文写回脚本门禁（#571 · 命令行黑盒）')
   const handCwds = String(fs.readFileSync(handCwdLog, 'utf8')).trim().split(/\r?\n/).filter(Boolean)
   check(ranHand.status === 0 && handCwds.length > 0 && handCwds.every(function (c) { return c === wsGithub }), '8b.12 这时 gh 命令仍在真正的根上跑（实得 ' + JSON.stringify(handCwds) + '）')
 
-  // 本层有从属记录（workspace-member.yaml）：说明它已经并入上级，跳过这一层继续往上。
-  // 这里故意再留一份记录与一份 GitLab 说明，钉住「从属记录优先于记录」这个顺序与宿主一致。
+  // 2026-11-03 定版：从属记录机制已删除。本层只要有一份 workspace.yaml 就是根；
+  //   这里故意再留一份已经没人认的 workspace-member.yaml，钉住它不再改变认根结果。
   const joined = path.join(wsGithub, 'joined')
   fs.mkdirSync(path.join(joined, 'docs', 'agents'), { recursive: true })
   fs.writeFileSync(path.join(joined, 'docs', 'agents', 'workspace-member.yaml'), 'version: 1\nkind: workspace-member\nwrittenAt: 1\nparent: ' + wsGithub + '\n', 'utf8')
   writeWorkspaceRecord(joined)
   writeTrackerDoc(joined, '# Issue tracker: GitLab')
   const fromJoined = runScript(['--issue', '571', '--body-file', body, '--dry-run'], joined)
-  check(fromJoined.status === 0 && fromJoined.json && fromJoined.json.ok === true, '8b.13 本层有从属记录：跳过这一层继续往上（认到外层 GitHub，不被本层 GitLab 说明带走）')
-  const joinedCwdLog = path.join(TMP, 'gh-joined-cwd.log')
-  const ranJoined = runRealWithCwdLogging(['--issue', '571', '--body-file', body], joined, joinedCwdLog)
-  const joinedCwds = String(fs.readFileSync(joinedCwdLog, 'utf8')).trim().split(/\r?\n/).filter(Boolean)
-  check(ranJoined.status === 0 && joinedCwds.length > 0 && joinedCwds.every(function (c) { return c === wsGithub }), '8b.14 这时 gh 命令也在外层根上跑（实得 ' + JSON.stringify(joinedCwds) + '）')
+  check(fromJoined.status === 2 && fromJoined.stderr.indexOf('GitLab') >= 0, '8b.13 本层有 workspace.yaml 就停在这一层；残留的从属记录不再被认（仍按本层 GitLab 说明认后端，不跳外层）')
 }
 
 // ——— 9) 失败重试、失败留痕、已是目标状态不再发请求（用假 gh 离线演练，不碰真票） ———
@@ -341,6 +338,18 @@ console.log('正文写回脚本门禁（#571 · 命令行黑盒）')
     else check(false, '10.x 差分不一致（夹具 ' + (i + 1) + '）：脚本=' + JSON.stringify(r.json && r.json.body) + ' 真源=' + JSON.stringify(expected))
   })
   check(same === cases.length, '10.1 校正结果与真源 normalizeBody 逐字一致（' + same + '/' + cases.length + '）')
+}
+
+// ——— 11) 配置归属：脚本里的认根字面量必须与 config-store 同源 ———
+// 脚本是随包单独跑的自包含副本（不 import 仓库源码），所以根标记路径在这里抄了一份；
+// 照 ADR 20261021「一份值只有一处定义」，两份拷贝必须由门禁连起来：改一处漏另一处就红。
+{
+  const wsSrc = fs.readFileSync(path.join(ROOT, 'src/shared/config-store/src/workspace.ts'), 'utf8')
+  const relMatch = wsSrc.match(/WORKSPACE_YAML_REL\s*=\s*'([^']+)'/)
+  const rel = (relMatch && relMatch[1]) || ''
+  const scriptSrc = fs.readFileSync(SCRIPT, 'utf8')
+  check(rel.length > 0 && scriptSrc.indexOf('const WORKSPACE_RECORD_REL: string = "' + rel + '"') >= 0,
+    '11.1 认根字面量与 config-store 的 WORKSPACE_YAML_REL 同源（改一处必须两处一起改）')
 }
 
 try { fs.rmSync(TMP, { recursive: true, force: true }) } catch (e) { /* 临时目录清不掉不影响判定 */ }

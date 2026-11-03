@@ -4,7 +4,9 @@
 > 地位：**修订** #301/#324 的适用边界。凡与本文冲突的旧口径（「同一文件夹的会话共享一份数据」），以本文为准——与 `CONTEXT.md` 开头两条版本与效力规则同款。
 > 关联：#647（地图）· #648（取证）· #649（本决定）· #652 / #653 / #654（落地）· #656（验收）· #301 / #324（被修订的旧口径）
 >
-> **2026-11-02 修订（#1806）**：第 3.1／3.2 节里「工作区根的标记是 `.git` 或 `docs/agents/issue-tracker.md`」已改为「`.git` 或插件工作区记录（`docs/agents/workspace.yaml`／`docs/agents/workspace-root.yaml`）」，判定只查记录在不在、不读文件内容；第 3.3 节起的分桶、写路径、既有工作区不迁移、用户可见措辞各节仍然有效；第 3.3 节「随包脚本」那一行与第 4 节里「主锚文件」的说法，按 `docs/adr/20261102-workspace-identity-records.md` 第 4 节（留到 #1806 第 4 步同步）理解。依据见 `docs/adr/20261102-workspace-identity-records.md`。
+> **2026-11-03 修订（#1806 纠正，现行）**：工作区根的标记只剩一份 `docs/agents/workspace.yaml`，从所选目录往上逐层找最近的命中层；`.git` 不再参与认根，`docs/agents/issue-tracker.md` 只回答「用哪个后端」。上一版（2026-11-02）新增的身份记录 `workspace-root.yaml` 与从属记录 `workspace-member.yaml` 已删除。现行完整规则见 `docs/adr/20261103-workspace-root-upward-search.md`。
+>
+> 历史修订（2026-11-02，#1806，已废止）：第 3.1／3.2 节里「工作区根的标记是 `.git` 或 `docs/agents/issue-tracker.md`」曾改为「`.git` 或插件工作区记录（`docs/agents/workspace.yaml`／`docs/agents/workspace-root.yaml`）」。
 
 ---
 
@@ -29,7 +31,7 @@
 
 - **所选目录**：会话创建时选定的那个目录（会话的 cwd），先按工作区键规整（Windows 折大小写、统一斜杠、去尾斜杠）。
 - **工作区根**：从所选目录逐层向上，第一个「自带 `.git`（文件或目录都算）的目录」或「自带 `docs/agents/issue-tracker.md` 的目录」；扫到同一层两样都有，那一层就是根；一路到盘符根或文件系统根都没有，就用所选目录本身。
-  > 2026-11-02 起这一句按修订执行：第二类标记改为「自带一份插件工作区记录」，见 `docs/adr/20261102-workspace-identity-records.md`。
+  > 2026-11-03 起这一句按现行修订执行：标记只剩一份 `docs/agents/workspace.yaml`，`.git` 不再算，见 `docs/adr/20261103-workspace-root-upward-search.md`。
 - **子工作区**：所选目录 ≠ 工作区根 的那些会话，说它处在一个子工作区里。
 
 ### 3.2 判定顺序
@@ -42,7 +44,7 @@
 - 子目录自带 `docs/agents/issue-tracker.md`（之前有人在这里初始化过）→ 同样自成一套；
 - 一路到仓库根才遇到标记（`D:\ilife\packages\skill-calorie` 就是这种）→ 归到仓库根；
 - 反向也成立：更近的 `.git` 会截住上溯，**不会**跳到外层带主锚文件的目录去。
-  > 2026-11-02 起本节「主锚文件」一律按「插件工作区记录」理解（见 `docs/adr/20261102-workspace-identity-records.md`）。
+  > 2026-11-03 起本节「主锚文件」与「`.git`」都不再参与认根：只往上找最近的 `docs/agents/workspace.yaml`，见 `docs/adr/20261103-workspace-root-upward-search.md`。
 
 缓存与失败口径：
 
@@ -50,7 +52,7 @@
 - `git` 起不来、超时、或所选目录不存在 → 回退「所选目录」，与旧行为一致（诚实失败，不许因此让整个面板报错）；
 - **失败结果不永久缓存**（修掉 `repoRoots` 把一次临时失败永久记成空的旧毛病）；
 - 工作区根必须与「工作区键」走同一个出口（`src/shared/workspaceKey.js` 单源），保证读写删三侧同形——`#301` 已踩过这个坑。
-  > 2026-11-02 补注：`#1806` 起判定不再起 `git` 子进程（旧实现也从未起过），只对固定路径做存在性探测；本节其余缓存与失败口径仍有效，改后的完整口径见 `docs/adr/20261102-workspace-identity-records.md` 第 2 节。
+  > 2026-11-03 补注：`#1806` 纠正后判定只对一份固定路径做存在性探测（不再有 `.git`、不再有从属记录）；本节其余缓存与失败口径仍有效，完整口径见 `docs/adr/20261103-workspace-root-upward-search.md` 第 2 节。
 
 ### 3.3 三个后端各自的口径
 

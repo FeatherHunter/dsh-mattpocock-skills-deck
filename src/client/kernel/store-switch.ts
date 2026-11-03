@@ -226,8 +226,8 @@ export const confirmSwitchConfirm = function (st: any): void {
     //   「切换失败：已切换，但宿主侧这次没能记住：…」，自相矛盾，还让人以为要再选一次。
     try { var _np: any=res&&(res.persisted===false||(res.value&&res.value.persisted===false)); if(_np) flash(st,tr('switch.bindNotPersisted'),'info') } catch (eP) {}
     // —— 切换成功之后按「这个工作区初始化过没有」分两条路（#669 第 6 件 / ADR 20260921）——
-    //   判据是链上那一步 `tracker:initialized`（#1806 起它的检查项是「工作区根有没有插件写下的身份记录
-    //   docs/agents/workspace-root.yaml」——.git 与说明文件都不算，见 ADR 20261102-workspace-identity-records），
+    //   判据是链上那一步 `tracker:initialized`（2026-11-03 起它的检查项回到「工作区根上有没有初始化产出的说明文件
+    //   docs/agents/issue-tracker.md」——身份记录与 .git 都不再参与，见 ADR 20261103-workspace-root-upward-search），
     //   与状态栏横幅读的是同一份清单、同一条链快照。**链里根本没有这一步时不许猜**：那一档既不能当
     //   「没初始化」（会把初始化全文注进已经初始化过的仓库 = 让 AI 重跑 setup，正是本票要结束的那件事），
     //   也不能当「已初始化」（会往新仓库里发一条对齐指令）。做法：先强制重取一次链，拿到证据再决定。

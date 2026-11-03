@@ -153,8 +153,9 @@ export const GUIDE_STEPS: ReadonlyArray<GuideStep> = Object.freeze([
     blocksSetup: true,
   },
   {
-    // 第 7 步：工作区已初始化（#1806 起读工作区根上的身份记录 docs/agents/workspace-root.yaml，
-    //   不再看说明文件 docs/agents/issue-tracker.md 是否存在；判定口径与 ADR 20261102 同一条）。
+    // 第 7 步：工作区已初始化。2026-11-03 起判据回到初始化产物 docs/agents/issue-tracker.md
+    //   （#1806 加的身份记录 workspace-root.yaml 已按维护者定版删除；工作区根只认
+    //   docs/agents/workspace.yaml，往上找，见 docs/adr/20261103-workspace-root-upward-search.md）。
     id: 'tracker:initialized',
     checks: ['tracker:initialized'],
     backends: ['github', 'markdown', 'gitlab'],
