@@ -4,6 +4,8 @@
 // 门面骨架，后续实施票（1863+）直接按这个形状接，不要各自再造一套批次类型。
 import type {
   GroupCompleteness,
+  IssueDetailProjection,
+  IssueDetailQuery,
   IssueRowValue,
   ListProjection,
   ListQuery,
@@ -12,11 +14,16 @@ import type {
   SnapshotDiagnostic,
   SnapshotLabel,
   SnapshotMode,
+  SubIssueCountsValue,
 } from '../model/types.js'
 
 export type {
+  DetailGroupStates,
   GroupCompleteness,
   GroupState,
+  IssueDetail,
+  IssueDetailProjection,
+  IssueDetailQuery,
   IssueRowValue,
   ListIssue,
   ListIssueRef,
@@ -28,6 +35,7 @@ export type {
   SnapshotDiagnosticCode,
   SnapshotLabel,
   SnapshotMode,
+  SubIssueCountsValue,
 } from '../model/types.js'
 
 /**
@@ -52,13 +60,23 @@ export interface GroupWrite<T> {
  * 两组边写的是「目标票的 key」，不是数据库 id：上层拿到的列表行里只有 key，写库时由快照库
  * 自己解析成 issue_id，并在目标票还不存在时先建一行引用骨架（只有身份，不出现在列表里）。
  * parents 是这张票的父票（容器树），blockedBy 是阻塞这张票的票（状态胶囊要它）。
+ *
+ * 正文、子票计数、合并信息各自独立成组，不塞进 row：row 是「整行我都知道」的语义，
+ * 详情读结果未必知道这几项，混进 row 会把上一次从列表学到的计数一起抹掉。
+ * mergeInfo 的值直接是合并时间的毫秒数；complete + null 表示确认还没合并。
  */
 export interface IssueGroupsWrite {
   row?: GroupWrite<IssueRowValue | null>
+  /** 正文（Markdown 原文）；complete + null / 空串 = 确认没有正文。 */
+  body?: GroupWrite<string | null>
   labels?: GroupWrite<SnapshotLabel[] | null>
   assignees?: GroupWrite<SnapshotActor[] | null>
   parents?: GroupWrite<string[] | null>
   blockedBy?: GroupWrite<string[] | null>
+  /** 子票计数；complete + null 按「确认没有子票」写 0/0/0。 */
+  subIssues?: GroupWrite<SubIssueCountsValue | null>
+  /** 合并信息（合并时间的毫秒数）；complete + null = 确认还没合并。 */
+  mergeInfo?: GroupWrite<number | null>
 }
 
 /**
@@ -129,6 +147,11 @@ export interface WorkspaceSnapshotHandle {
   getMergeVersion(): number
   ingest(batch: WriteBatch): IngestResult
   readList(query?: ListQuery): ListProjection
+  /**
+   * 读一张票的详情：行、正文、标签、指派、父子、阻塞、被阻塞、子票、合并信息与各组三态。
+   * 库里没有这张票（连骨架都没有）时 issue 为 null；只有骨架时 referenceSkeleton 为真。
+   */
+  readIssueDetail(query: IssueDetailQuery): IssueDetailProjection
   /** 整库重建（清空后按当前身份建空库）。只读句柄拒绝。 */
   rebuild(): void
   close(): void

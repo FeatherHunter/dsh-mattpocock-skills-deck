@@ -20,6 +20,10 @@
 declare function log(...args: any[]): any
 declare function tr(...args: any[]): any
 declare function idOfParts(...args: any[]): any
+// 正文格要用的三样全局（与 IssueDetail.ts 里那几行同源）：Markdown 渲染、容器强调色、动效令牌。
+declare function mdToHtml(...args: any[]): any
+declare const CONTAINER_ACCENT: any
+declare const MOTION: any
 
 /** 读投影开关的存储键与两个取值；默认 snapshot（新路径），legacy 是回滚路径。 */
 export const READ_PROJECTION_KEY: string = 'dsws.readProjection'
@@ -187,7 +191,19 @@ export function detailViewFor(st: any, n: any, effortId?: any): any {
   const liveNowEff: string = liveNow && liveNow.effortId !== undefined && liveNow.effortId !== null ? String(liveNow.effortId) : ''
   const liveNowMatches: boolean = !!liveNow && Number(liveNow.number) === Number(n) && liveNowEff === eff
   if (liveNowMatches && st.issueMode === 'real') {
-    return { issue: liveNow, source: 'live', lastKnownAtMs: 0, noticeKey: '', notice: '' }
+    // #1864：从本地快照库读回来的详情（fromSnapshot）算「上次已知」：要标出时刻，
+    // 并让评论区按「还没取过」处理——评论是 #1865 才落库的，不能把「没进库」说成「只读」。
+    if (liveNow.fromSnapshot === true) {
+      const at: number = typeof liveNow.lastKnownAtMs === 'number' ? liveNow.lastKnownAtMs : 0
+      return withSlots({
+        issue: liveNow,
+        source: 'snapshot',
+        lastKnownAtMs: at,
+        noticeKey: at > 0 ? 'detail.lastKnownData' : '',
+        notice: at > 0 ? tr('detail.lastKnownData', { time: hhmmOf(at) }) : '',
+      }, liveNow, null, st.issueMode)
+    }
+    return withSlots({ issue: liveNow, source: 'live', lastKnownAtMs: 0, noticeKey: '', notice: '' }, liveNow, null, st.issueMode)
   }
   if (projectionUsesSnapshot()) {
     const row: any = snapshotRowFor(st, n, effortId)
@@ -196,7 +212,9 @@ export function detailViewFor(st: any, n: any, effortId?: any): any {
       let at: number = lastKnownDetailAtMs(st)
       const seen: any = st && st.detailSeenAt && st.detailSeenAt[idOfParts(eff, Number(n))]
       if (typeof seen === 'number' && seen > at) at = seen
-      return { issue: detailFromRow(row), source: 'snapshot', lastKnownAtMs: at, noticeKey: 'detail.lastKnownData', notice: at > 0 ? tr('detail.lastKnownData', { time: hhmmOf(at) }) : '' }
+      const rowDetail: any = detailFromRow(row)
+      // 列表行的关系边来自列表读结果，不在 snapshotGroups 里；这一条路照旧不画「关系不知道」那句。
+      return withSlots({ issue: rowDetail, source: 'snapshot', lastKnownAtMs: at, noticeKey: 'detail.lastKnownData', notice: at > 0 ? tr('detail.lastKnownData', { time: hhmmOf(at) }) : '' }, rowDetail, null, st.issueMode, null)
     }
   }
   const live: any = st && st.issueDetail
@@ -209,7 +227,80 @@ export function detailViewFor(st: any, n: any, effortId?: any): any {
     const seen: any = st && st.detailSeenAt && st.detailSeenAt[idOfParts(eff, Number(n))]
     const entry: any = st.issueCache && st.issueCache[idOfParts(eff, Number(n))]
     const at: number = keptAfterFail ? (typeof seen === 'number' && seen > 0 ? seen : (entry && typeof entry.ts === 'number' ? entry.ts : 0)) : 0
-    return { issue: live, source: 'live', lastKnownAtMs: at, noticeKey: '', notice: keptAfterFail && at > 0 ? tr('detail.lastKnownData', { time: hhmmOf(at) }) : '' }
+    return withSlots({ issue: live, source: 'live', lastKnownAtMs: at, noticeKey: '', notice: keptAfterFail && at > 0 ? tr('detail.lastKnownData', { time: hhmmOf(at) }) : '' }, live, null, st.issueMode)
   }
-  return { issue: null, source: 'none', lastKnownAtMs: 0, noticeKey: '', notice: '' }
+  return withSlots({ issue: null, source: 'none', lastKnownAtMs: 0, noticeKey: '', notice: '' }, null, null, st.issueMode)
+}
+
+/**
+ * 把「正文格该画什么」与「关系区那句说明」挂到视图结果上。
+ *
+ * 为什么在这里一次算完：视图只认 proj.bodySlot 与 proj.relationsNotice，不再认识新的全局名字；
+ * 判据（三态、上次已知时刻）只有本模块一处，老门禁渲染 IssueDetail 时不用跟着加替身。
+ */
+function withSlots(view: any, detail: any, snapIssue: any, mode: any, relationsDetail?: any): any {
+  view.bodySlot = bodySlotOf(detail, view, snapIssue, mode)
+  view.relationsNotice = relationsNoticeOf(relationsDetail === undefined ? detail : relationsDetail, view)
+  return view
+}
+
+// ── #1864：正文格与关系区怎么区分「确认没有」与「不知道」 ─────────────────────────
+//
+// 详情从库出之后，「取过、确认没有」与「还没取过」在界面上必须是两句话：
+//   · 正文：确认没有画「无描述」；不知道画「正文还没拿到」并带上上次已知时刻。
+//   · 被阻塞关系：确认没有就不画那一段；不知道画一行「被阻塞关系还没拿到」并带上时刻。
+// 判据全部来自详情回包里的 snapshotGroups（每组的三态）与 lastKnownAtMs，视图不自己猜。
+//
+// 为什么把「该说哪句话」也放在这里：视图只负责把 caption 画出来，判据只有这一处；
+// 视图那边不用再认识任何新的全局名字（老门禁照旧渲染 IssueDetail）。
+
+/** 正文格该画什么。unknown 与 none 是两件事，前者带上次已知时刻。 */
+export type BodySlot =
+  | { kind: 'text', text: string }
+  | { kind: 'none', caption: string }
+  | { kind: 'unknown', atMs: number, caption: string }
+  | { kind: 'evicted', atMs: number, caption: string }
+  | { kind: 'loading', caption: string }
+
+/**
+ * 算出正文格该画什么。
+ *
+ * detail 是这一趟要画的详情（可能来自库、也可能是这次取回来的）：
+ *  - body 是字符串：有内容就画，空串就是「确认没有」（完整来源说没有正文）；
+ *  - 没有 body 字段：库里不知道正文，画「还没拿到」并带上次已知时刻；
+ *  - 没有 detail：先看按需细节有没有被淘汰过，再看是不是取数失败，否则就是加载中。
+ */
+export function bodySlotOf(detail: any, proj: any, snapIssue: any, mode: any): BodySlot {
+  const at: number = proj && typeof proj.lastKnownAtMs === 'number' ? proj.lastKnownAtMs : 0
+  const tail: string = at > 0 ? (' · ' + tr('detail.lastKnownData', { time: hhmmOf(at) })) : ''
+  if (detail) {
+    if (typeof detail.body === 'string') {
+      return detail.body.trim() ? { kind: 'text', text: detail.body } : { kind: 'none', caption: tr('detail.noBody') }
+    }
+    return { kind: 'unknown', atMs: at, caption: tr('detail.bodyNotYet') + tail }
+  }
+  const evicted: any = snapIssue && snapIssue.detailEvicted
+  const evictedAtMs: number = evicted && typeof evicted.lastKnownAtMs === 'number' && evicted.lastKnownAtMs > 0 ? evicted.lastKnownAtMs : 0
+  if (evictedAtMs > 0) return { kind: 'evicted', atMs: evictedAtMs, caption: tr('detail.evictedAt', { time: hhmmOf(evictedAtMs) }) }
+  if (mode === 'err') return { kind: 'unknown', atMs: at, caption: tr('detail.bodyNotYet') + tail }
+  return { kind: 'loading', caption: tr('list.loading') }
+}
+
+/**
+ * 被阻塞关系这一组知不知道：只有从库读回来的详情才谈得上「不知道」。
+ * complete / truncated 都算知道（truncated 是「有一部分」，画已有部分即可）；其余都算不知道。
+ */
+export function relationsUnknownOf(detail: any, proj: any): any {
+  if (!detail || !proj || proj.source !== 'snapshot') return { unknown: false, atMs: 0 }
+  const group: any = detail.snapshotGroups && detail.snapshotGroups.blockedBy
+  if (group && (group.completeness === 'complete' || group.completeness === 'truncated')) return { unknown: false, atMs: 0 }
+  return { unknown: true, atMs: typeof proj.lastKnownAtMs === 'number' ? proj.lastKnownAtMs : 0 }
+}
+
+/** 关系区那句「还没拿到」的文案。不知道时给一句，知道时给空串（视图不占地方）。 */
+export function relationsNoticeOf(detail: any, proj: any): string {
+  const info: any = relationsUnknownOf(detail, proj)
+  if (!info.unknown) return ''
+  const tail: string = info.atMs > 0 ? (' · ' + tr('detail.lastKnownData', { time: hhmmOf(info.atMs) })) : ''
+  return tr('detail.relationsNotYet') + tail
 }

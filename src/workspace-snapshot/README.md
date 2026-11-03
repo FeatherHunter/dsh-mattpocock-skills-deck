@@ -43,11 +43,22 @@ sources/       后端读结果归一（本票只留占位，1863+ 填）
   不删旧值；`unknown` 与没表达都不动值。
 - 一批写入带 `startMergeVersion`。事务里发现任一被表达组的 `written_version` 大于它，
   整批丢弃（stale），库里一个字节不改。
+- 八个字段组各有一个主人：`row`（票骨架列）、`body`（正文，独立表）、`labels`、`assignees`、
+  `parents`（父票边）、`blockedBy`（阻塞边）、`subIssues`（子票计数三列）、`mergeInfo`（合并时间）。
+  子票计数与合并时间不放进 `row`：行组是「整行我都知道」的语义，详情读结果未必知道这两项，
+  混进去会把列表学到的值一起抹掉。
+- 关系只有一张边表：父是谁、谁阻塞我、我阻塞谁、谁是我的子票四个方向都从它读出
+  （`projection/edges.ts` 的正向与反向查询），不各存一份，所以不会互相矛盾。
 
 ## 门禁
 
 - `tests/verify-1862-snapshot-merge.ts`：纯合并规则与版本门判据，不碰数据库。
 - `tests/verify-1862-snapshot-database.ts`：真实临时目录 + 真 SQLite，覆盖关库重开、
   失败回滚、第二写者只读、版本门、损坏重建、身份不符重建、列表投影与构建登记。
+- `tests/verify-1863-snapshot-edges.ts`：父子边与阻塞边的三态写入、引用骨架、删除级联。
+- `tests/verify-1863-snapshot-library-replay.ts` 与 `verify-1863-snapshot-cold-start.ts`：
+  列表读结果按组写库、断网冷启动首屏只读库。
+- `tests/verify-1864-snapshot-detail.ts`：详情按组写库（正文、标签、父票、阻塞、子票计数、
+  合并信息）、四个方向同一份边表、确认没有与不知道分得开、引用骨架、关库重开。
 
 单扇跑法：`node --import ./scripts/ts-hook.mts tests/verify-1862-snapshot-database.ts`。

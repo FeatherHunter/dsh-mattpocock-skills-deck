@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T21:39:04.600Z",
+  "generatedAt": "2026-11-03T23:16:49.585Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 558,
-  "gateCount": 558,
-  "attributedGates": 502,
+  "chainLength": 561,
+  "gateCount": 561,
+  "attributedGates": 505,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
-  "completionRecordedGates": 100,
+  "completionRecordedGates": 103,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 880,
+  "graphFileCount": 885,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -6461,6 +6461,54 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
+      "step": "node tests/verify-1864-snapshot-detail-replay.ts",
+      "file": "tests/verify-1864-snapshot-detail-replay.ts",
+      "guards": [
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
+        "src/refresh/rooms/host/snapshot-library.ts"
+      ],
+      "dirs": [
+        "src/refresh/rooms/host"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 35,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1864-snapshot-detail-view.ts",
+      "file": "tests/verify-1864-snapshot-detail-view.ts",
+      "guards": [
+        "src/client/views/IssueDetail.ts",
+        "src/client/views/shared/detailProjection.ts"
+      ],
+      "dirs": [
+        "src/client/views",
+        "src/client/views/shared"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 25,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
+      "step": "node tests/verify-1864-snapshot-detail.ts",
+      "file": "tests/verify-1864-snapshot-detail.ts",
+      "guards": [
+        "src/workspace-snapshot"
+      ],
+      "dirs": [
+        "src/workspace-snapshot"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 47,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
       "step": "node tests/verify-3-workspace-switch.ts",
       "file": "tests/verify-3-workspace-switch.ts",
       "guards": [
@@ -12337,6 +12385,7 @@
         "src/refresh/rooms/host/chain-backoff.ts",
         "src/refresh/rooms/host/chain-coalescing.ts",
         "src/refresh/rooms/host/check-chain-evaluation.ts",
+        "src/refresh/rooms/host/comment-thread-fetch.ts",
         "src/refresh/rooms/host/detail-snapshot-merge.ts",
         "src/refresh/rooms/host/gh-execution.ts",
         "src/refresh/rooms/host/host-attention.ts",
@@ -12424,7 +12473,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 168 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；静态 import 说明符 2 条；源码里的路径字面量 169 条"
     },
     {
       "step": "node tests/verify-tip-place.ts",
@@ -13777,6 +13826,7 @@
       "node tests/verify-1802-settings-cross-window.ts",
       "node tests/verify-1833-list-sticky.ts",
       "node tests/verify-1837-skill-importance.ts",
+      "node tests/verify-1864-snapshot-detail-view.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
@@ -13877,6 +13927,7 @@
       "node tests/verify-1565-workroute-first-col-browser.ts",
       "node tests/verify-1582-open-folder.ts",
       "node tests/verify-1783-comments-projection.ts",
+      "node tests/verify-1864-snapshot-detail-view.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
@@ -14460,6 +14511,7 @@
       "node tests/verify-1852-async-gate-model.ts",
       "node tests/verify-1863-snapshot-cold-start.ts",
       "node tests/verify-1863-snapshot-library-replay.ts",
+      "node tests/verify-1864-snapshot-detail-replay.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-504-github-pr.ts",
       "node tests/verify-507-pr-offline.ts",
@@ -15119,7 +15171,8 @@
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1862-snapshot-database.ts",
       "node tests/verify-1862-snapshot-merge.ts",
-      "node tests/verify-1863-snapshot-edges.ts"
+      "node tests/verify-1863-snapshot-edges.ts",
+      "node tests/verify-1864-snapshot-detail.ts"
     ],
     "src/workspace-snapshot/runtime": [
       "node tests/verify-time-config.ts"
@@ -15415,9 +15468,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 903,
+    "fileCount": 908,
     "dirCount": 92,
-    "coveredFileCount": 903,
+    "coveredFileCount": 908,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 70,
@@ -16305,17 +16358,22 @@
       "src/workspace-snapshot/contract/types.ts",
       "src/workspace-snapshot/merge/collection.ts",
       "src/workspace-snapshot/merge/row.ts",
+      "src/workspace-snapshot/merge/scalar.ts",
       "src/workspace-snapshot/merge/version-gate.ts",
       "src/workspace-snapshot/model/types.ts",
       "src/workspace-snapshot/node-ambient.d.ts",
       "src/workspace-snapshot/persistence/database.ts",
+      "src/workspace-snapshot/persistence/issue-body-write.ts",
       "src/workspace-snapshot/persistence/issue-edge-write.ts",
       "src/workspace-snapshot/persistence/issue-groups-write.ts",
       "src/workspace-snapshot/persistence/issue-identity-write.ts",
       "src/workspace-snapshot/persistence/issue-row-write.ts",
+      "src/workspace-snapshot/persistence/issue-scalar-write.ts",
       "src/workspace-snapshot/persistence/schema.ts",
+      "src/workspace-snapshot/projection/detail.ts",
       "src/workspace-snapshot/projection/edges.ts",
       "src/workspace-snapshot/projection/list.ts",
+      "src/workspace-snapshot/projection/members.ts",
       "src/workspace-snapshot/runtime/ingest.ts",
       "src/workspace-snapshot/runtime/lease.ts",
       "src/workspace-snapshot/runtime/log.ts",
@@ -16563,7 +16621,7 @@
       },
       {
         "path": "src/workspace-snapshot/merge",
-        "fileCount": 3
+        "fileCount": 4
       },
       {
         "path": "src/workspace-snapshot/model",
@@ -16571,11 +16629,11 @@
       },
       {
         "path": "src/workspace-snapshot/persistence",
-        "fileCount": 6
+        "fileCount": 8
       },
       {
         "path": "src/workspace-snapshot/projection",
-        "fileCount": 2
+        "fileCount": 4
       },
       {
         "path": "src/workspace-snapshot/sources",

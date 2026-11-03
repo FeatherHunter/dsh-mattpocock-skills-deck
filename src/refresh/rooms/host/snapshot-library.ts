@@ -15,13 +15,14 @@
 /// <reference path="../../../workspace-snapshot/node-ambient.d.ts" />
 import type { Issue, RepositoryRef } from '../../../tracker/contract/entities.js'
 import type {
+  IssueDetailProjection,
   IssueWrite,
   ListProjection,
   OpenWorkspaceSnapshotOptions,
   SnapshotBackend,
   WorkspaceSnapshotHandle,
 } from '../../../workspace-snapshot/contract/types.js'
-import { issueWritesOf, snapshotOfProjection } from './snapshot-library-adapter.js'
+import { detailIssueWriteOf, issueWritesOf, snapshotOfProjection } from './snapshot-library-adapter.js'
 
 // 开库走契约入口；上面那行环境声明把快照树用到的最小 Node 能力借给本文件（与宿主其余
 // 「不挂整包 Node 类型」的写法同一口径）。说明符写成字面量，依赖图才看得见「刷新 → 契约」这条边。
@@ -167,7 +168,7 @@ export async function recordIssueRows(input: RecordIssueRowsInput): Promise<Reco
 function lastKnownAtMsOf(projection: ListProjection): number {
   let latest = 0
   for (const item of projection.issues) {
-    for (const group of [item.groups.row, item.groups.labels, item.groups.assignees, item.groups.parents, item.groups.blockedBy]) {
+    for (const group of [item.groups.row, item.groups.body, item.groups.labels, item.groups.assignees, item.groups.parents, item.groups.blockedBy, item.groups.subIssues, item.groups.mergeInfo]) {
       if (group && group.lastQueriedMs > latest) latest = group.lastQueriedMs
     }
   }
@@ -190,6 +191,57 @@ export async function readSnapshotReplay(input: SnapshotReplayInput): Promise<Sn
     mergeVersion: projection.mergeVersion,
     lastKnownAtMs: lastKnownAtMsOf(projection),
     rows: projection.issues.length,
+  }
+}
+
+export interface RecordIssueDetailInput extends SnapshotLibraryKey {
+  issue: Issue
+}
+
+export interface RecordIssueDetailResult {
+  ok: boolean
+  /** 这一趟提交进库后的合并版本；没写成功时是 null。 */
+  mergeVersion: number | null
+  /** 没写成功时的简短原因（readonly / unavailable / 具体异常一句）。 */
+  reason?: string
+}
+
+export interface ReadIssueDetailInput extends SnapshotLibraryKey {
+  key: string
+  effortId?: string
+}
+
+/**
+ * 把一次详情读结果写进库（#1864）。一张票一次 ingest：正文、标签、父票、阻塞、子票计数、
+ * 合并信息各按组写，不碰别的票。
+ *
+ * 版本门 stale 只重试一次（与列表写入同一口径）：说明期间有别的写者提交了，重读版本再写
+ * 通常就过；连续两次 stale 说明并发写太密，这一趟放弃，下一次打开详情还会再写。
+ */
+export async function recordIssueDetail(input: RecordIssueDetailInput): Promise<RecordIssueDetailResult> {
+  if (!input.issue || input.issue.key == null) return { ok: true, mergeVersion: null }
+  const handle = await handleOf(input)
+  if (!handle) return { ok: false, mergeVersion: null, reason: 'unavailable' }
+  const writes: IssueWrite[] = [detailIssueWriteOf(input.issue)]
+  let result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
+  if (!result.committed && result.reason === 'stale') {
+    result = handle.ingest({ startMergeVersion: handle.getMergeVersion(), writes })
+  }
+  if (!result.committed) return { ok: false, mergeVersion: null, reason: result.reason }
+  return { ok: true, mergeVersion: result.mergeVersion }
+}
+
+/**
+ * 从库里读一张票的详情（#1864）。库开不出来或没有这张票都回 null——调用方据此决定
+ * 「回落到取数」还是「如实说没有」，不要拿空壳冒充。
+ */
+export async function readIssueDetail(input: ReadIssueDetailInput): Promise<IssueDetailProjection | null> {
+  const handle = await handleOf(input)
+  if (!handle) return null
+  try {
+    return handle.readIssueDetail({ key: input.key, effortId: input.effortId })
+  } catch (e) {
+    return null
   }
 }
 

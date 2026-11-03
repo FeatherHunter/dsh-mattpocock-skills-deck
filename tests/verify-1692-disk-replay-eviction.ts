@@ -255,9 +255,13 @@ function main(): void {
     const zero = truthNoticeLines({ snapshot: { diskReplay: { lastKnownAtMs: 0 } } }, at)
     check(!zero.some(function (l: any) { return l.key === 'truth.replayLastKnown' }), 'C5 负例：回放时刻为 0（未知）时不说「上次已知」')
 
+    // #1864 起「已淘汰的内容怎么画」从详情页搬到了读投影（views/shared/detailProjection.ts）：
+    // 判据还在，只是换了个文件住；详情页仍负责把投影算出的正文格画出来。
     const detailSrc = srcText('src/client/views/IssueDetail.ts')
-    check(detailSrc.indexOf("tr('detail.evictedAt'") >= 0, 'C6 详情页对已淘汰的内容说「未取（曾在某时）」，不画成空白')
-    check(detailSrc.indexOf('snapIssue.detailEvicted') >= 0 && detailSrc.indexOf('lastKnownAtMs') >= 0, 'C7 详情页判断依据是行上的淘汰记号与上次已知时刻')
+    const detailProjSrc = srcText('src/client/views/shared/detailProjection.ts')
+    check(detailProjSrc.indexOf("tr('detail.evictedAt'") >= 0, 'C6 详情页对已淘汰的内容说「未取（曾在某时）」，不画成空白')
+    check(detailSrc.indexOf('proj.bodySlot') >= 0 && detailProjSrc.indexOf('snapIssue.detailEvicted') >= 0 && detailProjSrc.indexOf('lastKnownAtMs') >= 0,
+      'C7 详情页判断依据是行上的淘汰记号与上次已知时刻')
 
     const flow = srcText('config/copy/flow.yaml')
     check(flow.indexOf('detail.evictedAt') >= 0 && flow.indexOf('未取（曾在') >= 0, 'C8 词表两个语言都有「未取（曾在 {time}）」这一条')

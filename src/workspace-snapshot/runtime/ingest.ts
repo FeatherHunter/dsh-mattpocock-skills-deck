@@ -18,22 +18,35 @@ import type { GroupWrite, IssueWrite } from '../contract/types.js'
 import { decideRowMerge } from '../merge/row.js'
 import { normalizeStartMergeVersion, shouldDiscardBatch } from '../merge/version-gate.js'
 import { applyIssueEdges } from '../persistence/issue-edge-write.js'
+import { applyIssueBody } from '../persistence/issue-body-write.js'
 import { applyIssueAssignees, applyIssueLabels } from '../persistence/issue-groups-write.js'
 import { ensureIssueId, findIssueId } from '../persistence/issue-identity-write.js'
 import { fillIssueRow, replaceIssueRow } from '../persistence/issue-row-write.js'
+import { applyIssueMergeInfo, applyIssueSubIssues } from '../persistence/issue-scalar-write.js'
 import { readMergeVersion } from '../persistence/schema.js'
 
-/** 五张组表的物理名字。组名是对外契约的一部分，不要在这里改成别的写法。 */
+/** 各组在 issue_group 里的物理名字。组名是对外契约的一部分，不要在这里改成别的写法。 */
 const GROUP_ROW = 'row'
+const GROUP_BODY = 'body'
 const GROUP_LABELS = 'labels'
 const GROUP_ASSIGNEES = 'assignees'
 const GROUP_PARENTS = 'parents'
 const GROUP_BLOCKED_BY = 'blockedBy'
+const GROUP_SUB_ISSUES = 'subIssues'
+const GROUP_MERGE_INFO = 'mergeInfo'
 
 /** 本批实际表达的组。没出现的组不参与版本门，也不盖章。 */
 interface ExpressedGroup {
   write: IssueWrite
-  group: 'row' | 'labels' | 'assignees' | 'parents' | 'blockedBy'
+  group:
+    | 'row'
+    | 'body'
+    | 'labels'
+    | 'assignees'
+    | 'parents'
+    | 'blockedBy'
+    | 'subIssues'
+    | 'mergeInfo'
 }
 
 export interface IngestWritesResult {
@@ -92,10 +105,13 @@ function collectExpressedGroups(writes: readonly IssueWrite[]): ExpressedGroup[]
   const out: ExpressedGroup[] = []
   for (const write of writes) {
     if (write.groups.row !== undefined) out.push({ write, group: 'row' })
+    if (write.groups.body !== undefined) out.push({ write, group: 'body' })
     if (write.groups.labels !== undefined) out.push({ write, group: 'labels' })
     if (write.groups.assignees !== undefined) out.push({ write, group: 'assignees' })
     if (write.groups.parents !== undefined) out.push({ write, group: 'parents' })
     if (write.groups.blockedBy !== undefined) out.push({ write, group: 'blockedBy' })
+    if (write.groups.subIssues !== undefined) out.push({ write, group: 'subIssues' })
+    if (write.groups.mergeInfo !== undefined) out.push({ write, group: 'mergeInfo' })
   }
   return out
 }
@@ -121,7 +137,7 @@ function applyIssueWrite(
   if (typeof write.effortId !== 'string') throw new Error('写入缺少 effortId')
   if (typeof write.key !== 'string' || write.key.length === 0) throw new Error('写入缺少 key')
 
-  const { row, labels, assignees, parents, blockedBy } = write.groups
+  const { row, body, labels, assignees, parents, blockedBy, subIssues, mergeInfo } = write.groups
   if (row !== undefined) {
     const decision = decideRowMerge(null, row)
     if (decision.kind === 'remove') {
@@ -136,6 +152,12 @@ function applyIssueWrite(
       fillIssueRow(db, issueId, decision.value, nowMs)
     }
     stampGroup(db, issueId, GROUP_ROW, row, nowMs, version)
+  }
+
+  if (body !== undefined) {
+    const issueId = ensureIssueId(db, write.effortId, write.key, nowMs)
+    applyIssueBody(db, issueId, body)
+    stampGroup(db, issueId, GROUP_BODY, body, nowMs, version)
   }
 
   if (labels !== undefined) {
@@ -161,6 +183,18 @@ function applyIssueWrite(
     const issueId = ensureIssueId(db, write.effortId, write.key, nowMs)
     applyIssueEdges(db, issueId, write.effortId, 'blocks', blockedBy, nowMs)
     stampGroup(db, issueId, GROUP_BLOCKED_BY, blockedBy, nowMs, version)
+  }
+
+  if (subIssues !== undefined) {
+    const issueId = ensureIssueId(db, write.effortId, write.key, nowMs)
+    applyIssueSubIssues(db, issueId, subIssues)
+    stampGroup(db, issueId, GROUP_SUB_ISSUES, subIssues, nowMs, version)
+  }
+
+  if (mergeInfo !== undefined) {
+    const issueId = ensureIssueId(db, write.effortId, write.key, nowMs)
+    applyIssueMergeInfo(db, issueId, mergeInfo)
+    stampGroup(db, issueId, GROUP_MERGE_INFO, mergeInfo, nowMs, version)
   }
 }
 

@@ -6,6 +6,9 @@
 //
 // 排序按状态、更新时间倒序、票号升序：状态相同的票最近更新的在前，时间相同的用票号定序，
 // 保证同一份库每次读出来的顺序稳定（分页与门禁都需要）。
+//
+// 正文不进列表：它是几十 KB 的大字段，列表查询永远不该读它（#1864 把它挪到 issue_body）。
+// 子票计数与合并时间各自由自己的组读，行组不再带它们——一行只有一个主人。
 import type { DatabaseSync } from 'node:sqlite'
 import type {
   GroupState,
@@ -13,11 +16,19 @@ import type {
   ListIssue,
   ListProjection,
   ListQuery,
-  SnapshotActor,
-  SnapshotLabel,
+  SubIssueCountsValue,
 } from '../model/types.js'
 import { readMergeVersion } from '../persistence/schema.js'
 import { readIssueEdges } from './edges.js'
+import {
+  normalizeCompleteness,
+  readAssignees,
+  readGroupStates,
+  readLabels,
+} from './members.js'
+
+/** 列表要读的组三态：正文只读状态（不读内容），其余按组读。 */
+const LIST_GROUPS = ['row', 'body', 'labels', 'assignees', 'parents', 'blockedBy', 'subIssues', 'mergeInfo'] as const
 
 interface ListRow {
   issue_id: number
@@ -43,11 +54,6 @@ interface ListRow {
   status_visible: string | null
   status_source: string | null
   status_conflict_json: string | null
-  row_completeness: string
-  row_reason: string | null
-  row_source: string | null
-  row_operation: string | null
-  row_last_queried_ms: number
 }
 
 /**
@@ -72,12 +78,7 @@ export function readListProjection(
            i.is_pull_request, i.merged_at_ms, i.comment_count,
            i.sub_total, i.sub_completed, i.sub_percent,
            i.milestone_json, i.custom_fields_json,
-           i.status, i.status_visible, i.status_source, i.status_conflict_json,
-           g.completeness AS row_completeness,
-           g.reason AS row_reason,
-           g.source AS row_source,
-           g.operation AS row_operation,
-           g.last_queried_ms AS row_last_queried_ms
+           i.status, i.status_visible, i.status_source, i.status_conflict_json
       FROM issue i
       JOIN issue_group g ON g.issue_id = i.issue_id AND g.group_name = 'row'
       ${where}
@@ -88,7 +89,7 @@ export function readListProjection(
   const rows = db.prepare(sql).all(...params) as ListRow[]
 
   const issueIds = rows.map((row) => Number(row.issue_id))
-  const groupStates = readGroupStates(db, issueIds, ['labels', 'assignees', 'parents', 'blockedBy'])
+  const groupStates = readGroupStates(db, issueIds, LIST_GROUPS)
   const labelsByIssue = readLabels(db, issueIds)
   const assigneesByIssue = readAssignees(db, issueIds)
   const edgesByIssue = readIssueEdges(db, issueIds)
@@ -103,18 +104,17 @@ export function readListProjection(
       assignees: assigneesByIssue.get(issueId) ?? [],
       parents: edgesByIssue.get(issueId)?.parents ?? [],
       blockedBy: edgesByIssue.get(issueId)?.blockedBy ?? [],
+      subIssues: toSubIssueCounts(row, groupStates.get(`${issueId}:subIssues`) ?? null),
+      mergedAtMs: nullableNumber(row.merged_at_ms),
       groups: {
-        row: {
-          completeness: normalizeCompleteness(row.row_completeness),
-          reason: row.row_reason,
-          source: row.row_source,
-          operation: row.row_operation,
-          lastQueriedMs: Number(row.row_last_queried_ms),
-        },
+        row: groupStates.get(`${issueId}:row`) ?? null,
+        body: groupStates.get(`${issueId}:body`) ?? null,
         labels: groupStates.get(`${issueId}:labels`) ?? null,
         assignees: groupStates.get(`${issueId}:assignees`) ?? null,
         parents: groupStates.get(`${issueId}:parents`) ?? null,
         blockedBy: groupStates.get(`${issueId}:blockedBy`) ?? null,
+        subIssues: groupStates.get(`${issueId}:subIssues`) ?? null,
+        mergeInfo: groupStates.get(`${issueId}:mergeInfo`) ?? null,
       },
     }
   })
@@ -134,10 +134,17 @@ function normalizeLimit(raw: number | undefined): number | null {
   return raw
 }
 
-/** 数据库里的字符串归一成三态；未知值按 unknown 处理，宁可说不知道也不冒充完整。 */
-function normalizeCompleteness(raw: string): 'complete' | 'truncated' | 'unknown' {
-  if (raw === 'complete' || raw === 'truncated') return raw
-  return 'unknown'
+/**
+ * 子票计数：只有这一组确实取到（complete / truncated）时才给值；没有组记录或 unknown 回 null。
+ * 为什么看组而不只看列：列上的 0 与「从来没取过」在库里长得一样，语义只能由三态表达。
+ */
+function toSubIssueCounts(row: ListRow, group: GroupState | null): SubIssueCountsValue | null {
+  if (!group || group.completeness === 'unknown') return null
+  return {
+    total: Number(row.sub_total ?? 0),
+    completed: Number(row.sub_completed ?? 0),
+    percent: nullableNumber(row.sub_percent),
+  }
 }
 
 function toRowValue(row: ListRow): IssueRowValue {
@@ -151,11 +158,7 @@ function toRowValue(row: ListRow): IssueRowValue {
     closedAtMs: nullableNumber(row.closed_at_ms),
     stateReason: row.reason,
     isPullRequest: row.is_pull_request === null ? null : Number(row.is_pull_request) !== 0,
-    mergedAtMs: nullableNumber(row.merged_at_ms),
     commentCount: nullableNumber(row.comment_count),
-    subTotal: nullableNumber(row.sub_total),
-    subCompleted: nullableNumber(row.sub_completed),
-    subPercent: nullableNumber(row.sub_percent),
     milestoneJson: row.milestone_json,
     customFieldsJson: row.custom_fields_json,
     status: row.status,
@@ -167,101 +170,4 @@ function toRowValue(row: ListRow): IssueRowValue {
 
 function nullableNumber(value: number | null): number | null {
   return value === null ? null : Number(value)
-}
-
-/** 一次读回这页所有票的标签/指派组三态，避免每票一条查询。 */
-function readGroupStates(
-  db: DatabaseSync,
-  issueIds: readonly number[],
-  groupNames: readonly string[],
-): Map<string, GroupState> {
-  const out = new Map<string, GroupState>()
-  if (issueIds.length === 0) return out
-  const placeholders = issueIds.map(() => '?').join(', ')
-  const groupPlaceholders = groupNames.map(() => '?').join(', ')
-  const rows = db.prepare(
-    `SELECT issue_id, group_name, completeness, reason, source, operation, last_queried_ms
-       FROM issue_group
-      WHERE issue_id IN (${placeholders}) AND group_name IN (${groupPlaceholders})`,
-  ).all(...issueIds, ...groupNames) as Array<{
-    issue_id: number
-    group_name: string
-    completeness: string
-    reason: string | null
-    source: string | null
-    operation: string | null
-    last_queried_ms: number
-  }>
-  for (const row of rows) {
-    out.set(`${Number(row.issue_id)}:${row.group_name}`, {
-      completeness: normalizeCompleteness(row.completeness),
-      reason: row.reason,
-      source: row.source,
-      operation: row.operation,
-      lastQueriedMs: Number(row.last_queried_ms),
-    })
-  }
-  return out
-}
-
-function readLabels(
-  db: DatabaseSync,
-  issueIds: readonly number[],
-): Map<number, SnapshotLabel[]> {
-  const out = new Map<number, SnapshotLabel[]>()
-  if (issueIds.length === 0) return out
-  const placeholders = issueIds.map(() => '?').join(', ')
-  const rows = db.prepare(
-    `SELECT il.issue_id, l.name, l.color, l.description
-       FROM issue_label il
-       JOIN label l ON l.name = il.label_name
-      WHERE il.issue_id IN (${placeholders})
-      ORDER BY il.issue_id, il.position`,
-  ).all(...issueIds) as Array<{
-    issue_id: number
-    name: string
-    color: string | null
-    description: string | null
-  }>
-  for (const row of rows) {
-    const issueId = Number(row.issue_id)
-    const list = out.get(issueId) ?? []
-    list.push({ name: row.name, color: row.color, description: row.description })
-    out.set(issueId, list)
-  }
-  return out
-}
-
-function readAssignees(
-  db: DatabaseSync,
-  issueIds: readonly number[],
-): Map<number, SnapshotActor[]> {
-  const out = new Map<number, SnapshotActor[]>()
-  if (issueIds.length === 0) return out
-  const placeholders = issueIds.map(() => '?').join(', ')
-  const rows = db.prepare(
-    `SELECT ia.issue_id, a.login, a.kind, a.name, a.avatar_url
-       FROM issue_assignee ia
-       JOIN actor a ON a.actor_id = ia.actor_id
-      WHERE ia.issue_id IN (${placeholders})
-      ORDER BY ia.issue_id, ia.position`,
-  ).all(...issueIds) as Array<{
-    issue_id: number
-    login: string
-    kind: string | null
-    name: string | null
-    avatar_url: string | null
-  }>
-  for (const row of rows) {
-    const issueId = Number(row.issue_id)
-    const list = out.get(issueId) ?? []
-    list.push({
-      login: row.login,
-      kind: row.kind,
-      name: row.name,
-      avatarUrl: row.avatar_url,
-    })
-    out.set(issueId, list)
-  }
-  return out
 }

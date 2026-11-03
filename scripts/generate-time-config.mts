@@ -308,6 +308,7 @@ const KEYS: Array<[string, string, string]> = [
   ['restFallbackStaleMs', 'REST_FALLBACK_STALE_MS', 'ttl'],
   ['vcRelativeWindowMs', 'VC_RELATIVE_WINDOW_MS', 'ttl'],
   ['issueDetailConfirmMs', 'ISSUE_DETAIL_CONFIRM_MS', 'ttl'],
+  ['issueDetailLocalTtlMs', 'ISSUE_DETAIL_LOCAL_TTL_MS', 'ttl'],
   ['commentResultFlashMs', 'COMMENT_RESULT_FLASH_MS', 'ttl'],
   ['commentsMoreLoadingMinMs', 'COMMENTS_MORE_LOADING_MIN_MS', 'ttl'],
   ['copyFlashMs', 'COPY_FLASH_MS', 'ttl'],

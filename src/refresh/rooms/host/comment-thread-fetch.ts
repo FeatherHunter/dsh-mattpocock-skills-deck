@@ -16,12 +16,48 @@
 // #1694：详情读结果并进面板快照的唯一入口（按字段组掩码合并、版本门丢过期）。
 // 这一层只做接线，合并规则全在 kernel/snapshot-merge.ts；详情返回形状保持原样，只是多一个 snapshot 字段。
 import { createDetailSnapshotMerge } from './detail-snapshot-merge.js'
+// #1864：详情读结果按组写进本地快照库，并优先从库里读（详情本地优先、过期才取数）。
+import { detailOfProjection } from './snapshot-library-adapter.js'
+// #1864：详情新鲜度的唯一来源是中央时间参数，不在本文件写数字。
+import { ISSUE_DETAIL_LOCAL_TTL_MS } from '../../../shared/time-config/src/values.js'
 
 // 评论分页的两个数字（#1444）：首屏与每次「加载更多」各取 50 条，一次最多加载到 200 条。
 // 这是契约 GetOpts.comments 的默认值与上限（三个后端房间同数），房间侧也会按 200 截断；
 // 放在文件顶端一处，详情与评论两个处理器共用，不在函数里各写一份。
 const COMMENTS_PAGE = 50
 const COMMENTS_MAX = 200
+
+// #1864：详情在库里多久算「还新鲜」出自中央时间参数（config/ttl.yaml 的 issueDetailLocalTtlMs）：
+// 新鲜就不发取数请求，过期才去后端取一趟并写回库。它是「什么时候该重取」的判据，不是
+// 「能不能显示」的判据——过期数据照样显示，只是会顺手刷新。
+
+/**
+ * 库里这份详情算不算新鲜：上次已知时刻在 TTL 以内。时刻为 0 = 从没取过，一律算旧。
+ *
+ * 新鲜就完全不发取数请求（重启后第一次打开详情也走这条），过期才去后端取一趟并写回库。
+ */
+function isFreshDetail(issue: any): boolean {
+  const at: number = issue && typeof issue.lastKnownAtMs === 'number' ? issue.lastKnownAtMs : 0
+  if (at <= 0) return false
+  return (Date.now() - at) <= ISSUE_DETAIL_LOCAL_TTL_MS
+}
+
+/**
+ * 从库里读一张票的详情：补零与不补零两种票号都试（本地 Markdown 用 01、GitHub 用 1）。
+ *
+ * 为什么两种都试：列表写库时票号按后端原样存，而详情电话拿到的只有数字；只试一种会让另一个
+ * 后端的本地优先永远不命中（每开一次详情都白取一趟）。读不出来一律当「库里没有」。
+ */
+async function readLocalDetail(lib: any, libKey: any, paddedKey: string, plainKey: string, effortId: string): Promise<any> {
+  const keys: string[] = paddedKey === plainKey ? [paddedKey] : [paddedKey, plainKey]
+  for (const key of keys) {
+    try {
+      const found: any = await lib.readIssueDetail(Object.assign({ key: key, effortId: effortId }, libKey))
+      if (found && found.issue) return found
+    } catch (e) { /* 读不出来就当库里没有 */ }
+  }
+  return null
+}
 
 // ---------------------------------------------------------------------------
 // 类型（本次转 TypeScript：只写类型不写实现）。
@@ -54,6 +90,11 @@ interface CommentThreadsDeps {
   /** #1694：读当前内存快照的入口与写盘口；缺省时详情结果不并快照（老门禁与老接线行为不变）。 */
   getCache?: any
   writeDiskCache?: any
+  /**
+   * #1864：本地快照库门面（读详情 / 写详情）。缺省时整条本地优先关闭，行为与接线前一致。
+   * 形状只要求两个方法，宿主接线按需注入，门禁可以给替身。
+   */
+  getSnapshotLibrary?: any
   logCtx: any
 }
 
@@ -160,15 +201,37 @@ export function createCommentThreads(deps: CommentThreadsDeps): any {
       // effort 维度：effort 是寻址范围，客户端带上来就放进 ref（不带 = 全仓库，单 effort 后端行为不变）
       if (args && args.effortId !== undefined && args.effortId !== null) repoRef.effortId = String(args.effortId)
       const key: string = String(n).padStart(2, '0')
+      // #1864：本地优先。库里有这张票的详情、而且还不算旧，就直接交回，一次取数请求都不发。
+      // 库的键按「工作区 + 后端 + 仓库身份」三元组开，与列表写入用的是同一份身份；票号两种写法
+      // 都要试：本地 Markdown 的键是补零的（01），GitHub 的键不补零（1），列表写库时按后端原样存。
+      const lib: any = (typeof deps.getSnapshotLibrary === 'function') ? await deps.getSnapshotLibrary().catch(function () { return null }) : null
+      const libKey: any = lib ? { workspaceRoot: cwd, backend: String(opened.backendId || ''), repoIdentity: String(repoRef.refId || '') } : null
+      const effortIdOfDetail: string = (repoRef.effortId !== undefined && repoRef.effortId !== null) ? String(repoRef.effortId) : ''
+      const local: any = libKey ? await readLocalDetail(lib, libKey, key, String(n), effortIdOfDetail) : null
+      if (local && local.issue && !local.issue.referenceSkeleton && isFreshDetail(local.issue)) {
+        return { ok: true, issue: detailOfProjection(local.issue), fromSnapshot: true }
+      }
       const r: any = await opened.call(function (session: any, opCtx: any) {
         if (!session || typeof session.get !== 'function') return { ok: false, error: { kind: 'unsupported', message: "backend '" + opened.backendId + "' 未实现 get" } }
         // 详情也要首屏这一页评论正文（#1783：#1784 之前这里不带 comments 选项，房间只能按默认一页 20 条取，
         // 页面于是把「详情里没带够」误当成「这张票只有 20 条评论」；带上 first 后房间会按需翻页并把总数带回来）。
         return session.get(repoRef, key, { comments: { first: COMMENTS_PAGE } }, opCtx)
       })
-      if (!r || r.ok !== true) return getFailure(r)
+      if (!r || r.ok !== true) {
+        // #1864：网络失败时库里有上次已知就照旧交回去（标 stale），页面不会空白；
+        // 库里没有这张票才如实失败，不拿空壳冒充。
+        if (local && local.issue && !local.issue.referenceSkeleton) {
+          return { ok: true, issue: detailOfProjection(local.issue), fromSnapshot: true, stale: true, refreshError: (r && r.error) || null }
+        }
+        return getFailure(r)
+      }
       // 统一为 fetchIssueDetail 的返回形状（{ok, issue}），便于客户端复用
       const iss: any = r.data
+      // #1864：取回来的详情按组写进库（正文、标签、父票、阻塞、子票计数、合并信息）。
+      // 写库失败不影响这次回包：详情照常显示，下一趟打开再写。
+      if (lib && libKey) {
+        try { await lib.recordIssueDetail(Object.assign({ issue: iss }, libKey)) } catch (eW) { /* 写库失败不影响这次详情 */ }
+      }
       // 适配客户端期望的 issue 形状：补充 number / labels 节点等
       if (iss && iss.key != null && iss.number == null) {
         const nn: number = parseInt(iss.key, 10)

@@ -20,6 +20,8 @@ import type {
   WriteBatch,
 } from '../contract/types.js'
 import type {
+  IssueDetailProjection,
+  IssueDetailQuery,
   ListProjection,
   ListQuery,
   SnapshotDiagnostic,
@@ -38,6 +40,7 @@ import {
 } from '../persistence/schema.js'
 import { openWritableDatabase, describeError } from './open-schema.js'
 import { readListProjection } from '../projection/list.js'
+import { readIssueDetailProjection } from '../projection/detail.js'
 import { ingestWrites } from './ingest.js'
 import {
   releaseLease,
@@ -207,6 +210,10 @@ export function openWorkspaceSnapshot(
     readList(query?: ListQuery): ListProjection {
       ensureOpen()
       return readListProjection(db, query, now())
+    },
+    readIssueDetail(query: IssueDetailQuery): IssueDetailProjection {
+      ensureOpen()
+      return readIssueDetailProjection(db, query, now())
     },
     rebuild(): void {
       ensureOpen()
