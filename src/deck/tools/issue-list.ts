@@ -97,7 +97,7 @@ function numOpt(v: unknown): number | undefined { return (typeof v === 'number' 
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_list',
-  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。按状态、label、assignee 与关键词列出 ISSUE 薄行，不回正文与评论。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。按状态、label、assignee 与关键词列出 ISSUE 薄行，不回正文与评论；行上带 hasOriginalWords:true 的票里有维护者原话（这张票的最高要求），值得逐张读 deck_issue_get 看。',
   parameters: {
     type: 'object',
     properties: {

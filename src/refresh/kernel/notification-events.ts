@@ -8,8 +8,9 @@
  * 四条不能改的口径（改之前先读 docs/adr/20261030-panel-snapshot-single-source.md 第 2.6 节）：
  * 1. 事件身份 =（仓库、类型、开始时刻）。恢复只配「未闭合且开始时刻最晚」的那一条；未闭合靠
  *    endedAt === null 表达，所以重启后读到同一份文件仍能配对，不会配到别人身上。
- * 2. 去重只合并瞬时事件（刷新失败、写失败）：同仓库同类型在去重窗内的重复出现并入上一条，
- *    只把次数加一、更新最后时刻；降级开始不走去重，它靠「已有一条未闭合」判重。
+ * 2. 去重只合并瞬时事件（刷新失败、写失败）：同仓库、同类型、同机器码在去重窗内的重复出现并入
+ *    上一条，只把次数加一、更新最后时刻；降级开始不走去重，它靠「已有一条未闭合」判重。机器码也进
+ *    去重键，是因为同一类型里可能是不同环节（#1835：探测失败与取数失败），合并会把后到的环节吞掉。
  * 3. 清理只清历史：按保留期删已闭合事件，再按条数上限从最旧的已闭合事件删；未闭合的降级开始
  *    永远不删——它是恢复配对的唯一依据，删了当前状态没变，历史却断成两截。
  * 4. 文件版本只在本文件定义（NOTIFICATION_EVENT_SCHEMA）；读到不认识的结构就当空历史，下一笔写入
@@ -135,8 +136,11 @@ function eventsInRepo(events: readonly NotificationEvent[], repo: string): Notif
   return events.filter((ev) => ev.repo === repo)
 }
 
-/** 事件代码：机器码（默认与类型同名），只留 ASCII 安全字符、截到 60 字；界面按它选词条。 */
-export function notificationCodeOf(v: unknown, type: NotificationEventType): string {
+/**
+ * 事件代码：机器码（默认与类型同名），只留 ASCII 安全字符、截到 60 字；界面按它选词条。
+ * 传空类型表示「只要机器码、不要类型兜底」：落盘层用它把可选的环节名归一，拿不到就回空串（#1835）。
+ */
+export function notificationCodeOf(v: unknown, type: NotificationEventType | ''): string {
   const text = clipNotificationText(v, 60).replace(/[^A-Za-z0-9._:-]+/g, '-').replace(/^-+|-+$/g, '')
   return text || String(type)
 }
@@ -194,18 +198,29 @@ export function appendDegradedRecovery(events: readonly NotificationEvent[], inp
 }
 
 /**
- * 瞬时事件（刷新失败、写失败）：去重窗内同仓库同类型的重复出现并入上一条——次数加一、更新
- * 最后时刻，开始时刻保留首次的（身份不变）。窗外的记为一条新事件。
+ * 瞬时事件（刷新失败、写失败）：去重窗内同仓库、同类型、同机器码的重复出现并入上一条——次数加
+ * 一、更新最后时刻，开始时刻保留首次的（身份不变）。窗外的记为一条新事件。
+ *
+ * 为什么机器码也进去重键：同一个「刷新失败」类型下，探测失败与取数失败是两个环节（#1835）。只按
+ * 类型合并会把后到那条的 code/params 丢掉，界面就只能看到先发生的那个环节。
  */
 export function appendInstant(events: readonly NotificationEvent[], input: InstantInput): NotificationEvent[] {
   const now = Math.floor(input.now)
   const windowMs = Math.max(0, Math.floor(input.dedupeMs || 0))
-  const last = events.filter((ev) => ev.type === input.type && ev.repo === input.repo).slice(-1)[0]
+  // 旧事件可能没有 code：按类型归一，这样同类型的旧记录仍能与新记录合并（兼容旧文件）。
+  const code = notificationCodeOf(input.code, input.type)
+  const last = events.filter((ev) => ev.type === input.type && ev.repo === input.repo && notificationCodeOf(ev.code, ev.type) === code).slice(-1)[0]
   if (last && now - last.updatedAt < windowMs) {
     const merged = Object.assign({}, last, { count: last.count + 1, updatedAt: now })
     return events.map((ev) => (ev.id === last.id ? merged : ev))
   }
-  return events.concat([newEvent(input, input.type)])
+  // 身份是（仓库、类型、开始时刻）：同一毫秒先后记两条不同机器码会撞 id。这里顺延到第一个没被
+  // 占用的时刻，保证同一事件文件里的 id 唯一（未读标记、列表键都按 id 走）。
+  const used: Record<string, boolean> = {}
+  for (const ev of events) used[ev.id] = true
+  let at = now
+  while (used[eventIdOf(input.repo, input.type, at)]) at += 1
+  return events.concat([newEvent({ repo: input.repo, now: at, code: input.code, params: input.params }, input.type)])
 }
 
 /**

@@ -351,6 +351,21 @@ zh:
   notice.detail.degradedQuota: 这次取数因配额耗尽改走 REST 通道
   notice.detail.degradedOther: 这次取数的主路不可用，改走 REST 通道
   notice.detail.refreshFailed: 这次刷新没有成功，界面仍是上一次的结果
+  notice.detail.refreshFailedProbe: 探测没有成功（{reason}），界面仍是上一次的结果
+  notice.detail.refreshFailedSnapshot: 取数没有成功（{reason}），界面仍是上一次的结果
+  notice.reason.quota: 配额不足
+  notice.reason.rateLimit: 访问频率受限
+  notice.reason.network: 网络不通
+  notice.reason.auth: 登录或权限有问题
+  notice.reason.conflict: 和远端的状态对不上
+  notice.reason.notFound: 要找的东西不存在
+  notice.reason.parse: 返回的内容看不懂
+  notice.reason.env: 本机环境没准备好
+  notice.reason.unsupported: 这个后端不支持
+  notice.reason.fetchFailed: 没能取到数据
+  notice.reason.exception: 程序内部出错
+  notice.reason.timeout: 等不到回应
+  notice.reason.other: 其它原因
   notice.detail.writeFailed: 写操作没有成功（工具：{tool}）
   notice.detail.legacyDegradedStart: 旧版记录：降级开始（没有记录原因）
   notice.detail.legacyFailure: 旧版记录：没有记录失败细节
@@ -710,6 +725,21 @@ en:
   notice.detail.degradedQuota: "This read went over the REST channel because the quota ran out"
   notice.detail.degradedOther: "This read could not use the main path, so it went over the REST channel"
   notice.detail.refreshFailed: "This refresh did not succeed; the panel still shows the previous result"
+  notice.detail.refreshFailedProbe: "The probe did not succeed ({reason}); the panel still shows the previous result"
+  notice.detail.refreshFailedSnapshot: "The data refresh did not succeed ({reason}); the panel still shows the previous result"
+  notice.reason.quota: Quota exhausted
+  notice.reason.rateLimit: Rate limited
+  notice.reason.network: Network unreachable
+  notice.reason.auth: Sign-in or permission problem
+  notice.reason.conflict: The remote state conflicts
+  notice.reason.notFound: The requested item does not exist
+  notice.reason.parse: The response could not be read
+  notice.reason.env: Local environment not ready
+  notice.reason.unsupported: This backend does not support it
+  notice.reason.fetchFailed: Could not fetch the data
+  notice.reason.exception: Internal error
+  notice.reason.timeout: No response in time
+  notice.reason.other: Other reason
   notice.detail.writeFailed: "The write did not succeed (tool: {tool})"
   notice.detail.legacyDegradedStart: "Older record: degraded start (reason was not recorded)"
   notice.detail.legacyFailure: "Older record: no failure details were recorded"

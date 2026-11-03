@@ -5,6 +5,7 @@
 // 按 label 与 assignee 再收窄、按 query 搜标题与正文，最后把后端行压成回执要的那一行形状。
 // 它不碰后端、不判超时、也不决定失败文案，与主流程的预算和取消逻辑无关，拆出来两边都更好读。
 import { isSpecHeaderMarked } from '../../shared/issue-file/src/marker.js'
+import { parseOriginalWords } from '../../shared/issue-file/src/original-words.js'
 
 /**
  * 从后端回来的清单里挑出名字：字符串直接用，对象按下标取一项（标签取 name、认领取 login），
@@ -109,7 +110,7 @@ export function filterRows(rows: unknown, opts: FilterRowsOptions): Record<strin
       if (hay.toLowerCase().indexOf(wantQuery) < 0) continue
     }
     const rec = issue as Record<string, unknown>
-    matched.push({
+    const row: Record<string, unknown> = {
       key: rec.key,
       title: rec.title,
       state: rec.state,
@@ -122,7 +123,11 @@ export function filterRows(rows: unknown, opts: FilterRowsOptions): Record<strin
       parentKey: rec.parentKey !== undefined ? rec.parentKey : null,
       // #1790 缺陷 A 的 P4：状态两格追加在行末，原有字段的顺序与含义一个都不动。
       ...statusRowFields(rec),
-    })
+    }
+    // A3（用户 m00239 拍板）：行里带着正文、且正文里真有「## 维护者原话」区时，才给这一行留一个布尔标记；
+    // 没有原话时整个键都不出现（薄行要紧凑，空值不写）。纯地图薄查那条路没有正文，不经过这里，照旧不带。
+    if (typeof rec.body === 'string' && parseOriginalWords(rec.body).length > 0) row.hasOriginalWords = true
+    matched.push(row)
   }
   return matched
 }

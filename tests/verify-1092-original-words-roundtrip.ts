@@ -108,6 +108,7 @@ async function main() {
   const createTool = (await imp('src/deck/tools/issue-create.ts')).createDeckIssueCreate(deps)
   const patchTool = (await imp('src/deck/tools/issue-patch.ts')).createDeckIssuePatch(deps)
   const getTool = (await imp('src/deck/tools/issue-get.ts')).createDeckIssueGet(deps)
+  const listTool = (await imp('src/deck/tools/issue-list.ts')).createDeckIssueList(deps)
   const snapTool = (await imp('src/deck/tools/map-snapshot.ts')).createDeckMapSnapshot(deps)
   const planTool = (await imp('src/deck/tools/map-plan-create.ts')).createDeckMapPlanCreate(deps)
   const execA = { agent: { session: { id: 's-1092', cwd: rootAPosix } } }
@@ -144,6 +145,10 @@ async function main() {
   check(w2[2] && w2[2].recordedAt === null, '第三条出处只有日期，recordedAt 是 null（实得 ' + String(w2[2] && w2[2].recordedAt) + '）')
   check(w2[0] && JSON.stringify(w2[0].text) === JSON.stringify(TRICKY) && w2[0].source === e1.source,
     '追加后面的原话不会改到前面的原话（第一条仍逐字相同）')
+  // A2（用户 m00239 拍板）：票上真有原话时，读票回执的 notes 要有一句「原话是最高要求」的权威提示。
+  const g2Notes = (g2.notes || []) as string[]
+  check(g2Notes.some((n) => n.indexOf('最高要求') >= 0),
+    '有原话的票：读回 notes 里带「用户的原话是这张票的最高要求」这句（实得 ' + JSON.stringify(g2Notes.slice(0, 2)) + '）')
 
   // ═══ ③ section='维护者原话' 直接取整区原文 ═══
   const gs = await getTool.run(execA, { key: cKey, feature: '原话读回票', section: '维护者原话' })
@@ -189,6 +194,21 @@ async function main() {
   // ═══ ⑤ 没写过原话的票回空数组 ═══
   const mapGet = await getTool.run(execA, { key: mapKey })
   check(Array.isArray(wordsOf(mapGet)) && wordsOf(mapGet).length === 0, '没写过原话的票回空数组（不是 null，实得 ' + JSON.stringify(wordsOf(mapGet)) + '）')
+  // A2 的另一半：没有原话的票，notes 里不该出现这句权威提示（回执保持原样）。
+  const mapNotes = (mapGet.notes || []) as string[]
+  check(!mapNotes.some((n) => n.indexOf('最高要求') >= 0), '没原话的票：notes 里一条权威提示都不加')
+
+  // ═══ ⑦ A3（用户 m00239 拍板）：列表行只在真有原话时带 hasOriginalWords: true ═══
+  // 同一个工作区、只收这一个 feature 目录：建票 01 有三条原话，地图 00 没有。
+  const listed = await listTool.run(execA, { feature: featureName, state: 'all', limit: 200 })
+  check(!!listed && listed.status === 'ok', '列表读回 ok（实得 ' + String(listed && listed.status) + '；' + String((listed && listed.text) || '').slice(0, 160) + '）')
+  const listRows = ((listed && listed.data && listed.data.issues) || []) as any[]
+  const rowWithWords = listRows.find((r: any) => String(r.key) === cKey)
+  const rowWithoutWords = listRows.find((r: any) => String(r.key) === mapKey)
+  check(!!rowWithWords && rowWithWords.hasOriginalWords === true,
+    '列表：有原话的票行带 hasOriginalWords: true（实得 ' + JSON.stringify(rowWithWords && rowWithWords.hasOriginalWords) + '）')
+  check(!!rowWithoutWords && !Object.prototype.hasOwnProperty.call(rowWithoutWords, 'hasOriginalWords'),
+    '列表：没原话的票行不出现这个键（实得 ' + JSON.stringify(rowWithoutWords && rowWithoutWords.hasOriginalWords) + '）')
 
   try { dispose.dispose() } catch (e) {}
   try { fs.rmSync(rootA, { recursive: true, force: true }) } catch (e) {}

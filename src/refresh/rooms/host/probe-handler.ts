@@ -24,6 +24,8 @@ import { FALLBACK_FETCH_LIMITS } from '../../kernel/host-budget.js'
 // #1770：房间报「列表只取了第一页」用的事件名与原因值住在契约层（房间与宿主同一份），
 // 探针这边不抄房间的内部字面量，也不依赖房间文件。
 import { LIST_TRUNCATED_REASON, READ_DEGRADED_EVENT } from '../../../tracker/contract/results.js'
+// #1835：探测失败的「同一段只记一条」判重与写历史的兜错，与快照取数那一路共用一份实现。
+import { createFailureSegmentNotes } from './failure-segment-notes.js'
 
 /** 探针处理器收到的依赖：目录归一、后端选择、注册表、平台、索引与缓存等，全由调用点显式传入。 */
 export interface ProbeHandlerDeps {
@@ -54,11 +56,15 @@ export interface ProbeHandlerDeps {
   // #1770：探针侧的日志口（与宿主其它接线同一份 `{ fire, isEnabled }`）。只用来把房间报的
   //   「列表只取了第一页」转成一行边沿日志；缺席时探针照旧工作，只是不记这一行。
   logCtx?: any
+  // #1835：失败历史的口（与宿主刷新失败共用同一个事件库）。探测失败以前只有界面上的失败标识、
+  //   没有历史，事后查不到「哪个环节、什么时候、为什么」。这里只在「这一段失败」的第一次失败记
+  //   一条；恢复（真的探成功一次）后清标记，下一段再失败才又记。缺席时探针照旧工作，只是没有历史。
+  noteRefreshFailure?: any
 }
 
 /** 造出探针电话：目前只有一个 handleProbe（wf.probe 的处理体）。 */
 export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args: any) => Promise<any> } {
-  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, detectionExec, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText, openSession, logCtx } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, detectionExec, fetchIssueIndexWindowed, issueIndexChanged, rememberIssueIndex, commitIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, deltaRefresh, takeWritePatch, errText, openSession, logCtx, noteRefreshFailure } = deps
   // #1689：降级常驻时的两个节流时刻（毫秒），按 cwd 记。与 lastProbeAtByRepo 分开记，是因为后者
   //   的键要等取数回来才知道（owner/name），而节流必须在发出请求之前判；createProbeHandler 的实例
   //   由宿主入口 _probe() 记忆化，这份状态跨刷新拍安全。
@@ -67,6 +73,9 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
   // #1770：按仓库记「截断日志已经记过一行」。房间每拍都会报「只取了第一页」，探针这一路
   //   只在状态从「没记过」变成「记过」时落一行；恢复（下一次不截断）时清掉，下次再截断还能看见。
   const truncationLoggedByRepo: Record<string, boolean> = {}
+  // #1835：失败段记历史（同一段探测失败只记一条）。5 秒一拍连续失败不会刷历史；段内记过就不再写，
+  // 真的探成功一次才清标记。这里只判「这一趟算不算真的探成功」，判重与兜错在 failure-segment-notes。
+  const failureNotes = createFailureSegmentNotes(noteRefreshFailure)
   // #1418：失败回包里带上判档（network / unsupported / env / exception…），客户端日志据此一眼看出「这一拍
   //   为什么没探成」。只回短枚举、不回原文 —— 原文仍在 error 字段里给界面看，日志那边一个字都不记。
   const kindOf = function (e: any): string {
@@ -78,11 +87,14 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
   //   **漏检所有子票变化**——面板可接/阻塞/已认领/已关闭分组（docs/archive/DESIGN.md §5.2）都是子票，
   //   故"列表不更新状态"。since 语义：返回数组非空 = 自上次快照以来有变化 → 视为 changed。
   //   配额仍走 REST 5000/h 池（独立于 GraphQL 5000 点/h），不烧穿。
-  async function handleProbe(args: any): Promise<any> {
+  async function handleProbeOnce(args: any, cwdRef: { cwd: string }): Promise<any> {
     // #1003 空目录闸：同上。
     const _rawProbeCwd: string = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
     if (!_rawProbeCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。', errorKind: 'env' }
     const cwd: any = await canonicalKey(_rawProbeCwd)
+    // #1835：外层包装要知道这一趟落在哪个工作区；空 cwd 在上面已经早退，走不到这里。
+    const _probeCwd = String(cwd == null ? '' : cwd)
+    if (_probeCwd) cwdRef.cwd = _probeCwd
     // #1472：写事件刚补好的快照优先 —— deck_* 写工具成功之后行级增量已经补过那一行，
     // 下一次探针直接把这份交出去，一次窗口探测都不用发（真机以前要等下一次整份重建才算数）。
     // 只交一次（取走即删，语义在 src/refresh/rooms/host/write-event-fetch.ts）；没有就回 null，照旧往下走。
@@ -237,6 +249,27 @@ export function createProbeHandler(deps: ProbeHandlerDeps): { handleProbe: (args
       commit()
       return { ok: true, changed: true, mode: 'rebuild', reason: String((delta && delta.reason) || 'no-delta'), repo: repo, count: remote.count, since: lastProbeAtByRepo[rk1] }
     } catch (e: any) { return { ok: false, error: errText(e), errorKind: 'exception' } }
+  }
+
+  /**
+   * #1835：探测失败补一条可回看的历史。
+   *
+   * 为什么在这一层做：handleProbeOnce 的失败出口有六处，逐个加记事件容易漏；这里统一看回包，
+   * 只认「这次失败、这个工作区这一段还没记过」。失败段判重放这里，是因为宿主每 5 秒探一次，
+   * 连续失败若按拍记会把事件库刷满（500 条上限、7 天保留）；而房间侧本来就有「同一失败不重复
+   * emit」的判据，这条历史只需回答「这一段什么时候开始的、哪个环节、什么原因」。
+   *
+   * throttled / calibrate / patch 是「这一拍没发请求」的档：前两个是降级常驻时的节流，patch 是
+   * 写事件刚补好快照的直接交付（根本没探），都不能当成恢复。失败段继续挂着，等真的一次请求成功再清。
+   */
+  async function handleProbe(args: any): Promise<any> {
+    const cwdRef: { cwd: string } = { cwd: '' }
+    const res: any = await handleProbeOnce(args, cwdRef)
+    if (cwdRef.cwd) {
+      if (res && res.ok === false) failureNotes.fail(cwdRef.cwd, 'probe', res && res.errorKind)
+      else if (res && res.ok === true && res.mode !== 'throttled' && res.mode !== 'calibrate' && res.mode !== 'patch') failureNotes.clear(cwdRef.cwd)
+    }
+    return res
   }
   return { handleProbe }
 }

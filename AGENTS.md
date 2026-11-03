@@ -117,6 +117,8 @@ AI 这边没有可用的终端工具（better-sidebar 删掉了它自带的 `ter
 
 每个要发布的版本都有一张 `[真机验证] <版本号>` 清单票；关票、发布前、发布后的动作都写在这一份规则里，见 `docs/agents/real-machine-verification.md`。
 
+真机验证时遇到的、因当前功能开发不到位而产生的故障，必须在这张票内修复并复验到通过，不允许为它另开新票。只有确认与本次改动无关、且不影响本票验收的既有缺陷，才可以另开票，并在本票写清「本次不修、原因与影响」。
+
 ### Release 发布
 
 Publish `package` (the main plugin; skills ship inside it, never separately). `dsh-log` and `dsh-plugin-update` now live in standalone repos and are only consumed from npm, never published from here (#878, #892). Private package shells are skipped automatically.

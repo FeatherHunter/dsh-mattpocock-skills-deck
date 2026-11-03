@@ -73,6 +73,21 @@ const trDict = {
   'notice.detail.degradedQuota': '这次取数因配额耗尽改走 REST 通道',
   'notice.detail.degradedOther': '这次取数的主路不可用，改走 REST 通道',
   'notice.detail.refreshFailed': '这次刷新没有成功，界面仍是上一次的结果',
+  'notice.detail.refreshFailedProbe': '探测没有成功（{reason}），界面仍是上一次的结果',
+  'notice.detail.refreshFailedSnapshot': '取数没有成功（{reason}），界面仍是上一次的结果',
+  'notice.reason.quota': '配额不足',
+  'notice.reason.rateLimit': '访问频率受限',
+  'notice.reason.network': '网络不通',
+  'notice.reason.auth': '登录或权限有问题',
+  'notice.reason.conflict': '和远端的状态对不上',
+  'notice.reason.notFound': '要找的东西不存在',
+  'notice.reason.parse': '返回的内容看不懂',
+  'notice.reason.env': '本机环境没准备好',
+  'notice.reason.unsupported': '这个后端不支持',
+  'notice.reason.fetchFailed': '没能取到数据',
+  'notice.reason.exception': '程序内部出错',
+  'notice.reason.timeout': '等不到回应',
+  'notice.reason.other': '其它原因',
   'notice.detail.writeFailed': '写操作没有成功（工具：{tool}）',
   'notice.detail.legacyDegradedStart': '旧版记录：降级开始（没有记录原因）',
   'notice.detail.legacyFailure': '旧版记录：没有记录失败细节',
@@ -200,6 +215,17 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   check(model.noticeDetailOf({ type: 'refresh-failed', code: 'refresh-failed', params: { reason: 'unexpected EOF' } }).indexOf('unexpected EOF') < 0, '诊断原因不直接贴成界面文案（刷新失败只说一句概括）')
   check(model.noticeDetailOf({ type: 'refresh-failed', detail: '写死的中文旧文案' }) === '旧版记录：没有记录失败细节', '旧事件没有 code：按类型给通用说明，不把旧中文当界面文案')
   check(JSON.stringify(model.noticeRowsOf([{ id: 'old', type: 'refresh-failed', startedAt: NOW, updatedAt: NOW, detail: '写死的中文旧文案' }], 'all', {}, NOW)).indexOf('写死的中文旧文案') < 0, '负例：旧文件的中文旧文案不会进到历史行里')
+  // #1835：探测失败与取数失败共用刷新失败类型，界面靠机器码说清是哪个环节、哪类原因。
+  const probeDetail = model.noticeDetailOf({ type: 'refresh-failed', code: 'refresh-failed.probe', params: { kind: 'network' } })
+  check(probeDetail.indexOf('探测') >= 0 && probeDetail.indexOf('网络不通') >= 0, '探测失败历史能读出「探测」环节与原因类别（网络不通）')
+  const snapDetail = model.noticeDetailOf({ type: 'refresh-failed', code: 'refresh-failed.snapshot', params: { kind: 'quota-exhausted' } })
+  check(snapDetail.indexOf('取数') >= 0 && snapDetail.indexOf('配额不足') >= 0, '取数失败历史能读出「取数」环节与原因类别（配额不足）')
+  check(model.noticeDetailOf({ type: 'refresh-failed', code: 'refresh-failed.probe', params: { kind: 'weird-kind' } }).indexOf('其它原因') >= 0, '不认识的原因类别说「其它原因」，不把机器码贴给用户')
+  check(model.noticeDetailOf({ type: 'refresh-failed', code: 'refresh-failed.probe', params: { kind: 'parse' } }).indexOf('返回的内容看不懂') >= 0, '取数契约里的 parse 也有对应的人话（不落到「其它原因」）')
+  check(model.noticeDetailOf({ type: 'refresh-failed', code: 'refresh-failed.snapshot', params: { kind: 'fetch-failed' } }).indexOf('没能取到数据') >= 0, '快照最常见的 fetch-failed 也有对应的人话（不落到「其它原因」）')
+  check(probeDetail.indexOf('network') < 0 && snapDetail.indexOf('quota-exhausted') < 0, '负例：事件里的机器码不直接出现在界面说明里')
+  check(model.noticeDetailOf({ type: 'refresh-failed', code: 'refresh-failed.snapshot', params: { reason: 'unexpected EOF' } }).indexOf('unexpected EOF') < 0, '取数失败也不贴原始诊断文本（只按原因类别说一句）')
+  check(model.noticeDetailOf({ type: 'refresh-failed', code: 'refresh-failed.future-stage' }) === '这次刷新没有成功，界面仍是上一次的结果', '将来新增的环节这版界面不认识时，说「这次刷新没有成功」，不冒充旧版记录')
   const firstRead = model.noticeEchoOf(undefined, EVENTS)
   check(firstRead.next === 'ev-4' && firstRead.echo === null, '第一次读到历史：只记基线、不补响（历史永不靠轻提示补）')
   check(model.noticeEchoOf('ev-4', EVENTS).echo === null, '最新一条没换 → 不响')
@@ -377,6 +403,20 @@ globalThis.DswsCtx = React.createContext({ h: React.createElement })
   check(zhMissing.length === 0, '界面用到的每条词条中文都有（缺：' + zhMissing.join(',') + '）')
   check(enMissing.length === 0, '界面用到的每条词条英文都有（缺：' + enMissing.join(',') + '）')
   check(phBad.length === 0, '中英词条的占位符一致（不一致：' + phBad.join(',') + '）')
+  // #1835：两类环节失败的说明与原因类别词条也中英各一份（动态拼键，上面按 tr('…') 数不到）。
+  const stageKeys = ['notice.detail.refreshFailedProbe', 'notice.detail.refreshFailedSnapshot', 'notice.reason.quota', 'notice.reason.rateLimit', 'notice.reason.network', 'notice.reason.auth', 'notice.reason.conflict', 'notice.reason.notFound', 'notice.reason.parse', 'notice.reason.env', 'notice.reason.unsupported', 'notice.reason.fetchFailed', 'notice.reason.exception', 'notice.reason.timeout', 'notice.reason.other']
+  const stageBad = []
+  for (let i = 0; i < stageKeys.length; i++) {
+    const z = lineOf(zhPart, stageKeys[i])
+    const e = lineOf(enPart, stageKeys[i])
+    if (!z || !e) { stageBad.push(stageKeys[i]); continue }
+    if (stageKeys[i].indexOf('notice.detail.') === 0 && ((countOf(z, '{reason}') > 0) !== (countOf(e, '{reason}') > 0))) stageBad.push(stageKeys[i])
+  }
+  check(stageBad.length === 0, '两类环节失败与原因类别的词条中英各一份、占位符一致（缺：' + stageBad.join(',') + '）')
+  // #1835：原因类别映射要跟着取数契约的 ERROR_KIND 走；契约将来新增一种类别而映射没补时，这里先红。
+  const { ERROR_KIND } = await import('../src/tracker/contract/vocabulary.js')
+  const unmappedKinds = Object.keys(ERROR_KIND).map(function (n) { return (ERROR_KIND as any)[n] }).filter(function (k) { return model.noticeReasonKeyOf(k) === 'notice.reason.other' })
+  check(unmappedKinds.length === 0, '取数契约的每种错误类别都有界面原因文案（没映射的：' + unmappedKinds.join(',') + '）')
   const hostSrc = read('src/host/index.ts')
   const notifHostSrc = read('src/host/notifications.ts')
   check(hostSrc.indexOf("harness.handle('wf.notifications'") >= 0 && hostSrc.indexOf("import('./notifications.js')") >= 0, '宿主注册了 wf.notifications 读历史电话（加载器搬进 ./notifications.ts）')
