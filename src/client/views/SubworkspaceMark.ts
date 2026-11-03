@@ -8,7 +8,7 @@
 //   面板头部仓库芯片右侧一枚 16 像素的图标（外框与左右两颗邻居按钮齐平 —— 定稿时写的是 18，见下面 #666 那一段），
 //   不写字，全部信息放在悬浮浮层里；点一下打开工作区根目录。
 //   浮层三行固定：结论（这份数据是谁的）→ 证据（当前目录是它的子目录）→ 动作（点一下打开哪）。
-//   只有工作区根还没初始化时才补第四行。
+//   只有工作区根还没初始化时才补第四行；历史遗留的子目录（旧规则下会被当成独立工作区）再补一句归位提示。
 // 三个必须一起落的东西（不然这枚没字的图标等于白放）：
 //   ① 第一次在工作区的子目录会话里出现时自动展开一次浮层；用户关掉之后同一个工作区不再自动展开；
 //   ② 图标带 aria-label（读屏用户没有「悬停」这个动作，浮层里的三句话合成一句念出来）；
@@ -35,6 +35,12 @@
 //   由 .git 还是插件记录标记、外面还套着哪个工作区、一路没有任何记录；事实来自宿主电话 wf.workspaceFacts，
 //   本文件不自己拿快照猜。子目录会话的文案与「同一个工作区只自动展开一次」都不变；根会话只做悬浮说明，
 //   不自动展开、图标用灰色（红色留给「数据来自别处」这种需要一眼看见的情形）。
+//
+// #1806 第 4 步（2026-11-03）：子目录会话多一行历史归位提示。旧规则按「有没有手写的说明文件」认根，一批子目录
+//   因此自成一套；新规则按 .git 与插件记录认根，它们会归到上级工作区。为这批目录（有说明文件、没有任何记录）
+//   在浮层里补一句「现在按上级工作区看待，想让它独立就到设置页点『标为独立工作区』」。判据不在这里重算：
+//   宿主电话 wf.workspaceFacts 已经给出 canMarkIndependent（也就是这批目录的判据）。第四行「还未初始化」的
+//   判据同时改成看身份记录（tracker:initialized 那一步在 #1806 第 4 步换了判据），不再看说明文件在不在。
 //
 // 渲染之外的决定（取根、该不该出现、相对尾巴怎么拼、显示哪几行、显示成哪种写法）全在这几个纯函数里，
 //   组件只负责画与点击。门禁既直接跑这几个纯函数，也把组件真的渲染一次（tests/verify-666-subws-mark-root.ts
@@ -205,6 +211,18 @@ export const subwsMarkFactLinesOf = function (facts: any, cwd: any) {
     return out
   } catch (e) { return [] }
 }
+// 历史遗留的子目录该不该多一句提示（#1806 第 4 步）：判定层已经在 facts 里算好了 canMarkIndependent ——
+//   它只在「这一层有手写的说明文件（docs/agents/issue-tracker.md）、但 .git 与任何工作区记录都没有」
+//   且「上级还有另一个工作区」时为真，也就是旧规则下会被当成独立工作区、新规则下归到上级的那批目录。
+//   这里只负责把这句话说出来，不自己重新判一遍：判据只有判定层那一处，界面不再各判各的。
+//   为什么说「到设置页点」而不是在浮层里放按钮：浮层本身不可点（HoverTip 的可点区域只有图标本身），
+//   放进去的按钮点不到；设置页那两个纠正入口在 #1806 第 3 步已经做好。
+export const subwsMarkLegacyLineOf = function (facts: any) {
+  try {
+    if (!facts || facts.canMarkIndependent !== true) return ''
+    return String(tr('panel.wsMarkLegacyTip'))
+  } catch (e) { return '' }
+}
 // 该不该自动展开这一次浮层？三选一，'wait'（等）必须与 'skip'（不弹）分开 —— 这两件事在界面上完全不同：
 //   'wait' ＝ 设置文档还在路上，这一次先不弹，等它到手（或判定问不到）之后重跑再判；
 //   'skip' ＝ 问过真源了，这个工作区以前自动展开过，不再打扰；
@@ -233,6 +251,8 @@ export const SubworkspaceMark = function (props: any) {
   const cwd = (st && st.cwd) || ''
   // 「工作区根初始化了没有」——只回答确实知道的那一半，不知道时**不出**第四行：
   //   ① 检查链里那一步（tracker:initialized）求值完成：done 就是已初始化，current/fail 就是还没初始化；
+  //      #1806 第 4 步起，那一步的判据是「工作区根上有没有插件写下的身份记录 docs/agents/workspace-root.yaml」，
+  //      不再是「有没有说明文件」；.git 与说明文件都不算（ADR 20261102 §5）。所以这一行与事实一致，不必另算。
   //      那一步还没跑（链还没加载）时它什么都不说，往下走第 ② 条；
   //   ② 快照里的后端选择是「读到根上的显式声明」（source 为 explicit）→ 根上确实有那份声明文件，算已初始化；
   //   两条都不知道（链还没跑、快照还没到）→ 视为「已初始化」，**不出**第四行。
@@ -362,15 +382,21 @@ export const SubworkspaceMark = function (props: any) {
   }
   // 子目录会话：原来那三/四行；根会话：按 #1806 第 3 步只说判定层给的事实。
   //   两边都有内容时子目录优先：它回答「这份面板数据是谁的」，比「本层凭什么算根」更贴近当前这次对话。
-  const shown = isSub ? subShown : subwsMarkFactLinesOf(facts, cwd)
+  // #1806 第 4 步：历史遗留的子目录（有手写说明、没有任何工作区记录）再补一句「现在按上级工作区看待，
+  //   想让它独立就到设置页点『标为独立工作区』」。追加在最后，这样它不抢第四行那条琥珀色的未初始化提醒。
+  //   「只说一次」由下面那套自动展开机制负责（同一个工作区只自动展开一次）。
+  const legacyLine = subwsMarkLegacyLineOf(facts)
+  const shown = isSub ? (legacyLine ? subShown.concat([legacyLine]) : subShown) : subwsMarkFactLinesOf(facts, cwd)
   if (!shown.length) return null
   const aria = shown.join('；')
   // 显示与点击都用还原过写法的那一条：浮层里写着「点一下打开 D:\ilife」，点下去就不该打开另一条写法
   const shownRoot = isSub ? subwsMarkRootShown(root, cwd) : String(cwd || root)
   const dim = { fontSize: 11, lineHeight: '16px', whiteSpace: 'normal', wordBreak: 'break-word' }
-  // 渲染时，最后一行是那条「还没初始化」的提醒，用琥珀色；其余灰色。
+  // 渲染时，那行「还没初始化」的提醒用琥珀色；
+  //   它固定是第四行（index 3）：前三行永远是「数据来自哪个工作区」，历史遗留提示追加在它后面，
+  //   所以这里不能按「最后一行」判（那会把提示句染成警告色，也会在提示句存在时漏掉真正的警告）。
   const tipContent = h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, shown.map(function (s: any, i: any) {
-    const isWarn = (isSub && !inited && i === shown.length - 1)
+    const isWarn = (isSub && !inited && i === 3)
     return h('div', { key: 'l' + i, style: Object.assign({}, dim, { color: (i === 0 ? '#e6edf3' : (isWarn ? '#f59e0b' : '#8b8b95')) }) }, s)
   }))
   // 图形颜色写死成与边框同一个红 #f85149（2026-09-19 维护者定）：原先用的是 currentColor，

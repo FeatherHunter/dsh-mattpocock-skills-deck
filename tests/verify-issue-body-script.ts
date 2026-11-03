@@ -13,6 +13,8 @@
  *   8) 工作区后端不是 GitHub（Markdown / GitLab / 没有主锚）：直接拒绝并指明正确做法；
  *   8b) 子目录里跑（#654）：一路向上找到工作区根并跑通、每条 gh 命令都在根那一层起、自带 .git 的子目录
  *      自成一套、一个标记都没有时话里给出「请到工作区根目录去跑」这条出路（且不泄本地绝对路径）；
+ *      认根的标记按 #1806 第 4 步：只有 .git 与插件工作区记录算根，子目录里手写的说明文件不再自成一套，
+ *      本层有从属记录（workspace-member.yaml）时跳过这一层继续往上；
  *   9) 差分钉住：脚本的校正结果逐字等于 src/tracker/body-parse.ts 的 normalizeBody（真源）。
  */
 const fs = require('fs')
@@ -32,7 +34,7 @@ const check = function (ok, msg) {
   if (!ok) failed = true
 }
 
-// ——— 临时工作区：一个带主锚文件的小目录，脚本认后端就读这里 ———
+// ——— 临时工作区：一个带主锚文件与工作区记录的小目录，脚本认根认后端就读这里 ———
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-issue-body-'))
 const wsGithub = path.join(TMP, 'ws-github')
 const wsMarkdown = path.join(TMP, 'ws-markdown')
@@ -42,9 +44,18 @@ function writeTrackerDoc(dir, title) {
   fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true })
   if (title) fs.writeFileSync(path.join(dir, 'docs', 'agents', 'issue-tracker.md'), title + '\n', 'utf8')
 }
+/** 写一份插件工作区记录（身份记录）。#1806 第 4 步起认根看的是 .git 或这份记录，
+ *  光有说明文件 docs/agents/issue-tracker.md 已经不再说明「这一层是工作区」。 */
+function writeWorkspaceRecord(dir) {
+  fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true })
+  fs.writeFileSync(path.join(dir, 'docs', 'agents', 'workspace-root.yaml'), 'version: 1\nkind: workspace-root\nwrittenAt: 1\nsource: setup\n', 'utf8')
+}
 writeTrackerDoc(wsGithub, '# Issue tracker: GitHub')
 writeTrackerDoc(wsMarkdown, '# Issue tracker: Markdown')
 writeTrackerDoc(wsGitlab, '# Issue tracker: GitLab')
+writeWorkspaceRecord(wsGithub)
+writeWorkspaceRecord(wsMarkdown)
+writeWorkspaceRecord(wsGitlab)
 fs.mkdirSync(wsNoDoc, { recursive: true })
 
 let fixtureSeq = 0
@@ -199,7 +210,8 @@ console.log('正文写回脚本门禁（#571 · 命令行黑盒）')
 // ——— 8b) 子目录里跑：一路向上找到工作区根，命令也在根上跑（#654） ———
 // 为什么要有这一段：脚本原来只读「当前这一层」的主锚文件，在工作区的子目录里跑会回「认不出后端」，
 // 而工作区级的东西（主锚文件、票仓）物理上只有一份、只可能落在工作区根。判据与宿主同一条：从当前目录
-// 逐层向上，第一个自带 .git 或自带主锚文件的目录就是工作区根（票 #649 定版）。
+// 逐层向上，第一个自带 .git 或自带一份插件工作区记录的目录就是工作区根（#1806 第 4 步定版；
+// 手写的说明文件不再参与认根，它只回答「用哪个后端」）。
 {
   const body = writeFixture('## 进度：90%\n\n下一步：等确认。\n')
   const deep = path.join(wsGithub, 'sub', 'deep')
@@ -243,8 +255,35 @@ console.log('正文写回脚本门禁（#571 · 命令行黑盒）')
   // 找到了根、主锚文件在、但首行不是认得出的后端标记：这也是一种「还没配好」，同样要给退路。
   const odd = path.join(TMP, 'ws-odd')
   writeTrackerDoc(odd, '# 我们的票仓')
+  writeWorkspaceRecord(odd)
   const r5 = runScript(['--issue', '571', '--body-file', body, '--dry-run'], odd)
   check(r5.status === 2 && r5.stderr.indexOf('已找到工作区根目录') >= 0 && r5.stderr.indexOf('# Issue tracker: GitHub') >= 0, '8b.10 主锚文件在但没有认得出的后端标记：说清该把首行写成什么')
+
+  // #1806 第 4 步：子目录里手写的说明文件不再自成一套工作区——认根本来就不看它。
+  // 这里在 wsGithub 下造一个「自带说明文件、没有任何记录」的子目录：它必须仍归 wsGithub，
+  // 后端要按根上那份 GitHub 声明来认，不能因为子目录里有说明文件就把根挪下来。
+  const handWritten = path.join(wsGithub, 'hand-written')
+  writeTrackerDoc(handWritten, '# 智剪工坊 · 问题追踪协议')
+  const fromHand = runScript(['--issue', '571', '--body-file', body, '--dry-run'], handWritten)
+  check(fromHand.status === 0 && fromHand.json && fromHand.json.ok === true, '8b.11 子目录只有手写说明文件、没有记录：仍归外层工作区（说明文件不再自成一套）')
+  const handCwdLog = path.join(TMP, 'gh-hand-cwd.log')
+  const ranHand = runRealWithCwdLogging(['--issue', '571', '--body-file', body], handWritten, handCwdLog)
+  const handCwds = String(fs.readFileSync(handCwdLog, 'utf8')).trim().split(/\r?\n/).filter(Boolean)
+  check(ranHand.status === 0 && handCwds.length > 0 && handCwds.every(function (c) { return c === wsGithub }), '8b.12 这时 gh 命令仍在真正的根上跑（实得 ' + JSON.stringify(handCwds) + '）')
+
+  // 本层有从属记录（workspace-member.yaml）：说明它已经并入上级，跳过这一层继续往上。
+  // 这里故意再留一份记录与一份 GitLab 说明，钉住「从属记录优先于记录」这个顺序与宿主一致。
+  const joined = path.join(wsGithub, 'joined')
+  fs.mkdirSync(path.join(joined, 'docs', 'agents'), { recursive: true })
+  fs.writeFileSync(path.join(joined, 'docs', 'agents', 'workspace-member.yaml'), 'version: 1\nkind: workspace-member\nwrittenAt: 1\nparent: ' + wsGithub + '\n', 'utf8')
+  writeWorkspaceRecord(joined)
+  writeTrackerDoc(joined, '# Issue tracker: GitLab')
+  const fromJoined = runScript(['--issue', '571', '--body-file', body, '--dry-run'], joined)
+  check(fromJoined.status === 0 && fromJoined.json && fromJoined.json.ok === true, '8b.13 本层有从属记录：跳过这一层继续往上（认到外层 GitHub，不被本层 GitLab 说明带走）')
+  const joinedCwdLog = path.join(TMP, 'gh-joined-cwd.log')
+  const ranJoined = runRealWithCwdLogging(['--issue', '571', '--body-file', body], joined, joinedCwdLog)
+  const joinedCwds = String(fs.readFileSync(joinedCwdLog, 'utf8')).trim().split(/\r?\n/).filter(Boolean)
+  check(ranJoined.status === 0 && joinedCwds.length > 0 && joinedCwds.every(function (c) { return c === wsGithub }), '8b.14 这时 gh 命令也在外层根上跑（实得 ' + JSON.stringify(joinedCwds) + '）')
 }
 
 // ——— 9) 失败重试、失败留痕、已是目标状态不再发请求（用假 gh 离线演练，不碰真票） ———

@@ -154,11 +154,16 @@ export const GENERIC_CHECK_ITEMS: readonly ViewCheckItem[] = Object.freeze([
     group: 'env',
   },
   {
+    // #1806（2026-11-02）：判据改看工作区根上的身份记录 docs/agents/workspace-root.yaml，
+    //   不再看说明文件 docs/agents/issue-tracker.md 是否存在。理由与被否方案写在一处：
+    //   docs/adr/20261102-workspace-identity-records.md §2 与 §5（.git 与说明文件都不算已初始化）。
+    //   路径字面量与 config-store/src/workspace.ts 的 WORKSPACE_IDENTITY_REL 同源；
+    //   本文件是自包含目录（文件头 :3 的墙要求），不 import 那个常量，改一处必须两处一起改。
     id: 'tracker:initialized',
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.FILE_EXISTS, path: 'docs/agents/issue-tracker.md' },
+    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.FILE_EXISTS, path: 'docs/agents/workspace-root.yaml' },
     onPass: { show: { i18nKey: 'check.tracker.initialized.pass', fallback: '工作区已初始化', level: 'info' }, actions: [] },
     onFail: { show: { i18nKey: 'check.tracker.initialized.fail', fallback: '工作区未初始化', level: 'warn', hint: 'prompt:setupRun' }, actions: [{ type: ACTION_TYPE.INJECT_PROMPT, prompt: 'setupRun', label: '执行初始化' }] },
-    label: '工作区已初始化（docs/agents/issue-tracker.md 存在）',
+    label: '工作区已初始化（有插件的工作区记录）',
     group: 'gate',
   },
 ])

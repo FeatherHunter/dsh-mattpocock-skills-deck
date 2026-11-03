@@ -7,8 +7,9 @@
  * 以及写完之后判定层是否立刻按新事实回答。三条写入路径各守一组：
  *
  *   A. 记录本身的格式：拼出来的文本能读回同一组值；坏输入一律拒绝，绝不写出半份文件。
- *   B. 初始化流程补写（wf.ensureWorkspaceRecord）：只在「这个目录自己就是工作区根」时写；
- *      已经在某个工作区里面、自带 .git、已有记录时都不写；写不进去时如实回失败、不假装成功。
+ *   B. 初始化流程补写（wf.ensureWorkspaceRecord）：写在判定层给出的工作区根上（会话开在子目录里也写根，
+ *      不写子目录）；目录自己就是 git 根时也写一份（.git 只证明是工作区，不证明初始化提示发出过）；
+ *      已有记录时幂等不重写；写不进去时如实回失败、不假装成功。
  *   C. 人显式「标为独立工作区」（wf.markWorkspaceRoot）：不看判定层，就写在指定的那一层；
  *      写完之后判定层马上把它认成记录根、并把它的子目录归到它下面。
  *   D. 在面板里选定后端（wf.bind）：那条路本来就会把 docs/agents/workspace.yaml 写到工作区根，
@@ -158,7 +159,7 @@ async function main() {
   }
 
   // ── B) 初始化流程补写 ─────────────────────────────────────────────────────
-  title('B) 初始化流程补写（wf.ensureWorkspaceRecord）：只在「这个目录自己就是工作区根」时写')
+  title('B) 初始化流程补写（wf.ensureWorkspaceRecord）：写到判定层给出的工作区根上')
   {
     const mem = makeMemFs()
     let rootInvalidated = 0
@@ -189,13 +190,15 @@ async function main() {
         '写完要清三样旧账：工作区快照缓存、面板缓存、根判定缓存（否则面板最多 30 秒还在说旧话）',
         'invalidate=' + invalidated.length + ' setCache=' + setCacheCalled + ' root=' + rootInvalidated)
     }
-    // B2：这个目录已经在某个工作区里面 → 不写
+    // B2：这个目录在某个工作区里面 → 记录写到判定层给出的根，不写进子目录
     {
       const h = rec.createWorkspaceRecords(makeDeps({ canonical: () => 'C:/dsws-1806/parent' }))
       const out = await h.handleEnsureWorkspaceRecord({ cwd: 'C:/dsws-1806/parent/child' })
-      must(out.ok === true && out.placed === false && out.reason === 'inside-workspace' && out.root === 'C:/dsws-1806/parent',
-        '已经在上级工作区里面的目录：不写记录（写了就把「仓库的一部分」变成了「独立工作区」，正是 #1806 要避免的事）', JSON.stringify(out))
-      must(mem.read('C:/dsws-1806/parent/child/' + IDENTITY_REL) === null, '不写就是真的一份都没落盘', '有文件')
+      must(out.ok === true && out.placed === true && out.reason === 'created' && out.root === 'C:/dsws-1806/parent' && out.dir === 'C:/dsws-1806/parent/child',
+        '会话开在子目录里：记录写到判定层给出的工作区根（初始化文案是为上面那个工作区给出的），回执同时说清会话目录与记录落到哪一层', JSON.stringify(out))
+      must(!!mem.read('C:/dsws-1806/parent/' + IDENTITY_REL), '记录落在工作区根上', '根上没有文件')
+      must(mem.read('C:/dsws-1806/parent/child/' + IDENTITY_REL) === null,
+        '子目录里一份都不落盘（写了就把「仓库的一部分」变成「独立工作区」，正是 #1806 要避免的事）', '子目录里有文件')
     }
     // B3：已经有记录 → 幂等，不重写
     {
@@ -206,14 +209,15 @@ async function main() {
       must(out.ok === true && out.placed === false && out.reason === 'exists', '已经有一份记录时：不重写（重复初始化不该把「第一次成为工作区的时间」刷掉）', JSON.stringify(out))
       must((mem.read(dir + '/' + IDENTITY_REL) || '').indexOf('writtenAt: 111') >= 0, '已有记录的内容一个字没动', JSON.stringify(mem.read(dir + '/' + IDENTITY_REL)))
     }
-    // B4：自带 .git → 不写
+    // B4：目录自己就是 git 根 → 也留一份初始化凭据
     {
       const dir = 'C:/dsws-1806/b4'
       mem.seed(dir + '/.git', 'gitdir: somewhere')
       const h = rec.createWorkspaceRecords(makeDeps({ canonical: () => dir }))
       const out = await h.handleEnsureWorkspaceRecord({ cwd: dir })
-      must(out.ok === true && out.placed === false && out.reason === 'git-root', '自带 .git 的目录：它已经是工作区，再写一份记录是多余的', JSON.stringify(out))
-      must(mem.read(dir + '/' + IDENTITY_REL) === null, '这一条也没落盘', '有文件')
+      must(out.ok === true && out.placed === true && out.reason === 'created',
+        '目录自己就是 git 根时也写：.git 只证明这是工作区，不证明初始化提示发出过（ADR 20261102 §5 否掉了「.git 或说明文件算已初始化」）', JSON.stringify(out))
+      must(!!mem.read(dir + '/' + IDENTITY_REL), 'git 根上也留下了一份初始化凭据', '没有文件')
     }
     // B5：没有文件通道 → 如实回失败
     {

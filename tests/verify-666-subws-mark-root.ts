@@ -72,7 +72,7 @@ const block = noExport(markSrc.slice(start, end))
 // 手法：compileFn——这段纯函数只是从真源里切出来的文本，交给 tests/lib/eval-probe.js 统一造函数，参数名照原样拆开。
 const makeApi = (tmpl: unknown) => compileFn(
   ['keyOf', 'tr'],
-  block + '\nreturn { rootOf: subwsMarkRootOf, cmpKey: subwsMarkCmpKey, shows: subwsMarkShows, relOf: subwsMarkRelOf, rootShown: subwsMarkRootShown, linesOf: subwsMarkLinesOf, factLinesOf: subwsMarkFactLinesOf }'
+  block + '\nreturn { rootOf: subwsMarkRootOf, cmpKey: subwsMarkCmpKey, shows: subwsMarkShows, relOf: subwsMarkRelOf, rootShown: subwsMarkRootShown, linesOf: subwsMarkLinesOf, factLinesOf: subwsMarkFactLinesOf, legacyLineOf: subwsMarkLegacyLineOf }'
 )(keyOf, function (k: any) {
   // #1806 第 3 步：除了老的四行模板，新加的「依据」词条也从真词表取，不在门禁里手抄。
   if (k === 'panel.wsMarkTip') return tmpl
@@ -221,6 +221,16 @@ const L = function (k: string) { return localeTextOf(k, 'zh') }
   const unknownSrc = { cwd: 'd:\\x', root: 'd:\\x', source: 'fail', outer: null, layer: {}, rootLayer: {} }
   if (factLines(unknownSrc, 'D:\\x').length === 0) ok('C20 判定没查清（source 不是 git/record/self）：什么都不说，不编一句话')
   else bad('C20 没查清却开口了：' + JSON.stringify(factLines(unknownSrc, 'D:\\x')))
+
+  // C21～C22（#1806 第 4 步）：历史遗留的子目录多一句归位提示。判据是判定层算好的 canMarkIndependent
+  //   （有手写说明文件、没有任何工作区记录、上级还有工作区），这里不重算，只守「该说时说、不该说时一个字都不说」。
+  const legacyLine = api.legacyLineOf
+  const legacyFacts = { cwd: 'd:\\skills\\zhijian', root: 'd:\\skills', source: 'record', outer: null, layer: { hasTrackerDoc: true }, rootLayer: {}, canMerge: false, canMarkIndependent: true }
+  if (legacyLine(legacyFacts) === L('panel.wsMarkLegacyTip')) ok('C21 历史遗留的子目录（有说明文件、没有任何工作区记录）：补一句归位提示，并指到设置页的「标为独立工作区」')
+  else bad('C21 历史遗留提示没说出来：' + JSON.stringify(legacyLine(legacyFacts)))
+  if (legacyLine(null) === '' && legacyLine({ canMarkIndependent: false }) === '' && legacyLine({}) === '')
+    ok('C22 不是历史遗留（判定层说不需标独立）、或事实还没到手：一个字都不说')
+  else bad('C22 不该说的时候开口了')
 }
 
 console.log('\nD) 组件与产物')
@@ -383,6 +393,17 @@ try {
   const rFactAlone = await renderMarkFromSource({ cwd: 'D:\\solo', snapshot: { ok: true, maps: [], workspaceRoot: 'd:\\solo' } }, { facts: facGitAlone })
   if (rFactAlone.isSub === false && rFactAlone.html.trim() === '') ok('E19 普通 git 仓库根（外面没有工作区）：仍然一个图标都不加')
   else bad('E19 普通 git 仓库根多画了东西：' + JSON.stringify(rFactAlone.html.slice(0, 120)))
+
+  // #1806 第 4 步：历史遗留的子目录那句归位提示，真画进浮层才算数（纯函数对了、组件没接上也白搭）。
+  const facLegacy = { cwd: 'd:\\ilife\\packages\\skill-calorie', root: 'd:\\ilife', source: 'record', outer: null, layer: { hasTrackerDoc: true }, rootLayer: {}, canMerge: false, canMarkIndependent: true }
+  const rLegacy = await renderMarkFromSource(subStore, { facts: facLegacy })
+  const legacyText = String(tipTextOf(rLegacy.tipCalls))
+  if (rLegacy.isSub === true && legacyText.indexOf(L('panel.wsMarkLegacyTip')) >= 0) ok('E20 历史遗留的子目录：浮层里真的多出归位提示那一句（指向设置页的「标为独立工作区」）')
+  else bad('E20 历史遗留提示没画进浮层：' + JSON.stringify(legacyText.slice(0, 240)))
+  const facNotLegacy = { cwd: 'd:\\ilife\\packages\\skill-calorie', root: 'd:\\ilife', source: 'record', outer: null, layer: {}, rootLayer: {}, canMerge: false, canMarkIndependent: false }
+  const rNotLegacy = await renderMarkFromSource(subStore, { facts: facNotLegacy })
+  if (String(tipTextOf(rNotLegacy.tipCalls)).indexOf(L('panel.wsMarkLegacyTip')) < 0) ok('E21 不是历史遗留的子目录：浮层里没有那句（不多说一句吓人的话）')
+  else bad('E21 不该出现归位提示时它出现了：' + JSON.stringify(String(tipTextOf(rNotLegacy.tipCalls)).slice(0, 240)))
 
   // 根会话的图标与边框是灰的（子目录那枚是红的）：颜色本身也是「这不是异常、只是一条说明」的信号。
   const rootMarkStyle = (/<span[^>]*data-subws-mark="1"[^>]*style="([^"]*)"/.exec(rFactRecord.html) || [])[1] || ''

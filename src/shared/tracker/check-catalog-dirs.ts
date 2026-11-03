@@ -102,11 +102,19 @@ export const GENERIC_CATALOG: readonly CatalogItem[] = Object.freeze([
     origin: 'platform/getHome (inventory 类别 8) — #171 平台层统一',
   },
   {
+    // #1806（2026-11-02）：判据从「根上有没有说明文件 docs/agents/issue-tracker.md」改成「根上有没有
+    //   插件写下的工作区身份记录 docs/agents/workspace-root.yaml」。说明文件是人写的、也会被当成工作区根的
+    //   旧标记，但它只回答「用哪个后端」，回答不了「初始化提示发出过没有」；判定层已经不再用它认根
+    //   （ADR 20261102-workspace-identity-records §2），这里必须跟判定层同一条规则。
+    //   .git 也不算已初始化：.git 只证明这是工作区，不证明初始化文案交给过人（ADR 20261102 §5 被否方案 E）。
+    //   链求值时 cwd 已经归一到工作区根（src/refresh/rooms/host/check-chain-evaluation.ts），所以相对路径就探在根上。
+    //   ⚠ 路径字面量与 src/shared/config-store/src/workspace.ts 的 WORKSPACE_IDENTITY_REL 是同一件事：
+    //   本文件是自包含目录（文件头 :3 的墙要求），不 import 那个常量，改一处必须两处一起改。
     id: 'tracker:initialized',
-    label: '工作区已初始化（docs/agents/issue-tracker.md 存在）',
+    label: '工作区已初始化（有插件的工作区记录）',
     scope: 'generic',
     backends: ['github','markdown','gitlab'],
-    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.FILE_EXISTS, path: 'docs/agents/issue-tracker.md' },
+    check: { kind: 'primitive', primitive: PRIMITIVE_KIND.FILE_EXISTS, path: 'docs/agents/workspace-root.yaml' },
     origin: 'host/checkTracker (inventory 类别 8)',
   },
 ])

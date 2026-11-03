@@ -179,6 +179,8 @@ async function main() {
   const W = (rel: string): string => nodePath.join(BASE, rel)
   put(W('repo/.git/config'), '[core]\n\trepositoryformatversion = 0\n')
   put(W('repo/docs/agents/issue-tracker.md'), '# Issue tracker: GitHub\n\n本仓库的 issue 在 GitHub 上。\n')
+  // 「工作区已初始化」看的是这一份身份记录（#1806 第 4 步），不是人写的说明文件。
+  put(W('repo/docs/agents/workspace-root.yaml'), '# 由插件写入：表示这一层本身是一个工作区。\nversion: 1\nkind: workspace-root\n')
   const RAW = {
     repo: mkdir('repo'),
     sub: mkdir('repo/packages/a'),
@@ -632,16 +634,17 @@ async function main() {
       lc.LABEL_COLORS_REL_PATH)
   }
 
-  // —— C3 主锚文件：初始化产出的那一份只认工作区根 ——
+  // —— C3 身份记录与主锚文件：初始化看身份记录，后端声明看工作区根那份主锚 ——
   {
     const rp = await import(url('src/host/remotePredicates.js'))
     const fileExists = rp.createRemotePredicates().fileExistsChainRel
     const plat = { os: OS, path: nodePath, fs: fixtureFs }
-    // 「工作区已初始化」这一步的判据就是：工作区根上有没有主锚文件
-    const atRootOfSubSession = await fileExists(plat, K.sub, 'docs/agents/issue-tracker.md')
-    const atSubItself = await fileExists(plat, normPath(RAW.sub), 'docs/agents/issue-tracker.md')
+    // 「工作区已初始化」这一步的判据就是：工作区根上有没有那份插件身份记录（#1806 第 4 步；
+    // 人写的 docs/agents/issue-tracker.md 不再回答这个，它只回答「这一层用哪个后端」）。
+    const atRootOfSubSession = await fileExists(plat, K.sub, 'docs/agents/workspace-root.yaml')
+    const atSubItself = await fileExists(plat, normPath(RAW.sub), 'docs/agents/workspace-root.yaml')
     must(atRootOfSubSession === true && atSubItself === false,
-      '子目录会话的「工作区已初始化」看的是工作区根上那份主锚文件（根上有就绿）；子目录自己那一层查不到，也不该有',
+      '子目录会话的「工作区已初始化」看的是工作区根上那份身份记录（根上有就绿）；子目录自己那一层查不到，也不该有',
       '按根问=' + atRootOfSubSession + ' 按子目录问=' + atSubItself)
     // 后端声明那一半：真判定函数去读，读的必须正好是根上那一条路径
     const detectExplicit = (await import(url('src/tracker/detection/explicitDetector.ts'))).detectExplicit
@@ -750,7 +753,7 @@ async function main() {
  * 真机样本腿（可选）：本机存在样本目录时才跑，样本不在就只打一行说明。
  * 对应 docs/adr/20260918-subworkspace-identity-root.md 第 4 节的两条真机验收：
  *   ① 在 D:\ilife 的子目录里开会话时，算出来的工作区根就是 D:\ilife 那一层，
- *      「工作区已初始化」读的是工作区根上的声明文件；
+ *      「工作区已初始化」问的是工作区根上的身份记录（#1806 第 4 步）；
  *   ② 反着来一条：在自带 .git 的嵌套仓库里开会话，它自成一套，不被外层仓库吞掉
  *      （样本由本机现找：在 ① 那棵仓库里找一个自带 .git 的子目录；找不到就只打一行说明）。
  */
@@ -772,11 +775,11 @@ async function realSamples(canon: (raw: string) => Promise<string>) {
     must(kSub === kRoot,
       '真机·' + s.label + '：子目录会话算出来的工作区根就是仓库根（' + s.root + '）',
       'root=' + kRoot + ' sub=' + kSub)
-    const trackerDecl = nodePath.join(s.root, 'docs', 'agents', 'issue-tracker.md')
-    const green = await fileExists(plat, kSub, 'docs/agents/issue-tracker.md')
-    must(green === true && fsx.existsSync(trackerDecl),
-      '真机·' + s.label + '：「工作区已初始化」这一步在子目录会话里是绿的（读的是工作区根上的声明文件）',
-      '根上有声明文件=' + fsx.existsSync(trackerDecl) + ' 检查结果=' + green)
+    const identityDecl = nodePath.join(s.root, 'docs', 'agents', 'workspace-root.yaml')
+    const green = await fileExists(plat, kSub, 'docs/agents/workspace-root.yaml')
+    must(green === fsx.existsSync(identityDecl),
+      '真机·' + s.label + '：「工作区已初始化」这一步在子目录会话里问的是工作区根上的身份记录（结果与根上那份记录在不在一致）',
+      '根上有身份记录=' + fsx.existsSync(identityDecl) + ' 检查结果=' + green)
     // 反向样本：这棵仓库里自带 .git 的子目录（嵌套仓库）
     const nested = findNestedRepo(s.root, 0)
     if (!nested) {

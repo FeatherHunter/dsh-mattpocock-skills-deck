@@ -153,7 +153,8 @@ export const GUIDE_STEPS: ReadonlyArray<GuideStep> = Object.freeze([
     blocksSetup: true,
   },
   {
-    // 第 7 步：工作区已初始化（读工作区根那份 docs/agents/issue-tracker.md，口径与今天一致）。
+    // 第 7 步：工作区已初始化（#1806 起读工作区根上的身份记录 docs/agents/workspace-root.yaml，
+    //   不再看说明文件 docs/agents/issue-tracker.md 是否存在；判定口径与 ADR 20261102 同一条）。
     id: 'tracker:initialized',
     checks: ['tracker:initialized'],
     backends: ['github', 'markdown', 'gitlab'],

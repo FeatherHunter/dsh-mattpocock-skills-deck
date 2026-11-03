@@ -23,8 +23,11 @@
  *     交给 DSH 按部署默认政策判，不自己拼一份宽松政策。
  *   - 写完必须读回核对，内容一致才算写成；同时清掉工作区快照缓存与根判定缓存，
  *     否则面板最多 30 秒仍在说旧话。
- *   - ensure 只在「这个目录自己就是工作区根」时才写：如果它已经在某个工作区里面，就不写——
- *     往子目录里塞身份记录会把「上级工作区的一个目录」变成「一个独立工作区」，正好是 #1806 要避免的事。
+ *   - ensure 写在哪一层，以判定层给出的工作区根为准（#1806 第 4 步改定）：会话开在工作区的子目录里、
+ *     初始化文案其实是为上面那个工作区给出的，这时记录要写到根上，下次才判得出「已经初始化过」；
+ *     写到子目录上会把「上级工作区的一个目录」变成「一个独立工作区」，正好是 #1806 要避免的事。
+ *     目录自己就是 git 根时也照写：.git 只证明「这是工作区」，不证明「初始化提示发出过」，
+ *     而后者才是 tracker:initialized 要回答的问题（ADR 20261102 §5 否掉了「.git 或说明文件算已初始化」）。
  *     判定这一步出错时宁可当场报失败（root-unknown）也不写：最该拦住子目录的时候，不能因为“不知道”就放行。
  *
  * 反例：如果 ensure 不先问判定层、直接写，用户对着仓库里任意子目录跑一遍初始化，
@@ -104,12 +107,6 @@ export function createWorkspaceRecords(deps: Deps) {
     return fsSvc
   }
 
-  /** 这一层自不自带 .git（文件或目录都算）。只问在不在；问不了就当没有，让调用方继续写记录。 */
-  async function hasGitMarker(fsSvc: FsSvc | null, dir: string): Promise<boolean> {
-    if (!fsSvc || typeof fsSvc.lstat !== 'function') return false
-    try { await fsSvc.lstat(joinKey(dir, '.git')); return true } catch (e) { return false }
-  }
-
   /** 一次失败回执：kind 说明是哪一类问题，reason 是机器可判的短码，message 是给人看的一句话。 */
   function fail(kind: string, reason: string, message: string): any { return { ok: false, error: { kind: kind, reason: reason, message: message } } }
 
@@ -129,7 +126,7 @@ export function createWorkspaceRecords(deps: Deps) {
    * 否则写侧说“没有、我再写一份”的时候，判定层其实已经把这个目录当成工作区根了。
    */
   async function recordExistsAt(fsSvc: FsSvc, target: any): Promise<boolean> {
-    // resolve 回来的是一个带 path 的描述对象；文件服务的 lstat 收的是路径本身（与 hasGitMarker 传法一致）。
+    // resolve 回来的是一个带 path 的描述对象；文件服务的 lstat 收的是路径本身（与其它写点传法一致）。
     const p = (target && typeof target === 'object') ? (target.path || target.targetKey || target) : target
     if (typeof fsSvc.lstat === 'function') { try { await fsSvc.lstat(p); return true } catch (e) { return false } }
     try { await fsSvc.readText(target); return true } catch (e) { return false }
@@ -139,7 +136,7 @@ export function createWorkspaceRecords(deps: Deps) {
    * 往 dir 里写一份身份记录。source 只能是 'setup' 或 'user'。
    * cacheCwd 是这次状态变化要清缓存的那把键：ensure 传判定层归好的根，mark 传人指定的这一层。
    * 返回形状固定：{ ok, placed, reason, dir, path } 或 { ok:false, error:{ kind, reason, message } }。
-   * placed=false 表示这次什么都没写（已有记录 / 这个目录在别的工作区里面 / 自带 .git），不是错误。
+   * placed=false 表示这次什么都没写（已经有记录），不是错误。
    */
   async function writeIdentityRecord(dir: string, source: 'setup' | 'user', args: WfArgs, cacheCwd: string): Promise<any> {
     const fsSvc = await getFs()
@@ -213,9 +210,16 @@ export function createWorkspaceRecords(deps: Deps) {
   }
 
   /**
-   * 初始化流程走完时补写身份记录。只在「这个目录自己就是工作区根」时写：
-   * 它已经在某个工作区里面（判定层给出的根不是它自己）或自带 .git 时，都不写——
-   * 那两种情况下它已经是（或属于）一个工作区，再写一份只会把从属关系改成独立关系。
+   * 初始化流程走完时补写身份记录（#1806 第 4 步改定写点）。
+   * 写在哪一层：判定层给出的工作区根，而不是「这次会话打开的目录」。两种情况都要照这个写：
+   *   ① 会话开在子目录里——初始化文案其实是为上面那个工作区给出的，写到根上才对得上；
+   *      写到子目录上会把「上级工作区的一个目录」变成「一个独立工作区」，正是 #1806 要避免的事。
+   *      身份不变：写这份记录只说明「初始化提示已经发出过」，判定层以后仍按 .git / 已有记录认根，
+   *      这份记录落在哪一层，那一层本来就已经是这次判定的根。
+   *   ② 目录自己就是 git 根——也写。.git 只证明「这是工作区」，不证明「初始化提示发出过」；
+   *      后者才是 tracker:initialized 要回答的问题（ADR 20261102 §5 否掉了「.git 或说明文件算已初始化」）。
+   * 判定这一步出错时仍然失败关闭（root-unknown），不拿 raw 顶替：最该拦住子目录的时候，
+   * “不知道”不等于“可以写”。当场说没写成，下次初始化还会再补一次。
    */
   async function handleEnsureWorkspaceRecord(args: WfArgs): Promise<any> {
     const raw = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd.trim() : ''
@@ -225,14 +229,13 @@ export function createWorkspaceRecords(deps: Deps) {
       const r = await deps.canonicalKey(raw)
       if (typeof r === 'string' && r) root = r
     } catch (e) {
-      // 判定这一步出错时不能把 raw 当成根就写：最该拦住“上级工作区的子目录”的时候，
-      // “不知道”不等于“可以写”。当场说没写成，下次初始化还会再补一次。
-      return { ok: false, placed: false, reason: 'root-unknown', dir: raw, error: fail('env', 'root-unknown', '这次没能确认这个目录是不是工作区根（判定这一步出错了），所以没有写记录。').error }
+      return { ok: false, placed: false, reason: 'root-unknown', dir: raw, error: fail('env', 'root-unknown', '这次没能确认这个目录属于哪个工作区根（判定这一步出错了），所以没有写记录。').error }
     }
-    if (pathKeyOf(root) !== pathKeyOf(raw)) return { ok: true, placed: false, reason: 'inside-workspace', dir: raw, root: root }
-    const fsSvc = await getFs()
-    if (await hasGitMarker(fsSvc, raw)) return { ok: true, placed: false, reason: 'git-root', dir: raw }
-    return await writeIdentityRecord(raw, 'setup', args, root)
+    const res = await writeIdentityRecord(root, 'setup', args, root)
+    // 回执同时带上「这次会话的目录」与「记录实际写到的根」：调用方只看 ok，
+    // 人按日志查问题时两者都要有，才说得出这次记录写去了哪。
+    if (res && typeof res === 'object') return Object.assign({}, res, { dir: raw, root: root })
+    return res
   }
 
   /**
