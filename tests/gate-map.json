@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T14:40:30.319Z",
+  "generatedAt": "2026-11-03T16:57:38.517Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 552,
-  "gateCount": 552,
-  "attributedGates": 496,
+  "chainLength": 553,
+  "gateCount": 553,
+  "attributedGates": 497,
   "unattributedGates": 56,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 95,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 854,
+  "graphFileCount": 855,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -6358,6 +6358,25 @@
       "completionRecord": true,
       "expectedAssertions": 20,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-1859-comment-boundaries.ts",
+      "file": "tests/verify-1859-comment-boundaries.ts",
+      "guards": [
+        "src/tracker/rooms/markdown/comments.ts",
+        "src/tracker/rooms/markdown/issues.ts",
+        "src/tracker/rooms/markdown/original-fields.ts",
+        "src/tracker/rooms/markdown/parse.ts",
+        "src/tracker/rooms/markdown/patch-body.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 5 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -14955,6 +14974,7 @@
       "node tests/verify-1799-input-stage.ts",
       "node tests/verify-1826-markdown-subissues.ts",
       "node tests/verify-1832-single-triage-state.ts",
+      "node tests/verify-1859-comment-boundaries.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
@@ -15293,9 +15313,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 875,
+    "fileCount": 876,
     "dirCount": 84,
-    "coveredFileCount": 875,
+    "coveredFileCount": 876,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 68,
@@ -16119,6 +16139,7 @@
       "src/tracker/rooms/gitlab/sub-issues.ts",
       "src/tracker/rooms/markdown/budget.ts",
       "src/tracker/rooms/markdown/capability-register.ts",
+      "src/tracker/rooms/markdown/comment-format.ts",
       "src/tracker/rooms/markdown/comments.ts",
       "src/tracker/rooms/markdown/counts.ts",
       "src/tracker/rooms/markdown/create-layout.ts",

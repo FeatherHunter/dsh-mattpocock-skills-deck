@@ -32,6 +32,8 @@ export type HiddenName =
   | 'DSH-CREATED'
 
 import { IMPL_TICKET_FIELD_LABELS, WAYFINDER_TOP_LINE_LABELS, MAP_TICKET_TYPES, regexAlt } from './format/field-values.js'
+// #1859：评论区到哪里结束，只能认已知结构段名，不能再把任意二级标题都当段尾。
+import { PROGRESS_SECTION_TITLE, sectionRangeOf } from './comment-format.js'
 
 const HIDDEN_LINE_RE = /^[ \t]*<!--[ \t]*(DSH-[A-Z0-9-]+)[ \t]*:[ \t]*(.*?)[ \t]*-->[ \t]*$/i
 const H1_RE = /^#[ \t]+\S/
@@ -39,18 +41,6 @@ const H2_RE = /^##[ \t]+\S/
 // 字段行认哪几个名只从 YAML 真源读（field-values.ts）：上游改模板加字段，这里自动跟上，不再手抄第二份。
 const BOLD_FIELD_RE = new RegExp('^[ \\t]*\\*\\*(' + regexAlt(IMPL_TICKET_FIELD_LABELS) + ')[ \\t]*[:：][ \\t]*\\*\\*', 'm')
 const BARE_FIELD_RE = new RegExp('^[ \\t]*(' + regexAlt(WAYFINDER_TOP_LINE_LABELS) + ')[ \\t]*[:：]')
-
-/** 段标题行：完全匹配 `## <title>`，前后不许有别的内容（认段只用这一种写法）。 */
-function sectionHeadingIndex(lines: string[], title: string): number {
-  const re = new RegExp('^##[ \\t]+' + title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[ \\t]*$')
-  for (let i = 0; i < lines.length; i++) if (re.test(lines[i])) return i
-  return -1
-}
-/** 任意二级及以下段标题：段落到哪里结束就看它。 */
-function anySectionIndex(lines: string[], from: number): number {
-  for (let i = from; i < lines.length; i++) if (H2_RE.test(lines[i])) return i
-  return lines.length
-}
 
 /** 文件头范围：第一个可见标题之前。隐藏注释只写在这里（与 parse.ts 的 hiddenHeaderValue 同一口径）。
  *  先认一级标题（旧 deck 文件与票形都有），没有一级标题再认第一个二级标题 —— 规格与地图的原文模板
@@ -290,19 +280,20 @@ export function appendSectionBlock(text: string, title: string, block: string): 
   const body = String(block || '').trim()
   if (!body) return raw
   const lines = raw.split('\n')
-  const start = sectionHeadingIndex(lines, title)
   const blockLines = body.split('\n')
-  if (start >= 0) {
-    const end = anySectionIndex(lines, start + 1)
-    let at = end
-    while (at > start + 1 && lines[at - 1].trim() === '') at -= 1
+  // 评论区的锚要跳过正文里的假 `## Comments`，段尾也不能被正文里同名的标题截断；
+  // sectionRangeOf 与读侧是同一份判据，写进去的位置读侧才找得到。
+  const range = sectionRangeOf(raw, title)
+  if (range) {
+    let at = range.end
+    while (at > range.start + 1 && lines[at - 1].trim() === '') at -= 1
     lines.splice(at, 0, '', ...blockLines)
     return lines.join('\n')
   }
   // 没有这个段：新建。先看整份文件是不是以进度区收尾，是就插在它前面。
-  const progressAt = sectionHeadingIndex(lines, '进度')
-  if (progressAt > 0) {
-    let at = progressAt
+  const progress = sectionRangeOf(raw, PROGRESS_SECTION_TITLE)
+  if (progress && progress.start > 0) {
+    let at = progress.start
     while (at > 0 && lines[at - 1].trim() === '') at -= 1
     lines.splice(at, 0, '', '## ' + title, '', ...blockLines)
     return lines.join('\n')

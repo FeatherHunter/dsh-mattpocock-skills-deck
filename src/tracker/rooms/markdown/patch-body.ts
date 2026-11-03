@@ -12,6 +12,8 @@ import { stripFencedCode } from './parse.js'
 // #1489：原文手写文件也没有 Comments/Answer 骨架（原文模板里只有标题、What to build、Blocked by、Status），
 // 整份改写时不能给它补插件骨架 —— 补上去等于每写一次正文就往原文里塞两块原文没有的区。
 import { ticketFormOf } from './original-fields.js'
+// #1859：整份改正文搬旧骨架时，段尾只认已知结构段名；评论正文里的 H2 不再把 Comments 段截短。
+import { sectionBlockOf } from './comment-format.js'
 // #1277：票面对象类型标记的判据在共享包里；整份替换正文时盘上的标记要以盘上为准搬回来（ADR 2.5）。
 import { countMarkerLines, markerKindOnLine, stripMarkerLines } from '../../../shared/issue-file/src/marker.js'
 // #1091：维护者原话区整份替换时要保住（盘上有、递进来的新正文没有时按原位置搬回），
@@ -58,9 +60,7 @@ function firstMarkerLine(text: unknown): string{
 }
 /** 取票文件里某骨架区整段（标题加内容，到下一个二级标题或文末）：改正文时用来把盘上旧评论搬回新正文。 */
 function sectionOf(text: unknown, name: string): string{
-  const re=new RegExp('^##\\s*'+name+'\\s*$[\\s\\S]*?(?=^##\\s|$(?![\\s\\S]))', 'im')
-  const m=re.exec(String(text||''))
-  return m?m[0].replace(/^\s*/, '').replace(/\s*$/, ''):''
+  return sectionBlockOf(String(text||''), name)
 }
 function countRe(text: unknown, re: RegExp): number{ return (String(text||'').match(re)||[]).length }
 /** 写坏了没有的快速核对：新正文相对旧正文不许新增重复、不许弄丢锚与骨架，坏了就返回原因（调用方转成如实失败，不落盘）。

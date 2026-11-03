@@ -33,10 +33,13 @@ import type { StatusWriteFailure } from './status-write.js'
 import { defaultStatusOf, statusInBody } from './status.js'
 // #1500 S5：子票状态词（claimed / resolved）只从 YAML 真源读；旧布局分支的字面量保持冻结（见下）。
 import {
+  WAYFINDER_ANSWER_SECTION,
   WAYFINDER_STATUS_CLAIMED,
   WAYFINDER_STATUS_RESOLVED,
   regexAlt,
 } from './format/field-values.js'
+// #1859：地图子票的 Answer 段到哪里结束，与评论区共用同一套「已知结构段名 + 围栏」判断。
+import { sectionTextOf } from './comment-format.js'
 import { commentBlockOf } from './comments.js'
 
 // 仓库引用：path 是本地后端的自有约定（契约不保证），有就多认那个目录（path.ts 的同款，房间里各备一份）。
@@ -258,12 +261,7 @@ function appendClosingComment(ctx: OpContext, txt: string, reason: string, key: 
 /** 地图子票 `## Answer` 段现在写的正文；没有这一段回空串。
  *  用来判断同一段答案是不是已经写过了：重复关闭不该把同一条答案叠两遍。 */
 function answerTextOf(txt: string): string {
-  const lines = String(txt || '').split('\n')
-  const start = lines.findIndex(function (one: string) { return /^##\s*Answer\s*$/.test(one) })
-  if (start < 0) return ''
-  let end = start + 1
-  while (end < lines.length && !/^##\s/.test(lines[end])) end += 1
-  return lines.slice(start + 1, end).join('\n').trim()
+  return sectionTextOf(String(txt || ''), WAYFINDER_ANSWER_SECTION)
 }
 export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,opts?: CloseOpts): Promise<{ok:true;data:Issue}|StatusFailure>{
   // 调用方给了原因就原样记下来（契约说这是开放字符串，不在这里分支：插件只认得 completed 与 duplicate，
@@ -281,7 +279,7 @@ export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: s
       if(!normed.ok)return normed
       let out=normed.data.text
       // 同一段答案已经写在段里就不再追加：重复关闭是幂等的，不该越关答案越多。
-      if(reason&&answerTextOf(out)!==reason.trim())out=appendSectionBlock(out,'Answer',reason)
+      if(reason&&answerTextOf(out)!==reason.trim())out=appendSectionBlock(out,WAYFINDER_ANSWER_SECTION,reason)
       return out
     }
     if(!target.route){

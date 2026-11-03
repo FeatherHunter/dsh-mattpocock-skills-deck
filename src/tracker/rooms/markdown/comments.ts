@@ -15,6 +15,8 @@ import { resolveIssueFile, resolveSpecFile } from './issues-locate.js'
 // #1489：原文布局把评论追加到 ## Comments 段的末尾（issue-tracker-local.md:11），不再往段首插；
 // 旧布局保持原样（既有门禁钉着那套位置）。
 import { appendSectionBlock, ticketFormOf } from './original-fields.js'
+// #1859：旧票的评论区锚点与段尾也要用同一套「已知结构段名 + 围栏」判断，不能再把任意 ## 当段尾。
+import { COMMENTS_SECTION_TITLE, commentStartsOf, commentsSectionRange } from './comment-format.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Comment } from '../../contract/entities.js'
 // #922：写评论同样是「读整份 → 在内存里改 → 整份写回」，要排在该票文件的单写者队列里，见 write-queue.js。
@@ -84,28 +86,38 @@ async function addCommentInner(ctx: OpContext,repo: RepoWithPath | null,key: str
       // #1489：原文布局（实施票、地图子票、插件建的新文件）往 ## Comments 段末尾追加；
       // 旧布局保留「插在段首」的既有行为，不改它的位置。
       if(ticketFormOf(txt)!=='legacy'){
-        const next=appendSectionBlock(txt,'Comments',block)
+        const next=appendSectionBlock(txt,COMMENTS_SECTION_TITLE,block)
         await publishTextFile(ctx,r.path,next, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
         noteFileWritten(trail)
         const comment: Comment={author:{login:actor},authorAssociation:'',body:String(body||''),createdAt:nowIso,updatedAt:nowIso}
         return{ok:true,data:comment}
       }
-      const re=/^\s*##\s*Comments\s*$/im
-      const m=re.exec(txt)
-      if(m){
-        const start=m.index+m[0].length
-        const after=txt.slice(start)
-        const nextH2=/^\s*##\s+/m.exec(after)
-        if(nextH2){
-          const insertPos=start+nextH2.index
-          txt=txt.slice(0,insertPos)+'\n'+block+'\n'+txt.slice(insertPos)
-        }else{
-          if(!txt.endsWith('\n'))txt+='\n'
-          txt+='\n'+block+'\n'
+      const range=commentsSectionRange(txt)
+      if(range){
+        // 旧布局保留「插在段首」的既有位置；但旧手写评论头（没有 ISO 时间）不能排在新评论头后面，
+        // 否则读侧只认第一个真实头之前的旧头，旧评论会整段读不到。三种落点：
+        //   · 段首已经是真实评论头：照旧插在段首；
+        //   · 段首是旧手写头：插到第一个真实头之前（旧头仍排在新头前面）；
+        //   · 整段只有旧手写头：插到段尾，新头排在旧头后面。
+        const lines=txt.split('\n')
+        const starts=commentStartsOf(txt)
+        let at=range.start+1
+        if(starts.length){
+          if(starts[0].strong)at=starts[0].at
+          else{
+            const firstStrong=starts.find(function(one){return one.strong})
+            at=firstStrong?firstStrong.at:range.end
+          }
         }
+        while(at>range.start+1&&lines[at-1].trim()===''){
+          lines.splice(at-1,1)
+          at-=1
+        }
+        lines.splice(at,0,'',block.trim(),'')
+        txt=lines.join('\n')
       }else{
         if(!txt.endsWith('\n'))txt+='\n'
-        txt+='\n## Comments\n\n'+block+'\n'
+        txt+='\n## '+COMMENTS_SECTION_TITLE+'\n\n'+block.trim()+'\n'
       }
       // #1182：评论追加进票文件同样走原子发布（同目录临时文件 + 改名；没有改名原语时退回整份直写）。
       await publishTextFile(ctx,r.path,txt, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)

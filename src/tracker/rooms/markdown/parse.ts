@@ -8,6 +8,8 @@ import { hiddenCommentOf } from './original-fields.js'
 // #1790：状态判定与标签合成的纯函数住 status.ts；parse 只做接线，不再自己维护一份状态词表。
 import { labelsWithSynthesizedTriage, resolveStatusRead, stateOfStatus, statusKindOf } from './status.js'
 import type { IssueFileKind, StatusRead } from './status.js'
+// #1859：评论区的边界判断搬到 comment-format.ts（读写共用），parse 只留一行接线。
+import { parseComments } from './comment-format.js'
 
 // parseMd 的元数据：调用方（读路径各处）已知的票身份，不从正文里读；
 // 契约 Issue 的核心字段多由此补齐（key/effortId/parentKey/时间/url）。
@@ -298,46 +300,7 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   const hiddenLabelNames = splitHiddenList(hiddenHeaderValue(raw, 'DSH-LABELS')).map((name) => stripLabelDecoration(name)).filter((name) => !!name)
   // 判对象类型沿用旧口径：有可见 Labels 行就只看它，否则看隐藏标签。
   const labelNamesForType = labelsMatch ? visibleLabelNames : hiddenLabelNames
-  let comments = []
-  const cmAnchor = /^\s*##\s*Comments\s*$/im
-  const cmExec = cmAnchor.exec(raw)
-  if (cmExec) {
-    const start = cmExec.index + cmExec[0].length
-    const after = raw.slice(start)
-    const nextH2 = /^\s*##\s+/m.exec(after)
-    const segment = nextH2 ? after.slice(0, nextH2.index) : after
-    const blocks = segment.split(/^###\s+/m).map((s) => s.trim()).filter(Boolean)
-    for (const b of blocks) {
-      if (!b) continue
-      const lines = b.split('\n')
-      const header = lines[0]?.trim() || ''
-      let login = 'local'
-      let createdAt = ''
-      const dashIdx = header.indexOf('\u2014')
-      const dashIdx2 = header.indexOf('-')
-      let sep = -1
-      if (dashIdx >= 0) sep = dashIdx
-      else if (dashIdx2 >= 0) sep = dashIdx2
-      if (sep >= 0) {
-        login = header.slice(0, sep).trim() || 'local'
-        const datePart = header.slice(sep + 1).trim()
-        const iso = /\d{4}-\d{2}-\d{2}T/.exec(datePart) ? datePart.match(/\d{4}-\d{2}-\d{2}T[^ \n]+/)?.[0] : ''
-        if (iso) createdAt = iso
-      } else if (header) {
-        login = header.split(/\s+/)[0] || 'local'
-      }
-      const bodyPart = lines.slice(1).join('\n').trim()
-      const body = bodyPart.split(/^---\s*$/m)[0]?.trim() || bodyPart
-      if (!body && !header) continue
-      comments.push({
-        author: { login },
-        authorAssociation: '',
-        body: body || '',
-        createdAt: createdAt || (meta && meta.createdAt) || '',
-        updatedAt: createdAt || (meta && meta.updatedAt) || '',
-      })
-    }
-  }
+  const comments = parseComments(raw, meta)
   const key = String((meta && meta.key) || '00')
   // #1277：对象类型看文件头那行隐藏标记（ADR 2.5：标记是唯一真源，标签与正文形状只作兜底）。
   // #1403：判定顺序与 T1 三房口径一致 —— 标记 → 类型标签（wayfinder:map）→ 正文形状（地图文件本身 / 老的 Type: map）。

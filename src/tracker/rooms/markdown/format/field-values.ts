@@ -14,7 +14,7 @@ import { MD_FORMAT } from './generated.js'
 import { TRIAGE_STATE_LABELS } from '../../../contract/triage-states.js'
 
 type LabelEntry = { label?: unknown; values?: unknown }
-type ObjectEntry = { fields?: unknown; 'top-lines'?: unknown }
+type ObjectEntry = { fields?: unknown; 'top-lines'?: unknown; sections?: unknown; 'body-section'?: unknown; resolve?: unknown }
 
 function objectsOf(): Record<string, ObjectEntry> {
   const root = MD_FORMAT as unknown as { objects?: unknown }
@@ -50,6 +50,26 @@ function topLineOf(kind: string, label: string): LabelEntry | null {
     if (entry && entry.label === label) return entry
   }
   return null
+}
+
+/** 原文模板里某个对象有哪些正文段标题：规格七段、探索地图五段。
+ *  评论区的边界要用它，不能把正文里任意二级标题都当成段尾 —— 评论正文里写 `## 结论` 是内容，不是结构。 */
+function sectionTitlesOf(kind: string): string[] {
+  const objs = objectsOf()
+  return objs[kind] ? stringsOf(objs[kind].sections) : []
+}
+/** 原文模板里某个对象有一个单独的正文段标题（地图子票的 `## Question`）。 */
+function bodySectionOf(kind: string): string {
+  const objs = objectsOf()
+  const got = objs[kind] ? objs[kind]['body-section'] : undefined
+  return typeof got === 'string' && got.trim() ? got.trim() : 'Question'
+}
+/** 原文模板里「解决时写哪一段」（地图子票的 `## Answer`）。 */
+function resolveSectionOf(kind: string): string {
+  const objs = objectsOf()
+  const resolve = objs[kind] ? objs[kind].resolve : undefined
+  const got = resolve && typeof resolve === 'object' ? (resolve as { 'answer-section'?: unknown })['answer-section'] : undefined
+  return typeof got === 'string' && got.trim() ? got.trim() : 'Answer'
 }
 
 /** 实施票的加粗字段行认哪几个名：原文模板 implementation-ticket 的 fields（今天是 What to build / Blocked by / Status）。 */
@@ -136,3 +156,15 @@ export function regexAlt(values: readonly string[]): string {
 /** wayfinder 类型标签认哪几个值：`wayfinder:<类型词>`，类型词与 Type 行同一份（只从 YAML 真源读）。
  *  收在这里是 S5 的一部分：拼法只写一处，create-render 与 map-render 共用，不再各拼一份。 */
 export const WAYFINDER_LABEL_RE = new RegExp('^wayfinder:(' + regexAlt(MAP_TICKET_TYPES) + ')$')
+
+/** 规格正文的段标题（原文 to-spec 模板七段）：评论区的结束边界只认这些已知段名。 */
+export const SPEC_SECTION_TITLES: string[] = sectionTitlesOf('spec')
+
+/** 探索地图正文的段标题（原文 wayfinder 模板五段）：理由同上。 */
+export const MAP_SECTION_TITLES: string[] = sectionTitlesOf('map')
+
+/** 地图子票的正文段标题（原文模板里是 `## Question`）。 */
+export const WAYFINDER_QUESTION_SECTION: string = bodySectionOf('wayfinder-child')
+
+/** 地图子票解决时写答案的段标题（原文模板里是 `## Answer`）。 */
+export const WAYFINDER_ANSWER_SECTION: string = resolveSectionOf('wayfinder-child')
