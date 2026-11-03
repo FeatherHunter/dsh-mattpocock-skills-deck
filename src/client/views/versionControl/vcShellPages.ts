@@ -47,6 +47,8 @@ declare function vcChangesPageNode(h: any, t: any, o: any): any
 declare function vcPageHeadNode(h: any, t: any, o: any): any
 declare function vcManageIndexNode(h: any, t: any, o: any): any
 declare function vcBranchPopoverNode(h: any, t: any, o: any): any
+// #1846：全库搜索页的正文版式（vcSearchPage.ts）——输入框在首屏、结果按能力所属页面分组；命令面板不再嵌进这一页。
+declare function vcSearchPageNode(h: any, t: any, o: any): any
 // 分支与标签业务面板叶子（#1746 T11，vcBranches.ts）、贮藏页叶子（#1751，vcStashPage.ts）、克隆向导页叶子（#1756，
 // vcClonePage.ts）、冲突向导正文叶子（#1747 T12，vcConflictsPage.ts）、变基待办页的历史改写面板（#1748 T13，vcUndoPage.ts）
 // 与动作面板（#1749 T14，vcRebasePage.ts）、配置页与钩子页两叶（#1760）、维护页整仓重写一叶（#1750 T15，vcRewritePage.ts）、诊断页正文一叶（#1761）以及 #1762 T26 的平台页
@@ -140,7 +142,8 @@ export const vcPageTabsNode = function (h: any, t: any, o: any) {
 //   否则正文与骨架并排出现，看起来像页面还没接上。判断只按这一页真正会挂的正文来，不猜读数是否已到。
 const vcOwnBodyOf = function (page: string, opts: any) {
   const o: any = opts || {}
-  if (page === 'maintenance' || page === 'migrate' || page === 'diagnostics') return true
+  // #1846：全库搜索页的正文（输入框与分组结果）不依赖任何读数，这里直接算「有正文」，不该再并排画自检骨架。
+  if (page === 'maintenance' || page === 'migrate' || page === 'diagnostics' || page === VC_SEARCH_PAGE) return true
   if (page === 'config' || page === 'hooks') return o.config !== undefined || o.hooks !== undefined
   if (page === 'branch-tags') return o.branchBoard !== undefined
   if (page === 'conflicts') return o.conflicts !== undefined
@@ -178,6 +181,14 @@ export const vcPageBodyNode = function (h: any, t: any, o: any) {
   // #1829 阶段 4-A：页头整体交给 vcPageHead（标题行、种类与层级、导语三段），壳只保留页面顺序。
   children.push(Object.assign({}, vcPageHeadNode(h, t, { page: page, back: opts.back === true }), { key: 'meta' }))
   children.push.apply(children, vcPageNotesOf(h, t, page))
+  // #1846：全库搜索页改成独立版式 —— 输入框在首屏，结果按能力所属页面分组，不再把命令面板嵌进能力清单。
+  //   这一块不依赖读数，所以紧跟在页头与页面说明之后、其它页正文之前，第一屏就能看见输入框。
+  if (page === VC_SEARCH_PAGE && typeof vcSearchPageNode === 'function') {
+    children.push(Object.assign({}, vcSearchPageNode(h, t, {
+      id: vcPagePrefixOf(opts.pagePrefix || '') + '-search',
+      query: opts.query, highlight: opts.highlight, limit: opts.paletteLimit,
+    }), { key: 'search' }))
+  }
   // #1752 工作树页正文：读首屏聚合里那一份工作树片，八条能力的入口与执行面由 vcWorktreesPage 自己画；
   //   壳只负责把宿主数据与处理函数透传进去（没有传入时页面自己画空态，不影响其它页）。
   if (page === 'worktrees' && typeof vcWorktreesPageNode === 'function') {
@@ -298,12 +309,13 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   const paletteOpen = !!open.palette || isSearch
   const gearOpen = !!open.gear || (isManage && !secondary)
   const branchOverlayId = prefix + '-branch-overlay'
-  const paletteId = prefix + '-palette'
+  // #1846：搜索页上放大镜的 aria-controls 指向搜索页自己的输入框区块（前缀 + -search）；
+  //   别的页面上它仍指向命令面板遮罩里的面板（前缀 + -palette）。两边各指各的那个真节点，不共用名字。
+  const paletteId = isSearch ? prefix + '-search' : prefix + '-palette'
   const gearId = prefix + '-gear-index'
   const readAt = String(seed.when === undefined || seed.when === null ? '' : seed.when)
-  const openSurface = isSearch
-    ? String(open.surface || (CAPABILITIES.filter(function (c: any) { return c && c.page === 'search' })[0] || {}).id || '')
-    : String(open.surface || '')
+  // #1846：搜索页不再默认展开某条能力的操作面（那份操作面本来画的就是命令面板，现在拆掉了）。
+  const openSurface = String(open.surface || '')
   // 页面根节点下的子节点按固定槽位排，各给一个稳定的 key（React 列表告警不该出现在这门禁的输出里）。
   const keyed = function (node: any, key: string) { return Object.assign({}, node, { key: key }) }
   const children: any[] = []
@@ -316,8 +328,9 @@ export const vcShellPageNode = function (h: any, t: any, o: any) {
   }), 'identity'))
   if (branchOpen) children.push(keyed(vcBranchOverlayNode(h, t, { id: branchOverlayId, branch: seed.branch }), 'branch'))
   if (gearOpen) children.push(keyed(vcGearIndexNode(h, t, { id: gearId, pagePrefix: opts.pagePrefix || '', active: isManage ? page : '' }), 'gear'))
-  // 命令面板：全库搜索页把它画在能力行里（唯一一个输入框）；其它页按种子画成贴触发点的浮层。
-  if (paletteOpen && !isSearch) children.push(keyed(vcPaletteNode(h, t, { id: paletteId, query: seed.query, highlight: seed.highlight, limit: seed.paletteLimit, reads: opts.reads }), 'palette'))
+  // 命令面板：只在别的页面上按种子画成贴触发点的遮罩浮层（#1846：全库搜索页自己画输入框与结果，
+  //   不再把面板嵌进能力行；这一页的输入框在页头下面，页面上只有那一个）。
+  if (!!open.palette && !isSearch) children.push(keyed(vcPaletteNode(h, t, { id: paletteId, query: seed.query, highlight: seed.highlight, limit: seed.paletteLimit, reads: opts.reads }), 'palette'))
   // 二级页不出四个固定页签（原型 37/39）：那四个是一级视图，二级页的返回与去向由页头与顶部条给。
   if (!secondary) children.push(keyed(vcPageTabsNode(h, t, { pagePrefix: opts.pagePrefix || '', active: VC_TAB_PAGES.indexOf(page) >= 0 ? page : '', counts: opts.counts }), 'tabs'))
   children.push(keyed(vcPageBodyNode(h, t, {

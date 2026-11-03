@@ -8,12 +8,27 @@ zh:
   vc.config.read.ok: 配置已读出。
   vc.config.read.idle: 还没读配置，按「重新读取」拿当前值。
   vc.config.read.err: 配置没读出来（{kind}），可以先按「重新读取」再试一次。
+  vc.config.read.label: 读取全部配置
+  vc.config.meta.path: 配置文件
+  vc.config.meta.version: git 版本
+  vc.config.section.related: 相关配置
+  vc.config.section.relatedNote: 只列与版本管理界面直接相关的键。值来自本仓库的真实配置，没配的写「未配置」。
+  vc.config.section.readonly: 只读读取
+  vc.config.section.readonlyNote: 属性规则与邮件映射只展示读到的内容，不在面板里编辑。读取结果贴在行内。
   vc.config.readonly: 只读
   vc.config.group.identity: 提交身份
+  vc.config.group.identity.note: 提交里显示的姓名与邮箱。只影响新提交，不改已有历史。
   vc.config.group.eol: 行尾与大小写
+  vc.config.group.eol.note: 换行符与文件名大小写的口径。仓库跨 Windows 与 macOS 时最容易出问题。
   vc.config.group.hooksPath: 钩子路径
+  vc.config.group.hooksPath.note: 钩子默认在仓库的 .git/hooks。配了 core.hooksPath 就改到别处。
   vc.config.group.credential: 凭据来源
+  vc.config.group.credential.note: 只展示凭据来源类型，永远不展示凭据原文。
   vc.config.group.empty: 这几项都没有配置，用的是默认值。
+  vc.config.fact.defaultHooksDir: 默认钩子目录
+  vc.config.fact.defaultHooksDirValue: .git/hooks（未配置 hooksPath 时）
+  vc.config.fact.panelCredentials: 面板持有的凭据
+  vc.config.fact.panelCredentialsValue: 不持有：推送与拉取由宿主进程调用 git 凭据助手
   vc.config.identity.name: 提交者姓名
   vc.config.identity.email: 提交者邮箱
   vc.config.identity.never: 未配置
@@ -62,12 +77,27 @@ en:
   vc.config.read.ok: Configuration loaded.
   vc.config.read.idle: Configuration has not been read yet; press "Read again" for current values.
   vc.config.read.err: 'Configuration could not be read ({kind}); try "Read again".'
+  vc.config.read.label: Read all configuration
+  vc.config.meta.path: Config file
+  vc.config.meta.version: git version
+  vc.config.section.related: Related configuration
+  vc.config.section.relatedNote: Only keys directly related to the version control UI. Values come from the real configuration of this repository; unset keys say "not configured".
+  vc.config.section.readonly: Read-only lookups
+  vc.config.section.readonlyNote: Attribute rules and mailmap only show what was read; they cannot be edited in this panel, and results appear inline.
   vc.config.readonly: read-only
   vc.config.group.identity: Commit identity
+  vc.config.group.identity.note: The name and email shown in commits. Only new commits are affected; existing history is untouched.
   vc.config.group.eol: Line endings and case
+  vc.config.group.eol.note: Line ending and file name case rules. This matters most when the repository is used on both Windows and macOS.
   vc.config.group.hooksPath: Hook path
+  vc.config.group.hooksPath.note: Hooks live in .git/hooks by default. If core.hooksPath is set, they live elsewhere.
   vc.config.group.credential: Credential source
+  vc.config.group.credential.note: Only the credential source type is shown; the credential itself is never displayed.
   vc.config.group.empty: Nothing is configured for these keys; defaults apply.
+  vc.config.fact.defaultHooksDir: Default hook directory
+  vc.config.fact.defaultHooksDirValue: .git/hooks (when hooksPath is not set)
+  vc.config.fact.panelCredentials: Credentials held by the panel
+  vc.config.fact.panelCredentialsValue: "None: push and pull call the git credential helper from the host process."
   vc.config.identity.name: Committer name
   vc.config.identity.email: Committer email
   vc.config.identity.never: not configured

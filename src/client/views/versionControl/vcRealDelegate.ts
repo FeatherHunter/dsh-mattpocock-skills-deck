@@ -50,6 +50,12 @@ export const vcRealClickIntentOf = function (el: any): any {
     const act: any = vcRealClosestOf(el, 'data-vc-branch-action')
     if (act) return { kind: 'branchOverlay', action: vcRealAttrOf(act, 'data-vc-branch-action') }
   }
+  // #1846 命令面板遮罩：只有点在遮罩本身（而不是面板内部）才算关闭。判据用「最近带该属性的节点就是我」，
+  //   光用 closest 会把面板里的每次点击都算到遮罩头上，点输入框也会把面板关掉。
+  if (el && vcRealClosestOf(el, 'data-vc-palette-backdrop') === el) return { kind: 'paletteBackdrop' }
+  // #1846 全库搜索页的结果行：选中只跳到那条能力的入口，落点与命令面板选中同一条规则。
+  hit = vcRealClosestOf(el, 'data-vc-search-row')
+  if (hit) return { kind: 'searchPick', capId: vcRealAttrOf(hit, 'data-vc-search-row') }
   hit = vcRealClosestOf(el, 'data-vc-palette-row')
   if (hit) return { kind: 'palettePick', capId: vcRealAttrOf(hit, 'data-vc-palette-row') }
   hit = vcRealClosestOf(el, 'data-vc-tab')
@@ -149,6 +155,10 @@ export const vcRealClickIntentOf = function (el: any): any {
 
 // 输入意图：除了命令面板的搜索框，两个管理页的输入框也要把值送回容器（远端表单、迁移字段、同步输入、分支表单）。
 export const vcRealInputIntentOf = function (el: any): any {
+  // #1846 全库搜索页自己的输入框：与命令面板共用 nav.query 这一份，切页回来还能看见上次搜的词。
+  if (vcRealClosestOf(el, 'data-vc-search-input')) {
+    return { kind: 'searchInput', value: String(el && el.value !== undefined ? el.value : '') }
+  }
   if (vcRealClosestOf(el, 'data-vc-palette-input')) {
     return { kind: 'paletteInput', value: String(el && el.value !== undefined ? el.value : '') }
   }
@@ -192,6 +202,7 @@ const VC_REAL_ACTION_OF: any = {
     filesRetry: 'filesRetry', fileDiffRetry: 'fileDiffRetry', historyFile: 'historyFile',
     historyQuery: 'historyQuery', historyMerge: 'historyMerge', historyMenu: 'historyMenu',
     historyMenuClose: 'historyMenuClose', historyMenuCap: 'historyMenuCap', historyMenuCopy: 'historyMenuCopy',
+    paletteBackdrop: 'paletteBackdrop', searchPick: 'searchPick', searchInput: 'searchInput',
     paletteInput: 'paletteInput', tabKey: 'tabKey', escape: 'escape',
     remoteField: 'remoteField', syncField: 'syncField', branchField: 'branchField', capRow: 'capRow',
 }

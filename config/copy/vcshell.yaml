@@ -242,6 +242,18 @@ zh:
   vc.shell.palette.versionAlt: '可用的替代做法是：{alt}'
   vc.shell.palette.foot: '按 Esc 关闭；选中结果只跳转到入口，不执行动作'
 
+  # 全库搜索页自己的版式（#1846）：输入框在首屏，结果按能力所属页面分组，选中只跳入口。
+  #   这一组与命令面板（vc.shell.palette.*）分开：那是别的页面上按快捷键弹出的遮罩，这是搜索页的正文。
+  vc.shell.search.note: '按能力编号、名称、别名或命令原文搜；结果按所在页面分组，选中只跳到那条能力的入口，不在这里执行动作。'
+  vc.shell.search.placeholder: '搜能力编号、名称、别名或命令原文'
+  vc.shell.search.emptyQuery: '输入关键词开始搜索：编号、名称、别名与命令原文都能搜。'
+  vc.shell.search.emptyHit: '没有命中：换一个更短的关键字，或直接输入能力编号（例如 11.6）。'
+  vc.shell.search.count: '命中 {n} 条，按所在页面分组'
+  vc.shell.search.groupCount: '{n} 条'
+  vc.shell.search.jump: '去这里'
+  vc.shell.search.needsObject: '需要对象上下文：只跳到入口，不自动执行'
+  vc.shell.search.more: '只画前 {n} 条，再输入几个字缩小范围。'
+
   # 真实页签的容器条与首屏片（#1776 M1：手动刷新、片级重试、返回来源页、四个壳外深链）
   vc.shell.live.refresh: '重新读取版本信息'
   vc.shell.live.loading: '正在读取版本信息'
@@ -705,6 +717,18 @@ en:
   vc.shell.palette.versionDegraded: 'Limited on this git version: the full capability needs {need} or newer.'
   vc.shell.palette.versionAlt: 'The alternative is: {alt}'
   vc.shell.palette.foot: 'Esc closes; picking a result only jumps to its entry, it never runs'
+  # The search page's own layout (#1846): the input sits on the first screen, results are grouped by the
+  # page a capability belongs to, and picking one only jumps to its entry. Kept apart from the command
+  # palette (vc.shell.palette.*): that one is a mask over other pages, this one is the page body.
+  vc.shell.search.note: 'Search by capability id, name, alias, or exact command; results are grouped by the page they belong to, and picking one only jumps to that entry instead of running it here.'
+  vc.shell.search.placeholder: 'Search capability id, name, alias, or exact command'
+  vc.shell.search.emptyQuery: 'Type a keyword to start: id, name, alias, and exact command all work.'
+  vc.shell.search.emptyHit: 'No match: try a shorter keyword, or type a capability id directly (for example 11.6).'
+  vc.shell.search.count: '{n} matches, grouped by page'
+  vc.shell.search.groupCount: '{n} items'
+  vc.shell.search.jump: 'Go to'
+  vc.shell.search.needsObject: 'Needs an object context: jumps to the entry, never runs automatically'
+  vc.shell.search.more: 'Only the first {n} are drawn; type a few more characters to narrow it down.'
   # Remote and sync page (#1754 T18, domain 8 capabilities 8.1–8.4)
   vc.remote.localNote: 'This is a local record: opening the page does not go online; the list below comes from the local repository'
   vc.remote.readAt: 'Read at {when}'

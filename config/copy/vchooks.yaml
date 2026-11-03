@@ -7,10 +7,26 @@ zh:
   vc.hooks.configured: 钩子路径由 core.hooksPath 指到 {path}
   vc.hooks.notConfigured: 用的是默认钩子目录 .git/hooks
   vc.hooks.install.note: 安装与停用不在面板里做：它们要往钩子目录写可执行文件、改可执行位，不是 git 命令。把脚本放进上面的目录并给它执行权限即可；编辑正文请用外部编辑器。
+  vc.hooks.section.dir: 钩子目录
+  vc.hooks.section.dirNote: 清单来自 .git/hooks 的真实文件。示例不算已启用。
+  vc.hooks.section.list: 钩子清单
+  vc.hooks.section.listNote: 按文件名排序。每个文件都能看到它是不是示例、会不会被执行。
+  vc.hooks.section.run: 手动运行
+  vc.hooks.section.runNote: 手动跑一个钩子只影响本次动作。执行前提示这个钩子会读写哪些路径。
+  vc.hooks.fact.dir: 钩子目录
+  vc.hooks.fact.enabled: 已启用
+  vc.hooks.fact.samples: 示例
+  vc.hooks.fact.editor: 编辑方式
+  vc.hooks.fact.editorValue: 交给外部编辑器。面板不内嵌编辑器
+  vc.hooks.fact.version: git 版本
+  vc.hooks.countValue: '{n} 个'
   vc.hooks.list.empty: 钩子目录里还没有脚本。
   vc.hooks.list.err: 钩子清单没读出来（{kind}）；可以先按配置页的「重新读取」再试。
   vc.hooks.sample: 示例文件
+  vc.hooks.sample.note: git 初始化自带的示例，没有被启用。改名去掉 .sample 才会生效。
   vc.hooks.executable: 钩子
+  vc.hooks.executable.note: 这个钩子会在对应 git 动作前后被执行。
+  vc.hooks.enabled: 已启用
   vc.hooks.notExecutable: 没有执行权限，跑不起来
   vc.hooks.run: 手动跑
   vc.hooks.gate.hidden: 这版 git 不能手动跑钩子（需要 {needed}）。
@@ -28,10 +44,26 @@ en:
   vc.hooks.configured: Hook path comes from core.hooksPath at {path}
   vc.hooks.notConfigured: Using the default .git/hooks directory
   vc.hooks.install.note: Installing and disabling hooks is not done in this panel — that means writing executable files into the hook directory and changing the executable bit, which is not a git command. Put the script in the directory above and make it executable; edit its body in your own editor.
+  vc.hooks.section.dir: Hook directory
+  vc.hooks.section.dirNote: The list comes from the real files in .git/hooks. Samples do not count as enabled.
+  vc.hooks.section.list: Hook list
+  vc.hooks.section.listNote: Sorted by file name. Every file shows whether it is a sample and whether it will run.
+  vc.hooks.section.run: Run manually
+  vc.hooks.section.runNote: Running a hook by hand affects only this run. You are told which paths it reads and writes before it starts.
+  vc.hooks.fact.dir: Hook directory
+  vc.hooks.fact.enabled: Enabled
+  vc.hooks.fact.samples: Samples
+  vc.hooks.fact.editor: Editing
+  vc.hooks.fact.editorValue: Use your own editor; this panel does not embed one.
+  vc.hooks.fact.version: git version
+  vc.hooks.countValue: '{n}'
   vc.hooks.list.empty: No scripts in the hook directory yet.
   vc.hooks.list.err: 'The hook list could not be read ({kind}); try "Read again" on the configuration page.'
   vc.hooks.sample: sample file
+  vc.hooks.sample.note: A sample shipped by git init; it is not enabled. Rename away .sample to activate it.
   vc.hooks.executable: hook
+  vc.hooks.executable.note: This hook runs before or after the matching git action.
+  vc.hooks.enabled: enabled
   vc.hooks.notExecutable: not executable; it cannot run
   vc.hooks.run: Run manually
   vc.hooks.gate.hidden: This git cannot run hooks manually (needs {needed}).

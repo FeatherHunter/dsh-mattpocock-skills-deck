@@ -169,6 +169,8 @@ const VC_FILES = [
   'src/client/views/versionControl/vcMigrateExport.js',
   // #1762 T26：「本页负责的能力」列表从壳拆到独立叶子，构建次序在壳之前，闭包拼装要跟着放。
   'src/client/views/versionControl/vcCapabilityList.js',
+  // #1846 全库搜索页自己的版式（输入框在首屏、结果按页面分组）；壳渲染搜索页时调它。
+  'src/client/views/versionControl/vcSearchPage.js',
   // #1748 变基待办页的历史改写面板（与构建同序）：先数据层，再页面本体，都排在页面壳之前。
   'src/client/views/versionControl/vcUndoOps.js',
   'src/client/views/versionControl/vcUndoPage.js',
@@ -194,6 +196,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcShellIdentity.js',
   'src/client/views/versionControl/vcChangesView.js',
   // #1829 阶段 4 三个共享件（与构建同序）：页头与页面原语、齿轮里的管理索引卡、分支浮层；壳的挂载段要看到它们。
+  // #1845 流程页共用小部件（状态芯片 / 进度条 / 动作条 / 行内提示）紧跟页头之后：任务、变基、冲突三页都会调它们。
   'src/client/views/versionControl/vcPageHead.js',
   'src/client/views/versionControl/vcFlowParts.js',
   'src/client/views/versionControl/vcManageIndex.js',
@@ -1306,9 +1309,9 @@ async function main() {
   check(!!writeCap && VIEW.vcPaletteTargetOf(writeCap.id).needsObject === true && VIEW.vcCapabilityNeedsObjectOf(writeCap) === true, 'Z9f 需要对象上下文的写动作标成 needsObject（只跳入口、不自动执行）')
   const paletteRows = VIEW.vcPaletteRowsOf('stash')
   const searchHtml = shellHtmlOf({ page: 'search', width: 460, skin: 'dark', seed: { query: 'stash', highlight: paletteRows[0].id } })
-  const secondaryIds = attrValuesOf(searchHtml, 'data-cap-secondary')
-  check(searchHtml.indexOf('data-vc-palette-input') >= 0 && secondaryIds.length === paletteRows.length && secondaryIds.join(',') === paletteRows.map(function (r) { return r.id }).join(','), 'Z9g 全库搜索页画出输入框，结果行数等于该关键词命中条数（每行带 data-cap-secondary 第二入口）')
-  check(searchHtml.indexOf('data-vc-palette-hit="1"') >= 0, 'Z9h 跳转目标那一行标了命中高亮')
+  const searchIds = attrValuesOf(searchHtml, 'data-vc-search-row')
+  check(searchHtml.indexOf('data-vc-search-input') >= 0 && searchHtml.indexOf('data-vc-palette-input') < 0 && searchIds.length === paletteRows.length && searchIds.join(',') === paletteRows.map(function (r) { return r.id }).join(','), 'Z9g 全库搜索页画自己的搜索输入框，结果行数等于该关键词命中条数（每行带 data-vc-search-row 第二入口；命令面板不嵌这一页）')
+  check(searchHtml.indexOf('data-vc-search-hit="1"') >= 0, 'Z9h 跳转目标那一行标了命中高亮')
   const darkHtml = shellHtmlOf({ page: 'maintenance', width: 460, skin: 'dark' })
   const lightHtml = shellHtmlOf({ page: 'maintenance', width: 460, skin: 'light' })
   check(attrValuesOf(darkHtml, 'data-vc-skin')[0] === 'dark' && attrValuesOf(lightHtml, 'data-vc-skin')[0] === 'light', 'Z10a 深浅两套皮肤都能渲染（根节点带 data-vc-skin）')

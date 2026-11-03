@@ -93,6 +93,12 @@ const VC_FILES = [
   'src/client/views/versionControl/vcFlowParts.js',
   'src/client/views/versionControl/vcManageIndex.js',
   'src/client/views/versionControl/vcBranchPopover.js',
+  // #1842 阶段 4：配置页与钩子页共用数据层 vcConfigOps，共享层 config-rules 提供哪些键可写、
+  // 2.36 版本门与钩子名形状；两张页面叶子按构建次序排在壳之前。
+  '.build/shared/version-control/config-rules.js',
+  'src/client/views/versionControl/vcConfigOps.js',
+  'src/client/views/versionControl/vcConfigPage.js',
+  'src/client/views/versionControl/vcHooksPage.js',
   'src/client/views/versionControl/vcShellPages.js',
 ]
 
@@ -162,13 +168,16 @@ function entryOf(closureSrc: string): string {
     "    states: grab('[data-vc-state]', 'data-vc-state'),",
     "    forms: grab('[data-vc-form]', 'data-vc-form'),",
     "    palettes: grab('[data-cap-secondary]', 'data-cap-secondary'),",
+    "    searchRows: grab('[data-vc-search-row]', 'data-vc-search-row'),",
     "    clipped: clipped, rows: root.querySelectorAll('.vcs-cap').length,",
     "    skeleton: !!root.querySelector('[data-vc-skeleton]'), maintPage: !!root.querySelector('[data-vc-maint-page]'), rewritePage: !!root.querySelector('[data-vc-rewrite-page]'),",
     "    bg: window.getComputedStyle(root).backgroundColor,",
     "    hasIdentity: !!root.querySelector('[data-vc-identity]'),",
     "    hasSync: !!root.querySelector('[data-vc-sync]'),",
     "    hasSearch: !!root.querySelector('[data-vc-search-entry]'),",
-    "    paletteInput: !!root.querySelector('[data-vc-palette-input]'),",
+    "    paletteInput: !!root.querySelector('[data-vc-palette-input]'),
+    searchInput: !!root.querySelector('[data-vc-search-input]'),
+    searchEmpty: (function () { const e = root.querySelector('[data-vc-search-empty]'); return e ? e.getAttribute('data-vc-search-empty') : null; })(),",
     "    paletteEmpty: !!root.querySelector('[data-vc-palette-empty]'),",
     // #1744 提交历史页：列表 / 详情 / 逐文件差异 / 13.14 图形化视图的读数。
     "    histState: (function () { const e = root.querySelector('[data-vc-history]'); return e ? e.getAttribute('data-vc-history-state') : null; })(),",
@@ -206,6 +215,29 @@ function entryOf(closureSrc: string): string {
     "    branchRetry: root.querySelectorAll('[data-vc-branch2-retry]').length,",
     "    branchEmpty: root.querySelectorAll('[data-vc-branch2-empty]').length,",
     "    branchOidsShown: (function () { const out = []; root.querySelectorAll('[data-vc-branch-row] .vcs-branch2-oid').forEach(function (el) { if (window.getComputedStyle(el).display !== 'none') out.push(String(el.textContent)); }); return out; })(),",
+    // #1842 阶段 4：配置页与钩子页的结构读数（属性顺序即页面上从上到下的顺序）。
+    "    cfgPageRead: (function () { const e = root.querySelector('[data-vc-config-page]'); return e ? e.getAttribute('data-vc-config-read') : null; })(),",
+    "    cfgSections: (function () { const s = root.querySelector('[data-vc-config-page]'); if (!s) return []; return Array.prototype.map.call(s.children, function (el) { return String(el.className || el.tagName) }); })(),",
+    "    cfgGroups: grab('[data-vc-config-group]', 'data-vc-config-group'),",
+    "    cfgEditable: grab('[data-vc-config-editable]', 'data-vc-config-editable'),",
+    "    cfgReadonly: root.querySelectorAll('[data-vc-config-readonly]').length,",
+    "    cfgIdentityRows: grab('[data-vc-config-identity]', 'data-vc-config-identity'),",
+    "    cfgRows: grab('[data-vc-config-row]', 'data-vc-config-row'),",
+    "    cfgGroupEmpty: root.querySelectorAll('[data-vc-config-group-empty]').length,",
+    "    cfgReads: grab('[data-vc-config-read]', 'data-vc-config-read'),",
+    "    cfgClipped: (function () { const out = []; const sel = ['.vcs-config-old', '.vcs-config-id-key', '.vcs-config-meta-value', '.vcs-config-read-label', '.vcs-config-query-result']; root.querySelectorAll(sel.join(',')).forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1) out.push(String(el.className)) }); return out; })(),",
+    "    hooksPageEl: !!root.querySelector('[data-vc-hooks-page]'),",
+    "    hooksSections: (function () { const s = root.querySelector('[data-vc-hooks-page]'); if (!s) return []; return Array.prototype.map.call(s.children, function (el) { return String(el.className || el.tagName) }); })(),",
+    "    hooksList: (function () { const e = root.querySelector('[data-vc-hooks-list]'); return e ? e.getAttribute('data-vc-hooks-list') : null; })(),",
+    "    hooksListCount: (function () { const e = root.querySelector('[data-vc-hooks-list]'); return e ? e.getAttribute('data-vc-hooks-count') : null; })(),",
+    "    hookRows: grab('[data-vc-hook]', 'data-vc-hook'),",
+    "    hookSamples: grab('[data-vc-hook-sample]', 'data-vc-hook-sample'),",
+    "    hookRuns: grab('[data-vc-hook-run]', 'data-vc-hook-run'),",
+    "    hookCaps: grab('[data-vc-hooks-cap]', 'data-vc-hooks-cap'),",
+    "    hooksGate: (function () { const e = root.querySelector('[data-vc-hooks-gate]'); return e ? e.getAttribute('data-vc-hooks-gate') : null; })(),",
+    "    hooksInstall: root.querySelectorAll('[data-vc-hooks-install-note]').length,",
+    "    hooksDirAttr: (function () { const e = root.querySelector('[data-vc-hooks-dir]'); return e ? e.getAttribute('data-vc-hooks-dir') : null; })(),",
+    "    hooksClipped: (function () { const out = []; const sel = ['.vcs-hook-note', '.vcs-hook-name', '.vcs-hooks-install-note', '.vcs-hooks-run-note', '.vcs-hooks-gate']; root.querySelectorAll(sel.join(',')).forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1) out.push(String(el.className)) }); return out; })(),",
     '  };',
     '};',
     'window.__expectedPalette = function (q) { return window.__VC.vcPaletteRowsOf(q).map((r) => r.id); };',
@@ -337,6 +369,39 @@ function branchBoardOf() {
   }
 }
 
+// ---------- 配置页与钩子页（#1842 阶段 4）的种子读数 ----------
+// 形状照读配置电话的回包（vcConfigApplyRead 摊进状态之后的同一份对象）：四组配置行、身份两键的
+// 本仓库与这台机器旧值、钩子目录与三个文件（一个真钩子、一个示例、一个没有可执行位的真钩子）。
+// 页面只读这些字段，不另外打电话；这样量到的是版式与信息层级，不是宿主回包。
+const CFG_NOW = Date.parse('2026-10-04T10:00:00+08:00')
+const CFG_HOOK_ENTRIES = [
+  { name: 'pre-commit', sample: false, executable: true, size: 520 },
+  { name: 'pre-commit.sample', sample: true, executable: true, size: 1200 },
+  { name: 'post-merge', sample: false, executable: false, size: 10 },
+]
+function cfgRowOf(group: string, key: string, editable: boolean, local: string | null, global: string | null, scope: string) {
+  return { group: group, key: key, editable: editable, values: { local: local, global: global, system: null, other: null }, scope: scope, value: scope === 'local' ? local : global }
+}
+function cfgStateOf(over?: any) {
+  const base: any = {
+    readState: 'ok', readAtMs: CFG_NOW, repoRoot: 'D:/w/repo', gitVersion: 'git version 2.49.0',
+    hookRunVersion: { state: 'visible', needed: '2.36.0', alternativeKey: 'vc.hooks.gate.alternative' },
+    configPath: 'D:/w/repo/.git/config',
+    groups: [
+      cfgRowOf('identity', 'user.name', true, '基线名字', null, 'local'),
+      cfgRowOf('identity', 'user.email', true, 'base@example.com', 'machine@example.com', 'local'),
+      cfgRowOf('eol', 'core.autocrlf', false, 'true', null, 'local'),
+      cfgRowOf('hooksPath', 'core.hooksPath', false, null, '.githooks', 'global'),
+    ],
+    identity: { name: { local: '基线名字', global: null }, email: { local: 'base@example.com', global: 'machine@example.com' } },
+    hooks: { dir: 'D:/w/repo/.git/hooks', configured: null, readable: true, known: [], entries: CFG_HOOK_ENTRIES },
+    attr: { state: 'idle' }, mailmap: { state: 'idle' }, entries: [],
+    edit: { key: '', scope: 'local', value: '', path: '', address: '' },
+    check: null, pending: null, result: null,
+  }
+  return Object.assign(base, over || {})
+}
+
 async function run(browser: any, env: any) {
   const { closure, dict, css, relMs } = env
   const shotDir = path.join(ROOT, '.scratch', '1586-visual')
@@ -381,15 +446,16 @@ async function run(browser: any, env: any) {
         await page.setViewportSize({ width: width, height: 1200 })
         const stashRows: string[] = await page.evaluate(() => window.__expectedPalette('stash'))
         let m = await renderAt(page, { page: 'search', width: width, skin: skin, seed: { query: 'stash' } })
-        check(!!m && m.paletteInput && m.palettes.join(',') === stashRows.join(','), tag + '：搜 stash 的命中行与 vcPaletteRowsOf 一致（' + (m && m.palettes.length) + ' 行）且每行带 data-cap-secondary')
+        // #1846：全库搜索页改成独立版式，结果行是自己的 data-vc-search-row；命令面板只作别的页面上的浮层。
+        check(!!m && m.searchInput && !m.paletteInput && m.searchRows.join(',') === stashRows.join(','), tag + '：搜 stash 的命中行与 vcPaletteRowsOf 一致（' + (m && m.searchRows.length) + ' 行）且搜索页只有一个自己的输入框')
         check(!!m && !overflowOf(m), tag + '：命令面板也不横向溢出（' + (m && m.docScrollWidth) + ' ≤ ' + (m && m.innerWidth) + '）')
         const m1314 = await renderAt(page, { page: 'search', width: width, skin: skin, seed: { query: '13.14' } })
-        check(!!m1314 && m1314.palettes.join(',') === '13.14', tag + '：按能力 id 搜 13.14 命中，结果显示所在页面')
+        check(!!m1314 && m1314.searchRows.join(',') === '13.14', tag + '：按能力 id 搜 13.14 命中，结果显示所在页面')
         const byName = await page.evaluate(() => window.__VC.vcPaletteRowsOf(window.__VC.vcPageCapabilitiesOf('commits')[0].name).length)
         const mName = await renderAt(page, { page: 'search', width: width, skin: skin, seed: { query: '提交' } })
-        check(byName > 0 && !!mName && mName.palettes.length > 0, tag + '：按名称 / 命令原文也能搜到（提交 命中 ' + (mName && mName.palettes.length) + ' 行）')
+        check(byName > 0 && !!mName && mName.searchRows.length > 0, tag + '：按名称 / 命令原文也能搜到（提交 命中 ' + (mName && mName.searchRows.length) + ' 行）')
         const mNone = await renderAt(page, { page: 'search', width: width, skin: skin, seed: { query: 'zzz-没有这个能力' } })
-        check(!!mNone && mNone.paletteEmpty === true && mNone.palettes.length === 0, tag + '：搜不到时画空态（data-vc-palette-empty）')
+        check(!!mNone && mNone.searchEmpty === 'hit' && mNone.searchRows.length === 0, tag + '：搜不到时画「没有命中」空态（data-vc-search-empty=hit）')
         if (width === 300 || width === 520) await page.screenshot({ path: path.join(shotDir, 'palette-' + skin + '-' + width + '.png') })
       }
     }
@@ -473,6 +539,65 @@ async function run(browser: any, env: any) {
         }
       }
     }
+    // ---- H 组：配置页（#1842 阶段 4）—— 元信息 → 相关配置（四组折叠）→ 只读读取 ----
+    // 判据只看版式与信息层级：页头由壳画（正文不许再画标题与导语）、四组折叠顺序、身份组可写
+    // 与三组只读的视觉区分、两处读数与两个查询行、六条能力仍各一个主入口、无溢出无截断。
+    const configCaps: string[] = await page.evaluate(() => window.__capsOf('config'))
+    const hooksCaps: string[] = await page.evaluate(() => window.__capsOf('hooks'))
+    const cfgOk = cfgStateOf(null)
+    for (let s = 0; s < SKINS.length; s += 1) {
+      const skin = SKINS[s]
+      for (let w = 0; w < WIDTHS.length; w += 1) {
+        const width = WIDTHS[w]
+        const tag = '配置页 ' + skin + ' / ' + width + ' 宽'
+        await page.setViewportSize({ width: width, height: 1400 })
+        const m = await renderAt(page, { page: 'config', width: width, skin: skin, config: cfgOk })
+        check(!!m && m.page === 'config' && m.width === String(width) && m.skin === skin && m.depth === '2', tag + '：根节点读数是配置页 / 档宽 / 皮肤 / 层级 2')
+        check(!!m && !overflowOf(m), tag + '：没有横向溢出（文档 ' + (m && m.docScrollWidth) + ' ≤ viewport ' + (m && m.innerWidth) + '）')
+        const struct = !!m && m.cfgSections.length === 3 && m.cfgSections[0] === 'vcs-config-meta' &&
+          m.cfgSections[1] === 'page-section' && m.cfgSections[2] === 'page-section' &&
+          m.cfgGroups.join(',') === 'identity,eol,hooksPath,credential' && m.cfgEditable.join(',') === 'true,false,false,false' &&
+          m.cfgReadonly === 3 && m.cfgIdentityRows.join(',') === 'user.name,user.email' &&
+          m.cfgRows.join(',') === 'core.autocrlf,core.hooksPath' && m.cfgGroupEmpty === 1 && m.cfgReads.join(',') === 'ok,ok'
+        check(struct, tag + '：正文是元信息 → 相关配置 → 只读读取；四组折叠加身份两行、两行只读、一组空态与两处读数都在（实得 ' + (m && m.cfgGroups.join(',')) + '）')
+        check(!!m && m.primaries.join(',') === configCaps.join(',') && m.hooksList === null && m.hookRows.length === 0, tag + '：六条能力仍各一个主入口（' + (m && m.primaries.length) + ' 条），没画第二套写入口、也没串到钩子页')
+        check(!!m && m.cfgClipped.length === 0 && m.clipped.length === 0, tag + '：关键句子没有被截断（截断的：' + (m && m.cfgClipped.concat(m.clipped).join(',') || '无') + '）')
+        await page.screenshot({ path: path.join(shotDir, 'config-' + skin + '-' + width + '.png') })
+      }
+    }
+    // ---- I 组：钩子页（#1842 阶段 4）—— 钩子目录（事实格）→ 钩子清单（每文件一行）→ 手动运行 ----
+    for (let s = 0; s < SKINS.length; s += 1) {
+      const skin = SKINS[s]
+      for (let w = 0; w < WIDTHS.length; w += 1) {
+        const width = WIDTHS[w]
+        const tag = '钩子页 ' + skin + ' / ' + width + ' 宽'
+        await page.setViewportSize({ width: width, height: 1400 })
+        const m = await renderAt(page, { page: 'hooks', width: width, skin: skin, hooks: cfgOk })
+        check(!!m && m.page === 'hooks' && m.width === String(width) && m.skin === skin && m.depth === '2', tag + '：根节点读数是钩子页 / 档宽 / 皮肤 / 层级 2')
+        check(!!m && !overflowOf(m), tag + '：没有横向溢出（文档 ' + (m && m.docScrollWidth) + ' ≤ viewport ' + (m && m.innerWidth) + '）')
+        const struct = !!m && m.hooksSections.length === 3 &&
+          m.hooksSections.every(function (x: string) { return x === 'page-section' }) &&
+          m.hooksList === 'ok' && m.hooksListCount === '3' &&
+          m.hookRows.join(',') === 'pre-commit,pre-commit.sample,post-merge' &&
+          m.hookSamples.join(',') === '0,1,0' && m.hookRuns.join(',') === 'pre-commit,post-merge' &&
+          m.hookCaps.join(',') === '12.6,12.6' && m.hooksGate === null && m.hooksInstall === 1 &&
+          m.hooksDirAttr === '1' && m.cfgGroups.length === 0
+        check(struct, tag + '：正文是钩子目录 → 钩子清单 → 手动运行；三个文件按名字排，示例与不可执行都标出来（实得 ' + (m && m.hookRows.join(',')) + '）')
+        check(!!m && m.primaries.join(',') === hooksCaps.join(',') && m.cfgReads.length === 0, tag + '：两条能力仍各一个主入口（' + (m && m.primaries.length) + ' 条），没串到配置页')
+        check(!!m && m.hooksClipped.length === 0 && m.clipped.length === 0, tag + '：关键句子没有被截断（截断的：' + (m && m.hooksClipped.concat(m.clipped).join(',') || '无') + '）')
+        await page.screenshot({ path: path.join(shotDir, 'hooks-' + skin + '-' + width + '.png') })
+      }
+    }
+    // ---- J 组：两页的空态 / 失败态 / 版本门（460 宽深色各核对一次）----
+    await page.setViewportSize({ width: 460, height: 1400 })
+    const cfgErr = await renderAt(page, { page: 'config', width: 460, skin: 'dark', config: cfgStateOf({ readState: 'err', readError: 'not-repo' }) })
+    check(!!cfgErr && cfgErr.cfgPageRead === 'err' && cfgErr.cfgReads.join(',') === 'err,err', '配置页：读失败时两处读数都标 err，页面照样画得出来')
+    const hkHidden = await renderAt(page, { page: 'hooks', width: 460, skin: 'dark', hooks: cfgStateOf({ gitVersion: 'git version 2.34.1', hookRunVersion: { state: 'hidden', needed: '2.36.0', alternativeKey: 'vc.hooks.gate.alternative' } }) })
+    check(!!hkHidden && hkHidden.hooksGate === 'hidden' && hkHidden.hookRuns.length === 0, '钩子页：2.36 以下版本不画运行按钮，改画版本门（实得 ' + (hkHidden && hkHidden.hookRuns.length) + ' 个按钮）')
+    const hkEmpty = await renderAt(page, { page: 'hooks', width: 460, skin: 'dark', hooks: cfgStateOf({ hooks: { dir: 'D:/w/repo/.git/hooks', configured: null, readable: true, known: [], entries: [] } }) })
+    check(!!hkEmpty && hkEmpty.hooksList === 'empty' && hkEmpty.hookRows.length === 0 && hkEmpty.hooksListCount === null, '钩子页：目录里一个文件都没有时画空态，不画「0 个文件」的清单')
+    const hkErr = await renderAt(page, { page: 'hooks', width: 460, skin: 'dark', hooks: cfgStateOf({ readState: 'err', readError: 'not-repo' }) })
+    check(!!hkErr && hkErr.hooksList === 'err' && hkErr.hooksListCount === null, '钩子页：读失败时清单标 err，不假装空目录')
     // 确认卡与结果：818 BR22/BR22b 的静态判据在真浏览器里的对照——都在面板里，且排在页尾折叠区之后。
     await page.setViewportSize({ width: 460, height: 1600 })
     const mb = await renderAt(page, {
@@ -495,7 +620,10 @@ async function run(browser: any, env: any) {
   const vcw = await import(locUrl('src/client/kernel/locale-vcwrite.js'))
   // #1745：查询面板的文案在新词族 vcquery 里，缺了它 t() 取不到键。
   const vcq = await import(locUrl('src/client/kernel/locale-vcquery.js'))
-  const dict = Object.assign({}, shellLoc.L_VCSHELL.zh, vcw.L_VCWRITE.zh, vcq.L_VCQUERY.zh)
+  // #1842：配置页与钩子页的文案分别在 vcconfig / vchooks 两个词族里，缺了它们 t() 取不到键。
+  const vccfg = await import(locUrl('src/client/kernel/locale-vcconfig.js'))
+  const vchk = await import(locUrl('src/client/kernel/locale-vchooks.js'))
+  const dict = Object.assign({}, shellLoc.L_VCSHELL.zh, vcw.L_VCWRITE.zh, vcq.L_VCQUERY.zh, vccfg.L_VCCONFIG.zh, vchk.L_VCHOOKS.zh)
   // vcText.js 单独拼进闭包时，相对时间窗口常量在真机闭包里由共享层提供；这里从 time-config 的
   // 生成物取同一份真值，挂到 window 上让闭包里的裸名读得到（与 verify-997 的手法一致）。
   const valuesMod = await import('file://' + path.join(ROOT, sourcePath('src/shared/time-config/values.js')).replace(/\\/g, '/'))
