@@ -92,7 +92,10 @@ console.log('')
 console.log('== ⑤ 静态面：读函数只认工作区文件、304 无条件带布局 ==')
 {
   const text = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/session-snapshot-cache.ts'), 'utf8')
-  check(text.includes('WORKSPACE_FILE_REL'), '读函数认工作区文件的位置（接线仍在）')
+  // 读函数与它的装饰件在 #1835 里拆成了两个文件：布局读取实现（认工作区文件位置的那段）
+  // 搬进 snapshot-decoration.ts，接线判断跟着实现走，不再钉死在快照缓存文件里。
+  const decoration = fs.readFileSync(path.join(ROOT, 'src/refresh/rooms/host/snapshot-decoration.ts'), 'utf8')
+  check(decoration.includes('WORKSPACE_FILE_REL'), '读函数认工作区文件的位置（接线仍在）')
   check(!/getChoiceStore\s*\(/.test(text) && !/getLayout\s*\(/.test(text), '读函数不再查本机记忆里的布局')
   check(text.includes('_pair.setupLayout = _layEarly'), '304 回包无条件带布局（含 null，客户端才能清空旧答案）')
   check(!text.includes('sameLayout || !_layEarly'), '旧的「没答案就留旧值」条件已删')

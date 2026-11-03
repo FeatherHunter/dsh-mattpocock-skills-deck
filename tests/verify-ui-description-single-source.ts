@@ -78,7 +78,9 @@ function sourceFiles(dirRel: string): string[] {
  * 逐处钉死而不是「至少一处」：某个通道被改回手抄、或整个调用被删掉，两者的差别正在次数上。
  */
 const CHANNELS = [
-  { file: 'src/refresh/rooms/host/session-snapshot-cache.ts', calls: 5 },
+  // #1835 把快照装饰件（三处投影调用之一：会话快照里的后端模块列表）拆进 snapshot-decoration.ts，
+  // 所以这一条通道现在横跨两个文件；次数仍是这条通道的总数，逐文件钉死会误判成「新开了一条通道」。
+  { file: 'src/refresh/rooms/host/session-snapshot-cache.ts', extraFiles: ['src/refresh/rooms/host/snapshot-decoration.ts'], calls: 5 },
   { file: 'src/refresh/rooms/host/session-refresh-schedule.ts', calls: 4 },
   { file: 'src/refresh/rooms/host/snapshot-build.ts', calls: 1 },
   { file: 'src/host/workspaceCwd.ts', calls: 1 },
@@ -90,11 +92,13 @@ check(hostFiles.length >= CHANNELS.length, `扫描宿主通道面只找到 ${hos
 for (const ch of CHANNELS) check(hostFiles.includes(ch.file), `${ch.file} 不在宿主通道面的扫描结果里，这条判据没跑到它`)
 
 for (const ch of CHANNELS) {
-  const text = read(ch.file)
-  const calls = countMatches(text, /\.map\(projectUiDescription\)/g)
+  const files = [ch.file].concat(ch.extraFiles || [])
+  const texts = files.map((f: string) => read(f))
+  const text = texts.join('\n')
+  const calls = texts.reduce((n: number, t: string) => n + countMatches(t, /\.map\(projectUiDescription\)/g), 0)
   check(
     calls === ch.calls,
-    `${ch.file}：应当有 ${ch.calls} 处 .map(projectUiDescription)，实际 ${calls} 处。少了就是某条通道被删或改回手抄，多了就是新开了一条通道——两种都要先回答「这条通道发给界面的字段从哪来」`,
+    `${files.join(' + ')}：应当有 ${ch.calls} 处 .map(projectUiDescription)，实际 ${calls} 处。少了就是某条通道被删或改回手抄，多了就是新开了一条通道——两种都要先回答「这条通道发给界面的字段从哪来」`,
   )
   const copied = countMatches(text, /Object\.assign\(\s*\{\s*id\s*:/g)
   check(copied === 0, `${ch.file}：又出现手抄的投影拼装（Object.assign({ id: … })）${copied} 处，请改回 .map(projectUiDescription)`)
