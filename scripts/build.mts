@@ -910,6 +910,9 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   // #1829 阶段 4 三个共享件：页头与四个页面原语、齿轮里的管理索引卡片、分支浮层；
   //   都排在页面壳之前，壳的挂载段才调得到（页面壳自己只保留页面顺序）。
   { id: 'vcPageHead', file: 'src/client/views/versionControl/vcPageHead.ts' },
+  // #1845 流程页小部件：状态芯片、动作条、进度条、贴触发点的提示，变基 / 冲突 / 任务三页共用。
+  //   与页头原语同一处登记，页面壳之前的叶子都看得到它。
+  { id: 'vcFlowParts', file: 'src/client/views/versionControl/vcFlowParts.ts' },
   { id: 'vcManageIndex', file: 'src/client/views/versionControl/vcManageIndex.ts' },
   { id: 'vcBranchPopover', file: 'src/client/views/versionControl/vcBranchPopover.ts' },
   { id: 'vcShellPages', file: 'src/client/views/versionControl/vcShellPages.ts' },

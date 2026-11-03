@@ -195,6 +195,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcChangesView.js',
   // #1829 阶段 4 三个共享件（与构建同序）：页头与页面原语、齿轮里的管理索引卡、分支浮层；壳的挂载段要看到它们。
   'src/client/views/versionControl/vcPageHead.js',
+  'src/client/views/versionControl/vcFlowParts.js',
   'src/client/views/versionControl/vcManageIndex.js',
   'src/client/views/versionControl/vcBranchPopover.js',
   'src/client/views/versionControl/vcShellPages.js',
@@ -3111,9 +3112,9 @@ async function main() {
     { name: '只读边界放行（任意配置键都能写）', patch: (s) => s.replace('if (!configKeyEditable(key))', 'if (false)'), test: configReadonlyJudgmentOf, what: 'Z17h' },
     { name: '2.36 的版本门恒放行（低版本也画运行按钮）', patch: (s) => s.replace("  if (!atLeast(v, 2, 36, 0)) return { state: 'hidden', needed: CONFIG_HOOK_RUN_MIN_VERSION, alternative: CONFIG_HOOK_RUN_ALTERNATIVE }", "  if (false) return { state: 'hidden', needed: CONFIG_HOOK_RUN_MIN_VERSION, alternative: CONFIG_HOOK_RUN_ALTERNATIVE }"), test: hooksGateJudgmentOf, what: 'Z17ac' },
     // #1748 / #1776 M2：变基待办页不再挂历史改写面板 —— Z17a 必须当场红。
-    //   M2 把这一页改成挂自带状态的面板（VC_UNDO_PANEL，内部自己走三段式），改法跟着新的挂载点一起搬；
+    //   #1845 把这块面板从壳根挪进了页面体（排在能力清单之前），改法跟着新的挂载点一起搬；
     //   否则这条改法落在已经不存在的源码文本上，自己空转却仍然假绿。
-    { name: '变基待办页不再挂历史改写面板', patch: (s) => s.replace("if (page === 'rebase' && typeof VC_UNDO_PANEL === 'function') children.push(keyed(h(VC_UNDO_PANEL,", "if (false) children.push(keyed(h(VC_UNDO_PANEL,"), test: undoMountedJudgmentOf, what: 'Z17a' },
+    { name: '变基待办页不再挂历史改写面板', patch: (s) => s.replace("if (page === 'rebase' && typeof VC_UNDO_PANEL === 'function') children.push(Object.assign({}, h(VC_UNDO_PANEL,", "if (false) children.push(Object.assign({}, h(VC_UNDO_PANEL,"), test: undoMountedJudgmentOf, what: 'Z17a' },
     // #1748：硬重置不再标危险档（用户看到的是一个「不危险」的毁级动作）—— Z17e 必须当场红。
     { name: '硬重置不再标危险档', patch: (s) => s.replace("targetDefault: '', danger: true, recovery: true,", "targetDefault: '', danger: false, recovery: true,"), test: undoDangerJudgmentOf, what: 'Z17e' },
     // #1748：确认卡不再画恢复点（点确认之前看不到会丢什么、怎么找回）—— Z17k 必须当场红。

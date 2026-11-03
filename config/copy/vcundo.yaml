@@ -6,6 +6,13 @@
 zh:
   vc.undo.title: 历史改写（撤销、重置、还原与拣选）
   vc.undo.note: 这五条动作会改写当前分支的历史。每一条都先预检，给你看一张 {{TICKET_TTL_MS/1000}} 秒有效的票，你点确认之后才真的执行。
+  vc.undo.section.pick: 选一条动作
+  vc.undo.section.pickNote: 五条动作共用同一条路：先选一条，再看它会影响什么，最后确认执行。动作名、命令原文与所属页面都从能力账本读，这里不另写一份。
+  vc.undo.section.impact: 看影响
+  vc.undo.section.impactNote: 选中的动作需要哪些输入就画哪些；点「预检」只读仓库，不改任何东西。预检结果（会做什么、不会动什么、能不能找回）就画在下面。
+  vc.undo.section.confirm: 确认执行
+  vc.undo.section.confirmNote: 预检通过会拿到一张 {{TICKET_TTL_MS/1000}} 秒有效的票；点确认才真的执行，执行中两颗按钮都会禁用。
+  vc.undo.section.confirmIdle: 还没有预检票。先在上一步点「预检」，这里会给出确认卡。
   vc.undo.opsNote: 动作名称右边是它对应的 git 命令；标着「毁」的动作会丢改动，确认卡里会写清丢了怎么找回。
   vc.undo.op.resetSoft: 撤销上一条提交、改动回到「已暂存」
   vc.undo.op.resetMixed: 撤销提交并取消暂存
@@ -81,6 +88,13 @@ zh:
 en:
   vc.undo.title: History rewrite (undo, reset, revert, cherry-pick)
   vc.undo.note: These five actions rewrite the current branch's history. Each one runs a precheck first, gives you a ticket valid for {{TICKET_TTL_MS/1000}} seconds, and only executes after you confirm.
+  vc.undo.section.pick: Choose an action
+  vc.undo.section.pickNote: "All five actions follow the same path: choose one, see what it changes, then confirm. Action names, git commands and page ownership all come from the capability ledger; this page does not keep a second copy."
+  vc.undo.section.impact: Check the impact
+  vc.undo.section.impactNote: Only the fields the chosen action needs are drawn here. The precheck reads the repository and changes nothing; its result (what runs, what is left alone, whether it can be undone) is drawn below.
+  vc.undo.section.confirm: Confirm and run
+  vc.undo.section.confirmNote: A successful precheck issues a ticket valid for {{TICKET_TTL_MS/1000}} seconds. Nothing runs until you confirm, and both buttons are disabled while it runs.
+  vc.undo.section.confirmIdle: No precheck ticket yet. Run the precheck in the step above and the confirm card will appear here.
   vc.undo.opsNote: The git command sits next to each action name. Actions marked "destroy" can lose changes; the confirm card spells out how to recover.
   vc.undo.op.resetSoft: Undo the last commit, keep changes staged
   vc.undo.op.resetMixed: Undo the last commit and unstage its changes

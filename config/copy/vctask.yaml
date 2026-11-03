@@ -33,6 +33,33 @@ zh:
   vc.task.start: 开始
   vc.task.query: 刷新
   vc.task.confirmRequired: 这个动作会改写历史或清理对象，需要先确认
+  vc.task.modesTitle: 选一种长任务
+  vc.task.modesNote: 三种长任务共用同一套进度与取消规则：开始前先说清目标，取消后要说清留下了什么。
+  vc.task.mode.cloneNote: 从一个远端地址拉一份完整历史到本机目录。
+  vc.task.mode.cloneCommand: git clone <地址> <目录>
+  vc.task.mode.archiveNote: 只导出某条提交的文件快照，不含历史，产出是一个压缩包。
+  vc.task.mode.archiveCommand: git archive -o <文件> <提交>
+  vc.task.mode.bundleNote: 把完整历史打进一个文件，没有网络时也能克隆回来。
+  vc.task.mode.bundleCommand: git bundle create <文件> --all
+  vc.task.progressTitle: 进度
+  vc.task.progressNote: 进度来自 git 的输出（真实实现里是 --progress 的读数），不是假动画。
+  vc.task.stage.prepare: 准备目标目录
+  vc.task.stage.prepareDetail: 检查目录是否为空、磁盘空间够不够；克隆会先写一个临时目录，成功后再改名。
+  vc.task.stage.receive: 接收对象
+  vc.task.stage.receiveDetail: 按对象数量与体积显示进度；网络中断时可以从已收到的部分继续。
+  vc.task.stage.checkout: 检出文件
+  vc.task.stage.checkoutDetail: 把当前分支的文件写到目标目录，这一步受磁盘速度影响最大。
+  vc.task.stage.verify: 完成校验
+  vc.task.stage.verifyDetail: 核对 HEAD 与远端一致、文件数量与权限正确，才算真正完成。
+  vc.task.stage.done: 已完成
+  vc.task.stage.active: 进行中
+  vc.task.stage.waiting: 等待
+  vc.task.percentUncertainNote: 这条任务还没有报出百分比，四个阶段只能依次等；界面不替它编数字。
+  vc.task.idleNote: 现在没有正在运行的长任务；任务开始后这里按 git 的真实读数逐阶段走到完成。
+  vc.task.listTitle: 任务清单
+  vc.task.cancelAfterTitle: 取消之后
+  vc.task.cancelAfterNote: 取消只是停掉正在跑的命令，不会替你删除已经写下的内容；结束时会把残留原样列出来，核对后由你自己清理。目标目录里原有的文件一律不动。
+  vc.task.cancelAfterRetry: 重来就按原来的动作再起一次任务。已取消、已失败、已中断的结论都留在任务清单里，先看清上一次停在哪一步，再决定是否重试。
   vc.task.op.clone: 克隆仓库
   vc.task.op.fetch: 抓取远端
   vc.task.op.pull: 拉取并合并
@@ -77,6 +104,33 @@ en:
   vc.task.start: Start
   vc.task.query: Refresh
   vc.task.confirmRequired: This action rewrites history or removes objects; confirm it first
+  vc.task.modesTitle: Choose a long-running task
+  vc.task.modesNote: "All three tasks share the same progress and cancel rules: state the target before starting, and say what was left behind when cancelling."
+  vc.task.mode.cloneNote: Pull a full history from a remote address into a local directory.
+  vc.task.mode.cloneCommand: git clone <url> <dir>
+  vc.task.mode.archiveNote: Export the file snapshot of one commit without history; the result is an archive file.
+  vc.task.mode.archiveCommand: git archive -o <file> <commit>
+  vc.task.mode.bundleNote: Pack the full history into one file that can be cloned back without a network.
+  vc.task.mode.bundleCommand: git bundle create <file> --all
+  vc.task.progressTitle: Progress
+  vc.task.progressNote: Progress comes from git output (the --progress readings in the real implementation), not from a fake animation.
+  vc.task.stage.prepare: Prepare target directory
+  vc.task.stage.prepareDetail: Check that the directory is empty and there is enough disk space; a clone writes a temporary directory first and renames it on success.
+  vc.task.stage.receive: Receive objects
+  vc.task.stage.receiveDetail: Progress follows object count and size; after a network drop the transfer resumes from what was already received.
+  vc.task.stage.checkout: Check out files
+  vc.task.stage.checkoutDetail: Write the files of the current branch into the target directory; disk speed matters most here.
+  vc.task.stage.verify: Verify and finish
+  vc.task.stage.verifyDetail: Confirm HEAD matches the remote and the file count and permissions are correct before calling it done.
+  vc.task.stage.done: Done
+  vc.task.stage.active: In progress
+  vc.task.stage.waiting: Waiting
+  vc.task.percentUncertainNote: This task has not reported a percentage yet, so the four stages can only wait in order; the interface does not invent numbers for it.
+  vc.task.idleNote: No long-running task is active right now; once one starts, this block follows git's real readings stage by stage.
+  vc.task.listTitle: Task list
+  vc.task.cancelAfterTitle: After cancelling
+  vc.task.cancelAfterNote: "Cancelling only stops the running command; it does not delete what was already written. The leftover artifacts are listed as-is when the task ends, and you clean them up after checking. Files already in the target directory are never touched."
+  vc.task.cancelAfterRetry: "To retry, start the same action again. Cancelled, failed, and interrupted results stay in the task list, so check where the previous run stopped before retrying."
   vc.task.op.clone: Clone repository
   vc.task.op.fetch: Fetch from remote
   vc.task.op.pull: Pull and merge

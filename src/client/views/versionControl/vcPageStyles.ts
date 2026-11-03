@@ -79,6 +79,23 @@ export const VC_PAGE_STYLE_TEXT = [
   '[data-vc-shell] .vcs-branch-facts{display:flex;flex-wrap:wrap;gap:2px 8px;color:var(--vcs-dim);font-size:11px;min-width:0}',
   '[data-vc-shell] .vcs-branch-close{margin-left:auto;flex:0 0 auto;padding:1px 6px;border:1px solid var(--vcs-line);border-radius:4px;background:var(--vcs-panel);color:var(--vcs-dim);font:inherit;font-size:12px;cursor:pointer}',
   '[data-vc-shell] .vcs-branch-close:hover{color:var(--vcs-accent);border-color:var(--vcs-accent)}',
+  // 流程页小部件（#1845）：状态芯片、进度条、贴触发点的提示。颜色一律走令牌，浅色只换令牌。
+  //   vcs-flow-btn 家族（基础、禁用、危险）给任务页的取消按钮用，不另起一套按钮样式。
+  '[data-vc-shell] .vcs-flow-chip{display:inline-block;flex:0 0 auto;padding:0 6px;border:1px solid var(--vcs-line);border-radius:999px;color:var(--vcs-dim);font-size:11px;line-height:1.7;white-space:nowrap}',
+  '[data-vc-shell] .vcs-flow-chip-ok{color:var(--vcs-accent);border-color:var(--vcs-accent)}',
+  '[data-vc-shell] .vcs-flow-chip-warn{color:var(--vcs-warn);border-color:var(--vcs-warn)}',
+  '[data-vc-shell] .vcs-flow-chip-danger{color:var(--vcs-danger);border-color:var(--vcs-danger)}',
+  '[data-vc-shell] .vcs-flow-btn{flex:0 1 auto;padding:2px 10px;border:1px solid var(--vcs-line);border-radius:4px;background:var(--vcs-panel);color:var(--vcs-fg);font:inherit;font-size:12px;cursor:pointer;overflow-wrap:anywhere;white-space:normal}',
+  '[data-vc-shell] .vcs-flow-btn:disabled{color:var(--vcs-dim);cursor:default}',
+  '[data-vc-shell] .vcs-flow-btn-danger{border-color:var(--vcs-danger);color:var(--vcs-danger)}',
+  '[data-vc-shell] .vcs-flow-meter{position:relative;display:flex;align-items:center;gap:6px;margin:4px 0;min-width:0;height:20px;border:1px solid var(--vcs-line);border-radius:999px;background:var(--vcs-panel);overflow:hidden}',
+  '[data-vc-shell] .vcs-flow-meter-bar{height:100%;min-width:2px;border-radius:999px;background:var(--vcs-accent)}',
+  '[data-vc-shell] .vcs-flow-meter-label{position:absolute;right:8px;top:50%;transform:translateY(-50%);color:var(--vcs-fg);font-size:11px;font-variant-numeric:tabular-nums}',
+  '[data-vc-shell] .vcs-flow-hint{margin:4px 0;padding:4px 8px;border-left:3px solid var(--vcs-warn);border-radius:0 4px 4px 0;background:var(--vcs-panel);min-width:0}',
+  '[data-vc-shell] .vcs-flow-hint-text{margin:0;color:var(--vcs-warn);font-size:12px;line-height:1.6;overflow-wrap:anywhere}',
+  '[data-vc-shell] .vcs-flow-hint-go{margin-top:4px;padding:1px 8px;border:1px solid var(--vcs-warn);border-radius:4px;background:transparent;color:var(--vcs-warn);font:inherit;font-size:12px;cursor:pointer}',
+  // 三个流程页都要给 git 命令一行等宽灰底（原型 48/49/50 的同一处细节）：类名叫 vcs-flow-cmd，任务页与冲突页共用。
+  '[data-vc-shell] .vcs-flow-cmd{margin:2px 0 0;padding:2px 6px;display:inline-block;max-width:100%;border:1px solid var(--vcs-line);border-radius:4px;background:var(--vcs-bg);color:var(--vcs-dim);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;line-height:1.6;overflow-wrap:anywhere}',
   // 380 与 300 两档：事实网格收成一列；300 档再收起层级、条数与分支事实这几项次要信息，入口不删。
   '[data-vc-shell][data-vc-width="380"] .fact-grid{grid-template-columns:minmax(0,1fr)}',
   '[data-vc-shell][data-vc-width="300"] .fact-grid{grid-template-columns:minmax(0,1fr)}',

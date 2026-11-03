@@ -190,6 +190,9 @@ const VC_FILES = [
   'src/client/views/versionControl/vcChangesView.js',
   // #1829 阶段 4 三个共享件（与构建同序）：页头与页面原语、齿轮里的管理索引卡、分支浮层；壳的挂载段要看到它们。
   'src/client/views/versionControl/vcPageHead.js',
+  // #1845 流程页共用小部件（状态芯片 / 动作条 / 进度条 / 行内提示）：变基、冲突、任务三页正文都要调它，
+  //   闭包里少了这一叶，三页渲染会直接 ReferenceError。
+  'src/client/views/versionControl/vcFlowParts.js',
   'src/client/views/versionControl/vcManageIndex.js',
   'src/client/views/versionControl/vcBranchPopover.js',
   'src/client/views/versionControl/vcShellPages.js',

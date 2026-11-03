@@ -622,7 +622,9 @@ async function main() {
     'vcConflictsSideLabelKeyOf', 'vcConflictsRequestIdOf', 'vcConflictsVisibleOf', 'vcConflictsPayloadOf', 'vcConflictsCheckArgsOf',
     'vcConflictsWriteArgsOf', 'vcConflictsTargetOf', 'vcConflictsListOf', 'vcConflictsChoicesOf', 'vcConflictsRowNode', 'vcConflictsPageNode']
   const leafBody = spliceableJs('src/client/views/versionControl/vcConflictsOps.ts') + '\n' +
-    spliceableJs('src/client/views/versionControl/vcConflictsPage.ts') + '\nreturn { ' + pickNames.join(', ') + ' }'
+    spliceableJs('src/client/views/versionControl/vcConflictsPage.ts') + '\n' +
+    // #1845 起页面正文调用 vcPageSectionNode / vcPageFactGridNode；两片原语只依赖 h 与 t，拼进同一个闭包即可。
+    spliceableJs('src/client/views/versionControl/vcPageHead.ts') + '\nreturn { ' + pickNames.join(', ') + ' }'
   const leaf = compileFn(['h', 't', 'vcWriteErrFamilyOf', 'splitConflictHunks', 'applyConflictChoices'], leafBody)(
     fakeH, fakeT, function (reason) { return String(reason) }, textMod.splitConflictHunks, textMod.applyConflictChoices)
   const sharedByCap = {}
@@ -648,7 +650,9 @@ async function main() {
   check(writeArgs.ticketId === 't1' && writeArgs.requestId === 'r1' && writeArgs.confirmed === true, 'F12 执行参数带票号、请求号与显式确认')
   const rid = leaf.vcConflictsRequestIdOf(1700000000000, 'a b!c')
   check(/^[A-Za-z0-9_-]+$/.test(rid) && rid.length <= 64 && leaf.vcConflictsRequestIdOf(1700000000001, 'a b!c') !== rid, 'F13 请求号形状合规且每次不同（重放靠它换回上一次结果）')
-  // 词条：真源 yaml 里 93 个键，中英两份同键；页面上出现的每个静态键都必须在这份词表里。
+  // 词条：真源 yaml 里 114 个键（#1845 冲突页按用途分区时新增 15 条；本轮审查修复又加 6 条：
+  // 汇总行的剩余冲突数、汇总说明，以及四种进行中操作各自的「继续…」按钮文案），中英两份同键；
+  // 页面上出现的每个静态键都必须在这份词表里。
   const yamlText = fs.readFileSync(path.join(ROOT, 'config', 'copy', 'vcconflicts.yaml'), 'utf8')
   const enAt = yamlText.indexOf('\nen:')
   const zhPart = yamlText.slice(0, enAt)
@@ -656,7 +660,7 @@ async function main() {
   const keysOf = function (part) { return part.split('\n').filter(function (l) { return /^  vc\.conflicts\.[A-Za-z0-9.]+:/.test(l) }).map(function (l) { return l.trim().split(':')[0] }) }
   const zhKeys = keysOf(zhPart)
   const enKeys = keysOf(enPart)
-  eq([zhKeys.length, enKeys.length], [93, 93], 'F14 词表 93 个键中英各一份（实得 ' + zhKeys.length + '/' + enKeys.length + '）')
+  eq([zhKeys.length, enKeys.length], [114, 114], 'F14 词表 114 个键中英各一份（实得 ' + zhKeys.length + '/' + enKeys.length + '）')
   eq(zhKeys.slice().sort().join(','), enKeys.slice().sort().join(','), 'F15 中英两份的键完全同名（缺一门就生成器报错，这里再守一道）')
   const wantedKeys = leaf.VC_CONFLICTS_OPS.map(function (o) { return leaf.vcConflictsOpLabelKeyOf(o.op) }).concat(leaf.VC_CONFLICTS_OPS.map(function (o) { return leaf.vcConflictsOpVerbKeyOf(o.op) }))
   const missingKeys = wantedKeys.filter(function (k) { return zhKeys.indexOf(k) < 0 })
@@ -721,6 +725,17 @@ async function main() {
   const localeText = localeDataText()
   const localeMissing = zhKeys.filter(function (k) { return localeText.indexOf("'" + k + "'") < 0 })
   eq(localeMissing, [], 'F36 词表已生成进运行时词条表（缺生成物时这一条会点名）')
+  // #1845 审查阻塞项 3/4/5：清空态不画红危险段；还有冲突文件时汇总行的「继续…」不可点；
+  // 每个冲突文件都有一颗「标记已解决」快捷键，点了走既有 6.8 的同一条 begin 路径（不新增能力，也不自己记账）。
+  const idlePage = leaf.vcConflictsPageNode(fakeH, fakeT, { conflicts: { state: null, reads: {}, rows: {}, values: {}, handlers: {} } })
+  eq(findAll(idlePage, function (n) { return n.props['data-vc-danger-section'] === '1' }).length, 0, 'F37 清空态不画红危险段（没有进行中操作、也没有冲突文件时「当前冲突」段不带危险标记）')
+  const began = []
+  const busyPage = leaf.vcConflictsPageNode(fakeH, fakeT, { conflicts: makeConflicts({ reads: { 'conflict-list': listRead }, handlers: { begin: function (op, payload) { began.push(op + ':' + JSON.stringify(payload)) } } }) })
+  const continueBtn = findAll(busyPage, function (n) { return n.props['data-vc-conflicts-file-continue'] !== undefined })[0]
+  check(!!continueBtn && continueBtn.props['data-vc-conflicts-file-continue'] === '2' && continueBtn.props.disabled === true, 'F38 还有冲突文件时汇总行的「继续」按钮不可点（实得 ' + (continueBtn ? continueBtn.props['data-vc-conflicts-file-continue'] + ' 个 / disabled=' + String(continueBtn.props.disabled) : '没画') + '）')
+  const resolveBtns = findAll(busyPage, function (n) { return n.props['data-vc-conflicts-file-resolve'] !== undefined })
+  if (resolveBtns.length > 0 && typeof resolveBtns[0].props.onClick === 'function') resolveBtns[0].props.onClick()
+  check(resolveBtns.length === 2 && resolveBtns[0].props['data-vc-conflicts-file-path'] === 'a.txt' && began.join(',') === 'mark-resolved:{"path":"a.txt"}', 'F39 每个冲突文件都有「标记已解决」快捷键，点了走 6.8 的同一条 begin 路径（实得 ' + resolveBtns.length + ' 颗 / ' + began.join(',') + '）')
 
   for (let i = 0; i < tmpDirs.length; i += 1) {
     try { fs.rmSync(tmpDirs[i], { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }) } catch (e) { console.log('  INFO 临时仓库没删干净（不影响结论）：' + tmpDirs[i]) }

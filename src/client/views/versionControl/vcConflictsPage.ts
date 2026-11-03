@@ -1,10 +1,16 @@
 // views/versionControl/vcConflictsPage.ts —— 冲突向导的界面正文（#1747 T12）
 // 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回 src/client/index.ts 的 leaf 标记处。
 // 职责四条：
-//   1. 画冲突现场：进行中操作是什么、冲突文件清单按八类逐条列，每条给出可用的边（当前/对方/保留删除）；
+//   1. 画冲突现场：进行中操作是什么、冲突文件清单按八类逐条列，每条给出可用的边（当前/对方/保留删除）
+//      与一颗「标记已解决」快捷键；
 //   2. 能力 6.1–6.15 逐条一行，主入口、输入与自己那块结果都贴在同一行里；
 //   3. 6.7 的冲突视图逐块给出当前边/对方边，并在块上提供选择；选择由共享层 applyConflictChoices 拼成整份后送 6.7 保存；
 //   4. 危险动作（跳过、中止）走四段确认卡；失败话术与写页同源（vcWriteErrFamilyOf），界面不另写一份理由文案。
+//   5. 正文按原型 49 分段（#1845）：当前冲突 / 合并 / 逐文件处置 / 冲突内容与检查 / 进行中操作 / 会动与不会动；
+//      页头（返回、标题、导语）由页面壳统一画，正文不再画 h3 与页级导语。
+//   6. 冲突文件旁的「标记已解决」只转给既有 6.8 的同一条预检路径（handlers.begin），不新增能力；
+//      不做「已解决芯片 / 撤销」——宿主回包只有文件清单与分类，没有逐文件的已解决集合，
+//      页面自己记账会和仓库真实状态分叉，所以这一下必须由 6.8 的回包来确认结果。
 // 界面一个中文字面量都没有：可见文字全走 t(词条)，词条真源 config/copy/vcconflicts.yaml；
 //   h 与 t 从参数传入，本文件不读闭包全局，门禁可以直接求值后再断言。
 
@@ -24,6 +30,10 @@ declare function vcConflictsChoicesOf(hunkCount: any, choices: any): any[]
 declare function vcWriteErrFamilyOf(reason: any, kind: any): string
 declare function splitConflictHunks(text: any): any
 declare function applyConflictChoices(text: any, choices: any): any
+// #1845 起正文改用共用原语画分区与事实格（vcPageHead.ts 与页面拼在同一个闭包里）：
+// 分区标题行、危险段标记与事实网格都由原语统一画，页面只决定每一段放什么、按什么顺序放。
+declare function vcPageSectionNode(h: any, t: any, o: any): any
+declare function vcPageFactGridNode(h: any, t: any, o: any): any
 
 const vcConflictsNoteNode = function (h: any, t: any, meta: any, state: any) {
   if (!state || !state.noteKey) return null
@@ -157,8 +167,10 @@ const vcConflictsReadNode = function (h: any, t: any, meta: any, read: any, stat
   return h('div', attrs, kids)
 }
 
-// 冲突清单常驻在页顶：每条给路径与类别，可用的边各给一个快捷按钮（没有的边不画，不是灰着）。
-const vcConflictsFilesNode = function (h: any, t: any, conflicts: any[], handlers: any) {
+// 冲突清单常驻在页顶：每条给路径与类别，可用的边各给一个快捷按钮（没有的边不画，不是灰着）；
+// 边之后再加一颗「标记已解决」，走的是 6.8 的同一条预检路径（handlers.begin），不新增能力。
+// 清单之后是汇总行：剩余冲突数与「继续…」按钮；跳过/中止这类危险动作留在下方「进行中操作」段，不在这里重复挂。
+const vcConflictsFilesNode = function (h: any, t: any, conflicts: any[], handlers: any, state: string) {
   const on: any = handlers || {}
   const items: any[] = conflicts.map(function (item: any) {
     const sides: any = item.sides || {}
@@ -178,13 +190,35 @@ const vcConflictsFilesNode = function (h: any, t: any, conflicts: any[], handler
       'data-press': 'button', 'data-log': 'vc.conflicts.take-side.delete',
       onClick: function () { if (typeof on.onTakeSide === 'function') on.onTakeSide(item.path, 'delete') },
     }, t('vc.conflicts.side.delete')))
+    // 标记已解决：路径从这一行来，预检、确认与执行仍是 6.8 原来那套；页面不自己记「已解决」状态。
+    buttons.push(h('button', {
+      key: 'resolve', type: 'button', className: 'vcs-conflicts-file-resolve', 'data-vc-conflicts-file-resolve': '1', 'data-vc-conflicts-file-path': item.path,
+      'data-press': 'button', 'data-log': 'vc.conflicts.mark-resolved',
+      onClick: function () { if (typeof on.begin === 'function') on.begin('mark-resolved', vcConflictsPayloadOf('mark-resolved', { path: item.path })) },
+    }, t('vc.conflicts.op.markResolved')))
     return h('li', { key: item.path, className: 'vcs-conflicts-file', 'data-vc-conflicts-file': item.path, 'data-vc-conflicts-file-kind': item.kind }, [
       h('span', { key: 'path', className: 'vcs-conflicts-file-path' }, item.path),
       h('span', { key: 'kind', className: 'vcs-conflicts-badge', 'data-vc-conflicts-file-kind-label': item.kind }, t(vcConflictsKindLabelKeyOf(item.kind))),
     ].concat(buttons))
   })
-  if (items.length === 0) return h('p', { key: 'files-empty', className: 'vcs-conflicts-note', 'data-vc-conflicts-files-empty': '1' }, t('vc.conflicts.files.empty'))
-  return h('ul', { key: 'files', className: 'vcs-conflicts-files', 'data-vc-conflicts-files': String(items.length) }, items)
+  const list: any = items.length === 0
+    ? h('p', { key: 'files-empty', className: 'vcs-conflicts-note', 'data-vc-conflicts-files-empty': '1' }, t('vc.conflicts.files.empty'))
+    : h('ul', { key: 'files', className: 'vcs-conflicts-files', 'data-vc-conflicts-files': String(items.length) }, items)
+  // 没有进行中操作时没有「继续」可点，危险段也不在页面上，汇总行整块不画。
+  if (state === '') return list
+  // 继续按钮沿用 6.11 的同一条 handlers.begin 路径；还有冲突文件时不可点（先把逐文件处置做完）。
+  const contAttrs: any = { key: 'continue', type: 'button', className: 'vcs-conflicts-file-continue', 'data-vc-conflicts-file-continue': String(conflicts.length), disabled: conflicts.length > 0, 'data-press': 'button', 'data-log': 'vc.conflicts.op-continue' }
+  contAttrs.onClick = function () { if (typeof on.begin === 'function') on.begin('op-continue', vcConflictsPayloadOf('op-continue', {})) }
+  // 按钮文案跟着进行中的操作变：合并 / 变基 / 拣选 / 回退；四个键都写成静态字面量，词表检查扫得到。
+  const continueKey: string = state === 'rebase' ? 'vc.conflicts.files.continue.rebase'
+    : state === 'cherry-pick' ? 'vc.conflicts.files.continue.cherryPick'
+      : state === 'revert' ? 'vc.conflicts.files.continue.revert' : 'vc.conflicts.files.continue.merge'
+  const summary: any[] = [
+    h('p', { key: 'left', className: 'vcs-conflicts-files-left', 'data-vc-conflicts-files-left': String(conflicts.length) }, t('vc.conflicts.files.left', { n: String(conflicts.length) })),
+    h('button', contAttrs, t(continueKey)),
+    h('p', { key: 'note', className: 'vcs-conflicts-note', 'data-vc-conflicts-files-note': '1' }, t('vc.conflicts.files.summaryNote')),
+  ]
+  return [list, h('div', { key: 'summary', className: 'vcs-conflicts-files-summary', 'data-vc-conflicts-files-summary': '1' }, summary)]
 }
 
 // 一行：能力编号与名字、徽标、输入、主入口按钮，以及确认卡 / 结果 / 只读结果（都在这行里）。
@@ -216,22 +250,70 @@ export const vcConflictsRowNode = function (h: any, t: any, meta: any, opts: any
   return h('li', { key: String(meta.capId), className: 'vcs-conflicts-row', 'data-vc-conflicts-row': String(meta.capId), 'data-vc-conflicts-row-op': String(meta.op) }, kids)
 }
 
-// 整页：页顶状态与冲突文件清单 + 15 条动作行；页面壳只在 conflicts 页把这块挂进页面体，别的页不出现。
+// 每段放哪些能力：按用途分组，同一能力只出现在一段里（6.10 预演合并归「合并」段，因为它回答的是
+// 「这次合并会不会冲突」；6.14/6.15 是读数不是动作，归「冲突内容与检查」）。段的先后照原型 49 的信息层级：
+// 先看冲突在哪，再按用途逐条操作，最后说清会动什么、不会动什么。
+const VC_CONFLICTS_SECTION_OPS = [
+  { title: 'vc.conflicts.section.merge', ops: ['merge', 'merge-ff-only', 'merge-no-ff', 'merge-squash', 'merge-preview'] },
+  { title: 'vc.conflicts.section.perFile', ops: ['conflict-list', 'take-side', 'save-file', 'mark-resolved'] },
+  { title: 'vc.conflicts.section.content', ops: ['conflict-view', 'rerere-view', 'marker-check'] },
+  { title: 'vc.conflicts.section.ongoing', ops: ['op-continue', 'op-skip', 'op-abort'], danger: true },
+]
+
+// 「会动与不会动」四格：静态边界说明，不随冲突数量变化；键与值都交原语过 t，页面不拼文案。
+const VC_CONFLICTS_BOUNDARY_FACTS = [
+  { key: 'vc.conflicts.facts.willDo', value: 'vc.conflicts.facts.willDoValue' },
+  { key: 'vc.conflicts.facts.wontDo', value: 'vc.conflicts.facts.wontDoValue' },
+  { key: 'vc.conflicts.facts.recovery', value: 'vc.conflicts.facts.recoveryValue' },
+  { key: 'vc.conflicts.facts.editor', value: 'vc.conflicts.facts.editorValue' },
+]
+
+// 整页：先「当前冲突」一段（状态行、错误、冲突文件清单），再按用途分四段画 15 条能力行，
+// 最后一段说清会动与不会动；页头（返回、标题、导语）由页面壳统一画，这里不再画 h3 与页级导语。
+// 约定：每段各用一只 ul.vcs-conflicts-rows，行内部结构、data-vc-conflicts-* 属性与执行逻辑
+// （handlers / 载荷 / 确认卡 / 电话）都还是 vcConflictsRowNode 原来那套，这里只决定它落在哪一段。
+// 分段过滤仍走 vcConflictsVisibleOf：没有进行中操作时 6.11/6.12/6.13 整行不出现，「进行中操作」段整段不画。
 export const vcConflictsPageNode = function (h: any, t: any, o: any) {
   const opts: any = o || {}
   const c: any = opts.conflicts || {}
   const state: string = (c.state === undefined || c.state === null) ? '' : String(c.state)
   const conflicts: any[] = vcConflictsListOf(c.reads && c.reads['conflict-list'])
-  const kids: any[] = [
-    h('h3', { key: 'title', className: 'vcs-conflicts-title' }, t('vc.conflicts.pageTitle')),
-    h('p', { key: 'hint', className: 'vcs-conflicts-hint', 'data-vc-conflicts-hint': '1' }, t('vc.conflicts.hint')),
+  const visible: string[] = vcConflictsVisibleOf(state)
+  // 一段的行：只画本段里可见的能力，能力号在段内保持升序；空段由调用处整段略过。
+  const rowsOf = function (ops: string[]) {
+    return VC_CONFLICTS_OPS.filter(function (meta: any) { return ops.indexOf(meta.op) >= 0 && visible.indexOf(meta.op) >= 0 }).map(function (meta: any) {
+      return vcConflictsRowNode(h, t, meta, { values: c.values, rows: c.rows, handlers: c.handlers })
+    })
+  }
+  // 第一段：当前冲突位置。状态行与错误放在这一段最上面，读者先知道「现在在什么操作里」再读文件清单；
+  // 旧页顶的提示行（data-vc-conflicts-hint）保留在这里，紧挨文件清单，说明这份清单怎么用。
+  const currentKids: any[] = [
     h('p', { key: 'state', className: 'vcs-conflicts-state', 'data-vc-conflicts-state': state === '' ? 'none' : state }, state === '' ? t('vc.conflicts.state.none') : t('vc.conflicts.stateLine', { state: t(vcConflictsStateLabelKeyOf(state)), n: String(conflicts.length) })),
   ]
-  if (c.error) kids.push(h('p', { key: 'err', className: 'vcs-conflicts-error', role: 'alert', 'data-vc-conflicts-error': '1' }, String(c.errorText || t('vc.conflicts.result.failTitle'))))
-  kids.push(h('div', { key: 'files-block', className: 'vcs-conflicts-files-block' }, [h('h4', { key: 'title', className: 'vcs-conflicts-files-title' }, t('vc.conflicts.files.title')), vcConflictsFilesNode(h, t, conflicts, c.handlers)]))
-  const visible: string[] = vcConflictsVisibleOf(state)
-  kids.push(h('ul', { key: 'rows', className: 'vcs-conflicts-rows' }, VC_CONFLICTS_OPS.filter(function (meta: any) { return visible.indexOf(meta.op) >= 0 }).map(function (meta: any) {
-    return vcConflictsRowNode(h, t, meta, { values: c.values, rows: c.rows, handlers: c.handlers })
-  })))
+  if (c.error) currentKids.push(h('p', { key: 'err', className: 'vcs-conflicts-error', role: 'alert', 'data-vc-conflicts-error': '1' }, String(c.errorText || t('vc.conflicts.result.failTitle'))))
+  currentKids.push(h('p', { key: 'hint', className: 'vcs-conflicts-hint', 'data-vc-conflicts-hint': '1' }, t('vc.conflicts.hint')))
+  currentKids.push(vcConflictsFilesNode(h, t, conflicts, c.handlers, state))
+  // 危险标记只在真的有事要处理时画：有进行中操作、或已经读到冲突文件。清空态是一块普通段落，
+  //   否则「当前冲突」会顶着红色危险标签说「没有冲突」，把读者吓一跳。
+  const kids: any[] = [vcPageSectionNode(h, t, {
+    title: 'vc.conflicts.section.current',
+    count: conflicts.length,
+    note: 'vc.conflicts.section.currentNote',
+    danger: state !== '' || conflicts.length > 0,
+    children: currentKids,
+  })]
+  VC_CONFLICTS_SECTION_OPS.forEach(function (group: any) {
+    const rows: any[] = rowsOf(group.ops)
+    if (rows.length === 0) return
+    kids.push(vcPageSectionNode(h, t, {
+      title: group.title,
+      danger: group.danger === true,
+      children: h('ul', { key: 'rows', className: 'vcs-conflicts-rows' }, rows),
+    }))
+  })
+  kids.push(vcPageSectionNode(h, t, {
+    title: 'vc.conflicts.section.boundaries',
+    children: vcPageFactGridNode(h, t, { facts: VC_CONFLICTS_BOUNDARY_FACTS }),
+  }))
   return h('section', { id: 'vc-conflicts-page', className: 'vcs-conflicts', role: 'region', 'data-vc-conflicts-page': '1', 'data-vc-conflicts-count': String(VC_CONFLICTS_OPS.length) }, kids)
 }
