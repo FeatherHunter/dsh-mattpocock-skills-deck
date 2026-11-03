@@ -225,7 +225,10 @@ export const VC_SHELL_STYLE_TEXT = [
   //   为什么特异度要 0,3,0：proto 适配块里「.panel-body{flex:none}」是后注入的同特异度规则，必须压过它正文才能撑满。
   '.vcs-live.is-tabpage{height:100%;min-height:0}',
   '.vcs-live.is-tabpage>.vcs-live-shell{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}',
-  '.vcs-live.is-tabpage>.vcs-live-shell>.vcs-root{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}',
+  //   根 .vcs-root 仍带旧皮肤容器 [data-vc-root] 的 12px 内边距（vcStyles.ts:60），铺满后它会让正文整体缩进、
+  //   提交区离面板底差 13px（12 内边距 + 1 边框，真机量出来 784 vs 797）；原型 .panel 内边距是 0，这里一并归零。
+  //   边框留着：原型 .panel 也有一圈 1px 边线，差 1px 在验收容差（≤2px）内。
+  '.vcs-live.is-tabpage>.vcs-live-shell>.vcs-root{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:0}',
   '.vcs-live.is-tabpage .vcs-root>.rail,.vcs-live.is-tabpage .vcs-root>.views{flex:none;min-height:0}',
   //   页面体自己不带内边距：原型 .panel-body 是 0，四页正文各自的区块（统计卡、分组头、提交区）都按原型自带 8/12px 内边距；
   //   多出这一层内边距会让提交区离面板底差 8px，正是并排图里能看出来的那条缝。

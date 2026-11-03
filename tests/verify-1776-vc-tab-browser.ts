@@ -382,10 +382,14 @@ async function groupFill(page: any) {
         rootClass: root ? String(root.className) : '',
         pane: box('#pane'), root: box('[data-vc-live]'), shell: box('[data-vc-shell]'),
         body: box('.vcs-page-body'), view: box('.vcs-page-body>.view'), composer: box('[data-vc-commit-panel]'),
+        shellPadTop: (() => { const s = q('[data-vc-shell]'); return s ? getComputedStyle(s).paddingTop : '' })(),
       }
     }))
     const tag = 'F 铺满：' + tab
     check(!!m && m.rootClass.indexOf('is-tabpage') >= 0, tag + ' 首层根节点带 is-tabpage（实得「' + (m && m.rootClass) + '」）')
+    // 壳根同时带着旧皮肤容器 [data-vc-root] 的 12px 内边距（vcStyles.ts）；铺满后它必须归零，
+    //   否则真机上正文整体缩进、提交区离面板底差 13px（#1860 真机验证发现的那条）。
+    check(!!m && m.shellPadTop === '0px', tag + ' 壳根内边距归零（旧容器 12px 已让位，实得 ' + (m && m.shellPadTop) + '）')
     check(!!m && m.root && Math.abs(m.root.height - PANE_SHELL_H) <= 2, tag + ' 根节点撑满宿主可用高度 ' + PANE_SHELL_H + '（实得 ' + (m && m.root ? m.root.height.toFixed(1) : 'null') + '）')
     check(!!m && m.shell && m.root && Math.abs(m.shell.bottom - m.root.bottom) <= 2 && Math.abs(m.shell.top - m.root.top) <= 2, tag + ' 页面壳上下都贴到根节点（壳 ' + (m && m.shell ? m.shell.top.toFixed(1) + '…' + m.shell.bottom.toFixed(1) : 'null') + '，根 ' + (m && m.root ? m.root.top.toFixed(1) + '…' + m.root.bottom.toFixed(1) : 'null') + '）')
     check(!!m && m.view && m.body && Math.abs(m.view.bottom - m.body.bottom) <= 2, tag + ' 正文撑满页面体、没有按内容高度提前结束（正文底 ' + (m && m.view ? m.view.bottom.toFixed(1) : 'null') + '，页面体底 ' + (m && m.body ? m.body.bottom.toFixed(1) : 'null') + '）')
@@ -398,8 +402,18 @@ async function groupFill(page: any) {
   await mount(page)
   await click(page, '[data-vc-gear-btn]')
   await click(page, '[data-vc-gear-item="remote"]')
-  const depth2 = await withPaneHeight(page, PANE_SHELL_H, () => page.evaluate(() => ({ rootClass: String((document.querySelector('[data-vc-live]') || { className: '' }).className), page: String((document.querySelector('[data-vc-live]') || { getAttribute: () => '' }).getAttribute('data-vc-live-page')) })))
+  const depth2 = await withPaneHeight(page, PANE_SHELL_H, () => page.evaluate(() => {
+    const live = document.querySelector('[data-vc-live]') as any
+    const shell = document.querySelector('[data-vc-shell]') as any
+    return {
+      rootClass: String((live || { className: '' }).className),
+      page: String((live || { getAttribute: () => '' }).getAttribute('data-vc-live-page')),
+      shellPadTop: shell ? getComputedStyle(shell).paddingTop : '',
+    }
+  }))
   check(depth2.page === 'remote' && depth2.rootClass.indexOf('is-tabpage') < 0, 'F 铺满：二级页（' + depth2.page + '）不挂 is-tabpage，仍按内容高度由宿主滚动（实得「' + depth2.rootClass + '」）')
+  // 反向：二级页仍用旧皮肤容器的 12px 内边距（本票不动二级页的外观）。
+  check(depth2.shellPadTop === '12px', 'F 铺满：二级页壳根仍保留旧容器的 12px 内边距（实得 ' + depth2.shellPadTop + '）')
 }
 
 // ---------------- B 组：页签、齿轮、顶栏入口、命令面板 ----------------
@@ -590,8 +604,14 @@ async function groupEmpty(page: any) {
   const valuesMod = await import(pathToFileURL(path.join(ROOT, sourcePath('src/shared/time-config/values.js'))).href)
   const timeVals: any = {}
   for (const k of Object.keys(valuesMod)) if (typeof valuesMod[k] === 'number') timeVals[k] = valuesMod[k]
-  // 真机里样式按 src/client/index.ts 的顺序一次注入：壳样式 → #1829/#1840 新样式 → #1860 原型样式。
+  // 真机里样式按 src/client/index.ts 的顺序一次注入：旧皮肤容器 vcStyles → 壳样式 → #1829/#1840 新样式 → #1860 原型样式。
   // 这里必须同序拼全，否则截出来的形状是没上色的裸文本，看不出还原得对不对。
+  // 旧容器 vcStyles 也要拼：它给壳根 [data-vc-root] 带 12px 内边距，漏掉就会把「壳根内边距没归零」这类
+  //   真机上看得见的偏差截成绿的（#1860 收尾时真机量出提交区离面板底差 13px，浏览器门禁当时没拼这份样式）。
+  // vcStyles 是构建期拼进闭包的叶子：源码里直接引用 MOTION.vcShimmerMs（骨架条动画时长，与版式无关）。
+  // 单独 import 它必须先把这个常量放进全局，值从真源 motion.ts 取，不写死一个数。
+  ;(globalThis as any).MOTION = (await import(pathToFileURL(path.join(ROOT, 'src/client/kernel/motion.ts')).href)).MOTION
+  const oldStylesMod = await import(pathToFileURL(path.join(ROOT, 'src/client/views/versionControl/vcStyles.ts')).href)
   const stylesMod = await import(pathToFileURL(path.join(ROOT, 'src/client/views/versionControl/vcShellStyles.ts')).href)
   // vcPageStyles 是拼接型叶子（引用了同一闭包里的 MOTION 常量），单独 import 会 ReferenceError；
   // 它只服务二级页，本门禁的四页签首屏用不到，这里不拼它。
@@ -603,6 +623,7 @@ async function groupEmpty(page: any) {
     protoCssParts.push(...(mod['VC_PROTO_STYLE_' + name.slice('vcProto'.length).toUpperCase()] || []))
   }
   const css = 'html,body{margin:0;padding:0}#pane{width:100%}'
+    + String(oldStylesMod.VC_STYLE_TEXT || '')
     + String(stylesMod.VC_SHELL_STYLE_TEXT || '')
     + protoCssParts.join('\n')
   const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')

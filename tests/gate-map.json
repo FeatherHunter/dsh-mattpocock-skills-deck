@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-03T21:27:32.604Z",
+  "generatedAt": "2026-11-03T21:44:58.701Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 553,
   "gateCount": 553,
@@ -5689,8 +5689,10 @@
         "docs/review/20261025-spec-complete-prompt-review.html",
         "scripts/lib/transpile-unit.mts",
         "src/client/kernel/locale-data.ts",
+        "src/client/kernel/motion.ts",
         "src/client/views/shared/workRouteTable.ts",
         "src/client/views/versionControl/vcShellStyles.ts",
+        "src/client/views/versionControl/vcStyles.ts",
         "src/refresh/rooms/host/outbound-admission.ts",
         "src/shared/time-config/src/values.ts",
         "tests/lib/browser-pool.ts",
@@ -5714,8 +5716,8 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 332,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 7 条"
+      "expectedAssertions": 337,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-1783-comments-projection.ts",
