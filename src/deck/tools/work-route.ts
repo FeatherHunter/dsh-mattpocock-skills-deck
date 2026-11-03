@@ -51,7 +51,7 @@ export interface DeckWorkRouteDeps {
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_work_route',
-  description: '查看本工作区在办表（按会话分组）：默认只看 ' + ACTIVE_HOURS + ' 小时内在办的条目，传 includeStale:true 展开 ' + RETENTION_DAYS + ' 天内全部（含陈旧）；limit 控制最多回多少条。数据来自本机工作区存档，只含本工作区 ' + RETENTION_DAYS + ' 天内动过的条目；在办指 ' + ACTIVE_HOURS + ' 小时内动过，存档上限 ' + CHAIN_MAX_BYTES_LABEL + '。写票回执不再带在办表，要看就来这里。',
+  description: '查看本工作区在办表（按会话分组）：默认只看 ' + ACTIVE_HOURS + ' 小时内在办的条目，传 includeStale:true 展开 ' + RETENTION_DAYS + ' 天内全部（含陈旧）；limit 控制最多回多少条。什么时候调：想了解有哪些会话在处理哪些票，或怀疑自己要和别的会话撞同一张票时。数据来自本机工作区存档，只含本工作区 ' + RETENTION_DAYS + ' 天内动过的条目；在办指 ' + ACTIVE_HOURS + ' 小时内动过这张票，不代表那个会话此刻还在跑；存档上限 ' + CHAIN_MAX_BYTES_LABEL + '。写票回执不再带在办表，要看就来这里。',
   parameters: {
     type: 'object',
     properties: {
